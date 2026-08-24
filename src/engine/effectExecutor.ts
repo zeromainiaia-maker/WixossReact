@@ -2312,6 +2312,7 @@ function resolveDynamicFilter(
   effectivePowers?: Map<string, number>,
   sourceCardNum?: string,
   triggeringCardNum?: string,
+  declaredRefSt?: import('../types').PlayerState,
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
@@ -2320,22 +2321,25 @@ function resolveDynamicFilter(
     result = {
       ...result,
       anyOf: result.anyOf.map(sub =>
-        resolveDynamicFilter(sub, ownerSt, cardMap, otherSt, lastProcessedCards, effectivePowers, sourceCardNum, triggeringCardNum) ?? sub),
+        resolveDynamicFilter(sub, ownerSt, cardMap, otherSt, lastProcessedCards, effectivePowers, sourceCardNum, triggeringCardNum, declaredRefSt) ?? sub),
     };
   }
+  // 公開・探索対象の owner と宣言者は一致しないことがある（O-57 B群＝相手デッキを、効果所有者が宣言した
+  // カード名で照合）。省略時は従来どおり候補 owner の state を参照する。
+  const declarationState = declaredRefSt ?? ownerSt;
   const noMatch = (rest: import('../types/effects').TargetFilter): import('../types/effects').TargetFilter =>
     ({ ...rest, cardNum: '__dynamic_filter_reference_unavailable__' });
   if (result.levelEqDeclaredNumber) {
     const { levelEqDeclaredNumber: _dn, ...rest } = result;
     // declared_number（ガード制限を伴わない汎用宣言）を優先し、旧来の DECLARE_NUMBER 保存先へフォールバック。
-    const value = ownerSt.declared_number ?? ownerSt.declared_guard_restrict_level;
+    const value = declarationState.declared_number ?? declarationState.declared_guard_restrict_level;
     result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
   }
   // 宣言参照 filter（タスク12(xlvi)(c)）。⚠未宣言なら noMatch＝「宣言していないのにどのカードでも拾える」
   // 過剰実行を避ける（従来この2語彙が無く、宣言参照の pick は filter ごと落ちて全公開札が候補になっていた）。
   if (result.nameEqDeclaredName) {
     const { nameEqDeclaredName: _nd, ...rest } = result;
-    const name = ownerSt.declared_card_name;
+    const name = declarationState.declared_card_name;
     // cardName は部分一致なのでカード名の完全一致には cardNames（配列＝完全一致）を使う。
     result = name ? { ...rest, cardNames: [name] } : noMatch(rest);
   }
@@ -2350,12 +2354,12 @@ function resolveDynamicFilter(
   }
   if (result.classEqDeclaredClass) {
     const { classEqDeclaredClass: _cd, ...rest } = result;
-    const cls = ownerSt.declared_class;
+    const cls = declarationState.declared_class;
     result = cls ? { ...rest, story: cls } : noMatch(rest);
   }
   if (result.colorEqDeclaredColorIndex != null) {
     const { colorEqDeclaredColorIndex: index, ...rest } = result;
-    const color = ownerSt.declared_colors?.[index];
+    const color = declarationState.declared_colors?.[index];
     result = color ? { ...rest, color } : noMatch(rest);
   }
   if (result.colorMatchesLrigIndex != null) {
@@ -5990,7 +5994,12 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   // `resolveDynamicFilter` は知らないので、SEARCH（`:2812`）／ADD_TO_FIELD（`:4171`）と同じく先に前処理する。
   // 落ちていると `WXK10-029-E2`「コストで捨てたシグニと共通するクラスを持つシグニを２枚まで」が
   // **公開3枚から何でも2枚拾える**過剰効果になる（続き377n）。
-  const rapFilter = resolveDynamicFilter(resolveDiscardLevelFilter(a.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+  const rapFilter = resolveDynamicFilter(
+    resolveDiscardLevelFilter(a.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt,
+    ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+    // 宣言は効果所有者が行う。公開元が opponent でも宣言値は ctx.ownerState に保存される。
+    ctx.ownerState,
+  );
   let pickable = rapFilter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), rapFilter)) : visible;
   // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
   // 「レベル参照上書き」カードも対象に含める
@@ -10374,6 +10383,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // 選択式UP（「シグニ1体を対象とし、アップする」）の選択後適用。
       // UP case が無いと default→execUp 再実行で再選択ループ＝無限ループになるため明示処理（goldenTest 検出）。
       const upA = action as import('../types/effects').UpAction;
+      // REVEAL_AND_PICK 等の then で SEQUENCE を直接適用する際も、thisCardOnly は
+      // 選ばれたカード(cardNum)ではなく効果元を指す。通常経路と同じ execUp に委ねる。
+      if (upA.target.filter?.thisCardOnly) return execUp(upA, ctx);
       const upOwner: Owner = upA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : upA.target.owner as Owner;
       const upS = ownerState(upOwner, ctx);
       const zoneIdx = upS.field.signi.findIndex(st => st?.at(-1) === cardNum);

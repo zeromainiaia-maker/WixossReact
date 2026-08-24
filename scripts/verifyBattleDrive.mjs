@@ -27929,6 +27929,149 @@ scenarios.b55TrapFromDeckTop = {
 order.push('b55TrapFromEnergySelf', 'b55TrapFromDeckTop');
 // ── O-55 END ──
 
+// ── O-57（2026-08-24）＝「デッキの一番上を公開する。それが〜の場合、…」が**2文目以降**だと条件ごと落ちる ──
+// 🔴既存の `REVEAL_AND_PICK` 規則が `sentences[0]` 固定だったため、公開文の前に宣言や任意コストがある形は
+//   「公開」だけが `LOOK_AND_REORDER` に、「場に出す」だけが**素の `ADD_TO_FIELD`（filter 無し）**に割れ、
+//   **「それが〈条件〉の場合」が JSON のどこにも残らない＝デッキトップが何でも場に出る過剰実行**だった。
+// 🔑**gates では守れない層**＝逆翻訳は分裂した2アクションをそれぞれ日本語にできるので**逆翻訳シートは緑**。
+//   実機の観測点は**「候補が出るか出ないか」と「デッキトップが場に出たか／デッキに残ったか」**。
+// 🔑観測対象は `WXDi-P02-044-E1`＝この1枚で **任意コスト → 公開 → 候補フィルタ → ダウン配置** を全部通る：
+//   「【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンからデッキの一番下に置いてもよい。
+//     そうした場合、あなたのデッキの一番上を公開する。そのカードが**レベル３**のシグニの場合、
+//     そのシグニを**ダウン状態で**場に出しても**よい**。」
+// 🔑**対照は「デッキの一番上だけ」を差し替える**（§4.4 の3）＝盤面・手順は1文字も変えない。
+//   ・本命＝トップが**レベル3**（`WD01-010` 大剣 カリバン）→ 場に出て**ダウン状態**・デッキから消える
+//   ・対照＝トップが**レベル2**（`WD01-012` 中剣 フランベル）→ **1体も場に出ず、トップはデッキに残る**
+//     （旧実装なら filter が無いのでレベル2でも場に出た＝これが決定的な指紋）
+// 🔑銀行役は O-54／O-55 と同じ `PR-378`（選択する物語・《無》×0・限定なし）の選択肢①。
+// ⚠`PR-378` の①は**先に1枚引く**ので、【自】が見る「デッキの一番上」は注入時の先頭ではなく**2枚目**（§4.4 8z）。
+const B57_BANISHER = 'PR-378#4001';
+const B57_SELF = 'WXDi-P02-044#4002';        // 羅植姫 ゴーシュ・アグネーゼ（Lv3・限定なし）
+const B57_DRAWN = 'WD01-014#4011';           // スペルのドローで手札へ行く1枚目
+const B57_TOP_L3 = 'WD01-010#4012';          // ドロー後のトップ＝レベル3（本命で場に出るべき札）
+const B57_TOP_L2 = 'WD01-012#4013';          // 同・レベル2（対照で場に出てはいけない札）
+const B57_DECK_REST = ['WD01-011#4021', 'WD01-013#4022', 'WD01-016#4023', 'WD01-009#4024',
+  'WD01-017#4025', 'WD01-010#4026', 'WD01-012#4027'];
+// 手札を固定して「手札から出していない」ことも見る（旧実装の bare ADD_TO_FIELD はデッキトップだが、
+// 念のため手札が動かないことを対照に入れる）。
+const B57_HAND = ['WD01-013#4031', 'WD01-012#4032', 'WD01-011#4033'];
+
+// ⚠`CORE_FIELD_KEYS` は自分で書き切らないと前シナリオの盤面が残る（§4.4 の1）＝両サイド全部を固定する。
+function b57Spec(topCard) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-002#4051'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [[B57_SELF], null, null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'life_cloth': ['WD01-010#4041', 'WD01-013#4042', 'WD01-012#4043'],
+      // 1枚目＝スペルのドローで抜ける／2枚目＝【自】が公開する「デッキの一番上」
+      'deck': [B57_DRAWN, topCard, ...B57_DECK_REST],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#4061'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#4071', 'WD01-013#4072', 'WD01-013#4073'],
+    },
+    handPrepend: [B57_BANISHER, ...B57_HAND],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+scenarios.b57RevealTopLevelMatch = {
+  title: 'O-57 WXDi-P02-044-E1：公開したトップが**レベル3**なら**ダウン状態で**場に出る（デッキから消える）',
+  spec: b57Spec(B57_TOP_L3),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { handOpened: false, cast: false, choicePicked: false, victimPicked: false };
+    let sawSelfInEnergy = false; let settle = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b57hit-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await b54CastBanisher(page, H, flow, B57_SELF);
+      const st = await H.queryState();
+      // 機構が動いた証拠＝一度でも「自分自身がエナに居た」こと（＝バニッシュが実際に走った）。
+      if ((st?.host?.energyCards ?? []).includes(B57_SELF)) sawSelfInEnergy = true;
+      // 任意コスト（エナの自分自身をデッキの一番下へ）の pay 枝 → 公開札のピック → ゾーン選択。
+      // ⚠ボタン限定（`clickTextOrBtn` は盤面ログのテキストに当たって空振りする＝§4.4 2b）。
+      if (!did) did = await H.clickBtn('発動する');
+      if (!did) did = await H.clickZone();
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      H.log(`  b57hit[${s}] -> ${did ?? 'なし'} | cast=${flow.cast} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} field=${JSON.stringify(st?.host?.fieldSigni)} down=${JSON.stringify(st?.host?.signiDown)} deck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!sawSelfInEnergy) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 3) continue;
+      const zone = (st.host.fieldSigni ?? []).findIndex(z => (z ?? []).at(-1) === B57_TOP_L3);
+      // 🔴本命＝レベル3のトップが場に出て、**ダウン状態**で、**デッキから消えている**（複製なし）。
+      const onField = zone >= 0;
+      const isDown = onField && (st.host.signiDown ?? [])[zone] === true;
+      const goneFromDeck = !(st.host.deckCards ?? []).includes(B57_TOP_L3);
+      // 任意コスト（エナの自分自身をデッキの一番下へ）が実際に払われたこと。
+      const selfToDeck = (st.host.deckCards ?? []).includes(B57_SELF) && !(st.host.energyCards ?? []).includes(B57_SELF);
+      const handKept = B57_HAND.every(c => (st.host.handCards ?? []).includes(c));
+      return {
+        pass: onField && isDown && goneFromDeck && selfToDeck && handKept,
+        detail: `レベル3トップが場に=${onField}（zone${zone + 1}・fieldSigni=${JSON.stringify(st.host.fieldSigni)}）／ダウン状態=${isDown}（signiDown=${JSON.stringify(st.host.signiDown)}）`
+          + `／デッキから消えた=${goneFromDeck}（複製なし）／任意コスト（自分自身がエナ→デッキ）を実際に払った=${selfToDeck}`
+          + `／固定手札3枚が残る=${handKept}（deck ${before.host.deck}→${st.host.deck}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${flow.cast} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} field=${JSON.stringify(fin?.host?.fieldSigni)} deck=${fin?.host?.deck} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.b57RevealTopLevelMiss = {
+  title: 'O-57 対照 WXDi-P02-044-E1：トップが**レベル2**なら1体も場に出ず、そのままデッキに残る',
+  spec: b57Spec(B57_TOP_L2),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { handOpened: false, cast: false, choicePicked: false, victimPicked: false };
+    let sawSelfInEnergy = false; let settle = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b57miss-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await b54CastBanisher(page, H, flow, B57_SELF);
+      const st = await H.queryState();
+      if ((st?.host?.energyCards ?? []).includes(B57_SELF)) sawSelfInEnergy = true;
+      if (!did) did = await H.clickBtn('発動する');
+      if (!did) did = await H.clickZone();
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      H.log(`  b57miss[${s}] -> ${did ?? 'なし'} | cast=${flow.cast} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} field=${JSON.stringify(st?.host?.fieldSigni)} deck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
+      // 「クリック前から成立している条件で判定しない」（§4.4 の5）＝バニッシュが走ったことを見てから数える。
+      if (!sawSelfInEnergy) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 4) continue;
+      // 🔴本命＝レベル2のトップは**場に出ず**、**デッキに残る**（旧実装は filter が無いので出た）。
+      const notOnField = !(st.host.fieldSigni ?? []).some(z => (z ?? []).at(-1) === B57_TOP_L2);
+      const stillInDeck = (st.host.deckCards ?? []).includes(B57_TOP_L2);
+      const emptyField = (st.host.fieldSigni ?? []).every(z => (z ?? []).length === 0);
+      // 機構自体は動いた証拠＝任意コストは払われている（＝「何も起きなかった」ではない）。
+      const selfToDeck = (st.host.deckCards ?? []).includes(B57_SELF) && !(st.host.energyCards ?? []).includes(B57_SELF);
+      const handKept = B57_HAND.every(c => (st.host.handCards ?? []).includes(c));
+      return {
+        pass: notOnField && stillInDeck && emptyField && selfToDeck && handKept,
+        detail: `レベル2トップは場に出ない=${notOnField}／デッキに残る=${stillInDeck}／場は空のまま=${emptyField}（fieldSigni=${JSON.stringify(st.host.fieldSigni)}）`
+          + `／任意コストは払われた=${selfToDeck}（＝機構は通っている・「何も起きなかった」ではない）`
+          + `／固定手札3枚が残る=${handKept}（deck ${before.host.deck}→${st.host.deck}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${flow.cast} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} field=${JSON.stringify(fin?.host?.fieldSigni)} deck=${fin?.host?.deck} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('b57RevealTopLevelMatch', 'b57RevealTopLevelMiss');
+// ── O-57 END ──
+
+
 
 
 

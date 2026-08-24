@@ -11823,20 +11823,31 @@ function parseActionTextInner(text: string): EffectAction {
   // `WXDi-P09-050-E2` は**1文目が丸ごと `CONDITIONAL_POWER_BONUS`（無言 no-op）／2文目のドローが無条件**＝
   // 毎ターン終了時に1枚引く過剰実行だった。任意性は `STUB{OPTIONAL_ACTIVATE}`（コスト無しの発動可否だけを
   // 問う既存形＝辞退で以降のステップごとスキップ＝executor Pattern⑤）で表す。
-  if (sentences[0].trim().match(/デッキの一番上を公開(?:する|してもよい)/) && sentences.length >= 2) {
-    const optionalReveal = /デッキの一番上を公開してもよい/.test(sentences[0]);
-    const condS = sentences[1].trim();
+  const parseDeckTopRevealConditionalAt = (revealIndex: number): EffectAction | null => {
+    const revealSentence = sentences[revealIndex]?.trim() ?? '';
+    if (!/デッキの一番上を公開(?:する|してもよい)/.test(revealSentence)
+        || revealIndex + 1 >= sentences.length) return null;
+    const optionalReveal = /デッキの一番上を公開してもよい/.test(revealSentence);
+    const condS = sentences[revealIndex + 1].trim();
     // "それが/そのカードが ... の場合/ではない場合、..."
     // ⚠🔴否定形（「ではない場合」＝`WX12-Re12-E1`「それが赤のカード**ではない**場合、このシグニを場から
     //   トラッシュに置く」）は捕捉していたのに **否定を捨てて肯定と同じ形**を作っており、一致したときに
     //   帰結が走る＝**分岐が逆**だった。`elseAction`（既存＝公開札が filter に一致しない場合の実行先）へ
     //   回して正しい向きにする。`then` は空 SEQUENCE＝execSequence が done(ctx) を返す素の no-op。
-    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|(でない|ではない)場合)、(.+)/);
+    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|である場合|(でない|ではない)場合)、(.+)/);
     if (condM) {
       const negated = condM[2] !== undefined;
       const condText = condM[1];
       const thenText = condM[3].replace(/。$/, '');
-      let thenAction = parseSingleSentence(thenText);
+      const revealOwner: Owner = /対戦相手は(?:あなたの)?デッキの一番上を公開/.test(revealSentence)
+        ? 'opponent' : 'self';
+      const trashThenM = thenText.match(/^(?:それ|そのカード)をトラッシュに置き、(.+)$/);
+      let thenAction = trashThenM
+        ? ({ type: 'SEQUENCE', steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: revealOwner, count: 1 } },
+            parseSingleSentence(trashThenM[1]),
+          ] } as SequenceAction)
+        : parseSingleSentence(thenText);
       // 「（公開した）そのシグニのレベル１につきカードをN枚引く」＝公開シグニのレベル比例ドロー（WD21-001-E2）。
       // parseSingleSentence は「レベル１につき」を無視して固定 count に潰すため、公開カード（lastProcessedCards）の
       // レベル合計を参照する perLastProcessedLevel フラグ付き DRAW に差し替える（続き190）。
@@ -11889,9 +11900,21 @@ function parseActionTextInner(text: string): EffectAction {
             ? { isDisona: true }
             : { cardName: condText.slice(1, -1) })
           : {}),
+        // O-57: 宣言参照は `matchesFilter` が直接読むキーではない。REVEAL_AND_PICK の
+        // resolveDynamicFilter で具体値へ解決する（未宣言時は noMatch へ倒れて fail-closed）。
+        ...(revealIndex > 0 && /宣言した数字と同じレベル/.test(condText) ? { levelEqDeclaredNumber: true } : {}),
+        ...(revealIndex > 0 && /宣言(?:した|された)カード/.test(condText) ? { nameEqDeclaredName: true } : {}),
       };
+      const fieldThen = thenAction.type === 'ADD_TO_FIELD'
+        ? ({ ...thenAction,
+            ...(/ダウン状態で場に出/.test(thenText) ? { asDown: true } : {}),
+          } as AddToFieldAction)
+        : thenAction;
+      thenAction = fieldThen;
       const rp = {
-        type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1,
+        type: 'REVEAL_AND_PICK', owner: revealOwner, revealCount: 1, filter, pickCount: 1,
+        ...(revealIndex > 0 && revealCardType === undefined ? { pickNoun: 'カード' as const } : {}),
+        ...(revealIndex > 0 && /場に出してもよい/.test(thenText) ? { pickUpTo: true } : {}),
         // 否定形は「一致しなかったとき」に帰結が走る＝`then` は空 SEQUENCE（no-op）で `elseAction` に載せる。
         ...(negated ? { then: { type: 'SEQUENCE', steps: [] }, elseAction: thenAction } : { then: thenAction }),
         remainder: { location: 'deck', position: 'top' },
@@ -11910,8 +11933,8 @@ function parseActionTextInner(text: string): EffectAction {
       //   `WXDi-P09-068-E1`／「**それ**をデッキの一番下に置いてもよい」＝`WXK03-050-E1`）。単独 parse では
       //   参照先が束縛されず UNKNOWN／別物の `LOOK_AND_REORDER` に化ける（行き先は `remainder` の領分で
       //   枝ごとに変えられない）＝**据置のほうが正しい**。文頭の照応語と UNKNOWN の両方で弾く。
-      if (!negated && sentences.length >= 3) {
-        const elseM = sentences[2].trim().match(/^そうでない場合、(.+)/);
+      if (!negated && sentences.length > revealIndex + 2) {
+        const elseM = sentences[revealIndex + 2].trim().match(/^そうでない場合、(.+)/);
         if (elseM && !/^(?:それ|そのカード|そのシグニ)/.test(elseM[1])) {
           const elseAction = parseSingleSentence(elseM[1].replace(/。$/, ''));
           if (!JSON.stringify(elseAction).includes('"UNKNOWN"')) rp.elseAction = elseAction;
@@ -11924,7 +11947,7 @@ function parseActionTextInner(text: string): EffectAction {
       // 共通表 `LEADING_STATE_CLAUSES` を引く（ハンドラ独自の小さな語彙表を持たない＝続き528 の教訓）。
       // ⚠トリガー句（「あなたのターン終了時、」等）が前置きとして残っている形も許すため、
       //   **「公開する」の直前に接する `〈条件〉、` で終わっているか**で見る（先頭アンカーではない）。
-      const s0 = sentences[0].trim();
+      const s0 = revealSentence;
       const pubAt = s0.search(/(?:あなたの)?デッキの一番上/);
       if (pubAt > 0) {
         const pre = s0.slice(0, pubAt);
@@ -11943,7 +11966,7 @@ function parseActionTextInner(text: string): EffectAction {
       //   「あなたのエナゾーンに**カードがない**場合、」（`WX12-052-E1`）は `LEADING_STATE_CLAUSES` に
       //   無く、共通表へ寄せただけだと**この1件の条件が新たに落ちる**（A/B で実測）。共通表へ足すと
       //   `tryWrapLeadingStateCond` 経由で全カードに波及するので、ここでは局所 fallback に留める。
-      const enaPrefM = sentences[0].trim().match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)の|カードがない)場合、/);
+      const enaPrefM = revealSentence.match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)の|カードがない)場合、/);
       if (enaPrefM) {
         return {
           type: 'CONDITIONAL',
@@ -11960,14 +11983,40 @@ function parseActionTextInner(text: string): EffectAction {
       // 能力は発動しない」＝分岐ではなく直前の配置への修飾で、末尾の `foldSuppressOnPlay` が
       // BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ畳み込める形（`WXK10-017-E3`）。
       {
-        const tail = sentences.slice(2).map(s => s.trim().replace(/。$/, '')).filter(Boolean);
+        const tail = sentences.slice(revealIndex + 2).map(s => s.trim().replace(/。$/, '')).filter(Boolean);
         if (tail.length > 0 && tail.every(s => /^(?:それ|それら|そのシグニ)の【出】能力は発動しない$/.test(s))) {
           return { type: 'SEQUENCE', steps: [...(optionalReveal ? [optAct] : []), rp, ...tail.map(s => parseSingleSentence(s))] } as SequenceAction;
         }
       }
       return body;
     }
-    // マッチしない場合、単純に「公開する + 後続」のシーケンスとして扱う
+    return null;
+  };
+
+  // O-57: 公開文が2文目以降でも、**直後**が「それが/そのカードが〜場合」のときだけ
+  // 同じ正準形へ畳む。前段は従来どおり解析して保持し、「そうした場合、」は did-it ゲートとして
+  // REVEAL_AND_PICK 全体を包む。後続分岐まである形は既存の1文目規則以外へ広げない。
+  const deckTopRevealIndex = sentences.findIndex((sentence, index) =>
+    /デッキの一番上を公開(?:する|してもよい)/.test(sentence.trim())
+    && index + 1 < sentences.length
+    && /^(?:それが|そのカードが).+(?:場合)、/.test(sentences[index + 1].trim())
+    && (index === 0
+      || (/場に出/.test(sentences[index + 1]) && !/アタックしているシグニとして/.test(sentences[index + 1]))
+      || /宣言(?:した|された)カード/.test(sentences[index + 1]))
+    && (index === 0 || index + 1 === sentences.length - 1));
+  if (deckTopRevealIndex >= 0) {
+    const revealAction = parseDeckTopRevealConditionalAt(deckTopRevealIndex);
+    if (revealAction) {
+      if (deckTopRevealIndex === 0) return revealAction;
+      const prefix = parseActionText(sentences.slice(0, deckTopRevealIndex).join('。') + '。');
+      if (prefix.type !== 'UNKNOWN' && !JSON.stringify(prefix).includes('"UNKNOWN"')) {
+        const prefixSteps = prefix.type === 'SEQUENCE' ? prefix.steps : [prefix];
+        const gatedReveal: EffectAction = /^そうした場合、/.test(sentences[deckTopRevealIndex].trim())
+          ? { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: revealAction }
+          : revealAction;
+        return { type: 'SEQUENCE', steps: [...prefixSteps, gatedReveal] } as SequenceAction;
+      }
+    }
   }
 
   // ---- デッキの一番上を見る（private look）→ 条件分岐（それが〜のシグニの場合、それを場に出（す/してもよい））----

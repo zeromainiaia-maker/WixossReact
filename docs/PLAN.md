@@ -10,14 +10,14 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-24・続き643・Opus 5）＝`O-55`＝【トラップ】設置の**出所**と、スタック下→上への**引用付与**を配線**（Claude 単独）。gates 全緑（**golden 2672**／census **604→601**／smoke 10693 全0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機2本 PASS＝1巡が §2.2 の⑤まで完了。**
-  - 🔴**登録票が3点とも外れていた**（§4.1・**10回連続**）＝「行き先の機構が無い4効果」ではなく、**①`PLACE_TRAP_OPTIONAL` は機構があって出所が手札固定**（`O-53`／`O-54` と同じ固定フォールバック・live 7効果中6が別のカードを置いていた）**②`SOUL_OP` は機構不在ではなく誤割当**（「ソウルを使用して発動」という別物）**③`GRANT_SIGNI_ABOVE_ABILITY` は engine 実装済みで parser が一度も生成していなかった**（同語彙8効果が同じ壊れ方）。実測して **19効果**になった。
-  - ✅**最も重い過剰実行は引用付与の平坦化**＝「このカードの上にあるシグニは『【自】：**アタックしたとき**相手を－8000』を得る」が**常時－8000**として実行されていた（同型で回収・デッキ下送りも常時発動）。
-  - 🔴**引用「…」の中のトリガー句を外側が乗っ取っていた**＝【常】の分岐が「このシグニがバニッシュされたとき」を**引用の内外を区別せず**拾い、`WXDi-D09-P18-E1` は**付与宣言が丸ごと消えて `POWER_MODIFY` だけ**になっていた。開き括弧の数で内外を判定するガードを入れた。
-  - 🔑**`parseStatus:MANUAL` の live 限り遺物がまた2枚**（`WXDi-P06-054`／`WXDi-D09-P18`）＝`O-54` と同じ手当て（`AUTO` へ戻して `build:effects`→`--adopt`）。**parser が追いついた manual 影武者1件は削除**（`O-42` トリップワイヤが即検出）。
-  - ⚠**実機で `H.clickTextOrBtn` を CHOOSE のラベルに使わない**＝盤面**ログのテキスト**に当たって「押せた」と報告しながら何も進まず34反復空振りした。ボタン限定の `H.clickBtn` を、**先に進む側から**試す。
+- 🏁**セッション（2026-08-24・続き644・Opus 5）＝`O-57`＝「デッキの一番上を公開する。それが〜の場合、…」が**2文目以降**だと条件ごと落ちる**（**実装は Codex へ委譲**・母集団実測／指示書／検証／実機は Claude）。gates 全緑（**golden 2677**／census 601 据置／smoke 10693 全0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機2本 PASS＝1巡が §2.2 の⑤まで完了。差し戻し0・是正0。**
+  - ✅**既存の `REVEAL_AND_PICK` 規則が `sentences[0]` 固定**だったため、公開文の前に宣言・任意コストがある**7効果**で「公開」と「帰結」が別ステップに割れ、**「それが〈条件〉の場合」が JSON のどこにも残らない過剰実行**だった。公開文の直後が条件文のときだけ同じ規則を適用する helper へ切り出して解消（**新型ゼロ**）。
+  - 🔴**投入前の実測で登録票（「4効果」）を訂正**＝母集団は **169効果**で、内訳は「1文目153（うち118は既に正常）／2文目以降16（うち9は既に正しいか MANUAL で手当て済み＝**触るな**と明示）」＝**真の穴7**。
+  - ⭐**Codex が指示書に無い engine の穴を2つ自力で発見して直した**＝①`resolveDynamicFilter` が**候補 owner の state からしか宣言値を読まない**（相手デッキを自分の宣言名で照合できない）②`applyDirectAction` の `UP{thisCardOnly}` が**選ばれた公開札**を起こそうとする。どちらも**省略時は従来どおり**の形で入れており live 影響は本バッチ内だけ。
+  - 🔑**検証側が足したもの**＝①母集団169のうち `AUTO` 129件で **fresh == live を全数照合（不一致0）**＝held へ黙って移った効果が無いことを確認 ②**B群の負方向**（宣言なし＝fail-closed）を独立実行（Codex の golden は正方向のみだった） ③**相手トラッシュが +1 ちょうど**（公開札の重複トラッシュなし）。
+  - ⚠**「閉じた finding の数」＝「OPEN の減り」ではない**＝台帳は段2 +2 なのに OPEN は **714→713 の −1**（1件は元から `段0`＝機械除去済みだった）。Codex の報告値（715→713）は検証側で訂正した。
 
-**▶ 次の一手**＝**§5.2 の段2 消化に戻る**（取り方は第2層＝軸 × live の action 型 × type で5件以上のサブ群。⚠器の型 `SEQUENCE` に乗った群は信号が弱い）。候補＝`キーワード能力 × GRANT_KEYWORD × MISSING/WRONG`（17件・付与条件の欠落が主）、`filter.story × POWER_MODIFY × MISSING`（7件）、`timing/trigger × DRAW × MISSING`（6件）。⚠**findings も worklist の見立ても標本**＝取ったら必ず生データ（CSV原文 × live JSON）へ戻して母集団を数え直す（**10回連続**で外れている）。🔑**§4.3 の「受け皿はあるのに parser から配線されていない」型が4連続で当たっている**＝新しい群を取るときは、まず**その語彙の受け皿が engine に既にあるか**を先に確かめると新型ゼロで直ることが多い。**`O-51`（並べ替え対話・279効果）は1バッチの粒度に合わない**ので、取るなら先に段取りを決める。
+**▶ 次の一手**＝**§5.2 の段2 消化に戻る**（取り方は第2層＝軸 × live の action 型 × type で5件以上のサブ群。⚠器の型 `SEQUENCE` に乗った群は信号が弱い）。候補＝`キーワード能力 × GRANT_KEYWORD × MISSING/WRONG`（17件）、`filter.story × POWER_MODIFY × MISSING`（7件）、`timing/trigger × DRAW × MISSING`（6件）。⚠**worklist の見立ては標本**＝取ったら必ず生データへ戻して数え直す（**11回連続**で外れている）。🔑**§4.3 の「受け皿はあるのに parser から配線されていない」型が5連続で当たっている**＝新しい群を取るときは、まず**その語彙の受け皿が engine に既にあるか**を先に確かめると新型ゼロで直ることが多い。🆕**`O-56`（`TRAP_OPERATION` 18効果／`TRAP_OP` 6効果）は Codex 委譲に向く**（機構が1つ・母集団が明確）。**`O-51`（並べ替え対話・279効果）は1バッチの粒度に合わない**ので、取るなら先に段取りを決める。
 
 ---
 
@@ -308,7 +308,6 @@
 **■ 未消化 worklist**
 | ID | 項目 | 規模 | ブロッカー／次の一手 |
 |---|---|---|---|
-| **O-57** | 🆕**「デッキの一番上を公開する。それが〜の場合、それを場に出す」が「そうした場合」ゲートの中だと filter が落ちる** | S | **2026-08-24 `O-55` の実測で分離**＝この文型は通常 `REVEAL_AND_PICK{filter, then:ADD_TO_FIELD}` に正しく落ちる（兄弟8効果）が、**公開が「〜してもよい。そうした場合、」の中に入る形**だと `CONDITIONAL{gate, then:LOOK_AND_REORDER(1)}` ＋ **素の `ADD_TO_FIELD`（source 無し＝デッキトップ・filter 無し）**に割れ、**レベル/クラス条件が丸ごと消えて何でも場に出る過剰実行**になる。実測4効果＝`PR-372-E1`（宣言した数字と同じレベル）／`WDK05-T13-E1`／`WDK07-Y11-E1`（＜植物＞）／`WXDi-P02-044-E1`（レベル3・ダウン状態）。⚠**受け皿は既にある**（`REVEAL_AND_PICK` に filter も `ADD_TO_FIELD.asDown` も実装済み）＝parser の畳み込みだけの問題。⚠`PR-372-E1` の「宣言した数字と同じレベル」は別語彙（`declaredNumber` 参照）なので分けて数える。 |
 | **O-56** | 🆕**`TRAP_OPERATION`／`TRAP_OP` がカード全文 regex の多重ディスパッチのまま** | M | **2026-08-24 `O-55` の実測で分離**＝`TRAP_OPERATION` は live **18効果**、`TRAP_OP` は **6効果**あり、どちらも engine 側で `EffectText`＋`BurstText` を丸ごと regex にかけて「チェックゾーンへ／シグニの下へ／トラップ設置」を切り替えている（§6.4 O-20 の全文 regex 読み）。**トラップ設置枝は `INTERNAL_SET_TRAP` に落ちるため `hand.filter` しか元ゾーンを抜かず、デッキ由来だと複製する**（`O-55` で `PLACE_TRAP_OPTIONAL` を寄せた `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` が正しい行き先）。⚠**着手前に18＋6効果の原文を全部読んで枝ごとに分類する**（1つの STUB に3種類以上の意味が同居している）。 |
 | **O-52** | 🆕**「めくれるまで公開」形の残り処理が受け皿ごと無い** | M | **2026-08-24 O-50 で分離した2効果**＝`SP27-005-E1`／`WX20-041-CB-E1`。`REVEAL_UNTIL` の `restDestination` に `deck_bottom_shuffled` はあるが、**①`WX20-041-CB-E1` の停止条件「**青ではない**＜遊具＞」に必要な色の除外 filter が `TargetFilter` に無い**、**②`SP27-005-E1` の「手札に加える**か**場に出す」の選択を `REVEAL_UNTIL` の hit destination が保持できない**（hand か field の固定値しか持てない）。⚠**どちらも filter/継続の機構が先**＝先に受け皿を作ってから parser を直す。 |
 | **O-51** | 🆕**「残りを好きな順番でデッキに戻す」の**並べ替え対話**が remainder に無い** | **L**（素の M ではない） | 🔴**2026-08-24 続き640 の実測で登録票を訂正した。** 旧記の「`remainder.position:'any'` は何も起きないどころか誤って上へ置く死フラグ」は**事実ではない**：`location:'deck'` と `position` が top/bottom/split 以外の組は **0件**で、`'any'` の39効果は全部 `trash`(37)／`energy`(2)／`hand`(1) との組であり、engine は `location==='deck'` のときしか `position` を読まない（`effectExecutor.ts:8845`）＝**無害**。 ■**真の母集団（実測）**＝原文に「好きな順番」を含む効果 **377**（カード363枚）。うち **`REVEAL_AND_PICK.remainder{deck,bottom}` 258／`{deck,top}` 21＝真の穴 279**、**既に `LOOK_AND_REORDER{reorder:true}` で正しく表現済み 47**（§5 `3-3⁷` の引き算分―**ここは触らない**）、構造が別 30ほか。 ■**直し方の見立て**＝新型は不要。`remainder` に `reorder?:boolean` を足し、engine 側は **`INTERNAL_SPLIT_REVEALED`（`execStubPart2.ts:2939`）と同じ手口**で既存の `LOOK_AND_REORDER` 対話（`destPosition:'top'|'bottom'`）へ回す。配線先は **3箇所**（`execRevealAndPick`≈`:5925`／`execLookPickChain`≈`:6069`／`resumeSearch`≈`:8835`）。 ⚠🔴**1バッチの粒度に合わない**＝279効果**すべてに対話が1つ増える**（ブラスト半径が大きい）。取るなら**先に段取りを決める**こと。なお CPU は `LOOK_AND_REORDER` を自動応答する（`BattleScreen.tsx:669`＝順を変えない）ので進行不能にはならない。 |
@@ -433,12 +432,12 @@
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-24 続き643 後（本行が直近の正）**：
-  **census 601/601**、**golden 2672**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
-  `census:stubs` **A群🔴0／C群0**（live の STUB id 種類 **597**）、manual-fields **0**、**同型★ 0**、
-  **live カード 5975 / 効果総数 10693**、`_held_fresh` **77**／`_partial_fresh` **15**／`_idset_fresh` **45**、
-  **意味照合 残 OPEN 714**（本バッチは機構 worklist＝台帳は未消化）、
-  **実機シナリオ +2**（`b55TrapFromEnergySelf` / `b55TrapFromDeckTop`）、version **0.502**。（⚠`census:wiring`／`census:timing`／`census:goldentypes` は本バッチ未再計測）
+- **2026-08-24 続き644 後（本行が直近の正）**：
+  **census 601/601**、**golden 2677**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
+  **live カード 5975 / 効果総数 10693**、`_held_fresh` **76**／`_partial_fresh` **15**／`_idset_fresh` **45**、
+  **意味照合 残 OPEN 713**（段2消化 397）、
+  **実機シナリオ +2**（`b57RevealTopLevelMatch` / `b57RevealTopLevelMiss`）、version **0.502**。（⚠`census:wiring`／`census:timing`／`census:goldentypes` は本バッチ未再計測）
 
 ---
 

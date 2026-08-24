@@ -1588,7 +1588,8 @@ function actionJa(a?: Action, effectType?: string): string {
         a.handOrField ? '手札に加えるか場に出す'
         : a.handOrEnergy ? '手札に加えるかエナゾーンに置く'
         : (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
-        : a.then?.type === 'ADD_TO_FIELD' ? '場に出す'
+        : a.then?.type === 'ADD_TO_FIELD'
+          ? `${a.then.asDown ? 'ダウン状態で' : ''}場に出${a.pickUpTo ? 'してもよい' : 'す'}`
         // ENERGY_CHARGE{DECK_CARD} は「選んだ公開札をエナゾーンへ」＝ADD_TO_ENERGY と同義の配置動詞。
         // 落とすと下の「それが〜の場合」枝に流れ、原文にない条件文へ化けて見える（WX13-054）。
         : (a.then?.type === 'ADD_TO_ENERGY'

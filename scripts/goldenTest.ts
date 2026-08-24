@@ -45759,6 +45759,142 @@ test('段2 第33バッチ engine両方向: LAR shuffle が bottom へ戻す束�
   }
 }));
 
+// O-57: 「デッキの一番上を公開する。それが〜の場合」が2文目以降でも条件を保持する。
+function o57Fresh(cardNum: string, effectId: string): CardEffect {
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} fresh effect not found`);
+  return effect;
+}
+
+function o57Reveal(action: unknown): Extract<EffectAction, { type: 'REVEAL_AND_PICK' }> | undefined {
+  if (!action || typeof action !== 'object') return undefined;
+  const obj = action as Record<string, unknown>;
+  if (obj.type === 'REVEAL_AND_PICK') return obj as unknown as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = o57Reveal(item);
+        if (found) return found;
+      }
+    } else if (value && typeof value === 'object') {
+      const found = o57Reveal(value);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+test('O-57 parser: A群4＋B群3だけを既存 REVEAL_AND_PICK へ配線する', () => {
+  const expected = [
+    ['WDK05-T13', 'WDK05-T13-E1', 'self'],
+    ['WDK07-Y11', 'WDK07-Y11-E1', 'self'],
+    ['WXDi-P02-044', 'WXDi-P02-044-E1', 'self'],
+    ['PR-372', 'PR-372-E1', 'self'],
+    ['WX19-026', 'WX19-026-E1', 'opponent'],
+    ['WX19-062', 'WX19-062-E1', 'opponent'],
+    ['WX10-068', 'WX10-068-E1', 'opponent'],
+  ] as const;
+  for (const [cardNum, effectId, owner] of expected) {
+    const rap = o57Reveal(o57Fresh(cardNum, effectId).action);
+    ok(!!rap, `${effectId}: REVEAL_AND_PICK が無い`);
+    eq(rap!.owner, owner, `${effectId}: 公開元 owner`);
+    eq(rap!.revealCount, 1, `${effectId}: 公開枚数`);
+    eq(rap!.remainder?.location, 'deck', `${effectId}: 不一致札の行き先`);
+    eq(rap!.remainder?.position, 'top', `${effectId}: 不一致札はデッキトップに残す`);
+  }
+  const down = o57Reveal(o57Fresh('WXDi-P02-044', 'WXDi-P02-044-E1').action)!;
+  eq(down.pickUpTo, true, 'WXDi-P02-044-E1: 「してもよい」は pickUpTo');
+  eq((down.then as AddToFieldAction).asDown, true, 'WXDi-P02-044-E1: ダウン状態');
+  eq((o57Reveal(o57Fresh('PR-372', 'PR-372-E1').action)!.filter as Record<string, unknown>).levelEqDeclaredNumber, true,
+    'PR-372-E1: 宣言数字参照');
+  for (const [cardNum, effectId] of [['WX19-026', 'WX19-026-E1'], ['WX19-062', 'WX19-062-E1'], ['WX10-068', 'WX10-068-E1']] as const) {
+    eq((o57Reveal(o57Fresh(cardNum, effectId).action)!.filter as Record<string, unknown>).nameEqDeclaredName, true,
+      `${effectId}: 宣言カード名参照`);
+  }
+});
+
+test('O-57 engine両方向: A群4件は一致時だけ場に出し、不一致トップはデッキに残す', () => withSavedCursor(() => {
+  const plantCards = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('植物')).map(c => c.CardNum);
+  const nonPlant = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('植物'));
+  const spell = findCard(c => c.Type === 'スペル');
+  const cases = [
+    { cardNum: 'WDK05-T13', effectId: 'WDK05-T13-E1', hit: SIGNI_L1, miss: spell,
+      make: (top: string) => mkCtx({ signi: ['WDK05-T13', null, null], deckTop: [top] }, {}, 'WDK05-T13') },
+    { cardNum: 'WDK07-Y11', effectId: 'WDK07-Y11-E1', hit: plantCards[0], miss: nonPlant,
+      make: (top: string) => {
+        const ctx = mkCtx({ deckTop: [top] }, {}, 'WDK07-Y11');
+        ctx.ownerState.hand = [plantCards[1] ?? plantCards[0], ...ctx.ownerState.hand];
+        return ctx;
+      } },
+    { cardNum: 'WXDi-P02-044', effectId: 'WXDi-P02-044-E1', hit: SIGNI_L3, miss: SIGNI_L2,
+      make: (top: string) => {
+        const ctx = mkCtx({ deckTop: [top] }, {}, 'WXDi-P02-044');
+        ctx.ownerState.energy = ['WXDi-P02-044', ...ctx.ownerState.energy];
+        return ctx;
+      } },
+    { cardNum: 'PR-372', effectId: 'PR-372-E1', hit: SIGNI_L1, miss: SIGNI_L2,
+      make: (top: string) => mkCtx({ deckTop: [top] }, {}, 'PR-372') },
+  ] as const;
+
+  for (const spec of cases) {
+    const effect = o57Fresh(spec.cardNum, spec.effectId);
+    const hitCtx = spec.make(spec.hit);
+    const hit = finish(executeEffect(effect, hitCtx), hitCtx);
+    ok(hit.done, `${spec.effectId}: full effect 完了`);
+    ok(tops(hit.ownerState).includes(spec.hit), `${spec.effectId}: 条件一致トップが場に出る`);
+    ok(!hit.ownerState.deck.includes(spec.hit), `${spec.effectId}: 場に出た札をデッキに複製しない`);
+
+    // 対照は同じ RAP・同じ空盤面でトップだけを差し替える。
+    const rap = o57Reveal(effect.action)!;
+    const missCtx = mkCtx({ deckTop: [spec.miss] }, {}, spec.cardNum);
+    const miss = finish(executeEffect({ ...effect, action: rap }, missCtx), missCtx);
+    ok(miss.done, `${spec.effectId}: 不一致方向完了`);
+    ok(!tops(miss.ownerState).includes(spec.miss), `${spec.effectId}: 不一致トップは場に出ない`);
+    eq(miss.ownerState.deck[0], spec.miss, `${spec.effectId}: 不一致トップはデッキトップに残る`);
+  }
+}));
+
+test('O-57 engine: WXDi-P02-044 は実際にダウン状態で場に出る', () => withSavedCursor(() => {
+  const effect = o57Fresh('WXDi-P02-044', 'WXDi-P02-044-E1');
+  const ctx = mkCtx({ deckTop: [SIGNI_L3] }, {}, 'WXDi-P02-044');
+  ctx.ownerState.energy = ['WXDi-P02-044', ...ctx.ownerState.energy];
+  const result = finish(executeEffect(effect, ctx), ctx);
+  const zone = tops(result.ownerState).indexOf(SIGNI_L3);
+  ok(zone >= 0, 'レベル3シグニが場に出る');
+  eq(result.ownerState.field.signi_down?.[zone], true, '配置先がダウン状態');
+}));
+
+test('O-57 engine: PR-372 は未宣言なら一致カードでも fail-closed', () => withSavedCursor(() => {
+  const rap = o57Reveal(o57Fresh('PR-372', 'PR-372-E1').action)!;
+  const ctx = mkCtx({ deckTop: [SIGNI_L1] }, {}, 'PR-372');
+  const result = finish(executeEffect({ effectId: 'O-57-no-declare', effectType: 'AUTO', action: rap,
+    duration: 'INSTANT', mandatory: true }, ctx), ctx);
+  ok(!tops(result.ownerState).includes(SIGNI_L1), '未宣言では場に出ない');
+  eq(result.ownerState.deck[0], SIGNI_L1, '未宣言でもトップはデッキに残る');
+}));
+
+test('O-57 engine: B群は効果所有者の宣言名で相手デッキトップを照合する', () => withSavedCursor(() => {
+  const match = SIGNI_L2;
+  for (const [cardNum, effectId, trashes] of [
+    ['WX19-026', 'WX19-026-E1', true],
+    ['WX19-062', 'WX19-062-E1', true],
+    ['WX10-068', 'WX10-068-E1', false],
+  ] as const) {
+    const rap = o57Reveal(o57Fresh(cardNum, effectId).action)!;
+    const ctx = mkCtx({ signi: [cardNum, null, null], down: [true, false, false] }, { deckTop: [match] }, cardNum);
+    ctx.ownerState.declared_card_name = cardMap.get(match)?.CardName;
+    const handBefore = ctx.ownerState.hand.length;
+    const result = finish(executeEffect({ effectId, effectType: 'AUTO', action: rap,
+      duration: 'INSTANT', mandatory: true }, ctx), ctx);
+    ok(result.done, `${effectId}: 完了`);
+    eq(result.otherState.deck.includes(match), !trashes, `${effectId}: 相手デッキからの移動`);
+    eq(result.otherState.trash.includes(match), trashes, `${effectId}: 条件成立時の相手トラッシュ`);
+    if (effectId === 'WX19-026-E1') eq(result.ownerState.field.signi_down?.[0], false,
+      `WX19-026-E1: このシグニをアップ logs=${result.logs.join('|')} source=${ctx.sourceCardNum}`);
+    if (effectId === 'WX10-068-E1') eq(result.ownerState.hand.length, handBefore + 2, 'WX10-068-E1: 2枚引く');
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
