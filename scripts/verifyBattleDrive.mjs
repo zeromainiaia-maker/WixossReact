@@ -27284,6 +27284,181 @@ scenarios.b40NoGuardBlockShowsCandidates = {
 };
 order.push('b40EndOfAttackGuardBlockClearsAfterAttack', 'b40NoGuardBlockShowsCandidates');
 // ── 段2 第40 END ──
+// ── O-53（2026-08-24）＝`LOOK_AND_REORDER` の `source.location:'hand'` が engine で **deck** へ
+//    フォールバックしていた（16効果）。engine/parser を直したので**実機で観測できる2点**を固定する。
+//    🔑観測点は gates が守れない層＝(a) 相手手札の閲覧モーダルが「デッキではなく手札」を出すこと
+//    (b) 手札→デッキ下の移動が**実際に手札を減らす**こと（旧実装は手札を1枚も触らなかった）。
+const O53A_LRIG = 'WD01-001#5300';           // タマヨリヒメ Lv4（limit 11）＝Lv1/Lv2 シグニを置ける
+const O53A_LRIG_G = 'WD01-001#5301';
+const O53A_SRC = 'WX06-CB02#5302';           // コードアート Ｔ・Ａ・Ｐ（Lv1 青・限定なし）【出】対戦相手の手札を見る
+// 🔑**相手の手札とデッキを別カードで作る**＝旧実装は「相手デッキ」を見せていたので、
+//   同じカードで埋めると**どちらを見たのか区別できない**（§4.4 の 22 と同根）。
+const O53A_OPP_HAND = ['WX04-054#5311', 'WX10-052#5312', 'WD01-013#5313'];
+const O53A_OPP_DECK = ['WX06-CB02#5321', 'WX06-CB02#5322', 'WX06-CB02#5323', 'WX06-CB02#5324', 'WX06-CB02#5325'];
+
+scenarios.o53OppHandPeekShowsHandNotDeck = {
+  title: 'O-53 WX06-CB02-E2：【出】で相手の「手札」を閲覧し、両者のデッキを1枚も動かさない',
+  spec: {
+    hostSet: {
+      'field.lrig': [O53A_LRIG],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [O53A_SRC],
+      'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#5331', 'WD01-013#5332', 'WD01-013#5333', 'WD01-013#5334'],
+    },
+    guestSet: {
+      'field.lrig': [O53A_LRIG_G],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': O53A_OPP_HAND,
+      'energy': [], 'trash': [],
+      'deck': O53A_OPP_DECK,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const gDeck0 = before?.guest?.deck ?? -1;
+    const hDeck0 = before?.host?.deck ?? -1;
+    let opened = false, summoned = false, zoned = false;
+    let seen = null;               // 🔑sticky＝一度掴んだ観測は下げない（§4.4 の 8d）
+    let confirmed = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o53peek-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      const st = await H.queryState();
+      // REVEAL_CARDS が立っている「その瞬間」に集合を掴む（確認を押すと pending は消える）
+      if (!seen && st?.pendingEffect === 'REVEAL_CARDS' && Array.isArray(st?.pendingRevealCards)) {
+        seen = {
+          cards: [...st.pendingRevealCards].sort(),
+          gDeck: st.guest?.deck ?? -1,
+          hDeck: st.host?.deck ?? -1,
+          gHand: [...(st.guest?.handCards ?? [])].sort(),
+          gDeckCards: [...(st.guest?.deckCards ?? [])].sort(),
+        };
+      }
+      if (!did && seen && !confirmed) { const b = await H.clickBtn('確認', { exact: true }); if (b) { did = b; confirmed = true; } }
+      H.log(`  o53peek[${s}] -> ${did ?? 'なし'} | pEff=${st?.pendingEffect ?? '-'} gDeck=${st?.guest?.deck} gHand=${st?.guest?.hand} seen=${seen ? 'yes' : 'no'}`);
+      if (seen && confirmed) {
+        const fin = await H.queryState();
+        if (fin?.pendingEffect) continue;             // モーダルが閉じるまで待つ
+        const sameAsHand = seen.cards.join(',') === seen.gHand.join(',');
+        const sameAsDeck = seen.cards.join(',') === seen.gDeckCards.join(',');
+        const deckIntact = seen.gDeck === gDeck0 && seen.hDeck === hDeck0
+          && (fin.guest?.deck ?? -1) === gDeck0 && (fin.host?.deck ?? -1) === hDeck0;
+        const handIntact = (fin.guest?.handCards ?? []).length === O53A_OPP_HAND.length;
+        return {
+          pass: sameAsHand && !sameAsDeck && deckIntact && handIntact,
+          detail: `閲覧集合=${JSON.stringify(seen.cards)}／相手手札一致=${sameAsHand}／相手デッキと一致(旧実装の実害)=${sameAsDeck}`
+            + `／両デッキ不変=${deckIntact}(g:${gDeck0}→${seen.gDeck}→${fin.guest?.deck} h:${hDeck0}→${seen.hDeck}→${fin.host?.deck})／相手手札不変=${handIntact}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未到達（opened=${opened} summoned=${summoned} zoned=${zoned} pEff=${fin?.pendingEffect ?? '-'} seen=${JSON.stringify(seen)}）` };
+  },
+};
+
+// 群B＝「カードを２枚引き、手札からカード２枚を好きな順番でデッキの一番下に置く」。
+// 🔴旧実装は `LOOK_AND_REORDER{source:hand}` → engine が**デッキの上から1枚**を下へ回すだけで
+//   **手札が1枚も減らなかった**（コストが丸ごと消えて純粋な2ドロー得）。
+// 🔑観測点＝①手札選択モーダル（`SELECT_TARGET`）が出ること ②手札が**2枚**減ること
+//   ③選んだ2枚が**デッキの末尾（一番下）**に選択順で入ること。
+// ⚠🔴**召喚ボタンが出ない**：`WXK02-089` は **リメンバ限定**（CSV `Restriction`）。
+//   タマヨリヒメのルリグで作った1回目は 26ティック空振りした（§4.4 の 8k を再び踏んだ）。
+const O53B_LRIG = 'WXK02-003#5400';   // 来夢の巫女　リメンバ・ミッドナイト（Lv4・limit 11・青）
+const O53B_LRIG_G = 'WD01-001#5401';
+const O53B_SRC = 'WXK02-089#5402';           // 混英の濃度 ショクエン（Lv2 青・限定なし）
+const O53B_HAND_KEEP = ['WX04-054#5411', 'WX10-052#5412'];   // 召喚後に手札へ残る2枚（別カード＝識別可能）
+const O53B_DECK = ['WD01-013#5421', 'WD01-013#5422', 'WD01-013#5423', 'WD01-013#5424', 'WD01-013#5425', 'WD01-013#5426'];
+
+scenarios.o53HandToDeckBottomActuallyMovesHand = {
+  title: 'O-53 WXK02-089-E1：2枚引いたあと手札から2枚を選んでデッキの一番下へ（手札が実際に減る）',
+  spec: {
+    hostSet: {
+      'field.lrig': [O53B_LRIG],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [O53B_SRC, ...O53B_HAND_KEEP],
+      'energy': [], 'trash': [], 'actions_done': [],
+      'deck': O53B_DECK,
+    },
+    guestSet: {
+      'field.lrig': [O53B_LRIG_G],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#5431', 'WD01-013#5432', 'WD01-013#5433'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false, summoned = false, zoned = false;
+    let drew = null;               // sticky：DRAW 直後（選択前）の手札・デッキ
+    const picked = [];             // 押した pick の instanceId（1枚1回だけ押す＝トグルで外れる罠を避ける）
+    let decided = false;
+    for (let s = 0; s < 28; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o53h2d-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      const st = await H.queryState();
+      if (!drew && st?.pendingEffect === 'SELECT_TARGET' && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+        drew = { hand: [...(st.host?.handCards ?? [])], deck: [...(st.host?.deckCards ?? [])], cands: [...st.pendingCandidates] };
+      }
+      // 候補セルは常に可視＝**1枚につき1回だけ**押す（§4.4 の 8p）。押す順＝デッキ下へ入る順。
+      if (!did && drew && picked.length < 2) {
+        for (const cn of drew.cands) {
+          if (picked.includes(cn)) continue;
+          const cell = page.locator(`[data-testid^="pick-"][data-card-num="${cn.split('#')[0]}"]`).first();
+          if (await cell.count() && await cell.isVisible().catch(() => false)) {
+            await cell.click({ timeout: 1200 }).catch(() => {});
+            picked.push(cn); did = `pick:${cn}`; break;
+          }
+        }
+      }
+      if (!did && picked.length >= 2 && !decided) {
+        const b = page.getByRole('button', { name: /^決定 \(2\// }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click({ timeout: 1200 }).catch(() => {}); did = 'decide'; decided = true;
+        }
+      }
+      H.log(`  o53h2d[${s}] -> ${did ?? 'なし'} | pEff=${st?.pendingEffect ?? '-'} hand=${st?.host?.hand} deck=${st?.host?.deck} picked=${picked.length}`);
+      if (decided && drew && !st?.pendingEffect) {
+        const fin = await H.queryState();
+        if (fin?.pendingEffect) continue;
+        const handAfter = fin.host?.handCards ?? [];
+        const deckAfter = fin.host?.deckCards ?? [];
+        const handDropped = handAfter.length === drew.hand.length - 2;
+        const leftHand = picked.every(cn => !handAfter.includes(cn));
+        const atBottom = deckAfter.slice(-2).join(',') === picked.join(',');
+        const deckGrew = deckAfter.length === drew.deck.length + 2;
+        return {
+          pass: handDropped && leftHand && atBottom && deckGrew,
+          detail: `選択=${JSON.stringify(picked)}／手札 ${drew.hand.length}→${handAfter.length}(=-2? ${handDropped})／`
+            + `選んだ札が手札から消えた=${leftHand}／デッキ ${drew.deck.length}→${deckAfter.length}(=+2? ${deckGrew})／`
+            + `デッキ末尾2枚=${JSON.stringify(deckAfter.slice(-2))}(選択順一致=${atBottom})`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未到達（zoned=${zoned} picked=${picked.length} decided=${decided} pEff=${fin?.pendingEffect ?? '-'} hand=${fin?.host?.hand} drew=${drew ? 'yes' : 'no'}）` };
+  },
+};
+order.push('o53OppHandPeekShowsHandNotDeck', 'o53HandToDeckBottomActuallyMovesHand');
+// ── O-53 END ──
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -27556,6 +27731,8 @@ try {
         life: (s.life_cloth ?? []).length,
         lifeCards: s.life_cloth ?? [],
         deck: (s.deck ?? []).length,
+        deckCards: s.deck ?? [],            // O-53：デッキ「下」へ入ったかは順序でしか見えない
+
         lrigAttacked: s.field?.lrig_attacked ?? false,
         // アタック時効果のstack解決後もバトル/ライフ処理が残る短い窓を区別し、check消化前returnを防ぐ。
         pendingSigniBattle: s.pending_signi_battle ?? null,
@@ -27594,6 +27771,9 @@ try {
         // ⚠CPU の SELECT_TARGET 自動応答は候補を**シャッフルして選ぶ**ので、結果（どれが消えたか）だけでは
         //   絞り込みの成否を判定できない（候補2件でも当たりを引けば PASS に見える）。候補列を直接見る。
         pendingCandidates: row.pending_effect?.interaction?.candidates ?? null,
+        // O-53（2026-08-24）＝`REVEAL_CARDS` は candidates を持たず `cards` に閲覧対象を載せる。
+        // 「相手の手札を見た」のか「相手のデッキを見てしまった」のかは**集合**でしか区別できない。
+        pendingRevealCards: row.pending_effect?.interaction?.cards ?? null,
         // 「モーダルが出ない」の切り分け用＝UI の描画ゲートは
         // `(respondPlayerId ?? sourcePlayerId) === user.id`（EffectInteractionModal.tsx）。
         // この値と viewerUserId が食い違っていれば pending は立っているのに誰の画面にも出ない（タスク12(cx) で実際に踏んだ）。

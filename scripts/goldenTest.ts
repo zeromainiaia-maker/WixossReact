@@ -27,7 +27,7 @@ import {
   applyRefreshOnDone,
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeOptionalCost, resumeOpponentPayOptional,
-  resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
+  resumeLookAndReorder, resumeRevealCards, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   applyEffectLeaveSubstitutes, collectLeaveSubstituteOptions, autoChooseLeaveSubstitute,
@@ -12293,6 +12293,111 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能�
   test('LOOK_AND_REORDER 記録: 公開3枚に非悪魔混在→ALL_MATCH不発', () => {
     const ctx = mkCtx({ deckTop: [DEMON, NONDEMON, DEMON], hand: 5 }, {});
     eq(run(lookThenAll, ctx).ownerState.hand.length, 5, '1枚外れ→ドローしない');
+  });
+}
+
+// O-53: LOOK_AND_REORDER の hand source は deck へ暗黙フォールバックさせない。
+// 群Aは閲覧専用 REVEAL_CARDS、群Bは既存 TRANSFER_TO_DECK{HAND_CARD} が正準形。
+{
+  const walkActions = (node: unknown, pred: (a: Record<string, unknown>) => boolean, out: Record<string, unknown>[] = []): Record<string, unknown>[] => {
+    if (!node || typeof node !== 'object') return out;
+    if (Array.isArray(node)) { node.forEach(v => walkActions(v, pred, out)); return out; }
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.type === 'string' && pred(obj)) out.push(obj);
+    Object.values(obj).forEach(v => walkActions(v, pred, out));
+    return out;
+  };
+  const opponentHandLookIds = [
+    'SPDi43-27-E2', 'WD16-010-E1', 'WX06-CB02-E2', 'WX17-002-E4', 'WX17-042-E2',
+    'WX17-069-E1', 'WXDi-P03-025-E1', 'WXDi-P09-065-E1', 'WXDi-P09-067-E1',
+    'WXK09-039-E2', 'WXK11-061-E1',
+  ].sort();
+  const handToDeckSpecs = new Map([
+    ['WDK05-R01-E2', 2], ['WDK05-R14-E1', 1], ['WDK05-R17-E1', 1],
+    ['WXK02-089-E1', 2], ['WXK05-025-E1', 2],
+  ]);
+
+  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧11効果だけ', () => {
+    const actual: string[] = [];
+    for (const effects of effectsMap.values()) for (const effect of effects) {
+      const hits = walkActions(effect.action, a => a.type === 'LOOK_AND_REORDER'
+        && (a.source as { location?: string } | undefined)?.location === 'hand');
+      if (hits.length > 0) actual.push(effect.effectId);
+    }
+    eq(actual.sort().join(','), opponentHandLookIds.join(','), '群Bが LOOK_AND_REORDER に戻った／群Aが欠けた');
+  });
+
+  test('O-53 構造集合: 手札→デッキ5効果は TRANSFER_TO_DECK{HAND_CARD,bottom} と原文枚数', () => {
+    for (const [effectId, count] of handToDeckSpecs) {
+      const effect = [...effectsMap.values()].flat().find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live effectなし`);
+      const hits = walkActions(effect!.action, a => a.type === 'TRANSFER_TO_DECK'
+        && (a.source as { type?: string } | undefined)?.type === 'HAND_CARD');
+      eq(hits.length, 1, `${effectId}: HAND_CARD transfer数`);
+      const source = hits[0].source as { owner?: string; count?: unknown };
+      eq(source.owner, 'self', `${effectId}: owner`);
+      eq(source.count, count, `${effectId}: 原文枚数`);
+      eq(hits[0].position, 'bottom', `${effectId}: bottom`);
+      eq(hits[0].shuffle, false, `${effectId}: shuffleなし`);
+    }
+  });
+
+  test('O-53 engine群A E2E: 相手手札だけをREVEAL_CARDSで見て両デッキ不変・lastProcessedCards記録', () => {
+    withSavedCursor(() => {
+    const effect = effectsMap.get('WX06-CB02')!.find(e => e.effectId === 'WX06-CB02-E2')!;
+    const ctx = mkCtx({ deckTop: [fresh(), fresh()], hand: 3 }, { deckTop: [fresh(), fresh(), fresh()], hand: 4 });
+    const ownerDeck = [...ctx.ownerState.deck];
+    const otherDeck = [...ctx.otherState.deck];
+    const otherHand = [...ctx.otherState.hand];
+    const first = executeAction(effect.action, ctx);
+    ok(!first.done && first.pending.type === 'REVEAL_CARDS', '閲覧専用REVEAL_CARDSで停止');
+    const pending = first.pending as PendingInteractionDef & { type: 'REVEAL_CARDS' };
+    eq([...pending.cards].sort().join(','), [...otherHand].sort().join(','), '表示カード＝相手手札の集合');
+    eq(first.ownerState.deck.join(','), ownerDeck.join(','), '自分デッキ不変');
+    eq(first.otherState.deck.join(','), otherDeck.join(','), '相手デッキ不変（旧実装の実害）');
+    eq([...(first.lastProcessedCards ?? [])].sort().join(','), [...otherHand].sort().join(','), 'lastProcessedCards＝相手手札');
+    const doneResult = resumeRevealCards(pending, { ...ctx, ownerState: first.ownerState, otherState: first.otherState,
+      logs: first.logs, lastProcessedCards: first.lastProcessedCards });
+    ok(doneResult.done, '閲覧確認後に完了');
+    eq(doneResult.otherState.hand.join(','), otherHand.join(','), '閲覧後も相手手札不変');
+    eq(doneResult.otherState.deck.join(','), otherDeck.join(','), '閲覧後も相手デッキ不変');
+    });
+  });
+
+  test('O-53 engine群B E2E: 2枚DRAW後に手札2枚を選択順どおりデッキ下へ戻す', () => {
+    withSavedCursor(() => {
+    const effect = effectsMap.get('WXK02-089')!.find(e => e.effectId === 'WXK02-089-E1')!;
+    const ctx = mkCtx({ deckTop: [fresh(), fresh(), fresh(), fresh()], hand: 4 }, {});
+    const initialHandCount = ctx.ownerState.hand.length;
+    const initialDeckCount = ctx.ownerState.deck.length;
+    const first = executeEffect(effect, ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'DRAW後に手札選択で停止');
+    const pending = first.pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+    eq(first.ownerState.hand.length, initialHandCount + 2, 'DRAW直後の手札');
+    eq(first.ownerState.deck.length, initialDeckCount - 2, 'DRAW直後のデッキ');
+    const selected = [pending.candidates[1], pending.candidates[0]];
+    const result = resumeSelectTarget(selected, pending, { ...ctx, ownerState: first.ownerState, otherState: first.otherState,
+      logs: first.logs, lastProcessedCards: first.lastProcessedCards });
+    ok(result.done, '選択後に完了');
+    eq(result.ownerState.hand.length, first.ownerState.hand.length - 2, '手札がN枚減る');
+    eq(result.ownerState.deck.length, first.ownerState.deck.length + 2, 'デッキがN枚増える');
+    eq(result.ownerState.deck.slice(-2).join(','), selected.join(','), 'bottomへの挿入が選択順を保存');
+    });
+  });
+
+  test('O-53 fail-loud: 未対応source/destinationをデッキへ暗黙フォールバックしない', () => {
+    withSavedCursor(() => {
+    const ctx = mkCtx({ deckTop: [fresh(), fresh()] }, {});
+    const before = ctx.ownerState.deck.join(',');
+    const badSource = run({ type: 'LOOK_AND_REORDER', source: { location: 'trash', owner: 'self' }, count: 1,
+      private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } } as unknown as EffectAction, ctx);
+    eq(badSource.ownerState.deck.join(','), before, '未知sourceでデッキを触らない');
+    ok(badSource.logs.some(l => l.includes('未対応')), '未知sourceをログへ出す');
+    const badDest = run({ type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1,
+      private: true, reorder: false, destination: { location: 'hand', owner: 'self', position: 'top' } } as unknown as EffectAction, ctx);
+    eq(badDest.ownerState.deck.join(','), before, '未対応destinationでデッキを触らない');
+    ok(badDest.logs.some(l => l.includes('未対応')), '未対応destinationをログへ出す');
+    });
   });
 }
 

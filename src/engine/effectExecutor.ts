@@ -5300,7 +5300,29 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     }, ctx);
   }
   const state = ownerState(a.source.owner as Owner, ctx);
-  const sourceCards = a.source.location === 'life_cloth' ? state.life_cloth : state.deck;
+  // 手札を見る効果は閲覧専用。LOOK_AND_REORDER のデッキ並べ替えUIへ渡すと、手札ではなく
+  // デッキを取り除いて戻す別効果になるため、既存の REVEAL_CARDS で盤面を変えずに見せる。
+  if (a.source.location === 'hand') {
+    if (a.destination.location !== 'hand' || a.destination.owner !== a.source.owner) {
+      return done(addLog(ctx,
+        `LOOK_AND_REORDER未対応: handから${a.destination.location}への移動はTRANSFER_TO_DECK等を使用する`));
+    }
+    const count = a.count === 'ALL' ? state.hand.length : resolveNum(a.count);
+    const cards = state.hand.slice(0, count);
+    const viewed = { ...ctx, lastProcessedCards: cards };
+    if (cards.length === 0) return done(addLog(viewed, '見る手札がない'));
+    return needsInteraction(addLog(viewed,
+      `${a.source.owner === 'opponent' ? '対戦相手の' : ''}手札${cards.length}枚を見る`), {
+      type: 'REVEAL_CARDS',
+      cards,
+      title: a.source.owner === 'opponent' ? '対戦相手の手札' : '手札',
+    });
+  }
+
+  let sourceCards: string[];
+  if (a.source.location === 'deck') sourceCards = state.deck;
+  else if (a.source.location === 'life_cloth') sourceCards = state.life_cloth;
+  else return done(addLog(ctx, `LOOK_AND_REORDER未対応source: ${String(a.source.location)}`));
   // `'ALL'`＝そのゾーンの全部（「あなたのすべてのライフクロスを見て」＝§6.4 O-4）。
   const count = a.count === 'ALL' ? sourceCards.length : resolveNum(a.count);
   // 「N枚まで見る」は情報を得る前に見る枚数を0..Nから決める。既定（フィールド省略）は
@@ -5324,6 +5346,14 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     ? sourceCards.slice(Math.max(0, sourceCards.length - count))
     : sourceCards.slice(0, count);
   if (cards.length === 0) return done(ctx);
+  const destLocation = a.destination.location === 'life_cloth'
+    ? 'life'
+    : a.destination.location === 'deck'
+      ? 'deck'
+      : undefined;
+  if (!destLocation) {
+    return done(addLog(ctx, `LOOK_AND_REORDER未対応destination: ${String(a.destination.location)}`));
+  }
   // 一時的に元ゾーンからカードを取り除く
   const newS: PlayerState = a.source.location === 'life_cloth'
     ? { ...state, life_cloth: state.life_cloth.slice(0, Math.max(0, state.life_cloth.length - cards.length)) }
@@ -5333,7 +5363,7 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     type: 'LOOK_AND_REORDER',
     cards,
     canTrash: a.canTrash ?? false,
-    destLocation: a.destination.location === 'life_cloth' ? 'life' : 'deck',
+    destLocation,
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
     private: a.private,

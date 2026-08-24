@@ -30,7 +30,7 @@ import type { TargetFilter } from '../src/types/effects';
 import {
   executeEffect,
   resumeSelectTarget, resumeSearch, resumeChoose,
-  resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone,
+  resumeLookAndReorder, resumeRevealCards, resumeSelectZone, resumeSelectVirusZone,
   resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
@@ -501,6 +501,7 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
           const cards = (p.cards as string[]) ?? [];
           result = resumeLookAndReorder(cards, [], pending as never, ctx); break;
         }
+        case 'REVEAL_CARDS': result = resumeRevealCards(pending as never, ctx); break;
         case 'SELECT_ZONE': result = resumeSelectZone(zone, pending as never, ctx); break;
         case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(zone, pending as never, ctx); break;
         case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(sameN >= 3 ? null : zone, pending as never, ctx); break;

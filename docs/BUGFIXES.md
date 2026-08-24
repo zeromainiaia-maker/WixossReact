@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：段2 第35バッチ＝O-53 `LOOK_AND_REORDER` の hand source 配線是正
+
+- `execLookAndReorder` が `source.location:'hand'` を deck に暗黙フォールバックしていたため、相手手札閲覧11効果が相手デッキを公開・一時除去していた。既存 `REVEAL_CARDS` へ配線し、盤面非変更のまま相手手札を表示して `lastProcessedCards` に保存するよう修正した。
+- source は `deck` / `life_cloth` / 閲覧用 `hand`、destination は `deck` / `life_cloth` / 閲覧用同一 hand を明示分岐し、未知値・hand からの移動はログ付き fail-loud にした。既存 deck / life_cloth の処理本体は変更していない。
+- 手札からデッキ下へ戻す5効果は既存 `TRANSFER_TO_DECK{source:{type:'HAND_CARD'}}` へ是正。`WDK05-R01-E2` と `WXK02-089-E1` は原文どおり2枚へ直し、`WXK05-025-E1` は manual source を修正して `syncManualLive` で反映した。
+- bottom 配置は `resumeSelectTarget` が選択配列順に `applyDirectAction` を呼び、各札を deck 末尾へ append するため選択順を保存する。top 配置は同経路だと逆順になるが、今回の5効果は全件 bottom のため対象外とした。
+- live の per-effect 差分は群Bの5効果だけ（追加0・削除0・scope 外0）。群Aの11効果は JSON / 逆翻訳を変えず engine だけを修正した。生パース差分は6効果で、outlier 1件 `WXK03-069-E1` は既に正しい live の兄弟を fresh parser が同じ構造へ追いついた改善であり、live は不変。
+- 修正前に追加 golden 5本が全て失敗することを確認し、修正後は golden 2667 PASS。smoke 10693全0、fuzz全0、census 607、census:stubs A/C 0、manual-fields 0/0、同型★0、lint 0 errors / 269 warnings。
+- held は81→80（`WXK03-069` のみ除外）、partial 15→15、idset 45→45。台帳は指定3 finding だけを閉じ、OPEN 729→726。
+- PLAN §5.3 O-51 は未着手。実測では `position:'any'` と deck の組は0であり、登録票の「deck 上へ置く死フラグ」は事実と食い違う。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/codex_b35_report.md`。
+- 🆕**Claude 側の検証（続き640）＝差し戻し0・是正0。** ①gates 独立実行で全数一致 ②live JSON をベースライン `d0b412b59` と effectId 単位で全数比較＝**変更5・追加0・削除0**（群Aは engine のみ）③**新 golden 5本をベースラインの `src`/`public/data` へ戻して実行し、5本とも FAIL することを確認**（vacuous PASS でない）④群A 11効果が新分岐の条件（`source.owner===destination.owner` かつ `destination.location==='hand'`）を**11/11 満たす**ことを機械確認。
+- 🆕**実機検証（PLAN §2.2 の⑤）＝2本とも PASS**（`node scripts/verifyBattleDrive.mjs o53OppHandPeekShowsHandNotDeck o53HandToDeckBottomActuallyMovesHand`）。
+  - `o53OppHandPeekShowsHandNotDeck`（群A・`WX06-CB02-E2`）＝閲覧集合が**相手手札と完全一致**／**相手デッキとは不一致**／**両者のデッキが不変**（g:5→5→5・h:4→4→4）。🔑**相手の手札とデッキを別カードで作る**のが要点＝同じカードで埋めると「どちらを見たのか」を区別できない。旧実装はここで相手デッキ5枚が並べ替えモーダルに出て一時0枚になっていた。
+  - `o53HandToDeckBottomActuallyMovesHand`（群B・`WXK02-089-E1`）＝手札 4→2・選んだ2枚が手札から消え・デッキ 4→6・**デッキ末尾2枚が選択順と一致**。旧実装は手札が1枚も減らなかった。
+  - 計器を2つ追加＝`queryState` の **`pendingRevealCards`**（`REVEAL_CARDS` は `candidates` を持たず `cards` に閲覧対象を載せる＝「手札を見たのかデッキを見たのか」は**集合でしか区別できない**）と **`deckCards`**（「一番下に入ったか」は順序でしか見えない）。
+- ⚠🔴**シナリオ側で §4.4 の 8k をまた踏んだ**＝`WXK02-089` は **リメンバ限定**（CSV の `Restriction` 列）。タマヨリヒメのルリグで盤面を作った1回目は**「召喚」ボタンが出ず26ティック空振り**した（engine ではなくシナリオの作り間違い）。ルリグを `WXK02-003`（リメンバ・ミッドナイト Lv4・limit 11）へ替えて PASS。**盤面を作る前に `Restriction` 列を見る**（`LrigLimit`/`Limitation` という列は存在しない）。切り分けの決め手は `scratchpad-verify/o53h2d-1.png`＝カード画像に「リメンバ限定」と写っていた（§4.4 の 10 の実例がまた1つ）。
+- 📋**スコープ外で見つけた別軸の不一致2件は §5.2 の worklist へ**＝`WX17-002-E4`（後半「宣言レベルの無色ではないシグニをすべて捨てさせる」が JSON/逆翻訳から欠落）／`WXDi-P09-065-E1`（閲覧後の「非ガード1枚を任意でデッキ下→そうした場合だけ相手が1枚引く」が `STUB{LOOK_AND_REORDER}` ＋ 誤った `IS_MY_TURN` のまま）。
+- 📋**`TRANSFER_TO_DECK` の逆翻訳が「好きな順番で」を表示しない**（`docs/decompile_sheet3/5`）。engine は bottom で選択順を保存するので**挙動は正しく、表示だけが不足**。既に正しかった兄弟4効果（`WXK01-102-E1` 等）も同じ表記なので**今回入った退化ではない**。
+
 ## 2026-08-24：段2 第34バッチ＝O-50「公開した残りだけを混ぜてデッキ下」を構造化
 
 - `SHUFFLE_DECK` で山札全体を混ぜていた15効果を修正。C2の4効果は既存

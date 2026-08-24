@@ -1378,8 +1378,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- デッキの一番下に置く系 ----
-  if (t.match(/手札からカード[０-９\d]+枚を好きな順番でデッキの一番下に置く/)) {
-    return { type: 'LOOK_AND_REORDER', source: { location: 'hand', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  const handToDeckBottom = t.match(/手札からカードを?([０-９\d]+)枚を(?:好きな順番で)?デッキの一番下に置く/);
+  if (handToDeckBottom) {
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'HAND_CARD', owner: 'self', count: parseNum(handToDeckBottom[1]) },
+      shuffle: false,
+      position: 'bottom',
+    };
   }
   if (t.match(/あなたのデッキの(?:下|一番下)からカードを?([０-９\d]+)枚?トラッシュに置く/)) {
     const m = t.match(/([０-９\d]+)枚/);
@@ -1392,11 +1398,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/(?:それ|そのカード)をデッキの一番下に置いてもよい$/)) {
     return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
   }
-  if (t.match(/手札からカード[０-９\d]+枚を(?:好きな順番で)?デッキの一番下に置く/)) {
-    const m = t.match(/([０-９\d]+)枚/);
-    return { type: 'LOOK_AND_REORDER', source: { location: 'hand', owner: 'self' }, count: m ? parseNum(m[1]) : 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
-  }
-
   // ---- 「（その｜指定された）シグニゾーンにあるシグニでアタックできない」＝**ゾーン継続**（§6.4 O-16 第3波）----
   // ⚠従来は `count:1` へ落ちており、直前の DESIGNATE で選んだゾーンではなく**相手シグニ1体を選ぶ**別物だった。
   //   ゾーンに紐づけないと「そのゾーンに後から出たシグニ」に効かない（＝ゾーンを封じる原文の意図が死ぬ）。
