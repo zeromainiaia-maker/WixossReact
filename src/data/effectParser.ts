@@ -4182,6 +4182,15 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // O-56 held採用ガード：直前にチェックゾーンへ置いた「そのカード」と、いまアタックした
+  // 相手シグニのレベル一致時だけそのアタックを無効にする。条件句を汎用剥離へ渡すと
+  // NEGATE_ATTACK だけが残り、既存curatedの levelEqLastProcessed が退化する。
+  if (/^そのカードがアタックしたそのシグニと同じレベルのシグニの場合、そのアタックを無効にする/.test(text.trim())) {
+    return {
+      type: 'NEGATE_ATTACK',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelEqLastProcessed: true } },
+    } as import('../types/effects').NegateAttackAction;
+  }
   const untilHandM = text.trim().replace(/。$/, '')
     .match(/^あなたの手札が([０-９\d一二三四五六七八九十]+)枚より少ない場合、その差の分だけカードを引く$/);
   if (untilHandM) {
@@ -16588,8 +16597,24 @@ function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   const stripped = stripRuleParens(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText)));
   const { cleaned, condition } = extractUseCondition(stripped);
+  const parsedText = condition ? cleaned : stripped;
+  // O-56: スペル本体の後ろに独立した【起】が印刷されている場合、【起】内の最後の
+  // TRAP_OP が本体先頭の「デッキ上から【トラップ】設置」を上書きしていた。
+  // カード番号や固有文ではなく、**スペル本体の先頭部分がトラップ設置として自己完結する木**に限って
+  // 後続【起】を本体E1から外す（【起】そのものの独立効果化は別スコープ）。
+  const embeddedActivatedIdx = parsedText.indexOf('【起】');
+  const leadingBeforeActivated = embeddedActivatedIdx > 0 ? parsedText.slice(0, embeddedActivatedIdx).trim() : '';
+  const hasLeadingTrapSet = !!(leadingBeforeActivated && /デッキの上から[^。]*【トラップ】として[^。]*設置/.test(leadingBeforeActivated));
+  const actionText = hasLeadingTrapSet
+    ? leadingBeforeActivated
+    : parsedText;
+  // 汎用part1の「残りをトラッシュに置く」が先に単体TRASHとして食うため、この自己完結文型だけは
+  // part4のトラップ設置記述子を優先する（全文カードではなく切り出した1文を渡す）。
+  const parsedAction = hasLeadingTrapSet
+    ? (parseSentencePart4(actionText.replace(/。$/, '')) ?? parseActionText(actionText))
+    : parseActionText(actionText);
   const action = stripUseTimeCostReductionStep(
-    stripUseTimeOptionalCostStep(parseActionText(condition ? cleaned : stripped), stripped), stripped);
+    stripUseTimeOptionalCostStep(parsedAction, stripped), stripped);
   const spellFb = consumeSilentFallbacks();
   logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';

@@ -3235,14 +3235,39 @@ export interface StubAction {
   pileHandCards?: string[];  // INTERNAL_RESOLVE_PILES: 手札へ加える明示instanceId群
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   /**
-   * `PLACE_TRAP_OPTIONAL`：**どこから**【トラップ】にするカードを取るか（§5.3 `O-55`・2026-08-24）。
+   * `TRAP_OP` / `TRAP_OPERATION`：カード全文を読み直さず、parser が一致した**文の操作**を渡す
+   * （§5.3 `O-56`・2026-08-24）。StubAction 全体の共用フィールドなので optional だが、
+   * live の `TRAP_OP` / `TRAP_OPERATION` では全ノード必須。
+   */
+  trapOp?: 'set' | 'trash' | 'activate' | 'rearrange' | 'to_check' | 'from_check'
+    | 'under_signi' | 'activate_check_burst' | 'burst_as_check' | 'gain_trap_ability';
+  /** 【トラップ】設置・発動・チェックゾーン移動の候補限定。 */
+  trapFilter?: TargetFilter;
+  /** 「そのシグニゾーン」「それがあったシグニゾーン」＝既存の自由ゾーン選択では表現不能。 */
+  trapFixedZone?: 'source' | 'previous';
+  /** デッキ上を見て選んだ後の残り札の行き先。 */
+  trapRemainder?: 'hand' | 'trash' | 'deck_top' | 'deck_bottom';
+  /** `under_signi` の付け先カード名。カード全文regexの代わりにparserが列挙する。 */
+  trapHostNames?: string[];
+  /**
+   * `activate_check_burst` / `burst_as_check` で発動するライフバーストの持ち主カード。
+   * 🔴**「発動しますか？」の CHOOSE を出す前に確定させて option の action へ載せる**（続き646 の実機で発見）＝
+   *   `{...stub, value:'activate'}` だけを持たせると、CHOOSE を1往復した後の ctx には
+   *   `lastProcessedCards`（＝直前にトラッシュへ送ったカード）が残っておらず、再開時に対象を見失って
+   *   **無言で done する**（`WXK11-036-E2` が実機でライフバーストを1度も発動しなかった）。
+   */
+  trapBurstCard?: string;
+  /** `count` が「N枚まで／好きな枚数」という上限であること。既存語彙名をStubActionでも共有する。 */
+  upToCount?: boolean;
+  /**
+   * `PLACE_TRAP_OPTIONAL` / `TRAP_OP` / `TRAP_OPERATION`：**どこから**【トラップ】等の対象を取るか。
    * 🔴省略時は `'hand'`＝**手札から**で、これが従来の唯一の挙動だった。原文が「そのカードを」
    * （＝直前に見たデッキの札）や「このシグニをエナゾーンから」と書いていても手札から設置していた
    * ＝**まったく別のカードが場に置かれる**（`WX15-086` / `WX16-015` / `WX16-029` / `WX21-036`）。
    * ⚠設置の実体は出所非依存の `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` が担う
    *   （deck / hand / energy のどこからでも抜く）。ここは**候補集合の出どころだけ**を決める。
    */
-  trapSource?: 'hand' | 'looked' | 'looked_or_hand' | 'energy_self';
+  trapSource?: 'hand' | 'looked' | 'looked_or_hand' | 'energy_self' | 'deck_top' | 'field_signi' | 'check' | 'trash';
   /**
    * `OPTIONAL_COST`：**効果元カード自身をエナゾーンからデッキの一番下へ置く**任意コスト
    * （§5.3 `O-55`・`WXDi-P02-044-E1`「このシグニをエナゾーンからデッキの一番下に置いてもよい」）。

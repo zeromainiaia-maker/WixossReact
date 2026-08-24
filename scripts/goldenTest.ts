@@ -7425,6 +7425,120 @@ test('【トラップ】設置の出所（O-55）: looked/energy_self は手札�
   eq(rE2.ownerState.hand.join(','), handBeforeE.join(','), '同・手札不変（旧実装はここで手札から1枚置いた）');
 }));
 
+// 🔴O-56：TRAP_OP / TRAP_OPERATION は、実行中の文ではなくカード全文を読んで枝を決めていた。
+// parser が文ごとの判別子を持ち、executor がその木だけを見ることを全母集団＋実行の正負で固定する。
+test('O-56 parser: TRAP_OP / TRAP_OPERATION の全18効果・21ノードが文単位ペイロードを持つ', () => {
+  // effectsMap は raw live effects_*.json。WX04-015-E1 の fresh parser にある裸STUBは
+  // live では MANUAL に置換されるため、この母集団には含まれない。
+  const expected = [
+    'SP26-001-E1', 'WX15-047-E1', 'WX15-053-BURST', 'WX15-083-BURST', 'WX16-028-E2',
+    'WX16-061-E1', 'WX17-029-TRAP', 'WX17-044-E1', 'WX17-062-E1', 'WX21-003-E2',
+    'WX21-025-E2', 'WX21-Re20-E1', 'WXDi-CP02-033-E1', 'WXDi-P11-006-E1',
+    'WXDi-P11-063-E1', 'WXEX2-15-E1', 'WXEX2-42-E1', 'WXK11-036-E2',
+  ];
+  const expectedSet = new Set(expected);
+  const found: Array<{ effectId: string; action: StubAction }> = [];
+  const walk = (effectId: string, value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(v => walk(effectId, v)); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && (obj.id === 'TRAP_OP' || obj.id === 'TRAP_OPERATION')) {
+      found.push({ effectId, action: obj as unknown as StubAction });
+    }
+    Object.values(obj).forEach(v => walk(effectId, v));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) {
+    if (expectedSet.has(effect.effectId)) walk(effect.effectId, effect.action);
+  }
+  const actual = [...new Set(found.map(x => x.effectId))].sort();
+  eq(actual.join(','), expected.sort().join(','), '母集団は18効果で集合一致');
+  eq(found.length, 21, '同一効果内の複数ノードを含め21ノード');
+  ok(found.every(x => x.action.trapOp != null), '全ノードがtrapOpを持つ（全文regexフォールバック撤去条件）');
+
+  const one = (effectId: string, op?: string) => found.find(x => x.effectId === effectId && (!op || x.action.trapOp === op))?.action;
+  const arrow = one('WX17-044-E1', 'set');
+  eq(arrow?.trapSource, 'deck_top', 'WX17-044-E1はデッキ上を見た札の設置');
+  eq(arrow?.count, 5, 'WX17-044-E1は最大5枚');
+  eq(arrow?.upToCount, true, 'WX17-044-E1は好きな枚数');
+  eq(one('WX16-061-E1')?.trapOp, 'trash', 'WX16-061-E1前半はトラップを捨てる');
+  eq(one('WXEX2-15-E1')?.trapOp, 'activate', 'WXEX2-15-E1前半はトラップを発動');
+  const fieldActivation = one('WXEX2-42-E1');
+  eq(fieldActivation?.trapSource, 'field_signi', 'WXEX2-42-E1は場のシグニを発動元にする');
+  eq(fieldActivation?.trapFilter?.story, 'トリック', 'WXEX2-42-E1の＜トリック＞限定を保持');
+  eq(one('WXK11-036-E2')?.trapOp, 'burst_as_check', 'WXK11-036-E2はチェックゾーン扱いでLB発動');
+  const upToThree = one('WX21-003-E2');
+  eq(upToThree?.trapSource, 'hand', 'WX21-003-E2は手札由来');
+  eq(upToThree?.count, 3, 'WX21-003-E2は最大3枚');
+  eq(upToThree?.upToCount, true, 'WX21-003-E2は0～3枚');
+});
+
+test('O-56 engine: WX17-044型の公開札設置は既存トラップを誤発動せず、デッキ複製もしない', () => withSavedCursor(() => {
+  const revealed = fill(5);
+  const oldTrap = fresh();
+  const ctx0 = mkCtx({ deckTop: revealed }, {}, 'WX17-044');
+  const ctx = { ...ctx0, lastProcessedCards: revealed,
+    ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, signi_traps: [null, null, oldTrap] } } } as ExecCtx;
+  const result = run({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'set', trapSource: 'looked', count: 5, upToCount: true } as unknown as EffectAction, ctx);
+  ok((result.ownerState.field.signi_traps ?? []).includes(oldTrap), '🔴別文の語で既存トラップを発動・廃棄しない');
+  ok(!(result.ownerState.trash ?? []).includes(oldTrap), '既存トラップはトラッシュへ行かない');
+  ok((result.ownerState.field.signi_traps ?? []).some(c => c && revealed.includes(c)), '公開札の【トラップ】設置が起きる');
+  ok(revealed.every(c => !result.ownerState.deck.includes(c)), '🔴設置対象はデッキから抜け、複製しない');
+}));
+
+test('O-56 engine: burst_as_checkはfield.checkを変えずLBを実行し、to_check対照だけがcheckを変える', () => withSavedCursor(() => {
+  const burstCard = 'WD01-011'; // 【ライフバースト】：カードを1枚引く
+  const oldCheck = fresh();
+  const ctx0 = mkCtx({ deckTop: fill(3) }, {}, 'WXK11-036');
+  const ctx = { ...ctx0, lastProcessedCards: [burstCard],
+    ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, check: oldCheck } } } as ExecCtx;
+  const beforeHand = ctx.ownerState.hand.length;
+  const burst = run({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'burst_as_check', trapSource: 'trash' } as unknown as EffectAction, ctx);
+  eq(burst.ownerState.field.check, oldCheck, '🔴「かのように」ではfield.checkを変えない');
+  eq(burst.ownerState.hand.length, beforeHand + 1, '対象カードのLB本体は実行される');
+  ok(!(burst.ownerState.field.signi_traps ?? []).includes(burstCard), 'LB対象を【トラップ】として誤設置しない');
+
+  const toCheck = run({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'to_check', trapSource: 'deck_top' } as unknown as EffectAction,
+    { ...ctx, lastProcessedCards: [burstCard] });
+  eq(toCheck.ownerState.field.check, burstCard, '対照：同じ盤面でto_checkならfield.checkが変わる');
+}));
+
+// 🔴**続き646 の実機で発見したバグの回帰**＝`burst_as_check` は `upToCount`（「発動して**もよい**」）のとき
+//    「ライフバーストを発動しますか？」の **CHOOSE を1往復**する。旧実装は option の action に
+//    `{...stub, value:'activate'}` しか載せず、**対象カードを `ctx.lastProcessedCards` から読み直していた**。
+//    実機では往復のたびに永続化を挟むため `lastProcessedCards` は残らず、再開時に対象を見失って
+//    **無言で done する**＝`WXK11-036-E2` がライフバーストを1度も発動しなかった。
+// ⚠**上の golden がこれを見逃した理由**＝`run()` のオートパイロット（`finish`）は
+//    `lastProcessedCards: result.lastProcessedCards` を持ち回るので往復しても対象が消えない。
+//    ⇒ **ここでは往復を手で再現し、`lastProcessedCards` を空にしてから option の action を実行する。**
+test('O-56 engine: burst_as_checkの「発動しますか？」往復は対象カードをペイロードで運ぶ', () => withSavedCursor(() => {
+  const burstCard = 'WD01-011'; // 【ライフバースト】：カードを1枚引く
+  const ctx0 = mkCtx({ deckTop: fill(4) }, {}, 'WXK11-036');
+  const ctx = { ...ctx0, lastProcessedCards: [burstCard] } as ExecCtx;
+  const beforeHand = ctx.ownerState.hand.length;
+
+  const pendingRes = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'burst_as_check', trapSource: 'trash', upToCount: true } as unknown as EffectAction,
+  } as CardEffect, ctx);
+  ok(!pendingRes.done, 'upToCount では「発動しますか？」で一旦止まる');
+  const pending = (pendingRes as { pending: { type: string; options?: { id: string; action: EffectAction }[] } }).pending;
+  eq(pending.type, 'CHOOSE', '止まり方は CHOOSE');
+  const activate = (pending.options ?? []).find(o => o.id === 'activate');
+  ok(!!activate, '「発動する」の選択肢がある');
+  eq((activate!.action as unknown as { trapBurstCard?: string }).trapBurstCard, burstCard,
+    '🔴対象カードが option の action に載っている（往復で失わない）');
+
+  // 往復の再現＝`lastProcessedCards` を空にして再開する（実機は永続化を挟むので残らない）。
+  const resumed = run(activate!.action, { ...ctx, lastProcessedCards: [] } as ExecCtx);
+  eq(resumed.ownerState.hand.length, beforeHand + 1, '🔴往復後もライフバースト本体が実行される');
+  eq(resumed.ownerState.field.check, ctx.ownerState.field.check, '往復後も field.check は変えない');
+
+  // 🔑対照＝ペイロードを剥がすと（＝旧実装と同じ形）往復後に対象を見失って何も起きない。
+  const stripped = { ...(activate!.action as unknown as Record<string, unknown>) };
+  delete stripped.trapBurstCard;
+  const lost = run(stripped as unknown as EffectAction, { ...ctx, lastProcessedCards: [] } as ExecCtx);
+  eq(lost.ownerState.hand.length, beforeHand, '対照：ペイロードが無いと往復後に発動できない（旧バグの形）');
+}));
+
 // 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
 //    旧実装は `STUB{SOUL_OP}`＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**別機構**へ
 //    落としており、エナの自分自身を1枚も戻さないまま「そうした場合」の本体だけが通る踏み倒しだった。

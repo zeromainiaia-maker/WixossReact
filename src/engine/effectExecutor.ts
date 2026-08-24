@@ -8730,6 +8730,21 @@ export function resumeSelectTarget(
       : queued;
     return executeAction(chained, { ...cur, lastProcessedCards: selected });
   }
+  // O-56: 手札などの SELECT_TARGET から選んだ複数枚を、既存の出所非依存トラップ設置へ1枚ずつ渡す。
+  // 汎用 per-card ループは最初のゾーン選択で pause すると2枚目以降を落とすため、SEARCH の then:'trap'
+  // と同じく SEQUENCE 化して外側 continuation を保つ。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'INTERNAL_ASK_TRAP_ZONE') {
+    const trapSteps: EffectAction[] = selected.map(cardNum => ({
+      type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE', value: cardNum,
+    } as StubAction));
+    if (pending.continuation) trapSteps.push(pending.continuation);
+    if (trapSteps.length === 0) return done(cur);
+    return executeAction(
+      trapSteps.length === 1 ? trapSteps[0] : { type: 'SEQUENCE', steps: trapSteps } as SequenceAction,
+      { ...cur, lastProcessedCards: selected },
+    );
+  }
   if (pending.thenAction.type === 'STUB' && (pending.thenAction as StubAction).id === 'INTERNAL_MILL_BOTTOM_DISTINCT4_BANISH') {
     const retainedTarget = selected[0];
     if (!retainedTarget) return done(cur);

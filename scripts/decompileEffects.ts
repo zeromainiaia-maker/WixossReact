@@ -2512,9 +2512,44 @@ function actionJa(a?: Action, effectType?: string): string {
         return m ? m[0] : 'この【トラップ】と同じシグニゾーンにシグニがない場合、この【トラップ】を表向きにしてシグニにする';
       }
       if (a.id === 'TRAP_OP' || a.id === 'TRAP_OPERATION') {
-        // テキスト駆動（設置/トラッシュ/手札の複合）。原文の【トラップ】設置を含む文を抽出（多段は近似）。
-        const m = currentCardText.match(/[^。]*【トラップ】として[^。]*?設置[^。]*?(?:。|$)/);
-        return m ? m[0].replace(/。$/, '') + '（【トラップ】操作）' : '【トラップ】を操作する（設置／トラッシュ／手札。原文参照）';
+        // O-56: **JSONの文単位ペイロードだけ**から描く。カード全文を切り出すと、別能力やLBの語で
+        // executorの誤分岐が起きていても逆翻訳だけ正しく見える偽陰性になる。
+        if (a.trapOp === 'set') {
+          const count = a.count ?? 1;
+          const countJa = `${count}枚${a.upToCount ? 'まで' : ''}`;
+          const fixed = a.trapFixedZone === 'previous' ? 'それがあったシグニゾーン'
+            : a.trapFixedZone === 'source' ? 'そのシグニゾーン'
+            : 'あなたのシグニゾーン';
+          const base = a.trapSource === 'hand'
+            ? `あなたの手札からカードを${countJa}【トラップ】として${fixed}に設置する`
+            : a.trapSource === 'field_signi'
+              ? `対戦相手のシグニ${count}体を【トラップ】として${fixed}に設置する`
+              : a.trapSource === 'looked'
+                ? `その中からカード${countJa}を【トラップ】として${fixed}に設置する`
+                : `あなたのデッキの上からカードを${count}枚見て${a.upToCount ? '好きな枚数' : countJa}を【トラップ】として${fixed}に設置する`;
+          if (a.trapRemainder === 'trash') return `${base}、残りをトラッシュに置く`;
+          if (a.trapRemainder === 'hand') return `${base}か、残りを手札に加える`;
+          if (a.trapRemainder === 'deck_top') return `${base}、残りをデッキの一番上に置く`;
+          if (a.trapRemainder === 'deck_bottom') return `${base}、残りをデッキの一番下に置く`;
+          return base;
+        }
+        if (a.trapOp === 'trash') return `あなたの【トラップ】${a.count ?? 1}つをトラッシュに置く`;
+        if (a.trapOp === 'activate') return a.trapSource === 'field_signi'
+          ? `あなたの${a.trapFilter?.story ? `＜${a.trapFilter.story}＞の` : ''}シグニ1体の《トラップアイコン》を発動させる（そのシグニは場に留まる）`
+          : 'あなたの【トラップ】1つを表向きにし《トラップアイコン》を発動させる';
+        if (a.trapOp === 'rearrange') return 'あなたのすべての【トラップ】を好きなように配置し直す（※並べ替え対話は未実装）';
+        if (a.trapOp === 'to_check') {
+          const source = a.trapSource === 'trash' ? 'そのシグニをトラッシュから'
+            : a.trapSource === 'deck_top' ? 'あなたのデッキの一番上のカードを'
+            : 'その中からカード1枚を';
+          return `${source}チェックゾーンに置${a.upToCount ? 'いてもよい' : 'く'}${a.trapRemainder === 'hand' ? '、残りを手札に加える' : ''}`;
+        }
+        if (a.trapOp === 'from_check') return 'そのカードをチェックゾーンからトラッシュに置く';
+        if (a.trapOp === 'under_signi') return `このスペルをチェックゾーンから${a.trapHostNames?.length ? a.trapHostNames.map(n => `《${n}》`).join('か') : 'あなたのシグニ'}1体の下に置いてもよい`;
+        if (a.trapOp === 'activate_check_burst') return 'チェックゾーンに置いたカードのライフバーストを発動する';
+        if (a.trapOp === 'burst_as_check') return 'それのライフバーストをチェックゾーンにあるかのように発動させてもよい';
+        if (a.trapOp === 'gain_trap_ability') return 'このカードは対象カードのトラップ能力を得て、その能力を発動する（※能力コピーは未実装）';
+        return '【トラップ】操作（trapOp判別子欠落）';
       }
       // engine が no-op スキップする説明テキスト系STUB（execStubPart1.ts と同一）は逆翻訳でも描画しない（空文字）。
       // SEQUENCE/CHOOSE 結合側で空文字ステップを除外する。

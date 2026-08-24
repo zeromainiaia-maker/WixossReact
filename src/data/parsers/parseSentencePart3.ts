@@ -2763,8 +2763,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
 
   // ---- 【トラップ】をトラッシュに置く ----
-  if (t.match(/【トラップ】[１-９1-9０-９\d]*つをトラッシュに置く/))
-    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
+  {
+    const trapTrashM = t.match(/【トラップ】([１-９1-9０-９\d]*)つをトラッシュに置く/);
+    if (trapTrashM) return {
+      type: 'STUB', id: 'TRAP_OP', trapOp: 'trash', count: trapTrashM[1] ? parseNum(trapTrashM[1]) : 1,
+    } as StubAction;
+  }
 
   // ---- このシグニによってクラッシュされたLBは発動しない ----
   // ⚠「クラッシュされた**対戦相手の**カードの…」の所有者句つきも受ける（`WXEX1-32-LAYER-E1`）。
@@ -2825,7 +2829,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- トラップ配置し直す ----
   if (t.match(/すべての【トラップ】を好きなように配置し直す/))
-    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OP', trapOp: 'rearrange' } as StubAction;
 
   return null;
 }

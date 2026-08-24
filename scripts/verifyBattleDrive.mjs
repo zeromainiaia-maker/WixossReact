@@ -28151,6 +28151,192 @@ scenarios.b57RevealTopLevelMiss = {
 order.push('b57RevealTopLevelMatch', 'b57RevealTopLevelMiss');
 // ── O-57 END ──
 
+// ── O-56（2026-08-24）＝TRAP_OP / TRAP_OPERATION の文単位ペイロード ──────────────
+// 旧executorは EffectText+BurstText の全文 includes で枝を決めたため、WX17-044-E1 は後段の
+// 「トラッシュに置く／トラップアイコンを発動」に食われ、設置が起きなかった。
+// 修正後は E1 の trapOp:set だけを読み、既存の INTERNAL_ASK_TRAP_ZONE → INTERNAL_PICK_TO_TRAP へ進む。
+const O56_ARROW = 'WX17-044#5601';
+const O56_OLD_TRAP = 'WD01-013#5602';
+const O56_PICK = 'WD01-014#5611';
+const O56_LOOKED = [O56_PICK, 'WD01-012#5612', 'WD01-013#5613', 'WD03-010#5614', 'WD03-011#5615'];
+const O56_DECK_REST = ['WD01-009#5616', 'WD01-010#5617', 'WD01-011#5618'];
+const O56_BLUE_A = 'WD03-010#5621';
+const O56_BLUE_B = 'WD03-011#5622';
+
+function o56ArrowSpec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WX15-002#5651'], // Lv4あや＝限定とスペル条件を満たす
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, O56_OLD_TRAP],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [O56_BLUE_A, O56_BLUE_B], 'trash': [], 'actions_done': [],
+      'life_cloth': ['WD01-010#5631', 'WD01-013#5632', 'WD01-012#5633'],
+      'deck': [...O56_LOOKED, ...O56_DECK_REST],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#5652'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#5641', 'WD01-013#5642', 'WD01-013#5643'],
+    },
+    handPrepend: [O56_ARROW],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+async function driveO56Arrow(page, H, id, check) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  const flow = { handOpened: false, energy0: false, energy1: false, cast: false, picked: false };
+  let settle = 0;
+  for (let s = 0; s < 42; s++) {
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!flow.handOpened) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) flow.handOpened = true;
+    }
+    if (!did && !flow.cast) {
+      const e0 = page.getByTestId('spellcost-energy-0').first();
+      const e1 = page.getByTestId('spellcost-energy-1').first();
+      if (!flow.energy0 && await e0.count() && await e0.isVisible().catch(() => false)) {
+        await e0.click().catch(() => {}); flow.energy0 = true; did = 'spellcost-energy-0';
+      } else if (!flow.energy1 && await e1.count() && await e1.isVisible().catch(() => false)) {
+        await e1.click().catch(() => {}); flow.energy1 = true; did = 'spellcost-energy-1';
+      } else if (flow.energy0 && flow.energy1) {
+        const fire = page.getByRole('button', { name: '発動する', exact: true }).first();
+        if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+          await fire.click().catch(() => {}); flow.cast = true; did = 'btn:発動する';
+        }
+      }
+      if (!did) did = await H.clickBtn('発動');
+    }
+    const mid = await H.queryState();
+    if (!did && flow.cast && !flow.picked && (mid?.pendingCandidates ?? []).includes(O56_PICK)) {
+      did = await clickPendingInstance(page, H, O56_PICK);
+      if (did) flow.picked = true;
+    }
+    // 🔴**ゾーン選択を `flow.picked` でゲートしない**（続き646 の実機で踏んだ）＝
+    //   「好きな枚数」の選択は `pendingCandidates` を持つ SELECT_TARGET ではなく **SEARCH**（デッキ上5枚公開）で行われ、
+    //   実際のピックは下の `stdStep` の `pick-0` / `決定 (1/5)` が処理する。よって `clickPendingInstance` は一度も走らず
+    //   `flow.picked` は永久に false のままで、**ゾーン選択の CHOOSE が出ているのに誰も押さずに42反復空振り**した。
+    //   ⚠engine は正しく `SEARCH → 決定 (1/5) → INTERNAL_ASK_TRAP_ZONE` と進んでいる（枚数は SEARCH 側で選ぶので
+    //     ゾーン選択にスキップが無いのが正しい）。⇒ **cast 済みなら無条件にゾーン1を試す。**
+    //   ⚠ゾーン1は空（既存【トラップ】はゾーン3）＝`o56ArrowRainSetsTrapNotTrashesIt` の「既存を捨てない」assert を壊さない。
+    if (!did && flow.cast) {
+      did = await H.clickBtn('ゾーン1に設置');
+      if (did) flow.picked = true;
+    }
+    if (!did) did = await H.stdStep(['決定 (1/5)', '決定', '発動順序を確定', '確定', 'OK', 'はい']);
+    const st = await H.queryState();
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | flow=${JSON.stringify(flow)} cands=${JSON.stringify(st?.pendingCandidates)} traps=${JSON.stringify(st?.host?.signiTraps)} deck=${JSON.stringify(st?.host?.deckCards)} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    const installed = (st?.host?.signiTraps ?? []).includes(O56_PICK);
+    settle = installed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 ? settle + 1 : 0;
+    if (settle >= 3) return check(st, before);
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（flow=${JSON.stringify(flow)} traps=${JSON.stringify(fin?.host?.signiTraps)} deck=${JSON.stringify(fin?.host?.deckCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.o56TrapSetFromDeckNoDuplicate = {
+  title: 'O-56 デッキ由来のトラップ設置は元デッキから抜け、同じinstanceを複製しない',
+  spec: o56ArrowSpec(),
+  drive: (page, H) => driveO56Arrow(page, H, 'o56nodup', (st) => {
+    const inTrap = (st.host.signiTraps ?? []).includes(O56_PICK);
+    const outOfDeck = !(st.host.deckCards ?? []).includes(O56_PICK);
+    return {
+      pass: inTrap && outOfDeck,
+      detail: `設置=${inTrap}／デッキから除去=${outOfDeck}（traps=${JSON.stringify(st.host.signiTraps)} deck=${JSON.stringify(st.host.deckCards)}）`,
+    };
+  }),
+};
+
+scenarios.o56ArrowRainSetsTrapNotTrashesIt = {
+  title: 'O-56 WX17-044-E1は設置を行い、別文の「トラッシュ／発動」で既存トラップを捨てない',
+  spec: o56ArrowSpec(),
+  drive: (page, H) => driveO56Arrow(page, H, 'o56arrow', (st) => {
+    const installed = (st.host.signiTraps ?? []).includes(O56_PICK);
+    const oldKept = (st.host.signiTraps ?? []).includes(O56_OLD_TRAP);
+    const oldNotTrashed = !(st.host.trashCards ?? []).includes(O56_OLD_TRAP);
+    return {
+      pass: installed && oldKept && oldNotTrashed,
+      detail: `新規設置=${installed}／既存トラップ残存=${oldKept}／既存トラップ非トラッシュ=${oldNotTrashed}`,
+    };
+  }),
+};
+
+// WXK11-036-E2：「チェックゾーンにあるかのように」はLBを実行するだけで field.check を変えない。
+// デッキの上・下どちらを既存TRASHが選んでも同じ観測になるよう、両端を「LB:1枚引く」のLv3シグニにする。
+const O56_DEMENI = 'WXK11-036#5661';
+const O56_DEFENDER = 'WD01-014#5662';
+const O56_BURST_TOP = 'WD03-011#5663';
+const O56_BURST_BOTTOM = 'WD01-011#5664';
+
+scenarios.o56BurstAsCheckDoesNotEnterCheckZone = {
+  title: 'O-56 WXK11-036-E2はLBをチェックゾーン扱いで発動するがfield.checkへ実際には置かない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX15-012#5671'], // Lv3＝両LBシグニのレベル条件を満たす
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, [O56_DEMENI], null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [], 'actions_done': [], 'life_cloth': [],
+      // ⚠**デッキを2枚にしない**（続き646 の実機で踏んだ）＝LB の「1枚引く」でデッキが尽きると
+      //   **リフレッシュが走ってトラッシュのカードがデッキへ戻り**、`LB元はトラッシュ` の assert が
+      //   engine は正しいのに false になる。間に捨て札を挟んで**引いても尽きない厚み**を持たせる。
+      //   ⚠添字0が「デッキの一番下」＝ミルされるのは `O56_BURST_TOP`（名前と位置が逆だが既存の並びを維持）。
+      'deck': [O56_BURST_TOP, 'WD01-013#5665', 'WD01-013#5666', 'WD01-013#5667', 'WD01-013#5668', O56_BURST_BOTTOM],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#5672'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, [O56_DEFENDER], null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [], 'life_cloth': [],
+      'deck': ['WD01-013#5673', 'WD01-013#5674'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    const attack = { zoneOpened: false, attacked: false };
+    let settle = 0;
+    for (let s = 0; s < 32; s++) {
+      await page.waitForTimeout(650);
+      await page.screenshot({ path: `${SHOT}/o56burst-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await v86Attack(page, H, attack, 1);
+      if (!did) did = await H.clickBtn('発動する');
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+      const st = await H.queryState();
+      H.log(`  o56burst[${s}] -> ${did ?? 'なし'} | attacked=${attack.attacked} hand=${st?.host?.hand} check=${st?.host?.fieldCheck ?? '-'} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settle = attack.attacked && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 ? settle + 1 : 0;
+      if (settle < 4) continue;
+      const burstRan = (st.host.hand ?? 0) === (before.host.hand ?? 0) + 1;
+      const checkUnchanged = st.host.fieldCheck === null;
+      const sourceTrashed = (st.host.trashCards ?? []).includes(O56_BURST_TOP)
+        || (st.host.trashCards ?? []).includes(O56_BURST_BOTTOM);
+      return {
+        pass: burstRan && checkUnchanged && sourceTrashed,
+        detail: `LBで1枚ドロー=${burstRan}／field.check不変(null)=${checkUnchanged}／LB元はトラッシュ=${sourceTrashed}`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（attacked=${attack.attacked} hand=${fin?.host?.hand} check=${fin?.host?.fieldCheck ?? '-'} trash=${JSON.stringify(fin?.host?.trashCards)}）` };
+  },
+};
+
+order.push('o56TrapSetFromDeckNoDuplicate', 'o56ArrowRainSetsTrapNotTrashesIt',
+  'o56BurstAsCheckDoesNotEnterCheckZone');
+// ── O-56 END ──
+
 
 
 

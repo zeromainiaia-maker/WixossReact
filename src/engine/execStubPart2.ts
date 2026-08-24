@@ -3205,7 +3205,8 @@ export function execStubPart2(
     const zoneOptsPTFR = [0, 1, 2].map(zi => ({
       id: `ptfr_zone_${zi}`,
       label: `ゾーン${zi + 1}にトラップ設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
+      // 公開札由来なので手札専用 INTERNAL_SET_TRAP へは流さない。
+      action: ({ type: 'STUB', id: 'INTERNAL_PICK_TO_TRAP', value: selectedPTFR, count: zi } as StubAction) as EffectAction,
       available: true,
     }));
     return needsInteraction(
@@ -3214,146 +3215,172 @@ export function execStubPart2(
       { type: 'CHOOSE', options: zoneOptsPTFR, count: 1 },
     );
   }
-  // TRAP_OP: ソースカードのテキストに応じて操作判定
-  if (stub.id === 'TRAP_OP') {
-    const srcTRAPOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTRAPOP = srcTRAPOP ? (srcTRAPOP.EffectText ?? '') + ' ' + (srcTRAPOP.BurstText ?? '') : '';
-    // トラップアイコン発動：ACTIVATE_TRAPと同一ロジック（parseCardEffects経由でTRAP_ICON実行）
-    if (txtTRAPOP.includes('トラップアイコン') && (txtTRAPOP.includes('発動') || txtTRAPOP.includes('発動させる'))) {
-      const trapsIconAT: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
-      const firstIdxIconAT = trapsIconAT.findIndex((t: string | null) => t !== null);
-      if (firstIdxIconAT < 0) return done(addLog(ctx, 'トラップなし（トラップアイコン発動）'));
-      const trapCardIconAT = trapsIconAT[firstIdxIconAT]!;
-      const newTrapsIconAT = [...trapsIconAT] as (string | null)[];
-      newTrapsIconAT[firstIdxIconAT] = null;
-      const newOwnerIconAT = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardIconAT], field: { ...ctx.ownerState.field, signi_traps: newTrapsIconAT } };
-      const loggedIconAT = addLog({ ...ctx, ownerState: newOwnerIconAT, sourceCardNum: trapCardIconAT }, `トラップアイコン発動: ${ctx.cardMap.get(trapCardIconAT)?.CardName ?? trapCardIconAT}`);
-      const trapDataIconAT = ctx.cardMap.get(trapCardIconAT);
-      if (trapDataIconAT) {
-        const trapEffsIconAT = parseCardEffects(trapDataIconAT);
-        const trapIconEffAT = trapEffsIconAT.find(e => e.effectType === 'TRAP_ICON');
-        if (trapIconEffAT) return exec(trapIconEffAT.action, { ...loggedIconAT, trapActivated: true });
+  // O-56: TRAP_OP / TRAP_OPERATION の文単位ペイロード。
+  // parser がどの文に一致したかを渡すので、executor はカード全文を読み直さない。
+  // live 18効果・再帰21ノードすべてへの搭載を機械確認後、旧全文フォールバックは撤去済み。
+  if ((stub.id === 'TRAP_OP' || stub.id === 'TRAP_OPERATION') && stub.trapOp) {
+    if (stub.trapOp === 'set') {
+      // 固定ゾーン設置／相手の場のシグニ由来は、既存funnelに出所除去・固定ゾーン指定の口が無い。
+      // 自由ゾーンへ誤設置するより安全なno-opに倒し、O-59候補として分離する。
+      if (stub.trapFixedZone || stub.trapSource === 'field_signi') {
+        return done(addLog(ctx, `[トラップ設置保留: ${stub.trapFixedZone ?? stub.trapSource}]`));
       }
-      return done({ ...loggedIconAT, trapActivated: true });
-    }
-    if (txtTRAPOP.includes('トラッシュに置く') || txtTRAPOP.includes('トラッシュへ置く')) {
-      const trapsTO: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
-      const firstIdxTO = trapsTO.findIndex((t: string | null) => t !== null);
-      if (firstIdxTO < 0) return done(addLog(ctx, 'トラップなし'));
-      const trapCardTO = trapsTO[firstIdxTO]!;
-      const newTrapsTO = [...trapsTO] as (string | null)[];
-      newTrapsTO[firstIdxTO] = null;
-      const newOwnerTO = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardTO], field: { ...ctx.ownerState.field, signi_traps: newTrapsTO } };
-      return done(addLog({ ...ctx, ownerState: newOwnerTO }, `トラップをトラッシュへ`));
-    }
-    if (txtTRAPOP.includes('手札から') && (txtTRAPOP.includes('設置') || txtTRAPOP.includes('トラップ'))) {
-      if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, 'トラップ設置：手札なし'));
-      const zoneOptsTRAPOP = [0, 1, 2].map(zi => ({
-        id: `zone_${zi}`,
-        label: `ゾーン${zi + 1}に設置`,
-        action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
-        available: true,
-      }));
+      const maxSet = Math.max(1, stub.count ?? 1);
+      if (stub.trapSource === 'deck_top') {
+        const remainder = stub.trapRemainder === 'trash'
+          ? { location: 'trash' as const, position: 'bottom' as const }
+          : stub.trapRemainder === 'hand'
+            ? { location: 'hand' as const, position: 'any' as const }
+            : stub.trapRemainder === 'deck_bottom'
+              ? { location: 'deck' as const, position: 'bottom' as const }
+              : { location: 'deck' as const, position: 'top' as const };
+        return exec({
+          type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: maxSet,
+          stages: [{ pickCount: maxSet, ...(stub.upToCount ? { pickUpTo: true } : {}), then: 'trap', pickNoun: 'カード' }],
+          remainder,
+        } as EffectAction, ctx);
+      }
+      const candidates = stub.trapSource === 'hand'
+        ? ctx.ownerState.hand
+        : (ctx.lastProcessedCards ?? []).filter(cardNum =>
+          ctx.ownerState.deck.includes(cardNum) || ctx.ownerState.hand.includes(cardNum) || ctx.ownerState.energy.includes(cardNum));
+      if (candidates.length === 0) return done(addLog(ctx, 'トラップ設置：候補なし'));
       return needsInteraction(addLog(ctx, 'トラップにするカードを選択'), {
-        type: 'SELECT_TARGET',
-        candidates: ctx.ownerState.hand,
-        count: 1,
-        optional: false,
-        targetScope: 'self_hand',
-        thenAction: ({ type: 'STUB', id: 'CHOOSE_TRAP_ZONE' } as StubAction) as EffectAction,
-        continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsTRAPOP.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as ChooseAction) as EffectAction,
+        type: 'SELECT_TARGET', candidates,
+        count: Math.min(maxSet, candidates.length), optional: stub.upToCount === true,
+        targetScope: stub.trapSource === 'hand' ? 'self_hand' : 'self_field',
+        thenAction: ({ type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as StubAction) as EffectAction,
       });
     }
-    // 「その中から」パターン: lastProcessedCardsのカードをトラップとして設置
-    if (ctx.lastProcessedCards?.length) {
-      const zoneOptsTRAPOP3 = [0, 1, 2].map(zi => ({
-        id: `trapop3_zone_${zi}`,
-        label: `ゾーン${zi + 1}にトラップ設置`,
-        action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
-        available: true,
-      }));
-      return needsInteraction(addLog(ctx, `${ctx.cardMap.get(ctx.lastProcessedCards[0])?.CardName ?? ctx.lastProcessedCards[0]}をトラップとして設置するゾーンを選択`), {
-        type: 'CHOOSE', options: zoneOptsTRAPOP3, count: 1,
-      });
+    if (stub.trapOp === 'trash') {
+      const maxTrash = Math.max(1, stub.count ?? 1);
+      const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+      const trashed = traps.filter((card): card is string => !!card).slice(0, maxTrash);
+      if (trashed.length === 0) return done(addLog(ctx, 'トラップなし'));
+      const nextTraps = traps.map(card => card && trashed.includes(card) ? null : card) as (string | null)[];
+      return done(addLog({
+        ...ctx,
+        ownerState: { ...ctx.ownerState, trash: [...ctx.ownerState.trash, ...trashed], field: { ...ctx.ownerState.field, signi_traps: nextTraps } },
+        lastProcessedCards: trashed,
+      }, `トラップ${trashed.length}枚をトラッシュへ`));
     }
-    return done(addLog(ctx, '[トラップ操作]'));
-  }
-  // TRAP_OPERATION: トラップ/チェックゾーン操作の統合ハンドラ
-  if (stub.id === 'TRAP_OPERATION') {
-    const srcTRAPOPER = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTRAPOPER = srcTRAPOPER ? (srcTRAPOPER.EffectText ?? '') + ' ' + (srcTRAPOPER.BurstText ?? '') : '';
-    // チェックゾーンに置く: lastProcessedCards[0] を field.check に設置
-    if (txtTRAPOPER.includes('チェックゾーンに置') || txtTRAPOPER.includes('チェックゾーンへ')) {
-      const cardToCheckTO = ctx.lastProcessedCards?.[0] ?? (ctx.ownerState.deck.length > 0 ? ctx.ownerState.deck[0] : null);
-      if (!cardToCheckTO) return done(addLog(ctx, '[チェックゾーン：対象カードなし]'));
-      const newDeckCKTO = ctx.ownerState.deck[0] === cardToCheckTO ? ctx.ownerState.deck.slice(1) : ctx.ownerState.deck;
-      const newHandCKTO = ctx.ownerState.hand.filter(c => c !== cardToCheckTO);
-      const newOwnerCKTO = { ...ctx.ownerState, deck: newDeckCKTO, hand: newHandCKTO, field: { ...ctx.ownerState.field, check: cardToCheckTO } };
-      return done(addLog({ ...ctx, ownerState: newOwnerCKTO }, `${ctx.cardMap.get(cardToCheckTO)?.CardName ?? cardToCheckTO}をチェックゾーンへ`));
-    }
-    // このスペル自身をシグニの下に置いてもよい（WXDi-P11-063等）
-    if (txtTRAPOPER.includes('の下に置いてもよい')) {
-      const spellNumTO = ctx.sourceCardNum;
-      if (spellNumTO) {
-        const selfTopSigniTO = ctx.ownerState.field.signi.map(s => s?.at(-1)).filter((c): c is string => !!c);
-        const memoriaMatchTO = [...txtTRAPOPER.matchAll(/《([^》]+メモリア[^》]*)》/g)].map(m => m[1]);
-        const hostCandsTO = memoriaMatchTO.length > 0
-          ? selfTopSigniTO.filter(cn => memoriaMatchTO.some(name => ctx.cardMap.get(cn)?.CardName === name))
-          : selfTopSigniTO;
-        const validHostsTO = hostCandsTO.length > 0 ? hostCandsTO : selfTopSigniTO;
-        const spellNameTO = ctx.cardMap.get(spellNumTO)?.CardName ?? spellNumTO;
-        const placeOptsTO = validHostsTO.map(cn => ({
-          id: `under_${cn}`,
-          label: `${ctx.cardMap.get(cn)?.CardName ?? cn}の下に置く`,
-          action: ({ type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI', value: cn } as StubAction) as EffectAction,
-          available: true,
-        }));
-        placeOptsTO.push({
-          id: 'skip', label: 'スキップ（トラッシュへ）',
-          action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction,
-          available: true,
-        });
-        return needsInteraction(addLog(ctx, `${spellNameTO}をシグニの下に置きますか？`), {
-          type: 'CHOOSE', count: 1, options: placeOptsTO,
+    if (stub.trapOp === 'activate') {
+      if (stub.trapSource !== 'field_signi') {
+        return exec({ type: 'STUB', id: 'ACTIVATE_TRAP' } as StubAction, ctx);
+      }
+      const fieldCandidatesAT = ctx.ownerState.field.signi
+        .map(stack => stack?.at(-1)).filter((card): card is string => !!card)
+        .filter(card => !stub.trapFilter || matchesFilter(ctx.cardMap.get(getCardNum(card)), stub.trapFilter));
+      const selectedAT = ctx.lastProcessedCards?.find(card => fieldCandidatesAT.includes(card));
+      if (!selectedAT) {
+        if (fieldCandidatesAT.length === 0) return done(addLog(ctx, 'トラップアイコンを持つ対象シグニなし'));
+        return needsInteraction(addLog(ctx, '《トラップアイコン》を発動するシグニを選択'), {
+          type: 'SELECT_TARGET', candidates: fieldCandidatesAT, count: 1, optional: false, targetScope: 'self_field',
+          thenAction: ({ ...stub } as StubAction) as EffectAction,
         });
       }
+      const targetDataAT = ctx.cardMap.get(getCardNum(selectedAT));
+      const targetEffectsAT = targetDataAT?.effects?.length ? targetDataAT.effects : targetDataAT ? parseCardEffects(targetDataAT) : [];
+      const trapIconAT = targetEffectsAT.find(effect => effect.effectType === 'TRAP_ICON');
+      if (!trapIconAT) return done(addLog(ctx, `${targetDataAT?.CardName ?? selectedAT}: トラップアイコン能力なし`));
+      return exec(trapIconAT.action, addLog({ ...ctx, sourceCardNum: selectedAT, trapActivated: true },
+        `場の${targetDataAT?.CardName ?? selectedAT}のトラップアイコンを発動`));
     }
-    const cardToTrapTO = ctx.lastProcessedCards?.[0];
-    if (cardToTrapTO) {
-      // lastProcessedCards[0] をトラップとして設置（ゾーン選択）
-      const zoneOptsTRAPOP = [0, 1, 2].map(zi => ({
-        id: `trapop_zone_${zi}`,
-        label: `ゾーン${zi + 1}にトラップ設置`,
-        action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
+    if (stub.trapOp === 'rearrange') {
+      return done(addLog(ctx, '[トラップ再配置：並べ替え対話は未実装]'));
+    }
+    if (stub.trapOp === 'to_check') {
+      const pendingLooked = stub.trapSource === 'looked' && stub.value == null && (ctx.lastProcessedCards?.length ?? 0) > 1;
+      const pendingOptional = stub.upToCount === true && stub.value == null;
+      if (pendingLooked || pendingOptional) {
+        const candidates = stub.trapSource === 'trash'
+          ? (ctx.lastProcessedCards ?? []).filter(card => ctx.ownerState.trash.includes(card))
+          : (ctx.lastProcessedCards ?? []);
+        if (candidates.length === 0) return done(addLog(ctx, 'チェックゾーン：候補なし'));
+        return needsInteraction(addLog(ctx, 'チェックゾーンに置くカードを選択'), {
+          type: 'SELECT_TARGET', candidates, count: 1, optional: stub.upToCount === true,
+          targetScope: stub.trapSource === 'trash' ? 'self_trash' : 'self_field',
+          thenAction: ({ ...stub, value: pendingLooked ? JSON.stringify(candidates) : 'selected' } as StubAction) as EffectAction,
+        });
+      }
+      const cardToCheck = ctx.lastProcessedCards?.[0]
+        ?? (stub.trapSource === 'check' ? ctx.ownerState.field.check : null)
+        ?? (stub.trapSource === 'deck_top' ? ctx.ownerState.deck[0] : null);
+      if (!cardToCheck) return done(addLog(ctx, '[チェックゾーン：対象カードなし]'));
+      let remainderCards: string[] = [];
+      if (stub.trapRemainder === 'hand' && typeof stub.value === 'string' && stub.value.startsWith('[')) {
+        try { remainderCards = (JSON.parse(stub.value) as string[]).filter(card => card !== cardToCheck); } catch { remainderCards = []; }
+      }
+      const remove = new Set([cardToCheck, ...remainderCards]);
+      const newOwner = {
+        ...ctx.ownerState,
+        deck: ctx.ownerState.deck.filter(card => !remove.has(card)),
+        hand: [...ctx.ownerState.hand.filter(card => card !== cardToCheck), ...remainderCards.filter(card => !ctx.ownerState.hand.includes(card))],
+        trash: ctx.ownerState.trash.filter(card => card !== cardToCheck),
+        field: { ...ctx.ownerState.field, check: cardToCheck },
+      };
+      return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [cardToCheck] },
+        `${ctx.cardMap.get(getCardNum(cardToCheck))?.CardName ?? cardToCheck}をチェックゾーンへ`));
+    }
+    if (stub.trapOp === 'from_check') {
+      const checked = ctx.ownerState.field.check;
+      if (!checked) return done(addLog(ctx, 'チェックゾーン：カードなし'));
+      return done(addLog({
+        ...ctx,
+        ownerState: { ...ctx.ownerState, trash: [...ctx.ownerState.trash, checked], field: { ...ctx.ownerState.field, check: null } },
+        lastProcessedCards: [checked],
+      }, `${ctx.cardMap.get(getCardNum(checked))?.CardName ?? checked}をチェックゾーンからトラッシュへ`));
+    }
+    if (stub.trapOp === 'under_signi') {
+      const spellNum = ctx.sourceCardNum;
+      if (!spellNum) return done(addLog(ctx, 'シグニの下へ：効果元なし'));
+      const topSigni = ctx.ownerState.field.signi.map(stack => stack?.at(-1)).filter((card): card is string => !!card);
+      const namedHosts = stub.trapHostNames?.length
+        ? topSigni.filter(card => stub.trapHostNames!.includes(ctx.cardMap.get(getCardNum(card))?.CardName ?? ''))
+        : topSigni;
+      const validHosts = namedHosts.length > 0 ? namedHosts : topSigni;
+      const options = validHosts.map(card => ({
+        id: `under_${card}`, label: `${ctx.cardMap.get(getCardNum(card))?.CardName ?? card}の下に置く`,
+        action: ({ type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI', value: card } as StubAction) as EffectAction,
         available: true,
       }));
-      return needsInteraction(
-        addLog({ ...ctx, lastProcessedCards: [cardToTrapTO] }, `${ctx.cardMap.get(cardToTrapTO)?.CardName ?? cardToTrapTO}をトラップとして設置`),
-        { type: 'CHOOSE', options: zoneOptsTRAPOP, count: 1 }
-      );
+      options.push({ id: 'skip', label: 'スキップ（トラッシュへ）', action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction, available: true });
+      return needsInteraction(addLog(ctx, `${ctx.cardMap.get(getCardNum(spellNum))?.CardName ?? spellNum}をシグニの下に置きますか？`), {
+        type: 'CHOOSE', count: 1, options,
+      });
     }
-    // lastProcessedCardsなし：デッキ上1枚を手札に加える（デッキ上確認後のトラップ設置が多い）
-    if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, '[トラップ操作：デッキなし]'));
-    const topCardTO = ctx.ownerState.deck[0];
-    const newDeckTO = ctx.ownerState.deck.slice(1);
-    const newOwnerTO = { ...ctx.ownerState, deck: newDeckTO };
-    const zoneOptsTRAPOP2 = [0, 1, 2].map(zi => ({
-      id: `trapop2_zone_${zi}`,
-      label: `ゾーン${zi + 1}にトラップ設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
-      available: true,
-    }));
-    zoneOptsTRAPOP2.push({
-      id: 'trapop2_skip', label: 'スキップ（手札に加える）',
-      action: ({ type: 'ADD_TO_HAND', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as unknown) as EffectAction,
-      available: true,
-    });
-    return needsInteraction(
-      addLog({ ...ctx, ownerState: newOwnerTO, lastProcessedCards: [topCardTO] },
-        `デッキ上${ctx.cardMap.get(topCardTO)?.CardName ?? topCardTO}：トラップ設置？`),
-      { type: 'CHOOSE', options: zoneOptsTRAPOP2, count: 1 }
-    );
+    if (stub.trapOp === 'activate_check_burst' || stub.trapOp === 'burst_as_check') {
+      // 🔴**対象カードは CHOOSE を出す「前」に確定させる**（続き646 の実機で発見）＝
+      //   `lastProcessedCards`（＝直前にトラッシュへ送ったカード）は CHOOSE を1往復すると ctx から消えるため、
+      //   再開後に読むと undefined になり**無言で done する**（`WXK11-036-E2` がライフバーストを1度も発動しなかった）。
+      //   ⇒ 確定した値を `trapBurstCard` で option の action へ載せて運ぶ。
+      const burstCard = stub.trapBurstCard
+        ?? (stub.trapOp === 'activate_check_burst'
+          ? (ctx.ownerState.field.check ?? ctx.lastProcessedCards?.[0])
+          : ctx.lastProcessedCards?.[0]);
+      if (!burstCard) return done(addLog(ctx, 'ライフバースト：対象カードなし'));
+      if (stub.upToCount && stub.value !== 'activate') {
+        return needsInteraction(addLog(ctx, 'ライフバーストを発動しますか？'), {
+          type: 'CHOOSE', count: 1, options: [
+            { id: 'activate', label: '発動する', available: true, action: ({ ...stub, value: 'activate', trapBurstCard: burstCard } as StubAction) as EffectAction },
+            { id: 'skip', label: '発動しない', available: true, action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction },
+          ],
+        });
+      }
+      const burstData = ctx.cardMap.get(getCardNum(burstCard));
+      const burstEffects = burstData?.effects?.length ? burstData.effects : burstData ? parseCardEffects(burstData) : [];
+      const burstEffect = burstEffects.find(effect => effect.effectType === 'LIFE_BURST');
+      if (!burstEffect) return done(addLog(ctx, `${burstData?.CardName ?? burstCard}: ライフバーストなし`));
+      return exec(burstEffect.action, addLog({ ...ctx, sourceCardNum: burstCard },
+        `ライフバーストをチェックゾーンにあるかのように発動: ${burstData?.CardName ?? burstCard}`));
+    }
+    if (stub.trapOp === 'gain_trap_ability') {
+      return done(addLog(ctx, '[トラップ能力コピー：未実装]'));
+    }
   }
+
+  // O-56: live の TRAP_OP / TRAP_OPERATION 全21ノードは trapOp ペイロードへ移行済み。
+  // カード全文を読む旧フォールバックは、別能力・LBによる誤分岐を再発させるため置かない。
   // INTERNAL_PLACE_SELF_UNDER_SIGNI: sourceCardNum（スペル）をstub.valueのシグニの下に配置しON_PLACED_UNDER_SIGNIを発火
   if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI') {
     const hostSigniNumIPSUS = String(stub.value ?? '');

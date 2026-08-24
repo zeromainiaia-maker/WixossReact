@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：§5.3 `O-56`＝`TRAP_OPERATION` / `TRAP_OP` のカード全文 regex 多重ディスパッチを撤去
+
+- **母集団の再実測**＝投入時HEADのlive 10693効果を action tree まで再帰走査し、`TRAP_OPERATION` **12効果**／`TRAP_OP` **6効果**＝合計**18効果・21ノード**（`WX21-Re20-E1` が3ノード、`WXDi-CP02-033-E1` が2ノード）。登録票の18/6ではなく Claude の訂正値12/6と一致した。再生成後は `WX17-044-E1` が後置【起】の `TRAP_OP` に上書きされず、本体文を拾う `TRAP_OPERATION` になったため **13/5**（合計18・21ノード不変）。
+- **真因**＝parser の7分岐（専用 `burst_as_check` を含めると8地点）が一致文の意味を捨てた裸STUBを生成し、executor が `EffectText + BurstText` のカード全文 `includes()` で操作を再推定していた。別能力・LB・ルール注記の語が先の枝に当たり、`WX17-044-E1` は設置せずトラップを捨て、`WXK11-036-E2` は「チェックゾーンにあるかのように」を実際のチェックゾーン移動にしていた。
+- **型／parser**＝新 action 型は作らず `StubAction` に `trapOp`（`set/trash/activate/rearrange/to_check/from_check/under_signi/activate_check_burst/burst_as_check/gain_trap_ability`）、`trapFilter`、`trapFixedZone`、`trapRemainder`、`trapHostNames`、既存流儀の `upToCount` を追加。枚数は既存 `count`、公開札は O-55 既存語彙 `trapSource:'looked'` を再利用した。P7 の設置／チェック移動／LB発動／能力コピーを別木へ割り、P8 は `burst_as_check` 固定。`WX17-044` はスペル本体後の独立【起】が本体E1を上書きしていたため、カード固有IDではなく「【起】前が自己完結したデッキ上トラップ設置」の構造だけを切り出した。
+- **executor**＝`trapOp` だけで分岐し、デッキ上設置は `LOOK_PICK_CHAIN{then:'trap'}`、手札／公開札は `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` へ集約。複数枚選択は `resumeSelectTarget` で1枚ずつの SEQUENCE にして対話pause後の2枚目以降を保持した。`PLACE_TRAP_FROM_REVEALED` の公開札も手札専用 `INTERNAL_SET_TRAP` から出所非依存 funnel へ変更。`INTERNAL_SET_TRAP` の残存呼び出し2箇所は、いずれも候補が `ownerState.hand` に固定された手札専用経路だけ。
+- **全文 fallback 撤去**＝移行中は旧全文分岐を残し、build/adopt後のraw liveを再帰走査して18効果・21ノードすべてに `trapOp` があること（missing 0）を確認してから、executor と逆翻訳のカード全文 regex をともに削除。golden でも母集団集合・21ノード・payload必須を固定した。
+- **誤マッチ是正**＝`WX17-044` は最大5枚のデッキ由来設置＋残りトラッシュ、`WX16-061`／`WXEX2-15` は既存JSONの前半＋「そうした場合」の後半を維持、`WXEX2-42` は場の＜トリック＞シグニのアイコンを場に留めて発動、`WX17-062` は誤ってトラップを捨てない明示no-op、`WXK11-036` は `field.check` 不変でLB実行、`WX21-003-E2` は手札0～3枚を保持した。
+- **意図的見送り**＝再配置対話（`WX17-062-E1`）、場の相手シグニ→同じ固定ゾーン（`WX21-025-E2`／`WX21-003-E3`）、直前のトラップ位置→固定ゾーン（`WX16-028-E2`）、トラップ能力コピー（`WX17-029-TRAP`）は新機構が要るため実装していない。誤った自由ゾーン／デッキ由来設置へ倒さず、payload と明示保留ログだけにした。
+- **live A/B**＝HEAD対比で変化は対象18 effectIdだけ、added/removed 0、outlier **0**。最終再生成値は `_held_fresh` **76→75（-1）**、`_partial_fresh` **15→15**、`_idset_fresh` **45→45**。`npm run regen` 完走、同型★0。
+- **golden／ゲート**＝修正前に新規3本が **2679 PASS / 3 FAIL**、修正後 **2682 PASS / 0 FAIL（+3）**。`WX17-044` の既存トラップ非廃棄＋デッキ複製なし、`WXK11-036` の `field.check` 負方向＋LB正方向＋`to_check` 対照を固定。`npm run gates` 全緑（smoke 10693 全0・SKIP 0／fuzz全0／census 601/601／census:stubs A群🔴0・C群0／manual-fields 0/0／lint 0 errors・260 warnings）。
+- **実機シナリオ**＝3本を追加し、**2回連続 3/3 PASS**（Claude 側で実行）。⚠**実装した Codex 側の環境では Chromium 未導入で1度も走らせられていない**＝**2バッチ連続で「書いたが未実行」のまま引き渡された**（`O-49` と同じ）。**走らせたら3本とも落ちた**ので、以下を検証側で是正した。
+
+  | id | 見るもの | 結果 |
+  |---|---|---|
+  | `o56TrapSetFromDeckNoDuplicate` | 公開5枚がデッキから消え、1枚がトラップ・残り4枚がトラッシュ＝**複製なし** | ✅ |
+  | `o56ArrowRainSetsTrapNotTrashesIt` | `WX17-044-E1` が設置を行い、**既存トラップ（ゾーン3）を捨てない** | ✅ |
+  | `o56BurstAsCheckDoesNotEnterCheckZone` | `field.check` 不変＋**LB本体は実行**＋LB元はトラッシュに残る | ✅ |
+
+- 🔴**実機で engine の実バグを1件発見・修正（検証側）**＝**`burst_as_check` が「発動しますか？」の CHOOSE を1往復すると対象カードを見失い、無言で done していた**。
+  option の action に `{...stub, value:'activate'}` しか載せず、対象を `ctx.lastProcessedCards`（＝直前にトラッシュへ送ったカード）から読み直していたため、**実機は往復のたびに永続化を挟むので残らない**。
+  実測＝`WXK11-036-E2` は「`field.check` を変えない」という**正しい半分だけを達成し、ライフバーストを1度も発動しなかった**（hand が増えない）。
+  ⇒ 対象を **CHOOSE を出す前に確定**させ、新設の `trapBurstCard` で option の action へ載せて運ぶ形に修正。
+  ⚠**既存 golden がこれを見逃した理由**＝`run()` のオートパイロット（`finish`）が `lastProcessedCards: result.lastProcessedCards` を**持ち回る**ので、往復しても対象が消えない。**golden の autopilot は実機の永続化往復を再現しない。**
+  ⇒ **往復を手で再現する golden を追加**（`lastProcessedCards` を空にしてから option の action を実行）。**ペイロードを剥がすと発動しない対照**つき＝旧バグの形に戻れば落ちる。**golden 2682→2683。**
+- **シナリオの腐り2件もその場で修正**（§5.1 の切り分け(a)）＝
+  ①**ゾーン選択を `flow.picked` でゲートしていて詰む**＝「好きな枚数」の選択は `pendingCandidates` を持つ SELECT_TARGET ではなく **SEARCH**（デッキ上5枚公開）で行われ、実ピックは `stdStep` の `pick-0`／`決定 (1/5)` が処理する。よって `clickPendingInstance` は一度も走らず `flow.picked` が永久に false のまま、**ゾーン選択の CHOOSE が出ているのに誰も押さずに42反復空振り**した（engine は正しく `SEARCH → 決定(1/5) → INTERNAL_ASK_TRAP_ZONE` と進んでいた）。⇒ cast 済みなら無条件にゾーン1を試す。
+  ②🔴**デッキを2枚にしない**＝LB の「1枚引く」でデッキが尽きると**リフレッシュが走ってトラッシュのカードがデッキへ戻り**、`LB元はトラッシュ` の assert が engine は正しいのに false になる。⇒ 間に捨て札を挟んで厚みを持たせた。
+- **回帰**＝`o47AttackerLosesIsBanished`／`o48BattleBanishSendsUnderCardsToTrash`／`o49AttackerBanishRedirectToTrash`／`b57RevealTopLevelMatch` を同一バッチで実行し**全 PASS＝新規の赤0**。
+- **新たに見つけた原文差**＝(1) `WX17-044` の後置独立【起】はE1への誤混入を止めたが、独立effectとしてはまだ生成されない、(2) `WXK11-036-E2` の前段は原文「デッキの一番下」だが既存JSONは `TRASH{DECK_CARD}`＝逆翻訳「上から1枚」。いずれもO-56の分岐撤去外なので記録だけで未修正。
+- **採用時の回帰防止**＝whole-card held 採用の中間段階で `WXDi-CP02-033-E1` の後続 `NEGATE_ATTACK.filter.levelEqLastProcessed` が落ちたため、原文「そのカードと同じレベルなら」を構造parserへ追加してから再採用した。最終liveは既存の同レベル制約を保持している。
+- ⚠🔴**「全文 regex 撤去」は `TRAP_OP`／`TRAP_OPERATION` の2ハンドラ限りで、系統としては残っている**（検証側で訂正）。
+  Codex の自己申告「`txtTRAPOP`／`txtTRAPOPER`／`srcTRAPOP`／`srcTRAPOPER` 残存 0」は**その4つの変数名を grep しただけ**で、**同じパターンが別名で生きている**。
+  実測＝**`PLACE_TRAP_FROM_REVEALED`（`execStubPart2.ts:3173`）が公開枚数をカード全文から読む**：
+  ```ts
+  const txtPTFR = (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '');
+  const cntMPTFR = txtPTFR.match(/カードを([０-９\d]+)枚見(?:る|て)/);
+  ```
+  しかも本バッチは **`WX16-061-E1`／`WXEX2-15-E1` をこの経路へ新たに流し込んだ**（既存機構の流用指示に従った結果なので判断自体は妥当）。
+  両効果とも原文に「カードを3枚見て／見る」が1回だけあり**現状は正しく3を返す**が、**たまたま当たっている**状態。
+  ⚠**engine 全体で `EffectText` を読む箇所は実測 200**（`src/engine/*.ts`）。大半は【常】のキーワード判定など正当な用途と思われるが、
+  **この200件は分類していない**＝「O-20 の全文 regex 読みが残り2件」と読んではいけない。**`O-60` として登録した。**
+- **`O-59` 登録票草案**＝「固定シグニゾーンへの【トラップ】設置／再配置対話」（L）。対象は `WX17-062-E1` の全トラップ再配置、`WX21-025-E2`／`WX21-003-E3` の相手場シグニをそのシグニゾーンへ移す経路、`WX16-028-E2` の直前トラップ位置へ手札から設置する経路。必要なのは場からの安全な除去、直前ゾーンを保持するpayload、固定ゾーン指定、複数トラップ並べ替えUI、置換時の既存トラップの行き先、CPU選択の共通funnel。自由ゾーン選択の `INTERNAL_PICK_TO_TRAP` へは近似しない。
+
 ## 2026-08-24：§5.3 `O-49`＝バニッシュ先変更のアタッカー側ミラーを配線
 
 - **真因**＝`resolvePendingSigniBattleFor` の O-47 で新設したアタッカー敗北／相打ち経路は、トップ→エナ、下→トラッシュの既定先しか持たず、防御側に既存の行き先変更語彙が反映されなかった。

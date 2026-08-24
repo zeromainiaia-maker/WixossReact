@@ -188,8 +188,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 手札からカードを【トラップ】として設置する ----
-  if (t.match(/手札からカードを[１-９\d]*枚?まで【トラップ】として.*シグニゾーンに設置する/))
-    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
+  {
+    const handTrapM = t.match(/手札からカードを([１-９０-９\d]*)枚?(まで)?【トラップ】として.*シグニゾーンに設置する/);
+    if (handTrapM) return {
+      type: 'STUB', id: 'TRAP_OP', trapOp: 'set', trapSource: 'hand',
+      count: handTrapM[1] ? parseNum(handTrapM[1]) : 1,
+      ...(handTrapM[2] ? { upToCount: true } : {}),
+    } as StubAction;
+  }
 
   // ---- 忠実に解ける「その中から…」の単一ピック記述子 ----
   // 「数字/カード名/クラス１つを宣言する。デッキの上からN枚公開する。その中から宣言した〜を手札に加え、…」の
@@ -367,8 +373,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
   // ---- その中からN枚を【トラップ】として設置する ----
-  if (t.match(/その中から[１-９\d０-９]*枚?まで?を【トラップ】として.*シグニゾーンに設置する/))
-    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
+  {
+    const lookedTrapM = t.match(/その中から([１-９０-９\d]*)枚?(まで)?を【トラップ】として.*シグニゾーンに設置する/);
+    if (lookedTrapM) return {
+      type: 'STUB', id: 'TRAP_OP', trapOp: 'set', trapSource: 'looked',
+      count: lookedTrapM[1] ? parseNum(lookedTrapM[1]) : 1,
+      ...(lookedTrapM[2] ? { upToCount: true } : {}),
+    } as StubAction;
+  }
 
   // ---- パワーをこの方法で捨てたシグニのパワーと同じだけ増減 ----
   if (t.match(/パワーをこの方法で捨てたシグニのパワーと同じだけ/))
@@ -418,8 +430,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- トラップを表向きにして発動 / トラップアイコン発動 ----
   if (t.match(/【トラップ】.*表向きにし.*トラップアイコン.*発動してもよい/) ||
-      t.match(/トラップアイコン》を発動させる/))
-    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
+      t.match(/トラップアイコン》を発動させる/)) {
+    const fieldSigniM = t.match(/あなたの＜([^＞]+)＞のシグニ[１1]体を対象とし、それの《トラップアイコン》を発動させる/);
+    return {
+      type: 'STUB', id: 'TRAP_OP', trapOp: 'activate',
+      ...(fieldSigniM ? { trapSource: 'field_signi' as const, trapFilter: { cardType: 'シグニ' as const, story: fieldSigniM[1] } } : {}),
+    } as StubAction;
+  }
 
   // ---- このターン終了時、手札をN枚捨てる ----
   if (t.match(/^このターン終了時、手札を[１-９\d０-９]+枚捨てる$/))
@@ -2276,7 +2293,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- その中からN枚チェックゾーンへ残りを手札 ----
   if (t.match(/その中から.*チェックゾーンに置き.*残り.*手札に加える/))
-    return { type: 'STUB', id: 'TRAP_OPERATION' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'to_check', trapSource: 'looked', count: 1, trapRemainder: 'hand' } as StubAction;
 
   // ---- 場のシグニをチェックゾーンに置く（§6.4 O-3・`WX22-010-E3` 1件）----
   // ⚠下の `TRAP_OPERATION` に落としてはいけない＝あちらは**デッキ／手札の1枚**を `field.check` へ置く
@@ -2300,14 +2317,56 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (/シグニを(?:すべて)?チェックゾーンに置く/.test(t))
     return { type: 'STUB', id: 'DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE' } as StubAction;
 
-  // ---- トラップ/チェックゾーン操作 ----
-  if (t.match(/【トラップ】として.*設置/) || t.match(/チェックゾーン(?:に?置|から|を離れ|のライフ|置いた)/) ||
-      t.match(/トラップ能力を得て/))
-    return { type: 'STUB', id: 'TRAP_OPERATION' } as StubAction;
+  // ---- トラップ設置（巨大catch-allを文の意味ごとに分離） ----
+  if (/【トラップ】として.*設置/.test(t)) {
+    const fixedPrevious = /それがあったシグニゾーン/.test(t);
+    const fixedSource = /対戦相手のシグニ[１1]体.*そのシグニゾーン/.test(t)
+      || /それを【トラップ】としてそのシグニゾーン/.test(t);
+    const fromHand = /手札(?:から|[１1]枚)/.test(t);
+    const lookCountM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:見|公開)/);
+    const explicitCountM = t.match(/(?:カードを?|その中から)([０-９\d]+)枚(まで)?【トラップ】として/);
+    const count = lookCountM ? parseNum(lookCountM[1]) : explicitCountM ? parseNum(explicitCountM[1]) : 1;
+    const upToCount = /好きな枚数|[０-９\d]+枚まで/.test(t);
+    const trapRemainder = /残りをトラッシュ/.test(t) ? 'trash' as const
+      : /残りを手札/.test(t) ? 'hand' as const
+      : /手札に加えるか/.test(t) ? 'hand' as const
+      : undefined;
+    return {
+      type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'set',
+      trapSource: fixedSource ? 'field_signi' : fromHand ? 'hand' : 'deck_top',
+      count,
+      ...(upToCount || /手札に加えるか/.test(t) ? { upToCount: true } : {}),
+      ...(fixedPrevious ? { trapFixedZone: 'previous' as const } : fixedSource ? { trapFixedZone: 'source' as const } : {}),
+      ...(trapRemainder ? { trapRemainder } : {}),
+    } as StubAction;
+  }
+
+  // ---- チェックゾーン操作（置く／LB発動／離れる、を別の判別子にする） ----
+  if (/チェックゾーン(?:に?置|から|を離れ|のライフ|置いた)/.test(t)) {
+    if (/チェックゾーンから.*(?:メモリア|シグニ).*の下に置いてもよい/.test(t)) {
+      const trapHostNames = [...t.matchAll(/《([^》]+メモリア[^》]*)》/g)].map(m => m[1]);
+      return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'under_signi', trapSource: 'check', trapHostNames } as StubAction;
+    }
+    if (/チェックゾーン(?:に置いた|置いた)カードのライフバーストを発動/.test(t))
+      return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'activate_check_burst', trapSource: 'check' } as StubAction;
+    if (/チェックゾーン(?:から|を離れ)/.test(t))
+      return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'from_check', trapSource: 'check' } as StubAction;
+    const trapSource = /トラッシュからチェックゾーン/.test(t) ? 'trash' as const
+      : /デッキの一番上.*チェックゾーン/.test(t) ? 'deck_top' as const
+      : 'looked' as const;
+    return {
+      type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'to_check', trapSource, count: 1,
+      ...(/置いてもよい/.test(t) ? { upToCount: true } : {}),
+    } as StubAction;
+  }
+
+  // ---- 別カードのトラップ能力を得て発動（能力コピー機構は別バッチ） ----
+  if (/トラップ能力を得て/.test(t))
+    return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'gain_trap_ability', trapSource: 'trash' } as StubAction;
 
   // ---- ライフバーストをチェックゾーン扱いで発動 ----
   if (t.match(/ライフバーストを.*チェックゾーンにあるかのように発動/))
-    return { type: 'STUB', id: 'TRAP_OPERATION' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'burst_as_check', trapSource: 'trash', upToCount: true } as StubAction;
 
   // ---- グロウコスト０ ----
   if (t.match(/このカードにグロウするためのコストは.*×0》になる/))
