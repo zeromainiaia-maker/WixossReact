@@ -27777,6 +27777,159 @@ scenarios.b54EnergySelfToLife = {
 order.push('b54EnergySelfReviveOnlySelf', 'b54EnergySelfToLife');
 // ── O-54 END ──
 
+// ── O-55（2026-08-24）＝【トラップ】設置の**出所**（どこから裏向きに置くか）──────────────
+// 🔴`PLACE_TRAP_OPTIONAL` は長らく**手札固定**（`ctx.ownerState.hand` を候補に出す）で、原文が
+//   「そのカードを」（＝直前に見たデッキの一番上）や「このシグニをエナゾーンから」と書いていても
+//   **手札の別カードを裏向きに置いて**いた（`LOOK_AND_REORDER` の2値フォールバック＝`O-53` と同型）。
+// 🔑**gates では守れない層**＝逆翻訳はカード全文 regex で原文を切り出していたので**JSON が出所を
+//   持っていなくても緑**だった。実機の観測点は**「候補集合」と「どのゾーンからカードが減ったか」**。
+// 🔑銀行役は O-54 と同じ `PR-378`（選択する物語・《無》×0・限定なし）の選択肢①＝
+//   「あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを１枚引き…」。
+// ⚠観測対象の2枚はどちらも `Restriction:'あや限定'` だが、**盤面へ直接注入する**ので使用 UI の
+//   ゲート（§4.4 の 8k）には掛からない（掛かるのは手札から召喚／使用するときだけ）。
+const B55_BANISHER = 'PR-378#3901';          // 選択する物語（スペル・無×0・限定なし）
+const B55_ENERGY_SELF = 'WX21-036#3902';     // 中罠 ハトハット（【自】バニッシュ時＝エナの自分自身をトラップに）
+const B55_LOOKED = 'WX15-086#3903';          // 小罠 ホイホイ（【自】バニッシュ時＝デッキの一番上をトラップに）
+// エナのデコイ＝旧実装との弁別には使わないが「自分だけが抜ける」ことの対照に要る。
+const B55_DECOY_A = 'WD01-010#3911';
+const B55_DECOY_B = 'WD01-013#3912';
+// デッキの並びを固定して「どの札がトラップになったか」を同定する。
+// ⚠🔑**銀行役 `PR-378` の選択肢①は先に1枚引く**ので、`WX15-086` の【自】が見る「デッキの一番上」は
+//   注入時の先頭ではなく**2枚目**（`B55_DECK_TOP_AFTER_DRAW`）＝これがゲーム的に正しい。
+//   1枚目を期待値にすると engine は正しいのに FAIL する（実測で1回踏んだ）。
+const B55_DECK_DRAWN = 'WD01-009#3921';              // スペルのドローで手札へ行く1枚目
+const B55_DECK_TOP_AFTER_DRAW = 'WD01-012#3922';     // ドロー後の「デッキの一番上」＝トラップになるべき札
+const B55_DECK_REST = [B55_DECK_TOP_AFTER_DRAW, 'WD01-014#3923', 'WD01-011#3924', 'WD01-010#3925',
+  'WD01-013#3926', 'WD01-016#3927', 'WD01-012#3928', 'WD01-014#3929'];
+// 🔑**手札を全部固定する**＝旧実装の指紋は「手札から1枚が消えて裏向きに置かれる」ことなので、
+//   手札の中身を1枚ずつ突き合わせられるようにしておく。
+const B55_HAND = ['WD01-013#3931', 'WD01-012#3932', 'WD01-011#3933'];
+
+function b55Spec(selfCard) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-002#3951'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [[selfCard], null, null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'energy': [B55_DECOY_A, B55_DECOY_B], 'trash': [], 'actions_done': [],
+      'life_cloth': ['WD01-010#3941', 'WD01-013#3942', 'WD01-012#3943'],
+      'deck': [B55_DECK_DRAWN, ...B55_DECK_REST],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3961'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#3971', 'WD01-013#3972', 'WD01-013#3973'],
+    },
+    // handPrepend は「先頭に積む」＝`my-hand-card-0` がスペルになる。残りは固定手札。
+    handPrepend: [B55_BANISHER, ...B55_HAND],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+scenarios.b55TrapFromEnergySelf = {
+  title: 'O-55 WX21-036-E1：バニッシュ後の【トラップ】はエナの**自分自身**（手札は1枚も減らない）',
+  spec: b55Spec(B55_ENERGY_SELF),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { handOpened: false, cast: false, choicePicked: false, victimPicked: false };
+    let sawSelfInEnergy = false; let settle = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b55ena-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await b54CastBanisher(page, H, flow, B55_ENERGY_SELF);
+      const st = await H.queryState();
+      // 機構が動いた証拠＝一度でも「自分自身がエナに居た」こと（＝バニッシュが実際に走った）。
+      if ((st?.host?.energyCards ?? []).includes(B55_ENERGY_SELF)) sawSelfInEnergy = true;
+      // 「設置しますか？」→「ゾーンN に設置」の2段。どちらも CHOOSE。
+      // ⚠**`clickTextOrBtn` は使わない**（§4.4）＝盤面ログ「ハトハットを【トラップ】として設置しますか？」の
+      //   **テキスト**に当たって「押せた」と報告しながら何も進まず、34反復まるごと空振りする（実測）。
+      //   ボタン限定の `clickBtn` を使い、**先に進む側（ゾーン選択）から**試す。
+      if (!did) did = await H.clickBtn('ゾーン1に設置');
+      if (!did) did = await H.clickBtn('【トラップ】として設置する');
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      H.log(`  b55ena[${s}] -> ${did ?? 'なし'} | cast=${flow.cast} choice=${flow.choicePicked} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} traps=${JSON.stringify(st?.host?.signiTraps)} ena=${JSON.stringify(st?.host?.energyCards)} hand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!sawSelfInEnergy) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 3) continue;
+      const traps = (st.host.signiTraps ?? []).filter(Boolean);
+      // 🔴本命＝裏向きに置かれたのが**自分自身**（旧実装は手札のカードが置かれた）。
+      const trapIsSelf = traps.length === 1 && traps[0] === B55_ENERGY_SELF;
+      const enaCards = st.host.energyCards ?? [];
+      const leftEnergy = !enaCards.includes(B55_ENERGY_SELF);
+      const decoysUntouched = enaCards.includes(B55_DECOY_A) && enaCards.includes(B55_DECOY_B);
+      // 🔴旧実装の指紋＝**手札から1枚消える**。減ってよいのは使ったスペル（除外）と引いた1枚の差引だけ＝
+      //   固定手札 3枚が**全部そのまま残っている**ことを1枚ずつ見る。
+      const handCards = st.host.handCards ?? [];
+      const handKept = B55_HAND.every(c => handCards.includes(c));
+      const noHandInTrap = !B55_HAND.some(c => traps.includes(c));
+      return {
+        pass: trapIsSelf && leftEnergy && decoysUntouched && handKept && noHandInTrap,
+        detail: `traps=${JSON.stringify(st.host.signiTraps)}（自分自身だけ=${trapIsSelf}・旧実装は手札の札が置かれた）`
+          + `／エナ=${JSON.stringify(enaCards)}（自分は抜けた=${leftEnergy}・デコイ不動=${decoysUntouched}）`
+          + `／固定手札3枚が全部残る=${handKept}・トラップに手札が混ざらない=${noHandInTrap}（hand ${before.host.hand}→${st.host.hand}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${flow.cast} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} traps=${JSON.stringify(fin?.host?.signiTraps)} ena=${JSON.stringify(fin?.host?.energyCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.b55TrapFromDeckTop = {
+  title: 'O-55 WX15-086-E1：【トラップ】候補は**直前に見たデッキの一番上の1枚だけ**（手札は候補に出ない）',
+  spec: b55Spec(B55_LOOKED),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { handOpened: false, cast: false, choicePicked: false, victimPicked: false };
+    let trapCands = null; let sawBanish = false; let settle = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b55look-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await b54CastBanisher(page, H, flow, B55_LOOKED);
+      const st = await H.queryState();
+      if ((st?.host?.energyCards ?? []).includes(B55_LOOKED)) sawBanish = true;
+      // 「候補集合そのものを観測する」＝バニッシュ後に立った SELECT_TARGET の候補が本命の観測点。
+      if (!trapCands && sawBanish && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+        trapCands = [...st.pendingCandidates];
+      }
+      // ⚠ボタン限定（`clickTextOrBtn` は盤面ログのテキストに当たって空振りする）。
+      if (!did) did = await H.clickBtn('ゾーン1に設置');
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      H.log(`  b55look[${s}] -> ${did ?? 'なし'} | cast=${flow.cast} victim=${flow.victimPicked} sawBanish=${sawBanish} cands=${JSON.stringify(trapCands)} traps=${JSON.stringify(st?.host?.signiTraps)} deck=${st?.host?.deck} hand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!sawBanish) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 3) continue;
+      const traps = (st.host.signiTraps ?? []).filter(Boolean);
+      // 🔴本命＝候補集合がデッキの一番上1枚だけ（旧実装は手札4枚が候補に出た）。
+      const onlyDeckTop = !!trapCands && trapCands.length === 1 && trapCands[0] === B55_DECK_TOP_AFTER_DRAW;
+      const trapIsDeckTop = traps.length === 1 && traps[0] === B55_DECK_TOP_AFTER_DRAW;
+      // 複製していないこと＝デッキにもトラップにも同時に居ない。
+      const notInDeck = !(st.host.deckCards ?? []).includes(B55_DECK_TOP_AFTER_DRAW);
+      const handCards = st.host.handCards ?? [];
+      const handKept = B55_HAND.every(c => handCards.includes(c));
+      return {
+        pass: onlyDeckTop && trapIsDeckTop && notInDeck && handKept,
+        detail: `候補=${JSON.stringify(trapCands)}（デッキの一番上1枚だけ=${onlyDeckTop}・旧実装は手札が候補だった）`
+          + `／traps=${JSON.stringify(st.host.signiTraps)}（デッキの一番上=${trapIsDeckTop}）`
+          + `／デッキに残っていない=${notInDeck}（複製なし・deck ${before.host.deck}→${st.host.deck}）`
+          + `／固定手札3枚が全部残る=${handKept}`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${flow.cast} victim=${flow.victimPicked} sawBanish=${sawBanish} cands=${JSON.stringify(trapCands)} traps=${JSON.stringify(fin?.host?.signiTraps)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('b55TrapFromEnergySelf', 'b55TrapFromDeckTop');
+// ── O-55 END ──
+
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
@@ -28012,6 +28165,8 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
         signiFrozen: s.field?.signi_frozen ?? null,
+        // §5.3 O-55：【トラップ】設置の観測点（どのカードがどのゾーンに裏向きで置かれたか）。
+        signiTraps: s.field?.signi_traps ?? [null, null, null],
         signiDown: s.field?.signi_down ?? null,
         fieldSigni: s.field?.signi ?? null,
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,

@@ -685,9 +685,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/シグニ[１-９\d０-９]*体?(?:まで)?を対象とし、それらを裏向きにしてもよい/))
     return { type: 'STUB', id: 'SIGNI_FLIP_FACEDOWN' } as StubAction;
 
-  // ---- シグニをエナゾーンからデッキ下に置いてもよい ----
-  if (t.match(/このシグニをエナゾーンからデッキの一番下に置いてもよい/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+  // ---- このシグニをエナゾーンからデッキの一番下に置いてもよい（＝任意コスト。§5.3 `O-55`）----
+  // 🔴旧実装は `SOUL_OP` を返していたが、`SOUL_OP` は**まったく別の機構**＝「シグニの下のカード（ソウル）を
+  //   使用して発動しますか？」の任意コスト（`effectExecutor.ts` の `SOUL_OP` 分岐）。したがって
+  //   `WXDi-P02-044-E1` は**エナの自分自身を1枚もデッキへ戻さないまま**「そうした場合」の本体だけが通る
+  //   踏み倒しになっていた（しかも下に何も無ければ pay 自体が unavailable になり不発）。
+  // ⚠受け皿は `selfToEnergy`／`selfTrash` と同型の `OPTIONAL_COST{selfEnergyToDeckBottom}`（行き先違い）。
+  if (t.match(/この(?:シグニ|カード)を(?:あなたの)?エナゾーンからデッキの一番下に置いてもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST', selfEnergyToDeckBottom: true, costText: t } as StubAction;
 
   // ---- 正面にあったシグニをトラッシュ（単独文） ----
   if (t.match(/^正面にあったそのシグニをトラッシュに置く$/))

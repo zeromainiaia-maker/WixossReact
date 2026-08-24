@@ -7360,6 +7360,122 @@ test('(xlvi)(g) then:trap は既存の【トラップ】を上書きしトラッ
   } finally { cursor = savedCursor; }
 });
 
+// 🔴【トラップ】設置の**出所**（§5.3 `O-55`・2026-08-24）。`PLACE_TRAP_OPTIONAL` は長らく**手札固定**で、
+//    原文が「そのカードを」（＝直前に見たデッキの札）や「このシグニをエナゾーンから」と書いていても
+//    **手札の別カードを場に置いて**いた（`LOOK_AND_REORDER` の2値フォールバック＝`O-53` と同型）。
+// ⚠engine 側は出所非依存の `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` に寄せた。
+//    旧 `INTERNAL_SET_TRAP` は `hand.filter` しかしないので、デッキ／エナ由来に使うと
+//    **元ゾーンに残ったままトラップにも現れる複製バグ**になる＝この test はそこを直接見る。
+// ⚠`withSavedCursor` で包む（`mkCtx`/`fill` がグローバル `fresh()` カーソルを進めるため）。
+test('【トラップ】設置の出所（O-55）: looked/energy_self は手札を触らず、元ゾーンから確実に抜く', () => withSavedCursor(() => {
+  const trapStub = (txt: string): Record<string, unknown> => {
+    const found: Record<string, unknown>[] = [];
+    const walk = (a: unknown): void => {
+      if (!a || typeof a !== 'object') return;
+      if (Array.isArray(a)) { a.forEach(walk); return; }
+      const o = a as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'PLACE_TRAP_OPTIONAL') found.push(o);
+      for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v);
+    };
+    parseCardEffects({ CardNum: 'TEST-TRAP', Type: 'シグニ', EffectText: txt } as unknown as CardData).forEach(e => walk(e.action));
+    return found[0] ?? {};
+  };
+  // parser①＝「このシグニをエナゾーンから【トラップ】として」＝効果元自身（`WX16-029`／`WX21-036`）
+  eq(trapStub('【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンから【トラップ】としてあなたのシグニゾーンに設置してもよい。').trapSource,
+    'energy_self', 'P1 エナの自分自身');
+  // parser②＝「そのカードを」＝直前に見たデッキの札（`WX15-086`／`WX16-015`）
+  eq(trapStub('【出】：あなたのデッキの一番上を見る。あなたはそのカードを【トラップ】としてあなたのシグニゾーンに設置してもよい。').trapSource,
+    'looked', 'P2 直前に見た札');
+  // parser③＝「そのカードか、あなたの手札1枚を」＝**両方が候補**（片方に倒すと過小実行・`WX15-084`）
+  eq(trapStub('【自】：このシグニがバニッシュされたとき、あなたのデッキの一番上を見る。あなたはそのカードか、あなたの手札１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。').trapSource,
+    'looked_or_hand', 'P3 デッキ上と手札の両方');
+  // parser④＝素の「手札1枚を」は従来どおり既定（trapSource を持たない＝hand）
+  eq(trapStub('：カードを１枚引き、手札１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。').trapSource,
+    undefined, 'P4 手札は既定のまま（trapSource を付けない）');
+
+  // ── engine①＝looked: 直前に見たデッキ札だけが候補。手札は1枚も候補に出ない ──
+  const top = fresh();
+  const cL = mkCtx({ deckTop: [top] }, {}, 'TEST-TRAP');
+  const cL2 = { ...cL, lastProcessedCards: [top] } as ExecCtx;
+  const handBefore = [...cL2.ownerState.hand];
+  const pendL = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', trapSource: 'looked' } as unknown as EffectAction } as CardEffect, cL2);
+  eq((((pendL as unknown as { pending?: { candidates?: string[] } }).pending?.candidates) ?? []).join(','), top,
+    '候補は直前に見たデッキ札1枚だけ（旧実装は手札5枚が候補だった）');
+  const rL = finish(pendL, cL2);
+  eq((rL.ownerState.field.signi_traps ?? [])[0], top, 'デッキ札がゾーン1のトラップに');
+  ok(!rL.ownerState.deck.includes(top), '🔴トラップにした札はデッキから抜けている（複製なし）');
+  eq(rL.ownerState.hand.join(','), handBefore.join(','), '手札は1枚も動かない');
+
+  // ── engine②＝energy_self: 効果元自身のみ。選択UIではなく「設置する/しない」の2択 ──
+  const selfE = fresh(); const decoyE = fresh();
+  const cE0 = mkCtx({}, {}, selfE);
+  const cE = { ...cE0, ownerState: { ...cE0.ownerState, energy: [decoyE, selfE] } } as ExecCtx;
+  const handBeforeE = [...cE.ownerState.hand];
+  const rE = run({ type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', trapSource: 'energy_self' } as unknown as EffectAction, cE);
+  eq((rE.ownerState.field.signi_traps ?? []).filter(Boolean).join(','), selfE, '効果元自身だけがトラップになる');
+  eq(rE.ownerState.energy.join(','), decoyE, '🔴エナから抜けるのは自分自身だけ（デコイは不動・複製なし）');
+  eq(rE.ownerState.hand.join(','), handBeforeE.join(','), '手札は1枚も動かない');
+
+  // ── engine②対照＝**盤面はそのままで自分自身だけをエナから外す**と何も起きない ──
+  const cE2 = { ...cE0, ownerState: { ...cE0.ownerState, energy: [decoyE] } } as ExecCtx;
+  const rE2 = run({ type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', trapSource: 'energy_self' } as unknown as EffectAction, cE2);
+  eq((rE2.ownerState.field.signi_traps ?? []).filter(Boolean).length, 0, '自分がエナに居なければ設置されない');
+  eq(rE2.ownerState.energy.join(','), decoyE, '同・エナ不変');
+  eq(rE2.ownerState.hand.join(','), handBeforeE.join(','), '同・手札不変（旧実装はここで手札から1枚置いた）');
+}));
+
+// 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
+//    旧実装は `STUB{SOUL_OP}`＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**別機構**へ
+//    落としており、エナの自分自身を1枚も戻さないまま「そうした場合」の本体だけが通る踏み倒しだった。
+test('OPTIONAL_COST selfEnergyToDeckBottom（O-55）: エナの自分自身だけがデッキの一番下へ行く', () => withSavedCursor(() => {
+  const seq = parseCardEffects({ CardNum: 'TEST-SOUL', Type: 'シグニ',
+    EffectText: '【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンからデッキの一番下に置いてもよい。そうした場合、カードを１枚引く。' } as unknown as CardData)[0].action as SequenceAction;
+  const cost = seq.steps.find(st => st.type === 'STUB') as { id?: string; selfEnergyToDeckBottom?: boolean } | undefined;
+  eq(cost?.id, 'OPTIONAL_COST', 'P1 任意コスト（SOUL_OP ではない）');
+  eq(cost?.selfEnergyToDeckBottom, true, 'P2 支払いはエナの自分自身をデッキの一番下へ');
+
+  // engine＝支払いアクション本体（`TRANSFER_TO_DECK{ENERGY_CARD, thisCardOnly, bottom}`）。
+  // ⚠**自分自身をエナの先頭に置かない**（先頭がたまたま正解で vacuous に PASS するのを防ぐ）。
+  const selfS = fresh(); const decoyS = fresh();
+  const c0 = mkCtx({}, {}, selfS);
+  const c = { ...c0, ownerState: { ...c0.ownerState, energy: [decoyS, selfS] } } as ExecCtx;
+  const deck0 = c.ownerState.deck.length;
+  const r = run({ type: 'TRANSFER_TO_DECK', shuffle: false, position: 'bottom',
+    source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { thisCardOnly: true } } } as unknown as EffectAction, c);
+  eq(r.ownerState.deck.length, deck0 + 1, 'デッキ+1');
+  eq(r.ownerState.deck[r.ownerState.deck.length - 1], selfS, '🔴デッキの一番下に入るのは自分自身');
+  eq(r.ownerState.energy.join(','), decoyS, 'エナから抜けるのは自分自身だけ（デコイは不動）');
+}));
+
+// 🔴「このカードの上にある〈修飾〉シグニは「Q」を得る」＝スタック下→上への**付与宣言**（§5.3 `O-55`）。
+//    parser はこの型を一度も生成しておらず、**引用の中身が外側の CONTINUOUS としてそのまま実行される**
+//    形に落ちていた（「上のシグニがアタックしたとき相手を－8000」が**常時－8000**になる等・実測8効果）。
+// ⚠受け皿（`GRANT_SIGNI_ABOVE_ABILITY` ＋ `collectGrantedFromUnderSigni` Pattern B）は engine に実装済み。
+test('GRANT_SIGNI_ABOVE_ABILITY（O-55）: 引用の中身を外側で実行せず、上のシグニへの付与宣言にする', () => withSavedCursor(() => {
+  const grant = (txt: string): Record<string, unknown> => {
+    const e = parseCardEffects({ CardNum: 'TEST-ABOVE', Type: 'シグニ', EffectText: txt } as unknown as CardData)[0];
+    return { effectType: e.effectType, ...(e.action as unknown as Record<string, unknown>) };
+  };
+  const g1 = grant('【常】：このカードの上にある赤のシグニは「【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい。」を得る。');
+  eq(g1.effectType, 'CONTINUOUS', 'P1 外側は CONTINUOUS のまま（引用内の「バニッシュされたとき」に乗っ取られない）');
+  eq(g1.type, 'GRANT_SIGNI_ABOVE_ABILITY', 'P1 付与宣言');
+  eq(JSON.stringify(g1.filter), JSON.stringify({ cardType: 'シグニ', color: '赤' }), 'P1 付与先フィルタ');
+  const ab1 = (g1.abilities as Record<string, unknown>[])[0];
+  eq(JSON.stringify(ab1?.timing), JSON.stringify(['ON_BANISH']), 'P1 引用は ON_BANISH の【自】として付与される');
+  eq((ab1?.action as Record<string, unknown>)?.type, 'TRANSFER_TO_HAND', 'P1 引用の中身');
+  // 🔴対照＝引用が無ければ従来どおり ON_BANISH の【自】へ倒れる（引用ガードが効きすぎていない）。
+  const plain = parseCardEffects({ CardNum: 'TEST-ABOVE2', Type: 'シグニ',
+    EffectText: '【常】：このシグニがバニッシュされたとき、カードを１枚引く。' } as unknown as CardData)[0];
+  eq(plain.effectType, 'AUTO', 'P2 対照＝引用の外なら従来どおり AUTO/ON_BANISH');
+  eq(JSON.stringify(plain.timing), JSON.stringify(['ON_BANISH']), 'P2 対照＝timing も従来どおり');
+  // カード名限定の形（`WXDi-P11-078-E3`）
+  const g2 = grant('【常】：このカードの上にある《テストネーム》は「【自】：このシグニがアタックしたとき、カードを１枚引く。」を得る。');
+  eq(g2.type, 'GRANT_SIGNI_ABOVE_ABILITY', 'P3 カード名限定も同じ型');
+  eq(JSON.stringify(g2.filter), JSON.stringify({ cardName: 'テストネーム' }), 'P3 カード名フィルタ');
+  ok(((g2.abilities as unknown[]) ?? []).length === 1, 'P3 引用が1件展開されている（abilities:[] の空付与ではない）');
+}));
+
 // ── task12(lviii) PLACE_TRAP_FROM_REVEALED → LOOK_PICK_CHAIN（別文 remainder）────────────
 const lviiiTrapCases = [
   ['WD23-032-A-E2', 2, 'top', 'シグニ'],
@@ -18943,9 +19059,13 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   //   （`WXDi-P05-023-E1/E2`＝付与を止める支払い／`WXDi-P07-007-E3`＝手札1枚 or 《無》の2枝）。
   // 77＝2026-08-16 続き508（§6.4 O-10）。**増えた1件は defer 解体**＝`WXDi-P16-062-E1`
   //   （「対戦相手が《無》を支払わないかぎり、ターン終了時まで、それは能力を失う」）。
-  eq(stubs.length, 77, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  // 78＝2026-08-24 `O-55`。**増えた1件は引用付与の復元**＝`WXDi-D09-P18-E1` の granted 能力
+  //   （「対戦相手が手札を１枚捨てないかぎり、このシグニをエナゾーンからダウン状態で場に出す」）。
+  //   従来は引用内の「バニッシュされたとき」に外側の【常】が乗っ取られて**付与ごと消えていた**。
+  //   ⚠`opponentHandDiscard` を持つ＝回避枝あり側なので、下の安全弁（回避枝なし＝0）は不変。
+  eq(stubs.length, 78, 'OPPONENT_PAY_OPTIONAL の live 出現数');
   eq(withCost.length, 41, 'エナコストを持つ（＝pay 枝が出る）STUB');  // 40→41＝続き508 の `WXDi-P16-062-E1`（《無》×1）
-  eq(noCost.length, 36, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
+  eq(noCost.length, 37, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
      'エナコスト非搭載の STUB はすべて別の回避手段（手札捨て/エナトラッシュ等）を持つ');

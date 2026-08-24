@@ -1,13 +1,13 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-24T04:14:36.896Z
-manualEffects エントリ 412 カード / 乖離 45 カード・49 効果
+生成: 2026-08-24T10:10:19.586Z
+manualEffects エントリ 411 カード / 乖離 44 カード・48 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。
 
 ## 区分ごとの件数
-  CHANGED        23 効果  （manual定義 8 / parser由来 15）
+  CHANGED        22 効果  （manual定義 8 / parser由来 14）
   FRESH_ONLY     20 効果  （manual定義 0 / parser由来 20）
   LIVE_ONLY       3 効果  （manual定義 0 / parser由来 3）
   FRESH_GAIN      2 効果  （manual定義 1 / parser由来 1）
@@ -18,10 +18,7 @@ manualEffects エントリ 412 カード / 乖離 45 カード・49 効果
   STUB減                     3 効果 : WXK05-030-E1 WXDi-P02-039-E1 WXK07-031-E1
   fresh_UNKNOWN退化           1 効果 : WXK07-031-E1
 
-## CHANGED（23 効果）
---- WXK05-025-E1 (parser由来)
-  live : {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":2,"private":true,"reorder":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"
-  fresh: {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":1,"private":true,"reorder":false,"destination":{"location":"deck","owner":"self","position":"bottom"}}]},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","
+## CHANGED（22 効果）
 --- WX25-P3-027-E1 (parser由来)
   live : {"effectId":"WX25-P3-027-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["黒"]},{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"IS_MY_TURN"},{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardType":"シグニ","story":"悪魔"},"minCount":15}]},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opp
   fresh: {"effectId":"WX25-P3-027-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardType":"シグニ","story":"悪魔"},"minCount":15},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["黒"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER",
@@ -69,7 +66,7 @@ manualEffects エントリ 412 カード / 乖離 45 カード・49 効果
   fresh: {"effectId":"WXK10-039-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":2,"filter":{"cardType":"シグニ","story":"原子"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
 --- WD23-023-E-E2 (parser由来)
   live : {"effectId":"WD23-023-E-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_HAS_BURST"},"then":{"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"byEffect":tru
-  fresh: {"effectId":"WD23-023-E-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"byEffect":true}}
+  fresh: {"effectId":"WD23-023-E-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false},{"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"byEffect":true}}
 --- WXDi-P02-039-E1 (manual定義) ⚠STUB減
   live : {"effectId":"WXDi-P02-039-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"POWER_MOD_TARGET_AND_SELF","delta":4000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"地獣","excludeSelf":true}}
   fresh: {"effectId":"WXDi-P02-039-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"地獣","excludeSelf":true},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true,"delta":4000,"duration":"UNTIL_END_OF_TURN"},{"type":"POWER_MODIFY","target":{"type":"SIG

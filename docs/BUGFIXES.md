@@ -1,5 +1,43 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：`O-55`＝【トラップ】設置の**出所**と、スタック下→上への**引用付与**の配線
+
+- **着手前の実測で登録票が3点とも外れていた**（§4.1・**10回連続**）＝登録票は「行き先そのものの機構が無い4効果」と書いていたが、
+  - `PLACE_TRAP_OPTIONAL` は**機構がある**（`INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` が deck/hand から抜く）。壊れていたのは**出所が手札固定**なこと＝`O-53`／`O-54` と同じ**固定フォールバック**型で、**live 7効果のうち6効果が別のカードを置いていた**。
+  - `SOUL_OP` は**機構不在ではなく誤割当**＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**まったく別の任意コスト**に `WXDi-P02-044-E1` が割り当てられていた。
+  - `GRANT_QUOTED_AUTO_ABILITY`（`WXDi-P06-054-E2`）は**受け皿 `GRANT_SIGNI_ABOVE_ABILITY` が engine に実装済み**（manual 3枚が使用中）で、**parser が一度も生成していなかった**だけ。同じ語彙の**8効果**が同じ壊れ方をしていた。
+- **母集団（実測）**＝①「【トラップ】として…設置」36効果を全数分類 → 出所が壊れているのは **9効果**（`PLACE_TRAP_OPTIONAL` 6＋`TRAP_OPERATION` へ落ちていた3）②「このシグニをエナゾーンからデッキの一番下に置いてもよい」**1効果**③「このカードの上にある〜」16効果のうち **8効果**が引用の中身を外側で直接実行④引用内トリガー句の乗っ取り **1効果**。合計 **19効果**。
+- **壊れ方（出口ごとに違う）**
+  - **`PLACE_TRAP_OPTIONAL` は `ctx.ownerState.hand` を候補に出す**＝原文が「そのカードを」（直前に見たデッキの一番上）や「このシグニをエナゾーンから」と書いていても**手札の別カードを裏向きに置いて**いた（`WX15-084`/`WX15-086`/`WX16-015`/`WX16-029`/`WX21-036`）。
+  - **`WX17-041-E1` だけ「その中から**カード**1枚を」の「カード」が無い**ため `PLACE_TRAP_FROM_REVEALED` の regex を外れ、兄弟10効果と違う経路（手札固定＋`LOOK_AND_REORDER{count:0}` の死ステップ）に落ちていた。
+  - **「このカードの上にある〜は『Q』を得る」の引用の中身が外側の CONTINUOUS としてそのまま実行**＝「上のシグニが**アタックしたとき**相手を－8000」が**常時－8000**、「上のシグニが**アタックしたとき**トラッシュから回収」が**常時回収**になっていた（`WXDi-P11-078-E3`／`WXDi-P11-051-E3`／`WXDi-P16-069-E2` ほか）。
+  - 🔴**引用「…」の中のトリガー句を外側が乗っ取っていた**＝`marker==='常'` の分岐が「このシグニがバニッシュされたとき」を**引用の内外を区別せず**拾い、`effectType` を AUTO へ倒して `actionText` を引用の中身へ差し替えていた。結果 `WXDi-D09-P18-E1` は**付与宣言が丸ごと消えて `POWER_MODIFY` だけ**になっていた。
+- **直した内容**（型2フィールド・engine 4箇所・parser 5箇所・逆翻訳 2箇所）
+  - 型＝`StubAction.trapSource`（`'hand'|'looked'|'looked_or_hand'|'energy_self'`）と `StubAction.selfEnergyToDeckBottom`、`GrantSigniAboveAbilityAction.rawText`。
+  - engine①＝`PLACE_TRAP_OPTIONAL` に出所分岐を新設し、設置の実体を**出所非依存**の `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` へ寄せた。⚠旧 `INTERNAL_SET_TRAP` は `hand.filter` しかしないので、デッキ／エナ由来に使うと**元ゾーンに残ったままトラップにも現れる複製バグ**になる。
+  - engine②＝`INTERNAL_PICK_TO_TRAP` に **energy からの除去**を追加（同じ複製バグの予防）。
+  - engine③＝`OptionalCostSpec.selfEnergyToDeckBottom` を新設（`selfToEnergy`／`selfTrash` の**行き先違い**）。⚠**成立条件が逆**＝場ではなく**エナゾーンに居ること**。支払いは `TRANSFER_TO_DECK{ENERGY_CARD, thisCardOnly, bottom}`。
+  - engine④＝`execTransferToDeck` の `ENERGY_CARD` 分岐に `thisCardOnly`（`matchesFilter` は黙って無視するので剥がして絞る＝`O-54` の3分岐と同規約。これで**エナ由来 thisCardOnly は4アクション全部**が揃った）。
+  - engine⑤＝`PLACE_TRAP_FROM_REVEALED` の公開枚数 regex を `カードを(N)枚見(?:る|て)` に（連用形「見て」が既定2枚に落ちて**原文より少なく公開**していた）。
+  - parser①＝`PLACE_TRAP_OPTIONAL` に `trapSource` を合成（「このシグニをエナゾーンから」／「そのカードか、手札1枚を」／「そのカードを」／既定=手札）。
+  - parser②＝`PLACE_TRAP_FROM_REVEALED` の regex から「カード」必須を外し、`WX17-041-E1` を兄弟と同じ `LOOK_PICK_CHAIN{then:'trap'}` へ畳み込んだ（死ステップも同時解消）。副次で `TRAP_OPERATION`（カード全文 regex の多重ディスパッチ）に落ちていた3効果も正準形へ移った。
+  - parser③＝`SOUL_OP` の誤割当を `OPTIONAL_COST{selfEnergyToDeckBottom}` へ差し替え。
+  - parser④＝`parseSigniAboveQuotedGrant` を新設し `GRANT_SIGNI_ABOVE_ABILITY{rawText}` を生成。rawText 展開は既存の `GRANT_FIELD_SIGNI_ABILITY` と**同じ規約**に載せた（載せないと `abilities:[]` のまま＝**付与したのに中身が空**の無言 no-op）。⚠**条件抽出ループより前に呼ぶ**＝引用の中の「〜されたとき、」を `parseActiveCondition` が先に食うと `^` アンカーが外れて丸ごと取り逃す（実測で1回踏んだ）。
+  - parser⑤＝**引用の内側のトリガー句を拾わないガード**（開き括弧の数で内外を判定）。⚠影響は【常】ブロックで引用内に「このシグニがバニッシュされたとき」を持つ**4効果**だけで、うち2効果（`WX16-074-E2`／`WX18-076-E2`）は既に正しい MANUAL なので**変化なし**（A/B で確認）。
+  - 逆翻訳＝`PLACE_TRAP_OPTIONAL` を**カード全文 regex ではなく JSON の `trapSource` から**描くようにした。🔴従来は原文をそのまま切り出していたため、**JSON が出所を持っていなくても逆翻訳だけは正しく見え**、計器が穴を映さなかった（§6.4 O-20 と同じ落とし穴）。`GRANT_SIGNI_ABOVE_ABILITY` のカード名限定表示も整えた。
+- **live への反映**（19効果／19カード・**リーフ差分232・意図外ゼロ**を effectId パス単位で機械確認）＝`heldReview --adopt` 14枚（うち3枚は regex 緩和の副次で `TRAP_OPERATION` から移った分）＋ `--adopt-partial-effect WX17-041-E1` 1効果。
+  - 🔑**`parseStatus:MANUAL` なのに `manualEffects.ts` に実体が無い live 限りの遺物が2枚**（`WXDi-P06-054`／`WXDi-D09-P18`）＝`O-54` と同じ手当て（`AUTO` へ戻してから `build:effects`→`--adopt`）。fresh が live の全リーフを保つことをパス単位で確認してから戻した。
+  - 🧹**parser が追いついた manual 影武者コピー1件を削除**（`WXDi-P15-064-E2`）＝`§6.4 O-42` のトリップワイヤが即座に検出した。放置すると**その効果だけ以後の parser 改善が届かない**。
+- **ゲート**＝golden **2672 PASS / 0 FAIL**（本バッチで3本追加）、smoke 10693 全0、fuzz 全0、census **604→601**（`BASELINE_HIGH` も更新）、census:stubs A群🔴0／C群0（live の STUB id 種類 598→**597**）、manual-fields 0、同型★0、lint 0 errors（warnings 260・増分0）。
+  - ⚠**`OPPONENT_PAY_OPTIONAL` の件数トリップワイヤが 77→78 で落ちた**＝`WXDi-D09-P18-E1` の付与能力が復活した分。`opponentHandDiscard` を持つ＝回避枝あり側なので安全弁（回避枝なし＝0）は不変。件数を更新して理由を注記した。
+- ⚠**golden は「修正前に実際に落ちるか」を両半分で確かめた**（§4.3）＝parser 側だけ stash すると3本とも FAIL、engine 側だけ stash すると2本 FAIL。engine の候補 assert は**自分自身をエナ／デッキの先頭に置かない**ことで先頭偶然一致を潰し、`energy_self` には**盤面を1文字も変えずエナから自分だけ外す対照**を付けた。
+- 🆕**実機検証（PLAN §2.2 の⑤）＝2本とも PASS**（`node scripts/verifyBattleDrive.mjs b55TrapFromEnergySelf b55TrapFromDeckTop`。`O-54` の2本と4本まとめても ALL PASS＝バッチ汚染なし）。銀行役は `O-54` と同じ `PR-378`。
+  - `b55TrapFromEnergySelf`（`WX21-036-E1`）＝**裏向きに置かれたのが自分自身**（`signiTraps=["WX21-036#3902",null,null]`）／エナから自分だけ抜けデコイ2枚は不動／**固定手札3枚が全部残る**（旧実装はここで手札から1枚消えた）。
+  - `b55TrapFromDeckTop`（`WX15-086-E1`）＝**候補集合がデッキの一番上1枚だけ**（旧実装は手札が候補）／その札がトラップになり**デッキには残っていない**（複製なし）／固定手札3枚が全部残る。
+  - ⚠**`H.clickTextOrBtn` を CHOOSE のラベルに使わない**＝盤面ログの「ハトハットを【トラップ】として設置しますか？」という**テキスト**に当たって「押せた」と報告しながら何も進まず、34反復まるごと空振りした。ボタン限定の `H.clickBtn` を使い、**先に進む側（ゾーン選択）から**試す。
+  - ⚠**銀行役スペルが先に1枚引く**ので「デッキの一番上」は注入時の先頭ではなく**2枚目**。1枚目を期待値にすると engine は正しいのに FAIL する（実測で1回踏んだ）。
+- 📋**follow-up を2件登録**＝`O-56`（`TRAP_OPERATION` 18効果／`TRAP_OP` 6効果のカード全文 regex 多重ディスパッチ）／`O-57`（「デッキの一番上を公開する。それが〜の場合、それを場に出す」が「そうした場合」ゲートに包まれた4効果で filter が落ちる）。
+
 ## 2026-08-24：`O-54`＝「この(シグニ|カード)を**エナゾーンから**〜」＝バニッシュでエナへ行った**自分自身**の配線
 
 - **真因**＝parser が「この○○を**エナゾーンから**」という自己参照を一切読まず、汎用の出所分岐へ落としていた。受け皿（`TargetFilter.thisCardOnly` ＋ 各 exec の `ENERGY_CARD` 分岐）は engine に**実装済みで、parser から合成されていないだけ**だった（PLAN §4.3 の「受け皿はあるのに配線されていない」型・`O-53`／段2 第36バッチと同型で **3回連続**）。壊れ方は出口ごとに違う：

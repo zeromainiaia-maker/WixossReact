@@ -3957,46 +3957,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXDi-P15-064 幻蟲　アロス・ピルルク//THE DOOR
-  // 【常】このカードの上にある＜解放派＞のシグニは「【自】あなたのアタックフェイズ開始時、手札を１枚捨ててもよい。
-  //   そうした場合、対戦相手の手札を１枚見ないで選び、捨てさせる。」を得る。
-  // 旧 E2 パース＝CONTINUOUS TRASH HAND opponent blind（no-op）。上シグニ付与＝GRANT_SIGNI_ABOVE_ABILITY。
-  // 付与能力は ON_ATTACK_PHASE_START の「手札1枚捨て→相手手札を見ないで1枚捨てさせる(blind)」。
-  // 「捨ててもよい」の任意性は SEQUENCE＋CONDITIONAL(IS_MY_TURN) で近似（同カード E1 の生成パターンに合わせる）。
-  'WXDi-P15-064': [
-    {
-      effectId: 'WXDi-P15-064-E2',
-      effectType: 'CONTINUOUS',
-      action: {
-        type: 'GRANT_SIGNI_ABOVE_ABILITY',
-        filter: { cardType: 'シグニ', story: '解放派' },
-        abilities: [
-          {
-            effectId: 'WXDi-P15-064-E2-G',
-            effectType: 'AUTO',
-            timing: ['ON_ATTACK_PHASE_START'],
-            triggerScope: 'self',
-            action: {
-              type: 'SEQUENCE',
-              steps: [
-                // 原文「手札を１枚捨ててもよい」＝任意コスト（続き416）。素の TRASH だと強制で捨てさせ、
-                // かつ「そうした場合」ゲートが常時成立する。
-                { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1 } },
-                { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } },
-              ],
-            } as SequenceAction,
-            duration: 'INSTANT',
-            mandatory: true,
-            parseStatus: 'MANUAL',
-          },
-        ],
-      },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-  ],
-
   // WXDi-P02-068 蒼将　ヒジカタ
   // 【常】このターンに手札を２枚以上捨てていたかぎり、このシグニは
   //   「【自】このシグニがバトルによって対戦相手のシグニをバニッシュしたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。」を得る。

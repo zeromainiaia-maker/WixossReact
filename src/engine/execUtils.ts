@@ -258,6 +258,12 @@ export interface OptionalCostSpec {
   selfToEnergy?: boolean;
   /** 効果元シグニ自身を場からトラッシュへ置く任意コスト（§6.4 O-11）。`selfToEnergy` の行き先違い。 */
   selfTrash?: boolean;
+  /**
+   * 効果元カード自身を**エナゾーンから**デッキの一番下へ置く任意コスト（§5.3 `O-55`）。
+   * ⚠払う場所が**場ではなくエナゾーン**＝`selfToEnergy`／`selfTrash` と成立条件が違う
+   *   （バニッシュで既にエナへ行った自分自身が対価なので、場に居たら**払えない**）。
+   */
+  selfEnergyToDeckBottom?: boolean;
   beat_signi?: number;
   beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
@@ -301,6 +307,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     underAnySigniTrash: a.underAnySigniTrash,
     energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy, selfTrash: a.selfTrash,
+    selfEnergyToDeckBottom: a.selfEnergyToDeckBottom,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     deckTrash: a.deckTrash, charmTrash: a.charmTrash, exceed: a.exceed,
@@ -436,6 +443,11 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     if (!ctx.sourceCardNum) return false;
     if (!ctx.ownerState.field.signi.some(stack => stack?.at(-1) === ctx.sourceCardNum)) return false;
   }
+  if (spec.selfEnergyToDeckBottom) {
+    // ⚠**エナゾーンに居ることが条件**（場ではない）＝上の selfToEnergy 系と成立条件が逆。
+    if (!ctx.sourceCardNum) return false;
+    if (!ctx.ownerState.energy.includes(ctx.sourceCardNum)) return false;
+  }
   if (spec.beat_signi) {
     if (!ctx.sourceCardNum) return false;
     const analysis = analyzeBeatSigniCost(
@@ -480,6 +492,7 @@ export function optionalCostExtraLabels(spec: OptionalCostSpec): string[] {
   return [
     ...(spec.selfTrash ? ['このシグニをトラッシュ'] : []),
     ...(spec.selfToEnergy ? ['このシグニをエナゾーンへ'] : []),
+    ...(spec.selfEnergyToDeckBottom ? ['このシグニをエナゾーンからデッキの一番下へ'] : []),
   ];
 }
 
@@ -574,6 +587,11 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.selfTrash ? [{
       type: 'TRASH', asCost: true,
       target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', thisCardOnly: true } },
+    } as EffectAction] : []),
+    ...(spec.selfEnergyToDeckBottom ? [{
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { thisCardOnly: true } },
+      shuffle: false, position: 'bottom',
     } as EffectAction] : []),
     ...((spec.beat_signi || spec.beat_signi_from_trash) ? [{
       type: 'STUB', id: 'INTERNAL_PAY_BEAT_SIGNI',

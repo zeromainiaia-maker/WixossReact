@@ -5099,6 +5099,36 @@ function parseCenterColorFrontPowerGrant(text: string): { activeCondition: Activ
   };
 }
 
+// 「【常】：このカードの上にある〈修飾〉シグニ／《カード名》は「Q」を得る」＝スタック下のカードから上へ付与。
+// 🔴受け皿（`GRANT_SIGNI_ABOVE_ABILITY` ＋ `collectGrantedFromUnderSigni` Pattern B）は engine に
+//   実装済みなのに **parser が一度も生成していなかった**（live で使っていたのは manual 3枚だけ）。
+//   そのため引用の**中身が外側の CONTINUOUS としてそのまま実行される**形へ落ちており、
+//   「上のシグニがアタックしたとき相手を－8000」が**常時－8000**になる等の過剰実行だった（実測8効果）。
+// ⚠付与先は**自分のスタックの上**なので owner/targetOwner は持たない（`GRANT_FIELD_SIGNI_ABILITY` と別型）。
+// ⚠**条件抽出ループより前に呼ぶこと**＝引用の中の「〜されたとき、」を `parseActiveCondition` が
+//   先に食うと `^` アンカーが外れて丸ごと取り逃し、**引用の中身だけが外側に残る**
+//   （`WXDi-P06-054-E2` で実測。`parseMultiStageUnderGrant` と同じ理由・同じ位置に置く）。
+function parseSigniAboveQuotedGrant(text: string): EffectAction | null {
+  const named = text.match(/^この(?:カード|シグニ)の上にある《([^》]+)》は「(【[自常起出]】.+)」を得る。?$/s);
+  if (named && !/」と「|」か「/.test(named[2])) {
+    return {
+      type: 'GRANT_SIGNI_ABOVE_ABILITY',
+      filter: { cardName: named[1] },
+      abilities: [], rawText: named[2],
+    } as import('../types/effects').GrantSigniAboveAbilityAction as EffectAction;
+  }
+  const m = text.match(/^この(?:カード|シグニ)の上にある((?:[白赤青緑黒]の|＜[^＞]+＞の|レベル[０-９\d]+の)*)シグニは「(【[自常起出]】.+)」を得る。?$/s);
+  if (!m || /」と「|」か「/.test(m[2])) return null;
+  const aboveFilter: TargetFilter = {
+    cardType: 'シグニ',
+    ...parseStoryFilter(m[1]), ...parseColorFilter(m[1]), ...parseLevelFilter(m[1]),
+  };
+  return {
+    type: 'GRANT_SIGNI_ABOVE_ABILITY',
+    filter: aboveFilter, abilities: [], rawText: m[2],
+  } as import('../types/effects').GrantSigniAboveAbilityAction as EffectAction;
+}
+
 function parseContinuousQuotedGrant(text: string): EffectAction | null {
   // ---- 連用中止「このシグニのパワーは＋Nされ、<B>」＝パワー修正＋残りの複合（WXDi-P11-046 等）----
   // 従来は先頭のパワー修正が無言脱落し <B> だけが残る（＋3000 消失＝続き77 Sonnet観測(b)）。
@@ -13528,7 +13558,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // 相手ターン限定は activeCondition TURN_OWNER(opponent)（ON_BANISH 自己トリガー収集が activeCondition を評価するため）。
       {
         const banishTrigM = actionText.match(/このシグニがバニッシュされたとき[、,]\s*(.+)/s);
-        if (banishTrigM) {
+        // ⚠🔴**引用「…」の中のトリガー句を拾ってはいけない**（§5.3 `O-55`・2026-08-24 実測）＝
+        //   「【常】：このカードの上にある赤のシグニは『【自】：このシグニがバニッシュされたとき、…』を得る」
+        //   は**付与宣言**であって ON_BANISH ではない。ここで乗っ取ると effectType が AUTO に化け、
+        //   `actionText` が引用の中身へ差し替わって**外側の付与が丸ごと消え、内側だけが自分の能力になる**
+        //   （`WXDi-P06-054-E2` が実測でそうなっていた）。開き括弧の数で「引用の内側か」を判定する。
+        const banishInQuote = banishTrigM !== null && (() => {
+          const head = actionText.slice(0, banishTrigM.index ?? 0);
+          return (head.match(/[「『]/g) ?? []).length > (head.match(/[」』]/g) ?? []).length;
+        })();
+        if (banishTrigM && !banishInQuote) {
           effectType = 'AUTO';
           timing = ['ON_BANISH'];
           extractedTriggerScope = 'self';
@@ -15472,11 +15511,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     // 多段「下にレベルNのシグニがあるかぎり、「Q」を得る。」は条件抽出ループより**前**に丸ごと取る
     // （1段目条件を genericKagiri に消費させない。WX24-P1-043＝続き77 Sonnet観測(b)）
     const multiStage = selfPlayRestrict ? null : parseMultiStageUnderGrant(actionText);
-    const centerColorFront = (selfPlayRestrict || multiStage) ? null : parseCenterColorFrontPowerGrant(actionText);
+    // 「このカードの上にある〜は「Q」を得る」も条件抽出ループより**前**に丸ごと取る（§5.3 `O-55`）。
+    const aboveGrant = (selfPlayRestrict || multiStage) ? null : parseSigniAboveQuotedGrant(actionText);
+    const centerColorFront = (selfPlayRestrict || multiStage || aboveGrant) ? null : parseCenterColorFrontPowerGrant(actionText);
     if (selfPlayRestrict) {
       resolvedAction = selfPlayRestrict;
     } else if (multiStage) {
       resolvedAction = multiStage;
+    } else if (aboveGrant) {
+      resolvedAction = aboveGrant;
     } else if (centerColorFront) {
       // 外側センター色＋内側正面パワーの二段「かぎり」を AND に平坦化（genericKagiri の無言消費を回避）。
       activeCondition = centerColorFront.activeCondition;
@@ -15660,7 +15703,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   } else
   // GRANT_FIELD_SIGNI_ABILITY: rawText（引用能力原文）を parseBlock で abilities へ展開（§5c 続き34）。
   // 付与能力の effectId は `{cardNum}-E{N}-G` とする（GRANT_ACCE と同慣例）。
-  if (resolvedAction.type === 'GRANT_FIELD_SIGNI_ABILITY' &&
+  // ⚠`GRANT_SIGNI_ABOVE_ABILITY`（スタック下→上への付与）も**同じ rawText 規約**なのでここへ載せる。
+  //   載せないと `abilities:[]` のまま＝**付与したのに中身が空**の無言 no-op になる（§5.3 `O-55`）。
+  if ((resolvedAction.type === 'GRANT_FIELD_SIGNI_ABILITY' || resolvedAction.type === 'GRANT_SIGNI_ABOVE_ABILITY') &&
       (resolvedAction as GrantFieldSigniAbilityAction).rawText !== undefined) {
     const gfa = resolvedAction as GrantFieldSigniAbilityAction;
     const raw = gfa.rawText ?? '';

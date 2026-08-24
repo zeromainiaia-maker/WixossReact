@@ -2054,7 +2054,10 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'POWER_MODIFY_BY_SOURCE': return `${targetJa(a.target)}のパワーを効果元の${a.basis === 'level' ? 'レベル' : 'パワー'}×${a.multiplier}だけ変更する`;
     case 'LOOK_AT_DECK_AND_LIFE': return `${ownerJa(a.targetOwner)}デッキの上${a.mode === 'both' ? 'とライフクロスの上' : 'かライフクロスの上'}を見る`;
-    case 'GRANT_SIGNI_ABOVE_ABILITY': return `このカードの上の${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
+    // ⚠カード名限定（`filter.cardName`）は「《名前》シグニ」と重ねると原文とズレるので名詞を落とす。
+    case 'GRANT_SIGNI_ABOVE_ABILITY': return a.filter?.cardName
+      ? `このカードの上の《${a.filter.cardName}》は『${(a.abilities || []).map(effJa).join(' / ')}』を得る`
+      : `このカードの上の${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'NAME_BAN': return `このゲームの間、${a.targetSelf ? 'あなた' : '対戦相手'}は同名のカードを使用できない`;
     case 'BLOCK_CARD_USE': return `このターン、対戦相手は《${a.cardName}》を使用できない`;
     case 'COST_SUBSTITUTE': {
@@ -2482,8 +2485,14 @@ function actionJa(a?: Action, effectType?: string): string {
         return m ? m[0] : 'その中からカードを【トラップ】としてあなたのシグニゾーンに設置する';
       }
       if (a.id === 'PLACE_TRAP_OPTIONAL' || a.id === 'SET_HAND_CARD_AS_TRAP') {
-        const m = currentCardText.match(/(?:あなたは)?(?:その(?:カード)?か、?)?(?:あなたの)?(?:手札|デッキの一番上)[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
-        return m ? m[0] : 'あなたの手札から1枚を【トラップ】としてあなたのシグニゾーンに設置してもよい';
+        // 🔴出所は **JSON の `trapSource` から描く**（§5.3 `O-55`）。従来はカード全文 regex で
+        //   原文をそのまま切り出していたため、**JSON が出所を持っていなくても逆翻訳だけは正しく見え**、
+        //   計器が穴を映さなかった（§6.4 O-20 の全文 regex 読みと同じ落とし穴）。
+        const ts = (a as { trapSource?: string }).trapSource;
+        if (ts === 'energy_self') return 'このシグニをエナゾーンから【トラップ】としてあなたのシグニゾーンに設置してもよい';
+        if (ts === 'looked') return 'そのカードを【トラップ】としてあなたのシグニゾーンに設置してもよい';
+        if (ts === 'looked_or_hand') return 'そのカードか、あなたの手札1枚を【トラップ】としてあなたのシグニゾーンに設置してもよい';
+        return 'あなたの手札から1枚を【トラップ】としてあなたのシグニゾーンに設置してもよい';
       }
       if (a.id === 'ACTIVATE_TRAP' || a.id === 'ACTIVATE_TRAP_IN_FIELD') {
         const m = currentCardText.match(/あなたの【トラップ】[^。]*?表向きに[^。]*?(?:発動[^。]*?(?:させる|する)|シグニにする)/);

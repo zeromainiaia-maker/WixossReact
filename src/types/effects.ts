@@ -1610,6 +1610,13 @@ export interface GrantSigniAboveAbilityAction {
   type: 'GRANT_SIGNI_ABOVE_ABILITY';
   filter?: TargetFilter;   // 上のシグニへのフィルタ（省略時は任意）
   abilities: CardEffect[]; // 付与する能力
+  /**
+   * パース中一時フィールド（引用能力の原文）。`GRANT_FIELD_SIGNI_ABILITY` と同じ規約で
+   * `parseBlock` が `abilities` へ展開してから delete する（§5.3 `O-55`・2026-08-24）。
+   * ⚠これが無いと parser 側から本型を作れず、**引用の中身が外側の CONTINUOUS として即実行される**
+   *   （「上のシグニがアタックしたとき〜」が常時発動する過剰実行）。
+   */
+  rawText?: string;
 }
 
 // このカードが場にあるかぎり、フィルタに合う自分の場のシグニ全員へ能力を付与する
@@ -3227,6 +3234,22 @@ export interface StubAction {
   pileTrashCards?: string[]; // INTERNAL_RESOLVE_PILES: トラッシュへ置く明示instanceId群
   pileHandCards?: string[];  // INTERNAL_RESOLVE_PILES: 手札へ加える明示instanceId群
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
+  /**
+   * `PLACE_TRAP_OPTIONAL`：**どこから**【トラップ】にするカードを取るか（§5.3 `O-55`・2026-08-24）。
+   * 🔴省略時は `'hand'`＝**手札から**で、これが従来の唯一の挙動だった。原文が「そのカードを」
+   * （＝直前に見たデッキの札）や「このシグニをエナゾーンから」と書いていても手札から設置していた
+   * ＝**まったく別のカードが場に置かれる**（`WX15-086` / `WX16-015` / `WX16-029` / `WX21-036`）。
+   * ⚠設置の実体は出所非依存の `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` が担う
+   *   （deck / hand / energy のどこからでも抜く）。ここは**候補集合の出どころだけ**を決める。
+   */
+  trapSource?: 'hand' | 'looked' | 'looked_or_hand' | 'energy_self';
+  /**
+   * `OPTIONAL_COST`：**効果元カード自身をエナゾーンからデッキの一番下へ置く**任意コスト
+   * （§5.3 `O-55`・`WXDi-P02-044-E1`「このシグニをエナゾーンからデッキの一番下に置いてもよい」）。
+   * `selfToEnergy`／`selfTrash` の**行き先違い**で、違いは**払う場所が場ではなくエナゾーン**なこと
+   * （バニッシュで既にエナへ行った自分自身が対価）。
+   */
+  selfEnergyToDeckBottom?: boolean;
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
   // DECLARE_CLASS: 宣言できるクラスを原文が列挙している場合の候補（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）。
   // 省略時は従来どおり盤面/手札/トラッシュから動的収集する。列挙があるのに無制限に宣言させるのは過剰実行なので明示で絞る。

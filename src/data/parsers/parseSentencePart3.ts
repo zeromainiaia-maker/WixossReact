@@ -1069,7 +1069,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/その中からカード[０-９\d]+枚を【シード】として.*シグニゾーンに出して/)) {
     return { type: 'STUB', id: 'PLACE_SEED_FROM_REVEALED' } as StubAction;
   }
-  if (t.match(/その中からカード[０-９\d]+枚を【トラップ】として.*シグニゾーンに設置/)) {
+  // ⚠「その中から**カード**1枚を」と「その中から1枚を」は同義（`WX17-041-E1` だけが後者）。
+  //   「カード」必須にしていたため 1効果だけ下の `PLACE_TRAP_OPTIONAL`（＝手札固定）へ落ち、
+  //   **デッキから見た3枚ではなく手札のカードを設置**していた（§5.3 `O-55`）。緩めると
+  //   `foldPlaceTrapFromRevealed` が兄弟10効果と同じ `LOOK_PICK_CHAIN{then:'trap'}` へ畳み込む
+  //   （残りの行き先＝`LOOK_AND_REORDER{count:0}` の死ステップも同時に解消する）。
+  if (t.match(/その中から(?:カード)?[０-９\d]+枚(?:まで)?を?【トラップ】として.*シグニゾーンに設置/)) {
     return { type: 'STUB', id: 'PLACE_TRAP_FROM_REVEALED' } as StubAction;
   }
 
@@ -1523,8 +1528,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/【マジックボックス】.*表向きにし.*トラッシュに置いてもよい/)) {
     return { type: 'STUB', id: 'OPEN_MAGIC_BOX' } as StubAction;
   }
+  // 🔴**出所（どこから【トラップ】にするか）を必ず読む**（§5.3 `O-55`）＝engine は `trapSource` 省略時に
+  //   **手札固定**なので、原文が「そのカードを」「このシグニをエナゾーンから」と書いていても
+  //   **手札の別カードが設置される**（`WX15-084`／`WX15-086`／`WX16-015`／`WX16-029`／`WX21-036`）。
+  // ⚠「そのカード」＝直前の「デッキの一番上を見る」で見た札＝engine 側は `lastProcessedCards` で受ける。
+  // ⚠「そのカード**か**、あなたの手札1枚」は**両方が候補**（片方に倒すと過小実行）。
   if (t.match(/【トラップ】として.*シグニゾーンに設置してもよい/)) {
-    return { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL' } as StubAction;
+    const trapSource: NonNullable<StubAction['trapSource']> =
+      /この(?:シグニ|カード)を(?:あなたの)?エナゾーンから/.test(t) ? 'energy_self'
+      : /その(?:カード)?か、?(?:あなたの)?手札/.test(t) ? 'looked_or_hand'
+      : /(?:^|[、。])(?:あなたは)?そのカードを/.test(t) ? 'looked'
+      : 'hand';
+    return { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', ...(trapSource !== 'hand' ? { trapSource } : {}) } as StubAction;
   }
 
   // ---- デッキ上からシグニがめくれるまで/宣言したカードまで公開する ----

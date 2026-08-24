@@ -5583,7 +5583,21 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   //   （`WXK05-005-E1`「あなたの手札とエナゾーンとシグニゾーンにあるすべてのカードをデッキに加える」）。
   // ⚠`HAND_OR_ENERGY_CARD`（＝手札とエナを跨いだ単一プールから合計N枚）とは別物＝**エナ単独**のゾーン指定。
   if (src.type === 'ENERGY_CARD') {
-    const candsEN = state.energy.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), src.filter));
+    // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンからデッキの一番下に置く」＝§5.3 `O-55`）。
+    // ⚠`matchesFilter` は `thisCardOnly` を**黙って無視する**ので、剥がさないと**エナ全部が候補**になる
+    //   （`execAddToField`／`execAddToLife`／`execTransferToHand` の ENERGY_CARD 分岐と同規約）。
+    let candsEN = state.energy.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), src.filter));
+    if (src.filter?.thisCardOnly) {
+      candsEN = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+      if (candsEN.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+      // 選ぶ余地が無いので選択UIを出さず即適用する。
+      const newSelfEN = insertToDeck({ ...state, energy: state.energy.filter(n => n !== candsEN[0]) }, candsEN);
+      return done({
+        ...addLog(setOwnerState(src.owner, newSelfEN, ctx),
+          `${ctx.cardMap.get(getCardNum(candsEN[0]))?.CardName ?? candsEN[0]}をエナゾーンからデッキ${toBottom ? 'の一番下' : 'の一番上'}に置く`),
+        lastProcessedCards: candsEN,
+      });
+    }
     const scopeEN: TargetScope = src.owner === 'self' ? 'self_energy' : 'opp_energy';
     if (src.count === 'ALL') {
       const newS = insertToDeck({ ...state, energy: state.energy.filter(n => !candsEN.includes(n)) }, candsEN);

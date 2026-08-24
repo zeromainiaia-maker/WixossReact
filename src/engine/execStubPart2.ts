@@ -2902,7 +2902,45 @@ export function execStubPart2(
   // === バッチ18: エンジン必須系 ===
   // トラップ系 ─────────────────────────────────────────────────────────
 
-  // PLACE_TRAP_OPTIONAL / SET_HAND_CARD_AS_TRAP: 手札からトラップ設置
+  // PLACE_TRAP_OPTIONAL / SET_HAND_CARD_AS_TRAP: 【トラップ】設置
+  // 🔴`trapSource` を見る前は**手札固定**で、原文が「そのカードを」（直前に見たデッキの札）や
+  //   「このシグニをエナゾーンから」と書いていても手札から設置していた＝**別のカードが場に置かれる**
+  //   （§5.3 `O-55`・`LOOK_AND_REORDER` の2値フォールバック＝`O-53` と同型の固定フォールバック）。
+  // ⚠設置の実体は出所非依存の `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` に寄せる
+  //   （deck / hand / energy のどこからでも抜く）。⚠旧 `INTERNAL_SET_TRAP` は `hand.filter` しかしないので
+  //   デッキ／エナ由来に使うと**元ゾーンに残ったままトラップにも現れる複製バグ**になる。
+  if (stub.id === 'PLACE_TRAP_OPTIONAL' && stub.trapSource && stub.trapSource !== 'hand') {
+    const srcTS = stub.trapSource;
+    // 'looked'／'looked_or_hand'＝直前に見たカード（`resumeLookAndReorder` が lastProcessedCards に記録）。
+    // ⚠**まだデッキに在るものだけ**を候補にする（見ただけで戻したカードが対象＝既に動いた札は除く）。
+    const lookedTS = srcTS === 'energy_self' ? []
+      : (ctx.lastProcessedCards ?? []).filter(c => ctx.ownerState.deck.includes(c));
+    const candsTS = srcTS === 'energy_self'
+      ? ((ctx.sourceCardNum && ctx.ownerState.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [])
+      : srcTS === 'looked_or_hand' ? [...lookedTS, ...ctx.ownerState.hand]
+      : lookedTS;
+    if (candsTS.length === 0) return done({ ...addLog(ctx, 'トラップ設置：候補なし'), lastProcessedCards: [] });
+    // 「設置してもよい」＝任意。⚠`energy_self` は選ぶ余地が無いので**枚数選択ではなく設置する/しないの2択**
+    //   （`ADD_TO_FIELD` の thisCardOnly 経路と同規約）。
+    if (srcTS === 'energy_self') {
+      return needsInteraction(addLog(ctx, `${ctx.cardMap.get(getCardNum(candsTS[0]))?.CardName ?? candsTS[0]}を【トラップ】として設置しますか？`), {
+        type: 'CHOOSE', count: 1, options: [
+          { id: 'set', label: '【トラップ】として設置する', available: true,
+            action: ({ type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE', value: candsTS[0] } as StubAction) as EffectAction },
+          { id: 'skip', label: '設置しない', available: true,
+            action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction },
+        ],
+      });
+    }
+    return needsInteraction(addLog(ctx, 'トラップにするカードを選択（任意）'), {
+      type: 'SELECT_TARGET',
+      candidates: candsTS,
+      count: 1,
+      optional: true,
+      targetScope: 'self_hand',
+      thenAction: ({ type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as StubAction) as EffectAction,
+    });
+  }
   if (stub.id === 'PLACE_TRAP_OPTIONAL' || stub.id === 'SET_HAND_CARD_AS_TRAP') {
     if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, 'トラップ設置：手札なし'));
     const zoneOptsPTO = [0, 1, 2].map(zi => ({
@@ -2980,9 +3018,12 @@ export function execStubPart2(
     trapsPT[zonePT] = cardPT;
     const newOwnerPT: PlayerState = {
       ...ctx.ownerState,
-      // 元ゾーン（デッキ／手札）から抜く。どちらにも無ければ何も抜かない（冪等）。
+      // 元ゾーン（デッキ／手札／エナ）から抜く。どこにも無ければ何も抜かない（冪等）。
+      // ⚠**エナを足さないと「このシグニをエナゾーンから【トラップ】として設置」でカードが複製される**
+      //   （エナに残ったままトラップゾーンにも現れる＝§5.3 `O-55`）。
       deck: ctx.ownerState.deck.filter(c => c !== cardPT),
       hand: ctx.ownerState.hand.filter(c => c !== cardPT),
+      energy: ctx.ownerState.energy.filter(c => c !== cardPT),
       trash: trashPT,
       field: { ...ctx.ownerState.field, signi_traps: trapsPT },
     };
@@ -3135,7 +3176,9 @@ export function execStubPart2(
     const txtPTFR = srcPTFR ? (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '') : '';
     const toHWPTFR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 公開枚数をテキストから解析（デフォルト2枚）
-    const cntMPTFR = txtPTFR.match(/カードを([０-９\d]+)枚見る/);
+    // ⚠**「N枚見**て**」の連用形も同義**（`WX16-061`＝3枚／`WX17-029`＝4枚）。`見る` 固定だと既定の2枚に落ちて
+    //   **原文より少なく公開する過小実行**になる（§5.3 `O-55` の regex 緩和でこの経路へ入るようになった）。
+    const cntMPTFR = txtPTFR.match(/カードを([０-９\d]+)枚見(?:る|て)/);
     const revealCountPTFR = cntMPTFR ? parseInt(toHWPTFR(cntMPTFR[1])) : 2;
     // デッキ上から公開カードを取得
     const topCardsPTFR = ctx.ownerState.deck.slice(0, revealCountPTFR);
