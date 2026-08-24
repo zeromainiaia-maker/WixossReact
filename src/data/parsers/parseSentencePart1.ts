@@ -85,7 +85,13 @@ export function parseSelfPlayRestrict(t: string): SelfPlayRestrictAction | null 
   // あなたのセンタールリグが《X（　レベルN）》の場合にしか（キー WDK16-05H/S/T）
   const lrigM = t.match(/あなたのセンタールリグが《([^》]+?)[　\s]*レベル([０-９\d])》の場合にしか/);
   if (lrigM) return { ...base, condition: { type: 'AND', conditions: [ { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: lrigM[1] }, { type: 'LRIG_LEVEL', owner: 'self', operator: 'eq', value: parseNum(lrigM[2]) } ] } };
-  // それ以外（ウィルス総数/アクセ総数/クロス状態/相手ディスカード等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
+  // このターンに対戦相手が手札を（N枚以上）捨てていた場合にしか（WD16-016・段2 第43バッチ）。
+  // ⚠従来はここが未対応語彙で **permissive（＝出撃制限が恒久 no-op）** に落ちており、条件を無視して召喚できた。
+  //   `evalConditionForContinuous` の default が true なので、**型を出すだけでは直らない**＝同バッチで
+  //   同関数へ `TURN_HAND_DISCARD_GTE` のケースを追加してある（§5-2‴）。
+  const oppDiscM = t.match(/このターンに対戦相手が手札を(?:([０-９\d]+)枚以上)?捨てていた場合にしか/);
+  if (oppDiscM) return { ...base, condition: { type: 'TURN_HAND_DISCARD_GTE', owner: 'opponent', value: oppDiscM[1] ? parseNum(oppDiscM[1]) : 1 } };
+  // それ以外（ウィルス総数/アクセ総数/クロス状態等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
   return base;
 }
 

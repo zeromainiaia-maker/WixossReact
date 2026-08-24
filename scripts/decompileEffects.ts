@@ -528,12 +528,17 @@ function condJa(c?: any): string {
       if (c.filter?.cardName)
         return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
       return `${ownerJa(c.owner)}トラッシュに${c.distinctName ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
-    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
+    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return c.minCount && c.minCount > 1 ? `このターンにシグニが${numJa(c.minCount)}体以上場から手札に戻っていた` : 'このターンにシグニが場から手札に戻っていた';
     case 'ARTS_USED_THIS_TURN': {
-      const artsCondition = c as { color?: string; minCount?: number };
+      const artsCondition = c as { color?: string; minCount?: number; exactCount?: number };
+      // exactCount＝「N枚目のアーツだった場合」＝**ちょうどN枚目**（minCount の「N回以上」とは別物）。
+      if (artsCondition.exactCount !== undefined) return `それがこのターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用した${numJa(artsCondition.exactCount)}枚目のアーツだった`;
       return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsCondition.color ? `${artsCondition.color}の` : ''}アーツを${(artsCondition.minCount ?? 1) > 1 ? `${numJa(artsCondition.minCount!)}回以上` : ''}使用していた`;
     }
-    case 'SPELL_USED_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
+    case 'SPELL_USED_THIS_TURN':
+      // exactCount＝「N枚目のスペルだった場合」＝**ちょうどN枚目**（minCount の「N枚以上」とは別物）。
+      if (c.exactCount !== undefined) return `それがこのターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が使用した${numJa(c.exactCount)}枚目のスペルだった`;
+      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
@@ -667,7 +672,9 @@ function condJa(c?: any): string {
         : `このシグニの下にカードが${n}${c.negate ? '無い' : 'ある'}`;
     }
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
-    case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;
+    case 'TURN_HAND_DISCARD_GTE': return `このターン${c.owner === 'opponent' ? '対戦相手が' : ''}手札を${numJa(c.value)}枚以上捨てている`;
+    case 'SIGNI_BANISHED_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}シグニが${numJa(c.minCount ?? 1)}体以上バニッシュされていた`;
+    case 'SELF_DECK_TO_TRASH_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}デッキからカードが${numJa(c.minCount ?? 1)}枚以上トラッシュに置かれていた`;
     // ── §3 タスク6「代わりに」B1残
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN': return 'このターンにこのシグニが効果によってダウン状態からアップしていた';
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN': return `このターンに対戦相手のカードがあなたの効果によって${numJa((c as { value: number }).value)}枚以上デッキに移動していた`;

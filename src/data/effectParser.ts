@@ -2647,6 +2647,31 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   [/(あなた|対戦相手)のエナゾーンに(?:あなた|対戦相手)のセンタールリグと共通する色を持たないカードがある場合/,
     g => ({ type: 'ENERGY_COUNT_FILTER', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
       filter: { colorNotMatchesLrig: true }, operator: 'gte', value: 1 })],
+  // ── 段2 第43バッチ：ターン内履歴条件（「このターンに〜していた場合」）──
+  // 原文の履歴条件が JSON から丸ごと落ちて**無条件実行**になっていた群（実測＝条件ノードも STUB も無い19効果）。
+  // ⚠**ここ（文単位の CONDITIONAL 持ち上げ）に置くのが正しい**＝効果全体の hoist にすると
+  //   「対戦相手のシグニ１体を**対象とし**、〜場合、それをバニッシュする」形で**対象取得ごと**ゲートされ、
+  //   既に正しかった8効果（WDK06-R11 群）の `CONDITIONAL` を効果レベル条件へ移してしまう（実測で踏んだ）。
+  // 「このターンにあなたが**カード**をN枚以上捨てていた場合」＝既存規則は「手札を」しか見ておらず
+  //   「カードを」形（WXDi-P11-068／WXDi-D07-017）が丸ごと落ちていた。
+  [/このターンにあなたがカードを([０-９\d]+)枚以上捨てていた場合/,
+    g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+  // 「このターンに対戦相手のシグニが〔N体以上〕バニッシュされていた場合」＝signi_banished_this_turn。
+  // ⚠体数の指定が無い形（WXK04-029）は「1体以上」＝minCount 省略。
+  [/このターンに対戦相手のシグニが(?:([０-９\d]+)体以上)?バニッシュされていた場合/,
+    g => ({ type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent', ...(g[0] ? { minCount: parseNum(g[0]) } : {}) })],
+  // 「このターンにシグニが〔N体以上〕場から手札に戻っていた場合」＝持ち主を言わない＝owner:'any'（両者合算）。
+  [/このターンにシグニが(?:([０-９\d]+)体以上)?場から手札に戻っていた場合/,
+    g => ({ type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any', ...(g[0] ? { minCount: parseNum(g[0]) } : {}) })],
+  // 「このターンにあなたのデッキからカードがN枚以上トラッシュに置かれていた場合」＝deck_to_trash_count_this_turn。
+  [/このターンにあなたのデッキからカードが([０-９\d]+)枚以上トラッシュに置かれていた場合/,
+    g => ({ type: 'SELF_DECK_TO_TRASH_THIS_TURN', owner: 'self', minCount: parseNum(g[0]) })],
+  // 「（それが）このターンにあなたが使用したN枚目の〔スペル／アーツ〕だった場合」＝**ちょうどN枚目**。
+  // ⚠minCount（N以上）で近似すると N+1枚目以降でも発火する過剰実行になるので exactCount を使う。
+  [/(?:それが)?このターンにあなたが使用した([０-９\d]+)枚目のスペルだった場合/,
+    g => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self', exactCount: parseNum(g[0]) })],
+  [/(?:それが)?このターンにあなたが使用した([０-９\d]+)枚目のアーツだった場合/,
+    g => ({ type: 'ARTS_USED_THIS_TURN', owner: 'self', exactCount: parseNum(g[0]) })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
@@ -4448,7 +4473,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
       // 「このルリグがアタックしたとき」は続き105で追加＝WX14-010等「あなたの場に(色)と(色)のシグニがある場合」
       // クラスタが未マッチだった原因（プレフィックス未対応で条件節ごと無条件発火の過剰効果になっていた）。
       // m[1] は then へ再prependされ parseSingleSentence が同プレフィックスを除去するので整合する（WXDi-P14-058/066）。
-      const m = t0.match(new RegExp('^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき|このルリグがアタックしたとき)、)?)' + re.source + '、(.+)$', 's'));
+      // 「あなたが〈スペル|アーツ〉を使用したとき、」も許容する（段2 第43バッチ）＝この形は本ループより後で
+      // トリガー除去されるため、許容しないと条件節が丸ごと落ちて**無条件発火**になる（WXDi-P09-038-E2 で実測）。
+      const m = t0.match(new RegExp('^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき|このルリグがアタックしたとき|あなたが(?:スペル|アーツ)を使用したとき)、)?)' + re.source + '、(.+)$', 's'));
       // 「〜の場合、代わりに〜」（昇格置換）は then だけのラップだと「基本＋条件時追加」の誤近似になり、
       // 既存 STUB（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済みハンドラ）も横取りして退化させる
       // ＝ else 表現が要る別系統として据置（本規則の対象外）

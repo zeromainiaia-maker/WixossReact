@@ -527,8 +527,9 @@ export function checkActiveCondition(
     }
 
     case 'TURN_HAND_DISCARD_GTE':
-      // このターンにあなたが手札をN枚以上捨てている場合
-      return (ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
+      // このターンに owner（省略=self）が手札をN枚以上捨てている場合。
+      // `Condition` 側（execUtils の evalCondition）と**同じ式**＝両方揃えて更新すること。
+      return ((cond.owner === 'opponent' ? otherState : ownerState).turn_hand_discarded_count ?? 0) >= cond.value;
 
     case 'THIS_CARD_HAS_UNDER': {
       // このシグニの下にカードがあるかぎり（filter 指定時は下カードのいずれかがフィルタ一致
@@ -668,11 +669,29 @@ export function checkActiveCondition(
       return false;
     }
 
-    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN':
-      return (cond.owner === 'self' ? ownerState : otherState).turn_signi_returned_to_hand === true;
+    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': {
+      // `Condition` 側（execUtils の evalCondition）と**同じ式**＝両方揃えて更新すること。
+      // owner:'any'＝両者合算。minCount 省略（1体以上）は既存 boolean フラグも見る。
+      const rthStates = cond.owner === 'any' ? [ownerState, otherState]
+        : [cond.owner === 'opponent' ? otherState : ownerState];
+      const rthMin = cond.minCount ?? 1;
+      const rthCount = rthStates.reduce((n, st) => n + (st.signi_returned_to_hand_count_this_turn ?? 0), 0);
+      if (rthMin <= 1) return rthStates.some(st => st.turn_signi_returned_to_hand === true) || rthCount >= 1;
+      return rthCount >= rthMin;
+    }
+
+    case 'SIGNI_BANISHED_THIS_TURN':
+      // `Condition` 側と同じ式。⚠`signi_banished_this_turn` は**バニッシュされた側**の state に積まれる。
+      return ((cond.owner === 'opponent' ? otherState : ownerState).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
+
+    case 'SELF_DECK_TO_TRASH_THIS_TURN':
+      // `Condition` 側と同じ式。
+      return ((cond.owner === 'opponent' ? otherState : ownerState).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
 
     case 'ARTS_USED_THIS_TURN': {
       const artsState = cond.owner === 'self' ? ownerState : otherState;
+      // exactCount＝ちょうどN枚目（`Condition` 側と同じ式＝両方揃えて更新すること）。
+      if (cond.exactCount !== undefined) return (artsState.turn_arts_used_names ?? []).length === cond.exactCount;
       if (cond.minCount !== undefined) return (artsState.turn_arts_used_names ?? []).length >= cond.minCount;
       if (cond.color) return (artsState.turn_arts_used_colors ?? []).includes(cond.color);
       return artsState.turn_arts_used === true;
@@ -1064,6 +1083,22 @@ function evalConditionForContinuous(
     }
   }
   switch (cond.type) {
+    // ⚠この評価器の `default` は **true（permissive）** ＝未対応の条件は「制限なし」に倒れる。
+    //   出撃制限（SELF_PLAY_RESTRICT）の条件をここへ足し忘れると**恒久 no-op** になり、
+    //   census も golden も緑のまま素通りする（§5-2‴）。他2評価器と同じ式を必ず並べること。
+    case 'TURN_HAND_DISCARD_GTE':
+      return (st(cond.owner ?? 'self').turn_hand_discarded_count ?? 0) >= cond.value;
+    case 'SIGNI_BANISHED_THIS_TURN':
+      return (st(cond.owner).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
+    case 'SELF_DECK_TO_TRASH_THIS_TURN':
+      return (st(cond.owner).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
+    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': {
+      const rthStates = cond.owner === 'any' ? [ownerState, otherState] : [st(cond.owner)];
+      const rthMin = cond.minCount ?? 1;
+      const rthCount = rthStates.reduce((n, s2) => n + (s2.signi_returned_to_hand_count_this_turn ?? 0), 0);
+      if (rthMin <= 1) return rthStates.some(s2 => s2.turn_signi_returned_to_hand === true) || rthCount >= 1;
+      return rthCount >= rthMin;
+    }
     case 'FIELD_LRIGS_SHARE_COLOR':
       return fieldLrigsShareColor(st(cond.owner), cond.minCount, cardMap);
     case 'FIELD_COUNT': {

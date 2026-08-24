@@ -4455,7 +4455,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
   // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_used_card_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
   // 35 → 36（段2 第35バッチで cards_drawn_this_attack_phase を追加）
-  eq(convention.length, 36, 'PlayerState の命名規約由来フィールド数');
+  eq(convention.length, 38, 'PlayerState の命名規約由来フィールド数');  // 38＝段2 第43バッチで signi_returned_to_hand_count_this_turn / deck_to_trash_count_this_turn を追加
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4470,7 +4470,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 59, '型由来36件＋命名規約外23件の母集団');  // +1＝段2 第35バッチの cards_drawn_this_attack_phase
+  eq(registered.length, 61, '型由来36件＋命名規約外23件の母集団');  // +1＝段2 第35バッチの cards_drawn_this_attack_phase
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -19754,8 +19754,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 53, 'ActiveCondition の型数（53＝第36バッチ LIFE_COMPARE_OPP 追加後）');
-  eq(Object.keys(C_TYPES).length, 122, 'Condition の型数（122＝第22バッチ FIELD_LEVEL_SUM 追加後）');
+  eq(Object.keys(AC_TYPES).length, 55, 'ActiveCondition の型数（55＝段2 第43バッチで SIGNI_BANISHED_THIS_TURN / SELF_DECK_TO_TRASH_THIS_TURN を追加）');
+  eq(Object.keys(C_TYPES).length, 125, 'Condition の型数（125＝段2 第43バッチで SIGNI_BANISHED_THIS_TURN / SELF_DECK_TO_TRASH_THIS_TURN / SIGNI_RETURNED_TO_HAND_THIS_TURN を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -46298,6 +46298,115 @@ test('段2 第42バッチ 見送り固定: 別語彙・timing内包・ターン�
   ] as const) {
     const tc = batch42Cause(effectId).triggerCondition;
     ok(!tc?.byOwnEffect && !tc?.byOpponentEffect && !tc?.byEffect, `${effectId}: 別軸を偽採用しない`);
+  }
+});
+
+// ── 段2 第43バッチ: 「このターンに〜していた場合」＝ターン内履歴条件が丸ごと落ちて無条件実行 ──
+// 母集団＝原文に「このターン〜場合」を含む144効果のうち、**条件ノードも STUB も無い19効果**（実測）。
+// そのうち既存 state で表せる11効果＋同規則で一緒に直った1効果を本バッチで配線した。
+const b43Live = (effectId: string) => {
+  for (const effects of effectsMap.values()) {
+    const effect = effects.find(e => e.effectId === effectId);
+    if (effect) return effect;
+  }
+  throw new Error(effectId + ': live effect missing');
+};
+/** live 効果の中から最初に見つかる条件ノードを返す（本バッチは全件 CONDITIONAL 形）。 */
+const b43Cond = (effectId: string): Record<string, unknown> => {
+  const found: Record<string, unknown>[] = [];
+  const walk = (o: unknown): void => {
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    if (!o || typeof o !== 'object') return;
+    const r = o as Record<string, unknown>;
+    if (r.condition && typeof r.condition === 'object') found.push(r.condition as Record<string, unknown>);
+    for (const v of Object.values(r)) walk(v);
+  };
+  walk(b43Live(effectId));
+  if (!found.length) throw new Error(effectId + ': 条件ノードが無い（無条件実行に戻っている）');
+  return found[0];
+};
+
+test('段2 第43バッチ live: ターン内履歴条件が11効果すべてに載っている', () => {
+  const expected: Array<[string, Record<string, unknown>]> = [
+    ['WXDi-P11-068-E1', { type: 'TURN_HAND_DISCARD_GTE', value: 2 }],
+    ['WX24-P1-053-E1',  { type: 'TURN_HAND_DISCARD_GTE', value: 1 }],
+    ['WXK04-029-E2',    { type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent' }],
+    ['WXDi-P15-088-E1', { type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent', minCount: 2 }],
+    ['WDK16-01H-E1',    { type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent' }],
+    ['WXK02-042-E1',    { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any' }],
+    ['WXK02-040-E1',    { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any', minCount: 2 }],
+    ['WXK02-065-E1',    { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any', minCount: 2 }],
+    ['WXDi-P03-065-E1', { type: 'SELF_DECK_TO_TRASH_THIS_TURN', owner: 'self', minCount: 3 }],
+    ['WXDi-P09-038-E2', { type: 'SPELL_USED_THIS_TURN', owner: 'self', exactCount: 3 }],
+    ['WXK01-042-E1',    { type: 'ARTS_USED_THIS_TURN', owner: 'self', exactCount: 2 }],
+  ];
+  for (const [id, want] of expected) eq(JSON.stringify(b43Cond(id)), JSON.stringify(want), id);
+  // WD16-016-E1 は SELF_PLAY_RESTRICT.condition（出撃制限の側）。⚠permissive フォールバックへ戻ると
+  // 「条件を無視して召喚できる」恒久 no-op に裏返るので、condition の存在を固定する。
+  const restrict = b43Live('WD16-016-E1').action as { type: string; condition?: Record<string, unknown> };
+  eq(restrict.type, 'SELF_PLAY_RESTRICT', 'WD16-016-E1 action');
+  eq(JSON.stringify(restrict.condition), JSON.stringify({ type: 'TURN_HAND_DISCARD_GTE', owner: 'opponent', value: 1 }), 'WD16-016-E1 condition');
+});
+
+test('段2 第43バッチ evalCondition: 成立／不成立／境界を三方向で固定', () => {
+  const savedCursor = cursor;
+  const ctx = (own: Partial<PlayerState>, other: Partial<PlayerState> = {}) =>
+    ({ ...mkCtx({}, {}), ownerState: { ...mkState(), ...own }, otherState: { ...mkState(), ...other } });
+
+  // ① TURN_HAND_DISCARD_GTE の owner（既定=self／'opponent' は WD16-016）
+  const cSelf = { type: 'TURN_HAND_DISCARD_GTE', value: 2 } as const;
+  ok(evalCondition(cSelf, ctx({ turn_hand_discarded_count: 2 })), 'self 2枚 → true');
+  ok(!evalCondition(cSelf, ctx({ turn_hand_discarded_count: 1 })), 'self 1枚 → false（境界）');
+  const cOpp = { type: 'TURN_HAND_DISCARD_GTE', owner: 'opponent', value: 1 } as const;
+  ok(evalCondition(cOpp, ctx({ turn_hand_discarded_count: 5 }, { turn_hand_discarded_count: 1 })), 'opponent 1枚 → true');
+  ok(!evalCondition(cOpp, ctx({ turn_hand_discarded_count: 5 }, { turn_hand_discarded_count: 0 })), '相手0枚なら自分が5枚捨てても false');
+
+  // ② SIGNI_BANISHED_THIS_TURN（バニッシュされた側の state を見る）
+  const cBan1 = { type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent' } as const;
+  const cBan2 = { type: 'SIGNI_BANISHED_THIS_TURN', owner: 'opponent', minCount: 2 } as const;
+  ok(evalCondition(cBan1, ctx({}, { signi_banished_this_turn: 1 })), '相手1体 → true');
+  ok(!evalCondition(cBan1, ctx({ signi_banished_this_turn: 3 }, {})), '自分が3体でも相手0なら false');
+  ok(evalCondition(cBan2, ctx({}, { signi_banished_this_turn: 2 })), '相手2体 → true');
+  ok(!evalCondition(cBan2, ctx({}, { signi_banished_this_turn: 1 })), '相手1体 → false（境界）');
+
+  // ③ SIGNI_RETURNED_TO_HAND_THIS_TURN（owner:'any'＝両者合算／minCount 省略は旧 boolean も見る）
+  const cRet1 = { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any' } as const;
+  const cRet2 = { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'any', minCount: 2 } as const;
+  ok(evalCondition(cRet1, ctx({ turn_signi_returned_to_hand: true })), '旧 boolean だけでも true（後方互換）');
+  ok(evalCondition(cRet1, ctx({ signi_returned_to_hand_count_this_turn: 1 })), 'カウンタ1 → true');
+  ok(!evalCondition(cRet1, ctx({})), '何も戻っていない → false');
+  ok(evalCondition(cRet2, ctx({ signi_returned_to_hand_count_this_turn: 1 }, { signi_returned_to_hand_count_this_turn: 1 })), 'any は両者合算で2 → true');
+  ok(!evalCondition(cRet2, ctx({ signi_returned_to_hand_count_this_turn: 1 })), '合算1 → false（境界）');
+  ok(!evalCondition(cRet2, ctx({ turn_signi_returned_to_hand: true })), '⚠旧 boolean だけでは 2体以上を満たさない');
+
+  // ④ SELF_DECK_TO_TRASH_THIS_TURN
+  const cMill = { type: 'SELF_DECK_TO_TRASH_THIS_TURN', owner: 'self', minCount: 3 } as const;
+  ok(evalCondition(cMill, ctx({ deck_to_trash_count_this_turn: 3 })), '3枚 → true');
+  ok(!evalCondition(cMill, ctx({ deck_to_trash_count_this_turn: 2 })), '2枚 → false（境界）');
+  ok(!evalCondition(cMill, ctx({}, { deck_to_trash_count_this_turn: 9 })), '相手のデッキが9枚落ちても自分は false');
+
+  // ⑤ exactCount＝**ちょうどN枚目**（minCount で近似すると N+1 枚目以降でも発火する過剰実行になる）
+  const cSpell = { type: 'SPELL_USED_THIS_TURN', owner: 'self', exactCount: 3 } as const;
+  const spellDone = (n: number) => ctx({ actions_done: Array.from({ length: n }, () => 'USE_SPELL') });
+  ok(!evalCondition(cSpell, spellDone(2)), '2枚目 → false');
+  ok(evalCondition(cSpell, spellDone(3)), '3枚目 → true');
+  ok(!evalCondition(cSpell, spellDone(4)), '4枚目 → false（minCount 近似ならここが緑になってしまう）');
+  const cArts = { type: 'ARTS_USED_THIS_TURN', owner: 'self', exactCount: 2 } as const;
+  const artsDone = (n: number) => ctx({ turn_arts_used_names: Array.from({ length: n }, (_, i) => 'A' + i) });
+  ok(!evalCondition(cArts, artsDone(1)), 'アーツ1枚目 → false');
+  ok(evalCondition(cArts, artsDone(2)), 'アーツ2枚目 → true');
+  ok(!evalCondition(cArts, artsDone(3)), 'アーツ3枚目 → false');
+  cursor = savedCursor;
+});
+
+test('段2 第43バッチ 見送り固定: 「対象とし、」の後の条件は効果レベルへ持ち上げない', () => {
+  // 「対戦相手のシグニ1体を**対象とし**、このターンに〜場合、それをバニッシュする」は
+  // **対象取得は無条件**で、条件はバニッシュだけを塞ぐ＝`CONDITIONAL` のままが正しい。
+  // ⚠効果レベル `condition` へ hoist すると対象取得ごとゲートされる（実装中に一度踏んだ退化）。
+  for (const id of ['WDK06-R11-E1', 'WXK02-042-E1'] as const) {
+    const e = b43Live(id);
+    eq(e.condition, undefined, id + ': 効果レベル condition は付けない');
+    eq((e.action as { type: string }).type, 'CONDITIONAL', id + ': action は CONDITIONAL');
   }
 });
 

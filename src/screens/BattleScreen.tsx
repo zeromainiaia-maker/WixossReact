@@ -3237,6 +3237,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...mtH.entries); useHost(mtH.usedOncePerTurnIds);
       const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost, milledGuestCards, milledHostCards, causeOwnerId);
       entries.push(...mtG.entries); useGuest(mtG.usedOncePerTurnIds);
+      // SELF_DECK_TO_TRASH_THIS_TURN（「このターンにあなたのデッキからカードがN枚以上トラッシュに置かれていた場合」
+      // WXDi-P03-065）用のターン累計。⚠**持ち主基準**＝自分のデッキから落ちた枚数を自分の state へ積む
+      // （相手効果で落とされた場合も自分のデッキが減っているので数える＝原文に原因限定が無い）。
+      if (milledHost > 0)  h = { ...h, deck_to_trash_count_this_turn: (h.deck_to_trash_count_this_turn ?? 0) + milledHost };
+      if (milledGuest > 0) g = { ...g, deck_to_trash_count_this_turn: (g.deck_to_trash_count_this_turn ?? 0) + milledGuest };
     }
 
     // ON_CHARM_TO_TRASH: 【チャーム】が場→トラッシュに置かれた場合

@@ -28569,6 +28569,90 @@ scenarios.b42EnergyPhaseDoesNotFire = {
 order.push('b42OwnEffectEnergyChargeFires', 'b42EnergyPhaseDoesNotFire');
 // ── §5.2 段2 第42バッチ END ──
 
+// ── §5.2 段2 第43バッチ START（ターン内履歴条件「このターンに〜していた場合」）──
+// 対象＝`WXK02-065-E1`「【自】：このシグニがアタックしたとき、このターンにシグニが２体以上場から手札に
+// 戻っていた場合、【エナチャージ２】をする。」
+// 修正前は condition が丸ごと無く**アタックのたび無条件でエナチャージ２**していた（負方向が赤になる）。
+// ⚠観測は engine 内部値ではなく **エナ枚数の実変化**で行う（JSON を読むデータ assert にしない）。
+// ⚠履歴カウンタ（`signi_returned_to_hand_count_this_turn`）は spec で直接作る＝「バウンスを実演してから
+//   アタックする」より手数が少なく、観測したいのは**条件の効き**であってバウンス経路ではない。
+const B43_ATTACKER = 'WXK02-065#54320';
+const B43_LRIG     = 'WXK09-018#54321';
+const B43_OPP_LRIG = 'WD01-001#54322';
+
+/** 共通ドライブ＝ zone0 のシグニでアタックし、エナ枚数が増えたかを見る。 */
+const b43DriveAttack = async (page, H, tag, expectCharge) => {
+  await H.ensureAttack?.();
+  const before = await H.queryState();
+  const energy0 = before?.host?.energy ?? 0;
+  H.log(`  ${tag} 初期: energy=${energy0} phase=${before?.turnPhase ?? '-'}`);
+  let modalOpened = false, attacked = false, stable = 0;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(400);
+    let did = null;
+    if (!modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-0');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    if (!did && modalOpened && !attacked) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    const st = await H.queryState();
+    const energy = st?.host?.energy ?? 0;
+    // 「イベントが起きなかったから緑」を防ぐ：**アタックが実際に成立したこと**をログ行で必須にする。
+    const attackHappened = (st?.logTail ?? []).some(l => /アタック/.test(l));
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} attackLog=${attackHappened} energy=${energy0}→${energy} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (!attackHappened || st?.pendingEffect || (st?.stackLen ?? 0) > 0) { stable = 0; continue; }
+    const charged = energy > energy0;
+    if (expectCharge) {
+      if (charged) return { pass: true, detail: `アタック成立=true／履歴2体で【エナチャージ２】発火 energy ${energy0}→${energy}` };
+      stable++;
+      if (stable >= 4) return { pass: false, detail: `履歴2体なのにエナチャージが起きない（energy ${energy0}→${energy}）` };
+    } else {
+      if (charged) return { pass: false, detail: `🔴履歴が無いのにエナチャージした（energy ${energy0}→${energy}）＝条件が無視されている` };
+      stable++;
+      if (stable >= 4) return { pass: true, detail: `アタック成立=true／履歴なし＝エナチャージ非発火（energy ${energy0}→${energy} 据置）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${attacked} energy=${fin?.host?.energy} logTail=${JSON.stringify((fin?.logTail ?? []).slice(-3))}）` };
+};
+
+const b43Spec = (returnedCount) => ({
+  hostSet: {
+    'field.lrig': [B43_LRIG],
+    'field.signi': [[B43_ATTACKER], null, null],
+    'field.signi_down': [false, false, false],
+    'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+    'deck': ['WD01-013#54323', 'WD01-013#54324', 'WD01-013#54325'],
+    'signi_returned_to_hand_count_this_turn': returnedCount,
+  },
+  guestSet: {
+    'field.lrig': [B43_OPP_LRIG], 'field.signi': [null, null, null],
+    'hand': [], 'energy': [], 'trash': [], 'deck': ['WD01-013#54326'],
+    'signi_returned_to_hand_count_this_turn': 0,
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+scenarios.b43TurnHistoryNoReturnDoesNotCharge = {
+  title: '段2 第43バッチ：手札戻り履歴が0なら WXK02-065-E1 はエナチャージしない（負方向・判別力の本体）',
+  spec: b43Spec(0),
+  drive: (page, H) => b43DriveAttack(page, H, 'b43-nohist', false),
+};
+
+scenarios.b43TurnHistoryTwoReturnsCharges = {
+  title: '段2 第43バッチ：手札戻り履歴が2体なら WXK02-065-E1 は【エナチャージ２】する（正方向の対照）',
+  spec: b43Spec(2),
+  drive: (page, H) => b43DriveAttack(page, H, 'b43-hist2', true),
+};
+
+order.push('b43TurnHistoryNoReturnDoesNotCharge', 'b43TurnHistoryTwoReturnsCharges');
+// ── §5.2 段2 第43バッチ END ──
+
+
 
 
 

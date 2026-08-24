@@ -1034,6 +1034,12 @@ export interface PlayerState {
   turn_hand_discarded_count?: number;
   // このターンにシグニが場から手札に戻ったか（G087「このターンにシグニが場から手札に戻っていた場合」）。ターン境界でリセット
   turn_signi_returned_to_hand?: boolean;
+  // このターンにシグニが場から手札に戻った**体数**（「シグニが2体以上場から手札に戻っていた場合」WXK02-040/065）。
+  // ⚠既存 turn_signi_returned_to_hand（boolean）は「1体以上」の意味で据置＝**両方を同じ地点で更新する**こと。
+  signi_returned_to_hand_count_this_turn?: number;
+  // このターンに自分のデッキからトラッシュへ置かれた累計枚数（「このターンにあなたのデッキからカードがN枚以上
+  // トラッシュに置かれていた場合」WXDi-P03-065）。中央盤面diffの detectMilledFromDeck と同じ地点で積む。
+  deck_to_trash_count_this_turn?: number;
   // このターンにアーツを使用したか（「このターンにあなたがアーツを使用していた場合」WX25-P1-106）。ターン境界でリセット
   turn_arts_used?: boolean;
   turn_arts_used_names?: string[];

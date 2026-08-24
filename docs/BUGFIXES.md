@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.2 段2 第43バッチ＝ターン内履歴条件「このターンに〜していた場合」が丸ごと落ちて無条件実行（Claude 実装）
+
+- **母集団**＝原文に「このターン〜場合」を含む効果は **144**。うち条件ノードを持つ113を引き、さらに**専用 STUB に化けている12**を引くと、**条件ノードも STUB も無い＝真に無条件の19効果**が残る。⚠**素朴に「live に `*_this_turn` 語彙があるか」で数えると74件に膨れる**（`TURN_HAND_DISCARD_GTE` / `THIS_CARD_PLACED_BY_CLASS` など**命名規約に乗らない既存型**を取りこぼすため）＝**判定語彙を推測せず「条件ノードの有無」で数える**のが正しい。
+- **本バッチのスコープ**＝19効果のうち**既存 state で表せる11効果**（＋同じ規則で一緒に直った標本外の `WDK16-01H-E1`）。残8効果は新しい追跡が要るので見送り。
+- **実害**＝`WXK02-065-E1`「【自】：このシグニがアタックしたとき、このターンにシグニが２体以上場から手札に戻っていた場合、【エナチャージ２】をする」が**アタックのたび無条件でエナチャージ２**していた。`WD16-016-E1` の出撃制限は**条件が付かず恒久 no-op**＝制限を無視して召喚できた。
+- **engine**＝新設は Condition 2型（`SIGNI_BANISHED_THIS_TURN` / `SELF_DECK_TO_TRASH_THIS_TURN`）と `exactCount`。既存 `SIGNI_RETURNED_TO_HAND_THIS_TURN` は **`checkActiveCondition` にしか無く `evalCondition` に無かった**ので追加。state は `signi_returned_to_hand_count_this_turn` / `deck_to_trash_count_this_turn` の2本を `*_this_turn` 命名で足し（＝`turnScopedState` の型ゲートに自動で載る）、前者は BOUNCE の3地点、後者は中央盤面 diff の `detectMilledFromDeck` 地点で積む。
+- 🔴**`exactCount` を別軸にした理由**＝「それがこのターンにあなたが使用した**３枚目**のスペルだった場合」を `minCount:3`（N以上）で近似すると**4枚目以降でも発火する過剰実行**になる。golden で「4枚目→false」を固定した。
+- 🔴**評価器は3本ある**＝`evalCondition`（execUtils）／`checkActiveCondition`（effectEngine）／**`evalConditionForContinuous`**。3本目は **`default: return true`（permissive）** なので、出撃制限（`SELF_PLAY_RESTRICT`）の条件をここへ足し忘れると**恒久 no-op のまま**で census も golden も緑。3本すべてに同じ式を入れてある。
+- 🔴**実装中に一度退化を踏んで是正した**＝最初は条件を**効果レベルへ hoist** したが、「対戦相手のシグニ１体を**対象とし**、このターンに〜場合、それをバニッシュする」形では**対象取得ごとゲートされる**ため、既に正しかった8効果（`WDK06-R11` 群）の `CONDITIONAL` を壊していた。⇒ **文単位の CONDITIONAL 持ち上げ表（`STATE_CONDITION_CLAUSES_V2`＝2つの表へ spread される共通表）へ規則を置く**形に直し、見送り側を golden で固定した。
+- **ゲート**＝`npm run gates` 全緑。**golden 2735→2738**（新規 golden 3本＋トリップワイヤ4件の期待値更新）、**census 600→591**（`BASELINE_HIGH` 更新）、smoke 10693 全0・SKIP 0、fuzz 全0、lint 0 errors・warnings 260（増分0）、同型★0。held 75／partial 15／idset 45 は据置。live 差分は**12 effectId・追加0・削除0・outlier 0**。
+- **台帳**＝8 finding を閉じ、段2 消化 **409→417**、OPEN **701→694**。⚠`WXDi-P03-065-E1 :: あなたのターン終了時` と `WXK01-042-E1 :: あなたのターンに` は**別軸（`O-63`）なので閉じていない**。
+- **実機**＝`b43TurnHistoryNoReturnDoesNotCharge` / `b43TurnHistoryTwoReturnsCharges` が **2回連続 PASS**。**反転確認済**＝live から `WXK02-065-E1` の `CONDITIONAL` を剥がすと負方向が「履歴が無いのにエナチャージした（energy 0→2）」で赤に反転する。第42バッチの2本も回帰で緑。
+- 🆕**follow-up**＝`O-63`（「〈誰か〉のターン…」の **turnOwner 限定が engine で読まれておらず両方のターンで発火**＝実測167効果）。
+
 ## 2026-08-25：§5.2 段2 第42バッチ＝【自】トリガー句「（あなた／対戦相手）の効果によって」の原因主体限定
 
 - **母集団**＝`docs/_effect_srctext.json` を効果単位・非行頭アンカーで走査し69効果、cause語彙あり23／なし46を再現。timing内包・別語彙・器・ターン履歴条件を除いた指定20効果を全件採用し、live差分も20 effectIdだけ（outlier 0）。

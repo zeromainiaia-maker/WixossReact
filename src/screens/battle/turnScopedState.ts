@@ -90,6 +90,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   refresh_count_this_turn: { boundaries: ['turn-start'], reset: 0, reason: 'refresh count starts fresh at turn start' },
   // バニッシュされた枚数は、ターン単位のコスト軽減条件。
   signi_banished_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'banished signi total for the current turn' },
+  // シグニが場から手札に戻った体数は、ターン単位の条件カウンタ（WXK02-040/065）。
+  signi_returned_to_hand_count_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'signi returned to hand total for the current turn' },
+  // 自デッキ→トラッシュの累計枚数は、ターン単位の条件カウンタ（WXDi-P03-065）。
+  deck_to_trash_count_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'own deck-to-trash total for the current turn' },
   // 自分のデッキからエナへ置いた累計は、ターン単位の条件カウンタ。
   self_deck_to_energy_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'own deck-to-energy total for the current turn' },
   // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」は、課されたターンだけ有効。

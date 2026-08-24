@@ -1513,7 +1513,7 @@ export function execStubPart3(
     if (!tnB) return done(addLog(ctx, '[INTERNAL_TOSFC_BOUNCE: 対象なし]'));
     const removedB = removeFromField(tnB, ctx.otherState);
     // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
-    const newOtherB: PlayerState = { ...removedB, hand: [...removedB.hand, tnB], turn_signi_returned_to_hand: true };
+    const newOtherB: PlayerState = { ...removedB, hand: [...removedB.hand, tnB], turn_signi_returned_to_hand: true, signi_returned_to_hand_count_this_turn: (removedB.signi_returned_to_hand_count_this_turn ?? 0) + 1 };
     return done(addLog({ ...ctx, otherState: newOtherB }, `${ctx.cardMap.get(tnB)?.CardName ?? tnB}を手札に戻す`));
   }
   // INTERNAL_TOSFC_TRASH: 選択した相手シグニをトラッシュ

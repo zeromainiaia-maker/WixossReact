@@ -1787,6 +1787,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).energy_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ARTS_USED_THIS_TURN': {
       const artsSt = st(cond.owner);
+      // exactCount＝「それがこのターンにあなたが使用したN枚目のアーツだった場合」（WXK01-042）。
+      // ⚠minCount（N以上）で近似すると **N+1枚目以降でも発火する過剰実行**になるので別軸にしてある。
+      if (cond.exactCount !== undefined) return (artsSt.turn_arts_used_names ?? []).length === cond.exactCount;
       if (cond.minCount !== undefined) return (artsSt.turn_arts_used_names ?? []).length >= cond.minCount;
       // color 指定時は当該色のアーツを使用していた場合のみ（turn_arts_used_colors）
       if (cond.color) return (artsSt.turn_arts_used_colors ?? []).includes(cond.color);
@@ -1794,10 +1797,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'NO_OTHER_ARTS_USED_THIS_TURN':
       return (ctx.ownerState.turn_arts_used_names ?? []).filter(name => name !== cond.exceptCardName).length === 0;
-    case 'SPELL_USED_THIS_TURN':
+    case 'SPELL_USED_THIS_TURN': {
       // handleUseSpell が actions_done に積む 'USE_SPELL' マーカー（ターン開始時リセット）＝
       // firstSpellExtra 等の既存機能と同じ判定源を参照する
-      return (st(cond.owner).actions_done ?? []).filter(a => a === 'USE_SPELL').length >= (cond.minCount ?? 1);
+      const spellUsed = (st(cond.owner).actions_done ?? []).filter(a => a === 'USE_SPELL').length;
+      // exactCount＝「それがこのターンにあなたが使用したN枚目のスペルだった場合」（WXDi-P09-038）。
+      // ⚠minCount（N以上）で近似すると **N+1枚目以降でも発火する過剰実行**になるので別軸にしてある。
+      if (cond.exactCount !== undefined) return spellUsed === cond.exactCount;
+      return spellUsed >= (cond.minCount ?? 1);
+    }
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
@@ -2077,7 +2085,28 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return ctx.ownerState.lrig_riding_signi?.includes(src) ?? false;
     }
     case 'TURN_HAND_DISCARD_GTE':
-      return (ctx.ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
+      // owner 省略＝self（従来挙動）。'opponent' は「このターンに対戦相手が手札を捨てていた場合」（WD16-016）。
+      return ((cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).turn_hand_discarded_count ?? 0) >= cond.value;
+    case 'SIGNI_BANISHED_THIS_TURN':
+      // このターンに owner のシグニがN体以上バニッシュされていた場合（WXDi-P15-088 / WXK04-029）。
+      // ⚠`signi_banished_this_turn` は **バニッシュされた側**の state に積まれる（BattleScreen の中央 diff）
+      //   ＝「対戦相手のシグニがバニッシュされていた」は otherState を見る。
+      return ((cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
+    case 'SELF_DECK_TO_TRASH_THIS_TURN':
+      // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（WXDi-P03-065）。
+      return ((cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
+    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': {
+      // このターンにシグニがN体以上場から手札に戻っていた場合（WXK02-040/042/065）。
+      // ⚠原文が「シグニが」と持ち主を言わない形は owner:'any'＝**両者の合算**で数える。
+      // ⚠minCount 省略（＝1体以上）は**既存の boolean フラグも見る**＝カウンタ導入前に立った
+      //   フラグだけの state でも従来どおり成立させる（過小実行への裏返りを避ける）。
+      const rthStates = cond.owner === 'any' ? [ctx.ownerState, ctx.otherState]
+        : [cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState];
+      const rthMin = cond.minCount ?? 1;
+      const rthCount = rthStates.reduce((n, st) => n + (st.signi_returned_to_hand_count_this_turn ?? 0), 0);
+      if (rthMin <= 1) return rthStates.some(st => st.turn_signi_returned_to_hand === true) || rthCount >= 1;
+      return rthCount >= rthMin;
+    }
     case 'SAME_ZONE_HAS_GATE': {
       // このシグニ（sourceCardNum）と同じシグニゾーンに THE DOOR【ゲート】がある場合
       const src = ctx.sourceCardNum;

@@ -227,7 +227,9 @@ export type ActiveCondition =
   // 表示順＝left=0 / right=2（`TargetFilter.zoneSide` と同じ規約）。`either`＝「左か右の」＝中央以外。
   // ⚠Condition 側にも同型あり＝両方揃えて更新すること（`HAND_DIFF` と同じ運用）。
   | { type: 'IS_SELF_IN_SIDE_ZONE'; side: 'left' | 'right' | 'either' }
-  | { type: 'TURN_HAND_DISCARD_GTE'; value: number }            // このターンにあなたが手札をN枚以上捨てている場合
+  | { type: 'TURN_HAND_DISCARD_GTE'; owner?: Owner; value: number }  // このターンに owner（省略=self）が手札をN枚以上捨てている場合。⚠Condition 側にも同型あり＝両方揃えて更新すること
+  | { type: 'SIGNI_BANISHED_THIS_TURN'; owner: Owner; minCount?: number }  // このターンに owner のシグニがN体以上バニッシュされていた場合（signi_banished_this_turn。省略=1）
+  | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（deck_to_trash_count_this_turn。省略=1）
   | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; minCount?: number } // このシグニの下にカードがN枚以上あるかぎり（省略=1。filter指定時は一致カードを数える）
   | { type: 'SELF_HAS_KEYWORD'; keyword: string; subject?: 'self' | 'center_lrig' } // 自身またはセンタールリグが【keyword】を持っているかぎり
   | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
@@ -240,8 +242,8 @@ export type ActiveCondition =
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number } // エナゾーンにレベル帯の各レベルごとに一致カードがN枚以上あるかぎり
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
-  | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner } // このターンにシグニが場から手札に戻っていた場合（turn_signi_returned_to_hand。G087）
-  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number } // このターンにアーツを使用した回数（省略=1。minCount指定時はturn_arts_used_namesを数える）
+  | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner; minCount?: number } // このターンにシグニがN体以上場から手札に戻っていた場合（省略=1 は turn_signi_returned_to_hand フラグ、N≧2 は signi_returned_to_hand_count_this_turn。G087）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンにアーツを使用した回数（省略=1。minCount指定時はturn_arts_used_namesを数える。exactCount＝「N枚目のアーツだった場合」の**ちょうどN**）
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
   | { type: 'DURING_ATTACK_PHASE'; owner?: Owner }             // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果（CONTINUOUS）。owner:'self'=あなたのアタックフェイズのみ／'opponent'=対戦相手のアタックフェイズのみ／省略=どちらのアタックフェイズでも。engine は calcFieldPowers に渡された turnPhase（ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）で判定＝省略すると相手ターン中も過剰適用になっていた（WX25-CP1-082-E3/WX24-P1-050-E1 ほか9効果・タスク12）。turnPhase 未指定の呼び出し元では従来どおり true（過小実行を避ける）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
@@ -290,9 +292,9 @@ export type Condition =
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
-  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number } // このターンに owner がアーツを使用していた場合（minCount指定時はturn_arts_used_namesを数える）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンに owner がアーツを使用していた場合（minCount指定時はturn_arts_used_namesを数える。exactCount＝ちょうどN枚目）
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
-  | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1）
+  | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number; exactCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1。exactCount＝「N枚目のスペルだった場合」の**ちょうどN**＝N+1枚目では成立しない）
   // ── §3 タスク6「代わりに」B1残（per-target 値すり替えのターン中イベント counter／コスト参照）。いずれも
   //    「代わりに」置換ゲート（matchLeadingStateCondition 経由）専用＝ownerState の累計/直前記録を参照する。
   //    「このターンにあなたが手札をN枚以上捨てていた場合」（WXDi-P11-067）は既存 TURN_HAND_DISCARD_GTE を使う。
@@ -345,7 +347,10 @@ export type Condition =
   //   カウントダウン窓が既に実装済み。ここで拾わないこと（regex は「N度目の場合」に限定してある）。
   | { type: 'ATTACK_ORDINAL_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
-  | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
+  | { type: 'TURN_HAND_DISCARD_GTE'; owner?: Owner; value: number }  // このターンに owner（省略=self）が手札をN枚以上捨てている場合。⚠ActiveCondition 側にも同型あり＝両方揃えて更新すること
+  | { type: 'SIGNI_BANISHED_THIS_TURN'; owner: Owner; minCount?: number }  // このターンに owner のシグニがN体以上バニッシュされていた場合（signi_banished_this_turn。省略=1）
+  | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（deck_to_trash_count_this_turn。省略=1）
+  | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner; minCount?: number } // このターンにシグニがN体以上場から手札に戻っていた場合（signi_returned_to_hand_count_this_turn。省略=1）。⚠ActiveCondition 側にも同型あり
   // このシグニの下にカードがある場合。negate=true は「無い場合」。
   // minCount は「下にカードがN枚以上ある場合」（省略=1）＝`WXK08-030-E1` の２枚/５枚の多段閾値。
   // ⚠ filter 併用時は **filter 一致の枚数**を数える（無指定なら下カード総数）。
@@ -450,6 +455,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
   LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
+  SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
   DURING_ATTACK_PHASE: true, AND: true,
 };
 
@@ -489,6 +495,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   FIELD_SIGNI_ALL_DISTINCT_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
   LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
   LAST_LOOK_TRASHED_MATCHES: true, LAST_PROCESSED_ALL_MATCH: true,
+  SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true,
 };
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';

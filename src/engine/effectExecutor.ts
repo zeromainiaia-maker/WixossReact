@@ -1302,7 +1302,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
       const s = ownerState(own, cur);
       const removed = removeFromField(num, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
-      const withHand: PlayerState = { ...removed, hand: [...removed.hand, num], turn_signi_returned_to_hand: true };
+      const withHand: PlayerState = { ...removed, hand: [...removed.hand, num], turn_signi_returned_to_hand: true, signi_returned_to_hand_count_this_turn: (removed.signi_returned_to_hand_count_this_turn ?? 0) + 1 };
       cur = addLog(setOwnerState(own, withHand, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}を手札に戻す`);
     }
@@ -9765,7 +9765,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const s = ownerState(found, c);
       const removed = removeFromField(cardNum, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
-      const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum], turn_signi_returned_to_hand: true };
+      const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum], turn_signi_returned_to_hand: true, signi_returned_to_hand_count_this_turn: (removed.signi_returned_to_hand_count_this_turn ?? 0) + 1 };
       return done(addLog(setOwnerState(found, withHand, c),
         `${c.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
