@@ -53,13 +53,16 @@ codex exec -C "C:/Users/zerom/WixossReact" -c model_reasoning_effort="high" -o "
 
 **進捗の見方**：`git status --porcelain` と `git diff --stat`。ログは巨大（1〜10MB）なので**全部読まない**＝`grep -n "tokens used" <log>` で最終レポート位置を出してから Read で該当箇所だけ読む（`awk`/`tail` パイプは分類器に弾かれやすい）。
 
-### ⚠️ 自動コミットフックとの相互作用
+### ⚠️ 検証のベースラインは commit SHA で確定する
 
-`.claude/settings.local.json` の `PostToolUse` フックが **Write/Edit のたびに `git add -A` + commit** する。
-**scratchpad（リポジトリ外）への書き込みでも発火し、リポジトリ全体をコミットする。**
+**検証を始める前に `git log --oneline -3` でベースラインを確定し、`git show <baseline>:path` で比較する。**
+`HEAD` を使うと自分のコミットと比較して**差分ゼロに見える**。
 
-⇒ **検証を始める前に `git log --oneline -3` でベースラインを確定し、`git show <baseline>:path` で比較する。**
-`HEAD` を使うと自分のフック起因コミットと比較して**差分ゼロに見える**。
+> 📌 **2026-08-24 実測＝自動コミットフックは現在は存在しない**（`.claude/settings.local.json` に `hooks` キーが無い）。
+> かつては `PostToolUse` が Write/Edit のたびに `git add -A` + commit しており、**scratchpad への書き込みでも発火して**
+> codex の未検証作業が勝手にコミットされた（続き210 の `061f423b`）。**フックが復活したらこの節を戻すこと。**
+> ⚠**フックが無くても、codex の実行中に Claude 側でリポジトリを触ったら「どれが codex の変更か」が混ざる**＝
+> **触るなら先にコミットしてベースラインを確定してから触る。**
 
 ---
 

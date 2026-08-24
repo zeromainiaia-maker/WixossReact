@@ -21,6 +21,7 @@ import { fileURLToPath } from 'url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = join(root, 'public', 'data');
 const HELD_PATH = join(root, 'docs', '_held_fresh.json');
+const PARTIAL_PATH = join(root, 'docs', '_partial_fresh.json');
 const OUT_PATH = join(root, 'docs', '_held_review.txt');
 
 if (!existsSync(HELD_PATH)) {
@@ -109,6 +110,54 @@ const leafDiff = (oldE, newE, limit = 12) => {
 };
 
 // ---- グループ構築 ----
+// Adopt individual AUTO effects from the partial bucket without replacing their
+// curated MANUAL/PARTIAL siblings. This is intentionally argument-driven: no
+// card-specific allowlist or implicit force-adoption is kept in the tool.
+const partialEffectArgIdx = process.argv.indexOf('--adopt-partial-effect');
+if (partialEffectArgIdx >= 0) {
+  const arg = process.argv[partialEffectArgIdx + 1];
+  if (!arg) { console.error('--adopt-partial-effect requires comma-separated effectIds'); process.exit(1); }
+  if (!existsSync(PARTIAL_PATH)) { console.error('docs/_partial_fresh.json is missing; run npm run build:effects first'); process.exit(1); }
+  const requested = arg.split(',').map(s => s.trim()).filter(Boolean);
+  const partialFresh = JSON.parse(readFileSync(PARTIAL_PATH, 'utf-8'));
+  const freshByEffectId = new Map();
+  for (const [cardNum, effects] of Object.entries(partialFresh)) {
+    for (const effect of effects) freshByEffectId.set(effect.effectId, { cardNum, effect });
+  }
+  const missing = requested.filter(effectId => !freshByEffectId.has(effectId));
+  if (missing.length) { console.error(`partial fresh has no effectId: ${missing.join(', ')}`); process.exit(1); }
+
+  const replacements = new Map();
+  for (const effectId of requested) {
+    const { cardNum, effect: freshEffect } = freshByEffectId.get(effectId);
+    const currentEffect = existing.get(cardNum)?.find(effect => effect.effectId === effectId);
+    if (!currentEffect) { console.error(`live effect not found: ${effectId}`); process.exit(1); }
+    if (currentEffect.parseStatus !== 'AUTO' || freshEffect.parseStatus !== 'AUTO') {
+      console.error(`${effectId}: effect-level adoption is restricted to AUTO -> AUTO`);
+      process.exit(1);
+    }
+    const file = fileOf.get(cardNum);
+    if (!file) { console.error(`effect file not found: ${cardNum}`); process.exit(1); }
+    if (!replacements.has(file)) replacements.set(file, []);
+    replacements.get(file).push({ cardNum, effectId, freshEffect, currentEffect });
+  }
+
+  for (const [file, entries] of replacements) {
+    const path = join(DATA_DIR, file);
+    const json = JSON.parse(readFileSync(path, 'utf-8'));
+    for (const { cardNum, effectId, freshEffect, currentEffect } of entries) {
+      const index = json[cardNum].findIndex(effect => effect.effectId === effectId);
+      if (index < 0) { console.error(`effect disappeared while adopting: ${effectId}`); process.exit(1); }
+      console.log(`${effectId}:`);
+      for (const line of leafDiff(currentEffect, freshEffect)) console.log(line);
+      json[cardNum][index] = freshEffect;
+    }
+    writeFileSync(path, JSON.stringify(json), 'utf-8');
+    console.log(`${file}: adopted ${entries.length} AUTO effect(s)`);
+  }
+  process.exit(0);
+}
+
 const groups = new Map(); // sig -> ids[]
 let alreadyAdopted = 0;   // fresh == curated ＝採用済み（stale held の残骸）はレビュー対象から外す
 for (const id of Object.keys(heldFresh)) {

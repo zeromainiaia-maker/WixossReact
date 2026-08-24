@@ -45209,6 +45209,100 @@ test('段2 第40バッチ 偽陽性／据置契約: 常時グロウスキップ�
   ok(JSON.stringify(attackEnd).includes('WXDi-D04-004-sub-E1') && !JSON.stringify(attackEnd).includes('ON_ATTACK_END'), 'WXDi-D04-004-sub-E1 は発動タイミングが主因なので据置');
 });
 
+// 段2 第33バッチ: 「残りをシャッフルしてデッキの一番下に置く」の shuffle 配線。
+// 全デッキ SHUFFLE_DECK が後続する壊れた木や position:'top' へフラグだけ足しても最終盤面は直らないため、
+// bottom 受け皿へ無損失に配線できる木だけを正方向に固定する。
+function batch33Actions(action: unknown, type: string, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (!action || typeof action !== 'object') return out;
+  const obj = action as Record<string, unknown>;
+  if (obj.type === type) out.push(obj);
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) value.forEach(item => batch33Actions(item, type, out));
+    else if (value && typeof value === 'object') batch33Actions(value, type, out);
+  }
+  return out;
+}
+
+test('段2 第33バッチ parser両方向: RAP の shuffled-bottom だけを配線する', () => {
+  const shuffled = parseCardEffects(cardMap.get('WXK04-044')!).find(e => e.effectId === 'WXK04-044-E2')!;
+  const shuffledRap = batch33Actions(shuffled.action, 'REVEAL_AND_PICK')[0];
+  eq((shuffledRap.remainder as Record<string, unknown>)?.shuffle, true, '原文「残りをシャッフルしてデッキ下」');
+
+  const ordered = parseCardEffects(cardMap.get('SP27-009')!).find(e => e.effectId === 'SP27-009-E1')!;
+  const orderedRap = batch33Actions(ordered.action, 'REVEAL_AND_PICK')[0];
+  ok((orderedRap.remainder as Record<string, unknown>)?.shuffle === undefined, '対照「好きな順番でデッキ下」は shuffle しない');
+
+  for (const [cardNum, effectId] of [
+    ['WXDi-D04-021', 'WXDi-D04-021-BURST'],
+    ['WXDi-CP02-007', 'WXDi-CP02-007-E3'],
+  ] as const) {
+    const siblingOrdered = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const rap = batch33Actions(siblingOrdered.action, 'REVEAL_AND_PICK')[0];
+    ok((rap.remainder as Record<string, unknown>)?.shuffle === undefined,
+      `${effectId}: 同カードの別効果にある「シャッフル」を誤付着させない`);
+  }
+
+  const alreadyCorrect = manualEffect('WXEX1-06', 'WXEX1-06-E2');
+  eq((batch33Actions(alreadyCorrect.action, 'REVEAL_AND_PICK')[0].remainder as Record<string, unknown>)?.shuffle, true,
+    '既に正しい RAP は true を維持');
+});
+
+test('段2 第33バッチ parser両方向: bottom LAR は配線し、top＋全デッキshuffle木は据え置く', () => {
+  const bottom = parseCardEffects(cardMap.get('WXDi-D01-011')!).find(e => e.effectId === 'WXDi-D01-011-E1')!;
+  eq(batch33Actions(bottom.action, 'LOOK_AND_REORDER')[0].shuffle, true, 'bottom LAR に shuffle=true');
+
+  const unsafe = parseCardEffects(cardMap.get('WX21-037')!).find(e => e.effectId === 'WX21-037-E2')!;
+  const unsafeLar = batch33Actions(unsafe.action, 'REVEAL_AND_PICK')[0];
+  ok((unsafeLar.remainder as Record<string, unknown>)?.shuffle === undefined,
+    '後段 SHUFFLE_DECK が全デッキを混ぜる木へ一時的な shuffle を足さない');
+
+  const top = parseCardEffects(cardMap.get('WXK04-007')!).find(e => e.effectId === 'WXK04-007-E1')!;
+  eq((batch33Actions(top.action, 'LOOK_AND_REORDER')[0].destination as Record<string, unknown>)?.position, 'top', '対照は top 戻し');
+  ok(batch33Actions(top.action, 'LOOK_AND_REORDER')[0].shuffle === undefined, 'top 戻しへ死フラグを足さない');
+});
+
+test('段2 第33バッチ engine両方向: RAP remainder.shuffle が残り束の順序だけを変える', () => withSavedCursor(() => {
+  const top = ['WD01-009', 'WD01-010', 'WD01-012'];
+  const action = (shuffleRemainder: boolean): EffectAction => ({
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 3, pickCount: 1,
+    then: { type: 'ADD_TO_HAND', owner: 'self' },
+    remainder: { location: 'deck', position: 'bottom', ...(shuffleRemainder ? { shuffle: true } : {}) },
+  });
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    const ordered = run(action(false), mkCtx({ deckTop: top }, {}));
+    const shuffled = run(action(true), mkCtx({ deckTop: top }, {}));
+    eq(ordered.ownerState.deck.slice(-2).join(','), top.slice(1).join(','), '不成立方向: 省略時は公開順を維持');
+    eq(shuffled.ownerState.deck.slice(-2).join(','), [...top.slice(1)].reverse().join(','), '成立方向: true なら残り束をシャッフル');
+  } finally {
+    Math.random = originalRandom;
+  }
+}));
+
+test('段2 第33バッチ engine両方向: LAR shuffle が bottom へ戻す束の順序だけを変える', () => withSavedCursor(() => {
+  const top = ['WD01-009', 'WD01-010', 'WD01-012'];
+  const resolve = (shuffleLooked: boolean) => {
+    const ctx = mkCtx({ deckTop: top }, {});
+    const started = executeAction({
+      type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 3,
+      private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' },
+      ...(shuffleLooked ? { shuffle: true } : {}),
+    }, ctx);
+    if (started.done || started.pending.type !== 'LOOK_AND_REORDER') throw new Error('LOOK_AND_REORDER pause が無い');
+    return resumeLookAndReorder(started.pending.cards, [], started.pending,
+      { ...ctx, ownerState: started.ownerState, otherState: started.otherState, logs: started.logs });
+  };
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    eq(resolve(false).ownerState.deck.slice(-3).join(','), top.join(','), '不成立方向: 省略時は順序を維持');
+    eq(resolve(true).ownerState.deck.slice(-3).join(','), [top[1], top[2], top[0]].join(','), '成立方向: true なら束をシャッフル');
+  } finally {
+    Math.random = originalRandom;
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

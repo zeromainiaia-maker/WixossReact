@@ -1898,11 +1898,17 @@ function logSilentFallbacks(effectId: string, reasons: string[]): void {
 // ⚠計器専用。既定は無効（実行時アプリでもparserは呼ばれるためメモリを食わせない）。
 // build:effects が enableSourceTextLog() で有効化し、getSourceTextLog() で回収する。
 const _sourceTextLog = new Map<string, string>();
+// parseCardEffects 自身の後処理でも effectId 単位の原文を使うための再入可能な一時ログ。
+// getAbilityBlockTexts が内部で parseCardEffects を再入しても、外側の対応表を壊さない。
+const _currentParseSourceTextStack: Map<string, string>[] = [];
 let _collectSourceText = false;
 export function enableSourceTextLog(): void { _collectSourceText = true; _sourceTextLog.clear(); }
 export function getSourceTextLog(): ReadonlyMap<string, string> { return _sourceTextLog; }
 function logSourceText(effectId: string | undefined, text: string): void {
-  if (!_collectSourceText || !effectId) return;
+  if (!effectId) return;
+  const current = _currentParseSourceTextStack.at(-1);
+  if (current && !current.has(effectId)) current.set(effectId, text.trim());
+  if (!_collectSourceText) return;
   // 同一 effectId が複数ブロック由来になることは無いが、後勝ちで上書きせず初出を残す
   if (!_sourceTextLog.has(effectId)) _sourceTextLog.set(effectId, text.trim());
 }
@@ -17625,8 +17631,54 @@ function applyDurationsBatch40(card: CardData, effects: CardEffect[]): void {
   }
 }
 
+/**
+ * 「残りをシャッフルしてデッキの一番下に置く」を、既存の remainder/LAR 受け皿へ配線する。
+ *
+ * `SHUFFLE_DECK` が同じ SEQUENCE にある木は、現状が「残り」ではなく全デッキを混ぜる別構造であり、
+ * フラグだけ足しても最終盤面が変わらない。その木と position:'top' の LAR は無損失修正の対象外にする。
+ */
+export function wireShuffledBottomRemainder(action: EffectAction, sourceText: string): EffectAction {
+  if (!/残りをシャッフルしてデッキの一番下に(?:置く|戻す)/.test(sourceText)) return action;
+
+  const visit = (value: unknown, blockedByFullDeckShuffle: boolean): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach(item => visit(item, blockedByFullDeckShuffle));
+      return;
+    }
+    const node = value as Record<string, unknown>;
+    if (node.type === 'SEQUENCE' && Array.isArray(node.steps)) {
+      const hasFullDeckShuffle = node.steps.some(step =>
+        !!step && typeof step === 'object' && (step as { type?: string }).type === 'SHUFFLE_DECK');
+      node.steps.forEach(step => visit(step, blockedByFullDeckShuffle || hasFullDeckShuffle));
+      return;
+    }
+    if (!blockedByFullDeckShuffle && node.type === 'REVEAL_AND_PICK') {
+      const remainder = node.remainder as Record<string, unknown> | undefined;
+      if (remainder?.location === 'deck' && remainder.position === 'bottom' && remainder.shuffle === undefined) {
+        remainder.shuffle = true;
+      }
+    } else if (!blockedByFullDeckShuffle && node.type === 'LOOK_AND_REORDER') {
+      const destination = node.destination as Record<string, unknown> | undefined;
+      if (destination?.location === 'deck' && destination.position === 'bottom' && node.shuffle === undefined) {
+        node.shuffle = true;
+      }
+    }
+    for (const child of Object.values(node)) visit(child, blockedByFullDeckShuffle);
+  };
+
+  visit(action, false);
+  return action;
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
+  const currentSourceTexts = new Map<string, string>();
+  // ⚠深さを覚えて末尾で「その深さへ戻す」＝素の pop() だと、再入した parseCardEffects が
+  //   途中で例外を投げて外側に握り潰された場合に**内側の Map を pop してしまい**、
+  //   以後の logSourceText が別カードの Map へ書き込む（＝原文の取り違え）。
+  //   スタックも積み上がったままになる。570行を try/finally で囲む代わりに深さで復元する。
+  const sourceTextDepth = _currentParseSourceTextStack.push(currentSourceTexts);
   let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
 
   const baseType = card.Type?.split('/')[0] ?? '';
@@ -18178,12 +18230,26 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDynamicActionCountBatch35(card, effects);
   applyLevelConditionsBatch39(card, effects);
   applyDurationsBatch40(card, effects);
+  const shuffledBottomSource = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  if (/残りをシャッフルしてデッキの一番下に(?:置く|戻す)/.test(shuffledBottomSource)) {
+    for (const effect of effects) {
+      // PARTIAL は別の欠落を残す未完成木で、curated 側が既に正しいこともある。部分木だけを
+      // 自動改善扱いにせず、完全に解析できている AUTO の既存受け皿だけへ配線する。
+      if (effect.parseStatus === 'AUTO') {
+        effect.action = wireShuffledBottomRemainder(
+          effect.action,
+          currentSourceTexts.get(effect.effectId) ?? '',
+        );
+      }
+    }
+  }
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。
   if (appearanceCondition && effects.length > 0) {
     effects[0] = { ...effects[0], appearanceCondition };
   }
+  _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }
 

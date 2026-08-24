@@ -1,5 +1,48 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：段2 第33バッチ＝「残りをシャッフルしてデッキの一番下に置く」の配線漏れ
+
+- CSV 6712カードを BOM 除去・Variants 除外で再走査し、該当47カードを効果単位の原文へ再分割した。
+- `REVEAL_AND_PICK.remainder.shuffle` と `LOOK_AND_REORDER.shuffle` の既存受け皿を、原文が厳密に
+  「残りをシャッフルしてデッキの一番下に置く／戻す」で、かつ bottom の受け皿が単独で機能する AUTO 木だけへ配線した。
+- live 採用は11効果。差分は全件 `shuffle:true` の追加だけで、生パース20効果／live 11効果とも outlier 0。
+  `revealCount`・`pickCount`・filter・then・destination・remainder の既存値は不変。
+- 提示スコープには効果単位で2件の偽陽性があった。`WXDi-D04-021-BURST` と `WXDi-CP02-007-E3` の原文は
+  「残りを好きな順番でデッキの一番下に置く」なので不採用。カード全文を条件に使うと兄弟効果の「シャッフル」が
+  誤付着するため、parser の効果単位 source log を条件にした。
+- top 戻し＋後続 `SHUFFLE_DECK` の15効果は、フラグだけでは「残りをランダム化してデッキ下」を実現できないため不採用。
+  curated MANUAL/PARTIAL の7効果も、fresh 全体の採用が別フィールドを変えるため不採用。
+- A4 のうち `WXDi-D05-006-E1`／`WXDi-P01-009-E1`／`WXDi-CP01-014-E1`／`WX24-P2-031-E1` は、
+  調査時点で既に `LOOK_PICK_CHAIN.remainder.shuffle:true` が live にあり正しかったため無変更。
+- golden は parser/engine の成立・不成立を各対で追加し 2659 PASS。gates 全緑、smoke 10693 全0、fuzz 全0、
+  census 608据置、同型★0、lint 0 errors / 269 warnings（増分0）。
+- 詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/codex_b33_report.md`。
+
+### Claude 側の検証（CODEX_GUIDE §7）と追加修正
+
+- **ベースライン `3ef547aa1` との per-effect diff＝変更11・追加0・削除0**。不変条件（`shuffle:true` の追加のみ）を
+  **11/11 で機械検証**（`tmp_verify_b33.mjs`）。D群6カードは変更集合に不在＝未変更。
+- **§5-13′ の確認**＝`npm run build:effects` を独立実行しても live は11件のまま変わらず、
+  `_held_fresh`(81)／`_partial_fresh`(15)／`_idset_fresh`(46) はベースラインと**バイト一致**
+  ＝自動採用された改善を手で戻した形跡なし。
+- 台帳 **734→730**（`ID :: quote` 前方一致・空振り0）。エンコーディングは変更15ファイルで新規増0
+  （`docs/BUGFIXES.md` の `???` 28件はベースラインにも存在する既存分）。
+- 🔴**Claude のスコープ表に偽陽性2件**＝母集団計器を**カード単位**でマッチさせたため、
+  同じカードの別効果が「好きな順番で」でも拾っていた（`WXDi-D04-021-BURST`／`WXDi-CP02-007-E3`）。
+  codex が効果単位で訂正し、**兄弟効果の語句を誤付着させない golden** まで追加した。
+  ⇒ **母集団は effectId 単位で原文節と突き合わせる**（`CODEX_GUIDE.md` §5 `3-3⁹` の再発）。
+- 🔴**engine バグ1件を Claude が修正**＝codex が `logSourceText` を「計器有効時のみ」から**常時記録**へ変えた際、
+  `parseCardEffects` の `_currentParseSourceTextStack` の `push`(`:17677`)/`pop`(`:18248`) が **`try/finally` で
+  守られていなかった**。`getAbilityBlockTexts` 経由で**再入した parse が例外を投げて外側に握り潰されると、
+  内側の Map を pop してしまい以後の `logSourceText` が別カードの Map へ書き込む**（原文の取り違え）うえ、
+  スタックも積み上がる。570行を `try/finally` で囲む代わりに **`push` の戻り値で深さを覚え、末尾で
+  `length = depth - 1` に復元**する形へ修正。修正後に gates 全緑を再確認（golden 2659）。
+- 🆕**計器 `scripts/heldReview.mjs` に `--adopt-partial-effect <effectId,…>` が新設された**。
+  `_partial_fresh.json` に回った AUTO 効果を、同じカードの curated MANUAL/PARTIAL 兄弟を置換せずに
+  1効果ずつ採用する経路。**引数駆動でカード固有の許可リストを持たず・`AUTO→AUTO` 限定・採用前に leafDiff を印字**
+  するため §5-13 の「隠しパッチ」には当たらないと判断して採用した。⚠**新しい採用経路なので、
+  以後 live が動いたときは `--adopt` だけでなくこちらも疑う。**
+
 ## 2026-08-24（続き637f）：§5.1 残バッチのうち**実機経路へ直接触った4本**（段2 第34/43・第37・第38・第40）を実機で返済（engine バグ0）
 
 **取った項目**＝§5.1 に残っていた「続き616〜634 の21バッチ」のうち、PLAN が名指ししていた
