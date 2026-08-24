@@ -37,6 +37,7 @@
 | ④ | **ゲート** | `npm run gates`。parser を触ったら `npm run regen` ＋ live の A/B 差分で「意図した件数だけ変わった」を機械確認 | 退化が素通りする（無検証置換で約90枚退化の前例） |
 | ⑤ | **実機** | `node scripts/verifyBattleDrive.mjs <シナリオID>` で**新規1本＋関連する回帰**。⚠**着手前に §4.4 を読む** | **ここが本項の要**。溜めると切り分け不能になる |
 | ⑥ | **簿記** | `/baton`＝BUGFIXES 追記 → §1 入れ替え → §6 指標更新 → commit & push | 次セッションが現在地を誤読する |
+| ⑦ | **通知** | **リーダーへ完了メールを送る**（§2.5）。⚠**⑥の push まで終わってから**送る | 離席中のリーダーが完了に気付けない・未 push の状態を「完了」と誤報する |
 
 ### 2.2 完了の定義
 
@@ -58,6 +59,36 @@
 2. **母集団が別**（いま回しているバッチと違う語彙・別の入口）＝§5 の該当節へ1行で登録。
 
 ⚠**登録するときは「見立て」ではなく実測値を書く**（§4.1）。
+
+### 2.5 完了メール（工程⑦）★どのアカウントの Claude でも共通
+
+**2026-08-24 続き645 制定。** この VSCode では **3つの Claude アカウントが並行して動く**
+（既定の `~/.claude` ／ `CLAUDE_CONFIG_DIR=C:\Users\zerom\.claude-alt` ／ `…\.claude-karka`）。
+**どのアカウントで作業しても、1巡が⑥まで終わったらリーダー（`zeromain.iaia@gmail.com`）へ完了メールを送る。**
+
+```bash
+node C:/Users/zerom/.claude-shared/notify-mail.mjs --subject "[WixossReact] <ID> 完了 — <一行主題>" --body "<本文>"
+node C:/Users/zerom/.claude-shared/notify-mail.mjs --subject "件名" --body-file <path>   # 長文はファイルで
+node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                                # 送信せず設定だけ確認
+```
+
+- **置き場所**＝`C:\Users\zerom\.claude-shared\`（`notify-mail.mjs` ＋ 認証情報 `notify.env`）。
+  ⚠**3つの config dir とも、このリポジトリとも独立**させてある。**`notify.env` をリポジトリ内へコピーしない**（`git push` で漏れる）。
+- **実行許可**は3アカウントの `settings.json` に登録済み（`Bash(node C:/Users/zerom/.claude-shared/notify-mail.mjs *)`）。
+
+**本文に必ず入れる**（メールだけ読んで現在地が分かる粒度にする）：
+①直したバグの**真因**（症状ではなく） ②**ゲート数値**（golden / census / smoke / fuzz / lint・前回からの増減）
+③**実機シナリオ名と PASS 数・反転確認の有無** ④**commit SHA と push 済みか** ⑤**follow-up として登録した `O-nn`** ⑥**次の一手**
+
+⚠**踏んだ落とし穴（再発させない）**：
+- 🔴**Resend は独自ドメインを verify するまで「登録アドレスと文字列一致する宛先」にしか送れない**＝`zeromainiaia@` では **403**。
+  **`zeromain.iaia@gmail.com`（ドット入り）が正**（Gmail 側はドットを無視するので受信箱は同じ）。**`MAIL_TO` を勝手に書き換えない。**
+- 🔴**`fetch` の後に `process.exit()` を呼ぶと libuv が `UV_HANDLE_CLOSING` で assert し、exit code が 1 ではなく 127 に化ける**
+  ＝送信失敗を自動化から検知できなくなる。`notify-mail.mjs` は `process.exitCode` を立てる形で回避済み（**この形を崩さない**）。
+- **送信は⑥の push が終わってから**。未 push の状態で「完了」と送ると、リーダーが見に行っても差分が無い。
+
+**プッシュ通知（`PushNotification`）は別軸**＝ターミナル／スマホへ即時に飛ぶ短い通知で、メールの代わりにはならない。
+`agentPushNotifEnabled` は `~/.claude` と `.claude-alt` は有効、**`.claude-karka` は未設定**（そのアカウントで欲しければ `/config`）。
 
 ---
 

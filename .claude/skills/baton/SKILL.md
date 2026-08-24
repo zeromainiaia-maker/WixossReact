@@ -53,3 +53,19 @@ git add -A && git commit && git push
 ```
 - 実機未検証の変更を含むならコミットメッセージ末尾に「要実機検証」。
 - push すると CI（typecheck・lint・golden・smoke・fuzz）が走る。緑を確認して終わる。
+
+## ⑦ リーダーへ完了メール（**push が終わってから**）
+
+**どのアカウントの Claude で作業していても送る**（既定の `~/.claude` ／ `.claude-alt` ／ `.claude-karka` の3つ）。
+詳細と落とし穴は `docs/PLAN.md` §2.5。
+
+```
+node C:/Users/zerom/.claude-shared/notify-mail.mjs --subject "[WixossReact] <ID> 完了 — <一行主題>" --body "<本文>"
+```
+
+本文に必ず入れる＝①真因（症状ではなく）②ゲート数値と前回からの増減 ③実機シナリオ名・PASS 数・反転確認の有無
+④**commit SHA と push 済みか** ⑤follow-up に登録した `O-nn` ⑥次の一手。
+
+- ⚠**`MAIL_TO` は `zeromain.iaia@gmail.com`（ドット入り）が正**。ドット無しは Resend が **403** を返す（Gmail 側の受信箱は同じ）。
+- ⚠**未 push の状態で「完了」と送らない**（リーダーが見に行っても差分が無い）。
+- 送信できない／`notify.env` が無い場合は**メールを諦めて終わらず**、その旨をユーザーへ報告する。
