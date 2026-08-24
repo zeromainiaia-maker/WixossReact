@@ -26271,6 +26271,86 @@ order.push('o47AttackerLosesIsBanished', 'o47TieBanishesBoth', 'o47AttackerWinsS
   'o48BattleBanishSendsUnderCardsToTrash');
 // ── O-47 / O-48 END ──
 
+// ── O-49（§5.3）バニッシュ先変更のアタッカー側ミラー ────────────────────────────
+// 防御側の置換能力が「対戦相手のシグニ」に効くとき、バトルに負けたアタッカーの行き先にも反映されることを守る。
+const O49_L1_ATTACKER = 'WD01-014#4901';       // 小弓 ボーニャ（L1/P1000・無関係な攻撃側）
+const O49_ENAJE = 'WXK11-032#4902';            // 小装 エナジェ（P1000・このシグニによるバニッシュをトラッシュへ）
+const O49_PLAIN_DEFENDER = 'WD02-014#4903';    // 羅石 アメジスト（L1/P1000・置換なし対照）
+const O49_TIMER_BOMB = 'WXK10-053#4904';       // 羅星 タイマーボム（P12000・相手L1以下だけトラッシュへ）
+const O49_L2_ATTACKER = 'WD01-012#4905';       // 中剣 フランベル（L2/P7000・レベル限定の負方向対照）
+const O49_ANASTASIA = 'WXK05-024#4906';        // 魔界の末娘 アナスタシア（P12000・離場→除外のトラッシュ近似）
+const O49_WALL = 'WX01-053#4907';              // 極剣 ゴッドイーター（P15000）
+
+scenarios.o49AttackerBanishRedirectToTrash = {
+  title: 'O-49 防御側WXK11-032のbySource置換で相打ちアタッカーはエナではなくトラッシュへ',
+  spec: o47Spec([O49_L1_ATTACKER], [O49_ENAJE]),
+  drive: (page, H) => driveO47(page, H, 'o49redirect', (st) => {
+    const inTrash = (st.host.trashCards ?? []).includes(O49_L1_ATTACKER);
+    const notInEnergy = !(st.host.energyCards ?? []).includes(O49_L1_ATTACKER);
+    return {
+      pass: inTrash && notInEnergy,
+      detail: `WXK11-032と相打ち→アタッカーがトラッシュ=${inTrash}／エナに混ざらない=${notInEnergy}`,
+    };
+  }),
+};
+
+scenarios.o49AttackerNoRedirectGoesToEnergy = {
+  title: 'O-49対照 置換が無ければ相打ちアタッカーは従来どおりエナへ',
+  spec: o47Spec([O49_L1_ATTACKER], [O49_PLAIN_DEFENDER]),
+  drive: (page, H) => driveO47(page, H, 'o49plain', (st) => {
+    const inEnergy = (st.host.energyCards ?? []).includes(O49_L1_ATTACKER);
+    const notInTrash = !(st.host.trashCards ?? []).includes(O49_L1_ATTACKER);
+    return {
+      pass: inEnergy && notInTrash,
+      detail: `置換なし→アタッカーがエナ=${inEnergy}／トラッシュに混ざらない=${notInTrash}`,
+    };
+  }),
+};
+
+scenarios.o49AttackerRedirectRespectsLevelFilter = {
+  title: 'O-49 WXK10-053のレベル1以下限定がアタッカーのレベルを読む',
+  spec: o47Spec([O49_L1_ATTACKER], [O49_TIMER_BOMB]),
+  drive: (page, H) => driveO47(page, H, 'o49level1', (st) => {
+    const inTrash = (st.host.trashCards ?? []).includes(O49_L1_ATTACKER);
+    const notInEnergy = !(st.host.energyCards ?? []).includes(O49_L1_ATTACKER);
+    return {
+      pass: inTrash && notInEnergy,
+      detail: `L1アタッカー→トラッシュ=${inTrash}／エナに混ざらない=${notInEnergy}`,
+    };
+  }),
+};
+
+scenarios.o49AttackerRedirectRejectsLevel2 = {
+  title: 'O-49対照 WXK10-053のレベル1以下限定は同盤面のレベル2アタッカーには効かない',
+  spec: o47Spec([O49_L2_ATTACKER], [O49_TIMER_BOMB]),
+  drive: (page, H) => driveO47(page, H, 'o49level2', (st) => {
+    const inEnergy = (st.host.energyCards ?? []).includes(O49_L2_ATTACKER);
+    const notInTrash = !(st.host.trashCards ?? []).includes(O49_L2_ATTACKER);
+    return {
+      pass: inEnergy && notInTrash,
+      detail: `L2アタッカー→エナ=${inEnergy}／トラッシュに混ざらない=${notInTrash}`,
+    };
+  }),
+};
+
+scenarios.o49AttackerSelfExileReplacesLeave = {
+  title: 'O-49 アタッカーWXK05-024自身の離場→除外置換をトラッシュ近似で適用',
+  spec: o47Spec([O49_ANASTASIA], [O49_WALL]),
+  drive: (page, H) => driveO47(page, H, 'o49selfexile', (st) => {
+    const inTrash = (st.host.trashCards ?? []).includes(O49_ANASTASIA);
+    const notInEnergy = !(st.host.energyCards ?? []).includes(O49_ANASTASIA);
+    return {
+      pass: inTrash && notInEnergy,
+      detail: `WXK05-024がトラッシュ（除外近似）=${inTrash}／エナに混ざらない=${notInEnergy}`,
+    };
+  }),
+};
+
+order.push('o49AttackerBanishRedirectToTrash', 'o49AttackerNoRedirectGoesToEnergy',
+  'o49AttackerRedirectRespectsLevelFilter', 'o49AttackerRedirectRejectsLevel2',
+  'o49AttackerSelfExileReplacesLeave');
+// ── O-49 END ──
+
 // ── V-30 境界越え（§5.1 🅳）＝`abilities_removed_next_turn` → `abilities_removed` の昇格と失効 ──────
 // **READ 側（積まれている間 UI から【起】が消える）は続き585 で残0クローズ済み。**
 // 残っていたのは**ターン境界を実際に跨がせる**ぶん＝続き566 が「設計限界」としていた

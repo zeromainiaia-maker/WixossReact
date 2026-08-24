@@ -8894,6 +8894,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // §5.3 O-47：バトルで負けた／相打ちになったアタッカー自身のバニッシュ（従来は一切消えなかった）。
       let banishedMyCardNum: string | null = null;
       let banishedMyUnderCards: string[] = [];
+      // O-49: 実際の行き先計算で一度だけ決め、ON_TRASH も同じ値を読む。
+      let banishedMyWentToTrash = false;
 
       // タスク12(xliv)(a)：BANISH_REDIRECT の target.filter（レベル/凍結/感染/チャーム限定）を評価するため、
       // 被バニッシュシグニの属性を除去前の opS 盤面から取る（凍結/チャーム/感染はゾーン添字状態＝バニッシュ後は消える）。
@@ -8910,6 +8912,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           frozen: (opS.field.signi_frozen?.[zi] ?? false),
           hasCharm: (opS.field.signi_charms?.[zi] ?? null) !== null,
           infected: (opS.field.signi_virus?.[zi] ?? 0) > 0,
+        };
+      };
+      // O-49: アタッカー側ミラー。判定は必ずバニッシュ前の myS から取る。
+      const banishedMyAttrsOf = (cardNum: string | null) => {
+        if (!cardNum) return undefined;
+        const zi = myS.field.signi.findIndex(s => s?.at(-1) === cardNum);
+        if (zi < 0) return undefined;
+        const base = parseInt(battleCardMap.get(cardNum)?.Level ?? '', 10);
+        const level = isNaN(base) ? undefined
+          : base + (myS.temp_level_mods ?? []).filter(m => m.cardNum === cardNum).reduce((s, m) => s + m.delta, 0);
+        return {
+          zoneIdx: zi,
+          level,
+          frozen: (myS.field.signi_frozen?.[zi] ?? false),
+          hasCharm: (myS.field.signi_charms?.[zi] ?? null) !== null,
+          infected: (myS.field.signi_virus?.[zi] ?? 0) > 0,
         };
       };
 
@@ -9297,11 +9315,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               (eff.action as import('../types/effects').StubAction).id === 'BANISH_BY_SELF_GOES_TO_TRASH' &&
               checkActiveCondition(eff.activeCondition, myS, opS, true, battleCardMap, myTopNum, effectivePowers),
             );
-          // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 防御側CONTが有効なら凍結シグニはデッキ下へ
+          // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM / FROZEN_SIGNI_TO_TRASH_ON_LEAVE:
+          // どちらも被バニッシュ側の対戦相手（攻撃側=myS）が holder。
           // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 攻撃側CONTが有効なら相手凍結シグニはトラッシュへ
-          const opFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(opS, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
-          const myFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(myS, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
-          const frozenToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
+          const myFrozenOvr = wasOpFrozen
+            ? collectFrozenBanishOverrides(myS, opS, true, battleCardMap, effectsMap, myTopNum, effectivePowers)
+            : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+          const frozenToDeckBottom = myFrozenOvr.frozenBanishToDeckBottom;
           const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
           // RISE_BANISH_SUBSTITUTE / BANISH_SUBSTITUTE_RISE_STACK:
           // ライズスタック（複数枚）のシグニがバニッシュされる場合、スタック下のカードをトラッシュに置いてバニッシュを回避
@@ -9428,9 +9448,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   `「…はバトルに敗北」` とログするだけで**アタッカーが場に残り続けていた**
         //   （実測ログ＝`シヴァ（10000）vs ゴッドイーター（15000）` → 敗北ログ → シヴァは場に残存）。
         //   ⚠**攻撃側・防御側とも人間/CPU が同じ関数を通る**ので、この1点で全対戦に効く。
-        // ⚠**行き先はトップ＝エナゾーン／下にあったカード＝トラッシュ**（O-48 と同じルール）。
-        // 📋**防御側が持つバニッシュ先変更（`banish_redirect` 等）のアタッカー側ミラーは未実装**＝
-        //   既定の行き先だけを実装した（§5.3 O-49 へ follow-up として登録）。
+        // ⚠**行き先変更はトップ1枚にだけ適用**。下にあったカードは O-48 どおり常にトラッシュへ。
         if (myPower <= opPower && (newMyState.field.signi[zoneIndex] ?? []).at(-1) === myTopNum) {
           const myStackAB = newMyState.field.signi[zoneIndex] ?? [];
           banishedMyCardNum = myTopNum;
@@ -9441,15 +9459,71 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newMyFrozenAB = [...(newMyState.field.signi_frozen ?? [false, false, false])];
           const newMyCharmsAB = [...(newMyState.field.signi_charms ?? [null, null, null])];
           const newMyAcceAB   = cloneAcceSlots(newMyState.field);
+          const wasMyFrozen = myS.field.signi_frozen?.[zoneIndex] ?? false;
           newMyDownAB[zoneIndex] = false;
           newMyFrozenAB[zoneIndex] = false;
           const myExtraTrashAB: string[] = [];
           if (newMyCharmsAB[zoneIndex]) { myExtraTrashAB.push(newMyCharmsAB[zoneIndex]!); newMyCharmsAB[zoneIndex] = null; }
           if (newMyAcceAB[zoneIndex])   { myExtraTrashAB.push(...newMyAcceAB[zoneIndex]!); newMyAcceAB[zoneIndex] = null; }
+          // O-49: 防御側パスの「被バニッシュ側の対戦相手が holder」を myS↔opS でミラー。
+          // 【シュート】とパワー0専用選択はアタッカー自身のバトル敗北には適用しない。
+          const redirectMyBanish =
+            opS.banish_redirect === true ||
+            isSelectedBanishRedirect(opS, myTopNum) ||
+            isSelectedBattleBanishRedirect(opS, myTopNum) ||
+            (opS.banish_redirect_by_source_nums ?? []).includes(opTopCardNum) ||
+            opS.field.signi.some((s, zi) => {
+              const n = s?.at(-1);
+              return n && (effectsMap.get(n) ?? []).some(e =>
+                e.effectType === 'CONTINUOUS' &&
+                banishRedirectAppliesFrom(e.action, n, opTopCardNum, banishedMyAttrsOf(myTopNum)) &&
+                banishRedirectFrontMatches(e.action, zi, banishedMyAttrsOf(myTopNum)) &&
+                checkActiveCondition(e.activeCondition, opS, myS, false, battleCardMap, n, effectivePowers),
+              );
+            });
+          const redirectMyBanishToHand = opS.banish_redirect_to_hand === true;
+          const redirectMyBanishToExile = !redirectMyBanish && !redirectMyBanishToHand && opS.banish_redirect_to_exile === true;
+          const banishMyByOpponentToTrash =
+            (opS.banish_to_trash_by_self ?? []).includes(opTopCardNum) ||
+            (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' &&
+              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+              (eff.action as import('../types/effects').StubAction).id === 'BANISH_BY_SELF_GOES_TO_TRASH' &&
+              checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? '', effectivePowers),
+            );
+          // 凍結シグニは通常アタックできないため実戦ではほぼ立たないが、行き先規約を対称に保つ。
+          const opFrozenOvr = wasMyFrozen
+            ? collectFrozenBanishOverrides(opS, myS, false, battleCardMap, effectsMap, opTopCardNum, effectivePowers)
+            : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+          const frozenMyToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
+          const frozenMyToTrash = !frozenMyToDeckBottom && opFrozenOvr.frozenLeaveToTrash;
+          const banishMyToLrigTrash = !redirectMyBanish && !redirectMyBanishToHand && !frozenMyToDeckBottom && !frozenMyToTrash && !banishMyByOpponentToTrash &&
+            (effectsMap.get(myTopNum) ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' &&
+              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+              (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
+            );
+          const attackerLeaveExile = (effectsMap.get(myTopNum) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE' &&
+            checkActiveCondition(eff.activeCondition, myS, opS, true, battleCardMap, myTopNum),
+          );
+          const anyMyRedirect = redirectMyBanish || redirectMyBanishToHand || redirectMyBanishToExile ||
+            frozenMyToDeckBottom || frozenMyToTrash || banishMyByOpponentToTrash || banishMyToLrigTrash || attackerLeaveExile;
+          banishedMyWentToTrash = redirectMyBanish || frozenMyToTrash || banishMyByOpponentToTrash || attackerLeaveExile;
           newMyState = {
             ...newMyState,
-            energy: [...newMyState.energy, myTopNum],
-            trash: [...newMyState.trash, ...banishedMyUnderCards, ...myExtraTrashAB],
+            hand: redirectMyBanishToHand ? [...newMyState.hand, myTopNum] : newMyState.hand,
+            deck: frozenMyToDeckBottom ? [...newMyState.deck, myTopNum] : newMyState.deck,
+            energy: anyMyRedirect ? newMyState.energy : [...newMyState.energy, myTopNum],
+            lrig_trash: banishMyToLrigTrash ? [...newMyState.lrig_trash, myTopNum] : newMyState.lrig_trash,
+            trash: [
+              ...newMyState.trash,
+              ...(banishedMyWentToTrash ? [myTopNum] : []),
+              ...banishedMyUnderCards,
+              ...myExtraTrashAB,
+            ],
             field: {
               ...newMyState.field,
               signi: newMySigniAB,
@@ -9459,7 +9533,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newMyAcceAB,
             },
           };
-          appendBattleLogs([`${myCardName}がバニッシュされた（バトル${myPower === opPower ? '相打ち' : '敗北'}）`]);
+          appendBattleLogs([`${myCardName}がバニッシュされた（バトル${myPower === opPower ? '相打ち' : '敗北'}）${redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
         }
       } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
         // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
@@ -9792,6 +9866,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const ttUsedOpp  = attackerIsHost ? ttSA.usedGuestIds : ttSA.usedHostIds;
         if (ttUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...ttUsedMine];
         if (ttUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...ttUsedOpp] };
+      }
+      // O-49: アタッカー側のバニッシュが実際にトラッシュへ行ったときの ON_TRASH。
+      // 行き先条件はここで再記述せず、盤面書き換えに使った banishedMyWentToTrash を共有する。
+      if (banishedMyCardNum && banishedMyWentToTrash) {
+        // バトル起因なので fromFieldByCostOrEffect/byEffect はいずれも false。
+        const ttMine = collectTrashTriggers(banishedMyCardNum, attackerId, newHostState, newGuestState, false, false, false);
+        trashEntriesSA.push(...ttMine.entries);
+        const ttmUsedMine = attackerIsHost ? ttMine.usedHostIds : ttMine.usedGuestIds;
+        const ttmUsedOpp  = attackerIsHost ? ttMine.usedGuestIds : ttMine.usedHostIds;
+        if (ttmUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...ttmUsedMine];
+        if (ttmUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...ttmUsedOpp] };
       }
 
       // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている（バトル起因＝causeOwnerId なし）

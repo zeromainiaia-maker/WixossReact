@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
@@ -45894,6 +45894,77 @@ test('O-57 engine: B群は効果所有者の宣言名で相手デッキトップ
     if (effectId === 'WX10-068-E1') eq(result.ownerState.hand.length, handBefore + 2, 'WX10-068-E1: 2枚引く');
   }
 }));
+
+// §5.3 O-49: BattleScreen のバトル Phase2 は純粋 engine から呼べない。
+// 実機シナリオに加え、ミラー語彙の集合と共有行き先フラグの配線を source tripwire で守る。
+test('O-49 バニッシュ先変更: 防御側の語彙がアタッカー側にミラーされる', () => {
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const defender = src.slice(src.indexOf('const redirectBanish ='), src.indexOf('const anyRedirect ='));
+  const attacker = src.slice(src.indexOf('const redirectMyBanish ='), src.indexOf('const anyMyRedirect ='));
+  // コード上の state フィールド／判定 helper／STUB id から集合を毎回再導出する。
+  // 防御側に新語彙が足されてアタッカー側が追従しなければ、固定件数の更新ではなく集合差で落ちる。
+  const vocabularyOf = (block: string): string[] => {
+    const found = new Set<string>();
+    for (const m of block.matchAll(/(?<!\.)\.(?!\.)(banish[_A-Za-z0-9]*|opp_signi_energy_to_deck_bottom|frozenBanishToDeckBottom|frozenLeaveToTrash)\b/g)) found.add(m[1]);
+    for (const m of block.matchAll(/\b(isSelected[A-Za-z0-9]*BanishRedirect|banishRedirect[A-Za-z0-9]*|collectFrozenBanishOverrides)\s*\(/g)) found.add(m[1]);
+    for (const m of block.matchAll(/'([A-Z][A-Z0-9_]*(?:BANISH|FROZEN|EXILE)[A-Z0-9_]*)'/g)) found.add(m[1]);
+    if (/\bisShoot\b/.test(block)) found.add('isShoot');
+    return [...found].sort();
+  };
+  const defenderVocabulary = vocabularyOf(defender)
+    .filter(v => v !== 'isShoot' && v !== 'opp_signi_energy_to_deck_bottom');
+  const attackerVocabulary = vocabularyOf(attacker);
+  eq(attackerVocabulary.join(','), defenderVocabulary.join(','),
+    `ミラー除外後の語彙集合が一致 attacker=${attackerVocabulary.join(',')} defender=${defenderVocabulary.join(',')}`);
+  const mirrored: Array<[string, string, string]> = [
+    ['banish_redirect', 'opS.banish_redirect === true', 'banish_redirect'],
+    ['selected', 'isSelectedBanishRedirect(opS, myTopNum)', 'isSelectedBanishRedirect'],
+    ['battle-selected', 'isSelectedBattleBanishRedirect(opS, myTopNum)', 'isSelectedBattleBanishRedirect'],
+    ['bySource flag', 'opS.banish_redirect_by_source_nums', 'banish_redirect_by_source_nums'],
+    ['CONT BANISH_REDIRECT', 'banishRedirectAppliesFrom(e.action, n, opTopCardNum, banishedMyAttrsOf(myTopNum))', 'banishRedirectAppliesFrom'],
+    ['frontOnly', 'banishRedirectFrontMatches(e.action, zi, banishedMyAttrsOf(myTopNum))', 'banishRedirectFrontMatches'],
+    ['to hand', 'opS.banish_redirect_to_hand === true', 'banish_redirect_to_hand'],
+    ['to exile', 'opS.banish_redirect_to_exile === true', 'banish_redirect_to_exile'],
+    ['by self flag', 'opS.banish_to_trash_by_self', 'banish_to_trash_by_self'],
+    ['by self', "id === 'BANISH_BY_SELF_GOES_TO_TRASH'", 'BANISH_BY_SELF_GOES_TO_TRASH'],
+    ['frozen deck bottom', 'opFrozenOvr.frozenBanishToDeckBottom', 'myFrozenOvr.frozenBanishToDeckBottom'],
+    ['frozen leave trash', 'opFrozenOvr.frozenLeaveToTrash', 'myFrozenOvr.frozenLeaveToTrash'],
+    ['resona', "id === 'BANISH_TO_LRIG_TRASH_INSTEAD'", 'BANISH_TO_LRIG_TRASH_INSTEAD'],
+    ['leave exile', "id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE'", 'BATTLE_LEAVE_REPLACE_WITH_EXILE'],
+  ];
+  for (const [label, attackerNeedle, defenderNeedle] of mirrored) {
+    ok(defender.includes(defenderNeedle), `${label}: 防御側の語彙が存在`);
+    ok(attacker.includes(attackerNeedle), `${label}: アタッカー側のミラーが存在`);
+  }
+  ok(attacker.includes('checkActiveCondition(e.activeCondition, opS, myS, false'),
+    '防御側 holder の activeCondition はisOwnerTurn=false');
+  ok(attacker.includes('checkActiveCondition(eff.activeCondition, myS, opS, true'),
+    '被バニッシュ自身の離場置換はisOwnerTurn=true');
+  ok(!attacker.includes('isShoot'), '【シュート】はアタッカー側にミラーしない');
+  ok(!attacker.includes('opp_signi_energy_to_deck_bottom'), 'live 0のデッキ下フラグはミラーしない');
+  ok(!attacker.includes('isSelectedPowerZeroBanishRedirect'), 'パワー0専用選択はバトル敗北に配線しない');
+  ok(src.includes('banishedMyCardNum && banishedMyWentToTrash'), 'ON_TRASH は実際の行き先フラグを共有');
+  ok(src.includes('energy: anyMyRedirect ? newMyState.energy : [...newMyState.energy, myTopNum]'),
+    '対照：置換が無いときだけアタッカーをエナへ送る');
+});
+
+test('O-49 凍結バニッシュ置換: holder視点・activeCondition・バトル当事者を評価する', () => {
+  const holder = mkState({ signi: ['WXDi-P13-071', SIGNI_L1, null] });
+  const victim = mkState({ signi: [SIGNI_L2, null, null] });
+  const hit = collectFrozenBanishOverrides(holder, victim, true, cardMap, effectsMap, 'WXDi-P13-071');
+  ok(hit.frozenBanishToDeckBottom, '能力 holder 自身がバトル当事者ならデッキ下置換');
+  const missSource = collectFrozenBanishOverrides(holder, victim, true, cardMap, effectsMap, SIGNI_L1);
+  ok(!missSource.frozenBanishToDeckBottom, '別のシグニがバトル当事者なら不適用');
+  const synthetic = new Map(effectsMap);
+  synthetic.set('WXDi-P13-071', [{
+    ...(effectsMap.get('WXDi-P13-071') ?? [])[0],
+    activeCondition: { type: 'TURN_OWNER', owner: 'self' },
+  } as CardEffect]);
+  ok(collectFrozenBanishOverrides(holder, victim, true, cardMap, synthetic, 'WXDi-P13-071').frozenBanishToDeckBottom,
+    'activeCondition 成立方向');
+  ok(!collectFrozenBanishOverrides(holder, victim, false, cardMap, synthetic, 'WXDi-P13-071').frozenBanishToDeckBottom,
+    '対照：同じ盤面でターン所有だけ反転すると activeCondition 不成立');
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

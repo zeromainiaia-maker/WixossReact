@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：§5.3 `O-49`＝バニッシュ先変更のアタッカー側ミラーを配線
+
+- **真因**＝`resolvePendingSigniBattleFor` の O-47 で新設したアタッカー敗北／相打ち経路は、トップ→エナ、下→トラッシュの既定先しか持たず、防御側に既存の行き先変更語彙が反映されなかった。
+- **修正**＝`banish_redirect`（全体／単体／バトル単体／bySource／場の CONT）、手札／除外、`BANISH_BY_SELF_GOES_TO_TRASH`、凍結2種、`BANISH_TO_LRIG_TRASH_INSTEAD`、`BATTLE_LEAVE_REPLACE_WITH_EXILE` を `myS↔opS` でミラー。holder=防御側の `checkActiveCondition` には `isOwnerTurn=false`、被バニッシュ自身の置換には `true` を渡す。判定はバトル前の `myS`/`opS`、書き込みは加工済み `newMyState` の規約を維持し、スタック下・チャーム・アクセは常にトラッシュへ送る。
+- **除外した語彙**＝アタッカー自身の【シュート】`isShoot`、live 0 の `opp_signi_energy_to_deck_bottom`、パワー0消滅専用の `isSelectedPowerZeroBanishRedirect` はミラーしていない。バニッシュ自体を回避する身代わり ladder も別機構のため未実装。
+- **`ON_TRASH`**＝アタッカーの実際の行き先計算が立てた `banishedMyWentToTrash` をトリガー収集と共有。同じ条件式を再記述せず、`collectTrashTriggers(..., attackerId, ..., false, false, false)` と usageLimit の両 state への書き戻しを防御側と同型で追加した。
+- **凍結置換の視点反転を併修**＝`FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM` を被バニッシュ側自身ではなく対戦相手側 holder から読む。`collectFrozenBanishOverrides` に `otherState` / `isOwnerTurn` / `cardMap` を通して `checkActiveCondition` を評価。既存 `StubAction` に `bySource` を追加すると影響範囲が広がるため新型は作らず、holder instance とバトル当事者の一致を追加ガードにした。
+- **golden**＝2本追加し **2679 PASS / 0 FAIL（+2）**。ミラー語彙と明示除外の source tripwire、置換なし→エナの対照、`ON_TRASH` の行き先値共有、凍結置換の holder/当事者/activeCondition 成立・不成立を固定した。
+- **ゲート**＝`npm run gates` 全緑（smoke 10693 全0・SKIP 0／fuzz 全0／census 601/601／census:stubs A群🔴0／C群0／manual-fields 0/0／lint 0 errors / 260 warnings）。`groupSimilar --all` の同型★0。`effects_*.json` は変更なし。
+- **実機シナリオ**＝5本を追加し、**2回連続 5/5 PASS**（Claude 側で実行）。⚠**実装した Codex 側の環境では Chromium 未導入で1度も走らせられていない**＝シナリオは「書いたが未実行」の状態で引き渡された。
+
+  | id | 種別 | 修正前 | 修正後 | 見るもの |
+  |---|---|---|---|---|
+  | `o49AttackerBanishRedirectToTrash` | 正 | 🔴FAIL | ✅PASS | 防御側 `WXK11-032` の bySource 置換で**相打ちアタッカーがエナではなくトラッシュ**へ |
+  | `o49AttackerRedirectRespectsLevelFilter` | 正 | 🔴FAIL | ✅PASS | `WXK10-053` のレベル1以下限定が**アタッカー側のレベル**を読む |
+  | `o49AttackerSelfExileReplacesLeave` | 正 | 🔴FAIL | ✅PASS | アタッカー自身の `BATTLE_LEAVE_REPLACE_WITH_EXILE`（トラッシュ近似） |
+  | `o49AttackerNoRedirectGoesToEnergy` | **対照** | ✅PASS | ✅PASS | 置換が無ければ**従来どおりエナ**（過剰にトラッシュへ送っていない） |
+  | `o49AttackerRedirectRejectsLevel2` | **対照** | ✅PASS | ✅PASS | 同じ防御側でアタッカーを**L2に替えるとエナ**（filter の負方向） |
+
+  🔑**反転確認＝正方向3本は修正前に確実に FAIL し、対照2本は前後とも緑**（対照は旧来の既定挙動を固定するものなので前後不変が正しい）。
+- **回帰**＝既存 O-47/O-48 の4本（`o47AttackerLosesIsBanished` / `o47TieBanishesBoth` / `o47AttackerWinsStaysOnField` / `o48BattleBanishSendsUnderCardsToTrash`）を同一バッチで実行し**全 PASS＝新規の赤0**。4本のブロックは HEAD と文字列同一（`O47_O48_BLOCK_IDENTICAL=True`）。
+- **follow-up 登録票草案**＝§5.3 `O-58` 「バトルでアタッカーがバニッシュされる場合の身代わり／回避 ladder ミラー」（L）。ブロッカーは任意分岐の対話と、回避時に `ON_BANISH` / `ON_LEAVE_FIELD` を発火させない別 funnel。着手前に `COOKING_BANISH_SUBSTITUTE` / `CHARM_PROTECTION` / `ACCE_BANISH_SUBSTITUTE` / `ACCE_BANISH_SELF_TRASH` / `RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE` / `RISE_BANISH_SUBSTITUTE` / `BANISH_SUBSTITUTE_RISE_STACK` / `BATTLE_BANISH_PREVENT_LOSE_ABILITY` / `banish_substitute_choice` の live 効果数、必須／任意、コスト支払い先、代替被害者、人間/CPU 選択フローを全数実測する。
+
 ## 2026-08-24：`O-57`＝「デッキの一番上を公開する。それが〜の場合」が2文目以降だと条件ごと落ちる
 
 - **真因**＝既存の `REVEAL_AND_PICK` parser 規則が `sentences[0]` 固定だったため、公開文より前に宣言・任意コスト等がある7効果では、公開が `LOOK_AND_REORDER`、帰結が無条件 action に分裂していた。公開文の直後が「それが／そのカードが〜場合」のときだけ同じ規則を適用する helper へ切り出し、前段は従来どおり保持した。全6712枚の生パース A/B diff は対象7枚だけ、公開が1文目の153効果は変化0、outlier 0。

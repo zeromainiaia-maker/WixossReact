@@ -6592,27 +6592,36 @@ export function collectForcePlaceFrontZones(
 /**
  * FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM / FROZEN_SIGNI_TO_TRASH_ON_LEAVE:
  * フィールド上のCONT効果を検査し、凍結シグニバニッシュの置換先を返す。
- * - frozenBanishToDeckBottom: 凍結シグニのバニッシュ先をデッキ下に変更（state自身のCONT）
- * - frozenLeaveToTrash: 相手の凍結シグニが場を離れる場合トラッシュへ（stateが持つ攻撃側CONT）
+ * - frozenBanishToDeckBottom: 相手の凍結シグニのバニッシュ先をデッキ下に変更
+ * - frozenLeaveToTrash: 相手の凍結シグニが場を離れる場合トラッシュへ
+ *
+ * どちらも ownerState が置換能力の holder 側。FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM の原文は
+ * 「このシグニとのバトルによって」だが StubAction に bySource を持たないため、新語彙は足さず
+ * battlingHolderNum と holder instance の一致を追加ガードにする。
  */
 export function collectFrozenBanishOverrides(
-  state: PlayerState,
-  _cardMap: Map<string, CardData>,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  battlingHolderNum: string,
+  effectivePowers?: Map<string, number>,
 ): { frozenBanishToDeckBottom: boolean; frozenLeaveToTrash: boolean } {
   let frozenBanishToDeckBottom = false;
   let frozenLeaveToTrash = false;
   const candidates: string[] = [
-    ...state.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
-    ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
-    ...activeKeyAbilitySources(state),
+    ...ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(ownerState.field.lrig.at(-1) ? [ownerState.field.lrig.at(-1)!] : []),
+    ...activeKeyAbilitySources(ownerState),
   ];
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn, effectivePowers)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
-      if (act.id === 'FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM') frozenBanishToDeckBottom = true;
+      if (act.id === 'FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM' && cn === battlingHolderNum) frozenBanishToDeckBottom = true;
       if (act.id === 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE') frozenLeaveToTrash = true;
     }
   }
