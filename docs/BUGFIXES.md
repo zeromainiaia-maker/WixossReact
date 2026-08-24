@@ -1,5 +1,35 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：`O-54`＝「この(シグニ|カード)を**エナゾーンから**〜」＝バニッシュでエナへ行った**自分自身**の配線
+
+- **真因**＝parser が「この○○を**エナゾーンから**」という自己参照を一切読まず、汎用の出所分岐へ落としていた。受け皿（`TargetFilter.thisCardOnly` ＋ 各 exec の `ENERGY_CARD` 分岐）は engine に**実装済みで、parser から合成されていないだけ**だった（PLAN §4.3 の「受け皿はあるのに配線されていない」型・`O-53`／段2 第36バッチと同型で **3回連続**）。壊れ方は出口ごとに違う：
+  - **場に出す**（10効果）＝`filter:{cardType:'シグニ'}` だけ＝**エナのどのシグニでも出せる過剰実行**。
+  - **場に出して「もよい」**（`WD14-012-E1`）＝汎用分岐の `includes('場に出す')` に当たらず `source` ごと落ちた bare `ADD_TO_FIELD`＝**デッキの一番上を出す完全な別物**。
+  - **ライフクロスに加える**（`WXDi-P08-038-E1`＝`O-54` 本体）＝`fromTop:true`＝**デッキの一番上**が乗り、自分自身はエナに残る。
+  - **手札に加える**（2効果）＝`STUB{ENERGY_TO_HAND_ON_DECK}`／filter 無しの `TRANSFER_TO_HAND`＝**エナのどのカードでも手札へ**。
+- **母集団（実測）**＝`docs/_effect_srctext.json` を文単位で走査し「エナゾーンから」と「この(シグニ|カード)を」が同居する **41効果**を抽出 → 【アクセ】化・コスト句・「対戦相手のエナゾーンから」・既に `thisCardOnly` 済みを引いて **真の穴 15効果**。⚠登録票の見立て（「現状この1件」）は**標本**で、兄弟語彙まで数え直して15倍になった（§4.1）。
+- **直した内容**（型1フィールド・engine 3箇所・parser 4箇所・逆翻訳 3箇所）
+  - 型 `AddToLifeAction` に **`fromEnergy?: boolean`** を追加（`filter` の用途に `fromEnergy` を明記）。新型はこれ1本だけ。
+  - engine① `execAddToField` の `ENERGY_CARD` 分岐に `thisCardOnly` を追加。⚠**`matchesFilter` は `thisCardOnly` を黙って無視する**ので `energyCandidates` に渡すだけでは効かない＝ここで剥がして `ctx.sourceCardNum` に絞る（`TRASH_CARD` 分岐・`execTransferToHand` と同規約）。
+  - engine② `execAddToLife` に `fromEnergy` 分岐を新設（`thisCardOnly` なら選択UIを出さず即適用）。engine③ `applyDirectAction` の `ADD_TO_LIFE` に energy→life の resume 経路を追加。
+  - parser①（`parseSentencePart1`）＝「この○○をエナゾーンから場に出す／もよい」を汎用分岐の**前**に置いて `thisCardOnly` 化（語順は「エナゾーンからこのシグニを」も受ける）。`このシグニより`／`この○○の下にあった`／【トラップ】は除外。
+  - parser②（同）＝`ADD_TO_LIFE` の出所に「エナゾーンの自分自身」を追加（`fromEnergy` ＋ `filter.thisCardOnly`）。
+  - parser③（`parseSentencePart4`）＝「この**カード**をエナゾーンから手札に加えてもよい」に `thisCardOnly` を追加。⚠「この**シグニ**を〜」版（`WX17-052-LAYER`）は最初から付いており、**同義の別語で片方だけ穴が空いていた**（§4.2「同義の別キー」型）。
+  - parser④（`parseSentencePart3`）＝`STUB{ENERGY_TO_HAND_ON_DECK}` を実アクションへ置換。✅旧コメントの「デッキ由来（`WXDi-P12-079-E2`）とトラッシュ由来（`WXK09-031-E2`）を弁別できない」は**弁別が不要**だった＝出所の違いは timing／`triggerCondition` が既に運んでおり、アクション（自分自身をエナ→手札）は両者同一。STUB を1種類 live から解消（598→597種）。
+  - 逆翻訳＝`ADD_TO_LIFE{fromEnergy}`／`ADD_TO_FIELD{ENERGY_CARD,thisCardOnly}`／`TRANSFER_TO_HAND{ENERGY_CARD,thisCardOnly}` の3出口を描き分けた。⚠ここを直さないと**逆翻訳が「デッキの一番上」「このシグニを手札に加える」のまま緑**で、計器が穴を映さない。
+- **同時に直した過少コスト1件**＝`WXDi-P08-038-E1` の任意コスト「あなたのライフクロス１枚をトラッシュに置いてもよい」が**フィールドの無い素の `OPTIONAL_COST`**で、`resolveOptionalCostSpec` が何も払わず**ライフを1枚も失わずに本体だけ通っていた**。受け皿 `OptionalCostSpec.lifeTrash` は既存（`execUtils.ts:264`／支払い `:586`）なので parser 規則を1本足して配線（母集団は実測2効果・もう1件はアーツ使用コスト減の別構造）。
+- **live への反映**（15効果／15カード・**リーフ差分43・意図外ゼロ**を effectId パス単位で機械確認）
+  - `heldReview --adopt` **10枚**（新規 held は全部本バッチ対象＝巻き添え0）＋ `--adopt-partial-effect WXDi-P04-038-E2` **1効果**（同居 E1 が MANUAL のカード）＋ 自動採用1枚（`WXK09-031`＝fresh が純粋上位集合）＋ `WXDi-P12-079` 1枚。
+  - 🔑**`WXDi-P08-038` の `parseStatus:MANUAL` は `manualEffects.ts` に実体の無い live 限りの遺物**だった（`syncManualLive` は効かない）。parser が正しく出せるようになったので **`AUTO` へ戻してから `build:effects`→`--adopt`**＝以後 parser 改善が届く。副産物として BURST の「対戦相手の**アップ状態の**シグニ」（`isUp` 脱落＝過剰実行）も同時に直った。
+- **ゲート**＝golden **2669 PASS / 0 FAIL**（本バッチで1本追加）、smoke 10693 全0、fuzz 全0、census **604/604**（増減なし）、census:stubs A群🔴0／C群0、manual-fields 0/0、同型★0、lint 0 errors（warnings 260・増分0）。
+- ⚠**golden は「修正前に実際に落ちるか」を両半分で確かめた**（§4.3）＝parser 側だけ stash すると `P1 自分自身のみ` で FAIL、engine 側だけ stash すると `ライフ+1` で FAIL＝**vacuous PASS ではない**。engine の候補 assert は**自分自身をエナの先頭に置かない**（デコイ→自分→デコイ）ことで先頭偶然一致を潰した。
+- 🆕**実機検証（PLAN §2.2 の⑤）＝2本とも PASS**（`node scripts/verifyBattleDrive.mjs b54EnergySelfReviveOnlySelf b54EnergySelfToLife`。第36バッチの2本と4本まとめても ALL PASS＝バッチ汚染なし）。
+  - `b54EnergySelfReviveOnlySelf`（`WD14-012-E1`）＝**候補集合が `["WD14-012#3802"]` の1枚だけ**（エナのデコイ2枚は候補外＝旧実装なら3枚）／場に復帰／エナからは自分だけが抜けデコイ2枚は不動。
+  - `b54EnergySelfToLife`（`WXDi-P08-038-E1`）＝**ライフに乗ったのが自分自身**（`lifeCards` 末尾が `WXDi-P08-038#3803`）／エナから自分だけ抜ける／**deck 10→9＝スペルのドロー1枚だけ**（旧実装は -2）／**life 3→3**＝コスト-1と復帰+1で差し引き不変（旧実装は払わないので +1）。
+  - ⚠**`Restriction` 列（「ウムル限定」等）は使用 UI を実際にゲートする**＝最初に銀行役へ選んだ `WD08-018`（グレイブ・ペイン）は `Team` 列が "-" なのに CardModal に「発動」ボタンが出ず **34反復まるごと空振り**した。`Restriction === '-'` の `PR-378`（選択する物語・《無》×0）へ差し替えて解決。**カード選定時は `Team` だけでなく `Restriction` も見る。**
+  - ⚠**銀行役の選択肢は「観測対象のゾーンを汚さない枝」を選ぶ**＝`PR-378` の②は「デッキの一番上をエナゾーンに置く」なので、エナの候補集合を観測する本シナリオでは①（ドロー枝）固定にした。
+- 📋**follow-up として §5.3 `O-55` に登録**＝同じ「この○○をエナゾーンから〜」語彙でも、行き先が**【トラップ】設置／デッキの一番下／引用付与**の4効果はまだ STUB のまま（機構が別）。
+
 ## 2026-08-24：段2 第36バッチ＝「ライフクロスに加える」の**出所（どこから）と持ち主（誰のライフ）**の配線是正
 
 - **真因**＝`parseSentencePart1.ts` の「ライフクロスに加える」分岐が、**文頭の「手札を〜」だけを分岐して残りを無条件で `fromTop:true`（＝自分のデッキの一番上）に落として**いた。`LOOK_AND_REORDER` の2値フォールバック（前セッションの `O-53`）と**同型の穴**で、原文が「トラッシュから」「デッキの一番下」「あなたのシグニ1体を対象とし」「対戦相手は」と書いていても全部同じ1本へ潰れていた。

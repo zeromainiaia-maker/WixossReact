@@ -15314,6 +15314,99 @@ test('ADD_TO_LIFE 出所と持ち主: トラッシュ/デッキ下/場/相手ラ
   eq(rB.ownerState.life_cloth[rB.ownerState.life_cloth.length - 1], bottom, 'デッキ最下段がライフへ');
   eq(rB.ownerState.deck.length, d0 - 1, 'デッキ-1');
 }));
+// 🔴「この(シグニ|カード)を**エナゾーンから**〜」＝バニッシュでエナへ行った**自分自身**を戻す文型
+//    （§5.3 `O-54`・2026-08-24）。parser はこの語を読まず、`ADD_TO_FIELD` は `filter:{cardType:'シグニ'}`
+//    だけ＝**エナのどのシグニでも出せる過剰実行**、`ADD_TO_LIFE` は `fromTop:true`＝**デッキの一番上**、
+//    `TRANSFER_TO_HAND` は filter 無し＝**エナのどのカードでも手札へ**に落ちていた（実測15効果）。
+//    受け皿（`TargetFilter.thisCardOnly` ＋ 各 exec の ENERGY_CARD 分岐）は engine に在り、
+//    **parser から合成されていないだけ**だった（PLAN §4.3 の「受け皿はあるのに配線されていない」型）。
+// ⚠engine 側は `matchesFilter` が `thisCardOnly` を**黙って無視する**ので、`energyCandidates` に渡すだけでは
+//    効かない＝各 exec で剥がして `ctx.sourceCardNum` へ絞る必要がある（この test が両方を固定する）。
+// ⚠`withSavedCursor` で包む（`mkCtx`/`fill` がグローバル `fresh()` カーソルを進めるため）。
+test('エナゾーンの自分自身を戻す（O-54）: 場/ライフ/手札の3出口とも thisCardOnly で自分だけを動かす', () => withSavedCursor(() => {
+  const firstAction = (txt: string): Record<string, unknown> => {
+    const found: Record<string, unknown>[] = [];
+    const walk = (a: unknown): void => {
+      if (!a || typeof a !== 'object') return;
+      if (Array.isArray(a)) { a.forEach(walk); return; }
+      const o = a as Record<string, unknown>;
+      if (o.type === 'ADD_TO_FIELD' || o.type === 'ADD_TO_LIFE' || o.type === 'TRANSFER_TO_HAND') found.push(o);
+      for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v);
+    };
+    parseCardEffects({ CardNum: 'TEST-ENA', Type: 'シグニ', EffectText: txt } as unknown as CardData).forEach(e => walk(e.action));
+    return found[0] ?? {};
+  };
+  const srcOf = (o: Record<string, unknown>) => (o.source ?? {}) as Record<string, unknown>;
+  const filOf = (o: Record<string, unknown>) => (o.filter ?? {}) as Record<string, unknown>;
+
+  // parser①＝場へ戻す（`WDK07-Y15` ほか10効果）。cardType だけの汎用フィルタに落とさない。
+  const p1 = firstAction('【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンから場に出す。');
+  eq(p1.type, 'ADD_TO_FIELD', 'P1 ADD_TO_FIELD');
+  eq(srcOf(p1).type, 'ENERGY_CARD', 'P1 出所はエナゾーン');
+  eq(filOf(srcOf(p1)).thisCardOnly, true, 'P1 自分自身のみ');
+  // parser②＝語順違い＋「場に出して**もよい**」（`WD14-012`＝旧実装は source ごと落ちてデッキトップを出していた）
+  const p2 = firstAction('【自】：このシグニがバニッシュされたとき、エナゾーンからこのシグニを場に出してもよい。');
+  eq(srcOf(p2).type, 'ENERGY_CARD', 'P2 source が落ちない（旧実装は bare ADD_TO_FIELD＝デッキトップ）');
+  eq(filOf(srcOf(p2)).thisCardOnly, true, 'P2 自分自身のみ'); eq(p2.optional, true, 'P2 もよい');
+  // parser③＝ダウン状態で（`WXDi-P02-045` ほか）
+  const p3 = firstAction('【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンからダウン状態で場に出す。');
+  eq(p3.asDown, true, 'P3 ダウン状態で'); eq(filOf(srcOf(p3)).thisCardOnly, true, 'P3 自分自身のみ');
+  // parser④＝ライフクロスへ（`WXDi-P08-038`＝O-54 本体。旧実装は fromTop:true＝デッキの一番上）
+  const p4 = firstAction('【自】：このシグニがバニッシュされたとき、このシグニをエナゾーンからライフクロスに加える。');
+  eq(p4.type, 'ADD_TO_LIFE', 'P4 ADD_TO_LIFE');
+  eq(p4.fromEnergy, true, 'P4 エナ出所'); eq(p4.fromTop, false, 'P4 デッキの一番上ではない');
+  eq(filOf(p4).thisCardOnly, true, 'P4 自分自身のみ');
+  // parser⑤＝手札へ（`WXK09-031`／`WXDi-P12-079`＝旧実装は STUB でエナ全部が候補）
+  const p5 = firstAction('【自】：このカードがトラッシュからエナゾーンに置かれたとき、このカードをエナゾーンから手札に加えてもよい。');
+  eq(p5.type, 'TRANSFER_TO_HAND', 'P5 TRANSFER_TO_HAND');
+  eq(filOf(srcOf(p5)).thisCardOnly, true, 'P5 自分自身のみ');
+  // parser⑥＝同居する任意コスト「ライフクロス1枚をトラッシュに置いてもよい」は `lifeTrash` で払う
+  //   （素の OPTIONAL_COST だと `resolveOptionalCostSpec` が何も払わない＝踏み倒し）。
+  const seq6 = parseCardEffects({ CardNum: 'TEST-ENA6', Type: 'シグニ',
+    EffectText: '【自】：このシグニがバニッシュされたとき、あなたのライフクロス１枚をトラッシュに置いてもよい。そうした場合、このシグニをエナゾーンからライフクロスに加える。' } as unknown as CardData)[0].action as SequenceAction;
+  const cost6 = seq6.steps.find(st => st.type === 'STUB') as { id?: string; lifeTrash?: number } | undefined;
+  eq(cost6?.id, 'OPTIONAL_COST', 'P6 任意コスト'); eq(cost6?.lifeTrash, 1, 'P6 ライフ1枚を実際に払う');
+
+  // ── engine ──
+  // ⚠**自分自身をエナの先頭に置かない**（先頭がたまたま正解で vacuous に PASS するのを防ぐ＝PLAN §4.3）。
+  const self = fresh(); const otherA = fresh(); const otherB = fresh();
+  const mkEnergyCtx = () => {
+    const c = mkCtx({ signi: [null, null, null] }, {}, self);
+    return { ...c, ownerState: { ...c.ownerState, energy: [otherA, self, otherB] } } as ExecCtx;
+  };
+
+  // engine①＝ライフへ: 自分自身だけがエナ→ライフ。**デッキは減らない**（旧実装はここでデッキ上から+1した）。
+  const cL = mkEnergyCtx();
+  const deck0 = cL.ownerState.deck.length; const life0 = cL.ownerState.life_cloth.length;
+  const rL = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromEnergy: true, filter: { thisCardOnly: true } } as EffectAction, cL);
+  eq(rL.ownerState.life_cloth.length, life0 + 1, 'ライフ+1');
+  eq(rL.ownerState.life_cloth[rL.ownerState.life_cloth.length - 1], self, 'ライフに乗るのは自分自身');
+  eq(rL.ownerState.deck.length, deck0, 'デッキ不変（fromTop へ落ちていない）');
+  eq(rL.ownerState.energy.join(','), [otherA, otherB].join(','), 'エナから消えるのは自分自身だけ');
+
+  // engine①対照＝**盤面はそのままで自分自身だけをエナから外す**と何も起きない（負方向テストの対照）。
+  const cL0 = mkEnergyCtx();
+  const cL0b = { ...cL0, ownerState: { ...cL0.ownerState, energy: [otherA, otherB] } } as ExecCtx;
+  const rL0 = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromEnergy: true, filter: { thisCardOnly: true } } as EffectAction, cL0b);
+  eq(rL0.ownerState.life_cloth.length, cL0b.ownerState.life_cloth.length, '自分がエナに居なければライフ不変');
+  eq(rL0.ownerState.deck.length, cL0b.ownerState.deck.length, '同・デッキ不変');
+  eq(rL0.ownerState.energy.join(','), [otherA, otherB].join(','), '同・エナ不変');
+
+  // engine②＝場へ: 候補は自分自身1枚だけ（エナに他のシグニが2枚居ても選ばせない）。
+  const cF = mkEnergyCtx();
+  const rFPending = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { thisCardOnly: true } } } as EffectAction } as CardEffect, cF);
+  eq((((rFPending as unknown as { pending?: { candidates?: string[] } }).pending?.candidates) ?? []).join(','), self, '場出しの候補は自分自身だけ');
+  const rF = finish(rFPending, cF);
+  ok(tops(rF.ownerState as PlayerState).includes(self), '自分自身が場に出る');
+  eq(rF.ownerState.energy.join(','), [otherA, otherB].join(','), '場出しでもエナから消えるのは自分自身だけ');
+
+  // engine③＝手札へ: 同上（`execTransferToHand` の ENERGY_CARD 分岐）。
+  const cH = mkEnergyCtx();
+  const rH = run({ type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { thisCardOnly: true } } } as EffectAction, cH);
+  ok(rH.ownerState.hand.includes(self), '自分自身が手札へ');
+  eq(rH.ownerState.energy.join(','), [otherA, otherB].join(','), '手札戻しでもエナから消えるのは自分自身だけ');
+}));
 // Opusタスク12: デッキトップ private look 条件付き配置（「一番上を見る。それが〜のシグニの場合、それを場に出す」）が
 // sentence 分割で LOOK + bare ADD_TO_FIELD になり filter/optional が脱落していた回帰（WX16-038/WX15-001）。
 test('デッキトップ private look 条件付き配置: filter＋optional を保持（WX16-038/WX15-001・タスク12）', () => {

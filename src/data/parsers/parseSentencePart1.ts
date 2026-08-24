@@ -2915,6 +2915,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       };
     }
 
+    // ---- 出所②':エナゾーンの自分自身（`WXDi-P08-038`「このシグニをエナゾーンからライフクロスに加える」）----
+    // バニッシュでエナへ行った自分自身をライフへ戻す文型＝`ADD_TO_FIELD`／`TRANSFER_TO_HAND` の
+    // 「このシグニをエナゾーンから〜」と同じ受け皿（`filter.thisCardOnly` + ENERGY 出所）を使う。
+    // ⚠`fromTop` に落とすと**デッキの一番上**が乗り、自分自身はエナに残る＝盤面が別物になる。
+    if (/この(?:シグニ|カード)を(?:あなたの)?エナゾーンからライフクロスに加え/.test(t)
+        || /エナゾーンからこの(?:シグニ|カード)をライフクロスに加え/.test(t)) {
+      return { type: 'ADD_TO_LIFE', owner: lifeOwner, count: 1, fromTop: false, fromEnergy: true,
+        filter: { thisCardOnly: true } };
+    }
+
     // ---- 出所②：デッキの一番下（`WXK03-066`）----
     if (/デッキの一番下のカードをライフクロスに加え/.test(t)) {
       return { type: 'ADD_TO_LIFE', owner: lifeOwner, count, fromTop: false, fromBottom: true };
@@ -3030,6 +3040,30 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (craftM) {
       return { type: 'ADD_TO_FIELD', owner: 'self', cardName: craftM[1] };
     }
+  }
+
+  // ---- このシグニ/カード自身をエナゾーンから場に出す（自己蘇生）----
+  // 「この(シグニ|カード)」＋「エナゾーンから」＋「場に出す/場に出してもよい」＝効果元自身（thisCardOnly）。
+  // 🔴この分岐が無かったため、下の汎用「エナゾーンからシグニを場に出す」へ落ちて
+  //   `filter:{cardType:'シグニ'}` だけになり、**エナのどのシグニでも出せる過剰実行**だった（実測11効果）。
+  //   さらに「場に出して**もよい**」は下の分岐の `includes('場に出す')` に当たらず、source ごと落ちた
+  //   bare `ADD_TO_FIELD`＝**デッキの一番上を出す完全な別物**になっていた（`WD14-012-E1`）。
+  // ⚠語順は両方ある＝「このシグニをエナゾーンから場に出す」と「エナゾーンからこのシグニを場に出す」。
+  // ⚠「このシグニより〜」は自己蘇生でなく比較フィルタ、「そのシグニ」は `targetsTriggerSource` の別分岐。
+  // ⚠トラッシュ版（すぐ下の分岐）と同じ規約＝engine は `execAddToField` の ENERGY_CARD 分岐で
+  //   `thisCardOnly` を剥がして `ctx.sourceCardNum` に絞る。
+  if ((t.includes('このシグニ') || t.includes('このカード')) && t.includes('エナゾーンから')
+      && (t.includes('場に出す') || t.includes('場に出してもよい') || t.includes('シグニゾーンに出'))
+      && /この(?:シグニ|カード)を|エナゾーンからこの(?:シグニ|カード)/.test(t)
+      && !/この(?:シグニ|カード)より/.test(t)
+      && !/この(?:シグニ|カード)の下にあった/.test(t)
+      && !/【トラップ】/.test(t)) {
+    return {
+      type: 'ADD_TO_FIELD', owner: 'self',
+      source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false, filter: { thisCardOnly: true } },
+      ...(t.includes('ダウン状態で') ? { asDown: true } : {}),
+      ...(t.includes('場に出してもよい') ? { optional: true } : {}),
+    };
   }
 
   // ---- エナゾーンからシグニを場に出す ----

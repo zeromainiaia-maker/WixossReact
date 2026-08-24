@@ -633,14 +633,19 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'FORCE_TARGET_SELF' } as StubAction;
   }
 
-  // ---- デッキからエナゾーンに置かれたとき手札に加えてもよい ----
-  // 第2の枝＝ON_ENERGY_CHARGE(movedSelf) でトリガー句を除去した残り（WXDi-P12-079-E2）を受ける。
-  // ⚠ この枝は WXK09-031-E2（「このカードが**トラッシュ**から…」＝ON_ENERGY_FROM_TRASH）にも当たる。
-  //   両者はここへ渡る時点でトリガー句が落ちて同一文字列になるため、**この関数だけでは弁別できない**
-  //   （先頭アンカーを足しても効かないことを 2026-07-31 に実測確認済み）。WXK09-031-E2 は held に載って
-  //   live 未採用のまま＝挙動不変。弁別が要るなら parseSentencePart3 に trigger 文脈を渡す設計変更が要る。
+  // ---- （デッキ／トラッシュから）エナゾーンに置かれたとき、このカードをエナゾーンから手札に加えてもよい ----
+  // 🔴旧実装は `STUB{ENERGY_TO_HAND_ON_DECK}`＝**エナのどのカードでも手札に戻せる過剰実行**だった
+  //   （engine 側ハンドラも `ctx.ownerState.energy` 全部を候補に出す）。原文は必ず「**この**カードを」
+  //   なので効果元自身に固定するのが正しい＝`WX17-052-LAYER`（「この**シグニ**を〜」）が最初から
+  //   使っていた `TRANSFER_TO_HAND{ENERGY_CARD, filter:{thisCardOnly}}` と同じ受け皿へ寄せる。
+  // ✅旧コメントが「弁別できない」と書いていた WXDi-P12-079-E2（デッキ由来）と WXK09-031-E2（トラッシュ
+  //   由来）の**弁別はそもそも不要**＝出所の違いは timing／triggerCondition が既に運んでおり、
+  //   アクション（自分自身をエナ→手札）は両者で同一。同一文字列に潰れて構わない。
+  // ⚠「してもよい」は `upToCount` で表す（`TRANSFER_TO_HAND` に optional キーは無い）。
   if (t.match(/(?:デッキから.*エナゾーンに置かれたとき.*|このカードをエナゾーンから)手札に加えてもよい/)) {
-    return { type: 'STUB', id: 'ENERGY_TO_HAND_ON_DECK' } as StubAction;
+    return { type: 'TRANSFER_TO_HAND', source: {
+      type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { thisCardOnly: true },
+    } } as EffectAction;
   }
 
   // ---- 正面にシグニがない場合アタックしたシグニの正面に配置 ----
@@ -2503,6 +2508,24 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ⚠「対象」を含む文は別経路（対象宣言つきの本体）なので除外＝`OPTIONAL_TRASH_SELF` と同じ規約。
   if (/(?:場にある)?この(?:シグニ|カード)を(?:場から)?エナゾーンに置いてもよい/.test(t) && !t.includes('対象')) {
     return { type: 'STUB', id: 'OPTIONAL_COST', selfToEnergy: true, costText: t } as StubAction;
+  }
+
+  // ---- （あなたの）ライフクロスN枚をトラッシュに置いてもよい（任意コスト）----
+  // `OPTIONAL_TRASH_SELF`／`OPTIONAL_COST{selfToEnergy}` の**支払い物違い**。従来は素の
+  // `OPTIONAL_COST`（フィールド無し）へ落ちて **`resolveOptionalCostSpec` が何も払わない**＝
+  // ライフを1枚も失わずに本体だけ通る過少コストだった（`WXDi-P08-038-E1`）。
+  // ⚠受け皿は既にある＝`OptionalCostSpec.lifeTrash`（`execUtils.ts:264` / 支払いは `:586`）。
+  // ⚠「クラッシュ」（`life_crash`＝【ライフバースト】判定あり）とは別物なので混ぜない。
+  // ⚠「対象」を含む文は対象宣言つきの本体（別経路）＝`OPTIONAL_TRASH_SELF` と同じ規約で除外する。
+  {
+    const lifeTrashOptM = t.match(/(?:^|(?:とき|場合)、)(?:あなたの)?ライフクロス([０-９\d]+)枚を(?:場から)?トラッシュに置いてもよい$/);
+    if (lifeTrashOptM && !t.includes('対象')) {
+      return {
+        type: 'STUB', id: 'OPTIONAL_COST',
+        lifeTrash: parseNum(lifeTrashOptM[1]),
+        costText: t.replace(/^.*?(?:とき|場合)、/, ''),
+      } as StubAction;
+    }
   }
 
   // ---- トリガーした能力の処理順説明（ルール説明）----

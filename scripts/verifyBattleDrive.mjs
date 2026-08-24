@@ -27606,6 +27606,178 @@ scenarios.b36TrashToLifeNoCandidateWhenAllBurst = {
 order.push('b36TrashToLifeFiltersLifeBurst', 'b36TrashToLifeNoCandidateWhenAllBurst');
 // ── 段2 第36 END ──
 
+// ── O-54（2026-08-24）＝「この(シグニ|カード)を**エナゾーンから**〜」＝バニッシュでエナへ行った**自分自身** ──
+// 🔴parser がこの語を読まず、`ADD_TO_FIELD` は `filter:{cardType:'シグニ'}` だけ＝**エナのどのシグニでも
+//   出せる過剰実行**、`ADD_TO_LIFE` は `fromTop:true`＝**デッキの一番上**に落ちていた（実測15効果）。
+//   受け皿（`TargetFilter.thisCardOnly` ＋ 各 exec の ENERGY_CARD 分岐）は engine に在り、**未配線**だった。
+// 🔑**gates では守れない層**＝逆翻訳／golden／census は「JSON がどうか」しか見ない。実機の観測点は
+//   **「選択モーダルの候補集合」と「どのカードがライフに乗ったか／デッキが減らないこと」**。
+// 🔑どちらのシナリオも銀行役は `PR-378`（選択する物語／スペル・《無》×0）の選択肢①
+//   「あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを１枚引き、このカードを
+//   ゲームから除外する」＝クラス限定が無いのでどのシグニでもバニッシュでき、**バニッシュ先はエナゾーン**。
+// ⚠**`Restriction` 列（「ウムル限定」等）は使用 UI を実際にゲートする**＝最初に選んだ `WD08-018` は
+//   ウムル限定で CardModal に「発動」ボタンが出ず 34反復空振りした（`Team` 列が "-" でも別列で縛られる）。
+// ⚠選択肢②は「デッキの一番上をエナゾーンに置く」＝**エナの中身が変わって候補集合の観測が濁る**ので、
+//   必ず①（ドロー枝）を選ぶ。
+// ⚠デッキを空にしない（罠22＝解決中リフレッシュで盤面追跡が壊れる）。
+const B54_BANISHER = 'PR-378#3801';          // 選択する物語（スペル・無×0・限定なし）
+const B54_SELF_FIELD = 'WD14-012#3802';      // 毒蛇の華 アシュタルス（【自】バニッシュ時＝エナから自分を場に）
+const B54_SELF_LIFE = 'WXDi-P08-038#3803';   // 大盗罠 ルパンヌ（【自】バニッシュ時＝エナから自分をライフに）
+// エナのデコイ＝**旧実装ならこの2枚も候補に出る**（`cardType:'シグニ'` しか見ていなかった）。
+const B54_DECOY_A = 'WD01-010#3811';
+const B54_DECOY_B = 'WD01-013#3812';
+const B54_DECK = ['WD01-012#3821', 'WD01-014#3822', 'WD01-011#3823', 'WD01-010#3824', 'WD01-013#3825',
+  'WD01-009#3826', 'WD01-016#3827', 'WD01-012#3828', 'WD01-014#3829', 'WD01-011#3830'];
+const B54_LIFE = ['WD01-010#3841', 'WD01-013#3842', 'WD01-012#3843'];
+
+// ⚠`CORE_FIELD_KEYS`（lrig / signi / assist_* / check / key_piece / free_zone / beat_zone）は
+//   自分で書き切らないと**前シナリオの盤面が残る**（§4.4 の1）＝両サイド全部を固定する。
+function b54Spec(selfCard) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-002#3851'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [[selfCard], null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'energy': [B54_DECOY_A, B54_DECOY_B], 'trash': [], 'actions_done': [],
+      'life_cloth': B54_LIFE, 'deck': B54_DECK,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3861'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#3871', 'WD01-013#3872', 'WD01-013#3873'],
+    },
+    handPrepend: [B54_BANISHER],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+// スペル `WD08-018` を撃って対象を1体バニッシュするところまで。0コストなので「発動する」がすぐ押せる。
+async function b54CastBanisher(page, H, flow, victim) {
+  if (!flow.handOpened) { const d = await H.clickTestId('my-hand-card-0'); if (d) { flow.handOpened = true; return d; } }
+  if (!flow.cast) {
+    const fire = page.getByRole('button', { name: '発動する', exact: true }).first();
+    if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+      await fire.click().catch(() => {}); flow.cast = true; return 'btn:発動する';
+    }
+    const open = page.getByRole('button', { name: '発動', exact: true }).first();
+    if (await open.count() && await open.isVisible().catch(() => false) && await open.isEnabled().catch(() => false)) {
+      await open.click().catch(() => {}); return 'btn:発動';
+    }
+    const e0 = page.getByTestId('spellcost-energy-0').first();
+    if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); return 'spellcost-energy-0'; }
+    return null;
+  }
+  // 選択肢①（ドロー枝）を選ぶ。②はデッキ上をエナへ置くのでエナの観測が濁る。
+  if (!flow.choicePicked) {
+    const c = page.getByRole('button', { name: '1枚引き自身を除外', exact: false }).first();
+    if (await c.count() && await c.isVisible().catch(() => false) && await c.isEnabled().catch(() => false)) {
+      await c.click().catch(() => {}); flow.choicePicked = true; return 'btn:選択肢①(ドロー枝)';
+    }
+  }
+  if (!flow.victimPicked) {
+    const d = await clickPendingInstance(page, H, victim);
+    if (d) { flow.victimPicked = true; return d; }
+  }
+  return null;
+}
+
+scenarios.b54EnergySelfReviveOnlySelf = {
+  title: 'O-54 WD14-012-E1：バニッシュ後の「エナゾーンから場に出す」候補は**自分自身の1枚だけ**（デコイ2枚は出ない）',
+  spec: b54Spec(B54_SELF_FIELD),
+  async drive(page, H) {
+    await H.ensureMain();
+    const flow = { handOpened: false, cast: false, choicePicked: false, victimPicked: false };
+    let reviveCands = null; let revivePicked = false; let settle = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b54revive-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await b54CastBanisher(page, H, flow, B54_SELF_FIELD);
+      const st = await H.queryState();
+      // 「機構が動いた証拠」＝**自分自身がエナに居る間に立った候補集合**（罠4＝盤面だけ見ると
+      //  機構を通らなくても同じ絵になる）。バニッシュ前の対象選択とはこの条件で弁別する。
+      const selfInEnergy = (st?.host?.energyCards ?? []).includes(B54_SELF_FIELD);
+      if (!reviveCands && selfInEnergy && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+        reviveCands = [...st.pendingCandidates];
+      }
+      if (!did && reviveCands && !revivePicked) {
+        const d = await clickPendingInstance(page, H, B54_SELF_FIELD);
+        if (d) { revivePicked = true; did = d; }
+      }
+      if (!did) did = await H.clickZone();
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      H.log(`  b54revive[${s}] -> ${did ?? 'なし'} | cast=${flow.cast} choice=${flow.choicePicked} victim=${flow.victimPicked} cands=${JSON.stringify(reviveCands)} picked=${revivePicked} ena=${JSON.stringify(st?.host?.energyCards)} field=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!revivePicked) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 3) continue;
+      // 🔴本命＝候補集合が自分自身1枚だけ（旧実装ならデコイ2枚を足した3枚になる）。
+      const onlySelf = !!reviveCands && reviveCands.length === 1 && reviveCands[0] === B54_SELF_FIELD;
+      const backOnField = (st.host.fieldSigni ?? []).some(z => (z ?? []).at(-1) === B54_SELF_FIELD);
+      const enaCards = st.host.energyCards ?? [];
+      const decoysUntouched = enaCards.includes(B54_DECOY_A) && enaCards.includes(B54_DECOY_B) && !enaCards.includes(B54_SELF_FIELD);
+      return {
+        pass: onlySelf && backOnField && decoysUntouched,
+        detail: `候補=${JSON.stringify(reviveCands)}（自分自身1枚だけ=${onlySelf}・旧実装はデコイ2枚を足した3枚）`
+          + `／場に復帰=${backOnField}（fieldSigni=${JSON.stringify(st.host.fieldSigni)}）`
+          + `／エナ=${JSON.stringify(enaCards)}（デコイ2枚は不動・自分は抜けた=${decoysUntouched}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${flow.cast} victim=${flow.victimPicked} cands=${JSON.stringify(reviveCands)} picked=${revivePicked} ena=${JSON.stringify(fin?.host?.energyCards)} field=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.b54EnergySelfToLife = {
+  title: 'O-54 WXDi-P08-038-E1：エナの**自分自身**がライフに乗り、デッキはスペルのドロー1枚しか減らない',
+  spec: b54Spec(B54_SELF_LIFE),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { handOpened: false, cast: false, choicePicked: false, victimPicked: false };
+    let sawSelfInEnergy = false; let settle = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b54life-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await b54CastBanisher(page, H, flow, B54_SELF_LIFE);
+      const st = await H.queryState();
+      // 機構が動いた証拠＝一度でも「自分自身がエナに居た」こと（＝バニッシュが実際に走った）。
+      if ((st?.host?.energyCards ?? []).includes(B54_SELF_LIFE)) sawSelfInEnergy = true;
+      // 任意コスト「あなたのライフクロス１枚をトラッシュに置いてもよい」の pay 枝を選ぶ。
+      if (!did) did = await H.clickTextOrBtn(['発動する', '支払う']);
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      H.log(`  b54life[${s}] -> ${did ?? 'なし'} | cast=${flow.cast} choice=${flow.choicePicked} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} life=${st?.host?.life} lifeHasSelf=${(st?.host?.lifeCards ?? []).includes(B54_SELF_LIFE)} deck=${st?.host?.deck} ena=${JSON.stringify(st?.host?.energyCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!sawSelfInEnergy) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 3) continue;
+      // 🔴本命＝**ライフに乗るのは自分自身**（旧実装はデッキの一番上が乗り、自分はエナに残った）。
+      const selfInLife = (st.host.lifeCards ?? []).includes(B54_SELF_LIFE);
+      const enaCards = st.host.energyCards ?? [];
+      const leftEnergy = !enaCards.includes(B54_SELF_LIFE);
+      const decoysUntouched = enaCards.includes(B54_DECOY_A) && enaCards.includes(B54_DECOY_B);
+      // 旧実装の指紋①＝デッキが**もう1枚**減る（スペルのドロー1＋ライフへ1＝-2）。新実装はドロー1だけ。
+      const deckMilledOnly = st.host.deck === before.host.deck - 1;
+      // 旧実装の指紋②＝任意コストが `lifeTrash` を持たず**ライフを1枚も払わない**ので life が +1 になる。
+      //   新実装は「-1（コスト）+1（自分自身）」で差し引き不変。
+      const lifeNet = st.host.life === before.host.life;
+      return {
+        pass: selfInLife && leftEnergy && decoysUntouched && deckMilledOnly && lifeNet,
+        detail: `ライフに自分自身=${selfInLife}（lifeCards=${JSON.stringify(st.host.lifeCards)}）`
+          + `／エナ=${JSON.stringify(enaCards)}（自分は抜けた=${leftEnergy}・デコイ不動=${decoysUntouched}）`
+          + `／deck ${before.host.deck}→${st.host.deck}（スペルのドロー1だけ=${deckMilledOnly}・旧実装は-2）`
+          + `／life ${before.host.life}→${st.host.life}（コスト-1と復帰+1で不変=${lifeNet}・旧実装は+1）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${flow.cast} victim=${flow.victimPicked} sawEna=${sawSelfInEnergy} life=${fin?.host?.life} deck=${fin?.host?.deck} ena=${JSON.stringify(fin?.host?.energyCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('b54EnergySelfReviveOnlySelf', 'b54EnergySelfToLife');
+// ── O-54 END ──
+
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

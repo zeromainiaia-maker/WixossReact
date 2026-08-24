@@ -2109,8 +2109,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CRASH_LIFE_TO_HAND' } as StubAction;
 
   // ---- このカードをエナゾーンから手札に加えてもよい ----
+  // ⚠`filter:{thisCardOnly:true}` が無いと**エナのどのカードでも手札に戻せる過剰実行**になる
+  //   （「この**シグニ**を〜」版＝上の `WX17-052-LAYER` 分岐は最初から thisCardOnly を付けており、
+  //    同義の別語（シグニ／カード）で片方だけ穴が空いていた＝PLAN §4.2「同義の別キー」型）。
   if (t.match(/このカードをエナゾーンから手札に加えてもよい/))
-    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1 } };
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { thisCardOnly: true } } };
 
   // ---- その中から１枚をエナゾーンに置く ----
   if (t.match(/^その中から[１-９\d０-９]*枚?をエナゾーンに置く$/) || t.match(/^追加でそれをエナゾーンに置く$/))

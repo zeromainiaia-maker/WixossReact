@@ -979,6 +979,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.fromHand) return `手札を${nAL}枚選んで${toAL}`;
       if (a.fromSearch) return `デッキから探したカードを${toAL}`;
       if (a.fromBottom) return `${ownerJa(a.owner)}デッキの一番下から${nAL}枚を${toAL}`;
+      // fromEnergy＝「このシグニをエナゾーンからライフクロスに加える」（thisCardOnly は自分自身固定）
+      if (a.fromEnergy) return a.filter?.thisCardOnly
+        ? `このシグニをエナゾーンから${toAL}`
+        : `${ownerJa(a.owner)}エナゾーンから${filterJa(a.filter)}カード${nAL}枚を${a.opponentSelects ? '対戦相手が選び' : '選び'}${toAL}`;
       return `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${nAL}枚を${toAL}`;
     }
     case 'ADD_TO_FIELD': {
@@ -990,6 +994,9 @@ function actionJa(a?: Action, effectType?: string): string {
         return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
       if (a.targetsTriggerSource && a.source?.type === 'ENERGY_CARD')
         return `エナゾーンからそのシグニを${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+      // 「このシグニをエナゾーンから場に出す」自己蘇生（thisCardOnly source・TRASH_CARD 版と同型）
+      if (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
+        return `このシグニをエナゾーンから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
       return (a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す')) + supAF;
     }
     case 'BLOCK_ACTION': {
@@ -1120,6 +1127,11 @@ function actionJa(a?: Action, effectType?: string): string {
         }).join('と')}対象とし、それらを手札に加える`
       : a.source?.fromLeftFieldUnder
       ? 'トラッシュにある、このシグニの下にあったシグニ1枚を手札に加える'
+      // 「このシグニをエナゾーンから手札に加える」自己回収（thisCardOnly source）。⚠出所を描かないと
+      //   `targetJa` が「このシグニを手札に加える」としか書かず、**エナから拾う話だと読めない**
+      //   （`ADD_TO_FIELD`／`ADD_TO_LIFE` の同型分岐と揃える＝§5.3 O-54）。
+      : (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
+      ? `このシグニをエナゾーンから手札に加える${a.source?.upToCount ? '（してもよい）' : ''}`
       : `${targetJa(a.source)}を手札に加える`;
     case 'TRANSFER_TO_DECK': {
       const opt = a.optional ? '（してもよい）' : '';

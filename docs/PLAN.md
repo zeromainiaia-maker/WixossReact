@@ -10,14 +10,15 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-24・続き641・Opus 5）＝段2 第36バッチ＝「ライフクロスに加える」の出所と持ち主を配線**（Claude 単独）。gates 全緑（**golden 2668**／census **607→604**／smoke 10693 全0／fuzz 全0／lint 0 errors・warnings 260（本バッチでの増分0）／同型★0）。台帳 **726→714**。**実機2本 PASS＝1巡が §2.2 の⑤まで完了。**
-  - ✅**parser の「ライフクロスに加える」分岐が、文頭の「手札を〜」以外を無条件で `fromTop:true`（自分のデッキの一番上）に落としていた25枚を是正**（内訳＝トラッシュ出所14／持ち主が対戦相手5／手札出所5／デッキの一番下1／場のシグニ1）。「あなたのトラッシュから【ライフバースト】を持たないカード1枚を対象とし」が**選択UIも出さずデッキの一番上を裏向きで置き**、「対戦相手はデッキの一番上のカードをライフクロスに加える」が**自分のライフを増やす符号反転**になっていた。
-  - 🔑**新型ゼロ**＝`fromTrash`／`fromField`／`fromHand`／`opponentSelects` も `matchesFilter` の `hasLifeBurst` も**engine に実装済みで parser から合成されていないだけ**だった（§4.3 の「受け皿はあるのに配線されていない」型・`O-53` と同型）。足したのは `AddToLifeAction.filter`（トラッシュ候補の絞り込み＝渡さないと**トラッシュのどのカードでも置ける過剰実行**）と `fromBottom` の2フィールドだけ。
-  - 🔴**実機の観測点は「候補集合」と「デッキが減らないこと」**＝gates（golden/census/逆翻訳）は「JSON がどうか」しか見ない。本命は候補が LB無し2枚だけ・life+1・**deck 不変**、対照は**トラッシュの中身だけ**を LB持ちに差し替えて候補0・life/deck/trash 不変（旧実装ならここでデッキ上から+1した）。
-  - ⚠**golden を1本足しただけで無関係な test が落ちた**＝`mkCtx`/`fill` は**グローバルな `fresh()` カーソル**を進める。**新しい test は `withSavedCursor` で包む**（続き386 群A が巻き添えで FAIL）。
-  - ⚠**held は「今回の分」と「以前からの分」を分けて採用する**＝`WX19-006` はカード単位で採ると未検証の【ベット】展開まで入るので held に残した（§5.2 に follow-up 登録）。新規 held 22枚はすべて本バッチ対象＝巻き添え0。
+- 🏁**セッション（2026-08-24・続き642・Opus 5）＝`O-54`＝「この○○を**エナゾーンから**〜」＝バニッシュでエナへ行った**自分自身**の配線**（Claude 単独）。gates 全緑（**golden 2669**／census 604 据置／smoke 10693 全0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機2本 PASS＝1巡が §2.2 の⑤まで完了。**
+  - ✅**parser が「この○○をエナゾーンから」という自己参照を一切読んでいなかった15効果を是正**。出口ごとに壊れ方が違う＝**場に出す10**（`filter:{cardType:'シグニ'}` だけ＝**エナのどのシグニでも出せる**）／**場に出して「もよい」1**（`source` ごと落ちた bare `ADD_TO_FIELD`＝**デッキの一番上を出す別物**）／**ライフクロスへ1**（`fromTop:true`＝**デッキの一番上**が乗り自分はエナに残る＝`O-54` 本体）／**手札へ2**（STUB／filter 無し＝**エナのどのカードでも手札へ**）。
+  - 🔑**受け皿は engine に実装済み**（`TargetFilter.thisCardOnly` ＋ 各 exec の `ENERGY_CARD` 分岐）で**parser から合成されていないだけ**だった＝§4.3 の型で **3回連続**（`O-53`／段2 第36／本件）。新型は `AddToLifeAction.fromEnergy` **1本だけ**。
+  - 🔴**登録票の見立て（「現状この1件」）は標本**＝兄弟語彙まで文単位で数え直して **41候補→真の穴15効果**（15倍）。**着手前の実測（§4.1）が無ければ1効果で閉じていた。**
+  - 🎁**同時に過少コスト1件が直った**＝`WXDi-P08-038-E1` の任意コスト「ライフクロス1枚をトラッシュに置いてもよい」が**素の `OPTIONAL_COST`**で**ライフを1枚も払わずに本体だけ通っていた**（受け皿 `lifeTrash` は既存）。
+  - 🔑**`parseStatus:MANUAL` なのに `manualEffects.ts` に実体が無い live 限りの遺物**があった（`syncManualLive` が効かない）＝**`AUTO` へ戻してから `build:effects`→`--adopt`** が正しい経路。副産物で BURST の `isUp` 脱落（過剰実行）も直った。
+  - ⚠**実機のカード選定は `Team` 列だけでなく `Restriction` 列も見る**＝`Team:'-'` の `WD08-018` が「ウムル限定」で CardModal に「発動」が出ず**34反復まるごと空振り**した。
 
-**▶ 次の一手**＝**§5.2 の段2 消化を続ける**。取り方は**第2層（軸 × live の action 型 × type）で5件以上のサブ群**（2026-08-24 実測＝OPEN 714／サブ群327個／5件以上が33個）。⚠**器の型（`SEQUENCE`）に乗った群は信号が弱い**ので、`(未分類)×SEQUENCE×WRONG` 47件のような最大群より、**非 SEQUENCE の action 型に載った群**を取るほうが「1つの parser 箇所」に収束しやすい（本バッチの `filter.状態 × ADD_TO_LIFE × WRONG` 5件が実測25枚の系統バグだった実例）。次点の候補＝`キーワード能力 × GRANT_KEYWORD × MISSING/WRONG`（17件・付与条件の欠落が主）、`filter.story × POWER_MODIFY × MISSING`（7件）、`timing/trigger × DRAW × MISSING`（6件）。⚠**findings は標本**＝サブ群を取ったら必ず生データ（CSV原文 × live JSON）へ戻して母集団を数え直す（本バッチも 5 findings → 実測25枚だった）。**`O-51`（並べ替え対話・279効果）は1バッチの粒度に合わない**ので、取るなら先に段取りを決める。
+**▶ 次の一手**＝**§5.2 の段2 消化に戻る**（取り方は第2層＝軸 × live の action 型 × type で5件以上のサブ群。⚠器の型 `SEQUENCE` に乗った群は信号が弱い）。候補＝`キーワード能力 × GRANT_KEYWORD × MISSING/WRONG`（17件・付与条件の欠落が主）、`filter.story × POWER_MODIFY × MISSING`（7件）、`timing/trigger × DRAW × MISSING`（6件）。⚠**findings は標本**＝サブ群を取ったら必ず生データ（CSV原文 × live JSON）へ戻して母集団を数え直す（本バッチも「1効果」の登録票が実測15効果だった）。🔑**§4.3 の「受け皿はあるのに parser から配線されていない」型が3連続で当たっている**＝新しい群を取るときは、まず**その語彙の受け皿が engine に既にあるか**を先に確かめると新型ゼロで直ることが多い。**`O-51`（並べ替え対話・279効果）は1バッチの粒度に合わない**ので、取るなら先に段取りを決める。
 
 ---
 
@@ -161,6 +162,9 @@
 8k. 🆕⚠**限定（＜ルリグ名＞限定）とリミットを満たさないと「召喚」「使用」ボタンがそもそも出ない**
    （2026-08-24・V-44/V-63）＝`WX19-028`＝緑子限定Lv4／`WX17-003`＝ドーナ限定。**盤面を作る前に
    カードの限定・レベル・リミットを見る**（実測でそれぞれ24・40ティック空振りした）。
+   🆕⚠**限定はシグニの召喚だけでなくスペル／アーツの使用も止める**（2026-08-24・`O-54` で**3度目**）＝`WD08-018`（グレイブ・ペイン）は
+   `Team` 列が `-` なのに `Restriction` が「ウムル限定」で、CardModal に**「発動」ボタンが出ないまま34反復まるごと空振り**した。
+   ⇒ **銀行役（対象を作るためだけに撃つカード）は `Restriction === '-'` で選ぶ**のが安全（本件は `PR-378`《無》×0 へ差し替えて解決）。
    🆕⚠**限定を調べる列は CSV の `Restriction`**（2026-08-24・`O-53` で再び踏んだ）＝`LrigLimit` や `Limitation` という列は**存在しない**ので、
    自作の調べものスクリプトでそれを読むと**静かに `undefined`＝「限定なし」に見える**。実例＝`WXK02-089` はリメンバ限定で、
    タマヨリヒメのルリグで盤面を作ったため**「召喚」が一度も出ず26ティック空振り**した（切り分けの決め手は `scratchpad-verify/<id>-N.png`＝
@@ -224,6 +228,7 @@
 
 - 🔴**`build:effects` の収穫マージは `parseStatus:MANUAL`／`PARTIAL` の効果を不可侵にする**＝`manualEffects.ts` を後から直しても **live には永久に届かない**（新しい id の追加だけは通る）。届けるには **`npx tsx scripts/syncManualLive.ts <CardNum>`**。⚠実行後は必ず `npm run gates`（live を直接書くので、ゲートだけが安全網）。
 - 🔴**parser を直したのに live が変わらないときは、まず3ファイルを見る**＝`docs/_held_fresh.json`／`_partial_fresh.json`／`_idset_fresh.json`。**id 集合が live と fresh でズレたカードは `_idset_fresh` に出る**（実測46カード）。
+- 🆕🔴**`parseStatus:MANUAL` なのに `manualEffects.ts` に実体が無いカードがある**（2026-08-24・`O-54`＝`WXDi-P08-038`）＝過去の外科パッチが刻印だけ残した **live 限りの遺物**。この状態だと **`syncManualLive` は「同期元が無い」ので効かず**、`build:effects` はカード単位 PRESERVE で永久に凍る。**直し方＝`grep <CardNum> src/data/manualEffects.ts` が空なら、live の `parseStatus` を `AUTO` へ戻してから `build:effects`→`heldReview --adopt`**（以後 parser 改善が届くようになる）。⚠戻す前に **fresh が live の全情報を保っているか**を effectId のリーフパス単位で必ず確認する（本件は fresh が上位＝BURST の `isUp` 脱落まで同時に直った）。
 - ⚠**`manualEffects.ts` のトップレベル効果は `MANUAL` か `PARTIAL` のみ**（`AUTO` と書くと `manual-fields` ゲートが exit 1）＝`mergeManualEffects` は `parseStatus` を見ず effectId 一致で常に manual 側を勝たせるので、`AUTO` の手書きコピーは **parser の最新出力を永久に上書きし続ける**。
 - ⚠**`build:effects` は破壊的ではない**（curated は温存され、`heldReview --adopt` で明示採用したものだけが変わる）。正しい規律は「実行禁止」ではなく**「実行後に effectId 単位で全数比較して、意図した件数だけが変わったことを確認する」**（出力は minified 1行なのでテキスト diff は役に立たない）。
 - ⚠**カード単位 PRESERVE で held に載らない効果**（同居効果が MANUAL 等）は `build` では直せない＝`effectId` をアンカーにした**外科パッチ**で JSON を直接訂正する。共有関数にカード固有テーブルを埋めるのは禁止。
@@ -300,7 +305,7 @@
 **■ 未消化 worklist**
 | ID | 項目 | 規模 | ブロッカー／次の一手 |
 |---|---|---|---|
-| **O-54** | 🆕**「このシグニを**エナゾーンから**ライフクロスに加える」の出所が無い** | S | **2026-08-24 段2 第36バッチで分離**＝`WXDi-P08-038-E1`（`parseStatus:MANUAL`）「【自】：このシグニがバニッシュされたとき、あなたのライフクロス１枚をトラッシュに置いてもよい。そうした場合、**このシグニをエナゾーンからライフクロスに加える**。」が live では `ADD_TO_LIFE{fromTop:true}`＝**デッキの一番上**を置いており、バニッシュされて**エナへ行った自分自身**が戻らない。第36バッチで足した出所は `fromTrash`／`fromBottom`／`fromField`／`fromHand` の4本で、**エナゾーン＋「このカード自身」は受け皿ごと無い**（`AddToLifeAction` に `fromEnergy` も `thisCardOnly` も無い）。⚠**MANUAL なので parser を直しても live に届かない**＝実装後は `npx tsx scripts/syncManualLive.ts WXDi-P08-038` まで回す（§4.5）。⚠**着手前に母集団を実測する**＝「エナゾーンから…ライフクロスに加える」は現状この1件だが、「エナゾーンから…場に出す／手札に加える」の兄弟語彙と受け皿を揃えるかを先に決める。 |
+| **O-55** | 🆕**「この○○をエナゾーンから〜」の残り4効果＝行き先が別機構で STUB のまま** | S | **2026-08-24 `O-54` の実測で分離**＝同じ自己参照語彙でも行き先が①**【トラップ】として設置**（`WX16-029-E1`／`WX21-036-E1`＝`STUB{PLACE_TRAP_OPTIONAL}`）②**デッキの一番下**（`WXDi-P02-044-E1`＝`STUB{SOUL_OP}`）③**引用付与の中の手札回収**（`WXDi-P06-054-E2`＝`STUB{GRANT_QUOTED_AUTO_ABILITY}`）の3種は、**行き先そのものの機構が無い**ので `O-54` のスコープ外にした。⚠**`thisCardOnly` の配線だけでは直らない**（STUB を実装しないと動かない）＝着手時はまず各 STUB が engine で何をしているか（真no-op か・別経路で消費されているか）を `npx tsx scripts/censusStubs.ts --id <ID>` で測る。 ⚠**別件で `WXDi-D09-P18-E1`（MANUAL）は付与能力そのものが丸ごと欠落**している（原文の「」内 `【自】：…このシグニをエナゾーンからダウン状態で場に出す」を得る` が live には無く `POWER_MODIFY` だけ）＝こちらは引用付与の生成漏れ。 |
 | **O-52** | 🆕**「めくれるまで公開」形の残り処理が受け皿ごと無い** | M | **2026-08-24 O-50 で分離した2効果**＝`SP27-005-E1`／`WX20-041-CB-E1`。`REVEAL_UNTIL` の `restDestination` に `deck_bottom_shuffled` はあるが、**①`WX20-041-CB-E1` の停止条件「**青ではない**＜遊具＞」に必要な色の除外 filter が `TargetFilter` に無い**、**②`SP27-005-E1` の「手札に加える**か**場に出す」の選択を `REVEAL_UNTIL` の hit destination が保持できない**（hand か field の固定値しか持てない）。⚠**どちらも filter/継続の機構が先**＝先に受け皿を作ってから parser を直す。 |
 | **O-51** | 🆕**「残りを好きな順番でデッキに戻す」の**並べ替え対話**が remainder に無い** | **L**（素の M ではない） | 🔴**2026-08-24 続き640 の実測で登録票を訂正した。** 旧記の「`remainder.position:'any'` は何も起きないどころか誤って上へ置く死フラグ」は**事実ではない**：`location:'deck'` と `position` が top/bottom/split 以外の組は **0件**で、`'any'` の39効果は全部 `trash`(37)／`energy`(2)／`hand`(1) との組であり、engine は `location==='deck'` のときしか `position` を読まない（`effectExecutor.ts:8845`）＝**無害**。 ■**真の母集団（実測）**＝原文に「好きな順番」を含む効果 **377**（カード363枚）。うち **`REVEAL_AND_PICK.remainder{deck,bottom}` 258／`{deck,top}` 21＝真の穴 279**、**既に `LOOK_AND_REORDER{reorder:true}` で正しく表現済み 47**（§5 `3-3⁷` の引き算分―**ここは触らない**）、構造が別 30ほか。 ■**直し方の見立て**＝新型は不要。`remainder` に `reorder?:boolean` を足し、engine 側は **`INTERNAL_SPLIT_REVEALED`（`execStubPart2.ts:2939`）と同じ手口**で既存の `LOOK_AND_REORDER` 対話（`destPosition:'top'|'bottom'`）へ回す。配線先は **3箇所**（`execRevealAndPick`≈`:5925`／`execLookPickChain`≈`:6069`／`resumeSearch`≈`:8835`）。 ⚠🔴**1バッチの粒度に合わない**＝279効果**すべてに対話が1つ増える**（ブラスト半径が大きい）。取るなら**先に段取りを決める**こと。なお CPU は `LOOK_AND_REORDER` を自動応答する（`BattleScreen.tsx:669`＝順を変えない）ので進行不能にはならない。 |
 | **O-49** | 🆕**バニッシュ先変更のアタッカー側ミラーが未実装** | S | **2026-08-24 O-47 の実装時に切り出した follow-up**＝防御側のバニッシュには `banish_redirect`／`banish_redirect_to_hand`／凍結オーバーライド／`BANISH_TO_LRIG_TRASH_INSTEAD`／`BATTLE_LEAVE_REPLACE_WITH_EXILE` 等の**行き先変更が9系統**あるが、**アタッカー自身がバニッシュされる経路（O-47 で新設）は既定の行き先（トップ→エナ／下→トラッシュ）だけ**を実装した。⚠**着手前に「防御側にしか効かない前提で書かれた語彙」がどれかを実測する**（`bySource` 付きなど、そもそもアタッカーには掛からないものが混ざっている）。 |
@@ -424,12 +429,12 @@
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-24 続き641 後（本行が直近の正）**：
-  **census 604/604**、**golden 2668**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0／文型★ 324**、
+- **2026-08-24 続き642 後（本行が直近の正）**：
+  **census 604/604**、**golden 2669**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+  `census:stubs` **A群🔴0／C群0**（live の STUB id 種類 598→**597**）、manual-fields **0**、**同型★ 0**、
   **live カード 5975 / 効果総数 10693**、`_held_fresh` **77**／`_partial_fresh` **15**／`_idset_fresh` **45**、
-  **意味照合 残 OPEN 714**（未 triage 0／段1 真バグ確定 705／HIGH 495）、`census:wiring` **miss 197**（続き547 実測）／`census:timing` フォールバック **2効果**、
-  **実機シナリオ +2**（段2 第36 の2本を追加。`title:` 行の実測で 499→501）、version **0.502**。（⚠`census:goldentypes` は続き552d 以降 未再計測）
+  **意味照合 残 OPEN 714**（前バッチから増減なし＝本バッチは機構 worklist）、
+  **実機シナリオ +2**（`b54EnergySelfReviveOnlySelf` / `b54EnergySelfToLife`）、version **0.502**。（⚠`census:wiring`／`census:timing`／`census:goldentypes` は本バッチ未再計測）
 
 ---
 

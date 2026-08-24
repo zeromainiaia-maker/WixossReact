@@ -2995,6 +2995,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else if (src.type === 'ENERGY_CARD') {
     const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンから場に出す」＝バニッシュでエナへ
+    // 行った自分自身を戻す自己蘇生）。⚠`matchesFilter` は `thisCardOnly` を**黙って無視する**ので
+    // `energyCandidates` の結果には効かない＝ここで絞らないと**エナのどのシグニでも出せる過剰実行**になる。
+    // TRASH_CARD 分岐・`execTransferToHand` の ENERGY_CARD 分岐と同じ規約。
+    if (src.filter?.thisCardOnly) {
+      cands = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    }
     if (a.targetsTriggerSource) {
       cands = ctx.triggeringCardNum && state.energy.includes(ctx.triggeringCardNum) ? [ctx.triggeringCardNum] : [];
     }
@@ -3125,6 +3132,35 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
     const cands = movableTrashCandidates(a.owner ?? 'self', state, a.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (cands.length === 0) return done(addLog(ctx, 'トラッシュがないためライフクロスに加えられない'));
     const scope: TargetScope = a.owner === 'self' ? 'self_trash' : 'opp_trash';
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, !!a.opponentSelects);
+  }
+  if (a.fromEnergy) {
+    // 「このシグニを**エナゾーンから**ライフクロスに加える」（`WXDi-P08-038`＝バニッシュでエナへ行った
+    // 自分自身を戻す）。⚠`fromTop` に落とすと**デッキの一番上**が乗って自分自身はエナに残る＝別物。
+    // thisCardOnly は `matchesFilter` が黙って無視するので、ここで剥がして候補を自分自身に絞る
+    // （`execAddToField`／`execTransferToHand` の ENERGY_CARD 分岐と同じ規約）。
+    let energyFilter = a.filter;
+    let selfOnly = false;
+    if (energyFilter?.thisCardOnly) {
+      const { thisCardOnly: _t, ...rest } = energyFilter;
+      energyFilter = Object.keys(rest).length > 0 ? rest : undefined;
+      selfOnly = true;
+    }
+    let cands = energyCandidates(state, energyFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (selfOnly) cands = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    if (cands.length === 0) return done({ ...addLog(ctx, 'エナゾーンに該当カードがないためライフクロスに加えられない'), lastProcessedCards: [] });
+    // thisCardOnly＝選ぶ余地が無いので選択UIを出さず即適用（`execTransferToHand` の TRASH_CARD 側と同規約）
+    if (selfOnly) {
+      const num = cands[0];
+      const newE: PlayerState = {
+        ...state,
+        energy: state.energy.filter(x => x !== num),
+        life_cloth: [...state.life_cloth, num],
+      };
+      return done(addLog({ ...setOwnerState(a.owner, newE, ctx), lastProcessedCards: [num] },
+        `${ctx.cardMap.get(getCardNum(num))?.CardName ?? num}をエナゾーンからライフクロスに追加`));
+    }
+    const scope: TargetScope = a.owner === 'self' ? 'self_energy' : 'opp_energy';
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx, !!a.opponentSelects);
   }
   if (a.fromHand) {
@@ -10463,6 +10499,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         cur = setOwnerState(atlOwner, { ...lifeS, life_cloth: [...lifeS.life_cloth, cardNum] }, cur);
         return done(addLog({ ...cur, lastProcessedCards: [cardNum] },
           `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場から${atlOwner === 'opponent' ? '対戦相手の' : ''}ライフクロスに追加`));
+      }
+      if (atlA.fromEnergy) {
+        // エナゾーン選択後: エナ→ライフクロス（`fromEnergy`。thisCardOnly 経路は execAddToLife が
+        // 選択UIを出さず即適用するので、ここへ来るのは filter 付きの複数候補ケースだけ）。
+        const ei = atlS.energy.indexOf(cardNum);
+        if (ei < 0) return done(ctx);
+        const newEnergy = [...atlS.energy];
+        newEnergy.splice(ei, 1);
+        const newAtlS: PlayerState = { ...atlS, energy: newEnergy, life_cloth: [...atlS.life_cloth, cardNum] };
+        return done(addLog({ ...setOwnerState(atlOwner, newAtlS, ctx), lastProcessedCards: [cardNum] },
+          `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンからライフクロスに追加`));
       }
       if (atlA.fromTrash && ti >= 0) {
         const newTrash = [...atlS.trash];

@@ -1317,14 +1317,23 @@ export interface AddToLifeAction {
   fromHand?: boolean; // true=手札から1枚選ぶ
   fromTrash?: boolean; // true=トラッシュから選ぶ
   fromBottom?: boolean; // true=デッキの**一番下**から（`WXK03-066`「デッキの一番下のカードをライフクロスに加える」）
+  /**
+   * true=**エナゾーン**から選ぶ（`WXDi-P08-038`「このシグニをエナゾーンからライフクロスに加える」）。
+   * ⚠バニッシュでエナへ行った**自分自身**を戻す文型なので、必ず `filter.thisCardOnly` と対で使う
+   *   （落とすと**エナのどのカードでもライフに置ける過剰実行**になる）。`ADD_TO_FIELD`／`TRANSFER_TO_HAND`
+   *   の `source:{type:'ENERGY_CARD', filter:{thisCardOnly:true}}` と同じ規約。
+   */
+  fromEnergy?: boolean;
   fromField?: boolean; // true=場のシグニを選んで、そのオーナーのライフクロスへ移す
   target?: EffectTarget; // fromField 時の対象。省略時は owner 側のシグニ1体
   targetsStored?: boolean; // fromField 時、STORE_LAST_PROCESSED_TARGETS で固定した対象だけを移す
   opponentSelects?: boolean; // true=対戦相手が選ぶ
   /**
-   * fromTrash のときの候補絞り込み（「【ライフバースト】を持たないカード」「＜龍獣＞のシグニ」等）。
-   * ⚠**落とすとトラッシュのどのカードでもライフに置ける過剰実行**になる（原文は必ず種別を書く）。
+   * fromTrash／fromEnergy のときの候補絞り込み（「【ライフバースト】を持たないカード」「＜龍獣＞のシグニ」
+   * 「このシグニを」等）。
+   * ⚠**落とすとそのゾーンのどのカードでもライフに置ける過剰実行**になる（原文は必ず種別か「この〜」を書く）。
    * `matchesFilter` がそのまま消費する＝`hasLifeBurst` / `story` / `cardType` は既に両評価器に実装済み。
+   * ⚠**`thisCardOnly` だけは `matchesFilter` が黙って無視する**ので `execAddToLife` 側で剥がして候補を絞る。
    */
   filter?: TargetFilter;
 }
