@@ -96,7 +96,8 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 601; // 2026-08-24 `O-55`＝【トラップ】設置の出所／スタック上への引用付与を配線（604→601）。旧履歴は直下。
+const BASELINE_HIGH = 600; // 2026-08-25 段2 第42バッチ＝ON_CARD_MILLED_FROM_DECK を「トラッシュに置かれたとき」の実装語彙へ較正（601→600）。旧履歴は直下。
+// 旧・O-55: const BASELINE_HIGH = 601; // 【トラップ】設置の出所／スタック上への引用付与を配線（604→601）。
 // 旧・段2 第36バッチ: const BASELINE_HIGH = 604; // 「ライフクロスに加える」の出所／持ち主を配線（607→604）。
 // 旧・段2 第35バッチ: const BASELINE_HIGH = 607; // 手札からデッキ下へ戻す5効果を正準TRANSFER_TO_DECKへ是正（608→607）。
 // 旧・段2 第40バッチ: const BASELINE_HIGH = 608; // 持続期間と期間境界を復元し、高シグナル欠落3件を解消（611→608）。
@@ -694,7 +695,7 @@ const PATTERNS: Pattern[] = [
   //   本文は `action` に載る＝timing キーは付かないので、これも対応語彙に入れる。
   { name: 'トリガー:アタックフェイズ開始時', re: /アタックフェイズ開始時/, keys: ['ON_ATTACK_PHASE_START', 'ADD_EXTRA_ATTACK_PHASE', 'DELAY_TO_NEXT_OPP_ATTACK_PHASE'], src: 'eff' },
   { name: 'トリガー:ターン終了時に', re: /ターン終了時[、に]/, keys: ['ON_TURN_END', 'TURN_END', 'turn_end'], src: 'eff' },
-  { name: 'トリガー:トラッシュに置かれたとき', re: /トラッシュに置かれたとき/, keys: ['ON_TRASH', 'ON_CHARM_TO_TRASH', 'ON_ENERGY_TO_TRASH', 'ON_EXCEED_COST'], src: 'eff' },
+  { name: 'トリガー:トラッシュに置かれたとき', re: /トラッシュに置かれたとき/, keys: ['ON_TRASH', 'ON_CARD_MILLED_FROM_DECK', 'ON_CHARM_TO_TRASH', 'ON_ENERGY_TO_TRASH', 'ON_EXCEED_COST'], src: 'eff' },
   { name: 'トリガー:場を離れたとき', re: /場を離れ(たとき|るとき)/, keys: ['ON_LEAVE_FIELD'], src: 'eff' },
   { name: 'トリガー:スペルを使用したとき', re: /スペルを使用した(とき|場合)/, keys: ['ON_SPELL_USE', 'SPELL'], src: 'eff' },
   { name: 'トリガー:アーツを使用したとき', re: /アーツを使用した(とき|場合)/, keys: ['ARTS_USE', 'ARTS_USED'], src: 'eff' },

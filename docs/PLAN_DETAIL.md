@@ -2,6 +2,13 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-25 続き647 後**：
+  **census 601/601**、**golden 2709**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
+  **live カード 5975 / 効果総数 10693**、`_held_fresh` **75**／`_partial_fresh` **15**／`_idset_fresh` **45**、
+  **意味照合 残 OPEN 708**（段2消化 402・本バッチで 713→708 の −5）、
+  **実機シナリオ +2**（`b41GrantKeywordExpiresAtTurnEnd` / `b41GrantKeywordTargetsOwnSigniOnly`）、version **0.502**。（⚠`census:wiring`／`census:timing`／`census:goldentypes` は本バッチ未再計測）
+
 - **2026-08-24 続き643 後**：
   **census 601/601**、**golden 2672**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
   `census:stubs` **A群🔴0／C群0**（live の STUB id 種類 **597**）、manual-fields **0**、**同型★ 0**、

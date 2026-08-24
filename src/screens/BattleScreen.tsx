@@ -1856,6 +1856,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const w of grantedStoreWatchers(st, 'ON_ENERGY_CHARGE', ['self', 'any_ally', 'any'])) {
           const eff = w.effect;
           if (eff.triggerCondition?.movedSelf) continue;
+          if (eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect) continue;
           if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
           if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
               && !evalUseCondition(eff.condition, st, op, battleCardMap, ecLrigTop, bs.turn_phase, curPowers)) continue;
@@ -1872,6 +1873,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.effectType !== 'AUTO') continue;
           if (eff.timing?.includes('ON_ENERGY_CHARGE') && addedToEnergy.length === 1) {
             if (eff.triggerCondition?.movedSelf) continue;
+            if (eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect) continue;
             // 「あなたのターンの間」= IS_MY_TURN（evalでは常にtrueのため、ここで自ターン判定）
             if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
             if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
@@ -2583,10 +2585,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState, causeOwnerId, leftBeforeState, leftZoneIdx);
 
   // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, causeSourceCardNum?: string): StackEntry[] =>
-    pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, causeSourceCardNum);
-  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand', causeSourceCardNum?: string, byEffectCause = true): StackEntry[] =>
-    pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin, causeSourceCardNum, byEffectCause);
+  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, causeSourceCardNum?: string, byEffectCause = true): StackEntry[] =>
+    pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, causeSourceCardNum, byEffectCause);
+  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand', causeSourceCardNum?: string, byEffectCause = true, ownerState?: PlayerState, otherState?: PlayerState): StackEntry[] =>
+    pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin, causeSourceCardNum, byEffectCause, ownerState, otherState);
   const collectTrashTriggers = (
     trashedCardNum: string,
     trashedPlayerId: string,
@@ -2881,8 +2883,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     milledFromOppDeck: number,
     milledControllerCards?: string[],
     milledOppCards?: string[],
+    causeOwnerId?: string,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMillTriggers(mkTrigCtx(), controllerId, controllerState, otherState, milledFromControllerDeck, milledFromOppDeck, milledControllerCards, milledOppCards);
+    pureCollectMillTriggers(mkTrigCtx(), controllerId, controllerState, otherState, milledFromControllerDeck, milledFromOppDeck, milledControllerCards, milledOppCards, causeOwnerId);
 
   // ON_CHARM_TO_TRASH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectCharmToTrashTriggers = (
@@ -2945,8 +2948,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     fromOppEnergy: number,
     fromControllerEnergyAny?: number,
     fromOppEnergyAny?: number,
+    causeOwnerId?: string,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectEnergyToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, fromControllerEnergy, fromOppEnergy, fromControllerEnergyAny, fromOppEnergyAny);
+    pureCollectEnergyToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, fromControllerEnergy, fromOppEnergy, fromControllerEnergyAny, fromOppEnergyAny, causeOwnerId);
 
   // ON_SIGNI_CRASHED_LIFE_TOTAL トリガー収集（「このシグニが1ターンに合計N枚以上クラッシュしたとき」）。
   const collectSigniCrashTotalTriggers = (
@@ -2975,8 +2979,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     otherState: PlayerState,
     decreaseOnOpp: number,
     decreaseSources: string[] = [],
+    causeOwnerId?: string,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectPowerDecreaseTriggers(mkTrigCtx(), controllerId, controllerState, otherState, decreaseOnOpp, decreaseSources);
+    pureCollectPowerDecreaseTriggers(mkTrigCtx(), controllerId, controllerState, otherState, decreaseOnOpp, decreaseSources, causeOwnerId);
 
   // ON_CARD_MOVED_TO_DECK トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectMoveToDeckTriggers = (
@@ -2986,8 +2991,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     movedToControllerDeck: number,
     movedToControllerDeckFromTrash: number,
     movedToOppDeck: number,
+    causeOwnerId?: string,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMoveToDeckTriggers(mkTrigCtx(), controllerId, controllerState, otherState, movedToControllerDeck, movedToControllerDeckFromTrash, movedToOppDeck);
+    pureCollectMoveToDeckTriggers(mkTrigCtx(), controllerId, controllerState, otherState, movedToControllerDeck, movedToControllerDeckFromTrash, movedToOppDeck, causeOwnerId);
 
   // ON_SIGNI_FROZEN トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectFreezeTriggers = (
@@ -3162,30 +3168,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
     for (const cardNum of detectDeckTrashed(beforeHost, h)) {
-      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, causeSourceCardNum));
+      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, causeSourceCardNum, !!causeOwnerId));
     }
     for (const cardNum of detectDeckTrashed(beforeGuest, g)) {
-      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, causeSourceCardNum));
+      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, causeSourceCardNum, !!causeOwnerId));
     }
     // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（self・fromZones 指定）。
     // causeSourceCardNum＝原因効果の発生源カード（「あなたの＜X＞のシグニの効果によって捨てられたとき」の判定用）。
     for (const cardNum of detectHandTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand', causeSourceCardNum));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand', causeSourceCardNum, !!causeOwnerId, h, g));
     }
     for (const cardNum of detectHandTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand', causeSourceCardNum));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand', causeSourceCardNum, !!causeOwnerId, g, h));
     }
     for (const cardNum of detectEnergyTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'energy'));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'energy', causeSourceCardNum, !!causeOwnerId, h, g));
     }
     for (const cardNum of detectEnergyTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'energy'));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'energy', causeSourceCardNum, !!causeOwnerId, g, h));
     }
     for (const cardNum of detectUnderSigniTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'under_signi', causeSourceCardNum));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'under_signi', causeSourceCardNum, !!causeOwnerId, h, g));
     }
     for (const cardNum of detectUnderSigniTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'under_signi', causeSourceCardNum));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'under_signi', causeSourceCardNum, !!causeOwnerId, g, h));
     }
 
     // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）。causeOwnerId＝この効果のオーナー
@@ -3227,9 +3233,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const milledHostCards = detectMilledFromDeck(beforeHost, h);
     const milledGuestCards = detectMilledFromDeck(beforeGuest, g);
     if (milledHost > 0 || milledGuest > 0) {
-      const mtH = collectMillTriggers(bs.host_id, h, g, milledHost, milledGuest, milledHostCards, milledGuestCards);
+      const mtH = collectMillTriggers(bs.host_id, h, g, milledHost, milledGuest, milledHostCards, milledGuestCards, causeOwnerId);
       entries.push(...mtH.entries); useHost(mtH.usedOncePerTurnIds);
-      const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost, milledGuestCards, milledHostCards);
+      const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost, milledGuestCards, milledHostCards, causeOwnerId);
       entries.push(...mtG.entries); useGuest(mtG.usedOncePerTurnIds);
     }
 
@@ -3303,9 +3309,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const energyLeftHost   = countEnergyLeftZone(beforeHost, h);
     const energyLeftGuest  = countEnergyLeftZone(beforeGuest, g);
     if (energyTrashHost > 0 || energyTrashGuest > 0 || energyLeftHost > 0 || energyLeftGuest > 0) {
-      const etH = collectEnergyToTrashTriggers(bs.host_id, h, g, energyTrashHost, energyTrashGuest, energyLeftHost, energyLeftGuest);
+      const etH = collectEnergyToTrashTriggers(bs.host_id, h, g, energyTrashHost, energyTrashGuest, energyLeftHost, energyLeftGuest, causeOwnerId);
       entries.push(...etH.entries); useHost(etH.usedOncePerTurnIds);
-      const etG = collectEnergyToTrashTriggers(bs.guest_id, g, h, energyTrashGuest, energyTrashHost, energyLeftGuest, energyLeftHost);
+      const etG = collectEnergyToTrashTriggers(bs.guest_id, g, h, energyTrashGuest, energyTrashHost, energyLeftGuest, energyLeftHost, causeOwnerId);
       entries.push(...etG.entries); useGuest(etG.usedOncePerTurnIds);
     }
 
@@ -3365,9 +3371,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 空配列＝発生源不明＝コレクタ側で従来どおり発火（過剰側に倒す）。
       const decSrcOnHost  = detectPowerDecreaseSources(beforeHost, h);
       const decSrcOnGuest = detectPowerDecreaseSources(beforeGuest, g);
-      const dpH = collectPowerDecreaseTriggers(bs.host_id, h, g, decOnGuest, decSrcOnGuest);
+      const dpH = collectPowerDecreaseTriggers(bs.host_id, h, g, decOnGuest, decSrcOnGuest, causeOwnerId);
       entries.push(...dpH.entries); useHost(dpH.usedOncePerTurnIds);
-      const dpG = collectPowerDecreaseTriggers(bs.guest_id, g, h, decOnHost, decSrcOnHost);
+      const dpG = collectPowerDecreaseTriggers(bs.guest_id, g, h, decOnHost, decSrcOnHost, causeOwnerId);
       entries.push(...dpG.entries); useGuest(dpG.usedOncePerTurnIds);
     }
 
@@ -3377,9 +3383,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const movedHostFromTrash = countMovedToDeck(beforeHost, h, true);
     const movedGuestFromTrash = countMovedToDeck(beforeGuest, g, true);
     if (movedHost > 0 || movedGuest > 0) {
-      const mvH = collectMoveToDeckTriggers(bs.host_id, h, g, movedHost, movedHostFromTrash, movedGuest);
+      const mvH = collectMoveToDeckTriggers(bs.host_id, h, g, movedHost, movedHostFromTrash, movedGuest, causeOwnerId);
       entries.push(...mvH.entries); useHost(mvH.usedOncePerTurnIds);
-      const mvG = collectMoveToDeckTriggers(bs.guest_id, g, h, movedGuest, movedGuestFromTrash, movedHost);
+      const mvG = collectMoveToDeckTriggers(bs.guest_id, g, h, movedGuest, movedGuestFromTrash, movedHost, causeOwnerId);
       entries.push(...mvG.entries); useGuest(mvG.usedOncePerTurnIds);
       // OPP_CARDS_MOVED_TO_DECK_THIS_TURN: 「対戦相手のカードがあなたの効果によってデッキに移動」の累計（WXK06-071）。
       // 効果オーナー（causeOwnerId）＝アクティブプレイヤーの counter に、相手のカードが移動した枚数を積む。
@@ -3389,6 +3395,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else if (causeOwnerId === bs.guest_id && movedHost > 0) {
         g = { ...g, opp_cards_moved_to_deck_this_turn: (g.opp_cards_moved_to_deck_this_turn ?? 0) + movedHost };
       }
+    }
+
+    // ON_ZONE_MOVED の原因主体限定付き watcher は、この解決の causeOwnerId が残っている中央 diff で収集する。
+    // 後段の zone_moved_just watcher は原因限定なしだけを処理してフラグをクリアする。
+    for (const movedNum of (h.zone_moved_just ?? []).filter(n => !(beforeHost.zone_moved_just ?? []).includes(n))) {
+      const zm = pureCollectZoneMovedTriggers(mkTrigCtx(), movedNum, h, g, bs.host_id, bs.guest_id, causeOwnerId, true);
+      entries.push(...zm.entries);
+      if (zm.moverUsedIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...zm.moverUsedIds] };
+      if (zm.otherUsedIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...zm.otherUsedIds] };
+    }
+    for (const movedNum of (g.zone_moved_just ?? []).filter(n => !(beforeGuest.zone_moved_just ?? []).includes(n))) {
+      const zm = pureCollectZoneMovedTriggers(mkTrigCtx(), movedNum, g, h, bs.guest_id, bs.host_id, causeOwnerId, true);
+      entries.push(...zm.entries);
+      if (zm.moverUsedIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...zm.moverUsedIds] };
+      if (zm.otherUsedIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...zm.otherUsedIds] };
     }
 
     // ON_HAND_ADDED: 効果によってカードが手札に移動した場合（続き207・WX25-P2-063/WXDi-P11-007/WX14-029/WD12-009）

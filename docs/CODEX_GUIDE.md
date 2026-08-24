@@ -307,6 +307,25 @@ git show <baseline>:docs/_held_review.txt > $TEMP/h.txt
 **計器で裏を取る**：held の該当バケットが狙いどおり減っているか。
 例＝続き210 で `+CONDITIONAL +IS_MY_TURN` バケットが **17→4**。これが動かないなら直っていない。
 
+### ⚠️ 実機シナリオの反転確認は「戻したあと `SKIP_BUILD=0`」まで込みで1手順
+
+Codex 製シナリオは**4バッチ連続で初回 FAIL**しているので、実機は必ず自分で走らせ、さらに
+**「修正を外すと赤くなるか」の反転確認**まで取る（これをやらないと判別力ゼロの assert を緑と誤読する）。
+
+```bash
+# ① 反転：live JSON から今回のフラグだけを外す（tmp_*.mjs でバックアップを取ってから）
+# ② 赤くなることを確認
+node scripts/verifyBattleDrive.mjs <シナリオID>
+# ③ 戻す
+# ④ 🔴必ず SKIP_BUILD=0 を付けて再実行する
+SKIP_BUILD=0 node scripts/verifyBattleDrive.mjs <シナリオID>
+```
+
+🔴**④を省くと「戻したのに赤いまま」になる**（2026-08-25 続き648 で実測＝2回連続で偽の赤）。
+理由＝`verifyBattleDrive.mjs` は **`vite preview`＝ビルド済み `dist` 配信**で、`public/` の変更は
+`distIsFresh()` の **mtime 比較**でしか検出されず、**復元の書き戻しを取りこぼすことがある**。
+⚠**これを知らないと「Codex の修正が効いていない」という誤った差し戻し報告になる。**
+
 ---
 
 ## 8. Codex の傾向（投げる前に思い出すこと）

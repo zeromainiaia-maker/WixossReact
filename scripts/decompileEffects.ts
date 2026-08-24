@@ -3540,6 +3540,12 @@ function effJa(e: Eff): string {
       const cause = tc.byLrigOrSigniEffect ? 'ルリグかシグニの効果によって' : '';
       s = `${phase}このカードが${cause}${zones}からエナゾーンに置かれたとき`;
     }
+    if (t === 'ON_ENERGY_CHARGE' && !e.triggerCondition?.movedSelf
+        && (e.triggerCondition?.byOwnEffect || e.triggerCondition?.byOpponentEffect || e.triggerCondition?.byEffect)) {
+      const cause = e.triggerCondition.byOwnEffect ? 'あなたの効果によって'
+        : e.triggerCondition.byOpponentEffect ? '対戦相手の効果によって' : '効果によって';
+      s = `${cause}カード１枚があなたのエナゾーンに置かれたとき`;
+    }
     // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・fromZones:['hand']＋原因限定）。
     // ⚠byOwnEffect は「場から」トラッシュ（fromZones:['field']・WX18-081 等6枚）でも使うため、
     //   field 起点は自己discard扱いにせず下の「あなたの効果によって場から」ブロックへ渡す。
@@ -3609,6 +3615,21 @@ function effJa(e: Eff): string {
       s = s.includes('場からトラッシュに置かれたとき')
         ? s.replace('場からトラッシュに置かれたとき', 'あなたの効果によって場からトラッシュに置かれたとき')
         : s.replace('トラッシュに置かれたとき', 'あなたの効果によって場からトラッシュに置かれたとき');
+    }
+    // 原因主体＋移動元＋watcher scope を1文に戻す（個別の置換を重ねると「場から」を幻覚するため最後に組み直す）。
+    if (t === 'ON_TRASH' && !e.triggerCondition?.trashSourceStory
+        && (e.triggerCondition?.byOwnEffect || e.triggerCondition?.byOpponentEffect)) {
+      const tc = e.triggerCondition;
+      const cause = tc.byOwnEffect ? 'あなたの効果によって' : '対戦相手の効果によって';
+      const scope = e.triggerScope ?? 'self';
+      const subject = scope === 'any_ally'
+        ? `あなたの${e.triggerFilter?.story ? `＜${e.triggerFilter.story}＞の` : ''}シグニ１枚が`
+        : 'このカードが';
+      const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', energy: 'エナゾーン', field: '場', under_signi: 'シグニの下' };
+      const origin = tc.fromAnyZone ? 'いずれかの領域から'
+        : tc.fromZones?.length ? `${tc.fromZones.map((z: string) => zoneJa[z] ?? z).join('か')}から` : '';
+      const phase = tc.duringMainPhase ? 'あなたのメインフェイズの間、' : '';
+      s = `${phase}${subject}${cause}${origin}トラッシュに置かれたとき`;
     }
     // ON_TRASH の「コストか効果によって場から」限定を反映（バトル・ルール処理では発火しない。G204）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrEffect) {
@@ -3738,8 +3759,12 @@ function effJa(e: Eff): string {
       const who = mo === 'self' ? 'あなたの' : mo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
       const source = e.triggerCondition?.milledSourceStory
         ? `あなたの＜${e.triggerCondition.milledSourceStory}＞のシグニの効果によって`
-        : '';
-      s = `${source}${who}デッキからカードが${mc}枚以上トラッシュに置かれたとき`;
+        : e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
+        : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
+        : e.triggerCondition?.byEffect ? '効果によって' : '';
+      const milled = e.triggerCondition?.milledCardFilter;
+      const noun = milled?.cardClass ? `＜${milled.cardClass}＞のシグニ` : milled?.cardType === 'シグニ' ? 'シグニ' : 'カード';
+      s = `${source}${who}デッキから${noun}が${mc}枚以上トラッシュに置かれたとき`;
     }
     if (t === 'ON_REVEALED_FROM_HAND' && e.triggerCondition?.revealSourceStory) {
       s = `このカードがあなたの＜${e.triggerCondition.revealSourceStory}＞のシグニの効果によって手札から公開されたとき`;
@@ -3749,10 +3774,13 @@ function effJa(e: Eff): string {
       const vo = e.triggerCondition?.movedToDeckOwner ?? 'any';
       const vc = e.triggerCondition?.movedToDeckMinCount ?? 1;
       const fromTrash = e.triggerCondition?.movedToDeckFromTrash ?? false;
-      if (vo === 'self' && fromTrash) s = `あなたのトラッシュからカードが${vc}枚以上デッキに移動したとき`;
-      else if (vo === 'opponent') s = `対戦相手のカードが${vc}枚以上デッキに移動したとき`;
-      else if (vo === 'self') s = `あなたのカードが${vc}枚以上デッキに移動したとき`;
-      else s = `いずれかのプレイヤーのカードが${vc}枚以上デッキに移動したとき`;
+      const cause = e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
+        : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
+        : e.triggerCondition?.byEffect ? '効果によって' : '';
+      if (vo === 'self' && fromTrash) s = `あなたのトラッシュからカードが${cause}${vc}枚以上デッキに移動したとき`;
+      else if (vo === 'opponent') s = `対戦相手のカードが${cause}${vc}枚以上デッキに移動したとき`;
+      else if (vo === 'self') s = `あなたのカードが${cause}${vc}枚以上デッキに移動したとき`;
+      else s = `いずれかのプレイヤーのカードが${cause}${vc}枚以上デッキに移動したとき`;
     }
     // ON_HAND_ADDED（続き207）: handOwner/fromZones/movedSelf/excludeGrowPhase を描画。
     // ON_ENERGY_TO_FIELD 併記（WXDi-P11-007）＝「手札に加わるか場に出たとき」に1文でまとめ、場側は空にする。
@@ -3782,7 +3810,10 @@ function effJa(e: Eff): string {
     }
     // ON_OPP_POWER_DECREASED（毒牙・相手パワー減少時）（WX13-036/WXEX2-52）
     if (t === 'ON_OPP_POWER_DECREASED') {
-      s = 'あなたの効果によって対戦相手のシグニのパワーが減ったとき';
+      const cause = e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
+        : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
+        : e.triggerCondition?.byEffect ? '効果によって' : '';
+      s = `${cause}対戦相手のシグニのパワーが減ったとき`;
     }
     // ON_REFRESH（リフレッシュ時）の refreshedOwner を主語に反映（WXDi-P04-043）
     if (t === 'ON_REFRESH') {
@@ -3795,9 +3826,22 @@ function effJa(e: Eff): string {
       const eo = e.triggerCondition?.energyTrashedOwner ?? 'any';
       const who = eo === 'self' ? 'あなたの' : eo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
       // energyLeftToAnyZone＝行き先を問わない変種（「他の領域に移動したとき」。WXDi-P06-038-E1）
+      const cause = e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
+        : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
+        : e.triggerCondition?.byEffect ? '効果によって' : '';
       s = e.triggerCondition?.energyLeftToAnyZone
         ? `${who}エナゾーンから効果によってカード１枚が他の領域に移動したとき`
-        : `あなたの効果によって${who}エナゾーンからカードが１枚トラッシュに置かれたとき`;
+        : `${cause}${who}エナゾーンからカードが１枚トラッシュに置かれたとき`;
+    }
+    if (t === 'ON_ZONE_MOVED') {
+      const scope = e.triggerScope ?? 'self';
+      const subject = scope === 'self' ? 'このシグニ'
+        : scope === 'any_ally' ? 'あなたの場にあるシグニ１体'
+        : scope === 'any_opp' ? '対戦相手の場にあるシグニ１体' : '場にあるシグニ１体';
+      const cause = e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
+        : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
+        : e.triggerCondition?.byEffect ? '効果によって' : '';
+      s = `${subject}が${cause}他のシグニゾーンに移動したとき`;
     }
     // ON_SIGNI_CRASHED_LIFE_TOTAL の閾値（合計N枚以上）を反映
     if (t === 'ON_SIGNI_CRASHED_LIFE_TOTAL') {

@@ -10665,7 +10665,7 @@ test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: armor 無しカードは非発火', () => {
 const has = (e: { effectId: string }[], id: string) => e.some(x => x.effectId === id);
 test('Stage2 ON_TRASH: 場からトラッシュで self トリガー発火（WXDi-P09-043-E2）', () => {
   const host = mkState({}); const guest = mkState({});
-  const e = collectTrashTriggers(trigCtx(HOST), 'WXDi-P09-043', HOST, host, guest).entries;
+  const e = collectTrashTriggers(trigCtx(HOST), 'WXDi-P09-043', HOST, host, guest, true).entries;
   eq(has(e, 'WXDi-P09-043-E2'), true, 'self発火');
 });
 test('Stage2 ON_TRASH: any_opp + IS_MY_TURN ゲート（WX04-037-E2）', () => {
@@ -11556,8 +11556,8 @@ test('J-2 ON_CARD_ATTACHED: 「このシグニにカード1枚が付いたとき
 });
 test('Stage2 ON_ENERGY_TO_TRASH: energyTrashedOwner=opponent は相手エナ消費でのみ発火（WD15-015-E1）', () => {
   const host = mkState({ signi: ['WD15-015', null, null] }); const guest = mkState({});
-  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'WD15-015-E1'), true, '相手エナで発火');
-  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WD15-015-E1'), false, '自エナは非発火');
+  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1, undefined, undefined, HOST).entries, 'WD15-015-E1'), true, '自分効果で相手エナなら発火');
+  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0, undefined, undefined, HOST).entries, 'WD15-015-E1'), false, '自エナは非発火');
 });
 test('Cluster D ON_ENERGY_TO_TRASH: ルリグ付与能力の内側 timing を収集（SPDi43-12-sub-E1）', () => {
   const parsed = parseCardEffects(cardMap.get('SPDi43-12')!);
@@ -11586,7 +11586,7 @@ test('B3 遅延トリガー ON_REFRESH: 相手リフレッシュで発火・自�
 });
 test('Stage2 ON_OPP_POWER_DECREASED: decreaseOnOpp>0 で発火＋delta動的注入（WX13-036-E1）', () => {
   const host = mkState({ signi: ['WX13-036', null, null] }); const guest = mkState({});
-  const e = collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000);
+  const e = collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000, [], HOST);
   const entry = e.entries.find(x => x.effectId === 'WX13-036-E1');
   eq(!!entry, true, '発火');
   eq((entry?.effect.action as { delta?: number }).delta, 3000, 'delta=減少量');
@@ -11604,18 +11604,14 @@ test('Stage2 ON_OPP_POWER_DECREASED: 複数同時減少の合算値がそのま�
   const before = mkState({}); before.temp_power_mods = [];
   const after = mkState({}); after.temp_power_mods = [{ delta: -2000 }, { delta: -3000 }] as never;
   const summed = detectPowerDecrease(before, after);
-  const entry = collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, summed).entries.find(x => x.effectId === 'WX13-036-E1');
+  const entry = collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, summed, [], HOST).entries.find(x => x.effectId === 'WX13-036-E1');
   eq((entry?.effect.action as { delta?: number }).delta, 5000, '2体同時減少の合算値5000がそのままdeltaに反映される');
 });
-test('Stage2 ON_OPP_POWER_DECREASED: 既知の近似＝「誰の効果で減ったか」は追跡しないため相手の自己弱体でも発火する（WX13-036-E1・PLAN §7 R46③・未修正のまま記録）', () => {
-  // collectPowerDecreaseTriggers の decreaseOnOpp は「相手側の総パワー減少量」のみを見て、
-  // それが watcher 側の効果によるものか相手自身の効果（自己弱体）によるものかを区別しない設計（BattleScreen.tsx:2670-2678）。
-  // 原文は「対戦相手のシグニのパワーを減少させたとき」＝あなたの効果で減らした場合のみのはずだが、
-  // 相手が相手自身の効果で自分のシグニを弱体化しても同じ decreaseOnOpp>0 として渡され発火してしまう。
-  // このテストは既知の近似（未修正）の現状挙動を固定するもの＝修正時（発生源追跡の実装）にはこのテストの期待値を更新すること。
+test('Stage2 ON_OPP_POWER_DECREASED: causeOwnerId で自分効果と相手自己弱体を分離（WX13-036-E1）', () => {
   const host = mkState({ signi: ['WX13-036', null, null] }); const guest = mkState({});
-  const firedRegardlessOfCause = has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 4000).entries, 'WX13-036-E1');
-  eq(firedRegardlessOfCause, true, '⚠既知の近似＝相手の自己弱体でも区別なく発火する（Opusタスク12/§6.3の発生源追跡機構待ち）');
+  eq(has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 4000, [], HOST).entries, 'WX13-036-E1'), true, '自分効果なら発火');
+  eq(has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 4000, [], GUEST).entries, 'WX13-036-E1'), false, '相手自己弱体では非発火');
+  eq(has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 4000).entries, 'WX13-036-E1'), false, '原因不明は非発火');
 });
 test('Stage2 ON_CARD_MOVED_TO_DECK: movedToDeckFromTrash はトラッシュ起源のみ計上（WX09-020-E1）', () => {
   const host = mkState({ signi: ['WX09-020', null, null] }); const guest = mkState({});
@@ -22688,7 +22684,7 @@ test('task16 group A: ON_CARD_MILLED_FROM_DECK の移動カード filter を両�
     const host = mkState({ signi: [source, null, null] });
     const ctx = { ...trigCtx(HOST), effectsMap: localEffects };
     const fires = (milled: string) =>
-      collectMillTriggers(ctx, HOST, host, mkState({}), 1, 0, [`${milled}#9`], []).entries.some(e => e.effectId === effectId);
+      collectMillTriggers(ctx, HOST, host, mkState({}), 1, 0, [`${milled}#9`], [], HOST).entries.some(e => e.effectId === effectId);
     eq(fires(yes), true, `${effectId}: filter 一致で発火`);
     eq(fires(no), false, `${effectId}: filter 不一致で非発火`);
   }
@@ -22728,7 +22724,7 @@ test('task16 group B: 共通 minCount は N-1 非発火・N 発火', () => {
   const energyHost = mkState({ signi: [energySource, null, null] });
   const energyCtx = { ...trigCtx(HOST), effectsMap: energyEffects };
   const energyFires = (n: number) =>
-    collectEnergyToTrashTriggers(energyCtx, HOST, energyHost, mkState({}), 0, n).entries.some(e => e.effectId === 'TEST-ENERGY-MIN-3');
+    collectEnergyToTrashTriggers(energyCtx, HOST, energyHost, mkState({}), 0, n, undefined, undefined, HOST).entries.some(e => e.effectId === 'TEST-ENERGY-MIN-3');
   eq(energyFires(2), false, 'ON_ENERGY_TO_TRASH: 2枚では非発火');
   eq(energyFires(3), true, 'ON_ENERGY_TO_TRASH: 3枚で発火');
 
@@ -23209,13 +23205,15 @@ test('task16 wave3: movedSelf 3効果の成立/不成立と既存8効果の非�
   eq(collect('WXDi-P12-079', 'hand', 'MAIN', HOST, SIGNI).some(e => e.effectId === 'WXDi-P12-079-E2'), false, 'アト移動元不成立');
   eq(effectsMap.get('WXDi-P12-079')!.find(e => e.effectId === 'WXDi-P12-079-E2')!.mandatory, false, 'アト任意AUTO');
   const existingIds = ['WX03-032-E1', 'WX25-CP1-046-E1', 'WXDi-P11-073-E1', 'WXDi-CP02-085-E1',
-    'WXK04-028-E2', 'WXK04-037-E2', 'WXK10-047-E2', 'WXK11-039-E2'];
+    'WXK04-028-E2', 'WXK04-037-E2', 'WXK11-039-E2'];
   for (const id of existingIds) {
     const [cardNum, es] = [...effectsMap.entries()].find(([, xs]) => xs.some(e => e.effectId === id))!;
     eq(es.find(e => e.effectId === id)!.triggerCondition?.movedSelf, undefined, `${id}: movedSelfなし`);
     eq(collect(cardNum, 'deck', 'MAIN', HOST, SIGNI).some(e => e.effectId === id), false, `${id}: 新経路0件`);
   }
-  eq(effectsMap.get('WXK10-047')!.find(e => e.effectId === 'WXK10-047-E2')!.triggerCondition?.byOwnEffect, undefined, '群B defer固定');
+  const wxk10047 = effectsMap.get('WXK10-047')!.find(e => e.effectId === 'WXK10-047-E2')!;
+  eq(wxk10047.triggerCondition?.movedSelf, undefined, 'WXK10-047-E2: 移動カード自身へ誤分類しない');
+  eq(wxk10047.triggerCondition?.byOwnEffect, true, 'WXK10-047-E2: 原因主体限定を採用');
   cursor = savedCursor;
 });
 
@@ -46156,6 +46154,151 @@ test('段2 第41バッチ 対照: 所有者を限定しない対象はanyのま�
   const grant = batch41Grants(batch41FreshEffect('WXDi-P12-009-E1').action)[0];
   ok(!!grant, 'S lancer grant');
   eq(grant.target.owner, 'any', '条件節の「あなた」を対象ownerへ漏らさない');
+});
+
+// ── 段2 第42バッチ: 【自】トリガー句「（あなた／対戦相手）の効果によって」 ──
+const batch42Cause = (effectId: string) => {
+  for (const effects of effectsMap.values()) {
+    const effect = effects.find(e => e.effectId === effectId);
+    if (effect) return effect;
+  }
+  throw new Error(`${effectId}: live effect missing`);
+};
+
+for (const effectId of [
+  'WX25-P2-061-E2', 'WXDi-D05-013-E1', 'WXK10-047-E2',
+  'WD15-013-E1', 'WD15-015-E1', 'WX05-021-E2',
+  'WX11-002-E1', 'WXDi-P00-059-E1', 'WXDi-P00-063-E2', 'WXEX1-55-E1',
+  'WX13-036-E1', 'WXEX2-52-E1', 'WX24-P4-088-E1', 'WXK10-052-E1', 'WXK06-042-E1',
+] as const) {
+  test(`段2 第42バッチ live cause: ${effectId} はあなたの効果限定`, () => {
+    eq(batch42Cause(effectId).triggerCondition?.byOwnEffect, true, effectId);
+  });
+}
+
+for (const effectId of [
+  'SP27-014-E2', 'WX13-051-E2', 'WX18-059-E1', 'WXDi-P07-076-E3', 'WXDi-P09-043-E2',
+] as const) {
+  test(`段2 第42バッチ live cause: ${effectId} は対戦相手の効果限定`, () => {
+    eq(batch42Cause(effectId).triggerCondition?.byOpponentEffect, true, effectId);
+  });
+}
+
+test('段2 第42バッチ live 補助軸: 移動元・フェイズ・watcher scopeを保持', () => {
+  eq(batch42Cause('SP27-014-E2').triggerCondition?.fromAnyZone, true, 'SP27-014-E2 fromAnyZone');
+  eq(JSON.stringify(batch42Cause('WXDi-P07-076-E3').triggerCondition?.fromZones), JSON.stringify(['deck', 'hand']), 'WXDi-P07-076-E3 deck+hand');
+  eq(batch42Cause('WX25-P2-061-E2').triggerCondition?.duringMainPhase, true, 'WX25-P2-061-E2 main phase');
+  const ally = batch42Cause('WX18-059-E1');
+  eq(ally.triggerScope, 'any_ally', 'WX18-059-E1 any_ally');
+  eq(ally.triggerFilter?.story, '怪異', 'WX18-059-E1 怪異 filter');
+  eq(batch42Cause('WXK10-047-E2').triggerCondition?.movedSelf, undefined, 'WXK10-047-E2 is a field watcher');
+  const globalMill = batch42Cause('WXDi-D05-013-E1');
+  eq(globalMill.timing?.[0], 'ON_CARD_MILLED_FROM_DECK', 'WXDi-D05-013-E1 is a field watcher, not the milled card');
+  eq(globalMill.triggerCondition?.milledDeckOwner, 'any', 'WXDi-D05-013-E1 watches either deck');
+  eq(globalMill.triggerCondition?.milledMinCount, 1, 'WXDi-D05-013-E1 minimum one card');
+});
+
+test('段2 第42バッチ E2E-A: ON_TRASH は原因主体の成立／不成立／非効果を分離', () => {
+  const ctx = trigCtx(HOST);
+  const oppEffect = collectAnyZoneTrashSelfTriggers(ctx, 'WX13-051', HOST, true, 'hand', undefined, true);
+  const ownEffect = collectAnyZoneTrashSelfTriggers(ctx, 'WX13-051', HOST, false, 'hand', undefined, true);
+  const ruleOrCost = collectAnyZoneTrashSelfTriggers(ctx, 'WX13-051', HOST, false, 'hand', undefined, false);
+  eq(has(oppEffect, 'WX13-051-E2'), true, '対戦相手効果なら発火');
+  eq(has(ownEffect, 'WX13-051-E2'), false, '自分効果なら非発火');
+  eq(has(ruleOrCost, 'WX13-051-E2'), false, 'コスト・バトル・ルール処理なら非発火');
+
+  const ownDeck = collectDeckTrashSelfTriggers({ ...ctx, turnPhase: 'MAIN' }, 'WX25-P2-061', HOST, false, undefined, true);
+  const oppDeck = collectDeckTrashSelfTriggers({ ...ctx, turnPhase: 'MAIN' }, 'WX25-P2-061', HOST, true, undefined, true);
+  const noEffectDeck = collectDeckTrashSelfTriggers({ ...ctx, turnPhase: 'MAIN' }, 'WX25-P2-061', HOST, false, undefined, false);
+  const wrongPhase = collectDeckTrashSelfTriggers({ ...ctx, turnPhase: 'ATTACK_SIGNI' }, 'WX25-P2-061', HOST, false, undefined, true);
+  eq(has(ownDeck, 'WX25-P2-061-E2'), true, '自分効果＋メインで発火');
+  eq(has(oppDeck, 'WX25-P2-061-E2'), false, '相手効果では非発火');
+  eq(has(noEffectDeck, 'WX25-P2-061-E2'), false, '非効果では非発火');
+  eq(has(wrongPhase, 'WX25-P2-061-E2'), false, 'メイン外では非発火');
+});
+
+test('段2 第42バッチ E2E-A any_ally: WX18-059 は怪異＋相手効果だけを監視', () => {
+  const watcher = mkState({ signi: ['WX18-059'] });
+  const other = mkState();
+  const weird = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('怪異'));
+  const nonWeird = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('怪異'));
+  const collect = (cardNum: string, causeByOpponent: boolean) => collectAnyZoneTrashSelfTriggers(
+    trigCtx(HOST), cardNum, HOST, causeByOpponent, 'hand', undefined, true, watcher, other,
+  );
+  eq(has(collect(weird, true), 'WX18-059-E1'), true, '怪異＋相手効果で発火');
+  eq(has(collect(weird, false), 'WX18-059-E1'), false, '怪異でも自分効果では非発火');
+  eq(has(collect(nonWeird, true), 'WX18-059-E1'), false, '相手効果でも非怪異では非発火');
+});
+
+test('段2 第42バッチ E2E-A energy watcher: WXK10-047 は movedSelf なしで原因を評価', () => {
+  const host = mkState({ signi: ['WXK10-047'] });
+  const moved = [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'deck' }] }];
+  const collect = (causeOwner?: string) => collectEnergyAddedSelfTriggers(
+    trigCtx(HOST), moved, causeOwner, undefined, host, mkState(),
+  ).entries;
+  eq(has(collect(HOST), 'WXK10-047-E2'), true, '自分効果でエナ追加なら発火');
+  eq(has(collect(GUEST), 'WXK10-047-E2'), false, '相手効果なら非発火');
+  eq(has(collect(undefined), 'WXK10-047-E2'), false, 'ルール処理なら非発火');
+});
+
+test('段2 第42バッチ E2E-B: 4コレクタとトラッシュ自己復帰が causeOwnerId を評価', () => {
+  const empty = mkState();
+
+  const revive = mkState(); revive.trash = ['WD15-013'];
+  const energy = (cause?: string) => collectEnergyToTrashTriggers(
+    trigCtx(HOST), HOST, revive, empty, 0, 1, 0, 1, cause,
+  ).entries;
+  eq(has(energy(HOST), 'WD15-013-E1'), true, 'energy-to-trash: 自分効果でトラッシュ自己復帰');
+  eq(has(energy(GUEST), 'WD15-013-E1'), false, 'energy-to-trash: 相手効果を抑制');
+  eq(has(energy(undefined), 'WD15-013-E1'), false, 'energy-to-trash: 非効果を抑制');
+
+  const zoneHost = mkState({ signi: ['WX11-002', SIGNI] });
+  const zone = (cause?: string) => collectZoneMovedTriggers(trigCtx(HOST), SIGNI, zoneHost, empty, HOST, GUEST, cause).entries;
+  eq(has(zone(HOST), 'WX11-002-E1'), true, 'zone-moved: 自分効果で発火');
+  eq(has(zone(GUEST), 'WX11-002-E1'), false, 'zone-moved: 相手効果を抑制');
+  eq(has(zone(undefined), 'WX11-002-E1'), false, 'zone-moved: 原因不明をfail-close');
+
+  const powerHost = mkState({ signi: ['WX13-036'] });
+  const power = (cause?: string) => collectPowerDecreaseTriggers(trigCtx(HOST), HOST, powerHost, empty, 3000, [], cause).entries;
+  eq(has(power(HOST), 'WX13-036-E1'), true, 'power-decrease: 自分効果で発火');
+  eq(has(power(GUEST), 'WX13-036-E1'), false, 'power-decrease: 相手効果を抑制');
+  eq(has(power(undefined), 'WX13-036-E1'), false, 'power-decrease: 原因不明をfail-close');
+
+  const millHost = mkState({ signi: ['WX24-P4-088'] });
+  const mill = (cause?: string) => collectMillTriggers(trigCtx(HOST), HOST, millHost, empty, 1, 0, [SIGNI], [], cause).entries;
+  eq(has(mill(HOST), 'WX24-P4-088-E1'), true, 'mill: 自分効果で発火');
+  eq(has(mill(GUEST), 'WX24-P4-088-E1'), false, 'mill: 相手効果を抑制');
+  eq(has(mill(undefined), 'WX24-P4-088-E1'), false, 'mill: 原因不明をfail-close');
+
+  const globalMillHost = mkState({ signi: ['WXDi-D05-013'] });
+  const globalMill = (cause?: string, ownCount = 0, oppCount = 1) => collectMillTriggers(
+    trigCtx(HOST), HOST, globalMillHost, empty, ownCount, oppCount, [], [SIGNI], cause,
+  ).entries;
+  eq(has(globalMill(HOST), 'WXDi-D05-013-E1'), true, 'mill any-deck: 自分効果で相手デッキから落としても発火');
+  eq(has(globalMill(GUEST), 'WXDi-D05-013-E1'), false, 'mill any-deck: 相手効果を抑制');
+  eq(has(globalMill(undefined), 'WXDi-D05-013-E1'), false, 'mill any-deck: 非効果を抑制');
+
+  const moveHost = mkState({ signi: ['WXK06-042'] });
+  const move = (cause?: string) => collectMoveToDeckTriggers(trigCtx(HOST), HOST, moveHost, empty, 0, 0, 1, cause).entries;
+  eq(has(move(HOST), 'WXK06-042-E1'), true, 'move-to-deck: 自分効果で発火');
+  eq(has(move(GUEST), 'WXK06-042-E1'), false, 'move-to-deck: 相手効果を抑制');
+  eq(has(move(undefined), 'WXK06-042-E1'), false, 'move-to-deck: 原因不明をfail-close');
+});
+
+test('段2 第42バッチ 見送り固定: 別語彙・timing内包・ターン履歴には cause flag を足さない', () => {
+  for (const effectId of ['WXDi-P02-037-E2', 'WXK04-084-E1'] as const) {
+    const tc = batch42Cause(effectId).triggerCondition;
+    eq(tc?.byOwnEffect, undefined, `${effectId}: byOwnEffectなし`);
+    eq(tc?.byOpponentEffect, undefined, `${effectId}: byOpponentEffectなし`);
+    eq(tc?.byEffect, undefined, `${effectId}: byEffectなし`);
+  }
+  for (const effectId of [
+    'WX24-P2-064-E1', 'WX24-P2-077-E2', 'WX24-P4-073-E1', 'WX25-P2-083-E1', 'WX25-P2-094-E1', 'WXDi-P02-038-E2',
+    'WDK09-014-E1', 'WXK02-034-E1', 'WXK06-068-E1', 'WXDi-P11-064-E1',
+  ] as const) {
+    const tc = batch42Cause(effectId).triggerCondition;
+    ok(!tc?.byOwnEffect && !tc?.byOpponentEffect && !tc?.byEffect, `${effectId}: 別軸を偽採用しない`);
+  }
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

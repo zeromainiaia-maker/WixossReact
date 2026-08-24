@@ -13793,6 +13793,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「このシグニにカードN枚が付いたとき」（§6.3 J-2・WXK10-049）＝チャーム/アクセ/ソウルを横断する汎用付与。
              //   ⚠【ソウル】【チャーム】等の**種別指定つき**は上で先に拾うので、ここに来るのは無指定の「カード」だけ。
              : /に(?:カード)?[０-９\d]*枚?が付いたとき/.test(trigText) ? ['ON_CARD_ATTACHED']
+             // 「効果によってカードがデッキから」＝落ちたカード自身ではなく、場にいる能力の全体 watcher。
+             // 一般 ON_TRASH より先に ON_CARD_MILLED_FROM_DECK へ分類しないと triggerScope:self の恒久 no-op になる。
+             : /(?:あなた|対戦相手)の効果によってカードが[０-９\d]+枚以上(?:デッキ|山札)からトラッシュに置かれたとき/.test(trigText) ? ['ON_CARD_MILLED_FROM_DECK']
              : trigText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から|シグニの下から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : trigText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : trigText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
@@ -13953,7 +13956,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「合計N枚以上」（WXDi-P08-079/WXDi-CP02-010）＝「コストか効果**1つ**によって…合計N枚以上」は単一解決内の
              //   閾値＝engine の milledMinCount がそのまま正確に表現する（ターン跨ぎ累積ではない・タスク16[C]機構④）。
              //   「によってデッキから」（所有者語なし＝WXEX1-49）も拾う（owner は下の抽出で any）。
-             : /(?:の|によって)(?:デッキ|山札)からカード(?:が(?:合計)?[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(trigText) ? ['ON_CARD_MILLED_FROM_DECK']
+             : (/(?:の|によって)(?:デッキ|山札)からカード(?:が(?:合計)?[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(trigText)
+                 || /(?:あなた|対戦相手)の効果によってカードが[０-９\d]+枚以上(?:デッキ|山札)からトラッシュに置かれたとき/.test(trigText))
+               ? ['ON_CARD_MILLED_FROM_DECK']
              // 「あなたが自分の効果によって手札からカードをN枚以上公開したとき」（6件）。engine 配線済み
              // （BattleScreen＝場のシグニ自身が反応。G198）。
              : /あなたが自分の効果によって手札からカードを[０-９\d]+枚以上公開したとき/.test(trigText) ? ['ON_SELF_REVEAL_FROM_HAND']
@@ -14121,6 +14126,38 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 「《ガードアイコン》を持たないカードを」＝捨てられたカード側の限定（既存 TargetFilter.noGuard）。
         if (/《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/.test(actionText)) {
           extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), noGuard: true };
+        }
+      }
+      // 【自】トリガー句の原因主体限定。「あなた／対戦相手の効果によって」は、主語を落とさず既存の
+      // byOwnEffect / byOpponentEffect へ配線する。主体なしの「効果によって」は別文型なのでここでは触らない。
+      // ターン内履歴を要する ON_TURN_END 等と、原因を timing 自体が内包する ON_REVEALED_FROM_HAND も対象外。
+      if ((['ON_TRASH', 'ON_ENERGY_CHARGE', 'ON_ENERGY_TO_TRASH', 'ON_ZONE_MOVED',
+            'ON_OPP_POWER_DECREASED', 'ON_CARD_MILLED_FROM_DECK', 'ON_CARD_MOVED_TO_DECK'] as string[]).includes(timing[0])) {
+        if (/対戦相手の効果によって/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOpponentEffect: true };
+        } else if (/あなたの効果によって/.test(trigText) && !/コストかあなたの効果によって/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
+        }
+      }
+      if (timing[0] === 'ON_TRASH') {
+        const actorCause = /(?:あなた|対戦相手)の効果によって/.test(trigText);
+        if (actorCause && /いずれかの領域からトラッシュに置かれたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromAnyZone: true };
+        }
+        if (actorCause && /デッキか手札からトラッシュに置かれたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: ['deck', 'hand'] };
+        } else if (actorCause && /デッキからトラッシュに置かれたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: ['deck'] };
+        } else if (actorCause && /(?:あなたの)?手札からトラッシュに置かれたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: ['hand'] };
+        }
+        if (/あなたのメインフェイズの間[^。]*このカードがあなたの効果によってデッキからトラッシュに置かれたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringMainPhase: true };
+        }
+        const allyTrashM = trigText.match(/あなたの(?:＜([^＞]+)＞の)?シグニ[０-９\d]+枚が(?:あなた|対戦相手)の効果によって(?:あなたの)?手札からトラッシュに置かれたとき/);
+        if (allyTrashM) {
+          extractedTriggerScope = 'any_ally';
+          if (allyTrashM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), story: allyTrashM[1] };
         }
       }
       // ON_ACCE: 主語で scope を決める（「このシグニに」＝self 既定＝アクセが付いた当のシグニのみ／
@@ -15122,7 +15159,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 「（あなたの効果によって）（場にある）<主語>が（効果によって）他のシグニゾーンに移動したとき、」を除去し主語からスコープ判定。
         // 「このシグニ」=self／「対戦相手の(場にある)シグニ」=any_opp／「あなたの(場にある)シグニ」=any_ally／無主語「シグニ」=any。
         // パワー＋N（このシグニ自身）は MOVE_TO_OTHER_SIGNI_ZONE ハンドラ（execStubPart1）が原文を読んで適用済み。
-        // ON_ZONE_MOVED トリガー自体は現状 engine 未配線（TODO 参照）。decompile の表現整合と ON_TURN_END/ON_PLAY 誤分類解消が目的。
+        // ON_ZONE_MOVED は中央 board diff で causeOwnerId を保持したまま収集し、後段 watcher は原因限定なしだけを扱う。
         const zmM = actionText.match(/^(?:あなたの効果によって、?)?(?:場にある)?(対戦相手の|あなたの|この)?(?:場にある)?シグニ(?:[０-９\d]+体)?が(?:[０-９\d]+体以上)?(?:あなたの効果によって|効果によって)?他のシグニゾーンに移動したとき[、,]\s*(.+)/s);
         if (zmM) {
           const subj = zmM[1] ?? '';
@@ -15225,13 +15262,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           };
           actionText = allyTrashM[5];
         }
-        const m = actionText.match(/(手札(?:かデッキ)?|デッキ|場|いずれかの領域|シグニの下)からトラッシュに置かれたとき[、,]\s*(.+)/s);
+        const m = actionText.match(/(手札(?:かデッキ)?|デッキ(?:か手札)?|場|いずれかの領域|シグニの下)からトラッシュに置かれたとき[、,]\s*(.+)/s);
         if (m) {
           // 出自ゾーンを fromZones に記録（「デッキから」=deck／「場から」=field／「手札かデッキから」=hand+deck）。
           const zoneStr = m[1];
           const zones: string[] = [];
-          if (zoneStr.includes('手札')) zones.push('hand');
-          if (zoneStr.includes('デッキ')) zones.push('deck');
+          if (zoneStr.startsWith('デッキ')) {
+            zones.push('deck');
+            if (zoneStr.includes('手札')) zones.push('hand');
+          } else {
+            if (zoneStr.includes('手札')) zones.push('hand');
+            if (zoneStr.includes('デッキ')) zones.push('deck');
+          }
           if (zoneStr === '場') zones.push('field');
           if (zoneStr === 'シグニの下') zones.push('under_signi');
           if (zones.length) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: zones as ('hand' | 'deck' | 'field' | 'under_signi')[] };

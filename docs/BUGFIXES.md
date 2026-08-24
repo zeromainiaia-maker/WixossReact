@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.2 段2 第42バッチ＝【自】トリガー句「（あなた／対戦相手）の効果によって」の原因主体限定
+
+- **母集団**＝`docs/_effect_srctext.json` を効果単位・非行頭アンカーで走査し69効果、cause語彙あり23／なし46を再現。timing内包・別語彙・器・ターン履歴条件を除いた指定20効果を全件採用し、live差分も20 effectIdだけ（outlier 0）。
+- **parser/live**＝既存 `byOwnEffect`／`byOpponentEffect` を文型から抽出。`SP27-014-E2`／`WXDi-P09-043-E2` の `fromAnyZone`、`WX18-059-E1` の `any_ally`＋＜怪異＞、`WX25-P2-061-E2` のメインフェイズ、`WXDi-P07-076-E3` の deck＋hand も復元。MANUAL 6効果は同parser修正と対でliveへ反映した。
+- **追加発見**＝`WXDi-D05-013-E1` は「カードがデッキから」の場 watcher が `ON_TRASH/self` に潰れ、このカード自身をミルした場合しか見ない恒久過小実行だった。既存 `ON_CARD_MILLED_FROM_DECK`＋`milledDeckOwner:any`＋`milledMinCount:1` へ再分類し、任意デッキ／自分効果／自分ターンを評価可能にした。
+- **engine**＝中央盤面diffが既に持つ `causeOwnerId` を mill／energy-to-trash／zone-moved／power-decrease／move-to-deck へ通し、既存語彙を共通 `effectCauseMatches` でfail-close評価。`WD15-013-E1` はトラッシュ自己復帰だけをaction構造で追加走査、`WXK10-047-E2` は誤った `movedSelf` を付けず場 watcher として収集、`WX18-059-E1` は手札→トラッシュの any_ally filter 経路を追加した。
+- **見送り**＝`fromFieldByCostOrOwnEffect`、`byWatcherEffect`、`banishedByOwnEffect`、`ON_REVEALED_FROM_HAND` 9効果、付与能力の器は既存の別表現を維持。ターン終了／アタックフェイズ開始など10効果はターン内履歴条件が別軸なのでcauseだけを足していない。`WX09-Re07-E1` の引用能力STUBも別機構として据置。
+- **golden／ゲート**＝原因の正・逆・非効果の三方向、群A／群B E2E、見送り負方向を固定し **2735 PASS / 0 FAIL（2709→+26）**。`npm run gates` 全緑（smoke 10693全0・SKIP 0／fuzz全0／census **600/600**／census:stubs A群0・C群0／manual-fields 0/0／lint 0 errors・260 warnings）。census は `ON_CARD_MILLED_FROM_DECK` を「トラッシュに置かれたとき」の実装語彙へ較正し601→600。
+- **生成／台帳**＝`build:effects`→`heldReview`→`regen` 完走、held **75→75**、partial **15→15**、idset **45→45**、同型★0。台帳は7 findingを閉じ、段2 **402→409**、OPEN **708→701**。
+- **実機草案**＝`b42OwnEffectEnergyChargeFires`／`b42EnergyPhaseDoesNotFire` を追加。Chromiumなしのため未実行。後者は実際のhand→energy移動を必須にした上でランサー非付与を検査し、修正前JSONなら旧watcherが過剰発火するため緑にならない。
+
+**■ Claude 側の検証（2026-08-25・同セッション）**
+
+- ✅**実機2本を実行して2回連続 PASS**（`b42OwnEffectEnergyChargeFires` / `b42EnergyPhaseDoesNotFire`）。**反転確認も済**＝live から `WXK10-047-E2` の `byOwnEffect` だけを外すと負方向シナリオが `通常エナチャージなのにWXK10-047-E2が過剰発火してランサーを得た` で**赤に反転**し、戻すと緑に復帰した＝**判別力ゼロの assert ではない**。
+- 🔴**草案は初回 FAIL＝シナリオ側の誤りをその場で是正した**。`b42OwnEffectEnergyChargeFires` は観測マーカーを `deck` の **index 1** に置いていたが、【起】は「デッキの上から1枚」＝**index 0** を取るため、**付与自体は起きているのに別インスタンスを見て永久に未完了**になっていた（ログの `grants=["WXK10-047#54200:ランサー"]` が動かぬ証拠）。マーカーを index 0 へ移して PASS。
+- 🔴🆕**反転確認のあと `public/` を戻しただけでは実機が旧挙動を返す**＝`verifyBattleDrive.mjs` は **`vite preview`＝ビルド済み `dist` 配信**で、`distIsFresh()` の mtime 判定が復元を取りこぼすことがある（実測＝復元後も2回連続で赤いまま）。**`SKIP_BUILD=0` で強制ビルドすると即座に緑**。⚠**反転確認をやったら、戻した直後の1回は必ず `SKIP_BUILD=0` を付ける**（付けないと「直したのに赤い」という偽の退化報告になる）。
+- ✅**独立検証**＝`npm run gates` 全緑を再現、live 差分は **20 effectId・追加0・削除0・outlier 0・スコープ内未変化0** を自前スクリプトで機械確認、台帳は **段0 221／段1偽陽性 113／段2消化 409／OPEN 701** を再実行で確認（段0・段1 が動いていない＝§5-28′ の「閉じた数≠OPEN の減り」の罠に当たっていない）。変更30ファイルのエンコーディング検査も**新規異常0**（`docs/BUGFIXES.md` の `???` 29件はベースラインからの既存）。
+- ✅**§5-22**＝`scripts/verifyBattleDrive.mjs` の diff は**削除行0＝純粋な追加のみ**を機械確認。
+- 📋**Codex の報告書は `docs/` 直下に置かれていたので `scripts/archive/scratchpad/semantic_audit_clean_round1/codex_b42_report.md` へ移動**（ドキュメント配置ルール）。
+- 🟡**関連回帰で `v12GrantedEnergyChargeTwice` / `v12GrantedEnergyChargeThirdBlocked` が FAIL したが、本バッチの退化ではない**＝`git stash` でベースライン（`02b97abed`）へ戻して同じ2本を実行し、**完全に同じ内容で FAIL** することを確認した。真因は**シナリオの腐り**＝`SPDi43-13-E2` の起動条件は **《ゲーム１回》バイブスMAX《緑×0》** なのに spec が `energy: []` でバイブス前提を作っておらず、**付与自体が起きない**（`grantIds=[]` のまま）。ON_ENERGY_CHARGE の経路には到達していない。→ §5.1 `V-88` へ登録。
+- 🆕**母集団の測り方に穴があった（follow-up を実測して登録）**＝正規表現を `(あなた|対戦相手)の効果によって` と固定したため、**「あなたの効果**１つ**によって」形（＝1つの効果で合計N枚、という同一効果内での合算表現）を丸ごと取りこぼしていた**。`の効果[^、。]{0,4}によって` へ広げて再測すると母集団は **69→80効果**で、本バッチ後も **10効果が未対応**（`SPDi43-11-E2`／`SPDi43-12-E2`／`SPDi43-13-E2`／`WDK09-013-E1`／`WXK10-076-E1`／`WX22-014-E2`／`WXK10-040-E1`／`WXDi-P13-051-E3`／`WX24-P3-007-E1` ＋ 否定形の `WX15-003-E1`「あなたの効果**以外**によって」）。→ §5.3 `O-62` へ登録。
+
 ## 2026-08-25：§5.2 段2 第41バッチ＝`GRANT_KEYWORD` の付与期間・対象 owner を同一効果本文から復元
 
 - **母集団の訂正**＝`docs/_effect_srctext.json` と HEAD live を effect 単位で全件照合し、期間誤り **10効果**、`target.owner:'any'` 誤り **12効果**、重複3でユニーク **19効果**。依頼票の群B 13／ユニーク20に含まれた `WX25-P3-023-E1` は原文「対戦相手は【みこみこ親衛隊】1つを得る」で、`owner:'self'` にする根拠がないため除外した。`WXDi-P08-072-E1` は live が既にselfだが fresh parserだけanyだったため、同じ一般規則でfreshを是正した。

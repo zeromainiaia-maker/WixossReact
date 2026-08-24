@@ -62,6 +62,14 @@ export function oppLifeCrashSourceMatches(
 const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
+/** triggerCondition の原因主体限定を、能力の持ち主（controllerId）視点で評価する。 */
+const effectCauseMatches = (eff: CardEffect, controllerId: string, causeOwnerId?: string): boolean => {
+  if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== controllerId) return false;
+  if (eff.triggerCondition?.byOpponentEffect && (!causeOwnerId || causeOwnerId === controllerId)) return false;
+  if (eff.triggerCondition?.byEffect && !causeOwnerId) return false;
+  return true;
+};
+
 /** バトルで相手シグニをバニッシュした側に対する watcher の scope/filter/使用回数判定。 */
 export function battleBanisherMatchesTrigger(
   effect: CardEffect,
@@ -902,13 +910,15 @@ const condHas = (c: Condition | undefined, t: string): boolean =>
  */
 export function collectDeckTrashSelfTriggers(
   ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false,
-  causeSourceCardNum?: string,
+  causeSourceCardNum?: string, byEffectCause = true,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
+    if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     if (eff.triggerCondition?.trashSourceStory) {
       if (causeByOpponent) continue;
       const source = causeSourceCardNum ? ctx.cardMap.get(getCardNum(causeSourceCardNum)) : undefined;
@@ -959,7 +969,7 @@ export function collectRevealedFromHandTriggers(
  */
 export function collectAnyZoneTrashSelfTriggers(
   ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand',
-  causeSourceCardNum?: string, byEffectCause = true,
+  causeSourceCardNum?: string, byEffectCause = true, ownerState?: PlayerState, otherState?: PlayerState,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
@@ -973,6 +983,7 @@ export function collectAnyZoneTrashSelfTriggers(
       : origin !== 'under_signi' && !!eff.triggerCondition?.fromAnyZone;
     if (!okByZones) continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
     // byOwnEffect（「あなたの効果によって/あなたがこのカードを捨てたとき」＝タスク16[C]機構②）: 対戦相手効果起因では発火しない。
     if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     // trashSourceStory（「あなたの＜X＞のシグニの効果によって捨てられたとき」WXDi-P14-086）: 原因効果の発生源
@@ -992,6 +1003,40 @@ export function collectAnyZoneTrashSelfTriggers(
       id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
       label: `${cardName} の【トラッシュ時】効果（手札／エナから）`, effect: eff,
     });
+  }
+  // 場に残る any_ally/any watcher（WX18-059-E1）。移動カード自身の self 走査とは母集団を分け、
+  // 手札／エナ起点でも watcher の triggerFilter と原因主体を同じイベント上で評価する。
+  if (ownerState) {
+    const ownerIsTurn = ctx.activeUserId === trashedPlayerId;
+    for (const topNum of ownFieldSources(ownerState)) {
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;
+        const fromZones = eff.triggerCondition?.fromZones;
+        const okByZones = fromZones
+          ? fromZones.includes(origin)
+          : origin !== 'under_signi' && !!eff.triggerCondition?.fromAnyZone;
+        if (!okByZones) continue;
+        if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+        if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
+        if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
+        if (eff.triggerFilter?.excludeSelf && trashedCardNum === topNum) continue;
+        if (eff.triggerFilter) {
+          const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
+          if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(trashedCardNum)), filter)) continue;
+        }
+        if (!mainPhaseGateOk(eff, ctx, trashedPlayerId)) continue;
+        if (eff.activeCondition && otherState && !checkActiveCondition(eff.activeCondition, ownerState, otherState, ownerIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && (!otherState || !evalUseCondition(eff.condition, ownerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers))) continue;
+        if (eff.usageLimit && (ownerState.actions_done ?? []).includes(eff.effectId)) continue;
+        entries.push({
+          id: ctx.genId(), playerId: trashedPlayerId, cardNum: topNum, effectId: eff.effectId,
+          label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（手札／エナの味方トラッシュ時）`,
+          effect: eff, triggeringCardNum: trashedCardNum,
+        });
+      }
+    }
   }
   return entries;
 }
@@ -1764,6 +1809,7 @@ export function collectMillTriggers(
   milledFromOppDeck: number,
   milledControllerCards?: string[],
   milledOppCards?: string[],
+  causeOwnerId?: string,
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
@@ -1777,6 +1823,7 @@ export function collectMillTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MILLED_FROM_DECK')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       const owner = eff.triggerCondition?.milledDeckOwner ?? 'any';
       const minCount = eff.triggerCondition?.milledMinCount ?? 1;
       const relevantCards = owner === 'self' ? milledControllerCards
@@ -1824,6 +1871,7 @@ export function collectMillTriggers(
   // プレイヤーへゲーム中付与された AUTO 能力（アーツ等、解決後に場へ残らない発生源）も収集する。
   for (const eff of controllerState.game_granted_auto_effects ?? []) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MILLED_FROM_DECK')) continue;
+    if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
     const owner = eff.triggerCondition?.milledDeckOwner ?? 'any';
     const minCount = eff.triggerCondition?.milledMinCount ?? 1;
     const relevantCards = owner === 'self' ? milledControllerCards
@@ -2176,7 +2224,7 @@ export function collectAttachedTriggers(
 
 /**
  * エナゾーン→トラッシュ時（ON_ENERGY_TO_TRASH）トリガーを収集する（Stage2 抽出）。
- * triggerCondition.energyTrashedOwner（self/opponent/any）で発生源エナを判定。⚠「あなたの効果」限定は近似で未表現。
+ * triggerCondition.energyTrashedOwner（self/opponent/any）で発生源エナを、causeOwnerId で原因主体を判定。
  */
 export function collectEnergyToTrashTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
@@ -2184,6 +2232,7 @@ export function collectEnergyToTrashTriggers(
   // 行き先を問わない「エナゾーンから出て行った枚数」（`triggerCondition.energyLeftToAnyZone` 用）。
   // 省略時はトラッシュ枚数で代用＝従来挙動（フラグを持つ効果が無ければ差は出ない）。
   fromControllerEnergyAny?: number, fromOppEnergyAny?: number,
+  causeOwnerId?: string,
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   // フラグの有無で参照する枚数を切り替える（省略時は従来の trash 枚数へフォールバック）。
   const relevantCount = (eff: CardEffect): number => {
@@ -2204,6 +2253,7 @@ export function collectEnergyToTrashTriggers(
     if (removed.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
+      if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       if (relevantCount(eff) < (eff.triggerCondition?.minCount ?? 1)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
@@ -2222,6 +2272,7 @@ export function collectEnergyToTrashTriggers(
   if (lrigTop) {
     // 3ストア横断は `grantedStore.ts` の共通経路（lrig_abilities_disabled もそこで判定）。
     for (const eff of grantedStoreWatchers(controllerState, 'ON_ENERGY_TO_TRASH', ['self', 'any_ally', 'any']).map(w => w.effect)) {
+      if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       if (relevantCount(eff) <= 0) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, lrigTop)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, lrigTop, ctx.turnPhase, ctx.effectivePowers)) continue;
@@ -2229,6 +2280,22 @@ export function collectEnergyToTrashTriggers(
       entries.push({
         id: ctx.genId(), playerId: controllerId, cardNum: lrigTop, effectId: eff.effectId,
         label: `${ctx.cardMap.get(lrigTop)?.CardName ?? lrigTop} の【自】効果（エナトラッシュ時・付与能力）`, effect: eff,
+      });
+    }
+  }
+  // トラッシュにあるカード自身を場へ戻す自己トリガー（WD15-013-E1）だけを追加走査する。
+  // action の構造で限定し、一般の ON_ENERGY_TO_TRASH をトラッシュから発火させない。
+  for (const topNum of controllerState.trash) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self' || !actionRevivesSelfFromTrash(eff.action)) continue;
+      if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
+      if (relevantCount(eff) < (eff.triggerCondition?.minCount ?? 1)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（エナトラッシュ時・トラッシュから）`, effect: eff,
       });
     }
   }
@@ -2297,7 +2364,7 @@ export function collectRefreshTriggers(
  */
 export function collectPowerDecreaseTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState, decreaseOnOpp: number,
-  decreaseSources: string[] = [],
+  decreaseSources: string[] = [], causeOwnerId?: string,
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
@@ -2311,6 +2378,7 @@ export function collectPowerDecreaseTriggers(
     if (removed.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_POWER_DECREASED')) continue;
+      if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       // 発生源限定（「あなたの＜X＞のシグニの効果によって」「あなたの**他の**＜X＞のシグニの効果によって」）。
@@ -2352,7 +2420,7 @@ export function collectPowerDecreaseTriggers(
  */
 export function collectMoveToDeckTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
-  movedToControllerDeck: number, movedToControllerDeckFromTrash: number, movedToOppDeck: number,
+  movedToControllerDeck: number, movedToControllerDeckFromTrash: number, movedToOppDeck: number, causeOwnerId?: string,
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
@@ -2366,6 +2434,7 @@ export function collectMoveToDeckTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MOVED_TO_DECK')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       const owner = eff.triggerCondition?.movedToDeckOwner ?? 'any';
       const fromTrash = eff.triggerCondition?.movedToDeckFromTrash ?? false;
       const minCount = eff.triggerCondition?.movedToDeckMinCount ?? 1;
@@ -2766,8 +2835,8 @@ export function collectTrashAddedTriggers(
 }
 
 /**
- * ON_ENERGY_CHARGE のうち、エナへ移動したカード自身が持つ movedSelf:true の AUTO だけを収集する。
- * 場の watcher は従来の React watcher が担当し、ここでは扱わない。
+ * ON_ENERGY_CHARGE の movedSelf AUTO と、原因主体限定を持つ場の watcher を収集する。
+ * 原因限定のない場 watcher は従来の React watcher が担当する。
  */
 export function collectEnergyAddedSelfTriggers(
   ctx: TrigCtx,
@@ -2795,8 +2864,7 @@ export function collectEnergyAddedSelfTriggers(
         const fromZones = eff.triggerCondition.fromZones;
         if (fromZones?.length && !(fromZones as string[]).includes(moved.from)) continue;
         if (eff.triggerCondition.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
-        if (eff.triggerCondition.byOwnEffect && causeOwnerId !== grp.ownerId) continue;
-        if (eff.triggerCondition.byOpponentEffect && causeOwnerId === grp.ownerId) continue;
+        if (!effectCauseMatches(eff, grp.ownerId, causeOwnerId)) continue;
         // 「ルリグかシグニの効果によって」＝ルール上のルリグ／シグニ全種。CardData.Type は
         // 'アシストルリグ'（340枚）と 'レゾナ'（46枚）を別値で持つため、この2つを落とすと過小実行になる
         // （アシストルリグはルリグ、レゾナはシグニ。既存の判定も 'ルリグ' || 'アシストルリグ' を並記している
@@ -2818,6 +2886,28 @@ export function collectEnergyAddedSelfTriggers(
         entries.push({
           id: ctx.genId(), playerId: grp.ownerId, cardNum: moved.cardNum, effectId: eff.effectId,
           label: `${cardName} の【自】効果（エナゾーン移動時）`, effect: eff, triggeringCardNum: moved.cardNum,
+        });
+      }
+    }
+    if (grp.moved.length !== 1) continue;
+    for (const topNum of ownFieldSources(ownerState)) {
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_CHARGE')) continue;
+        if (eff.triggerCondition?.movedSelf) continue;
+        const causeLimited = !!(eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect);
+        if (!causeLimited || !effectCauseMatches(eff, grp.ownerId, causeOwnerId)) continue;
+        const ownerIsTurn = grp.ownerId === ctx.activeUserId;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, ownerIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, ownerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+        const used = (ownerState.actions_done ?? []).filter(id => id === eff.effectId).length
+          + usedIds.filter(id => id === eff.effectId).length;
+        if (used >= max) continue;
+        if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+        entries.push({
+          id: ctx.genId(), playerId: grp.ownerId, cardNum: topNum, effectId: eff.effectId,
+          label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（エナチャージ時・原因限定）`,
+          effect: eff, triggeringCardNum: grp.moved[0].cardNum,
         });
       }
     }
@@ -3360,6 +3450,7 @@ export function collectLrigAttackGuardedTriggers(
  */
 export function collectZoneMovedTriggers(
   ctx: TrigCtx, movedNum: string, moverState: PlayerState, otherState: PlayerState, moverId: string, otherId: string,
+  causeOwnerId?: string, causeLimitedOnly = false,
 ): { entries: StackEntry[]; moverUsedIds: string[]; otherUsedIds: string[] } {
   const entries: StackEntry[] = [];
   const moverUsedIds: string[] = [];
@@ -3371,6 +3462,10 @@ export function collectZoneMovedTriggers(
       if (!topNum) continue;
       for (const eff of ctx.effectsMap.get(topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ZONE_MOVED')) continue;
+        const causeLimited = !!(eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect);
+        if (causeLimitedOnly && !causeLimited) continue;
+        if (!causeLimitedOnly && causeLimited && !causeOwnerId) continue;
+        if (!effectCauseMatches(eff, ownerId, causeOwnerId)) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope === 'self' && topNum !== movedNum) continue;
         if (!accept(scope)) continue;

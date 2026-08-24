@@ -28474,6 +28474,101 @@ scenarios.b41GrantKeywordTargetsOwnSigniOnly = {
 order.push('b41GrantKeywordExpiresAtTurnEnd', 'b41GrantKeywordTargetsOwnSigniOnly');
 // ── §5.2 段2 第41バッチ END ──
 
+// ── §5.2 段2 第42バッチ START（Chromiumなし環境で作成した未実行草案）──
+const B42_WATCHER = 'WXK10-047#54200';
+const B42_CHARGER = 'WX01-049#54201';
+const B42_DECK_MARKER = 'WD01-013#54202';
+const B42_PHASE_MARKER = 'WD01-013#54203';
+
+scenarios.b42OwnEffectEnergyChargeFires = {
+  title: '段2 第42バッチ：自分の【起】効果によるエナ追加でWXK10-047-E2が発火し【ランサー】を得る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX15-012#54204'],
+      'field.signi': [[B42_WATCHER], [B42_CHARGER], null],
+      'field.signi_down': [false, false, false],
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      // ⚠デッキ先頭は配列の index 0。【起】は「デッキの上から1枚」を取るので、
+      //   観測マーカーは必ず index 0 に置く（草案は index 1 に置いており、移動自体は起きているのに
+      //   別インスタンスを見て永久に未完了になっていた＝2026-08-25 実機で是正）。
+      'deck': [B42_DECK_MARKER, 'WD01-013#54205'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#54206'], 'field.signi': [null, null, null],
+      'hand': [], 'energy': [], 'trash': [], 'deck': ['WD01-013#54207'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false; let abilityClicked = false; let fired = false;
+    for (let s = 0; s < 36; s++) {
+      await page.waitForTimeout(400);
+      let did = null;
+      if (!opened) {
+        const modal = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-1');
+        opened = modal.modalVisible;
+      }
+      if (!did && opened && !abilityClicked) {
+        const act = page.locator('[data-action-label^="【起】"]:visible').first();
+        if (await act.count()) { await act.click().catch(() => {}); did = 'WX01-049【起】'; abilityClicked = true; }
+      }
+      if (!did && abilityClicked) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const charged = (st?.host?.energyCards ?? []).includes(B42_DECK_MARKER);
+      const lancer = (st?.host?.keywordGrants ?? []).some(g => g.startsWith(`${B42_WATCHER}:`) && g.includes('ランサー'));
+      fired ||= lancer;
+      H.log(`  b42-own[${s}] -> ${did ?? 'なし'} | opened=${opened} ability=${abilityClicked} charged=${charged} lancer=${lancer} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      if (charged && fired && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+        return { pass: true, detail: `WX01-049の【起】でdeck→energy=${charged}／WXK10-047へランサー付与=${fired}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} ability=${abilityClicked} energy=${JSON.stringify(fin?.host?.energyCards)} grants=${JSON.stringify(fin?.host?.keywordGrants)}）` };
+  },
+};
+
+scenarios.b42EnergyPhaseDoesNotFire = {
+  title: '段2 第42バッチ：エナフェイズの通常エナチャージではWXK10-047-E2が発火しない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX15-012#54210'], 'field.signi': [[B42_WATCHER], null, null],
+      'field.signi_down': [false, false, false],
+      'hand': [B42_PHASE_MARKER], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#54211', 'WD01-013#54212'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#54213'], 'field.signi': [null, null, null],
+      'hand': [], 'energy': [], 'trash': [], 'deck': ['WD01-013#54214'],
+    },
+    top: { active: 'host', turn_phase: 'ENERGY', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false; let charged = false; let stable = 0;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(400);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); opened = !!did; }
+      if (!did && opened && !charged) did = await H.clickBtn('エナチャージ', { exact: true });
+      const st = await H.queryState();
+      charged ||= (st?.host?.energyCards ?? []).includes(B42_PHASE_MARKER);
+      const lancer = (st?.host?.keywordGrants ?? []).some(g => g.startsWith(`${B42_WATCHER}:`) && g.includes('ランサー'));
+      H.log(`  b42-rule[${s}] -> ${did ?? 'なし'} | opened=${opened} charged=${charged} lancer=${lancer} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      // 「イベントが起きなかったから緑」を防ぐ：対象カードが実際に hand→energy へ移動したことを必須条件にする。
+      stable = charged && !lancer && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 ? stable + 1 : 0;
+      if (stable >= 3) return { pass: true, detail: `通常エナチャージ成立=${charged}／ランサー非付与=${!lancer}` };
+      if (charged && lancer) return { pass: false, detail: '通常エナチャージなのにWXK10-047-E2が過剰発火してランサーを得た' };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `判定不能（通常エナチャージ成立=${charged} energy=${JSON.stringify(fin?.host?.energyCards)} grants=${JSON.stringify(fin?.host?.keywordGrants)}）` };
+  },
+};
+
+// 自己検算：修正前JSON（cause flagなし）は旧React watcherが通常エナチャージでもE2を収集するため、
+// b42EnergyPhaseDoesNotFire の「移動成立かつランサー非付与」は緑にならない。正方向は全抑制退化を検出する対照。
+order.push('b42OwnEffectEnergyChargeFires', 'b42EnergyPhaseDoesNotFire');
+// ── §5.2 段2 第42バッチ END ──
+
 
 
 
