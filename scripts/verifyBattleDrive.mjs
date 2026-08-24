@@ -26827,6 +26827,464 @@ scenarios.v63SameChoiceTwiceRunsEffectTwice = {
 order.push('v63SameChoiceTwiceRunsEffectTwice');
 // ── V-63 END ──
 
+// ── 段2 第34/第43バッチ（§5.1 残バッチ）＝「N枚**まで**」は**0枚でも決定できる** ────────────────
+// **母集団（2026-08-24 実測）**＝`REVEAL_AND_PICK{pickUpTo}` **144効果**／
+//   `LOOK_PICK_CHAIN` の `stage.pickUpTo` **53効果**。
+// 旧実装は「まで」が構造ごと落ちて**必ずN枚選ばされる**過剰実行だった（第34＝33効果・第43＝22効果を採用）。
+// 🔴**逆翻訳にも型にも異常として出ない**（構造は正しく任意性だけが消える）＝**実機の「決定 (0/N) が押せるか」
+//   だけが観測点**。gates では守れない層。
+//
+// 🔑**対照は「同じ UI で `pickUpTo` を持たない効果」**＝`決定 (0/1)` が**押せない**ことを見る。
+//   「0枚で決定できた」を単独で緑にしない（§4.4 の3）。
+const B34_UPTO_SRC = 'WX20-037#3401';    // 暴食の暴君 トウタク（【出】3枚見て**赤のシグニを2枚まで**場に出す）
+const B34_RED1 = 'WD02-011#3402';        // デッキトップの赤シグニ（候補）
+const B34_RED2 = 'WD02-011#3403';
+const B34_FILLER = 'WD01-013#3404';      // 白＝候補にならない残り
+
+const B34_FIXED_SRC = 'WX25-P1-053#3410';// 参ノ遊姫 ブロックトイ（【出】《白》：4枚見て**シグニ1枚**を場に出す＝「まで」なし）
+const B34_FIXED_DECK = ['WD01-013#3411', 'WD01-013#3412', 'WD01-013#3413', 'WD01-013#3414'];
+
+/** SEARCH/SELECT_TARGET の「決定 (n/N)」ボタンのラベルと enabled を読む。 */
+async function b34ReadConfirm(page) {
+  const btn = page.locator('button', { hasText: /^決定 \(/ }).first();
+  if (!(await btn.count())) return null;
+  if (!(await btn.isVisible().catch(() => false))) return null;
+  return {
+    label: (await btn.textContent().catch(() => null)) ?? '',
+    enabled: await btn.isEnabled().catch(() => false),
+  };
+}
+
+scenarios.b34ZeroPickAllowedWhenUpTo = {
+  title: '段2第34/43 WX20-037-E1：「2枚まで」は 決定 (0/2) が押せて0枚で完了する（残りはトラッシュ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-001#3490'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [B34_UPTO_SRC],
+      // ⚠**デッキトップ3枚が公開対象**＝赤シグニ2枚を確実に候補へ入れる（候補0だと UI が出ない）。
+      'deck': [B34_RED1, B34_RED2, B34_FILLER, 'WD01-013#3405', 'WD01-013#3406'],
+      'energy': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3491'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#3470', 'WD01-013#3471', 'WD01-013#3472'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let summoned = false; let zoned = false;
+    let confirmSeen = null; let confirmed = false;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/b34upto-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      else if (!confirmed) {
+        const c = await b34ReadConfirm(page);
+        if (c) {
+          // 🔑**何も選ばずに「決定 (0/2)」が押せること**が観測点。
+          if (!confirmSeen) confirmSeen = c;
+          if (c.enabled && /\(0\//.test(c.label)) {
+            await page.locator('button', { hasText: /^決定 \(/ }).first().click({ timeout: 1500 }).catch(() => {});
+            did = `confirm:${c.label}`; confirmed = true;
+          }
+        }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  b34upto[${s}] -> ${did ?? 'なし'} | zoned=${zoned} confirm=${JSON.stringify(confirmSeen)} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (confirmed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+        const flat = (st.host.fieldSigni ?? []).flat().filter(Boolean);
+        const nonePlaced = ![B34_RED1, B34_RED2].some(n => flat.includes(n));
+        const allToTrash = [B34_RED1, B34_RED2, B34_FILLER].every(n => (st.host.trashCards ?? []).includes(n));
+        return {
+          pass: !!confirmSeen && confirmSeen.enabled && /\(0\/2\)/.test(confirmSeen.label) && nonePlaced && allToTrash,
+          detail: `初期ラベル="${confirmSeen?.label}"（0枚で押せる=${confirmSeen?.enabled}）／0枚確定→赤シグニは1枚も場に出ない=${nonePlaced}／公開3枚とも trash へ=${allToTrash}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（zoned=${zoned} confirm=${JSON.stringify(confirmSeen)} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.b34ZeroPickBlockedWhenFixed = {
+  title: '段2第34/43対照 WX25-P1-053-E2：「1枚」（まで無し）は 決定 (0/1) が押せない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#3492'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [B34_FIXED_SRC],
+      'energy': ['WD01-013#3415'],   // 【出】コスト《白》×1
+      'deck': B34_FIXED_DECK,
+      'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3493'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#3480', 'WD01-013#3481', 'WD01-013#3482'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let summoned = false; let zoned = false; let costPaid = false; let energyPicked = false;
+    let confirmSeen = null;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/b34fixed-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      else if (!costPaid) {
+        // 【出】コスト《白》×1（`SigniOnPlayCostModal`）。エナを選んでから「発動」。
+        // ⚠🔴**エナ候補は1回だけ押す**＝候補セルは常に可視なので毎ティック押すと**トグルで外れ**、
+        //   「発動」に一度も到達しない（V-19/V-35/V-44 でも踏んだ同じ罠）。
+        if (!energyPicked) {
+          const e0 = page.getByTestId('onplaycost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            await e0.click().catch(() => {}); did = 'onplaycost-energy-0'; energyPicked = true;
+          }
+        } else { const b = await H.clickBtn('発動', { exact: true }); if (b) { did = b; costPaid = true; } }
+      }
+      if (!did && !confirmSeen) {
+        const c = await b34ReadConfirm(page);
+        // 🔑**何も選んでいない状態のラベルと enabled** が観測点。押さずに読むだけ。
+        if (c && /\(0\//.test(c.label)) confirmSeen = c;
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  b34fixed[${s}] -> ${did ?? 'なし'} | zoned=${zoned} cost=${costPaid} confirm=${JSON.stringify(confirmSeen)} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (confirmSeen) {
+        return {
+          pass: confirmSeen.enabled === false && /\(0\/1\)/.test(confirmSeen.label),
+          detail: `対照（「まで」なし）＝初期ラベル="${confirmSeen.label}"／0枚では押せない=${confirmSeen.enabled === false}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（zoned=${zoned} cost=${costPaid} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('b34ZeroPickAllowedWhenUpTo', 'b34ZeroPickBlockedWhenFixed');
+// ── 段2 第34/43 END ──
+
+// ── 段2 第38バッチ（§5.1 残バッチ）＝「A1枚と B1枚」の**群割当**が決定可否に効くか ────────────────
+// **母集団（2026-08-24 実測）＝`selectionConstraint.groups` を持つ live 効果は 19件**。
+// 旧実装は「A1枚とB1枚」が**合計1枚へ潰れて**いた（第38バッチで `SelectionConstraint.groups` を新設し、
+// 1回の選択集合を filter ごとの容量へ**重複なく**割り当てる executor／UI／逆翻訳を配線した）。
+// 🔴**観測点は「同じ群から2枚を選ぶと決定できない」**＝UI の可否そのもの。gates では守れない層。
+//
+// 採用＝`WX11-052-E2`（サーバント Ｚ）「【出】《無》×3：デッキから《サーバント Ｘ》1枚と《サーバント Ｙ》1枚を
+//   探して**場に出す**」＝群がカード名で完全に決まるので**どの札がどの群か曖昧さがない**。
+// 🔑**Ｘ を2枚仕込む**＝「同じ群を2枚」が実際に作れる盤面にしないと可否の検証にならない。
+const B38_SRC = 'WX11-052#3801';       // サーバント Ｚ（Lv4 無）
+const B38_X1 = 'WX04-054#3802';        // サーバント Ｘ（群A）
+const B38_X2 = 'WX04-054#3803';        // サーバント Ｘ（同じ群A＝2枚目）
+const B38_Y = 'WX10-052#3804';         // サーバント Ｙ（群B）
+const B38_ENERGY = ['WD01-013#3805', 'WD01-013#3806', 'WD01-013#3807'];
+
+scenarios.b38GroupAssignmentBlocksSameGroupTwice = {
+  title: '段2第38 WX11-052-E2：同じ群（Ｘ）を2枚は選べず、Ｘ1枚＋Ｙ1枚でだけ決定できる',
+  spec: {
+    hostSet: {
+      // ⚠**リミットに余裕を持たせる**＝Ｚ(4)＋Ｘ(4)＋Ｙ(4)=12。リミット不足だと配置で詰まる（§4.4 の 8k）。
+      'field.lrig': ['WX03-009#3890'],   // 四型緑姫（Lv4・limit 12）
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [B38_SRC],
+      'energy': B38_ENERGY,
+      'deck': [B38_X1, B38_X2, B38_Y, 'WD01-013#3850', 'WD01-013#3851', 'WD01-013#3852'],
+      'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3891'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#3870', 'WD01-013#3871', 'WD01-013#3872'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let summoned = false; let zoned = false;
+    const energyPicked = new Set(); let costFired = false;
+    let clickedX1 = false; let clickedX2 = false; let labelAfterTwoX = null;
+    let clickedY = false; let labelAfterY = null; let confirmed = false; let settleTicks = 0;
+    // ⚠🔴**`EffectInteractionModal` の `data-card-num` は「カード番号」でインスタンスIDではない**
+    //   （§4.4 の6）＝`WX04-054#3802` では一致しない。同名2枚は **nth で撃ち分ける**。
+    const clickCard = async (cardNum, nth = 0) => {
+      const cell = page.locator(`[data-testid^="pick-"][data-card-num="${cardNum}"]`).nth(nth);
+      if (await cell.count() && await cell.isVisible().catch(() => false)) {
+        await cell.click({ timeout: 1500 }).catch(() => {});
+        return true;
+      }
+      return false;
+    };
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/b38-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      else if (!costFired) {
+        // 【出】コスト《無》×3。⚠**エナ候補は1つにつき1回だけ押す**（毎回押すとトグルで外れる）。
+        if (energyPicked.size < 3) {
+          for (let i = 0; i < 3; i++) {
+            if (energyPicked.has(i)) continue;
+            const p = await H.clickTestId(`onplaycost-energy-${i}`);
+            if (p) { energyPicked.add(i); did = p; }
+            break;
+          }
+        } else { const b = await H.clickBtn('発動', { exact: true }); if (b) { did = b; costFired = true; } }
+      } else if (!confirmed) {
+        // 🔑**同じ群（Ｘ）を2枚**押してからラベルを読む＝2枚目は**群の容量オーバーで弾かれる**はず。
+        if (!clickedX1) { if (await clickCard('WX04-054', 0)) { clickedX1 = true; did = 'pick:X1'; } }
+        else if (!clickedX2) { if (await clickCard('WX04-054', 1)) { clickedX2 = true; did = 'pick:X2'; } }
+        else if (!labelAfterTwoX) {
+          labelAfterTwoX = await b34ReadConfirm(page);
+          did = `read:${labelAfterTwoX?.label}`;
+        } else if (!clickedY) { if (await clickCard('WX10-052', 0)) { clickedY = true; did = 'pick:Y'; } }
+        else if (!labelAfterY) {
+          labelAfterY = await b34ReadConfirm(page);
+          did = `read:${labelAfterY?.label}`;
+        } else {
+          const btn = page.locator('button', { hasText: /^決定 \(/ }).first();
+          if (await btn.count() && await btn.isEnabled().catch(() => false)) {
+            await btn.click({ timeout: 1500 }).catch(() => {}); did = 'confirm'; confirmed = true;
+          }
+        }
+      }
+      if (!did) did = await H.clickZone();
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  b38[${s}] -> ${did ?? 'なし'} | cost=${costFired} x1=${clickedX1} x2=${clickedX2} y=${clickedY} lblXX=${labelAfterTwoX?.label} lblXY=${labelAfterY?.label} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      // ⚠**確定した直後に判定しない**＝2枚とも `SELECT_SIGNI_ZONE` でゾーンを選ぶまで場に出ない。
+      //   ゾーン選択は上の `H.clickZone()` が拾うので、**2枚とも並ぶか数ティック落ち着くまで**待つ。
+      if (confirmed) {
+        const flatNow = (st?.host?.fieldSigni ?? []).flat().filter(Boolean);
+        const bothPlaced = flatNow.some(n => n.startsWith('WX04-054')) && flatNow.some(n => n.startsWith('WX10-052'));
+        settleTicks = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settleTicks + 1 : 0;
+        if (!bothPlaced && settleTicks < 4) continue;
+        const flat = flatNow;
+        // 同名2枚のどちらが場に出たかは決まらないので**枚数**で見る（Ｘはちょうど1枚・Ｙも1枚）。
+        const xCount = flat.filter(n => n.startsWith('WX04-054')).length;
+        const placedXY = xCount === 1 && flat.some(n => n.startsWith('WX10-052'));
+        const notTwoX = xCount === 1;
+        // 🔑**2枚目のＸが弾かれた証拠**＝Ｘ×2 の時点でも選択数が1のまま（`決定 (1/2)`）。
+        const blockedSameGroup = /\(1\/2\)/.test(labelAfterTwoX?.label ?? '');
+        const allowedCross = /\(2\/2\)/.test(labelAfterY?.label ?? '') && labelAfterY?.enabled === true;
+        return {
+          pass: blockedSameGroup && allowedCross && placedXY && notTwoX,
+          detail: `Ｘを2枚押した時点のラベル="${labelAfterTwoX?.label}"（同群2枚は不可=${blockedSameGroup}）／`
+            + `Ｙを足したラベル="${labelAfterY?.label}"（決定可=${allowedCross}）／場=${JSON.stringify(flat)}（Ｘ1枚＋Ｙ1枚=${placedXY}・Ｘ2枚目なし=${notTwoX}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cost=${costFired} x1=${clickedX1} x2=${clickedX2} y=${clickedY} lblXX=${labelAfterTwoX?.label} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('b38GroupAssignmentBlocksSameGroupTwice');
+// ── 段2 第38 END ──
+
+// ── 段2 第37バッチ（§5.1 残バッチ）＝ライフクロスクラッシュ**主体**の限定 ──────────────────────
+// **母集団（2026-08-24 実測）＝`ON_OPP_LIFE_CRASHED` は live 45効果／うち `triggerFilter` を持つのは 31効果。**
+// 🔴`ON_OPP_LIFE_CRASHED` は**クラッシュ原因を表さない**のに、原文の「**あなたのシグニが**」「このシグニが」
+//   という主体限定を JSON も collector も持っておらず、**誰がクラッシュしても発火する過剰実行**だった。
+//   第37バッチで `triggerScope:'any_ally'` ＋ `triggerFilter`／`thisCardOnly` を実クラッシュ源 instance と
+//   照合する `oppLifeCrashSourceMatches` へ配線した（`collectOppLifeCrashedTriggers` と BattleScreen の
+//   実機 `oppCrashSources` ループを**同じ predicate** へ）。
+//
+// 採用＝`WX11-028-E1`（弩砲 ゴルドガン）「【自】：あなたの**＜ウェポン＞の**シグニが対戦相手のライフクロス
+//   １枚をクラッシュしたとき、カードを１枚引く」＝ドロー1枚で決定論的に観測できる。
+// 🔑**対照は「アタッカーのクラスだけを差し替える」**＝盤面・手順・ライフ枚数は同一で、
+//   クラッシュした主体が＜ウェポン＞か否かだけが違う（§4.4 の3）。
+const B37_WATCHER = 'WX11-028#3701';     // 弩砲 ゴルドガン（Lv4 赤・watcher）
+const B37_WEAPON_ATK = 'WX04-070#3702';  // 小砲 デリン（Lv1 赤・精武：**ウェポン**・バニラ）
+const B37_OTHER_ATK = 'WD01-013#3703';   // 小剣 ククリ（Lv1 白・精武：**アーム**＝ウェポンではない・バニラ）
+
+function b37Spec(attacker) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD02-001#3790'],          // 花代・肆（Lv4・limit 11）
+      // zone0 ＝アタッカー／zone1 ＝ watcher（自分では殴らない）
+      'field.signi': [[attacker], [B37_WATCHER], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#3750', 'WD01-013#3751', 'WD01-013#3752', 'WD01-013#3753'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3791'],
+      // ⚠**全ゾーン空**＝正面のゾーン対応（§4.4 の 8e）に依存せず必ず**ライフへの直接アタック**になる。
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      // ライフはバースト無しのバニラで埋める（LB が割り込むと観測が濁る）。
+      'life_cloth': ['WD01-013#3770', 'WD01-013#3771', 'WD01-013#3772'],
+      'deck': ['WD01-013#3780', 'WD01-013#3781', 'WD01-013#3782'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+
+async function driveB37(page, H, id, expectDraw) {
+  const before = await H.queryState();
+  const state = { zoneOpened: false, attacked: false };
+  let crashed = false; let idle = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = await v86Attack(page, H, state, 0);
+    // ライフクラッシュ確認（`field.check`）は自分で消化する（§4.4 の1）。
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない', 'エナに送る', 'トラッシュに送る']);
+    const st = await H.queryState();
+    if ((st?.guest?.life ?? 99) < (before?.guest?.life ?? 0)) crashed = true;
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | attacked=${state.attacked} crashed=${crashed} gLife=${st?.guest?.life} hHand=${st?.host?.hand} gCheck=${st?.guest?.fieldCheck ? 'y' : '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!crashed) continue;
+    // 🔑**「クラッシュが起きたこと」を必須条件にする**＝起きていなければ何も検証していない。
+    idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0 && !st?.guest?.fieldCheck) ? idle + 1 : 0;
+    if (idle >= 4) {
+      const drew = (st.host.hand ?? 0) - (before.host.hand ?? 0);
+      return {
+        pass: expectDraw ? drew === 1 : drew === 0,
+        detail: `クラッシュ主体=${expectDraw ? '＜ウェポン＞のシグニ' : '＜ウェポン＞ではないシグニ'}／`
+          + `guest ライフ ${before.guest.life}→${st.guest.life}（クラッシュ=${crashed}）／`
+          + `host 手札 ${before.host.hand}→${st.host.hand}（ドロー+${drew}・期待は+${expectDraw ? 1 : 0}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${state.attacked} crashed=${crashed} gLife=${fin?.guest?.life} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.b37WeaponCrashSourceDraws = {
+  title: '段2第37 WX11-028-E1：＜ウェポン＞のシグニがライフをクラッシュしたら1枚引く',
+  spec: b37Spec(B37_WEAPON_ATK),
+  drive: (page, H) => driveB37(page, H, 'b37weapon', true),
+};
+scenarios.b37NonWeaponCrashSourceDoesNotDraw = {
+  title: '段2第37対照 ＜ウェポン＞でないシグニがクラッシュしても引かない（主体限定）',
+  spec: b37Spec(B37_OTHER_ATK),
+  drive: (page, H) => driveB37(page, H, 'b37other', false),
+};
+order.push('b37WeaponCrashSourceDraws', 'b37NonWeaponCrashSourceDoesNotDraw');
+// ── 段2 第37 END ──
+
+// ── 段2 第40バッチ（§5.1 残バッチ）＝`END_OF_ATTACK` の寿命がアタック解決で切れる ────────────────
+// **母集団（2026-08-24 実測）＝`until/duration:'END_OF_ATTACK'` を持つ live 効果は 5件**
+//   （`SP38-008-E3`／`WXEX2-21-E1`／`WX25-CP1-024-E1`／`WXDi-P09-006-E2` の**ガード禁止4件**と
+//    `WX15-002-E2` の damage window 1件）。
+// 機構＝`BLOCK_ACTION{GUARD, until:'END_OF_ATTACK'}` は `execBlockAction` が
+//   **効果元の `prevent_opp_guard`** を立て、`clearEndOfAttackEffects`（`battle/attackDuration.ts`）が
+//   **そのアタックの解決後に消す**。防御側の `GuardResponseDialog` は `op.prevent_opp_guard` を読む。
+//
+// 🔑**観測点は2つ**＝①そのアタックの間は**ガード候補が1枚も出ない** ②**解決後にフラグが消えている**
+//   （＝次のアタックには持ち越さない）。①だけだと「消えるか」を見ていない。
+// ⚠**対照**＝フラグを立てない同じ盤面ではガード候補が普通に出る（§4.4 の3）。
+const B40_GUARD_LV1 = 'WD01-017#4001';   // サーバント Ｏ（Lv1・Guard=1）
+const B40_GUARD_LV2 = 'WD01-016#4002';   // サーバント Ｄ（Lv2・Guard=1）
+
+function b40Spec(blocked) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#4090'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [B40_GUARD_LV1, B40_GUARD_LV2],
+      'energy': [], 'trash': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#4091'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null,
+      // 🔑**攻撃側（＝効果元）に立てる**＝防御側は `op.prevent_opp_guard` を読む。
+      'prevent_opp_guard': blocked ? true : undefined,
+      'hand': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  };
+}
+
+async function driveB40(page, H, id, blocked) {
+  let dialogSeen = false; let seen = null; let noCardMsg = false;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    const st = await H.queryState();
+    const banner = page.getByText('ルリグに攻撃された！').first();
+    const open = await banner.count() && await banner.isVisible().catch(() => false);
+    if (open) {
+      dialogSeen = true;
+      const a = await readGuardCandidates(page);
+      await page.waitForTimeout(600);
+      const b = await readGuardCandidates(page);
+      const msg = page.getByText('使用できるガードカードが手札にありません').first();
+      noCardMsg = !!(await msg.count()) && await msg.isVisible().catch(() => false);
+      if (JSON.stringify(a) === JSON.stringify(b)) { seen = b; break; }
+    }
+    H.log(`  ${id}[${s}] -> open=${open} gPreventGuard=${st?.guest?.preventOppGuard} lrigAttacked=${st?.host?.lrigAttacked} pEff=${st?.pendingEffect ?? '-'}`);
+    if (!open) await H.stdStep();
+  }
+  if (!dialogSeen || seen === null) {
+    const fin = await H.queryState();
+    return { pass: false, detail: `ガード応答ダイアログ未到達（gPreventGuard=${fin?.guest?.preventOppGuard} lrigAttacked=${fin?.host?.lrigAttacked}）` };
+  }
+  // 「ガードしない」で解決させ、**アタック解決後にフラグが消えるか**を見る（§4.4 の1＝check も消化する）。
+  await H.clickTextOrBtn(['ガードしない']).catch(() => {});
+  let cleared = null;
+  for (let k = 0; k < 8; k++) {
+    await page.waitForTimeout(700);
+    const st2 = await H.queryState();
+    if (st2?.host?.fieldCheck) { await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', '手札に加える', 'OK']).catch(() => {}); continue; }
+    if (!st2?.host?.lrigAttacked) { cleared = st2?.guest?.preventOppGuard; break; }
+  }
+  if (blocked) {
+    return {
+      pass: seen.length === 0 && noCardMsg && cleared === false,
+      detail: `ガード禁止中＝候補=${JSON.stringify(seen)}（0件が正）／「手札にありません」表示=${noCardMsg}／`
+        + `アタック解決後に prevent_opp_guard が消えた=${cleared === false}（観測値=${cleared}）`,
+    };
+  }
+  return {
+    pass: seen.length === 2,
+    detail: `対照（禁止なし）＝ガード候補=${JSON.stringify(seen)}（2件が正＝同じ手札で普通に出る）`,
+  };
+}
+
+scenarios.b40EndOfAttackGuardBlockClearsAfterAttack = {
+  title: '段2第40 END_OF_ATTACK：そのアタックの間はガード候補0件・解決後に prevent_opp_guard が消える',
+  spec: b40Spec(true),
+  drive: (page, H) => driveB40(page, H, 'b40blocked', true),
+};
+scenarios.b40NoGuardBlockShowsCandidates = {
+  title: '段2第40対照 禁止が無ければ同じ手札でガード候補が2件出る',
+  spec: b40Spec(false),
+  drive: (page, H) => driveB40(page, H, 'b40plain', false),
+};
+order.push('b40EndOfAttackGuardBlockClearsAfterAttack', 'b40NoGuardBlockShowsCandidates');
+// ── 段2 第40 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -27085,6 +27543,9 @@ try {
         // V-85（§5.1・2026-08-24）＝数字宣言の計器。`declared_number` は宣言値そのもの、
         // `declared_guard_restrict_level(s)` は `GUARD_LV_DECLARED` が解決した「ガードできないレベル」。
         // ⚠**役割が違う2つを混ぜない**（§6.4 O-41 で分離済み＝宣言しただけでガード制限が付くのが旧バグ）。
+        // 段2 第40（2026-08-24）＝`BLOCK_ACTION{GUARD, until:'END_OF_ATTACK'}` が立てるフラグ。
+        // **アタック解決後に `clearEndOfAttackEffects` が消す**のが観測点（`battle/attackDuration.ts`）。
+        preventOppGuard: s.prevent_opp_guard === true,
         declaredNumber: s.declared_number ?? null,
         declaredGuardRestrictLevels: s.declared_guard_restrict_levels ?? [],
         declaredGuardRestrictLevel: s.declared_guard_restrict_level ?? null,
