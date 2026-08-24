@@ -376,6 +376,7 @@ export type Condition =
   // 場に付いている【チャーム】の枚数（「対戦相手の場に【チャーム】が３枚ある場合」WX11-049-E2）。
   // 【ウィルス】の VIRUS_COUNT（ActiveCondition 側）と対になる使用条件版。
   | { type: 'CHARM_COUNT'; owner: Owner; operator: CompareOp; value: number }
+  | { type: 'VIRUS_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_GTE'; value: number; operator?: CompareOp }
   // このシグニ自身の**実効レベル**（`calcSigniLevels`＝表記＋動的修正）の比較。ActiveCondition 側と同形＝
@@ -479,7 +480,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE: true, ATTACK_ORDINAL_THIS_TURN: true, IS_DRIVE_STATE: true,
   TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
   LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,
-  LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, OPP_USING_TEAM_PIECE: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
+  LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, OPP_USING_TEAM_PIECE: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, VIRUS_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
   SELF_LEVEL_THRESHOLD: true,
   THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
   THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,

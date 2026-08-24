@@ -1806,10 +1806,14 @@ test('(xlix) canSelfPlay: FIELD_CLASS_COUNT（WX14-033）＝＜アーム＞2体�
   ok(canSelfPlay(effs, mkState({ signi: [arms[0], arms[1], null] }), mkState({}), cardMap as Map<string, CardData>) === true, 'アーム2体→可');
   ok(canSelfPlay(effs, mkState({ signi: [arms[0], null, null] }), mkState({}), cardMap as Map<string, CardData>) === false, 'アーム1体→不可');
 });
-test('(xlix) canSelfPlay: 未対応語彙（WX19-030 ウィルス総数）は permissive＝常に可（退化なし）', () => {
+test('(xlix) canSelfPlay: WX19-030 は相手場のウィルス3個以上の場合のみ可', () => {
   const effs = effectsMap.get('WX19-030')!;
-  ok((effs[0].action as { condition?: unknown }).condition === undefined, 'condition 無し（permissive）');
-  ok(canSelfPlay(effs, mkState({}), mkState({}), cardMap as Map<string, CardData>) === true, 'condition 無し→可');
+  eq(JSON.stringify((effs[0].action as { condition?: unknown }).condition),
+    JSON.stringify({ type: 'VIRUS_COUNT', owner: 'opponent', operator: 'gte', value: 3 }), 'VIRUS_COUNT 条件');
+  const opp3 = mkState({}); opp3.field.signi_virus = [1, 1, 1];
+  const opp2 = mkState({}); opp2.field.signi_virus = [1, 1, 0];
+  ok(canSelfPlay(effs, mkState({}), opp3, cardMap as Map<string, CardData>) === true, '3個→可');
+  ok(canSelfPlay(effs, mkState({}), opp2, cardMap as Map<string, CardData>) === false, '2個→不可');
 });
 test('(xlix) canSelfPlay: 出撃制限を持たないカードは常に可', () => {
   ok(canSelfPlay(effectsMap.get(SIGNI) ?? [], mkState({}), mkState({}), cardMap as Map<string, CardData>) === true, '制限無し→可');
@@ -2090,11 +2094,15 @@ const frontPowerCases = [
 for (const c of frontPowerCases) {
   test(`frontOfSelf CONT POWER_MODIFY: ${c.effectId} は正面だけを弱体化し条件・保護を尊重`, () => {
     const cm = cardMap as Map<string, CardData>;
-    const em = new Map(effectsMap);
+    // 対象効果だけを入れ、テスト用に払い出した signi 自身の常在能力が結果へ混ざらないよう隔離する。
+    const em = new Map<string, CardEffect[]>();
     em.set(c.cardNum, mergeManualEffects(c.cardNum, em.get(c.cardNum) ?? []).filter(e => e.effectId === c.effectId));
     const maze = findCard(card => isSigni(card) && (card.CardClass ?? '').includes('迷宮') && card.CardNum !== c.cardNum);
     const front = fresh(), offLane = fresh();
-    const my = mkState({ signi: [c.cardNum, c.needsMaze ? maze : null, null] });
+    const namedLrig = c.effectId === 'WX24-P2-057-E1'
+      ? findCard(card => card.Type === 'ルリグ' && card.CardName === 'エニグマ/メイデン　イオナ')
+      : undefined;
+    const my = mkState({ signi: [c.cardNum, c.needsMaze ? maze : null, null], ...(namedLrig ? { lrig: [namedLrig] } : {}) });
     const op = mkState({ signi: [offLane, null, front] });
     const baseHost = parseInt(cardMap.get(c.cardNum)?.Power ?? '0', 10);
     const baseFront = parseInt(cardMap.get(front)?.Power ?? '0', 10);
@@ -6770,7 +6778,7 @@ for (const [cardNum, effectId, key, count] of [
   ['WXDi-P13-088', 'WXDi-P13-088-E1', '"isDisona":true', 1],
   ['WXDi-P12-003', 'WXDi-P12-003-E1', '"isDisona":true', 2],
   ['WXDi-P12-076', 'WXDi-P12-076-E2', '"isDisona":true', 1],
-  ['WXDi-P12-082', 'WXDi-P12-082-E1', '"isDisona":true', 1],
+  ['WXDi-P12-082', 'WXDi-P12-082-E1', '"isDisona":true', 2],
   ['SP27-010', 'SP27-010-E1', '"excludeResona":true', 1],
   ['WX16-Re01', 'WX16-Re01-E1', '"excludeResona":true', 1],
   ['WX16-Re10', 'WX16-Re10-E1', '"excludeResona":true', 1],
@@ -14229,8 +14237,8 @@ test('task12(cxviii) WXDi-P15-071: ベットで【Ｓランサー】、非ベッ
   eq(JSON.stringify(granted[0].activeCondition),
      JSON.stringify({ type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 8000 }), '正面のパワー8000以下ゲート');
   // engine の効き＝付与先を発生源として毎フレーム評価
-  const augmented = new Map(effectsMap);
-  augmented.set(targetSigni, [...(effectsMap.get(targetSigni) ?? []), ...granted]);
+  // 付与能力だけを隔離して検証する。払い出した実カード自身の常在キーワードを混ぜない。
+  const augmented = new Map<string, CardEffect[]>([[targetSigni, [...granted]]]);
   const kwWithFront = (frontPower: number) => {
     const front = fresh();
     return (collectContinuousGrantedKeywords(mkState({ signi: [targetSigni, null, null] }),
@@ -19755,7 +19763,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 55, 'ActiveCondition の型数（55＝段2 第43バッチで SIGNI_BANISHED_THIS_TURN / SELF_DECK_TO_TRASH_THIS_TURN を追加）');
-  eq(Object.keys(C_TYPES).length, 125, 'Condition の型数（125＝段2 第43バッチで SIGNI_BANISHED_THIS_TURN / SELF_DECK_TO_TRASH_THIS_TURN / SIGNI_RETURNED_TO_HAND_THIS_TURN を追加）');
+  eq(Object.keys(C_TYPES).length, 126, 'Condition の型数（126＝段2 第44バッチで VIRUS_COUNT を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -46409,6 +46417,71 @@ test('段2 第43バッチ 見送り固定: 「対象とし、」の後の条件�
     eq((e.action as { type: string }).type, 'CONDITIONAL', id + ': action は CONDITIONAL');
   }
 });
+
+// ── 段2 第44バッチ：場の存在・体数条件 ──
+test('段2 第44バッチ live: 採用19効果に盤面条件の受け皿が残る', () => {
+  const ids = [
+    'WX09-034-E1', 'WX09-Re20-E2', 'WX12-033-E1', 'WX13-058-E1', 'WX15-068-E2',
+    'WX17-053-E2', 'WX18-030-E2', 'WX19-030-E1', 'WX24-P2-057-E1', 'WX25-P3-054-E2',
+    'WXDi-P02-048-E1', 'WXDi-P05-049-BURST', 'WXDi-P07-040-E1', 'WXDi-P07-063-E1',
+    'WXDi-P12-047-E1', 'WXDi-P12-082-E1', 'WXDi-P16-055-E1', 'WXK03-046-E1', 'WXK07-055-CB-E1',
+  ];
+  for (const id of ids) {
+    const json = JSON.stringify(b43Live(id));
+    ok(json.includes('HAS_CARD_IN_FIELD') || json.includes('VIRUS_COUNT') || json.includes('ALL_FIELD_SIGNI_MATCH'),
+      id + ': 場条件が live から消えていない');
+  }
+  const ulis = b43Live('WX09-Re20-E2');
+  eq(ulis.activeCondition?.type, 'HAS_CARD_IN_FIELD', 'POWER_SET は action CONDITIONAL でなく activeCondition でゲートする');
+  eq((ulis.action as { type: string }).type, 'POWER_SET', 'POWER_SET collector が直接読める形を維持');
+});
+
+test('段2 第44バッチ HAS_CARD_IN_FIELD: 成立／不足／0体で本文実行を三方向固定', () => withSavedCursor(() => {
+  const rise = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【ライズ】'));
+  const conditional: EffectAction = {
+    type: 'CONDITIONAL',
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasRiseIcon: true }, minCount: 2 },
+    then: { type: 'DRAW', owner: 'self', count: 1 },
+  };
+  const handAfter = (signi: (string | null)[]) => run(conditional, mkCtx({ signi }, {})).ownerState.hand.length;
+  eq(handAfter([rise, rise, null]), 6, '条件成立（2体）なら実行');
+  eq(handAfter([rise, SIGNI_L1, null]), 5, '1体不足なら実行しない');
+  eq(handAfter([null, null, null]), 5, '0体なら実行しない');
+}));
+
+test('段2 第44バッチ CONTINUOUS: ActiveCondition 成立時だけ POWER_SET を collector が適用', () => withSavedCursor(() => {
+  const src = 'WX09-Re20';
+  const ulisL4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4' && (c.CardClass ?? '').includes('ウリス'));
+  const otherLrig = findCard(c => c.Type === 'ルリグ' && !(c.CardClass ?? '').includes('ウリス'));
+  const power = (lrig: string[]) => calcFieldPowers(mkState({ signi: [src, null, null], lrig }), mkState(), true, effectsMap, cardMap).get(src);
+  eq(power([ulisL4]), 10000, 'Lv4＜ウリス＞ありなら基本パワー10000');
+  eq(power([otherLrig]), parseInt(cardMap.get(src)?.Power ?? '0', 10), '別ルリグなら印刷パワーのまま');
+  eq(power([]), parseInt(cardMap.get(src)?.Power ?? '0', 10), 'ルリグ0体なら印刷パワーのまま');
+}));
+
+test('段2 第44バッチ VIRUS_COUNT: SELF_PLAY_RESTRICT を3／2／0個で固定', () => withSavedCursor(() => {
+  const effs = effectsMap.get('WX19-030');
+  const can = (counts: number[]) => {
+    const mine = mkState();
+    const opp = mkState();
+    opp.field.signi_virus = counts;
+    return canSelfPlay(effs, mine, opp, cardMap, 'WX19-030');
+  };
+  ok(can([1, 1, 1]), '相手ウィルス3個なら配置可');
+  ok(!can([1, 1, 0]), '2個なら配置不可');
+  ok(!can([0, 0, 0]), '0個なら配置不可');
+}));
+
+test('段2 第44バッチ 複合AND: 全ディソナかつ相手エナ2枚の両側を評価', () => withSavedCursor(() => {
+  const disona = findCard(c => c.Type === 'シグニ' && c.Story === 'Dissona');
+  const ordinary = findCard(c => c.Type === 'シグニ' && c.Story !== 'Dissona');
+  const condition = (b43Live('WXDi-P12-047-E1').action as { condition: Condition }).condition;
+  const holds = (signi: (string | null)[], energy: number) => evalCondition(condition, mkCtx({ signi }, { energy }));
+  ok(holds([disona, disona, null], 2), '両条件成立なら true');
+  ok(!holds([disona, ordinary, null], 2), '非ディソナ混在なら false');
+  ok(!holds([disona, null, null], 0), '相手エナ0枚なら false');
+  ok(!holds([null, null, null], 2), '自場0体なら ALL を空真にしない');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

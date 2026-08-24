@@ -91,7 +91,11 @@ export function parseSelfPlayRestrict(t: string): SelfPlayRestrictAction | null 
   //   同関数へ `TURN_HAND_DISCARD_GTE` のケースを追加してある（§5-2‴）。
   const oppDiscM = t.match(/このターンに対戦相手が手札を(?:([０-９\d]+)枚以上)?捨てていた場合にしか/);
   if (oppDiscM) return { ...base, condition: { type: 'TURN_HAND_DISCARD_GTE', owner: 'opponent', value: oppDiscM[1] ? parseNum(oppDiscM[1]) : 1 } };
-  // それ以外（ウィルス総数/アクセ総数/クロス状態等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
+  // 対戦相手の場に【ウィルス】がNつ以上ある場合にしか（WX19-030）。
+  // `signi_virus` のゾーン別個数を合計する VIRUS_COUNT は ActiveCondition と collector の双方で実装済み。
+  const virusM = t.match(/対戦相手の場に【ウィルス】が([０-９\d]+)つ以上ある場合にしか/);
+  if (virusM) return { ...base, condition: { type: 'VIRUS_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(virusM[1]) } };
+  // それ以外（アクセ総数/クロス状態等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
   return base;
 }
 

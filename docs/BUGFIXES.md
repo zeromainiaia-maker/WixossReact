@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.2 段2 第44バッチ＝場の存在・体数条件の脱落
+
+- **母集団**＝群A **587効果 / 受け皿なし42効果**を再現。うち4件は追加処理／コスト軽減 STUB で既に別表現、表外2件は不変。依頼表の真バグ36件から既存語彙で安全に完成する19件を採用し、採用後は **587 / 23**。
+- **配線**＝`HAS_CARD_IN_FIELD`（名前包含、レベル、ライズ、色ルリグ、`excludeSelf`、`minCount`）、`ALL_FIELD_SIGNI_MATCH + ENERGY_COUNT`、既存 ActiveCondition の `VIRUS_COUNT` を Condition/出撃制限へ流用。`WXDi-P12-047-E1` は場と相手エナのANDを両方復元した。
+- **評価器監査**＝CONTINUOUS は `checkActiveCondition` と各 collector、AUTO/ACTIVATED は `evalCondition`、出撃制限は `evalConditionForContinuous` を実コードで確認。`WX09-Re20-E2` は action CONDITIONAL では `POWER_SET` collector が読まないため activeCondition に置いた。
+- **見送り**＝トラップ/ソウル/下カード/付着カード/凍結ルリグ合算、source-relative共有色、異なるレベル種類数は受け皿不足。`WXK07-028-E1` は `CHARM_COUNT` は正しいが fresh が3択本文を STUB へ退化させるため held のまま不採用。
+- **live A/B**＝変化は採用19 effectIdだけ、追加0・削除0・outlier 0。held **75/31 → 76/32** は見送り `WXK07-028` 1枚だけ。
+- **ゲート**＝`npm run gates` 全緑。golden **2743/0**、census **591→583**（baseline同期）、smoke 10693全0、fuzz全0、census:stubs 0/0、manual-fields 0/0、lint 0 errors/260 warnings、同型5986/265/★0。
+- **台帳**＝quote一致6本を追記。段0 **221→221** / 段1 **112→111** / 段2 **417→423** / OPEN **694→689**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch44_report.md`。
+
 ## 2026-08-25：`V-88` 決着＝`v12GrantedEnergyCharge*` 2本の FAIL は**ドライバの `nth` 固定**だった（シナリオの腐り）
 
 - **症状**＝`v12GrantedEnergyChargeTwice` / `v12GrantedEnergyChargeThirdBlocked` が2本とも `grantIds=[]` `energy=0` `completed=0` のまま 55〜70秒でタイムアウト。**付与そのものが起きず、観測対象の `ON_ENERGY_CHARGE` 経路には一度も到達していなかった。**

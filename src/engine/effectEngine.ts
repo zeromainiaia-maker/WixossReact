@@ -1088,6 +1088,8 @@ function evalConditionForContinuous(
     //   census も golden も緑のまま素通りする（§5-2‴）。他2評価器と同じ式を必ず並べること。
     case 'TURN_HAND_DISCARD_GTE':
       return (st(cond.owner ?? 'self').turn_hand_discarded_count ?? 0) >= cond.value;
+    case 'VIRUS_COUNT':
+      return cmp((st(cond.owner).field.signi_virus ?? []).reduce((sum, count) => sum + count, 0), cond.operator, cond.value);
     case 'SIGNI_BANISHED_THIS_TURN':
       return (st(cond.owner).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
     case 'SELF_DECK_TO_TRASH_THIS_TURN':

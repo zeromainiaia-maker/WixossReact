@@ -382,6 +382,10 @@ function parseUseCondition(text: string): Condition {
   if (text.match(/あなたの場にアクセされているシグニがある/))
     return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasAcce: true } };
 
+  // あなたの場に《ライズアイコン》を持つシグニがある（起動能力の使用条件）。
+  if (text.match(/あなたの場に《ライズアイコン》を持つシグニがある/))
+    return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasRiseIcon: true } };
+
   // あなたの場に《X》がいる（特定カード名）
   m = text.match(/あなたの場に《([^》]+)》が(?:いる|ある)/);
   if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: m[1] } };
@@ -400,7 +404,7 @@ function parseUseCondition(text: string): Condition {
     return { type: 'AND', conditions: [{ type: 'THIS_CARD_IN_LOCATION', location: 'trash' }, cond2] };
   }
 
-  // 《ライズアイコン》その他未対応
+  // その他未対応
   return { type: 'COND_STUB', raw: text };
 }
 
@@ -1038,6 +1042,21 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 段2 第44バッチ：カード名の「完全一致」ではなく「《X》を含む」シグニの存在条件。
+  // 単一名と「《X》か《Y》を含む」を同じ filter.cardName/cardNames 語彙へ載せる。
+  const fieldNameContainsM = text.match(/^あなたの場にカード名に((?:《[^》]+》(?:か)?)+)を含むシグニがあるかぎり、/);
+  if (fieldNameContainsM) {
+    const names = [...fieldNameContainsM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    return {
+      condition: names.length === 1
+        ? { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: names[0] } }
+        : { type: 'OR', conditions: names.map(cardName => ({
+          type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName },
+        })) },
+      rest: text.slice(fieldNameContainsM[0].length), conditionFound: true,
+    };
+  }
+
   // パターン2: 「あなたの場に《カード名》/＜カード名＞があるかぎり、」
   const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)が(?:ある|いる)かぎり、/);
   if (fieldNameM) {
@@ -1070,6 +1089,11 @@ function parseActiveCondition(text: string): ConditionParseResult {
       conditionFound: true,
     };
   }
+  const fieldOtherSigniM = text.match(/^あなたの場に他のシグニがあるかぎり、/);
+  if (fieldOtherSigniM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, excludeSelf: true },
+    rest: text.slice(fieldOtherSigniM[0].length), conditionFound: true,
+  };
 
   // パターン2d: 「あなたの場に他の《X》のシグニがあるかぎり、」（アイコン条件）
   const fieldOtherIconM = text.match(/^あなたの場に他の《([^》]+)》のシグニがあるかぎり、/);
@@ -1133,6 +1157,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
       conditionFound: true,
     };
   }
+
+  // 「レベルNの＜X＞がいる場合」も【常】本文の activeCondition。
+  // action を CONDITIONAL に包むと POWER_SET collector が内側を読まないため、ここで先に剥がす。
+  const fieldLevelLrigM = text.match(/^あなたの場にレベル([０-９\d]+)の＜([^＞]+)＞がいる場合、/);
+  if (fieldLevelLrigM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: ['ルリグ', 'アシストルリグ'], level: parseNum(fieldLevelLrigM[1]), story: fieldLevelLrigM[2],
+    } },
+    rest: text.slice(fieldLevelLrigM[0].length), conditionFound: true,
+  };
 
   // パターン3c-2: 「(あなた|対戦相手)の場に(レベルNの)?(覚醒|傀儡)状態のシグニがあるかぎり、」（2026-08-18・§5d-0 (ii)）
   // 🔴従来この形の条件節は**丸ごと落ちて無条件発火**していた＝`WXDi-P14-050-E1`（**無条件で相手の【ガード】に
@@ -2267,6 +2301,40 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // ── 段2 第44バッチ：場の存在・体数条件 ──
+  // 複合形は単独形より先に置く。閾値はすべて原文から読み、カード番号には依存しない。
+  [/あなたの場にあるすべてのシグニが《ディソナアイコン》で対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', isDisona: true } },
+      { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[0]) },
+    ] })],
+  [/(あなた|対戦相手)の場に《ライズアイコン》を持つシグニが(?:([０-９\d]+)体(?:以上)?ある|ある)場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ', hasRiseIcon: true }, ...(g[1] ? { minCount: parseNum(g[1]) } : {}) })],
+  [/(あなた|対戦相手)の場にレベルが(奇数|偶数)のシグニが([０-９\d]+)体(?:以上)?ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ', levelParity: g[1] === '奇数' ? 'odd' : 'even' }, minCount: parseNum(g[2]) })],
+  [/(あなた|対戦相手)の場にレベル([０-９\d]+)のシグニが(?:([０-９\d]+)体(?:以上)?ある|ある)場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ', level: parseNum(g[1]) }, ...(g[2] ? { minCount: parseNum(g[2]) } : {}) })],
+  [/あなたの場にレベル([０-９\d]+)の＜([^＞]+)＞がいる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: ['ルリグ', 'アシストルリグ'], level: parseNum(g[0]), story: g[1],
+    } })],
+  [/あなたの場にカード名に《([^》]+)》を含むルリグがいる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: ['ルリグ', 'アシストルリグ'], cardName: g[0],
+    } })],
+  [/あなたの場に《ディソナアイコン》のシグニがある場合/,
+    () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true } })],
+  [/あなたの場に《([^》]+)》が(?:ある|いる)場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
+  [/あなたの場に(白|赤|青|緑|黒)のルリグが([０-９\d]+)体以上いる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: ['ルリグ', 'アシストルリグ'], color: g[0],
+    }, minCount: parseNum(g[1]) })],
+  [/(あなた|対戦相手)の場に【チャーム】が([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'CHARM_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gte', value: parseNum(g[1]) })],
   // 自分−相手の符号付きライフ差。両条件表へ同じ規則を供給し、AUTO/ACTIVATEDの枝条件を落とさない。
   [/あなたのライフクロス(?:の枚数)?が対戦相手より([０-９\d]+)枚以上(多い|少ない)場合/,
     g => ({ type: 'LIFE_COMPARE_OPP', operator: g[1] === '多い' ? 'gte' : 'lte', value: (g[1] === '多い' ? 1 : -1) * parseNum(g[0]) })],
@@ -15576,6 +15644,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     extractedTriggerCondition,
   );
 
+  // 段2 第44バッチ：名前指定の場条件に続く LOOK 系は、LOOK 専用パーサが単文の
+  // `tryWrapLeadingStateCond` より先に本文を消費するため effect-level condition へ持ち上げる。
+  // LOOK 本文まで限定し、一般の名前条件の消費位置は変えない。
+  if (actionText) {
+    const namedFieldLookM = actionText.match(/^あなたの場に《([^》]+)》が(?:ある|いる)場合、(?=あなたのデッキの上からカードを[０-９\d]+枚見る)/);
+    if (namedFieldLookM) {
+      const namedCond: Condition = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: namedFieldLookM[1] } };
+      extractedTriggerCondition = extractedTriggerCondition
+        ? { type: 'AND', conditions: [extractedTriggerCondition, namedCond] }
+        : namedCond;
+      actionText = actionText.slice(namedFieldLookM[0].length);
+    }
+  }
+
   const cost = parseCost(costStr);
   // ⚠「コスト句はあるのに parseCost が1つも解釈できなかった」印（タスク12(xxix)(2)）。
   // これが無いと `mandatory:false` かつ `cost` 無しに見えるため、任意【出】の発動プロンプト機構が
@@ -18598,6 +18680,14 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDurationsBatch40(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
+    // LOOK_AND_REORDER 専用分岐が単文条件ラッパより先に本文を消費する形の補完。
+    // 「5枚見て1枚をトラッシュ、残りをデッキ上へ戻す」形だけに限定し、他の LOOK 群へ波及させない。
+    const namedFieldTrashLook = sourceText.match(/あなたの場に《([^》]+)》が(?:ある|いる)場合、あなたのデッキの上からカードを([０-９\d]+)枚見る。その中から[１1]枚をトラッシュに置き、残りを好きな順番でデッキの一番上に戻す/);
+    if (!effect.condition && namedFieldTrashLook && effect.action.type === 'LOOK_AND_REORDER') {
+      effect.condition = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: namedFieldTrashLook[1] } };
+      effect.parseStatus = 'AUTO';
+      clearSilentFallback(effect.effectId);
+    }
     const repairedGrant = repairGrantKeywordMetadataBatch41(sourceText, effect.effectType, effect.action);
     if (JSON.stringify(repairedGrant) !== JSON.stringify(effect.action)) {
       effect.action = repairedGrant;

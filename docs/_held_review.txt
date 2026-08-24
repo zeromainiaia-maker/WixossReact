@@ -386,6 +386,24 @@ WXK06-049
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
 
+## +CHARM_COUNT +STUB -BANISH -CHOOSE -GRANT_KEYWORD×2 -POWER_MODIFY -SEQUENCE -SIGNI×4 ［1枚］
+WXK07-028
+--- WXK07-028
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に【チャーム】が１枚以上ある場合、以下の３つから１つを選ぶ。３枚ある場合、代わりに２つまで選ぶ。①シグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000し、それは【ランサー】を得る。②シグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。③対戦相手のシグニ１体を対象と
+  - [0].action.choose_count = 1
+  - [0].action.from_count = 3
+  - [0].action.choices[0].choiceId = "c0"
+  - [0].action.choices[0].label = "選択肢1"
+  - [0].action.choices[0].action.type = "SEQUENCE"
+  - [0].action.choices[0].action.steps[0].type = "POWER_MODIFY"
+  - [0].action.choices[0].action.steps[0].target.type = "SIGNI"
+  - [0].action.choices[0].action.steps[0].target.owner = "any"
+  - [0].action.choices[0].action.steps[0].target.count = 1
+  - [0].action.choices[0].action.steps[0].delta = 3000
+  - [0].action.choices[0].action.steps[0].duration = "UNTIL_END_OF_TURN"
+  - [0].action.choices[0].action.steps[1].type = "GRANT_KEYWORD"
+  …（他 30 行）
+
 ## +CONDITIONAL +HAS_CARD_IN_FIELD +UNKNOWN -STUB ［1枚］
 WD09-018
 --- WD09-018
