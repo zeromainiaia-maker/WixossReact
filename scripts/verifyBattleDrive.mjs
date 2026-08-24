@@ -16098,8 +16098,15 @@ scenarios.v12GrantedEnergyChargeTwice = {
         } else if (!grantClicked) {
           // ⚠SPDi43-13 は【起】が2つあり、E1（《ダウン》でSランサー付与）も **「【起】コストなし」**と
           //   表示される（ルリグ用のコストラベル生成に `down_self` が無い＝`BattleScreen.tsx:12585` 付近）。
-          //   nth 未指定だと E1 を押して SELECT_TARGET に入り、付与（E2）に永久に到達しない（続き477 実測）。
-          did = await H.clickBtn('【起】コストなし', { exact: true, nth: 1 });
+          //   ⇒ 付与は **E2＝最後に並ぶボタン**なので `nth = count - 1` で狙う（続き477 実測）。
+          // 🔴**`nth: 1` 固定は腐る**（`V-88`・2026-08-25 実測）＝この spec は `field.lrig_down: true` で始まるため
+          //   **《ダウン》コストの E1 が提示されずボタンは1個だけ**になり、nth:1 は毎回空振りして
+          //   付与に永久に到達しなかった（`grantIds=[]` のまま 55〜70秒でタイムアウト）。
+          //   ⚠ラベルは2つとも同一文字列なので**名前では区別できない**＝並び順で狙うしかない。
+          {
+            const n = await page.getByRole('button', { name: '【起】コストなし', exact: true }).count();
+            if (n > 0) did = await H.clickBtn('【起】コストなし', { exact: true, nth: n - 1 });
+          }
           if (did) grantClicked = true;
         }
         if (!did) did = await H.clickBtn('発動', { exact: true });
@@ -16265,8 +16272,15 @@ scenarios.v12GrantedEnergyChargeThirdBlocked = {
         } else if (!grantClicked) {
           // ⚠SPDi43-13 は【起】が2つあり、E1（《ダウン》でSランサー付与）も **「【起】コストなし」**と
           //   表示される（ルリグ用のコストラベル生成に `down_self` が無い＝`BattleScreen.tsx:12585` 付近）。
-          //   nth 未指定だと E1 を押して SELECT_TARGET に入り、付与（E2）に永久に到達しない（続き477 実測）。
-          did = await H.clickBtn('【起】コストなし', { exact: true, nth: 1 });
+          //   ⇒ 付与は **E2＝最後に並ぶボタン**なので `nth = count - 1` で狙う（続き477 実測）。
+          // 🔴**`nth: 1` 固定は腐る**（`V-88`・2026-08-25 実測）＝この spec は `field.lrig_down: true` で始まるため
+          //   **《ダウン》コストの E1 が提示されずボタンは1個だけ**になり、nth:1 は毎回空振りして
+          //   付与に永久に到達しなかった（`grantIds=[]` のまま 55〜70秒でタイムアウト）。
+          //   ⚠ラベルは2つとも同一文字列なので**名前では区別できない**＝並び順で狙うしかない。
+          {
+            const n = await page.getByRole('button', { name: '【起】コストなし', exact: true }).count();
+            if (n > 0) did = await H.clickBtn('【起】コストなし', { exact: true, nth: n - 1 });
+          }
           if (did) grantClicked = true;
         }
         if (!did) did = await H.clickBtn('発動', { exact: true });
