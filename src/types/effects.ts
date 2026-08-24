@@ -241,7 +241,7 @@ export type ActiveCondition =
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number } // エナゾーンにレベル帯の各レベルごとに一致カードがN枚以上あるかぎり
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
-  | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
+  | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter | CardTypeFilter[]; filter?: TargetFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType/filter一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner; minCount?: number } // このターンにシグニがN体以上場から手札に戻っていた場合（省略=1 は turn_signi_returned_to_hand フラグ、N≧2 は signi_returned_to_hand_count_this_turn。G087）
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンにアーツを使用した回数（省略=1。minCount指定時はturn_arts_used_namesを数える。exactCount＝「N枚目のアーツだった場合」の**ちょうどN**）
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
@@ -359,7 +359,7 @@ export type Condition =
   | { type: 'LRIG_LEVEL_CMP_OPP'; operator: 'lt' | 'lte' | 'gt' | 'gte' } // 自分のセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上 の場合（WXK07-025/WXK10-068。EQ の不等号版）
   | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string } // センタールリグのカード名が name を含む場合
   | { type: 'LRIG_COLOR'; owner: Owner; color: string }       // センタールリグが指定色を持つ場合（「あなたのセンタールリグが青で」等）
-  | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）カード枚数（「ルリグトラッシュにアーツが4枚以上」等）。excludeSource=trueで使用中カード自身(sourceCardNum)を除外＝リコレクト判定
+  | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter | CardTypeFilter[]; filter?: TargetFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType/filter一致）カード枚数（「ルリグトラッシュにアーツが4枚以上」等）。excludeSource=trueで使用中カード自身(sourceCardNum)を除外＝リコレクト判定
   | { type: 'FIELD_CLASS_COUNT'; owner: Owner; story: string; operator: CompareOp; value: number } // 場のシグニのうちCardClassがstoryを含むものの数（「場に＜天使＞が3体」等）
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number } // 場のルリグ（センター＋アシストL/R）のうちTeamがteamを含むものの数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021。Teamはチーム名でCardClass/Storyとは別）
   /**

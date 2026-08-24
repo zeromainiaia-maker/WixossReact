@@ -28760,6 +28760,57 @@ scenarios.b44VirusControlPlain = {
 order.push('b44VirusControlPlain', 'b44VirusDeployBlocked', 'b44VirusDeployAllowed');
 // ── §5.2 段2 第44バッチ END ──
 
+// ── 段2 第45バッチ（続き651）＝トラッシュ枚数条件つき CONTINUOUS パワーの実機ペア ───────
+// WXDi-P03-066「【常】：あなたのトラッシュにレベル１のシグニが２枚以上あるかぎり、このシグニのパワーは＋4000される。」
+// 第45バッチで parser が `activeCondition = TRASH_HAS_CARD{filter:{cardType:'シグニ',level:1}, minCount:2}` を
+// 出すようになった。**この条件は盤面に描画されるパワー値としてしか実機に出ない**
+// （`calcFieldPowers` → `checkActiveCondition`）＝JSON assert では「UI に届いているか」を見られない。
+// ⚠**必ず2本セットで見る**（§5-3′）。spec はトラッシュのレベル1シグニ枚数**1点だけ**違う。
+//   Buff   … トラッシュに Lv1 シグニ2枚 → 3000 + 4000 = **7000**
+//   NoBuff … トラッシュに Lv1 シグニ1枚 → 印刷どおり **3000**（閾値−1 で不成立）
+const b45PowerSpec = (trash) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, ['WXDi-P03-066#1'], null],   // 羅星 ハイドラス（Lv1・印刷パワー3000）
+    'field.signi_down': [false, false, false],
+    'trash': trash,
+    'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b45PowerDrive = (tag, expected) => async function drive(page, H) {
+  await H.ensureMain();
+  let seen = null;
+  for (let s = 0; s < 8; s++) {
+    await page.waitForTimeout(700);
+    const zone = page.getByTestId('my-signi-zone-1').first();
+    // ⚠UI はパワーを3桁区切りで描画する（"7,000"）＝カンマを剥がしてから数値を見る。
+    //   剥がさないと `\d{4,5}` が一致せず「表示を読めなかった」に化ける（実測で踏んだ）。
+    const txt = (await zone.innerText().catch(() => '')).replace(/\s+/g, ' ').replace(/,/g, '');
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] | zone1="${txt}" trash=${JSON.stringify(st?.host?.trash)}`);
+    if (/\d{4,5}/.test(txt)) { seen = txt; break; }
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  if (seen === null) return { pass: false, detail: 'ゾーン1のパワー表示を読めなかった（ドライバ側の問題＝盤面注入かセレクタを見直す）' };
+  const hit = seen.includes(String(expected));
+  return hit
+    ? { pass: true, detail: `ゾーン1の表示パワーが期待どおり ${expected}（"${seen}"）` }
+    : { pass: false, detail: `【回帰疑い】ゾーン1の表示パワーが ${expected} でない（"${seen}"）＝TRASH_HAS_CARD の minCount ゲートが UI へ届いていない` };
+};
+scenarios.b45TrashLv1Buff = {
+  title: 'WXDi-P03-066（TRASH_HAS_CARD minCount:2）＝トラッシュに Lv1 シグニ2枚で 3000→7000【成立】',
+  spec: b45PowerSpec(['WD01-013#1', 'WD01-014#1']),
+  drive: b45PowerDrive('b45PowerBuff', 7000),
+};
+scenarios.b45TrashLv1NoBuff = {
+  title: 'WXDi-P03-066（TRASH_HAS_CARD minCount:2）＝トラッシュに Lv1 シグニ1枚なら 3000 のまま【閾値−1 で不成立】',
+  spec: b45PowerSpec(['WD01-013#1']),
+  drive: b45PowerDrive('b45PowerNoBuff', 3000),
+};
+order.push('b45TrashLv1Buff', 'b45TrashLv1NoBuff');
+// ── §5.2 段2 第45バッチ END ──
+
 
 
 

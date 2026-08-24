@@ -2173,7 +2173,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         if (cond.excludeSource && n === ctx.sourceCardNum) return false;
         const c = ctx.cardMap.get(n);
         if (!c) return false;
-        return types ? types.includes(c.Type as typeof types[number]) : true;
+        if (types && !types.includes(c.Type as typeof types[number])) return false;
+        return !cond.filter || matchesFilter(c, cond.filter);
       }).length;
       return cmp(cnt, cond.operator, cond.value);
     }

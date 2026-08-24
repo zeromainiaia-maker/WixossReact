@@ -612,7 +612,13 @@ function condJa(c?: any): string {
     case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
     case 'LRIG_LEVEL_EQ_OPP': return '自分と対戦相手のセンタールリグのレベルが同じ';
     case 'LRIG_LEVEL_CMP_OPP': return `自分のセンタールリグのレベルが対戦相手のセンタールリグ${c.operator === 'lt' ? 'より低い' : c.operator === 'lte' ? '以下' : c.operator === 'gt' ? 'より高い' : '以上'}`;
-    case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ?? 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'LRIG_TRASH_COUNT': {
+      const rawCardType = c.cardType ?? c.filter?.cardType;
+      const cardType = Array.isArray(rawCardType)
+        ? (rawCardType.includes('ルリグ') && rawCardType.includes('アシストルリグ') ? 'ルリグ' : rawCardType.join('または'))
+        : (rawCardType ?? 'カード');
+      return `ルリグトラッシュに${filterJa(c.filter)}${cardType}が${numJa(c.value)}枚${opJa(c.operator)}`;
+    }
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
     case 'CHARM_COUNT': return `${ownerJa(c.owner)}場の【チャーム】が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator ?? 'gte')}`;

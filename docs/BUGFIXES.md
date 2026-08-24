@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.2 段2 第45バッチ＝トラッシュ／エナゾーンの存在・枚数条件の脱落
+
+- **母集団訂正**＝群Bは投入時 **275効果 / RECVなし40効果**（41ではない）。既知10件に加え、専用実行器で条件を守る7件を偽陽性と確認。群C重複9件・表外 `WX09-027-E2`・既に複合AND済み `WXDi-P12-047-E1` を分離し、依頼表内の真の穴は **13効果**（採用11／新機構待ち2）だった。CSVはBOM除去後 **6712カード**。
+- **配線**＝既存 `TRASH_HAS_CARD` / `ENERGY_HAS_CARD` / `HAS_CARD_IN_FIELD` / `LRIG_TRASH_COUNT` と `AND` / `OR` を再利用。`LRIG_TRASH_COUNT` は既存型へ任意 `filter` を足し、`evalCondition` / `checkActiveCondition` / `evalConditionForContinuous` の3評価器で実消費した。新条件型・カード固有表・force-adoptは0。
+- **採用11効果**＝`WX09-034-E2`, `WX20-074-E2`, `WX25-P3-015-E1`, `WXDi-P05-069-E1`, `WXDi-P03-049-E1`, `WXDi-CP01-042-E1`, `WXDi-P03-066-E1`, `WXDi-P11-054-E2`, `WXDi-P12-053-E1`, `WXDi-P13-056-E1`, `WXDi-P11-053-E1`。live A/B はこの11件だけ、outlier 0。
+- **見送り**＝`WXDi-P04-034-E1` は【ソウル】場存在、`WXDi-P12-056-E1` はエナ＋トラッシュのディソナ合算が未機構。片側だけの近似はしない。`WXDi-P12-047-E1` は第44時点で `ALL_FIELD_SIGNI_MATCH + ENERGY_COUNT` のAND済み。
+- **別軸不一致**＝`WX20-074-E2` の「この効果でパワー0以下」の追加エナ条件は未実装、`WX25-P3-015-E1` は「無色でないアーツを2枚まで」が live では色無制限1枚。今回の条件 finding 以外は閉じていない。
+- **ゲート**＝`npm run gates` 全緑。golden **2743→2749 / FAIL 0**、census **583→582**（baseline同期）、smoke 10693全0、fuzz全0、census:stubs 0/0、manual-fields 0/0、lint 0 errors/260 warnings、同型 **5986/265/★0**。held **76枚据置 / 32→31署名群**。
+- **台帳**＝quote一致5本だけを追記。段0 **221→221** / 段1 **111→111** / 段2 **423→428** / OPEN **689→684**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch45_report.md`。
+- 🆕**実機検証（Claude・続き651）＝新規2本 ALL PASS を2回連続**（`b45TrashLv1Buff` / `b45TrashLv1NoBuff`）＋第44バッチの3本も回帰で緑（計5本）。**`WXDi-P03-066-E1` の `TRASH_HAS_CARD{level:1, minCount:2}` は「盤面に描画されるパワー値」としてしか実機に出ない**（`calcFieldPowers` → `checkActiveCondition`）＝JSON assert では「UI へ届いているか」を見られないので、ここを選んだ。**トラッシュの Lv1 シグニ2枚で 3000→7000／1枚なら 3000 のまま**＝spec が枚数1点だけ違う対＝**閾値−1 の不成立まで実機で固定**（§5-3′′）。
+- 🔴**ドライバの罠を1つ**＝**UI はパワーを3桁区切りで描画する（`7,000`）**。カンマを剥がさずに `\d{4,5}` で拾うと**一致せず「表示を読めなかった」に化ける**（実測で踏んだ＝engine は最初から正しく 7,000 / 3,000 を出していた）。`b45PowerDrive` は `.replace(/,/g, '')` を入れてある。
+
 ## 2026-08-25：§5.2 段2 第44バッチ＝場の存在・体数条件の脱落
 
 - **母集団**＝群A **587効果 / 受け皿なし42効果**を再現。うち4件は追加処理／コスト軽減 STUB で既に別表現、表外2件は不変。依頼表の真バグ36件から既存語彙で安全に完成する19件を採用し、採用後は **587 / 23**。

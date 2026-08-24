@@ -633,7 +633,7 @@ export function checkActiveCondition(
     }
 
     case 'LRIG_TRASH_COUNT': {
-      // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」。G185）。
+      // ルリグトラッシュの（cardType/filter一致）枚数（「ルリグトラッシュにアーツがあるかぎり」。G185）。
       // evalConditionForContinuous の同名ケースと同実装。
       const types = cond.cardType
         ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
@@ -642,7 +642,8 @@ export function checkActiveCondition(
         if (cond.excludeSource && n === sourceCardNum) return false;
         const c = cardMap.get(n);
         if (!c) return false;
-        return types ? types.includes(c.Type as typeof types[number]) : true;
+        if (types && !types.includes(c.Type as typeof types[number])) return false;
+        return !cond.filter || matchesFilter(c, cond.filter);
       }).length;
       switch (cond.operator) {
         case 'gte': return cnt >= cond.value;
@@ -1194,7 +1195,8 @@ function evalConditionForContinuous(
         if (cond.excludeSource && n === sourceCardNum) return false;
         const c = cardMap.get(n);
         if (!c) return false;
-        return types ? types.includes(c.Type as typeof types[number]) : true;
+        if (types && !types.includes(c.Type as typeof types[number])) return false;
+        return !cond.filter || matchesFilter(c, cond.filter);
       }).length;
       return cmp(cnt, cond.operator, cond.value);
     }

@@ -46483,6 +46483,112 @@ test('段2 第44バッチ 複合AND: 全ディソナかつ相手エナ2枚の両
   ok(!holds([null, null, null], 2), '自場0体なら ALL を空真にしない');
 }));
 
+// ── 段2 第45バッチ：トラッシュ／エナゾーンの存在・枚数条件 ──
+const b45Fresh = (effectId: string): CardEffect => {
+  const cardNum = effectId.replace(/-(?:E\d+|BURST)$/, '');
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(effectId + ': fresh effect missing');
+  return effect;
+};
+
+test('段2 第45バッチ live/fresh: 採用11効果にゾーン条件が残る', () => {
+  const expected: Array<[string, string[]]> = [
+    ['WX09-034-E2', ['OR', 'TRASH_HAS_CARD']],
+    ['WX20-074-E2', ['OR', 'HAS_CARD_IN_FIELD', 'TRASH_HAS_CARD']],
+    ['WX25-P3-015-E1', ['AND', 'LRIG_TRASH_COUNT']],
+    ['WXDi-P05-069-E1', ['OR', 'HAS_CARD_IN_FIELD', 'ENERGY_HAS_CARD']],
+    ['WXDi-P03-049-E1', ['AND', 'TURN_OWNER', 'ENERGY_HAS_CARD']],
+    ['WXDi-CP01-042-E1', ['TRASH_HAS_CARD']],
+    ['WXDi-P03-066-E1', ['TRASH_HAS_CARD']],
+    ['WXDi-P11-054-E2', ['TRASH_HAS_CARD']],
+    ['WXDi-P12-053-E1', ['TRASH_HAS_CARD']],
+    ['WXDi-P13-056-E1', ['AND', 'TURN_OWNER', 'TRASH_HAS_CARD']],
+    ['WXDi-P11-053-E1', ['AND', 'THIS_CARD_IN_LOCATION', 'TRASH_HAS_CARD']],
+  ];
+  for (const [effectId, tokens] of expected) {
+    for (const [label, effect] of [['fresh', b45Fresh(effectId)], ['live', b43Live(effectId)]] as const) {
+      const json = JSON.stringify(effect);
+      for (const token of tokens) ok(json.includes(`"type":"${token}"`), `${effectId} ${label}: ${token}`);
+    }
+  }
+  ok(!JSON.stringify(b43Live('WXDi-P11-053-E1')).includes('COND_STUB'), 'メジェド4枚条件は COND_STUB を残さない');
+});
+
+test('段2 第45バッチ CONTINUOUS: トラッシュLv1シグニを閾値／閾値−1／0枚で固定', () => withSavedCursor(() => {
+  const source = 'WXDi-P03-066';
+  const lv1 = findCard(c => c.Type === 'シグニ' && c.Level === '1' && c.CardNum !== source);
+  const printed = parseInt(cardMap.get(source)?.Power ?? '0', 10);
+  const power = (count: number) => {
+    const mine = mkState({ signi: [source, null, null] });
+    mine.trash = Array.from({ length: count }, () => lv1);
+    return calcFieldPowers(mine, mkState(), true, effectsMap, cardMap).get(source);
+  };
+  eq(power(2), printed + 4000, 'ちょうど2枚なら常時+4000');
+  eq(power(1), printed, '1枚なら不成立');
+  eq(power(0), printed, '0枚なら不成立');
+}));
+
+test('段2 第45バッチ AUTO: ディソナ10枚条件を成立／不足／0枚で実行ゲートする', () => withSavedCursor(() => {
+  const disona = findCard(c => c.Story === 'Dissona');
+  const seq = b43Live('WXDi-P12-053-E1').action as SequenceAction;
+  const conditional = seq.steps[0] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const drawGate: EffectAction = { type: 'CONDITIONAL', condition: conditional.condition, then: { type: 'DRAW', owner: 'self', count: 1 } };
+  const handAfter = (count: number) => {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.trash = Array.from({ length: count }, () => disona);
+    return run(drawGate, ctx).ownerState.hand.length;
+  };
+  eq(handAfter(10), 6, 'ちょうど10枚なら実行');
+  eq(handAfter(9), 5, '9枚なら実行しない');
+  eq(handAfter(0), 5, '0枚なら実行しない');
+}));
+
+test('段2 第45バッチ LRIG_TRASH_COUNT filter: タマ／イオナのANDを両評価経路で固定', () => withSavedCursor(() => {
+  const tama = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('タマ'));
+  const iona = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('イオナ'));
+  const action = b43Live('WX25-P3-015-E1').action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const condition = action.condition;
+  const state = (cards: string[]) => {
+    const s = mkState();
+    s.lrig_trash = cards;
+    return s;
+  };
+  const evalHolds = (cards: string[]) => evalCondition(condition, { ...mkCtx({}, {}), ownerState: state(cards) });
+  const activeHolds = (cards: string[]) => checkActiveCondition(condition as ActiveCondition, state(cards), mkState(), true, cardMap);
+  ok(evalHolds([tama, iona]) && activeHolds([tama, iona]), '各1枚なら Condition / ActiveCondition とも成立');
+  ok(!evalHolds([tama]) && !activeHolds([tama]), 'イオナ0枚なら両経路とも不成立');
+  ok(!evalHolds([]) && !activeHolds([]), '両方0枚なら両経路とも不成立');
+}));
+
+test('段2 第45バッチ 2ゾーンOR: 場／別ゾーン／双方0の三方向を実行結果で固定', () => withSavedCursor(() => {
+  const lucifer = findCard(c => (c.CardName ?? '').includes('ルシファル'));
+  const action = b43Live('WX20-074-E2').action;
+  const energyAfter = (field: boolean, trash: boolean) => {
+    const ctx = mkCtx({ signi: field ? [lucifer, null, null] : [null, null, null] }, { signi: [SIGNI, null, null] });
+    ctx.ownerState.trash = trash ? [lucifer] : [];
+    return run(action, ctx).ownerState.energy.length;
+  };
+  eq(energyAfter(true, false), 6, '場にあればOR成立');
+  eq(energyAfter(false, true), 6, 'トラッシュにあればOR成立');
+  eq(energyAfter(false, false), 5, '両ゾーン0枚なら本文を実行しない');
+}));
+
+test('段2 第45バッチ 偽陽性／据置: 専用実行器と別バッチ対象を変更しない', () => {
+  const stable: Array<[string, string]> = [
+    ['WX12-013-E1', 'ARTS_COST_REDUCTION_BY_EFFECT'],
+    ['WX12-037-E2', 'MILL_EACH_REPEAT_ON_NAME'],
+    ['WX19-005-E1', 'BET_MECHANIC'],
+    ['WXEX1-07-E1', 'OPP_ENERGY_EXCESS_TRASH'],
+    ['WX26-CP1-004-E1', 'RECOLLECT_GATE'],
+    ['WX26-CP1-006-E1', 'RECOLLECT_GATE'],
+    ['WXDi-P16-064-E1', 'CONDITIONAL_TRASH_UNDER_SIGNI'],
+  ];
+  for (const [effectId, token] of stable) ok(JSON.stringify(b43Live(effectId)).includes(token), `${effectId}: ${token} を維持`);
+  ok(JSON.stringify(b43Live('WXDi-P12-047-E1')).includes('ALL_FIELD_SIGNI_MATCH'), '既に正しい複合条件を維持');
+  ok(!JSON.stringify(b43Live('WXDi-P04-034-E1')).includes('ENERGY_COUNT'), 'SOUL存在機構待ちへ部分配線しない');
+  ok(!JSON.stringify(b43Live('WXDi-P12-056-E1')).includes('TRASH_HAS_CARD'), '2ゾーン合算は新機構なしで近似しない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

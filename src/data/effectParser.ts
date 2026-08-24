@@ -350,6 +350,10 @@ function parseUseCondition(text: string): Condition {
   m = text.match(/あなたのトラッシュにカード名に《([^》]+)》を含むカードがある/);
   if (m) return { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] } };
 
+  // あなたのトラッシュに《X》がN枚ある（起動能力の使用条件）。
+  m = text.match(/^あなたのトラッシュに《([^》]+)》が([０-９\d]+)枚(?:以上)?ある/);
+  if (m) return { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] }, minCount: n(m[2]) };
+
   // あなたの場にカード名に《X》を含むシグニがある
   m = text.match(/あなたの場にカード名に《([^》]+)》を含むシグニがある/);
   if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: m[1] } };
@@ -935,13 +939,19 @@ type ConditionParseResult = {
 };
 
 function parseActiveCondition(text: string): ConditionParseResult {
-  // 「カード名に《X》を含むカードがあるかぎり」（WX09-022）。
-  // parseConditionText は同句を理解するが、CONTINUOUS の先頭条件はこの剥離器を通るため明示する。
-  const trashNameContainsM = text.match(/^あなたのトラッシュにカード名に《([^》]+)》を含むカードがあるかぎり、/);
-  if (trashNameContainsM) {
+  // 段2 第44/45バッチ共通：場／トラッシュの「カード名に《X》か《Y》を含む」存在条件。
+  // 同じ名前抽出式をゾーン別に二重化せず、受け皿だけ HAS_CARD_IN_FIELD / TRASH_HAS_CARD に分ける。
+  const zoneNameContainsM = text.match(/^(あなたの場|あなたのトラッシュ)にカード名に((?:《[^》]+》(?:か)?)+)を含む(シグニ|カード)があるかぎり、/);
+  if (zoneNameContainsM) {
+    const names = [...zoneNameContainsM[2].matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    const inField = zoneNameContainsM[1] === 'あなたの場';
+    const nounFilter = zoneNameContainsM[3] === 'シグニ' ? { cardType: 'シグニ' as const } : {};
+    const mk = (cardName: string): ActiveCondition => inField
+      ? { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { ...nounFilter, cardName } }
+      : { type: 'TRASH_HAS_CARD', owner: 'self', filter: { ...nounFilter, cardName } };
     return {
-      condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: trashNameContainsM[1] } },
-      rest: text.slice(trashNameContainsM[0].length),
+      condition: names.length === 1 ? mk(names[0]) : { type: 'OR', conditions: names.map(mk) },
+      rest: text.slice(zoneNameContainsM[0].length),
       conditionFound: true,
     };
   }
@@ -1042,21 +1052,6 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // 段2 第44バッチ：カード名の「完全一致」ではなく「《X》を含む」シグニの存在条件。
-  // 単一名と「《X》か《Y》を含む」を同じ filter.cardName/cardNames 語彙へ載せる。
-  const fieldNameContainsM = text.match(/^あなたの場にカード名に((?:《[^》]+》(?:か)?)+)を含むシグニがあるかぎり、/);
-  if (fieldNameContainsM) {
-    const names = [...fieldNameContainsM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
-    return {
-      condition: names.length === 1
-        ? { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: names[0] } }
-        : { type: 'OR', conditions: names.map(cardName => ({
-          type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName },
-        })) },
-      rest: text.slice(fieldNameContainsM[0].length), conditionFound: true,
-    };
-  }
-
   // パターン2: 「あなたの場に《カード名》/＜カード名＞があるかぎり、」
   const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)が(?:ある|いる)かぎり、/);
   if (fieldNameM) {
@@ -1089,6 +1084,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
       conditionFound: true,
     };
   }
+
+  // 2ゾーンの論理和は既存 OR と各ゾーンの存在条件を合成する（WXDi-P05-069）。
+  const fieldOrEnergyNameM = text.match(/^あなたの場かエナゾーンに《([^》]+)》があるかぎり、/);
+  if (fieldOrEnergyNameM) return {
+    condition: { type: 'OR', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: fieldOrEnergyNameM[1] } },
+      { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { cardName: fieldOrEnergyNameM[1] } },
+    ] },
+    rest: text.slice(fieldOrEnergyNameM[0].length), conditionFound: true,
+  };
   const fieldOtherSigniM = text.match(/^あなたの場に他のシグニがあるかぎり、/);
   if (fieldOtherSigniM) return {
     condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, excludeSelf: true },
@@ -1306,14 +1311,22 @@ function parseActiveCondition(text: string): ConditionParseResult {
   }
 
   // 「トラッシュに〈色〉のシグニがN枚以上」＝色・種別・枚数を同時に限定する。
-  const trashColorSigniM = text.match(/^あなたのトラッシュに([白赤青緑黒])のシグニが([０-９\d]+)枚以上あるかぎり、/);
+  const trashColorSigniM = text.match(/^あなたのトラッシュに([白赤青緑黒])の(シグニ|カード)が([０-９\d]+)枚以上あるかぎり、/);
   if (trashColorSigniM) {
     return {
       condition: { type: 'TRASH_HAS_CARD', owner: 'self',
-        filter: { cardType: 'シグニ', color: trashColorSigniM[1] }, minCount: parseNum(trashColorSigniM[2]) },
+        filter: { ...(trashColorSigniM[2] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), color: trashColorSigniM[1] },
+        minCount: parseNum(trashColorSigniM[3]) },
       rest: text.slice(trashColorSigniM[0].length), conditionFound: true,
     };
   }
+
+  const trashLevelSigniM = text.match(/^あなたのトラッシュにレベル([０-９\d]+)のシグニが([０-９\d]+)枚以上あるかぎり、/);
+  if (trashLevelSigniM) return {
+    condition: { type: 'TRASH_HAS_CARD', owner: 'self',
+      filter: { cardType: 'シグニ', level: parseNum(trashLevelSigniM[1]) }, minCount: parseNum(trashLevelSigniM[2]) },
+    rest: text.slice(trashLevelSigniM[0].length), conditionFound: true,
+  };
 
   // パターン3g: 「あなたのトラッシュに＜X＞(か＜Y＞)*の〔シグニ|カード〕がN枚以上あるかぎり、」（トラッシュのクラス指定枚数条件。G090）
   // ⚠**「カード」形を受けていなかった**（2026-08-18 実測）＝`WX26-CP1-059-E1`／`WXDi-CP02-097-E1` が
@@ -1577,6 +1590,12 @@ function parseActiveCondition(text: string): ConditionParseResult {
       rest: text.slice(enaEachLevelM[0].length), conditionFound: true,
     };
   }
+
+  const enaLevelSigniM = text.match(/^あなたのエナゾーンにレベル([０-９\d]+)のシグニがあるかぎり、/);
+  if (enaLevelSigniM) return {
+    condition: { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(enaLevelSigniM[1]) } },
+    rest: text.slice(enaLevelSigniM[0].length), conditionFound: true,
+  };
 
   // パターン5a2: 「あなたのエナゾーンに(レベルNの)?＜X＞(か＜Y＞)*のシグニが(N枚)?あるかぎり、」（クラス指定エナ存在条件。G038）
   // ⚠**レベル前置を受けていなかった**（2026-08-18 実測）＝「あなたのエナゾーンに**レベル４の**＜電機＞のシグニが
@@ -2301,6 +2320,20 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // ── 段2 第45バッチ：トラッシュ／エナゾーンの存在・枚数条件 ──
+  // 第44バッチの HAS_CARD_IN_FIELD と既存 TRASH_HAS_CARD を OR で組み、2ゾーン形を新型にしない。
+  [/あなたの場かトラッシュにカード名に《([^》]+)》を含むシグニがある場合/,
+    g => ({ type: 'OR', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: g[0] } },
+      { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', cardName: g[0] } },
+    ] })],
+  [/あなたのルリグトラッシュに＜([^＞]+)＞のルリグと＜([^＞]+)＞のルリグがそれぞれ([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'LRIG_TRASH_COUNT', cardType: ['ルリグ' as const, 'アシストルリグ' as const], filter: { story: g[0] }, operator: 'gte', value: parseNum(g[2]) },
+      { type: 'LRIG_TRASH_COUNT', cardType: ['ルリグ' as const, 'アシストルリグ' as const], filter: { story: g[1] }, operator: 'gte', value: parseNum(g[2]) },
+    ] })],
+  [/あなたのトラッシュに《ディソナアイコン》のカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { isDisona: true }, minCount: parseNum(g[0]) })],
   // ── 段2 第44バッチ：場の存在・体数条件 ──
   // 複合形は単独形より先に置く。閾値はすべて原文から読み、カード番号には依存しない。
   [/あなたの場にあるすべてのシグニが《ディソナアイコン》で対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
@@ -15811,6 +15844,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         optional: true,
       };
     }
+  }
+  // 「場かトラッシュ」のゲート後に、同じ効果によるパワー0以下の帰結が別ステップへ分かれる形。
+  // 文分割で先頭 POWER_MODIFY だけが CONDITIONAL に入り、後続が無条件化しないよう同じゲート内へ戻す。
+  if (/あなたの場かトラッシュにカード名に《[^》]+》を含むシグニがある場合/.test(actionText)
+      && /この効果によってそれのパワーが[０0]以下になった場合/.test(actionText)
+      && resolvedAction.type === 'SEQUENCE'
+      && resolvedAction.steps[0]?.type === 'CONDITIONAL'
+      && resolvedAction.steps[0].condition.type === 'OR') {
+    const [gated, ...tail] = resolvedAction.steps;
+    resolvedAction = {
+      type: 'CONDITIONAL', condition: gated.condition,
+      then: { type: 'SEQUENCE', steps: [gated.then, ...tail] },
+    };
   }
   resolvedAction = applyDynamicCountTargetLimit(resolvedAction, actionText);
   resolvedAction = applyLevelParityToSigniTarget(resolvedAction, actionText);
