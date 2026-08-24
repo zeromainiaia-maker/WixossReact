@@ -93,6 +93,9 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
+// 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
+// AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
+// LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
 const BASELINE_HIGH = 608; // 2026-08-23 段2 第40バッチ＝持続期間と期間境界を復元し、高シグナル欠落3件を解消（611→608）。旧履歴は直下。
 // 旧・段2 第39バッチ: const BASELINE_HIGH = 611; // 静的／参照値／合計レベル条件を復元し、高シグナル欠落6件を解消（617→611）。
 // 旧・段2 第38バッチ: const BASELINE_HIGH = 617; // 種別ごとに1枚ずつ取る群割当を復元し、高シグナル欠落4件を解消（621→617）。
@@ -652,7 +655,7 @@ const PATTERNS: Pattern[] = [
   {
     name: '任意(してもよい)',
     re: /(してもよい|することができる)/,
-    keys: ['"mandatory":false', '"optional":true', '"upToTarget":true', 'mayChoose'],
+    keys: ['"mandatory":false', '"optional":true', '"upToTarget":true', '"pickUpTo":true', 'mayChoose'],
   },
   {
     name: '能力を持たない/失っている',

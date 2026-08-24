@@ -17671,6 +17671,115 @@ export function wireShuffledBottomRemainder(action: EffectAction, sourceText: st
   return action;
 }
 
+/**
+ * O-50: 「公開束から別ゾーンへ置き、残りだけをシャッフルしてデッキ下」を、公開束を保持する
+ * REVEAL_AND_PICK / LOOK_PICK_CHAIN へ畳む。カード番号や固定枚数ではなく、原文の数値と既存 action 木を使う。
+ */
+function foldO50ShuffledBottom(action: EffectAction, sourceText: string): EffectAction {
+  if (!/残りをシャッフルしてデッキの一番下に(?:置く|戻す)/.test(sourceText)) return action;
+
+  const placement = sourceText.match(
+    /デッキの上からカードを([０-９\d]+)枚見る。その中から(?:カードを?)?([０-９\d]+)枚(まで)?を?【(シード|トラップ)】として(?:あなたの)?シグニゾーンに(出(?:してもよい|し|す)|設置(?:してもよい|し|する))/,
+  );
+  if (placement) {
+    const revealCount = parseNum(placement[1]);
+    const pickCount = parseNum(placement[2]);
+    const destination = placement[4] === 'シード' ? 'seed' : 'trap';
+    const lpc: import('../types/effects').LookPickChainAction = {
+      type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount,
+      stages: [{ pickCount, pickUpTo: placement[3] === 'まで' || placement[5].includes('てもよい'), pickNoun: 'カード', then: destination }],
+      remainder: { location: 'deck', position: 'bottom', shuffle: true },
+    };
+    const placementStubMatches = (step: EffectAction | undefined): boolean => step?.type === 'STUB' && (
+      destination === 'seed'
+        ? ['PLACE_SEED_FROM_REVEALED', 'PLACE_SEEDS_FROM_REVEALED'].includes(step.id)
+        : ['PLACE_TRAP_FROM_REVEALED', 'TRAP_OP'].includes(step.id)
+    );
+    const visitPlacement = (node: EffectAction): EffectAction => {
+      if (node.type === 'LOOK_AND_REORDER' && node.source.location === 'deck' && node.source.owner === 'self'
+          && node.count === revealCount) return lpc;
+      if (node.type === 'SEQUENCE') {
+        const steps = node.steps.map(visitPlacement);
+        let changed = steps.some((step, i) => step !== node.steps[i]);
+        for (let i = 0; i + 2 < node.steps.length; i++) {
+          const look = node.steps[i];
+          if (look.type !== 'LOOK_AND_REORDER' || look.source.location !== 'deck' || look.source.owner !== 'self'
+              || look.count !== revealCount || !placementStubMatches(node.steps[i + 1])
+              || node.steps[i + 2]?.type !== 'SHUFFLE_DECK') continue;
+          steps.splice(i, 3, lpc);
+          changed = true;
+          break;
+        }
+        if (!changed) return node;
+        return steps.length === 1 ? steps[0] : { ...node, steps };
+      }
+      if (node.type === 'CHOOSE') {
+        const choices = node.choices.map(c => ({ ...c, action: visitPlacement(c.action) }));
+        return choices.some((choice, i) => choice.action !== node.choices[i].action) ? { ...node, choices } : node;
+      }
+      if (node.type === 'CONDITIONAL') {
+        const thenAction = visitPlacement(node.then);
+        const elseAction = node.else ? visitPlacement(node.else) : undefined;
+        return thenAction !== node.then || elseAction !== node.else
+          ? { ...node, then: thenAction, ...(elseAction ? { else: elseAction } : {}) }
+          : node;
+      }
+      return node;
+    };
+    return visitPlacement(action);
+  }
+
+  // 「見て、その中から〈名詞句〉N枚を場に出す。残りを…」は、既存の記述子が filter・枚数を解ける場合だけ RAP 化する。
+  const fieldPick = sourceText.match(
+    /デッキの上からカードを([０-９\d]+)枚(?:見て|見る|公開し(?:て|た|する))、?(その中から[^。]+場に出す)。残りをシャッフルしてデッキの一番下に(?:置く|戻す)/,
+  );
+  const fieldDesc = fieldPick ? parseRevealPickDescriptor(fieldPick[2]) : null;
+  if (fieldPick && fieldDesc?.dest === 'field'
+      && action.type === 'SEQUENCE' && action.steps.length === 2
+      && action.steps[0]?.type === 'ADD_TO_FIELD' && action.steps[1]?.type === 'SHUFFLE_DECK') {
+    return {
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(fieldPick[1]),
+      ...(Object.keys(fieldDesc.filter).length > 0 ? { filter: fieldDesc.filter } : {}),
+      pickCount: fieldDesc.pickCount, ...(fieldDesc.pickUpTo ? { pickUpTo: true } : {}),
+      ...(fieldDesc.noun !== 'シグニ' ? { pickNoun: fieldDesc.noun } : {}),
+      then: { type: 'ADD_TO_FIELD', owner: 'self' },
+      remainder: { location: 'deck', position: 'bottom', shuffle: true },
+    } as RevealAndPickAction;
+  }
+
+  // 既に正しい bottom remainder を持つ RAP と、その直後の全デッキ shuffle を1つへ畳む。
+  const visitRevealPick = (node: EffectAction): EffectAction => {
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(visitRevealPick);
+      let changed = steps.some((step, i) => step !== node.steps[i]);
+      for (let i = 0; i + 1 < steps.length; i++) {
+        const rap = steps[i];
+        if (rap.type !== 'REVEAL_AND_PICK' || rap.remainder?.location !== 'deck' || rap.remainder.position !== 'bottom'
+            || steps[i + 1]?.type !== 'SHUFFLE_DECK') continue;
+        steps[i] = { ...rap, remainder: { ...rap.remainder, shuffle: true } };
+        steps.splice(i + 1, 1);
+        changed = true;
+        i--;
+      }
+      if (!changed) return node;
+      return steps.length === 1 ? steps[0] : { ...node, steps };
+    }
+    if (node.type === 'CHOOSE') {
+      const choices = node.choices.map(c => ({ ...c, action: visitRevealPick(c.action) }));
+      return choices.some((choice, i) => choice.action !== node.choices[i].action) ? { ...node, choices } : node;
+    }
+    if (node.type === 'CONDITIONAL') {
+      const thenAction = visitRevealPick(node.then);
+      const elseAction = node.else ? visitRevealPick(node.else) : undefined;
+      return thenAction !== node.then || elseAction !== node.else
+        ? { ...node, then: thenAction, ...(elseAction ? { else: elseAction } : {}) }
+        : node;
+    }
+    return node;
+  };
+  return visitRevealPick(action);
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   const currentSourceTexts = new Map<string, string>();
@@ -18230,6 +18339,15 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDynamicActionCountBatch35(card, effects);
   applyLevelConditionsBatch39(card, effects);
   applyDurationsBatch40(card, effects);
+  for (const effect of effects) {
+    const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
+    const folded = foldO50ShuffledBottom(effect.action, sourceText);
+    if (JSON.stringify(folded) !== JSON.stringify(effect.action)) {
+      effect.action = folded;
+      effect.parseStatus = 'AUTO';
+      clearSilentFallback(effect.effectId);
+    }
+  }
   const shuffledBottomSource = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
   if (/残りをシャッフルしてデッキの一番下に(?:置く|戻す)/.test(shuffledBottomSource)) {
     for (const effect of effects) {

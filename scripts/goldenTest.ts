@@ -11154,7 +11154,6 @@ test('§6.4 トリップワイヤ: 「〜てもよい。そうした場合」の
 // **リストに無い effectId が乖離したら即 FAIL**＝新しい陳腐化はここで止まる。
 const MANUAL_DRIFT_KNOWN = new Set([
   // ── live のほうが新しい（後から live へ直接入れた手修正）＝**同期してはいけない**側 ──
-  'WX20-072-E3',        // live に acce ホストの cardName 限定あり（manual は限定なし＝広すぎる）
   'WX24-P4-045-E1', 'WXEX2-71-E2', 'WXEX2-71-E3',   // git 履歴で live が後（--date 判定）
   // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
   'PR-Di017B-E1',       // UNDATED（manual ブロックが blame で取れない）
@@ -45209,9 +45208,9 @@ test('段2 第40バッチ 偽陽性／据置契約: 常時グロウスキップ�
   ok(JSON.stringify(attackEnd).includes('WXDi-D04-004-sub-E1') && !JSON.stringify(attackEnd).includes('ON_ATTACK_END'), 'WXDi-D04-004-sub-E1 は発動タイミングが主因なので据置');
 });
 
-// 段2 第33バッチ: 「残りをシャッフルしてデッキの一番下に置く」の shuffle 配線。
-// 全デッキ SHUFFLE_DECK が後続する壊れた木や position:'top' へフラグだけ足しても最終盤面は直らないため、
-// bottom 受け皿へ無損失に配線できる木だけを正方向に固定する。
+// 段2 第33バッチ／O-50: 「残りをシャッフルしてデッキの一番下に置く」の shuffle 配線。
+// 第33バッチでは、全デッキ SHUFFLE_DECK が後続する壊れた木や position:'top' へフラグだけ足す
+// 見かけ修正を拒否した。O-50 では公開束を保持する RAP/LPC へ木ごと組み替え、全デッキ shuffle を除く。
 function batch33Actions(action: unknown, type: string, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
   if (!action || typeof action !== 'object') return out;
   const obj = action as Record<string, unknown>;
@@ -45247,18 +45246,54 @@ test('段2 第33バッチ parser両方向: RAP の shuffled-bottom だけを配�
     '既に正しい RAP は true を維持');
 });
 
-test('段2 第33バッチ parser両方向: bottom LAR は配線し、top＋全デッキshuffle木は据え置く', () => {
+test('段2 第33バッチ parser両方向（O-50反転）: bottom LAR と full-deck-shuffle 木を正しい受け皿へ配線する', () => {
   const bottom = parseCardEffects(cardMap.get('WXDi-D01-011')!).find(e => e.effectId === 'WXDi-D01-011-E1')!;
   eq(batch33Actions(bottom.action, 'LOOK_AND_REORDER')[0].shuffle, true, 'bottom LAR に shuffle=true');
 
-  const unsafe = parseCardEffects(cardMap.get('WX21-037')!).find(e => e.effectId === 'WX21-037-E2')!;
-  const unsafeLar = batch33Actions(unsafe.action, 'REVEAL_AND_PICK')[0];
-  ok((unsafeLar.remainder as Record<string, unknown>)?.shuffle === undefined,
-    '後段 SHUFFLE_DECK が全デッキを混ぜる木へ一時的な shuffle を足さない');
+  const repairedRap = parseCardEffects(cardMap.get('WX21-037')!).find(e => e.effectId === 'WX21-037-E2')!;
+  const rap = batch33Actions(repairedRap.action, 'REVEAL_AND_PICK')[0];
+  eq((rap.remainder as Record<string, unknown>)?.shuffle, true,
+    'O-50成立方向: RAP の公開残り束だけを shuffle する');
+  eq(batch33Actions(repairedRap.action, 'SHUFFLE_DECK').length, 0,
+    'O-50不成立方向: 全デッキ SHUFFLE_DECK は残さない');
 
-  const top = parseCardEffects(cardMap.get('WXK04-007')!).find(e => e.effectId === 'WXK04-007-E1')!;
-  eq((batch33Actions(top.action, 'LOOK_AND_REORDER')[0].destination as Record<string, unknown>)?.position, 'top', '対照は top 戻し');
-  ok(batch33Actions(top.action, 'LOOK_AND_REORDER')[0].shuffle === undefined, 'top 戻しへ死フラグを足さない');
+  const repairedSeed = parseCardEffects(cardMap.get('WXK04-007')!).find(e => e.effectId === 'WXK04-007-E1')!;
+  const lpc = batch33Actions(repairedSeed.action, 'LOOK_PICK_CHAIN')[0];
+  eq((lpc.stages as Array<Record<string, unknown>>)?.[0]?.then, 'seed',
+    'O-50成立方向: 公開札から【シード】を選ぶ LPC');
+  eq((lpc.remainder as Record<string, unknown>)?.position, 'bottom', '残りはデッキ下');
+  eq((lpc.remainder as Record<string, unknown>)?.shuffle, true, '残り束だけを shuffle');
+  eq(batch33Actions(repairedSeed.action, 'SHUFFLE_DECK').length, 0,
+    'O-50不成立方向: 全デッキ SHUFFLE_DECK は残さない');
+  ok(!batch33Actions(repairedSeed.action, 'STUB').some(s => s.id === 'PLACE_SEED_FROM_REVEALED'),
+    '旧ハードコード STUB は残さない');
+});
+
+test('O-50 C1 parser: 原文の見る枚数・設置上限・シード/トラップを10効果すべて保持する', () => {
+  const cases = [
+    ['WDK07-Y02', 'WDK07-Y02-E2', 4, 1, 'seed'],
+    ['WDK07-Y03', 'WDK07-Y03-E2', 4, 1, 'seed'],
+    ['WDK07-Y04', 'WDK07-Y04-E2', 4, 1, 'seed'],
+    ['WDK07-Y07', 'WDK07-Y07-E1', 4, 1, 'seed'],
+    ['WXK04-007', 'WXK04-007-E1', 4, 1, 'seed'],
+    ['WXK04-008', 'WXK04-008-E1', 4, 1, 'seed'],
+    ['WXK04-009', 'WXK04-009-E2', 4, 1, 'seed'],
+    ['WXK04-010', 'WXK04-010-E1', 4, 2, 'seed'],
+    ['WXK05-007', 'WXK05-007-E3', 4, 1, 'seed'],
+    ['WXEX1-13', 'WXEX1-13-E2', 5, 2, 'trap'],
+  ] as const;
+  for (const [cardNum, effectId, revealCount, pickCount, destination] of cases) {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const lpc = batch33Actions(effect.action, 'LOOK_PICK_CHAIN')[0];
+    ok(!!lpc, `${effectId}: LOOK_PICK_CHAIN`);
+    eq(lpc.revealCount, revealCount, `${effectId}: 見る枚数`);
+    const stage = (lpc.stages as Array<Record<string, unknown>>)[0];
+    eq(stage.pickCount, pickCount, `${effectId}: 設置上限`);
+    eq(stage.pickUpTo, true, `${effectId}: 0..N枚の任意選択`);
+    eq(stage.then, destination, `${effectId}: 設置先`);
+    eq(JSON.stringify(lpc.remainder), '{"location":"deck","position":"bottom","shuffle":true}', `${effectId}: shuffled-bottom remainder`);
+    eq(batch33Actions(effect.action, 'SHUFFLE_DECK').length, 0, `${effectId}: full-deck shuffle なし`);
+  }
 });
 
 test('段2 第33バッチ engine両方向: RAP remainder.shuffle が残り束の順序だけを変える', () => withSavedCursor(() => {
@@ -45278,6 +45313,57 @@ test('段2 第33バッチ engine両方向: RAP remainder.shuffle が残り束の
   } finally {
     Math.random = originalRandom;
   }
+}));
+
+test('O-50 C1 engine: 公開4枚から2枚までを別ゾーンへシード設置し、残りだけをデッキ下で混ぜる', () => withSavedCursor(() => {
+  const top = ['WD01-009', 'WD01-010', 'WD01-012', 'WD01-013'];
+  const tail = ['WD01-014', 'WD01-015'];
+  const ctx = mkCtx({ deckTop: [...top, ...tail] }, {});
+  const action: EffectAction = {
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 4,
+    stages: [{ pickCount: 2, pickUpTo: true, pickNoun: 'カード', then: 'seed' }],
+    remainder: { location: 'deck', position: 'bottom', shuffle: true },
+  };
+  const started = executeAction(action, ctx);
+  if (started.done || started.pending.type !== 'SEARCH') throw new Error('seed SEARCH pause が無い');
+  let result = resumeSearch([top[0], top[1]], started.pending, ctxAfter(started, ctx));
+  if (result.done || result.pending.type !== 'CHOOSE') throw new Error('seed zone 1 pause が無い');
+  result = resumeChoose('seeds_zone_0', result.pending, ctxAfter(result, ctx));
+  if (result.done || result.pending.type !== 'CHOOSE') throw new Error('seed zone 2 pause が無い');
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    result = resumeChoose('seeds_zone_1', result.pending, ctxAfter(result, ctx));
+  } finally {
+    Math.random = originalRandom;
+  }
+  ok(result.done, '2枚のシード設置後に完了');
+  eq((result.ownerState.field.signi_seeds ?? []).slice(0, 2).join(','), top.slice(0, 2).join(','), '選択した2枚を別々のシードゾーンへ設置');
+  eq(result.ownerState.deck.slice(0, tail.length).join(','), tail.join(','), '未公開のデッキ順は不変');
+  eq(result.ownerState.deck.slice(-2).join(','), [top[3], top[2]].join(','), '公開した残り2枚だけを混ぜてデッキ下');
+}));
+
+test('O-50 C1 engine: 公開5枚から2枚までを専用トラップ経路で設置し、残りだけをデッキ下へ置く', () => withSavedCursor(() => {
+  const top = ['WD01-009', 'WD01-010', 'WD01-012', 'WD01-013', 'WD01-014'];
+  const tail = ['WD01-015', 'WD01-016'];
+  const ctx = mkCtx({ deckTop: [...top, ...tail] }, {});
+  const action: EffectAction = {
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 5,
+    stages: [{ pickCount: 2, pickUpTo: true, pickNoun: 'カード', then: 'trap' }],
+    remainder: { location: 'deck', position: 'bottom', shuffle: true },
+  };
+  const started = executeAction(action, ctx);
+  if (started.done || started.pending.type !== 'SEARCH') throw new Error('trap SEARCH pause が無い');
+  let result = resumeSearch([top[0], top[1]], started.pending, ctxAfter(started, ctx));
+  if (result.done || result.pending.type !== 'CHOOSE') throw new Error('trap zone 1 pause が無い');
+  result = resumeChoose('lpc_trap_zone_0', result.pending, ctxAfter(result, ctx));
+  if (result.done || result.pending.type !== 'CHOOSE') throw new Error('trap zone 2 pause が無い');
+  result = resumeChoose('lpc_trap_zone_1', result.pending, ctxAfter(result, ctx));
+  ok(result.done, '2枚のトラップ設置後に完了');
+  eq((result.ownerState.field.signi_traps ?? []).slice(0, 2).join(','), top.slice(0, 2).join(','), '選択した2枚を別々のトラップゾーンへ設置');
+  eq(result.ownerState.deck.slice(0, tail.length).join(','), tail.join(','), '未公開のデッキ順は不変');
+  eq(new Set(result.ownerState.deck.slice(-3)).size, 3, '公開した残り3枚だけをデッキ下へ戻す');
+  ok(top.slice(0, 2).every(c => !result.ownerState.deck.includes(c)), 'トラップをデッキに複製しない');
 }));
 
 test('段2 第33バッチ engine両方向: LAR shuffle が bottom へ戻す束の順序だけを変える', () => withSavedCursor(() => {

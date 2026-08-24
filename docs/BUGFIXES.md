@@ -1,5 +1,57 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：段2 第34バッチ＝O-50「公開した残りだけを混ぜてデッキ下」を構造化
+
+- `SHUFFLE_DECK` で山札全体を混ぜていた15効果を修正。C2の4効果は既存
+  `REVEAL_AND_PICK.remainder.shuffle` へ畳み、`WXK05-050-E1` は欠落していた見る枚数・＜植物＞filter・場出しを
+  `REVEAL_AND_PICK` へ復元した。
+- C1の10効果は `LOOK_AND_REORDER(top) → PLACE_*_FROM_REVEALED → SHUFFLE_DECK` を
+  `LOOK_PICK_CHAIN` へ組み替えた。既存型の stage に `then:'seed'` を追加し、選択結果を既存
+  `INTERNAL_SEEDS_PLACE_LOOP` へ渡す薄い経路だけを実装。トラップは既存の専用経路を維持した。
+- これにより固定値だった「上4枚・最大1枚・シード」が原文由来の値へ戻り、`WXK04-010-E1` は4枚／2枚までの
+  シード、`WXEX1-13-E2` は5枚／2枚までのトラップになった。未公開の山札順は変えず、公開残りだけを混ぜて下へ戻す。
+- live の per-effect 差分は指定15効果だけ（scope 外0）。baseline parser を別 worktree で全10660効果再実行した
+  生パース差分は対象内14効果だけ（`WX25-P3-047-E1` は fresh が既に正しく、curated MANUAL のみ修正）で outlier 0。
+- `WXEX1-13-E1` は原文に shuffle がなく O-50 の誤登録だったため無変更。C3の2効果とライフクロス対象1効果、
+  第33バッチ据置7効果、既に正しい17効果も無変更。
+- 第33バッチの非採用契約 golden を正方向へ反転し、parser 10効果＋engine の複数シード／複数トラップを追加。
+  golden 2662 PASS、smoke 10693全0、fuzz全0、census 608、同型★0、lint 0 errors / 269 warnings。
+- 意味照合台帳は `WX21-037-E2 :: 残りをシャッフルして` を閉じ、OPEN 730→729。
+- 詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/codex_b34_report.md`。
+
+### Claude 側の検証（CODEX_GUIDE §7）
+
+- **ベースライン `872a9fbd2` との per-effect diff＝変更15・追加0・削除0**。**スコープと完全一致**
+  （スコープ外0／「触るな」群（既に正しい17＋誤登録1＋対象外3）0／スコープ内の未着手0）。
+- **不変条件4本を機械検証**＝①`SHUFFLE_DECK` が 15/15 で 1→0 ②行き先が 15/15 で
+  `{location:"deck",position:"bottom",shuffle:true}` ③見る枚数・置く枚数が原文と一致
+  ④スコープ外は1バイトも動いていない。
+- `parseStatus` の変化は2件のみで**どちらも MANUAL→AUTO**（`WX20-072-E1`／`WXK04-010-E1`）
+  ＝§6.4 `O-42` の影武者解除と同じ方向。`_idset_fresh` も 46→**45**（`WX20-072` の id 集合ズレが解消）。
+- 🔍**指示していない4ファイルを精査して正当と確認**：
+  - `manualEffects.ts`＝新規2エントリ（`WX20-072` の E3P/E3 を live と同値へ／`WX25-P3-047-E1`）。
+    **`npx tsx scripts/censusManualDrift.ts` の削除候補は 0 のまま**＝parser が同一物を出せないので影武者ではない。
+    `WX20-072-E3` の filter 追加も **live 側が未変更**＝「manual を live に合わせた」という申告どおり。
+  - `src/types/effects.ts`＝既存 union `LookPickChainStage.then` に **`'seed'` を1語追加しただけ**（新型なし）。
+    `effectExecutor.ts:5979` が `INTERNAL_SEEDS_PLACE_LOOP`（既存の複数シード設置ループ）へ配線し、
+    `decompileEffects.ts:1517` が逆翻訳へ出す＝**死フラグではない**（§5 `14`）。
+  - `scripts/vocabCensus.ts`＝`BASELINE_HIGH` は 608 据置。「任意(してもよい)」の keys に `"pickUpTo":true` を追加。
+    ⚠**較正が緩すぎないかを実測**＝census 明細から消えた効果は **9件で全部が今回のスコープ内**、
+    **新たに出た効果は0**＝**他のバグを覆い隠していない**（§5 `3-3‴′`）。
+  - `docs/_idset_fresh.json`＝上記のとおり改善方向。
+- **第33バッチの非採用契約 golden の反転は §5 `17′` どおり**＝元の意図（「フラグだけの見かけ修正を拒否した」）を
+  コメントに残したうえで、成立方向（`remainder.shuffle===true`）と不成立方向（`SHUFFLE_DECK.length===0`）の対に書き換え。
+- 台帳 **730→729**。エンコーディングは変更25ファイルで新規増0。gates 全緑を独立再現（golden 2662）。
+
+### 🔴 PLAN §5.3 `O-50` の記載を投入前実測で2点訂正した
+
+- **`WXEX1-13-E1` は誤登録**＝原文は「残りを**デッキの一番下に置く**」で**シャッフルしない**（live にも `SHUFFLE_DECK` 無し）。
+- **母集団は15ではなく18効果**＝記載外に4件（`SP27-005-E1`／`WX20-041-CB-E1`／`WX25-P2-026-E2`／`WXK05-050-E1`）。
+  うち `WX25-P2-026-E2` は「残り」が**ライフクロス**でデッキではなく、`SHUFFLE_DECK` は原文の
+  「デッキをシャッフルし」に対応していて**正しい**＝スコープ外に分離した（§5 `3-4″`）。
+- ⚠**この訂正は効果単位（`docs/_effect_srctext.json`）で数え直して初めて出た。**
+  最初のカード単位の全走査では `WXEX1-06-E1`（原文は「デッキをシャッフルする」）を誤検出していた
+  ＝**第33バッチと同じ穴を Claude がまた踏んだ**（§5 `3-3⁹`）。
 ## 2026-08-24：段2 第33バッチ＝「残りをシャッフルしてデッキの一番下に置く」の配線漏れ
 
 - CSV 6712カードを BOM 除去・Variants 除外で再走査し、該当47カードを効果単位の原文へ再分割した。

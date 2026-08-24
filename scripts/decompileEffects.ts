@@ -1514,7 +1514,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
-      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : 'トラッシュに置き';
+      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : 'トラッシュに置き';
       const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'

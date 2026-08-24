@@ -5969,11 +5969,14 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'magic_box', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
   // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
   if (then === 'trap') return { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction;
+  // 'seed': 既存の複数シード設置ループへ公開札の選択結果を渡す。resumeSearch が外側 continuation と
+  // SEQUENCE 化するため、全シードのゾーン選択後にだけ remainder 処理へ戻る。
+  if (then === 'seed') return { type: 'STUB', id: 'INTERNAL_SEEDS_PLACE_LOOP' } as EffectAction;
   if (then === 'magic_box') return { type: 'STUB', id: 'PLACE_MAGIC_BOX' } as EffectAction;
   // 'deck_top': 盤面は動かさない（デッキ内に残したまま）。execLookPickChain が remainder 処理時に
   // lastProcessedCards 経由で受け取った予約カードを一番上へ置く。
@@ -8942,6 +8945,20 @@ export function resumeSearch(
     if (pending.continuation) trapSteps.push(pending.continuation);
     return executeAction(
       trapSteps.length === 1 ? trapSteps[0] : { type: 'SEQUENCE', steps: trapSteps } as SequenceAction,
+      { ...cur, lastProcessedCards: picked },
+    );
+  }
+  // 【シード】設置（LOOK_PICK_CHAIN の then:'seed'）: 選んだ束を既存の複数シード設置ループへ
+  // 一度だけ渡す。picked ごとに直接実行すると同じ束をN回設置するため、trap の per-card 展開とは分ける。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'INTERNAL_SEEDS_PLACE_LOOP' && picked.length > 0) {
+    const seedSteps: EffectAction[] = [
+      { ...(pending.thenAction as StubAction), seedCards: picked } as StubAction,
+    ];
+    if (pending.afterAction) seedSteps.push(pending.afterAction);
+    if (pending.continuation) seedSteps.push(pending.continuation);
+    return executeAction(
+      seedSteps.length === 1 ? seedSteps[0] : { type: 'SEQUENCE', steps: seedSteps } as SequenceAction,
       { ...cur, lastProcessedCards: picked },
     );
   }
