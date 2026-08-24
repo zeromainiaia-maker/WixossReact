@@ -1316,10 +1316,17 @@ export interface AddToLifeAction {
   fromTop: boolean; // true=デッキ上から
   fromHand?: boolean; // true=手札から1枚選ぶ
   fromTrash?: boolean; // true=トラッシュから選ぶ
+  fromBottom?: boolean; // true=デッキの**一番下**から（`WXK03-066`「デッキの一番下のカードをライフクロスに加える」）
   fromField?: boolean; // true=場のシグニを選んで、そのオーナーのライフクロスへ移す
   target?: EffectTarget; // fromField 時の対象。省略時は owner 側のシグニ1体
   targetsStored?: boolean; // fromField 時、STORE_LAST_PROCESSED_TARGETS で固定した対象だけを移す
   opponentSelects?: boolean; // true=対戦相手が選ぶ
+  /**
+   * fromTrash のときの候補絞り込み（「【ライフバースト】を持たないカード」「＜龍獣＞のシグニ」等）。
+   * ⚠**落とすとトラッシュのどのカードでもライフに置ける過剰実行**になる（原文は必ず種別を書く）。
+   * `matchesFilter` がそのまま消費する＝`hasLifeBurst` / `story` / `cardType` は既に両評価器に実装済み。
+   */
+  filter?: TargetFilter;
 }
 
 export interface AddToFieldAction {

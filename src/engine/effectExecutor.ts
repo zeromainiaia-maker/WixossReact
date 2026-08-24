@@ -3120,7 +3120,9 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
       target.owner === 'opponent' ? 'opp_field' : 'self_field', a, undefined, ctx, !!a.opponentSelects);
   }
   if (a.fromTrash) {
-    const cands = movableTrashCandidates(a.owner ?? 'self', state, undefined, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    // ⚠`a.filter` を渡さないと**トラッシュのどのカードでもライフに置ける過剰実行**になる
+    //   （原文は必ず「【ライフバースト】を持たないカード」「＜龍獣＞のシグニ」等で絞る）。
+    const cands = movableTrashCandidates(a.owner ?? 'self', state, a.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (cands.length === 0) return done(addLog(ctx, 'トラッシュがないためライフクロスに加えられない'));
     const scope: TargetScope = a.owner === 'self' ? 'self_trash' : 'opp_trash';
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx, !!a.opponentSelects);
@@ -3131,6 +3133,18 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
     if (cands.length === 0) return done(addLog(ctx, '手札がないためライフクロスに加えられない'));
     const scope: TargetScope = a.owner === 'self' ? 'self_hand' : 'opp_hand';
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+  }
+  if (a.fromBottom) {
+    // 「デッキの**一番下**のカードをライフクロスに加える」（`WXK03-066`）。
+    // ⚠一番上と同一視すると**別のカードがライフに乗る**（デッキ構築上は別札＝盤面が変わる）。
+    if (state.deck.length === 0) return done(ctx);
+    const tookB = state.deck.slice(Math.max(0, state.deck.length - count));
+    const newB: PlayerState = {
+      ...state,
+      deck: state.deck.slice(0, Math.max(0, state.deck.length - count)),
+      life_cloth: [...state.life_cloth, ...tookB],
+    };
+    return done(addLog(setOwnerState(a.owner, newB, ctx), `デッキの一番下${tookB.length}枚をライフクロスに追加`));
   }
   if (!a.fromTop) return done(ctx);
   const took = state.deck.slice(0, count);

@@ -27459,6 +27459,153 @@ scenarios.o53HandToDeckBottomActuallyMovesHand = {
 order.push('o53OppHandPeekShowsHandNotDeck', 'o53HandToDeckBottomActuallyMovesHand');
 // ── O-53 END ──
 
+// ── 段2 第36バッチ（2026-08-24）＝「ライフクロスに加える」の**出所（どこから）と持ち主（誰のライフ）** ──────
+// **母集団（実測）＝`ADD_TO_LIFE` を含む live 効果 116 のうち、原文が「トラッシュから／デッキの一番下／
+//   場のシグニ／対戦相手は」と書いているのに JSON が `fromTop:true`（＝自分のデッキの一番上）だったもの 25枚。**
+// 🔴parser の `ライフクロスに加える` 分岐が**文頭「手札を〜」以外を全部 `fromTop:true` に落として**いた
+//   （`LOOK_AND_REORDER` の2値フォールバック＝`O-53` と同型）。受け皿（`fromTrash`／`fromField`／
+//   `opponentSelects` と `matchesFilter` の `hasLifeBurst`）は engine に**実装済みで未配線**だった。
+// 🔑**gates では守れない層**＝逆翻訳・golden・census は「JSON がどうか」しか見ない。実機の観測点は
+//   **「選択モーダルの候補集合」と「デッキが減らないこと」**＝どちらも UI／盤面でしか出ない。
+//
+// 採用＝`WXDi-P04-026`（マキナリペア・アシストルリグ Lv2 マキナ・グロウコスト《無》×０）
+//   「【出】：あなたのトラッシュから【ライフバースト】を持たないカード１枚を対象とし、それをライフクロスに加える。」
+//   グロウコスト0なので**候補ボタンを押した時点でグロウが確定**する（エナ選択の罠 8p を踏まない）。
+// 🔑**対照は「トラッシュの中身だけ」を差し替える**（§4.4 の3）＝盤面・手順は1文字も変えない。
+//   ・本命＝トラッシュに LB無し2枚＋LB持ち2枚 → **候補は LB無しの2枚だけ**・ライフ+1・**デッキ不変**
+//   ・対照＝トラッシュが LB持ちだけ         → **候補0＝ライフも増えない**（旧実装ならデッキ上から+1して増えた）
+const B36_ASSIST_L1 = 'WXDi-P04-025#3601';   // マキナシーズ（Lv1 マキナ・土台）
+const B36_ASSIST_L2 = 'WXDi-P04-026#3602';   // マキナリペア（Lv2 マキナ・観測対象）
+const B36_CENTER = 'WXDi-P04-015#3603';      // マキナ・ツー（Lv2＝アシスト Lv2 を許可するのに必要）
+const B36_NOLB_A = 'WD01-010#3611';          // 大剣　カリバン（【ライフバースト】なし）
+const B36_NOLB_B = 'WD01-013#3612';          // 小剣　ククリ（【ライフバースト】なし）
+const B36_LB_A = 'WD01-009#3613';            // 甲冑　ローメイル（【ライフバースト】あり）
+const B36_LB_B = 'WD01-016#3614';            // サーバント　Ｄ（【ライフバースト】あり）
+// 「デッキを空にしない」（罠22＝解決中にリフレッシュが走って盤面追跡が壊れる）。
+const B36_DECK = ['WD01-012#3621', 'WD01-014#3622', 'WD01-011#3623', 'WD01-010#3624'];
+
+function b36Spec(trashCards) {
+  return {
+    hostSet: {
+      'field.lrig': [B36_CENTER],
+      'field.assist_lrig_l': [B36_ASSIST_L1], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [B36_ASSIST_L2],
+      'hand': [], 'energy': [], 'trash': trashCards, 'actions_done': [],
+      'deck': B36_DECK,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#3691'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#3680', 'WD01-013#3681', 'WD01-013#3682'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+// アシストグロウを走らせて【出】を発火させるところまで（コスト0なので候補クリックで確定する）。
+async function b36Grow(page, H, flow) {
+  if (!flow.slotOpened) { const d = await H.clickTestId('my-lrig-slot-assist-l'); if (d) flow.slotOpened = true; return d; }
+  if (!flow.growOpened) {
+    const grow = page.locator('[data-testid^="card-action-"][data-action-label="グロウ"]').first();
+    if (await grow.count() && await grow.isVisible().catch(() => false)) {
+      await grow.click({ timeout: 2000 }).catch(() => {}); flow.growOpened = true; return 'act:グロウ';
+    }
+    return null;
+  }
+  if (!flow.grown) { const d = await H.clickBtn('マキナリペア'); if (d) flow.grown = true; return d; }
+  return null;
+}
+
+scenarios.b36TrashToLifeFiltersLifeBurst = {
+  title: '段2第36 WXDi-P04-026-E1：トラッシュの【ライフバースト】を持たないカードだけが候補になり、ライフ+1・デッキ不変',
+  spec: b36Spec([B36_LB_A, B36_NOLB_A, B36_LB_B, B36_NOLB_B]),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { slotOpened: false, growOpened: false, grown: false };
+    let candsSeen = null; let picked = false; let settle = 0;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b36trash-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!flow.grown) did = await b36Grow(page, H, flow);
+      const st = await H.queryState();
+      // 「候補集合そのものを観測する」（罠4＝盤面だけ見ると機構を通らなくても同じ絵になる）。
+      if (!candsSeen && Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) {
+        candsSeen = [...st.pendingCandidates];
+      }
+      if (!did && candsSeen && !picked) {
+        const d = await clickPendingInstance(page, H, B36_NOLB_A);
+        if (d) { picked = true; did = d; }
+      }
+      if (!did) did = await H.stdStep(['決定', '確定', 'OK']);
+      H.log(`  b36trash[${s}] -> ${did ?? 'なし'} | grown=${flow.grown} cands=${JSON.stringify(candsSeen)} picked=${picked} life=${st?.host?.life} trash=${st?.host?.trash} deck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!picked) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 3) continue;
+      const onlyNoLb = !!candsSeen && candsSeen.length === 2
+        && candsSeen.includes(B36_NOLB_A) && candsSeen.includes(B36_NOLB_B)
+        && !candsSeen.includes(B36_LB_A) && !candsSeen.includes(B36_LB_B);
+      const lifeUp = st.host.life === before.host.life + 1;
+      const inLife = (st.host.lifeCards ?? []).includes(B36_NOLB_A);
+      const trashDown = st.host.trash === before.host.trash - 1;
+      // 旧バグの決定的な指紋＝**デッキが1枚減る**（デッキの一番上をライフへ置いていた）。
+      const deckSame = st.host.deck === before.host.deck;
+      return {
+        pass: onlyNoLb && lifeUp && inLife && trashDown && deckSame,
+        detail: `候補=${JSON.stringify(candsSeen)}（LB無し2枚だけ=${onlyNoLb}）／life ${before.host.life}→${st.host.life}（+1=${lifeUp}・選んだ札がライフに=${inLife}）`
+          + `／trash ${before.host.trash}→${st.host.trash}（-1=${trashDown}）／deck ${before.host.deck}→${st.host.deck}（不変=${deckSame}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（grown=${flow.grown} cands=${JSON.stringify(candsSeen)} picked=${picked} life=${fin?.host?.life} deck=${fin?.host?.deck} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.b36TrashToLifeNoCandidateWhenAllBurst = {
+  title: '段2第36 対照 WXDi-P04-026-E1：トラッシュが【ライフバースト】持ちだけなら候補0＝ライフもデッキも動かない',
+  spec: b36Spec([B36_LB_A, B36_LB_B]),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const flow = { slotOpened: false, growOpened: false, grown: false };
+    let sawCands = false; let settle = 0;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/b36ctl-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!flow.grown) did = await b36Grow(page, H, flow);
+      const st = await H.queryState();
+      if (Array.isArray(st?.pendingCandidates) && st.pendingCandidates.length > 0) sawCands = true;
+      if (!did) did = await H.stdStep(['決定', '確定', 'OK']);
+      H.log(`  b36ctl[${s}] -> ${did ?? 'なし'} | grown=${flow.grown} sawCands=${sawCands} life=${st?.host?.life} trash=${st?.host?.trash} deck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
+      // 「クリック前から成立している条件で判定しない」（罠5）＝グロウが済んだことを見てから数えはじめる。
+      if (!flow.grown) continue;
+      settle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? settle + 1 : 0;
+      if (settle < 4) continue;
+      const grownOnField = (st.host.lrigDeck ?? 0) === (before.host.lrigDeck ?? 0) - 1;
+      const lifeSame = st.host.life === before.host.life;
+      const deckSame = st.host.deck === before.host.deck;
+      const trashSame = st.host.trash === before.host.trash;
+      return {
+        pass: grownOnField && !sawCands && lifeSame && deckSame && trashSame,
+        detail: `アシストグロウ完了=${grownOnField}（lrigDeck ${before.host.lrigDeck}→${st.host.lrigDeck}）／候補モーダルなし=${!sawCands}`
+          + `／life ${before.host.life}→${st.host.life}（不変=${lifeSame}）／deck ${before.host.deck}→${st.host.deck}（不変=${deckSame}・旧実装はここが-1）`
+          + `／trash ${before.host.trash}→${st.host.trash}（不変=${trashSame}）`,
+      };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（grown=${flow.grown} sawCands=${sawCands} life=${fin?.host?.life} deck=${fin?.host?.deck} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('b36TrashToLifeFiltersLifeBurst', 'b36TrashToLifeNoCandidateWhenAllBurst');
+// ── 段2 第36 END ──
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

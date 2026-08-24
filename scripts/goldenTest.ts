@@ -15262,6 +15262,58 @@ test('ADD_TO_LIFE fromTop: デッキトップ2枚をライフクロスに追加'
   const r = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 2, fromTop: true } as EffectAction, ctx);
   eq(r.ownerState.life_cloth.length, l0 + 2, 'ライフ+2'); eq(r.ownerState.deck.length, d0 - 2, 'デッキ-2');
 });
+// 🔴ライフクロスに加える文型は**出所（どこから）と持ち主（誰のライフ）**を読む（2026-08-24・段2 の
+//    `filter.状態 × ADD_TO_LIFE`）。parser は旧実装で文頭「手札を〜」以外をすべて `fromTop:true`
+//    （自分のデッキの一番上）に落としており、実測25枚が別の盤面を作っていた。
+//    ⚠この test が無いと、**engine 側だけ直しても parser の退行に気づけない**（逆翻訳も緑のままだった）。
+// ⚠`withSavedCursor` で包む＝`mkCtx`/`fill` は**グローバルな fresh() カーソル**を進めるので、
+//    包まずに test を足すと**後続 test の使うカードがずれて無関係な FAIL が出る**（実測＝続き386 群A が落ちた）。
+test('ADD_TO_LIFE 出所と持ち主: トラッシュ/デッキ下/場/相手ライフ を読み分ける（段2・2026-08-24）', () => withSavedCursor(() => {
+  const atl = (txt: string) => {
+    const found: Record<string, unknown>[] = [];
+    const walk = (a: unknown): void => {
+      if (!a || typeof a !== 'object') return;
+      if (Array.isArray(a)) { a.forEach(walk); return; }
+      const o = a as Record<string, unknown>;
+      if (o.type === 'ADD_TO_LIFE') found.push(o);
+      for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v);
+    };
+    parseCardEffects({ CardNum: 'TEST-ATL', Type: 'シグニ', EffectText: txt } as unknown as CardData).forEach(e => walk(e.action));
+    return found[0] ?? {};
+  };
+  const a1 = atl('【出】：あなたのトラッシュから【ライフバースト】を持たないカード１枚を対象とし、それをライフクロスに加える。');
+  eq(a1.fromTrash, true, 'トラッシュ出所'); eq(a1.fromTop, false, 'デッキ上ではない');
+  eq((a1.filter as Record<string, unknown> | undefined)?.hasLifeBurst, false, '【ライフバースト】を持たない filter');
+  const a2 = atl('【出】：あなたのトラッシュから＜龍獣＞のシグニ１枚を対象とし、それをライフクロスに加える。');
+  eq((a2.filter as Record<string, unknown> | undefined)?.story, '龍獣', 'クラス限定を落とさない');
+  const a3 = atl('【出】：対戦相手はデッキの一番上のカードをライフクロスに加える。');
+  eq(a3.owner, 'opponent', '相手のライフに加える'); eq(a3.fromTop, true, 'デッキ上');
+  const a4 = atl('【出】：あなたのトラッシュから対戦相手の選んだカード１枚をライフクロスに加える。');
+  eq(a4.owner, 'self', '「対戦相手の選んだ」は選択者であって持ち主ではない'); eq(a4.opponentSelects, true, '選ぶのは対戦相手');
+  const a5 = atl('【出】：あなたのデッキの一番下のカードをライフクロスに加える。');
+  eq(a5.fromBottom, true, 'デッキの一番下');
+  const a6 = atl('【出】：あなたのシグニ１体を対象とし、それをライフクロスに加える。');
+  eq(a6.fromField, true, '場のシグニをライフへ');
+  const a7 = atl('【出】：あなたの手札を１枚ライフクロスに加える。');
+  eq(a7.fromHand, true, '「あなたの手札を」も手札選択（旧実装は文頭 ^手札 固定で取りこぼした）');
+
+  // engine①＝fromTrash の filter が候補を絞る（落とすとトラッシュのどのカードでも置ける過剰実行）
+  const burst = findCard(c => isSigni(c) && !!c.BurstText && c.BurstText !== '-');
+  const noBurst = findCard(c => isSigni(c) && (!c.BurstText || c.BurstText === '-'));
+  const ctxT = mkCtx({}, {});
+  const ctxT2 = { ...ctxT, ownerState: { ...ctxT.ownerState, trash: [burst, noBurst] } } as ExecCtx;
+  const rT = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromTrash: true, filter: { hasLifeBurst: false } } as EffectAction } as CardEffect, ctxT2);
+  eq((((rT as unknown as { pending?: { candidates?: string[] } }).pending?.candidates) ?? []).join(','), noBurst, 'LB無しだけが候補');
+
+  // engine②＝fromBottom はデッキの**一番下**を取る（一番上と同一視すると別の札がライフに乗る）
+  const ctxB = mkCtx({}, {});
+  const bottom = ctxB.ownerState.deck[ctxB.ownerState.deck.length - 1];
+  const d0 = ctxB.ownerState.deck.length;
+  const rB = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromBottom: true } as EffectAction, ctxB);
+  eq(rB.ownerState.life_cloth[rB.ownerState.life_cloth.length - 1], bottom, 'デッキ最下段がライフへ');
+  eq(rB.ownerState.deck.length, d0 - 1, 'デッキ-1');
+}));
 // Opusタスク12: デッキトップ private look 条件付き配置（「一番上を見る。それが〜のシグニの場合、それを場に出す」）が
 // sentence 分割で LOOK + bare ADD_TO_FIELD になり filter/optional が脱落していた回帰（WX16-038/WX15-001）。
 test('デッキトップ private look 条件付き配置: filter＋optional を保持（WX16-038/WX15-001・タスク12）', () => {

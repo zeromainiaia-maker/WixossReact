@@ -10,14 +10,14 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-24・続き640・Opus 5）＝`O-53` を新規発見して残0クローズ**（codex-work 委譲・Claude は実測／指示／検証／実機）。gates 全緑（**golden 2667**／census **608→607**／smoke 10693 全0／fuzz 全0／lint 269 増分0／同型★0）。台帳 **729→726**。**実機2本 PASS＝1巡が §2.2 の⑤まで完了。**
-  - ✅**`LOOK_AND_REORDER` が `source.location:'hand'` を無視して**デッキ**を読んでいた16効果を是正**（`execLookAndReorder` の `a.source.location === 'life_cloth' ? … : state.deck` という**2値フォールバック**が根）。**群A＝「対戦相手の手札を見る」11効果**は相手の手札ではなく**相手のデッキを最大99枚スライスして並べ替えモーダルに出し**（解決までデッキが一時0枚）、**群B＝「手札からカードN枚をデッキの一番下に置く」5効果**は**手札が1枚も減らず**デッキの上からN枚を下へ回すだけだった（「3枚引いて2枚戻す」が**純粋な3ドロー**）。
-  - 🔑**新型ゼロで直った**＝群Aは既存 `REVEAL_CARDS` 対話（前例 `execStubPart1.ts:849`）、群Bは既存 `TRANSFER_TO_DECK{HAND_CARD}`（**同じ原文で既に正しい兄弟が4効果**あった）。未知の source/destination は**fail-loud** 化して同じ暗黙フォールバックを塞いだ。
-  - 🔴**この穴はどの計器にも映っていなかった**＝逆翻訳は `source.location==='hand'` を「手札」と**正しく**描くので逆翻訳シートは緑、golden/smoke/census/fuzz も全通過。**PLAN §4.3 が言う「受け皿はあるのに配線されていない」型の実例**（発見は `O-51` の投入前実測の副産物）。
-  - 🔴**`O-51` の登録票を実測で訂正した**（下の §5.3 に反映済み）＝「`position:'any'` は誤って上へ置く死フラグ」は**事実ではない**（`location:'deck'` と `'any'` の組は **0件**）。真の母集団は **279効果**で、内容は「並べ替え対話が無い」こと。
-  - ⚠**シナリオ側で §4.4 の 8k をまた踏んだ**＝`WXK02-089` は **リメンバ限定**（CSV の `Restriction` 列）で、ルリグを間違えた1回目は**「召喚」が出ず26ティック空振り**。engine ではなくシナリオの作り間違い。
+- 🏁**セッション（2026-08-24・続き641・Opus 5）＝段2 第36バッチ＝「ライフクロスに加える」の出所と持ち主を配線**（Claude 単独）。gates 全緑（**golden 2668**／census **607→604**／smoke 10693 全0／fuzz 全0／lint 0 errors・warnings 260（本バッチでの増分0）／同型★0）。台帳 **726→714**。**実機2本 PASS＝1巡が §2.2 の⑤まで完了。**
+  - ✅**parser の「ライフクロスに加える」分岐が、文頭の「手札を〜」以外を無条件で `fromTop:true`（自分のデッキの一番上）に落としていた25枚を是正**（内訳＝トラッシュ出所14／持ち主が対戦相手5／手札出所5／デッキの一番下1／場のシグニ1）。「あなたのトラッシュから【ライフバースト】を持たないカード1枚を対象とし」が**選択UIも出さずデッキの一番上を裏向きで置き**、「対戦相手はデッキの一番上のカードをライフクロスに加える」が**自分のライフを増やす符号反転**になっていた。
+  - 🔑**新型ゼロ**＝`fromTrash`／`fromField`／`fromHand`／`opponentSelects` も `matchesFilter` の `hasLifeBurst` も**engine に実装済みで parser から合成されていないだけ**だった（§4.3 の「受け皿はあるのに配線されていない」型・`O-53` と同型）。足したのは `AddToLifeAction.filter`（トラッシュ候補の絞り込み＝渡さないと**トラッシュのどのカードでも置ける過剰実行**）と `fromBottom` の2フィールドだけ。
+  - 🔴**実機の観測点は「候補集合」と「デッキが減らないこと」**＝gates（golden/census/逆翻訳）は「JSON がどうか」しか見ない。本命は候補が LB無し2枚だけ・life+1・**deck 不変**、対照は**トラッシュの中身だけ**を LB持ちに差し替えて候補0・life/deck/trash 不変（旧実装ならここでデッキ上から+1した）。
+  - ⚠**golden を1本足しただけで無関係な test が落ちた**＝`mkCtx`/`fill` は**グローバルな `fresh()` カーソル**を進める。**新しい test は `withSavedCursor` で包む**（続き386 群A が巻き添えで FAIL）。
+  - ⚠**held は「今回の分」と「以前からの分」を分けて採用する**＝`WX19-006` はカード単位で採ると未検証の【ベット】展開まで入るので held に残した（§5.2 に follow-up 登録）。新規 held 22枚はすべて本バッチ対象＝巻き添え0。
 
-**▶ 次の一手**＝**§5.2 の段2 消化を続ける**。**`O-51`（並べ替え対話・279効果）は「1バッチの粒度」に合わない**ので、取るなら**先に段取りを決める**（⚠279効果すべてに対話が1つ増える＝ブラスト半径が大きい／既存 `LOOK_AND_REORDER{reorder:true}` の47効果は既に正しいので触らない）。それより**§5.2 の第2層（軸 × live の action 型 × type）で 5件以上のサブ群**から取るほうが安全（2026-08-24 実測＝320サブ群・5件以上が38個）。⚠**今回のように「投入前実測の副産物」で真因の違う穴が出ることがある**＝母集団を数えるときは live の action 型まで見る。
+**▶ 次の一手**＝**§5.2 の段2 消化を続ける**。取り方は**第2層（軸 × live の action 型 × type）で5件以上のサブ群**（2026-08-24 実測＝OPEN 714／サブ群327個／5件以上が33個）。⚠**器の型（`SEQUENCE`）に乗った群は信号が弱い**ので、`(未分類)×SEQUENCE×WRONG` 47件のような最大群より、**非 SEQUENCE の action 型に載った群**を取るほうが「1つの parser 箇所」に収束しやすい（本バッチの `filter.状態 × ADD_TO_LIFE × WRONG` 5件が実測25枚の系統バグだった実例）。次点の候補＝`キーワード能力 × GRANT_KEYWORD × MISSING/WRONG`（17件・付与条件の欠落が主）、`filter.story × POWER_MODIFY × MISSING`（7件）、`timing/trigger × DRAW × MISSING`（6件）。⚠**findings は標本**＝サブ群を取ったら必ず生データ（CSV原文 × live JSON）へ戻して母集団を数え直す（本バッチも 5 findings → 実測25枚だった）。**`O-51`（並べ替え対話・279効果）は1バッチの粒度に合わない**ので、取るなら先に段取りを決める。
 
 ---
 
@@ -263,6 +263,7 @@
 
 - [ ] **パイロット findings の個別修正**（真バグ39件・要追精査3件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ §2 のワークフロー。
 - [ ] 🆕**続き640 で見つけた別軸の不一致 2件（`O-53` のスコープ外として据置）**＝**`WX17-002-E4`**＝後半「数字１つを宣言し、その数字と同じレベルの**無色ではない**シグニをすべて捨てさせる」が JSON にも逆翻訳にも**丸ごと無い**（⚠同型の受け皿は実在する＝`TK3_DECLARE_DISCARD`／`TK3_DISCARD_BY_LEVEL`（`execStubPart1.ts:838-870`）。**新型を作る前にこれを見る**）。**`WXDi-P09-065-E1`**＝閲覧後の「その中から《ガードアイコン》を持たないカード1枚を選びデッキの一番下に置いてもよい。そうした場合、対戦相手はカードを１枚引く」が **`STUB{LOOK_AND_REORDER}` ＋ 誤った `IS_MY_TURN` 条件**のまま（「そうした場合」の did-it ゲートではない）。
+- [ ] 🆕**`WX19-006` は held のまま残した**（2026-08-24 段2 第36バッチ）＝`WX19-006-E1` の findings（「あなたのトラッシュから対戦相手の選んだカード１枚をライフクロスに加える」）は第36バッチの parser 修正で直っているが、**このカードは以前から別件（`STUB{BET_MECHANIC}`→`CHOOSE` 展開）で held に載っており**、カード単位で採用すると**未検証の【ベット】展開まで一緒に入る**。⚠**採用の可否は【ベット】展開の側を精査してから**（`node scripts/heldReview.mjs --adopt WX19-006` の1コマンドで入るので、判断さえ付けば即終わる）。
 - [ ] 🔴**follow-up＝`stripRuleParens` の《…》内側保護 ＋ 全角→半角括弧の正規化を「必ずセットで」**。カード名指定を要する全文型に効く潜在バグ。**片方だけ入れてはいけない**（⚠`CardName` は半角 `(…)`・`EffectText` は全角 `（…）`＝フルネーム部分一致は一致0枚の no-op に化ける）。
 
 **進め方（続き595 で「効率順」に組み替え・この順で回す）**
@@ -299,6 +300,7 @@
 **■ 未消化 worklist**
 | ID | 項目 | 規模 | ブロッカー／次の一手 |
 |---|---|---|---|
+| **O-54** | 🆕**「このシグニを**エナゾーンから**ライフクロスに加える」の出所が無い** | S | **2026-08-24 段2 第36バッチで分離**＝`WXDi-P08-038-E1`（`parseStatus:MANUAL`）「【自】：このシグニがバニッシュされたとき、あなたのライフクロス１枚をトラッシュに置いてもよい。そうした場合、**このシグニをエナゾーンからライフクロスに加える**。」が live では `ADD_TO_LIFE{fromTop:true}`＝**デッキの一番上**を置いており、バニッシュされて**エナへ行った自分自身**が戻らない。第36バッチで足した出所は `fromTrash`／`fromBottom`／`fromField`／`fromHand` の4本で、**エナゾーン＋「このカード自身」は受け皿ごと無い**（`AddToLifeAction` に `fromEnergy` も `thisCardOnly` も無い）。⚠**MANUAL なので parser を直しても live に届かない**＝実装後は `npx tsx scripts/syncManualLive.ts WXDi-P08-038` まで回す（§4.5）。⚠**着手前に母集団を実測する**＝「エナゾーンから…ライフクロスに加える」は現状この1件だが、「エナゾーンから…場に出す／手札に加える」の兄弟語彙と受け皿を揃えるかを先に決める。 |
 | **O-52** | 🆕**「めくれるまで公開」形の残り処理が受け皿ごと無い** | M | **2026-08-24 O-50 で分離した2効果**＝`SP27-005-E1`／`WX20-041-CB-E1`。`REVEAL_UNTIL` の `restDestination` に `deck_bottom_shuffled` はあるが、**①`WX20-041-CB-E1` の停止条件「**青ではない**＜遊具＞」に必要な色の除外 filter が `TargetFilter` に無い**、**②`SP27-005-E1` の「手札に加える**か**場に出す」の選択を `REVEAL_UNTIL` の hit destination が保持できない**（hand か field の固定値しか持てない）。⚠**どちらも filter/継続の機構が先**＝先に受け皿を作ってから parser を直す。 |
 | **O-51** | 🆕**「残りを好きな順番でデッキに戻す」の**並べ替え対話**が remainder に無い** | **L**（素の M ではない） | 🔴**2026-08-24 続き640 の実測で登録票を訂正した。** 旧記の「`remainder.position:'any'` は何も起きないどころか誤って上へ置く死フラグ」は**事実ではない**：`location:'deck'` と `position` が top/bottom/split 以外の組は **0件**で、`'any'` の39効果は全部 `trash`(37)／`energy`(2)／`hand`(1) との組であり、engine は `location==='deck'` のときしか `position` を読まない（`effectExecutor.ts:8845`）＝**無害**。 ■**真の母集団（実測）**＝原文に「好きな順番」を含む効果 **377**（カード363枚）。うち **`REVEAL_AND_PICK.remainder{deck,bottom}` 258／`{deck,top}` 21＝真の穴 279**、**既に `LOOK_AND_REORDER{reorder:true}` で正しく表現済み 47**（§5 `3-3⁷` の引き算分―**ここは触らない**）、構造が別 30ほか。 ■**直し方の見立て**＝新型は不要。`remainder` に `reorder?:boolean` を足し、engine 側は **`INTERNAL_SPLIT_REVEALED`（`execStubPart2.ts:2939`）と同じ手口**で既存の `LOOK_AND_REORDER` 対話（`destPosition:'top'|'bottom'`）へ回す。配線先は **3箇所**（`execRevealAndPick`≈`:5925`／`execLookPickChain`≈`:6069`／`resumeSearch`≈`:8835`）。 ⚠🔴**1バッチの粒度に合わない**＝279効果**すべてに対話が1つ増える**（ブラスト半径が大きい）。取るなら**先に段取りを決める**こと。なお CPU は `LOOK_AND_REORDER` を自動応答する（`BattleScreen.tsx:669`＝順を変えない）ので進行不能にはならない。 |
 | **O-49** | 🆕**バニッシュ先変更のアタッカー側ミラーが未実装** | S | **2026-08-24 O-47 の実装時に切り出した follow-up**＝防御側のバニッシュには `banish_redirect`／`banish_redirect_to_hand`／凍結オーバーライド／`BANISH_TO_LRIG_TRASH_INSTEAD`／`BATTLE_LEAVE_REPLACE_WITH_EXILE` 等の**行き先変更が9系統**あるが、**アタッカー自身がバニッシュされる経路（O-47 で新設）は既定の行き先（トップ→エナ／下→トラッシュ）だけ**を実装した。⚠**着手前に「防御側にしか効かない前提で書かれた語彙」がどれかを実測する**（`bySource` 付きなど、そもそもアタッカーには掛からないものが混ざっている）。 |
@@ -422,30 +424,12 @@
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-24 続き640 後（本行が直近の正）**：
-  **census 607/607**、**golden 2667**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 269）**、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0／文型★ 324**（★324 は今回の変更前後で同値と実測。旧記載 323 は古い）、
-  **live カード 5975 / 効果総数 10693**、`_held_fresh` **80**／`_partial_fresh` **15**／`_idset_fresh` **45**、
-  **意味照合 残 OPEN 726**（未 triage 0／段1 真バグ確定 717）、`census:wiring` **miss 197**（続き547 実測）／`census:timing` フォールバック **2効果**、
-  **実機シナリオ +2**（`O-53` の2本を追加。`title:` 行の実測で 497→499。旧記載の「総数 518」は別の数え方）、version **0.502**。（⚠`census:goldentypes` は続き552d 以降 未再計測）
----
-## 7. 検証ハーネス
-
-> **検証3層（実機検証を Claude がヘッドレスで代替）**：①表現＝decompile逆翻訳一致／②実行（壊れない）＝`smoke`（全効果・新品盤面）＋`fuzz`（乱択連鎖・進化盤面）／③正しさ＝`golden`（型ごと結果assert）。engine/BattleScreen/decompilerを触ったら **smoke・golden・fuzz** を回帰チェックに回す。⚠どれも engine（executeEffect/resume*）が対象＝**BattleScreen.tsx の配線（フェイズ進行・トリガー収集・effect_stack整列）は対象外**（C2実機 or pure抽出＋goldenが要る）。
-> **CI 自動実行**：`.github/workflows/ci.yml` が push/PR(master) で **typecheck・lint・golden・smoke・fuzz** を回す（失敗時に非ゼロ終了でCI失敗）。`npm install` のみで動く（env/supabase不要）。
-- **`npm run smoke`（`scripts/smokeTest.ts`）**：全効果10722件を**オートパイロット**でヘッドレス実行し、CRASH/HANG（STEP_CAP=200）/INVARIANT違反を検出。現状＝全0（OK 10722／SKIP 0・2026-07-19）。⚠「壊れないか」を保証するもので「ルール的に正しい結果か」は判定しない。
-- **`npm run golden`（`scripts/goldenTest.ts`）**：主要DSLアクション型ごとに制御盤面で効果を実行し「結果がこうなる」をassert。現状＝**PASS 503／FAIL 0**（2026-07-19。型網羅化の経緯は続き82-85）。バグを直す前に1件足すと回帰を防げる。
-- **`npm run fuzz`（`scripts/selfPlayFuzz.ts`）**：乱択自己対戦ファズ。ランダム初期盤面で効果を連鎖発動し相互作用/進化盤面クラッシュ/ループ/カード爆発を検出。シード固定で完全再現可能（既定200ゲーム×40手）。現状＝全0。重め検証は `npm run fuzz -- --games 2000 --moves 80`。
-- **`node scripts/_dropTriage.mjs`**＝脱落疑いを〔偽陽性／機構待ち／修正済／実バグ候補〕に自動＋手動分類（明細 `docs/_drop_triage.txt`）。
-- **`npm run census`（`scripts/vocabCensus.ts`）**＝語彙センサス＝**両方向98計測**（原文修飾句77パターン＋数値/構造/逆方向21計測）×JSON対応語彙の突き合わせで**過剰効果（フィルタ/条件/制限/構造の脱落）と幻覚（原文に無い効果/数値）**を検出（既存網の死角＝盤面が変化するバグ）。高シグナル1895効果ベースライン（現値は §6 恒久指標が正）・超過で exit 1・明細 `docs/_vocab_census.txt`。
-- **`npm run census:clusters`（`vocabCensus.ts --clusters`・続き23新設）**＝census高シグナルのマッチ節を正規化テンプレ（数値→N・《名前》→《X》・＜クラス＞→＜C＞）にクラスタし、枚数順の文型一覧 `docs/_census_clusters.txt` を出力。**§5.4消化バッチの入口**＝カード単位でなくテンプレ単位で作業を組む。
-- **`npx tsx scripts/censusManualDrift.ts`（2026-08-08 続き382新設・§5.3 K）**＝**`manualEffects.ts` ↔ live JSON の乖離**を効果単位で分類する計器。**`build:effects` は live 側 `parseStatus:MANUAL` を不可侵にするので、`manualEffects.ts` を後から直しても live に永久に届かない**＝`_held_review` にも `_partial_fresh` にも出ない第3の死角を映す。明細 `docs/_manual_drift.txt`。**`--date`** で git 履歴から方向判定（`docs/_manual_drift_dates.txt`）、**`--card <ID>`** で1カードの原文つき完全 diff、**`--adopt <effectId,…>`** で**効果単位**に live へ同期（⚠timing が変わる採用は既定で中止＝`--allow-timing-change` で解除）。ゲートではない（exit 0）が、**対になるゲートが goldenTest の「§5.3 K トリップワイヤ」**＝新しい乖離が出たら即 FAIL。⚠**`--date` の判定は manual 定義の効果にしか使えない**（parser 由来は `PARSER_REVIEW` として別枠＝原文照合が要る）。
-- **`npm run census:wiring`（`scripts/censusWiring.ts`・2026-08-07 続き376新設）**＝**被覆マトリクス**＝「TargetFilter の語彙は型にも engine にも実装済みなのに、parser の**一部のビルダーからだけ**合成されていない」配線漏れを (語彙キー × アクション入口) で機械検出する。**ゲートではない**（常に exit 0）＝「掘る場所を指す索引」。現状 **miss 203件**（走査 7721効果・STUB/MANUAL除外）。明細 `docs/_census_wiring.txt`。セルを取るときは `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>` で効果IDと原文を全部出す。⚠**★印（同じ入口に配線済みの効果がある）が最優先**＝穴が明確。⚠`has=0` の語彙は自動で別枠に落ちる（＝配線漏れではなく**機構未実装**＝§5.3）。
-- **`node scripts/archive/censusSample.mjs [seed] [n]`（2026-08-07 続き376新設）**＝census 高シグナル union（**注記を剥がすとちょうど 1162＝公称と一致**）からシード固定で無作為抽出し、原文＋live JSON を並べて出す**真バグ率の測定器**。続き376 の実測は `seed=20260807 n=20` で **14/20＝70%**（§5.4 ②）。**バッチを何本か消化したら測り直す**＝残件見積もりの根拠になる唯一の計器。
-- **`node scripts/heldReview.mjs`（続き23新設）**＝`build:effects` の「温存(要レビュー)」を diff署名（type増減）でグループ化し `docs/_held_review.txt`（原文＋leaf diff付き）に出力→spot-check後 `--adopt ID1,ID2,…` / `--adopt-sig "署名"` で fresh を一括採用。前提＝直前に `npm run build:effects`（fresh を `docs/_held_fresh.json` に保存）。**採用しないもの＝STUB退化・「代わりに」昇格・別STUB id 化**（理由は BUGFIXES 続き23）。
-- **`npx tsx scripts/parserWorklist.ts`**＝held/LOSS/VALUEのhealth計器（**2026-08-07 続き370 実測＝held 259・LOSS 203・VALUE 54・ADD/OTHER 2**。旧 2026-07-19＝held 188・LOSS154/VALUE34。§6 恒久指標参照）。⚠**`heldReview.mjs` の held（242）とは母数が違う**＝こちらは1カード1バケツの分類つき worklist。回帰検出に使う。⚠HEAD比較＝auto-commit 環境では採用コミット後の値で判定する。
-- **`npx tsx scripts/archive/_flattenList.ts`**＝timing flattenのEXIST/FRESH差分（現在0枚）。
-- **`docs/_partial_report.txt`（2026-07-07新設・`build:effects` が再生成）**＝parser 無言フォールバック刻印の計器＝「原文の条件/ステップを黙って落とす近似」の理由明細（初回142効果＝IS_MY_TURN化125/multi-dest分割11/リコレクト分割8）。この数字から**増えたら**parser に新たな無言近似が入った兆候（減らすのは §5.4 の条件語彙拡充）。刻印された fresh は parseStatus:PARTIAL＝heldReview で採用時にレビュアーに見える。
+- **2026-08-24 続き641 後（本行が直近の正）**：
+  **census 604/604**、**golden 2668**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0／文型★ 324**、
+  **live カード 5975 / 効果総数 10693**、`_held_fresh` **77**／`_partial_fresh` **15**／`_idset_fresh` **45**、
+  **意味照合 残 OPEN 714**（未 triage 0／段1 真バグ確定 705／HIGH 495）、`census:wiring` **miss 197**（続き547 実測）／`census:timing` フォールバック **2効果**、
+  **実機シナリオ +2**（段2 第36 の2本を追加。`title:` 行の実測で 499→501）、version **0.502**。（⚠`census:goldentypes` は続き552d 以降 未再計測）
 
 ---
 

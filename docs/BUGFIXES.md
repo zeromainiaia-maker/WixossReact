@@ -1,5 +1,29 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24：段2 第36バッチ＝「ライフクロスに加える」の**出所（どこから）と持ち主（誰のライフ）**の配線是正
+
+- **真因**＝`parseSentencePart1.ts` の「ライフクロスに加える」分岐が、**文頭の「手札を〜」だけを分岐して残りを無条件で `fromTop:true`（＝自分のデッキの一番上）に落として**いた。`LOOK_AND_REORDER` の2値フォールバック（前セッションの `O-53`）と**同型の穴**で、原文が「トラッシュから」「デッキの一番下」「あなたのシグニ1体を対象とし」「対戦相手は」と書いていても全部同じ1本へ潰れていた。
+- 🔑**受け皿は engine に実装済みで、parser から合成されていないだけだった**（PLAN §4.3）＝`AddToLifeAction.fromTrash` / `fromField` / `fromHand` / `opponentSelects` も、`matchesFilter` の `hasLifeBurst` も既存。新型はゼロ。
+- **母集団（実測）**＝`ADD_TO_LIFE` を含む live 効果 116 のうち、原文と JSON が食い違っていたのは **25枚（26効果）**。内訳＝トラッシュ出所14／持ち主が対戦相手5／手札出所5／デッキの一番下1／場のシグニ1。
+- **直した内容**（parser 1箇所・engine 2箇所・型2フィールド）
+  - 型 `AddToLifeAction` に **`filter?: TargetFilter`**（トラッシュ候補の絞り込み）と **`fromBottom?: boolean`** を追加。
+  - engine＝`execAddToLife` の `fromTrash` 分岐が `movableTrashCandidates(..., undefined, ...)` と**フィルタを捨てていた**のを `a.filter` を渡すよう修正（落とすと**トラッシュのどのカードでもライフに置ける過剰実行**）。`fromBottom` 分岐を新設（デッキ末尾から取る）。
+  - parser＝出所を①トラッシュ（`fromTrash` ＋ 名詞句から `hasLifeBurst` / `story` / `cardType` / `color` / `level` を合成）②デッキの一番下（`fromBottom`）③場のシグニ（`fromField` ＋ `target`）④手札（`fromHand`）の順に読み、持ち主を「対戦相手は／が」「対戦相手のデッキ・トラッシュ」でのみ `opponent` に倒すよう書き換えた。
+  - ⚠**「対戦相手の選んだカード1枚」の `対戦相手` は選択者であって持ち主ではない**＝`opponentSelects:true` に落とし、`owner` は `self` のまま（`WXK11-026-BURST`）。持ち主判定の正規表現をここで誤ると**ライフが相手に増える符号反転**になる。
+  - ⚠**`につき` より前は「枚数の数え方」であって候補の絞り込みではない**＝`この方法でトラッシュに置いたシグニ1体につき【ライフバースト】を持たないカード1枚` で `cardType:'シグニ'` を拾うと原文「カード」より狭い過小実行になるので、最後の `につき` 以降だけを名詞句として読む（`WXDi-P10-030-E1`）。
+  - 逆翻訳（`decompileEffects.ts`）も出所別に描き分けた。⚠**ここを直さないと `fromTrash` を配線しても逆翻訳シートが「デッキの一番上」のまま緑**で、計器が穴を映さない。
+- **live への反映**＝`build:effects` の収穫マージは値の変更を採用しないので全件 held に落ちる（held 80→102・**新規22枚はすべて本バッチの対象**＝巻き添えゼロ）。effectId 単位で全数レビューしてから `heldReview --adopt` で**25枚**採用した。
+  - ⚠**`WX19-006` だけは held に残した**＝このカードは以前から別件（`STUB{BET_MECHANIC}`→`CHOOSE` 展開）で held に載っており、カード単位で採用すると未検証の【ベット】展開まで一緒に入る（PLAN §5.2 に follow-up として登録）。
+  - 既存 held のうち内容が変わった3枚（`WXDi-P06-013` / `WXDi-P10-030` / `WXK05-040`）は同居差分（`costUnparsed:true` の除去・`BOUNCE` の owner 是正）まで原文照合してから採用した。
+- **ゲート**＝golden **2668 PASS / 0 FAIL**（本バッチで1本追加）、smoke 10693 全0、fuzz 全0、census **607→604**（`BASELINE_HIGH` も更新）、census:stubs A/C 群0、manual-fields 0/0、同型★0、lint 0 errors。
+- ⚠**golden を足すときは `withSavedCursor` で包む**＝`mkCtx`/`fill` は**グローバルな `fresh()` カーソル**を進めるので、包まずに test を1本足しただけで**後続 test（続き386 群A `WXDi-P08-004`）が無関係に FAIL** した。包んで復旧。
+- 🆕**実機検証（PLAN §2.2 の⑤）＝2本とも PASS**（`node scripts/verifyBattleDrive.mjs b36TrashToLifeFiltersLifeBurst b36TrashToLifeNoCandidateWhenAllBurst`）。
+  - 本命 `b36TrashToLifeFiltersLifeBurst`（`WXDi-P04-026-E1`・マキナリペア）＝**候補集合が `["WD01-010#3611","WD01-013#3612"]`（LB無し2枚だけ・LB持ち2枚は候補外）**／life 7→8・選んだ札がライフに入る／trash 4→3／**deck 4→4（不変）**。🔴**旧実装の指紋は「デッキが1枚減る」**なので、これが決定的な観測点。
+  - 対照 `b36TrashToLifeNoCandidateWhenAllBurst`＝**トラッシュの中身だけ**を LB持ち2枚に差し替え（盤面・手順は1文字も変えない）＝アシストグロウは完了するのに**候補モーダルが出ず、life・deck・trash がすべて不変**。旧実装ならここでデッキ上から+1していた。
+  - 🔑**グロウコスト《無》×０のアシストルリグを選んだ**のがコツ＝候補ボタンを押した時点でグロウが確定するので、§4.4 の 8p（コスト候補セルのトグル）を踏まない。土台に Lv1 同クラスのアシスト（`WXDi-P04-025`）とセンター Lv2（`WXDi-P04-015`）が要る（`getAssistGrowCandidates` は `level === topLevel+1` かつ `level <= currentLrigLevel`）。
+- **意味照合台帳**＝12 finding を消化して残 OPEN **726→714**（HIGH 506→495）。
+- 📋**スコープ外として §5.3 `O-54` に登録**＝`WXDi-P08-038-E1`「このシグニを**エナゾーンから**ライフクロスに加える」は、エナゾーン出所＋「このカード自身」の受け皿が無いので `fromTop:true` のまま据置（`parseStatus:MANUAL` なので parser では届かない＝`syncManualLive` とセットで実装する）。
+
 ## 2026-08-24：段2 第35バッチ＝O-53 `LOOK_AND_REORDER` の hand source 配線是正
 
 - `execLookAndReorder` が `source.location:'hand'` を deck に暗黙フォールバックしていたため、相手手札閲覧11効果が相手デッキを公開・一時除去していた。既存 `REVEAL_CARDS` へ配線し、盤面非変更のまま相手手札を表示して `lastProcessedCards` に保存するよう修正した。

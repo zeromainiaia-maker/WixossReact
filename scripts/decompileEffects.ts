@@ -968,10 +968,18 @@ function actionJa(a?: Action, effectType?: string): string {
         return `それのレベル1につき${ownerJa(a.owner)}デッキの上から1枚をエナゾーンに置く`;
       return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
     case 'ADD_TO_LIFE': {
-      if (typeof a.count === 'object' && a.count?.$ref === 'last_processed_count') {
-        return `トラッシュに置いたシグニ1体につき${ownerJa(a.owner)}デッキの一番上から1枚をライフクロスに加える`;
-      }
-      return a.fromHand ? `手札を${numJa(a.count)}枚選んでライフクロスに加える` : `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${numJa(a.count)}枚をライフクロスに加える`;
+      // 枚数（`last_processed_count` は「この方法でトラッシュに置いた1体につき」）
+      const nAL = (typeof a.count === 'object' && a.count?.$ref === 'last_processed_count')
+        ? 'トラッシュに置いたシグニ1体につき1' : numJa(a.count);
+      const toAL = `${ownerJa(a.owner)}ライフクロスに加える`;
+      // ⚠出所を描き分けないと**逆翻訳が常に「デッキの一番上」**になり、fromTrash/fromField を
+      //   直しても逆翻訳シートが緑のまま＝計器が穴を映さない（PLAN §3「逆翻訳を直したらエンジンもセット」の逆向き）。
+      if (a.fromField) return `${targetJa(a.target ?? { type: 'SIGNI', owner: a.owner, count: a.count })}を場から${toAL}`;
+      if (a.fromTrash) return `${ownerJa(a.owner)}トラッシュから${filterJa(a.filter)}${a.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}${nAL}枚を${a.opponentSelects ? '対戦相手が選び' : '選び'}${toAL}`;
+      if (a.fromHand) return `手札を${nAL}枚選んで${toAL}`;
+      if (a.fromSearch) return `デッキから探したカードを${toAL}`;
+      if (a.fromBottom) return `${ownerJa(a.owner)}デッキの一番下から${nAL}枚を${toAL}`;
+      return `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${nAL}枚を${toAL}`;
     }
     case 'ADD_TO_FIELD': {
       const supAF = a.suppressOnPlay ? '。その【出】能力は発動しない' : '';

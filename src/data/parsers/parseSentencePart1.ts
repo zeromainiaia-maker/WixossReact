@@ -2867,20 +2867,77 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- ライフクロスに加える ----
+  // 🔴**出所（どこから）と持ち主（誰のライフ）を必ず読む**（2026-08-24・段2 の `filter.状態 × ADD_TO_LIFE`）＝
+  //   旧実装は文頭の「手札を〜」だけを分岐し、**それ以外を無条件で `fromTop:true`（自分のデッキの一番上）**
+  //   に落としていた。`LOOK_AND_REORDER` の2値フォールバック（O-53）と同型の穴で、実測21効果が別の盤面を作る：
+  //   ・「あなたのトラッシュから【ライフバースト】を持たないカード1枚を対象とし、それをライフクロスに加える」
+  //     → 選択UIも出さず**デッキの一番上**をライフへ（狙ったバースト無し札が置けず、次に引く札が消える）
+  //   ・「対戦相手はデッキの一番上のカードをライフクロスに加える」→ **自分の**ライフが増える＝符号が逆
+  //   ・「デッキの一番下」「あなたのシグニ1体を対象とし」も同じ一番上へ潰れていた。
+  //   受け皿（`fromTrash`/`fromField`/`opponentSelects` と `matchesFilter`）は engine に実装済みで、
+  //   **parser から合成されていないだけ**だった（PLAN §4.3）。
   if (t.includes('ライフクロスに加える') || t.includes('ライフクロスに置く')) {
+    // ライフクロスの持ち主。⚠「あなたのトラッシュから**対戦相手の選んだ**カード1枚を…」の `対戦相手` は
+    //   **選択者**であって持ち主ではない＝「対戦相手は／が」と「対戦相手のデッキ・トラッシュ」だけを見る。
+    const lifeOwner: Owner = (/対戦相手(?:は|が)[^。]*ライフクロスに加え/.test(t)
+      || /対戦相手の(?:デッキ|トラッシュ)[^。]*ライフクロスに加え/.test(t)) ? 'opponent' : 'self';
+
     // 「（この方法で）トラッシュに置いたシグニ1体につき…ライフクロスに加える」= 直前にトラッシュした枚数（動的）
-    if (t.match(/トラッシュに置いたシグニ[０-９\d]*体?につき/)) {
-      return { type: 'ADD_TO_LIFE', owner: 'self', count: { $ref: 'last_processed_count' }, fromTop: true };
-    }
+    const perTrashed = /トラッシュに置いたシグニ[０-９\d]*体?につき/.test(t);
     // ⚠「カードをN枚引き、…ライフクロスに加える」の draw 枚数を誤って拾わない（(?!引)＝直後が「引」＝ドロー句を除外）。
     //   「デッキの一番上のカード」（枚数なし）は count:1 が正（SP24-009＝5枚引き の 5 が漏れて count:5 の過剰だった・続き107）。
     const cM = t.match(/カードを([０-９\d]+)枚(?!引)/) ?? t.match(/([０-９\d]+)枚(?:の手札)?をライフクロス/);
-    const count = cM ? parseNum(cM[1]) : 1;
-    // 「手札を〜ライフクロスに加える」は手札選択
-    if (t.match(/^手札(?:を|から)/)) {
-      return { type: 'ADD_TO_LIFE', owner: 'self', count, fromTop: false, fromHand: true };
+    const count: number | { $ref: 'last_processed_count' } =
+      perTrashed ? { $ref: 'last_processed_count' } : (cM ? parseNum(cM[1]) : 1);
+
+    // ---- 出所①：トラッシュ ----
+    // ⚠**デッキ由来の文言が同居する文は対象外**（「トラッシュに置き…デッキの一番上のカードを」等）＝
+    //   `トラッシュから` は前段の別アクションの出所であってライフの出所ではない。
+    const trashM = t.match(/トラッシュから(.*?)(?:を対象とし|をライフクロスに加え)/);
+    if (trashM && !/デッキの(?:一番上|一番下|上から)/.test(t)) {
+      // 「この方法でトラッシュに置いたシグニ1体**につき**【ライフバースト】を持たないカード1枚」＝
+      // ⚠`につき` より前は**枚数の数え方**であって候補の絞り込みではない（`cardType:'シグニ'` を拾うと
+      //   原文「カード」より狭い過小実行になる）。最後の `につき` 以降だけを名詞句として読む。
+      const np = trashM[1].split('につき').pop() ?? '';
+      const filter: TargetFilter = {
+        ...parseCardTypeFilter(np),
+        ...parseStoryFilter(np),
+        ...parseColorFilter(np),
+        ...parseLevelFilter(np),
+        ...(/【ライフバースト】を持たない/.test(np) ? { hasLifeBurst: false }
+          : /【ライフバースト】を持つ/.test(np) ? { hasLifeBurst: true } : {}),
+      };
+      return {
+        type: 'ADD_TO_LIFE', owner: lifeOwner, count, fromTop: false, fromTrash: true,
+        ...(Object.keys(filter).length > 0 ? { filter } : {}),
+        // 「あなたのトラッシュから**対戦相手の選んだ**カード1枚を」＝選択者だけが相手（`WXK11-026`）。
+        ...(/対戦相手の選んだ/.test(np) ? { opponentSelects: true } : {}),
+      };
     }
-    return { type: 'ADD_TO_LIFE', owner: 'self', count, fromTop: true };
+
+    // ---- 出所②：デッキの一番下（`WXK03-066`）----
+    if (/デッキの一番下のカードをライフクロスに加え/.test(t)) {
+      return { type: 'ADD_TO_LIFE', owner: lifeOwner, count, fromTop: false, fromBottom: true };
+    }
+
+    // ---- 出所③：場のシグニ（`WXK10-020-E3`「あなたのシグニ1体を対象とし、それをライフクロスに加える」）----
+    // ⚠加える先は**効果の使用者**のライフ（原文が修飾しないかぎり）＝`manualEffects` の同型注記と同じ規約。
+    const fieldM = t.match(/(あなた|対戦相手)の(?:すべての)?シグニ([０-９\d]*)体(?:まで)?を対象とし、それら?をライフクロスに加え/);
+    if (fieldM) {
+      const fieldOwner: Owner = fieldM[1] === 'あなた' ? 'self' : 'opponent';
+      const n = fieldM[2] ? parseNum(fieldM[2]) : 1;
+      return {
+        type: 'ADD_TO_LIFE', owner: lifeOwner, count: n, fromTop: false, fromField: true,
+        target: { type: 'SIGNI', owner: fieldOwner, count: n },
+      };
+    }
+
+    // 「（あなたの）手札を〜ライフクロスに加える」は手札選択。
+    // ⚠旧実装は `^手札` 固定＝「**あなたの**手札を1枚ライフクロスに加える」がデッキ上へ落ちていた。
+    if (/手札(?:を|から)[^。]*ライフクロスに加え/.test(t) || /手札[０-９\d]*枚をライフクロスに加え/.test(t)) {
+      return { type: 'ADD_TO_LIFE', owner: lifeOwner, count, fromTop: false, fromHand: true };
+    }
+    return { type: 'ADD_TO_LIFE', owner: lifeOwner, count, fromTop: true };
   }
 
   // ---- §3タスク6 D: バニッシュの代替コスト（ライフクロスをクラッシュ）----
