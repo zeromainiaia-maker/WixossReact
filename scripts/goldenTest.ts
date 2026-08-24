@@ -43756,7 +43756,7 @@ test('段2 第28バッチ 非採用契約: WD15-007-E1 はper-target正面条件
   eq(effect.activeCondition, undefined, '全体ゲートへ誤昇格');
   eq(effect.action.type, 'GRANT_KEYWORD', '未実装の動的場付与へ偽装');
   if (effect.action.type === 'GRANT_KEYWORD') {
-    eq(effect.action.duration, 'PERMANENT', '後発シグニを扱えないままdurationだけ変更');
+    eq(effect.action.duration, 'UNTIL_END_OF_TURN', '付与条件は未実装でも印刷された期限は保持');
     eq(effect.action.fieldCondition, undefined, '正面パワーを表せないfieldConditionを捏造');
   }
 });
@@ -46078,6 +46078,84 @@ test('O-49 凍結バニッシュ置換: holder視点・activeCondition・バト�
     'activeCondition 成立方向');
   ok(!collectFrozenBanishOverrides(holder, victim, false, cardMap, synthetic, 'WXDi-P13-071').frozenBanishToDeckBottom,
     '対照：同じ盤面でターン所有だけ反転すると activeCondition 不成立');
+});
+
+// ── §5.2 段2 第41バッチ：GRANT_KEYWORD の付与期間／対象 owner ──
+function batch41FreshEffect(effectId: string): CardEffect {
+  const cardNum = effectId.replace(/-E\d.*$/, '');
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+}
+
+function batch41Grants(action: EffectAction): Extract<EffectAction, { type: 'GRANT_KEYWORD' }>[] {
+  if (action.type === 'GRANT_KEYWORD') return [action];
+  if (action.type === 'SEQUENCE') return action.steps.flatMap(batch41Grants);
+  if (action.type === 'CONDITIONAL') return [
+    ...batch41Grants(action.then),
+    ...(action.else ? batch41Grants(action.else) : []),
+  ];
+  if (action.type === 'CHOOSE') return action.choices.flatMap(choice => batch41Grants(choice.action));
+  return [];
+}
+
+for (const [effectId, keyword] of [
+  ['WD15-002-E1', 'ダブルクラッシュ'],
+  ['WD15-007-E1', 'アサシン'],
+  ['WX08-001-E1', 'アサシン'],
+  ['WXEX2-68-E1', 'Sランサー'],
+  ['WX24-P3-042-E1', 'マルチエナ'],
+  ['WXDi-P05-008-E3', 'マルチエナ'],
+  ['WXDi-P06-009-E2', 'ランサー'],
+  ['WXK04-054-E2', 'ランサー'],
+  ['WXK08-045-E1', 'ダブルクラッシュ'],
+  ['WXK09-047-E1', 'バニッシュされない'],
+] as const) {
+  test(`段2 第41バッチ parser duration: ${effectId} はこのターン限り`, () => {
+    const grant = batch41Grants(batch41FreshEffect(effectId).action).find(g => g.keyword === keyword);
+    ok(!!grant, `${effectId}: ${keyword} grant missing`);
+    eq(grant!.duration, 'UNTIL_END_OF_TURN', `${effectId}: action duration`);
+  });
+}
+
+for (const effectId of [
+  'WX08-001-E1', 'WXEX2-68-E1', 'WXEX2-71-E1', 'WX25-P2-018-E1',
+  'WX25-P2-022-E1', 'WX25-P3-059-E1', 'WXDi-P10-006-E3', 'WXDi-P12-007-E1',
+  'WXDi-P14-088-E1', 'WXDi-CP02-009-E1', 'WXK04-054-E2', 'WXK09-084-E1',
+] as const) {
+  test(`段2 第41バッチ parser owner: ${effectId} は自分のシグニだけ`, () => {
+    const grants = batch41Grants(batch41FreshEffect(effectId).action);
+    ok(grants.length > 0, `${effectId}: grant missing`);
+    ok(grants.every(grant => grant.target.owner === 'self'), `${effectId}: opponent candidate leaked`);
+  });
+}
+
+test('段2 第41バッチ 対照: 次の相手ターン期限と引用内PERMANENTを維持', () => {
+  const outer = batch41FreshEffect('WXDi-P07-009-E1').action;
+  eq(outer.type, 'GRANT_EFFECT', 'quoted grant wrapper');
+  if (outer.type !== 'GRANT_EFFECT') return;
+  eq(outer.duration, 'UNTIL_OPP_TURN_END', 'outer duration');
+  const inner = outer.effect && batch41Grants(outer.effect.action)[0];
+  ok(!!inner, 'quoted inner keyword grant');
+  eq(inner!.duration, 'PERMANENT', 'quoted ability owns its lifetime through outer wrapper');
+});
+
+test('段2 第41バッチ 対照: 【常】のこのターン条件は付与期限ではない', () => {
+  const grant = batch41Grants(batch41FreshEffect('WXK03-053-E1').action)[0];
+  ok(!!grant, 'continuous assassin grant');
+  eq(grant.duration, 'PERMANENT', 'continuous condition must remain permanent');
+});
+
+test('段2 第41バッチ 非採用: WX25-P3-023-E1 は対戦相手が親衛隊を得る文で自己シグニ付与ではない', () => {
+  const grant = batch41Grants(batch41FreshEffect('WX25-P3-023-E1').action)[0];
+  ok(!!grant, 'current lossy grant representation');
+  eq(grant.target.owner, 'any', 'owner:self へ偽修正しない');
+});
+
+test('段2 第41バッチ 対照: 所有者を限定しない対象はanyのまま', () => {
+  const grant = batch41Grants(batch41FreshEffect('WXDi-P12-009-E1').action)[0];
+  ok(!!grant, 'S lancer grant');
+  eq(grant.target.owner, 'any', '条件節の「あなた」を対象ownerへ漏らさない');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

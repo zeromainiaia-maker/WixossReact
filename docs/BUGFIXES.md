@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.2 段2 第41バッチ＝`GRANT_KEYWORD` の付与期間・対象 owner を同一効果本文から復元
+
+- **母集団の訂正**＝`docs/_effect_srctext.json` と HEAD live を effect 単位で全件照合し、期間誤り **10効果**、`target.owner:'any'` 誤り **12効果**、重複3でユニーク **19効果**。依頼票の群B 13／ユニーク20に含まれた `WX25-P3-023-E1` は原文「対戦相手は【みこみこ親衛隊】1つを得る」で、`owner:'self'` にする根拠がないため除外した。`WXDi-P08-072-E1` は live が既にselfだが fresh parserだけanyだったため、同じ一般規則でfreshを是正した。
+- **真因**＝`parseSentencePart1` が分割後の「そうした場合、～それは【…】を得る」だけから `GRANT_KEYWORD` を作り、直前文の期間・「あなたの…を対象とし」を見失って、期間を `PERMANENT`、対象を `owner:'any'` にfallbackしていた。最終 effect 組立時に同一effect全文を参照する `repairGrantKeywordMetadataBatch41` を追加し、非【常】・明示文型・非引用能力だけを修復した。
+- **修正**＝期間10効果を `UNTIL_END_OF_TURN`、owner 12効果を `self` に変更。新しいaction／duration／owner値は追加していない。`CHOOSE` 内の `WX25-P2-018-E1` も選択構造を維持。13カードを `heldReview --adopt`、`WXEX2-71` を partial-effect adopt、fresh全体採用が別軸を壊す5効果は同parser出力に合わせたleafのみをliveへ反映した。
+- **非退化**＝HEAD live比の変化集合は上記19 effectIdだけ、outlier 0。`UNTIL_OPP_TURN_END` 26ノード、`NEXT_TURN` 8ノード、`GRANT_EFFECT.effect` 内6ノード、【常】のGRANT_KEYWORD 181ノードはbefore/after完全一致。`WX25-P3-023-E1`、追加／代替付与の `SP26-008-E1`／`WDK01-007-E1`、ownerを明示しない `WXDi-P12-009-E1` も不変。
+- **見送り**＝`WD15-007-E1` の「正面のシグニのパワーが12000以上」は既存 `FieldGrantCondition` が `FRONT_SIGNI_HAS_CHARM` しか持たず表現不能。`WXK09-047-E1` の発動条件／対象＝このシグニ／「バニッシュされない」のaction欠落／アーツのコスト条件、`WXDi-P10-006-E3` の誤keyword等、同じ効果に残る別軸は今回実装していない。
+- **fresh／生成**＝`npm run build:effects` → `heldReview` → `npm run regen` 完走。同型★0。`_held_fresh` **75→75**（key増減0、`WXDi-P08-072` のownerだけ正しくselfへ）、`_partial_fresh` **15→15**、`_idset_fresh` **45→45**。
+- **golden／ゲート**＝修正前の新規検査は **2691 PASS / 18 FAIL**、修正後 **2709 PASS / 0 FAIL（基準2683から+26）**。正方向10＋12と、次相手ターン、引用能力、【常】、誤分類／owner非明示の負方向を固定。`npm run gates` 全緑（smoke 10693全0・SKIP 0／fuzz全0／census 601/601／census:stubs A群0・C群0／manual-fields 0/0／lint 0 errors・260 warnings）。
+- **台帳**＝今回の軸だけ5 findingsを閉じ、残OPEN **713→708**。群Cなど同effectの別軸5 findingsは閉じていない。
+- **実機シナリオ**＝2本を追加し、**2回連続 PASS**（Claude 側で実行）。⚠**Codex 環境では Chromium 未導入で1度も走らせられておらず、これで3バッチ連続**（`O-49`／`O-56`／本バッチ）。**走らせたら2本とも落ちた**ので、以下を検証側で是正した。
+
+  | id | 見るもの | 結果 |
+  |---|---|---|
+  | `b41GrantKeywordExpiresAtTurnEnd` | グロウ経由で【ダブルクラッシュ】が**実 UI で実際に乗る** | ✅ |
+  | `b41GrantKeywordTargetsOwnSigniOnly` | 付与が**自分の**シグニに乗り、**相手のシグニには乗らない** | ✅ |
+
+- 🔴**是正1＝判別力ゼロの assert を削除した（最重要）**。元実装は「ターン境界を跨ぐと失効する」を見ていたが、
+  **現 engine は `keyword_grants` を duration に関係なくターン末に一括クリアする**＝**修正前の `PERMANENT` でも同じく消える**。
+  つまり**この assert は常に緑になる偽の対照**で、放置すると「実機で確認済み」という誤った安心を与える。
+  ⚠**Codex 自身がコード内コメントでこの性質に気付いていながら残していた**（代替として `fetch('/data/effects_misc.json')` で
+  `action.duration` を読む assert を足していたが、それは**挙動ではなくデータを見ているだけ**＝golden と同じことをブラウザ経由でやる形）。
+  ⇒ **実機がここで守れるのは「付与が実 UI 経由で実際に乗る」ことだけ**なのでそこに絞り、**期間の固定は golden 側**（本バッチの duration テスト群）へ委ねた。
+- **是正2＝シナリオの腐り**＝グロウのエナ選択が毎回 `.first()` を押しており、**2回目で同じカードをトグル解除**していた。
+  `selected` は2でも実際は0枚なので「グロウ実行」が永久に disabled になり、`lrig` が最後まで変わらず30反復空振り。⇒ `.nth(selected)` で別のカードを押す。
+- 🔴**是正3＝候補リストは原理的に観測できないと判明**（本バッチ起因ではない）。
+  `WX25-P3-059-E1` は `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN → GRANT_KEYWORD{self,1}}]` で、
+  **engine は対象ピッカーを出さず効果元シグニへ自動付与する**（実測＝コスト支払い直後に `grants=["WX25-P3-059#…:アサシン…"]` が立ち、`SELECT_TARGET` は一度も出ない）。
+  ⚠**修正前の `owner:'any'` でも同じ札が自動で選ばれる**＝**この差分では挙動が変わらない**ので、非退化の確認は JSON 側で行った。
+  ⇒ シナリオは観測可能な範囲（自分に乗り相手に乗らない）へ組み替え、**自動対象化そのものは §5.3 `O-61` へ登録**。
+- **回帰**＝`o56*`／`o49*`／`o47*`／`b57*` を同一バッチで実行し**全 PASS＝新規の赤0**。
+
 ## 2026-08-24：§5.3 `O-56`＝`TRAP_OPERATION` / `TRAP_OP` のカード全文 regex 多重ディスパッチを撤去
 
 - **母集団の再実測**＝投入時HEADのlive 10693効果を action tree まで再帰走査し、`TRAP_OPERATION` **12効果**／`TRAP_OP` **6効果**＝合計**18効果・21ノード**（`WX21-Re20-E1` が3ノード、`WXDi-CP02-033-E1` が2ノード）。登録票の18/6ではなく Claude の訂正値12/6と一致した。再生成後は `WX17-044-E1` が後置【起】の `TRAP_OP` に上書きされず、本体文を拾う `TRAP_OPERATION` になったため **13/5**（合計18・21ノード不変）。

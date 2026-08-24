@@ -166,7 +166,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, selectionConstraintFromPhrase, stripReferenceColorPhrase,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -17899,6 +17899,75 @@ function foldO50ShuffledBottom(action: EffectAction, sourceText: string): Effect
   return visitRevealPick(action);
 }
 
+/**
+ * §5.2 段2 第41バッチ：GRANT_KEYWORD を作った短い断片へ、効果ブロック側で失われた情報を戻す。
+ *
+ * `parseSentencePart1` は句点で分割された「そうした場合、…それは【K】を得る」だけを見るため、
+ * 先行する「あなたのシグニN体を対象とし」と「このターン」を参照できず、owner:any / PERMANENT へ
+ * フォールバックしていた。ここでは currentSourceTexts の**同一 effect 原文だけ**を使い、文型で復元する。
+ * `GRANT_EFFECT.effect` と `abilities[]` は外側の付与期間に従う引用能力なので再帰しない。
+ */
+function repairGrantKeywordMetadataBatch41(
+  sourceText: string,
+  effectType: EffectType,
+  action: EffectAction,
+): EffectAction {
+  // 「【常】：このターンに～していた場合」は成立条件であり、キーワード自体は場にいる間ずっと持つ。
+  if (effectType === 'CONTINUOUS') return action;
+
+  const targetSpec = signiClauseTargetSpec(sourceText);
+  const explicitSelfTarget = targetSpec?.owner === 'self';
+  const triggerSourceIsSelfSigni = /あなたの(?:他の)?(?:(?![。、]).){0,24}シグニ[１1]体(?:が|に)[^。]*とき、[^。]*そのシグニは/.test(sourceText);
+  const outerGrants = (node: EffectAction): GrantKeywordAction[] => {
+    if (node.type === 'GRANT_KEYWORD') return [node];
+    if (node.type === 'SEQUENCE') return node.steps.flatMap(outerGrants);
+    if (node.type === 'CONDITIONAL') return [...outerGrants(node.then), ...(node.else ? outerGrants(node.else) : [])];
+    if (node.type === 'CHOOSE') return node.choices.flatMap(choice => outerGrants(choice.action));
+    return [];
+  };
+  // 先行grantが既にselfなら、後段の「追加で／代わりに、それは」はownerではなく**同一対象の束縛**の軸。
+  // ownerだけselfへ変えても別の味方を選べる偽修正になるため、このバッチでは触らない。
+  const hasPriorSelfGrant = outerGrants(action).some(grant => grant.target.owner === 'self');
+  const repairExplicitOwner = explicitSelfTarget
+    && !(hasPriorSelfGrant && /追加で|代わりに/.test(sourceText));
+  const normalizedSource = sourceText.replaceAll('Ｓ', 'S')
+    // 長期 duration の一部に含まれる短い語を「このターン限り」と誤読しない。
+    .replaceAll('次の対戦相手のターン終了時まで', '')
+    .replace(/このターンと次のターン(?:の間)?/g, '');
+  const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const isTurnLimitedGrant = (keyword: string): boolean => {
+    const baseKeyword = escapeRegex(keyword.split(':')[0].replaceAll('Ｓ', 'S'));
+    const direct = new RegExp(
+      `(?:このターン|ターン終了時まで)[^。]*(?:【${baseKeyword}(?::\\{[^】]*\\})?】|${baseKeyword})[^。]*(?:を得る|を持つ)`,
+    );
+    // WXK09-047 のように引用能力の構造化自体は欠けていても、外側の印刷期限だけは保持する。
+    const malformedQuoted = new RegExp(`ターン終了時まで[^。]*「【常】：${baseKeyword}。`);
+    return direct.test(normalizedSource) || malformedQuoted.test(normalizedSource);
+  };
+
+  const rewrite = (node: EffectAction): EffectAction => {
+    if (node.type === 'GRANT_KEYWORD') {
+      const owner = node.target.owner === 'any' && (repairExplicitOwner || triggerSourceIsSelfSigni)
+        ? 'self' as const
+        : node.target.owner;
+      const duration = node.duration === 'PERMANENT' && isTurnLimitedGrant(node.keyword)
+        ? 'UNTIL_END_OF_TURN' as const
+        : node.duration;
+      if (owner === node.target.owner && duration === node.duration) return node;
+      return { ...node, target: { ...node.target, owner }, duration };
+    }
+    if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(rewrite) };
+    if (node.type === 'CONDITIONAL') {
+      return { ...node, then: rewrite(node.then), ...(node.else ? { else: rewrite(node.else) } : {}) };
+    }
+    if (node.type === 'CHOOSE') {
+      return { ...node, choices: node.choices.map(choice => ({ ...choice, action: rewrite(choice.action) })) };
+    }
+    return node;
+  };
+  return rewrite(action);
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   const currentSourceTexts = new Map<string, string>();
@@ -18460,6 +18529,12 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDurationsBatch40(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
+    const repairedGrant = repairGrantKeywordMetadataBatch41(sourceText, effect.effectType, effect.action);
+    if (JSON.stringify(repairedGrant) !== JSON.stringify(effect.action)) {
+      effect.action = repairedGrant;
+      effect.parseStatus = 'AUTO';
+      clearSilentFallback(effect.effectId);
+    }
     const folded = foldO50ShuffledBottom(effect.action, sourceText);
     if (JSON.stringify(folded) !== JSON.stringify(effect.action)) {
       effect.action = folded;

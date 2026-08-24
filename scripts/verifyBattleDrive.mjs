@@ -28337,6 +28337,143 @@ order.push('o56TrapSetFromDeckNoDuplicate', 'o56ArrowRainSetsTrapNotTrashesIt',
   'o56BurstAsCheckDoesNotEnterCheckZone');
 // ── O-56 END ──
 
+// ── §5.2 段2 第41バッチ START ──
+// `turn_phase:'END'` の直接注入は room 正規化に負けるため、V-30 と同じくフェイズボタンを実際に歩く。
+const B41_DURATION_SIGNI = 'WX05-057#54101';
+const B41_OWNER_SOURCE = 'WX25-P3-059#54111';
+const B41_OWNER_SELF = 'WD01-013#54112';
+const B41_OWNER_OPP = 'WD01-012#54113';
+
+scenarios.b41GrantKeywordExpiresAtTurnEnd = {
+  title: '段2 第41バッチ：WD15-002-E1へグロウすると【ダブルクラッシュ】が実UI経由で実際に乗る（期間の固定は golden 側）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX14-010#54100'],
+      'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+      'field.signi': [null, [B41_DURATION_SIGNI], null],
+      'field.signi_down': [false, false, false],
+      'lrig_deck': ['WD15-002#54102'],
+      'energy': ['WX04-072#54103', 'WX04-072#54104'],
+      'hand': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#54105', 'WD01-013#54106', 'WD01-013#54107'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#54108'],
+      'field.signi': [null, null, null],
+      'deck': ['WD01-013#54109', 'WD01-013#54110'],
+    },
+    top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const opened = await H.openGrow(/紅乙女.*遊月・参/);
+    if (!opened) return { pass: false, detail: 'WD15-002のグロウ候補を開けず' };
+    let selected = 0; let applied = false; let settled = null;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      const growExec = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+      if (await growExec.count() && await growExec.isVisible().catch(() => false)) {
+        if (!(await growExec.isEnabled().catch(() => false)) && selected < 2) {
+          // 🔴**`.first()` を2回押さない**（続き647 の実機で踏んだ）＝同じエナをトグルして
+          //   選択が解除され、`selected` は2でも実際は0枚のまま「グロウ実行」が永久に disabled になる
+          //   （lrig が最後まで変わらず30反復空振りした）。⇒ **`.nth(selected)` で別のカードを押す。**
+          const energy = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').nth(selected);
+          if (await energy.count() && await energy.isVisible().catch(() => false)) {
+            await energy.click().catch(() => {}); selected++; did = `grow-energy-${selected}`;
+          }
+        } else if (await growExec.isEnabled().catch(() => false)) {
+          await growExec.click().catch(() => {}); did = 'btn:グロウ実行';
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      applied ||= (st?.host?.keywordGrants ?? []).some(g => g.startsWith(`${B41_DURATION_SIGNI}:`) && g.includes('ダブルクラッシュ'));
+      H.log(`  b41duration[${s}] -> ${did ?? 'なし'} | selected=${selected} lrig=${st?.host?.lrigTop} applied=${applied} grants=${JSON.stringify(st?.host?.keywordGrants)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (applied && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) { settled = st; break; }
+    }
+    if (!settled) return { pass: false, detail: `付与直後を確認できず（selected=${selected} applied=${applied}）` };
+    // 🔴**「ターンをまたぐと消える」は実機では検査できない**（続き647 の実測で確定・元実装から削除した）＝
+    //   現 engine は `keyword_grants` を**duration に関係なくターン末に一括クリア**するため、
+    //   修正前の `PERMANENT` でも同じく消える＝**この assert は判別力ゼロ**（常に緑になる偽の対照）。
+    //   ⚠元実装は代替として `fetch('/data/effects_misc.json')` で `action.duration` を読んでいたが、
+    //     それは**挙動ではなくデータを見ているだけ**＝golden と同じことをブラウザ経由でやる形なので外した。
+    //     期間の固定は golden 側（段2 第41バッチの duration テスト群）が担当する。
+    //   ⇒ **実機がここで守れるのは「付与が実 UI 経由で実際に乗る」ことだけ**。それに絞る。
+    const granted = (settled.host.keywordGrants ?? []).filter(g => g.startsWith(`${B41_DURATION_SIGNI}:`));
+    return {
+      pass: applied && granted.some(g => g.includes('ダブルクラッシュ')),
+      detail: `グロウ経由で【ダブルクラッシュ】が実際に乗った=${applied}／付与内容=${JSON.stringify(granted)}`,
+    };
+  },
+};
+
+scenarios.b41GrantKeywordTargetsOwnSigniOnly = {
+  title: '段2 第41バッチ：WX25-P3-059-E1の対象候補は自分のシグニだけ（相手シグニを除外）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#54120'],
+      'field.signi': [[B41_OWNER_SOURCE], [B41_OWNER_SELF], null],
+      'field.signi_down': [false, false, false],
+      'energy': ['WD03-013#54114'],
+      'hand': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#54115', 'WD01-013#54116'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#54121'],
+      'field.signi': [[B41_OWNER_OPP], null, null],
+      'deck': ['WD01-013#54117', 'WD01-013#54118'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let energyPicked = false; let paid = false;
+    for (let s = 0; s < 28; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      const st0 = await H.queryState();
+      // 🔴**候補リストは観測できない**（続き647 の実機で判明）＝この効果は
+      //   `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN → GRANT_KEYWORD{self,1}}]` で、
+      //   **engine は対象ピッカーを出さずに効果元シグニへ自動付与する**（実測＝コスト支払い直後に
+      //   `grants=["WX25-P3-059#…:アサシン…"]` が立ち、`SELECT_TARGET` は一度も出ない）。
+      //   ⚠**これは本バッチ起因ではない**＝修正前の `owner:'any'` でも同じ札が選ばれるので差分では挙動が変わらない。
+      //   （自動対象化そのものの是非は §5.3 `O-61` へ登録した。）
+      //   ⇒ 観測できる範囲＝「付与が**自分の**シグニに乗り、**相手のシグニには乗らない**」を見る。
+      const grants0 = st0?.host?.keywordGrants ?? [];
+      const oppGrants0 = st0?.guest?.keywordGrants ?? [];
+      if (paid && grants0.length > 0) {
+        const onOwnSigni = grants0.some(g => (g.startsWith(`${B41_OWNER_SOURCE}:`) || g.startsWith(`${B41_OWNER_SELF}:`)) && g.includes('アサシン'));
+        const notOnOpponent = !grants0.some(g => g.startsWith(`${B41_OWNER_OPP}:`))
+          && !oppGrants0.some(g => g.startsWith(`${B41_OWNER_OPP}:`));
+        return {
+          pass: onOwnSigni && notOnOpponent,
+          detail: `付与先=${JSON.stringify(grants0)}／自分のシグニに乗った=${onOwnSigni}／相手シグニには乗らない=${notOnOpponent}（host grants=${JSON.stringify(grants0)} guest grants=${JSON.stringify(oppGrants0)}）`,
+        };
+      }
+      if (st0?.turnPhase === 'MAIN') did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      if (!did && !energyPicked) {
+        const energy = page.getByTestId('optcost-energy-0').first();
+        if (await energy.count() && await energy.isVisible().catch(() => false)) {
+          await energy.click().catch(() => {}); energyPicked = true; did = 'optcost-energy-0';
+        }
+      }
+      if (!did && energyPicked && !paid) {
+        const pay = page.getByTestId('optcost-pay').first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
+          await pay.click().catch(() => {}); paid = true; did = 'optcost-pay';
+        }
+      }
+      const st = await H.queryState();
+      H.log(`  b41owner[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} energyPicked=${energyPicked} paid=${paid} pEff=${st?.pendingEffect ?? '-'} candidates=${JSON.stringify(st?.pendingCandidates)} grants=${JSON.stringify(st?.host?.keywordGrants)} energy=${JSON.stringify(st?.host?.energyCards)}`);
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `対象選択へ到達できず（energyPicked=${energyPicked} paid=${paid} pEff=${fin?.pendingEffect ?? '-'} candidates=${JSON.stringify(fin?.pendingCandidates)}）` };
+  },
+};
+
+order.push('b41GrantKeywordExpiresAtTurnEnd', 'b41GrantKeywordTargetsOwnSigniOnly');
+// ── §5.2 段2 第41バッチ END ──
+
 
 
 
