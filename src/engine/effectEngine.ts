@@ -6539,7 +6539,12 @@ export function collectGrantedFromUnderSigni(
     const topCard = cardMap.get(topBaseNum);
 
     // Pattern A: トップシグニの CONTINUOUS スタブ → 下のカードから効果を収集
-    for (const eff of (effectsMap.get(topNum) ?? [])) {
+    // 🔴**`topNum` は実戦では必ずインスタンスID（`WX21-024#1`）**だが、`effectsMap` は**カード番号キー**が基本
+    //   （インスタンスIDのエントリは card_identity_overrides / granted_effects が作った分だけ）。
+    //   そのため旧実装は **実機で Pattern A が一度も見つからず、この付与は丸ごと no-op** だった
+    //   （golden は素のカード番号で盤面を作るので緑のまま通っていた＝§5.3 `O-66`③ の実機検証で発覚）。
+    //   ⚠下のカード側（`unBase`）は最初から番号へ落としていたので、**上側だけが穴**だった。
+    for (const eff of (effectsMap.get(topNum) ?? effectsMap.get(topBaseNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, undefined, undefined, turnPhase)) continue;
       if (eff.action.type !== 'STUB') continue;

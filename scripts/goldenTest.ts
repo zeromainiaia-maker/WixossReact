@@ -47159,6 +47159,21 @@ test('O-66③ engine: payload の filter で下のカードを絞る＋payload �
   eq(grantedCount('WXK08-049', undefined), 0, 'payload なしは何も付与しない（fail-closed）');
 }));
 
+// 🔴実機で発覚した恒久 no-op（§5.3 `O-66`③・2026-08-25）＝`collectGrantedFromUnderSigni` は
+// **上のカードの効果をインスタンスIDだけで引いていた**。実戦の盤面は必ず `WX21-024#1` 形なので
+// Pattern A（下のカードの能力を得る）は**一度も見つからず丸ごと no-op** だった。
+// ⚠golden は素のカード番号で盤面を作るので**この穴を素通りしていた**＝実機シナリオでだけ見える型。
+test('O-66③ engine: 上のカードがインスタンスID（#1）でも Pattern A が見つかる（実機 no-op の回帰ガード）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const grantedFor = (topNum: string): number => {
+    const st = mkState({});
+    st.field.signi = [['WXK08-049', topNum], null, null];
+    return (collectGrantedFromUnderSigni(st, mkState({}), true, effectsMap, cm, 'ATTACK_SIGNI').get(topNum) ?? []).length;
+  };
+  ok(grantedFor('WXK08-048') > 0, '素のカード番号では従来どおり付与される（対照）');
+  ok(grantedFor('WXK08-048#1') > 0, 'インスタンスIDでも付与される（旧実装はここが 0＝実機で恒久 no-op）');
+}));
+
 test('O-66③ engine: moveProtectFilter で保護対象を絞る（＜宇宙＞以外は守らない）', () => withSavedCursor(() => {
   const cm = cardMap as Map<string, CardData>;
   const cosmos = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙') && c.CardNum !== 'WXK07-031')!;

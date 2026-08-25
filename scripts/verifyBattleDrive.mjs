@@ -29589,52 +29589,97 @@ order.push('b66WallProtectsAlly', 'b66WallAllyAttackPhase');
 
 // ── §5.3 O-66③（続き660）＝engine の `EffectText` regex を payload へ移した回帰確認 ──
 //
-//   `WXK08-048-E1`「【常】：あなたのアタックフェイズの間、このシグニはこのカードの下にある
-//   **レベル３以下の黒の＜ウェポン＞**のシグニの【自】能力を得る。」
-//   下に `WXK08-049`（黒 Lv3 ＜ウェポン＞。【自】＝あなたのアタックフェイズ開始時、対戦相手のシグニ1体の
-//   パワーを－2000）を積み、**アタックフェイズへ進めると相手シグニが -2000 される**ことを見る。
-// ⚠この巡の変更は**意味を変えない移設**なので、これは「移設しても壊れていない」ことの回帰確認。
-//   （filter が効くこと・payload なしで何も付与しないことは golden 側で固定した。）
-scenarios.b66UnderGrantPayload = {
-  title: 'O-66③ WXK08-048-E1＝payload 化後も下の＜ウェポン＞の【自】を得る（アタックフェイズ開始時に -2000）',
-  spec: {
-    hostSet: {
-      'field.lrig': ['WXK09-018#1'],
-      'field.signi': [['WXK08-049#1', 'WXK08-048#1'], null, null],
-      'field.signi_down': [false, false, false],
-      'actions_done': [],
-    },
-    guestSet: {
-      'field.signi': [['WX01-053#1'], null, null],
-      'field.signi_down': [false, false, false],
-    },
-    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+//   `WX21-024-E2`「【常】：このシグニはこのカードの下にある《荒ぶる海洋　§ポセイドナ§》以外の
+//   **＜天使＞**のシグニの【常】と【自】と【起】の能力と、限定条件を得る。」
+//   下に `WX01-035`（祝福の女神 アテナ・＜天使＞Lv4。【起】《白》《ダウン》：対戦相手のシグニ1体を手札に戻す）を
+//   積み、**その【起】が上のシグニから撃てて相手シグニが手札に戻る**ことを見る。
+// ⚠この巡の変更は「engine が `EffectText` を regex で読んでいたのを payload へ移す」**意味を変えない移設**なので、
+//   これは「移設しても壊れていない」ことの回帰確認。filter が効くこと・payload なしで何も付与しないことは
+//   golden 側（`O-66③ engine`）で固定した。
+// ⚠対照は「下が＜天使＞でない」＝**何も付与されない**ので相手シグニは戻らない。
+//   （対照カードは【起】自体を持たないので「filter が効いた」ことの直接証明にはならない＝弱い対照。
+//     filter の直接証明は golden の `grantedCount(nonWeapon, spec)===0` が担う。）
+const B66_UG_TOP = 'WX21-024#1';
+const B66_UG_VICTIM = 'WD01-013#1';
+const b66UnderGrantSpec = (underNum) => ({
+  hostSet: {
+    'field.lrig': ['WX08-004#1'],
+    'field.signi': [[underNum, B66_UG_TOP], null, null],
+    'field.signi_down': [false, false, false],
+    'energy': ['WD01-010#1'],                     // 白×1（アテナの【起】コスト）
+    'actions_done': [],
   },
-  async drive(page, H) {
-    await H.ensureMain();
-    const before = await H.queryState();
-    H.log('開始 host zone0:', JSON.stringify(before?.host?.fieldSigni?.[0]), 'g pmods:', JSON.stringify(before?.guest?.powerMods));
-    let picked = false;
-    for (let s = 0; s < 20; s++) {
-      await page.waitForTimeout(900);
-      await page.screenshot({ path: `${SHOT}/b66UnderGrantPayload-${s}.png`, fullPage: true });
-      let did = await H.clickTextOrBtn(['アタックフェイズへ']);
-      if (!did && picked) did = await clickDecideNofM(page);
-      if (!did && !picked) {
-        const p0 = page.getByTestId('pick-0').first();
-        if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click({ timeout: 1200 }).catch(() => {}); did = 'pick-0'; picked = true; }
-      }
-      if (!did) did = await H.stdStep(['発動', '発動順序を確定', '確定', 'OK', 'はい']);
-      const st = await H.queryState();
-      const minus = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-'));
-      H.log(`  ugp[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase ?? '-'} g=${(st?.guest?.powerMods ?? []).join(',') || '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
-      if (minus) return { pass: true, detail: `下の＜ウェポン＞の【自】を得てアタックフェイズ開始時に -2000（g=${(st.guest.powerMods).join(',')}）` };
+  guestSet: {
+    'field.signi': [[B66_UG_VICTIM], null, null],
+    'field.signi_down': [false, false, false],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b66VictimOnField = (st) => (st?.guest?.fieldSigni ?? []).some(z => (z ?? []).some(n => n === B66_UG_VICTIM));
+const b66UnderGrantDrive = (tag, underNum, expectBounced) => async function drive(page, H) {
+  await H.ensureMain();
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !((before?.host?.fieldSigni?.[0] ?? []).includes(underNum) && b66VictimOnField(before)); r++) {
+    await injectScenario(page, b66UnderGrantSpec(underNum));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): hZone0=${JSON.stringify(before?.host?.fieldSigni?.[0])} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+  }
+  if (!(before?.host?.fieldSigni?.[0] ?? []).includes(underNum)) {
+    return { pass: false, detail: `準備失敗＝スタックが載っていない（${JSON.stringify(before?.host?.fieldSigni?.[0])}）` };
+  }
+  H.log(`  ${tag} 開始: hZone0=${JSON.stringify(before?.host?.fieldSigni?.[0])} gField=${JSON.stringify(before?.guest?.fieldSigni)} energy=${before?.host?.energy}`);
+  let modalOpened = false; let energyPicked = false; let picked = false;
+  let last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    if (!modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-0');
+      if (opened) { did = opened; modalOpened = true; }
     }
-    const fin = await H.queryState();
-    return { pass: false, detail: `付与された【自】が発火しない（phase=${fin?.turnPhase} g=${(fin?.guest?.powerMods ?? []).join(',') || '-'}）` };
-  },
+    if (!did) {
+      const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+      if (await actBtn.count() && await actBtn.isVisible().catch(() => false) && await actBtn.isEnabled().catch(() => false)) {
+        await actBtn.click().catch(() => {}); did = 'btn:【起】';
+      }
+    }
+    if (!did && !energyPicked) {   // 【起】コスト＝白×1（候補セルはトグルなので1回だけ）
+      const e0 = page.getByTestId('signiactcost-energy-0').first();
+      if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click({ timeout: 1200 }).catch(() => {}); did = 'cost:energy-0'; energyPicked = true; }
+    }
+    if (!did) {
+      const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) { await fire.click().catch(() => {}); did = 'btn:発動'; }
+    }
+    if (!did && picked) did = await clickDecideNofM(page);
+    if (!did && !picked) {
+      const p0 = page.getByTestId('pick-0').first();
+      if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click({ timeout: 1200 }).catch(() => {}); did = 'pick-0'; picked = true; }
+    }
+    if (!did) did = await H.stdStep(['確定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | victim=${b66VictimOnField(last)} gField=${JSON.stringify(last?.guest?.fieldSigni)} energy=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (!b66VictimOnField(last)) break;
+  }
+  const bounced = !b66VictimOnField(last);
+  const detail = `下=${underNum} 相手シグニは${bounced ? '手札に戻った' : '場に残った'}（gField=${JSON.stringify(last?.guest?.fieldSigni)}）`;
+  return bounced === expectBounced
+    ? { pass: true, detail: `${detail}＝期待どおり` }
+    : { pass: false, detail: `【O-66③ 回帰】${detail}＝${expectBounced ? '下の＜天使＞の【起】が付与されていない' : '＜天使＞でない下カードから付与された'}` };
 };
-order.push('b66UnderGrantPayload');
+scenarios.b66UnderGrantPayload = {
+  title: 'O-66③ WX21-024-E2＝payload 化後も下の＜天使＞の【起】を得て撃てる【成立】',
+  spec: b66UnderGrantSpec('WX01-035#1'),
+  drive: b66UnderGrantDrive('b66UnderGrantOk', 'WX01-035#1', true),
+};
+scenarios.b66UnderGrantNonMatch = {
+  title: 'O-66③ 対照＝下が＜天使＞でなければ何も付与されない（相手シグニは残る）',
+  spec: b66UnderGrantSpec('WD01-010#1'),
+  drive: b66UnderGrantDrive('b66UnderGrantNg', 'WD01-010#1', false),
+};
+order.push('b66UnderGrantPayload', 'b66UnderGrantNonMatch');
 
 // ── §5.3 O-66④（続き660）＝「このターン終了時、〈本文〉」の遅延が落ちて即時実行だった ──
 //
