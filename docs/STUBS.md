@@ -12,8 +12,8 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 598 |
-| 　└ ハンドラ実装あり | 564 |
-| 　└ フォールバック（execStub 未処理） | 34 |
+| 　└ ハンドラ実装あり | 565 |
+| 　└ フォールバック（execStub 未処理） | 33 |
 | 総 STUB ノード件数 | 2881 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 349 |
 
@@ -31,7 +31,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 |---|---:|---:|---|---|
 | `OPTIONAL_ACTIVATE` | 22 | 22 | WD10-001, SPDi43-21, WX02-003 |  |
 | `OPTIONAL_TRASH_SELF` | 14 | 14 | PR-319, WX06-CB01, WX06-CB03 |  |
-| `DEFERRED_LIFE_CRASH_PREVENTION` | 6 | 6 | WD06-008, WD13-010, SP38-002 |  |
 | `PREVENT_POWER_MODIFY_BY_OPP` | 5 | 5 | WX05-024, WX12-033, WX20-023 |  |
 | `DAMAGE_REPLACE_BY_COST` | 4 | 4 | SPDi44-12, WX24-P3-005, WX24-P4-021 |  |
 | `BATTLE_BANISH_PREVENT_LOSE_ABILITY` | 3 | 3 | WX13-031, WX16-001, WXK04-068 |  |
@@ -68,7 +67,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ## 実装済み STUB（ハンドラ別）
 
-### execStubPart1.ts（121 種）
+### execStubPart1.ts（122 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -83,7 +82,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GRANT_ABILITY_INNER_TEXT` | 34 | 34 | WD16-014, WD17-001, SPDi43-01 |  |
 | `RULE_REMINDER_TEXT` | 34 | 34 | SP26-003, SP38-001, PR-469 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `DECLARE_NUMBER` | 31 | 30 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_number に保存する（ガード制限は伴わない・§6.4 O-41） |
-| `LOOK_OPP_LIFE_TOP` | 28 | 27 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロスの上から1枚（原文にN枚とあればN枚）を見る |
+| `LOOK_OPP_LIFE_TOP` | 28 | 27 | WD06-006, WD06-018, WDK09-017 | 指定されたゾーンの上から N 枚を見る（公開する）。 |
 | `SOUL_OP` | 26 | 26 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
 | `TRADE_BANISH_SELF_SIGNI` | 23 | 23 | WD22-029-G, WX07-031, WX18-083 | トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ |
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | サブスクライバーカウント+1 |
@@ -107,6 +106,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DOUBLE_POWER_MINUS` | 7 | 7 | SPDi43-04, WX13-058, WX22-023 |  |
 | `EXILE_FROM_CHECK_ZONE` | 7 | 7 | WX14-002, WX14-014, WXEX1-46 | チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ |
 | `PLACE_CARD_UNDER_SIGNI` | 7 | 7 | WX16-003, WX24-P2-056, WX24-P4-046 | シグニの下にカードを置く |
+| `LIFE_CRASH_PREVENTION` | 6 | 6 | WD06-008, WD13-010, SP38-002 | 「このターン、あなたのライフクロスは（ダメージ以外によっては）クラッシュされない」 |
 | `LOOK_AND_REORDER` | 6 | 6 | WX13-035, WX26-CP1-055, WXDi-P01-013 | デッキを見て並べ替え（STUB版：動的パース） |
 | `PER_OWN_LRIG_COLOR_SCALE` | 6 | 2 | WX25-P3-050, WXDi-P08-064 | PER_OWN_LRIG_COLOR_SCALE（§6.4 O-34(d)）:「あなたの場にいる〈色〉のルリグ１体につき〈効果〉」＝ その色の自ルリグ体数だけ本体を繰り返す。 🔑**数える対象はセンター＋アシスト2枠の最前面**（`lr… |
 | `DECLARE_NUMBER_PLAIN` | 5 | 4 | PR-434, WX17-039, WX24-P4-039 | 数字宣言（宣言できる数字を絞れる版・タスク12(xlvi)(c)）。「数字１つを宣言する。…宣言した数字と同じ レベルを持つシグニを手札に加える」（PR-434）のように宣言値を filter に使うだけの効果はこちら。 ⚠**§6.4 … |

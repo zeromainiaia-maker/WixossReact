@@ -29785,6 +29785,87 @@ scenarios.b66TurnEndDelayInstalled = {
 };
 order.push('b66TurnEndDelayInstalled');
 
+// ── §5.3 O-60 第1バッチ（続き663）＝engine が「カード全文 regex」でゾーンを決めていた ──
+//
+//   `WXK06-073-E1`「【出】：**対戦相手の手札を見て**無色ではないカードを１枚まで選ぶ。」
+//   🔴旧 engine は `LOOK_OPP_LIFE_TOP` ハンドラの中で `EffectText`+`BurstText` を regex で読み、
+//     `対戦相手の手札を[０-９\d]*枚?見る`（**終止形**）にしか当たらなかった。原文は連用形「見**て**」
+//     なので1件も当たらず、**既定の「対戦相手のライフクロス上1枚」へ落ちて別ゾーンを覗いていた**
+//     （実測＝この STUB を持つ live 28効果のうち27効果で regex が1本も当たらない）。
+//   ⇒ parser が `lookZone{zone:'opp_hand',count:'ALL'}` を刻み、engine は payload だけを読む。
+//
+// ■ 観測点＝**ログが名指しするカード**。相手の手札と相手のライフクロスに**別々のカード名**を置き、
+//   ログが手札側の名前を挙げ、ライフ側の名前を挙げないことを見る。
+//   🔑**盤面だけでは判定できない**（この効果はどちらのゾーンを覗いても盤面を1枚も動かさない＝§4.4 罠4）。
+// 🔑**旧実装ではこのシナリオは FAIL する**（ログが「対戦相手のライフクロス上1枚を確認：小弓　ボーニャ」）
+//   ＝反転が効いている証拠。
+const b60LookZoneOppHand = {
+  title: 'O-60① WXK06-073-E1＝【出】が見るのは相手の「手札」【旧: ライフクロスを覗いていた】',
+  spec: {
+    hostSet: {
+      // ⚠**シグニの `Restriction` に合うルリグを置く**＝`WXK06-073` は「ウムル限定」なので
+      //   別ルリグだと**召喚ボタンが最後まで出ず、22ティック丸ごと空振りする**（実測）。
+      //   `WXK06-012`（弾奏の鍵主 ウムル＝トレ Lv3・効果なし）＝観測を汚さないバニラを選ぶ。
+      'field.lrig': ['WXK06-012#1'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': ['WXK06-073#1', 'WD01-013#1'],
+      'actions_done': [],
+    },
+    guestSet: {
+      // 🔑手札とライフクロスで**カード名を分ける**（ログのどちらを名指ししたかで覗いたゾーンが判る）
+      'hand': ['WD01-010#91', 'WD01-010#92'],   // 大剣　カリバン ×2
+      'life_cloth': ['WD01-014#91'],            // 小弓　ボーニャ（名前が手札と別）
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始 hand:', JSON.stringify(before?.host?.handCards), 'gHand:', before?.guest?.hand, 'gLife:', before?.guest?.life);
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b60LookZoneOppHand-${s}.png`, fullPage: true });
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-0', 'summon-zone-2');
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      // ⚠**既定の `H.queryState()` が返すログのキーは `logTail`**（`logs` を返す変種は別の
+      //   ローカル queryState だけ）＝`logs` を読むと**常に空**で、盤面は正しいのに FAIL する（実測）。
+      const looked = (st?.logTail ?? []).filter(l => l.includes('を確認'));
+      H.log(`  b60[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(st?.host?.fieldSigni)} 確認ログ=${JSON.stringify(looked)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (looked.length) {
+        const hitHand = looked.some(l => l.includes('対戦相手の手札') && l.includes('大剣'));
+        const hitLife = looked.some(l => l.includes('ライフクロス') || l.includes('小弓'));
+        if (hitLife) {
+          return { pass: false, detail: `【O-60 回帰】相手のライフクロスを覗いた＝${JSON.stringify(looked)}（旧全文regexフォールバックの形）` };
+        }
+        if (!hitHand) {
+          return { pass: false, detail: `見たゾーンが手札ではない＝${JSON.stringify(looked)}` };
+        }
+        return { pass: true, detail: `相手の手札を見た＝${JSON.stringify(looked)}（ライフクロスは覗かない）` };
+      }
+      // 場に出たのに何も見ていないまま効果が終わっていたら過小実行
+      const placed = (st?.host?.fieldSigni ?? []).some(z => z && z.length);
+      if (placed && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0 && s > 8) {
+        return { pass: false, detail: `場に出たのに「を確認」ログが1本も出ない＝【出】が空振り（logTail=${JSON.stringify((st?.logTail ?? []).slice(-8))}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（field=${JSON.stringify(fin?.host?.fieldSigni)} logTail=${JSON.stringify((fin?.logTail ?? []).slice(-10))}）` };
+  },
+};
+scenarios.b60LookZoneOppHand = b60LookZoneOppHand;
+order.push('b60LookZoneOppHand');
+
 // ── §5.3 O-62（続き661）＝「あなたの効果**１つ**によって」の原因限定 ──
 //
 // ■ 何を見るか
