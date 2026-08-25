@@ -117,7 +117,7 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     rows.push({
       file: f, line: i + 1, handler,
       cls: isComment ? 'COMMENT' : isSelf ? 'SELF_TEXT' : 'OTHER_CARD',
-      varName, snippet: trimmed.slice(0, 130), literals,
+      varName, snippet: trimmed.slice(0, 130), literals, gates,
     });
   }
 }
