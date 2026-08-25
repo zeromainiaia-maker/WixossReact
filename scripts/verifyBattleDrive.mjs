@@ -28851,6 +28851,85 @@ scenarios.b46TrashSameName7 = {
 order.push('b46TrashKinds7', 'b46TrashKinds6', 'b46TrashSameName7');
 // ── §5.2 段2 第46バッチ END ──
 
+// ── §5.3 O-63（続き652）＝トリガー句のターン主限定が実機の解決経路でも効くか ─────────────
+// WXK04-065「【自】：**対戦相手のターンの間**、このシグニがバニッシュされたとき、【エナチャージ１】をする。」
+// O-63 で parser が `triggerCondition.turnOwner:'opponent'` を出すようにした。engine 側の消費地点は
+// **`effectStack.ts` の `turnGateOk`**（`initStack`／`pushToStack` の入口で全エントリを現ターンと照合）＝
+// golden は `initStack` を直接叩けるが、**「実際の対戦で収集→スタック投入まで通って弾かれるか」は実機にしか出ない**。
+// ⚠**2本セットで見る**（§5-3′）。spec は `top.active`（＝いまが誰のターンか）**1点だけ**違う。
+//   OppTurn … 対戦相手のターンにバニッシュ → エナ +1（発火する）
+//   OwnTurn … 自分のターンにバニッシュ    → エナ 増えない（turnOwner:opponent で弾かれる）
+// バニッシュの起こし方は **パワー0以下のルール処理**（temp_power_mods で -3000 して P3000→0）＝
+// どちらのターンでも同じ手順で起こせるので、差分がターン主だけになる。
+// ⚠**2段階注入にする**＝1回目で盤面を作って「本当に場に居ること」を確認し、
+//   2回目で -3000 を載せてパワー0のルール処理を起こす。
+//   1発注入だと「置かれる前にバニッシュ判定が走った／そもそも注入が競合で流れた」を
+//   「バニッシュされた」と読み違える（実測で踏んだ＝field が最初から空のまま PASS していた）。
+const b63Base = (active) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [['WXK04-065#1'], null, null],          // 羅植 カモミール（P3000）
+    'field.signi_down': [false, false, false],
+    'temp_power_mods': [],
+    'actions_done': [],
+  },
+  guestSet: { 'field.signi': [null, null, null] },
+  top: { active, turn_phase: 'MAIN', turn_count: 2 },
+});
+const b63Kill = (active) => ({
+  ...b63Base(active),
+  hostSet: { ...b63Base(active).hostSet, 'temp_power_mods': [{ cardNum: 'WXK04-065#1', delta: -3000 }] },
+});
+const b63OnField = (st) => (st?.host?.fieldSigni ?? []).some(z => (z ?? []).some(n => n?.startsWith('WXK04-065')));
+const b63Drive = (tag, active, expectCharge) => async function drive(page, H) {
+  // ① 盤面を作る（CPU の非同期ターン処理と競合するので、載るまで再注入する＝既存シナリオと同型のレース対策）
+  let st = await H.queryState();
+  for (let r = 0; r < 5 && !b63OnField(st); r++) {
+    await injectScenario(page, b63Base(active));
+    await page.waitForTimeout(1200);
+    st = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): field=${JSON.stringify(st?.host?.fieldSigni)} energy=${st?.host?.energy}`);
+  }
+  if (!b63OnField(st)) return { pass: false, detail: `準備失敗＝WXK04-065 が場に載らなかった（field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+  const energyBefore = st?.host?.energy ?? 0;
+  H.log(`  ${tag} 準備OK: energy(before)=${energyBefore}`);
+
+  // ② -3000 を載せてパワー0＝ルール処理でバニッシュさせる
+  await injectScenario(page, b63Kill(active));
+  let last = st;
+  for (let s = 0; s < 12; s++) {
+    await page.waitForTimeout(800);
+    await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] | energy=${last?.host?.energy} onField=${b63OnField(last)} field=${JSON.stringify(last?.host?.fieldSigni)} activeUser=${last?.activeUser === last?.viewerUserId ? 'ME' : 'OPP'} phase=${last?.turnPhase} pEff=${last?.pendingEffect ?? '-'}`);
+    if (!b63OnField(last) && (last?.host?.energy ?? 0) >= energyBefore + 2) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  if (b63OnField(last)) return { pass: false, detail: `パワー0のルール処理でバニッシュされなかった＝ドライバの前提が崩れている（field=${JSON.stringify(last?.host?.fieldSigni)}）` };
+  // 🔴**エナの増分をそのまま「発火した」と読んではいけない**＝WIXOSS のバニッシュ先は既定で**エナゾーン**なので、
+  //   バニッシュされたシグニ自身が必ず +1 する（`BattleScreen` のパワー0処理も `energy: [...removed.energy, topNum]`）。
+  //   ⚠実測で踏んだ＝Δ1 を「発火」と誤読して engine のバグだと誤診しかけた。**発火の増分はその上の +1。**
+  const delta = (last?.host?.energy ?? 0) - energyBefore;
+  const selfInEnergy = (last?.host?.energyCards ?? []).some(n => String(n).startsWith('WXK04-065'));
+  const charged = delta >= 2;                       // 1（シグニ自身）＋1（【エナチャージ１】）
+  const detail = `energy ${energyBefore}→${last?.host?.energy}（Δ${delta}／うち1はバニッシュされたシグニ自身${selfInEnergy ? '＝エナで確認済み' : ''}）`;
+  return charged === expectCharge
+    ? { pass: true, detail: `${detail}＝期待どおり${expectCharge ? '発火' : '非発火'}` }
+    : { pass: false, detail: `【回帰疑い】${detail}＝${expectCharge ? '発火するはずが発火していない（過小実行）' : 'turnOwner:opponent が効かず自分のターンにも発火した（過剰実行）'}` };
+};
+scenarios.b63TurnOwnerOppTurnFires = {
+  title: 'WXK04-065（turnOwner:opponent）＝対戦相手のターンにバニッシュされたらエナチャージする【成立】',
+  spec: b63Base('cpu'),
+  drive: b63Drive('b63OppTurn', 'cpu', true),
+};
+scenarios.b63TurnOwnerOwnTurnBlocked = {
+  title: 'WXK04-065（turnOwner:opponent）＝自分のターンにバニッシュされてもエナチャージしない【対照＝ターン主1点だけ違う】',
+  spec: b63Base('host'),
+  drive: b63Drive('b63OwnTurn', 'host', false),
+};
+order.push('b63TurnOwnerOppTurnFires', 'b63TurnOwnerOwnTurnBlocked');
+// ── §5.3 O-63 END ──
+
 
 
 

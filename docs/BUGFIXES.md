@@ -1,5 +1,59 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.3 `O-63`＝トリガー句の「〈あなた／対戦相手〉のターンの間／に」が JSON に載らない
+
+- 🔴**登録票の見立てを2点とも実測で訂正した。**
+  - ①**「`collectTurnTriggers` が `turnOwner` を読まないので両ターンで発火する」は起きていない。** この collector は
+    **`triggerScope` で構造的に片側へ寄せている**（自分側走査は `self` 限定・相手側走査は `any_opp`/`any` 限定）。
+    実測＝ターン境界 timing の【自】で原文にターン主限定があるもの **648効果は scope と原文が全件一致**、
+    「発火するターンが逆」も **0件**。⇒ **ここへゲートを足すのは 649効果ぶんの無意味な差分**なので入れていない。
+  - ②**「型・parser・collector の3点セットが要る」も誤り＝parser だけで直る。** engine の消費地点は
+    **`src/engine/effectStack.ts` の `turnGateOk`** で、`initStack`／`pushToStack` の入口で**全エントリを**
+    `triggerCondition.turnOwner` と現ターンで照合して弾く（`entry.playerId`＝効果のコントローラ基準）。
+    collector 個別の `turnOwner` 判定（25関数）はこの二重掛けにすぎない。BattleScreen の 122箇所すべてが
+    この2関数を通る（トリガーを直接実行する経路は無い）ことも確認した。
+- **真の穴＝ターン境界以外の timing**（`triggerScope` がターン主を担保しない群）。原文トリガー句にターン主限定がある
+  【自】は **786効果**、うちターン境界以外は **102効果**で、限定が JSON に載っていないのが **46効果**だった。
+- **配線**＝`effectParser.ts` の `extractedTriggerCondObj` 合流点に**共通規則を1本**足した（§5-8′）。従来は
+  ON_HAND_ADDED／ON_SIGNI_DOWN／ON_LEAVE_FIELD／ON_LRIG_GROW … と**トリガー系ごとの ad-hoc regex**で拾っており、
+  **規則を書いていない timing だけが素通り**していた。⚠ターン境界 timing は明示的に除外している。
+- **採用27効果**（`triggerCondition.turnOwner` の追加のみ・live A/B は変化27・追加0・削除0・outlier 0）。
+  ⚠**うち実挙動が変わるのは 7効果**で、残り20は**既存の別ゲート（`activeCondition.TURN_OWNER` 13／
+  collector が `condHas` で見る `IS_MY_TURN` 6 ほか）と二重**になる冗長付与＝中央ゲート1本へ寄せる意味はあるが
+  **「27効果のバグを直した」ではない**（誇張しないこと）。実挙動が変わった7件＝
+  `WXEX2-35-E1`（ON_SIGNI_BANISH_OPPONENT）／`WXDi-P14-007-E1`・`WXDi-CP02-077-E1`（ON_HAND_DISCARDED）／
+  `WXDi-P15-055-E1`（ON_COIN_PAID）／`WXK01-042-E1`（ON_ARTS_USE）／`WXDi-P04-042-E1`（ON_LRIG_UNDER_MOVED）／
+  `WXDi-P12-048-E1`（PRESERVE のため live を外科パッチ）。
+  🔑**`IS_MY_TURN` はターンゲートではない**＝`execUtils.ts:2288` が **常に true を返す表現不能プレースホルダ**で、
+  ターン判定をしているのは**それを `condHas` で明示的に見ている3つの collector と BattleScreen の2箇所だけ**。
+  ⇒ `IS_MY_TURN` を持つ効果を「ゲート済み」と数えると**穴を見落とす**（実測で `WXDi-P04-042-E1` と
+  `WXDi-CP02-077-E1` の2件がこれで隠れていた）。
+- **偽陽性6件**＝`WX04-037-E2`（`condHas(IS_MY_TURN)` を見る any_opp トラッシュ経路）／`WX04-099-E1`
+  （BattleScreen `condHasBattle`）／`WX14-074-E1`・`WX14-078-E1`（`activeCondition.TURN_OWNER`）ほか。
+  ⚠**「`triggerCondition.turnOwner` が無い＝穴」ではない**＝**ターンゲートの語彙は4系統ある**
+  （`triggerCondition.turnOwner` ／ `activeCondition.TURN_OWNER` ／ `condition.IS_MY_TURN`+collector の `condHas` ／
+  `triggerCondition.duringMainPhase`+`mainPhaseGateOk`）。数える前に4つとも引き算する。
+- **golden**＝**2756→2759 / FAIL 0**。①`initStack` の `turnGateOk` を**両方向＋対照**（self は自ターンで通り相手ターンで落ちる／
+  opponent はその反転／`turnOwner` 無しはどちらでも通る）②採用20効果の live 値と原文の一致 ③**ターン境界 timing へは
+  付けていないこと**の固定（§5-11 を golden で守る）。
+- **ゲート**＝`npm run gates` 全緑。golden 2759/0、census **576/576（不動）**、smoke 10693全0、fuzz全0、
+  census:stubs 0/0、manual-fields 0/0、lint 0 errors/260 warnings、同型 5986/265/★0、held **77枚/32群（不動）**。
+- 🆕**実機検証＝新規2本 ALL PASS を2回連続**（`b63TurnOwnerOppTurnFires` / `b63TurnOwnerOwnTurnBlocked`）＋
+  第44〜46 の8本も回帰で緑（計10本）。`WXK04-065`（対戦相手のターンの間にバニッシュされたら【エナチャージ１】）を
+  **パワー0のルール処理でバニッシュ**して観測。spec は `top.active`（＝いまが誰のターンか）**1点だけ**違う。
+- ✅**反転確認は3点で切り分けた**（この効果は**元から `activeCondition.TURN_OWNER` を持っていた**ので、
+  ペアだけでは「今回足した `turnOwner` が効いているか」を分離できない）：
+  ①両ゲートあり→非発火 ②**`activeCondition` を外して `turnOwner` だけ**→非発火（＝**新ゲート単独で足りる**）
+  ③両方外す→発火（＝**観測が本当に噛んでいる**）。golden 側も `turnGateOk` を無効化すると新旧4本が FAIL する。
+- 🔴**実機シナリオの罠を2つ実測で踏んだ**＝
+  ①**バニッシュ先は既定でエナゾーン**なので、バニッシュ系の効果を「エナ +1」で観測すると
+  **シグニ自身の +1 を発火と誤読する**（Δ1 を発火と読んで engine のバグだと誤診しかけた）。**発火はその上の +1＝Δ≧2**。
+  ②**盤面注入は1発で決まらない**（CPU の非同期ターン処理と競合する）＝**2段階注入**にして
+  「本当に場に居ること」を確認してから条件を載せる。1発注入だと**注入が流れて field が空のまま「バニッシュされた」と誤判定**する。
+- **follow-up**＝**`O-64` を新規登録**（「あなたのメインフェイズの間」16効果＋`WDK17-009-E1`＋held 同居の `WXDi-P11-064-E1`）。
+  こちらは受け皿が `duringMainPhase`／`mainPhaseGateOk` で**中央ゲートが無く collector ごとの配線が要る**うえ、
+  `ON_POWER_THRESHOLD`／`ON_ENERGY_CHARGE` は **BattleScreen の watcher＝golden から叩けない**＝リスクの性質が別物なので分けた。
+
 ## 2026-08-25：§5.2 段2 第46バッチ＝種類数（distinct count）条件の脱落
 
 - **母集団**＝`tmp_popCond.mjs C` は指示どおり **83効果 / 受け皿なし13効果**。ただし regex 外の「合計5種類ある」`WXDi-CP01-031-E1` を加えると表の実スコープは14効果。`WXK05-029-E1` は `collectAllColorSigni` が原文閾値を直接評価済みの偽陽性だった。

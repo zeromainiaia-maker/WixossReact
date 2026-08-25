@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-08-25・続き651c・Opus 5）＝§5.2 段2 第46バッチ＝「〈X〉が N 種類以上ある」の種類数（distinct count）条件が丸ごと落ちて無条件実行になる穴を配線**（**実装は Codex へ委譲・スコープ決定/検証/簿記は Claude**。第44・第45 と同じ根の3本目＝数え方違い）。gates 全緑（**golden 2749→2756**／census **582→576**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機3本が2回連続 PASS＋反転確認済／第44・第45 の5本も回帰で緑（計8本）。台帳 684→678。**
+  - ✅**9効果を採用／4件は機構待ちで据置／1件は偽陽性**。新条件型は0。**本丸は片側 union の育ち残しだった**＝**`ActiveCondition.TRASH_HAS_CARD` に `distinctName` が無く**（`Condition` 側にはあった）、`checkActiveCondition` は case の無い型を `return true` に落とすので**トラッシュが空でも基本パワー15000**になっていた。⚠Codex はさらに **Active 側の `distinctClasses` も未評価**・**`ENERGY_COUNT_FILTER` が Active union に不在**・**`HAS_CARD_IN_FIELD.owner:'any'` が片側しか数えていない**の3件を追加で見つけて直した。
+  - 🔴**評価器の分岐を足すときは「その分岐に落ちる既存 live が何件あるか」を先に数える**＝`default: return true`（無条件成立）から実評価へ変わると**過剰実行が過小実行へ裏返りうる**。今回は Claude 側で機械確認し、**`owner:'any'` も `activeCondition` 下の `ENERGY_COUNT_FILTER` も投入前 live に0件**＝既存効果を巻き込んでいないことを確定させた。
+  - 🔑**第45 の教訓（RECV 外の専用実行器を先に引き算する）がそのまま効いた**＝`WXK05-029-E1` は `collectAllColorSigni` が**原文の「N種類以上」と「カード名に《X》を含む」を直接読んで**トラッシュの distinct name を数えており、既に正しかった。**「条件型が無い＝穴」ではない。**
+  - ✅**反転確認を実機で取った**＝`effectEngine.ts` だけを修正前へ戻して再ビルドすると **`b46TrashSameName7`（同名7枚）が 15000 を表示して FAIL**。⚠**`b46TrashKinds6`（6種類）は修正前も PASS する**（`minCount` は元から効いていた）＝**3本のうち「同名7枚」だけが今回の修正を捕まえている**。**負方向テストが本当に噛んでいるかは、修正前へ戻して1本ずつ確かめるまで分からない。**
+  - 📌**3バッチ通算（第44+45+46）**＝**39効果を採用**、台帳 **OPEN 694→678（−16）**、golden **2738→2756（+18）**、census **591→576（−15）**、**実機シナリオ +8本**。
+
 - 🏁**セッション（2026-08-25・続き651b・Opus 5）＝§5.2 段2 第45バッチ＝「トラッシュ／エナゾーンに〈X〉がある（N枚以上ある）場合／かぎり」のゾーン存在・枚数条件が丸ごと落ちて無条件実行になる穴を配線**（**実装は Codex へ委譲・スコープ決定/検証/簿記は Claude**。第44バッチの姉妹バッチ＝同じ根のゾーン違い）。gates 全緑（**golden 2743→2749**／census **583→582**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機2本が2回連続 PASS＋第44の3本も回帰で緑（計5本）。台帳 689→684。**
   - ✅**11効果を採用／2効果は機構待ちで据置**。新条件型は0＝既存 `TRASH_HAS_CARD` / `ENERGY_HAS_CARD` / `HAS_CARD_IN_FIELD` / `LRIG_TRASH_COUNT` と `AND`/`OR` の再利用だけで済んだ。唯一の engine 拡張は **`LRIG_TRASH_COUNT` への任意 `filter`**＝`evalCondition` / `checkActiveCondition` / `evalConditionForContinuous` の**3評価器すべて**へ入れた。
   - 🔑**Claude の母集団見立て（真の穴 約30）は Codex が 13 へ訂正した。これが正しい。** 素朴に「受け皿となる条件型を持たない」で数えると **RECV 外の専用実行器が条件を守っている群**を穴と誤認する（`BET_MECHANIC`／`RECOLLECT_GATE`／`MILL_EACH_REPEAT_ON_NAME`／`OPP_ENERGY_EXCESS_TRASH`／`CONDITIONAL_TRASH_UNDER_SIGNI`／`ARTS_COST_REDUCTION_BY_EFFECT` の**7件**）。⚠**「条件型が無い＝穴」ではない**＝**STUB の実行器が原文の閾値を直接読んでいることがある**。40候補の内訳は 既実装17／群C重複9／表外1／真の穴13 だった。

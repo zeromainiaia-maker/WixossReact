@@ -46735,6 +46735,60 @@ test('段2 第46バッチ 偽陽性／据置: 専用実行器と新機構待ち�
   }
 });
 
+// ── §5.3 `O-63`：トリガー句のターン主限定（`triggerCondition.turnOwner`）──────────────
+// 🔑**engine 側の消費地点は1つ**＝`effectStack.ts` の `turnGateOk` が `initStack`／`pushToStack` の
+//   入口で**全エントリを**現ターンと照合して弾く（`entry.playerId`＝効果のコントローラ基準）。
+//   collector 個別の turnOwner 判定はこれの二重掛けなので、**中央ゲートを直接固定する**のが本質。
+test('O-63 engine: initStack の turnGateOk が turnOwner を両方向で弾く', () => {
+  const mkEntry = (id: string, playerId: string, turnOwner?: 'self' | 'opponent') => ({
+    id, playerId, cardNum: SIGNI, effectId: id,
+    effect: {
+      effectId: id, effectType: 'AUTO', timing: ['ON_BANISH'],
+      action: { type: 'DRAW', owner: 'self', count: 1 },
+      duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+      ...(turnOwner ? { triggerCondition: { turnOwner } } : {}),
+    } as CardEffect,
+  });
+  const ids = (st: ReturnType<typeof initStack>) =>
+    [...st.pendingTurn, ...st.pendingOpp].map(e => e.effectId).sort().join(',');
+  // HOST のターン。self=HOST の効果は通り、opponent=HOST の効果は落ちる。
+  eq(ids(initStack(HOST, [mkEntry('selfOwn', HOST, 'self'), mkEntry('oppOwn', HOST, 'opponent')])),
+     'selfOwn', 'コントローラのターン：self は通り opponent は落ちる');
+  // 同じ2件を GUEST のターンで見ると**ちょうど反転する**（＝「全部落ちる」でも「全部通る」でもない）。
+  eq(ids(initStack(GUEST, [mkEntry('selfOwn', HOST, 'self'), mkEntry('oppOwn', HOST, 'opponent')])),
+     'oppOwn', '相手のターン：opponent は通り self は落ちる（反転対照）');
+  // turnOwner 無しは常に通る（既存の大多数を壊していないことの対照）。
+  eq(ids(initStack(HOST, [mkEntry('none', HOST)])), 'none', 'turnOwner 無しはどちらのターンでも通る');
+  eq(ids(initStack(GUEST, [mkEntry('none', HOST)])), 'none', '同上（相手ターン）');
+});
+
+// live 側＝原文のトリガー句と `triggerCondition.turnOwner` が一致していること（採用27効果の代表）。
+test('O-63 live: 「〈あなた/対戦相手〉のターンの間／に」の【自】に turnOwner が載る', () => {
+  const want: Array<[string, 'self' | 'opponent']> = [
+    ['PR-305-E1', 'self'], ['WX03-032-E1', 'self'], ['WXK01-042-E1', 'self'],
+    ['WXEX2-35-E1', 'self'], ['WXDi-P04-042-E1', 'self'], ['WXDi-P15-055-E1', 'self'],
+    ['WXDi-P14-007-E1', 'self'], ['WXDi-CP02-077-E1', 'self'], ['WXDi-CP02-085-E1', 'self'],
+    ['WXDi-P12-048-E1', 'self'],   // ⚠PRESERVE（MANUAL）＝parser では届かず live を外科パッチした分
+    ['WX11-066-E1', 'opponent'], ['WX14-044-E2', 'opponent'], ['WX16-029-E1', 'opponent'],
+    ['WXK04-060-E1', 'opponent'], ['WXK06-041-E1', 'opponent'], ['WXK08-059-E1', 'opponent'],
+    ['WXDi-P03-071-E1', 'opponent'], ['WXDi-P05-058-E1', 'opponent'], ['WXDi-P15-090-E1', 'opponent'],
+    ['WX11-063-E1', 'opponent'],   // 【常】表記だが ON_BANISH へ再分類される群（G150）
+  ];
+  for (const [id, owner] of want) {
+    eq(b43Live(id).triggerCondition?.turnOwner, owner, `${id}: turnOwner=${owner}`);
+  }
+});
+
+// ⚠**ターン境界 timing には付けない**ことの固定（§5-11＝広げない）。
+// `collectTurnTriggers` は `triggerScope` で構造的に片側へ寄せており、ここへゲートを足すと
+// 649効果ぶんの無意味な差分になる。**代表2件で「付いていない」を明示的に守る。**
+test('O-63 live: ターン境界 timing（ON_TURN_END 等）へは turnOwner を足していない', () => {
+  ok(b43Live('WXDi-P03-065-E1').triggerCondition?.turnOwner === undefined,
+     'WXDi-P03-065-E1（ON_TURN_END・あなたのターン終了時）は triggerScope:self が担保＝turnOwner 不要');
+  ok(b43Live('WXDi-CP02-074-E1').triggerCondition?.turnOwner === 'self',
+     'WXDi-CP02-074-E1 は従来から turnOwner を持つ＝既存値を壊していない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

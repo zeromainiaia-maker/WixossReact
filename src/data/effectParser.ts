@@ -16185,6 +16185,44 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: (turnOwnerCond as { owner: 'self' | 'opponent' }).owner };
   }
 
+  // §5.3 `O-63`：**トリガー句の「〈あなた／対戦相手〉のターンの間／ターンに」＝ターン主限定の共通抽出。**
+  //
+  // これまで turnOwner はトリガー系ごとの ad-hoc な regex で個別に拾っていた（ON_HAND_ADDED／ON_SIGNI_DOWN／
+  // ON_LEAVE_FIELD／ON_LRIG_GROW …）ため、**規則を書いていない timing だけが素通り**していた
+  // （実測＝ターン境界以外の【自】で限定が live に載っていない効果が29）。同じ根が15の入口に出ているので
+  // ここ1箇所へ寄せる（§5-8′＝1つの根が複数の入口に出る／同じ regex を timing ごとに書かない）。
+  //
+  // 🔑**engine 側は既に配線済み＝parser だけで直る。** `effectStack.ts` の `turnGateOk` が
+  // `initStack`／`pushToStack` の入口で**全エントリを** `triggerCondition.turnOwner` と現ターンで照合して弾く
+  // （`entry.playerId`＝効果のコントローラ基準）。collector 個別の turnOwner 判定はこれの二重掛けにすぎない。
+  // ⚠**登録票（O-63）の「collector を直さないと効かない」は誤り**＝中央ゲートを読んで実証した。
+  //
+  // ⚠**ターン境界 timing（ON_TURN_END 等）には付けない。** そちらは `collectTurnTriggers` が
+  // **`triggerScope` で構造的に片側へ寄せている**（自分側走査は `self` 限定／相手側走査は `any_opp`/`any` 限定）。
+  // 実測でも境界系 648効果は scope と原文のターン主が**全件一致**しており、ここへゲートを足すのは
+  // 649効果ぶんの無意味な差分になる（§5-11＝既存挙動を広く変える一般化はしない）。
+  const TURN_BOUNDARY_TIMINGS: readonly EffectTiming[] = [
+    'ON_TURN_START', 'ON_TURN_END', 'ON_ATTACK_PHASE_START', 'ON_ATTACK_PHASE_END',
+    'ON_GROW_PHASE_START', 'ON_MAIN_PHASE_START', 'ON_LRIG_ATTACK_STEP_START',
+  ];
+  if (effectType === 'AUTO'
+    && extractedTriggerCondObj?.turnOwner === undefined
+    && !(timing ?? []).some(t => TURN_BOUNDARY_TIMINGS.includes(t))) {
+    // トリガー句の**先頭**の限定だけを見る（本文中の「あなたのターン終了時まで」等の**期間**表現を拾わない）。
+    // ⚠「あなたのメインフェイズの間／以外で」は turnOwner ではなく `duringMainPhase`／`outsideMainPhase`
+    //   が受け皿（`mainPhaseGateOk` がフェイズとターン主の両方を見る）＝ここでは扱わない。
+    // ⚠**読点を必須にしない**＝「あなたのターン**に**あなたがアーツを使用したとき」（`WXK01-042-E1`）のように
+    //   助詞「に」で直接イベント句へ続く形がある。逆に「あなたのターン**終了時**」を拾わないよう
+    //   `の間` か `に`＋非区切り文字 に限定する（境界 timing は上の除外で既に落ちているが二重で守る）。
+    const toM = trigText.match(/^(?:《[^》]*》)*[：:]?\s*(あなた|対戦相手)のターン(?:の間[、,]|に(?=[^、。]))/);
+    if (toM) {
+      extractedTriggerCondObj = {
+        ...(extractedTriggerCondObj ?? {}),
+        turnOwner: toM[1] === '対戦相手' ? 'opponent' as const : 'self' as const,
+      };
+    }
+  }
+
   // ビートアイコン条件：【常】CONTINUOUS は activeCondition（engine checkActiveCondition が評価）、
   // それ以外（起動/自動）は useCondition にマージ。（WXK08-073＝【常】《ビートアイコン》[１枚以上]）
   if (effectType === 'CONTINUOUS' && beatCondition) {
