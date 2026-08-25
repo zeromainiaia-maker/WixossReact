@@ -2821,6 +2821,35 @@ export interface StubAction {
    */
   lifeCrashPrevention?: import('./index').LifeCrashPreventionSpec;
   /**
+   * 「このシグニは**このカードの下にある**〈条件〉のシグニの〈種別〉能力を得る」の中身
+   * （§5.3 `O-66`③・2026-08-25）。`GRANT_UNDER_SIGNI_ALL_ABILITIES` /
+   * `GRANT_UNDER_SIGNI_CONSTANT_ABILITY` / `GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE` で共有する。
+   *
+   * 🔴**これが無かった間、engine は `cardMap` の `EffectText` を regex で読んで
+   *   レベル／色／クラス／除外名／能力種別を決めていた**（`O-60` と同型）＝**JSON を見ても何が起きるか
+   *   分からない**し、`txt.includes('【常】')` のようにカード全文を見るので**別の能力の表記**まで拾っていた。
+   * ⚠**ペイロードが無い宣言は「下の全カードの全能力を得る」に化ける**ので、消費側は
+   *   **ペイロードが無ければ何も付与しない**（fail-closed）。落ちても「効かない」で済ませる。
+   */
+  underAbilityGrant?: {
+    /** 得る能力の種別。原文の【常】【自】【起】に対応。 */
+    kinds: Array<'CONTINUOUS' | 'AUTO' | 'ACTIVATED'>;
+    /** 下のカードの絞り込み（レベル／色／＜クラス＞／《名前》以外）。省略＝下の全カード。 */
+    filter?: TargetFilter;
+    /** 【英知】能力に限る（`WX19-027-E2`「【常】の【英知】能力」）。 */
+    eichiOnly?: boolean;
+    /** 限定条件も得る（`WX21-024-E2`「…能力と、限定条件を得る」）＝表示用。 */
+    grantRestriction?: boolean;
+  };
+  /**
+   * 「〈条件〉のシグニは場から手札に戻らない／場から移動させない」の対象（§5.3 `O-66`③）。
+   * `SIGNI_CANT_BOUNCE_FROM_FIELD` / `PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH` で共有する。
+   * 省略＝**あなたのシグニ全部**（原文に＜クラス＞の限定が無い形＝`WX13-029-E1`②）。
+   * ⚠こちらは省略が「全部」で正しい（原文がそう書く）ので、上の `underAbilityGrant` とは
+   *   fail の向きが逆になる。**同じ規約だと思って揃えないこと。**
+   */
+  moveProtectFilter?: TargetFilter;
+  /**
    * SEED_BLOOM / SEED_BLOOM_OPTIONAL: 「そのシグニゾーンにシグニがある場合、**代わりにそのシグニを
    * 手札に戻してから**開花する」（`WDK07-Y07-E1`・§6.4 O-3）。
    * ⚠**開花の置換**なので後続ステップでは間に合わない（素の開花は「シグニあり＝不発」で先に終わる）＝
