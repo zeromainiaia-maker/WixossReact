@@ -1,5 +1,111 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.3 `O-44`＋`O-45`＝「原因効果の発生源クラス」限定の規約統一と、`PLACE_UNDER_SIGNI` の名詞句修飾落ち
+
+> **1巡（続き659・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2783→2788**／census **573→572**／
+> smoke 10693 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／lint 0 errors）。
+> **実機は新規4本＋回帰2本＝6本 ALL PASS＋反転確認1本（旧実装で FAIL することを実際に確かめた）。**
+
+---
+
+### `O-44`＝発生源クラス限定が **fail-open と fail-closed で2種類混在**していた（`powerDecreaseSourceStory` だけ過剰側）
+
+**規約の正**＝原文「あなたの＜X＞のシグニの**効果によって**」は**原因の特定が意味の一部**なので、
+原因が特定できないときは**発火させない（fail-closed）**。`trashSourceStory`／`banishedSourceStory`／
+`milledSourceStory` は既にそう倒れており、**`powerDecreaseSourceStory` だけが fail-open**だった。
+
+⚠**先に原文を全部読んでから決めた**（PLAN の指示どおり・機械的に揃えない）。この語彙を使う live 効果は**2件だけ**：
+
+- `WX25-P3-032-E1`（虚幸の冥者　ハナレ）「あなたの＜毒牙＞のシグニの効果によって対戦相手のシグニ１体のパワーが減ったとき」
+- `WX25-P3-062-E1`（ドライ＝クレオパトラ）「あなたの**他の**＜毒牙＞のシグニの効果によって〜」
+
+どちらも発生源クラスが意味の一部＝**fail-closed が忠実**。
+
+#### 真因は2段（片方だけ直すと逆向きの退化になる）
+
+1. **`collectPowerDecreaseTriggers` が `decreaseSources.length > 0` を条件にクラス判定ごと素通りさせていた**
+   （＝発生源不明なら無条件発火）。
+2. **`detectPowerDecreaseSources` が「1件でも `srcCardNum` 未記録なら空配列」を返していた**＝
+   ①と組で「不明→発火」に化ける。**`temp_power_mods` へ書く経路は 85 箇所あり `srcCardNum` を刻むのは
+   `execPowerModify` 系だけ**なので、①だけ fail-closed にすると**今度は正しい効果まで永久に黙る**
+   （旧コメントが「部分実装が過少発火の退化になる」と警告していたのはこれ）。
+
+#### 直し方＝**中央 diff の `causeSourceCardNum` へ寄せてから** fail-closed にする
+
+- `detectPowerDecreaseSources(before, after, fallbackSrc?)`＝`srcCardNum` 未記録の1件は
+  **いま解決中の効果の発生源カード**（`collectBoardDiffTriggers` の `meta.causeSourceCardNum`）へ寄せ、
+  それでも不明なら**空文字 `''` を要素として残す**（空配列で握り潰さない）。
+- `collectPowerDecreaseTriggers` は `decreaseSources.length > 0` ガードを撤去＝`''` は CardClass も空なので
+  自然に false ＝ fail-closed。
+
+#### 🔑実機で分かった「どの経路が本当に危なかったか」（＝反転シナリオの設計をやり直した）
+
+最初に組んだ反転（`POWER_MODIFY_PER_TRASH_COUNT` を1体選択で撃つ）は**旧実装でも PASS してしまった**。
+理由＝**選択を挟む PER_* は `POWER_MODIFY` へ変換して `selectOrInteract` に渡す**（`pmTC`）ので、
+実際に書くのは `execPowerModify`＝`srcCardNum` が入る。**fail-open が牙を剥くのは `count:'ALL'`**
+（選択を挟まず `applyMod` が直接書く）側だった。⚠**「その語彙を使う経路」を実測せずに反転を組むと、
+直っていなくても PASS する反転を作ってしまう**。
+
+実機シナリオ（`scripts/verifyBattleDrive.mjs`・新規3本）:
+
+| id | 盤面 | 期待 | 結果 |
+|---|---|---|---|
+| `poisonPowerDecreaseFires` | ＜毒牙＞`WX21-066`【出】（PER_TRASH_COUNT・毒牙3枚＝-3000） | watcher が **+3000** | ✅ `g=WX01-053#1:-3000 h=WX25-P3-062#1:3000` |
+| `poisonPowerDecreaseGate` | ＜武勇＞`WXK02-061`【出】（発生源が**刻まれる**経路） | 発火しない | ✅ `h=(なし)` |
+| **`poisonPowerDecreaseGateAll`** | ＜バーチャル＞`WXDi-P00-078`【自】アタック時（**`count:'ALL'`＝刻まれない経路**） | 発火しない | ✅ `h=(なし)` |
+
+**反転確認**＝`poisonPowerDecreaseGateAll` を旧実装（両方戻す）で回すと
+`h=WX25-P3-062#1:1000` を得て **FAIL**＝過剰トリガーが実在したことを実機で確認した。
+回帰＝既存 `oppPowerDecreased`（限定なしの watcher）も PASS のまま。
+
+golden＝`fire([])` の期待を `true→false` へ反転し、`fire([''])`（発生源不明）と
+`detectPowerDecreaseSources` の fallback を新規テストで固定（計 +2本）。
+⚠新テストは `mkState` を呼ぶので **`withSavedCursor` で包む**（包まずに1本足しただけで
+`続き386 群A WXDi-P08-004-E1` が POOL カーソルのずれで FAIL した）。
+
+---
+
+### `O-45`＝`PLACE_UNDER_SIGNI` のビルダーが**名詞句修飾（filter）を運んでいなかった**
+
+**母集団を先に実測**（live 41ノード＝`deck_top` 15／`trash` 21／`energy` 3／`hand` 2）してから直した。
+登録票は `WX21-024-E1` 1件だが、実測すると**同じ穴が4ビルダーに散っていて計9効果**が原文と食い違っていた。
+
+| 効果 | 原文 | 旧 live（誤） | 直した後 |
+|---|---|---|---|
+| `WX21-024-E1` | 共通する色を持たない**レベル４以下の＜天使＞の**シグニ2枚まで | `{cardType:シグニ}` | `+story:天使 +level.max:4` |
+| `WXDi-P10-043-E3` | 手札から**レベル１の**シグニ5枚まで | `{cardType:シグニ}` | `+level:1` |
+| `WXDi-P06-039-E2` | エナから**《ガードアイコン》を持たない**シグニ1枚 | `{cardType:シグニ}` | `+noGuard:true` |
+| `WXDi-P11-050-E2` | 《タウィル//メモリア》**か**《ウムル//メモリア》1枚 | `{cardType:シグニ}` | `cardNames:[A,B]` |
+| `WXK09-060-E3` | 《キャットレ》1枚**と**《ドッグメ》1枚 | `{cardType:シグニ}` | `cardNames` ＋ `selectionConstraint.groups`（1枚ずつ） |
+| `WX25-CP1-091-E1`／`WXDi-P08-044-E3`／`WXDi-P11-080-E2`／`WXDi-CP02-054-E2` | 原文の名詞が「**カード**」 | `{cardType:シグニ}`＝**過小**（スペル等を置けない） | `cardType` を付けない |
+
+真因（ビルダー別）:
+
+- **トラッシュ本体**（`parseSentencePart2`）＝①**レベル句を正規表現で消費するだけで捨てていた** ②`m[1] ?? m[2]` で
+  **「共通する色を持たない」が当たるとクラス句を取りこぼす**。①②が重なった `WX21-024-E1` は
+  **トラッシュのどのシグニでも下に置ける**過剰実行だった。
+  （`effectParser.ts` の後付けパッチ「トラッシュから**レベルN以下の＜X＞の**…」は `トラッシュから` 直後を要求するので、
+  間に「共通する色を持たない」が挟まると当たらない＝ここも素通りしていた。）
+- **複数名**（同）＝`《A》か《B》` の名前を filter へ運んでいなかった。
+- **手札／エナ**（`parseSentencePart3`）＝レベル句・「《ガードアイコン》を持たない」を**捕捉するだけで捨てていた**。
+- 4ビルダー共通＝**原文の名詞（シグニ／カード）を見ずに `cardType:'シグニ'` を決め打ち**していた。
+
+収穫マージは**リーフが減る変更（`cardType` 削除）を held に落とす**ので、
+`node scripts/heldReview.mjs --adopt <6枚>` で明示採用した（差分は1件ずつ leaf diff で確認済み）。
+
+実機＝新規 `underPlaceLevelFilter`（`WXDi-P10-043-E3`・手札に Lv1 と Lv3 を1枚ずつ）で
+**候補ピッカーが 1件しか出ない**（＝Lv1 だけ）ことと Lv3 が手札に残ることを観測。
+回帰＝`spellUnderMemoriaPlace`（下に置く系の既存シナリオ）も PASS。
+逆翻訳（`npm run regen`）も 9 効果すべて原文と一致する文へ変わった
+（`decompileEffects` に `PLACE_UNDER_SIGNI` の `groups` 表示を追加＝「いずれか」だと同名2枚に読めるため）。
+
+#### 積み残し（機構が要る＝PLAN §5.3 へ登録）
+
+- `WX20-042-CB-E1`「＜原子＞のシグニ３枚**まで**と青のスペル１枚**まで**」＝**複合対象**（count が 1 に潰れている）。
+- `WXDi-P06-083-E2`「レベル１、レベル２、レベル３のシグニを**それぞれ**１枚まで」＝レベル別の配分。
+
+---
+
 ## 2026-08-25：§5.3 `O-46`＝複合コスト（連用形）の2要素目以降が丸ごと落ちて踏み倒せていた
 
 > **1巡（続き658・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2781→2783**／census **573/573** 据え置き／
