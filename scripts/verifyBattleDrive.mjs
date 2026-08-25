@@ -29866,6 +29866,232 @@ const b60LookZoneOppHand = {
 scenarios.b60LookZoneOppHand = b60LookZoneOppHand;
 order.push('b60LookZoneOppHand');
 
+// ── §5.3 O-60 第2バッチ（続き664）＝engine の「無条件フォールバック」が下のカードを全部トラッシュしていた ──
+//
+//   `LRIG_UNDER_CARD_OP` は parser の生成地点が22箇所ある catch-all で、engine は全文 regex で3分岐し、
+//   🔴**どれにも当たらないと「効果元シグニの下にあるカードを全部トラッシュ」する分岐へ落ちていた**
+//   （3つ目の分岐には regex すら無い）。実測＝live 17効果のうち regex に当たるのは2効果だけ。
+//   実害＝`WX24-P4-046-E2`「このシグニの下から**それぞれレベルの異なるシグニ３枚**をトラッシュに置いて**もよい**」は
+//   任意でも枚数指定でもなく**下の全カードを強制的に**失っていた。
+//
+// ■ 観測点＝**下のカードが1枚も落ちないこと**＋**能力が発火した証拠**（§4.4 罠4＝盤面だけの判定は偽陽性）。
+// 🔑**旧実装ではこのシナリオは FAIL する**（下の2枚がトラッシュへ行く）＝反転が効いている証拠。
+scenarios.b60UnderCardsSurvive = {
+  title: 'O-60② WX24-P4-046-E2＝ペイロードの無い配置操作は下のカードに触れない【旧: 下を全部トラッシュ】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX08-004#1'],
+      // 下に2枚積んだスタック（配列末尾が場のシグニ本体）。
+      'field.signi': [['WD01-013#91', 'WD01-014#91', 'WX24-P4-046#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    const stack0 = (before?.host?.fieldSigni ?? [])[0] ?? [];
+    const trash0 = before?.host?.trash ?? 0;
+    H.log(`開始 stack=${JSON.stringify(stack0)} trash=${trash0}`);
+    if (stack0.length !== 3) return { pass: false, detail: `前提崩れ＝下2枚のスタックが注入できていない（${JSON.stringify(stack0)}）` };
+
+    let opened = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+      if (!did) {
+        // §4.4 罠2＝「アタック」は exact:true のボタン限定（ヘッダーの「ルリグアタックへ」に誤爆させない）
+        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
+      }
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const fired = (st?.logTail ?? []).some(l => l.includes('未実装') && l.includes('LRIG_UNDER_CARD_OP'));
+      const stack = (st?.host?.fieldSigni ?? [])[0] ?? [];
+      H.log(`  b60u[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${st?.host?.trash} fired=${fired} logTail=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
+      // 🔑機構が動いた証拠（【自】が走ってこの STUB に到達した）を必須条件にする（§4.4 罠4）
+      if (fired) {
+        if (stack.length < 3) {
+          return { pass: false, detail: `【O-60② 回帰】下のカードが落ちた（${JSON.stringify(stack0)}→${JSON.stringify(stack)}）＝無条件フォールバックの再発` };
+        }
+        if ((st?.host?.trash ?? 0) > trash0) {
+          return { pass: false, detail: `【O-60② 回帰】トラッシュが増えた（${trash0}→${st?.host?.trash}）` };
+        }
+        return { pass: true, detail: `【自】は発火したが下のカードは1枚も落ちない（stack=${JSON.stringify(stack)}・trash=${st?.host?.trash}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了＝【自】が到達しない（stack=${JSON.stringify((fin?.host?.fieldSigni ?? [])[0])} logTail=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
+  },
+};
+order.push('b60UnderCardsSurvive');
+
+// ── §5.3 O-60 第4バッチ（続き664）＝配置数制限の上限・主語を全文 regex で読んでいた ──
+//
+//   `DEPLOY_RESTRICT` は**消費地点2つ**（executor と `effectEngine.collectDeployCountLimit`）が
+//   **同じ判定を別々にコピーして `EffectText` から読んでいた**。主語はカード全文の文分割に依存していた。
+//   ⇒ parser が `deployRestrict{kind,cap,subject}` を刻み、両方が payload を読む。
+//
+// ■ 観測点＝`WXK11-074`（羅星　サタン）の【出】で**相手の場が3体→2体へ削られる**こと。
+// 🔑**payload が落ちると engine は何もしない**（fail-closed）＝このシナリオが payload 経路の回帰トリップワイヤ。
+scenarios.b60DeployRestrictTrim = {
+  title: 'O-60④ WXK11-074-E1＝【出】で相手のシグニが2体まで削られる（上限・主語は payload 由来）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX08-004#1'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': ['WXK11-074#1'],
+      'energy': ['WD05-013#91', 'WD05-013#92', 'WD05-013#93'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WD01-013#91'], ['WD01-013#92'], ['WD01-013#93']],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'trash': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const g0 = (before?.guest?.fieldSigni ?? []).filter(z => z && z.length).length;
+    H.log(`開始 gSigni=${g0} gTrash=${before?.guest?.trash} energy=${before?.host?.energy}`);
+    if (g0 !== 3) return { pass: false, detail: `前提崩れ＝相手シグニ3体が注入できていない（${g0}）` };
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+
+    let summoned = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (!did) {
+        // 🔴【出】コストモーダルは**エナを選んでから**「発動」＝先に「発動」を押すと disabled のまま
+        //   何も進まず 24ティック空振りする（実測・§4.4 罠8p と同型）。
+        const e0 = page.getByTestId('onplaycost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          await e0.click().catch(() => {}); await page.waitForTimeout(200);
+          const e1 = page.getByTestId('onplaycost-energy-1').first();
+          if (await e1.count() && await e1.isVisible().catch(() => false)) { await e1.click().catch(() => {}); await page.waitForTimeout(200); }
+          const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fire.count() && await fire.isEnabled().catch(() => false)) await fire.click().catch(() => {});
+          did = 'onplaycost:エナ2枚→発動';
+        }
+      }
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい', '支払う']);
+      const st = await H.queryState();
+      const g = (st?.guest?.fieldSigni ?? []).filter(z => z && z.length).length;
+      H.log(`  b60d[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} gSigni=${g} gTrash=${st?.guest?.trash} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (g === 2) {
+        return { pass: true, detail: `相手のシグニが3体→2体（超過1体がトラッシュ・gTrash=${st?.guest?.trash}）＝payload の cap/subject どおり` };
+      }
+      const placed = (st?.host?.fieldSigni ?? []).some(z => z && z.length);
+      if (placed && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0 && s > 8) {
+        return { pass: false, detail: `【O-60④ 回帰】召喚できたのに相手が${g}体のまま＝配置数制限が効いていない（payload 欠落 or fail-closed）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（hField=${JSON.stringify(fin?.host?.fieldSigni)} gSigni=${(fin?.guest?.fieldSigni ?? []).filter(z => z && z.length).length}）` };
+  },
+};
+order.push('b60DeployRestrictTrim');
+
+// ── §5.3 O-60 第3バッチ（続き664）＝ルリグ名コピーの消費地点4つが全部 EffectText を読んでいた ──
+//
+//   `COPY_LRIG_NAME_ABILITY` の消費は4地点（executor＋名前エイリアス＋【自】コピー＋【常】コピー）で、
+//   **同じ正規表現が4重にコピーされていた**。⇒ `lrigNameCopy{story,level,kinds}` に一本化。
+//   ⚠**実機で観測できるのは【自】コピー経路**（executor 経路は live 16効果が全部【常】なので通らない）。
+//
+// ■ 観測点＝センタールリグ `WX24-P4-011`（＜タマ＞）がアタックしたとき、ルリグトラッシュの
+//   `SPDi43-25`（Lv3・「【自】：このルリグがアタックしたとき、対戦相手のすべてのシグニをダウンし凍結する」）
+//   の【自】がコピーされて発火し、**相手のシグニが全部ダウン＋凍結**すること。
+// 🔑**payload（story/level/kinds）が落ちるとコピーは起きない**＝この経路の回帰トリップワイヤ。
+// 🔑**対照はルリグトラッシュを空にした同一盤面**（§4.4 罠3＝原因だけを外す）。
+const b60CopySpec = (lrigTrash) => ({
+  hostSet: {
+    'field.lrig': ['WX24-P4-011#1'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'lrig_trash': lrigTrash,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#2'],
+    'field.signi': [['WD01-013#91'], ['WD01-013#92'], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_frozen': [false, false, false],
+    'field.check': null,
+    'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+const b60CopyDrive = (tag, expectCopy) => async (page, H) => {
+  const before = await H.queryState();
+  H.log(`${tag} 開始 gDown=${JSON.stringify(before?.guest?.signiDown)} gFrozen=${JSON.stringify(before?.guest?.signiFrozen)} lrigTrash=${before?.host?.lrigTrash}`);
+  let opened = false;
+  let last = before;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!opened) {
+      const img = page.getByAltText('過日の巫女', { exact: false }).first();
+      if (await img.count() && await img.isVisible().catch(() => false)) {
+        await img.click({ force: true }).catch(() => {}); did = 'img:センタールリグ'; opened = true;
+      }
+    }
+    if (!did) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
+    }
+    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+    last = await H.queryState();
+    const frozen = (last?.guest?.signiFrozen ?? []).filter(Boolean).length;
+    const down = (last?.guest?.signiDown ?? []).filter(Boolean).length;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | gDown=${down} gFrozen=${frozen} lrigDown=${last?.host?.lrigDown} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (frozen >= 2) break;
+    // ルリグがダウン＝アタックは通った。対照側はここで打ち切る。
+    if (!expectCopy && last?.host?.lrigDown === true && s > 6) break;
+  }
+  const frozen = (last?.guest?.signiFrozen ?? []).filter(Boolean).length;
+  const attacked = last?.host?.lrigDown === true || (last?.turnPhase ?? '') !== 'ATTACK_LRIG';
+  if (!attacked) return { pass: false, detail: `前提崩れ＝ルリグアタックを撃てていない（lrigDown=${last?.host?.lrigDown} phase=${last?.turnPhase}）` };
+  if (expectCopy) {
+    return frozen >= 2
+      ? { pass: true, detail: `ルリグトラッシュの＜タマ＞Lv3 の【自】がコピーされて発火（相手シグニ${frozen}体が凍結）` }
+      : { pass: false, detail: `【O-60③ 回帰】【自】コピーが発火しない（gFrozen=${JSON.stringify(last?.guest?.signiFrozen)}）＝lrigNameCopy 経路の断線` };
+  }
+  return frozen === 0
+    ? { pass: true, detail: `対照：ルリグトラッシュが空なのでコピー元が無く、相手シグニは凍結しない` }
+    : { pass: false, detail: `対照が壊れている＝コピー元が無いのに凍結した（gFrozen=${JSON.stringify(last?.guest?.signiFrozen)}）` };
+};
+scenarios.b60CopiedLrigAutoFires = {
+  title: 'O-60③ WX24-P4-011-E1＝ルリグトラッシュの＜タマ＞Lv3 の【自】がコピーされて発火する',
+  spec: b60CopySpec(['SPDi43-25#1']),
+  drive: b60CopyDrive('b60CopyOk', true),
+};
+scenarios.b60CopiedLrigAutoNoSource = {
+  title: 'O-60③ 対照＝ルリグトラッシュが空ならコピーは起きない（盤面はコピー側と1点だけ違う）',
+  spec: b60CopySpec([]),
+  drive: b60CopyDrive('b60CopyNg', false),
+};
+order.push('b60CopiedLrigAutoFires', 'b60CopiedLrigAutoNoSource');
+
 // ── §5.3 O-62（続き661）＝「あなたの効果**１つ**によって」の原因限定 ──
 //
 // ■ 何を見るか
