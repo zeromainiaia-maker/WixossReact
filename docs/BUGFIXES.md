@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.3 `O-65`＝「条件・制限の文を、その反対の**行動**として読む」誤パースと【常】のフェイズ限定
+
+- 🔴**本丸は「原文が禁じていることを engine が実行していた」クラス。** 型としては正しい action が入っているので
+  **golden にも census にも `census:wiring` にも一切映らない**。⇒ 今回**原文照合のトリップワイヤ**を golden に新設した。
+- **① `WDK17-009-E2`（愛憎の果てに ハイティ・鍵）＝実害バグ。**
+  原文「【起】このキーを場からルリグトラッシュに置く：対戦相手は自分の場からシグニ１体と自分のエナゾーンから
+  カード１枚を対象とする。**あなたのライフクロスが２枚以下の場合**、対戦相手は、手札を１枚捨てそれらを
+  トラッシュに置く。」に対し live は `SEQUENCE[STUB:LOOK_OPP_LIFE_TOP, LIFE_CRASH{owner:'self', count:2}]`
+  ＝**「２枚以下の場合」という条件を「自分のライフを2枚クラッシュする」という行動として読んでいた**。
+  ⇒ `manualEffects.ts` に E2 の実体を手書き（`TRASH{SIGNI, opponentSelects}` ＋ `TRASH{ENERGY_CARD, opponentSelects}`
+  ＋ `CONDITIONAL{LIFE_COUNT self lte 2 → TRASH{HAND_CARD}}`）。
+  ⚠**原文の読みを1点だけ判断した**＝CSV の「手札を１枚捨て**それら**をトラッシュに置く」は助詞も読点も無く
+  日本語として崩れており、**「捨てる。それらを〜」の転記落ち**と判断した（`WD20-006-E1`「…を対象とし、**それらを**
+  トラッシュに置く。**その後**、対戦相手は手札を２枚捨てる。」と同型構文）。⇒ **対象2枚のトラッシュは無条件**／
+  **手札1枚捨ては「ライフ２枚以下」のときだけ**の上乗せ、と解釈している。
+- **② 同じ根がもう5効果あった**（①のトリップワイヤを作る途中で発見）＝
+  `parseSentencePart1.ts` の **`t.includes('ライフクロス') && t.includes('クラッシュ')`** という素朴な規則が
+  「ライフクロスは〜**クラッシュされない**／N枚まで**しかクラッシュされ**ない」＝**クラッシュを防ぐ・制限する規則**を
+  拾い、**`LIFE_CRASH{owner:'self'}`＝正反対の行動**に化けていた。
+  🔴**うち2件はアーツで実害**＝`WD13-010-E1` は「①このターン、あなたのライフクロスはダメージ以外によっては
+  クラッシュされない」という**守りの選択肢**を選ぶと**自分のライフが1枚割れる**。`WD06-008-E1` も同様の余計な1枚。
+  ⚠**owner の推定も壊れていた**＝`SP38-002-E1` は文中に「対戦相手」があるだけで `owner:'opponent'` になっていた。
+  🔑**クラッシュ防止／回数制限は engine に受け皿が1つも無い**（`grep クラッシュされない src/` が **0件**）＝新機構なので
+  **`DEFERRED_LIFE_CRASH_PREVENTION` 宣言へ倒した**（CLAUDE.md の `census:stubs` 方針。実装は `O-66` へ登録）。
+  **「黙って逆をやる」より「未実装と宣言する」ほうが安全**という判断。
+- **③【常】のフェイズ限定に受け皿を新設**＝`ActiveCondition.DURING_MAIN_PHASE{owner?}`（`DURING_ATTACK_PHASE` の対）。
+  型 ＋ `checkActiveCondition` ＋ parser（`parseActiveCondition` のパターン1c）＋ golden の**4点セット**。
+  実測＝`WXEX2-44-E1`「【常】：対戦相手のメインフェイズの間、シグニはバニッシュされない。」が
+  `activeCondition` を1つも持たず**恒久バニッシュ耐性**になっていた。
+- **④ 受け皿はあるのに消費されていなかった 2効果**＝`WXK07-031-E1`／`WXK08-048-E1`。
+  🔑**原因は held の膠着**＝**STUB 判定の regex が「あなたのアタックフェイズの間、」の前置きを必須にしていた**が、
+  その前置きは **`parseActiveCondition` が先に剥がして `activeCondition` にしている**ので、action が `UNKNOWN` へ落ち、
+  **「fresh は activeCondition を持つが action を失う」ので held で永久に温存**され、live はフェイズ限定なしのまま
+  ＝**常時適用**だった。⇒ 前置きを任意にして解消（フェイズ限定は `activeCondition` が担う）。
+- 🔴**⑤ `turnPhase` の配線が無いと受け皿は恒久 no-op**（`O-64` と同じ「委ね先が読んでいない」型）＝
+  `checkActiveCondition` は **`turnPhase` を渡されないと `true` を返す**（過小実行回避の既定）。
+  ⇒ **`collectBanishEffectProtectedSigni`（呼び出し元5）／`collectBounceProtectedSigni`（1）／
+  `collectGrantedFromUnderSigni`（2）へ `turnPhase` 引数を通した**。
+  ⚠**この分岐に落ちる既存 live を事前に数えた**＝`DURING_ATTACK_PHASE` 保持16効果のうち、この3経路を通るのは
+  今回足した2効果だけ（残りは `POWER_MODIFY`＝`calcFieldPowers` 経由で元から `turnPhase` を受け取っている）。
+- 🔴**⑥ 原文フォールバックが JSON の条件つき保護を恒久保護へ広げていた（実測21カード）。**
+  ⑤まで直しても実機で壁がバニッシュされず、切り分けたら **`utils/keywords.ts` の `hasBanishResist`** が
+  **`EffectText` に「バニッシュされない」が含まれるか**だけで true を返しており、**`activeCondition` を一切見ていなかった**。
+  ⇒ **`activeCondition` つきの登録済み `GRANT_PROTECTION` を持つカードは原文フォールバックで true にしない**（JSON 側へ委ねる）。
+  ⚠**委ねられる根拠を確認済み**＝`hasBanishResist` の呼び出し元5箇所は全て `collectBanishEffectProtectedSigni` か
+  `ctx.*BanishProtectedNums` を**併用**している（過小実行に裏返らない）。影響21カード＝`WXK01-039`「手札が0枚である
+  かぎり」／`WXEX1-01`「あなたのターンの間」／`WXK01-099`「センターゾーンにあるかぎり」など、**すべて条件つきなのに
+  常時バニッシュ耐性**だった。
+- **live 差分は10効果**（変化10・追加0・削除0）＝`WDK17-009-E2`／`WXEX2-44-E1`／`WXK07-031-E1`／`WXK08-048-E1`
+  ＋ クラッシュ防止6効果（`SP38-002-E1`／`WD06-008-E1`／`WD13-010-E1`／`WX19-046-E2`／`WX20-032-E1`／`WXK11-016-E1`）。
+  ⚠**⑥の `hasBanishResist` は JSON を変えずに21カードの実挙動を変える**ので、差分の件数だけを見てはいけない。
+- **逆翻訳（計器）**＝`DURING_MAIN_PHASE` の日本語表示と `DEFERRED_LIFE_CRASH_PREVENTION` の
+  `miscStubMap` 登録を追加。さらに**STUB 表示から「あなたのアタックフェイズの間、」を外した**
+  （`activeCondition` 側が描くので二重表記になっていた）。⇒ 該当10効果が原文どおりの表示になった。
+- **golden**＝**2763→2770 / FAIL 0**。①`DURING_MAIN_PHASE` 評価器の owner×フェイズ×`turnPhase` 未指定
+  ②**消費地点3経路が実際に効くこと**（turnPhase 有無の対で）③live の `activeCondition` 値
+  ④🆕**原文照合トリップワイヤ2本**（「自分のライフをクラッシュする効果は原文にその記述がある」／
+  「『クラッシュされない』は全件 DEFERRED 宣言」）⑤`WDK17-009-E2` の構造 ⑥`hasBanishResist` の条件つき／
+  無条件の**両方向**。既存 `(cxv)` の ActiveCondition 型数は 56→57。
+  ✅**修正前データ／修正前コードで実際に落ちることを全件確認済み**（④は**5効果を正しく名指しした**＝
+  `WD13-010-E1,WDK17-009-E2,WX19-046-E2,WX20-032-E1,WXK11-016-E1`）。
+- **ゲート**＝`npm run gates` 全緑。golden 2770/0、census **576→574**（ベースラインも 574 へ更新）、
+  smoke 10693全0・SKIP 0、fuzz全0、census:stubs 0/0、manual-fields 0/0、lint 0 errors/260 warnings、同型★0、
+  `_held_fresh` 77→**83**（クラッシュ防止6効果を採用した結果の増減を含む）／`_partial_fresh` 14→**12**／`_idset_fresh` **45**。
+- 🆕**実機検証＝新規4本 ALL PASS を2回連続**＋`O-64` の3本・`O-63` の2本も回帰で緑（**計9本 ALL PASS**）。
+  - `b65KeyTrashHighLife`（ライフ7）／`b65KeyTrashLowLife`（ライフ2）＝**ライフ枚数1点だけ違う対**。
+    どちらも **hostLife が変わらない**（旧挙動なら 7→5）＋相手のシグニ／エナが1枚ずつトラッシュされ、
+    **手札捨ては「ライフ2枚以下」のときだけ起きる**ことを確認（2→2 / 2→1）。
+  - `b65WallOppMainProtected`（MAIN）／`b65WallAttackPhaseNotProtected`（ATTACK_ARTS）＝**`turn_phase` 1点だけ違う対**。
+    同じアーツ（`WD04-008` 付和雷同）で、**メインフェイズは保護され、アタックフェイズはバニッシュされる**。
+    ✅**この2本目が ⑥ の `hasBanishResist` を炙り出した**（⑤まで直しても赤のままだった）。
+- 🔴**実機シナリオの罠を3つ実測で踏んだ（いずれも新規記録）**＝
+  ①**複合属性セレクタ `[data-testid^=…][data-action-label^=…]` が当たらない**（26ティック空振り）。
+  ⇒ `data-action-label` を**全部読んでから index で `card-action-{i}` を押す**。
+  ②**キーの【起】の確定ボタンは「発動」**（`KeyActivatedModal`）で、`KeyUseModal` の「セット」とは別物。
+  ⚠**「スロットを開き直す」フォールバックを先に置くと全画面オーバーレイを叩いてモーダルを閉じ続け、
+  永久に確定へ到達しない**（§4.4 罠2b の同型）。**確定ボタンを先に試す。**
+  ③**「決定 (N/M)」は完全一致リストに掛からない**（§4.4 罠21 を再び踏んだ）＋**候補セルはトグルする**＝
+  **候補は1回だけ押し、以後は決定を先に試す**。
+- **follow-up**＝`O-66` を新規登録（①ライフクロスのクラッシュ防止／回数制限の機構
+  ②`WXEX2-44-E1` の「シグニは」＝**両プレイヤーのシグニ**を表せない（現状 `target.owner:'self', count:1` で自身のみ）
+  ③`GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE` 等が **engine 側でカード全文 regex を読んでいる**（`O-60` 系））。
+
+
 ## 2026-08-25：§5.3 `O-64`＝トリガー句のフェイズ主限定（「あなたのメインフェイズの間」等）が載らない／載っても消費されない
 
 - 🔴**登録票の見立てを3点とも実測で訂正した。ここが今回いちばんの収穫。**

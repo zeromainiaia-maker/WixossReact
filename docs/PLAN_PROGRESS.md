@@ -4,6 +4,18 @@
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-08-25・続き653・Opus 5）＝§5.3 `O-64` を消化＝トリガー句のフェイズ主限定（「あなたのメインフェイズの間」等）が JSON に載らない／載っていても engine が消費しない穴を、parser 1本＋engine 4箇所＋逆翻訳1本で塞いだ**（Codex へは委譲せず Claude が実装）。gates 全緑（**golden 2759→2763**／census **576 不動**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260／同型★0／held 77枚 不動）。**実機3本が2回連続 PASS＋反転確認済／`O-63` の2本と第44〜46 の8本も回帰で緑（計13本 ALL PASS）。**
+  - 🔴**登録票の見立てを3点とも実測で訂正した。**
+    ①**「15効果」は fresh 側の標本**＝live で数え直すと**受け皿を1つも持たない【自】は 10効果**（登録票が挙げた7件は既に `duringMainPhase` を持っていた／代わりに登録票に無い2件が出た）。
+    ②🔑**フェイズ限定の語彙は6系統**（`duringMainPhase`/`outsideMainPhase` ／ `duringAttackPhase` ／ `condition.DURING_PHASE` ／ `AND(DURING_PHASE, IS_MY_TURN)` ／ `drawPhaseRestriction` ／ 【常】専用の `activeCondition.DURING_ATTACK_PHASE`）＝**6つとも引き算してから穴と呼ぶ**（`O-63` のターンゲート4系統と同じ罠の別バージョン）。
+    ③🔴**`collectFieldTriggers` は「フェイズだけ見る版」を呼んでいて、ソース内コメントが「ターン限定は後段の `turnGateOk` に委ねる」と嘘をついていた**＝`turnGateOk` が読むのは `turnOwner` だけなので、**`duringMainPhase` しか持たない効果は誰のメインフェイズでも発火**していた。
+  - ✅**穴は2種類**＝**(A) parser が出していない5効果**（共通規則1本を `O-63` の隣へ）と、**(B) engine が消費していない4箇所**（`collectFieldTriggers`／`collectHandDiscardTriggers`／`collectSelfEventTriggers`／**BattleScreen の ON_POWER_THRESHOLD・ON_ENERGY_CHARGE watcher**）。**(B) が本体**で、どの計器にも映っていなかった。
+  - ⚠**live 差分は10効果・実挙動が変わるのは9効果**（`WX24-P1-015-E1` は既存ゲートとの二重掛け）。**「16効果のバグを直した」ではない。**
+  - 🔴**`syncManualLive` には落とし穴が2つ**＝①**カード全体を再パースして live を書き直す**ので、`manualEffects.ts` に実体を持たない**同居効果**が現在の parser 出力へ置き換わる（`WDK17-009-E2` が該当・HEAD へ戻した）②**JSON を pretty-print で書く**（`build:effects` は minified）ので、同期したファイルだけ**6万行の書式差分**が出る。**実行後は `git diff --stat` と effectId 単位の全数比較を両方やる。**
+  - ✅**逆翻訳（計器）も直した**＝フェイズ主限定の共通マーカーを追加し、**約20効果**の表示が原文どおりになった（従来は timing 別分岐が書かれた timing でしか描かれず、JSON にゲートがあるのにシートは「無条件」に見えていた）。
+  - 🔴**実機シナリオの罠を2つ新規記録**＝①**閾値 watcher は初回観測ではスナップショットしか取らない**ので、初回レンダリングがブースト注入の後ろにずれると `wasBelow=false` で**永久に発火しない**（dist 再ビルドを挟んだ初回だけ FAIL する位置依存フレーク）②**CPU ターンの負方向テストは CPU が勝手にフェイズを進める**ので、`witness`（狙った状況をブースト中に1度は観測したか）を必須条件にしないと**別のゲートを見て PASS**する。
+  - 📌**follow-up＝`O-65` を新規登録**（①`WDK17-009-E2` が原文「あなたのライフクロスが２枚以下の場合」を**自分のライフを2枚クラッシュする**と誤パースしている ②【常】の「〈対戦相手〉のメインフェイズの間」に `activeCondition` の受け皿が無い）。
+
 - 🏁**セッション（2026-08-25・続き652・Opus 5）＝§5.3 `O-63` を消化＝トリガー句の「〈あなた／対戦相手〉のターンの間／に」が JSON に載らず、ターン主限定が効かない穴を parser 1本で塞いだ**（Codex へは委譲せず Claude が実装）。gates 全緑（**golden 2756→2759**／census **576 不動**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260／同型★0／held 77枚32群 不動）。**実機2本が2回連続 PASS＋3点の反転確認済／第44〜46 の8本も回帰で緑（計10本）。**
   - 🔴**登録票の見立てを2点とも実測で訂正した。これが今回いちばんの収穫。**
     ①**「`collectTurnTriggers` が `turnOwner` を読まないので両ターンで発火する」は起きていない**＝この collector は **`triggerScope` で構造的に片側へ寄せている**（自分側走査は `self` 限定・相手側走査は `any_opp`/`any` 限定）。実測でも**ターン境界 timing の648効果は scope と原文が全件一致・逆発火0件**。⇒ ここへゲートを足すのは**649効果ぶんの無意味な差分**なので**入れていない**（§4 の「広げない」を golden で固定した）。

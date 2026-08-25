@@ -918,8 +918,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // under-signi → top-signi 効果付与（collectGrantedFromUnderSigni）
     if (hasStack) {
-      const myUnder = collectGrantedFromUnderSigni(myS, opS, myTurn, augMap, battleCardMap);
-      const opUnder = collectGrantedFromUnderSigni(opS, myS, !myTurn, augMap, battleCardMap);
+      const myUnder = collectGrantedFromUnderSigni(myS, opS, myTurn, augMap, battleCardMap, bs.turn_phase);
+      const opUnder = collectGrantedFromUnderSigni(opS, myS, !myTurn, augMap, battleCardMap, bs.turn_phase);
       for (const [num, extra] of [...myUnder, ...opUnder]) {
         const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
         augMap.set(num, [...base, ...extra]);
@@ -4835,12 +4835,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // !isOwnerTurn: 相手(otherState)視点での isOwnerTurn を渡す（collectAbilityProtectedSigni と同じ慣例）
       const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
       // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ
-      const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
+      const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn, bs.turn_phase);
       // GRANT_PROTECTION from=['BANISH'/'any']: 相手フィールドのバニッシュ保護シグニ
-      const otherBanishProtectedNums = collectBanishEffectProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap);
+      const otherBanishProtectedNums = collectBanishEffectProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, undefined, 'opponent', bs.turn_phase);
       // 発生源無限定（sourceOwner:any）の耐性は、自分の効果で自場をバニッシュする場合にも有効。
       // opponent 指定はこの集合へ入らないため、既存の相手限定耐性は広がらない。
-      const ownBanishProtectedNums = collectBanishEffectProtectedSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, ctxPowers, 'self');
+      const ownBanishProtectedNums = collectBanishEffectProtectedSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, ctxPowers, 'self', bs.turn_phase);
       // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 相手フィールドのトラッシュ保護シグニ
       const otherTrashFieldProtectedNums = collectTrashFieldProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
       // SELF_TRASH_PREVENT（WX07-033）: 効果オーナー自身が自シグニをトラッシュに置けない制限（§6.1）
@@ -8821,7 +8821,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isOwnerTurnP0 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
       const grants = ownerState.keyword_grants;
       const grantsOppTurn = ownerState.keyword_grants_until_opp_turn;
-      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap, undefined, 'rule');
+      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap, undefined, 'rule', bs.turn_phase);
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;
         const topNum = stack[stack.length - 1];
@@ -10495,7 +10495,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const grants = ownerState.keyword_grants;
       const grantsOppTurn = ownerState.keyword_grants_until_opp_turn;
       // CONTINUOUS GRANT_PROTECTION from=['BANISH'] による保護（activeCondition 評価込み）
-      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap, undefined, 'rule');
+      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap, undefined, 'rule', bs.turn_phase);
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;
         const topNum = stack[stack.length - 1];
@@ -10525,7 +10525,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isOwnerTurnP02 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
       const grants = ownerState.keyword_grants;
       const grantsOppTurn2 = ownerState.keyword_grants_until_opp_turn;
-      const banishProtected2 = collectBanishEffectProtectedSigni(ownerState, opStateP02, isOwnerTurnP02, effectsMap, battleCardMap, undefined, 'rule');
+      const banishProtected2 = collectBanishEffectProtectedSigni(ownerState, opStateP02, isOwnerTurnP02, effectsMap, battleCardMap, undefined, 'rule', bs.turn_phase);
 
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;

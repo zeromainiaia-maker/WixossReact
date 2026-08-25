@@ -2126,6 +2126,55 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: true,
       parseStatus: 'MANUAL',
     },
+    // 🆕**§5.3 `O-65`（2026-08-25）＝E2 の誤パースを手書きで是正した。**
+    // 原文＝「【起】このキーを場からルリグトラッシュに置く：対戦相手は自分の場からシグニ１体と
+    //   自分のエナゾーンからカード１枚を対象とする。あなたのライフクロスが２枚以下の場合、
+    //   対戦相手は、手札を１枚捨てそれらをトラッシュに置く。」
+    // 🔴**旧 live は `SEQUENCE[STUB:LOOK_OPP_LIFE_TOP, LIFE_CRASH{owner:'self', count:2}]`**
+    //   ＝「あなたのライフクロスが２枚以下の**場合**」という**条件**を「自分のライフを2枚クラッシュする」
+    //   という**行動**として読んでいた。**この【起】を撃つと自分のライフが2枚割れる実害バグ**だった。
+    //   ⚠現在の parser 出力（`STUB:CONDITIONAL_ARTS_COST`）も別の意味で誤りなので、どちらを採っても直らない。
+    // 🔑**「それら」＝対象にした2枚**（`WD20-006-E1`「対戦相手のシグニ２体と、エナゾーンにあるカード２枚を
+    //   対象とし、**それらを**トラッシュに置く。**その後**、対戦相手は手札を２枚捨てる。」と同じ構文）。
+    // ⚠**原文の読みを1点だけ判断した**＝CSV の「手札を１枚捨て**それら**をトラッシュに置く」は
+    //   助詞も読点も無く日本語として崩れており、**「捨てる。それらを〜」の転記落ち**と判断した。
+    //   ⇒ **対象2枚のトラッシュは無条件**／**手札1枚捨ては「ライフ２枚以下」のときだけ**の上乗せ、と解釈している。
+    //   （もう一方の読み＝「条件を満たさないと何も起きない」を採ると、対象を取る意味が無くなるうえ
+    //     `WD20-006-E1` の同型構文とも食い違う。）
+    {
+      effectId: 'WDK17-009-E2',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { trash_key: true },          // 「このキーを場からルリグトラッシュに置く」
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          // 「対戦相手は自分の場からシグニ１体（…）を対象とする」＝相手が自分のシグニを選ぶ
+          {
+            type: 'TRASH',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+            opponentSelects: true,
+            bestEffort: true,             // 3つの処理は互いに独立＝対象が無くても後続を止めない
+          },
+          // 「（…と）自分のエナゾーンからカード１枚を対象とする」
+          {
+            type: 'TRASH',
+            target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 },
+            opponentSelects: true,
+            bestEffort: true,
+          },
+          // 「あなたのライフクロスが２枚以下の場合、対戦相手は、手札を１枚捨て（る）」
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: 2 },
+            then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 }, bestEffort: true },
+          },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
   ],
 
   // WX15-064 羅菌　キョウギュ（起動）

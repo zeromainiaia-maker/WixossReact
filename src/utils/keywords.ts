@@ -497,6 +497,17 @@ export function hasBanishResist(
   // 原文だけで true にすると、その不成立を上書きして全発生源から守ってしまう。
   if (card?.effects?.some(e => e.action.type === 'GRANT_PROTECTION'
     && (!!e.action.bySourceType || e.action.bySourceLevel !== undefined))) return false;
+  // 🆕**§5.3 `O-65`（2026-08-25）＝`activeCondition` つきの登録済み保護も、原文フォールバックで true にしない。**
+  // 🔴この原文フォールバックは **`activeCondition` を一切見ない**ので、
+  //   「〜のかぎり／〜の間だけバニッシュされない」を**恒久バニッシュ耐性**へ広げていた（実測21カード＝
+  //   `WXEX2-44`「対戦相手のメインフェイズの間」／`WXK01-039`「手札が0枚であるかぎり」／
+  //   `WXEX1-01`「あなたのターンの間」／`WXK01-099`「センターゾーンにあるかぎり」ほか）。
+  //   ⇒ **条件つきの保護は JSON 側（`collectBanishEffectProtectedSigni`＝`checkActiveCondition` を評価する）に委ねる。**
+  // ⚠**委ねられる根拠を確認済み**＝`hasBanishResist` の呼び出し元5箇所はいずれも
+  //   `collectBanishEffectProtectedSigni`（BattleScreen 3箇所）か `ctx.*BanishProtectedNums`
+  //   （`effectExecutor.ts:478/1153`）を**併用**しているので、過小実行にはならない。
+  //   ⚠**`O-64` で `turnPhase` を配線したのが前提**（渡さないと `checkActiveCondition` が true を返す）。
+  if (card?.effects?.some(e => e.activeCondition && e.action.type === 'GRANT_PROTECTION')) return false;
   const text = (card?.EffectText ?? '').replace(/『[^』]*』|「[^」]*」/g, '');
   return text.includes('バニッシュされない');
 }

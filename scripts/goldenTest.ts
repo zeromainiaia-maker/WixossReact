@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
@@ -19768,7 +19768,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 56, 'ActiveCondition の型数（56＝段2 第46バッチで ENERGY_COUNT_FILTER を対称化）');
+  eq(Object.keys(AC_TYPES).length, 57, 'ActiveCondition の型数（57＝§5.3 `O-65` で DURING_MAIN_PHASE を新設）');
   eq(Object.keys(C_TYPES).length, 126, 'Condition の型数（126＝段2 第44バッチで VIRUS_COUNT を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
@@ -46875,6 +46875,164 @@ test('O-64 live: 「〈あなた〉のメインフェイズの間／以外で」
     e.effectType === 'AUTO' && e.triggerCondition?.duringMainPhase && e.triggerCondition?.turnOwner === 'opponent');
   eq(wrongOppMain.map(e => e.effectId).join(','), '',
      'duringMainPhase と turnOwner:opponent の同居は意味矛盾（0件でなければ parser の誤配線）');
+});
+
+// ── §5.3 `O-65`：【常】のフェイズ限定（`activeCondition.DURING_MAIN_PHASE` / `DURING_ATTACK_PHASE`）─────
+// 🔴**型を足すだけでは効かない。** `checkActiveCondition` は `turnPhase` を渡されないと **true を返す**
+//   （過小実行を避ける既定）ので、**消費地点が `turnPhase` を渡していないと恒久 no-op**になる。
+//   ⇒ ①評価器そのもの ②**各消費地点が実際に効くこと**（turnPhase 有無の対で）を両方固定する。
+test('O-65 engine: checkActiveCondition の DURING_MAIN_PHASE が owner とフェイズの両方を見る', () => {
+  const me = mkState({}); const op = mkState({});
+  const cm = cardMap as Map<string, CardData>;
+  const chk = (owner: 'self' | 'opponent' | undefined, phase: TurnPhase | undefined, isOwnerTurn: boolean) =>
+    checkActiveCondition({ type: 'DURING_MAIN_PHASE', ...(owner ? { owner } : {}) } as ActiveCondition,
+      me, op, isOwnerTurn, cm, SIGNI, undefined, undefined, phase);
+  // owner:'self'＝自分のメインフェイズだけ
+  ok(chk('self', 'MAIN', true), 'self / 自分のメインフェイズ → true');
+  ok(!chk('self', 'MAIN', false), 'self / 相手のメインフェイズ → false（ターン主）');
+  ok(!chk('self', 'ATTACK_SIGNI', true), 'self / 自分のアタックフェイズ → false（フェイズ）');
+  // owner:'opponent' は**ちょうど反転する**（「全部 false」でも「全部 true」でもない）
+  ok(chk('opponent', 'MAIN', false), 'opponent / 相手のメインフェイズ → true（反転対照）');
+  ok(!chk('opponent', 'MAIN', true), 'opponent / 自分のメインフェイズ → false');
+  // owner 省略＝どちらのメインフェイズでも
+  ok(chk(undefined, 'MAIN', true) && chk(undefined, 'MAIN', false), 'owner 省略はどちらのメインフェイズでも true');
+  // ⚠**turnPhase 未指定は true**（過小実行回避の既定）＝**この性質があるから配線漏れが黙って通る**。
+  ok(chk('self', undefined, false), 'turnPhase 未指定は true（＝消費地点が渡さないと恒久 no-op になる合図）');
+});
+
+test('O-65 engine: 消費地点が turnPhase を渡していて、フェイズ限定が実際に効く（3経路）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  // ① `WXEX2-44-E1`「【常】：対戦相手のメインフェイズの間、シグニはバニッシュされない。」
+  //    → collectBanishEffectProtectedSigni
+  const wall = mkState({ signi: ['WXEX2-44', null, null] });
+  const banishProt = (phase: TurnPhase | undefined, isOwnerTurn: boolean) =>
+    collectBanishEffectProtectedSigni(wall, mkState({}), isOwnerTurn, effectsMap, cm, undefined, 'opponent', phase)
+      .has('WXEX2-44');
+  ok(banishProt('MAIN', false), '相手のメインフェイズ＝保護される（対照＝ゲートで全部落としていない）');
+  ok(!banishProt('MAIN', true), '自分のメインフェイズ＝保護されない（ターン主）');
+  ok(!banishProt('ATTACK_SIGNI', false), '相手のアタックフェイズ＝保護されない（フェイズ）');
+  ok(banishProt(undefined, true), 'turnPhase 未指定は従来どおり通す（既定＝過小実行を避ける）');
+
+  // ② `WXK07-031-E1`「【常】：あなたのアタックフェイズの間、対戦相手の効果はバニッシュ以外で
+  //    あなたの＜宇宙＞のシグニを場から移動させない。」→ collectBounceProtectedSigni
+  const cosmos = mkState({ signi: ['WXK07-031', null, null] });
+  const bounceProt = (phase: TurnPhase | undefined, isOwnerTurn: boolean) =>
+    collectBounceProtectedSigni(cosmos, cm, effectsMap, mkState({}), isOwnerTurn, phase).includes('WXK07-031');
+  ok(bounceProt('ATTACK_SIGNI', true), '自分のアタックフェイズ＝保護される（対照）');
+  ok(!bounceProt('MAIN', true), '自分のメインフェイズ＝保護されない（フェイズ）');
+  ok(!bounceProt('ATTACK_SIGNI', false), '相手のアタックフェイズ＝保護されない（ターン主）');
+
+  // ③ `WXK08-048-E1`「【常】：あなたのアタックフェイズの間、このシグニはこのカードの下にある
+  //    レベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る。」→ collectGrantedFromUnderSigni
+  //    ⚠**下に該当シグニを積んだスタック**を作らないと母集団に入らない（`stack.length < 2` で skip）。
+  const stacked = mkState({});
+  stacked.field.signi = [['WXK08-049', 'WXK08-048'], null, null];   // 下＝黒 Lv3 ＜ウェポン＞（【自】持ち＝フィルタに一致する）
+  const granted = (phase: TurnPhase | undefined, isOwnerTurn: boolean) =>
+    (collectGrantedFromUnderSigni(stacked, mkState({}), isOwnerTurn, effectsMap, cm, phase).get('WXK08-048') ?? []).length;
+  ok(granted('ATTACK_SIGNI', true) > 0, '自分のアタックフェイズ＝下の【自】を得る（対照）');
+  eq(granted('MAIN', true), 0, '自分のメインフェイズ＝得ない（フェイズ）');
+  eq(granted('ATTACK_SIGNI', false), 0, '相手のアタックフェイズ＝得ない（ターン主）');
+}));
+
+test('O-65 live: 【常】のフェイズ限定が activeCondition に載っている', () => {
+  const ac = (id: string) => JSON.stringify(b43Live(id).activeCondition);
+  eq(ac('WXEX2-44-E1'), '{"type":"DURING_MAIN_PHASE","owner":"opponent"}', 'WXEX2-44-E1＝対戦相手のメインフェイズの間');
+  eq(ac('WXK07-031-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK07-031-E1＝あなたのアタックフェイズの間');
+  eq(ac('WXK08-048-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK08-048-E1＝あなたのアタックフェイズの間');
+});
+
+// ── §5.3 `O-65`：「条件・制限の文を、その反対の**行動**として読む」誤パースのクラスを塞ぐ ──────────
+// 🔴**このクラスは golden にも census にも映らない**（型としては正しい action が入っているだけ）。
+//    ⇒ **原文に根拠が無い破壊的アクション**を機械照合するトリップワイヤで守る。
+test('O-65 live: 自分のライフをクラッシュする効果は、原文にその記述がある', () => {
+  const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'));
+  const bad: string[] = [];
+  const walk = (n: unknown, id: string): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(x => walk(x, id)); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === 'LIFE_CRASH' && o.owner === 'self') {
+      const t = srcT[id] ?? '';
+      // 🔑**根拠は「ライフクロス**を**クラッシュ／トラッシュに置く」という*行動*の記述**（＋「あなたにダメージ」）。
+      //   ⚠**「ライフクロス」という語の存在では足りない**＝`O-65` で直した2つの誤パースはどちらも
+      //   「ライフクロス**が**N枚以下の**場合**」「ライフクロス**は**〜クラッシュ**されない**」という
+      //   **条件・制限の文**で、語だけを見る網では素通りする。**助詞「を」＋動詞まで見る。**
+      const grounded = /ライフクロス(?:の[^。]{0,8})?[０-９\d]*(?:枚|のカード)?を(?:クラッシュ|トラッシュに置)/.test(t)
+        || /あなたにダメージ/.test(t);
+      if (!grounded) bad.push(id);
+    }
+    for (const v of Object.values(o)) if (v && typeof v === 'object') walk(v, id);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action, e.effectId);
+  eq([...new Set(bad)].sort().join(','), '',
+     '原文に根拠が無い LIFE_CRASH{owner:self} は0件（「クラッシュされない」を行動として読んでいたら再発の合図）');
+});
+
+test('O-65 live: 「ライフクロスは〜クラッシュされない」は DEFERRED 宣言になっている', () => {
+  const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'));
+  const hasDeferred = (n: unknown): boolean => {
+    if (!n || typeof n !== 'object') return false;
+    if (Array.isArray(n)) return n.some(hasDeferred);
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'DEFERRED_LIFE_CRASH_PREVENTION') return true;
+    return Object.values(o).some(v => v && typeof v === 'object' && hasDeferred(v));
+  };
+  const missing: string[] = [];
+  for (const effs of effectsMap.values()) for (const e of effs) {
+    const t = srcT[e.effectId] ?? '';
+    if (!/ライフクロス/.test(t) || !/クラッシュされな/.test(t)) continue;
+    if (!hasDeferred(e.action)) missing.push(e.effectId);
+  }
+  eq(missing.sort().join(','), '',
+     'クラッシュ防止／回数制限の原文は全件 DEFERRED_LIFE_CRASH_PREVENTION を持つ（実装したら `O-66` でこのテストを書き換える）');
+});
+
+// ── §5.3 `O-65`：`WDK17-009-E2`（「あなたのライフクロスが２枚以下の**場合**」を**行動**として読んでいた）──
+test('O-65 live: WDK17-009-E2 が「相手が自分のシグニ／エナを選んでトラッシュ」になっている', () => {
+  const e = b43Live('WDK17-009-E2');
+  const steps = (e.action as { type: string; steps: Record<string, unknown>[] }).steps;
+  eq((e.action as { type: string }).type, 'SEQUENCE', 'SEQUENCE 形');
+  eq(steps.length, 3, '3ステップ（シグニ／エナ／条件つき手札捨て）');
+  // 🔴**旧 live は `LIFE_CRASH{owner:'self', count:2}`＝この【起】を撃つと自分のライフが2枚割れた。**
+  ok(!JSON.stringify(e.action).includes('LIFE_CRASH'), '自分のライフをクラッシュしない（旧誤パースの再発検知）');
+  eq(steps[0].type, 'TRASH', '① シグニをトラッシュ');
+  eq((steps[0].target as Record<string, unknown>).type, 'SIGNI', '① 対象はシグニ');
+  eq((steps[0].target as Record<string, unknown>).owner, 'opponent', '① 対戦相手の自分のシグニ');
+  eq(steps[0].opponentSelects, true, '① 選ぶのは対戦相手');
+  eq((steps[1].target as Record<string, unknown>).type, 'ENERGY_CARD', '② 対象はエナのカード');
+  eq(steps[1].opponentSelects, true, '② 選ぶのは対戦相手');
+  eq(steps[2].type, 'CONDITIONAL', '③ 条件つき');
+  eq(JSON.stringify(steps[2].condition), '{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2}',
+     '③ 条件＝あなたのライフクロスが2枚以下（＝**行動ではなく条件**）');
+});
+
+// ── §5.3 `O-65`：原文フォールバックが JSON の条件つき保護を**恒久保護へ広げていた** ──────────────
+// 🔴`hasBanishResist` は effects.json 未登録カード用に **`EffectText` に「バニッシュされない」が含まれるか**で
+//   true を返す。⚠**`activeCondition` を一切見ない**ので、「〜のかぎり／〜の間だけ」の条件つき保護が
+//   **常時バニッシュ耐性**に化けていた（実測21カード）。`O-65` で「条件つきの保護は JSON 側へ委ねる」ようにした。
+// ⚠**委ねられる根拠**＝`hasBanishResist` の呼び出し元は全て `collectBanishEffectProtectedSigni` か
+//   `ctx.*BanishProtectedNums` を併用している（＝過小実行にはならない）。
+test('O-65 engine: 条件つきの「バニッシュされない」を原文フォールバックで恒久化しない', () => {
+  const cm = cardMap as Map<string, CardData>;
+  // ① 条件つき（`activeCondition` あり）＝原文フォールバックでは true にしない
+  ok(!hasBanishResist('WXEX2-44', cm), 'WXEX2-44（対戦相手のメインフェイズの間）は原文だけでは耐性にしない');
+  ok(!hasBanishResist('WXK01-039', cm), 'WXK01-039（手札が0枚であるかぎり）も同様');
+  ok(!hasBanishResist('WXEX1-01', cm), 'WXEX1-01（あなたのターンの間）も同様');
+  // ② 無条件の「バニッシュされない」は**従来どおり true**（対照＝全部 false に倒していない）
+  const unconditional = [...cm.entries()]
+    .filter(([num, c]) => {
+      if (num.includes('#')) return false;
+      const t = (c.EffectText ?? '').replace(/『[^』]*』|「[^」]*」/g, '');
+      if (!t.includes('バニッシュされない')) return false;
+      return !(c.effects ?? []).some(e => e.activeCondition && e.action.type === 'GRANT_PROTECTION')
+        && !(c.effects ?? []).some(e => e.action.type === 'GRANT_PROTECTION'
+          && (!!(e.action as { bySourceType?: unknown }).bySourceType
+            || (e.action as { bySourceLevel?: unknown }).bySourceLevel !== undefined));
+    })
+    .map(([num]) => num);
+  ok(unconditional.length > 0, '無条件の「バニッシュされない」カードが母集団に存在する（対照が空でない）');
+  const broken = unconditional.filter(num => !hasBanishResist(num, cm));
+  eq(broken.join(','), '', '無条件の「バニッシュされない」は原文フォールバックで true のまま（過小実行への裏返り検知）');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -1155,12 +1155,19 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 古代兵器/特定クラスのシグニが場から移動しない ----
-  if (t.match(/あなたのアタックフェイズの間.*対戦相手の効果はバニッシュ以外でお?あなたの.*シグニを場から移動させない/)) {
+  // 🆕**§5.3 `O-65`＝「あなたのアタックフェイズの間、」の前置きを任意にした。**
+  // この前置きは **`parseActiveCondition` のパターン1b が先に剥がして `activeCondition:DURING_ATTACK_PHASE`
+  // にしている**ので、ここへ来る時点では**既に消えている**。必須にしていたため action が `UNKNOWN` へ落ち、
+  // 「fresh は activeCondition を持つが action を失う」＝**held で永久に温存**され live は
+  // **フェイズ限定なしの STUB のまま＝常時適用（過剰実行）**だった（実測2効果＝`WXK07-031-E1`／`WXK08-048-E1`）。
+  // ⚠**フェイズ限定は activeCondition が担う**＝ここでは見ない（STUB の id 名に `ATTACK_PHASE` が
+  //   残っているのは歴史的経緯で、`censusStubs`／`STUBS.md` の採番を動かさないため改名していない）。
+  if (t.match(/(?:あなたのアタックフェイズの間.*)?対戦相手の効果はバニッシュ以外でお?あなたの.*シグニを場から移動させない/)) {
     return { type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH' } as StubAction;
   }
 
   // ---- アタックフェイズ間、対戦相手の効果で場から移動させない ----
-  if (t.match(/あなたのアタックフェイズの間.*対戦相手の効果はバニッシュ以外でお?.*シグニを場から移動させない/)) {
+  if (t.match(/(?:あなたのアタックフェイズの間.*)?対戦相手の効果はバニッシュ以外でお?.*シグニを場から移動させない/)) {
     return { type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE' } as StubAction;
   }
 
@@ -1198,7 +1205,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- アタックフェイズ間に下にあるシグニの【自】能力を得る ----
-  if (t.match(/あなたのアタックフェイズの間.*このシグニはこのカードの下.*シグニの【自】能力を得る/)) {
+  // 🆕`O-65`：上と同じ理由で前置きを任意にした（フェイズ限定は `activeCondition` が担う）。
+  if (t.match(/(?:あなたのアタックフェイズの間.*)?このシグニはこのカードの下.*シグニの【自】能力を得る/)) {
     return { type: 'STUB', id: 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE' } as StubAction;
   }
 

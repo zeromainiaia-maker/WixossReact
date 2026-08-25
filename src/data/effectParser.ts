@@ -1038,6 +1038,21 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 🆕**パターン1c（§5.3 `O-65`）: 「[あなたの/対戦相手の]メインフェイズの間、」（CONTINUOUS 常在のフェイズ限定）。**
+  // パターン1b（アタックフェイズ）の対。従来これを受ける規則が無く、`activeCondition` ごと落ちて
+  // **PERMANENT に潰れ常時適用**になっていた（実測＝`WXEX2-44-E1`「対戦相手のメインフェイズの間、
+  // シグニはバニッシュされない」が**恒久バニッシュ耐性**になっていた）。owner 省略＝どちらのメインフェイズでも。
+  // ⚠**【自】のトリガー句側は別の受け皿**（`triggerCondition.duringMainPhase`／`O-64`）＝ここは【常】専用。
+  const mainPhaseM = text.match(/^(あなたの|対戦相手の)?メインフェイズの間[、,]/);
+  if (mainPhaseM) {
+    const owner = mainPhaseM[1] === 'あなたの' ? 'self' : mainPhaseM[1] === '対戦相手の' ? 'opponent' : undefined;
+    return {
+      condition: { type: 'DURING_MAIN_PHASE', ...(owner ? { owner } : {}) },
+      rest: text.slice(mainPhaseM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン2a: 「あなたの場に《X》(か《Y》)*があるかぎり、」（複数カード名のいずれか存在。WX08-049「《羅星　アルシャ》か《羅星　ディアデム》」）
   // 単一名は cardName、複数名は cardNames に解決。下のパターン2は単一《》/＜＞のみなので、複数《》はここで先取りする。
   // ⚠**「がいるかぎり」も受ける**（2026-08-18・§5d-0）＝ルリグ/シグニは「いる」と書かれる形があり、

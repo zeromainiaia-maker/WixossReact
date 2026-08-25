@@ -29037,6 +29037,230 @@ scenarios.b64PowerThresholdOppMainBlocked = {
 order.push('b64PowerThresholdMainFires', 'b64PowerThresholdAttackBlocked', 'b64PowerThresholdOppMainBlocked');
 // ── §5.3 O-64 END ──
 
+// ── §5.3 O-65（続き654）＝「条件・制限の文を、その反対の**行動**として読む」誤パースと【常】のフェイズ限定 ──
+//
+// ■ ①`WDK17-009-E2`（愛憎の果てに ハイティ・鍵）
+//   原文＝「【起】このキーを場からルリグトラッシュに置く：対戦相手は自分の場からシグニ１体と自分の
+//     エナゾーンからカード１枚を対象とする。あなたのライフクロスが２枚以下の場合、対戦相手は、
+//     手札を１枚捨てそれらをトラッシュに置く。」
+//   🔴**旧 live は `LIFE_CRASH{owner:'self', count:2}`**＝「ライフクロスが２枚以下の**場合**」という**条件**を
+//     「自分のライフを2枚クラッシュする」という**行動**として読んでいた＝**撃つと自分のライフが2枚割れる実害バグ**。
+//   ⇒ 観測は **host のライフが減らないこと**（旧挙動なら 7→5）＋ **相手のシグニ／エナが1枚ずつ減ること**。
+//   ⚠**「ライフが減らない」だけでは何も検証していない**（§4.4 罠3/罠4）＝**キーがルリグトラッシュへ移った**
+//     ことを必須条件にして「そもそも撃てていない」を弾く。
+const B65_KEY = 'WDK17-009#1';
+const b65KeySpec = (lifeCount) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'field.key_piece': B65_KEY,
+    'life_cloth': Array.from({ length: lifeCount }, (_, i) => `WD01-013#${1400 + i}`),
+    'lrig_trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.signi': [['WX01-053#1'], null, null],       // トラッシュ対象のシグニ（1体だけ＝相手の選択が一意）
+    'field.check': null,
+    'energy': ['WD01-009#1', 'WD01-009#2'],            // エナ2枚（1枚がトラッシュされる）
+    'hand': ['WD01-013#2100', 'WD01-013#2101'],        // 手札2枚（ライフ2枚以下のときだけ1枚減る）
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b65KeyDrive = (tag, lifeCount, expectHandDiscard) => async function drive(page, H) {
+  // ⚠**盤面注入は1発で決まらない**（§4.4 罠34）＝直前シナリオの盤面（相手の場が空・ライフ7）を
+  //   そのまま見て「相手のシグニがトラッシュされていない」と誤判定した実測がある。**揃うまで再注入する。**
+  const ready = (st) => st?.host?.keyPiece === B65_KEY
+    && (st?.host?.life ?? 0) === lifeCount
+    && (st?.guest?.fieldSigni ?? []).some(z => z && z.length);
+  let before = await H.queryState();
+  for (let r = 0; r < 5 && !ready(before); r++) {
+    await injectScenario(page, b65KeySpec(lifeCount));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): ready=${ready(before)} keyPiece=${before?.host?.keyPiece} hostLife=${before?.host?.life} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+  }
+  if (!ready(before)) return { pass: false, detail: `準備失敗＝keyPiece=${before?.host?.keyPiece} hostLife=${before?.host?.life}(期待${lifeCount}) gField=${JSON.stringify(before?.guest?.fieldSigni)}` };
+  H.log(`  ${tag} 開始: hostLife=${before?.host?.life} lrigTrash=${before?.host?.lrigTrash} gField=${JSON.stringify(before?.guest?.fieldSigni)} gEnergy=${before?.guest?.energy} gHand=${before?.guest?.hand}`);
+  const lifeBefore = before?.host?.life ?? 0;
+  const gSigniBefore = (before?.guest?.fieldSigni ?? []).filter(z => z && z.length).length;
+  const gEnergyBefore = before?.guest?.energy ?? 0;
+  const gHandBefore = before?.guest?.hand ?? 0;
+  await H.ensureMain();
+  H.log('  KEY スロット:', await H.clickTestId('my-lrig-slot-key') ?? '見つからず');
+  await page.waitForTimeout(900);
+  {
+    const labels = await page.locator('[data-action-label]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label')));
+    const modal = await page.getByTestId('card-detail-modal').count();
+    // ⚠**この1行を残しておく**＝§4.4 罠32（複合属性セレクタが当たらない）を切り分けた計器。
+    //   「モーダルは出ているのに掴めない」型は、**属性を実測してから掴み方を決める**しかない。
+    H.log(`  ${tag} 掴み方の実測: keyPiece=${before?.host?.keyPiece} modal=${modal} labels=${JSON.stringify(labels)}`);
+  }
+  let used = false; let last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    // 【起】＝`data-action-label` の前方一致で掴む（§4.4 罠2＝正規表現名に exact は効かない）
+    if (!used) {
+      // ⚠**複合属性セレクタ（`[data-testid^=…][data-action-label^=…]`）は当たらなかった**（実測26ティック空振り）。
+      //   `data-action-label` を**全部読んでから index で `card-action-{i}` を押す**（§4.4 罠2 の系＝
+      //   「画面には出ているのに掴めない」型は、まず属性を実測して掴み方を決める）。
+      const labels = await page.locator('[data-action-label]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label') ?? ''));
+      const idx = labels.findIndex(l => l.startsWith('【起】'));
+      if (idx >= 0) {
+        const btn = page.getByTestId(`card-action-${idx}`).first();
+        if (await btn.count() && await btn.isEnabled().catch(() => false)) {
+          await btn.click({ timeout: 1200 }).catch(() => {}); did = `act:${labels[idx]}`; used = true;
+        }
+      }
+    }
+    // 🔴**KeyActivatedModal の確定は「発動」**（`KeyUseModal` の「セット」とは別物）。
+    //   ⚠**先に「発動」を試す**＝下の「スロットを開き直す」より後ろに置くと、全画面オーバーレイを
+    //     クリックしてモーダルを閉じてしまい**永久に確定へ到達しない**（実測26ティック空振り／§4.4 罠2b・罠8b）。
+    if (!did) {
+      const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+        await fire.click({ timeout: 1200 }).catch(() => {}); did = 'btn:発動';
+      }
+    }
+    if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    // モーダルが1つも出ていないときだけスロットを開き直す（§4.4 罠24）
+    if (!did && (await page.locator('[data-action-label]').count()) === 0
+        && (await page.getByRole('button', { name: '発動', exact: true }).count()) === 0) {
+      did = await H.clickTestId('my-lrig-slot-key');
+    }
+    last = await H.queryState();
+    const inTrash = (last?.host?.lrigTrashCards ?? []).some(n => String(n).startsWith('WDK17-009'))
+      || (last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | life=${last?.host?.life} lrigTrash=${last?.host?.lrigTrash} keyUsed=${inTrash} gField=${JSON.stringify(last?.guest?.fieldSigni)} gEnergy=${last?.guest?.energy} gHand=${last?.guest?.hand} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (inTrash && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0
+        && (last?.guest?.energy ?? 0) < gEnergyBefore) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  // 前提＝キーが実際にルリグトラッシュへ移った（＝【起】が撃てた）
+  const keyUsed = (last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0);
+  if (!keyUsed) return { pass: false, detail: `前提崩れ＝【起】を撃てていない（lrigTrash ${before?.host?.lrigTrash}→${last?.host?.lrigTrash}）` };
+  const gSigniAfter = (last?.guest?.fieldSigni ?? []).filter(z => z && z.length).length;
+  const lifeAfter = last?.host?.life ?? 0;
+  const detail = `hostLife ${lifeBefore}→${lifeAfter} / 相手シグニ ${gSigniBefore}→${gSigniAfter} / 相手エナ ${gEnergyBefore}→${last?.guest?.energy} / 相手手札 ${gHandBefore}→${last?.guest?.hand}`;
+  // 🔴**本丸**＝自分のライフが減らないこと（旧誤パースなら 2枚クラッシュされる）
+  if (lifeAfter !== lifeBefore) {
+    return { pass: false, detail: `【O-65 回帰】${detail}＝自分のライフが減った（「２枚以下の場合」を LIFE_CRASH と読む誤パースの再発）` };
+  }
+  if (gSigniAfter !== gSigniBefore - 1) return { pass: false, detail: `${detail}＝相手のシグニが1体トラッシュされていない` };
+  if ((last?.guest?.energy ?? 0) !== gEnergyBefore - 1) return { pass: false, detail: `${detail}＝相手のエナが1枚トラッシュされていない` };
+  const handDropped = (last?.guest?.hand ?? 0) === gHandBefore - 1;
+  if (handDropped !== expectHandDiscard) {
+    return { pass: false, detail: `${detail}＝手札捨ての条件（あなたのライフが2枚以下）が${expectHandDiscard ? '成立するのに起きていない' : '不成立なのに起きた'}` };
+  }
+  return { pass: true, detail: `${detail}＝期待どおり（自ライフ不変・手札捨て${expectHandDiscard ? 'あり' : 'なし'}）` };
+};
+scenarios.b65KeyTrashHighLife = {
+  title: 'WDK17-009-E2（ライフ7）＝相手のシグニ／エナを1枚ずつトラッシュ。自分のライフは減らない【旧: 自ライフ2枚クラッシュ】',
+  spec: b65KeySpec(7),
+  drive: b65KeyDrive('b65KeyHighLife', 7, false),
+};
+scenarios.b65KeyTrashLowLife = {
+  title: 'WDK17-009-E2（ライフ2）＝上に加えて相手が手札を1枚捨てる【対照＝ライフ枚数1点だけ違う】',
+  spec: b65KeySpec(2),
+  drive: b65KeyDrive('b65KeyLowLife', 2, true),
+};
+
+// ■ ②【常】のフェイズ限定（`activeCondition.DURING_MAIN_PHASE`）が実機の解決経路でも効くか
+//   `WXEX2-44-E1`「【常】：**対戦相手のメインフェイズの間**、シグニはバニッシュされない。」（P15000）
+//   🔴旧 live は `activeCondition` を1つも持たず**恒久バニッシュ耐性**だった。
+//   ⚠**受け皿を足すだけでは効かない**＝`checkActiveCondition` は `turnPhase` を渡されないと true を返すので、
+//     `BattleScreen`→`collectBanishEffectProtectedSigni` の**引数配線**が要る。**そこは golden から叩けない**。
+//   ⇒ 同じ盤面・同じアーツで **`turn_phase` の1点だけ**を変える2本にする。
+//     MAIN        … guest の壁から見て「対戦相手のメインフェイズ」→ 保護される（バニッシュされない）
+//     ATTACK_ARTS … メインフェイズではない → 保護されない（バニッシュされる）
+const B65_WALL = 'WXEX2-44#1';
+const b65WallSpec = (phase) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'lrig_deck': ['WD04-008#1'],                        // アーツ 付和雷同（《緑×3》＝対戦相手のパワー12000以上のシグニ1体をバニッシュ）
+    'energy': ['WD04-009#1', 'WD04-009#2', 'WD04-009#3'], // 緑×3
+    'lrig_trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.signi': [[B65_WALL], null, null],            // 壁（P15000＝12000以上でアーツの対象になる）
+    'field.check': null,
+  },
+  top: { active: 'host', turn_phase: phase, turn_count: 2 },
+});
+const b65WallOnField = (st) => (st?.guest?.fieldSigni ?? []).some(z => (z ?? []).some(n => n === B65_WALL));
+const b65WallDrive = (tag, phase, expectBanished) => async function drive(page, H) {
+  let picked = false;   // ⚠候補セルは押すたびにトグルする（§4.4 罠8p/罠21）＝**1回だけ押す**
+  // ⚠**盤面注入は1発で決まらない**（`O-63` の実測）＝前シナリオの盤面が残ったまま drive に入ることがある
+  //   （実測＝直前の `b65KeyTrash*` が置いた `WX01-053#1` が相手の場に残って「準備失敗」になった）。
+  //   **載るまで再注入する。**
+  let before = await H.queryState();
+  for (let r = 0; r < 5 && !b65WallOnField(before); r++) {
+    await injectScenario(page, b65WallSpec(phase));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): gField=${JSON.stringify(before?.guest?.fieldSigni)} phase=${before?.turnPhase}`);
+  }
+  H.log(`  ${tag} 開始: phase=${before?.turnPhase} gField=${JSON.stringify(before?.guest?.fieldSigni)} lrigTrash=${before?.host?.lrigTrash} energy=${before?.host?.energy}`);
+  if (!b65WallOnField(before)) return { pass: false, detail: `準備失敗＝${B65_WALL} が相手の場に載っていない（${JSON.stringify(before?.guest?.fieldSigni)}）` };
+  H.log('  ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  let artsUsed = false; let last = before;
+  for (let s = 0; s < 28; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    // アーツのコスト支払い：エナ3枚を**1回だけ**押してから「アーツ使用」（§4.4 罠8p＝毎ティック押すとトグルで外れる）
+    const a0 = page.getByTestId('artscost-energy-0').first();
+    if (!artsUsed && await a0.count() && await a0.isVisible().catch(() => false)) {
+      for (const i of [0, 1, 2]) {
+        const e = page.getByTestId(`artscost-energy-${i}`).first();
+        if (await e.count() && await e.isVisible().catch(() => false)) await e.click({ timeout: 1200 }).catch(() => {});
+      }
+      await page.waitForTimeout(250);
+      const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+      if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click({ timeout: 1200 }).catch(() => {}); did = 'btn:アーツ使用'; artsUsed = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['使用']);
+    // ⚠**「決定 (N/M)」は完全一致リストに掛からない**＝前方一致の共通ヘルパーで押す（§4.4 罠21）。
+    //   さらに**必要数が既に選択済みなら候補より先に決定を押す**（押し直すとトグルで外れる）。
+    if (!did && picked) did = await clickDecideNofM(page);
+    if (!did && !picked) {
+      const p0 = page.getByTestId('pick-0').first();
+      if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click({ timeout: 1200 }).catch(() => {}); did = 'pick-0'; picked = true; }
+    }
+    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい', 'スキップ', '選ばない']);
+    if (!did) did = await H.clickTestId('zone-card-0');
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | wallOnField=${b65WallOnField(last)} gField=${JSON.stringify(last?.guest?.fieldSigni)} lrigTrash=${last?.host?.lrigTrash} energy=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if ((last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0)
+        && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0 && s > 4) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  // 前提＝アーツが実際に使われた（＝「壁が残った」が「アーツを撃てなかった」ではないことの担保）
+  if ((last?.host?.lrigTrash ?? 0) <= (before?.host?.lrigTrash ?? 0)) {
+    return { pass: false, detail: `前提崩れ＝アーツを使えていない（lrigTrash ${before?.host?.lrigTrash}→${last?.host?.lrigTrash} energy ${before?.host?.energy}→${last?.host?.energy}）` };
+  }
+  const banished = !b65WallOnField(last);
+  const detail = `phase=${last?.turnPhase} 壁は${banished ? 'バニッシュされた' : '場に残った'}（gField=${JSON.stringify(last?.guest?.fieldSigni)}）`;
+  return banished === expectBanished
+    ? { pass: true, detail: `${detail}＝期待どおり` }
+    : { pass: false, detail: `【O-65 回帰】${detail}＝${expectBanished ? 'メインフェイズ以外なのに保護された（DURING_MAIN_PHASE が常時真＝配線漏れ）' : '対戦相手のメインフェイズなのに保護されなかった'}` };
+};
+scenarios.b65WallOppMainProtected = {
+  title: 'WXEX2-44-E1（DURING_MAIN_PHASE opponent）＝対戦相手のメインフェイズ中はバニッシュされない【成立】',
+  spec: b65WallSpec('MAIN'),
+  drive: b65WallDrive('b65WallMain', 'MAIN', false),
+};
+scenarios.b65WallAttackPhaseNotProtected = {
+  title: 'WXEX2-44-E1＝アタックフェイズなら保護されずバニッシュされる【対照＝turn_phase 1点だけ違う】',
+  spec: b65WallSpec('ATTACK_ARTS'),
+  drive: b65WallDrive('b65WallAttack', 'ATTACK_ARTS', true),
+};
+order.push('b65KeyTrashHighLife', 'b65KeyTrashLowLife', 'b65WallOppMainProtected', 'b65WallAttackPhaseNotProtected');
+// ── §5.3 O-65 END ──
+
 
 
 

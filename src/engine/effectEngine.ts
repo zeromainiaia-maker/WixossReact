@@ -151,6 +151,18 @@ export function checkActiveCondition(
       return true;                                        // owner 省略＝どちらのアタックフェイズでも
     }
 
+    case 'DURING_MAIN_PHASE': {
+      // 🆕**§5.3 `O-65`＝「[あなたの/対戦相手の]メインフェイズの間、」有効な常在効果。**
+      // `DURING_ATTACK_PHASE` の対。⚠**`turnPhase` を渡さない呼び出し元では true**（過小実行を避ける）＝
+      //   受け皿を足すだけでは効かないので、消費地点が `turnPhase` を渡していることを必ず確認する
+      //   （`O-64` で踏んだ「委ね先がそのフィールドを読んでいない」型と同じ）。
+      if (turnPhase === undefined) return true;
+      if (turnPhase !== 'MAIN') return false;
+      if (cond.owner === 'self') return isOwnerTurn;       // あなたのメインフェイズ＝効果所有者のターン
+      if (cond.owner === 'opponent') return !isOwnerTurn;  // 対戦相手のメインフェイズ
+      return true;                                          // owner 省略＝どちらのメインフェイズでも
+    }
+
     case 'BEAT_CONDITION':
       // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり有効（CONTINUOUS常時能力のゲート）
       return checkBeatCondition(ownerState.field.beat_zone ?? [], cond.condText, cardMap);
@@ -5095,6 +5107,10 @@ export function collectBanishEffectProtectedSigni(
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
   effectSourceOwner: 'self' | 'opponent' | 'rule' = 'opponent',
+  // 🆕**§5.3 `O-65`＝`activeCondition` のフェイズ限定（`DURING_MAIN_PHASE`／`DURING_ATTACK_PHASE`）を
+  // 効かせるために必要**。⚠**渡さないと `checkActiveCondition` が `true` を返す**（過小実行回避の既定）＝
+  // 受け皿を JSON に足しても**恒久 no-op** になる（`O-64` で踏んだ「委ね先が読んでいない」型）。
+  turnPhase?: TurnPhase,
 ): Set<string> {
   // activeCondition に実効パワー参照（SELF_POWER_THRESHOLD 等）があると、渡さない限り**表記パワーへ
   // フォールバック**して「バフしても条件が真にならない」過小実行になる（タスク12(cxii)）。
@@ -5112,7 +5128,7 @@ export function collectBanishEffectProtectedSigni(
   for (const sourceNum of sourceNums) {
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf())) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf(), undefined, turnPhase)) continue;
       // 「基本パワーはNになり、このシグニはバニッシュされない」は
       // SEQUENCE[POWER_SET, GRANT_PROTECTION]。分岐を持たないこの正準形だけ leaf を読む。
       const protectionActions = eff.action.type === 'SEQUENCE'
@@ -5170,7 +5186,7 @@ export function collectBanishEffectProtectedSigni(
     const sn = stack[stack.length - 1];
     for (const eff of (effectsMap.get(sn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sn, powersOf())) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sn, powersOf(), undefined, turnPhase)) continue;
       const a = eff.action as import('../types/effects').StubAction;
       if (a.type === 'STUB' && a.id === 'PREVENT_SELF_MOVE_BY_OPP') protected_.add(sn);
     }
@@ -5686,6 +5702,9 @@ export function collectBounceProtectedSigni(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   otherState: PlayerState,
   isOwnerTurn: boolean,
+  // 🆕`O-65`：同上。`WXK07-031-E1`＝「あなたのアタックフェイズの間、対戦相手の効果はバニッシュ以外で
+  // あなたの＜宇宙＞のシグニを場から移動させない」が**常時保護**になっていた。
+  turnPhase?: TurnPhase,
 ): string[] {
   const protected_ = new Set<string>();
 
@@ -5699,7 +5718,7 @@ export function collectBounceProtectedSigni(
   for (const topNum of candidates) {
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum, undefined, undefined, turnPhase)) continue;
 
       // GRANT_PROTECTION from=['BOUNCE'|'any']
       if (eff.action.type === 'GRANT_PROTECTION') {
@@ -6467,6 +6486,10 @@ export function collectGrantedFromUnderSigni(
   isOwnerTurn: boolean,
   effectsMap: Map<string, CardEffect[]>,
   cardMap: Map<string, CardData>,
+  // 🆕`O-65`：`activeCondition` のフェイズ限定を効かせるために必要（渡さないと `checkActiveCondition` が
+  // true を返して**恒久 no-op** になる）。`WXK08-048-E1`＝「あなたのアタックフェイズの間、このシグニは
+  // このカードの下にある…シグニの【自】能力を得る」が**常時付与**になっていた。
+  turnPhase?: TurnPhase,
 ): Map<string, CardEffect[]> {
   const result = new Map<string, CardEffect[]>();
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -6484,7 +6507,7 @@ export function collectGrantedFromUnderSigni(
     // Pattern A: トップシグニの CONTINUOUS スタブ → 下のカードから効果を収集
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, undefined, undefined, turnPhase)) continue;
       if (eff.action.type !== 'STUB') continue;
       const stub = eff.action as import('../types/effects').StubAction;
 

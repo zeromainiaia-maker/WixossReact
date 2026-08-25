@@ -482,6 +482,8 @@ function condJa(c?: any): string {
       return `このシグニの正面に${st}${filterJa({ ...fc.filter, isFrozen: undefined, isDown: undefined, isUp: undefined })}シグニがあるかぎり`;
     }
     case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
+    // 🆕§5.3 `O-65`：`DURING_ATTACK_PHASE` の対（【常】のメインフェイズ限定）。
+    case 'DURING_MAIN_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}メインフェイズの間`;
     case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'DECK_COUNT_FILTER': return `${ownerJa(c.owner)}デッキに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
@@ -2608,7 +2610,9 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH: '対戦相手の効果はバニッシュ以外でこのシグニを場から移動させない',
         PREVENT_SIGNI_DOWN_BY_OPP: 'このターン、あなたのシグニは対戦相手の効果によってダウンしない',
         PREVENT_SIGNI_DOWN_BY_OPP_ALL: 'あなたの他のシグニは対戦相手の効果によってダウンしない',
-        PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: 'あなたのアタックフェイズの間、対戦相手の効果はバニッシュ以外であなたの＜宇宙＞のシグニを場から移動させない',
+        // 🆕§5.3 `O-65`：フェイズ限定は `activeCondition`（《あなたのアタックフェイズの間》）が描くので、
+        //   ここから外した（従来は同じ句が2回出ていた）。
+        PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: '対戦相手の効果はバニッシュ以外であなたの＜宇宙＞のシグニを場から移動させない',
         PREVENT_OWN_ARTS_USE: 'このターン、あなたはアーツを使用できない',
         PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN: '次の対戦相手のターンの間、あなたが最初にダメージを受ける場合、代わりにダメージを受けない',
       };
@@ -2631,7 +2635,7 @@ function actionJa(a?: Action, effectType?: string): string {
         GRANT_UNDER_LRIG_ACTIVATE_ABILITY: 'このルリグはこのカードの下にあるルリグの【起】能力を持つ',
         GRANT_UNDER_LRIG_AUTO_ABILITY: 'このルリグはこのカードの下にあるルリグの【自】能力を持つ',
         GRANT_UNDER_SIGNI_ALL_ABILITIES: 'このシグニはこのカードの下にある《荒ぶる海洋 §ポセイドナ§》以外の＜天使＞のシグニの【常】と【自】と【起】の能力と、限定条件を得る',
-        GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE: 'あなたのアタックフェイズの間、このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る',
+        GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE: 'このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る',   // `O-65`：フェイズ限定は activeCondition 側が描く
         GRANT_UNDER_SIGNI_CONSTANT_ABILITY: 'このシグニはこのカードの下にあるシグニの【常】の【英知】能力を得る',
         INHERIT_UNDER_SIGNI_COLOR: 'このシグニはこのカードの下にある＜天使＞のシグニが持つ色を得る',
         GAIN_LRIG_COLOR: 'このシグニはあなたの場にいるルリグが持つ色を得る',
@@ -3143,6 +3147,10 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_CONVERT_ENERGY_COLOR: '【未実装】【コンバート《色》】（エナコストを支払う際、このカードはその色として支払える）',
         DEFERRED_ATTACK_WHILE_DOWN: '【未実装】このシグニはダウン状態でもアタックできる',
         DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN: '【未実装】このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失い、このシグニをダウンする',
+        // 🆕§5.3 `O-65`（2026-08-25）＝「ライフクロスは〜クラッシュされない／N枚までしかクラッシュされない」。
+        //   受け皿が engine に1つも無い新機構（`O-66`）。旧 parser は**正反対の `LIFE_CRASH` へ化けていた**ので、
+        //   黙って逆をやるより明示 defer のほうが安全（実測6効果・うち2件はアーツで実害があった）。
+        DEFERRED_LIFE_CRASH_PREVENTION: '【未実装】ライフクロスのクラッシュを防ぐ／回数を制限する（O-66 待ち）',
         // §6.4 O-32（続き501）
         PLACE_TRASH_SIGNI_FACING_SAME_POWER: 'あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーのシグニを１枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す',
         // ⚠engine 本体は §6.4 O-32 で撤去済み（正準形は `REPEAT`）。残るのは `WX22-016-E1` の
