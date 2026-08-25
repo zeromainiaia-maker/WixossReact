@@ -45,6 +45,27 @@ import {
   parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter,
 } from '../parserUtils';
 
+/**
+ * 「このシグニはこのカードの下にある〈X〉のシグニの…能力を得る」の〈X〉を TargetFilter へ落とす
+ * （§5.3 `O-66`③・2026-08-25）。旧実装は **engine が `cardMap.EffectText` を regex で読んでいた**ので
+ * JSON を見ても対象が分からず、`txt.includes('【常】')` のように**カード全文**を見て別の能力の表記まで
+ * 拾っていた。ここは**その能力ブロックの文だけ**を見るので誤読しない。
+ *
+ * ⚠**「下にある」と「のシグニ」の間だけ**を切って解釈する（文全体に `parseColorFilter` 等を当てると
+ *   「黒の」が別の場所から拾われる）。修飾が無ければ `filter` を付けない＝下の全カードが対象。
+ */
+function underGrantFilterOf(t: string): { filter?: TargetFilter } {
+  const m = t.match(/このカードの下にある(.*?)のシグニの/);
+  const phrase = m?.[1] ?? '';
+  if (!phrase) return {};
+  const filter: TargetFilter = {
+    ...parseLevelFilter(phrase), ...parseColorFilter(phrase), ...parseStoryFilter(phrase),
+  };
+  const excludeM = phrase.match(/《([^》]+)》以外/);
+  if (excludeM) filter.excludeCardName = excludeM[1];
+  return Object.keys(filter).length > 0 ? { filter } : {};
+}
+
 export function parseSentencePart2(t: string): EffectAction | null {
   // ---- フィールドシグニ数+N枚エナチャージ ----
   {
@@ -1074,8 +1095,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 悪魔シグニは場から手札に戻らない ----
+  // 🆕§5.3 `O-66`③：保護対象を **payload** で運ぶ（旧実装は engine が `cardMap.EffectText` を
+  //   regex で読んでクラスを決めていた＝JSON を見ても何が守られるか分からなかった）。
+  //   ⚠クラス修飾が無い形（`WX13-029-E1`②「このターン、あなたのシグニは場から手札に戻らない」）は
+  //   **あなたのシグニ全部**が正しいので filter を付けない。
   if (t.match(/あなたの.*シグニは場から手札に戻らない/)) {
-    return { type: 'STUB', id: 'SIGNI_CANT_BOUNCE_FROM_FIELD' } as StubAction;
+    const bounceClassM = t.match(/あなたの(?:すべての)?＜([^＞]+)＞のシグニは場から手札に戻らない/);
+    return {
+      type: 'STUB', id: 'SIGNI_CANT_BOUNCE_FROM_FIELD',
+      ...(bounceClassM ? { moveProtectFilter: { cardType: 'シグニ', story: bounceClassM[1] } } : {}),
+    } as StubAction;
   }
 
   // ---- 調理シグニをアクセにする ----
@@ -1163,7 +1192,13 @@ export function parseSentencePart2(t: string): EffectAction | null {
   // ⚠**フェイズ限定は activeCondition が担う**＝ここでは見ない（STUB の id 名に `ATTACK_PHASE` が
   //   残っているのは歴史的経緯で、`censusStubs`／`STUBS.md` の採番を動かさないため改名していない）。
   if (t.match(/(?:あなたのアタックフェイズの間.*)?対戦相手の効果はバニッシュ以外でお?あなたの.*シグニを場から移動させない/)) {
-    return { type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH' } as StubAction;
+    // 🆕§5.3 `O-66`③：保護対象を payload で運ぶ（旧実装は engine が `EffectText` を regex で読み、
+    //   外れたときは**発生源自身の CardClass** へフォールバックしていた＝原文と無関係な範囲になり得た）。
+    const moveClassM = t.match(/あなたの(?:すべての)?＜([^＞]+)＞のシグニを場から移動させない/);
+    return {
+      type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH',
+      ...(moveClassM ? { moveProtectFilter: { cardType: 'シグニ', story: moveClassM[1] } } : {}),
+    } as StubAction;
   }
 
   // ---- アタックフェイズ間、対戦相手の効果で場から移動させない ----
@@ -1207,7 +1242,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   // ---- アタックフェイズ間に下にあるシグニの【自】能力を得る ----
   // 🆕`O-65`：上と同じ理由で前置きを任意にした（フェイズ限定は `activeCondition` が担う）。
   if (t.match(/(?:あなたのアタックフェイズの間.*)?このシグニはこのカードの下.*シグニの【自】能力を得る/)) {
-    return { type: 'STUB', id: 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE' } as StubAction;
+    return {
+      type: 'STUB', id: 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE',
+      underAbilityGrant: { kinds: ['AUTO'], ...underGrantFilterOf(t) },
+    } as StubAction;
   }
 
   // ---- 上にあるシグニに起動能力付与 ----
@@ -1869,7 +1907,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 下にあるシグニの【常】能力を得る ----
   if (t.match(/このシグニはこのカードの下にあるシグニの【常】.*能力を得る/)) {
-    return { type: 'STUB', id: 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY' } as StubAction;
+    return {
+      type: 'STUB', id: 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY',
+      underAbilityGrant: {
+        kinds: ['CONTINUOUS'],
+        ...underGrantFilterOf(t),
+        ...(/【英知】/.test(t) ? { eichiOnly: true } : {}),
+      },
+    } as StubAction;
   }
 
   // ---- 基本レベルを変更 ----
@@ -1929,7 +1974,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 下にあるシグニの複数能力を得る ----
   if (t.match(/このシグニはこのカードの下にある.*シグニの【常】と【自】と【起】の能力/)) {
-    return { type: 'STUB', id: 'GRANT_UNDER_SIGNI_ALL_ABILITIES' } as StubAction;
+    return {
+      type: 'STUB', id: 'GRANT_UNDER_SIGNI_ALL_ABILITIES',
+      underAbilityGrant: {
+        kinds: ['CONTINUOUS', 'AUTO', 'ACTIVATED'],
+        ...underGrantFilterOf(t),
+        ...(/限定条件/.test(t) ? { grantRestriction: true } : {}),
+      },
+    } as StubAction;
   }
 
   // ---- 英知能力が有効になる ----
