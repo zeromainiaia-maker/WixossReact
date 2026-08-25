@@ -323,6 +323,11 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                             : !handFilter || matchesFilter(c, handFilter);
                           return (
                             <div key={i}
+                              // 実機ドライバ用の安定セレクタ（`onplaycost-energy-*` の兄弟）。
+                              // ⚠これが無いと **手札コストのセルを testid で掴めない**＝【出】手札コストを持つ
+                              //   カードの実機検証が組めない（§5.3 `O-66`④ の検証で判明）。表示には影響しない。
+                              data-testid={`onplaycost-hand-${i}`}
+                              data-card-num={num}
                               onClick={() => matchesDiscardFilter && setSelectedSigniOnPlayDiscard(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

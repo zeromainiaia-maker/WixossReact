@@ -29492,6 +29492,231 @@ scenarios.b65WallAttackPhaseNotProtected = {
   drive: b65WallDrive('b65WallAttack', 'ATTACK_ARTS', true),
 };
 order.push('b65KeyTrashHighLife', 'b65KeyTrashLowLife', 'b65WallOppMainProtected', 'b65WallAttackPhaseNotProtected');
+
+// ── §5.3 O-66②（続き660）＝「シグニは〜されない」の主語は**両プレイヤーのシグニ** ──
+//
+// ■ 何を見るか
+//   `WXEX2-44-E1`「【常】：対戦相手のメインフェイズの間、シグニはバニッシュされない。」の主語は
+//   **どちらのプレイヤーのシグニでもある**。旧 live は `target:{owner:'self',count:1}` に潰れており、
+//   **宣言元自身しか守っていなかった**（原文の範囲の 1/6）。
+//
+// ■ 盤面（上の b65Wall と同じアーツ＝WD04-008 付和雷同＝対戦相手のパワー12000以上のシグニ1体をバニッシュ）
+//   guest zone0 = 壁（WXEX2-44・P15000）／guest zone1 = **仲間**（WX01-053・P15000＝アーツの対象になる）
+//   MAIN        … 壁の宣言が有効 → **仲間も守られる**＝アーツは何もバニッシュできない
+//   ATTACK_ARTS … 宣言が無効     → 仲間はバニッシュされる（＝盤面とアーツが生きている対照）
+// 🔑**旧実装ではこの MAIN 側が FAIL する**（仲間だけ守られず消える）＝反転が効いている証拠。
+const B66_ALLY = 'WX01-053#1';
+const b66AllySpec = (phase) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'lrig_deck': ['WD04-008#1'],
+    'energy': ['WD04-009#1', 'WD04-009#2', 'WD04-009#3'],
+    'lrig_trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.signi': [[B65_WALL], [B66_ALLY], null],
+    'field.check': null,
+  },
+  top: { active: 'host', turn_phase: phase, turn_count: 2 },
+});
+const b66AllyOnField = (st) => (st?.guest?.fieldSigni ?? []).some(z => (z ?? []).some(n => n === B66_ALLY));
+const b66AllyDrive = (tag, phase, expectBanished) => async function drive(page, H) {
+  let picked = false;
+  let before = await H.queryState();
+  for (let r = 0; r < 5 && !(b65WallOnField(before) && b66AllyOnField(before)); r++) {
+    await injectScenario(page, b66AllySpec(phase));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): gField=${JSON.stringify(before?.guest?.fieldSigni)} phase=${before?.turnPhase}`);
+  }
+  if (!(b65WallOnField(before) && b66AllyOnField(before))) {
+    return { pass: false, detail: `準備失敗＝壁と仲間が相手の場に揃っていない（${JSON.stringify(before?.guest?.fieldSigni)}）` };
+  }
+  H.log('  ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  let artsUsed = false; let last = before;
+  for (let s = 0; s < 28; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const a0 = page.getByTestId('artscost-energy-0').first();
+    if (!artsUsed && await a0.count() && await a0.isVisible().catch(() => false)) {
+      for (const i of [0, 1, 2]) {
+        const e = page.getByTestId(`artscost-energy-${i}`).first();
+        if (await e.count() && await e.isVisible().catch(() => false)) await e.click({ timeout: 1200 }).catch(() => {});
+      }
+      await page.waitForTimeout(250);
+      const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+      if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click({ timeout: 1200 }).catch(() => {}); did = 'btn:アーツ使用'; artsUsed = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['使用']);
+    if (!did && picked) did = await clickDecideNofM(page);
+    if (!did && !picked) {
+      const p0 = page.getByTestId('pick-0').first();
+      if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click({ timeout: 1200 }).catch(() => {}); did = 'pick-0'; picked = true; }
+    }
+    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい', 'スキップ', '選ばない']);
+    // ⚠**ルリグデッキ内のアーツ札を選ぶ一手**（`zone-card-0`）を落とすとコストUIまで到達しない
+    //   ＝「アーツを使えていない」で前提崩れになる（b65 の drive と同じ締め）。
+    if (!did) did = await H.clickTestId('zone-card-0');
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | wall=${b65WallOnField(last)} ally=${b66AllyOnField(last)} gField=${JSON.stringify(last?.guest?.fieldSigni)} lrigTrash=${last?.host?.lrigTrash} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if ((last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0)
+        && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0 && s > 4) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  if ((last?.host?.lrigTrash ?? 0) <= (before?.host?.lrigTrash ?? 0)) {
+    return { pass: false, detail: `前提崩れ＝アーツを使えていない（lrigTrash ${before?.host?.lrigTrash}→${last?.host?.lrigTrash}）` };
+  }
+  const allyBanished = !b66AllyOnField(last);
+  const detail = `phase=${last?.turnPhase} 仲間は${allyBanished ? 'バニッシュされた' : '場に残った'}・壁=${b65WallOnField(last)}（gField=${JSON.stringify(last?.guest?.fieldSigni)}）`;
+  return allyBanished === expectBanished
+    ? { pass: true, detail: `${detail}＝期待どおり` }
+    : { pass: false, detail: `【O-66② 回帰】${detail}＝${expectBanished ? 'メインフェイズ以外なのに守られた' : '「シグニは」が宣言元だけに潰れている（旧 count:1）'}` };
+};
+scenarios.b66WallProtectsAlly = {
+  title: 'O-66② WXEX2-44-E1＝「シグニは」は宣言元だけでなく**仲間のシグニも**守る【成立】',
+  spec: b66AllySpec('MAIN'),
+  drive: b66AllyDrive('b66AllyMain', 'MAIN', false),
+};
+scenarios.b66WallAllyAttackPhase = {
+  title: 'O-66② 対照＝アタックフェイズなら守られず仲間はバニッシュされる（turn_phase 1点だけ違う）',
+  spec: b66AllySpec('ATTACK_ARTS'),
+  drive: b66AllyDrive('b66AllyAttack', 'ATTACK_ARTS', true),
+};
+order.push('b66WallProtectsAlly', 'b66WallAllyAttackPhase');
+
+// ── §5.3 O-66③（続き660）＝engine の `EffectText` regex を payload へ移した回帰確認 ──
+//
+//   `WXK08-048-E1`「【常】：あなたのアタックフェイズの間、このシグニはこのカードの下にある
+//   **レベル３以下の黒の＜ウェポン＞**のシグニの【自】能力を得る。」
+//   下に `WXK08-049`（黒 Lv3 ＜ウェポン＞。【自】＝あなたのアタックフェイズ開始時、対戦相手のシグニ1体の
+//   パワーを－2000）を積み、**アタックフェイズへ進めると相手シグニが -2000 される**ことを見る。
+// ⚠この巡の変更は**意味を変えない移設**なので、これは「移設しても壊れていない」ことの回帰確認。
+//   （filter が効くこと・payload なしで何も付与しないことは golden 側で固定した。）
+scenarios.b66UnderGrantPayload = {
+  title: 'O-66③ WXK08-048-E1＝payload 化後も下の＜ウェポン＞の【自】を得る（アタックフェイズ開始時に -2000）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK09-018#1'],
+      'field.signi': [['WXK08-049#1', 'WXK08-048#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WX01-053#1'], null, null],
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始 host zone0:', JSON.stringify(before?.host?.fieldSigni?.[0]), 'g pmods:', JSON.stringify(before?.guest?.powerMods));
+    let picked = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b66UnderGrantPayload-${s}.png`, fullPage: true });
+      let did = await H.clickTextOrBtn(['アタックフェイズへ']);
+      if (!did && picked) did = await clickDecideNofM(page);
+      if (!did && !picked) {
+        const p0 = page.getByTestId('pick-0').first();
+        if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click({ timeout: 1200 }).catch(() => {}); did = 'pick-0'; picked = true; }
+      }
+      if (!did) did = await H.stdStep(['発動', '発動順序を確定', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const minus = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-'));
+      H.log(`  ugp[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase ?? '-'} g=${(st?.guest?.powerMods ?? []).join(',') || '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (minus) return { pass: true, detail: `下の＜ウェポン＞の【自】を得てアタックフェイズ開始時に -2000（g=${(st.guest.powerMods).join(',')}）` };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `付与された【自】が発火しない（phase=${fin?.turnPhase} g=${(fin?.guest?.powerMods ?? []).join(',') || '-'}）` };
+  },
+};
+order.push('b66UnderGrantPayload');
+
+// ── §5.3 O-66④（続き660）＝「このターン終了時、〈本文〉」の遅延が落ちて即時実行だった ──
+//
+//   `WXDi-P07-071-E1`「【出】手札を１枚捨てる：**このターン終了時**、【エナチャージ１】をする。」
+//   🔴旧 live は素の `ENERGY_CHARGE_FROM_DECK`＝**召喚した瞬間にエナが増えていた**。
+//   観測点は2つ＝①**召喚直後はエナが増えない**（＝即時実行でない） ②遅延トリガーが設置されている。
+// 🔑**旧実装ではこのシナリオは FAIL する**（召喚直後にエナが増える）＝反転が効いている証拠。
+scenarios.b66TurnEndDelayInstalled = {
+  title: 'O-66④ WXDi-P07-071-E1＝【出】のエナチャージが即時実行されずターン終了時へ予約される',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX08-004#1'],
+      'field.signi': [null, null, null],
+      'hand': ['WXDi-P07-071#1', 'WD01-013#1', 'WD01-014#1'],
+      'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const energy0 = before?.host?.energy ?? 0;
+    H.log('開始 energy:', energy0, 'hand:', JSON.stringify(before?.host?.handCards));
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false; let picked = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b66TurnEndDelayInstalled-${s}.png`, fullPage: true });
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+      if (!did && picked) did = await clickDecideNofM(page);
+      if (!did && !picked) {   // 【出】コスト＝手札1枚を捨てる（候補セルはトグルなので1回だけ押す＝§4.4 罠8p）
+        // ⚠**捨てる札は WXDi-P07-071 自身ではない方**を選ぶ（自分を捨てると場に出せない）＝index 1 を狙う。
+        const h1 = page.getByTestId('onplaycost-hand-1').first();
+        const h0 = page.getByTestId('onplaycost-hand-0').first();
+        for (const [cell, tag] of [[h1, 'hand-1'], [h0, 'hand-0']]) {
+          if (await cell.count() && await cell.isVisible().catch(() => false)) {
+            await cell.click({ timeout: 1200 }).catch(() => {}); did = `cost:${tag}`; picked = true; break;
+          }
+        }
+      }
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const energyNow = st?.host?.energy ?? 0;
+      const delayed = (st?.host?.delayedTriggers ?? []).length;
+      H.log(`  ted[${s}] -> ${did ?? 'なし'} | energy=${energy0}→${energyNow} delayed=${delayed} hand=${JSON.stringify(st?.host?.handCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (delayed > 0) {
+        if (energyNow > energy0) {
+          return { pass: false, detail: `【O-66④ 回帰】遅延は設置されたのにエナも即時に増えた（${energy0}→${energyNow}）` };
+        }
+        // ここまでで「即時実行ではない」は確定。**ターン終了まで進めて実際に発火するか**まで見る
+        // （設置されるが永久に発火しない＝過剰実行を no-op へ替えただけ、を弾く）。
+        H.log(`  設置確認（energy=${energyNow} 据置・delayed=${delayed}）＝ここからターン終了まで進める`);
+        for (let t = 0; t < 16; t++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/b66TurnEndDelayInstalled-end-${t}.png`, fullPage: true });
+          // ⚠**確認ダイアログを先に捌く**（「まだ攻撃していないシグニがいます」等が出ている間、
+          //   進行ボタンのクリックはタイムアウトする＝§4.4 罠8c）。`advancePhaseV20` がその順で叩く。
+          const step = await advancePhaseV20(H)
+            ?? await H.stdStep(['発動', '確定', 'OK', 'はい', 'スキップ']);
+          const st2 = await H.queryState();
+          const e2 = st2?.host?.energy ?? 0;
+          H.log(`  ted-end[${t}] -> ${step ?? 'なし'} | phase=${st2?.turnPhase ?? '-'} energy=${e2} delayed=${(st2?.host?.delayedTriggers ?? []).length}`);
+          if (e2 > energyNow) {
+            return { pass: true, detail: `即時には増えず、ターン終了時に発火してエナ+1（${energyNow}→${e2}・phase=${st2?.turnPhase}）` };
+          }
+        }
+        const fin2 = await H.queryState();
+        return { pass: false, detail: `設置されたがターン終了まで進めても発火しない（energy=${energyNow}→${fin2?.host?.energy} phase=${fin2?.turnPhase}）＝過剰実行を no-op へ替えただけ` };
+      }
+      if (summoned && energyNow > energy0) {
+        return { pass: false, detail: `【O-66④ 回帰】召喚直後にエナが増えた＝遅延句が落ちて即時実行（${energy0}→${energyNow}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（energy=${energy0}→${fin?.host?.energy} delayed=${(fin?.host?.delayedTriggers ?? []).length} hand=${JSON.stringify(fin?.host?.handCards)}）` };
+  },
+};
+order.push('b66TurnEndDelayInstalled');
+
 // ── §5.3 O-65 END ──
 
 // ── §5.3 O-66（続き655）＝ライフクロスのクラッシュ防止／回数制限 ──
