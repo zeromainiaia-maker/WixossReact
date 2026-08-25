@@ -47046,6 +47046,80 @@ test('O-65 live: 【常】のフェイズ限定が activeCondition に載って�
   eq(ac('WXK08-048-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK08-048-E1＝あなたのアタックフェイズの間');
 });
 
+// §5.3 `O-62`（2026-08-26）＝「あなたの効果**１つ**によって」＝助数詞を挟む原因限定が丸ごと落ちていた。
+// 旧実装はリテラル「の効果によって」だけを見ていたので、原文17文（実測）がすべて素通り＝
+// **原因主体を問わずに発火する過剰トリガー**だった。
+// 🔑「１つ」＝1つの効果の中で合算した枚数だが、engine の枚数は**1解決ぶんの set-diff**で数えているので
+//   `minCount` 系がそのまま「効果１つ」の意味になる＝**足りなかったのは原因主体の限定だけ**。
+test('O-62 live: 「あなたの効果1つによって」が byOwnEffect に落ちている（4効果）', () => {
+  const tc = (id: string) => b43Live(id).triggerCondition ?? {};
+  eq(tc('WX22-014-E2').byOwnEffect, true, 'WX22-014-E2＝トラッシュ→デッキ4枚以上');
+  eq(tc('WXK10-076-E1').byOwnEffect, true, 'WXK10-076-E1＝相手のカードがデッキへ');
+  eq(tc('WDK09-013-E1').byOwnEffect, true, 'WDK09-013-E1＝同上');
+  eq(tc('WXK10-040-E1').drawByDrawerOwnEffect, true, 'WXK10-040-E1＝ドローは専用キー drawByDrawerOwnEffect');
+  // 枚数の閾値（＝「合計N枚以上」）は従来どおり残っている＝限定を足して閾値を壊していない
+  eq(tc('WX22-014-E2').movedToDeckMinCount, 4, '合計4枚以上は据置');
+});
+
+test('O-62 live: 入れ子（GRANT_*.abilities[]）の内側にも byOwnEffect が届く（SPDi43-12/13）', () => {
+  const innerTc = (cardNum: string, effectId: string) => {
+    let found: Record<string, unknown> | undefined;
+    const walk = (o: unknown): void => {
+      if (!o || typeof o !== 'object') return;
+      const r = o as Record<string, unknown>;
+      if (Array.isArray(r.abilities)) {
+        for (const ab of r.abilities as CardEffect[]) if (ab.effectId === effectId) found = ab.triggerCondition as Record<string, unknown>;
+      }
+      for (const v of Object.values(r)) walk(v);
+    };
+    for (const e of effectsMap.get(cardNum) ?? []) walk(e.action);
+    if (!found) throw new Error(`${effectId}: 入れ子能力が無い`);
+    return found;
+  };
+  eq(innerTc('SPDi43-12', 'SPDi43-12-sub-E1').byOwnEffect, true, 'SPDi43-12-sub-E1（ON_ENERGY_TO_TRASH）');
+  eq(innerTc('SPDi43-13', 'SPDi43-13-sub-E1').byOwnEffect, true, 'SPDi43-13-sub-E1（ON_ENERGY_CHARGE）');
+});
+
+test('O-62 engine: byOwnEffect が ON_CARD_MOVED_TO_DECK で原因主体を弁別する（WXK10-076-E1）', () => withSavedCursor(() => {
+  const host = mkState({ signi: ['WXK10-076', null, null] });
+  const guest = mkState({});
+  const fire = (cause?: string) =>
+    has(collectMoveToDeckTriggers(trigCtx(HOST), HOST, host, guest, 0, 0, 1, cause).entries, 'WXK10-076-E1');
+  eq(fire(HOST), true, '自分の効果で相手のカードがデッキへ＝発火（対照）');
+  eq(fire(GUEST), false, '相手の効果では発火しない（O-62 で塞いだ過剰トリガー）');
+  eq(fire(undefined), false, '原因不明では発火しない（fail-closed）');
+}));
+
+// §5.3 `O-62` の否定形（PLAN §5-2″）＝「あなたの効果**以外**によって」。
+// ⚠`banishedByOwnEffect:false` では書けない（JSON では未指定と区別がつかない）＝明示値の別キー。
+test('O-62 live: WX15-003-E1「アクセされているあなたのシグニがあなたの効果以外によって」', () => {
+  const e = b43Live('WX15-003-E1');
+  eq(e.triggerScope, 'any_ally', '味方シグニの watcher（旧実装は scope 既定 self＝ルリグ自身＝構造的に不発）');
+  eq(e.triggerCondition?.banishedHadAcce, true, 'アクセされている限定');
+  eq(e.triggerCondition?.banishedNotByOwnEffect, true, '「あなたの効果以外によって」＝否定形の明示値');
+  ok(e.triggerCondition?.banishedByOwnEffect === undefined, '肯定形は付けない（両方立てない）');
+});
+
+test('O-62 engine: banishedNotByOwnEffect は自分の効果でだけ落とす／banishedHadAcce はアクセ必須', () => withSavedCursor(() => {
+  const victim = findCard(c => isSigni(c) && c.CardNum !== 'WX15-003')!;
+  const mk = (acce: boolean) => {
+    const st = mkState({ signi: [victim, null, null] });
+    st.field.lrig = ['WX15-003'];
+    st.field.signi_acce = [acce ? 'WD01-013' : null, null, null] as never;
+    return st;
+  };
+  const guest = mkState({});
+  const fire = (acce: boolean, cause?: { ownerId: string }) => {
+    const prev = mk(acce);
+    const after = mkState({}); after.field.lrig = ['WX15-003'];
+    return has(collectBanishTriggers(trigCtx(HOST), victim, HOST, after, guest, prev, cause).entries, 'WX15-003-E1');
+  };
+  eq(fire(true, undefined), true, 'アクセ付き＋原因なし（バトル/ルール処理）＝発火する');
+  eq(fire(true, { ownerId: GUEST }), true, '相手の効果によるバニッシュでも発火する');
+  eq(fire(true, { ownerId: HOST }), false, '自分の効果によるバニッシュでは発火しない（否定形）');
+  eq(fire(false, undefined), false, 'アクセが付いていなければ発火しない（banishedHadAcce）');
+}));
+
 // §5.3 `O-66`④（2026-08-25）＝「このターン終了時、〈本文〉」の遅延が落ちて**即時実行**になっていた。
 // 旧実装は遅延設置への変換を**本文が `CHOOSE` のときだけ**に限っており、実測24文のうち遅延が生きて
 // いたのは4件だけだった。⚠**無条件に広げると5効果が退化する**ので3つのガードを置いている。

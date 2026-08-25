@@ -3561,6 +3561,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_BANISH' && e.triggerCondition?.banishedHadCharm) {
       s = `【チャーム】が付いている${s}`;
     }
+    // 🆕§5.3 `O-62`：アクセ限定を描く（描かないと原文照合で「限定が無い」ように見える）。
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedHadAcce) {
+      s = `アクセされている${s}`;
+    }
     if (t === 'ON_BANISH' && e.triggerCondition?.banishedFrontOfSelf) {
       s = 'このシグニの正面のシグニ1体がバニッシュされたとき';
     }
@@ -3580,6 +3584,9 @@ function effJa(e: Eff): string {
       s = `あなたの＜${e.triggerCondition.banishedSourceStory}＞のシグニの効果によって${s}`;
     } else if (t === 'ON_BANISH' && e.triggerCondition?.banishedByOwnEffect) {
       s = `あなたの効果によって${s}`;
+    } else if (t === 'ON_BANISH' && e.triggerCondition?.banishedNotByOwnEffect) {
+      // 🆕§5.3 `O-62`：**否定形**。肯定形と同じ場所に描かないと逆翻訳から限定が消える。
+      s = `あなたの効果以外によって${s}`;
     }
     if (t === 'ON_TARGETED' && e.triggerCondition?.targetedOrigins?.length) {
       const origins = e.triggerCondition.targetedOrigins;
