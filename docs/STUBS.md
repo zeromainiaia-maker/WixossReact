@@ -88,9 +88,9 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | サブスクライバーカウント+1 |
 | `GAIN_ABILITY_THIS_GAME` | 19 | 18 | WX08-015, WX10-011, WX24-P4-036 | このゲームの間、グロウ不可・キーワード付与・特定カード名の使用禁止などの常在効果を得る |
 | `DECLARE_CARD_NAME` | 18 | 16 | PR-257, WX10-068, WX11-037 | カード名宣言（手札のカード名から選択） |
-| `LRIG_UNDER_CARD_OP` | 18 | 17 | WD23-022-E, WDK09-015, WDK17-015 | ルリグデッキ下操作（多パターン） |
+| `LRIG_UNDER_CARD_OP` | 18 | 17 | WD23-022-E, WDK09-015, WDK17-015 | `underCardOp` が指す操作を1つだけ行う。 |
 | `TARGET_AND_DISCARD_HAND` | 17 | 16 | PR-195, WX18-033, WX19-Re18 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
-| `COPY_LRIG_NAME_ABILITY` | 16 | 16 | WX24-P4-011, WX24-P4-012, WX24-P4-013 | ルリグトラッシュのルリグ名/タイプを現在のルリグに追加 |
+| `COPY_LRIG_NAME_ABILITY` | 16 | 16 | WX24-P4-011, WX24-P4-012, WX24-P4-013 | ルリグトラッシュのルリグ名を現在のルリグに追加する（能力コピーは |
 | `COUNT_BASED_DRAW_OR_POWER` | 15 | 15 | WX19-Re18, WX24-P3-074, WX25-P3-084 | カウント基準ドロー/パワー（lastProcessedCardsの枚数だけドロー or パワー修正） |
 | `GRANT_QUOTED_ABILITY` | 15 | 14 | WX22-Re04, WX24-P1-042, WXDi-D04-011 | 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects） |
 | `ARTS_COST_REDUCTION_BY_CENTER_LRIG` | 14 | 14 | WX11-015, WXK05-002, WXK05-004 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |

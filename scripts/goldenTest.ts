@@ -2215,8 +2215,13 @@ test('SEND_TO_ENERGY 相手シグニ1: エナへ', () => {
 });
 test('DEPLOY_RESTRICT 配置数制限: 相手3体→超過1体トラッシュ＋配置数上限フラグ=2（WXK11-074）', () => {
   // 「このターン、対戦相手はシグニを2体までしか場に出せない（すでに3体以上→2体になるようにトラッシュ）」
+  // 🔴§5.3 `O-60` 第4バッチ（2026-08-26）＝**live の action をそのまま実行する**形へ直した。
+  //   旧版は `{type:'STUB', id:'DEPLOY_RESTRICT'}` を手で組み、engine が `sourceCardNum` の
+  //   **カード全文 regex** から上限と主語を読むことに依存していた＝**撤去した機構を固定する golden**
+  //   だった。live を通すと parser→payload→engine の経路ごと検証できる。
   const ctx = mkCtx({}, { signi: [fresh(), fresh(), fresh()], trash: 0 }, 'WXK11-074');
-  const r = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as unknown as EffectAction, ctx);
+  const liveAct = effectsMap.get('WXK11-074')!.find(e => e.effectId === 'WXK11-074-E1')!.action;
+  const r = run(liveAct, ctx);
   const cnt = r.otherState.field.signi.filter(s => s && s.length > 0).length;
   eq(cnt, 2, '相手シグニが2体になる');
   eq(r.otherState.signi_deploy_count_limit, 2, '配置数上限フラグ=2');
@@ -2275,9 +2280,12 @@ test('§6.3 H4 配置数予約の有効化: cap移動・3体→1体トリム／�
 test('§6.3 H4 DEPLOY_RESTRICT主語: 既存相手2件は不変／すべてのプレイヤーは両者へ適用', () => {
   const savedCursor = cursor;
   try {
+    // 🔴§5.3 `O-60` 第4バッチ＝主語は **payload（parser が原文の1文から取る）** で決まる。
+    //   旧版は手組みの裸 STUB で、engine が**カード全文を「。」で割って主語を探す**ことに依存していた。
     for (const cardNum of ['WXK11-074', 'WXDi-P05-024']) {
       const ctx = mkCtx({}, { signi: [fresh(), fresh(), fresh()], trash: 0 }, cardNum);
-      const r = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as EffectAction, ctx);
+      const act = effectsMap.get(cardNum)!.find(e => e.effectId === `${cardNum}-E1`)!.action;
+      const r = run(act, ctx);
       eq(r.otherState.signi_deploy_count_limit, 2, `${cardNum}: 相手cap=2`);
       eq(r.ownerState.signi_deploy_count_limit, undefined, `${cardNum}: 自分capなし`);
     }
@@ -2286,7 +2294,10 @@ test('§6.3 H4 DEPLOY_RESTRICT主語: 既存相手2件は不変／すべての�
       { signi: [fresh(), fresh(), fresh()], trash: 0 },
       'WXK06-004',
     );
-    const both = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as EffectAction, bothCtx);
+    // ⚠`WXK06-004-E1` は「センタールリグは以下の能力を得る」＝制限本体は **付与される【起】の中**にある。
+    const grantAct = effectsMap.get('WXK06-004')!.find(e => e.effectId === 'WXK06-004-E1')!.action as
+      unknown as { abilities: Array<{ action: EffectAction }> };
+    const both = run(grantAct.abilities[0].action, bothCtx);
     eq(both.ownerState.signi_deploy_count_limit, 2, '全プレイヤー: 自分cap=2');
     eq(both.otherState.signi_deploy_count_limit, 2, '全プレイヤー: 相手cap=2');
     eq(both.ownerState.field.signi.filter(Boolean).length, 2, '全プレイヤー: 自分を2体へトリム');
