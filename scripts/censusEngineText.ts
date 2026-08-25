@@ -35,12 +35,14 @@ const onlyId = (() => {
 
 // ── ratchet ─────────────────────────────────────────────────────────────────
 // 2026-08-26 の実測値。**増やしてはいけない**（減らしたらこの数値を下げる）。
-const BASELINE_SELF_TEXT = 137;
+const BASELINE_SELF_TEXT = 150;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
   file: string; line: number; handler: string; cls: 'SELF_TEXT' | 'OTHER_CARD' | 'COMMENT';
   varName: string | null; snippet: string; literals: string[];
+  /** この読み出し地点へ到達する条件（変数ごとの id 集合）。同一変数＝OR・別変数＝AND。 */
+  gates: Map<string, Set<string>>;
 };
 const rows: Row[] = [];
 const engineDir = join(root, 'src/engine');
@@ -159,7 +161,11 @@ for (const h of handlers.values()) {
   h.cards = [...(liveCards.get(h.handler) ?? [])].sort();
   for (const c of h.cards) {
     const t = textOf(c);
-    const miss = h.literals.some(l => {
+    // 🔴**miss ＝ 抽出したリテラルが「1本も」当たらない**（`some` ではなく `every`）。
+    //   ハンドラは同じ意味の言い回しを複数の regex で受けるのが普通なので、「1本外れた」を miss に
+    //   すると母集団がまるごと赤くなって計器として使えない（初版がこれで 359 件を誤検出した）。
+    //   1本も当たらない＝engine は原文から何も読めず**既定値へ落ちている**＝確実に危ない。
+    const miss = h.literals.length > 0 && h.literals.every(l => {
       try {
         if (l.startsWith('str:')) return !t.includes(l.slice(4));
         return !new RegExp(l.slice(3)).test(t);
