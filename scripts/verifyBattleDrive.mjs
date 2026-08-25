@@ -29762,6 +29762,145 @@ scenarios.b66TurnEndDelayInstalled = {
 };
 order.push('b66TurnEndDelayInstalled');
 
+// ── §5.3 O-62（続き661）＝「あなたの効果**１つ**によって」の原因限定 ──
+//
+// ■ 何を見るか
+//   `WXK10-076-E1`「【自】《ターン２回》：**あなたの効果１つによって**対戦相手のカードが１枚以上デッキに
+//   移動したとき、対戦相手のシグニ１体のパワーを－1000する。」
+//   🔴旧 live は原因限定が丸ごと落ちており（parser がリテラル「の効果によって」しか見ていなかった）、
+//   **相手の効果で相手のカードがデッキへ戻っても発火する**過剰トリガーだった。
+// ⚠**この巡でいちばん危ないのは過小側**＝`byOwnEffect` は `causeOwnerId` が届いていないと
+//   `effectCauseMatches` が false を返して**恒久 no-op** になる（`O-64`「委ね先が読んでいない」型）。
+//   ⇒ 実機では「**自分の効果**で相手のカードをデッキへ戻したら、ちゃんと発火する」ことを見る。
+//   （原因主体の弁別＝相手の効果では発火しない側は golden `O-62 engine` で固定した。）
+scenarios.b62MoveToDeckOwnEffect = {
+  title: 'O-62 WXK10-076-E1＝自分の効果で相手のカードがデッキへ移動したとき発火する（byOwnEffect が no-op 化していない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX08-004#1'],                     // Lv4/Limit11（限定なし）
+      'field.signi': [['WXK10-076#1'], null, null],     // watcher（Lv1・限定なし）
+      'hand': ['WXDi-P06-043#1', 'WD01-013#1'],         // 聖天 マルティエル（Lv1・コストなし・相手トラッシュ1枚をデッキの一番下へ）
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WX01-053#1'], null, null],      // -1000 の対象（P15000＝生き残る）
+      'trash': ['WD01-013#9', 'WD01-014#9'],            // デッキへ戻す原資
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始 guest.trash:', before?.guest?.trash, 'g pmods:', JSON.stringify(before?.guest?.powerMods));
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false; let picked = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b62MoveToDeckOwnEffect-${s}.png`, fullPage: true });
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+      if (!did && picked) did = await clickDecideNofM(page);
+      if (!did && !picked) {
+        const p0 = page.getByTestId('pick-0').first();
+        if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click({ timeout: 1200 }).catch(() => {}); did = 'pick-0'; picked = true; }
+      }
+      if (!did) did = await H.stdStep(['発動', '発動順序を確定', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const minus = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-'));
+      H.log(`  m2d[${s}] -> ${did ?? 'なし'} | gTrash=${st?.guest?.trash} g=${(st?.guest?.powerMods ?? []).join(',') || '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (minus) return { pass: true, detail: `自分の効果で相手カードがデッキへ→watcher 発火（g=${(st.guest.powerMods).join(',')} gTrash=${before?.guest?.trash}→${st?.guest?.trash}）` };
+      // 対象選択が2枚目を求めるケースに備えて picked を戻す
+      if (did === 'btn:決定(N/M)') picked = false;
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `watcher 未発火（gTrash=${before?.guest?.trash}→${fin?.guest?.trash} g=${(fin?.guest?.powerMods ?? []).join(',') || '-'}）＝byOwnEffect が恒久 no-op になった疑い` };
+  },
+};
+order.push('b62MoveToDeckOwnEffect');
+
+// ■ 否定形（PLAN §5-2″）＝`WX15-003-E1`「【自】：**アクセされている**あなたのシグニ１体が
+//   **あなたの効果以外によって**バニッシュされたとき、カードを１枚引いてもよい。」
+//   🔴旧 live は `triggerScope` 既定 self（＝ルリグ自身がバニッシュ）＋限定なしで、**構造的に一度も発火しなかった**。
+//   観測＝アクセ付きの味方シグニをバトルで失う（＝自分の効果**以外**）と手札が1枚増える。
+//   対照＝アクセが付いていなければ増えない（`banishedHadAcce`）。
+const b62AcceSpec = (withAcce) => ({
+  hostSet: {
+    'field.lrig': ['WX15-003#1'],                       // メル＝マティーニ（watcher 本体）
+    'field.signi': [['WD01-013#1'], null, null],        // 小剣 ククリ P3000（アタックして負ける側）
+    'field.signi_acce': [withAcce ? 'WD03-002#1' : null, null, null],
+    'field.signi_down': [false, false, false],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, null, ['WX01-053#1']],        // host zone0 の正面（2-0）に P15000＝バトルで勝つ
+    'field.signi_down': [false, false, false],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+const b62AcceDrive = (tag, withAcce, expectDraw) => async function drive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[0] ?? []).includes('WD01-013#1'); r++) {
+    await injectScenario(page, b62AcceSpec(withAcce));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+  }
+  const hand0 = before?.host?.hand ?? 0;
+  H.log(`  ${tag} 開始: hand=${hand0} acce=${JSON.stringify(before?.host?.fieldAcce)} hZone0=${JSON.stringify(before?.host?.fieldSigni?.[0])} gZone2=${JSON.stringify(before?.guest?.fieldSigni?.[2])}`);
+  if (!(before?.host?.fieldSigni?.[0] ?? []).includes('WD01-013#1')) {
+    return { pass: false, detail: `準備失敗＝アタッカーが載っていない（${JSON.stringify(before?.host?.fieldSigni)}）` };
+  }
+  let modalOpened = false; let banished = false; let last = before;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !banished) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-0');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    if (!did) did = await H.stdStep(['発動', '発動する', '引く', '確定', 'OK', 'はい']);
+    last = await H.queryState();
+    const gone = !(last?.host?.fieldSigni?.[0] ?? []).includes('WD01-013#1');
+    if (gone) banished = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hand=${hand0}→${last?.host?.hand} banished=${banished} phase=${last?.turnPhase ?? '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (banished && (last?.host?.hand ?? 0) > hand0) break;
+    if (banished && s > 8) break;
+  }
+  if (!banished) return { pass: false, detail: `前提崩れ＝アタッカーがバトルで失われていない（hZone0=${JSON.stringify(last?.host?.fieldSigni?.[0])}）` };
+  const drew = (last?.host?.hand ?? 0) > hand0;
+  const detail = `acce=${withAcce} バトルで失った後 hand=${hand0}→${last?.host?.hand}`;
+  return drew === expectDraw
+    ? { pass: true, detail: `${detail}＝期待どおり` }
+    : { pass: false, detail: `【O-62 回帰】${detail}＝${expectDraw ? 'アクセ付きなのに引けない（scope/否定形の配線漏れ）' : 'アクセ無しなのに引けた（banishedHadAcce が効いていない）'}` };
+};
+scenarios.b62AcceBanishDraws = {
+  title: 'O-62 WX15-003-E1＝アクセ付きの味方シグニを「自分の効果以外」で失うと引ける【成立】',
+  spec: b62AcceSpec(true),
+  drive: b62AcceDrive('b62AcceOn', true, true),
+};
+scenarios.b62AcceBanishNoAcce = {
+  title: 'O-62 対照＝アクセが付いていなければ引けない（banishedHadAcce）',
+  spec: b62AcceSpec(false),
+  drive: b62AcceDrive('b62AcceOff', false, false),
+};
+order.push('b62AcceBanishDraws', 'b62AcceBanishNoAcce');
+
+
 // ── §5.3 O-65 END ──
 
 // ── §5.3 O-66（続き655）＝ライフクロスのクラッシュ防止／回数制限 ──
