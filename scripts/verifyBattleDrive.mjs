@@ -29261,6 +29261,110 @@ scenarios.b65WallAttackPhaseNotProtected = {
 order.push('b65KeyTrashHighLife', 'b65KeyTrashLowLife', 'b65WallOppMainProtected', 'b65WallAttackPhaseNotProtected');
 // ── §5.3 O-65 END ──
 
+// ── §5.3 O-66（続き655）＝ライフクロスのクラッシュ防止／回数制限 ──
+//
+// ■ 何を見るか
+//   `WX20-032`「聖笏の威光　ハシュマル」＝**【常】：あなたのライフクロスは１ターンに１枚までしか
+//   クラッシュされない。（複数枚のライフクロスがクラッシュされる場合は１枚だけクラッシュされる）**
+//   ＝軸(c) 1ターンあたりの上限。**シグニアタックのダメージ経路（`crashOneLife`）**を実機で通す。
+//
+// ■ 盤面の作り（§4.4 の罠を織り込み済み）
+//   - 🔴**罠8e＝host と guest のゾーン index は「正面」で一致しない**（盤面が180度回っている）＝
+//     **中央（zone1）同士だけが対応する**。⇒ 宣言カードは **guest の中央**に置き、**host は両端（0・2）から
+//     アタック**する。両端の正面（guest zone2・zone0）は空なので**バトルにならず素通りでライフクラッシュ**する。
+//   - 🔴**罠1＝`field.check: null` を両者に必ず入れる**（前シナリオのクラッシュ確認モーダルを持ち越さない）。
+//   - ライフは **LB=0 のバニラ**（`WD01-013`）で埋める＝ライフバーストが割り込んで観測が濁らない。
+//
+// ■ 対照（🔑罠3＝負方向は必ず対照とセット）
+//   宣言カードを**バニラの `WD01-013` に差し替えるだけ**（盤面は1文字も変えない）＝
+//   **ライフが2枚減れば「アタックは2回とも通っている」**ことの直接証拠になり、
+//   本命の「1枚しか減らない」が**「攻撃が1回しか起きていないだけ」ではない**と言い切れる。
+//   ⚠この対照が無いと、アタックが1回しか成立していない盤面でも本命は緑になる（罠4）。
+const B66_CAP_SIGNI = 'WX20-032#1';                  // 聖笏の威光 ハシュマル（【常】1ターンに1枚まで）
+const B66_VANILLA = 'WD01-013#1';                    // 小剣 ククリ（EffectText='-'＝完全バニラ＝対照）
+const b66Spec = (centerCard) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [['WD01-013#11'], null, ['WD01-013#12']],   // 両端からアタック（中央は空＝正面のぶつかりを作らない）
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [],
+    'actions_done': [],
+    'attacked_signi_ids': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [null, [centerCard], null],                 // 宣言は**中央**（＝host 中央とだけ正面が合う）
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    // LB=0 のバニラで埋める＝ライフバーストが割り込まない
+    'life_cloth': ['WD01-013#31', 'WD01-013#32', 'WD01-013#33', 'WD01-013#34'],
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b66Drive = (tag, expectDrop) => async function drive(page, H) {
+  const before = await H.queryState();
+  H.log(`  ${tag} 開始: guest.life=${before?.guest?.life} guest.field=${JSON.stringify(before?.guest?.fieldSigni)} host.field=${JSON.stringify(before?.host?.fieldSigni)}`);
+  const lifeBefore = before?.guest?.life ?? 0;
+  if (lifeBefore < 3) return { pass: false, detail: `前提崩れ＝guest のライフが ${lifeBefore} 枚しかない（2回クラッシュを観測できない）` };
+  // ⚠罠8p＝同じゾーンを毎ティック押すとモーダルが開閉してアタックに到達しない。**1ゾーン1回だけ**開く。
+  const opened = new Set();
+  let attacks = 0;
+  let minLife = lifeBefore;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+    if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+    // アタックボタン（モーダルが開いているとき）
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacks++;
+      }
+    }
+    // 未アタックのゾーンを1つ開く（0 → 2 の順）
+    if (!did) {
+      const st0 = await H.queryState();
+      if (st0?.turnPhase === 'ATTACK_SIGNI' && !st0?.pendingEffect) {
+        for (const zi of [0, 2]) {
+          if (opened.has(zi)) continue;
+          const o = await H.clickTestId(`my-signi-zone-${zi}`);
+          if (o) { opened.add(zi); did = `open:zone${zi}`; break; }
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['エナに送る', 'トラッシュに置く', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', '使用しない', 'いいえ', 'スキップ']);
+    const st = await H.queryState();
+    // 🔑罠8d＝判定は sticky（最小値を保持）＝この後の回復やリフレッシュで戻っても下げない
+    if ((st?.guest?.life ?? 99) < minLife) minLife = st.guest.life;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | gLife=${st?.guest?.life}(開始${lifeBefore} 最小${minLife}) attacks=${attacks} opened=${[...opened]} gField=${JSON.stringify(st?.guest?.fieldSigni)} phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'}`);
+    if (opened.size === 2 && attacks >= 2 && (lifeBefore - minLife) >= expectDrop) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  const drop = lifeBefore - minLife;
+  // ⚠**「2回アタックした」ことを必須条件にする**（罠4）＝1回しか撃てていない盤面では
+  //   「1枚しか減らない」が上限のせいなのか攻撃回数のせいなのか区別できない＝何も検証していない。
+  if (attacks < 2) return { pass: false, detail: `前提崩れ＝アタックが${attacks}回しか成立していない（opened=${[...opened]}）＝上限の検証になっていない` };
+  const detail = `guest.life ${lifeBefore}→${minLife}（減少${drop}枚／アタック${attacks}回・開いたゾーン=${[...opened]}）`;
+  return drop === expectDrop
+    ? { pass: true, detail: `${detail}＝期待どおり${expectDrop === 1 ? '1枚で打ち止め（1ターンに1枚まで）' : '上限なしで2枚クラッシュ'}` }
+    : { pass: false, detail: `【回帰疑い】${detail}＝期待${expectDrop}枚。${expectDrop === 1 ? 'クラッシュ上限が効いていない（過剰実行＝守り札が無視されている）' : '宣言が無いのにクラッシュが止まった（過剰防御＝ゲートが無条件に効いている）'}` };
+};
+scenarios.b66LifeCrashCapOnce = {
+  title: 'WX20-032（【常】1ターンに1枚までしかクラッシュされない）＝2回アタックしてもライフは1枚だけ減る【成立】',
+  spec: b66Spec(B66_CAP_SIGNI),
+  drive: b66Drive('b66CapOnce', 1),
+};
+scenarios.b66LifeCrashCapControl = {
+  title: 'WX20-032 を**バニラに差し替えただけ**の対照＝同じ2回アタックでライフが2枚減る（＝攻撃は2回とも通っている証拠）',
+  spec: b66Spec(B66_VANILLA),
+  drive: b66Drive('b66CapControl', 2),
+};
+order.push('b66LifeCrashCapOnce', 'b66LifeCrashCapControl');
+// ── §5.3 O-66 END ──
+
 
 
 

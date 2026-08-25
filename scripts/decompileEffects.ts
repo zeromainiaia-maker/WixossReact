@@ -3140,6 +3140,24 @@ function actionJa(a?: Action, effectType?: string): string {
           return `あなたのルリグデッキにあるコストの合計が${numJa(exSpec.minTotalCost ?? 0)}以上のアーツ${numJa(exSpec.count)}枚をゲームから除外してもよい。そうした場合、このターン、シグニアタックステップをスキップする`;
         }
       }
+      // 🆕§5.3 `O-66`（2026-08-25）＝ライフクラッシュ防止／回数制限は**構造から復元する**
+      //   （上の `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` と同じ理由＝固定文にすると
+      //   parser が別の軸・別の枚数を載せたときに逆翻訳が黙って嘘をつき、原文照合の計器が死ぬ）。
+      //   軸は3つ＝全面防止／「ダメージ以外」限定／1ターンあたりの上限。
+      if (a.id === 'LIFE_CRASH_PREVENTION') {
+        const lcp = (a as { lifeCrashPrevention?: {
+          scope: string; maxPerTurn?: number; protects: string; whileFewerLifeThanOpponent?: boolean;
+        } }).lifeCrashPrevention;
+        if (lcp) {
+          const whose = lcp.protects === 'each_player' ? '各プレイヤーの' : 'あなたの';
+          const unless = lcp.whileFewerLifeThanOpponent ? 'あなたのライフクロスが対戦相手より少ないかぎり、' : '';
+          if (lcp.maxPerTurn !== undefined) {
+            return `${whose}ライフクロスは1ターンに${numJa(lcp.maxPerTurn)}枚までしかクラッシュされない`;
+          }
+          const except = lcp.scope === 'EXCEPT_DAMAGE' ? 'ダメージ以外によっては' : '';
+          return `${unless}${whose}ライフクロスは${except}クラッシュされない`;
+        }
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
@@ -3147,10 +3165,10 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_CONVERT_ENERGY_COLOR: '【未実装】【コンバート《色》】（エナコストを支払う際、このカードはその色として支払える）',
         DEFERRED_ATTACK_WHILE_DOWN: '【未実装】このシグニはダウン状態でもアタックできる',
         DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN: '【未実装】このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失い、このシグニをダウンする',
-        // 🆕§5.3 `O-65`（2026-08-25）＝「ライフクロスは〜クラッシュされない／N枚までしかクラッシュされない」。
-        //   受け皿が engine に1つも無い新機構（`O-66`）。旧 parser は**正反対の `LIFE_CRASH` へ化けていた**ので、
-        //   黙って逆をやるより明示 defer のほうが安全（実測6効果・うち2件はアーツで実害があった）。
-        DEFERRED_LIFE_CRASH_PREVENTION: '【未実装】ライフクロスのクラッシュを防ぐ／回数を制限する（O-66 待ち）',
+        // 🆕§5.3 `O-66`（2026-08-25）で実装（`O-65` の明示 defer を解体）。**通常は上の payload 復元が描く**＝
+        //   ここへ落ちるのは `lifeCrashPrevention` を持たない宣言だけで、そのとき消費側は宣言ごと無視する
+        //   （fail-closed）。**「防いでいるように見えて実際は何もしない」ことを表示でも隠さない。**
+        LIFE_CRASH_PREVENTION: '【※ペイロード欠落】ライフクロスのクラッシュ防止（消費側は無視する＝効果なし）',
         // §6.4 O-32（続き501）
         PLACE_TRASH_SIGNI_FACING_SAME_POWER: 'あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーのシグニを１枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す',
         // ⚠engine 本体は §6.4 O-32 で撤去済み（正準形は `REPEAT`）。残るのは `WX22-016-E1` の

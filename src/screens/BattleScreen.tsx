@@ -142,6 +142,7 @@ import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
 import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
+import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../engine/lifeCrashGate';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../engine/blockAction';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
@@ -1093,6 +1094,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ⚠**ExecCtx を作るところでは必ずこれを呼ぶこと**＝`ctx.effectsMap` はスタック解決の1経路でしか
   //   代入されないため、engine 側の配置制限を effectsMap 依存にすると「engine は正しいのに実UIでは
   //   丸ごと効かない」dead flag になる（続き296 と同じ罠）。AUTO フラグ版は PlayerState に載るので不要。
+  // 🆕**§5.3 O-66（2026-08-25）＝ライフクラッシュ防止の宣言も同じ理由でここへ載せる。**
+  //   `LIFE_CRASH`（効果によるクラッシュ）は engine 側で解決されるので、盤面走査を engine に置くと
+  //   同じ dead flag を踏む。**「ダメージ以外によってはクラッシュされない」が効くのは効果経路だけ**
+  //   なので、ここを埋め忘れると `WX19-046-E2` / `WD13-010-E1`① が丸ごと無効になる。
   const fillDeployCaps = (c: ExecCtx): ExecCtx => {
     c.deployCountCapSelf = deployCountCap({
       placingState: c.ownerState, opponentState: c.otherState,
@@ -1103,6 +1108,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       cardMap: battleCardMap, effectsMap,
       isPlacingOwnerTurn: c.isOwnerTurn === undefined ? undefined : !c.isOwnerTurn,
     });
+    c.lifeCrashPreventionsSelf = collectLifeCrashPreventions(
+      c.ownerState, c.otherState, c.isOwnerTurn ?? false, battleCardMap, effectsMap);
+    c.lifeCrashPreventionsOpponent = collectLifeCrashPreventions(
+      c.otherState, c.ownerState, c.isOwnerTurn === undefined ? false : !c.isOwnerTurn, battleCardMap, effectsMap);
     return c;
   };
 
@@ -8333,11 +8342,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ライフクロスを1枚クラッシュし、チェック状態にする
   // returns: crashed=null + prevented=true → ダメージ無効、crashed=null + !prevented → ライフなし（即勝利判定）
+  // 🆕**§5.3 O-66（2026-08-25）＝`victim` を明示的に受け取る。** クラッシュ防止の判定には
+  //   ①**相手側の盤面**（`WXK11-016-E1`「各プレイヤーの」は**相手の場のキー**に載っていても自分を守る）
+  //   ②**被害側がターンプレイヤーか**（`WX19-046-E2`「対戦相手のターンの間」）の2つが要る。
+  //   この関数は victim 側の state しか受け取っていなかったので、**引数で渡すしかない**
+  //   （参照比較で相手を当てにいくと、更新済みコピーが渡る呼び出し側で必ず外れる）。
   const crashOneLife = (
     state: PlayerState,
+    victim: { opponent: PlayerState; isTurnPlayer: boolean },
     damageSource?: DamageSourceContext,
     crashSourceCardNum?: string,
   ): { newState: PlayerState; crashed: string | null; prevented?: boolean; crashOpponentInstead?: number } => {
+    // §5.3 O-66: ライフクラッシュ防止／回数制限（**シグニアタックのダメージ**＝cause:'damage'）。
+    // ⚠**回数無制限の防御なので、消費型（バリア／prevent_next_damage／置換ミル）より先に判定する**
+    //   （`lrigDamageShield` と同じ規約＝後ろに置くと、防げる状況でも限りある資源が先に減る）。
+    // ⚠「ダメージ以外によってはクラッシュされない」は**ここでは効かない**（アタックのダメージは通す）。
+    {
+      const preventions = collectLifeCrashPreventions(
+        state, victim.opponent, victim.isTurnPlayer, battleCardMap, effectsMap);
+      if (allowedLifeCrashCount(state, victim.opponent, preventions, 'damage', 1) <= 0) {
+        appendBattleLogs([`ライフクロスはクラッシュされない（クラッシュ防止）`]);
+        return { newState: state, crashed: null, prevented: true };
+      }
+    }
     // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
     // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
     if (hasActivePreventDamageWindow(state, 'ALL')) {
@@ -9164,7 +9191,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               // 置換効果であってコストではないので、クラッシュが別の置換/無効化に阻まれても victim は場に残る。
               // crashOneLife は field.check を立てる＝ライフバースト確認フローへ通常どおり乗る。
               let afterCrash: PlayerState = { ...opS, banish_substitute_choice: undefined, pending_banish_substitute: undefined };
-              for (let i = 0; i < pc.amount; i++) afterCrash = crashOneLife(afterCrash).newState;
+              for (let i = 0; i < pc.amount; i++) {
+                afterCrash = crashOneLife(afterCrash,
+                  { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }).newState;
+              }
               newOpState = afterCrash;
               appendBattleLogs([`身代わり：ライフクロス${pc.amount}枚をクラッシュして${opCardName}のバニッシュを回避`]);
             } else if (pc.costType === 'discardSpell') {
@@ -9444,12 +9474,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (lancerApplies) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
+            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
             if (crashOpponentInstead) {
               // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」＝
               // 置換した側（防御側）から見た「対戦相手」＝**アタックしている自分**のライフを割る。
               newOpState = afterCrash;
-              for (let i = 0; i < crashOpponentInstead; i++) newMyState = crashOneLife(newMyState).newState;
+              for (let i = 0; i < crashOpponentInstead; i++) newMyState = crashOneLife(newMyState, { opponent: newOpState, isTurnPlayer: bs.active_user_id === user.id }).newState;
             } else if (prevented) {
               appendBattleLogs([`${label}：ダメージ無効`]);
               newOpState = afterCrash;
@@ -9585,12 +9615,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
         if (firstCrashOpp) {
           // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」（WX25-P3-004）。
           // ⚠置換した側から見た「対戦相手」＝**アタックしている自分**なので、割れるのは自分のライフ。
           newOpState = afterFirst;
-          for (let i = 0; i < firstCrashOpp; i++) newMyState = crashOneLife(newMyState).newState;
+          for (let i = 0; i < firstCrashOpp; i++) newMyState = crashOneLife(newMyState, { opponent: newOpState, isTurnPlayer: bs.active_user_id === user.id }).newState;
         } else if (firstPrevented) {
           appendBattleLogs([`${myCardName}がアタック：ダメージ無効`]);
           newOpState = afterFirst;
@@ -11953,11 +11983,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // §6.4 O-3 続き492: 判定は `resolveLrigDamageShield` 1本（期間ウィンドウ＋【常】宣言をまとめて見る）。
         // ⚠🔴従来ここは期間ウィンドウだけで、【常】版は**消費型のさらに後ろ**かつ**自分のシグニしか
         //   走査しない**インライン判定だった（ルリグ本体・アシスト・キーの宣言が丸ごと無視されていた）。
+        // §5.3 O-66: ライフクラッシュ防止／回数制限（**ルリグアタックのダメージ**＝cause:'damage'）。
+        // 🔴**この経路は `crashOneLife` を通らない**（インラインでライフを削る）＝ここへ書かないと
+        //   「シグニアタックは防げるのにルリグアタックは素通り」という無言の不整合になる。
+        // ⚠ルリグアタックは常に相手のターン中＝防御側 `my` は**ターンプレイヤーではない**。
+        const lifeCrashPrevented = allowedLifeCrashCount(
+          my, op,
+          collectLifeCrashPreventions(my, op, false, battleCardMap, effectsMap),
+          'damage', 1,
+        ) <= 0;
         const lrigShield = resolveLrigDamageShield({
           defender: my, attacker: op, cardMap: battleCardMap, effectsMap,
           attackingLrigNum: opLrigNum ?? undefined,
         });
-        if (lrigShield.prevented) {
+        if (lifeCrashPrevented) {
+          appendBattleLogs([`ルリグアタック：ライフクロスはクラッシュされない（クラッシュ防止）`]);
+          newMyState = { ...my, field: { ...my.field, lrig_attacked: false } };
+        } else if (lrigShield.prevented) {
           appendBattleLogs([`ルリグアタック：ダメージ無効（ダメージを受けない効果）`]);
           // §6.4 O-10（続き507）＝「代わりにダメージを受けず、ターン終了時まで、この能力を失う」
           // （`WXK01-002-E1`）は**1回だけ**。刻まないと同ターン中の2回目以降も防いで無限バリアになる。
@@ -12017,6 +12059,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newMyState = {
             ...my,
             life_cloth: lifeAfterCrash,
+            // 🔴**§5.3 O-66 で発見した既存バグ**＝この経路だけ `life_crashed_this_turn` を加算していなかった
+            //   （シグニアタックの `crashOneLife`・効果の `execLifeCrash`・ライフコストの3本は加算済み）。
+            //   ⇒ ①既存の `LIFE_CRASHED_THIS_TURN` 条件が**ルリグアタックのダメージを数えていなかった**
+            //     ②`O-66` の「1ターンにN枚まで」が**ルリグアタックだけ素通り**する。
+            //   ⚠ダブル／トリプルクラッシュの追加分も枚数に含める（`my.life_cloth` からの実減少数を数える）。
+            life_crashed_this_turn:
+              (my.life_crashed_this_turn ?? 0) + (my.life_cloth.length - lifeAfterCrash.length),
             pending_crashed_cards: pendingAfterCrash,
             crash_source_card_num: op.field.lrig.at(-1),
             pending_crash_source_card_nums: pendingAfterCrash.map(() => op.field.lrig.at(-1) ?? null),

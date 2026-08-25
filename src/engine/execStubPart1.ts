@@ -419,6 +419,26 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、次のダメージを1回無効'));
   }
+  // LIFE_CRASH_PREVENTION: 「このターン、あなたのライフクロスは（ダメージ以外によっては）クラッシュされない」
+  // ＝ライフクロスのクラッシュ防止／回数制限（§5.3 O-66）。判定は engine/lifeCrashGate.ts の1本。
+  // ⚠ここへ来るのは**アーツ等の INSTANT 宣言だけ**＝【常】は `executeAction` を通らないので
+  //   `collectLifeCrashPreventions` が盤面から直接読む（両方見ないと片方だけ効く）。
+  // ⚠ペイロードが無い宣言は**何もしない**（fail-closed）＝parser が落としたときに
+  //   「あらゆるダメージを無効化する」側へ倒さない。
+  if (stub.id === 'LIFE_CRASH_PREVENTION') {
+    const spec = stub.lifeCrashPrevention;
+    if (!spec) return done(ctx);
+    const newOwner = {
+      ...ctx.ownerState,
+      life_crash_preventions_this_turn: [...(ctx.ownerState.life_crash_preventions_this_turn ?? []), spec],
+    };
+    const label = spec.maxPerTurn !== undefined
+      ? `このターン、あなたのライフクロスは${spec.maxPerTurn}枚までしかクラッシュされない`
+      : spec.scope === 'EXCEPT_DAMAGE'
+        ? 'このターン、あなたのライフクロスはダメージ以外によってはクラッシュされない'
+        : 'このターン、あなたのライフクロスはクラッシュされない';
+    return done(addLog({ ...ctx, ownerState: newOwner }, label));
+  }
   // SET_NEXT_LIFE_CRASH_COUNTER: 「次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスをクラッシュする」
   // 防御用カウンタークラッシュをセット（WX25-P1-004 / WXDi-P12-030）。perTrigger=value(既定1)、remaining=1。
   if (stub.id === 'SET_NEXT_LIFE_CRASH_COUNTER') {

@@ -23,7 +23,7 @@ WixossカードゲームのReactクローン実装。
 - `npm run regen` — **decompileシート全10枚＋下流（genReviewRepr/groupSimilar/groupBySentence）を一括再生成（UTF-8直書き）**。旧手順の「⚠Bash の `>` で1枚ずつリダイレクト」は不要（PowerShell の `>` が UTF-16 を書いて下流を壊す事故を構造的に回避。下流3スクリプトには UTF-16 混入ガードもあり、混入時は即 exit 1）
 - `npm run typecheck` — 型チェック（CIと同じ／必須）
 - `npm run smoke` — 全効果10582件を自動実行し CRASH/HANG/INVARIANT 検出（現状 全0）
-- `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（現状 123/123 PASS）
+- `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（**現状 2770/2770 PASS・全件 約89秒**）。🆕**2026-08-25＝テスト名フィルタを追加**＝`npm run golden -- --only "<部分文字列>"` で絞れる（**約1.5秒**・複数指定可＝OR・名前一覧は `npm run golden -- --list`・0件マッチは exit 1）。🔴**フィルタ実行の PASS/FAIL は全件実行と等価ではない**（`goldenTest.ts:155` の POOL カーソルがテスト間で共有される可変状態＝スキップすると後続テストが引くカードが変わり**両方向に化けうる**）＝**1巡を閉じる前に必ずフィルタなしで全件を回す**（PLAN §2.1 ④）。⚠`npm run gates`・CI は常に全件
 - `npm run fuzz` — 乱択 自己対戦ファズ＝進化盤面で効果連鎖し相互作用/複製バグ検出（現状 全0・シード再現可）
 - `npm run census` — 語彙センサス＝過剰効果/幻覚の両方向計器（高シグナル1872ベースライン・超過で exit 1）。消化は `npm run census:clusters`（文型クラスタ表）→parser規則→`npm run build:effects`→`node scripts/heldReview.mjs` 一括採用（手順は PLAN.md §5c・§4「次の一手」）
 - **`npm run census:timing`** — **timing 語彙センサス（2026-07-12新設）＝「【自】なのに timing 判定が全て外れて `ON_PLAY`（＝場に出たとき）へフォールバックした効果」**を原文トリガー句でクラスタリング（`docs/_timing_census.txt`）。**engine に収集関数があるのに parser がその timing を生成していない穴**を炙り出す計器＝上位クラスタは parser に regex 1本足すだけで直ることが多い（PLAN §3 Opusタスク16）。ゲートではない（exit 0）

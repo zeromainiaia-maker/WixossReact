@@ -2986,10 +2986,33 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   **自分のライフが1枚割れる**（`WDK17-009-E2` の「条件を行動として読む」と同じ根＝`O-65`）。
   // ⚠**「対戦相手」を含むだけで owner を反転させる**のもここの穴＝`WXK11-016-E1`「各プレイヤーの…」は
   //   `対戦相手` を含まないので self になっていた（owner の推定自体が原文を読めていない）。
-  // 🔑**クラッシュ防止／回数制限そのものは engine に受け皿が1つも無い**（`grep クラッシュされない src/` が0件）＝
-  //   新機構なので `DEFERRED_` 宣言へ倒し（CLAUDE.md の `census:stubs` 方針）、実装は §5.3 `O-66` へ登録した。
+  // 🆕**§5.3 `O-66`（2026-08-25）＝`DEFERRED_` を実装に置き換えた。** 判定は `engine/lifeCrashGate.ts` の1本。
+  // ⚠**ペイロードを落とすと消費側が宣言ごと無視する**（fail-closed）＝「効かない」で済み、
+  //   「あらゆるダメージを無効化する」側へは倒れない。原文の軸は3つ：
+  //   (a) 全面防止（`WD06-008-E1`／`SP38-002-E1`）(b)「ダメージ以外」限定（`WD13-010-E1`／`WX19-046-E2`）
+  //   (c) 1ターンあたりの上限（`WX20-032-E1` の1枚／`WXK11-016-E1` の2枚）
   if (t.includes('ライフクロス') && /クラッシュされな|しかクラッシュされ/.test(t)) {
-    return { type: 'STUB', id: 'DEFERRED_LIFE_CRASH_PREVENTION' } as StubAction;
+    // 🔴「各プレイヤーの」＝相手の場のキーに載っていても**自分のライフを守る**（`WXK11-016-E1`）。
+    //   ここを self に潰すと「自分が置いたときだけ効く」片側実装になる。
+    const protects = /各プレイヤーの[^。]*ライフクロス/.test(t) ? 'each_player' as const : 'self' as const;
+    const capM = t.match(/([０-９\d]+)枚までしかクラッシュされ/);
+    if (capM) {
+      // 回数制限型＝`scope` は消費側が見ない（原文が全面防止と併記されることはない）。
+      return {
+        type: 'STUB', id: 'LIFE_CRASH_PREVENTION',
+        lifeCrashPrevention: { scope: 'ALL', maxPerTurn: parseNum(capM[1]), protects },
+      } as StubAction;
+    }
+    return {
+      type: 'STUB', id: 'LIFE_CRASH_PREVENTION',
+      lifeCrashPrevention: {
+        // ⚠**「ダメージ以外によって（は）」＝効果によるクラッシュだけ防ぐ**。逆に読むと守りが攻撃に化ける（`O-65`）。
+        scope: /ダメージ以外/.test(t) ? 'EXCEPT_DAMAGE' as const : 'ALL' as const,
+        protects,
+        // 「あなたのライフクロスが対戦相手より少ないかぎり」（`SP38-002-E1`）＝クラッシュのたびに再評価する動的条件。
+        ...(/ライフクロスが対戦相手より少ないかぎり/.test(t) ? { whileFewerLifeThanOpponent: true } : {}),
+      },
+    } as StubAction;
   }
 
   // ---- ライフクロスをクラッシュ ----

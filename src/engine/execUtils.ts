@@ -77,6 +77,13 @@ export interface ExecCtx {
   //   AUTO フラグ版（`PlayerState.signi_deploy_count_limit`）は state に載るのでこの経路は不要。
   deployCountCapSelf?: number;      // ownerState が場に出すときの上限
   deployCountCapOpponent?: number;  // otherState が場に出すときの上限
+  // LIFE_CRASH_PREVENTION（§5.3 O-66）＝「ライフクロスは〜クラッシュされない／N枚までしか
+  // クラッシュされない」の宣言を、**クラッシュされる側ごとに**事前計算して渡す。
+  // ⚠**上の `deployCountCap*` と同じ理由でここへ置く**＝`ctx.effectsMap` は BattleScreen の一部経路でしか
+  //   代入されないので、盤面走査を engine 側で直接やると「engine は正しいのに実UIでは丸ごと効かない」
+  //   dead flag になる。合成は `engine/lifeCrashGate.ts` の `collectLifeCrashPreventions`。
+  lifeCrashPreventionsSelf?: import('../types').LifeCrashPreventionSpec[];
+  lifeCrashPreventionsOpponent?: import('../types').LifeCrashPreventionSpec[];
   // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY:
   // 相手効果でフィールドから移動（バウンス/トラッシュ）できないシグニ番号
   otherTrashFieldProtectedNums?: string[];

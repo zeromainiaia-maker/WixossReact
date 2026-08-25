@@ -457,6 +457,14 @@ export interface PlayerState {
    */
   life_crash_replacements?: LifeCrashReplacement[];
   /**
+   * 「**このターン**、あなたのライフクロスは（ダメージ以外によっては）クラッシュされない」＝アーツ由来の
+   * クラッシュ防止宣言（§5.3 `O-66`）。判定は `engine/lifeCrashGate.ts` の1本を通す。
+   * ⚠**【常】の宣言はここに載らない**（CONTINUOUS は `executeAction` を通らない）＝盤面走査側が読む。
+   *   両方を見ないと「アーツだけ効く／【常】だけ効く」型の無言の不整合になる。
+   * ターン境界でクリアする（`turnScopedState.ts` に登録済み）。
+   */
+  life_crash_preventions_this_turn?: LifeCrashPreventionSpec[];
+  /**
    * 「ターン終了時、（その）レゾナを場からルリグデッキに戻す」（`WX07-050`／`WX16-Re18`）の対象。
    * ⚠**戻し先はトラッシュではなくルリグデッキ**＝`turn_end_field_trash_targets` を流用しない。
    * 解決は `screens/battle/turnEndLrigDeckReturn.ts` の funnel 1本（ターン終了処理は2経路ある）。
@@ -1111,6 +1119,40 @@ export interface PlayerState {
 }
 
 /** ライフクラッシュ置換1件ぶんの宣言（`PlayerState.life_crash_replacements`）。 */
+/**
+ * 「ライフクロスは〜**クラッシュされない**／N枚まで**しかクラッシュされ**ない」＝**クラッシュの防止・回数制限**
+ * （§5.3 `O-66`・2026-08-25）。
+ *
+ * ⚠**置換（`LifeCrashReplacement`）とは別軸**＝置換は「クラッシュの**代わりに**別のことをする」、
+ *   こちらは「**クラッシュそのものが起きない**」。判定は `engine/lifeCrashGate.ts` の1本に寄せてある。
+ * ⚠**宣言の在庫が2つある**＝アーツ（「このターン、〜」）は `PlayerState.life_crash_preventions_this_turn` へ積み、
+ *   【常】は**盤面から毎回読む**（CONTINUOUS は `executeAction` を通らないので state に積めない）。
+ */
+export interface LifeCrashPreventionSpec {
+  /**
+   * 防ぐ範囲。`ALL`＝あらゆるクラッシュ／`EXCEPT_DAMAGE`＝「**ダメージ以外**によってはクラッシュされない」
+   * ＝効果によるクラッシュだけ防ぎ、**ルリグ／シグニのアタックによるダメージは通す**。
+   * ⚠**逆に読むと守りが攻撃に化ける**（`O-65` で実際に起きた事故）＝「ダメージ以外」は
+   *   「ダメージだけ防ぐ」ではない。
+   */
+  scope: 'ALL' | 'EXCEPT_DAMAGE';
+  /**
+   * 「１ターンに**N枚までしか**クラッシュされない」＝ターン内の上限（`WX20-032-E1` の1／`WXK11-016-E1` の2）。
+   * ⚠**`scope` の全面防止とは併用しない**（原文がどちらか一方）。上限型は `scope` を無視する。
+   * ⚠**全か無かではない**＝原文注記「（複数枚のライフクロスがクラッシュされる場合は１枚だけクラッシュされる）」
+   *   のとおり**枚数を切り詰める**。1枚も通さない実装にすると過剰防御になる。
+   */
+  maxPerTurn?: number;
+  /** 誰のライフクロスを守るか。`each_player`＝「**各プレイヤーの**ライフクロスは」（`WXK11-016-E1`）＝相手側にも効く。 */
+  protects: 'self' | 'each_player';
+  /**
+   * 「あなたのライフクロスが**対戦相手より少ないかぎり**」（`SP38-002-E1`）＝**クラッシュのたびに再評価**する
+   * 動的条件。宣言時に1度だけ判定して焼き込むと、ライフが減って条件を満たした後に効かない／
+   * 満たさなくなった後も効き続けるの両方向に外れる。
+   */
+  whileFewerLifeThanOpponent?: boolean;
+}
+
 export interface LifeCrashReplacement {
   /**
    * 置換の中身。`mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ／

@@ -65,6 +65,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_by_signi_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi life crash total for the current turn' },
   // ライフクラッシュ累計は終了時に last_turn へ写し、現在ターン分を破棄する。
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
+  // 「このターン、あなたのライフクロスはクラッシュされない」＝アーツ由来のクラッシュ防止宣言（§5.3 O-66）。
+  // ⚠**【常】の宣言はここに載らない**（盤面から毎回読む）＝失効させるのはアーツ由来だけでよい。
+  life_crash_preventions_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'arts-declared life crash prevention lasting for the current turn' },
   // コイン支払い累計は、ターン単位の条件カウンタ。
   coins_paid_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'coin payments made during the current turn' },
   // 「それがこのターンでN回目である場合」（`WX05-042`・§6.4 O-11）の台帳。**両プレイヤーぶん**を

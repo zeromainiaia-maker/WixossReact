@@ -20,6 +20,7 @@ export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSi
 import { activeOppMoveImmunityZones, checkActiveCondition, collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
+import { allowedLifeCrashCount } from './lifeCrashGate';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
@@ -2195,8 +2196,23 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
     return done(ctx);
   }
-  const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
+  // §5.3 O-66: クラッシュ防止／回数制限のゲート（**効果によるクラッシュ**＝cause:'effect'）。
+  // 🔴「ダメージ以外によってはクラッシュされない」（`WX19-046-E2`／`WD13-010-E1`①）が効くのは**この経路だけ**
+  //   ＝アタックのダメージは通す。3つある実行地点のうちここを通し忘れると守り札が丸ごと効かない。
+  // ⚠**全か無かにしない**＝上限型は枚数を切り詰める（`WX20-032` の原文注記）。
+  const victimIsSelf = a.owner !== 'opponent';
+  const wanted = resolveNum(a.count);
+  const count = allowedLifeCrashCount(
+    state,
+    victimIsSelf ? ctx.otherState : ctx.ownerState,
+    (victimIsSelf ? ctx.lifeCrashPreventionsSelf : ctx.lifeCrashPreventionsOpponent) ?? [],
+    'effect',
+    wanted,
+  );
+  if (count <= 0) {
+    return done(addLog(ctx, `ライフクロスはクラッシュされない（クラッシュ防止）`));
+  }
   const crashed: string[] = [];
   const life = [...state.life_cloth];
   for (let i = 0; i < count && life.length > 0; i++) {

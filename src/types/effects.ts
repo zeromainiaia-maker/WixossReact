@@ -2800,6 +2800,14 @@ export interface SetCardCostReplacementAction {
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
   /**
+   * `LIFE_CRASH_PREVENTION`（§5.3 `O-66`・2026-08-25）＝「ライフクロスは〜クラッシュされない／
+   * N枚までしかクラッシュされない」の中身。
+   * ⚠**このペイロードが無い `LIFE_CRASH_PREVENTION` は「全面防止」に化ける**ので、
+   *   消費側（`engine/lifeCrashGate.ts`）は**ペイロードが無い宣言を無視する**（fail-closed）。
+   *   parser が payload を落としたら「効かない」で済み、「相手のダメージを全部無効化する」にはならない。
+   */
+  lifeCrashPrevention?: import('./index').LifeCrashPreventionSpec;
+  /**
    * SEED_BLOOM / SEED_BLOOM_OPTIONAL: 「そのシグニゾーンにシグニがある場合、**代わりにそのシグニを
    * 手札に戻してから**開花する」（`WDK07-Y07-E1`・§6.4 O-3）。
    * ⚠**開花の置換**なので後続ステップでは間に合わない（素の開花は「シグニあり＝不発」で先に終わる）＝

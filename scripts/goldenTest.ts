@@ -11,7 +11,7 @@
 import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
-import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef } from '../src/types';
+import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef, LifeCrashPreventionSpec } from '../src/types';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
@@ -19,6 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
+import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
@@ -4492,7 +4493,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
   // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_used_card_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
   // 35 → 36（段2 第35バッチで cards_drawn_this_attack_phase を追加）
-  eq(convention.length, 38, 'PlayerState の命名規約由来フィールド数');  // 38＝段2 第43バッチで signi_returned_to_hand_count_this_turn / deck_to_trash_count_this_turn を追加
+  eq(convention.length, 39, 'PlayerState の命名規約由来フィールド数');  // 39＝§5.3 O-66 で life_crash_preventions_this_turn を追加（アーツ由来のクラッシュ防止宣言）
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4507,7 +4508,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 61, '型由来36件＋命名規約外23件の母集団');  // +1＝段2 第35バッチの cards_drawn_this_attack_phase
+  eq(registered.length, 62, '型由来37件＋命名規約外23件の母集団');  // +1＝§5.3 O-66 の life_crash_preventions_this_turn
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -46997,23 +46998,70 @@ test('O-65 live: 自分のライフをクラッシュする効果は、原文に
      '原文に根拠が無い LIFE_CRASH{owner:self} は0件（「クラッシュされない」を行動として読んでいたら再発の合図）');
 });
 
-test('O-65 live: 「ライフクロスは〜クラッシュされない」は DEFERRED 宣言になっている', () => {
+// 🆕**§5.3 `O-66`（2026-08-25）で `O-65` の DEFERRED トリップワイヤを書き換えた。**
+// 旧テストは「全件 `DEFERRED_LIFE_CRASH_PREVENTION` を持つ」＝**未実装であること**を固定していた。
+// 実装したので「全件 `LIFE_CRASH_PREVENTION` を**ペイロードつきで**持つ」へ反転させる。
+// 🔴**ペイロードの有無まで見るのが要**＝消費側は payload の無い宣言を**無視する**（fail-closed）ので、
+//   parser が payload を落とすと**ゲート全部緑のまま守り札が恒久 no-op**になる（`O-65` の教訓と同型）。
+test('O-66 live: 「ライフクロスは〜クラッシュされない」は全件ペイロードつき LIFE_CRASH_PREVENTION を持つ', () => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'));
-  const hasDeferred = (n: unknown): boolean => {
-    if (!n || typeof n !== 'object') return false;
-    if (Array.isArray(n)) return n.some(hasDeferred);
+  const specOf = (n: unknown): Record<string, unknown> | undefined => {
+    if (!n || typeof n !== 'object') return undefined;
+    if (Array.isArray(n)) { for (const v of n) { const r = specOf(v); if (r) return r; } return undefined; }
     const o = n as Record<string, unknown>;
-    if (o.type === 'STUB' && o.id === 'DEFERRED_LIFE_CRASH_PREVENTION') return true;
-    return Object.values(o).some(v => v && typeof v === 'object' && hasDeferred(v));
+    if (o.type === 'STUB' && o.id === 'LIFE_CRASH_PREVENTION') {
+      return (o.lifeCrashPrevention as Record<string, unknown>) ?? { __missing: true };
+    }
+    for (const v of Object.values(o)) { const r = specOf(v); if (r) return r; }
+    return undefined;
   };
   const missing: string[] = [];
+  const payloadless: string[] = [];
   for (const effs of effectsMap.values()) for (const e of effs) {
     const t = srcT[e.effectId] ?? '';
-    if (!/ライフクロス/.test(t) || !/クラッシュされな/.test(t)) continue;
-    if (!hasDeferred(e.action)) missing.push(e.effectId);
+    if (!/ライフクロス/.test(t) || !/クラッシュされな|しかクラッシュされ/.test(t)) continue;
+    const spec = specOf(e.action);
+    if (!spec) { missing.push(e.effectId); continue; }
+    if (spec.__missing) payloadless.push(e.effectId);
   }
-  eq(missing.sort().join(','), '',
-     'クラッシュ防止／回数制限の原文は全件 DEFERRED_LIFE_CRASH_PREVENTION を持つ（実装したら `O-66` でこのテストを書き換える）');
+  eq(missing.sort().join(','), '', 'クラッシュ防止／回数制限の原文は全件 LIFE_CRASH_PREVENTION を持つ');
+  eq(payloadless.sort().join(','), '',
+     'ペイロード（lifeCrashPrevention）が付いている＝落とすと消費側が宣言ごと無視して恒久 no-op になる');
+});
+
+// 6効果の**中身**を1件ずつ原文と突き合わせる（軸3つ＝全面防止／ダメージ以外／1ターン上限）。
+test('O-66 live: 6効果のペイロードが原文どおり（scope／maxPerTurn／protects／かぎり）', () => {
+  const specOf = (effectId: string): Record<string, unknown> => {
+    const found = (function walk(n: unknown): Record<string, unknown> | undefined {
+      if (!n || typeof n !== 'object') return undefined;
+      if (Array.isArray(n)) { for (const v of n) { const r = walk(v); if (r) return r; } return undefined; }
+      const o = n as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'LIFE_CRASH_PREVENTION') return o.lifeCrashPrevention as Record<string, unknown>;
+      for (const v of Object.values(o)) { const r = walk(v); if (r) return r; }
+      return undefined;
+    })(b43Live(effectId).action);
+    if (!found) throw new Error(`${effectId}: LIFE_CRASH_PREVENTION が無い`);
+    return found;
+  };
+  // (a) 全面防止
+  eq(JSON.stringify(specOf('WD06-008-E1')), JSON.stringify({ scope: 'ALL', protects: 'self' }),
+     'WD06-008-E1「このターン、あなたのライフクロスはクラッシュされない」');
+  eq(JSON.stringify(specOf('SP38-002-E1')),
+     JSON.stringify({ scope: 'ALL', protects: 'self', whileFewerLifeThanOpponent: true }),
+     'SP38-002-E1「あなたのライフクロスが対戦相手より少ないかぎり」＝動的条件を落としていない');
+  // (b) ダメージ以外＝効果によるクラッシュだけ防ぐ（🔴逆に読むと守りが攻撃に化ける）
+  eq(JSON.stringify(specOf('WD13-010-E1')), JSON.stringify({ scope: 'EXCEPT_DAMAGE', protects: 'self' }),
+     'WD13-010-E1 ①「ダメージ以外によってはクラッシュされない」');
+  eq(JSON.stringify(specOf('WX19-046-E2')), JSON.stringify({ scope: 'EXCEPT_DAMAGE', protects: 'self' }),
+     'WX19-046-E2「対戦相手のターンの間、ダメージ以外によってクラッシュされない」');
+  eq(JSON.stringify(b43Live('WX19-046-E2').activeCondition),
+     JSON.stringify({ type: 'TURN_OWNER', owner: 'opponent' }),
+     'WX19-046-E2 は「対戦相手のターンの間」限定を保持している（落とすと自ターンにも効く過剰防御）');
+  // (c) 1ターンあたりの上限
+  eq(JSON.stringify(specOf('WX20-032-E1')), JSON.stringify({ scope: 'ALL', maxPerTurn: 1, protects: 'self' }),
+     'WX20-032-E1「あなたのライフクロスは１ターンに１枚までしかクラッシュされない」');
+  eq(JSON.stringify(specOf('WXK11-016-E1')), JSON.stringify({ scope: 'ALL', maxPerTurn: 2, protects: 'each_player' }),
+     'WXK11-016-E1「**各プレイヤーの**ライフクロスは１ターンに２枚まで」＝each_player を self に潰していない');
 });
 
 // ── §5.3 `O-65`：`WDK17-009-E2`（「あなたのライフクロスが２枚以下の**場合**」を**行動**として読んでいた）──
@@ -47063,6 +47111,104 @@ test('O-65 engine: 条件つきの「バニッシュされない」を原文フ�
   const broken = unconditional.filter(num => !hasBanishResist(num, cm));
   eq(broken.join(','), '', '無条件の「バニッシュされない」は原文フォールバックで true のまま（過小実行への裏返り検知）');
 });
+
+// ── §5.3 `O-66`：ライフクラッシュ防止／回数制限（`engine/lifeCrashGate.ts`）──
+// 🔴**軸は3つ**＝(a) 全面防止 (b)「ダメージ以外」限定 (c) 1ターンあたりの上限。
+//   **どれも「効く」と「効かない」の両方向を固定する**＝片方だけだと、無条件に防ぐ実装（＝相手の
+//   ダメージを全部無効化する過剰防御）でも緑になる。`O-65` は「守りを攻撃として読む」事故だったので、
+//   ここは**過剰防御側の裏返り**を特に見る。
+{
+  const spec = (o: Partial<LifeCrashPreventionSpec>): LifeCrashPreventionSpec =>
+    ({ scope: 'ALL', protects: 'self', ...o }) as LifeCrashPreventionSpec;
+
+  test('O-66 engine: scope=ALL はダメージも効果も止める（全面防止）', () => withSavedCursor(() => {
+    const v = mkState({ life: 5 }), o = mkState({ life: 5 });
+    eq(allowedLifeCrashCount(v, o, [spec({})], 'damage', 1), 0, 'ダメージを止める');
+    eq(allowedLifeCrashCount(v, o, [spec({})], 'effect', 1), 0, '効果も止める');
+    // 対照＝宣言が無ければ通る（無条件に0を返す実装なら落ちる）
+    eq(allowedLifeCrashCount(v, o, [], 'damage', 1), 1, '宣言が無ければダメージは通る');
+    eq(allowedLifeCrashCount(v, o, [], 'effect', 2), 2, '宣言が無ければ効果も通る');
+  }));
+
+  test('O-66 engine: scope=EXCEPT_DAMAGE は効果だけ止め、アタックのダメージは通す', () => withSavedCursor(() => {
+    const v = mkState({ life: 5 }), o = mkState({ life: 5 });
+    const s = [spec({ scope: 'EXCEPT_DAMAGE' })];
+    // 🔴ここが `O-66` の一番の落とし穴＝「ダメージ以外によっては」を「ダメージだけ防ぐ」と
+    //   読むと、守り札がアタックを無効化する別のカードに化ける。
+    eq(allowedLifeCrashCount(v, o, s, 'effect', 1), 0, '効果によるクラッシュは止める');
+    eq(allowedLifeCrashCount(v, o, s, 'damage', 1), 1, 'アタックのダメージは**通す**');
+  }));
+
+  test('O-66 engine: maxPerTurn は全か無かではなく枚数を切り詰める', () => withSavedCursor(() => {
+    const o = mkState({ life: 5 });
+    const cap2 = [spec({ maxPerTurn: 2 })];
+    // 原文注記「（複数枚のライフクロスがクラッシュされる場合は１枚だけクラッシュされる）」＝
+    // 3枚要求でも上限まで通る。0 に倒すと過剰防御。
+    eq(allowedLifeCrashCount({ ...mkState({ life: 5 }), life_crashed_this_turn: 0 }, o, cap2, 'damage', 3), 2,
+       '3枚要求 → 上限2枚まで通る');
+    eq(allowedLifeCrashCount({ ...mkState({ life: 5 }), life_crashed_this_turn: 1 }, o, cap2, 'damage', 3), 1,
+       '既に1枚クラッシュ済み → 残り1枚');
+    eq(allowedLifeCrashCount({ ...mkState({ life: 5 }), life_crashed_this_turn: 2 }, o, cap2, 'damage', 1), 0,
+       '上限に達したら止まる');
+    eq(allowedLifeCrashCount({ ...mkState({ life: 5 }), life_crashed_this_turn: 5 }, o, cap2, 'damage', 1), 0,
+       '超過していても負数にならない');
+  }));
+
+  test('O-66 engine: 「対戦相手より少ないかぎり」はクラッシュのたびに再評価される', () => withSavedCursor(() => {
+    const s = [spec({ whileFewerLifeThanOpponent: true })];
+    // ライフが少ない＝防ぐ／同数・多い＝防がない。宣言時に焼き込むと片方向に必ず外れる。
+    eq(allowedLifeCrashCount(mkState({ life: 2 }), mkState({ life: 5 }), s, 'damage', 1), 0, '少ない → 防ぐ');
+    eq(allowedLifeCrashCount(mkState({ life: 5 }), mkState({ life: 5 }), s, 'damage', 1), 1, '同数 → 防がない');
+    eq(allowedLifeCrashCount(mkState({ life: 7 }), mkState({ life: 5 }), s, 'damage', 1), 1, '多い → 防がない');
+  }));
+
+  test('O-66 engine: ペイロードの無い宣言は無視される（fail-closed の向き）', () => withSavedCursor(() => {
+    const v = mkState({ life: 5 }), o = mkState({ life: 5 });
+    const eff: CardEffect = {
+      effectId: 'X-1', effectType: 'CONTINUOUS', duration: 'PERMANENT', mandatory: true,
+      action: { type: 'STUB', id: 'LIFE_CRASH_PREVENTION' } as StubAction,
+    } as CardEffect;
+    const host = fresh();
+    const vh: PlayerState = { ...v, field: { ...v.field, signi: [[host], null, null] } };
+    const em = new Map<string, CardEffect[]>([[host, [eff]]]);
+    const got = collectLifeCrashPreventions(vh, o, true, cardMap, em);
+    eq(got.length, 0, 'payload が無ければ宣言ごと無視＝「効かない」で済み、全ダメージ無効化には化けない');
+  }));
+
+  test('O-66 engine: 「各プレイヤーの」は相手の場の宣言でも自分を守る（self は守らない）', () => withSavedCursor(() => {
+    const mkEff = (protects: 'self' | 'each_player'): CardEffect => ({
+      effectId: 'K-1', effectType: 'CONTINUOUS', duration: 'PERMANENT', mandatory: true,
+      action: {
+        type: 'STUB', id: 'LIFE_CRASH_PREVENTION',
+        lifeCrashPrevention: { scope: 'ALL', maxPerTurn: 2, protects },
+      } as StubAction,
+    } as CardEffect);
+    const victim = mkState({ life: 5 });
+    const keyNum = fresh();
+    const holder: PlayerState = { ...mkState({ life: 5 }), field: { ...mkState({ life: 5 }).field, key_piece: keyNum } };
+    // 🔴宣言は**相手（holder）の場のキー**にある。片側だけ走査する実装だとここが 0 件になる。
+    const each = collectLifeCrashPreventions(victim, holder, true, cardMap, new Map([[keyNum, [mkEff('each_player')]]]));
+    eq(each.length, 1, 'each_player は相手の場の宣言でも拾う');
+    eq(each[0].maxPerTurn, 2, 'ペイロードがそのまま来る');
+    const selfOnly = collectLifeCrashPreventions(victim, holder, true, cardMap, new Map([[keyNum, [mkEff('self')]]]));
+    eq(selfOnly.length, 0, 'protects:self は相手の場の宣言を拾わない（拾うと相手の守り札が自分に効く）');
+  }));
+
+  test('O-66 engine: execLifeCrash が ctx の宣言を読んでライフを守る', () => withSavedCursor(() => {
+    const run = (prev: LifeCrashPreventionSpec[]) => {
+      const ctx: ExecCtx = {
+        ownerState: mkState({ life: 5 }), otherState: mkState({ life: 5 }),
+        cardMap, logs: [], lifeCrashPreventionsSelf: prev,
+      };
+      const r = executeAction({ type: 'LIFE_CRASH', owner: 'self', count: 1, triggerBurst: false }, ctx);
+      ok(r.done, 'LIFE_CRASH は対話を挟まず完了する');
+      return r.ownerState.life_cloth.length;
+    };
+    eq(run([]), 4, '対照＝宣言が無ければ1枚クラッシュされる');
+    eq(run([spec({ scope: 'EXCEPT_DAMAGE' })]), 5, '「ダメージ以外」は**効果経路**を止める＝ライフが減らない');
+    eq(run([spec({})]), 5, '全面防止も止める');
+  }));
+}
 
 // ── 結果出力 ──（⚠ 引数なしの経路は従来と1行も変えない＝runGates は PASS 時に末尾6行だけを表示する）
 if (listMode) {
