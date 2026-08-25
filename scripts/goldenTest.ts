@@ -22,6 +22,8 @@ import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
+// 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
+import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -7703,6 +7705,138 @@ test('O-60② engine: 下のカードは payload があるときだけ落ち、�
     underCardOp: { op: 'energy_signi_to_deck_top', filter: { color: '白', cardType: 'シグニ' } } } as unknown as EffectAction, ctxE);
   eq(moved.ownerState.deck[0], white, '🔴白のシグニがデッキの一番上へ（旧実装はエナの先頭を無条件に取った）');
   ok(moved.ownerState.energy.includes(black), '対照：色が違う札はエナに残る');
+}));
+
+// 🔴§5.3 `O-60` 第3バッチ（2026-08-26）＝`COPY_LRIG_NAME_ABILITY` は**消費地点4つが全部 `EffectText` を
+//    regex で読んでいた**。action ハンドラの regex だけ**終止形「と同じカード名としても扱う」**を要求しており、
+//    実データは全部**連用形「扱い、そのルリグの…能力を得る」**＝**live 16効果すべてが no-op** だった。
+//    もう1つの実害＝【自】コピーの収集が**能力種別を1文字も見ず**、「【常】能力を得る」としか書いていない
+//    `WX24-P4-021-E1` でも AUTO を得ていた（過剰実行）。
+test('O-60③ parser: COPY_LRIG_NAME_ABILITY は lrigNameCopy でストーリー・レベル・能力種別を持つ', () => {
+  const found: Array<{ effectId: string; lnc?: { story: string; level?: number; kinds: string[] } }> = [];
+  const walk = (effectId: string, value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(v => walk(effectId, v)); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'COPY_LRIG_NAME_ABILITY') {
+      found.push({ effectId, lnc: obj.lrigNameCopy as { story: string; level?: number; kinds: string[] } | undefined });
+    }
+    Object.values(obj).forEach(v => walk(effectId, v));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  ok(found.length >= 15, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  // 🔑**全件がペイロードを持つ**＝全文 regex を撤去できる条件（`O-56` と同じ形の assert）。
+  eq(found.filter(x => !x.lnc).length, 0, '🔴payload を持たないノードは0（regex 撤去の条件）');
+
+  const one = (effectId: string) => found.find(x => x.effectId === effectId)?.lnc;
+  eq(one('WX24-P4-011-E1')?.story, 'タマ', 'タマを探す');
+  eq(one('WX24-P4-011-E1')?.level, 3, 'レベル3限定を保持');
+  eq((one('WX24-P4-011-E1')?.kinds ?? []).join(','), 'AUTO', '「そのルリグの【自】能力を得る」');
+  eq((one('WX24-P4-021-E1')?.kinds ?? []).join(','), 'CONTINUOUS',
+    '🔴「そのルリグの【常】能力を得る」は CONTINUOUS だけ（旧実装は AUTO まで得ていた）');
+  eq(one('WX25-P3-028-E1')?.story, 'ウリス', '別セットの同型も同じ形');
+});
+
+test('O-60③ engine: 名前エイリアスと能力コピーが payload で決まり、種別違いは混ざらない', () => withSavedCursor(() => {
+  const lrigTrashOf = (story: string, level: number) => {
+    for (const [num, c] of cardMap) {
+      if (c.Type !== 'ルリグ') continue;
+      if (parseInt(c.Level ?? '0') !== level) continue;
+      if (!(c.CardClass?.includes(story) || c.Story?.includes(story) || c.CardName?.includes(story))) continue;
+      if ((effectsMap.get(num) ?? []).some(e => e.effectType === 'AUTO')) return num;
+    }
+    return null;
+  };
+  const tamaLv3 = lrigTrashOf('タマ', 3);
+  ok(!!tamaLv3, 'ルリグトラッシュに置く タマ Lv3（AUTO 持ち）が CSV に在る');
+
+  const own = { ...mkState({ lrig: ['WX24-P4-011'] }), lrig_trash: [tamaLv3!] } as PlayerState;
+  const other = mkState({});
+  const aliases = collectLrigNameAliases(own, cardMap as Map<string, CardData>, effectsMap, other);
+  eq(aliases.join(','), cardMap.get(tamaLv3!)?.CardName ?? '?',
+    '🔴ルリグトラッシュの タマ Lv3 の**カード名**がエイリアスに入る');
+
+  const autos = collectCopiedLrigAutoEffects(own, cardMap as Map<string, CardData>, effectsMap, other, true);
+  ok(autos.length > 0, '【自】能力を得ると書いてあるので AUTO がコピーされる');
+  const conts = collectCopiedLrigContinuousEffects(own, cardMap as Map<string, CardData>, effectsMap, other, true);
+  eq(conts.length, 0, '対照：【自】と書いてあるカードは CONTINUOUS をコピーしない');
+
+  // 🔑対照＝「【常】能力を得る」側は AUTO を得ない（旧実装はここで AUTO まで得ていた）。
+  const hitoeLv3 = lrigTrashOf('ひとえ', 3);
+  if (hitoeLv3) {
+    const own2 = { ...mkState({ lrig: ['WX24-P4-021'] }), lrig_trash: [hitoeLv3] } as PlayerState;
+    const autos2 = collectCopiedLrigAutoEffects(own2, cardMap as Map<string, CardData>, effectsMap, other, true);
+    eq(autos2.length, 0, '🔴「そのルリグの【常】能力を得る」で AUTO はコピーされない');
+  }
+
+  // ペイロードが無ければ何も起きない（fail-closed）。
+  const ctx0 = mkCtx({}, {});
+  const noPayload = run({ type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY' } as unknown as EffectAction,
+    { ...ctx0, ownerState: own } as ExecCtx);
+  eq((noPayload.ownerState.lrig_name_aliases ?? []).length, 0, 'payload なしはエイリアスを作らない');
+  ok(noPayload.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+
+  // payload ありなら executor 側でもエイリアスが付く（第3バッチの本丸＝旧実装は連用形で1件も当たらなかった）。
+  const withPayload = run({ type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY',
+    lrigNameCopy: { story: 'タマ', level: 3, kinds: ['AUTO'] } } as unknown as EffectAction,
+    { ...ctx0, ownerState: own } as ExecCtx);
+  eq((withPayload.ownerState.lrig_name_aliases ?? []).join(','), cardMap.get(tamaLv3!)?.CardName ?? '?',
+    '🔴payload ありならエイリアスが付く');
+}));
+
+// 🔴§5.3 `O-60` 第4バッチ（2026-08-26）＝`DEPLOY_RESTRICT` は**消費地点2つ**（executor と
+//    `collectDeployCountLimit`）が**同じ判定を別々にコピーして `EffectText` から読んでいた**。
+//    主語はカード全文の文分割に依存し、`WXK09-015-E3`（同じ名前のシグニ禁止）はどの regex にも当たらず無言 no-op。
+test('O-60④ parser: DEPLOY_RESTRICT は deployRestrict で形・上限・主語を持つ', () => {
+  const found: Array<{ effectId: string; dr?: { kind: string; cap?: number; subject?: string; powerGte?: number; extraTurnReservation?: boolean } }> = [];
+  const walk = (effectId: string, value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(v => walk(effectId, v)); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'DEPLOY_RESTRICT') {
+      found.push({ effectId, dr: obj.deployRestrict as never });
+    }
+    Object.values(obj).forEach(v => walk(effectId, v));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  ok(found.length >= 9, `母集団は live から再導出（実測 ${found.length} ノード）`);
+
+  const one = (effectId: string) => found.find(x => x.effectId === effectId)?.dr;
+  eq(one('WX07-006-E1')?.kind, 'count', '【常】版も count');
+  eq(one('WX07-006-E1')?.cap, 2, '上限2体');
+  eq(one('WX07-006-E1')?.subject, 'opponent', '主語は対戦相手');
+  eq(one('WXK06-004-E1')?.subject, 'both', '🔴「すべてのプレイヤーは」は both（付与された【起】の中でも取れる）');
+  eq(one('WXDi-P15-039-E1')?.kind, 'power_gte', 'パワー下限型');
+  eq(one('WXDi-P15-039-E1')?.powerGte, 12000, '🔴12000（旧実装は同じ値をカード全文から読み直していた）');
+  eq(one('WXDi-P11-050-E1')?.kind, 'only_by_effect', '「効果によってしか」は機構未実装として明示');
+  eq(one('WXDi-P13-003B-E2')?.subject, 'self', '🔴追加ターンの自分側制限（PARTIAL 凍結で永久に届いていなかった）');
+  eq(one('WXDi-P13-003B-E2')?.extraTurnReservation, true, '同・即時ではなく予約');
+});
+
+test('O-60④ engine: 配置数上限は payload から読み、payload なしでは縛らない', () => withSavedCursor(() => {
+  const restrictor = 'WX07-006';   // 【常】：対戦相手はシグニを2体までしか場に出すことができない
+  const base = mkState({});
+  const oppState = { ...base, field: { ...base.field, signi: [[restrictor], null, null] } } as PlayerState;
+  const myState = mkState({});
+  const cap = collectDeployCountLimit(oppState, myState, cardMap as Map<string, CardData>, effectsMap, false);
+  eq(cap, 2, '🔴【常】版の上限2が payload から読める');
+
+  // 🔑対照＝相手の場に何も無ければ上限は無い（この計器が「常に2」を返していないことの確認）。
+  const none = collectDeployCountLimit(mkState({}), myState, cardMap as Map<string, CardData>, effectsMap, false);
+  eq(none, undefined, '対照：制限札が無ければ undefined');
+
+  // executor 側＝payload なしは相手を縛らない（旧実装は全文 regex で読み直していた）。
+  const ctx = mkCtx({}, {}, restrictor);
+  const noP = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as unknown as EffectAction, ctx);
+  eq(noP.otherState.signi_deploy_count_limit, undefined, 'payload なしは配置数上限を張らない');
+  ok(noP.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+
+  const applied = run({ type: 'STUB', id: 'DEPLOY_RESTRICT',
+    deployRestrict: { kind: 'count', cap: 2, subject: 'opponent' } } as unknown as EffectAction, ctx);
+  eq(applied.otherState.signi_deploy_count_limit, 2, 'payload ありなら相手に上限2が張られる');
+  const pw = run({ type: 'STUB', id: 'DEPLOY_RESTRICT',
+    deployRestrict: { kind: 'power_gte', powerGte: 12000 } } as unknown as EffectAction, ctx);
+  eq((pw.otherState.signi_deploy_bans ?? [])[0]?.powerGte, 12000, 'パワー下限型は寿命つき ban ストアへ');
 }));
 
 // 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
