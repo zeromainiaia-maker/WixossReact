@@ -2246,6 +2246,167 @@ const scenarios = {
   //    発火させるか。ON_OPP_POWER_DECREASED（R46・続き58）と全く同じ懸念＝collectEnergyToTrashTriggers も
   //    BattleScreen.tsx 3717-3739の中央diffにしか配線されておらず、resume経路のinline collector 5種
   //    （4384-4436）には含まれない＝2件目の同型バグ候補（Opus行き）。
+  // §5.3 O-44（2026-08-25）＝ON_OPP_POWER_DECREASED の発生源クラス限定を **fail-open→fail-closed** へ揃えた
+  //   ことの実機検証（+反転）。watcher は WX25-P3-062-E1「【自】《自分ターン》：あなたの**他の**＜毒牙＞の
+  //   シグニの効果によって対戦相手のシグニ１体のパワーが減ったとき、…このシグニのパワーを減った値と同じだけ＋」。
+  //   ⚠**発生源を刻まない経路を通すのが肝**＝`POWER_MODIFY_PER_TRASH_COUNT` は temp_power_mods に
+  //   `srcCardNum` を書かないので、旧実装では「発生源不明→とりあえず発火」＝**毒牙でなくても発火**していた。
+  //   新実装は中央 diff の `causeSourceCardNum`（いま解決中の効果の発生源カード）へ寄せて判定する。
+  //   ① fires … 発生源＝WX21-066（＜毒牙＞・トラッシュの毒牙1枚につき-1000）→ watcher が発火する
+  //   ② gate  … 発生源＝WXK02-061（＜武勇＞・トラッシュの武勇5枚につき-1000）→ watcher は発火しない（反転）
+  poisonPowerDecreaseFires: {
+    title: 'O-44① WX21-066→WX25-P3-062-E1（＜毒牙＞発生源・srcCardNum 無し経路でも発生源クラス限定が通り発火）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX08-004#1'],                     // ミュウ Lv4/Limit11（限定なし・oppPowerDecreased で実証済み）
+        'field.signi': [['WX25-P3-062#1'], null, null],   // watcher（ドライ＝クレオパトラ Lv3・「他の」＜毒牙＞限定）
+        'trash': ['WX04-053#1', 'WX04-099#1', 'WX04-101#1'], // ＜毒牙＞シグニ3枚＝-1000×3＝-3000
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-053#1'], null, null],      // P15000（-3000 でも生き残る＝盤面が消えない）
+      },
+      handPrepend: ['WX21-066#1'],                        // ＜毒牙＞Lv3（【出】コストなし・PER_TRASH_COUNT）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/poisonPowerDecreaseFires-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gDec = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-'));
+        const hBuff = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX25-P3-062#1:') && parseInt(m.split(':')[1], 10) > 0);
+        H.log(`  pdf[${s}] -> ${did ?? 'なし'} | h=${(st?.host?.powerMods ?? []).join(',') || '-'} g=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (gDec && hBuff) {
+          return { pass: true, detail: `＜毒牙＞発生源で watcher 発火（g=${(st.guest.powerMods).join(',')} h=${(st.host.powerMods).join(',')}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `watcher 未発火（h=${(fin?.host?.powerMods ?? []).join(',') || '-'} g=${(fin?.guest?.powerMods ?? []).join(',') || '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // ②反転＝発生源が＜武勇＞（毒牙でない）なら watcher は発火してはいけない。**旧実装ではここが発火していた**
+  //   （srcCardNum を書かない経路＝発生源不明＝fail-open）。相手のパワーは確かに減る（-1000）ので、
+  //   「効果自体は動いたが watcher だけ黙っている」ことを1シナリオで同時に確かめる。
+  poisonPowerDecreaseGate: {
+    title: 'O-44② WXK02-061→WX25-P3-062-E1 反転（＜武勇＞発生源では watcher が発火しない＝fail-closed）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX21-009#1'],                     // カーニバル ＱＦ Lv4/Limit12（WXK02-061「カーニバル限定」・能力なし）
+        'field.signi': [['WX25-P3-062#1'], null, null],   // watcher（同上）
+        'trash': ['WX15-032#1', 'WX15-041#1', 'WX15-042#1', 'WX15-043#1', 'WX15-068#1'], // ＜武勇＞5枚＝-1000
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-053#1'], null, null],      // P15000
+      },
+      handPrepend: ['WXK02-061#1'],                       // ＜武勇＞Lv1（【出】コストなし・PER_TRASH_COUNT・カーニバル限定）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      let decreasedAt = -1;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/poisonPowerDecreaseGate-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gDec = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-'));
+        const hBuff = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX25-P3-062#1:') && parseInt(m.split(':')[1], 10) > 0);
+        H.log(`  pdg[${s}] -> ${did ?? 'なし'} | h=${(st?.host?.powerMods ?? []).join(',') || '-'} g=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (hBuff) return { pass: false, detail: `＜武勇＞発生源なのに watcher が発火した＝過剰トリガー（h=${(st.host.powerMods).join(',')}）` };
+        if (gDec && decreasedAt < 0) decreasedAt = s;
+        // 減少が起きてから数手ぶん静観して、遅れて発火しないことまで見る
+        if (decreasedAt >= 0 && s >= decreasedAt + 3 && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+          return { pass: true, detail: `＜武勇＞発生源では watcher が発火しない（g=${(st.guest.powerMods).join(',')} h=${(st.host.powerMods).join(',') || '(なし)'}）` };
+        }
+      }
+      const fin = await H.queryState();
+      if (decreasedAt < 0) return { pass: false, detail: `前提が崩れた＝相手のパワーが減っていない（g=${(fin?.guest?.powerMods ?? []).join(',') || '-'}）` };
+      return { pass: true, detail: `＜武勇＞発生源では watcher が発火しない（g=${(fin?.guest?.powerMods ?? []).join(',')} h=${(fin?.host?.powerMods ?? []).join(',') || '(なし)'}）` };
+    },
+  },
+
+  // §5.3 O-45（2026-08-25）＝PLACE_UNDER_SIGNI のビルダーが名詞句修飾（filter）を運んでおらず、
+  //   「手札から**レベル１の**シグニを５枚まで下に置く」（WXDi-P10-043-E3）が**手札のどのシグニでも
+  //   置ける**過剰実行だった。実機では**候補ピッカーに何が出るか**が観測点＝レベル1だけが候補になり、
+  //   レベル3は手札に残る。
+  underPlaceLevelFilter: {
+    title: 'O-45 WXDi-P10-043-E3（手札から「レベル1のシグニ」だけが下に置ける＝レベル3は候補に出ない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX08-004#1'],                      // Lv4（【起】なので召喚はしない＝Limit判定に無関係）
+        'field.signi': [['WXDi-P10-043#1'], null, null],   // 羅星姫 ミュウ//メモリア（【起】《ターン1回》《黒×0》）
+        'hand': ['WD01-013#1', 'WD01-010#1'],              // Lv1（小剣ククリ）／Lv3（大剣カリバン）の2枚だけ
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 hand:', JSON.stringify(before?.host?.handCards), 'zone0:', JSON.stringify(before?.host?.fieldSigni?.[0]));
+      let modalOpened = false;
+      let pickCount = -1;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/underPlaceLevelFilter-${s}.png`, fullPage: true });
+        let did = null;
+        if (!modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false) && await actBtn.isEnabled().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+        }
+        if (!did) {
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+        }
+        if (!did) { // 🔑観測点＝候補ピッカーに出る枚数（レベル1の1枚だけのはず）
+          const picks = await page.locator('[data-testid^="pick-"]').count();
+          if (picks > 0) {
+            if (pickCount < 0) { pickCount = picks; H.log(`  候補ピッカー枚数=${picks}`); }
+            // ⚠選択済み（「決定 (1/N)」が出ている）ならもう押さない＝押すとトグルで外れて無限ループになる
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            const pick0 = page.getByTestId('pick-0').first();
+            if (!confirmReady && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const stack0 = st?.host?.fieldSigni?.[0] ?? [];
+        H.log(`  upl[${s}] -> ${did ?? 'なし'} | picks=${pickCount} zone0=${JSON.stringify(stack0)} hand=${JSON.stringify(st?.host?.handCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        const placed = Array.isArray(stack0) && stack0.includes('WD01-013#1') && stack0.at(-1) === 'WXDi-P10-043#1';
+        if (placed) {
+          const lv3Placed = stack0.includes('WD01-010#1');
+          const lv3InHand = (st?.host?.handCards ?? []).includes('WD01-010#1');
+          if (lv3Placed) return { pass: false, detail: `レベル3（WD01-010）まで下に置かれた＝filter 未適用（zone0=${JSON.stringify(stack0)}）` };
+          if (pickCount > 1) return { pass: false, detail: `候補ピッカーにレベル1以外も出た（picks=${pickCount}）` };
+          return { pass: true, detail: `レベル1のみ下に置かれ、レベル3は手札に残る（zone0=${JSON.stringify(stack0)} lv3InHand=${lv3InHand} picks=${pickCount}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（picks=${pickCount} zone0=${JSON.stringify(fin?.host?.fieldSigni?.[0])} hand=${JSON.stringify(fin?.host?.handCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   energyToTrash: {
     title: 'WD15-014→WD15-015（ON_ENERGY_TO_TRASH＝自分の効果で相手エナがトラッシュに置かれたとき【ダブルクラッシュ】）',
     spec: {
