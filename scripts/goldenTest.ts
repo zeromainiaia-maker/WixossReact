@@ -47032,6 +47032,86 @@ test('O-65 live: 【常】のフェイズ限定が activeCondition に載って�
   eq(ac('WXK08-048-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK08-048-E1＝あなたのアタックフェイズの間');
 });
 
+// §5.3 `O-66`③（2026-08-25）＝engine が `cardMap.EffectText` を regex で読んで意味を決めていた STUB 5種を
+// payload 化（`underAbilityGrant` / `moveProtectFilter`）。**JSON を見れば何が起きるか分かる**状態にする。
+const b66LiveStub = (effectId: string, stubId: string) => {
+  const eff = b43Live(effectId);
+  let found: Record<string, unknown> | undefined;
+  const walk = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return;
+    const r = o as Record<string, unknown>;
+    if (r.type === 'STUB' && r.id === stubId) found = r;
+    for (const v of Object.values(r)) walk(v);
+  };
+  walk(eff.action);
+  if (!found) throw new Error(`${effectId}: STUB ${stubId} が無い`);
+  return found;
+};
+
+test('O-66③ live: 「下のカードの能力を得る」3種が payload を持つ（EffectText 依存の解消）', () => {
+  const all = b66LiveStub('WX21-024-E2', 'GRANT_UNDER_SIGNI_ALL_ABILITIES').underAbilityGrant as
+    { kinds?: string[]; filter?: { story?: string; excludeCardName?: string }; grantRestriction?: boolean };
+  eq(JSON.stringify(all.kinds), '["CONTINUOUS","AUTO","ACTIVATED"]', '【常】と【自】と【起】');
+  eq(all.filter?.story, '天使', '＜天使＞限定');
+  eq(all.filter?.excludeCardName, '荒ぶる海洋　§ポセイドナ§', '《…》以外');
+  eq(all.grantRestriction, true, '限定条件も得る');
+
+  const cont = b66LiveStub('WX19-027-E2', 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY').underAbilityGrant as
+    { kinds?: string[]; eichiOnly?: boolean };
+  eq(JSON.stringify(cont.kinds), '["CONTINUOUS"]', '【常】のみ');
+  eq(cont.eichiOnly, true, '【英知】能力に限る');
+
+  const auto = b66LiveStub('WXK08-048-E1', 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE').underAbilityGrant as
+    { kinds?: string[]; filter?: { level?: { max?: number }; color?: string; story?: string } };
+  eq(JSON.stringify(auto.kinds), '["AUTO"]', '【自】のみ');
+  eq(auto.filter?.level?.max, 3, 'レベル3以下');
+  eq(auto.filter?.color, '黒', '黒');
+  eq(auto.filter?.story, 'ウェポン', '＜ウェポン＞');
+});
+
+test('O-66③ live: 「場から手札に戻らない／場から移動させない」2種の保護対象が payload に載る', () => {
+  eq(JSON.stringify(b66LiveStub('WXK05-024-E1', 'SIGNI_CANT_BOUNCE_FROM_FIELD').moveProtectFilter),
+    '{"cardType":"シグニ","story":"悪魔"}', 'WXK05-024-E1＝＜悪魔＞限定');
+  eq(JSON.stringify(b66LiveStub('WXK07-031-E1', 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH').moveProtectFilter),
+    '{"cardType":"シグニ","story":"宇宙"}', 'WXK07-031-E1＝＜宇宙＞限定');
+  // ⚠クラス修飾の無い形は **payload なし＝あなたのシグニ全部**が原文どおり（fail の向きが逆）。
+  ok(b66LiveStub('WX13-029-E1', 'SIGNI_CANT_BOUNCE_FROM_FIELD').moveProtectFilter === undefined,
+    'WX13-029-E1②＝クラス修飾なし＝payload を付けない（＝全部が対象）');
+});
+
+test('O-66③ engine: payload の filter で下のカードを絞る＋payload が無ければ何も付与しない', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const spec = b66LiveStub('WXK08-048-E1', 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE').underAbilityGrant;
+  const grantedCount = (underNum: string, payload: unknown): number => {
+    const harness = new Map<string, CardEffect[]>(effectsMap);
+    harness.set('WXK08-048', [{
+      effectId: 'WXK08-048-E1-HARNESS', effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE', ...(payload ? { underAbilityGrant: payload } : {}) },
+      duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+    } as unknown as CardEffect]);
+    const st = mkState({});
+    st.field.signi = [[underNum, 'WXK08-048'], null, null];
+    return (collectGrantedFromUnderSigni(st, mkState({}), true, harness, cm, 'ATTACK_SIGNI').get('WXK08-048') ?? []).length;
+  };
+  ok(grantedCount('WXK08-049', spec) > 0, '黒 Lv3 ＜ウェポン＞の【自】は得る（対照）');
+  // フィルタに一致しない下カード（＜ウェポン＞でない）は得ない
+  const nonWeapon = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('ウェポン')
+    && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'AUTO'))!;
+  eq(grantedCount(nonWeapon, spec), 0, '＜ウェポン＞でない下カードの【自】は得ない（filter が効く）');
+  // 🔑payload が落ちたら**何も付与しない**（fail-closed）＝「下の全能力を得る」に化けない
+  eq(grantedCount('WXK08-049', undefined), 0, 'payload なしは何も付与しない（fail-closed）');
+}));
+
+test('O-66③ engine: moveProtectFilter で保護対象を絞る（＜宇宙＞以外は守らない）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const cosmos = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙') && c.CardNum !== 'WXK07-031')!;
+  const other = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('宇宙'))!;
+  const st = mkState({ signi: ['WXK07-031', cosmos, other] });
+  const prot = collectBounceProtectedSigni(st, cm, effectsMap, mkState({}), true, 'ATTACK_SIGNI');
+  ok(prot.includes(cosmos), '＜宇宙＞のシグニは守られる（対照）');
+  ok(!prot.includes(other), '＜宇宙＞でないシグニは守られない（filter が効く）');
+}));
+
 // §5.3 `O-66`②（2026-08-25）＝「シグニは〜されない」の主語は**両プレイヤーのシグニ**。
 // 旧実装は `target:{owner:'self',count:1}` に潰れ、①同じ側の**他の**シグニも②**相手側の**シグニも
 // 守れていなかった（原文の範囲の 1/6）。engine 側は「宣言元が相手の盤面にある」経路が存在しなかった。

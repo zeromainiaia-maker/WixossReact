@@ -3567,9 +3567,11 @@ function matchPlainDelayedInstall(t: string): EffectAction | undefined {
       const effect = parseSingleSentence(tail);
       const effectS = JSON.stringify(effect);
       if (effectS.includes('"UNKNOWN"') || effectS.includes('"RULE_REMINDER_TEXT"')) return undefined;
-      // Batch C は「遅延句の後ろにある選択本体」が裸で即時実行へ漏れた形だけを扱う。
-      // 既存表の timing だけを根拠に、別構造の素の設置文まで一括採用しない。
-      if (effect.type !== 'CHOOSE') return undefined;
+      // 🆕**§5.3 `O-66`④（2026-08-25）＝本文の型を `CHOOSE` に限らない。**
+      // 旧実装は Batch C の慎重な足がかりとして `CHOOSE` 本文だけを設置へ変換していたが、
+      // その結果 **「このターン終了時、〈本文〉」の大半が遅延句を落として即時実行**になっていた
+      // （実測＝原文24文のうち遅延が生きているのは4件だけ）。
+      if (effect.type === 'UNKNOWN') return undefined;
       const install = {
         type: 'INSTALL_DELAYED_TRIGGER',
         duration: delayedPrefix.duration ?? 'THIS_TURN',
