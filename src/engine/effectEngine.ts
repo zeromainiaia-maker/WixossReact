@@ -5787,17 +5787,15 @@ export function collectBounceProtectedSigni(
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
 
+      // 🆕§5.3 `O-66`③：保護対象は **payload（`moveProtectFilter`）** で読む。
+      // ⚠ここは**省略＝あなたのシグニ全部**が原文どおり（`WX13-029-E1`②）＝`underAbilityGrant` とは
+      //   fail の向きが逆。旧実装は `EffectText` を regex で読んでいた（`O-60` 同型）。
       if (act.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') {
-        const card = cardMap.get(topNum);
-        const txt = card?.EffectText ?? '';
-        const classM = txt.match(/あなたの＜([^＞]+)＞のシグニは場から手札に戻らない/);
-        const protectedClass = classM?.[1];
         for (const s of state.field.signi) {
           if (!s?.length) continue;
           const sTop = s[s.length - 1];
-          if (!protectedClass || cardMap.get(sTop)?.CardClass?.includes(protectedClass)) {
-            protected_.add(sTop);
-          }
+          const sBase = sTop.includes('#') ? sTop.slice(0, sTop.indexOf('#')) : sTop;
+          if (matchesFilter(cardMap.get(sBase), act.moveProtectFilter)) protected_.add(sTop);
         }
       }
 
@@ -5807,20 +5805,16 @@ export function collectBounceProtectedSigni(
         if (inSigniField) protected_.add(topNum);
       }
 
-      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: 同クラスの全シグニがバウンス不可
+      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: 指定クラスの全シグニがバウンス不可
+      // 🆕§5.3 `O-66`③：保護対象は **payload（`moveProtectFilter`）** で読む。
+      // 🔴旧実装は `EffectText`/`BurstText` を regex で読み、外れると**発生源自身の `CardClass`** へ
+      //   フォールバックしていた＝原文と無関係なクラスを守りうる（`O-60` 同型の「JSON を見ても分からない」形）。
       if (act.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH') {
-        const card = cardMap.get(topNum);
-        const cls = card?.CardClass ?? '';
-        // テキストから保護クラスを抽出（"あなたの＜宇宙＞のシグニを場から移動させない"）
-        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-        const classM = txt.match(/あなたの＜([^＞]+)＞のシグニを場から移動させない/) ?? txt.match(/あなたの＜([^＞]+)＞/);
-        const protectedClass = classM?.[1] ?? cls;
         for (const s of state.field.signi) {
           if (!s?.length) continue;
           const sTop = s[s.length - 1];
-          if (cardMap.get(sTop)?.CardClass?.includes(protectedClass)) {
-            protected_.add(sTop);
-          }
+          const sBase = sTop.includes('#') ? sTop.slice(0, sTop.indexOf('#')) : sTop;
+          if (matchesFilter(cardMap.get(sBase), act.moveProtectFilter)) protected_.add(sTop);
         }
       }
 
@@ -6532,7 +6526,8 @@ export function collectGrantedFromUnderSigni(
   turnPhase?: TurnPhase,
 ): Map<string, CardEffect[]> {
   const result = new Map<string, CardEffect[]>();
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  // 🆕§5.3 `O-66`③：**この関数はもう `EffectText` を読まない**（全角→半角の `toHW` も不要になった）。
+  //   付与の中身は `StubAction.underAbilityGrant` が運ぶ。
 
   for (let zi = 0; zi < 3; zi++) {
     const stack = ownerState.field.signi[zi];
@@ -6542,7 +6537,6 @@ export function collectGrantedFromUnderSigni(
     const underNums = stack.slice(0, -1);
     const topBaseNum = topNum.includes('#') ? topNum.slice(0, topNum.indexOf('#')) : topNum;
     const topCard = cardMap.get(topBaseNum);
-    const txt = (topCard?.EffectText ?? '') + ' ' + (topCard?.BurstText ?? '');
 
     // Pattern A: トップシグニの CONTINUOUS スタブ → 下のカードから効果を収集
     for (const eff of (effectsMap.get(topNum) ?? [])) {
@@ -6551,63 +6545,31 @@ export function collectGrantedFromUnderSigni(
       if (eff.action.type !== 'STUB') continue;
       const stub = eff.action as import('../types/effects').StubAction;
 
-      // GRANT_UNDER_SIGNI_ALL_ABILITIES: 下シグニの全効果（常/自/起）を付与
-      if (stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES') {
-        const excludeM = txt.match(/《([^》]+)》以外の/);
-        const excludeName = excludeM?.[1];
-        const classM = txt.match(/＜([^＞]+)＞のシグニの/);
-        const reqClass = classM?.[1];
-        const grantCont = txt.includes('【常】');
-        const grantAuto = txt.includes('【自】');
-        const grantAct  = txt.includes('【起】');
+      // 🆕**§5.3 `O-66`③（2026-08-25）＝「下のカードの能力を得る」3種は payload で読む。**
+      // 🔴**旧実装は `cardMap` の `EffectText`（＋`BurstText`）を regex で読んでいた**（`O-60` と同型）＝
+      //   ①**JSON を見ても何が付与されるか分からない** ②`txt.includes('【常】')` のように**カード全文**を
+      //   見るので、**同じカードの別の能力**に書かれた【常】【自】【起】まで拾って種別を広げていた
+      //   （`WX21-024` は【出】と【常】を持つので、下のカードの【自】【起】まで得る形に化けうる）。
+      // ⚠**ペイロードが無い宣言は何も付与しない（fail-closed）**＝parser が落としても「効かない」で済み、
+      //   「下の全カードの全能力を得る」には**ならない**。
+      const grantSpec = (stub as import('../types/effects').StubAction).underAbilityGrant;
+      if (grantSpec && (stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES'
+        || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'
+        || stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE')) {
+        const kinds = new Set(grantSpec.kinds);
         for (const un of underNums) {
           const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
           const unCard = cardMap.get(unBase);
           if (!unCard) continue;
-          if (excludeName && unCard.CardName === excludeName) continue;
-          if (reqClass && !(unCard.CardClass ?? '').includes(reqClass)) continue;
-          const extra = (effectsMap.get(un) ?? []).filter(e => {
-            if (grantCont && e.effectType === 'CONTINUOUS') return true;
-            if (grantAuto && e.effectType === 'AUTO') return true;
-            if (grantAct  && e.effectType === 'ACTIVATED') return true;
-            return false;
-          });
-          const existing = result.get(topNum) ?? [];
-          result.set(topNum, [...existing, ...extra]);
-        }
-      }
-
-      // GRANT_UNDER_SIGNI_CONSTANT_ABILITY: 下シグニの CONTINUOUS 効果を付与
-      if (stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY') {
-        const eichiOnly = txt.includes('【英知】');
-        for (const un of underNums) {
-          const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
-          const extra = (effectsMap.get(unBase) ?? []).filter(e => {
-            if (e.effectType !== 'CONTINUOUS') return false;
-            if (eichiOnly && e.activeCondition?.type !== 'EICHI_LEVEL_SUM') return false;
+          if (grantSpec.filter && !matchesFilter(unCard, grantSpec.filter)) continue;
+          // ⚠効果の引き先は**インスタンスID優先・無ければ番号**（`GRANT_UNDER_SIGNI_ALL_ABILITIES` だけ
+          //   旧実装がインスタンス側を引いていた＝両方見る形に揃えて挙動差を消す）。
+          const src = effectsMap.get(un) ?? effectsMap.get(unBase) ?? [];
+          const extra = src.filter(e => {
+            if (!kinds.has(e.effectType as 'CONTINUOUS' | 'AUTO' | 'ACTIVATED')) return false;
+            if (grantSpec.eichiOnly && e.activeCondition?.type !== 'EICHI_LEVEL_SUM') return false;
             return true;
           });
-          const existing = result.get(topNum) ?? [];
-          result.set(topNum, [...existing, ...extra]);
-        }
-      }
-
-      // GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE: 下シグニの AUTO 効果を付与（フィルタあり）
-      if (stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE') {
-        const lvM = txt.match(/レベル([０-９\d]+)以下/);
-        const maxLv = lvM ? parseInt(toHW(lvM[1])) : undefined;
-        const colorM = txt.match(/(黒|赤|青|緑|白)の＜/);
-        const reqColor = colorM?.[1];
-        const classM2 = txt.match(/(?:黒|赤|青|緑|白)の＜([^＞]+)＞/);
-        const reqClass2 = classM2?.[1];
-        for (const un of underNums) {
-          const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
-          const unCard = cardMap.get(unBase);
-          if (!unCard) continue;
-          if (maxLv !== undefined && parseInt(unCard.Level ?? '0') > maxLv) continue;
-          if (reqColor && !unCard.Color?.includes(reqColor)) continue;
-          if (reqClass2 && !(unCard.CardClass ?? '').includes(reqClass2)) continue;
-          const extra = (effectsMap.get(unBase) ?? []).filter(e => e.effectType === 'AUTO');
           const existing = result.get(topNum) ?? [];
           result.set(topNum, [...existing, ...extra]);
         }
