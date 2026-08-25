@@ -1,5 +1,94 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-62`＝「あなたの効果**１つ**によって」＝助数詞を挟む原因限定が丸ごと落ちていた（＋否定形の新語彙）
+
+> **1巡（続き661・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2799→2804**／census 572 据え置き／
+> smoke 10693 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／lint 0 errors）。
+> **実機は新規3本 ALL PASS＋反転確認1本（旧 live で FAIL することを実測）。**
+
+---
+
+### 真因＝**リテラル一致の regex に助数詞が挟まると語彙ごと落ちる**
+
+【自】トリガー句の原因主体限定は `/(?:あなた|対戦相手)の効果によって/` という**リテラル**で拾っていた。
+原文には **「あなたの効果１つによって」**（＝1つの効果の中で合算した枚数を要求する形）があり、
+**実測17文**がすべてこの regex をすり抜けて **原因主体を問わずに発火する過剰トリガー**になっていた。
+
+🔑**登録票が保留していた設計判断＝「`byOwnEffect` を足すだけで足りるのか」への答えは「足りる」**。
+消費地点を読むと、engine の枚数は**中央 diff の「1解決ぶんの set-diff」**で数えている＝
+**それ自体が「効果１つ」の単位**（`SEQUENCE` の複数ステップも1解決＝1つの能力なので合算されるのが原文どおり）。
+⇒ `minCount` 系はそのままでよく、**足りなかったのは原因主体の限定だけ**だった。
+
+### 直したもの（A-B 実測で **6効果**・巻き添えゼロ）
+
+| 効果 | 原文 | 旧 live | 直した後 |
+|---|---|---|---|
+| `WX22-014-E2` | あなたの効果１つによってトラッシュから4枚以上デッキへ | 限定なし | `byOwnEffect` |
+| `WXK10-076-E1` | あなたの効果１つによって対戦相手のカードが1枚以上デッキへ | 限定なし | `byOwnEffect` |
+| `WDK09-013-E1` | 同上 | 限定なし | `byOwnEffect` |
+| `WXK10-040-E1` | あなたの効果１つによってあなたがカードを1枚以上引いたとき | 限定なし | `drawByDrawerOwnEffect`（ドロー専用キー） |
+| `SPDi43-12-sub-E1` | あなたの効果１つによって対戦相手のエナから1枚以上トラッシュへ | 限定なし | `byOwnEffect` |
+| `SPDi43-13-sub-E1` | あなたの効果１つによってあなたのエナに1枚以上置かれた | **`triggerCondition` 自体が無い** | `byOwnEffect` |
+
+🔴**`SPDi43-13-sub-E1` は「過剰」ではなく恒久 no-op だった**＝`collectEnergyToTrashTriggers` の場 watcher 経路は
+**`causeLimited` でない効果を無条件に落とす**（`if (!causeLimited || !effectCauseMatches(...)) continue;`）ので、
+原因限定が無い宣言は**一度も発火しない**。つまりこの1件は限定を足して**初めて動くようになった**。
+
+⚠**入れ子（`GRANT_*.abilities[]`）にも同じ穴があった**（登録票の指摘どおり）＝`SPDi43-12/13` の実体は
+`GRANT_LRIG_ABILITY` の内側 `-sub-E1`。regex を広げたら内側にもそのまま届いた（別経路ではなかった）。
+
+### 🔴live の `parseStatus:'MANUAL'` が parser 改善を4効果ぶん凍らせていた
+
+`WX22-014-E2`／`WXK10-076-E1`／`WDK09-013-E1`／`WXK10-040-E1` は live で **MANUAL**（`manualEffects.ts` には無い＝
+live 限定の手刻み）。`build:effects` の `needsReview` は **MANUAL/PARTIAL の効果を最初から除外する**ので、
+**`_held_fresh` にも `_partial_fresh` にも出ないまま fresh との差分が永久に見えない**。
+⚠`WXK10-040-E1` は **parser の方が正しかった**（`drawByDrawerOwnEffect` を出していた＝engine のコメントが
+この card 番号を名指ししているのに live に無い）。
+⇒ fresh と live を全リーフで突き合わせ、差分が **①`parseStatus` ②冗長な `triggerScope:'self'`（既定と同値）
+③今回足した限定キー** の3点だけであることを確認したうえで **MANUAL を外し**、`heldReview --adopt` で採用した。
+
+### 否定形（PLAN §5-2″）＝`banishedNotByOwnEffect` を新設
+
+`WX15-003-E1`「【自】：**アクセされている**あなたのシグニ１体が**あなたの効果以外によって**バニッシュされたとき、
+カードを１枚引いてもよい。」
+
+- ⚠**`banishedByOwnEffect: false` では書けない**＝JSON では未指定と区別がつかず `!cond?.banishedByOwnEffect` が
+  両方 true になって限定が消える。**明示値の別キー**にした。
+- ⚠**「アクセされている」は `triggerFilter` では書けない**＝アクセは盤面の状態で、
+  `matchesFilter(cardMap...)` は `CardData` しか見ない。既存の `banishedHadCharm` と同じ規約で
+  **除去直前の `prevOwnerState.field.signi_acce`** を読む `banishedHadAcce` を足した。
+- 🔴**この効果は旧 live で構造的に一度も発火しなかった**＝`triggerScope` が既定 `self` に潰れており、
+  ON_BANISH watcher が**ルリグ自身のバニッシュ**を待つ形になっていた（`WX15-003` はルリグ）。
+
+逆翻訳にも両キーの描画を足した（描かないと原文照合から限定が消える）。
+
+### 実機（新規3本 ALL PASS）
+
+| id | 見るもの | 結果 |
+|---|---|---|
+| `b62MoveToDeckOwnEffect` | **過小側の検査**＝`byOwnEffect` が `causeOwnerId` 未達で恒久 no-op になっていないか（`O-64` 型） | ✅ 自分の効果で相手カードがデッキへ→ `-1000` 発火 |
+| `b62AcceBanishDraws` | アクセ付きの味方をバトル（＝自分の効果以外）で失う→1枚引く | ✅ `hand 1→2` |
+| `b62AcceBanishNoAcce` | 対照＝アクセ無しなら引かない（`banishedHadAcce`） | ✅ `hand 2→2` |
+
+**反転確認**＝`WX15-003-E1` の live を旧仕様（`triggerScope`/`triggerCondition` なし）へ戻して
+`b62AcceBanishDraws` を回すと **FAIL**（引けない）＝旧実装で死んでいたことを実測した。
+
+⚠原因主体の**弁別**（相手の効果では発火しない側）は実機では相手（CPU）に効果を撃たせる必要があるので、
+golden（`O-62 engine`）で `cause=HOST/GUEST/undefined` の3点を固定した。
+
+### 積み残し（PLAN §5.3 へ登録）
+
+- `O-73`＝`WX24-P3-030-E2`「【起】…：**このターン**、あなたの効果１つによってデッキから合計1枚以上トラッシュに
+  置かれたとき、…」＝**遅延設置そのものが落ちて即時実行**。`ON_CARD_MILLED_FROM_DECK` に
+  `delayed_triggers` の収集経路が無いので、`O-66`④ の受け皿を足さないと「設置されるが永久に発火しない」になる。
+- `O-74`＝`PR-470B-E1`「《タマ》の効果**以外**によっては新たに場に出すことができない」＝
+  `SELF_PLAY_RESTRICT {never:true}` に潰れて**例外が消え、永久に場に出せない**。
+- `WX25-P2-026-E1` は `byEffect`（主体不問）のままにした＝原文は「あなたの効果1つによって」だが、
+  差が出るのは「相手の効果であなたの＜遊具＞が場に出る」場合だけで実害が小さく、
+  生成経路が別規則（`allyPlayM` ではない）なので今回は触らない。
+
+---
+
 ## 2026-08-25：§5.3 `O-66` 残り3件（②③④）＝両プレイヤー保護／`EffectText` 依存の payload 化／「このターン終了時」の遅延落ち
 
 > **1巡（続き660・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2788→2799**／census 572 据え置き／
