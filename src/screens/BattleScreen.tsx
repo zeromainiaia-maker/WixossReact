@@ -7193,7 +7193,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const keyActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
       const paidNums = keyActPay.paidNums;
       const discardNums = [...discardIndices].map(i => my.hand[i]);
-      const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
+      // 🆕**キー【起】の全捨てコスト**（§5.3 `O-46`）。⚠ここが無いと `WXK04-025-CB-E2`
+      //   「このキーを場からルリグトラッシュに置き、エナゾーンにあるすべてのカードをトラッシュに置く：」の
+      //   **エナ全損を提示だけして踏み倒せる**（キー経路はエナ／手札捨て／`trash_key` しか払っていなかった＝
+      //   `O-67` で見つけた「ルリグ【起】に場シグニ系コストの支払いが1行も無い」と同型）。
+      // ⚠`energyTrashAll` は**エナ支払い（`costIndices`）の控除後**を対象にする＝`keyActPay.energyAfter`
+      //   （シグニ【起】の `performSigniActivated` と同じ funnel の読み方）。
+      const keyEnergyTrashAllCards = effect.cost?.energyTrashAll ? [...keyActPay.energyAfter] : [];
+      const keyDiscardAllCards = effect.cost?.discardAll ? my.hand.filter((_, i) => !discardIndices.has(i)) : [];
+      const newHand = effect.cost?.discardAll ? [] : my.hand.filter((_, i) => !discardIndices.has(i));
       // trash_key: このキーをルリグトラッシュに置く（コスト）
       let newField = my.field;
       let newLrigTrashKey = my.lrig_trash;
@@ -7211,15 +7219,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newLrigTrashKey = [...my.lrig_trash, extraKeys[extraIdx]];
         }
       }
-      const paid: PlayerState = keyActPay.applyTo({
+      let paid: PlayerState = keyActPay.applyTo({
         ...my,
         hand: newHand,
         field: newField,
         lrig_trash: newLrigTrashKey,
-        trash: [...my.trash, ...paidNums, ...discardNums],
+        trash: [...my.trash, ...paidNums, ...discardNums, ...keyDiscardAllCards, ...keyEnergyTrashAllCards],
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
       });
+      // energyTrashAll: エナゾーンを空にする（funnel の index 控除のあとに当てる＝`performSigniActivated` と同じ順）
+      if (effect.cost?.energyTrashAll) paid = { ...paid, energy: [] };
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
@@ -13765,6 +13775,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               energyTotal > 0 ? `エナ${energyTotal}` : null,
               eff.cost.coin ? `コイン${eff.cost.coin}` : null,
               eff.cost.discard ? `手札${eff.cost.discard}枚トラッシュ` : null,
+              // 🆕**`handDiscardSigni`（条件つき手札捨て）と `energyTrash`（エナ指定枚数）をラベルに出す**（§5.3 `O-46`）。
+              //   ⚠出さないと ①プレイヤーにコストが見えない ②同名の【起】を撃ち分けられない（§4.4 罠8m）。
+              eff.cost.handDiscardSigni ? `手札の${fmtHandDiscardSigniLabel(eff.cost.handDiscardSigni)}シグニ${eff.cost.handDiscardSigni.count}枚捨て` : null,
+              eff.cost.energyTrash ? `エナ${eff.cost.energyTrash.count}枚トラッシュ` : null,
               eff.cost.discardAll ? '手札すべて捨て' : null,
               eff.cost.energyTrashAll ? 'エナすべトラッシュ' : null,
               eff.cost.discardVariable ? `手札${eff.cost.discardVariable.min}枚以上捨て` : null,
@@ -14079,6 +14093,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.discard ? `手札${eff.cost.discard}枚` : null,
               eff.cost.coin ? `《コイン》×${eff.cost.coin}` : null,
               eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
+              // 🆕全捨てコスト（§5.3 `O-46`＝`WXK04-025-CB-E2`）。支払いは `executeKeyActivated`。
+              eff.cost.energyTrashAll ? 'エナすべてトラッシュ' : null,
+              eff.cost.discardAll ? '手札すべて捨て' : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         const cardName = battleCardMap.get(keyNum)?.CardName ?? keyNum;

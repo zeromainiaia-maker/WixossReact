@@ -460,8 +460,33 @@ function energyTrashConstraintOf(phrase: string | undefined): { selectionConstra
   return null;
 }
 
-function parseCost(costStr: string): EffectCost | undefined {
-  if (!costStr || costStr === '-') return undefined;
+/**
+ * 複合コスト（「AをX**し**、BをY**する**：」）の**連用形を終止形へ正規化**する（§5.3 `O-46`）。
+ *
+ * 🔴**これが無いと2要素目以降のコストが丸ごと落ちて踏み倒せる。** `parseCost` の各規則は
+ *   終止形（「捨て**る**」「置**く**」）だけを見ているが、原文は複数要素を「、」で並べるとき
+ *   **手前の要素を連用形**（「捨て、」「置き、」「公開し、」）で書く。実測では
+ *   `WXK08-027-E2`「手札を１枚捨て、他のシグニ１体を場からトラッシュに置き、エナゾーンから
+ *   カード１枚をトラッシュに置く：」が **`energyTrash` だけ**になり、手札1枚と自分のシグニ1体を
+ *   タダで踏み倒せた（同型で `WX21-043-E2` / `WXDi-P05-084-E1` / `WXDi-P16-085-E1`）。
+ *
+ * ⚠**正規化するのは「コスト句に実在する連用形」だけ**＝全 10,748 効果のコスト句から
+ *   「、」の直前を全数採取した結果、支払い動詞の連用形は**この3綴りしか無い**
+ *   （「トラッシュに置き、」9／「捨て、」5／「公開し、」2）。**推測で語を足さない**
+ *   （「〜とし、」「ターン終了時まで、」等の非コスト用法まで巻き込むと誤マッチが増える）。
+ * ⚠**「、」が続くときだけ**置換する＝「トラッシュに置き手札を…」のように読点が無い綴りは
+ *   別規則（下の energyTrashAll ＋ discardAll の複合形）が受けているので触らない。
+ */
+const COST_CONJUGATION_NORMALIZE: readonly (readonly [RegExp, string])[] = [
+  [/トラッシュに置き、/g, 'トラッシュに置く、'],
+  [/捨て、/g, '捨てる、'],
+  [/公開し、/g, '公開する、'],
+];
+
+function parseCost(rawCostStr: string): EffectCost | undefined {
+  if (!rawCostStr || rawCostStr === '-') return undefined;
+  let costStr = rawCostStr;
+  for (const [re, to] of COST_CONJUGATION_NORMALIZE) costStr = costStr.replace(re, to);
   const cost: EffectCost = {};
   const costCount = (s: string): number => s === '一' ? 1 : parseNum(s);
   const energy = parseEnergyCosts(costStr);
@@ -588,8 +613,16 @@ function parseCost(costStr: string): EffectCost | undefined {
     (icon === 'ディソナアイコン' ? { isDisona: true } : { keyword: icon });
 
   // エナゾーンのカードをすべてトラッシュ → energyTrashAll
-  if (/エナゾーンから(?:すべての)?カードをすべてトラッシュに置く|エナゾーンからすべてのカードをトラッシュに置く/.test(costStr)) {
+  // 🆕**「エナゾーン**にある**すべてのカードをトラッシュに置く」綴りを追加**（§5.3 `O-46`）＝
+  //   `WXK04-025-CB-E2`（キー【起】）がこの綴りで、**エナ全損コストを丸ごと踏み倒せていた**。
+  if (/エナゾーンから(?:すべての)?カードをすべてトラッシュに置く|エナゾーンからすべてのカードをトラッシュに置く|エナゾーンにあるすべてのカードをトラッシュに置く/.test(costStr)) {
     cost.energyTrashAll = true;
+  }
+  // 「**手札と**エナゾーンにあるすべてのカードをトラッシュに置く」＝手札側も同時に失う（`WXDi-P12-031-E2`）。
+  // ⚠上の energyTrashAll だけだと**手札の半分が落ちる**（部分採用＝過小コスト）。
+  if (/手札とエナゾーンにあるすべてのカードをトラッシュに置く/.test(costStr)) {
+    cost.energyTrashAll = true;
+    cost.discardAll = true;
   }
   // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash（前置き形）
   const etM = !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:(それぞれ異なるクラスを持つ|(?:それぞれ)?共通する色を持たない|共通する色を持つ|(?:それぞれ)?レベルの異なる|(?:それぞれ)?名前の異なる|(?:それぞれ)?共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/) : null;
@@ -787,7 +820,9 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (hbdM) cost.handBottomDeck = parseNum(hbdM[1]);
   }
   // エナゾーンにあるすべてのカードをトラッシュに置き、手札をすべて捨てる → combined
-  if (/エナゾーンにあるすべてのカードをトラッシュに置き(?:、)?手札をすべて捨てる/.test(costStr)) {
+  // ⚠**読点なしの連用形**（「置き手札を…」）はコスト句の連用形正規化（`COST_CONJUGATION_NORMALIZE`）が
+  //   触らないので、ここは `置[きく]` の両形を受けたまま残す。
+  if (/エナゾーンにあるすべてのカードをトラッシュに置[きく](?:、)?手札をすべて捨てる/.test(costStr)) {
     cost.energyTrashAll = true;
     cost.discardAll = true;
   }
@@ -928,6 +963,14 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (/【トラップ】であるこのカードを公開する/.test(costStr)) cost.none = true;
   // コラボコスト → none（ゲーム実装外コスト）
   if (/コラボライバー/.test(costStr)) cost.none = true;
+  // 🔴**「受け皿がまだ無いコスト要素」を1つでも含むなら、部分的な cost を返さない**（§5.3 `O-46`）。
+  //   ⚠部分採用は**踏み倒し**になる＝`WXDi-P03-019-E1`「すべてのシグニを場からトラッシュに置き、
+  //   手札とエナゾーンにあるすべてのカードをトラッシュに置く：対戦相手のすべてのシグニをバニッシュする」で
+  //   `energyTrashAll`＋`discardAll` だけを採ると、**自分の場のシグニを1体も失わずに相手の場を全滅**できる。
+  //   `undefined` を返すと呼び出し元が `costUnparsed` を立てて**提示そのものを止める**（＝安全側）。
+  //   ⚠`fieldTrash` は `count:number` しか持てず「すべて」を表せないので、受け皿ができるまでは印のまま。
+  //   受け皿を作ったら**この行を消す前に母集団を実測し直す**（§4.1）。
+  if (/すべてのシグニを場からトラッシュに置[くき]/.test(costStr)) return undefined;
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 

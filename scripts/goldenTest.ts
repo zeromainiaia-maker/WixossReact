@@ -47309,6 +47309,68 @@ test('O-67 gate: バニッシュできるシグニがいなければ【起】を
   eq(lrigIds([ANCIENT, null, null]).join(','), 'L-FB', '該当シグニが1体いれば提示される（対照）');
 }));
 
+
+// ── §5.3 `O-46`：複合コストの**連用形**で2要素目以降が丸ごと落ちていた ────────────────────
+// 原文は複数のコスト要素を「、」で並べるとき**手前を連用形**（「捨て、」「置き、」「公開し、」）で書くが、
+// `parseCost` の規則は**終止形しか見ていなかった**＝先頭側の要素が丸ごと落ちて**踏み倒せた**。
+// 実測＝`WXK08-027-E2` は `energyTrash` だけになり、手札1枚と自分のシグニ1体がタダだった。
+// ⚠**母集団は毎回原文から再導出する**（登録票の件数を写経しない＝§4.1）。
+test('O-46 live: コスト句の連用形（「〜し、」）で2要素目以降が落ちない', () => {
+  const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'));
+  // 🔑コスト句＝**先頭のマーカー【…】の直後から最初の「：」まで**（`parseCost` に渡る文字列と同じ切り方）。
+  const costClause = (t: string): string | null => {
+    const m = /^【[^】]+】/.exec(t);
+    if (!m) return null;
+    const after = t.slice(m[0].length);
+    const ci = after.indexOf('：');
+    return ci < 0 ? null : after.slice(0, ci).trim();
+  };
+  const pop = Object.entries(srcT)
+    .filter(([, t]) => { const cs = typeof t === 'string' ? costClause(t) : null; return !!cs && /(?:トラッシュに置き|捨て|公開し)、/.test(cs); })
+    .map(([id]) => id).sort();
+  eq(pop.join(','),
+    'WX18-036-E3,WX21-030-E3,WX21-043-E2,WX25-P3-019-E2,WX25-P3-100-E1,WXDi-CP02-099-E1,WXDi-P03-019-E1,'
+    + 'WXDi-P05-084-E1,WXDi-P16-012-E3,WXDi-P16-085-E1,WXK04-025-CB-E2,WXK04-060-E2,WXK06-084-E1,WXK08-027-E2,WXK10-006-E3',
+    '母集団は原文側で15効果（増えたら連用形の受け皿を見直す合図）');
+  // 🔴**要素ごとに「落ちていないこと」を固定する**＝1つでも欠けるとその要素をタダで踏み倒せる。
+  const costOf = (id: string) => (b43Live(id).cost ?? {}) as Record<string, unknown>;
+  eq(JSON.stringify(costOf('WX21-043-E2').handDiscardSigni), '{"count":1,"story":"毒牙"}',
+    'WX21-043-E2＝「手札から＜毒牙＞のシグニを１枚捨て、」が落ちない');
+  ok(!!costOf('WX21-043-E2').trash_self, 'WX21-043-E2＝2要素目（自己トラッシュ）も残る');
+  eq(JSON.stringify(costOf('WXDi-P16-085-E1').handDiscardSigni), '{"count":1,"level":1}',
+    'WXDi-P16-085-E1＝「レベル１のシグニを１枚捨て、」＝level 限定つき');
+  eq(JSON.stringify(costOf('WXDi-P05-084-E1').energyTrash), '{"count":1,"filter":{"cardType":"シグニ","story":"原子"}}',
+    'WXDi-P05-084-E1＝先頭のエナトラッシュが落ちない');
+  eq(costOf('WXK08-027-E2').discard, 1, 'WXK08-027-E2＝3要素の1つ目（手札1枚）');
+  eq(JSON.stringify(costOf('WXK08-027-E2').fieldTrash), '{"count":1,"filter":{"cardType":"シグニ"},"excludeSelf":true}',
+    'WXK08-027-E2＝2つ目（他のシグニ1体）＝「他の」なので excludeSelf');
+  eq(JSON.stringify(costOf('WXK08-027-E2').energyTrash), '{"count":1}', 'WXK08-027-E2＝3つ目（エナ1枚）');
+  ok(!!costOf('WXK04-025-CB-E2').energyTrashAll, 'WXK04-025-CB-E2＝「エナゾーンにあるすべてのカードを」綴りも energyTrashAll に載る');
+  ok(!!costOf('WXK04-025-CB-E2').trash_key, 'WXK04-025-CB-E2＝1要素目（キーをルリグトラッシュ）も残る');
+  // 🔴**受け皿が無い要素を含む効果は、他の要素を解釈できても `costUnparsed` のまま**＝提示しない。
+  //   これを外すと `WXDi-P03-019-E1` が**自分の場のシグニを1体も失わずに相手の場を全滅**させる。
+  ok(b43Live('WXDi-P03-019-E1').costUnparsed === true && b43Live('WXDi-P03-019-E1').cost === undefined,
+    '🔴「すべてのシグニを場からトラッシュに置き」は受け皿が無い＝部分的な cost を作らず costUnparsed のまま');
+  // 対照＝もともと両要素が載っていた効果は1文字も変わっていない（正規化が既存を壊していない）。
+  eq(JSON.stringify(costOf('WXK06-084-E1')), '{"discard":1,"deckTrash":1}', '対照＝既に両方載っていた効果は不変');
+  eq(JSON.stringify(costOf('WX25-P3-019-E2')), '{"discardAll":true,"energyTrashAll":true}', '対照＝複合形の専用規則も不変');
+});
+
+test('O-46 gate: handDiscardSigni は「中身の条件に合う札」が必要数なければ【起】を提示しない', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const DOKUGA = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙'));
+  const OTHER = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('毒牙'));
+  const cost = { handDiscardSigni: { count: 1, story: '毒牙' }, trash_self: true } as never;
+  const ids = (hand: string[]) => listActivatableSigniEffects({
+    my: { ...mkState({ signi: [DOKUGA, null, null] }), hand },
+    op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[DOKUGA, [mkAct('T-HDS', { cost })]]]) as Map<string, CardEffect[]>, cardMap: cm,
+  }).map(e => e.effectId);
+  eq(ids([]).length, 0, '手札が無ければ提示しない');
+  eq(ids([OTHER, OTHER]).length, 0, '🔴枚数はあってもクラスが違えば払えない（旧実装はここが素通り＝踏み倒せた）');
+  eq(ids([OTHER, DOKUGA]).join(','), 'T-HDS', '＜毒牙＞が1枚あれば提示される（対照＝先頭以外に置く）');
+}));
+
 // ── 結果出力 ──（⚠ 引数なしの経路は従来と1行も変えない＝runGates は PASS 時に末尾6行だけを表示する）
 if (listMode) {
   listedNames.forEach(n => console.log(n));

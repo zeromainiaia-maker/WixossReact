@@ -48,9 +48,14 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                       <img src={card.ImgURL} alt={card.CardName} style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
                       <div>
                         <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
+                        {/* 🆕全捨てコストは**選択不要**なので枚数を明示する（§5.3 `O-46`＝`WXK04-025-CB-E2`）。
+                            ⚠表示だけ足して支払いを書かないと踏み倒しになる＝支払いは `executeKeyActivated`。 */}
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>コスト: {[
+                          eff.cost?.trash_key ? 'このキーをルリグトラッシュ' : null,
                           energyTotal > 0 ? `エナ${energyTotal}枚` : null,
                           discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
+                          eff.cost?.energyTrashAll ? `エナをすべてトラッシュ（${my.energy.length}枚）` : null,
+                          eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` : null,
                         ].filter(Boolean).join('・') || 'なし'}</p>
                       </div>
                     </div>

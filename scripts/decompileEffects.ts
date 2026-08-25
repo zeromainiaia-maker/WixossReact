@@ -440,6 +440,39 @@ function costJa(c?: any): string {
     const cr = c.conditionalEnergyReduction;
     parts.push(`（${condJa(cr.condition)}場合、この能力の発動コストは${cr.energy.map((e: any) => `《${e.color}×${e.count}》`).join('')}減る）`);
   }
+  // ── 🆕**残りのコスト語彙を全数埋める**（§5.3 `O-46` の検証で発見）─────────────────────────
+  // 🔴**未対応キーは「黙って消える」か、全キーが未対応なら `コスト:{...}` と生JSONを漏らす。**
+  //   実測＝live のコストキーのうち **22種が costJa に無く、生JSON漏れが42効果以上**あった
+  //   （`trash_key` だけで42件・`WXK04-025-CB-E2` は `コスト:{"trash_key":true,"energyTrashAll":true}` と出ていた）。
+  // ⚠**新しいコストキーを `EffectCost` に足したらここにも1行足す**（さもないと逆翻訳が計器として嘘をつく＝§4.3）。
+  if (c.trash_key) parts.push('このキーを場からルリグトラッシュに置く');
+  if (c.discardAll) parts.push('手札をすべて捨てる');
+  if (c.discardSelfFromHand) parts.push('手札からこのカードを捨てる');
+  if (c.discardUpTo != null) parts.push(`手札を${c.discardUpTo}枚まで捨てる`);
+  if (c.discardVariable) parts.push(`手札から${filterJa(c.discardVariable.filter)}カードを${c.discardVariable.min}枚以上捨てる`);
+  if (c.handBottomDeck != null) parts.push(`手札を${c.handBottomDeck}枚デッキの一番下に置く`);
+  if (c.handExileSelf) parts.push('手札にあるこのカードをゲームから除外する');
+  if (c.energyTrashAll) parts.push('エナゾーンにあるすべてのカードをトラッシュに置く');
+  if (c.energyTrashColorAll) parts.push(`エナゾーンからすべての${c.energyTrashColorAll}のカードをトラッシュに置く`);
+  if (c.energyTrashSelf) parts.push('エナゾーンからこのカードをトラッシュに置く');
+  if (c.energyTrashGroups) parts.push(`エナゾーンから${c.energyTrashGroups.map((g: any) => `${filterJa(g.filter)}カード${g.count}枚`).join('と')}をトラッシュに置く`);
+  if (c.life_crash != null) parts.push(`ライフクロス${c.life_crash}枚をクラッシュする`);
+  if (c.lifeTrash != null) parts.push(`ライフクロス${c.lifeTrash}枚をトラッシュに置く`);
+  if (c.lifeToHand != null) parts.push(`ライフクロス${c.lifeToHand}枚を手札に加える`);
+  if (c.trashExile) {
+    parts.push(c.trashExile.self
+      ? 'トラッシュにあるこのカードをゲームから除外する'
+      : `トラッシュにある${filterJa(c.trashExile.filter)}カード${c.trashExile.count ?? 1}枚をゲームから除外する`);
+  }
+  if (c.exileLrigFromLrigDeck) parts.push(`ルリグデッキにある${c.exileLrigFromLrigDeck.story ? `＜${c.exileLrigFromLrigDeck.story}＞の` : ''}ルリグ${c.exileLrigFromLrigDeck.count}枚をゲームから除外する`);
+  if (c.selfPowerDown != null) parts.push(`このシグニのパワーを${c.selfPowerDown}減らす`);
+  if (c.selfToDeckBottom) parts.push('このシグニをデッキの一番下に置く');
+  if (c.banish_self) parts.push('このシグニをバニッシュする');
+  if (c.acceTrash != null) parts.push(`あなたの【アクセ】${c.acceTrash}枚をトラッシュに置く`);
+  if (c.chargeCounterRemove != null) parts.push(`この上からカウンター${c.chargeCounterRemove}つを取り除く`);
+  if (c.trapToHand != null) parts.push(`あなたの【トラップ】${c.trapToHand}枚を手札に加える`);
+  // `none:true`＝**コストなしの任意効果**（発動するかの確認だけ）。他のキーと同時には立たない。
+  if (c.none && parts.length === 0) parts.push('コストなし');
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
   return parts.join('＋');
 }
@@ -3971,7 +4004,16 @@ function effJa(e: Eff): string {
   const actCond = e.activeCondition
     ? (acJa.endsWith('間') || acJa.endsWith('かぎり') ? `《${acJa}》` : `《${acJa}${/[いるた]$/.test(acJa) ? '' : 'である'}かぎり》`)
     : '';
-  const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
+  // 🆕**`costUnparsed`＝原文のコストを表現できなかった印**（§5.3 `O-46`・live 12効果）。
+  // 🔴これを描かないと**逆翻訳が「無条件で発動する効果」に見える**が、実際は提示自体が止まっていて
+  //   1度も発動しない（`signiActivateGate` ／ `triggerCollect` が `costUnparsed` を弾く）＝
+  //   **原文照合でも census でも「合っている／過剰」のどちらにも見えない死角**になる（§4.3）。
+  // ⚠**文言は「JSON の事実」だけにする**＝トップレベル効果は提示・収集の両方で弾かれる
+  //   （`signiActivateGate` / `lrigActivateGate` / `triggerCollect` が `costUnparsed` を見る）が、
+  //   **`GRANT_*.abilities[]` の入れ子**にも同じ印が載るため「発動しない」と断定すると過剰主張になる。
+  const cost = e.costUnparsed
+    ? '〈※コスト未表現（原文のコスト句を parser が解釈できていない）〉'
+    : e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
   // 🆕**§5.3 `O-64`：フェイズ主限定（`duringMainPhase`／`outsideMainPhase`／`duringAttackPhase`）の共通マーカー。**
   // 従来この軸は **timing ごとの分岐が個別に `trig` へ埋め込む**形しか無く、規則を書いていない timing

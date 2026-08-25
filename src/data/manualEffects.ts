@@ -121,9 +121,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P1-107": [
     {"effectId":"WX25-P1-107-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"deckTrash":3},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"天使"}},"delta":3000,"duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
   ],
-  "WXK06-084": [
-    {"effectId":"WXK06-084-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1,"deckTrash":1},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-3000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
-  ],
   // タスク12(l): 引用能力を rawText のまま捨てず、実行可能な内側 CardEffect として付与する。
   "WXDi-P11-038": [
     {"effectId":"WXDi-P11-038-E2","effectType":"AUTO","timing":["ON_PLAY"],"activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"opponent"},"then":{"type":"GRANT_LRIG_ABILITY","rawText":"【常】：あなたのシグニは【シャドウ】を得る。","abilities":[{"effectId":"WXDi-P11-038-E2-GRANT","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"keyword":"シャドウ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}

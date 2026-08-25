@@ -6,7 +6,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
@@ -63,9 +63,14 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const isCostZeroByEffect = my.activate_cost_zero_signi === pendingSigniActivated.cardNum;
               const energyTotal = isCostZeroByEffect ? 0 : (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const actDiscardGroups = eff.cost?.discardGroups;
+              // 🆕**`handDiscardSigni`（「手札から＜X＞のシグニをN枚捨てる」）を手札捨てコストに合流**（§5.3 `O-46`）。
+              //   ⚠これが無いと**枚数要求が 0 になり、選択させないまま「発動」できる**＝コストの踏み倒し。
+              //   実測＝`WX21-043-E2`（＜毒牙＞1枚）／`WXDi-P16-085-E1`（レベル1のシグニ1枚）。
+              //   ⚠`discard` との**同時指定は無い**（parser は片方しか立てない）ので枚数は加算でよい。
+              const actHandDiscardSigni = eff.cost?.handDiscardSigni;
               const discardNeeded = actDiscardGroups
                 ? actDiscardGroups.reduce((s, g) => s + g.count, 0)
-                : (eff.cost?.discard ?? 0);
+                : (eff.cost?.discard ?? 0) + (actHandDiscardSigni?.count ?? 0);
               const actDiscardFilter = eff.cost?.discardFilter;
               const actFilterLabel = actDiscardGroups
                 ? actDiscardGroups.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と')
@@ -97,7 +102,10 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                   : actDiscardGroups
                     ? (selectedSigniActivatedDiscard.size === discardNeeded &&
                        canSatisfyDiscardGroups([...selectedSigniActivatedDiscard].map(i => battleCardMap.get(my.hand[i])), actDiscardGroups))
-                    : selectedSigniActivatedDiscard.size >= discardNeeded;
+                    : selectedSigniActivatedDiscard.size >= discardNeeded
+                      // `handDiscardSigni` は**枚数だけでなく中身**（色／クラス／レベル）も条件。
+                      && (!actHandDiscardSigni || [...selectedSigniActivatedDiscard]
+                        .every(i => matchesHandDiscardSigni(battleCardMap.get(getCardNum(my.hand[i])), actHandDiscardSigni)));
               // 《コインアイコン》コスト（リル//メモリア等の【起】コイン）
               const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
               const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
@@ -395,7 +403,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         手札から捨てるカードを選択: {selectedSigniActivatedDiscard.size} / {discardNeeded}枚
-                        {actDiscardGroups ? `（${actFilterLabel}）` : actDiscardFilter ? `（${actFilterLabel}のみ）` : ''}
+                        {actDiscardGroups ? `（${actFilterLabel}）` : actDiscardFilter ? `（${actFilterLabel}のみ）`
+                          : actHandDiscardSigni ? `（${fmtHandDiscardSigniLabel(actHandDiscardSigni)}シグニのみ）` : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.hand.map((num, i) => {
@@ -403,9 +412,13 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                           const isSel = selectedSigniActivatedDiscard.has(i);
                           const matchesActDiscard = actDiscardGroups
                             ? actDiscardGroups.some(g => matchesFilter(c, g.filter))
-                            : (!actDiscardFilter || matchesFilter(c, actDiscardFilter));
+                            : actHandDiscardSigni
+                              ? matchesHandDiscardSigni(c, actHandDiscardSigni)
+                              : (!actDiscardFilter || matchesFilter(c, actDiscardFilter));
                           return (
-                            <div key={i}
+                            // 🆕実機ドライバ用の testid（§5.3 `O-46`）。⚠**値はインスタンスIDではなく手札 index**＝
+                            //   同名カードが並んでも一意（罠8o＝`data-card-num` の意味はモーダルごとに違う）。
+                            <div key={i} data-testid={`signiact-discard-${i}`} data-card-num={getCardNum(num)}
                               onClick={() => matchesActDiscard && setSelectedSigniActivatedDiscard(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
@@ -484,7 +497,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             && canAddEnergyTrashIndex(my.energy, selectedSigniActivatedEnergyTrash, i, actEnergyTrashCost, battleCardMap);
                           const isSel = selectedSigniActivatedEnergyTrash.has(i);
                           return (
-                            <div key={i}
+                            <div key={i} data-testid={`signiact-energytrash-${i}`} data-card-num={getCardNum(num)}
                               onClick={() => matches && setSelectedSigniActivatedEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

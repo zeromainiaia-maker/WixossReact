@@ -3,6 +3,7 @@ import type { CardEffect, StubAction } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectInfectedActivateBlockedSigni, isKizunaActive } from '../../engine/effectEngine';
 import { evalUseCondition, getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { countAcce } from '../../utils/acce';
+import { matchesHandDiscardSigni } from './costs';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
@@ -119,6 +120,12 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     !isCharmActivateBlocked &&
     !(e.cost?.down_self && isAlreadyDown) &&
     !(e.cost?.discard && handCount < e.cost.discard) &&
+    // 🆕`handDiscardSigni`＝**中身の条件つき**手札捨てコスト（§5.3 `O-46`）。枚数だけでなく
+    //   **色／＜クラス＞／レベルに合致する札**が必要数なければ支払えない（`WX21-043-E2` の＜毒牙＞等）。
+    //   ⚠支払いUI（`SigniActivatedModal`）と**同じ判定関数**を使う＝写経すると片側だけ穴が空く。
+    !(e.cost?.handDiscardSigni && my.hand.filter(
+      n => matchesHandDiscardSigni(cardMap.get(getCardNum(n)), e.cost!.handDiscardSigni!),
+    ).length < e.cost.handDiscardSigni.count) &&
     !(e.cost?.underSelfTrash && !canPayUnderSelfTrash(
       my, zoneIndex, e.cost.underSelfTrash.count, cardMap,
       e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,
