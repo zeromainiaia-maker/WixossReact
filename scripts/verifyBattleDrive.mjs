@@ -29603,6 +29603,378 @@ scenarios.o67LrigBanishUnpayable = {
 order.push('o67LrigBanishCostPaid', 'o67LrigBanishUnpayable');
 // ── §5.3 O-67 END ──
 
+// ── §5.3 O-46（続き658）＝複合コスト（連用形）の2要素目以降が丸ごと落ちて踏み倒せていた ──
+//
+// ■ 何を見るか
+//   原文は複数のコスト要素を「、」で並べるとき**手前を連用形**（「捨て、」「置き、」）で書くが、
+//   `parseCost` の規則は**終止形しか見ていなかった**＝先頭側の要素が live JSON から丸ごと消えていた。
+//   ⇒ **提示（ボタンのラベル）ではなく「実際に資源が減ったか」を見る**（罠4＝機構が動いた証拠）。
+//
+// ■ 3本立て
+//   ① `WXK08-027-E2` …**3要素**（手札1枚＋他のシグニ1体＋エナ1枚）が**全部**払われる【本命】
+//   ② `WX21-043-E2` …`handDiscardSigni`＝**中身の条件つき**手札捨て。＜毒牙＞だけが候補になり、
+//      非＜毒牙＞は選べない（＝filter が効いている）。払えない手札では**提示されない**（対照）
+//   ③ `WXK04-025-CB-E2` …**キー【起】**の `energyTrashAll`。キー経路にはエナ全損の支払いが
+//      1行も無かった（`O-67` の「ルリグ【起】に支払いが無い」と同型）。対照は**同じ盤面で
+//      `trash_key` だけのキー【起】**（`WXK10-006-E3`）＝エナが減らない。
+//
+// ■ 罠の織り込み
+//   罠1＝`field.check: null` を両者に。罠8p＝コスト候補セルは1 index 1回だけ押す。
+//   罠8b＝「発動」は enabled を確かめてから（`H.clickBtn` が検査）。罠4＝資源の増減で判定する。
+//   罠34＝盤面が載るまで再注入する。罠18＝場のシグニは `StackModal`（`stack-detail-modal`）。
+
+// ── ① WXK08-027-E2＝3要素コストが全部払われる ──
+const B46_SRC = 'WXK08-027#1';        // 炎魔の総統 アミィ（Lv4 ＜悪魔＞）
+const B46_ALLY = 'WD05-012#1';        // 背徳の象徴 コスモ（Lv2 ＜悪魔＞・完全バニラ）＝「他のシグニ1体」
+const B46_HAND = 'WX05-079#1';        // アイン＝ガス（Lv1 バニラ）＝捨てる1枚（手札の候補が一意）
+const B46_ENERGY = 'WX05-077#1';      // ツヴァイ＝コブラ（Lv2 バニラ）＝エナ1枚（候補が一意）
+const B46_ACT = '【起】手札1枚トラッシュ・エナ1枚トラッシュ・場の他のシグニ1体トラッシュ';
+const b46ThreeSpec = (payable) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    // payable=false は**払えない盤面**（他のシグニなし・手札なし・エナなし）＝提示されないことの対照
+    'field.signi': payable ? [[B46_SRC], [B46_ALLY], null] : [[B46_SRC], null, null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'hand': payable ? [B46_HAND] : [],
+    'energy': payable ? [B46_ENERGY] : [],
+    'trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b46ThreeDrive = (tag, payable) => async function drive(page, H) {
+  // 罠34＝盤面注入は1発で決まらない（前シナリオの `CORE_FIELD_KEYS` が残る）＝載るまで再注入する
+  const ready = (st) => (st?.host?.fieldSigni?.[0] ?? []).some(n => String(n).startsWith('WXK08-027'))
+    && (st?.host?.handCards ?? []).length === (payable ? 1 : 0)
+    && (st?.host?.energyCards ?? []).length === (payable ? 1 : 0)
+    && (payable ? (st?.host?.fieldSigni?.[1] ?? []).length > 0 : !(st?.host?.fieldSigni?.[1] ?? []).length);
+  let before = await H.queryState();
+  for (let r = 0; r < 5 && !ready(before); r++) {
+    await injectScenario(page, b46ThreeSpec(payable));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): ready=${ready(before)} field=${JSON.stringify(before?.host?.fieldSigni)} hand=${JSON.stringify(before?.host?.handCards)} energy=${JSON.stringify(before?.host?.energyCards)}`);
+  }
+  if (!ready(before)) return { pass: false, detail: `準備失敗＝field=${JSON.stringify(before?.host?.fieldSigni)} hand=${JSON.stringify(before?.host?.handCards)} energy=${JSON.stringify(before?.host?.energyCards)}` };
+  await H.ensureMain();
+  H.log(`  ${tag} 開始: field=${JSON.stringify(before?.host?.fieldSigni)} hand=${JSON.stringify(before?.host?.handCards)} energy=${JSON.stringify(before?.host?.energyCards)} trash=${JSON.stringify(before?.host?.trashCards)}`);
+  let modalOpened = false, sawModal = false, actClicked = false, fired = false;
+  let discardPicked = false, energyPicked = false;
+  const pickedZones = new Set();
+  let sawLabels = [];
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!modalOpened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { modalOpened = true; did = o; } }
+    // 🔑罠4＝負方向（払えない）では「ボタンが無い」だけでは何も検証していない＝
+    //   **モーダルが開いている証拠**（場のシグニは `StackModal`＝罠18）を必須条件にする。
+    if (modalOpened) {
+      const stack = await page.getByTestId('stack-detail-modal').count();
+      const card = await page.getByTestId('card-detail-modal').count();
+      if (stack + card > 0) {
+        sawModal = true;
+        const ls = await page.locator('[data-action-label]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label') ?? ''));
+        if (ls.length) sawLabels = ls;
+      }
+    }
+    if (!did && modalOpened && !actClicked) {
+      const b = await H.clickBtn(B46_ACT, { exact: true });
+      if (b) { actClicked = true; did = b; }
+    }
+    // 罠8p＝候補セルは常に可視＝**1 index 1回だけ**押す（毎ティック押すとトグルで外れて「発動」に到達しない）
+    if (!did && actClicked && !discardPicked) {
+      const c = await H.clickTestId('signiact-discard-0'); if (c) { discardPicked = true; did = c; }
+    }
+    if (!did && actClicked && !energyPicked) {
+      const c = await H.clickTestId('signiact-energytrash-0'); if (c) { energyPicked = true; did = c; }
+    }
+    if (!did && actClicked && pickedZones.size < 1) {
+      for (const zi of [1, 2]) {
+        if (pickedZones.has(zi)) continue;
+        const c = await H.clickTestId(`signiact-fieldtrash-${zi}`);
+        if (c) { pickedZones.add(zi); did = c; break; }
+      }
+    }
+    if (!did && actClicked && !fired) {
+      const f = await H.clickBtn('発動', { exact: true });
+      if (f) { fired = true; did = f; }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | modal=${sawModal} act=${actClicked} dis=${discardPicked} ena=${energyPicked} zones=${[...pickedZones]} fired=${fired} field=${JSON.stringify(st?.host?.fieldSigni)} hand=${JSON.stringify(st?.host?.handCards)} energy=${JSON.stringify(st?.host?.energyCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (payable && fired && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+    if (!payable && sawModal && s >= 6) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  const after = await H.queryState();
+  const hand = after?.host?.handCards ?? [];
+  const energy = after?.host?.energyCards ?? [];
+  const zone1 = after?.host?.fieldSigni?.[1] ?? null;
+  const detail = `labels=${JSON.stringify(sawLabels)} hand=${JSON.stringify(hand)} energy=${JSON.stringify(energy)} field=${JSON.stringify(after?.host?.fieldSigni)} trash=${JSON.stringify(after?.host?.trashCards)}`;
+  if (!payable) {
+    if (!sawModal) return { pass: false, detail: `前提崩れ＝シグニのモーダルを開けていない（＝「ボタンが無い」の観測になっていない）。${detail}` };
+    if (actClicked) return { pass: false, detail: `🔴払えないのに提示された＝3要素コストを踏み倒して撃てる。${detail}` };
+    if (sawLabels.some(l => l.startsWith('【起】'))) return { pass: false, detail: `🔴【起】のボタンが残っている＝${JSON.stringify(sawLabels)}` };
+    return { pass: true, detail: `手札もエナも他のシグニも無い＝【起】が提示されない（モーダルは開いている）。${detail}` };
+  }
+  if (!fired) return { pass: false, detail: `前提崩れ＝「発動」まで到達できなかった（act=${actClicked} dis=${discardPicked} ena=${energyPicked} zones=${[...pickedZones]}）。${detail}` };
+  // 🔴**3要素すべてが払われたか**を1つずつ見る（旧実装はエナ1枚しか払っていなかった）
+  const missing = [];
+  if (hand.includes(B46_HAND)) missing.push(`手札(${B46_HAND})が減っていない`);
+  if (energy.length !== 0) missing.push(`エナが残っている(${JSON.stringify(energy)})`);
+  if (zone1 && zone1.length) missing.push(`他のシグニ(zone1=${JSON.stringify(zone1)})が場に残っている`);
+  if (missing.length) return { pass: false, detail: `🔴コストの踏み倒し＝${missing.join(' / ')}。${detail}` };
+  return { pass: true, detail: `3要素すべて支払われた（手札1枚・エナ1枚・他のシグニ1体）。${detail}` };
+};
+scenarios.b46ThreeElementCostPaid = {
+  title: 'WXK08-027-E2（【起】手札1枚＋他のシグニ1体＋エナ1枚）＝3要素すべて払われる【本命・旧: エナ1枚しか払わず2要素を踏み倒し】',
+  spec: b46ThreeSpec(true),
+  drive: b46ThreeDrive('b46ThreeElementCostPaid', true),
+};
+scenarios.b46ThreeElementUnpayable = {
+  title: 'WXK08-027-E2（手札0・エナ0・他のシグニなし）＝【起】が提示されない【対照＝モーダルは開いている】',
+  spec: b46ThreeSpec(false),
+  drive: b46ThreeDrive('b46ThreeElementUnpayable', false),
+};
+
+// ── ② WX21-043-E2＝handDiscardSigni（中身の条件つき手札捨て）──
+const B46_DOKUGA_SRC = 'WX21-043#1';   // ドライ＝ヘレボリン（Lv3 ＜毒牙＞）
+const B46_DOKUGA_ALLY = 'WX05-077#2';  // ツヴァイ＝コブラ（＜毒牙＞バニラ）＝【アサシン】の付与先
+const B46_DOKUGA_HAND = 'WX05-079#2';  // アイン＝ガス（＜毒牙＞バニラ）＝**唯一の**支払い候補
+const B46_OTHER_HAND = 'WD01-013#50';  // 小剣 ククリ（＜アーム＞バニラ）＝候補にならない札
+const B46_DOKUGA_ACT = '【起】手札の＜毒牙＞シグニ1枚捨て・このシグニをトラッシュ';
+const b46DokugaSpec = (hasDokugaInHand) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [[B46_DOKUGA_SRC], [B46_DOKUGA_ALLY], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    // 🔑**非＜毒牙＞を先頭に置く**＝index 0 を押しても選択されないこと自体が filter の対照になる
+    'hand': hasDokugaInHand ? [B46_OTHER_HAND, B46_DOKUGA_HAND] : [B46_OTHER_HAND, 'WD01-013#51'],
+    'energy': [],
+    'trash': [],
+    'keyword_grants': {},
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b46DokugaDrive = (tag, hasDokugaInHand) => async function drive(page, H) {
+  const ready = (st) => (st?.host?.fieldSigni?.[0] ?? []).some(n => String(n).startsWith('WX21-043'))
+    && (st?.host?.handCards ?? []).length === 2
+    && (st?.host?.handCards ?? []).some(n => String(n).startsWith(hasDokugaInHand ? 'WX05-079' : 'WD01-013'));
+  let before = await H.queryState();
+  for (let r = 0; r < 5 && !ready(before); r++) {
+    await injectScenario(page, b46DokugaSpec(hasDokugaInHand));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): ready=${ready(before)} field=${JSON.stringify(before?.host?.fieldSigni)} hand=${JSON.stringify(before?.host?.handCards)}`);
+  }
+  if (!ready(before)) return { pass: false, detail: `準備失敗＝field=${JSON.stringify(before?.host?.fieldSigni)} hand=${JSON.stringify(before?.host?.handCards)}` };
+  await H.ensureMain();
+  let modalOpened = false, sawModal = false, actClicked = false, fired = false;
+  let triedNonMatch = false, matchPicked = false, sawLabels = [];
+  let nonMatchEnabled = false;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!modalOpened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { modalOpened = true; did = o; } }
+    if (modalOpened) {
+      const stack = await page.getByTestId('stack-detail-modal').count();
+      const card = await page.getByTestId('card-detail-modal').count();
+      if (stack + card > 0) {
+        sawModal = true;
+        const ls = await page.locator('[data-action-label]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label') ?? ''));
+        if (ls.length) sawLabels = ls;
+      }
+    }
+    if (!did && modalOpened && !actClicked) {
+      const b = await H.clickBtn(B46_DOKUGA_ACT, { exact: true });
+      if (b) { actClicked = true; did = b; }
+    }
+    // 🔑**まず非＜毒牙＞（index 0）を1回だけ押す**＝filter が効いていれば選択されず、
+    //   「発動」は disabled のまま。これが filter の内側の対照（罠3）。
+    if (!did && actClicked && !triedNonMatch) {
+      const c = await H.clickTestId('signiact-discard-0');
+      if (c) {
+        triedNonMatch = true; did = c;
+        await page.waitForTimeout(300);
+        nonMatchEnabled = await page.getByRole('button', { name: '発動', exact: true }).first().isEnabled().catch(() => false);
+      }
+    }
+    if (!did && actClicked && triedNonMatch && !matchPicked) {
+      const c = await H.clickTestId('signiact-discard-1'); if (c) { matchPicked = true; did = c; }
+    }
+    if (!did && actClicked && matchPicked && !fired) {
+      const f = await H.clickBtn('発動', { exact: true });
+      if (f) { fired = true; did = f; }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | modal=${sawModal} act=${actClicked} nonMatch=${triedNonMatch}(発動enabled=${nonMatchEnabled}) match=${matchPicked} fired=${fired} hand=${JSON.stringify(st?.host?.handCards)} field=${JSON.stringify(st?.host?.fieldSigni)} grants=${JSON.stringify(st?.host?.keywordGrants)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (hasDokugaInHand && fired && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) break;
+    if (!hasDokugaInHand && sawModal && s >= 6) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  const after = await H.queryState();
+  const hand = after?.host?.handCards ?? [];
+  const trash = after?.host?.trashCards ?? [];
+  const grants = after?.host?.keywordGrants ?? [];
+  const detail = `labels=${JSON.stringify(sawLabels)} hand=${JSON.stringify(hand)} trash=${JSON.stringify(trash)} field=${JSON.stringify(after?.host?.fieldSigni)} grants=${JSON.stringify(grants)}`;
+  if (!hasDokugaInHand) {
+    if (!sawModal) return { pass: false, detail: `前提崩れ＝シグニのモーダルを開けていない。${detail}` };
+    if (actClicked) return { pass: false, detail: `🔴＜毒牙＞が手札に無いのに提示された＝クラス条件を無視して撃てる。${detail}` };
+    if (sawLabels.some(l => l.startsWith('【起】'))) return { pass: false, detail: `🔴【起】のボタンが残っている＝${JSON.stringify(sawLabels)}` };
+    return { pass: true, detail: `手札に＜毒牙＞のシグニが無い＝【起】が提示されない（枚数は2枚あるので「枚数不足」ではない）。${detail}` };
+  }
+  if (!fired) return { pass: false, detail: `前提崩れ＝「発動」まで到達できなかった（act=${actClicked} nonMatch=${triedNonMatch} match=${matchPicked}）。${detail}` };
+  // 🔴filter の内側＝**非＜毒牙＞を押しただけでは「発動」が enabled にならない**
+  if (nonMatchEnabled) return { pass: false, detail: `🔴非＜毒牙＞（${B46_OTHER_HAND}）を押しただけで「発動」が押せた＝クラス条件が効いていない。${detail}` };
+  if (!hand.includes(B46_OTHER_HAND)) return { pass: false, detail: `🔴候補外の札（${B46_OTHER_HAND}）まで捨てられた。${detail}` };
+  if (hand.includes(B46_DOKUGA_HAND)) return { pass: false, detail: `🔴コストの踏み倒し＝＜毒牙＞の札（${B46_DOKUGA_HAND}）が手札に残っている。${detail}` };
+  if (!trash.some(n => String(n).startsWith('WX05-079'))) return { pass: false, detail: `🔴捨てた札がトラッシュに無い。${detail}` };
+  if (!trash.some(n => String(n).startsWith('WX21-043'))) return { pass: false, detail: `🔴2要素目（このシグニを場からトラッシュ）が払われていない。${detail}` };
+  return { pass: true, detail: `＜毒牙＞の札だけが候補になり、2要素（手札の＜毒牙＞1枚＋自己トラッシュ）とも払われた。${detail}` };
+};
+scenarios.b46HandDiscardSigniPaid = {
+  title: 'WX21-043-E2（【起】手札から＜毒牙＞1枚捨て＋このシグニをトラッシュ）＝＜毒牙＞だけが候補・2要素とも払われる【本命】',
+  spec: b46DokugaSpec(true),
+  drive: b46DokugaDrive('b46HandDiscardSigniPaid', true),
+};
+scenarios.b46HandDiscardSigniNoMatch = {
+  title: 'WX21-043-E2（手札2枚だが＜毒牙＞なし）＝【起】が提示されない【対照＝枚数ではなくクラス条件で落ちる】',
+  spec: b46DokugaSpec(false),
+  drive: b46DokugaDrive('b46HandDiscardSigniNoMatch', false),
+};
+
+// ── ③ WXK04-025-CB-E2＝キー【起】の energyTrashAll ──
+// 🔴キー経路（`executeKeyActivated`）は**エナ／手札捨て／`trash_key` しか払っていなかった**＝
+//   「エナゾーンにあるすべてのカードをトラッシュに置く」を提示だけして踏み倒せた。
+// ■ 対照＝**同じ盤面で `trash_key` だけのキー【起】**（`WXK10-006-E3`）＝エナが1枚も減らない。
+const B46_KEY_ALL = 'WXK04-025-CB#1';  // Ｅ・Ｇ ＵＮＩＯＮ イザベラ（trash_key＋エナ全損）
+const B46_KEY_CTRL = 'WXK10-006#1';    // 劫末の唄鍵 ワールド・エンド（trash_key のみ）
+const B46_KEY_ENERGY = ['WX05-077#3', 'WX05-079#3', 'WD01-013#60'];
+const b46KeySpec = (keyNum) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': keyNum,
+    'field.key_piece_extra': [],
+    'energy': [...B46_KEY_ENERGY],
+    'trash': ['WD05-012#9'],       // 対照キーの本文（トラッシュから場に出す）が空振りしないように1枚置く
+    'lrig_trash': [],
+    'coins': 0,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [null, ['WD01-013#61'], null],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+const b46KeyDrive = (tag, keyNum, expectEnergyEmptied) => async function drive(page, H) {
+  const ready = (st) => st?.host?.keyPiece === keyNum && (st?.host?.energyCards ?? []).length === 3;
+  let before = await H.queryState();
+  for (let r = 0; r < 5 && !ready(before); r++) {
+    await injectScenario(page, b46KeySpec(keyNum));
+    await page.waitForTimeout(1200);
+    before = await H.queryState();
+    H.log(`  ${tag} 準備(${r}): ready=${ready(before)} keyPiece=${before?.host?.keyPiece} energy=${JSON.stringify(before?.host?.energyCards)} phase=${before?.turnPhase}`);
+  }
+  if (!ready(before)) return { pass: false, detail: `準備失敗＝keyPiece=${before?.host?.keyPiece} energy=${JSON.stringify(before?.host?.energyCards)}` };
+  H.log(`  ${tag} 開始: key=${before?.host?.keyPiece} energy=${JSON.stringify(before?.host?.energyCards)} lrigTrash=${before?.host?.lrigTrash} phase=${before?.turnPhase}`);
+  H.log('  KEY スロット:', await H.clickTestId('my-lrig-slot-key') ?? '見つからず');
+  await page.waitForTimeout(900);
+  let used = false, sawLabels = [], last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    // 罠32＝複合属性セレクタは当たらない＝`data-action-label` を全部読んで index で押す
+    if (!used) {
+      const labels = await page.locator('[data-action-label]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label') ?? ''));
+      if (labels.length) sawLabels = labels;
+      const idx = labels.findIndex(l => l.startsWith('【起】'));
+      if (idx >= 0) {
+        const btn = page.getByTestId(`card-action-${idx}`).first();
+        if (await btn.count() && await btn.isEnabled().catch(() => false)) {
+          await btn.click({ timeout: 1200 }).catch(() => {}); did = `act:${labels[idx]}`; used = true;
+        }
+      }
+    }
+    // 罠33＝キー【起】の確定は「発動」（`KeyUseModal` の「セット」とは別モーダル）。
+    //   ⚠**スロットの開き直しより先に置く**（後ろだとオーバーレイを閉じ続けて永久に確定へ到達しない）
+    if (!did) {
+      const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+      if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+        await fire.click({ timeout: 1200 }).catch(() => {}); did = 'btn:発動';
+      }
+    }
+    // 🔴罠23＝**レゾナ/トラッシュからの配置先は `SELECT_SIGNI_ZONE`＝「ゾーンN」ボタン**であって
+    //   通常召喚の `summon-zone-{zi}` ではない。⚠押さないと `pendingEffect` が残ったまま
+    //   26ティック空回りし（実測67秒）、**その pending が次のシナリオへ引き継がれる**（罠1と同根）。
+    if (!did && last?.pendingEffect === 'SELECT_SIGNI_ZONE') did = await H.clickZone();
+    if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    if (!did && (await page.locator('[data-action-label]').count()) === 0
+        && (await page.getByRole('button', { name: '発動', exact: true }).count()) === 0) {
+      did = await H.clickTestId('my-lrig-slot-key');
+    }
+    last = await H.queryState();
+    const keyUsedNow = (last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | used=${used} keyUsed=${keyUsedNow} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)} lrigTrash=${last?.host?.lrigTrash} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (keyUsedNow && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  const keyUsed = (last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0);
+  const energyAfter = last?.host?.energyCards ?? [];
+  const trashAfter = last?.host?.trashCards ?? [];
+  const detail = `labels=${JSON.stringify(sawLabels)} energy ${JSON.stringify(before?.host?.energyCards)}→${JSON.stringify(energyAfter)} lrigTrash ${before?.host?.lrigTrash}→${last?.host?.lrigTrash} trash=${JSON.stringify(trashAfter)}`;
+  // 罠4＝「エナが減った」だけでは足りない＝**キーが実際にルリグトラッシュへ行った**ことを必須条件にする
+  if (!keyUsed) return { pass: false, detail: `前提崩れ＝【起】を撃てていない（キーがルリグトラッシュへ行っていない）。${detail}` };
+  if (expectEnergyEmptied) {
+    if (energyAfter.length !== 0) return { pass: false, detail: `🔴コストの踏み倒し＝エナが残っている（キー経路にエナ全損の支払いが無い）。${detail}` };
+    const notInTrash = B46_KEY_ENERGY.filter(n => !trashAfter.includes(n));
+    if (notInTrash.length) return { pass: false, detail: `🔴エナは消えたがトラッシュに積まれていない＝${JSON.stringify(notInTrash)}。${detail}` };
+    return { pass: true, detail: `エナ3枚がすべてトラッシュへ（キー【起】でも energyTrashAll が払われる）。${detail}` };
+  }
+  if (energyAfter.length !== 3) return { pass: false, detail: `🔴対照が壊れた＝エナ全損コストを持たないキーなのにエナが減った。${detail}` };
+  return { pass: true, detail: '対照＝trash_key だけのキー【起】ではエナが1枚も減らない。' + detail };
+};
+scenarios.b46KeyEnergyTrashAllPaid = {
+  title: 'WXK04-025-CB-E2（キー【起】＝キー＋エナゾーンをすべてトラッシュ）＝エナ3枚が実際に失われる【本命・旧: 提示だけで踏み倒し】',
+  spec: b46KeySpec(B46_KEY_ALL),
+  drive: b46KeyDrive('b46KeyEnergyTrashAllPaid', B46_KEY_ALL, true),
+};
+scenarios.b46KeyTrashOnlyControl = {
+  title: 'WXK10-006-E3（同じ盤面・trash_key だけのキー【起】）＝エナは1枚も減らない【対照】',
+  spec: b46KeySpec(B46_KEY_CTRL),
+  drive: b46KeyDrive('b46KeyTrashOnlyControl', B46_KEY_CTRL, false),
+};
+order.push(
+  'b46ThreeElementCostPaid', 'b46ThreeElementUnpayable',
+  'b46HandDiscardSigniPaid', 'b46HandDiscardSigniNoMatch',
+  'b46KeyEnergyTrashAllPaid', 'b46KeyTrashOnlyControl',
+);
+// ── §5.3 O-46 END ──
+
+
 
 
 
