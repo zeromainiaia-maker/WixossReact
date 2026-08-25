@@ -2,6 +2,13 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-25 続き657 後**：
+  **census 573/573**（`O-67` で 574→573・`BASELINE_HIGH` も更新）、**golden 2781**（`O-67` で 2778→2781＝live 1本＋engine 1本＋gate 1本）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **live カード 5975 / 効果総数 10693**、`_held_fresh` **77**／`_partial_fresh` **12**／`_idset_fresh` **45**、
+  **意味照合 残 OPEN 678**、**実機シナリオ +23**
+
 - **2026-08-25 続き648 後（本行が直近の正）**：
   **census 600/600**、**golden 2735**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
