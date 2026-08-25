@@ -1587,26 +1587,34 @@ export function execStubPart1(
     return done(addLog({ ...ctx, lastProcessedCards: revealedRE },
       `各プレイヤーがデッキの一番上を公開（あなた: ${myTopRE ? nameRE(myTopRE) : 'なし'}・対戦相手: ${opTopRE ? nameRE(opTopRE) : 'なし'}）`));
   }
-  // LOOK_OPP_LIFE_TOP: 対戦相手のライフクロスの上から1枚（原文にN枚とあればN枚）を見る
+  // LOOK_OPP_LIFE_TOP: 指定されたゾーンの上から N 枚を見る（公開する）。
   // ⚠見たカードは lastProcessedCards に残り、後続の「【ライフバースト】を持たない場合、それをトラッシュに置く」等が参照する。
-  //   「対戦相手の手札を見る」綴りのときは手札を見る（同じ受け皿を共有している）。
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第1バッチ）＝ここは `EffectText`/`BurstText` の regex でゾーンと枚数を
+  //   決めていた**。実測で live 28効果のうち **27効果は regex が1本も当たらず既定（相手ライフ上1枚）へ
+  //   落ちていた**＝「対戦相手の手札を見**て**」（連用形）が全滅し、`WXEX1-11-E2` の「上からカードを２枚」も
+  //   1枚に潰れていた。⇒ **parser が `stub.lookZone` にゾーンと枚数を刻み、engine は payload だけを読む。**
+  // ⚠**payload が無い宣言は何も見ない**（fail-closed）＝この id は 20 の無関係な文型の catch-all にも
+  //   なっており（§5.3 `O-76`）、既定で覗くと**見る効果ではないのに相手の非公開領域を開いて
+  //   `lastProcessedCards` を汚す**。落ちたときは「効かない」で済ませる。
   if (stub.id === 'LOOK_OPP_LIFE_TOP') {
-    const srcLT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLT = srcLT ? (srcLT.EffectText ?? '') + ' ' + (srcLT.BurstText ?? '') : '';
-    const toHWLT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「対戦相手の手札を見る」パターン → 相手の手札枚数をログ
-    if (txtLT.match(/対戦相手の手札を[０-９\d]*枚?見る/)) {
-      const oppHand = ctx.otherState.hand.length;
-      return done(addLog({ ...ctx, lastProcessedCards: ctx.otherState.hand }, `対戦相手の手札${oppHand}枚を確認`));
-    }
-    const oppS = ownerState('opponent', ctx);
-    // N枚確認パターン
-    const countM = txtLT.match(/ライフクロスの上(?:から)?([０-９\d]+)枚(?:の)?(?:カードを)?(?:見る|確認)/);
-    const count = countM ? parseInt(toHWLT(countM[1])) : 1;
-    const viewed = oppS.life_cloth.slice(Math.max(0, oppS.life_cloth.length - count));
-    if (viewed.length === 0) return done(addLog(ctx, '対戦相手のライフクロスなし'));
-    const names = viewed.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
-    return done(addLog({ ...ctx, lastProcessedCards: viewed }, `対戦相手のライフクロス上${viewed.length}枚を確認：${names}`));
+    const specLT = stub.lookZone;
+    if (!specLT) return done(addLog(ctx, `[未実装] 見る対象が未指定（LOOK_OPP_LIFE_TOP・${ctx.sourceCardNum ?? '?'}）`));
+    const zoneOwnerLT = specLT.zone === 'self_life' ? ctx.ownerState : ownerState('opponent', ctx);
+    const pileLT = specLT.zone === 'opp_hand' ? zoneOwnerLT.hand
+      : specLT.zone === 'opp_deck_top' ? zoneOwnerLT.deck
+        : zoneOwnerLT.life_cloth;
+    // ライフクロスは配列末尾が「一番上」・デッキは先頭が「一番上」。手札に上下は無い（全部見る）。
+    const wantLT = specLT.count === 'ALL' ? pileLT.length : specLT.count;
+    const viewedLT = specLT.zone === 'opp_hand' ? pileLT
+      : specLT.zone === 'opp_deck_top' ? pileLT.slice(0, wantLT)
+        : pileLT.slice(Math.max(0, pileLT.length - wantLT));
+    const zoneNameLT = specLT.zone === 'opp_hand' ? '対戦相手の手札'
+      : specLT.zone === 'opp_deck_top' ? '対戦相手のデッキ上'
+        : specLT.zone === 'self_life' ? 'あなたのライフクロス' : '対戦相手のライフクロス上';
+    if (viewedLT.length === 0) return done(addLog(ctx, `${zoneNameLT}なし`));
+    const namesLT = viewedLT.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+    return done(addLog({ ...ctx, lastProcessedCards: viewedLT }, `${zoneNameLT}${viewedLT.length}枚を確認：${namesLT}`));
   }
   // トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ
   if (stub.id === 'TRADE_BANISH_SELF_SIGNI') {
