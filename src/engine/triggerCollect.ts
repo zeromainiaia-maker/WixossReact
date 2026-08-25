@@ -1334,6 +1334,9 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, myAfterState)) continue;
       if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      // 🆕§5.3 `O-62`：「**アクセされている**あなたのシグニ1体が…」（`WX15-003-E1`）。
+      //   `banishedHadCharm` と同じ規約＝除去直前の盤面で判定し、`prevOwnerState` 不明時は非発火。
+      if (eff.triggerCondition?.banishedHadAcce && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;
       if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
       if (eff.triggerCondition?.notWhileAttacking && battleAttackerNum === topNum) continue;
       if (eff.triggerCondition?.banishedLevelLtWatcher) {
@@ -1342,6 +1345,10 @@ export function collectBanishTriggers(
         if (isNaN(banishedLevel) || isNaN(watcherLevel) || banishedLevel >= watcherLevel) continue;
       }
       if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== meId)) continue;
+      // 🆕§5.3 `O-62`：**否定形**「あなたの効果**以外**によってバニッシュされたとき」（`WX15-003-E1`）。
+      //   バトル・ルール処理・相手の効果では発火し、**watcher 所有者自身の効果**が原因のときだけ落とす。
+      //   ⚠`banishedByOwnEffect:false` では書けない（未指定と区別できない）＝明示値の別キー。
+      if (eff.triggerCondition?.banishedNotByOwnEffect && cause?.ownerId === meId) continue;
       if (eff.triggerCondition?.banishedSourceStory) {
         const source = cause?.sourceCardNum ? ctx.cardMap.get(getCardNum(cause.sourceCardNum)) : undefined;
         if (!cause || cause.ownerId !== meId || source?.Type !== 'シグニ' || !(source.CardClass ?? '').includes(eff.triggerCondition.banishedSourceStory)) continue;
@@ -1381,6 +1388,9 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
       if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      // 🆕§5.3 `O-62`：「**アクセされている**あなたのシグニ1体が…」（`WX15-003-E1`）。
+      //   `banishedHadCharm` と同じ規約＝除去直前の盤面で判定し、`prevOwnerState` 不明時は非発火。
+      if (eff.triggerCondition?.banishedHadAcce && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;
       if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
       if (eff.triggerCondition?.notWhileAttacking && battleAttackerNum === topNum) continue;
       if (eff.triggerCondition?.banishedLevelLtWatcher) {
@@ -1389,6 +1399,10 @@ export function collectBanishTriggers(
         if (isNaN(banishedLevel) || isNaN(watcherLevel) || banishedLevel >= watcherLevel) continue;
       }
       if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== opId)) continue;
+      // 🆕§5.3 `O-62`：**否定形**「あなたの効果**以外**によってバニッシュされたとき」（`WX15-003-E1`）。
+      //   バトル・ルール処理・相手の効果では発火し、**watcher 所有者自身の効果**が原因のときだけ落とす。
+      //   ⚠`banishedByOwnEffect:false` では書けない（未指定と区別できない）＝明示値の別キー。
+      if (eff.triggerCondition?.banishedNotByOwnEffect && cause?.ownerId === opId) continue;
       if (eff.triggerCondition?.banishedSourceStory) {
         const source = cause?.sourceCardNum ? ctx.cardMap.get(getCardNum(cause.sourceCardNum)) : undefined;
         if (!cause || cause.ownerId !== opId || source?.Type !== 'シグニ' || !(source.CardClass ?? '').includes(eff.triggerCondition.banishedSourceStory)) continue;

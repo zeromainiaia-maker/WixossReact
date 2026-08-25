@@ -3622,6 +3622,21 @@ export interface CardEffect {
     banishedFrontOfSelf?: boolean;                     // ON_BANISH watcher の正面ゾーンにいたシグニだけに反応（WX15-055/056）
     banishedHadCharm?: boolean;                        // ON_BANISH watcher の被バニッシュシグニに【チャーム】が付いていた場合のみ（WXDi-P11-TK05）。除去直前の signi_charms で判定し、prevOwnerState 不明時は保守的に非発火
     banishedByOwnEffect?: boolean;                     // ON_BANISH watcher の「あなたの効果によって」＝watcher 所有者の効果起因のみ（バトル/ルール処理・原因不明では非発火）
+    /**
+     * ON_BANISH watcher の**否定形**「あなたの効果**以外**によってバニッシュされたとき」（§5.3 `O-62`・`WX15-003-E1`）。
+     *
+     * ⚠**`banishedByOwnEffect: false` では書けない**＝JSON では「未指定」と区別がつかず、
+     *   `!eff.triggerCondition?.banishedByOwnEffect` が両方 true になって**限定が消える**。
+     *   だから**明示値の別キー**にする（PLAN §5-2″）。
+     * 判定＝**バトル・ルール処理・相手の効果では発火する**が、**watcher 所有者自身の効果**が原因なら発火しない。
+     */
+    banishedNotByOwnEffect?: boolean;
+    /**
+     * ON_BANISH watcher の「**アクセされている**あなたのシグニ１体が…」（`WX15-003-E1`）。
+     * `banishedHadCharm` と同じ規約＝**除去直前の `signi_acce`** で判定し、`prevOwnerState` 不明時は保守的に非発火。
+     * ⚠**`triggerFilter` では書けない**＝アクセは盤面の状態で、`matchesFilter(cardMap...)` は CardData しか見ない。
+     */
+    banishedHadAcce?: boolean;
     banishedSourceStory?: string;                      // ON_BANISH watcher の「あなたの＜X＞のシグニの効果によって」＝banishedByOwnEffect に加え、発生源がシグニかつ CardClass に X を含む場合のみ（trashSourceStory と同型）
     duringAttackPhase?: boolean;                      // 「アタックフェイズの間、…したとき」＝アタックフェイズ（ATTACK_*）中のイベントのみ発火（WXEX2-01/WX20-051＝ON_SIGNI_DOWN/UP・WX11-030＝ON_DRAW）
     duringMainPhase?: boolean;                        // 「メインフェイズの間」だけ発火（WX18-052）
