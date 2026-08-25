@@ -4321,6 +4321,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         duration: 'PERMANENT',
       } as GrantProtectionAction;
     }
+    // 🆕**§5.3 `O-66`②：主語が**裸の「シグニは」**（所有者も指示語も付かない）＝**両プレイヤーのシグニ**
+    //   （`WXEX2-44-E1`「【常】：対戦相手のメインフェイズの間、シグニはバニッシュされない。」）。
+    // ⚠下の `owner:'self', count:1` へ落とすと**宣言元自身だけ**に潰れる（原文の範囲の 1/6）。
+    //   判定は直前の1文字だけを見る＝「あなたのシグニは」「このシグニは」「＜X＞のシグニは」はすべて
+    //   直前が「の」なので除外される（文頭・読点直後の「シグニは」だけが裸の主語）。
+    if (/(?:^|[、,。])シグニは/.test(t) && !isOneShotBanishProtection && !hasExplicitSigniTargets) {
+      return {
+        type: 'GRANT_PROTECTION',
+        ...(bySourceType ? { bySourceType } : {}),
+        target: { type: 'SIGNI', owner: 'any', count: 'ALL' },
+        from,
+        sourceOwner: /対戦相手の[^。]*(?:効果|能力)[^。]*バニッシュされない/.test(t) ? 'opponent' : 'any',
+        duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
     return {
       type: 'GRANT_PROTECTION',
       ...(bySourceType ? { bySourceType } : {}),
