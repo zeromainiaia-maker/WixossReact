@@ -4377,8 +4377,12 @@ test('§6.4 T2: live の DECK_TOP_TO_LIFE は原文にライフクロスがあ�
 test('§6.4 T3: WXK07-031-E1 の【常】移動保護が実装済みSTUBのまま（採用の巻き添え防止）', () => {
   const e1 = (effectsMap.get('WXK07-031') ?? []).find(e => e.effectId === 'WXK07-031-E1');
   ok(!!e1, 'WXK07-031-E1 が live に存在する');
-  eq(JSON.stringify(e1!.action), JSON.stringify({ type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH' }),
-    'UNKNOWN へ退化していない（engine に消費がある実装済みSTUB）');
+  // 🆕§5.3 `O-66`③：保護対象は payload（`moveProtectFilter`）で運ぶようになったので**完全一致では固定しない**
+  //   （この test の主旨は「UNKNOWN へ退化していないこと」＝id が保たれていること）。
+  const a1 = e1!.action as { type?: string; id?: string; moveProtectFilter?: unknown };
+  eq(a1.type, 'STUB', 'UNKNOWN へ退化していない（engine に消費がある実装済みSTUB）');
+  eq(a1.id, 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH', 'STUB id が保たれている');
+  eq(JSON.stringify(a1.moveProtectFilter), '{"cardType":"シグニ","story":"宇宙"}', '保護対象が payload に載る（O-66③）');
 });
 
 type RevealAndPickGolden = Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
@@ -47030,6 +47034,59 @@ test('O-65 live: 【常】のフェイズ限定が activeCondition に載って�
   eq(ac('WXEX2-44-E1'), '{"type":"DURING_MAIN_PHASE","owner":"opponent"}', 'WXEX2-44-E1＝対戦相手のメインフェイズの間');
   eq(ac('WXK07-031-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK07-031-E1＝あなたのアタックフェイズの間');
   eq(ac('WXK08-048-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK08-048-E1＝あなたのアタックフェイズの間');
+});
+
+// §5.3 `O-66`④（2026-08-25）＝「このターン終了時、〈本文〉」の遅延が落ちて**即時実行**になっていた。
+// 旧実装は遅延設置への変換を**本文が `CHOOSE` のときだけ**に限っており、実測24文のうち遅延が生きて
+// いたのは4件だけだった。⚠**無条件に広げると5効果が退化する**ので3つのガードを置いている。
+const b66Delayed = (text: string, type = 'シグニ') =>
+  parseCardEffects({ CardNum: 'TEST-O66D', Type: type, EffectText: text } as unknown as CardData)[0]?.action as
+    { type?: string; trigger?: { timing?: string }; effect?: { type?: string }; steps?: Array<{ type?: string }> };
+
+test('O-66④ parser: 「このターン終了時、〈本文〉」が遅延設置になる（CHOOSE 以外の本文も）', () => {
+  const draw = b66Delayed('【出】：このターン終了時、カードを２枚引く。');
+  eq(draw.type, 'INSTALL_DELAYED_TRIGGER', '設置へ変換（旧実装は素の DRAW＝即時実行）');
+  eq(draw.trigger?.timing, 'ON_TURN_END', 'ON_TURN_END');
+  eq(draw.effect?.type, 'DRAW', '本文は DRAW');
+  const life = b66Delayed('【出】：このターン終了時、あなたのライフクロスの一番上のカードをトラッシュに置く。');
+  eq(life.type, 'INSTALL_DELAYED_TRIGGER', 'ライフクロス本文も設置になる（WD06-008-E1）');
+  eq(life.effect?.type, 'LIFE_CRASH', '本文は LIFE_CRASH');
+});
+
+test('O-66④ parser: 3つのガード（STUB本文／複数文／照応）は包まない', () => {
+  // (a) 本文が STUB ＝ハンドラが自分でターン終了時を予約していることがある（二重遅延を避ける）
+  const stubBody = b66Delayed('【出】：このターン終了時、あなたのすべてのシグニを裏向きにする。');
+  ok(stubBody?.type !== 'INSTALL_DELAYED_TRIGGER', 'STUB 本文は包まない（FLIP 系の二重遅延を避ける）');
+  // (b) tail が複数文＝1文前提の本文パースが後続文に引きずられて枚数を落とす
+  const multi = b66Delayed('【出】：このターン終了時、カードを２枚引く。その後、手札を１枚捨てる。');
+  ok(multi?.type !== 'INSTALL_DELAYED_TRIGGER', '複数文の tail は包まない');
+  // (c) 「それ」照応＝遅延本文に照応先を運ぶ受け皿がまだ無い（PLAN §5.3 O-71）
+  const anaphora = b66Delayed('【出】：対戦相手のシグニ１体を対象とし、このターン終了時、それをバニッシュする。');
+  ok(anaphora?.type !== 'INSTALL_DELAYED_TRIGGER', '「それ」照応の本文は包まない');
+});
+
+test('O-66④ live: 代表4効果の遅延が刻まれている', () => {
+  const stepType = (effectId: string, idx: number) => {
+    const a = b43Live(effectId).action as { steps?: Array<{ type?: string; trigger?: { timing?: string } }> };
+    return a.steps?.[idx];
+  };
+  eq(stepType('WD06-008-E1', 3)?.type, 'INSTALL_DELAYED_TRIGGER', 'WD06-008-E1＝ライフクロス上1枚がターン終了時に');
+  eq(stepType('WD06-008-E1', 3)?.trigger?.timing, 'ON_TURN_END', 'ON_TURN_END');
+  eq(stepType('WXEX2-40-E3', 1)?.type, 'INSTALL_DELAYED_TRIGGER', 'WXEX2-40-E3＝手札2枚捨てがターン終了時に');
+  eq(stepType('WX05-045-E1', 1)?.type, 'INSTALL_DELAYED_TRIGGER', 'WX05-045-E1＝手札全捨てがターン終了時に');
+  eq((b43Live('WXDi-P07-071-E1').action as { type?: string }).type, 'INSTALL_DELAYED_TRIGGER',
+    'WXDi-P07-071-E1＝エナチャージがターン終了時に');
+});
+
+test('O-66④ 副産物: 「対戦相手は自分のシグニN体を選びトラッシュに置く」の N と「相手が選ぶ」が落ちない', () => {
+  const two = parseCardEffects({ CardNum: 'TEST-O66T', Type: 'シグニ', EffectText: '【出】：対戦相手は自分のシグニ２体を選びトラッシュに置く。' } as unknown as CardData)[0].action as
+    { type?: string; target?: { owner?: string; count?: number }; opponentSelects?: boolean };
+  eq(two.type, 'TRASH', 'TRASH');
+  eq(two.target?.count, 2, 'N=2（旧実装は常に1へ潰れていた）');
+  eq(two.opponentSelects, true, '選ぶのは対戦相手（旧実装は効果オーナーが選べた）');
+  // live 側でも刻まれている（`SPDi43-31-E1` は「相手が選ぶ」が落ちていた実例）
+  const live = JSON.stringify(b43Live('SPDi43-31-E1').action);
+  ok(live.includes('"opponentSelects":true'), 'SPDi43-31-E1 に opponentSelects が載る');
 });
 
 // §5.3 `O-66`③（2026-08-25）＝engine が `cardMap.EffectText` を regex で読んで意味を決めていた STUB 5種を
