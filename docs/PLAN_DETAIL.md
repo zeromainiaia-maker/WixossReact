@@ -5,6 +5,16 @@
 
 - **2026-08-25 続き658 後（本行が直近の正）**：
 
+- **2026-08-25 続き660 後（本行が直近の正）**：
+  **census 572/572**（`O-66` では動かず＝engine 側の穴は census の網に載らない）、**golden 2799**（`O-66`②+2／③+3／④+4、既存1本の固定を緩和）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1036**、
+  **実機シナリオ +6**（🆕`O-66`②＝`b66WallProtectsAlly`／`b66WallAllyAttackPhase`、③＝`b66UnderGrantPayload`／`b66UnderGrantNonMatch`、
+  ④＝`b66TurnEndDelayInstalled`。回帰＝`b65WallOppMainProtected`／`b65WallAttackPhaseNotProtected` も PASS）、
+  **実機 testid +1**（`onplaycost-hand-${i}`＝【出】手札コストのセル）、
+  **`npm run golden` の所要＝全件 約158秒／`--only` 約1.5秒**
+
 - **2026-08-25 続き659 後（本行が直近の正）**：
   **census 572/572**（`O-45` で 573→572＝「下に置く」の名詞句修飾を filter へ配線）、**golden 2788**（`O-44` +2／`O-45` +3）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
