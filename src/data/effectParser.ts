@@ -14384,11 +14384,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // 【自】トリガー句の原因主体限定。「あなた／対戦相手の効果によって」は、主語を落とさず既存の
       // byOwnEffect / byOpponentEffect へ配線する。主体なしの「効果によって」は別文型なのでここでは触らない。
       // ターン内履歴を要する ON_TURN_END 等と、原因を timing 自体が内包する ON_REVEALED_FROM_HAND も対象外。
+      // 🆕**§5.3 `O-62`（2026-08-26）＝助数詞「１つ」を挟む形も同じ語彙で拾う。**
+      // 🔴旧実装は**リテラル「の効果によって」だけ**を見ていたので、原文
+      //   「あなたの効果**１つ**によって…合計N枚以上〜されたとき」（実測17文）が**丸ごと素通り**していた。
+      // 🔑**「１つ」＝「1つの効果の中で合算した枚数」**だが、engine 側の枚数はもともと
+      //   **1解決ぶんの set-diff**（＝1つの効果）で数えているので、**`minCount` 系がそのまま「効果１つ」の意味**になる
+      //   （`SEQUENCE` の複数ステップも1解決＝1つの能力なので合算されるのが原文どおり）。
+      //   ⇒ **足りなかったのは原因主体の限定だけ**（消費地点を読んで確認済み＝§5-2）。
       if ((['ON_TRASH', 'ON_ENERGY_CHARGE', 'ON_ENERGY_TO_TRASH', 'ON_ZONE_MOVED',
             'ON_OPP_POWER_DECREASED', 'ON_CARD_MILLED_FROM_DECK', 'ON_CARD_MOVED_TO_DECK'] as string[]).includes(timing[0])) {
-        if (/対戦相手の効果によって/.test(trigText)) {
+        if (/対戦相手の効果(?:[１1]つ)?によって/.test(trigText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOpponentEffect: true };
-        } else if (/あなたの効果によって/.test(trigText) && !/コストかあなたの効果によって/.test(trigText)) {
+        } else if (/あなたの効果(?:[１1]つ)?によって/.test(trigText) && !/コストかあなたの効果によって/.test(trigText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
         }
       }
