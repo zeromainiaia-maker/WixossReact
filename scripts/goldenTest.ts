@@ -261,8 +261,37 @@ function manualEffect(cardNum: string, effectId: string): CardEffect {
 }
 
 // ── テストフレームワーク ──
+//
+// 開発ループ用のテスト名フィルタ（2026-08-25 追加。全件は1回 約88秒かかるので、1本直すたびに全部走らせない）
+//   npm run golden                          … 従来どおり全件（引数なし＝挙動も出力行数も一切変わらない）
+//   npm run golden -- --only "O-65"         … テスト名の部分一致で絞る（--only は複数指定可＝OR）
+//   npm run golden -- --list                … 全テスト名を列挙する（フィルタ文字列を探すのに使う）
+//
+// 🔴 フィルタ実行の PASS/FAIL は全件実行と等価ではない。下の POOL カーソル `cursor` は
+//    モジュールグローバルの可変状態で、`fill()`／`mkState()` 経由でテストごとに前進する
+//    ＝テストをスキップすると後続テストが引くカードが変わる（一部のテストが `withSavedCursor`
+//    で退避しているのはこのため）。**通るはずのテストが落ちる／落ちるはずのテストが通る**の
+//    両方向に化けうるので、**1巡を閉じる前に必ずフィルタなしで全件を回すこと**（PLAN §2.1 ④）。
+// 🔴 0件マッチは exit 1 で落とす（タイプミスが「PASS 0 / FAIL 0」＝緑に見える vacuous PASS を作らない）。
+// ⚠ `npm run gates`（scripts/runGates.mjs:38）と CI は引数なしで spawn する＝常に全件。ここは変えない。
+const goldenArgv = process.argv.slice(2);
+const onlyFilters: string[] = [];
+for (let i = 0; i < goldenArgv.length; i++) {
+  const a = goldenArgv[i] ?? '';
+  if (a === '--only') { const v = goldenArgv[i + 1]; if (v) { onlyFilters.push(v); i++; } }
+  else if (a.startsWith('--only=')) { const v = a.slice('--only='.length); if (v) onlyFilters.push(v); }
+}
+const listMode = goldenArgv.includes('--list');
+const listedNames: string[] = [];
+let ranCount = 0, skippedCount = 0;
+
 let pass = 0; const fails: string[] = [];
-function test(name: string, fn: () => void) { try { fn(); pass++; } catch (e) { fails.push(`${name}: ${(e as Error).message}`); } }
+function test(name: string, fn: () => void) {
+  if (listMode) { listedNames.push(name); return; }
+  if (onlyFilters.length && !onlyFilters.some(f => name.includes(f))) { skippedCount++; return; }
+  ranCount++;
+  try { fn(); pass++; } catch (e) { fails.push(`${name}: ${(e as Error).message}`); }
+}
 function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m} expected=${b} got=${a}`); }
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
@@ -47035,6 +47064,23 @@ test('O-65 engine: 条件つきの「バニッシュされない」を原文フ�
   eq(broken.join(','), '', '無条件の「バニッシュされない」は原文フォールバックで true のまま（過小実行への裏返り検知）');
 });
 
+// ── 結果出力 ──（⚠ 引数なしの経路は従来と1行も変えない＝runGates は PASS 時に末尾6行だけを表示する）
+if (listMode) {
+  listedNames.forEach(n => console.log(n));
+  console.log(`\n(計 ${listedNames.length} テスト)`);
+  process.exit(0);
+}
+if (onlyFilters.length && ranCount === 0) {
+  // 🔴 vacuous PASS 防止＝タイプミスを「PASS 0 / FAIL 0」の緑に見せない（PLAN §4.3）
+  console.log(`✗ --only ${onlyFilters.map(f => JSON.stringify(f)).join(' ')} にマッチするテストが0件（全 ${skippedCount} 本をスキップ）`);
+  console.log('  タイプミスの可能性があります。テスト名の一覧は: npm run golden -- --list');
+  process.exit(1);
+}
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
+if (onlyFilters.length) {
+  console.log(`⚠ --only 実行（${ranCount} 本実行 / ${skippedCount} 本スキップ）＝この結果は権威ではない。`);
+  console.log('  テスト間で POOL カーソル(cursor)が共有されるため、PASS/FAIL は全件実行と一致しない（両方向に化けうる）。');
+  console.log('  1巡を閉じる前に必ず `npm run golden`（フィルタなし）で全件を回すこと。');
+}
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
-else console.log('✓ 全構文ゴールデン通過');
+else console.log(onlyFilters.length ? `✓ 絞り込み ${ranCount} 本 通過（全件ではない）` : '✓ 全構文ゴールデン通過');
