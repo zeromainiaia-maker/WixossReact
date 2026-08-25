@@ -9809,7 +9809,60 @@ function applyExplicitSelectionGroups(text: string, parsed: EffectAction): Effec
   return rewrite(parsed);
 }
 
+/**
+ * §6.4 O-61: 原文が「〜を対象とし」でプレイヤーに選ばせている対象へ `explicitTarget` を刻む。
+ *
+ * 🔴**なぜ必要か**＝`GRANT_KEYWORD` / `POWER_SET` / `POWER_MULTIPLY` の3型だけは
+ * 「**フィルタが無い＝このシグニ（効果元）**」という緩い既定を engine に持っており
+ * （`execGrantKeyword` / `execPowerSet` / `execPowerMultiply`）、
+ * 原文「あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る」が生む
+ * `{type:'SIGNI',owner:'self',count:1}` と、「このシグニは【アサシン】を得る」が生む同じ形が
+ * **JSON 上で完全に同一**になる。結果、効果元が場のシグニだと**選択UIを一度も出さずに
+ * 効果元自身へ適用**していた（`WX25-P3-059-E1` の実機観測）。
+ * BANISH 等は最初から `filter.thisCardOnly` だけを見るので同じ穴が無い＝この3型が外れ値。
+ *
+ * ⚠**刻むのは「対象とし」側**（少数・リテラルが規則用語で安定）。
+ *   「このシグニ」側は裸の `【常】：【マルチエナ】` から `【絆常】：【シャドウ:{…}】` まで
+ *   表記が多様で、刻み漏れがそのまま**自己付与が選択UIに化ける**退化になる。
+ * ⚠`この(シグニ|カード|ルリグ)` を含む文では刻まない＝1つの text に対象節と自己宣言節が同居する形
+ *   （「対戦相手のシグニ1体を対象とし、それをバニッシュする。その後、このシグニは【ランサー】を得る」）で
+ *   自己宣言側まで巻き込むため。**巻き込むより現状維持のほうが安全**。
+ *   ⚠`ルリグ` を含めるのは実測での必要＝`WX17-001-E2`／`WD15-001-E2` の「このルリグは【ダブルクラッシュ】
+ *   を得る」が**`{type:'SIGNI',owner:'any'}` に誤パースされている**（別件の既存バグ）ため、
+ *   `LRIG` 判定では弾けず刻印が届いてしまう。
+ * ⚠`parseActionText` は合成文の各節に対して**再帰的に**呼ばれるので、内側の狭い text で先に
+ *   正しく刻まれる。外側の広い text は刻む方向にしか働かない（**剥がさない**）ので単調。
+ */
+function applyExplicitTargetMarker(text: string, action: EffectAction): EffectAction {
+  if (/この(シグニ|カード|ルリグ)/.test(text)) return action;
+  // 「シグニ（N体）（まで）を対象とし」＝場のシグニを選ばせる名詞句が在るときだけ。
+  if (!/シグニ(?:を)?[０-９\d]*体?(?:まで)?を?対象とし/.test(text)) return action;
+  const TYPES = new Set(['GRANT_KEYWORD', 'POWER_SET', 'POWER_MULTIPLY']);
+  const stamp = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(stamp); return; }
+    const obj = node as Record<string, unknown>;
+    if (TYPES.has(obj.type as string) && !obj.targetsStored && !obj.targetsLastProcessed
+        && !obj.targetsTriggerSource && !obj.targetsBattleAttacker) {
+      const target = obj.target as Record<string, unknown> | undefined;
+      if (target && target.type === 'SIGNI' && target.count !== 'ALL') target.explicitTarget = true;
+    }
+    for (const value of Object.values(obj)) stamp(value);
+  };
+  // 🔴**deep clone してはいけない**＝この parser は同じノード**オブジェクトを共有**したまま
+  //   後段のパスが**破壊的に**フィールドを足す形が在る（実測＝`WX16-042-E1` は `SEQUENCE` の
+  //   `BANISH` と `REPEAT` 本体の `BANISH` が同一参照で、`levelEqLastProcessed` を1回書けば両方に載る）。
+  //   `JSON.parse(JSON.stringify(...))` で複製すると参照が切れ、**後段の付与が片方にしか届かなくなる**
+  //   （held が1件増えて発覚）。既存の後段パス（`applyTotalLevelSelectionWiring` 等）と同じく**その場で書く**。
+  stamp(action);
+  return action;
+}
+
 function parseActionText(text: string): EffectAction {
+  return applyExplicitTargetMarker(text, parseActionTextBody(text));
+}
+
+function parseActionTextBody(text: string): EffectAction {
   // 【常】：【K1】【K2】… の列挙形。動詞を省略した印字は各キーワードを自身が恒久的に持つ。
   const bareKeywordList = text.trim().replace(/。$/, '').match(/^((?:【(?:ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ(?::\{[^}]*\})?|バニッシュ耐性|シールド|チャーム)】){2,})$/);
   if (bareKeywordList) {

@@ -1,5 +1,112 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-61`＝「〜を対象とし」が「このシグニ」と見分けられず、対象ピッカーを出さずに効果元へ自動適用していた
+
+> **1巡（続き662・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2804→2807**／census 572 据え置き／
+> smoke 10693 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／manual-fields 0/0／lint 0 errors・263 warnings）。
+> **実機は `b41GrantKeywordTargetsOwnSigniOnly` を O-61 の観測点へ組み替えて PASS＋回帰2本 PASS。**
+
+---
+
+### 真因＝**登録票の見立て（「任意コスト `OPTIONAL_COST` のせい」）は外れ**
+
+登録票は「**任意コストの直後**の対象1体で起きる」と読み、母集団を
+`SEQUENCE[OPTIONAL_COST,(CONDITIONAL→)対象1体を取る action]` の **232効果**と見積もっていた。
+実測すると `OPTIONAL_COST` は**全く関係なかった**。
+
+🔴**真因は `GRANT_KEYWORD` / `POWER_SET` / `POWER_MULTIPLY` の3型だけが持っていた
+「`target.filter` が無い＝**このシグニ**（効果元）」という緩い既定**（`effectExecutor.ts`）。
+
+```ts
+// execGrantKeyword（旧）
+if ((!tgt.filter || tgt.filter.thisCardOnly) && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+  return done(applyGrant([ctx.sourceCardNum], ctx));   // 選択UIを出さずに効果元へ
+}
+// execPowerSet / execPowerMultiply は filter すら見ずに**無条件**で横取りしていた
+```
+
+parser は
+- 「**この**シグニは【アサシン】を得る」 → `{type:'SIGNI', owner:'self', count:1}`
+- 「あなたのシグニ１体を**対象とし**、…それは【アサシン】を得る」 → `{type:'SIGNI', owner:'self', count:1}`
+
+を**完全に同一の JSON** にしていた。つまり **JSON の側で区別が失われていた**のが根。
+効果元が場のシグニだと後者が前者に飲まれ、**プレイヤーが選べるはずの対象を選べない**（`WX25-P3-059-E1` の実機観測）。
+
+⚠**`BANISH` 等は最初から `filter.thisCardOnly` だけを見る規約**なので同じ穴が無い。
+＝**この3型だけが規約から外れていた**（登録票が「BANISH の相手狙いは正常にピッカーが出る」と書いていたのはこのため）。
+
+### 直し方＝**少数側（「対象とし」）に刻印を足し、engine の既定を opt-out にする**
+
+| 層 | 変更 |
+|---|---|
+| 型 | `EffectTarget.explicitTarget?: boolean`（`src/types/effects.ts`） |
+| parser | `applyExplicitTargetMarker(text, action)` を `parseActionText` のラッパとして新設。`この(シグニ\|カード\|ルリグ)` を含む text では刻まず、`シグニ…を対象とし` を含む text の `GRANT_KEYWORD`/`POWER_SET`/`POWER_MULTIPLY` の SIGNI 対象へ `explicitTarget:true` を刻む |
+| engine | 上記3ハンドラの自動適用に `!target.explicitTarget` を足す（`effectExecutor.ts`） |
+
+🔑**「このシグニ」側ではなく「対象とし」側を刻んだ理由**＝実測で
+「このシグニ」側は **263ノード**（裸の `【常】：【マルチエナ】` から `【絆常】：【シャドウ:{…}】` まで表記が多様）、
+「対象とし」側は **少数かつリテラルが規則用語で安定**。刻み漏れの向きも重要で、
+**前者を刻み漏らすと自己付与が選択UIに化ける退化**（見えない・広範囲）、後者を刻み漏らすと**現状維持**（安全側）。
+
+### 母集団（実測）
+
+- ヒューリスティックが**発火しうる**ノード＝**614**（`GRANT_KEYWORD` 404／`POWER_SET` 209／`POWER_MULTIPLY` 1）。
+- うち `thisCardOnly` 刻印済み＝227、無刻印＝387。無刻印を節単位で分類すると
+  **KONO（このシグニ）217 / SORE（それ・対象とし）48 / AMBIG 64 / 節特定不能 50 / 原文なし 8**。
+- **live A/B の実結果**＝刻印 **186ターゲット / 167カード**、**`explicitTarget` 以外の差分ゼロ**。
+  そのうち旧ヒューリスティックが発火しうるのは **58ノード**、**効果元がシグニ＝実際に挙動が変わるのは 18効果**
+  （`WX25-P3-059-E1`／`WX02-022-E1`／`WX10-077-E1`／`WX11-027-E2`／`WX26-CP1-084-SONG`／`WXDi-P14-088-E1` ほか）。
+  残り40ノードは効果元がルリグ／アーツ／スペル等で `cands` に入らないため**元から選択UIが出ていた**（刻印は保険）。
+
+### 🔴 作業中に踏んだ落とし穴（再発させない）
+
+1. **後段パスは同じノード**オブジェクト**を共有している＝後段パスの直前で deep clone してはいけない。**
+   初版の `applyExplicitTargetMarker` は `JSON.parse(JSON.stringify(action))` で複製してから刻んでいた。
+   `WX16-042-E1` は `SEQUENCE` の `BANISH` と `REPEAT` 本体の `BANISH` が**同一参照**で、
+   後段が `levelEqLastProcessed` を1回書けば両方に載る作りだったため、**複製で参照が切れて片方にしか届かなくなった**。
+   ⇒ `_held_fresh` が **76→77** に増えて発覚。既存の後段パス（`applyTotalLevelSelectionWiring` 等）と同じく**その場で書く**形へ直した。
+   ⚠**live の差分だけ見ていると気づけない**（held に回るので live は不変）＝**`_held_fresh`/`_partial_fresh`/`_idset_fresh` の件数を必ず前後で比べる**。
+2. **`build:effects` は `PRESERVE_STATUSES` のカードを丸ごと温存するので、一度書き込んだ誤りが次の再生成で消えない。**
+   ガードを直して再生成しても `WX17-001-E2`／`WD15-001-E2` の誤刻印が live に残り続けた。
+   ⇒ **live を `git checkout` でベースラインへ戻してから1回だけ再生成する**のが正しい A/B のやり方。
+3. **ガードに `ルリグ` が要る**＝「このルリグは【ダブルクラッシュ】を得る」が
+   `{type:'SIGNI',owner:'any'}` に**誤パース**されている（別件）ため `LRIG` 判定では弾けない。→ `O-75` に登録。
+
+### golden（+3・修正前に落ちることを実測）
+
+| テスト | 見るもの | 修正前 |
+|---|---|---|
+| `§6.4 O-61 GRANT_KEYWORD: …` | 刻印なし＝効果元へ無選択付与／刻印あり＝ピッカーが出て**効果元以外**を選べる | ✗ FAIL |
+| `§6.4 O-61 POWER_SET / POWER_MULTIPLY: …` | 同上（`POWER_SET` は filter すら見ずに横取りしていた） | ✗ FAIL |
+| `§6.4 O-61 parser: …` | `WX25-P3-059`／`WX02-022`／`WX10-077` に刻印が立ち、`WX15-032`／`WX15-038`（このシグニは〜を得る）には立たない | PASS（parser 側の一方向） |
+
+⚠**両方向で書いた**＝片方だけだと「全部ピッカーに化ける」退化も「全部自動適用に戻る」退化も素通りする。
+⚠**選ぶのは候補の先頭ではない方**（`cands[0]` は効果元）＝オートパイロットの `slice(0,1)` と一致して vacuous に PASS するのを避けた。
+
+### 実機
+
+| id | 見るもの | 結果 |
+|---|---|---|
+| `b41GrantKeywordTargetsOwnSigniOnly`（O-61 の観測点へ組み替え） | 支払い後に **`SELECT_TARGET` が出る**／候補は自分のシグニ2体で相手を含まない／**効果元ではない方**を選ぶと**そちらにだけ**乗る | ✅ PASS |
+| `b41GrantKeywordExpiresAtTurnEnd`（回帰） | グロウ経由の【ダブルクラッシュ】が実 UI で乗る | ✅ PASS |
+| `b66UnderGrantPayload`（回帰） | 下に置いたカード経由の付与 | ✅ PASS |
+
+実機ログ＝`optcost-pay` 直後に
+`pEff=SELECT_TARGET candidates=["WX25-P3-059#54111","WD01-013#54112"]` が立ち、
+`pick-1` → 「決定」で `grants=["WD01-013#54112:アサシン:…"]`＝**効果元 `#54111` には乗らない**。
+（旧実装では `optcost-pay` 直後にいきなり `grants=["WX25-P3-059#…:アサシン…"]` が立ち `SELECT_TARGET` は一度も出なかった。）
+
+⚠**シナリオ側の是正2点**＝①`field.check: null` を host/guest 両方へ（§4.4 罠1）
+②選択後の確定ボタンは **「決定 (1/1)」＝枚数入りラベル**なので `exact` を使わず `H.clickBtn('決定')` の前方一致で押す（§4.4 罠2）。
+初回は確定を押さずに 30反復空振りして FAIL した。
+
+### follow-up
+
+- **`O-75`**＝「このルリグは【X】を得る」が `{type:'SIGNI',owner:'any'}` に誤パースされる（実測2効果＋同型の「そのルリグ」）。
+  現状は効果元がルリグで `cands` に入らないため挙動は変わっていないが、**ルリグに乗るべき付与がシグニの選択UIに化ける**。
+
+---
+
 ## 2026-08-26：§5.3 `O-62`＝「あなたの効果**１つ**によって」＝助数詞を挟む原因限定が丸ごと落ちていた（＋否定形の新語彙）
 
 > **1巡（続き661・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2799→2804**／census 572 据え置き／

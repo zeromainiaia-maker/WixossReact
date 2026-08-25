@@ -885,6 +885,16 @@ export interface EffectTarget {
   totalLevelMax?: number; // 「レベルの合計がN以下になるようにM体まで」: 選択カードのレベル合計の上限（count=M・upToCount と併用。WDK13-007）
   fromTop?: boolean;     // DECK_CARD: デッキ上から count 枚を対象（「一番上を見る。それが〜の場合、場に出す」＝WX10-007/WX16-038）。execAddToField は deck.slice(0,count) で先頭前提
   fromLeftFieldUnder?: boolean; // ON_LEAVE_FIELD: 離場直前にトリガー元シグニの下にあったカードだけを候補にする
+  /**
+   * 原文が「〜を対象とし」で**プレイヤーに選ばせている**対象であることの刻印（§6.4 O-61）。
+   * ⚠これが無いと `GRANT_KEYWORD` / `POWER_SET` / `POWER_MULTIPLY` の
+   *   「このシグニ＝効果元へ無選択で適用する」ヒューリスティックが、
+   *   `{type:'SIGNI',owner:'self',count:1}`（＝フィルタ無し）の**明示対象と見分けがつかず**
+   *   選択UIを出さずに効果元へ適用してしまう（`WX25-P3-059-E1` の実機観測）。
+   * ⚠BANISH 等は最初から `filter.thisCardOnly` だけを見る規約なのでこの刻印は不要＝
+   *   上の3型だけが「フィルタ無し＝このシグニ」という緩い既定を持っていた。
+   */
+  explicitTarget?: boolean;
 }
 
 export interface SelectionConstraint {

@@ -28656,12 +28656,13 @@ scenarios.b41GrantKeywordExpiresAtTurnEnd = {
 };
 
 scenarios.b41GrantKeywordTargetsOwnSigniOnly = {
-  title: '段2 第41バッチ：WX25-P3-059-E1の対象候補は自分のシグニだけ（相手シグニを除外）',
+  title: '§5.3 O-61：WX25-P3-059-E1「あなたのシグニ１体を対象とし」で対象ピッカーが出て、選んだ側だけに乗る',
   spec: {
     hostSet: {
       'field.lrig': ['WD03-003#54120'],
       'field.signi': [[B41_OWNER_SOURCE], [B41_OWNER_SELF], null],
       'field.signi_down': [false, false, false],
+      'field.check': null,
       'energy': ['WD03-013#54114'],
       'hand': [], 'trash': [], 'actions_done': [],
       'deck': ['WD01-013#54115', 'WD01-013#54116'],
@@ -28669,36 +28670,55 @@ scenarios.b41GrantKeywordTargetsOwnSigniOnly = {
     guestSet: {
       'field.lrig': ['WD01-001#54121'],
       'field.signi': [[B41_OWNER_OPP], null, null],
+      'field.check': null,
       'deck': ['WD01-013#54117', 'WD01-013#54118'],
     },
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   async drive(page, H) {
-    let energyPicked = false; let paid = false;
-    for (let s = 0; s < 28; s++) {
+    // 🔑**O-61 の本体**＝原文は「あなたのシグニ１体を**対象とし**、《青》を支払ってもよい」。
+    //   旧 engine は `GRANT_KEYWORD` の「target.filter が無い＝このシグニ」という緩い既定に飲まれ、
+    //   **`SELECT_TARGET` を一度も出さずに効果元（`B41_OWNER_SOURCE`）へ自動付与**していた（続き647 の実機観測）。
+    //   ⇒ ここで見るのは①**ピッカーが出ること**（機構が動いた証拠＝§4.4 罠4）
+    //     ②候補が**自分のシグニ2体**で相手シグニを含まないこと
+    //     ③**効果元ではない方**（`B41_OWNER_SELF`）を選ぶと**そちらにだけ**乗ること（＝§4.3 の「候補の先頭以外を狙う」）。
+    let energyPicked = false; let paid = false; let sawPicker = false; let picked = false;
+    let candSnapshot = null;
+    for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(500);
       let did = null;
       const st0 = await H.queryState();
-      // 🔴**候補リストは観測できない**（続き647 の実機で判明）＝この効果は
-      //   `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN → GRANT_KEYWORD{self,1}}]` で、
-      //   **engine は対象ピッカーを出さずに効果元シグニへ自動付与する**（実測＝コスト支払い直後に
-      //   `grants=["WX25-P3-059#…:アサシン…"]` が立ち、`SELECT_TARGET` は一度も出ない）。
-      //   ⚠**これは本バッチ起因ではない**＝修正前の `owner:'any'` でも同じ札が選ばれるので差分では挙動が変わらない。
-      //   （自動対象化そのものの是非は §5.3 `O-61` へ登録した。）
-      //   ⇒ 観測できる範囲＝「付与が**自分の**シグニに乗り、**相手のシグニには乗らない**」を見る。
-      const grants0 = st0?.host?.keywordGrants ?? [];
-      const oppGrants0 = st0?.guest?.keywordGrants ?? [];
-      if (paid && grants0.length > 0) {
-        const onOwnSigni = grants0.some(g => (g.startsWith(`${B41_OWNER_SOURCE}:`) || g.startsWith(`${B41_OWNER_SELF}:`)) && g.includes('アサシン'));
-        const notOnOpponent = !grants0.some(g => g.startsWith(`${B41_OWNER_OPP}:`))
-          && !oppGrants0.some(g => g.startsWith(`${B41_OWNER_OPP}:`));
-        return {
-          pass: onOwnSigni && notOnOpponent,
-          detail: `付与先=${JSON.stringify(grants0)}／自分のシグニに乗った=${onOwnSigni}／相手シグニには乗らない=${notOnOpponent}（host grants=${JSON.stringify(grants0)} guest grants=${JSON.stringify(oppGrants0)}）`,
-        };
+      const cands = Array.isArray(st0?.pendingCandidates) ? st0.pendingCandidates : [];
+      if (paid && !picked && cands.length > 0) {
+        sawPicker = true; candSnapshot = cands;
+        const onlyOwn = cands.includes(B41_OWNER_SOURCE) && cands.includes(B41_OWNER_SELF)
+          && !cands.includes(B41_OWNER_OPP);
+        if (!onlyOwn) {
+          return { pass: false, detail: `候補が自分のシグニ2体になっていない＝${JSON.stringify(cands)}` };
+        }
+        // ⚠**効果元ではない方**を選ぶ（効果元を選ぶと旧実装の自動付与と同じ絵になり判別力が消える）
+        did = await clickPendingInstance(page, H, B41_OWNER_SELF);
+        if (did) picked = true;
       }
-      if (st0?.turnPhase === 'MAIN') did = await H.clickBtn('アタックフェイズへ', { exact: true });
-      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      if (picked) {
+        const grants = st0?.host?.keywordGrants ?? [];
+        const oppGrants = st0?.guest?.keywordGrants ?? [];
+        const onPicked = grants.some(g => g.startsWith(`${B41_OWNER_SELF}:`) && g.includes('アサシン'));
+        if (onPicked) {
+          const notOnSource = !grants.some(g => g.startsWith(`${B41_OWNER_SOURCE}:`) && g.includes('アサシン'));
+          const notOnOpponent = !grants.some(g => g.startsWith(`${B41_OWNER_OPP}:`))
+            && !oppGrants.some(g => g.startsWith(`${B41_OWNER_OPP}:`));
+          return {
+            pass: notOnSource && notOnOpponent,
+            detail: `ピッカー提示=${sawPicker} 候補=${JSON.stringify(candSnapshot)}／選んだ側に乗った=${onPicked}／効果元には乗らない=${notOnSource}／相手には乗らない=${notOnOpponent}（host grants=${JSON.stringify(grants)} guest grants=${JSON.stringify(oppGrants)}）`,
+          };
+        }
+      }
+      if (!did && st0?.turnPhase === 'MAIN') did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      // 選択後の確定＝「決定 (1/1)」。⚠ラベルに枚数が入るので `exact` は使えない（§4.4 罠2）＝
+      //   `getByRole('button', {name})` の**前方一致**で拾う。
+      if (!did && picked) did = await H.clickBtn('決定');
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
       if (!did && !energyPicked) {
         const energy = page.getByTestId('optcost-energy-0').first();
         if (await energy.count() && await energy.isVisible().catch(() => false)) {
@@ -28712,10 +28732,13 @@ scenarios.b41GrantKeywordTargetsOwnSigniOnly = {
         }
       }
       const st = await H.queryState();
-      H.log(`  b41owner[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} energyPicked=${energyPicked} paid=${paid} pEff=${st?.pendingEffect ?? '-'} candidates=${JSON.stringify(st?.pendingCandidates)} grants=${JSON.stringify(st?.host?.keywordGrants)} energy=${JSON.stringify(st?.host?.energyCards)}`);
+      H.log(`  b41owner[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} energyPicked=${energyPicked} paid=${paid} picked=${picked} pEff=${st?.pendingEffect ?? '-'} candidates=${JSON.stringify(st?.pendingCandidates)} grants=${JSON.stringify(st?.host?.keywordGrants)} energy=${JSON.stringify(st?.host?.energyCards)}`);
     }
     const fin = await H.queryState();
-    return { pass: false, detail: `対象選択へ到達できず（energyPicked=${energyPicked} paid=${paid} pEff=${fin?.pendingEffect ?? '-'} candidates=${JSON.stringify(fin?.pendingCandidates)}）` };
+    return {
+      pass: false,
+      detail: `到達できず（energyPicked=${energyPicked} paid=${paid} sawPicker=${sawPicker} picked=${picked} pEff=${fin?.pendingEffect ?? '-'} candidates=${JSON.stringify(fin?.pendingCandidates)} grants=${JSON.stringify(fin?.host?.keywordGrants)}）`,
+    };
   },
 };
 

@@ -1759,8 +1759,9 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
 
   const count = resolveNum(a.target.count);
-  // 「このシグニ」: sourceCardNum が候補に含まれていれば自動適用
-  if (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+  // 「このシグニ」: sourceCardNum が候補に含まれていれば自動適用。
+  // ⚠`explicitTarget`（原文が「〜を対象とし」）のときは**プレイヤーが選ぶ**ので横取りしない（§6.4 O-61）。
+  if (!a.target.explicitTarget && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
     return done(applyPowerSet([ctx.sourceCardNum], ctx));
   }
   return selectOrInteract(cands, count, a.target.upToCount ?? false, psScope, a, undefined, ctx);
@@ -1787,7 +1788,8 @@ function execPowerMultiply(a: import('../types/effects').PowerMultiplyAction, ct
 
   if (a.target.count === 'ALL') return done(applyMultiply(cands, ctx));
   const count = resolveNum(a.target.count as number);
-  if (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) return done(applyMultiply([ctx.sourceCardNum], ctx));
+  // 「このシグニ」自動適用。`explicitTarget` は選択UIへ回す（§6.4 O-61）。
+  if (!a.target.explicitTarget && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) return done(applyMultiply([ctx.sourceCardNum], ctx));
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
   return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
@@ -3910,7 +3912,11 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   if (a.targetsStored || tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
   // 「このシグニ」: フィルターなし or thisCardOnly・sourceCardNum が候補に含まれていれば自動適用（選択UIを出さない）
-  if ((!tgt.filter || tgt.filter.thisCardOnly) && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+  // ⚠「フィルタ無し」を「このシグニ」と読む既定は、原文「あなたのシグニ１体を**対象とし**」が生む
+  //   `{owner:'self',count:1}` と**見分けがつかない**＝プレイヤーが選べるはずの対象を選べなくなる。
+  //   parser が刻む `explicitTarget` を opt-out にする（§6.4 O-61・`WX25-P3-059-E1` の実機観測）。
+  if ((!tgt.filter || tgt.filter.thisCardOnly) && !tgt.explicitTarget
+      && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
     return done(applyGrant([ctx.sourceCardNum], ctx));
   }
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';

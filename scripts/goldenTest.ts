@@ -47700,6 +47700,121 @@ test('O-46 gate: handDiscardSigni は「中身の条件に合う札」が必要�
   eq(ids([OTHER, DOKUGA]).join(','), 'T-HDS', '＜毒牙＞が1枚あれば提示される（対照＝先頭以外に置く）');
 }));
 
+// ── §6.4 O-61: explicitTarget（原文「〜を対象とし」）は効果元への自動適用を止める ──
+//
+// 🔴壊れ方＝`GRANT_KEYWORD` / `POWER_SET` / `POWER_MULTIPLY` の3型だけが
+//   「target.filter が無い＝このシグニ（効果元）」という緩い既定を持っていたため、
+//   原文「あなたのシグニ１体を**対象とし**」が生む `{type:'SIGNI',owner:'self',count:1}` と
+//   区別できず、**選択UIを一度も出さずに効果元自身へ適用**していた（`WX25-P3-059-E1` の実機観測）。
+// ⚠**両方向**を固定する＝刻印なし（このシグニ）は従来どおり無選択で効果元へ、
+//   刻印あり（対象とし）は選択UIを出して**効果元以外も選べる**こと。
+//   片方だけ書くと「全部選択UIに化ける」退化も「全部自動適用に戻る」退化も素通りする。
+type O61Grant = Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+type O61PowerSet = Extract<EffectAction, { type: 'POWER_SET' }>;
+const o61Exec = (action: EffectAction, ctx: ExecCtx): ExecResult =>
+  executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true, action } as CardEffect, ctx);
+
+test('§6.4 O-61 GRANT_KEYWORD: explicitTarget 無し＝効果元へ無選択付与 / 有り＝選択UIで効果元以外も選べる', () => {
+  const savedCursor = cursor;
+  try {
+    const src = fresh(); const ally = fresh();
+    const board = (): ExecCtx => mkCtx({ signi: [src, ally, null] }, {}, src);
+    const grant = (explicit: boolean): O61Grant => ({
+      type: 'GRANT_KEYWORD',
+      target: { type: 'SIGNI', owner: 'self', count: 1, ...(explicit ? { explicitTarget: true } : {}) },
+      keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN',
+    } as O61Grant);
+
+    // (A) 刻印なし＝「このシグニは【アサシン】を得る」相当。選択UIを出さず効果元へ。
+    const auto = o61Exec(grant(false), board());
+    ok(auto.done, 'O-61(A): 刻印なしなのに選択UIが出た（自己付与が選択UIに化ける退化）');
+    eq((auto.ownerState.keyword_grants?.[src] ?? []).join(','), 'アサシン', 'O-61(A): 効果元へ付与されていない');
+    eq((auto.ownerState.keyword_grants?.[ally] ?? []).length, 0, 'O-61(A): 効果元以外にも付いている');
+
+    // (B) 刻印あり＝選択UIが出る。候補には効果元も味方も含まれる。
+    const ctxB = board();
+    const asked = o61Exec(grant(true), ctxB);
+    ok(!asked.done && asked.pending.type === 'SELECT_TARGET',
+      'O-61(B): 「対象とし」なのに選択UIが出ず自動適用された（本件の実害）');
+    const cands = (asked as { pending: { candidates: string[] } }).pending.candidates;
+    ok(cands.includes(src) && cands.includes(ally), `O-61(B): 候補が両方を含まない (${cands.join(',')})`);
+    // ⚠**候補の先頭ではない方**を選ぶ＝オートパイロットの slice(0,1) と一致して vacuous に PASS するのを避ける
+    eq(cands[0], src, 'O-61(B): 前提＝効果元が候補の先頭（この前提が崩れたら下の assert は弱くなる）');
+    const picked = finish(resumeSelectTarget([ally], asked.pending as never, {
+      ...ctxB, ownerState: asked.ownerState, otherState: asked.otherState, logs: asked.logs,
+    }), ctxB);
+    eq((picked.ownerState.keyword_grants?.[ally] ?? []).join(','), 'アサシン', 'O-61(B): 選んだ味方に付与されていない');
+    eq((picked.ownerState.keyword_grants?.[src] ?? []).length, 0, 'O-61(B): 選ばなかった効果元にも付いている');
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.4 O-61 POWER_SET / POWER_MULTIPLY: explicitTarget で効果元への横取りが止まる', () => {
+  const savedCursor = cursor;
+  try {
+    const src = fresh(); const ally = fresh();
+    const board = (): ExecCtx => mkCtx({ signi: [src, ally, null] }, {}, src);
+    const powerSet = (explicit: boolean): O61PowerSet => ({
+      type: 'POWER_SET',
+      target: { type: 'SIGNI', owner: 'self', count: 1, ...(explicit ? { explicitTarget: true } : {}) },
+      value: 15000,
+    } as O61PowerSet);
+    const modOf = (r: ExecResult, n: string): number =>
+      (r.ownerState.temp_power_mods ?? []).filter(m => m.cardNum === n).length;
+
+    const auto = o61Exec(powerSet(false), board());
+    ok(auto.done, 'O-61(C): POWER_SET 刻印なしで選択UIが出た');
+    eq(modOf(auto, src), 1, 'O-61(C): 効果元へ適用されていない');
+    eq(modOf(auto, ally), 0, 'O-61(C): 効果元以外にも適用された');
+
+    const ctxD = board();
+    const asked = o61Exec(powerSet(true), ctxD);
+    ok(!asked.done && asked.pending.type === 'SELECT_TARGET',
+      'O-61(D): POWER_SET の「対象とし」が選択UIを出さず効果元へ横取りされた');
+
+    // POWER_MULTIPLY も同じ既定を持っていた（`WX10-077-E1`＝「あなたのシグニ１体を対象とし…２倍にする」）
+    const multiply = { type: 'POWER_MULTIPLY', multiplier: 2,
+      target: { type: 'SIGNI', owner: 'self', count: 1, explicitTarget: true } } as EffectAction;
+    const askedMul = o61Exec(multiply, board());
+    ok(!askedMul.done && askedMul.pending.type === 'SELECT_TARGET',
+      'O-61(D): POWER_MULTIPLY の「対象とし」が選択UIを出さず効果元へ横取りされた');
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.4 O-61 parser: 「〜を対象とし」に explicitTarget が立ち、「このシグニは〜を得る」には立たない', () => {
+  const grantTargetOf = (cardNum: string, effectId: string): Record<string, unknown> | null => {
+    let hit: Record<string, unknown> | null = null;
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      const obj = node as Record<string, unknown>;
+      if (hit === null && ['GRANT_KEYWORD', 'POWER_SET', 'POWER_MULTIPLY'].includes(obj.type as string)) {
+        hit = obj.target as Record<string, unknown>;
+      }
+      for (const v of Object.values(obj)) visit(v);
+    };
+    visit(manualEffect(cardNum, effectId).action);
+    return hit;
+  };
+  // 実機で観測した本件（「あなたのシグニ１体を対象とし、《青》を支払ってもよい」＝自分の場に2体いても選べなかった）
+  for (const [cardNum, effectId] of [
+    ['WX25-P3-059', 'WX25-P3-059-E1'],
+    ['WX02-022', 'WX02-022-E1'],           // 【出】《赤》：あなたのシグニ１体を対象とし…【ダブルクラッシュ】
+    ['WX10-077', 'WX10-077-E1'],           // POWER_MULTIPLY 版
+  ] as const) {
+    const target = grantTargetOf(cardNum, effectId);
+    ok(target?.explicitTarget === true, `${effectId}: 「対象とし」に explicitTarget が立っていない`);
+  }
+  // 逆方向＝自己宣言文に刻むと「このシグニは〜を得る」が全部選択UIに化ける
+  for (const [cardNum, effectId] of [
+    ['WX15-032', 'WX15-032-E1'],           // このシグニは中央のシグニゾーンにあるかぎり【トリプルクラッシュ】
+    ['WX15-038', 'WX15-038-E1'],           // このシグニはアクセされているかぎり【ランサー】
+  ] as const) {
+    const target = grantTargetOf(cardNum, effectId);
+    ok(target !== null, `${effectId}: 付与ノードが見つからない`);
+    ok(target?.explicitTarget === undefined, `${effectId}: 自己宣言文に explicitTarget が刻まれている`);
+  }
+});
+
 // ── 結果出力 ──（⚠ 引数なしの経路は従来と1行も変えない＝runGates は PASS 時に末尾6行だけを表示する）
 if (listMode) {
   listedNames.forEach(n => console.log(n));
