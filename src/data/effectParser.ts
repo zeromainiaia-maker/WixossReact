@@ -15362,6 +15362,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedHadCharm: true };
           actionText = charmOppBanM[1];
         }
+        // 🆕§5.3 `O-62`：「**アクセされている**あなたのシグニ1体が…」（`WX15-003-E1`）＝味方 watcher＋アクセ限定。
+        //   上の【チャーム】版と同じ規約＝静的 `triggerFilter` では書けない（アクセは盤面の状態）ので、
+        //   collector が `prevOwnerState.field.signi_acce` で評価する `banishedHadAcce` に落とす。
+        // 🔴これが無い間 `WX15-003-E1` は **scope 既定 self（＝ルリグ自身がバニッシュ）で構造的に一度も発火しなかった**。
+        const acceAllyBanM = actionText.match(/^アクセされているあなたのシグニ(?:[０-９\d]+体)?が(.+)/s);
+        if (acceAllyBanM) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerFilter = { cardType: 'シグニ' };
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedHadAcce: true };
+          actionText = acceAllyBanM[1];
+        }
         // 「あなたの〔属性〕のシグニがバニッシュされたとき」＝味方watcher。
         // scopeで陣営、filterで色・クラス・パワーを独立に限定する。
         const allyFilteredBanM = actionText.match(/^あなたの(?:(?:パワー([０-９\d]+)以上の)?＜([^＞]+)＞の|([白赤青緑黒])の)シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
@@ -15374,6 +15385,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
             ...(allyFilteredBanM[3] ? { color: allyFilteredBanM[3] } : {}),
           };
           actionText = allyFilteredBanM[4];
+        }
+        // 🆕§5.3 `O-62`：**否定形**「あなたの効果**以外**によって」（`WX15-003-E1`）。
+        // ⚠**肯定形の `banishedByOwnEffect: false` では書けない**＝JSON では未指定と区別がつかず限定が消える。
+        //   明示値の別キー `banishedNotByOwnEffect` に落とす（PLAN §5-2″）。
+        // ⚠肯定形の regex（`効果によって`）とは**「以外」の有無で排他**なので順序依存は無いが、読み順を合わせて先に置く。
+        const notOwnEffectM = actionText.match(/^あなたの効果以外によって(.+)/s);
+        if (notOwnEffectM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedNotByOwnEffect: true };
+          actionText = notOwnEffectM[1];
         }
         // 効果起因限定。「＜X＞のシグニ」がある場合は発生源カードの Type/CardClass も collector で照合する。
         const ownEffectM = actionText.match(/^あなたの(?:＜([^＞]+)＞のシグニの)?効果によって(.+)/s);
