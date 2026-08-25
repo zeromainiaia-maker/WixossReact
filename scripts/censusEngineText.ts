@@ -171,18 +171,32 @@ const baseNum = (n: string) => n.replace(/-[A-Z]+\d*$/, '');
 const textOf = (n: string) => cardText.get(n) ?? cardText.get(baseNum(n)) ?? '';
 
 // ── 4) ハンドラ単位に畳んで miss を測る ─────────────────────────────────────
-type H = { handler: string; lines: Row[]; literals: string[]; effects: number; cards: string[]; missCards: string[] };
+type H = { handler: string; lines: Row[]; literals: string[]; effects: number; cards: string[]; missCards: string[]; gates: Map<string, Set<string>> };
 const selfRows = rows.filter(r => r.cls === 'SELF_TEXT');
 const handlers = new Map<string, H>();
 for (const r of selfRows) {
-  if (!handlers.has(r.handler)) handlers.set(r.handler, { handler: r.handler, lines: [], literals: [], effects: 0, cards: [], missCards: [] });
+  if (!handlers.has(r.handler)) handlers.set(r.handler, { handler: r.handler, lines: [], literals: [], effects: 0, cards: [], missCards: [], gates: new Map() });
   const h = handlers.get(r.handler)!;
   h.lines.push(r);
   for (const l of r.literals) if (!h.literals.includes(l)) h.literals.push(l);
+  for (const [v, ids] of r.gates) {
+    if (!h.gates.has(v)) h.gates.set(v, new Set());
+    for (const id of ids) h.gates.get(v)!.add(id);
+  }
 }
 for (const h of handlers.values()) {
-  h.effects = liveCount.get(h.handler) ?? 0;
-  h.cards = [...(liveCards.get(h.handler) ?? [])].sort();
+  // 母集団＝gates の **変数ごとに OR（union）→ 変数どうしは AND（intersection）**
+  let pop: Set<string> | null = null;
+  let popEffects = 0;
+  for (const [, ids] of h.gates) {
+    const u = new Set<string>();
+    let n = 0;
+    for (const id of ids) { for (const c of liveCards.get(id) ?? []) u.add(c); n += liveCount.get(id) ?? 0; }
+    pop = pop === null ? u : new Set([...pop].filter(c => u.has(c)));
+    popEffects = popEffects === 0 ? n : Math.min(popEffects, n);
+  }
+  h.effects = popEffects;
+  h.cards = [...(pop ?? new Set<string>())].sort();
   for (const c of h.cards) {
     const t = textOf(c);
     // 🔴**miss ＝ 抽出したリテラルが「1本も」当たらない**（`some` ではなく `every`）。
