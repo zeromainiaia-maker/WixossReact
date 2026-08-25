@@ -47032,6 +47032,39 @@ test('O-65 live: 【常】のフェイズ限定が activeCondition に載って�
   eq(ac('WXK08-048-E1'), '{"type":"DURING_ATTACK_PHASE","owner":"self"}', 'WXK08-048-E1＝あなたのアタックフェイズの間');
 });
 
+// §5.3 `O-66`②（2026-08-25）＝「シグニは〜されない」の主語は**両プレイヤーのシグニ**。
+// 旧実装は `target:{owner:'self',count:1}` に潰れ、①同じ側の**他の**シグニも②**相手側の**シグニも
+// 守れていなかった（原文の範囲の 1/6）。engine 側は「宣言元が相手の盤面にある」経路が存在しなかった。
+test('O-66② WXEX2-44-E1: 「シグニは」＝両プレイヤーのシグニを守る（宣言元が相手側でも効く）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const ally = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WXEX2-44')!;
+  const foe = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WXEX2-44' && c.CardNum !== ally)!;
+  const wall = mkState({ signi: ['WXEX2-44', ally, null] });   // 宣言元の側
+  const opp = mkState({ signi: [foe, null, null] });           // 反対側
+  // ① 宣言元と同じ側＝自身だけでなく**他のシグニも**守られる（旧実装は count:1 で自身のみ）
+  const selfSide = collectBanishEffectProtectedSigni(wall, opp, false, effectsMap, cm, undefined, 'opponent', 'MAIN');
+  ok(selfSide.has('WXEX2-44'), '宣言元自身は従来どおり守られる');
+  ok(selfSide.has(ally), '同じ側の他のシグニも守られる（count:1 潰れの是正）');
+  // ② 宣言元が**相手の盤面**にある側から見ても守られる（この経路が丸ごと無かった）
+  const oppSide = collectBanishEffectProtectedSigni(opp, wall, true, effectsMap, cm, undefined, 'opponent', 'MAIN');
+  ok(oppSide.has(foe), '宣言元が相手側でも自分のシグニが守られる（両プレイヤー）');
+  // ③ 反転＝フェイズ／ターン主が違えば守られない（activeCondition を宣言元の側から評価している証拠）
+  ok(!collectBanishEffectProtectedSigni(opp, wall, true, effectsMap, cm, undefined, 'opponent', 'ATTACK_SIGNI').has(foe),
+    'アタックフェイズでは守られない（フェイズ）');
+  ok(!collectBanishEffectProtectedSigni(opp, wall, false, effectsMap, cm, undefined, 'opponent', 'MAIN').has(foe),
+    '宣言元がターン主のメインフェイズでは守られない（ターン主＝「対戦相手のメインフェイズの間」）');
+  // ④ ルール処理（power<=0）へは広げない＝sourceOwner:'any' の従来規約どおり
+  ok(!collectBanishEffectProtectedSigni(opp, wall, true, effectsMap, cm, undefined, 'rule', 'MAIN').has(foe),
+    'ルール処理へは広げない');
+}));
+
+test('O-66② live: WXEX2-44-E1 の保護対象が両プレイヤーの全シグニで刻まれている', () => {
+  const a = b43Live('WXEX2-44-E1').action as { type?: string; target?: { owner?: string; count?: unknown } };
+  eq(a.type, 'GRANT_PROTECTION', 'GRANT_PROTECTION');
+  eq(a.target?.owner, 'any', 'owner:any（両プレイヤー）');
+  eq(a.target?.count, 'ALL', 'count:ALL（1体潰れの是正）');
+});
+
 // ── §5.3 `O-65`：「条件・制限の文を、その反対の**行動**として読む」誤パースのクラスを塞ぐ ──────────
 // 🔴**このクラスは golden にも census にも映らない**（型としては正しい action が入っているだけ）。
 //    ⇒ **原文に根拠が無い破壊的アクション**を機械照合するトリップワイヤで守る。
