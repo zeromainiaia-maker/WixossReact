@@ -4,6 +4,16 @@
 ### 恒久指標アーカイブ（PLAN §6 から退避）
 
 - **2026-08-25 続き658 後（本行が直近の正）**：
+
+- **2026-08-25 続き659 後（本行が直近の正）**：
+  **census 572/572**（`O-45` で 573→572＝「下に置く」の名詞句修飾を filter へ配線）、**golden 2788**（`O-44` +2／`O-45` +3）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1036**、`_held_fresh` **83**／`_partial_fresh` **12**／`_idset_fresh` **45**、
+  **逆翻訳の生JSON漏れ 0**、
+  **実機シナリオ +4**（🆕`O-44`＝`poisonPowerDecreaseFires`／`poisonPowerDecreaseGate`／`poisonPowerDecreaseGateAll`、🆕`O-45`＝`underPlaceLevelFilter`。
+  回帰＝`oppPowerDecreased`／`spellUnderMemoriaPlace` も PASS。**反転確認**＝`poisonPowerDecreaseGateAll` は旧実装で FAIL することを実測）、
+  **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
   **census 573/573**（`O-46` では動かず＝コスト側の穴は census の網に載らない）、**golden 2783**（`O-46` で 2781→2783＝live 契約1本＋gate 1本）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
