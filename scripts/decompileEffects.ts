@@ -3214,6 +3214,45 @@ function actionJa(a?: Action, effectType?: string): string {
         // ペイロード欠落＝engine は何も見ない（fail-closed）。表示でも隠さない。
         return '【※ペイロード欠落】見る対象が未指定（engine は何もしない）';
       }
+      // 🆕§5.3 `O-60` 第2バッチ（2026-08-26）＝`LRIG_UNDER_CARD_OP` も**構造から復元する**
+      //   （旧表示「ルリグデッキ下操作（多パターン）」は**どの操作をするかを1文字も伝えない**うえ、
+      //     実際には live 17効果のうち2効果しかその操作をしていなかった）。
+      if (a.id === 'LRIG_UNDER_CARD_OP') {
+        const uc = (a as { underCardOp?: { op: string; filter?: Record<string, unknown> } }).underCardOp;
+        if (uc) {
+          if (uc.op === 'self_to_energy') return 'このシグニをエナゾーンに置く';
+          if (uc.op === 'trash_all_under_self') return 'このシグニの下にあるすべてのカードをトラッシュに置く';
+          const cond = uc.filter ? filterJa(uc.filter as never) : '';
+          return `あなたのエナゾーンから${cond}シグニ1枚をデッキの一番上に置く`;
+        }
+        return '【※ペイロード欠落】操作が未指定（engine は何もしない）';
+      }
+      // 🆕§5.3 `O-60` 第3バッチ（2026-08-26）＝ルリグ名コピーも**構造から復元する**
+      //   （どのストーリーの何レベルを、どの種別の能力ごと得るかは payload にしか無い）。
+      if (a.id === 'COPY_LRIG_NAME_ABILITY') {
+        const lnc = (a as { lrigNameCopy?: { story: string; level?: number; kinds: string[] } }).lrigNameCopy;
+        if (lnc) {
+          const lv = lnc.level !== undefined ? `レベル${numJa(lnc.level)}の` : '';
+          const kinds = lnc.kinds.map(k => (k === 'AUTO' ? '【自】' : '【常】')).join('と');
+          const gain = kinds ? `、そのルリグの${kinds}能力を得る` : '';
+          return `このルリグはあなたのルリグトラッシュにある${lv}＜${lnc.story}＞と同じカード名としても扱う${gain}`;
+        }
+        return '【※ペイロード欠落】コピー元が未指定（engine は何もしない）';
+      }
+      // 🆕§5.3 `O-60` 第4バッチ（2026-08-26）＝配置制限も**構造から復元する**（上限・主語は payload にしかない）。
+      if (a.id === 'DEPLOY_RESTRICT') {
+        const dr = (a as { deployRestrict?: { kind: string; cap?: number; subject?: string; powerGte?: number; extraTurnReservation?: boolean } }).deployRestrict;
+        if (dr) {
+          if (dr.kind === 'count') {
+            const who = dr.subject === 'both' ? 'すべてのプレイヤー' : dr.subject === 'self' ? 'あなた' : '対戦相手';
+            const when = dr.extraTurnReservation ? '（追加ターンの間）' : '';
+            return `${who}はシグニを${numJa(dr.cap ?? 0)}体までしか場に出せない${when}`;
+          }
+          if (dr.kind === 'power_gte') return `対戦相手はパワー${dr.powerGte ?? 0}以上のシグニを新たに場に出せない`;
+          return '【未実装】このシグニは特定のカードの効果によってしか新たに場に出せない';
+        }
+        return '【※ペイロード欠落】配置制限の形が未指定（engine は何もしない）';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

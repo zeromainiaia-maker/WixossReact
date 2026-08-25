@@ -4306,13 +4306,33 @@ export function collectContinuousGrantedKeywords(
 /** すべてのルリグ名を持つことを示すセンチネル（LRIG_ALL_NAMES CONTINUOUS効果） */
 export const LRIG_ALL_NAMES_SENTINEL = '__ALL_LRIG_NAMES__';
 
+/**
+ * `COPY_LRIG_NAME_ABILITY` の payload（§5.3 `O-60` 第3バッチ）からルリグトラッシュの対象を1枚探す。
+ *
+ * 🔴**従来は消費地点4つがそれぞれ `EffectText` を regex で読んでいた**（同じ正規表現の4重コピー）。
+ *   payload に一本化したので、**parser を直せば4地点すべてに届く**。
+ * ⚠**payload が無ければ `null`**（fail-closed）＝名前も能力も得ない。落ちても「効かない」で済む。
+ */
+function findLrigNameCopyTarget(
+  spec: NonNullable<import('../types/effects').StubAction['lrigNameCopy']> | undefined,
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+): string | null {
+  if (!spec) return null;
+  return ownerState.lrig_trash.find(cn => {
+    const c = cardMap.get(cn);
+    if (!c) return false;
+    if (spec.level !== undefined && parseInt(c.Level ?? '0') !== spec.level) return false;
+    return c.CardClass?.includes(spec.story) || c.Story?.includes(spec.story) || c.CardName?.includes(spec.story);
+  }) ?? null;
+}
+
 export function collectLrigNameAliases(
   ownerState: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   otherState?: PlayerState,
 ): string[] {
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const aliases: string[] = [];
   const lrigTop = ownerState.field.lrig.at(-1);
   if (!lrigTop) return aliases;
@@ -4358,20 +4378,8 @@ export function collectLrigNameAliases(
 
     if (act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
 
-    const txt = lrigCard?.EffectText ?? '';
-    // "ルリグトラッシュにある(レベルNの)?＜ストーリー名＞と同じカード名"
-    const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
-    if (!m) continue;
-
-    const targetLevel = m[1] !== undefined ? parseInt(toHW(m[1])) : undefined;
-    const storyName = m[2];
-
-    const targetLrig = ownerState.lrig_trash.find(cn => {
-      const c = cardMap.get(cn);
-      if (!c) return false;
-      if (targetLevel !== undefined && parseInt(c.Level ?? '0') !== targetLevel) return false;
-      return c.CardClass?.includes(storyName) || c.Story?.includes(storyName) || c.CardName?.includes(storyName);
-    });
+    // §5.3 `O-60` 第3バッチ＝**payload だけを読む**（旧実装はここで `EffectText` を regex で読んでいた）。
+    const targetLrig = findLrigNameCopyTarget(act.lrigNameCopy, ownerState, cardMap);
 
     if (targetLrig) {
       const aliasName = cardMap.get(targetLrig)?.CardName;
@@ -4442,7 +4450,6 @@ export function collectCopiedLrigAutoEffects(
   const result: import('../types/effects').CardEffect[] = [];
   const centerTop = ownerState.field.lrig.at(-1);
   if (!centerTop) return result;
-  const toHW2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 
   for (const eff of (effectsMap.get(centerTop) ?? [])) {
     if (eff.effectType !== 'CONTINUOUS') continue;
@@ -4450,20 +4457,11 @@ export function collectCopiedLrigAutoEffects(
     if (act.type !== 'STUB' || act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
     if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, centerTop)) continue;
 
-    const card = cardMap.get(centerTop);
-    const txt = card?.EffectText ?? '';
-    const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
-    if (!m) continue;
-
-    const targetLevel = m[1] !== undefined ? parseInt(toHW2(m[1])) : undefined;
-    const storyName = m[2];
-
-    const targetLrig = ownerState.lrig_trash.find(cn => {
-      const c = cardMap.get(cn);
-      if (!c) return false;
-      if (targetLevel !== undefined && parseInt(c.Level ?? '0') !== targetLevel) return false;
-      return c.CardClass?.includes(storyName) || c.Story?.includes(storyName) || c.CardName?.includes(storyName);
-    });
+    // 🔴§5.3 `O-60` 第3バッチ＝**得る能力の種別を payload から見る**。
+    //   旧実装は種別を1文字も見ておらず、「そのルリグの**【常】**能力を得る」としか書いていない
+    //   `WX24-P4-021-E1` でも **AUTO 能力まで得ていた**（過剰実行）。
+    if (!(act.lrigNameCopy?.kinds ?? []).includes('AUTO')) continue;
+    const targetLrig = findLrigNameCopyTarget(act.lrigNameCopy, ownerState, cardMap);
     if (!targetLrig) continue;
 
     for (const trashEff of (effectsMap.get(targetLrig) ?? [])) {
@@ -4491,7 +4489,6 @@ export function collectCopiedLrigContinuousEffects(
   const result: import('../types/effects').CardEffect[] = [];
   const centerTop = ownerState.field.lrig.at(-1);
   if (!centerTop) return result;
-  const toHW2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 
   for (const eff of (effectsMap.get(centerTop) ?? [])) {
     if (eff.effectType !== 'CONTINUOUS') continue;
@@ -4499,22 +4496,9 @@ export function collectCopiedLrigContinuousEffects(
     if (act.type !== 'STUB' || act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
     if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, centerTop)) continue;
 
-    const card = cardMap.get(centerTop);
-    const txt = card?.EffectText ?? '';
-    // 「そのルリグの【常】能力を得る」のみ対象（【自】は AUTO コピー側で処理）
-    if (!/そのルリグの【常】能力を得る/.test(txt)) continue;
-    const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
-    if (!m) continue;
-
-    const targetLevel = m[1] !== undefined ? parseInt(toHW2(m[1])) : undefined;
-    const storyName = m[2];
-
-    const targetLrig = ownerState.lrig_trash.find(cn => {
-      const c = cardMap.get(cn);
-      if (!c) return false;
-      if (targetLevel !== undefined && parseInt(c.Level ?? '0') !== targetLevel) return false;
-      return c.CardClass?.includes(storyName) || c.Story?.includes(storyName) || c.CardName?.includes(storyName);
-    });
+    // 「そのルリグの【常】能力を得る」のみ対象（【自】は AUTO コピー側で処理）＝payload から見る。
+    if (!(act.lrigNameCopy?.kinds ?? []).includes('CONTINUOUS')) continue;
+    const targetLrig = findLrigNameCopyTarget(act.lrigNameCopy, ownerState, cardMap);
     if (!targetLrig) continue;
 
     for (const trashEff of (effectsMap.get(targetLrig) ?? [])) {
@@ -6676,11 +6660,13 @@ export function collectDeployCountLimit(
       if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'DEPLOY_RESTRICT') continue;
-      const txt = cardMap.get(base)?.EffectText ?? '';
-      const m = txt.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
-      if (!m) continue;
-      const n = parseInt(m[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
-      cap = cap === undefined ? n : Math.min(cap, n);
+      // §5.3 `O-60` 第4バッチ＝**payload だけを読む**（旧実装はここでも `EffectText` を regex で読んでおり、
+      // execStubPart3 の同じ判定と二重管理になっていた）。⚠**主語が相手側でない宣言はここでは効かない**
+      // （この関数は「相手の場にある札が myState の配置数を縛る」経路）。
+      const specDR = act.deployRestrict;
+      if (!specDR || specDR.kind !== 'count' || specDR.cap === undefined) continue;
+      if (specDR.subject === 'self') continue;
+      cap = cap === undefined ? specDR.cap : Math.min(cap, specDR.cap);
     }
   }
   return cap;

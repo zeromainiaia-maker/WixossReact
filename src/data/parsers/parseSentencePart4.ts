@@ -19,6 +19,7 @@ import type {
 } from '../../types/effects';
 import {
   parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence, tradeOptionalCost,
+  parseColorFilter, parseStoryFilter,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -834,8 +835,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
 
   // ---- エナゾーンから白/色のシグニをデッキ上に置いてもよい ----
-  if (t.match(/エナゾーンから.+のシグニ[１-９\d０-９]*枚をデッキの一番上に置いてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+  // §5.3 `O-60` 第2バッチ＝操作の種類と絞り込みを `underCardOp` に刻む（engine の全文 regex を撤去）。
+  // 🔴**旧 engine は「白の」を1文字も見ずエナのシグニを先頭から機械的に取っていた**（filter 脱落）。
+  if (t.match(/エナゾーンから.+のシグニ[１-９\d０-９]*枚をデッキの一番上に置いてもよい/)) {
+    const fEUC = { ...parseColorFilter(t), ...parseStoryFilter(t), cardType: 'シグニ' } as TargetFilter;
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP', underCardOp: { op: 'energy_signi_to_deck_top', filter: fEUC } } as StubAction;
+  }
 
   // ---- その中から色のカードをN枚まで選び手札に加えるかエナゾーンに置き残りをトラッシュ ----
   if (t.match(/その中から(?:白|赤|青|緑|黒)のカードを[１-９\d０-９]+枚まで選び.*手札に加えるかエナゾーンに置き/) ||
@@ -896,9 +901,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- このシグニの下にあるカード全てトラッシュ ----
+  // 🔴**この操作だけが engine の「無条件フォールバック」で実行されていた**＝原文にこの文が無い効果でも、
+  //   効果元の下にカードが在れば問答無用に全部トラッシュしていた（§5.3 `O-60` 第2バッチ）。
   if (t.match(/このシグニの下にあるすべてのカードをトラッシュに置く/) ||
       t.match(/このシグニに付いている.*下に置かれているすべてのカードをトラッシュに置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP', underCardOp: { op: 'trash_all_under_self' } } as StubAction;
 
   // ---- このシグニはそれと同じカードになる ----
   if (t.match(/このシグニはそれと同じカードになる/))
@@ -967,7 +974,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- エナゾーンに置いてもよい（シグニ → エナ転換） ----
   if (t.match(/そのアタック終了時.*エナゾーンから.*シグニ.*場にあるこのシグニをエナゾーンに置いてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP', underCardOp: { op: 'self_to_energy' } } as StubAction;
 
   // ---- 対戦相手のデッキ上からN枚トラッシュ（条件付きN） ----
   if (t.match(/対戦相手のデッキの上からこの方法でダウンしたルリグのレベルの合計.*枚のカードをトラッシュ/) ||

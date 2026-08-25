@@ -1496,55 +1496,74 @@ export function execStubPart1(
     }
     return done(addLog(ctx, '能力を付与（effectEngine処理）'));
   }
-  // ルリグデッキ下操作（多パターン）
+  // LRIG_UNDER_CARD_OP: `underCardOp` が指す操作を1つだけ行う。
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第2バッチ）＝ここはカード全文 regex で3分岐していた。**
+  //   ①regex は2本しか無いのに **parser の生成地点は22箇所**（＝この id は「ルリグデッキ下操作」ではなく
+  //     **無関係な22文型の catch-all**＝id の名前が嘘をつく）
+  //   ②🔴**3つ目の分岐には regex すら無かった**＝どの regex にも当たらないと、**効果元シグニの下に
+  //     カードが在るだけで問答無用に全部トラッシュ**していた。実測＝live 17効果のうち regex に当たるのは
+  //     **2効果だけ**で、残り15効果がこの無条件フォールバックか無言ログに落ちていた。
+  //     実害＝`WX24-P4-046-E2`（「下から**それぞれレベルの異なるシグニ３枚**をトラッシュに置いて**もよい**」）は
+  //     **下の全カードを強制的に**失い、`WXK08-084-E1`（下に**置く**効果）は逆に下を**トラッシュ**していた。
+  // ⇒ parser が `underCardOp` を刻み、engine は payload だけを読む。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。落ちたら「効かない」で済むが、旧実装のフォールバックは
+  //   **無関係な効果が盤面のカードを失わせる**＝取り返しがつかない側の壊れ方だった。
   if (stub.id === 'LRIG_UNDER_CARD_OP') {
     const srcLrig = ctx.sourceCardNum;
-    const effLrigTxt = srcLrig ? (ctx.cardMap.get(srcLrig)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcLrig)?.BurstText ?? '') : '';
-    // 「エナゾーンからシグニをデッキの一番上に置く」→ エナ→デッキ先頭
-    if (effLrigTxt.match(/エナゾーンから.+シグニ.+デッキの一番上に置いてもよい/) && ctx.ownerState.energy.length > 0) {
-      const signiInEnergy = ctx.ownerState.energy.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
-      if (signiInEnergy.length > 0) {
-        const picked = signiInEnergy[0];
-        const newOwner = {
-          ...ctx.ownerState,
-          energy: ctx.ownerState.energy.filter(cn => cn !== picked),
-          deck: [picked, ...ctx.ownerState.deck],
-        };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(picked)?.CardName ?? picked}をエナからデッキ上へ`));
-      }
-      return done(addLog(ctx, 'エナゾーンにシグニなし'));
+    const specUC = stub.underCardOp;
+    if (!specUC) return done(addLog(ctx, `[未実装] 操作が未指定（LRIG_UNDER_CARD_OP・${srcLrig ?? '?'}）`));
+
+    // エナゾーンのシグニ（原文の色／＜クラス＞の絞り込みを payload から適用）をデッキの一番上へ。
+    if (specUC.op === 'energy_signi_to_deck_top') {
+      const candUC = ctx.ownerState.energy.filter(cn => {
+        const card = ctx.cardMap.get(getCardNum(cn));
+        if (card?.Type !== 'シグニ') return false;
+        return !specUC.filter || matchesFilter(card, specUC.filter);
+      });
+      if (candUC.length === 0) return done(addLog(ctx, 'エナゾーンに該当するシグニなし'));
+      const pickedUC = candUC[0];
+      const newOwnerUC = {
+        ...ctx.ownerState,
+        energy: ctx.ownerState.energy.filter(cn => cn !== pickedUC),
+        deck: [pickedUC, ...ctx.ownerState.deck],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerUC, lastProcessedCards: [pickedUC] },
+        `${ctx.cardMap.get(getCardNum(pickedUC))?.CardName ?? pickedUC}をエナからデッキ上へ`));
     }
-    // 「このシグニをエナゾーンに置く」→ フィールドからエナへ
-    if ((effLrigTxt.match(/このシグニをエナゾーンに置いてもよい/) || effLrigTxt.match(/このシグニをエナゾーンに置く/)) && srcLrig) {
-      const removed = removeFromField(srcLrig, ctx.ownerState);
-      const newOwner = { ...removed, energy: [...removed.energy, srcLrig] };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcLrig)?.CardName ?? srcLrig}をエナゾーンへ`));
+
+    // 場のこのシグニをエナゾーンへ。
+    if (specUC.op === 'self_to_energy') {
+      if (!srcLrig) return done(addLog(ctx, 'LRIG_UNDER_CARD_OP: 効果元不明'));
+      const removedUC = removeFromField(srcLrig, ctx.ownerState);
+      const newOwnerUC2 = { ...removedUC, energy: [...removedUC.energy, srcLrig] };
+      return done(addLog({ ...ctx, ownerState: newOwnerUC2 }, `${ctx.cardMap.get(getCardNum(srcLrig))?.CardName ?? srcLrig}をエナゾーンへ`));
     }
-    // 「このシグニの下にあるすべてのカードをトラッシュに置く」パターン
-    if (srcLrig) {
-      for (const owner of ['self', 'opponent'] as const) {
-        const st = ownerState(owner, ctx);
-        for (let zi = 0; zi < 3; zi++) {
-          const stack = st.field.signi[zi];
-          if (!stack || stack.length < 2) continue;
-          if (stack.at(-1) === srcLrig) {
-            const underCards = stack.slice(0, -1);
-            const newSigni = [...st.field.signi] as (string[] | null)[];
-            newSigni[zi] = [srcLrig];
-            const newS: PlayerState = {
-              ...st,
-              field: { ...st.field, signi: newSigni },
-              trash: [...st.trash, ...underCards],
-            };
-            return done(addLog({
-              ...setOwnerState(owner, newS, ctx),
-              lastProcessedCards: underCards,
-            }, `シグニ下${underCards.length}枚をトラッシュへ`));
-          }
+
+    // このシグニの下にあるすべてのカードをトラッシュへ。
+    if (!srcLrig) return done(addLog(ctx, 'LRIG_UNDER_CARD_OP: 効果元不明'));
+    for (const owner of ['self', 'opponent'] as const) {
+      const st = ownerState(owner, ctx);
+      for (let zi = 0; zi < 3; zi++) {
+        const stack = st.field.signi[zi];
+        if (!stack || stack.length < 2) continue;
+        if (stack.at(-1) === srcLrig) {
+          const underCards = stack.slice(0, -1);
+          const newSigni = [...st.field.signi] as (string[] | null)[];
+          newSigni[zi] = [srcLrig];
+          const newS: PlayerState = {
+            ...st,
+            field: { ...st.field, signi: newSigni },
+            trash: [...st.trash, ...underCards],
+          };
+          return done(addLog({
+            ...setOwnerState(owner, newS, ctx),
+            lastProcessedCards: underCards,
+          }, `シグニ下${underCards.length}枚をトラッシュへ`));
         }
       }
     }
-    return done(addLog(ctx, 'ルリグデッキ下のカード操作'));
+    return done(addLog(ctx, 'シグニの下にカードなし'));
   }
   // アンコールメカニクス（ルリグトラッシュのアーツをコストなしで使用）
   if (stub.id === 'ENCORE') {
@@ -2923,28 +2942,32 @@ export function execStubPart1(
     return done(addLog(ctx, 'ルリグ制限効果（ログのみ）'));
   }
   // カード名コピー系
-  // COPY_LRIG_NAME_ABILITY: ルリグトラッシュのルリグ名/タイプを現在のルリグに追加
+  // COPY_LRIG_NAME_ABILITY: ルリグトラッシュのルリグ名を現在のルリグに追加する（能力コピーは
+  // effectEngine の collectCopiedLrigAutoEffects / collectCopiedLrigContinuousEffects が担当）。
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第3バッチ）＝ここはカード全文 regex で名前を読んでいた。**
+  //   しかも regex が**終止形「と同じカード名としても扱**う**」**を要求しており、実データは全部
+  //   **連用形「扱**い**、そのルリグの…能力を得る」**＝**live 16効果すべてが1つも当たらず**、
+  //   「ルリグ名コピー（テキスト解析不可）」を出して**丸ごと no-op**だった（§4.2「活用形が違うだけで
+  //   語彙は丸ごと落ちる」＝`O-46` と同型）。⇒ parser が `lrigNameCopy` を刻み、engine は payload を読む。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'COPY_LRIG_NAME_ABILITY') {
-    const srcCLNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCLNA = srcCLNA ? (srcCLNA.EffectText ?? '') + ' ' + (srcCLNA.BurstText ?? '') : '';
-    // 「ルリグトラッシュにあるレベルNの＜ストーリー名＞と同じカード名としても扱う」
-    const aliasM = txtCLNA.match(/ルリグトラッシュにある(?:レベル[０-９\d]+の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名としても扱う/);
-    if (aliasM) {
-      const storyName = aliasM[1];
-      // ルリグトラッシュから対象ストーリーのルリグを探す
-      const targetLrig = ctx.ownerState.lrig_trash.find(cn => {
-        const c = ctx.cardMap.get(cn);
-        return c?.CardClass?.includes(storyName) || c?.Story?.includes(storyName) || c?.CardName?.includes(storyName);
-      });
-      const aliasName = targetLrig ? (ctx.cardMap.get(targetLrig)?.CardName ?? storyName) : storyName;
-      const currentAliases = ctx.ownerState.lrig_name_aliases ?? [];
-      if (!currentAliases.includes(aliasName)) {
-        const newOwner = { ...ctx.ownerState, lrig_name_aliases: [...currentAliases, aliasName] };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグが「${aliasName}」名としても扱われる`));
-      }
-      return done(addLog(ctx, `ルリグ名エイリアス（${aliasName}）設定済み`));
-    }
-    return done(addLog(ctx, 'ルリグ名コピー（テキスト解析不可）'));
+    const specCLNA = stub.lrigNameCopy;
+    if (!specCLNA) return done(addLog(ctx, `[未実装] コピー元が未指定（COPY_LRIG_NAME_ABILITY・${ctx.sourceCardNum ?? '?'}）`));
+    const targetCLNA = ctx.ownerState.lrig_trash.find(cn => {
+      const c = ctx.cardMap.get(getCardNum(cn));
+      if (!c) return false;
+      if (specCLNA.level !== undefined && parseInt(c.Level ?? '0') !== specCLNA.level) return false;
+      return c.CardClass?.includes(specCLNA.story) || c.Story?.includes(specCLNA.story) || c.CardName?.includes(specCLNA.story);
+    });
+    // ⚠**ルリグトラッシュに該当が無ければ何も足さない**（旧実装は見つからないと**＜ストーリー名＞そのもの**を
+    //   エイリアスに入れており、カード名条件が実在しない名前で通ることがあった）。
+    if (!targetCLNA) return done(addLog(ctx, `ルリグトラッシュに＜${specCLNA.story}＞のルリグなし`));
+    const aliasNameCLNA = ctx.cardMap.get(getCardNum(targetCLNA))?.CardName ?? specCLNA.story;
+    const currentAliases = ctx.ownerState.lrig_name_aliases ?? [];
+    if (currentAliases.includes(aliasNameCLNA)) return done(addLog(ctx, `ルリグ名エイリアス（${aliasNameCLNA}）設定済み`));
+    const newOwner = { ...ctx.ownerState, lrig_name_aliases: [...currentAliases, aliasNameCLNA] };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグが「${aliasNameCLNA}」名としても扱われる`));
   }
   // 条件付きアーツコスト（コスト計算はcomputeArtsEffectiveCostで処理済み、ここでは条件確認のみ）
   if (stub.id === 'CONDITIONAL_ARTS_COST') {

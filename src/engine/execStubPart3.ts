@@ -1544,25 +1544,20 @@ export function execStubPart3(
     return done(addLog(ctx, '中央ゾーン条件: 成立'));
   }
   // DEPLOY_RESTRICT: 配置制限（CONTINUOUSは動的処理、AUTOはフラグ設置）
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第4バッチ）＝ここはカード全文を「。」で割って主語・上限・パワー下限を
+  //   regex で読んでいた**（同じ判定が `effectEngine.collectDeployCountLimit` にもコピーされており、
+  //   片方だけ直すと【常】版と【自】版で挙動がずれる形だった）。⇒ parser が `deployRestrict` を刻む。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'DEPLOY_RESTRICT') {
-    const srcDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDR = srcDR ? (srcDR.EffectText ?? '') : '';
-    const toHWDR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 配置数制限を含む文だけを切り出し、同じカードの別能力から主語・期間を誤読しない。
-    const countSentence = txtDR
-      .split(/[。\n]/)
-      .find(sentence => /シグニを[０-９\d]+体までしか[^。]*?場に出/.test(sentence));
-    const countCapM = countSentence?.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
-    if (countCapM) {
-      const cap = parseInt(toHWDR(countCapM[1]));
-      const subject = countSentence?.includes('すべてのプレイヤーは')
-        ? 'both'
-        : countSentence?.includes('あなたは')
-          ? 'self'
-          : 'opponent';
-      const isExtraTurnReservation = countSentence?.includes('そのターンの間')
-        && ctx.ownerState.extra_turn === true;
-      if (subject === 'self' && isExtraTurnReservation) {
+    const specDR = stub.deployRestrict;
+    if (!specDR) return done(addLog(ctx, `[未実装] 配置制限の形が未指定（DEPLOY_RESTRICT・${ctx.sourceCardNum ?? '?'}）`));
+
+    if (specDR.kind === 'count') {
+      const cap = specDR.cap ?? 0;
+      const subject = specDR.subject ?? 'opponent';
+      // 「そのターンの間、あなたは〜」＝**追加ターンへの予約**（即時適用ではない）。
+      if (subject === 'self' && specDR.extraTurnReservation && ctx.ownerState.extra_turn === true) {
         const ownerState = { ...ctx.ownerState, signi_deploy_count_limit_next_turn: cap };
         return done(addLog({ ...ctx, ownerState },
           `次の自分の追加ターンはシグニを${cap}体までしか場に出せない（予約）`));
@@ -1581,12 +1576,12 @@ export function execStubPart3(
         otherState: otherApplied?.state ?? ctx.otherState,
       }, `${subjectLabel}はシグニを${cap}体までしか場に出せない${trashedN > 0 ? `（超過${trashedN}体をトラッシュ）` : ''}`));
     }
+
     // 「パワーN以上のシグニを新たに場に出せない」→ 相手に配置パワー禁止を設定（このターンと次のターン）。
     // ⚠旧実装は専用フィールド `signi_deploy_power_limit` に書いていたが、**どこでもクリアされておらず
     //   「このターンと次のターン」が永続していた**（§6.4 O-3 続き487）。寿命つきの ban ストアへ統合した。
-    const powerCapM = txtDR.match(/パワー([０-９\d万]+)以上.*(?:新たに)?場に出せない/);
-    if (powerCapM) {
-      const cap = parseInt(toHWDR(powerCapM[1]).replace('万', '0000'));
+    if (specDR.kind === 'power_gte') {
+      const cap = specDR.powerGte ?? 0;
       const newOtherDR: PlayerState = {
         ...ctx.otherState,
         signi_deploy_bans: [...(ctx.otherState.signi_deploy_bans ?? []),
@@ -1595,11 +1590,10 @@ export function execStubPart3(
       return done(addLog({ ...ctx, otherState: newOtherDR },
         `対戦相手はパワー${cap}以上のシグニを場に出せない（このターンと次のターン）`));
     }
-    // 「〜の効果によってしか新たに場に出せない」→ 自分シグニへの配置制限（ログのみ）
-    if (txtDR.includes('効果によってしか') || txtDR.includes('効果以外')) {
-      return done(addLog(ctx, `配置制限（特定効果のみ）：${srcDR?.CardName ?? ''}は特定効果でのみ場に出せる`));
-    }
-    return done(addLog(ctx, '配置制限（パターン解析不可）'));
+
+    // 「〜の効果によってしか新たに場に出せない」→ 機構未実装（ログのみ・§5.3 `O-78`）。
+    const srcDR = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
+    return done(addLog(ctx, `[未実装] 配置制限（特定効果のみ）：${srcDR?.CardName ?? ''}は特定効果でのみ場に出せる`));
   }
   // DEFEAT: 敗北処理 - ライフクロスを0にしてゲーム終了を誘発
   if (stub.id === 'DEFEAT') {

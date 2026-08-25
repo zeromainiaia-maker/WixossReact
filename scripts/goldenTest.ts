@@ -7646,6 +7646,65 @@ test('O-60 engine: 見る領域は payload で決まり、payload が無けれ�
   ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
 }));
 
+// 🔴§5.3 `O-60` 第2バッチ（2026-08-26）＝`LRIG_UNDER_CARD_OP` はカード全文 regex で3分岐し、
+//    **どれにも当たらないと「効果元シグニの下のカードを全部トラッシュ」する無条件フォールバック**へ落ちていた
+//    （3つ目の分岐には regex すら無い）。実測＝live 17効果のうち regex に当たるのは**2効果だけ**。
+//    ⇒ parser が `underCardOp` を刻み、engine は payload だけを読む。**payload なし＝何もしない。**
+test('O-60② parser: LRIG_UNDER_CARD_OP は underCardOp で操作と絞り込みを持つ', () => {
+  const found: Array<{ effectId: string; uc?: { op: string; filter?: { color?: string } } }> = [];
+  const walk = (effectId: string, value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(v => walk(effectId, v)); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'LRIG_UNDER_CARD_OP') {
+      found.push({ effectId, uc: obj.underCardOp as { op: string; filter?: { color?: string } } | undefined });
+    }
+    Object.values(obj).forEach(v => walk(effectId, v));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  ok(found.length >= 15, `母集団は live から再導出（実測 ${found.length} ノード）`);
+
+  const energyUp = found.find(x => x.effectId === 'SPDi43-26-E1' && x.uc);
+  eq(energyUp?.uc?.op, 'energy_signi_to_deck_top', 'エナ→デッキ上の操作を刻む');
+  eq(energyUp?.uc?.filter?.color, '白', '🔴原文の「**白の**シグニ」を保持（旧 engine は色を1文字も見なかった）');
+  eq(found.find(x => x.effectId === 'WXDi-CP02-054-E1' && x.uc)?.uc?.op, 'trash_all_under_self',
+    '「下にあるすべてのカードをトラッシュ」だけがトラッシュ操作を刻む');
+  // 🔑「下をトラッシュ」の文が無い効果は payload を持たない＝engine は下に触れない（旧バグの母集団）。
+  ok(found.some(x => x.effectId === 'WX24-P4-046-E2' && !x.uc),
+    '🔴「下からレベルの異なる3枚を…してもよい」は trash_all_under_self を持たない');
+  ok(found.some(x => x.effectId === 'WXK08-084-E1' && !x.uc),
+    '🔴「下に**置く**」効果も持たない（旧実装はここで下を全部トラッシュしていた）');
+});
+
+test('O-60② engine: 下のカードは payload があるときだけ落ち、色フィルタはエナの選択に効く', () => withSavedCursor(() => {
+  const under = fill(2);
+  const self = fresh();
+  const ctx0 = mkCtx({}, {}, self);
+  const withUnder = {
+    ...ctx0,
+    ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, signi: [null, [...under, self], null] } },
+  } as ExecCtx;
+
+  // 🔑対照＝payload が無ければ**下に触れない**（旧実装はここで2枚ともトラッシュしていた）。
+  const none = run({ type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as unknown as EffectAction, withUnder);
+  eq((none.ownerState.field.signi[1] ?? []).join(','), [...under, self].join(','), '🔴payload なしは下のカードを1枚も落とさない');
+  ok(under.every(c => !none.ownerState.trash.includes(c)), '同・トラッシュにも入らない');
+  ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+
+  const trashed = run({ type: 'STUB', id: 'LRIG_UNDER_CARD_OP', underCardOp: { op: 'trash_all_under_self' } } as unknown as EffectAction, withUnder);
+  eq((trashed.ownerState.field.signi[1] ?? []).join(','), self, 'payload ありなら下が全部落ちる');
+  ok(under.every(c => trashed.ownerState.trash.includes(c)), '同・落ちた先はトラッシュ');
+
+  // 色フィルタ＝エナに白と黒のシグニを置き、白だけがデッキの一番上へ行く。
+  const white = 'WD01-013';  // 小剣 ククリ（白）
+  const black = 'WD05-013';  // 小悪の象徴 コオニ（**黒**・効果なし）⚠`WX01-035` は白なので対照にならない
+  const ctxE = { ...ctx0, ownerState: { ...ctx0.ownerState, energy: [black, white] } } as ExecCtx;
+  const moved = run({ type: 'STUB', id: 'LRIG_UNDER_CARD_OP',
+    underCardOp: { op: 'energy_signi_to_deck_top', filter: { color: '白', cardType: 'シグニ' } } } as unknown as EffectAction, ctxE);
+  eq(moved.ownerState.deck[0], white, '🔴白のシグニがデッキの一番上へ（旧実装はエナの先頭を無条件に取った）');
+  ok(moved.ownerState.energy.includes(black), '対照：色が違う札はエナに残る');
+}));
+
 // 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
 //    旧実装は `STUB{SOUL_OP}`＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**別機構**へ
 //    落としており、エナの自分自身を1枚も戻さないまま「そうした場合」の本体だけが通る踏み倒しだった。

@@ -3310,8 +3310,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 「（このターン、）対戦相手はシグニをN体までしか場に出すことができない」（WXK11-074/WX12-008/WXDi-P05-024/WXK05-009・【常】版 WX07-006）。
   // engine（execStubPart3 の DEPLOY_RESTRICT）が原文から N を読み、配置数上限フラグ＋超過分の即トラッシュを処理する。
   // 下の bare ADD_TO_FIELD（「場に出す」を含むため）に誤マッチするのを防ぐため、ここで先取りする。
+  // §5.3 `O-60` 第4バッチ＝**上限・主語・予約を `deployRestrict` に刻む**（消費地点2つの全文 regex を撤去）。
+  // ⚠**主語はこの文だけから取る**＝旧 engine はカード全文を「。」で割って探しており、同じカードの
+  //   別能力の言い回しで主語がぶれた。
   if (/シグニを[０-９\d]+体までしか/.test(t) && /場に出(?:せない|すことができない)/.test(t)) {
-    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
+    const capMDR = t.match(/シグニを([０-９\d]+)体までしか/)!;
+    const subjectDR = t.includes('すべてのプレイヤーは') ? 'both' : t.includes('あなたは') ? 'self' : 'opponent';
+    return { type: 'STUB', id: 'DEPLOY_RESTRICT', deployRestrict: {
+      kind: 'count', cap: parseNum(capMDR[1]), subject: subjectDR,
+      ...(t.includes('そのターンの間') ? { extraTurnReservation: true } : {}),
+    } } as StubAction;
   }
 
   // ---- このシグニ/カード/キーは（条件）（新たに）場に出すことができない（自身出撃制限・SELF_PLAY_RESTRICT）----

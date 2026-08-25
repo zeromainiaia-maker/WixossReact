@@ -244,7 +244,24 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- ルリグ名コピー（ルリグトラッシュのルリグと同じカード名） ----
+  // §5.3 `O-60` 第3バッチ＝**探すルリグと得る能力種別を payload に刻む**（消費地点4つの全文 regex を撤去）。
+  // ⚠**能力種別は原文から取る**＝旧 engine の【自】コピーは種別を見ておらず、「そのルリグの**【常】**能力を
+  //   得る」と書いてあるカードでも AUTO まで得ていた（過剰実行）。
+  {
+    const mLNC = t.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?[＜〈<]([^＞〉>]+)[＞〉>](?:のルリグ)?と同じカード名/);
+    if (mLNC) {
+      const kindsLNC: Array<'AUTO' | 'CONTINUOUS'> = [];
+      if (/そのルリグの【自】能力を得る/.test(t)) kindsLNC.push('AUTO');
+      if (/そのルリグの【常】能力を得る/.test(t)) kindsLNC.push('CONTINUOUS');
+      return { type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY', lrigNameCopy: {
+        story: mLNC[2],
+        ...(mLNC[1] !== undefined ? { level: parseNum(mLNC[1]) } : {}),
+        kinds: kindsLNC,
+      } } as StubAction;
+    }
+  }
   if (t.match(/ルリグトラッシュにある.+と同じカード名/)) {
+    // ＜ストーリー＞を括弧で書かない形は payload を作れない＝消費側は fail-closed で何もしない。
     return { type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY' } as StubAction;
   }
 
@@ -582,8 +599,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 特定カードによってしか場に出せない ----
+  // ⚠**機構は未実装**（engine はログだけ）＝`only_by_effect` と明示して、payload 欠落と区別できるようにする。
   if (t.match(/の効果によってしか新たに場に出せない/)) {
-    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEPLOY_RESTRICT', deployRestrict: { kind: 'only_by_effect' } } as StubAction;
   }
 
   // ---- スペル使用コスト増加（各ターン最初） ----
@@ -2227,8 +2245,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 次の対戦相手のターン〜場に出せない（配置制限）----
+  // ⚠**パワー下限を持つ形だけ payload を刻む**＝「除外したシグニと**同じ名前**のシグニ」（`WXK09-015-E3`）は
+  //   受け皿が無く、旧 engine では「配置制限（パターン解析不可）」の**無言 no-op** だった（§5.3 `O-78`）。
   if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/) && t.includes('場に出せない')) {
-    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
+    const pwDR = t.match(/パワー([０-９\d万]+)以上/);
+    return pwDR
+      ? { type: 'STUB', id: 'DEPLOY_RESTRICT', deployRestrict: { kind: 'power_gte', powerGte: parseNum(pwDR[1].replace('万', '0000')) } } as StubAction
+      : { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
   }
 
   // ---- 次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない（§6.4 O-3）----
@@ -2321,7 +2344,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN' } as StubAction;
   }
   if (t.match(/^このターン、対戦相手(?:が|は)/) && t.includes('場に出せない')) {
-    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
+    const pwDR2 = t.match(/パワー([０-９\d万]+)以上/);
+    return pwDR2
+      ? { type: 'STUB', id: 'DEPLOY_RESTRICT', deployRestrict: { kind: 'power_gte', powerGte: parseNum(pwDR2[1].replace('万', '0000')) } } as StubAction
+      : { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
   }
 
   // ---- このターン、対戦相手はダメージを受けない ----
