@@ -53,16 +53,40 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     const trimmed = lines[i].trim();
     const isComment = /^(\/\/|\*|\/\*)/.test(trimmed);
 
-    // 直近の handler（`if (stub.id === 'X'`）／case／関数を後方走査
+    // ── 到達条件（gates）の収集 ──
+    // ⚠**素朴に「直近の `stub.id === 'X'`」だけを見ると母集団が化ける**（初版がこれで誤検出した）＝
+    //   ディスパッチャの分岐の**内側**に `stubN.id === 'Y' && contN.id === 'Z'` のような入れ子の門があり、
+    //   実際にこのコードへ来るのは **その全部を満たすカードだけ**。`OPPONENT_PAY_OPTIONAL`（live 78効果）
+    //   に見えた地点の真の到達条件は `OPTIONAL_TRASH_ENERGY_CLASS` ＋ `ARTS_EXTRA_COST_CONDITION` の
+    //   隣接だった＝母集団を70カードと数えて miss 68 の偽の1位になっていた。
+    // 規約＝**同じ変数への `=== 'X'` は OR（`stub.id === 'A' || stub.id === 'B'`）／別変数どうしは AND**。
+    const gates = new Map<string, Set<string>>();
+    const addGate = (v: string, id: string) => {
+      if (!gates.has(v)) gates.set(v, new Set());
+      gates.get(v)!.add(id);
+    };
+    // (a) 直近15行の入れ子の門
+    for (let j = Math.max(0, i - 15); j <= i; j++) {
+      const g = /\b(\w+)\.id\s*===\s*'([A-Z0-9_]+)'/g;
+      let mg: RegExpExecArray | null;
+      while ((mg = g.exec(lines[j]))) addGate(mg[1], mg[2]);
+    }
+    // (b) ディスパッチャ本体（`if (stub.id === 'X'` ＝ 遠くにあってよい）／case／関数
     let handler = '(top)';
     for (let j = i; j >= 0 && j > i - 500; j--) {
-      const m = lines[j].match(/stub\.id\s*===\s*'([A-Z0-9_]+)'/);
-      if (m) { handler = m[1]; break; }
+      const g = /\bstub\.id\s*===\s*'([A-Z0-9_]+)'/g;
+      let mg: RegExpExecArray | null;
+      let hit = false;
+      while ((mg = g.exec(lines[j]))) { addGate('stub', mg[1]); hit = true; }
+      if (hit) { handler = [...(gates.get('stub') ?? [])].join('|'); break; }
       const cs = lines[j].match(/^\s*case\s+'([A-Za-z0-9_]+)'\s*:/);
       if (cs) { handler = 'case:' + cs[1]; break; }
       const fn = lines[j].match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
       if (fn) { handler = 'fn:' + fn[1]; break; }
     }
+    // 入れ子の門があるならラベルにも出す（母集団はそちらで絞る）
+    const nested = [...gates.entries()].filter(([v]) => v !== 'stub');
+    if (nested.length) handler = [handler, ...nested.map(([, s]) => [...s].join('|'))].filter(x => x && x !== '(top)').join(' + ');
 
     // 読んでいるカードが「効果元自身」か（代入行の前後3行で判定）
     const win = lines.slice(Math.max(0, i - 3), i + 2).join('\n');
