@@ -65,20 +65,19 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
       if (!gates.has(v)) gates.set(v, new Set());
       gates.get(v)!.add(id);
     };
-    // (a) 直近15行の入れ子の門
-    for (let j = Math.max(0, i - 15); j <= i; j++) {
-      const g = /\b(\w+)\.id\s*===\s*'([A-Z0-9_]+)'/g;
-      let mg: RegExpExecArray | null;
-      while ((mg = g.exec(lines[j]))) addGate(mg[1], mg[2]);
-    }
-    // (b) ディスパッチャ本体（`if (stub.id === 'X'` ＝ 遠くにあってよい）／case／関数
+    // 🔴**後方へ1回だけ走査し、ディスパッチャ（`stub.id === 'X'`）に当たったら必ず打ち切る**。
+    //   打ち切らずに固定幅の窓で拾うと、**直前の兄弟ハンドラの `if (stub.id === 'PREV')` を門として
+    //   数えてしまう**（`LOOK_OPP_LIFE_TOP` が `REVEAL_EACH_PLAYER_DECK_TOP` との AND に化けた）。
     let handler = '(top)';
     for (let j = i; j >= 0 && j > i - 500; j--) {
-      const g = /\bstub\.id\s*===\s*'([A-Z0-9_]+)'/g;
+      const g = /\b(\w+)\.id\s*===\s*'([A-Z0-9_]+)'/g;
       let mg: RegExpExecArray | null;
-      let hit = false;
-      while ((mg = g.exec(lines[j]))) { addGate('stub', mg[1]); hit = true; }
-      if (hit) { handler = [...(gates.get('stub') ?? [])].join('|'); break; }
+      let dispatcher = false;
+      while ((mg = g.exec(lines[j]))) {
+        addGate(mg[1], mg[2]);
+        if (mg[1] === 'stub') dispatcher = true;
+      }
+      if (dispatcher) { handler = [...(gates.get('stub') ?? [])].join('|'); break; }
       const cs = lines[j].match(/^\s*case\s+'([A-Za-z0-9_]+)'\s*:/);
       if (cs) { handler = 'case:' + cs[1]; break; }
       const fn = lines[j].match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
