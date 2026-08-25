@@ -689,8 +689,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のライフクロスの一番上を見る ----
+  // §5.3 `O-60` 第1バッチ＝**ゾーンと枚数を `lookZone` に刻む**（engine のカード全文 regex を撤去）。
   if (t.match(/対戦相手のライフクロスの一番上を見る/)) {
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } } as StubAction;
   }
 
   // ---- センタールリグのレベルが条件で代わりに複数選択（レベルが以上）----

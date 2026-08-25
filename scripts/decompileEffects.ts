@@ -3198,6 +3198,22 @@ function actionJa(a?: Action, effectType?: string): string {
           return `${unless}${whose}ライフクロスは${except}クラッシュされない`;
         }
       }
+      // 🆕§5.3 `O-60` 第1バッチ（2026-08-26）＝「見る／公開する」も**構造から復元する**。
+      // 🔴従来はハンドラ先頭コメントの固定文（「対戦相手のライフクロスの上から1枚…」）を出していたので、
+      //   **engine が実際にはどのゾーンを覗くかと無関係**だった＝相手の手札を見る効果でも「ライフクロス」と
+      //   書き、原文照合の計器が緑のまま通っていた（§4.3「逆翻訳は必ず JSON のフィールドから描く」）。
+      if (a.id === 'LOOK_OPP_LIFE_TOP') {
+        const lz = (a as { lookZone?: { zone: string; count: number | 'ALL' } }).lookZone;
+        if (lz) {
+          const where = lz.zone === 'opp_hand' ? '対戦相手の手札'
+            : lz.zone === 'opp_deck_top' ? '対戦相手のデッキの上'
+              : lz.zone === 'self_life' ? 'あなたのライフクロスの上' : '対戦相手のライフクロスの上';
+          if (lz.count === 'ALL') return `${where}をすべて見る`;
+          return `${where}から${numJa(lz.count)}枚を見る`;
+        }
+        // ペイロード欠落＝engine は何も見ない（fail-closed）。表示でも隠さない。
+        return '【※ペイロード欠落】見る対象が未指定（engine は何もしない）';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

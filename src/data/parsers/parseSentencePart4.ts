@@ -318,7 +318,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手はライフクロスの一番上を公開する ----
   if (t.match(/対戦相手はライフクロスの一番上を公開する/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } } as StubAction;
 
   // ---- 公開した相手ライフクロスが【ライフバースト】を持たない場合、それをトラッシュに置く（WD06-006-E1）----
   // 🔴従来は catch-all の `CONDITIONAL_POWER_BONUS`＝**丸ごと無言 no-op**＝公開するだけで**何も落ちなかった**。
@@ -365,8 +365,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 対戦相手ライフクロス上からカードを見る ----
+  // 🔴§5.3 `O-60` 第1バッチ＝engine の regex は「上から**N枚**」しか見ておらず、
+  //   実データの「上から**カードを**２枚見る」を挟めずに**既定の1枚**へ落ちていた（`WXEX1-11-E2`）。
   if (t.match(/対戦相手のライフクロスの上からカードを[１-９\d０-９]+枚見る/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: parseNum(t.match(/対戦相手のライフクロスの上からカードを([１-９\d０-９]+)枚見る/)![1]) } } as StubAction;
 
   // ---- チェックゾーンに置き残りをライフに戻す ----
   if (t.match(/チェックゾーンに置き、残りを対戦相手のライフクロスの一番上に戻す/))
@@ -940,7 +942,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手のライフクロスの一番上を公開する ----
   if (t.match(/^対戦相手のライフクロスの一番上を公開する$/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } } as StubAction;
 
   // ---- それらのカードを入れ替えてもよい / カードとデッキ上カードを入れ替えてもよい ----
   if (t.match(/とデッキの一番上のカードを入れ替えてもよい/) ||
@@ -997,8 +999,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
 
   // ---- ライフクロスをすべて見て〜場に出すかエナゾーン ----
+  // ⚠**所有者を原文から取る**（`WX25-P2-026-E2` は「**あなたの**ライフクロスをすべて見て」）＝
+  //   engine の旧 regex は所有者を一切見ず、**常に対戦相手のライフを覗いていた**。
   if (t.match(/ライフクロスをすべて見て.*場に出すかエナゾーンに置き/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: /対戦相手のライフクロスをすべて見て/.test(t) ? 'opp_life' : 'self_life', count: 'ALL' } } as StubAction;
 
   // ---- カードをルリグゾーンに裏向きで置く ----
   if (t.match(/カードを[１-９\d０-９]*枚?まで?ルリグゾーンに裏向きで置く/))
@@ -1481,8 +1485,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
 
   // ---- 対戦相手の手札を見て無色ではないカードを選ぶ ----
+  // 🔴§5.3 `O-60` 第1バッチ＝連用形「見**て**」で engine の終止形 regex に当たらず、
+  //   **相手のライフクロスを覗いていた**（`WDK09-017-E1`）。
   if (t.match(/対戦相手の手札を見て無色ではないカードを[１-９\d０-９]*枚?まで?選ぶ/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } } as StubAction;
 
   // ---- 公開したカードを手札に加える（単独文） ----
   if (t.match(/^公開したカードを手札に加える$/))

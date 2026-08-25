@@ -2625,8 +2625,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手の手札をN枚見る ----
+  // §5.3 `O-60` 第1バッチ＝**手札は「上から N 枚」が無いので常に全部**（`count:'ALL'`）。
+  // ⚠原文の「N枚見る」は**選ぶ枚数**であって見る枚数ではない（後続の選択ステップが受ける）。
   if (t.match(/^対戦相手の手札を見る$/) || t.match(/^対戦相手の手札を[０-９\d]+枚見る$/)) {
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } } as StubAction;
   }
 
   // ---- このカードがあなたの効果によって手札から公開されたとき（parseBlock未処理フォールバック） ----
@@ -2708,8 +2710,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
 
   // ---- 対戦相手はデッキの一番上を公開する ----
+  // §5.3 `O-60` 第1バッチ＝デッキは**先頭が一番上**（ライフクロスと向きが逆）＝engine 側で吸収する。
   if (t.match(/対戦相手は(?:自分の)?デッキの一番上のカードを公開する/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_deck_top', count: 1 } } as StubAction;
 
   // ---- それらを入れ替えてもよい ----
   if (t.match(/^あなたはそれらを入れ替えてもよい$/))
@@ -2797,8 +2800,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction;
 
   // ---- 対戦相手の手札を見てシグニを捨てさせる ----
+  // 🔴§5.3 `O-60` 第1バッチ＝ここは**連用形「見**て**」**なので、engine 側の
+  //   `対戦相手の手札を[０-９\d]*枚?見る`（終止形）に**1件も当たっていなかった**＝
+  //   相手の手札ではなく**ライフクロスを覗く**別ゾーンへ化けていた（§4.2「活用形が違うだけで丸ごと落ちる」）。
   if (t.match(/対戦相手の手札を見て.*シグニ(?:を|すべて)捨てさせる/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } } as StubAction;
 
   // ---- この方法で場に出たレゾナの【出】能力は発動しない（§6.4 O-5）----
   // 🔴従来は `RULE_REMINDER_TEXT`（＝完全な no-op）で、**出したレゾナの【出】が普通に発火**していた。
