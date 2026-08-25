@@ -3570,8 +3570,27 @@ function matchPlainDelayedInstall(t: string): EffectAction | undefined {
       // 🆕**§5.3 `O-66`④（2026-08-25）＝本文の型を `CHOOSE` に限らない。**
       // 旧実装は Batch C の慎重な足がかりとして `CHOOSE` 本文だけを設置へ変換していたが、
       // その結果 **「このターン終了時、〈本文〉」の大半が遅延句を落として即時実行**になっていた
-      // （実測＝原文24文のうち遅延が生きているのは4件だけ）。
+      // （実測＝原文24文のうち遅延が生きているのは4件だけ／A-B 実測で16効果が動く）。
+      //
+      // 🔴**ただし無条件に広げると 5 効果が退化する**（A-B 実測で確認）。3つのガードで落とす：
+      //   (a) **本文が `STUB`**＝ハンドラが**自分でターン終了時を予約している**ことがある
+      //       （`FLIP_FACE_DOWN_SIGNI` は `scheduleTurnEndFacedownReturns` を呼ぶ）＝
+      //       包むと**二重遅延**になり「次のターン終了時に表向き」へ化ける。
+      //       STUB の中身は parser からは不透明なので**一律で包まない**。
+      //   (b) **tail が複数文**＝`parseSingleSentence` は1文を前提にしており、
+      //       後続文（注釈の「（１体の場合、それを選ぶ）」等）に引きずられて**枚数が落ちる**
+      //       （`WX26-CP1-060-SONG` が 2体→1体に化けた）。
+      //   (c) **tail が「それ／それら／この方法で」で先行文を照応**＝遅延本文は
+      //       ターン終了時に単独で実行されるので、**照応先を運ぶ受け皿がまだ無い**
+      //       （`WXK10-045-E2`「対戦相手は**それ**を手札に戻す」／`WX25-CP1-038-E1`
+      //       「**それ**を場からトラッシュに置く」）。包むと「相手のシグニを1体選んで」に化ける。
+      //       ⇒ 機構待ちとして PLAN §5.3 へ登録する（`O-71`）。
       if (effect.type === 'UNKNOWN') return undefined;
+      if (effect.type === 'STUB') return undefined;                                  // (a)
+      if (/[。.]\s*\S/.test(tail.replace(/[。.]\s*$/, ''))) return undefined;          // (b)
+      // ⚠**文中の照応も落とす**（「対戦相手は**それ**を手札に戻す」＝助詞の後ろに来る）。
+      //   `それぞれ` は照応ではないので除外する（先読みで弾かないと大量に巻き込む）。
+      if (/それ(?!ぞれ)|この方法で/.test(tail)) return undefined;                       // (c)
       const install = {
         type: 'INSTALL_DELAYED_TRIGGER',
         duration: delayedPrefix.duration ?? 'THIS_TURN',

@@ -1641,6 +1641,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorEnergyM[2]),
         filter: { cardType: 'シグニ', color: colorEnergyM[1].split('か') } } } as SendToEnergyAction;
     }
+    // 🆕**対戦相手は自分のシグニN体を選びトラッシュに置く**（§5.3 `O-66`④の副産物・2026-08-25）。
+    // 🔴汎用 TRASH 規則に落ちると **N が常に 1** になり、**「対戦相手が選ぶ」も落ちる**
+    //   （`WX26-CP1-060-SONG`「自分のシグニ**２体**を選び」が1体に化けていた＝原文の半分）。
+    //   ⚠この穴は `O-66`④ で遅延句を配線して初めて見えた（それまで SONG 専用経路が覆っていた）。
+    if (t.match(/対戦相手は(?:.*?)自分のシグニ[０-９\d]+体を選びトラッシュに置く/)) {
+      const cntTrashM = t.match(/自分のシグニ([０-９\d]+)体を選びトラッシュに置く/);
+      return {
+        type: 'TRASH',
+        target: { type: 'SIGNI', owner: 'opponent', count: cntTrashM ? parseNum(cntTrashM[1]) : 1, filter: { cardType: 'シグニ' } },
+        opponentSelects: true,
+      } as EffectAction;
+    }
     // 対戦相手は自分のシグニN体を選びエナゾーンに置く
     if (t.match(/対戦相手は自分のシグニ[０-９\d]*体?を選びエナゾーンに置く/)) {
       const cntM = t.match(/([０-９\d]+)体/);
