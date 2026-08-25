@@ -11608,10 +11608,17 @@ test('Cluster D ON_ENERGY_TO_TRASH: ルリグ付与能力の内側 timing を収
   const inner = grant.abilities?.find(e => e.effectId === 'SPDi43-12-sub-E1');
   eq(inner?.timing?.[0], 'ON_ENERGY_TO_TRASH', '内側 timing');
   eq(inner?.triggerCondition?.energyTrashedOwner, 'opponent', '対戦相手のエナ限定');
+  // 🆕§5.3 `O-62`：原文は「**あなたの効果１つによって**対戦相手のエナゾーンから…」＝原因主体の限定つき。
+  //   `byOwnEffect` が付いたので **`causeOwnerId` を渡さないと発火しない**（＝原因不明では発火しない）。
+  eq(inner?.triggerCondition?.byOwnEffect, true, 'あなたの効果1つによって＝byOwnEffect');
   const host = mkState({}); host.field.lrig = ['SPDi43-12']; host.lrig_granted_auto_effects = [inner!];
   const guest = mkState({});
-  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'SPDi43-12-sub-E1'), true, '相手エナ→トラッシュで発火');
-  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'SPDi43-12-sub-E1'), false, '自エナ→トラッシュでは非発火');
+  const fire = (own: number, opp: number, cause?: string) =>
+    has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, own, opp, undefined, undefined, cause).entries, 'SPDi43-12-sub-E1');
+  eq(fire(0, 1, HOST), true, '自分の効果で相手エナ→トラッシュなら発火');
+  eq(fire(1, 0, HOST), false, '自エナ→トラッシュでは非発火');
+  eq(fire(0, 1, GUEST), false, '相手の効果によるトラッシュでは発火しない（O-62）');
+  eq(fire(0, 1, undefined), false, '原因不明では発火しない（O-62＝fail-closed）');
 });
 test('Stage2 ON_REFRESH: refreshedOwner=any はどちらのリフレッシュでも発火（WXDi-P04-043-E1）', () => {
   const host = mkState({ signi: ['WXDi-P04-043', null, null] }); const guest = mkState({});
@@ -12130,20 +12137,23 @@ test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () =
 
 // タスク12(xcviii): CPU のターン開始ドローで `ON_DRAW` が収集されていなかった（人間経路のみ配線）。
 // ⚠**効果ドローは中央 diff ブロックが両プレイヤー分を拾う**ので、穴は「ターンドローだけ」。
-test('task12(xcviii): CPU（guest）のターンドローでも ON_DRAW が drawer 側に収集される', () => {
-  const owner = [...effectsMap.entries()].find(([num, effs]) =>
-    cardMap.get(num)?.Type === 'シグニ'
-    && effs.some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_DRAW')
-      && (e.triggerScope ?? 'self') === 'self'
-      && !e.condition && !e.usageLimit && !e.activeCondition
-      && !e.triggerCondition?.outsideDrawPhase && !e.triggerCondition?.drawBySourceStory
-      && !e.triggerCondition?.drawByDrawerOwnEffect && !e.triggerCondition?.duringAttackPhase))?.[0];
-  ok(!!owner, 'ターンドローで発火しうる ON_DRAW シグニが live に存在する');
-  const guest = mkState({ signi: [owner!, null, null] }); const host = mkState({});
-  const r = collectDrawTriggers(trigCtx(GUEST, GUEST), GUEST, guest, host, true);
+test('task12(xcviii): CPU（guest）のターンドローでも ON_DRAW が drawer 側に収集される', () => withSavedCursor(() => {
+  // ⚠**live からは母集団が取れない**（2026-08-26・§5.3 `O-62`）＝`WXK10-040-E1` に
+  //   `drawByDrawerOwnEffect` が付いた結果、「無条件のターンドローで発火する ON_DRAW」は live に0件になった。
+  //   実際、原文の ON_DRAW は例外なく「効果によって」「ドローフェイズ以外で」等で限定されている。
+  //   ⇒ ここで見たいのは**収集の配線**（drawer 側に entries が出るか）なので、合成効果で固定する。
+  const owner = findCard(c => isSigni(c))!;
+  const harness = new Map<string, CardEffect[]>([[owner, [{
+    effectId: 'XCVIII-HARNESS', effectType: 'AUTO', timing: ['ON_DRAW'], triggerScope: 'self',
+    action: { type: 'DRAW', owner: 'self', count: 1 },
+    duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+  } as CardEffect]]]);
+  const guest = mkState({ signi: [owner, null, null] }); const host = mkState({});
+  const ctx = { ...trigCtx(GUEST, GUEST), effectsMap: harness } as ReturnType<typeof trigCtx>;
+  const r = collectDrawTriggers(ctx, GUEST, guest, host, true);
   ok(r.entries.length > 0, 'CPU のターンドローで entries が出る');
   ok(r.entries.every(e => e.playerId === GUEST), 'entries の playerId は引いた側（CPU）');
-});
+}));
 
 test('task12(xcviii): ターンドローは「効果ドロー」ではない＝drawBySourceStory を前ターンの残値で誤発火させない', () => {
   // 人間経路が `last_effect_draw_source: undefined` を明示クリアしている理由。CPU 側も同じ前処理に揃えた。
