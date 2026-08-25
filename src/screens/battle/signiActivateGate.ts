@@ -3,7 +3,7 @@ import type { CardEffect, StubAction } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectInfectedActivateBlockedSigni, isKizunaActive } from '../../engine/effectEngine';
 import { evalUseCondition, getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { countAcce } from '../../utils/acce';
-import { fieldTrashGroupsAffordable } from './fieldLimit';
+import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
 
@@ -130,6 +130,9 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
       if (e.cost!.fieldTrash!.excludeSelf && zi === zoneIndex) return false;
       return !e.cost!.fieldTrash!.filter || matchesFilter(cardMap.get(getCardNum(ftTop)), e.cost!.fieldTrash!.filter);
     }).length < e.cost.fieldTrash.count) &&
+    // fieldBanish: バニッシュできるシグニ（excludeSelf=自身を除く）が必要数いないと支払えない（§5.3 `O-67`）。
+    // ⚠行き先はエナゾーンだが**可否の軸は fieldTrash と同じ**（候補が必要数いるか）。
+    !(e.cost?.fieldBanish && fieldTrashSelectableZones(e.cost.fieldBanish, my, cardMap, zoneIndex).length < e.cost.fieldBanish.count) &&
     // fieldTrashGroups: 各グループ（異クラス）を満たすシグニ構成が場にないと支払えない
     !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, cardMap)) &&
     // beat_signi: 場にシグニがいないと【ビート】にできない（精密な不足は支払い時に判定）

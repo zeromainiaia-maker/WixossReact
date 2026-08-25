@@ -408,6 +408,8 @@ function costJa(c?: any): string {
   if (c.charmTrashVariable) parts.push('場の【チャーム】を好きな枚数トラッシュ');
   if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
   if (c.fieldTrashGroups) parts.push(`場から${c.fieldTrashGroups.map((g: any) => `${filterJa(g.filter)}シグニ${g.count}体`).join('と')}をトラッシュ`);
+  // fieldBanish: 行き先はエナゾーン＝「トラッシュ」と書き分ける（§5.3 `O-67`）。
+  if (c.fieldBanish) parts.push(`${c.fieldBanish.excludeSelf ? '他の' : ''}${filterJa(c.fieldBanish.filter)}シグニ${c.fieldBanish.count}体をバニッシュ`);
   if (c.fieldToLrigTrash) {
     const unit = c.fieldToLrigTrash.filter?.cardType === 'レゾナ' ? 'レゾナ' : 'カード';
     parts.push(`場から${filterJa(c.fieldToLrigTrash.filter)}${unit}${c.fieldToLrigTrash.count}体をルリグトラッシュに置く`);

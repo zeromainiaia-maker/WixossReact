@@ -4,6 +4,7 @@ import { collectLrigGrantedEffects, isKizunaActive } from '../../engine/effectEn
 import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
 import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
+import { fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
 
 /**
@@ -95,6 +96,10 @@ export function canActivateLrigEffect(
   if (eff.cost?.lrigDown && payLrigDownCost(my, eff.cost.lrigDown, cardMap) === null) return false;
   // 【起】《ダウン》＝このルリグが既にダウンしていると払えない（タスク12(cxxxi)）。
   if (eff.cost?.down_self && payLrigDownSelfCost(my) === null) return false;
+  // fieldBanish: コストでバニッシュできる自分のシグニが必要数いないと払えない（§5.3 `O-67`）。
+  // ⚠発生源はルリグなので `excludeSelf`（＝効果元シグニを除く）は効かない＝sourceZone は渡さない。
+  if (eff.cost?.fieldBanish
+    && fieldTrashSelectableZones(eff.cost.fieldBanish, my, cardMap).length < eff.cost.fieldBanish.count) return false;
   // SONG_FRAGMENT: エナゾーンに【歌のカケラ】がある場合のみ撃てる。
   const act = eff.action as StubAction;
   if (act?.type === 'STUB' && act.id === 'SONG_FRAGMENT'

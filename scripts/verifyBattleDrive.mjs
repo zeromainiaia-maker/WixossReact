@@ -29365,6 +29365,244 @@ scenarios.b66LifeCrashCapControl = {
 order.push('b66LifeCrashCapOnce', 'b66LifeCrashCapControl');
 // ── §5.3 O-66 END ──
 
+// ── §5.3 O-67（続き657）＝コストの「〜をバニッシュする：」＝行き先はエナゾーン ──
+//
+// ■ 何を見るか
+//   `WX05-044`「コードアンチ　マズフェイス」は **同じ盤面から撃てる【起】を2つ**持つ：
+//     E1 …《ダウン》＋**他の＜古代兵器＞のシグニ１体をバニッシュする**：相手シグニ1体のパワー－7000
+//     E2 …《ダウン》＋**他の＜古代兵器＞のシグニ２体を場からトラッシュに置く**：相手全体のパワー－10000
+//   ⇒ **同じカード・同じ盤面で「行き先だけが違う2つのコスト」を撃ち比べられる**＝
+//     `O-67` の主張（バニッシュ＝**エナゾーン**／トラッシュ送りではない）の直接の対照になる。
+//   🔴旧実装は E1 のコスト句を**丸ごと取り逃していた**（規則がレベル節を必須にしていた）＝
+//     live のコストが `{down_self:true}` だけ＝**仲間を1体も失わずに撃てた**。
+//
+// ■ 対照（🔑罠3＝負方向は必ず対照とセット）
+//   **盤面は1文字も変えず、押す【起】ボタンだけを変える**。E2（トラッシュ）でエナが増えないことを
+//   確かめて初めて、E1 の「エナが増えた」が **fieldBanish の行き先分岐のおかげ**だと言い切れる
+//   （どちらも増えるなら「場を離れたら何でもエナへ行く」だけかもしれない）。
+//
+// ■ 罠の織り込み
+//   - 罠1＝`field.check: null` を両者に入れる。罠8m＝**同名の【起】はコストまで含めたラベルで指定**
+//     （そのために `BattleScreen` の costLabel へ「〜体バニッシュ」を足した）。
+//   - 罠8p＝コスト候補セルは常に可視なので**1ゾーン1回だけ**押す（毎ティック押すとトグルで外れる）。
+//   - 罠8f＝「場を離れたか」を `trash` だけで見ない＝**エナとトラッシュの両方**を見る。
+const O67_SRC = 'WX05-044#1';        // マズフェイス（E1=バニッシュコスト／E2=トラッシュコスト）
+const O67_ALLY_A = 'WX04-097#1';     // コードアンチ アショカ（＜古代兵器＞・EffectText='-' の完全バニラ）
+const O67_ALLY_B = 'WX04-100#1';     // コードアンチ ヘンジ（同上）
+const o67Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [[O67_SRC], [O67_ALLY_A], [O67_ALLY_B]],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'energy': [],
+    'trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [null, ['WD01-013#21'], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+/**
+ * @param tag       スクショ/ログ用のID
+ * @param actLabel  押す【起】ボタンの**完全一致**ラベル（罠8m＝コストまで含める）
+ * @param needZones コストで選ぶゾーン数（E1=1／E2=2）
+ * @param dest      期待する行き先 'energy' | 'trash'
+ */
+const o67Drive = (tag, actLabel, needZones, dest) => async function drive(page, H) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  // ⚠`energy`/`trash` は**枚数**、`energyCards`/`trashCards` が**カードID配列**（罠15＝観測面を間違えない）。
+  H.log(`  ${tag} 開始: host.field=${JSON.stringify(before?.host?.fieldSigni)} energy=${JSON.stringify(before?.host?.energyCards)} trash=${JSON.stringify(before?.host?.trashCards)}`);
+  if ((before?.host?.energyCards ?? []).length !== 0 || (before?.host?.trashCards ?? []).length !== 0) {
+    return { pass: false, detail: `前提崩れ＝エナ/トラッシュが空でない（energy=${JSON.stringify(before?.host?.energyCards)} trash=${JSON.stringify(before?.host?.trashCards)}）＝増分で見られない` };
+  }
+  let modalOpened = false, actClicked = false, fired = false;
+  const pickedZones = new Set();   // 罠8p＝コスト候補セルは1ゾーン1回だけ押す
+  for (let s = 0; s < 34; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!modalOpened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { modalOpened = true; did = o; } }
+    // 罠8m＝完全一致で【起】を撃ち分ける（前方一致だと E1/E2 を誤射して盤面まで変わる）
+    if (!did && modalOpened && !actClicked) {
+      const b = await H.clickBtn(actLabel, { exact: true });
+      if (b) { actClicked = true; did = b; }
+    }
+    // コスト対象のシグニゾーンを選ぶ（1ゾーン1回だけ）
+    if (!did && actClicked && pickedZones.size < needZones) {
+      for (const zi of [1, 2]) {
+        if (pickedZones.has(zi)) continue;
+        const c = await H.clickTestId(`signiact-fieldtrash-${zi}`);
+        if (c) { pickedZones.add(zi); did = c; break; }
+      }
+    }
+    // 罠8b＝「発動」は enabled を確かめてから押す（clickBtn が検査する）
+    if (!did && actClicked && pickedZones.size >= needZones && !fired) {
+      const f = await H.clickBtn('発動', { exact: true });
+      if (f) { fired = true; did = f; }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(st?.host?.fieldSigni)} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)} picked=${[...pickedZones]} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (fired && !st?.pendingEffect && (st?.stackLen ?? 0) === 0
+        && ((st?.host?.energyCards ?? []).length + (st?.host?.trashCards ?? []).length) >= needZones) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  const after = await H.queryState();
+  // ⚠**ゾーンに入る綴りは経路ごとに違う**（実測）＝`fieldTrash` の支払いは `getCardNum` で
+  //   **インスタンス接尾辞を落として**トラッシュへ積む（`WX04-097`）が、バニッシュは engine の
+  //   `banishDestination` を通るので**インスタンスIDのまま**エナへ入る（`WX04-097#1`）。
+  //   ⇒ 照合は**カード番号に正規化**して行う（生の一致で見ると engine は正しいのに FAIL する）。
+  const bare = n => String(n).split('#')[0];
+  const energy = (after?.host?.energyCards ?? []).map(bare);
+  const trash = (after?.host?.trashCards ?? []).map(bare);
+  const onField = JSON.stringify(after?.host?.fieldSigni ?? []);
+  // 罠8f＝「場を離れたか」はトラッシュだけで見ない＝**エナとトラッシュの両方**を見る。
+  const paid = [O67_ALLY_A, O67_ALLY_B].map(bare).filter(n => energy.includes(n) || trash.includes(n));
+  // 🔑罠4＝「盤面がこうなった」だけでは足りない＝**コストが実際に払われた**ことを必須条件にする
+  if (!fired) return { pass: false, detail: `前提崩れ＝「発動」まで到達できなかった（opened=${modalOpened} act=${actClicked} picked=${[...pickedZones]}）` };
+  if (paid.length !== needZones) {
+    return { pass: false, detail: `🔴コストが払われていない＝場を離れた仲間が${paid.length}体（期待${needZones}体）。field=${onField} energy=${JSON.stringify(energy)} trash=${JSON.stringify(trash)}` };
+  }
+  const wrong = paid.filter(n => (dest === 'energy' ? !energy.includes(n) : !trash.includes(n)));
+  const detail = `払った仲間=${JSON.stringify(paid)}／host.energy=${JSON.stringify(energy)} host.trash=${JSON.stringify(trash)} field=${onField}`;
+  if (wrong.length) {
+    return { pass: false, detail: `🔴行き先が違う＝${JSON.stringify(wrong)} が${dest === 'energy' ? 'エナゾーン' : 'トラッシュ'}に無い。${detail}` };
+  }
+  // 逆方向も見る（バニッシュならトラッシュに落ちていない／トラッシュならエナが増えていない）
+  const leaked = paid.filter(n => (dest === 'energy' ? trash.includes(n) : energy.includes(n)));
+  if (leaked.length) {
+    return { pass: false, detail: `🔴二重計上＝${JSON.stringify(leaked)} が両方のゾーンにいる。${detail}` };
+  }
+  return { pass: true, detail: `${dest === 'energy' ? 'バニッシュ＝エナゾーンへ（エナが増える）' : 'トラッシュ送り＝エナは増えない'}：${detail}` };
+};
+scenarios.o67BanishCostToEnergy = {
+  title: 'WX05-044-E1（【起】《ダウン》他の＜古代兵器＞１体を**バニッシュ**）＝コストで払った仲間がエナゾーンへ行く【本命】',
+  spec: o67Spec(),
+  drive: o67Drive('o67BanishCostToEnergy', '【起】ダウン・場の他のシグニ1体バニッシュ', 1, 'energy'),
+};
+scenarios.o67TrashCostControl = {
+  title: 'WX05-044-E2（同じ盤面・押す【起】だけ違う＝他の＜古代兵器＞２体を**場からトラッシュ**）＝仲間はトラッシュへ行きエナは増えない【対照】',
+  spec: o67Spec(),
+  drive: o67Drive('o67TrashCostControl', '【起】ダウン・場の他のシグニ2体トラッシュ', 2, 'trash'),
+};
+order.push('o67BanishCostToEnergy', 'o67TrashCostControl');
+
+// ── O-67 その2＝**ルリグ【起】**の経路（`WX25-P1-022-E1`）──
+// 🔴この経路には**場シグニ系コストの支払いが1行も無かった**（`performLrigActivated`）＝
+//   提示だけして**コストを踏み倒して撃てた**。⇒ ①支払いが起きること ②払えないなら提示しないこと の2本。
+// ■ 対照（🔑罠3/罠4）＝同じルリグの **E2（《ゲーム１回》ハプニング＝コストなし）** が出ていることを
+//   必須条件にする。E2 が出ていれば「ルリグのアクションUIは開いている」＝
+//   本命の「E1 のボタンが無い」が**モーダルを開けていないだけ**ではないと言い切れる。
+const O67_LRIG = 'WX25-P1-022#1';        // ミルルン・ケミストリー（E1=レベル2以下の＜原子＞1体をバニッシュ）
+const O67_LRIG_NAME = 'ミルルン・ケミストリー';
+const O67_ATOM = 'WX05-062#1';           // 羅原 Ti（Lv2 ＜原子＞・EffectText='-' の完全バニラ）
+const O67_NON_ATOM = 'WD01-013#41';      // 小剣 ククリ（＜原子＞ではない完全バニラ＝コスト候補にならない）
+const O67_LRIG_ACT = '【起】場のシグニ1体バニッシュ';
+const O67_LRIG_ACT_FREE = '【起】コストなし';   // E2＝《ゲーム１回》ハプニング《青×0》
+const o67LrigSpec = (signiTop) => ({
+  hostSet: {
+    'field.lrig': [O67_LRIG],
+    'field.signi': [[signiTop], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [],
+    'trash': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const o67LrigDrive = (tag, payable) => async function drive(page, H) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`  ${tag} 開始: lrig=${before?.host?.lrigTop} field=${JSON.stringify(before?.host?.fieldSigni)} energy=${JSON.stringify(before?.host?.energyCards)} trash=${JSON.stringify(before?.host?.trashCards)}`);
+  if ((before?.host?.energyCards ?? []).length !== 0 || (before?.host?.trashCards ?? []).length !== 0) {
+    return { pass: false, detail: `前提崩れ＝エナ/トラッシュが空でない（増分で見られない）` };
+  }
+  let opened = false, actClicked = false, picked = false, fired = false;
+  let sawFreeAct = false;   // 対照＝E2（コストなし）のボタンが見えたか＝UI が開いている証拠
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!opened) {
+      // ⚠罠17＝accessible name は空白を正規化する。カード名は `getByAltText` で掴む（既存 `exceedCost` と同型）。
+      const lrigImg = page.getByAltText(O67_LRIG_NAME, { exact: false }).first();
+      if (await lrigImg.count()) { await lrigImg.click({ force: true, timeout: 2000 }).catch(() => {}); opened = true; did = 'img:lrig'; }
+    }
+    if (!sawFreeAct) {
+      sawFreeAct = (await page.getByRole('button', { name: O67_LRIG_ACT_FREE, exact: true }).count()) > 0;
+    }
+    // 罠8m＝完全一致（E1 と E2 を撃ち分ける）
+    if (!did && opened && !actClicked) {
+      const b = await H.clickBtn(O67_LRIG_ACT, { exact: true });
+      if (b) { actClicked = true; did = b; }
+    }
+    if (!did && actClicked && !picked) {
+      const c = await H.clickTestId('lrigact-fieldbanish-0');
+      if (c) { picked = true; did = c; }
+    }
+    if (!did && actClicked && picked && !fired) {
+      const f = await H.clickBtn('発動', { exact: true });
+      if (f) { fired = true; did = f; }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(st?.host?.fieldSigni)} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)} act=${actClicked} picked=${picked} fired=${fired} freeAct=${sawFreeAct} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (payable && fired && !st?.pendingEffect && (st?.stackLen ?? 0) === 0
+        && (st?.host?.energyCards ?? []).length > 0) break;
+    if (!payable && sawFreeAct && s >= 6) break;   // 対照＝UI は開いた／E1 は出ないことを確かめたら抜ける
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  const after = await H.queryState();
+  const bare = n => String(n).split('#')[0];
+  const energy = (after?.host?.energyCards ?? []).map(bare);
+  const trash = (after?.host?.trashCards ?? []).map(bare);
+  const onField = JSON.stringify(after?.host?.fieldSigni ?? []);
+  const detail = `energy=${JSON.stringify(energy)} trash=${JSON.stringify(trash)} field=${onField} freeAct=${sawFreeAct}`;
+  if (!payable) {
+    // 🔑罠4＝「E1 が押せなかった」だけでは何も検証していない＝**UI が開いている証拠**とセットで見る。
+    if (!sawFreeAct) return { pass: false, detail: `前提崩れ＝対照の「${O67_LRIG_ACT_FREE}」（E2）も出ていない＝ルリグのアクションUIを開けていない。${detail}` };
+    if (actClicked) return { pass: false, detail: `🔴払えないのに提示された＝コスト踏み倒しで撃てる（${detail}）` };
+    if (energy.length || trash.length) return { pass: false, detail: `🔴撃っていないのに盤面が動いた（${detail}）` };
+    return { pass: true, detail: `＜原子＞のシグニがいないので E1 は提示されない（対照の E2「${O67_LRIG_ACT_FREE}」は出ている＝UIは開いている）。${detail}` };
+  }
+  if (!fired) return { pass: false, detail: `前提崩れ＝「発動」まで到達できなかった（act=${actClicked} picked=${picked}）。${detail}` };
+  const paidNum = bare(O67_ATOM);
+  if (!energy.includes(paidNum) && !trash.includes(paidNum)) {
+    return { pass: false, detail: `🔴コストが払われていない＝シグニが場に残ったまま撃てた（踏み倒し）。${detail}` };
+  }
+  if (!energy.includes(paidNum)) {
+    return { pass: false, detail: `🔴行き先が違う＝バニッシュなのにエナゾーンに無い。${detail}` };
+  }
+  if (trash.includes(paidNum)) return { pass: false, detail: `🔴二重計上＝エナとトラッシュの両方にいる。${detail}` };
+  return { pass: true, detail: `ルリグ【起】でも支払いが起きる＝${paidNum} がエナゾーンへ（トラッシュには行かない）。${detail}` };
+};
+scenarios.o67LrigBanishCostPaid = {
+  title: 'WX25-P1-022-E1（ルリグ【起】＝レベル２以下の＜原子＞１体をバニッシュ）＝コストが実際に払われ、行き先はエナゾーン【本命】',
+  spec: o67LrigSpec(O67_ATOM),
+  drive: o67LrigDrive('o67LrigBanishCostPaid', true),
+};
+scenarios.o67LrigBanishUnpayable = {
+  title: 'WX25-P1-022-E1（＜原子＞のシグニがいない＝払えない）＝【起】が提示されない（対照＝コストなしの E2 は出ている）【負方向】',
+  spec: o67LrigSpec(O67_NON_ATOM),
+  drive: o67LrigDrive('o67LrigBanishUnpayable', false),
+};
+order.push('o67LrigBanishCostPaid', 'o67LrigBanishUnpayable');
+// ── §5.3 O-67 END ──
+
 
 
 

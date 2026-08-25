@@ -729,13 +729,23 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (teNamedM) cost.trashExile = { count: parseNum(teNamedM[2]), filter: { cardName: teNamedM[1] } };
     else if (teGenericM) cost.trashExile = { count: parseNum(teGenericM[1]) };
   }
-  // コストとしてシグニをバニッシュ → fieldTrash で近似
-  if (!cost.fieldTrash) {
-    const banishCostM = costStr.match(/レベル([０-９\d]+)以下の(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体をバニッシュする/);
-    if (banishCostM) {
-      const bcFilter: TargetFilter = { cardType: 'シグニ', level: { max: parseNum(banishCostM[1]) } as TargetFilter['level'] };
-      if (banishCostM[2]) bcFilter.story = banishCostM[2];
-      cost.fieldTrash = { count: parseNum(banishCostM[3]), filter: bcFilter };
+  // コストとしてシグニをバニッシュ → fieldBanish（§5.3 `O-67`）
+  // 🔴**`fieldTrash` で近似してはいけない**＝バニッシュの行き先は**エナゾーン**でトラッシュではない
+  //   （近似すると `WX25-P1-022-E1` が「エナが1枚増える」代わりに資源を失う＝§4.4 罠8f と同型の取り違え）。
+  // ⚠「他の」が付く形（`WX05-044-E1`）は**レベル指定が無い**＝旧規則はレベル節を必須にしていたので
+  //   丸ごと取り逃し、live のコストが `{down_self:true}` だけ＝**実質コストなしで撃てた**。
+  // ⚠「対戦相手の〜をバニッシュする」はコストではなく効果本体なので明示的に弾く。
+  if (!cost.fieldTrash && !cost.fieldBanish) {
+    const banishCostM = costStr.match(/(対戦相手の|相手の)?(他の)?(?:レベル([０-９\d]+)以下の)?(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体をバニッシュする/);
+    if (banishCostM && !banishCostM[1]) {
+      const bcFilter: TargetFilter = { cardType: 'シグニ' };
+      if (banishCostM[3]) bcFilter.level = { max: parseNum(banishCostM[3]) } as TargetFilter['level'];
+      if (banishCostM[4]) bcFilter.story = banishCostM[4];
+      cost.fieldBanish = {
+        count: parseNum(banishCostM[5]),
+        filter: bcFilter,
+        ...(banishCostM[2] ? { excludeSelf: true } : {}),
+      };
     }
   }
   // アップ状態のルリグN体をダウン → lrigDown

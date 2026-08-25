@@ -24,6 +24,8 @@ export interface ActivatedModalsState {
   selectedLrigGrantedEnergyTrash: Set<number>;
   // ルリグ起動付与能力: trashExile選択インデックス
   selectedLrigGrantedTrashExile: Set<number>;
+  // ルリグ起動付与能力: fieldBanish（コストで自分のシグニをバニッシュ）のゾーン選択（§5.3 `O-67`）
+  selectedLrigGrantedFieldBanish: Set<number>;
 }
 
 const initialState: ActivatedModalsState = {
@@ -40,6 +42,7 @@ const initialState: ActivatedModalsState = {
   selectedLrigGrantedHandDiscard: new Set(),
   selectedLrigGrantedEnergyTrash: new Set(),
   selectedLrigGrantedTrashExile: new Set(),
+  selectedLrigGrantedFieldBanish: new Set(),
 };
 
 export function useActivatedModals() {
@@ -69,12 +72,16 @@ export function useActivatedModals() {
       patch({ pendingEnergyActivated: null, selectedEnergyActivatedCost: new Set() }),
     /** ルリグ付与【起】モーダルを開く（コスト・手札捨て選択は白紙化） */
     openLrigGranted: (pending: NonNullable<ActivatedModalsState['pendingLrigGranted']>) =>
-      patch({ pendingLrigGranted: pending, selectedLrigGrantedCost: new Set(), selectedLrigGrantedHandDiscard: new Set() }),
+      patch({
+        pendingLrigGranted: pending, selectedLrigGrantedCost: new Set(), selectedLrigGrantedHandDiscard: new Set(),
+        selectedLrigGrantedFieldBanish: new Set(),
+      }),
     /** ルリグ付与【起】モーダルを閉じて選択を全リセット */
     closeLrigGranted: () =>
       patch({
         pendingLrigGranted: null, selectedLrigGrantedCost: new Set(), selectedLrigGrantedHandDiscard: new Set(),
         selectedLrigGrantedEnergyTrash: new Set(), selectedLrigGrantedTrashExile: new Set(),
+        selectedLrigGrantedFieldBanish: new Set(),
       }),
     setPendingHandActivated: set.pendingHandActivated,
     setSelectedHandActivatedCost: set.selectedHandActivatedCost,
@@ -89,5 +96,6 @@ export function useActivatedModals() {
     setSelectedLrigGrantedHandDiscard: set.selectedLrigGrantedHandDiscard,
     setSelectedLrigGrantedEnergyTrash: set.selectedLrigGrantedEnergyTrash,
     setSelectedLrigGrantedTrashExile: set.selectedLrigGrantedTrashExile,
+    setSelectedLrigGrantedFieldBanish: set.selectedLrigGrantedFieldBanish,
   };
 }

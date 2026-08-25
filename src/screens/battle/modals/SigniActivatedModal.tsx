@@ -118,7 +118,12 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                 ? true
                 : selectedSigniActivatedTrashExile.size >= (actTrashExileCost?.count ?? 0);
               // fieldTrash: 場のシグニをコストでトラッシュ（excludeSelf=効果元自身を除く。WX03-035等）
-              const actFieldTrashCost = eff.cost?.fieldTrash;
+              // 🆕fieldBanish（§5.3 `O-67`・`WX05-044-E1`）は**同じゾーン選択UI**を使う（parser が片方しか
+              // 立てないので state を共用できる）。⚠**行き先だけが違う**（エナゾーン）＝支払いは
+              // `payFieldBanishCost`／ラベルも「バニッシュ」に切り替える。
+              const actFieldBanishCost = eff.cost?.fieldBanish;
+              const actFieldTrashCost = eff.cost?.fieldTrash ?? actFieldBanishCost;
+              const actFieldIsBanish = !eff.cost?.fieldTrash && !!actFieldBanishCost;
               const actFieldTrashGroups = eff.cost?.fieldTrashGroups;
               const actSelfZoneFt = my.field.signi.findIndex(s => s?.at(-1) === pendingSigniActivated.cardNum);
               const actFtNeeded = actFieldTrashGroups
@@ -188,6 +193,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             actEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}${actEnergyTrashCost.count}枚トラッシュ` : null,
                             actTrashExileCost?.self ? 'このカードをゲームから除外' : actTrashExileCost ? `トラッシュから${actTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                             actUnderTrashCost ? `このシグニの下から${actUnderTrashCost.count}枚トラッシュ` : null,
+                            actFieldBanishCost ? `場から${actFieldBanishCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldBanishCost.filter)}シグニ${actFieldBanishCost.count}体をバニッシュ` : null,
                             actLrigDownCost ? fmtLrigDownCostLabel(actLrigDownCost) : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
@@ -576,7 +582,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                       <p style={{ color: actFieldTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
                         場から{actFieldTrashGroups
                           ? actFieldTrashGroups.map(g => `${fmtDiscardFilterLabel(g.filter)}シグニ${g.count}体`).join('と')
-                          : `${actFieldTrashCost!.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldTrashCost!.filter)}シグニ`}をトラッシュ:
+                          : `${actFieldTrashCost!.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldTrashCost!.filter)}シグニ`}を{actFieldIsBanish ? 'バニッシュ' : 'トラッシュ'}:
                         {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体
                       </p>
                       {actFtSelectableZones.length === 0 ? (
@@ -589,6 +595,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             const isSel = selectedSigniActivatedFieldTrash.has(zi);
                             return (
                               <div key={zi}
+                                data-testid={`signiact-fieldtrash-${zi}`}
                                 onClick={() => setSelectedSigniActivatedFieldTrash(prev => {
                                   const next = new Set(prev);
                                   if (next.has(zi)) { next.delete(zi); return next; }

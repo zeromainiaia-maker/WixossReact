@@ -8,6 +8,8 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
+import { fieldTrashSelectableZones } from '../fieldLimit';
+import { getCardNum } from '../../../engine/effectExecutor';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -23,12 +25,15 @@ interface LrigGrantedModalProps {
   setSelectedLrigGrantedEnergyTrash: Dispatch<SetStateAction<Set<number>>>;
   selectedLrigGrantedTrashExile: Set<number>;
   setSelectedLrigGrantedTrashExile: Dispatch<SetStateAction<Set<number>>>;
-  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>) => void;
+  /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
+  selectedLrigGrantedFieldBanish: Set<number>;
+  setSelectedLrigGrantedFieldBanish: Dispatch<SetStateAction<Set<number>>>;
+  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>) => void;
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
-  const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, executeLrigGranted } = p;
+  const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish, executeLrigGranted } = p;
   return (
     <>
       {pendingLrigGranted && createPortal(
@@ -86,7 +91,17 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               // この経路を通る（WXDi-P02-009-E3／WXDi-P03-009-E3）。判定は支払い関数に委ねる。タスク12(cviii)
               const lgLrigDownCost = eff.cost?.lrigDown;
               const lgLrigDownOk = !lgLrigDownCost || payLrigDownCost(my, lgLrigDownCost, battleCardMap) !== null;
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk;
+              // fieldBanish: コストで自分の場のシグニをバニッシュ（§5.3 `O-67`・`WX25-P1-022-E1`）。
+              // 🔴**行き先はエナゾーン**なので `fieldTrash`（トラッシュ）と混ぜない。⚠**この経路には
+              //   場シグニ系コストの支払いが1行も無かった**＝提示だけして踏み倒していた。
+              const lgFieldBanishCost = eff.cost?.fieldBanish;
+              const lgFbSelectableZones = lgFieldBanishCost
+                ? fieldTrashSelectableZones(lgFieldBanishCost, my, battleCardMap)
+                : [];
+              const lgFieldBanishOk = !lgFieldBanishCost
+                || (selectedLrigGrantedFieldBanish.size === lgFieldBanishCost.count
+                    && [...selectedLrigGrantedFieldBanish].every(zi => lgFbSelectableZones.includes(zi)));
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk && lgFieldBanishOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
@@ -113,6 +128,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                             lgEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(lgEnergyTrashCost.filter) || 'シグニ'}${lgEnergyTrashCost.count}枚トラッシュ` : null,
                             lgTrashExileCost?.self ? 'このカードをゲームから除外' : lgTrashExileCost ? `トラッシュから${lgTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                             lgLrigDownCost ? fmtLrigDownCostLabel(lgLrigDownCost) : null,
+                            lgFieldBanishCost ? `場から${lgFieldBanishCost.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(lgFieldBanishCost.filter)}シグニ${lgFieldBanishCost.count}体をバニッシュ` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {lgLrigDownCost && !lgLrigDownOk && (
@@ -352,16 +368,67 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                     </p>
                   )}
 
+                  {/* fieldBanish: コストで自分の場のシグニをバニッシュ（行き先はエナゾーン。§5.3 `O-67`） */}
+                  {lgFieldBanishCost && (
+                    <>
+                      <p style={{ color: lgFieldBanishOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        場から{lgFieldBanishCost.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(lgFieldBanishCost.filter)}シグニをバニッシュ:
+                        {' '}{selectedLrigGrantedFieldBanish.size} / {lgFieldBanishCost.count}体
+                      </p>
+                      {lgFbSelectableZones.length === 0 ? (
+                        <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>対象シグニがいません</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {lgFbSelectableZones.map(zi => {
+                            const top = my.field.signi[zi]?.at(-1);
+                            const c = top ? battleCardMap.get(getCardNum(top)) : undefined;
+                            const isSel = selectedLrigGrantedFieldBanish.has(zi);
+                            return (
+                              <div key={zi}
+                                data-testid={`lrigact-fieldbanish-${zi}`}
+                                onClick={() => setSelectedLrigGrantedFieldBanish(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(zi)) { next.delete(zi); return next; }
+                                  if (next.size >= lgFieldBanishCost.count) return prev;
+                                  next.add(zi); return next;
+                                })}
+                                onContextMenu={e => e.preventDefault()}
+                                style={{ position: 'relative', width: 52, height: 73, borderRadius: 4, flexShrink: 0,
+                                  border: isSel ? '2px solid #4caf50' : C.borderCard,
+                                  cursor: 'pointer', overflow: 'hidden' }}>
+                                {c ? (
+                                  <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, color: C.textFaint }}>{top}</span>
+                                  </div>
+                                )}
+                                {isSel && (
+                                  <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(76,175,80,0.4)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); }}
+                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile)}
+                      onClick={() => executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

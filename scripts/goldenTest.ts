@@ -66,6 +66,7 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/ba
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost } from '../src/screens/battle/lrigDownCost';
+import { payFieldBanishCost } from '../src/screens/battle/fieldBanishCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason, signiAttackColorlessCost, collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { lrigAttackBanCost, signiAttackBanCost } from '../src/screens/battle/signiAttackBan';
@@ -47209,6 +47210,104 @@ test('O-65 engine: 条件つきの「バニッシュされない」を原文フ�
     eq(run([spec({})]), 5, '全面防止も止める');
   }));
 }
+
+
+// ── §5.3 `O-67`：コストの「〜をバニッシュする：」に受け皿が無く、行き先も違っていた ────────────
+// 実測母集団＝**2効果**（原文の**コスト句**＝先頭〜最初の「：」に「をバニッシュする：」を含む全数）。
+// 旧実装は ①`WX05-044-E1`「他の＜古代兵器＞のシグニ１体をバニッシュする」＝**規則がレベル節を必須に
+// していたので丸ごと落ち、live のコストが `{down_self:true}` だけ＝実質コストなしで撃てた**
+// ②`WX25-P1-022-E1`＝`fieldTrash` へ化けて**行き先がトラッシュ**になっていた（バニッシュならエナが
+// 1枚増えるのに資源を失う＝§4.4 罠8f と同型）。
+test('O-67 live: コスト句の「をバニッシュする：」は全件 fieldBanish に載る（fieldTrash へ化けない）', () => {
+  const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'));
+  // 🔑**「：」の直前に来る「バニッシュする」だけがコスト**（本文中の「〜をバニッシュする。」は効果）。
+  const fromText = Object.entries(srcT).filter(([, t]) => typeof t === 'string' && t.includes('をバニッシュする：')).map(([id]) => id).sort();
+  eq(fromText.join(','), 'WX05-044-E1,WX25-P1-022-E1', '母集団は原文側で2効果（増えたら配線を見直す合図）');
+  for (const id of fromText) {
+    const cost = (b43Live(id).cost ?? {}) as Record<string, unknown>;
+    ok(!!cost.fieldBanish, id + ': コストが fieldBanish に載っている（落ちるとコストなしで撃てる）');
+    ok(!cost.fieldTrash, id + ': 🔴fieldTrash へ化けていない（行き先がトラッシュになりエナが増えない）');
+  }
+  eq(JSON.stringify((b43Live('WX05-044-E1').cost ?? {}).fieldBanish),
+     '{"count":1,"filter":{"cardType":"シグニ","story":"古代兵器"},"excludeSelf":true}',
+     'WX05-044-E1＝「他の」→ excludeSelf・レベル節なしでも拾う');
+  eq(JSON.stringify((b43Live('WX25-P1-022-E1').cost ?? {}).fieldBanish),
+     '{"count":1,"filter":{"cardType":"シグニ","level":{"max":2},"story":"原子"}}',
+     'WX25-P1-022-E1＝レベル２以下の＜原子＞（「他の」が無いので excludeSelf は付けない）');
+  // 🔴支払いUIのゾーン選択 state を fieldTrash と共用しているので、**両方立つと選択が二重に消費される**。
+  // 🔴支払い経路を書いたのは【起】（シグニ／ルリグ）だけ＝他の effectType に出たら踏み倒しになる。
+  const mixed: string[] = [], nonAct: string[] = [];
+  for (const effs of effectsMap.values()) for (const e of effs) {
+    const c = (e.cost ?? {}) as Record<string, unknown>;
+    if (!c.fieldBanish) continue;
+    if (c.fieldTrash || c.fieldTrashGroups) mixed.push(e.effectId);
+    if (e.effectType !== 'ACTIVATED') nonAct.push(e.effectId);
+  }
+  eq(mixed.join(','), '', '🔴fieldBanish と fieldTrash の併用は0件（併用が出たら選択 state を分ける）');
+  eq(nonAct.join(','), '', '🔴fieldBanish は【起】のみ＝他の timing に出たらその支払い経路を先に書く');
+});
+
+test('O-67 engine: payFieldBanishCost の行き先はエナゾーン（トラッシュではない）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const victim = fresh(), keep = fresh(), charm = fresh();
+  const base = () => mkState({ signi: [keep, victim, null], energy: 2, trash: 2 });
+  const cost = { count: 1, filter: { cardType: 'シグニ' } } as const;
+  {
+    const my = base();
+    const r = payFieldBanishCost({ my, op: mkState({}), zones: [1], cost, cardMap: cm });
+    ok(!!r, '候補がいれば支払える');
+    eq(r!.state.field.signi[1], null, 'バニッシュしたゾーンは空になる');
+    ok(r!.state.energy.includes(victim), '🔴行き先はエナゾーン（＝支払ってもエナが1枚増える）');
+    ok(!r!.state.trash.includes(victim), '🔴トラッシュへは行かない（fieldTrash 流用の取り違えを固定）');
+    eq(r!.state.energy.length, my.energy.length + 1, 'エナが1枚増える');
+    eq(r!.state.trash.length, my.trash.length, 'トラッシュは1枚も増えない');
+    ok(r!.state.field.signi[0]?.includes(keep), '選ばなかったシグニはそのまま');
+  }
+  {
+    // 付属カード（チャーム）はルールどおりトラッシュへ＝`removeFromField` を通っている証拠。
+    const my0 = base();
+    const my = { ...my0, field: { ...my0.field, signi_charms: [null, charm, null] } } as PlayerState;
+    const r = payFieldBanishCost({ my, op: mkState({}), zones: [1], cost, cardMap: cm });
+    ok(!!r && r.state.trash.includes(charm), 'チャームはトラッシュへ');
+    ok(!!r && r.state.energy.includes(victim) && !r.state.energy.includes(charm), 'エナへ行くのはシグニ本体だけ');
+  }
+  {
+    // 🔑`banishDestination` を通しているので、相手の置換（エナの代わりにトラッシュ）も効く。
+    const my = base();
+    const op = { ...mkState({}), banish_redirect: true } as PlayerState;
+    const r = payFieldBanishCost({ my, op, zones: [1], cost, cardMap: cm });
+    ok(!!r && r.state.trash.includes(victim), '置換があればトラッシュ行き（素のエナ push ではない）');
+    ok(!!r && !r.state.energy.includes(victim), '置換時はエナへ行かない');
+  }
+  // 負方向＝**払えないときは null**（呼び出し側はここで発動を中止する＝踏み倒しを作らない）
+  eq(payFieldBanishCost({ my: base(), op: mkState({}), zones: [], cost, cardMap: cm }), null, '選択0枚では払えない');
+  eq(payFieldBanishCost({ my: base(), op: mkState({}), zones: [0, 1], cost, cardMap: cm }), null, '枚数超過も払えない');
+  eq(payFieldBanishCost({ my: base(), op: mkState({}), zones: [2], cost, cardMap: cm }), null, '空ゾーンは払えない');
+}));
+
+test('O-67 gate: バニッシュできるシグニがいなければ【起】を提示しない（シグニ／ルリグの両経路）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const ANCIENT = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('古代兵器'));
+  const OTHER = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('古代兵器'));
+  const cost = { fieldBanish: { count: 1, filter: { cardType: 'シグニ', story: '古代兵器' }, excludeSelf: true } } as never;
+  // ① シグニ【起】＝効果元は zone0 の＜古代兵器＞。`excludeSelf` があるので自分自身では払えない。
+  const signiIds = (signi: (string | null)[]) => listActivatableSigniEffects({
+    my: mkState({ signi }), op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[ANCIENT, [mkAct('T-FB', { cost })]]]) as Map<string, CardEffect[]>, cardMap: cm,
+  }).map(e => e.effectId);
+  eq(signiIds([ANCIENT, null, null]).length, 0, '🔴自分しかいない＝「他の＜古代兵器＞」を払えないので提示しない');
+  eq(signiIds([ANCIENT, OTHER, null]).length, 0, 'クラス違いは候補にならない');
+  eq(signiIds([ANCIENT, ANCIENT, null]).join(','), 'T-FB', '仲間が1体いれば提示される（対照）');
+  // ② ルリグ【起】＝発生源がルリグなので `excludeSelf` は効かない（場のシグニがそのまま候補）。
+  const lrigCost = { fieldBanish: { count: 1, filter: { cardType: 'シグニ', story: '古代兵器' } } } as never;
+  const lrigIds = (signi: (string | null)[]) =>
+    listActivatableLrigEffects(lrigGateArgs([mkLrigAct('L-FB', { cost: lrigCost })], {
+      field: { ...mkState({ signi }).field, lrig: [LRIG_ANY] },
+    })).map(e => e.effectId);
+  eq(lrigIds([null, null, null]).length, 0, '🔴場が空なら提示しない（旧実装はここが素通り＝踏み倒せた）');
+  eq(lrigIds([OTHER, null, null]).length, 0, 'クラス違いだけでは払えない');
+  eq(lrigIds([ANCIENT, null, null]).join(','), 'L-FB', '該当シグニが1体いれば提示される（対照）');
+}));
 
 // ── 結果出力 ──（⚠ 引数なしの経路は従来と1行も変えない＝runGates は PASS 時に末尾6行だけを表示する）
 if (listMode) {

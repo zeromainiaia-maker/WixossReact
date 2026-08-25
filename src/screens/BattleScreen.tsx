@@ -27,6 +27,7 @@ import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
+import { payFieldBanishCost } from './battle/fieldBanishCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
@@ -242,6 +243,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedTrashActivatedExceed, setSelectedTrashActivatedExceed,
     pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost,
     pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost,
+    selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish,
     selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard,
     selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash,
     selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile,
@@ -12648,8 +12650,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (movedAcceAct.length < acceTrashNAct) return; // 支払い不能
         paid = { ...paid, field: { ...paid.field, signi_acce: newAcceAct }, trash: [...paid.trash, ...movedAcceAct] };
       }
+      // fieldBanish: 場のシグニをコストで**バニッシュ**（§5.3 `O-67`・`WX05-044-E1`）。
+      // 🔴**行き先はエナゾーン**＝下の `fieldTrash` ブロック（トラッシュ送り）へ落とすと資源を失う。
+      // ⚠ゾーン選択 state は `fieldTrashZones` を共用する（parser は両キーを同時に立てない）。
+      // ⚠支払ったカードは `last_cost_trashed_cards` に載せない（トラッシュ由来として観測されるため）。
+      const fieldBanishCostAct = effect.cost?.fieldBanish;
+      if (fieldBanishCostAct) {
+        const fbPaidAct = payFieldBanishCost({
+          my: paid, op, zones: fieldTrashZones, cost: fieldBanishCostAct,
+          cardMap: battleCardMap, turnPhase: bs.turn_phase as import('../types').TurnPhase,
+        });
+        if (!fbPaidAct) { setLoading(false); return; } // 支払い不能（UI側でも無効化済み）
+        paid = fbPaidAct.state;
+      }
       // fieldTrash: 場のシグニをコストでトラッシュ（チャーム/アクセも一緒に。WX03-035「他の＜古代兵器＞のシグニ1体を場からトラッシュ」等）
-      if (fieldTrashZones.size > 0) {
+      if (!fieldBanishCostAct && fieldTrashZones.size > 0) {
         const newSigniFA  = [...paid.field.signi] as (string[] | null)[];
         const newDownFA   = [...(paid.field.signi_down   ?? [false, false, false])];
         const newFrozenFA = [...(paid.field.signi_frozen ?? [false, false, false])];
@@ -13444,6 +13459,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       handDiscardIndices?: Set<number>;
       energyTrashIndices?: Set<number>;
       trashExileIndices?: Set<number>;
+      /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
+      fieldBanishZones?: Set<number>;
     },
     p: {
       actor: PlayerState; opponent: PlayerState;
@@ -13459,6 +13476,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const handDiscardIndices = sel.handDiscardIndices ?? new Set<number>();
     const energyTrashIndices = sel.energyTrashIndices ?? new Set<number>();
     const trashExileIndices = sel.trashExileIndices ?? new Set<number>();
+    const fieldBanishZones = sel.fieldBanishZones ?? new Set<number>();
     setLoading(true);
     try {
       // エクシードコスト：センター → 左アシスト → 右アシストの順で下からN枚をルリグトラッシュへ
@@ -13612,6 +13630,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!downSelfPaid) { setLoading(false); return; }   // 既にダウン＝払えない（UI側でも非提示）
         paid = downSelfPaid;
       }
+      // 🔴fieldBanish（「レベル２以下の＜原子＞のシグニ１体をバニッシュする：」＝`WX25-P1-022-E1`）。
+      //   §5.3 `O-67`。⚠**この経路には場シグニ系コストの支払いが1行も無かった**＝提示だけして踏み倒せた。
+      //   ⚠行き先は**エナゾーン**＝`fieldTrash`（トラッシュ）と混ぜない。可否判定は `lrigActivateGate` と対。
+      const lgFieldBanishCost = effect.cost?.fieldBanish;
+      if (lgFieldBanishCost) {
+        const fbPaidLg = payFieldBanishCost({
+          my: paid, op, zones: fieldBanishZones, cost: lgFieldBanishCost,
+          cardMap: battleCardMap, turnPhase: bs.turn_phase as import('../types').TurnPhase,
+        });
+        if (!fbPaidLg) { setLoading(false); return; }
+        paid = fbPaidLg.state;
+      }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
       // ルリグ自身の【起】効果か、付与/継承された【起】効果かでラベルを分ける
@@ -13694,10 +13724,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /** 人間UI（`LrigGrantedModal`）から呼ぶ薄いラッパー。本体は `performLrigActivated`。 */
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set()) => {
     if (loading) return;
     closeLrigGranted();
-    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices }, {
+    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       energyPayPool: myEnergyPayPool,
@@ -13746,6 +13776,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
               eff.cost.acceTrash ? `アクセ${eff.cost.acceTrash}枚トラッシュ` : null,
               eff.cost.fieldTrash ? `場の${eff.cost.fieldTrash.excludeSelf ? '他の' : ''}シグニ${eff.cost.fieldTrash.count}体トラッシュ` : null,
+              // ⚠**行き先はエナゾーン**なので「トラッシュ」と書き分ける（§5.3 `O-67`）。ラベルに出さないと
+              //   ①プレイヤーにコストが見えない ②同名の【起】を2つ持つカードで撃ち分けられない（§4.4 罠8m）。
+              eff.cost.fieldBanish ? `場の${eff.cost.fieldBanish.excludeSelf ? '他の' : ''}シグニ${eff.cost.fieldBanish.count}体バニッシュ` : null,
               eff.cost.fieldDown ? `場のシグニ${eff.cost.fieldDown.count}体ダウン` : null,
               eff.cost.lrigDown ? fmtLrigDownCostLabel(eff.cost.lrigDown) : null,
             ].filter(Boolean).join('・') || 'コストなし'
@@ -13857,6 +13890,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.cost?.energyTrashAll) costPartsMA.push('エナすべトラッシュ');
           if (eff.cost?.lrigDown) costPartsMA.push(fmtLrigDownCostLabel(eff.cost.lrigDown));
           if (eff.cost?.down_self) costPartsMA.push('このルリグをダウン');   // タスク12(cxxxi)
+          // §5.3 `O-67`＝行き先はエナゾーン。⚠同名の【起】を2つ持つルリグ（`WX25-P1-022`）を撃ち分けるため
+          //   ラベルに出す（出さないと両方「コストなし」に見える＝§4.4 罠8m）。
+          if (eff.cost?.fieldBanish) costPartsMA.push(`場のシグニ${eff.cost.fieldBanish.count}体バニッシュ`);
           const lrigActLabel = isSongFrag ? '歌のカケラ' : (costPartsMA.join('・') || 'コストなし');
           lrigActionsMA.push({
             label: `【起】${lrigActLabel}`,
@@ -13911,6 +13947,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (energyTotal > 0) costParts.push(`エナ${energyTotal}`);
           if (eff.cost?.coin) costParts.push(`コイン${eff.cost.coin}`);
           if (eff.cost?.down_self) costParts.push('このルリグをダウン');   // タスク12(cxxxi)
+          if (eff.cost?.fieldBanish) costParts.push(`場のシグニ${eff.cost.fieldBanish.count}体バニッシュ`); // §5.3 `O-67`
           const costLabel = costParts.join('・') || 'コストなし';
           return {
             label: `【起】${costLabel}`,
@@ -14487,7 +14524,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <SigniOnPlayCostModal ctx={modalCtx} pendingSigniOnPlayCost={pendingSigniOnPlayCost} selectedSigniOnPlayCost={selectedSigniOnPlayCost} setSelectedSigniOnPlayCost={setSelectedSigniOnPlayCost} selectedSigniOnPlayDiscard={selectedSigniOnPlayDiscard} setSelectedSigniOnPlayDiscard={setSelectedSigniOnPlayDiscard} selectedSigniOnPlayEnergyTrash={selectedSigniOnPlayEnergyTrash} setSelectedSigniOnPlayEnergyTrash={setSelectedSigniOnPlayEnergyTrash} selectedSigniOnPlayFieldTrash={selectedSigniOnPlayFieldTrash} setSelectedSigniOnPlayFieldTrash={setSelectedSigniOnPlayFieldTrash} selectedSigniOnPlayExceed={selectedSigniOnPlayExceed} setSelectedSigniOnPlayExceed={setSelectedSigniOnPlayExceed} selectedSigniOnPlayBeat={selectedSigniOnPlayBeat} setSelectedSigniOnPlayBeat={setSelectedSigniOnPlayBeat} selectedSigniOnPlayArtsTrash={selectedSigniOnPlayArtsTrash} setSelectedSigniOnPlayArtsTrash={setSelectedSigniOnPlayArtsTrash} selectedSigniOnPlayUnderTrash={selectedSigniOnPlayUnderTrash} setSelectedSigniOnPlayUnderTrash={setSelectedSigniOnPlayUnderTrash} signiOnPlayCharmTrashVar={signiOnPlayCharmTrashVar} setSigniOnPlayCharmTrashVar={setSigniOnPlayCharmTrashVar} executeSigniOnPlayCost={executeSigniOnPlayCost} skipSigniOnPlayCost={skipSigniOnPlayCost} />
 
       {/* ===== ルリグ付与能力（GRANT_LRIG_ABILITY）発動モーダル ===== */}
-      <LrigGrantedModal ctx={modalCtx} pendingLrigGranted={pendingLrigGranted} setPendingLrigGranted={setPendingLrigGranted} selectedLrigGrantedCost={selectedLrigGrantedCost} setSelectedLrigGrantedCost={setSelectedLrigGrantedCost} selectedLrigGrantedHandDiscard={selectedLrigGrantedHandDiscard} setSelectedLrigGrantedHandDiscard={setSelectedLrigGrantedHandDiscard} selectedLrigGrantedEnergyTrash={selectedLrigGrantedEnergyTrash} setSelectedLrigGrantedEnergyTrash={setSelectedLrigGrantedEnergyTrash} selectedLrigGrantedTrashExile={selectedLrigGrantedTrashExile} setSelectedLrigGrantedTrashExile={setSelectedLrigGrantedTrashExile} executeLrigGranted={executeLrigGranted} />
+      <LrigGrantedModal ctx={modalCtx} pendingLrigGranted={pendingLrigGranted} setPendingLrigGranted={setPendingLrigGranted} selectedLrigGrantedCost={selectedLrigGrantedCost} setSelectedLrigGrantedCost={setSelectedLrigGrantedCost} selectedLrigGrantedHandDiscard={selectedLrigGrantedHandDiscard} setSelectedLrigGrantedHandDiscard={setSelectedLrigGrantedHandDiscard} selectedLrigGrantedEnergyTrash={selectedLrigGrantedEnergyTrash} setSelectedLrigGrantedEnergyTrash={setSelectedLrigGrantedEnergyTrash} selectedLrigGrantedTrashExile={selectedLrigGrantedTrashExile} setSelectedLrigGrantedTrashExile={setSelectedLrigGrantedTrashExile} selectedLrigGrantedFieldBanish={selectedLrigGrantedFieldBanish} setSelectedLrigGrantedFieldBanish={setSelectedLrigGrantedFieldBanish} executeLrigGranted={executeLrigGranted} />
       {/* ===== 効果スタック 整列モーダル ===== */}
       <StackOrderModal ctx={modalCtx} stackOrderIds={stackOrderIds} setStackOrderIds={setStackOrderIds} handleConfirmStackOrder={handleConfirmStackOrder} />
 

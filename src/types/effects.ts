@@ -530,6 +530,19 @@ export interface EffectCost {
   // ─ v0.263 追加: 無発火だった任意【出】コストの表現（ONPLAY_DEAD_OPTIONAL対策）─
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタの場シグニを組で指定（「＜アーム＞1体と＜ウェポン＞1体を場からトラッシュ」WX04-040-E2）。fieldTrashと併用不可
+  /**
+   * 自分の場のシグニN体を**バニッシュする**コスト（「他の＜古代兵器＞のシグニ１体をバニッシュする：」
+   * ＝`WX05-044-E1`／「レベル２以下の＜原子＞のシグニ１体をバニッシュする：」＝`WX25-P1-022-E1`。§5.3 `O-67`）。
+   *
+   * ⚠**`fieldTrash` を流用してはいけない＝行き先が違う**。バニッシュの行き先は**エナゾーン**なので
+   *   支払うと**エナが1枚増える**（トラッシュ送りにすると資源をまるごと失う＝§4.4 罠8f と同じ取り違え）。
+   * ⚠支払ったカードを `last_cost_trashed_cards` / `fieldTrashCostCards` に**載せない**
+   *   （`ON_TRASH` の原因弁別が「コストでトラッシュに置いた」と誤観測する）。
+   * ⚠**`fieldTrash` との併用は無い**（parser は片方しか立てない）＝支払いUIのゾーン選択 state は共用する。
+   *   併用が現れたら golden `costFieldBanishNotMixedWithFieldTrash` が落ちる。
+   * 支払いは `screens/battle/fieldBanishCost.ts` の `payFieldBanishCost` 1本（シグニ【起】／ルリグ【起】共通）。
+   */
+  fieldBanish?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // 手札からN枚をこのシグニの下に置く
   lrigDown?: { count: number; centerOnly?: boolean; level?: number }; // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。centerOnly=「センタールリグ」限定・level=「レベルNのルリグ」限定（WXDi-P02-016/P03-009/P04-042。指定時は該当レベルのゾーンだけが支払い候補）
