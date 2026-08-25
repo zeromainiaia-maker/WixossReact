@@ -5159,7 +5159,47 @@ export function collectBanishEffectProtectedSigni(
           const top2 = s2?.at(-1);
           if (top2) protected_.add(top2);
         }
+      } else if (gp.target?.owner === 'any' && gp.target?.count === 'ALL') {
+        // 🆕**§5.3 `O-66`②：「シグニは〜されない」＝両プレイヤーのシグニ**（`WXEX2-44-E1`）。
+        // 自分側の宣言なので、ここでは自分側の全シグニを守る（相手側は下の第2ループが守る）。
+        for (const s2 of state.field.signi) {
+          const top2 = s2?.at(-1);
+          if (top2) protected_.add(top2);
+        }
       }
+      }
+    }
+  }
+  // 🆕**§5.3 `O-66`②：宣言元が**相手側**にある「両プレイヤーのシグニ」保護**（`WXEX2-44-E1`）。
+  // ⚠この関数は本来「`state` 側の宣言が `state` 側のシグニを守る」形しか見ないので、
+  //   相手の盤面に立っている宣言は**永久に届かなかった**（`count:1` 潰れと合わせて原文の 1/6 に縮んでいた）。
+  // ⚠`activeCondition` は**宣言元の側から**評価する＝`state`/`otherState` と `isOwnerTurn` を入れ替える
+  //   （`DURING_MAIN_PHASE {owner:'opponent'}` は宣言元コントローラーから見た「対戦相手の」なので、
+  //   入れ替えを忘れると条件が反転して「守るべきでないときに守る」）。
+  {
+    const otherSourceNums = [
+      ...otherState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+      ...(otherState.field.lrig.at(-1) ? [otherState.field.lrig.at(-1)!] : []),
+    ];
+    let _otherPowers: Map<string, number> | undefined;
+    const otherPowersOf = (): Map<string, number> =>
+      (_otherPowers ??= calcFieldPowers(otherState, state, !isOwnerTurn, effectsMap, cardMap));
+    for (const sourceNum of otherSourceNums) {
+      for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const gp = eff.action.type === 'GRANT_PROTECTION' ? eff.action as GrantProtectionAction : undefined;
+        if (!gp) continue;
+        if (gp.target?.owner !== 'any' || gp.target?.count !== 'ALL') continue;
+        if (effectSourceOwner === 'rule'
+          ? gp.sourceOwner !== 'opponent'
+          : gp.sourceOwner !== 'any' && gp.sourceOwner !== effectSourceOwner) continue;
+        if (gp.bySourceType || gp.bySourceLevel !== undefined) continue;
+        if (!gp.from?.includes('BANISH') && !gp.from?.includes('any')) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, sourceNum, otherPowersOf(), undefined, turnPhase)) continue;
+        for (const s2 of state.field.signi) {
+          const top2 = s2?.at(-1);
+          if (top2) protected_.add(top2);
+        }
       }
     }
   }
