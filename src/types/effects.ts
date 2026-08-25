@@ -2869,6 +2869,28 @@ export interface StubAction {
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
   /**
+   * `LOOK_OPP_LIFE_TOP`：**どのゾーンの何枚を見る（公開する）か**（§5.3 `O-60` 第1バッチ・2026-08-26）。
+   *
+   * 🔴**従来 engine はカード全文（`EffectText`＋`BurstText`）を regex で読んでゾーンと枚数を決めていた**＝
+   *   ①`対戦相手の手札を見**る**` の終止形しか見ておらず、実データに多い連用形 `見**て**` が丸ごと落ちて
+   *   **相手の手札ではなくライフクロスを覗く別ゾーンへ化けていた**（`O-53` と同型）
+   *   ②`ライフクロスの上からカードを２枚見る` の「カードを」を regex が挟めず**既定の1枚**に落ちていた
+   *   ③そもそも `EffectText` はカード全文なので、**同じカードの別の能力**の言い回しまで拾う。
+   *   実測＝この STUB を持つ live 28効果のうち **27効果で regex が1本も当たっていなかった**
+   *   （`npx tsx scripts/censusEngineText.ts --id LOOK_OPP_LIFE_TOP`）。
+   *
+   * ⚠**ペイロードが無い宣言では engine は何も見ない**（fail-closed）。従来の「既定で相手のライフ上1枚を
+   *   覗く」は、**この id が 20 の無関係な文型の catch-all になっている**ため（§5.3 `O-76`）
+   *   「見る効果ではないのに相手の非公開領域を覗いて `lastProcessedCards` を汚す」副作用でしかなく、
+   *   落ちたときは「効かない」で済ませるほうが安全側。
+   */
+  lookZone?: {
+    /** 見る領域。`opp_deck_top` は「対戦相手はデッキの一番上のカードを公開する」。 */
+    zone: 'opp_life' | 'opp_hand' | 'self_life' | 'opp_deck_top';
+    /** 見る枚数。`'ALL'` は「すべて見て」。省略不可（1 でも明示する）。 */
+    count: number | 'ALL';
+  };
+  /**
    * STRIP_ATTACHED_AND_UNDER: 剥がす相手が**発生源シグニ自身**（「このシグニに付いているすべての
    * カードと、下に置かれているすべてのカードを〜」＝`WXDi-P07-041-E2`）。省略時は
    * `storedTargetCards`（＝直前の `SELECT_TARGET_ONLY` が確定した対象）を剥がす。
