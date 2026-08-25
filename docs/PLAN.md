@@ -520,15 +520,15 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-25 続き658 後（本行が直近の正）**：
-  **census 573/573**（`O-46` では動かず＝コスト側の穴は census の網に載らない）、**golden 2783**（`O-46` で 2781→2783＝live 契約1本＋gate 1本）、
+- **2026-08-25 続き659 後（本行が直近の正）**：
+  **census 572/572**（`O-45` で 573→572＝「下に置く」の名詞句修飾を filter へ配線）、**golden 2788**（`O-44` +2／`O-45` +3）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
-  **live カード 5975 / 効果総数 10693**、`_held_fresh` **78**／`_partial_fresh` **12**／`_idset_fresh` **45**、
-  **意味照合 残 OPEN 678→677**（`WXK08-027-E2 :: 手札を１枚捨て、他のシグニ１体` を台帳でクローズ。他の4効果は台帳の母集団外＝標本に載っていなかった実バグ）、
-  **逆翻訳の生JSON漏れ 0**（🆕`costJa` の未対応コストキー 22種＝42効果以上を全数解消）、**`costUnparsed` の明示 12効果＋入れ子**、
-  **実機シナリオ +29**（🆕`O-46`＝`b46ThreeElementCostPaid`/`b46ThreeElementUnpayable`/`b46HandDiscardSigniPaid`/`b46HandDiscardSigniNoMatch`/`b46KeyEnergyTrashAllPaid`/`b46KeyTrashOnlyControl` 6本、`O-67` 4本、`O-66` 2本、`O-65` 4本、`O-64` 3本、`O-63` 2本、第44〜46 の8本）＝**`O-63`〜`O-67` の13本＋`O-46` の6本は ALL PASS を2回連続**、
-  **`npm run golden` の所要＝全件 約164秒／`--only` 約1.5秒**
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1036**、`_held_fresh` **83**／`_partial_fresh` **12**／`_idset_fresh` **45**、
+  **逆翻訳の生JSON漏れ 0**、
+  **実機シナリオ +4**（🆕`O-44`＝`poisonPowerDecreaseFires`／`poisonPowerDecreaseGate`／`poisonPowerDecreaseGateAll`、🆕`O-45`＝`underPlaceLevelFilter`。
+  回帰＝`oppPowerDecreased`／`spellUnderMemoriaPlace` も PASS。**反転確認**＝`poisonPowerDecreaseGateAll` は旧実装で FAIL することを実測）、
+  **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
 
 ---
 

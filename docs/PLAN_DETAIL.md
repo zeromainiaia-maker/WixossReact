@@ -1,5 +1,18 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+
+### 恒久指標アーカイブ（PLAN §6 から退避）
+
+- **2026-08-25 続き658 後（本行が直近の正）**：
+  **census 573/573**（`O-46` では動かず＝コスト側の穴は census の網に載らない）、**golden 2783**（`O-46` で 2781→2783＝live 契約1本＋gate 1本）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **live カード 5975 / 効果総数 10693**、`_held_fresh` **78**／`_partial_fresh` **12**／`_idset_fresh` **45**、
+  **意味照合 残 OPEN 678→677**（`WXK08-027-E2 :: 手札を１枚捨て、他のシグニ１体` を台帳でクローズ。他の4効果は台帳の母集団外＝標本に載っていなかった実バグ）、
+  **逆翻訳の生JSON漏れ 0**（🆕`costJa` の未対応コストキー 22種＝42効果以上を全数解消）、**`costUnparsed` の明示 12効果＋入れ子**、
+  **実機シナリオ +29**（🆕`O-46`＝`b46ThreeElementCostPaid`/`b46ThreeElementUnpayable`/`b46HandDiscardSigniPaid`/`b46HandDiscardSigniNoMatch`/`b46KeyEnergyTrashAllPaid`/`b46KeyTrashOnlyControl` 6本、`O-67` 4本、`O-66` 2本、`O-65` 4本、`O-64` 3本、`O-63` 2本、第44〜46 の8本）＝**`O-63`〜`O-67` の13本＋`O-46` の6本は ALL PASS を2回連続**、
+  **`npm run golden` の所要＝全件 約164秒／`--only` 約1.5秒**
+
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
 - **2026-08-25 続き657 後**：
