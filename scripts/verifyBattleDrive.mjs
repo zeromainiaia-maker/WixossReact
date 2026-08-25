@@ -29876,64 +29876,90 @@ order.push('b60LookZoneOppHand');
 //
 // ■ 観測点＝**下のカードが1枚も落ちないこと**＋**能力が発火した証拠**（§4.4 罠4＝盤面だけの判定は偽陽性）。
 // 🔑**旧実装ではこのシナリオは FAIL する**（下の2枚がトラッシュへ行く）＝反転が効いている証拠。
-scenarios.b60UnderCardsSurvive = {
-  title: 'O-60② WX24-P4-046-E2＝ペイロードの無い配置操作は下のカードに触れない【旧: 下を全部トラッシュ】',
-  spec: {
-    hostSet: {
-      'field.lrig': ['WX08-004#1'],
-      // 下に2枚積んだスタック（配列末尾が場のシグニ本体）。
-      'field.signi': [['WD01-013#91', 'WD01-014#91', 'WX24-P4-046#1'], null, null],
-      'field.signi_down': [false, false, false],
-      'field.check': null,
-      'trash': [],
-      'actions_done': [],
-    },
-    guestSet: {
-      'field.lrig': ['WD01-001#2'],
-      'field.signi': [null, null, null],
-      'field.check': null,
-      'hand': [],
-    },
-    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+// ⚠**カード選びで1回失敗した**＝最初は `WX24-P4-046` を使ったが、この札の【自】は別経路（`SOUL_OP`＝
+//   「シグニ下のカードを使用して発動しますか？」）が先に走って**下のカードを1枚消費する**ので、
+//   「下が減ったか」を見る観測が汚れた（§4.4 罠8z＝盤面を作る札の副作用を織り込む）。
+//   `WX24-P3-053`（参ノ遊姫　フンスイショー）は【自】アタック時が `SEQUENCE[この STUB, 相手手札2捨て]` だけで、
+//   下のカードに触る他経路を持たない。
+const b60UnderSpec = (topCard) => ({
+  hostSet: {
+    'field.lrig': ['WX08-004#1'],
+    // 下に2枚積んだスタック（配列末尾が場のシグニ本体）。
+    'field.signi': [['WD01-013#91', 'WD01-014#91', topCard], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'trash': [],
+    'actions_done': [],
   },
-  async drive(page, H) {
-    const before = await H.queryState();
-    const stack0 = (before?.host?.fieldSigni ?? [])[0] ?? [];
-    const trash0 = before?.host?.trash ?? 0;
-    H.log(`開始 stack=${JSON.stringify(stack0)} trash=${trash0}`);
-    if (stack0.length !== 3) return { pass: false, detail: `前提崩れ＝下2枚のスタックが注入できていない（${JSON.stringify(stack0)}）` };
+  guestSet: {
+    'field.lrig': ['WD01-001#2'],
+    'field.signi': [['WD01-013#95'], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WD01-013#96', 'WD01-013#97'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+const b60UnderDrive = (tag, expectTrash) => async (page, H) => {
+  const before = await H.queryState();
+  const stack0 = (before?.host?.fieldSigni ?? [])[0] ?? [];
+  const trash0 = before?.host?.trash ?? 0;
+  H.log(`${tag} 開始 stack=${JSON.stringify(stack0)} trash=${trash0}`);
+  if (stack0.length !== 3) return { pass: false, detail: `前提崩れ＝下2枚のスタックが注入できていない（${JSON.stringify(stack0)}）` };
 
-    let opened = false;
-    for (let s = 0; s < 20; s++) {
-      await page.waitForTimeout(800);
-      let did = null;
-      if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
-      if (!did) {
-        // §4.4 罠2＝「アタック」は exact:true のボタン限定（ヘッダーの「ルリグアタックへ」に誤爆させない）
-        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
-        if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
-      }
-      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
-      const st = await H.queryState();
-      const fired = (st?.logTail ?? []).some(l => l.includes('未実装') && l.includes('LRIG_UNDER_CARD_OP'));
-      const stack = (st?.host?.fieldSigni ?? [])[0] ?? [];
-      H.log(`  b60u[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${st?.host?.trash} fired=${fired} logTail=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
-      // 🔑機構が動いた証拠（【自】が走ってこの STUB に到達した）を必須条件にする（§4.4 罠4）
-      if (fired) {
-        if (stack.length < 3) {
-          return { pass: false, detail: `【O-60② 回帰】下のカードが落ちた（${JSON.stringify(stack0)}→${JSON.stringify(stack)}）＝無条件フォールバックの再発` };
-        }
-        if ((st?.host?.trash ?? 0) > trash0) {
-          return { pass: false, detail: `【O-60② 回帰】トラッシュが増えた（${trash0}→${st?.host?.trash}）` };
-        }
-        return { pass: true, detail: `【自】は発火したが下のカードは1枚も落ちない（stack=${JSON.stringify(stack)}・trash=${st?.host?.trash}）` };
-      }
+  let opened = false;
+  let last = before;
+  let fired = false;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+    if (!did) {
+      // §4.4 罠2＝「アタック」は exact:true のボタン限定（ヘッダーの「ルリグアタックへ」に誤爆させない）
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
     }
-    const fin = await H.queryState();
-    return { pass: false, detail: `未完了＝【自】が到達しない（stack=${JSON.stringify((fin?.host?.fieldSigni ?? [])[0])} logTail=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
-  },
+    if (!did) {   // POWER_MOD_PER_COUNT の対象選択（対照側だけ出る）
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+    }
+    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+    last = await H.queryState();
+    fired ||= (last?.logTail ?? []).some(l => l.includes('LRIG_UNDER_CARD_OP') || l.includes('シグニ下'));
+    const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${last?.host?.trash} fired=${fired} logTail=${JSON.stringify((last?.logTail ?? []).slice(-3))}`);
+    if (fired && (last?.pendingEffect == null) && (last?.stackLen ?? 0) === 0) break;
+  }
+  // 🔑機構が動いた証拠（【自】が走ってこの STUB に到達した）を必須条件にする（§4.4 罠4）
+  if (!fired) {
+    return { pass: false, detail: `未完了＝この STUB に到達しない（logTail=${JSON.stringify((last?.logTail ?? []).slice(-8))}）` };
+  }
+  const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
+  const under = stack.slice(0, -1);
+  if (expectTrash) {
+    return under.length === 0
+      ? { pass: true, detail: `対照：ペイロード trash_all_under_self を持つ札では下の2枚が落ちる（stack=${JSON.stringify(stack)} trash=${last?.host?.trash}）` }
+      : { pass: false, detail: `対照が壊れている＝ペイロードがあるのに下が落ちない（stack=${JSON.stringify(stack)}）` };
+  }
+  if (under.length < 2) {
+    return { pass: false, detail: `【O-60② 回帰】下のカードが落ちた（${JSON.stringify(stack0)}→${JSON.stringify(stack)}）＝無条件フォールバックの再発` };
+  }
+  if ((last?.host?.trash ?? 0) > trash0) {
+    return { pass: false, detail: `【O-60② 回帰】トラッシュが増えた（${trash0}→${last?.host?.trash}）` };
+  }
+  return { pass: true, detail: `【自】は発火したが下のカードは1枚も落ちない（stack=${JSON.stringify(stack)}・trash=${last?.host?.trash}）` };
 };
-order.push('b60UnderCardsSurvive');
+scenarios.b60UnderCardsSurvive = {
+  title: 'O-60② WX24-P3-053-E2＝ペイロードの無い配置操作は下のカードに触れない【旧: 下を全部トラッシュ】',
+  spec: b60UnderSpec('WX24-P3-053#1'),
+  drive: b60UnderDrive('b60UnderOk', false),
+};
+scenarios.b60UnderCardsTrashed = {
+  title: 'O-60② 対照＝trash_all_under_self を持つ札（WXDi-CP02-054-E1）では下が落ちる（盤面は1点だけ違う）',
+  spec: b60UnderSpec('WXDi-CP02-054#1'),
+  drive: b60UnderDrive('b60UnderNg', true),
+};
+order.push('b60UnderCardsSurvive', 'b60UnderCardsTrashed');
 
 // ── §5.3 O-60 第4バッチ（続き664）＝配置数制限の上限・主語を全文 regex で読んでいた ──
 //
