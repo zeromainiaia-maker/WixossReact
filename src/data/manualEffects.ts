@@ -2077,7 +2077,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ③あなたのセンタールリグが＜アルフォウ＞であなたのライフクロスが１枚以下の場合、対戦相手のライフクロス１枚をクラッシュする。
   // E1 を ON_PLAY の CHOOSE 誤パースから ON_LIFE_CRASHED（自ライフクラッシュ時）へ修正。キーは collectSelfEventTriggers が走査する（v0.362）。
   // 選択肢③は AND[LRIG_NAME_CONTAINS アルフォウ, LIFE_COUNT self lte 1] の condition で選択可否をゲート（execChoose の available）。
-  // 「対戦相手のアタックフェイズの間」は近似で省略（自ライフクラッシュはほぼ相手アタック中に発生）。
+  // 🆕`O-64`（2026-08-25）＝「対戦相手のアタックフェイズの間」の近似省略をやめて配線した。
+  //   フェイズ側＝`triggerCondition.duringAttackPhase`（`collectSelfEventTriggers` の `attackPhaseGateOk`）、
+  //   ターン主側＝`turnOwner:'opponent'`（中央の `effectStack.turnGateOk`）の2枚組。
+  //   ⚠「ほぼ相手アタック中」は正しくない＝効果によるライフクラッシュは自分のメインフェイズでも起きる。
   // E2（【起】このキーをルリグトラッシュ：対戦相手が自分のシグニ/エナを対象…）は対戦相手選択の複雑効果のためパーサー生成のまま維持。
   'WDK17-009': [
     {
@@ -2085,6 +2088,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectType: 'AUTO',
       timing: ['ON_LIFE_CRASHED'],
       triggerScope: 'self',
+      triggerCondition: { duringAttackPhase: true, turnOwner: 'opponent' },
       usageLimit: 'once_per_turn',
       action: {
         type: 'CHOOSE',
@@ -4226,11 +4230,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // ===== G159: E1 自＜ウェポン＞シグニ出現時トラッシュから《クロス》ウェポンを場へ / E2 イノセンス（技名）：クロス状態シグニの基本パワー15000＋ルリグ付与 =====
   "SPDi44-08": [
-    {"effectId":"SPDi44-08-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"ウェポン"},"condition":{"type":"DURING_PHASE","phases":["MAIN"]},"usageLimit":"once_per_turn","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"ウェポン","hasIcon":"クロス"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"SPDi44-08-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"ウェポン"},"triggerCondition":{"duringMainPhase":true},"usageLimit":"once_per_turn","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"ウェポン","hasIcon":"クロス"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"SPDi44-08-E2","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_game","cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"crossState":true}},"value":15000},{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_OPP_TURN_END","rawText":"【常】：あなたのクロス状態のシグニ1体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う。","abilities":[{"effectId":"SPDi44-08-E2-GRANT","effectType":"CONTINUOUS","action":{"type":"STUB","id":"EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY","leaveVictimFilter":{"crossState":true}},"duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL"}]}]},"duration":"UNTIL_OPP_TURN_END","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WX25-P1-018": [
-    {"effectId":"WX25-P1-018-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"ウェポン"},"condition":{"type":"DURING_PHASE","phases":["MAIN"]},"usageLimit":"once_per_turn","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"ウェポン","hasIcon":"クロス"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX25-P1-018-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"ウェポン"},"triggerCondition":{"duringMainPhase":true},"usageLimit":"once_per_turn","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"ウェポン","hasIcon":"クロス"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX25-P1-018-E2","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_game","cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"crossState":true}},"value":15000},{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_OPP_TURN_END","rawText":"【常】：あなたのクロス状態のシグニ1体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う。","abilities":[{"effectId":"WX25-P1-018-E2-GRANT","effectType":"CONTINUOUS","action":{"type":"STUB","id":"EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY","leaveVictimFilter":{"crossState":true}},"duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL"}]}]},"duration":"UNTIL_OPP_TURN_END","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
@@ -4738,7 +4742,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // ON_LEAVE_FIELD already snapshots the former under-stack; restrict both optional-cost branches to that set.
   "WXDi-P06-039": [
-    {"effectId":"WXDi-P06-039-E1","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"triggerScope":"self","triggerCondition":{"turnOwner":"opponent"},"action":{"type":"SEQUENCE","steps":[
+    {"effectId":"WXDi-P06-039-E1","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"triggerScope":"self","triggerCondition":{"outsideMainPhase":true},"action":{"type":"SEQUENCE","steps":[
       {"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無"]},
       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
         "then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ"},"fromLeftFieldUnder":true},"asDown":true,"suppressOnPlay":true},

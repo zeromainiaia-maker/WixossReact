@@ -19719,11 +19719,17 @@ test('(cvii) ctx.currentPhase を見る機構の母集団固定と DURING_PHASE 
   };
   for (const [, effs] of effectsMap) for (const e of effs) collectDP(e, e.effectId);
   const dpMap = Object.fromEntries(duringPhase.map(d => [d.id, d.phases.join(',')]));
-  eq(duringPhase.length, 7, 'DURING_PHASE を持つ効果は7件（🔧(cx) で WX05-013-E2 を timing へ移し8→7）');
-  eq(dpMap['SPDi44-08-E1'], 'MAIN', 'SPDi44-08-E1＝あなたのメインフェイズの間');
-  eq(dpMap['WX24-P1-015-E1'], 'MAIN', 'WX24-P1-015-E1＝あなたのメインフェイズの間');
-  eq(dpMap['WX25-P1-018-E1'], 'MAIN', 'WX25-P1-018-E1＝あなたのメインフェイズの間');
-  eq(dpMap['WXDi-P07-044-E1'], 'MAIN', 'WXDi-P07-044-E1＝あなたのメインフェイズの間');
+  // 🔧`O-64`（2026-08-25）で 7→4。**`DURING_PHASE` 単独は「あなたの」を表せない**（相手のメインフェイズでも真）
+  //   うえ、`collectFieldTriggers`／`collectHandDiscardTriggers` は `eff.condition` を1度も評価しない＝
+  //   `SPDi44-08-E1`／`WX25-P1-018-E1`／`WXDi-P07-044-E1` の3件は**恒久 no-op** だった。
+  //   ⇒ `triggerCondition.duringMainPhase`（`mainPhaseGateOk`＝フェイズ＋ターン主）へ移した。
+  //   ⚠残る `WX24-P1-015-E1` は **AND(DURING_PHASE, IS_MY_TURN)** の形で、`collectTrashTriggers` が
+  //     `condHas(IS_MY_TURN)` を明示的に見るので効いている（`duringMainPhase` も併記して二重掛け）。
+  eq(duringPhase.length, 4, 'DURING_PHASE を持つ効果は4件（`O-64` で恒久 no-op だった3件を duringMainPhase へ移し7→4）');
+  eq(dpMap['SPDi44-08-E1'], undefined, 'SPDi44-08-E1 は DURING_PHASE を持たない（duringMainPhase へ移した）');
+  eq(dpMap['WX25-P1-018-E1'], undefined, 'WX25-P1-018-E1 は DURING_PHASE を持たない（duringMainPhase へ移した）');
+  eq(dpMap['WXDi-P07-044-E1'], undefined, 'WXDi-P07-044-E1 は DURING_PHASE を持たない（duringMainPhase へ移した）');
+  eq(dpMap['WX24-P1-015-E1'], 'MAIN', 'WX24-P1-015-E1＝あなたのメインフェイズの間（AND(IS_MY_TURN) 併用で残す）');
   eq(dpMap['WX20-067-E1'], ATTACK4.join(','), 'WX20-067-E1＝アタックフェイズ全体（手書き定義の基準形）');
   // 🔧2026-08-06 に是正した2件＝どちらも「アタックフェイズの間」なのに phase 実値が不正で常に false だった
   eq(dpMap['WX13-035-E2'], ATTACK4.join(','), 'WX13-035-E2＝ATTACK_ARTS_OP を含むアタックフェイズ全体');
@@ -46787,6 +46793,88 @@ test('O-63 live: ターン境界 timing（ON_TURN_END 等）へは turnOwner を
      'WXDi-P03-065-E1（ON_TURN_END・あなたのターン終了時）は triggerScope:self が担保＝turnOwner 不要');
   ok(b43Live('WXDi-CP02-074-E1').triggerCondition?.turnOwner === 'self',
      'WXDi-CP02-074-E1 は従来から turnOwner を持つ＝既存値を壊していない');
+});
+
+// ── §5.3 `O-64`：トリガー句のフェイズ主限定（`duringMainPhase` / `outsideMainPhase` / `duringAttackPhase`）──
+// 🔴**`turnOwner`（`O-63`）と違って中央ゲートが無い。** `effectStack.turnGateOk` が読むのは `turnOwner` **だけ**
+//   なので、`duringMainPhase` は **collector ごとに `mainPhaseGateOk` を配線しないと恒久 no-op**になる。
+//   ⇒ ここでは「フェイズだけ」ではなく「**フェイズ＋ターン主**」で弾くことを、**両方向の対照つき**で固定する。
+// ⚠**ON_POWER_THRESHOLD / ON_ENERGY_CHARGE は BattleScreen の watcher で collector ではない**＝
+//   この層は golden から叩けない（CODEX_GUIDE §5-20 と同型）。**実機シナリオ側で守る**。
+test('O-64 engine: collectFieldTriggers（ON_PLAY any_ally）が duringMainPhase をフェイズ＋ターン主で弾く', () => withSavedCursor(() => {
+  // `WX18-052-E1`＝「【自】《ターン１回》：あなたのメインフェイズの間、あなたの＜空獣＞か＜地獣＞のシグニ
+  //   １体が場に出たとき、このシグニをアップする。」（watcher はダウン状態＝condition THIS_CARD_IS_DOWN）
+  const WATCHER = 'WX18-052';
+  const TRIGGER = 'WX19-072';   // ＜地獣＞のシグニ（triggerFilter に一致する発生源）
+  const ally = mkState({ signi: [TRIGGER, WATCHER, null], down: [false, true, false] });
+  const opp = mkState({});
+  const fired = (activeUserId: string, turnPhase: string) =>
+    collectFieldTriggers({ ...trigCtx(activeUserId), turnPhase }, 'ON_PLAY', TRIGGER, ally, opp, HOST)
+      .entries.some(e => e.effectId === 'WX18-052-E1');
+  ok(fired(HOST, 'MAIN'), '自分のメインフェイズ＝発火する（対照＝ゲートで全部落としていない）');
+  ok(!fired(HOST, 'ATTACK_SIGNI'), '自分のアタックフェイズ＝落とす（フェイズ側）');
+  // 🔑**ここが `O-64` の本体**＝旧実装は `ctx.turnPhase !== 'MAIN'` しか見ておらず、
+  //   「相手のメインフェイズ」でも通っていた（`turnGateOk` は `turnOwner` しか読まないので素通り）。
+  ok(!fired(GUEST, 'MAIN'), '対戦相手のメインフェイズ＝落とす（ターン主側＝旧実装が素通りさせていた穴）');
+}));
+
+test('O-64 engine: collectHandDiscardTriggers が duringMainPhase をフェイズ＋ターン主で弾く', () => withSavedCursor(() => {
+  // `WXDi-P07-044-E1`＝「【自】《ターン１回》：あなたのメインフェイズの間、あなたがシグニを１枚捨てたとき、
+  //   そのカードをトラッシュから場に出す。」⚠この collector は `eff.condition` を1度も評価しないので、
+  //   旧表現（`condition:{DURING_PHASE:['MAIN']}`）は**どこにも消費が無い恒久 no-op** だった。
+  const me = mkState({ signi: ['WXDi-P07-044', null, null] });
+  const fired = (activeUserId: string, turnPhase: string) =>
+    collectHandDiscardTriggers({ ...trigCtx(activeUserId), turnPhase }, [SIGNI], me, HOST, false)
+      .entries.some(e => e.effectId === 'WXDi-P07-044-E1');
+  ok(fired(HOST, 'MAIN'), '自分のメインフェイズ＝発火する（対照）');
+  ok(!fired(HOST, 'ATTACK_SIGNI'), '自分のアタックフェイズ＝落とす');
+  ok(!fired(GUEST, 'MAIN'), '対戦相手のメインフェイズ＝落とす');
+}));
+
+test('O-64 engine: collectSelfEventTriggers（ON_LIFE_CRASHED）が duringAttackPhase＋turnOwner の2枚組で弾く', () => withSavedCursor(() => {
+  // `WDK17-009-E1`＝「【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたのライフクロスが
+  //   クラッシュされたとき、…」＝**フェイズは collector・ターン主は中央ゲート**の分業。
+  const me = mkState({ lrig: ['WDK17-009'] });
+  const collected = (turnPhase: string) =>
+    collectSelfEventTriggers({ ...trigCtx(GUEST), turnPhase }, 'ON_LIFE_CRASHED', me, mkState({}), 'ライフクラッシュ時', HOST)
+      .entries.filter(e => e.effectId === 'WDK17-009-E1');
+  eq(collected('ATTACK_SIGNI').length, 1, 'アタックフェイズ＝収集される（対照）');
+  eq(collected('MAIN').length, 0, 'メインフェイズ＝落とす（duringAttackPhase）');
+  // ターン主側は turnGateOk＝`turnOwner:'opponent'` なので **entry.playerId のターンでは落ちる**。
+  const ents = collected('ATTACK_SIGNI');
+  eq(initStack(GUEST, ents).pendingTurn.length + initStack(GUEST, ents).pendingOpp.length, 1,
+     '相手（GUEST）のターン＝turnGateOk を通る');
+  eq(initStack(HOST, ents).pendingTurn.length + initStack(HOST, ents).pendingOpp.length, 0,
+     '自分（HOST）のターン＝turnGateOk が落とす（反転対照）');
+}));
+
+// live 側＝**原文からフェイズ主限定を毎回ゼロから再導出して集合一致を assert する**トリップワイヤ（§5-27）。
+// ⚠「10件ある」ではなく「**原文にこの限定を持つ【自】の集合＝受け皿を持つ【自】の集合**」で書く。
+//   件数固定だと正しい是正でも落ちる（§4.3 の「枝の数を固定した golden は正しい是正でも落ちる」）。
+test('O-64 live: 「〈あなた〉のメインフェイズの間／以外で」の【自】に受け皿が載っている（集合一致）', () => {
+  const want: Array<[string, 'duringMainPhase' | 'outsideMainPhase']> = [
+    ['SPDi44-08-E1', 'duringMainPhase'], ['WX25-P1-018-E1', 'duringMainPhase'],
+    ['WX18-052-E1', 'duringMainPhase'], ['WXEX2-58-E2', 'duringMainPhase'],
+    ['WX24-P2-092-E1', 'duringMainPhase'], ['WX24-P1-015-E1', 'duringMainPhase'],
+    ['WXDi-D02-25-E1', 'duringMainPhase'], ['WXDi-P07-044-E1', 'duringMainPhase'],
+    ['WXK06-078-E1', 'duringMainPhase'], ['WX18-077-E1', 'duringMainPhase'],
+    ['WX18-078-E1', 'duringMainPhase'], ['WXDi-P09-079-E1', 'duringMainPhase'],
+    ['WXDi-P06-039-E1', 'outsideMainPhase'],   // ⚠旧 live は turnOwner:'opponent'＝自分のアタックフェイズを取りこぼす過小実行
+    ['WXDi-P09-071-E1', 'outsideMainPhase'], ['WXDi-P11-042-E2', 'outsideMainPhase'],
+  ];
+  for (const [id, key] of want) {
+    eq((b43Live(id).triggerCondition as Record<string, unknown> | undefined)?.[key], true, `${id}: ${key}=true`);
+  }
+  // 「対戦相手のアタックフェイズの間」＝**フェイズ＋ターン主の2枚組**であることを固定する
+  // （`duringAttackPhase` は owner を持てないので、片方だけだと「どちらのアタックフェイズでも」になる）。
+  eq(b43Live('WDK17-009-E1').triggerCondition?.duringAttackPhase, true, 'WDK17-009-E1: duringAttackPhase');
+  eq(b43Live('WDK17-009-E1').triggerCondition?.turnOwner, 'opponent', 'WDK17-009-E1: turnOwner=opponent');
+  // ⚠**「対戦相手のメインフェイズの間」には受け皿が無い**（`duringMainPhase` は owner 相対で「自分の」固定）。
+  //   誤って付けると意味が反転するので、【自】に1件も無いことを守る。
+  const wrongOppMain = [...effectsMap.values()].flat().filter(e =>
+    e.effectType === 'AUTO' && e.triggerCondition?.duringMainPhase && e.triggerCondition?.turnOwner === 'opponent');
+  eq(wrongOppMain.map(e => e.effectId).join(','), '',
+     'duringMainPhase と turnOwner:opponent の同居は意味矛盾（0件でなければ parser の誤配線）');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

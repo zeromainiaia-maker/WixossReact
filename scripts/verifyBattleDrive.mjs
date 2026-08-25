@@ -28930,6 +28930,113 @@ scenarios.b63TurnOwnerOwnTurnBlocked = {
 order.push('b63TurnOwnerOppTurnFires', 'b63TurnOwnerOwnTurnBlocked');
 // ── §5.3 O-63 END ──
 
+// ── §5.3 O-64（続き653）＝フェイズ主限定が **BattleScreen の watcher 層**でも効くか ─────────────
+// 🔴**この層だけは golden から叩けない。** `ON_POWER_THRESHOLD` / `ON_ENERGY_CHARGE` は collector ではなく
+//   `BattleScreen.tsx` の useEffect watcher（前回スナップショットとの差分でトリガーを合成する）が担当していて、
+//   **`triggerCondition` を1つも読んでいなかった**＝「あなたのメインフェイズの間」が丸ごと無視されていた。
+//   collector 側（ON_PLAY / ON_HAND_DISCARDED / ON_LIFE_CRASHED）は golden で両方向を固定済みなので、
+//   ここは**watcher 層の3点セット**（自メイン＝発火／自アタック＝フェイズで落ちる／相手メイン＝ターン主で落ちる）に絞る。
+//
+// WX18-078「幻獣　イヌワシ」（Lv1・P1000）＝
+//   「【自】《ターン１回》：**あなたのメインフェイズの間**、このシグニのパワーが5000以上になったとき、カードを１枚引く。」
+// 観測は**手札の増分**（Δ1）。⚠バニッシュ系と違って副作用が無いので `O-63` の「Δ≧2」のような読み替えは不要。
+//
+// ⚠**2段階注入にする**（`O-63` と同じ理由）＝①盤面を作って「本当に場に居る」ことを確認してから
+//   ②`temp_power_mods:+4000` を載せて **閾値を下から跨がせる**。watcher は前回スナップショット（prevPowers）と
+//   比較するので、**最初から P5000 で注入しても発火しない**（初回観測はスナップショットだけ取って return する）。
+const B64_SIGNI = 'WX18-078#1';                       // 幻獣 イヌワシ（P1000・閾値5000）
+const b64Base = (active, phase) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [[B64_SIGNI], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,                              // ⚠§4.4 罠1＝前シナリオのクラッシュ確認モーダルを持ち越さない
+    'temp_power_mods': [],
+    'hand': [],
+    'actions_done': [],
+  },
+  guestSet: { 'field.signi': [null, null, null], 'field.check': null },
+  top: { active, turn_phase: phase, turn_count: 2 },
+});
+const b64Boost = (active, phase) => ({
+  ...b64Base(active, phase),
+  hostSet: { ...b64Base(active, phase).hostSet, 'temp_power_mods': [{ cardNum: B64_SIGNI, delta: 4000 }] },
+});
+const b64OnField = (st) => (st?.host?.fieldSigni ?? []).some(z => (z ?? []).some(n => n === B64_SIGNI));
+// ⚠**負方向テストは「その状況を本当に通ったか」を必須条件にする**（§4.4 罠3／罠4）＝
+//   CPU ターンの検証は **CPU がフェイズを勝手に進める**ので、ブーストが載った時点でもう MAIN を
+//   抜けていると「ターン主で落とした」ではなく「フェイズで落とした」を見てしまう（＝別のゲートの再テスト）。
+//   ⇒ `witness` に「この状況を1度は観測した」条件を渡し、満たさない run は PASS にしない。
+const b64Drive = (tag, active, phase, expectDraw, witness) => async function drive(page, H) {
+  // ① 盤面を作る（CPU の非同期ターン処理と競合するので載るまで再注入する）
+  // 🔴**必ず一度は「ブースト無し」を注入してから待つ**＝watcher は**初回観測ではスナップショットを取るだけ**なので、
+  //   ページの初回レンダリングが +4000 の後ろにずれ込むと **prevPowers が最初から P5000** になり、
+  //   `wasBelow=false` で**永久に発火しない**。実測で踏んだ（dist 再ビルドを挟んだ初回だけ FAIL・以後 PASS の
+  //   典型的な位置依存フレーク）。⇒ **前提として powerMods が空であることまで確認する**（§4.4 罠4／罠7 と同族）。
+  let st = await H.queryState();
+  let ready = false;
+  for (let r = 0; r < 5 && !ready; r++) {
+    await injectScenario(page, b64Base(active, phase));
+    await page.waitForTimeout(1500);
+    st = await H.queryState();
+    ready = b64OnField(st) && (st?.host?.powerMods ?? []).length === 0;
+    H.log(`  ${tag} 準備(${r}): ready=${ready} field=${JSON.stringify(st?.host?.fieldSigni)} hand=${st?.host?.hand} phase=${st?.turnPhase} powerMods=${JSON.stringify(st?.host?.powerMods)}`);
+  }
+  if (!ready) return { pass: false, detail: `準備失敗＝${B64_SIGNI} が P1000（powerMods 空）で場に載らなかった（field=${JSON.stringify(st?.host?.fieldSigni)} powerMods=${JSON.stringify(st?.host?.powerMods)}）` };
+  const handBefore = st?.host?.hand ?? 0;
+  H.log(`  ${tag} 準備OK: hand(before)=${handBefore} phase=${st?.turnPhase} activeUser=${st?.activeUser === st?.viewerUserId ? 'ME' : 'OPP'}`);
+
+  // ② +4000 を載せて P1000→P5000（＝閾値を下から跨ぐ）
+  await injectScenario(page, b64Boost(active, phase));
+  let last = st; let sawBoost = false; let drew = false; let sawWitness = !witness;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(800);
+    await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    const boosted = (last?.host?.powerMods ?? []).some(m => String(m).startsWith(B64_SIGNI));
+    if (boosted) sawBoost = true;
+    // 「ブーストが載っている状態で、狙った状況（フェイズ／ターン主）を観測した」ことを sticky に記録する
+    if (boosted && witness && witness(last)) sawWitness = true;
+    // 🔑**判定は sticky にする**（§4.4 罠8d）＝一度でも増えたら下げない
+    //   （CPU ターンの検証では、この後 CPU の効果で手札が動くことがある）。
+    if ((last?.host?.hand ?? 0) > handBefore) drew = true;
+    H.log(`  ${tag}[${s}] | hand=${last?.host?.hand} drew=${drew} witness=${sawWitness} powerMods=${JSON.stringify(last?.host?.powerMods)} phase=${last?.turnPhase} activeUser=${last?.activeUser === last?.viewerUserId ? 'ME' : 'OPP'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (drew) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}.png`, fullPage: true });
+  // ⚠**「パワーが上がったこと」を必須条件に入れる**（§4.4 罠4）＝注入が流れていたら
+  //   「発火しなかった」ではなく「閾値を跨いでいない」＝何も検証していない。
+  if (!sawBoost) return { pass: false, detail: `前提崩れ＝temp_power_mods(+4000) が載らなかった（powerMods=${JSON.stringify(last?.host?.powerMods)}）` };
+  if (!sawWitness) return { pass: false, detail: `前提崩れ＝狙った状況（${tag}）をブースト中に一度も観測できなかった＝別のゲートを見てしまうので PASS にしない（最終 phase=${last?.turnPhase} active=${last?.activeUser === last?.viewerUserId ? 'ME' : 'OPP'}）` };
+  const detail = `hand ${handBefore}→${last?.host?.hand}（drew=${drew}／観測 witness=${sawWitness}） 最終 phase=${last?.turnPhase} active=${last?.activeUser === last?.viewerUserId ? 'ME' : 'OPP'}`;
+  return drew === expectDraw
+    ? { pass: true, detail: `${detail}＝期待どおり${expectDraw ? '発火' : '非発火'}` }
+    : { pass: false, detail: `【回帰疑い】${detail}＝${expectDraw ? '発火するはずが発火していない（過小実行）' : 'duringMainPhase が watcher で効かず発火した（過剰実行）'}` };
+};
+scenarios.b64PowerThresholdMainFires = {
+  title: 'WX18-078（duringMainPhase）＝自分のメインフェイズでパワー5000到達→1枚引く【成立】',
+  spec: b64Base('host', 'MAIN'),
+  drive: b64Drive('b64MainFires', 'host', 'MAIN', true),
+};
+scenarios.b64PowerThresholdAttackBlocked = {
+  title: 'WX18-078（duringMainPhase）＝自分のアタックフェイズでは引かない【対照＝フェイズ1点だけ違う】',
+  spec: b64Base('host', 'ATTACK_SIGNI'),
+  // witness＝「自分のターンのアタックフェイズ」でブーストを観測したこと（フェイズ側のゲートを確かに通った証拠）
+  drive: b64Drive('b64AttackBlocked', 'host', 'ATTACK_SIGNI', false,
+    (st) => String(st?.turnPhase ?? '').startsWith('ATTACK') && st?.activeUser === st?.viewerUserId),
+};
+scenarios.b64PowerThresholdOppMainBlocked = {
+  title: 'WX18-078（duringMainPhase）＝対戦相手のメインフェイズでは引かない【対照＝ターン主1点だけ違う】',
+  spec: b64Base('cpu', 'MAIN'),
+  // 🔑witness＝**「対戦相手のメインフェイズ」でブーストを観測したこと**。これが `O-64` の本丸で、
+  //   旧実装は「フェイズが MAIN かどうか」すら見ていなかったので**ここで必ず発火していた**。
+  //   ⚠CPU はすぐ ATTACK へ進むので、この条件を必須にしないと「フェイズで落ちただけ」を PASS と誤読する。
+  drive: b64Drive('b64OppMainBlocked', 'cpu', 'MAIN', false,
+    (st) => st?.turnPhase === 'MAIN' && st?.activeUser !== st?.viewerUserId),
+};
+order.push('b64PowerThresholdMainFires', 'b64PowerThresholdAttackBlocked', 'b64PowerThresholdOppMainBlocked');
+// ── §5.3 O-64 END ──
+
 
 
 

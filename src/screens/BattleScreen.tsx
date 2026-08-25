@@ -44,7 +44,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
-import { applyAbilityCostReduction } from '../engine/triggerCollect';
+import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
@@ -1857,6 +1857,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const eff = w.effect;
           if (eff.triggerCondition?.movedSelf) continue;
           if (eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect) continue;
+          // 🆕`O-64`：「〈あなた〉のメインフェイズの間／以外で」＝この watcher は collector ではないので
+          //   `mainPhaseGateOk` を通らない。**フェイズ語彙を1つも見ていなかった**ので素の版を直接呼ぶ。
+          if (!mainPhaseGateOkFor(eff, bs.turn_phase, bs.active_user_id ?? undefined, ownerId)) continue;
           if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
           if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
               && !evalUseCondition(eff.condition, st, op, battleCardMap, ecLrigTop, bs.turn_phase, curPowers)) continue;
@@ -1874,6 +1877,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.timing?.includes('ON_ENERGY_CHARGE') && addedToEnergy.length === 1) {
             if (eff.triggerCondition?.movedSelf) continue;
             if (eff.triggerCondition?.byOwnEffect || eff.triggerCondition?.byOpponentEffect || eff.triggerCondition?.byEffect) continue;
+            if (!mainPhaseGateOkFor(eff, bs.turn_phase, bs.active_user_id ?? undefined, ownerId)) continue;   // `O-64`
             // 「あなたのターンの間」= IS_MY_TURN（evalでは常にtrueのため、ここで自ターン判定）
             if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
             if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
@@ -1883,6 +1887,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（エナチャージ時）`, effect: eff });
           }
           if (eff.timing?.includes('ON_POWER_THRESHOLD')) {
+            // 🆕`O-64`：「あなたのメインフェイズの間、このシグニのパワーがN以上になったとき」
+            //   （`WX18-077-E1`／`WX18-078-E1`）。この枝は `triggerCondition` を1つも見ていなかった＝
+            //   相手ターン・相手メインフェイズでも発火していた。
+            if (!mainPhaseGateOkFor(eff, bs.turn_phase, bs.active_user_id ?? undefined, ownerId)) continue;
             const threshold = eff.condition?.type === 'SELF_POWER_GTE' ? eff.condition.value : Infinity;
             const curP  = curPowers.get(topNum) ?? 0;
             const prevP = prevPowers.get(topNum);

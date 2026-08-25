@@ -3945,16 +3945,29 @@ function effJa(e: Eff): string {
     : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
+  // 🆕**§5.3 `O-64`：フェイズ主限定（`duringMainPhase`／`outsideMainPhase`／`duringAttackPhase`）の共通マーカー。**
+  // 従来この軸は **timing ごとの分岐が個別に `trig` へ埋め込む**形しか無く、規則を書いていない timing
+  // （ON_PLAY／ON_HAND_DISCARDED／ON_POWER_THRESHOLD／ON_LIFE_CRASHED …）では**逆翻訳から丸ごと消えて**いた
+  // ＝JSON にゲートが載っているのにシートは「無条件」に見える（§4.3＝逆翻訳は必ず JSON から描く）。
+  // ⚠**timing 別分岐が既に描いているときは二重表記になる**ので、`trig` に既出なら描かない。
+  const phaseOwnerJa = e.triggerCondition?.turnOwner === 'opponent' ? '対戦相手の' : 'あなたの';
+  const phaseJaMark = e.triggerCondition?.duringMainPhase ? 'あなたのメインフェイズの間、'
+    : e.triggerCondition?.outsideMainPhase ? 'あなたのメインフェイズ以外で'
+    : e.triggerCondition?.duringAttackPhase ? `${phaseOwnerJa}アタックフェイズの間、`
+    : '';
+  const phaseMark = (phaseJaMark && !trig.includes('フェイズの間') && !trig.includes('フェイズ以外')) ? phaseJaMark : '';
   // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）。
   // ON_BANISH の duringAttackPhase 併用時は「（対戦相手の）アタックフェイズの間、」前置きが同義のため二重表記を抑止。
-  const suppressTurnMark = ((e.timing || []).includes('ON_BANISH') || (e.timing || []).includes('ON_LEAVE_FIELD'))
-    && (e.triggerCondition?.duringAttackPhase || e.triggerCondition?.duringMainPhase);
+  // ⚠`O-64` の `phaseMark` が「対戦相手の…フェイズの間、」を描いたときも同義なので同じく抑止する。
+  const suppressTurnMark = (((e.timing || []).includes('ON_BANISH') || (e.timing || []).includes('ON_LEAVE_FIELD'))
+      && (e.triggerCondition?.duringAttackPhase || e.triggerCondition?.duringMainPhase))
+    || phaseMark !== '';
   const turnMark = (e.triggerCondition?.turnOwner && !suppressTurnMark && !(e.timing || []).includes('ON_LIFE_CLOTH_ADDED'))
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);
   // ON_MATERIAL_USED は改造素材機構（Step1-3b）で全変種配線済＝engineUnwiredTimings から除外済。
   const unwired = (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
-  return `${crossCond}${typeMark}${turnMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
+  return `${crossCond}${typeMark}${turnMark}${actCond}${trig ? phaseMark + trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
 }
 
 // ── 対象カードの決定 ──

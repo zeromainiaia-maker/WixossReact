@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-08-25・続き652・Opus 5）＝§5.3 `O-63` を消化＝トリガー句の「〈あなた／対戦相手〉のターンの間／に」が JSON に載らず、ターン主限定が効かない穴を parser 1本で塞いだ**（Codex へは委譲せず Claude が実装）。gates 全緑（**golden 2756→2759**／census **576 不動**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260／同型★0／held 77枚32群 不動）。**実機2本が2回連続 PASS＋3点の反転確認済／第44〜46 の8本も回帰で緑（計10本）。**
+  - 🔴**登録票の見立てを2点とも実測で訂正した。これが今回いちばんの収穫。**
+    ①**「`collectTurnTriggers` が `turnOwner` を読まないので両ターンで発火する」は起きていない**＝この collector は **`triggerScope` で構造的に片側へ寄せている**（自分側走査は `self` 限定・相手側走査は `any_opp`/`any` 限定）。実測でも**ターン境界 timing の648効果は scope と原文が全件一致・逆発火0件**。⇒ ここへゲートを足すのは**649効果ぶんの無意味な差分**なので**入れていない**（§4 の「広げない」を golden で固定した）。
+    ②**「型・parser・collector の3点セットが要る」も誤り＝parser だけで直る**＝engine の消費地点は **`effectStack.ts` の `turnGateOk`** で、`initStack`／`pushToStack` の入口で**全エントリを**現ターンと照合して弾く。collector 個別の `turnOwner` 判定（25関数）はその二重掛け。**BattleScreen の 122箇所すべてがこの2関数を通る**ことも確認した。
+  - ✅**真の穴はターン境界以外の timing**（`triggerScope` がターン主を担保しない群）＝原文にターン主限定がある【自】786効果のうち境界以外は102、載っていないのが46。**parser の合流点に共通規則1本**（従来はトリガー系ごとの ad-hoc regex で、**規則を書いていない timing だけが素通り**していた＝§5-8′）。
+  - ⚠**採用27効果のうち、実挙動が変わるのは7効果だけ**（残り20は `activeCondition.TURN_OWNER` 等と二重になる冗長付与）。**「27件のバグを直した」ではない**。
+  - 🔑**ターンゲートの語彙は4系統ある**（`triggerCondition.turnOwner` ／ `activeCondition.TURN_OWNER` ／ `condition.IS_MY_TURN`＋collector の `condHas` ／ `duringMainPhase`＋`mainPhaseGateOk`）＝**数える前に4つとも引き算する**（今回6件が偽陽性だった）。⚠**`IS_MY_TURN` は常に true を返す表現不能プレースホルダ**で、ターン判定をしているのは**それを明示的に見ている3 collector と BattleScreen の2箇所だけ**＝「持っている＝ゲート済み」と数えると穴を見落とす（実測2件）。
+  - 🔴**実機シナリオの罠を2つ実測で踏んだ**＝①**バニッシュ先は既定でエナゾーン**なので「エナ +1」で観測すると**シグニ自身の +1 を発火と誤読する**（Δ1 を発火と読んで engine のバグだと誤診しかけた。発火は Δ≧2）②**盤面注入は1発で決まらない**（CPU の非同期ターン処理と競合）＝**2段階注入**にして「本当に場に居ること」を確認してから条件を載せる。
+  - ✅**反転確認は3点で切り分けた**＝観測対象が**元から `activeCondition.TURN_OWNER` を持っていた**のでペアだけでは新ゲートを分離できない。①両ゲート→非発火 ②**`activeCondition` を外して `turnOwner` だけ**→非発火（**新ゲート単独で足りる**）③両方外す→発火（**観測が噛んでいる**）。
+  - 📌**follow-up＝`O-64` を新規登録**（「あなたのメインフェイズの間」15効果＋`WDK17-009-E1`）。受け皿は `duringMainPhase`／`mainPhaseGateOk` だが**中央ゲートが無く collector ごとの配線が要る**うえ、`ON_POWER_THRESHOLD`／`ON_ENERGY_CHARGE` は **BattleScreen の watcher＝golden から叩けない**＝リスクの性質が別物なので分けた。
+
 - 🏁**セッション（2026-08-25・続き651c・Opus 5）＝§5.2 段2 第46バッチ＝「〈X〉が N 種類以上ある」の種類数（distinct count）条件が丸ごと落ちて無条件実行になる穴を配線**（**実装は Codex へ委譲・スコープ決定/検証/簿記は Claude**。第44・第45 と同じ根の3本目＝数え方違い）。gates 全緑（**golden 2749→2756**／census **582→576**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機3本が2回連続 PASS＋反転確認済／第44・第45 の5本も回帰で緑（計8本）。台帳 684→678。**
   - ✅**9効果を採用／4件は機構待ちで据置／1件は偽陽性**。新条件型は0。**本丸は片側 union の育ち残しだった**＝**`ActiveCondition.TRASH_HAS_CARD` に `distinctName` が無く**（`Condition` 側にはあった）、`checkActiveCondition` は case の無い型を `return true` に落とすので**トラッシュが空でも基本パワー15000**になっていた。⚠Codex はさらに **Active 側の `distinctClasses` も未評価**・**`ENERGY_COUNT_FILTER` が Active union に不在**・**`HAS_CARD_IN_FIELD.owner:'any'` が片側しか数えていない**の3件を追加で見つけて直した。
   - 🔴**評価器の分岐を足すときは「その分岐に落ちる既存 live が何件あるか」を先に数える**＝`default: return true`（無条件成立）から実評価へ変わると**過剰実行が過小実行へ裏返りうる**。今回は Claude 側で機械確認し、**`owner:'any'` も `activeCondition` 下の `ENERGY_COUNT_FILTER` も投入前 live に0件**＝既存効果を巻き込んでいないことを確定させた。

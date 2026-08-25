@@ -10,23 +10,23 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-25・続き652・Opus 5）＝§5.3 `O-63` を消化＝トリガー句の「〈あなた／対戦相手〉のターンの間／に」が JSON に載らず、ターン主限定が効かない穴を parser 1本で塞いだ**（Codex へは委譲せず Claude が実装）。gates 全緑（**golden 2756→2759**／census **576 不動**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260／同型★0／held 77枚32群 不動）。**実機2本が2回連続 PASS＋3点の反転確認済／第44〜46 の8本も回帰で緑（計10本）。**
-  - 🔴**登録票の見立てを2点とも実測で訂正した。これが今回いちばんの収穫。**
-    ①**「`collectTurnTriggers` が `turnOwner` を読まないので両ターンで発火する」は起きていない**＝この collector は **`triggerScope` で構造的に片側へ寄せている**（自分側走査は `self` 限定・相手側走査は `any_opp`/`any` 限定）。実測でも**ターン境界 timing の648効果は scope と原文が全件一致・逆発火0件**。⇒ ここへゲートを足すのは**649効果ぶんの無意味な差分**なので**入れていない**（§4 の「広げない」を golden で固定した）。
-    ②**「型・parser・collector の3点セットが要る」も誤り＝parser だけで直る**＝engine の消費地点は **`effectStack.ts` の `turnGateOk`** で、`initStack`／`pushToStack` の入口で**全エントリを**現ターンと照合して弾く。collector 個別の `turnOwner` 判定（25関数）はその二重掛け。**BattleScreen の 122箇所すべてがこの2関数を通る**ことも確認した。
-  - ✅**真の穴はターン境界以外の timing**（`triggerScope` がターン主を担保しない群）＝原文にターン主限定がある【自】786効果のうち境界以外は102、載っていないのが46。**parser の合流点に共通規則1本**（従来はトリガー系ごとの ad-hoc regex で、**規則を書いていない timing だけが素通り**していた＝§5-8′）。
-  - ⚠**採用27効果のうち、実挙動が変わるのは7効果だけ**（残り20は `activeCondition.TURN_OWNER` 等と二重になる冗長付与）。**「27件のバグを直した」ではない**。
-  - 🔑**ターンゲートの語彙は4系統ある**（`triggerCondition.turnOwner` ／ `activeCondition.TURN_OWNER` ／ `condition.IS_MY_TURN`＋collector の `condHas` ／ `duringMainPhase`＋`mainPhaseGateOk`）＝**数える前に4つとも引き算する**（今回6件が偽陽性だった）。⚠**`IS_MY_TURN` は常に true を返す表現不能プレースホルダ**で、ターン判定をしているのは**それを明示的に見ている3 collector と BattleScreen の2箇所だけ**＝「持っている＝ゲート済み」と数えると穴を見落とす（実測2件）。
-  - 🔴**実機シナリオの罠を2つ実測で踏んだ**＝①**バニッシュ先は既定でエナゾーン**なので「エナ +1」で観測すると**シグニ自身の +1 を発火と誤読する**（Δ1 を発火と読んで engine のバグだと誤診しかけた。発火は Δ≧2）②**盤面注入は1発で決まらない**（CPU の非同期ターン処理と競合）＝**2段階注入**にして「本当に場に居ること」を確認してから条件を載せる。
-  - ✅**反転確認は3点で切り分けた**＝観測対象が**元から `activeCondition.TURN_OWNER` を持っていた**のでペアだけでは新ゲートを分離できない。①両ゲート→非発火 ②**`activeCondition` を外して `turnOwner` だけ**→非発火（**新ゲート単独で足りる**）③両方外す→発火（**観測が噛んでいる**）。
-  - 📌**follow-up＝`O-64` を新規登録**（「あなたのメインフェイズの間」15効果＋`WDK17-009-E1`）。受け皿は `duringMainPhase`／`mainPhaseGateOk` だが**中央ゲートが無く collector ごとの配線が要る**うえ、`ON_POWER_THRESHOLD`／`ON_ENERGY_CHARGE` は **BattleScreen の watcher＝golden から叩けない**＝リスクの性質が別物なので分けた。
+- 🏁**セッション（2026-08-25・続き653・Opus 5）＝§5.3 `O-64` を消化＝トリガー句のフェイズ主限定（「あなたのメインフェイズの間」等）が JSON に載らない／載っていても engine が消費しない穴を、parser 1本＋engine 4箇所＋逆翻訳1本で塞いだ**（Codex へは委譲せず Claude が実装）。gates 全緑（**golden 2759→2763**／census **576 不動**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260／同型★0／held 77枚 不動）。**実機3本が2回連続 PASS＋反転確認済／`O-63` の2本と第44〜46 の8本も回帰で緑（計13本 ALL PASS）。**
+  - 🔴**登録票の見立てを3点とも実測で訂正した。**
+    ①**「15効果」は fresh 側の標本**＝live で数え直すと**受け皿を1つも持たない【自】は 10効果**（登録票が挙げた7件は既に `duringMainPhase` を持っていた／代わりに登録票に無い2件が出た）。
+    ②🔑**フェイズ限定の語彙は6系統**（`duringMainPhase`/`outsideMainPhase` ／ `duringAttackPhase` ／ `condition.DURING_PHASE` ／ `AND(DURING_PHASE, IS_MY_TURN)` ／ `drawPhaseRestriction` ／ 【常】専用の `activeCondition.DURING_ATTACK_PHASE`）＝**6つとも引き算してから穴と呼ぶ**（`O-63` のターンゲート4系統と同じ罠の別バージョン）。
+    ③🔴**`collectFieldTriggers` は「フェイズだけ見る版」を呼んでいて、ソース内コメントが「ターン限定は後段の `turnGateOk` に委ねる」と嘘をついていた**＝`turnGateOk` が読むのは `turnOwner` だけなので、**`duringMainPhase` しか持たない効果は誰のメインフェイズでも発火**していた。
+  - ✅**穴は2種類**＝**(A) parser が出していない5効果**（共通規則1本を `O-63` の隣へ）と、**(B) engine が消費していない4箇所**（`collectFieldTriggers`／`collectHandDiscardTriggers`／`collectSelfEventTriggers`／**BattleScreen の ON_POWER_THRESHOLD・ON_ENERGY_CHARGE watcher**）。**(B) が本体**で、どの計器にも映っていなかった。
+  - ⚠**live 差分は10効果・実挙動が変わるのは9効果**（`WX24-P1-015-E1` は既存ゲートとの二重掛け）。**「16効果のバグを直した」ではない。**
+  - 🔴**`syncManualLive` には落とし穴が2つ**＝①**カード全体を再パースして live を書き直す**ので、`manualEffects.ts` に実体を持たない**同居効果**が現在の parser 出力へ置き換わる（`WDK17-009-E2` が該当・HEAD へ戻した）②**JSON を pretty-print で書く**（`build:effects` は minified）ので、同期したファイルだけ**6万行の書式差分**が出る。**実行後は `git diff --stat` と effectId 単位の全数比較を両方やる。**
+  - ✅**逆翻訳（計器）も直した**＝フェイズ主限定の共通マーカーを追加し、**約20効果**の表示が原文どおりになった（従来は timing 別分岐が書かれた timing でしか描かれず、JSON にゲートがあるのにシートは「無条件」に見えていた）。
+  - 🔴**実機シナリオの罠を2つ新規記録**＝①**閾値 watcher は初回観測ではスナップショットしか取らない**ので、初回レンダリングがブースト注入の後ろにずれると `wasBelow=false` で**永久に発火しない**（dist 再ビルドを挟んだ初回だけ FAIL する位置依存フレーク）②**CPU ターンの負方向テストは CPU が勝手にフェイズを進める**ので、`witness`（狙った状況をブースト中に1度は観測したか）を必須条件にしないと**別のゲートを見て PASS**する。
+  - 📌**follow-up＝`O-65` を新規登録**（①`WDK17-009-E2` が原文「あなたのライフクロスが２枚以下の場合」を**自分のライフを2枚クラッシュする**と誤パースしている ②【常】の「〈対戦相手〉のメインフェイズの間」に `activeCondition` の受け皿が無い）。
 
-**▶ 次の一手**＝**§5.3 の `O-64`（`O-63` の残り＝フェイズ主限定）を取る**か、**§5.2 の段2 消化に戻る**（残 OPEN **678**）。⚠**着手前に必ず母集団を実測し直す**（§4.1）。
-- 🔑**`O-64` を続けて取るのが素直**＝`O-63` で作った測り方（`tmp_o63work.mjs` 相当の分類＝A フェイズ以外／B メインフェイズの間／C アタックフェイズの間／D ターンの間）と実機の型（`b63*` の2段階注入ペア）がそのまま使える。⚠**ただし `turnOwner` と違って中央ゲートが無い**＝`mainPhaseGateOk` を collector ごとに配線する必要があり、`ON_POWER_THRESHOLD`／`ON_ENERGY_CHARGE` は **BattleScreen の watcher で golden から叩けない**。
-- 🔑**トリガー限定を数えるときの必読**（`O-63` の実測）＝**ゲートの語彙は4系統**（`triggerCondition.turnOwner` ／ `activeCondition.TURN_OWNER` ／ `condition.IS_MY_TURN`＋collector の `condHas` ／ `duringMainPhase`＋`mainPhaseGateOk`）。**4つとも引き算してから「穴」と呼ぶ**。⚠**`IS_MY_TURN` は常時 true のプレースホルダ**で、それ自体はゲートではない。
-- 🔑**`triggerScope` が既にターン主を担保している場所がある**＝`collectTurnTriggers`（ターン境界 timing）は自分側走査を `self`・相手側走査を `any_opp`/`any` に限っているので、**そこへ turnOwner を足すのは無意味な差分**。**「原文に限定がある」だけで着手しない。**
+**▶ 次の一手**＝**§5.3 の `O-65`（`O-64` の follow-up＝①自ライフ2枚クラッシュの誤パース ②【常】のメインフェイズ限定の受け皿）を取る**か、**§5.2 の段2 消化に戻る**（残 OPEN **678**）。⚠**着手前に必ず母集団を実測し直す**（§4.1）。
+- 🔑**`O-65` の①は「今 live に居る実害バグ」**＝`WDK17-009-E2` は【起】を撃つと**自分のライフを2枚クラッシュ**する。`O-64` のスコープ外だったので直さず登録した（正しい実装には `opponentSelects` を使った手書きが要る）。
+- 🔑**トリガー限定を数えるときの必読**＝**ターンゲートは4系統・フェイズゲートは6系統**ある（`O-63`／`O-64` の実測）。**全部引き算してから「穴」と呼ぶ。**⚠**`IS_MY_TURN` は常時 true のプレースホルダ**で、それ自体はゲートではない。
+- 🔑**「受け皿が JSON にあるか」と「engine が消費するか」は別**（`O-64` の本体）＝**ソース内コメントの「◯◯に委ねる」を信用しない**。委ね先が本当にそのフィールドを読んでいるかを毎回読みに行く。
 - **段2 へ戻る場合の候補**＝§5.2 の軸内訳を取り直してから選ぶ（第44〜46 で「条件節が丸ごと落ちる」根は閉じた）。
-
 
 ---
 
@@ -268,6 +268,16 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
     **CPU の自動応答が「しない」側に倒れる**ので、収集されていても盤面差分が出ない（`WX24-P2-075` の例）。
     **「収集されるか」を見る層は golden**（`collectTurnTriggers` を直接呼ぶ）＝実機は「フェイズ進行が壊れないこと」に絞る。
 29. 🔴**実機 FAIL は「engine の穴」と決めつけない**（2026-08-25 続き650・`V-88`）＝**ドライバが押せていないだけ**のことがある。**押したはずのボタンがログに出ていないか**をまず見て、必要なら probe（ボタン数・全ラベル）を1回仕込んで実測する。 実例＝`v12GrantedEnergyCharge*` は `【起】コストなし` を **`nth: 1` 固定**で押していたが、spec が `field.lrig_down: true` で始まるため**《ダウン》コストの E1 が提示されずボタンは1個だけ**になり、毎回空振りしていた。⚠**`H.clickBtn` は対象が無いと `null` を返すだけで例外にならない**＝空振りは静かに腐る。**同一ラベルのボタンが複数出るカードは `nth = count - 1` の相対指定にする。**
+30. 🔴🆕**差分検知型の watcher は「初回観測ではスナップショットしか取らない」**（2026-08-25 続き653・`O-64`）＝
+    `ON_POWER_THRESHOLD`／`ON_ENERGY_CHARGE` は前回スナップショット（`prevPowersRef`／`prevEnergyRef`）との
+    差分で発火するので、**ページの初回レンダリングが「条件を満たす注入」の後ろにずれ込むと `wasBelow=false` に
+    なって永久に発火しない**。実測では **dist 再ビルドを挟んだ初回だけ FAIL・以後 PASS** という位置依存フレークで出た。
+    ⇒ **「条件を満たさない盤面を必ず一度注入して待つ」**＋**「その状態（例＝`powerMods` が空）であることまで前提に含める」**。
+31. 🔑🆕**CPU ターンの負方向テストは `witness`（狙った状況を本当に通ったか）を必須条件にする**（2026-08-25 続き653・`O-64`）＝
+    CPU は勝手にフェイズを進めるので、条件を載せた時点でもう別のフェイズに居ることがある。そのまま緑にすると
+    **「ターン主で落とした」のか「フェイズで落とした」のか**が分からない＝**別のゲートを再テストしているだけ**になる。
+    実測＝`b64PowerThresholdOppMainBlocked` は最終 phase が `ATTACK_ARTS_OP` で、`witness`（ブースト中に
+    `phase==='MAIN' && active===OPP` を1度でも観測したか）を入れて初めて主張が成立した（📌3／📌4 の実装形）。
 
 ### 4.5 修正を live へ届ける経路（届かないと恒久 no-op になる）
 
@@ -350,7 +360,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 **■ 未消化 worklist**
 | ID | 項目 | 規模 | ブロッカー／次の一手 |
 |---|---|---|---|
-| **O-64** | 🆕**「〈あなた〉のメインフェイズの間／〈対戦相手〉のアタックフェイズの間」＝フェイズ主限定が JSON に載らない** | **M** | **2026-08-25 続き652（`O-63` の消化）で分離**＝`O-63` は**ターン主限定（`triggerCondition.turnOwner`）だけ**を閉じた。残りは**フェイズまで絞る形**で、**受け皿が別・中央ゲートが無い**ので分けた。■**実測**＝ターン境界以外の【自】で原文にフェイズ主限定があるのに JSON に無いもの＝**「あなたのメインフェイズの間」15効果**（`SPDi44-08-E1`／`WX18-052-E1`／`WXEX2-58-E2`／`WX24-P2-092-E1`／`WX25-P1-018-E1`＝ON_PLAY any_ally、`WX25-P1-077/099/104-E1`／`WX25-P2-061-E2`／`WXK06-078-E1`＝ON_TRASH、`WX18-077/078-E1`＝ON_POWER_THRESHOLD、`WXDi-D02-25-E1`＝ON_LEAVE_FIELD、`WXDi-P07-044-E1`＝ON_HAND_DISCARDED、`WXDi-P09-079-E1`＝ON_CARD_MILLED_FROM_DECK）＋**「対戦相手のアタックフェイズの間」1効果**（`WDK17-009-E1`＝ON_LIFE_CRASHED）。■**受け皿は既存**＝`triggerCondition.duringMainPhase` と共通ゲート `mainPhaseGateOk`（`triggerCollect.ts:187`。⚠**フェイズだけでなくターンプレイヤーも見る**＝「あなたの」を正しく解釈する）。🔴**`turnOwner` と違って中央ゲートが無い**（`turnOwner` は `effectStack.turnGateOk` が全エントリを見る）＝**`mainPhaseGateOk` を呼んでいる collector は現状5本だけ**（`collectDeckTrashSelfTriggers`／`collectAnyZoneTrashSelfTriggers`／`collectBanishTriggers`／`collectLeaveFieldTriggers`／`collectMillTriggers`）。**ON_PLAY（`collectFieldTriggers`）と ON_HAND_DISCARDED（`collectHandDiscardTriggers`）は呼んでいない＝配線が要る。** ■🔴**`ON_POWER_THRESHOLD` と `ON_ENERGY_CHARGE` は `BattleScreen.tsx:1813` の watcher で、collector ではない**＝**golden から叩けない**（CODEX_GUIDE §5-20 と同型）。ここだけ実機で守る必要がある。■**着手手順**＝①parser に `duringMainPhase`/`duringAttackPhase` の共通抽出を足す（`O-63` で入れた `turnOwner` 抽出のすぐ隣。⚠**「あなたのメインフェイズ**以外**で」は `outsideMainPhase` で既に10効果とも表現済み＝触らない**）②`mainPhaseGateOk` を未配線の collector へ足す③BattleScreen watcher の2 timing は実機シナリオで両方向を固定④**「フェイズ主が原文と一致する」を毎回ゼロから再導出して集合一致を assert するトリップワイヤ**を golden に置く（§5-27）。■**同時に片付ける小物**＝`WXDi-P11-064-E1`（原文「あなたのターンの間」・`turnOwner` が欲しいが**held に既存の回帰が同居**＝fresh が本文の対象を `thisCardOnly` から `story:天使` へ誤って広げるので、`heldReview --adopt` では入れられない。**parser の対象側を直してから採用する**）。 |
+| **O-65** | 🆕**①`WDK17-009-E2` が「あなたのライフクロスが２枚以下の場合」を「自分のライフを2枚クラッシュする」と誤パース ②【常】の「〈対戦相手〉のメインフェイズの間」に受け皿が無い** | **S〜M** | **2026-08-25 続き653（`O-64` の消化）で分離。**■**①は今 live に居る実害バグ**＝原文「【起】このキーを場からルリグトラッシュに置く：対戦相手は自分の場からシグニ１体と自分のエナゾーンからカード１枚を対象とする。**あなたのライフクロスが２枚以下の場合**、対戦相手は、手札を１枚捨てそれらをトラッシュに置く。」に対し live は `SEQUENCE[STUB:LOOK_OPP_LIFE_TOP, LIFE_CRASH{owner:'self', count:2}]`＝**この【起】を撃つと自分のライフが2枚クラッシュする**。⚠**現在の parser 出力は `STUB:CONDITIONAL_ARTS_COST`** で、これも別の意味の誤りなので**どちらを採っても直らない**（`O-64` では live 差分を意図した10効果に保つため HEAD の値へ戻した）。**正しい実装には `opponentSelects`（「対戦相手は自分の◯◯を選ぶ」＝`src/types/effects.ts:1157/1172/1233` に既存）を使った手書きが要る**＝カード単位 PRESERVE なので `manualEffects.ts` に `WDK17-009-E2` の実体を足す（現状 E1 しか無く、E2 は parser 生成のまま）。⚠**「それら」がトラッシュに置かれる対象の範囲**（対象2枚だけか＋捨てた1枚か）を原文で確定させてから書くこと。■**②は【常】側の受け皿欠落**＝`activeCondition` には `DURING_ATTACK_PHASE{owner}` があるのに **`DURING_MAIN_PHASE` が無い**。実測＝`WXEX2-44-E1`「【常】：対戦相手のメインフェイズの間、シグニはバニッシュされない。」が **`activeCondition` を1つも持たず常時適用**（過剰実行）。⚠**型を足すなら「型＋両評価器＋golden」の3点セット**（§4.2＝`checkActiveCondition` は case の無い型を `return true` に落とす）。■**同時に見る小物**＝`WXDi-P10-041-E1`／`WXK07-031-E1`／`WXK08-048-E1`（いずれも【常】「あなたのアタックフェイズの間」だが action が STUB で、フェイズ限定を STUB 側が持っているか未確認）。■**着手前に必ず母集団を実測し直す**（§4.1。`O-64` では登録票の15効果が実測10効果だった）。 |
 | **O-62** | 🆕**「あなたの効果**１つ**によって」＝**同一効果内での合算**を表す原因限定が丸ごと落ちている** | **S〜M** | **2026-08-25 続き648（§5.2 第42バッチ）の検証で発見**＝第42バッチは `(あなた|対戦相手)の効果によって` という**固定パターン**で母集団を取ったため、**助数詞が挟まる「あなたの効果１つによって」形を丸ごと取りこぼしていた**。`の効果[^、。]{0,4}によって` へ広げて再測すると母集団は **69→80効果**で、第42バッチ適用後も **10効果が未対応**。■**内訳（実測）**＝`SPDi43-11-E2`／`SPDi43-12-E2`／`SPDi43-13-E2`（いずれも `GRANT_LRIG_ABILITY` の器で、実体は入れ子の `-sub-E1`）／`WDK09-013-E1`／`WXK10-076-E1`／`WX22-014-E2`（`ON_CARD_MOVED_TO_DECK`）／`WXK10-040-E1`（`ON_DRAW`）／`WXDi-P13-051-E3`（`ON_HAND_OR_ENERGY_LOST_BY_OPP`）／`WX24-P3-007-E1`／**否定形** `WX15-003-E1`「あなたの効果**以外**によって」。■🔴**`byOwnEffect` を足すだけでは足りない**＝「効果**１つ**によって…合計１枚以上」は**1つの効果の中で合算した枚数**を要求しており、**複数の効果にまたがって累積した枚数では発火しない**。いまの `minCount` 系は解決1回ぶんの set-diff を数えるので**近い**が、`SEQUENCE` で複数 action がまとまった1解決と「効果１つ」が一致するかは未確認＝**消費地点を読んでから決める**（§5-2）。■**否定形は別語彙が要る**（`byOwnEffect: false` は「未指定」と区別できないので `excludeOwnEffect?: boolean` 等の明示値＝§5-2″）。■**入れ子（`GRANT_*.abilities[]`）にも同じ穴がある**＝第42バッチは**トップレベルしか測っていない**。着手時は `docs/_effect_srctext.json` だけでなく **live JSON を再帰して `rawText` から測る**こと。 |
 | **O-61** | 🆕**任意コストの直後の「対象1体」で対象ピッカーが出ず、効果元へ自動付与される** | **調査→分割** | **2026-08-25 段2 第41バッチの実機で1件観測**＝`WX25-P3-059-E1`（`SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN → GRANT_KEYWORD{owner:self,count:1}}]`）は、原文が「**あなたのシグニ１体を対象とし**、《青》を支払ってもよい」で自分の場に2体いるのに、**`SELECT_TARGET` を一度も出さずに効果元シグニへ付与する**（実機トレース＝`optcost-pay` 直後に `energy=[]` かつ `grants=["WX25-P3-059#…:アサシン…"]`）。**プレイヤーが選べるはずの対象を選べない**＝実害。■**規模（実測・⚠未分類）**＝`SEQUENCE[OPTIONAL_COST,(CONDITIONAL→)対象1体を取る action]` の形は **232効果**（`BANISH` 104／`POWER_MODIFY` 31／`TRASH` 26／`GRANT_KEYWORD` 19／`BOUNCE` 18／`UP` 11 ほか）。🔴**232件すべてが壊れているとは言えない**＝**観測したのは1件だけ**で、`BANISH` の相手狙いは既存シナリオで正常にピッカーが出ることを何度も確認している。**自動対象化が「自分狙いのときだけ」なのか「`GRANT_KEYWORD` だけ」なのか「トリガー元の推論が効いているだけ」なのかは未分類。** ■**着手手順**＝①232件を `target.owner`（self/opponent/any）× action 型 × timing で機械分類し、**実際にピッカーが出ない群だけ**を数える（`OPTIONAL_COST` の消費地点＝`effectExecutor` の該当分岐を読んでから数える＝§5-3-3′）②その群を1バッチで取る。⚠**`OPTIONAL_COST` は過去に「CHOOSE を出すだけでアクションを一切実行しない」事故がある**（`CODEX_GUIDE` §3-3 の続き211→212）＝**同じハンドラなので既存の挙動を壊さないこと**。 |
 | **O-60** | 🆕**engine が「カード全文 regex」で意味を決める箇所が系統として残っている** | **調査→分割** | **2026-08-24 `O-56` の検証で分離**＝`O-56` は `TRAP_OP`／`TRAP_OPERATION` の2ハンドラを payload 化したが、**同じパターンが別名で生きている**。⚠**確定している具体例1件**＝`PLACE_TRAP_FROM_REVEALED`（`execStubPart2.ts:3173`）が**公開枚数を `EffectText+BurstText` から `match(/カードを(N)枚見(る|て)/)` で読む**。しかも `O-56` が `WX16-061-E1`／`WXEX2-15-E1` を**この経路へ新たに流し込んだ**（既存機構の流用としては妥当）。両効果とも原文に該当句が1回だけあり**現状は正しく3を返す＝たまたま当たっている**。■**規模の実測**＝`src/engine/*.ts` で `EffectText` を読む箇所は **200**。⚠**大半は【常】のキーワード判定など正当な用途と思われるが、この200件は分類していない**＝「残り2件」と読んではいけない。 ■**着手手順**＝①200箇所を「**意味の分岐に使っている（危険）**／属性判定（正当）」で機械分類する②危険群だけを数え、**1ハンドラ＝1バッチ**で `O-56` と同じ手口（parser が判別子を吐く→engine は payload で分岐→全件が payload を持つと機械確認→regex 撤去）に落とす。⚠**`O-56` の golden（母集団を毎回再導出して payload 必須を assert）が雛形**＝これが無いと撤去した瞬間に no-op へ裏返る。 |
@@ -478,12 +488,12 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-25 続き652 後（本行が直近の正）**：
-  **census 576/576**、**golden 2759**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+- **2026-08-25 続き653 後（本行が直近の正）**：
+  **census 576/576**、**golden 2763**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
   **live カード 5975 / 効果総数 10693**、`_held_fresh` **77**／`_partial_fresh` **14**／`_idset_fresh` **45**、
-  **意味照合 残 OPEN 678（不動＝`O-63` は §5.3 の機構項目で台帳の母集団外）**、
-  **実機シナリオ +10**（第44＝`b44VirusControlPlain`/`b44VirusDeployBlocked`/`b44VirusDeployAllowed`、第45＝`b45TrashLv1Buff`/`b45TrashLv1NoBuff`、第46＝`b46TrashKinds7`/`b46TrashKinds6`/`b46TrashSameName7`、`O-63`＝`b63TurnOwnerOppTurnFires`/`b63TurnOwnerOwnTurnBlocked`）、version **0.502**。（⚠`census:wiring`／`census:timing` は未再計測）
+  **意味照合 残 OPEN 678（不動＝`O-64` は §5.3 の機構項目で台帳の母集団外）**、
+  **実機シナリオ +13**（`O-64`＝`b64PowerThresholdMainFires`/`b64PowerThresholdAttackBlocked`/`b64PowerThresholdOppMainBlocked`、`O-63`＝`b63TurnOwnerOppTurnFires`/`b63TurnOwnerOwnTurnBlocked`、第44〜46 の8本）＝**全13本 ALL PASS を2回連続**
 
 ---
 

@@ -181,16 +181,36 @@ export function collectLrigFlipTriggers(
  *   従来は全 collector が `ctx.turnPhase` だけを見ていたため、**対戦相手のメインフェイズ**を
  *   「あなたのメインフェイズ」に数えていた（`duringMainPhase`＝過剰発火／`outsideMainPhase`＝過小発火）。
  * ownerPlayerId＝その効果が誰の【自】か（= entry.playerId と同じ基準）。
- * ⚠`collectFieldTriggers` の any_ally/any_opp ループだけは例外（そこは owner 視点がズレるため
- *   ターン限定を後段の `effectStack.turnGateOk` に委ねる規約＝ソース内コメント参照）。
+ * ⚠**旧コメントにあった「`collectFieldTriggers` だけは例外」は `O-64` で解消済み**（あちらも owner 相対で評価する）。
+ *
+ * 🆕**§5.3 `O-64`（2026-08-25）＝`ctx` を取らない素の版を切り出して export した。**
+ * 消費地点が collector の外（`BattleScreen` の ON_POWER_THRESHOLD / ON_ENERGY_CHARGE watcher）にも
+ * あるため。⚠**この2 timing は collector ではなく watcher なので golden から叩けない**＝実機で守る。
  */
-function mainPhaseGateOk(eff: CardEffect, ctx: TrigCtx, ownerPlayerId: string): boolean {
+export function mainPhaseGateOkFor(
+  eff: CardEffect, turnPhase: string | undefined, activeUserId: string | null | undefined, ownerPlayerId: string,
+): boolean {
   const tc = eff.triggerCondition;
   if (!tc?.duringMainPhase && !tc?.outsideMainPhase) return true;
-  const isOwnMainPhase = ctx.turnPhase === 'MAIN' && ctx.activeUserId === ownerPlayerId;
+  const isOwnMainPhase = turnPhase === 'MAIN' && activeUserId === ownerPlayerId;
   if (tc.duringMainPhase && !isOwnMainPhase) return false;
   if (tc.outsideMainPhase && isOwnMainPhase) return false;
   return true;
+}
+
+function mainPhaseGateOk(eff: CardEffect, ctx: TrigCtx, ownerPlayerId: string): boolean {
+  return mainPhaseGateOkFor(eff, ctx.turnPhase, ctx.activeUserId, ownerPlayerId);
+}
+
+/**
+ * 「〈あなた／対戦相手〉のアタックフェイズの間」の**フェイズ側**ゲート（`duringAttackPhase`）。
+ * ⚠**ターン主（どちらのアタックフェイズか）はここでは見ない**＝`triggerCondition.turnOwner` が担い、
+ *   `effectStack.turnGateOk` が全 collector 共通に entry.playerId 基準で評価する（`O-63` で実証）。
+ *   ⇒ 「対戦相手のアタックフェイズの間」＝`duringAttackPhase:true` ＋ `turnOwner:'opponent'` の2枚組。
+ */
+function attackPhaseGateOk(eff: CardEffect, ctx: TrigCtx): boolean {
+  if (!eff.triggerCondition?.duringAttackPhase) return true;
+  return (ctx.turnPhase ?? '').startsWith('ATTACK');
 }
 
 /** 手札からの通常召喚で自身の mandatory【出】として積める構造か。 */
@@ -1138,6 +1158,9 @@ export function collectTrashTriggers(
       // AND(DURING_PHASE:MAIN, IS_MY_TURN)。DURING_PHASE 単独だと相手のメインフェイズでも発火してしまう）。
       if (condHas(eff.condition, 'IS_MY_TURN') && !ownerIsTurnPlayer) continue;
       if (condHas(eff.condition, 'IS_OPPONENT_TURN') && ownerIsTurnPlayer) continue;
+      // 🆕`O-64`：`duringMainPhase`／`outsideMainPhase` の共通ゲート（上の AND(DURING_PHASE,IS_MY_TURN)
+      //   と同じ意味を1フィールドで表す新しい受け皿。両方あっても結論は同じ＝二重掛けで安全）。
+      if (!mainPhaseGateOk(eff, ctx, trashedPlayerId)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, ownerState, trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState, ctx.cardMap, topNum, ctx.turnPhase ?? '')) continue;
       if (!limitOkOwner(eff)) continue;
       entries.push({
@@ -1174,6 +1197,7 @@ export function collectTrashTriggers(
       // 「あなたのターンの間」: IS_MY_TURN 指定があれば watcher がターンプレイヤーのときのみ
       if (condHas(eff.condition, 'IS_MY_TURN') && !watcherIsTurnPlayer) continue;
       if (condHas(eff.condition, 'IS_OPPONENT_TURN') && watcherIsTurnPlayer) continue;
+      if (!mainPhaseGateOk(eff, ctx, watcherPlayerId)) continue;   // `O-64`（watcher 視点）
       // ターン条件以外の condition を評価
       if (eff.condition && !evalUseCondition(eff.condition, watcherState, watcherOppState, ctx.cardMap, topNum, ctx.turnPhase ?? '')) continue;
       if (!limitOkWatcher(eff)) continue;
@@ -3250,6 +3274,10 @@ export function collectSelfEventTriggers(
     for (const eff of ctx.effectsMap.get(topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
+      // 🆕`O-64`：「対戦相手のアタックフェイズの間、あなたのライフクロスがクラッシュされたとき」
+      //   （`WDK17-009-E1`）＝フェイズ側はここ、ターン主側は中央の `turnGateOk`（`turnOwner`）が見る。
+      if (!attackPhaseGateOk(eff, ctx)) continue;
+      if (!mainPhaseGateOk(eff, ctx, ownerId)) continue;
       if (timing === 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' && containsSelfTrashExile(eff.action)) continue;
       // トラッシュからの自己復活（ADD_TO_FIELD source:TRASH_CARD で自身を出す）はトラッシュ専用＝場走査では除外。
       {
@@ -3286,6 +3314,8 @@ export function collectSelfEventTriggers(
     for (const eff of srcEffects) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
+      if (!attackPhaseGateOk(eff, ctx)) continue;                 // `O-64`（シグニ側と対称）
+      if (!mainPhaseGateOk(eff, ctx, ownerId)) continue;
       if (!limitOk(eff)) continue;
       const cardName = ctx.cardMap.get(srcNum)?.CardName ?? srcNum;
       entries.push({
@@ -3681,6 +3711,9 @@ export function collectHandDiscardTriggers(
       if (myBlocked) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
       else if (!isAny && !myIsTurn) continue;
+      // 🆕`O-64`：「あなたのメインフェイズの間、あなたがシグニを1枚捨てたとき」（`WXDi-P07-044-E1`）。
+      //   この collector はフェイズ語彙を一切見ていなかった＝受け皿があっても恒久 no-op（§4.3）。
+      if (!mainPhaseGateOk(eff, ctx, discarderId)) continue;
       if (!matchesTrigFilter(eff)) continue;
       if (!limitOk(eff)) continue;
       entries.push({
@@ -3703,6 +3736,7 @@ export function collectHandDiscardTriggers(
       const isAny = eff.triggerScope === 'any';
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
       else if (!isAny && !myIsTurn) continue;
+      if (!mainPhaseGateOk(eff, ctx, discarderId)) continue;   // `O-64`（シグニ側と対称）
       if (!matchesTrigFilter(eff)) continue;
       if (!limitOk(eff)) continue;
       entries.push({
@@ -3735,6 +3769,7 @@ export function collectHandDiscardTriggers(
         // byWatcherEffect（「あなたの効果によって対戦相手が手札を捨てたとき」）＝
         // watcher 所有者（opId）の効果が原因の場合だけ。コスト／ルール処理（undefined）も非発火。
         if (eff.triggerCondition?.byWatcherEffect && causeOwnerId !== opId) continue;
+        if (!mainPhaseGateOk(eff, ctx, opId)) continue;   // `O-64`（watcher の持ち主＝opId 視点）
         if (!matchesTrigFilter(eff)) continue;
         if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
           const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
@@ -3966,9 +4001,15 @@ export function collectFieldTriggers(
       //   ターン限定は**収集後段の `effectStack.turnGateOk`** が entry.playerId（＝watcher の持ち主）基準で
       //   全コレクタ共通に評価する。ここで足すと ON_PLAY の「相手ターン中の特殊召喚」等が二重ゲートで落ちる
       //   （この関数の `isOwnerTurnForTrigger` は**トリガー元**側の視点なので watcher 基準とはズレる）。
-      // ⚠**同じ理由で `mainPhaseGateOk`（ターンプレイヤーも見る owner 相対版）もここでは使わない**＝
-      //   このループはフェイズだけを見る（Opusタスク12 (clii) で他 collector を owner 相対へ揃えたときの明示的な例外）。
-      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+      // 🆕**§5.3 `O-64`（2026-08-25）＝ここは `mainPhaseGateOk` を使う（旧コメントの「例外」は誤り）。**
+      //   旧実装は `ctx.turnPhase !== 'MAIN'` の**フェイズだけ**を見て、ターン主は「後段の `turnGateOk` に
+      //   委ねる」と書いていた。⚠**`turnGateOk` が読むのは `turnOwner` だけ**（`effectStack.ts:8`）なので、
+      //   `duringMainPhase` しか持たない効果は**誰のメインフェイズでも発火**していた（実測3効果＝
+      //   `WX18-052-E1`／`WXEX2-58-E2`／`WX24-P2-092-E1`＝いずれも原文「あなたのメインフェイズの間」）。
+      //   ⚠差し戻された `turnOwner` の追加（タスク12(xcix)）とは別物＝あちらは中央ゲートとの**二重掛け**、
+      //   こちらは**どこにも消費が無い**。owner のズレは `isOwnerTurnForTrigger`（トリガー元視点）ではなく
+      //   **entry.playerId と同じ `ownerId`**（このループの watcher 所有者）を渡すことで解消する。
+      if (!mainPhaseGateOk(eff, ctx, ownerId)) continue;
       // placedDown（G144）: トリガー元シグニがダウン状態で出ていなければ発火しない。
       if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
         const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
@@ -4022,8 +4063,9 @@ export function collectFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;
       if (!byEffectTriggerOk(eff)) continue;
-      // ⚠ally 側と同じ理由で `turnOwner` も owner 相対の `mainPhaseGateOk` もここでは使わない（後段の `turnGateOk` が担当）。
-      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+      // ⚠`turnOwner` は後段の `turnGateOk` が担当（ally 側と同じ）。**フェイズ限定だけは中央ゲートが無い**ので
+      //   ここで owner 相対に評価する（`O-64`）。watcher の持ち主は `opId`＝下で push する entry.playerId と同じ。
+      if (!mainPhaseGateOk(eff, ctx, opId)) continue;
       // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（二重発火防止）。
       const oeStub = eff.action as StubAction;
       if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'

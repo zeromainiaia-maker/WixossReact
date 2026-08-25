@@ -1,5 +1,86 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.3 `O-64`＝トリガー句のフェイズ主限定（「あなたのメインフェイズの間」等）が載らない／載っても消費されない
+
+- 🔴**登録票の見立てを3点とも実測で訂正した。ここが今回いちばんの収穫。**
+  - ①**「15効果」は fresh 側の標本で、live の実像とは違った。** live で数え直すと**トリガー句にフェイズ主限定が
+    あるのに受け皿を1つも持たない【自】は 10効果**（登録票が挙げた `WX18-052-E1`／`WXEX2-58-E2`／`WX24-P2-092-E1`／
+    `WX25-P1-077/099/104-E1`／`WX25-P2-061-E2`／`WXDi-P09-079-E1` は**すでに `duringMainPhase` を持っていた**）。
+    代わりに登録票に無い **`WD22-029-G-E1`（`drawPhaseRestriction` で被覆済み＝偽陽性）**と
+    **`WXDi-P06-039-E1`（`turnOwner:'opponent'` という別の誤り）**が出た。
+  - ②🔑**フェイズ限定の語彙は6系統ある**（ターンゲートの4系統＝`O-63` と同じ罠の別バージョン）。
+    ①`triggerCondition.duringMainPhase`/`outsideMainPhase`（→`mainPhaseGateOk`）②`triggerCondition.duringAttackPhase`
+    ③`condition:{type:'DURING_PHASE'}`（→`evalUseCondition`）④`condition: AND(DURING_PHASE, IS_MY_TURN)`
+    ⑤`triggerCondition.drawPhaseRestriction`（ON_DRAW 専用）⑥`activeCondition:{DURING_ATTACK_PHASE, owner}`（【常】専用）。
+    **6つとも引き算してから穴と呼ぶ。**
+  - ③🔴**「`ON_PLAY`（`collectFieldTriggers`）は `mainPhaseGateOk` を呼んでいない」は半分だけ正しい。**
+    実際は **`ctx.turnPhase !== 'MAIN'` というフェイズだけの版を呼んでいた**うえ、ソース内コメントが
+    「ターン限定は後段の `effectStack.turnGateOk` に委ねる規約」と書いていた。⚠**`turnGateOk` が読むのは
+    `turnOwner` だけ**（`effectStack.ts:8`）なので、**`duringMainPhase` しか持たない効果は誰のメインフェイズでも発火**
+    していた。**コメントが嘘をついている型**＝計器にも golden にも一切映らない（§4.3 の「受け皿はあるのに消費が無い」の変種）。
+- ✅**真の穴は2種類あった。**
+  - **(A) parser が出していない**（5効果・`build:effects` で採用）＝`WX18-077-E1`／`WX18-078-E1`（ON_POWER_THRESHOLD）／
+    `WX24-P1-015-E1`（ON_TRASH）／`WXDi-D02-25-E1`（ON_LEAVE_FIELD）／`WXK06-078-E1`（ON_TRASH）。
+    `effectParser.ts` の `extractedTriggerCondObj` 合流点（`O-63` のターン主抽出のすぐ隣）に**共通規則を1本**。
+  - **(B) engine が消費していない**（受け皿は JSON にあるのに恒久 no-op）＝
+    **①`collectFieldTriggers`**＝フェイズだけ見てターン主を見ていなかった（ON_PLAY 3効果）
+    **②`collectHandDiscardTriggers`**＝フェイズ語彙も `eff.condition` も**1つも評価していなかった**（`WXDi-P07-044-E1`）
+    **③`collectSelfEventTriggers`**＝ON_LIFE_CRASHED にフェイズゲートが無かった（`WDK17-009-E1`）
+    **④`BattleScreen.tsx` の ON_POWER_THRESHOLD / ON_ENERGY_CHARGE watcher**＝`triggerCondition` を1つも読んでいなかった。
+    ⚠**④は collector ではないので golden から叩けない**＝`mainPhaseGateOkFor`（`ctx` を取らない素の版）を
+    `triggerCollect.ts` から export して直接呼び、**実機シナリオ3本で守る**。
+- **MANUAL 側の是正4件**（`syncManualLive` で live へ届けた）＝
+  `SPDi44-08-E1`／`WX25-P1-018-E1`＝`condition:{DURING_PHASE:['MAIN']}` 単独（**相手のメインフェイズでも真**なうえ、
+  そもそも `collectFieldTriggers` は `condition` を評価しない）→ `triggerCondition.duringMainPhase` へ。
+  `WXDi-P06-039-E1`＝原文「あなたのメインフェイズ**以外で**」を `turnOwner:'opponent'` と書いていた＝
+  **自分のアタックフェイズを取りこぼす過小実行** → `outsideMainPhase` へ。
+  `WDK17-009-E1`＝「対戦相手のアタックフェイズの間」を「近似で省略」とコメントして落としていた →
+  `duringAttackPhase` ＋ `turnOwner:'opponent'` の**2枚組**（`duringAttackPhase` は owner を持てないため）。
+  `WXDi-P07-044-E1` は **`parseStatus:MANUAL` なのに `manualEffects.ts` に実体が無い遺物**（§4.5）だったので
+  `effectId` アンカーで live を外科パッチした。
+- ⚠**live 差分は 10効果**（変化10・追加0・削除0）。`WX24-P1-015-E1` は既存の `AND(DURING_PHASE, IS_MY_TURN)` と
+  二重掛けになる冗長付与なので、**実挙動が変わるのは 9効果**。
+- 🔴**`syncManualLive` はカード全体を再パースして live を書き直す**＝`manualEffects.ts` に実体を持たない**同居効果**が
+  「現在の parser 出力」へ置き換わる。本件では `WDK17-009-E2` の action が丸ごと変わったので **HEAD の値へ戻した**
+  （スコープ外）。⚠**実行後は必ず effectId 単位で全数比較する**（§3・§4.5）。
+  ⚠この過程で**別の実バグを見つけた**＝`WDK17-009-E2` の live は原文「あなたのライフクロスが２枚以下の場合」を
+  **`LIFE_CRASH{owner:'self', count:2}`＝自分のライフを2枚クラッシュする**と誤パースしている（→ `O-65` に登録）。
+- ⚠**`syncManualLive.ts` は JSON を pretty-print で書く**（`JSON.stringify(j, null, 2)`＝`:87`）が、
+  **`build:effects` は minified で書く**＝同期したファイルだけ**6万行の書式差分**が出る（`effects_WX24_26.json`）。
+  今回は commit 前に minify し直して揃えた。**`syncManualLive` を使ったら書式差分が出ていないか必ず `git diff --stat` で見る。**
+- **逆翻訳（計器）も直した**＝`decompileEffects.ts` にフェイズ主限定の**共通マーカー**を足した。従来この軸は
+  **timing ごとの分岐が個別に `trig` へ埋め込む**形しか無く、規則を書いていない timing では**逆翻訳から丸ごと消えて**
+  いた（JSON にゲートがあるのにシートは「無条件」に見える＝§4.3）。**約20効果**の表示が原文どおりになった
+  （`WX15-055/056-E1`＝「あなたのアタックフェイズの間、」／`WXDi-P06-035-E1` ほか＝「あなたのメインフェイズ以外で」等）。
+  ⚠timing 別分岐が既に描いている場合は**二重表記を抑止**する（`trig` に「フェイズの間／以外」が既出なら描かない）。
+- **golden**＝**2759→2763 / FAIL 0**。①`collectFieldTriggers`（ON_PLAY）②`collectHandDiscardTriggers`
+  ③`collectSelfEventTriggers`（ON_LIFE_CRASHED・`duringAttackPhase`＋中央 `turnGateOk` の分業）を
+  **それぞれ「自メイン＝発火／自アタック＝落ちる／相手メイン＝落ちる」の3点**で固定＋
+  ④live の集合一致（`duringMainPhase` 12件・`outsideMainPhase` 3件・`WDK17-009-E1` の2枚組）＋
+  ⑤**`duringMainPhase` と `turnOwner:'opponent'` の同居は意味矛盾なので0件**というトリップワイヤ。
+  既存 `(cvii)`（`DURING_PHASE` の母集団）は **7→4** に更新した。
+  ✅**修正前コードで実際に落ちることを確認済み**（3本とも FAIL・§4.3 の「vacuous に PASS していないか」）。
+- **ゲート**＝`npm run gates` 全緑。golden 2763/0、census **576/576（不動）**、smoke 10693全0・SKIP 0、fuzz全0、
+  census:stubs 0/0、manual-fields 0/0、lint 0 errors/260 warnings、同型★0、held **77枚（不動）**、
+  `_partial_fresh` 14・`_idset_fresh` 45（不動）。
+- 🆕**実機検証＝新規3本 ALL PASS を2回連続**（`b64PowerThresholdMainFires` / `b64PowerThresholdAttackBlocked` /
+  `b64PowerThresholdOppMainBlocked`）＋`O-63` の2本・第44〜46 の8本も回帰で緑（**計13本 ALL PASS**）。
+  `WX18-078`（幻獣 イヌワシ・P1000）に `temp_power_mods:+4000` を載せて**閾値5000を下から跨がせ**、
+  観測は**手札の増分**。spec は `top.active` / `turn_phase` の**1点だけ**違う。
+- ✅**反転確認**＝watcher のゲート1行を外すと**負方向2本が両方 FAIL**（`hand 0→1`）。とくに `OppMainBlocked` は
+  **`phase=MAIN active=OPP` で発火**しており、**ターン主側のゲートが効いていること**が分離できている。
+- 🔴**実機シナリオの罠を2つ実測で踏んだ（どちらも新規記録）**＝
+  ①**閾値 watcher は「初回観測ではスナップショットを取るだけ」**なので、**ページの初回レンダリングがブースト注入の
+  後ろにずれ込むと `prevPowers` が最初から P5000 になり、`wasBelow=false` で永久に発火しない**。
+  実測では **dist 再ビルドを挟んだ初回だけ FAIL・以後 PASS** という典型的な位置依存フレークになった。
+  ⇒ **「ブースト無しの盤面を必ず一度注入して待つ」＋「`powerMods` が空であることまで前提に含める」**。
+  ②**CPU ターンの負方向テストは、CPU が勝手にフェイズを進めるので「ターン主で落とした」のか
+  「フェイズで落とした」のか分からなくなる**（実測＝ブーストが載った時点でもう `ATTACK_ARTS_OP` だった）。
+  ⇒ **`witness`（狙った状況をブースト中に1度は観測したか）を必須条件にする**（§4.4 罠3／罠4 の実装形）。
+- **follow-up**＝`O-65` を新規登録（①`WDK17-009-E2` の自ライフ2枚クラッシュ誤パース
+  ②【常】の「〈対戦相手〉のメインフェイズの間」に `activeCondition` の受け皿が無い＝`WXEX2-44-E1` ほか）。
+
+
 ## 2026-08-25：§5.3 `O-63`＝トリガー句の「〈あなた／対戦相手〉のターンの間／に」が JSON に載らない
 
 - 🔴**登録票の見立てを2点とも実測で訂正した。**

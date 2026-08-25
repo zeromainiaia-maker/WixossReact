@@ -16223,6 +16223,53 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
   }
 
+  // §5.3 `O-64`：**トリガー句の「〈あなた／対戦相手〉の〈メイン／アタック〉フェイズの間／以外で」＝
+  // フェイズ主限定の共通抽出**（`O-63` のターン主抽出のすぐ隣＝同じ合流点に寄せる）。
+  //
+  // ■**実測（live・2026-08-25）**＝トリガー句にこの限定があるのに受け皿を1つも持たない【自】が **10効果**
+  //   （`WXDi-D02-25-E1` `WXK06-078-E1` `WX18-077-E1` `WX18-078-E1` `WDK17-009-E1` ほか）。
+  //   ⚠登録票の「15効果」は fresh 側の見立てで、**live には別の受け皿で載っているもの**が混ざっていた
+  //   （§4.1＝着手前に数え直す）。**フェイズ限定の語彙は6系統ある**ので全部引き算してから穴と呼ぶこと：
+  //     ①`triggerCondition.duringMainPhase` / `outsideMainPhase`（→ `mainPhaseGateOk`）
+  //     ②`triggerCondition.duringAttackPhase`（→ collector 内の `startsWith('ATTACK')`）
+  //     ③`condition:{type:'DURING_PHASE'}`（→ `evalUseCondition`。⚠**単独では相手のメインフェイズでも真**）
+  //     ④`condition: AND(DURING_PHASE, IS_MY_TURN)`（→ collector の `condHas` が明示的に見る形だけ有効）
+  //     ⑤`triggerCondition.drawPhaseRestriction`（ON_DRAW 専用）
+  //     ⑥`activeCondition:{type:'DURING_ATTACK_PHASE', owner}`（**CONTINUOUS 専用**＝ここでは扱わない）
+  //
+  // 🔑**受け皿ごとに「誰の」を持てるかが違う。**
+  //   `duringMainPhase`/`outsideMainPhase` は `mainPhaseGateOk` が**フェイズとターン主の両方**を見る
+  //   （「あなたの」を含意する）＝`turnOwner` を併記しない。対して `duringAttackPhase` は**フェイズだけ**
+  //   なので、「〈あなた／対戦相手〉の」は `turnOwner` との**2枚組**で表す（中央の `turnGateOk` が評価）。
+  // ⚠**「対戦相手のメインフェイズの間」は受け皿が無い**（`duringMainPhase` は owner 相対で「自分の」固定）。
+  //   【自】の実データは0件（【常】の `WXEX2-44-E1` のみ＝`activeCondition` 側の話）ので、ここでは拾わない。
+  if (effectType === 'AUTO'
+    && extractedTriggerCondObj?.duringMainPhase === undefined
+    && extractedTriggerCondObj?.outsideMainPhase === undefined
+    && extractedTriggerCondObj?.duringAttackPhase === undefined
+    && !(timing ?? []).some(t => TURN_BOUNDARY_TIMINGS.includes(t))) {
+    const head = /^(?:《[^》]*》)*[：:]?\s*/;
+    const rest = trigText.replace(head, '');
+    // ⚠「〜フェイズ**開始時／終了時**」は境界 timing の側＝`の間`／`以外` に限定して拾う
+    //   （境界 timing は上の除外で既に落ちているが、`ON_PLAY` 等へ誤分類された残りを二重で守る）。
+    if (/^あなたのメインフェイズの間[、,]/.test(rest)) {
+      extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringMainPhase: true };
+    } else if (/^あなたのメインフェイズ以外[でに]/.test(rest)) {
+      extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), outsideMainPhase: true };
+    } else {
+      const apM = rest.match(/^(あなた|対戦相手)のアタックフェイズの間[、,]/);
+      if (apM) {
+        extractedTriggerCondObj = {
+          ...(extractedTriggerCondObj ?? {}),
+          duringAttackPhase: true,
+          ...(extractedTriggerCondObj?.turnOwner === undefined
+            ? { turnOwner: apM[1] === '対戦相手' ? 'opponent' as const : 'self' as const }
+            : {}),
+        };
+      }
+    }
+  }
+
   // ビートアイコン条件：【常】CONTINUOUS は activeCondition（engine checkActiveCondition が評価）、
   // それ以外（起動/自動）は useCondition にマージ。（WXK08-073＝【常】《ビートアイコン》[１枚以上]）
   if (effectType === 'CONTINUOUS' && beatCondition) {
