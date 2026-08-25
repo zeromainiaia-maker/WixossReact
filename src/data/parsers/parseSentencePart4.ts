@@ -739,8 +739,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
 
   // ---- 《ガードアイコン》を持たないカードをデッキ下に ----
+  // ⚠**「対戦相手の手札を見て」が前置される形（`WXDi-P05-039-E2`）は見る効果**なので `lookZone` を刻む
+  //   （§5.3 `O-60` 第1バッチ）。前置が無い形は「選んで置く」だけなので payload を付けない＝
+  //   engine は何も覗かない（fail-closed）。
   if (t.match(/《ガードアイコン》を持たないカード[１-９\d０-９]*枚を選び.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return /対戦相手の手札を見て/.test(t)
+      ? { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } } as StubAction
+      : { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
   // ---- 対戦相手はシグニを好きな数選ぶ ----
   if (t.match(/^対戦相手は(?:自分の)?シグニを好きな数選ぶ$/))

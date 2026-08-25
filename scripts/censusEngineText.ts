@@ -35,7 +35,8 @@ const onlyId = (() => {
 
 // ── ratchet ─────────────────────────────────────────────────────────────────
 // 2026-08-26 の実測値。**増やしてはいけない**（減らしたらこの数値を下げる）。
-const BASELINE_SELF_TEXT = 150;
+// 150 → 149 ＝ §5.3 `O-60` 第1バッチで `LOOK_OPP_LIFE_TOP` を payload 化して1本撤去した。
+const BASELINE_SELF_TEXT = 149;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
@@ -103,7 +104,7 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
           const src = extractRegexLiteral(lines[k], lines[k].search(re));
           if (src) literals.push('re:' + src);
         }
-        const inc = new RegExp('\\b' + varName + '\\b\\s*\\.\\s*(includes|startsWith)\\s*\\(([\'\"`])((?:\\\\.|(?!\\2).)*)\\2', 'g');
+        const inc = new RegExp('\\b' + varName + '\\b\\s*\\.\\s*(includes|startsWith)\\s*\\((["\'`])((?:\\\\.|(?!\\2).)*)\\2', 'g');
         let mi: RegExpExecArray | null;
         while ((mi = inc.exec(lines[k]))) literals.push('str:' + mi[3]);
         // `/…/.test(txt)` 形

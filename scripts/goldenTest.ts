@@ -7582,6 +7582,70 @@ test('O-56 engine: burst_as_checkの「発動しますか？」往復は対象�
   eq(lost.ownerState.hand.length, beforeHand, '対照：ペイロードが無いと往復後に発動できない（旧バグの形）');
 }));
 
+// 🔴§5.3 `O-60` 第1バッチ（2026-08-26）＝`LOOK_OPP_LIFE_TOP` は**実行中の文ではなくカード全文**
+//    （`EffectText`＋`BurstText`）を regex で読んでゾーンと枚数を決めていた。実測で live 28効果のうち
+//    **27効果は regex が1本も当たらず既定（相手ライフ上1枚）へ落ちていた**＝連用形「手札を見**て**」が
+//    全滅して**相手の手札ではなくライフクロスを覗き**、「上から**カードを**２枚見る」も1枚に潰れていた。
+//    ⇒ parser が `lookZone{zone,count}` を刻み、engine は payload だけを読む。
+// ⚠**母集団は毎回 live から再導出する**（固定リストにすると parser が別の文へ広がったとき静かに漏れる）。
+test('O-60 parser: 「見る／公開する」の LOOK_OPP_LIFE_TOP が lookZone でゾーンと枚数を持つ', () => {
+  const found: Array<{ effectId: string; zone?: string; count?: number | 'ALL' }> = [];
+  const walk = (effectId: string, value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(v => walk(effectId, v)); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'LOOK_OPP_LIFE_TOP') {
+      const lz = obj.lookZone as { zone?: string; count?: number | 'ALL' } | undefined;
+      found.push({ effectId, zone: lz?.zone, count: lz?.count });
+    }
+    Object.values(obj).forEach(v => walk(effectId, v));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  ok(found.length >= 25, `母集団は live から再導出（実測 ${found.length} ノード）`);
+
+  // 🔑ゾーン別の代表を live から assert する＝「相手ライフ」以外の枝が実在することを固定し、
+  //    payload を落として既定へ倒す退化（＝旧バグの形）を検出する。
+  const zoneOf = (effectId: string) => found.find(x => x.effectId === effectId && x.zone);
+  eq(zoneOf('WDK09-017-E1')?.zone, 'opp_hand', '🔴連用形「対戦相手の手札を見て」は相手の手札（旧実装はライフを覗いた）');
+  eq(zoneOf('WXDi-D09-P04-E3')?.zone, 'opp_hand', '同・宣言してから手札を見る形');
+  eq(zoneOf('WXDi-P05-039-E2')?.zone, 'opp_hand', '同・《ガードアイコン》を持たないカードを選ぶ形');
+  eq(zoneOf('WX25-P2-026-E2')?.zone, 'self_life', '🔴「あなたのライフクロスをすべて見て」は自分側（旧実装は所有者を見ていない）');
+  eq(zoneOf('WX25-P2-026-E2')?.count, 'ALL', '同・すべて見る');
+  eq(zoneOf('WX13-048-E1')?.zone, 'opp_deck_top', '「対戦相手はデッキの一番上のカードを公開する」はデッキ上');
+  eq(zoneOf('WXEX1-11-E2')?.zone, 'opp_life', '相手ライフの複数枚形');
+  eq(zoneOf('WXEX1-11-E2')?.count, 2, '🔴「上からカードを２枚見る」が2枚（旧実装は既定の1枚に潰れた）');
+  eq(zoneOf('WD06-006-E1')?.count, 1, '「一番上を公開する」は1枚');
+
+  // ⚠payload の無いノードが残っているのは既知＝この id が20の無関係な文型の catch-all だから（§5.3 `O-76`）。
+  //   engine は fail-closed で**何も見ない**ので、ここでは「見る文が payload を持つ」側だけを固定する。
+  const zones = new Set(found.filter(x => x.zone).map(x => x.zone));
+  eq([...zones].sort().join(','), 'opp_deck_top,opp_hand,opp_life,self_life', '4ゾーンすべてが live に存在する');
+});
+
+test('O-60 engine: 見る領域は payload で決まり、payload が無ければ何も覗かない', () => withSavedCursor(() => {
+  const oppLife = fill(4);
+  const oppHand = fill(3);
+  const ctx0 = mkCtx({ life: 5 }, {}, 'WDK09-017');
+  const ctx = { ...ctx0, otherState: { ...ctx0.otherState, life_cloth: oppLife, hand: oppHand } } as ExecCtx;
+
+  const hand = run({ type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } } as unknown as EffectAction, ctx);
+  eq((hand.lastProcessedCards ?? []).join(','), oppHand.join(','), '🔴opp_hand は相手の手札を見る');
+
+  const life2 = run({ type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 2 } } as unknown as EffectAction, ctx);
+  eq((life2.lastProcessedCards ?? []).join(','), oppLife.slice(-2).join(','), 'opp_life は上（配列末尾）から N 枚');
+
+  const selfLife = run({ type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'self_life', count: 'ALL' } } as unknown as EffectAction, ctx);
+  eq((selfLife.lastProcessedCards ?? []).join(','), ctx.ownerState.life_cloth.join(','), 'self_life は自分のライフクロス');
+
+  const deckTop = run({ type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_deck_top', count: 1 } } as unknown as EffectAction, ctx);
+  eq((deckTop.lastProcessedCards ?? []).join(','), ctx.otherState.deck.slice(0, 1).join(','), '🔴デッキは先頭が一番上（ライフと向きが逆）');
+
+  // 🔑対照＝payload が無いと**何も見ない**（旧実装はここで相手のライフ上1枚を覗いて lastProcessedCards を汚した）。
+  const none = run({ type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as unknown as EffectAction, ctx);
+  eq((none.lastProcessedCards ?? []).length, 0, '🔴payload 欠落は fail-closed＝1枚も覗かない');
+  ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+}));
+
 // 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
 //    旧実装は `STUB{SOUL_OP}`＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**別機構**へ
 //    落としており、エナの自分自身を1枚も戻さないまま「そうした場合」の本体だけが通る踏み倒しだった。

@@ -43,6 +43,9 @@ const results = await Promise.all([
   // ゲートに載せる。新しい STUB を足して消費地点を書き忘れたらここで止まる。
   run('census-stubs', 'census:stubs'),
   run('manual-fields', 'check:manual-fields'),
+  // 🆕§5.3 `O-60`（2026-08-26）＝engine が「効果元のカード全文」を regex で読む箇所の ratchet。
+  // 増えたら exit 1（新しいハンドラで全文 regex を書いた）／減っても exit 1（基準の下げ忘れ）。
+  run('census-enginetext', 'census:enginetext'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);
