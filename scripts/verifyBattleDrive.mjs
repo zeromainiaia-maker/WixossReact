@@ -2294,11 +2294,13 @@ const scenarios = {
     },
   },
 
-  // ②反転＝発生源が＜武勇＞（毒牙でない）なら watcher は発火してはいけない。**旧実装ではここが発火していた**
-  //   （srcCardNum を書かない経路＝発生源不明＝fail-open）。相手のパワーは確かに減る（-1000）ので、
-  //   「効果自体は動いたが watcher だけ黙っている」ことを1シナリオで同時に確かめる。
+  // ②反転（発生源が**刻まれる**経路）＝発生源が＜武勇＞（毒牙でない）なら watcher は発火しない。
+  //   ⚠**この経路は旧実装でも正しく止まっていた**＝`POWER_MODIFY_PER_TRASH_COUNT` は対象を1体選ばせる際に
+  //   `POWER_MODIFY` へ変換して `selectOrInteract` へ渡す（effectExecutor.ts の `pmTC`）ので、
+  //   実際に temp_power_mods を書くのは `execPowerModify`＝`srcCardNum` が入る。
+  //   旧実装の fail-open が牙を剥くのは `count:'ALL'`（＝選択を挟まない）側で、そちらは ③ で見る。
   poisonPowerDecreaseGate: {
-    title: 'O-44② WXK02-061→WX25-P3-062-E1 反転（＜武勇＞発生源では watcher が発火しない＝fail-closed）',
+    title: 'O-44② WXK02-061→WX25-P3-062-E1 反転（発生源が刻まれる経路・＜武勇＞では watcher が発火しない）',
     spec: {
       hostSet: {
         'field.lrig': ['WX21-009#1'],                     // カーニバル ＱＦ Lv4/Limit12（WXK02-061「カーニバル限定」・能力なし）
@@ -2339,6 +2341,76 @@ const scenarios = {
       const fin = await H.queryState();
       if (decreasedAt < 0) return { pass: false, detail: `前提が崩れた＝相手のパワーが減っていない（g=${(fin?.guest?.powerMods ?? []).join(',') || '-'}）` };
       return { pass: true, detail: `＜武勇＞発生源では watcher が発火しない（g=${(fin?.guest?.powerMods ?? []).join(',')} h=${(fin?.host?.powerMods ?? []).join(',') || '(なし)'}）` };
+    },
+  },
+
+  // ③**O-44 の本命反転**＝`count:'ALL'` の一括パワー減少（`POWER_MODIFY_PER_FIELD`）は
+  //   `temp_power_mods` に `srcCardNum` を**書かない**。旧実装はこれを「発生源不明」と読んで
+  //   **クラス限定を丸ごと素通り（fail-open）**させていた＝＜バーチャル＞のシグニがアタックしただけで
+  //   ＜毒牙＞限定の watcher（WX25-P3-062-E1）が発火する過剰トリガー。
+  //   新実装は中央 diff の `causeSourceCardNum`（＝アタックした WXDi-P00-078）へ寄せて判定するので黙る。
+  //   ⚠**このシナリオを旧実装で回すと FAIL する**（＝反転が効いている証拠。手で戻して確認済み）。
+  poisonPowerDecreaseGateAll: {
+    title: 'O-44③ WXDi-P00-078→WX25-P3-062-E1 反転（count:ALL＝srcCardNum 無し経路でも＜毒牙＞限定が効く）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],                                    // Lv2（アタックするだけ＝限定・Limit に無関係）
+        'field.signi': [['WXDi-P00-078#1'], ['WX25-P3-062#1'], null],    // zone0=攻撃者（＜バーチャル＞）／zone1=watcher（＜毒牙＞）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, ['WX01-053#1']],                     // host zone0 の正面（2-0）に P15000＝-1000 でも生き残る
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[2] ?? []).includes?.('WX01-053#1'); r++) {
+        H.log(`再注入(${r})… guest zone2=${JSON.stringify(before?.guest?.fieldSigni?.[2])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      H.log('開始時 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      let modalOpened = false;
+      let decreasedAt = -1;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/poisonPowerDecreaseGateAll-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && decreasedAt < 0) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gDec = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-'));
+        const hBuff = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX25-P3-062#1:') && parseInt(m.split(':')[1], 10) > 0);
+        H.log(`  pda[${s}] -> ${did ?? 'なし'} | h=${(st?.host?.powerMods ?? []).join(',') || '-'} g=${(st?.guest?.powerMods ?? []).join(',') || '-'} phase=${st?.turnPhase ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (hBuff) return { pass: false, detail: `＜バーチャル＞発生源なのに＜毒牙＞限定の watcher が発火した＝旧 fail-open の再発（h=${(st.host.powerMods).join(',')}）` };
+        if (gDec && decreasedAt < 0) { decreasedAt = s; H.log(`  一括パワー減少を確認（s=${s}）＝ここから数手ぶん watcher の遅発を見張る`); }
+        if (decreasedAt >= 0 && s >= decreasedAt + 3) {
+          return { pass: true, detail: `count:ALL の一括減少でも＜毒牙＞限定が効き watcher は発火しない（g=${(st.guest.powerMods).join(',')} h=${(st.host.powerMods).join(',') || '(なし)'}）` };
+        }
+      }
+      const fin = await H.queryState();
+      if (decreasedAt < 0) return { pass: false, detail: `前提が崩れた＝一括パワー減少が起きていない（g=${(fin?.guest?.powerMods ?? []).join(',') || '-'} phase=${fin?.turnPhase ?? '-'}）` };
+      return { pass: true, detail: `count:ALL でも watcher は発火しない（g=${(fin?.guest?.powerMods ?? []).join(',')} h=${(fin?.host?.powerMods ?? []).join(',') || '(なし)'}）` };
     },
   },
 

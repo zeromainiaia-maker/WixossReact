@@ -2017,6 +2017,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const puFrom = puLoc[a.source] ?? `${a.source}から`;
       const puNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
       const puCnt = a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
+      // 「《A》1枚と《B》1枚」＝群ごとの配分（§5.3 O-45）。cardNames の「いずれか」表記では
+      // 「同名2枚でもよい」に読めてしまうので、groups があるときはそちらを優先して出す。
+      if (a.selectionConstraint?.groups?.length) {
+        return `${puFrom}${selectionGroupsJa(a.selectionConstraint.groups)}をこのシグニの下に置く`;
+      }
       // 選んだ複数枚どうしの相互差異（「共通する色を持たない…２枚まで」WX21-024-E1）。段2 第42バッチ。
       return `${puFrom}${constraintJa(a.selectionConstraint)}${a.filter ? filterJa(a.filter) : ''}${puNoun}を${puCnt}このシグニの下に置く`;
     }
