@@ -2406,15 +2406,21 @@ export function collectPowerDecreaseTriggers(
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       // 発生源限定（「あなたの＜X＞のシグニの効果によって」「あなたの**他の**＜X＞のシグニの効果によって」）。
-      // ⚠decreaseSources が空＝発生源不明（srcCardNum 未記録の経路）は**従来どおり発火**させる。
-      //   ここで落とすと部分実装が「発火しない」退化になるため、不明時は過剰側に倒す（§3 タスク12(xxiv)）。
+      // 🆕**fail-closed**（§6.4 O-44・2026-08-25）＝原因が特定できないときは**発火させない**。原文
+      //   「あなたの＜毒牙＞のシグニの**効果によって**」は**原因の特定が意味の一部**なので、
+      //   trashSourceStory / banishedSourceStory / milledSourceStory と同じ倒し方に揃えた。
+      // ⚠ここが唯一 fail-open（不明なら発火）だった＝「毒牙以外の効果でパワーが減っても発火」する
+      //   過剰トリガーの温床。発生源が刻まれない経路（POWER_MODIFY_PER_* / STUB 系）は
+      //   `detectPowerDecreaseSources` が中央 diff の `causeSourceCardNum` へ寄せるので、
+      //   ここへ来る '' （発生源不明）は実質「効果解決の外で減った」場合だけになる。
       const reqStory = eff.triggerCondition?.powerDecreaseSourceStory;
       const reqOther = eff.triggerCondition?.powerDecreaseExcludeSelf;
-      if ((reqStory || reqOther) && decreaseSources.length > 0) {
+      if (reqStory || reqOther) {
         const ok = decreaseSources.some(src => {
           if (reqOther && src === topNum) return false;             // 「他の」＝自分自身の効果は発生源にならない
           if (!reqStory) return true;
           // 発生源は「あなたの」＝controller 側のカード。CardClass に指定クラスを含むシグニのみ。
+          // src === '' （発生源不明）は CardClass も空＝ここで false になる＝fail-closed。
           const cls = ctx.cardMap.get(getCardNum(src))?.CardClass ?? '';
           return cls.includes(reqStory);
         });

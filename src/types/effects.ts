@@ -3540,7 +3540,9 @@ export interface CardEffect {
     drawByDrawerOwnEffect?: boolean; // ON_DRAW triggerScope:any_opp で「対戦相手が【自分の効果で】引いたとき」限定（PR-423）。drawer（対戦相手）の last_draw_by_own_effect が true のときのみ発火＝reactor 自身の効果で相手を引かせた場合は誤発火しない（続き162・Opusタスク12(xxi)）
     risedOntoNameContains?: string; // このシグニが、カード名に指定文字列を含むシグニの上にライズされた場合のみ発火（WX20-056-E2「《オダノブ》を含むシグニにライズされたとき」。ON_RISE と併用。ライズで下に置かれた元シグニの名前で判定）
     // ON_OPP_POWER_DECREASED の発生源限定「あなたの（他の）＜X＞のシグニの効果によって」（discardCostSourceStory と同型）。
-    // engine は temp_power_mods.srcCardNum の CardClass で判定し、発生源不明のときは従来どおり発火する（過剰側に倒す）。
+    // engine は temp_power_mods.srcCardNum（未記録なら中央 diff の causeSourceCardNum）の CardClass で判定する。
+    // 🆕**発生源不明のときは発火しない＝fail-closed**（§6.4 O-44・2026-08-25）＝原文「効果によって」は
+    // 原因の特定が意味の一部なので、trashSourceStory / banishedSourceStory / milledSourceStory と規約を揃えた。
     powerDecreaseSourceStory?: string;
     powerDecreaseExcludeSelf?: boolean; // 「あなたの**他の**＜X＞のシグニの効果によって」＝効果元自身は発生源から除く
     discardCostSourceStory?: string; // ON_DISCARDED_AS_COST の発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして捨てられたとき」（WX25-P3-071/077/084/085/088）。コストを支払った能力の host シグニの CardClass に X を含む場合のみ発火＝他クラスのコスト捨てでは誤発火しない（続き162・Opusタスク12(xxiv)）

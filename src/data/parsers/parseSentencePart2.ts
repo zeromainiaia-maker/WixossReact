@@ -1268,8 +1268,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
         return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 1, filter: { cardName: nameMatches[0] } } as PlaceUnderSigniAction;
       }
       // 複数名：「か」ならどれか1枚、「と」なら全部
-      const count = /》か《/.test(t) ? 1 : nameMatches.length;
-      return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count, upToCount: false, filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
+      // ⚠**名前を filter へ運ぶ**（§5.3 O-45）＝旧実装は `cardType:'シグニ'` だけで、
+      //   「《A》か《B》１枚」がトラッシュのどのシグニでも下に置ける過剰実行になっていた
+      //   （`WXDi-P11-050-E2`／`WXK09-060-E3`）。
+      // 「と」＝**それぞれ1枚ずつ**なので groups で配分する（同名2枚を選べてしまうのを防ぐ）。
+      const isOr = /》か《/.test(t);
+      const count = isOr ? 1 : nameMatches.length;
+      return {
+        type: 'PLACE_UNDER_SIGNI', source: 'trash', count, upToCount: false,
+        filter: { cardNames: nameMatches },
+        ...(isOr ? {} : { selectionConstraint: { groups: nameMatches.map(nm => ({ filter: { cardName: nm }, count: 1 })) } }),
+      } as PlaceUnderSigniAction;
     }
   }
 
@@ -1832,16 +1841,24 @@ export function parseSentencePart2(t: string): EffectAction | null {
       return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: levelCount * perCount, upToCount: true, filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
     }
     // N枚まで or N枚を（レベル・クラス条件付き）
-    const m = t.match(/あなたのトラッシュから(＜[^＞]+＞の|共通する色を持たない)?(?:レベル[０-９\d＋以下上]+の)?([＜〈<][^＞〉>]+[＞〉>]の)?(?:シグニ|カード)を?([０-９\d]+)枚?(まで)?(?:を)?対象とし.*このシグニの下に置く/);
+    // ⚠名詞句修飾は原文でこの順に並ぶ＝「共通する色を持たない」→「レベルN以下の」→「＜クラス＞の」。
+    //   旧実装は **①レベル句を消費するだけで捨て** **②`m[1] ?? m[2]` でクラスを取りこぼす**（m[1] が
+    //   「共通する色を持たない」だとクラスが落ちる）ため、`WX21-024-E1`「共通する色を持たない
+    //   レベル４以下の＜天使＞のシグニを２枚まで」が `{cardType:'シグニ'}` に潰れて
+    //   **トラッシュのどのシグニでも下に置ける過剰実行**になっていた（§5.3 O-45）。
+    //   相互差異（「共通する色を持たない」＝`selectionConstraint.sharedColor`）は別経路で配線済み。
+    const m = t.match(/あなたのトラッシュから(＜[^＞]+＞の|共通する色を持たない)?((?:レベル[０-９\d＋]+(?:以下|以上)?の)?)([＜〈<][^＞〉>]+[＞〉>]の)?(シグニ|カード)を?([０-９\d]+)枚?(まで)?(?:を)?対象とし.*このシグニの下に置く/);
     if (m) {
-      const cnt = parseNum(m[3]);
-      const storyFilter = (m[1] || m[2]) ? parseStoryFilter(m[1] ?? m[2] ?? '') : {};
+      const cnt = parseNum(m[5]);
+      const storyFilter = parseStoryFilter(`${m[1] ?? ''}${m[3] ?? ''}`);
+      const levelFilter = m[2] ? parseLevelFilter(m[2]) : {};
       return {
         type: 'PLACE_UNDER_SIGNI',
         source: 'trash',
         count: cnt,
-        upToCount: !!m[4],
-        filter: { cardType: 'シグニ', ...storyFilter },
+        upToCount: !!m[6],
+        // 原文の名詞が「カード」なら**シグニに限定しない**（スペル等も下に置ける）。
+        filter: { ...(m[4] === 'シグニ' ? { cardType: 'シグニ' } : {}), ...storyFilter, ...levelFilter },
       } as PlaceUnderSigniAction;
     }
     // フォールバック：トラッシュから置く

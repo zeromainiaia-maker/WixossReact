@@ -476,19 +476,22 @@ export function detectPowerDecrease(before: PlayerState, after: PlayerState): nu
 /**
  * パワー減少を起こした効果元カード（temp_power_mods の新規負 delta の srcCardNum）を返す（ON_OPP_POWER_DECREASED
  * の発生源限定「あなたの＜X＞のシグニの効果によって」判定用・§3 タスク12(xxiv)）。
- * ⚠srcCardNum は全書き込み経路では埋まらない。**1件でも未設定が混ざる場合は空配列＝発生源不明**を返し、
- * 呼び出し側は従来どおり発火させる（過剰側に倒す）＝部分実装が「発火しない」退化に化けるのを防ぐ。
+ * ⚠srcCardNum は全書き込み経路では埋まらない（POWER_MODIFY 本体は刻むが POWER_MODIFY_PER_* / STUB 系は刻まない）。
+ * そこで **`fallbackSrc`＝中央 diff の `causeSourceCardNum`（いま解決中の効果の発生源カード）** を渡してもらい、
+ * 未記録の1件はそこへ寄せる（減少はその効果の解決中に起きたので発生源はそのカード）。
+ * それでも不明な1件は **空文字＝発生源不明** として**要素は残す**（§6.4 O-44）。
+ * ⚠**1件でも未設定なら空配列**を返す旧仕様は廃止した＝呼び出し側の fail-open（不明なら発火）と組で
+ * 「他3語彙は fail-closed・ここだけ fail-open」という規約の混在を生んでいたため（原文
+ * 「あなたの＜毒牙＞のシグニの**効果によって**」＝原因の特定が意味の一部なので fail-closed が忠実）。
  */
-export function detectPowerDecreaseSources(before: PlayerState, after: PlayerState): string[] {
+export function detectPowerDecreaseSources(before: PlayerState, after: PlayerState, fallbackSrc?: string): string[] {
   if (!before || !after) return [];
   const beforeMods = before.temp_power_mods ?? [];
   const afterMods = after.temp_power_mods ?? [];
   const srcs: string[] = [];
   for (let i = beforeMods.length; i < afterMods.length; i++) {
     if (afterMods[i].delta >= 0) continue;
-    const src = afterMods[i].srcCardNum;
-    if (!src) return [];      // 発生源不明が混ざる＝限定判定を諦める
-    srcs.push(src);
+    srcs.push(afterMods[i].srcCardNum ?? fallbackSrc ?? '');   // '' ＝発生源不明（限定付き効果は非発火）
   }
   return srcs;
 }

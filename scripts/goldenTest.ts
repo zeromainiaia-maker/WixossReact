@@ -96,7 +96,7 @@ import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
-import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
@@ -11719,7 +11719,8 @@ test('Stage2 ON_DISCARDED_AS_COST: asCost=true のみ発火（WX25-P3-071-E2）'
 });
 // ON_OPP_POWER_DECREASED の発生源限定（続き206・タスク12(xxiv)）。従来は「＜毒牙＞のシグニの効果によって」を
 // 落としており、自分のどの効果でパワーを減らしても発火する過剰トリガーだった。
-// ⚠発生源不明（srcCardNum 未記録の経路＝空配列）のときは**従来どおり発火**させる設計＝部分実装が過少発火に化けないため。
+// 🆕**発生源不明は非発火＝fail-closed**（§6.4 O-44・2026-08-25）＝他3語彙（trashSourceStory /
+// banishedSourceStory / milledSourceStory）と規約を揃えた。原文「効果によって」は原因の特定が意味の一部。
 test('Stage2 ON_OPP_POWER_DECREASED: 発生源クラス限定（WX25-P3-032-E1・続き206）', () => {
   const host = mkState({ signi: ['WX25-P3-032', null, null] });
   const guest = mkState({});
@@ -11728,8 +11729,22 @@ test('Stage2 ON_OPP_POWER_DECREASED: 発生源クラス限定（WX25-P3-032-E1�
   const fire = (srcs: string[]) => has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000, srcs).entries, 'WX25-P3-032-E1');
   eq(fire([dokuga!]), true, '毒牙シグニの効果による減少では発火するはず');
   eq(fire([other!]), false, '毒牙以外の効果による減少では発火しないはず（従来はここが過剰発火）');
-  eq(fire([]), true, '発生源不明（srcCardNum 未記録経路）は従来どおり発火するはず');
+  eq(fire([]), false, '発生源不明（減少なし）は発火しないはず＝fail-closed（O-44）');
+  eq(fire(['']), false, '発生源不明（srcCardNum も causeSourceCardNum も無い）は発火しないはず＝fail-closed（O-44）');
+  eq(fire([other!, dokuga!]), true, '同時減少のうち1件でも毒牙なら発火するはず');
 });
+
+// O-44: 発生源が刻まれない経路（POWER_MODIFY_PER_* / STUB 系）は中央 diff の causeSourceCardNum へ寄せる。
+// これが無いと fail-closed 化が「毒牙シグニの効果なのに永久に発火しない」退化に化ける。
+// ⚠`mkState` は POOL カーソルを進めるので `withSavedCursor` で包む（包まないと後続テストが引くカードが
+//   ずれて別テストが化ける＝§2.1 ④の注意そのもの）。
+test('Stage2 boardDiff detectPowerDecreaseSources: srcCardNum 未記録は causeSourceCardNum へ寄せる（O-44）', () => withSavedCursor(() => {
+  const before = mkState({}); before.temp_power_mods = [];
+  const after = mkState({});
+  after.temp_power_mods = [{ cardNum: 'v1', delta: -3000, srcCardNum: 'SRC-A' }, { cardNum: 'v2', delta: -2000 }, { cardNum: 'v3', delta: 1000 }] as never;
+  eq(detectPowerDecreaseSources(before, after, 'CAUSE-B').join(','), 'SRC-A,CAUSE-B', '刻まれた分はそのまま・未記録は原因カードへ寄る（正 delta は無視）');
+  eq(detectPowerDecreaseSources(before, after).join(','), 'SRC-A,', 'fallback 無しなら未記録は空文字＝発生源不明');
+}));
 
 test('Stage2 ON_OPP_POWER_DECREASED: 「他の」＝自身の効果は発生源にならない（WX25-P3-062-E1・続き206）', () => {
   const host = mkState({ signi: ['WX25-P3-062', null, null] });
@@ -11738,6 +11753,7 @@ test('Stage2 ON_OPP_POWER_DECREASED: 「他の」＝自身の効果は発生源�
   const fire = (srcs: string[]) => has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000, srcs).entries, 'WX25-P3-062-E1');
   eq(fire([dokuga!]), true, '他の毒牙シグニの効果なら発火するはず');
   eq(fire(['WX25-P3-062']), false, '自分自身の効果では発火しないはず（「他の」）');
+  eq(fire(['']), false, '発生源不明は発火しないはず＝fail-closed（O-44）');
 });
 
 // ON_CARD_MILLED_FROM_DECK の発生源限定（続き206・タスク12(xxiv) 完了）。trash は string[] で発生源を
@@ -22627,6 +22643,50 @@ test('対象filter合成 第2波: 「《X》以外の＜種族＞のシグニN�
   eq(a.type, 'PLACE_UNDER_SIGNI', 'PLACE_UNDER_SIGNI'); eq(a.count, 3, 'count:3（1潰れを是正）');
   eq(a.filter?.excludeCardName, '羅原　Ｕ', 'excludeCardName（cardName誤合成を是正）');
   eq(a.filter?.story, '原子', 'story:原子'); ok(a.filter?.cardName === undefined, 'cardName include を付けない');
+});
+// §5.3 O-45: PLACE_UNDER_SIGNI のビルダーが名詞句修飾（filter）を運ばず、トラッシュ／手札／エナの
+// **どのカードでも下に置ける過剰実行**になっていた（逆に原文「カード」をシグニへ狭める過小実行もあった）。
+test('O-45 PLACE_UNDER_SIGNI: 「共通する色を持たないレベル4以下の＜天使＞」＝story+level を両方運ぶ（WX21-024-E1）', () => {
+  const a = parseCardEffects({ CardNum: 'TEST-PU-A', Type: 'シグニ', EffectText: '【出】：あなたのトラッシュから共通する色を持たないレベル４以下の＜天使＞のシグニを２枚まで対象とし、それらをこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { type?: string; count?: number; upToCount?: boolean; filter?: { cardType?: string; story?: string; level?: { max?: number } }; selectionConstraint?: { sharedColor?: string } };
+  eq(a.type, 'PLACE_UNDER_SIGNI', 'PLACE_UNDER_SIGNI');
+  eq(a.count, 2, 'count:2'); eq(a.upToCount, true, 'まで');
+  eq(a.filter?.story, '天使', 'story:天使（旧実装は「共通する色を持たない」に食われて落ちていた）');
+  eq(a.filter?.level?.max, 4, 'level.max:4（旧実装はレベル句を消費するだけで捨てていた）');
+  eq(a.selectionConstraint?.sharedColor, 'none', '相互差異は従来どおり');
+});
+test('O-45 PLACE_UNDER_SIGNI: 原文の名詞が「カード」ならシグニに限定しない（WX25-CP1-091-E1／WXDi-CP02-054-E2）', () => {
+  const a = parseCardEffects({ CardNum: 'TEST-PU-B', Type: 'シグニ', EffectText: '【出】：あなたのトラッシュから＜ブルアカ＞のカードを２枚まで対象とし、それらをこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { filter?: { cardType?: string; story?: string } };
+  ok(a.filter?.cardType === undefined, 'cardType を付けない（スペル等も下に置ける）');
+  eq(a.filter?.story, 'ブルアカ', 'story:ブルアカ');
+  const b = parseCardEffects({ CardNum: 'TEST-PU-C', Type: 'シグニ', EffectText: '【出】：あなたのトラッシュから＜天使＞のシグニ１枚を対象とし、それをこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { filter?: { cardType?: string; story?: string } };
+  eq(b.filter?.cardType, 'シグニ', '名詞が「シグニ」なら従来どおり cardType:シグニ');
+});
+test('O-45 PLACE_UNDER_SIGNI: 《A》か《B》は cardNames／《A》と《B》は groups で1枚ずつ（WXDi-P11-050-E2／WXK09-060-E3）', () => {
+  const or = parseCardEffects({ CardNum: 'TEST-PU-D', Type: 'シグニ', EffectText: '【出】：あなたのトラッシュから《融合の儀　タウィル//メモリア》か《融合の儀　ウムル//メモリア》１枚を対象とし、それをこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { count?: number; filter?: { cardType?: string; cardNames?: string[] }; selectionConstraint?: unknown };
+  eq(or.count, 1, 'か＝1枚');
+  eq(JSON.stringify(or.filter?.cardNames), '["融合の儀　タウィル//メモリア","融合の儀　ウムル//メモリア"]', 'cardNames（旧実装はどのシグニでも置けた）');
+  ok(or.selectionConstraint === undefined, '「か」に groups は不要');
+  const and = parseCardEffects({ CardNum: 'TEST-PU-E', Type: 'シグニ', EffectText: '【出】：あなたのトラッシュから《楽隊の童話　キャットレ》１枚と《楽隊の童話　ドッグメ》１枚を対象とし、それらをこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { count?: number; filter?: { cardNames?: string[] }; selectionConstraint?: { groups?: Array<{ filter?: { cardName?: string }; count?: number }> } };
+  eq(and.count, 2, 'と＝2枚');
+  eq(and.selectionConstraint?.groups?.length, 2, 'groups で1枚ずつ配分（同名2枚を選べてしまうのを防ぐ）');
+  eq(and.selectionConstraint?.groups?.[0].filter?.cardName, '楽隊の童話　キャットレ', 'group0');
+  eq(and.selectionConstraint?.groups?.[1].count, 1, 'group1 count:1');
+});
+test('O-45 PLACE_UNDER_SIGNI: 手札のレベル句・エナの《ガードアイコン》を持たないを運ぶ（WXDi-P10-043-E3／WXDi-P06-039-E2）', () => {
+  const h = parseCardEffects({ CardNum: 'TEST-PU-F', Type: 'シグニ', EffectText: '【起】《ターン１回》《黒×0》：あなたの手札からレベル１のシグニを５枚までこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { source?: string; count?: number; filter?: { cardType?: string; level?: number } };
+  eq(h.source, 'hand', 'source:hand'); eq(h.count, 5, 'count:5');
+  eq(h.filter?.level, 1, 'level:1（旧実装はレベル句を捨てていた）');
+  const e = parseCardEffects({ CardNum: 'TEST-PU-G', Type: 'シグニ', EffectText: '【出】：あなたのエナゾーンから《ガードアイコン》を持たないシグニ１枚を対象とし、それをこのシグニの下に置く。' } as unknown as CardData)[0].action as
+    { source?: string; filter?: { cardType?: string; noGuard?: boolean } };
+  eq(e.source, 'energy', 'source:energy');
+  eq(e.filter?.noGuard, true, 'noGuard:true（旧実装はガードアイコン持ちも置けた）');
+  eq(e.filter?.cardType, 'シグニ', 'cardType:シグニ');
 });
 test('対象filter合成 第2波: WX09-020-BURST（PRESERVE直パッチ）の白か黒がcuratedに実体化', () => {
   const e = effectsMap.get('WX09-020')!.find(x => x.effectId === 'WX09-020-BURST')!;

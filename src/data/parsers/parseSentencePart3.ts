@@ -38,34 +38,46 @@ import { parseSentencePart2 } from './parseSentencePart2';
 export function parseSentencePart3(t: string): EffectAction | null {
   // ---- エナゾーンからN枚このシグニの下に置く ----
   {
-    const m = t.match(/あなたのエナゾーンから((?:《ガードアイコン》を持たない)?(?:カード|シグニ))を?([０-９\d]+)枚?(まで)?(?:を対象とし、それ(?:ら)?を)?このシグニの下に置く/);
+    // ⚠名詞句修飾を filter へ運ぶ（§5.3 O-45）＝旧実装は m[1] を捕捉するだけで捨てており、
+    //   「《ガードアイコン》を持たないシグニ１枚」（`WXDi-P06-039-E2`）でガードを下に置けたし、
+    //   「カードを４枚まで」（`WXDi-P08-044-E3`）はシグニに限定される過小実行だった。
+    const m = t.match(/あなたのエナゾーンから((?:《ガードアイコン》を持たない)?)(カード|シグニ)を?([０-９\d]+)枚?(まで)?(?:を対象とし、それ(?:ら)?を)?このシグニの下に置く/);
     if (m) {
       return {
         type: 'PLACE_UNDER_SIGNI',
         source: 'energy',
-        count: parseNum(m[2]),
-        upToCount: !!m[3],
-        filter: { cardType: 'シグニ' },
+        count: parseNum(m[3]),
+        upToCount: !!m[4],
+        filter: {
+          ...(m[2] === 'シグニ' ? { cardType: 'シグニ' } : {}),
+          ...(m[1] ? { noGuard: true } : {}),
+        },
       } as PlaceUnderSigniAction;
     }
   }
 
   // ---- 手札からN枚このシグニの下に置く ----
   {
-    const m = t.match(/あなたの手札から((?:レベル[０-９\d０-９]+の)?(?:シグニ|カード))を?([０-９\d]+)枚?(まで)?(?:を対象とし、それ(?:ら)?を)?このシグニの下に置く/);
+    // ⚠レベル句を filter へ運ぶ（§5.3 O-45）＝旧実装は捕捉するだけで捨てており、
+    //   「あなたの手札から**レベル１の**シグニを５枚まで」（`WXDi-P10-043-E3`）が
+    //   手札のどのシグニでも下に置ける過剰実行になっていた。
+    const m = t.match(/あなたの手札から((?:レベル[０-９\d]+(?:以下|以上)?の)?)(シグニ|カード)を?([０-９\d]+)枚?(まで)?(?:を対象とし、それ(?:ら)?を)?このシグニの下に置く/);
     if (m) {
       return {
         type: 'PLACE_UNDER_SIGNI',
         source: 'hand',
-        count: parseNum(m[2]),
-        upToCount: !!m[3],
-        filter: { cardType: 'シグニ' },
+        count: parseNum(m[3]),
+        upToCount: !!m[4],
+        filter: {
+          ...(m[2] === 'シグニ' ? { cardType: 'シグニ' } : {}),
+          ...(m[1] ? parseLevelFilter(m[1]) : {}),
+        },
       } as PlaceUnderSigniAction;
     }
-    // 「あなたは手札をN枚まで」形式
+    // 「あなたは手札をN枚まで」形式＝**手札のカードなら何でも**（シグニ限定ではない・`WXDi-P11-080-E2`）
     const m2 = t.match(/あなたは手札を([０-９\d]+)枚?(まで)?このシグニの下に置く/);
     if (m2) {
-      return { type: 'PLACE_UNDER_SIGNI', source: 'hand', count: parseNum(m2[1]), upToCount: !!m2[2], filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
+      return { type: 'PLACE_UNDER_SIGNI', source: 'hand', count: parseNum(m2[1]), upToCount: !!m2[2] } as PlaceUnderSigniAction;
     }
   }
 
