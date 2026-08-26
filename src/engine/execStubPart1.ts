@@ -1843,44 +1843,26 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, double_power_minus_sources: [...new Set([...current, ...sources])] } },
       `選択したシグニ${sources.length}体の効果によるパワーマイナスを2倍`));
   }
-  if (stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
-    const srcPMO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMO = srcPMO ? (srcPMO.EffectText ?? '') + ' ' + (srcPMO.BurstText ?? '') : '';
-    const toHWP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // パターン: "対戦相手の場にあるシグニ1体につき-N" or "2倍にする"
-    const perM = txtPMO.match(/(?:シグニ|体)([０-９\d]*)体?につき([－＋][０-９\d]+)/);
-    const doubleM = txtPMO.match(/パワーを([０-９\d]+)倍にする/);
-    const oppCount = ctx.otherState.field.signi.filter(s => s && s.length > 0).length;
-    if (perM) {
-      const unitCount = parseInt(toHWP(perM[1] || '1')) || 1;
-      const delta = parseInt(toHWP(perM[2]).replace('－', '-').replace('＋', '+'));
-      const totalDelta = Math.floor(oppCount / unitCount) * delta;
-      if (totalDelta !== 0) {
-        const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
-        for (let zi = 0; zi < 3; zi++) {
-          const top = ctx.ownerState.field.signi[zi]?.at(-1);
-          if (top) mods.push({ cardNum: top, delta: totalDelta });
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
-          `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（相手シグニ${oppCount}体）`));
-      }
-    } else if (doubleM) {
-      // "パワーをN倍にする": 各自シグニに currentPower*(N-1) をdeltaとして適用
-      const multiplierDP = parseInt(toHWP(doubleM[1])) || 2;
-      const modsDP = [...(ctx.ownerState.temp_power_mods ?? [])];
-      let boostedDP = 0;
-      for (let zi = 0; zi < 3; zi++) {
-        const top = ctx.ownerState.field.signi[zi]?.at(-1);
-        if (!top) continue;
-        const curPwDP = ctx.effectivePowers?.get(top) ?? (parseInt(ctx.cardMap.get(top)?.Power ?? '0') || 0);
-        modsDP.push({ cardNum: top, delta: curPwDP * (multiplierDP - 1) });
-        boostedDP++;
-      }
-      if (boostedDP > 0)
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsDP } },
-          `全シグニのパワー×${multiplierDP}（${boostedDP}体）`));
+  // DOUBLE_POWER_MINUS: 「対戦相手のシグニのパワーが－される場合、代わりに2倍－される」。
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第5バッチ）＝ここはカード全文 regex で `シグニN体につき±X` /
+  //   `パワーをN倍にする` に当てようとしていた**が、実データの綴りは「**2倍－される**」なので
+  //   **live 7効果すべてが1本も当たらず**、ログだけ出して終わる**無言 no-op** だった。
+  //   ⚠**受け皿は最初から在った**（`double_power_minus_this_turn` フラグ＋`effectEngine` の2倍化）＝
+  //   別 id `DOUBLE_POWER_MINUS_THIS_TURN` が同じことをしており、**parser がそちらを吐かなかっただけ**。
+  //   ⇒ parser が `doublePowerMinus{duration}` を刻み、engine は payload で分岐する。
+  // ⚠**同時に、live 0 件の枝を2つ撤去した**＝`POWER_MOD_PER_OPPONENT_FIELD`（live 0・parser も吐かない）と
+  //   「パワーをN倍にする」（どの live 効果にも当たらない）。**死んだ枝は catch-all の温床になる。**
+  if (stub.id === 'DOUBLE_POWER_MINUS') {
+    const specDPM = stub.doublePowerMinus;
+    if (!specDPM) return done(addLog(ctx, `[未実装] 2倍マイナスの寿命が未指定（DOUBLE_POWER_MINUS・${ctx.sourceCardNum ?? '?'}）`));
+    // 【常】の宣言は `effectEngine` が場のカードを走査して読む（実行側は何もしない）。
+    if (specDPM.duration === 'continuous') {
+      return done(addLog(ctx, '【常】対戦相手のシグニへのパワーマイナスが2倍（常在・effectEngine処理）'));
     }
-    return done(addLog(ctx, `パワー修正（相手${oppCount}体基準）`));
+    const newOwnerDPM: PlayerState = { ...ctx.ownerState, double_power_minus_this_turn: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerDPM },
+      `このターン、${specDPM.sourceSigniOnly ? 'あなたのシグニの効果' : 'あなたの効果'}による相手へのパワーマイナスが2倍`));
   }
   // 条件付きパワーボーナス
   if (stub.id === 'CONDITIONAL_POWER_BONUS') {

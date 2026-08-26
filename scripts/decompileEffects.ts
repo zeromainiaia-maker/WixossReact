@@ -2229,7 +2229,17 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'GUARD_EXTRA_COST_BY_OPP' || a.id === 'OPP_GUARD_COST_COLORLESS') return '対戦相手が【ガード】する際に追加コスト（無色エナ）を要求する';
       if (a.id === 'LEVEL_REFERENCE_OVERRIDE' || a.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT') return 'レベル参照を上書きする（テキスト記載のレベルとして扱う）';
       if (a.id === 'POWER_MOD_BY_HAND_COUNT') return '手札N枚につき対戦相手のシグニのパワーを±する（テキスト記載の値）';
-      if (a.id === 'DOUBLE_POWER_MINUS' || a.id === 'POWER_MOD_PER_OPPONENT_FIELD') return '対戦相手の場のシグニ数に応じてパワーを±する／パワーをN倍にする（テキスト記載）';
+      // 🆕§5.3 `O-60` 第5バッチ（2026-08-26）＝**寿命を payload から描く**
+      //   （旧表示「対戦相手の場のシグニ数に応じて…」は engine の regex の話で、**原文と無関係**だった）。
+      if (a.id === 'DOUBLE_POWER_MINUS') {
+        const dpm = (a as { doublePowerMinus?: { duration: string; sourceSigniOnly?: boolean } }).doublePowerMinus;
+        if (dpm) {
+          const who = dpm.sourceSigniOnly ? 'あなたのシグニの効果' : 'あなたの効果';
+          const when = dpm.duration === 'this_turn' ? 'このターン、' : '';
+          return `${when}${who}によって対戦相手のシグニのパワーが－される場合、代わりに2倍－される`;
+        }
+        return '【※ペイロード欠落】2倍マイナスの寿命が未指定（engine は何もしない）';
+      }
       if (a.id === 'BANISH_TO_LRIG_TRASH_INSTEAD') return 'このカードがバニッシュされる場合、代わりにルリグトラッシュに置く';
       if (a.id === 'DECLARE_COLOR') return '色（白/赤/青/緑/黒）を1つ宣言する';
       if (a.id === 'REPLACE_NEXT_OPP_REFRESH_MILL_LRIG') return '次に対戦相手が行うリフレッシュを「トラッシュをすべてデッキに加えてシャッフルし、ルリグデッキからカード1枚をルリグトラッシュに置く」に置き換える';

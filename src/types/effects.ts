@@ -2946,6 +2946,28 @@ export interface StubAction {
     /** 得る能力の種別（原文の【自】【常】）。空配列＝名前だけ得て能力は得ない。 */
     kinds: Array<'AUTO' | 'CONTINUOUS'>;
   };
+  /**
+   * `DOUBLE_POWER_MINUS`：**「対戦相手のシグニのパワーが－される場合、代わりに2倍－される」の寿命**
+   * （§5.3 `O-60` 第5バッチ・2026-08-26）。
+   *
+   * 🔴**従来 engine はカード全文を regex で読み、`シグニN体につき±X` か `パワーをN倍にする` の
+   *   どちらかに当てようとしていた**が、実データの綴りは「**2倍－される**」なので **live 7効果すべてが
+   *   1本も当たらず**、`パワー修正（相手N体基準）` を addLog するだけの**無言 no-op** だった。
+   *   ⚠**受け皿は最初から在った**＝`PlayerState.double_power_minus_this_turn`（ターン境界でリセット済み・
+   *   `effectEngine` が負デルタの2倍化で読む）。**engine の別 id `DOUBLE_POWER_MINUS_THIS_TURN` が
+   *   同じことをしていた**＝parser がそちらを吐かなかったので、7効果ぶんの機構が丸ごと遊んでいた。
+   *
+   * ⚠**ペイロードが無い宣言では何もしない**（fail-closed）。
+   */
+  doublePowerMinus?: {
+    /**
+     * `this_turn`＝「**このターン**、〜2倍－される」＝実行時にフラグを立てるアクション／
+     * `continuous`＝【常】の宣言（`effectEngine` が場のカードを走査して読むので、実行側は何もしない）。
+     */
+    duration: 'this_turn' | 'continuous';
+    /** 原文が「あなたの**シグニの**効果によって」と発生源を絞っているか（表示用・engine は既にシグニ限定）。 */
+    sourceSigniOnly?: boolean;
+  };
   underCardOp?: {
     /**
      * `energy_signi_to_deck_top`＝エナゾーンのシグニをデッキの一番上へ／

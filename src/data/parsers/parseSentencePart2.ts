@@ -2122,8 +2122,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のシグニのパワーが－される場合、代わりに２倍 ----
+  // §5.3 `O-60` 第5バッチ＝**寿命を `doublePowerMinus` に刻む**（engine のカード全文 regex を撤去）。
+  // 🔴「**このターン、**〜」は実行時にフラグを立てる**アクション**、それ以外は【常】の宣言で、
+  //   engine 側の経路がまったく別（前者は `double_power_minus_this_turn`、後者は場の走査）。
+  //   旧実装はこの区別を持たず、**7効果すべてが無言 no-op** だった。
   if (t.match(/対戦相手のシグニのパワーが－.*される場合.*代わりに２倍/)) {
-    return { type: 'STUB', id: 'DOUBLE_POWER_MINUS' } as StubAction;
+    return { type: 'STUB', id: 'DOUBLE_POWER_MINUS', doublePowerMinus: {
+      duration: /このターン/.test(t) ? 'this_turn' : 'continuous',
+      ...(/あなたの(?:.*の)?シグニの効果/.test(t) ? { sourceSigniOnly: true } : {}),
+    } } as StubAction;
   }
 
   // ---- バニッシュ代替（ライズ下のカードをトラッシュ）----
