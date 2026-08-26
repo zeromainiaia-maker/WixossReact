@@ -3059,23 +3059,28 @@ export function execStubPart2(
     traps[zi] = null;
     return done({ ...ctx, ownerState: { ...ctx.ownerState, hand: [...ctx.ownerState.hand, selected], field: { ...ctx.ownerState.field, signi_traps: traps } }, lastProcessedCards: [selected] });
   }
+  // TRAP_TO_HAND: 自分の【トラップ】を `trapToHand.count` 枚だけ手札に加える。
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第7バッチ）＝ここはカード全文を
+  //   `【トラップ】をN**枚**まで手札に加える` で読んでいた**が、実データの助数詞は「**つ**」なので
+  //   **live 5効果すべてが1本も当たらず、既定の「場の【トラップ】を全部」へ落ちていた**＝
+  //   「【トラップ】**１つ**を対象とし、それを手札に加える」が**3つ全部の回収**に化けていた。
+  //   ⇒ parser が `trapToHand{count,upTo}` を刻み、engine は payload だけを読む。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。旧既定は過剰側だったので、落ちる向きを逆にした。
   if (stub.id === 'TRAP_TO_HAND') {
     const allTrapsTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]);
     const trapsToHandTTH = allTrapsTTH.filter(Boolean) as string[];
     if (trapsToHandTTH.length === 0) return done(addLog(ctx, 'トラップなし'));
-    // テキストで枚数制限を確認
-    const srcTTH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTTH = srcTTH ? (srcTTH.EffectText ?? '') + ' ' + (srcTTH.BurstText ?? '') : '';
-    const toHWTTH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const cntMTTH = txtTTH.match(/【トラップ】を([０-９\d]+)枚まで手札に加える/);
-    const maxCountTTH = cntMTTH ? parseInt(toHWTTH(cntMTTH[1])) : trapsToHandTTH.length;
-    // 「N枚まで」指定があり複数トラップがある場合は選択UI
+    const specTTH = stub.trapToHand;
+    if (!specTTH) return done(addLog(ctx, `[未実装] 手札に加える【トラップ】の枚数が未指定（TRAP_TO_HAND・${ctx.sourceCardNum ?? '?'}）`));
+    const maxCountTTH = specTTH.count === 'ALL' ? trapsToHandTTH.length : specTTH.count;
+    // 枚数が場のトラップより少ないなら選択UI（どれを戻すかはプレイヤーが選ぶ）
     if (maxCountTTH < trapsToHandTTH.length && trapsToHandTTH.length > 1) {
-      return needsInteraction(addLog(ctx, `手札に加えるトラップを${maxCountTTH}枚まで選択`), {
+      return needsInteraction(addLog(ctx, `手札に加えるトラップを${maxCountTTH}枚${specTTH.upTo ? 'まで' : ''}選択`), {
         type: 'SELECT_TARGET',
         candidates: trapsToHandTTH,
         count: maxCountTTH,
-        optional: true,
+        optional: specTTH.upTo === true,
         targetScope: 'self_field',
         thenAction: ({ type: 'STUB', id: 'INTERNAL_TTH_APPLY' } as StubAction) as EffectAction,
       });

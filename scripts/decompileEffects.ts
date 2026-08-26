@@ -2567,9 +2567,16 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの【トラップ】[^。]*?表向きに[^。]*?(?:発動[^。]*?(?:させる|する)|シグニにする)/);
         return m ? m[0] : 'あなたの【トラップ】1つを対象とし、それを表向きにし《トラップアイコン》を発動させる';
       }
+      // 🆕§5.3 `O-60` 第7バッチ（2026-08-26）＝**枚数を payload から描く**。
+      // 🔴旧実装は**カード全文を regex で切り出して原文をそのまま貼っていた**ので、
+      //   JSON が枚数を1つも持っていなくても逆翻訳シートは緑だった（§4.3 の「計器が嘘をつく」形）。
       if (a.id === 'TRAP_TO_HAND') {
-        const m = currentCardText.match(/あなたの【トラップ】[^。]*?手札に(?:加える|戻す)[^。]*/);
-        return m ? m[0] : 'あなたの【トラップ】を手札に加える';
+        const tth = (a as { trapToHand?: { count: number | 'ALL'; upTo?: boolean } }).trapToHand;
+        if (tth) {
+          if (tth.count === 'ALL') return 'あなたの【トラップ】を好きな数対象とし、それらを手札に加える';
+          return `あなたの【トラップ】を${numJa(tth.count)}つ${tth.upTo ? 'まで' : ''}対象とし、それを手札に加える`;
+        }
+        return '【※ペイロード欠落】手札に加える【トラップ】の枚数が未指定（engine は何もしない）';
       }
       if (a.id === 'SET_OPP_SIGNI_AS_TRAP') {
         const m = currentCardText.match(/対戦相手のシグニ[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);

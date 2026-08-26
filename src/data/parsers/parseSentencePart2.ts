@@ -1924,8 +1924,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 【トラップ】を手札に加える ----
+  // §5.3 `O-60` 第7バッチ＝**枚数を `trapToHand` に刻む**（engine のカード全文 regex を撤去）。
+  // 🔴**助数詞は「つ」**（engine の旧 regex は「枚」しか見ておらず、live 5効果すべてが既定の
+  //   「場の【トラップ】を全部」へ落ちていた＝「１つを対象とし」が3つ全部の回収に化けていた）。
   if (t.match(/あなたの【トラップ】.*手札に加える/)) {
-    return { type: 'STUB', id: 'TRAP_TO_HAND' } as StubAction;
+    const upToM = t.match(/【トラップ】(?:を)?([０-９\d]+)[つ枚]まで/);
+    const anyM = /【トラップ】(?:と[^を]*)?を?好きな数/.test(t);
+    const exactM = t.match(/【トラップ】([０-９\d]+)[つ枚]を/);
+    const spec = upToM ? { count: parseNum(upToM[1]), upTo: true }
+      : anyM ? { count: 'ALL' as const }
+        : exactM ? { count: parseNum(exactM[1]) } : null;
+    return { type: 'STUB', id: 'TRAP_TO_HAND', ...(spec ? { trapToHand: spec } : {}) } as StubAction;
   }
 
   // ---- 手札からスペルを使用する ----
