@@ -16806,7 +16806,7 @@ scenarios.b45LrigLevelSearchCeiling = {
     H.log(`開始時 deck=${JSON.stringify(before?.host?.deckCards)} lrigTop=${before?.host?.lrigTop} lrigDown=${before?.host?.lrigDown}`);
     await H.ensureMain();
     H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
-    let activated = false, probed = false, vis = null;
+    let activated = false, vis = null;
     for (let s = 0; s < 16; s++) {
       await page.waitForTimeout(900);
       await page.screenshot({ path: `${SHOT}/b45LrigLevelSearchCeiling-${s}.png`, fullPage: true });
@@ -16823,11 +16823,6 @@ scenarios.b45LrigLevelSearchCeiling = {
       }
       const st = await H.queryState();
       if (st?.pendingEffect === 'SEARCH' && Array.isArray(st?.pendingVisibleCards)) vis = st.pendingVisibleCards;
-      if (!probed && st?.pendingEffect === 'SEARCH') {
-        probed = true;
-        const tids = await page.locator('[data-testid]').evaluateAll(els => els.map(e => e.getAttribute('data-testid')).slice(0, 60)).catch(() => []);
-        H.log('  PROBE testids=', JSON.stringify(tids), ' visible=', JSON.stringify(st.pendingVisibleCards));
-      }
       if (!did) did = await H.stdStep();
       H.log(`  b45s[${s}] -> ${did ?? 'なし'} | activated=${activated} pEff=${st?.pendingEffect ?? '-'} visible=${JSON.stringify(st?.pendingVisibleCards)} hand=${JSON.stringify(st?.host?.handCards)} lrigDown=${st?.host?.lrigDown}`);
       if (vis) {

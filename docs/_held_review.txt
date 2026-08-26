@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［44枚］
-PR-Di017B WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX24-P1-048 WX24-P2-002 WX25-CP1-039 WX25-CP1-046 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
+## （type増減なし＝値/構造変更） ［43枚］
+PR-Di017B WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX24-P1-048 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -16,24 +16,6 @@ PR-Di017B WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-00
   原文: 【常】：このシグニはアタックできない。【常】：このシグニのパワーはこのシグニの下にあるカード１枚につき＋2000される。【出】：あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。そうしない場合、このシグニを場からトラッシュに置く。【起】《ダウン》：このシグニの下からカード１枚を対象とし、それを手札に加える。
   - [2].action.steps[1].target.filter.cardType = "シグニ"
   - [2].action.steps[1].target.filter.thisCardOnly = true
-
-## +LRIG -SIGNI ［4枚］
-WX05-022 WX08-002 WX14-030 WXK05-004
---- WX05-022
-  原文: 【常】：対戦相手は自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたりカードを手札に加えることができない。【起】《ターン１回》手札をすべて捨てる：対戦相手のシグニ１体を対象とし、この方法で手札を２枚以上捨てた場合、それをバニッシュする。,：対戦相手のセンタールリグ１体を対象とし、それをダウンし凍結する。
-  - [2].action.target.filter.cardType = "シグニ"
-  - [2].action.target.upToCount = false
-  ~ [2].action.target.type : "SIGNI" → "LRIG"
---- WX08-002
-  原文: 【自】：あなたの《クロスアイコン》を持つシグニ１体が場に出たとき、《青》を支払ってもよい。そうした場合、カードを１枚引く。【自】：あなたのシグニが《ヘブン》したとき、対戦相手のセンタールリグ１体を対象とし、それをダウンし凍結する。【起】《ダウン》：対戦相手は手札を２枚捨てる。この能力はあなたの場にクロス状態のシグニがある場合にしか使用できない。,-
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  ~ [1].action.target.type : "SIGNI" → "LRIG"
---- WX14-030
-  原文: 【起】《アタックフェイズアイコン》《スペルカットインアイコン》《黒×0》：あなたのトラッシュからそれぞれレベルの異なる無色ではないシグニ４枚をデッキに加えてシャッフルする。そうした場合、以下の３つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをバニッシュする。②スペル１つを対象とし、それの効果を打ち消す。③あなたのトラッシュからレベル４以下の＜電機＞
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  ~ [1].action.target.type : "SIGNI" → "LRIG"
 
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
@@ -241,18 +223,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
-
-## +AND +LRIG_COLOR ［1枚］
-WXDi-P05-044
---- WXDi-P05-044
-  原文: 【常】《相手ターン》：あなたのセンタールリグが白であるかぎり、このシグニのパワーは＋5000される。,-
-  - [0].activeCondition.owner = "opponent"
-  ~ [0].activeCondition.type : "TURN_OWNER" → "AND"
-  + [0].activeCondition.conditions[0].type = "TURN_OWNER"
-  + [0].activeCondition.conditions[0].owner = "opponent"
-  + [0].activeCondition.conditions[1].type = "LRIG_COLOR"
-  + [0].activeCondition.conditions[1].owner = "self"
-  + [0].activeCondition.conditions[1].color = "白"
 
 ## +AND +IS_SELF_UP ［1枚］
 WXDi-P07-056
@@ -475,24 +445,6 @@ WDK12-007
   + [0].action.choices[0].action.steps[0].charm.count = 1
   + [0].action.choices[0].action.steps[0].charm.filter.story = "微菌"
   …（他 20 行）
-
-## +CONDITIONAL +LRIG_NAME_CONTAINS ［1枚］
-WDK16-06S
---- WDK16-06S
-  原文: 【出】：あなたの場にカード名に《凛》を含むセンタールリグがいる場合、対戦相手は手札を１枚捨てる。あなたの登録者数が１００万人を達成している場合、代わりに対戦相手の手札を１枚見ないで選び、捨てさせる。,：対戦相手のシグニ１体を対象とし、それをダウンする。対戦相手は手札を１枚捨てる。
-  - [0].action.condition.operator = "gte"
-  - [0].action.condition.value = 100
-  - [0].action.then.target.type = "HAND_CARD"
-  - [0].action.then.target.owner = "opponent"
-  - [0].action.then.target.count = 1
-  - [0].action.then.target.blind = true
-  - [0].action.else.type = "TRASH"
-  - [0].action.else.target.type = "HAND_CARD"
-  - [0].action.else.target.owner = "opponent"
-  - [0].action.else.target.count = 1
-  ~ [0].action.condition.type : "SUBSCRIBER_COUNT" → "LRIG_NAME_CONTAINS"
-  + [0].action.condition.owner = "self"
-  …（他 14 行）
 
 ## +BANISH +CHOOSE +ENERGY_CHARGE_FROM_DECK +SIGNI ［1枚］
 SPK16-13E
