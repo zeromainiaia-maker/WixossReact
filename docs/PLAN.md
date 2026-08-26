@@ -10,18 +10,19 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-26・続き668・Opus 5）＝§5.3 `O-81`＝「手札からカード１枚を裏向きで付ける」は未実装ではなく、原文と無関係な盤面変化を2つ起こしていた**
-  - ⚠**母集団は実測1件**（`WX16-003-E2` ママ♥４ MODE２）。【チャーム】43カードを全部読み、**手札由来はこの1件だけ**を確認（他は既存 `ATTACH_CHARM` の担当）。
-  - 🔴**3文で1能力なのを文単位 parser が3ステップに割っていた**＝第2文「そのシグニが**場を離れる場合**、追加で…公開し手札に戻す」が **`BOUNCE{自分のシグニ1体}` の即実行**に、第3文「**この方法でシグニを公開したとき**、**そのカードと同じレベルの**…」が **無条件 `BANISH{相手シグニ1体}`** に化けていた。**「未実装で何も起きない」ではない。**
-  - 🔑**受け皿は `signi_charms` ではない**（PLAN の当初見立てを実測で否定）＝原文に【チャーム】の語が無いので、混ぜると `hasCharm`／`CHARM_COUNT`／`ON_CHARM_TO_TRASH`／`IS_SELF_CHARMED` が軒並み過剰発火し【チャーム】と併存もできなくなる。⇒ **`field.signi_facedown_attached` を新設**し、離脱時は【チャーム】（トラッシュ）／【ソウル】（ルリグトラッシュ）と違い**手札へ戻す**。
-  - ✅**新語彙4点セット**＝アクション `ATTACH_FACEDOWN_FROM_HAND`（3段対話）／Condition `FACEDOWN_REVEALED_JUST`／TargetFilter `levelEqFacedownRevealed`／マーカー `facedown_revealed_just`。第3文は `WX16-003-E3`（MANUAL の `AUTO/ON_LEAVE_FIELD/any_ally`）へ分離し、**条件もレベルも収集時に確定**する（マーカーは次の離脱で消えるので解決時に読むと外れる）。
-  - 🔴**実機でしか出なかったバグが2つ**（golden/smoke/fuzz は全部緑だった）＝①**バトル解決は `removeFromField` を通らず `field` を手で組み直す**ので付けたカードが**行方不明**になる → `sweepPuppets` と同型の**盤面から導出する掃除** `sweepFacedownAttached()` を新設し**トリガー収集より前**に通す ②🔴**`battleCardNums` が新ゾーンを走査しておらず、付けた瞬間にそのカードの CardData が `battleCardMap` から落ちて**、`FACEDOWN_REVEALED_JUST{cardType:'シグニ'}` が**常に false** になっていた（`lfMine=none`）。
-  - ✅ gates 全緑（golden **2825→2832**／census 568 据置／`census:goldentypes` 未カバー0）。**実機 新規2本 PASS**（`o81FacedownAttachRevealBanish`＋対照 `o81NoAttachNoBanish`）。engine の `charm_facedown` 分岐と型 union メンバは削除（死んだ枝は catch-all の温床）。
+- 🏁**セッション（2026-08-26・続き669・Opus 5）＝§5.3 `O-87`＝「パワーの話を1文字もしていない」2文型は、STUB が no-op なのではなく「同じ効果の他のステップが原文の条件を失って走っていた」**
+  - ⚠**母集団は実測で各1件**（`WX12-Re07-E1` 色選択／`WX16-017-E1` 【トラップ】再設置）。
+  - 🔴**`WX12-Re07`＝「選択した色に赤を含む場合／緑を含む場合／青を含む場合」の3分岐が全部無条件に走っていた**＝`effectParser` の `thenM`（条件節の先頭 alternation）にこの綴りが無く**条件が丸ごと落ちて**いた。⚠**2文目以降は「選択した色に」が省略される**ので前置詞句を任意にしないと1文目しか条件化されない。
+  - 🔴**`WX16-017`＝「好きな数」を問答無用の全回収**（`count:'ALL'` に `upTo` が無く engine が UI を出さない）**＋＜トリック＞のシグニを完全に無視**していた。
+  - 🔑**受け皿はほぼ揃っていた**（3回連続）＝色は `SELECTED_COLOR` 条件＋`__selected_colors__` ストアが既存、設置は `PLACE_TRAP_OPTIONAL` が既存。新設は **`SELECT_COLOR{from}`** と **`REPEAT.countRef`** と `TRAP_TO_HAND` の2キー（`upTo`／`alsoSigniFilter`）だけ。
+  - 🔴**実機でしか出なかったバグ2つ**＝①**手札からの【トラップ】設置が live 3効果すべてで無言 no-op**＝設置するカードを `lastProcessedCards` に置いたまま対話を跨いでおり、**`PendingEffect` はそれを運ばないので resume で必ず失われる**（→ カードを stub の `value` に焼き込む `INTERNAL_ASK_TRAP_ZONE` 経路へ寄せた）②手札枝が**無条件に `optional:false`**＝原文「設置しても**よい**」の2効果から**選択を奪う過剰実行**（→ `trapPlaceOptional` を payload 化）。
+  - ✅**隣接バグをその場で修正**＝`WX21-057-E2`「あなたの【トラップ】１つを…**手札に戻す**」が**自分のシグニのバウンス**に化けていた（parser 規則が「手札に**加える**」しか見ておらず汎用 BOUNCE に食われていた）。
+  - ✅ gates 全緑（golden **2832→2840**／census 568 据置／**`census:enginetext` A群 142→141**＝`CHOOSE_COLOR_FROM_LIST` の全文 regex を撤去して払い戻し・baseline 更新）。**実機 新規2本 PASS**（`o87RainbowColorBranch` ／ `o87ResetTrapReplace`）＋`O-81` 回帰 PASS。
 
-**▶ 次の一手**＝**`O-80` 第2バッチ**（残 37効果。次の塊は**ゾーンを数える系**＝トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2＝**受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL_SUM`／`POWER_MODIFY.deltaFromZone` に既に在る**）。または `O-60` 第9バッチ（`LOOK_AND_REORDER` miss4/live6＝生成地点15箇所の catch-all・`SEED_BLOOM` miss4/live6）。
-- 🆕🔑**新しい「カードが居られるゾーン」を足したら `battleCardNums` の走査に必ず足す**＝落とすと**そのゾーンに居る間だけカードデータが消え**、フィルタ判定が静かに false へ倒れる。**golden は自前 cardMap を使うのでこの穴を踏まない**（実機専用の層）。
-- 🆕🔑**離脱時の後始末は `removeFromField` だけでは足りない**＝バトルは funnel を通らない。**盤面から導出する sweep** にすれば funnel 外の経路もまとめて拾える。
-- 🔑**「機構が無い」と決めつける前に、同義の別キーと `{$ref}` の一覧を見る**／⚠**ただし「既存ゾーンに相乗り」も同じくらい危険**（今回は `signi_charms` への相乗りを退けた）。
+**▶ 次の一手**＝**`O-80` 第2バッチ**（残 37効果。次の塊は**ゾーンを数える系**＝トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2＝**受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL_SUM`／`POWER_MODIFY.deltaFromZone` に既に在る**）。または `O-60` 第9バッチ（`LOOK_AND_REORDER` miss4/live6・`SEED_BLOOM` miss4/live6）。
+- 🆕🔴**対話を跨ぐ値を `lastProcessedCards` に置かない**＝`PendingEffect` はそれを運ばず、**実アプリでは resume で必ず失われる**。跨ぐなら**アクション自身のフィールドに焼き込む**（`INTERNAL_ASK_TRAP_ZONE.value`／`O-81` の `_host`）。⚠**golden はこの穴を踏まない**（`finish()` が ExecCtx を持ち回る）＝実機専用の層。
+- 🆕🔑**「STUB が no-op」を直すときは、その STUB の前後のステップを必ず読む**＝今回も前回（`O-81`）も、**実害は STUB 自身ではなく隣のステップの無条件実行**だった。
+- 🔑**「機構が無い」と決めつける前に、同義の別キーと `{$ref}` の一覧を見る**（3回連続で「受け皿は在って parser が吐いていないだけ」）。
 
 ---
 
@@ -396,7 +397,6 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 |---|---|---|---|
 | **O-60** | **engine が「カード全文 regex」で意味を決める箇所が系統として残っている** | **138ハンドラ（実測）／1ハンドラ＝1バッチ** | **手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-08-26 続き666）**＝**A🔴 SELF_TEXT 142行／138ハンドラ**（B 59／C 27）・**regex が1本も当たらないハンドラ 43・miss カード 76**。初回計測は 150行/145ハンドラ・miss 165。■🔴**ゲート（ratchet）は `npm run gates` に同梱済み**（増えても減っても exit 1）。■**次の3件**＝`LOOK_AND_REORDER`（miss4/live6・⚠**parser 生成地点が15箇所の catch-all**＝`O-76`/`O-77` と同型なので1バッチにまとめない）／`SEED_BLOOM|SEED_BLOOM_OPTIONAL`（miss4/live6・リテラルは `好きな枚数` 1本だけ＝**カード全文に1度でも出れば全シードが開花する**）／`GAIN_EXTRA_TURN`（miss4/live5）。⚠**最大の `POWER_MOD_PER_COUNT`（miss8/live58）は別サイズなので `O-80` へ分離した。** ■**手口**（8バッチで確立）＝①**先に `grep <STUB_ID> src/engine/` で消費地点を全部数える**（同じ regex が地点ごとにコピーされている）②**ハンドラ末尾の else を必ず読む**（regex すら無い最後の else は計器の miss に出ない）③**`grep <同義語> src/engine/` で「同じことをする別 id」を探す**（第5バッチはこれで engine の新設が**0行**になった）③b🆕**同じ効果の他のステップを見る**（第8バッチは `WXDi-D04-010-E1` の**第1ステップが既に受け皿の typed アクション**で、第2ステップだけが STUB に落ちていた＝一番安い受け皿探し）④parser が判別子を吐く→engine は payload で分岐→**逆翻訳も payload から描く**→regex 撤去→基準を下げる ⑤**payload 欠落は fail-closed**。⚠**倒す向きは旧既定の逆**にする（旧既定が過剰側なら「何もしない」へ）。 ■⚠**計器の miss 数は「壊れている効果数」ではない**＝第5バッチは miss7/live7 で7効果とも壊れていたが、第3バッチは miss16/live16 でも**4消費地点のうち壊れていたのは1つだけ**だった。🆕**逆向きも同じ**＝第8バッチは miss4/live12 だが、**当たっていた8件のうち1件は当たったうえで間違っていた**（複合条件の前半しか読まない）＝**miss=0 でも安心できない。** ■✅**消化済み8バッチ**＝第1 `LOOK_OPP_LIFE_TOP`／第2 `LRIG_UNDER_CARD_OP`／第3 `COPY_LRIG_NAME_ABILITY`／第4 `DEPLOY_RESTRICT`／第5 `DOUBLE_POWER_MINUS`／第6 `PLACE_CARD_UNDER_SIGNI`／第7 `TRAP_TO_HAND`／第8 `CONDITIONAL_ARTS_COST`。全文は BUGFIXES.md 2026-08-26（4エントリ）。 |
 | **O-80** | **`POWER_MOD_PER_COUNT` が「何を数えるか／誰に効くか」を持たず、engine のカード全文 regex で決めている** | **残 37効果（初回 58・第1バッチで 21消化）／1バッチ15〜20効果** | ■**現在地（2026-08-26 続き667）**＝**live 37効果**（第1バッチ前は58）。⚠**`census:enginetext` の A群行数（142）は動かない**＝ハンドラは残り37効果のために生きている。**この項目の進捗は行数ではなく live 効果数で測る。** ■✅**第1バッチ消化＝「この方法で〜した〈X〉N枚につき」（21効果）**＝全文は BUGFIXES.md 2026-08-26。**受け皿は最初から在った**（`POWER_MODIFY.deltaPerLastProcessedCount` ＋ `{$ref:'last_processed_count',filter}` ＋ `last_processed_level_sum`）＝**parser が吐いていなかっただけ**。手口＝**修飾句を外した文を通常経路にそのまま解かせて `POWER_MODIFY`（正しい `target` つき）をもらい、倍率だけ payload で足す**（規則1本で20効果）。 ■**残りの内訳（実測）**＝**ゾーンを数える系16**（トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2）＝🔑**受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL_SUM`／`POWER_MODIFY.deltaFromZone` に既に在る**ので同じ手口が効くはず／**「〜と同じだけ」7**（`WXEX2-79`「この方法でバニッシュしたシグニのパワーと同じだけ－」等＝受け皿は `POWER_MODIFY_BY_SOURCE`?）／**レベル合計4**／**catch-all 流入8**（`WX22-042-E1`「色１つを宣言する」等＝パワーの話を1文字もしていない＝honest な `DEFERRED_*` へ）。 ■⚠**第1バッチで踏んだ落とし穴3つは次バッチでも同じ**＝①**新規則は dispatch の後ろに置く**（前に置くと専用受け皿を横取りして退化・実測3枚）②**「それ」の照応は文をまたぐ**＝`targetsTriggerSource` が立ったら**自分のシグニに化ける**ので、確定できなければ差し戻す（fail-closed）③**修飾句を外すと読点が余る**。 ■⚠**census は STUB を含む効果を高シグナルから免除する**＝STUB を外すと隠れていた穴が出て**ベースラインが上がる**（退化ではない・続き529 と同型）。 |
-| **O-87** | 🆕**旧 `POWER_MOD_PER_COUNT` に混ざっていた「パワーの話を1文字もしていない」2文型** | S | **2026-08-26 続き667（`O-80` 第1バッチ）で分離**＝①`WX12-Re07-E1`「この方法で手札に加えたカード１枚につき**そのカードに含まれる色１つを選択する**」（`DEFERRED_DECLARE_COLOR_PER_PROCESSED`）②`WX16-017-E1`「この方法で手札に加えた【トラップ】１つにつき**手札からカード１枚を【トラップ】として設置する**」（`DEFERRED_PLACE_TRAP_PER_PROCESSED`）。どちらも engine では**totalDelta 0 のログだけ**＝実害は無いが id が嘘をついていたので honest な `DEFERRED_*` へ改名した（`miscStubMap` に日本語説明あり）。■**受け皿の見立て**＝②は §5.3 `O-55` で入れた【トラップ】設置の口（`PLACE_TRAP_FROM_REVEALED` 等）に「直前に処理した枚数だけ繰り返す」が付けば足りる可能性が高い。⚠**着手前に母集団を実測する。** |
 | **O-88** | 🆕**「それ」が前の文で宣言した対象を指す形を、パワー修整へ運ぶ口が無い** | M | **2026-08-26 続き667（`O-80` 第1バッチ）で分離**＝「対戦相手のシグニ１体を対象とし、…してもよい。**ターン終了時まで、それの**パワーを…」（`WXEX1-64` ほか）。文単位のパーサは前文を見られないので「それ」を **`targetsTriggerSource`＝トリガー元＝自分のシグニ**へ解決する＝**相手を削るはずの効果が自分のシグニのパワーを下げる**。✅**第1バッチでは2段で塞いだ**＝①カード全文を見る `applyLeadingOpponentDesignation` の照応判定を**この family に限って**広げて6カード復元 ②残りは `revertUnresolvedPerLastProcessed` で**旧 STUB へ差し戻す**（fail-closed）。■**残**＝`WXK07-051-E1`（引用能力の中なので外側のカード全文からは照応先が見えない）。■**本筋の直し方**＝`applyLeadingOpponentDesignation` の照応判定を**一般に**「そうした場合、」以外の接続節（期間句など）へ広げる。⚠**実測22効果が動く**ので単独のバッチにする（第1バッチで意図的に限定した理由がこれ）。⚠**引用能力の中は「別のカードの文」**（§6.4 O-25）なので、外側の照応を持ち込まないこと。 |
 | **O-89** | 🆕**`WXDi-P10-040-E1` の【自】トリガーが丸ごと落ちて `CONTINUOUS`/`PERMANENT` になっている** | S | **2026-08-26 続き667（`O-80` 第1バッチ）で露出**＝原文は「【自】：このシグニがアタックしたとき、…」だが JSON は `effectType:'CONTINUOUS'` / `duration:'PERMANENT'`＝**毎回の場走査で発火しうる形**。🔑**STUB を外すまで計器に映らなかった**（census は STUB を含む効果を高シグナルから免除する）＝`census` の「構造:【自】→AUTO無」に初めて出た。■⚠**同型が他にもあるはず**＝`O-80` の残り37効果を消化するたびに同じ露出が起きる。**着手前に `## 構造:【自】→AUTO無` の高シグナル欄を全数で見る。** |
 | **O-83** | 🆕**「あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい」＝条件つきグロウの口が無い** | S | **2026-08-26 続き666（`O-60` 第8バッチ）で分離**＝`SP38-001-E1`（クロス・テンスグロウ！）。旧 id は `CONDITIONAL_ARTS_COST` で**コストの話に化けていた**ので `DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL` へ改名（`miscStubMap` に日本語説明あり）。■**要るもの**＝①「自センターのレベル < 相手センターのレベル」条件（既存の条件型に無い）②**効果によるグロウ**（原文は「コストを支払わずに」と書いていないので**通常のグロウコストを払う**）③「この方法でグロウしたルリグの【出】能力は発動しない」＝`suppressOnPlay` 相当の伝播。⚠**`GROW_FREE`（`GrowFreeAction`）は「コストを支払わずに」の口なので流用しない**（過少コストになる）。⚠**着手前に母集団を実測する**（「グロウしてもよい」を含む効果の全数）。 |
@@ -537,17 +537,17 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-26 続き668 後（本行が直近の正）**：
-  **census 568/568**（据置）、**golden 2832**（`O-81` +7）、
-  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **148**＝`ATTACH_FACEDOWN_FROM_HAND` を追加）、
-  **`census:enginetext` A群 142行 / 138ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75・据置）、
+- **2026-08-26 続き669 後（本行が直近の正）**：
+  **census 568/568**（据置）、**golden 2840**（`O-87` +8）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**＝`SELECT_COLOR` を追加）、
+  🆕**`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75）＝`O-87` で `CHOOSE_COLOR_FROM_LIST` の全文 regex を撤去（`BASELINE_SELF_TEXT` 更新済み）、
   **`POWER_MOD_PER_COUNT` の live 37効果**（⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（`O-81` で `WX16-003` に +2＝E2 の MANUAL 化と E3 の新設）、
-  **`_held_fresh` 76 / `_partial_fresh` 13 / `_idset_fresh` 45**（`_partial_fresh` +1＝`WX16-003` の MANUAL 化。live は `syncManualLive` で同期済み）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-87` は AUTO 3効果が変化）、
+  **`_held_fresh` 77 / `_partial_fresh` 12 / `_idset_fresh` 45**、
   **どのフラグも立たないカード 4961 / 5975（83.0%）**（`npm run census:cards`）、
-  **実機シナリオ +2**（`o81FacedownAttachRevealBanish` ／ 対照 `o81NoAttachNoBanish`）、
-  **`npm run golden` の所要＝全件 約167秒／`--only` 約1.5秒**
+  **実機シナリオ +2**（`o87RainbowColorBranch` ／ `o87ResetTrapReplace`。回帰＝`o81FacedownAttachRevealBanish` PASS）、
+  **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
 
 ---
 

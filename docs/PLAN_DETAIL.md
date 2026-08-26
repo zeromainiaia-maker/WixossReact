@@ -2,6 +2,18 @@
 
 ### 恒久指標アーカイブ（PLAN §6 から退避）
 
+- **2026-08-26 続き668 後（本行が直近の正）**：
+  **census 568/568**（据置）、**golden 2832**（`O-81` +7）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **148**＝`ATTACH_FACEDOWN_FROM_HAND` を追加）、
+  **`census:enginetext` A群 142行 / 138ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75・据置）、
+  **`POWER_MOD_PER_COUNT` の live 37効果**（⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（`O-81` で `WX16-003` に +2＝E2 の MANUAL 化と E3 の新設）、
+  **`_held_fresh` 76 / `_partial_fresh` 13 / `_idset_fresh` 45**（`_partial_fresh` +1＝`WX16-003` の MANUAL 化。live は `syncManualLive` で同期済み）、
+  **どのフラグも立たないカード 4961 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +2**（`o81FacedownAttachRevealBanish` ／ 対照 `o81NoAttachNoBanish`）、
+  **`npm run golden` の所要＝全件 約167秒／`--only` 約1.5秒**
+
 - **2026-08-26 続き667 後（本行が直近の正）**：
   **census 568/568**（`O-80` 第1バッチ＝566→568 は**退化ではなく可視化**＝STUB を外すと census の STUB 免除が外れる）、**golden 2825**（第1バッチ +2）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 266）**、

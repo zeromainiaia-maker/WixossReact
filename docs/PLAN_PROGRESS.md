@@ -2,6 +2,19 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-26・続き668・Opus 5）＝§5.3 `O-81`＝「手札からカード１枚を裏向きで付ける」は未実装ではなく、原文と無関係な盤面変化を2つ起こしていた**
+  - ⚠**母集団は実測1件**（`WX16-003-E2` ママ♥４ MODE２）。【チャーム】43カードを全部読み、**手札由来はこの1件だけ**を確認（他は既存 `ATTACH_CHARM` の担当）。
+  - 🔴**3文で1能力なのを文単位 parser が3ステップに割っていた**＝第2文「そのシグニが**場を離れる場合**、追加で…公開し手札に戻す」が **`BOUNCE{自分のシグニ1体}` の即実行**に、第3文「**この方法でシグニを公開したとき**、**そのカードと同じレベルの**…」が **無条件 `BANISH{相手シグニ1体}`** に化けていた。**「未実装で何も起きない」ではない。**
+  - 🔑**受け皿は `signi_charms` ではない**（PLAN の当初見立てを実測で否定）＝原文に【チャーム】の語が無いので、混ぜると `hasCharm`／`CHARM_COUNT`／`ON_CHARM_TO_TRASH`／`IS_SELF_CHARMED` が軒並み過剰発火し【チャーム】と併存もできなくなる。⇒ **`field.signi_facedown_attached` を新設**し、離脱時は【チャーム】（トラッシュ）／【ソウル】（ルリグトラッシュ）と違い**手札へ戻す**。
+  - ✅**新語彙4点セット**＝アクション `ATTACH_FACEDOWN_FROM_HAND`（3段対話）／Condition `FACEDOWN_REVEALED_JUST`／TargetFilter `levelEqFacedownRevealed`／マーカー `facedown_revealed_just`。第3文は `WX16-003-E3`（MANUAL の `AUTO/ON_LEAVE_FIELD/any_ally`）へ分離し、**条件もレベルも収集時に確定**する（マーカーは次の離脱で消えるので解決時に読むと外れる）。
+  - 🔴**実機でしか出なかったバグが2つ**（golden/smoke/fuzz は全部緑だった）＝①**バトル解決は `removeFromField` を通らず `field` を手で組み直す**ので付けたカードが**行方不明**になる → `sweepPuppets` と同型の**盤面から導出する掃除** `sweepFacedownAttached()` を新設し**トリガー収集より前**に通す ②🔴**`battleCardNums` が新ゾーンを走査しておらず、付けた瞬間にそのカードの CardData が `battleCardMap` から落ちて**、`FACEDOWN_REVEALED_JUST{cardType:'シグニ'}` が**常に false** になっていた（`lfMine=none`）。
+  - ✅ gates 全緑（golden **2825→2832**／census 568 据置／`census:goldentypes` 未カバー0）。**実機 新規2本 PASS**（`o81FacedownAttachRevealBanish`＋対照 `o81NoAttachNoBanish`）。engine の `charm_facedown` 分岐と型 union メンバは削除（死んだ枝は catch-all の温床）。
+
+**▶ 次の一手**＝**`O-80` 第2バッチ**（残 37効果。次の塊は**ゾーンを数える系**＝トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2＝**受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL_SUM`／`POWER_MODIFY.deltaFromZone` に既に在る**）。または `O-60` 第9バッチ（`LOOK_AND_REORDER` miss4/live6＝生成地点15箇所の catch-all・`SEED_BLOOM` miss4/live6）。
+- 🆕🔑**新しい「カードが居られるゾーン」を足したら `battleCardNums` の走査に必ず足す**＝落とすと**そのゾーンに居る間だけカードデータが消え**、フィルタ判定が静かに false へ倒れる。**golden は自前 cardMap を使うのでこの穴を踏まない**（実機専用の層）。
+- 🆕🔑**離脱時の後始末は `removeFromField` だけでは足りない**＝バトルは funnel を通らない。**盤面から導出する sweep** にすれば funnel 外の経路もまとめて拾える。
+- 🔑**「機構が無い」と決めつける前に、同義の別キーと `{$ref}` の一覧を見る**／⚠**ただし「既存ゾーンに相乗り」も同じくらい危険**（今回は `signi_charms` への相乗りを退けた）。
+
 - 🏁**セッション（2026-08-26・続き667・Opus 5）＝§5.3 `O-80` 第1バッチ＝`POWER_MOD_PER_COUNT` の「この方法で〜1枚につき」は数と対象の二重の過剰実行だった**
   - 🔴**修飾句が在るだけで文全体が catch-all `STUB{POWER_MOD_PER_COUNT}` へ落ち**、engine がカード全文 regex で決めていた＝①「**＜悪魔＞の**シグニ1枚につき」の**絞り込みを無視して直前処理カードを全部数える** ②「**レベルの合計**1につき」を**枚数**として数える ③負のデルタを**問答無用で相手の全シグニ**へ（原文は「対戦相手のシグニ**１体**を対象とし、**それの**」）。実機の反転確認がそのまま再現＝**旧 3体×－2000／新 1体×－1000**。
   - 🔑**受け皿は最初から在った**（`O-60` 第5バッチと同型・2回目）＝`POWER_MODIFY.deltaPerLastProcessedCount` も `{$ref:'last_processed_count', filter}` も `last_processed_level_sum` も揃っていて、**parser がそこへ吐いていなかっただけ**。⇒ **修飾句を外した文を通常経路にそのまま解かせる**（対象句のパーサはもともと正しい）＝**規則1本で20効果**が動いた。
