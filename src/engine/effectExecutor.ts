@@ -7216,6 +7216,19 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     ctx = addLog(setOwnerState(tgtOwner, { ...keyState, keys_abilities_disabled: true }, ctx),
       `${tgtOwner === 'self' ? 'あなた' : '対戦相手'}のすべてのキーは能力を失う`);
   }
+  // 段2 第45バッチ:「対戦相手の**センタールリグと**すべてのシグニは能力を失う」＝ルリグ側は
+  // `abilities_removed`（cardNum リスト）に載せても**どこも読まない**ので専用フラグへ倒す（`alsoKeys` と同形）。
+  // ⚠シグニ候補が0でもルリグは失わせる＝下の `cands.length === 0` の早期 return より前に置く。
+  if (a.alsoCenterLrig) {
+    const lrigState = ownerState(tgtOwner, ctx);
+    const reservesNext = a.until === 'NEXT_TURN' || a.until === 'UNTIL_OPP_TURN_END';
+    const appliesNow = a.until !== 'NEXT_TURN';
+    ctx = addLog(setOwnerState(tgtOwner, {
+      ...lrigState,
+      ...(appliesNow ? { lrig_abilities_disabled: true } : {}),
+      ...(reservesNext ? { lrig_abilities_disabled_next_turn: true } : {}),
+    }, ctx), `${tgtOwner === 'self' ? 'あなた' : '対戦相手'}のセンタールリグは能力を失う`);
+  }
   const state = ownerState(tgtOwner, ctx);
   // §6.4 O-16:「（指定した）シグニゾーンにあるシグニは能力を失い、新たに得られない」＝**ゾーン継続**。
   // per-card の abilities_removed は適用時点の instanceId を記録するので**後からそのゾーンへ出たシグニに
