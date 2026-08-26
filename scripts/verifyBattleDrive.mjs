@@ -32313,6 +32313,147 @@ scenarios.o89ShadowKeywordBlockSplit = {
 };
 order.push('o89ShadowKeywordBlockSplit');
 // ── §5.3 O-89 END ──
+// ── §5.3 O-73（2026-08-26）──────────────────────────────────────────────
+// ■ 原文＝`WX24-P3-030`（黒想の花嫁　アルフォウ・Lv3）
+//    「【起】《ゲーム１回》ジェラシー《黒×0》：**このターン、あなたの効果１つによってデッキからカードが
+//     合計１枚以上トラッシュに置かれたとき、**対戦相手のシグニ１体を対象とし、ターン終了時まで、
+//     それのパワーを－5000する。」
+// ■ 旧 live は**遅延設置ごと落ちて素の `POWER_MODIFY -5000`**＝**【起】を撃った瞬間に相手を殴る**過剰実行。
+// ■ 🔑**観測は2段**（罠3＝負方向は対照とセット／罠4＝機構が動いた証拠を必須にする）：
+//    ①【起】直後＝`delayedTriggers` が1件立ち、**`powerMods` はまだ空**（＝即時に殴っていない）
+//    ②その後にミルを起こす＝`powerMods` に −5000 が乗る（＝設置が**実際に発火する**）
+//    ⚠②が無いと「過剰実行を no-op へ替えただけ」と区別できない（登録票のブロッカーそのもの）。
+// ■ ミル手段は `WX02-070`（真実の死神　アニマ・Lv2・限定なし・「【出】：あなたのデッキの上から
+//    カードを３枚トラッシュに置く。」）＝**副作用が無い**ものを選ぶ（罠8z）。
+const O73_LRIG = 'WX24-P3-030#1';   // 黒想の花嫁　アルフォウ（Lv3・限定なし）
+// 🔴**ミル役は＜悪魔＞以外を選ぶ**（罠8z＝銀行役の副作用を期待値に織り込む）。
+//   最初 `WX02-070`（真実の死神　アニマ）を使ったが**クラスが「精像：悪魔」**で、同じカードの
+//   `WX24-P3-030-E1`「あなたの**＜悪魔＞の**シグニの効果１つによって…」が**同時に発火**し、
+//   その `STUB{TRASHED_CARD_TO_HAND_OR_ENERGY}` が解決できずに **stack=2 で止まった**（実測）。
+//   `WXK01-108`（小罠　アリジゴ・精武：トリック・Lv1・限定なし）は「【出】：デッキの上から2枚トラッシュ」だけで
+//   **副作用が無く**、E1 の発生源限定にも当たらない。
+const O73_MILLER = 'WXK01-108#1';   // 小罠　アリジゴ（Lv1・【出】でデッキ2枚トラッシュ・副作用なし）
+const O73_OPP = 'WD01-010#2';       // 相手 Lv3（パワー10000）
+const o73DelayedMillSpec = () => ({
+  hostSet: {
+    'field.lrig': [O73_LRIG],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    // ⚠罠22＝deck を空にしない（ミル3枚＋リフレッシュ回避）。同名だけで埋めない。
+    'deck': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3', 'WD01-010#3', 'WD01-010#4',
+      'WD01-010#5', 'WD01-010#6', 'WD01-010#7', 'WD01-010#8', 'WD01-010#9'],
+    'energy': ['WD01-013#4', 'WD01-013#5'],
+    'temp_power_mods': [],
+    'field.check': null,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [[O73_OPP], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  handPrepend: [O73_MILLER],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+async function o73DelayedMillDrive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && (before?.host?.lrigTop !== O73_LRIG); r++) {
+    H.log(`再注入(${r})… host lrigTop=${JSON.stringify(before?.host?.lrigTop)}`);
+    await injectScenario(page, o73DelayedMillSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log('  開始 lrigTop:', before?.host?.lrigTop, 'guest signi:', JSON.stringify(before?.guest?.fieldSigni),
+    'powerMods:', JSON.stringify(before?.host?.powerMods), JSON.stringify(before?.guest?.powerMods));
+  // sticky（罠8d）＝一度立てたら下げない。
+  let installedSeen = false;     // ①設置された
+  let powerAtInstall = null;     // ①の時点の相手 powerMods（即時に殴っていないことの証拠）
+  let milledSeen = false;        // ②ミルが起きた
+  let modReceived = false;       // ②発火してパワーが下がった
+  let lrigOpened = false, millerPlayed = false, handOpened = false, last = before;
+  const oppMods = (st) => JSON.stringify(st?.guest?.powerMods ?? []);
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o73DelayedMill-${s}.png`, fullPage: true });
+    let did = null;
+    const st0 = await H.queryState();
+    if (!installedSeen && (st0?.host?.delayedTriggers ?? []).length > 0) {
+      installedSeen = true;
+      powerAtInstall = oppMods(st0);
+      H.log('  ①設置を観測 delayedTriggers=', JSON.stringify(st0.host.delayedTriggers).slice(0, 120),
+        '／このときの相手 powerMods=', powerAtInstall);
+    }
+    if (installedSeen && (st0?.host?.trash ?? 0) > (before?.host?.trash ?? 0)) milledSeen = true;
+    if (milledSeen && /-5000/.test(oppMods(st0))) modReceived = true;
+
+    // ① まずルリグの【起】を撃つ
+    if (!did && !installedSeen) {
+      if (!lrigOpened) { const o = await H.clickTestId('my-lrig-slot-center'); if (o) { did = o; lrigOpened = true; } }
+      if (!did) did = await H.clickBtn('【起】');   // ⚠`clickBtn` は既定が部分一致（罠2＝exact は文字列名にしか効かない）
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+    }
+    // 🔑**先に進む側（ゾーン選択）から試す**（罠2b）＝ゾーン選択モーダルには `data-action-label` が
+    //   無いので、手札ブロックを先に置くと「モーダルが閉じている」と誤判定して**手札を押し直し、
+    //   出したばかりのゾーン選択を閉じてしまう**（実測＝召喚まで到達したのに以後ずっと空振り）。
+    if (!did && installedSeen) {
+      const zoneBtn = page.getByRole('button', { name: /^ゾーン1/ }).first();
+      if (await zoneBtn.count() && await zoneBtn.isVisible().catch(() => false) && await zoneBtn.isEnabled().catch(() => false)) {
+        await zoneBtn.click({ timeout: 1200 }).catch(() => {}); did = 'btn:ゾーン1'; millerPlayed = true;
+      }
+      if (!did) {
+        const sz = page.getByTestId('summon-zone-1').first();
+        if (await sz.count() && await sz.isVisible().catch(() => false)) { await sz.click({ timeout: 1200 }).catch(() => {}); did = 'tid:summon-zone-1'; millerPlayed = true; }
+      }
+    }
+    // ② 設置できたらミル役を召喚する
+    if (!did && installedSeen && !millerPlayed) {
+      // 🔴罠8p の同型＝**手札カードは毎ティック押すとトグルで閉じる**（実測＝`actionLabels=[]` のまま
+      //   23ティック空振り）。**開くのは1回だけ**にして、以後は「召喚」を探す。
+      //   ⚠罠24＝掴めないまま数ティック過ぎたら**開き直す**自己回復を入れる（閉じられていることがある）。
+      const labels = await page.locator('[data-action-label]').evaluateAll(
+        els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+      if (labels.length === 0) handOpened = false;
+      if (!handOpened) { const h = await H.clickTestId('my-hand-card-0'); if (h) { did = h; handOpened = true; } }
+      else if (!did) did = await H.clickBtn('召喚', { exact: true });
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'スキップ']);
+    last = await H.queryState();
+    if (installedSeen && (last?.host?.trash ?? 0) > (before?.host?.trash ?? 0)) milledSeen = true;
+    if (milledSeen && /-5000/.test(oppMods(last))) modReceived = true;
+    H.log(`  o73[${s}] -> ${did ?? 'なし'} | install=${installedSeen} milled=${milledSeen} mod=${modReceived}`
+      + ` dt=${(last?.host?.delayedTriggers ?? []).length} trash=${last?.host?.trash}（開始${before?.host?.trash}）`
+      + ` oppMods=${oppMods(last)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (modReceived) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o73DelayedMill-final.png`, fullPage: true });
+  const detail = `install=${installedSeen} powerAtInstall=${powerAtInstall} milled=${milledSeen}`
+    + ` mod=${modReceived} oppMods=${oppMods(last)} trash=${last?.host?.trash}（開始${before?.host?.trash}）`;
+  // ⚠**本題を先に判定**（前提崩れ判定を先に置くと旧挙動の再現が隠れる＝O-80 の教訓）
+  if (powerAtInstall && /-5000/.test(powerAtInstall)) {
+    return { pass: false, detail: `🔴【起】を撃った瞬間に相手のパワーが下がっている＝遅延設置が落ちて即時実行になっている。${detail}` };
+  }
+  // 🔴**旧実装は「設置」が存在しない**ので `powerAtInstall` は永久に null になる＝上の判定に到達しない。
+  //   ⇒ **設置を1度も観測しないまま相手のパワーが下がった**形を、旧挙動としてここで捕まえる
+  //   （反転確認で「前提崩れ」と報告されてしまい、旧挙動の再現が判定文から読めなかったので追加）。
+  if (!installedSeen && /-5000/.test(oppMods(last))) {
+    return { pass: false, detail: `🔴設置を1度も観測しないまま相手のパワーが下がった＝遅延設置ごと落ちて即時実行になっている（旧挙動）。${detail}` };
+  }
+  if (!installedSeen) return { pass: false, detail: `前提崩れ＝遅延トリガーの設置を観測できていない（【起】に到達していない）。${detail}` };
+  if (!milledSeen) return { pass: false, detail: `前提崩れ＝ミルを起こせていない（ミル役の【出】が走っていない）。${detail}` };
+  if (!modReceived) {
+    return { pass: false, detail: `🔴ミルは起きたのに発火していない＝collector に収集経路が無い（設置されるが永久に発火しない形）。${detail}` };
+  }
+  return { pass: true, detail: `【起】では殴らず設置だけ→ミルで発火して相手に -5000。${detail}` };
+}
+scenarios.o73DelayedMillTrigger = {
+  title: 'WX24-P3-030-E2（O-73＝デッキトラッシュ時の遅延設置）＝旧実装は【起】を撃った瞬間に相手を殴っていた',
+  spec: o73DelayedMillSpec(),
+  drive: o73DelayedMillDrive,
+};
+order.push('o73DelayedMillTrigger');
+// ── §5.3 O-73 END ──
 // ── §5.3 O-87 END ──
 
 

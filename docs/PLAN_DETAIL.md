@@ -77,6 +77,19 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-26 続き673 後**：
+  **census 564/564**（`O-89` で **−3**＝スコープつきキーワード直後のブロック飲み込みを是正。`BASELINE_HIGH` 更新済み）、**golden 2844**（`O-89` +1。既存「照応B」は id が E2→E3 へずれただけ＝回帰ではない）、
+  smoke **10696 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝`O-89` は engine を1行も触っていない＝parser 側で完結）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10696 / MANUAL 効果 1034 / PARTIAL 21**（`O-89` で **+2 効果**＝`WXDi-P10-040` と `WX24-P4-044` で飲み込まれていたブロックが復活）、
+  🆕**`_held_fresh` 77 / `_partial_fresh` 12 / `_idset_fresh` 43**（`O-89` で2件採用＋**`_idset_fresh` が 45→43**＝`WXDi-P09-048` / `WX25-P2-118` の凍結が実体一致で解けた）、
+  **どのフラグも立たないカード 4962 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +1**（`o89ShadowKeywordBlockSplit`＝**反転確認済み**）、
+  **`npm run golden` の所要＝全件 約158秒／`--only` 約1.5秒**
+
+
 - **2026-08-26 続き672 後**：
   **census 567/567**（`O-91` で −1＝`WXK05-043-E1` の bare BANISH が `CONDITIONAL{SELF_POWER_GTE 12000}` になり条件節カテゴリから抜けた。`BASELINE_HIGH` 更新済み）、**golden 2843**（`O-91` +1。`O-88` の (c) は「既知の残」前提だったので更新＝回帰ではない）、
   smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、

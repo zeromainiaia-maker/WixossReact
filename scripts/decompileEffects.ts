@@ -1375,6 +1375,14 @@ function actionJa(a?: Action, effectType?: string): string {
         const nextIDT = a.once ? '次に' : '';
         return `${durIDT}、${nextIDT}あなたのシグニがバトルによってシグニ1体をバニッシュしたとき、${actionJa(a.effect)}`;
       }
+      // 🆕§5.3 `O-73`（2026-08-26）＝`WX24-P3-030-E2`。`timingJa` のフォールバックだと
+      //   「あなたか対戦相手のデッキから…」になり、**原文の「あなたの効果１つによって」が消える**ので専用文にする。
+      if (a.trigger?.timing === 'ON_CARD_MILLED_FROM_DECK') {
+        const whoIDT = a.trigger.milledDeckOwner === 'opponent' ? '対戦相手の'
+          : a.trigger.milledDeckOwner === 'any' ? 'あなたか対戦相手の' : 'あなたの';
+        const minIDT = a.trigger.milledMinCount ?? 1;
+        return `このターン、あなたの効果1つによって${whoIDT}デッキからカードが合計${minIDT}枚以上トラッシュに置かれたとき、${actionJa(a.effect)}`;
+      }
       const cf = a.trigger?.crasherFilter;
       const subjIDT = cf
         ? `あなたの${cf.color ? [].concat(cf.color).join('・') + 'の' : ''}${cf.story ? '＜' + [].concat(cf.story).join('・') + '＞の' : ''}${cf.cardClass ? '＜' + [].concat(cf.cardClass).join('・') + '＞の' : ''}シグニが`

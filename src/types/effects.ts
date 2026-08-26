@@ -1679,6 +1679,15 @@ export interface InstallDelayedTriggerAction {
     /** ON_SIGNI_DOWN のダウンしたシグニの所有者（設置者から見て）。省略=any。`WX05-042`＝self（§6.4 O-11） */
     downedOwner?: 'self' | 'opponent' | 'any';
     /**
+     * ON_CARD_MILLED_FROM_DECK の発生源デッキ（設置者から見て）。省略=self。
+     * §5.3 `O-73`＝`WX24-P3-030-E2`「このターン、あなたの効果１つによって**デッキから**カードが
+     * 合計１枚以上トラッシュに置かれたとき、」。**通常の【自】側と同じキー名**（`milledDeckOwner` /
+     * `milledMinCount`）にして、collector が同じ読み方をできるようにしている。
+     */
+    milledDeckOwner?: 'self' | 'opponent' | 'any';
+    /** ON_CARD_MILLED_FROM_DECK の最低ミル枚数（その解決単位で）。省略=1。 */
+    milledMinCount?: number;
+    /**
      * 「**あなたのメインフェイズの間**、〜したとき」＝メインフェイズかつ設置者のターンのときだけ発火。
      * ⚠期間（`duration:'THIS_TURN'`）とは別軸＝設置は turn 全体に残るが**発火窓はメインだけ**。
      */

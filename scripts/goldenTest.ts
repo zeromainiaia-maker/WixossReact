@@ -3860,6 +3860,60 @@ test('スコープつきキーワード直後のブロックを飲み込まな�
     ok(e.some(x => x.effectType === 'AUTO'), 'WXK10-039: 裸【アサシン】の後続【出】は従来どおり残る');
   }
 });
+// ── §5.3 `O-73`（2026-08-26）：「このターン、〜したとき」の**遅延設置**が
+// `ON_CARD_MILLED_FROM_DECK` に無く、遅延句ごと落ちて**即時実行**になっていた。
+// `WX24-P3-030-E2`「【起】《ゲーム１回》…：このターン、あなたの効果１つによってデッキからカードが
+// 合計１枚以上トラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、…パワーを－5000する。」
+// 🔴旧＝素の `POWER_MODIFY -5000`＝**【起】を撃った瞬間に相手を殴る過剰実行**。
+// 🔑**collector（`collectMillTriggers` の `delayed_triggers` ループ）を先に足してある**＝
+//   無いと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけになる。
+test('デッキトラッシュ時の遅延設置（O-73）', () => {
+  const act = (id: string, eid: string): Record<string, unknown> => {
+    const e = ((effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[])
+      .find(x => x.effectId === eid);
+    ok(!!e, `${eid}: 効果が存在する`);
+    return e!.action;
+  };
+  // (a) 本題＝【起】の本文が設置になる（旧＝bare POWER_MODIFY＝即時実行）。
+  {
+    const a = act('WX24-P3-030', 'WX24-P3-030-E2') as {
+      type?: string; duration?: string;
+      trigger?: { timing?: string; milledDeckOwner?: string };
+      effect?: { type?: string; delta?: number; target?: { owner?: string } };
+    };
+    eq(a.type, 'INSTALL_DELAYED_TRIGGER', 'WX24-P3-030-E2 は遅延設置（旧＝素の POWER_MODIFY で即時実行）');
+    eq(a.duration, 'THIS_TURN', 'WX24-P3-030-E2 期間はこのターン');
+    eq(a.trigger?.timing, 'ON_CARD_MILLED_FROM_DECK', 'WX24-P3-030-E2 発火はデッキトラッシュ時');
+    eq(a.trigger?.milledDeckOwner, 'self', 'WX24-P3-030-E2 「デッキから」＝主語省略で自分のデッキ');
+    eq(a.effect?.type, 'POWER_MODIFY', 'WX24-P3-030-E2 帰結はパワー修整');
+    eq(a.effect?.delta, -5000, 'WX24-P3-030-E2 －5000');
+    eq(a.effect?.target?.owner, 'opponent', 'WX24-P3-030-E2 対象は相手シグニ');
+  }
+  // (b) 同カードの【自】側は据置＝遅延ではなく素の AUTO トリガー（両者を取り違えていない）。
+  {
+    const e = ((effectsMap.get('WX24-P3-030') ?? []) as unknown as {
+      effectId: string; effectType?: string; timing?: string[] }[]).find(x => x.effectId === 'WX24-P3-030-E1');
+    eq(e?.effectType, 'AUTO', 'WX24-P3-030-E1 は素の【自】');
+    eq(JSON.stringify(e?.timing), JSON.stringify(['ON_CARD_MILLED_FROM_DECK']), 'WX24-P3-030-E1 も同じ timing');
+  }
+  // 🔴 fail-closed ガードの固定＝**「この方法で」は tail 内で完結しない**ので設置へ畳んではならない
+  //   （前段の処理結果を指す照応＝`O-71` の領分）。緩めたのは「tail 自身が対象を宣言している」場合だけ。
+  {
+    const hasInstall = (root: unknown): boolean => {
+      let f = false;
+      const walk = (v: unknown): void => {
+        if (!v || typeof v !== 'object') return;
+        if ((v as { type?: string }).type === 'INSTALL_DELAYED_TRIGGER') f = true;
+        for (const x of Object.values(v as Record<string, unknown>)) { if (Array.isArray(x)) x.forEach(walk); else walk(x); }
+      };
+      walk(root); return f;
+    };
+    // `WXK10-045-E2`「…対戦相手は**それ**を手札に戻す」＝先行文の照応（tail に「を対象とし」が無い）。
+    const e = (effectsMap.get('WXK10-045') ?? []) as unknown as { effectId: string; action: unknown }[];
+    const e2 = e.find(x => x.effectId === 'WXK10-045-E2');
+    if (e2) ok(!hasInstall(e2.action), 'WXK10-045-E2: 対象宣言の無い「それ」照応は設置へ畳まない（O-71 据置）');
+  }
+});
 // ── 続き219: CHOOSE ヘッダ（「以下の…から…を選ぶ」）直前の状態条件を効果全体の発動条件へ持ち上げる（タスク12(xxxix)）。
 // 従来は CHOOSE 分解がヘッダ以前を捨てるため条件が脱落し、毎アタックフェイズ開始時/出時に無条件で CHOOSE が
 // 発火する過剰効果だった（WX24-P2-048「場に《満月の使徒 小湊るう子》がいる場合」等10枚）。

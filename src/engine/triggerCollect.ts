@@ -1948,6 +1948,30 @@ export function collectMillTriggers(
       effectId: eff.effectId, label: 'ゲーム中に得た【自】効果（デッキトラッシュ時）', effect: eff,
     });
   }
+  // 🆕INSTALL_DELAYED_TRIGGER（§5.3 `O-73`・2026-08-26）＝「**このターン**、あなたの効果１つによって
+  // デッキからカードが合計１枚以上トラッシュに置かれたとき、…」（`WX24-P3-030-E2`）。
+  // 🔴**ここに収集経路が無いと「設置されるが永久に発火しない」**＝過剰実行を no-op へ替えるだけになるので、
+  //   parser 側で遅延設置へ変換する前に**必ずこちらを先に足す**（登録票のブロッカーそのもの）。
+  // ⚠**発火窓は「設置したプレイヤーのデッキ」が既定**（原文の「デッキから」は主語省略で自分のデッキ）。
+  //   設置者は場に居るとは限らない（【起】を撃った後にそのシグニが場を離れてもよい）ので、
+  //   場のソース走査ではなく `delayed_triggers` を直接読む。
+  for (const dt of controllerState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== 'ON_CARD_MILLED_FROM_DECK') continue;
+    const dtOwner = dt.trigger.milledDeckOwner ?? 'self';
+    const dtMin = dt.trigger.milledMinCount ?? 1;
+    const dtRelevant = dtOwner === 'self' ? milledFromControllerDeck
+      : dtOwner === 'opponent' ? milledFromOppDeck
+      : milledFromControllerDeck + milledFromOppDeck;
+    if (dtRelevant < dtMin) continue;
+    entries.push({
+      id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: 'このターンの遅延トリガー（デッキトラッシュ時）',
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_CARD_MILLED_FROM_DECK'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    });
+  }
   return { entries, usedOncePerTurnIds };
 }
 

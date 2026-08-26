@@ -3577,6 +3577,15 @@ const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string; duration?: '
   // `WXK05-009-E2`「このターン、対戦相手のシグニがアタックしたとき、」＝**設置者は防御側**。
   // `attackerOwner:'opponent'` は設置者から見た所有者（collector が防御側の設置分だけ拾うための弁別子）。
   { re: /^このターン[、,]対戦相手のシグニがアタックしたとき[、,]$/, timing: 'ON_ATTACK_SIGNI', trigger: { attackerOwner: 'opponent' } },
+  // 🆕§5.3 `O-73`（2026-08-26）＝`WX24-P3-030-E2`「【起】《ゲーム１回》…：**このターン、あなたの効果１つに
+  //   よってデッキからカードが合計１枚以上トラッシュに置かれたとき、**対戦相手のシグニ１体を対象とし、
+  //   ターン終了時まで、それのパワーを－5000する。」
+  //   旧＝遅延設置ごと落ちて**素の `POWER_MODIFY -5000`**（＝【起】を撃った瞬間に相手を殴る過剰実行）。
+  // 🔴**collector 側（`collectMillTriggers` の `delayed_triggers` ループ）を先に足してある**＝
+  //   無いと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけになる。
+  // ⚠「デッキから」は主語省略で**自分のデッキ**（`milledDeckOwner:'self'`）。「合計１枚以上」＝ minCount 1（既定）。
+  { re: /^このターン[、,](?:あなたの効果[１1]つによって)?デッキからカードが合計[１1]枚以上トラッシュに置かれたとき[、,]$/,
+    timing: 'ON_CARD_MILLED_FROM_DECK', trigger: { milledDeckOwner: 'self' } },
 ];
 
 /** 回避クローズを持たない「〈設置句〉、〈帰結〉」の厳格形も同じ表から遅延設置へ変換する。 */
@@ -3616,7 +3625,14 @@ function matchPlainDelayedInstall(t: string): EffectAction | undefined {
       if (/[。.]\s*\S/.test(tail.replace(/[。.]\s*$/, ''))) return undefined;          // (b)
       // ⚠**文中の照応も落とす**（「対戦相手は**それ**を手札に戻す」＝助詞の後ろに来る）。
       //   `それぞれ` は照応ではないので除外する（先読みで弾かないと大量に巻き込む）。
-      if (/それ(?!ぞれ)|この方法で/.test(tail)) return undefined;                       // (c)
+      // 🆕§5.3 `O-73`（2026-08-26）＝**tail 自身が対象を宣言していれば「それ」は tail 内の照応**なので通す。
+      //   `WX24-P3-030-E2` の帰結は「**対戦相手のシグニ１体を対象とし**、ターン終了時まで、**それ**のパワーを
+      //   －5000する」＝照応先は同じ tail の中にあり、先行文を見に行かない（＝`O-71` が言う「受け皿が無い」形
+      //   ではない）。ここを一律で落としていたため、**遅延設置ごと落ちて素の `POWER_MODIFY` へ即時実行**
+      //   になっていた（【起】を撃った瞬間に相手を殴る過剰実行）。
+      //   ⚠**「この方法で」は tail 内で完結しない**（前段の処理結果を指す）ので従来どおり落とす。
+      if (/この方法で/.test(tail)) return undefined;                                    // (c-1)
+      if (!/を対象とし/.test(tail) && /それ(?!ぞれ)/.test(tail)) return undefined;      // (c-2)
       const install = {
         type: 'INSTALL_DELAYED_TRIGGER',
         duration: delayedPrefix.duration ?? 'THIS_TURN',
