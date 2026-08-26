@@ -2393,6 +2393,19 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
   if (countOnly && previous?.type === 'LIFE_COUNT') {
     return { condition: { ...previous, operator: 'eq', value: parseNum(countOnly[1]) }, rest: m[2] };
   }
+  // 🆕§5.3 `O-91`（2026-08-26）＝**前文の主語が省略された閾値ゲート**。
+  //   「このシグニのパワーが10000以上の場合、カードを１枚引く。**12000以上の場合、**追加でそれをバニッシュする。」
+  //   ＝2文目は1文目の主語「このシグニのパワーが」を省略した形。条件節パーサは主語が無いので当たらず、
+  //   **後半が無条件に走る**（`WXK05-043-E1` は本来パワー12000以上のときだけのバニッシュが**常に**走っていた）。
+  //   ⇒ 直前枝の条件（型・owner・対象）をそのまま継承し、**閾値の数値だけ差し替える**。
+  //   ⚠**継承元を「同じ主語の閾値条件」に限る**＝ここで一般の Condition を継承すると、
+  //     「N枚の場合」（`countOnly`・上の2枝）と衝突するし、盤面語を含む別種の条件まで巻き込む。
+  //   ⚠**「代わりに」（置換）は呼び出し側で除外する**＝追加実行と意味が違うので同じ規則で扱わない（PLAN の警告）。
+  const gteOnly = desc.match(/^([０-９\d]+)以上$/);
+  if (gteOnly && (previous?.type === 'SELF_POWER_GTE' || previous?.type === 'LAST_PROCESSED_LEVEL_SUM'
+      || previous?.type === 'FIELD_LEVEL_SUM')) {
+    return { condition: { ...previous, operator: 'gte', value: parseNum(gteOnly[1]) }, rest: m[2] };
+  }
   const amongColor = desc.match(/^その中に(白|赤|青|緑|黒)のカードがある$/);
   if (amongColor) return { condition: { type: 'LAST_PROCESSED_MATCHES', filter: { color: amongColor[1] } }, rest: m[2] };
   // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
@@ -13479,7 +13492,14 @@ function parseActionTextInner(text: string): EffectAction {
       const previousLpm = prevStepE?.type === 'CONDITIONAL'
         ? (prevStepE as import('../types/effects').ConditionalAction).condition
         : undefined;
-      const branch = (prevIsLpmChainE || previousLpm?.type === 'LIFE_COUNT')
+      // 🆕§5.3 `O-91`（2026-08-26）＝**閾値の主語省略**も同じ chain として扱う（`SELF_POWER_GTE` ほか）。
+      //   ⚠**「代わりに」で始まる枝は除外する**＝それは追加実行ではなく**置換**で、前の枝を捨てる意味になる
+      //     （`WXDi-D01-016`「20000以上の場合、**代わりに**…」）。ここで同型に畳むと**両方実行**の過剰効果になる。
+      const prevIsThresholdChain = prevStepE?.type === 'CONDITIONAL'
+        && (previousLpm?.type === 'SELF_POWER_GTE' || previousLpm?.type === 'LAST_PROCESSED_LEVEL_SUM'
+          || previousLpm?.type === 'FIELD_LEVEL_SUM')
+        && !/^[０-９\d]+以上の場合、代わりに/.test(clean);
+      const branch = (prevIsLpmChainE || previousLpm?.type === 'LIFE_COUNT' || prevIsThresholdChain)
         ? parseBareBranchCondition(clean, previousLpm)
         : null;
       if (branch) {

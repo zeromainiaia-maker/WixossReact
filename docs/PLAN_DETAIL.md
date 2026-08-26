@@ -77,6 +77,19 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-26 続き671 後**：
+  **census 568/568**（`O-90` で −1＝`O-88` が可視化した穴の**払い戻し**。`WXK07-051-E1` の公開札がデッキ上へ戻る形を是正して「公開し」カテゴリから抜けた。`BASELINE_HIGH` 更新済み）、**golden 2842**（`O-90` +1）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝`O-90` は engine の全文 regex を1本も増やしていない＝parser 側で完結）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-90` は AUTO 5効果が変化）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（`O-90` で5件採用）、
+  **どのフラグも立たないカード 4962 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +1**（`o90RevealedCardsToDeckBottom`＝**反転確認済み**。回帰＝`o88AttackAnaphoraBanishesOpponent` PASS／`lookReorderCanTrash` は**HEAD でも赤い既存の腐り**＝`V-89` に登録）、
+  **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
+
+
 - **2026-08-26 続き670 後**：
   **census 569/569**（`O-88` で +1＝**退化ではなく可視化**。`WXK07-051-E1` を STUB から実アクションへ移して「公開し」に計上された）、**golden 2841**（`O-88` +1）、
   smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、

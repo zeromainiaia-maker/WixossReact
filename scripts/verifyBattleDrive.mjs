@@ -32124,6 +32124,106 @@ scenarios.o90RevealedCardsToDeckBottom = {
 };
 order.push('o90RevealedCardsToDeckBottom');
 // ── §5.3 O-90 END ──
+// ── §5.3 O-91（2026-08-26）──────────────────────────────────────────────
+// ■ 原文＝`WXK05-043`「【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、
+//    このシグニのパワーが10000以上の場合、カードを１枚引く。**12000以上の場合、追加でそれをバニッシュする。**」
+// ■ 2文目は1文目の主語「このシグニのパワーが」を**省略した形**。条件節パーサは主語が無いので当たらず、
+//    旧 live は `BANISH` が bare step＝**パワーに関係なく常にバニッシュ**していた（過剰効果）。
+// ■ 🔑**これは負方向テスト**（「起きない」ことの検証）＝§4.4 の罠3 に従い**対照とセット**で意味を持つ。
+//    対照は既存の `o88AttackAnaphoraBanishesOpponent`＝**盤面を1文字も変えず `temp_power_mods` の値だけ**
+//    5000（＝13000・原文でも条件成立）から 3000（＝11000・条件不成立）へ落としたもの。
+// ■ ⚠**罠4/罠5 対策**＝「相手が減っていない」は**効果の開始前にも真**なので単独では何も検証していない。
+//    ⇒ **witness＝ドローが起きたこと**（＝【自】が走り、10000 のゲートは通った証拠）を必須条件にしてから
+//    「12000 のゲートで止まった」と判定する。
+// ■ 🔴**`SELECT_TARGET` は本シナリオでは原理的に出ない**（初回実行で実測）＝対象選択は `BANISH` の中にあり、
+//    12000 のゲートで止まると選択そのものに到達しない。⇒ **候補の観測を必須条件にしてはならない**
+//    （engine が正しいのに「前提崩れ」で赤くなる＝§4.4 の罠15「観測面を間違えると engine バグそっくりの偽陰性」）。
+//    むしろ**候補が出たら旧挙動の兆候**なので、ログに残して detail で読めるようにする。
+//    対照 `o88AttackAnaphoraBanishesOpponent`（13000）では候補が出て1体バニッシュされる＝対になっている。
+const O91_SRC = 'WXK05-043#1';          // 幻水　ティロス（表記パワー 8000）
+const O91_SELF_DECOY = 'WD01-010#1';    // 自分側 Lv3
+const O91_OPP_A = 'WD01-010#2';         // 相手 Lv3
+const O91_OPP_B = 'WD01-013#2';         // 相手 Lv1
+const o91BelowThresholdSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [[O91_SRC], [O91_SELF_DECOY], null],
+    'field.signi_down': [false, false, false],
+    // 🔑対照との唯一の差＝8000＋3000＝**11000**（10000以上だが12000未満）。
+    'temp_power_mods': [{ cardNum: O91_SRC, delta: 3000 }],
+    'field.check': null,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [[O91_OPP_A], [O91_OPP_B], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function o91BelowThresholdDrive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[0] ?? []).includes?.(O91_OPP_A); r++) {
+    H.log(`再注入(${r})… guest zone0=${JSON.stringify(before?.guest?.fieldSigni?.[0])}`);
+    await injectScenario(page, o91BelowThresholdSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const hand0 = before?.host?.hand ?? 0;
+  H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni), 'guest signi:', JSON.stringify(before?.guest?.fieldSigni), 'hand:', hand0);
+  let modalOpened = false, candsSeen = null, drewSeen = false, last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o91BelowThreshold-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !candsSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; modalOpened = true; } }
+    const pre = await H.queryState();
+    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates)) {
+      candsSeen = pre.pendingCandidates.slice();
+      H.log('  SELECT_TARGET 候補:', JSON.stringify(candsSeen));
+    }
+    // 🔑 sticky（罠8d）＝一度立てたら下げない。後続の手札消費で判定が false へ戻らないようにする。
+    if ((pre?.host?.hand ?? 0) > hand0) drewSeen = true;
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    if ((last?.host?.hand ?? 0) > hand0) drewSeen = true;
+    H.log(`  o91[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(candsSeen)} drew=${drewSeen} hand=${last?.host?.hand}（開始${hand0}） gSigni=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (drewSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o91BelowThreshold-final.png`, fullPage: true });
+  const gs = (last?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+  const detail = `cands=${JSON.stringify(candsSeen)} drew=${drewSeen} hand=${last?.host?.hand}（開始${hand0}） gSigni=${JSON.stringify(gs)}`;
+  // ⚠**本題を先に判定**（前提崩れ判定を先に置くと旧挙動の再現が隠れる＝O-80 の教訓）
+  if (gs.length < 2) {
+    return { pass: false, detail: `🔴パワー11000（12000未満）なのに相手シグニがバニッシュされた＝「12000以上の場合」のゲートが効いていない。${detail}` };
+  }
+  // ここから前提崩れの検査＝上の「起きなかった」が**本当に機構を通った結果**であることを担保する（罠4/罠5）。
+  // ⚠`candsSeen` は**必須にしない**＝12000 のゲートで止まると対象選択に到達しないのが正しい挙動。
+  //   witness は「ドローが起きた」＝効果が走って 10000 のゲートを通ったこと。
+  if (!drewSeen) return { pass: false, detail: `前提崩れ＝ドローが観測できていない（10000 のゲートも通っていない＝アタック時トリガーが走っていない疑い）。${detail}` };
+  return { pass: true, detail: `パワー11000＝ドローだけ走り、バニッシュは走らない（相手2体とも健在）。${detail}` };
+}
+scenarios.o91BelowThresholdNoBanish = {
+  title: 'WXK05-043-E1（O-91＝前文の主語が省略された閾値ゲート）＝パワー11000ではバニッシュしない【負方向・対照は o88AttackAnaphoraBanishesOpponent】',
+  spec: o91BelowThresholdSpec(),
+  drive: o91BelowThresholdDrive,
+};
+order.push('o91BelowThresholdNoBanish');
+// ── §5.3 O-91 END ──
 // ── §5.3 O-87 END ──
 
 

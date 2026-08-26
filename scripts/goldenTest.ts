@@ -3621,11 +3621,14 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
     eq(JSON.stringify(t.filter?.level), JSON.stringify({ max: 4 }), 'WX21-007-E1 レベル4以下フィルタ継承');
   }
   // (c) 同型で BANISH（旧 owner:'self'＝**自分のシグニをバニッシュ**していた）。
-  //     ⚠**既知の残**＝「12000以上の場合」の閾値ゲート（前文の主語「このシグニのパワーが」が省略された形）は
-  //       まだ落ちており、バニッシュは無条件に走る（§5.3 `O-91`）。ここで固定するのは**照応先**だけ。
+  //     🆕**2026-08-26 `O-91` で「12000以上の場合」の閾値ゲートが復活した**ので、BANISH は
+  //       `CONDITIONAL{SELF_POWER_GTE 12000}` の内側にある（旧＝bare BANISH＝無条件実行）。
+  //       ここで固定するのは**照応先**＝閾値そのものは O-91 の golden が持つ。
   {
-    const bn = steps(act('WXK05-043'))[1] as { type?: string; target?: Record<string, unknown> };
-    eq(bn.type, 'BANISH', 'WXK05-043-E1 末尾は BANISH');
+    const cond = steps(act('WXK05-043'))[1] as { type?: string; then?: Record<string, unknown> };
+    eq(cond.type, 'CONDITIONAL', 'WXK05-043-E1 末尾は閾値ゲート付き（O-91）');
+    const bn = cond.then as { type?: string; target?: Record<string, unknown> };
+    eq(bn.type, 'BANISH', 'WXK05-043-E1 帰結は BANISH');
     const t = bn.target as { owner?: string; filter?: Record<string, unknown> };
     eq(t.owner, 'opponent', 'WXK05-043-E1 「追加でそれをバニッシュ」＝相手シグニ（旧 self 誤り）');
     eq(JSON.stringify(t.filter?.level), JSON.stringify({ max: 3 }), 'WXK05-043-E1 レベル3以下フィルタ継承');
@@ -3744,6 +3747,66 @@ test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', (
     const ru = (steps(a)[1] as { then?: { type?: string; restDestination?: string } }).then!;
     eq(ru.type, 'REVEAL_UNTIL', 'WXK07-054-CB-E2: REVEAL_UNTIL のまま');
     eq(ru.restDestination, 'deck_bottom_shuffled', 'WXK07-054-CB-E2: 後始末は restDestination が持つ');
+  }
+});
+// ── §5.3 `O-91`（2026-08-26）：**前文の主語が省略された閾値ゲート**。
+// 「このシグニのパワーが10000以上の場合、カードを１枚引く。**12000以上の場合、**追加でそれをバニッシュする。」
+// ＝2文目は1文目の主語「このシグニのパワーが」を省略した形。条件節パーサは主語が無いので当たらず、
+// 🔴**後半が無条件に走る**（`WXK05-043-E1` は本来パワー12000以上のときだけのバニッシュが**常に**走っていた）。
+// ⇒ 直前枝の条件を継承し、**閾値の数値だけ差し替える**（`parseBareBranchCondition` の chain に合流させる）。
+test('前文の主語が省略された閾値ゲートを継承する（O-91）', () => {
+  const act = (id: string, eid?: string): Record<string, unknown> => {
+    const effs = (effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[];
+    const e = eid ? effs.find(x => x.effectId === eid) : effs[0];
+    ok(!!e, `${id}: 効果が存在する`);
+    return e!.action;
+  };
+  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
+  // (a) 本題＝「12000以上の場合、追加でそれをバニッシュする」に条件が付く（旧＝bare BANISH＝無条件）。
+  {
+    const st = steps(act('WXK05-043', 'WXK05-043-E1'));
+    const first = st[0] as { condition?: Record<string, unknown> };
+    eq(first.condition?.type, 'SELF_POWER_GTE', 'WXK05-043-E1 1文目は SELF_POWER_GTE');
+    eq(first.condition?.value, 10000, 'WXK05-043-E1 1文目の閾値 10000');
+    const second = st[1] as { type?: string; condition?: Record<string, unknown>; then?: Record<string, unknown> };
+    eq(second.type, 'CONDITIONAL', 'WXK05-043-E1 2文目も CONDITIONAL（旧 bare BANISH＝無条件実行）');
+    eq(second.condition?.type, 'SELF_POWER_GTE', 'WXK05-043-E1 2文目は前文の主語を継承する');
+    eq(second.condition?.value, 12000, 'WXK05-043-E1 2文目の閾値だけ 12000 へ差し替わる');
+    const bn = second.then as { type?: string; target?: { owner?: string; filter?: Record<string, unknown> } };
+    eq(bn.type, 'BANISH', 'WXK05-043-E1 帰結は BANISH');
+    // O-88 で直した照応（「それ」＝前文の対象）が畳んだ後も生きていること。
+    eq(bn.target?.owner, 'opponent', 'WXK05-043-E1 「それ」＝相手シグニ（O-88 の固定が CONDITIONAL 化後も残る）');
+    eq(JSON.stringify(bn.target?.filter?.level), JSON.stringify({ max: 3 }), 'WXK05-043-E1 レベル3以下フィルタ継承');
+  }
+  // (b) 同型の据置＝`LAST_PROCESSED_LEVEL_SUM` の多段（既に解けていた形を壊していない）。
+  {
+    const st = steps(act('WX22-Re06'));
+    const tiers = st.filter(x => (x as { condition?: { type?: string } }).condition?.type === 'LAST_PROCESSED_LEVEL_SUM')
+      .map(x => (x as { condition: { value?: number } }).condition.value);
+    eq(JSON.stringify(tiers), JSON.stringify([3, 6, 9, 12]), 'WX22-Re06-E1 レベル合計の4段閾値は据置');
+  }
+  // (c) 同型の据置＝`FIELD_LEVEL_SUM` の多段。
+  {
+    const st = steps(act('WXDi-P07-008', 'WXDi-P07-008-E2'));
+    const tiers = st.filter(x => (x as { condition?: { type?: string } }).condition?.type === 'FIELD_LEVEL_SUM')
+      .map(x => (x as { condition: { value?: number } }).condition.value);
+    eq(JSON.stringify(tiers), JSON.stringify([1, 4]), 'WXDi-P07-008-E2 アシストルリグのレベル合計 2段は据置');
+  }
+  // 🔴 fail-closed ガードの固定＝**「代わりに」は追加実行ではなく置換**なので、この chain に畳んではならない。
+  //   `WXDi-D01-016`「15000以上の場合、相手は手札を1枚捨てる。20000以上の場合、**代わりに**見ないで選び捨てさせる」
+  //   ＝正準形は `CONDITIONAL{20000, then:blind, else:CONDITIONAL{15000, then:通常}}`。
+  //   SEQUENCE の2ステップに畳むと**両方実行**の過剰効果になる。
+  {
+    const a = act('WXDi-D01-016', 'WXDi-D01-016-E1') as {
+      type?: string; condition?: Record<string, unknown>;
+      then?: { target?: { blind?: boolean } };
+      else?: { type?: string; condition?: Record<string, unknown> };
+    };
+    eq(a.type, 'CONDITIONAL', 'WXDi-D01-016-E1 「代わりに」は SEQUENCE ではなく置換の CONDITIONAL');
+    eq(a.condition?.value, 20000, 'WXDi-D01-016-E1 高い閾値が then 側');
+    eq(a.then?.target?.blind, true, 'WXDi-D01-016-E1 20000以上なら「見ないで選び」');
+    eq(a.else?.type, 'CONDITIONAL', 'WXDi-D01-016-E1 else に低い閾値の枝が入る（置換＝両方は走らない）');
+    eq(a.else?.condition?.value, 15000, 'WXDi-D01-016-E1 else の閾値 15000');
   }
 });
 // ── 続き219: CHOOSE ヘッダ（「以下の…から…を選ぶ」）直前の状態条件を効果全体の発動条件へ持ち上げる（タスク12(xxxix)）。

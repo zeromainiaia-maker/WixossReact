@@ -2,6 +2,14 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-26・続き671・Opus 5）＝§5.3 `O-90`＝公開札の後始末（「公開したカードをシャッフルしてデッキの一番下に置く」）が `count:0` の**無言 no-op** に割れ、**原文と逆に公開したN枚がデッキ上へ戻っていた**。**5効果を是正**（うち1件は「自分の場のシグニがデッキ下へ送られる」別物）。
+  - 🔑**受け皿は engine に最初から在った**＝`execLookAndReorder` は `a.shuffle` を pending へ渡し、`resumeLookAndReorder` は `pending.shuffle` でシャッフルしてデッキ下へ置く。**parser が吐いていなかっただけ**（`REVEAL_UNTIL` の `restDestination:'deck_bottom_shuffled'` が同義の兄弟で、そちらは既に解けていた）。
+  - 🔴**parser の手当ては「後段の置換」で行う（前段の regex を広げない）**＝`WD21-020` で前段（`parseSentencePart1` の catch-all 除外＋`parseSentencePart3` の公開規則）を広げたら、狙ったノードは直ったが**後続の多分岐4枝がまとめて `LAST_PROCESSED_MATCHES` を失い無条件実行へ退化**した（A/B 実測）。真因＝`parseBareBranchCondition` の多分岐は**「直前枝が LPM であること」をゲートに使う chain 構造**。⇒ 後処理列で**木の1ノードだけを差し替える**形に変え、chain を無傷で残した。
+  - 🔑**母集団は見立て7枚→実測8枚**で、**壊れ方は4群に分かれていた**（A＝無言 no-op 4／B＝`REVEAL_UNTIL` 未生成 1／C＝`REVEAL_UNTIL` で解決済み 2／D＝MANUAL 1）。**同じ原文でも同じ壊れ方とは限らない。**
+  - ✅**実機は新規1本 PASS ＋ 反転確認済み**＝`o90RevealedCardsToDeckBottom`（観測点は `deckCards` の順序）。live の `WXK05-051` **だけ**を旧形に戻すと同じシナリオが赤になる＝旧実装を確かに捕まえる。
+  - ⚠**回帰の `lookReorderCanTrash` FAIL は本件と無関係**＝`git stash` して **HEAD でも同じ FAIL**（既存の腐り）。§5.1 に `V-89` で登録した。
+  - ✅ gates 全緑（golden **2841→2842**／census **569→568**（baseline を実数へ払い戻し）／`census:enginetext` A群 142 据置／smoke・fuzz 全0／`census:stubs` A群🔴0・C群0／manual-fields 0/0）。
+
 - 🏁**セッション（2026-08-26・続き670・Opus 5）＝§5.3 `O-88`＝「それ」が**前の文**で宣言した対象を指す照応。従来は接続節が「そうした場合、」「この方法で〜した場合、」の2つに限られており、**期間句**（「ターン終了時まで、」）や**結果句**（「追加で／それが〜の場合、」）で割れた形が丸ごと漏れて、`targetsTriggerSource`（＝トリガー元＝**自分のシグニ**）へ落ちていた。**5効果を是正**（うち3件は原文と真逆＝自分のシグニをバニッシュ／弱体化していた）。
   - 🔴**一般化は「ガード2枚」とセットでないと fail-open**＝無ガードで一般化した A/B は **15効果が動いて内訳が 正3・良性1・退化11**だった。採用したガードは ①**文境界**（「を対象とし」と「それ」の間に `。` がある＝同一文内は `parseSentencePart1` の領分）②**最終文**（`findTailAction` は木の末尾を返すので、照応節の後ろに文があると**無関係なアクションに owner を塗る**＝`WD15-001-E2` の「このルリグは【ダブルクラッシュ】を得る」が相手への付与に化けた）。**採用後は 6効果・正5/良性1/退化0**。
   - 🔑**`findTailAction` に頼らず「それ」のノードを木から名指しした**＝`deltaPerLastProcessedCount`＋`targetsTriggerSource` の組は**その文でしか立たない**ので一意に特定できる。これで照応節の**後ろにもう1文ある** `WXK07-051-E1`（引用能力・`O-80` 第1バッチの fail-closed 差し戻し先）が通り、designation「**正面の**シグニ」も既存語彙 `filter.frontOfSelf` で表せた。
