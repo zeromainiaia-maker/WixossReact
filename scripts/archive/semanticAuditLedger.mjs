@@ -27,10 +27,10 @@ import { fileURLToPath } from 'url';
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'scratchpad', 'semantic_audit_clean_round1');
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf-8');
 
-const findings = read('findings.jsonl').split('\n').filter(Boolean).map(l => JSON.parse(l));
+export const findings = read('findings.jsonl').split('\n').filter(Boolean).map(l => JSON.parse(l));
 
 // 段0：機械前処理で除去された finding（既知の偽陽性ファミリ）
-const stage0 = JSON.parse(read('clusters_stage0.json'));
+export const stage0 = JSON.parse(read('clusters_stage0.json'));
 const removedKeys = new Set();       // 段0 の excluded ファミリ（FP_* / STALE_* / REVIEW_*）
 for (const rowsLike of Object.values(stage0.excluded ?? {})) {
   for (const r of rowsLike) removedKeys.add(`${r.effectId} ${r.quote}`);
@@ -91,7 +91,7 @@ if (fs.existsSync(path.join(DIR, 'stage3_recluster.json'))) {
   }
 }
 
-const rows = findings.map(f => {
+export const rows = findings.map(f => {
   const key = `${f.effectId} ${f.quote}`;
   // effectId が null の finding（出現条件系）は報告書側が CardNum で書くのでそちらで引く。
   const v = verdicts.get(f.effectId) ?? (f.effectId ? undefined : verdicts.get(f.cardNum));
@@ -113,9 +113,17 @@ const tally = (keyFn, subset) => {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 };
 
-const open = rows.filter(r => !['段0除去', '✅消化', '偽陽性(段1)'].includes(r.state));
-const actionable = open.filter(r => !r.state.startsWith('機構待ち'));
+export const open = rows.filter(r => !['段0除去', '✅消化', '偽陽性(段1)'].includes(r.state));
+export const actionable = open.filter(r => !r.state.startsWith('機構待ち'));
 
+// 🔴**この計器は他のスクリプトから import される**（`scripts/cardProgressCensus.mjs` の意味照合フラグ）。
+//   **残 OPEN の判定は必ずここ1本に集約する**＝以前 `cardProgressCensus.mjs` は自前で `stage2_closed.txt` を
+//   読んでおり、**`EFFECTID :: <quote>` 形（488件中332件）を1件も見ていなかった**ため未消化 findings を
+//   643→948 と大幅に過大報告していた（2026-08-27 続き679 実測）。今日のバッチで直した
+//   「インライン実装が合流点から乖離する」型そのもの。
+//   ⇒ **import したときは何も印字しない**。CLI として直接叩かれたときだけ表を出す。
+const isMain = !!process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
 console.log('===== Sonnetタスク8 燃え尽き台帳（意味照合 clean群 round1）=====');
 console.log(`findings 総数              : ${rows.length}`);
 console.log(`  段0 で機械除去（偽陽性）  : ${count(r => r.state === '段0除去')}`);
@@ -164,3 +172,4 @@ if (li >= 0) {
     console.log(`${r.state}\t${r.severity}\t${r.effectId}\t${r.quote}\t${r.claim}`);
   }
 }
+}  // end isMain（CLI 出力ここまで）
