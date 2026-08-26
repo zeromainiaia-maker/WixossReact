@@ -10,19 +10,19 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-26・続き664・Opus 5）＝§5.3 `O-60` を3バッチ消化（第2〜4）＝`LRIG_UNDER_CARD_OP` / `COPY_LRIG_NAME_ABILITY` / `DEPLOY_RESTRICT` を payload 化**
-  - 🔴**最悪の1件は「regex すら無い無条件フォールバック」だった**＝`LRIG_UNDER_CARD_OP` は3分岐のうち**3つ目に regex が無く**、どの regex にも当たらないと**効果元シグニの下にあるカードを全部トラッシュ**していた。live 17効果のうち regex に当たるのは**2効果だけ**＝残り15効果が**下のカードを失わせるか無言ログ**に落ちていた（`WX24-P4-046-E2` は「レベルの異なる3枚を…してもよい」が**全カード強制**に、`WXK08-084-E1` は「下に**置く**」効果なのに下を**トラッシュ**）。
-  - 🔑**「消費地点が複数ある」ハンドラでは、同じ regex が地点ごとにコピーされている**＝`COPY_LRIG_NAME_ABILITY` は**4地点**（executor＋名前エイリアス＋【自】コピー＋【常】コピー）、`DEPLOY_RESTRICT` は**2地点**。**片方だけ直すと【常】版と【自】版で挙動がずれる**ので、payload 化は「重複の解消」でもある。
-  - 🔴**「活用形が違うだけで丸ごと落ちる」は4回目**＝`COPY_LRIG_NAME_ABILITY` の action ハンドラは**終止形「扱う」**しか見ておらず、実データは全部**連用形「扱い、…」**＝**live 16効果すべてが no-op**。⚠ただし**この id は4地点のうち3地点が効いていた**ので、**miss 数（16）は「壊れていた効果数」ではない**（§4.3）。
-  - 🔴**過剰実行も同時に出ていた**＝【自】コピーの収集が**能力種別を1文字も見ておらず**、「そのルリグの**【常】**能力を得る」としか書いていない `WX24-P4-021-E1` でも **AUTO まで得ていた**。
-  - ✅**live A/B＝26効果が変化・全部 payload の追加だけ**（＋凍結解除1件）。`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45 すべて据置。**`census:enginetext` A群 149→146行・miss カード 138→98**。
-  - 🔴**`WXDi-P13-003B-E2` が凍っていた**（§4.5 `O-54` と同型）＝live が `PARTIAL` なのに `manualEffects.ts` に実体が無く、カード丸ごと温存で parser 改善が永久に届かない状態。fresh がリーフ単位で上位集合と確認してから `AUTO` へ戻して解凍した。
-  - ⚠**実機シナリオのカード選びで2回失敗した**＝①下にカードを積んだ盤面は `SOUL_OP` 系の提示も呼ぶ（`WX24-P4-046` は観測前にソウルを1枚消費）②**`SEQUENCE[この STUB, CONDITIONAL]` の形は `effectExecutor.ts:4433` の別の消費地点が先取りする**（＝このハンドラに到達しない）。⇒**スタンドアロンの STUB を持つ効果**（`WDK17-015-E1`）でないと観測できない。
+- 🏁**セッション（2026-08-26・続き665・Opus 5）＝§5.3 `O-60` をさらに3バッチ消化（第5〜7）＝`DOUBLE_POWER_MINUS` / `PLACE_CARD_UNDER_SIGNI` / `TRAP_TO_HAND`**
+  - 🔴**3件とも「live の全効果で regex が1本も当たらない」状態だった**＝⑤7効果が無言 no-op／⑥【チャーム】の効果が「下に積む」に化ける／⑦「【トラップ】**１つ**」が**3つ全部の回収**に化ける。
+  - 🔑**⑤は「受け皿が在るのに parser が別 id を吐いていた」型**＝`double_power_minus_this_turn` フラグも `effectEngine` の2倍化も、**同じことをする別 id `DOUBLE_POWER_MINUS_THIS_TURN` も最初から在った**。engine を1行も新設せず、**parser が payload を刻むだけで7効果が動いた**。⇒ **「機構が無い」と決めつける前に同義の別 id を探す**（§4.2 の再確認）。
+  - 🔴**「助数詞・活用形の1文字違いで語彙が丸ごと落ちる」は5回目**（`O-46` の連用形／第1バッチ「見**て**」／第3バッチ「扱**い**」／今回「N **つ**」）。**engine 側で綴りを当てにいく設計そのものが原因**なので、payload 化が唯一の恒久対策。
+  - ⚠**fail-closed の向きは旧既定の逆に倒す**＝⑦の旧既定は「全部回収」（過剰側）だったので、payload 欠落では**1枚も戻さない**。⑤⑥は元から過少側なのでそのまま。
+  - ✅**live A/B＝19効果が変化・全部 payload の追加だけ**。**3ハンドラとも payload 被覆 100%**（7/7・7/7・5/5＝全文 regex 撤去の条件）。`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45 据置。**`census:enginetext` A群 146→143行・miss カード 98→80**。
+  - ⚠**live 0 件の死んだ枝を2つ撤去した**（`POWER_MOD_PER_OPPONENT_FIELD` / `STACK_SIGNI_UNDER`）＝**死んだ枝は catch-all の温床**。
+  - 🔴**実機で「空振り緑」を踏んだ**＝候補セルはトグルなので毎ティック押すと確定に到達せず、**対照側が「相手が生き残った」で緑になっていた**。⇒**機構が動いた証拠（`powerMods` に負デルタ）を必須条件に入れて塞いだ**（§4.4 罠4）。
+  - 📋**第6バッチは実機で観測できない**＝`charm_facedown` の挙動差は「直前処理カードが在るとき」だけ出るが、live の唯一の該当効果 `WX16-003-E2` は**その STUB が SEQUENCE の先頭**にあり `lastProcessedCards` が常に空。§2.3 のとおり golden で両方向を固定し、観測点を §5.1 `V-88` に登録した。
 
-**▶ 次の一手**＝**§5.3 `O-60` 第5バッチ**（`npm run census:enginetext` の上位＝`POWER_MOD_PER_COUNT` miss8/live58・`DOUBLE_POWER_MINUS` miss7/live7・`PLACE_CARD_UNDER_SIGNI` miss6/live7）**か `O-76`／`O-77`／`O-78`／`O-75`／`O-73`／`O-74`**。
-- 🔑**「消費地点を全部数えてから payload を設計する」**＝`grep <STUB_ID> src/engine/` で地点数を先に見る。1地点だと思って直すと、残りの地点が古い regex のまま生き残る。
-- 🔴**catch-all の id は3連続で出た**（`LOOK_OPP_LIFE_TOP` 20文型／`LRIG_UNDER_CARD_OP` 22文型／`DEPLOY_RESTRICT` 4文型）＝**parser 側で「置き場に困ったら既存 id へ入れる」運用が常態化している**。payload 化はその棚卸しでもある。
-- 🔴**engine の分岐に「regex すら無い最後の else」があったら、それは全部そこへ落ちている**＝計器の miss は regex を持つ分岐しか測れないので、**ハンドラを開いて末尾の else を必ず読む**。
+**▶ 次の一手**＝**§5.3 `O-80`（`POWER_MOD_PER_COUNT`＝今回分離・L・複数バッチ）**、または `O-60` 第8バッチ（計器の上位＝`CONDITIONAL_ARTS_COST` miss4/live12・`LOOK_AND_REORDER` miss4/live6・`SEED_BLOOM` miss4/live6）**か `O-81`／`O-77`／`O-78`／`O-79`**。
+- 🔑**バッチを取る前に「消費地点の数」と「末尾 else の有無」に加えて、`grep <同義語> src/engine/` で同じことをする別 id を探す**（⑤はこれで engine の新設が0行になった）。
+- 🔴**計器の miss 数は「壊れている効果数」ではない**＝⑤は miss7/live7 で**7効果とも壊れていた**が、第3バッチは miss16/live16 でも**壊れていたのは4消費地点のうち1つだけ**だった。**開いて読むまで分からない。**
 
 ---
 
@@ -528,15 +528,15 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-26 続き664 後（本行が直近の正）**：
-  **census 572/572**（`O-60` では動かず＝engine の全文 regex は census の網に載らない）、**golden 2815**（第2〜4バッチ +6）、
+- **2026-08-26 続き665 後（本行が直近の正）**：
+  **census 572/572**（`O-60` では動かず＝engine の全文 regex は census の網に載らない）、**golden 2821**（第5〜7バッチ +6）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
-  **`census:enginetext` A群 146行 / 142ハンドラ**（B 59／C 26・miss ありハンドラ 47・miss カード 98）、
-  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1032**（据置。`O-60` 第2〜4は payload 追加＝**26効果**＋凍結解除1件）、
+  **`census:enginetext` A群 143行 / 139ハンドラ**（B 59／C 26・miss ありハンドラ 44・miss カード 80）、
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1032**（据置。`O-60` 第5〜7は payload 追加＝**19効果**）、
   **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（いずれも据置＝parser 改善が凍っていない）、
-  **実機シナリオ +5**（`b60UnderCardsSurvive`／`b60UnderCardsTrashed`／`b60CopiedLrigAutoFires`／`b60CopiedLrigAutoNoSource`／`b60DeployRestrictTrim`。累計 `b60*` 6本）、
-  **`npm run golden` の所要＝全件 約158秒／`--only` 約1.5秒**
+  **実機シナリオ +3**（`b60TrapToHandOne`／`b60DoubleMinusArts`／`b60DoubleMinusNoArts`。累計 `b60*` 9本）、
+  **`npm run golden` の所要＝全件 約156秒／`--only` 約1.5秒**
 
 ---
 
