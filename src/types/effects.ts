@@ -2178,6 +2178,20 @@ export interface RemoveAbilitiesAction {
    *   永続／次ターン限定のキー能力喪失が出たら、フラグを2スロット式へ広げること。
    */
   alsoKeys?: boolean;
+  /**
+   * 「対戦相手の**センタールリグと**すべてのシグニは能力を失う」（2026-08-27 段2 第45バッチ・
+   * `WX19-022-BURST`／`WXDi-P10-005-E3`）＝シグニに加えてそのプレイヤーの**センタールリグ**も対象。
+   *
+   * 🔴**ルリグは `abilities_removed`（cardNum リスト）では表せない**＝engine にルリグ能力を
+   *   その集合で止める消費地点が無い（シグニ／キー／トラッシュ起動だけが読む）。ルリグ側の唯一の
+   *   受け皿は `PlayerState.lrig_abilities_disabled` フラグ（`grantedStore` ／ CONTINUOUS 走査／
+   *   `lifeCrashGate` ／ `scanLrigSelfBlocks` が読む）なので、`alsoKeys` と同じ形でそちらへ倒す。
+   *   ⚠**`target.type` を `CENTER_LRIG_OR_SIGNI` にしても効かない**（`execRemoveAbilities` は候補に
+   *   ルリグを混ぜるが、書き込み先が `abilities_removed` なので**黙って無視される**＝見せかけの実装）。
+   * ⚠期間は `until` に従う＝`NEXT_TURN`／`UNTIL_OPP_TURN_END` は
+   *   `lrig_abilities_disabled_next_turn` へ予約する（`abilities_removed_next_turn` と同じ2スロット式）。
+   */
+  alsoCenterLrig?: boolean;
   until: EffectDuration;
   targetsLastProcessed?: boolean; // 「それ」= 直前の POWER_MODIFY 等で選んだ同一シグニへ無選択で適用
   targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
