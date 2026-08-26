@@ -31503,11 +31503,16 @@ async function o81Attach(page, H, tag) {
   return { attachedSeen, last };
 }
 
-/** 中央のシグニでアタックして正面の壁とバトル＝ホストが場を離れる。 */
-async function o81AttackIntoWall(page, H, tag, isDone) {
+/**
+ * 中央のシグニでアタックして正面の壁とバトル＝ホストが場を離れる。
+ * ⚠`isDone`（＝離脱の観測）が立った**直後に返さない**（罠5）＝離脱の結果として積まれる
+ *   ON_LEAVE_FIELD の【自】はまだ stack に載っていない。`settleTicks` 回だけ余分に回して解決を待つ。
+ */
+async function o81AttackIntoWall(page, H, tag, isDone, settleTicks = 8) {
   let modalOpened = false;
+  let doneSeenAt = -1;
   let last = await H.queryState();
-  for (let s = 0; s < 26; s++) {
+  for (let s = 0; s < 30; s++) {
     await page.waitForTimeout(600);
     await page.screenshot({ path: `${SHOT}/${tag}-battle-${s}.png`, fullPage: true });
     let did = null;
@@ -31527,7 +31532,9 @@ async function o81AttackIntoWall(page, H, tag, isDone) {
     if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
     last = await H.queryState();
     H.log(`  ${tag}bt[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(last?.host?.fieldSigni)} gField=${JSON.stringify(last?.guest?.fieldSigni)} hHand=${JSON.stringify(last?.host?.handCards)} revealed=${JSON.stringify(last?.host?.facedownRevealedJust)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
-    if (isDone(last) && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+    if (doneSeenAt < 0 && isDone(last)) doneSeenAt = s;
+    if (doneSeenAt >= 0 && s - doneSeenAt >= settleTicks
+        && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
   }
   return last;
 }
