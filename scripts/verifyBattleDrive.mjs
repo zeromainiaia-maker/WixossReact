@@ -31410,6 +31410,186 @@ order.push('o80PerProcessedCount');
 // ── §5.3 O-80 第1バッチ END ──
 
 
+// ── §5.3 `O-81`（2026-08-26）＝手札からカードを裏向きで付ける（`WX16-003-E2`／母集団は実測1件）──
+// 原文＝「【起】カンニング《アタックフェイズアイコン》《コインアイコン》：あなたのシグニ１体を対象とし、
+//   それにあなたの手札からカード１枚を裏向きで付ける。そのシグニが場を離れる場合、追加でこれによって
+//   付けたカードを公開し手札に戻す。この方法でシグニを公開したとき、そのカードと同じレベルの
+//   対戦相手のシグニ１体を対象とし、それをバニッシュする。」
+// 🔴旧 live は3ステップに割れており、第2文が「**自分のシグニを即バウンス**」・第3文が
+//   「**無条件バニッシュ**」に化けていた（過剰実行）。
+// ■ 観測点は3つ＝①付与（`fieldFacedownAttached` と手札の減）②離脱時の**手札への復帰**
+//   （【チャーム】と違いトラッシュへ行かない）③**同レベルだけ**のバニッシュ。
+// ⚠**盤面はゾーン1（中央）同士で当てる**（罠 8e＝host と guest の index は中央しか対応しない）。
+const O81_ATTACH  = 'WD01-012#81';   // 中剣 フランベル Lv2（手札→裏向きで付ける＝公開されるカード）
+const O81_DECOY   = 'WX01-053#81';   // 極剣 ゴッドイーター Lv4（手札の誤射検知用＝これを付けると Lv4 が飛ぶ）
+const O81_HOST    = 'WD01-013#81';   // 小剣 ククリ Lv1 P3000（付けられる側＝バトルで死ぬ）
+const O81_WALL    = 'WD01-010#81';   // 大剣 カリバン Lv3 P10000（正面の壁＝バトルで勝つ／Lv3 なので飛ばない）
+const O81_TARGET  = 'WD02-012#81';   // 羅石 ブロンダ Lv2 P7000（公開札と同レベル＝飛ぶ側）
+const O81_CONTROL = 'WX01-064#81';   // 羅石 メタリカ Lv4 P15000（別レベル＝飛ばない側＝対照）
+const o81Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WX16-003#81'],                       // ママ♥４ MODE２（【起】の持ち主＝E3 の watcher でもある）
+    'field.signi': [null, [O81_HOST], null],             // 中央だけに置く（罠 8e）
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.signi_facedown_attached': [null, null, null],
+    'field.check': null,                                 // 罠1
+    'field.lrig_down': false,
+    'hand': [O81_ATTACH, O81_DECOY],                     // 2枚＝選択モーダルが必ず出る（罠 8l）
+    'coins': 5,                                          // 《コインアイコン》1
+    'trash': [],
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#81'],
+    'field.signi': [[O81_TARGET], [O81_WALL], [O81_CONTROL]],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'trash': [],
+    'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+// ゾーンに指定インスタンスが居るか（バニッシュ先はエナなので「場を離れた」は場だけで見る＝罠 8f）
+const o81OnField = (fs, inst) => (fs ?? []).some(stack => (stack ?? []).includes(inst));
+const o81Gone = (st, inst) => !o81OnField(st?.guest?.fieldSigni, inst)
+  && ((st?.guest?.energyCards ?? []).includes(inst) || (st?.guest?.trashCards ?? []).includes(inst));
+
+/** 【起】カンニングを撃って O81_ATTACH を裏向きで付ける。付いたら attachedSeen=true。 */
+async function o81Attach(page, H, tag) {
+  let lrigOpened = false, abilityClicked = false, fired = false, attachedSeen = false;
+  let last = await H.queryState();
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOT}/${tag}-atk-${s}.png`, fullPage: true });
+    let did = null;
+    // 注入直後のフェイズ巻き戻りに対して ATTACK_ARTS を再アサート（wxk10068banish と同型）
+    const chk = await H.queryState();
+    if (chk?.turnPhase && chk.turnPhase !== 'ATTACK_ARTS' && !chk?.pendingEffect && !(chk?.stackLen > 0) && !attachedSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_ARTS', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(500);
+      lrigOpened = false;
+      did = `repatch:ATTACK_ARTS(was ${chk.turnPhase})`;
+    }
+    if (!did && !lrigOpened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) lrigOpened = true; }
+    // コストラベルにコインは載らない（`buildCostLabelAA` はエナ/エクシード/ダウン系のみ）＝「【起】コストなし」
+    if (!did && lrigOpened && !abilityClicked) { did = await H.clickBtn('【起】'); if (did) abilityClicked = true; }
+    if (!did && abilityClicked && !fired) { did = await H.clickBtn('発動', { exact: true }); if (did) fired = true; }
+    // 手札の選択＝**誤射検知のため必ずカード番号で狙う**（罠6。decoy を掴むと Lv4 が飛ぶ）
+    if (!did) did = await clickPendingInstance(page, H, O81_ATTACH);
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    const att = last?.host?.fieldFacedownAttached ?? null;
+    if (Array.isArray(att) && (att[1] ?? []).includes(O81_ATTACH)) attachedSeen = true;
+    H.log(`  ${tag}atk[${s}] -> ${did ?? 'なし'} | attached=${JSON.stringify(att)} hHand=${JSON.stringify(last?.host?.handCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (attachedSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  return { attachedSeen, last };
+}
+
+/** 中央のシグニでアタックして正面の壁とバトル＝ホストが場を離れる。 */
+async function o81AttackIntoWall(page, H, tag, isDone) {
+  let modalOpened = false;
+  let last = await H.queryState();
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${SHOT}/${tag}-battle-${s}.png`, fullPage: true });
+    let did = null;
+    const chk = await H.queryState();
+    if (chk?.turnPhase !== 'ATTACK_SIGNI' && !chk?.pendingEffect && !(chk?.stackLen > 0) && !isDone(chk)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(500);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${chk?.turnPhase})`;
+    }
+    if (!did) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  ${tag}bt[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(last?.host?.fieldSigni)} gField=${JSON.stringify(last?.guest?.fieldSigni)} hHand=${JSON.stringify(last?.host?.handCards)} revealed=${JSON.stringify(last?.host?.facedownRevealedJust)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (isDone(last) && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  return last;
+}
+
+scenarios.o81FacedownAttachRevealBanish = {
+  title: 'WX16-003-E2/E3（O-81＝手札から裏向きで付ける→離脱で公開して手札へ→同レベルをバニッシュ）',
+  spec: o81Spec(),
+  async drive(page, H) {
+    const a = await o81Attach(page, H, 'o81');
+    if (!a.attachedSeen) {
+      return { pass: false, detail: `付与を観測できず（attached=${JSON.stringify(a.last?.host?.fieldFacedownAttached)} hHand=${JSON.stringify(a.last?.host?.handCards)} logTail=${JSON.stringify((a.last?.logTail ?? []).slice(-4))}）` };
+    }
+    // ① 付与の直後＝手札から抜け、【チャーム】ゾーンは触られていない
+    const mid = a.last;
+    if ((mid?.host?.handCards ?? []).includes(O81_ATTACH)) {
+      return { pass: false, detail: `付けたカードが手札に残っている（hHand=${JSON.stringify(mid?.host?.handCards)}）` };
+    }
+    if ((mid?.host?.fieldCharms ?? []).some(Boolean)) {
+      return { pass: false, detail: `🔴【チャーム】ゾーンに入っている（原文は【チャーム】ではない・charms=${JSON.stringify(mid?.host?.fieldCharms)}）` };
+    }
+    // ② ホストを場から離す（正面の壁とのバトル）→ ③ 公開して手札へ＋同レベルだけバニッシュ
+    const done = (st) => !o81OnField(st?.host?.fieldSigni, O81_HOST)
+      && (st?.host?.handCards ?? []).includes(O81_ATTACH);
+    const last = await o81AttackIntoWall(page, H, 'o81', done);
+    await page.screenshot({ path: `${SHOT}/o81-final.png`, fullPage: true });
+    const detail = `hField=${JSON.stringify(last?.host?.fieldSigni)} hHand=${JSON.stringify(last?.host?.handCards)} hTrash=${JSON.stringify(last?.host?.trashCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gEna=${JSON.stringify(last?.guest?.energyCards)} logTail=${JSON.stringify((last?.logTail ?? []).slice(-6))}`;
+    if (o81OnField(last?.host?.fieldSigni, O81_HOST)) {
+      return { pass: false, detail: `前提崩れ＝ホストシグニが場を離れていない（バトルが起きていない）。${detail}` };
+    }
+    if (!(last?.host?.handCards ?? []).includes(O81_ATTACH)) {
+      return { pass: false, detail: `🔴公開して手札に戻っていない（${(last?.host?.trashCards ?? []).includes(O81_ATTACH) ? 'トラッシュへ行った＝【チャーム】の処理に化けている' : '行方不明'}）。${detail}` };
+    }
+    if (!o81Gone(last, O81_TARGET)) {
+      return { pass: false, detail: `🔴同レベル（Lv2）の対戦相手シグニがバニッシュされていない。${detail}` };
+    }
+    if (!o81OnField(last?.guest?.fieldSigni, O81_CONTROL)) {
+      return { pass: false, detail: `🔴対照が壊れた＝別レベル（Lv4）まで飛んでいる＝「そのカードと同じレベルの」が効いていない。${detail}` };
+    }
+    if (!o81OnField(last?.guest?.fieldSigni, O81_WALL)) {
+      return { pass: false, detail: `🔴対照が壊れた＝別レベル（Lv3・正面の壁）まで飛んでいる。${detail}` };
+    }
+    return { pass: true, detail: `裏向き付与→離脱で公開し手札へ→Lv2だけバニッシュ（Lv3/Lv4 は残存）。${detail}` };
+  },
+};
+order.push('o81FacedownAttachRevealBanish');
+
+// 対照＝**盤面を1文字も変えず【起】を撃たないだけ**（罠3）。付いていなければ離脱しても何も起きない。
+scenarios.o81NoAttachNoBanish = {
+  title: 'WX16-003 対照（O-81＝裏向きで付けずに同じシグニを離脱させる）＝バニッシュも手札復帰も起きない',
+  spec: o81Spec(),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const done = (st) => !o81OnField(st?.host?.fieldSigni, O81_HOST);
+    const last = await o81AttackIntoWall(page, H, 'o81ctl', done);
+    await page.screenshot({ path: `${SHOT}/o81ctl-final.png`, fullPage: true });
+    const detail = `hField=${JSON.stringify(last?.host?.fieldSigni)} hHand=${JSON.stringify(last?.host?.handCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gEna=${JSON.stringify(last?.guest?.energyCards)}`;
+    if (o81OnField(last?.host?.fieldSigni, O81_HOST)) {
+      return { pass: false, detail: `前提崩れ＝ホストシグニが場を離れていない。${detail}` };
+    }
+    if (!(before?.host?.handCards ?? []).includes(O81_ATTACH)) {
+      return { pass: false, detail: `前提崩れ＝開始時の手札に ${O81_ATTACH} が無い（注入が効いていない）。${detail}` };
+    }
+    if (o81Gone(last, O81_TARGET) || !o81OnField(last?.guest?.fieldSigni, O81_CONTROL) || !o81OnField(last?.guest?.fieldSigni, O81_WALL)) {
+      return { pass: false, detail: `🔴付けていないのに対戦相手のシグニが飛んだ（旧 AUTO の「無条件バニッシュ」）。${detail}` };
+    }
+    if ((last?.host?.fieldFacedownAttached ?? []).some(v => (v ?? []).length)) {
+      return { pass: false, detail: `裏向き付与が残っている（対照が汚れている）。${detail}` };
+    }
+    return { pass: true, detail: `【起】を撃たなければ離脱しても何も起きない。${detail}` };
+  },
+};
+order.push('o81NoAttachNoBanish');
+// ── §5.3 O-81 END ──
+
+
 
 
 
