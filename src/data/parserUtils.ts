@@ -746,6 +746,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     // 「赤か緑のシグニN体を対象とし」は単色抽出だと後半色だけへ潰れる。
     // 対象名詞句に隣接するORだけを後勝ちで載せ、条件節・コスト節の色は拾わない。
     ...signiClauseColorFilter(text),
+    // 「センタールリグと共通する色を持つ〈…〉シグニN体を対象とし」＝ルリグ色参照（engine が動的解決）
+    ...signiClauseLrigColorFilter(text),
     ...parseStoryFilter(text),
     // 《ライズ／クロス／アクセアイコン》＝**対象名詞句に隣接**するときだけ（続き377c）。全文スキャンだと
     // 「あなたの場に《ライズアイコン》を持つシグニが２体ある場合、…対戦相手のシグニ１体を対象とし」の
