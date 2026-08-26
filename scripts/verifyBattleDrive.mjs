@@ -31754,7 +31754,10 @@ scenarios.o87ResetTrapReplace = {
     H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
     // 罠 8p＝候補セルは常に可視＝**instance ごとに1回だけ**押す。
     const picked = new Set();
-    let used = false, sawSelect = false, sawTrick = false;
+    // ⚠罠5＝**クリック前から成立している条件で判定しない**。開始盤面が既に「トラップ2つ」なので、
+    //   「トラップが2つある」で返すと**アーツを使った瞬間に PASS 判定へ落ちる**（実測で1度踏んだ）。
+    //   ⇒ 「一度すべて手札へ戻った（＝機構が動いた）」を sticky で観測してから設置枚数を見る。
+    let used = false, sawSelect = false, sawTrick = false, clearedSeen = false;
     let last = before;
     const trapsFilled = (st) => (st?.host?.signiTraps ?? []).filter(Boolean).length;
     for (let s = 0; s < 34; s++) {
@@ -31773,29 +31776,51 @@ scenarios.o87ResetTrapReplace = {
         if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; used = true; }
       }
       if (!did && !used) did = await H.clickTextOrBtn(['使用']);
-      // 候補（トラップ／シグニ／手札）を1回ずつ選ぶ
+      // 候補（トラップ／シグニ／手札）を選ぶ。⚠**必要数だけ選んだら確定へ移る**＝
+      //   `決定 (N/M)` のラベルから進捗を読む（選びすぎると count:1 の pending で確定できない）。
       const cands = chk?.pendingCandidates ?? [];
       if (!did && cands.length) {
         sawSelect = true;
         if (cands.includes(O87_TRICK)) sawTrick = true;
+        const decide = page.getByRole('button', { name: /決定 \(\d+\/\d+\)/ }).first();
+        let n = 0, m = 0;
+        if (await decide.count()) {
+          const label = (await decide.textContent().catch(() => '')) ?? '';
+          const mm = label.match(/(\d+)\/(\d+)/);
+          if (mm) { n = Number(mm[1]); m = Number(mm[2]); }
+        }
         const want = cands.find(c => !picked.has(c));
-        if (want) {
+        if (n < m && want) {
           const c = await clickPendingInstance(page, H, want);
           if (c) { picked.add(want); did = c; }
         }
         if (!did) did = await H.clickBtn('決定');
       }
-      if (!did) did = await H.clickZone();                    // 【トラップ】設置先ゾーン
+      // 【トラップ】設置先ゾーン。⚠**空きゾーンを優先する**＝`H.clickZone()` は常に「ゾーン1」を押すので、
+      //   2回目の設置が1回目を上書きして（既存トラップはトラッシュへ）**設置枚数が1のまま**になる。
+      //   `INTERNAL_ASK_TRAP_ZONE` は占有ゾーンのラベルに「（既存の【トラップ】をトラッシュ）」を付けるので、
+      //   **素の「ゾーンNに設置」だけ**を狙えば空きゾーンを選べる。
+      if (!did) {
+        const empty = page.getByRole('button', { name: /^ゾーン\d+に設置$/ }).first();
+        if (await empty.count() && await empty.isVisible().catch(() => false) && await empty.isEnabled().catch(() => false)) {
+          const lbl = (await empty.textContent().catch(() => '')) ?? '';
+          await empty.click().catch(() => {});
+          did = 'btn:' + lbl.trim();
+        }
+      }
+      if (!did) did = await H.clickZone();
       if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK', 'はい']);
       if (!did) did = await H.clickTestId('zone-card-0');
       last = await H.queryState();
       H.log(`  o87rt[${s}] -> ${did ?? 'なし'} | traps=${JSON.stringify(last?.host?.signiTraps)} field=${JSON.stringify(last?.host?.fieldSigni)} hand=${JSON.stringify(last?.host?.handCards)} cands=${JSON.stringify(last?.pendingCandidates)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
-      if (used && trapsFilled(last) === 2 && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+      if (trapsFilled(last) === 0) clearedSeen = true;
+      if (used && clearedSeen && trapsFilled(last) === 2 && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
     }
     await page.screenshot({ path: `${SHOT}/o87rt-final.png`, fullPage: true });
     const detail = `traps=${JSON.stringify(last?.host?.signiTraps)} field=${JSON.stringify(last?.host?.fieldSigni)} hand=${JSON.stringify(last?.host?.handCards)}`;
     if (!used) return { pass: false, detail: `前提崩れ＝アーツを使用できていない（あや限定・罠8k）。${detail}` };
     if (!sawSelect) return { pass: false, detail: `🔴「好きな数」の選択 UI が出ていない＝旧実装の問答無用の全回収。${detail}` };
+    if (!clearedSeen) return { pass: false, detail: `前提崩れ＝【トラップ】が一度も手札へ戻っていない。${detail}` };
     if (!sawTrick) return { pass: false, detail: `🔴＜トリック＞のシグニが候補に出ていない（原文の半分が落ちている）。${detail}` };
     if ((last?.host?.fieldSigni ?? []).some(st => (st ?? []).includes(O87_TRICK))) {
       return { pass: false, detail: `＜トリック＞のシグニが場に残っている（手札へ戻っていない）。${detail}` };

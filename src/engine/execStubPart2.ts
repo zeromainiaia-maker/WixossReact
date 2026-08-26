@@ -2,7 +2,7 @@ import type { PlayerState, TargetScope, SigniZoneBlock } from '../types';
 import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, AddToEnergyAction, TransferToHandAction, EnergyChargeAction, ChooseAction, Owner, } from '../types/effects';
+  EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, AddToEnergyAction, TransferToHandAction, EnergyChargeAction, Owner, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import { textHasKeyword } from '../utils/keywords';
 import {
@@ -2973,13 +2973,12 @@ export function execStubPart2(
   }
   if (stub.id === 'PLACE_TRAP_OPTIONAL' || stub.id === 'SET_HAND_CARD_AS_TRAP') {
     if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, 'トラップ設置：手札なし'));
-    const zoneOptsPTO = [0, 1, 2].map(zi => ({
-      id: `zone_${zi}`,
-      label: `ゾーン${zi + 1}に設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
-      available: true,
-    }));
-    // 🔴§5.3 `O-87`＝ここは**無条件に `optional:false`（強制）**だった＝原文「設置しても**よい**」の
+    // 🔴§5.3 `O-87`（2026-08-26・実機で判明）＝ここは `CHOOSE_TRAP_ZONE` → `INTERNAL_SET_TRAP{value:zone}` と
+    //   繋いでおり、**設置するカードを `lastProcessedCards` に置いたまま対話を跨いでいた**。
+    //   `PendingEffect` は `lastProcessedCards` を持たないので、**実アプリでは resume 時に必ず失われ**
+    //   「トラップ設置：対象カードなし」で無言 no-op になる（golden は `finish()` が ctx を持ち回るので通ってしまう）。
+    //   ⇒ **非手札枝と同じ `INTERNAL_ASK_TRAP_ZONE`（＝カードを stub の value に焼き込む）へ寄せる。**
+    // 🔴同時に、ここは**無条件に `optional:false`（強制）**でもあった＝原文「設置しても**よい**」の
     //   `WX19-059-BURST`／`WX21-057-E1` から**設置しない選択を奪う過剰実行**。payload で分ける。
     const optPTO = stub.trapPlaceOptional !== false;
     return needsInteraction(addLog(ctx, `トラップにするカードを選択${optPTO ? '（任意）' : ''}`), {
@@ -2988,20 +2987,7 @@ export function execStubPart2(
       count: 1,
       optional: optPTO,
       targetScope: 'self_hand',
-      thenAction: ({ type: 'STUB', id: 'CHOOSE_TRAP_ZONE' } as StubAction) as EffectAction,
-      continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsPTO.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as ChooseAction) as EffectAction,
-    });
-  }
-  // CHOOSE_TRAP_ZONE: 選択済みカードのゾーン選択
-  if (stub.id === 'CHOOSE_TRAP_ZONE') {
-    const zoneOptsCTZ = [0, 1, 2].map(zi => ({
-      id: `zone_${zi}`,
-      label: `ゾーン${zi + 1}に設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
-      available: true,
-    }));
-    return needsInteraction(addLog(ctx, '設置するゾーンを選択'), {
-      type: 'CHOOSE', options: zoneOptsCTZ, count: 1,
+      thenAction: ({ type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as StubAction) as EffectAction,
     });
   }
   // INTERNAL_SPLIT_REVEALED（タスク12(lix)）: 公開してピックしなかった残りを「好きな枚数をデッキの一番下・
@@ -3064,6 +3050,9 @@ export function execStubPart2(
       `${ctx.cardMap.get(getCardNum(cardPT))?.CardName ?? cardPT}を【トラップ】としてゾーン${zonePT + 1}に設置`));
   }
   // INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置
+  // INTERNAL_SET_TRAP: 手札の1枚を指定ゾーンへ【トラップ】として置く（`lastProcessedCards[0]` を使う）。
+  // ⚠§5.3 `O-87` 以降、**対話を跨ぐ経路からは呼ばない**（`PendingEffect` が `lastProcessedCards` を運ばず
+  //   resume で必ず失われる）。跨ぐ場合は `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP`（カードを value に焼く）。
   if (stub.id === 'INTERNAL_SET_TRAP') {
     const zoneIdxIST = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const trapCardIST = ctx.lastProcessedCards?.[0] ?? null;
