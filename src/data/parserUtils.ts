@@ -168,7 +168,11 @@ export function parseColorFilter(text: string): Partial<TargetFilter> {
 // 「(あなたの)センタールリグと共通する色を持つ／持たない〔シグニ/スペル/カード〕」
 // ＝colorMatchesLrig／colorNotMatchesLrig（engine が動的解決）。
 // 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEARCH/REVEAL/ADD_TO_FIELD/TRANSFER_TO_HAND の各 handler で共用。
-const LRIG_COLOR_RE = /センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:すべての)?(?:シグニ|スペル|カード)/;
+// ⚠**所有者表記が「持つ」と名詞の間に割り込む形**（「センタールリグと共通する色を持つ**対戦相手の**シグニ１体」
+//   ＝`WXEX1-29-E2`）を落としていた＝色の限定が丸ごと消えて**相手のどのシグニでもトラッシュできる**過剰効果
+//   だった（2026-08-27 段2 第45バッチ）。否定形（`LRIG_COLOR_NOT_RE`）には最初から `対戦相手の` が入っていた
+//   ＝肯定形だけが取り残されていた非対称。
+const LRIG_COLOR_RE = /センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:(?:あなた|対戦相手)の)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:すべての)?(?:シグニ|スペル|カード)/;
 const LRIG_COLOR_NOT_RE = /センタールリグと共通する色を持たない(?:対戦相手の)?(?:シグニ|カード)/;
 export function parseColorMatchesLrig(
   text: string,
