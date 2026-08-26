@@ -848,7 +848,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 過少実行に潰れていた（`WX24-P4-013-E3` の「すべての領域」側は count:'ALL' には届いていた）。
     const allZones = /すべての領域にある[^。]*?シグニ(?:は|が)[^。]*?能力を(?:失[うい]|新たに得られない)/.test(t)
       || /手札と場と(?:エナゾーン|エナ)とトラッシュにある[^。]*?シグニ(?:は|が)[^。]*?能力を(?:失[うい]|新たに得られない)/.test(t);
-    const all = keysAndSigni || allZones || t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
+    const all = keysAndSigni || centerLrigAndSigni || allZones || t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
     // 「対戦相手のシグニを**N体まで**対象とし、…能力を失う」＝上限選択。従来は枚数を読まず常に count:1 で、
     // 2体まで消せる効果が1体しか消せない**過小実行**だった（WXDi-P03-024-E1／WXDi-P13-043-E1／WXK10-016-E3 ほか）。
     // ⚠「すべての」側は別枝なので触らない（count:'ALL' を維持）。
