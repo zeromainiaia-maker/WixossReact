@@ -29876,18 +29876,21 @@ order.push('b60LookZoneOppHand');
 //
 // ■ 観測点＝**下のカードが1枚も落ちないこと**＋**能力が発火した証拠**（§4.4 罠4＝盤面だけの判定は偽陽性）。
 // 🔑**旧実装ではこのシナリオは FAIL する**（下の2枚がトラッシュへ行く）＝反転が効いている証拠。
-// ⚠**カード選びで1回失敗した**＝最初は `WX24-P4-046` を使ったが、この札の【自】は別経路（`SOUL_OP`＝
-//   「シグニ下のカードを使用して発動しますか？」）が先に走って**下のカードを1枚消費する**ので、
-//   「下が減ったか」を見る観測が汚れた（§4.4 罠8z＝盤面を作る札の副作用を織り込む）。
-//   `WX24-P3-053`（参ノ遊姫　フンスイショー）は【自】アタック時が `SEQUENCE[この STUB, 相手手札2捨て]` だけで、
-//   下のカードに触る他経路を持たない。
-const b60UnderSpec = (topCard) => ({
+// ⚠**カード選びで2回失敗した**（記録しておく＝同じ罠を踏まないため）：
+//   ①`WX24-P4-046` は【自】が別経路（`SOUL_OP`）を先に通し、**下のカードを1枚消費する**ので観測が汚れる。
+//   ②`WX24-P3-053` は live の形が `SEQUENCE[STUB{LRIG_UNDER_CARD_OP}, CONDITIONAL]` で、
+//     🔴**`effectExecutor.ts` の別の消費地点がこの形を「下のカードを1枚払って発動するコスト」として
+//     先取りする**（`シグニ下のカードを使用して発動しますか？`）＝**このハンドラには到達しない**。
+//   ⇒ 観測には**スタンドアロンの `STUB{LRIG_UNDER_CARD_OP}`** を持つ効果が要る＝`WDK17-015-E1`
+//     「【自】：あなたのシグニ１体が場に出たとき、このシグニをそれの【アクセ】にしてもよい。」。
+const b60UnderSpec = (topCard, restrictLrig) => ({
   hostSet: {
-    'field.lrig': ['WX08-004#1'],
+    'field.lrig': [restrictLrig],
     // 下に2枚積んだスタック（配列末尾が場のシグニ本体）。
     'field.signi': [['WD01-013#91', 'WD01-014#91', topCard], null, null],
     'field.signi_down': [false, false, false],
     'field.check': null,
+    'hand': ['WD05-013#98'],
     'trash': [],
     'actions_done': [],
   },
@@ -29896,39 +29899,37 @@ const b60UnderSpec = (topCard) => ({
     'field.signi': [['WD01-013#95'], null, null],
     'field.signi_down': [false, false, false],
     'field.check': null,
-    'hand': ['WD01-013#96', 'WD01-013#97'],
+    'hand': [],
   },
-  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
 });
-const b60UnderDrive = (tag, expectTrash) => async (page, H) => {
+// 別のシグニを召喚して `WDK17-015-E1`（【自】あなたのシグニ1体が場に出たとき）を撃たせる。
+const b60UnderDrive = (tag) => async (page, H) => {
+  await H.ensureMain();
   const before = await H.queryState();
   const stack0 = (before?.host?.fieldSigni ?? [])[0] ?? [];
   const trash0 = before?.host?.trash ?? 0;
-  H.log(`${tag} 開始 stack=${JSON.stringify(stack0)} trash=${trash0}`);
+  H.log(`${tag} 開始 stack=${JSON.stringify(stack0)} trash=${trash0} hand=${JSON.stringify(before?.host?.handCards)}`);
   if (stack0.length !== 3) return { pass: false, detail: `前提崩れ＝下2枚のスタックが注入できていない（${JSON.stringify(stack0)}）` };
+  H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
 
-  let opened = false;
-  let last = before;
+  let summoned = false;
   let fired = false;
+  let last = before;
   for (let s = 0; s < 22; s++) {
     await page.waitForTimeout(800);
     let did = null;
-    if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
-    if (!did) {
-      // §4.4 罠2＝「アタック」は exact:true のボタン限定（ヘッダーの「ルリグアタックへ」に誤爆させない）
-      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
-      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+      await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
     }
-    if (!did) {   // POWER_MOD_PER_COUNT の対象選択（対照側だけ出る）
-      const pick0 = page.getByTestId('pick-0').first();
-      if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; }
-    }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
     if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
     last = await H.queryState();
-    fired ||= (last?.logTail ?? []).some(l => l.includes('LRIG_UNDER_CARD_OP') || l.includes('シグニ下'));
+    fired ||= (last?.logTail ?? []).some(l => l.includes('LRIG_UNDER_CARD_OP'));
     const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
     H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${last?.host?.trash} fired=${fired} logTail=${JSON.stringify((last?.logTail ?? []).slice(-3))}`);
-    if (fired && (last?.pendingEffect == null) && (last?.stackLen ?? 0) === 0) break;
+    if (fired && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
   }
   // 🔑機構が動いた証拠（【自】が走ってこの STUB に到達した）を必須条件にする（§4.4 罠4）
   if (!fired) {
@@ -29936,11 +29937,6 @@ const b60UnderDrive = (tag, expectTrash) => async (page, H) => {
   }
   const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
   const under = stack.slice(0, -1);
-  if (expectTrash) {
-    return under.length === 0
-      ? { pass: true, detail: `対照：ペイロード trash_all_under_self を持つ札では下の2枚が落ちる（stack=${JSON.stringify(stack)} trash=${last?.host?.trash}）` }
-      : { pass: false, detail: `対照が壊れている＝ペイロードがあるのに下が落ちない（stack=${JSON.stringify(stack)}）` };
-  }
   if (under.length < 2) {
     return { pass: false, detail: `【O-60② 回帰】下のカードが落ちた（${JSON.stringify(stack0)}→${JSON.stringify(stack)}）＝無条件フォールバックの再発` };
   }
@@ -29950,14 +29946,64 @@ const b60UnderDrive = (tag, expectTrash) => async (page, H) => {
   return { pass: true, detail: `【自】は発火したが下のカードは1枚も落ちない（stack=${JSON.stringify(stack)}・trash=${last?.host?.trash}）` };
 };
 scenarios.b60UnderCardsSurvive = {
-  title: 'O-60② WX24-P3-053-E2＝ペイロードの無い配置操作は下のカードに触れない【旧: 下を全部トラッシュ】',
-  spec: b60UnderSpec('WX24-P3-053#1'),
-  drive: b60UnderDrive('b60UnderOk', false),
+  title: 'O-60② WDK17-015-E1＝ペイロードの無い配置操作は下のカードに触れない【旧: 下を全部トラッシュ】',
+  spec: b60UnderSpec('WDK17-015#1', 'WXK09-024#1'),
+  drive: b60UnderDrive('b60UnderOk'),
 };
+
+// 🔑**対照＝`trash_all_under_self` のペイロードを持つ札では実際に下が落ちる**（§4.4 罠3＝
+//   「起きない」の検証は、同じ機構が「起きる」ことを示す対照とセットにする）。
 scenarios.b60UnderCardsTrashed = {
-  title: 'O-60② 対照＝trash_all_under_self を持つ札（WXDi-CP02-054-E1）では下が落ちる（盤面は1点だけ違う）',
-  spec: b60UnderSpec('WXDi-CP02-054#1'),
-  drive: b60UnderDrive('b60UnderNg', true),
+  title: 'O-60② 対照＝trash_all_under_self を持つ札（WXDi-CP02-054-E1）では下が落ちる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX08-004#1'],
+      'field.signi': [['WD01-013#91', 'WD01-014#91', 'WXDi-CP02-054#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WD01-013#95'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    const stack0 = (before?.host?.fieldSigni ?? [])[0] ?? [];
+    H.log(`b60UnderNg 開始 stack=${JSON.stringify(stack0)} trash=${before?.host?.trash}`);
+    let opened = false;
+    let last = before;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+      if (!did) {
+        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; }
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; }
+      }
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      last = await H.queryState();
+      const stack = (last?.host?.fieldSigni ?? [])[0] ?? [];
+      const trashed = (last?.logTail ?? []).some(l => l.includes('シグニ下') && l.includes('トラッシュ'));
+      H.log(`  b60UnderNg[${s}] -> ${did ?? 'なし'} | stack=${JSON.stringify(stack)} trash=${last?.host?.trash} logTail=${JSON.stringify((last?.logTail ?? []).slice(-3))}`);
+      if (trashed) {
+        return stack.length === 1
+          ? { pass: true, detail: `対照：ペイロード trash_all_under_self を持つ札では下の2枚が落ちる（stack=${JSON.stringify(stack)} trash=${last?.host?.trash}）` }
+          : { pass: false, detail: `対照が壊れている＝ログは出たのに下が残っている（stack=${JSON.stringify(stack)}）` };
+      }
+    }
+    return { pass: false, detail: `対照が未完了（stack=${JSON.stringify((last?.host?.fieldSigni ?? [])[0])} logTail=${JSON.stringify((last?.logTail ?? []).slice(-8))}）` };
+  },
 };
 order.push('b60UnderCardsSurvive', 'b60UnderCardsTrashed');
 
