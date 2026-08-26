@@ -1,5 +1,83 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-81`＝「手札からカード１枚を裏向きで付ける」に受け皿が無く、**自分のシグニを即バウンス＋無条件バニッシュ**していた
+
+> **1巡（続き668・Opus 5）＝母集団実測〜実機まで。** gates 全緑（golden **2825→2832**／census 568/568 据置／
+> smoke 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／manual-fields 0/0／lint 0 errors・263 warnings／
+> `census:enginetext` A群 142行 据置／`census:goldentypes` 未カバー0）。
+> **実機は新規2本 PASS**（`o81FacedownAttachRevealBanish` ＋ 対照 `o81NoAttachNoBanish`）。
+
+---
+
+### 母集団（着手前の実測）
+
+「裏向きで付ける」を含む効果は **CSV 全数で1件**（`WX16-003-E2` ママ♥４ MODE２）。
+【チャーム】関連43カードを全部読み、**手札由来はこの1件だけ**であることを確認した
+（他は「デッキの上から」「トラッシュから」「このカードを」＝既存 `ATTACH_CHARM` の担当）。
+
+### 何が壊れていたか（真因）
+
+原文は3文で1つの能力：
+
+> 【起】カンニング《アタックフェイズアイコン》《コインアイコン》：あなたのシグニ１体を対象とし、
+> **それにあなたの手札からカード１枚を裏向きで付ける。**
+> **そのシグニが場を離れる場合、追加でこれによって付けたカードを公開し手札に戻す。**
+> **この方法でシグニを公開したとき、そのカードと同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。**
+
+文単位 parser はこれを3ステップの `SEQUENCE` に割り、**第2文・第3文が別物に化けていた**：
+
+| 文 | 原文の意味 | 旧 live |
+|---|---|---|
+| 第1文 | 手札から1枚を裏向きで付ける | `STUB{PLACE_CARD_UNDER_SIGNI, mode:'charm_facedown'}`＝engine は `[未実装]` ログのみ |
+| 第2文 | **離脱したときに**公開して手札へ戻す（置換） | **`BOUNCE{自分のシグニ1体}` を即実行**＝自分の盤面が減る過剰実行 |
+| 第3文 | 公開札が**シグニのとき・同レベルだけ** | **`BANISH{対戦相手のシグニ1体}` を無条件で即実行** |
+
+⚠**「未実装で何も起きない」ではなく、原文と無関係な盤面変化を2つ起こしていた。**
+
+### どう直したか
+
+1. **受け皿を新設**＝`PlayerState.field.signi_facedown_attached`（`(string[]|null)[]`）。
+   🔴**`signi_charms` に相乗りさせない**＝原文に【チャーム】の語が無いので、混ぜると
+   `hasCharm`／`CHARM_COUNT`／`ON_CHARM_TO_TRASH`／`IS_SELF_CHARMED` が軒並み過剰発火し、
+   同じシグニに【チャーム】と併存もできなくなる（PLAN の当初見立ては「`signi_charms` で足りるかも」だった）。
+2. **typed アクション** `ATTACH_FACEDOWN_FROM_HAND`（3段対話＝付ける先シグニ→手札のカード→適用）。
+   段間は `_hostPending`／`_host` で繋ぐ（`LOOK_PICK_CHAIN` の `_revealed` と同じ規約＝新 STUB を作らない）。
+3. **離脱時の公開＋手札戻し**を `removeFromField` へ（【チャーム】＝トラッシュ、【ソウル】＝ルリグトラッシュ に対して
+   **手札**＝行き先が違う）。同時に使い捨てマーカー `facedown_revealed_just` を立て／クリアする。
+4. **第3文**は `WX16-003-E3`（MANUAL の `AUTO/ON_LEAVE_FIELD/any_ally`）へ分離。
+   ゲート＝新 Condition **`FACEDOWN_REVEALED_JUST{filter}`**（「この方法で**シグニ**を公開したとき」）、
+   レベル一致＝新 TargetFilter **`levelEqFacedownRevealed`**。
+   ⚠**どちらも収集時に解決する**（`resolveLeaveFieldDynamicFilters`）＝マーカーは次の離脱でクリアされるので、
+   解決時まで持ち越すと外れる。参照不能なら `level:-1`＝候補ゼロ（過剰実行しない側）。
+5. parser は第1文を typed アクションで出すようにし、**engine の `charm_facedown` 分岐と型の union メンバを削除**
+   （死んだ枝は catch-all の温床）。カード自体は3文を1能力として組めないので `manualEffects.ts` で MANUAL 化
+   →`npx tsx scripts/syncManualLive.ts WX16-003` で live へ反映（`build:effects` だけでは**既存 id が届かない**＝既知の罠）。
+
+### 🔴 実機でしか出なかった2つ（golden/smoke/fuzz は全部緑だった）
+
+| # | 症状 | 真因 | 直し方 |
+|---|---|---|---|
+| (a) | バトルでホストが死ぬと、付けたカードが**場からも手札からも消えて行方不明** | **バトル解決は `removeFromField` を通らず `field` を手で組み直す**（`BattleScreen.tsx` の攻撃側/防御側の2ブロック） | `sweepPuppets` と同型の**盤面から導出する掃除** `sweepFacedownAttached()` を新設し、**バトル解決と中央 diff の「トリガー収集より前」**に通す |
+| (b) | 掃除を足しても **`WX16-003-E3` が一度も発火しない**（`lfMine=none`） | 🔴**`battleCardNums` が `signi_facedown_attached` を走査していない**＝付けた瞬間にそのカードの CardData が `battleCardMap` から落ち、`FACEDOWN_REVEALED_JUST{cardType:'シグニ'}` が `cardMap.get()===undefined` で**常に false** | `battleCardNums` の走査へ1行追加（`signi_charms`／`signi_soul`／`signi_seeds`／`facedown_signi`／acce と同じ扱い） |
+
+🔑**教訓**＝**新しい「カードが居られるゾーン」を足したら、`battleCardNums` の走査に必ず足す。**
+落とすと**そのゾーンに居る間だけカードデータが消える**＝フィルタ判定が静かに false へ倒れ、
+盤面（JSON）は正しいのに能力が発火しない。engine 単体テスト（golden）は自前の cardMap を使うので**この穴を踏まない**。
+
+🔑**教訓**＝**離脱時の後始末は `removeFromField` だけでは足りない。** バトルは funnel を通らない。
+**盤面から導出する sweep** にしておけば、funnel を通らない経路（コスト支払い等）もまとめて拾える。
+
+### 検証
+
+- golden **+7**（live 契約1／付与2／離脱時の手札戻し1／マーカーのクリア1／収集時のレベル確定1／sweep 1）。
+  `O-60` 第6バッチの `charm_facedown` を見ていた既存2本は新しい現実（live 0件）へ更新。
+- 実機 `node scripts/verifyBattleDrive.mjs o81FacedownAttachRevealBanish o81NoAttachNoBanish` ＝ **2本 PASS**。
+  正方向＝付与→バトル敗北→**公開して手札へ**→**Lv2 のブロンダだけ**バニッシュ（Lv3 の壁・Lv4 の対照は残存）。
+  対照＝**盤面を1文字も変えず【起】を撃たないだけ**で、離脱しても手札復帰もバニッシュも起きない。
+- 実装途中の3つの FAIL がそのまま反転確認になっている（①`pick-0` トグルで確定に到達しない
+  ②付けたカードが行方不明＝(a) ③`lfMine=none`＝(b)）。
+
+
 ## 2026-08-26：§5.3 `O-80` 第1バッチ＝`POWER_MOD_PER_COUNT` の「この方法で〜1枚につき」が**数と対象の二重の過剰実行**だった
 
 > **1巡（続き667・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2823→2825**／census **566→568**＝
