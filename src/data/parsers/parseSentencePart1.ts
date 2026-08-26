@@ -865,6 +865,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       },
       until: dur,
       ...(keysAndSigni ? { alsoKeys: true } : {}),
+      ...(centerLrigAndSigni ? { alsoCenterLrig: true } : {}),
     } as RemoveAbilitiesAction;
     // 🆕対象名詞句の修飾語を戻す（2026-08-22 段2 第3バッチ）。この汎用枝は target を owner/count だけで
     // 手組みするため、**「対戦相手の〈レベル／パワー／状態〉のシグニ」の修飾語が丸ごと落ちて**
