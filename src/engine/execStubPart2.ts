@@ -29,6 +29,34 @@ import {
   scheduleTurnEndFacedownReturns,
 } from './facedownSigni';
 
+/**
+ * `TRAP_TO_HAND` の適用（§5.3 `O-87` で選択枝と自動枝を1点に集約）。
+ * 選ばれたカードを**【トラップ】ならトラップ枠から／シグニなら場から**抜いて手札へ移す。
+ *
+ * 🔑**戻り値の `lastProcessedCards` は【トラップ】だけ**＝後続が数えるのは
+ *   「この方法で手札に加えた**【トラップ】**１つにつき」（`WX16-017-E1`）であって、
+ *   同時に戻した＜トリック＞のシグニは数に入らない。**ここを全部にすると設置回数が増える過剰実行になる。**
+ */
+function applyTrapToHand(selected: string[], ctx: ExecCtx): ExecCtx & { lastProcessedCards: string[] } {
+  const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+  const takenTraps: string[] = [];
+  const takenSigni: string[] = [];
+  for (const cn of selected) {
+    const zi = traps.indexOf(cn);
+    if (zi >= 0) { traps[zi] = null; takenTraps.push(cn); continue; }
+    if (ctx.ownerState.field.signi.some(stack => stack?.at(-1) === cn)) takenSigni.push(cn);
+  }
+  let state: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_traps: traps } };
+  for (const cn of takenSigni) state = removeFromField(cn, state);
+  const moved = [...takenTraps, ...takenSigni];
+  state = { ...state, hand: [...state.hand, ...moved] };
+  const parts = [
+    takenTraps.length ? `【トラップ】${takenTraps.length}枚` : '',
+    takenSigni.length ? `シグニ${takenSigni.length}体` : '',
+  ].filter(Boolean).join('と');
+  return { ...addLog({ ...ctx, ownerState: state }, `${parts || '0枚'}を手札へ`), lastProcessedCards: takenTraps };
+}
+
 export function execStubPart2(
   stub: StubAction,
   ctx: ExecCtx,
@@ -3070,34 +3098,38 @@ export function execStubPart2(
   if (stub.id === 'TRAP_TO_HAND') {
     const allTrapsTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]);
     const trapsToHandTTH = allTrapsTTH.filter(Boolean) as string[];
-    if (trapsToHandTTH.length === 0) return done(addLog(ctx, 'トラップなし'));
     const specTTH = stub.trapToHand;
     if (!specTTH) return done(addLog(ctx, `[未実装] 手札に加える【トラップ】の枚数が未指定（TRAP_TO_HAND・${ctx.sourceCardNum ?? '?'}）`));
-    const maxCountTTH = specTTH.count === 'ALL' ? trapsToHandTTH.length : specTTH.count;
-    // 枚数が場のトラップより少ないなら選択UI（どれを戻すかはプレイヤーが選ぶ）
-    if (maxCountTTH < trapsToHandTTH.length && trapsToHandTTH.length > 1) {
-      return needsInteraction(addLog(ctx, `手札に加えるトラップを${maxCountTTH}枚${specTTH.upTo ? 'まで' : ''}選択`), {
+    // 🆕§5.3 `O-87`＝**同じ選択プールに場のシグニも混ぜる**（`WX16-017`「あなたの【トラップ】**と
+    //   ＜トリック＞のシグニ**を好きな数対象とし、それらを場から手札に加える」）。
+    //   ⚠混ぜるのは**候補**だけで、`lastProcessedCards` に載せるのは【トラップ】だけ（下の APPLY 参照）。
+    const signiCandsTTH = specTTH.alsoSigniFilter
+      ? fieldCandidates(ctx.ownerState, specTTH.alsoSigniFilter, ctx.cardMap, ctx.effectivePowers)
+      : [];
+    const poolTTH = [...trapsToHandTTH, ...signiCandsTTH];
+    if (poolTTH.length === 0) return done(addLog(ctx, 'トラップなし'));
+    const maxCountTTH = specTTH.count === 'ALL' ? poolTTH.length : specTTH.count;
+    // 🆕**`upTo` が立っていたら枚数が足りていても必ず選ばせる**（§5.3 `O-87`）＝
+    //   `count:'ALL'` は原文「**好きな数**」＝0枚も選べるプレイヤーの選択であって「全部」ではない。
+    //   ⚠旧実装は `maxCount < 候補数` のときしか UI を出さず、「好きな数」を**問答無用の全回収**にしていた。
+    if (specTTH.upTo === true || (maxCountTTH < poolTTH.length && poolTTH.length > 1)) {
+      return needsInteraction(addLog(ctx, `手札に加えるカードを${maxCountTTH}枚${specTTH.upTo ? 'まで' : ''}選択`), {
         type: 'SELECT_TARGET',
-        candidates: trapsToHandTTH,
+        candidates: poolTTH,
         count: maxCountTTH,
         optional: specTTH.upTo === true,
         targetScope: 'self_field',
         thenAction: ({ type: 'STUB', id: 'INTERNAL_TTH_APPLY' } as StubAction) as EffectAction,
       });
     }
-    const takeTTH = trapsToHandTTH.slice(0, maxCountTTH);
-    const newTrapsTTH = allTrapsTTH.map(t => (t && takeTTH.includes(t) ? null : t)) as (string | null)[];
-    const newOwnerTTH = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, ...takeTTH], field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH } };
-    return done(addLog({ ...ctx, ownerState: newOwnerTTH }, `トラップ${takeTTH.length}枚を手札へ`));
+    const takeTTH = poolTTH.slice(0, maxCountTTH);
+    return done(applyTrapToHand(takeTTH, ctx));
   }
   // INTERNAL_TTH_APPLY: TRAP_TO_HAND選択完了後の適用
   if (stub.id === 'INTERNAL_TTH_APPLY') {
     const selectedTTH = ctx.lastProcessedCards ?? [];
-    if (selectedTTH.length === 0) return done(addLog(ctx, 'トラップ未選択'));
-    const currentTrapsTTH = ctx.ownerState.field.signi_traps ?? [null, null, null];
-    const newTrapsTTH2 = currentTrapsTTH.map(t => (t && selectedTTH.includes(t) ? null : t)) as (string | null)[];
-    const newOwnerTTH2 = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, ...selectedTTH], field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH2 } };
-    return done(addLog({ ...ctx, ownerState: newOwnerTTH2 }, `トラップ${selectedTTH.length}枚を手札へ`));
+    if (selectedTTH.length === 0) return done({ ...addLog(ctx, 'トラップ未選択'), lastProcessedCards: [] });
+    return done(applyTrapToHand(selectedTTH, ctx));
   }
   // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: トラップを表向きにしてTRAP_ICON効果を発動
   if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
