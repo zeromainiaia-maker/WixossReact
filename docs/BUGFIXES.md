@@ -2,6 +2,14 @@
 
 ## 2026-08-26：意味照合 段2 第43バッチ＝主語・配置の限定が既定値へ倒れていた9効果
 
+> **1巡（続き675・Opus 5・実装は Codex CLI へ委譲）**＝母集団実測・スコープ決定・指示書・検証・簿記を Claude、実装と報告を Codex。
+> gates 全緑を**独立実行で確認**（golden **2845→2854**／census **563→562**（`BASELINE_HIGH` 更新済み）／smoke・fuzz 全異常0／
+> `census:stubs` A群🔴0・C群0／manual-fields 0/0／`census:enginetext` A群 141行 据置／lint 0 errors・warning ±0／同型★ 0）。
+> **live 変化は対象9効果ちょうど**（新規0・消滅0・同カードの巻き添え0）、**held 76→75・新規流入0**。**段2 台帳 OPEN 677→668**。
+> **実機シナリオは新規なし**＝`src/screens/` に一切触れず新機構ゼロ。追加 golden が実 engine（`calcFieldPowers`／保護コレクタ5本／
+> `run()` の BANISH）を両方向で通す（PLAN §5.1 の段2 parser バッチについての判断に一致）。
+> Codex の全報告＝`scripts/archive/scratchpad/semantic_audit_clean_round1/codex_b43_report.md`。
+
 原文にある所有者・中央ゾーン・集合主語・成立条件が parser 木から落ち、engine の既定値
 （`owner:any/count:1`、効果元自身、無条件発動）へ倒れていた9効果を既存語彙だけで是正した。
 
@@ -19,6 +27,26 @@
 golden **2854/2854**、census **562**（563→562、ratchet更新）、smoke/fuzz異常0、
 `census:enginetext` A群 141行/137ハンドラ、lint 0 errors / 263 warnings。
 生パース／live の変化集合は対象9効果だけ（outlier 0）。群Dは既存受け皿の調査だけを行い、実装していない。
+
+**このバッチで得た計器側の教訓3つ**（次に段2 を取る人向け）：
+
+1. 🔑**バッチは「軸」ではなく「live JSON の構造署名」で割る**＝残 OPEN を live の action 構造（値を落として型とキーだけ）で
+   クラスタ化すると 428群に割れ、上位群がそのまま systematic な根に当たった。PLAN §5.2 の「第2層＝軸 × action型 × type」は
+   **器が同じだけの群が混ざる**（`SEQUENCE` に限らず起きる）。
+2. 🔴**母集団は engine の消費地点で決まる（§5-3-3′ の再実証）**＝CONTINUOUS `GRANT_PROTECTION` の保護コレクタ5箇所
+   （`effectEngine.ts:3956/4934/5133/5282/5608`）は `target` を**見ない**。`target:{SIGNI,self,count:1}` は
+   **「このシグニは」の正しい書き方**であり、findings の「`thisCardOnly` が無い」指摘は偽陽性（47効果中37が該当）。
+3. 🔴**自作の計器で「受け皿ゼロ」を数えるときは、別名の受け皿を先に列挙する**＝ゾーン限定の判定 regex に
+   `SIGNI_ATTACK_BAN{zones:[1]}` と `PLACE_VIRUS_CENTER` を入れ忘れ、**穴を13枚と過大に見積もった**（実測は2枚＝`O-94`）。
+   Codex が実コードで訂正した。**計器が「受け皿ゼロ」と言ったら、まず計器の語彙表を疑う。**
+
+**この巡で分離して §5.3 へ登録した機構**＝`O-93`（`manualEffects.ts` の古い shadow が parser 改善を凍らせる。
+⚠**live 側は `AUTO` と記録されるのでどの計器からも見えない**＝`WX06-022-E1` が実例。`censusManualDrift` の「削除候補」は
+実体同一のものしか出さず、**manual が parser より劣化している形は `CHANGED` に紛れる**）／`O-94`（ゾーン限定の残穴2枚）。
+
+⚠**運用の訂正**＝`docs/CODEX_GUIDE.md §2` の「自動コミットフックは現在は存在しない」は**誤り**。Codex 完走の1分後に
+`auto: …` コミット（`e6490075c`）が16ファイルを勝手に確定した。**検証は投入前の baseline SHA（`2d363ceb0`）と比較**したので
+影響は無かったが、`git status` が空でも「codex が何も書いていない」ではない。ガイド §2 を実測で更新済み。
 
 ## 2026-08-26：§5.3 `O-73`＝「このターン、〜したとき」の遅延設置が `ON_CARD_MILLED_FROM_DECK` に無く、即時実行に化けていた
 

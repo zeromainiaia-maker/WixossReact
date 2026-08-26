@@ -1,5 +1,19 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-26 整理（§6 恒久指標・続き674時点値の退避・続き675）
+
+- **2026-08-26 続き674 後（本行が直近の正）**：
+  **census 563/563**（`O-73` で −1。`BASELINE_HIGH` 更新済み）、**golden 2845**（`O-73` +1）、
+  smoke **10696 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝`O-73` は engine に**収集経路を足した**が全文 regex は増やしていない）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10696 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-73` は AUTO 1効果が変化）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 43**（`O-73` で1件採用）、
+  **どのフラグも立たないカード 4962 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +1**（`o73DelayedMillTrigger`＝**3連続 PASS で安定確認**・反転確認済み）、
+  **`npm run golden` の所要＝全件 約168秒／`--only` 約1.5秒**
+
 ### 恒久指標アーカイブ（PLAN §6 から退避）
 
 - **2026-08-26 続き668 後（本行が直近の正）**：

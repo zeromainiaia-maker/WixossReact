@@ -58,10 +58,17 @@ codex exec -C "C:/Users/zerom/WixossReact" -c model_reasoning_effort="high" -o "
 **検証を始める前に `git log --oneline -3` でベースラインを確定し、`git show <baseline>:path` で比較する。**
 `HEAD` を使うと自分のコミットと比較して**差分ゼロに見える**。
 
-> 📌 **2026-08-24 実測＝自動コミットフックは現在は存在しない**（`.claude/settings.local.json` に `hooks` キーが無い）。
-> かつては `PostToolUse` が Write/Edit のたびに `git add -A` + commit しており、**scratchpad への書き込みでも発火して**
-> codex の未検証作業が勝手にコミットされた（続き210 の `061f423b`）。**フックが復活したらこの節を戻すこと。**
-> ⚠**フックが無くても、codex の実行中に Claude 側でリポジトリを触ったら「どれが codex の変更か」が混ざる**＝
+> 🔴 **2026-08-26 続き675 実測＝自動コミットフックは復活している。** codex の完走とほぼ同時に
+> `auto: docs/BUGFIXES.md, docs/_census_stubs.txt, … (+13)` というコミットが**16ファイルを勝手に確定した**
+> （`e6490075c`・codex 終了の1分後）。**未検証の作業がコミット済みで着地する**ので、
+> **検証は必ず `git show <投入前の baseline SHA>:path` と比較する**（`HEAD` は自分のコミットになっている）。
+> ⚠**「作業ツリーが汚れているか」で codex の変更を追ってはいけない**＝フックが先に掃除してしまい `git status` は空に見える。
+> ⚠ 確定したコミットのメッセージは `auto:` の機械生成なので、**検証後に `git commit --amend -F <file>` で書き直す**
+> （未 push なら安全）。
+> 📌 履歴＝2026-08-24 時点では `.claude/settings.local.json` に `hooks` キーが無く「存在しない」と記録していた。
+> 元々は `PostToolUse` が Write/Edit のたびに `git add -A` + commit し、**scratchpad への書き込みでも発火して**
+> codex の未検証作業が勝手にコミットされた（続き210 の `061f423b`）。**この節は消さずに実測で更新すること。**
+> ⚠**フックの有無にかかわらず、codex の実行中に Claude 側でリポジトリを触ったら「どれが codex の変更か」が混ざる**＝
 > **触るなら先にコミットしてベースラインを確定してから触る。**
 
 ---
