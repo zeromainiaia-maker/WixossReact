@@ -107,9 +107,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- シグニの下にカードを置く（手札・エナ・デッキから、汎用） ----
+  // §5.3 `O-60` 第6バッチ＝**何を置くのかを `placeUnder` に刻む**（engine のカード全文 regex を撤去）。
   if (t.match(/(?:このシグニ|シグニ１体)の下に置く/)) {
+    const craftM = t.match(/クラフトの《([^》]+)》[０-９\d]*[枚つ]?を(?:この)?シグニの下に置く/);
+    const selfUnder = /このシグニを.+の下に置く/.test(t);
     return {
       type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI',
+      placeUnder: craftM
+        ? { mode: 'craft', craftName: craftM[1] }
+        : selfUnder ? { mode: 'self_under_other' } : { mode: 'processed' },
       ...(hasOtherSelfSigniNoun(t) ? { selectTarget: parseSigniTarget(t, 'self') } : {}),
     } as StubAction;
   }
@@ -1822,9 +1828,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- あなたのシグニに手札からカードを裏向きで付ける（チャーム）----
+  // 🔴§5.3 `O-60` 第6バッチ＝**これは【チャーム】であって「下に置く」ではない**。
+  //   旧実装はペイロード無しで同じ id へ流し込み、engine のフォールバックが
+  //   **直前に処理したカードをシグニの下へ積んでいた**（原文と無関係の盤面変化）。
+  //   受け皿（`signi_charms`）への配線は §5.3 `O-81` へ登録＝いまは明示保留（engine は何もしない）。
   if (t.match(/手札からカード[０-９\d]*枚?を裏向きで付ける/) ||
       t.match(/あなたのシグニ.+に.+手札からカードを.+付ける/)) {
-    return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as StubAction;
+    return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'charm_facedown' } } as StubAction;
   }
 
   // ---- 対戦相手のルリグトラッシュからアーツを使用する ----

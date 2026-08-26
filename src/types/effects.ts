@@ -2959,6 +2959,26 @@ export interface StubAction {
    *
    * ⚠**ペイロードが無い宣言では何もしない**（fail-closed）。
    */
+  /**
+   * `PLACE_CARD_UNDER_SIGNI`：**何をシグニの下に置くのか**（§5.3 `O-60` 第6バッチ・2026-08-26）。
+   *
+   * 🔴**従来 engine はカード全文 regex で3分岐し、どれにも当たらないと
+   *   「`lastProcessedCards` を丸ごと下に置く」フォールバックへ落ちていた**。実害＝`WX16-003-E2`
+   *   「あなたのシグニ１体を対象とし、それに手札からカード１枚を**裏向きで付ける**」＝**【チャーム】**であって
+   *   下に置く効果ではないのに、parser が同じ id へ流し込み、engine が**直前に処理したカードを下へ積んでいた**。
+   * ⚠**ペイロードが無い宣言では何もしない**（fail-closed）。
+   */
+  placeUnder?: {
+    /**
+     * `craft`＝ゲーム外からクラフトを生成して下に置く（`craftName` 必須）／
+     * `self_under_other`＝**このシグニ自身**を他のシグニの下へ／
+     * `processed`＝直前に処理したカード（`lastProcessedCards`）を下へ／
+     * `charm_facedown`＝**【チャーム】として裏向きで付ける**＝機構未実装（§5.3 `O-81`）。
+     */
+    mode: 'craft' | 'self_under_other' | 'processed' | 'charm_facedown';
+    /** `craft` のときのクラフト名（原文「クラフトの《給食推進車両》」）。 */
+    craftName?: string;
+  };
   doublePowerMinus?: {
     /**
      * `this_turn`＝「**このターン**、〜2倍－される」＝実行時にフラグを立てるアクション／

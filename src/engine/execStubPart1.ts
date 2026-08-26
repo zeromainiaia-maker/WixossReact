@@ -956,17 +956,26 @@ export function execStubPart1(
     const newOwnerIDCN = { ...ctx.ownerState, declared_card_name: nameDCN };
     return done(addLog({ ...ctx, ownerState: newOwnerIDCN }, `「${nameDCN}」を宣言`));
   }
-  // シグニの下にカードを置く
-  if (stub.id === 'PLACE_CARD_UNDER_SIGNI' || stub.id === 'STACK_SIGNI_UNDER') {
+  // PLACE_CARD_UNDER_SIGNI: `placeUnder` が指すものをシグニの下に置く。
+  //
+  // 🔴**2026-08-26（§5.3 `O-60` 第6バッチ）＝ここはカード全文 regex で3分岐していた。**
+  //   どれにも当たらないと「`lastProcessedCards` を丸ごと下に置く」フォールバックへ落ちるため、
+  //   **`WX16-003-E2`（手札からカード1枚を裏向きで付ける＝【チャーム】）が、原文と無関係に
+  //   直前処理カードを下へ積んでいた**。⇒ parser が `placeUnder{mode,craftName}` を刻む。
+  // ⚠**`STACK_SIGNI_UNDER` は live 0 件**だったので分岐から外した（死んだ枝は catch-all の温床）。
+  if (stub.id === 'PLACE_CARD_UNDER_SIGNI') {
     const srcPCUS = ctx.sourceCardNum;
-    const effPCUS = srcPCUS ? ctx.cardMap.get(srcPCUS) : undefined;
-    const txtPCUS = effPCUS ? (effPCUS.EffectText ?? '') + ' ' + (effPCUS.BurstText ?? '') : '';
-    // 「クラフトの《X》1枚をこのシグニの下に置く」パターン（給食推進車両 / 虎丸 等）
-    // ゲーム外からクラフトトークンを生成し、ソースシグニの下（スタック先頭=下）に重ねる。
-    // 「下に《X》がない場合」条件はテキストに含まれるが、既に同名がスタック下にあれば置かない。
-    const craftUnderM = txtPCUS.match(/クラフトの《([^》]+)》[０-９\d]*枚?を(?:この)?シグニの下に置く/);
-    if (craftUnderM && srcPCUS && resolveTokenBase(ctx.cardMap, craftUnderM[1])) {
-      const craftNamePCUS = craftUnderM[1];
+    const effPCUS = srcPCUS ? ctx.cardMap.get(getCardNum(srcPCUS)) : undefined;
+    const specPCUS = stub.placeUnder;
+    if (!specPCUS) return done(addLog(ctx, `[未実装] 置くものが未指定（PLACE_CARD_UNDER_SIGNI・${srcPCUS ?? '?'}）`));
+    // 【チャーム】は別機構（`signi_charms`）＝§5.3 `O-81`。下へ積む近似は原文と別の盤面になるのでしない。
+    if (specPCUS.mode === 'charm_facedown') {
+      return done(addLog(ctx, `[未実装] 手札のカードを【チャーム】として裏向きで付ける（${effPCUS?.CardName ?? srcPCUS ?? '?'}）`));
+    }
+    // クラフト生成＝ゲーム外からトークンを作り、ソースシグニの下（スタック先頭=下）に重ねる。
+    // 「下に《X》がない場合」条件は原文側にあり、既に同名がスタック下にあれば置かない。
+    if (specPCUS.mode === 'craft' && specPCUS.craftName && srcPCUS && resolveTokenBase(ctx.cardMap, specPCUS.craftName)) {
+      const craftNamePCUS = specPCUS.craftName;
       const srcZoneCU = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
       if (srcZoneCU < 0) return done(addLog(ctx, 'このシグニが場にいない'));
       const stackCU = ctx.ownerState.field.signi[srcZoneCU] ?? [];
@@ -982,7 +991,7 @@ export function execStubPart1(
         `クラフト《${craftNamePCUS}》を${effPCUS?.CardName ?? srcPCUS}の下に置いた`));
     }
     // 「このシグニを他のシグニの下に置く」パターン
-    if (txtPCUS.match(/このシグニを.+の下に置く/) && srcPCUS) {
+    if (specPCUS.mode === 'self_under_other' && srcPCUS) {
       const srcZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
       if (srcZonePCUS < 0) return done(addLog(ctx, 'このシグニが場にいない'));
       const hostFilterPCUS = stub.selectTarget?.filter;
@@ -995,8 +1004,8 @@ export function execStubPart1(
       const placeUnderStub: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI' };
       return selectOrInteract(candidatesPCUS, 1, false, 'self_field', placeUnderStub, undefined, ctx);
     }
-    // 「トラッシュからカードをこのシグニの下に置く」パターン（lastProcessedCardsを使用）
-    if (ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0 && srcPCUS) {
+    // 「直前に処理したカードをこのシグニの下に置く」パターン（lastProcessedCardsを使用）
+    if (specPCUS.mode === 'processed' && ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0 && srcPCUS) {
       const targetZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
       if (targetZonePCUS < 0) return done(addLog(ctx, 'このシグニが場にいない'));
       const newSigniPCUS = [...ctx.ownerState.field.signi] as (string[] | null)[];
