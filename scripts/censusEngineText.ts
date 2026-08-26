@@ -42,7 +42,9 @@ const onlyId = (() => {
 // 146 → 143 ＝ 同 第5〜7バッチ（`DOUBLE_POWER_MINUS` / `PLACE_CARD_UNDER_SIGNI` / `TRAP_TO_HAND`）。
 // 143 → 142 ＝ 同 第8バッチ（`CONDITIONAL_ARTS_COST`）。⚠**撤去した regex は2本だが行数は1しか減らない**
 //   （`EffectText` を読む行＝`txtCAC` の代入1行だけが A群に数えられる）＝**行数は「撤去量」ではない**。
-const BASELINE_SELF_TEXT = 142;
+// 142 → 141 ＝ §5.3 `O-87`（`CHOOSE_COLOR_FROM_LIST` の `最大N色`）。「エナゾーンにある色から最大N色まで選ぶ」を
+//   typed アクション `SELECT_COLOR{from:'energy',count}` へ移し、engine の全文読みを撤去した（残る枝は固定リスト表記のみ＝live 0）。
+const BASELINE_SELF_TEXT = 141;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

@@ -7943,6 +7943,119 @@ test('O-60⑦ parser: TRAP_TO_HAND は trapToHand で枚数を持つ', () => {
   eq(one('WX16-017-E1')?.count, 'ALL', '「好きな数」は ALL');
 });
 
+// ============================================================================
+// 🆕§5.3 `O-87`（2026-08-26）＝旧 `POWER_MOD_PER_COUNT` に紛れていた「パワーの話を1文字もしていない」2文型。
+// 母集団は実測で**各1件**（`WX12-Re07-E1`＝色選択／`WX16-017-E1`＝【トラップ】再設置）。
+// 🔴どちらも「未実装で何も起きない」ではなく、**同じ効果の他のステップが無条件に走っていた**。
+// ============================================================================
+test('O-87 live: WX12-Re07 は色選択の後の3分岐が SELECTED_COLOR でゲートされる', () => {
+  const effs = (cardMap.get('WX12-Re07')?.effects ?? []) as CardEffect[];
+  const steps = ((effs[0]?.action as SequenceAction)?.steps ?? []) as EffectAction[];
+  eq(steps[1]?.type, 'SELECT_COLOR', '2ステップ目＝色の選択');
+  eq((steps[1] as { from?: string })?.from, 'last_processed', '🔴選ぶ色は**手札に加えたカードの色**（エナゾーンではない）');
+  const conds = steps.slice(2).map(st => (st as { condition?: { type?: string; color?: string } }).condition);
+  eq(conds.length, 3, '分岐は3つ');
+  eq(conds.every(c => c?.type === 'SELECTED_COLOR'), true,
+    '🔴全部 SELECTED_COLOR でゲートされる（旧 live は赤/緑のバニッシュと1ドローを無条件に全部実行していた）');
+  eq(conds.map(c => c?.color).join(','), '赤,緑,青', '色は原文の並び');
+});
+
+test('O-87 live: WX16-017 は「好きな数」が upTo で、再設置が REPEAT×トラップ枚数になる', () => {
+  const effs = (cardMap.get('WX16-017')?.effects ?? []) as CardEffect[];
+  const steps = ((effs[0]?.action as SequenceAction)?.steps ?? []) as EffectAction[];
+  const tth = (steps[0] as { trapToHand?: { count?: unknown; upTo?: boolean; alsoSigniFilter?: { cardClass?: string } } }).trapToHand;
+  eq(tth?.count, 'ALL', '「好きな数」＝上限は場の全部');
+  eq(tth?.upTo, true, '🔴ただし upTo＝**0枚も選べる**（旧実装は問答無用で全部回収していた）');
+  eq(tth?.alsoSigniFilter?.cardClass, 'トリック', '🔴＜トリック＞のシグニも同じ選択プールに入る（旧実装は【トラップ】だけ）');
+  eq(steps[1]?.type, 'REPEAT', '2ステップ目＝繰り返し');
+  eq(JSON.stringify((steps[1] as { countRef?: unknown }).countRef), JSON.stringify({ $ref: 'last_processed_count' }),
+    '🔴回数は「この方法で手札に加えた【トラップ】」の枚数（固定値ではない）');
+});
+
+test('O-87 engine: SELECT_COLOR(last_processed) は単色を自動確定し、SELECTED_COLOR が読む', () => withSavedCursor(() => {
+  const ctx0 = mkCtx({}, {});
+  const red = findCard(c => isSigni(c) && c.Color === '赤');
+  const blue = findCard(c => isSigni(c) && c.Color === '青');
+  const ctx = { ...ctx0, lastProcessedCards: [red, blue] } as ExecCtx;
+  const r = run({ type: 'SELECT_COLOR', from: 'last_processed' } as EffectAction, ctx);
+  const sel = r.ownerState.story_overrides?.['__selected_colors__'] ?? '';
+  eq(sel.split(',').sort().join(','), '赤,青'.split(',').sort().join(','), '🔴2枚ぶん＝各カードの色が1つずつ入る');
+  const after = { ...ctx, ownerState: r.ownerState } as ExecCtx;
+  eq(evalCondition({ type: 'SELECTED_COLOR', color: '赤' }, after), true, '選んだ色は成立');
+  eq(evalCondition({ type: 'SELECTED_COLOR', color: '緑' }, after), false, '🔴選んでいない色は不成立（対照）');
+  // 🔑2度撃っても前回の色が残らない（開始時クリア）
+  const again = run({ type: 'SELECT_COLOR', from: 'last_processed' } as EffectAction,
+    { ...after, lastProcessedCards: [red] } as ExecCtx);
+  eq(again.ownerState.story_overrides?.['__selected_colors__'], '赤', '🔴2回目は前回の色をクリアしてから積む');
+}));
+
+test('O-87 engine: SELECT_COLOR(last_processed) は対象カードが無ければ何も選ばない', () => withSavedCursor(() => {
+  const ctx = { ...mkCtx({}, {}), lastProcessedCards: [] } as ExecCtx;
+  const r = run({ type: 'SELECT_COLOR', from: 'last_processed' } as EffectAction, ctx);
+  eq(r.ownerState.story_overrides?.['__selected_colors__'], undefined, '参照不能なら空＝後続の分岐は全部不成立');
+}));
+
+test('O-87 engine: REPEAT.countRef は直前の処理枚数へ解決し、0なら1周も回さない', () => withSavedCursor(() => {
+  const ctx0 = mkCtx({}, {});
+  const act = { type: 'REPEAT', count: 0, countRef: { $ref: 'last_processed_count' },
+    action: { type: 'DRAW', owner: 'self', count: 1 } } as EffectAction;
+  const hand0 = ctx0.ownerState.hand.length;
+  const two = run(act, { ...ctx0, lastProcessedCards: fill(2) } as ExecCtx);
+  eq(two.ownerState.hand.length, hand0 + 2, '🔴2枚処理していれば2回（固定値 count:0 を見ていない証拠）');
+  const zero = run(act, { ...ctx0, lastProcessedCards: [] } as ExecCtx);
+  eq(zero.ownerState.hand.length, hand0, '0枚なら1周も回さない');
+}));
+
+test('O-87 engine: TRAP_TO_HAND は「好きな数」で選ばせ、シグニも混ぜ、【トラップ】だけを記録する', () => withSavedCursor(() => {
+  const traps = fill(3);
+  const trick = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('トリック'));
+  const ctx0 = mkCtx({ signi: [trick, null, null] }, {}, 'WX16-017');
+  const ctx = {
+    ...ctx0,
+    ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, signi_traps: [...traps] } },
+  } as ExecCtx;
+  const hand0 = ctx.ownerState.hand.length;
+  // 🔑「好きな数」＝**必ず選択 UI が出る**（旧実装は候補数と上限が同じなので UI を出さず全回収した）
+  const pending = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'TRAP_TO_HAND', trapToHand: { count: 'ALL', upTo: true, alsoSigniFilter: { cardType: 'シグニ', cardClass: 'トリック' } } } as unknown as EffectAction } as CardEffect, ctx);
+  ok(!pending.done && pending.pending.type === 'SELECT_TARGET', '🔴「好きな数」は選択へ pause する（全回収しない）');
+  if (!pending.done && pending.pending.type === 'SELECT_TARGET') {
+    const cands = pending.pending.candidates ?? [];
+    eq(cands.includes(trick), true, '🔴＜トリック＞のシグニも候補に入る（旧実装は【トラップ】だけ）');
+    eq(traps.every(t => cands.includes(t)), true, '同・【トラップ】も候補');
+    eq(pending.pending.optional, true, '0枚も選べる');
+    // トラップ1つ＋シグニ1体を選ぶ → 手札は2枚増え、記録されるのは**トラップだけ**
+    const picked = resumeSelectTarget([traps[0], trick], pending.pending as never,
+      { ...ctx, ownerState: pending.ownerState, otherState: pending.otherState, logs: pending.logs } as ExecCtx);
+    const fin = finish(picked, ctx);
+    eq(fin.ownerState.hand.length, hand0 + 2, '選んだ2枚が手札へ');
+    eq((fin.ownerState.field.signi_traps ?? []).filter(Boolean).length, 2, '選ばなかったトラップ2つは場に残る');
+    eq(fin.ownerState.field.signi.some(st => st?.at(-1) === trick), false, 'シグニは場から離れる');
+    eq(JSON.stringify(fin.lastProcessedCards), JSON.stringify([traps[0]]),
+      '🔴記録は【トラップ】だけ＝「この方法で手札に加えた【トラップ】1つにつき」の回数がシグニで水増しされない');
+  }
+}));
+
+test('O-87 engine: 【トラップ】設置の任意/強制は payload で分かれる', () => withSavedCursor(() => {
+  const ctx = mkCtx({ hand: 3 }, {}, 'WX16-017');
+  const opt = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL' } as unknown as EffectAction } as CardEffect, ctx);
+  ok(!opt.done && opt.pending.type === 'SELECT_TARGET' && opt.pending.optional === true,
+    '既定は任意（原文「設置してもよい」が大多数）');
+  const forced = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', trapPlaceOptional: false } as unknown as EffectAction } as CardEffect, ctx);
+  ok(!forced.done && forced.pending.type === 'SELECT_TARGET' && forced.pending.optional === false,
+    '🔴「設置する」は強制（旧実装は全件を強制していて、逆に「してもよい」から選択を奪っていた）');
+}));
+
+test('O-87 parser: 【トラップ】を「手札に戻す」も TRAP_TO_HAND（自分のシグニのバウンスに化けない）', () => {
+  const effs = (cardMap.get('WX21-057')?.effects ?? []) as CardEffect[];
+  const e2 = effs.find(e => e.effectId === 'WX21-057-E2');
+  const act = e2?.action as { type?: string; id?: string; trapToHand?: { count?: unknown } };
+  eq(act?.id, 'TRAP_TO_HAND', '🔴【トラップ】1つを手札へ（旧 live は BOUNCE＝**自分のシグニ**を場から手札に戻していた）');
+  eq(act?.trapToHand?.count, 1, '1つだけ');
+});
+
 test('O-60⑦ engine: 1つ指定なら1枚だけ手札へ戻り、payload 欠落では1枚も戻らない', () => withSavedCursor(() => {
   const traps = fill(3);
   const ctx0 = mkCtx({}, {}, 'WX16-063');
@@ -39697,6 +39810,10 @@ test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が�
     // 段2 第39バッチ：selectOrInteract が pending/CPU 選択前に resolveCountRef し、静的制約へ変換する。
     'SIGNI.totalLevelMaxRef',
     'TRASH_CARD.totalLevelExactRef',
+    // 🆕§5.3 `O-87`（2026-08-26）＝`RepeatAction.countRef`（繰り返し回数が実行時に決まる REPEAT）。
+    // 消費側は `execRepeat` の先頭で `resolveCountRef(a.countRef, ctx)` し、**解決値を `count` へ焼き込んでから**回す
+    // （周回中に `lastProcessedCards` が変わっても回数がぶれない）。0 なら1周も回さない。
+    'REPEAT.countRef',
   ]);
   const found = new Map<string, string[]>();
   const walk = (node: unknown, types: string[], key: string, who: string): void => {

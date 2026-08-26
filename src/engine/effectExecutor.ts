@@ -8941,6 +8941,21 @@ export function resumeSelectTarget(
   // O-56: 手札などの SELECT_TARGET から選んだ複数枚を、既存の出所非依存トラップ設置へ1枚ずつ渡す。
   // 汎用 per-card ループは最初のゾーン選択で pause すると2枚目以降を落とすため、SEARCH の then:'trap'
   // と同じく SEQUENCE 化して外側 continuation を保つ。
+  // 🆕§5.3 `O-87`＝`TRAP_TO_HAND` の適用は**選択全体を1回で**処理する専用枝。
+  // ⚠汎用枝（下の `applyDirectAction` ループ）に流すと **最後に `lastProcessedCards = selected` で
+  //   上書きされる**ので、「この方法で手札に加えた**【トラップ】**1つにつき」の枚数が
+  //   同時に戻した＜トリック＞のシグニで水増しされる（＝設置回数が増える過剰実行）。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'INTERNAL_TTH_APPLY') {
+    const applied = executeAction(pending.thenAction, { ...cur, lastProcessedCards: selected });
+    if (!applied.done) return applied;
+    const next: ExecCtx = {
+      ...cur, ownerState: applied.ownerState, otherState: applied.otherState, logs: applied.logs,
+      lastProcessedCards: applied.lastProcessedCards,
+    };
+    if (pending.continuation) return executeAction(pending.continuation, next);
+    return done(next);
+  }
   if (pending.thenAction.type === 'STUB'
       && (pending.thenAction as StubAction).id === 'INTERNAL_ASK_TRAP_ZONE') {
     const trapSteps: EffectAction[] = selected.map(cardNum => ({

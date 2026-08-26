@@ -1,17 +1,17 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 602（総ノード 2859 件）
+live JSON の STUB id 種類 : 599（総ノード 2858 件）
 逆翻訳シートの [STUB:…] 総数: 641  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 8 種 / 9 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 8 種 / 9 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 6 種 / 7 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 6 種 / 7 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 594 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 347 種
+  D 健全（実装あり＋日本語表示）                          : 593 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 348 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -25,22 +25,16 @@ live JSON の STUB id 種類 : 602（総ノード 2859 件）
         生成: src\data\parsers\parseSentencePart2.ts:445
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:16908
+        生成: src\data\effectParser.ts:16932
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
-        生成: src\data\parsers\parseSentencePart3.ts:2278
+        生成: src\data\parsers\parseSentencePart3.ts:2295
      1件   1枚  DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL
         カード: SP38-001
-        生成: src\data\parsers\parseSentencePart3.ts:1984
-     1件   1枚  DEFERRED_DECLARE_COLOR_PER_PROCESSED
-        カード: WX12-Re07
-        生成: src\data\parsers\parseSentencePart3.ts:2693
+        生成: src\data\parsers\parseSentencePart3.ts:2001
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
-        生成: src\data\parsers\parseSentencePart1.ts:1918
-     1件   1枚  DEFERRED_PLACE_TRAP_PER_PROCESSED
-        カード: WX16-017
-        生成: src\data\parsers\parseSentencePart3.ts:2696
+        生成: src\data\parsers\parseSentencePart1.ts:1929
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2006
@@ -98,10 +92,10 @@ live JSON の STUB id 種類 : 602（総ノード 2859 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:7997
+        消費: src\engine\effectExecutor.ts:8082
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:7999
+        消費: src\engine\effectExecutor.ts:8084
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66
