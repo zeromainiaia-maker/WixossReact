@@ -719,6 +719,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (s.field.key_piece_extra ?? []).forEach(n => nums.add(getCardNum(n)));
       addAll(s.field.assist_lrig_l); addAll(s.field.assist_lrig_r);
       (s.field.signi_charms ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      // §5.3 `O-81`＝**裏向きで付けられたカード**（`signi_facedown_attached`）。⚠**ここを抜くと
+      //   付けた瞬間にそのカードの CardData が battleCardMap から落ちる**（手札からは外れ、他のどのゾーンにも居ない）。
+      //   実測（2026-08-26 実機）＝`WX16-003-E3` の `FACEDOWN_REVEALED_JUST{cardType:'シグニ'}` が
+      //   `cardMap.get(...)===undefined` で常に false になり、離脱時のバニッシュが**一度も発火しなかった**。
+      (s.field.signi_facedown_attached ?? []).forEach(arr => arr?.forEach(n => nums.add(getCardNum(n))));
       (s.field.signi_soul   ?? []).forEach(n => n && nums.add(getCardNum(n)));
       (s.field.signi_seeds  ?? []).forEach(n => n && nums.add(getCardNum(n)));
       (s.field.facedown_signi ?? []).forEach(n => n && nums.add(getCardNum(n))); // 裏向きシグニ（WXDi-P10-034）のカードデータをロード
