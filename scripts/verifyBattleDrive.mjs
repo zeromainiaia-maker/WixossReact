@@ -31460,8 +31460,11 @@ const o81Gone = (st, inst) => !o81OnField(st?.guest?.fieldSigni, inst)
 /** 【起】カンニングを撃って O81_ATTACH を裏向きで付ける。付いたら attachedSeen=true。 */
 async function o81Attach(page, H, tag) {
   let lrigOpened = false, abilityClicked = false, fired = false, attachedSeen = false;
+  // ⚠罠 8p＝候補セルは常に可視なので**毎ティック押すとトグルで外れて「決定」に永久に到達しない**。
+  //   選択は instance ごとに1回だけ（段1＝付ける先シグニ／段2＝手札のカード の2段ぶん）。
+  const picked = new Set();
   let last = await H.queryState();
-  for (let s = 0; s < 26; s++) {
+  for (let s = 0; s < 30; s++) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${SHOT}/${tag}-atk-${s}.png`, fullPage: true });
     let did = null;
@@ -31478,13 +31481,23 @@ async function o81Attach(page, H, tag) {
     // コストラベルにコインは載らない（`buildCostLabelAA` はエナ/エクシード/ダウン系のみ）＝「【起】コストなし」
     if (!did && lrigOpened && !abilityClicked) { did = await H.clickBtn('【起】'); if (did) abilityClicked = true; }
     if (!did && abilityClicked && !fired) { did = await H.clickBtn('発動', { exact: true }); if (did) fired = true; }
-    // 手札の選択＝**誤射検知のため必ずカード番号で狙う**（罠6。decoy を掴むと Lv4 が飛ぶ）
-    if (!did) did = await clickPendingInstance(page, H, O81_ATTACH);
-    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    // SELECT_TARGET は2段来る（段1＝付ける先シグニ／段2＝手札のカード）。
+    // ⚠段2 は**誤射検知のため必ずカード番号で狙う**（罠6。decoy を掴むと Lv4 が飛ぶ）。
+    const cands = chk?.pendingCandidates ?? [];
+    if (!did && cands.length) {
+      const want = cands.includes(O81_ATTACH) ? O81_ATTACH : (cands.includes(O81_HOST) ? O81_HOST : null);
+      if (want && !picked.has(want)) {
+        const c = await clickPendingInstance(page, H, want);
+        if (c) { picked.add(want); did = c; }
+      }
+      // 選び終えていれば確定（⚠`clickBtn` は disabled を見る＝罠 8b）
+      if (!did) did = await H.clickBtn('決定');
+    }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK', 'はい']);
     last = await H.queryState();
     const att = last?.host?.fieldFacedownAttached ?? null;
     if (Array.isArray(att) && (att[1] ?? []).includes(O81_ATTACH)) attachedSeen = true;
-    H.log(`  ${tag}atk[${s}] -> ${did ?? 'なし'} | attached=${JSON.stringify(att)} hHand=${JSON.stringify(last?.host?.handCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    H.log(`  ${tag}atk[${s}] -> ${did ?? 'なし'} | attached=${JSON.stringify(att)} hHand=${JSON.stringify(last?.host?.handCards)} cands=${JSON.stringify(last?.pendingCandidates)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
     if (attachedSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
   }
   return { attachedSeen, last };
