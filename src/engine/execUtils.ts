@@ -2202,6 +2202,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp((st(cond.owner).field.signi_charms ?? []).filter(Boolean).length, cond.operator, cond.value);
     case 'VIRUS_COUNT':
       return cmp((st(cond.owner).field.signi_virus ?? []).reduce((sum, count) => sum + count, 0), cond.operator, cond.value);
+    // 「この方法で（シグニを）公開したとき」（§5.3 `O-81`・`WX16-003-E3`）。
+    // ⚠**効果オーナー自身の**使い捨てマーカーを読む（裏向き付けは自分のシグニにしか行われない）。
+    case 'FACEDOWN_REVEALED_JUST':
+      return (ctx.ownerState.facedown_revealed_just ?? [])
+        .some(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.filter));
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
@@ -2651,6 +2656,11 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   const newAcce   = cloneAcceSlots(state.field);
   const newSoul   = [...(state.field.signi_soul    ?? [null, null, null])];
   const newArmor  = [...(state.field.signi_armor   ?? [false, false, false])];
+  // §5.3 `O-81`＝**裏向きで付けられたカード**（【チャーム】ではない）。ホストが場を離れると
+  // 「公開し**手札に戻す**」＝トラッシュ行きの charm/acce とは行き先が違うので別配列で持つ。
+  const newFacedown = state.field.signi_facedown_attached
+    ? [...state.field.signi_facedown_attached] : undefined;
+  const revealedFacedown: string[] = [];
   const extraTrash: string[] = [];
   const extraLrigTrash: string[] = [];
   if (zoneIdx >= 0) {
@@ -2661,6 +2671,9 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     if (newAcce[zoneIdx])   { extraTrash.push(...newAcce[zoneIdx]!); newAcce[zoneIdx] = null; }
     // ソウルはシグニが場を離れるとルリグトラッシュへ
     if (newSoul[zoneIdx])   { extraLrigTrash.push(newSoul[zoneIdx]!); newSoul[zoneIdx] = null; }
+    // 裏向き付けカードは**公開して持ち主の手札へ**（`WX16-003-E2`「追加でこれによって付けたカードを
+    // 公開し手札に戻す」）。⚠この funnel は全離脱経路（効果バニッシュ／バトル／バウンス／ルール処理）が通る。
+    if (newFacedown?.[zoneIdx]?.length) { revealedFacedown.push(...newFacedown[zoneIdx]!); newFacedown[zoneIdx] = null; }
     // 血晶武装の下カード（スタックの先頭からシグニ直前まで）をトラッシュへ
     const oldStack = state.field.signi[zoneIdx] ?? [];
     if (oldStack.length > 1) {
@@ -2692,6 +2705,10 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     // 場を離れた直後にしか読まれない使い捨て（`hand_discarded_just` 等と同種）。⚠**上書き**なので
     // 複数体を続けて場から離すと最後の1ゾーンだけが残る（原文側の母集団は単体対象のみ）。
     signi_zone_vacated_just: zoneIdx >= 0 ? [zoneIdx] : state.signi_zone_vacated_just,
+    // §5.3 `O-81`＝「いま起きた離脱で公開されたもの」だけを指す使い捨てマーカー。⚠**毎回 set/クリアする**
+    // （残すと次の無関係な離脱で `FACEDOWN_REVEALED_JUST` watcher が再発火する）。
+    facedown_revealed_just: revealedFacedown.length > 0 ? revealedFacedown : undefined,
+    hand: revealedFacedown.length > 0 ? [...state.hand, ...revealedFacedown] : state.hand,
     trash: extraTrash.length > 0 ? [...state.trash, ...extraTrash] : state.trash,
     lrig_trash: extraLrigTrash.length > 0 ? [...state.lrig_trash, ...extraLrigTrash] : state.lrig_trash,
     field: {
@@ -2703,6 +2720,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_acce:   newAcce,
       signi_soul:   newSoul   as (string | null)[],
       signi_armor:  newArmor  as boolean[],
+      ...(newFacedown ? { signi_facedown_attached: newFacedown } : {}),
     },
   };
 }

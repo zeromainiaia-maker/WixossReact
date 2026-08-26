@@ -7897,18 +7897,20 @@ test('O-60⑤ engine: this_turn はフラグを立て、continuous と payload �
 //    直前処理カードを下へ積んでいた**。
 test('O-60⑥ parser: PLACE_CARD_UNDER_SIGNI は placeUnder で置くものを持つ', () => {
   const found = collectLiveStubs('PLACE_CARD_UNDER_SIGNI', o => o.placeUnder as { mode: string; craftName?: string } | undefined);
-  ok(found.length >= 7, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  ok(found.length >= 6, `母集団は live から再導出（実測 ${found.length} ノード）`);
   eq(found.filter(x => !x.v).length, 0, '🔴payload を持たないノードは0（全文regex撤去の条件）');
   const one = (effectId: string) => found.find(x => x.effectId === effectId)?.v;
   eq(one('WX25-CP1-083-E1')?.mode, 'craft', 'クラフト生成');
   eq(one('WX25-CP1-083-E1')?.craftName, '給食推進車両', '🔴クラフト名を payload が運ぶ（旧実装は全文 regex から読んだ）');
   eq(one('WXDi-P03-057-E1')?.mode, 'self_under_other', 'このシグニ自身を他のシグニの下へ');
   eq(one('WX24-P4-046-E1')?.mode, 'processed', '直前に処理したカードを下へ');
-  eq(one('WX16-003-E2')?.mode, 'charm_facedown',
-    '🔴【チャーム】は別機構＝下へ積む近似をしない（旧実装は直前処理カードを積んでいた）');
+  // 🆕§5.3 `O-81`（2026-08-26）＝「裏向きで付ける」は受け皿ができたので**この STUB から完全に抜けた**。
+  eq(found.filter(x => (x.v as { mode?: string } | undefined)?.mode === 'charm_facedown').length, 0,
+    '🔴charm_facedown モードは live に0（ATTACH_FACEDOWN_FROM_HAND へ移行済み）');
+  eq(one('WX16-003-E2'), undefined, '同・WX16-003-E2 はもうこの STUB を使わない');
 });
 
-test('O-60⑥ engine: charm_facedown と payload 欠落はスタックを1枚も動かさない', () => withSavedCursor(() => {
+test('O-60⑥ engine: payload 欠落はスタックを1枚も動かさない', () => withSavedCursor(() => {
   const self = fresh();
   const under = fill(2);
   const ctx0 = mkCtx({}, {}, self);
@@ -7918,10 +7920,6 @@ test('O-60⑥ engine: charm_facedown と payload 欠落はスタックを1枚も
     ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, signi: [null, [...under, self], null] } },
   } as ExecCtx;
   const before = (ctx.ownerState.field.signi[1] ?? []).join(',');
-
-  const charm = run({ type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'charm_facedown' } } as unknown as EffectAction, ctx);
-  eq((charm.ownerState.field.signi[1] ?? []).join(','), before, '🔴【チャーム】宣言はスタックを変えない（旧実装は直前処理2枚を積んだ）');
-  ok(charm.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
 
   const none = run({ type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as unknown as EffectAction, ctx);
   eq((none.ownerState.field.signi[1] ?? []).join(','), before, 'payload 欠落も fail-closed');
@@ -11453,6 +11451,98 @@ test('Stage2 ON_LEAVE_FIELD: any_ally triggerFilter(story:アーム) 一致時�
   eq(has(collectLeaveFieldTriggers(trigCtx(HOST), ARM_SIGNI, [], HOST, host, guest).entries, 'WX11-035-E1'), true, 'アーム離脱で発火');
   eq(has(collectLeaveFieldTriggers(trigCtx(HOST), NONARM_SIGNI, [], HOST, host, guest).entries, 'WX11-035-E1'), false, '非アーム離脱は非発火');
 });
+// ============================================================================
+// 🆕§5.3 `O-81`（2026-08-26）＝**手札からカードを裏向きで付ける**（`WX16-003-E2`・母集団は実測1件）。
+// 旧 live は3ステップに割れており、第2文が「**自分のシグニを即バウンス**」・第3文が
+// 「**無条件バニッシュ**」に化けていた（過剰実行）。受け皿 `field.signi_facedown_attached` を
+// 実装し、離脱時の公開＋手札戻しを `removeFromField` の1点に置いた。
+// ⚠**【チャーム】ではない**＝`signi_charms` に入れてはいけない（`hasCharm` 系が軒並み過剰発火する）。
+// ============================================================================
+test('O-81 live: WX16-003 は付与(E2)と離脱時バニッシュ(E3)の2効果に分かれている', () => {
+  const effs = (cardMap.get('WX16-003')?.effects ?? []) as CardEffect[];
+  const e2 = effs.find(e => e.effectId === 'WX16-003-E2');
+  const e3 = effs.find(e => e.effectId === 'WX16-003-E3');
+  eq((e2?.action as { type?: string } | undefined)?.type, 'ATTACH_FACEDOWN_FROM_HAND', 'E2＝裏向き付与の typed アクション');
+  eq(JSON.stringify(e2?.action).includes('BOUNCE'), false, '🔴E2 に自分シグニのバウンスが混ざらない（旧 AUTO の過剰実行）');
+  eq(JSON.stringify(e2?.action).includes('BANISH'), false, '🔴E2 に無条件バニッシュが混ざらない（同上）');
+  eq(e3?.timing?.[0], 'ON_LEAVE_FIELD', 'E3＝離脱 watcher');
+  eq((e3?.condition as { type?: string } | undefined)?.type, 'FACEDOWN_REVEALED_JUST', '🔴「この方法でシグニを公開したとき」のゲートがある');
+  eq(JSON.stringify(e3?.action).includes('levelEqFacedownRevealed'), true, '🔴「そのカードと同じレベルの」が payload にある');
+});
+
+test('O-81 engine: 手札1枚が裏向きで付き、【チャーム】ゾーンは動かない', () => withSavedCursor(() => {
+  const host = fresh();
+  const ctx0 = mkCtx({ signi: [host, null, null] }, {}, 'WX16-003');
+  const handBefore = [...ctx0.ownerState.hand];
+  const r = run({ type: 'ATTACH_FACEDOWN_FROM_HAND',
+    to: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, count: 1 } as EffectAction, ctx0);
+  const attached = r.ownerState.field.signi_facedown_attached?.[0] ?? [];
+  eq(attached.length, 1, '1枚が裏向きで付く');
+  eq(handBefore.includes(attached[0]), true, '付いたのは手札のカード');
+  eq(r.ownerState.hand.includes(attached[0]), false, '同・手札からは抜ける');
+  eq(r.ownerState.hand.length, handBefore.length - 1, '手札は1枚減る');
+  eq((r.ownerState.field.signi_charms ?? []).filter(Boolean).length, 0,
+    '🔴【チャーム】ゾーンは空のまま（signi_charms に入れると hasCharm 系が過剰発火する）');
+}));
+
+test('O-81 engine: 手札が空なら盤面を一切動かさない（対象だけ取って空振りしない）', () => withSavedCursor(() => {
+  const host = fresh();
+  const ctx0 = mkCtx({ signi: [host, null, null], hand: 0 }, {}, 'WX16-003');
+  const r = run({ type: 'ATTACH_FACEDOWN_FROM_HAND',
+    to: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, count: 1 } as EffectAction, ctx0);
+  eq((r.ownerState.field.signi_facedown_attached ?? []).filter(Boolean).length, 0, '何も付かない');
+}));
+
+test('O-81 engine: ホストが場を離れると公開されて手札へ戻る（トラッシュではない）', () => withSavedCursor(() => {
+  const host = fresh(); const attached = fresh(); const charm = fresh();
+  const st = mkState({ signi: [host, null, null] });
+  st.field.signi_facedown_attached = [[attached], null, null];
+  st.field.signi_charms = [charm, null, null];
+  const handBefore = st.hand.length;
+  const trashBefore = st.trash.length;
+  const after = removeFromField(host, st);
+  eq(after.hand.includes(attached), true, '🔴裏向き付けカードは**手札**へ戻る');
+  eq(after.hand.length, handBefore + 1, '同・手札が1枚増える');
+  eq(after.trash.includes(attached), false, '🔴トラッシュには行かない（【チャーム】との違い）');
+  eq(after.trash.includes(charm), true, '対照：同居する【チャーム】は従来どおりトラッシュへ');
+  eq(after.trash.length, trashBefore + 1, '同・増えたのはチャームの1枚だけ');
+  eq(JSON.stringify(after.facedown_revealed_just), JSON.stringify([attached]), '公開マーカーに刻まれる');
+  eq((after.field.signi_facedown_attached ?? [])[0], null, '付与スロットは空になる');
+}));
+
+test('O-81 engine: 裏向き付けの無い離脱ではマーカーがクリアされる（次の離脱で再発火しない）', () => withSavedCursor(() => {
+  const a = fresh(); const b = fresh(); const attached = fresh();
+  const st = mkState({ signi: [a, b, null] });
+  st.field.signi_facedown_attached = [[attached], null, null];
+  const after1 = removeFromField(a, st);
+  eq((after1.facedown_revealed_just ?? []).length, 1, '1体目の離脱で立つ');
+  const after2 = removeFromField(b, after1);
+  eq(after2.facedown_revealed_just, undefined, '🔴2体目（裏向き付けなし）の離脱でクリアされる');
+}));
+
+// ⚠`withSavedCursor` 必須＝`mkState` が POOL カーソルを進めるので、包まないと
+//   **後続テストが引くカードが変わって無関係なテストが落ちる**（CLAUDE.md の既知の罠）。
+test('O-81 trigger: 公開札がシグニのときだけ発火し、バニッシュ候補は同レベルへ確定する', () => withSavedCursor(() => {
+  const guest = mkState({});
+  const mkHost = (revealed: string[]): PlayerState => {
+    const h = mkState({ signi: [SIGNI, null, null], lrig: ['WX16-003'] });
+    h.facedown_revealed_just = revealed;
+    return h;
+  };
+  const entryOf = (revealed: string[]) =>
+    collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], HOST, mkHost(revealed), guest).entries
+      .find(e => e.effectId === 'WX16-003-E3');
+  // 公開なし＝「この方法でシグニを公開したとき」が成立しない
+  eq(entryOf([]) === undefined, true, '🔴公開札が無ければ発火しない（旧 AUTO は無条件バニッシュだった）');
+  // レベル2のシグニを公開＝発火し、候補はレベル2へ確定
+  const hitL2 = entryOf([SIGNI_L2]);
+  ok(!!hitL2, 'シグニ公開で発火');
+  eq(JSON.stringify(hitL2?.effect.action).includes('"level":2'), true, '🔴「そのカードと同じレベル」＝Lv2 に確定');
+  eq(JSON.stringify(hitL2?.effect.action).includes('levelEqFacedownRevealed'), false, '同・動的フラグは消費済み');
+  const hitL4 = entryOf([SIGNI_L4]);
+  eq(JSON.stringify(hitL4?.effect.action).includes('"level":4'), true, '別レベルなら4に確定（固定値ではない証拠）');
+}));
+
 test('Stage2 ON_LEAVE_FIELD: leftToZone=hand は手札在中時のみ発火（WXK02-041-E2）', () => {
   const guest = mkState({});
   const host = mkState({ signi: ['WXK02-041', null, null] }); host.hand.push(SIGNI); // 離れたカードが手札に在る
@@ -20336,7 +20426,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 57, 'ActiveCondition の型数（57＝§5.3 `O-65` で DURING_MAIN_PHASE を新設）');
-  eq(Object.keys(C_TYPES).length, 126, 'Condition の型数（126＝段2 第44バッチで VIRUS_COUNT を追加）');
+  eq(Object.keys(C_TYPES).length, 127, 'Condition の型数（127＝§5.3 `O-81` で FACEDOWN_REVEALED_JUST を新設）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。

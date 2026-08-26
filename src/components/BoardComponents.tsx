@@ -450,6 +450,8 @@ export interface StackedSigniSlotProps {
   isAbilityRemoved?: boolean;
   effectivePowers?: Map<string, number>;
   charmCardNum?: string | null;
+  /** 裏向きで付けられたカード（§5.3 `O-81`・`WX16-003-E2`）。⚠**【チャーム】とは別ゾーン**なので併存する。 */
+  facedownAttachedNums?: string[] | null;
   acceCardNums?: string[] | null;
   virusCount?: number;
   chokkinCount?: number;
@@ -462,10 +464,12 @@ export interface StackedSigniSlotProps {
   hasGate?: boolean;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNums, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, faceDownCardNum, magicBoxCardNum, statusKeywords = [], hasGate = false }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, facedownAttachedNums, acceCardNums, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, faceDownCardNum, magicBoxCardNum, statusKeywords = [], hasGate = false }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
+  const [showFacedownModal, setShowFacedownModal] = useState(false);
   const [showMBPeek, setShowMBPeek] = useState(false);
+  const facedownTop = facedownAttachedNums?.[0] ?? null;
   const touchPos = useRef<{ x: number; y: number } | null>(null);
 
   const n = stack?.length ?? 0;
@@ -557,8 +561,15 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         {charmCardNum && (
           <CharmPeek width={width} onTap={() => setShowCharmModal(true)} />
         )}
+        {facedownTop && (
+          <CharmPeek width={width} onTap={() => setShowFacedownModal(true)} />
+        )}
         {showCharmModal && charmCardNum && (
           <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
+        )}
+        {showFacedownModal && facedownTop && (
+          <CharmModal cardNum={facedownTop} cards={cards} isMe={!!isMe} label="裏向きで付いたカード（非公開）"
+            onClose={() => setShowFacedownModal(false)} />
         )}
         {showMBPeek && magicBoxCardNum && isMe && (() => {
           const mbCardData = cards.find(c => c.CardNum === magicBoxCardNum.split('#')[0]);
@@ -781,6 +792,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         <CharmPeek width={width}
           onTap={() => setShowCharmModal(true)} />
       )}
+      {facedownTop && (
+        <CharmPeek width={width}
+          onTap={() => setShowFacedownModal(true)} />
+      )}
       </div>
       {showModal && stack && (
         <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
@@ -791,6 +806,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
       })()}
       {showCharmModal && charmCardNum && (
         <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
+      )}
+      {showFacedownModal && facedownTop && (
+        <CharmModal cardNum={facedownTop} cards={cards} isMe={!!isMe} label="裏向きで付いたカード（非公開）"
+          onClose={() => setShowFacedownModal(false)} />
       )}
     </>
   );
@@ -832,8 +851,8 @@ export function CharmPeek({ width, onTap }: { width: number; onTap: () => void; 
 }
 
 // ─── CharmModal: チャームタップ時モーダル ──────────────────────────
-export function CharmModal({ cardNum, cards, isMe, onClose }: {
-  cardNum: string; cards: CardData[]; isMe: boolean; onClose: () => void;
+export function CharmModal({ cardNum, cards, isMe, onClose, label = 'チャーム（非公開）' }: {
+  cardNum: string; cards: CardData[]; isMe: boolean; onClose: () => void; label?: string;
 }) {
   const card = cards.find(c => c.CardNum === getCardNum(cardNum));
   if (isMe && card) return <CardModal card={card} onClose={onClose} />;
@@ -848,7 +867,7 @@ export function CharmModal({ cardNum, cards, isMe, onClose }: {
     >
       <img src="/Card_Black.jpg" alt="charm back" draggable={false}
         style={{ maxWidth: '90vw', maxHeight: '62vh', objectFit: 'contain', borderRadius: 10 }} />
-      <p style={{ color: C.textFaint, fontSize: 12, marginTop: 12 }}>チャーム（非公開）</p>
+      <p style={{ color: C.textFaint, fontSize: 12, marginTop: 12 }}>{label}</p>
     </div>,
     document.body,
   );
@@ -1084,6 +1103,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             isAbilityRemoved={s ? s.some(num => state.abilities_removed?.includes(num)) : false}
             effectivePowers={effectivePowers}
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
+            facedownAttachedNums={state.field.signi_facedown_attached?.[rawIdx] ?? null}
             acceCardNums={normalizeAcceSlot(state.field.signi_acce?.[rawIdx])}
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
             chokkinCount={state.field.signi_chokkin?.[rawIdx] ?? 0}

@@ -1837,14 +1837,24 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
   }
 
-  // ---- あなたのシグニに手札からカードを裏向きで付ける（チャーム）----
-  // 🔴§5.3 `O-60` 第6バッチ＝**これは【チャーム】であって「下に置く」ではない**。
-  //   旧実装はペイロード無しで同じ id へ流し込み、engine のフォールバックが
-  //   **直前に処理したカードをシグニの下へ積んでいた**（原文と無関係の盤面変化）。
-  //   受け皿（`signi_charms`）への配線は §5.3 `O-81` へ登録＝いまは明示保留（engine は何もしない）。
+  // ---- あなたのシグニに手札からカードを裏向きで付ける ----
+  // 🔴§5.3 `O-60` 第6バッチ＝**これは「下に置く」ではない**（旧実装はペイロード無しで
+  //   `PLACE_CARD_UNDER_SIGNI` へ流し込み、engine のフォールバックが**直前に処理したカードを
+  //   シグニの下へ積んでいた**＝原文と無関係の盤面変化）。
+  // 🆕§5.3 `O-81`（2026-08-26）＝受け皿 `field.signi_facedown_attached` を実装して typed アクション化。
+  //   ⚠**【チャーム】ではない**（原文に【チャーム】の語が無い）＝`ATTACH_CHARM` に寄せてはいけない。
+  // ⚠**母集団は実測1件**（`WX16-003-E2`）で、そのカードは後続2文
+  //   「そのシグニが場を離れる場合、追加で…公開し手札に戻す」「この方法でシグニを公開したとき、…バニッシュする」
+  //   が**別の ON_LEAVE_FIELD watcher（`WX16-003-E3`）になる**＝文単位の parser では組めないので
+  //   **カード全体を `manualEffects.ts` で MANUAL 化**している。ここの規則は
+  //   「後続句を持たない同型カードが将来出たとき」のための受け皿。
   if (t.match(/手札からカード[０-９\d]*枚?を裏向きで付ける/) ||
       t.match(/あなたのシグニ.+に.+手札からカードを.+付ける/)) {
-    return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'charm_facedown' } } as StubAction;
+    return {
+      type: 'ATTACH_FACEDOWN_FROM_HAND',
+      to: { type: 'SIGNI', owner: 'self', count: 1 },
+      count: 1,
+    } as EffectAction;
   }
 
   // ---- 対戦相手のルリグトラッシュからアーツを使用する ----

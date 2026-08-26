@@ -4804,6 +4804,23 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"DECK_COUNT","owner":"opponent","operator":"eq","value":0},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // §5.3 `O-81`（2026-08-26）＝**手札からカードを裏向きで付ける**唯一のカード（母集団は実測1件）。
+  // 原文（E2）＝「【起】カンニング《アタックフェイズアイコン》《コインアイコン》：あなたのシグニ１体を対象とし、
+  //   それにあなたの手札からカード１枚を裏向きで付ける。そのシグニが場を離れる場合、追加でこれによって付けた
+  //   カードを公開し手札に戻す。この方法でシグニを公開したとき、そのカードと同じレベルの対戦相手のシグニ１体を
+  //   対象とし、それをバニッシュする。」
+  // 🔴**MANUAL 化する理由**＝第2文以降は【起】の中では解決せず、**ホストが場を離れたときに効く別の watcher**
+  //   になる。文単位の parser は1つの ACTIVATED しか組めず、旧 AUTO 出力は
+  //   **第2文を「自分のシグニを即バウンス」・第3文を「無条件バニッシュ」に化けさせていた**（過剰実行）。
+  // ⚠**【チャーム】ではない**（原文に【チャーム】の語が無い）＝受け皿は `field.signi_facedown_attached`。
+  //   `signi_charms` に入れると `hasCharm`／`CHARM_COUNT`／`ON_CHARM_TO_TRASH`／`IS_SELF_CHARMED` が
+  //   軒並み過剰発火し、同じシグニに【チャーム】と併存もできなくなる。
+  // ■ 公開して手札に戻す部分は `removeFromField`（全離脱経路が通る唯一の funnel）が行い、
+  //   `facedown_revealed_just` に刻む。E3 はその**バニッシュだけ**を担当する。
+  "WX16-003": [
+    {"effectId":"WX16-003-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"coin":1},"action":{"type":"ATTACH_FACEDOWN_FROM_HAND","to":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"count":1},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX16-003-E3","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"triggerScope":"any_ally","condition":{"type":"FACEDOWN_REVEALED_JUST","filter":{"cardType":"シグニ"}},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelEqFacedownRevealed":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   // WX16-004 THREE OUT：2コインベット時、ターン終了時までホログラフのトップ公開を3枚並べ替え後の公開へ置換。
   "WX16-004": [
     {"effectId":"WX16-004-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING","minCoins":2},"then":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WX16-004-E1-GRANT","effectType":"CONTINUOUS","action":{"type":"STUB","id":"HOLOGRAPH_REVEAL_REPLACE"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}],"rawText":"【常】：ホログラフの効果によってあなたのデッキの一番上を公開する場合、代わりにあなたはデッキの上からカードを３枚見て、それらを好きな順番でデッキの上に戻してからデッキの一番上を公開する。"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}

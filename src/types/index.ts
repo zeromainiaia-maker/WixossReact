@@ -252,6 +252,15 @@ export interface PlayerState {
     key_piece?: string | null;
     key_piece_extra?: string[];  // UNLIMITED_KEYS: 2枚目以降のキー/ピース
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null
+    /**
+     * [zone0, zone1, zone2] **裏向きで付けられたカード**（§5.3 `O-81`・`WX16-003-E2`
+     * 「それにあなたの手札からカード１枚を裏向きで付ける」）。未装着は null。
+     * ⚠**【チャーム】ではない**＝原文が【チャーム】と書いていないので `signi_charms` とは別ゾーンに置く
+     *   （混ぜると `hasCharm`／`CHARM_COUNT`／`ON_CHARM_TO_TRASH`／`IS_SELF_CHARMED` が
+     *   軒並み過剰発火し、同じシグニに【チャーム】と併存できなくなる）。
+     * 🔑ホストが場を離れると `removeFromField` が**公開して持ち主の手札へ戻す**（トラッシュではない）。
+     */
+    signi_facedown_attached?: (string[] | null)[];
     signi_acce?:   (string[] | null)[]; // [zone0, zone1, zone2] 各ホストに付いた全アクセのCardNum配列。未装着はnull
     signi_virus?:  number[];          // [zone0, zone1, zone2] ウィルス数（0 or 1）
     signi_chokkin?: number[];         // [zone0, zone1, zone2] 貯菌カウンター数
@@ -268,6 +277,14 @@ export interface PlayerState {
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
   actions_done?: string[];      // このターンに使用済みのアクション（ターン開始時にリセット）
+  /**
+   * 直前の離脱で `signi_facedown_attached` から**公開して手札に戻したカード**（§5.3 `O-81`）。
+   * `signi_zone_vacated_just` と同種の**使い捨てマーカー**＝`removeFromField` が毎回 set/クリアするので
+   * 「いま起きた離脱で公開されたもの」だけを指す。ON_LEAVE_FIELD watcher の
+   * `FACEDOWN_REVEALED_JUST` 条件と `levelEqFacedownRevealed` フィルタが**収集時に**読む
+   * （解決時まで持ち越すと後続の離脱でクリアされて外れるため）。
+   */
+  facedown_revealed_just?: string[];
   /** 場に出た後、ターン終了時または場を離れた直後に除外するカードの instance id。 */
   pending_exile_nums?: string[];
   refresh_count_this_turn?: number; // このターン中にこのプレイヤーが行ったリフレッシュ回数（ターン開始時にリセット。ターンプレイヤーが2回目でターン終了）

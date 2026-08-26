@@ -31656,6 +31656,9 @@ try {
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
         fieldCharms: s.field?.signi_charms ?? null,   // 任意【出】の【チャーム】付与を見る（タスク12(lv)③）
+        // §5.3 O-81：**裏向きで付けられたカード**（【チャーム】とは別ゾーン）と、離脱時に公開したカード。
+        fieldFacedownAttached: s.field?.signi_facedown_attached ?? null,
+        facedownRevealedJust: s.facedown_revealed_just ?? null,
         // 「このターンにシグニがバニッシュされている」履歴（タスク12(xciv) の `WX13-026` コスト軽減が読む）
         signiBanishedThisTurn: s.signi_banished_this_turn ?? 0,
         // §6.4 O-3／O-1 (e)：追加アタックフェイズのキューと、その開始時本文の予約（V-79 の計器）。

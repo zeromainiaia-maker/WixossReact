@@ -378,6 +378,14 @@ export type Condition =
   // 場に付いている【チャーム】の枚数（「対戦相手の場に【チャーム】が３枚ある場合」WX11-049-E2）。
   // 【ウィルス】の VIRUS_COUNT（ActiveCondition 側）と対になる使用条件版。
   | { type: 'CHARM_COUNT'; owner: Owner; operator: CompareOp; value: number }
+  /**
+   * 「**この方法でシグニを公開したとき**」（§5.3 `O-81`・`WX16-003-E3`）＝
+   * 直前の離脱で `signi_facedown_attached` から公開して手札へ戻したカード
+   * （`PlayerState.facedown_revealed_just`）が `filter` を満たす場合。
+   * ⚠**収集時に評価される**（`collectLeaveFieldTriggers` の `eff.condition`）＝
+   *   マーカーは次の離脱でクリアされるので、解決時まで持ち越して読んではいけない。
+   */
+  | { type: 'FACEDOWN_REVEALED_JUST'; filter?: TargetFilter }
   | { type: 'VIRUS_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_GTE'; value: number; operator?: CompareOp }
@@ -483,6 +491,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
   LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,
   LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, OPP_USING_TEAM_PIECE: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, VIRUS_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
+  FACEDOWN_REVEALED_JUST: true,
   SELF_LEVEL_THRESHOLD: true,
   THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
   THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,
@@ -809,6 +818,13 @@ export interface TargetFilter {
   levelLtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル未満 → level.max:N-1 に解決（「その後、そのシグニより低いレベルを持つ」＝公開シグニ基準。参照不能なら空ヒット。WXK10-031）
   levelGtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベルより高い → level.min:N+1 に解決（「その後、…それよりレベルの高い」＝直前配置シグニ基準。参照不能なら空ヒット。WXEX2-28）
   levelEqLastProcessed?: boolean;  // レベルが直前に処理したシグニと同じ → level.min/max に解決（「この方法で【ビート】にしたシグニと同じレベル」WDK14-008）
+  /**
+   * レベルが**直前の離脱で公開された裏向き付けカード**（`facedown_revealed_just`）と同じ
+   * → `level` に解決（§5.3 `O-81`・`WX16-003-E3`「そのカードと同じレベルの対戦相手のシグニ１体」）。
+   * ⚠**収集時に `resolveLeaveFieldDynamicFilters` が確定させる**＝解決時にはマーカーが
+   *   後続の離脱でクリアされうるので参照しない。参照不能なら `level:-1`＝空ヒット（過剰実行しない側）。
+   */
+  levelEqFacedownRevealed?: boolean;
   // レベルが「この方法でダウンしたルリグ」と同じ → level に解決（WX25-P1-112／WX24-P1-040。タスク12(cix)）。
   // 参照先は ①lastProcessedCards[0] がルリグならそれ（＝同一 SEQUENCE 内の DOWN。任意ダウンをスキップすると
   // 空になり did-it ゲートになる）②なければ ownerSt.last_lrig_down_cards（＝コスト経路。実UIでは支払いと効果
@@ -959,6 +975,7 @@ export type EffectAction =
   | CostReductionAction
   | GrantProtectionAction
   | AttachCharmAction
+  | AttachFacedownFromHandAction
   | RevealAndPickAction
   | LookPickChainAction
   | BanishRedirectAction
@@ -1847,6 +1864,30 @@ export interface AttachCharmAction {
   to: EffectTarget;    // 付ける対象シグニ（to.filter.thisCardOnly=効果元シグニ自身）
   optional?: boolean;  // true=「チャームにしてもよい」（付ける/付けないを選択）
   perAllSigni?: boolean; // 各シグニへデッキトップから1枚ずつ一斉付与
+}
+
+/**
+ * `ATTACH_FACEDOWN_FROM_HAND`（§5.3 `O-81`・母集団は実測**1件**＝`WX16-003-E2`）＝
+ * 「あなたのシグニ１体を対象とし、それに**あなたの手札からカード１枚を裏向きで付ける**。」
+ *
+ * ⚠**【チャーム】ではない**（原文が【チャーム】と書いていない）＝受け皿は `signi_charms` ではなく
+ *   `field.signi_facedown_attached`。混ぜると `hasCharm` 系の判定が軒並み過剰発火する。
+ * 🔑付いたカードは**ホストが場を離れると公開されて持ち主の手札へ戻る**（`removeFromField` の1点）。
+ *   その離脱時の追加効果（`WX16-003-E3` のバニッシュ）は ON_LEAVE_FIELD watcher 側が
+ *   `FACEDOWN_REVEALED_JUST` 条件と `levelEqFacedownRevealed` フィルタで受ける。
+ */
+export interface AttachFacedownFromHandAction {
+  type: 'ATTACH_FACEDOWN_FROM_HAND';
+  /** 付ける先シグニ（原文「あなたのシグニ１体を対象とし」）。 */
+  to: EffectTarget;
+  /** 手札から付ける枚数（既定1）。 */
+  count?: number;
+  /** 手札側の条件（原文が「カード１枚」＝無指定）。 */
+  handFilter?: TargetFilter;
+  /** 内部用: 段1（ホスト選択）の応答待ち。JSON には書かない。 */
+  _hostPending?: boolean;
+  /** 内部用: 段2で確定したホストシグニ。JSON には書かない。 */
+  _host?: string;
 }
 
 // デッキの上からN枚公開し、条件を満たすカードをpickする
@@ -3046,9 +3087,10 @@ export interface StubAction {
      * `craft`＝ゲーム外からクラフトを生成して下に置く（`craftName` 必須）／
      * `self_under_other`＝**このシグニ自身**を他のシグニの下へ／
      * `processed`＝直前に処理したカード（`lastProcessedCards`）を下へ／
-     * `charm_facedown`＝**【チャーム】として裏向きで付ける**＝機構未実装（§5.3 `O-81`）。
+     * ⚠**「手札から裏向きで付ける」はここではない**＝`ATTACH_FACEDOWN_FROM_HAND`（§5.3 `O-81` で実装）。
+     *   旧 `charm_facedown` モードは受け皿ができたので削除した（死んだ枝は catch-all の温床）。
      */
-    mode: 'craft' | 'self_under_other' | 'processed' | 'charm_facedown';
+    mode: 'craft' | 'self_under_other' | 'processed';
     /** `craft` のときのクラフト名（原文「クラフトの《給食推進車両》」）。 */
     craftName?: string;
   };

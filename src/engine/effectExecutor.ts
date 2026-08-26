@@ -1,7 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
 import { applyRefreshState } from './refresh';
 import type {
-  CardEffect, EffectAction, EffectTarget, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
+  CardEffect, EffectAction, EffectTarget, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, AttachFacedownFromHandAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
 import type { ExecCtx, ExecResult
 } from './execUtils';
 import {
@@ -6012,6 +6012,76 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   });
 }
 
+/**
+ * `ATTACH_FACEDOWN_FROM_HAND`（§5.3 `O-81`・`WX16-003-E2`）＝
+ * 「あなたのシグニ１体を対象とし、それにあなたの手札からカード１枚を裏向きで付ける。」
+ *
+ * 3段の対話（段1=ホストシグニ／段2=手札のカード／段3=適用）。段間は `_hostPending`／`_host` で繋ぐ
+ * （新しい `INTERNAL_*` STUB を作らないため＝`LOOK_PICK_CHAIN` の `_revealed` と同じ規約）。
+ *
+ * ⚠**受け皿は `signi_charms` ではない**＝原文が【チャーム】と書いていないので
+ *   `field.signi_facedown_attached` へ入れる。混ぜると `hasCharm`／`CHARM_COUNT`／
+ *   `ON_CHARM_TO_TRASH`／`IS_SELF_CHARMED` が過剰発火し、【チャーム】との併存もできなくなる。
+ * 🔑離脱時の「公開し手札に戻す」は `removeFromField` の1点が担当（全離脱経路が通る funnel）。
+ */
+function execAttachFacedownFromHand(a: AttachFacedownFromHandAction, ctx: ExecCtx): ExecResult {
+  const toOwner = a.to.owner ?? 'self';
+  const toState = ownerState(toOwner, ctx);
+  const count = a.count ?? 1;
+
+  // 段3: ホスト確定済み＝直前に選ばれた手札のカードを付ける
+  if (a._host) {
+    const picked = (ctx.lastProcessedCards ?? []).slice(0, count);
+    if (picked.length === 0) return done(addLog(ctx, '裏向きで付けるカードがない'));
+    const hostState = ownerState(toOwner, ctx);
+    const zoneIdx = hostState.field.signi.findIndex(st => st?.at(-1) === a._host);
+    if (zoneIdx < 0) return done(addLog(ctx, '付ける先のシグニが場にいない'));
+    const slots = [...(hostState.field.signi_facedown_attached ?? [null, null, null])] as (string[] | null)[];
+    slots[zoneIdx] = [...(slots[zoneIdx] ?? []), ...picked];
+    let ctx2 = setOwnerState(toOwner, {
+      ...hostState,
+      field: { ...hostState.field, signi_facedown_attached: slots },
+    }, ctx);
+    // 付けたカードは手札から抜く（`selectOrInteract` は選ばせるだけで領域を動かさない）。
+    const handOwnerState = ownerState('self', ctx2);
+    const newHand = [...handOwnerState.hand];
+    for (const cn of picked) {
+      const i = newHand.indexOf(cn);
+      if (i >= 0) newHand.splice(i, 1);
+    }
+    ctx2 = setOwnerState('self', { ...ownerState('self', ctx2), hand: newHand }, ctx2);
+    const hostName = ctx.cardMap.get(getCardNum(a._host))?.CardName ?? a._host;
+    return done({
+      ...addLog(ctx2, `手札から${picked.length}枚を${hostName}に裏向きで付けた`),
+      lastProcessedCards: [a._host],
+    });
+  }
+
+  // 段2: ホストが選ばれた直後＝手札から付けるカードを選ぶ
+  if (a._hostPending) {
+    const host = ctx.lastProcessedCards?.[0];
+    if (!host) return done(addLog(ctx, '付ける先のシグニが選ばれていない'));
+    const handCands = handCandidates(ctx.ownerState, a.handFilter, ctx.cardMap);
+    if (handCands.length === 0) return done(addLog(ctx, '裏向きで付けられる手札がない'));
+    const { _hostPending: _hp, ...rest } = a;
+    const applyAct: AttachFacedownFromHandAction = { ...rest, _host: host };
+    return selectOrInteract(handCands, Math.min(count, handCands.length), false, 'self_hand',
+      applyAct as EffectAction, undefined, ctx);
+  }
+
+  // 段1: 付ける先シグニを選ぶ。⚠手札が空なら**何もしない**（対象だけ取って空振りにしない）。
+  if (handCandidates(ctx.ownerState, a.handFilter, ctx.cardMap).length === 0) {
+    return done(addLog(ctx, '裏向きで付けられる手札がない'));
+  }
+  const hostCands = a.to.filter?.thisCardOnly
+    ? (ctx.sourceCardNum && toState.field.signi.some(st => st?.at(-1) === ctx.sourceCardNum) ? [ctx.sourceCardNum] : [])
+    : fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
+  if (hostCands.length === 0) return done(addLog(ctx, '裏向きで付ける対象のシグニがいない'));
+  const pickHostAct: AttachFacedownFromHandAction = { ...a, _hostPending: true };
+  return selectOrInteract(hostCands, 1, false, toOwner === 'self' ? 'self_field' : 'opp_field',
+    pickHostAct as EffectAction, undefined, ctx);
+}
+
 /** LEVEL_REFERENCE_OVERRIDE: カードテキストから許容レベル範囲を解析して返す。
  * 「レベルを参照する場合、レベル４として扱ってもよい」→ { min:4, max:4 }
  * 「レベルを参照する場合、１～４いずれかのレベル１つとして扱ってもよい」→ { min:1, max:4 }
@@ -7876,6 +7946,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
+    case 'ATTACH_FACEDOWN_FROM_HAND': return execAttachFacedownFromHand(action as AttachFacedownFromHandAction, ctx);
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
     case 'LOOK_PICK_CHAIN':         return execLookPickChain(action as import('../types/effects').LookPickChainAction, ctx);
     case 'PLAY_FREE':               return execPlayFree(action as PlayFreeAction, ctx);

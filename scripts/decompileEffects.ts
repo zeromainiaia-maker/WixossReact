@@ -216,6 +216,7 @@ function filterJa(f?: any): string {
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
   if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
   if (f.levelEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じレベルの');
+  if (f.levelEqFacedownRevealed) parts.push('この方法で公開したカードと同じレベルの');
   if (f.levelEqLastDownedLrig) parts.push('この方法でダウンしたルリグと同じレベルの');
   if (f.nameEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じ名前の');
   if (f.levelEqLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelEqLastProcessedCount)}と同じレベルの`);
@@ -660,6 +661,8 @@ function condJa(c?: any): string {
     }
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
     case 'CHARM_COUNT': return `${ownerJa(c.owner)}場の【チャーム】が${numJa(c.value)}枚${opJa(c.operator)}`;
+    // §5.3 `O-81`：「この方法で（シグニを）公開したとき」＝離脱で裏向き付けカードが公開されたか。
+    case 'FACEDOWN_REVEALED_JUST': return `この方法で${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}を公開した`;
     case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator ?? 'gte')}`;
     // タスク12(cxvii)：実効レベル（動的レベル込み）の閾値。`condJa` は Condition と ActiveCondition の
     // **両方**を1つの switch で描くので、同名の型は**ここ1箇所だけ**に書く（二重 case は lint error）。
@@ -1697,6 +1700,15 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REARRANGE_SIGNI': return rearrangeSigniJa(a);
     case 'CHARM_PROTECTION':
       return `あなたの${filterJa(a.signiFilter)}シグニ1体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】1枚をトラッシュに置いて${a.optional ? 'もよい' : '置く'}`;
+    // §5.3 `O-81`：手札のカードをシグニに**裏向きで付ける**（【チャーム】ではない）。
+    case 'ATTACH_FACEDOWN_FROM_HAND': {
+      const toJaAF = a.to?.filter?.thisCardOnly ? 'このシグニ'
+        : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ${typeof a.to?.count === 'number' ? a.to.count : 1}体`;
+      // 「そのシグニが場を離れる場合、追加で…公開し手札に戻す」は `removeFromField` が担う**この付与の性質**
+      // （別ステップではない）＝括弧で明示しないと、逆翻訳シート上では原文3文のうち1文しか映らない。
+      return `${toJaAF}を対象とし、それにあなたの手札から${filterJa(a.handFilter)}カード${a.count ?? 1}枚を裏向きで付ける`
+        + `（付けたカードはそのシグニが場を離れる際に公開され手札に戻る）`;
+    }
     case 'ATTACH_CHARM': {
       // TRASH_CARD + thisCardOnly:「このカードを【チャーム】にする」（効果元自身。WX04-102）
       const thisCardCharm = a.charm?.type === 'TRASH_CARD' && a.charm.filter?.thisCardOnly;

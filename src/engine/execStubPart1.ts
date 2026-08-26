@@ -968,10 +968,6 @@ export function execStubPart1(
     const effPCUS = srcPCUS ? ctx.cardMap.get(getCardNum(srcPCUS)) : undefined;
     const specPCUS = stub.placeUnder;
     if (!specPCUS) return done(addLog(ctx, `[未実装] 置くものが未指定（PLACE_CARD_UNDER_SIGNI・${srcPCUS ?? '?'}）`));
-    // 【チャーム】は別機構（`signi_charms`）＝§5.3 `O-81`。下へ積む近似は原文と別の盤面になるのでしない。
-    if (specPCUS.mode === 'charm_facedown') {
-      return done(addLog(ctx, `[未実装] 手札のカードを【チャーム】として裏向きで付ける（${effPCUS?.CardName ?? srcPCUS ?? '?'}）`));
-    }
     // クラフト生成＝ゲーム外からトークンを作り、ソースシグニの下（スタック先頭=下）に重ねる。
     // 「下に《X》がない場合」条件は原文側にあり、既に同名がスタック下にあれば置かない。
     if (specPCUS.mode === 'craft' && specPCUS.craftName && srcPCUS && resolveTokenBase(ctx.cardMap, specPCUS.craftName)) {

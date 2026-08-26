@@ -1435,15 +1435,24 @@ export function collectBanishTriggers(
  *  levelLtTrigger/levelEqTrigger/levelGtTrigger/powerLtTrigger/powerLteTrigger → 「そのシグニより低い/同じ/高い」のトリガー相対比較。
  *    ON_LEAVE_FIELD のトリガー元＝場を離れたカードなので、離れたカード基準で level/powerRange へ解決する
  *    （any_ally 監視では実行元が watcher シグニで triggeringCardNum が離脱カードにならないため、収集時に確定させる。WXEX2-51-E1）。
+ *  levelEqFacedownRevealed → level:{この離脱で公開された裏向き付けカードのレベル}（§5.3 `O-81`・`WX16-003-E3`）。
+ *    ⚠**ここで確定させるのが必須**＝`facedown_revealed_just` は次の離脱でクリアされる使い捨てマーカーなので、
+ *      解決時まで持ち越すと外れる。参照不能なら `level:-1`＝候補ゼロ（過剰実行しない側に倒す）。
  */
 export function resolveLeaveFieldDynamicFilters(
   cardMap: Map<string, CardData>,
   eff: CardEffect,
   leftCard: CardData | undefined,
   underCards: string[],
+  revealedFacedown: string[] = [],
 ): CardEffect {
-  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard|levelLtTrigger|levelEqTrigger|levelGtTrigger|powerLtTrigger|powerLteTrigger)":true/.test(JSON.stringify(eff.action))) return eff;
+  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard|levelLtTrigger|levelEqTrigger|levelGtTrigger|powerLtTrigger|powerLteTrigger|levelEqFacedownRevealed)":true/.test(JSON.stringify(eff.action))) return eff;
   const clone = JSON.parse(JSON.stringify(eff)) as CardEffect;
+  // 「**シグニ**を公開したとき、**そのカード**と同じレベルの」＝公開札が複数ある場合は
+  // 条件（`FACEDOWN_REVEALED_JUST{cardType:'シグニ'}`）が見るのと同じ**最初のシグニ**を基準にする。
+  const revealedBase = revealedFacedown.find(cn => cardMap.get(getCardNum(cn))?.Type === 'シグニ')
+    ?? revealedFacedown[0] ?? '';
+  const revealedLevel = parseInt(cardMap.get(getCardNum(revealedBase))?.Level ?? '', 10);
   const leftLevel = parseInt(leftCard?.Level ?? '', 10);
   const leftPower = parseInt((leftCard?.Power ?? '').replace(/[^\d]/g, ''), 10);
   const underNames = underCards
@@ -1483,6 +1492,10 @@ export function resolveLeaveFieldDynamicFilters(
     if (obj.underLeftCard === true) {
       delete obj.underLeftCard;
       obj.cardNames = underNames;
+    }
+    if (obj.levelEqFacedownRevealed === true) {
+      delete obj.levelEqFacedownRevealed;
+      obj.level = isNaN(revealedLevel) ? -1 : revealedLevel;
     }
     Object.values(obj).forEach(visit);
   };
@@ -1576,7 +1589,7 @@ export function collectLeaveFieldTriggers(
     entries.push({
       id: ctx.genId(), playerId: leftPlayerId, cardNum: leftCardNum, effectId: eff.effectId,
       label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
-      effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+      effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder, ownerStateAfter.facedown_revealed_just ?? []),
       leftFieldUnderCards: [...leftUnder],
     });
   }
@@ -1631,7 +1644,7 @@ export function collectLeaveFieldTriggers(
       entries.push({
         id: ctx.genId(), playerId: leftPlayerId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
-        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder, ownerStateAfter.facedown_revealed_just ?? []),
         leftFieldUnderCards: [...leftUnder],
       });
     }
@@ -1676,7 +1689,7 @@ export function collectLeaveFieldTriggers(
       entries.push({
         id: ctx.genId(), playerId: oppId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（相手シグニが場を離れたとき）`,
-        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder, ownerStateAfter.facedown_revealed_just ?? []),
         leftFieldUnderCards: [...leftUnder],
       });
     }
@@ -1705,7 +1718,7 @@ export function collectLeaveFieldTriggers(
       entries.push({
         id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
         label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（場を離れたとき）`,
-        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, delayedEffect, leftCard, leftUnder),
+        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, delayedEffect, leftCard, leftUnder, ownerStateAfter.facedown_revealed_just ?? []),
         leftFieldUnderCards: [...leftUnder],
       });
     }
