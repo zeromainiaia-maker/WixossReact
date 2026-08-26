@@ -3155,6 +3155,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseLevelFilter(t),
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
+      // 「あなたのセンタールリグと共通する色を持つシグニ」＝ルリグ色参照（`WX24-P2-007-E1`）。
+      // ⚠**すぐ下の「トラッシュから場に出す」分岐には最初から入っていた**＝エナ経路だけが取り残された
+      //   配線漏れで、落ちると**エナゾーンのどのシグニでも場に出せる**過剰効果になる（段2 第45バッチ）。
+      ...parseColorMatchesLrig(t),
       ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準（WXDi-P03-078）。resolveDynamicFilter が解決
       ...parseTriggerComparison(t, { allowPlacement: true, allowLevelEq: true }), // 「そのシグニと同じレベル」等＝トリガー元基準（WX21-004）
       ...signiClauseDisonaFilter(t),
