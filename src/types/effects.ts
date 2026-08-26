@@ -1534,6 +1534,11 @@ export interface SelectColorAction {
   from: 'energy' | 'last_processed';
   /** `from:'energy'` の選択上限（省略＝1）。`'last_processed'` では未使用（枚数＝処理カード数）。 */
   count?: number;
+  /**
+   * 内部用: `from:'last_processed'` の**残りカード**（段間 continuation）。JSON には書かない。
+   * ⚠**存在＝2周目以降**＝既に選んだ色をクリアしない目印も兼ねる。
+   */
+  _cards?: string[];
 }
 
 export interface PreventRefreshAction {

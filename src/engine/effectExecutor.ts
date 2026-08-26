@@ -1,7 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
 import { applyRefreshState } from './refresh';
 import type {
-  CardEffect, EffectAction, EffectTarget, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, AttachFacedownFromHandAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
+  CardEffect, EffectAction, EffectTarget, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, SelectColorAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, AttachFacedownFromHandAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
 import type { ExecCtx, ExecResult
 } from './execUtils';
 import {
@@ -5333,7 +5333,91 @@ function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
   return done(ctx);
 }
 
+/**
+ * `SELECT_COLOR`（§5.3 `O-87`）＝色を選択する。選んだ色は `story_overrides['__selected_colors__']` に
+ * 溜まり、`SELECTED_COLOR` 条件が読む（`WX10-025` が使っていた既存の store をそのまま使う）。
+ *
+ * ⚠**初回に必ずクリアする**＝同じターンに2度撃つと前回の色が残って条件が誤成立する。
+ * ⚠`from:'last_processed'` は**カード1枚につき1色**（原文「カード１枚につきそのカードに含まれる色１つ」）＝
+ *   1色しか持たないカードは選ぶ余地が無いので自動確定し、対話は**多色カードのぶんだけ**出す。
+ * 🔴旧 `STUB{CHOOSE_COLOR_FROM_LIST}` は**カード全文を `最大N色` で読んでいた**（§5.3 `O-60` A群）＝
+ *   payload 化してその regex を撤去した。
+ */
+function execSelectColor(a: SelectColorAction, ctx: ExecCtx): ExecResult {
+  const COLORS = ['白', '赤', '青', '緑', '黒'];
+  const colorsOf = (cardNum: string): string[] =>
+    [...(ctx.cardMap.get(getCardNum(cardNum))?.Color ?? '')].filter(c => COLORS.includes(c));
+  // 2周目以降（`_cards` 付き）はクリアしない＝1枚目で選んだ色を消してしまう。
+  let base = ctx;
+  if (!a._cards) {
+    const cleared = { ...(ctx.ownerState.story_overrides ?? {}) };
+    delete cleared['__selected_colors__'];
+    base = { ...ctx, ownerState: { ...ctx.ownerState, story_overrides: cleared } };
+  }
+
+  if (a.from === 'last_processed') {
+    const queue = (a._cards ?? ctx.lastProcessedCards ?? []).filter(cn => colorsOf(cn).length > 0);
+    if (queue.length === 0) return done(addLog(base, '色選択：対象カードに色がない'));
+    const [head, ...tail] = queue;
+    const cols = colorsOf(head);
+    const name = ctx.cardMap.get(getCardNum(head))?.CardName ?? head;
+    const restAct: EffectAction | undefined = tail.length > 0
+      ? ({ ...a, _cards: tail } as SelectColorAction) as EffectAction
+      : undefined;
+    // 単色＝選ぶ余地が無いので自動確定（対話を出さない）
+    if (cols.length === 1) {
+      const applied = pushSelectedColor(cols[0], base);
+      return restAct ? executeAction(restAct, applied) : done(applied);
+    }
+    return needsInteraction(addLog(base, `${name}に含まれる色を1つ選択`), {
+      type: 'CHOOSE',
+      count: 1,
+      options: cols.map(col => ({
+        id: `color_${col}`,
+        label: `《${col}》を選ぶ（${name}）`,
+        action: ({ type: 'STUB', id: 'INTERNAL_SELECT_COLOR', value: col } as StubAction) as EffectAction,
+        available: true,
+      })),
+      ...(restAct ? { continuation: restAct } : {}),
+    } as PendingInteractionDef);
+  }
+
+  // from:'energy'＝エナゾーンにあるカードが持つ色から最大 count 色（`WX10-025`）。
+  const enaColors = [...new Set(ctx.ownerState.energy.flatMap(colorsOf))];
+  if (enaColors.length === 0) return done(addLog(base, '色選択：エナに色なし'));
+  const max = Math.max(1, a.count ?? 1);
+  return needsInteraction(addLog(base, `色を選択（最大${max}色）`), {
+    type: 'CHOOSE',
+    count: Math.min(max, enaColors.length),
+    options: enaColors.map(col => ({
+      id: `color_${col}`,
+      label: `《${col}》を選ぶ`,
+      action: ({ type: 'STUB', id: 'INTERNAL_SELECT_COLOR', value: col } as StubAction) as EffectAction,
+      available: true,
+    })),
+  } as PendingInteractionDef);
+}
+
+/**
+ * 選んだ色を `__selected_colors__` へ積む。⚠**`INTERNAL_SELECT_COLOR`（execStubPart3）と同じ動作**＝
+ * 対話を経る枝はそちら、単色で自動確定する枝はこちらを通る。**片方だけ直さないこと。**
+ */
+function pushSelectedColor(color: string, ctx: ExecCtx): ExecCtx {
+  const prev = ctx.ownerState.story_overrides?.['__selected_colors__']?.split(',').filter(Boolean) ?? [];
+  const ov = { ...(ctx.ownerState.story_overrides ?? {}), '__selected_colors__': [...prev, color].join(',') };
+  return addLog({ ...ctx, ownerState: { ...ctx.ownerState, story_overrides: ov } }, `《${color}》を選択`);
+}
+
 function execRepeat(a: RepeatAction, ctx: ExecCtx): ExecResult {
+  // §5.3 `O-87`＝回数を実行時に解決する（「この方法で手札に加えた【トラップ】1つにつき」）。
+  // ⚠**解決した回数を `count` へ焼き込んでから回す**＝周回の途中で `lastProcessedCards` が
+  //   書き換わる（設置は選択 UI を通る）ので、毎周 `$ref` を引き直すと回数が変わる。
+  if (a.countRef !== undefined) {
+    const resolved = Math.max(0, resolveCountRef(a.countRef, ctx));
+    const { countRef: _cr, ...rest } = a;
+    if (resolved <= 0) return done(addLog(ctx, '繰り返し回数0（対象なし）'));
+    return execRepeat({ ...rest, count: resolved } as RepeatAction, ctx);
+  }
   if (a.count <= 0) return done(ctx);
   // 「あとN回まで繰り返して**もよい**」（§6.4 O-32・`WX16-042-E1`）＝1周ごとに可否を問う。
   // ⚠**問うのは実行の前**＝「繰り返さない」を選んだ時点で残り周回ごと打ち切る（`count` は減らさない）。
@@ -7916,6 +8000,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
     case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
     case 'REPEAT':                  return execRepeat(action as RepeatAction, ctx);
+    case 'SELECT_COLOR':            return execSelectColor(action as SelectColorAction, ctx);
     case 'PREVENT_REFRESH':         return execPreventRefresh(action as PreventRefreshAction, ctx);
     case 'RECOLLECT_GATE':         return done(addLog(ctx, 'レコレクトゲート'));
     case 'CHOOSE':                  return execChoose(action as ChooseAction, ctx);
