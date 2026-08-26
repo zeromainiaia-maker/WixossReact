@@ -13049,7 +13049,18 @@ function parseActionTextInner(text: string): EffectAction {
               || (baseCore as import('../types/effects').TrashAction).target?.type === 'DECK_CARD')) {
           const thenTR = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').TrashAction;
           thenTR.target = { ...thenTR.target, count: parseNum(cmm[1]) };
-          steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then: thenTR, else: base };
+          // 🔴**base 自身のゲートは置換の外側へ持ち上げる**（段2 第45バッチ・`WDK16-06S-E1`）。
+          //   原文「〈ゲート〉の場合、対戦相手は手札を１枚捨てる。〈別条件〉の場合、代わりに…捨てさせる。」＝
+          //   置換されるのは**ゲート付きで生じる効果そのもの**なので、素直に `else: base` にすると
+          //   **then 側（置換後）だけがゲートを失って無条件に走る**（＝過剰効果）。base が
+          //   `else` を持たない CONDITIONAL のときだけ、その条件を外側へ出す。
+          const baseGateTR = base.type === 'CONDITIONAL' && !(base as import('../types/effects').ConditionalAction).else
+            ? (base as import('../types/effects').ConditionalAction).condition : null;
+          const elseTR = baseGateTR ? (base as import('../types/effects').ConditionalAction).then : base;
+          const replacedTR: EffectAction = { type: 'CONDITIONAL', condition: cm.condition, then: thenTR, else: elseTR };
+          steps[steps.length - 1] = baseGateTR
+            ? { type: 'CONDITIONAL', condition: baseGateTR, then: replacedTR }
+            : replacedTR;
           continue;
         }
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
