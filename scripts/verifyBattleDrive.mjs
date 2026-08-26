@@ -16774,7 +16774,136 @@ order.push(
 order.push('assistAttackBoth', 'fezoneDoubleCostPay', 'sYokusenkiSpellPay');
 // 段2 第44バッチ（2026-08-26 続き676）＝`powerLteSelf` の実機観測。SELECT_TARGET ピッカーの候補絞り込みは
 // golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
+
+// ── 段2 第45バッチ（levelLteLrig の実機観測・2026-08-27）───────────────────────
+// `WXK10-037-E2`【起】《ターン１回》アップ状態のセンタールリグ１体をダウンする：
+//   あなたのデッキから**あなたのセンタールリグのレベル以下の**赤のシグニ１枚を探して公開し手札に加える。
+// 🔴parser が `levelLteLrig` を生成していなかったため、**デッキの赤シグニなら何レベルでも持ってこられる**
+//   過剰効果だった（BOUNCE／BANISH の「相手シグニ」形にだけ規則があり、SEARCH 経路が取り残されていた）。
+// ⚠この層（**探索モーダルの候補絞り込み**）は golden/smoke/fuzz が守れない＝実機でしか観測できない（§2.2）。
+// ⚠**SEARCH の候補は `interaction.candidates` ではなく `visibleCards`**（`effectExecutor.ts:4141`）＝
+//   `queryState().pendingVisibleCards` で見る。結果（何を手札に入れたか）では絞り込みを判定できない。
+// ⚠クリック列は既存の `lrigDownCenterOnlyPays`（同カード・同経路）と同じ。
+scenarios.b45LrigLevelSearchCeiling = {
+  title: 'WXK10-037-E2（段2 B45 levelLteLrig＝センターLv3なら赤Lv3は候補・赤Lv4は候補外）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-002#1'],                 // 花代・参 Lv3（能力なし）＝探索の上限がレベル3になる
+      'field.lrig_down': false,                     // 《アップ状態のセンタールリグ1体をダウン》を払える
+      'field.signi': [['WXK10-037#1'], null, null], // 効果元（古代乗機 ギュウシャ・赤Lv2・Restriction '-'）
+      'field.signi_down': [false, false, false],
+      'field.check': null,                          // 罠1＝前シナリオのライフクラッシュ確認モーダルを引き継がない
+      // ⚠罠22＝`deck: []` は解決中にリフレッシュを誘発する。埋め札は**赤以外**（＝候補に混ざらない）。
+      'deck': ['WX01-066#1', 'WX01-064#1', 'WD03-013#1', 'WD03-012#1', 'WD03-010#1', 'WX01-075#1'],
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log(`開始時 deck=${JSON.stringify(before?.host?.deckCards)} lrigTop=${before?.host?.lrigTop} lrigDown=${before?.host?.lrigDown}`);
+    await H.ensureMain();
+    H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+    let activated = false, probed = false, vis = null;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b45LrigLevelSearchCeiling-${s}.png`, fullPage: true });
+      let did = null;
+      if (!activated) {
+        const btn = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
+          await btn.click({ timeout: 1200 }).catch(() => {}); did = 'btn:【起】';
+        }
+      }
+      if (!did) {
+        const fire = await H.clickBtn('発動', { exact: true });
+        if (fire) { did = fire; activated = true; }
+      }
+      const st = await H.queryState();
+      if (st?.pendingEffect === 'SEARCH' && Array.isArray(st?.pendingVisibleCards)) vis = st.pendingVisibleCards;
+      if (!probed && st?.pendingEffect === 'SEARCH') {
+        probed = true;
+        const tids = await page.locator('[data-testid]').evaluateAll(els => els.map(e => e.getAttribute('data-testid')).slice(0, 60)).catch(() => []);
+        H.log('  PROBE testids=', JSON.stringify(tids), ' visible=', JSON.stringify(st.pendingVisibleCards));
+      }
+      if (!did) did = await H.stdStep();
+      H.log(`  b45s[${s}] -> ${did ?? 'なし'} | activated=${activated} pEff=${st?.pendingEffect ?? '-'} visible=${JSON.stringify(st?.pendingVisibleCards)} hand=${JSON.stringify(st?.host?.handCards)} lrigDown=${st?.host?.lrigDown}`);
+      if (vis) {
+        const j = JSON.stringify(vis);
+        if (j.includes('WX01-064')) {
+          return { pass: false, detail: `🔴上限+1（赤Lv4 WX01-064）が探索候補に出た＝levelLteLrig が効いていない（候補=${j}）` };
+        }
+        if (!j.includes('WX01-066')) {
+          return { pass: false, detail: `🔴ちょうど上限（赤Lv3 WX01-066）が候補に出ていない＝絞りすぎ（候補=${j}）` };
+        }
+        return { pass: true, detail: `センターLv3 → 探索候補は赤Lv3（WX01-066）だけで赤Lv4（WX01-064）は候補外。候補=${j}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `探索モーダルへ到達せず＝検証空振り（activated=${activated} pEff=${fin?.pendingEffect ?? '-'} hand=${JSON.stringify(fin?.host?.handCards)} lrigDown=${fin?.host?.lrigDown}）` };
+  },
+};
+
+// 対照（§4.4 罠3）＝**盤面はそのまま、センタールリグのレベルだけを 3→4 にする**。
+// 「たまたま赤Lv3 しか候補にならない」のではなく**上限がルリグのレベルを追っている**ことを示す。
+// ⚠単独では何も検証していない＝必ず `b45LrigLevelSearchCeiling`（正方向）とセットで読む。
+scenarios.b45LrigLevelSearchFollowsLrig = {
+  title: 'WXK10-037-E2 対照（段2 B45＝センターをLv4にすると赤Lv4も候補に入る）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX03-007#1'],                 // 花代・純肆 Lv4（同じ花代系＝限定の差を作らない）
+      'field.lrig_down': false,
+      'field.signi': [['WXK10-037#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'deck': ['WX01-066#1', 'WX01-064#1', 'WD03-013#1', 'WD03-012#1', 'WD03-010#1', 'WX01-075#1'],
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+    let activated = false, vis = null;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b45LrigLevelSearchFollowsLrig-${s}.png`, fullPage: true });
+      let did = null;
+      if (!activated) {
+        const btn = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
+          await btn.click({ timeout: 1200 }).catch(() => {}); did = 'btn:【起】';
+        }
+      }
+      if (!did) {
+        const fire = await H.clickBtn('発動', { exact: true });
+        if (fire) { did = fire; activated = true; }
+      }
+      const st = await H.queryState();
+      if (st?.pendingEffect === 'SEARCH' && Array.isArray(st?.pendingVisibleCards)) vis = st.pendingVisibleCards;
+      if (!did) did = await H.stdStep();
+      H.log(`  b45c[${s}] -> ${did ?? 'なし'} | activated=${activated} pEff=${st?.pendingEffect ?? '-'} visible=${JSON.stringify(st?.pendingVisibleCards)} lrigDown=${st?.host?.lrigDown}`);
+      if (vis) {
+        const j = JSON.stringify(vis);
+        if (!j.includes('WX01-064') || !j.includes('WX01-066')) {
+          return { pass: false, detail: `🔴センターLv4 なのに赤Lv3/Lv4 の両方が候補になっていない＝上限がルリグのレベルを追っていない（候補=${j}）` };
+        }
+        return { pass: true, detail: `センターLv4 → 赤Lv3 と赤Lv4 の両方が候補（＝上限がルリグのレベルを追っている）。候補=${j}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `探索モーダルへ到達せず＝検証空振り（activated=${activated} pEff=${fin?.pendingEffect ?? '-'} lrigDown=${fin?.host?.lrigDown}）` };
+  },
+};
+
 order.push('powerLteSelfCeiling', 'powerLteSelfCeilingNoTarget');
+// 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は
+// golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
+order.push('b45LrigLevelSearchCeiling', 'b45LrigLevelSearchFollowsLrig');
 // 続き435＝collectAnyZoneTrashSelfTriggersのresume取りこぼし（続き60）は解消済みと確認したので復帰。
 order.push('handDiscard');
 // 続き460（PLAN §7・Codex起案→Claude実機検証）＝続き459 の「使用禁止の期間と合成 actionId」を実UIで固定。
