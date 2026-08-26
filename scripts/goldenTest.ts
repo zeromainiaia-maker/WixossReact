@@ -3809,6 +3809,57 @@ test('前文の主語が省略された閾値ゲートを継承する（O-91）'
     eq(a.else?.condition?.value, 15000, 'WXDi-D01-016-E1 else の閾値 15000');
   }
 });
+// ── §5.3 `O-89`（2026-08-26）：**スコープつきキーワードの直後にあるブロックが飲み込まれる**。
+// `【シャドウ（スペル）】` は `encodeShadowScopesInText` が **`【シャドウ:{"cardType":"スペル"}】`** へ
+// 符号化してから `stripRuleParens` に渡す設計（括弧内のスコープが注釈として消えるのを防ぐため）。
+// ところがブロック分割の regex は**原文形（（…））だけ**を見ていたので、符号化済みの札に1枚も当たらず、
+// 🔴後続の【自】/【出】/【起】が【常】ブロックへ丸ごと飲み込まれ `effectType:'CONTINUOUS'` /
+//   `duration:'PERMANENT'`＝**毎回の場走査で発火しうる形**に化けていた（`WXDi-P10-040-E1`）。
+test('スコープつきキーワード直後のブロックを飲み込まない（O-89）', () => {
+  const effs = (id: string) => (effectsMap.get(id) ?? []) as unknown as {
+    effectId: string; effectType?: string; timing?: string[]; duration?: string;
+    action: Record<string, unknown>;
+  }[];
+  // (a) 本題＝【常】：【シャドウ（このシグニの下にあるシグニと同じレベルのシグニ）】【自】：…
+  //     旧＝2効果（E1 が CONTINUOUS/PERMANENT にアタック時本文を抱き込み、シャドウは消滅）。
+  {
+    const e = effs('WXDi-P10-040');
+    eq(e.length, 3, 'WXDi-P10-040: 3ブロック（【常】/【自】/【起】）に割れる');
+    eq(e[0].effectType, 'CONTINUOUS', 'WXDi-P10-040-E1 は【常】');
+    eq(e[0].action.type, 'GRANT_KEYWORD', 'WXDi-P10-040-E1 はキーワード付与（旧＝SEQUENCE に化けていた）');
+    eq(e[0].action.keyword, 'シャドウ:{"underSigniLevelEq":true}', 'WXDi-P10-040-E1 シャドウのスコープが保たれる');
+    eq(e[1].effectType, 'AUTO', 'WXDi-P10-040-E2 は【自】（旧＝丸ごと CONTINUOUS へ飲まれていた）');
+    eq(JSON.stringify(e[1].timing), JSON.stringify(['ON_ATTACK_SIGNI']), 'WXDi-P10-040-E2 アタック時トリガー');
+    eq(e[2].effectType, 'ACTIVATED', 'WXDi-P10-040-E3 は【起】');
+  }
+  // (b) 同型（スコープが「スペル」）＝2枚。live は古い値で凍っていたが parser も同じ穴を持っていた
+  //     （`_idset_fresh` に居座り、id 集合がズレたまま parser の出力が届かない状態だった）。
+  for (const id of ['WXDi-P09-048', 'WX25-P2-118']) {
+    const e = effs(id);
+    eq(e.length, 3, `${id}: 3ブロックに割れる`);
+    eq(e[0].action.keyword, 'シャドウ:{"cardType":"スペル"}', `${id}-E1 シャドウ（スペル）`);
+    eq(e[1].effectType, 'AUTO', `${id}-E2 は【自】`);
+    eq(JSON.stringify(e[1].timing), JSON.stringify(['ON_SPELL_USE']), `${id}-E2 スペル使用時トリガー`);
+  }
+  // (c) 【常】が2つ続く形＝2つ目の【常】が丸ごと欠落していた（効果が2→3へ増える）。
+  {
+    const e = effs('WX24-P4-044');
+    eq(e.length, 3, 'WX24-P4-044: 3ブロック（旧＝2つ目の【常】が欠落して2ブロック）');
+    eq(e[0].action.keyword, 'シャドウ:{"lrigTrashArtsColor":true}', 'WX24-P4-044-E1 シャドウのスコープ');
+    eq(e[1].effectType, 'CONTINUOUS', 'WX24-P4-044-E2 は2つ目の【常】');
+    eq((e[1].action as { id?: string }).id, 'POWER_MOD_BY_LRIG_TRASH_ARTS', 'WX24-P4-044-E2 は実装済みハンドラへ届く');
+    eq(e[2].effectType, 'AUTO', 'WX24-P4-044-E3 は【自】（旧 E2）');
+  }
+  // 🔴 fail-closed ガード＝**スコープの無い裸のキーワード**は従来どおり分割される（退化していない）。
+  {
+    const e = effs('WXDi-P04-040');   // 【常】：【ランサー】【自】：…
+    ok(e.some(x => x.effectType === 'AUTO'), 'WXDi-P04-040: 裸【ランサー】の後続【自】は従来どおり残る');
+  }
+  {
+    const e = effs('WXK10-039');      // 【常】：【アサシン】【出】：…
+    ok(e.some(x => x.effectType === 'AUTO'), 'WXK10-039: 裸【アサシン】の後続【出】は従来どおり残る');
+  }
+});
 // ── 続き219: CHOOSE ヘッダ（「以下の…から…を選ぶ」）直前の状態条件を効果全体の発動条件へ持ち上げる（タスク12(xxxix)）。
 // 従来は CHOOSE 分解がヘッダ以前を捨てるため条件が脱落し、毎アタックフェイズ開始時/出時に無条件で CHOOSE が
 // 発火する過剰効果だった（WX24-P2-048「場に《満月の使徒 小湊るう子》がいる場合」等10枚）。
@@ -22465,8 +22516,11 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     const b = firstOfType(effOf('WX07-001', 'WX07-001-E1').action, 'BOUNCE')!;
     eq((b.target as { owner?: string }).owner, 'opponent', 'owner');
   });
-  test('照応B: WX24-P4-044-E2 手札回収の source が DECK_CARD→TRASH_CARD へ復元', () => {
-    const th = firstOfType(effOf('WX24-P4-044', 'WX24-P4-044-E2').action, 'TRANSFER_TO_HAND')!;
+  // 🆕**2026-08-26 `O-89` で effectId が1つ後ろへずれた**＝2つ目の【常】（`【シャドウ:{…}】` の直後に
+  //   飲み込まれていたブロック）が復活して効果が2→3になり、この【自】は **E2 → E3** になった。
+  //   ⚠固定しているのは**回収元ゾーン**であって id ではない＝ id だけ追随させる。
+  test('照応B: WX24-P4-044-E3 手札回収の source が DECK_CARD→TRASH_CARD へ復元', () => {
+    const th = firstOfType(effOf('WX24-P4-044', 'WX24-P4-044-E3').action, 'TRANSFER_TO_HAND')!;
     eq((th.source as { type?: string }).type, 'TRASH_CARD', 'source zone');
     eq((th.source as { owner?: string }).owner, 'self', 'source owner');
     eq(((th.source as { filter?: { hasGuard?: boolean } }).filter ?? {}).hasGuard, true, 'hasGuard filter');

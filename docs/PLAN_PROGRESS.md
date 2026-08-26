@@ -2,6 +2,15 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-26・続き672・Opus 5）＝§5.3 `O-91`＝**前文の主語が省略された閾値ゲート**（「…パワーが10000以上の場合、…。**12000以上の場合**、追加で…」）が落ち、**後半が無条件に走っていた**。`WXK05-043-E1` は表記8000のシグニが**パワーに関係なく相手を1体バニッシュ**していた。
+  - 🔑**見立て3枚 → 実測7枚 → 真の穴は1枚**。工程②が効いた回＝原文で「。〈数値〉以上の場合、」が出るカードを全数で拾うと7枚あり、**主語は3種類**（`SELF_POWER_GTE`／`LAST_PROCESSED_LEVEL_SUM`／`FIELD_LEVEL_SUM`）。**LEVEL_SUM 系4枚は既に解けており**、`SELF_POWER_GTE` だけが落ちていた。うち2枚（`PR-470A`／`WXDi-D01-016`）は MANUAL で回避済み＝**AUTO の実バグは `WXK05-043` 1枚**。
+  - ✅**直しは既存 chain への合流**＝多分岐の後続枝は `parseBareBranchCondition(clause, previous)` が「直前枝の条件を継承して値だけ差し替える」形で既に解いていた（継承先は `LAST_PROCESSED_MATCHES`／`LIFE_COUNT` の2つだけだった）。ここに**閾値条件の継承**を足しただけ。
+  - 🔴**fail-closed のガード＝「代わりに」で始まる枝は除外**（追加実行ではなく**置換**＝前の枝を捨てる意味。同型に畳むと**両方実行**の過剰効果になる。置換の正準形 `CONDITIONAL{高, then, else:CONDITIONAL{低}}` は別機構の領分で、`WXDi-D01-016` は MANUAL で解決済み）。
+  - 🔴**踏んだ罠＝観測面を間違えると engine バグそっくりの偽陰性になる**（§4.4 の罠15 の新実例）＝初版シナリオは `SELECT_TARGET` の候補観測を**必須の witness** にしていたが、**本シナリオでは原理的に出ない**（対象選択は `BANISH` の中にあり、12000 のゲートで止まると到達しない）。engine は正しいのに「前提崩れ」で赤くなった。⇒ witness を**ドローが起きたこと**に変更。
+  - ✅**実機は新規1本 PASS（負方向）＋ 対照 PASS ＋ 反転確認済み**＝`o91BelowThresholdNoBanish` は対照 `o88AttackAnaphoraBanishesOpponent` と**盤面を1文字も変えず** `temp_power_mods` だけ 5000→3000（13000→11000）に落としたもの。
+  - ⚠**`O-88` の golden (c) を更新した**（回帰ではない）＝「既知の残＝バニッシュは無条件に走る」を前提に `bare BANISH` を assert していたので、`CONDITIONAL` の内側を見る形へ直した。
+  - ✅ gates 全緑（golden **2842→2843**／census **568→567**（baseline 更新）／`census:enginetext` A群 141 据置／smoke・fuzz 全0）。
+
 - 🏁**セッション（2026-08-26・続き671・Opus 5）＝§5.3 `O-90`＝公開札の後始末（「公開したカードをシャッフルしてデッキの一番下に置く」）が `count:0` の**無言 no-op** に割れ、**原文と逆に公開したN枚がデッキ上へ戻っていた**。**5効果を是正**（うち1件は「自分の場のシグニがデッキ下へ送られる」別物）。
   - 🔑**受け皿は engine に最初から在った**＝`execLookAndReorder` は `a.shuffle` を pending へ渡し、`resumeLookAndReorder` は `pending.shuffle` でシャッフルしてデッキ下へ置く。**parser が吐いていなかっただけ**（`REVEAL_UNTIL` の `restDestination:'deck_bottom_shuffled'` が同義の兄弟で、そちらは既に解けていた）。
   - 🔴**parser の手当ては「後段の置換」で行う（前段の regex を広げない）**＝`WD21-020` で前段（`parseSentencePart1` の catch-all 除外＋`parseSentencePart3` の公開規則）を広げたら、狙ったノードは直ったが**後続の多分岐4枝がまとめて `LAST_PROCESSED_MATCHES` を失い無条件実行へ退化**した（A/B 実測）。真因＝`parseBareBranchCondition` の多分岐は**「直前枝が LPM であること」をゲートに使う chain 構造**。⇒ 後処理列で**木の1ノードだけを差し替える**形に変え、chain を無傷で残した。

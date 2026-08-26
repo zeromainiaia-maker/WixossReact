@@ -32224,6 +32224,95 @@ scenarios.o91BelowThresholdNoBanish = {
 };
 order.push('o91BelowThresholdNoBanish');
 // ── §5.3 O-91 END ──
+// ── §5.3 O-89（2026-08-26）──────────────────────────────────────────────
+// ■ 原文＝`WXDi-P10-040`「**【常】：【シャドウ（このシグニの下にあるシグニと同じレベルのシグニ）】**
+//    **【自】：このシグニがアタックしたとき、**対戦相手のシグニ１体を対象とし、…」
+// ■ 旧 live は**2効果**しか無く、E1 が `effectType:'CONTINUOUS'` / `duration:'PERMANENT'` のまま
+//    **アタック時本文を抱き込んでいた**（＝【自】が丸ごと落ちて毎回の場走査で発火しうる形。
+//    【シャドウ】の付与も消滅）。真因＝`【シャドウ（…）】` は分割前に
+//    **`【シャドウ:{"underSigniLevelEq":true}】` へ符号化されている**のに、ブロック分割の regex が
+//    原文形（（…））だけを見ていて1枚も当たらなかった。
+// ■ 🔑**観測点＝アタック時に `SELECT_TARGET` が出ること**。【自】が AUTO として収集されて初めて出る
+//    （旧＝CONTINUOUS なので `ON_ATTACK_SIGNI` では1度も収集されず、対象選択に到達しない）。
+//    ⚠罠4/罠5 対策＝「盤面が変わった」ではなく**問いが立ったこと**を必須条件にする。
+const O89_SRC = 'WXDi-P10-040#1';    // コードオーダー　エルドラ//メモリア（Lv3・限定なし）
+const O89_OPP_A = 'WD01-010#2';      // 相手 Lv3
+const O89_OPP_B = 'WD01-013#2';      // 相手 Lv1（候補を2件にして SELECT_TARGET を確実に出す＝罠8l）
+const o89ShadowBlockSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#1'],
+    // ⚠罠8e＝中央（zone1）同士だけが正面で対応する。
+    'field.signi': [null, [O89_SRC], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [[O89_OPP_A], [O89_OPP_B], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function o89ShadowBlockDrive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(O89_SRC); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, o89ShadowBlockSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni), 'guest signi:', JSON.stringify(before?.guest?.fieldSigni));
+  let modalOpened = false, candsSeen = null, last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o89ShadowBlock-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !candsSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
+    const pre = await H.queryState();
+    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates)) {
+      candsSeen = pre.pendingCandidates.slice();
+      H.log('  SELECT_TARGET 候補:', JSON.stringify(candsSeen));
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  o89[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(candsSeen)} gSigni=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (candsSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o89ShadowBlock-final.png`, fullPage: true });
+  const detail = `cands=${JSON.stringify(candsSeen)} gSigni=${JSON.stringify((last?.guest?.fieldSigni ?? []).flat().filter(Boolean))}`;
+  // ⚠**本題を先に判定**（前提崩れ判定を先に置くと旧挙動の再現が隠れる＝O-80 の教訓）
+  if (!candsSeen) {
+    return { pass: false, detail: `🔴アタックしても SELECT_TARGET が立たない＝【自】が AUTO として収集されていない（旧＝CONTINUOUS/PERMANENT に飲まれた形）。${detail}` };
+  }
+  const wanted = [O89_OPP_A, O89_OPP_B].sort().join(',');
+  if (candsSeen.slice().sort().join(',') !== wanted) {
+    return { pass: false, detail: `候補が「相手のシグニ2体」ではない（期待 ${wanted}）。${detail}` };
+  }
+  return { pass: true, detail: `アタック時に【自】が収集され、相手シグニ2体が対象候補に立った。${detail}` };
+}
+scenarios.o89ShadowKeywordBlockSplit = {
+  title: 'WXDi-P10-040（O-89＝スコープつき【シャドウ】直後の【自】が飲み込まれる）＝旧実装は CONTINUOUS 化して一度も発火しなかった',
+  spec: o89ShadowBlockSpec(),
+  drive: o89ShadowBlockDrive,
+};
+order.push('o89ShadowKeywordBlockSplit');
+// ── §5.3 O-89 END ──
 // ── §5.3 O-87 END ──
 
 

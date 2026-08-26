@@ -77,6 +77,19 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-26 続き672 後**：
+  **census 567/567**（`O-91` で −1＝`WXK05-043-E1` の bare BANISH が `CONDITIONAL{SELF_POWER_GTE 12000}` になり条件節カテゴリから抜けた。`BASELINE_HIGH` 更新済み）、**golden 2843**（`O-91` +1。`O-88` の (c) は「既知の残」前提だったので更新＝回帰ではない）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝`O-91` は engine を1行も触っていない＝parser 側で完結）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-91` は AUTO 1効果が変化）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（`O-91` で1件採用）、
+  **どのフラグも立たないカード 4961 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +1**（`o91BelowThresholdNoBanish`＝**負方向・対照つき・反転確認済み**。対照＝`o88AttackAnaphoraBanishesOpponent` PASS）、
+  **`npm run golden` の所要＝全件 約157秒／`--only` 約1.5秒**
+
+
 - **2026-08-26 続き671 後**：
   **census 568/568**（`O-90` で −1＝`O-88` が可視化した穴の**払い戻し**。`WXK07-051-E1` の公開札がデッキ上へ戻る形を是正して「公開し」カテゴリから抜けた。`BASELINE_HIGH` 更新済み）、**golden 2842**（`O-90` +1）、
   smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
