@@ -277,6 +277,10 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     //   予約は次のターン中だけ生き、そのターンの終了時に上の登録が空へ戻す＝2スロット式の寿命になる。
     abilities_removed: state.abilities_removed_next_turn ?? [],
     abilities_removed_next_turn: undefined,
+    // ⚠ルリグ側の能力喪失も同じ2スロット式（段2 第45バッチ・`RemoveAbilitiesAction.alsoCenterLrig`）。
+    //   `lrig_abilities_disabled` 自身の失効は上の turn-end 登録が行う＝ここは予約の昇格だけ。
+    lrig_abilities_disabled: state.lrig_abilities_disabled_next_turn ?? undefined,
+    lrig_abilities_disabled_next_turn: undefined,
     // unsuffixed entries were active for the turn that just ended. Only explicit
     // NEXT_TURN reservations cross the boundary; turn start removes the suffix.
     blocked_actions: (state.blocked_actions ?? []).filter(actionId => actionId.endsWith(':NEXT_TURN')),
