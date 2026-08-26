@@ -1045,6 +1045,11 @@ export interface PlayerState {
   turn_plant_down_count?: number;
   // OPP_LRIG_LOSE_ABILITY: このターン、このプレイヤーのルリグは能力を失う（相手がカットイン発動）
   lrig_abilities_disabled?: boolean;
+  // 「**次の**対戦相手のターン終了時まで、対戦相手のセンタールリグ（とすべてのシグニ）は能力を失う」の予約
+  // （`RemoveAbilitiesAction.alsoCenterLrig` × `until:'NEXT_TURN'|'UNTIL_OPP_TURN_END'`・段2 第45バッチ）。
+  // ⚠`abilities_removed_next_turn` と同じ2スロット式＝turn-start で `lrig_abilities_disabled` へ昇格し、
+  //   そのターンの終了時に turnScopedState の turn-end 登録が消す。
+  lrig_abilities_disabled_next_turn?: boolean;
   /**
    * 「このターン、**あなたの効果によって**シグニのアタックは無効にならない」（`WX24-P4-016-E3`・§6.4 O-10 続き510）。
    *
