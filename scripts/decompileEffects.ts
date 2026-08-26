@@ -205,6 +205,7 @@ function filterJa(f?: any): string {
     if (f.costMin != null) parts.push(`コストの合計が${f.costMin}以上の`);
   }
   if (f.powerLteSelf) parts.push('このシグニのパワー以下の');
+  if (f.powerLteSelfHalf) parts.push('このシグニのパワーの半分以下の');
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
   if (f.powerGtSelf) parts.push('このシグニよりパワーの高い');
   if (f.levelLtSelf) parts.push('このシグニより低いレベルを持つ');

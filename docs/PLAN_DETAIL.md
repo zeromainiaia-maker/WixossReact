@@ -91,6 +91,18 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-26 続き675 後**：
+  **census 562/562**（段2 第43バッチで −1。`BASELINE_HIGH` 更新済み）、**golden 2854**（第43バッチ +9＝対象9効果に両方向 E2E を1本ずつ）、
+  smoke **10696 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝第43バッチは engine に触れていない）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10696 / MANUAL 効果 1034 / PARTIAL 21**（据置。⚠`WX06-022-E1` の manual shadow を撤去したが live 側は元から `AUTO` 表記＝**この数字では shadow を検知できない**＝`O-93`）、
+  **`_held_fresh` 75 / `_partial_fresh` 12 / `_idset_fresh` 43**（held 76→75。減った1件は続き674 が `_held_review.txt` を再生成せずコミットした stale で、第43バッチとは無関係）、
+  **どのフラグも立たないカード 4964 / 5975（83.1%）**（`npm run census:cards`）、
+  **意味照合 段2 台帳＝残 OPEN 668**（段0 221／段1 111／段2 消化 444／HIGH 463・MED 201・LOW 4／影響カード 501・効果 527）、
+  **実機シナリオ ±0**（第43バッチは `src/screens/` に触れていないため新規なし＝§1 に理由を記載）
+
 - **2026-08-26 続き673 後**：
   **census 564/564**（`O-89` で **−3**＝スコープつきキーワード直後のブロック飲み込みを是正。`BASELINE_HIGH` 更新済み）、**golden 2844**（`O-89` +1。既存「照応B」は id が E2→E3 へずれただけ＝回帰ではない）、
   smoke **10696 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、

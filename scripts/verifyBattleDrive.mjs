@@ -16541,6 +16541,176 @@ scenarios.v12GrantedEnergyChargeThirdBlocked = {
   },
 };
 
+// ── 段2 第44バッチ（powerLteSelf の実機観測）─────────────────────────────
+// WX10-030-E4【起】《赤》《ダウン》：**このシグニのパワー以下の**対戦相手のシグニ1体をバニッシュ。
+// parser が `powerLteSelf` を生成していなかったため、**相手のどのシグニでもバニッシュできる**過剰効果だった。
+// ⚠この層（SELECT_TARGET ピッカーの候補絞り込み）は golden/smoke/fuzz が守れない＝実機でしか観測できない。
+// 盤面＝効果元 WX10-030（表記 P12000）／guest zone0 = WX01-051 サーバントＱ（P12000＝**ちょうど上限**・候補）／
+//       guest zone1 = WX01-053 極剣 ゴッドイーター（P15000＝**上限+1**・候補外）。
+// PASS 条件＝zone0 だけが trash へ落ち、zone1 は場に残る（＝ピッカーが上限+1 を出していない）。
+scenarios.powerLteSelfCeiling = {
+  title: 'WX10-030-E4（段2 B44 powerLteSelf＝ちょうど上限は取れて上限+1は取れない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX03-007#1'],                        // 花代・純肆 Lv4/Limit12（WX10-030「花代限定」を満たす）
+      'field.signi': [['WX10-030#1'], null, null],         // 効果元（羅石 イリスアゲート・P12000・【起】《赤》《ダウン》）
+      'field.signi_down': [false, false, false],           // アップ状態＝《ダウン》コストを払える
+      'energy': ['WX01-065#3'],                            // 《赤》×1（羅石 エメラルダ＝赤）
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WX01-051#1'], ['WX01-053#1'], null], // zone0=P12000(ちょうど上限)／zone1=P15000(上限+1)
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'host.energy:', before?.host?.energy);
+    await H.ensureMain();
+    let modalOpened = false;
+    let activated = false;
+      let energyPicked = false;
+      let candSnapshot = null;   // SELECT_TARGET が実際に提示した候補集合（＝ピッカーの絞り込みそのもの）
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/powerLteSelfCeiling-${s}.png`, fullPage: true });
+      let did = null;
+      if (!modalOpened) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did && !activated) {
+        // WX10-030 は【起】が2本ある（①《ダウン》＝ダブルクラッシュ／②《赤》《ダウン》＝バニッシュ）。
+        // 赤を要求する側だけを選ぶ（ラベルに「赤」が出る想定。出なければ2本目を選ぶ）。
+        const btns = await page.getByRole('button', { name: /^【起】/ }).all();
+        const names = [];
+        for (const b of btns) names.push((await b.textContent().catch(() => '')) ?? '');
+        H.log('  【起】候補:', JSON.stringify(names));
+        let idx = names.findIndex(n => /赤/.test(n));
+        if (idx < 0 && names.length > 1) idx = 1;
+        if (idx >= 0 && btns[idx]) { await btns[idx].click().catch(() => {}); did = 'btn:' + names[idx]; activated = true; }
+      }
+      if (!did && !energyPicked) { // SigniActivatedModal：エナ（赤×1）は候補セルがトグルなので1回だけ選ぶ
+        const e0 = page.getByTestId('signiactcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'energy:0'; energyPicked = true; }
+      }
+      if (!did) {
+        const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+      }
+      if (!did) { // SELECT_TARGET（バニッシュ対象）
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      // ⚠バニッシュされたシグニの行き先は**エナゾーン**（WIXOSS 規則）＝トラッシュではない。
+      //   したがって観測点は「場から消えたか」＋「相手エナに入ったか」で取る。
+      if (st?.pendingEffect === 'SELECT_TARGET' && (st?.pendingCandidates ?? []).length) candSnapshot = st.pendingCandidates;
+      const gEnergy = st?.guest?.energyCards ?? [];
+      const gFieldArr = JSON.stringify(st?.guest?.fieldSigni ?? []);
+      H.log(`  b44[${s}] -> ${did ?? 'なし'} | gField=${gFieldArr} gEnergy=${JSON.stringify(gEnergy)} gTrash=${JSON.stringify(st?.guest?.trashCards ?? [])} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!gFieldArr.includes('WX01-053#1')) {
+        return { pass: false, detail: `🔴上限+1（P15000 WX01-053#1）が場から消えた＝powerLteSelf が効いていない（gField=${gFieldArr} gEnergy=${JSON.stringify(gEnergy)}）` };
+      }
+      if (!gFieldArr.includes('WX01-051#1')) {
+        const cands = JSON.stringify(candSnapshot);
+        if (candSnapshot && cands.includes('WX01-053')) {
+          return { pass: false, detail: `🔴ピッカーが上限+1（P15000 WX01-053#1）を候補に出していた（候補=${cands}）` };
+        }
+        return { pass: true, detail: `ちょうど上限（P12000 WX01-051#1）だけが候補になりバニッシュされ、上限+1（P15000 WX01-053#1）は候補にも出ず場に残った（候補=${cands} gField=${gFieldArr} gEnergy=${JSON.stringify(gEnergy)}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `バニッシュ未完走＝検証空振り（activated=${activated} gField=${JSON.stringify(fin?.guest?.fieldSigni)} gTrash=${JSON.stringify(fin?.guest?.trashCards)} hEnergy=${fin?.host?.energy} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// 対照（§5-21）＝上と同一の盤面から「ちょうど上限の候補」だけを抜く。候補0体になるので
+// **どのシグニもバニッシュされない**ことを確認する。単独では空振りと区別できないので、
+// 必ず powerLteSelfCeiling（正方向）とセットで読むこと。
+scenarios.powerLteSelfCeilingNoTarget = {
+  title: 'WX10-030-E4 対照（段2 B44＝上限+1しかいなければ誰もバニッシュされない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX03-007#1'],
+      'field.signi': [['WX10-030#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'energy': ['WX01-065#3'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WX01-053#1'], null, null],  // P15000 のみ＝候補0体
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+    await H.ensureMain();
+    let modalOpened = false;
+    let activated = false;
+      let energyPicked = false;
+      let candSnapshot = null;   // SELECT_TARGET の候補集合（対照では常に空であるべき）
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/powerLteSelfCeilingNoTarget-${s}.png`, fullPage: true });
+      let did = null;
+      if (!modalOpened) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did && !activated) {
+        const btns = await page.getByRole('button', { name: /^【起】/ }).all();
+        const names = [];
+        for (const b of btns) names.push((await b.textContent().catch(() => '')) ?? '');
+        H.log('  【起】候補:', JSON.stringify(names));
+        let idx = names.findIndex(n => /赤/.test(n));
+        if (idx < 0 && names.length > 1) idx = 1;
+        if (idx >= 0 && btns[idx]) { await btns[idx].click().catch(() => {}); did = 'btn:' + names[idx]; activated = true; }
+      }
+      if (!did && !energyPicked) { // エナ候補セルはトグル＝1回だけ選ぶ
+        const e0 = page.getByTestId('signiactcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'energy:0'; energyPicked = true; }
+      }
+      if (!did) {
+        const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+      }
+      if (!did) { // 候補が出てしまったら（＝バグ）押してしまい FAIL を確定させる
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0(🔴候補が出た)'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      // 場から消えたか（＝バニッシュされたか）で見る。バニッシュ先はエナゾーン。
+      if (st?.pendingEffect === 'SELECT_TARGET') candSnapshot = st?.pendingCandidates ?? [];
+      const gFieldArr = JSON.stringify(st?.guest?.fieldSigni ?? []);
+      H.log(`  b44n[${s}] -> ${did ?? 'なし'} | gField=${gFieldArr} gEnergy=${JSON.stringify(st?.guest?.energyCards ?? [])} cands=${JSON.stringify(candSnapshot)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!gFieldArr.includes('WX01-053#1')) {
+        return { pass: false, detail: `🔴候補0体のはずが上限+1（P15000 WX01-053#1）が場から消えた（gField=${gFieldArr} 候補=${JSON.stringify(candSnapshot)}）` };
+      }
+      if (candSnapshot && candSnapshot.length) {
+        return { pass: false, detail: `🔴ピッカーが候補を提示した（候補=${JSON.stringify(candSnapshot)}）＝上限が効いていない` };
+      }
+    }
+    const fin = await H.queryState();
+    const survived = JSON.stringify(fin?.guest?.fieldSigni ?? []).includes('WX01-053#1');
+    return activated && survived
+      ? { pass: true, detail: `【起】を発動しても上限+1（P15000）は候補にならずバニッシュされなかった（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gTrash=${JSON.stringify(fin?.guest?.trashCards)}）` }
+      : { pass: false, detail: `対照が成立していない＝空振り（activated=${activated} survived=${survived} gField=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+  },
+};
+
+
 // ── /続き425 新規シナリオ境界 ─────────────────────────────────────────
 
 // ── /続き424 新規シナリオ境界 ─────────────────────────────────────────
@@ -16602,6 +16772,9 @@ order.push(
 //   kokonaUnderThreePay/ThreeSkip/Insufficient … 「ターン終了」ボタンは押せるが以後の盤面変化が観測されず
 //     ON_TURN_END の pay/skip UI が出ない（原因未確定＝シナリオ側かengine側か切り分け未了）。
 order.push('assistAttackBoth', 'fezoneDoubleCostPay', 'sYokusenkiSpellPay');
+// 段2 第44バッチ（2026-08-26 続き676）＝`powerLteSelf` の実機観測。SELECT_TARGET ピッカーの候補絞り込みは
+// golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
+order.push('powerLteSelfCeiling', 'powerLteSelfCeilingNoTarget');
 // 続き435＝collectAnyZoneTrashSelfTriggersのresume取りこぼし（続き60）は解消済みと確認したので復帰。
 order.push('handDiscard');
 // 続き460（PLAN §7・Codex起案→Claude実機検証）＝続き459 の「使用禁止の期間と合成 actionId」を実UIで固定。

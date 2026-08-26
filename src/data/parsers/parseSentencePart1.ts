@@ -2047,7 +2047,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         //   🆕**色も同じ理由で落ちていた**（2026-08-19 続き571）＝`WD13-003-E2`「**対象のあなたの白の**シグニ１体を
         //   手札に戻す」で**自分のどの色のシグニでも**戻せる過剰効果。⚠色は条件節・コスト節にも同じ綴りで出るので
         //   **対象名詞句に隣接する色だけ**（`signiClauseColorFilter`）＝素の `parseColorFilter(t)` は使わない。
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...signiClauseColorFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseSelfComparison(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...signiClauseColorFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };

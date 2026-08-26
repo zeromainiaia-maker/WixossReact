@@ -370,6 +370,11 @@ export function isUnderLeftCardPhrase(text: string): boolean {
 // ⚠自己参照（このシグニ/自身）に限定＝「その/あなたのいずれか/表記されている/センタールリグ」等の別基準は対象外
 //   （それらは lastProcessed/trigger/printed 等の別機構）。過剰マッチ防止のため名詞句スパンに対して呼ぶこと。
 export function parseSelfComparison(text: string): Partial<TargetFilter> {
+  // 先に対象化したシグニとは別のシグニを後段で処理する複数対象文では、全文から比較句を拾うと
+  // 後段側へ誤付着する。各対象の照応を木で保持できる専用規則ができるまで据置する。
+  if (/パワーの半分以下[^。]*を対象とし、[^。]*シグニ[^。]*ダウン/.test(text)) return {};
+  if (/(?:このシグニ|自身)のパワーの半分以下/.test(text)) return { powerLteSelfHalf: true };
+  if (/(?:このシグニ|自身)のパワー以下/.test(text)) return { powerLteSelf: true };
   const m = text.match(/(?:このシグニ|自身)より(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};
   const kind = m[1];
@@ -425,6 +430,7 @@ export function parseTriggerComparison(text: string, opts?: { allowPlacement?: b
 // 該当（WXDi-P08-031＝場出し→powerLt／WXK10-031＝公開→levelLt／WXDi-D07-019＝「場に出たそれより」→powerLt／
 // WXEX2-28＝「それよりレベルの高い」→levelGt）以外の組は該当カードなし＝過剰語彙を作らない。
 export function parseLastProcessedComparison(text: string): Partial<TargetFilter> {
+  if (/この方法で場に出したシグニのパワー以下/.test(text)) return { powerLteLastProcessed: true };
   if (!/その後/.test(text)) return {}; // 「その後」＝lastProcessed 文脈のマーカー（トリガー参照と切り分け）
   const m = text.match(/(?:そのシグニ|それ)より(パワーの低い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};

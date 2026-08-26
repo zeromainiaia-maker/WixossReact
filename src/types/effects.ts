@@ -731,6 +731,8 @@ export interface TargetFilter {
   levelLteLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベル以下。参照不能時は空ヒット
   levelEqSelf?: boolean; // 効果元カード（付与先ルリグを含む）の表記レベルと一致。参照不能時は空ヒット
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。resolveDynamicFilterがpowerRange.maxへ解決）
+  // 効果元の実効パワーはバフ／デバフで実行時に変わるため、静的な powerRange には焼き込めない。
+  powerLteSelfHalf?: boolean; // 効果元シグニの実効パワーの半分以下（resolveDynamicFilterがpowerRange.maxへ解決）
   powerLtSelf?: boolean;  // 効果元シグニの実効パワーより低い（「このシグニ/自身よりパワーの低い」。resolveDynamicFilterがpowerRange.maxへ解決）
   powerGtSelf?: boolean;  // 効果元シグニの実効パワーより高い（「このシグニよりパワーの高い」。resolveDynamicFilterがpowerRange.min:N+1へ解決。WXK04-029）
   levelLtSelf?: boolean;  // 効果元シグニのレベルより低い（「このシグニより低いレベルを持つ」。resolveDynamicFilterがlevel.max:N-1へ解決。WXK11-018）

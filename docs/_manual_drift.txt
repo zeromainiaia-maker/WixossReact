@@ -1,6 +1,6 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-26T13:22:20.883Z
+生成: 2026-08-26T14:20:46.278Z
 manualEffects エントリ 411 カード / 乖離 43 カード・47 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
@@ -168,5 +168,6 @@ manualEffects エントリ 411 カード / 乖離 43 カード・47 効果
   live : {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true}}
   fresh: {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
 
-## 🆕削除候補：parser 出力と実体同一になった manual エントリ（0）（§6.4 O-40）
+## 🆕削除候補：parser 出力と実体同一になった manual エントリ（1）（§6.4 O-40）
   ＝parser が追いついたので manualEffects.ts から消してよい。放置すると **その効果だけ以後の parser 改善が届かない**。
+  WX16-045 / WX16-045-E3

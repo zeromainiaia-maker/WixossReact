@@ -49030,6 +49030,175 @@ for (const spec of [
   }));
 }
 
+// Stage 2 semantic audit: batch 44 (dynamic target ceilings based on the effect source).
+const batch44NestedEffect = (cardNum: string, effectId: string): CardEffect => {
+  const seen = new Set<object>();
+  const visit = (value: unknown): CardEffect | undefined => {
+    if (!value || typeof value !== 'object' || seen.has(value as object)) return undefined;
+    seen.add(value as object);
+    if ((value as { effectId?: string }).effectId === effectId) return value as CardEffect;
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          const found = visit(item);
+          if (found) return found;
+        }
+      } else {
+        const found = visit(child);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  const effect = visit(effectsMap.get(cardNum) ?? []);
+  if (!effect) throw new Error(`${effectId}: nested live effect missing`);
+  return effect;
+};
+
+const batch44TargetAction = (cardNum: string, effectId: string, flag: 'powerLteSelf' | 'powerLteSelfHalf'): EffectAction => {
+  const effect = batch44NestedEffect(cardNum, effectId);
+  const visit = (value: unknown): EffectAction | undefined => {
+    if (!value || typeof value !== 'object') return undefined;
+    const candidate = value as { type?: string; target?: { filter?: Record<string, unknown> } };
+    if (candidate.type && candidate.target?.filter?.[flag] === true) return value as EffectAction;
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          const found = visit(item);
+          if (found) return found;
+        }
+      } else {
+        const found = visit(child);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  const action = visit(effect.action);
+  if (!action) throw new Error(`${effectId}: ${flag} target action missing`);
+  return action;
+};
+
+test('Stage2 power B44 E2E: all adopted self ceilings accept the boundary, reject boundary+1, and retain fail-open', () => withSavedCursor(() => {
+  const specs = [
+    ['WX10-030', 'WX10-030-E4', 'powerLteSelf', 1],
+    ['WX15-032', 'WX15-032-E2', 'powerLteSelf', 1],
+    ['WX24-P3-TK1A', 'WX24-P3-TK1A-E4', 'powerLteSelf', 1],
+    ['WXEX2-69', 'WXEX2-69-E1', 'powerLteSelf', 1],
+    ['WXK10-064', 'WXK10-064-E2', 'powerLteSelf', 1],
+    ['WX21-032', 'WX21-032-E1', 'powerLteSelf', 1],
+    ['PR-328', 'PR-328-E1', 'powerLteSelf', 1],
+    ['WDK01-011', 'WDK01-011-E1-G', 'powerLteSelf', 1],
+    ['WX25-P3-056', 'WX25-P3-056-sub-E1', 'powerLteSelf', 1],
+    ['WX10-029', 'WX10-029-E2', 'powerLteSelfHalf', 2],
+    ['WX25-P2-052', 'WX25-P2-052-E1', 'powerLteSelfHalf', 2],
+    ['WX26-CP1-054', 'WX26-CP1-054-E1', 'powerLteSelfHalf', 2],
+    ['WXDi-P13-052', 'WXDi-P13-052-E2', 'powerLteSelfHalf', 2],
+  ] as const;
+  for (const [cardNum, effectId, flag, divisor] of specs) {
+    const action = batch44TargetAction(cardNum, effectId, flag);
+    const over = fresh();
+    const exact = fresh();
+    const sourcePower = 12000;
+    const limit = sourcePower / divisor;
+    const ctx = mkCtx({}, { signi: [over, exact, null] }, cardNum);
+    if (effectId === 'WX21-032-E1') {
+      ctx.cardMap = new Map(cardMap as Map<string, CardData>);
+      ctx.cardMap.set(over, { ...ctx.cardMap.get(over)!, CardClass: '天使' });
+      ctx.cardMap.set(exact, { ...ctx.cardMap.get(exact)!, CardClass: '天使' });
+    }
+    ctx.effectivePowers = new Map([[cardNum, sourcePower], [over, limit + 1], [exact, limit]]);
+    const bounded = run(action, ctx);
+    ok(tops(bounded.otherState).includes(over), `${effectId}: boundary+1 remains`);
+    ok(!tops(bounded.otherState).includes(exact), `${effectId}: exact boundary is selectable`);
+
+    const missingCtx = mkCtx({}, { signi: [over, null, null] });
+    if (effectId === 'WX21-032-E1') {
+      missingCtx.cardMap = new Map(cardMap as Map<string, CardData>);
+      missingCtx.cardMap.set(over, { ...missingCtx.cardMap.get(over)!, CardClass: '天使' });
+    }
+    missingCtx.effectivePowers = new Map([[over, limit + 1]]);
+    const missing = run(action, missingCtx);
+    ok(!tops(missing.otherState).includes(over), `${effectId}: missing source keeps documented fail-open behavior`);
+  }
+}));
+
+test('Stage2 power B44 E2E: granted inner abilities are indexed by the granted-to signi', () => withSavedCursor(() => {
+  const driveSource = 'WDK01-011';
+  const driveState = mkState({ signi: [driveSource, null, null] });
+  driveState.lrig_riding_signi = [driveSource];
+  const fieldGranted = collectGrantedFromLayer(driveState, mkState(), true, effectsMap, cardMap).get(driveSource) ?? [];
+  ok(fieldGranted.some(effect => effect.effectId === 'WDK01-011-E1-G'), 'WDK01-011-E1-G: field grant keyed by recipient');
+
+  const grantSource = 'WX25-P3-056';
+  const outer = subjectPlacementEffect(grantSource, 'WX25-P3-056-E2');
+  const grantAction = (() => {
+    const visit = (value: unknown): EffectAction | undefined => {
+      if (!value || typeof value !== 'object') return undefined;
+      if ((value as { type?: string }).type === 'GRANT_EFFECT') return value as EffectAction;
+      for (const child of Object.values(value as Record<string, unknown>)) {
+        const found = Array.isArray(child)
+          ? child.map(visit).find((candidate): candidate is EffectAction => !!candidate)
+          : visit(child);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    return visit(outer.action);
+  })();
+  ok(!!grantAction, 'WX25-P3-056-E2: GRANT_EFFECT present');
+  const grantCtx = mkCtx({ signi: [grantSource, null, null] }, {}, grantSource);
+  const granted = run(grantAction!, grantCtx).ownerState.granted_effects?.[grantSource] ?? [];
+  ok(granted.some(effect => effect.effectId === 'WX25-P3-056-sub-E1'), 'WX25-P3-056-sub-E1: runtime grant keyed by recipient');
+}));
+
+test('Stage2 power B44 E2E: WXK11-048-E1 reveal filter resolves self power and fail-open explicitly', () => withSavedCursor(() => {
+  const source = 'WXK11-048';
+  const action = batch44NestedEffect(source, 'WXK11-048-E1').action;
+  const exact = fresh();
+  const over = fresh();
+  const runtimeCards = new Map(cardMap as Map<string, CardData>);
+  runtimeCards.set(exact, { ...runtimeCards.get(exact)!, Power: '11999' });
+  runtimeCards.set(over, { ...runtimeCards.get(over)!, Power: '12000' });
+  const play = (candidate: string, sourcePresent: boolean) => {
+    const ctx = mkCtx({}, {}, sourcePresent ? source : undefined);
+    ctx.ownerState.deck = [candidate];
+    ctx.cardMap = runtimeCards;
+    ctx.effectivePowers = new Map([[source, 12000]]);
+    return run(action, ctx).ownerState;
+  };
+  ok(tops(play(exact, true)).includes(exact), 'WXK11-048-E1: exact boundary is played');
+  ok(!tops(play(over, true)).includes(over), 'WXK11-048-E1: boundary+1 is rejected');
+  ok(tops(play(over, false)).includes(over), 'WXK11-048-E1: missing source keeps documented fail-open behavior');
+}));
+
+test('Stage2 power B44 E2E: WXK02-051-E1 SEARCH placement feeds the later power ceiling', () => withSavedCursor(() => {
+  const source = 'WXK02-051';
+  const action = batch44NestedEffect(source, 'WXK02-051-E1').action;
+  const rise = findCard(card => isSigni(card) && (card.EffectText ?? '').includes('【ライズ】') && card.CardNum !== source);
+  const plain = findCard(card => isSigni(card) && !(card.EffectText ?? '').includes('【ライズ】') && card.CardNum !== source);
+  const over = fresh();
+  const exact = fresh();
+  const ctx = mkCtx({}, { signi: [over, exact, null] }, source);
+  ctx.ownerState.deck = [rise];
+  ctx.effectivePowers = new Map([[rise, 7000], [over, 7001], [exact, 7000]]);
+  const bounded = run(action, ctx);
+  ok(tops(bounded.ownerState).includes(rise), 'WXK02-051-E1: searched rise signi is placed');
+  ok(tops(bounded.otherState).includes(over), 'WXK02-051-E1: boundary+1 remains');
+  ok(!tops(bounded.otherState).includes(exact), 'WXK02-051-E1: exact boundary is selectable');
+
+  const missingCtx = mkCtx({}, { signi: [over, null, null] }, source);
+  missingCtx.ownerState.deck = [plain];
+  missingCtx.effectivePowers = new Map([[over, 7001]]);
+  const missing = run(action, missingCtx);
+  ok(!tops(missing.otherState).includes(over), 'WXK02-051-E1: no searched reference keeps documented fail-open behavior');
+}));
+
+test('Stage2 power B44 contract: WX25-CP1-082-E1 stays held until the DOWN/then-target structure is represented', () => {
+  const effect = subjectPlacementEffect('WX25-CP1-082', 'WX25-CP1-082-E1');
+  ok(!JSON.stringify(effect).includes('powerLteSelfHalf'), 'WX25-CP1-082-E1: half-power flag is not misattached to DOWN target');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

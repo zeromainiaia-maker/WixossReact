@@ -2487,15 +2487,15 @@ function resolveDynamicFilter(
       : NaN;
     result = !isNaN(level) ? { ...rest, level } : noMatch(rest);
   }
-  // powerLteSelf / powerLtSelf / powerGtSelf: 効果元シグニの実効パワーを基準に powerRange へ解決
+  // powerLteSelf / powerLteSelfHalf / powerLtSelf / powerGtSelf: 効果元シグニの実効パワーを基準に powerRange へ解決
   // （「このシグニ/自身よりパワーの低い・高い」。参照不能ならフラグを外すだけ＝制限なしにフォールバック）
-  if ((result.powerLteSelf || result.powerLtSelf || result.powerGtSelf) && sourceCardNum) {
+  if ((result.powerLteSelf || result.powerLteSelfHalf || result.powerLtSelf || result.powerGtSelf) && sourceCardNum) {
     const selfPower = effectivePowers?.get(sourceCardNum)
       ?? parseInt(cardMap.get(getCardNum(sourceCardNum))?.Power ?? '0', 10);
-    const { powerLteSelf: _pa, powerLtSelf: _pb, powerGtSelf: _pc, ...rest } = result;
+    const { powerLteSelf: _pa, powerLteSelfHalf: _ph, powerLtSelf: _pb, powerGtSelf: _pc, ...rest } = result;
     result = result.powerGtSelf
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), min: selfPower + 1 } }
-      : { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtSelf ? selfPower - 1 : selfPower } };
+      : { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtSelf ? selfPower - 1 : result.powerLteSelfHalf ? selfPower / 2 : selfPower } };
   }
   // levelLtSelf / levelGtSelf: 効果元シグニのレベルを基準に level へ解決（「このシグニより低い/高いレベルを持つ」）
   if ((result.levelLtSelf || result.levelGtSelf) && sourceCardNum) {

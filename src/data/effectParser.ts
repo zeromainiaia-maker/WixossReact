@@ -12581,6 +12581,8 @@ function parseActionTextInner(text: string): EffectAction {
         ...parseStoryFilter(condText),
         ...parseLevelFilter(condText),
         ...parseColorFilter(condText),
+        // 「それがこのシグニよりパワーの低いシグニの場合」＝公開候補を効果元基準で絞る。
+        ...parseSelfComparison(condText),
         // 裸の色（「そのカードが**白**の場合」＝`WXDi-P07-051-E1`／`WXDi-P07-070-E1`）は `parseColorFilter` の
         // 「〈色〉の」形に当たらず色が丸ごと落ちていた＝**どのカードでも発火する過剰効果**。
         ...(/^(白|赤|青|緑|黒|無色)$/.test(condText) ? { color: condText } : {}),
