@@ -31610,6 +31610,212 @@ order.push('o81NoAttachNoBanish');
 // ── §5.3 O-81 END ──
 
 
+// ── §5.3 `O-87`（2026-08-26）＝旧 `POWER_MOD_PER_COUNT` に紛れていた「パワーの話をしていない」2文型 ──
+// ■ A＝`WX12-Re07`（レインボーアート）「…この方法で手札に加えたカード１枚につきそのカードに含まれる色１つを
+//   選択する。**選択した色に赤を含む場合**、…バニッシュ。**緑を含む場合**、…バニッシュ。**青を含む場合**、1枚引く。」
+//   🔴旧 live は色選択が no-op で、**3つの分岐が全部無条件に走っていた**（相手シグニ2体が飛んで1枚引く）。
+//   観測点＝**赤(選択済)の分岐だけ走り、緑(未選択)の分岐は走らない**＝P3000 は飛び **P15000 は残る**。
+// ■ B＝`WX16-017`（リセットラップ）「あなたの【トラップ】と＜トリック＞のシグニを**好きな数**対象とし、それらを
+//   場から手札に加える。その後、**この方法で手札に加えた【トラップ】１つにつき**手札からカード１枚を
+//   【トラップ】として設置する。」🔴旧 live は**問答無用の全回収＋設置0**＋シグニ無視。
+//   観測点＝選択 UI が出る／シグニも候補／設置が**トラップ枚数ぶん**走る。
+// ⚠`WX16-017` は **あや限定**（罠 8k）＝ルリグを「あーや」にしないと使用ボタンが出ない。
+const O87_TRASH_SIGNI = 'WD02-013#87';   // 羅石 アイロン（赤・Lv1・P3000）＝手札へ→**赤**を自動選択
+const O87_TRASH_SPELL = 'WD03-015#87';   // ＴＯＯ ＢＡＤ（青・スペル）＝手札へ→**青**を自動選択
+const O87_LOW  = 'WD01-013#87';          // 小剣 ククリ（P3000）＝赤分岐（10000以下）で飛ぶ側
+const O87_HIGH = 'WX01-064#87';          // 羅石 メタリカ（P15000）＝緑分岐（12000以上）＝**選んでいないので残る側**
+
+scenarios.o87RainbowColorBranch = {
+  title: 'WX12-Re07-E1（O-87A＝選んだ色の分岐だけ走る）＝旧 live は3分岐すべてを無条件実行していた',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#87'],
+      'lrig_deck': ['WX12-Re07#87'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      // 単色2枚＝色選択は自動確定（対話を出さずに「赤」「青」が入る＝判定が決定論になる）
+      'trash': [O87_TRASH_SIGNI, O87_TRASH_SPELL],
+      'energy': ['WD02-010#87', 'WD03-010#87', 'WX01-088#87', 'WD01-010#87'],  // 赤/青/緑/（無へ充当）
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#87'],
+      'field.signi': [[O87_LOW], [O87_HIGH], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'energy': [],
+      'trash': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.ensureMain();
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    let paid = false;
+    let last = before;
+    const picked = new Set();
+    const onField = (fs, inst) => (fs ?? []).some(st => (st ?? []).includes(inst));
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/o87rb-${s}.png`, fullPage: true });
+      let did = null;
+      // アーツ Phase2＝エナ4枚を1回ずつ選んでから「アーツ使用」（罠 8p＝毎ティック押すとトグルで外れる）
+      const a0 = page.getByTestId('artscost-energy-0').first();
+      if (!paid && await a0.count() && await a0.isVisible().catch(() => false)) {
+        for (const i of [0, 1, 2, 3]) {
+          const e = page.getByTestId(`artscost-energy-${i}`).first();
+          if (await e.count() && await e.isVisible().catch(() => false)) await e.click().catch(() => {});
+        }
+        await page.waitForTimeout(200);
+        const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+        if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; paid = true; }
+      }
+      if (!did && !paid) did = await H.clickTextOrBtn(['使用']);
+      // 罠 8p＝候補セルは常に可視＝**instance ごとに1回だけ**押す（毎ティック押すとトグルで外れて確定に到達しない）。
+      const cands = last?.pendingCandidates ?? [];
+      if (!did && cands.length) {
+        const want = cands.find(c => !picked.has(c));
+        if (want) {
+          const c = await clickPendingInstance(page, H, want);
+          if (c) { picked.add(want); did = c; }
+        }
+        if (!did) did = await H.clickBtn('決定');   // ⚠disabled を見る（罠 8b）
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK', 'はい']);
+      if (!did) did = await H.clickTestId('zone-card-0');
+      last = await H.queryState();
+      H.log(`  o87rb[${s}] -> ${did ?? 'なし'} | hHand=${(last?.host?.handCards ?? []).length} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'} log=${JSON.stringify((last?.logTail ?? []).slice(-2))}`);
+      const settled = paid && !onField(last?.guest?.fieldSigni, O87_LOW) && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0;
+      if (settled) break;
+    }
+    await page.screenshot({ path: `${SHOT}/o87rb-final.png`, fullPage: true });
+    const detail = `hHand=${JSON.stringify(last?.host?.handCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gEna=${JSON.stringify(last?.guest?.energyCards)} logTail=${JSON.stringify((last?.logTail ?? []).slice(-8))}`;
+    const logs = last?.logTail ?? [];
+    if (!paid) return { pass: false, detail: `前提崩れ＝アーツを使用できていない。${detail}` };
+    // ① 機構が動いた証拠（罠4）＝色選択のログ。盤面だけでは「たまたま同じ絵」を排除できない。
+    const pickedRed = logs.some(l => l.includes('《赤》を選択'));
+    const pickedBlue = logs.some(l => l.includes('《青》を選択'));
+    if (!pickedRed || !pickedBlue) {
+      return { pass: false, detail: `🔴色選択が走っていない（赤=${pickedRed} 青=${pickedBlue}）＝分岐のゲートが効かない。${detail}` };
+    }
+    // ② 選んだ色（赤）の分岐は走る
+    const lowGone = !onField(last?.guest?.fieldSigni, O87_LOW)
+      && ((last?.guest?.energyCards ?? []).includes(O87_LOW) || (last?.guest?.trashCards ?? []).includes(O87_LOW));
+    if (!lowGone) return { pass: false, detail: `赤（選択済）の分岐が走っていない＝P3000 が残っている。${detail}` };
+    // ③ 選んでいない色（緑）の分岐は走らない ← ここが本題
+    if (!onField(last?.guest?.fieldSigni, O87_HIGH)) {
+      return { pass: false, detail: `🔴緑を選んでいないのに 12000以上のシグニが飛んだ＝旧 live の「3分岐を無条件実行」。${detail}` };
+    }
+    // ④ 青（選択済）＝1枚引く。手札＝トラッシュから2枚＋ドロー1
+    const hand = last?.host?.handCards ?? [];
+    if (!hand.includes(O87_TRASH_SIGNI) || !hand.includes(O87_TRASH_SPELL)) {
+      return { pass: false, detail: `前提崩れ＝トラッシュの2枚が手札に来ていない。${detail}` };
+    }
+    if (hand.length !== 3) return { pass: false, detail: `青（選択済）のドローが合わない（手札${hand.length}枚・期待3）。${detail}` };
+    return { pass: true, detail: `赤/青だけ実行（P3000 バニッシュ＋1ドロー）、緑は不発で P15000 残存。${detail}` };
+  },
+};
+order.push('o87RainbowColorBranch');
+
+const O87_TRAP_A = 'WDK04-016#87';   // 小罠 クラウン・キャノン（裏向きの【トラップ】として設置済み）
+const O87_TRAP_B = 'WXK01-105#87';   // 中罠 ヘイテン（同上）
+const O87_TRICK  = 'WXK01-101#87';   // 超罠 ドロンコ（＜トリック＞のシグニ＝同じ選択プールに入る側）
+const O87_HAND_A = 'WD01-010#87';
+const O87_HAND_B = 'WD01-013#87';
+
+scenarios.o87ResetTrapReplace = {
+  title: 'WX16-017-E1（O-87B＝好きな数を選び、戻した【トラップ】の数だけ手札から再設置）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX15-002#87'],                    // みらくるあーや！Ⅳ（あや限定アーツの前提・罠8k）
+      'lrig_deck': ['WX16-017#87'],
+      'field.signi': [[O87_TRICK], null, null],
+      'field.signi_traps': [O87_TRAP_A, O87_TRAP_B, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [O87_HAND_A, O87_HAND_B],
+      'energy': ['WD03-010#87'],
+      'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#87'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始 traps=', JSON.stringify(before?.host?.signiTraps), 'field=', JSON.stringify(before?.host?.fieldSigni), 'hand=', JSON.stringify(before?.host?.handCards));
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    // 罠 8p＝候補セルは常に可視＝**instance ごとに1回だけ**押す。
+    const picked = new Set();
+    let used = false, sawSelect = false, sawTrick = false;
+    let last = before;
+    const trapsFilled = (st) => (st?.host?.signiTraps ?? []).filter(Boolean).length;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/o87rt-${s}.png`, fullPage: true });
+      let did = null;
+      const chk = await H.queryState();
+      if (!used && chk?.turnPhase !== 'ATTACK_ARTS' && !chk?.pendingEffect && !(chk?.stackLen > 0)) {
+        await H.closeModals();
+        await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_ARTS', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(400);
+        did = `repatch:ATTACK_ARTS(was ${chk?.turnPhase})`;
+      }
+      if (!did && !used) {
+        const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+        if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; used = true; }
+      }
+      if (!did && !used) did = await H.clickTextOrBtn(['使用']);
+      // 候補（トラップ／シグニ／手札）を1回ずつ選ぶ
+      const cands = chk?.pendingCandidates ?? [];
+      if (!did && cands.length) {
+        sawSelect = true;
+        if (cands.includes(O87_TRICK)) sawTrick = true;
+        const want = cands.find(c => !picked.has(c));
+        if (want) {
+          const c = await clickPendingInstance(page, H, want);
+          if (c) { picked.add(want); did = c; }
+        }
+        if (!did) did = await H.clickBtn('決定');
+      }
+      if (!did) did = await H.clickZone();                    // 【トラップ】設置先ゾーン
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK', 'はい']);
+      if (!did) did = await H.clickTestId('zone-card-0');
+      last = await H.queryState();
+      H.log(`  o87rt[${s}] -> ${did ?? 'なし'} | traps=${JSON.stringify(last?.host?.signiTraps)} field=${JSON.stringify(last?.host?.fieldSigni)} hand=${JSON.stringify(last?.host?.handCards)} cands=${JSON.stringify(last?.pendingCandidates)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      if (used && trapsFilled(last) === 2 && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+    }
+    await page.screenshot({ path: `${SHOT}/o87rt-final.png`, fullPage: true });
+    const detail = `traps=${JSON.stringify(last?.host?.signiTraps)} field=${JSON.stringify(last?.host?.fieldSigni)} hand=${JSON.stringify(last?.host?.handCards)}`;
+    if (!used) return { pass: false, detail: `前提崩れ＝アーツを使用できていない（あや限定・罠8k）。${detail}` };
+    if (!sawSelect) return { pass: false, detail: `🔴「好きな数」の選択 UI が出ていない＝旧実装の問答無用の全回収。${detail}` };
+    if (!sawTrick) return { pass: false, detail: `🔴＜トリック＞のシグニが候補に出ていない（原文の半分が落ちている）。${detail}` };
+    if ((last?.host?.fieldSigni ?? []).some(st => (st ?? []).includes(O87_TRICK))) {
+      return { pass: false, detail: `＜トリック＞のシグニが場に残っている（手札へ戻っていない）。${detail}` };
+    }
+    const traps = (last?.host?.signiTraps ?? []).filter(Boolean);
+    if (traps.length !== 2) {
+      return { pass: false, detail: `🔴再設置が「戻した【トラップ】の数」になっていない（設置${traps.length}枚・期待2）＝旧 live は0枚（no-op）。${detail}` };
+    }
+    // 設置に使われたのは**手札の2枚**（戻ってきたトラップ自身ではない、という意味ではなく枚数の検証）
+    const hand = last?.host?.handCards ?? [];
+    if (hand.length !== 3) {
+      return { pass: false, detail: `手札の増減が合わない（${hand.length}枚・期待3＝開始2＋回収3－設置2）。${detail}` };
+    }
+    return { pass: true, detail: `好きな数（トラップ2＋トリック1）を回収し、トラップ2枚ぶんだけ手札から再設置。${detail}` };
+  },
+};
+order.push('o87ResetTrapReplace');
+// ── §5.3 O-87 END ──
+
+
 
 
 
