@@ -2960,11 +2960,13 @@ export function execStubPart2(
         ],
       });
     }
-    return needsInteraction(addLog(ctx, 'トラップにするカードを選択（任意）'), {
+    // §5.3 `O-87`＝任意かどうかは **payload** で決める（既定は任意＝原文の大多数が「してもよい」）。
+    const optTS = stub.trapPlaceOptional !== false;
+    return needsInteraction(addLog(ctx, `トラップにするカードを選択${optTS ? '（任意）' : ''}`), {
       type: 'SELECT_TARGET',
       candidates: candsTS,
       count: 1,
-      optional: true,
+      optional: optTS,
       targetScope: 'self_hand',
       thenAction: ({ type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as StubAction) as EffectAction,
     });
@@ -2977,11 +2979,14 @@ export function execStubPart2(
       action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, 'トラップにするカードを選択'), {
+    // 🔴§5.3 `O-87`＝ここは**無条件に `optional:false`（強制）**だった＝原文「設置しても**よい**」の
+    //   `WX19-059-BURST`／`WX21-057-E1` から**設置しない選択を奪う過剰実行**。payload で分ける。
+    const optPTO = stub.trapPlaceOptional !== false;
+    return needsInteraction(addLog(ctx, `トラップにするカードを選択${optPTO ? '（任意）' : ''}`), {
       type: 'SELECT_TARGET',
       candidates: ctx.ownerState.hand,
       count: 1,
-      optional: false,
+      optional: optPTO,
       targetScope: 'self_hand',
       thenAction: ({ type: 'STUB', id: 'CHOOSE_TRAP_ZONE' } as StubAction) as EffectAction,
       continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsPTO.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as ChooseAction) as EffectAction,

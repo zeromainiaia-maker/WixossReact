@@ -2632,10 +2632,12 @@ function actionJa(a?: Action, effectType?: string): string {
         //   原文をそのまま切り出していたため、**JSON が出所を持っていなくても逆翻訳だけは正しく見え**、
         //   計器が穴を映さなかった（§6.4 O-20 の全文 regex 読みと同じ落とし穴）。
         const ts = (a as { trapSource?: string }).trapSource;
-        if (ts === 'energy_self') return 'このシグニをエナゾーンから【トラップ】としてあなたのシグニゾーンに設置してもよい';
-        if (ts === 'looked') return 'そのカードを【トラップ】としてあなたのシグニゾーンに設置してもよい';
-        if (ts === 'looked_or_hand') return 'そのカードか、あなたの手札1枚を【トラップ】としてあなたのシグニゾーンに設置してもよい';
-        return 'あなたの手札から1枚を【トラップ】としてあなたのシグニゾーンに設置してもよい';
+        // §5.3 `O-87`＝任意/強制も **payload から描く**（原文「設置する」を「してもよい」と書くと嘘になる）。
+        const optJa = (a as { trapPlaceOptional?: boolean }).trapPlaceOptional === false ? 'する' : 'してもよい';
+        if (ts === 'energy_self') return `このシグニをエナゾーンから【トラップ】としてあなたのシグニゾーンに設置${optJa}`;
+        if (ts === 'looked') return `そのカードを【トラップ】としてあなたのシグニゾーンに設置${optJa}`;
+        if (ts === 'looked_or_hand') return `そのカードか、あなたの手札1枚を【トラップ】としてあなたのシグニゾーンに設置${optJa}`;
+        return `あなたの手札から1枚を【トラップ】としてあなたのシグニゾーンに設置${optJa}`;
       }
       if (a.id === 'ACTIVATE_TRAP' || a.id === 'ACTIVATE_TRAP_IN_FIELD') {
         const m = currentCardText.match(/あなたの【トラップ】[^。]*?表向きに[^。]*?(?:発動[^。]*?(?:させる|する)|シグニにする)/);
@@ -2645,10 +2647,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🔴旧実装は**カード全文を regex で切り出して原文をそのまま貼っていた**ので、
       //   JSON が枚数を1つも持っていなくても逆翻訳シートは緑だった（§4.3 の「計器が嘘をつく」形）。
       if (a.id === 'TRAP_TO_HAND') {
-        const tth = (a as { trapToHand?: { count: number | 'ALL'; upTo?: boolean } }).trapToHand;
+        const tth = (a as { trapToHand?: { count: number | 'ALL'; upTo?: boolean; alsoSigniFilter?: any } }).trapToHand;
         if (tth) {
-          if (tth.count === 'ALL') return 'あなたの【トラップ】を好きな数対象とし、それらを手札に加える';
-          return `あなたの【トラップ】を${numJa(tth.count)}つ${tth.upTo ? 'まで' : ''}対象とし、それを手札に加える`;
+          // §5.3 `O-87`＝同じ選択プールに混ぜる場のシグニも payload から描く（落とすと原文の半分が消える）。
+          const alsoJa = tth.alsoSigniFilter ? `と${filterJa(tth.alsoSigniFilter)}シグニ` : '';
+          if (tth.count === 'ALL') return `あなたの【トラップ】${alsoJa}を好きな数対象とし、それらを場から手札に加える`;
+          return `あなたの【トラップ】${alsoJa}を${numJa(tth.count)}つ${tth.upTo ? 'まで' : ''}対象とし、それを手札に加える`;
         }
         return '【※ペイロード欠落】手札に加える【トラップ】の枚数が未指定（engine は何もしない）';
       }

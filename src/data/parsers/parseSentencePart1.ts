@@ -178,6 +178,17 @@ function removeAbilitiesTargetNounPhraseFilter(t: string, owner: Owner): TargetF
 }
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
+  // 🔴§5.3 `O-87`（2026-08-26）＝「あなたの【トラップ】１つを対象とし、それを**手札に戻す**」（`WX21-057-E2`）は
+  //   **この関数の汎用 BOUNCE に先に食われて「自分のシグニ1体を手札に戻す」に化けていた**
+  //   （盤面から自分のシグニが消える過剰実行）。`TRAP_TO_HAND` は part2 に在るが**そこまで到達しない**ので、
+  //   part1 の**先頭**で引き取る。⚠**文頭が「あなたの【トラップ】」であること**を要求する＝
+  //   「対戦相手のシグニ１体を対象とし、あなたの【トラップ】１つを手札に戻す」（`WX17-041-BURST`）を巻き込まない。
+  {
+    const trapBackM = t.match(/^あなたの【トラップ】([０-９\d]+)?[つ枚]?を対象とし、それを手札に(?:戻す|加える)/);
+    if (trapBackM) {
+      return { type: 'STUB', id: 'TRAP_TO_HAND', trapToHand: { count: trapBackM[1] ? parseNum(trapBackM[1]) : 1 } } as StubAction;
+    }
+  }
   // 能動の連用中止形「〈対象〉のパワーを±Nし、それ（ら）は…を得る」の前半を共通抽出する。
   // 受動形「このシグニのパワーは±Nされ、」は effectParser.parseContinuousQuotedGrant の担当。
   const activeRenyoPower = (): { delta: number; duration: EffectDuration } | null => {

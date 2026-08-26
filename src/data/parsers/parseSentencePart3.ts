@@ -1576,7 +1576,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
       : /その(?:カード)?か、?(?:あなたの)?手札/.test(t) ? 'looked_or_hand'
       : /(?:^|[、。])(?:あなたは)?そのカードを/.test(t) ? 'looked'
       : 'hand';
-    return { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', ...(trapSource !== 'hand' ? { trapSource } : {}) } as StubAction;
+    // §5.3 `O-87`＝原文が「設置しても**よい**」なら任意、「設置**する**」なら強制。
+    //   ⚠engine は既定を任意にしているので、**強制のときだけ false を刻む**。
+    const trapPlaceOptional = /設置(?:しても|でき)?よい/.test(t);
+    return {
+      type: 'STUB', id: 'PLACE_TRAP_OPTIONAL',
+      ...(trapSource !== 'hand' ? { trapSource } : {}),
+      ...(trapPlaceOptional ? {} : { trapPlaceOptional: false }),
+    } as StubAction;
   }
 
   // ---- デッキ上からシグニがめくれるまで/宣言したカードまで公開する ----
@@ -2713,7 +2720,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
       type: 'REPEAT',
       count: 0,
       countRef: { $ref: 'last_processed_count' },
-      action: { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL' } as StubAction,
+      action: { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL', trapPlaceOptional: false } as StubAction,
     } as EffectAction;
   }
   if (t.match(/この方法で.*につき/)) {

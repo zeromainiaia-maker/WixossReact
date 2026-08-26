@@ -3635,6 +3635,14 @@ export interface StubAction {
    */
   trapSource?: 'hand' | 'looked' | 'looked_or_hand' | 'energy_self' | 'deck_top' | 'field_signi' | 'check' | 'trash';
   /**
+   * `PLACE_TRAP_OPTIONAL` / `SET_HAND_CARD_AS_TRAP`：設置が**任意か**（原文「設置しても**よい**」）。
+   * 🔴§5.3 `O-87`（2026-08-26）＝engine は**手札枝を無条件で `optional:false`**（＝強制）にしていた。
+   *   live 実測3件のうち2件（`WX19-059-BURST`／`WX21-057-E1`）は原文が「してもよい」＝
+   *   **設置しない選択を奪う過剰実行**だった（残る `WX16-017-E1` だけが「設置する」＝強制）。
+   * ⚠**既定は `true`（任意）**＝原文の大多数が「してもよい」で、強制側へ倒すほうが害が大きい。
+   */
+  trapPlaceOptional?: boolean;
+  /**
    * `OPTIONAL_COST`：**効果元カード自身をエナゾーンからデッキの一番下へ置く**任意コスト
    * （§5.3 `O-55`・`WXDi-P02-044-E1`「このシグニをエナゾーンからデッキの一番下に置いてもよい」）。
    * `selfToEnergy`／`selfTrash` の**行き先違い**で、違いは**払う場所が場ではなくエナゾーン**なこと
