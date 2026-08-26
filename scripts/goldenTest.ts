@@ -3592,6 +3592,84 @@ test('designation owner継承: 「対戦相手の…を対象とし…そうし�
   eq(selfInCard('WXDi-P13-045'), 0, 'WXDi-P13-045 CHOOSE両分岐とも opponent（self/any 残存なし）');
   eq(selfInCard('WX24-P2-048'), 0, 'WX24-P2-048 CHOOSE分岐 opponent（self/any 残存なし）');
 });
+// ── §5.3 `O-88`（2026-08-26）：「それ」が**前の文**で宣言した対象を指す照応を、接続節が
+// 「そうした場合、」でなくても解く（期間句「ターン終了時まで、」／結果句「それが〜の場合、」）。
+// 🔴この照応が解けないと「それ」は `targetsTriggerSource`（＝トリガー元＝**自分のシグニ**）へ落ち、
+//   **相手を削るはずの効果が自分のシグニを削る**。無ガードで一般化すると逆に fail-open になるので
+//   (1) 文境界 (2) 最終文（`perLpNode` 経路を除く）の2枚のガードを固定する。
+test('前文designationの照応: 接続節が「そうした場合、」以外でも「それ」が対象へ解決される（O-88）', () => {
+  const act = (id: string, eid?: string): Record<string, unknown> => {
+    const effs = (effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[];
+    const e = eid ? effs.find(x => x.effectId === eid) : effs[0];
+    ok(!!e, `${id}: 効果が存在する`);
+    return e!.action;
+  };
+  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
+  // (a) 期間句で割れた照応＝「…配置してもよい。**ターン終了時まで、それの**パワーを－3000する」。
+  //     旧: owner:'self' + targetsTriggerSource ＝**自分のシグニのパワーが下がる**。
+  {
+    const pm = steps(act('WXDi-CP02-095'))[1] as { type?: string; target?: Record<string, unknown>; targetsTriggerSource?: boolean };
+    eq(pm.type, 'POWER_MODIFY', 'WXDi-CP02-095-E1 末尾は POWER_MODIFY');
+    eq((pm.target as { owner?: string }).owner, 'opponent', 'WXDi-CP02-095-E1 「それ」＝対象化した相手シグニ');
+    eq(pm.targetsTriggerSource ?? false, false, 'WXDi-CP02-095-E1 トリガー元フラグは撤去される');
+  }
+  // (b) 結果句で割れた照応＝「…場合、追加でそれをトラッシュに置く」（旧 owner:'any'＝自シグニも対象）。
+  {
+    const cond = steps(act('WX21-007'))[1] as { then?: { target?: Record<string, unknown> } };
+    const t = cond.then!.target as { owner?: string; filter?: Record<string, unknown> };
+    eq(t.owner, 'opponent', 'WX21-007-E1 「追加でそれをトラッシュ」＝相手シグニ');
+    eq(JSON.stringify(t.filter?.level), JSON.stringify({ max: 4 }), 'WX21-007-E1 レベル4以下フィルタ継承');
+  }
+  // (c) 同型で BANISH（旧 owner:'self'＝**自分のシグニをバニッシュ**していた）。
+  //     ⚠**既知の残**＝「12000以上の場合」の閾値ゲート（前文の主語「このシグニのパワーが」が省略された形）は
+  //       まだ落ちており、バニッシュは無条件に走る（§5.3 `O-91`）。ここで固定するのは**照応先**だけ。
+  {
+    const bn = steps(act('WXK05-043'))[1] as { type?: string; target?: Record<string, unknown> };
+    eq(bn.type, 'BANISH', 'WXK05-043-E1 末尾は BANISH');
+    const t = bn.target as { owner?: string; filter?: Record<string, unknown> };
+    eq(t.owner, 'opponent', 'WXK05-043-E1 「追加でそれをバニッシュ」＝相手シグニ（旧 self 誤り）');
+    eq(JSON.stringify(t.filter?.level), JSON.stringify({ max: 3 }), 'WXK05-043-E1 レベル3以下フィルタ継承');
+  }
+  // (d) 引用能力の中＝照応節の**後ろにもう1文ある**形。`findTailAction` では届かず旧 STUB のままだった。
+  //     designation は「**正面の**シグニ１体」＝`filter.frontOfSelf`。
+  {
+    const g = (act('WXK07-051').abilities as { action: Record<string, unknown> }[])[0];
+    const pm = steps(g.action)[1] as { type?: string; target?: Record<string, unknown>; deltaPerLastProcessedCount?: boolean; perLastProcessed?: Record<string, unknown> };
+    eq(pm.type, 'POWER_MODIFY', 'WXK07-051-E1-G STUB{POWER_MOD_PER_COUNT} ではなく POWER_MODIFY');
+    const t = pm.target as { owner?: string; filter?: Record<string, unknown> };
+    eq(t.owner, 'opponent', 'WXK07-051-E1-G 「それ」＝正面の相手シグニ');
+    eq(t.filter?.frontOfSelf, true, 'WXK07-051-E1-G 正面限定（frontOfSelf）');
+    eq(pm.deltaPerLastProcessedCount, true, 'WXK07-051-E1-G 公開したシグニのレベル合計が倍率');
+    eq((pm.perLastProcessed as { unit?: string }).unit, 'level_sum', 'WXK07-051-E1-G 単位はレベル合計');
+  }
+  // (e) 同一文内の「対戦相手の〈filter〉シグニN体を対象とし、…それのパワーを±N」＝自分側の対
+  //     （`applyLeadingOpponentDesignationToPowerModify`）。旧 owner:'any'＝**自シグニも削れた**。
+  {
+    const pm = act('WDK13-014', 'WDK13-014-E2') as { type?: string; target?: Record<string, unknown> };
+    eq(pm.type, 'POWER_MODIFY', 'WDK13-014-E2 は POWER_MODIFY');
+    const t = pm.target as { owner?: string; filter?: Record<string, unknown> };
+    eq(t.owner, 'opponent', 'WDK13-014-E2 owner:any→opponent（自シグニを対象化しない）');
+    eq(t.filter?.level, 3, 'WDK13-014-E2 レベル3限定が復活');
+  }
+  // 🔴 fail-open ガードの固定＝照応節が**最終文でない**カードは触らない。
+  //   `WD15-001-E2` の末尾は「このルリグは【ダブルクラッシュ】を得る」＝相手シグニへの付与に化けてはならない。
+  {
+    const st = steps(act('WD15-001', 'WD15-001-E2'));
+    const gk = st[st.length - 1] as { type?: string; target?: { owner?: string } };
+    eq(gk.type, 'GRANT_KEYWORD', 'WD15-001-E2 末尾は GRANT_KEYWORD');
+    ok(gk.target?.owner !== 'opponent', 'WD15-001-E2 照応節が最終文でない＝末尾へ owner を塗らない');
+  }
+  // 同一文内の照応（`parseSentencePart1` の領分）へは踏み込まない＝「…それを凍結し、ターン終了時まで、
+  // **このシグニ**のパワーを＋4000する」の後半は効果元のまま（相手への付与に化けない）。
+  {
+    const cond = act('WXDi-P12-073', 'WXDi-P12-073-E2') as { then?: Record<string, unknown> };
+    const st = (cond.then as Record<string, unknown>).steps as Record<string, unknown>[];
+    eq((st[0] as { type?: string }).type, 'FREEZE', 'WXDi-P12-073-E2 「それを凍結し」が残る');
+    const pm = st[1] as { target?: { owner?: string; filter?: Record<string, unknown> } };
+    eq(pm.target?.filter?.thisCardOnly, true, 'WXDi-P12-073-E2 「このシグニのパワーを＋4000」は効果元のまま');
+    ok(pm.target?.owner !== 'opponent', 'WXDi-P12-073-E2 同一文内照応へ踏み込まない');
+  }
+});
 // ── 続き219: CHOOSE ヘッダ（「以下の…から…を選ぶ」）直前の状態条件を効果全体の発動条件へ持ち上げる（タスク12(xxxix)）。
 // 従来は CHOOSE 分解がヘッダ以前を捨てるため条件が脱落し、毎アタックフェイズ開始時/出時に無条件で CHOOSE が
 // 発火する過剰効果だった（WX24-P2-048「場に《満月の使徒 小湊るう子》がいる場合」等10枚）。

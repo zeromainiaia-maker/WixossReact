@@ -10,7 +10,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 37 | 37 | 10 | 7 |
+| POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 36 | 36 | 10 | 7 |
 | LOOK_AND_REORDER | execStubPart1.ts:4407 | 6 | 6 | 2 | 4 |
 | SEED_BLOOM|SEED_BLOOM_OPTIONAL | execStubPart2.ts:3530 | 6 | 5 | 1 | 4 |
 | GAIN_EXTRA_TURN | execStubPart2.ts:1463 | 5 | 5 | 1 | 4 |
@@ -150,7 +150,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 ## A群 明細
 
-### POWER_MOD_PER_COUNT  (live 37効果 / 37カード / miss 7)
+### POWER_MOD_PER_COUNT  (live 36効果 / 36カード / miss 7)
   execStubPart1.ts:1703  const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
     lit re:([０-９\d]+)[体枚つ個]?につき([－＋][０-９\d]+)
     lit re:レベル([０-９\d]+)につき([－＋][０-９\d]+)

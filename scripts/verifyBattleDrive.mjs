@@ -31838,6 +31838,191 @@ scenarios.o87ResetTrapReplace = {
   },
 };
 order.push('o87ResetTrapReplace');
+
+// ── §5.3 `O-88`（2026-08-26）＝前の文で宣言した対象を指す「それ」の照応 ──
+// 🔴`WDK13-014-E2`（羅星　ウィッチヘッド）＝「【起】《ダウン》：**対戦相手のレベル３のシグニ１体**を対象とし、
+//   ターン終了時まで、**それの**パワーを－7000する。」
+//   旧 live は `POWER_MODIFY{target:{SIGNI, owner:'any', count:1}}`（フィルタなし）＝**owner ごと落ちて**
+//   ①**自分のシグニも選べる**（自傷できる）②**レベル３限定が消えて相手のどのシグニでも削れる**
+//   の二重の過剰実行だった。
+// ■ 観測点＝**候補列そのもの**（`pendingCandidates`）を見る。結果（誰が削れたか）だけでは
+//   「たまたま当たりを引いた」と区別できない（罠＝この driver の queryState コメントと同じ理由）。
+//   盤面は**自分Lv3・相手Lv3・相手Lv1** の3体を並べ、正しければ候補は**相手Lv3 の1件だけ**になる。
+const O88_LV3 = 'WD01-010';   // 羅石 Lv3 P10000（自分側の囮＝旧実装なら候補に出る）
+const O88_LV1 = 'WD01-013';   // Lv1 P3000（相手側の囮＝レベル限定が落ちていれば候補に出る）
+const O88_TARGET = `${O88_LV3}#2`;
+const o88AnaphoraSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#1'],
+    'field.signi': [['WDK13-014#1'], [`${O88_LV3}#1`], null],  // zone0＝効果元／zone1＝自分側Lv3の囮
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [[O88_TARGET], [`${O88_LV1}#2`], null],     // zone0＝本命(Lv3)／zone1＝Lv1の囮
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+async function o88AnaphoraDrive(page, H) {
+  await H.ensureMain();
+  let opened = false, fired = false;
+  let candsSeen = null;
+  let last = await H.queryState();
+  H.log('  開始: hMods=', JSON.stringify(last?.host?.powerMods), 'gMods=', JSON.stringify(last?.guest?.powerMods));
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o88Anaphora-${s}.png`, fullPage: true });
+    let did = null;
+    if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+    if (!did && opened && !fired) {
+      // 【起】は2つ（E1＝－2000／E2＝レベル3限定 －7000）。どちらもコストは《ダウン》なので
+      // ラベルで区別できない＝**2つ目**を押す。押し違えたら delta が －2000 になるので判定で分かる。
+      const btns = page.getByRole('button', { name: /^【起】/ });
+      const n = await btns.count();
+      if (n >= 2) { const b = btns.nth(1); if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = `btn:【起】(${n}件中2番目)`; } }
+      else if (n === 1) { const b = btns.nth(0); if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:【起】(1件)'; } }
+    }
+    if (!did && opened) { const f = await H.clickBtn('発動', { exact: true }); if (f) { did = f; fired = true; } }
+    const pre = await H.queryState();
+    // 候補列は pick する前に読む（pick すると pending が消える）
+    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates)) {
+      candsSeen = pre.pendingCandidates.slice();
+      H.log('  SELECT_TARGET 候補:', JSON.stringify(candsSeen));
+    }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log(`  o88[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(candsSeen)} hMods=${JSON.stringify(last?.host?.powerMods)} gMods=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (candsSeen && (last?.guest?.powerMods ?? []).length && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o88Anaphora-final.png`, fullPage: true });
+  const hMods = last?.host?.powerMods ?? [], gMods = last?.guest?.powerMods ?? [];
+  const detail = `cands=${JSON.stringify(candsSeen)} hMods=${JSON.stringify(hMods)} gMods=${JSON.stringify(gMods)}`;
+  // ⚠**本題を先に判定する**（前提崩れを先に置くと旧挙動の再現が「前提崩れ」で隠れる＝O-80 の教訓）
+  if (candsSeen && candsSeen.some(c => c.startsWith(`${O88_LV3}#1`))) {
+    return { pass: false, detail: `🔴自分のシグニが候補に出ている＝owner:'any' のまま。${detail}` };
+  }
+  if (candsSeen && candsSeen.some(c => c.startsWith(O88_LV1))) {
+    return { pass: false, detail: `🔴相手のレベル1シグニが候補に出ている＝レベル3限定が落ちている。${detail}` };
+  }
+  if (hMods.length) return { pass: false, detail: `🔴自分のシグニのパワーが動いた＝「それ」がトリガー元へ落ちている。${detail}` };
+  if (!candsSeen) return { pass: false, detail: `前提崩れ＝SELECT_TARGET を1度も観測できていない（【起】が発動していない）。${detail}` };
+  if (candsSeen.length !== 1 || !candsSeen[0].startsWith(O88_TARGET)) {
+    return { pass: false, detail: `候補が「相手のレベル3シグニ1件」ではない。${detail}` };
+  }
+  const mod = gMods.find(m => String(m).startsWith(O88_TARGET));
+  if (!mod) return { pass: false, detail: `本命にパワー修整が入っていない。${detail}` };
+  const delta = Number(String(mod).split(':').at(-1));
+  if (delta !== -7000) return { pass: false, detail: `delta が －7000 でない（${delta}）＝別の【起】を押した可能性。${detail}` };
+  return { pass: true, detail: `候補は相手のレベル3シグニ1件だけ・－7000 がそこに入る（自分側は不変）。${detail}` };
+}
+scenarios.o88LeadingDesignationAnaphora = {
+  title: 'WDK13-014-E2（O-88＝「対戦相手のレベル３のシグニ…それのパワーを－7000」）＝候補が相手Lv3の1件だけ',
+  spec: o88AnaphoraSpec(),
+  drive: o88AnaphoraDrive,
+};
+order.push('o88LeadingDesignationAnaphora');
+
+// 🔴`WXK05-043-E1`（幻水　ティロス）＝**文を跨ぐ**照応（`O-88` の本体）。
+//   「【自】：このシグニがアタックしたとき、**対戦相手のレベル３以下のシグニ１体を対象とし**、
+//    このシグニのパワーが10000以上の場合、カードを１枚引く。**12000以上の場合、追加でそれを**バニッシュする。」
+//   対象宣言は1文目・「それ」は2文目＝文単位のパーサは前の文を見られず、旧 live は
+//   `BANISH{owner:'self'}` ＝**自分のシグニをバニッシュ**していた（原文と真逆）。
+// ■ 観測点＝`pendingCandidates`。正しければ候補は**相手のレベル３以下**だけで、自分の場は1体も出ない。
+// ⚠**既知の残**＝「12000以上の場合」の閾値ゲート（前文の主語「このシグニのパワーが」が省略された形）は
+//   まだ落ちている＝バニッシュが無条件に走る（§5.3 `O-91` に登録）。この検証はパワー13000 を作って
+//   **原文でも条件が成立する盤面**で回すので、その残に依存しない。
+const O88B_SRC = 'WXK05-043#1';
+const O88B_SELF_DECOY = 'WD01-010#1';   // 自分側 Lv3（旧実装ならここが候補＝バニッシュされていた）
+const O88B_OPP_A = 'WD01-010#2';        // 相手 Lv3
+const O88B_OPP_B = 'WD01-013#2';        // 相手 Lv1
+const o88AttackAnaphoraSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#1'],
+    'field.signi': [[O88B_SRC], [O88B_SELF_DECOY], null],
+    'field.signi_down': [false, false, false],
+    // 原文の「12000以上の場合」が成立する盤面にする（表記8000＋5000＝13000）
+    'temp_power_mods': [{ cardNum: O88B_SRC, delta: 5000 }],
+    'field.check': null,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    // 候補を2件にして SELECT_TARGET を確実に出す（1件だと自動解決で候補列が観測できない）。
+    // zone2（＝host zone0 の正面）は空＝アタックはライフクラッシュへ抜ける。
+    'field.signi': [[O88B_OPP_A], [O88B_OPP_B], null],
+    'field.signi_down': [false, false, false],
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function o88AttackAnaphoraDrive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[0] ?? []).includes?.(O88B_OPP_A); r++) {
+    H.log(`再注入(${r})… guest zone0=${JSON.stringify(before?.guest?.fieldSigni?.[0])}`);
+    await injectScenario(page, o88AttackAnaphoraSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni), 'guest signi:', JSON.stringify(before?.guest?.fieldSigni));
+  let modalOpened = false, candsSeen = null, last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o88Attack-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !candsSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; modalOpened = true; } }
+    const pre = await H.queryState();
+    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates)) {
+      candsSeen = pre.pendingCandidates.slice();
+      H.log('  SELECT_TARGET 候補:', JSON.stringify(candsSeen));
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    const gZones = JSON.stringify(last?.guest?.fieldSigni);
+    H.log(`  o88atk[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(candsSeen)} hSigni=${JSON.stringify(last?.host?.fieldSigni)} gSigni=${gZones} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (candsSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o88Attack-final.png`, fullPage: true });
+  const hs = (last?.host?.fieldSigni ?? []).flat().filter(Boolean);
+  const gs = (last?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+  const detail = `cands=${JSON.stringify(candsSeen)} hSigni=${JSON.stringify(hs)} gSigni=${JSON.stringify(gs)}`;
+  // ⚠**本題を先に判定**（前提崩れ判定を先に置くと旧挙動の再現が隠れる＝O-80 の教訓）
+  if (candsSeen && candsSeen.some(c => c.startsWith('WXK05-043') || c.startsWith(O88B_SELF_DECOY))) {
+    return { pass: false, detail: `🔴自分のシグニが候補に出ている＝「それ」が前文の対象へ解決していない（旧 owner:'self'）。${detail}` };
+  }
+  if (!hs.includes(O88B_SELF_DECOY)) {
+    return { pass: false, detail: `🔴自分の Lv3 シグニが場から消えた＝自分のシグニをバニッシュした。${detail}` };
+  }
+  if (!candsSeen) return { pass: false, detail: `前提崩れ＝SELECT_TARGET を1度も観測できていない（アタック時トリガーが走っていない）。${detail}` };
+  const wanted = [O88B_OPP_A, O88B_OPP_B].sort().join(',');
+  if (candsSeen.slice().sort().join(',') !== wanted) {
+    return { pass: false, detail: `候補が「相手のレベル3以下2体」ではない（期待 ${wanted}）。${detail}` };
+  }
+  if (gs.length !== 1) return { pass: false, detail: `相手シグニが1体だけバニッシュされていない（残 ${gs.length}体）。${detail}` };
+  return { pass: true, detail: `候補は相手のレベル3以下だけ・相手を1体バニッシュ・自分の場は無傷。${detail}` };
+}
+scenarios.o88AttackAnaphoraBanishesOpponent = {
+  title: 'WXK05-043-E1（O-88＝前の文の対象を指す「それ」）＝旧実装は自分のシグニをバニッシュしていた',
+  spec: o88AttackAnaphoraSpec(),
+  drive: o88AttackAnaphoraDrive,
+};
+order.push('o88AttackAnaphoraBanishesOpponent');
+// ── §5.3 O-88 END ──
 // ── §5.3 O-87 END ──
 
 

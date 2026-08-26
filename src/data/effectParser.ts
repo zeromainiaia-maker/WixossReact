@@ -7578,6 +7578,32 @@ function applyLeadingSelfDesignationToPowerModify(text: string, action: EffectAc
   return action;
 }
 
+// ── §5.3 `O-88`（2026-08-26）：「**対戦相手の**〈filter〉シグニN体を対象とし、（…まで、）それのパワーを±N」──
+//
+// `applyLeadingSelfDesignationToPowerModify`（自分側）の**対の欠落**。同一文内の照応なので下の
+// `applyLeadingOpponentDesignation`（文を跨ぐ照応が担当）には入らず、`parseSentencePart1` の
+// POWER_MODIFY ビルダーにも当たらないため、既定の `{ SIGNI, owner:'any', count:1 }` へ落ちていた
+// （`WDK13-014-E2`「対戦相手の**レベル３の**シグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する」＝
+//  **owner ごと落ちて自分のシグニのパワーも下げられる**うえ、レベル限定も丸ごと消えていた）。
+//
+// ⚠ narrow に保つための条件は自分側と同一：
+//   (a) 対象宣言は「対戦相手の」で始まり、修飾に読点・句点を含まない（＝1つの名詞句）。
+//   (b) 文中の「を対象とし」が**1つだけ**（複数対象の文は照応先が曖昧なので触らない）。
+//   (c) 末尾アクションが POWER_MODIFY で **owner:'any' のまま**のときだけ直す。
+//   (d) 「代わりに」置換は別系統（据置）。
+function applyLeadingOpponentDesignationToPowerModify(text: string, action: EffectAction): EffectAction {
+  if (/代わりに/.test(text)) return action;
+  if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  const m = text.match(/対戦相手の([^、。]{0,24}?)シグニ(?:を)?([０-９\d]+)体(?:まで)?を対象とし、[^。]*?それら?の(?:基本)?パワーを/);
+  if (!m) return action;
+  const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget }) | null;
+  if (!fin || fin.type !== 'POWER_MODIFY' || !fin.target) return action;
+  if (fin.target.type !== 'SIGNI' || fin.target.owner !== 'any') return action;
+  // 名詞句だけを parseSigniTarget に渡す（文全体を渡すと後続節の語を拾う＝続き376d の教訓）
+  fin.target = parseSigniTarget(`対戦相手の${m[1]}シグニ${m[2]}体`, 'opponent');
+  return action;
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7592,16 +7618,43 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   // 🆕§5.3 `O-80` 第1バッチ（2026-08-26）＝接続節が「そうした場合、」ではなく**期間句**の形
   //   （`WXEX1-64`「対戦相手のシグニ１体を対象とし、手札から…捨ててもよい。**ターン終了時まで、それの**
   //   パワーをこの方法で捨てたシグニのレベル１につき－2000する」）。
-  //   ⚠**この family に限定する**＝末尾が `deltaPerLastProcessedCount` つきの `POWER_MODIFY` で、かつ
-  //   「それ」をトリガー元へ解決してしまっているときだけ。一般に広げると別バッチ（実測22効果が動く）。
-  const perLpTail = findTailAction(action) as (EffectAction & {
-    deltaPerLastProcessedCount?: boolean; targetsTriggerSource?: boolean;
-  }) | null;
-  const isPerLpAnaphora = !!perLpTail && perLpTail.type === 'POWER_MODIFY'
-    && perLpTail.deltaPerLastProcessedCount === true && perLpTail.targetsTriggerSource === true
-    && /、それ(?:ら)?[をのは]/.test(scan);
+  // 🆕§5.3 `O-88`（2026-08-26）＝**「それ」の載っているノードを木から名指しで拾う**（従来は
+  //   `findTailAction`＝木の末尾しか見ておらず、照応節の後ろにもう1文ある形＝`WXK07-051-E1` の
+  //   引用能力「…それのパワーを…－1000する。**公開したカードをシャッフルしてデッキの一番下に置く。**」で
+  //   末尾が `LOOK_AND_REORDER` になり、照応が永久に解けなかった）。
+  //   `deltaPerLastProcessedCount` ＋ `targetsTriggerSource` の組は**「それのパワーを〜につき」文でしか
+  //   立たない**ので、この2枚看板が木にちょうど1つあれば、それが「それ」の載っているノードだと確定できる。
+  const perLpNodes = collectPowerModifyNodes(action).filter(n => {
+    const o = n as unknown as { deltaPerLastProcessedCount?: boolean; targetsTriggerSource?: boolean };
+    return o.deltaPerLastProcessedCount === true && o.targetsTriggerSource === true;
+  });
+  const perLpNode = perLpNodes.length === 1 ? perLpNodes[0] : null;
+  const isPerLpAnaphora = !!perLpNode && /、それ(?:ら)?[をのは]/.test(scan);
+  // 🆕§5.3 `O-88`（2026-08-26）＝**接続節を「そうした場合、」に限らない一般形**。
+  //   「〈対戦相手のシグニN体〉を対象とし、〈…〉**。**〈接続節〉、それの／それを／それは〈述語〉」＝
+  //   期間句（「ターン終了時まで、」）や結果句（「それがレベルが奇数のシグニの場合、」）で割れた照応。
+  //   文単位のパーサは前の文を見られないので「それ」が `targetsTriggerSource`（＝トリガー元＝**自分の
+  //   シグニ**）へ落ち、**相手を削るはずの効果が自分のシグニのパワーを下げる**（`WXDi-P05` 系）。
+  // 🔴**ガードを2枚かけないと fail-open になる**（無ガードで一般化した A/B 実測＝15効果中**11効果が退化**）：
+  //   (1) **文境界**＝「を対象とし」と「それ」の間に「。」があること。同一文内の照応は
+  //       `parseSentencePart1` の領分で、ここで触ると同じ文の別ノードを掴む
+  //       （`WXDi-P12-073-E2`「…それを凍結し、ターン終了時まで、**このシグニ**のパワーを＋4000」が
+  //        自分の強化ではなく相手への付与に化けた）。
+  //   (2) **最終文**＝「それ」を含む文がテキストの最後の文であること（末尾の注釈括弧は剥がす）。
+  //       下で使う `findTailAction` は**木の末尾**を返すので、照応節の後ろに別の文があると
+  //       **まったく無関係なアクションに owner を塗る**（`WD15-001-E2`＝「２枚以上ある場合、…
+  //       **このルリグは【ダブルクラッシュ】を得る**」が相手シグニへの付与に化けた）。
+  //   ⚠ `perLpNode` 経路はノードを名指しできているので (2) を課さない（＝`WXK07-051` が通る）。
+  const lastSentence = (() => {
+    const body = scan.replace(/（[^）]*）\s*$/u, '').replace(/。\s*$/u, '');
+    return body.slice(body.lastIndexOf('。') + 1);
+  })();
+  const isCrossSentenceAnaphora = /を対象とし、[^。]*。/.test(scan)
+    && /それ(?:ら)?[をのは]/.test(lastSentence)
+    && !/を対象とし/.test(lastSentence);
   const hasAnaphora = /そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/.test(scan)
     || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(scan)
+    || isCrossSentenceAnaphora
     || isPerLpAnaphora;
   if (!hasAnaphora) return action;
   if ((scan.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
@@ -7609,14 +7662,28 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   // 補正すると片方が誤 owner のまま残るため丸ごと据置する（WX24-P3-076 等）。
   if (/代わりに/.test(text)) return action;
   const desigM = scan.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
-  if (!desigM) return action;
+  // 🆕§5.3 `O-88`（2026-08-26）＝「**正面の**シグニN体を対象とし、」＝効果元シグニの正面（相手ゾーン）の
+  //   1体を指す designation（`WXK07-051-E1` の引用能力）。「対戦相手の」と書かれないので上の regex には
+  //   当たらないが、指しているのは**相手のシグニ**＝既存語彙 `filter.frontOfSelf` でそのまま表せる。
+  //   ⚠**ノードを名指しできている `perLpNode` 経路に限る**（`findTailAction` 経路へ広げると
+  //     「正面のシグニ」を条件節に持つ別文まで巻き込む）。
+  const frontDesigM = !desigM && perLpNode
+    ? scan.match(/正面のシグニ(?:を)?([０-９\d]*)体(?:まで)?を対象とし、/) : null;
+  if (!desigM && !frontDesigM) return action;
   // ⚠任意コスト STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` を持つケースも補正対象に含める。engine の
   // fixOwnerTOSOC は実行時 owner を opponent へ寄せるが、JSON を先に opponent へ直しても fixOwner は冪等
   // （no-op）で二重管理にならず、accusative「それを」系（WX05-028/WX07-001 等）は従来から本ハンドラが
   // opponent へ直した JSON で正常動作している。ここでスキップすると逆に既存補正を剥がす退化になる（続き226）。
-  const desig = parseSigniTarget(desigM[1], 'opponent');
-  // 末尾（「それを…」）アクションの target/source を1つだけ補正（コスト等の先行 self ターゲットは触らない）。
-  const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | null;
+  const desig: EffectTarget = desigM
+    ? parseSigniTarget(desigM[1], 'opponent')
+    : {
+        type: 'SIGNI', owner: 'opponent',
+        count: frontDesigM![1] ? parseNum(frontDesigM![1]) : 1,
+        filter: { cardType: 'シグニ', frontOfSelf: true },
+      };
+  // 「それを…」アクションの target/source を1つだけ補正（コスト等の先行 self ターゲットは触らない）。
+  // ⚠**`perLpNode` があるならそれを優先する**＝木の末尾とは限らない（§5.3 `O-88`・`WXK07-051-E1`）。
+  const fin = (perLpNode ?? findTailAction(action)) as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | null;
   // 特例（続き147・§3 タスク12(xxviii)）：末尾が「そうした場合、それをエナゾーンに置く」＝
   // 対象化した相手シグニ（designation）のエナ送り。parseSentencePart1 が REVEAL 文脈用の
   // ENERGY_CHARGE{DECK_CARD,self}（＝自分デッキからのチャージ）に誤マップするため、
@@ -10041,7 +10108,8 @@ function parseActionTextBody(text: string): EffectAction {
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))));
+            applyLeadingOpponentDesignationToPowerModify(source,
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,

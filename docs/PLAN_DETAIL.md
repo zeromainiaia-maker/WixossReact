@@ -4615,3 +4615,17 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   **実機シナリオ +3**（🆕`b62MoveToDeckOwnEffect`／`b62AcceBanishDraws`／`b62AcceBanishNoAcce`。
   **反転確認**＝`b62AcceBanishDraws` は旧 live で FAIL することを実測）、
   **`npm run golden` の所要＝全件 約158秒／`--only` 約1.5秒**
+
+### 恒久指標アーカイブ（PLAN §6 から退避）
+
+- **2026-08-26 続き669 後（本行が直近の正）**：
+  **census 568/568**（据置）、**golden 2840**（`O-87` +8）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**＝`SELECT_COLOR` を追加）、
+  🆕**`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75）＝`O-87` で `CHOOSE_COLOR_FROM_LIST` の全文 regex を撤去（`BASELINE_SELF_TEXT` 更新済み）、
+  **`POWER_MOD_PER_COUNT` の live 37効果**（⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-87` は AUTO 3効果が変化）、
+  **`_held_fresh` 77 / `_partial_fresh` 12 / `_idset_fresh` 45**、
+  **どのフラグも立たないカード 4961 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +2**（`o87RainbowColorBranch` ／ `o87ResetTrapReplace`。回帰＝`o81FacedownAttachRevealBanish` PASS）、
+  **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
