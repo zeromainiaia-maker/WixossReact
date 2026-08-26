@@ -537,16 +537,17 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-26 続き667 後（本行が直近の正）**：
-  **census 568/568**（`O-80` 第1バッチ＝566→568 は**退化ではなく可視化**＝STUB を外すと census の STUB 免除が外れる）、**golden 2825**（第1バッチ +2）、
-  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 266）**、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
-  **`census:enginetext` A群 142行 / 138ハンドラ**（B 59／C 27・miss ありハンドラ 43・miss カード 75）、
-  **`POWER_MOD_PER_COUNT` の live 58→37効果**（⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1032**（据置。`O-80` 第1は**21効果**が変化＝`POWER_MODIFY`+payload 19／`DEFERRED_*` 2）、
-  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（いずれも据置＝parser 改善が凍っていない）、
-  **実機シナリオ +1**（`o80PerProcessedCount`。回帰＝`o60RevealLifeTopArts` PASS）、
-  **`npm run golden` の所要＝全件 約158秒／`--only` 約1.5秒**
+- **2026-08-26 続き668 後（本行が直近の正）**：
+  **census 568/568**（据置）、**golden 2832**（`O-81` +7）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **148**＝`ATTACH_FACEDOWN_FROM_HAND` を追加）、
+  **`census:enginetext` A群 142行 / 138ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75・据置）、
+  **`POWER_MOD_PER_COUNT` の live 37効果**（⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（`O-81` で `WX16-003` に +2＝E2 の MANUAL 化と E3 の新設）、
+  **`_held_fresh` 76 / `_partial_fresh` 13 / `_idset_fresh` 45**（`_partial_fresh` +1＝`WX16-003` の MANUAL 化。live は `syncManualLive` で同期済み）、
+  **どのフラグも立たないカード 4961 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +2**（`o81FacedownAttachRevealBanish` ／ 対照 `o81NoAttachNoBanish`）、
+  **`npm run golden` の所要＝全件 約167秒／`--only` 約1.5秒**
 
 ---
 

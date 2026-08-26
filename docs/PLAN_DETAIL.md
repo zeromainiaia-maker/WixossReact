@@ -2,6 +2,17 @@
 
 ### 恒久指標アーカイブ（PLAN §6 から退避）
 
+- **2026-08-26 続き667 後（本行が直近の正）**：
+  **census 568/568**（`O-80` 第1バッチ＝566→568 は**退化ではなく可視化**＝STUB を外すと census の STUB 免除が外れる）、**golden 2825**（第1バッチ +2）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 266）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **`census:enginetext` A群 142行 / 138ハンドラ**（B 59／C 27・miss ありハンドラ 43・miss カード 75）、
+  **`POWER_MOD_PER_COUNT` の live 58→37効果**（⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1032**（据置。`O-80` 第1は**21効果**が変化＝`POWER_MODIFY`+payload 19／`DEFERRED_*` 2）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（いずれも据置＝parser 改善が凍っていない）、
+  **実機シナリオ +1**（`o80PerProcessedCount`。回帰＝`o60RevealLifeTopArts` PASS）、
+  **`npm run golden` の所要＝全件 約158秒／`--only` 約1.5秒**
+
 - **2026-08-26 続き666 後（本行が直近の正）**：
   **census 566/566**（`O-60` 第8バッチの逆翻訳是正の副産物＝572→566・`BASELINE_HIGH` 更新済み）、**golden 2823**（第8バッチ +2）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 266）**、
