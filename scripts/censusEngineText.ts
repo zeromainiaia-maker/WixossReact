@@ -39,7 +39,8 @@ const onlyId = (() => {
 // 149 → 146 ＝ 同 第2〜4バッチ（`LRIG_UNDER_CARD_OP` / `COPY_LRIG_NAME_ABILITY` / `DEPLOY_RESTRICT`）。
 //   ⚠**行数の減りは「消費地点の数」とは一致しない**＝`COPY_LRIG_NAME_ABILITY` は消費が4地点あったが
 //   `EffectText` を読む行は各1本、`DEPLOY_RESTRICT` は2地点＝**撤去した regex は行数より多い**。
-const BASELINE_SELF_TEXT = 146;
+// 146 → 143 ＝ 同 第5〜7バッチ（`DOUBLE_POWER_MINUS` / `PLACE_CARD_UNDER_SIGNI` / `TRAP_TO_HAND`）。
+const BASELINE_SELF_TEXT = 143;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

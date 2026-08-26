@@ -3270,6 +3270,19 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         return '【※ペイロード欠落】配置制限の形が未指定（engine は何もしない）';
       }
+      // 🆕§5.3 `O-60` 第6バッチ（2026-08-26）＝「シグニの下に置く」も**構造から復元する**
+      //   （旧表示の固定文「シグニの下にカードを置く」は**何を置くのかを1文字も伝えない**うえ、
+      //     実際には【チャーム】の効果まで同じ文で描いていた）。
+      if (a.id === 'PLACE_CARD_UNDER_SIGNI') {
+        const pu = (a as { placeUnder?: { mode: string; craftName?: string } }).placeUnder;
+        if (pu) {
+          if (pu.mode === 'craft') return `クラフトの《${pu.craftName ?? '?'}》1つをこのシグニの下に置く`;
+          if (pu.mode === 'self_under_other') return 'このシグニをあなたの他のシグニ1体の下に置く';
+          if (pu.mode === 'charm_facedown') return '【未実装】あなたのシグニ1体を対象とし、それに手札からカード1枚を【チャーム】として裏向きで付ける';
+          return '直前に処理したカードをこのシグニの下に置く';
+        }
+        return '【※ペイロード欠落】置くものが未指定（engine は何もしない）';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

@@ -7850,6 +7850,122 @@ test('O-60④ engine: 配置数上限は payload から読み、payload なし�
   eq((pw.otherState.signi_deploy_bans ?? [])[0]?.powerGte, 12000, 'パワー下限型は寿命つき ban ストアへ');
 }));
 
+// 共通ヘルパ（`O-60` 第5〜7バッチ）＝live から STUB ノードを全数集める。
+// ⚠**母集団は毎回 live から再導出する**（固定リストにすると parser が別の文へ広がったとき静かに漏れる）。
+function collectLiveStubs<T>(id: string, pick: (o: Record<string, unknown>) => T): Array<{ effectId: string; v: T }> {
+  const out: Array<{ effectId: string; v: T }> = [];
+  const walk = (effectId: string, value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(v => walk(effectId, v)); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === id) out.push({ effectId, v: pick(obj) });
+    Object.values(obj).forEach(v => walk(effectId, v));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  return out;
+}
+
+// 🔴§5.3 `O-60` 第5バッチ（2026-08-26）＝`DOUBLE_POWER_MINUS` は「シグニN体につき±X」「パワーをN倍にする」で
+//    カード全文を読んでいたが、実データの綴りは「**2倍－される**」＝**live 7効果すべてが1本も当たらず無言 no-op**。
+//    ⚠受け皿（`double_power_minus_this_turn`＋`effectEngine` の2倍化）は最初から在り、別 id
+//    `DOUBLE_POWER_MINUS_THIS_TURN` が同じことをしていた＝**parser がそちらを吐かなかっただけ**。
+test('O-60⑤ parser: DOUBLE_POWER_MINUS は doublePowerMinus で寿命を持つ', () => {
+  const found = collectLiveStubs('DOUBLE_POWER_MINUS', o => o.doublePowerMinus as { duration: string; sourceSigniOnly?: boolean } | undefined);
+  ok(found.length >= 7, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  eq(found.filter(x => !x.v).length, 0, '🔴payload を持たないノードは0（全文regex撤去の条件）');
+  const one = (effectId: string) => found.find(x => x.effectId === effectId)?.v;
+  eq(one('WX22-023-E1')?.duration, 'continuous', '【常】の宣言は continuous（effectEngine が場を走査して読む）');
+  eq(one('WX24-D5-05-E1')?.duration, 'this_turn', '🔴「このターン、〜」は実行時にフラグを立てるアクション');
+  eq(one('WXDi-P01-088-E1')?.sourceSigniOnly, true, '「あなたの**シグニの**効果によって」の限定を保持');
+});
+
+test('O-60⑤ engine: this_turn はフラグを立て、continuous と payload 欠落は盤面を変えない', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {}, 'WX24-D5-05');
+  const turn = run({ type: 'STUB', id: 'DOUBLE_POWER_MINUS', doublePowerMinus: { duration: 'this_turn' } } as unknown as EffectAction, ctx);
+  eq(turn.ownerState.double_power_minus_this_turn, true, '🔴this_turn はターンフラグを立てる（旧実装は何もしなかった）');
+
+  const cont = run({ type: 'STUB', id: 'DOUBLE_POWER_MINUS', doublePowerMinus: { duration: 'continuous' } } as unknown as EffectAction, ctx);
+  eq(cont.ownerState.double_power_minus_this_turn, undefined, '対照：【常】宣言はフラグを立てない（effectEngine 側の担当）');
+
+  const none = run({ type: 'STUB', id: 'DOUBLE_POWER_MINUS' } as unknown as EffectAction, ctx);
+  eq(none.ownerState.double_power_minus_this_turn, undefined, 'payload 欠落は fail-closed');
+  ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+}));
+
+// 🔴§5.3 `O-60` 第6バッチ＝`PLACE_CARD_UNDER_SIGNI` は3分岐＋「`lastProcessedCards` を丸ごと下へ」の
+//    フォールバックで、**【チャーム】の効果（`WX16-003-E2`＝手札から裏向きで付ける）が原文と無関係に
+//    直前処理カードを下へ積んでいた**。
+test('O-60⑥ parser: PLACE_CARD_UNDER_SIGNI は placeUnder で置くものを持つ', () => {
+  const found = collectLiveStubs('PLACE_CARD_UNDER_SIGNI', o => o.placeUnder as { mode: string; craftName?: string } | undefined);
+  ok(found.length >= 7, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  eq(found.filter(x => !x.v).length, 0, '🔴payload を持たないノードは0（全文regex撤去の条件）');
+  const one = (effectId: string) => found.find(x => x.effectId === effectId)?.v;
+  eq(one('WX25-CP1-083-E1')?.mode, 'craft', 'クラフト生成');
+  eq(one('WX25-CP1-083-E1')?.craftName, '給食推進車両', '🔴クラフト名を payload が運ぶ（旧実装は全文 regex から読んだ）');
+  eq(one('WXDi-P03-057-E1')?.mode, 'self_under_other', 'このシグニ自身を他のシグニの下へ');
+  eq(one('WX24-P4-046-E1')?.mode, 'processed', '直前に処理したカードを下へ');
+  eq(one('WX16-003-E2')?.mode, 'charm_facedown',
+    '🔴【チャーム】は別機構＝下へ積む近似をしない（旧実装は直前処理カードを積んでいた）');
+});
+
+test('O-60⑥ engine: charm_facedown と payload 欠落はスタックを1枚も動かさない', () => withSavedCursor(() => {
+  const self = fresh();
+  const under = fill(2);
+  const ctx0 = mkCtx({}, {}, self);
+  const ctx = {
+    ...ctx0,
+    lastProcessedCards: fill(2),
+    ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, signi: [null, [...under, self], null] } },
+  } as ExecCtx;
+  const before = (ctx.ownerState.field.signi[1] ?? []).join(',');
+
+  const charm = run({ type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'charm_facedown' } } as unknown as EffectAction, ctx);
+  eq((charm.ownerState.field.signi[1] ?? []).join(','), before, '🔴【チャーム】宣言はスタックを変えない（旧実装は直前処理2枚を積んだ）');
+  ok(charm.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+
+  const none = run({ type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as unknown as EffectAction, ctx);
+  eq((none.ownerState.field.signi[1] ?? []).join(','), before, 'payload 欠落も fail-closed');
+
+  // 🔑対照＝`processed` なら実際に積まれる（この機構が到達可能であることの証拠）。
+  const placed = run({ type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI', placeUnder: { mode: 'processed' } } as unknown as EffectAction, ctx);
+  eq((placed.ownerState.field.signi[1] ?? []).length, 5, '対照：processed は直前処理2枚を下へ積む');
+}));
+
+// 🔴§5.3 `O-60` 第7バッチ＝`TRAP_TO_HAND` は `【トラップ】をN**枚**まで` で全文を読んでいたが、
+//    実データの助数詞は「**つ**」＝**live 5効果すべてが既定の「場の【トラップ】を全部」へ落ちていた**。
+test('O-60⑦ parser: TRAP_TO_HAND は trapToHand で枚数を持つ', () => {
+  const found = collectLiveStubs('TRAP_TO_HAND', o => o.trapToHand as { count: number | 'ALL'; upTo?: boolean } | undefined);
+  ok(found.length >= 5, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  eq(found.filter(x => !x.v).length, 0, '🔴payload を持たないノードは0（全文regex撤去の条件）');
+  const one = (effectId: string) => found.find(x => x.effectId === effectId)?.v;
+  eq(one('WX16-063-E1')?.count, 1, '🔴「【トラップ】１つを対象とし」は1つ（旧実装は3つ全部を回収した）');
+  eq(one('WX16-028-E2')?.count, 1, '同・別カード');
+  eq(one('WX19-037-E1')?.count, 3, '「３つまで」は3');
+  eq(one('WX19-037-E1')?.upTo, true, '同・0枚でもよい');
+  eq(one('WX16-017-E1')?.count, 'ALL', '「好きな数」は ALL');
+});
+
+test('O-60⑦ engine: 1つ指定なら1枚だけ手札へ戻り、payload 欠落では1枚も戻らない', () => withSavedCursor(() => {
+  const traps = fill(3);
+  const ctx0 = mkCtx({}, {}, 'WX16-063');
+  const ctx = {
+    ...ctx0,
+    ownerState: { ...ctx0.ownerState, field: { ...ctx0.ownerState.field, signi_traps: [...traps] } },
+  } as ExecCtx;
+  const hand0 = ctx.ownerState.hand.length;
+
+  const one = run({ type: 'STUB', id: 'TRAP_TO_HAND', trapToHand: { count: 1 } } as unknown as EffectAction, ctx);
+  eq(one.ownerState.hand.length, hand0 + 1, '🔴1つ指定なら手札は1枚だけ増える（旧実装は3枚とも回収した）');
+  eq((one.ownerState.field.signi_traps ?? []).filter(Boolean).length, 2, '同・場には2つ残る');
+
+  const all = run({ type: 'STUB', id: 'TRAP_TO_HAND', trapToHand: { count: 'ALL' } } as unknown as EffectAction, ctx);
+  eq(all.ownerState.hand.length, hand0 + 3, '対照：ALL なら3枚とも戻る（旧既定と同じ挙動が payload で表せる）');
+
+  const none = run({ type: 'STUB', id: 'TRAP_TO_HAND' } as unknown as EffectAction, ctx);
+  eq(none.ownerState.hand.length, hand0, '🔴payload 欠落は fail-closed（過剰側だった旧既定と逆向きに倒す）');
+  ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
+}));
+
 // 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
 //    旧実装は `STUB{SOUL_OP}`＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**別機構**へ
 //    落としており、エナの自分自身を1枚も戻さないまま「そうした場合」の本体だけが通る踏み倒しだった。
