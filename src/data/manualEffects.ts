@@ -2248,32 +2248,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX06-022 大槍　トライデ
-  // 【常】センタールリグが白かつ中央ゾーン在籍かぎり、基本パワーは10000になり、
-  //   「対戦相手の効果によってバニッシュされない」を得る。（条件はPARTIAL）
-  'WX06-022': [
-    {
-      effectId: 'WX06-022-E1',
-      effectType: 'CONTINUOUS',
-      action: {
-        type: 'SEQUENCE',
-        steps: [
-          { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1 }, value: 10000 },
-          {
-            type: 'GRANT_PROTECTION',
-            target: { type: 'SIGNI', owner: 'self', count: 1 },
-            from: ['シグニ', 'アーツ', 'スペル', 'ルリグ'],
-            sourceOwner: 'opponent',
-            duration: 'PERMANENT',
-          },
-        ],
-      } as SequenceAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-  ],
-
   // WX06-033 反復する独自性　グリッド
   // 【出】このターン、あなたの効果によってデッキ上から公開する場合、代わりに1枚多く公開してもよい。
   //   （既存型では表現不可のためUNKNOWNアクション＋MANUALステータス）

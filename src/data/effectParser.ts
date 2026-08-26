@@ -1517,6 +1517,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
   }
 
   // パターン3f2: 「あなたの登録者数がN万人を達成しているかぎり、」（登録者数条件。WXK08-061/064）
+  // 複合形：「登録者数がN万人を達成していて、このシグニが中央のシグニゾーンにあるかぎり、」。
+  // genericKagiri に先に渡すと両条件が丸ごと落ち、引用能力が無条件で付与される。
+  const subscriberCenterM = text.match(/^あなたの登録者数が([０-９\d]+)万人を達成していて、このシグニ[はが]中央のシグニゾーンにあるかぎり、/);
+  if (subscriberCenterM) {
+    return {
+      condition: { type: 'AND', conditions: [
+        { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(subscriberCenterM[1]) },
+        { type: 'IS_SELF_IN_CENTER_ZONE' },
+      ] } as ActiveCondition,
+      rest: text.slice(subscriberCenterM[0].length),
+      conditionFound: true,
+    };
+  }
   const subscriberM = text.match(/^あなたの登録者数が([０-９\d]+)万人を達成しているかぎり、/);
   if (subscriberM) {
     return {
@@ -16107,6 +16120,35 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       ? { type: 'AND', conditions: [extractedTriggerCondition, powCond] }
       : powCond;
     actionText = actionText.replace(/、?このシグニのパワーが[０-９\d]+以上の場合、/, '、').replace(/^、/, '');
+  }
+
+  // 段2 第43バッチ：誘発能力全体を制限する「手札N枚以下＋自身が中央」条件。
+  // action 内の CONDITIONAL にすると任意コストSTUBだけを包み、後続の「そうした場合」帰結が
+  // 条件外で走りうるため、既存 collector が収集時に評価する CardEffect.condition へ持ち上げる。
+  // 閾値は原文から取得し、数字やカード番号には依存しない。
+  const handCenterTriggerM = effectType === 'AUTO' && actionText
+    ? actionText.match(/あなたの手札が([０-９\d]+)枚以下でこのシグニが中央のシグニゾーンにある場合、/)
+    : null;
+  if (handCenterTriggerM) {
+    const handCenterCondition: Condition = { type: 'AND', conditions: [
+      { type: 'HAND_COUNT', owner: 'self', operator: 'lte', value: parseNum(handCenterTriggerM[1]) },
+      { type: 'THIS_CARD_IN_CENTER_ZONE' },
+    ] };
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, handCenterCondition] }
+      : handCenterCondition;
+    actionText = actionText.replace(handCenterTriggerM[0], '');
+  }
+
+  // 「アタックフェイズ開始時、自身が中央なら、相手シグニを対象に色コストを支払ってもよい」形。
+  // 既存の TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の意味は変えず、自己ゾーン条件だけを効果レベルへ足す。
+  if (effectType === 'AUTO' && actionText
+      && /このシグニが中央のシグニゾーンにある場合、対戦相手のシグニ[０-９\d]+体を対象とし、(?:《[白赤青緑黒無]》)+を支払ってもよい/.test(actionText)) {
+    const centerCondition: Condition = { type: 'THIS_CARD_IN_CENTER_ZONE' };
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, centerCondition] }
+      : centerCondition;
+    actionText = actionText.replace(/このシグニが中央のシグニゾーンにある場合、/, '');
   }
 
   // 「このターンにあなたが(色)のアーツを使用していた場合」= 色別 ARTS_USED_THIS_TURN 条件に昇格（WX24-D1-11〜D4-11）。

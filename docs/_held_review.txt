@@ -306,24 +306,6 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
-## +INSTALL_DELAYED_TRIGGER ［1枚］
-WX24-P3-030
---- WX24-P3-030
-  原文: 【自】《自分ターン》《ターン１回》：あなたの＜悪魔＞のシグニの効果１つによってあなたのデッキからカードが１枚以上トラッシュに置かれたとき、その効果によってあなたのトラッシュに置かれたカードの中からカード１枚を対象とし、それを手札に加えるかエナゾーンに置く。【起】《ゲーム１回》ジェラシー《黒×0》：このターン、あなたの効果１つによってデッキからカードが合計１枚
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  - [1].action.delta = -5000
-  ~ [1].action.type : "POWER_MODIFY" → "INSTALL_DELAYED_TRIGGER"
-  + [1].action.duration = "THIS_TURN"
-  + [1].action.trigger.timing = "ON_CARD_MILLED_FROM_DECK"
-  + [1].action.trigger.milledDeckOwner = "self"
-  + [1].action.effect.type = "POWER_MODIFY"
-  + [1].action.effect.target.type = "SIGNI"
-  …（他 5 行）
-
 ## +SEQUENCE ［1枚］
 WX25-P2-001
 --- WX25-P2-001

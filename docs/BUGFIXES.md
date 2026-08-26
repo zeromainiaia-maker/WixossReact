@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：意味照合 段2 第43バッチ＝主語・配置の限定が既定値へ倒れていた9効果
+
+原文にある所有者・中央ゾーン・集合主語・成立条件が parser 木から落ち、engine の既定値
+（`owner:any/count:1`、効果元自身、無条件発動）へ倒れていた9効果を既存語彙だけで是正した。
+
+- `SPDi43-14-E1` / `WXDi-D06-004-E1`：相手中央ゾーンの全シグニだけを対象にする
+  `owner:'opponent', count:'ALL', centerZoneOnly:true` を生成。
+- `WX06-022-E1`：parser の既存パターン6eは正常に条件を生成していた。真因は同じ effectId の古い
+  `manualEffects` shadow が runtime merge で条件を上書きしていたことだったため、shadow を撤去。
+- `WXK08-023-E1` / `WXK01-084-E1` / `WXDi-P12-061-E2`：既存の
+  `SUBSCRIBER_COUNT` / `HAND_COUNT` / 中央ゾーン条件を効果レベルへ配線。既存STUBの意味は不変。
+- `WX14-CB02-E1` / `WX20-081-E1` / `WXDi-P01-039-E2`：単体 `target` を撤去し、
+  `subjectFilter + subjectOwner:'self'` へ変更。5つの保護 collector がすべて `subjectFilter` を読むこと、
+  本3効果が通る `collectBanishEffectProtectedSigni` で集合耐性が実際のBANISH除外まで届くことを確認。
+
+各効果に成立／不成立を両方向で固定する E2E golden を1本ずつ追加。全ゲートは
+golden **2854/2854**、census **562**（563→562、ratchet更新）、smoke/fuzz異常0、
+`census:enginetext` A群 141行/137ハンドラ、lint 0 errors / 263 warnings。
+生パース／live の変化集合は対象9効果だけ（outlier 0）。群Dは既存受け皿の調査だけを行い、実装していない。
+
 ## 2026-08-26：§5.3 `O-73`＝「このターン、〜したとき」の遅延設置が `ON_CARD_MILLED_FROM_DECK` に無く、即時実行に化けていた
 
 > **1巡（続き674・Opus 5）＝母集団実測〜実機まで。** gates 全緑（golden **2844→2845**／smoke 全異常0／fuzz 全0／

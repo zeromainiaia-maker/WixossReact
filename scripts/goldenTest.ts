@@ -48878,6 +48878,158 @@ test('§6.4 O-61 parser: 「〜を対象とし」に explicitTarget が立ち、
 });
 
 // ── 結果出力 ──（⚠ 引数なしの経路は従来と1行も変えない＝runGates は PASS 時に末尾6行だけを表示する）
+// Stage 2 subject/placement audit: batch 43 (nine effects).
+const subjectPlacementEffect = (cardNum: string, effectId: string): CardEffect => {
+  const effect = effectsMap.get(cardNum)?.find(candidate => candidate.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: live effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, delta] of [
+  ['SPDi43-14', 'SPDi43-14-E1', -5000],
+  ['WXDi-D06-004', 'WXDi-D06-004-E1', -2000],
+] as const) {
+  test(`Stage2 subject/placement B43 E2E: ${effectId} modifies only the opponent center zone`, () => withSavedCursor(() => {
+    const effect = subjectPlacementEffect(cardNum, effectId);
+    ok(effect.action.type === 'POWER_MODIFY', `${effectId}: POWER_MODIFY`);
+    if (effect.action.type !== 'POWER_MODIFY') return;
+    eq(effect.action.target.owner, 'opponent', `${effectId}: opponent owner`);
+    eq(effect.action.target.count, 'ALL', `${effectId}: all matching signi`);
+    eq(effect.action.target.filter?.centerZoneOnly, true, `${effectId}: center only`);
+    const harness = new Map<string, CardEffect[]>([[cardNum, [{ ...effect, activeCondition: undefined }]]]);
+    const owner = mkState({ lrig: [cardNum], signi: [SIGNI_L4, null, null] });
+    const opponent = mkState({ signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] });
+    const baseline = calcFieldPowers(owner, opponent, true, new Map(), cardMap);
+    const changed = calcFieldPowers(owner, opponent, true, harness, cardMap);
+    eq((changed.get(SIGNI_L2) ?? 0) - (baseline.get(SIGNI_L2) ?? 0), delta, `${effectId}: opponent center delta`);
+    eq(changed.get(SIGNI_L1), baseline.get(SIGNI_L1), `${effectId}: opponent left unchanged`);
+    eq(changed.get(SIGNI_L3), baseline.get(SIGNI_L3), `${effectId}: opponent right unchanged`);
+    eq(changed.get(SIGNI_L4), baseline.get(SIGNI_L4), `${effectId}: own signi unchanged`);
+  }));
+}
+
+test('Stage2 subject/placement B43 E2E: WX06-022-E1 requires white center LRIG and source in center', () => withSavedCursor(() => {
+  const source = 'WX06-022';
+  const effect = subjectPlacementEffect(source, 'WX06-022-E1');
+  eq(JSON.stringify(effect.activeCondition), JSON.stringify({ type: 'AND', conditions: [
+    { type: 'LRIG_COLOR', owner: 'self', color: '白' }, { type: 'IS_SELF_IN_CENTER_ZONE' },
+  ] }), 'WX06-022-E1: compound active condition');
+  const whiteLrig = findCard(card => card.Type === 'ルリグ' && !!card.Color?.includes('白'));
+  const nonWhiteLrig = findCard(card => card.Type === 'ルリグ' && !card.Color?.includes('白'));
+  const active = mkState({ lrig: [whiteLrig], signi: [null, source, null] });
+  const side = mkState({ lrig: [whiteLrig], signi: [source, null, null] });
+  const wrongColor = mkState({ lrig: [nonWhiteLrig], signi: [null, source, null] });
+  const empty = mkState();
+  eq(calcFieldPowers(active, empty, true, effectsMap, cardMap).get(source), 10000, 'WX06-022-E1: active base power');
+  eq(calcFieldPowers(side, empty, true, effectsMap, cardMap).get(source), 8000, 'WX06-022-E1: side zone inactive');
+  eq(calcFieldPowers(wrongColor, empty, true, effectsMap, cardMap).get(source), 8000, 'WX06-022-E1: non-white LRIG inactive');
+  const protectedActive = collectBanishEffectProtectedSigni(active, empty, true, effectsMap, cardMap);
+  const protectedSide = collectBanishEffectProtectedSigni(side, empty, true, effectsMap, cardMap);
+  ok(protectedActive.has(source), 'WX06-022-E1: active source resists opponent effect banish');
+  ok(!protectedSide.has(source), 'WX06-022-E1: side source has no banish resistance');
+  const banish = (state: PlayerState, protectedNums: Set<string>) => {
+    const ctx = mkCtx({}, {}); ctx.otherState = state; ctx.otherBanishProtectedNums = protectedNums;
+    return run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, ctx).otherState;
+  };
+  ok(banish(active, protectedActive).field.signi[1]?.at(-1) === source, 'WX06-022-E1: active source survives E2E banish');
+  ok(!banish(side, protectedSide).field.signi[0], 'WX06-022-E1: inactive source is banished');
+}));
+
+test('Stage2 subject/placement B43 E2E: WXK08-023-E1 requires 100 subscribers and center zone', () => withSavedCursor(() => {
+  const source = 'WXK08-023';
+  const effect = subjectPlacementEffect(source, 'WXK08-023-E1');
+  eq(JSON.stringify(effect.activeCondition), JSON.stringify({ type: 'AND', conditions: [
+    { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 100 }, { type: 'IS_SELF_IN_CENTER_ZONE' },
+  ] }), 'WXK08-023-E1: compound active condition');
+  const state = (subscribers: number, center: boolean) => {
+    const result = mkState({ signi: center ? [null, source, null] : [source, null, null] });
+    (result as PlayerState & { subscriber_count: number }).subscriber_count = subscribers;
+    return result;
+  };
+  const empty = mkState();
+  const active = state(100, true);
+  const activeGranted = collectGrantedFromLayer(active, empty, true, effectsMap, cardMap).get(source) ?? [];
+  eq(activeGranted.length, 1, 'WXK08-023-E1: quoted ability granted');
+  eq((collectGrantedFromLayer(state(99, true), empty, true, effectsMap, cardMap).get(source) ?? []).length, 0,
+    'WXK08-023-E1: below threshold inactive');
+  eq((collectGrantedFromLayer(state(100, false), empty, true, effectsMap, cardMap).get(source) ?? []).length, 0,
+    'WXK08-023-E1: side zone inactive');
+  const runtime = new Map(effectsMap);
+  runtime.set(source, [...(effectsMap.get(source) ?? []), ...activeGranted]);
+  ok(collectBanishEffectProtectedSigni(active, empty, true, runtime, cardMap).has(source),
+    'WXK08-023-E1: granted ability reaches the banish protection collector');
+}));
+
+test('Stage2 subject/placement B43 E2E: WXK01-084-E1 requires hand <= 1 and center zone', () => withSavedCursor(() => {
+  const source = 'WXK01-084';
+  const active = mkState({ signi: [null, source, null], hand: 1 });
+  const tooMany = mkState({ signi: [null, source, null], hand: 2 });
+  const side = mkState({ signi: [source, null, null], hand: 1 });
+  const empty = mkState();
+  const collect = (state: PlayerState) => cttEntries(trigCtx(HOST, HOST), 'ON_TURN_END', state, empty);
+  const entry = collect(active).find(candidate => candidate.effectId === 'WXK01-084-E1');
+  ok(!!entry, 'WXK01-084-E1: active trigger collected');
+  ok(!collect(tooMany).some(candidate => candidate.effectId === 'WXK01-084-E1'), 'WXK01-084-E1: hand > 1 rejected');
+  ok(!collect(side).some(candidate => candidate.effectId === 'WXK01-084-E1'), 'WXK01-084-E1: side zone rejected');
+  eq(JSON.stringify(entry?.effect.condition), JSON.stringify({ type: 'AND', conditions: [
+    { type: 'HAND_COUNT', owner: 'self', operator: 'lte', value: 1 }, { type: 'THIS_CARD_IN_CENTER_ZONE' },
+  ] }), 'WXK01-084-E1: trigger condition');
+  const ctx = mkCtx({}, {}, source); ctx.ownerState = active; ctx.otherState = empty;
+  eq(run(entry!.effect.action, ctx).ownerState.hand.length, 2, 'WXK01-084-E1: collected effect draws one card');
+}));
+
+test('Stage2 subject/placement B43 E2E: WXDi-P12-061-E2 requires source in center zone', () => withSavedCursor(() => {
+  const source = 'WXDi-P12-061';
+  const center = mkState({ signi: [null, source, null] });
+  const side = mkState({ signi: [source, null, null] });
+  const empty = mkState();
+  const ctx = { ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' as TurnPhase };
+  const centerEntries = cttEntries(ctx, 'ON_ATTACK_PHASE_START', center, empty);
+  const entry = centerEntries.find(candidate => candidate.effectId === 'WXDi-P12-061-E2');
+  ok(!!entry, 'WXDi-P12-061-E2: center trigger collected');
+  ok(!cttEntries(ctx, 'ON_ATTACK_PHASE_START', side, empty).some(candidate => candidate.effectId === 'WXDi-P12-061-E2'),
+    'WXDi-P12-061-E2: side zone rejected');
+  eq(JSON.stringify(entry?.effect.condition), JSON.stringify({ type: 'THIS_CARD_IN_CENTER_ZONE' }),
+    'WXDi-P12-061-E2: center condition');
+  ok(JSON.stringify(entry?.effect.action).includes('TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'),
+    'WXDi-P12-061-E2: existing optional-cost STUB remains unchanged');
+}));
+
+for (const spec of [
+  { cardNum: 'WX14-CB02', effectId: 'WX14-CB02-E1', matches: (card: CardData) => isSigni(card) && card.CardName.includes('燦'), expectedFilter: { cardType: 'シグニ', cardName: '燦' }, sourceOwner: 'any' },
+  { cardNum: 'WX20-081', effectId: 'WX20-081-E1', matches: (card: CardData) => card.Type === 'レゾナ', expectedFilter: { cardType: 'レゾナ' }, sourceOwner: 'opponent' },
+  { cardNum: 'WXDi-P01-039', effectId: 'WXDi-P01-039-E2', matches: (card: CardData) => isSigni(card) && card.Level === '1', expectedFilter: { cardType: 'シグニ', level: 1 }, sourceOwner: 'opponent' },
+] as const) {
+  test(`Stage2 subject/placement B43 E2E: ${spec.effectId} protects the full matching subject set`, () => withSavedCursor(() => {
+    const effect = subjectPlacementEffect(spec.cardNum, spec.effectId);
+    ok(effect.action.type === 'GRANT_PROTECTION', `${spec.effectId}: GRANT_PROTECTION`);
+    if (effect.action.type !== 'GRANT_PROTECTION') return;
+    eq(effect.action.target, undefined, `${spec.effectId}: no single-source target fallback`);
+    eq(effect.action.subjectOwner, 'self', `${spec.effectId}: self subjects`);
+    eq(effect.action.sourceOwner, spec.sourceOwner, `${spec.effectId}: source owner preserved`);
+    eq(JSON.stringify(effect.action.subjectFilter), JSON.stringify(spec.expectedFilter), `${spec.effectId}: subject filter`);
+    const matching = findCard(card => card.CardNum !== spec.cardNum && spec.matches(card));
+    const mismatch = findCard(card => isSigni(card) && card.CardNum !== spec.cardNum && !spec.matches(card));
+    const owner = mkState({ signi: [spec.cardNum, matching, mismatch] });
+    const empty = mkState();
+    const protectedNums = collectBanishEffectProtectedSigni(owner, empty, true, effectsMap, cardMap);
+    ok(protectedNums.has(matching), `${spec.effectId}: matching subject protected`);
+    ok(!protectedNums.has(spec.cardNum), `${spec.effectId}: source not protected merely for being source`);
+    ok(!protectedNums.has(mismatch), `${spec.effectId}: nonmatching subject not protected`);
+    const fromSelfEffect = collectBanishEffectProtectedSigni(owner, empty, true, effectsMap, cardMap, undefined, 'self');
+    eq(fromSelfEffect.has(matching), spec.sourceOwner === 'any', `${spec.effectId}: sourceOwner direction`);
+    if (spec.effectId === 'WXDi-P01-039-E2') {
+      ok(!collectBanishEffectProtectedSigni(owner, empty, false, effectsMap, cardMap).has(matching),
+        `${spec.effectId}: opponent turn inactive`);
+    }
+    const ctx = mkCtx({}, {}); ctx.otherState = owner; ctx.otherBanishProtectedNums = protectedNums;
+    const result = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, ctx);
+    ok(result.otherState.field.signi[1]?.at(-1) === matching, `${spec.effectId}: matching subject survives E2E banish`);
+    ok(!result.otherState.field.signi.some(stack => stack?.at(-1) === mismatch),
+      `${spec.effectId}: nonmatching subject is banished`);
+  }));
+}
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

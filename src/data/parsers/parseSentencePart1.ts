@@ -2377,6 +2377,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const czFilter: TargetFilter = { cardType: 'シグニ', centerZoneOnly: true, ...parseColorFilter(czMods), ...parseStoryFilter(czMods) };
       if (czMods.includes('《ディソナアイコン》')) czFilter.isDisona = true;
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: czFilter };
+    } else if (t.match(/対戦相手の中央のシグニゾーンにある.*?シグニのパワーを/)) {
+      // 「対戦相手の中央のシグニゾーンにある[＜種族＞等の]シグニのパワーを±N」＝
+      // 相手中央ゾーン(index 1)の該当シグニ全体。あなた側だけにあった規則の対戦相手版。
+      // ここを落とすと既定の owner:any/count:1 へ倒れ、任意の1体を選ぶ別効果になる。
+      const oppCzNounM = t.match(/対戦相手の中央のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニのパワーを/);
+      const oppCzMods = oppCzNounM?.[1] ?? '';
+      const oppCzFilter: TargetFilter = { cardType: 'シグニ', centerZoneOnly: true, ...parseColorFilter(oppCzMods), ...parseStoryFilter(oppCzMods) };
+      if (oppCzMods.includes('《ディソナアイコン》')) oppCzFilter.isDisona = true;
+      target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: oppCzFilter };
     } else if (t.match(/あなたの(左|右)のシグニゾーンにある.*?シグニのパワーを/)) {
       // 「あなたの〔左|右〕のシグニゾーンにある[＜種族＞]の?シグニのパワーを±N」＝側方ゾーン(index 0/2)の該当シグニ全体。
       // ⚠中央版（すぐ上）だけが実装されていて左右が無く、この形は既定 else の `owner:'any'/count:1` へ潰れて
@@ -4331,6 +4340,30 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ? from[0] as 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ'
       : undefined;
     if (bySourceType) { from.length = 0; from.push('BANISH'); }
+    // 段2 第43バッチ：集合主語のBANISH耐性。target:{self,count:1} は collector の慣例で
+    // 効果元自身だけを守るため、「あなたの《名称》／レゾナ／レベルNのシグニは」を subjectFilter へ落とす。
+    // 「このシグニは」や明示対象付きの付与文は従来どおり下の単体経路へ残す。
+    const namedBanishSubject = t.match(/あなたの《([^》]+)》は(?:対戦相手の[^。]*)?バニッシュされない/);
+    const levelBanishSubject = t.match(/あなたのレベル([０-９\d]+)のシグニは(?:対戦相手の[^。]*)?バニッシュされない/);
+    const resonaBanishSubject = /あなたのレゾナは(?:対戦相手の[^。]*)?バニッシュされない/.test(t);
+    const collectiveSubjectFilter: TargetFilter | undefined = namedBanishSubject
+      ? { cardType: 'シグニ', cardName: namedBanishSubject[1] }
+      : levelBanishSubject
+        ? { cardType: 'シグニ', level: parseNum(levelBanishSubject[1]) }
+        : resonaBanishSubject
+          ? { cardType: 'レゾナ' }
+          : undefined;
+    if (collectiveSubjectFilter) {
+      return {
+        type: 'GRANT_PROTECTION',
+        ...(bySourceType ? { bySourceType } : {}),
+        subjectFilter: collectiveSubjectFilter,
+        subjectOwner: 'self',
+        from,
+        sourceOwner: /対戦相手の[^。]*(?:効果|能力)[^。]*バニッシュされない/.test(t) ? 'opponent' : 'any',
+        duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
     // 「あなたの（すべての／他の）＜CLASS＞のシグニは…」は、対象を取る1体付与ではなく
     // フィルタ一致集合への保護宣言。引用内の「次にバニッシュされる場合」は1回消費の別語彙が
     // GrantProtectionAction に無いため、恒久耐性へ広げず従来形を維持する。
