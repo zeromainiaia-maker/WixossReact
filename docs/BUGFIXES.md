@@ -1,5 +1,99 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-80` 第1バッチ＝`POWER_MOD_PER_COUNT` の「この方法で〜1枚につき」が**数と対象の二重の過剰実行**だった
+
+> **1巡（続き667・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2823→2825**／census **566→568**＝
+> **可視化（後述）**でベースライン更新／smoke 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／
+> manual-fields 0/0／lint 0 errors・266 warnings／`census:enginetext` A群 142行 据置・
+> **`POWER_MOD_PER_COUNT` の live 58→37効果**・miss カード 76→75）。
+> **実機は新規1本 PASS（`o80PerProcessedCount`）＋回帰1本 PASS（`o60RevealLifeTopArts`）。
+> 反転確認 FAIL 済み**（旧 STUB に戻すと **3体×－2000** を再現＝下の2つの過剰が同時に出る）。
+
+---
+
+### 何が壊れていたか（真因）
+
+「…のパワーを**この方法で〜した〈X〉N枚につき**±M する」は、**この修飾句が在るだけで文全体が
+`STUB{POWER_MOD_PER_COUNT}` の catch-all へ落ち**、engine（`execStubPart1.ts:1683`）が
+**カード全文 regex** で数と適用先を決めていた。実害は**二重の過剰実行**：
+
+| 軸 | 原文 | 旧挙動 |
+|---|---|---|
+| **数** | 「この方法でトラッシュに置かれた**＜悪魔＞のシグニ**１枚につき」 | 絞り込みを無視して**直前に処理した全カード**を数える |
+| **数** | 「この方法で公開されたシグニの**レベルの合計**１につき」 | **枚数**として数える |
+| **対象** | 「対戦相手のシグニ**１体**を対象とし、**それの**パワーを」 | 負のデルタは問答無用で**相手の全シグニ**へ |
+
+実機の反転確認がそのまま両方を再現した＝`WX25-P3-099-E1`（デッキ上2枚をトラッシュ・うち＜悪魔＞は1枚）で
+**旧＝3体×－2000／新＝1体×－1000**。
+
+### どう直したか＝**受け皿は最初から在った**（`O-60` 第5バッチと同型）
+
+`POWER_MODIFY` には **`deltaPerLastProcessedCount`**（倍率＝直前ステップの処理枚数）が、
+`execUtils.resolveNum` には **`{$ref:'last_processed_count', filter}`／`last_processed_level_sum`** が
+最初から在った。**parser がそこへ吐いていなかっただけ。**
+
+1. **parser＝修飾句を外して通常経路に解かせる**（`effectParser.ts` の `parseSingleSentence` 末尾）。
+   対象句のパーサ（「対戦相手のシグニ1体を対象とし…それの」「対戦相手の**すべての**シグニの」
+   「**この**シグニの」「あなたの＜武勇＞のシグニ1体」）は**もともと正しく動く**ので、
+   `POWER_MODIFY` を丸ごともらってから倍率だけを payload で足す＝**規則1本で20効果**が動いた。
+2. **型**＝`PowerModifyAction.perLastProcessed{filter, unit:'cards'|'level_sum', divisor}` を新設。
+3. **engine**＝`lastProcessedUnits()` に集約。🔴**選択UIを跨ぐ経路で delta を焼き込む**修正が要った＝
+   選択後に走る `applyDirectAction` の時点では `lastProcessedCards` が**いま選んだ対象**へ置き換わっており、
+   倍率が必ず1（＝単価そのもの）に潰れる（`deltaFromZone` が同じ罠を踏んだ前例あり）。
+4. **逆翻訳も payload から描く**＝旧実装は「この方法で**捨てた手札**1枚につき」の決め打ちで、
+   ＜悪魔＞のシグニを数える効果でも同じ嘘の文を出していた。
+
+### ⚠踏んだ落とし穴（3つとも「先に置くと壊れる」型）
+
+1. 🔴**新規則を dispatch の前に置くと、専用の受け皿を持つ文まで横取りして退化する**（実測3枚＝
+   `POWER_MODIFY_PER_TRASHED_LEVEL` × 2／`POWER_MODIFY_PER_CHARM` × 1）。
+   ⇒ **`STUB{POWER_MOD_PER_COUNT}` に落ちた文だけを引き取る**（dispatch の後ろへ移した）。
+2. 🔴**「それ」が前文の対象を指す形で `targetsTriggerSource` が立つ**（実測7カード）＝
+   文単位のパーサは前文を見られないので「それ」を**トリガー元＝自分のシグニ**に解決する。
+   そのまま通すと**相手を削るはずの効果が自分のシグニのパワーを下げる**（旧 catch-all より明確に悪い）。
+   ⇒ ①カード全文を見る `applyLeadingOpponentDesignation` の照応判定を**この family に限って**広げて
+   6カードを復元 ②それでも確定できないものは **`STUB{POWER_MOD_PER_COUNT}` へ差し戻す**
+   `revertUnresolvedPerLastProcessed`（fail-closed・`WXK07-051-E1` が該当＝引用能力の中なので外側の
+   カード全文からは照応先が見えない）。
+3. ⚠**修飾句を外すと読点が余る**（`WXK07-054-CB`「それのパワーを、この方法で…につき－1000する」→
+   「それのパワーを、－1000する」）＝そのままでは通常経路も解けない。読点を畳んでから解かせる。
+
+### census 566→568 は**退化ではなく可視化**（続き529 と同型）
+
+census は **STUB を含む効果を高シグナルから免除する**（`js.includes('STUB')`）。21効果を実アクションへ
+移した結果、そのうち3効果が別カテゴリで初めて計上された。**`WXDi-P10-040-E1` は原文が
+【自】このシグニがアタックしたとき…なのに JSON が `CONTINUOUS`/`PERMANENT`**＝
+**先に在ったトリガー脱落**が STUB の陰から出てきた（§5.3 `O-89`）。
+
+### 影響枚数
+
+**live 21効果が変化**（`POWER_MODIFY`＋payload へ19／honest な `DEFERRED_*` へ2）。
+`POWER_MOD_PER_COUNT` の live は **58→37効果**。
+⚠`WX06-019` は MANUAL 効果を持つカードなので `_partial_fresh` 行き＝
+`node scripts/heldReview.mjs --adopt-partial-effect WX06-019-BURST` で効果単位採用した。
+`_held_fresh` 76 ／ `_partial_fresh` 12 ／ `_idset_fresh` 45（いずれも据え置きに復帰）。
+
+⚠**`census:enginetext` の A群行数は動かない**（142 据置）＝ハンドラは残り37効果のために生きている。
+**この項目の進捗は「行数」ではなく `POWER_MOD_PER_COUNT` の live 効果数で測る。**
+
+### 再現手段
+
+- golden＝`npm run golden -- --only "O-80①"`（parser＝対象・絞り込み・レベル合計を両方向で固定／
+  engine＝絞り込み・レベル合計・N枚単位の倍率と、**選択UIを跨いでも倍率が潰れないこと**）。
+- 実機＝`node scripts/verifyBattleDrive.mjs o80PerProcessedCount`。
+  **相手シグニを3体並べる**のが要点＝1体だと「1体だけ」と「全体」が同じ絵になる。
+- 計器＝`npx tsx scripts/censusEngineText.ts --id POWER_MOD_PER_COUNT`。
+
+### 学び
+
+- 🔑**「機構が無い」と決めつける前に、同義の別キーと `{$ref}` の一覧を見る**＝本件は
+  **型も engine も揃っていて parser だけが吐いていなかった**（`O-60` 第5バッチに続き2回目）。
+- 🔑**文単位パーサへ後付けする規則は dispatch の後ろに置く**＝前に置くと「もっと良い受け皿」を横取りする。
+- 🔑**「それ」の照応は文をまたぐ**＝文単位で解くと自分のシグニに化ける。**確定できないものは差し戻す**
+  （fail-closed）ほうが、当てずっぽうで通すより安い。
+
+---
+
 ## 2026-08-26：§5.3 `O-60` 第8バッチ＝`CONDITIONAL_ARTS_COST` は「**コストの話を1文字もしていない4文型**」の catch-all だった
 
 > **1巡（続き666・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2821→2823**／census **572→566**／

@@ -1209,6 +1209,27 @@ export interface PowerModifyAction {
   // ⚠ 現在の手札枚数比例は別型 POWER_MODIFY_PER_HAND_COUNT（handOwner の手札を数える）。混同しないこと。
   deltaPerLastProcessedCount?: boolean;
   /**
+   * `deltaPerLastProcessedCount` の**倍率元を絞る／単位を変える**（§5.3 `O-80` 第1バッチ・2026-08-26）。
+   * 省略＝従来どおり `lastProcessedCards.length`（絞り込みなし・1枚単位）。
+   *
+   * 🔴**これが無かった間、この文型は丸ごと `STUB{POWER_MOD_PER_COUNT}` の catch-all に落ちていた**＝
+   *   engine が**カード全文 regex** で「N枚につき±X」だけを読み、
+   *   ①`黒の`／`＜悪魔＞の`／`スペル` といった**絞り込みを完全に無視して直前処理カードを全部数え**
+   *   ②「レベルの合計1につき」を**枚数**として数え
+   *   ③さらに**負のデルタは問答無用で相手の全シグニへ**適用していた（原文は「対戦相手のシグニ**１体**を
+   *     対象とし、**それの**パワーを」）＝**数と対象の二重の過剰実行**だった。
+   * ⇒ parser が修飾句を外した文を通常経路で解いて `POWER_MODIFY`（正しい `target` つき）を作り、
+   *   倍率だけをこの payload で足す。
+   */
+  perLastProcessed?: {
+    /** 数える対象の絞り込み（「**黒の**シグニ1枚につき」「**＜悪魔＞の**シグニ1枚につき」）。 */
+    filter?: TargetFilter;
+    /** `'level_sum'`＝「〜の**レベル(の合計)1**につき」。省略＝枚数。 */
+    unit?: 'cards' | 'level_sum';
+    /** 「**N枚**につき」の N（既定1）。端数は切り捨て。 */
+    divisor?: number;
+  };
+  /**
    * 「そのシグニのレベル１につき±N」＝**対象シグニ自身のレベル**が倍率（§6.4 O-16(a)）。delta は
    * レベル1あたりの単価として扱う。⚠現状の受け皿は**ゾーン継続の場レベル grant**（`FieldGrant{kind:'power',
    * perTargetLevel:true}`）だけ＝`zoneSource:'designated'` + `count:'ALL'` の経路でのみ意味を持つ。

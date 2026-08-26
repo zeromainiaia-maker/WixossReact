@@ -96,7 +96,11 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 566; // 2026-08-26 §5.3 `O-60` 第8バッチ＝`CONDITIONAL_ARTS_COST` の catch-all を4文型へ分離し、
+const BASELINE_HIGH = 568; // 2026-08-26 §5.3 `O-80` 第1バッチ＝**+2 は退化ではなく可視化**（続き529 と同型）＝
+//   census は **STUB を含む効果を高シグナルから免除する**（`js.includes('STUB')`）ので、21効果を
+//   `STUB{POWER_MOD_PER_COUNT}` から実アクションへ移した結果、そのうち3効果が別カテゴリで初めて計上された
+//   （`WXDi-P10-040-E1` は原文が【自】アタック時なのに JSON が CONTINUOUS/PERMANENT ＝**先に在ったトリガー脱落**が露出）。
+// 旧・O-60⑧: const BASELINE_HIGH = 566; // 2026-08-26 §5.3 `O-60` 第8バッチ＝`CONDITIONAL_ARTS_COST` の catch-all を4文型へ分離し、
 //   「ライフクロスの一番上を公開する／デッキに加えてシャッフルする」を typed `LOOK_AND_REORDER` へ寄せた（572→566）。
 // 旧・O-45: const BASELINE_HIGH = 572; // 2026-08-25 §5.3 `O-45`＝PLACE_UNDER_SIGNI の名詞句修飾（level/クラス/名前/ガード）を filter へ配線（573→572）。旧履歴は直下。
 // 旧・O-67: const BASELINE_HIGH = 573; // コストの「〜をバニッシュする：」に fieldBanish を新設（574→573）。

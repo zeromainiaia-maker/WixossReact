@@ -1572,6 +1572,28 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, lmScope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
+/**
+ * `deltaPerLastProcessedCount` の倍率＝**直前ステップで処理したカードのうち原文が数えている分**
+ * （§5.3 `O-80` 第1バッチ・2026-08-26）。
+ * 🔴**旧 `STUB{POWER_MOD_PER_COUNT}` はここを `lastProcessedCards.length` の素の枚数でしか数えられず**、
+ *   「**黒の**シグニ1枚につき」「**＜悪魔＞の**シグニ1枚につき」「**レベルの合計**1につき」を
+ *   全部「処理した枚数」に潰していた（＝絞り込みぶん過剰）。
+ * ⚠`spec` 省略＝従来どおり素の枚数（既存の `deltaPerLastProcessedCount` 利用箇所の挙動を変えない）。
+ */
+function lastProcessedUnits(spec: PowerModifyAction['perLastProcessed'], ctx: ExecCtx): number {
+  const cards = ctx.lastProcessedCards ?? [];
+  const matched = spec?.filter
+    ? cards.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), spec.filter))
+    : cards;
+  const raw = spec?.unit === 'level_sum'
+    ? matched.reduce((sum, cn) => {
+        const lv = Number.parseInt(ctx.cardMap.get(getCardNum(cn))?.Level ?? '', 10);
+        return sum + (Number.isFinite(lv) ? lv : 0);
+      }, 0)
+    : matched.length;
+  return Math.floor(raw / Math.max(1, spec?.divisor ?? 1));
+}
+
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   // deltaPerLastProcessedCount: 「この方法で捨てた手札1枚につき－N」＝直前ステップで実際に処理した枚数が倍率
   // （WX12-020-E3・タスク12(lx)②）。現在の手札枚数を数える POWER_MODIFY_PER_HAND_COUNT とは別物。
@@ -1580,7 +1602,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const delta = a.deltaFromZone
     ? resolveCountRef(a.delta, ctx, a.deltaFromZone)
     : a.deltaPerLastProcessedCount
-      ? resolveNum(a.delta) * (ctx.lastProcessedCards?.length ?? 0)
+      ? resolveNum(a.delta) * lastProcessedUnits(a.perLastProcessed, ctx)
       : resolveNum(a.delta);
   const srcType = srcTypeOf(ctx);
   // 「そのシグニのレベル１につき±N」（§6.4 O-16(a)）＝delta はレベル1あたりの単価。**ここで数値へ
@@ -1732,7 +1754,15 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
   const count = resolveNum(a.target.count);
   const scope: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
-  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
+  // 🔴**`deltaPerLastProcessedCount` は選択の向こう側では解けない**（§5.3 `O-80` 第1バッチ）＝
+  //   選択後に走る `applyDirectAction` の時点では `lastProcessedCards` が**いま選んだ対象**に
+  //   置き換わっており、倍率が必ず1（＝1枚あたりの単価そのもの）に潰れる。
+  //   ⇒ 選択UIへ渡す action には**ここで解決済みの delta を焼き込む**。
+  //   ⚠`deltaFromZone` は盤面のゾーンを数え直すだけなので焼き込み不要（あちらは選択後も同じ値）。
+  const actionForSelect: PowerModifyAction = a.deltaPerLastProcessedCount
+    ? { ...a, delta, deltaPerLastProcessedCount: false, perLastProcessed: undefined }
+    : a;
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, actionForSelect, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {

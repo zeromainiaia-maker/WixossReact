@@ -952,10 +952,6 @@ function actionJa(a?: Action, effectType?: string): string {
       const aboveRest = a.target?.filter?.aboveSelf ? { ...a.target.filter, aboveSelf: undefined } : undefined;
       const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : (a.targetsLastProcessed || a.targetsStored) ? 'それ' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.aboveSelf ? `このカードの上にある${filterJa(aboveRest)}${a.target.filter.cardName ? '' : 'シグニ'}` : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
       if (a.deltaFromOppPowerDecrease) return `${pmSubj}のパワーを減った値と同じだけ＋する`;
-      // deltaPerLastProcessedCount: 倍率は「この方法で（直前ステップで）処理した枚数」（タスク12(lx)②）
-      if (a.deltaPerLastProcessedCount) {
-        return `${pmSubj}のパワーをこの方法で捨てた手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
-      }
       const pmDuration = a.duration === 'NEXT_TURN'
         ? a.appliesThisTurn
           // 「このターン＋次の対戦相手のターン」＝原文の「次のあなたのターンまで」（§6.4 O-16(a)）。
@@ -968,6 +964,17 @@ function actionJa(a?: Action, effectType?: string): string {
             : '（次のターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         : a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : '';
+      // deltaPerLastProcessedCount: 倍率は「この方法で（直前ステップで）処理した枚数」（タスク12(lx)②）。
+      // 🆕§5.3 `O-80` 第1バッチ（2026-08-26）＝**何を数えるかは `perLastProcessed` から描く**。
+      //   旧実装は「この方法で**捨てた手札**1枚につき」と決め打ちで、`＜悪魔＞のシグニ`／`黒のカード`／
+      //   `レベルの合計` を数える効果でも同じ嘘の文を出していた。
+      if (a.deltaPerLastProcessedCount) {
+        const plp = a.perLastProcessed;
+        const plpF = plp?.filter;
+        const plpNoun = `${plpF?.color ? `${plpF.color}の` : ''}${plpF?.story ? `＜${plpF.story}＞の` : ''}${plpF?.cardType ?? 'カード'}`;
+        const plpUnit = plp?.unit === 'level_sum' ? 'のレベルの合計1' : `${plp?.divisor ?? 1}枚`;
+        return `${pmSubj}のパワーをこの方法で処理した${plpNoun}${plpUnit}につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
+      }
       // deltaPerTargetLevel: 倍率は「対象シグニ自身のレベル」＝delta はレベル1あたりの単価（§6.4 O-16(a)）
       if (a.deltaPerTargetLevel) {
         return `${pmSubj}のパワーをそのシグニのレベル1につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
@@ -3318,6 +3325,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-80` 第1バッチ（2026-08-26）＝旧 `POWER_MOD_PER_COUNT`（＝パワー修整）の catch-all から
+        //   分離した「パワーの話を1文字もしていない」2文型（`O-87`）。
+        DEFERRED_DECLARE_COLOR_PER_PROCESSED: '【未実装】この方法で手札に加えたカード1枚につき、そのカードに含まれる色1つを選択する',
+        DEFERRED_PLACE_TRAP_PER_PROCESSED: '【未実装】この方法で手札に加えた【トラップ】1つにつき、手札からカード1枚を【トラップ】としてあなたのシグニゾーンに設置する',
         // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝旧 `CONDITIONAL_ARTS_COST` の catch-all から分離した4文型。
         //   **どれもコストの話を1文字もしていない**ので、id を意味に合わせて honest にした（§5.3 `O-82`）。
         DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL: '【未実装】あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい',

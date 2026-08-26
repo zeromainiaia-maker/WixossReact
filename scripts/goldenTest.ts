@@ -7966,6 +7966,71 @@ test('O-60⑦ engine: 1つ指定なら1枚だけ手札へ戻り、payload 欠落
   ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
 }));
 
+// 🔴§5.3 `O-80` 第1バッチ（2026-08-26）＝「…のパワーを**この方法で〜した〈X〉N枚につき**±M する」は、
+//    修飾句が在るだけで文全体が `STUB{POWER_MOD_PER_COUNT}` の catch-all へ落ち、engine がカード全文 regex で
+//    数と適用先を決めていた。実害は**二重の過剰実行**＝①絞り込み（`黒の`／`＜悪魔＞の`／`スペル`）を無視して
+//    直前処理カードを全部数える ②「レベル(の合計)1につき」を枚数として数える ③負のデルタを
+//    **問答無用で相手の全シグニへ**適用する（原文は「対戦相手のシグニ**１体**を対象とし、**それの**」）。
+//    ⇒ 受け皿（`POWER_MODIFY.deltaPerLastProcessedCount`）は最初から在り、**parser がそこへ吐いていなかった**。
+test('O-80① parser: この方法で〜1枚につきのパワー修整は POWER_MODIFY へ落ち、対象と絞り込みを持つ', () => {
+  const pmNodes: Array<{ effectId: string; node: Record<string, unknown> }> = [];
+  const walk = (effectId: string, v: unknown): void => {
+    if (!v || typeof v !== 'object') return;
+    if (Array.isArray(v)) { v.forEach(x => walk(effectId, x)); return; }
+    const o = v as Record<string, unknown>;
+    if (o.type === 'POWER_MODIFY' && o.deltaPerLastProcessedCount === true) pmNodes.push({ effectId, node: o });
+    Object.values(o).forEach(x => walk(effectId, x));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  ok(pmNodes.length >= 19, `母集団は live から再導出（実測 ${pmNodes.length} ノード）`);
+  const one = (effectId: string) => pmNodes.find(x => x.effectId === effectId)?.node;
+  const tgt = (effectId: string) => one(effectId)?.target as { owner?: string; count?: unknown } | undefined;
+  const plp = (effectId: string) => one(effectId)?.perLastProcessed as
+    { filter?: { color?: string; story?: string; cardType?: string }; unit?: string; divisor?: number } | undefined;
+
+  // 🔴適用先＝原文どおり「対戦相手のシグニ**1体**」（旧実装は相手の全シグニへ撃っていた）。
+  eq(tgt('WX25-P3-099-E1')?.owner, 'opponent', '対象は対戦相手');
+  eq(tgt('WX25-P3-099-E1')?.count, 1, '🔴1体だけ（旧実装は相手の全シグニ）');
+  eq(plp('WX25-P3-099-E1')?.filter?.story, '悪魔', '🔴数えるのは＜悪魔＞のシグニだけ（旧実装は全部）');
+  eq(plp('WX22-Re07-E1')?.filter?.color, '黒', '「黒のシグニ1枚につき」の色');
+  eq(plp('WXDi-P05-043-E1')?.filter?.cardType, 'スペル', '「スペル1枚につき」のカードタイプ');
+  eq(plp('WX05-015-E1')?.unit, 'level_sum', '🔴「レベル1につき」は枚数ではなくレベルの合計');
+  eq(tgt('WX05-015-E1')?.count, 'ALL', '対照：原文が「対戦相手のすべてのシグニ」ならそのまま ALL');
+  // 「それ」が前文の対象を指す形も、カード全文を見る後段が owner を復元する。
+  eq(tgt('WXEX1-64-E1')?.owner, 'opponent',
+    '🔴「対戦相手のシグニ1体を対象とし…。ターン終了時まで、それの」＝自分のシグニに化けない');
+});
+
+test('O-80① engine: 倍率は絞り込み・レベル合計・N枚単位で決まり、対象選択を跨いでも保たれる', () => withSavedCursor(() => {
+  const black = findCard(c => c.Type === 'シグニ' && (c.Color ?? '') === '黒' && (c.Level ?? '') === '3');
+  const white = findCard(c => c.Type === 'シグニ' && (c.Color ?? '') === '白' && (c.Level ?? '') === '1');
+  const victim = fresh();
+  const base = mkCtx({}, { signi: [victim, null, null] }, SIGNI);
+  const ctx = { ...base, lastProcessedCards: [black, black, white] } as ExecCtx;
+  const modOf = (r: ExecResult) => (r.otherState.temp_power_mods ?? []).reduce((s, m) => s + m.delta, 0);
+  const pm = (extra: Record<string, unknown>) => ({
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+    delta: -1000, deltaPerLastProcessedCount: true, ...extra,
+  } as unknown as EffectAction);
+
+  eq(modOf(run(pm({}), ctx)), -3000, '絞り込みなし＝処理した3枚');
+  eq(modOf(run(pm({ perLastProcessed: { filter: { color: '黒' } } }), ctx)), -2000,
+    '🔴「黒の」で絞ると2枚（旧実装は絞れず3枚ぶん撃っていた）');
+  eq(modOf(run(pm({ perLastProcessed: { unit: 'level_sum' } }), ctx)), -7000,
+    '🔴レベル合計は 3+3+1＝7（旧実装は枚数3で数えていた）');
+  eq(modOf(run(pm({ perLastProcessed: { divisor: 2 } }), ctx)), -1000, '「2枚につき」は切り捨て（3枚→1単位）');
+
+  // 🔴対象選択を挟む形＝選択後は `lastProcessedCards` が「選んだ対象」に置き換わるので、
+  //    倍率を選択前に焼き込んでいないと必ず1倍（＝単価そのもの）に潰れる。
+  const picked = run({
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+    delta: -1000, deltaPerLastProcessedCount: true,
+  } as unknown as EffectAction, ctx);
+  eq(modOf(picked), -3000, '🔴選択UIを通っても3倍のまま（焼き込み無しだと -1000 に潰れる）');
+}));
+
 // 🔴§5.3 `O-60` 第8バッチ（2026-08-26）＝`CONDITIONAL_ARTS_COST` は**カード全文**（`EffectText`＋`BurstText`）を
 //    regex 2本で読んで条件を判定していた。実害は「この id が**コストの話を1文字もしていない4文型**の
 //    catch-all だった」こと＝`SP38-001`（センタールリグをグロウしてもよい）・`WX16-Re20`（追加で

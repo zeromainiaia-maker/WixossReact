@@ -4412,6 +4412,41 @@ function applySameLevelInsideLastProcessedGate(text: string, action: EffectActio
   return walk(action);
 }
 
+
+
+/** 「それ」の指し先が確定できなかった `deltaPerLastProcessedCount` を旧 STUB へ差し戻す（§5.3 `O-80` 第1バッチ）。 */
+function revertUnresolvedPerLastProcessed(node: unknown): void {
+  if (Array.isArray(node)) { node.forEach(revertUnresolvedPerLastProcessed); return; }
+  if (!node || typeof node !== 'object') return;
+  const o = node as Record<string, unknown>;
+  if (o.type === 'POWER_MODIFY' && o.deltaPerLastProcessedCount === true && o.targetsTriggerSource === true) {
+    for (const k of Object.keys(o)) delete o[k];
+    o.type = 'STUB';
+    o.id = 'POWER_MOD_PER_COUNT';
+    return;
+  }
+  Object.values(o).forEach(revertUnresolvedPerLastProcessed);
+}
+
+/** `STUB{POWER_MOD_PER_COUNT}` がこの action ツリーのどこかに居るか（§5.3 `O-80` 第1バッチ）。 */
+function containsPowerModPerCount(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(containsPowerModPerCount);
+  if (!node || typeof node !== 'object') return false;
+  const o = node as Record<string, unknown>;
+  if (o.type === 'STUB' && o.id === 'POWER_MOD_PER_COUNT') return true;
+  return Object.values(o).some(containsPowerModPerCount);
+}
+
+/** action ツリー中の `POWER_MODIFY` ノードを（書き換え可能な参照のまま）集める（§5.3 `O-80` 第1バッチ）。 */
+function collectPowerModifyNodes(node: unknown, out: PowerModifyAction[] = []): PowerModifyAction[] {
+  if (Array.isArray(node)) { node.forEach(v => collectPowerModifyNodes(v, out)); return out; }
+  if (!node || typeof node !== 'object') return out;
+  const o = node as Record<string, unknown>;
+  if (o.type === 'POWER_MODIFY') out.push(o as unknown as PowerModifyAction);
+  Object.values(o).forEach(v => collectPowerModifyNodes(v, out));
+  return out;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = rewritePerLastProcessedCount(action, text);
@@ -5185,6 +5220,65 @@ function parseSingleSentenceInner(text: string): EffectAction {
     parseBareOptionalHandDiscard(t) ??
     parseMultiZoneReturnToDeck(t) ??
     { type: 'UNKNOWN', raw: t } as UnknownAction;
+
+  // 🔴§5.3 `O-80` 第1バッチ（2026-08-26）＝「…のパワーを**この方法で〜した〈X〉N枚につき**±M する」。
+  //   この修飾句が**在るだけで**文全体が `STUB{POWER_MOD_PER_COUNT}` の catch-all へ落ち、engine が
+  //   カード全文 regex で数と適用先を決めていた。実害は二重の過剰実行：
+  //   ①`黒の`／`＜悪魔＞の`／`スペル` の**絞り込みを無視して直前処理カードを全部数える**
+  //   ②「レベル(の合計)1につき」を**枚数**として数える
+  //   ③さらに**負のデルタは問答無用で相手の全シグニへ**適用する（原文は「対戦相手のシグニ**１体**を
+  //     対象とし、**それの**パワーを」）。
+  //   ⇒ **修飾句を外した文を通常経路にそのまま解かせる**（対象句のパーサはもともと正しく動く）。
+  //     得られた `POWER_MODIFY` に倍率だけを payload で足す。受け皿（`deltaPerLastProcessedCount`）は
+  //     最初から在り、`{$ref:'last_processed_count', filter}` も execUtils に在った＝**parser が
+  //     そこへ吐いていなかっただけ**（§4.2「同義の別キーを必ず探す」＝`O-60` 第5バッチと同型）。
+  //   ⚠パワー／レベルの増減文にだけ効かせる（「この方法で手札に加えたカード1枚につき**色1つを選択する**」
+  //     `WX12-Re07-E1` や「…**【トラップ】として設置する**」`WX16-017-E1` は別機構なので触らない）。
+  // ⚠**通常経路の後ろに置く**＝先に置くと `POWER_MODIFY_PER_TRASHED_LEVEL`／`POWER_MODIFY_PER_CHARM` の
+  //   ような**専用の受け皿を持つ文まで横取りして退化させる**（実測3枚。初版でこれを踏んだ）。
+  //   catch-all の `STUB{POWER_MOD_PER_COUNT}` に落ちた文だけを引き取る。
+  if (containsPowerModPerCount(result)) {
+    const perLpM = t.match(/この方法で([^、。]*?)(のレベル(?:の合計)?)?([０-９\d]+)[枚体つ個]?につき/);
+    if (perLpM && /パワーを/.test(t)) {
+      // ⚠修飾句を外すと**読点が余る**（`WXK07-054-CB`「それのパワーを、この方法で…につき－1000する」→
+      //   「それのパワーを、－1000する」）＝そのままでは通常経路も解けない。読点を畳んでから解かせる。
+      const strippedLp = t.replace(perLpM[0], '').replace(/、\s*、/g, '、').replace(/を、(?=[＋－+-])/, 'を');
+      const innerLp =
+        parseSentencePart1(strippedLp, _parsingCardNum) ??
+        parseSentencePart2(strippedLp) ??
+        parseSentencePart3(strippedLp) ??
+        parseSentencePart4(strippedLp);
+      // ⚠**修飾句を外した文の解析結果を丸ごと採る**（`POWER_MODIFY` 単体とは限らない＝
+      //   「そうした場合、…」は `CONDITIONAL` に包まれる／`SEQUENCE` になることもある）。
+      //   ただし**倍率を足せる `POWER_MODIFY` がちょうど1つ**あるときだけ（複数あるとどれに掛かるか決まらない）。
+      const pmNodes = innerLp ? collectPowerModifyNodes(innerLp) : [];
+      // ⚠**「それ」が前文の対象を指す形（`targetsTriggerSource` が立つ）でも引き取ってよい**＝
+      //   カード全文を見る後段 `applyLeadingOpponentDesignation` が
+      //   「〈対戦相手のシグニN体〉を対象とし…」から owner を復元してこのフラグを外す
+      //   （そのために下でこの family を照応の対象に加えてある）。**片方だけ入れると
+      //   「自分のシグニのパワーを下げる」に化ける**ので、2つはセットで動かすこと。
+      if (innerLp && pmNodes.length === 1 && typeof pmNodes[0].delta === 'number') {
+        // 数える対象の絞り込みを名詞句から取る（「黒のシグニ」「＜悪魔＞のシグニ」「スペル」…）。
+        // ⚠【チャーム】【ウィルス】等の非カード名詞句は**絞り込みなし**（＝処理したもの全部）にする。
+        const npLp = perLpM[1];
+        const filterLp: TargetFilter = {};
+        const colorLpM = npLp.match(/([白青赤緑黒])の/);
+        if (colorLpM) filterLp.color = colorLpM[1];
+        const storyLpM = npLp.match(/＜([^＞]+)＞/);
+        if (storyLpM) filterLp.story = storyLpM[1];
+        if (/シグニ/.test(npLp)) filterLp.cardType = 'シグニ';
+        else if (/スペル/.test(npLp)) filterLp.cardType = 'スペル';
+        const divisorLp = parseNum(perLpM[3]);
+        pmNodes[0].deltaPerLastProcessedCount = true;
+        pmNodes[0].perLastProcessed = {
+          ...(Object.keys(filterLp).length ? { filter: filterLp } : {}),
+          ...(perLpM[2] ? { unit: 'level_sum' as const } : {}),
+          ...(divisorLp > 1 ? { divisor: divisorLp } : {}),
+        };
+        return innerLp;
+      }
+    }
+  }
 
   // 「カードをN枚引き、X」で下流パーサが先頭 DRAW を落としていた場合のみ DRAW を前置する。
   // ⚠isolation で rest を再parse しない（＝続き59で revert した eager split の敗因＝複合ハンドラ
@@ -7482,8 +7576,20 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   //   付与先（`GRANT_EFFECT{thisCardOnly}`）が **相手シグニへの付与に化ける**（`WXDi-P07-063`＝自分に付けるはずの
   //   「アタック時バニッシュ」が相手シグニへ付いた）。走査は引用を伏せ字にしたテキストで行う。
   const scan = text.replace(/「[^」]*」/g, '「」');
+  // 🆕§5.3 `O-80` 第1バッチ（2026-08-26）＝接続節が「そうした場合、」ではなく**期間句**の形
+  //   （`WXEX1-64`「対戦相手のシグニ１体を対象とし、手札から…捨ててもよい。**ターン終了時まで、それの**
+  //   パワーをこの方法で捨てたシグニのレベル１につき－2000する」）。
+  //   ⚠**この family に限定する**＝末尾が `deltaPerLastProcessedCount` つきの `POWER_MODIFY` で、かつ
+  //   「それ」をトリガー元へ解決してしまっているときだけ。一般に広げると別バッチ（実測22効果が動く）。
+  const perLpTail = findTailAction(action) as (EffectAction & {
+    deltaPerLastProcessedCount?: boolean; targetsTriggerSource?: boolean;
+  }) | null;
+  const isPerLpAnaphora = !!perLpTail && perLpTail.type === 'POWER_MODIFY'
+    && perLpTail.deltaPerLastProcessedCount === true && perLpTail.targetsTriggerSource === true
+    && /、それ(?:ら)?[をのは]/.test(scan);
   const hasAnaphora = /そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/.test(scan)
-    || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(scan);
+    || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(scan)
+    || isPerLpAnaphora;
   if (!hasAnaphora) return action;
   if ((scan.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
   // 「代わりに」置換は前段/後段の二重 power-modify/除去へ平坦化される別系統（タスク6）。findTail が末尾だけ
@@ -9929,6 +10035,14 @@ function parseActionTextBody(text: string): EffectAction {
     applyDeckTopMillTargetAnaphora(source,
       applySelectedTargetTrashReplacement(source, parseBase(source))));
   let parsed = parse(text);
+  // 🔴**fail-closed の最後の砦**（§5.3 `O-80` 第1バッチ・2026-08-26）＝
+  //   「ターン終了時まで、**それの**パワーをこの方法で〜1枚につき±N」の「それ」が、
+  //   カード全文を見る `applyLeadingOpponentDesignation` でも確定できなかった場合、
+  //   `targetsTriggerSource`（＝トリガー元＝**自分のシグニ**）が残る。そのまま通すと
+  //   **相手を削るはずの効果が自分のシグニのパワーを下げる**（旧 catch-all の「相手全体」より悪い）。
+  //   ⇒ 確定できなかったものは**旧 `STUB{POWER_MOD_PER_COUNT}` へ差し戻す**（挙動は据え置き＝
+  //   `census:enginetext` の worklist にも残り続けるので、次のバッチで拾える）。
+  revertUnresolvedPerLastProcessed(parsed);
   parsed = prependShuffleBeforeTopDeckAction(text, parsed);
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);

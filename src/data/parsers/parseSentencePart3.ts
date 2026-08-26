@@ -2676,6 +2676,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- この方法で〜N単位につきパワー±N / コスト減少（汎用）----
+  // 🔴§5.3 `O-80` 第1バッチ（2026-08-26）＝ここは **`POWER_MOD_PER_COUNT`（＝パワー修整）の catch-all**
+  //   だが、実データには**パワーの話を1文字もしていない文**が混ざっていた（id が嘘をつく）。
+  //   パワー文は `effectParser.ts` の後段が `POWER_MODIFY` へ引き取るので、ここでは**別物2件だけ**を先に外す。
+  if (t.match(/この方法で.*[０-９\d]+枚?につきそのカードに含まれる色[０-９\d]+つを選択する/)) {
+    return { type: 'STUB', id: 'DEFERRED_DECLARE_COLOR_PER_PROCESSED' } as StubAction;
+  }
+  if (t.match(/この方法で.*【トラップ】[０-９\d]+つにつき.*【トラップ】として.*設置する/)) {
+    return { type: 'STUB', id: 'DEFERRED_PLACE_TRAP_PER_PROCESSED' } as StubAction;
+  }
   if (t.match(/この方法で.*につき/)) {
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
   }

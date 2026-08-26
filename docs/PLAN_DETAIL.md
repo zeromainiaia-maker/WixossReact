@@ -2,6 +2,16 @@
 
 ### 恒久指標アーカイブ（PLAN §6 から退避）
 
+- **2026-08-26 続き666 後（本行が直近の正）**：
+  **census 566/566**（`O-60` 第8バッチの逆翻訳是正の副産物＝572→566・`BASELINE_HIGH` 更新済み）、**golden 2823**（第8バッチ +2）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 266）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **`census:enginetext` A群 142行 / 138ハンドラ**（B 59／C 27・miss ありハンドラ 43・miss カード 76）、
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1032**（据置。`O-60` 第8は**12効果**が変化＝payload 追加8／`DEFERRED_*` へ2／typed `LOOK_AND_REORDER` へ2）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（いずれも据置＝parser 改善が凍っていない）、
+  **実機シナリオ +1**（`o60RevealLifeTopArts`）、
+  **`npm run golden` の所要＝全件 約152秒／`--only` 約1.5秒**
+
 - **2026-08-26 続き665 後（本行が直近の正）**：
   **census 572/572**（`O-60` では動かず＝engine の全文 regex は census の網に載らない）、**golden 2821**（第5〜7バッチ +6）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、

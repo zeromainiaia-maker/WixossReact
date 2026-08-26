@@ -31309,6 +31309,107 @@ order.push('o60RevealLifeTopArts');
 // ── §5.3 O-60 第8バッチ END ──
 
 
+// ── §5.3 `O-80` 第1バッチ（2026-08-26）＝「この方法で〜1枚につき」のパワー修整 ──
+// 🔴`WX25-P3-099-E1`（凶魔 アニマ）＝「【出】：あなたのデッキの上からカードを２枚トラッシュに置く。
+//   その後、**対戦相手のシグニ１体を対象とし**、ターン終了時まで、それのパワーを
+//   **この方法でトラッシュに置かれた＜悪魔＞のシグニ１枚につき**－1000する。」
+//   旧実装は文全体を `STUB{POWER_MOD_PER_COUNT}` の catch-all へ落とし、engine がカード全文 regex で
+//   「１枚につき－1000」だけを読んでいた＝**二重の過剰実行**：
+//   ①＜悪魔＞の絞り込みを無視して**トラッシュした2枚とも**数える（－2000）
+//   ②負のデルタは問答無用で**相手の全シグニ**へ適用する（原文は1体）。
+// ■ 観測点＝`guest.powerMods` の**件数と値の両方**を見る（片方だけでは①②を区別できない）。
+//   期待＝**1件・－1000**（デッキ上2枚のうち＜悪魔＞は1枚だけ）。旧実装なら**3件・－2000**。
+const O80_DEMON = 'WD05-013#1';      // 小悪の象徴 コオニ（＜悪魔＞ Lv1・能力なし）＝数えられる側
+const O80_NONDEMON = 'WD01-013#1';   // ＜悪魔＞ではないカード＝数えられない側
+const o80PerCountSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#1'],                 // Lv4（Lv1 シグニの召喚をリミットで弾かない）
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,                          // 罠1
+    'deck': [O80_DEMON, O80_NONDEMON],            // 上2枚＝トラッシュされる（＜悪魔＞は1枚だけ）
+    'trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#1'],
+    // 3体並べる＝「1体だけ」と「全体」を区別できる盤面にする（1体だと旧実装でも同じ絵になる）
+    'field.signi': [['WD05-010#2'], ['WD05-012#2'], ['WX02-067#2']],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+  },
+  handPrepend: ['WX25-P3-099#1'],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+async function o80PerCountDrive(page, H) {
+  const before = await H.queryState();
+  H.log('  開始: deck上=', (before?.host?.deckCards ?? []).slice(0, 3), 'gPowerMods=', JSON.stringify(before?.guest?.powerMods));
+  await H.ensureMain();
+  H.log('  手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false;
+  let milledSeen = false;
+  let modsSeen = [];
+  let last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o80PerCount-${s}.png`, fullPage: true });
+    let did = null;
+    if (!summoned) {
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+    }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+    // SELECT_TARGET（相手シグニ1体）＝罠6 のとおり index は表示順なので、どれでもよい本件は pick-0 で吸収する
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    // 罠8d＝「起きた」判定は sticky にする。トラッシュは後続処理（手札上限の捨て札など）で
+    // 中身が入れ替わるので、**ミルを観測した瞬間**を覚えておかないと前提崩れに見える（実測で1度踏んだ）。
+    const tr = last?.host?.trashCards ?? [];
+    if (tr.includes(O80_DEMON) && tr.includes(O80_NONDEMON)) milledSeen = true;
+    if (!modsSeen.length && (last?.guest?.powerMods ?? []).length) modsSeen = last.guest.powerMods;
+    H.log(`  o80[${s}] -> ${did ?? 'なし'} | milled=${milledSeen} hTrash=${JSON.stringify(tr)} gMods=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (modsSeen.length && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o80PerCount-final.png`, fullPage: true });
+  const mods = modsSeen;
+  const trashed = last?.host?.trashCards ?? [];
+  const detail = `milled=${milledSeen} gMods=${JSON.stringify(mods)} hTrash=${JSON.stringify(trashed)}`;
+  // 前提＝【出】が走ってデッキ上2枚がトラッシュへ行ったこと（走っていないなら判定の意味が無い）
+  // ⚠**判定の順番**＝先に「本題」を見る。ミル観測（前提）を先に置くと、旧挙動の再現
+  //   （3体×－2000）が出ているのに「前提崩れ」で落ちて**何が壊れているか報告に出ない**。
+  if (mods.length === 0) {
+    return { pass: false, detail: milledSeen
+      ? `パワー修整が1件も入らなかった。${detail}`
+      : `前提崩れ＝【出】が走っていない（ミルもパワー修整も観測できず）。${detail}` };
+  }
+  if (mods.length !== 1) {
+    return { pass: false, detail: `🔴対象が「1体」ではない（${mods.length}体に入った）＝旧 catch-all の「相手の全シグニ」。${detail}` };
+  }
+  const delta = Number(String(mods[0]).split(':').at(-1));
+  if (delta !== -1000) {
+    return { pass: false, detail: `🔴数え方が違う（${delta}）＝＜悪魔＞の絞り込みを無視して2枚とも数えている。${detail}` };
+  }
+  if (!milledSeen) return { pass: false, detail: `前提崩れ＝ミルを1度も観測できていない。${detail}` };
+  return { pass: true, detail: `対戦相手のシグニ1体だけに－1000（＜悪魔＞1枚ぶん）。${detail}` };
+}
+scenarios.o80PerProcessedCount = {
+  title: 'WX25-P3-099-E1（O-80①＝この方法でトラッシュした＜悪魔＞1枚につき－1000）＝1体だけ・絞り込み込みで数える',
+  spec: o80PerCountSpec(),
+  drive: o80PerCountDrive,
+};
+order.push('o80PerProcessedCount');
+// ── §5.3 O-80 第1バッチ END ──
+
+
 
 
 

@@ -2,6 +2,18 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-26・続き666・Opus 5）＝§5.3 `O-60` 第8バッチ＝`CONDITIONAL_ARTS_COST` は「コストの話を1文字もしていない4文型」の catch-all だった**
+  - 🔴**壊れていたのは engine の分岐ではなく「parser がこの id へ何を流し込んでいたか」**＝実コストの適用は engine ではなく `screens/battle/costs.ts`（支払い時）なので、このハンドラは**ログを出すだけ**。にもかかわらず parser の生成地点4箇所のうち**コストの話をしていたのは1箇所だけ**で、「センタールリグを**グロウ**してもよい」（`SP38-001`）・「このアーツは**追加で《アタックフェイズアイコン》を持つ**」（`WX16-Re20`）・「**ライフクロスの一番上を公開する**」（`WD06-008`）・「**ライフの一番上をデッキに加えてシャッフル**」（`WXDi-D04-010`）まで載せていた。
+  - 🔑**受け皿は「同じ効果の別ステップ」に居た**＝`WXDi-D04-010-E1` は**第1ステップが既に typed `LOOK_AND_REORDER`（life_cloth）**で、第2ステップだけ STUB に落ちていた。**同じ効果の中を先に見る**のが一番安い受け皿探し（§4.2 の再確認）。`WD06-008` も同じ型で受かった。
+  - 🔴**「miss が少ない＝正しい」ではない**＝計器値は miss4/live12 だが、**当たっていた8件のうち1件（`WX20-020`）は当たったうえで間違っていた**（複合条件「自Lv4以下**かつ**相手Lv5以上」の**前半しか読まない**）。**開いて読むまで分からない**は両方向に効く。
+  - ✅**live 12効果が変化**（payload 追加8／honest な `DEFERRED_*` へ2／typed `LOOK_AND_REORDER` へ2）。**payload 被覆 100%**（全文 regex 撤去の条件）。`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45 据置。**`census:enginetext` A群 143→142行・miss カード 80→76**。
+  - ✅**逆翻訳の副産物で census 高シグナル欠落が 572→566**＝typed `LOOK_AND_REORDER` の描画を2点是正（**行き先が元と違うのに `reorder` が無い＝移動なのに「見る」としか出ない**／`private:false` は「公開する」で「見る」ではない＝73行）。
+  - 🔑**実機は「盤面だけ見ると旧実装と同じ絵」**＝公開はライフを元へ戻すので、**`pending_effect.interaction.type === 'LOOK_AND_REORDER'` を1度でも観測すること**を必須条件にした（§4.4 罠4）。反転確認も FAIL 済み。
+
+**▶ 次の一手**＝**`O-60` 第9バッチ**（計器の上位＝`LOOK_AND_REORDER` miss4/live6＝**parser 生成地点15箇所の catch-all**・`SEED_BLOOM|SEED_BLOOM_OPTIONAL` miss4/live6＝リテラルは `好きな枚数` 1本のみ・`GAIN_EXTRA_TURN` miss4/live5）、または **§5.3 `O-80`（`POWER_MOD_PER_COUNT`＝L・複数バッチ）**か `O-81`〜`O-86`／`O-77`／`O-78`／`O-79`。
+- 🔑**バッチを取る前に「消費地点の数」「末尾 else の有無」「同義の別 id」に加えて、同じ効果の他のステップを見る**（第8バッチはこれで受け皿が見つかった）。
+- 🔴**`CONDITIONAL_ARTS_COST` で残った本丸は engine ではなく UI 層**＝`screens/battle/costs.ts` の `computeArtsEffectiveCost` は**原文 EffectText を支払いのたびに再パースする 30本超の regex 機械**（`O-60` の計器は `src/engine/` しか見ないので**映らない**）。→ §5.3 `O-86` に登録した。
+
 - 🏁**セッション（2026-08-26・続き665・Opus 5）＝§5.3 `O-60` をさらに3バッチ消化（第5〜7）＝`DOUBLE_POWER_MINUS` / `PLACE_CARD_UNDER_SIGNI` / `TRAP_TO_HAND`**
   - 🔴**3件とも「live の全効果で regex が1本も当たらない」状態だった**＝⑤7効果が無言 no-op／⑥【チャーム】の効果が「下に積む」に化ける／⑦「【トラップ】**１つ**」が**3つ全部の回収**に化ける。
   - 🔑**⑤は「受け皿が在るのに parser が別 id を吐いていた」型**＝`double_power_minus_this_turn` フラグも `effectEngine` の2倍化も、**同じことをする別 id `DOUBLE_POWER_MINUS_THIS_TURN` も最初から在った**。engine を1行も新設せず、**parser が payload を刻むだけで7効果が動いた**。⇒ **「機構が無い」と決めつける前に同義の別 id を探す**（§4.2 の再確認）。
