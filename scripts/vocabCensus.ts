@@ -96,7 +96,9 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 572; // 2026-08-25 §5.3 `O-45`＝PLACE_UNDER_SIGNI の名詞句修飾（level/クラス/名前/ガード）を filter へ配線（573→572）。旧履歴は直下。
+const BASELINE_HIGH = 566; // 2026-08-26 §5.3 `O-60` 第8バッチ＝`CONDITIONAL_ARTS_COST` の catch-all を4文型へ分離し、
+//   「ライフクロスの一番上を公開する／デッキに加えてシャッフルする」を typed `LOOK_AND_REORDER` へ寄せた（572→566）。
+// 旧・O-45: const BASELINE_HIGH = 572; // 2026-08-25 §5.3 `O-45`＝PLACE_UNDER_SIGNI の名詞句修飾（level/クラス/名前/ガード）を filter へ配線（573→572）。旧履歴は直下。
 // 旧・O-67: const BASELINE_HIGH = 573; // コストの「〜をバニッシュする：」に fieldBanish を新設（574→573）。
 // 旧・O-65: const BASELINE_HIGH = 574; // 「ライフクロスはクラッシュされない」を DEFERRED 宣言へ（576→574）。
 // 旧・段2 第45バッチ: const BASELINE_HIGH = 582; // トラッシュ／エナゾーンの存在・枚数条件を11効果へ配線（583→582）。

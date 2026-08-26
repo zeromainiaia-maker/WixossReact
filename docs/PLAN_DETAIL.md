@@ -1,7 +1,16 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
-
 ### 恒久指標アーカイブ（PLAN §6 から退避）
+
+- **2026-08-26 続き665 後（本行が直近の正）**：
+  **census 572/572**（`O-60` では動かず＝engine の全文 regex は census の網に載らない）、**golden 2821**（第5〜7バッチ +6）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 263）**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**、
+  **`census:enginetext` A群 143行 / 139ハンドラ**（B 59／C 26・miss ありハンドラ 44・miss カード 80）、
+  **live カード 5975 / 効果総数 10693 / MANUAL 効果 1032**（据置。`O-60` 第5〜7は payload 追加＝**19効果**）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（いずれも据置＝parser 改善が凍っていない）、
+  **実機シナリオ +3**（`b60TrapToHandOne`／`b60DoubleMinusArts`／`b60DoubleMinusNoArts`。累計 `b60*` 9本）、
+  **`npm run golden` の所要＝全件 約156秒／`--only` 約1.5秒**
 
 - **2026-08-25 続き658 後（本行が直近の正）**：
 

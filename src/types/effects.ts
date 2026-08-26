@@ -2984,6 +2984,42 @@ export interface StubAction {
     /** 「N つ**まで**」＝0枚でもよい。 */
     upTo?: boolean;
   };
+  /**
+   * `CONDITIONAL_ARTS_COST`：**どの条件でアーツの使用コストが変わるか**
+   * （§5.3 `O-60` 第8バッチ・2026-08-26）。
+   *
+   * 🔴**従来 engine はカード全文（`EffectText`＋`BurstText`）を regex 2本で読んで条件を判定していた**。
+   *   実害は2つ：
+   *   ①**この id は「条件つきアーツコスト」ではない4文型の catch-all**だった（§5.3 `O-82`）＝
+   *     「センタールリグをグロウしてもよい」（`SP38-001-E1`）・「このアーツは追加で
+   *     《アタックフェイズアイコン》を持つ」（`WX16-Re20-E1`）・「ライフクロスの一番上を公開する」
+   *     （`WD06-008-E1`）・「ライフクロスの一番上のカードをデッキに加えてシャッフルする」
+   *     （`WXDi-D04-010-E1`）＝**コストの話が1文字も無い効果**に「条件付きアーツコスト（確認完了）」を
+   *     addLog していた（＝id が嘘をつく）。
+   *   ②regex がカード全文を見るので、**同じカードの別の能力**のコスト文まで拾いうる。
+   *
+   * ⚠**実コストの適用はここではない**＝`screens/battle/costs.ts` の `computeArtsEffectiveCost` /
+   *   `computeCostReplacement` が支払い時に行う（このハンドラは**条件の成否をログに出すだけ**）。
+   *   したがって payload が無くても盤面は壊れない＝**未指定なら条件を判定せずログだけ出す**。
+   */
+  artsCostCond?: {
+    /**
+     * `opp_center_lrig_color`＝「対戦相手のセンタールリグが〈色〉の場合」／
+     * `center_lrig_level`＝「あなたのセンタールリグのレベルがN以上／以下の場合」／
+     * `self_life_count`＝「あなたのライフクロスがN枚以下の場合」。
+     */
+    kind: 'opp_center_lrig_color' | 'center_lrig_level' | 'self_life_count';
+    /** `opp_center_lrig_color`＝許容する色（原文「赤か青」→ `['赤','青']`）。 */
+    colors?: string[];
+    /** `center_lrig_level`＝自分センターの閾値／`self_life_count`＝ライフ枚数の閾値。 */
+    level?: number;
+    /** `center_lrig_level` / `self_life_count`＝閾値の向き。 */
+    op?: '以上' | '以下';
+    /** `center_lrig_level`＝**対戦相手**センターにも掛かる追加条件（`WX20-020-E1`）。 */
+    oppLevel?: number;
+    /** 上の `oppLevel` の向き。 */
+    oppOp?: '以上' | '以下';
+  };
   placeUnder?: {
     /**
      * `craft`＝ゲーム外からクラフトを生成して下に置く（`craftName` 必須）／

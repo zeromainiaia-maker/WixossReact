@@ -31213,6 +31213,102 @@ order.push(
 // ── §5.3 O-46 END ──
 
 
+// ── §5.3 `O-60` 第8バッチ（2026-08-26）＝`CONDITIONAL_ARTS_COST` の catch-all 解体 ──
+// 🔴`WD06-008`（バツ・エニー・アザー）の原文2文目「**あなたのライフクロスの一番上を公開する**」は、
+//   parser が `STUB{CONDITIONAL_ARTS_COST}` へ流し込んでいた（＝この id の生成地点の1つが
+//   「あなたのライフクロスの…」という**コストと無関係な条件**で発火していた）。engine 側の
+//   ハンドラは**カード全文 regex** で条件を探し、どれにも当たらないので
+//   「条件付きアーツコスト（確認完了）」を addLog するだけ＝**公開が1度も起きなかった**。
+// ⇒ parser を分離して typed `LOOK_AND_REORDER`（life_cloth・`private:false`）へ寄せた。
+// ■ 観測点（罠4＝盤面だけを見ると偽陽性）＝**`pending_effect.interaction.type === 'LOOK_AND_REORDER'`
+//   を1度でも観測すること**を必須にする。公開はライフを元に戻すので**盤面だけ見ると旧実装と同じ絵**になる。
+// ■ 併せて「旧実装の嘘ログ（`条件付きアーツコスト`）が出ないこと」も見る（こちらは補助＝単独では判定しない）。
+const O60_LIFE_TOP = 'WD03-009#21';           // ライフの一番上（life_cloth の末尾＝`execLookAndReorder` の読み位置）
+const o60RevealLifeTopSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#1'],                                  // 青センター（限定なしのアーツなので任意）
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,                                           // 罠1＝前シナリオのクラッシュ確認が残ると全クリックが通らない
+    'lrig_deck': ['WD06-008#1'],                                   // アーツ バツ・エニー・アザー（《青》×3・限定なし・アタックフェイズ）
+    'energy': ['WD03-013#1', 'WD03-013#2', 'WD03-013#3'],          // 青×3（アーツコスト）
+    'life_cloth': ['WD03-013#21', 'WD03-013#22', 'WD03-013#23', O60_LIFE_TOP],
+    'lrig_trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },  // CardData.Timing＝アタックフェイズのみ
+});
+async function o60RevealLifeTopDrive(page, H) {
+  const before = await H.queryState();
+  H.log('  開始: life=', JSON.stringify(before?.host?.lifeCards), 'energy=', before?.host?.energy, 'lrigDeck=', before?.host?.lrigDeck, 'phase=', before?.turnPhase);
+  if ((before?.host?.lrigDeckCards ?? []).indexOf('WD06-008#1') < 0) {
+    return { pass: false, detail: `前提崩れ＝ルリグデッキにアーツが入っていない（${JSON.stringify(before?.host?.lrigDeckCards)}）` };
+  }
+  H.log('  ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('  アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  const paid = new Set();          // 罠8p＝コスト候補セルはトグル＝1枚につき1回だけ押す
+  let sawLookInteraction = false;  // 罠8d＝「起きた」判定は sticky（pending は数百msで消える）
+  let last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o60revealLifeTop-${s}.png`, fullPage: true });
+    let did = null;
+    // ArtsModal Phase2＝青×3 を選んでから「アーツ使用」（未選択のうちは disabled＝罠8b）
+    const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+    if (await submit.count() && await submit.isVisible().catch(() => false)) {
+      if (await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); did = 'btn:アーツ使用'; }
+      else {
+        for (const i of [0, 1, 2]) {
+          if (paid.has(i)) continue;
+          const e = page.getByTestId(`artscost-energy-${i}`).first();
+          if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); paid.add(i); did = `artscost-energy-${i}`; }
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['使用']);
+    if (!did) did = await H.clickBtn('3を宣言');                       // DECLARE_NUMBER（1〜5の CHOOSE）
+    if (!did) did = await H.clickBtn('決定', { exact: true });          // LOOK_AND_REORDER モーダルの確定
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK', 'はい']);
+    last = await H.queryState();
+    if (last?.pendingEffect === 'LOOK_AND_REORDER') sawLookInteraction = true;
+    H.log(`  o60life[${s}] -> ${did ?? 'なし'} | declared=${last?.host?.declaredNumber ?? '-'} sawLook=${sawLookInteraction} life=${JSON.stringify(last?.host?.lifeCards)} lrigTrash=${last?.host?.lrigTrash} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (sawLookInteraction && last?.host?.declaredNumber != null
+        && (last?.host?.lrigTrash ?? 0) > (before?.host?.lrigTrash ?? 0)
+        && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o60revealLifeTop-final.png`, fullPage: true });
+  const lifeBefore = before?.host?.lifeCards ?? [];
+  const lifeAfter = last?.host?.lifeCards ?? [];
+  const oldLie = (last?.logTail ?? []).find(l => /条件付きアーツコスト/.test(l)) ?? null;
+  const detail = `declared=${last?.host?.declaredNumber ?? '-'} sawLook=${sawLookInteraction} life ${JSON.stringify(lifeBefore)}→${JSON.stringify(lifeAfter)} lrigTrash ${before?.host?.lrigTrash}→${last?.host?.lrigTrash} 旧ログ=${oldLie ?? 'なし'}`;
+  if ((last?.host?.lrigTrash ?? 0) <= (before?.host?.lrigTrash ?? 0)) {
+    return { pass: false, detail: `前提崩れ＝アーツを撃てていない（ルリグトラッシュへ行っていない）。${detail}` };
+  }
+  // 罠4＝機構が動いた証拠を必須条件にする（公開はライフを戻すので盤面だけでは旧実装と区別できない）
+  if (!sawLookInteraction) {
+    return { pass: false, detail: `🔴ライフ公開の対話が1度も立たなかった＝旧実装と同じ「何もしない」。${detail}` };
+  }
+  if (lifeAfter.length !== lifeBefore.length || lifeAfter.at(-1) !== O60_LIFE_TOP) {
+    return { pass: false, detail: `🔴公開しただけなのにライフが動いた（枚数か一番上が変わった）。${detail}` };
+  }
+  if (oldLie) return { pass: false, detail: `🔴旧 catch-all のログが残っている＝parser が分離できていない。${detail}` };
+  return { pass: true, detail: `ライフの一番上を公開（LOOK_AND_REORDER 対話）→ ${O60_LIFE_TOP} が一番上のまま戻る。${detail}` };
+}
+scenarios.o60RevealLifeTopArts = {
+  title: 'WD06-008-E1（O-60⑧＝ライフの一番上を公開する）＝旧 CONDITIONAL_ARTS_COST catch-all では1度も公開しなかった',
+  spec: o60RevealLifeTopSpec(),
+  drive: o60RevealLifeTopDrive,
+};
+order.push('o60RevealLifeTopArts');
+// ── §5.3 O-60 第8バッチ END ──
+
+
 
 
 

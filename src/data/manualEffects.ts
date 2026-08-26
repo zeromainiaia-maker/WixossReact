@@ -937,7 +937,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WX20-020 サティスファクション（アーツ）以下の4つから2つまで選ぶ
-  // ・冒頭のコスト軽減（自L4以下&相手L5以上で《無×1》）は CONDITIONAL_ARTS_COST STUB のまま（未実装）。
+  // ・冒頭のコスト軽減（自L4以下&相手L5以上で《無×1》）は CONDITIONAL_ARTS_COST STUB のまま（実コストの
+  //   適用は支払い時の `computeArtsEffectiveCost`）。🆕§5.3 `O-60` 第8バッチ（2026-08-26）で engine が
+  //   カード全文 regex を読むのをやめたので、**条件は payload で刻む**（落とすと条件がログに出なくなる）。
   // ・④ADD_TO_FIELD はエンジン上【出】を発動させないため「【出】能力は発動しない」を既定で満たす。
   'WX20-020': [
     {
@@ -946,7 +948,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['MAIN', 'ATTACK'],
       cost: { energy: [{ color: '無', count: 6 }] },
       action: { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' },
+        { type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+          artsCostCond: { kind: 'center_lrig_level', level: 4, op: '以下', oppLevel: 5, oppOp: '以上' } },
         { type: 'CHOOSE', choose_count: 2, from_count: 4, upTo: true, choices: [
           { choiceId: 'c0', label: '対戦相手のシグニ1体をバニッシュ',
             action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } },

@@ -27,6 +27,7 @@ import type {
   ConditionalAction,
   SigniAttackBanAction,
   SigniDeployBanAction,
+  LookAndReorderAction,
 } from '../../types/effects';
 import {
   parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa,
@@ -1607,8 +1608,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のセンタールリグが〜の場合、このアーツの使用コストは〜になる ----
-  if (t.match(/対戦相手のセンタールリグが.*の場合、このアーツの使用コストは/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+  // 🔴§5.3 `O-60` 第8バッチ：engine はここまで**カード全文**を regex で読んで色を決めていた（＝同じカードの
+  //   別能力の色まで拾いうる）。parser が色を刻み、engine は payload だけで判定する。
+  {
+    const oppColorCostM = t.match(/対戦相手のセンタールリグが(.*?)の場合、このアーツの使用コストは/);
+    if (oppColorCostM) {
+      const colorsACC = oppColorCostM[1].split(/か|と/).map(c => c.trim()).filter(Boolean);
+      return {
+        type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+        artsCostCond: { kind: 'opp_center_lrig_color', colors: colorsACC },
+      } as StubAction;
+    }
   }
 
   // ---- この方法でカードをN枚以上捨てた場合、捨てた枚数＋Nのカードを引く ----
@@ -1939,10 +1949,31 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEFERRED_TRASH_NAME_CHOOSE_COUNT' } as StubAction;
   }
 
-  // ---- センタールリグのレベルが〜の場合のアーツコスト変動 ----
+  // ---- センタールリグのレベル条件（§5.3 `O-60` 第8バッチで3文型に分離）----
+  // 🔴旧実装は「センタールリグのレベルが〜の場合」を**全部** `CONDITIONAL_ARTS_COST`（＝アーツの使用コスト）
+  //   へ流していたが、実データには**コストの話が1文字も無い文**が混ざっていた
+  //   （`SP38-001-E1`「…対戦相手より低い場合、あなたのセンタールリグを**グロウしてもよい**」）＝id が嘘をつく。
   if (t.match(/あなたのセンタールリグのレベルが.+の場合/) ||
       t.match(/あなたのセンタールリグのレベルが対戦相手より/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+    const myLvACC = t.match(/あなたのセンタールリグのレベルが([０-９\d]+)(以上|以下)/);
+    if (myLvACC && /使用コスト/.test(t)) {
+      // `WX20-020-E1`「あなたのセンタールリグのレベルが４以下**で、対戦相手のセンタールリグのレベルが５以上**の場合」
+      const oppLvACC = t.match(/対戦相手のセンタールリグのレベルが([０-９\d]+)(以上|以下)/);
+      return {
+        type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+        artsCostCond: {
+          kind: 'center_lrig_level',
+          level: parseNum(myLvACC[1]),
+          op: myLvACC[2] as '以上' | '以下',
+          ...(oppLvACC ? { oppLevel: parseNum(oppLvACC[1]), oppOp: oppLvACC[2] as '以上' | '以下' } : {}),
+        },
+      } as StubAction;
+    }
+    // 「対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい」＝条件つきグロウ（§5.3 `O-83`）。
+    if (/グロウ/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL' } as StubAction;
+    }
+    return { type: 'STUB', id: 'DEFERRED_UNPARSED_CENTER_LRIG_LEVEL_CLAUSE' } as StubAction;
   }
 
   // ---- 対戦相手のパワーN以下/以上のシグニを対象とし手札から〜 ----
@@ -2207,10 +2238,44 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
   }
 
-  // ---- ライフクロスが〜の場合の条件テキスト ----
+  // ---- ライフクロス条件／ライフクロス上部の操作（§5.3 `O-60` 第8バッチで4文型に分離）----
+  // 🔴旧実装はこの2条件に当たった文を**全部** `CONDITIONAL_ARTS_COST` にしていたが、実データの中身は
+  //   ①「ライフクロスの一番上を**公開する**」（`WD06-008-E1`）②「ライフクロスの一番上のカードを
+  //   **デッキに加えてシャッフルする**」（`WXDi-D04-010-E1`）③「このアーツは**追加で
+  //   《アタックフェイズアイコン》を持つ**」（`WX16-Re20-E1`）＝**コストの話が1文字も無い**。
   if (t.match(/あなたのライフクロスが[０-９\d]+枚以下の場合/) ||
       t.match(/あなたのライフクロスの(?:上から|一番上)/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+    // ①「あなたのライフクロスの一番上を公開する」＝受け皿は typed `LOOK_AND_REORDER`（公開＝`private:false`）。
+    if (/^あなたのライフクロスの一番上を公開する$/.test(t)) {
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { location: 'life_cloth', owner: 'self' },
+        count: 1, private: false, reorder: false, canTrash: false,
+        destination: { location: 'life_cloth', owner: 'self', position: 'top' },
+      } as LookAndReorderAction;
+    }
+    // ②「あなたのライフクロスの一番上のカードをデッキに加えてシャッフルする」＝life_cloth→deck（shuffle）。
+    if (/^あなたのライフクロスの一番上のカードをデッキに加えてシャッフルする$/.test(t)) {
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { location: 'life_cloth', owner: 'self' },
+        count: 1, private: true, reorder: false, canTrash: false, shuffle: true,
+        destination: { location: 'deck', owner: 'self', position: 'top' },
+      } as LookAndReorderAction;
+    }
+    // ③「このアーツは追加で《アタックフェイズアイコン》を持つ」＝条件つき追加使用タイミング（§5.3 `O-84`）。
+    if (/この(?:アーツ|カード)は追加で《[^》]+》を持つ/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_EXTRA_USE_TIMING' } as StubAction;
+    }
+    // ④ 本当にコストの話をしている文だけが `CONDITIONAL_ARTS_COST` を名乗る。
+    const lifeCntACC = t.match(/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/);
+    if (lifeCntACC && /使用コスト/.test(t)) {
+      return {
+        type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+        artsCostCond: { kind: 'self_life_count', level: parseNum(lifeCntACC[1]), op: lifeCntACC[2] as '以上' | '以下' },
+      } as StubAction;
+    }
+    return { type: 'STUB', id: 'DEFERRED_UNPARSED_LIFE_CLOTH_CLAUSE' } as StubAction;
   }
 
   // ---- センタールリグが＜X＞の場合、パワー±N → CONDITIONAL + POWER_MODIFY ----
@@ -2603,9 +2668,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
   }
 
-  // ---- 選んだカードによって追加効果（CHOOSE系）----
+  // ---- 「場にシグニがN体ある場合、代わりにカードを〜トラッシュに置く」＝置換（live 0・§5.3 `O-60` 第8バッチ）----
+  // ⚠旧 id は `CONDITIONAL_ARTS_COST` だったが**コストの話ではない**。live 0 の死んだ枝は catch-all の温床
+  //   なので、意味に合う honest な id へ移した（`O-85`）。
   if (t.match(/あなたの場に.*シグニが[０-９\d]+体ある場合、代わりにカードを.*トラッシュに置く/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_FIELD_COUNT_ALT_TRASH' } as StubAction;
   }
 
   // ---- この方法で〜N単位につきパワー±N / コスト減少（汎用）----

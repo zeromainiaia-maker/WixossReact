@@ -7966,6 +7966,63 @@ test('O-60⑦ engine: 1つ指定なら1枚だけ手札へ戻り、payload 欠落
   ok(none.logs.some(l => l.includes('未実装')), '無言 no-op ではなくログに残る');
 }));
 
+// 🔴§5.3 `O-60` 第8バッチ（2026-08-26）＝`CONDITIONAL_ARTS_COST` は**カード全文**（`EffectText`＋`BurstText`）を
+//    regex 2本で読んで条件を判定していた。実害は「この id が**コストの話を1文字もしていない4文型**の
+//    catch-all だった」こと＝`SP38-001`（センタールリグをグロウしてもよい）・`WX16-Re20`（追加で
+//    《アタックフェイズアイコン》を持つ）・`WD06-008`（ライフの一番上を公開する）・`WXDi-D04-010`
+//    （ライフの一番上をデッキに加えてシャッフル）にまで「条件付きアーツコスト（確認完了）」を出していた。
+// 🔑実コストの適用は engine ではなく `screens/battle/costs.ts`（支払い時）。このハンドラはログだけ。
+test('O-60⑧ parser: CONDITIONAL_ARTS_COST は artsCostCond で条件を持ち、コスト以外の文は名乗らない', () => {
+  const found = collectLiveStubs('CONDITIONAL_ARTS_COST',
+    o => o.artsCostCond as { kind: string; colors?: string[]; level?: number; op?: string; oppLevel?: number } | undefined);
+  ok(found.length >= 8, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  eq(found.filter(x => !x.v).length, 0, '🔴payload を持たないノードは0（全文regex撤去の条件）');
+  const one = (effectId: string) => found.find(x => x.effectId === effectId)?.v;
+  eq(one('WX18-009-E1')?.kind, 'opp_center_lrig_color', '「対戦相手のセンタールリグが赤か青の場合」');
+  eq((one('WX18-009-E1')?.colors ?? []).join('/'), '赤/青', '🔴色は parser が刻む（旧実装はカード全文から読んだ）');
+  eq(one('WX20-020-E1')?.kind, 'center_lrig_level', '「あなたのセンタールリグのレベルが4以下で…」');
+  eq(one('WX20-020-E1')?.level, 4, '同・自分センターの閾値');
+  eq(one('WX20-020-E1')?.op, '以下', '同・向き');
+  eq(one('WX20-020-E1')?.oppLevel, 5, '🔴複合条件の「対戦相手のレベル5以上」も落とさない（旧 regex は前半しか見なかった）');
+  // 🔴catch-all だった4文型が、この id を名乗らなくなったことを両方向で固定する。
+  const ids = new Set(found.map(x => x.effectId));
+  for (const gone of ['SP38-001-E1', 'WX16-Re20-E1', 'WD06-008-E1', 'WXDi-D04-010-E1']) {
+    ok(!ids.has(gone), `🔴${gone} はコストの話をしていない＝この id を名乗らない`);
+  }
+});
+
+test('O-60⑧ engine: 条件判定は payload だけで決まり、payload 欠落でも盤面は変わらない', () => withSavedCursor(() => {
+  const red = lrigOfColor('赤');
+  const white = lrigOfColor('白');
+  const lv4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const lv5 = findCard(c => c.Type === 'ルリグ' && c.Level === '5');
+  const mk = (myLrig: string, oppLrig: string) => mkCtx({ lrig: [myLrig] }, { lrig: [oppLrig] }, 'WX18-009');
+
+  const hit = run({ type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+    artsCostCond: { kind: 'opp_center_lrig_color', colors: ['赤', '青'] } } as unknown as EffectAction, mk(white, red));
+  ok(hit.logs.some(l => l.includes('条件達成')), '相手センターが赤＝条件達成');
+
+  const miss = run({ type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+    artsCostCond: { kind: 'opp_center_lrig_color', colors: ['赤', '青'] } } as unknown as EffectAction, mk(white, white));
+  ok(miss.logs.some(l => l.includes('未達成')), '対照：相手センターが白＝未達成');
+
+  // 複合条件（`WX20-020-E1`）＝**両方**満たしたときだけ達成。
+  const bothOk = run({ type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+    artsCostCond: { kind: 'center_lrig_level', level: 4, op: '以下', oppLevel: 5, oppOp: '以上' } } as unknown as EffectAction, mk(lv4, lv5));
+  ok(bothOk.logs.some(l => l.includes('条件達成')), '自Lv4以下かつ相手Lv5以上＝条件達成');
+  const halfOnly = run({ type: 'STUB', id: 'CONDITIONAL_ARTS_COST',
+    artsCostCond: { kind: 'center_lrig_level', level: 4, op: '以下', oppLevel: 5, oppOp: '以上' } } as unknown as EffectAction, mk(lv4, lv4));
+  ok(halfOnly.logs.some(l => l.includes('未達成')),
+    '🔴対照：相手がLv4なら未達成（旧 regex は前半しか読まず、ここが常に達成に見えていた）');
+
+  // payload 欠落＝条件を判定しないだけ（このハンドラは盤面に触れないので fail の向きは問題にならない）。
+  const ctxNone = mk(white, red);
+  const before = JSON.stringify([ctxNone.ownerState, ctxNone.otherState]);
+  const none = run({ type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as unknown as EffectAction, ctxNone);
+  eq(JSON.stringify([none.ownerState, none.otherState]), before, 'payload 欠落でも盤面は1つも変わらない');
+  ok(none.logs.some(l => l.includes('条件未指定')), '無言ではなくログに残る');
+}));
+
 // 🔴「このシグニをエナゾーンからデッキの一番下に置いてもよい」＝**任意コスト**（§5.3 `O-55`・`WXDi-P02-044-E1`）。
 //    旧実装は `STUB{SOUL_OP}`＝「シグニの下のカード（ソウル）を使用して発動しますか？」という**別機構**へ
 //    落としており、エナの自分自身を1枚も戻さないまま「そうした場合」の本体だけが通る踏み倒しだった。

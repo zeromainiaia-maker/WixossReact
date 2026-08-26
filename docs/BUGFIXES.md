@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-60` 第8バッチ＝`CONDITIONAL_ARTS_COST` は「**コストの話を1文字もしていない4文型**」の catch-all だった
+
+> **1巡（続き666・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2821→2823**／census **572→566**／
+> smoke 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／manual-fields 0/0／lint 0 errors・266 warnings／
+> `census:enginetext` **A群 143→142行・miss カード 80→76**）。
+> **実機は新規1本 PASS（`o60RevealLifeTopArts`）。反転確認 FAIL 済み**（live を旧 STUB に戻すと
+> 「ライフ公開の対話が1度も立たない」で落ちる）。
+
+---
+
+### 何が壊れていたか（真因）
+
+`execStubPart1.ts` の `CONDITIONAL_ARTS_COST` ハンドラは**カード全文**（`EffectText`＋`BurstText`）を
+regex 2本で読んで条件を判定していた。ただし**実コストの適用はここではない**＝
+`screens/battle/costs.ts` の `computeArtsEffectiveCost` / `computeCostReplacement` が支払い時に行うので、
+このハンドラ自体は**ログを出すだけ**。したがって「壊れていた」のは engine の分岐ではなく、
+**parser がこの id へ何を流し込んでいたか**のほうだった。
+
+live 12効果の内訳（実測）＝
+
+| 文型 | 効果 | 旧挙動 |
+|---|---|---|
+| 対戦相手のセンタールリグが〈色〉の場合、使用コストは《X×2》になる | 7効果（`WX18-009`ほか） | 正当（regex が当たる） |
+| あなたのセンタールリグのレベルが4以下で、対戦相手が5以上の場合、使用コストは《無×1》 | `WX20-020-E1`（MANUAL） | **前半しか読まない**＝相手のレベルを見ずに達成扱い |
+| あなたのセンタールリグのレベルが対戦相手より低い場合、**センタールリグをグロウしてもよい** | `SP38-001-E1` | 🔴コストの話ではない |
+| あなたのライフクロスが2枚以下の場合、**このアーツは追加で《アタックフェイズアイコン》を持つ** | `WX16-Re20-E1` | 🔴コストの話ではない |
+| **あなたのライフクロスの一番上を公開する** | `WD06-008-E1` | 🔴コストの話ではない＝**公開が1度も起きない** |
+| **あなたのライフクロスの一番上のカードをデッキに加えてシャッフルする** | `WXDi-D04-010-E1`② | 🔴コストの話ではない＝**ライフもデッキも動かない** |
+
+parser の生成地点4箇所のうち、**コストの話をしていたのは1箇所だけ**だった
+（`parseSentencePart3.ts` の 1611／1945／2213／2608）。うち 2608（「場にシグニがN体ある場合、
+代わりにカードを〜トラッシュに置く」）は **live 0 件の死んだ枝**で、`O-60` 第5バッチの教訓どおり
+**catch-all の温床**になっていた。
+
+### どう直したか
+
+1. **payload 化**＝`StubAction.artsCostCond{kind, colors, level, op, oppLevel, oppOp}` を新設。
+   parser が条件を刻み、engine は **payload だけで判定**（カード全文 regex を撤去）。
+   `WX20-020-E1` は複合条件（自Lv4以下**かつ**相手Lv5以上）も落とさない。
+2. **catch-all の解体**＝コストの話をしていない4文型を分離した。
+   - `WD06-008-E1`／`WXDi-D04-010-E1`②＝**受け皿が既に在った**（typed `LOOK_AND_REORDER` の
+     `source.location:'life_cloth'`。`WXDi-D04-010-E1` の**第1ステップが既にこの形**だった）＝
+     `private:false`（公開）と `destination:{deck}+shuffle:true` で正しく表せる。§4.2「同義の別キーを必ず探す」。
+   - `SP38-001-E1`（条件つきグロウ・§5.3 `O-83`）／`WX16-Re20-E1`（条件つき追加使用タイミング・`O-84`）／
+     2608 の死んだ枝（`O-85`）＝**honest な `DEFERRED_*` へ改名**して `miscStubMap` に日本語説明を足した。
+3. **逆翻訳も payload から描く**＝`decompileEffects.ts` に `artsCostCond` 版の分岐を前置。
+   ついでに typed `LOOK_AND_REORDER` の描画を2点直した（**この2点で census 高シグナル欠落が 572→566**）：
+   - **行き先が元のゾーンと違うのに `reorder` が無い**形＝並べ替えではなく**移動**なのに
+     「ライフクロス1枚を**見る**」としか出ず、**移した事実が逆翻訳から消えていた**。
+   - `private:false` は原文「**公開する**」＝相手にも見せる。「見る」と書くと非公開に読める（73行が是正）。
+
+### 影響枚数
+
+**live 12効果が変化**（`WX18-009`／`WX18-012`／`WX18-015`／`WX18-018`／`WX18-026`／`WXK05-015`／
+`WXK05-018`／`WX20-020`＝payload 追加、`SP38-001`／`WX16-Re20`＝honest な `DEFERRED_*` へ、
+`WD06-008`／`WXDi-D04-010`＝typed `LOOK_AND_REORDER` へ）。
+⚠`WX20-020` は `MANUAL` なので `build:effects` では届かない＝`npx tsx scripts/syncManualLive.ts WX20-020` で同期した。
+⚠残り4件は `_held_fresh` へ回るので `node scripts/heldReview.mjs --adopt SP38-001,WD06-008,WX16-Re20,WXDi-D04-010` で採用。
+`_held_fresh` 76 ／ `_partial_fresh` 12 ／ `_idset_fresh` 45（いずれも据え置き）。
+
+### 再現手段
+
+- golden＝`npm run golden -- --only "O-60⑧"`（parser 側＝payload 被覆 100%・catch-all だった4効果が
+  この id を名乗らないことを両方向で固定／engine 側＝複合条件の**片方だけ**では未達成になること）。
+- 実機＝`node scripts/verifyBattleDrive.mjs o60RevealLifeTopArts`。
+  **観測点は `pending_effect.interaction.type === 'LOOK_AND_REORDER'` を1度でも見ること**（§4.4 罠4）＝
+  公開はライフを元へ戻すので**盤面だけ見ると旧実装と同じ絵**になる。
+- 計器＝`npx tsx scripts/censusEngineText.ts --id CONDITIONAL_ARTS_COST`（第8バッチ後は A群から消える）。
+
+### 学び
+
+- 🔑**「miss が多い＝壊れている」ではないのと同じくらい、「miss が少ない＝正しい」でもない。**
+  本件の計器値は miss4/live12 で、当たっていた8件のうち **1件（`WX20-020`）は当たったうえで間違っていた**
+  （複合条件の前半しか読まない）。**開いて読むまで分からない**（`O-60` 登録票の再確認）。
+- 🔑**id が嘘をつくと計器から消える。** このハンドラは盤面に触れないので `smoke`／`fuzz`／`golden` は
+  全部緑のままで、**逆翻訳だけが「使用コストが変わる」と言い続けていた**。
+- 🔑**受け皿は「同じ効果の別ステップ」に居ることがある**＝`WXDi-D04-010-E1` は**第1ステップが
+  typed `LOOK_AND_REORDER`（life_cloth）**で、第2ステップだけが STUB に落ちていた。
+  **同じ効果の中を先に見る**のが一番安い受け皿探しだった。
+
+---
+
 ## 2026-08-26：§5.3 `O-60` 第5〜7バッチ＝engine の全文 regex をさらに3ハンドラぶん payload 化（3件とも **live 全効果が1本も当たらない**状態だった）
 
 > **1巡（続き665・Opus 5）＝実装〜実機まで。** gates 全緑（golden **2815→2821**／census 572 据え置き／

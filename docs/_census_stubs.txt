@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 2881 件）
-逆翻訳シートの [STUB:…] 総数: 666  うち生ID露出 5 箇所（4 種）
+live JSON の STUB id 種類 : 600（総ノード 2879 件）
+逆翻訳シートの [STUB:…] 総数: 662  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 4 種 / 5 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 4 種 / 5 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 6 種 / 7 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 6 種 / 7 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
@@ -26,6 +26,12 @@ live JSON の STUB id 種類 : 598（総ノード 2881 件）
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
         生成: src\data\effectParser.ts:16794
+     1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
+        カード: WX16-Re20
+        生成: src\data\parsers\parseSentencePart3.ts:2268
+     1件   1枚  DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL
+        カード: SP38-001
+        生成: src\data\parsers\parseSentencePart3.ts:1974
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:1918

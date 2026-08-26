@@ -1161,7 +1161,24 @@ function actionJa(a?: Action, effectType?: string): string {
         const trashJa = a.canTrash ? 'その中から不要なカードをトラッシュに置き、残りを' : '';
         return `${src}${loc}から${cntJa}を見て、${trashJa}${destJa}`;
       }
-      // reorder無し／行き先不明＝見るだけ（canTrash は補助注記）
+      // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝**行き先が元のゾーンと違うのに `reorder` が無い**形
+      //   ＝並べ替えではなく**移動**。ここを描かないと `WXDi-D04-010-E1`②
+      //   「ライフクロスの一番上のカードをデッキに加えてシャッフルする」が
+      //   **「ライフクロス1枚を見る」**になり、**移した事実が逆翻訳から消える**。
+      if (!a.reorder && dest && (dest.location !== a.source?.location || dest.owner !== a.source?.owner)) {
+        const destMoveJa = dest.location === 'deck'
+          ? (a.shuffle ? 'デッキに加えてシャッフルする'
+            : dest.position === 'bottom' ? 'デッキの一番下に置く' : 'デッキの一番上に置く')
+          : dest.location === 'life_cloth' ? 'ライフクロスの一番上に置く'
+          : dest.location === 'hand' ? '手札に加える'
+          : '';
+        if (destMoveJa) return `${src}${loc}の上から${cntJa}を${destMoveJa}`;
+      }
+      // reorder無し／行き先不明＝見るだけ（canTrash は補助注記）。
+      // ⚠`private:false` は原文「**公開する**」＝相手にも見せる。「見る」と書くと非公開と読めるので区別する。
+      if (!a.reorder && a.private === false) {
+        return `${src}${loc}${cntJa}を公開する${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
+      }
       return `${src}${loc}${cntJa}を見る${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
     }
     case 'MILL':
@@ -2164,6 +2181,21 @@ function actionJa(a?: Action, effectType?: string): string {
       // アーツ/スペルの使用コスト改変句（ARTS_COST_REDUCTION_BY_EFFECT/BY_CENTER_LRIG）。
       // 軽減/増加量は支払い時に computeArtsEffectiveCost が原文 EffectText を再パースして算出する
       // ため JSON には数値が無い。逆翻訳は原文の「…使用コストは…減る/増える/になる」文を復元する。
+      // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝`CONDITIONAL_ARTS_COST` は **payload から描く**
+      //   （原文 regex の再パースに頼らない）。payload が無い宣言だけが下の全文フォールバックへ落ちる。
+      if (a.id === 'CONDITIONAL_ARTS_COST' && a.artsCostCond) {
+        const acc = a.artsCostCond;
+        if (acc.kind === 'opp_center_lrig_color') {
+          return `対戦相手のセンタールリグが${(acc.colors ?? []).join('か')}の場合、このアーツの使用コストが変わる（支払い時に自動適用）`;
+        }
+        if (acc.kind === 'center_lrig_level') {
+          const oppPart = acc.oppLevel !== undefined
+            ? `で、対戦相手のセンタールリグのレベルが${acc.oppLevel}${acc.oppOp ?? '以上'}`
+            : '';
+          return `あなたのセンタールリグのレベルが${acc.level}${acc.op ?? '以上'}${oppPart}の場合、このアーツの使用コストが変わる（支払い時に自動適用）`;
+        }
+        return `あなたのライフクロスが${acc.level}枚${acc.op ?? '以下'}の場合、このアーツの使用コストが変わる（支払い時に自動適用）`;
+      }
       if (a.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' || a.id === 'CONDITIONAL_ARTS_COST') {
         const costSents = currentCardText.split('。')
           .map(s => s.trim())
@@ -3286,6 +3318,13 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝旧 `CONDITIONAL_ARTS_COST` の catch-all から分離した4文型。
+        //   **どれもコストの話を1文字もしていない**ので、id を意味に合わせて honest にした（§5.3 `O-82`）。
+        DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL: '【未実装】あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい',
+        DEFERRED_UNPARSED_CENTER_LRIG_LEVEL_CLAUSE: '【未実装】「あなたのセンタールリグのレベルが〜の場合」の条件節',
+        DEFERRED_CONDITIONAL_EXTRA_USE_TIMING: '【未実装】条件を満たす場合、このアーツは追加で《アタックフェイズアイコン》を持つ（使用できるタイミングが増える）',
+        DEFERRED_UNPARSED_LIFE_CLOTH_CLAUSE: '【未実装】「あなたのライフクロスが〜の場合」「あなたのライフクロスの一番上〜」の未解析節',
+        DEFERRED_FIELD_COUNT_ALT_TRASH: '【未実装】あなたの場にシグニがN体ある場合、代わりにカードを〜トラッシュに置く（置換）',
         // §6.4 O-28（続き503）＝キーワード名だが engine に消費が無いもの＝明示 defer。
         DEFERRED_CONVERT_ENERGY_COLOR: '【未実装】【コンバート《色》】（エナコストを支払う際、このカードはその色として支払える）',
         DEFERRED_ATTACK_WHILE_DOWN: '【未実装】このシグニはダウン状態でもアタックできる',

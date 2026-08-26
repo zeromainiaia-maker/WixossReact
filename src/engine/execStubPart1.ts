@@ -2960,31 +2960,44 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, lrig_name_aliases: [...currentAliases, aliasNameCLNA] };
     return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグが「${aliasNameCLNA}」名としても扱われる`));
   }
-  // 条件付きアーツコスト（コスト計算はcomputeArtsEffectiveCostで処理済み、ここでは条件確認のみ）
+  // CONDITIONAL_ARTS_COST: 条件つきアーツ使用コスト（§5.3 `O-60` 第8バッチ・2026-08-26）。
+  // 🔑**実コストの適用はここではない**＝`screens/battle/costs.ts` の `computeArtsEffectiveCost` /
+  //   `computeCostReplacement` が支払い時に行う。ここは**条件の成否をログに出すだけ**。
+  // 🔴従来はカード全文（`EffectText`＋`BurstText`）を regex 2本で読んでいた＝①同じカードの別能力の
+  //   コスト文まで拾いうる ②**この id が「コストの話が1文字も無い4文型」の catch-all**になっていて、
+  //   `SP38-001`（グロウしてもよい）や `WD06-008`（ライフの一番上を公開する）にまで
+  //   「条件付きアーツコスト（確認完了）」を出していた（＝id が嘘をつく）。⇒ parser が条件を刻む。
+  // ⚠payload が無い宣言は**条件を判定せずログだけ**（盤面には触れないので fail-closed の向きは問題にならない）。
   if (stub.id === 'CONDITIONAL_ARTS_COST') {
-    const srcCAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCAC = srcCAC ? (srcCAC.EffectText ?? '') + ' ' + (srcCAC.BurstText ?? '') : '';
-    const toHWCAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // Pattern 1: 対戦相手のセンタールリグ色条件（コスト上書き）
-    const oppColorMCAC = txtCAC.match(/対戦相手のセンタールリグが(.+?)の場合/);
-    if (oppColorMCAC) {
-      const oppLrigCard = ctx.otherState.field.lrig.at(-1);
-      const oppLrigColor = oppLrigCard ? (ctx.cardMap.get(oppLrigCard)?.Color ?? '') : '';
-      const colors = oppColorMCAC[1].split(/か|と/).map(c => c.trim()).filter(Boolean);
-      const condMet = colors.some(c => oppLrigColor.includes(c));
-      return done(addLog(ctx, `条件付きアーツコスト（相手ルリグ${colors.join('/')}：${condMet ? '条件達成・割引適用済み' : '未達成'}）`));
+    const condCAC = stub.artsCostCond;
+    if (!condCAC) return done(addLog(ctx, '条件付きアーツコスト（条件未指定・支払い時に適用）'));
+    if (condCAC.kind === 'opp_center_lrig_color') {
+      const oppLrigCardCAC = ctx.otherState.field.lrig.at(-1);
+      const oppLrigColorCAC = oppLrigCardCAC ? (ctx.cardMap.get(oppLrigCardCAC)?.Color ?? '') : '';
+      const colorsCAC = condCAC.colors ?? [];
+      const metCAC = colorsCAC.some(c => oppLrigColorCAC.includes(c));
+      return done(addLog(ctx, `条件付きアーツコスト（相手ルリグ${colorsCAC.join('/')}：${metCAC ? '条件達成・割引適用済み' : '未達成'}）`));
     }
-    // Pattern 2: 自分のセンタールリグレベル条件
-    const myLvMCAC = txtCAC.match(/(?:あなたの)?センタールリグのレベルが([０-９\d]+)(以上|以下)/);
-    if (myLvMCAC) {
-      const threshold = parseInt(toHWCAC(myLvMCAC[1]));
-      const op = myLvMCAC[2];
-      const myLrigCard = ctx.ownerState.field.lrig.at(-1);
-      const myLevel = myLrigCard ? parseInt(ctx.cardMap.get(myLrigCard)?.Level ?? '0') : 0;
-      const condMet = op === '以上' ? myLevel >= threshold : myLevel <= threshold;
-      return done(addLog(ctx, `条件付きアーツコスト（センタールリグLv${myLevel}${op}${threshold}：${condMet ? '条件達成' : '未達成'}）`));
+    if (condCAC.kind === 'center_lrig_level') {
+      const myLrigCardCAC = ctx.ownerState.field.lrig.at(-1);
+      const myLevelCAC = myLrigCardCAC ? parseInt(ctx.cardMap.get(myLrigCardCAC)?.Level ?? '0') : 0;
+      const opCAC = condCAC.op ?? '以上';
+      let metCAC = opCAC === '以上' ? myLevelCAC >= (condCAC.level ?? 0) : myLevelCAC <= (condCAC.level ?? 0);
+      let extraCAC = '';
+      if (condCAC.oppLevel !== undefined) {
+        const oppLrigCardCAC2 = ctx.otherState.field.lrig.at(-1);
+        const oppLevelCAC = oppLrigCardCAC2 ? parseInt(ctx.cardMap.get(oppLrigCardCAC2)?.Level ?? '0') : 0;
+        const oppOpCAC = condCAC.oppOp ?? '以上';
+        metCAC = metCAC && (oppOpCAC === '以上' ? oppLevelCAC >= condCAC.oppLevel : oppLevelCAC <= condCAC.oppLevel);
+        extraCAC = `・相手Lv${oppLevelCAC}${oppOpCAC}${condCAC.oppLevel}`;
+      }
+      return done(addLog(ctx, `条件付きアーツコスト（センタールリグLv${myLevelCAC}${opCAC}${condCAC.level}${extraCAC}：${metCAC ? '条件達成' : '未達成'}）`));
     }
-    return done(addLog(ctx, '条件付きアーツコスト（確認完了）'));
+    // self_life_count
+    const lifeCAC = ctx.ownerState.life_cloth.length;
+    const opLifeCAC = condCAC.op ?? '以下';
+    const metLifeCAC = opLifeCAC === '以上' ? lifeCAC >= (condCAC.level ?? 0) : lifeCAC <= (condCAC.level ?? 0);
+    return done(addLog(ctx, `条件付きアーツコスト（ライフ${lifeCAC}枚${opLifeCAC}${condCAC.level}：${metLifeCAC ? '条件達成' : '未達成'}）`));
   }
   // INTERNAL_OTEC_SELECT: エナゾーンから特定クラスのカードを選択してトラッシュ/手札へ
   if (stub.id === 'INTERNAL_OTEC_SELECT') {
