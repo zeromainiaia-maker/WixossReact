@@ -13025,17 +13025,24 @@ function parseActionTextInner(text: string): EffectAction {
         //   **ゲート付きで生じる効果そのもの**なので、素直に `else: base` にすると **then 側（強化）だけが
         //   ゲートを失って無条件に走る**（＝過剰効果。`WDK16-06S-E1` は《凛》がいなくても登録者数だけで発動していた）。
         //   ⚠`else` を持つ CONDITIONAL は既に置換済み（＝別の意味）なので触らない。
-        const hoistBaseGate = (replaced: EffectAction, b: EffectAction): EffectAction => {
-          if (b.type !== 'CONDITIONAL') return replaced;
+        // 🔴🔴**同じ軸の条件は絶対に持ち上げない**（実測で退化を踏んだ）＝`WD16-016-BURST`
+        //   「対戦相手の手札が**５枚以下**の場合、…１枚捨てる。**６枚以上**の場合、代わりに２枚捨てる。」は
+        //   2つの条件が**排他**なので、外側へ出すと「≤5 かつ ≥6」となり **2枚側が到達不能**になる
+        //   （`WD08-006` の多段閾値 `TRASH_COUNT` 10/20 も同じ）。判定は**条件 type の一致**で行う
+        //   ＝多段閾値は必ず同 type、独立ゲート（`WDK16-06S-E1`＝`LRIG_NAME_CONTAINS` × `SUBSCRIBER_COUNT`）は別 type。
+        const gateOf = (b: EffectAction, replacementCond: Condition): Condition | null => {
+          if (b.type !== 'CONDITIONAL') return null;
           const c = b as import('../types/effects').ConditionalAction;
-          if (c.else) return replaced;
-          return { type: 'CONDITIONAL', condition: c.condition, then: replaced };
+          if (c.else) return null;
+          if (c.condition.type === replacementCond.type) return null;
+          return c.condition;
         };
-        const baseInnerOf = (b: EffectAction): EffectAction => {
-          if (b.type !== 'CONDITIONAL') return b;
-          const c = b as import('../types/effects').ConditionalAction;
-          return c.else ? b : c.then;
+        const hoistBaseGate = (replaced: EffectAction, b: EffectAction, replacementCond: Condition): EffectAction => {
+          const gate = gateOf(b, replacementCond);
+          return gate ? { type: 'CONDITIONAL', condition: gate, then: replaced } : replaced;
         };
+        const baseInnerOf = (b: EffectAction, replacementCond: Condition): EffectAction =>
+          gateOf(b, replacementCond) ? (b as import('../types/effects').ConditionalAction).then : b;
         // (b) per-target 値のみ形（SEQUENCE base は対象選択が then に載らないため除外）
         const vm = enhancedText.match(/^(?:ターン終了時まで、)?(?:それら?のパワーを(?:それぞれ)?)?([－\-＋+])([０-９\d]+)する。?$/);
         const baseCore = coreOf(base);
@@ -13084,13 +13091,9 @@ function parseActionTextInner(text: string): EffectAction {
           //   置換されるのは**ゲート付きで生じる効果そのもの**なので、素直に `else: base` にすると
           //   **then 側（置換後）だけがゲートを失って無条件に走る**（＝過剰効果）。base が
           //   `else` を持たない CONDITIONAL のときだけ、その条件を外側へ出す。
-          const baseGateTR = base.type === 'CONDITIONAL' && !(base as import('../types/effects').ConditionalAction).else
-            ? (base as import('../types/effects').ConditionalAction).condition : null;
-          const elseTR = baseGateTR ? (base as import('../types/effects').ConditionalAction).then : base;
-          const replacedTR: EffectAction = { type: 'CONDITIONAL', condition: cm.condition, then: thenTR, else: elseTR };
-          steps[steps.length - 1] = baseGateTR
-            ? { type: 'CONDITIONAL', condition: baseGateTR, then: replacedTR }
-            : replacedTR;
+          const elseTR = baseInnerOf(base, cm.condition);
+          steps[steps.length - 1] = hoistBaseGate(
+            { type: 'CONDITIONAL', condition: cm.condition, then: thenTR, else: elseTR }, base, cm.condition);
           continue;
         }
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
@@ -13189,14 +13192,14 @@ function parseActionTextInner(text: string): EffectAction {
           if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(base).type === 'BOUNCE'
               && coreOf(then).type === 'TRASH' && /対象とし/.test(enhancedText)) {
             steps[steps.length - 1] = hoistBaseGate(
-              { type: 'CONDITIONAL', condition: cm.condition, then, else: baseInnerOf(base) }, base);
+              { type: 'CONDITIONAL', condition: cm.condition, then, else: baseInnerOf(base, cm.condition) }, base, cm.condition);
             continue;
           }
           // enhanced（then）は base（else）と同じ種類の効果の「強化版」であるべき。文脈欠落（「デッキから」
           // 等）で then が別アクションに縮退する誤マージを防ぐ＝両者のコアaction型が一致する場合のみ置換。
           if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(then).type === coreOf(base).type) {
             steps[steps.length - 1] = hoistBaseGate(
-              { type: 'CONDITIONAL', condition: cm.condition, then, else: baseInnerOf(base) }, base);
+              { type: 'CONDITIONAL', condition: cm.condition, then, else: baseInnerOf(base, cm.condition) }, base, cm.condition);
             continue;
           }
         }
@@ -18446,7 +18449,7 @@ function applyDynamicActionCountBatch35(card: CardData, effects: CardEffect[]): 
  */
 function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
-  if (!/(?:レベル[０-９\d]+以下の＜[^＞]+＞のシグニ[^。]*下に置く|対戦相手のレベル[０-９\d]+以下のシグニ[^。]*基本パワー|センタールリグのレベル以下の対戦相手のシグニ|手札の枚数以下の場合|ダウンしたシグニの数以下|このシグニの下にあるカードの枚数以下|同じレベルの対象の対戦相手のシグニ|レベルの合計がこの方法で(?:デッキの一番下に置いたシグニの数以下|トラッシュに置いたシグニのレベルの合計と等しく|捨てられたシグニのレベルの合計と等しく)|レベルの合計が[０-９\d]+(?:以上|以下)?の場合|。[０-９\d]+(?:以上|以下)?の場合|シグニの効果を受けない|このルリグと同じレベル)/.test(allText)) return;
+  if (!/(?:レベル[０-９\d]+以下の＜[^＞]+＞のシグニ[^。]*下に置く|対戦相手のレベル[０-９\d]+以下のシグニ[^。]*基本パワー|センタールリグのレベル以下の対戦相手のシグニ|センタールリグのレベル以下の[^。]{0,20}シグニ[０-９\d]*枚を探して|手札の枚数以下の場合|ダウンしたシグニの数以下|このシグニの下にあるカードの枚数以下|同じレベルの対象の対戦相手のシグニ|レベルの合計がこの方法で(?:デッキの一番下に置いたシグニの数以下|トラッシュに置いたシグニのレベルの合計と等しく|捨てられたシグニのレベルの合計と等しく)|レベルの合計が[０-９\d]+(?:以上|以下)?の場合|。[０-９\d]+(?:以上|以下)?の場合|シグニの効果を受けない|このルリグと同じレベル)/.test(allText)) return;
   const lastCount = { $ref: 'last_processed_count' } as const;
   const lastLevelSum = { $ref: 'last_processed_level_sum' } as const;
   const operatorOf = (suffix: string | undefined): CompareOp =>
