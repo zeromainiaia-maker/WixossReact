@@ -1841,6 +1841,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 「〈誰か〉のセンタールリグが〈色〉であるかぎり、」＝色だけの単独形（段2 第45バッチ・`WXDi-P05-044-E1`）。
+  // 🔴レベル形・レベル＋色形・色＋手札枚数形・色＋このシグニの位置形は在ったのに**色だけの形が無く**、
+  //   条件が丸ごと落ちて **《相手ターン》の間ずっと＋5000** の過剰効果になっていた（`LRIG_COLOR` は
+  //   ActiveCondition にも Condition にも実装済み＝純粋な配線ギャップ）。
+  // ⚠**レベル＋色の複合形より後ろに置く**（先に置くと複合形の色だけを拾ってレベル条件が消える）。
+  const centerLrigColorOnlyM = text.match(/^(あなた|対戦相手)のセンタールリグが(白|赤|青|緑|黒)(?:である|で)?かぎり、/);
+  if (centerLrigColorOnlyM) {
+    return {
+      condition: { type: 'LRIG_COLOR', owner: centerLrigColorOnlyM[1] === 'あなた' ? 'self' : 'opponent', color: centerLrigColorOnlyM[2] },
+      rest: text.slice(centerLrigColorOnlyM[0].length), conditionFound: true,
+    };
+  }
+
   // センタールリグのレベルと色を同時に要求する複合条件。
   const centerLrigLevelColorM = text.match(/^あなたのセンタールリグがレベル([０-９\d]+)(以上|以下)で(白|赤|青|緑|黒)であるかぎり、/);
   if (centerLrigLevelColorM) {
@@ -13006,6 +13019,22 @@ function parseActionTextInner(text: string): EffectAction {
         const base = steps[steps.length - 1];
         const coreOf = (a: EffectAction): EffectAction => a.type === 'CONDITIONAL' ? coreOf((a as import('../types/effects').ConditionalAction).then)
           : a.type === 'SEQUENCE' ? (((a as SequenceAction).steps.at(-1)) ?? a) : a;
+        // 🔴**base 自身のゲートは置換の外側へ持ち上げる**（段2 第45バッチ・`WDK16-06S-E1`）。
+        //   原文「〈ゲート〉の場合、〈基本〉。〈別条件〉の場合、代わりに〈強化〉。」＝置換されるのは
+        //   **ゲート付きで生じる効果そのもの**なので、素直に `else: base` にすると **then 側（強化）だけが
+        //   ゲートを失って無条件に走る**（＝過剰効果。`WDK16-06S-E1` は《凛》がいなくても登録者数だけで発動していた）。
+        //   ⚠`else` を持つ CONDITIONAL は既に置換済み（＝別の意味）なので触らない。
+        const hoistBaseGate = (replaced: EffectAction, b: EffectAction): EffectAction => {
+          if (b.type !== 'CONDITIONAL') return replaced;
+          const c = b as import('../types/effects').ConditionalAction;
+          if (c.else) return replaced;
+          return { type: 'CONDITIONAL', condition: c.condition, then: replaced };
+        };
+        const baseInnerOf = (b: EffectAction): EffectAction => {
+          if (b.type !== 'CONDITIONAL') return b;
+          const c = b as import('../types/effects').ConditionalAction;
+          return c.else ? b : c.then;
+        };
         // (b) per-target 値のみ形（SEQUENCE base は対象選択が then に載らないため除外）
         const vm = enhancedText.match(/^(?:ターン終了時まで、)?(?:それら?のパワーを(?:それぞれ)?)?([－\-＋+])([０-９\d]+)する。?$/);
         const baseCore = coreOf(base);
@@ -13158,13 +13187,15 @@ function parseActionTextInner(text: string): EffectAction {
           const then = parseSingleSentence(enhancedText);
           if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(base).type === 'BOUNCE'
               && coreOf(then).type === 'TRASH' && /対象とし/.test(enhancedText)) {
-            steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
+            steps[steps.length - 1] = hoistBaseGate(
+              { type: 'CONDITIONAL', condition: cm.condition, then, else: baseInnerOf(base) }, base);
             continue;
           }
           // enhanced（then）は base（else）と同じ種類の効果の「強化版」であるべき。文脈欠落（「デッキから」
           // 等）で then が別アクションに縮退する誤マージを防ぐ＝両者のコアaction型が一致する場合のみ置換。
           if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(then).type === coreOf(base).type) {
-            steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
+            steps[steps.length - 1] = hoistBaseGate(
+              { type: 'CONDITIONAL', condition: cm.condition, then, else: baseInnerOf(base) }, base);
             continue;
           }
         }
