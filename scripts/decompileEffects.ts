@@ -143,6 +143,16 @@ function countFromZonePerJa(spec: any, suffix: string, upTo = false): string {
   return `${subject}${unit}枚につき${per}${suffix}${upTo ? 'まで' : ''}`;
 }
 
+/** `NumberOrRef.$ref` の日本語（§5.3 `O-87`＝`REPEAT.countRef` の逆翻訳用。未知の ref は生 id を出す）。 */
+function refCountJa(ref: string): string {
+  const m: Record<string, string> = {
+    last_processed_count: 'この方法で処理したカード1枚',
+    last_processed_level_sum: 'この方法で処理したカードのレベル合計1',
+    bet_coins_paid: 'ベットした《コイン》1枚',
+  };
+  return m[ref] ?? `［${ref}］`;
+}
+
 function lastProcessedCountJa(spec: any): string {
   const noun = spec && spec !== true
     ? `${filterJa(spec)}${([] as string[]).concat(spec.cardType ?? []).join('か') || 'カード'}`
@@ -217,6 +227,7 @@ function filterJa(f?: any): string {
   if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
   if (f.levelEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じレベルの');
   if (f.levelEqFacedownRevealed) parts.push('この方法で公開したカードと同じレベルの');
+
   if (f.levelEqLastDownedLrig) parts.push('この方法でダウンしたルリグと同じレベルの');
   if (f.nameEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じ名前の');
   if (f.levelEqLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelEqLastProcessedCount)}と同じレベルの`);
@@ -1541,8 +1552,20 @@ function actionJa(a?: Action, effectType?: string): string {
         return acc + '。そして' + part;
       }, '');
     }
-    case 'REPEAT':
-      return `以下を${numJa(a.count)}回行う。「${actionJa(a.action)}。」`;
+    case 'REPEAT': {
+      // §5.3 `O-87`＝回数が動的（`countRef`）なら回数の出どころを日本語で出す。
+      // ⚠固定値 `count` をそのまま描くと **0 と表示されて「1度も行わない」に読めてしまう**
+      //   （payload では 0 がプレースホルダ）。
+      const timesJa = (a as { countRef?: { $ref?: string } }).countRef
+        ? `${refCountJa((a as { countRef?: { $ref?: string } }).countRef!.$ref ?? '')}につき1回`
+        : `${numJa(a.count)}回`;
+      return `以下を${timesJa}行う。「${actionJa(a.action)}。」`;
+    }
+    // §5.3 `O-87`＝色の選択（選んだ色は `SELECTED_COLOR` 条件が読む）。
+    case 'SELECT_COLOR':
+      return a.from === 'last_processed'
+        ? 'この方法で処理したカード1枚につき、そのカードに含まれる色1つを選択する'
+        : `あなたのエナゾーンにあるカードが持つ色から最大${numJa(a.count ?? 1)}色まで選ぶ`;
     case 'PREVENT_REFRESH':
       return 'このターンと次のターンの間、あなたはリフレッシュできない';
     case 'CHOOSE': {
@@ -3337,10 +3360,6 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
-        // 🆕§5.3 `O-80` 第1バッチ（2026-08-26）＝旧 `POWER_MOD_PER_COUNT`（＝パワー修整）の catch-all から
-        //   分離した「パワーの話を1文字もしていない」2文型（`O-87`）。
-        DEFERRED_DECLARE_COLOR_PER_PROCESSED: '【未実装】この方法で手札に加えたカード1枚につき、そのカードに含まれる色1つを選択する',
-        DEFERRED_PLACE_TRAP_PER_PROCESSED: '【未実装】この方法で手札に加えた【トラップ】1つにつき、手札からカード1枚を【トラップ】としてあなたのシグニゾーンに設置する',
         // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝旧 `CONDITIONAL_ARTS_COST` の catch-all から分離した4文型。
         //   **どれもコストの話を1文字もしていない**ので、id を意味に合わせて honest にした（§5.3 `O-82`）。
         DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL: '【未実装】あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい',

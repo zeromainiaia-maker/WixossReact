@@ -1050,7 +1050,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX10-025-E1', effectType: 'ACTIVATED', timing: ['MAIN', 'ATTACK'],
       cost: { energy: [{ color: '白', count: 1 }, { color: '赤', count: 1 }, { color: '青', count: 1 }, { color: '緑', count: 1 }, { color: '黒', count: 1 }] },
       action: { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' },
+        // §5.3 `O-87`＝「エナゾーンにあるカードが持つ色から最大5色まで選ぶ」の typed アクション化
+        // （旧 `STUB{CHOOSE_COLOR_FROM_LIST}` は上限をカード全文の `最大N色` から読んでいた）。
+        { type: 'SELECT_COLOR', from: 'energy', count: 5 },
         { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '白' }, then: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'any', count: 1, upToCount: false, filter: { cardType: 'シグニ' } }, optional: false } },
         { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '赤' }, then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 12000 } }, upToCount: false } } },
         { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '青' }, then: { type: 'DRAW', owner: 'self', count: 2 } },

@@ -1827,9 +1827,19 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' } };
   }
 
-  // ---- あなたのエナゾーンにあるカードが持つ色から最大N色まで選ぶ ----
-  if (t.match(/あなたのエナゾーンにあるカードが持つ色から最大[０-９\d]+色まで選ぶ/)) {
-    return { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' } as StubAction;
+  // ---- 色を選択する（§5.3 `O-87`＝`SELECT_COLOR`）----
+  // 🔴旧 `STUB{CHOOSE_COLOR_FROM_LIST}` は**engine がカード全文を `最大N色` で読んでいた**（§5.3 `O-60` A群）。
+  //   ⇒ 上限を payload に刻み、engine は JSON だけを見る。
+  {
+    const enaColorM = t.match(/あなたのエナゾーンにあるカードが持つ色から最大([０-９\d]+)色まで選ぶ/);
+    if (enaColorM) {
+      return { type: 'SELECT_COLOR', from: 'energy', count: parseNum(enaColorM[1]) } as EffectAction;
+    }
+  }
+  // 「この方法で手札に加えたカード１枚につきそのカードに含まれる色１つを選択する」（`WX12-Re07`）＝
+  // **直前に処理した各カードごとに、そのカードが持つ色から1つ**。⚠エナゾーンの色ではない。
+  if (t.match(/この方法で.*[１1]枚につき.*そのカードに含まれる色[１1]つを選択する/)) {
+    return { type: 'SELECT_COLOR', from: 'last_processed' } as EffectAction;
   }
 
   // ---- 対戦相手の場にある【ウィルス】を取り除く ----
@@ -2693,7 +2703,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEFERRED_DECLARE_COLOR_PER_PROCESSED' } as StubAction;
   }
   if (t.match(/この方法で.*【トラップ】[０-９\d]+つにつき.*【トラップ】として.*設置する/)) {
-    return { type: 'STUB', id: 'DEFERRED_PLACE_TRAP_PER_PROCESSED' } as StubAction;
+    // §5.3 `O-87`（2026-08-26）＝「この方法で手札に加えた【トラップ】**１つにつき**手札からカード１枚を
+    //   【トラップ】として設置する」（`WX16-017-E1`）。受け皿は既存の2つ＝
+    //   **回数**＝`REPEAT.countRef{$ref:'last_processed_count'}`（`TRAP_TO_HAND` が戻した【トラップ】だけを記録する）／
+    //   **設置**＝`STUB{PLACE_TRAP_OPTIONAL}` の手札枝（1枚選んでゾーンを選ぶ）。
+    // ⚠原文は「設置する」＝**任意ではない**が、`PLACE_TRAP_OPTIONAL` の手札枝は `optional:false` で
+    //   選択を強制するので、そのまま使ってよい（id の "OPTIONAL" は出所名であって任意性ではない）。
+    return {
+      type: 'REPEAT',
+      count: 0,
+      countRef: { $ref: 'last_processed_count' },
+      action: { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL' } as StubAction,
+    } as EffectAction;
   }
   if (t.match(/この方法で.*につき/)) {
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;

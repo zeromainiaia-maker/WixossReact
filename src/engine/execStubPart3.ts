@@ -3246,10 +3246,11 @@ export function execStubPart3(
       action: ({ type: 'STUB', id: 'INTERNAL_SELECT_COLOR', value: col } as StubAction) as EffectAction,
       available: true,
     }));
-    const srcCCL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCCL = srcCCL ? srcCCL.EffectText ?? '' : '';
-    const maxMCCL = txtCCL.match(/最大([１-５1-5])色/);
-    const maxCount = maxMCCL ? parseInt(maxMCCL[1].replace(/[１-５]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))) : 1;
+    // 🔴§5.3 `O-87`（2026-08-26）＝ここは**カード全文を `最大N色` で読んでいた**（`O-60` A群）。
+    //   「エナゾーンにある色から最大N色まで選ぶ」は typed アクション `SELECT_COLOR{from:'energy',count}` へ移した
+    //   （`WX10-025`）。**残るのは固定リスト表記（「白、赤、青、黒から１つを選ぶ」）だけ**なので上限は常に1。
+    //   ⚠live 0件＝この枝はいま誰も通らない。通す文型が現れたら**まず payload を足す**（全文 regex に戻さない）。
+    const maxCount = 1;
     return needsInteraction(addLog(clearedCtxCCL, `色を選択（最大${maxCount}色）`), {
       type: 'CHOOSE', options: optsCCL, count: Math.min(maxCount, optsCCL.length),
     });

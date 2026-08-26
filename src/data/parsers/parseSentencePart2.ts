@@ -1931,10 +1931,18 @@ export function parseSentencePart2(t: string): EffectAction | null {
     const upToM = t.match(/【トラップ】(?:を)?([０-９\d]+)[つ枚]まで/);
     const anyM = /【トラップ】(?:と[^を]*)?を?好きな数/.test(t);
     const exactM = t.match(/【トラップ】([０-９\d]+)[つ枚]を/);
+    // 🆕§5.3 `O-87`＝「**好きな数**」は `upTo` を立てる＝**0枚も選べるプレイヤーの選択**。
+    //   ⚠旧実装は `{count:'ALL'}` だけを刻み、engine が**問答無用で全部回収**していた（過剰実行）。
+    // 🆕同じ文で「【トラップ】**と＜X＞のシグニ**を」と書かれていたら、そのシグニも同じ選択プールに混ぜる
+    //   （`WX16-017`＝場から手札へ戻すのは【トラップ】だけではない）。
+    const alsoStoryM = t.match(/【トラップ】と＜([^＞]+)＞のシグニ/);
     const spec = upToM ? { count: parseNum(upToM[1]), upTo: true }
-      : anyM ? { count: 'ALL' as const }
+      : anyM ? { count: 'ALL' as const, upTo: true }
         : exactM ? { count: parseNum(exactM[1]) } : null;
-    return { type: 'STUB', id: 'TRAP_TO_HAND', ...(spec ? { trapToHand: spec } : {}) } as StubAction;
+    return {
+      type: 'STUB', id: 'TRAP_TO_HAND',
+      ...(spec ? { trapToHand: { ...spec, ...(alsoStoryM ? { alsoSigniFilter: { cardType: 'シグニ' as const, cardClass: alsoStoryM[1] } } : {}) } } : {}),
+    } as StubAction;
   }
 
   // ---- 手札からスペルを使用する ----

@@ -2172,6 +2172,19 @@ function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Cond
   return null;
 }
 
+/**
+ * 「（その後、）選択した色に〈色〉を含む場合、」→ `SELECTED_COLOR`（§5.3 `O-87`・`WX12-Re07`）。
+ *
+ * 🔴**落とすと3つの分岐が全部無条件で走る**（実測＝旧 live は「赤なら10000以下をバニッシュ」
+ *   「緑なら12000以上をバニッシュ」「青なら1枚引く」を**色に関係なく全部実行**していた）。
+ * ⚠**呼び出し側で「直前が `SELECT_COLOR` か」をゲートする**（`prevSelectsColor`）＝
+ *   色を選んでいない文脈でこの条件を作ると、`SELECTED_COLOR` が常に偽になって逆に過少実行になる。
+ */
+function parseSelectedColorCondition(clause: string): Condition | null {
+  const m = clause.match(/^(?:その後、)?(?:選択した色に)?(白|赤|青|緑|黒)を含む場合、$/);
+  return m ? { type: 'SELECTED_COLOR', color: m[1] } : null;
+}
+
 // 「（その後、）それが〔＜X＞(か＜Y＞)?の／レベルNの〕シグニの場合、」→ LAST_PROCESSED_MATCHES。
 // 直前ステップが lastProcessedCards を記録する（ミル/公開/エナチャージ）ときだけ呼ぶこと（呼び出し側でゲート）。
 // 「レベルが奇数の」等の表現不能フィルタは null（呼び出し側で従来挙動に据置＝IS_MY_TURN化けを増やさない）。
@@ -13012,11 +13025,17 @@ function parseActionTextInner(text: string): EffectAction {
     // ⚠末尾の「それが〜**の**場合、」は **`の` を必須**にしている（緩めると「〜がいる場合」等を巻き込む）。
     //   §6.4 O-33 据置分（続き508）の「それが【ライフバースト】を**持たない**場合、」は `の` を持たないので
     //   **専用の alternation を1本足す**（緩和ではなく列挙）。落とすと条件が丸ごと消えて帰結が無条件に走る。
+    // ⚠🆕**「（選択した色に）〈色〉を含む場合、」**（§5.3 `O-87`・`WX12-Re07`）は「その後、」を伴わないので
+    //   **この alternation に無いと `thenM` が立たず、3つの分岐が全部無条件で走る**（実測＝旧 live は
+    //   赤/緑のバニッシュ2件とドローを色に関係なく全部実行していた）。抽出は `parseSelectedColorCondition`。
+    //   ⚠**2文目以降は「選択した色に」が省略される**（原文＝「選択した色に赤を含む場合、…。**緑を含む場合**、…。
+    //   **青を含む場合**、…」）＝前置詞句を任意にしないと1文目しか条件化されない。実測で `〈色〉を含む場合` は
+    //   このカードの3文だけ（他に衝突する文型は無い）。抽出側は**色選択ステップが在るときだけ**通す。
     // ⚠**「そのカードが〜の場合、」は丸ごとは足さない**（§6.4 O-35・続き530）＝原文実測53文のうち大半は
     //   `REVEAL_AND_PICK`（公開して条件一致なら帰結）として既に別経路で正しく解けており、ここへ引き込むと
     //   その構造を壊す。ミル結果を受ける `WXEX1-41-E2` の**アイコン綴りだけ**を列挙で1本足す
     //   （実測でこの綴りは1文だけ）。落とすと条件が消えて「それをバニッシュする」が無条件に走る。
-    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の?場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|あなたの登録者数が[０-９\d]+万人を達成していて、この方法で.+た場合、|(?:《[^》]+》)+を支払った場合、|それが【ライフバースト】を(?:持たない|持つ)場合、|それが[^、。]+の場合、|そのカードが《[^》]+アイコン》を持つカードの場合、)/);
+    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の?場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|あなたの登録者数が[０-９\d]+万人を達成していて、この方法で.+た場合、|(?:《[^》]+》)+を支払った場合、|それが【ライフバースト】を(?:持たない|持つ)場合、|それが[^、。]+の場合、|そのカードが《[^》]+アイコン》を持つカードの場合、|(?:選択した色に)?[白赤青緑黒]を含む場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       // 先頭「それが」形は新設 alternation（従来は thenM 非マッチ＝parseSingleSentence 直行だった）。
@@ -13095,7 +13114,12 @@ function parseActionTextInner(text: string): EffectAction {
         || prevIsProcessRecorder || prevIsProcessRecorder2 || prevIsSearchTrashRecorder || prevIsRemoveCharmRecorder
         || prevIsNamedTransferToHand || prevIsTransferToHandRecorder || prevIsMagicBoxOpen || prevIsHandRevealRecorder
         || prevStep?.type === 'REVEAL_DECK_TOP';
-      let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
+      // §5.3 `O-87`＝「選択した色に〈色〉を含む場合、」（`WX12-Re07`）。⚠**直前が色選択のときだけ**。
+      //   `SELECT_COLOR` は複数ステップ前になりうる（間に CONDITIONAL が挟まる＝分岐が3つ並ぶ形）ので、
+      //   直前ステップだけでなく**それまでのステップ列に色選択があるか**で判定する。
+      const anySelectsColor = steps.some(st0 => (st0 as { type?: string }).type === 'SELECT_COLOR');
+      let condition: Condition | null = anySelectsColor ? parseSelectedColorCondition(thenM[0]) : null;
+      if (!condition) condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
       }
