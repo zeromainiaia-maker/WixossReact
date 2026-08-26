@@ -24,7 +24,7 @@ import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyA
 import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit } from '../src/engine/effectEngine';
-import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
+import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -11522,6 +11522,30 @@ test('O-81 engine: 裏向き付けの無い離脱ではマーカーがクリア�
 
 // ⚠`withSavedCursor` 必須＝`mkState` が POOL カーソルを進めるので、包まないと
 //   **後続テストが引くカードが変わって無関係なテストが落ちる**（CLAUDE.md の既知の罠）。
+// 🔴実機で判明（2026-08-26）＝**バトル解決は `removeFromField` を通らず `field` を手で組み直す**ので、
+//   funnel だけでは付いたカードが場からも手札からも消えて**行方不明**になった。⇒ `sweepPuppets` と同型の
+//   「盤面から導出する掃除」を足し、バトル解決と中央 diff の**トリガー収集より前**に通す。
+test('O-81 sweep: ホストが居ないゾーンの裏向き付けカードだけを手札へ戻す', () => withSavedCursor(() => {
+  const alive = fresh(); const gone = fresh(); const stay = fresh();
+  const st = mkState({ signi: [alive, null, null] });
+  st.field.signi_facedown_attached = [[stay], [gone], null];
+  const handBefore = st.hand.length;
+  const swept = sweepFacedownAttached(st);
+  eq(swept.hand.includes(gone), true, '🔴ホストが居ないゾーンのカードは手札へ（旧実装では消えていた）');
+  eq(swept.hand.includes(stay), false, 'ホストが健在なゾーンは動かさない');
+  eq(swept.hand.length, handBefore + 1, '増えたのは1枚だけ');
+  eq(JSON.stringify(swept.facedown_revealed_just), JSON.stringify([gone]), '公開マーカーが立つ');
+  eq(JSON.stringify((swept.field.signi_facedown_attached ?? [])[0]), JSON.stringify([stay]), '健在側のスロットは不変');
+  eq((swept.field.signi_facedown_attached ?? [])[1], null, '離脱側のスロットは空く');
+  // 冪等＝`removeFromField` が既に回収済みなら何もせず、**マーカーも消さない**
+  //（消すと同じ解決内で funnel が立てた `facedown_revealed_just` を潰す）。
+  const again = sweepFacedownAttached(swept);
+  eq(again, swept, '2回目は同一オブジェクトを返す（no-op）');
+  const untouched = mkState({ signi: [alive, null, null] });
+  untouched.facedown_revealed_just = ['X'];
+  eq(sweepFacedownAttached(untouched).facedown_revealed_just?.[0], 'X', '付与が無ければマーカーに触らない');
+}));
+
 test('O-81 trigger: 公開札がシグニのときだけ発火し、バニッシュ候補は同レベルへ確定する', () => withSavedCursor(() => {
   const guest = mkState({});
   const mkHost = (revealed: string[]): PlayerState => {
