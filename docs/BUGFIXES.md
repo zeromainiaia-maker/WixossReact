@@ -1,5 +1,78 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-87`＝「パワーの話を1文字もしていない」2文型は**未実装ではなく、同じ効果の他のステップが無条件に走っていた**
+
+> **1巡（続き669・Opus 5）＝母集団実測〜実機まで。** gates 全緑（golden **2832→2840**／census 568/568 据置／
+> smoke 全0／fuzz 全0／`census:stubs` A群🔴0・C群0／manual-fields 0/0／lint 0 errors／
+> **`census:enginetext` A群 142→141行**（`BASELINE_SELF_TEXT` 更新済み）／`census:goldentypes` 未カバー0）。
+> **実機は新規2本 PASS**（`o87RainbowColorBranch` ／ `o87ResetTrapReplace`）＋回帰1本 PASS（`o81FacedownAttachRevealBanish`）。
+
+---
+
+### 母集団（着手前の実測）
+
+| 文型 | 母集団 | 兄弟 |
+|---|---|---|
+| 「この方法で手札に加えたカード１枚につき**そのカードに含まれる色１つを選択する**」 | **1件**（`WX12-Re07-E1`） | `WX04-063`（コストで払ったエナの色）／`WX10-025`（エナゾーンの色から最大N色） |
+| 「この方法で手札に加えた【トラップ】１つにつき**手札からカード１枚を【トラップ】として設置する**」 | **1件**（`WX16-017-E1`） | 【トラップ】設置は live 8効果 |
+
+「〈色〉を含む場合」も「【トラップ】として設置」＋「〜につき」も、実測では**この2カードだけ**。
+
+### 何が壊れていたか（真因）
+
+🔴**どちらも「STUB が no-op」なのが問題ではない。** STUB の**前後のステップが原文の条件を失って走っていた**：
+
+- **`WX12-Re07`（レインボーアート）**＝「選択した色に赤を含む場合、…バニッシュ。**緑を含む場合**、…バニッシュ。
+  **青を含む場合**、1枚引く。」の**3分岐が全部無条件**だった。原因は `effectParser` の `thenM`（条件節の先頭 alternation）に
+  この綴りが無く、**`thenM` が立たない＝条件が丸ごと落ちる**。
+  ⚠**2文目以降は「選択した色に」が省略される**ので、前置詞句を任意にしないと1文目しか条件化されない。
+- **`WX16-017`（リセットラップ）**＝「あなたの【トラップ】**と＜トリック＞のシグニ**を**好きな数**対象とし、
+  それらを場から手札に加える」が **①「好きな数」を問答無用の全回収**（`count:'ALL'` に `upTo` が無く engine が UI を出さない）
+  **②＜トリック＞のシグニを完全に無視**（`TRAP_TO_HAND` は【トラップ】しか見ない）だった。
+
+### どう直したか＝**受け皿はほぼ揃っていた**
+
+- **色**＝`SELECTED_COLOR` 条件と `story_overrides['__selected_colors__']` は既にあった（`WX10-025` が使用）。
+  新設は typed アクション **`SELECT_COLOR{from:'energy'|'last_processed', count?}`** 1つだけ。
+  `from:'last_processed'` は**カード1枚につき1色**（単色は自動確定・多色だけ対話）。
+  parser 側は ①この文型 ②「（選択した色に）〈色〉を含む場合、」の条件節 の2規則。
+- **トラップ**＝**回数**は `REPEAT` に `countRef`（`resolveCountRef`）を追加、**設置**は既存の `PLACE_TRAP_OPTIONAL` 手札枝。
+  `TRAP_TO_HAND` に `upTo`（＝「好きな数」）と `alsoSigniFilter`（＝同じ選択プールに場のシグニを混ぜる）を追加。
+  ⚠**`lastProcessedCards` に載せるのは【トラップ】だけ**＝「加えた**【トラップ】**1つにつき」なので、
+  同時に戻したシグニで設置回数が水増しされない（`resumeSelectTarget` に `INTERNAL_TTH_APPLY` 専用枝を新設。
+  汎用枝は最後に `lastProcessedCards = selected` で上書きしてしまう）。
+- **ついでに O-60 を1行払い戻し**＝`CHOOSE_COLOR_FROM_LIST` がカード全文を `最大N色` で読んでいた（A群）。
+  「エナゾーンの色から最大N色」を `SELECT_COLOR{from:'energy',count}` へ移し、engine の全文読みを撤去（A群 142→141）。
+
+### 🔴 実機でしか出なかった2つ（golden/smoke/fuzz は全部緑だった）
+
+| # | 症状 | 真因 | 直し方 |
+|---|---|---|---|
+| (a) | 手札から【トラップ】を設置しようとすると**無言で何も起きない**（live 3効果すべて） | `PLACE_TRAP_OPTIONAL` の**手札枝**が `CHOOSE_TRAP_ZONE`→`INTERNAL_SET_TRAP` と繋ぎ、**設置するカードを `lastProcessedCards` に置いたまま対話を跨いでいた**。`PendingEffect` は `lastProcessedCards` を持たないので**実アプリでは resume 時に必ず失われる**（golden は `finish()` が ctx を持ち回るので通る） | 非手札枝と同じ **`INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP`**（＝カードを stub の `value` に焼き込む）へ寄せ、`CHOOSE_TRAP_ZONE` を削除 |
+| (b) | 設置が「してもよい」なのに**必ず設置させられる** | 手札枝が**無条件に `optional:false`** だった。live 実測3件のうち2件（`WX19-059-BURST`／`WX21-057-E1`）は原文が「設置してもよい」 | `trapPlaceOptional` を payload 化（parser が原文から刻む・engine と逆翻訳の両方が読む）。既定は**任意** |
+
+🔑**教訓**＝**対話（`PendingInteractionDef`）を跨ぐ値は `lastProcessedCards` に置かない。** `PendingEffect` はそれを運ばない。
+跨ぐなら**アクション自身のフィールドに焼き込む**（`INTERNAL_ASK_TRAP_ZONE.value`／`O-81` の `_host` と同じ規約）。
+⚠**golden はこの穴を踏まない**（`finish()` が ExecCtx を持ち回るため）＝実機専用の層。
+
+### 隣接バグ（その場で修正）
+
+- 🔴**`WX21-057-E2`「あなたの【トラップ】１つを対象とし、それを手札に戻す」が `BOUNCE{自分のシグニ1体}` に化けていた**
+  （＝**自分の盤面からシグニが消える**過剰実行）。`TRAP_TO_HAND` の parser 規則が「手札に**加える**」しか見ておらず、
+  `parseSentencePart1` の汎用 BOUNCE に先に食われていた。⇒ **part1 の先頭**で引き取る規則を1本追加
+  （文頭が「あなたの【トラップ】」であることを要求＝`WX17-041-BURST`「対戦相手のシグニ1体を対象とし、あなたの【トラップ】1つを手札に戻す」を巻き込まない）。
+
+### 検証
+
+- golden **+8**（live 契約2／色選択 engine 2／`REPEAT.countRef` 1／`TRAP_TO_HAND` 1／設置の任意・強制 1／parser 1）。
+  `REPEAT.countRef` は C1 `$ref` トリップワイヤの `OK_POSITIONS` へ登録（消費側が `resolveCountRef` であることを確認済み）。
+- 実機 `node scripts/verifyBattleDrive.mjs o87RainbowColorBranch o87ResetTrapReplace` ＝ **2本 PASS**。
+  A＝単色2枚を手札へ→**赤/青が自動確定**→赤分岐（P3000 バニッシュ）と青分岐（1ドロー）だけ走り、
+  **緑を選んでいないので P15000 は残る**（旧 live なら両方飛ぶ）。ログの「《赤》を選択」「《青》を選択」を必須条件にした（罠4）。
+  B＝**選択 UI が出て**トラップ2＋＜トリック＞1を回収→**トラップ2枚ぶんだけ**手札から再設置。
+- 実装途中の FAIL がそのまま反転確認（①`pick-0` トグルで確定に到達しない ②設置が0枚＝(a) ③設置が1枚＝同じゾーンへの上書き）。
+
+
 ## 2026-08-26：§5.3 `O-81`＝「手札からカード１枚を裏向きで付ける」に受け皿が無く、**自分のシグニを即バウンス＋無条件バニッシュ**していた
 
 > **1巡（続き668・Opus 5）＝母集団実測〜実機まで。** gates 全緑（golden **2825→2832**／census 568/568 据置／
