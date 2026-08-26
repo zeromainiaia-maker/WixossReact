@@ -30007,6 +30007,200 @@ scenarios.b60UnderCardsTrashed = {
 };
 order.push('b60UnderCardsSurvive', 'b60UnderCardsTrashed');
 
+// ── §5.3 O-60 第7バッチ（続き665）＝助数詞が「枚」固定で「N つ」が読めず、全部回収に化けていた ──
+//
+//   `TRAP_TO_HAND` の engine は `【トラップ】をN**枚**まで手札に加える` でカード全文を読んでいたが、
+//   実データの助数詞は「**つ**」＝**live 5効果すべてが1本も当たらず、既定の「場の【トラップ】を全部」**へ
+//   落ちていた。⇒ `WX16-063-E1`「【起】《ダウン》：あなたの【トラップ】**１つ**を対象とし、それを手札に加える」が
+//   **3つ全部を回収する過剰実行**になっていた。
+//
+// ■ 観測点＝**手札が1枚だけ増え、場に【トラップ】が2つ残る**こと。
+// 🔑**旧実装ではこのシナリオは FAIL する**（手札+3・トラップ0）＝反転が効いている証拠。
+scenarios.b60TrapToHandOne = {
+  title: 'O-60⑦ WX16-063-E1＝【トラップ】1つだけが手札に戻る【旧: 場の3つ全部を回収】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX08-004#1'],
+      'field.signi': [['WX16-063#1'], null, null],
+      'field.signi_down': [false, false, false],
+      // 3ゾーンすべてに【トラップ】を設置（裏向き）。
+      'field.signi_traps': ['WD01-013#91', 'WD01-014#91', 'WD05-013#91'],
+      'field.check': null,
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    const traps0 = (before?.host?.signiTraps ?? []).filter(Boolean).length;
+    const hand0 = before?.host?.hand ?? 0;
+    H.log(`開始 traps=${traps0} hand=${hand0}`);
+    if (traps0 !== 3) return { pass: false, detail: `前提崩れ＝【トラップ】3つが注入できていない（${traps0}）` };
+
+    let opened = false; let picked = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+      if (!did) {
+        // 【起】＝`data-action-label` の前方一致で掴む（§4.4 罠2＝正規表現名に exact は効かない）
+        const labels = await page.locator('[data-action-label]').evaluateAll(els => els.map(e => e.getAttribute('data-action-label') ?? ''));
+        const idx = labels.findIndex(l => l.startsWith('【起】'));
+        if (idx >= 0) {
+          const btn = page.getByTestId(`card-action-${idx}`).first();
+          if (await btn.count() && await btn.isEnabled().catch(() => false)) { await btn.click({ timeout: 1200 }).catch(() => {}); did = `act:${labels[idx]}`; }
+        }
+      }
+      // 🔴**候補セルはトグル＝1回だけ押す**（§4.4 罠8p）。毎ティック押すと選択が入り切りを繰り返し、
+      //   「決定 (N/M)」に到達しないまま24ティック空振りする（実測）。
+      if (!did && !picked) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; picked = true; }
+      }
+      if (!did) did = await clickDecideNofM(page);
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const traps = (st?.host?.signiTraps ?? []).filter(Boolean).length;
+      H.log(`  b60t[${s}] -> ${did ?? 'なし'} | traps=${traps} hand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if ((st?.host?.hand ?? 0) > hand0) {
+        if (traps === 0 || (st?.host?.hand ?? 0) >= hand0 + 2) {
+          return { pass: false, detail: `【O-60⑦ 回帰】まとめて回収した（hand ${hand0}→${st?.host?.hand} / traps ${traps0}→${traps}）＝助数詞違いで既定の「全部」へ落ちる旧バグ` };
+        }
+        if (st?.pendingEffect != null || (st?.stackLen ?? 0) > 0) continue;   // まだ解決中
+        return { pass: true, detail: `【トラップ】1つだけが手札へ（hand ${hand0}→${st?.host?.hand} / traps ${traps0}→${traps}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（traps=${(fin?.host?.signiTraps ?? []).filter(Boolean).length} hand=${fin?.host?.hand} logTail=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
+  },
+};
+order.push('b60TrapToHandOne');
+
+// ── §5.3 O-60 第5バッチ（続き665）＝「2倍－される」が engine の regex に1本も当たらず無言 no-op ──
+//
+//   `DOUBLE_POWER_MINUS` の engine は `シグニN体につき±X` / `パワーをN倍にする` でカード全文を読んでいたが、
+//   実データの綴りは「**2倍－される**」＝**live 7効果すべてが不発**で、ログを出して終わっていた。
+//   ⚠**受け皿（`double_power_minus_this_turn`＋`effectEngine` の2倍化）は最初から在った**＝
+//   別 id `DOUBLE_POWER_MINUS_THIS_TURN` が同じことをしており、parser がそちらを吐かなかっただけ。
+//
+// ■ 観測点＝**相手シグニがバニッシュされるかどうか**（パワーが0以下になるかで盤面が割れる）。
+//   guest zone0 に P5000 のバニラを置き、【チャーム】を付けて `WX11-087`（【出】：【チャーム】が付いている
+//   相手シグニ1体を－3000）を撃つ。**アーツ `WX24-D5-05` を先に使ったターンだけ** －6000 になり、
+//   5000－6000＝－1000 で**ルールバニッシュ**される。使わなければ 2000 で**生き残る**（＝対照）。
+// 🔑**対照は盤面を1文字も変えず、アーツを使うかどうかだけを外す**（§4.4 罠3）。
+const b60DblSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WX08-004#1'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'hand': ['WX11-087#1'],
+    'energy': ['WD05-013#91', 'WD05-013#92'],
+    'lrig_deck': ['WX24-D5-05#1'],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#2'],
+    'field.signi': [['WXDi-P04-044#91'], null, null],   // 羅星 レプス P5000（効果なし）
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': ['WD03-002#1', null, null],   // zone0 に【チャーム】注入
+    'field.check': null,
+    'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b60DblDrive = (tag, useArts) => async (page, H) => {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`${tag} 開始 gSigni=${JSON.stringify(before?.guest?.fieldSigni)} gTrash=${before?.guest?.trash}`);
+
+  let artsDone = !useArts;
+  if (useArts) {
+    // ルリグデッキを開く → アーツ（zone-card-0）を開く → CardModal「使用」→ ArtsModal「アーツ使用」
+    // ⚠**`zone-card-0` は「開く」だけ**＝毎ティック押し直すとモーダルを開き直すばかりで永久に撃てない（実測13ティック空振り）。
+    //   既存の `wxk02029` シナリオと同じく、**開くのは1回だけ**にして以降はラベルで進める。
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    await page.waitForTimeout(700);
+    H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+    for (let s = 0; s < 16 && !artsDone; s++) {
+      let did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+      if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+      await page.waitForTimeout(700);
+      const st = await H.queryState();
+      artsDone = (st?.logTail ?? []).some(l => l.includes('パワーマイナスが2倍'));
+      H.log(`  ${tag}-arts[${s}] -> ${did ?? 'なし'} | done=${artsDone} logTail=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
+      if (artsDone) break;
+    }
+    if (!artsDone) {
+      const st = await H.queryState();
+      return { pass: false, detail: `前提崩れ＝アーツを撃てていない（logTail=${JSON.stringify((st?.logTail ?? []).slice(-8))}）` };
+    }
+    await H.closeModals();
+  }
+
+  H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false; let picked = false; let minusSeen = false; let settleTicks = 0;
+  let last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+    // 🔴**候補セルはトグル＝1回だけ押す**（§4.4 罠8p）。毎ティック押すと選択が入り切りを繰り返し、
+    //   **【出】が一度も解決しないまま「相手が生き残った」で対照が緑になる**（＝空振り緑・実測）。
+    if (!did && !picked) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick-0'; picked = true; }
+    }
+    if (!did) did = await clickDecideNofM(page);
+    if (!did) did = await H.stdStep(['発動', '確定', 'OK', 'はい']);
+    last = await H.queryState();
+    // 🔑機構が動いた証拠＝パワーマイナスが実際に積まれたこと（§4.4 罠4）。
+    minusSeen ||= (last?.guest?.powerMods ?? []).some(m => m.includes(':-'));
+    minusSeen ||= ((last?.guest?.fieldSigni ?? [])[0] ?? []).length === 0;
+    const gAlive = (last?.guest?.fieldSigni ?? [])[0]?.length > 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | gZone0=${JSON.stringify((last?.guest?.fieldSigni ?? [])[0])} alive=${gAlive} gMods=${JSON.stringify(last?.guest?.powerMods)} minusSeen=${minusSeen} hField=${JSON.stringify(last?.host?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    const placedNow = (last?.host?.fieldSigni ?? []).some(z => z && z.length);
+    // ⚠**パワー0以下のルールバニッシュは同じティックでは反映されない**＝マイナスを観測した直後に
+    //   打ち切ると「生き残った」と誤判定する（§4.4 罠7＝DOM/state の反映待ち）。数ティック余分に回す。
+    if (placedNow && minusSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) {
+      if (((last?.guest?.fieldSigni ?? [])[0] ?? []).length === 0) break;
+      if (++settleTicks >= 5) break;
+    }
+  }
+  const alive = ((last?.guest?.fieldSigni ?? [])[0] ?? []).length > 0;
+  const placed = (last?.host?.fieldSigni ?? []).some(z => z && z.length);
+  if (!placed) return { pass: false, detail: `前提崩れ＝WX11-087 を召喚できていない（hField=${JSON.stringify(last?.host?.fieldSigni)}）` };
+  if (!minusSeen) return { pass: false, detail: `前提崩れ＝【出】のパワーマイナスが一度も適用されていない（gMods=${JSON.stringify(last?.guest?.powerMods)}）＝空振り緑を防ぐガード` };
+  if (useArts) {
+    return !alive
+      ? { pass: true, detail: `アーツで2倍化＝－3000が－6000になり P5000 のシグニがバニッシュ（gZone0=${JSON.stringify((last?.guest?.fieldSigni ?? [])[0])}）` }
+      : { pass: false, detail: `【O-60⑤ 回帰】2倍化が効かず P5000 が生き残った（－3000のまま）＝旧実装（無言 no-op）の形` };
+  }
+  return alive
+    ? { pass: true, detail: `対照：アーツ無しなら－3000のままで P5000 は生き残る（gZone0=${JSON.stringify((last?.guest?.fieldSigni ?? [])[0])}）` }
+    : { pass: false, detail: `対照が壊れている＝アーツ無しなのにバニッシュされた` };
+};
+scenarios.b60DoubleMinusArts = {
+  title: 'O-60⑤ WX24-D5-05＝このターンの2倍マイナスが効き、P5000 の相手シグニが落ちる【旧: 無言no-op】',
+  spec: b60DblSpec(),
+  drive: b60DblDrive('b60DblOk', true),
+};
+scenarios.b60DoubleMinusNoArts = {
+  title: 'O-60⑤ 対照＝アーツを使わなければ－3000のままで P5000 は生き残る（盤面は同一）',
+  spec: b60DblSpec(),
+  drive: b60DblDrive('b60DblNg', false),
+};
+order.push('b60DoubleMinusArts', 'b60DoubleMinusNoArts');
+
 // ── §5.3 O-60 第4バッチ（続き664）＝配置数制限の上限・主語を全文 regex で読んでいた ──
 //
 //   `DEPLOY_RESTRICT` は**消費地点2つ**（executor と `effectEngine.collectDeployCountLimit`）が
