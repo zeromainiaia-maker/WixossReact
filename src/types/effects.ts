@@ -967,6 +967,7 @@ export type EffectAction =
   | SequenceAction
   | RepeatAction
   | PreventRefreshAction
+  | SelectColorAction
   | ChooseAction
   | ConditionalAction
   | LookAndReorderAction
@@ -1495,6 +1496,13 @@ export interface SequenceAction {
 export interface RepeatAction {
   type: 'REPEAT';
   count: number;
+  /**
+   * 回数を実行時に解決する（§5.3 `O-87`・`WX16-017-E1`
+   * 「この方法で手札に加えた【トラップ】**１つにつき**手札からカード１枚を…設置する」）。
+   * 指定時は `count` より優先し、`resolveCountRef` で解く（`{$ref:'last_processed_count'}` 等）。
+   * ⚠**0 に解決したら1周も回さない**（原文どおり＝1枚も戻せなかったら設置もしない）。
+   */
+  countRef?: NumberOrRef;
   action: EffectAction;
   /**
    * 「あなたはこの効果を**あとN回まで繰り返してもよい**」（`WX16-042-E1`・§6.4 O-32）＝
@@ -1508,6 +1516,26 @@ export interface RepeatAction {
  * 発生源プレイヤーのリフレッシュを「このターンと次のターンの間」禁止する。
  * 寿命は既存の *_until_opp_turn family と同じ＝次の相手ターン終了時（＝自分の次ターン開始時）に解除。
  */
+/**
+ * `SELECT_COLOR`（§5.3 `O-87`・2026-08-26）＝**色を選択する**（選んだ色は `SELECTED_COLOR` 条件が読む）。
+ *
+ * `from` が「どこから選べる色を導くか」＝**この1点で原文の2形を分ける**：
+ *  - `'energy'`＝「あなたのエナゾーンにあるカードが持つ色から**最大N色**まで選ぶ」（`WX10-025`）。
+ *    `count` が上限（省略＝1）。
+ *  - `'last_processed'`＝「この方法で手札に加えた**カード１枚につきそのカードに含まれる色１つ**を選択する」
+ *    （`WX12-Re07`）＝**直前に処理した各カードごとに、そのカードが持つ色から1つ**。
+ *    1色しか持たないカードは選ぶ余地が無いので自動確定する。
+ *
+ * ⚠**旧 `STUB{CHOOSE_COLOR_FROM_LIST}` はカード全文を `最大N色` で読んでいた**（§5.3 `O-60` A群）。
+ *   payload 化してその regex を撤去した＝engine は JSON だけを見る。
+ */
+export interface SelectColorAction {
+  type: 'SELECT_COLOR';
+  from: 'energy' | 'last_processed';
+  /** `from:'energy'` の選択上限（省略＝1）。`'last_processed'` では未使用（枚数＝処理カード数）。 */
+  count?: number;
+}
+
 export interface PreventRefreshAction {
   type: 'PREVENT_REFRESH';
 }
@@ -3043,8 +3071,20 @@ export interface StubAction {
   trapToHand?: {
     /** 手札に加える枚数。`'ALL'` は原文「好きな数」。 */
     count: number | 'ALL';
-    /** 「N つ**まで**」＝0枚でもよい。 */
+    /**
+     * 「N つ**まで**」＝0枚でもよい。
+     * 🆕**`count:'ALL'` と併用すると原文「好きな数」**（§5.3 `O-87`・`WX16-017-E1`）＝
+     *   0枚も選べる選択 UI を必ず出す。⚠**併用しないと engine は問答無用で全部回収する**
+     *   （「好きな数対象とし」はプレイヤーの選択なので、全回収は過剰実行）。
+     */
     upTo?: boolean;
+    /**
+     * 🆕**同じ選択プールに場のシグニも混ぜる**（§5.3 `O-87`・`WX16-017-E1`
+     * 「あなたの【トラップ】**と＜トリック＞のシグニ**を好きな数対象とし、それらを場から手札に加える」）。
+     * ⚠**`lastProcessedCards` に載るのは【トラップ】だけ**＝後続が数えるのは
+     *   「この方法で手札に加えた**【トラップ】**１つにつき」だから（シグニは数に入らない）。
+     */
+    alsoSigniFilter?: TargetFilter;
   };
   /**
    * `CONDITIONAL_ARTS_COST`：**どの条件でアーツの使用コストが変わるか**
