@@ -1845,7 +1845,8 @@ function parseActiveCondition(text: string): ConditionParseResult {
   // 🔴レベル形・レベル＋色形・色＋手札枚数形・色＋このシグニの位置形は在ったのに**色だけの形が無く**、
   //   条件が丸ごと落ちて **《相手ターン》の間ずっと＋5000** の過剰効果になっていた（`LRIG_COLOR` は
   //   ActiveCondition にも Condition にも実装済み＝純粋な配線ギャップ）。
-  // ⚠**レベル＋色の複合形より後ろに置く**（先に置くと複合形の色だけを拾ってレベル条件が消える）。
+  // ⚠**複合形（色＋手札枚数／色＋このシグニの位置／レベル＋色）と衝突しない**＝それらは色の直後が
+  //   「で、」で続くのに対し、この regex は色の直後に「かぎり、」が来る形だけを取る。
   const centerLrigColorOnlyM = text.match(/^(あなた|対戦相手)のセンタールリグが(白|赤|青|緑|黒)(?:である|で)?かぎり、/);
   if (centerLrigColorOnlyM) {
     return {
@@ -18475,6 +18476,17 @@ function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): voi
     if (/あなたのセンタールリグのレベル以下の対戦相手のシグニ/.test(source)
         && (action.type === 'BOUNCE' || action.type === 'BANISH') && action.target.type === 'SIGNI') {
       action.target.filter = { ...(action.target.filter ?? {}), cardType: 'シグニ', levelLteLrig: 'self' };
+    }
+    // 🆕**デッキ探索側にも同じ限定が要る**（段2 第45バッチ・`WXK10-037-E2`）＝
+    //   「あなたのデッキから**あなたのセンタールリグのレベル以下の**赤のシグニ１枚を探して…」。
+    //   上の規則は BOUNCE／BANISH の**相手シグニ**形だけを見ていたため、SEARCH は限定が丸ごと落ちて
+    //   **デッキの赤シグニなら何レベルでも持ってこられる**過剰効果だった。engine 側は `execSearch` が
+    //   `resolveDynamicFilter` を通しており（参照不能なら `noMatch`＝fail-closed）配線のみで直る。
+    // ⚠名詞句修飾形に限定する（「〜の場合」等の条件節を拾わない）。
+    if (/(?:あなた|対戦相手)のセンタールリグのレベル以下の(?:[^。、]{0,12})?(?:シグニ|カード)/.test(source)
+        && action.type === 'SEARCH') {
+      const lteSide: 'self' | 'opponent' = /対戦相手のセンタールリグのレベル以下の/.test(source) ? 'opponent' : 'self';
+      action.filter = { ...(action.filter ?? {}), levelLteLrig: lteSide };
     }
 
     // 「手札の枚数以下」は差分キーとは別軸。選択肢のうち相手シグニをバニッシュする枝だけへ付ける。
