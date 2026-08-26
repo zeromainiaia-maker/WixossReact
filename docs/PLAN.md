@@ -10,15 +10,15 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-26・続き670・Opus 5）＝§5.3 `O-88`＝「それ」が**前の文**で宣言した対象を指す照応。従来は接続節が「そうした場合、」「この方法で〜した場合、」の2つに限られており、**期間句**（「ターン終了時まで、」）や**結果句**（「追加で／それが〜の場合、」）で割れた形が丸ごと漏れて、`targetsTriggerSource`（＝トリガー元＝**自分のシグニ**）へ落ちていた。**5効果を是正**（うち3件は原文と真逆＝自分のシグニをバニッシュ／弱体化していた）。
-  - 🔴**一般化は「ガード2枚」とセットでないと fail-open**＝無ガードで一般化した A/B は **15効果が動いて内訳が 正3・良性1・退化11**だった。採用したガードは ①**文境界**（「を対象とし」と「それ」の間に `。` がある＝同一文内は `parseSentencePart1` の領分）②**最終文**（`findTailAction` は木の末尾を返すので、照応節の後ろに文があると**無関係なアクションに owner を塗る**＝`WD15-001-E2` の「このルリグは【ダブルクラッシュ】を得る」が相手への付与に化けた）。**採用後は 6効果・正5/良性1/退化0**。
-  - 🔑**`findTailAction` に頼らず「それ」のノードを木から名指しした**＝`deltaPerLastProcessedCount`＋`targetsTriggerSource` の組は**その文でしか立たない**ので一意に特定できる。これで照応節の**後ろにもう1文ある** `WXK07-051-E1`（引用能力・`O-80` 第1バッチの fail-closed 差し戻し先）が通り、designation「**正面の**シグニ」も既存語彙 `filter.frontOfSelf` で表せた。
-  - ✅**自分側の対を新設**＝`applyLeadingOpponentDesignationToPowerModify`（`applyLeadingSelfDesignationToPowerModify` の相手側の兄弟が無く、`WDK13-014-E2` が `owner:'any'`＝**自分のシグニも削れる**＋レベル３限定消失だった）。
-  - ✅**stale live を1件払い戻し**＝`WXDi-P12-073-E2` は live で **`FREEZE` が丸ごと消え**＋4000 が**相手のシグニ**に乗っていた（parser は既に正しく held に凍っていただけ）。
-  - ⚠**census 568→569 は退化ではなく可視化**＝census は STUB を含む効果を高シグナルから免除するので、`WXK07-051-E1` を実アクションへ移した結果「公開し」カテゴリで初めて計上された。**残っているのは本物の穴**（→ `O-90`）。
-  - ✅ gates 全緑（golden **2840→2841**／census **569/569**（baseline 更新）／`census:enginetext` A群 141 据置／smoke・fuzz 全0）。**実機 新規2本 PASS**（`o88LeadingDesignationAnaphora` ／ `o88AttackAnaphoraBanishesOpponent`）＋回帰2本 PASS（`o80PerProcessedCount` ／ `o87ResetTrapReplace`）。**候補列（`pendingCandidates`）を pick 前に読む**盤面（自分Lv3・相手Lv3・相手Lv1）で「絞り込みが効いていること」を直接観測した。
+- 🏁**セッション（2026-08-26・続き671・Opus 5）＝§5.3 `O-90`＝公開札の後始末（「公開したカードをシャッフルしてデッキの一番下に置く」）が `count:0` の**無言 no-op** に割れ、**原文と逆に公開したN枚がデッキ上へ戻っていた**。**5効果を是正**（うち1件は「自分の場のシグニがデッキ下へ送られる」別物）。
+  - 🔑**受け皿は engine に最初から在った**＝`execLookAndReorder` は `a.shuffle` を pending へ渡し、`resumeLookAndReorder` は `pending.shuffle` でシャッフルしてデッキ下へ置く。**parser が吐いていなかっただけ**（`REVEAL_UNTIL` の `restDestination:'deck_bottom_shuffled'` が同義の兄弟で、そちらは既に解けていた）。
+  - 🔴**parser の手当ては「後段の置換」で行う（前段の regex を広げない）**＝`WD21-020` で前段（`parseSentencePart1` の catch-all 除外＋`parseSentencePart3` の公開規則）を広げたら、狙ったノードは直ったが**後続の多分岐4枝がまとめて `LAST_PROCESSED_MATCHES` を失い無条件実行へ退化**した（A/B 実測）。真因＝`parseBareBranchCondition` の多分岐は**「直前枝が LPM であること」をゲートに使う chain 構造**。⇒ 後処理列で**木の1ノードだけを差し替える**形に変え、chain を無傷で残した。
+  - 🔑**母集団は見立て7枚→実測8枚**で、**壊れ方は4群に分かれていた**（A＝無言 no-op 4／B＝`REVEAL_UNTIL` 未生成 1／C＝`REVEAL_UNTIL` で解決済み 2／D＝MANUAL 1）。**同じ原文でも同じ壊れ方とは限らない。**
+  - ✅**実機は新規1本 PASS ＋ 反転確認済み**＝`o90RevealedCardsToDeckBottom`（観測点は `deckCards` の順序）。live の `WXK05-051` **だけ**を旧形に戻すと同じシナリオが赤になる＝旧実装を確かに捕まえる。
+  - ⚠**回帰の `lookReorderCanTrash` FAIL は本件と無関係**＝`git stash` して **HEAD でも同じ FAIL**（既存の腐り）。§5.1 に `V-89` で登録した。
+  - ✅ gates 全緑（golden **2841→2842**／census **569→568**（baseline を実数へ払い戻し）／`census:enginetext` A群 142 据置／smoke・fuzz 全0／`census:stubs` A群🔴0・C群0／manual-fields 0/0）。
 
-**▶ 次の一手**＝**`O-80` 第2バッチ**（残 37効果。次の塊は**ゾーンを数える系**＝トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2。受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL` 系が既存）。⚠**`O-88` で外に出た2件を先に潰してもよい**＝`O-90`（公開→シャッフルしてデッキ下が無言 no-op・原文7枚）と `O-91`（前文の主語が省略された閾値ゲート・実測3枚）はどちらも S。
+**▶ 次の一手**＝**`O-80` 第2バッチ**（残 36効果。次の塊は**ゾーンを数える系**＝トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2。受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL` 系が既存）。⚠**`O-91`**（前文の主語が省略された閾値ゲート・実測3枚・S）を先に潰してもよい＝`O-88` で外に出た2件のうち `O-90` は本セッションで消化済み。
 - 🆕🔴**照応の一般化は必ず「掴むノードが正しいか」を先に決める**＝件数を増やす regex だけ広げると `findTailAction` が別の節のアクションを掴んで**静かに真逆**になる。**A/B の差分を原文と1件ずつ突き合わせるまで「直った件数」を名乗らない**（今回の見積もり22件 → 実測で動くのは15件、うち直るのは3件だった）。
 - 🆕🔑**fail-closed の差し戻し先（STUB）は「あとで拾う」ための住所**＝`O-80` 第1バッチが `revertUnresolvedPerLastProcessed` で旧 STUB へ戻しておいたおかげで、今回 `census:enginetext`／`census:stubs` の worklist から確実に拾えた。
 - 🔑**「機構が無い」と決めつける前に、同義の別キーと `{$ref}` の一覧を見る**（4回連続で「受け皿は在って parser が吐いていないだけ」＝今回は `filter.frontOfSelf`）。
@@ -344,6 +344,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
 
 - [x] ✅**`V-88`（クローズ・2026-08-26 続き668）＝旧 `charm_facedown` は §5.3 `O-81` で受け皿ができ、`ATTACH_FACEDOWN_FROM_HAND` へ移行した**（`PLACE_CARD_UNDER_SIGNI` から `charm_facedown` モードごと削除）。「実機から原理的に観測できない」枠から外れ、**実機2本で観測済み**＝`o81FacedownAttachRevealBanish`（付与→離脱で公開し手札へ→同レベルだけバニッシュ）＋対照 `o81NoAttachNoBanish`（【起】を撃たなければ何も起きない）。詳細は BUGFIXES.md 2026-08-26 `O-81`。
+- [ ] 🆕**`V-89`（2026-08-26 続き671＝`O-90` の回帰実行で露出）＝既存シナリオ `lookReorderCanTrash`（`WX20-037`・デッキ上3枚を見て好きな枚数をトラッシュ）が FAIL する。**
+  ⚠**O-90 とは無関係**＝`git stash` して **HEAD でも同じ FAIL**（`hDeck=2（開始5） hTrash=3（開始0）`）。live の `WX20-037` は O-90 の A/B 差分に入っていない。
+  ■**症状**＝「召喚→ゾーン1」の直後に**モーダルが出ないまま3枚がトラッシュへ行き**（`pEff=-`・`trashClicked` が一度も立たない）、以後14ティック空振りする。
+  ■**切り分けの起点**＝§4.4 の3分類でいう (a)**シナリオの腐り**か (b)**engine の穴**か。spec の `deck` が**5枚しかない**ので、3枚見た時点で残2枚＝
+  リフレッシュ誘発（罠22）か、`canTrash` UI に到達する前に別経路が解決している可能性がある。**まず deck を10枚以上にして再実行する**（腐りなら1手で緑）。
 
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
@@ -396,7 +401,6 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 |---|---|---|---|
 | **O-60** | **engine が「カード全文 regex」で意味を決める箇所が系統として残っている** | **138ハンドラ（実測）／1ハンドラ＝1バッチ** | **手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-08-26 続き666）**＝**A🔴 SELF_TEXT 142行／138ハンドラ**（B 59／C 27）・**regex が1本も当たらないハンドラ 43・miss カード 76**。初回計測は 150行/145ハンドラ・miss 165。■🔴**ゲート（ratchet）は `npm run gates` に同梱済み**（増えても減っても exit 1）。■**次の3件**＝`LOOK_AND_REORDER`（miss4/live6・⚠**parser 生成地点が15箇所の catch-all**＝`O-76`/`O-77` と同型なので1バッチにまとめない）／`SEED_BLOOM|SEED_BLOOM_OPTIONAL`（miss4/live6・リテラルは `好きな枚数` 1本だけ＝**カード全文に1度でも出れば全シードが開花する**）／`GAIN_EXTRA_TURN`（miss4/live5）。⚠**最大の `POWER_MOD_PER_COUNT`（miss8/live58）は別サイズなので `O-80` へ分離した。** ■**手口**（8バッチで確立）＝①**先に `grep <STUB_ID> src/engine/` で消費地点を全部数える**（同じ regex が地点ごとにコピーされている）②**ハンドラ末尾の else を必ず読む**（regex すら無い最後の else は計器の miss に出ない）③**`grep <同義語> src/engine/` で「同じことをする別 id」を探す**（第5バッチはこれで engine の新設が**0行**になった）③b🆕**同じ効果の他のステップを見る**（第8バッチは `WXDi-D04-010-E1` の**第1ステップが既に受け皿の typed アクション**で、第2ステップだけが STUB に落ちていた＝一番安い受け皿探し）④parser が判別子を吐く→engine は payload で分岐→**逆翻訳も payload から描く**→regex 撤去→基準を下げる ⑤**payload 欠落は fail-closed**。⚠**倒す向きは旧既定の逆**にする（旧既定が過剰側なら「何もしない」へ）。 ■⚠**計器の miss 数は「壊れている効果数」ではない**＝第5バッチは miss7/live7 で7効果とも壊れていたが、第3バッチは miss16/live16 でも**4消費地点のうち壊れていたのは1つだけ**だった。🆕**逆向きも同じ**＝第8バッチは miss4/live12 だが、**当たっていた8件のうち1件は当たったうえで間違っていた**（複合条件の前半しか読まない）＝**miss=0 でも安心できない。** ■✅**消化済み8バッチ**＝第1 `LOOK_OPP_LIFE_TOP`／第2 `LRIG_UNDER_CARD_OP`／第3 `COPY_LRIG_NAME_ABILITY`／第4 `DEPLOY_RESTRICT`／第5 `DOUBLE_POWER_MINUS`／第6 `PLACE_CARD_UNDER_SIGNI`／第7 `TRAP_TO_HAND`／第8 `CONDITIONAL_ARTS_COST`。全文は BUGFIXES.md 2026-08-26（4エントリ）。 |
 | **O-80** | **`POWER_MOD_PER_COUNT` が「何を数えるか／誰に効くか」を持たず、engine のカード全文 regex で決めている** | **残 36効果（初回 58・第1バッチで 21消化・`O-88` で `WXK07-051-E1` を1件解消）／1バッチ15〜20効果** | ■**現在地（2026-08-26 続き667）**＝**live 37効果**（第1バッチ前は58）。⚠**`census:enginetext` の A群行数（142）は動かない**＝ハンドラは残り37効果のために生きている。**この項目の進捗は行数ではなく live 効果数で測る。** ■✅**第1バッチ消化＝「この方法で〜した〈X〉N枚につき」（21効果）**＝全文は BUGFIXES.md 2026-08-26。**受け皿は最初から在った**（`POWER_MODIFY.deltaPerLastProcessedCount` ＋ `{$ref:'last_processed_count',filter}` ＋ `last_processed_level_sum`）＝**parser が吐いていなかっただけ**。手口＝**修飾句を外した文を通常経路にそのまま解かせて `POWER_MODIFY`（正しい `target` つき）をもらい、倍率だけ payload で足す**（規則1本で20効果）。 ■**残りの内訳（実測）**＝**ゾーンを数える系16**（トラッシュ5／場7／手札1／チェックゾーン1／シグニの下2）＝🔑**受け皿は `POWER_MODIFY_PER_FIELD`／`POWER_MODIFY_PER_LEVEL_SUM`／`POWER_MODIFY.deltaFromZone` に既に在る**ので同じ手口が効くはず／**「〜と同じだけ」7**（`WXEX2-79`「この方法でバニッシュしたシグニのパワーと同じだけ－」等＝受け皿は `POWER_MODIFY_BY_SOURCE`?）／**レベル合計4**／**catch-all 流入8**（`WX22-042-E1`「色１つを宣言する」等＝パワーの話を1文字もしていない＝honest な `DEFERRED_*` へ）。 ■⚠**第1バッチで踏んだ落とし穴3つは次バッチでも同じ**＝①**新規則は dispatch の後ろに置く**（前に置くと専用受け皿を横取りして退化・実測3枚）②**「それ」の照応は文をまたぐ**＝`targetsTriggerSource` が立ったら**自分のシグニに化ける**ので、確定できなければ差し戻す（fail-closed）③**修飾句を外すと読点が余る**。 ■⚠**census は STUB を含む効果を高シグナルから免除する**＝STUB を外すと隠れていた穴が出て**ベースラインが上がる**（退化ではない・続き529 と同型）。 |
-| **O-90** | 🆕**「デッキの上からカードをN枚公開する。…公開したカードをシャッフルしてデッキの一番下に置く」が2つの `LOOK_AND_REORDER` に割れ、後半が `count:0` の無言 no-op になる** | S | **2026-08-26 続き670（`O-88`）で露出**＝`WXK07-051-E1` の引用能力。前半の `LOOK_AND_REORDER{destination:deck/**top**}` が公開札を**デッキの上に戻し**、後半の「シャッフルしてデッキの一番下」は `count:0` で `cards.length===0`→`done(ctx)` の**無言 no-op**。⇒ 原文と逆で公開した3枚がデッキトップに残る。■**直し方**＝2文を畳んで**1つの `LOOK_AND_REORDER{destination:{deck,bottom}, shuffle:true}`** にする（`pending.shuffle` は `resumeLookAndReorder` に既にある／`REVEAL_UNTIL` の `restDestination:'deck_bottom_shuffled'` が同義の兄弟）。⚠**間に照応の `POWER_MODIFY` が挟まる**ので、畳むのは1文目と3文目＝`lastProcessedCards`（公開札）を2文目が読み終えた**後**に行き先を変えること。■母集団＝原文「公開したカードをシャッフルしてデッキの一番下に置く」**7枚**（`REVEAL_UNTIL` 経路で既に解けているものを含む＝要仕分け）。■計器＝`census` の「公開し」高シグナルに `WXK07-051-E1` として載っている（`BASELINE_HIGH` 569 の +1 はこれ）。 |
 | **O-91** | 🆕**前文の主語が省略された閾値ゲート（「…パワーが10000以上の場合、…。**12000以上の場合**、追加で／代わりに…」）が丸ごと落ちる** | S | **2026-08-26 続き670（`O-88`）で露出**＝2文目の「12000以上の場合、」は1文目の主語「このシグニのパワーが」を省略した形。条件節パーサは主語が無いので当たらず、**後半が無条件に走る**（`WXK05-043-E1` は本来パワー12000以上のときだけのバニッシュが**常に**走る）。■母集団＝**実測3枚**（`WXK05-043`／`PR-470A`／`WXDi-D01-016`）。⚠**「追加で」と「代わりに」で意味が違う**＝前者は**追加実行**（`CONDITIONAL` を後半だけに掛ける）、後者は**置換**（`WXDi-D01-016` は前半を捨てる）。1つの規則で両方を扱わないこと。■**直し方**＝直前文の条件節から主語（`SELF_POWER_GTE` 等）を継承して2文目の数値だけ差し替える。■固定済み＝golden「前文designationの照応」(c) と実機 `o88AttackAnaphoraBanishesOpponent` は**この残に依存しない盤面**（パワー13000）で回している。 |
 | **O-89** | 🆕**`WXDi-P10-040-E1` の【自】トリガーが丸ごと落ちて `CONTINUOUS`/`PERMANENT` になっている** | S | **2026-08-26 続き667（`O-80` 第1バッチ）で露出**＝原文は「【自】：このシグニがアタックしたとき、…」だが JSON は `effectType:'CONTINUOUS'` / `duration:'PERMANENT'`＝**毎回の場走査で発火しうる形**。🔑**STUB を外すまで計器に映らなかった**（census は STUB を含む効果を高シグナルから免除する）＝`census` の「構造:【自】→AUTO無」に初めて出た。■⚠**同型が他にもあるはず**＝`O-80` の残り37効果を消化するたびに同じ露出が起きる。**着手前に `## 構造:【自】→AUTO無` の高シグナル欄を全数で見る。** |
 | **O-83** | 🆕**「あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい」＝条件つきグロウの口が無い** | S | **2026-08-26 続き666（`O-60` 第8バッチ）で分離**＝`SP38-001-E1`（クロス・テンスグロウ！）。旧 id は `CONDITIONAL_ARTS_COST` で**コストの話に化けていた**ので `DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL` へ改名（`miscStubMap` に日本語説明あり）。■**要るもの**＝①「自センターのレベル < 相手センターのレベル」条件（既存の条件型に無い）②**効果によるグロウ**（原文は「コストを支払わずに」と書いていないので**通常のグロウコストを払う**）③「この方法でグロウしたルリグの【出】能力は発動しない」＝`suppressOnPlay` 相当の伝播。⚠**`GROW_FREE`（`GrowFreeAction`）は「コストを支払わずに」の口なので流用しない**（過少コストになる）。⚠**着手前に母集団を実測する**（「グロウしてもよい」を含む効果の全数）。 |
@@ -537,17 +541,17 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-26 続き670 後（本行が直近の正）**：
-  **census 569/569**（`O-88` で +1＝**退化ではなく可視化**。`WXK07-051-E1` を STUB から実アクションへ移して「公開し」に計上された）、**golden 2841**（`O-88` +1）、
+- **2026-08-26 続き671 後（本行が直近の正）**：
+  **census 568/568**（`O-90` で −1＝`O-88` が可視化した穴の**払い戻し**。`WXK07-051-E1` の公開札がデッキ上へ戻る形を是正して「公開し」カテゴリから抜けた。`BASELINE_HIGH` 更新済み）、**golden 2842**（`O-90` +1）、
   smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
-  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75・据置）、
-  **`POWER_MOD_PER_COUNT` の live 36効果**（`O-88` で `WXK07-051-E1` を1件解消。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-88` は AUTO 6効果が変化）、
-  **`_held_fresh` 75 / `_partial_fresh` 12 / `_idset_fresh` 45**（`O-88` で6件採用＝81→75）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝`O-90` は engine の全文 regex を1本も増やしていない＝parser 側で完結）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-90` は AUTO 5効果が変化）、
+  **`_held_fresh` 76 / `_partial_fresh` 12 / `_idset_fresh` 45**（`O-90` で5件採用）、
   **どのフラグも立たないカード 4962 / 5975（83.0%）**（`npm run census:cards`）、
-  **実機シナリオ +2**（`o88LeadingDesignationAnaphora` ／ `o88AttackAnaphoraBanishesOpponent`。回帰＝`o80PerProcessedCount`／`o87ResetTrapReplace` PASS・`verify:browser` 3本 PASS）、
-  **`npm run golden` の所要＝全件 約157秒／`--only` 約1.5秒**
+  **実機シナリオ +1**（`o90RevealedCardsToDeckBottom`＝**反転確認済み**。回帰＝`o88AttackAnaphoraBanishesOpponent` PASS／`lookReorderCanTrash` は**HEAD でも赤い既存の腐り**＝`V-89` に登録）、
+  **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
 
 ---
 

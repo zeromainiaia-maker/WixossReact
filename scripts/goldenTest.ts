@@ -3670,6 +3670,82 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
     ok(pm.target?.owner !== 'opponent', 'WXDi-P12-073-E2 同一文内照応へ踏み込まない');
   }
 });
+// ── §5.3 `O-90`（2026-08-26）：「デッキの上からカードをN枚公開する。〈…〉。**公開したカードを
+// シャッフルしてデッキの一番下に置く。**」が2つの `LOOK_AND_REORDER` に割れ、後半が `count:0` の
+// **無言 no-op**（`execLookAndReorder` が `cards.length===0` で `done(ctx)`＝ログすら出ない）になっていた。
+// 🔴前半が `destination:deck/**top**` なので、**原文と逆に公開したN枚がデッキトップに残る**
+//   （次のドローが全部見えている状態）。1つの `LOOK_AND_REORDER{deck/bottom + shuffle}` へ畳む。
+test('公開札の後始末をデッキ下シャッフルへ畳む（O-90）', () => {
+  const act = (id: string, eid?: string): Record<string, unknown> => {
+    const effs = (effectsMap.get(id) ?? []) as unknown as { effectId: string; action: Record<string, unknown> }[];
+    const e = eid ? effs.find(x => x.effectId === eid) : effs[0];
+    ok(!!e, `${id}: 効果が存在する`);
+    return e!.action;
+  };
+  const steps = (a: Record<string, unknown>): Record<string, unknown>[] => a.steps as Record<string, unknown>[];
+  const countLooks = (root: unknown): number => {
+    let n = 0;
+    const walk = (v: unknown): void => {
+      if (!v || typeof v !== 'object') return;
+      const o = v as Record<string, unknown>;
+      if (o.type === 'LOOK_AND_REORDER') n++;
+      for (const x of Object.values(o)) { if (Array.isArray(x)) x.forEach(walk); else walk(x); }
+    };
+    walk(root);
+    return n;
+  };
+  // (a) 「N枚公開 → 効果 → 公開札をデッキ下」＝公開ノードが1つに畳まれ、行き先がデッキ**下**＋シャッフル。
+  const folded: [string, string, number][] = [
+    ['WXK05-051', 'WXK05-051-E1', 3],
+    ['WDK13-012', 'WDK13-012-E1', 4],
+    ['SPK01-09', 'SPK01-09-E1', 5],
+  ];
+  for (const [id, eid, count] of folded) {
+    const a = act(id, eid);
+    eq(countLooks(a), 1, `${eid}: LOOK_AND_REORDER は1つ（count:0 の無言 no-op が消える）`);
+    const look = steps(a)[0] as { type?: string; count?: number; shuffle?: boolean; destination?: Record<string, unknown> };
+    eq(look.type, 'LOOK_AND_REORDER', `${eid}: 先頭は公開の LOOK_AND_REORDER`);
+    eq(look.count, count, `${eid}: 公開枚数は原文どおり`);
+    eq(look.destination?.position, 'bottom', `${eid}: 行き先はデッキの一番**下**（旧 top は原文と逆）`);
+    eq(look.shuffle, true, `${eid}: シャッフルして戻す`);
+  }
+  // (b) 引用能力の中でも同じ（照応の POWER_MODIFY を挟んでも畳む＝`lastProcessedCards` は
+  //     `resumeLookAndReorder` が公開札そのものを記録するのでレベル合計は引ける）。
+  {
+    const g = (act('WXK07-051').abilities as { action: Record<string, unknown> }[])[0];
+    eq(countLooks(g.action), 1, 'WXK07-051-E1-G: LOOK_AND_REORDER は1つ');
+    const look = steps(g.action)[0] as { count?: number; shuffle?: boolean; destination?: Record<string, unknown> };
+    eq(look.count, 3, 'WXK07-051-E1-G: 3枚公開');
+    eq(look.destination?.position, 'bottom', 'WXK07-051-E1-G: デッキの一番下へ');
+    eq(look.shuffle, true, 'WXK07-051-E1-G: シャッフルして戻す');
+    const pm = steps(g.action)[1] as { type?: string; deltaPerLastProcessedCount?: boolean };
+    eq(pm.type, 'POWER_MODIFY', 'WXK07-051-E1-G: 照応の POWER_MODIFY は畳んだ後も残る');
+    eq(pm.deltaPerLastProcessedCount, true, 'WXK07-051-E1-G: 公開札を読む倍率も残る（O-88 の固定）');
+  }
+  // (c) 連用形で後始末まで一文に繋がった形＝`WD21-020`。旧: 公開が丸ごと消えて
+  //     `TRANSFER_TO_DECK{source:あなたのシグニ}`＝**自分の場のシグニがデッキ下へ送られる**別物だった。
+  {
+    const st = steps(act('WD21-020'));
+    const cond = st[1] as { then?: Record<string, unknown> };
+    const ru = cond.then as { type?: string; restDestination?: string; stopCondition?: Record<string, unknown> };
+    eq(ru.type, 'REVEAL_UNTIL', 'WD21-020-E1: 「シグニがめくれるまで公開し」が REVEAL_UNTIL になる');
+    eq(ru.restDestination, 'deck_bottom_shuffled', 'WD21-020-E1: 公開札はシャッフルしてデッキ下');
+    eq(ru.stopCondition?.kind, 'signiCount', 'WD21-020-E1: 停止条件はシグニ1枚');
+    // 後続の「この方法で公開したシグニがレベルNの場合」が公開札を読める（参照先が復活する）。
+    const lp = st[2] as { condition?: { type?: string } };
+    eq(lp.condition?.type, 'LAST_PROCESSED_MATCHES', 'WD21-020-E1: レベル分岐は公開札を参照する');
+  }
+  // 🔴 fail-closed ガードの固定＝**`REVEAL_UNTIL` 経路で既に解けている札は触らない**。
+  //   `WXK07-054-CB` は「レベルの合計が5以上になるまで公開する」＝`restDestination` で後始末済みなので、
+  //   `LOOK_AND_REORDER` は1つも生まれない（畳み規則が二重に手を入れてはならない）。
+  {
+    const a = act('WXK07-054-CB', 'WXK07-054-CB-E2');
+    eq(countLooks(a), 0, 'WXK07-054-CB-E2: REVEAL_UNTIL 経路には LOOK_AND_REORDER を作らない');
+    const ru = (steps(a)[1] as { then?: { type?: string; restDestination?: string } }).then!;
+    eq(ru.type, 'REVEAL_UNTIL', 'WXK07-054-CB-E2: REVEAL_UNTIL のまま');
+    eq(ru.restDestination, 'deck_bottom_shuffled', 'WXK07-054-CB-E2: 後始末は restDestination が持つ');
+  }
+});
 // ── 続き219: CHOOSE ヘッダ（「以下の…から…を選ぶ」）直前の状態条件を効果全体の発動条件へ持ち上げる（タスク12(xxxix)）。
 // 従来は CHOOSE 分解がヘッダ以前を捨てるため条件が脱落し、毎アタックフェイズ開始時/出時に無条件で CHOOSE が
 // 発火する過剰効果だった（WX24-P2-048「場に《満月の使徒 小湊るう子》がいる場合」等10枚）。

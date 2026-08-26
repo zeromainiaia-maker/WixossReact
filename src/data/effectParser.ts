@@ -9494,6 +9494,155 @@ function foldStructuredRevealUntil(text: string, parsed: EffectAction): EffectAc
 }
 
 /**
+ * 🆕§5.3 `O-90`（2026-08-26）＝「デッキの上からカードをN枚公開する。〈…〉。**公開したカードを
+ * シャッフルしてデッキの一番下に置く。**」が2つの `LOOK_AND_REORDER` に割れ、**後半が `count:0` の
+ * 無言 no-op** になる形を畳む。
+ *
+ * 症状＝前半の `LOOK_AND_REORDER{destination:deck/**top**}` が公開札を**デッキの上に戻し**、
+ * 後半は `execLookAndReorder` が `cards.length===0` で `done(ctx)` して**ログすら出ない**。
+ * ⇒ 原文と逆で「公開したN枚がデッキトップに残る」（次のドローが全部見えている状態になる）。
+ *
+ * 直し方＝前半のノードを `destination:{deck,bottom} + shuffle:true` に書き換え、後半を落とす。
+ * 受け皿は engine 側に既にある（`execLookAndReorder` が `a.shuffle` を pending へ渡し、
+ * `resumeLookAndReorder` が `pending.shuffle` で `keepRaw` をシャッフルしてデッキ下へ置く）。
+ * `REVEAL_UNTIL` の `restDestination:'deck_bottom_shuffled'` が同義の兄弟で、そちらは
+ * `removeStructuredRevealConsequence(fold.remove==='bottomOnly')` が同じ no-op を落としている。
+ *
+ * ⚠**間に照応の `POWER_MODIFY` が挟まる**（`WXK07-051-E1`「ターン終了時まで、それのパワーを
+ * この方法で公開されたシグニのレベルの合計１につき－1000する」）が、行き先を変えても
+ * `resumeLookAndReorder` が `lastProcessedCards` に**公開札そのもの**を記録し続けるので、
+ * 後続の `deltaPerLastProcessedCount` はカード番号からレベルを引ける（ゾーンを見ない）。
+ *
+ * 🔴**fail-closed のガード3枚**＝①原文にこの一文があること ②書き換え先の「N枚公開」ノードが
+ * **木にちょうど1つ**（`count>0`・`private:false`＝公開・自分のデッキ→デッキ上）③落とす no-op が
+ * **木にちょうど1つ**（`count:0`・デッキ下）。どれかが複数なら**どの公開札の話か確定できない**ので
+ * 据え置く（`REVEAL_UNTIL` 経路で既に解けている札を二重に触らないためのガードでもある）。
+ */
+function foldRevealShuffleToDeckBottom(text: string, parsed: EffectAction): EffectAction {
+  if (!/公開したカードをシャッフルしてデッキの一番下に置く/.test(text)) return parsed;
+
+  const looks: Record<string, unknown>[] = [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'LOOK_AND_REORDER') looks.push(obj);
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(visit);
+      else visit(value);
+    }
+  };
+  visit(parsed);
+
+  const destIs = (node: Record<string, unknown>, position: string): boolean => {
+    const dest = node.destination as Record<string, unknown> | undefined;
+    return dest?.location === 'deck' && dest.position === position;
+  };
+  const reveals = looks.filter(node => {
+    const source = node.source as Record<string, unknown> | undefined;
+    return typeof node.count === 'number' && node.count > 0 && node.private === false
+      && source?.location === 'deck' && source.owner === 'self' && destIs(node, 'top');
+  });
+  const noops = looks.filter(node => node.count === 0 && destIs(node, 'bottom'));
+  if (reveals.length !== 1 || noops.length !== 1) return parsed;
+
+  const reveal = reveals[0];
+  const noop = noops[0];
+  // 公開が先・後始末が後、という原文の順序を満たさない木は据え置く（走査は深さ優先の出現順）。
+  if (looks.indexOf(reveal) > looks.indexOf(noop)) return parsed;
+
+  const dest = reveal.destination as Record<string, unknown>;
+  reveal.destination = { ...dest, position: 'bottom' };
+  reveal.shuffle = true;
+
+  const drop = (node: EffectAction): EffectAction | null => {
+    if ((node as unknown as Record<string, unknown>) === noop) return null;
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(drop).filter((step): step is EffectAction => !!step);
+      return { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') {
+      const then = drop(node.then) ?? { type: 'SEQUENCE', steps: [] };
+      const otherwise = node.else ? drop(node.else) : null;
+      return { ...node, then, ...(otherwise ? { else: otherwise } : {}) };
+    }
+    if (node.type === 'CHOOSE') return {
+      ...node,
+      choices: node.choices.map(choice => ({
+        ...choice,
+        action: drop(choice.action) ?? { type: 'SEQUENCE', steps: [] },
+      })),
+    };
+    return node;
+  };
+  return drop(parsed) ?? parsed;
+}
+
+/**
+ * 🆕§5.3 `O-90`（2026-08-26）＝`WD21-020` の**連用形で後始末まで一文に繋がった公開**。
+ *
+ * 原文＝「あなたのデッキの上からシグニがめくれるまで公開**し、公開したカードをシャッフルし、
+ * デッキの一番下に置く**。その後、この方法で公開したシグニがレベル１の場合、…」
+ *
+ * 症状＝どの公開規則にも掛からず、**文末の「デッキの一番下に置く」だけ**が
+ * `parseSentencePart1` の catch-all（「デッキの一番下に置く」＋「シグニ」）に拾われ、
+ * `TRANSFER_TO_DECK{source:あなたのシグニ}` へ化けていた。⇒ 公開が丸ごと消え、
+ * **自分の場のシグニ1体がデッキ下へ送られる**別物になる（後続のレベル分岐も参照先を失う）。
+ *
+ * 🔴**手当ては「後段の置換」で行う**（parser の前段＝catch-all の除外条件や
+ * `parseSentencePart3` の公開規則を広げる形にしない）。実測で、前段を通す形にすると
+ * **後続の多分岐（「レベル２の場合、」…）4枝がまとめて `LAST_PROCESSED_MATCHES` を失い、
+ * 無条件実行の過剰効果へ退化した**（`parseBareBranchCondition` は直前枝が
+ * `LAST_PROCESSED_MATCHES` であることをゲートに使う chain 構造なので、先頭枝が崩れると
+ * 後続枝がまとめて bare step になる）。後段で1ノードだけ差し替えれば chain は無傷で残る。
+ *
+ * `hit` を持たない `REVEAL_UNTIL` は `execRevealUntil` が `lastProcessedCards: revealed` を
+ * 立てるので、後続の「この方法で公開したシグニがレベルNの場合」は公開札を読める
+ * （停止条件が `signiCount:1` ＝公開札のうちシグニは停止札1枚だけなのでレベル判定は誤らない）。
+ *
+ * 🔴**fail-closed のガード2枚**＝①原文にこの一文があること ②差し替える
+ * `TRANSFER_TO_DECK{deck下・シャッフルなし・自分のシグニ}` が**木にちょうど1つ**。
+ */
+function foldRevealUntilShuffleBottomInline(text: string, parsed: EffectAction): EffectAction {
+  if (!/デッキの上からシグニがめくれるまで公開し[、，]公開したカードをシャッフルし[、，]デッキの一番下に置く/.test(text)) return parsed;
+
+  const isMisparsedRemainder = (node: EffectAction): boolean => {
+    if (node.type !== 'TRANSFER_TO_DECK') return false;
+    const n = node as unknown as { position?: string; shuffle?: boolean; source?: { type?: string; owner?: string } };
+    return n.position === 'bottom' && n.shuffle === false
+      && n.source?.type === 'SIGNI' && n.source.owner === 'self';
+  };
+  let hits = 0;
+  const count = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (isMisparsedRemainder(node as EffectAction)) hits++;
+    for (const value of Object.values(node as Record<string, unknown>)) {
+      if (Array.isArray(value)) value.forEach(count);
+      else count(value);
+    }
+  };
+  count(parsed);
+  if (hits !== 1) return parsed;
+
+  const replacement: RevealUntilAction = {
+    type: 'REVEAL_UNTIL', owner: 'self',
+    stopCondition: { kind: 'signiCount', count: 1, filter: { cardType: 'シグニ' } },
+    restDestination: 'deck_bottom_shuffled',
+  };
+  const swap = (node: EffectAction): EffectAction => {
+    if (isMisparsedRemainder(node)) return replacement;
+    if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(swap) };
+    if (node.type === 'CONDITIONAL') return {
+      ...node, then: swap(node.then), ...(node.else ? { else: swap(node.else) } : {}),
+    };
+    if (node.type === 'CHOOSE') return {
+      ...node, choices: node.choices.map(choice => ({ ...choice, action: swap(choice.action) })),
+    };
+    return node;
+  };
+  return swap(parsed);
+}
+
+/**
  * 「あなたの[他の][色][＜クラス＞の]シグニ[N体]が対戦相手のライフクロスをクラッシュしたとき」
  * の主体を ON_OPP_LIFE_CRASHED の source filter へ落とす。
  *
@@ -10127,6 +10276,8 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = prependShuffleBeforeTopDeckAction(text, parsed);
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
+  parsed = foldRevealShuffleToDeckBottom(text, parsed);
+  parsed = foldRevealUntilShuffleBottomInline(text, parsed);
   parsed = wireSelectedSigniConditionalUp(text, parsed);
   parsed = stripReplacementConditionColor(text, parsed);
   parsed = applyExplicitSelectionGroups(text, parsed);

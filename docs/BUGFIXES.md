@@ -1,5 +1,108 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-26：§5.3 `O-90`＝公開札の後始末が `count:0` の**無言 no-op** に割れ、原文と逆にデッキ**上**へ戻っていた
+
+> **1巡（続き671・Opus 5）＝母集団実測〜実機まで。** gates 全緑（golden **2841→2842**／smoke 全0／fuzz 全0／
+> `census` 569→**568**（`BASELINE_HIGH` 更新済み＝`O-88` が可視化した穴の**払い戻し**）／`census:stubs` A群🔴0・C群0／
+> manual-fields 0/0／`census:enginetext` A群 142行 据置／lint 0 errors）。
+> **実機は新規1本 PASS**（`o90RevealedCardsToDeckBottom`）＋**反転確認済み**（live を旧形に戻すと同じシナリオが赤）
+> ＋回帰1本 PASS（`o88AttackAnaphoraBanishesOpponent`）。
+
+---
+
+### 症状（原文と真逆の盤面になる）
+
+原文＝「あなたのデッキの上からカードを**N枚公開する**。〈効果〉。**公開したカードをシャッフルしてデッキの一番下に置く。**」
+
+live はこれを**2つの `LOOK_AND_REORDER` に割って**いた：
+
+| | 生成されていた形 | engine の挙動 |
+|---|---|---|
+| 前半（「N枚公開する」） | `LOOK_AND_REORDER{count:N, destination:{deck, **top**}}` | 公開札を**デッキの上に戻す** |
+| 後半（「一番下に置く」） | `LOOK_AND_REORDER{**count:0**, destination:{deck, bottom}}` | `execLookAndReorder` が `cards.length===0` → `done(ctx)`＝**ログすら出ない真の no-op** |
+
+⇒ **公開したN枚がデッキトップに残る**＝次のドローが全部見えている状態。原文の意図（山札に混ぜ直す）と真逆。
+
+🔑**受け皿は engine に最初から在った**（`execLookAndReorder` が `a.shuffle` を pending へ渡し、
+`resumeLookAndReorder` が `pending.shuffle` で `keepRaw` をシャッフルしてデッキ下へ置く）＝**parser が吐いていなかっただけ**。
+`REVEAL_UNTIL` の `restDestination:'deck_bottom_shuffled'` が同義の兄弟で、そちらは
+`removeStructuredRevealConsequence(fold.remove==='bottomOnly')` が同じ no-op を既に落としていた。
+
+### 母集団（着手前の実測＝原文8枚を4群に仕分け）
+
+見立ては「原文7枚」だったが**実測8枚**。壊れ方で分けると：
+
+| 群 | 枚数 | 状態 |
+|---|---|---|
+| **A＝本件の穴**（`count:0` の無言 no-op） | **4効果** | `WXK05-051-E1`／`WXK07-051-E1-G`／`WDK13-012-E1`／`SPK01-09-E1` |
+| **B＝別の壊れ方**（`REVEAL_UNTIL` 自体が生成されない） | **1効果** | `WD21-020-E1`（後述） |
+| C＝`REVEAL_UNTIL` 経路で解決済み | 2枚 | `WXK07-054-CB-E2`（`restDestination:'deck_bottom_shuffled'`）／`WX17-038-E1`（MANUAL の専用ハンドラが自前でシャッフル→デッキ下） |
+| D＝MANUAL で解決済み | 1枚 | `WXEX1-66-E2`（`REVEAL_AND_PICK{remainder:{deck,bottom,shuffle:true}}`） |
+
+### 直し方（A群4効果）
+
+`parseActionText` 末尾の後処理列に `foldRevealShuffleToDeckBottom` を追加（`effectParser.ts`）。
+**前半のノードを `destination:{deck,bottom} + shuffle:true` に書き換え、後半の `count:0` を落とす。**
+
+⚠**間に照応の `POWER_MODIFY` が挟まる**（`WXK07-051-E1-G`「ターン終了時まで、それのパワーをこの方法で公開された
+シグニのレベルの合計１につき－1000する」＝`O-88` で直したばかりの照応）が、行き先を変えても
+`resumeLookAndReorder` が `lastProcessedCards` に**公開札そのもの**を記録し続けるので、後続の
+`deltaPerLastProcessedCount` はカード番号からレベルを引ける（ゾーンを見ない）。
+
+🔴**fail-closed のガード3枚**＝①原文にこの一文があること ②書き換え先の「N枚公開」ノードが**木にちょうど1つ**
+（`count>0`・`private:false`＝公開・自分のデッキ→デッキ上）③落とす no-op が**木にちょうど1つ**（`count:0`・デッキ下）。
+どれかが複数なら**どの公開札の話か確定できない**ので据え置く（C群の `REVEAL_UNTIL` 経路を二重に触らないためのガードでもある）。
+
+### B群＝`WD21-020`（別の壊れ方・1枚）
+
+原文＝「…**シグニがめくれるまで公開し、公開したカードをシャッフルし、デッキの一番下に置く。**その後、この方法で
+公開したシグニがレベル１の場合、…」＝**連用形で後始末まで一文に繋がった形**。
+
+どの公開規則にも掛からず、**文末の「デッキの一番下に置く」だけ**が `parseSentencePart1` の catch-all
+（「デッキの一番下に置く」＋「シグニ」）に拾われ、`TRANSFER_TO_DECK{source:あなたのシグニ}` へ化けていた。
+⇒ **公開が丸ごと消え、自分の場のシグニ1体がデッキ下へ送られる**別物。後続のレベル分岐も参照先を失っていた。
+
+🔴**教訓＝parser の手当ては「後段の置換」で行う（前段の regex を広げない）。**
+最初は素直に前段を直した＝(1) `parseSentencePart3` の公開規則を連用形へ広げ (2) `parseSentencePart1` の
+catch-all 除外条件に「公開したカードを…デッキの一番下に置く」を足した。**狙ったノードは直ったが、
+後続の多分岐（「レベル２の場合、」「レベル３の場合、」「レベル４以上の場合、」）4枝がまとめて
+`LAST_PROCESSED_MATCHES` を失い、無条件実行の過剰効果へ退化した**（A/B 実測）。
+真因＝`parseBareBranchCondition` の多分岐は**「直前枝が `LAST_PROCESSED_MATCHES` であること」をゲートに使う
+chain 構造**で、**先頭枝が別の型に変わると後続枝がまとめて bare step になる**。
+⇒ 前段を戻し、後段の `foldRevealUntilShuffleBottomInline` で**木の中の1ノードだけを差し替える**形にした
+（`TRANSFER_TO_DECK{deck下・シャッフルなし・自分のシグニ}` → `REVEAL_UNTIL{signiCount 1, deck_bottom_shuffled}`）。
+これで chain は無傷のまま残る（レベル分岐4枝は据置）。
+
+`hit` を持たない `REVEAL_UNTIL` は `execRevealUntil` が `lastProcessedCards: revealed` を立てるので、後続の
+「この方法で公開したシグニがレベルNの場合」は公開札を読める（停止条件が `signiCount:1`＝公開札のうちシグニは
+停止札1枚だけなのでレベル判定は誤らない）。
+
+### live へ届けた経路（§4.5）
+
+parser 修正 → `npm run build:effects` → **5効果とも `_held_fresh` に回る**（収穫マージは値の変更/パス消失を「損失」と見て温存する）
+→ `node scripts/heldReview.mjs --adopt-sig "-LOOK_AND_REORDER"`（A群4枚）＋ `--adopt WD21-020`（B群1枚）。
+**A/B 差分は意図した5カードちょうど**（`WXK05-051` / `WXK07-051` / `WDK13-012` / `SPK01-09` / `WD21-020`）。
+
+### 実機（工程⑤）
+
+`o90RevealedCardsToDeckBottom`＝`WXK05-051` を中央に置き、正面に壁を立ててアタック→【自】発火→
+`LOOK_AND_REORDER` の「決定」。**観測点は `deckCards` の順序**（O-53 の「デッキ下は順序でしか見えない」と同じ計器）。
+
+- ✅ **PASS**＝`deck開始 [T1,T2,T3,R1..R7]` → `deck終了 [R1..R7,T3,T1,T2]`（先頭3枚から消え、末尾3枚へ・シャッフル済み・**枚数保存10**）
+- ✅ **反転確認**＝`public/data/effects_WXK.json` の `WXK05-051` だけを旧形に戻して再実行すると
+  **`deck終了` が `deck開始` と完全に同一**＝「🔴公開した札がデッキトップに残っている」で FAIL。
+  ⇒ このシナリオは旧実装を確かに捕まえる（罠3＝負方向テストは対照とセット、の実装形）。
+
+⚠**回帰で `lookReorderCanTrash` が FAIL したが、これは O-90 とは無関係**＝`git stash` して HEAD で走らせても
+**同じ FAIL**（`hDeck=2（開始5） hTrash=3（開始0）`・`trashClicked` が一度も立たない）。live の `WX20-037` は
+A/B 差分に入っていない。**既存の腐り**として §5.1 に `V-89` で登録した（罠8j＝「既に赤いもの」を先に確定させる、の実施）。
+
+### 計器
+
+- `census` **569 → 568**（`BASELINE_HIGH` を実数へ更新）＝`O-88` が「STUB を外して可視化した穴」の**払い戻し**。
+- `census:enginetext` A群 **142行 据置**（本件は engine の全文 regex を1本も増やしていない＝parser 側で完結）。
+- golden **2841 → 2842**（新規1本＝A群4効果 + B群 + **C群を触っていないこと**の fail-closed ガードまで固定）。
+
 ## 2026-08-26：§5.3 `O-88`＝「それ」が**前の文**で宣言した対象を指す照応。一般化は**ガード2枚**とセットでないと fail-open になる
 
 > **1巡（続き670・Opus 5）＝母集団実測〜実機まで。** gates 全緑（golden **2840→2841**／smoke 全0／fuzz 全0／

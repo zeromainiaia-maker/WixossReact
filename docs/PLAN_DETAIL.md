@@ -77,6 +77,19 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-26 続き670 後**：
+  **census 569/569**（`O-88` で +1＝**退化ではなく可視化**。`WXK07-051-E1` を STUB から実アクションへ移して「公開し」に計上された）、**golden 2841**（`O-88` +1）、
+  smoke **10694 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・miss ありハンドラ 43／miss カード 75・据置）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（`O-88` で `WXK07-051-E1` を1件解消。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10694 / MANUAL 効果 1034 / PARTIAL 21**（据置＝`O-88` は AUTO 6効果が変化）、
+  **`_held_fresh` 75 / `_partial_fresh` 12 / `_idset_fresh` 45**（`O-88` で6件採用＝81→75）、
+  **どのフラグも立たないカード 4962 / 5975（83.0%）**（`npm run census:cards`）、
+  **実機シナリオ +2**（`o88LeadingDesignationAnaphora` ／ `o88AttackAnaphoraBanishesOpponent`。回帰＝`o80PerProcessedCount`／`o87ResetTrapReplace` PASS・`verify:browser` 3本 PASS）、
+  **`npm run golden` の所要＝全件 約157秒／`--only` 約1.5秒**
+
+
 - **2026-08-25 続き657 後**：
   **census 573/573**（`O-67` で 574→573・`BASELINE_HIGH` も更新）、**golden 2781**（`O-67` で 2778→2781＝live 1本＋engine 1本＋gate 1本）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、

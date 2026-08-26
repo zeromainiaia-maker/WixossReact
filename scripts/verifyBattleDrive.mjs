@@ -32023,6 +32023,107 @@ scenarios.o88AttackAnaphoraBanishesOpponent = {
 };
 order.push('o88AttackAnaphoraBanishesOpponent');
 // ── §5.3 O-88 END ──
+// ── §5.3 O-90（2026-08-26）──────────────────────────────────────────────
+// ■ 原文＝`WXK05-051`「【自】《ターン１回》：このシグニがアタックしたとき、あなたのデッキの上から
+//    カードを３枚公開する。それらがそれぞれ名前の異なる＜植物＞のシグニの場合、このシグニをアップする。
+//    **公開したカードをシャッフルしてデッキの一番下に置く。**」
+// ■ 旧 live は2つの `LOOK_AND_REORDER` に割れており、前半が `destination:deck/**top**`＝公開札を
+//    **デッキの上に戻し**、後半（「一番下」担当）は `count:0` で `cards.length===0`→`done(ctx)` の
+//    **無言 no-op**（ログすら出ない）だった。⇒ **原文と逆に、公開した3枚がデッキトップに残る**
+//    （＝次のドローが全部見えている状態）。
+// ■ 観測点＝`deckCards` の順序（`queryState` が `s.deck` をそのまま返す。O-53 の「デッキ下は順序でしか
+//    見えない」と同じ計器）。正しければ**公開した3枚は先頭から消え、末尾3枚に集合として現れる**。
+// ■ 🔑**反転確認**＝旧挙動なら先頭3枚が注入した T1..T3 のまま残る。本判定は「先頭3枚に T が1枚も無い」
+//    ことを必須にしているので、旧実装ではこのシナリオは必ず赤になる。
+const O90_SRC = 'WXK05-051#1';                                   // 羅植　コデマリ（Lv3・限定なし）
+const O90_TOP = ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'];      // 公開される3枚
+const O90_REST = ['WD01-010#3', 'WD01-010#4', 'WD01-010#5', 'WD01-010#6',
+  'WD01-010#7', 'WD01-010#8', 'WD01-010#9'];                     // 残り（⚠デッキを空にしない＝罠22）
+const o90RevealBottomSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#1'],
+    // ⚠罠8e＝host と guest のゾーン index は「正面」で一致しない。**中央（zone1）同士だけが対応**する。
+    'field.signi': [null, [O90_SRC], null],
+    'field.signi_down': [false, false, false],
+    'deck': [...O90_TOP, ...O90_REST],
+    'field.check': null,
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    // 正面に壁を置く＝ライフクラッシュへ抜けさせない（抜けると check の後始末が要る＝罠1）。
+    'field.signi': [null, ['WD01-010#1'], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function o90RevealBottomDrive(page, H) {
+  let before = await H.queryState();
+  // 注入は1発で決まらないことがある（罠34）＝載るまで再注入する。
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(O90_SRC); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, o90RevealBottomSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const deck0 = (before?.host?.deckCards ?? []).slice();
+  H.log('  開始 host deck:', JSON.stringify(deck0));
+  let modalOpened = false, lookSeen = false, last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/o90RevealBottom-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.pendingEffect === 'LOOK_AND_REORDER') lookSeen = true;   // 機構が動いた証拠（罠4）
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect
+        && !(phaseChk?.stackLen > 0) && !lookSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
+    if (!did) did = await H.clickBtn('決定', { exact: true });
+    if (!did) did = await H.stdStep(['OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  o90[${s}] -> ${did ?? 'なし'} | look=${lookSeen} deck=${JSON.stringify(last?.host?.deckCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (lookSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/o90RevealBottom-final.png`, fullPage: true });
+  const deck1 = (last?.host?.deckCards ?? []).slice();
+  const detail = `look=${lookSeen} deck開始=${JSON.stringify(deck0)} deck終了=${JSON.stringify(deck1)}`;
+  // ⚠**本題を先に判定**（前提崩れ判定を先に置くと旧挙動の再現が隠れる＝O-80 の教訓）
+  const head3 = deck1.slice(0, 3);
+  const stillOnTop = head3.filter(n => O90_TOP.includes(n));
+  if (stillOnTop.length > 0) {
+    return { pass: false, detail: `🔴公開した札がデッキトップに残っている（${JSON.stringify(stillOnTop)}）＝「一番下に置く」が無言 no-op のまま。${detail}` };
+  }
+  if (!lookSeen) return { pass: false, detail: `前提崩れ＝LOOK_AND_REORDER を1度も観測できていない（アタック時トリガーが走っていない）。${detail}` };
+  const tail3 = deck1.slice(-3).slice().sort().join(',');
+  if (tail3 !== O90_TOP.slice().sort().join(',')) {
+    return { pass: false, detail: `公開した3枚がデッキ末尾に無い（末尾=${JSON.stringify(deck1.slice(-3))}）。${detail}` };
+  }
+  // 枚数保存＝公開札が消滅していない（罠14＝final の不変条件を assert する）。
+  if (deck1.length !== deck0.length) {
+    return { pass: false, detail: `デッキ枚数が変わった（${deck0.length}→${deck1.length}）＝公開札の消失/複製。${detail}` };
+  }
+  return { pass: true, detail: `公開3枚はデッキトップから消え、末尾3枚へシャッフルして戻った（枚数保存${deck1.length}）。${detail}` };
+}
+scenarios.o90RevealedCardsToDeckBottom = {
+  title: 'WXK05-051-E1（O-90＝公開札の後始末）＝旧実装は3枚がデッキトップに残っていた',
+  spec: o90RevealBottomSpec(),
+  drive: o90RevealBottomDrive,
+};
+order.push('o90RevealedCardsToDeckBottom');
+// ── §5.3 O-90 END ──
 // ── §5.3 O-87 END ──
 
 
