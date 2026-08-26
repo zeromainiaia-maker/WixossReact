@@ -49199,6 +49199,162 @@ test('Stage2 power B44 contract: WX25-CP1-082-E1 stays held until the DOWN/then-
   ok(!JSON.stringify(effect).includes('powerLteSelfHalf'), 'WX25-CP1-082-E1: half-power flag is not misattached to DOWN target');
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// 意味照合 段2 第45バッチ（2026-08-27）＝「センタールリグ」を主語・基準にした限定が
+// JSON から落ちて過剰効果になっていた14効果。7つの配線穴を1バッチで塞いだので、
+// **穴ごとに両方向（成立／不成立）と参照不能時の向き**を固定する。
+// ══════════════════════════════════════════════════════════════════════════
+
+/** live（manual マージ後）の効果本体を effectId で引く。 */
+const b45Effect = (cardNum: string, effectId: string): CardEffect => {
+  const effect = findEffectDeep(mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []), effectId);
+  if (!effect) throw new Error(`${effectId} not found`);
+  return effect;
+};
+
+test('Stage2 B45 H1: センタールリグ対象の「ダウンし凍結」は相手ルリグに当たる（シグニに化けない）', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [
+    ['WX05-022', 'WX05-022-BURST'],
+    ['WX08-002', 'WX08-002-E2'],
+    ['WX14-030', 'WX14-030-BURST'],
+  ] as const) {
+    const action = b45Effect(cardNum, effectId).action;
+    const oppSigni = [fresh(), fresh(), fresh()];
+    const oppLrig = fresh();
+    const after = run(action, mkCtx({}, { signi: oppSigni, lrig: [oppLrig] }, cardNum));
+    ok(after.otherState.field.lrig_frozen === true, `${effectId}: 相手センタールリグが凍結する`);
+    ok(after.otherState.field.lrig_down === true, `${effectId}: 相手センタールリグがダウンする`);
+    ok(!(after.otherState.field.signi_frozen ?? []).some(Boolean), `${effectId}: 相手シグニは凍結しない（旧＝シグニに化けていた）`);
+    ok(!(after.otherState.field.signi_down ?? []).some(Boolean), `${effectId}: 相手シグニはダウンしない`);
+    // 参照不能（相手にセンタールリグがいない）＝何も起きない＝シグニへフォールバックしない
+    const noLrig = run(action, mkCtx({}, { signi: oppSigni }, cardNum));
+    ok(!(noLrig.otherState.field.signi_frozen ?? []).some(Boolean), `${effectId}: ルリグ不在でもシグニへ落ちない`);
+  }
+  // 選択肢の内側でも同じ（WXK05-004-E1 ②「対戦相手のセンタールリグ1体を対象とし、それをダウンし凍結する」）
+  const choiceJson = JSON.stringify(b45Effect('WXK05-004', 'WXK05-004-E1'));
+  ok(choiceJson.includes('{"type":"FREEZE","target":{"type":"LRIG","owner":"opponent","count":1},"down":true}'),
+    'WXK05-004-E1: 選択肢②の対象も LRIG（旧＝相手シグニの凍結だった）');
+}));
+
+test('Stage2 B45 H2: alsoCenterLrig は lrig_abilities_disabled を立て、次ターン形は2スロットで持ち越す', () => withSavedCursor(() => {
+  // WX19-022-BURST＝「ターン終了時まで、対戦相手のセンタールリグとすべてのシグニは能力を失い、新たに得られない」
+  const eot = b45Effect('WX19-022', 'WX19-022-BURST');
+  ok(JSON.stringify(eot).includes('"alsoCenterLrig":true'), 'WX19-022-BURST: alsoCenterLrig が live に載っている');
+  const oppSigni: (string | null)[] = [fresh(), fresh(), null];
+  const oppLrig = fresh();
+  const afterEot = run(eot.action, mkCtx({}, { signi: oppSigni, lrig: [oppLrig] }, 'WX19-022'));
+  ok(afterEot.otherState.lrig_abilities_disabled === true, 'WX19-022-BURST: 相手センタールリグが能力を失う（旧＝シグニだけ）');
+  ok(!afterEot.otherState.lrig_abilities_disabled_next_turn, 'WX19-022-BURST: このターン限定＝次ターン予約はしない');
+  ok((afterEot.otherState.abilities_removed ?? []).length > 0, 'WX19-022-BURST: シグニ側も従来どおり失う');
+  ok(!clearTurnEndScopedState(afterEot.otherState).lrig_abilities_disabled,
+    'WX19-022-BURST: グローバルターン終了で失効する');
+
+  // WXDi-P10-005-E3＝「次の対戦相手のターン終了時まで」＝現ターン＋次ターンの2スロット
+  const nextTurn = b45Effect('WXDi-P10-005', 'WXDi-P10-005-E3');
+  ok(JSON.stringify(nextTurn).includes('"alsoCenterLrig":true'), 'WXDi-P10-005-E3: alsoCenterLrig が live に載っている');
+  const afterNext = run(nextTurn.action, mkCtx({}, { signi: oppSigni, lrig: [oppLrig] }, 'WXDi-P10-005'));
+  ok(afterNext.otherState.lrig_abilities_disabled === true, 'WXDi-P10-005-E3: 現ターンから効く');
+  ok(afterNext.otherState.lrig_abilities_disabled_next_turn === true, 'WXDi-P10-005-E3: 次ターンぶんを予約する');
+  const crossed = clearTurnEndScopedState(afterNext.otherState);
+  ok(crossed.lrig_abilities_disabled === true, 'WXDi-P10-005-E3: ターン境界で予約が昇格する');
+  ok(!crossed.lrig_abilities_disabled_next_turn, 'WXDi-P10-005-E3: 予約スロットは境界で空になる');
+  ok(!clearTurnEndScopedState(crossed).lrig_abilities_disabled, 'WXDi-P10-005-E3: 2ターン目の終了で失効する');
+}));
+
+test('Stage2 B45 H3: colorMatchesLrig は効果元のセンタールリグと共通色の相手シグニだけに絞る', () => withSavedCursor(() => {
+  const action = b45Effect('WXEX1-29', 'WXEX1-29-E2').action;
+  ok(JSON.stringify(action).includes('"colorMatchesLrig":true'), 'WXEX1-29-E2: colorMatchesLrig が live に載っている');
+  const redLrig = findCard(c => c.Type === 'ルリグ' && c.Color === '赤');
+  const redSigni = findCard(c => isSigni(c) && c.Color === '赤');
+  const blueSigni = findCard(c => isSigni(c) && c.Color === '青');
+  const after = run(action, mkCtx({ lrig: [redLrig] }, { signi: [redSigni, blueSigni, null] }, 'WXEX1-29'));
+  const remain = tops(after.otherState);
+  ok(!remain.includes(redSigni), 'WXEX1-29-E2: 共通色（赤）のシグニは選べる');
+  ok(remain.includes(blueSigni), 'WXEX1-29-E2: 共通色を持たない（青）シグニは候補に出ない（旧＝どのシグニでも取れた）');
+  // 参照不能（自分にセンタールリグがいない）＝既存設計どおり fail-open（制限なし）。
+  // ⚠この向きは `resolveDynamicFilter` の設計判断。変えるならこのテストが落ちる。
+  const opened = run(action, mkCtx({}, { signi: [blueSigni, null, null] }, 'WXEX1-29'));
+  ok(!tops(opened.otherState).includes(blueSigni), 'WXEX1-29-E2: ルリグ不在は fail-open（制限なし）の既存設計を維持');
+}));
+
+test('Stage2 B45 H3b: エナ／デッキ公開側の colorMatchesLrig も live に載る', () => {
+  const energy = JSON.stringify(b45Effect('WX24-P2-007', 'WX24-P2-007-E1'));
+  ok(/"type":"ENERGY_CARD"[^}]*"filter":\{[^}]*"colorMatchesLrig":true/.test(energy.replace(/"owner":"self",|"count":3,|"upToCount":true,/g, '')),
+    'WX24-P2-007-E1: エナから場に出す候補がルリグ共通色に絞られる（旧＝エナのどのシグニでも出せた）');
+  const reveal = b45Effect('WDA-F04-10', 'WDA-F04-10-E1').action as { type: string; filter?: Record<string, unknown> };
+  ok(reveal.type === 'REVEAL_AND_PICK' && reveal.filter?.colorMatchesLrig === true,
+    'WDA-F04-10-E1: 公開札の判定がルリグ共通色（旧＝どのシグニでも手札に入った）');
+});
+
+test('Stage2 B45 H4: 「カード名に《X》を含むセンタールリグ」はセンターだけを見る（アシストでは成立しない）', () => withSavedCursor(() => {
+  const cond = b45Effect('WDK16-06T', 'WDK16-06T-E1').activeCondition as ActiveCondition;
+  ok(cond?.type === 'LRIG_NAME_CONTAINS', 'WDK16-06T-E1: activeCondition が LRIG_NAME_CONTAINS');
+  const mitoCenter = findCard(c => c.Type === 'ルリグ' && (c.CardName ?? '').includes('美兎'));
+  const mitoAssist = findCard(c => c.Type === 'アシストルリグ' && (c.CardName ?? '').includes('美兎'));
+  const otherLrig = findCard(c => c.Type === 'ルリグ' && !(c.CardName ?? '').includes('美兎'));
+  ok(checkActiveCondition(cond, mkState({ lrig: [mitoCenter] }), mkState(), true, cardMap, 'WDK16-06T'),
+    'WDK16-06T-E1: センタールリグ名が《美兎》を含む → 成立');
+  ok(!checkActiveCondition(cond, mkState({ lrig: [otherLrig] }), mkState(), true, cardMap, 'WDK16-06T'),
+    'WDK16-06T-E1: 別名のセンタールリグ → 不成立（旧＝条件が丸ごと落ちて常時成立だった）');
+  ok(!checkActiveCondition(cond, mkState({ lrig: [otherLrig], assistL: [mitoAssist] }), mkState(), true, cardMap, 'WDK16-06T'),
+    'WDK16-06T-E1: 同名の**アシスト**ルリグでは成立しない（HAS_CARD_IN_FIELD へ倒すと誤成立する）');
+  ok(!checkActiveCondition(cond, mkState({}), mkState(), true, cardMap, 'WDK16-06T'),
+    'WDK16-06T-E1: ルリグ不在は不成立（過剰実行しない側）');
+
+  // 【出】側は「代わりに」の置換より外側にゲートが載る
+  const play = b45Effect('WDK16-06S', 'WDK16-06S-E1').action as
+    { type: string; condition?: Condition; then?: { type: string; condition?: Condition } };
+  ok(play.type === 'CONDITIONAL' && play.condition?.type === 'LRIG_NAME_CONTAINS',
+    'WDK16-06S-E1: 《凛》ゲートが一番外側（旧＝登録者数側の枝だけがゲート無しで走っていた）');
+  ok(play.then?.type === 'CONDITIONAL' && play.then.condition?.type === 'SUBSCRIBER_COUNT',
+    'WDK16-06S-E1: 「代わりに」の置換はゲートの内側に入る');
+}));
+
+test('Stage2 B45 H5: 《相手ターン》＋「センタールリグが白であるかぎり」は AND で両方要る', () => withSavedCursor(() => {
+  const cond = b45Effect('WXDi-P05-044', 'WXDi-P05-044-E1').activeCondition as ActiveCondition;
+  ok(cond?.type === 'AND', 'WXDi-P05-044-E1: activeCondition が AND');
+  const whiteLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '') === '白');
+  const blackLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '') === '黒');
+  ok(checkActiveCondition(cond, mkState({ lrig: [whiteLrig] }), mkState(), false, cardMap, 'WXDi-P05-044'),
+    'WXDi-P05-044-E1: 相手ターン かつ 白センタールリグ → 成立');
+  ok(!checkActiveCondition(cond, mkState({ lrig: [blackLrig] }), mkState(), false, cardMap, 'WXDi-P05-044'),
+    'WXDi-P05-044-E1: 白でなければ不成立（旧＝色条件が落ちて相手ターン中ずっと＋5000だった）');
+  ok(!checkActiveCondition(cond, mkState({ lrig: [whiteLrig] }), mkState(), true, cardMap, 'WXDi-P05-044'),
+    'WXDi-P05-044-E1: 白でも自分のターンなら不成立（《相手ターン》側は従来どおり）');
+}));
+
+test('Stage2 B45 H7: SEARCH の「センタールリグのレベル以下」は境界を含み境界+1を弾く（参照不能は fail-closed）', () => withSavedCursor(() => {
+  const action = b45Effect('WXK10-037', 'WXK10-037-E2').action as EffectAction & { filter?: Record<string, unknown> };
+  ok(action.filter?.levelLteLrig === 'self', 'WXK10-037-E2: levelLteLrig が live に載っている');
+  const lv3Lrig = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const redL3 = findCard(c => isSigni(c) && c.Color === '赤' && c.Level === '3');
+  const redL4 = findCard(c => isSigni(c) && c.Color === '赤' && c.Level === '4');
+  const picked = run(action, mkCtx({ lrig: [lv3Lrig], deckTop: [redL4, redL3] }, {}, 'WXK10-037'));
+  ok(picked.ownerState.hand.includes(redL3), 'WXK10-037-E2: ちょうどレベル3（＝ルリグと同値）は探せる');
+  ok(!picked.ownerState.hand.includes(redL4), 'WXK10-037-E2: レベル4（境界+1）は探せない（旧＝何レベルでも探せた）');
+  const noLrig = run(action, mkCtx({ deckTop: [redL3] }, {}, 'WXK10-037'));
+  ok(!noLrig.ownerState.hand.includes(redL3), 'WXK10-037-E2: ルリグ不在は fail-closed（何も探せない）');
+}));
+
+test('Stage2 B45 回帰: 「代わりに」の多段閾値では base ゲートを持ち上げない（排他条件を AND にしない）', () => {
+  // 🔴`hoistBaseGate` を無条件にすると `WD16-016-BURST`（手札≤5→1枚／≥6→2枚）が
+  //   「≤5 かつ ≥6」になって2枚側が到達不能になる。**同 type の条件は持ち上げない**規約の固定。
+  const burst = b45Effect('WD16-016', 'WD16-016-BURST').action as
+    { type: string; condition?: Condition; else?: { type: string; condition?: Condition } };
+  ok(burst.type === 'CONDITIONAL' && burst.condition?.type === 'HAND_COUNT', 'WD16-016-BURST: 外側は手札枚数の閾値のまま');
+  ok(burst.else?.type === 'CONDITIONAL' && burst.else.condition?.type === 'HAND_COUNT',
+    'WD16-016-BURST: 同じ軸の条件は入れ子のまま（AND へ持ち上げない）');
+  ok(JSON.stringify(b45Effect('WD08-006', 'WD08-006-E1')).includes('"TRASH_COUNT"'),
+    'WD08-006-E1: 多段閾値（トラッシュ10/20）が従来どおり残る');
+  // 別軸のゲートは持ち上げる（WX25-CP1-046-E2＝「そうした場合」ゲートが【Ｓランサー】側にも掛かる）
+  const lancer = b45Effect('WX25-CP1-046', 'WX25-CP1-046-E2').action as { type: string; steps?: unknown[] };
+  const gate = (lancer.steps ?? [])[1] as { type: string; condition?: Condition; then?: { type: string; condition?: Condition } };
+  ok(gate?.type === 'CONDITIONAL' && gate.condition?.type === 'IS_MY_TURN'
+    && gate.then?.type === 'CONDITIONAL' && gate.then.condition?.type === 'SELF_POWER_GTE',
+    'WX25-CP1-046-E2: 別軸ゲートは外側へ持ち上がり、Ｓランサー側もゲートの内側に入る');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

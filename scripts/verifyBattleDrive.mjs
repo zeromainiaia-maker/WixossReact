@@ -32955,6 +32955,10 @@ try {
         // O-53（2026-08-24）＝`REVEAL_CARDS` は candidates を持たず `cards` に閲覧対象を載せる。
         // 「相手の手札を見た」のか「相手のデッキを見てしまった」のかは**集合**でしか区別できない。
         pendingRevealCards: row.pending_effect?.interaction?.cards ?? null,
+        // 段2 第45バッチ（2026-08-27）＝**`SEARCH` は `candidates` を持たず `visibleCards` に候補を載せる**
+        // （`effectExecutor.ts:4141`）。デッキ探索の**絞り込みが効いているか**は結果（何を手札に入れたか）では
+        // 判定できない（当たりを引けば緑に見える）＝候補列を直接見るための計器。
+        pendingVisibleCards: row.pending_effect?.interaction?.visibleCards ?? null,
         // 「モーダルが出ない」の切り分け用＝UI の描画ゲートは
         // `(respondPlayerId ?? sourcePlayerId) === user.id`（EffectInteractionModal.tsx）。
         // この値と viewerUserId が食い違っていれば pending は立っているのに誰の画面にも出ない（タスク12(cx) で実際に踏んだ）。

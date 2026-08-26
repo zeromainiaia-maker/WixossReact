@@ -96,7 +96,9 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 562; // 2026-08-26 意味照合 段2 第43バッチ＝WXK01-084-E1 の
+const BASELINE_HIGH = 561; // 2026-08-27 意味照合 段2 第45バッチ＝「センタールリグ」を主語・基準にした
+//   限定（対象／条件／フィルタ）の配線漏れ7穴を塞いだ払い戻し（562→561）。
+// 旧: const BASELINE_HIGH = 562; // 2026-08-26 意味照合 段2 第43バッチ＝WXK01-084-E1 の
 //   手札枚数＋中央ゾーン条件を既存 HAND_COUNT / THIS_CARD_IN_CENTER_ZONE へ配線（563→562）。
 // 旧: const BASELINE_HIGH = 563; // 2026-08-26 §5.3 `O-73`＝「このターン、〜したとき」の遅延設置を
 //   `ON_CARD_MILLED_FROM_DECK` へ配線（564→563）。`WX24-P3-030-E2` の素の `POWER_MODIFY`（＝【起】を
