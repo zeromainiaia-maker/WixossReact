@@ -3590,7 +3590,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const leadingAttachedTarget = /^【[^】]+】が付いている[^。、]*シグニ[０-９\d]+体(?:まで)?を対象とし/.test(t);
     if (saM && !leadingAttachedTarget && !['常','出','起','自','ガード','エナチャージ'].includes(saM[1]) && !saM[1].match(/^エナチャージ/)) {
       const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
-      const target: EffectTarget = { type: 'SIGNI', owner: 'self', count: 1 };
+      // 🔴**印字キーワードは「そのカード自身」が持つ**＝`thisCardOnly` を必ず載せる（2026-08-27 Sheet1 B2）。
+      //   従来は `{SIGNI,self,1}` の**フィルタ無し**で、`parseSentencePart4.ts` の
+      //   **専用規則（`【マルチエナ】` に `thisCardOnly:true` を付ける正しい版）と食い違っていた**。
+      //   ⚠dispatch は Part1→2→3→4 なので**この汎用規則が先に返って専用規則へ届かない**
+      //   （§5.3 `O-94`① と同型の優先順位事故）。食い違いのせいで `WD01-016` 等の
+      //   サーバント19枚が `docs/_idset_fresh.json` に落ち続け、**そのカードへの parser 改善が
+      //   何ひとつ live へ届かない凍結状態**になっていた（§6.4 `O-39`）。
+      //   ⚠engine の CONTINUOUS 収集（`effectEngine.ts` の `count:1` は効果元のみ）では挙動は変わらないが、
+      //   `matchesFilter` を通る他の消費地点では意味が違う＝**正準形に揃える**。
+      const target: EffectTarget = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
       return { type: 'GRANT_KEYWORD', target, keyword: saM[1], duration: dur };
     }
   }

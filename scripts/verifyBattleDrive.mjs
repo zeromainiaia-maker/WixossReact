@@ -16973,7 +16973,81 @@ scenarios.crossIconBouncePicker = {
 
 order.push('powerLteSelfCeiling', 'powerLteSelfCeilingNoTarget');
 // Sheet1 B1（2026-08-27）＝対象名詞句の修飾語の配線漏れ。候補絞り込みは実機でしか観測できない（§2.2）。
+// ── Sheet1 B2（2026-08-27）＝サーバントの【マルチエナ】が parser 所有になっても効くか ──────
+// 18枚のサーバントは `manualEffects.ts` に `-MULTIENA` の手書きコピーを持っており、そのせいで
+// `docs/_idset_fresh.json` に落ちて**あらゆる parser 改善が永久に届かない凍結状態**だった（§6.4 `O-39`）。
+// 手書きを撤去して parser（`-E2`）へ所有権を返したので、**支払い経路が本当に生きているか**を実機で確かめる。
+// ⚠`costs.ts` のマルチエナ判定は4経路あり、**経路2（カード自身の CONTINUOUS GRANT_KEYWORD・count!=ALL）**が今回の `-E2`。
+//   経路3（原文 `：【マルチエナ】` のフォールバック）が別に在るため、**golden だけでは経路2の死活が分からない**。
+// 盤面＝host のエナは **サーバントＱ（`WX01-051`・色は「無」）1枚だけ**。そこへ**《白》×1 のスペル**
+//   （`WX10-060` クロス・バウンス）を撃つ。マルチエナが効いていなければ**コストを払えず発動できない**。
+scenarios.servantMultiEnaPaysColor = {
+  title: 'WX01-051（Sheet1 B2＝無色サーバント1枚で《白》コストを払える＝マルチエナ生存）',
+  spec: {
+    hostSet: {
+      'field.signi': [null, null, null],
+      'energy': ['WX01-051#9200'],            // サーバントＱ＝Color「無」／【常】：【マルチエナ】
+      'actions_done': [],
+    },
+    handPrepend: ['WX10-060#9201'],           // クロス・バウンス（スペル・《白》×1）
+    guestSet: {
+      'field.signi': [['WX07-040#9210'], null, null],   // 羅原Ｏ＝《クロスアイコン》持ち（対象になれる）
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始 host.energyCards:', JSON.stringify(before?.host?.energyCards), 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+    await H.ensureMain();
+    const clickExact = async (name) => {
+      const b = page.getByRole('button', { name, exact: true }).first();
+      if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+        await b.click().catch(() => {}); return 'btn:' + name;
+      }
+      return null;
+    };
+    const opened = await H.clickTestId('my-hand-card-0');
+    H.log('スペル手札クリック:', opened ?? '見つからず');
+    let costCellSeen = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/servantMultiEnaPaysColor-${s}.png`, fullPage: true });
+      let did = await clickExact('発動');
+      if (!did) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          costCellSeen = true;                      // 無色サーバントが《白》の支払い候補として出ている
+          const cast = await clickExact('発動する');
+          if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+        }
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const gField = JSON.stringify(st?.guest?.fieldSigni ?? []);
+      H.log(`  s1b2[${s}] -> ${did ?? 'なし'} | gField=${gField} hEnergy=${JSON.stringify(st?.host?.energyCards ?? [])} costCell=${costCellSeen} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!gField.includes('WX07-040#9210')) {
+        return { pass: true, detail: `無色サーバント（WX01-051＝Color「無」）1枚だけで《白》×1 を支払ってスペルが解決した＝マルチエナが parser 所有(-E2)でも生きている（costCell=${costCellSeen} gField=${gField}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return {
+      pass: false,
+      detail: `🔴スペルが解決しなかった＝無色サーバントで《白》を払えていない疑い（マルチエナ退化。costCell=${costCellSeen} hEnergy=${JSON.stringify(fin?.host?.energyCards)} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）`,
+    };
+  },
+};
+
 order.push('crossIconBouncePicker');
+// Sheet1 B2（2026-08-27）＝マルチエナの所有権を parser へ返したので支払い経路2を実機で見張る。
+order.push('servantMultiEnaPaysColor');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は
 // golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
 order.push('b45LrigLevelSearchCeiling', 'b45LrigLevelSearchFollowsLrig');

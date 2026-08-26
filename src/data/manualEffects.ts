@@ -333,25 +333,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX12-Re09-E1","effectType":"CONTINUOUS","activeCondition":{"type":"NO_COMMON_COLOR_AMONG_FIELD_SIGNI","owner":"self","count":3},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":15000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX12-Re09-E2","effectType":"CONTINUOUS","activeCondition":{"type":"NO_COMMON_COLOR_AMONG_FIELD_SIGNI","owner":"self","count":3},"action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
-  // ===== 【常】：【マルチエナ】（自身キーワード）を effects.json に未登録だったカード群（逆翻訳・検出の一貫性のため明示）=====
-  "WD01-016": [{"effectId":"WD01-016-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WD01-017": [{"effectId":"WD01-017-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WD04-016": [{"effectId":"WD04-016-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WD04-017": [{"effectId":"WD04-017-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX01-051": [{"effectId":"WX01-051-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX01-100": [{"effectId":"WX01-100-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX02-077": [{"effectId":"WX02-077-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX02-078": [{"effectId":"WX02-078-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX10-097": [{"effectId":"WX10-097-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX10-098": [{"effectId":"WX10-098-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX10-099": [{"effectId":"WX10-099-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WX10-100": [{"effectId":"WX10-100-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WXDi-D01-020": [{"effectId":"WXDi-D01-020-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WXDi-D03-020": [{"effectId":"WXDi-D03-020-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WXK01-119": [{"effectId":"WXK01-119-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WXK01-120": [{"effectId":"WXK01-120-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WXK01-121": [{"effectId":"WXK01-121-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  "WXK01-122": [{"effectId":"WXK01-122-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // ===== 【常】：【マルチエナ】（自身キーワード）＝**残っているのは parser が出せない1枚だけ** =====
+  // 🔴**2026-08-27（Sheet1 B2）に18枚を撤去した。** `parseSentencePart1.ts` の印字キーワード汎用規則が
+  //   `thisCardOnly` を落としており、`parseSentencePart4.ts` の専用規則（正しい版）と食い違っていたため、
+  //   `buildEffectsJson.ts` が「parser の粗い `-E2` を二重に載せない」ガードでサーバント19枚を弾き続け、
+  //   結果その19枚が `docs/_idset_fresh.json` に落ちて**あらゆる parser 改善が永久に届かない凍結状態**だった（§6.4 `O-39`）。
+  //   汎用規則に `thisCardOnly` を足したことで parser 出力が**この手書きと実体同一**になった（18枚とも相違0を実測）ので、
+  //   影武者（§6.4 `O-93`）として撤去し parser に所有権を返した。
+  // ⚠**`WXK05-030` だけは残す**＝スペル本文の末尾に付く「。【常】：【マルチエナ】」は parser が拾わないため
+  //   （撤去すると live からマルチエナが消える）。実測で確認済み。
+  // ⚠`censusManualDrift.ts` の「削除候補」はこの形を出せない＝**effectId で突き合わせる**ので、
+  //   `-MULTIENA` と `-E2` のように**id が改名された影武者**は別バケツに落ちる（計器の死角）。
   "WXK05-030": [{"effectId":"WXK05-030-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
 
 
@@ -807,10 +799,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-056-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","cardClass":"アーム","excludeSelf":true}},"delta":2000,"excludeSelf":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
-  // WX04-054 サーバント X（シグニ 精元）E1【常】カード名に《サーバント》を含む他の自シグニのパワー+3000。E2【常】このシグニは【マルチエナ】を持つ。
+  // WX04-054 サーバント X（シグニ 精元）E1【常】カード名に《サーバント》を含む他の自シグニのパワー+3000。
+  // 🔴**E2（【マルチエナ】）は 2026-08-27（Sheet1 B2）に撤去**＝印字キーワード規則に `thisCardOnly` を
+  //   足したことで parser 出力と実体同一になり、§6.4 `O-42` のトリップワイヤが発火した（＝影武者）。
+  //   ⚠**live 側の `parseStatus` も `MANUAL`→`AUTO` へ直した**（MANUAL のままだと `PRESERVE_STATUSES` が
+  //   効き続け、この効果にだけ parser 改善が永久に届かない＝§6.4 `O-40`／`O-93`）。
   "WX04-054": [
     {"effectId":"WX04-054-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","cardName":"サーバント","excludeSelf":true}},"delta":3000,"excludeSelf":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX04-054-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
   // WX04-052 堕落の虚無 パイモン（シグニ 精像：悪魔）
@@ -4133,14 +4128,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WXDi-P04-040 翠魔姫　イバラキドウジ
-  // 【常】【ランサー】（静的キーワードはテキストから自動判定）
+  // 🔴**2026-08-27（Sheet1 B2）に effectId を `-E1`→`-E2` へ改名した（内容は1バイトも変えていない）。**
+  //   この手書きが書かれた当時は下のコメントどおり parser が【ランサー】を出さなかったが、
+  //   §6.4 `O-11`（続き532＝キーワード単独の【常】ブロックを分割）で **parser が `-E1` に
+  //   `GRANT_KEYWORD{ランサー}` を出すようになり、この手書きと id が衝突**した。
+  //   `mergeManualEffects` は effectId 一致で手書きを勝たせるので、**live からランサーが消え**、
+  //   parser の【自】が `-E2` へ押し出されて id 集合がズレ、カードごと `_idset_fresh` に凍結していた。
+  //   改名により parser が `-E1`（ランサー）、この手書きが `-E2`（【自】）を持つ正しい対応になる。
+  // ⚠**この手書きは parser 出力より richer**（`triggerScope:'self'` と自己トラッシュの `thisCardOnly`）なので撤去しない。
+  // 【常】【ランサー】（★当時のメモ＝「静的キーワードはテキストから自動判定」。現在は parser が -E1 に出す）
   // 【自】：あなたのアタックフェイズ開始時、《無》《無》《無》を支払わないかぎり、このシグニを場からトラッシュに置く。
   // 旧パース＝CONTINUOUS TRASH SIGNI self（no-op）。任意《無×3》コストを払えば維持、払わなければ自己トラッシュ。
   // OPTIONAL_COST（支払う/スキップ）→ CONDITIONAL{PAID_ADDITIONAL_COST, then:noop, else: このシグニを自己トラッシュ}。
   // 自己トラッシュは TRASH SIGNI self＋filter.thisCardOnly（execTrash に thisCardOnly 対応を追加）。
   'WXDi-P04-040': [
     {
-      effectId: 'WXDi-P04-040-E1',
+      effectId: 'WXDi-P04-040-E2',
       effectType: 'AUTO',
       timing: ['ON_ATTACK_PHASE_START'],
       triggerScope: 'self',

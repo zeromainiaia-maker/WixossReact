@@ -34863,7 +34863,9 @@ test('live データ不変条件: 「〜を支払わないかぎり、X」の回
   // 🔴前置きが落ちると下流の汎用規則が X（バニッシュ等）だけを拾い、**無条件実行**の過剰実行になる。
   // 引用付与の内側に埋まるので、live 走査は `effect.action` の入れ子まで見る。
   const cases: [string, string, number][] = [
-    ['WXDi-P04-040', 'WXDi-P04-040-E1', 3],   // 引用付与ではない素の形（既存 MANUAL の手本）
+    // ⚠**id は `-E2`**（2026-08-27 Sheet1 B2 で改名）＝parser が §6.4 `O-11` 以降 `-E1` に
+    //   `GRANT_KEYWORD{ランサー}` を出すようになり、手書きの【自】と id が衝突していたため手書きを `-E2` へ寄せた。
+    ['WXDi-P04-040', 'WXDi-P04-040-E2', 3],   // 引用付与ではない素の形（既存 MANUAL の手本）
     ['WXDi-P02-041', 'WXDi-P02-041-E1', 2],
     ['WXDi-P05-017', 'WXDi-P05-017-E1', 3],
     ['WXDi-P08-058', 'WXDi-P08-058-E1', 1],
@@ -41523,7 +41525,8 @@ test('§6.4 O-31: 「このシグニを場からトラッシュに置く」は�
     ['WX08-025', 'WX08-025-E2'], ['WX12-046', 'WX12-046-E2'], ['WX12-Re12', 'WX12-Re12-E1'],
     ['WX13-037', 'WX13-037-E3'], ['WX13-057', 'WX13-057-E2'], ['WX15-061', 'WX15-061-E1'],
     ['WX21-043', 'WX21-043-E1'], ['WD14-012', 'WD14-012-E2'],
-    ['WXDi-P04-040', 'WXDi-P04-040-E1'], ['WXDi-P11-044', 'WXDi-P11-044-E2'],
+    // ⚠`WXDi-P04-040` は Sheet1 B2 で手書きを `-E1`→`-E2` へ改名（parser のランサーと id 衝突していたため）。
+    ['WXDi-P04-040', 'WXDi-P04-040-E2'], ['WXDi-P11-044', 'WXDi-P11-044-E2'],
   ] as const;
   for (const [num, eid] of cases) {
     const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
@@ -49412,6 +49415,77 @@ test('Sheet1 B1: 対象名詞句の修飾語が対象フィルタへ載る（ク
   const cond = b45Effect('WX08-011', 'WX08-011-E1').condition as { owner?: string; filter?: Record<string, unknown> };
   ok(cond?.owner === 'self' && cond.filter?.crossState === true,
     'WX08-011-E1: 使用条件は自分の場のクロス状態シグニのまま（対象側の修正で条件が動いていない）');
+}));
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sheet1 B2（2026-08-27）＝**印字キーワードの `thisCardOnly` 欠落**と、それが招いていた
+// **サーバント18枚の永久凍結**（`docs/_idset_fresh.json`・§6.4 `O-39`）。
+//
+// 🔑根＝`parseSentencePart1.ts` の印字キーワード汎用規則が `{SIGNI,self,1}` を**フィルタ無し**で返しており、
+//    `parseSentencePart4.ts` の専用規則（`【マルチエナ】` に `thisCardOnly:true` を付ける正しい版）と食い違っていた。
+//    dispatch は Part1→…→Part4 なので**汎用が先に返って専用へ届かない**（§5.3 `O-94`① と同型）。
+//    その食い違いを `buildEffectsJson.ts` が「粗い `-E2` を二重に載せない」ガードで弾き続け、
+//    結果サーバント19枚が idset に落ちて**あらゆる parser 改善が永久に届かない**状態だった。
+// ⚠engine の CONTINUOUS 収集は `count:1` を効果元のみに解決する（`effectEngine.ts`）ので**挙動は変わらない**。
+//    ここで固定するのは**正準形**＝`matchesFilter` を通る他の消費地点で意味が割れないこと。
+// ══════════════════════════════════════════════════════════════════════════════
+test('Sheet1 B2: 印字キーワードの付与は thisCardOnly（自分の任意のシグニではない）', () => withSavedCursor(() => {
+  const POSITIVE = [
+    ['WX13-030', 'WX13-030-E1', 'アサシン'],
+    ['WX13-030', 'WX13-030-E2', 'ダブルクラッシュ'],
+    ['WX17-034', 'WX17-034-E1', 'シャドウ'],
+    ['WX22-025', 'WX22-025-E1', 'マルチエナ'],
+    ['WX10-052', 'WX10-052-E1', 'マルチエナ'],
+    ['WX11-052', 'WX11-052-E1', 'マルチエナ'],
+    ['WXDi-P04-040', 'WXDi-P04-040-E1', 'ランサー'],
+    // ⚠**`WX24-P2-049`（【シュート】）はここに入れられない**＝`docs/_idset_fresh.json` に
+    //   残っている**まだ凍結中のカード**（署名 `+-E3 / --E1b`）で、この修正が live へ届いていない。
+    //   idset の残り25枚を解凍したらここへ足す（＝解凍できたかの合図になる）。
+  ] as const;
+  for (const [cardNum, effectId, keyword] of POSITIVE) {
+    const eff = b45Effect(cardNum, effectId);
+    const act = eff.action as { type: string; keyword?: string; target?: { filter?: Record<string, unknown>; count?: unknown } };
+    ok(act.type === 'GRANT_KEYWORD' && act.keyword === keyword,
+      `${effectId}: 印字【${keyword}】が GRANT_KEYWORD になっている`);
+    ok(act.target?.filter?.thisCardOnly === true,
+      `${effectId}: 付与先が thisCardOnly（旧＝filter 無しで「自分の任意のシグニ1体」と読める形だった）`);
+  }
+
+  // ── 負方向＝**対象を宣言して他のシグニへ与える**形には thisCardOnly を付けない ──
+  // `WX08-061-E1`「あなたの【ダブルクラッシュ】を持つシグニ１体を対象とし、…それは【アサシン】を得る」＝
+  //   付与先はプレイヤーが選ぶ別のシグニ。ここに thisCardOnly が付くと**効果元にしか撃てない**過小実行になる。
+  const other = b45Effect('WX08-061', 'WX08-061-E1').action as { type: string; target?: { filter?: Record<string, unknown> } };
+  ok(other.type === 'GRANT_KEYWORD' && other.target?.filter?.thisCardOnly !== true,
+    'WX08-061-E1: 対象宣言つきの付与に thisCardOnly を付けない');
+}));
+
+test('Sheet1 B2: サーバント18枚のマルチエナは parser が1本だけ持つ（manual 影武者を撤去して解凍）', () => withSavedCursor(() => {
+  // 🔴この18枚は `manualEffects.ts` に `-MULTIENA` の手書きコピーを持っていたため
+  //   `docs/_idset_fresh.json` に落ち続け、**このカードへの parser 改善が何ひとつ live に届かなかった**。
+  //   撤去して parser（`-E2`）に所有権を返した。ここが崩れたら凍結が再発している。
+  const SERVANTS = [
+    'WD01-016', 'WD01-017', 'WD04-016', 'WD04-017', 'WX01-051', 'WX01-100',
+    'WX02-077', 'WX02-078', 'WX10-097', 'WX10-098', 'WX10-099', 'WX10-100',
+    'WXDi-D01-020', 'WXDi-D03-020', 'WXK01-119', 'WXK01-120', 'WXK01-121', 'WXK01-122',
+  ] as const;
+  for (const cardNum of SERVANTS) {
+    const effects = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []);
+    const multi = effects.filter(e => {
+      const a = e.action as { type?: string; keyword?: string };
+      return a?.type === 'GRANT_KEYWORD' && a.keyword === 'マルチエナ';
+    });
+    ok(multi.length === 1, `${cardNum}: マルチエナ付与はちょうど1本（実際 ${multi.length}本。0＝退化／2＝影武者の再発）`);
+    ok(!multi[0].effectId.endsWith('-MULTIENA'),
+      `${cardNum}: マルチエナは parser 所有（手書き -MULTIENA が戻っていない）`);
+    const t = (multi[0].action as { target?: { filter?: Record<string, unknown> } }).target;
+    ok(t?.filter?.thisCardOnly === true, `${cardNum}: 付与先が thisCardOnly`);
+  }
+  // ⚠**`WXK05-030` だけは手書きのまま**＝スペル本文末尾の「。【常】：【マルチエナ】」は parser が拾わない。
+  //   撤去すると live からマルチエナが消える（実測）。ここが AUTO 化したら手書きを外してよい合図。
+  const k = mergeManualEffects('WXK05-030', effectsMap.get('WXK05-030') ?? []);
+  ok(k.some(e => e.effectId === 'WXK05-030-MULTIENA'),
+    'WXK05-030: スペル末尾の【マルチエナ】は手書きのまま（parser が拾えないため撤去しない）');
 }));
 
 
