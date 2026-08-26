@@ -2496,6 +2496,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (/すべてのルリグとシグニをダウンし凍結/.test(t)) {
       return { type: 'FREEZE', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 'ALL' }, down: true };
     }
+    // 🔴**ルリグ対象を見ていなかった**＝「対戦相手の**センタールリグ**１体を対象とし、それをダウンし凍結する」
+    //   （`WX05-022-BURST`／`WX08-002-E2`／`WX14-030-BURST`）が `parseSigniTarget` へ落ち、
+    //   **相手シグニの凍結**という完全な別物になっていた（2026-08-27 段2 第45バッチ）。
+    //   ⚠すぐ下の単独 DOWN 規則と単独 FREEZE 規則には**同じ3分岐が既に入っている**＝
+    //     複合（ダウン＋凍結）の枝だけが取り残された配線漏れ。engine の `'LRIG'` はセンタールリグ固定。
+    //   「センタールリグかシグニ」＝どちらか1体（`CENTER_LRIG_OR_SIGNI`）。
+    //   「センタールリグではない」＝アシスト限定は受け皿が無いので従来どおりシグニ経路へ落とさず据置（§5.3）。
+    const dfLrigTarget = (t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t))
+      && !t.includes('センタールリグではない');
+    if (dfLrigTarget) {
+      if (/(?:センター)?ルリグ(?:か|または)[^。]{0,6}シグニ/.test(t)) {
+        return { type: 'FREEZE', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 }, down: true };
+      }
+      return { type: 'FREEZE', target: { type: 'LRIG', owner, count: 1 }, down: true };
+    }
     const signiTgt = parseSigniTarget(t, owner);
     return { type: 'FREEZE', target: signiTgt, down: true };
   }
