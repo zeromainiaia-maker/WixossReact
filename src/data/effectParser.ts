@@ -3094,6 +3094,13 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
         { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) },
         { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
       ] })],
+    // 「〈誰か〉の場にカード名に《X》を含む**センタールリグ**がいる場合」（段2 第45バッチ・`WDK16-06S-E1`）。
+    // ⚠すぐ下の `場に《X》がいる場合` は `HAS_CARD_IN_FIELD{cardName}` へ倒すが、それは
+    //   `lrigZoneTops`＝**センター＋左右アシスト**を走査する＝《美兎》《凛》《楓》は**同名のアシストが実在する**
+    //   （`WXDi-CP01-018` 等）ので、センター限定の原文をアシストでも成立させてしまう。センター限定は
+    //   `LRIG_NAME_CONTAINS`（`field.lrig` の最前面だけを見る）が正しい受け皿。**下の汎用形より前に置く。**
+    [/(あなた|対戦相手)の場にカード名に《([^》]+)》を含むセンタールリグがいる場合/,
+      g => ({ type: 'LRIG_NAME_CONTAINS', owner: g[0] === '対戦相手' ? 'opponent' : 'self', name: g[1] })],
     [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
       g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
     [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
