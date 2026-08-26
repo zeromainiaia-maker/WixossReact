@@ -16895,7 +16895,85 @@ scenarios.b45LrigLevelSearchFollowsLrig = {
   },
 };
 
+// ── Sheet1 B1（2026-08-27）＝《クロスアイコン》を持つ限定の実機観測 ────────────────
+// WX10-060-E1「**《クロスアイコン》を持つ**対戦相手のシグニ１体を対象とし、それを手札に戻す」（スペル・《白》×1）。
+// parser の BOUNCE ビルダーが filter を**インラインで組んでいて** `signiClauseIconFilter` を通しておらず、
+// **相手のどのシグニでも手札に戻せる**過剰効果だった（`parseSigniTarget` は同じ文で正しい filter を返していた）。
+// ⚠**SELECT_TARGET ピッカーの候補絞り込みは golden/smoke/fuzz が原理的に守れない層**（§2.2）＝ここが唯一の防御。
+// 盤面＝guest zone0 = WX07-040 羅原Ｏ（《クロスアイコン》持ち＝候補）／zone1 = WX01-051 サーバントＱ（クロスなし＝候補外）。
+// PASS 条件＝zone0 だけが場から消え、zone1 は残り、かつ**ピッカーの候補集合に zone1 が出ていない**。
+scenarios.crossIconBouncePicker = {
+  title: 'WX10-060-E1（Sheet1 B1＝《クロスアイコン》持ちだけが手札に戻せる）',
+  spec: {
+    hostSet: {
+      'field.signi': [null, null, null],
+      'energy': ['WD01-013#9101'],            // 《白》×1（小剣 ククリ＝白）
+      'actions_done': [],
+    },
+    handPrepend: ['WX10-060#9100'],           // クロス・バウンス（スペル・白×1）
+    guestSet: {
+      'field.signi': [['WX07-040#9110'], ['WX01-051#9111'], null], // zone0=クロス持ち／zone1=クロスなし
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+    await H.ensureMain();
+    const clickExact = async (name) => {
+      const b = page.getByRole('button', { name, exact: true }).first();
+      if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+        await b.click().catch(() => {}); return 'btn:' + name;
+      }
+      return null;
+    };
+    const opened = await H.clickTestId('my-hand-card-0');
+    H.log('スペル手札クリック:', opened ?? '見つからず');
+    let candSnapshot = null;   // ピッカーが実際に提示した候補集合＝この検証の主観測点
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/crossIconBouncePicker-${s}.png`, fullPage: true });
+      let did = await clickExact('発動');
+      if (!did) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          const cast = await clickExact('発動する');
+          if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+        }
+      }
+      if (!did) { // SELECT_TARGET（バウンス対象）
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      if (st?.pendingEffect === 'SELECT_TARGET' && (st?.pendingCandidates ?? []).length) candSnapshot = st.pendingCandidates;
+      const gField = JSON.stringify(st?.guest?.fieldSigni ?? []);
+      H.log(`  s1b1[${s}] -> ${did ?? 'なし'} | gField=${gField} cand=${JSON.stringify(candSnapshot)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      // 🔴クロスなし側が消えたら過剰効果が残っている
+      if (!gField.includes('WX01-051#9111')) {
+        return { pass: false, detail: `🔴クロスアイコンを持たない WX01-051#9111 が場から消えた＝hasIcon フィルタが効いていない（gField=${gField} cand=${JSON.stringify(candSnapshot)}）` };
+      }
+      if (!gField.includes('WX07-040#9110')) {
+        const cands = JSON.stringify(candSnapshot);
+        if (candSnapshot && cands.includes('WX01-051')) {
+          return { pass: false, detail: `🔴ピッカーがクロスなし（WX01-051#9111）を候補に出していた（候補=${cands}）` };
+        }
+        return { pass: true, detail: `クロス持ち（WX07-040#9110）だけが候補になり手札へ戻り、クロスなし（WX01-051#9111）は候補にも出ず場に残った（候補=${cands} gField=${gField}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `バウンス未完走＝検証空振り（gField=${JSON.stringify(fin?.guest?.fieldSigni)} hEnergy=${fin?.host?.energy} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
 order.push('powerLteSelfCeiling', 'powerLteSelfCeilingNoTarget');
+// Sheet1 B1（2026-08-27）＝対象名詞句の修飾語の配線漏れ。候補絞り込みは実機でしか観測できない（§2.2）。
+order.push('crossIconBouncePicker');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は
 // golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
 order.push('b45LrigLevelSearchCeiling', 'b45LrigLevelSearchFollowsLrig');

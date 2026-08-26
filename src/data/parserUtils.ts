@@ -565,11 +565,57 @@ export function signiClauseExcludeResonaFilter(text: string): Partial<TargetFilt
     : {};
 }
 
-/** 「対象のあなたのレゾナN体」＝シグニ一般ではなくレゾナ限定。 */
+/**
+ * 「〈対象の〉〈あなた|対戦相手〉の〈修飾〉レゾナN体」＝シグニ一般ではなく**レゾナ限定**。
+ *
+ * ⚠**従来は `あなたの` + 動詞2種（対象とし／バニッシュ）しか見ておらず**、
+ *   ・`WX10-066-E1`「**対戦相手の**レゾナ１体を対象とし、それをバニッシュする」＝所有者が対戦相手
+ *   ・`WX08-053-E1`「対象のあなたの**アップ状態の**レゾナ１体を**ダウンする**」＝修飾語＋動詞違い
+ *   の2形が丸ごと落ちて `{cardType:'シグニ'}` へ潰れていた＝**レゾナ以外も選べる過剰効果**
+ *   （レゾナは場に1〜2体しかいないので、実戦では「相手の通常シグニを何でもバニッシュできる」に化ける）。
+ * ⚠**条件節は拾わない**＝「あなたの場にレゾナがある場合」は体数を伴わないので自然に外れる
+ *   （`HAS_CARD_IN_FIELD{cardType:'レゾナ'}` の領分）。
+ * ⚠**「レゾナではない」は別ヘルパ**（`signiClauseExcludeResonaFilter`）＝この regex は
+ *   `レゾナ` の直後に助数詞を要求するので「レゾナではない…シグニN体」には当たらない。
+ */
+const SIGNI_CLAUSE_ADJACENT_RESONA =
+  /(?:対象の)?(?:あなた|対戦相手)の(?:(?![。、]|レゾナ|シグニ).){0,12}レゾナ(?:を)?[０-９\d]+体(?:まで)?(?:を?対象とし|を?バニッシュ|を?手札に戻|を?トラッシュに置|をダウン|をアップ|を?エナゾーンに置)/;
 export function signiClauseResonaFilter(text: string): Partial<TargetFilter> {
-  return /(?:対象の)?あなたのレゾナ[０-９\d]+体(?:を)?(?:対象とし|バニッシュ)/.test(text)
-    ? { cardType: 'レゾナ' }
-    : {};
+  return SIGNI_CLAUSE_ADJACENT_RESONA.test(text) ? { cardType: 'レゾナ' } : {};
+}
+
+/**
+ * 「〈…〉**クロス状態の**シグニN体を対象とし」＝`crossState` 限定（`WX08-011-E1`）。
+ *
+ * ⚠engine は `crossState` を**最初から実装済み**（`fieldCandidates` / `matchesStateFilter`）で、
+ *   parser も**条件節側では出していた**（`HAS_CARD_IN_FIELD{crossState:true}`）のに
+ *   **対象側だけ配線が無かった**＝純粋な配線ギャップ。`WX08-011-E1` は
+ *   「このカードはあなたの場にクロス状態のシグニがある場合にしか使用できない。**対戦相手のクロス状態の**
+ *   シグニ１体を対象とし、それをバニッシュする」で、**条件は正しく効くのに対象だけ無制限**だった。
+ * ⚠**全文スキャンにしてはいけない**＝上記のとおり同じ綴りが**使用条件節**にも出るので、
+ *   `signiClauseStoryFilter` と同じ「対象名詞句に隣接する窓だけ」の規律に従う。
+ */
+const SIGNI_TARGET_ADJACENT_CROSS_STATE =
+  /クロス状態の(?:(?![。、]|シグニ).){0,10}シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClauseCrossStateFilter(text: string): Partial<TargetFilter> {
+  return SIGNI_TARGET_ADJACENT_CROSS_STATE.test(text) ? { crossState: true } : {};
+}
+
+/**
+ * 「**カード名に《X》を含む**〈…〉シグニN体（枚）」＝`cardName`（部分一致）限定。
+ *
+ * ⚠**素の `parseNameFilter(文全体)` を対象フィルタに使ってはいけない**＝《》表記は
+ *   **コスト**（《白》《無×2》）・**カード名の言及**・**アイコン**（《ガードアイコン》）にも同じ綴りで出る。
+ *   `parseNameFilter` 自体は色/×/アイコンを除外するが、**別の名詞句のカード名**までは切り分けられない
+ *   （`WX09-015-E1` は【自】の対象と【出】のサーチが同じ《剣》なので害が無いが、一般には別物）。
+ *   よって `signiClauseStoryFilter` と同じ**隣接窓**に限定する。
+ * ⚠助数詞は「体」（場のシグニ）と「枚」（トラッシュ/デッキのカード）の両方を許す。
+ */
+const SIGNI_CLAUSE_ADJACENT_NAME =
+  /カード名に《([^》]+)》を含む(?:(?![。、]|シグニ).){0,14}シグニ(?:を)?[０-９\d]*(?:体|枚)(?:まで)?(?:を?対象とし|を?バニッシュ|を?手札に(?:戻|加え)|を?トラッシュに置|を?場に出|を?エナゾーンに置)/;
+export function signiClauseNameFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_CLAUSE_ADJACENT_NAME);
+  return m ? { cardName: m[1] } : {};
 }
 
 /**
@@ -756,6 +802,10 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...signiClauseDisonaFilter(text),
     ...signiClauseExcludeResonaFilter(text),
     ...signiClauseResonaFilter(text),
+    // 「クロス状態の〜シグニN体を対象とし」＝engine 実装済みの crossState（条件節側だけ配線済みだった）
+    ...signiClauseCrossStateFilter(text),
+    // 「カード名に《X》を含む〜シグニN体」＝cardName 部分一致（対象名詞句に隣接するときだけ）
+    ...signiClauseNameFilter(text),
   };
   // ⚠従来は `hasOtherSelfSigniNoun`（＝「他の」がある）ときだけ isDisona を立てていたため、
   //   「あなたの《ディソナアイコン》のシグニ１体を対象とし」（`WXDi-P13-077-E1`）のように

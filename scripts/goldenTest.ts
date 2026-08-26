@@ -49355,6 +49355,66 @@ test('Stage2 B45 回帰: 「代わりに」の多段閾値では base ゲート�
     'WX25-CP1-046-E2: 別軸ゲートは外側へ持ち上がり、Ｓランサー側もゲートの内側に入る');
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Sheet1 B1（2026-08-27）＝**対象名詞句の修飾語が対象フィルタへ配線されていない**過剰効果。
+//
+// 🔑この群の共通根は「engine も型も最初から実装済みなのに parser の**対象側だけ**配線が無い」
+//    ＝`WX08-011-E1` は同じ `crossState` を**使用条件節では正しく出していた**のに対象では出していなかった。
+// ⚠**全文スキャンで直してはいけない**＝同じ綴りが条件節・コスト節・別の名詞句にも出る。
+//    `signiClause*Filter` 族（parserUtils）の「対象名詞句に隣接する窓だけ」という規律に従う。
+//    負方向（下の NEGATIVE）はその規律が効いていることを固定する＝ここが緩むと**過小実行**へ倒れる。
+// ══════════════════════════════════════════════════════════════════════════════
+const sheet1B1Filters = (effectId: string, cardNum: string): Record<string, unknown>[] => {
+  const out: Record<string, unknown>[] = [];
+  const SKIP = new Set(['condition', 'activeCondition', 'cost', 'conditions', 'countFilter', 'triggerFilter']);
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (SKIP.has(key)) continue;
+      if (key === 'filter' && child && typeof child === 'object' && !Array.isArray(child)) {
+        out.push(child as Record<string, unknown>);
+      }
+      walk(child);
+    }
+  };
+  walk(b45Effect(cardNum, effectId).action);
+  return out;
+};
+
+test('Sheet1 B1: 対象名詞句の修飾語が対象フィルタへ載る（クロス状態／レゾナ／クロスアイコン／カード名）', () => withSavedCursor(() => {
+  const POSITIVE = [
+    // [effectId, cardNum, キー, 期待値, 旧挙動（＝直す前に何が起きていたか）]
+    ['WX08-011-E1', 'WX08-011', 'crossState', true, '相手のどのシグニでもバニッシュできた（条件節だけ正しかった）'],
+    ['WX10-066-E1', 'WX10-066', 'cardType', 'レゾナ', '相手の通常シグニもバニッシュできた'],
+    ['WX10-066-BURST', 'WX10-066', 'cardType', 'レゾナ', '選択肢②が相手の通常シグニも取れた'],
+    ['WX08-053-E1', 'WX08-053', 'cardType', 'レゾナ', '自分のアップ状態のシグニなら何でもダウンできた'],
+    ['WX10-060-E1', 'WX10-060', 'hasIcon', 'クロス', '相手のどのシグニでも手札に戻せた'],
+    ['WX09-015-E1', 'WX09-015', 'cardName', '剣', '自分のアップ状態のシグニなら何でもバニッシュできた'],
+    ['WX19-024-E3', 'WX19-024', 'cardName', 'サーバント', '相手のどのシグニでもトラッシュに置けた'],
+    ['WX20-050-E1', 'WX20-050', 'cardName', 'ニャローブ', '自分のどのシグニでもバニッシュできた'],
+    ['WX14-037-E1', 'WX14-037', 'cardName', 'フレイスロ', '自分のどのシグニでもバニッシュできた'],
+  ] as const;
+  for (const [effectId, cardNum, key, want, before] of POSITIVE) {
+    const filters = sheet1B1Filters(effectId, cardNum);
+    ok(filters.some(f => f[key] === want),
+      `${effectId}: 対象フィルタに ${key}=${String(want)} が載る（旧＝${before}）`);
+  }
+
+  // ── 負方向＝修飾語が**条件節**にあるときは対象へ引き込まない（過小実行への転落を防ぐ）──
+  // `WX12-026-E2`「対戦相手のシグニ１体を対象とし、**あなたの場に**カード名に《ローメイル》を含むシグニが
+  //   **ある場合**、それを手札に戻す」＝《ローメイル》は**条件**であって対象ではない。ここへ cardName を
+  //   付けると「相手のローメイルしか戻せない」＝原文と無関係な効果になる。
+  const negative = sheet1B1Filters('WX12-026-E2', 'WX12-026');
+  ok(!negative.some(f => f.cardName === 'ローメイル'),
+    'WX12-026-E2: 条件節のカード名を対象フィルタへ引き込まない');
+  // `WX08-011-E1` の使用条件（「あなたの場にクロス状態のシグニがある場合」）は **self** 側のまま。
+  const cond = b45Effect('WX08-011', 'WX08-011-E1').condition as { owner?: string; filter?: Record<string, unknown> };
+  ok(cond?.owner === 'self' && cond.filter?.crossState === true,
+    'WX08-011-E1: 使用条件は自分の場のクロス状態シグニのまま（対象側の修正で条件が動いていない）');
+}));
+
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

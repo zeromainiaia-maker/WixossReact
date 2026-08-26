@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter,
 } from '../parserUtils';
 
 /**
@@ -2052,7 +2052,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         //   🆕**色も同じ理由で落ちていた**（2026-08-19 続き571）＝`WD13-003-E2`「**対象のあなたの白の**シグニ１体を
         //   手札に戻す」で**自分のどの色のシグニでも**戻せる過剰効果。⚠色は条件節・コスト節にも同じ綴りで出るので
         //   **対象名詞句に隣接する色だけ**（`signiClauseColorFilter`）＝素の `parseColorFilter(t)` は使わない。
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseSelfComparison(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...signiClauseColorFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
+        //   🆕**アイコン／ディソナ／レゾナ／クロス状態／カード名も同じ理由で落ちていた**（2026-08-27・Sheet1 第45バッチ）＝
+        //   `WX10-060-E1`「**《クロスアイコン》を持つ**対戦相手のシグニ１体を対象とし、それを手札に戻す」で
+        //   **相手のどのシグニでも**戻せる過剰効果。`parseSigniTarget` は元から `signiClauseIconFilter` を
+        //   合成しており**同じ文を渡せば正しい filter を返していた**＝このビルダーが合流点を通らないことだけが原因。
+        //   ⚠新しい修飾語を `parseSigniTarget` に足したら**ここにも足す**（インライン合成が3度目の乖離を起こした）。
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseSelfComparison(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...signiClauseColorFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t), ...signiClauseExcludeResonaFilter(t), ...signiClauseResonaFilter(t), ...signiClauseCrossStateFilter(t), ...signiClauseNameFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
