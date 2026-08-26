@@ -2,6 +2,18 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-26・続き663・Opus 5）＝§5.3 `O-60` に着手＝①200箇所の機械分類を「計器」にした ②その1位 `LOOK_OPP_LIFE_TOP` を payload 化した**
+  - 🆕**`npm run census:enginetext` を新設**（`scripts/censusEngineText.ts`・明細 `docs/_census_enginetext.txt`・`--id X` で1ハンドラの完全内訳）。実測 **235行**を3分類＝**A🔴 SELF_TEXT 150行/145ハンドラ**（効果元自身の全文で意味を決める＝本命）／B OTHER_CARD 63行（他カードの属性判定＝正当寄り）／C COMMENT 22行。**登録票の「確定している具体例1件」は実測 145ハンドラだった。**
+  - 🔑**「regex が実際に外れているか」まで測る**＝ハンドラ内の regex/includes を抜き出し、live の該当カード原文に当てて **1本も当たらない**ものを miss とする＝**50ハンドラ・165カード**。これが優先度の指標（miss>0＝いま既定値へ落ちている）。
+  - 🔴**ゲート（ratchet）を `npm run gates` に同梱**＝A群の行数が**増えても減っても exit 1**（増＝新しい全文 regex／減＝払い戻したのに基準の下げ忘れ）。
+  - ✅**第1バッチ＝`LOOK_OPP_LIFE_TOP`**（計器1位）＝**live 28効果のうち 27効果で regex が1本も当たらず既定「相手のライフ上1枚」へ落ちていた**。連用形「手札を見**て**」でゾーンが化け、「**あなたの**ライフ」で所有者が化け、「上から**カードを**２枚」で枚数が潰れていた。⇒ `StubAction.lookZone{zone,count}`（4ゾーン）を parser が刻み、engine は payload だけ読む。**live A/B＝18効果・全部 `lookZone` の追加だけ**・`_held_fresh` 76 不変・A群 150→149行。
+  - 🔴**この id は「見る」以外の 20の無関係な文型の catch-all だった**（「対戦相手はデッキの一番下のカードをトラッシュに置く」等）＝旧実装は**それらでも相手の非公開領域を覗いて `lastProcessedCards` を汚していた**。⇒ **payload が無ければ何も見ない**（fail-closed・明示ログ）。残 **11効果**は §5.3 `O-76` に全数登録。
+  - ⚠**計器の較正で2回作り直した**＝①miss を `some` で数えると 359件の誤検出（同義の言い回しを複数 regex で受けるのが普通＝`every` でなければ母集団が全部赤くなる）②ハンドラ帰属を「直近の `stub.id`」だけで決めると、**入れ子の門**（`OPPONENT_PAY_OPTIONAL` が偽の1位に）と**直前の兄弟ハンドラの `if`** を拾って母集団が化ける。
+
+**▶ 次の一手**＝**§5.3 `O-60` 第2バッチ**（`npm run census:enginetext` の上位＝`LRIG_UNDER_CARD_OP` miss16/live18・`COPY_LRIG_NAME_ABILITY` miss16/live16・`DEPLOY_RESTRICT` miss8/live10）**か `O-76`／`O-75`／`O-73`／`O-74`**。
+- 🔑**「分類しろ」と書かれた worklist は、分類そのものを計器にする**＝人手で200件を仕分けると次のセッションに残らない。ratchet を付けて初めて「二度と増えない」が保証される。
+- 🔑**計器は較正してから読む**＝初版の1位（miss68）は入れ子の門を見落とした偽陽性で、真の1位（miss27）は別のハンドラだった。**上位を1件開いて原文を読むまで信じない。**
+- 🔴**catch-all の STUB id は名前が嘘をつく**＝`LOOK_OPP_LIFE_TOP` の parser 生成地点20箇所のうち「見る」効果は半分以下。**id の名前で母集団を推定しない。**
 - 🏁**セッション（2026-08-26・続き662・Opus 5）＝§5.3 `O-61` を消化＝「〜を対象とし」が「このシグニ」と見分けられず、対象ピッカーを出さずに効果元へ自動適用していた**
   - 🔴**登録票の見立て（「任意コスト `OPTIONAL_COST` のせい」「母集団232効果」）は外れ**＝`OPTIONAL_COST` は無関係。真因は **`GRANT_KEYWORD` / `POWER_SET` / `POWER_MULTIPLY` の3型だけが持つ「`target.filter` が無い＝このシグニ」という緩い既定**（`POWER_SET`／`POWER_MULTIPLY` は filter すら見ずに**無条件**で横取り）。`BANISH` 等は最初から `filter.thisCardOnly` だけを見る規約なので穴が無く、**この3型だけが規約から外れていた**。
   - 🔑**根は「JSON の側で区別が失われていた」**＝「**この**シグニは【アサシン】を得る」と「あなたのシグニ１体を**対象とし**…それは【アサシン】を得る」が**完全に同一の JSON**（`{type:'SIGNI',owner:'self',count:1}`）になっていた。⇒ `EffectTarget.explicitTarget` を新設し、parser が**「対象とし」側**に刻む／engine の自動適用を `!explicitTarget` で opt-out にする。
