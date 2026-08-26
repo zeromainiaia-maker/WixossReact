@@ -1423,6 +1423,11 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.alsoKeys) {
         return `${ownerJa(a.target?.owner)}場にあるすべてのキーと${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
       }
+      // alsoCenterLrig: 「**センタールリグと**すべてのシグニ」（段2 第45バッチ）。落とすとシグニだけに見えて、
+      // ルリグ側（`lrig_abilities_disabled`）が効いていることが計器に映らない。
+      if (a.alsoCenterLrig) {
+        return `${ownerJa(a.target?.owner)}センタールリグとすべての${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
+      }
       return `${subjRA}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
     }
     case 'GRANT_PROTECTION': {
