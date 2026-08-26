@@ -713,6 +713,39 @@ function relocateLeftPuppets(fieldOwner: PlayerState, trueOwner: PlayerState): {
   return { fieldOwner: fo, trueOwner: to };
 }
 
+/**
+ * §5.3 `O-81`＝**裏向きで付けられたカード**（`field.signi_facedown_attached`）のうち、
+ * ホストが場からいなくなったものを**公開して持ち主の手札へ戻す**（`WX16-003-E2` の
+ * 「そのシグニが場を離れる場合、追加でこれによって付けたカードを公開し手札に戻す」）。
+ *
+ * 🔴**`removeFromField` だけでは足りない**（2026-08-26 の実機検証で判明）＝
+ *   **バトル解決は funnel を通らず `field` を手で組み直す**ので、そこを通ると付いたカードが
+ *   場からも手札からも消えて**行方不明になる**（実測）。⇒ `sweepPuppets` と同じ
+ *   「**盤面から導出する掃除**」にして、funnel を通らない経路もまとめて拾う。
+ *
+ * ⚠**何も公開しないときは `facedown_revealed_just` に触らない**＝
+ *   `removeFromField` が同じ解決内で立てたマーカーを消してしまうため（消すのは funnel の役目）。
+ */
+export function sweepFacedownAttached(state: PlayerState): PlayerState {
+  const slots = state.field.signi_facedown_attached;
+  if (!slots?.some(v => v?.length)) return state;
+  const next = [...slots] as (string[] | null)[];
+  const revealed: string[] = [];
+  slots.forEach((cards, zi) => {
+    if (!cards?.length) return;
+    if ((state.field.signi[zi] ?? []).length > 0) return;   // ホストが健在＝まだ付いている
+    revealed.push(...cards);
+    next[zi] = null;
+  });
+  if (revealed.length === 0) return state;
+  return {
+    ...state,
+    hand: [...state.hand, ...revealed],
+    facedown_revealed_just: revealed,
+    field: { ...state.field, signi_facedown_attached: next },
+  };
+}
+
 // 両プレイヤーの場から離れた傀儡を持ち主のトラッシュへ回収する（効果/バトル解決後に呼ぶ）。
 export function sweepPuppets(a: PlayerState, b: PlayerState): { a: PlayerState; b: PlayerState } {
   if ((a.field.puppet_signi?.length ?? 0) === 0 && (b.field.puppet_signi?.length ?? 0) === 0) return { a, b };
