@@ -237,6 +237,11 @@ export type ActiveCondition =
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number }  // 登録者数条件（N万人以上等）
   | { type: 'VIRUS_COUNT'; owner: Owner; operator: CompareOp; value: number } // 場の【ウィルス】数条件（「対戦相手の場に【ウィルス】がない場合」等）
   | { type: 'LRIG_COLOR'; owner: Owner; color: string }         // センタールリグが指定色を持つ場合（「あなたのセンタールリグが青で」等）
+  // 「あなたの場にカード名に《X》を含むセンタールリグがいるかぎり」（段2 第45バッチ・`WDK16-06T-E1`）。
+  // ⚠`HAS_CARD_IN_FIELD{cardType:'ルリグ', cardName}` では**アシストルリグも拾ってしまう**
+  //   （`lrigZoneTops` はセンター＋左右アシストを返す＝《美兎》《凛》は同名のアシストが実在する）。
+  //   `Condition` 側に同型が既にあるので**両評価器を揃える**（PLAN §4.2 の3点セット）。
+  | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string }
   | { type: 'SAME_ZONE_HAS_GATE' }                              // このシグニと同じシグニゾーンにTHE DOOR【ゲート】があるかぎり（own_gate_zones）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                    // 指定プレイヤーの場にTHE DOOR【ゲート】があるかぎり（own_gate_zones が非空）
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
@@ -464,7 +469,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
-  LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
+  LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
   DURING_ATTACK_PHASE: true, DURING_MAIN_PHASE: true, AND: true,

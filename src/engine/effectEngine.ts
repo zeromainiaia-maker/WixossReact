@@ -621,6 +621,16 @@ export function checkActiveCondition(
       return cardMap.get(top)?.Color?.includes(cond.color) ?? false;
     }
 
+    // 「あなたの場にカード名に《X》を含むセンタールリグがいるかぎり」（段2 第45バッチ）。
+    // ⚠`Condition` 側（`execUtils` / `evalConditionForContinuous`）と**同じ読み**にする
+    //   ＝センター（`field.lrig` の最前面）だけを見る。ルリグ不在は false（過剰実行しない側）。
+    case 'LRIG_NAME_CONTAINS': {
+      const nameState = cond.owner === 'self' ? ownerState : otherState;
+      const nameTop = nameState.field.lrig.at(-1);
+      if (!nameTop) return false;
+      return cardMap.get(nameTop)?.CardName?.includes(cond.name) ?? false;
+    }
+
     case 'SAME_ZONE_HAS_GATE': {
       // このシグニ（sourceCardNum）と同じシグニゾーンに THE DOOR【ゲート】があるかぎり
       if (!sourceCardNum) return false;

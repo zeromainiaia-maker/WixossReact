@@ -1820,6 +1820,18 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: { type: 'LRIG_LEVEL', owner, operator: op, value: val }, rest: text.slice(centerLrigLevelM[0].length), conditionFound: true };
   }
 
+  // 「あなたの場にカード名に《X》を含むセンタールリグがいるかぎり、」（段2 第45バッチ・`WDK16-06T-E1`）。
+  // 🔴これが無い間、条件が丸ごと落ちて**《美兎》がいなくても付与が常時成立する**過剰効果だった。
+  // ⚠`HAS_CARD_IN_FIELD{cardType:'ルリグ',cardName}` に倒してはいけない（アシストルリグも拾う＝同名の
+  //   アシストが実在する）。センター限定の受け皿は `LRIG_NAME_CONTAINS`。
+  const centerLrigNameM = text.match(/^(あなた|対戦相手)の場にカード名に《([^》]+)》を含むセンタールリグがいる(?:かぎり|場合)、/);
+  if (centerLrigNameM) {
+    return {
+      condition: { type: 'LRIG_NAME_CONTAINS', owner: centerLrigNameM[1] === 'あなた' ? 'self' : 'opponent', name: centerLrigNameM[2] },
+      rest: text.slice(centerLrigNameM[0].length), conditionFound: true,
+    };
+  }
+
   // センタールリグの印字／付与済みキーワードを主語にする条件（効果元シグニ自身とは別軸）。
   const centerLrigKeywordM = text.match(/^あなたのセンタールリグが【([^】]+)】を持つかぎり、/);
   if (centerLrigKeywordM) {
