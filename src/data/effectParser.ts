@@ -3096,6 +3096,13 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
 //   黙って落ちる（実測＝デッキトップ公開は**エナゾーン形しか見ておらず**「このシグニがアップ状態の場合」
 //   8効果ほかの条件が丸ごと脱落＝無条件発火の過剰効果だった）。**語彙を足すときはこの表だけを触る。**
   const LEADING_STATE_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+    // 🆕「〈誰か〉の場に〈色〉のシグニが N 体あり、**それらが共通するクラスを持つ**場合」（`WX09` の5色サイクル）。
+    // 🔴**この条件が丸ごと落ちると両枝が無条件で走る**＝`WX09-049` は「4枚引く」と「3枚引く」が**両方**実行されて
+    //   **7枚ドロー**になっていた（`WX09-045` は8000以下と15000以下を両方バニッシュ／`WX09-057` は常に2枚回収）。
+    // ⚠engine 側の受け皿は**新設**（`FIELD_SIGNI_SHARE_CLASS`）＝既存の `FIELD_SIGNI_ALL_DISTINCT_CLASS` は
+    //   **否定形**（場の全シグニが互いに異クラス）なので流用してはいけない（§5-5e）。
+    [/(あなた|対戦相手)の場に([白赤青緑黒])のシグニが([０-９\d]+)体あり、それらが共通するクラスを持つ場合/,
+      g => ({ type: 'FIELD_SIGNI_SHARE_CLASS', owner: g[0] === 'あなた' ? 'self' : 'opponent', color: g[1], count: parseNum(g[2]) })],
     [/あなたのターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'self' })],
     [/対戦相手のターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'opponent' })],
     [/このシグニのパワーが([０-９\d]+)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
@@ -4824,7 +4831,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
       // m[1] は then へ再prependされ parseSingleSentence が同プレフィックスを除去するので整合する（WXDi-P14-058/066）。
       // 「あなたが〈スペル|アーツ〉を使用したとき、」も許容する（段2 第43バッチ）＝この形は本ループより後で
       // トリガー除去されるため、許容しないと条件節が丸ごと落ちて**無条件発火**になる（WXDi-P09-038-E2 で実測）。
-      const m = t0.match(new RegExp('^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき|このルリグがアタックしたとき|あなたが(?:スペル|アーツ)を使用したとき)、)?)' + re.source + '、(.+)$', 's'));
+      // 🆕**「その後、」も許容する**（2026-08-27 Sheet1 B3）＝`WX09-057-E1`
+      //   「〈本体〉。**その後、**あなたの場に黒のシグニが３体あり、…場合、追加で〈本体2〉」のように
+      //   接続詞が前置される形が実在し、許可リストに無いと**条件節が丸ごと落ちて無条件実行**になる
+      //   （＝常に2枚回収する過剰効果だった）。⚠`m[1]` は `then` へ再 prepend されるので、
+      //   `parseSingleSentence` 側が同じ接続詞を落とせる形であることが前提（「その後、」は落とせる）。
+      const m = t0.match(new RegExp('^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき|このルリグがアタックしたとき|あなたが(?:スペル|アーツ)を使用したとき)、|その後、)?)' + re.source + '、(.+)$', 's'));
       // 「〜の場合、代わりに〜」（昇格置換）は then だけのラップだと「基本＋条件時追加」の誤近似になり、
       // 既存 STUB（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済みハンドラ）も横取りして退化させる
       // ＝ else 表現が要る別系統として据置（本規則の対象外）
@@ -10269,7 +10281,33 @@ function applyExplicitTargetMarker(text: string, action: EffectAction): EffectAc
 }
 
 function parseActionText(text: string): EffectAction {
-  return applyExplicitTargetMarker(text, parseActionTextBody(text));
+  return foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text)));
+}
+
+/**
+ * 「〈条件〉場合、A。**そうでない場合**、B。」＝**排他 else** を `CONDITIONAL.else` へ畳む（2026-08-27 Sheet1 B3）。
+ *
+ * 🔴これが無いと `SEQUENCE[CONDITIONAL{c, then:A}, B]` になり、**条件成立時に A と B が両方走る**。
+ *   実測＝`WX09-049-E1`「…共通するクラスを持つ場合、カードを**４枚**引く。そうでない場合、カードを**３枚**引く。」が
+ *   条件成立時に **7枚ドロー**していた（条件節そのものが落ちていた時代は常に7枚）。
+ * ⚠**既存の `REVEAL_AND_PICK` 専用 else（`rp.elseAction`・§6.4 `O-35`）とは別**＝あちらは公開札の枝で、
+ *   受け皿もアクション側の `elseAction`。ここは汎用の `CONDITIONAL.else`（engine 実装済み）。
+ * ⚠**照応語で始まる else は畳まない**＝「そうでない場合、**それ**を…」は単独 parse で参照先を失うため
+ *   （`O-35` が同じ理由で2件を据置にしている）。畳むと別物に化ける。
+ * ⚠**直後のステップが1つだけ**の形に限る＝A/B が複数文に割れる形は照応や順序が絡むので触らない。
+ */
+function foldElseIntoLeadingConditional(text: string, action: EffectAction): EffectAction {
+  if (!/そうでない場合[、,]/.test(text)) return action;
+  if (/そうでない場合[、,](?:それ|その|そのカード|そのシグニ)/.test(text)) return action;
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = (action as SequenceAction).steps;
+  if (steps.length !== 2) return action;
+  const [gate, alt] = steps;
+  if (gate?.type !== 'CONDITIONAL') return action;
+  const c = gate as ConditionalAction;
+  if (c.else) return action;                       // 既に else があるなら触らない
+  if (!alt || alt.type === 'UNKNOWN' || alt.type === 'STUB') return action;
+  return { ...c, else: alt } as EffectAction;
 }
 
 function parseActionTextBody(text: string): EffectAction {

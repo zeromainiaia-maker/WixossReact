@@ -20885,7 +20885,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 58, 'ActiveCondition の型数（58＝段2 第45バッチで LRIG_NAME_CONTAINS を追加）');
-  eq(Object.keys(C_TYPES).length, 127, 'Condition の型数（127＝§5.3 `O-81` で FACEDOWN_REVEALED_JUST を新設）');
+  eq(Object.keys(C_TYPES).length, 128, 'Condition の型数（128＝Sheet1 B3 で FIELD_SIGNI_SHARE_CLASS を新設。127 は §5.3 `O-81` の FACEDOWN_REVEALED_JUST 時点）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -49486,6 +49486,45 @@ test('Sheet1 B2: サーバント18枚のマルチエナは parser が1本だけ�
   const k = mergeManualEffects('WXK05-030', effectsMap.get('WXK05-030') ?? []);
   ok(k.some(e => e.effectId === 'WXK05-030-MULTIENA'),
     'WXK05-030: スペル末尾の【マルチエナ】は手書きのまま（parser が拾えないため撤去しない）');
+}));
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sheet1 B3（2026-08-27）＝「あなたの場に〈色〉のシグニが3体あり、**それらが共通するクラスを持つ**場合」
+// という条件が JSON から丸ごと落ちて、**両枝が無条件で走っていた**（`WX09` の5色サイクル）。
+//
+// 🔴最悪だったのが `WX09-049-E1`＝「…場合、カードを**４枚**引く。そうでない場合、カードを**３枚**引く。」が
+//    `SEQUENCE[DRAW 4, DRAW 3]` ＝**常に7枚ドロー**になっていた。
+// 🔑受け皿は**新設**（`Condition.FIELD_SIGNI_SHARE_CLASS`）。既存の `FIELD_SIGNI_ALL_DISTINCT_CLASS` は
+//    **否定形**（場の全シグニが互いに異クラス）なので流用してはいけない（§5-5e）。
+// ⚠クラスの刻みは `splitClasses`（「精武：アーム」＝上位「精武」＋下位「アーム」の2トークン）に一本化。
+//    ⇒ **上位クラスが同じなら共有扱い**になる。下のフィクスチャは上位クラスまで別のものを選んである。
+// ══════════════════════════════════════════════════════════════════════════════
+test('Sheet1 B3: 「共通するクラスを持つ場合」が live に載り、両枝が排他になる', () => withSavedCursor(() => {
+  for (const [cardNum, effectId, color] of [
+    ['WX09-049', 'WX09-049-E1', '青'],
+    ['WX09-053', 'WX09-053-E1', '緑'],
+    ['WX09-057', 'WX09-057-E1', '黒'],
+  ] as const) {
+    const s = JSON.stringify(b45Effect(cardNum, effectId));
+    ok(s.includes('"type":"FIELD_SIGNI_SHARE_CLASS"'), `${effectId}: 条件が live に載っている（旧＝丸ごと落ちて無条件実行）`);
+    ok(s.includes(`"color":"${color}"`) && s.includes('"count":3'), `${effectId}: 色と体数が原文どおり（${color}／3体）`);
+  }
+
+  // ── 評価器の3点セット（WX09-049 の実 live 効果をそのまま実行して観測）──
+  const draw = b45Effect('WX09-049', 'WX09-049-E1').action;
+  const SHARED = ['WD03-009', 'WD03-010', 'WD03-011'];   // いずれも 青／精械：電機 ＝共通クラスあり
+  const DISTINCT = ['WD03-009', 'WX01-043', 'WX15-035']; // 青／精械：電機・精生：水獣・精武：トリック ＝上位も別
+
+  const shared = run(draw, mkCtx({ signi: SHARED, hand: 0 }, {}));
+  eq(shared.ownerState.hand.length, 4, 'WX09-049-E1: 共通クラスあり → 4枚だけ引く（旧＝4+3=7枚）');
+
+  const distinct = run(draw, mkCtx({ signi: DISTINCT, hand: 0 }, {}));
+  eq(distinct.ownerState.hand.length, 3, 'WX09-049-E1: 共通クラスなし → else の3枚（旧＝ここでも7枚）');
+
+  // ⚠**体数が足りなければ false（fail-closed）**＝2体しかいないのに成立させると過剰実行に倒れる。
+  const tooFew = run(draw, mkCtx({ signi: [SHARED[0], SHARED[1], null], hand: 0 }, {}));
+  eq(tooFew.ownerState.hand.length, 3, 'WX09-049-E1: 同クラスでも2体なら不成立＝else（fail-closed）');
 }));
 
 

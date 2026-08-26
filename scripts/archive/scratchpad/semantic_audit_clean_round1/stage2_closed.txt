@@ -647,3 +647,14 @@ WX09-015-E1 :: カード名に《剣》を含む
 WX10-060-E1 :: 《クロスアイコン》を持つ
 WX10-066-E1 :: 対戦相手のレゾナ１体
 WX10-066-BURST :: ②対戦相手のレゾナ１体
+
+# ── Sheet1 B3（2026-08-27 続き681）＝「場に〈色〉のシグニが3体あり、それらが共通するクラスを持つ場合」 ──
+#   engine に**正方向の受け皿が無かった**ので `Condition.FIELD_SIGNI_SHARE_CLASS` を新設し、
+#   `LEADING_STATE_CLAUSES` へ1行足して条件を持ち上げた。`そうでない場合` は `CONDITIONAL.else` へ畳む
+#   汎用後段パスを新設（`foldElseIntoLeadingConditional`）。
+#   ⚠**`WX09-045-E1`（「代わりに」＝置換）は閉じない**＝`tryWrapLeadingStateCond` が
+#     「代わりに」を意図的に除外している（else 表現が要る別系統）。§5.3 へ登録した。
+#   ⚠**`WX09-041-E1` も閉じない**＝条件節ではなく `STUB{CONDITIONAL_SEARCH_IF_FIELD}`（消費0＝真no-op）が
+#     先に文を掴んでいる。こちらは過小実行なので別軸。
+WX09-049-E1 :: そうでない場合、カードを３枚引く
+WX09-057-E1 :: 共通するクラスを持つ場合

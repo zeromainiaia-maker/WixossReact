@@ -441,6 +441,11 @@ export type Condition =
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' }       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
   | { type: 'DECK_TOP_SHARES_COLOR_WITH_LRIG'; owner: Owner } // デッキの一番上のカードと共通する色を持つルリグ（センター/アシスト）が場にいる場合（G157）
   | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
+  // 🆕**正方向**＝「あなたの場に〈色〉のシグニが N 体あり、**それらが共通するクラスを持つ**場合」（`WX09` の5色サイクル）。
+  //   ⚠上の `FIELD_SIGNI_ALL_DISTINCT_CLASS` は**否定形**（互いに異クラス）で意味が違う＝流用しない（§5-5e）。
+  //   `color` 省略時は場のシグニ全部を見る。`count` 体**以上**が `color` に一致し、かつ**一致した全員**が
+  //   1つ以上のクラスを共有していることを要求する（原文は3体＝盤面全埋まりなので実質「全員」）。
+  | { type: 'FIELD_SIGNI_SHARE_CLASS'; owner: Owner; color?: string; count: number }
   | { type: 'LAST_PROCESSED_HAS_BURST'; negate?: boolean }   // lastProcessedCards[0] が【ライフバースト】を持つ場合。negate=true は持たない場合
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
   | { type: 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI' }         // 直前に処理したカードと、効果元シグニの正面（相手2-zi）のシグニの表記レベルが同じ（WXEX1-65）
@@ -509,7 +514,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
   HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true,
   FIELD_HAS_GATE: true, NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN: true, DECK_TOP_SHARES_COLOR_WITH_LRIG: true,
-  FIELD_SIGNI_ALL_DISTINCT_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
+  FIELD_SIGNI_ALL_DISTINCT_CLASS: true, FIELD_SIGNI_SHARE_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
   LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
   LAST_LOOK_TRASHED_MATCHES: true, LAST_PROCESSED_ALL_MATCH: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true,

@@ -2423,6 +2423,28 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }
       return true;
     }
+    case 'FIELD_SIGNI_SHARE_CLASS': {
+      // 「あなたの場に〈色〉のシグニが N 体あり、**それらが共通するクラスを持つ**場合」（`WX09` の5色サイクル）。
+      // 🔑**クラスの刻み方は `splitClasses` に一本化**（「精武：アーム」＝上位「精武」＋下位「アーム」の2トークン）。
+      //   公式解釈が変わってもあの1箇所を直せば全ゾーンの判定が揃う、というのがこのコードベースの規約。
+      // ⚠**上の `FIELD_SIGNI_ALL_DISTINCT_CLASS` の否定ではない**＝あちらは「場の**全**シグニが互いに異クラス」。
+      //   こちらは「**色で絞った**シグニが**全員で1つ以上のクラスを共有**」＝別物（§5-5e＝似た語彙を流用しない）。
+      // ⚠**色が一致するシグニが `count` 未満なら false**（fail-closed）。原文は3体＝盤面全埋まりが前提で、
+      //   ここを緩めると「2体しかいないのに成立」＝過剰実行に倒れる。
+      const psSC = st(cond.owner);
+      const nums = psSC.field.signi
+        .map(stack => stack?.at(-1))
+        .filter((n): n is string => !!n);
+      const matched = cond.color
+        ? nums.filter(n => splitColors(ctx.cardMap.get(n)?.Color).includes(cond.color!))
+        : nums;
+      if (matched.length < cond.count) return false;
+      const classSets = matched.map(n => new Set(splitClasses(ctx.cardMap.get(n)?.CardClass)));
+      if (classSets.some(set => set.size === 0)) return false;   // クラスを持たないカードが混ざれば共有できない
+      const [head, ...rest] = classSets;
+      for (const cl of head) if (rest.every(set => set.has(cl))) return true;
+      return false;
+    }
     case 'LAST_PROCESSED_COUNT_GTE': {
       const matched = (ctx.lastProcessedCards?.length ?? 0) >= cond.value;
       return cond.negate ? !matched : matched;

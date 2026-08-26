@@ -17047,7 +17047,84 @@ scenarios.servantMultiEnaPaysColor = {
 
 order.push('crossIconBouncePicker');
 // Sheet1 B2（2026-08-27）＝マルチエナの所有権を parser へ返したので支払い経路2を実機で見張る。
+// ── Sheet1 B3（2026-08-27）＝「共通するクラスを持つ場合」の排他分岐 ────────────────
+// `WX09-049-E1`「あなたの場に青のシグニが**３体あり、それらが共通するクラスを持つ場合**、カードを**４枚**引く。
+//   **そうでない場合**、カードを**３枚**引く。」
+// 🔴条件が丸ごと落ちていたため live は `SEQUENCE[DRAW 4, DRAW 3]` ＝**常に7枚ドロー**だった。
+// ⚠**ドロー枚数はモーダルの候補絞り込みではないので golden でも見える層**だが、
+//   `FIELD_SIGNI_SHARE_CLASS` は**盤面（3ゾーンの実カード）を読む**条件で、実機は
+//   `signi` スタックの実体・`cardMap` の解決・盤面注入の3つが噛み合って初めて成立する。
+//   正方向（共通クラスあり＝4枚）と対照（異クラス＝3枚）を**同一手順**で撃って差が出ることを見る。
+const b3BlueShared   = [['WD03-009#9300'], ['WD03-010#9301'], ['WD03-011#9302']]; // 全部 青／精械：電機
+const b3BlueDistinct = [['WD03-009#9310'], ['WX01-043#9311'], ['WX15-035#9312']]; // 精械／精生／精武＝上位も別
+const b3Spec = (signi) => ({
+  hostSet: {
+    'field.signi': signi,
+    'field.signi_down': [false, false, false],
+    'energy': ['WD03-009#9320', 'WD03-010#9321'],   // 《青》×2
+    'hand': [],                                      // ⚠手札を空にして「引いた枚数」をそのまま数える
+    'actions_done': [],
+  },
+  handPrepend: ['WX09-049#9330'],                    // ＴＨＲＥＥ ＳＷＩＴＣＨ（スペル・《青》×2）
+  guestSet: { 'field.signi': [null, null, null] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b3Drive = (label, expected) => async (page, H) => {
+  const before = await H.queryState();
+  H.log('開始 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'hand:', JSON.stringify(before?.host?.handCards));
+  await H.ensureMain();
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  const opened = await H.clickTestId('my-hand-card-0');
+  H.log('スペル手札クリック:', opened ?? '見つからず');
+  let picked = 0;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${label}-${s}.png`, fullPage: true });
+    let did = await clickExact('発動');
+    if (!did) {
+      // ⚠**エナのコストセルはトグル**＝毎回 index 0 を押すと2回目で**選択解除**され永久に払えない。
+      //   `picked` 番目を押して前進させる（`crossIconBouncePicker` は《白》×1 なのでこの罠に当たらなかった）。
+      if (picked < 2) {
+        const e = page.getByTestId(`spellcost-energy-${picked}`).first();
+        if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); did = `spellcost-energy-${picked}`; picked++; }
+      }
+      if (!did) did = await clickExact('発動する');
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const hand = (st?.host?.handCards ?? []).filter(c => !String(c).startsWith('WX09-049'));
+    H.log(`  b3[${s}] -> ${did ?? 'なし'} | hand=${hand.length} ${JSON.stringify(hand)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (hand.length >= expected && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect) {
+      if (hand.length === expected) {
+        return { pass: true, detail: `${label}: 引いた枚数は ${hand.length} 枚（期待 ${expected}）＝排他分岐が効いている（旧＝条件が落ちて常に7枚）` };
+      }
+      return { pass: false, detail: `🔴${label}: 引いた枚数が ${hand.length} 枚（期待 ${expected}）＝両枝が走っている疑い（hand=${JSON.stringify(hand)}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `${label}: スペルが解決せず＝検証空振り（hand=${JSON.stringify(fin?.host?.handCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+};
+scenarios.b3ShareClassDrawsFour = {
+  title: 'WX09-049-E1（Sheet1 B3＝青3体が共通クラス → 4枚だけ引く）',
+  spec: b3Spec(b3BlueShared),
+  drive: b3Drive('b3ShareClassDrawsFour', 4),
+};
+// 対照（§5-21）＝同一手順で盤面のクラスだけを崩す。単独では「たまたま4枚」と区別できないので必ずセットで読む。
+scenarios.b3DistinctClassDrawsThree = {
+  title: 'WX09-049-E1 対照（Sheet1 B3＝青3体が異クラス → else の3枚）',
+  spec: b3Spec(b3BlueDistinct),
+  drive: b3Drive('b3DistinctClassDrawsThree', 3),
+};
+
 order.push('servantMultiEnaPaysColor');
+// Sheet1 B3（2026-08-27）＝共通クラス条件の排他分岐。正方向＋対照をセットで既定 order へ。
+order.push('b3ShareClassDrawsFour', 'b3DistinctClassDrawsThree');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は
 // golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
 order.push('b45LrigLevelSearchCeiling', 'b45LrigLevelSearchFollowsLrig');
