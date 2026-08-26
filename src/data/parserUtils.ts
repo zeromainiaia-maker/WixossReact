@@ -625,6 +625,24 @@ export function signiClauseColorFilter(text: string): Partial<TargetFilter> {
 }
 
 /**
+ * 「（あなたの）センタールリグと共通する色を持つ〈…〉シグニN体を対象とし」の
+ * **対象名詞句に隣接する `colorMatchesLrig` だけ**を拾う（2026-08-27 段2 第45バッチ）。
+ * `signiClauseColorFilter`／`signiClauseLevelFilter`／`signiClausePowerFilter` の兄弟。
+ *
+ * 🔴これが無い間、`parseSigniTarget` を通る対象（BANISH／TRASH／BOUNCE 等）では
+ *   **ルリグ色の限定が丸ごと落ちて相手のどのシグニでも選べる過剰効果**だった（`WXEX1-29-E2`）。
+ *   `extractNounPhraseFilter`（SEARCH/REVEAL 系）には `parseColorMatchesLrig` が入っていたのに、
+ *   シグニ対象の主経路だけが取り残されていた非対称。
+ *
+ * ⚠**全文スキャンにしてはいけない**＝同じ綴りが**条件節**（「あなたの場にセンタールリグと共通する色を持つ
+ *   シグニがあるかぎり」）にも出る。`[^。、]` で読点を跨がせず「を対象とし」で終わる形に限定する。
+ */
+const SIGNI_TARGET_ADJACENT_LRIG_COLOR = /センタールリグと共通する色を持つ(?:[^。、]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClauseLrigColorFilter(text: string): Partial<TargetFilter> {
+  return SIGNI_TARGET_ADJACENT_LRIG_COLOR.test(text) ? { colorMatchesLrig: true } : {};
+}
+
+/**
  * 「〈…〉パワーN〔以上／以下〕のシグニN体を対象とし」の**対象名詞句に隣接するパワーだけ**を拾う（続き377n）。
  * `signiClauseStoryFilter`（クラス）／`signiClauseIconFilter`（アイコン）／`signiClauseLevelFilter`（レベル）の4番目の兄弟。
  *
