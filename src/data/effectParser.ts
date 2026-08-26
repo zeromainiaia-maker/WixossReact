@@ -12583,6 +12583,10 @@ function parseActionTextInner(text: string): EffectAction {
         ...parseColorFilter(condText),
         // 「それがこのシグニよりパワーの低いシグニの場合」＝公開候補を効果元基準で絞る。
         ...parseSelfComparison(condText),
+        // 「それが**あなたのセンタールリグと共通する色を持つ**シグニの場合」（`WDA-F04-10-E1`）＝
+        // ルリグ色参照（engine の `resolveDynamicFilter` が色へ解決）。落ちると**公開札がどのシグニでも
+        // 手札に入る**過剰効果になっていた（2026-08-27 段2 第45バッチ）。
+        ...parseColorMatchesLrig(condText, { includeNegative: true }),
         // 裸の色（「そのカードが**白**の場合」＝`WXDi-P07-051-E1`／`WXDi-P07-070-E1`）は `parseColorFilter` の
         // 「〈色〉の」形に当たらず色が丸ごと落ちていた＝**どのカードでも発火する過剰効果**。
         ...(/^(白|赤|青|緑|黒|無色)$/.test(condText) ? { color: condText } : {}),
