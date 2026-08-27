@@ -188,7 +188,7 @@ import {
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
-import { parseSentencePart4 } from './parsers/parseSentencePart4';
+import { parseSentencePart4, parseTrapSetSentence } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
 import { encodeAssassinScopesInText, encodeLancerScopesInText, encodeShadowScopesInText, normalizeKeywordName } from '../utils/keywords';
 
@@ -3685,6 +3685,13 @@ const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string; duration?: '
   // `WXK05-009-E2`「このターン、対戦相手のシグニがアタックしたとき、」＝**設置者は防御側**。
   // `attackerOwner:'opponent'` は設置者から見た所有者（collector が防御側の設置分だけ拾うための弁別子）。
   { re: /^このターン[、,]対戦相手のシグニがアタックしたとき[、,]$/, timing: 'ON_ATTACK_SIGNI', trigger: { attackerOwner: 'opponent' } },
+  // 🆕§5.3（2026-08-27・Sheet1 B11）＝**攻撃側**に設置する版（`WX10-035`「このターン、あなたのシグニ１体が
+  //   アタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。」）。
+  //   旧＝遅延句が丸ごと落ちて**スペルを唱えた瞬間に1枚だけエナチャージ**する即時効果に縮退していた
+  //   （原文はそのターン中の**各アタックごと**にチャージする）。
+  // 🔴collector 側（`collectAttackerSelfDelayedTriggers`）を先に足してある＝
+  //   無いと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけになる。
+  { re: /^このターン[、,]あなたのシグニ(?:[１1]体)?がアタックしたとき[、,]$/, timing: 'ON_ATTACK_SIGNI', trigger: { attackerOwner: 'self' } },
   // 🆕§5.3 `O-73`（2026-08-26）＝`WX24-P3-030-E2`「【起】《ゲーム１回》…：**このターン、あなたの効果１つに
   //   よってデッキからカードが合計１枚以上トラッシュに置かれたとき、**対戦相手のシグニ１体を対象とし、
   //   ターン終了時まで、それのパワーを－5000する。」
@@ -3756,6 +3763,27 @@ function matchPlainDelayedInstall(t: string): EffectAction | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * 「このターン、あなたがリフレッシュをしたとき、それがこのターンであなたの最初のリフレッシュである場合、〈本文〉」
+ * ＝**そのターン最初のリフレッシュにだけ**発火する遅延設置（`WX09-Re06`・§5.3 2026-08-27 Sheet1 B11）。
+ *
+ * 旧＝遅延句も「最初の」条件も丸ごと落ちて、**スペルを唱えた瞬間に相手ライフを1枚クラッシュ**していた
+ * （リフレッシュが起きなくても撃てる＝原文と無関係な確定除去）。
+ * ⚠`DELAYED_INSTALL_PREFIXES` の汎用経路では拾えない＝帰結が「**それが**このターンで…」で始まり、
+ *   `matchPlainDelayedInstall` の照応ガード (c-2) に落ちるため。「最初のリフレッシュである場合」は
+ *   条件ではなく **`once`（最初の発火で設置を消費）** そのものなので、ここで畳む。
+ */
+function matchFirstRefreshDelayedInstall(t: string): EffectAction | undefined {
+  const m = t.match(/^このターン[、,]あなたがリフレッシュをしたとき[、,](?:それが)?このターン(?:で)?あなたの最初のリフレッシュである場合[、,]\s*(.+)$/s);
+  if (!m) return undefined;
+  const effect = parseSingleSentence(m[1].trim());
+  if (effect.type === 'UNKNOWN' || effect.type === 'STUB') return undefined;
+  return {
+    type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true,
+    trigger: { timing: 'ON_REFRESH', refreshedOwner: 'self' }, effect,
+  } as unknown as EffectAction;
 }
 
 /**
@@ -4626,6 +4654,36 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // 🆕「あなたの〈トラッシュ／エナゾーン〉から**このカード**を手札に加える」＝自己回収
+  //   （§5.3 2026-08-27 Sheet1 B11・実測2効果＝`WX10-096`／`WXDi-P06-077` の【起】本体）。
+  //   汎用規則は「このカード」を読まず **filter 無しの TRASH_CARD／ENERGY_CARD 1枚**へ落とすため、
+  //   **トラッシュ（エナ）から好きなカードを1枚回収できる**過剰実行になっていた。
+  {
+    const selfPick = text.trim().match(/^あなたの(トラッシュ|エナゾーン)からこのカードを手札に加える[。.]?$/);
+    if (selfPick) {
+      return {
+        type: 'TRANSFER_TO_HAND',
+        source: {
+          type: selfPick[1] === 'トラッシュ' ? 'TRASH_CARD' : 'ENERGY_CARD',
+          owner: 'self', count: 1, upToCount: false, filter: { thisCardOnly: true },
+        },
+      } as unknown as EffectAction;
+    }
+  }
+  // 🆕トラップ設置文のうち**「残りを〈トラッシュ／手札〉」を伴う形だけ**は最優先で拾う
+  //   （§5.3 2026-08-27 Sheet1 B12）。part4 まで降ろすと part1 の汎用
+  //   「あなたの…シグニ…をトラッシュに置く」が「…シグニゾーンに設置し、**残りをトラッシュに置く**」へ
+  //   貪欲マッチして `TRASH{自分のシグニ1体}` に化ける（設置が消え、自分の盤面まで削る＝`WX17-044`）。
+  // 🔴**「残りを」条件を外してはいけない**＝素の設置文（「…設置してもよい」）は part4 の
+  //   `PLACE_TRAP_OPTIONAL`（出所 looked / energy_self / looked_or_hand を弁別する別規則）が
+  //   先に拾う設計で、ここで全部さらうとその弁別が丸ごと消える（golden 3本が落ちて発覚）。
+  {
+    const t0 = text.trim();
+    if (/残りを(?:トラッシュ|手札)/.test(t0)) {
+      const trapSet = parseTrapSetSentence(t0);
+      if (trapSet) return trapSet;
+    }
+  }
   // O-56 held採用ガード：直前にチェックゾーンへ置いた「そのカード」と、いまアタックした
   // 相手シグニのレベル一致時だけそのアタックを無効にする。条件句を汎用剥離へ渡すと
   // NEGATE_ATTACK だけが残り、既存curatedの levelEqLastProcessed が退化する。
@@ -5148,6 +5206,8 @@ function parseSingleSentenceInner(text: string): EffectAction {
   {
     const delayed = matchNextBattleBanishDelayedInstall(t);
     if (delayed) return delayed;
+    const refreshDelayed = matchFirstRefreshDelayedInstall(t);
+    if (refreshDelayed) return refreshDelayed;
     const plainDelayed = matchPlainDelayedInstall(t);
     if (plainDelayed) return plainDelayed;
   }
@@ -7752,6 +7812,76 @@ function applyLeadingOpponentDesignationToPowerModify(text: string, action: Effe
   // 名詞句だけを parseSigniTarget に渡す（文全体を渡すと後続節の語を拾う＝続き376d の教訓）
   fin.target = parseSigniTarget(`対戦相手の${m[1]}シグニ${m[2]}体`, 'opponent');
   return action;
+}
+
+/** 木の中から指定 type のアクションノードを全部集める（部分木も辿る素朴な walker）。 */
+function collectActionNodesByType(action: EffectAction, type: string): EffectAction[] {
+  const out: EffectAction[] = [];
+  const visit = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { for (const v of n) visit(v); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === type) out.push(n as EffectAction);
+    for (const v of Object.values(o)) visit(v);
+  };
+  visit(action);
+  return out;
+}
+
+/**
+ * 「〈対象〉を対象とし、…それのパワーを＋N する。〈条件〉、…**それは追加で【X】を得る**」
+ * ＝**追加で**は「前段で選んだ同じ対象への上乗せ」であって新しい対象選択ではない（`WX07-072`・実測1効果）。
+ *
+ * 旧＝`GRANT_KEYWORD{explicitTarget:true}` が**もう1回選択 UI を出す**ため、パワーを上げたシグニとは
+ * **別のシグニに【ランサー】が付けられた**（原文と違う対象へ効果が乗る）。
+ * ⚠**「を対象とし」が1つだけ**の文に限る（複数対象の文は「それ」の指し先が曖昧）。
+ * ⚠既に照応フラグ（`targetsLastProcessed` / `targetsTriggerSource` / `targetsStored`）が
+ *   立っているノードは触らない（別経路で解決済み）。
+ */
+function applyAdditionalKeywordAnaphora(text: string, action: EffectAction): EffectAction {
+  if (!/それ(?:ら)?は追加で【[^】]+】を得る/.test(text)) return action;
+  if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  const gks = collectActionNodesByType(action, 'GRANT_KEYWORD');
+  if (gks.length !== 1) return action;
+  const gk = gks[0] as EffectAction & {
+    target?: EffectTarget; targetsLastProcessed?: boolean;
+    targetsTriggerSource?: boolean; targetsStored?: boolean;
+  };
+  if (gk.targetsLastProcessed || gk.targetsTriggerSource || gk.targetsStored) return action;
+  if (!gk.target || gk.target.type !== 'SIGNI') return action;
+  delete (gk.target as { explicitTarget?: boolean }).explicitTarget;
+  gk.targetsLastProcessed = true;
+  return action;
+}
+
+/**
+ * 「あなたのトラッシュから〈条件〉のシグニN枚を対象とし、それらをこのシグニの下に置く。
+ *   **そうしない場合**、〈Y〉」＝Y は**置けなかったときだけ**走る（`WX05-023`・実測1効果）。
+ *
+ * 旧＝`SEQUENCE[PLACE_UNDER_SIGNI, Y]` へ平坦化されており、**3枚置けた場合でも必ず Y（自分を
+ * トラッシュに置く）が走った**＝場に出した瞬間に自壊するだけのカードになっていた。
+ * ⚠**「そうした場合」の `CONDITIONAL{IS_MY_TURN}` 慣例エンコードは使えない**＝あちらは
+ *   `DID_IT_GATED_TYPES` に載っている型の空振りしか見ない（`PLACE_UNDER_SIGNI` は非対象）。
+ *   代わりに**置ける枚数がトラッシュにあるか**を既存条件 `TRASH_HAS_CARD` で先に判定する
+ *   （＝条件も帰結も既存の受け皿だけで済み、engine 変更が要らない）。
+ * ⚠`upToCount`（「N枚まで」）は「置けない」が起こらないので対象外。
+ */
+function applyPlaceUnderOtherwiseGate(text: string, action: EffectAction): EffectAction {
+  if (!/そうしない場合[、,]/.test(text)) return action;
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = (action as SequenceAction).steps;
+  if (steps.length !== 2) return action;
+  const head = steps[0] as EffectAction & {
+    source?: string; count?: number; upToCount?: boolean; filter?: TargetFilter;
+  };
+  if (head.type !== 'PLACE_UNDER_SIGNI' || head.source !== 'trash' || head.upToCount === true) return action;
+  if (typeof head.count !== 'number' || !head.filter) return action;
+  return {
+    type: 'CONDITIONAL',
+    condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: head.filter, minCount: head.count },
+    then: head,
+    else: steps[1],
+  } as unknown as EffectAction;
 }
 
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
@@ -10705,9 +10835,11 @@ function parseActionTextBody(text: string): EffectAction {
             applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
-  const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,
-    applyDeckTopMillTargetAnaphora(source,
-      applySelectedTargetTrashReplacement(source, parseBase(source))));
+  const parse = (source: string): EffectAction => applyPlaceUnderOtherwiseGate(source,
+    applyAdditionalKeywordAnaphora(source,
+      applySameLevelInsideLastProcessedGate(source,
+        applyDeckTopMillTargetAnaphora(source,
+          applySelectedTargetTrashReplacement(source, parseBase(source))))));
   let parsed = parse(text);
   // 🔴**fail-closed の最後の砦**（§5.3 `O-80` 第1バッチ・2026-08-26）＝
   //   「ターン終了時まで、**それの**パワーをこの方法で〜1枚につき±N」の「それ」が、
@@ -11519,6 +11651,8 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const delayed = matchNextBattleBanishDelayedInstall(text.trim());
     if (delayed) return delayed;
+    const refreshDelayed = matchFirstRefreshDelayedInstall(text.trim());
+    if (refreshDelayed) return refreshDelayed;
     const plainDelayed = matchPlainDelayedInstall(text.trim());
     if (plainDelayed) return plainDelayed;
   }
@@ -19620,6 +19754,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     //   `WX19-064`＝ゴミ `GRANT_KEYWORD{トラップアイコン}` とドロー＋トラップ発動）。
     //   ⚠除去規則は**シグニ側と同じ1本**にする（別々に書くと片方だけ直る）。
     const rawSp = stripTrapIconClause(card.EffectText ?? '');
+    // 🆕§5.3（2026-08-27）＝**分離するマーカーは【自】：だけではない**。
+    //   スペル本文の後ろに**トップレベルの【起】**が続く形（`WX10-096`／`WX17-044`／`WXDi-P06-077`＝実測3枚）が
+    //   あり、ここで割らないと **【起】の本体がスペル本文の SEQUENCE 末尾へ連結**される＝
+    //   **スペルを唱えた瞬間に、コストも払わずに【起】が無料で走る**（`WX10-096` は「トラッシュから黒シグニ回収」に
+    //   加えて**フィルタ無しのトラッシュ回収がもう1枚**／`WXDi-P06-077` は付与に加えて**エナからカード回収**）。
+    //   ⚠**文頭の【起】だけを割る**＝「対戦相手のシグニの【自】【出】【起】能力が…」のような**文中参照**で
+    //     割ると文が壊れる（`splitEffectBlocks` が同じ理由でマーカーを区切りに入れていない）。
     let spAutoIdx = -1;
     {
       let depth = 0;
@@ -19628,6 +19769,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         if (ch === '「' || ch === '『') depth++;
         else if (ch === '」' || ch === '』') depth--;
         else if (depth === 0 && rawSp.startsWith('【自】：', ci)) { spAutoIdx = ci; break; }
+        else if (depth === 0 && rawSp.startsWith('【起】', ci)
+                 && (ci === 0 || rawSp[ci - 1] === '。'
+                     || (rawSp[ci - 1] === '」' && rawSp[ci - 2] === '。'))) { spAutoIdx = ci; break; }
       }
     }
     if (spAutoIdx >= 0) {

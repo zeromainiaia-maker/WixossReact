@@ -96,7 +96,18 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 528; // 2026-08-27 Sheet1 B11＝**Sheet1 段2 の2巡目**（B10 と同じ「受け皿が既にある形をまとめて採る」取り方）。
+const BASELINE_HIGH = 526; // 2026-08-27 Sheet1 B12＝**Sheet1 段2 の3巡目**（gates は最後の1回だけ・規模を上げる運用）。
+//   ①**スペル本文の後ろに来るトップレベル【起】を分割していなかった**＝【起】の本体がスペル本文の
+//     SEQUENCE 末尾へ連結され、**唱えた瞬間にコストも払わず無料で走っていた**（実測3枚＝`WX10-096`／
+//     `WX17-044`／`WXDi-P06-077`）。分離マーカーが【自】：だけだったのが原因。
+//   ②`INSTALL_DELAYED_TRIGGER` の**攻撃側 collector が無かった**（`attackerOwner:'self'` を
+//     防御側 collector が明示的に読み飛ばすだけで、拾う側が存在しない）＝`WX10-035`。
+//   ③「このターン、あなたがリフレッシュをしたとき、…最初のリフレッシュである場合、」を `once` 付き
+//     設置へ畳む規則（`WX09-Re06`）＋ ON_REFRESH の `once` 消費配線。
+//   ④「それは**追加で**【X】を得る」の照応（`WX07-072`）／⑤「**そうしない場合**」の else 化（`WX05-023`）／
+//   ⑥`collectOppArtsUseTriggers` に usageLimit 判定（`WX05-020-E2`）／⑦「〈ゾーン〉から**このカード**を
+//     手札に加える」の thisCardOnly。528→526。
+// 旧・続き689: const BASELINE_HIGH = 528; // 2026-08-27 Sheet1 B11＝**Sheet1 段2 の2巡目**（B10 と同じ「受け皿が既にある形をまとめて採る」取り方）。
 //   engine の新設は `SelectionConstraint.same:'level'`（型＋**両評価器**）だけで、残りは全部 parser の配線漏れ：
 //   `powerLteLastProcessed`／`DURING_ATTACK_PHASE`（主語が前に出ると外れていた）／2群指定の BANISH／
 //   【常】表記の「このシグニがアタックしたとき」再分類／「カード名に《X》を含む」の前置修飾／

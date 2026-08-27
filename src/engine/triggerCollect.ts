@@ -154,6 +154,40 @@ export function collectSigniAttackDelayedTriggers(
   return entries;
 }
 
+/**
+ * INSTALL_DELAYED_TRIGGER（B3）: **攻撃側**プレイヤーに設置された ON_ATTACK_SIGNI watcher
+ * （§5.3 2026-08-27 Sheet1 B11・`WX10-035`「このターン、あなたのシグニ１体がアタックしたとき、
+ * あなたのデッキの一番上のカードをエナゾーンに置く。」）。
+ *
+ * 🔴姉妹関数 `collectSigniAttackDelayedTriggers` は**防御側専用**（`attackerOwner:'self'` を明示的に
+ * 読み飛ばす）ため、設置者＝アタッカー側の watcher は**どこからも収集されていなかった**。
+ * ここを足さないと parser 側で設置しても永久に発火しない（＝過剰実行を no-op へ替えるだけになる）。
+ * `attackerOwner:'opponent'` はこちらでは読み飛ばす（対称）。
+ */
+export function collectAttackerSelfDelayedTriggers(
+  ctx: TrigCtx,
+  attackerId: string,
+  attackerState: PlayerState,
+  attackerCardNum: string,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const dt of attackerState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
+    if ((dt.trigger.attackerOwner ?? 'any') === 'opponent') continue;
+    if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    entries.push({
+      id: ctx.genId(), playerId: attackerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（自分シグニアタック時）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+      triggeringCardNum: attackerCardNum,
+    });
+  }
+  return entries;
+}
+
 /** Collect the new face's own AUTO ability after a permanent LRIG identity flip. */
 export function collectLrigFlipTriggers(
   ctx: TrigCtx,
@@ -2404,9 +2438,10 @@ export function collectEnergyToTrashTriggers(
 export function collectRefreshTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
   refreshedByController: number, refreshedByOpp: number,
-): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+): { entries: StackEntry[]; usedOncePerTurnIds: string[]; firedOnceDelayed: boolean } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
+  let firedOnceDelayed = false;
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
   const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
@@ -2441,6 +2476,10 @@ export function collectRefreshTriggers(
       : owner === 'opponent' ? refreshedByOpp
       : refreshedByController + refreshedByOpp;
     if (relevant <= 0) continue;
+    // 🆕`once`＝「そのターン**最初の**リフレッシュだけ」（`WX09-Re06`・§5.3 2026-08-27 Sheet1 B11）。
+    //   実際に発火した回だけ true にして、呼び出し側（`collectBoardDiffTriggers`）が設置を消費する。
+    //   ⚠**ここで消費しない**＝collector は pure（state を返さない）ため。
+    if (dt.once) firedOnceDelayed = true;
     entries.push({
       id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: 'このターンの遅延トリガー（リフレッシュ時）',
@@ -2450,7 +2489,7 @@ export function collectRefreshTriggers(
       },
     });
   }
-  return { entries, usedOncePerTurnIds };
+  return { entries, usedOncePerTurnIds, firedOnceDelayed };
 }
 
 /**
@@ -3868,8 +3907,12 @@ export function collectHandDiscardTriggers(
  */
 export function collectOppArtsUseTriggers(
   ctx: TrigCtx, myState: PlayerState, opState: PlayerState, isMyTurnNow: boolean,
-): StackEntry[] {
+): { entries: StackEntry[]; usedIds: string[] } {
   const entries: StackEntry[] = [];
+  // 🆕usageLimit（《ターン１回》《ターン２回》）＝**この collector だけ判定が無かった**
+  //   （§5.3 2026-08-27 Sheet1 B11・`WX05-020-E2`）。姉妹の `collectArtsUseTriggers` は元から
+  //   持っており、片側だけ穴が空いていた＝相手がアーツを使うたびに何度でもダメージが入る。
+  const usedIds: string[] = [];
   const meId = ctx.meId ?? ctx.hostId;
   // ownFieldSources = 場シグニ＋センタールリグ。signi のみ走査だと LRIG watcher が発火しなかった
   // （続き96・ON_OPP_ARTS_USE self の WX16-003）。姉妹関数 collectArtsUseTriggers は元から lrig 対応済み。
@@ -3877,6 +3920,13 @@ export function collectOppArtsUseTriggers(
     for (const eff of ctx.effectsMap.get(topNum) ?? []) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes('ON_OPP_ARTS_USE')) continue;
+      if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+        const used = (myState.actions_done ?? []).filter(id => id === eff.effectId).length
+          + usedIds.filter(id => id === eff.effectId).length;
+        if (used >= max) continue;
+        usedIds.push(eff.effectId);
+      }
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, isMyTurnNow, ctx.cardMap)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
@@ -3885,7 +3935,7 @@ export function collectOppArtsUseTriggers(
       });
     }
   }
-  return entries;
+  return { entries, usedIds };
 }
 
 /**

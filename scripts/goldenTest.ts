@@ -38,7 +38,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
-import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
+import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -50,7 +50,7 @@ import { applyRefresh, advancePreventDamageWindows, hasActivePreventDamageWindow
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
-import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
+import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
@@ -11246,7 +11246,7 @@ test('LRIG走査漏れ collectTurnTriggers: 相手LRIG watcher（WX12-002 ON_ATT
 });
 test('LRIG走査漏れ collectOppArtsUseTriggers: 自LRIG watcher（WX16-003 ON_OPP_ARTS_USE）が発火', () => {
   const host = mkState({}); host.field.lrig = ['WX16-003']; const guest = mkState({});
-  eq(fired(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true), 'WX16-003-E1'), true, '自LRIG watcher 発火');
+  eq(fired(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true).entries, 'WX16-003-E1'), true, '自LRIG watcher 発火');
 });
 test('LRIG走査漏れ collectHandDiscardTriggers: 自LRIG watcher（WXEX2-12 ON_HAND_DISCARDED）が発火', () => {
   const host = mkState({}); host.field.lrig = ['WXEX2-12'];
@@ -12697,6 +12697,92 @@ test('B3 遅延トリガー ON_REFRESH: 相手リフレッシュで発火・自�
   eq(collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, '自リフレッシュは非発火');
   eq(collectRefreshTriggers(trigCtx(HOST), HOST, mkState({}), guest, 0, 1).entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, '未設置は非発火');
 });
+// ── Sheet1 B12（2026-08-27）＝段2 第3巡で足した受け皿の golden ──
+test('B12 スペル本文＋トップレベル【起】は別効果へ分割する（WX10-096 / WX17-044 / WXDi-P06-077）', () => {
+  // 🔴分割しないと【起】の本体がスペル本文の SEQUENCE 末尾へ連結され、
+  //   **唱えた瞬間にコストも払わず無料で走る**（`WX10-096` は黒シグニ回収に加えてフィルタ無しの回収がもう1枚）。
+  const es = parseCardEffects({
+    CardNum: 'TEST-B12-SPELL', Type: 'スペル', Cost: '《黒》×１',
+    EffectText: 'あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。【起】あなたの場にある【チャーム】１枚をトラッシュに置く：あなたのトラッシュからこのカードを手札に加える。（この能力はこのスペルがトラッシュにある場合にしか使用できない）',
+  } as unknown as CardData);
+  eq(es.length, 2, '本文と【起】が別効果に割れる');
+  eq((es[0].action as { type?: string }).type, 'TRANSFER_TO_HAND', '本文は黒シグニ回収だけ');
+  eq(JSON.stringify(es[0].action).includes('SEQUENCE'), false, '【起】の本体が本文へ連結されない');
+  eq(es[1].cost?.charmTrash, 1, '【起】のコストは場のチャーム1枚');
+  eq(JSON.stringify(es[1].action).includes('"thisCardOnly":true'), true, '回収対象は**このカード自身**（トラッシュの好きな1枚ではない）');
+});
+test('B12 「このターン、あなたのシグニ１体がアタックしたとき、」＝攻撃側に遅延設置（WX10-035）', () => {
+  const e = parseCardEffects({
+    CardNum: 'TEST-B12-ATK', Type: 'スペル', Cost: '《緑》×１',
+    EffectText: 'このターン、あなたのシグニ１体がアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。',
+  } as unknown as CardData)[0];
+  const a = e.action as unknown as { type: string; trigger?: { timing?: string; attackerOwner?: string }; effect?: { type?: string } };
+  eq(a.type, 'INSTALL_DELAYED_TRIGGER', '遅延設置（旧＝唱えた瞬間に1枚チャージする即時効果へ縮退）');
+  eq(a.trigger?.timing, 'ON_ATTACK_SIGNI', 'ON_ATTACK_SIGNI');
+  eq(a.trigger?.attackerOwner, 'self', '設置者＝アタッカー側');
+  eq(a.effect?.type, 'ENERGY_CHARGE_FROM_DECK', '本体はデッキトップのエナチャージ');
+  // 🔴collector が無いと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけになる。
+  const dt = a as unknown as import('../src/types/effects').InstallDelayedTriggerAction;
+  const host: PlayerState = { ...mkState({}), delayed_triggers: [dt] };
+  eq(collectAttackerSelfDelayedTriggers(trigCtx(HOST), HOST, host, 'WX10-035').length, 1, '攻撃側 collector が拾う');
+  // 防御側 collector は attackerOwner:'self' を読み飛ばす（対称）。
+  eq(collectSigniAttackDelayedTriggers(trigCtx(HOST), HOST, host, 'WX10-035').length, 0, '防御側 collector は拾わない');
+  const oppDt = { ...dt, trigger: { ...dt.trigger, attackerOwner: 'opponent' as const } };
+  const hostOpp: PlayerState = { ...mkState({}), delayed_triggers: [oppDt] };
+  eq(collectAttackerSelfDelayedTriggers(trigCtx(HOST), HOST, hostOpp, 'X').length, 0, '攻撃側 collector は opponent 指定を読み飛ばす');
+});
+test('B12 「このターン最初のリフレッシュ」＝once 付き遅延設置＋発火で消費（WX09-Re06）', () => {
+  const e = parseCardEffects({
+    CardNum: 'TEST-B12-RF', Type: 'アーツ', Cost: '《黒》×３',
+    EffectText: 'このターン、あなたがリフレッシュをしたとき、それがこのターンであなたの最初のリフレッシュである場合、対戦相手のライフクロス１枚をクラッシュする。',
+  } as unknown as CardData)[0];
+  const a = e.action as unknown as import('../src/types/effects').InstallDelayedTriggerAction;
+  eq(a.type, 'INSTALL_DELAYED_TRIGGER', '遅延設置（旧＝使った瞬間に相手ライフを確定クラッシュ）');
+  eq(a.once, true, '「最初のリフレッシュ」＝once');
+  eq(a.trigger.timing, 'ON_REFRESH', 'ON_REFRESH');
+  eq(a.trigger.refreshedOwner, 'self', '自分のリフレッシュ限定');
+  const host: PlayerState = { ...mkState({}), delayed_triggers: [a] };
+  const guest = mkState({});
+  const r = collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 1, 0);
+  eq(r.entries.some(x => x.effectId === 'DELAYED_TRIGGER'), true, '自リフレッシュで発火');
+  eq(r.firedOnceDelayed, true, 'once 設置が発火したことを呼び出し側へ報告する');
+  const after = consumeOnceDelayedTriggers(host, 'ON_REFRESH');
+  eq(after.delayed_triggers, undefined, '発火後は設置が消える＝同ターン2回目のリフレッシュでは発火しない');
+  eq(collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).firedOnceDelayed, false, '相手のリフレッシュでは発火しない');
+});
+test('B12 「それは追加で【X】を得る」は前段で選んだ同一対象へ（WX07-072）', () => {
+  const e = parseCardEffects({
+    CardNum: 'TEST-B12-ADD', Type: 'スペル', Cost: '《緑》×１',
+    EffectText: 'シグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000する。あなたの場にクロス状態のシグニがある場合、ターン終了時まで、それは追加で【ランサー】を得る。',
+  } as unknown as CardData)[0];
+  const j = JSON.stringify(e.action);
+  ok(j.includes('"targetsLastProcessed":true'), '同一対象へ付与（旧＝もう1回選択UIが出て別のシグニに付いた）');
+  ok(!j.includes('"explicitTarget":true'), '独立した対象選択は消える');
+});
+test('B12 「そうしない場合」は else 側＝置けたときは自壊しない（WX05-023）', () => {
+  const es = parseCardEffects({
+    CardNum: 'TEST-B12-ELSE', Type: 'シグニ',
+    EffectText: '【出】：あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。そうしない場合、このシグニを場からトラッシュに置く。',
+  } as unknown as CardData);
+  const a = es[0].action as unknown as { type: string; condition?: { type?: string; minCount?: number }; then?: { type?: string }; else?: { type?: string } };
+  eq(a.type, 'CONDITIONAL', '条件分岐（旧＝SEQUENCE で3枚置けても必ず自壊した）');
+  eq(a.condition?.type, 'TRASH_HAS_CARD', '置ける枚数がトラッシュにあるかで判定');
+  eq(a.condition?.minCount, 3, '3枚');
+  eq(a.then?.type, 'PLACE_UNDER_SIGNI', '置ける＝下に置く');
+  eq(a.else?.type, 'TRASH', '置けない＝自分をトラッシュへ');
+});
+test('B12 ON_OPP_ARTS_USE にも usageLimit 判定がある（WX05-020-E2 の《ターン１回》）', () => {
+  // 🔴姉妹の `collectArtsUseTriggers` は元から usageLimit を見ていたのに、こちらだけ穴が空いていた＝
+  //   相手がアーツを使うたびに何度でもダメージが入っていた。
+  const host = mkState({ signi: ['WX05-020', null, null] });
+  const guest = mkState({});
+  const r1 = collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true);
+  eq(r1.entries.some(e => e.effectId === 'WX05-020-E2'), true, '1回目は発火');
+  eq(r1.usedIds.includes('WX05-020-E2'), true, '消費 id を返す（呼び出し側が actions_done へ永続化）');
+  const used: PlayerState = { ...host, actions_done: [...(host.actions_done ?? []), 'WX05-020-E2'] };
+  eq(collectOppArtsUseTriggers(trigCtx(HOST, HOST), used, guest, true).entries.some(e => e.effectId === 'WX05-020-E2'),
+    false, '同ターン2回目は発火しない');
+});
 test('Stage2 ON_OPP_POWER_DECREASED: decreaseOnOpp>0 で発火＋delta動的注入（WX13-036-E1）', () => {
   const host = mkState({ signi: ['WX13-036', null, null] }); const guest = mkState({});
   const e = collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000, [], HOST);
@@ -12866,7 +12952,7 @@ test('V-83 ミルの発生源記録: MILL と TRASH{DECK_CARD} の両経路が l
 
 test('Stage2 ON_OPP_ARTS_USE/ON_ARTS_USE: 自シグニが発火（WXK11-019-E2 / WXK01-059-E2）', () => {
   const host1 = mkState({ signi: ['WXK11-019', null, null] }); const guest1 = mkState({});
-  eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true), 'WXK11-019-E2'), true, '相手アーツ使用で発火');
+  eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true).entries, 'WXK11-019-E2'), true, '相手アーツ使用で発火');
   const host2 = mkState({ signi: ['WXK01-059', null, null] }); const guest2 = mkState({});
   eq(has(collectArtsUseTriggers(trigCtx(HOST), HOST, host2, guest2, true).entries, 'WXK01-059-E2'), true, '自アーツ使用で発火');
 });
@@ -20176,7 +20262,12 @@ test('parse 第4波ガード：基準読みの最終ステップと帰結の読�
   // （「このターン、あなたのシグニがバトルによって…」）は**設置として解けるようになった**＝
   //   陽性側は `parse 第7波` の test が固定する。ここは **engine に収集経路が無い timing** を残して
   //   「経路の無い設置は据置（＝設置しても永久に発火しないものを作らない）」を固定する。
-  const e = parseCardEffects({ CardNum: 'TEST-LXI-TAILDEFER', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、このターン、あなたのシグニがアタックしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
+  // 🆕2026-08-27 Sheet1 B12＝**文面をもう一度差し替えた**。旧文面「このターン、あなたのシグニが
+  //   アタックしたとき、」は `collectAttackerSelfDelayedTriggers` を足したことで収集経路が付いた
+  //   （＝設置してよい形になった）ので、まだ経路の無い「あなたがカードを引いたとき」へ移す。
+  //   ⚠ここが落ちたら「また経路を足した」＝陽性側の test を書いて文面を次へ動かすのが正しい直し方
+  //     （テストを消さない）。
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-TAILDEFER', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、このターン、あなたがカードを引いたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
   ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '遅延トリガーの設置が前置きの形は tail-splice にも乗せない（収集経路の無い timing）');
 });
 test('第4波 triage 訂正：WXDi-P13-075-E1 は専用 STUB で既に回避まで実装済み＝包まない', () => {

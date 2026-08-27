@@ -2336,27 +2336,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE' } as StubAction;
 
   // ---- トラップ設置（巨大catch-allを文の意味ごとに分離） ----
-  if (/【トラップ】として.*設置/.test(t)) {
-    const fixedPrevious = /それがあったシグニゾーン/.test(t);
-    const fixedSource = /対戦相手のシグニ[１1]体.*そのシグニゾーン/.test(t)
-      || /それを【トラップ】としてそのシグニゾーン/.test(t);
-    const fromHand = /手札(?:から|[１1]枚)/.test(t);
-    const lookCountM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:見|公開)/);
-    const explicitCountM = t.match(/(?:カードを?|その中から)([０-９\d]+)枚(まで)?【トラップ】として/);
-    const count = lookCountM ? parseNum(lookCountM[1]) : explicitCountM ? parseNum(explicitCountM[1]) : 1;
-    const upToCount = /好きな枚数|[０-９\d]+枚まで/.test(t);
-    const trapRemainder = /残りをトラッシュ/.test(t) ? 'trash' as const
-      : /残りを手札/.test(t) ? 'hand' as const
-      : /手札に加えるか/.test(t) ? 'hand' as const
-      : undefined;
-    return {
-      type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'set',
-      trapSource: fixedSource ? 'field_signi' : fromHand ? 'hand' : 'deck_top',
-      count,
-      ...(upToCount || /手札に加えるか/.test(t) ? { upToCount: true } : {}),
-      ...(fixedPrevious ? { trapFixedZone: 'previous' as const } : fixedSource ? { trapFixedZone: 'source' as const } : {}),
-      ...(trapRemainder ? { trapRemainder } : {}),
-    } as StubAction;
+  // ⚠**規則本体は `parseTrapSetSentence` へ切り出してある**＝part1 の汎用「…をトラッシュに置く」が
+  //   先に食う（§5.3 2026-08-27 Sheet1 B11）ため、`parseSingleSentenceInner` の冒頭からも同じ規則を
+  //   呼ぶ必要がある。ここに写しを作らないこと（片方だけ直る）。
+  {
+    const trapSet = parseTrapSetSentence(t);
+    if (trapSet) return trapSet;
   }
 
   // ---- チェックゾーン操作（置く／LB発動／離れる、を別の判別子にする） ----
@@ -2685,4 +2670,39 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 不明 ----
   return null;
   return null;
+}
+
+/**
+ * 「〈枚数〉を【トラップ】として…設置（し、残りを…）」＝トラップ設置文。
+ *
+ * 🔴**part4 まで降りてくる前に part1 の汎用規則へ食われる**（§5.3 2026-08-27 Sheet1 B11 で実測）＝
+ * 「あなたのデッキの上からカードを５枚見て好きな枚数を【トラップ】として**あなたの**シグニゾーンに
+ * 設置し、**残りをトラッシュに置く**。」（`WX17-044`）が、汎用の「あなたの…シグニ…をトラッシュに置く」に
+ * **貪欲マッチ**して `TRASH{自分のシグニ1体}` に化けていた（＝設置が消えたうえ自分の盤面を削る）。
+ * ⚠従来この文が正しく見えていたのは、直後に続く【起】の本文まで1文として繋がっていて
+ *   `/【トラップ】として.*設置/` の catch-all が**全部を飲み込んでいた**ためで、偶然に依っていた。
+ * ⇒ `parseSingleSentenceInner` の冒頭からもここを呼ぶ（規則の実体はこの1本だけ）。
+ */
+export function parseTrapSetSentence(t: string): EffectAction | null {
+  if (!/【トラップ】として.*設置/.test(t)) return null;
+  const fixedPrevious = /それがあったシグニゾーン/.test(t);
+  const fixedSource = /対戦相手のシグニ[１1]体.*そのシグニゾーン/.test(t)
+    || /それを【トラップ】としてそのシグニゾーン/.test(t);
+  const fromHand = /手札(?:から|[１1]枚)/.test(t);
+  const lookCountM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:見|公開)/);
+  const explicitCountM = t.match(/(?:カードを?|その中から)([０-９\d]+)枚(まで)?【トラップ】として/);
+  const count = lookCountM ? parseNum(lookCountM[1]) : explicitCountM ? parseNum(explicitCountM[1]) : 1;
+  const upToCount = /好きな枚数|[０-９\d]+枚まで/.test(t);
+  const trapRemainder = /残りをトラッシュ/.test(t) ? 'trash' as const
+    : /残りを手札/.test(t) ? 'hand' as const
+    : /手札に加えるか/.test(t) ? 'hand' as const
+    : undefined;
+  return {
+    type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'set',
+    trapSource: fixedSource ? 'field_signi' : fromHand ? 'hand' : 'deck_top',
+    count,
+    ...(upToCount || /手札に加えるか/.test(t) ? { upToCount: true } : {}),
+    ...(fixedPrevious ? { trapFixedZone: 'previous' as const } : fixedSource ? { trapFixedZone: 'source' as const } : {}),
+    ...(trapRemainder ? { trapRemainder } : {}),
+  } as StubAction;
 }

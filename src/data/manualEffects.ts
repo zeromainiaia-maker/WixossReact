@@ -2213,6 +2213,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       duration: 'INSTANT',
       mandatory: true,
       parseStatus: 'MANUAL',
+      // 🆕原文の《ターン１回》（§5.3 2026-08-27 Sheet1 B11）。
+      //   `collectOppArtsUseTriggers` 側にも usageLimit 判定を足してある（無いと JSON だけの飾りになる）。
+      usageLimit: 'once_per_turn',
     },
   ],
 
