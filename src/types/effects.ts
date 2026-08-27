@@ -253,6 +253,8 @@ export type ActiveCondition =
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
   | { type: 'DURING_ATTACK_PHASE'; owner?: Owner }             // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果（CONTINUOUS）。owner:'self'=あなたのアタックフェイズのみ／'opponent'=対戦相手のアタックフェイズのみ／省略=どちらのアタックフェイズでも。engine は calcFieldPowers に渡された turnPhase（ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）で判定＝省略すると相手ターン中も過剰適用になっていた（WX25-CP1-082-E3/WX24-P1-050-E1 ほか9効果・タスク12）。turnPhase 未指定の呼び出し元では従来どおり true（過小実行を避ける）
   | { type: 'DURING_MAIN_PHASE'; owner?: Owner }               // 🆕§5.3 `O-65`：「[あなたの/対戦相手の]メインフェイズの間、」有効な常在効果（CONTINUOUS）。`DURING_ATTACK_PHASE` の対で、判定も同じ規約＝**turnPhase を渡さない呼び出し元では true**（過小実行を避ける）。⚠**受け皿を足すだけでは効かない**＝消費地点（`collectBanishEffectProtectedSigni` 等）が `checkActiveCondition` へ `turnPhase` を渡していないと恒久 no-op になる（`O-64` と同じ「委ね先が読んでいない」型）
+  // §5.3 O-121: Condition 側（:305）と同型。🔴**片側だけ足すと `checkActiveCondition` が case 無し＝無条件成立へ落ちる**（§5-2‴）。
+  | { type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN'; owner: Owner; filter?: TargetFilter; byEffect?: boolean; operator: CompareOp; value: number }
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
@@ -295,6 +297,14 @@ export type Condition =
    * ⚠**数だけの器にしない**＝クラス/色の限定が原文側にあるので filter を持たせる。
    */
   | { type: 'SIGNI_DOWNED_COUNT_THIS_TURN'; owner: Owner; filter?: TargetFilter; operator: CompareOp; value: number }
+  /**
+   * 「このターンに**あなたの＜X＞のシグニが**対戦相手のシグニを合計N体バニッシュしていた場合」
+   * 「このターンに**あなたの効果によって**対戦相手のシグニをN体以上バニッシュしていた場合」
+   * ＝§5.3 `O-121`・実測2効果（`WX11-031-E1` / `WXK02-034-E1`。どちらも旧 live は条件ごと落ちて**無条件発火**）。
+   * `filter` は**バニッシュした側のカード**に当てる（被バニッシュ側ではない）。`byEffect:true` で効果起因だけ数える。
+   * 台帳は `PlayerState.opp_signi_banished_this_turn`。
+   */
+  | { type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN'; owner: Owner; filter?: TargetFilter; byEffect?: boolean; operator: CompareOp; value: number }
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
@@ -483,6 +493,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
+  OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true,
   DURING_ATTACK_PHASE: true, DURING_MAIN_PHASE: true, AND: true,
 };
 
@@ -494,7 +505,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
   ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
   COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
-  SIGNI_DOWNED_COUNT_THIS_TURN: true,
+  SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,

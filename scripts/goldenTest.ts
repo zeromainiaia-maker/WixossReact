@@ -4837,7 +4837,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 40, 'PlayerState の命名規約由来フィールド数');
+  eq(convention.length, 41, 'PlayerState の命名規約由来フィールド数（41＝§5.3 O-121 で opp_signi_banished_this_turn を追加）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4852,7 +4852,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 63, '型由来38件＋命名規約外23件の母集団');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 64, '型由来38件＋命名規約外23件の母集団（64＝§5.3 O-121 で +1）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -20996,8 +20996,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 58, 'ActiveCondition の型数（58＝段2 第45バッチで LRIG_NAME_CONTAINS を追加）');
-  eq(Object.keys(C_TYPES).length, 129, 'Condition の型数（129＝Sheet1 B5 で THIS_CARD_HAS_SOUL を新設。128 は Sheet1 B3 の FIELD_SIGNI_SHARE_CLASS 時点）');
+  eq(Object.keys(AC_TYPES).length, 59, 'ActiveCondition の型数（59＝§5.3 O-121 で OPP_SIGNI_BANISHED_COUNT_THIS_TURN を追加）');
+  eq(Object.keys(C_TYPES).length, 130, 'Condition の型数（130＝§5.3 O-121 で OPP_SIGNI_BANISHED_COUNT_THIS_TURN を新設。129 は Sheet1 B5 の THIS_CARD_HAS_SOUL 時点）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -50466,6 +50466,58 @@ test('Sheet1 B11: `same:\'level\'` 評価器の3点セット（成立／不成�
     'same:level: 違うレベルは不成立');
   ok(!satisfiesSelectionConstraint(two(a, '__NO_SUCH_CARD__'), sameLv, cardMap as Map<string, CardData>),
     'same:level: レベルが引けないカードが混ざったら**不成立**（fail-closed＝制約が消えて過剰実行に倒れない）');
+}));
+
+test('§5.3 O-121: 「このターンに…バニッシュしていた場合」の台帳（2効果・両評価器・正負両方向）', () => withSavedCursor(() => {
+  // ── ① JSON 契約 ──
+  const wx = (effectsMap.get('WX11-031') ?? []).find(e => e.effectId === 'WX11-031-E1')!;
+  const wk = (effectsMap.get('WXK02-034') ?? []).find(e => e.effectId === 'WXK02-034-E1')!;
+  const wxCond = (wx.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as Condition;
+  const wkCond = (wk.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as Condition;
+  eq(wxCond.type, 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN', '🔴WX11-031-E1: 旧 live は条件ごと落ちて無条件アップだった');
+  eq(JSON.stringify((wxCond as { filter?: TargetFilter }).filter?.cardClass), '["空獣","地獣"]', 'クラスOR がバニッシュ**した側**に当たる');
+  eq((wxCond as { value?: number }).value, 3, '合計3体');
+  eq(wkCond.type, 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN', '🔴WXK02-034-E1: 旧 live は無条件で1ドローだった');
+  eq((wkCond as { byEffect?: boolean }).byEffect, true, '「あなたの効果によって」＝byEffect');
+
+  // ── ② Condition 評価器（execUtils）の正負 ──
+  //   台帳は「バニッシュした側」に積む。空獣シグニ2体ぶんでは不成立、3体ぶんで成立（境界の両側）。
+  const KUJU = 'WX19-028';   // ＜空獣＞のシグニ
+  const NONBEAST = 'WX10-052'; // ＜精元＞＝クラス不一致の対照
+  const led = (rows: { by: string | null; byEffect: boolean }[]) => {
+    const c = mkCtx({}, {});
+    (c.ownerState as PlayerState).opp_signi_banished_this_turn = rows;
+    return evalCondition(wxCond, c);
+  };
+  eq(led([]), false, '0体＝不成立');
+  eq(led([{ by: KUJU, byEffect: false }, { by: KUJU, byEffect: false }]), false,
+    '🔴ちょうど1体足りない＝不成立（境界の下側）');
+  eq(led([{ by: KUJU, byEffect: false }, { by: KUJU, byEffect: false }, { by: KUJU, byEffect: false }]), true,
+    'ちょうど3体＝成立（境界の上側）');
+  eq(led([{ by: NONBEAST, byEffect: false }, { by: NONBEAST, byEffect: false }, { by: NONBEAST, byEffect: false }]), false,
+    '🔴クラス不一致は数えない（filter がバニッシュした側に当たっている証拠）');
+  eq(led([{ by: null, byEffect: false }, { by: null, byEffect: false }, { by: null, byEffect: false }]), false,
+    '🔴バニッシュ元が不明なら数えない（fail-closed）');
+
+  // byEffect の正負＝バトルバニッシュは数えない。
+  const ledE = (rows: { by: string | null; byEffect: boolean }[]) => {
+    const c = mkCtx({}, {});
+    (c.ownerState as PlayerState).opp_signi_banished_this_turn = rows;
+    return evalCondition(wkCond, c);
+  };
+  eq(ledE([{ by: KUJU, byEffect: true }, { by: KUJU, byEffect: true }]), true, '効果で2体＝成立');
+  eq(ledE([{ by: KUJU, byEffect: false }, { by: KUJU, byEffect: false }]), false,
+    '🔴バトルで2体＝不成立（byEffect の対照）');
+
+  // ── ③ ActiveCondition 評価器も同じ式であること ──
+  //   🔴片側だけ実装すると `checkActiveCondition` が case 無しで **無条件成立** へ落ちる（§5-2‴）。
+  const acState = (rows: { by: string | null; byEffect: boolean }[]): PlayerState =>
+    ({ ...mkState({}), opp_signi_banished_this_turn: rows } as PlayerState);
+  const ac = wxCond as unknown as ActiveCondition;
+  eq(checkActiveCondition(ac, acState([]), mkState({}), true, cardMap as Map<string, CardData>), false,
+    'ActiveCondition 側も 0体で不成立（無条件成立へ落ちていない）');
+  eq(checkActiveCondition(ac, acState([{ by: KUJU, byEffect: false }, { by: KUJU, byEffect: false }, { by: KUJU, byEffect: false }]),
+    mkState({}), true, cardMap as Map<string, CardData>), true, 'ActiveCondition 側も 3体で成立');
 }));
 
 test('§5.3 O-120: 「【ランサー】によって」＝クラッシュ原因の限定（3効果・正負両方向）', () => withSavedCursor(() => {

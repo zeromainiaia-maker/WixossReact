@@ -920,6 +920,16 @@ export interface PlayerState {
    *   ＝`recordSigniDownedThisTurn` を通す。1経路でも漏らすと「N回目」が永久に来ない。ターン境界で空にする。
    */
   signi_downed_this_turn?: string[];
+  /**
+   * このターンに**この owner が対戦相手のシグニをバニッシュした**記録（§5.3 `O-121`）。
+   * `by`＝バニッシュを行ったカード（バトルならアタッカー／効果なら効果元。不明は null）、
+   * `byEffect`＝効果によるバニッシュか（バトルダメージなら false）。
+   * ⚠**既存の `signi_banished_this_turn` とは軸が別**＝あちらは「**バニッシュされた側**」に積む単なる件数で、
+   *   「誰が」も「何によって」も持たない（`WX11-031` / `WXK02-034` はどちらも表せない）。
+   * ⚠**記録地点は2つ**＝バトル経路（`BattleScreen` のバトル解決）と効果経路（`collectBoardDiffTriggers`）。
+   *   片方だけ書くと「効果では数えるがバトルでは数えない」等の**半分だけ効く条件**になる。
+   */
+  opp_signi_banished_this_turn?: Array<{ by: string | null; byEffect: boolean }>;
   // 直近の効果ドロー（execDraw 経由）の原因カード番号。triggerCondition.drawBySourceStory（WX20-026-E3）の発火判定用。
   // ドローフェイズの通常ドロー（drawCards 経由）では undefined にクリアし、効果ドロー（execDraw）が原因カードを上書きする。
   last_effect_draw_source?: string;

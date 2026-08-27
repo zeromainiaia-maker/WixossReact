@@ -96,6 +96,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
   refresh_count_this_turn: { boundaries: ['turn-start'], reset: 0, reason: 'refresh count starts fresh at turn start' },
   // バニッシュされた枚数は、ターン単位のコスト軽減条件。
   signi_banished_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'banished signi total for the current turn' },
+  // §5.3 O-121: 「このターンに（あなたの＜X＞のシグニ／あなたの効果）が相手シグニをN体バニッシュしていた場合」の台帳。
+  //   ⚠**バニッシュした側**に積む（`signi_banished_this_turn` は被バニッシュ側の件数＝別軸）。
+  opp_signi_banished_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'opponent signi banished by this player during the current turn (banisher + cause)' },
   // シグニが場から手札に戻った体数は、ターン単位の条件カウンタ（WXK02-040/065）。
   signi_returned_to_hand_count_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'signi returned to hand total for the current turn' },
   // 自デッキ→トラッシュの累計枚数は、ターン単位の条件カウンタ（WXDi-P03-065）。

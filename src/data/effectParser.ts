@@ -3110,6 +3110,21 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   「カードを」形（WXDi-P11-068／WXDi-D07-017）が丸ごと落ちていた。
   [/このターンにあなたがカードを([０-９\d]+)枚以上捨てていた場合/,
     g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+  // 🆕§5.3 `O-121`（2026-08-27）＝「このターンに**あなたの〔＜X＞のシグニ／効果〕が**対戦相手のシグニを
+  //   〔合計N体／N体以上〕バニッシュしていた場合」＝**バニッシュした側**を数える（実測2効果）。
+  //   ⚠すぐ下の `SIGNI_BANISHED_THIS_TURN`（＝**バニッシュされた側**の件数）と主語が逆なので、
+  //     必ず**この規則を先に**置く（下が「…バニッシュされていた場合」の受動形しか見ないので衝突はしないが、
+  //     語順で誤読しやすいので明示しておく）。
+  //   ① クラス限定つき（`WX11-031`「あなたの＜空獣＞か＜地獣＞のシグニが…合計３体バニッシュしていた場合」）
+  [/このターンにあなたの＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニが対戦相手のシグニを(?:合計)?([０-９\d]+)体(?:以上)?バニッシュしていた場合/,
+    g => ({
+      type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN', owner: 'self',
+      filter: { cardType: 'シグニ', cardClass: g[1] ? [g[0], g[1]] : g[0] },
+      operator: 'gte', value: parseNum(g[2]),
+    })],
+  //   ② 効果起因（`WXK02-034`「あなたの効果によって対戦相手のシグニを２体以上バニッシュしていた場合」）
+  [/このターンにあなたの効果によって対戦相手のシグニを(?:合計)?([０-９\d]+)体以上バニッシュしていた場合/,
+    g => ({ type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN', owner: 'self', byEffect: true, operator: 'gte', value: parseNum(g[0]) })],
   // 「このターンに対戦相手のシグニが〔N体以上〕バニッシュされていた場合」＝signi_banished_this_turn。
   // ⚠体数の指定が無い形（WXK04-029）は「1体以上」＝minCount 省略。
   [/このターンに対戦相手のシグニが(?:([０-９\d]+)体以上)?バニッシュされていた場合/,
@@ -17928,6 +17943,23 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     };
   }
 
+  // 🆕§5.3 `O-121`（2026-08-27）＝`ON_SIGNI_BANISH_OPPONENT` は**トリガー句を除去しない**規約（`:5469`）なので、
+  //   条件節が文頭に来ず `matchLeadingStateCondition`（先頭アンカー）が効かない。
+  //   ⇒ **この timing の1文型だけ**をここで拾って `CONDITIONAL` へ包む。
+  //   ⚠汎用の hoist をこの timing へ広げてはいけない（トリガー句そのものを条件節と誤読する）。
+  const bannedThisTurnGate: Condition | undefined = timing?.[0] === 'ON_SIGNI_BANISH_OPPONENT'
+    ? (() => {
+        const mm = actionText.match(
+          /このターンにあなたの＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニが対戦相手のシグニを(?:合計)?([０-９\d]+)体(?:以上)?バニッシュしていた場合/);
+        if (!mm) return undefined;
+        return {
+          type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN', owner: 'self',
+          filter: { cardType: 'シグニ', cardClass: mm[2] ? [mm[1], mm[2]] : mm[1] },
+          operator: 'gte', value: parseNum(mm[3]),
+        } as Condition;
+      })()
+    : undefined;
+
   return {
     effectId: `${cardNum}-E${index + 1}`,
     effectType,
@@ -17937,7 +17969,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     altCostOppTurn,
     cost: outputCost,
     ...(outputCostUnparsed ? { costUnparsed: true } : {}),
-    action: resolvedAction,
+    action: bannedThisTurnGate ? { type: 'CONDITIONAL', condition: bannedThisTurnGate, then: resolvedAction } : resolvedAction,
     duration,
     mandatory,
     parseStatus,

@@ -3174,12 +3174,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
     if (hostBanished.length > 0) h = { ...h, signi_banished_this_turn: (h.signi_banished_this_turn ?? 0) + hostBanished.length };
+    // §5.3 O-121: 「このターンに**あなたが**対戦相手のシグニをバニッシュしていた場合」の台帳。
+    //   ⚠**バニッシュした側**（causeOwnerId）の state へ積む＝上の `signi_banished_this_turn`（被バニッシュ側の件数）とは別軸。
+    //   この funnel は効果解決経路なので `byEffect: true`。バトルバニッシュは別地点（アタック解決）で積む。
+    if (hostBanished.length > 0 && causeOwnerId === bs.guest_id) {
+      g = { ...g, opp_signi_banished_this_turn: [
+        ...(g.opp_signi_banished_this_turn ?? []),
+        ...hostBanished.map(() => ({ by: causeSourceCardNum ?? null, byEffect: true })),
+      ] };
+    }
     const guestBanished = detectBanishedSigni(beforeGuest, g);
     for (const cardNum of guestBanished) {
       const bt = collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
     if (guestBanished.length > 0) g = { ...g, signi_banished_this_turn: (g.signi_banished_this_turn ?? 0) + guestBanished.length };
+    // §5.3 O-121: host 側が原因のときは host の台帳へ（上と対称）。
+    if (guestBanished.length > 0 && causeOwnerId === bs.host_id) {
+      h = { ...h, opp_signi_banished_this_turn: [
+        ...(h.opp_signi_banished_this_turn ?? []),
+        ...guestBanished.map(() => ({ by: causeSourceCardNum ?? null, byEffect: true })),
+      ] };
+    }
 
     // ON_TRASH: スタック/pending 解決内でも fieldTrashCostCards に記録された支払いは byEffectCause=false、
     // それ以外の場→トラッシュは effect 起因。原因owner と所有者が異なれば「対戦相手の効果によって」。
@@ -9900,6 +9916,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_SIGNI_BANISH_OPPONENT（「対戦相手のシグニをバニッシュしたとき」）は現状バトルバニッシュ経路のみ配線（WD12-012/013/014/015）。
       const battleBanishEntries: StackEntry[] = [];
       if (banishedOpCardNum) {
+        // §5.3 O-121: **バトルによるバニッシュ**を台帳へ積む（`byEffect:false`）。
+        //   🔴ここを落とすと「効果では数えるがバトルでは数えない」半分だけ効く条件になる
+        //   （`WX11-031-E1` の発火 timing `ON_SIGNI_BANISH_OPPONENT` は**バトル経路にしか配線されていない**ので、
+        //    バトル側を落とすと条件が永久に成立しない＝恒久 no-op）。
+        newMyState = { ...newMyState, opp_signi_banished_this_turn: [
+          ...(newMyState.opp_signi_banished_this_turn ?? []),
+          { by: myTopNum, byEffect: false },
+        ] };
         const usedIdsBB: string[] = [];
         // banishedFilter（被バニッシュシグニの限定・タスク16[B]）: 「感染状態の/凍結状態の/【チャーム】が付いている
         // シグニをバニッシュしたとき」（WX16-079/WXK02-054/WXEX2-76 等）。チャーム/ウィルス/凍結はバニッシュで

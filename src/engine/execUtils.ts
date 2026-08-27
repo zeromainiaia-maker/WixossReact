@@ -1821,6 +1821,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         : downed.length;
       return cmp(n, cond.operator, cond.value);
     }
+    case 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN': {
+      // §5.3 O-121: 台帳（`opp_signi_banished_this_turn`）を「バニッシュした側のカード」で絞って数える。
+      // ⚠`filter` は**被バニッシュ側ではなくバニッシュを行った側**に当てる（原文の主語がそちら）。
+      const led = st(cond.owner).opp_signi_banished_this_turn ?? [];
+      const n = led.filter(r => {
+        if (cond.byEffect && !r.byEffect) return false;
+        if (!cond.filter) return true;
+        return !!r.by && matchesFilter(ctx.cardMap.get(getCardNum(r.by)), cond.filter);
+      }).length;
+      return cmp(n, cond.operator, cond.value);
+    }
     case 'HAND_TRASHED_BY_OPP':
       return cmp(st(cond.owner).hand_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ENERGY_TRASHED_BY_OPP':

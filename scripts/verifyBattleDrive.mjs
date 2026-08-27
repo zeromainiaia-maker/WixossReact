@@ -2098,6 +2098,58 @@ const scenarios = {
     },
   },
 
+  // ── B16（2026-08-28）＝§5.3 `O-121`（このターンのバニッシュ台帳）の実機観測点 ──
+  //   🔴**判別力があるのは negative 側**（`b16banish2`）＝条件が無いと合計2体でもアップしてしまう。
+  //   共通の仕掛け＝台帳（`opp_signi_banished_this_turn`）を先に積んでおき、
+  //   **このバトルのバニッシュ（+1）で合計が閾値に届くか届かないか**だけを変える。
+  b16banish3: {
+    title: 'WX11-031 幻獣神ウルティム（このターン＜空獣/地獣＞が合計3体バニッシュ＝アップする／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD02-002#1'],
+        // 地獣・P12000。アタックするとダウンするので、「アップして戻る」ことが観測点になる。
+        'field.signi': [['WX11-031#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // 台帳に**2体ぶん**（＜空獣＞のシグニがバニッシュした記録）を先に積む。
+        // このバトルのバニッシュが +1 されて**ちょうど3体**＝条件成立。
+        'opp_signi_banished_this_turn': [
+          { by: 'WX19-028', byEffect: false },
+          { by: 'WX19-028', byEffect: false },
+        ],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, ['WD01-013#1']],   // 正面に P3000＝バトルに勝ってバニッシュする
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB16(page, H, true); },
+  },
+
+  b16banish2: {
+    title: 'WX11-031 幻獣神ウルティム（🔴合計2体ではアップしない／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD02-002#1'],
+        'field.signi': [['WX11-031#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // 🔴台帳は**1体ぶん**だけ＝このバトルの +1 を足しても**合計2体**＝条件不成立。
+        //   旧挙動＝条件そのものが無かったので、ここでもアップしていた。
+        'opp_signi_banished_this_turn': [{ by: 'WX19-028', byEffect: false }],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB16(page, H, false); },
+  },
+
   // ── B15（2026-08-27）＝§5.3 `O-120`（【ランサー】によるクラッシュの原因限定）の実機観測点 ──
   //   🔴**判別力があるのは negative 側**（`b15plaincrash`）＝原因限定が無いと通常のバトルダメージでも引く。
   //   positive 側（`b15lancercrash`）は修正の有無にかかわらず引くので、単独では反転確認にならない。

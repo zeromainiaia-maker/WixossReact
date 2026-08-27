@@ -746,6 +746,19 @@ export function checkActiveCondition(
       // `Condition` 側と同じ式。⚠`signi_banished_this_turn` は**バニッシュされた側**の state に積まれる。
       return ((cond.owner === 'opponent' ? otherState : ownerState).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
 
+    // §5.3 O-121: `Condition` 側（`execUtils`）と**同じ式**。
+    // ⚠台帳 `opp_signi_banished_this_turn` は**バニッシュした側**に積まれる（上の別軸と取り違えない）。
+    case 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN': {
+      const obLedA = (cond.owner === 'opponent' ? otherState : ownerState).opp_signi_banished_this_turn ?? [];
+      const obNA = obLedA.filter(r => {
+        if (cond.byEffect && !r.byEffect) return false;
+        if (!cond.filter) return true;
+        // ⚠ローカル縮小版 `matchesFilter`（`:804`）＝未対応フィルタは黙って素通りする。語彙を増やすときは両方見る。
+        return !!r.by && matchesFilter(cardMap.get(r.by.split('#')[0]), cond.filter);
+      }).length;
+      return compare(obNA, cond.operator, cond.value);
+    }
+
     case 'SELF_DECK_TO_TRASH_THIS_TURN':
       // `Condition` 側と同じ式。
       return ((cond.owner === 'opponent' ? otherState : ownerState).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
@@ -1154,6 +1167,20 @@ function evalConditionForContinuous(
       return cmp((st(cond.owner).field.signi_virus ?? []).reduce((sum, count) => sum + count, 0), cond.operator, cond.value);
     case 'SIGNI_BANISHED_THIS_TURN':
       return (st(cond.owner).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
+    // §5.3 O-121: Condition 側（`execUtils`）と**同じ式**を並べる。
+    // 🔴片側だけだと `checkActiveCondition` が case 無しで `return true`＝**無条件成立**へ落ちる（§5-2‴）。
+    case 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN': {
+      const obLed = st(cond.owner).opp_signi_banished_this_turn ?? [];
+      const obN = obLed.filter(r => {
+        if (cond.byEffect && !r.byEffect) return false;
+        if (!cond.filter) return true;
+        // ⚠このファイルの `matchesFilter` は **execUtils とは別のローカル縮小版**（`:804`）＝未対応フィルタは
+        //   黙って素通りする。ここで使うのは cardClass / color 程度なので実害は無いが、語彙を増やすときは両方見る。
+        // ⚠`getCardNum` はこのファイルに import が無いので、インスタンス ID の `#N` はここで落とす。
+        return !!r.by && matchesFilter(cardMap.get(r.by.split('#')[0]), cond.filter);
+      }).length;
+      return cmp(obN, cond.operator, cond.value);
+    }
     case 'SELF_DECK_TO_TRASH_THIS_TURN':
       return (st(cond.owner).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': {
