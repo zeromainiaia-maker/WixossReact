@@ -299,6 +299,10 @@ export function payResonaAppearanceAndPlace(
     energy: state.energy.filter((_, i) => !energySet.has(i)),
     trash: [...state.trash, ...discardedCostCards, ...energyTrashed, ...fieldTrashed, ...extras],
     lrig_trash: [...state.lrig_trash, ...lrigTrashed],
+    // §5.3 O-122: 「このレゾナの**出現条件で**〜していた場合」が読む支払い内容。
+    //   ⚠**この関数が支払いの唯一の funnel**なので、ここで刻めば全経路（メイン／スペルカットイン等）を覆える。
+    //   ⚠`extras`（下のカード・チャーム・アクセ）は**支払いとして選んだカードではない**ので含めない。
+    last_appearance_cost_cards: [...discardedCostCards, ...energyTrashed, ...fieldTrashed, ...lrigTrashed],
     field: {
       ...state.field, signi: nextSigni, signi_down: nextDown, signi_frozen: nextFrozen,
       signi_charms: nextCharms, signi_acce: nextAcce, signi_soul: nextSoul,

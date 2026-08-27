@@ -17,6 +17,64 @@ const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 
 /**
+ * §5.3 `O-122` の実機ドライバ（positive / negative で共有）。
+ * ルリグデッキ →【出現条件】で召喚 → 場の白シグニ2体を支払い → 空きゾーンへ配置。
+ * 観測点は **`host.energy` の増減**（【出】が「デッキの上から2枚エナゾーンに置く」ため）。
+ * ⚠**「増えなかった」だけを見ない**＝召喚自体が起きていない状態も同じ見え方になるので、
+ *   **レゾナが場に出たこと**を前提条件として先に確かめる。
+ */
+async function driveB17(page, H, expectCharge) {
+  const tag = expectCharge ? 'b17resonasame' : 'b17resonadiff';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  const e0 = st0?.host?.energy ?? -1;
+  H.log(`開始 energy=${e0} field=${JSON.stringify(st0?.host?.fieldSigni)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(500);
+  H.log('レゾナ:', await H.clickTestId('zone-card-0') ?? '見つからず');
+  const picked = new Set();
+  let placed = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = await H.clickBtn('【出現条件】で召喚', { exact: true });
+    if (!did) {
+      for (const i of [0, 1]) {
+        const pay = page.getByTestId(`resona-payment-field-${i}`).first();
+        if (!picked.has(i) && await pay.count() && await pay.isVisible().catch(() => false)) {
+          await pay.click().catch(() => {}); picked.add(i); did = `tid:resona-payment-field-${i}`; break;
+        }
+      }
+    }
+    if (!did) {
+      const zone = page.getByTestId('resona-zone-2').first();
+      if (await zone.count() && await zone.isVisible().catch(() => false) && await zone.isEnabled().catch(() => false)) {
+        await zone.click().catch(() => {}); did = 'tid:resona-zone-2';
+      }
+    }
+    // ⚠**【出】が2つある**（条件つきチャージ＋能力消失）ので、発動順序の確定を必ず押す。
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ']);
+    const st = await H.queryState();
+    if ((st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => String(n).startsWith('WX07-009')))) placed = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | energy=${st?.host?.energy ?? '-'}(開始${e0}) field=${JSON.stringify(st?.host?.fieldSigni)} placed=${placed} stack=${st?.stackLen ?? '-'}`);
+    if (placed && !(st?.stackLen > 0) && !st?.pendingEffect && s > 5) {
+      const gained = (st?.host?.energy ?? e0) - e0;
+      if (expectCharge) {
+        return gained >= 2
+          ? { pass: true, detail: `同名2体で払った＝2枚エナチャージ（energy ${e0}→${st.host.energy}）` }
+          : { pass: false, detail: `条件成立のはずがチャージされない（energy ${e0}→${st?.host?.energy}）` };
+      }
+      return gained === 0
+        ? { pass: true, detail: `別名2体＝条件不成立でチャージなし（energy ${e0}→${st.host.energy}）` }
+        : { pass: false, detail: `🔴旧挙動＝別名2体なのに ${gained} 枚チャージした（条件が効いていない）` };
+    }
+  }
+  const fin = await H.queryState();
+  if (!placed) return { pass: false, detail: `レゾナが場に出なかった＝前提が崩れている（field=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  return { pass: false, detail: `判定に至らず（energy ${e0}→${fin?.host?.energy ?? '-'}）` };
+}
+
+/**
  * §5.3 `O-121` の実機ドライバ（positive / negative で共有）。
  * アタック宣言 → バトルで正面をバニッシュ → その瞬間の台帳合計で `WX11-031-E1` が発火するかを見る。
  * 観測点は **`host.signiDown[0]`**＝アタックでダウンした効果元が「アップして戻るか」。
@@ -2146,6 +2204,47 @@ const scenarios = {
         detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
       };
     },
+  },
+
+  // ── B17（2026-08-28）＝§5.3 `O-122`（出現条件で支払ったカードの記録）の実機観測点 ──
+  //   🔴**判別力があるのは negative 側**（`b17resonadiff`）＝条件が無いと別名2体でもチャージしてしまう。
+  b17resonasame: {
+    title: 'WX07-009 白羅星ジュピタ（出現条件で同名2体を置いた＝2枚エナチャージ／positive）',
+    spec: {
+      hostSet: {
+        // ⚠**`WX07-009` は「サシェ限定」**＝ルリグをサシェにしないと召喚候補に出ない
+        //   （最初タマで組んで空振りした。`WX05-034` の花代限定と同じ罠）。
+        'field.lrig': ['WX07-007#1'],
+        // 出現条件＝レゾナではない白のシグニ2体を場からトラッシュ。**同名2枚**で払う。
+        'field.signi': [['WD01-013#1'], ['WD01-013#2'], null],
+        'field.signi_down': [false, false, false],
+        'lrig_deck': ['WX07-009#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB17(page, H, true); },
+  },
+
+  b17resonadiff: {
+    title: 'WX07-009 白羅星ジュピタ（🔴別名2体ではチャージしない／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX07-007#1'],   // ⚠サシェ限定（上と同じ）
+        // 🔴**別名**の白シグニ2枚で払う＝原文の「同じ名前のシグニ２体」を満たさない。
+        //   旧挙動＝条件そのものが無かったので、ここでも2枚チャージしていた。
+        'field.signi': [['WD01-013#1'], ['WD01-014#1'], null],
+        'field.signi_down': [false, false, false],
+        'lrig_deck': ['WX07-009#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB17(page, H, false); },
   },
 
   // ── B16（2026-08-28）＝§5.3 `O-121`（このターンのバニッシュ台帳）の実機観測点 ──

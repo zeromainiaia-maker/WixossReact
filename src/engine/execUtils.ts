@@ -1832,6 +1832,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }).length;
       return cmp(n, cond.operator, cond.value);
     }
+    case 'APPEARANCE_COST_SAME_NAME': {
+      // §5.3 O-122: 直近のレゾナ出現条件の支払いに**同名がN枚以上**あるか。
+      // ⚠名前が引けないカードは数えない（fail-closed）＝`cardMap` に載っていない番号で成立させない。
+      const paid = ctx.ownerState.last_appearance_cost_cards ?? [];
+      const tally = new Map<string, number>();
+      for (const num of paid) {
+        const nm = ctx.cardMap.get(getCardNum(num))?.CardName;
+        if (!nm) continue;
+        tally.set(nm, (tally.get(nm) ?? 0) + 1);
+      }
+      return [...tally.values()].some(n => n >= cond.count);
+    }
     case 'HAND_TRASHED_BY_OPP':
       return cmp(st(cond.owner).hand_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ENERGY_TRASHED_BY_OPP':

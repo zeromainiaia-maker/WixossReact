@@ -759,6 +759,18 @@ export function checkActiveCondition(
       return compare(obNA, cond.operator, cond.value);
     }
 
+
+    // §5.3 O-122: `Condition` 側（`execUtils`）と同じ式。
+    case 'APPEARANCE_COST_SAME_NAME': {
+      const paidA = ownerState.last_appearance_cost_cards ?? [];
+      const tallyA = new Map<string, number>();
+      for (const num of paidA) {
+        const nm = cardMap.get(num.split('#')[0])?.CardName;
+        if (!nm) continue;
+        tallyA.set(nm, (tallyA.get(nm) ?? 0) + 1);
+      }
+      return [...tallyA.values()].some(n => n >= cond.count);
+    }
     case 'SELF_DECK_TO_TRASH_THIS_TURN':
       // `Condition` 側と同じ式。
       return ((cond.owner === 'opponent' ? otherState : ownerState).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);

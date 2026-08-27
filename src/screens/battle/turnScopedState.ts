@@ -115,6 +115,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
 const IRREGULAR_TURN_SCOPED_STATE = {
+  // §5.3 O-122: 直近のレゾナ出現条件の支払い内容（`*_this_turn` 命名ではないのでこちらへ登録）。
+  //   ⚠ターンをまたいで残ると「前のターンの支払い」で条件が誤成立するので turn-end で捨てる。
+  last_appearance_cost_cards: { boundaries: ['turn-end'], reset: undefined, reason: 'cards paid for the most recent resona appearance condition' },
   // ピース応答窓のフラグ（§6.4 O-10 続き518）＝窓を閉じる側で落とすのが正だが、
   // **万一の閉じ忘れでターンを跨いで「常時カットイン可」にならない**よう保険で登録する。
   team_piece_cutin_window: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'piece cut-in response window; consumed when the window closes, expired here as a safety net' },

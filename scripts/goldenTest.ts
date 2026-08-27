@@ -1684,7 +1684,29 @@ test('レゾナ召喚: 条件を払える時だけ候補になり、原子的支
       sourceCardNum: resona, triggeringCardNum: resona, currentPhase: 'MAIN',
     } as unknown as ExecCtx;
     const resolved = finish(executeEffect(onPlay, ctx), ctx);
-    eq(resolved.ownerState.energy.length, beforeEnergy + 2, '既存ON_PLAY（デッキ上2枚エナチャージ）が解決');
+    // 🆕§5.3 `O-122`（2026-08-28）で**この assert は反転した**。原文は
+    //   「このレゾナの**出現条件で同じ名前のシグニ２体**をトラッシュに置いていた場合」なので、
+    //   **別名の白シグニ2体で払ったここでは発火しない**のが正しい（旧 golden は過剰実行を固定していた）。
+    eq(resolved.ownerState.energy.length, beforeEnergy,
+      '🔴別名2体で払った＝出現条件の同名指定を満たさないのでチャージしない');
+
+    // 対照＝**同名2体**で払えば従来どおり2枚チャージする（正方向）。
+    const sameName: PlayerState = { ...base, field: { ...base.field, signi: [[whiteA], [whiteA], null] } };
+    const cand2 = getMainSingleZoneResonaCandidate(resona, sameName, cardMap, effectsMap);
+    ok(!!cand2, '同名2体でも候補になる');
+    const placed2 = payResonaAppearanceAndPlace(
+      sameName, resona, cand2!.payment, { zone: 'field', indices: [0, 1] }, 2, cardMap,
+    );
+    ok(!!placed2, '同名2体でも支払いと配置が成功');
+    eq((placed2!.state.last_appearance_cost_cards ?? []).join(','), `${whiteA},${whiteA}`,
+      '支払い内容が last_appearance_cost_cards に刻まれる（記録の funnel は payResonaAppearanceAndPlace の1本）');
+    const ctx2 = {
+      ownerState: placed2!.state, otherState: mkState({}), cardMap, logs: [],
+      sourceCardNum: resona, triggeringCardNum: resona, currentPhase: 'MAIN',
+    } as unknown as ExecCtx;
+    const before2 = placed2!.state.energy.length;
+    const resolved2 = finish(executeEffect(onPlay, ctx2), ctx2);
+    eq(resolved2.ownerState.energy.length, before2 + 2, '同名2体で払えば2枚チャージする');
   } finally {
     cursor = savedCursor;
   }
@@ -4849,10 +4871,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 24, '命名規約外のターン限定フィールド数（24＝§5.3 O-122 で last_appearance_cost_cards を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 64, '型由来38件＋命名規約外23件の母集団（64＝§5.3 O-121 で +1）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 65, '型由来38件＋命名規約外24件の母集団（65＝§5.3 O-122 で +1）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -20996,8 +21018,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 59, 'ActiveCondition の型数（59＝§5.3 O-121 で OPP_SIGNI_BANISHED_COUNT_THIS_TURN を追加）');
-  eq(Object.keys(C_TYPES).length, 130, 'Condition の型数（130＝§5.3 O-121 で OPP_SIGNI_BANISHED_COUNT_THIS_TURN を新設。129 は Sheet1 B5 の THIS_CARD_HAS_SOUL 時点）');
+  eq(Object.keys(AC_TYPES).length, 60, 'ActiveCondition の型数（60＝§5.3 O-122 で APPEARANCE_COST_SAME_NAME を追加）');
+  eq(Object.keys(C_TYPES).length, 131, 'Condition の型数（131＝§5.3 O-122 で APPEARANCE_COST_SAME_NAME を新設。130 は O-121 の OPP_SIGNI_BANISHED_COUNT_THIS_TURN 時点）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -50466,6 +50488,37 @@ test('Sheet1 B11: `same:\'level\'` 評価器の3点セット（成立／不成�
     'same:level: 違うレベルは不成立');
   ok(!satisfiesSelectionConstraint(two(a, '__NO_SUCH_CARD__'), sameLv, cardMap as Map<string, CardData>),
     'same:level: レベルが引けないカードが混ざったら**不成立**（fail-closed＝制約が消えて過剰実行に倒れない）');
+}));
+
+test('§5.3 O-122: 「出現条件で同じ名前のシグニN体を…していた場合」（両評価器・正負両方向）', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX07-009') ?? []).find(x => x.effectId === 'WX07-009-E1')!;
+  const cond = (e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as Condition;
+  eq(cond.type, 'APPEARANCE_COST_SAME_NAME', '🔴旧 live は条件ごと落ちて「出ただけで常に2枚チャージ」だった');
+  eq((cond as { count?: number }).count, 2, '同名2体');
+
+  // 支払い内容だけを差し替えた対照。名前が同じ2枚で成立、違う2枚では不成立。
+  const SAME = 'WD01-013';   // 小剣 ククリ
+  const OTHER = 'WD01-014';
+  const ck = (paid: string[]) => {
+    const c = mkCtx({}, {});
+    (c.ownerState as PlayerState).last_appearance_cost_cards = paid;
+    return evalCondition(cond, c);
+  };
+  eq(ck([SAME, SAME]), true, '同名2枚＝成立');
+  eq(ck([SAME, OTHER]), false, '🔴名前が違えば不成立（同じ2枚でも「同名」ではない）');
+  eq(ck([SAME]), false, '🔴1枚では不成立（境界の下側）');
+  eq(ck([]), false, '支払い記録が無ければ不成立');
+  eq(ck(['NOT-IN-CARDMAP', 'NOT-IN-CARDMAP']), false,
+    '🔴カード名が引けない番号では成立させない（fail-closed）');
+  eq(ck([SAME + '#1', SAME + '#2']), true, 'インスタンスIDでも素の番号へ落として同名判定できる');
+
+  // ActiveCondition 側も同じ式＝片側だけだと無条件成立へ落ちる（§5-2‴）。
+  const ac = cond as unknown as ActiveCondition;
+  const acState = (paid: string[]): PlayerState => ({ ...mkState({}), last_appearance_cost_cards: paid } as PlayerState);
+  eq(checkActiveCondition(ac, acState([SAME, OTHER]), mkState({}), true, cardMap as Map<string, CardData>), false,
+    'ActiveCondition 側も名前違いで不成立');
+  eq(checkActiveCondition(ac, acState([SAME, SAME]), mkState({}), true, cardMap as Map<string, CardData>), true,
+    'ActiveCondition 側も同名2枚で成立');
 }));
 
 test('§5.3 O-121: 「このターンに…バニッシュしていた場合」の台帳（2効果・両評価器・正負両方向）', () => withSavedCursor(() => {

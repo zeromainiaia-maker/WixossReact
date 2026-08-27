@@ -255,6 +255,12 @@ export type ActiveCondition =
   | { type: 'DURING_MAIN_PHASE'; owner?: Owner }               // 🆕§5.3 `O-65`：「[あなたの/対戦相手の]メインフェイズの間、」有効な常在効果（CONTINUOUS）。`DURING_ATTACK_PHASE` の対で、判定も同じ規約＝**turnPhase を渡さない呼び出し元では true**（過小実行を避ける）。⚠**受け皿を足すだけでは効かない**＝消費地点（`collectBanishEffectProtectedSigni` 等）が `checkActiveCondition` へ `turnPhase` を渡していないと恒久 no-op になる（`O-64` と同じ「委ね先が読んでいない」型）
   // §5.3 O-121: Condition 側（:305）と同型。🔴**片側だけ足すと `checkActiveCondition` が case 無し＝無条件成立へ落ちる**（§5-2‴）。
   | { type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN'; owner: Owner; filter?: TargetFilter; byEffect?: boolean; operator: CompareOp; value: number }
+  /**
+   * 「このレゾナの**出現条件で**同じ名前のシグニN体をトラッシュに置いていた場合」（§5.3 `O-122`・`WX07-009-E1`）。
+   * `PlayerState.last_appearance_cost_cards` の中に**同名がN枚以上**あるかを見る。
+   * 🔴旧 live は条件ごと落ちて**出ただけで常に発火**していた。
+   */
+  | { type: 'APPEARANCE_COST_SAME_NAME'; count: number }
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
@@ -305,6 +311,12 @@ export type Condition =
    * 台帳は `PlayerState.opp_signi_banished_this_turn`。
    */
   | { type: 'OPP_SIGNI_BANISHED_COUNT_THIS_TURN'; owner: Owner; filter?: TargetFilter; byEffect?: boolean; operator: CompareOp; value: number }
+  /**
+   * 「このレゾナの**出現条件で**同じ名前のシグニN体をトラッシュに置いていた場合」（§5.3 `O-122`・`WX07-009-E1`）。
+   * `PlayerState.last_appearance_cost_cards` の中に**同名がN枚以上**あるかを見る。
+   * 🔴旧 live は条件ごと落ちて**出ただけで常に発火**していた。
+   */
+  | { type: 'APPEARANCE_COST_SAME_NAME'; count: number }
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
@@ -493,7 +505,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
-  OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true,
+  OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
   DURING_ATTACK_PHASE: true, DURING_MAIN_PHASE: true, AND: true,
 };
 
@@ -505,7 +517,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
   ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
   COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
-  SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true,
+  SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,

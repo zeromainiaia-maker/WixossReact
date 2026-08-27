@@ -3110,6 +3110,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   「カードを」形（WXDi-P11-068／WXDi-D07-017）が丸ごと落ちていた。
   [/このターンにあなたがカードを([０-９\d]+)枚以上捨てていた場合/,
     g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+  // 🆕§5.3 `O-122`（2026-08-28）＝「この(レゾナ|カード)の**出現条件で**同じ名前のシグニN体を
+  //   トラッシュに置いていた場合」（`WX07-009-E1`）。旧 live は条件ごと落ちて**出ただけで常に発火**していた。
+  //   ⚠engine 側は `PlayerState.last_appearance_cost_cards`（支払いの唯一の funnel が刻む）を読む。
+  [/この(?:レゾナ|カード)の出現条件で同じ名前のシグニ([０-９\d]+)体をトラッシュに置いていた場合/,
+    g => ({ type: 'APPEARANCE_COST_SAME_NAME', count: parseNum(g[0]) })],
   // 🆕§5.3 `O-121`（2026-08-27）＝「このターンに**あなたの〔＜X＞のシグニ／効果〕が**対戦相手のシグニを
   //   〔合計N体／N体以上〕バニッシュしていた場合」＝**バニッシュした側**を数える（実測2効果）。
   //   ⚠すぐ下の `SIGNI_BANISHED_THIS_TURN`（＝**バニッシュされた側**の件数）と主語が逆なので、
