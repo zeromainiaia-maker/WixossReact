@@ -8402,6 +8402,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     victim: { opponent: PlayerState; isTurnPlayer: boolean },
     damageSource?: DamageSourceContext,
     crashSourceCardNum?: string,
+    /**
+     * §5.3 `O-120`：このクラッシュの**原因キーワード**（`'ランサー'` / `'Ｓランサー'`）。
+     * ⚠**省略＝原因不明**であり「通常のバトルダメージ」を意味しない。`crashedByKeywords` を持つ効果は
+     *   fail-closed で発火しないので、**ランサー経路では必ず渡すこと**（渡し忘れると恒久 no-op になる）。
+     */
+    crashCause?: string,
   ): { newState: PlayerState; crashed: string | null; prevented?: boolean; crashOpponentInstead?: number } => {
     // §5.3 O-66: ライフクラッシュ防止／回数制限（**シグニアタックのダメージ**＝cause:'damage'）。
     // ⚠**回数無制限の防御なので、消費型（バリア／prevent_next_damage／置換ミル）より先に判定する**
