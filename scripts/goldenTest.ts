@@ -22926,7 +22926,10 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       if (!seq) continue;
       eq(seq.steps[1]?.id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 対象を固定`);
       ok(seq.steps[2]?.type === 'STUB', `${effectId}: 任意コスト STUB を消さない`);
-      eq(seq.steps[3]?.condition?.type, 'IS_MY_TURN', `${effectId}: did-it ゲートをコスト直後に保つ`);
+      // 🆕B9 で `OPTIONAL_COST` へ載せ替えた効果は did-it ゲートが `PAID_ADDITIONAL_COST` へ**強化**された
+      //   （`IS_MY_TURN` は常時真のプレースホルダなので、コスト未払いでも本体が走っていた）。両方を許す。
+      ok(['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes(seq.steps[3]?.condition?.type ?? ''),
+        `${effectId}: did-it ゲートをコスト直後に保つ（got=${seq.steps[3]?.condition?.type}）`);
       const inner = treeFind(seq.steps[3]?.then, x => x.type === 'CONDITIONAL'
         && (x as { condition?: { type?: string }; else?: unknown }).condition?.type === condType
         && !!(x as { else?: unknown }).else) as
@@ -37414,7 +37417,10 @@ test('続き386 群A WXDi-P08-003-E1: 黒アシストでデッキ破壊、非該
 test('続き386 群A WXDi-P08-004-E1: 白アシストでバウンス、非該当盤面では不発', () => withSavedCursor(() => {
   const effect = batch386Effect('WXDi-P08-004', 'WXDi-P08-004-E1');
   batch386AssertFieldLrigArrays(effect, 3);
-  const target = fresh();
+  // 🔴**`fresh()` は POOL カーソル依存＝前のテストが引く枚数が変わると別のカードが来る**（B9 で実測＝
+  //   離場置換（「代わりに〜してもよい」）を持つ `WX26-CP1-047` が来てバウンスが不発になり FAIL した）。
+  //   ⇒ バウンスされることだけを見たいので**能力を持たないシグニ**に固定する。
+  const target = findCard(c => isSigni(c) && (!c.EffectText || c.EffectText === '--'));
   const yesCtx = mkCtx({ lrig: [batch386Center('緑')], assistL: [batch386Assist('白')] }, { signi: [target, null, null] }, 'WXDi-P08-004');
   const yes = finish(executeEffect(effect, yesCtx), yesCtx);
   eq(yes.otherState.field.signi[0], null, '白アシストだけで白分岐を実行');
@@ -39340,6 +39346,63 @@ test('§6.4 幻の手札コスト: 原文のコスト種と JSON のコスト種
     ok(JSON.stringify(effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!).includes('OPTIONAL_TRASH_SELF'),
        `${effectId}: 本来のコスト（このシグニを場からトラッシュ）は残っている`);
   }
+});
+
+// ── B9（2026-08-27）＝固定挙動 catch-all `TRADE_BANISH_SELF_SIGNI` の退治 ────────────────────
+// 🔴この STUB は **payload も原文も見ない固定実装**（`execStubPart1.ts`）で、常に
+//   「自分のシグニ1体をトラッシュ → **相手のシグニ1体をバニッシュ**」を実行していた。
+//   適用先の原文は「エナゾーンから」「このシグニを」「【チャーム】を」など様々で、
+//   **カードに書いていない除去**と**間違ったコスト**の二重バグだった（実測26効果を是正）。
+// ⚠実機で確認した旧挙動＝`host 2→2`（コスト未払い＝踏み倒し）／`guest 2→1`（原文にないバニッシュ）。
+test('B9 固定挙動 catch-all: 原文のコスト種が OPTIONAL_COST の payload と一致する', () => {
+  const costOfB9 = (cardNum: string, effectId: string): Record<string, unknown> => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    ok(!JSON.stringify(e).includes('TRADE_BANISH_SELF_SIGNI'),
+      `${effectId}: 🔴固定挙動 catch-all が残っている（原文にない相手バニッシュが走る）`);
+    const steps = (e!.action as { steps?: Array<Record<string, unknown>> }).steps ?? [];
+    eq((steps[0] as { id?: string })?.id, 'SELECT_TARGET_ONLY', `${effectId}: 対象宣言をコスト前に確定`);
+    eq((steps[1] as { id?: string })?.id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 対象を固定`);
+    eq(((steps[3] as { condition?: { type?: string } })?.condition ?? {}).type, 'PAID_ADDITIONAL_COST',
+      `${effectId}: 🔴コスト未払いで本体が走らないゲート（IS_MY_TURN は常時真＝踏み倒し）`);
+    return (steps[2] ?? {}) as Record<string, unknown>;
+  };
+  // ①場のシグニをトラッシュ
+  eq(JSON.stringify(costOfB9('WX18-083', 'WX18-083-E1').fieldTrash), JSON.stringify({ count: 1 }),
+    'WX18-083-E1: あなたのシグニ1体を場からトラッシュ');
+  // ②エナゾーンからクラス限定でトラッシュ
+  eq(JSON.stringify(costOfB9('WXDi-P14-079', 'WXDi-P14-079-E1').energyTrash),
+    JSON.stringify({ count: 3, filter: { cardType: 'シグニ', story: '電音部' } }),
+    'WXDi-P14-079-E1: エナから＜電音部＞3枚');
+  // ③【チャーム】をトラッシュ
+  eq(costOfB9('WX07-031', 'WX07-031-E3').charmTrash, 1, 'WX07-031-E3: 【チャーム】1枚');
+  // ④手札を捨てる（枚数固定・クラス限定）
+  eq(JSON.stringify(costOfB9('WX26-CP1-078', 'WX26-CP1-078-BURST').energyTrash),
+    JSON.stringify({ count: 1, filter: { story: 'プリオケ' } }),
+    'WX26-CP1-078-BURST: エナから＜プリオケ＞のカード1枚（シグニ限定ではない）');
+  // ⑤「このシグニを場からトラッシュ」は**既存の専用 STUB** を使う（並行新設しない）
+  const selfCost = costOfB9('WXK10-021', 'WXK10-021-E2');
+  eq(selfCost.id, 'OPTIONAL_TRASH_SELF', 'WXK10-021-E2: 既存の OPTIONAL_TRASH_SELF を使う');
+});
+
+// 🔴**残る `TRADE_BANISH_SELF_SIGNI` の利用は許容リストと集合一致**（§5-27 のトリップワイヤ）。
+//   増えたら新しい catch-all 適用・減ったらリストを縮める、の両方向で FAIL する。
+const B9_TRADE_STUB_ALLOWED = [
+  'WX20-022-E1',      // 「＜アーム＞**か**＜ウェポン＞」＝OR のコストフィルタが表せない
+  'WXEX1-09-E2',      // 「場**か**エナゾーンから」＝複数ゾーンのコストが表せない
+  'WX25-CP1-003-E1',  // 「手札から〜を**好きな枚数公開**」＝可変枚数＋公開が表せない
+  'WXDi-P16-069-E1',  // 「シグニの**下から**」＝`underAnySigniTrash` 系の別受け皿が要る
+  'WXK10-051-E1',     // 「トラッシュから〜4枚を**デッキに加えて**」＝デッキ戻しコストが表せない
+  'WD22-029-G-E2',    // 「-G」バリアント＝別の parse 入口を通るため後段規則が当たらない（要調査）
+];
+test('B9 トリップワイヤ: 固定挙動 catch-all の残存は許容リストと一致', () => {
+  const users: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) if (JSON.stringify(e).includes('TRADE_BANISH_SELF_SIGNI')) users.push(e.effectId);
+  }
+  eq(users.sort().join(','), [...B9_TRADE_STUB_ALLOWED].sort().join(','),
+    `残存=${users.sort().join(',')}（許容=${[...B9_TRADE_STUB_ALLOWED].sort().join(',')}）`
+    + '＝増えたら新しい誤適用・減ったら許容リストを縮めること');
 });
 
 // 対象数に比例するコストは固定枚数へ潰してはいけない（潰すと対象を増やすほど安くなる＝過少請求）。

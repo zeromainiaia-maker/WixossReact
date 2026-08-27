@@ -17734,6 +17734,120 @@ scenarios.b8OnPlayOriginHandBlocked = {
   drive: b8Drive('hand'),
 };
 order.push('b8OnPlayOriginTrashFires', 'b8OnPlayOriginHandBlocked');
+// ── B9（2026-08-27）＝固定挙動 catch-all `TRADE_BANISH_SELF_SIGNI` の退治 ────────────────────
+// `WX18-083-E1`「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、
+//   **あなたのシグニ１体を場からトラッシュに置いてもよい**。そうした場合、カードを１枚引き、
+//   ターン終了時まで、それのパワーを－8000する。」
+// 🔴旧 live は `SEQUENCE[STUB{TRADE_BANISH_SELF_SIGNI}, CONDITIONAL{IS_MY_TURN}]`＝engine の
+//   固定実装が **payload も原文も見ずに**「自分のシグニ1体をトラッシュ → **相手のシグニ1体をバニッシュ**」を
+//   実行していた。つまり ①任意のはずのコストが**強制** ②原文にない**相手シグニのバニッシュ**
+//   ③`IS_MY_TURN` は常時真なので**払わなくても本体が走る**、の三重バグ。
+// ⚠**この層は golden では守れない**＝pay/skip の提示と支払いは engine のインタラクション経路でしか通らない。
+const B9_SRC   = 'WX18-083#8900';   // 効果元（アタッカー）
+const B9_COST  = 'WD01-012#8901';   // コストに払う自分のシグニ
+const B9_LRIG  = 'WD01-001#8902';
+const B9_OPP1  = 'WD01-010#8910';
+const B9_OPP2  = 'WX01-094#8911';
+const b9Spec = () => ({
+  hostSet: {
+    'field.lrig': [B9_LRIG],
+    'field.signi': [[B9_COST], [B9_SRC], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'energy': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#8903'],
+    'field.signi': [[B9_OPP1], null, [B9_OPP2]],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+const b9Drive = (mode) => async (page, H) => {
+  const label = `b9${mode}`;
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(B9_SRC); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, b9Spec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const gCount0 = (before?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+  const hCount0 = (before?.host?.fieldSigni ?? []).flat().filter(Boolean).length;
+  const hand0 = before?.host?.hand ?? 0;
+  H.log(`  開始 host signi=${hCount0} hand=${hand0} guest signi=${gCount0}`);
+  let modalOpened = false, asked = false, decided = false, last = before;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${label}-${s}.png`, fullPage: true });
+    let did = null;
+    const st0 = await H.queryState();
+    if (st0?.pendingEffect === 'CHOOSE') asked = true;   // sticky＝任意コストの問いが立った証拠
+    if (!did) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click({ timeout: 1200 }).catch(() => {}); did = 'btn:アタック'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
+    if (!did && asked && !decided) {
+      if (mode === 'skip') {
+        did = await H.clickTestId('optcost-skip') ?? await H.clickBtn('スキップ', { exact: false });
+      } else {
+        did = await H.clickBtn('支払', { exact: false }) ?? await H.clickBtn('発動', { exact: false });
+      }
+      if (did) decided = true;
+    }
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!ready) { await pick0.click({ timeout: 1200 }).catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない']);
+    last = await H.queryState();
+    const gNow = (last?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+    const hNow = (last?.host?.fieldSigni ?? []).flat().filter(Boolean).length;
+    H.log(`  ${label}[${s}] -> ${did ?? 'なし'} | asked=${asked} decided=${decided} h=${hNow} g=${gNow}`
+      + ` hand=${last?.host?.hand ?? '-'} gPM=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (decided && !last?.pendingEffect && (last?.stackLen ?? 0) === 0 && s > 6) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${label}-final.png`, fullPage: true });
+  const gEnd = (last?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+  const hEnd = (last?.host?.fieldSigni ?? []).flat().filter(Boolean).length;
+  const gPM = last?.guest?.powerMods ?? [];
+  const detail = `asked=${asked} decided=${decided} host ${hCount0}→${hEnd} guest ${gCount0}→${gEnd} `
+    + `hand ${hand0}→${last?.host?.hand} gPowerMods=${JSON.stringify(gPM)}`;
+  if (!asked) return { pass: false, detail: `🔴任意コストの問いが立っていない＝コストが強制で払われている（旧挙動）。${detail}` };
+  if (mode === 'skip') {
+    if (hEnd < hCount0) return { pass: false, detail: `🔴スキップしたのに自分のシグニが減った＝コストが強制。${detail}` };
+    if (gEnd < gCount0) return { pass: false, detail: `🔴スキップしたのに相手のシグニが減った＝原文にないバニッシュ（旧挙動）。${detail}` };
+    if (gPM.length > 0) return { pass: false, detail: `🔴スキップしたのに本体（－8000）が走った＝did-it ゲートが効いていない。${detail}` };
+    return { pass: true, detail: `任意コストを問われ、スキップ＝コストも本体も走らない。${detail}` };
+  }
+  if (hEnd >= hCount0) return { pass: false, detail: `🔴支払ったのに自分のシグニが減っていない＝コストが払われていない。${detail}` };
+  if (gEnd < gCount0) return { pass: false, detail: `🔴原文にない相手シグニのバニッシュが起きた（旧挙動）。${detail}` };
+  if (!gPM.some(m => String(m).endsWith(':-8000'))) return { pass: false, detail: `🔴本体（－8000）が走っていない。${detail}` };
+  return { pass: true, detail: `支払い＝自分のシグニ1体がコストで減り、相手は減らず、－8000だけが乗る。${detail}` };
+};
+// ⚠**判別力があるのは pay 側**（2026-08-27 実測）＝旧実装でも skip の提示自体はあったので、
+//   skip 側だけでは反転確認が緑のまま通る。反転確認は必ず `b9OptionalCostPayRunsBody` で取ること
+//   （旧実装＝host 2→2 でコスト未払い・guest 2→1 で原文にないバニッシュ、が数値で出る）。
+scenarios.b9OptionalCostSkipDoesNothing = {
+  title: 'WX18-083-E1（B9＝固定挙動 catch-all 退治）本題＝スキップすればコストも本体も走らない',
+  spec: b9Spec(),
+  drive: b9Drive('skip'),
+};
+scenarios.b9OptionalCostPayRunsBody = {
+  title: 'WX18-083-E1（B9）対照＝支払えば本体だけが走る（原文にない相手バニッシュは起きない）',
+  spec: b9Spec(),
+  drive: b9Drive('pay'),
+};
+order.push('b9OptionalCostSkipDoesNothing', 'b9OptionalCostPayRunsBody');
 // Sheet1 B4（2026-08-27）＝census 較正の前提（1回で消費）を実機で見張る。
 order.push('b4NextSpellReductionConsumed');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は

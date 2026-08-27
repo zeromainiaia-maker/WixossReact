@@ -10655,14 +10655,14 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, fixMiddleClauseTargetOwner(source, applyDroppedTargetDesignation(source,
+    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, fixMiddleClauseTargetOwner(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,
@@ -11181,6 +11181,127 @@ function applyTotalLevelSelectionWiring(text: string, action: EffectAction): Eff
   }
 
   return action;
+}
+
+// ── B9（2026-08-27）：`TRADE_BANISH_SELF_SIGNI` / `TARGET_AND_DISCARD_HAND` の**固定挙動 catch-all** を退治する ──
+// 🔴この2つの STUB は **payload も原文も一切見ない固定実装**（`execStubPart1.ts:1644` / `:1663`）：
+//   ・`TRADE_BANISH_SELF_SIGNI`＝常に「自分のシグニ1体をトラッシュ → **相手のシグニ1体をバニッシュ**」
+//   ・`TARGET_AND_DISCARD_HAND`＝常に「**手札の末尾を問答無用で1枚捨て** → 相手シグニを対象化」
+//   ところが適用先の原文は「**エナゾーンから**＜X＞のカード1枚をトラッシュ」「**このシグニを**場からトラッシュ」
+//   「【チャーム】1枚をトラッシュ」など様々で、**カードに書いていない除去**と**間違ったコスト**を実行していた
+//   （実測＝原文と噛み合っていないのは 31効果）。
+// 🔑**新機構は要らない**＝`OPTIONAL_COST` の payload（`fieldTrash`/`selfTrash`/`energyTrash`/`charmTrash`/`handDiscard`）が
+//   すべて既存。⚠**コスト句を payload へ写せない形は触らない**（誤変換より無変換を選ぶ＝据置して worklist へ）。
+const LEGACY_TRADE_STUB_IDS = ['TRADE_BANISH_SELF_SIGNI', 'TARGET_AND_DISCARD_HAND'];
+
+/**
+ * コスト句の修飾部が「**完全に表せる**」ものだけを通す（＜クラス＞／単色／無修飾のみ）。
+ * 🔴**部分的に表せる形を通してはいけない**＝実測で3件やらかした：
+ *   ・「赤のカード**か**＜宝石＞のシグニ」→ `{color:'赤', story:'宝石'}` は **AND** 判定なので原文の OR と別物
+ *   ・「＜アーム＞**と**＜ウェポン＞のシグニを合計2枚」→ `story:[…]` は OR なので「各1枚ずつ」と別物
+ *   ・「《トラップアイコン》を持つシグニ」→ アイコン限定が**丸ごと落ちて**どのシグニでも払える過小制限
+ * ⇒ 表しきれない修飾が1文字でも残るなら **null＝据置**（誤変換より無変換）。
+ */
+function fullyExpressibleCostFilter(spec: string): TargetFilter | null {
+  let rest = (spec ?? '').trim();
+  if (/[かと]＜|か[白赤青緑黒無]|を持つ|以上|以下|それぞれ|合計|好きな/.test(rest)) return null;
+  const filter: TargetFilter = {};
+  const cls = rest.match(/＜([^＞]+)＞の?/);
+  if (cls) { filter.story = cls[1]; rest = rest.replace(cls[0], ''); }
+  const col = rest.match(/^([白赤青緑黒])の/);
+  if (col) { filter.color = col[1]; rest = rest.replace(col[0], ''); }
+  if (rest.replace(/^(?:あなたの)?/, '').trim() !== '') return null;   // 未消費の修飾が残る＝表せていない
+  return filter;
+}
+
+/** 任意コスト句（「〜てもよい」の直前）を OPTIONAL_COST の payload へ写す。表せない句は null＝据置。 */
+function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | null {
+  const c = clause.replace(/^[、,]/, '').trim();
+  // ①「このシグニを場からトラッシュに置い」＝効果元自身。
+  // 🔴**`OPTIONAL_COST{selfTrash}` を新設しない**＝この意味の受け皿は既に `OPTIONAL_TRASH_SELF`（`applySelfTrashOptionalCost`）で、
+  //   golden「§6.4 幻の手札コスト」がそれを固定している。並行新設すると**既存の正しい実装を上書きする退化**になる（§5-5e／§5-8）。
+  //   ⇒ 呼び出し側で id を差し替えるための目印だけ返す。
+  if (/^このシグニを(?:場から)?トラッシュに置い$/.test(c)) return { id: 'OPTIONAL_TRASH_SELF' } as Partial<StubAction>;
+  // ②「あなたの（他の）〈クラス等〉シグニN体を場からトラッシュに置い」
+  const fieldM = c.match(/^あなたの(他の)?(.*?)シグニ([０-９\d]*)体を場からトラッシュに置い$/);
+  if (fieldM) {
+    const base = fullyExpressibleCostFilter(fieldM[2] ?? '');
+    if (!base) return null;
+    const filter: TargetFilter = { cardType: 'シグニ', ...base };
+    return {
+      fieldTrash: {
+        count: fieldM[3] ? parseNum(fieldM[3]) : 1,
+        ...(Object.keys(filter).length > 1 ? { filter } : {}),
+        ...(fieldM[1] ? { excludeSelf: true } : {}),
+      },
+    };
+  }
+  // ③「（あなたの）エナゾーンから〈修飾〉カード／シグニN枚をトラッシュに置い」
+  const enaM = c.match(/^(?:あなたの)?エナゾーンから(.*?)(カード|シグニ)([０-９\d]+)枚をトラッシュに置い$/);
+  if (enaM) {
+    const baseE = fullyExpressibleCostFilter(enaM[1] ?? '');
+    if (!baseE) return null;
+    const filter: TargetFilter = {
+      ...(enaM[2] === 'シグニ' ? { cardType: 'シグニ' as const } : {}),
+      ...baseE,
+    };
+    return { energyTrash: { count: parseNum(enaM[3]), ...(Object.keys(filter).length ? { filter } : {}) } };
+  }
+  // ④「あなたの場にある【チャーム】N枚をトラッシュに置い」
+  const charmM = c.match(/^あなたの場にある【チャーム】([０-９\d]+)枚をトラッシュに置い$/);
+  if (charmM) return { charmTrash: parseNum(charmM[1]) };
+  // ⑤「手札から〈修飾〉をN枚捨て」（枚数固定のみ。「好きな枚数」は別軸＝倍率が付くので触らない）
+  const handM = c.match(/^手札から(.*?)を?([０-９\d]+)枚捨て$/);
+  if (handM) {
+    const specH = handM[1] ?? '';
+    const baseH = fullyExpressibleCostFilter(specH.replace(/シグニ$/, '').replace(/カード$/, ''));
+    if (!baseH) return null;
+    const filter: TargetFilter = {
+      ...(/シグニ$/.test(specH) ? { cardType: 'シグニ' as const } : {}),
+      ...baseH,
+    };
+    return { handDiscard: { count: parseNum(handM[2]), ...(Object.keys(filter).length ? { filter } : {}) } };
+  }
+  return null;
+}
+
+function applyLegacyTradeStubCost(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const scan = text.replace(/（[^（）]*）/g, '').replace(/「[^」]*」/g, '「Q」');
+  // 「〈相手シグニの対象宣言〉を対象とし、〈コスト句〉てもよい。そうした場合、〈帰結〉」だけを扱う
+  const m = scan.match(/(対戦相手の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、(.*?)てもよい。そうした場合[、,]/);
+  if (!m) return action;
+  if ((scan.match(/を?対象とし/g)?.length ?? 0) !== 1) return action;   // 宣言が2つ以上ある形は触らない
+  if (/[①②③④⑤]/.test(scan)) return action;                           // 選択肢は文ごとに閉じる（別軸）
+  // 🔴**「〈条件〉場合、代わりに」は B7（`foldKawariSubstitution`）の領分**＝この pass のほうが先に走るので、
+  //   ここで畳んでしまうと **B7 が組んだ置換 then/else を丸ごと捨てて基本値だけにする退化**になる
+  //   （実測＝`WX24-P3-076-E1` の -5000/-3000 の置換が消え、B7 の golden 2本が落ちて発覚）。
+  if (/場合[、,]代わりに/.test(scan)) return action;
+  const steps = (action as SequenceAction).steps;
+  const legacy = steps.filter(s => s.type === 'STUB' && LEGACY_TRADE_STUB_IDS.includes((s as StubAction).id));
+  if (legacy.length !== 1) return action;
+  const gates = steps.filter(isDidItGate);
+  if (gates.length !== 1) return action;
+  const fields = parseOptionalCostClauseFields(m[2]);
+  if (!fields) return action;                                          // 表せない句は据置（誤変換より無変換）
+  const target = parseSigniTarget(m[1], 'opponent');
+  const outcome = (gates[0] as import('../types/effects').ConditionalAction).then;
+  return {
+    ...action,
+    steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+      // 「このシグニを場からトラッシュ」だけは既存の専用 STUB を使う（payload を持たない）。
+      (fields.id === 'OPTIONAL_TRASH_SELF'
+        ? { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' }
+        : { type: 'STUB', id: 'OPTIONAL_COST', ...fields }) as EffectAction,
+      {
+        type: 'CONDITIONAL',
+        condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: bindToStoredTarget(outcome, target),
+      } as EffectAction,
+    ],
+  } as SequenceAction;
 }
 
 /** 「コストの合計がN以下の対戦相手のアーツ」だけを sourceFilter.costMax へ配線する。 */
