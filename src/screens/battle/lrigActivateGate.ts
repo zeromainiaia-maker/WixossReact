@@ -5,6 +5,7 @@ import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
 import { isTrashImmuneByOpponent } from '../../engine/execUtils';
 import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { fieldTrashSelectableZones } from './fieldLimit';
+import { exceedColorsSatisfied, exceedPoolOf } from './costs';
 import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
 
 /**
@@ -92,6 +93,9 @@ export function canActivateLrigEffect(
   if ((eff.cost?.coin ?? 0) > (my.coins ?? 0)) return false;
   // エクシード＝ルリグトラッシュへ送れる下札が足りないと払えない。
   if ((eff.cost?.exceed ?? 0) > exceedPayableCount(my)) return false;
+  // 🆕**色指定**（`WX10-001`「エクシード１（白のカード）」）＝その色の下札が無ければ提示しない。
+  //   ⚠ラベル・可否ゲート・支払い実行の3地点セット（§4.2）。ここだけだと UI 迂回で踏み倒せる。
+  if (eff.cost?.exceedColors && !exceedColorsSatisfied(exceedPoolOf(my), eff.cost.exceedColors, cardMap)) return false;
   // lrigDown: アップ状態のルリグ（level 条件つき）が必要数いないと払えない（タスク12(cviii)）。
   if (eff.cost?.lrigDown && payLrigDownCost(my, eff.cost.lrigDown, cardMap) === null) return false;
   // 【起】《ダウン》＝このルリグが既にダウンしていると払えない（タスク12(cxxxi)）。

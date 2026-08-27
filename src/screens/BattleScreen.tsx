@@ -13549,7 +13549,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newAssistR  = [...(my.field.assist_lrig_r ?? [])];
       let newLrigTrash = [...my.lrig_trash];
       const exceedPaidCards: string[] = []; // ON_EXCEED_COSTトリガー用（ルリグトラッシュに置かれたカード）
-      if (exceedCost > 0) {
+      // 🆕**色指定つきエクシード**（`WX10-001`「エクシード１（白のカード）」＝§5.3 2026-08-27 Sheet1 B13）。
+      //   この経路は**下から機械的に**払う（選択UIが無い）ので、色指定があるときだけ
+      //   「その色を満たすカード」を先に選ぶ。⚠満たせないときは従来どおり下から払う
+      //   （ここに来る前に `canActivateLrigEffect` が提示を止めているので通常は到達しない）。
+      const exceedColorsLA = effect.cost?.exceedColors;
+      if (exceedCost > 0 && exceedColorsLA?.length) {
+        const poolLA = [...newLrig.slice(0, -1), ...newAssistL.slice(0, -1), ...newAssistR.slice(0, -1)];
+        const pickedLA: string[] = [];
+        const usedLA = new Set<number>();
+        for (const col of exceedColorsLA) {
+          const idx = poolLA.findIndex((cn, i) => !usedLA.has(i) && (battleCardMap.get(cn)?.Color ?? '').includes(col));
+          if (idx < 0) break;
+          usedLA.add(idx); pickedLA.push(poolLA[idx]);
+        }
+        // 色指定より枚数が多い場合は残りを下から補う。
+        for (let i = 0; i < poolLA.length && pickedLA.length < exceedCost; i++) {
+          if (!usedLA.has(i)) { usedLA.add(i); pickedLA.push(poolLA[i]); }
+        }
+        if (pickedLA.length === exceedCost) {
+          const pickedSetLA = new Set(pickedLA);
+          exceedPaidCards.push(...pickedLA);
+          newLrigTrash = [...newLrigTrash, ...pickedLA];
+          for (const arr of [newLrig, newAssistL, newAssistR]) {
+            for (let i = arr.length - 1; i >= 0; i--) if (pickedSetLA.has(arr[i])) arr.splice(i, 1);
+          }
+        }
+      }
+      if (exceedCost > 0 && exceedPaidCards.length === 0) {
         let remaining = exceedCost;
         const fromCenter = Math.min(remaining, newLrig.length - 1);
         if (fromCenter > 0) { const movedC = newLrig.splice(0, fromCenter); exceedPaidCards.push(...movedC); newLrigTrash = [...newLrigTrash, ...movedC]; remaining -= fromCenter; }
@@ -13948,7 +13975,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const hdSigniMA = eff.cost?.handDiscardSigni;
           const dgMA = eff.cost?.discardGroups;
           const costPartsMA: string[] = [];
-          if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}`);
+          if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}${eff.cost?.exceedColors?.length ? `（${eff.cost.exceedColors.join('と')}のカード）` : ''}`);
           if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
           if (eff.cost?.coin) costPartsMA.push(`コイン${eff.cost.coin}`);
           if (hdSigniMA) costPartsMA.push(`手札${fmtHandDiscardSigniLabel(hdSigniMA)}シグニ×${hdSigniMA.count}`);
@@ -14010,7 +14037,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
           const exceedCost = eff.cost?.exceed ?? 0;
           const costParts: string[] = [];
-          if (exceedCost > 0) costParts.push(`エクシード${exceedCost}`);
+          // 🆕色指定を出す（§4.2「ラベルに出ないコストはプレイヤーにも見えない」）。
+          if (exceedCost > 0) costParts.push(`エクシード${exceedCost}${eff.cost?.exceedColors?.length ? `（${eff.cost.exceedColors.join('と')}のカード）` : ''}`);
           if (energyTotal > 0) costParts.push(`エナ${energyTotal}`);
           if (eff.cost?.coin) costParts.push(`コイン${eff.cost.coin}`);
           if (eff.cost?.down_self) costParts.push('このルリグをダウン');   // タスク12(cxxxi)
@@ -14049,7 +14077,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
         const exceedCost = eff.cost?.exceed ?? 0;
         const parts: string[] = [];
-        if (exceedCost > 0) parts.push(`エクシード${exceedCost}`);
+        if (exceedCost > 0) parts.push(`エクシード${exceedCost}${eff.cost?.exceedColors?.length ? `（${eff.cost.exceedColors.join('と')}のカード）` : ''}`);
         if (energyTotal > 0) parts.push(`エナ${energyTotal}`);
         if (eff.cost?.discardAll) parts.push('手札すべて捨て');
         if (eff.cost?.energyTrashAll) parts.push('エナすべトラッシュ');

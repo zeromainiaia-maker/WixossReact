@@ -395,7 +395,9 @@ function costJa(c?: any): string {
   if (!c) return '';
   const parts: string[] = [];
   if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
-  if (c.exceed != null) parts.push(`エクシード${c.exceed}`);
+  // 🆕`exceedColors`（`WX10-001`「エクシード１（白のカード）」）＝描かないと色指定なしと同じ文になり、
+  //   engine は区別しているのに原文照合では見えない偽陰性になる。
+  if (c.exceed != null) parts.push(`エクシード${c.exceed}${c.exceedColors?.length ? `（${c.exceedColors.join('と')}のカード）` : ''}`);
   if (c.down_self) parts.push('《ダウン》');
   if (c.trash_self) parts.push('このシグニを場からトラッシュに置く');
   if (c.discard != null) {

@@ -98,7 +98,7 @@ export function trashActivateAutoCostShortfall(
   const charm = cost.charmTrash ?? 0;
   if (charm > 0 && charmTotal(my) < charm) return `場の【チャーム】が足りません（現在${charmTotal(my)}枚／必要${charm}枚）`;
   if (cost.lrigDown && payLrigDownCost(my, cost.lrigDown, cardMap) === null) return 'ダウンできるルリグが不足しています';
-  if (!canPayExceed(my, cost.exceed ?? 0)) return 'ルリグスタックが不足しています';
+  if (!canPayExceed(my, cost.exceed ?? 0, cost.exceedColors, cardMap)) return 'ルリグスタックが不足しています';
   return null;
 }
 
@@ -136,7 +136,7 @@ export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op:
     (cost.charmTrash ?? 0) > 0
       ? `【チャーム】${cost.charmTrash}枚トラッシュ（現在${charmTotal(my)}枚）` : null,
     cost.lrigDown ? fmtLrigDownCostLabel(cost.lrigDown) : null,
-    (cost.exceed ?? 0) > 0 ? `エクシード${cost.exceed}` : null,
+    (cost.exceed ?? 0) > 0 ? `エクシード${cost.exceed}${cost.exceedColors?.length ? `（${cost.exceedColors.join('と')}のカード）` : ''}` : null,
   ].filter((s): s is string => s !== null);
 }
 
@@ -277,7 +277,7 @@ export function payTrashActivateCost(
 
   const exceedNeeded = cost?.exceed ?? 0;
   if (exceedNeeded > 0) {
-    const exceeded = paySelectedExceed(paid, exceedNeeded, selections.exceed);
+    const exceeded = paySelectedExceed(paid, exceedNeeded, selections.exceed, cost?.exceedColors, cardMap);
     if (!exceeded) return null;
     paid = exceeded;
   }
