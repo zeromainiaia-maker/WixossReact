@@ -534,14 +534,18 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   else if (costStr.includes('【ウィルス】１つを取り除く') || costStr.includes('【ウィルス】１個を取り除く')) cost.removeOppVirus = 1;
   // 手札から[OR指定]シグニをN枚捨てる → handDiscardSigni (合計N枚も対応)
   const hdsOr = costStr.match(/手札から((?:＜[^＞]+＞か)+＜[^＞]+＞)のシグニを(?:合計)?([０-９\d]+)枚捨てる/);
-  const hdsSimple = !hdsOr ? costStr.match(/手札から(?:([白赤青緑黒])の)?(?:(?:それぞれ名前の異なる)?＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/) : null;
+  // 🆕§5.3 `O-108`（2026-08-28）＝**「それぞれ名前の異なる」を捨てずに捕る**。
+  //   旧 regex は非捕獲グループで飲み込んでいたので、`WX10-052-E3`「手札からそれぞれ名前の異なる＜精元＞の
+  //   シグニを４枚捨てる」が **同名4枚でも払える**（原文より軽い踏み倒し）状態だった。
+  const hdsSimple = !hdsOr ? costStr.match(/手札から(?:([白赤青緑黒])の)?(?:(それぞれ名前の異なる)?＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/) : null;
   if (hdsOr) {
     const stories = [...hdsOr[1].matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
     cost.handDiscardSigni = { story: stories, count: parseNum(hdsOr[2]) };
   } else if (hdsSimple) {
-    const hdsObj: NonNullable<EffectCost['handDiscardSigni']> = { count: parseNum(hdsSimple[3]) };
+    const hdsObj: NonNullable<EffectCost['handDiscardSigni']> = { count: parseNum(hdsSimple[4]) };
     if (hdsSimple[1]) hdsObj.color = hdsSimple[1];
-    if (hdsSimple[2]) hdsObj.story = hdsSimple[2];
+    if (hdsSimple[3]) hdsObj.story = hdsSimple[3];
+    if (hdsSimple[2]) hdsObj.selectionConstraint = { distinct: 'name' };
     cost.handDiscardSigni = hdsObj;
   }
   // このシグニを場からトラッシュに置く（単独、または「このシグニと《XXX》」形式）→ trash_self

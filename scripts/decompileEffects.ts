@@ -463,7 +463,9 @@ function costJa(c?: any): string {
       parts.push(c.discardFilter ? `手札から${filterJa(c.discardFilter)}${noun}${c.discard}枚を捨てる` : `手札${c.discard}枚を捨てる`);
     }
   }
-  if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
+  // 🆕§5.3 `O-108`＝`selectionConstraint`（「それぞれ名前の異なる」）を描く。描かないと制約なしと同じ文になり、
+  //   engine は区別しているのに原文照合では見えない偽陰性になる（`exceedColors` と同じ理由）。
+  if (c.handDiscardSigni) parts.push(`手札から${constraintJa(c.handDiscardSigni.selectionConstraint)}${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.handToEnergy) parts.push(`手札から${filterJa(c.handToEnergy.filter)}シグニ${c.handToEnergy.count}枚をエナゾーンに置く`);
   if (c.handToUnderSelf) parts.push(`手札から${constraintJa(c.handToUnderSelf.selectionConstraint)}${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
   // ⚠`filterJa` は cardType を描かない（呼び出し側が名詞を足す規約）。ここが名詞を落としていたため

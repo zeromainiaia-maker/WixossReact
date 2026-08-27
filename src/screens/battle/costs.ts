@@ -91,6 +91,59 @@ export function canAddEnergyTrashIndex(
   return canAddToSelection(energyTrashSelectedNums(energy, selected), num, spec.selectionConstraint, cardMap);
 }
 
+/**
+ * §5.3 `O-108`：`handDiscardSigni` コストの選択が**集合制約**（「それぞれ名前の異なる」）まで満たすか。
+ * ⚠**可否ゲート（`signiActivateGate`）と支払いUI（各モーダル）が同じ関数を通る**ようにしてある。
+ *   写経すると「提示は絞られるのに支払いは通る」片肺になる（`energyTrash` 側と同じ規律）。
+ */
+export function handDiscardSigniCostSatisfied(
+  hand: string[],
+  selected: Set<number>,
+  spec: NonNullable<import('../../types/effects').EffectCost['handDiscardSigni']> | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec) return true;
+  if (selected.size < spec.count) return false;
+  const nums = [...selected].map(i => hand[i]).filter((n): n is string => n !== undefined);
+  return satisfiesSelectionConstraint(nums, spec.selectionConstraint, cardMap);
+}
+
+/** 手札の index を1枚**追加できるか**（タップした瞬間のガード）。制約を壊す組み合わせは選ばせない。 */
+export function canAddHandDiscardSigniIndex(
+  hand: string[],
+  selected: Set<number>,
+  index: number,
+  spec: NonNullable<import('../../types/effects').EffectCost['handDiscardSigni']> | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec) return false;
+  if (selected.has(index)) return true;                    // 解除は常に可
+  if (selected.size >= spec.count) return false;
+  const num = hand[index];
+  if (num === undefined) return false;
+  if (!matchesHandDiscardSigni(cardMap.get(getCardNum(num)), spec)) return false;
+  const nums = [...selected].map(i => hand[i]).filter((n): n is string => n !== undefined);
+  return canAddToSelection(nums, num, spec.selectionConstraint, cardMap);
+}
+
+/**
+ * 可否ゲート用＝手札に**制約を満たす組み合わせ**が存在するか。
+ * 「それぞれ名前の異なる」は**異なる名前の枚数**で数える（同名を重複して数えない＝fail-closed）。
+ */
+export function handDiscardSigniAffordable(
+  hand: string[],
+  spec: NonNullable<import('../../types/effects').EffectCost['handDiscardSigni']> | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec) return true;
+  const cands = hand.filter(n => matchesHandDiscardSigni(cardMap.get(getCardNum(n)), spec));
+  if (spec.selectionConstraint?.distinct === 'name') {
+    const names = new Set(cands.map(n => cardMap.get(getCardNum(n))?.CardName).filter(Boolean));
+    return names.size >= spec.count;
+  }
+  return cands.length >= spec.count;
+}
+
 /** エクシードで選べる「各ルリグの一番上を除いたカード」。placedState 基準で呼ぶ。 */
 export function exceedPoolOf(state: PlayerState): string[] {
   return [

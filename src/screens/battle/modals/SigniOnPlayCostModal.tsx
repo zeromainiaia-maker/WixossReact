@@ -7,7 +7,7 @@ import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashS
 import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, matchesHandDiscardSigni } from '../costs';
+import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
@@ -78,7 +78,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const handFilter = eff.cost?.discardFilter ?? eff.cost?.handToEnergy?.filter ?? eff.cost?.handToUnderSelf?.filter;
               const selectedHandCards = [...selectedSigniOnPlayDiscard].map(i => battleCardMap.get(getCardNum(pState.hand[i])));
               const discardGroupsOk = !discardGroups || canSatisfyDiscardGroups(selectedHandCards, discardGroups);
-              const handDiscardSigniOk = !handDiscardSigni || selectedHandCards.every(c => matchesHandDiscardSigni(c, handDiscardSigni));
+              // 🆕§5.3 `O-108`＝中身（色/クラス/レベル）に加えて**集合制約**（「それぞれ名前の異なる」）も見る。
+              const handDiscardSigniOk = !handDiscardSigni
+                || (selectedHandCards.every(c => matchesHandDiscardSigni(c, handDiscardSigni))
+                    && handDiscardSigniCostSatisfied(pState.hand, selectedSigniOnPlayDiscard, handDiscardSigni, battleCardMap));
               const handCostLabel = handToEnergyNeeded > 0 ? 'エナゾーンに置く' : handToUnderNeeded > 0 ? 'このシグニの下に置く' : '捨てる';
               const coinNeeded = eff.cost?.coin ?? 0;
               const exceedNeeded = eff.cost?.exceed ?? 0;

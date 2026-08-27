@@ -56,7 +56,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../src/screens/battle/costs';
+import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -50488,6 +50488,52 @@ test('Sheet1 B11: `same:\'level\'` 評価器の3点セット（成立／不成�
     'same:level: 違うレベルは不成立');
   ok(!satisfiesSelectionConstraint(two(a, '__NO_SUCH_CARD__'), sameLv, cardMap as Map<string, CardData>),
     'same:level: レベルが引けないカードが混ざったら**不成立**（fail-closed＝制約が消えて過剰実行に倒れない）');
+}));
+
+test('§5.3 O-108: コスト側の「それぞれ名前の異なる」（可否ゲートと支払いUIが同じ関数を通る）', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX10-052') ?? []).find(x => x.effectId === 'WX10-052-E3')!;
+  const hd = e.cost?.handDiscardSigni;
+  eq(JSON.stringify(hd?.selectionConstraint), '{"distinct":"name"}',
+    '🔴旧 live はコスト側に制約が無く、同名4枚でも払えていた（原文より軽い踏み倒し）');
+  eq(hd?.count, 4, '4枚'); eq(hd?.story, '精元', '＜精元＞限定');
+
+  // ＜精元＞のシグニを名前違い／同名で用意して、可否ゲートと支払い判定の両方を正負で見る。
+  const seigen = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('精元'));
+  ok(seigen.length >= 4, '＜精元＞のシグニが4種類以上ある（fixture 前提）');
+  const distinct4 = seigen.slice(0, 4).map(c => c.CardNum);
+  const same4 = Array.from({ length: 4 }, () => seigen[0].CardNum);
+  const cm = cardMap as Map<string, CardData>;
+
+  // ① 可否ゲート用＝手札に「異なる名前が4つ」あるか。
+  eq(handDiscardSigniAffordable(distinct4, hd, cm), true, '名前が4種類＝払える');
+  eq(handDiscardSigniAffordable(same4, hd, cm), false,
+    '🔴同名4枚では払えない（旧＝素の枚数比較だったので提示されていた）');
+  eq(handDiscardSigniAffordable([...seigen.slice(0, 3).map(c => c.CardNum), seigen[0].CardNum], hd, cm), false,
+    '🔴異なる名前が3つしか無ければ払えない（境界の下側）');
+
+  // ② 支払いUI用＝選んだ集合が制約を満たすか。
+  const all4 = new Set([0, 1, 2, 3]);
+  eq(handDiscardSigniCostSatisfied(distinct4, all4, hd, cm), true, '名前違い4枚の選択＝確定できる');
+  eq(handDiscardSigniCostSatisfied(same4, all4, hd, cm), false, '🔴同名4枚の選択＝確定できない');
+  eq(handDiscardSigniCostSatisfied(distinct4, new Set([0, 1, 2]), hd, cm), false, '3枚では確定できない');
+
+  // ③ タップ時ガード＝制約を壊す組み合わせは選ばせない（選んでから赤くしない）。
+  const dupHand = [seigen[0].CardNum, seigen[0].CardNum, seigen[1].CardNum];
+  eq(canAddHandDiscardSigniIndex(dupHand, new Set([0]), 1, hd, cm), false,
+    '🔴同名の2枚目は選べない');
+  eq(canAddHandDiscardSigniIndex(dupHand, new Set([0]), 2, hd, cm), true, '別名なら選べる');
+  eq(canAddHandDiscardSigniIndex(dupHand, new Set([0]), 0, hd, cm), true, '選択済みの解除は常に可');
+  // 制約が無いコストでは従来どおり同名を重ねられる（対照＝制約を全域へ広げていないこと）。
+  const noConstraint = { count: 2, story: '精元' } as NonNullable<typeof hd>;
+  eq(canAddHandDiscardSigniIndex(dupHand, new Set([0]), 1, noConstraint, cm), true,
+    '制約なしのコストは同名でも選べる（他の効果へ波及していない）');
+
+  // ④ トリップワイヤ＝`trashActivateCost` はまだ集合制約を運ばない。
+  //    live に「trashActivated ＋ 制約つき handDiscardSigni」の組み合わせが現れたらここで気付く。
+  const leaked = [...effectsMap.values()].flat().filter(x =>
+    x.trashActivated && x.cost?.handDiscardSigni?.selectionConstraint);
+  eq(leaked.length, 0,
+    '🔴trashActivated 経路は集合制約を運ばない＝該当効果が現れたら trashActivateCost も直すこと');
 }));
 
 test('§5.3 O-122: 「出現条件で同じ名前のシグニN体を…していた場合」（両評価器・正負両方向）', () => withSavedCursor(() => {

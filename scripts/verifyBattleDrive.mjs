@@ -17,6 +17,70 @@ const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 
 /**
+ * §5.3 `O-108` の実機ドライバ（positive / negative で共有）。
+ * シグニの【起】を開き、手札の＜精元＞4枚を選んで確定できるかを見る。
+ * 観測点は **相手の白シグニが場から消えるか**（本体＝無色ではないすべてのシグニをトラッシュ）。
+ * ⚠**negative は「撃てない」＝何も起きない**ので、**モーダルまで到達したこと**を前提条件として確かめる。
+ */
+async function driveB18(page, H, expectFire) {
+  const tag = expectFire ? 'b18distinctok' : 'b18distinctsame';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} guest正面=${JSON.stringify(st0?.guest?.fieldSigni?.[0])}`);
+  let opened = false, actClicked = false;
+  const picked = new Set();
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    if (!opened) {
+      const o = await H.clickTestId('my-signi-zone-0');
+      if (o) { did = o; opened = true; }
+    }
+    // ⚠**まず【起】そのものを選ぶ**（モーダルを開いただけでは支払いUIが出ない＝初回これで空振りした）。
+    if (!did && opened && !actClicked) {
+      const lbl = page.locator('[data-action-label]').first();
+      if (await lbl.count() && await lbl.isVisible().catch(() => false)) {
+        await lbl.click().catch(() => {}); actClicked = true; did = 'act-label';
+      }
+    }
+    if (!did && actClicked) {
+      // 手札の＜精元＞を順にタップ。⚠**制約を壊す組み合わせはそもそも選べない**のが新挙動。
+      for (let i = 0; i < 4 && !did; i++) {
+        if (picked.has(i)) continue;
+        const c = page.getByTestId(`signiact-discard-${i}`).first();
+        if (await c.count() && await c.isVisible().catch(() => false)) {
+          await c.click().catch(() => {}); picked.add(i); did = `tid:signiact-discard-${i}`;
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const front = st?.guest?.fieldSigni?.[0];
+    const fired = !(Array.isArray(front) && front.some(n => String(n).startsWith('WD01-013#9')));
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 選択=${[...picked]} guest正面=${JSON.stringify(front)} fired=${fired} hand=${st?.host?.hand ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (fired) {
+      return expectFire
+        ? { pass: true, detail: `名前違い4枚で払えて本体が走った（相手の白シグニが消えた）` }
+        : { pass: false, detail: `🔴旧挙動＝同名4枚で払えて撃ててしまった` };
+    }
+    // negative の正解は2通りある＝①**そもそも【起】が提示されない**（可否ゲートが弾く＝いまの挙動）
+    //   ②提示はされるが確定できない。どちらでも「本体が走らない」ことが観測できればよい。
+    if (!expectFire && opened && s > 10) {
+      return {
+        pass: true,
+        detail: actClicked
+          ? `同名4枚では確定できず本体が走らない（選択できたのは ${picked.size} 枚）`
+          : `同名4枚では【起】が提示されない（可否ゲートが弾いた）＝相手の白シグニは残る`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  if (!opened) return { pass: false, detail: `【起】モーダルへ到達できなかった＝前提が崩れている` };
+  return { pass: false, detail: `判定に至らず（guest正面=${JSON.stringify(fin?.guest?.fieldSigni?.[0])}）` };
+}
+
+/**
  * §5.3 `O-122` の実機ドライバ（positive / negative で共有）。
  * ルリグデッキ →【出現条件】で召喚 → 場の白シグニ2体を支払い → 空きゾーンへ配置。
  * 観測点は **`host.energy` の増減**（【出】が「デッキの上から2枚エナゾーンに置く」ため）。
@@ -2204,6 +2268,50 @@ const scenarios = {
         detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
       };
     },
+  },
+
+  // ── B18（2026-08-28）＝§5.3 `O-108`（コスト側の「それぞれ名前の異なる」）の実機観測点 ──
+  //   🔴**判別力があるのは negative 側**（`b18distinctsame`）＝制約が無いと同名4枚でも払えて撃ててしまう。
+  b18distinctok: {
+    title: 'WX10-052 サーバントY（手札が名前違い4枚＝【起】を撃てる／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX10-052#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // 【起】手札から**それぞれ名前の異なる**＜精元＞のシグニを4枚捨てる：無色ではないすべてのシグニをトラッシュ。
+        'hand': ['WD01-016#1', 'WD01-017#1', 'WD04-016#1', 'WD04-017#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [['WD01-013#9'], null, null],   // 白（＝無色ではない）＝効果で流れる観測点
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB18(page, H, true); },
+  },
+
+  b18distinctsame: {
+    title: 'WX10-052 サーバントY（🔴同名4枚では撃てない／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX10-052#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // 🔴**同名4枚**＝原文の「それぞれ名前の異なる」を満たさない。旧挙動＝これで払えて撃てていた。
+        'hand': ['WD01-016#1', 'WD01-016#2', 'WD01-016#3', 'WD01-016#4'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [['WD01-013#9'], null, null],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB18(page, H, false); },
   },
 
   // ── B17（2026-08-28）＝§5.3 `O-122`（出現条件で支払ったカードの記録）の実機観測点 ──

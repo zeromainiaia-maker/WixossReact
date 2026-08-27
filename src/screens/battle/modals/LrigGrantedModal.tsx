@@ -6,7 +6,7 @@ import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { getCardNum } from '../../../engine/effectExecutor';
@@ -75,7 +75,8 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                 : lgGroups
                   ? (selectedLrigGrantedHandDiscard.size === lgDiscardTotal &&
                      canSatisfyDiscardGroups([...selectedLrigGrantedHandDiscard].map(i => battleCardMap.get(my.hand[i])), lgGroups))
-                  : (!hdSigniCost || selectedLrigGrantedHandDiscard.size >= hdSigniCost.count);
+                  // 🆕§5.3 `O-108`＝**集合制約**（「それぞれ名前の異なる」）まで見る。可否ゲート／シグニ【起】と同じ関数。
+                  : (!hdSigniCost || handDiscardSigniCostSatisfied(my.hand, selectedLrigGrantedHandDiscard, hdSigniCost, battleCardMap));
               const charmTrashNLrigM = eff.cost?.charmTrash ?? 0;
               const charmOkLrig = charmTrashNLrigM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNLrigM;
               const virusNeededLrig = eff.cost?.removeOppVirus ?? 0;
@@ -217,7 +218,9 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                             isValidTarget = lgGroups.some(g => matchesFilter(c, g.filter));
                           } else {
                             // ⚠ 判定は costs.ts の共有関数だけを使う（写経すると `level` 指定が片方で落ちる）
-                            isValidTarget = matchesHandDiscardSigni(c, hdSigniCost!);
+                            // 🆕§5.3 `O-108`＝制約を壊す組み合わせは選ばせない。
+                            isValidTarget = canAddHandDiscardSigniIndex(
+                              my.hand, selectedLrigGrantedHandDiscard, i, hdSigniCost!, battleCardMap);
                           }
                           const isSel = selectedLrigGrantedHandDiscard.has(i);
                           if (!isValidTarget && !isSel) return null;

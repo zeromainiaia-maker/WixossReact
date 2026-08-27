@@ -6,7 +6,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
@@ -105,7 +105,9 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                     : selectedSigniActivatedDiscard.size >= discardNeeded
                       // `handDiscardSigni` は**枚数だけでなく中身**（色／クラス／レベル）も条件。
                       && (!actHandDiscardSigni || [...selectedSigniActivatedDiscard]
-                        .every(i => matchesHandDiscardSigni(battleCardMap.get(getCardNum(my.hand[i])), actHandDiscardSigni)));
+                        .every(i => matchesHandDiscardSigni(battleCardMap.get(getCardNum(my.hand[i])), actHandDiscardSigni)))
+                      // 🆕§5.3 `O-108`＝**集合制約**（「それぞれ名前の異なる」）。可否ゲートと同じ関数を通す。
+                      && handDiscardSigniCostSatisfied(my.hand, selectedSigniActivatedDiscard, actHandDiscardSigni, battleCardMap);
               // 《コインアイコン》コスト（リル//メモリア等の【起】コイン）
               const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
               const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
@@ -413,7 +415,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                           const matchesActDiscard = actDiscardGroups
                             ? actDiscardGroups.some(g => matchesFilter(c, g.filter))
                             : actHandDiscardSigni
-                              ? matchesHandDiscardSigni(c, actHandDiscardSigni)
+                              // 🆕§5.3 `O-108`＝**制約を壊す組み合わせは選ばせない**（選んでから赤くしない）。
+                              ? canAddHandDiscardSigniIndex(my.hand, selectedSigniActivatedDiscard, i, actHandDiscardSigni, battleCardMap)
                               : (!actDiscardFilter || matchesFilter(c, actDiscardFilter));
                           return (
                             // 🆕実機ドライバ用の testid（§5.3 `O-46`）。⚠**値はインスタンスIDではなく手札 index**＝

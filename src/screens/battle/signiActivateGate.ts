@@ -3,10 +3,10 @@ import type { CardEffect, StubAction } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectInfectedActivateBlockedSigni, isKizunaActive } from '../../engine/effectEngine';
 import { evalUseCondition, getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { countAcce } from '../../utils/acce';
-import { matchesHandDiscardSigni } from './costs';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
+import { handDiscardSigniAffordable } from './costs';
 
 /**
  * 場のシグニ【起】が**いま撃てるか**（提示の可否）を1か所で判定する純関数。
@@ -123,9 +123,9 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     // 🆕`handDiscardSigni`＝**中身の条件つき**手札捨てコスト（§5.3 `O-46`）。枚数だけでなく
     //   **色／＜クラス＞／レベルに合致する札**が必要数なければ支払えない（`WX21-043-E2` の＜毒牙＞等）。
     //   ⚠支払いUI（`SigniActivatedModal`）と**同じ判定関数**を使う＝写経すると片側だけ穴が空く。
-    !(e.cost?.handDiscardSigni && my.hand.filter(
-      n => matchesHandDiscardSigni(cardMap.get(getCardNum(n)), e.cost!.handDiscardSigni!),
-    ).length < e.cost.handDiscardSigni.count) &&
+    // 🆕§5.3 `O-108`＝「それぞれ名前の異なる」まで見る判定へ寄せた（`handDiscardSigniAffordable` の1本）。
+    //   旧＝素の枚数比較だったので**同名4枚しか無くても提示**され、支払いも通っていた。
+    !(e.cost?.handDiscardSigni && !handDiscardSigniAffordable(my.hand, e.cost.handDiscardSigni, cardMap)) &&
     !(e.cost?.underSelfTrash && !canPayUnderSelfTrash(
       my, zoneIndex, e.cost.underSelfTrash.count, cardMap,
       e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,

@@ -588,7 +588,14 @@ export interface EffectCost {
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可
   energyTrash?: { count: number; atLeast?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // エナゾーンから指定カードN枚をトラッシュ（atLeast=true はN枚以上）
   energyTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタのエナカードを組で指定
-  handDiscardSigni?: { color?: string | string[]; story?: string | string[]; count: number; level?: number }; // 手札から指定色/＜クラス＞のシグニをN枚トラッシュ（ルリグ【起】用）。配列はOR条件（「＜鉱石＞か＜宝石＞」等）
+  /**
+   * 手札から指定色/＜クラス＞のシグニをN枚トラッシュ（ルリグ【起】用）。配列はOR条件（「＜鉱石＞か＜宝石＞」等）。
+   * 🆕`selectionConstraint`（§5.3 `O-108`・`WX10-052-E3`「**それぞれ名前の異なる**＜精元＞のシグニを４枚捨てる」）＝
+   *   **エナ側（`energyTrash`）には最初から在った**のにコスト側のここだけ無く、**同名4枚でも払えていた**（原文より軽い踏み倒し）。
+   *   ⚠**判定は `handDiscardSigniCostSatisfied` / `canAddHandDiscardSigniIndex` の2本に集約する**＝
+   *     可否ゲートと支払いUIで写経すると片側だけ穴が空く。
+   */
+  handDiscardSigni?: { color?: string | string[]; story?: string | string[]; count: number; level?: number; selectionConstraint?: SelectionConstraint };
   banish_self?: boolean;  // 自身をバニッシュ
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ（【出】コスト支払いではバースト不発の近似でトラッシュへ）
   down_self?: boolean;    // 自身をダウン
