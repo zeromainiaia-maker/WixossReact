@@ -3778,6 +3778,7 @@ export function collectOppLifeCrashedTriggers(
     for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
       if (!oppLifeCrashSourceMatches(eff, watcher, crashSourceCardNum, ctx.cardMap)) continue;
+      if (!crashCauseMatches(eff, crashCause)) continue;   // §5.3 O-120（fail-closed）
       if (!limitOk(eff)) continue;
       entries.push({ id: ctx.genId(), playerId: crasherId, cardNum: watcher, effectId: eff.effectId,
         label: `${ctx.cardMap.get(watcher)?.CardName ?? watcher}【自】相手ライフクラッシュ時`, effect: eff,
