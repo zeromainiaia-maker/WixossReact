@@ -1969,6 +1969,93 @@ const scenarios = {
   //      **guest.deck が1枚減り host.deck は不変**なら新挙動、逆なら旧挙動と機械判定できる。
   //    ⚠JSON 契約（golden `Sheet1 B10`）だけでは守れない層＝`destOwner` を UI 側が読み違えると
   //      「相手のデッキから抜いて自分のデッキへ戻す」になり、JSON は正しいまま盤面が壊れる。
+  // ⑮‴ Sheet1 B11（2026-08-27）: `WX10-029` 極剣　ロクケイ
+  //    原文は【常】表記だが本文は「**このシグニがアタックしたとき、**パワーがこのシグニのパワーの半分以下の
+  //    対戦相手のシグニ１体を対象とし、それを手札に戻す。」＝**トリガー能力**。
+  //    🔴live は `effectType:'CONTINUOUS'` のままで、`BOUNCE` が**常在効果として毎回評価**されていた＝
+  //      アタックしていなくても（＝場に出た瞬間から）相手シグニを手札に戻し続ける過剰実行。
+  //    🔑実機の観測点＝**アタックする前に相手の場が減らないこと**と、**アタック後に減ること**の2点。
+  //      JSON 契約（golden `Sheet1 B11`）は `effectType`/`timing` しか見ないので、
+  //      「常在として毎ティック走っていないか」は実機でしか確かめられない。
+  b11attacktrigger: {
+    title: 'WX10-029（【常】表記だが「アタックしたとき」＝AUTO。常在バウンスにしない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WX10-029#1'], null, null],   // 攻撃者（極剣 ロクケイ・表記P10000）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        // 正面（host zone0 の向かい＝guest zone2）に**パワーが半分以下**のシグニを置く
+        //   （`WD01-013` 小剣 ククリ P3000 ≦ 10000/2）。⚠正面が空だとルリグへのダイレクトアタックになり
+        //   ガード応答待ちでアタックが進まない（`oppdecktop` で実測した罠）。
+        'field.signi': [null, null, ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[0] ?? []).includes?.('WX10-029#1'); r++) {
+        H.log(`再注入(${r})… host zone0=${JSON.stringify(before?.host?.fieldSigni?.[0])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      const gHand0 = before?.guest?.hand ?? -1;
+      const hasFront = (st) => Array.isArray(st?.guest?.fieldSigni?.[2]) && st.guest.fieldSigni[2].includes('WD01-013#1');
+      H.log(`開始時 guest.hand=${gHand0} 正面=${JSON.stringify(before?.guest?.fieldSigni?.[2])}`);
+      // 🔴**まず「アタック前に戻っていない」ことを確かめる**（旧＝常在なのでこの時点で既に消えているはず）。
+      if (!hasFront(before)) {
+        return { pass: false, detail: `旧挙動＝アタック前に正面シグニが既に手札へ戻っている（常在 BOUNCE が走った）` };
+      }
+      let attacked = false;
+      let modalOpened = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/b11attacktrigger-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (!attacked && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI'
+            && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; attacked = true;
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+        const st = await H.queryState();
+        H.log(`  b11atk[${s}] -> ${did ?? 'なし'} | attacked=${attacked} 正面=${JSON.stringify(st?.guest?.fieldSigni?.[2])} gHand=${gHand0}→${st?.guest?.hand ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        // ✅新挙動＝**アタック宣言の後に**正面が消えて相手の手札が1枚増える（＝手札に戻った）。
+        if (attacked && !hasFront(st) && (st?.guest?.hand ?? -1) > gHand0) {
+          return { pass: true, detail: `アタック時トリガーとして発火＝正面シグニが手札へ戻った（guest.hand ${gHand0}→${st.guest.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `バウンス未確認（正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} gHand ${gHand0}→${fin?.guest?.hand ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   oppdecktop: {
     title: 'WX10-071（アタック時に「対戦相手の」デッキの一番上を見る＝自分のデッキではない）',
     spec: {

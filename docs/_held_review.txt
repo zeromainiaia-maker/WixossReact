@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［70枚］
-PR-Di017B WD07-006 WD15-001 WDK16-13 WX02-034 WX05-023 WX05-025 WX06-013 WX07-029 WX09-Re05 WX10-062 WX10-071 WX11-002 WX11-018 WX11-039 WX12-Re10 WX13-031 WX13-035 WX13-073 WX14-069 WX14-072 WX17-009 WX19-038 WX19-061 WX19-063 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK06-030 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
+## （type増減なし＝値/構造変更） ［61枚］
+PR-Di017B WD07-006 WD15-001 WDK16-13 WX05-023 WX05-025 WX06-028 WX07-029 WX10-029 WX11-039 WX12-Re10 WX13-031 WX13-073 WX14-069 WX14-072 WX17-009 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-007 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -46,44 +46,59 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
 
-## +LIFE_CRASH +SEQUENCE ［1枚］
-WX08-024
---- WX08-024
-  原文: 《クロスアイコン》《羅石　ムンスト》の右【クロス常】：このシグニの基本パワーは15000になる。【起】手札から＜鉱石＞か＜宝石＞のシグニを合計３枚捨てる：あなたと対戦相手のライフクロス１枚をクラッシュする。【クロス自】：このシグニが《ヘブン》したとき、ターン終了時まで、このシグニは【アサシン】を得る。,：対戦相手のシグニのうち、最も小さいパワーを持つシグニ１
-  - [1].action.owner = "opponent"
-  - [1].action.count = 1
-  - [1].action.triggerBurst = true
-  ~ [1].action.type : "LIFE_CRASH" → "SEQUENCE"
-  + [1].action.steps[0].type = "LIFE_CRASH"
-  + [1].action.steps[0].owner = "self"
-  + [1].action.steps[0].count = 1
-  + [1].action.steps[0].triggerBurst = true
-  + [1].action.steps[1].type = "LIFE_CRASH"
-  + [1].action.steps[1].owner = "opponent"
-  + [1].action.steps[1].count = 1
-  + [1].action.steps[1].triggerBurst = true
+## +SEQUENCE +SIGNI×2 +STUB×2 +TRASH ［1枚］
+WX06-001
+--- WX06-001
+  原文: 【常】：あなたの＜天使＞のシグニのパワーを＋1000する。【起】《ターン１回》《白×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから＜天使＞のシグニ７枚をデッキの一番下に置く。そうした場合、それをバニッシュし、デッキをシャッフルする。【起】《ターン１回》《白×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから名前の異なる＜天使＞のシグニ
+  - [2].action.steps[0].source.type = "TRASH_CARD"
+  - [2].action.steps[0].source.owner = "self"
+  - [2].action.steps[0].source.count = 7
+  - [2].action.steps[0].source.filter.cardType = "シグニ"
+  - [2].action.steps[0].source.filter.story = "天使"
+  - [2].action.steps[0].source.selectionConstraint.distinct = "name"
+  - [2].action.steps[0].shuffle = false
+  - [2].action.steps[0].position = "bottom"
+  - [2].action.steps[1].condition.type = "IS_MY_TURN"
+  - [2].action.steps[1].then.type = "SHUFFLE_DECK"
+  - [2].action.steps[1].then.owner = "self"
+  ~ [2].action.steps[0].type : "TRANSFER_TO_DECK" → "STUB"
+  …（他 27 行）
 
-## +HAND_CARD +SEQUENCE +TRASH ［1枚］
-WX09-Re15
---- WX09-Re15
-  原文: 手札を好きな枚数捨て、捨てた枚数に１を加えた枚数のカードを引く。,：カードを２枚捨て、カードを３枚引く。
-  - [1].action.owner = "self"
-  - [1].action.count = 3
-  ~ [1].action.type : "DRAW" → "SEQUENCE"
-  + [1].action.steps[0].type = "TRASH"
-  + [1].action.steps[0].target.type = "HAND_CARD"
-  + [1].action.steps[0].target.owner = "self"
-  + [1].action.steps[0].target.count = 2
-  + [1].action.steps[1].type = "DRAW"
-  + [1].action.steps[1].owner = "self"
-  + [1].action.steps[1].count = 3
+## +SIGNI +STUB×2 ［1枚］
+WX09-015
+--- WX09-015
+  原文: 【自】：このシグニがアタックしたとき、このシグニの正面のシグニ１体を対象とし、カード名に《剣》を含むあなたのアップ状態のシグニ１体をバニッシュしてもよい。そうした場合、それを手札に戻す。【出】《白》：あなたのデッキからカード名に《剣》を含むシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,：あなたのデッキから白のカード１枚を探して公開し手札に加え
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.cardName = "剣"
+  - [0].action.steps[0].target.filter.isUp = true
+  - [0].action.steps[0].target.upToCount = false
+  - [0].action.steps[0].optional = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BOUNCE"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  …（他 33 行）
 
-## +EXILE×2 -TRASH×2 ［1枚］
-WX11-052
---- WX11-052
-  原文: 【常】：【マルチエナ】【出】《無》《無》《無》：あなたのデッキから《サーバント　Ｘ》１枚と《サーバント　Ｙ》１枚を探して場に出し、デッキをシャッフルする。【起】エナゾーンから名前の異なる＜精元＞のシグニ８枚をトラッシュに置く：対戦相手の手札とエナゾーンにあるすべてのカードをゲームから除外する。,-
-  ~ [2].action.steps[0].type : "TRASH" → "EXILE"
-  ~ [2].action.steps[1].type : "TRASH" → "EXILE"
+## +LOOK_AND_REORDER +SEQUENCE ［1枚］
+WX11-018
+--- WX11-018
+  原文: 【チェイン】《青》《黒》以下の４つから２つまで選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。②あなたのトラッシュから無色ではないシグニ１枚を対象とし、それを手札に加える。③対戦相手の手札と、対戦相手のデッキの一番上を見る。④カードを２枚引き、手札を１枚捨てる。,-
+  - [0].action.steps[1].choices[2].action.source.location = "deck"
+  - [0].action.steps[1].choices[2].action.source.owner = "opponent"
+  - [0].action.steps[1].choices[2].action.count = 1
+  - [0].action.steps[1].choices[2].action.private = true
+  - [0].action.steps[1].choices[2].action.reorder = false
+  - [0].action.steps[1].choices[2].action.destination.location = "deck"
+  - [0].action.steps[1].choices[2].action.destination.owner = "opponent"
+  - [0].action.steps[1].choices[2].action.destination.position = "top"
+  ~ [0].action.steps[1].choices[2].action.type : "LOOK_AND_REORDER" → "SEQUENCE"
+  + [0].action.steps[1].choices[2].action.steps[0].type = "LOOK_AND_REORDER"
+  + [0].action.steps[1].choices[2].action.steps[0].source.location = "hand"
+  + [0].action.steps[1].choices[2].action.steps[0].source.owner = "opponent"
+  …（他 15 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -180,6 +195,17 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 21 行）
+
+## +REARRANGE_SIGNI +SIGNI -STUB ［1枚］
+WXEX2-04
+--- WXEX2-04
+  原文: 【自】《ターン１回》：シグニ１体がアタックしたとき、あなたのすべてのシグニを、好きなように配置し直してもよい。【起】《ターン１回》《白》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから＜迷宮＞のシグニ１枚をデッキの一番下に置く。そうした場合、それをデッキの一番下に置く。【起】《メインフェイズアイコン》《アタックフェイズアイコン》エクシード１：シグニゾ
+  - [0].action.id = "SIGNI_REPOSITION"
+  ~ [0].action.type : "STUB" → "REARRANGE_SIGNI"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = "ALL"
+  + [0].action.optional = true
 
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［1枚］
 WXEX2-09
@@ -374,6 +400,22 @@ WXK06-028
   + [0].action.source.upToCount = true
   + [0].action.shuffle = false
   + [0].action.position = "top"
+
+## +SEQUENCE +SIGNI +TRASH ［1枚］
+WXK06-030
+--- WXK06-030
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニゾーンからカード１枚を対象とし、あなたのデッキの上から＜龍獣＞のシグニが８枚トラッシュに置かれるまでカードをトラッシュに置く。この方法で＜龍獣＞のシグニを８枚トラッシュに置いた場合、それをトラッシュに置き、カードを１枚引く。【出】ライフクロス１枚をトラッシュに置く：対戦相手は、自分の場からシグニ１体と自分
+  - [0].action.steps[1].condition.filter.story = "龍獣"
+  - [0].action.steps[1].then.owner = "self"
+  - [0].action.steps[1].then.count = 1
+  ~ [0].action.steps[1].then.type : "DRAW" → "SEQUENCE"
+  + [0].action.steps[1].then.steps[0].type = "TRASH"
+  + [0].action.steps[1].then.steps[0].target.type = "SIGNI"
+  + [0].action.steps[1].then.steps[0].target.owner = "any"
+  + [0].action.steps[1].then.steps[0].target.count = 1
+  + [0].action.steps[1].then.steps[1].type = "DRAW"
+  + [0].action.steps[1].then.steps[1].owner = "self"
+  + [0].action.steps[1].then.steps[1].count = 1
 
 ## +BANISH_REDIRECT +SIGNI -STUB ［1枚］
 WXK06-049

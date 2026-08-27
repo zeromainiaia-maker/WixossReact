@@ -1485,10 +1485,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ACCE_PLAY_CHOOSE' } as StubAction;
   }
 
-  // ---- サーバントを含むシグニ数でスペルコスト軽減 ----
-  if (t.match(/このスペルの使用コストは.*《サーバント》を含むシグニ.*につき.*減る/)) {
-    return { type: 'STUB', id: 'SPELL_COST_REDUCTION_BY_SERVANT_COUNT' } as StubAction;
-  }
+  // 🗑**「サーバントを含むシグニ数でスペルコスト軽減」の全文 STUB は撤去した**（2026-08-27・Sheet1 B11）。
+  //   `SPELL_COST_REDUCTION_BY_SERVANT_COUNT` は **engine のどこにも消費地点が無い無言 no-op** で、
+  //   しかも**文全体**（コスト軽減＋「以下の２つから１つを選ぶ」の本体）を飲み込んでいた＝
+  //   採用されると `WX10-053` は**何もしないカード**になる（live は古い構造を温存していたので露呈していなかった）。
+  //   ⇒ 撤去して文単位の構造（`SEQUENCE[COST_REDUCTION, CHOOSE]`）へ戻す。
+  //   ⚠**コスト軽減の「1体につき」＝枚数参照は表現できていない**（`CostReductionAction` に per-count が無い）＝
+  //     §5.3 へ登録して据置。ここで撤去しても**その欠落は増えも減りもしない**（旧 STUB も no-op だった）。
+  //   ■原文該当は全 CSV でこの1枚。
 
   // ---- 武勇シグニを捨ててもよい（手札から）----
   if (t.match(/手札から.*シグニを.*枚まで捨ててもよい/)) {

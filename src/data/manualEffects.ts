@@ -2274,56 +2274,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
   // WX10-053 集結する守護（スペル）
-  // コストはサーバントシグニ1体につき《無×2》減る（PARTIAL近似）。
-  // ①トラッシュからサーバントシグニを2枚まで手札に。②サーバント全シグニ+5000+ランサー。
-  'WX10-053': [
-    {
-      effectId: 'WX10-053-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '無', count: 7 }] },
-      action: {
-        type: 'SEQUENCE',
-        steps: [
-          {
-            type: 'COST_REDUCTION',
-            targetCardType: 'スペル',
-            reduction: [{ color: '無', count: 2 }],
-            duration: 'PERMANENT',
-          },
-          {
-            type: 'CHOOSE',
-            choose_count: 1,
-            from_count: 2,
-            choices: [
-              {
-                choiceId: 'c0',
-                label: '①サーバントを手札へ',
-                action: {
-                  type: 'TRANSFER_TO_HAND',
-                  source: { type: 'TRASH_CARD', owner: 'self', count: 2, upToCount: true },
-                },
-              },
-              {
-                choiceId: 'c1',
-                label: '②全サーバント+5000+ランサー',
-                action: {
-                  type: 'SEQUENCE',
-                  steps: [
-                    { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, delta: 5000 },
-                    { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' },
-                  ],
-                } as SequenceAction,
-              },
-            ],
-          } as ChooseAction,
-        ],
-      } as SequenceAction,
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
+  // 🗑**手書きコピーは 2026-08-27（Sheet1 B11）で撤去した**＝parser が「カード名に《サーバント》を含む」の
+  //   前置修飾を読むようになり、**manual 側が parser 出力より劣化**していることが露呈したため：
+  //   ①①②の3つの対象すべてに cardName:「サーバント」が無く**自分の全シグニ／トラッシュの全シグニ**が対象
+  //   ②step0 が COST_REDUCTION{スペル,無×2,PERMANENT}＝**以後のスペル全部が永続的に2軽くなる**
+  //     （原文は「**このスペルの**使用コスト」で、しかも枚数参照。parser は同位置に実行時マーカー
+  //      STUB{ARTS_COST_REDUCTION_BY_EFFECT}（no-op）を置くので、少なくとも**嘘の効果は生えない**）。
+  //   ⚠**「1体につき《無×2》減る」の枚数参照は未表現のまま**（CostReductionAction に per-count が無い）＝§5.3 へ登録。
 
   // WX11-024 リフレッシュ・エンド（アーツ・使用タイミング＝スペルカットイン）
   // このターン、対戦相手が次にリフレッシュをした場合、その後でこのターンを終了する。

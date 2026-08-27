@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter, signiClauseContainsNameFilter,
 } from '../parserUtils';
 
 /**
@@ -532,9 +532,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- シグニ再配置 ----
+  // ⚠**読点入りの語順（「シグニを、好きなように配置し直してもよい」）はここで拾わない**（2026-08-27・Sheet1 B11）＝
+  //   `WXEX2-04-E1` は**専用 STUB `SIGNI_REPOSITION` が engine に実装済み**（`execStubPart3.ts:3811`・
+  //   `isAllSR` 枝がこのカード番号を名指しでコメントしている＝1体ずつ選んでゾーンへ移す任意フロー）。
+  //   一度は読点も拾うように広げたが、**動いている実装を横取りするだけ**なので元の範囲へ戻した。
   if (t.match(/シグニを(?:好きなように)?配置し直/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner, count: 'ALL' } } as RearrangeSigniAction;
+    // 🆕**「配置し直して**もよい**」＝任意**（2026-08-27・Sheet1 B11・`WX05-046-E1` ほか実測5枚）。
+    // 🔴受け皿は**型にも engine にも最初から在った**（`RearrangeSigniAction.optional` →
+    //   `execRearrangeSigni` が `PendingInteractionDef.optional` へ渡す）のに、**parser だけが出していなかった**。
+    //   コストを払った後（`WX05-046` は手札から＜迷宮＞1枚捨て）に**強制で相手の盤面を並べ替えさせられる**＝
+    //   相手に有利な配置しか作れない盤面では原文どおり「やらない」を選べるべきところを選べなかった。
+    // ⚠原文該当5枚＝`WX04-041`／`WX04-058`／`WX05-046`／`WX12-010`／`WXEX2-04`（読点入りの語順も拾う）。
+    return {
+      type: 'REARRANGE_SIGNI',
+      target: { type: 'SIGNI', owner, count: 'ALL' },
+      ...(/配置し直してもよい/.test(t) ? { optional: true } : {}),
+    } as RearrangeSigniAction;
   }
   if (t.match(/シグニ.*とこのシグニの場所を入れ替えてもよい/)) {
     return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'self', count: 1 }, swap: true } as RearrangeSigniAction;
@@ -1749,6 +1763,38 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- バニッシュ ----
   if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
+    // 🆕**「〈修飾A〉のシグニN体**と**〈修飾B〉のシグニM体を対象とし、それらをバニッシュする」＝2群指定**
+    //   （2026-08-27・Sheet1 B11・`WX06-028-E1`／`WX04-074-E1`／`WXDi-CP01-007`）。
+    // 🔴旧実装は**1体ぶんの対象しか作らず**、しかも修飾を**全文から**拾って1つの filter に混ぜていた：
+    //   ・`WX06-028-E1`「パワー12000以下…とパワー10000以下…」→ `powerRange:{max:12000}` の**1体だけ**（過小）
+    //   ・`WX04-074-E1`「パワー5000以下…とパワー10000以上…」→ `powerRange:{min:10000,max:5000}`＝
+    //     **どのカードも一致しない矛盾フィルタ**＝そのカードは**恒久 no-op**だった（過小の極み）
+    // 🔑受け皿は既存＝`count:N+M` ＋ `selectionConstraint.groups`（`WX10-001-E3` の SEARCH が同形で実働）。
+    //   engine は `selectOrInteract` に `selectionConstraint` を渡す経路で群割当を評価する。
+    // ⚠**「〜を場からトラッシュに置く：」のコスト節は対象外**＝この規則は「を対象とし、それらを
+    //   バニッシュする」で終わる本文だけを見る（`WX04-040`／`WX14-045` はコスト節なので掛からない）。
+    {
+      const twoGroupM = t.match(/(対戦相手|あなた)の、?([^、。]*?)シグニ([０-９\d]+)体と([^、。]*?)シグニ([０-９\d]+)体を対象とし、それらをバニッシュする/);
+      if (twoGroupM) {
+        const gOwner: Owner = twoGroupM[1] === '対戦相手' ? 'opponent' : 'self';
+        const mkF = (mod: string): TargetFilter => ({
+          cardType: 'シグニ',
+          ...parsePowerFilter(mod), ...parseLevelFilter(mod), ...parseColorFilter(mod),
+          ...parseStoryFilter(mod), ...parseStateFilter(mod),
+        });
+        const fA = mkF(twoGroupM[2]); const fB = mkF(twoGroupM[4]);
+        const nA = parseNum(twoGroupM[3]); const nB = parseNum(twoGroupM[5]);
+        // ⚠**両群のフィルタが同一なら群割当は意味を持たない**（単に N+M 体）＝素の count だけにする。
+        const sameF = JSON.stringify(fA) === JSON.stringify(fB);
+        return {
+          type: 'BANISH',
+          target: {
+            type: 'SIGNI', owner: gOwner, count: nA + nB, upToCount: false, filter: { cardType: 'シグニ' },
+            ...(sameF ? {} : { selectionConstraint: { groups: [{ filter: fA, count: nA }, { filter: fB, count: nB }] } }),
+          },
+        };
+      }
+    }
     // 「それをバニッシュする」= 前文で「対戦相手のシグニを対象とし」た相手シグニをバニッシュ
     if (t.match(/^それをバニッシュする$/)) {
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } };
@@ -2212,11 +2258,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   `then.type === 'ADD_TO_FIELD'` を見ており、engine の handOrField も `thenAction.owner` を読む
     //   （形を変えると「手札に加えるか場に出す」の二択が丸ごと消える）。
     const revealsPicked = /探し(?:て|た).{0,4}公開/.test(t) && !(!toField && !toTrash && !toEnergy && !toLife && !toAcce && !toTrapZone);
+    // 🆕**「それぞれ**同じ**レベルの」＝選択集合の同一性制約**（2026-08-27・Sheet1 B11・`WX06-016-BURST`
+    //   「あなたのデッキから**それぞれ同じレベルの**＜天使＞のシグニ２枚を探して公開し手札に加え」）。
+    // 🔴`SelectionConstraint` は「それぞれ**異なる**」（`distinct`）しか受けておらず、**同一性の側の語彙が無かった**
+    //   ＝レベルがばらばらの2枚でも探せる過剰効果だった。同日に `same:'level'` を型と**両評価器**
+    //   （`execUtils.satisfiesSelectionConstraint` / `underAnySigniCost.satisfiesUnderSelfConstraint`）へ足した。
+    // ⚠**`distinct` と混ぜない**（意味が逆）。■原文該当は全 CSV でこの1件。
+    const sameLevelPick = /それぞれ同じレベルの/.test(t) && maxCount >= 2;
     return {
       type: 'SEARCH',
       from: { location: 'deck', owner: 'self' },
       filter,
       maxCount,
+      ...(sameLevelPick ? { selectionConstraint: { same: 'level' as const } } : {}),
       ...(revealsPicked ? { revealPicked: true } : {}),
       then: toTrapZone
         ? { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction
@@ -2463,7 +2517,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       if (nounMods.includes('覚醒状態')) selfBuffState.isAwakened = true;
       // 「《プリパラアイドル　真中らぁら》以外のあなたの＜プリパラ＞のシグニのパワーを＋2000」（`WXDi-P10-033-E1`）＝
       // 除外が落ちて**自分自身までバフされる過剰効果**だった（§5d パターンA・続き371）。
-      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseLevelFilter(nounMods), ...selfBuffState, ...parseColorFilter(t), ...parseStoryFilter(t), ...parseExcludeCardNameFilter(t) } };
+      // 🆕**「カード名に《X》を含む」の前置修飾**（2026-08-27・Sheet1 B11・`WX10-053-E1`②）＝
+      //   `cardName` は `matchesFilter` に実装済みなのに、この集合主語の filter 合成からだけ漏れており、
+      //   **自分の全シグニ**が＋5000＋【ランサー】を得る過剰効果になっていた。
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseLevelFilter(nounMods), ...selfBuffState, ...parseColorFilter(t), ...parseStoryFilter(t), ...parseExcludeCardNameFilter(t), ...signiClauseContainsNameFilter(t) } };
       if (/あなたの他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
@@ -2829,6 +2886,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「《カード名》以外の〜」（§5d パターンA・続き371）。旧実装は ＜龍獣＞1枚のためだけの narrow regex で、
     // 同型の10効果（`WX16-025-E3`／`WX18-081-E2`／`WXK07-081-E2` 等）が**自分自身も回収できる過剰効果**だった。
     Object.assign(filter, parseExcludeCardNameFilter(trashTargetPhrase));
+    // 🆕**「カード名に《X》を含むシグニ」**（2026-08-27・Sheet1 B11・`WX10-053-E1`①
+    //   「あなたのトラッシュからカード名に《サーバント》を含むシグニを２枚まで対象とし、それらを手札に加える」）＝
+    //   `cardName` は `matchesFilter` に実装済みなのに、この入口の filter 合成から漏れており、
+    //   **トラッシュのどのシグニでも2枚回収できる**過剰効果だった。⚠**対象名詞句だけ**を見る（全文禁止の規律）。
+    Object.assign(filter, signiClauseContainsNameFilter(trashTargetPhrase));
     // 「そのシグニと同じレベルの」＝**トリガー元シグニ基準**の動的等値（§5d パターンA・続き373）。
     // `levelEqTrigger` は型にも engine（`resolveDynamicFilter` の triggeringCardNum 経路／
     // `resolveLeaveFieldDynamicFilters`）にも実装済みで、トラッシュ→**場** の入口では既に配線されていたのに
@@ -2963,12 +3025,33 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   **parser から合成されていないだけ**の穴（PLAN §4.3 の「配線漏れ」型）。
   if (t.match(/デッキの一番上を見る/)) {
     const deckOwner: Owner = /対戦相手の(?:[^。]*?)?デッキの一番上を見る/.test(t) ? 'opponent' : 'self';
-    return {
+    const lookDeck: EffectAction = {
       type: 'LOOK_AND_REORDER',
       source: { location: 'deck', owner: deckOwner },
       count: 1, private: true, reorder: false,
       destination: { location: 'deck', owner: deckOwner, position: 'top' },
     };
+    // 🆕**「〈誰か〉の手札**と**、〜デッキの一番上を見る」＝2ゾーンの閲覧**（2026-08-27・Sheet1 B11・
+    //   `WX11-018-E1`③「対戦相手の手札と、対戦相手のデッキの一番上を見る」）。
+    // 🔴前巡（B10）で**デッキ側の owner だけ**を直したので finding を閉じられずに残していた分＝
+    //   **手札の閲覧が木に一度も出ていない**（情報アドバンテージが半分しか得られない）。
+    // 🔑受け皿は既存＝`execLookAndReorder` の `source.location === 'hand'` 分岐が `REVEAL_CARDS` を出す
+    //   （`effectExecutor.ts:5495`）。⚠その分岐は **`destination` が同じ持ち主の `hand`** であることを要求する
+    //   （違うと「未対応」ログだけ出して no-op）ので、そのとおりに組む。
+    const handLookM = t.match(/(対戦相手|あなた)の手札と、?[^。]*デッキの一番上を見る/);
+    if (handLookM) {
+      const handOwner: Owner = handLookM[1] === '対戦相手' ? 'opponent' : 'self';
+      return { type: 'SEQUENCE', steps: [
+        {
+          type: 'LOOK_AND_REORDER',
+          source: { location: 'hand', owner: handOwner },
+          count: 'ALL', private: true, reorder: false,
+          destination: { location: 'hand', owner: handOwner, position: 'any' },
+        } as EffectAction,
+        lookDeck,
+      ] } as SequenceAction;
+    }
+    return lookDeck;
   }
 
   // ---- ライフクロスに加える ----
@@ -3825,7 +3908,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   落ちると `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
       //   **どのシグニにも付与できる**過剰効果になる。全文スキャンにすると `WX18-030-E1`「場に…が２体あるかぎり」の
       //   **条件節**を対象へ引き込むので、隣接判定は外せない。
-      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...signiClauseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) };
+      const kwContainsName = signiClauseContainsNameFilter(t);
+      // 🆕`signiClauseContainsNameFilter`＝「カード名に《X》を含むシグニ」の前置修飾（Sheet1 B11）。
+      //   ⚠**隣接判定つきの綴りだけ**を使う（全文の `parseNameFilter` はコスト記号《黒》等まで拾う）。
+      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...signiClauseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t), ...signiClauseContainsNameFilter(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       // ⚠「あなたのシグニ**N体**」枝は **`kwSigniFilter` を使ってはいけない**（続き377c で A/B により判明）＝
       //   `kwSigniFilter` は `parseLevelFilter(t)` 等を**全文**から取るので、`WD21-001-E1`
@@ -3911,11 +3997,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
         : kwZoneFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwZoneFilter }
-        : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
+        // 🆕**集合主語の枝にも「カード名に《X》を含む」を載せる**（2026-08-27・Sheet1 B11・`WX10-053-E1`②）＝
+        //   `kwAllSelf` / `kwAllSelfPronoun` は **filter 無しの素の ALL** で、
+        //   「カード名に《サーバント》を含むあなたのすべてのシグニ」が**自分の全シグニ**に化けていた
+        //   （＋5000 と【ランサー】が無関係なシグニにも乗る過剰効果）。⚠他の枝は自前の filter を持つので触らない。
+        : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL', ...(kwContainsName.cardName ? { filter: { cardType: 'シグニ', ...kwContainsName } } : {}) }
         : kwAllSelfSpecFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwAllSelfSpecFilter }
         : kwCollectiveSelfFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwCollectiveSelfFilter }
         : kwCollectiveSelfPronounFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwCollectiveSelfPronounFilter }
-        : kwAllSelfPronoun ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
+        : kwAllSelfPronoun ? { type: 'SIGNI', owner: 'self', count: 'ALL', ...(kwContainsName.cardName ? { filter: { cardType: 'シグニ', ...kwContainsName } } : {}) }
         // ⚠**枚数付きの枝だけ filter を落としていた**（続き377c）＝下の `kwSelfSigni` 枝には
         //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
         //   `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で

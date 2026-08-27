@@ -1098,12 +1098,18 @@ function parseActiveCondition(text: string): ConditionParseResult {
   // パターン1b: 「[あなたの/対戦相手の]アタックフェイズの間、」（CONTINUOUS 常在のフェイズ限定）。
   // 落とすと PERMANENT に潰れ相手ターン中も過剰適用になる（WX25-CP1-082-E3「アタックフェイズの間、パワーは＋5000」・
   // WX24-P1-050-E1「正面のシグニのパワーを－2000」ほか9効果＝タスク12）。owner 省略＝どちらのアタックフェイズでも。
-  const atkPhaseM = text.match(/^(あなたの|対戦相手の)?アタックフェイズの間[、,]/);
+  // 🆕**主語が前に出る形も受ける**（2026-08-27・Sheet1 B11・`WX09-013-E1`
+  //   「**このシグニは**アタックフェイズの間、バニッシュされない。」）＝この表は `^` アンカーなので、
+  //   フェイズ句の前に主語が置かれると**丸ごと外れて `activeCondition` が落ち**、
+  //   **恒久バニッシュ耐性**（＝どのフェイズでも絶対に倒せないシグニ）になっていた。
+  //   ⚠**主語は `rest` へ戻す**＝後段の規則（「このシグニは〜」を読む耐性ビルダー）が主語を必要とする。
+  //   ■原文該当は全 CSV でこの1件（`は〈フェイズ〉の間、` の綴りで全数実測）。
+  const atkPhaseM = text.match(/^((?:この(?:シグニ|ルリグ|カード)|あなたのシグニ)は)?(あなたの|対戦相手の)?アタックフェイズの間[、,]/);
   if (atkPhaseM) {
-    const owner = atkPhaseM[1] === 'あなたの' ? 'self' : atkPhaseM[1] === '対戦相手の' ? 'opponent' : undefined;
+    const owner = atkPhaseM[2] === 'あなたの' ? 'self' : atkPhaseM[2] === '対戦相手の' ? 'opponent' : undefined;
     return {
       condition: { type: 'DURING_ATTACK_PHASE', ...(owner ? { owner } : {}) },
-      rest: text.slice(atkPhaseM[0].length),
+      rest: (atkPhaseM[1] ?? '') + text.slice(atkPhaseM[0].length),
       conditionFound: true,
     };
   }
@@ -4325,6 +4331,13 @@ const CONJ_FIN: Array<[RegExp, string]> = [
   // 「〜を場からトラッシュに置き、X」＝自己/自シグニの場→トラッシュ（コスト/デメリット）が先頭脱落していた
   // （続き107・タスク3(c)＝PR-422「このシグニをトラッシュに置き、3枚引く」・SP24-009 等）。
   [/場からトラッシュに置き$/, '場からトラッシュに置く'],
+  // 🆕**「それ（ら）をトラッシュに置き、〜」**（2026-08-27・Sheet1 B11・`WX06-001-E3` ほか原文7枚）＝
+  //   `場から` が付かない綴りが `CONJ_FIN` に無く、`toFiniteForm` が連用形のまま返す →
+  //   左半分が UNKNOWN → 連用中止の分割ガードが降りて、**先頭の「トラッシュに置く」が丸ごと脱落**していた
+  //   （`WX06-001-E3` は＜天使＞7枚をデッキ下へ戻すコストを払って**除去が起きず**シャッフルだけが走る）。
+  //   ⚠兄弟の「それをバニッシュし、〜」は最初から表にあり正しく2ステップになっていた（§5-8′ の型）。
+  [/それらをトラッシュに置き$/, 'それらをトラッシュに置く'],
+  [/それをトラッシュに置き$/, 'それをトラッシュに置く'],
   // 「デッキの一番上のカードをエナゾーンに置き、X」＝先頭のエナチャージが後続（ドロー/場出し）を飲み込んで
   //   丸ごと脱落していた（タスク3・WX19-030／WX15-098／WX20-071 は3項）。
   [/デッキの一番上のカードをエナゾーンに置き$/, 'デッキの一番上のカードをエナゾーンに置く'],
@@ -4332,7 +4345,7 @@ const CONJ_FIN: Array<[RegExp, string]> = [
 
 /** 連用中止形で「左、右」に割るための左半分の語彙（`CONJ_FIN` と対で育てる）。 */
 const CONJ_VERB_ALT =
-  '(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|カードを[０-９\\d]+枚捨て'
+  '(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|カードを[０-９\\d]+枚捨て|それらをトラッシュに置き|それをトラッシュに置き'
   + '|場に出し|場からトラッシュに置き'
   + '|シグニゾーンを?[０-９\\d]+つ(?:まで)?指定し|デッキの一番上のカードをエナゾーンに置き'
   + '|デッキの上からカードを[０-９\\d]+枚トラッシュに置き|すべてのシグニをエナゾーンに置き'
@@ -8038,7 +8051,12 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
 //   （「対戦相手のシグニ１体を対象とし、あなたのシグニ１体を場からトラッシュに置く。そうした場合、それを
 //   バニッシュする」＝`WX02-020-E1`）でも**対象宣言は同じように落ちる**。実測＝原文で +40効果。
 //   🔴任意/強制は「対象宣言が帰結へ届くか」とは無関係な軸だったのに、regex が任意形だけを見ていた。
-const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?。そうした場合、それ/;
+// 🆕**「このシグニの正面のシグニN体」も対象宣言として受ける**（2026-08-27・Sheet1 B11・`WX09-015-E1`）＝
+//   旧 regex は所有者語（`対戦相手の`／`あなたの`）で始まる宣言しか見ておらず、
+//   「**このシグニの正面の**シグニ１体を対象とし、…バニッシュしてもよい。そうした場合、**それ**を手札に戻す」が
+//   丸ごと素通りして、帰結の `BOUNCE` が既定の `{SIGNI, owner:'self'}` へ落ちていた
+//   ＝**相手の正面シグニを戻すはずが自分のシグニを戻す**（所有者が反転する過小＋自傷）。
+const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:(?:対戦相手|あなた)の|このシグニの正面の)[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?。そうした場合、それ/;
 
 // else なし CONDITIONAL の中身を覗く（タスク12(lxiii) で条件に包まれたコストステップがあるため）
 function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
@@ -8763,7 +8781,13 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   // それ以外の前方所有者句（レベル比較の基準など）は従来どおり最後の所有者語から切る。
   const keepLeadingNoAbilities = /^能力を持たない(?:対戦相手|あなた)の/.test(desig0);
   const desig = cut > 0 && !keepLeadingNoAbilities ? desig0.slice(cut) : desig0;
-  const target = parseSigniTarget(desig, desig.includes('対戦相手の') ? 'opponent' : 'self');
+  // 🆕「このシグニの正面の」＝**相手側**の正面シグニ（`frontOfSelf` は `matchesFilter` に実装済み）。
+  //   ⚠`parseSigniTarget` は正面句を読まないので、この入口でだけ足す（全域に広げると別の入口を壊す）。
+  const isFrontDesig = /このシグニの正面の/.test(desig);
+  const target0 = parseSigniTarget(desig, desig.includes('対戦相手の') ? 'opponent' : isFrontDesig ? 'opponent' : 'self');
+  const target = isFrontDesig
+    ? { ...target0, owner: 'opponent' as const, filter: { ...(target0.filter ?? {}), cardType: 'シグニ' as const, frontOfSelf: true } }
+    : target0;
   const extraKeys = Object.keys(target.filter ?? {}).filter(k => k !== 'cardType');
   // ⚠🔴**「フィルタが無いから脱落しても等価」は誤り**（続き423）。脱落するのは filter だけでなく
   //   **所有者と体数**も＝帰結は既定の `SIGNI{owner:'self', count:1}` に落ちる。素の
@@ -8774,7 +8798,14 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   const thenTgt0 = gateIdx0 >= 0
     ? (((action as SequenceAction).steps[gateIdx0] as import('../types/effects').ConditionalAction).then as EffectAction & { target?: EffectTarget; source?: EffectTarget })
     : undefined;
-  const t0 = thenTgt0?.target ?? thenTgt0?.source;
+  // ⚠`thenTgt0` も SEQUENCE 帰結では `target`/`source` を直接持たない＝下の `targetOf` と同じ規約で拾う。
+  const t0 = thenTgt0?.target ?? thenTgt0?.source
+    ?? (thenTgt0?.type === 'SEQUENCE'
+      ? ((thenTgt0 as unknown as SequenceAction).steps
+          .map(st => (st as EffectAction & { target?: EffectTarget; source?: EffectTarget }).target
+            ?? (st as EffectAction & { source?: EffectTarget }).source)
+          .find(Boolean))
+      : undefined);
   const ownerOrCountDiffers = !!t0 && (t0.owner !== target.owner || t0.count !== target.count
     || (!!target.upToCount !== !!t0.upToCount));
   if (extraKeys.length === 0 && !ownerOrCountDiffers) return action;   // 本当に等価な場合だけ据置
@@ -8791,6 +8822,14 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
     if (a.type === 'CONDITIONAL') {
       const c = a as import('../types/effects').ConditionalAction;
       return targetOf(c.then) ?? (c.else ? targetOf(c.else) : undefined);
+    }
+    // 🆕**SEQUENCE の中も見る**（2026-08-27・Sheet1 B11・`WX06-001-E3`）＝`bindToStoredTarget` は
+    //   最初から SEQUENCE を再帰していたのに、**この直前のガードだけが見ておらず**
+    //   「そうした場合、それをトラッシュに置き、デッキをシャッフルする」（＝帰結が
+    //   `SEQUENCE[TRASH, SHUFFLE_DECK]`）が丸ごと据置になっていた。ガードと束縛で走査範囲が違うと
+    //   **束縛できるのに手前で降りる**（§5-8′ の兄弟枝ズレ）。
+    if (a.type === 'SEQUENCE') {
+      for (const st of (a as SequenceAction).steps) { const t = targetOf(st); if (t) return t; }
     }
     return undefined;
   };
@@ -14872,6 +14911,25 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'self';
           if (/対戦相手のターンの間/.test(actionText)) forcedActiveCondition = { type: 'TURN_OWNER', owner: 'opponent' };
           actionText = banishTrigM[1];
+        }
+      }
+      // 🆕**同型＝【常】表記だが「このシグニがアタックしたとき、…」は ON_ATTACK_SIGNI トリガー（AUTO）**
+      //   （2026-08-27・Sheet1 B11・`WX10-029-E2`）。旧実装はこの再分類が **ON_BANISH にしか無く**、
+      //   本文が `CONTINUOUS` のまま残って **BOUNCE が常在効果として毎回評価される**＝
+      //   「アタックしていなくても相手シグニを手札に戻し続ける」過剰実行になっていた。
+      //   ⚠**引用の内側は乗っ取らない**（`O-55` の同じガードを使う）＝付与宣言を壊さないため。
+      //   ■原文該当は全 CSV でこの1件（`【常】…このシグニがアタックしたとき` で全数実測）。
+      if (effectType === 'CONTINUOUS') {
+        const atkTrigM = actionText.match(/このシグニがアタックしたとき[、,]\s*(.+)/s);
+        const atkInQuote = atkTrigM !== null && (() => {
+          const head = actionText.slice(0, atkTrigM.index ?? 0);
+          return (head.match(/[「『]/g) ?? []).length > (head.match(/[」』]/g) ?? []).length;
+        })();
+        if (atkTrigM && !atkInQuote) {
+          effectType = 'AUTO';
+          timing = ['ON_ATTACK_SIGNI'];
+          extractedTriggerScope = 'self';
+          actionText = atkTrigM[1];
         }
       }
       break;

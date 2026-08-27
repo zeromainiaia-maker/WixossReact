@@ -940,7 +940,13 @@ export interface SelectionConstraint {
    */
   groups?: Array<{ filter?: TargetFilter; count: number }>;
   distinct?: 'level' | 'name' | 'class';
-  same?: 'name';
+  /**
+   * 選択集合の**全カードで同一**であることを要求する軸。
+   * `'name'`＝「同じ名前の」／🆕`'level'`＝「**それぞれ同じレベルの**」（2026-08-27・Sheet1 B11・`WX06-016-BURST`
+   * 「あなたのデッキからそれぞれ同じレベルの＜天使＞のシグニ２枚を探して…」）。
+   * ⚠**`distinct` の逆**（あちらは「互いに異なる」）＝同じキー名で混同しないこと。
+   */
+  same?: 'name' | 'level';
   sharedColor?: 'all' | 'none';
   /** 選択したカードのレベル合計をちょうど N にする。候補単体ではなく選択集合全体の制約。 */
   totalLevelExact?: number;

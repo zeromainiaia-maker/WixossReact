@@ -96,7 +96,13 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 532; // 2026-08-27 Sheet1 B10＝**Sheet1 の段2 残 OPEN を1バッチで21件消化**（規模を上げる運用）。
+const BASELINE_HIGH = 528; // 2026-08-27 Sheet1 B11＝**Sheet1 段2 の2巡目**（B10 と同じ「受け皿が既にある形をまとめて採る」取り方）。
+//   engine の新設は `SelectionConstraint.same:'level'`（型＋**両評価器**）だけで、残りは全部 parser の配線漏れ：
+//   `powerLteLastProcessed`／`DURING_ATTACK_PHASE`（主語が前に出ると外れていた）／2群指定の BANISH／
+//   【常】表記の「このシグニがアタックしたとき」再分類／「カード名に《X》を含む」の前置修飾／
+//   `REARRANGE_SIGNI.optional`（型も engine も在ったのに parser だけ出していなかった）／
+//   「それをトラッシュに置き、〜」の連用中止／対象宣言の照応（正面シグニ・SEQUENCE 帰結）。532→528。
+// 旧・続き688: const BASELINE_HIGH = 532; // 2026-08-27 Sheet1 B10＝**Sheet1 の段2 残 OPEN を1バッチで21件消化**（規模を上げる運用）。
 //   母集団を Sheet1（段2 残 58件 / 47カード）に固定し、**受け皿が既に engine にある形**だけをまとめて採った。
 //   live A/B は 21効果 / 20カードで意図した差分以外はゼロ。535→532（census は3件ぶんしか動かない＝
 //   直した21件のうち census の語彙表に載っていたのは3件だけ＝**計器ごとに見えるものが違う**§3 の再確認）。

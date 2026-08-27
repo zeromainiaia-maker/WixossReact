@@ -13665,8 +13665,11 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能�
     Object.values(obj).forEach(v => walkActions(v, pred, out));
     return out;
   };
+  // 🆕**`WX11-018-E1` を 2026-08-27（Sheet1 B11）で追加**＝③「対戦相手の手札と、対戦相手のデッキの
+  //   一番上を見る」の**手札側**を配線した（それまでデッキ側しか木に出ておらず finding を閉じられずにいた）。
+  //   ⚠この集合は**両方向 assert**（増えても減っても FAIL）＝hand-source を足したら必ずここへ載せる。
   const opponentHandLookIds = [
-    'SPDi43-27-E2', 'WD16-010-E1', 'WX06-CB02-E2', 'WX17-002-E4', 'WX17-042-E2',
+    'SPDi43-27-E2', 'WD16-010-E1', 'WX06-CB02-E2', 'WX11-018-E1', 'WX17-002-E4', 'WX17-042-E2',
     'WX17-069-E1', 'WXDi-P03-025-E1', 'WXDi-P09-065-E1', 'WXDi-P09-067-E1',
     'WXK09-039-E2', 'WXK11-061-E1',
   ].sort();
@@ -13675,7 +13678,7 @@ test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能�
     ['WXK02-089-E1', 2], ['WXK05-025-E1', 2],
   ]);
 
-  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧11効果だけ', () => {
+  test('O-53 構造集合: hand-source LOOK_AND_REORDER は相手手札閲覧12効果だけ', () => {
     const actual: string[] = [];
     for (const effects of effectsMap.values()) for (const effect of effects) {
       const hits = walkActions(effect.action, a => a.type === 'LOOK_AND_REORDER'
@@ -50152,6 +50155,121 @@ test('Sheet1 B10: engine 側の消費地点（EXILE のエナ分岐／count:ALL 
     'WX03-015-E1: いきなり全滅させず選択を問う');
   ok((pending.pending?.options ?? []).some(o => o.id === 'skip'),
     'WX03-015-E1: スキップ枝がある（＝「置いてもよい」を断れる）');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sheet1 B11（2026-08-27）＝Sheet1 段2 の2巡目。B10 と同じ取り方（母集団をシートに固定 →
+// 「受け皿が既に engine にある形」だけをまとめて採る）で 11効果 / 11カードを直した。
+//
+// 🔑この巡で分かったこと＝**穴のほとんどは「綴り違いで表から外れる」**。`DURING_ATTACK_PHASE` は
+//    主語が前に出るだけ（「**このシグニは**アタックフェイズの間、」）で `^` アンカーが外れ、
+//    `CONJ_FIN` は「**場から**トラッシュに置き」しか持たず「**それを**トラッシュに置き」で落ちていた。
+// ⚠**JSON 契約だけでは守れない層**＝`same:'level'` は同日に足した新評価器なので、engine 実挙動も固定する。
+// ══════════════════════════════════════════════════════════════════════════════
+test('Sheet1 B11: 綴り違いで表から外れていた配線（JSON契約）', () => withSavedCursor(() => {
+  const j = (cardNum: string, effectId: string): string => JSON.stringify(b45Effect(cardNum, effectId));
+
+  // ① 「その後、**それのパワー以下**の」＝直前に処理したシグニのパワー以下
+  //    ⚠既存の綴りは「それ**より**パワーの**低い**」（`powerLtLastProcessed`）だけ＝**同値を取れるかが逆**。
+  ok(j('WX11-046', 'WX11-046-E2').includes('"powerLteLastProcessed":true'),
+    'WX11-046-E2: 2体目は先にバニッシュした自分のシグニのパワー以下に限られる');
+
+  // ② 「**このシグニは**アタックフェイズの間、バニッシュされない」＝フェイズ限定が落ちない
+  {
+    const s = j('WX09-013', 'WX09-013-E1');
+    ok(s.includes('"activeCondition":{"type":"DURING_ATTACK_PHASE"}'),
+      'WX09-013-E1: アタックフェイズ限定（旧＝恒久バニッシュ耐性＝どのフェイズでも倒せなかった）');
+    ok(s.includes('"GRANT_PROTECTION"') && s.includes('"BANISH"'), 'WX09-013-E1: 中身はバニッシュ耐性のまま');
+  }
+
+  // ③ 「〈修飾A〉のシグニN体と〈修飾B〉のシグニM体を対象とし、それらをバニッシュする」＝2群指定
+  for (const [cn, id, groups] of [
+    ['WX06-028', 'WX06-028-E1', 2], ['WXDi-CP01-007', 'WXDi-CP01-007-E3', 2],
+  ] as const) {
+    const s = j(cn, id);
+    ok(s.includes('"count":2') && s.includes('"selectionConstraint":{"groups"'),
+      `${id}: 2体ぶんの群割当になる（旧＝1体しか取れない）`);
+    ok((s.match(/"groups":\[\{[^\]]*\}\]/) ?? [''])[0].split('"count":1').length - 1 === groups,
+      `${id}: 群は${groups}つ（それぞれ count:1）`);
+  }
+  // 🔴**片方の修飾で1つの filter を作らない**＝`WX04-074` は旧 parser が
+  //   `powerRange:{min:10000,max:5000}`＝**一致0の矛盾フィルタ**（＝恒久 no-op）を作っていた。
+  //   ⚠この効果は manual が正しい2ステップを持つので live は MANUAL のまま＝**parser 出力側**を固定する。
+  ok(!JSON.stringify(parseCardEffects(cardMap.get('WX04-074')!)).includes('"min":10000,"max":5000'),
+    'WX04-074-E1: パワー上限と下限を1つの filter に混ぜない（一致0の矛盾フィルタを作らない）');
+
+  // ④ 【常】表記でも「このシグニがアタックしたとき」は AUTO トリガー
+  {
+    const e = b45Effect('WX10-029', 'WX10-029-E2');
+    eq(e.effectType, 'AUTO', 'WX10-029-E2: 【常】ではなく AUTO（旧＝常在 BOUNCE が毎回評価されていた）');
+    ok((e.timing ?? []).includes('ON_ATTACK_SIGNI'), 'WX10-029-E2: アタック時に限る');
+  }
+
+  // ⑤ 「カード名に《X》を含む」の前置修飾（集合主語・トラッシュ回収の両方）
+  {
+    const s = j('WX10-053', 'WX10-053-E1');
+    eq((s.match(/"cardName":"サーバント"/g) ?? []).length, 3,
+      'WX10-053-E1: ①回収・②パワー・②ランサーの3か所すべてがサーバント限定');
+    ok(!s.includes('"COST_REDUCTION"'),
+      'WX10-053-E1: 「このスペルの使用コスト」を「以後のスペル全部が永続で軽くなる」に化けさせない');
+  }
+
+  // ⑥ 「それぞれ**同じ**レベルの」＝選択集合の同一性制約
+  ok(j('WX06-016', 'WX06-016-BURST').includes('"selectionConstraint":{"same":"level"}'),
+    'WX06-016-BURST: 探す2枚は同じレベル（旧＝ばらばらでも探せた）');
+
+  // ⑦ 「配置し直して**もよい**」＝任意
+  ok(j('WX05-046', 'WX05-046-E1').includes('"REARRANGE_SIGNI"') && j('WX05-046', 'WX05-046-E1').includes('"optional":true'),
+    'WX05-046-E1: 再配置は任意（型も engine も在ったのに parser だけ出していなかった）');
+  // ⚠`WXEX2-04` は**専用 STUB `SIGNI_REPOSITION` が engine 実装済み**＝横取りしない（据置契約）。
+  ok(JSON.stringify(parseCardEffects(cardMap.get('WXEX2-04')!)).includes('"SIGNI_REPOSITION"'),
+    'WXEX2-04-E1: 読点入りの語順は専用 STUB のまま（動いている実装を奪わない）');
+
+  // ⑧ 対象宣言の照応＝正面シグニ／SEQUENCE 帰結
+  {
+    const s = j('WX09-015', 'WX09-015-E1');
+    ok(s.includes('"frontOfSelf":true'), 'WX09-015-E1: 宣言は「このシグニの正面のシグニ」');
+    ok(s.includes('"BOUNCE"') && s.includes('"targetsStored":true') && s.includes('"owner":"opponent"'),
+      'WX09-015-E1: 手札に戻すのは宣言した**相手**シグニ（旧＝自分のシグニを戻していた）');
+  }
+  {
+    const s = j('WX06-001', 'WX06-001-E3');
+    ok(s.includes('"TRASH"') && s.includes('"targetsStored":true'),
+      'WX06-001-E3: 「それをトラッシュに置き、デッキをシャッフルする」の除去が落ちない（旧＝シャッフルだけ）');
+  }
+
+  // ⑨ 「対戦相手の手札と、対戦相手のデッキの一番上を見る」＝2ゾーン
+  {
+    const s = j('WX11-018', 'WX11-018-E1');
+    ok(s.includes('"location":"hand","owner":"opponent"'), 'WX11-018-E1③: 相手の手札も見る');
+    ok(s.includes('"location":"deck","owner":"opponent"'), 'WX11-018-E1③: 相手のデッキの一番上も見る');
+  }
+}));
+
+test('Sheet1 B11: `same:\'level\'` 評価器の3点セット（成立／不成立／参照不能）', () => withSavedCursor(() => {
+  // ⚠新しい制約キーは**両評価器**（`execUtils` と `underAnySigniCost`）に足した。ここは前者を実挙動で固定する。
+  //   `WX06-016-BURST` の live 効果をそのまま実行し、SEARCH のピックが制約で絞られることを見る。
+  const search = b45Effect('WX06-016', 'WX06-016-BURST').action as { type: string; selectionConstraint?: unknown };
+  eq(search.type, 'SEARCH', 'WX06-016-BURST: SEARCH のまま');
+  eq(JSON.stringify(search.selectionConstraint), '{"same":"level"}', 'WX06-016-BURST: 制約が載っている');
+
+  // 直接評価＝①同レベル2枚は通る ②レベル違いは通らない ③レベル不明は**通らない**（fail-closed）
+  const sameLv = { same: 'level' } as const;
+  const two = (a: string, b: string): string[] => [a, b];
+  const lvOf = (n: string): string => (cardMap as Map<string, CardData>).get(n)?.Level ?? '';
+  const pool = [...(cardMap as Map<string, CardData>).keys()].filter(n => /^\d+$/.test(lvOf(n)));
+  const byLv = new Map<string, string[]>();
+  for (const n of pool) { const k = lvOf(n); byLv.set(k, [...(byLv.get(k) ?? []), n]); }
+  const pairSame = [...byLv.values()].find(v => v.length >= 2)!;
+  ok(satisfiesSelectionConstraint(two(pairSame[0], pairSame[1]), sameLv, cardMap as Map<string, CardData>),
+    'same:level: 同じレベル2枚は成立');
+  const lvKeys = [...byLv.keys()];
+  const a = byLv.get(lvKeys[0])![0];
+  const b = byLv.get(lvKeys.find(k => k !== lvKeys[0])!)![0];
+  ok(!satisfiesSelectionConstraint(two(a, b), sameLv, cardMap as Map<string, CardData>),
+    'same:level: 違うレベルは不成立');
+  ok(!satisfiesSelectionConstraint(two(a, '__NO_SUCH_CARD__'), sameLv, cardMap as Map<string, CardData>),
+    'same:level: レベルが引けないカードが混ざったら**不成立**（fail-closed＝制約が消えて過剰実行に倒れない）');
 }));
 
 if (listMode) {

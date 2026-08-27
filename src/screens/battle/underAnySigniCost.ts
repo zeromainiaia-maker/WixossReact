@@ -69,6 +69,12 @@ function satisfiesUnderSelfConstraint(
     const names = candidates.map(c => getCard(c.cardNum, cardMap)?.CardName);
     if (names.some(name => name == null) || new Set(names).size !== 1) return false;
   }
+  // 🆕`same:'level'`（2026-08-27・Sheet1 B11）＝`execUtils` の同名判定と**同じ規約**（不明は fail-closed）。
+  // ⚠片方だけ実装すると入口によって払えたり払えなかったりする（§5-8′）。
+  if (constraint.same === 'level') {
+    const levels = candidates.map(c => getCard(c.cardNum, cardMap)?.Level ?? '');
+    if (levels.some(v => !/^\d+$/.test(v)) || new Set(levels).size !== 1) return false;
+  }
   return true;
 }
 

@@ -449,6 +449,14 @@ export function parseTriggerComparison(text: string, opts?: { allowPlacement?: b
 export function parseLastProcessedComparison(text: string): Partial<TargetFilter> {
   if (/この方法で場に出したシグニのパワー以下/.test(text)) return { powerLteLastProcessed: true };
   if (!/その後/.test(text)) return {}; // 「その後」＝lastProcessed 文脈のマーカー（トリガー参照と切り分け）
+  // 🆕**「その後、〈それ〉のパワー以下の〜」＝直前に処理したシグニのパワー以下**（2026-08-27・Sheet1 B11・
+  //   `WX11-046-E2`「あなたのシグニ１体を対象とし、それをバニッシュする。**その後、それのパワー以下の**
+  //   対戦相手のシグニ１体を対象とし、それをバニッシュする。」）＝`powerLteLastProcessed` は型にも
+  //   `resolveDynamicFilter`（`effectExecutor.ts:2592`）にも実装済みなのに、**この綴りだけ拾えていなかった**
+  //   （既存は「それ**より**パワーの**低い**」＝`powerLtLastProcessed` の綴りのみ）。
+  //   ⚠**「以下」と「より低い」は別のキー**＝同値ではない（ちょうど同値のシグニを取れるかが逆になる）。
+  //   ■原文該当は全 CSV でこの1件。
+  if (/(?:そのシグニ|それ)のパワー以下/.test(text)) return { powerLteLastProcessed: true };
   const m = text.match(/(?:そのシグニ|それ)より(パワーの低い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};
   if (m[1] === 'パワーの低い') return { powerLtLastProcessed: true };
@@ -641,6 +649,25 @@ const SIGNI_CLAUSE_ADJACENT_NAME =
 export function signiClauseNameFilter(text: string): Partial<TargetFilter> {
   const m = text.match(SIGNI_CLAUSE_ADJACENT_NAME);
   return m ? { cardName: m[1] } : {};
+}
+
+/**
+ * 「**カード名に《X》を含む**〈修飾〉シグニ」＝名詞句に**前置**されるカード名部分一致フィルタ（2026-08-27・Sheet1 B11）。
+ *
+ * `signiClauseNameFilter`（`SIGNI_CLAUSE_ADJACENT_NAME`）は「〜を対象とし」形の**対象宣言**しか見ないので、
+ * **集合主語**（「カード名に《サーバント》を含む**あなたのすべての**シグニのパワーを＋5000し」＝`WX10-053-E1`②／
+ * 「**あなたの**カード名に《シュレデ》を含む**すべての**シグニをアップする」＝`WX20-068-E1`）を取りこぼし、
+ * **自分の全シグニ**が対象になる過剰効果になっていた。
+ *
+ * ⚠**読点・句点を跨がない**（`[^。、]`）＝別の節のカード名を引き込まないため。
+ * ⚠所有者語（「あなたの」）は**前にも後にも**来るので両方許す。
+ */
+const SIGNI_CLAUSE_CONTAINS_NAME =
+  /カード名に《([^》]+)》を含む(?:[^。、]{0,10})?シグニ|(?:あなた|対戦相手)のカード名に《([^》]+)》を含む(?:[^。、]{0,10})?シグニ/;
+export function signiClauseContainsNameFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_CLAUSE_CONTAINS_NAME);
+  const name = m?.[1] ?? m?.[2];
+  return name ? { cardName: name } : {};
 }
 
 /**

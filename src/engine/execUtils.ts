@@ -2978,6 +2978,14 @@ export function satisfiesSelectionConstraint(
     const values = cards.map(c => `${c?.CardName ?? ''}`);
     if (new Set(values).size !== 1) return false;
   }
+  // 🆕`same:'level'`＝「それぞれ**同じ**レベルの」（2026-08-27・Sheet1 B11）。
+  // ⚠**レベル不明（`Level` が数値でない）は不成立**にする＝fail-closed（曖昧なまま通すと
+  //   「同じレベル」条件が実質消えて過剰実行に倒れる）。
+  if (constraint.same === 'level') {
+    const values = cards.map(c => `${c?.Level ?? ''}`);
+    if (values.some(v => !/^\d+$/.test(v))) return false;
+    if (new Set(values).size !== 1) return false;
+  }
   if (constraint.distinct === 'level') {
     const values = cards.map(c => `${c?.Level ?? ''}`);
     if (new Set(values).size !== values.length) return false;
