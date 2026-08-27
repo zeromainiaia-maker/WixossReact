@@ -2056,6 +2056,177 @@ const scenarios = {
     },
   },
 
+  // ── Sheet1 B12（2026-08-27）＝段2 第3巡の実機観測点 ──
+  b12delayattack: {
+    title: 'WX10-035 光輝（「このターン、あなたのシグニがアタックしたとき」＝遅延設置。唱えた瞬間ではない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD12-002#1'],                            // アイヤイ Lv3 Limit8（「アイヤイ限定」を満たす・能力なし）
+        'field.signi': [['WX01-088#1'], null, null],             // 緑バニラ P10000（アタッカー）
+        'field.signi_down': [false, false, false],
+        'energy': ['WX01-094#2', 'WX01-094#3', 'WX01-094#4'],    // 緑×1 の支払い用（緑バニラ）
+        'actions_done': [],
+        'delayed_triggers': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        // 正面（host zone0 の向かい＝guest zone2）は**パワー半分以下**にしてバトルを自動解決させる
+        //   （`b11attacktrigger` で実証済みの型。正面が空だとガード応答待ちで止まる）。
+        'field.signi': [null, null, ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+      },
+      handPrepend: ['WX10-035#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      const e0 = st0?.host?.energy ?? -1;
+      H.log(`開始 energy=${e0} delayed=${(st0?.host?.delayedTriggers ?? []).length}`);
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click().catch(() => {}); return 'btn:' + name;
+        }
+        return null;
+      };
+      await H.clickTestId('my-hand-card-0');
+      // ── 段① 使用（MAIN）＝**この時点でエナが増えたら旧挙動**（即時 ENERGY_CHARGE_FROM_DECK） ──
+      let installed = null;
+      for (let s = 0; s < 20 && !installed; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/b12delayattack-cast-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) {
+          const en0 = page.getByTestId('spellcost-energy-0').first();
+          if (await en0.count() && await en0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await en0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ']);
+        const st = await H.queryState();
+        const dts = st?.host?.delayedTriggers ?? [];
+        H.log(`  cast[${s}] -> ${did ?? 'なし'} | energy=${st?.host?.energy ?? '-'} delayed=${dts.length} pSpell=${st?.pendingSpell ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (dts.length > 0) installed = { dts, energy: st?.host?.energy ?? -1 };
+      }
+      if (!installed) {
+        const fin = await H.queryState();
+        return { pass: false, detail: `遅延設置されなかった（energy ${e0}→${fin?.host?.energy ?? '-'}＝旧挙動なら唱えた瞬間に+1）` };
+      }
+      const trg = installed.dts[0]?.trigger ?? {};
+      if (trg.timing !== 'ON_ATTACK_SIGNI' || trg.attackerOwner !== 'self') {
+        return { pass: false, detail: `設置内容が想定外: ${JSON.stringify(trg)}` };
+      }
+      const eAfterCast = installed.energy;
+      H.log(`設置確認 trigger=${JSON.stringify(trg)} energy=${eAfterCast}（コスト1払い＝${e0}-1 が期待値。${e0} のままなら即時チャージ＝旧挙動）`);
+      // ── 段② アタック＝**ここで初めて**エナが1枚増える ──
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(800);
+      let attacked = false, modalOpened = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/b12delayattack-atk-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (!attacked && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI'
+            && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; attacked = true;
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+        const st = await H.queryState();
+        H.log(`  atk[${s}] -> ${did ?? 'なし'} | attacked=${attacked} energy=${eAfterCast}→${st?.host?.energy ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (attacked && (st?.host?.energy ?? -1) > eAfterCast) {
+          return { pass: true, detail: `アタック時に遅延トリガーが発火＝エナ ${eAfterCast}→${st.host.energy}（唱えた時点では ${e0}→${eAfterCast}＝コスト分だけ減っていた）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `アタックしてもエナが増えない（energy ${eAfterCast}→${fin?.host?.energy ?? '-'}）` };
+    },
+  },
+
+  b12spellkiten: {
+    title: 'WX10-096 バイオレンス・ジェラシー（本文＋トップレベル【起】：唱えても【起】は走らない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX01-088#1'], null, null],
+        // トラッシュ＝黒シグニ1枚＋青シグニ2枚。本文は**黒のシグニ1枚**しか回収しない。
+        // 🔴旧挙動＝【起】の本体（フィルタ無しのトラッシュ回収）が本文へ連結されており、
+        //   **唱えるだけで青シグニまで無料で1枚回収**できた。
+        'trash': ['WD05-013#1', 'WD03-013#1', 'WD03-013#2'],
+        'energy': ['WD05-013#5', 'WD05-013#6'],   // 黒×1 の支払い用
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'] },
+      handPrepend: ['WX10-096#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      const t0 = st0?.host?.trash ?? -1;
+      H.log(`開始 trash=${t0} cards=${JSON.stringify(st0?.host?.trashCards)}`);
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click().catch(() => {}); return 'btn:' + name;
+        }
+        return null;
+      };
+      await H.clickTestId('my-hand-card-0');
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/b12spellkiten-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) {
+          const en0 = page.getByTestId('spellcost-energy-0').first();
+          if (await en0.count() && await en0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await en0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        const hand = st?.host?.handCards ?? [];
+        const gotBlack = hand.some(n => String(n).startsWith('WD05-013#1'));
+        const gotBlue = hand.some(n => String(n).startsWith('WD03-013#'));
+        H.log(`  kiten[${s}] -> ${did ?? 'なし'} | trash=${st?.host?.trash ?? '-'} 黒回収=${gotBlack} 青回収=${gotBlue} pSpell=${st?.pendingSpell ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (gotBlue) {
+          return { pass: false, detail: `旧挙動＝【起】の本体が本文へ連結され、青シグニまで無料で回収された（hand=${JSON.stringify(hand)}）` };
+        }
+        // スペルがトラッシュへ行き、黒シグニ1枚だけが手札に来た＝本文だけが走った。
+        if (gotBlack && (st?.host?.trashCards ?? []).some(n => String(n).startsWith('WX10-096#'))) {
+          return { pass: true, detail: `本文だけが走った＝黒シグニ1枚だけ回収・青は残る（trash ${t0}→${st.host.trash}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `回収を確認できず（trash ${t0}→${fin?.host?.trash ?? '-'} hand=${JSON.stringify(fin?.host?.handCards)}）` };
+    },
+  },
+
   oppdecktop: {
     title: 'WX10-071（アタック時に「対戦相手の」デッキの一番上を見る＝自分のデッキではない）',
     spec: {
