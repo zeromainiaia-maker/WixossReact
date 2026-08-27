@@ -15734,13 +15734,15 @@ test('LAST_PROCESSED_MATCHES color OR: 「それらに白か黒のシグニが�
   eq(JSON.stringify(a.steps?.[1].condition?.filter?.color), JSON.stringify(['白', '黒']), '白または黒の OR');
   eq(a.steps?.[1].condition?.minCount, 1, '１体以上');
 });
-// 複色 REVEAL は当該カード固有の MANUAL。白・黒の OR と既存 owner/count/zone を固定する。
-test('Cluster C MANUAL: REVEAL 白か黒の＜天使＞→ color OR（WXEX1-57-E1）', () => {
+// 🆕**2026-08-27 Sheet1 B5＝MANUAL 影武者を撤去し parser 出力そのものを見張る形へ移した。**
+//   `parseColorFilter` が色ORを返すようになり、手書きコピーは parser 出力と実体同一になった（§6.4 `O-42`）。
+//   ⚠**契約は変えない**＝白・黒の OR と owner/count/zone を同じ強度で固定する。
+test('Cluster C: REVEAL 白か黒の＜天使＞→ color OR（WXEX1-57-E1・parser 生成）', () => {
   const card = cardMap.get('WXEX1-57');
   ok(!!card, 'WXEX1-57 カードデータがある');
-  const e = mergeManualEffects('WXEX1-57', parseCardEffects(card!))[0];
+  const e = parseCardEffects(card!)[0];
   const a = e.action as { type?: string; owner?: string; revealCount?: number; pickCount?: number; filter?: { cardType?: string; story?: string; color?: string[] }; then?: { type?: string; source?: { type?: string; owner?: string; count?: number } } };
-  eq(e.parseStatus, 'MANUAL', 'カード固有 MANUAL 上書き');
+  eq(e.parseStatus, 'AUTO', 'parser が出す（MANUAL 影武者は撤去済み）');
   eq(a.type, 'REVEAL_AND_PICK', 'REVEAL_AND_PICK');
   eq(a.owner, 'self', 'owner:self を維持');
   eq(a.revealCount, 1, 'デッキトップ1枚');
@@ -20885,7 +20887,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 58, 'ActiveCondition の型数（58＝段2 第45バッチで LRIG_NAME_CONTAINS を追加）');
-  eq(Object.keys(C_TYPES).length, 128, 'Condition の型数（128＝Sheet1 B3 で FIELD_SIGNI_SHARE_CLASS を新設。127 は §5.3 `O-81` の FACEDOWN_REVEALED_JUST 時点）');
+  eq(Object.keys(C_TYPES).length, 129, 'Condition の型数（129＝Sheet1 B5 で THIS_CARD_HAS_SOUL を新設。128 は Sheet1 B3 の FIELD_SIGNI_SHARE_CLASS 時点）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -22760,6 +22762,65 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       ok((a.choices?.length ?? 0) >= 3, `${effectId}: 選択肢が取りこぼされている`);
       eq(a.conditionChoose?.condition.type, condType, `${effectId}: 選択数を増やす条件`);
       eq(a.conditionChoose?.thenChooseCount, thenCount, `${effectId}: 条件達成時の選択数`);
+    }
+  });
+  // §5.3 O-99（2026-08-27 Sheet1 B5）：「A。〈条件〉場合、**代わりに** B。」＝**昇格置換**。
+  // 🔴畳めていないと `SEQUENCE[A, B]` ＝**条件成立時に A と B が両方走る**（`WX09-045-E1` は
+  //   パワー8000以下と15000以下を**2体**バニッシュしていた）。正準形は `CONDITIONAL{cond, then:B, else:A}`。
+  // ⚠**else が本体（＝基本の効果）**であることまで見る＝then/else を逆に組むと原文と真逆になる。
+  test('(O-99) 「〜の場合、代わりに」＝昇格置換が CONDITIONAL{then:強化, else:基本} に載る', () => {
+    // [CardNum, effectId, 条件type, then 側の目印, else 側の目印]
+    const cases: [string, string, string, string, string][] = [
+      ['WX09-045', 'WX09-045-E1', 'FIELD_SIGNI_SHARE_CLASS', '15000', '8000'],
+      ['WXDi-P16-089', 'WXDi-P16-089-E1', 'THIS_CARD_HAS_SOUL', '3000', '2000'],
+      ['SP27-012', 'SP27-012-E1', 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', '"count":2', '"count":1'],
+      ['WX21-039', 'WX21-039-E1', 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', '"count":2', '"count":1'],
+    ];
+    for (const [cardNum, effectId, condType, thenMark, elseMark] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const a = eff.action as unknown as { type: string; condition?: { type: string }; then?: unknown; else?: unknown };
+      eq(a.type, 'CONDITIONAL', `${effectId}: 置換が畳めておらず基本＋強化が両方走る`);
+      eq(a.condition?.type, condType, `${effectId}: 置換のゲート条件`);
+      ok(JSON.stringify(a.then).includes(thenMark), `${effectId}: then が強化側でない`);
+      ok(!!a.else && JSON.stringify(a.else).includes(elseMark), `${effectId}: else が基本側でない（置換が過小実行になる）`);
+    }
+  });
+  // §5.3 O-99 の較正：**予約・置換アクションは畳まない**（アクション自身が条件を内包する正表現）。
+  // 🔴畳むと二重ゲートになり、【エナチャージ】＋「次のダメージを受けない」が排他になる。
+  test('(O-99) 「次に〜ダメージを受ける場合、代わりに受けない」は畳まない（予約アクションの正表現）', () => {
+    for (const [cardNum, effectId] of [['WX24-P1-073', 'WX24-P1-073-BURST'], ['WXDi-P03-074', 'WXDi-P03-074-BURST']]) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      eq((eff.action as { type: string }).type, 'SEQUENCE', `${effectId}: 予約アクションを CONDITIONAL へ畳んでいる`);
+      ok(!!treeFind(eff.action, x => x.type === 'PREVENT_NEXT_DAMAGE'), `${effectId}: 予約アクションが消えた`);
+    }
+  });
+  // 2026-08-27 Sheet1 B5：**「AかBの〜」＝色のOR**。`parseColorFilter` が単色しか返さず、
+  // 🔴「白か黒のシグニ」が **黒しか選べない過小効果**になっていた（`WX09-016-BURST` ほか実測7効果）。
+  test('(B5) 「AかBの〜」の色ORが filter.color 配列に載る', () => {
+    const cases: [string, string][] = [
+      ['WX09-016', 'WX09-016-BURST'], ['PR-387', 'PR-387-E1'],
+      ['WXDi-P11-050', 'WXDi-P11-050-E3'], ['WXDi-P16-001B', 'WXDi-P16-001B-E2'],
+    ];
+    for (const [cardNum, effectId] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const hit = treeFind(eff.action, x => Array.isArray((x as { color?: unknown }).color)) as { color: string[] } | null;
+      ok(!!hit, `${effectId}: 色のORが単色へ潰れている（片方の色が選べない）`);
+      eq(hit!.color.length, 2, `${effectId}: 色ORが2色でない`);
+    }
+  });
+  // 2026-08-27 Sheet1 B5：「探して**公開し**〜」の公開が**手札行き以外で丸ごと落ちていた**。
+  // 受け皿は `SearchAction.revealPicked`（engine `resumeSearch` が公開ログを出す）。
+  // ⚠`then` の形（`ADD_TO_FIELD` 単体）を崩すと `handOrField` の二択が消えるので、そこも同時に見張る。
+  test('(B5) 「探して公開し手札に加えるか場に出し」に revealPicked が載り handOrField が保たれる', () => {
+    for (const [cardNum, effectId] of [['WX08-023', 'WX08-023-BURST'], ['WX11-026', 'WX11-026-BURST'],
+      ['WXK08-024', 'WXK08-024-BURST'], ['WX20-050', 'WX20-050-E2']]) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const se = treeFind(eff.action, x => x.type === 'SEARCH') as
+        { revealPicked?: boolean; handOrField?: boolean; then?: { type?: string } } | null;
+      ok(!!se, `${effectId}: SEARCH が無い`);
+      eq(se!.revealPicked, true, `${effectId}: 原文の「公開し」が落ちている`);
+      eq(se!.handOrField, true, `${effectId}: 「手札に加えるか場に出す」の二択が落ちている`);
+      eq(se!.then?.type, 'ADD_TO_FIELD', `${effectId}: then の形を崩すと engine の handOrField 経路が外れる`);
     }
   });
   // §6.4 O-11：「それが〈X〉の場合、**それと同じレベルの**〜」＝結果ゲートの内側のレベル同一性。
@@ -43503,11 +43564,15 @@ test('段2-18 WXDi-P16-087-E1 E2E: Lv合計3以下は+5000だけ、4以上はバ
   const high = board([SIGNI_L2, SIGNI_L3]); eq(longPower(high), 0, '4以上は+5000しない'); ok(high.otherState.energy.includes(foe), '4以上はバニッシュ');
 });
 
-test('段2-18 据置契約: 表現不能4効果は誤った近似語彙へ変更しない', () => {
+// 🆕**2026-08-27 Sheet1 B5 で 4件中2件は据置を卒業した**（`WX09-045-E1`＝`FIELD_SIGNI_SHARE_CLASS`（B3 で新設）
+//   ＋ `WXDi-P16-089-E1`＝`THIS_CARD_HAS_SOUL`（B5 で新設）を `foldKawariSubstitution` が畳んだ）。
+//   ⚠**「据置」は「触ってはいけない」ではなく「正しい語彙が無い間は近似で埋めるな」**なので、
+//   受け皿ができた時点で契約から外すのが正しい。両者は上の `(O-99)` テストが**内容まで**見張る。
+test('段2-18 据置契約: 語彙の無い残り2効果は誤った近似語彙へ変更しない', () => {
   const raw = (c: string, e: string) => JSON.stringify(stage2B16Effect(c, e).action);
-  ok(!raw('WX09-045','WX09-045-E1').includes('CONDITIONAL'), '共通クラス条件は未表現のまま');
+  // 🔴「場にシグニに付いているカード**か**シグニの下に置かれているカードがある場合」＝場全体の attached/under の OR。
+  //   `THIS_CARD_HAS_UNDER`（効果元限定）で近似すると別物になる＝受け皿ができるまで据置（§5.3 `O-101`）。
   ok(!raw('WXDi-P06-084','WXDi-P06-084-E1').includes('CONDITIONAL'), '場全体attached/under ORは未表現のまま');
-  ok(!raw('WXDi-P16-089','WXDi-P16-089-E1').includes('CONDITIONAL'), 'ソウル限定をattached全般へ広げない');
   ok(raw('WXDi-P00-037','WXDi-P00-037-E1').includes('"source":{"type":"SIGNI"'), '相手手札処理の語彙が無い間は誤本体を勝手に別語彙へ変えない');
 });
 
@@ -45756,6 +45821,15 @@ function batch33Step(action: EffectAction, index: number): EffectAction {
   return step;
 }
 
+// 🆕2026-08-27 Sheet1 B5＝「〜の場合、代わりに」の昇格置換が `CONDITIONAL{then,else}` へ畳まれたので、
+//   旧 `SEQUENCE` の添字ではなく枝で取り出す（`WX09-045-E1` の強化側＝15000以下は `then`）。
+function batch33Branch(action: EffectAction, branch: 'then' | 'else'): EffectAction {
+  if (action.type !== 'CONDITIONAL') throw new Error(`CONDITIONALではない: ${action.type}`);
+  const node = (action as unknown as Record<string, EffectAction | undefined>)[branch];
+  if (!node) throw new Error(`${branch} なし`);
+  return node;
+}
+
 function batch33Choice(action: EffectAction, index: number): EffectAction {
   if (action.type !== 'CHOOSE') throw new Error(`CHOOSEではない: ${action.type}`);
   const choice = action.choices[index];
@@ -45884,7 +45958,7 @@ test('段2 第33バッチ E2E: WX25-CP1-088-E1 は選択したレベル3黒だ�
 }));
 
 for (const spec of [
-  { cardNum: 'WX09-045', effectId: 'WX09-045-E1', action: () => batch33Step(manualEffect('WX09-045', 'WX09-045-E1').action, 1), max: 15000 },
+  { cardNum: 'WX09-045', effectId: 'WX09-045-E1', action: () => batch33Branch(manualEffect('WX09-045', 'WX09-045-E1').action, 'then'), max: 15000 },
   { cardNum: 'WX24-D2-11', effectId: 'WX24-D2-11-E1', action: () => manualEffect('WX24-D2-11', 'WX24-D2-11-E1').action, max: 2000 },
 ] as const) {
   test(`段2 第33バッチ E2E: ${spec.effectId} は色を問わずパワー上限だけで対象化`, () => withSavedCursor(() => {

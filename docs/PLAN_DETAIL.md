@@ -4707,3 +4707,20 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   **どのフラグも立たないカード 4961 / 5975（83.0%）**（`npm run census:cards`）、
   **実機シナリオ +2**（`o87RainbowColorBranch` ／ `o87ResetTrapReplace`。回帰＝`o81FacedownAttachRevealBanish` PASS）、
   **`npm run golden` の所要＝全件 約155秒／`--only` 約1.5秒**
+
+### 恒久指標アーカイブ（2026-08-27 続き682 後・PLAN §6 から退避）
+
+- **2026-08-27 続き682 後（本行が直近の正）**：
+  **census 551/551**（Sheet1 B4 で **557→551**＝⚠**払い戻しではなく較正**。詳細は BUGFIXES）、**golden 2872**（Sheet1 B4 で +1 テスト・FAIL 0）、
+  smoke **10697 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置＝Sheet1 B4 は型を1つも足していない（live も無変更））、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝Sheet1 B4 は engine の原文 regex に触れていない）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1014 / PARTIAL 21**（MANUAL −19＝サーバント18枚＋`WX04-054-E2` の影武者撤去）（据置＝Sheet1 B1 は `manualEffects.ts` に触れていない）、
+  **`_held_fresh` 75 / `_partial_fresh` 12 / `_idset_fresh` 24**（🆕**idset −19**＝サーバント系の凍結を解除）（第45バッチの +7 は採用され、Sheet1 B1 の +2（`WX10-066`／`WX08-053`）も採用済み＝**ベースラインへ完全復帰**）、
+  **どのフラグも立たないカード 5140 / 5975（86.0%）**（`npm run census:cards`。⚠**83.2%→85.7% は前進ではなく計器の較正**＝`census:cards` が意味照合の残 OPEN を自前で数えていて `EFFECTID :: <quote>` 形を1件も消化に数えていなかった（未消化 643→948・影響カード 485→695 と過大報告）。判定を `semanticAuditLedger.mjs` の import 1本に集約し、同時に `idset` フラグ 43枚を追加した）、
+  **意味照合 段2 台帳＝残 OPEN 641**（段0 221／段1 111／段2 消化 471／HIGH 440・MED 197・LOW 4／影響カード 483・効果 504）、
+  **実機シナリオ +5**（`crossIconBouncePicker` / `servantMultiEnaPaysColor` / `b3ShareClassDrawsFour` / `b3DistinctClassDrawsThree` / `b4NextSpellReductionConsumed`＝各2回連続 PASS・既定 `order` へ追加済み）、
+  🆕**Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
+  **残 OPEN 61件 / 49カード / 52効果**（着手時 69件 / 55カード / 59効果）、
+  **要対応カード 69 / 863（8.0%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69）＝🆕**`npm run census:cards -- --sheet 1` で毎回1コマンドで出る**（内訳＝census **32**／意味照合 49（findings 61件）／held 6／partial 0／idset 1。`--list` を足すとカード名つきで列挙＝次バッチの取り出し口）。⚠**「フラグ0 の776枚」は「正しい」ではない**＝計器が見ていないだけで、シートを閉じるには残りへの検出パスが別途要る（計器の出力にも毎回出る）（⚠**Sheet1 スコープの計器はまだ無い**＝`cardProgressCensus.mjs --sheet` が次の小仕事）

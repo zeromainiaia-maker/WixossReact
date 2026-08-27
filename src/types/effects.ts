@@ -343,6 +343,12 @@ export type Condition =
   //   （`SELF_LEVEL_THRESHOLD` / `HAND_DIFF` と同じ運用）。
   // ⚠`THIS_CARD_HAS_ATTACHED`（チャーム/アクセ/ソウルの合計）とは**別物**＝チャーム限定。
   | { type: 'THIS_CARD_IS_CHARMED' }
+  // このシグニに【ソウル】が付いている場合（2026-08-27 Sheet1 B5・`WXDi-P16-089-E1`）。
+  // ⚠`ActiveCondition` 側の `IS_SELF_SOUL_ATTACHED` と**同型・同実装**＝両方揃えて更新すること
+  //   （`THIS_CARD_IS_CHARMED` / `IS_SELF_CHARMED` と同じ運用）。
+  // ⚠`THIS_CARD_HAS_ATTACHED`（チャーム/アクセ/ソウルの**合計**）を流用しない＝チャームが付いていれば
+  //   ソウル無しでも成立する**別物**（原文より緩い過剰効果になる）。
+  | { type: 'THIS_CARD_HAS_SOUL' }
   | { type: 'THIS_CARD_HAS_ATTACHED'; minCount?: number }     // このシグニにカードがN枚以上付いている場合（【チャーム】/【アクセ】/【ソウル】の合計。省略=1。WXK10-049-E2）
   | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number } // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。`signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する
   // 「そのアタックがこのターンN度目の場合」（§6.4 O-25(d)・`WXK06-033/035/037/038/062`／`WXDi-P14-052`／`WXDi-P16-063`）。
@@ -496,7 +502,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   HAS_KEY_IN_FIELD: true, ALL_FIELD_SIGNI_MATCH: true, TRASH_HAS_CARD: true, ALL_SELF_SIGNI_DOWN: true,
   TRASH_COUNT: true, DECK_TOP_MATCHES: true, LRIG_LEVEL: true, LRIG_STORY: true, THIS_CARD_IN_LOCATION: true,
   THIS_CARD_IN_CENTER_ZONE: true, THIS_CARD_IS_DOWN: true, THIS_CARD_IS_UP: true, CENTER_LRIG_IS_UP: true,
-  THIS_CARD_IS_ARMORED: true, THIS_CARD_IS_AWAKENED: true, THIS_CARD_IS_ACCED: true, THIS_CARD_IS_CHARMED: true, THIS_CARD_HAS_ATTACHED: true,
+  THIS_CARD_IS_ARMORED: true, THIS_CARD_IS_AWAKENED: true, THIS_CARD_IS_ACCED: true, THIS_CARD_IS_CHARMED: true, THIS_CARD_HAS_SOUL: true, THIS_CARD_HAS_ATTACHED: true,
   SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE: true, ATTACK_ORDINAL_THIS_TURN: true, IS_DRIVE_STATE: true,
   TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
   LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,

@@ -3165,7 +3165,9 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     // 🔴受け皿 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は engine 実装済みなのに **live 利用者0の死んだ受け皿**
     //   だった（クラス filter が無く、この文型を表せなかったため）。filter を足して繋いだ。
     //   条件が落ちていた `WX21-006-E1` は live が `DRAW 1` だけ＝**バニッシュもエナ置きも消えていた**。
-    [/あなたの場にそれぞれ共通する色を持たない＜([^＞]+)＞のシグニが([０-９\d]+)体ある場合/,
+    // ⚠**「共通する色」と「共通の色」は同義の表記ゆれ**＝片方だけ見ていると同じサイクルの片割れが落ちる
+    //   （`SP27-012-E1` は「共通**する**色」・`WX21-039-E1` は「共通**の**色」で、後者だけ条件が丸ごと消えていた）。
+    [/あなたの場にそれぞれ共通(?:する|の)色を持たない＜([^＞]+)＞のシグニが([０-９\d]+)体ある場合/,
       g => ({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: parseNum(g[1]), filter: { cardType: 'シグニ', story: g[0] } })],
     [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある(?:場合|間)/,
       g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
@@ -3254,6 +3256,10 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     //   従来は語彙が無くアタック時に無条件発火（WX15-098/101/104）。
     [/このシグニがアクセされている場合/,
       () => ({ type: 'THIS_CARD_IS_ACCED' })],
+    // 「このシグニに【ソウル】が付いている場合」（2026-08-27 Sheet1 B5・`WXDi-P16-089-E1`）。
+    // ⚠`THIS_CARD_HAS_ATTACHED`（チャーム/アクセ/ソウルの合計）を流用しない＝チャームだけでも成立する別物。
+    [/このシグニに【ソウル】が付いている場合/,
+      () => ({ type: 'THIS_CARD_HAS_SOUL' })],
     ...STATE_CONDITION_CLAUSES_V2,
   ];
 
@@ -3309,6 +3315,25 @@ function parseHoistStateCondition(prefix: string): Condition | null {
   for (const [re, mk] of STATE_CONDITION_CLAUSES) {
     const m = t.match(new RegExp('^' + re.source + '$'));
     if (m) return mk(m.slice(1));
+  }
+  return null;
+}
+
+/**
+ * 条件節1本を**両方の共通表**（`LEADING_STATE_CLAUSES` ＋ `STATE_CONDITION_CLAUSES`）で解く（§5.3 `O-99`）。
+ *
+ * ⚠**表は2つある**＝`parseHoistStateCondition` は `STATE_CONDITION_CLAUSES` しか見ないので、
+ *   `LEADING_STATE_CLAUSES` 側にだけ在る語彙（`FIELD_SIGNI_SHARE_CLASS` 等）を取りこぼす。
+ *   「規則が無い」と「その表に無い」は別物（§4.2）＝新しい経路から条件節を解くときはこの1本を使う。
+ */
+function resolveStateConditionClause(clause: string): Condition | null {
+  const t = clause.trim().replace(/^(?:その後、|そして)/, '').replace(/、$/, '');
+  for (const table of [LEADING_STATE_CLAUSES, STATE_CONDITION_CLAUSES]) {
+    for (const [re, mk] of table) {
+      if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;
+      const m = t.match(new RegExp('^' + re.source + '$'));
+      if (m) return mk(m.slice(1));
+    }
   }
   return null;
 }
@@ -10281,7 +10306,51 @@ function applyExplicitTargetMarker(text: string, action: EffectAction): EffectAc
 }
 
 function parseActionText(text: string): EffectAction {
-  return foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text)));
+  return foldKawariSubstitution(text,
+    foldElseIntoLeadingConditional(text, applyExplicitTargetMarker(text, parseActionTextBody(text))));
+}
+
+/**
+ * 「A。〈盤面条件〉場合、**代わりに** B。」＝**昇格置換**を `CONDITIONAL{cond, then:B, else:A}` へ畳む
+ * （2026-08-27 Sheet1 B5・§5.3 `O-99`）。
+ *
+ * 🔴これが無いと `SEQUENCE[A, B]` になり、**条件成立時に A と B が両方走る**。実測＝`WX09-045-E1`
+ *   「パワー**8000以下**のシグニ1体をバニッシュする。…共通するクラスを持つ場合、**代わりに**パワー
+ *   **15000以下**のシグニ1体をバニッシュする」が**2体バニッシュ**していた（原文は1体の置換）。
+ * 🔑`tryWrapLeadingStateCond` が「代わりに」で始まる帰結を**意図的に除外**しているのと対になる後段パス
+ *   ＝あちらは then だけのラップしか作れず「基本＋条件時追加」の誤近似になるので据置になっていた。
+ *   ここは**基本文を else に持てる位置**（全文の action が組み上がった後）なので正しく表せる。
+ *
+ * ⚠**置換ではない「代わりに」を巻き込まない**ための除外（実測＝原文該当 502 のうち通すのは6件）：
+ *   - **予約・置換アクション**（`PREVENT_NEXT_DAMAGE`／`LIFE_CRASH_REPLACE`／`RESERVE_*`／バリア）は
+ *     **アクション自身が条件を内包する正表現**＝畳むと二重ゲートになる（`census` の
+ *     `conditionClauseExtraOk` が同じ理由でこの形を較正している。Sheet1 B4）。
+ *   - **「代わりにN つ選ぶ」**（選択数の昇格）は `betChoose`／`conditionChoose` が受け皿＝別経路。
+ *   - **照応語で始まる帰結**（「代わりに**それ**を〜」）は単独 parse で参照先を失う（`foldElseIntoLeadingConditional`
+ *     と同じ理由）。
+ * ⚠**条件が解けたときだけ**畳む。解けない条件で then/else を作ると、原文と逆の枝が常に走る。
+ */
+function foldKawariSubstitution(text: string, action: EffectAction): EffectAction {
+  const m = text.match(/。([^。]*?場合)、代わりに(.{0,14})/);
+  if (!m) return action;
+  if (/^(?:それ|その|そのカード|そのシグニ)/.test(m[2])) return action;   // 照応語＝参照先を失う
+  if (/[０-９\d一二三四五六七八九]+つ/.test(m[2])) return action;          // 選択数の昇格は betChoose/conditionChoose
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = (action as SequenceAction).steps;
+  if (steps.length < 2) return action;
+  const alt = steps[steps.length - 1];
+  const base = steps[steps.length - 2];
+  if (!alt || !base) return action;
+  const SKIP = ['UNKNOWN', 'STUB', 'CONDITIONAL', 'CHOOSE'];
+  if (SKIP.includes(alt.type) || SKIP.includes(base.type)) return action;
+  // 予約／置換アクションは条件を内包する正表現（畳むと二重ゲート）。
+  if (/PREVENT|RESERVE|REPLACE|BARRIER/.test(alt.type)) return action;
+  const condition = resolveStateConditionClause(m[1]);
+  if (!condition) return action;
+  const folded = { type: 'CONDITIONAL', condition, then: alt, else: base } as EffectAction;
+  return steps.length === 2
+    ? folded
+    : ({ ...action, steps: [...steps.slice(0, -2), folded] } as SequenceAction);
 }
 
 /**

@@ -4274,13 +4274,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-CP1-062-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","kizunaIcon":true,"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","isUp":true,"thisCardOnly":true},"upToCount":false},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
-  // PLAN §3 Opusタスク12(xxvii) Cluster C: WXEX1-57-E1
-  // 原文「それが白か黒の＜天使＞のシグニの場合、それを手札に加える」。共通 parseColorFilter は
-  // 複色名詞句を意図的に単色へ昇格しないため、このカードだけ color OR を MANUAL で保持する。
-  // owner/revealCount/pickCount/then/remainder は自動パースを維持し、対象 filter だけを原文どおり狭める。
-  "WXEX1-57": [
-    {"effectId":"WXEX1-57-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"天使","color":["白","黒"]},"pickCount":1,"then":{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1}},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
+  // 🗑**`WXEX1-57` の MANUAL 影武者は 2026-08-27 Sheet1 B5 で撤去した**（§6.4 `O-42` トリップワイヤ発火）。
+  //   旧コメントは「共通 `parseColorFilter` は複色名詞句を単色へ昇格しないので、このカードだけ MANUAL で
+  //   color OR を保持する」だったが、**B5 で `parseColorFilter` 自身が色OR（配列）を返すようになった**ので
+  //   parser 出力と実体同一になった。⚠**live の `parseStatus` も `MANUAL`→`AUTO` へ直すまでがセット**
+  //   （`PRESERVE_STATUSES` が効いたままだとこの効果にだけ parser 改善が永久に届かない）。
 
   // §6.3 cost-game wave 2: select once, preserve the exact instance across an optional payment,
   // then apply the paid/unpaid branch to that preserved target.

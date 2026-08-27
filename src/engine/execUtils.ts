@@ -2109,6 +2109,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const n = left.filter(id => !cond.filter || matchesFilter(ctx.cardMap.get(getCardNum(id)), cond.filter)).length;
       return n >= (cond.minCount ?? 1);
     }
+    case 'THIS_CARD_HAS_SOUL': {
+      // 「このシグニに【ソウル】が付いている場合」（2026-08-27 Sheet1 B5・WXDi-P16-089-E1）。
+      // ⚠`THIS_CARD_HAS_ATTACHED`（チャーム/アクセ/ソウルの合計）とは別物＝ソウル限定。
+      const srcSoul = ctx.sourceCardNum;
+      if (!srcSoul) return false;
+      const zoneSoul = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === srcSoul);
+      if (zoneSoul < 0) return false;
+      return (ctx.ownerState.field.signi_soul?.[zoneSoul] ?? null) !== null;
+    }
     case 'THIS_CARD_HAS_ATTACHED': {
       // 「このシグニにカードが付いている場合」＝【チャーム】/【アクセ】/【ソウル】の合計枚数（WXK10-049-E2）。
       const src = ctx.sourceCardNum;

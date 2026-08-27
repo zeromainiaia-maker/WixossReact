@@ -96,7 +96,16 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 551; // 2026-08-27 Sheet1 B4＝**較正（バグ修正ではない）**。「このターン、あなたが
+const BASELINE_HIGH = 537; // 2026-08-27 Sheet1 B5＝「〜の場合、**代わりに**」の昇格置換（§5.3 `O-99`）を
+//   後段パス `foldKawariSubstitution` で `CONDITIONAL{cond, then:強化, else:基本}` へ畳んだ（`WX09-045-E1` は
+//   8000以下と15000以下を**2体**バニッシュしていた）。あわせて①`parseColorFilter` の**色OR**
+//   （「白か黒のシグニ」が**黒しか選べない過小効果**＝実測8効果）②SEARCH の「探して**公開し**」が
+//   **手札行き以外で丸ごと落ちる**穴（`revealPicked`・12効果）を是正して 551→**536**。
+// ⚠**537 の +1 は退化ではなく可視化**（続き529 と同型）＝色OR が parser で出るようになったので
+//   `WXEX1-57-E1` の MANUAL 影武者を撤去した（§6.4 `O-42`）結果、その効果が **MANUAL バケツを出て
+//   「条件節(〜の場合)」の高シグナル側へ昇格**した。中身は正しい（「それが〈X〉の場合、それを手札に加える」を
+//   `REVEAL_AND_PICK{filter, pickCount:1}` が内包する正表現）。旧履歴は直下。
+// 旧・続き682: const BASELINE_HIGH = 551; // 2026-08-27 Sheet1 B4＝**較正（バグ修正ではない）**。「このターン、あなたが
 //   **次に**スペル／アーツを使用する場合、コストが減る」は `COST_REDUCTION{targetCardType:'スペル'|'アーツ'}` が
 //   **条件（次の1回だけ）を内包する正表現**で、engine は最初からそう実装していた（`next_spell_cost_reduction` /
 //   `next_arts_cost_reduction` へ積んで使用時に消費）。`conditionClauseExtraOk` へ `PREVENT_NEXT_DAMAGE` と同型の

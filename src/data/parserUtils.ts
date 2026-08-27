@@ -158,6 +158,19 @@ export function parseColorFilter(text: string): Partial<TargetFilter> {
   //   「無色の」という綴りは上の5色ループ（`${c}の`）では拾えない（「色の」であって「無の」ではない）ため、
   //   規則が無いと `PR-471`③「デッキから**無色の**シグニを２枚まで探して」のように**どのシグニでも探せる**
   //   過剰実行になっていた。
+  // 🆕**「AかBの〜」＝色のOR**（2026-08-27 Sheet1 B5）。`TargetFilter.color` は配列を受け、`matchesFilter` も
+  //   配列をORで解く（`execUtils.ts:872`）のに、**この共通ヘルパだけが単色しか返していなかった**。
+  // 🔴「白か黒のシグニ」は `白か` に「の」が付かないため 5色ループの `黒の` だけが当たり、**黒しか選べない**
+  //   過小効果になっていた（実測7効果＝`WX09-016-BURST`／`PR-387-E1` の SEARCH と、
+  //   `WXDi-P11-050/051/078`・`WXDi-P16-001B`・`WXK09-005-E2-G2` の ADD_TO_FIELD source）。
+  // ⚠**同じ原文を配列で正しく出している経路が既に在る**（`TRANSFER_TO_HAND`／`REVEAL_AND_PICK` の
+  //   `color:["白","黒"]`）＝**受け皿が無いのではなく、この入口だけが取り残されていた**非対称。
+  // ⚠**無色ではない**は別キー（`nonColorless`）なので、OR 判定より先に既存の無色分岐を通す。
+  const orM = text.match(/(白|赤|青|緑|黒|無色)か(白|赤|青|緑|黒|無色)の/);
+  if (orM && !/無色ではない/.test(text)) {
+    const norm = (c: string) => (c === '無色' ? '無' : c);
+    return { color: [norm(orM[1]), norm(orM[2])] };
+  }
   if (/無色の/.test(text) && !/無色ではない/.test(text)) return { color: '無' };
   for (const c of ['白', '赤', '青', '緑', '黒']) {
     if (text.includes(`${c}の`)) return { color: c };

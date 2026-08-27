@@ -2182,11 +2182,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const toField = t.includes('場に出し') || t.includes('場に出す');
     const toTrash = t.includes('トラッシュに置き');
     const toEnergy = t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き');
+    // 🆕**「探して公開し」の公開が行き先によって消えていた**（2026-08-27 Sheet1 B5）。
+    // 🔴下の `then` は**手札行き（既定枝）のときだけ** `SEQUENCE[REVEAL, ADD_TO_HAND]` を返しており、
+    //   場／エナ／トラッシュ／ライフ行きの枝には公開が1つも載らない＝原文の「公開し」が丸ごと落ちる。
+    //   実測＝`公開し` カテゴリの census 高シグナル26件中12件がこの形（`WX08-023-BURST`／`WX09-016-BURST`／
+    //   `WX11-026-BURST`／`WX16-024-BURST`／`WXK08-024/040-BURST`／`WX20-023/050`／`WX17-Re01` ほか）。
+    // 🔑受け皿は**アクション側の `revealPicked`**（engine `resumeSearch` が公開ログを出す・逆翻訳も読む）を使う。
+    //   ⚠`then` を `SEQUENCE[REVEAL, …]` に変えてはいけない＝`wrapHandOrField` の `markDeckSearch` が
+    //   `then.type === 'ADD_TO_FIELD'` を見ており、engine の handOrField も `thenAction.owner` を読む
+    //   （形を変えると「手札に加えるか場に出す」の二択が丸ごと消える）。
+    const revealsPicked = /探し(?:て|た).{0,4}公開/.test(t) && !(!toField && !toTrash && !toEnergy && !toLife && !toAcce && !toTrapZone);
     return {
       type: 'SEARCH',
       from: { location: 'deck', owner: 'self' },
       filter,
       maxCount,
+      ...(revealsPicked ? { revealPicked: true } : {}),
       then: toTrapZone
         ? { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction
         : toAcce

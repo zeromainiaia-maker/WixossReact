@@ -17122,6 +17122,97 @@ scenarios.b3DistinctClassDrawsThree = {
   drive: b3Drive('b3DistinctClassDrawsThree', 3),
 };
 
+// ── Sheet1 B5（2026-08-27）＝「〜の場合、**代わりに**」の昇格置換（§5.3 `O-99`）────────────
+// `WX09-045-E1`「対戦相手のパワー**8000以下**のシグニ１体を対象とし、それをバニッシュする。
+//   あなたの場に赤のシグニが３体あり、それらが共通するクラスを持つ場合、**代わりに**パワー**15000以下**の
+//   シグニ１体を対象とし、それをバニッシュする。」
+// 🔴live は `SEQUENCE[BANISH ≤8000, BANISH ≤15000]` ＝**2体バニッシュ**する過剰効果だった。
+//   正準形は `CONDITIONAL{cond, then:≤15000, else:≤8000}`（置換なので**必ず1体**）。
+// ⚠**実機でしか見えない層**＝(a) 何体消えたか (b) ピッカーが**どちらを候補に出したか**。
+//   golden は JSON の形しか見ない＝`else` を作り忘れても「CONDITIONAL がある」だけで緑になりうる。
+// ⚠**対照とセットで読む**（§5-21）＝単独では「たまたま1体」と区別できない。
+const b5RedDistinct = [['WD02-013#9400'], ['WX04-070#9401'], ['WX05-057#9402']]; // 赤3体・精羅:鉱石／精武:ウェポン／精生:龍獣＝異クラス
+const b5RedShared   = [['WD02-013#9410'], ['WD02-012#9411'], ['WD02-010#9412']]; // 赤3体・全部 精羅:鉱石＝共通クラス
+const b5Spec = (hostSigni, guestSigni) => ({
+  hostSet: {
+    'field.signi': hostSigni,
+    'field.signi_down': [false, false, false],
+    'energy': ['WD02-013#9420', 'WD02-012#9421'],   // 《赤》×2
+    'actions_done': [],
+  },
+  handPrepend: ['WX09-045#9430'],                    // 三炎の宝石（スペル・《赤》×2）
+  guestSet: { 'field.signi': guestSigni, 'field.signi_down': [false, false, false] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+// label / 生き残っていなければならないカード / 消えていなければならないカード
+const b5Drive = (label, mustSurvive, mustVanish) => async (page, H) => {
+  const before = await H.queryState();
+  H.log('開始 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+  await H.ensureMain();
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  const opened = await H.clickTestId('my-hand-card-0');
+  H.log('スペル手札クリック:', opened ?? '見つからず');
+  let picked = 0;              // ⚠エナのコストセルはトグル＝同じ index を押し直すと選択解除される（B3 で実測）
+  let candSnapshot = null;     // ピッカーが提示した候補集合＝この検証の主観測点
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${label}-${s}.png`, fullPage: true });
+    let did = await clickExact('発動');
+    if (!did) {
+      if (picked < 2) {
+        const e = page.getByTestId(`spellcost-energy-${picked}`).first();
+        if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); did = `spellcost-energy-${picked}`; picked++; }
+      }
+      if (!did) did = await clickExact('発動する');
+    }
+    if (!did) {   // SELECT_TARGET（バニッシュ対象）
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    if (st?.pendingEffect === 'SELECT_TARGET' && (st?.pendingCandidates ?? []).length) candSnapshot = st.pendingCandidates;
+    const gField = JSON.stringify(st?.guest?.fieldSigni ?? []);
+    H.log(`  b5[${s}] -> ${did ?? 'なし'} | gField=${gField} cand=${JSON.stringify(candSnapshot)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    // 🔴生き残るはずのカードが消えた＝置換が畳めておらず両枝が走っている
+    if (mustSurvive && !gField.includes(mustSurvive)) {
+      return { pass: false, detail: `🔴${label}: 残るはずの ${mustSurvive} が消えた＝「代わりに」が置換になっておらず2体バニッシュしている（gField=${gField} cand=${JSON.stringify(candSnapshot)}）` };
+    }
+    if (!gField.includes(mustVanish) && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect) {
+      const cands = JSON.stringify(candSnapshot);
+      if (mustSurvive && candSnapshot && cands.includes(mustSurvive.split('#')[0])) {
+        return { pass: false, detail: `🔴${label}: ピッカーが ${mustSurvive} を候補に出していた＝else 枝のパワー上限が効いていない（候補=${cands}）` };
+      }
+      return { pass: true, detail: `${label}: ${mustVanish} だけがバニッシュされ${mustSurvive ? `、${mustSurvive} は候補にも出ず場に残った` : ''}（候補=${cands} gField=${gField}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `${label}: スペルが解決せず＝検証空振り（gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+};
+// 正方向＝条件を**満たさない**（異クラス）ので `else`（≤8000）だけが走る。
+//   guest は 5000（対象可）と 10000（対象外）の2体＝**旧実装なら両方消える**。
+scenarios.b5KawariElseBanishesOnlyLow = {
+  title: 'WX09-045-E1（Sheet1 B5＝異クラス → else の≤8000だけ・10000は候補にも出ない）',
+  spec: b5Spec(b5RedDistinct, [['WXDi-P04-055#9440'], ['WX04-065#9441'], null]),
+  drive: b5Drive('b5KawariElseBanishesOnlyLow', 'WX04-065#9441', 'WXDi-P04-055#9440'),
+};
+// 対照＝条件を**満たす**（全部 精羅：鉱石）ので `then`（≤15000）へ置換される。
+//   guest は 10000 の1体だけ＝**then 枝が届かなければ何も起きない**。
+scenarios.b5KawariThenReachesHigh = {
+  title: 'WX09-045-E1 対照（Sheet1 B5＝赤3体が共通クラス → then の≤15000が届く）',
+  spec: b5Spec(b5RedShared, [['WX04-065#9450'], null, null]),
+  drive: b5Drive('b5KawariThenReachesHigh', null, 'WX04-065#9450'),
+};
+
 order.push('servantMultiEnaPaysColor');
 // Sheet1 B3（2026-08-27）＝共通クラス条件の排他分岐。正方向＋対照をセットで既定 order へ。
 // ── Sheet1 B4（2026-08-27）＝「次に使用するスペルのコスト軽減」は**1回で消費される** ──────────
@@ -17199,6 +17290,9 @@ scenarios.b4NextSpellReductionConsumed = {
 };
 
 order.push('b3ShareClassDrawsFour', 'b3DistinctClassDrawsThree');
+// Sheet1 B5（2026-08-27）＝「〜の場合、代わりに」の昇格置換。**何体消えたか**と**ピッカーの候補集合**は
+//   実機でしか観測できない（golden は JSON の形しか見ない）＝正方向＋対照を既定 order へ。
+order.push('b5KawariElseBanishesOnlyLow', 'b5KawariThenReachesHigh');
 // Sheet1 B4（2026-08-27）＝census 較正の前提（1回で消費）を実機で見張る。
 order.push('b4NextSpellReductionConsumed');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は

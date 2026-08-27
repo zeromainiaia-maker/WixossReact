@@ -1,5 +1,96 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-27：Sheet1 B5＝「〜の場合、**代わりに**」が置換にならず**2体バニッシュ**していた（§5.3 `O-99` 消化）＋色OR・公開しの取りこぼし
+
+> **1巡（続き683・Opus 5 単独）**＝**parser の3つの穴を1バッチで**。gates 全緑
+> （golden **2872→2876**（+4テスト）FAIL 0／smoke 全異常0／fuzz 全0／census **551→536→537**／
+> `census:stubs` A群🔴0・C群0／manual-fields 0/0／enginetext A群 141 据置／lint 0 errors・warning 263 ±0）。
+> **live 変化は 28 effectId ちょうど**（新規0・消滅0）。**Sheet1 要対応 69 → 67枚**（8.0%→7.8%・census 32→28）。
+> **意味照合 段2 台帳 OPEN 641 → 634**。**実機シナリオ2本を新設して各2回連続 PASS**＋回帰4本も ALL PASS。
+
+### ① 「A。〈条件〉場合、**代わりに** B。」＝昇格置換が畳めず両枝が走っていた（§5.3 `O-99`）
+
+**症状**＝`WX09-045-E1`（三炎の宝石）は「対戦相手のパワー**8000以下**のシグニ1体をバニッシュする。あなたの場に赤の
+シグニが3体あり、それらが共通するクラスを持つ場合、**代わりに**パワー**15000以下**のシグニ1体をバニッシュする」なのに、
+live は `SEQUENCE[BANISH ≤8000, BANISH ≤15000]` ＝**条件と無関係に2体バニッシュ**していた。
+
+**真因**＝`tryWrapLeadingStateCond`（`effectParser.ts`）は「代わりに」で始まる帰結を**意図的に除外**している
+（then だけのラップでは「基本＋条件時追加」の誤近似になり、既存 STUB も横取りして退化させるため）。
+つまり**除外は正しく、足りていなかったのは「基本文を `else` に置ける位置での後段パス」**だった。
+
+**当て**＝`parseActionText` に後段パス **`foldKawariSubstitution`** を新設し、
+`SEQUENCE[…, A, B]` を `CONDITIONAL{cond, then:B, else:A}` へ畳む（`foldElseIntoLeadingConditional`＝Sheet1 B3 の兄弟）。
+条件は新ヘルパ **`resolveStateConditionClause`** が **`LEADING_STATE_CLAUSES` と `STATE_CONDITION_CLAUSES` の両方**で解く。
+🔑**表は2つある**＝`parseHoistStateCondition` は後者しか見ないので、`FIELD_SIGNI_SHARE_CLASS`（B3 で新設）のような
+前者にしか無い語彙を静かに取りこぼす（§4.2「『規則が無い』と『共通表に無い』は別物」の再実証）。
+
+**除外（＝畳んではいけないもの）を先に実測してから入れた**＝原文「代わりに」502効果を機械で仕分けると、通すのは6件だけ：
+- 🔴**予約・置換アクション**（`PREVENT_NEXT_DAMAGE`／`LIFE_CRASH_REPLACE`）＝**アクション自身が条件を内包する正表現**。
+  「【エナチャージ１】をする。このターン、次にあなたがシグニによってダメージを受ける場合、代わりにダメージを受けない。」形が
+  **45効果**あり、畳むと二重ゲートになってエナチャージとバリアが排他になる（Sheet1 B4 の census 較正と同じ論点）。
+- **「代わりにNつ（まで）選ぶ」**（選択数の昇格）＝受け皿は `betChoose`／`conditionChoose` で**別経路**。
+- **照応語で始まる帰結**（「代わりに**それ**を〜」）＝単独 parse で参照先を失う。
+
+**成果**＝`WX09-045-E1`／`WXDi-P16-089-E1`／`SP27-012-E1`／`WX21-039-E1` の4効果。
+新設した Condition は **`THIS_CARD_HAS_SOUL` の1本**（`WXDi-P16-089-E1`「このシグニに【ソウル】が付いている場合」）。
+⚠**`THIS_CARD_HAS_ATTACHED`（チャーム/アクセ/ソウルの合計）を流用しない**＝チャームだけでも成立する別物（§4.2）。
+⚠`ActiveCondition` 側には `IS_SELF_SOUL_ATTACHED` が既にあり**同型・同実装**＝両方揃えて更新する運用に載せた。
+
+### ② 「白か黒のシグニ」が**黒しか選べない**過小効果だった（共通ヘルパ `parseColorFilter`）
+
+**症状**＝`WX09-016-BURST`「あなたのデッキから**白か黒の**シグニ1枚を探して…」が `filter.color:"黒"`。
+**真因**＝`parseColorFilter`（`parserUtils.ts`）は5色を `` `${c}の` `` で走査して**最初に当たった1色を返す**。
+「白か黒の」では「白**か**」に「の」が付かないため、**黒だけが当たる**。
+🔑**受け皿が無かったわけではない**＝`TargetFilter.color` は配列を受け、`matchesFilter`（`execUtils.ts:872`）も OR で解く。
+**同じ原文を配列で正しく出している経路が別に在った**（`TRANSFER_TO_HAND`／`REVEAL_AND_PICK` の `color:["白","黒"]`）＝
+**この入口だけが取り残されていた非対称**（§4.2「同義の別キーを探す」の逆＝**共通ヘルパ自身が穴**だったケース）。
+
+**成果**＝SEARCH 2件・`ADD_TO_FIELD.source` 6件の計8効果
+（`WX09-016-BURST`／`PR-387-E1`／`WXDi-P11-050-E3`／`WXDi-P11-051-E2`／`WXDi-P11-078-E2`／`WXDi-P16-001B-E2`／
+`WXK09-005-E2-G2`／`WXDi-D06-014-E1`／`WXDi-P04-022-E2`／`WXDi-P08-040-E1`）。
+🗑**副産物＝`manualEffects.ts` の `WXEX1-57` 影武者が露出した**（§6.4 `O-42` トリップワイヤ発火）。
+この手書きコピーは**まさに「共通 `parseColorFilter` は色ORを出さないから」という理由で書かれていた**ので撤去し、
+**live の `parseStatus` も `MANUAL`→`AUTO` へ直した**（`PRESERVE_STATUSES` が効いたままだとその効果にだけ parser 改善が永久に届かない）。
+
+### ③ 「探して**公開し**」の公開が、行き先が手札以外だと丸ごと落ちていた
+
+**症状**＝census「公開し」カテゴリの高シグナル26件のうち**12件**が同じ形。
+**真因**＝SEARCH ビルダー（`parseSentencePart1.ts`）の `then` は**手札行きの既定枝でだけ** `SEQUENCE[REVEAL, ADD_TO_HAND]` を返し、
+場／エナ／トラッシュ／ライフ行きの枝には公開が1つも載らない。
+**当て**＝アクション側の **`revealPicked`**（engine `resumeSearch` が公開ログを出す・逆翻訳も読む）を立てる。
+⚠**`then` を `SEQUENCE[REVEAL, …]` に変えてはいけない**＝`wrapHandOrField` の `markDeckSearch` が `then.type==='ADD_TO_FIELD'` を見ており、
+engine の handOrField も `thenAction.owner` を読む＝形を変えると「手札に加えるか場に出す」の**二択が丸ごと消える**。
+
+### 実測で前提が崩れたもの（着手前に潰した空振り）
+
+- 🔴**「選択数の昇格（代わりにNつ選ぶ）11効果が落ちている」は誤り**＝live JSON を `CONDITIONAL`／`else` の有無だけで
+  仕分けたための**計器の作り方の誤り**で、実際は `betChoose`／`conditionChoose` という**別のキー**で全件正しく載っていた。
+  🔑**「条件が表現されているか」を型名だけで数えない**（受け皿がアクションのプロパティ側にある形が実在する）。
+- 🔴**「公開し」の12件は log しか変わらない**＝`execReveal`（source なし）も `revealPicked` も**盤面を変えない**。
+  §2.1②の「消費地点を grep する」を先にやったので、**挙動バグとして報告しない**判断ができた（B4 の教訓の適用）。
+  ただし同じ調査で `WX09-016-BURST` の**色OR脱落**（実挙動バグ）と `WX20-023-BURST` の【レイヤー】filter 脱落を見つけた。
+- **census +1 は退化ではなく可視化**＝`WXEX1-57-E1` が MANUAL バケツを出て「条件節(〜の場合)」の高シグナル側へ昇格した
+  （中身は `REVEAL_AND_PICK{filter, pickCount:1}` の正表現）。551→**536**→537 で baseline を実数更新。
+
+### 実機検証（§2.1 ⑤）
+
+- 🆕**`b5KawariElseBanishesOnlyLow`**＝host の赤3体を**異クラス**にして `WX09-045` を撃つ。
+  guest は 5000 と 10000 の2体＝**旧実装なら両方消える**。実測＝ピッカー候補が `["WXDi-P04-055#9440"]` **ちょうど**で、
+  10000 は**候補にすら出ず場に残った**。
+- 🆕**`b5KawariThenReachesHigh`**（対照・§5-21）＝赤3体を**全部 精羅：鉱石**にすると `then`（≤15000）へ置換され、
+  10000 の1体だけが対象になる（条件が効かなければ候補0で何も起きない）。
+- どちらも2回連続 PASS・既定 `order` へ追加。回帰4本（`crossIconBouncePicker`／`servantMultiEnaPaysColor`／
+  `b3ShareClassDrawsFour`／`b3DistinctClassDrawsThree`）も ALL PASS。
+
+### 送り（§5.3 へ登録）
+
+`O-101`（「そうしない場合」＝否定 did-it ゲート・実測1効果／場全体の attached・under の OR 条件・同1効果。
+⚠`execPlaceUnderSigni` が候補0で `lastProcessedCards` を触らずに返す点を先に直すこと）／
+`O-102`（`SP27-012`／`WX21-039` の**基本文側**の条件＝`O-95` と同根なので**同時に取る**）／
+`O-103`（「手札に加えるか**エナゾーンに置くか**場に出し」の3択が `handOrField` の2択に収まらない）。
+
+---
+
 ## 2026-08-27：Sheet1 B4＝「次にスペルを使用する場合」11効果は**バグではなかった**（census の恒久的な誤検出を較正）
 
 > **1巡（続き682・Opus 5 単独）**＝**バグ修正ではなく計器の較正**。着手前の母集団実測（§2.1 ②）で**前提が崩れた**回。
