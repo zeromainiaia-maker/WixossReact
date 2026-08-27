@@ -47,7 +47,7 @@ interface Props {
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
-import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -8371,7 +8371,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const pieceEffCostGate = computeArtsEffectiveCost(
         cardData, my, myLrigCardPC?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
         myLrigCardPC ? parseInt(myLrigCardPC.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
-        { oppState: op, cardCostReplacements: my.card_cost_replacements },
+        { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap),
       );
       const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCostGate, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
       const condOk = canUseArtsCondition(

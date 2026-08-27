@@ -2098,6 +2098,75 @@ const scenarios = {
     },
   },
 
+  // ── Sheet1 B14（2026-08-27）＝§5.3 `O-119`（使用コストの比例増減を payload 化）の実機観測点 ──
+  b14costup: {
+    title: 'WX05-034 至宝の欠片（使用コストがライフクロス1枚につき《無×1》増える＝payload 化で初めて請求される）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        // 🔴ライフ3枚＝原文どおりなら《赤×1》＋《無×3》＝**エナ4枚**を払う。
+        //   旧＝`computeArtsEffectiveCost` に**増加側の汎用分岐が無く**、《赤×1》＝1枚しか請求していなかった
+        //   （＝原文より安く使える過小請求。逆翻訳・census・golden のどれにも映らなかった）。
+        'life_cloth': ['WD01-013#21', 'WD01-013#22', 'WD01-013#23'],
+        // 赤5枚＝**新コストでも旧コストでも払える**ようにしておく。
+        //   「払えるか」ではなく「**何枚減るか**」で新旧を判別する（払えない側で見ると
+        //   ボタンが出ない理由が他の要因と区別できない）。
+        'energy': ['WD02-013#5', 'WD02-013#6', 'WD02-013#7', 'WD02-013#8', 'WD02-013#9'],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'] },
+      handPrepend: ['WX05-034#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      const e0 = st0?.host?.energy ?? -1;
+      H.log(`開始 energy=${e0} life=${st0?.host?.life} hand=${JSON.stringify(st0?.host?.handCards)}`);
+      if (e0 < 5) return { pass: false, detail: `前提が崩れている（energy=${e0}／5枚必要）` };
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click().catch(() => {}); return 'btn:' + name;
+        }
+        return null;
+      };
+      await H.clickTestId('my-hand-card-0');
+      const clicked = new Set();
+      for (let s = 0; s < 30; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/b14costup-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        // 「発動する」が押せるようになった時点で確定する＝**旧挙動なら1枚選んだ直後に押せてしまう**ので、
+        // 消費枚数の差がそのまま新旧の判別になる。
+        if (!did) did = await clickExact('発動する');
+        if (!did) {
+          for (let i = 0; i < 5 && !did; i++) {
+            if (clicked.has(i)) continue;
+            const en = page.getByTestId(`spellcost-energy-${i}`).first();
+            if (await en.count() && await en.isVisible().catch(() => false)) {
+              await en.click().catch(() => {}); clicked.add(i); did = `spellcost-energy-${i}`;
+            }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        const used = e0 - (st?.host?.energy ?? e0);
+        const inTrash = (st?.host?.trashCards ?? []).some(n => String(n).startsWith('WX05-034#'));
+        H.log(`  b14cost[${s}] -> ${did ?? 'なし'} | energy=${st?.host?.energy ?? '-'}(消費${used}) 選択済=${[...clicked]} spellTrash=${inTrash} pSpell=${st?.pendingSpell ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (inTrash && used > 0) {
+          if (used >= 4) {
+            return { pass: true, detail: `ライフ3枚ぶんの《無×3》が上乗せされた＝エナ${used}枚消費（旧挙動は1枚）` };
+          }
+          return { pass: false, detail: `旧挙動＝増加が請求されずエナ${used}枚しか減らなかった（原文は《赤×1》＋《無×3》＝4枚）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `スペルが解決しなかった（energy ${e0}→${fin?.host?.energy ?? '-'} hand=${JSON.stringify(fin?.host?.handCards)} pSpell=${fin?.pendingSpell ?? '-'}）` };
+    },
+  },
+
   // ── Sheet1 B12（2026-08-27）＝段2 第3巡の実機観測点 ──
   b12delayattack: {
     title: 'WX10-035 光輝（「このターン、あなたのシグニがアタックしたとき」＝遅延設置。唱えた瞬間ではない）',

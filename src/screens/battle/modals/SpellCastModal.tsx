@@ -5,7 +5,7 @@ import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
-import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
+import { parseUseTimeCostReduction, useTimeCostCandidates as getTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid as isTimeCostSelectionValid } from '../useTimeCost';
 import { computeSpellEffectiveCost, spellExtraCosts } from '../spellUseGate';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -59,7 +59,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
               //   カード名指定軽減（タスク12(xci)）／メルト・ファクトの事前ウィルス除去。
               let effSpellCost = myArtsPayerCtx
                 ? computeSpellEffectiveCost({
-                    card: spellCard, my, op, cardMap: battleCardMap, payer: myArtsPayerCtx,
+                    card: spellCard, my, op, cardMap: battleCardMap, effectsMap, payer: myArtsPayerCtx,
                     paidOptionalDiscard: optDiscardPaid,
                     virusRemovalByZone: pendingSpellCast.virusRemovalByZone,
                   })
@@ -70,10 +70,10 @@ export function SpellCastModal(p: SpellCastModalProps) {
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
               const useCostSpec = parseUseTimeCostReduction(spellCard.EffectText ?? '');
               const useCostCands = useCostSpec
-                ? useTimeCostCandidates(useCostSpec, my, battleCardMap, pendingSpellCast.handIndex) : [];
+                ? getTimeCostCandidates(useCostSpec, my, battleCardMap, pendingSpellCast.handIndex) : [];
               const useCostBefore = effSpellCost;
               const useCostIncomplete = !!useCostSpec && selectedSpellUseCostPay.size > 0
-                && !useTimeCostSelectionValid(useCostSpec, selectedSpellUseCostPay, useCostCands.length);
+                && !isTimeCostSelectionValid(useCostSpec, selectedSpellUseCostPay, useCostCands.length);
               if (useCostSpec) {
                 effSpellCost = applyUseTimeCostReduction(effSpellCost, useCostSpec, selectedSpellUseCostPay.size);
               }

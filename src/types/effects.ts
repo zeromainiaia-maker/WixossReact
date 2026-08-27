@@ -535,8 +535,31 @@ export interface EnergyCost {
   count: number;
 }
 
+/** 「〜N体／枚につき《色×M》減る／増える」の、盤面で数える対象。 */
+export type CostScalingCount =
+  | { kind: 'zone'; zone: 'field' | 'energy' | 'trash' | 'lrig_trash' | 'life_cloth' | 'hand'; owner: Owner; filter?: TargetFilter }
+  | { kind: 'fieldLrig'; owner: Owner; filter?: TargetFilter }
+  | { kind: 'lrigLevel'; owner: Owner }
+  | { kind: 'coins'; owner: Owner }
+  | { kind: 'charm' | 'virus'; owner: Owner };
+
+/** 「〜N体／枚につき《色×M》減る／増える」＝使用コストの比例増減1項。 */
+export interface CostScalingTerm {
+  direction: 'reduce' | 'increase';
+  /** 複数指定は合計してから per で割る（「AかB 1体につき」）。 */
+  counts: CostScalingCount[];
+  /** 「N体につき」の N。切り捨て除算する。 */
+  per: number;
+  /** 1単位あたりの増減量。複数色は同時に動く。 */
+  amount: EnergyCost[];
+  /** 「N体以上いるかぎり」付きの項。合計が未満なら項全体を適用しない。 */
+  minCount?: number;
+}
+
 export interface EffectCost {
   energy?: EnergyCost[];
+  /** カード自身の使用コストを、盤面の枚数／レベル等に比例して増減する項（各項は順に累積）。 */
+  costScaling?: CostScalingTerm[];
   discard?: number;       // 手札を任意のカードN枚トラッシュ
   discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可

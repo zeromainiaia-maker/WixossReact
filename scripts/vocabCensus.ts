@@ -96,7 +96,10 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 526; // 2026-08-27 Sheet1 B12＝**Sheet1 段2 の3巡目**（gates は最後の1回だけ・規模を上げる運用）。
+// 2026-08-27 O-119: costScaling makes proportional cost text observable. Two pre-existing,
+// out-of-scope action gaps leave the STUB bucket: WX15-060-E1 (relative-power target) and
+// SP26-008-E1 (granted turn-once attack auto). No non-O-119 effect changed high-signal class.
+const BASELINE_HIGH = 528;
 //   ①**スペル本文の後ろに来るトップレベル【起】を分割していなかった**＝【起】の本体がスペル本文の
 //     SEQUENCE 末尾へ連結され、**唱えた瞬間にコストも払わず無料で走っていた**（実測3枚＝`WX10-096`／
 //     `WX17-044`／`WXDi-P06-077`）。分離マーカーが【自】：だけだったのが原因。
@@ -694,7 +697,7 @@ const PATTERNS: Pattern[] = [
     name: '数量比例(1枚/1体につき)',
     re: /(１|1)(枚|体|つ)につき/,
     keys: ['deltaPer', 'PER_', 'perCount', 'countFilter', 'PerCard', 'PerLevel', 'PerCharm',
-      '$ref', 'last_processed', 'lastProcessed', 'addLast'],
+      '$ref', 'last_processed', 'lastProcessed', 'addLast', 'costScaling'],
   },
   {
     name: '合計制約(合計がN以上/以下)',

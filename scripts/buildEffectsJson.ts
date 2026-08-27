@@ -141,7 +141,7 @@ for (const r of rows) {
 //   - fresh が純粋上位集合 → fresh 採用（証明可能に無損失な改善のみ自動収穫）
 //   - それ以外（損失/値変更/混在）→ existing 温存し、レポートに記録（人が後でレビュー）
 const report: Record<string, string[]> = {
-  adopted_new: [], adopted_gain: [], adopted_partial: [], adopted_manual_add: [], preserved_manual: [],
+  adopted_new: [], adopted_gain: [], adopted_partial: [], adopted_manual_add: [], adopted_cost_scaling: [], preserved_manual: [],
   preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [], preserved_idset: [],
 };
 // 【出現条件】は実効果ではなくカード単位メタデータ。richness ガードが MANUAL 効果を
@@ -161,6 +161,13 @@ const canonLeaves = (o: any): string => {
   return out.sort().join('\n');
 };
 const equalIgnoringParseStatus = (a: any, b: any) => canonLeaves(a) === canonLeaves(b);
+const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
+const stripCostScalingMarker = (action: any): any => {
+  if (!action || typeof action !== 'object') return action;
+  if (action.type === 'STUB' && COST_SCALING_MARKERS.has(action.id)) return undefined;
+  if (action.type !== 'SEQUENCE' || !Array.isArray(action.steps)) return action;
+  return { ...action, steps: action.steps.map(stripCostScalingMarker).filter(Boolean) };
+};
 const allIds = new Set<string>([...existingEffects.keys(), ...Object.keys(result)]);
 // held（温存＝要レビュー）カードの fresh 出力を保存＝scripts/heldReview.mjs のレビュー/採用の入力
 const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
@@ -198,6 +205,28 @@ for (const id of allIds) {
     withAdded.push(...rest);                        // fresh に無い既存効果は末尾に温存
     existing = withAdded;
     report.adopted_manual_add.push(id);
+  }
+  // An existing action remains authoritative, but a strict parser payload for the same
+  // effectId can safely replace the no-op cost marker without re-adopting unrelated action
+  // fields from the same parse. This is semantic-field inheritance, not card-specific force
+  // adoption: every effect with a strict costScaling payload follows the same rule.
+  const freshByEffectId = new Map(fresh.map(effect => [effect.effectId, effect]));
+  let inheritedCostScaling = false;
+  existing = existing.map(effect => {
+    const freshEffect = freshByEffectId.get(effect?.effectId);
+    const costScaling = freshEffect?.cost?.costScaling;
+    if (!costScaling?.length) return effect;
+    inheritedCostScaling = true;
+    return {
+      ...effect,
+      cost: { ...(effect.cost ?? {}), costScaling },
+      action: stripCostScalingMarker(effect.action),
+    };
+  });
+  if (inheritedCostScaling) {
+    report.adopted_cost_scaling.push(id);
+    result[id] = existing as ReturnType<typeof parseCardEffects>;
+    continue;
   }
   if (JSON.stringify(existing) === JSON.stringify(fresh)) { result[id] = existing as ReturnType<typeof parseCardEffects>; continue; } // 変化なし
   // parseStatus だけの差分（AUTO→PARTIAL 刻印等）＝実体は同一。existing 温存（held に落とさない）
@@ -280,6 +309,7 @@ if (wx24p2047Choice1) {
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
 writeFileSync(join(root, 'docs', '_partial_fresh.json'), JSON.stringify(partialFresh), 'utf-8');
 writeFileSync(join(root, 'docs', '_idset_fresh.json'), JSON.stringify(idsetFresh), 'utf-8');
+console.log(`costScaling inheritance: ${report.adopted_cost_scaling.length}`);
 console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 効果単位採用 ${report.adopted_partial.length} / 手書き効果の新規追加 ${report.adopted_manual_add.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length} / id集合ズレ(要レビュー) ${report.preserved_idset.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）
 {

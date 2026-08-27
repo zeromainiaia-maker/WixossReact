@@ -13,6 +13,7 @@ import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef, LifeCrashPreventionSpec } from '../src/types';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
+import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
@@ -55,7 +56,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../src/screens/battle/costs';
+import { applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -20858,11 +20859,11 @@ test('parse (lxxvii) honest defer：WXK03-069 は curated を据え置く（fres
 test('parse (lxxvi)：ゾーン供給源を3種類に判別する（designated / vacated / virus）', () => {
   const wx08 = effectsMap.get('WX08-032')!.find(e => e.effectId === 'WX08-032-E1')!;
   const s08 = (wx08.action as SequenceAction).steps as unknown as { type?: string; id?: string; zoneBlockSource?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean }[];
-  eq(s08[1]?.type, 'BANISH', 'WX08-032-E1: 先にバニッシュ');
-  eq(s08[2]?.id, 'BLOCK_OPP_ZONE_PLACEMENT', '従来は汎用 no-op STUB に落ちていた');
-  eq(s08[2]?.zoneBlockSource, 'vacated', '「それがあったシグニゾーン」＝直前に空いたゾーン');
-  eq(s08[2]?.zoneBlockThisTurn, true, 'このターンと…');
-  eq(s08[2]?.zoneBlockNextTurn, true, '…次のターンの間');
+  eq(s08[0]?.type, 'BANISH', 'WX08-032-E1: costScaling 化後も先にバニッシュ');
+  eq(s08[1]?.id, 'BLOCK_OPP_ZONE_PLACEMENT', '従来は汎用 no-op STUB に落ちていた');
+  eq(s08[1]?.zoneBlockSource, 'vacated', '「それがあったシグニゾーン」＝直前に空いたゾーン');
+  eq(s08[1]?.zoneBlockThisTurn, true, 'このターンと…');
+  eq(s08[1]?.zoneBlockNextTurn, true, '…次のターンの間');
   const wxex1 = effectsMap.get('WXEX1-24')!.find(e => e.effectId === 'WXEX1-24-E1')!;
   const c2 = (wxex1.action as unknown as { choices: { action: { id?: string; zoneBlockSource?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean } }[] }).choices[2].action;
   eq(c2.id, 'BLOCK_OPP_ZONE_PLACEMENT', 'WXEX1-24-E1 ③も届く');
@@ -41637,7 +41638,7 @@ test('§6.4 O-11: SPK01-14-E1 は2択で、①がバニッシュ→（引く/エ
   // 🔴live は外側の2択も BANISH も5ドローも欠けており、①の後段だけが無条件に走っていた。
   const e = (effectsMap.get('SPK01-14') ?? []).find(x => x.effectId === 'SPK01-14-E1');
   ok(!!e, 'SPK01-14-E1 が live に存在する');
-  const ch = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const ch = (e!.action as SequenceAction).steps.find(step => step.type === 'CHOOSE') as Extract<EffectAction, { type: 'CHOOSE' }>;
   eq(ch.type, 'CHOOSE', '🔴外側の2択が落ちている');
   eq(ch.choices.length, 2, '2択');
   const c0 = JSON.stringify(ch.choices[0].action);
@@ -50395,7 +50396,7 @@ test('Sheet1 B11: 綴り違いで表から外れていた配線（JSON契約）'
 
   // ⑤ 「カード名に《X》を含む」の前置修飾（集合主語・トラッシュ回収の両方）
   {
-    const s = j('WX10-053', 'WX10-053-E1');
+    const s = JSON.stringify(b45Effect('WX10-053', 'WX10-053-E1').action);
     eq((s.match(/"cardName":"サーバント"/g) ?? []).length, 3,
       'WX10-053-E1: ①回収・②パワー・②ランサーの3か所すべてがサーバント限定');
     ok(!s.includes('"COST_REDUCTION"'),
@@ -50458,6 +50459,215 @@ test('Sheet1 B11: `same:\'level\'` 評価器の3点セット（成立／不成�
     'same:level: 違うレベルは不成立');
   ok(!satisfiesSelectionConstraint(two(a, '__NO_SUCH_CARD__'), sameLv, cardMap as Map<string, CardData>),
     'same:level: レベルが引けないカードが混ざったら**不成立**（fail-closed＝制約が消えて過剰実行に倒れない）');
+}));
+
+test('O-119: proportional self-use cost payload covers G1-G18 and preserves the legacy path', () => withSavedCursor(() => {
+  const groups: Record<string, string[]> = {
+    G1: 'WXK06-010 WXK06-016 WXK06-022 WXK07-011 WXK07-018'.split(' '),
+    G2: 'WX04-030 WX04-032 WX10-045 WX11-039'.split(' '),
+    G3: 'WX25-P3-039 WX25-P3-041 WX25-P3-043 WX25-P3-044 WX25-P3-046'.split(' '),
+    G4: ['WX10-053'],
+    G5: 'WX11-020 WD15-006 SP26-008 WXK05-048'.split(' '),
+    G6: 'WX12-Re04 WX22-004'.split(' '),
+    G7: ['WXK06-055'],
+    G8: 'WX07-065 WX21-Re01 SP26-003'.split(' '),
+    G9: ['SPK01-14'],
+    G10: 'WX08-028 WX08-032'.split(' '),
+    G11: ['WX16-033'],
+    G12: ['WX08-030'],
+    G13: ['WX08-026'],
+    G14: ['WX05-034'],
+    G15: ['WD16-023'],
+    G16: ['WX15-060'],
+    G17: ['WX12-056'],
+    G18: 'WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007'.split(' '),
+  };
+  const allIds = Object.values(groups).flat();
+  eq(allIds.length, 40, 'O-119 scope size');
+  const instanceCards = new InstanceMap<CardData>(cardMap);
+  let serial = 0;
+  const instance = (cardNum: string) => `${cardNum}#o119-golden-${++serial}`;
+  const emptyState = (): PlayerState => ({
+    life_cloth: [], hand: [], energy: [], trash: [], lrig_trash: [], coins: 0,
+    field: {
+      lrig: [], assist_lrig_l: [], assist_lrig_r: [],
+      signi: [[], [], []], signi_acce: [null, null, null],
+      signi_frozen: [false, false, false], signi_charms: [null, null, null], signi_virus: [0, 0, 0],
+    },
+  } as unknown as PlayerState);
+  const stateFor = (owner: CostScalingCount['owner'], my: PlayerState, opp: PlayerState) =>
+    owner === 'self' ? my : owner === 'opponent' ? opp : undefined;
+  const findMatching = (filter: TargetFilter | undefined, type?: string): CardData => {
+    const card = [...cardMap.values()].find(c => (!type || c.Type === type) && matchesFilter(c, filter));
+    if (!card) throw new Error(`O-119 matching fixture missing: ${JSON.stringify(filter)}`);
+    return card;
+  };
+  const findMismatching = (filter: TargetFilter, type: string): CardData => {
+    if (filter.noAbilities !== undefined) {
+      return findMatching({ ...filter, noAbilities: !filter.noAbilities }, type);
+    }
+    const card = [...cardMap.values()].find(c => c.Type === type && !matchesFilter(c, filter));
+    if (!card) throw new Error(`O-119 mismatching fixture missing: ${JSON.stringify(filter)}`);
+    return card;
+  };
+  const lrigLevelCard = (level: number): CardData => {
+    const card = [...cardMap.values()].find(c => c.Type === 'ルリグ' && parseInt(c.Level ?? '', 10) === level);
+    if (!card) throw new Error(`O-119 LRIG level fixture missing: ${level}`);
+    return card;
+  };
+  const ensureReadableZero = (terms: CostScalingTerm[], my: PlayerState, opp: PlayerState) => {
+    for (const count of terms.flatMap(term => term.counts)) {
+      if (count.kind !== 'lrigLevel') continue;
+      const state = stateFor(count.owner, my, opp);
+      if (state) state.field.lrig = [instance(lrigLevelCard(0).CardNum)];
+    }
+  };
+  const populate = (count: CostScalingCount, n: number, my: PlayerState, opp: PlayerState, mismatch = false) => {
+    const state = stateFor(count.owner, my, opp);
+    if (!state || n <= 0) return;
+    if (count.kind === 'lrigLevel') {
+      state.field.lrig = [instance(lrigLevelCard(n).CardNum)];
+      return;
+    }
+    if (count.kind === 'coins') { state.coins = n; return; }
+    if (count.kind === 'charm') {
+      for (let i = 0; i < Math.min(n, 3); i++) state.field.signi_charms[i] = instance(SIGNI);
+      return;
+    }
+    if (count.kind === 'virus') { state.field.signi_virus[0] = n; return; }
+    if (count.kind === 'fieldLrig') {
+      const card = mismatch && count.filter
+        ? findMismatching(count.filter, 'ルリグ')
+        : findMatching(count.filter, 'ルリグ');
+      const ids = Array.from({ length: Math.min(n, 3) }, () => instance(card.CardNum));
+      state.field.lrig = ids.slice(0, 1);
+      state.field.assist_lrig_l = ids.slice(1, 2);
+      state.field.assist_lrig_r = ids.slice(2, 3);
+      return;
+    }
+    if (count.kind !== 'zone') return;
+    if (count.zone === 'field') {
+      const dynamicMismatch = mismatch && !!(count.filter?.isFrozen || count.filter?.hasAcce);
+      const card = mismatch && count.filter && !dynamicMismatch
+        ? findMismatching(count.filter, 'シグニ')
+        : findMatching(count.filter, 'シグニ');
+      for (let i = 0; i < Math.min(n, 3); i++) {
+        state.field.signi[i] = [instance(card.CardNum)];
+        if (!mismatch && count.filter?.isFrozen) state.field.signi_frozen[i] = true;
+        if (!mismatch && count.filter?.hasAcce) state.field.signi_acce[i] = instance(SIGNI);
+      }
+      return;
+    }
+    const type = count.filter?.cardType;
+    const singleType = typeof type === 'string' ? type : undefined;
+    const card = mismatch && count.filter
+      ? findMismatching(count.filter, singleType ?? 'シグニ')
+      : findMatching(count.filter, singleType);
+    const ids = Array.from({ length: n }, () => instance(card.CardNum));
+    if (count.zone === 'energy') state.energy = ids;
+    else if (count.zone === 'trash') state.trash = ids;
+    else if (count.zone === 'lrig_trash') state.lrig_trash = ids;
+    else if (count.zone === 'life_cloth') state.life_cloth = ids;
+    else if (count.zone === 'hand') state.hand = ids;
+  };
+  const effective = (card: CardData, terms: CostScalingTerm[], my: PlayerState, opp: PlayerState, payload: boolean) => {
+    const center = my.field.lrig.at(-1);
+    const level = center ? parseInt(instanceCards.get(center)?.Level ?? '0', 10) : 0;
+    return computeArtsEffectiveCost(
+      card, my, undefined, '', level, instanceCards, undefined, undefined,
+      { oppState: opp }, payload ? terms : undefined,
+    );
+  };
+  const freshTerms = (cardNum: string): CostScalingTerm[] => {
+    const effects = parseCardEffects(cardMap.get(cardNum)!);
+    const effect = effects.find(e => e.effectId === `${cardNum}-E1`)!;
+    const terms = effect.cost?.costScaling;
+    ok(!!terms?.length, `${cardNum}: costScaling missing`);
+    const json = JSON.stringify(effect);
+    ok(!json.includes('ARTS_COST_REDUCTION_BY_EFFECT'), `${cardNum}: obsolete arts marker remains`);
+    ok(!json.includes('SPELL_COST_REDUCTION_BY_TRASH_COUNT'), `${cardNum}: obsolete spell marker remains`);
+    return terms!;
+  };
+
+  const legacyBugIds = new Set(['WX05-034', 'WD16-023']);
+  for (const cardNum of allIds) {
+    const card = cardMap.get(cardNum)!;
+    const terms = freshTerms(cardNum);
+    const zeroMy = emptyState(); const zeroOpp = emptyState();
+    ensureReadableZero(terms, zeroMy, zeroOpp);
+    const zeroLegacy = effective(card, terms, zeroMy, zeroOpp, false);
+    const zeroPayload = effective(card, terms, zeroMy, zeroOpp, true);
+    eq(zeroPayload, zeroLegacy, `${cardNum}: count=0`);
+
+    for (let ti = 0; ti < terms.length; ti++) {
+      for (let ci = 0; ci < terms[ti].counts.length; ci++) {
+        for (const n of [1, 2, 3]) {
+          const my = emptyState(); const opp = emptyState();
+          ensureReadableZero(terms, my, opp);
+          populate(terms[ti].counts[ci], n, my, opp);
+          const actual = effective(card, terms, my, opp, true);
+          if (!legacyBugIds.has(cardNum)) {
+            eq(actual, effective(card, terms, my, opp, false), `${cardNum}: term=${ti} count=${ci} n=${n}`);
+          }
+        }
+        const mismatchFilter = terms[ti].counts[ci].filter;
+        if (mismatchFilter && Object.keys(mismatchFilter).some(key => key !== 'cardType')) {
+          const my = emptyState(); const opp = emptyState();
+          ensureReadableZero(terms, my, opp);
+          populate(terms[ti].counts[ci], 3, my, opp, true);
+          eq(effective(card, terms, my, opp, true), zeroPayload, `${cardNum}: nonmatching filter must count zero`);
+          if (!legacyBugIds.has(cardNum)) {
+            eq(effective(card, terms, my, opp, true), effective(card, terms, my, opp, false), `${cardNum}: mismatch invariant`);
+          }
+        }
+      }
+    }
+
+    if (!legacyBugIds.has(cardNum)) {
+      for (const n of [1, 2, 3]) {
+        const my = emptyState(); const opp = emptyState();
+        ensureReadableZero(terms, my, opp);
+        for (const term of terms) populate(term.counts[0], n, my, opp);
+        eq(effective(card, terms, my, opp, true), effective(card, terms, my, opp, false), `${cardNum}: combined n=${n}`);
+      }
+    }
+  }
+
+  for (const [group, ids] of Object.entries(groups)) {
+    const cardNum = ids[0]; const card = cardMap.get(cardNum)!; const terms = freshTerms(cardNum);
+    const my = emptyState(); const opp = emptyState(); ensureReadableZero(terms, my, opp);
+    const n = group === 'G7' ? 5 : group === 'G18' ? 2 : 1;
+    populate(terms[0].counts[0], n, my, opp);
+    ok(effective(card, terms, my, opp, true) !== card.Cost, `${group}/${cardNum}: positive direction did not change cost`);
+  }
+
+  for (const [cardNum, color] of [['WX05-034', '赤'], ['WD16-023', '青']] as const) {
+    const card = cardMap.get(cardNum)!; const terms = freshTerms(cardNum);
+    for (const [n, expected] of [[0, `《${color}》×１`], [1, `《${color}》×1《無》×1`], [3, `《${color}》×1《無》×3`]] as const) {
+      const my = emptyState(); const opp = emptyState();
+      populate(terms[0].counts[0], n, my, opp);
+      eq(effective(card, terms, my, opp, true), expected, `${cardNum}: actual increase count=${n}`);
+    }
+  }
+
+  const perTwoState = (life: number) => ({ ...emptyState(), life_cloth: Array.from({ length: life }, () => instance(SIGNI)) });
+  const perTwoCount: CostScalingCount = { kind: 'zone', zone: 'life_cloth', owner: 'self' };
+  const reducePerTwo: CostScalingTerm[] = [{ direction: 'reduce', counts: [perTwoCount], per: 2, amount: [{ color: '白', count: 1 }] }];
+  const increasePerTwo: CostScalingTerm[] = [{ direction: 'increase', counts: [perTwoCount], per: 2, amount: [{ color: '無', count: 1 }] }];
+  eq(applyCostScalingTerms('《白》×3', reducePerTwo, perTwoState(0), emptyState(), instanceCards), '《白》×3', 'reduce per2 count0');
+  eq(applyCostScalingTerms('《白》×3', reducePerTwo, perTwoState(1), emptyState(), instanceCards), '《白》×3', 'reduce per2 count1');
+  eq(applyCostScalingTerms('《白》×3', reducePerTwo, perTwoState(3), emptyState(), instanceCards), '《白》×2', 'reduce per2 floor(3/2)');
+  eq(applyCostScalingTerms('《白》×3', increasePerTwo, perTwoState(0), emptyState(), instanceCards), '《白》×3', 'increase per2 count0');
+  eq(applyCostScalingTerms('《白》×3', increasePerTwo, perTwoState(1), emptyState(), instanceCards), '《白》×3', 'increase per2 count1');
+  eq(applyCostScalingTerms('《白》×3', increasePerTwo, perTwoState(3), emptyState(), instanceCards), '《白》×3《無》×1', 'increase per2 floor(3/2)');
+
+  const deferred = 'WX06-024 WX07-024 WX07-026 WX07-028 WX07-030 WX07-032 WX13-025 WX20-004 WX20-007 WD10-006 SP38-003 WX24-P3-002 WX24-P3-006 WX24-P3-008 WX24-P3-010 WD16-006 SP36-001'.split(' ');
+  eq(deferred.length, 17, 'O-119 deferred size');
+  for (const cardNum of deferred) {
+    const parsed = parseCardEffects(cardMap.get(cardNum)!);
+    ok(!parsed.some(e => e.cost?.costScaling?.length), `${cardNum}: deferred proportional payment-time form was adopted`);
+    ok(JSON.stringify(parsed).includes('ARTS_COST_REDUCTION_BY_EFFECT'), `${cardNum}: deferred marker was removed`);
+  }
 }));
 
 if (listMode) {

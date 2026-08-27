@@ -40,6 +40,8 @@ import type {
   SigniAttackBanAction,
   BanishAction,
   TriggerOriginZone,
+  CostScalingCount,
+  CostScalingTerm,
 } from '../types/effects';
 
 /**
@@ -993,6 +995,161 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   //   受け皿を作ったら**この行を消す前に母集団を実測し直す**（§4.1）。
   if (/すべてのシグニを場からトラッシュに置[くき]/.test(costStr)) return undefined;
   return Object.keys(cost).length > 0 ? cost : undefined;
+}
+
+const COST_SCALING_AMOUNT_SOURCE = '((?:《[^》]+》(?:×[０-９\\d]+)?)+)';
+const COST_SCALING_NUM_SOURCE = '([０-９\\d一二三四五六七八九]+)';
+
+function costScalingTerm(
+  direction: CostScalingTerm['direction'],
+  counts: CostScalingCount[],
+  perRaw: string,
+  amountRaw: string,
+  minCount?: number,
+): CostScalingTerm | null {
+  const per = parseNum(perRaw);
+  const amount = parseEnergyCosts(amountRaw);
+  if (!Number.isFinite(per) || per <= 0 || counts.length === 0 || amount.length === 0) return null;
+  return { direction, counts, per, amount, ...(minCount !== undefined ? { minCount } : {}) };
+}
+
+function opponentScalingCount(raw: string): CostScalingCount | null {
+  if (raw === '凍結状態のシグニ') {
+    return { kind: 'zone', zone: 'field', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } };
+  }
+  if (raw === '能力を持たないシグニ') {
+    return { kind: 'zone', zone: 'field', owner: 'opponent', filter: { cardType: 'シグニ', noAbilities: true } };
+  }
+  if (raw === '【チャーム】') return { kind: 'charm', owner: 'opponent' };
+  if (raw === '【ウィルス】') return { kind: 'virus', owner: 'opponent' };
+  return null;
+}
+
+/** O-119: 「このカード自身の使用コストは…につき…増減する」1文を payload 化する。 */
+function parseCostScalingSentence(sentence: string): CostScalingTerm[] | null {
+  const amount = COST_SCALING_AMOUNT_SOURCE;
+  const num = COST_SCALING_NUM_SOURCE;
+  const marker = sentence.match(/この(?:スペル|アーツ|カード|ピース)の使用コストは(.+)$/s);
+  if (!marker) return null;
+  const body = marker[1].replace(/^[、,]/, '').trim();
+  let m: RegExpMatchArray | null;
+
+  // G10: 「A 1体か B 1体につき」＝2集合の合計を1項として割る。
+  m = body.match(new RegExp(`^あなたの場にある＜([^＞]+)＞のシグニ${num}体か対戦相手の場にある(凍結状態のシグニ|能力を持たないシグニ|【チャーム】|【ウィルス】)${num}(?:体|枚|つ)につき${amount}減る$`));
+  if (m) {
+    const oppCount = opponentScalingCount(m[3]);
+    if (!oppCount || parseNum(m[2]) !== parseNum(m[4])) return null;
+    const term = costScalingTerm('reduce', [
+      { kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardClass: m[1] } },
+      oppCount,
+    ], m[2], m[5]);
+    return term ? [term] : null;
+  }
+
+  // G11: 2項がそれぞれ累積する。
+  m = body.match(new RegExp(`^あなたの場にある＜([^＞]+)＞のシグニ${num}体につき${amount}減り[、,]対戦相手の場にある(凍結状態のシグニ|能力を持たないシグニ|【チャーム】|【ウィルス】)${num}(?:体|枚|つ)につき${amount}減る$`));
+  if (m) {
+    const oppCount = opponentScalingCount(m[4]);
+    if (!oppCount) return null;
+    const first = costScalingTerm('reduce', [{ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardClass: m[1] } }], m[2], m[3]);
+    const second = costScalingTerm('reduce', [oppCount], m[5], m[6]);
+    return first && second ? [first, second] : null;
+  }
+
+  // G12: 場とエナの別項が累積する。
+  m = body.match(new RegExp(`^あなたの場にある＜([^＞]+)＞のシグニ${num}体につき${amount}減り[、,]あなたのエナゾーンにある＜([^＞]+)＞のシグニ${num}枚につき${amount}減る$`));
+  if (m) {
+    const first = costScalingTerm('reduce', [{ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardClass: m[1] } }], m[2], m[3]);
+    const second = costScalingTerm('reduce', [{ kind: 'zone', zone: 'energy', owner: 'self', filter: { cardType: 'シグニ', cardClass: m[4] } }], m[5], m[6]);
+    return first && second ? [first, second] : null;
+  }
+
+  // G13: 増加を先に、軽減を後に適用する（0クランプで増分を失わない順序）。
+  m = body.match(new RegExp(`^あなたのライフクロス${num}枚につき${amount}増え[、,]あなたの場にある＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニ${num}体につき${amount}減る$`));
+  if (m) {
+    const classes = [m[3], m[4]].filter(Boolean);
+    const inc = costScalingTerm('increase', [{ kind: 'zone', zone: 'life_cloth', owner: 'self' }], m[1], m[2]);
+    const red = costScalingTerm('reduce', [{ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardClass: classes } }], m[5], m[6]);
+    return inc && red ? [inc, red] : null;
+  }
+
+  // G18: 1体でもカードは使えるが、2体以上の「かぎり」だけ比例軽減が有効。
+  m = sentence.match(new RegExp(`あなたの場に([白赤青緑黒])のルリグが${num}体以上いるかぎり[、,]?このピースの使用コストはあなたの場にいる([白赤青緑黒])のルリグ${num}体につき${amount}減る$`));
+  if (m) {
+    if (m[1] !== m[3]) return null;
+    const term = costScalingTerm('reduce', [{ kind: 'fieldLrig', owner: 'self', filter: { color: m[3] } }], m[4], m[5], parseNum(m[2]));
+    return term ? [term] : null;
+  }
+
+  const single = (
+    re: RegExp,
+    buildCount: (match: RegExpMatchArray) => CostScalingCount | null,
+    perIndex: number,
+    amountIndex: number,
+    directionIndex: number,
+  ): CostScalingTerm[] | null => {
+    const match = body.match(re);
+    if (!match) return null;
+    const count = buildCount(match);
+    if (!count) return null;
+    const direction = match[directionIndex].startsWith('増') ? 'increase' : 'reduce';
+    const term = costScalingTerm(direction, [count], match[perIndex], match[amountIndex]);
+    return term ? [term] : null;
+  };
+
+  return single(new RegExp(`^あなたの場にあるアクセされている＜([^＞]+)＞のシグニ${num}体につき${amount}(減る|増える)$`),
+      x => ({ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardClass: x[1], hasAcce: true } }), 2, 3, 4)
+    ?? single(new RegExp(`^あなたの場にあるカード名に《([^》]+)》を含むシグニ${num}体につき${amount}(減る|増える)$`),
+      x => ({ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardName: x[1] } }), 2, 3, 4)
+    ?? single(new RegExp(`^あなたの場にある＜([^＞]+)＞のシグニ${num}体につき${amount}(減る|増える)$`),
+      x => ({ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', cardClass: x[1] } }), 2, 3, 4)
+    ?? single(new RegExp(`^あなたの場にある([白赤青緑黒])のシグニ${num}体につき${amount}(減る|増える)$`),
+      x => ({ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ', color: x[1] } }), 2, 3, 4)
+    ?? single(new RegExp(`^あなたの場にあるシグニ${num}体につき${amount}(減る|増える)$`),
+      () => ({ kind: 'zone', zone: 'field', owner: 'self', filter: { cardType: 'シグニ' } }), 1, 2, 3)
+    ?? single(new RegExp(`^あなたのセンタールリグのレベル${num}につき${amount}(減る|増える)$`),
+      () => ({ kind: 'lrigLevel', owner: 'self' }), 1, 2, 3)
+    ?? single(new RegExp(`^あなたのルリグトラッシュにあるアーツ${num}枚につき${amount}(減る|増える)$`),
+      () => ({ kind: 'zone', zone: 'lrig_trash', owner: 'self', filter: { cardType: 'アーツ' } }), 1, 2, 3)
+    ?? single(new RegExp(`^あなたのトラッシュにある＜([^＞]+)＞のシグニ${num}枚につき${amount}(減る|増える)$`),
+      x => ({ kind: 'zone', zone: 'trash', owner: 'self', filter: { cardType: 'シグニ', cardClass: x[1] } }), 2, 3, 4)
+    ?? single(new RegExp(`^あなたのトラッシュにある《([^》]+)》${num}枚につき${amount}(減る|増える)$`),
+      x => ({ kind: 'zone', zone: 'trash', owner: 'self', filter: { cardNames: [x[1]] } }), 2, 3, 4)
+    ?? single(new RegExp(`^対戦相手の場にある(凍結状態のシグニ|能力を持たないシグニ|【チャーム】|【ウィルス】)${num}(?:体|枚|つ)につき${amount}(減る|増える)$`),
+      x => opponentScalingCount(x[1]), 2, 3, 4)
+    ?? single(new RegExp(`^対戦相手のコイン${num}枚につき${amount}(減る|増える)$`),
+      () => ({ kind: 'coins', owner: 'opponent' }), 1, 2, 3)
+    ?? single(new RegExp(`^あなたのライフクロス${num}枚につき${amount}(減る|増える)$`),
+      () => ({ kind: 'zone', zone: 'life_cloth', owner: 'self' }), 1, 2, 3)
+    ?? single(new RegExp(`^対戦相手の手札${num}枚につき${amount}(減る|増える)$`),
+      () => ({ kind: 'zone', zone: 'hand', owner: 'opponent' }), 1, 2, 3);
+}
+
+function parseCostScaling(text: string): CostScalingTerm[] | undefined {
+  const sentences = text.split('。').filter(sentence =>
+    /この(?:スペル|アーツ|カード|ピース)の使用コストは/.test(sentence) && /につき/.test(sentence));
+  if (sentences.length === 0) return undefined;
+  const terms: CostScalingTerm[] = [];
+  for (const sentence of sentences) {
+    const parsed = parseCostScalingSentence(sentence);
+    // increase はもちろん、reduce も本バッチでは文全体を読めたものだけ採る。未対応の使用時支払い17枚等を温存する。
+    if (!parsed) return undefined;
+    terms.push(...parsed);
+  }
+  return terms.length > 0 ? terms : undefined;
+}
+
+function withCostScaling(cost: EffectCost | undefined, terms: CostScalingTerm[] | undefined): EffectCost | undefined {
+  if (!terms) return cost;
+  return { ...(cost ?? {}), costScaling: terms };
+}
+
+const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
+function stripCostScalingMarker(action: EffectAction, terms: CostScalingTerm[] | undefined): EffectAction {
+  if (!terms) return action;
+  if (action.type === 'STUB' && COST_SCALING_MARKERS.has(action.id)) return { type: 'SEQUENCE', steps: [] };
+  if (action.type !== 'SEQUENCE') return action;
+  return { ...action, steps: action.steps.filter(step => !(step.type === 'STUB' && COST_SCALING_MARKERS.has(step.id))) };
 }
 
 
@@ -18059,6 +18216,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   const isBet = /^ベット[―─]/.test(card.EffectText);
   const stripped = stripRuleParens(encodeShadowScopesInText(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText))))
     .replace(/^(?:アンコール－|ベット[―─]|ブースト[―─])(?:《[^》]+》)*\s*/, '');
+  const costScaling = parseCostScaling(stripped);
   // ピースの印刷済み【使用条件】は区切りなしで本文へ直結するため、先頭節を文型テーブルで
   // condition へ持ち上げ、同時に本文から除去する。CardEffect.condition は BattleScreen の
   // 候補表示・実行直前の双方で evalUseCondition に評価される。
@@ -18190,6 +18348,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   }
   // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払いは使用時UIが行うので解決中の重複ステップを落とす。
   action = stripUseTimeCostReductionStep(action, stripped);
+  action = stripCostScalingMarker(action, costScaling);
   // ブースト後半の「それ」は直前に対象とした同じシグニを指す。文分割後の既定 owner:self を
   // 直前対象へ戻す（WX25-P1-002）。選択UI上は同一対象の再選択になるが owner/filter は保持する。
   if (/^ブースト[―─]/.test(card.EffectText) && action.type === 'SEQUENCE') {
@@ -18259,7 +18418,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
     timing: parseArtsTiming(card.Timing ?? ''),
-    cost: parseCost(card.Cost),
+    cost: withCostScaling(parseCost(card.Cost), costScaling),
     altCostOppTurn,
     condition,
     action,
@@ -18333,6 +18492,7 @@ function stripUseTimeCostReductionStep(action: EffectAction, text: string): Effe
 function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   const stripped = stripRuleParens(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText)));
+  const costScaling = parseCostScaling(stripped);
   const { cleaned, condition } = extractUseCondition(stripped);
   const parsedText = condition ? cleaned : stripped;
   // O-56: スペル本体の後ろに独立した【起】が印刷されている場合、【起】内の最後の
@@ -18350,8 +18510,9 @@ function parseSpellEffect(card: CardData): CardEffect | null {
   const parsedAction = hasLeadingTrapSet
     ? (parseSentencePart4(actionText.replace(/。$/, '')) ?? parseActionText(actionText))
     : parseActionText(actionText);
-  const action = stripUseTimeCostReductionStep(
+  let action = stripUseTimeCostReductionStep(
     stripUseTimeOptionalCostStep(parsedAction, stripped), stripped);
+  action = stripCostScalingMarker(action, costScaling);
   const spellFb = consumeSilentFallbacks();
   logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';
@@ -18371,7 +18532,7 @@ function parseSpellEffect(card: CardData): CardEffect | null {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
     timing: ['MAIN'],
-    cost: parseCost(card.Cost),
+    cost: withCostScaling(parseCost(card.Cost), costScaling),
     condition,
     action,
     duration: 'INSTANT',

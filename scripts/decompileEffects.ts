@@ -391,10 +391,65 @@ function constraintJa(c?: import('../src/types/effects').SelectionConstraint): s
   return '';
 }
 
+function costScalingSigniJa(filter?: any): string {
+  if (!filter) return 'シグニ';
+  const classes = Array.isArray(filter.cardClass) ? filter.cardClass : filter.cardClass ? [filter.cardClass] : [];
+  const classJa = classes.length ? `${classes.map((c: string) => `＜${c}＞`).join('か')}の` : '';
+  const colorJa = filter.color ? `${([].concat(filter.color) as string[]).join('か')}の` : '';
+  const nameJa = filter.cardName ? `カード名に《${filter.cardName}》を含む` : '';
+  const exactNameJa = filter.cardNames?.length === 1 ? `《${filter.cardNames[0]}》` : '';
+  const stateJa = filter.hasAcce ? 'アクセされている'
+    : filter.isFrozen ? '凍結状態の'
+    : filter.noAbilities ? '能力を持たない'
+    : '';
+  return `${stateJa}${classJa}${colorJa}${nameJa}${exactNameJa}シグニ`;
+}
+
+function costScalingCountJa(count: any, per: number): string {
+  const own = count.owner === 'opponent' ? '対戦相手の' : 'あなたの';
+  if (count.kind === 'lrigLevel') return `${own}センタールリグのレベル${per}`;
+  if (count.kind === 'coins') return `${own}コイン${per}枚`;
+  if (count.kind === 'charm') return `${own}場にある【チャーム】${per}枚`;
+  if (count.kind === 'virus') return `${own}場にある【ウィルス】${per}つ`;
+  if (count.kind === 'fieldLrig') {
+    const color = count.filter?.color ? `${([].concat(count.filter.color) as string[]).join('か')}の` : '';
+    return `${own}場にいる${color}ルリグ${per}体`;
+  }
+  if (count.zone === 'life_cloth') return `${own}ライフクロス${per}枚`;
+  if (count.zone === 'hand') return `${own}手札${per}枚`;
+  if (count.zone === 'field') return `${own}場にある${costScalingSigniJa(count.filter)}${per}体`;
+  if (count.zone === 'energy') return `${own}エナゾーンにある${costScalingSigniJa(count.filter)}${per}枚`;
+  if (count.zone === 'lrig_trash') {
+    const noun = count.filter?.cardType === 'アーツ' ? 'アーツ' : 'カード';
+    return `${own}ルリグトラッシュにある${noun}${per}枚`;
+  }
+  const noun = count.filter?.cardNames?.length === 1 && !count.filter.cardType
+    ? `《${count.filter.cardNames[0]}》`
+    : count.filter ? costScalingSigniJa(count.filter) : 'カード';
+  return `${own}トラッシュにある${noun}${per}枚`;
+}
+
+function costScalingJa(terms: any[]): string {
+  const body = terms.map((term, index) => {
+    const counts = term.counts.map((count: any) => costScalingCountJa(count, term.per)).join('か');
+    const amount = term.amount.map((e: any) => `《${e.color}×${e.count}》`).join('');
+    const last = index === terms.length - 1;
+    const verb = term.direction === 'increase' ? (last ? '増える' : '増え') : (last ? '減る' : '減り');
+    return `${counts}につき${amount}${verb}`;
+  }).join('、');
+  const gated = terms.find(term => term.minCount !== undefined);
+  const gateCount = gated?.counts?.length === 1 && gated.counts[0]?.kind === 'fieldLrig'
+    ? `${costScalingCountJa(gated.counts[0], gated.minCount)}以上いるかぎり、`
+    : '';
+  return `${gateCount}このカードの使用コストは${body}`;
+}
+
 function costJa(c?: any): string {
   if (!c) return '';
   const parts: string[] = [];
   if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
+  // O-119: JSON payload から描く。本文 regex へ戻すと payload 欠落を逆翻訳が隠す。
+  if (c.costScaling?.length) parts.push(costScalingJa(c.costScaling));
   // 🆕`exceedColors`（`WX10-001`「エクシード１（白のカード）」）＝描かないと色指定なしと同じ文になり、
   //   engine は区別しているのに原文照合では見えない偽陰性になる。
   if (c.exceed != null) parts.push(`エクシード${c.exceed}${c.exceedColors?.length ? `（${c.exceedColors.join('と')}のカード）` : ''}`);

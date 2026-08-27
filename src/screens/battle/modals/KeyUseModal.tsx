@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost } from '../costs';
+import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costScalingOf } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -19,7 +19,7 @@ interface KeyUseModalProps {
 }
 
 export function KeyUseModal(p: KeyUseModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost, executeKeyPiece } = p;
   return (
     <>
@@ -41,7 +41,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
               const effKeyCost = computeArtsEffectiveCost(
                 card, my, myLrigCardKU?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
                 myLrigCardKU ? parseInt(myLrigCardKU.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
-                { oppState: op, cardCostReplacements: my.card_cost_replacements },
+                { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap),
               );
               const energyTotal = parseGrowCost(effKeyCost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);

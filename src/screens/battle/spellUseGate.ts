@@ -6,7 +6,7 @@ import type { ArtsPayerCtx } from './artsUseGate';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyMeltFactPreUseCost, applySpecificCardCostReduction,
-  canAffordWithExtraCost, computeArtsEffectiveCost, parseGrowCost, removeNColorFromCost,
+  canAffordWithExtraCost, computeArtsEffectiveCost, costScalingOf, parseGrowCost, removeNColorFromCost,
 } from './costs';
 import { energyPoolCardNums } from './energyPaySource';
 import { meetsRestriction } from './growLogic';
@@ -48,6 +48,7 @@ export function computeSpellEffectiveCost(p: {
   my: PlayerState;
   op: PlayerState;
   cardMap: Map<string, CardData>;
+  effectsMap: Map<string, CardEffect[]>;
   payer: ArtsPayerCtx;
   /** 「手札をN枚捨てるなら使用コストは《X》になる」の任意支払いを済ませたか（支払いUI の選択）。 */
   paidOptionalDiscard?: boolean;
@@ -61,7 +62,8 @@ export function computeSpellEffectiveCost(p: {
       cardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
       myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0, cardMap,
       payer.lrigNameAliases, undefined,
-      { oppState: op, cardCostReplacements: my.card_cost_replacements, paidOptionalDiscard: p.paidOptionalDiscard }),
+      { oppState: op, cardCostReplacements: my.card_cost_replacements, paidOptionalDiscard: p.paidOptionalDiscard },
+      costScalingOf(card.CardNum, p.effectsMap)),
     'スペル', card.Color, payer.costModsForMy);
   // 次スペルコスト軽減（`WX04-008`《白×2》減）を適用
   for (const r of my.next_spell_cost_reduction ?? []) cost = removeNColorFromCost(cost, r.color, r.count);
@@ -118,7 +120,7 @@ export function checkSpellUse(p: {
 }): SpellUseCheck {
   const { card, my, op, cardMap, effectsMap, payer } = p;
   const cardNum = card.CardNum;
-  const effectiveCost = computeSpellEffectiveCost({ card, my, op, cardMap, payer });
+  const effectiveCost = computeSpellEffectiveCost({ card, my, op, cardMap, effectsMap, payer });
   const extraCosts = spellExtraCosts({ my, op, payer, effectsMap });
   const affordable = canAffordWithExtraCost(
     energyPoolCardNums(payer.energyPayPool), p.cards, effectiveCost, extraCosts, my.keyword_grants,

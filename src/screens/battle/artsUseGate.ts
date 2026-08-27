@@ -13,7 +13,7 @@ import { canUseArtsCondition } from './battleUtils';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyNextArtsCostReduction, applySpecificCardCostReduction,
-  canAffordGrowCost, canAffordWithExtraCost, computeArtsEffectiveCost, computeCostReplacement,
+  canAffordGrowCost, canAffordWithExtraCost, computeArtsEffectiveCost, computeCostReplacement, costScalingOf,
   energyCostToString, isEnaMultiStripped, parseBetOptions,
 } from './costs';
 import { type EnergyPayEntry, buildEnergyPayPool, energyPoolCardNums } from './energyPaySource';
@@ -226,7 +226,7 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
       cardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
       myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0,
       cardMap, payer.lrigNameAliases, payer.artsThresholdReductions,
-      { oppState: op, cardCostReplacements: my.card_cost_replacements }),
+      { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap)),
     'アーツ', card.Color, payer.costModsForMy), card.CardName, payer.specificCardCostReductions), my.next_arts_cost_reduction);
   // ベット宣言でのみ成立する置換は宣言が支払いUI内なので、ここでは「ベットすれば払えるか」だけ見る。
   const betSpec = parseBetOptions(card.EffectText ?? '');

@@ -1,9 +1,9 @@
 // コスト文字列の解析・軽減適用・支払可否判定（グロウ/アーツ/スペル共通）。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState, CardData } from '../../types';
-import type { CardEffect } from '../../types/effects';
+import type { CardEffect, CostScalingCount, CostScalingTerm, TargetFilter } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
-import { hasNoAbility, satisfiesSelectionConstraint, canAddToSelection } from '../../engine/execUtils';
+import { fieldCandidates, hasNoAbility, matchesFilter, satisfiesSelectionConstraint, canAddToSelection } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 /** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
@@ -231,6 +231,106 @@ export function addNColorToCost(cost: string, color: string, n: number): string 
     ? parts.map((p, i) => (i === idx ? { color: p.color, count: p.count + n } : p))
     : [...parts, { color, count: n }];
   return newParts.filter(p => p.count > 0).map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
+}
+
+/** カードの全効果から、カード自身の使用コスト比例増減 payload を1本で取り出す。 */
+export function costScalingOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): CostScalingTerm[] | undefined {
+  const terms = (effectsMap.get(getCardNum(cardNum)) ?? []).flatMap(effect => effect.cost?.costScaling ?? []);
+  return terms.length > 0 ? terms : undefined;
+}
+
+type CostScalingState = {
+  life_cloth?: string[];
+  hand?: string[];
+  field?: PlayerState['field'];
+  trash?: string[];
+  lrig_trash?: string[];
+  energy?: string[];
+  coins?: number;
+};
+
+function scalingOwnerState(
+  owner: CostScalingCount['owner'],
+  myState: CostScalingState,
+  oppState: CostScalingState | undefined,
+): CostScalingState | null {
+  if (owner === 'self') return myState;
+  if (owner === 'opponent') return oppState ?? null;
+  // 今回の語彙は所有者を必ず明記する。「any」を片側へ潰すと安くなるため未評価に倒す。
+  return null;
+}
+
+/** 1つの count 記述を現在盤面の整数へ解決する。参照不能は 0 ではなく null（fail-closed）。 */
+function resolveCostScalingCount(
+  count: CostScalingCount,
+  myState: CostScalingState,
+  oppState: CostScalingState | undefined,
+  cardMap: Map<string, CardData> | undefined,
+): number | null {
+  const state = scalingOwnerState(count.owner, myState, oppState);
+  if (!state) return null;
+
+  if (count.kind === 'lrigLevel') {
+    const center = state.field?.lrig?.at(-1);
+    if (!center || !cardMap) return null;
+    const level = parseInt(cardMap.get(center)?.Level ?? '', 10);
+    return Number.isFinite(level) ? level : null;
+  }
+  if (count.kind === 'coins') return typeof state.coins === 'number' ? state.coins : null;
+  if (count.kind === 'charm') {
+    if (!state.field) return null;
+    return (state.field.signi_charms ?? []).filter(Boolean).length;
+  }
+  if (count.kind === 'virus') {
+    if (!state.field) return null;
+    return (state.field.signi_virus ?? []).reduce((sum, n) => sum + (n || 0), 0);
+  }
+  if (count.kind === 'fieldLrig') {
+    if (!state.field || !cardMap) return null;
+    const tops = [state.field.lrig?.at(-1), state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)]
+      .filter((n): n is string => !!n);
+    return tops.filter(cardNum => matchesFilter(cardMap.get(cardNum), count.filter)).length;
+  }
+  if (count.kind !== 'zone') return null;
+  if (count.zone === 'field') {
+    if (!state.field || !cardMap) return null;
+    // hasAcce / isFrozen / noAbilities 等の盤面状態 filter も既存の唯一の候補評価器へ委ねる。
+    return fieldCandidates(state as PlayerState, count.filter, cardMap).length;
+  }
+  const cards = state[count.zone];
+  if (!Array.isArray(cards)) return null;
+  if (!count.filter) return cards.length;
+  if (!cardMap) return null;
+  return cards.filter(cardNum => matchesFilter(cardMap.get(cardNum), count.filter as TargetFilter)).length;
+}
+
+/** payload 経路の比例増減。必要な owner/state を読めなければ null を返し、呼び出し側を従来経路へ落とす。 */
+export function applyCostScalingTerms(
+  base: string,
+  terms: CostScalingTerm[],
+  myState: CostScalingState,
+  oppState: CostScalingState | undefined,
+  cardMap: Map<string, CardData> | undefined,
+): string | null {
+  let out = base;
+  for (const term of terms) {
+    if (!Number.isFinite(term.per) || term.per <= 0 || term.counts.length === 0 || term.amount.length === 0) return null;
+    const counts = term.counts.map(count => resolveCostScalingCount(count, myState, oppState, cardMap));
+    if (counts.some(count => count === null)) return null;
+    const total = (counts as number[]).reduce((sum, count) => sum + count, 0);
+    if (term.minCount !== undefined && total < term.minCount) continue;
+    const times = Math.floor(total / term.per);
+    if (times <= 0) continue;
+    for (const amount of term.amount) {
+      out = term.direction === 'increase'
+        ? addNColorToCost(out, amount.color, amount.count * times)
+        : removeNColorFromCost(out, amount.color, amount.count * times);
+    }
+  }
+  return out;
 }
 
 // 場のCONTINUOUS COST_REDUCTION（コードハートVAC「青のスペルのコストは《無×1》減る」等）をコスト文字列に適用する。
@@ -488,6 +588,7 @@ export function computeArtsEffectiveCost(
   lrigNameAliases?: string[],
   artsThresholdReductions?: { minTotalCost: number; color: string; reduction: number }[],
   replaceCtx?: CostReplaceCtx,
+  costScaling?: CostScalingTerm[],
 ): string {
   const text = card.EffectText ?? '';
   const base = card.Cost;
@@ -502,6 +603,13 @@ export function computeArtsEffectiveCost(
   // 条件つきコスト置換（「〜の場合、使用コストは《X》になる」）＝軽減より先に見る＝印刷コストを丸ごと差し替える
   const replaced = computeCostReplacement(card, myState, cardMap, replaceCtx);
   if (replaced !== null) return replaced;
+
+  // カード自身の比例増減は JSON payload が正。必要な owner/state が揃わない場合だけ従来 regex へ落ちる。
+  // payload が評価できたときは、下の全文 regex 群を通さない（二重適用を構造的に防ぐ）。
+  if (costScaling?.length) {
+    const scaled = applyCostScalingTerms(base, costScaling, myState, replaceCtx?.oppState, cardMap);
+    if (scaled !== null) return scaled;
+  }
 
   // 対戦相手のルリグ色条件：コスト上書き
   m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの|このカードの)?(?:使用|基本)コストは(.+?)になる/s);

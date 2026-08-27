@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
+import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -80,7 +80,7 @@ export function CutinModal(p: CutinModalProps) {
       computeArtsEffectiveCost(card, my, myLrigCardCM?.CardName, oppLrigColorCM,
         myLrigCardCM ? parseInt(myLrigCardCM.Level ?? '0') : 0, battleCardMap,
         myLrigNameAliases, myArtsThresholdReductions,
-        { oppState: op, cardCostReplacements: my.card_cost_replacements }),
+        { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap)),
       'アーツ', card.Color, activeCostMods.forMy);
     return applySpecificCardCostReduction(eff, card.CardName, specificCardCostReductions);
   };
