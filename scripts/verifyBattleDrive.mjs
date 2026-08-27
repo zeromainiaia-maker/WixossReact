@@ -42,7 +42,7 @@ async function driveB22(page, H, expectFire) {
     const gLife = st?.guest?.life ?? 0;
     const down0 = (st?.host?.signiDown ?? [])[0] === true;
     H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | guestLife=${gLife}/${GUEST_LIFE_BASE} down0=${down0} guestHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
-    if (s === 0) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
+    if (s === 0 || s === 6) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))} queue=${JSON.stringify(st?.stackQueue)} pending=${JSON.stringify(st?.stackPending)}`);
     settledStreak = (!(st?.stackLen > 0) && !st?.pendingEffect) ? settledStreak + 1 : 0;
     if (settledStreak >= 4) {
       const dealt = GUEST_LIFE_BASE - gLife;
@@ -2526,11 +2526,10 @@ const scenarios = {
   // ── B22（2026-08-28）＝§5.3 `O-113`（相手アーツの効果を「受けた」ときだけ発火）の実機観測点 ──
   //   🔴**判別力があるのは miss 側**（`b22artsmiss`）＝旧 live は当たっていなくても毎回ダメージが入った。
   //
-  // 🔴🔴**現状 `b22artshit` は FAIL する（既知・§5.3 `O-131`）。**
-  //   切り分け済み＝**live を `O-113` 以前の近似形（`activeCondition`）へ戻しても発火しない**＝
-  //   原因は `O-113` の条件ではなく**その上流**（`ON_OPP_ARTS_USE` の収集が実機で一度も走っていない）。
-  //   ゲームログには「[相手] 相手アーツ（注入）」「…をダウン」まで出ており、アーツ自体は解決している。
-  //   ⚠**このシナリオは残す**＝原因を直したときに「直った」ことを即座に観測できる唯一の計器だから。
+  // ✅**2026-08-28 §5.3 `O-131` で PASS になった。**（それまでは両方とも空振りだった）
+  //   真因＝`selectOrInteract` は**候補が1件でも必ず中断する**ので、**対象を取るアーツは
+  //   `handleEffectInteraction` 側で完了する**のに、収集は `resolveStackNext` にしか無かった。
+  //   ⚠この2本は**「収集が両方の完了地点から呼ばれている」ことの唯一の実機計器**なので消さない。
   b22artshit: {
     title: 'WX05-020 羅輝石ダイヤブライド（相手アーツが＜宝石＞に当たった＝ダメージ／positive）',
     spec: {

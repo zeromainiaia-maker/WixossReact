@@ -5157,31 +5157,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   発火時点ではない。タスク12(lxi) 第6波で entry.cardNum に設置元カード番号を復元した副作用で、
         //   アーツ由来の遅延トリガー6枚（WX11-024／WX24-P1-007／WX25-P3-003／WX26-CP1-003／-005／-009）が
         //   発火のたびに「アーツ使用」を再発火させる二重発火になるため、effectId で弁別して抑止する。
-        const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
-        const entryIsDelayedTrigger = entry.effectId === 'DELAYED_TRIGGER';
-        if (entryCardType === 'アーツ' && !entryIsDelayedTrigger && entry.playerId !== user.id) {
-          // 自分（user.id）の myState を決定。
-          // 🔴**2026-08-28 §5.3 `O-113` の実機（`b22artshit`）で先在バグを発見して直した。**
-          //   旧: `ownerIsHost ? (isHost ? hostState : guestState) : (isHost ? guestState : hostState)`。
-          //   `hostState`/`guestState` は**すでに host/guest の絶対値**（この関数の上流で
-          //   `ownerIsHost ? result.ownerState : result.otherState` として解決済み）なので、
-          //   `ownerIsHost` で更に場合分けすると**二重反転**になる。
-          //   しかもこのブロックは `entry.playerId !== user.id`（＝アーツの持ち主は必ず対戦相手）でしか
-          //   通らないため **`ownerIsHost === !isHost` が常に成り立ち、結果は常に `guestState`** だった＝
-          //   **人間（ホスト）側の `ON_OPP_ARTS_USE` は相手の場を走査していて一度も発火しなかった**。
-          //   ⇒ 自分は `isHost` だけで決まる。
-          const myStateForTrigger = isHost ? hostState : guestState;
-          const opStateForTrigger = isHost ? guestState : hostState;
-          const iAmHost = isHost;
-          const myIsActive = bs.active_user_id === user.id;
-          // §5.3 `O-113`＝「あなたの〈フィルタ〉のシグニ1体が対戦相手のアーツの**効果を受けたとき**」の判定材料。
-          // ⚠**この効果の解決前後**で自分の場を差分する（`bs.*_state` が解決前・`hostState`/`guestState` が解決後）。
-          //   engine に「効果が触ったカード」の台帳が無いので、観測できる影響（離場／ダウン／凍結／
-          //   パワー修正／付与／能力消去）＋自動対象化で近似する（§5.3 O-113 のコメント参照）。
-          const beforeMineForAff = isHost ? bs.host_state : bs.guest_state;
-          const affectedOwnSigni = collectOppArtsAffectedOwnSigni(
-            beforeMineForAff, myStateForTrigger, result.autoTargetedCards ?? []);
-          const artsTriggers = collectOppArtsUseTriggers(myStateForTrigger, opStateForTrigger, myIsActive, affectedOwnSigni);
+        // §5.3 `O-131`＝収集は `collectOppArtsUseForResolution` の1本（resume 経路と同じ関数を見る）。
+        const artsTriggers = collectOppArtsUseForResolution({
+          artsOwnerId: entry.playerId, artsCardNum: entry.cardNum, effectId: entry.effectId,
+          beforeMine: isHost ? bs.host_state : bs.guest_state,
+          afterHost: hostState, afterGuest: guestState,
+          autoTargetedCards: result.autoTargetedCards,
+        });
+        if (artsTriggers) {
+          const iAmHost = artsTriggers.iAmHost;
           if (artsTriggers.entries.length > 0) {
             const baseStack2 = stackAcc ?? null;
             stackAcc = baseStack2
@@ -5198,11 +5182,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // ON_ARTS_USE: 自分がアーツを使用した場合、使用者自身の ON_ARTS_USE トリガーを収集（ON_SPELL_USE のアーツ版）。
         // caster の client のみが収集する（entry.playerId === user.id）＝ON_OPP_ARTS_USE と裏表で二重押しを防ぐ。
-        if (entryCardType === 'アーツ' && !entryIsDelayedTrigger && entry.playerId === user.id) {
-          const casterState = isHost ? hostState : guestState;
-          const casterOpState = isHost ? guestState : hostState;
-          const casterIsActive = bs.active_user_id === user.id;
-          const au = collectArtsUseTriggers(user.id, casterState, casterOpState, casterIsActive, entry.cardNum);
+        // §5.3 `O-131`＝収集は `collectArtsUseForResolution` の1本（resume 経路と同じ関数を見る）。
+        const au = collectArtsUseForResolution({
+          artsOwnerId: entry.playerId, artsCardNum: entry.cardNum, effectId: entry.effectId,
+          afterHost: hostState, afterGuest: guestState,
+        });
+        if (au) {
           if (au.entries.length > 0) {
             const baseStackAU = stackAcc ?? null;
             stackAcc = baseStackAU
@@ -5454,6 +5439,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hostAcc = bd.hostState;
         guestAcc = bd.guestState;
         const pendingEntries = bd.entries;
+        // 🔴§5.3 `O-131`＝**この経路にも `ON_OPP_ARTS_USE` の収集が要る**。
+        //   `selectOrInteract` は**候補が1件でも必ず中断する**ので、対象を取る相手のアーツは
+        //   `resolveStackNext` ではなく**ここで完了する**。抽出前は収集が向こうにしか無く、
+        //   `ON_OPP_ARTS_USE` を持つ live 6効果は**実機で一度も発火していなかった**。
+        // ⚠差分の基準（`beforeMine`）は**この resume 段の直前**＝中断より前に確定した影響は数えない
+        //   （過小side。`O-113` の「盤面に出る影響だけを見る」方針と同じ向き）。
+        const artsTrigRe = collectOppArtsUseForResolution({
+          artsOwnerId: pe.sourcePlayerId, artsCardNum: pe.sourceCardNum, effectId: pe.effectId,
+          beforeMine: isHost ? bs.host_state : bs.guest_state,
+          afterHost: hostAcc, afterGuest: guestAcc,
+          autoTargetedCards: result.autoTargetedCards,
+        });
+        if (artsTrigRe) {
+          if (artsTrigRe.entries.length > 0) pendingEntries.push(...artsTrigRe.entries);
+          if (artsTrigRe.usedIds.length > 0) {
+            const baseRe = artsTrigRe.iAmHost ? hostAcc : guestAcc;
+            const withUsedRe = { ...baseRe, actions_done: [...(baseRe.actions_done ?? []), ...artsTrigRe.usedIds] };
+            if (artsTrigRe.iAmHost) hostAcc = withUsedRe; else guestAcc = withUsedRe;
+          }
+        }
+        // §5.3 `O-131`＝裏返し（自分がアーツを使用したとき）も同じ理由でこちらに要る。
+        const auRe = collectArtsUseForResolution({
+          artsOwnerId: pe.sourcePlayerId, artsCardNum: pe.sourceCardNum, effectId: pe.effectId,
+          afterHost: hostAcc, afterGuest: guestAcc,
+        });
+        if (auRe) {
+          if (auRe.entries.length > 0) pendingEntries.push(...auRe.entries);
+          if (auRe.usedIds.length > 0) {
+            const baseAuRe = isHost ? hostAcc : guestAcc;
+            const withUsedAu = { ...baseAuRe, actions_done: [...(baseAuRe.actions_done ?? []), ...auRe.usedIds] };
+            if (isHost) hostAcc = withUsedAu; else guestAcc = withUsedAu;
+          }
+        }
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
@@ -5914,6 +5932,62 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     affectedOwnSigni?: string[],
   ): { entries: StackEntry[]; usedIds: string[] } =>
     pureCollectOppArtsUseTriggers(mkTrigCtx(), myState, opState, isMyTurnNow, affectedOwnSigni);
+
+  /**
+   * 「**あなたが**アーツを使用したとき」（`ON_ARTS_USE`）の収集を**両方の完了地点**から呼ぶための1本
+   * （§5.3 `O-131`・`collectOppArtsUseForResolution` の裏返し）。
+   * 🔴同じ理由で `resolveStackNext` にしか無く、**対象を取るアーツでは発火しなかった**
+   *   （live 9効果＝`WX16-003` / `WXK01-042` / `WXK01-043` / `WXK01-059` / `WXK03-042` /
+   *    `WXK05-042` / `WXK10-046` / `WDK03-011` / `WDK03-017`）。
+   * ⚠**使用者の client だけが収集する**（`ON_OPP_ARTS_USE` と裏表＝二重押しを防ぐ）。
+   */
+  const collectArtsUseForResolution = (p: {
+    artsOwnerId: string; artsCardNum: string; effectId: string;
+    afterHost: PlayerState; afterGuest: PlayerState;
+  }): { entries: StackEntry[]; usedIds: string[] } | null => {
+    const cardType = battleCardMap.get(p.artsCardNum)?.Type
+      ?? battleCardMap.get(getCardNum(p.artsCardNum))?.Type;
+    if (cardType !== 'アーツ' || p.effectId === 'DELAYED_TRIGGER' || p.artsOwnerId !== user.id) return null;
+    const casterState = isHost ? p.afterHost : p.afterGuest;
+    const casterOpState = isHost ? p.afterGuest : p.afterHost;
+    return collectArtsUseTriggers(
+      user.id, casterState, casterOpState, bs.active_user_id === user.id, p.artsCardNum);
+  };
+
+  /**
+   * 「対戦相手がアーツを使用したとき」（`ON_OPP_ARTS_USE`）の収集を**両方の完了地点**から呼ぶための1本
+   * （§5.3 `O-131`）。
+   *
+   * 🔴**抽出前は `resolveStackNext` の `result.done` 分岐にしか無かった。**
+   *   `selectOrInteract` は**候補が1件でも必ず中断する**（自動適用しない）ので、
+   *   **対象を取るアーツは `handleEffectInteraction` 側で完了する**＝そちらには収集が無く、
+   *   `ON_OPP_ARTS_USE` を持つ live 6効果（`WX05-020` / `WX13-044` / `WX16-003` /
+   *   `WX18-035` / `WXK03-071` / `WXK11-019`）は**実機で一度も発火していなかった**。
+   *
+   * @param artsOwnerId そのアーツ（スタックエントリ／pending）の持ち主
+   * @param artsCardNum 同じくカード番号（`Type === 'アーツ'` の判定に使う。⚠**素の CardNum**）
+   * @param effectId    `DELAYED_TRIGGER`（設置型の発火）を除くための id
+   * @param beforeMine  アーツ解決**前**の自分の状態（「効果を受けたか」の差分の基準）
+   * @param afterHost/afterGuest 解決後の両状態
+   */
+  const collectOppArtsUseForResolution = (p: {
+    artsOwnerId: string; artsCardNum: string; effectId: string;
+    beforeMine: PlayerState; afterHost: PlayerState; afterGuest: PlayerState;
+    autoTargetedCards?: string[];
+  }): { entries: StackEntry[]; usedIds: string[]; iAmHost: boolean } | null => {
+    const cardType = battleCardMap.get(p.artsCardNum)?.Type
+      ?? battleCardMap.get(getCardNum(p.artsCardNum))?.Type;
+    // ⚠遅延トリガー（`INSTALL_DELAYED_TRIGGER` の発火）は「使用した」瞬間ではないので除く。
+    if (cardType !== 'アーツ' || p.effectId === 'DELAYED_TRIGGER' || p.artsOwnerId === user.id) return null;
+    const iAmHost = isHost;
+    const myStateForTrigger = iAmHost ? p.afterHost : p.afterGuest;
+    const opStateForTrigger = iAmHost ? p.afterGuest : p.afterHost;
+    const affectedOwnSigni = collectOppArtsAffectedOwnSigni(
+      p.beforeMine, myStateForTrigger, p.autoTargetedCards ?? []);
+    const collected = collectOppArtsUseTriggers(
+      myStateForTrigger, opStateForTrigger, bs.active_user_id === user.id, affectedOwnSigni);
+    return { ...collected, iAmHost };
+  };
 
   /**
    * あなたがアーツを使用したとき（ON_ARTS_USE）、使用者自身のルリグ/シグニのトリガーを収集する。

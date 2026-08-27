@@ -91,6 +91,18 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-28 続き697 後**：
+  📊**進捗3計器＝Sheet1 要対応 28 / 863（3.2%）｜台帳 残 OPEN 578｜census 高シグナル 522（据置）**
+  （`O-126`＝`cost_modifiers` の配線。**live JSON は不変**＝engine/UI 側の穴だったので parser 出力は動かない。
+  B10〜B19 で Sheet1 要対応は 65→28）。
+  **golden 2915**（B19 で 2912→2915）、census 522/522、smoke 全異常0、fuzz 全0、lint 0 errors（263 warn）、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
+  **held 89 / partial 14 / idset 24**（据置）、
+  **実機シナリオ +2**（🆕`b19costup`＝《無》×0 のスペルにエナ3枚を請求（旧挙動は0枚）／
+  🆕`b19costupnone`＝修正が無ければエナを消費しない。**反転確認済み**＝配線と寿命を戻すと golden 新規2本が FAIL。
+  回帰 `b14costup` / `craftTurnEndP03078` PASS）
+  ⚠**census が動かない回がある**＝この軸（engine の死にストア）は census の語彙表に無い。§3「計器ごとに見えるものが違う」どおり。
+
 - **2026-08-28 続き696 後**：
   📊**進捗3計器＝Sheet1 要対応 29 / 863（3.4%）｜台帳 残 OPEN 579｜census 高シグナル 522**
   （`O-108`＝コスト側の集合制約で **live 変化 1 effectId / 1カード**・**スコープ外0**。B10〜B18 で Sheet1 要対応は 65→29）。

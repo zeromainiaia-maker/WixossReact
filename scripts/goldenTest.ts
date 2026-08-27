@@ -25844,6 +25844,31 @@ test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
   ok(!resolve([other]), 'non-Ancient trashed => false');
 });
 
+// ===== §5.3 O-131: アーツ使用トリガーの収集が「解決の完了地点」の片方にしか無かった =====
+// 🔴`selectOrInteract` は**候補が1件でも必ず中断する**（自動適用しない）ので、**対象を取るアーツは
+//   `handleEffectInteraction` 側で完了する**。収集は `resolveStackNext` の `result.done` 分岐にしか無く、
+//   `ON_OPP_ARTS_USE`（live 6効果）と `ON_ARTS_USE`（live 9効果）は**実機で発火しなかった**。
+// ⇒ 収集を `collectOppArtsUseForResolution` / `collectArtsUseForResolution` の2本へ寄せ、
+//   **両方の完了地点から呼ぶ**形にした。ここはその配線を静的に固定するトリップワイヤ。
+test('O-131 アーツ使用トリガーは「スタック解決」と「対話解決」の両方から収集される', () => {
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // ⚠定義は `const xxx = (p: {` 形なので `xxx(` には当たらない＝ここで数えるのは**呼び出しだけ**。
+  ok(/const collectOppArtsUseForResolution = /.test(src), '収集ヘルパが定義されている');
+  ok(/const collectArtsUseForResolution = /.test(src), '裏返しの収集ヘルパも定義されている');
+  eq((src.match(/collectOppArtsUseForResolution\(/g) ?? []).length, 2,
+    '🔴呼び出しは2つ（resolveStackNext ＝ スタック解決 / handleEffectInteraction ＝ 対話解決）');
+  eq((src.match(/collectArtsUseForResolution\(/g) ?? []).length, 2,
+    '🔴裏返し（自分がアーツを使用したとき）も同じ2経路から呼ぶ');
+  // 収集の実体（pure 関数）は1本ずつしか呼ばれない＝ラッパ経由に統一されている。
+  eq((src.match(/pureCollectOppArtsUseTriggers\(/g) ?? []).length, 1, 'pure 収集は薄いラッパ1本からのみ');
+  // 🔴`selectOrInteract` が「候補1件でも中断する」ことが本項の前提＝ここが変わったら読み直す。
+  const exec = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  const so = exec.slice(exec.indexOf('export function selectOrInteract('));
+  const body = so.slice(0, so.indexOf('\n}'));
+  ok(!/candidates\.length <= count|filteredCands\.length === count/.test(body),
+    '前提＝候補数が count 以下でも自動適用しない（するようになったら O-131 の配線を読み直す）');
+});
+
 // ===== §5.3 O-117: 「使用コストで《白》《赤》《青》《緑》《黒》すべてが支払われている場合」 =====
 // 🔴旧 live は**条件ごと落ちて `FORCE_END_TURN` が無条件**だった＝《無》×５をどう払ってもターンが終わる。
 //   （出所は `manualEffects.ts` の古い手書き。parser は当時から `cost:無×5` ＋ `UNKNOWN` を出していた。）
