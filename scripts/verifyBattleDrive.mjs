@@ -17124,7 +17124,83 @@ scenarios.b3DistinctClassDrawsThree = {
 
 order.push('servantMultiEnaPaysColor');
 // Sheet1 B3（2026-08-27）＝共通クラス条件の排他分岐。正方向＋対照をセットで既定 order へ。
+// ── Sheet1 B4（2026-08-27）＝「次に使用するスペルのコスト軽減」は**1回で消費される** ──────────
+// 🔑このバッチは**バグ修正ではなく較正**＝census が11効果を高シグナルに挙げていたが、engine は
+//   最初から「次の1回だけ」を実装していた（`next_spell_cost_reduction` へ積み、使用時にクリア）。
+//   `scripts/vocabCensus.ts` の `conditionClauseExtraOk` にその較正を入れた**前提そのもの**を実機で観測する。
+// ⚠golden（`Sheet1 B4`）は**状態スロットに積まれること**しか見られない。
+//   「**次のスペルを使ったら消える**」＝ `BattleScreen` の使用確定経路は実機でしか通らない。
+// 手順＝①`WX10-073` ＥＡＴ ＳＴＡＲ（《青×0》）を使う → スロットに《無×2》が載る
+//       ②`WX02-060` ＳＥＡＲＣＨＥＲ（《無×1》）を使う → スロットが消える（＝消費された）
+scenarios.b4NextSpellReductionConsumed = {
+  title: 'WX10-073-E1（Sheet1 B4＝次スペルのコスト軽減が1回で消費される）',
+  spec: {
+    hostSet: {
+      'field.signi': [null, null, null],
+      'energy': ['WD01-013#9400', 'WD01-013#9401', 'WD01-013#9402'],
+      'hand': [],
+      'actions_done': [],
+    },
+    handPrepend: ['WX10-073#9410', 'WX02-060#9411'],   // ①EAT STAR → ②SEARCHER
+    guestSet: { 'field.signi': [null, null, null] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const clickExact = async (name) => {
+      const b = page.getByRole('button', { name, exact: true }).first();
+      if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+        await b.click().catch(() => {}); return 'btn:' + name;
+      }
+      return null;
+    };
+    let phase = 0;            // 0=EAT STAR を撃つ / 1=スロット確認済み / 2=SEARCHER を撃つ
+    let sawSlot = null;
+    let opened = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/b4NextSpellReductionConsumed-${s}.png`, fullPage: true });
+      const st0 = await H.queryState();
+      const slot = st0?.host?.nextSpellCostReduction;
+      if (phase === 0 && slot && slot.length) { sawSlot = slot; phase = 1; opened = false; }
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      if (!did) did = await clickExact('発動');
+      if (!did) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          const cast = await clickExact('発動する');
+          if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+        }
+      }
+      if (!did) did = await clickExact('発動する');
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const slotNow = st?.host?.nextSpellCostReduction;
+      H.log(`  b4[${s}] phase=${phase} -> ${did ?? 'なし'} | slot=${JSON.stringify(slotNow)} hand=${JSON.stringify(st?.host?.handCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (phase === 1 && slotNow && slotNow.length) { phase = 2; opened = false; continue; }   // ②へ
+      if (phase >= 1 && (!slotNow || slotNow.length === 0)) {
+        const handLeft = (st?.host?.handCards ?? []).filter(c => /WX10-073|WX02-060/.test(String(c)));
+        if (handLeft.length === 0) {
+          return { pass: true, detail: `次スペル軽減が積まれ（${JSON.stringify(sawSlot)}）、2枚目のスペル使用で消費されて空になった＝「次の1回だけ」が実機で成立（census 較正の前提が生きている）` };
+        }
+      }
+    }
+    const fin = await H.queryState();
+    return {
+      pass: false,
+      detail: `🔴観測できず＝検証空振り（sawSlot=${JSON.stringify(sawSlot)} slot=${JSON.stringify(fin?.host?.nextSpellCostReduction)} hand=${JSON.stringify(fin?.host?.handCards)} pEff=${fin?.pendingEffect ?? '-'}）`,
+    };
+  },
+};
+
 order.push('b3ShareClassDrawsFour', 'b3DistinctClassDrawsThree');
+// Sheet1 B4（2026-08-27）＝census 較正の前提（1回で消費）を実機で見張る。
+order.push('b4NextSpellReductionConsumed');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は
 // golden/smoke/fuzz が原理的に守れない層（§2.2）なので、正方向＋対照の2本を既定 order に入れる。各2回連続 PASS。
 order.push('b45LrigLevelSearchCeiling', 'b45LrigLevelSearchFollowsLrig');
@@ -33225,6 +33301,11 @@ try {
         // §5.3 O-55：【トラップ】設置の観測点（どのカードがどのゾーンに裏向きで置かれたか）。
         signiTraps: s.field?.signi_traps ?? [null, null, null],
         signiDown: s.field?.signi_down ?? null,
+        // 🆕Sheet1 B4（2026-08-27）：「このターン、あなたが**次に**スペル／アーツを使用する場合、コストが減る」の
+        //   状態スロット。**「次の1回だけ」はここが持っている**（executor が積み、使用時にクリアされる）。
+        //   census の較正（`conditionClauseExtraOk`）はこの挙動を前提にしているので、実機で set→clear を観測する。
+        nextSpellCostReduction: s.next_spell_cost_reduction ?? null,
+        nextArtsCostReduction: s.next_arts_cost_reduction ?? null,
         fieldSigni: s.field?.signi ?? null,
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,

@@ -49528,6 +49528,65 @@ test('Sheet1 B3: 「共通するクラスを持つ場合」が live に載り、
 }));
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Sheet1 B4（2026-08-27）＝「このターン、あなたが**次に**スペル／アーツを使用する場合、コストが減る」。
+//
+// 🔑**これは過剰効果では「なかった」**（着手前の実測で前提が崩れた例）。`docs/_vocab_census.txt` は
+//    11効果を高シグナルに挙げていたが、**engine は最初から「次の1回だけ」を実装していた**＝
+//    executor が `next_spell_cost_reduction` / `next_arts_cost_reduction` へ積み、
+//    `spellUseGate` / `ArtsModal` が読み、`BattleScreen` が使用時にクリアする。
+//    JSON の `duration:'UNTIL_END_OF_TURN'` は**このアクション型では読まれない死にデータ**。
+// 🔴**census を較正した**（`conditionClauseExtraOk`＝`PREVENT_NEXT_DAMAGE` と同型の「予約アクションが
+//    条件を内包する正表現」枠）。**その較正が偽陰性にならないための固定がこのテスト。**
+// ⚠**成立の前提＝該当効果が `ACTIVATED`／`AUTO` であること。** `CONTINUOUS` の `COST_REDUCTION{スペル}` は
+//    `effectEngine.ts` の `scanOwner` が**常設修飾**として集める別経路で、そちらは本当に「ターン中ずっと」。
+//    その形が現れたら較正は嘘になるので、下の3本目でカテゴリごと見張る。
+// ══════════════════════════════════════════════════════════════════════════════
+test('Sheet1 B4: 「次に使用する〜のコストが減る」は状態スロットへ積まれる（ターン中ずっとではない）', () => withSavedCursor(() => {
+  // ① スペル版＝top-level が素の COST_REDUCTION の札で観測する
+  const spell = b45Effect('WX10-073', 'WX10-073-E1').action;
+  ok((spell as { type: string }).type === 'COST_REDUCTION', 'WX10-073-E1: top-level が COST_REDUCTION');
+  const afterSpell = run(spell, mkCtx({}, {}));
+  const slotSpell = (afterSpell.ownerState as unknown as { next_spell_cost_reduction?: { color: string; count: number }[] }).next_spell_cost_reduction;
+  ok(!!slotSpell && slotSpell.some(r => r.color === '無' && r.count === 2),
+    'WX10-073-E1: next_spell_cost_reduction に《無×2》が積まれる（＝次の1枚だけ／ターン中ずっとではない）');
+
+  // ② アーツ版（【チェイン】）＝SEQUENCE の中の COST_REDUCTION ステップを取り出して実行する
+  const chain = b45Effect('WX10-004', 'WX10-004-E1').action as { type: string; steps: { type: string }[] };
+  const chainStep = chain.steps.find(st => st.type === 'COST_REDUCTION');
+  ok(!!chainStep, 'WX10-004-E1: 【チェイン】の COST_REDUCTION ステップがある');
+  const afterArts = run(chainStep as unknown as EffectAction, mkCtx({}, {}));
+  const slotArts = (afterArts.ownerState as unknown as { next_arts_cost_reduction?: { color: string; count: number }[] }).next_arts_cost_reduction;
+  ok(!!slotArts && slotArts.some(r => r.color === '白') && slotArts.some(r => r.color === '赤'),
+    'WX10-004-E1: next_arts_cost_reduction に《白》《赤》が積まれる');
+
+  // ③ 🔴**census 較正の前提**＝「次に〜を使用する場合」の COST_REDUCTION は**1つも CONTINUOUS ではない**。
+  //    CONTINUOUS だと `scanOwner` の常設修飾経路に乗り、原文どおりの「次の1回だけ」にならない。
+  //    ここが破れたら `scripts/vocabCensus.ts` の較正（`conditionClauseExtraOk`）が偽陰性になる。
+  const FAMILY = [
+    'WX04-008', 'WX06-012', 'WX09-018', 'WX10-004', 'WX10-005', 'WX10-022',
+    'WX10-073', 'WX11-018', 'WX11-072', 'WXDi-P14-045', 'WXK11-035',
+  ] as const;
+  const hasCostReduction = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(hasCostReduction);
+    if (!value || typeof value !== 'object') return false;
+    const o = value as Record<string, unknown>;
+    if (o.type === 'COST_REDUCTION' && (o.targetCardType === 'スペル' || o.targetCardType === 'アーツ')) return true;
+    return Object.values(o).some(hasCostReduction);
+  };
+  let seen = 0;
+  for (const cardNum of FAMILY) {
+    for (const eff of mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? [])) {
+      if (!hasCostReduction(eff.action)) continue;
+      seen++;
+      ok(eff.effectType !== 'CONTINUOUS',
+        `${eff.effectId}: 「次に使用する」コスト軽減は CONTINUOUS ではない（CONTINUOUS だと常設修飾に化け、census 較正が偽陰性になる）`);
+    }
+  }
+  eq(seen, 11, '「次に使用する〜のコスト軽減」の live 実数（増減したら census 較正の母集団を数え直す）');
+}));
+
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

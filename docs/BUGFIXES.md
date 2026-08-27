@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-27：Sheet1 B4＝「次にスペルを使用する場合」11効果は**バグではなかった**（census の恒久的な誤検出を較正）
+
+> **1巡（続き682・Opus 5 単独）**＝**バグ修正ではなく計器の較正**。着手前の母集団実測（§2.1 ②）で**前提が崩れた**回。
+> gates 全緑（golden **2871→2872**（+1テスト）FAIL 0／smoke 全異常0／fuzz 全0／census **557→551**／
+> `census:stubs` A群🔴0・C群0／manual-fields 0/0／enginetext A群 141 据置／lint 0 errors）。
+> **live は1バイトも変えていない**（effects_*.json は無変更）。**Sheet1 要対応 73 → 69枚**（8.5%→8.0%・census 36→32）。
+> **実機シナリオ1本を新設して2回連続 PASS**＋回帰2本も PASS。
+
+### 何が起きたか
+
+`census:cards --sheet 1 --list` の `census` フラグを語彙カテゴリ別に割り直すと、最大クラスタ「条件節(〜の場合)」9件のうち
+**4件が「このターン、あなたが次にスペルを使用する場合、それの使用コストは《X》減る」**だった。
+前バッチで `O-100` として「**1回限定が落ちてターン中の全スペルが安くなる過剰効果**」と登録していたので、そこを取りにいった。
+
+**精密に測り直すと該当は12枚（Sheet1 9枚）**で、【チェイン】のアーツ4枚（`WX10-004`／`WX10-005`／`WX10-022`／`WX11-018`）を含んでいた。
+ところが engine を読むと——
+
+```ts
+// effectExecutor.ts の case 'COST_REDUCTION'
+if (cr.targetCardType === 'スペル' && ...) → ctx.ownerState.next_spell_cost_reduction へ積む
+if (cr.targetCardType === 'アーツ' && ...) → ctx.ownerState.next_arts_cost_reduction へ積む
+```
+
+**「次の1回だけ」は最初から実装されていた。** 状態スロット（`next_spell_cost_reduction` / `next_arts_cost_reduction`）は
+`spellUseGate` / `ArtsModal` が読み、`BattleScreen` が使用時にクリアする。
+JSON の `duration:'UNTIL_END_OF_TURN'` は**このアクション型では読まれない死にデータ**だった。
+
+🔴**`O-100` は誤報**＝PLAN §5.3 から削除した。
+
+### なぜ census は誤検出していたか／どう較正したか
+
+census は**原文の語彙が JSON に対応表現を持つか**を見る計器で、「次に」に対応する JSON トークンが無かった。
+ただし**同型の較正先例が既にあった**＝`PREVENT_NEXT_DAMAGE` / `RESERVE_DRAW_PHASE_REPLACEMENT`
+（「予約アクションが条件を内包する正表現」）。`COST_REDUCTION{targetCardType:'スペル'|'アーツ'}` はまさに同じ形なので、
+`conditionClauseExtraOk` に枠を1つ足した。**557→551**。
+
+⚠**較正キーは narrow に**（既存コメントの警告どおり）＝「当該節を除いて他に `場合、` が残らないときだけ合格」。
+実測で**消えたのはその節しか持たない6効果ちょうど・巻き添え0**（【チェイン】4枚と `WX04-008` は本文に別の条件があるため
+**正しく残った**）。
+
+### 🔑 教訓：「calibrate か fix か」は engine を読むまで決まらない
+
+worklist に「過剰効果」と書いてあっても、**受け皿が別の形で既に実装されている**ことがある。
+今回は `duration` フィールドが `UNTIL_END_OF_TURN` と書いてあるのを見て「ターン中ずっと効く」と読んだのが誤りで、
+**そのフィールドはこのアクション型では読まれていなかった**。
+⇒ **JSON のフィールドを見て挙動を推定しない。消費地点を grep する。**（今日の B1／B2 の「消費地点で受け皿を判定する」と同じ規律。）
+
+### 較正が嘘にならないための固定（golden `Sheet1 B4`）
+
+1. スペル版＝`WX10-073-E1` を実行すると `next_spell_cost_reduction` に《無×2》が積まれる
+2. アーツ版＝`WX10-004-E1`（【チェイン】）の `COST_REDUCTION` ステップで `next_arts_cost_reduction` に《白》《赤》
+3. 🔴**該当11効果が1つも `CONTINUOUS` でないこと**＋**実数が11であること**
+   ＝`CONTINUOUS` の `COST_REDUCTION{スペル}` は `effectEngine.ts` の `scanOwner` が**常設修飾**として集める別経路で、
+   そちらは本当に「ターン中ずっと」。その形が現れたら**較正が偽陰性になる**ので、カテゴリごと見張る。
+
+### 実機検証
+
+golden は**状態スロットに積まれること**しか見られない。「**次のスペルを使ったら消える**」は
+`BattleScreen` の使用確定経路なので実機でしか通らない。`queryState` に `nextSpellCostReduction` /
+`nextArtsCostReduction` を足して観測点を作り、新設 `b4NextSpellReductionConsumed` で
+①`WX10-073` を使う → `slot=[{無,2}]` ②`WX02-060` を使う → `slot=null` を直接観測した（2回連続 PASS）。
+
+---
+
 ## 2026-08-27：Sheet1 B3＝「共通するクラスを持つ場合」が丸ごと落ち、WX09-049 は常に7枚ドローしていた
 
 > **1巡（続き681・Opus 5 単独）**＝Sheet1 分母の第3バッチ。`census:cards --sheet 1 --list` の `census` フラグ38枚を

@@ -96,7 +96,13 @@ import { fileURLToPath } from 'url';
 // 2026-08-24 O-50: WXK05-050-E1 の欠落を解消（-1）。同時に WXK04-010-E1 を同値の manual 影武者から
 // AUTO へ戻したことで、スコープ外の既存欠落（アンコールのコイン）が高シグナルへ顕在化（+1）し、総数は608維持。
 // LPC の pickUpTo が「してもよい」を実装済みであることも計器へ較正した（死フラグではなく SEARCH.optional の消費値）。
-const BASELINE_HIGH = 557; // 2026-08-27 Sheet1 B3＝「あなたの場に〈色〉のシグニが3体あり、それらが
+const BASELINE_HIGH = 551; // 2026-08-27 Sheet1 B4＝**較正（バグ修正ではない）**。「このターン、あなたが
+//   **次に**スペル／アーツを使用する場合、コストが減る」は `COST_REDUCTION{targetCardType:'スペル'|'アーツ'}` が
+//   **条件（次の1回だけ）を内包する正表現**で、engine は最初からそう実装していた（`next_spell_cost_reduction` /
+//   `next_arts_cost_reduction` へ積んで使用時に消費）。`conditionClauseExtraOk` へ `PREVENT_NEXT_DAMAGE` と同型の
+//   枠を足して 557→551（消えたのは**その節しか持たない6効果ちょうど**・巻き添え0を実測）。
+//   ⚠**前提は「該当効果が CONTINUOUS でないこと」**＝golden `Sheet1 B4` が11効果を全数で見張っている。
+// 旧: const BASELINE_HIGH = 557; // 2026-08-27 Sheet1 B3＝「あなたの場に〈色〉のシグニが3体あり、それらが
 //   **共通するクラスを持つ**場合」の条件が丸ごと落ちて両枝が無条件に走っていた（`WX09` の5色サイクル）。
 //   `Condition.FIELD_SIGNI_SHARE_CLASS` を新設して払い戻し（559→557）。
 // 旧: const BASELINE_HIGH = 559; // 2026-08-27 Sheet1 B1＝**対象名詞句の修飾語が対象フィルタへ配線されていない**
@@ -480,6 +486,22 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
   {
     const tc = stripResultClauses(stripConditionChooseClause(js, t));
     if (tc !== t && !/場合[、,]/.test(tc)) return true;
+  }
+  // 🆕「（このターン、）〈誰か〉が**次に**〈スペル|アーツ〉を使用する場合、それの使用コストは〜減る」＝
+  //   `COST_REDUCTION{targetCardType:'スペル'|'アーツ'}` が**条件（次の1回だけ）を内包する正表現**
+  //   （2026-08-27 続き682 に実測して較正・live 11効果）。
+  //   🔑**「次に1回」は状態スロット側が持っている**＝executor（`effectExecutor.ts` の `COST_REDUCTION`）が
+  //     `next_spell_cost_reduction` / `next_arts_cost_reduction` へ積み、`spellUseGate` / `ArtsModal` が読み、
+  //     `BattleScreen` が使用時にクリアする。**`condition` フィールドでは表せない**（`PREVENT_NEXT_DAMAGE` と同型）。
+  //   ⚠**該当11効果はすべて `ACTIVATED`／`AUTO`**＝場の CONTINUOUS を走査する常設修飾の経路
+  //     （`effectEngine.ts` の `scanOwner`）は通らない。だから「ターン中ずっと安くなる」過剰実行は起きていない。
+  //     ⚠**もし将来 `CONTINUOUS` の `COST_REDUCTION{スペル}` が現れたら話が変わる**＝そちらは本当に常設なので
+  //     この較正が偽陰性になる。golden `Sheet1 B4` が executor 側の意味を固定している。
+  //   ⚠較正キーは narrow に＝**当該節を除いて他に `場合、` が残らないときだけ**合格させる（残渣チェック）。
+  if (js.includes('"type":"COST_REDUCTION"') && /"targetCardType":"(?:スペル|アーツ)"/.test(js)) {
+    const tn = stripResultClauses(
+      t.replace(/(?:このターン[、,])?(?:あなたが)?次に(?:あなたが)?(?:スペル|アーツ)を使用する場合[、,]/g, ''));
+    if (tn !== t && !/場合[、,]/.test(tn)) return true;
   }
   // 「配置する場合」は条件節ではなく FORCE_PLACE_FRONT の行動表現。
   if (js.includes('FORCE_PLACE_FRONT')) {
