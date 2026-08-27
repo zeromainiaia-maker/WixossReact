@@ -7420,8 +7420,10 @@ test('続き379 E2E: WXDi-P13-078-E1 はバフ込みパワー10000のディソ�
 test('batch19 tripwire: WXEX2-18-E2 excludeResona is attached only to the self sacrifice, not the opponent target', () => {
   const effect = batch19Effect('WXEX2-18', 'WXEX2-18-E2');
   ok(effect.action.type === 'SEQUENCE', '犠牲→そうした場合のSEQUENCE');
-  const first = effect.action.type === 'SEQUENCE' ? effect.action.steps[0] as EffectAction & { target?: EffectTarget } : undefined;
-  const second = effect.action.type === 'SEQUENCE' ? effect.action.steps[1] : undefined;
+  // §5.3 `O-129` 以降、先頭には対象宣言（SELECT_TARGET_ONLY ＋ STORE）が入る＝役割で拾う。
+  const body19 = effect.action.type === 'SEQUENCE' ? stepsAfterDesignation(effect.action.steps) : [];
+  const first = body19[0] as (EffectAction & { target?: EffectTarget }) | undefined;
+  const second = body19[1];
   eq(first?.target?.owner, 'self', 'excludeResona の対象は自分の犠牲側');
   eq(first?.target?.filter?.excludeResona, true, '非レゾナ限定を犠牲側に保持');
   eq(batch19Count(second, '"excludeResona":true'), 0, '後段の相手対象へは誤付着しない');
@@ -16236,6 +16238,111 @@ test('parse 「対戦相手は自分の効果で引いたり手札に加えた�
   eq(a.actionId, 'DRAW_OR_ADD_TO_HAND_BY_EFFECT', 'ドロー/手札加え禁止');
   eq(a.target.owner, 'opponent', '対戦相手');
   eq(a.until, 'END_OF_TURN', 'このターン');
+});
+// §5.3 O-125＝【常】版の「グロウ/ドロー以外は引けない」。旧 id `DRAW_OUTSIDE_DRAW_PHASE` は
+//   parser が生成するだけで engine の消費地点がゼロ＝**何も禁止していなかった**（live 母集団 `WX05-022` 1枚）。
+test('parse WX05-022【常】: グロウ/ドロー以外の手札増加禁止は PERMANENT な BLOCK_ACTION（O-125）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-ODP', Type: 'シグニ', EffectText: '【常】：対戦相手は自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたりカードを手札に加えることができない。' } as unknown as CardData)[0];
+  const a = e.action as unknown as { type: string; actionId: string; until: string; target: { owner: string } };
+  eq(a.type, 'BLOCK_ACTION', 'BLOCK_ACTION');
+  eq(a.actionId, 'DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN', 'グロウの例外と「自分のターン」まで id に載る');
+  eq(a.target.owner, 'opponent', '対戦相手');
+  eq(a.until, 'PERMANENT', '【常】は END_OF_TURN ではない');
+});
+test('CONTINUOUS DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN 実行: 3条件すべてを見る（O-125）', () => withSavedCursor(() => {
+  // 宣言者＝相手場の WX05-022。ドローするのは owner 側。live JSON は cardMap.effects に載っている。
+  const decl = 'WX05-022';
+  ok((cardMap.get(decl) as { effects?: CardEffect[] } | undefined)?.effects?.length, 'WX05-022 の live 効果が読めていない');
+  const mk = (phase: string, ownerTurn: boolean | undefined) => {
+    const c = mkCtx({}, { signi: [decl, null, null] });
+    c.currentPhase = phase as never;
+    c.isOwnerTurn = ownerTurn;
+    return c;
+  };
+  const drew = (c: ExecCtx) => {
+    const before = c.ownerState.hand.length;
+    return run({ type: 'DRAW', owner: 'self', count: 2 } as unknown as EffectAction, c).ownerState.hand.length - before;
+  };
+  eq(drew(mk('MAIN', true)), 0, '自分のターンのメインフェイズ＝封じられる');
+  eq(drew(mk('ATTACK_SIGNI', true)), 0, 'アタックフェイズも「以外」に含まれる');
+  eq(drew(mk('DRAW', true)), 2, 'ドローフェイズは例外');
+  eq(drew(mk('GROW', true)), 2, 'グロウフェイズも例外（旧 id はここを落としていた）');
+  eq(drew(mk('MAIN', false)), 2, '相手ターン中は「自分のターンの間」に当たらない');
+  eq(drew(mk('MAIN', undefined)), 2, 'ターン不明の経路では止めない（渡し忘れが過剰禁止に化けない）');
+  // 宣言者が場に居なければ素通り＝盤面走査が効いていることの裏取り。
+  const noDecl = mkCtx({}, {});
+  noDecl.currentPhase = 'MAIN' as never; noDecl.isOwnerTurn = true;
+  eq(drew(noDecl), 2, '宣言者不在なら引ける');
+  // 消費地点は2つ＝手札に加える側（execTransferToHand）も同じ判定を通る。
+  const cT = mkCtx({ trash: 3 }, { signi: [decl, null, null] });
+  cT.currentPhase = 'MAIN' as never; cT.isOwnerTurn = true;
+  const beforeT = cT.ownerState.hand.length;
+  const rT = run({ type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as unknown as EffectAction, cT);
+  eq(rT.ownerState.hand.length, beforeT, 'トラッシュから手札に加えるのも封じられる');
+}));
+// §5.3 O-129＝「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、それを…」で**対象の確定が
+//   中間動作より後**になっていた形。旧実装は filter/owner/count が帰結と一致すると据置していた。
+test('parse O-129: 中間動作が反対側の場のカードを失う形は対象宣言を先に出す', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-O129A', Type: 'スペル', EffectText: '対戦相手のシグニ１体を対象とし、あなたのシグニ１体を場からトラッシュに置く。そうした場合、それをバニッシュする。' } as unknown as CardData)[0];
+  const steps = (e.action as unknown as { type: string; steps: { type: string; id?: string; target?: { owner?: string } }[] }).steps;
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', '対象宣言が先頭（＝対象が居なければ自分のシグニを失わない）');
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', '宣言対象を保存');
+  eq(steps[2].type, 'TRASH', '中間動作はその後');
+  eq(steps[2].target?.owner, 'self', '中間動作の所有者は据置');
+  eq((steps[0] as { abortIfNoCandidate?: boolean }).abortIfNoCandidate, true, '対象を取れなければ何もしない');
+});
+test('O-129 実行: 対象が居なければ中間動作（自分のシグニの犠牲）を払わない', () => withSavedCursor(() => {
+  const e = parseCardEffects({ CardNum: 'TEST-O129D', Type: 'スペル', EffectText: '対戦相手のシグニ１体を対象とし、あなたのシグニ１体を場からトラッシュに置く。そうした場合、それをバニッシュする。' } as unknown as CardData)[0];
+  const mine = fresh(), theirs = fresh();
+  // ① 相手の場が空＝対象を宣言できない → 自分のシグニは残る（旧挙動は先に捨てていた）
+  const empty = mkCtx({ signi: [mine, null, null] }, { signi: [null, null, null] });
+  const rEmpty = run(e.action, empty);
+  ok(rEmpty.ownerState.field.signi.some(s => s?.at(-1) === mine), '対象が居なければ自分のシグニを失わない');
+  eq(rEmpty.ownerState.trash.includes(mine), false, 'トラッシュにも落ちない');
+  // ② 相手が居る＝従来どおり犠牲を払って相手をバニッシュする
+  const hit = mkCtx({ signi: [mine, null, null] }, { signi: [theirs, null, null] });
+  const rHit = run(e.action, hit);
+  ok(!rHit.ownerState.field.signi.some(s => s?.at(-1) === mine), '対象が居れば犠牲を払う');
+  ok(!rHit.otherState.field.signi.some(s => s?.at(-1) === theirs), '宣言した相手シグニがバニッシュされる');
+}));
+test('parse O-129: 取らない形（トラッシュ/デッキ由来の中間・中間ステップが別バグで壊れている形）', () => {
+  // ①出所が場でない中間動作＝この巡では取らない（実測15効果ぶん増えるので次バッチ）
+  const trashSrc = parseCardEffects({ CardNum: 'TEST-O129B', Type: 'シグニ', EffectText: '【起】《白×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから＜天使＞のシグニ７枚をデッキの一番下に置く。そうした場合、それをバニッシュし、デッキをシャッフルする。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(trashSrc.action).includes('SELECT_TARGET_ONLY'), 'トラッシュ由来の中間動作は据置');
+  // ②中間ステップの所有者が原文とズレたまま（§5.3 O-104 の領分）＝順序だけ直して「壊れたまま正しい順」にしない
+  const brokenMid = parseCardEffects({ CardNum: 'TEST-O129C', Type: 'シグニ', EffectText: '【起】《青×0》：対戦相手のシグニ１体を対象とし、あなたの＜原子＞のシグニ３体をバニッシュする。そうした場合、それをバニッシュする。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(brokenMid.action).includes('SELECT_TARGET_ONLY'), '中間ステップの owner がズレている形は据置');
+});
+
+// §5.3 O-128 第1バッチ＝「〈対象〉を対象とし、〈期間〉、（それのパワーを±Nし、）それは「【自】…」を得る」が
+//   `STUB{GRANT_ABILITY_INNER_TEXT}`（engine が原文を regex で読み直す catch-all）へ落ちて no-op だった。
+test('parse O-128: 対象への引用能力付与が GRANT_EFFECT へ戻る（パワー修正を落とさない）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-O128A', Type: 'スペル', EffectText: 'あなたの＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000し、それは「【自】：このシグニがアタックしたとき、パワーがこのシグニのパワーの半分以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。' } as unknown as CardData)[0];
+  const steps = (e.action as unknown as { type: string; steps: Record<string, unknown>[] }).steps;
+  eq(steps[0].type, 'POWER_MODIFY', '外側のパワー修正が残る（付与へ差し替えた瞬間に落ちる回帰があった）');
+  eq(steps[0].delta, 5000, '＋5000');
+  eq(steps[1].type, 'GRANT_EFFECT', '付与は STUB ではなく GRANT_EFFECT');
+  eq(steps[1].targetsLastProcessed, true, '「それ」＝パワーを上げたのと同じシグニ（選択UIを2度出さない）');
+  const inner = steps[1].effect as { timing?: string[]; action?: { type: string } };
+  eq(JSON.stringify(inner?.timing), '["ON_ATTACK_SIGNI"]', '引用【自】のトリガーが展開されている');
+  eq(inner?.action?.type, 'BANISH', '引用の本体');
+});
+test('parse O-128: 中間動作なしの形は対象つき GRANT_EFFECT になる', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-O128B', Type: 'スペル', EffectText: 'あなたの《ディソナアイコン》のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニがアタックしたとき、対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。」を得る。' } as unknown as CardData)[0];
+  const a = e.action as unknown as { type: string; target?: { owner?: string; filter?: Record<string, unknown> }; duration?: string; effect?: { usageLimit?: string } };
+  eq(a.type, 'GRANT_EFFECT', 'GRANT_EFFECT（従来は STUB 単独＝効果まるごと no-op）');
+  eq(a.target?.owner, 'self', '付与先は自分のシグニ');
+  eq(a.target?.filter?.isDisona, true, '《ディソナアイコン》の限定が残る');
+  eq(a.duration, 'UNTIL_END_OF_TURN', 'ターン終了時まで');
+  eq(a.effect?.usageLimit, 'once_per_turn', '《ターン１回》も引用側に載る');
+});
+test('parse O-128: 引用の timing がフォールバックする形は STUB のまま据置（幻覚を配らない）', () => {
+  // 「正面にあるシグニをバニッシュしたとき」に対応する timing 語彙がまだ無く ON_PLAY へ落ちる。
+  // parseStatus は AUTO のままなので、timing フォールバックを見ないと**原文に無い能力**を付与してしまう。
+  const e = parseCardEffects({ CardNum: 'TEST-O128C', Type: 'ルリグ', EffectText: '【起】《ターン１回》《赤》《赤》《赤》：《ライズアイコン》を持つあなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニが正面にあるシグニ１体をバニッシュしたとき、このシグニをアップする。」を得る。' } as unknown as CardData)[0];
+  const a = e.action as unknown as { type: string; id?: string };
+  eq(a.type, 'STUB', 'timing が解けない引用は据置');
+  eq(a.id, 'GRANT_ABILITY_INNER_TEXT', '宣言済みの穴として census:stubs に残す');
 });
 test('BLOCK_ACTION DRAW_OR_ADD_TO_HAND_BY_EFFECT 実行: 効果ドローが止まる', () => {
   const base = mkCtx({}, {});
@@ -45038,6 +45145,17 @@ type Batch24Case = {
   bodyFired: (result: ExecResult, opponent: string) => boolean;
 };
 
+// 🆕§5.3 `O-129`（2026-08-28）＝「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、…」の
+//   対象宣言が SEQUENCE の**先頭**（`SELECT_TARGET_ONLY` ＋ `STORE_LAST_PROCESSED_TARGETS`）へ入るように
+//   なったので、犠牲ステップの位置は添字で決め打ちできない。**役割で拾う**。
+//   ⚠添字を +2 に書き換えるのではなく読み飛ばす＝宣言が付かない効果（この形以外）とも同じ式で書ける。
+function stepsAfterDesignation(steps: EffectAction[]): EffectAction[] {
+  const DESIG_IDS = ['SELECT_TARGET_ONLY', 'STORE_LAST_PROCESSED_TARGETS'];
+  let i = 0;
+  while (i < steps.length && steps[i].type === 'STUB' && DESIG_IDS.includes((steps[i] as StubAction).id)) i++;
+  return steps.slice(i);
+}
+
 function batch24RootAndSequence(c: Batch24Case): { root: EffectAction; sequence: SequenceAction } {
   const effect = effectsMap.get(c.cardNum)?.find(e => e.effectId === c.effectId);
   ok(!!effect, `${c.effectId}: live effect`);
@@ -45051,12 +45169,13 @@ function batch24RootAndSequence(c: Batch24Case): { root: EffectAction; sequence:
 
 function runBatch24RequiredSacrifice(c: Batch24Case): void {
   const { root, sequence } = batch24RootAndSequence(c);
-  const cost = sequence.steps[0] as EffectAction & { target?: EffectTarget };
+  const body = stepsAfterDesignation(sequence.steps);
+  const cost = body[0] as EffectAction & { target?: EffectTarget };
   eq(cost.type, c.costType, `${c.effectId}: 第1ステップ型`);
   eq(cost.target?.owner, 'self', `${c.effectId}: ①犠牲owner=self`);
   eq(cost.target?.count, 1, `${c.effectId}: ①犠牲1体`);
   eq(cost.target?.filter?.story, c.story, `${c.effectId}: ①犠牲クラス`);
-  const gate = sequence.steps[1] as EffectAction & { condition?: Condition };
+  const gate = body[1] as EffectAction & { condition?: Condition };
   eq(gate.type, 'CONDITIONAL', `${c.effectId}: 「そうした場合」ラッパーを維持`);
   eq(gate.condition?.type, 'IS_MY_TURN', `${c.effectId}: did-it慣例エンコードを維持`);
 
@@ -45107,7 +45226,7 @@ test('段2 第24バッチ E2E: WXEX2-18-E2 は非レゾナ＜遊具＞を犠牲�
   const { sequence } = batch24RootAndSequence({
     cardNum: 'WXEX2-18', effectId: 'WXEX2-18-E2', story: '遊具', costType: 'BANISH', bodyFired: () => false,
   });
-  const cost = sequence.steps[0] as EffectAction & { target?: EffectTarget };
+  const cost = stepsAfterDesignation(sequence.steps)[0] as EffectAction & { target?: EffectTarget };
   eq(cost.target?.filter?.excludeResona, true, 'WXEX2-18-E2: レゾナではないを復元');
   runBatch24RequiredSacrifice({
     cardNum: 'WXEX2-18', effectId: 'WXEX2-18-E2', story: '遊具', costType: 'BANISH',

@@ -3600,6 +3600,16 @@ export interface StubAction {
   /** SELECT_TARGET_ONLY: 盤面を変えずに対象だけを選ばせ lastProcessedCards に記録する対象宣言。 */
   selectTarget?: EffectTarget;
   /**
+   * SELECT_TARGET_ONLY: **1体も選べなかったら以降の SEQUENCE を打ち切る**（§5.3 `O-129`）。
+   *
+   * 原文「〈対象〉を対象とし、〈中間動作〉。そうした場合、…」は対象を取れなければ何も起きないので、
+   * **中間動作（＝自分のシグニを場からトラッシュに置く等の支払い）を先に払わせてはいけない**。
+   * ⚠**既定は false**＝既存の `SELECT_TARGET_ONLY`（任意コストの倍率を対象のレベルで決める形・93効果）は
+   *   対象が居なくても後段の任意コスト提示まで進む従来挙動のまま。フラグを立てた効果だけが打ち切る。
+   * 消費は `execSequence`（`engine/effectExecutor.ts`）。
+   */
+  abortIfNoCandidate?: boolean;
+  /**
    * OPTIONAL_COST: 「このキーを場からルリグトラッシュに置く」（§6.4 O-3・`WDK06-R09-E1`）。
    * ⚠キーゾーンはシグニゾーンと別なので `fieldToLrigTrash` では払えない。
    */

@@ -455,6 +455,138 @@ const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001'; // BattleScreen.ts
 //     top.turn_phase    … 注入後のフェイズ。
 //   drive(page, H): クリック列＋観測。{ pass, detail } を返す。H は共通ヘルパー束。
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * §5.3 `O-125` の実機ドライバ（宣言者の有無で共有）。
+ * `WX05-022`（コードラブハート Ｃ・Ｍ・Ｒ）【常】「対戦相手は自分のターンの間、グロウフェイズと
+ * ドローフェイズ以外でカードを引いたりカードを手札に加えることができない」。
+ * 🔴**観測点は「効果ドローで手札が増えるか」**＝旧 live は `BLOCK_ACTION{DRAW_OUTSIDE_DRAW_PHASE}` を
+ *   生成するだけで engine の消費地点がゼロ＝**何も禁止していなかった**。
+ * 手順＝host のメインフェイズに `WD01-018`（噴流する知識・《無》×０・「カードを１枚引く。」）を使う。
+ *   スペルは手札から出るので、**封じられていれば手札は N→N-1、通っていれば N→N**。
+ */
+async function driveB24(page, H, expectBlocked) {
+  const tag = expectBlocked ? 'b24drawblock' : 'b24drawok';
+  const st0 = await H.queryState();
+  const hand0 = st0?.host?.hand ?? 0;
+  H.log(`開始 phase=${st0?.turnPhase} turn=${st0?.turnCount} hostHand=${hand0} guestField=${JSON.stringify(st0?.guest?.fieldSigni)}`);
+  await H.ensureMain();
+  H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  let used = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = await clickExact('発動');
+    if (!did) did = await clickExact('発動する');
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+    if (did) used = true;
+    const st = await H.queryState();
+    const hand = st?.host?.hand ?? 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hostHand=${hand0}→${hand} trash=${st?.host?.trash} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'}`);
+    if (s === 3 || s === 10) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-6))}`);
+    // スペルがトラッシュへ行った＝使用が完了した時点で判定する。
+    const spellDone = used && !st?.pendingSpell && !st?.pendingEffect && !(st?.stackLen > 0)
+      && (st?.host?.trashCards ?? []).some(c => String(c).startsWith('WD01-018'));
+    if (!spellDone) continue;
+    const drew = hand - (hand0 - 1);   // スペル1枚が手札を離れたぶんを差し引く
+    if (expectBlocked) {
+      return drew === 0
+        ? { pass: true, detail: `封じられて引けない（手札 ${hand0}→${hand}＝スペル1枚ぶんだけ減）` }
+        : { pass: false, detail: `🔴旧挙動＝禁止されているのに ${drew} 枚引けた（手札 ${hand0}→${hand}）` };
+    }
+    return drew === 1
+      ? { pass: true, detail: `対照＝宣言者が居なければ普通に引ける（手札 ${hand0}→${hand}）` }
+      : { pass: false, detail: `対照なのに引けていない（手札 ${hand0}→${hand}）` };
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `スペル使用が完了しなかった（手札 ${hand0}→${fin?.host?.hand ?? '-'} trash=${JSON.stringify(fin?.host?.trashCards?.slice(-3))}）` };
+}
+
+/**
+ * §5.3 `O-129` の実機ドライバ（相手シグニの有無で共有）。
+ * `WX02-020`（ブラッディ・スラッシュ・アーツ・《黒》×２）
+ * 「対戦相手のシグニ１体を対象とし、あなたのシグニ１体を場からトラッシュに置く。そうした場合、それをバニッシュする」。
+ * 🔴**観測点は「対象が居ないときに自分のシグニを失うか」**＝原文は対象宣言が先なので、
+ *   相手の場が空なら**何も起きない**（自分のシグニは残る）。旧 live は対象宣言が落ちていたため
+ *   **先に自分のシグニを捨ててから**相手を選ぼうとして、払い損になっていた。
+ */
+async function driveB25(page, H, oppHasSigni) {
+  const tag = oppHasSigni ? 'b25targethit' : 'b25targetfirst';
+  const st0 = await H.queryState();
+  const ownField0 = (st0?.host?.fieldSigni ?? []).filter(Boolean).length;
+  const oppField0 = (st0?.guest?.fieldSigni ?? []).filter(Boolean).length;
+  H.log(`開始 phase=${st0?.turnPhase} turn=${st0?.turnCount} own=${ownField0} opp=${oppField0} energy=${st0?.host?.energy} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  await H.ensureMain();
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  // ⚠**ルリグデッキは `my-lrig-dk` バッジから開く**（テキスト「ルリグDK」のクリックでは
+  //   モーダルが開かない＝初回実装でここに29秒溶かした）。開いた後に `zone-card-0` でアーツを開く。
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  let used = false;
+  const picked = new Set();
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // ArtsModal Phase2＝「アーツ使用」は必要枚数のエナを選ぶまで disabled。
+    if (!used) {
+      const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+      if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+        if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'btn:アーツ使用'; used = true; }
+        else {
+          for (let i = 0; i < 6; i++) {
+            if (picked.has(i)) continue;
+            const e = page.getByTestId(`artscost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); did = `artscost-energy-${i}`; break; }
+          }
+        }
+      }
+    }
+    if (!did && !used) did = await clickExact('使用');
+    if (!did) {                                  // SELECT_TARGET ピッカー（対象宣言／犠牲の両方）
+      for (const id of ['pick-0', 'pick-1']) {
+        const pk = page.getByTestId(id).first();
+        if (await pk.count() && await pk.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pk.click().catch(() => {}); did = 'pick:' + id; break; }
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+    const st = await H.queryState();
+    const own = (st?.host?.fieldSigni ?? []).filter(Boolean).length;
+    const opp = (st?.guest?.fieldSigni ?? []).filter(Boolean).length;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | own=${ownField0}→${own} opp=${oppField0}→${opp} lrigDeck=${st?.host?.lrigDeck} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (s === 5 || s === 15) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-6))}`);
+    const settled = used && !st?.pendingEffect && !(st?.stackLen > 0)
+      && (st?.host?.lrigTrashCards ?? []).some(c => String(c).startsWith('WX02-020'));
+    if (!settled) continue;
+    if (oppHasSigni) {
+      return (own === ownField0 - 1 && opp === oppField0 - 1)
+        ? { pass: true, detail: `対照＝対象が居れば従来どおり成立（自 ${ownField0}→${own} / 相手 ${oppField0}→${opp}）` }
+        : { pass: false, detail: `対象が居るのに成立していない（自 ${ownField0}→${own} / 相手 ${oppField0}→${opp}）` };
+    }
+    return own === ownField0
+      ? { pass: true, detail: `対象が居ないので自分のシグニを失わない（自 ${ownField0}→${own}）` }
+      : { pass: false, detail: `🔴旧挙動＝対象が居ないのに自分のシグニを失った（自 ${ownField0}→${own}）` };
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `アーツ使用が完了しなかった（own=${JSON.stringify(fin?.host?.fieldSigni)} lrigTrash=${JSON.stringify(fin?.host?.lrigTrashCards)}）` };
+}
+
 const scenarios = {
   // ① WXK09-050: 【出】CHOOSE①でバフ済み＜電機＞シグニに「ダウンしない」付与（既存・実証済み）。
   wxk09050: {
@@ -2520,6 +2652,139 @@ const scenarios = {
         pass: true,
         detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
       };
+    },
+  },
+
+  // ── B24（2026-08-28）＝§5.3 `O-125`（【常】のフェイズ外ドロー禁止）の実機観測点 ──
+  //   🔴**判別力があるのは block 側**（`b24drawblock`）＝旧 live は消費地点ゼロで普通に引けた。
+  b24drawblock: {
+    title: 'WX05-022 コードラブハート Ｃ・Ｍ・Ｒ（相手場にあると自分のメインでは効果ドローできない／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD05-009#9'], null, null],
+        'energy': ['WD05-009#1', 'WD05-009#2'],   // 《無》×０ だが手数のために持たせる
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      // 宣言者＝相手の場の WX05-022（【常】：対戦相手＝host を封じる）
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [['WX05-022#1'], null, null], 'actions_done': [] },
+      handPrepend: ['WD01-018#1'],                // 噴流する知識（《無》×０「カードを１枚引く。」）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB24(page, H, true); },
+  },
+
+  b24drawok: {
+    title: 'WX05-022 なし（対照＝普通に効果ドローできる／negative）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD05-009#9'], null, null],
+        'energy': ['WD05-009#1', 'WD05-009#2'],
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'actions_done': [] },
+      handPrepend: ['WD01-018#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB24(page, H, false); },
+  },
+
+  // ── B25（2026-08-28）＝§5.3 `O-129`（対象宣言が中間動作より先に確定する）の実機観測点 ──
+  //   🔴**判別力があるのは対象不在側**（`b25targetfirst`）＝旧 live は先に自分のシグニを捨てていた。
+  b25targetfirst: {
+    title: 'WX02-020 ブラッディ・スラッシュ（相手の場が空＝自分のシグニを失わない／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'],
+        'field.signi': [['WD05-009#9'], null, null],   // 犠牲候補（黒シグニ1体）
+        'lrig_deck': ['WX02-020#1'],
+        'energy': ['WD05-009#1', 'WD05-009#2', 'WD05-009#3'],   // 黒×2 を払える
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'actions_done': [] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB25(page, H, false); },
+  },
+
+  b25targethit: {
+    title: 'WX02-020 ブラッディ・スラッシュ（相手シグニが居れば従来どおり成立／negative）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'],
+        'field.signi': [['WD05-009#9'], null, null],
+        'lrig_deck': ['WX02-020#1'],
+        'energy': ['WD05-009#1', 'WD05-009#2', 'WD05-009#3'],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [['WD05-009#8'], null, null], 'actions_done': [] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB25(page, H, true); },
+  },
+
+  // ── B26（2026-08-28）＝§5.3 `O-128`（対象への引用能力付与）の実機観測点 ──
+  //   🔴旧 live は `STUB{GRANT_ABILITY_INNER_TEXT}` ＝**付与ストアに1件も積まれなかった**ので、
+  //   「`granted_effects` に載るか」がそのまま判別力になる。
+  b26grantquoted: {
+    title: 'WXDi-P12-069 開園の合図（ディソナへ引用【自】を付与＝granted_effects に載る）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXDi-P12-047#1'], null, null],   // 羅輝石 シークラ//ディソナ（赤・12000）
+        'energy': ['WXDi-P12-047#2', 'WXDi-P12-047#3'],    // 赤×1 を払える
+        'granted_effects': {},
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'actions_done': [] },
+      handPrepend: ['WXDi-P12-069#1'],                     // 開園の合図（赤×1）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`開始 granted=${JSON.stringify(st0?.host?.grantedEffectIds)} field=${JSON.stringify(st0?.host?.fieldSigni)} energy=${st0?.host?.energy}`);
+      await H.ensureMain();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click().catch(() => {}); return 'btn:' + name;
+        }
+        return null;
+      };
+      const picked = new Set();
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/b26grantquoted-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) did = await clickExact('発動する');
+        if (!did) {                                   // スペルコスト（赤×1）
+          for (let i = 0; i < 4; i++) {
+            if (picked.has(i)) continue;
+            const e = page.getByTestId(`spellcost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); did = `spellcost-energy-${i}`; break; }
+          }
+        }
+        if (!did) {                                   // 付与先の選択（自分のディソナ）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        const granted = st?.host?.grantedEffectIds ?? [];
+        H.log(`  b26[${s}] -> ${did ?? 'なし'} | granted=${JSON.stringify(granted)} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (granted.length > 0) {
+          return { pass: true, detail: `引用【自】が付与ストアへ載った（${JSON.stringify(granted)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `付与ストアが空のまま（granted=${JSON.stringify(fin?.host?.grantedEffectIds)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
     },
   },
 
@@ -35280,6 +35545,11 @@ try {
         keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
         // 続き475g：ピース解決時に載せ替える「このゲームの間」付与（`WXDi-P15-003-E2`）の観測用
         grantedLrigAutoIds: (s.lrig_granted_auto_effects ?? []).map(e => e.effectId),
+        // 🆕§5.3 `O-128`（2026-08-28）＝`GRANT_EFFECT` が積む引用能力の付与ストア。
+        //   旧 live は `STUB{GRANT_ABILITY_INNER_TEXT}` で**1件も積まれなかった**ので、
+        //   「積まれたか」自体が観測点になる（`カード番号:件数` の一覧）。
+        grantedEffectIds: Object.entries(s.granted_effects ?? {}).map(([id, es]) => `${id}:${(es || []).length}`),
+        grantedEffectIdsOppTurn: Object.entries(s.granted_effects_until_opp_turn ?? {}).map(([id, es]) => `${id}:${(es || []).length}`),
         designatedZones: s.designated_zones ?? [],
         fieldGrantsActive: (s.field_grants_active ?? []).map(g => `${g.kind}:${g.delta ?? ''}${g.perTargetLevel ? '/perLv' : ''}`),
         lrigFrozen: s.field?.lrig_frozen ?? false,

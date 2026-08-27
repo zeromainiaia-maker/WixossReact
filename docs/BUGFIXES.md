@@ -1,5 +1,129 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-125` / `O-128`（第1バッチ） / `O-129`（第1バッチ）＝「宣言はあるのに読み手が居ない」3件
+
+> **1巡（続き700・Opus 5 単独）**。ユーザー指示＝`O-129` / `O-125` / `O-128`。
+> ⚠登録票の警告どおり **`O-125` → `O-128` → `O-129` の順**（影響枚数の小さい順）で取った。
+> gates 全緑（golden **2920→2929**）。実機＝**新規5シナリオ ALL PASS**
+> （`b24drawblock` / `b24drawok` / `b25targetfirst` / `b25targethit` / `b26grantquoted`）。
+
+---
+
+### A. `O-125`＝`BLOCK_ACTION{DRAW_OUTSIDE_DRAW_PHASE}` は engine のどこからも読まれていない死にフラグ
+
+**真因**＝`WX05-022-E1`【常】「対戦相手は自分のターンの間、グロウフェイズとドローフェイズ以外でカードを
+引いたりカードを手札に加えることができない」の `actionId` は **`parseSentencePart1.ts:973`（生成側）の1箇所に
+しか出てこなかった**＝消費地点ゼロ＝**何も禁止していなかった**。兄弟枝の `DRAW_OR_ADD_TO_HAND_BY_EFFECT` は
+`execDraw`／`execTransferToHand` で消費済み（§5-8′ の型＝**兄弟枝ズレ**）。
+
+**母集団（実測）**＝live **1カード**（`WX05-022`）。CSV 全文でも「グロウフェイズとドローフェイズ以外」は1枚。
+登録票の「`WXK10-010` と2枚」は誤り＝あちらは既に消費されている別 id。
+
+**直し方**
+- **id を原文と1対1にした**＝`DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN`（旧 id は**グロウの例外**と
+  **「自分のターンの間」**を落としており、名前だけ見て「ドローフェイズ以外は常に禁止」と誤読できた）。
+  【常】なので `until` も `END_OF_TURN` → `PERMANENT`。
+- 消費は原文の3条件をすべて見る＝①引く側が宣言者の対戦相手 ②**引く側自身のターン** ③フェイズがグロウ／ドロー以外。
+  `isHandGainBlockedOutsideGrowDrawPhase(owner, ctx)`（`effectExecutor.ts`）を **`execDraw` と
+  `execTransferToHand` の2地点**（＝兄弟枝と同じ場所）で呼ぶ。
+- 🔑**盤面走査は `ctx.effectsMap` に依存しない**＝あれが代入されるのは BattleScreen の**8つの ExecCtx 構築地点の
+  うち1つだけ**（`:4938`）。`CardData.effects`（App.tsx が live JSON を載せる）と付与ストアを合流させる
+  `hasContinuousBlockOnOpponent` を書いた（`collectBanishSubstitutesForVictim` と同じ形）。
+  ⚠一方 `currentPhase` と `isOwnerTurn` は**8地点すべてが設定している**ので、そちらは ctx から読んでよい。
+- ⚠**フェイズ／ターンが不明な経路では止めない**＝engine の他のフェイズ機構と同じく「不明なら成立させない側へ倒す」。
+  渡し忘れが**過剰な禁止**に化けない向き。
+
+**検証**＝golden 2本（parse／実行の3条件＋消費2地点）。実機 `b24drawblock`（相手場に `WX05-022`→
+噴流する知識の効果ドローが通らない・ログ「グロウフェイズとドローフェイズ以外ではカードを引けない」）／
+`b24drawok`（宣言者不在→普通に引ける）。
+
+---
+
+### B. `O-128` 第1バッチ＝対象への引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちていた（8効果）
+
+**真因**＝`parseActionTextBody` の末尾にある「引用漏出」安全網が、付与ノードを組めなかった文を
+`STUB{GRANT_ABILITY_INNER_TEXT}` へ落とす。これは engine が**実行時にカード原文を regex で読み直す
+catch-all**（`O-60` A群）で、この family にはどのハンドラも当たっていない＝**無言 no-op**だった。
+- STUB 単独（`WXDi-P12-069` / `WX25-P1-071`）＝**効果まるごと何も起きない**
+- `SEQUENCE[POWER_MODIFY, STUB]`（`WX08-073` / `WX24-P1-014` / `WX24-P1-078` / `WXDi-P13-061` /
+  `WXDi-P06-059`）＝**パワーだけ上がって能力が付かない**
+
+**母集団（実測）**＝live **34カード**。うち第1バッチで取った同型＝
+「〈対象〉１体を対象とし、〈期間〉、（それのパワーを±Nし、）それ／そのシグニは「【自】…」を得る」＝**8効果**。
+残り **27カード**の分類は PLAN §5.3 `O-128` に列挙した（【常】自己付与／【ライフバースト】付与／ルリグ付与／
+「このゲームの間」／【ソウル】・下カード・レイヤー／《トラップアイコン》）。
+
+**直し方**＝`restoreQuotedTargetGrant`（`effectParser.ts`）。**受け皿は既存の `GRANT_EFFECT` だけで engine 変更なし**：
+- STUB 単独 → `GRANT_EFFECT{target}`（付与時に選択UI）
+- `SEQUENCE[POWER_MODIFY{SIGNI}, STUB]` → `GRANT_EFFECT{targetsLastProcessed}`（「それ」＝パワーを上げたのと
+  同じシグニ＝選択UIを2度出さない）
+
+**踏んだ落とし穴（2つとも A/B 実測で見つけた）**
+1. 🔴**`prependOuterPowerBeforeQuotedGrant` より前に差し替えると外側のパワー修正が丸ごと落ちる**＝
+   あちらは `parsed.type === 'STUB'` を要求するので、先に付与へ変えると前置が効かない（実測5効果）。
+   ⇒ 復元は**その後**に置く。
+2. 🔴**引用の `timing` がフォールバックした形を採ってはいけない**＝`WD17-001-E2`
+   「このシグニが正面にあるシグニ１体をバニッシュしたとき」は timing 語彙が無く `ON_PLAY` へ落ちるが、
+   **`parseStatus` は AUTO のまま**なので「解けた」に見える。そのまま付与すると
+   **「場に出たとき自分をアップする」という原文に無い能力**を配る＝no-op より悪い**幻覚**。
+   ⇒ 試験展開中の `getTimingFallbackLog()` の増分を見て据置する（`census:timing` と同じ判定。
+   ⚠試験展開ぶんのログは**計器へ漏らさない**よう末尾を切り戻す）。
+
+**検証**＝golden 3本（パワー保持つきの `targetsLastProcessed` 形／`target` 形／timing フォールバック据置）。
+実機 `b26grantquoted`（`WXDi-P12-069` を自分のディソナへ→ `granted_effects` に載る。旧 live は**1件も載らない**）。
+
+---
+
+### C. `O-129` 第1バッチ＝対象の確定が中間動作より後になっていた（3効果）＋機構の穴を1つ塞いだ
+
+**真因**＝`applyDroppedTargetDesignation`（`effectParser.ts`）は **filter/owner/count が帰結と食い違うときだけ**
+束縛する保守ガードを持つ。`WX02-020-E1`「対戦相手のシグニ１体を対象とし、あなたのシグニ１体を場から
+トラッシュに置く。そうした場合、それをバニッシュする」は**どれも一致する**ので据置され、
+live は**自分のシグニを捨てた後で**相手シグニを選んでいた。
+
+**絞り込み（PLAN の「1桁に保つ」に従う）**＝`orderObservable` を4条件で作った：
+①中間動作が**宣言と反対側**のカードを動かす ②**強制**（「てもよい」でない）
+③中間動作が**場**のカードを動かす（トラッシュ/デッキ/エナ/手札 由来は除く）
+④中間ステップの owner が原文と一致している（ズレている形は `O-104` の領分）。
+**A/B 実測＝live の AUTO は3効果だけ動く**（`WX02-020-E1` / `WXEX2-18-E2` / `WXEX2-27-E2`）。
+③を外すと「トラッシュから〜デッキの一番下へ」系が **+15効果**＝次バッチ。
+
+**🔴実機で機構の穴がもう1つ出た**＝最初 `b25targetfirst` は **FAIL**（相手の場が空でも自分のシグニを失った）。
+原因＝`SELECT_TARGET_ONLY` は**候補0でも `done` を返して SEQUENCE が続く**。
+⇒ `StubAction.abortIfNoCandidate` を新設し、`execSequence` が「対象を取れない：この効果は何もしない」で
+打ち切る（`RECOLLECT_GATE` / `LRIG_UNDER_TO_TRASH` と同じ形）。
+⚠**フラグ付きだけ**を見る＝既存93効果の `SELECT_TARGET_ONLY`（任意コストの倍率を対象のレベルで決める形）は挙動据置。
+
+**併せて直した**＝`fixMiddleClauseTargetOwner` を `applyDroppedTargetDesignation` の**前**へ移した。
+後ろのままだと、先頭に入った宣言 STUB で `steps[0].type` 判定が外れ、**`WXEX1-52-E2` の owner 是正が消える**
+（A/B で実測＝`TRASH{self}` が `TRASH{opponent}` に戻っていた）。
+
+**検証**＝golden 3本（宣言が先頭に入る／取らない2形（トラッシュ由来・owner ズレ）／engine の打ち切り）。
+既存 golden 3本は添字決め打ちだったので `stepsAfterDesignation()` で**役割で拾う**形に直した
+（+2 に書き換えない＝宣言が付かない効果とも同じ式で書ける）。
+実機 `b25targetfirst`（相手の場が空→自分のシグニを失わない・**旧挙動なら失う**）／`b25targethit`（対照）。
+
+---
+
+### D. ゲート／計器
+
+| | 前 | 後 |
+|---|---|---|
+| golden | 2920 | **2929**（+9） |
+| census 高シグナル | 522 | 522（据置） |
+| 台帳 残 OPEN | 575 | 575（据置） |
+| Sheet1 要対応 | 26 / 863 | **25 / 863** |
+| `GRANT_ABILITY_INNER_TEXT` を含む live カード | 34 | **27** |
+
+⚠**census と台帳が動かない理由**＝どちらもこの3件を見ていない。`O-125` は BLOCK_ACTION の消費地点（JSON の
+語彙は元から在る）、`O-129` は木の**順序**、`O-128` は STUB → 構造化（census は STUB を欠落として数えない）。
+⚠**Sheet1 が -1 しか動かない理由**＝Sheet1 に居るのは `WX05-022`（closed）/ `WX02-020`（別の finding が残る）/
+`WX09-Re07`（`O-128` の残り27カード側）の3枚だけで、他の8効果は Sheet2 以降。
+
+⚠**`public/data/effects_WX.json` が全行差分になっている**＝HEAD 版が**整形済み（117,520行）**だったのを
+`build:effects` が**正準形（1行）**へ書き戻したもの。**内容は 1,914 カードすべて一致**を機械照合済み
+（他4ファイルは元から1行）。
+
 ## 2026-08-28：§5.3 `O-131`＝アーツ使用トリガーの収集が「解決の完了地点」の片方にしか無かった
 
 > **1巡（続き699・Opus 5 単独）**。ユーザー指示＝`O-131`。

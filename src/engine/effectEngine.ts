@@ -3073,7 +3073,12 @@ export interface ContinuousBlockResult {
   cannotAttackSigniUnlessPayColorless: Map<string, number>;
 }
 
-function extractBlockActions(action: EffectAction): BlockActionAction[] {
+/**
+ * `EffectAction` の木から `BLOCK_ACTION` を取り出す（`SEQUENCE` は再帰）。
+ * `calcContinuousBlockedActions` の内部走査と、`effectExecutor` 側の**単発の宣言照会**
+ * （`hasContinuousBlockOnOpponent`）で共有する。
+ */
+export function extractBlockActions(action: EffectAction): BlockActionAction[] {
   if (action.type === 'BLOCK_ACTION') return [action as BlockActionAction];
   if (action.type === 'SEQUENCE') {
     return (action as import('../types/effects').SequenceAction).steps.flatMap(s => extractBlockActions(s));

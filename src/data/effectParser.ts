@@ -8401,7 +8401,8 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
 //   「**このシグニの正面の**シグニ１体を対象とし、…バニッシュしてもよい。そうした場合、**それ**を手札に戻す」が
 //   丸ごと素通りして、帰結の `BOUNCE` が既定の `{SIGNI, owner:'self'}` へ落ちていた
 //   ＝**相手の正面シグニを戻すはずが自分のシグニを戻す**（所有者が反転する過小＋自傷）。
-const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:(?:対戦相手|あなた)の|このシグニの正面の)[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?。そうした場合、それ/;
+// ⚠**m[2]＝中間動作の節**（`O-129` で捕獲を追加）。既存の参照は m[1] だけなので添字は動かない。
+const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:(?:対戦相手|あなた)の|このシグニの正面の)[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、([^。]*?)。そうした場合、それ/;
 
 // else なし CONDITIONAL の中身を覗く（タスク12(lxiii) で条件に包まれたコストステップがあるため）
 function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
@@ -9153,7 +9154,41 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
       : undefined);
   const ownerOrCountDiffers = !!t0 && (t0.owner !== target.owner || t0.count !== target.count
     || (!!target.upToCount !== !!t0.upToCount));
-  if (extraKeys.length === 0 && !ownerOrCountDiffers) return action;   // 本当に等価な場合だけ据置
+  // 🆕§5.3 `O-129`（2026-08-28）＝**filter/owner/count が帰結と一致していても、対象の確定が
+  //   中間動作より後になっている**形。原文は「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、…」で、
+  //   対象は中間動作より**前**に確定する。live は中間動作（＝自分のシグニを失う等の支払い）を先に
+  //   済ませてから相手シグニを選ぶので、**対象が1体も居ない盤面でも支払いだけが発生する**
+  //   （`WX02-020-E1`＝自分のシグニを捨ててから相手を選ぶ）。
+  // 🔴**「等価だから据置」を全面的に外すと実測118カードが一斉に `SELECT_TARGET_ONLY` 形へ変わる**＝
+  //   PLAN が警告する「無検証置換で約90枚退化」と同じ規模。⇒ **順序が観測できる形だけ**へ絞る：
+  //   ①中間動作が**宣言と反対側のプレイヤー**のカードを動かす（＝対象と競合しないが支払いは先に起きる）
+  //   ②中間動作が**強制**（「てもよい」は既存の任意コスト経路が別に面倒を見ている）
+  //   実測＝この2条件で live の AUTO 効果は3件だけ動く（`WX02-020-E1`／`WXEX2-18-E2`／`WXEX2-27-E2`）。
+  const midClause = m[2] ?? '';
+  const midMentionsSelf = /あなたの/.test(midClause);
+  const midMentionsOpp = /対戦相手の/.test(midClause);
+  const midOppositeSide = target.owner === 'opponent'
+    ? (midMentionsSelf && !midMentionsOpp)
+    : (midMentionsOpp && !midMentionsSelf);
+  // ③中間動作が**場のカードを動かす**（＝支払いが盤面に対して起きる）。
+  //   ⚠トラッシュ／デッキ／エナ／手札を出所にする形は**この巡では取らない**＝実測で15効果ぶん増え、
+  //   1件ずつ原文照合できる規模（PLAN §5.3 `O-129` の「1桁に保つ」）を超える。次バッチへ回す。
+  const midFieldVerb = /(?:バニッシュ|トラッシュに置|エナゾーンに置|手札に戻|ダウン)/.test(midClause);
+  const midOffFieldZone = /トラッシュから|デッキ|エナゾーン(?:から|に)|手札|ライフクロス|ルリグトラッシュ|の下から/.test(midClause);
+  // ④**中間動作が既に別バグで壊れている形には積み増さない**（§5.3 `O-104` の領分）＝
+  //   中間節が「あなたの…」と言っているのに木の中間ステップが `owner:'opponent'` のまま、という効果
+  //   （`WX07-039-E2`＝自分の＜原子＞3体の犠牲が**相手1体の除去**に化けている／
+  //    `WXEX1-14-E2`＝自分のエナ3枚が**相手の場の1体**に化けている／
+  //    `WX17-041-BURST`＝自分の【トラップ】が**相手シグニ**に化けている）。
+  //   ここで対象宣言だけ先に出しても「壊れたまま順番だけ正しい」木になる。
+  const midStep0 = (action as SequenceAction).steps[0] as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | undefined;
+  const midStepOwner = (midStep0?.target ?? midStep0?.source)?.owner;
+  const midClauseOwner: Owner | undefined = midMentionsSelf && !midMentionsOpp ? 'self'
+    : midMentionsOpp && !midMentionsSelf ? 'opponent' : undefined;
+  const midStepAgrees = !midStepOwner || !midClauseOwner || midStepOwner === midClauseOwner;
+  const orderObservable = midOppositeSide && !/てもよい$/.test(midClause)
+    && midFieldVerb && !midOffFieldZone && midStepAgrees;
+  if (extraKeys.length === 0 && !ownerOrCountDiffers && !orderObservable) return action;   // 本当に等価な場合だけ据置
 
   const steps = [...(action as SequenceAction).steps];
   const gateIdx = steps.findIndex(isDidItGate);
@@ -9184,7 +9219,7 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   const want = (target.filter ?? {}) as Record<string, unknown>;
   // ⚠ここも「filter が一致していれば据置」ではいけない＝**所有者/体数の食い違い**も直す対象
   //   （`extraKeys` が空だと `[].every()` が true になって無条件 return していた・続き423）。
-  if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k])) && !ownerOrCountDiffers) return action;
+  if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k])) && !ownerOrCountDiffers && !orderObservable) return action;
 
   // 中間ステップ（＝宣言とゲートの間の動作）の位置を同定する。任意コスト STUB／任意の手札捨て TRASH が
   // 在ればそこ、無ければ**先頭**（原文では対象宣言が文頭に来るので、宣言はすべての動作より前で正しい）。
@@ -9213,7 +9248,10 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
 
   const rebuilt: EffectAction[] = [
     ...steps.slice(0, costIdx),
-    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+    // §5.3 `O-129`: 順序が観測できる形（＝中間動作が反対側の**場の**カードを失わせる強制の支払い）でだけ、
+    //   「対象を取れなければ何もしない」を engine へ伝える（既存の対象宣言は従来どおり打ち切らない）。
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target,
+      ...(orderObservable ? { abortIfNoCandidate: true } : {}) } as EffectAction,
     { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
     ...steps.slice(costIdx, gateIdx),
     { ...gate, then: boundThen },
@@ -11051,7 +11089,7 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, fixMiddleClauseTargetOwner(source, applyDroppedTargetDesignation(source,
+    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, fixMiddleClauseTargetOwner(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
@@ -11183,7 +11221,112 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const pruned = pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   const restoredGrant = restoreQuotedLrigDamageReplaceGrant(text, pruned);
-  return prependOuterPowerBeforeQuotedGrant(text, restoredGrant);
+  // ⚠**`restoreQuotedTargetGrant` は `prependOuterPowerBeforeQuotedGrant` の後**に置く（`O-128`）＝
+  //   外側の「それのパワーを±Nし、」は**STUB のときだけ**前置される（あちらは `parsed.type === 'STUB'` を要求）。
+  //   先に付与へ差し替えると前置が効かず、**パワー修正が丸ごと落ちる**（実測5効果）。
+  return restoreQuotedTargetGrant(text, prependOuterPowerBeforeQuotedGrant(text, restoredGrant));
+}
+
+/**
+ * 「〈対象〉１体を対象とし、〈期間〉、（それのパワーを±Nし、）それ／そのシグニは「【自】…」を得る」
+ * ＝**対象に取ったカードへの引用能力付与**を `GRANT_EFFECT` へ戻す（§5.3 `O-128` 第1バッチ・2026-08-28）。
+ *
+ * 🔴従来は上の「引用漏出」安全網に落ちて `STUB{GRANT_ABILITY_INNER_TEXT}` ＝**付与ごと消えていた**
+ *   （`WXDi-P12-069`／`WD17-001-E2`／`WX25-P1-071` は STUB 単独＝**効果まるごと no-op**、
+ *    `WX08-073`／`WX24-P1-014`／`WX24-P1-078`／`WXDi-P13-061`／`WXDi-P06-059` は
+ *    `SEQUENCE[POWER_MODIFY, STUB]`＝**パワーだけ上がって能力が付かない**）。
+ *   `GRANT_ABILITY_INNER_TEXT` は engine が実行時にカード原文を regex で読み直す catch-all
+ *   （`O-60` A群）で、この family にはどのハンドラも当たっていない＝無言 no-op だった。
+ *
+ * 🔑**受け皿は既存の `GRANT_EFFECT` だけ**（engine 変更なし）＝
+ *   ・STUB 単独 → `GRANT_EFFECT{target}`（付与時に選択UI）
+ *   ・`SEQUENCE[POWER_MODIFY{SIGNI 対象}, STUB]` → `GRANT_EFFECT{targetsLastProcessed}`
+ *     （「それ」＝パワーを上げたのと**同じ**シグニ。もう一度選択UIを出さない）
+ *
+ * ⚠**ガードを4枚かける**（`applyAdditionalKeywordAnaphora` と同じ思想）：
+ *   ①`GRANT_ABILITY_INNER_TEXT` が木にちょうど1つ（差し替え先が一意）
+ *   ②**引用を伏せた本文**で「を対象とし」がちょうど1つ（「それ」の指し先が一意・§6.4 `O-25`）
+ *   ③文末が「〈期間〉、…それ／そのシグニは「Q」を得る」で、対象宣言と同じ文（`。` を跨がない）
+ *   ④引用が**単一ブロックの AUTO** で解ける（試験展開）。解けないものは STUB のまま据置＝
+ *     `expandGrantEffectRawTexts` が no-op ガードする「rawText だけの GRANT_EFFECT」を作らない。
+ */
+function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAction {
+  // ①
+  const stubs = collectActionNodesByType(parsed, 'STUB')
+    .filter(n => (n as StubAction).id === 'GRANT_ABILITY_INNER_TEXT');
+  if (stubs.length !== 1) return parsed;
+  // ②
+  const scan = text.replace(/「[\s\S]*?」/g, '「」').replace(/『[\s\S]*?』/g, '『』');
+  if ((scan.match(/を対象とし/g)?.length ?? 0) !== 1) return parsed;
+  // ③ 対象宣言〜付与までが1文（`[^。「」]` で `。` と引用を跨がせない）
+  const m = text.trim().replace(/。$/, '').match(
+    /(?:^|。)([^。「」]*?)を対象とし、(?:[^。「」]*?、)?(ターン終了時まで|次の対戦相手のターン終了時まで)、(?:それの[^。「」]*?し、)?(?:それ|それら|その(?:シグニ|ルリグ))は「(【[自出起常]】[\s\S]+)」を得る$/);
+  if (!m) return parsed;
+  const designation = m[1];
+  const quoted = m[3];
+  if (/」と「|」か「/.test(quoted)) return parsed;
+  const duration: EffectDuration = m[2].startsWith('次の対戦相手') ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+  // ④ 引用の試験展開（結果は捨てる＝実展開は expandGrantEffectRawTexts に委ねる。
+  //   無言フォールバック刻印は退避して汚染しない＝`QG2` の先例と同じ）。
+  const savedFb = _silentFallbacks;
+  _silentFallbacks = [];
+  const timingMark = _timingFallbackLog.length;
+  let innerOk: boolean;
+  try {
+    const subs = splitEffectBlocks(quoted)
+      .map((b, si) => parseBlock('QTG-trial', b, si))
+      .filter((e): e is CardEffect => e !== null);
+    // 🔴**timing がフォールバックした引用は採らない**（`census:timing` と同じ判定）＝
+    //   `WD17-001-E2` の「このシグニが正面にあるシグニ１体をバニッシュしたとき」は timing 語彙が無く
+    //   `ON_PLAY` へ落ちるが、`parseStatus` は **AUTO のまま**なので上の判定だけでは通ってしまう。
+    //   そのまま付与すると**「場に出たとき自分をアップする」という原文に無い能力**を配ることになる
+    //   （no-op より悪い＝幻覚）。据置なら STUB のまま＝`census:stubs` の worklist に残り、次で拾える。
+    const timingFellBack = _timingFallbackLog.slice(timingMark)
+      .some(e => /とき|(?<!まで)時/.test(e.text) && !/場に出たとき/.test(e.text));
+    innerOk = subs.length === 1 && subs[0].parseStatus === 'AUTO' && !timingFellBack;
+  } finally {
+    _timingFallbackLog.length = timingMark;   // 試験展開の記録は計器（census:timing）へ漏らさない
+    _silentFallbacks = savedFb;
+  }
+  if (!innerOk) return parsed;
+
+  const owner: Owner = /対戦相手の/.test(designation) ? 'opponent' : 'self';
+  // 対象宣言から付与先を組む（STUB 単独形で使う）。ルリグ／シグニ以外は据置。
+  const directTarget: EffectTarget | null = /ルリグ/.test(designation)
+    ? { type: 'LRIG', owner, count: 1 }
+    : /シグニ/.test(designation)
+      ? parseSigniTarget(designation + 'を対象とし、', owner)
+      : null;
+
+  const swap = (node: EffectAction): EffectAction => {
+    if (node.type === 'SEQUENCE') {
+      const steps = (node as SequenceAction).steps;
+      const last = steps[steps.length - 1] as StubAction | undefined;
+      const prev = steps[steps.length - 2] as (EffectAction & { target?: EffectTarget }) | undefined;
+      // 「それのパワーを±Nし、それは「Q」を得る」＝直前の POWER_MODIFY が選んだ対象と同一。
+      if (steps.length >= 2 && last?.type === 'STUB' && last.id === 'GRANT_ABILITY_INNER_TEXT'
+          && prev?.type === 'POWER_MODIFY' && prev.target?.type === 'SIGNI') {
+        return { ...node, steps: [
+          ...steps.slice(0, -1),
+          { type: 'GRANT_EFFECT', targetsLastProcessed: true, duration, rawText: quoted } as EffectAction,
+        ] } as EffectAction;
+      }
+      return { ...node, steps: steps.map(swap) } as EffectAction;
+    }
+    if (node.type === 'CONDITIONAL') {
+      const c = node as import('../types/effects').ConditionalAction;
+      return { ...c, then: swap(c.then), ...(c.else ? { else: swap(c.else) } : {}) };
+    }
+    if (node.type === 'CHOOSE') {
+      const ch = node as ChooseAction;
+      return { ...ch, choices: (ch.choices ?? []).map(o => ({ ...o, action: swap(o.action) })) } as EffectAction;
+    }
+    if (node.type === 'STUB' && (node as StubAction).id === 'GRANT_ABILITY_INNER_TEXT' && directTarget) {
+      return { type: 'GRANT_EFFECT', target: directTarget, duration, rawText: quoted } as EffectAction;
+    }
+    return node;
+  };
+  return swap(parsed);
 }
 
 /**

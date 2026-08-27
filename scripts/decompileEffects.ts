@@ -1177,7 +1177,7 @@ function actionJa(a?: Action, effectType?: string): string {
         GUARD_LV_DECLARED: '宣言された数字と同じレベルのシグニで【ガード】ができない',
         GUARD_LV_LAST_DOWNED: 'この方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない',
         DRAW_LIMIT_1: 'ドローフェイズにカードを１枚しか引くことができない',
-        DRAW_OUTSIDE_DRAW_PHASE: '自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたり手札に加えることができない',
+        DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN: '自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたりカードを手札に加えることができない',
         DRAW_OR_ADD_TO_HAND_BY_EFFECT: '自分の効果によって、カードを引いたりカードを手札に加えることができない',
         ARTS_LIMIT_1: '各ターンに一度しかアーツを使用できない',
         USE_SPELL_COST_0: 'コストの合計が０のスペルを使用できない',

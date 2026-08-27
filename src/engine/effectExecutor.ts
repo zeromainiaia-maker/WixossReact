@@ -17,7 +17,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
-import { activeOppMoveImmunityZones, checkActiveCondition, collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, activeOppMoveImmunityZones, checkActiveCondition, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -168,6 +168,89 @@ function execLookAtDeckAndLife(a: import('../types/effects').LookAtDeckAndLifeAc
   return done(addLog(ctx, `${who}の${scope}を見る（デッキ:${deckTop} / ライフ:${lifeTop}）`));
 }
 
+/**
+ * `blockerState`（＝制限を課す側）の場に、**対戦相手へ `actionId` を課す CONTINUOUS `BLOCK_ACTION`** が
+ * いま有効にあるか。
+ *
+ * 🔑**`ctx.effectsMap` に依存しない**（代入されるのは BattleScreen の8つの ExecCtx 構築地点のうち1つだけ＝
+ * `:4938` の解決スタック経路のみ）。実アプリでは `CardData.effects` に live JSON が載っている（App.tsx）ので
+ * そちらをフォールバックにし、`GRANT_EFFECT` の付与ストアも合流させる。
+ * ＝`collectBanishSubstitutesForVictim`（同ファイル）と同じ形。
+ *
+ * ⚠**`calcContinuousBlockedActions` の代わりではない**＝あちらは盤面全体の集合を作る（レベル/パワーの
+ * 事前計算を伴う重い処理）。ここは「この1宣言が出ているか」だけを引くための軽い照会。
+ */
+function hasContinuousBlockOnOpponent(
+  blockerState: PlayerState,
+  blockedState: PlayerState,
+  isBlockerTurn: boolean | undefined,
+  ctx: ExecCtx,
+  actionId: string,
+): boolean {
+  const effectsOf = (num: string): CardEffect[] => {
+    const base = getCardNum(num);
+    return [
+      ...(ctx.effectsMap?.get(num) ?? ctx.effectsMap?.get(base) ?? ctx.cardMap.get(base)?.effects ?? []),
+      ...(blockerState.granted_effects?.[base] ?? []),
+      ...(blockerState.granted_effects_until_opp_turn?.[base] ?? []),
+    ];
+  };
+  const candidates: string[] = [];
+  for (const stack of blockerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (!blockerState.lrig_abilities_disabled) {
+    const lrigTop = blockerState.field.lrig.at(-1);
+    if (lrigTop) candidates.push(lrigTop);
+  }
+  candidates.push(...activeKeyAbilitySources(blockerState));
+  const removed = new Set(blockerState.abilities_removed ?? []);
+  for (const num of candidates) {
+    if (removed.has(getCardNum(num))) continue;
+    for (const eff of effectsOf(num)) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      // isBlockerTurn 未設定は「宣言者のターンではない」に倒す（`collectBanishSubstitutesForVictim` と同じ既定）。
+      if (!checkActiveCondition(eff.activeCondition, blockerState, blockedState, isBlockerTurn ?? false, ctx.cardMap, getCardNum(num))) continue;
+      for (const b of extractBlockActions(eff.action)) {
+        if (b.actionId === actionId && b.target.owner === 'opponent') return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * `BLOCK_ACTION{DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN}`（§5.3 `O-125`）＝
+ * 「対戦相手は**自分のターンの間**、グロウフェイズとドローフェイズ以外でカードを引いたり
+ * カードを手札に加えることができない」（`WX05-022-E1`【常】・live 母集団1枚）。
+ *
+ * 🔴**2026-08-28 まで消費地点がゼロの死にフラグだった**＝parser は `DRAW_OUTSIDE_DRAW_PHASE` を
+ * 生成していたが engine の誰も読んでおらず、**何も禁止していなかった**（兄弟枝の
+ * `DRAW_OR_ADD_TO_HAND_BY_EFFECT` は `execDraw`／`execTransferToHand` で消費済み）。
+ *
+ * 原文の3条件をすべて見る：
+ *  ①宣言者（`WX05-022` の持ち主）の**対戦相手**が引く／手札に加える側であること
+ *  ②**引く側自身のターン**であること（相手ターン中の効果ドローは止まらない）
+ *  ③フェイズが**グロウ／ドロー以外**であること
+ *
+ * ⚠**フェイズ／ターンが不明な経路では止めない**（`currentPhase`・`isOwnerTurn` は ExecCtx で任意）。
+ *   engine の他のフェイズ機構と同じく「不明なら成立させない側へ倒す」＝渡し忘れが**過剰な禁止**に化けない。
+ */
+function isHandGainBlockedOutsideGrowDrawPhase(owner: Owner, ctx: ExecCtx): boolean {
+  if (ctx.isOwnerTurn === undefined || ctx.currentPhase === undefined) return false;
+  // 引く側から見たターン／宣言者は「引く側の対戦相手」。
+  const drawerIsOwner = owner === 'self';
+  const isDrawerTurn = drawerIsOwner ? ctx.isOwnerTurn : !ctx.isOwnerTurn;
+  if (!isDrawerTurn) return false;
+  if (ctx.currentPhase === 'GROW' || ctx.currentPhase === 'DRAW') return false;
+  const drawerState = ownerState(owner, ctx);
+  const blockerState = ownerState(drawerIsOwner ? 'opponent' : 'self', ctx);
+  return hasContinuousBlockOnOpponent(
+    blockerState, drawerState, !isDrawerTurn, ctx, 'DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN',
+  );
+}
+
 function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   // BLOCK_ACTION 'DRAW_OR_ADD_TO_HAND_BY_EFFECT'（WXK10-010①「このターン、対戦相手は自分の効果によって
@@ -175,6 +258,10 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   //   ドローフェイズの通常ドローは drawCards 経由でここを通らないので影響しない。
   if (state.blocked_actions?.includes('DRAW_OR_ADD_TO_HAND_BY_EFFECT')) {
     return done(addLog(ctx, '効果によるドローは封じられている'));
+  }
+  // §5.3 O-125: CONTINUOUS 版（`WX05-022-E1`）＝自分のターンのグロウ/ドローフェイズ以外は引けない。
+  if (isHandGainBlockedOutsideGrowDrawPhase(a.owner, ctx)) {
+    return done(addLog(ctx, 'グロウフェイズとドローフェイズ以外ではカードを引けない'));
   }
   // untilHandCount: 手札が N 枚になるまで（差の分だけ）引く。N 枚以上なら引かない（WX05-003）
   // addLastProcessedCount: 直前の選択枚数（捨てた枚数等）を count に加算（VARIABLE_DISCARD_AND_DRAW 用）
@@ -2798,6 +2885,10 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   if (state.blocked_actions?.includes('DRAW_OR_ADD_TO_HAND_BY_EFFECT')) {
     return done(addLog(ctx, '効果で手札に加えることは封じられている'));
   }
+  // §5.3 O-125: CONTINUOUS 版（`WX05-022-E1`）も同じ2地点で消費する。
+  if (isHandGainBlockedOutsideGrowDrawPhase(tgtOwner, ctx)) {
+    return done(addLog(ctx, 'グロウフェイズとドローフェイズ以外ではカードを手札に加えられない'));
+  }
   const ownerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const otherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
 
@@ -5245,6 +5336,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     const wrapCondFalse = gateStep !== step
       && !evalCondition((step as ConditionalAction).condition, ctxBeforeStep);
     const effLastProcessed = wrapCondFalse ? [] : (cur.lastProcessedCards ?? []);
+    // §5.3 `O-129`: 対象宣言（`SELECT_TARGET_ONLY{abortIfNoCandidate}`）が**1体も選べなかった**。
+    //   原文「〈対象〉を対象とし、〈中間動作〉。そうした場合、…」は対象を取れなければ何も起きないので、
+    //   **中間動作（＝自分のシグニを失う等の支払い）を先に払わせない**（実機 `b25targetfirst` で観測した穴）。
+    //   ⚠フラグ付きだけを見る＝既存の `SELECT_TARGET_ONLY`（任意コストの倍率決定用・93効果）は挙動据置。
+    if (gateStep.type === 'STUB' && (gateStep as import('../types/effects').StubAction).id === 'SELECT_TARGET_ONLY'
+        && (gateStep as import('../types/effects').StubAction).abortIfNoCandidate
+        && effLastProcessed.length === 0) {
+      return done(addLog(cur, '対象を取れない：この効果は何もしない'));
+    }
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
     if (gateStep.type === 'TRASH' && i + 1 < a.steps.length) {
       const tA = gateStep as import('../types/effects').TrashAction;

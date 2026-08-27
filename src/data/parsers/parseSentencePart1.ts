@@ -968,9 +968,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     };
   }
 
-  // ---- フェーズ外ドロー禁止 ----
+  // ---- フェーズ外ドロー／手札加え禁止（WX05-022-E1【常】）----
+  // 「対戦相手は自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたりカードを手札に加えることができない」
+  // 🔴**2026-08-28 §5.3 O-125 まで engine の消費地点がゼロ**＝旧 id `DRAW_OUTSIDE_DRAW_PHASE` は
+  //   何も禁止していなかった。消費は `execDraw`／`execTransferToHand`（`isHandGainBlockedOutsideGrowDrawPhase`）。
+  // ⚠id に**グロウフェイズの例外**と**「自分のターンの間」**まで書く＝engine 側の3条件と1対1に対応させる
+  //   （旧 id は両方を落としており、名前だけ見て「ドローフェイズ以外は常に禁止」と誤読できた）。
+  // ⚠【常】なので `until` は `PERMANENT`（`END_OF_TURN` は誤り＝CONTINUOUS はターンで切れない）。
   if (t.match(/グロウフェイズとドローフェイズ以外でカードを引いたり.*できない/)) {
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'DRAW_OUTSIDE_DRAW_PHASE', until: 'END_OF_TURN' };
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN', until: 'PERMANENT' };
   }
 
   // ---- 両者手札全捨て＋最多ドロー ----
