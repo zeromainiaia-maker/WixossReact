@@ -11,6 +11,7 @@
 import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner, TriggerOriginZone } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
+import { normalizeKeywordName } from '../utils/keywords';
 import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
 import { grantedStoreWatchers } from './grantedStore';
