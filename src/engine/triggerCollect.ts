@@ -46,6 +46,20 @@ export interface TrigCtx {
  * crashSourceCardNum が無い旧状態は従来どおり通す。通常の check-zone funnel は source を保持しており、
  * 今回の限定は source がある実イベントで fail-closed になる。
  */
+/**
+ * 🆕§5.3 `O-120`：クラッシュの**原因キーワード**限定（「【ランサー】によって…クラッシュしたとき」）。
+ *
+ * 🔴**fail-closed**＝`crashedByKeywords` を持つ効果は、原因が不明（`crashCause` 未設定）なら**発火しない**。
+ * 旧実装はこの条件そのものが無く、**通常のバトルダメージのクラッシュでも発火していた**（実測3効果）。
+ * ⚠原因を刻むのは `BattleScreen.crashOneLife` の1本だけなので、**そこを通らない経路は必ず未設定**になる。
+ *   ここで `true` へ倒すと元の過剰実行に戻るので、**倒す向きを間違えないこと**。
+ */
+export function crashCauseMatches(effect: CardEffect, crashCause: string | undefined): boolean {
+  const want = effect.triggerCondition?.crashedByKeywords;
+  if (!want || want.length === 0) return true;
+  return !!crashCause && want.includes(crashCause);
+}
+
 export function oppLifeCrashSourceMatches(
   effect: CardEffect,
   watcherNum: string,
