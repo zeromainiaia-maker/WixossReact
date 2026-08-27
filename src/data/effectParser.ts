@@ -4654,6 +4654,36 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // 🆕「このシグニのパワーは**自身が持つ色の種類**１つにつき＋N（され、このシグニは**自身と共通する色を持つ**
+  //   対戦相手のシグニの効果を受けない）」＝`WX11-032`（§5.3 2026-08-27 Sheet1 B13・実測1効果）。
+  // 🔴旧＝前半は catch-all `STUB{POWER_MOD_PER_COUNT}` へ落ち、2文節形では**前半ごと消えて**
+  //   `GRANT_PROTECTION` だけが残っていた。`WX11-032` は**表記パワー0**なので、
+  //   前半が無い＝場に出た瞬間にパワー0以下ルールでバニッシュ＝**一生場に存在できないカード**。
+  //   後半も色限定が無く**全相手シグニからの無条件保護**という原文より強い過剰実行だった。
+  // ⚠`POWER_MODIFY_PER_ENERGY_COLOR`（エナの色種類）とは**数える対象が違う**＝流用しない。
+  {
+    const t0c = text.trim();
+    const mColor = t0c.match(/^このシグニのパワーは自身が持つ色の種類[１1]つにつき[＋+]([０-９\d]+)され(?:る|[、,](このシグニは自身と共通する色を持つ対戦相手のシグニの効果を受けない))[。.]?$/);
+    if (mColor) {
+      const perColor = {
+        type: 'POWER_MODIFY_PER_OWN_COLOR',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        deltaPerColor: parseNum(mColor[1]),
+      } as unknown as EffectAction;
+      if (!mColor[2]) return perColor;
+      return {
+        type: 'SEQUENCE',
+        steps: [perColor, {
+          type: 'GRANT_PROTECTION',
+          target: { type: 'SIGNI', owner: 'self', count: 1 },
+          from: ['シグニ'], sourceOwner: 'opponent',
+          sourceSharedColorWithSelf: true,
+          duration: 'PERMANENT',
+        } as unknown as EffectAction],
+      } as unknown as EffectAction;
+    }
+  }
+
   // 🆕「あなたの〈トラッシュ／エナゾーン〉から**このカード**を手札に加える」＝自己回収
   //   （§5.3 2026-08-27 Sheet1 B11・実測2効果＝`WX10-096`／`WXDi-P06-077` の【起】本体）。
   //   汎用規則は「このカード」を読まず **filter 無しの TRASH_CARD／ENERGY_CARD 1枚**へ落とすため、

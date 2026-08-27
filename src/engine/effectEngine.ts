@@ -14,6 +14,7 @@ import type {
   PowerModifyPerDeckCountAction,
   PowerModifyPerVirusCountAction,
   PowerModifyPerEnergyColorAction,
+  PowerModifyPerOwnColorAction,
   PowerModifyPerEnergyAction,
   PowerModifyPerCharmAction,
   PowerSetAction,
@@ -1428,6 +1429,15 @@ function extractPowerModifiesPerEnergyColor(action: EffectAction): PowerModifyPe
   return [];
 }
 
+/** 自身の色の種類比例（`POWER_MODIFY_PER_OWN_COLOR`）を SEQUENCE の中まで拾う。 */
+function extractPowerModifiesPerOwnColor(action: EffectAction): PowerModifyPerOwnColorAction[] {
+  if (action.type === 'POWER_MODIFY_PER_OWN_COLOR') return [action as PowerModifyPerOwnColorAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerOwnColor(s));
+  }
+  return [];
+}
+
 function extractPowerModifiesPerEnergy(action: EffectAction): PowerModifyPerEnergyAction[] {
   if (action.type === 'POWER_MODIFY_PER_ENERGY') return [action as PowerModifyPerEnergyAction];
   if (action.type === 'SEQUENCE') {
@@ -2015,6 +2025,16 @@ export function calcFieldPowers(
     // CONTINUOUS効果（自己パワー増減・キーワード付与等）は発生させない。
     const abilitiesRemovedCont = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap, '常');
 
+    // 🆕`POWER_MODIFY_PER_OWN_COLOR`（`WX11-032`）用＝**そのシグニの実効色**（印刷色＋追加色）。
+    //   `collectFieldSigniExtraColors` は `COLOR_INHERIT` / 下カードの色継承 / 強制色付与を全部たたむ
+    //   唯一の実装なので、ここで数え直さずそれを引く（§4.2「同義の別キーを探す」）。
+    //   ⚠**遅延評価**＝この型を持つ効果が1つも無い盤面では走らせない（全盤面で毎回呼ぶと重い）。
+    let _ownerExtraColors: Map<string, string[]> | undefined;
+    const ownerExtraColors = {
+      get: (num: string): string[] =>
+        (_ownerExtraColors ??= collectFieldSigniExtraColors(ownerState, cardMap, effectsMap, otherState, isOwnerTurn)).get(num) ?? [],
+    };
+
     // 同一CardNumが複数ゾーンに存在する場合、効果元として重複処理しない
     const seenSources = new Set<string>();
     for (const topNum of candidates) {
@@ -2369,6 +2389,25 @@ export function calcFieldPowers(
               const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
               if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
               if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
+            }
+          }
+        }
+
+        // POWER_MODIFY_PER_OWN_COLOR: **そのシグニ自身が持つ色の種類**に比例したパワー増減（常時）。
+        // 「このシグニのパワーは自身が持つ色の種類１つにつき＋4000される」（`WX11-032`）。
+        // ⚠**実効色**で数える＝印刷色 ＋ `collectFieldSigniExtraColors`（`COLOR_INHERIT` 等）の追加色。
+        //   印刷色だけで数えると `WX11-032`（緑・表記パワー0）は常に 1色＝＋4000 に固定され、
+        //   エナから色を継ぐという**カードの本体**が消える。
+        const perOwnColorMods = extractPowerModifiesPerOwnColor(effect.action);
+        if (perOwnColorMods.length > 0) {
+          const colorSet = new Set<string>();
+          const printed = cardMap.get(topNum)?.Color ?? '';
+          for (const col of ['白', '赤', '青', '緑', '黒']) if (printed.includes(col)) colorSet.add(col);
+          for (const col of (ownerExtraColors.get(topNum) ?? [])) colorSet.add(col);
+          for (const mod of perOwnColorMods) {
+            const delta = mod.deltaPerColor * colorSet.size;
+            if (delta !== 0 && powers.has(topNum)) {
+              applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
             }
           }
         }
@@ -5591,6 +5630,11 @@ export function collectEffectImmuneSigni(
     return [];
   };
 
+  // 実効色（`COLOR_INHERIT` 等の追加色）＝`sourceSharedColorWithSelf` の判定に要る。遅延評価。
+  let _selfExtraColors: Map<string, string[]> | undefined;
+  const selfExtraColors = (): Map<string, string[]> =>
+    (_selfExtraColors ??= collectFieldSigniExtraColors(state, cardMap, effectsMap, opponentState, isOwnerTurn));
+
   const collectFromCard = (sourceNum: string): void => {
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -5614,6 +5658,20 @@ export function collectEffectImmuneSigni(
         // sourceFilter: 解決中ソースカードの属性が指定フィルタに非マッチなら保護しない（WXEX2-36 ライズアイコン非所持／WXK11-021 LB非所持）
         if (gp.sourceFilter && !matchesFilter(srcCard, gp.sourceFilter)) continue;
         if (gp.sourceEffectType && gp.sourceEffectType !== sourceEffectType) continue;
+
+        // 🆕`sourceSharedColorWithSelf`＝「**自身と共通する色を持つ**対戦相手のシグニの効果を受けない」
+        //   （`WX11-032`・2026-08-27 Sheet1 B13）。無いと**全相手シグニからの無条件保護**になる。
+        // ⚠色は**実効色**（印刷色＋`COLOR_INHERIT` 等）で見る＝`WX11-032` は自身の色がエナ依存なので
+        //   印刷色だけで見ると保護が実際より薄くなる。
+        // ⚠**発生源カードが引けないときは保護しない**（fail-closed）＝引けない＝共通色を確かめられない。
+        if (gp.sourceSharedColorWithSelf) {
+          const srcColors = new Set([...(srcCard?.Color ?? '')].filter(c => '白赤青緑黒'.includes(c)));
+          if (srcColors.size === 0) continue;
+          const selfPrinted = cardMap.get(sourceNum)?.Color ?? '';
+          const selfColors = new Set([...selfPrinted].filter(c => '白赤青緑黒'.includes(c)));
+          for (const c of (selfExtraColors().get(sourceNum) ?? [])) selfColors.add(c);
+          if (![...srcColors].some(c => selfColors.has(c))) continue;
+        }
 
         // 保護対象シグニを収集
         if (gp.subjectFilter) {

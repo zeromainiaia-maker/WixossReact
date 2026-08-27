@@ -1472,9 +1472,14 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「engine は区別しているのに原文照合では見えない」偽陰性になる（タスク12(cxiii)）。
       const srcLvMax = (a.sourceFilter as { level?: { max?: number } } | undefined)?.level?.max;
       const srcLvJa = srcLvMax !== undefined ? `レベル${srcLvMax}以下の` : '';
+      // 🆕`sourceSharedColorWithSelf`＝「**自身と共通する色を持つ**対戦相手のシグニの効果を受けない」
+      //   （`WX11-032`）。描かないと**全相手シグニからの無条件保護**と逆翻訳が同じ文になり、
+      //   engine は区別しているのに原文照合では見えない偽陰性になる。
+      const sharedColorJa = a.sourceSharedColorWithSelf ? '自身と共通する色を持つ' : '';
       // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
       if (srcTokens.length > 0) {
         if (costMaxJa) return timedProtection(`${subject}は${costMaxJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`);
+        if (sharedColorJa) return timedProtection(`${subject}は${sharedColorJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`);
         return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`);
       }
       if (fromArr.includes('any')) {
@@ -1897,6 +1902,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'POWER_MODIFY_PER_CHARM':
     case 'POWER_MODIFY_PER_DECK_COUNT':
     case 'POWER_MODIFY_PER_ENERGY_COLOR':
+    case 'POWER_MODIFY_PER_OWN_COLOR':
     case 'POWER_MODIFY_PER_VIRUS_COUNT': {
       const perJaMap: Record<string, string> = {
         POWER_MODIFY_PER_LRIG_LEVEL: 'センタールリグのレベル',
@@ -1904,6 +1910,7 @@ function actionJa(a?: Action, effectType?: string): string {
         POWER_MODIFY_PER_CHARM: '【チャーム】の枚数',
         POWER_MODIFY_PER_DECK_COUNT: 'デッキの枚数',
         POWER_MODIFY_PER_ENERGY_COLOR: 'エナゾーンの色の種類数',
+        POWER_MODIFY_PER_OWN_COLOR: '自身が持つ色の種類数',
         POWER_MODIFY_PER_VIRUS_COUNT: '【ウィルス】の数',
       };
       // POWER_MODIFY_PER_CHARM で「この方法でトラッシュに置いた」変種は原文どおりに描く

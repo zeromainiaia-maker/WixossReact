@@ -1059,6 +1059,7 @@ export type EffectAction =
   | PowerModifyPerTrashedLevelAction
   | PowerModifyPerDeckCountAction
   | PowerModifyPerEnergyColorAction
+  | PowerModifyPerOwnColorAction
   | PowerModifyPerTrashCountAction
   | PowerModifyPerLifeCountAction
   | PowerModifyPerHandCountAction
@@ -1918,6 +1919,14 @@ export interface GrantProtectionAction {
   sourceFilter?: TargetFilter; // 保護元カードの属性で耐性を絞る（sourceCostMin の一般化）。collectEffectImmuneSigni が解決中ソースカードの CardData を matchesFilter で判定し、非マッチなら保護しない（WXEX2-36「ライズアイコンを持たない対戦相手のシグニの効果を受けない」／WXK11-021「ライフバーストではない…」）
   sourceEffectType?: 'LIFE_BURST'; // 発生源カードの属性ではなく、現在解決中の効果種別を限定する（WX11-027「対戦相手のライフバーストの効果」）
   sourceOwner?: 'self' | 'opponent' | 'any'; // 誰の効果から保護するか（any＝発生源オーナーを問わない。ルール／バトルは含めない）
+  /**
+   * 発生源カードが**保護されるシグニと1色以上共通する**ときだけ保護する
+   * （`WX11-032`「このシグニは**自身と共通する色を持つ**対戦相手のシグニの効果を受けない」）。
+   * ⚠色は**実効色**で見る（印刷色＋`COLOR_INHERIT` 等の追加色）＝印刷色だけで見ると
+   *   エナから色を継いだぶんが落ちて**保護が薄くなる**。
+   * ⚠これが無いと**全相手シグニからの無条件保護**になる（原文より強い過剰実行）。
+   */
+  sourceSharedColorWithSelf?: boolean;
   fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
   exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外
   duration: EffectDuration;
@@ -2762,6 +2771,21 @@ export interface PowerModifyPerEnergyColorAction {
   target: EffectTarget;
   deltaPerColor: number;
   energyOwner: Owner;
+}
+
+/**
+ * **自身が持つ色の種類**1つにつきパワー±N（常時。`WX11-032`「このシグニのパワーは自身が持つ
+ * 色の種類１つにつき＋4000され」）。
+ *
+ * ⚠**`POWER_MODIFY_PER_ENERGY_COLOR` とは数える対象が違う**＝あちらは「エナゾーンのカードが持つ
+ * 色の種類」。こちらは**そのシグニ自身の実効色**（印刷色 ＋ `COLOR_INHERIT` 等で追加された色）。
+ * 🔴`WX11-032` は**表記パワー0**なので、これが無いと場に出た瞬間にパワー0以下ルールで
+ * バニッシュされる＝**そのカードは一生場に存在できない**（2026-08-27 Sheet1 B13 で実測）。
+ */
+export interface PowerModifyPerOwnColorAction {
+  type: 'POWER_MODIFY_PER_OWN_COLOR';
+  target: EffectTarget;
+  deltaPerColor: number;
 }
 
 // トラッシュ枚数N枚につきパワー±M（常時・ターン終了時まで）
