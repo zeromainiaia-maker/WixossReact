@@ -4010,6 +4010,15 @@ export interface CardEffect {
     // 判定は単発イベントではなく PlayerState.life_crashed_by_signi_this_turn の**累計**で行う
     // （1回のアタックで2枚クラッシュしても、1枚ずつ2回でも、合計が閾値に達した時点で1度だけ発火する）。
     crashedTotalThisTurn?: number;
+    /**
+     * 「あなたのシグニが**【ランサー】によって**対戦相手のライフクロスをクラッシュしたとき」＝
+     * クラッシュの**原因キーワード**を限定する（§5.3 `O-120`・実測3効果＝
+     * `WX07-042-E1` / `WX19-028-E1` / `WX19-071-E1`）。配列は OR（「【ランサー】か【Ｓランサー】」）。
+     * 🔴**旧 live はこの条件がゼロ**で、**通常のバトルダメージによるクラッシュでも発火する過剰実行**だった。
+     * 🔴**fail-closed**＝`PlayerState.crash_cause` が未設定（＝原因不明）なら**発火しない**。
+     *   原因を刻む唯一地点は `BattleScreen.crashOneLife`（`crash_source_card_num` と同じ funnel）。
+     */
+    crashedByKeywords?: string[];
     energyTrashedOwner?: 'self' | 'opponent' | 'any'; // ON_ENERGY_TO_TRASH の発生源エナゾーン（トリガー所有者から見た self/opponent/any）。省略=any。WD15-015=opponent。⚠「あなたの効果によって」の発生源限定は未表現（効果解決経路で発火＝相手効果による自エナトラッシュも発火しうる近似）
     // ON_ENERGY_TO_TRASH の行き先拡張＝「エナゾーンから効果によってカードN枚が**他の領域に移動**したとき」
     // （WXDi-P06-038-E1）。true のとき collector は「エナ→トラッシュ」ではなく「エナゾーンから出て行った枚数」
