@@ -98,7 +98,7 @@ import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
-import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countMovedToDeckFromField, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
@@ -30228,6 +30228,103 @@ test('(l) WXDi-P02-034: 付与前0枚・付与後だけレベル3×2=6枚ミル'
   } finally {
     cursor = savedCursor;
   }
+});
+
+// ── Sheet1 B13（2026-08-27）＝段2 第4巡で足した受け皿の golden ──
+test('B13 「自身が持つ色の種類１つにつき＋N」＝POWER_MODIFY_PER_OWN_COLOR（WX11-032）', () => {
+  const es = parseCardEffects({
+    CardNum: 'TEST-B13-COLOR', Type: 'シグニ', Color: '緑', Level: '4', Power: '0',
+    EffectText: '【常】：このシグニのパワーは自身が持つ色の種類１つにつき＋4000され、このシグニは自身と共通する色を持つ対戦相手のシグニの効果を受けない。',
+  } as unknown as CardData);
+  const a = es[0].action as unknown as { type: string; steps: { type: string; deltaPerColor?: number; sourceSharedColorWithSelf?: boolean }[] };
+  eq(a.type, 'SEQUENCE', '2つの【常】が1文に入っている');
+  eq(a.steps[0]?.type, 'POWER_MODIFY_PER_OWN_COLOR', '前半＝自身の色の種類比例（旧＝catch-all STUB へ落ちて消えていた）');
+  eq(a.steps[0]?.deltaPerColor, 4000, '1色につき＋4000');
+  eq(a.steps[1]?.type, 'GRANT_PROTECTION', '後半＝効果耐性');
+  eq(a.steps[1]?.sourceSharedColorWithSelf, true, '「自身と共通する色を持つ」限定（旧＝全相手シグニからの無条件保護）');
+  // 🔴engine 側＝**表記パワー0**なので、これが無いと場に出た瞬間にパワー0以下でバニッシュされる。
+  const cm = cardMap as Map<string, CardData>;
+  const em = new Map(effectsMap);
+  // ⚠`mkState` の既定エナは**ランダム5枚**＝`COLOR_INHERIT`（E1）が色を継いで結果が揺れる。
+  //   この効果を測るときはエナを明示する（実測して気づいた）。
+  const noEna = { ...mkState({ signi: ['WX11-032', null, null] }), energy: [] } as PlayerState;
+  eq(calcFieldPowers(noEna, mkState({}), true, em, cm).get('WX11-032'), 4000,
+    '印刷色（緑）1色ぶん＝＋4000（旧＝0のまま＝出た瞬間にパワー0以下でバニッシュ）');
+  // COLOR_INHERIT（E1）でエナの色を継ぐ＝色の種類が増えるほどパワーが上がる。
+  const findColor = (col: string) => findCard(c => c.Type === 'シグニ' && c.Color === col);
+  const stEna = { ...mkState({ signi: ['WX11-032', null, null] }),
+    energy: [findColor('白'), findColor('赤'), findColor('青')] } as PlayerState;
+  eq(calcFieldPowers(stEna, mkState({}), true, em, cm).get('WX11-032'), 16000,
+    'エナに白/赤/青→自身の色は緑＋白赤青＝4種＝＋16000');
+});
+test('B13 GRANT_PROTECTION.sourceSharedColorWithSelf: 共通色ありだけ保護（WX11-032）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const em = new Map(effectsMap);
+  // ⚠エナを空にする＝`COLOR_INHERIT` で色が増えると「共通色なし」側が作れない。
+  const st = { ...mkState({ signi: ['WX11-032', null, null] }), energy: [] } as PlayerState;   // 実効色＝緑のみ
+  const green = findCard(c => c.Type === 'シグニ' && c.Color === '緑');
+  const black = findCard(c => c.Type === 'シグニ' && c.Color === '黒');
+  ok(collectEffectImmuneSigni(st, mkState({}), cm, em, true, 'シグニ', green).has('WX11-032'),
+    '緑のシグニの効果＝共通色あり→保護される');
+  ok(!collectEffectImmuneSigni(st, mkState({}), cm, em, true, 'シグニ', black).has('WX11-032'),
+    '🔴黒のシグニの効果＝共通色なし→保護されない（旧＝全相手シグニから無条件に保護されていた）');
+  ok(!collectEffectImmuneSigni(st, mkState({}), cm, em, true, 'シグニ', undefined).has('WX11-032'),
+    '発生源が引けないときは保護しない（fail-closed）');
+});
+test('B13 ON_CARD_MOVED_TO_DECK の「場から」限定＝movedToDeckFromField（WX05-019）', () => {
+  const es = parseCardEffects({
+    CardNum: 'TEST-B13-DECK', Type: 'シグニ', Color: '白', Level: '4', Power: '12000',
+    EffectText: '【自】：対戦相手のシグニ１体が場からデッキに移動したとき、あなたのデッキから＜迷宮＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。',
+  } as unknown as CardData);
+  const tc = es[0].triggerCondition as { movedToDeckOwner?: string; movedToDeckFromField?: boolean } | undefined;
+  eq(tc?.movedToDeckOwner, 'opponent', '相手のデッキへ');
+  eq(tc?.movedToDeckFromField, true, '「場から」限定（旧＝何が戻っても発火する過剰実行）');
+  // collector：場から戻った枚数が 0 なら発火しない・1 以上なら発火する。
+  const host = mkState({ signi: ['WX05-019', null, null] });
+  const guest = mkState({});
+  const fire = (fromField: number, plain: number) =>
+    collectMoveToDeckTriggers(trigCtx(HOST), HOST, host, guest, 0, 0, plain, HOST, 0, fromField)
+      .entries.some(e => e.effectId === 'WX05-019-E3');
+  eq(fire(1, 1), true, '相手のシグニが場からデッキへ→発火');
+  eq(fire(0, 3), false, '🔴場以外（手札・エナ等）から3枚戻っただけでは発火しない');
+  // boardDiff：場に居た札がデッキへ入った枚数だけを数える。
+  const before = mkState({ signi: ['AAA#1', 'BBB#1', null] });
+  const after = { ...mkState({}), deck: ['AAA#1', 'ZZZ#1'] } as PlayerState;
+  eq(countMovedToDeckFromField(before, after), 1, '場に居た AAA#1 だけを数える（ZZZ#1 は場に居なかった）');
+});
+test('B13 エクシードの色指定（WX10-001「エクシード１（白のカード）」）', () => {
+  const es = parseCardEffects({
+    CardNum: 'TEST-B13-EX', Type: 'ルリグ', Color: '赤', Level: '5',
+    EffectText: '【起】《ターン１回》エクシード１（白のカード）：対戦相手のシグニ１体を対象とし、それを手札に戻す。【起】エクシード２（白と赤のカード）：カードを１枚引く。',
+  } as unknown as CardData);
+  eq(es[0].cost?.exceed, 1, 'エクシード1');
+  eq(es[0].cost?.exceedColors?.join(','), '白', '色指定が生き残る（旧＝括弧ごと stripRuleParens に落ちて消えていた）');
+  eq(es[1].cost?.exceedColors?.join(','), '白,赤', '「白と赤のカード」＝2色をそれぞれ別のカードで');
+  // 可否ゲート／支払い実行の両方で色を見る（§4.2「ラベル・可否ゲート・支払い実行の3地点」）。
+  const white = findCard(c => c.Type === 'シグニ' && c.Color === '白');
+  const black = findCard(c => c.Type === 'シグニ' && c.Color === '黒');
+  const cm = cardMap as Map<string, CardData>;
+  const stW = mkState({ lrig: [white, 'CENTER-TOP'] });
+  const stB = mkState({ lrig: [black, 'CENTER-TOP'] });
+  ok(canPayExceed(stW, 1, ['白'], cm), '白の下札があれば払える');
+  ok(!canPayExceed(stB, 1, ['白'], cm), '🔴黒しか無ければ払えない（旧＝どのカードでも払えた＝踏み倒し）');
+  ok(!canPayExceed(stW, 1, ['白'], undefined), 'cardMap が無いときは払えない（fail-closed）');
+  ok(!!paySelectedExceed(stW, 1, new Set([0]), ['白'], cm), '色を満たす選択は受理');
+  eq(paySelectedExceed(stB, 1, new Set([0]), ['白'], cm), null, '色を満たさない選択は支払い実行地点でも拒否');
+  ok(!!paySelectedExceed(stB, 1, new Set([0])), '色指定なしは色を見ない');
+});
+test('B13 トラッシュ枚数比例のコスト軽減が《黒×1》表記で不発だった（WXK06-055）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const card = cm.get('WXK06-055');
+  ok(!!card, 'WXK06-055 が引ける');
+  const dragons = [...cm.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('龍獣')).slice(0, 5).map(c => c.CardNum);
+  eq(dragons.length, 5, '＜龍獣＞のシグニを5枚用意');
+  const empty = { ...mkState({}), trash: [] } as PlayerState;
+  const filled = { ...mkState({}), trash: dragons } as PlayerState;
+  const base = computeArtsEffectiveCost(card!, empty, undefined, undefined, undefined, cm);
+  const red = computeArtsEffectiveCost(card!, filled, undefined, undefined, undefined, cm);
+  ok(base !== red, '🔴トラッシュに＜龍獣＞5枚で軽減される（旧＝色名が「黒×1」になり一度も当たらなかった）');
+  eq(red, '《黒》×2《無》×1', '黒×3→黒×2');
 });
 
 test('task12(xxix)(1) UI exceed純関数: placedStateの全ルリグ下を数え、選択分だけトラッシュへ移す', () => {
