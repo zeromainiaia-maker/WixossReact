@@ -3,7 +3,7 @@ import type { PlayerState, CardData } from '../../types';
 import type { CardEffect, CostScalingCount, CostScalingTerm, TargetFilter } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
-import { fieldCandidates, hasNoAbility, matchesFilter, satisfiesSelectionConstraint, canAddToSelection } from '../../engine/execUtils';
+import { fieldCandidates, hasNoAbility, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 /** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
@@ -1149,6 +1149,27 @@ export function isEnaMultiStripped(
     (!e.activeCondition || checkActiveCondition(e.activeCondition, opponent, payer, isOpponentTurn, cardMap, cardNum)));
   return opponent.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasStripEffect(top); })
     || (!!opponent.field.lrig.at(-1) && hasStripEffect(opponent.field.lrig.at(-1)!));
+}
+
+/**
+ * §5.3 `O-117`＝**支払ったエナ1枚ごとの色集合**（`PlayerState.last_paid_energy_colors` の唯一の作り手）。
+ * マルチエナは全5色・無色エナは空配列として記録する（`PAID_COLORS_INCLUDE_ALL` と `COST_COLOR_SELECT`
+ * が同じ表現を読む）。
+ * 🔴**スペル経路とアーツ経路で式を割らない**ためにここへ寄せた＝旧実装は
+ *   `BattleScreen` のスペル側1箇所にだけ同じ式が書かれており、**アーツ経路は色を1つも記録していなかった**
+ *   （`WX05-016` の「使用コストで5色すべてが支払われている場合」が判定材料ごと存在しなかった）。
+ */
+export function paidEnergyColorsOf(
+  paidNums: string[],
+  cards: CardData[],
+  keywordGrants?: Record<string, string[]>,
+  allMulti?: boolean,
+  stripped?: boolean,
+): string[][] {
+  return paidNums.map(num =>
+    isMultiEna(num, cards, keywordGrants, allMulti, stripped)
+      ? ['白', '赤', '青', '緑', '黒']
+      : splitColors(cards.find(c => c.CardNum === getCardNum(num))?.Color));
 }
 
 export function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean, stripped?: boolean): boolean {

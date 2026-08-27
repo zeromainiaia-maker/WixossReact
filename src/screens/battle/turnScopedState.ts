@@ -1,6 +1,8 @@
 import type { PlayerState } from '../../types';
 import { advancePreventDamageWindows } from './battleUtils';
 import { normalizeFieldGrants, optionalFieldGrants } from '../../utils/fieldGrants';
+import { activateNextTurnDeployCountLimit } from './deployCountLimit';
+import { activateNextTurnSigniZoneBlocks } from './signiZoneBlock';
 
 // 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
 type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'main-phase-start' | 'consume';
@@ -118,6 +120,9 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // §5.3 O-122: 直近のレゾナ出現条件の支払い内容（`*_this_turn` 命名ではないのでこちらへ登録）。
   //   ⚠ターンをまたいで残ると「前のターンの支払い」で条件が誤成立するので turn-end で捨てる。
   last_appearance_cost_cards: { boundaries: ['turn-end'], reset: undefined, reason: 'cards paid for the most recent resona appearance condition' },
+  // §5.3 O-117: 直近の「カードの使用」で支払ったエナの色（`*_this_turn` 命名ではないのでこちら）。
+  //   ⚠ターンをまたいで残ると「前のターンの支払い」で条件が誤成立する（`last_appearance_cost_cards` と同型）。
+  last_paid_energy_colors: { boundaries: ['turn-end'], reset: undefined, reason: 'energy colors paid for the most recent card use' },
   // ピース応答窓のフラグ（§6.4 O-10 続き518）＝窓を閉じる側で落とすのが正だが、
   // **万一の閉じ忘れでターンを跨いで「常時カットイン可」にならない**よう保険で登録する。
   team_piece_cutin_window: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'piece cut-in response window; consumed when the window closes, expired here as a safety net' },
@@ -329,6 +334,53 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     //   レジストリの一括リセットは「そのターンだけ」の分を消す役割なので、ここで復元する。
     signi_attack_bans_this_turn: advanceSigniAttackBans(state.signi_attack_bans_this_turn),
   };
+}
+
+/**
+ * `FORCE_END_TURN`（「このターンを終了する」）の盤面処理を1本にまとめる（§5.3 `O-117`）。
+ *
+ * 🔴**抽出前はスタック解決経路（`BattleScreen` の `result.forceEndTurn` 分岐）にしか無く、
+ *   カットイン窓の解決経路（`handleCutinUse`）は `result.forceEndTurn` を一度も読んでいなかった。**
+ *   `WX05-016`（エンドホール）は **Timing がスペルカットインだけ**＝あの経路が唯一の実行路なので、
+ *   条件を正しくしても**ターンは一度も終わらなかった**（実機 `b21end5colors` で発見）。
+ *
+ * @param activeState いまのターンプレイヤーの状態（ターン終了側）
+ * @param nextState   次のターンプレイヤーの状態（アップ処理を受ける側）
+ */
+export function applyForcedTurnEnd(
+  activeState: PlayerState, nextState: PlayerState,
+): { activeAfter: PlayerState; nextAfter: PlayerState } {
+  // ターンを終える側の一時状態をクリア。
+  const activeAfter = clearTurnEndScopedState({
+    ...activeState,
+    temp_power_mods: [],
+    temp_level_mods: [],
+    keyword_grants: {},
+    granted_effects: {},
+    actions_done: [],
+  });
+  // 次のターンプレイヤーのシグニをアップ（凍結中はアップせず凍結解除）。
+  const signiDown = nextState.field.signi_down ?? [false, false, false];
+  const signiFrozen = nextState.field.signi_frozen ?? [false, false, false];
+  const newSigniDown = signiDown.map((d: boolean, i: number) => d && signiFrozen[i]) as boolean[];
+  const nextAfter = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
+    ...nextState,
+    // 出自マーカー本体はUP開始時の funnel でクリア
+    signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined,
+    signi_deploy_count_limit: undefined, // 配置数制限（相手にかけられた分）を自分のターン開始時にリセット
+    field: {
+      ...nextState.field,
+      signi_down: newSigniDown,
+      signi_frozen: [false, false, false] as [boolean, boolean, boolean],
+      lrig_down: (nextState.field.lrig_down ?? false) && (nextState.field.lrig_frozen ?? false),
+      lrig_frozen: false,
+      assist_lrig_l_down: (nextState.field.assist_lrig_l_down ?? false) && (nextState.field.assist_lrig_l_frozen ?? false),
+      assist_lrig_r_down: (nextState.field.assist_lrig_r_down ?? false) && (nextState.field.assist_lrig_r_frozen ?? false),
+      assist_lrig_l_frozen: false,
+      assist_lrig_r_frozen: false,
+    },
+  })).state);
+  return { activeAfter, nextAfter };
 }
 
 /** 次の自分ターン開始時の履歴切替と、各予約→active 昇格を一括する。 */

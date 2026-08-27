@@ -91,6 +91,16 @@
 
 ## 恒久指標の旧行（PLAN §6 から退避・新しいものが上）
 
+- **2026-08-28 続き696 後**：
+  📊**進捗3計器＝Sheet1 要対応 29 / 863（3.4%）｜台帳 残 OPEN 579｜census 高シグナル 522**
+  （`O-108`＝コスト側の集合制約で **live 変化 1 effectId / 1カード**・**スコープ外0**。B10〜B18 で Sheet1 要対応は 65→29）。
+  **golden 2912**（B18 で 2911→2912）、census 522/522、smoke 全異常0、fuzz 全0、lint 0 errors（263 warn）、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
+  **held 89 / partial 14 / idset 24**（据置）、
+  **実機シナリオ +2**（🆕`b18distinctok`＝名前違い4枚で撃てる／🆕`b18distinctsame`＝同名4枚では**【起】が提示されない**。
+  **反転確認済み**＝制約を外すと negative が撃ててしまい FAIL。回帰 `b17resonadiff` / `b16banish2` PASS）
+  ⚠**シグニ【起】の実機は `[data-action-label]` で能力を先に選ぶ**（モーダルを開くだけでは支払いUIが出ない）
+
 - **2026-08-28 続き695 後**：
   📊**進捗3計器＝Sheet1 要対応 30 / 863（3.5%）｜台帳 残 OPEN 580｜census 高シグナル 523（据置）**
   （`O-122`＝出現条件の支払い記録で **live 変化 1 effectId / 1カード**・**スコープ外0**。B10〜B17 で Sheet1 要対応は 65→30）。

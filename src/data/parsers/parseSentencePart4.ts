@@ -109,6 +109,25 @@ export function parseSentencePart4(t: string): EffectAction | null {
     }
   }
 
+  // ---- 「この〈アーツ／スペル〉の使用コストで《色》…すべてが支払われている場合、〈帰結〉」（`WX05-016-E1`・§5.3 `O-117`）----
+  // 🔴旧 live は**条件ごと落ちて `FORCE_END_TURN` が無条件**だった＝《無》×５をどう払っても
+  //   ターンが終わる**過剰実行**（登録票の「5色ちょうどでしか使えない過小実行」は誤り＝
+  //   アーツの請求額は CSV `Cost` 由来で、`effect.cost.energy` は**アーツでは読まれない**）。
+  // ⚠真の出所は `manualEffects.ts` の古い手書き（カード名コメントも別カードのもの）＝
+  //   parser は当時から `cost:無×5` ＋ `action:UNKNOWN` を出しており、live だけが無条件形で凍っていた。
+  // ⚠母集団は全 CSV で**1枚**（「すべてが支払われている」の全数＝1）。汎用化しない。
+  {
+    const paidAllM = t.match(/^この(?:アーツ|スペル|カード)の使用コストで((?:《[白赤青緑黒]》)+)すべてが支払われている場合、このターンを終了する$/);
+    if (paidAllM) {
+      const colors = paidAllM[1].match(/[白赤青緑黒]/g) ?? [];
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'PAID_COLORS_INCLUDE_ALL', colors },
+        then: { type: 'FORCE_END_TURN' },
+      } as EffectAction;
+    }
+  }
+
   // ---- 「（その後、）あなたのすべてのライフクロスを見て、好きな順番で並び替える」（`WX05-010-E1`）----
   if (/^(?:その後、)?あなたのすべてのライフクロスを見て、好きな順番で並び替える$/.test(t)) {
     return {

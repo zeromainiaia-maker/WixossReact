@@ -9,9 +9,9 @@ applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFront
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
+import { getRiseFilter, matchesRiseFilter, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countMovedToDeckFromField, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource, detectTrashAdded, detectPlacedFromZone } from '../engine/boardDiff';
@@ -48,7 +48,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches } from '../engine/triggerCollect';
-import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -141,7 +141,7 @@ import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAtta
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
-import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
+import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../engine/lifeCrashGate';
@@ -5160,12 +5160,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
         const entryIsDelayedTrigger = entry.effectId === 'DELAYED_TRIGGER';
         if (entryCardType === 'アーツ' && !entryIsDelayedTrigger && entry.playerId !== user.id) {
-          // 自分（user.id）の myState を決定
-          const myStateForTrigger = ownerIsHost ? (isHost ? hostState : guestState) : (isHost ? guestState : hostState);
-          const opStateForTrigger = ownerIsHost ? (isHost ? guestState : hostState) : (isHost ? hostState : guestState);
+          // 自分（user.id）の myState を決定。
+          // 🔴**2026-08-28 §5.3 `O-113` の実機（`b22artshit`）で先在バグを発見して直した。**
+          //   旧: `ownerIsHost ? (isHost ? hostState : guestState) : (isHost ? guestState : hostState)`。
+          //   `hostState`/`guestState` は**すでに host/guest の絶対値**（この関数の上流で
+          //   `ownerIsHost ? result.ownerState : result.otherState` として解決済み）なので、
+          //   `ownerIsHost` で更に場合分けすると**二重反転**になる。
+          //   しかもこのブロックは `entry.playerId !== user.id`（＝アーツの持ち主は必ず対戦相手）でしか
+          //   通らないため **`ownerIsHost === !isHost` が常に成り立ち、結果は常に `guestState`** だった＝
+          //   **人間（ホスト）側の `ON_OPP_ARTS_USE` は相手の場を走査していて一度も発火しなかった**。
+          //   ⇒ 自分は `isHost` だけで決まる。
+          const myStateForTrigger = isHost ? hostState : guestState;
+          const opStateForTrigger = isHost ? guestState : hostState;
           const iAmHost = isHost;
           const myIsActive = bs.active_user_id === user.id;
-          const artsTriggers = collectOppArtsUseTriggers(myStateForTrigger, opStateForTrigger, myIsActive);
+          // §5.3 `O-113`＝「あなたの〈フィルタ〉のシグニ1体が対戦相手のアーツの**効果を受けたとき**」の判定材料。
+          // ⚠**この効果の解決前後**で自分の場を差分する（`bs.*_state` が解決前・`hostState`/`guestState` が解決後）。
+          //   engine に「効果が触ったカード」の台帳が無いので、観測できる影響（離場／ダウン／凍結／
+          //   パワー修正／付与／能力消去）＋自動対象化で近似する（§5.3 O-113 のコメント参照）。
+          const beforeMineForAff = isHost ? bs.host_state : bs.guest_state;
+          const affectedOwnSigni = collectOppArtsAffectedOwnSigni(
+            beforeMineForAff, myStateForTrigger, result.autoTargetedCards ?? []);
+          const artsTriggers = collectOppArtsUseTriggers(myStateForTrigger, opStateForTrigger, myIsActive, affectedOwnSigni);
           if (artsTriggers.entries.length > 0) {
             const baseStack2 = stackAcc ?? null;
             stackAcc = baseStack2
@@ -5204,44 +5220,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
         if (result.forceEndTurn) {
           const activeIsHost = bs.active_user_id === bs.host_id;
-          const activeState = activeIsHost ? hostState  : guestState;
-          const nextState   = activeIsHost ? guestState : hostState;
-
-          // アクティブプレイヤーの一時状態をクリア
-          const clearedActive: typeof activeState = clearTurnEndScopedState({
-            ...activeState,
-            temp_power_mods:    [],
-            temp_level_mods:    [],
-            keyword_grants:     {},
-            granted_effects:    {},
-            actions_done:       [],
-          });
-
-          // 次のターンプレイヤー（相手）のシグニをアップ（凍結中はアップせず凍結解除）
-          const signiDown   = nextState.field.signi_down   ?? [false, false, false];
-          const sIgniFrozen = nextState.field.signi_frozen  ?? [false, false, false];
-          const newSigniDown = signiDown.map((d: boolean, i: number) => d && sIgniFrozen[i]) as boolean[];
-          const nextStateUpd = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
-            ...nextState,
-            signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
-            signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
-            field: {
-              ...nextState.field,
-              signi_down:   newSigniDown,
-              signi_frozen: [false, false, false] as [boolean, boolean, boolean],
-              lrig_down:    (nextState.field.lrig_down ?? false) && (nextState.field.lrig_frozen ?? false),
-              lrig_frozen:  false,
-              assist_lrig_l_down: (nextState.field.assist_lrig_l_down ?? false) && (nextState.field.assist_lrig_l_frozen ?? false),
-              assist_lrig_r_down: (nextState.field.assist_lrig_r_down ?? false) && (nextState.field.assist_lrig_r_frozen ?? false),
-              assist_lrig_l_frozen: false,
-              assist_lrig_r_frozen: false,
-            },
-          })).state);
-
+          // §5.3 `O-117`＝盤面処理は `applyForcedTurnEnd` の1本（カットイン経路と同じ関数を見る）。
+          const forced = applyForcedTurnEnd(
+            activeIsHost ? hostState : guestState,
+            activeIsHost ? guestState : hostState,
+          );
           // ⚠ ターン強制終了は**それまでの累積を上書きする**（旧 `Object.assign` の後勝ち）。
-          //   clearedActive / nextStateUpd は解決直後の hostState/guestState 由来＝累積側ではない。
-          if (activeIsHost) { hostAcc = clearedActive; guestAcc = nextStateUpd; }
-          else { guestAcc = clearedActive; hostAcc = nextStateUpd; }
+          //   forced.* は解決直後の hostState/guestState 由来＝累積側ではない。
+          if (activeIsHost) { hostAcc = forced.activeAfter; guestAcc = forced.nextAfter; }
+          else { guestAcc = forced.activeAfter; hostAcc = forced.nextAfter; }
           stackAcc = null;
           forceEndNextTurn = { activeUserId: (activeIsHost ? bs.guest_id : bs.host_id) as string };
           appendBattleLogs(['ターンが強制終了されました'], { defer: true });
@@ -5923,8 +5910,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     myState: PlayerState,
     opState: PlayerState,
     isMyTurnNow: boolean,
+    /** §5.3 `O-113`＝そのアーツの効果を受けた自分のシグニ（未提供＝判定不能で fail-closed）。 */
+    affectedOwnSigni?: string[],
   ): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectOppArtsUseTriggers(mkTrigCtx(), myState, opState, isMyTurnNow);
+    pureCollectOppArtsUseTriggers(mkTrigCtx(), myState, opState, isMyTurnNow, affectedOwnSigni);
 
   /**
    * あなたがアーツを使用したとき（ON_ARTS_USE）、使用者自身のルリグ/シグニのトリガーを収集する。
@@ -6883,6 +6872,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       energyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
       /** `calcContinuousBlockedActions(actor, ...).forSelf`。 */
       blockedSelf: Set<string>;
+      /** §5.3 `O-117`＝支払ったエナの色記録（`paidEnergyColorsOf`）に要る。スペル経路の `p` と同じ2値。 */
+      enaAllMulti: boolean;
+      enaMultiStripped: boolean;
       effectivePowers?: Map<string, number>;
     },
   ) => {
@@ -6910,6 +6902,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const artsPay = planEnergyPayment(my, p.energyPayPool, costIndices);
       const paidNums = artsPay.paidNums;
+      // §5.3 `O-117`＝**アーツ経路は支払ったエナの色を1つも記録していなかった**（スペル経路だけが
+      // 記録していた）＝`WX05-016`「このアーツの使用コストで《白》《赤》《青》《緑》《黒》すべてが
+      // 支払われている場合」の**判定材料そのものが存在しなかった**。
+      // ⚠式は `paidEnergyColorsOf` の1本（スペル側と同じ関数）。
+      const artsPaidEnergyColors = paidEnergyColorsOf(
+        paidNums, battleCards, my.keyword_grants, p.enaAllMulti, p.enaMultiStripped);
       // §6.4 O-10（続き510）＝いま軽減に使った「1回きり」の宣言（`WXK03-071-E1`）を後で失効させる。
       // ⚠**コスト計算と同じ収集関数**を使う（別の条件で数え直すと「軽減はされたのに能力は残る」ズレになる）。
       const oppTurnArtsReductionIds = collectOppTurnArtsCostReductions(
@@ -6956,6 +6954,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_arts_used_names: [...(my.turn_arts_used_names ?? []), card.CardName],
         // 使用したアーツの色（色別 ARTS_USED_THIS_TURN。WX24-D1-11〜D4-11。ターン境界でリセット）
         turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((card.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
+        // §5.3 `O-117`＝この使用で支払ったエナの色（`PAID_COLORS_INCLUDE_ALL` が読む）。
+        // ⚠支払いのたびに**上書き**する（前の使用の色を持ち越さない＝`last_cost_trashed_cards` と同じ規約）。
+        last_paid_energy_colors: artsPaidEnergyColors,
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
         is_betting_this_effect: betCost > 0 ? true : undefined,
         is_boosting_this_effect: boosting ? true : undefined,
@@ -7034,6 +7035,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       energyPayPool: myEnergyPayPool,
       energyTrashSubInfo: myEnergyTrashSubInfo,
       blockedSelf: contBlocked.forSelf,
+      enaAllMulti: myEnaAllMulti,
+      enaMultiStripped: myEnaMultiStripped,
       effectivePowers,
     });
   };
@@ -7477,12 +7480,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const spellPay = planEnergyPayment(my, p.energyPayPool, costIndices);
       const paidNums = spellPay.paidNums;
-      // 支払ったエナ1枚ごとの色配列（WX04-063「支払われたエナの色」参照用）。
-      // マルチエナは全5色、無色エナは空配列として記録する。
-      const paidEnergyColors = paidNums.map(num =>
-        isMultiEna(num, battleCards, my.keyword_grants, p.enaAllMulti, p.enaMultiStripped)
-          ? ['白', '赤', '青', '緑', '黒']
-          : splitColors(battleCardMap.get(getCardNum(num))?.Color));
+      // 支払ったエナ1枚ごとの色配列（`WX04-063`「支払われたエナの色」＋ §5.3 `O-117` の
+      // `PAID_COLORS_INCLUDE_ALL` が参照）。⚠**式は `paidEnergyColorsOf` の1本**＝アーツ経路と割らない。
+      const paidEnergyColors = paidEnergyColorsOf(
+        paidNums, battleCards, my.keyword_grants, p.enaAllMulti, p.enaMultiStripped);
       // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。
       // タスク12(lxxxv) の「軽減」も支払い元が手札なら**同じ index 空間**で消す（別々に消すと index がずれる）。
       const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
@@ -8052,6 +8053,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           };
         }
       }
+      // §5.3 `O-117`＝**カットイン窓の支払いもエナの色を記録する**。
+      // 🔴**実機（`b21end5colors`）で捕まえた片肺**＝`performArts`（通常のアーツ使用）にだけ記録を足したところ、
+      //   カットイン窓は**別の支払いサイト**なので `WX05-016` が 5色払っても条件不成立のままだった。
+      //   `WX05-016` は **Timing がスペルカットインだけ**＝**この経路が本番**である。
+      // ⚠3つの source 分岐（lrig_deck / hand / lrig_field・signi_field）の**後**で1回だけ当てる
+      //   （分岐ごとに書くと必ずどれかが漏れる）。式は `paidEnergyColorsOf` の1本。
+      cutinPaid = {
+        ...cutinPaid,
+        last_paid_energy_colors: paidEnergyColorsOf(
+          paidNums, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped),
+      };
       // ベット宣言（タスク12(lxxxiv)）: カットイン窓でもアーツ経路と同じくコインを支払える。
       // UI 側でガード済みだが所持枚数を超えないよう丸め、is_betting_this_effect は
       // 非宣言時に明示クリアする（前回ベットの持ち越し防止＝executeArts / castSpell と同型）。
@@ -8116,12 +8128,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペルカットイン解決後）
       if (result.logs.length > 0) appendBattleLogs(result.logs);
       // myがhost/guestに応じてマッピング
-      const hostState  = isHost ? result.ownerState : result.otherState;
-      const guestState = isHost ? result.otherState : result.ownerState;
+      let hostState  = isHost ? result.ownerState : result.otherState;
+      let guestState = isHost ? result.otherState : result.ownerState;
+      // 🔴§5.3 `O-117`＝**この経路は `result.forceEndTurn` を一度も読んでいなかった**。
+      //   `WX05-016`（エンドホール）は Timing が**スペルカットインだけ**＝ここが唯一の実行路なので、
+      //   条件を正しくしても**ターンは一度も終わらなかった**（実機 `b21end5colors` で発見）。
+      //   盤面処理はスタック解決経路と**同じ `applyForcedTurnEnd`**（判定を割らない）。
+      let cutinBeginNextTurn: { activeUserId: string } | undefined;
+      if (result.done && result.forceEndTurn) {
+        const activeIsHostFE = bs.active_user_id === bs.host_id;
+        const forcedFE = applyForcedTurnEnd(
+          activeIsHostFE ? hostState : guestState,
+          activeIsHostFE ? guestState : hostState,
+        );
+        if (activeIsHostFE) { hostState = forcedFE.activeAfter; guestState = forcedFE.nextAfter; }
+        else { guestState = forcedFE.activeAfter; hostState = forcedFE.nextAfter; }
+        cutinBeginNextTurn = { activeUserId: (activeIsHostFE ? bs.guest_id : bs.host_id) as string };
+        appendBattleLogs(['ターンが強制終了されました']);
+      }
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP', hostState, guestState, clearPendingSpell: true,
         pending: result.done ? null : ({ sourcePlayerId: user.id, sourceCardNum: cutinInstanceId, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
         ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
+        ...(cutinBeginNextTurn ? { beginNextTurn: cutinBeginNextTurn } : {}),
       }));
     } finally {
       setLoading(false);
@@ -11011,6 +11040,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energyPayPool: payer.energyPayPool,
         energyTrashSubInfo: payer.energyTrashSubInfo,
         blockedSelf: payer.blockedSelf,
+        enaAllMulti: payer.enaAllMulti,
+        enaMultiStripped: payer.enaMultiStripped,
       });
       return true;
     };

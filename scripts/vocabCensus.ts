@@ -515,14 +515,26 @@ const removeModeledReplacementClauses = (js: string, text: string): string => {
   return out;
 };
 
+// 🔴**2026-08-28 §5.3 `O-117` で較正しなおした。**
+//   旧実装は「`cost.energy` に5色が1枚ずつ載っている」ことを**条件の表現とみなして**いたが、
+//   それは `manualEffects.ts` の古い手書きが作っていた**バグの指紋**そのものだった
+//   （アーツの請求額は CSV `Cost` 由来で `effect.cost.energy` は読まれない＝5色コストは飾りで、
+//    action は無条件 `FORCE_END_TURN`＝過剰実行）。⇒ **計器が旧バグを「表現済み」と追認していた**（§5-17）。
+//   いまの正表現は `CONDITIONAL{ PAID_COLORS_INCLUDE_ALL{colors} }`。
 const removeModeledForceEndTurnClause = (js: string, text: string): string => {
   const effect = parseJsonRecord(js);
   if (!effect || actionsOfType(effect.action, 'FORCE_END_TURN').length !== 1) return text;
-  const cost = effect.cost && typeof effect.cost === 'object' ? effect.cost as JsonRecord : {};
-  const energy = Array.isArray(cost.energy) ? cost.energy as JsonRecord[] : [];
-  const colors = ['白', '赤', '青', '緑', '黒'];
-  if (!colors.every(color => energy.some(e => e.color === color && e.count === 1))) return text;
-  return text.replace(/このアーツの使用コストで《白》《赤》《青》《緑》《黒》すべてが支払われている場合[、,]このターンを終了する[。]?/g, '');
+  return text.replace(
+    /この(?:アーツ|スペル|カード)の使用コストで((?:《[白赤青緑黒]》)+)すべてが支払われている場合[、,]このターンを終了する[。]?/g,
+    (whole, colorsRaw: string) => {
+      const need = colorsRaw.match(/[白赤青緑黒]/g) ?? [];
+      // JSON 側に「その色をすべて要求する `PAID_COLORS_INCLUDE_ALL`」が在るときだけ表現済みとみなす。
+      const conds = actionsOfType(effect.action, 'CONDITIONAL')
+        .map(a => (a.condition && typeof a.condition === 'object' ? a.condition as JsonRecord : {}));
+      const ok = conds.some(c => c.type === 'PAID_COLORS_INCLUDE_ALL'
+        && Array.isArray(c.colors) && need.every(col => (c.colors as string[]).includes(col)));
+      return ok ? '' : whole;
+    });
 };
 
 const stripResultClauses = (text: string): string =>

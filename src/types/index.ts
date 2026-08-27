@@ -414,6 +414,13 @@ export interface PlayerState {
   pending_lrig_attack_num?: string;
   /** 自分が受けているルリグアタックの**攻撃元カード**（`field.lrig_attacked` と対）。未設定＝センター扱い。 */
   lrig_attacked_by_num?: string;
+  /**
+   * §5.3 `O-117`＝**直近の「カードの使用」で支払ったエナ1枚ごとの色集合**
+   * （マルチエナは全5色・無色エナは空配列）。`PAID_COLORS_INCLUDE_ALL` が読む。
+   * ⚠**書き手は `paidEnergyColorsOf`（`costs.ts`）1本**＝スペル経路とアーツ経路で式を割らない。
+   * ⚠支払いのたびに**上書き**する（`last_cost_trashed_cards` と同じ規約）。ターン境界でも失効させる。
+   */
+  last_paid_energy_colors?: string[][];
   // アクティブなコスト修正（CostIncrease/CostReduction効果）
   cost_modifiers?: Array<{
     direction: 'increase' | 'decrease';

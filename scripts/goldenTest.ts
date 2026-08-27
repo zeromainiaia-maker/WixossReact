@@ -38,7 +38,7 @@ import {
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
@@ -4871,10 +4871,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 24, '命名規約外のターン限定フィールド数（24＝§5.3 O-122 で last_appearance_cost_cards を追加）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 25, '命名規約外のターン限定フィールド数（25＝§5.3 O-117 で last_paid_energy_colors を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 65, '型由来38件＋命名規約外24件の母集団（65＝§5.3 O-122 で +1）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 66, '型由来38件＋命名規約外25件の母集団（66＝§5.3 O-117 で +1）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -5892,17 +5892,28 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
   const routes = [
     ['PvP通常終了', '// 自分（ターン終了プレイヤー）のターン内一時状態をクリア', '// ターンプレイヤーを交代しない場合（追加ターン／相手のターンスキップ）は'],
     ['手札調整確定後', '// ターン内一時状態をクリアして newMyState を確定', '// 追加ターン / 相手のターンスキップ / ターンプレイヤー交代'],
-    ['強制終了', '// FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する', 'stackAcc = null;'],
     ['CPU終了', '// ─── ENDフェイズ：ターン終了処理 ───', 'cpuTurnRef.current = cpuTurnAction;'],
   ] as const;
   for (const [name, start, end] of routes) {
     eq((section(start, end).match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 2,
       `${name}: ターンプレイヤー/非ターンプレイヤーの双方をclear`);
   }
-  eq((battleSource.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 8,
-    'PvP通常・手札調整確定後・強制終了・CPUの各経路で両PlayerStateをclear');
-  eq((battleSource.match(/activateNextTurnSigniZoneBlocks\(activateNextTurnDeployCountLimit\(clearTurnEndScopedState\(/g) ?? []).length, 4,
-    '次ターン側4経路はclear後に既存予約を昇格する');
+  // 🆕**強制終了（`FORCE_END_TURN`）は `applyForcedTurnEnd` へ抽出した**（§5.3 `O-117`）。
+  //   🔴抽出前は**スタック解決経路にしか無く、カットイン窓の解決経路は `result.forceEndTurn` を
+  //     一度も読んでいなかった**（`WX05-016` は Timing がスペルカットインだけ＝一度も終わらなかった）。
+  //   ⇒ 走査は「ヘルパが両 PlayerState を clear すること」＋「**2つの解決経路の両方から呼ぶこと**」で守る。
+  const turnScopedSource = fs.readFileSync(join(root, 'src/screens/battle/turnScopedState.ts'), 'utf8');
+  const forcedHelper = turnScopedSource.slice(turnScopedSource.indexOf('export function applyForcedTurnEnd('));
+  eq((forcedHelper.slice(0, forcedHelper.indexOf('\n}')).match(/clearTurnEndScopedState\(/g) ?? []).length, 2,
+    '強制終了: ヘルパがターンプレイヤー/非ターンプレイヤーの双方をclear');
+  eq((battleSource.match(/applyForcedTurnEnd\(/g) ?? []).length, 2,
+    '🔴強制終了は「スタック解決」と「カットイン窓」の2経路から呼ばれる（片方だけだと窓限定のアーツが効かない）');
+  eq((battleSource.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 6,
+    'PvP通常・手札調整確定後・CPUの3経路×両PlayerState（強制終了はヘルパへ抽出済み）');
+  eq((battleSource.match(/activateNextTurnSigniZoneBlocks\(activateNextTurnDeployCountLimit\(clearTurnEndScopedState\(/g) ?? []).length, 3,
+    '次ターン側3経路はclear後に既存予約を昇格する（強制終了ぶんはヘルパ内）');
+  eq((turnScopedSource.match(/activateNextTurnSigniZoneBlocks\(activateNextTurnDeployCountLimit\(clearTurnEndScopedState\(/g) ?? []).length, 1,
+    'ヘルパ側も同じ昇格を行う');
   eq((battleSource.match(/activateTurnStartScopedState\(/g) ?? []).length, 2,
     '人間/CPUのUP開始をfunnelへ');
   // 🆕3箇所（2026-08-18・§6.4 O-1 (e)）＝人間（`doPhaseAdvance` の `nextPhase==='ATTACK_ARTS'`）／
@@ -12797,14 +12808,64 @@ test('B12 「そうしない場合」は else 側＝置けたときは自壊し�
 test('B12 ON_OPP_ARTS_USE にも usageLimit 判定がある（WX05-020-E2 の《ターン１回》）', () => {
   // 🔴姉妹の `collectArtsUseTriggers` は元から usageLimit を見ていたのに、こちらだけ穴が空いていた＝
   //   相手がアーツを使うたびに何度でもダメージが入っていた。
+  // 🆕§5.3 `O-113` 以降は「効果を受けたシグニ」を渡さないと発火しない（fail-closed）＝ここでも渡す。
   const host = mkState({ signi: ['WX05-020', null, null] });
   const guest = mkState({});
-  const r1 = collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true);
+  const affected = ['WX05-020'];
+  const r1 = collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true, affected);
   eq(r1.entries.some(e => e.effectId === 'WX05-020-E2'), true, '1回目は発火');
   eq(r1.usedIds.includes('WX05-020-E2'), true, '消費 id を返す（呼び出し側が actions_done へ永続化）');
   const used: PlayerState = { ...host, actions_done: [...(host.actions_done ?? []), 'WX05-020-E2'] };
-  eq(collectOppArtsUseTriggers(trigCtx(HOST, HOST), used, guest, true).entries.some(e => e.effectId === 'WX05-020-E2'),
+  eq(collectOppArtsUseTriggers(trigCtx(HOST, HOST), used, guest, true, affected).entries.some(e => e.effectId === 'WX05-020-E2'),
     false, '同ターン2回目は発火しない');
+});
+
+// ===== §5.3 O-113: 「あなたの＜鉱石＞か＜宝石＞のシグニ1体が対戦相手のアーツの効果を**受けたとき**」 =====
+// 🔴旧 live は `activeCondition: HAS_CARD_IN_FIELD{鉱石,宝石}` の近似＝**相手がアーツを使っただけ**で発火し、
+//   そのアーツが自分のシグニに当たったかを見ていなかった（ほぼ毎回ダメージが入る過剰実行）。
+// ⚠母集団は全 CSV で2枚（`WX05-020` / `WXK11-019`）。
+test('O-113 WX05-020-E2: 効果を受けたシグニがあるときだけ発火する', () => {
+  const eff = mergeManualEffects('WX05-020', effectsMap.get('WX05-020') ?? []).find(e => e.effectId === 'WX05-020-E2')!;
+  const tc = eff.triggerCondition as { affectedByOppArtsFilter?: { story?: string[] } } | undefined;
+  ok(!!tc?.affectedByOppArtsFilter, '🔴「効果を受けたとき」が triggerCondition として載っている');
+  eq((tc?.affectedByOppArtsFilter?.story ?? []).join('/'), '鉱石/宝石', '＜鉱石＞か＜宝石＞に限定');
+  ok(!eff.activeCondition, '🔴「場に居ればよい」の近似 activeCondition は外れている（意味の二重化を残さない）');
+  const host = mkState({ signi: ['WX05-020', null, null] });
+  const guest = mkState({});
+  const fires = (affected?: string[]) =>
+    collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true, affected)
+      .entries.some(e => e.effectId === 'WX05-020-E2');
+  ok(fires(['WX05-020']), '＜宝石＞のシグニが効果を受けた＝発火');
+  ok(!fires([]), '🔴誰も効果を受けていない＝発火しない（旧挙動はここで発火していた）');
+  ok(!fires(undefined), '🔴判定材料が無いときも発火しない（fail-closed）');
+  const otherSigni = findCard(c => isSigni(c) && !/鉱石|宝石/.test(c.CardClass ?? ''));
+  ok(!fires([otherSigni]), '別クラスのシグニが受けただけでは発火しない');
+  // usageLimit を先に消費してしまわないこと（受けていない回で《ターン1回》を使い切らせない）。
+  eq(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true, []).usedIds.length, 0,
+    '🔴弾いた回は usageLimit を消費しない');
+});
+
+// 「効果を受けた」の判定材料＝アーツ解決の前後の盤面差分（engine に台帳が無いための近似）。
+test('O-113 collectOppArtsAffectedOwnSigni: 観測できる影響を拾い、無変化は拾わない', () => {
+  const a = SIGNI_L1, b = SIGNI_L2, c = SIGNI_L3;
+  const before = mkState({ signi: [a, b, c] });
+  eq(collectOppArtsAffectedOwnSigni(before, before).length, 0, '何も起きていなければ空');
+  const left = mkState({ signi: [null, b, c] });
+  eq(collectOppArtsAffectedOwnSigni(before, left).join(''), a, '場を離れた');
+  const downed: PlayerState = { ...before, field: { ...before.field, signi_down: [true, false, false] } };
+  eq(collectOppArtsAffectedOwnSigni(before, downed).join(''), a, 'ダウンした');
+  const frozen: PlayerState = { ...before, field: { ...before.field, signi_frozen: [false, true, false] } };
+  eq(collectOppArtsAffectedOwnSigni(before, frozen).join(''), b, '凍結した');
+  const powered: PlayerState = { ...before, temp_power_mods: [{ cardNum: c, delta: -5000 }] };
+  eq(collectOppArtsAffectedOwnSigni(before, powered).join(''), c, 'パワー修正を受けた');
+  const kw: PlayerState = { ...before, keyword_grants: { [b]: ['ランサー'] } };
+  eq(collectOppArtsAffectedOwnSigni(before, kw).join(''), b, 'キーワードを付与された');
+  const removed: PlayerState = { ...before, abilities_removed: [a] };
+  eq(collectOppArtsAffectedOwnSigni(before, removed).join(''), a, '能力を消された');
+  // 自動対象化は盤面が動かなくても「対象に取られた」ことが確実なので合流させる。
+  eq(collectOppArtsAffectedOwnSigni(before, before, [b]).join(''), b, '自動対象化を合流');
+  eq(collectOppArtsAffectedOwnSigni(before, before, ['NOT-ON-FIELD']).length, 0,
+    '自分の場に無いカードは合流しない');
 });
 test('Stage2 ON_OPP_POWER_DECREASED: decreaseOnOpp>0 で発火＋delta動的注入（WX13-036-E1）', () => {
   const host = mkState({ signi: ['WX13-036', null, null] }); const guest = mkState({});
@@ -15526,7 +15587,10 @@ test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所�
   const coinSpec = TURN_SCOPED_STATE_FIELDS.coins_paid_this_turn;
   ok((coinSpec.boundaries as readonly string[]).includes('turn-end'), 'coins_paid_this_turn はturn-end scope');
   eq(coinSpec.reset, 0, 'coins_paid_this_turn の次ターン初期値は0');
-  eq(src.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 8, '4経路×両PlayerStateがfunnelを通る');
+  // 🆕強制終了ぶんは `applyForcedTurnEnd`（`turnScopedState.ts`）へ抽出した（§5.3 `O-117`）＝
+  //   BattleScreen 側は3経路×両 PlayerState の6件、強制終了はヘルパ呼び出し2件で数える。
+  eq(src.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 6, '3経路×両PlayerStateがfunnelを通る');
+  eq(src.match(/applyForcedTurnEnd\(/g)?.length ?? 0, 2, '強制終了は2つの解決経路から共通ヘルパを呼ぶ');
 });
 // §5c 文型バッチ「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（WXK09 ＜電機＞系）
 // 従来は条件節ごと落ちて無条件発火（WXK09-051 は then/else 両方を実行する二重発動）だった。
@@ -21018,8 +21082,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 60, 'ActiveCondition の型数（60＝§5.3 O-122 で APPEARANCE_COST_SAME_NAME を追加）');
-  eq(Object.keys(C_TYPES).length, 131, 'Condition の型数（131＝§5.3 O-122 で APPEARANCE_COST_SAME_NAME を新設。130 は O-121 の OPP_SIGNI_BANISHED_COUNT_THIS_TURN 時点）');
+  eq(Object.keys(AC_TYPES).length, 61, 'ActiveCondition の型数（61＝§5.3 O-117 で PAID_COLORS_INCLUDE_ALL を追加）');
+  eq(Object.keys(C_TYPES).length, 132, 'Condition の型数（132＝§5.3 O-117 で PAID_COLORS_INCLUDE_ALL を新設。131 は O-122 の APPEARANCE_COST_SAME_NAME 時点）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -23420,8 +23484,11 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       '呼び出し側の手書きクリアは0件');
     ok((TURN_SCOPED_STATE_FIELDS.suppress_signi_on_play_this_turn.boundaries as readonly string[]).includes('turn-end'),
       'ON_PLAY抑止はturn-end scope');
-    eq(source.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 8,
-      '通常終了・確認後・強制終了・CPUの4経路×両PlayerState');
+    // 🆕強制終了は `applyForcedTurnEnd` へ抽出（§5.3 `O-117`）＝BattleScreen 側は6件＋ヘルパ呼び出し2件。
+    eq(source.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 6,
+      '通常終了・確認後・CPUの3経路×両PlayerState');
+    eq(source.match(/applyForcedTurnEnd\(/g)?.length ?? 0, 2,
+      '強制終了は2つの解決経路（スタック解決／カットイン窓）から共通ヘルパを呼ぶ');
     eq(source.match(/isSigniOwnOnPlaySuppressed\(/g)?.length ?? 0, 2,
       '人間の通常召喚とCPU召喚の両方が共通抑止判定を使う');
   });
@@ -25776,6 +25843,44 @@ test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
   ok(resolve([ancient]), 'Ancient Weapon trashed => true');
   ok(!resolve([other]), 'non-Ancient trashed => false');
 });
+
+// ===== §5.3 O-117: 「使用コストで《白》《赤》《青》《緑》《黒》すべてが支払われている場合」 =====
+// 🔴旧 live は**条件ごと落ちて `FORCE_END_TURN` が無条件**だった＝《無》×５をどう払ってもターンが終わる。
+//   （出所は `manualEffects.ts` の古い手書き。parser は当時から `cost:無×5` ＋ `UNKNOWN` を出していた。）
+// ⚠アーツの請求額は CSV `Cost` 由来で `effect.cost.energy` は**アーツでは読まれない**＝
+//   旧 live の「白1赤1青1緑1黒1」は請求には効かない飾りで、実害は**過剰実行**のほうだった。
+test('O-117 WX05-016-E1: 5色すべてを支払ったときだけターンが終わる', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX05-016') ?? []).find(e => e.effectId === 'WX05-016-E1')!;
+  eq(JSON.stringify(eff.cost?.energy), JSON.stringify([{ color: '無', count: 5 }]),
+    '🔴コストは印刷どおり《無》×5（効果文の色リストをコストに化けさせない）');
+  const act = eff.action as { type: string; condition?: { type: string; colors?: string[] } };
+  eq(act.type, 'CONDITIONAL', '🔴無条件 FORCE_END_TURN ではなく条件つき');
+  eq(act.condition?.type, 'PAID_COLORS_INCLUDE_ALL', '支払った色を見る条件');
+  eq((act.condition?.colors ?? []).join(''), '白赤青緑黒', '5色すべてを要求');
+  // ---- 評価器 E2E ----
+  const ALL5 = ['白', '赤', '青', '緑', '黒'];
+  const play = (paid: string[][] | undefined) => {
+    const base = mkCtx({}, {}, 'WX05-016');
+    const ctx = { ...base, ownerState: { ...base.ownerState, last_paid_energy_colors: paid } } as ExecCtx;
+    return !!run(eff.action, ctx).forceEndTurn;
+  };
+  ok(play(ALL5.map(c => [c])), '5色を1枚ずつ払った＝ターン終了');
+  ok(!play([['白'], ['赤'], ['青'], ['緑']]), '4色では終了しない');
+  ok(!play([['白'], ['赤'], ['青'], ['緑'], ['白']]), '🔴5枚でも同色が重複していれば成立しない');
+  // 🔴判別力はここ＝マルチエナ1枚は全5色を持つが、**1枚のエナは1色にしか数えない**。
+  ok(!play([[...ALL5]]), '🔴マルチエナ1枚では5色にならない（union 判定だと誤成立する）');
+  ok(play([[...ALL5], [...ALL5], [...ALL5], [...ALL5], [...ALL5]]), '対照：マルチエナ5枚なら成立する');
+  ok(!play([]), '記録が空なら不成立');
+  ok(!play(undefined), '🔴記録が無いときは fail-closed（推定で倒さない）');
+  ok(!play([['無'], ['無'], ['無'], ['無'], ['無']]), '無色エナ5枚では成立しない');
+}));
+
+// 支払った色の記録は**ターン境界で失効させる**（前のターンの支払いで条件が誤成立しないように）。
+test('O-117 last_paid_energy_colors: ターン境界で失効する', () => withSavedCursor(() => {
+  const st = { ...mkState({}), last_paid_energy_colors: [['白'], ['赤']] } as PlayerState;
+  eq(clearTurnEndScopedState(st).last_paid_energy_colors, undefined, 'ターン終了で消える');
+  ok(!!TURN_SCOPED_STATE_FIELDS.last_paid_energy_colors, 'レジストリに登録されている（両プレイヤーに当たる）');
+}));
 
 // ===== §5.3 O-127: 「好きな枚数をトラッシュに置き、**その枚数と同じ枚数**の…」＝直前の選択枚数への後方参照 =====
 // 🔴旧 live は前半（見る＋好きな枚数を捨てる）が丸ごと落ち、後半も `count:1` の固定枚数だった

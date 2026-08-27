@@ -1832,6 +1832,27 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }).length;
       return cmp(n, cond.operator, cond.value);
     }
+    // §5.3 O-117: この効果の使用コストで、指定色が**すべて**支払われているか。
+    // 🔴**1枚のエナは1色にしか数えない**＝色集合の二部マッチング（`COST_COLOR_SELECT` と同じ考え方）。
+    //   単純な「union に全色が含まれる」判定だと、**マルチエナ1枚で5色すべて成立**してしまう。
+    // 🔴**記録が無いときは false（fail-closed）**＝推定で倒すと過剰実行になる（`COST_COLOR_SELECT` の
+    //   フォールバック推定はここでは使わない）。
+    case 'PAID_COLORS_INCLUDE_ALL': {
+      const need = cond.colors;
+      const sets = (ctx.ownerState.last_paid_energy_colors ?? []).map(cs => cs.filter(c => need.includes(c)));
+      if (sets.length === 0) return false;
+      const matchByColor: Record<string, number> = {};
+      const tryAssign = (ei: number, seen: Set<string>): boolean => {
+        for (const col of sets[ei]) {
+          if (seen.has(col)) continue;
+          seen.add(col);
+          if (matchByColor[col] === undefined || tryAssign(matchByColor[col], seen)) { matchByColor[col] = ei; return true; }
+        }
+        return false;
+      };
+      for (let ei = 0; ei < sets.length; ei++) tryAssign(ei, new Set());
+      return need.every(c => matchByColor[c] !== undefined);
+    }
     case 'APPEARANCE_COST_SAME_NAME': {
       // §5.3 O-122: 直近のレゾナ出現条件の支払いに**同名がN枚以上**あるか。
       // ⚠名前が引けないカードは数えない（fail-closed）＝`cardMap` に載っていない番号で成立させない。

@@ -261,6 +261,15 @@ export type ActiveCondition =
    * 🔴旧 live は条件ごと落ちて**出ただけで常に発火**していた。
    */
   | { type: 'APPEARANCE_COST_SAME_NAME'; count: number }
+  /**
+   * §5.3 `O-117`＝**この効果の使用コストで、指定した色が「すべて」支払われているか**
+   * （`WX05-016` エンドホール「このアーツの使用コストで《白》《赤》《青》《緑》《黒》
+   *  すべてが支払われている場合、このターンを終了する」）。
+   * 参照元は `PlayerState.last_paid_energy_colors`（支払い1枚ごとの色集合。マルチエナは全5色・
+   * 無色エナは空配列）。**1枚のエナは1色にしか数えない**ので二部マッチングで判定する。
+   * 🔴**記録が無いときは false（fail-closed）**＝推定で「5色払った」に倒すと過剰実行になる。
+   */
+  | { type: 'PAID_COLORS_INCLUDE_ALL'; colors: string[] }
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
@@ -317,6 +326,15 @@ export type Condition =
    * 🔴旧 live は条件ごと落ちて**出ただけで常に発火**していた。
    */
   | { type: 'APPEARANCE_COST_SAME_NAME'; count: number }
+  /**
+   * §5.3 `O-117`＝**この効果の使用コストで、指定した色が「すべて」支払われているか**
+   * （`WX05-016` エンドホール「このアーツの使用コストで《白》《赤》《青》《緑》《黒》
+   *  すべてが支払われている場合、このターンを終了する」）。
+   * 参照元は `PlayerState.last_paid_energy_colors`（支払い1枚ごとの色集合。マルチエナは全5色・
+   * 無色エナは空配列）。**1枚のエナは1色にしか数えない**ので二部マッチングで判定する。
+   * 🔴**記録が無いときは false（fail-closed）**＝推定で「5色払った」に倒すと過剰実行になる。
+   */
+  | { type: 'PAID_COLORS_INCLUDE_ALL'; colors: string[] }
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
@@ -505,7 +523,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
-  OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
+  OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true, PAID_COLORS_INCLUDE_ALL: true,
   DURING_ATTACK_PHASE: true, DURING_MAIN_PHASE: true, AND: true,
 };
 
@@ -518,6 +536,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
   COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
   SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
+  PAID_COLORS_INCLUDE_ALL: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
@@ -3989,6 +4008,17 @@ export interface CardEffect {
     /** ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH / ON_TRASH_CARD_ADDED 共通の解決単位最低枚数。省略=1。 */
     minCount?: number;
     /** ON_ATTACK_END（§6.3 J-4・`WXK11-018-E2`）＝「そのアタックによって対戦相手にダメージが与えられていない場合」。バトル解決の `dealtSigniDamage` が false のときだけ発火する。 */
+    /**
+     * §5.3 `O-113`＝ON_OPP_ARTS_USE を「**そのアーツの効果を実際に受けたカードがあるとき**」へ限定する
+     * （`WX05-020-E2`「あなたの＜鉱石＞か＜宝石＞のシグニ１体が対戦相手のアーツの効果を受けたとき」／
+     *  `WXK11-019-E2`「あなたのシグニ１体が…」＝母集団は全 CSV でこの2枚）。
+     * 🔴**これが無いと「相手がアーツを使っただけ」で発火する**（旧 live は
+     * `activeCondition: HAS_CARD_IN_FIELD` の近似で、**そのアーツが自分のシグニに当たったかを見ていなかった**）。
+     * 判定材料は `collectOppArtsAffectedOwnSigni`（アーツ解決の前後で自分の場を差分する）。
+     * ⚠**観測できるのは盤面に出る影響だけ**＝離場／ダウン／凍結／パワー修正／付与キーワード・能力／能力消去。
+     *   盤面に出ない影響（「〜できない」等）は拾わない＝**過小side**に倒す（過剰発火へは戻さない）。
+     */
+    affectedByOppArtsFilter?: TargetFilter;
     attackDealtNoDamage?: boolean;
     // ── ON_ABILITY_ACTIVATED（§6.3 J-1「他能力の発動監視」）の限定 ──
     /** 発動した能力の持ち主（watcher から見て）。省略=どちらでも。 */

@@ -17,6 +17,135 @@ const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 
 /**
+ * §5.3 `O-113` の実機ドライバ（当たる／当たらないで共有）。
+ * `WX05-020`（羅輝石ダイヤブライド・＜宝石＞）の【自】《ターン１回》
+ * 「あなたの＜鉱石＞か＜宝石＞のシグニ１体が**対戦相手のアーツの効果を受けたとき**、対戦相手にダメージを与える」。
+ * 🔴**観測点は相手のライフが減るか**＝旧 live は `activeCondition: HAS_CARD_IN_FIELD` の近似で、
+ *   **相手がアーツを使っただけ**で（当たっていなくても）毎回ダメージが入っていた。
+ * ⚠**相手アーツの解決は `effect_stack` を注入して作る**（CPU に撃たせる経路が無いため）。
+ *   entry.cardNum は実在のアーツ番号にする（収集側が `battleCardMap.get(cardNum).Type === 'アーツ'` を見る）。
+ */
+async function driveB22(page, H, expectFire) {
+  const tag = expectFire ? 'b22artshit' : 'b22artsmiss';
+  // 🔴**基準値は「最初のクエリ」ではなくスペックの固定値**にする＝注入したスタックは
+  //   ページ再読み込み直後に**即解決**しうるので、1回目の観測時点で既にダメージが入っていると
+  //   差分がゼロに見えて偽陰性になる（初回実装でこれを踏んだ）。
+  const GUEST_LIFE_BASE = 5;   // guestSet の life_cloth と一致させること
+  const st0 = await H.queryState();
+  H.log(`開始 guestLife=${st0?.guest?.life}（基準${GUEST_LIFE_BASE}） hostField=${JSON.stringify(st0?.host?.fieldSigni)} down=${JSON.stringify(st0?.host?.signiDown)} stack=${st0?.stackLen} guestHand=${st0?.guest?.hand}`);
+  let settledStreak = 0;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const did = await H.stdStep();
+    const st = await H.queryState();
+    const gLife = st?.guest?.life ?? 0;
+    const down0 = (st?.host?.signiDown ?? [])[0] === true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | guestLife=${gLife}/${GUEST_LIFE_BASE} down0=${down0} guestHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (s === 0) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
+    settledStreak = (!(st?.stackLen > 0) && !st?.pendingEffect) ? settledStreak + 1 : 0;
+    if (settledStreak >= 4) {
+      const dealt = GUEST_LIFE_BASE - gLife;
+      if (expectFire) {
+        // 前提＝相手アーツが実際に当たった（自分のシグニがダウンした）こと。
+        if (!down0) return { pass: false, detail: `前提崩れ＝相手アーツが当たっていない（down0=${down0}）` };
+        return dealt >= 1
+          ? { pass: true, detail: `アーツが自分の＜宝石＞に当たった＝ダメージが入った（guestLife ${GUEST_LIFE_BASE}→${gLife}）` }
+          : { pass: false, detail: `当たったのにダメージが入らない（guestLife ${GUEST_LIFE_BASE}→${gLife}）` };
+      }
+      // 対照＝当たっていない（ダウンしていない）ことを前提条件として確かめる。
+      if (down0) return { pass: false, detail: `前提崩れ＝対照なのに自分のシグニがダウンしている` };
+      return dealt === 0
+        ? { pass: true, detail: `対照＝当たっていなければダメージは入らない（guestLife ${GUEST_LIFE_BASE}→${gLife}）` }
+        : { pass: false, detail: `🔴旧挙動＝当たっていないのにダメージが入った（guestLife ${GUEST_LIFE_BASE}→${gLife}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `解決しなかった（guestLife ${fin?.guest?.life ?? '-'} stack=${fin?.stackLen ?? '-'}）` };
+}
+
+/** `O-113` 用＝相手（CPU）が持つアーツ1件だけのスタックを組む。 */
+function oppArtsStack(effectAction, effectId) {
+  const entry = {
+    id: 'b22-entry-1', playerId: CPU_PLAYER_ID,
+    // ⚠**素の CardNum で置く**（`#` 付きインスタンス id だと収集側の
+    //   `battleCardMap.get(entry.cardNum)?.Type === 'アーツ'` が外れてブロックごと素通りする）。
+    cardNum: 'WX01-018',                     // アンチ・スペル（実在のアーツ＝Type 判定を通すため）
+    effectId,
+    label: '相手アーツ（注入）',
+    effect: {
+      effectId, effectType: 'ACTIVATED', timing: ['MAIN'],
+      action: effectAction, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+    },
+  };
+  // ⚠**整列済み（queue だけ）で渡す**＝`pendingTurn`/`pendingOpp` に置くと
+  //   `turnPlayerId` との対応で並べ替え UI が挟まる。解決は `resolveStackNext` の queue から進む。
+  return {
+    turnPlayerId: null,                      // injectScenario が実 uid で埋める
+    pendingTurn: [], pendingOpp: [],
+    orderTurnDone: true, orderOppDone: true,
+    queue: [entry],
+  };
+}
+
+/**
+ * §5.3 `O-117` の実機ドライバ（支払うエナの色を変えて共有）。
+ * `WX05-016`（エンドホール・**《無》×５**・ウリス限定・スペルカットイン）をカットイン窓から使用し、
+ * 「使用コストで《白》《赤》《青》《緑》《黒》すべてが支払われている場合、このターンを終了する」を見る。
+ * 🔴**観測点はターンが終わるか**＝旧 live は条件ごと落ちて `FORCE_END_TURN` が**無条件**だったので、
+ *   同色5枚で払っても必ずターンが終わる（過剰実行）。
+ * ⚠**窓は `pending_spell` を注入して開ける**（`V-58` の応答窓と同じ手）。
+ * ⚠請求額は CSV `Cost` の《無》×５＝**どの色でも5枚払える**。色の違いは条件判定にだけ効く。
+ */
+async function driveB21(page, H, expectEnd) {
+  const tag = expectEnd ? 'b21end5colors' : 'b21endsamecolor';
+  const st0 = await H.queryState();
+  H.log(`開始 phase=${st0?.turnPhase} active=${st0?.activeUser?.slice(0, 8)} turn=${st0?.turnCount} energy=${st0?.host?.energy} pSpell=${st0?.pendingSpell}`);
+  if (!st0?.pendingSpell) return { pass: false, detail: '前提崩れ＝カットイン窓（pending_spell）が開いていない' };
+  const phase0 = st0?.turnPhase, turn0 = st0?.turnCount;
+  let clicked = false, used = false;
+  const picked = new Set();
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    if (!clicked) {
+      did = await H.clickTextOrBtn(['エンドホール']);
+      if (did) clicked = true;
+    }
+    if (!did && clicked) {
+      // ⚠**選択済みを覚えて1枚ずつ足す**（同じ testid を押し直すとトグルで外れる）。
+      for (let i = 0; i < 6 && !did; i++) {
+        if (picked.has(i)) continue;
+        const c = page.getByTestId(`cutincost-energy-${i}`).first();
+        if (await c.count() && await c.isVisible().catch(() => false)) {
+          await c.click().catch(() => {}); picked.add(i); did = `cutincost-energy-${i}`;
+        }
+      }
+    }
+    if (!did && clicked && !used) {
+      did = await H.clickTextOrBtn(['カットイン使用']);
+      if (did) used = true;
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'パス（カットインしない）']);
+    const st = await H.queryState();
+    const ended = st?.turnPhase !== phase0 || st?.turnCount !== turn0 || st?.activeUser !== st0?.activeUser;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 選択=${[...picked]} used=${used} paid=${JSON.stringify(st?.host?.paidColors)} phase=${phase0}→${st?.turnPhase} turn=${turn0}→${st?.turnCount} energy=${st?.host?.energy} pSpell=${st?.pendingSpell ?? '-'} ended=${ended}`);
+    // ⚠**解決直後に判定しない**＝`FORCE_END_TURN` はスタック解決後の別コミットで走るので数 tick 遅れる。
+    if (used && !st?.pendingSpell && s > 3) {
+      if (expectEnd) {
+        if (ended) return { pass: true, detail: `5色すべてを支払った＝ターンが終了した（phase ${phase0}→${st?.turnPhase} / turn ${turn0}→${st?.turnCount}）` };
+        if (s > 12) return { pass: false, detail: `5色払ったのにターンが終わらない（phase ${phase0}→${st?.turnPhase} / turn ${turn0}→${st?.turnCount}）` };
+      }
+      if (ended) return { pass: false, detail: `🔴旧挙動＝同色5枚でもターンが終わってしまった（phase ${phase0}→${st?.turnPhase}）` };
+      if (s > 12) return { pass: true, detail: `対照＝同色5枚ではターンが終わらない（phase ${phase0} のまま）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着しなかった（used=${used} phase ${phase0}→${fin?.turnPhase} pSpell=${fin?.pendingSpell ?? '-'}）` };
+}
+
+/**
  * §5.3 `O-127` の実機ドライバ（捨てる枚数を変えて共有）。
  * `WX05-010`（エルドラ＝マークⅤ）へグロウ → 【出】「あなたのすべてのライフクロスを見て、その中から
  * **好きな枚数**をトラッシュに置き、**その枚数と同じ枚数**のカードをデッキの上からライフクロスに加える」。
@@ -2392,6 +2521,98 @@ const scenarios = {
         detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
       };
     },
+  },
+
+  // ── B22（2026-08-28）＝§5.3 `O-113`（相手アーツの効果を「受けた」ときだけ発火）の実機観測点 ──
+  //   🔴**判別力があるのは miss 側**（`b22artsmiss`）＝旧 live は当たっていなくても毎回ダメージが入った。
+  //
+  // 🔴🔴**現状 `b22artshit` は FAIL する（既知・§5.3 `O-131`）。**
+  //   切り分け済み＝**live を `O-113` 以前の近似形（`activeCondition`）へ戻しても発火しない**＝
+  //   原因は `O-113` の条件ではなく**その上流**（`ON_OPP_ARTS_USE` の収集が実機で一度も走っていない）。
+  //   ゲームログには「[相手] 相手アーツ（注入）」「…をダウン」まで出ており、アーツ自体は解決している。
+  //   ⚠**このシナリオは残す**＝原因を直したときに「直った」ことを即座に観測できる唯一の計器だから。
+  b22artshit: {
+    title: 'WX05-020 羅輝石ダイヤブライド（相手アーツが＜宝石＞に当たった＝ダメージ／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX05-020#1'], null, null],   // 精羅：宝石。⚠**ダウンで残す**＝離場させると watcher ごと消える
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'life_cloth': ['WD01-013#2301', 'WD01-013#2302', 'WD01-013#2303', 'WD01-013#2304', 'WD01-013#2305'] },
+      top: {
+        // ⚠**ホストのターンにする**＝`active:'cpu'` だと CPU の自動進行がスタックへ割り込む（実測）。
+        //   アーツは相手ターンにも使えるので、盤面としては自然。
+        active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        // 相手アーツが**自分のシグニをダウンする**＝「効果を受けた」が観測できる形。
+        // ⚠**ダウンで残す**＝バニッシュで離場させると watcher（このシグニ自身）ごと場から消えて収集されない。
+        effectStack: oppArtsStack({ type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } }, 'B22-HIT-E1'),
+      },
+    },
+    async drive(page, H) { return driveB22(page, H, true); },
+  },
+
+  b22artsmiss: {
+    title: 'WX05-020 羅輝石ダイヤブライド（🔴当たっていなければダメージなし／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX05-020#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'life_cloth': ['WD01-013#2301', 'WD01-013#2302', 'WD01-013#2303', 'WD01-013#2304', 'WD01-013#2305'] },
+      // 相手アーツが**自分の場に何もしない**（相手が1枚引くだけ）＝「受けていない」。
+      top: {
+        active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: oppArtsStack({ type: 'DRAW', owner: 'self', count: 1 }, 'B22-MISS-E1'),
+      },
+    },
+    async drive(page, H) { return driveB22(page, H, false); },
+  },
+
+  // ── B21（2026-08-28）＝§5.3 `O-117`（支払った色を条件にする）の実機観測点 ──
+  //   🔴**判別力があるのは同色側**（`b21endsamecolor`）＝旧 live は条件ごと落ちて無条件にターンが終わった。
+  b21end5colors: {
+    title: 'WX05-016 エンドホール（5色すべてを支払った＝このターンを終了する／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'],                       // 獄卒の閻魔 ウリス（Lv4）＝「ウリス限定」を満たす
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX05-016#1'],
+        // 《無》×５は**どの色でも払える**＝5枚とも別の色にして条件を成立させる。
+        'energy': ['WD01-010#401', 'WD02-010#402', 'WD03-010#403', 'WX01-086#404', 'WD05-010#405'],
+        'hand': [], 'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'lrig_trash': [] },
+      top: {
+        active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        // カットイン窓を直接開ける（`V-58` の応答窓と同じ手）。CPU がスペルを唱えた直後の状態。
+        pendingSpell: { caster_id: CPU_PLAYER_ID, card_num: 'WD01-018#900', kind: 'spell' },
+      },
+    },
+    async drive(page, H) { return driveB21(page, H, true); },
+  },
+
+  b21endsamecolor: {
+    title: 'WX05-016 エンドホール（🔴同色5枚ではターンが終わらない／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX05-016#1'],
+        // 🔴**同じ色を5枚**＝《無》×５は払えるが「5色すべて」は満たさない。
+        'energy': ['WD01-010#401', 'WD01-010#402', 'WD01-010#403', 'WD01-010#404', 'WD01-010#405'],
+        'hand': [], 'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'lrig_trash': [] },
+      top: {
+        active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        pendingSpell: { caster_id: CPU_PLAYER_ID, card_num: 'WD01-018#900', kind: 'spell' },
+      },
+    },
+    async drive(page, H) { return driveB21(page, H, false); },
   },
 
   // ── B20（2026-08-28）＝§5.3 `O-127`（直前の選択枚数への後方参照）の実機観測点 ──
@@ -14305,7 +14526,14 @@ async function injectScenario(page, spec) {
       active_user_id: top.active === 'cpu' ? CPU_PLAYER_ID : uid,
       turn_phase: top.turn_phase ?? 'MAIN',
       turn_count: top.turn_count ?? 2,
-      effect_stack: null, pending_effect: null, pending_spell: top.pendingSpell ?? null,
+      // 🆕§5.3 `O-113`（2026-08-28）＝**相手アーツの解決を直接注入できるようにした**。
+      //   `ON_OPP_ARTS_USE` は「相手が持つアーツの StackEntry が解決されたとき」に収集されるので、
+      //   CPU にアーツを撃たせずに窓を作るにはスタックを注入するしかない（`pendingSpell` と同じ手）。
+      // ⚠`turnPlayerId` は注入時にしか分からない（uid はブラウザ側で取る）ので、ここで埋める。
+      effect_stack: top.effectStack
+        ? { ...top.effectStack, turnPlayerId: (top.active === 'cpu' ? CPU_PLAYER_ID : uid) }
+        : null,
+      pending_effect: null, pending_spell: top.pendingSpell ?? null,
       // ログもシナリオごとに白紙化する。前シナリオのログ行（「アーツ使用: …」等）が盤面テキストに残ると
       // clickTextOrBtn の部分一致テキストクリックがログ行を掴み続けて本来のUI操作に到達しない
       // （バッチ実行時のみ lrigundermoved が txt:使用 を空クリックし続けて FAIL した真因）。findLog の偽陽性も防ぐ。
@@ -35014,6 +35242,8 @@ try {
         // 🆕§5.3 O-126（2026-08-28）＝`execCostIncrease` が積む使用コスト修正。
         //   **旧実装では書かれるだけで誰も読まなかった**ので、載っていること自体も観測点にする。
         costModifiers: s.cost_modifiers ?? null,
+        // 🆕§5.3 O-117（2026-08-28）＝支払ったエナの色（`PAID_COLORS_INCLUDE_ALL` の判定材料）。
+        paidColors: s.last_paid_energy_colors ?? null,
         lrigTrash: (s.lrig_trash ?? []).length,
         // §5.3 O-121: このターンに**この側が**相手シグニをバニッシュした台帳（by / byEffect）。
         oppBanishLedger: s.opp_signi_banished_this_turn ?? null,

@@ -3934,8 +3934,63 @@ export function collectHandDiscardTriggers(
  * 相手がアーツを使用したとき（ON_OPP_ARTS_USE）に反応する自分のシグニを収集する（Stage2 抽出）。
  * activeCondition を満たす場合のみ。playerId は視点プレイヤー（ctx.meId）。
  */
+/**
+ * §5.3 `O-113`＝**対戦相手のアーツの効果を実際に受けた「自分の場のシグニ」**を、アーツ解決の前後の
+ * 盤面差分で求める（`collectOppArtsUseTriggers` の `affectedByOppArtsFilter` 判定材料）。
+ *
+ * 🔴**なぜ差分か**＝engine には「この効果が触ったカード」の台帳が無い。`lastProcessedCards` は
+ *   **最後の1ステップ**しか持たず、`autoTargetedCards` は自動対象化だけ＝どちらも「効果を受けた」を表せない。
+ *   台帳を新設すると全 exec 関数に配線が要るので、**観測できる影響を1か所で差分する**形にした。
+ *
+ * ⚠**観測できるのは盤面に出る影響だけ**（離場／ダウン／凍結／パワー修正／付与キーワード・能力／能力消去）。
+ *   「〜できない」のような盤面に出ない影響は拾わない＝**過小side**に倒す。
+ *   旧実装は条件そのものが無く「相手がアーツを使っただけ」で発火する**過剰**だったので、方向としては安全側。
+ * ⚠`autoTargeted` は選択UIを経ない自動対象化（`ExecResult.autoTargetedCards`）。盤面が動かない付与でも
+ *   「対象に取られた」ことは確実なので合流させる。
+ */
+export function collectOppArtsAffectedOwnSigni(
+  before: PlayerState, after: PlayerState, autoTargeted: string[] = [],
+): string[] {
+  const out = new Set<string>();
+  const topsOf = (st: PlayerState) => (st.field?.signi ?? []).map(stack => stack?.at(-1) ?? null);
+  const beforeTops = topsOf(before);
+  const afterTops = topsOf(after);
+  const afterIndexOf = (num: string) => afterTops.findIndex(n => n === num);
+  const modSig = (st: PlayerState, num: string) =>
+    (st.temp_power_mods ?? []).filter(m => m.cardNum === num).reduce((sum, m) => sum + (m.delta ?? 0), 0);
+  const kwSig = (st: PlayerState, num: string) => (st.keyword_grants?.[num] ?? []).join('/');
+  const grantSig = (st: PlayerState, num: string) => (st.granted_effects?.[num] ?? []).length;
+  const removedSig = (st: PlayerState, num: string) => (st.abilities_removed ?? []).includes(num);
+  for (let z = 0; z < beforeTops.length; z++) {
+    const num = beforeTops[z];
+    if (!num) continue;
+    const zi = afterIndexOf(num);
+    if (zi < 0) { out.add(num); continue; }          // 場を離れた＝効果を受けた
+    const downB = before.field?.signi_down?.[z] ?? false;
+    const downA = after.field?.signi_down?.[zi] ?? false;
+    const frzB = before.field?.signi_frozen?.[z] ?? false;
+    const frzA = after.field?.signi_frozen?.[zi] ?? false;
+    if (downB !== downA || frzB !== frzA) { out.add(num); continue; }
+    if (modSig(before, num) !== modSig(after, num)) { out.add(num); continue; }
+    if (kwSig(before, num) !== kwSig(after, num)) { out.add(num); continue; }
+    if (grantSig(before, num) !== grantSig(after, num)) { out.add(num); continue; }
+    if (removedSig(before, num) !== removedSig(after, num)) { out.add(num); continue; }
+  }
+  // 自動対象化されたカードのうち、自分の場に在る（在った）ものだけ合流させる。
+  for (const num of autoTargeted) {
+    if (beforeTops.includes(num) || afterTops.includes(num)) out.add(num);
+  }
+  return [...out];
+}
+
 export function collectOppArtsUseTriggers(
   ctx: TrigCtx, myState: PlayerState, opState: PlayerState, isMyTurnNow: boolean,
+  /**
+   * §5.3 `O-113`＝そのアーツの効果を実際に受けた**自分の場のシグニ**（`collectOppArtsAffectedOwnSigni`）。
+   * ⚠**未提供（undefined）は「分からない」であって「受けていない」ではない**＝
+   *   `affectedByOppArtsFilter` を持つ効果は**発火させない**（fail-closed）。旧挙動の無条件発火へは戻さない。
+   */
+  affectedOwnSigni?: string[],
 ): { entries: StackEntry[]; usedIds: string[] } {
   const entries: StackEntry[] = [];
   // 🆕usageLimit（《ターン１回》《ターン２回》）＝**この collector だけ判定が無かった**
@@ -3949,6 +4004,14 @@ export function collectOppArtsUseTriggers(
     for (const eff of ctx.effectsMap.get(topNum) ?? []) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes('ON_OPP_ARTS_USE')) continue;
+      // §5.3 O-113: 「あなたの〈フィルタ〉のシグニ1体が対戦相手のアーツの**効果を受けたとき**」。
+      // ⚠**usageLimit の消化より前**に弾く（受けていない回で《ターン1回》を使い切らせない）。
+      const affFilter = eff.triggerCondition?.affectedByOppArtsFilter;
+      if (affFilter) {
+        if (!affectedOwnSigni) continue;                    // 判定材料が無い＝発火させない（fail-closed）
+        const hit = affectedOwnSigni.some(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), affFilter));
+        if (!hit) continue;
+      }
       if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
         const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
         const used = (myState.actions_done ?? []).filter(id => id === eff.effectId).length

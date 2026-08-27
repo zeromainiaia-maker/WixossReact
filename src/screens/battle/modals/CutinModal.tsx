@@ -352,7 +352,9 @@ export function CutinModal(p: CutinModalProps) {
                           const isSel = selectedCutinCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => toggleCutinCostCard(i)}
+                            // 他の支払いモーダル（`spellcost-energy-{i}` / `optcost-energy-{i}`）と綴りを揃える
+                            // ＝カットイン窓の支払いを実機ドライバから選べるようにする（§5.3 `O-117` の `b21*`）。
+                            <div key={i} data-testid={`cutincost-energy-${i}`} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => toggleCutinCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                               onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                               onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}

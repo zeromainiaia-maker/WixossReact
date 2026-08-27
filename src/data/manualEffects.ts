@@ -2195,19 +2195,23 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX05-020 幻水　シャチ（AUTO E2）
+  // WX05-020 羅輝石　ダイヤブライド（AUTO E2）
   // 【自】《ターン１回》：あなたの＜鉱石＞か＜宝石＞のシグニ１体が対戦相手のアーツの効果を受けたとき、
-  //   対戦相手にダメージを与える。（近似: 相手がアーツを使用したとき、フィールドに該当シグニがいれば発動）
+  //   対戦相手にダメージを与える。
+  // 🆕**2026-08-28 §5.3 `O-113` で近似を外した。**
+  //   旧: `activeCondition: HAS_CARD_IN_FIELD{鉱石,宝石}`＝「相手がアーツを使った」だけで発火し、
+  //       **そのアーツが自分のシグニに当たったかを見ていなかった**（＝ほぼ毎回ダメージが入る過剰実行）。
+  //   新: `triggerCondition.affectedByOppArtsFilter`＝アーツ解決の前後で自分の場を差分し、
+  //       **実際に影響を受けた**シグニがフィルタに合うときだけ発火する（`collectOppArtsAffectedOwnSigni`）。
+  //   ⚠`activeCondition` は**外す**（残すと「場に居ればよい」の近似が併存して意味が二重になる）。
   'WX05-020': [
     {
       effectId: 'WX05-020-E2',
       effectType: 'AUTO',
       timing: ['ON_OPP_ARTS_USE'],
       triggerScope: 'self',
-      activeCondition: {
-        type: 'HAS_CARD_IN_FIELD',
-        owner: 'self',
-        filter: { cardType: 'シグニ', story: ['鉱石', '宝石'] },
+      triggerCondition: {
+        affectedByOppArtsFilter: { cardType: 'シグニ', story: ['鉱石', '宝石'] },
       },
       action: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
       duration: 'INSTANT',
@@ -2301,29 +2305,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         trigger: { timing: 'ON_REFRESH', refreshedOwner: 'opponent' },
         effect: { type: 'FORCE_END_TURN' },
       },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
-
-  // WX05-016 ジャッジメント・クロス（アーツ）
-  // 全5色コストで使用 → このターンを強制終了する
-  'WX05-016': [
-    {
-      effectId: 'WX05-016-E1',
-      effectType: 'ACTIVATED',
-      timing: ['SPELL_CUTIN'],
-      cost: {
-        energy: [
-          { color: '白', count: 1 },
-          { color: '赤', count: 1 },
-          { color: '青', count: 1 },
-          { color: '緑', count: 1 },
-          { color: '黒', count: 1 },
-        ],
-      },
-      action: { type: 'FORCE_END_TURN' },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',
