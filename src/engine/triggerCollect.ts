@@ -3758,6 +3758,8 @@ export function collectBeatBecameTriggers(
 /** ON_OPP_LIFE_CRASHED をクラッシュ側の場から収集する。source 省略時は既存効果と同じく無条件。 */
 export function collectOppLifeCrashedTriggers(
   ctx: TrigCtx, crasherState: PlayerState, crasherId: string, crashSourceCardNum?: string,
+  /** §5.3 `O-120`：クラッシュの原因キーワード（`'ランサー'` / `'Ｓランサー'`）。未指定＝原因不明。 */
+  crashCause?: string,
 ): { entries: StackEntry[]; usedLimitIds: string[] } {
   const entries: StackEntry[] = [];
   const usedLimitIds: string[] = [];
