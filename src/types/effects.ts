@@ -3859,6 +3859,19 @@ export type TriggerScope = 'self' | 'any_ally' | 'any_opp' | 'any';
 
 // ===== カード効果（最終形） =====
 
+/** AUTO トリガーが観測する移動元領域。解決できない由来は undefined とし、限定能力を fail-closed にする。 */
+export type TriggerOriginZone =
+  | 'hand'
+  | 'deck'
+  | 'energy'
+  | 'field'
+  | 'under_signi'
+  | 'trash'
+  | 'lrig_deck'
+  | 'lrig_trash'
+  | 'life_cloth'
+  | 'excluded';
+
 export interface CardEffect {
   effectId: string;
   effectType: EffectType;
@@ -3902,14 +3915,14 @@ export interface CardEffect {
     turnOwner?: 'self' | 'opponent'; // 《自分ターン》/《相手ターン》: そのターン中のみ AUTO 発火（self=効果オーナーのターン / opponent=相手のターン）。effectStack の initStack/pushToStack で現ターンと照合しゲート（WXDi-P06-033 等）
     byOpponentEffect?: boolean; // 対戦相手の効果が原因の場合のみ発火（バトル・自分の効果・ルール処理では発火しない）
     fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）
-    fromZones?: Array<'hand' | 'deck' | 'energy' | 'field' | 'under_signi'>; // ON_TRASH の発生源を限定（「手札かデッキから」=['hand','deck']／「シグニの下から」=['under_signi']。指定領域からのみ発火。WX04-102/WX18-062）
+    fromZones?: TriggerOriginZone[]; // 移動元を限定。ON_TRASH（「手札かデッキから」等）と ON_PLAY（「エナゾーンから場に出たとき」等）で共用し、指定領域からのみ発火する。
     forResonaCondition?: boolean; // レゾナの出現条件のためにトラッシュに置かれた場合のみ発火（WX10-055等）。通常のトラッシュ（バトル・効果・ルール処理）では発火しない
     resonaClass?: string;         // 出現条件で場に出たレゾナの＜クラス＞限定（CardClass で判定。WXEX1-58/72）
     byEffect?: boolean; // 効果によるイベントのみ発火。ON_PLAY＝通常召喚を除外、ON_SIGNI_DOWN＝アタック/コストを除外、ON_TRASH＝コスト/バトル/ルール処理を除外（任意の効果起因＝自他問わず。WX18-086等）
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     byLrigOrSigniEffect?: boolean; // ルリグかシグニの効果が原因の場合のみ発火（WX14-066-E1）。CardData.Type の 'ルリグ'/'アシストルリグ'/'シグニ'/'レゾナ' を受理＝アシストルリグはルリグ・レゾナはシグニ。原因カード不明・スペル・アーツ・ルール処理では発火しない
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）
-    placedFromTrash?: boolean; // トラッシュから場に出た場合のみ発火（「シグニがトラッシュから場に出たとき」。ON_PLAY と併用。配置元がトラッシュかを場出し前後の set-diff で判定）
+    placedFromTrash?: boolean; // 後方互換: ON_PLAY の fromZones:['trash'] と同義。既存 live 7効果を無変更で保つ。
     placedPuppet?: boolean; // 傀儡状態で場に出た場合のみ発火（WDK17-001「あなたの傀儡状態のシグニ１体が場に出たとき」。ON_PLAY any_ally と併用。トリガー元が field.puppet_signi に在中するかで判定）
     materialUsedByPlayer?: boolean; // 「あなたが《改造素材》を使用したとき」（プレイヤー起点）＝「このシグニに使用されたとき」と区別（ON_MATERIAL_USED と併用。WXK09-047-E2/WXK09-049-E1）
     frontLowerLevelThanSource?: boolean; // このシグニ（効果元）の正面に、効果元よりレベルの低いシグニが出た場合のみ発火（WX17-075 タルタル付与。ON_PLAY any_opp と併用）

@@ -3936,11 +3936,22 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedPuppet) {
       s = s.replace('シグニが場に出たとき', '傀儡状態のシグニが場に出たとき');
     }
-    // ON_PLAY の「トラッシュから」限定（「シグニがトラッシュから場に出たとき」）
-    if (t === 'ON_PLAY' && e.triggerCondition?.placedFromTrash) {
+    // ON_PLAY の配置元限定（placedFromTrash は fromZones:['trash'] の後方互換）。
+    if (t === 'ON_PLAY' && (e.triggerCondition?.placedFromTrash || e.triggerCondition?.fromZones?.length)) {
       const subj = (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
         ? `あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体` : 'このシグニ';
-      s = `${subj}がトラッシュから場に出たとき`;
+      const zones = e.triggerCondition?.fromZones as string[] | undefined;
+      const nonHand = ['deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded'];
+      const origin = e.triggerCondition?.placedFromTrash || (zones?.length === 1 && zones[0] === 'trash')
+        ? 'トラッシュから'
+        : zones?.length === 1 && zones[0] === 'energy'
+          ? 'エナゾーンから'
+          : zones?.length === nonHand.length && nonHand.every(z => zones.includes(z)) && !zones.includes('hand')
+            ? '手札以外の領域から'
+            : `指定領域（${zones?.join('・') ?? '不明'}）から`;
+      const byEffect = e.triggerCondition?.bySigniEffect ? 'シグニの効果によって'
+        : e.triggerCondition?.byEffect ? '効果によって' : '';
+      s = `${subj}が${byEffect}${origin}場に出たとき`;
     }
     // ON_DRAW の「あなたの場の＜story＞シグニの効果で」限定（WX20-026-E3）。ドローフェイズの通常ドローでは発火しない。
     if (t === 'ON_DRAW' && e.triggerCondition?.drawBySourceStory) {

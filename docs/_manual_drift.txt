@@ -1,16 +1,16 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-26T20:28:43.597Z
-manualEffects エントリ 410 カード / 乖離 43 カード・47 効果
+生成: 2026-08-27T05:45:03.066Z
+manualEffects エントリ 392 カード / 乖離 24 カード・28 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。
 
 ## 区分ごとの件数
   CHANGED        20 効果  （manual定義 8 / parser由来 12）
-  FRESH_ONLY     20 効果  （manual定義 0 / parser由来 20）
   FRESH_GAIN      3 効果  （manual定義 1 / parser由来 2）
   LIVE_ONLY       3 効果  （manual定義 0 / parser由来 3）
+  FRESH_ONLY      1 効果  （manual定義 0 / parser由来 1）
   LIVE_RICHER     1 効果  （manual定義 0 / parser由来 1）
 
 ## 強シグナル別（原文照合の着手順）
@@ -41,7 +41,7 @@ manualEffects エントリ 410 カード / 乖離 43 カード・47 効果
   fresh: {"effectId":"WXDi-CP02-TK02A-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
 --- WX04-029-BURST (parser由来)
   live : {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"hand","label":"手札に加える","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId"
-  fresh: {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"},"handOrField":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+  fresh: {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"revealPicked":true,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"},"handOrField":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
 --- WD07-012-E2 (parser由来) ⚠STUB増
   live : {"effectId":"WD07-012-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"upToCount":false,"filter":{"cardType":"シグニ","story":"古代兵器"},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"POWER_MODIFY","target":{"type":"SIGNI",
   fresh: {"effectId":"WD07-012-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRADE_BANISH_SELF_SIGNI"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"selectionConstraint":{"distinct":"level"}},"delta":-1000
@@ -79,68 +79,6 @@ manualEffects エントリ 410 カード / 乖離 43 カード・47 効果
   live : {"effectId":"WXEX1-66-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"REVEAL_DECK_TOP","owner":"self","count":4},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"car
   fresh: {"effectId":"WXEX1-66-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":4,"private":false,"reorder":false,"canTrash":false,"sh
 
-## FRESH_ONLY（20 効果）
---- WD01-016-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WD01-016-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WD01-017-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WD01-017-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WD04-016-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WD04-016-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WD04-017-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WD04-017-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX01-051-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX01-051-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX01-100-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX01-100-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX02-077-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX02-077-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX02-078-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX02-078-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX10-097-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX10-097-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX10-098-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX10-098-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX10-099-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX10-099-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WX10-100-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WX10-100-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXDi-D01-020-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXDi-D01-020-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXDi-D03-020-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXDi-D03-020-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXK01-119-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXK01-119-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXK01-120-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXK01-120-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXK01-121-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXK01-121-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXK01-122-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXK01-122-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
---- WXDi-CP02-TK02A-E3 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXDi-CP02-TK02A-E3","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_opp"}
---- WXDi-P04-040-E2 (parser由来)
-  live : （無し）
-  fresh: {"effectId":"WXDi-P04-040-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無","無"],"unlessPay":true},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[]},"else":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly
-
 ## FRESH_GAIN（3 効果）
 --- WXEX1-37-E2 (parser由来)
   live : {"effectId":"WXEX1-37-E2","effectType":"AUTO","timing":["ON_SIGNI_BECOMES_DRIVE"],"triggerScope":"any_ally","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"乗機"}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
@@ -163,11 +101,15 @@ manualEffects エントリ 410 カード / 乖離 43 カード・47 効果
   live : {"effectId":"WXDi-P07-060-E3","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_AWAKENED"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   fresh: （無し）
 
+## FRESH_ONLY（1 効果）
+--- WXDi-CP02-TK02A-E3 (parser由来)
+  live : （無し）
+  fresh: {"effectId":"WXDi-CP02-TK02A-E3","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_opp"}
+
 ## LIVE_RICHER（1 効果）
 --- WX12-023-E2 (parser由来)
   live : {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true}}
   fresh: {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
 
-## 🆕削除候補：parser 出力と実体同一になった manual エントリ（1）（§6.4 O-40）
+## 🆕削除候補：parser 出力と実体同一になった manual エントリ（0）（§6.4 O-40）
   ＝parser が追いついたので manualEffects.ts から消してよい。放置すると **その効果だけ以後の parser 改善が届かない**。
-  WX04-054 / WX04-054-E2

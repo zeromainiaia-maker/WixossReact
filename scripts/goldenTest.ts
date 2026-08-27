@@ -37,10 +37,10 @@ import {
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded } from '../src/engine/boardDiff';
+import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { battleOppLifeCrashSourceMatches } from '../src/screens/battle/lifeCrashTriggers';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, findAcceZone, hasAcceAt } from '../src/utils/acce';
@@ -4833,7 +4833,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
   // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_used_card_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
   // 35 → 36（段2 第35バッチで cards_drawn_this_attack_phase を追加）
-  eq(convention.length, 39, 'PlayerState の命名規約由来フィールド数');  // 39＝§5.3 O-66 で life_crash_preventions_this_turn を追加（アーツ由来のクラッシュ防止宣言）
+  // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
+  //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
+  //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
+  eq(convention.length, 40, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4848,7 +4851,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 62, '型由来37件＋命名規約外23件の母集団');  // +1＝§5.3 O-66 の life_crash_preventions_this_turn
+  eq(registered.length, 63, '型由来38件＋命名規約外23件の母集団');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -29697,17 +29700,17 @@ test('task12(xxix) BET choices: 対象フィルタと移動種別を盤面固定
   } finally { cursor = savedCursor; }
 });
 
-test('ON_PLAY watcher 34効果: [A]30件は本来契機だけで収集し、自身の通常召喚スタックは0件 / [B]4件は停止', () => {
+test('ON_PLAY watcher 34効果: [A]33件は本来契機だけで収集し、自身の通常召喚スタックは0件 / [B]1件は停止', () => {
   const savedCursor = cursor;
   const syntheticCards: string[] = [];
   try {
     const aIds = `WX05-026-E1 WX07-001-E1 WX07-003-E1 WX08-002-E1 WX08-003-E1
-      WX10-003-E1 WX14-025-E1 WX16-002-E3 WX17-030-E2 WX18-071-E1 WX18-072-E1
+      WX08-042-E2 WX10-003-E1 WX14-024-E2 WX14-025-E1 WX16-002-E3 WX17-030-E2 WX18-071-E1 WX18-072-E1
       WX20-027-E1 WX22-Re08-E1 WX22-Re17-E1 WXEX1-08-E2 WXEX1-25-E1 WXEX2-25-E1
       WXEX2-58-E2 WXK10-021-E1 WXDi-P07-008-E1 WXDi-P09-078-E1 WXDi-P11-005-E1
       WXDi-CP01-050-E1 WX24-P2-092-E1 WX25-P2-026-E1 WX25-P2-077-E1
-      WDK15-001-E1 WDK17-015-E1 PR-195-E1 PR-466-E2`.split(/\s+/);
-    const bIds = ['WX08-042-E2', 'WX14-024-E2', 'WXEX1-15-E1', 'WXDi-P07-058-E1'];
+      WDK15-001-E1 WDK17-015-E1 PR-195-E1 PR-466-E2 WXEX1-15-E1`.split(/\s+/);
+    const bIds = ['WXDi-P07-058-E1'];
     const localEffects = new Map(effectsMap);
     for (const id of [...aIds, ...bIds]) {
       const cardNum = id.replace(/-E\d+$/, '');
@@ -29745,6 +29748,9 @@ test('ON_PLAY watcher 34効果: [A]30件は本来契機だけで収集し、自�
         placedByEffect: !!(eff.triggerCondition?.byEffect || eff.triggerCondition?.bySigniEffect),
         placeSourceIsSigni: !!eff.triggerCondition?.bySigniEffect,
         placedFromTrash: !!eff.triggerCondition?.placedFromTrash,
+        placedFromZone: eff.triggerCondition?.placedFromTrash
+          ? 'trash' as const
+          : eff.triggerCondition?.fromZones?.includes('energy') ? 'energy' as const : undefined,
       };
       const active = ownerIsHost ? HOST : GUEST;
       const ctx = { ...trigCtx(active, active), effectsMap: localEffects };
@@ -29773,6 +29779,117 @@ test('ON_PLAY watcher 34効果: [A]30件は本来契機だけで収集し、自�
     for (const id of syntheticCards) cardMap.delete(id);
     cursor = savedCursor;
   }
+});
+
+// ── 2026-08-27: 「〈ゾーン〉から場に出たとき」の配置元ゲート ─────────────────────
+test('配置元限定 live構造: 対象5効果だけが ON_PLAY＋fromZones を持つ', () => {
+  const nonHand = ['deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded'];
+  const expected: Record<string, string[]> = {
+    'WX08-042-E2': ['energy'],
+    'WX14-024-E2': nonHand,
+    'WXEX1-15-E1': nonHand,
+    'WX05-028-E2': nonHand,
+    'WXDi-P07-044-E2': nonHand,
+  };
+  for (const [id, zones] of Object.entries(expected)) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === id);
+    ok(!!eff, `${id}: live effect`);
+    eq(JSON.stringify(eff!.timing), '["ON_PLAY"]', `${id}: timing`);
+    eq(JSON.stringify(eff!.triggerCondition?.fromZones), JSON.stringify(zones), `${id}: 配置元`);
+  }
+  eq(effectsMap.get('WXDi-P07-044')!.find(e => e.effectId === 'WXDi-P07-044-E2')!.parseStatus, 'MANUAL',
+    'WXDi-P07-044-E2 は MANUAL のまま同期される');
+});
+
+test('配置元限定 群A E2E: field collector は正しい由来だけ積み、同じ盤面の手札由来では積まない', () => withSavedCursor(() => {
+  const fixtures = [
+    ['WX08-042-E2', 'energy'],
+    ['WX14-024-E2', 'trash'],
+    ['WXEX1-15-E1', 'deck'],
+  ] as const;
+  const beauty = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('美巧'));
+  for (const [id, positiveOrigin] of fixtures) {
+    const cardNum = id.replace(/-E\d+$/, '');
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === id)!;
+    const triggering = eff.triggerFilter?.story ? beauty : fresh();
+    const watcher = mkState({ signi: [cardNum, triggering, null] });
+    const local = new Map<string, CardEffect[]>([[cardNum, [eff]]]);
+    const runOrigin = (placedFromZone: import('../src/types/effects').TriggerOriginZone | undefined) =>
+      collectFieldTriggers(
+        { ...trigCtx(HOST, HOST), effectsMap: local }, 'ON_PLAY', triggering, watcher, mkState({}), HOST,
+        { placedFromZone },
+      ).entries.filter(e => e.effectId === id).length;
+    eq(runOrigin(positiveOrigin), 1, `${id}: 正方向 ${positiveOrigin} 由来で StackEntry 1`);
+    eq(runOrigin('hand'), 0, `${id}: 負方向 同盤面の hand 由来で StackEntry 0`);
+    eq(runOrigin(undefined), 0, `${id}: 由来不明は fail-closed`);
+  }
+}));
+
+test('配置元限定 群B E2E: self/any_ally の両collectorが非手札だけ積み、手札召喚は積まない', () => withSavedCursor(() => {
+  const selfEff = effectsMap.get('WX05-028')!.find(e => e.effectId === 'WX05-028-E2')!;
+  const selfState = mkState({ signi: ['WX05-028', null, null] });
+  const selfCtx = { ...trigCtx(HOST, HOST), effectsMap: new Map([['WX05-028', [selfEff]]]) };
+  const collectSelf = (placedFromZone: import('../src/types/effects').TriggerOriginZone | undefined) =>
+    collectPlacedSelfOnPlayTriggers(selfCtx, 'WX05-028', selfState, mkState({}), HOST, {
+      placedByEffect: true, sourceIsSigni: false, placedFromZone,
+    }).entries.filter(e => e.effectId === selfEff.effectId).length;
+  eq(collectSelf('energy'), 1, 'WX05-028-E2: 正方向 energy 由来で self StackEntry 1');
+  eq(collectSelf('hand'), 0, 'WX05-028-E2: 負方向 同盤面の hand 由来で self StackEntry 0');
+  eq(collectSelf(undefined), 0, 'WX05-028-E2: self collector も由来不明は fail-closed');
+  eq(isMandatoryOwnOnPlayForNormalSummon(selfEff, 'hand'), false, 'WX05-028-E2: 通常召喚 helper も hand を拒否');
+  eq(isMandatoryOwnOnPlayForNormalSummon(selfEff, 'energy'), true, 'WX05-028-E2: 対照として非手札は受理');
+
+  const allyEff = effectsMap.get('WXDi-P07-044')!.find(e => e.effectId === 'WXDi-P07-044-E2')!;
+  const triggering = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WXDi-P07-044');
+  const watcher = mkState({ signi: ['WXDi-P07-044', triggering, null] });
+  const allyCtx = { ...trigCtx(HOST, HOST), effectsMap: new Map([['WXDi-P07-044', [allyEff]]]) };
+  const collectAlly = (placedFromZone: import('../src/types/effects').TriggerOriginZone | undefined) =>
+    collectFieldTriggers(allyCtx, 'ON_PLAY', triggering, watcher, mkState({}), HOST, { placedFromZone })
+      .entries.filter(e => e.effectId === allyEff.effectId).length;
+  eq(collectAlly('trash'), 1, 'WXDi-P07-044-E2: 正方向 trash 由来で any_ally StackEntry 1');
+  eq(collectAlly('hand'), 0, 'WXDi-P07-044-E2: 負方向 同盤面の hand 由来で any_ally StackEntry 0');
+}));
+
+test('配置元解決: before state の実領域を返し、不明値は捏造しない', () => withSavedCursor(() => {
+  const x = fresh();
+  const base = mkState({ hand: 0, energy: 0, trash: 0, deckTop: [] });
+  eq(detectPlacedFromZone({ ...base, hand: [x] }, x), 'hand', '手札');
+  eq(detectPlacedFromZone({ ...base, energy: [x] }, x), 'energy', 'エナ');
+  eq(detectPlacedFromZone({ ...base, trash: [x] }, x), 'trash', 'トラッシュ');
+  eq(detectPlacedFromZone(base, x), undefined, '見つからない由来は undefined');
+  const gated = effectsMap.get('WX05-028')!.find(e => e.effectId === 'WX05-028-E2')!;
+  eq(onPlayOriginMatches(gated, undefined), false, '限定能力は不明由来を fail-closed');
+}));
+
+// 🔴**「AUTO なのに timing が空／未定義」＝その【自】は一度も発火しない（恒久 no-op）**。
+// この形は census:timing（ON_PLAY へ**フォールバックした**効果しか数えない）にも census にも
+// smoke/fuzz にも映らず、**逆翻訳も「発火しない」ことは書けない**＝計器がゼロだったので
+// トリップワイヤを置く（§5-27＝許容リストではなく**毎回ゼロから再導出して集合一致**を assert する）。
+// ⚠**許容リストは「まだ受け皿が無い在庫」だけ**。増えたら FAIL・**直して減っても FAIL**（＝リストを縮める）。
+const EMPTY_TIMING_ALLOWED = [
+  // 「**【出】能力を持つ**あなたのシグニ１体が場に出たとき」＝トリガー元の**能力の有無**で絞る形。
+  // `TargetFilter` にカードの能力を見る語彙が無く（matchesFilter は CardData しか見ない）、
+  // 受け皿の新設が要るため本バッチのスコープ外。§5.3 `O-106` に登録済み。
+  'WXDi-P07-058-E1',
+];
+test('配置元限定トリップワイヤ: live の AUTO timing 空/未定義は毎回ゼロから再走査して許容リストと一致', () => {
+  const dead: string[] = [];
+  const seen = new Set<object>();
+  const walk = (value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    if (seen.has(value as object)) return;
+    seen.add(value as object);
+    if (Array.isArray(value)) { for (const v of value) walk(v); return; }
+    const obj = value as Record<string, unknown>;
+    if (obj.effectType === 'AUTO' && (!Array.isArray(obj.timing) || obj.timing.length === 0)) {
+      dead.push(String(obj.effectId ?? '(effectIdなし)'));
+    }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  for (const effs of effectsMap.values()) walk(effs);
+  eq(dead.sort().join(','), [...EMPTY_TIMING_ALLOWED].sort().join(','),
+    `AUTO timing 空/未定義=${dead.sort().join(',')}（許容=${[...EMPTY_TIMING_ALLOWED].sort().join(',')}）`
+    + '＝増えたら新しい恒久 no-op・減ったら許容リストを縮めること');
 });
 
 test('mandatory【出】先頭ゲート25効果: 通常召喚・効果配置の成立/不成立を両方向固定', () => {

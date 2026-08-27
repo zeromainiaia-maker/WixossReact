@@ -55,6 +55,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
   opp_guard_extra_colorless_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'extra guard cost granted for the current turn' },
   // 手札以外から場に出た出自は、次の自ターン開始時に新しいターンの母集団へ切り替える。
   signi_played_from_non_hand_this_turn: { boundaries: ['turn-start'], reset: undefined, reason: 'non-hand play provenance starts fresh at the owner turn start' },
+  // 場に出した瞬間の移動元（`"<instanceId>:<zone>"`）＝ON_PLAY の由来ゾーン限定の解決に使う（2026-08-27 B8）。
+  // 上と同じ寿命でよい＝同一インスタンスを出し直したときは配置時に同じキーを上書きする。
+  signi_placed_origin_this_turn: { boundaries: ['turn-start'], reset: undefined, reason: 'placement origin zone for ON_PLAY fromZones, refreshed per placement' },
   // スペル打ち消し予約は次の対象スペルで消費し、未消費でも付与ターン終了で失効する。
   spell_negated_this_turn: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'next eligible spell negation, expiring at turn end' },
   // 自シグニの【出】抑止は、付与されたターンだけ有効。

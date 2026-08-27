@@ -17602,6 +17602,138 @@ scenarios.b7KawariBindsOpponentTarget = {
   drive: b7KawariDrive,
 };
 order.push('b7KawariBindsOpponentTarget');
+// ── B8（2026-08-27）＝「〈ゾーン〉から場に出たとき」の由来限定 ──────────────────────────
+// `WX05-028-E2`「【自】：**このシグニが手札以外から場に出たとき**、対戦相手のシグニ１体を対象とし、
+//   《白》《白》を支払ってもよい。そうした場合、それをトラッシュに置く。」
+// 🔴旧 live は `timing:['ON_PLAY']` だけで**由来の限定が無く**、`collectPlacedSelfOnPlayTriggers` にも
+//   由来のゲートが1つも無かった＝**手札から普通に召喚しても発火する過剰効果**だった。
+// ⚠**この層は golden では守れない**＝「どの領域から場に出たか」は `detectPlacedFromZone`（boardDiff）で
+//   **配置前 state から解決して collector へ渡す**経路であり、通常召喚経路（`BattleScreen` の召喚ハンドラ）と
+//   効果配置経路（スペル解決後の差分収集）が**別の呼び出し口**なので、実機でしか両方は通らない。
+// 🔑**対照の作り方**＝盤面もカードも能力も同じにして、**「どこから場に出たか」だけ**を変える（§4.4 罠3）。
+const B8_SIGNI = 'WX05-028';                  // 遅起の花咲 アフロディテ（白・Lv4・限定なし）
+const B8_LRIG  = 'WD01-001#8800';             // 満月の巫女 タマヨリヒメ（Lv4・リミット11＝Lv4 を召喚できる）
+const B8_SPELL = 'WXDi-P06-085#8812';         // ワンス・サルベージ《黒》×1＝トラッシュからシグニ1枚を場に出す
+const B8_ENE_B = 'WX05-081#8820';             // 黒（スペルの使用コスト）
+const B8_ENE_W1 = 'WD01-012#8821';            // 白（任意コスト《白》《白》）
+const B8_ENE_W2 = 'WD01-013#8822';            // 白
+const B8_OPP1  = 'WD01-010#8830';
+const B8_OPP2  = 'WX01-094#8831';
+const b8Spec = (mode) => ({
+  hostSet: {
+    'field.lrig': [B8_LRIG],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [B8_ENE_B, B8_ENE_W1, B8_ENE_W2],
+    'trash': mode === 'trash' ? [B8_SIGNI + '#8811'] : [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  handPrepend: mode === 'trash' ? [B8_SPELL] : [B8_SIGNI + '#8801'],
+  guestSet: {
+    'field.lrig': ['WD03-002#8802'],
+    'field.signi': [[B8_OPP1], null, [B8_OPP2]],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b8Drive = (mode) => async (page, H) => {
+  const label = `b8${mode}`;
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && (before?.guest?.fieldSigni?.[0] ?? []).includes?.(B8_OPP1) !== true; r++) {
+    H.log(`再注入(${r})… guest zone0=${JSON.stringify(before?.guest?.fieldSigni?.[0])}`);
+    await injectScenario(page, b8Spec(mode));
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  const gSigni0 = (before?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+  H.log(`  開始 host hand=${JSON.stringify(before?.host?.handCards)} trash=${before?.host?.trash} guest signi=${gSigni0}`);
+  await H.ensureMain();
+  await H.clickTestId('my-hand-card-0');
+  let acted = false, placed = false, costPicked = 0, optPicked = 0, fired = false, prompted = false, last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${label}-${s}.png`, fullPage: true });
+    let did = null;
+    const clickExact = async (name) => {
+      const b = page.getByRole('button', { name, exact: true }).first();
+      if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+        await b.click({ timeout: 1200 }).catch(() => {}); return 'btn:' + name;
+      }
+      return null;
+    };
+    if (!did) did = await clickExact(mode === 'trash' ? '発動' : '召喚');
+    if (did) acted = true;
+    if (!did && acted && mode !== 'trash') did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+    // スペルの使用コスト《黒》×1＝エナ枠は1度だけ押す（罠8p＝毎ティック押すとトグルで外れる）
+    if (!did && mode === 'trash' && costPicked < 1) {
+      const e = page.getByTestId('spellcost-energy-0').first();
+      if (await e.count() && await e.isVisible().catch(() => false)) {
+        await e.click({ timeout: 1200 }).catch(() => {}); costPicked++; did = 'spellcost-energy-0';
+      }
+    }
+    if (!did) did = await clickExact('発動する');
+    // 任意コスト《白》《白》＝白エナ2枚（index 1,2）を1度ずつ押してから「対象選択して発動」
+    if (!did && optPicked < 2) {
+      // ⚠スペルのコストで1枚使ったあとのエナ枠は index 0 から詰め直される（実測＝`optcost-energy-2` は無い）
+      const e = page.getByTestId(`optcost-energy-${optPicked}`).first();
+      if (await e.count() && await e.isVisible().catch(() => false)) {
+        await e.click({ timeout: 1200 }).catch(() => {}); optPicked++; did = `optcost-energy-${optPicked}`;
+      }
+    }
+    if (!did) did = await H.clickBtn('対象選択して発動', { exact: false });
+    // 効果による場出しのゾーン選択は SELECT_SIGNI_ZONE＝`EffectInteractionModal` の「ゾーンN」ボタン（§4.4 罠23）
+    if (!did) did = await H.clickZone();
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click({ timeout: 1200 }).catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない']);
+    last = await H.queryState();
+    const onField = (last?.host?.fieldSigni ?? []).flat().filter(Boolean).some(n => String(n).startsWith(B8_SIGNI));
+    if (onField) placed = true;                                   // sticky（罠8d）
+    const gNow = (last?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+    if (placed && gNow < gSigni0) fired = true;                    // sticky
+    // 🔑**負方向の witness は「盤面が動いていない」では足りない**（§4.4 罠3/罠4・2026-08-27 実測）＝
+    //   由来ゲートを外した反転確認で **CHOOSE（任意コストの問い）は出ているのに盤面は不変**のまま緑になった。
+    //   ⇒ **配置後に問いが1度でも立ったか**を発火の証拠にする（支払いを完了しなくても発火は観測できる）。
+    if (placed && last?.pendingEffect) prompted = true;             // sticky
+    H.log(`  ${label}[${s}] -> ${did ?? 'なし'} | placed=${placed} fired=${fired} prompted=${prompted} gSigni=${gNow}`
+      + ` pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'} hEnergy=${last?.host?.energy ?? '-'}`);
+    if (fired) break;
+    if (placed && mode !== 'trash' && s >= 12 && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${label}-final.png`, fullPage: true });
+  const gEnd = (last?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+  const detail = `placed=${placed} fired=${fired} prompted=${prompted} guestSigni ${gSigni0}→${gEnd} `
+    + `hSigni=${JSON.stringify(last?.host?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`;
+  if (!placed) return { pass: false, detail: `前提崩れ＝${B8_SIGNI} が場に出ていない。${detail}` };
+  if (mode === 'trash') {
+    if (!fired) return { pass: false, detail: `🔴トラッシュ（＝手札以外）から場に出したのに【自】が発火していない＝由来ゲートが厳しすぎる。${detail}` };
+    return { pass: true, detail: `トラッシュから場に出た＝【自】が発火し、相手シグニ1体がトラッシュへ。${detail}` };
+  }
+  if (fired || prompted) {
+    return { pass: false, detail: `🔴**手札から召喚したのに【自】が発火した**＝由来限定が効いていない（旧挙動）。${detail}` };
+  }
+  return { pass: true, detail: `手札から召喚＝【自】は発火しない（問いも盤面変化も無い）。${detail}` };
+};
+scenarios.b8OnPlayOriginTrashFires = {
+  title: 'WX05-028-E2（B8＝由来限定）対照＝トラッシュから場に出たときは発火する',
+  spec: b8Spec('trash'),
+  drive: b8Drive('trash'),
+};
+scenarios.b8OnPlayOriginHandBlocked = {
+  title: 'WX05-028-E2（B8＝由来限定）本題＝手札から召喚したときは発火しない（旧実装は発火した）',
+  spec: b8Spec('hand'),
+  drive: b8Drive('hand'),
+};
+order.push('b8OnPlayOriginTrashFires', 'b8OnPlayOriginHandBlocked');
 // Sheet1 B4（2026-08-27）＝census 較正の前提（1回で消費）を実機で見張る。
 order.push('b4NextSpellReductionConsumed');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は

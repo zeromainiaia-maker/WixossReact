@@ -10362,6 +10362,25 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       if (placedFromHand) newS = clearNonHandPlacement(newS, cardNum);
       else if (placedFromNonHand) newS = recordNonHandPlacement(newS, cardNum);
+      // 🆕B8: 由来ゾーンをここで確定して記録する（`triggerCondition.fromZones` の解決に使う）。
+      // ⚠**取り除いた後の盤面差分からは復元できない**＝下の SELECT_SIGNI_ZONE でインタラクションを挟むと、
+      //   resume 後の before スナップショットにはもう元の領域に居ない。記録が唯一の手掛かりになる。
+      {
+        const originZone = placedFromHand ? 'hand'
+          : state.deck.includes(cardNum) ? 'deck'
+          : state.trash.includes(cardNum) ? 'trash'
+          : state.energy.includes(cardNum) ? 'energy'
+          : null;
+        if (originZone) {
+          newS = {
+            ...newS,
+            signi_placed_origin_this_turn: [
+              ...(newS.signi_placed_origin_this_turn ?? []).filter(e => !e.startsWith(`${cardNum}:`)),
+              `${cardNum}:${originZone}`,
+            ],
+          };
+        }
+      }
       const signi = [...newS.field.signi] as (string[] | null)[];
       const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
       if (emptyZones.length === 0) {

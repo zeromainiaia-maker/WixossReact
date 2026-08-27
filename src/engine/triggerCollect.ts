@@ -9,7 +9,7 @@
  *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
 import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
-import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner } from '../types/effects';
+import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner, TriggerOriginZone } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
@@ -213,14 +213,26 @@ function attackPhaseGateOk(eff: CardEffect, ctx: TrigCtx): boolean {
   return (ctx.turnPhase ?? '').startsWith('ATTACK');
 }
 
-/** 手札からの通常召喚で自身の mandatory【出】として積める構造か。 */
-export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
+/** ON_PLAY の由来限定を評価する。由来不明は限定能力だけ不成立（fail-closed）。 */
+export function onPlayOriginMatches(eff: CardEffect, placedFromZone?: TriggerOriginZone): boolean {
+  const required = eff.triggerCondition?.fromZones;
+  if (required?.length) return !!placedFromZone && required.includes(placedFromZone);
+  if (eff.triggerCondition?.placedFromTrash) return placedFromZone === 'trash';
+  return true;
+}
+
+/** 通常召喚で自身の mandatory【出】として積める構造か。 */
+export function isMandatoryOwnOnPlayForNormalSummon(
+  eff: CardEffect,
+  placedFromZone: TriggerOriginZone = 'hand',
+): boolean {
   return eff.effectType === 'AUTO'
     && !!eff.timing?.includes('ON_PLAY')
     && (eff.triggerScope === undefined || eff.triggerScope === 'self' || eff.triggerScope === 'any')
     && eff.mandatory !== false
     && !eff.triggerCondition?.byEffect
-    && !eff.triggerCondition?.bySigniEffect;
+    && !eff.triggerCondition?.bySigniEffect
+    && onPlayOriginMatches(eff, placedFromZone);
 }
 
 /**
@@ -371,13 +383,17 @@ export function wrapOptionalOnPlay(
 }
 
 /** 通常召喚で「自身の任意【出】」として支払い/発動可否を問う対象か（mandatory は別関数）。 */
-export function isOptionalOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
+export function isOptionalOwnOnPlayForNormalSummon(
+  eff: CardEffect,
+  placedFromZone: TriggerOriginZone = 'hand',
+): boolean {
   return eff.effectType === 'AUTO'
     && !!eff.timing?.includes('ON_PLAY')
     && (eff.triggerScope === undefined || eff.triggerScope === 'self' || eff.triggerScope === 'any')
     && eff.mandatory === false
     && !eff.triggerCondition?.byEffect
-    && !eff.triggerCondition?.bySigniEffect;
+    && !eff.triggerCondition?.bySigniEffect
+    && onPlayOriginMatches(eff, placedFromZone);
 }
 
 /**
@@ -426,7 +442,7 @@ export function collectPlacedSelfOnPlayTriggers(
   controllerState: PlayerState,
   otherState: PlayerState,
   ownerId: string,
-  opts: { placedByEffect: boolean; sourceIsSigni: boolean; suppressOnPlay?: boolean },
+  opts: { placedByEffect: boolean; sourceIsSigni: boolean; suppressOnPlay?: boolean; placedFromZone?: TriggerOriginZone },
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const usedHostIds: string[] = [];
@@ -455,6 +471,7 @@ export function collectPlacedSelfOnPlayTriggers(
     const bySigniEffect = !!eff.triggerCondition?.bySigniEffect;
     if ((byEffect || bySigniEffect) && !opts.placedByEffect) continue;
     if (bySigniEffect && !opts.sourceIsSigni) continue;
+    if (!onPlayOriginMatches(eff, opts.placedFromZone)) continue;
     // 任意【出】は「支払いますか？／発動しますか？」の包みに変換して積む。
     // 変換できない（コストを表現できない）ものだけ従来どおり据え置き。
     let wrapped: CardEffect | null = null;
@@ -3972,7 +3989,7 @@ export function collectAttackerSelfTriggers(
 
 /**
  * フィールドのシグニ/ルリグの「他のシグニが◯◯したとき」系トリガー（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）を収集する（Stage2 抽出）。
- * 自分の場＝any_ally/any、相手の場＝any_opp/any。byEffect/bySigniEffect・placedDown/placedFromTrash/placedPuppet・
+ * 自分の場＝any_ally/any、相手の場＝any_opp/any。byEffect/bySigniEffect・placedDown/配置元領域/placedPuppet・
  * frontLowerLevelThanSource/placedFront・triggerFilter・REMOVE_ABILITIES/FROZEN_LOSES_ABILITIES・ARTS_SELF_RECYCLE を保持。
  * ownerId=myState の持ち主。
  */
@@ -3983,7 +4000,13 @@ export function collectFieldTriggers(
   myState: PlayerState,
   opState: PlayerState,
   ownerId: string,
-  opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromTrash?: boolean },
+  opts?: {
+    placedByEffect?: boolean;
+    placeSourceIsSigni?: boolean;
+    placedFromZone?: TriggerOriginZone;
+    /** @deprecated placedFromZone:'trash' と同義。既存呼び出し・golden の互換用。 */
+    placedFromTrash?: boolean;
+  },
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const opId = ownerId === ctx.hostId ? ctx.guestId : ctx.hostId;
@@ -3993,6 +4016,7 @@ export function collectFieldTriggers(
   const usedHostIds: string[] = [];
   const usedGuestIds: string[] = [];
   const ownerIsHost = ownerId === ctx.hostId;
+  const placedFromZone = opts?.placedFromZone ?? (opts?.placedFromTrash ? 'trash' : undefined);
   const limitOkAlly = mkLimitOk(myState.actions_done, ownerIsHost ? usedHostIds : usedGuestIds);
   const limitOkOpp = mkLimitOk(opState.actions_done, ownerIsHost ? usedGuestIds : usedHostIds);
   // byEffect/bySigniEffect:「効果によって場に出たとき」限定の発火可否（ON_PLAY）。
@@ -4036,7 +4060,7 @@ export function collectFieldTriggers(
         && e.timing?.includes('ON_PLAY')
         && (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
         && actionRevivesSelfFromTrash(e.action)
-        && (!e.triggerCondition?.placedFromTrash || !!opts?.placedFromTrash)
+        && onPlayOriginMatches(e, placedFromZone)
       )) {
         allyWatchers.push({ topNum: num, isLrig: false, fromTrash: true });
       }
@@ -4072,8 +4096,8 @@ export function collectFieldTriggers(
         const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
         if (ziTrig < 0 || !(myState.field.signi_down?.[ziTrig] ?? false)) continue;
       }
-      // placedFromTrash: 配置元がトラッシュでなければ発火しない。
-      if (eff.triggerCondition?.placedFromTrash && event === 'ON_PLAY' && !opts?.placedFromTrash) continue;
+      // ON_PLAY の配置元領域限定。由来不明は限定能力だけ fail-closed。
+      if (event === 'ON_PLAY' && !onPlayOriginMatches(eff, placedFromZone)) continue;
       // placedPuppet（WDK17-001）: トリガー元が傀儡状態でなければ発火しない。
       if (eff.triggerCondition?.placedPuppet && event === 'ON_PLAY' && !(myState.field.puppet_signi ?? []).includes(triggeringCardNum)) continue;
       // triggerFilter はイベント発生源（triggeringCardNum）に適用する。⚠実効パワーを渡すこと＝
@@ -4120,6 +4144,7 @@ export function collectFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;
       if (!byEffectTriggerOk(eff)) continue;
+      if (event === 'ON_PLAY' && !onPlayOriginMatches(eff, placedFromZone)) continue;
       // ⚠`turnOwner` は後段の `turnGateOk` が担当（ally 側と同じ）。**フェイズ限定だけは中央ゲートが無い**ので
       //   ここで owner 相対に評価する（`O-64`）。watcher の持ち主は `opId`＝下で push する entry.playerId と同じ。
       if (!mainPhaseGateOk(eff, ctx, opId)) continue;

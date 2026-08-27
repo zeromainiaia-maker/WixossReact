@@ -7,6 +7,11 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // 2026-08-27: 「手札以外の領域から場に出たとき」を ON_PLAY の移動元ゲートへ保持する。
+  // MANUAL live は build:effects の PRESERVE 対象なので syncManualLive.ts で同期する。
+  "WXDi-P07-044": [
+    {"effectId":"WXDi-P07-044-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-2000}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn","triggerScope":"any_ally","triggerCondition":{"turnOwner":"self","fromZones":["deck","energy","field","under_signi","trash","lrig_deck","lrig_trash","life_cloth","excluded"]}},
+  ],
   // 2026-08-22 段2 第17バッチ: PRESERVE 対象の【チーム自】へ印刷済みチーム成立条件を届ける。
   // ⚠`WXDi-P02-030` は**ここに置かない**＝parser が同一の実体（condition 込み）を出せるようになったので、
   //   manual へ写すと §6.4 O-40／O-42 の「parser 出力と実体同一な影武者コピー」を新規に作ることになる

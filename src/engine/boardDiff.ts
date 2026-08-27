@@ -7,6 +7,7 @@
  * 収集側（どのカードが反応するか）は triggerCollect.ts、本モジュールは「イベントの発生検出」を担う。
  */
 import type { PlayerState } from '../types';
+import type { TriggerOriginZone } from '../types/effects';
 import { acceCardsAt, allAcceCards } from '../utils/acce';
 
 /** バニッシュされた（場→エナへ移動した）シグニ番号を検出。各ゾーン最前面の before→after 差分。 */
@@ -34,6 +35,68 @@ export function detectPlacedSigni(before: PlayerState, after: PlayerState): stri
     if (top && !beforeOnField.has(top)) result.push(top);
   }
   return result;
+}
+
+/**
+ * 場に出たカードの直前の領域を、配置前 state から解決する。
+ * 見つからない場合は undefined（生成トークン・不完全な before 等）を返す。由来限定 AUTO は
+ * collector 側で undefined を不成立として扱い、由来不明を fail-open にしない。
+ */
+export function detectPlacedFromZone(
+  before: PlayerState | null | undefined,
+  cardNum: string,
+  after?: PlayerState | null,
+): TriggerOriginZone | undefined {
+  // 🔴**盤面差分より記録を先に見る**（2026-08-27 B8 で実測）＝`execAddToField` は
+  //   **ゾーン選択インタラクションの前に元の領域からカードを取り除く**ので、選択を挟む配置では
+  //   `before` にもう移動元が残っていない。差分だけに頼ると由来が永久に unknown になり、
+  //   fail-closed のせいで「トラッシュから出したのに【自】が発火しない」＝**過小へ裏返る**。
+  const recorded = (after?.signi_placed_origin_this_turn ?? [])
+    .find(e => e.startsWith(`${cardNum}:`))?.split(':').slice(1).join(':');
+  if (recorded) return recorded as TriggerOriginZone;
+  if (!before) return undefined;
+  if (before.hand.includes(cardNum)) return 'hand';
+  if (before.energy.includes(cardNum)) return 'energy';
+  if (before.trash.includes(cardNum)) return 'trash';
+  if (before.deck.includes(cardNum)) return 'deck';
+  if (before.lrig_deck.includes(cardNum)) return 'lrig_deck';
+  if (before.lrig_trash.includes(cardNum)) return 'lrig_trash';
+  if (before.life_cloth.includes(cardNum)) return 'life_cloth';
+  if ((before.excluded ?? []).includes(cardNum)) return 'excluded';
+
+  for (const stack of before.field.signi) {
+    if (!stack?.includes(cardNum)) continue;
+    return stack.at(-1) === cardNum ? 'field' : 'under_signi';
+  }
+  const lrigStacks = [
+    before.field.lrig,
+    before.field.assist_lrig_l ?? [],
+    before.field.assist_lrig_r ?? [],
+  ];
+  for (const stack of lrigStacks) {
+    if (!stack.includes(cardNum)) continue;
+    return stack.at(-1) === cardNum ? 'field' : 'under_signi';
+  }
+  const underCards = [
+    ...(before.field.signi_charms ?? []).filter((n): n is string => !!n),
+    ...(before.field.signi_facedown_attached ?? []).flatMap(xs => xs ?? []),
+    ...(before.field.signi_acce ?? []).flatMap(xs => xs ?? []),
+    ...(before.field.signi_soul ?? []).filter((n): n is string => !!n),
+  ];
+  if (underCards.includes(cardNum)) return 'under_signi';
+  const fieldCards = [
+    before.field.check,
+    before.field.key_piece,
+    ...(before.field.key_piece_extra ?? []),
+    ...(before.field.free_zone ?? []),
+    ...(before.field.beat_zone ?? []),
+    ...(before.field.signi_traps ?? []),
+    ...(before.field.signi_magic_boxes ?? []),
+    ...(before.field.signi_seeds ?? []),
+    ...(before.field.facedown_signi ?? []),
+  ];
+  if (fieldCards.includes(cardNum)) return 'field';
+  return undefined;
 }
 
 /**

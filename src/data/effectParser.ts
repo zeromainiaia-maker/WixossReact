@@ -39,6 +39,7 @@ import type {
   RevealUntilAction,
   SigniAttackBanAction,
   BanishAction,
+  TriggerOriginZone,
 } from '../types/effects';
 
 /**
@@ -48,6 +49,22 @@ import type {
  * `ATTACK_ARTS_OP`（対戦相手のアーツ応答窓）も**アタックフェイズの一部**なので必ず含める。
  */
 const ATTACK_PHASES = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'] as const;
+
+/** 「手札以外から場に出たとき」の既知領域。由来不明は collector 側で fail-closed にする。 */
+const ON_PLAY_NON_HAND_ZONES: TriggerOriginZone[] = [
+  'deck', 'energy', 'field', 'under_signi', 'trash', 'lrig_deck', 'lrig_trash', 'life_cloth', 'excluded',
+];
+
+function addOnPlayOriginCondition(
+  current: CardEffect['triggerCondition'],
+  phrase: string | undefined,
+): CardEffect['triggerCondition'] {
+  if (!phrase) return current;
+  if (phrase === 'トラッシュから') return { ...(current ?? {}), placedFromTrash: true };
+  if (phrase === 'エナゾーンから') return { ...(current ?? {}), fromZones: ['energy'] };
+  if (/^手札以外(?:の領域)?から$/.test(phrase)) return { ...(current ?? {}), fromZones: [...ON_PLAY_NON_HAND_ZONES] };
+  return current;
+}
 
 const STATE_HOIST_BATCH1_CARDS = new Set([
   'PR-K054', 'WDK06-C14', 'WDK07-Y13', 'WDK17-013', 'WDK17-017', 'WXEX1-25',
@@ -15792,9 +15809,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 上の基本形で拾えなかった、由来句・色・アイコン・カード名が主語に挟まる形を扱う。
         if (extractedTriggerScope === undefined) {
           const onPlayText = trigText;
-          const unsupportedOrigin = /(?:エナゾーンから|手札以外(?:の領域)?から)場に出たとき/.test(onPlayText);
           const unsupportedAbilityFilter = /【出】能力を持つあなたのシグニ(?:[０-９\d]+体)?が場に出たとき/.test(onPlayText);
-          if (unsupportedOrigin || unsupportedAbilityFilter) {
+          if (unsupportedAbilityFilter) {
             // 既存語彙で限定を表現できないものは、限定を落として過剰発火させず安全停止する。
             timing = [];
           } else {
@@ -15820,9 +15836,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
               if (/あなたの(?:効果によって)?他の＜[^＞]+＞のシグニ|あなたの他の＜[^＞]+＞のシグニ/.test(onPlayText)) tf.excludeSelf = true;
               if (Object.keys(tf).length) extractedTriggerFilter = tf;
 
-              if (/トラッシュから[^。]*場に出たとき/.test(onPlayText)) {
-                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFromTrash: true };
-              }
+              // 🔴**由来句と「場に出たとき」の間に主語が挟まる語順を落とさない**（2026-08-27 B8 で実測）＝
+              //   「あなたの**トラッシュから**＜古代兵器＞のシグニ１体が**場に出たとき**」のように
+              //   由来句が主語より前へ出る形があり、密着マッチにすると `placedFromTrash` が丸ごと消える
+              //   （live 5効果が held に落ちて発覚＝`WX05-026` `WX18-071` `WX18-072` `WX22-Re08` `WX22-Re17`）。
+              //   旧規則も `/トラッシュから[^。]*場に出たとき/` の緩い形だったので、そこへ揃える。
+              const originPhrase = onPlayText.match(/(トラッシュから|エナゾーンから|手札以外(?:の領域)?から)[^。]*?場に出たとき/)?.[1];
+              extractedTriggerCondObj = addOnPlayOriginCondition(extractedTriggerCondObj, originPhrase);
               if (/ダウン状態で場に出たとき/.test(onPlayText)) {
                 extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedDown: true };
               }
@@ -15904,12 +15924,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 「傀儡状態の」修飾＝placedPuppet（WDK17-001）。「他の」「＜X＞の」と同様にあなたのシグニ全体（any_ally）の一種。
         // クラス部は「＜X＞の」「＜X＞か＜Y＞の」の両形（WXEX1-53「＜アーム＞か＜ウェポン＞の」＝従来この形が
         // 落ちて scope 既定 self（自身が場に出たとき）へ退化していた）。
-        // 🆕由来句「トラッシュから」＝`triggerCondition.placedFromTrash`（§6.4 O-19）。従来は主語と「場に出たとき」の
+        // 由来句は triggerCondition.fromZones（既存の「トラッシュから」は placedFromTrash 互換）へ落とす。主語と「場に出たとき」の
         //   間に由来句が挟まると `^` 規則が外れ、scope 既定 self（＝自身が場に出たとき）へ退化していた
         //   （`WX25-P1-061-E1`＝「あなたのシグニ１体がトラッシュから場に出たとき」が一度も原文どおりに発火しない）。
-        //   ⚠**「エナゾーンから」は入れない**＝engine に由来ゾーン語彙が無く、限定を落とすと過剰発火になる
-        //     （下の watcherScopeRepairIds 側も unsupportedOrigin として安全停止させている）。
-        const allyPlayM = actionText.match(/^あなたの(他の)?(傀儡状態の)?(?:＜([^＞]+)＞(?:か＜([^＞]+)＞)?の)?シグニ(?:[０-９\d]+体)?が(効果によって)?(トラッシュから)?場に出たとき[、,]\s*(.+)/s);
+        //   「手札以外」は既知の全非手札領域を列挙し、由来不明は collector 側で fail-closed にする。
+        const allyPlayM = actionText.match(/^あなたの(他の)?(傀儡状態の)?(?:＜([^＞]+)＞(?:か＜([^＞]+)＞)?の)?シグニ(?:[０-９\d]+体)?が(効果によって)?(トラッシュから|エナゾーンから|手札以外(?:の領域)?から)?場に出たとき[、,]\s*(.+)/s);
         // 「あなたのレゾナ[N体]が場に出たとき」= any_ally＋cardType:レゾナ（レゾナは効果でのみ場に出る。G148）
         const allyResonaPlayM = !allyPlayM && actionText.match(/^あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         // 所有者指定なしの「シグニ[N体]が場に出たとき」= any（両者のシグニ。自身も含む。G085「（このシグニが場に出たときも発動する）」）。
@@ -15933,7 +15952,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
           if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedPuppet: true }; // 「傀儡状態の」
           if (allyPlayM[5]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
-          if (allyPlayM[6]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFromTrash: true }; // 「トラッシュから」
+          extractedTriggerCondObj = addOnPlayOriginCondition(extractedTriggerCondObj, allyPlayM[6]);
           actionText = allyPlayM[7];
         } else if (allyResonaPlayM) {
           extractedTriggerScope = 'any_ally';
@@ -15950,11 +15969,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (oppPlayM[2]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), story: oppPlayM[2] };
           // actionText は非改変（トリガー句を残す）
         } else {
+          // 自身が指定領域から場に出たとき。triggerScope は既定 self のまま、由来句だけを収集ゲートへ載せる。
+          const selfOriginM = actionText.match(/^(?:このシグニが)?(トラッシュから|エナゾーンから|手札以外(?:の領域)?から)場に出たとき[、,]\s*(.+)/s);
           // 「（このシグニが）（シグニの）効果によって場に出たとき」= self 限定。
           // 「シグニの効果によって」= bySigniEffect（シグニの効果のみ）／「効果によって」= byEffect（任意の効果）。
           const selfBySigniM = actionText.match(/^(?:このシグニが)?シグニの効果によって場に出たとき[、,]\s*(.+)/s);
           const selfByEffM = actionText.match(/^(?:このシグニが)?効果によって場に出たとき[、,]\s*(.+)/s);
-          if (selfBySigniM) {
+          if (selfOriginM) {
+            extractedTriggerCondObj = addOnPlayOriginCondition(extractedTriggerCondObj, selfOriginM[1]);
+            actionText = selfOriginM[2];
+          } else if (selfBySigniM) {
             extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), bySigniEffect: true };
             actionText = selfBySigniM[1];
           } else if (selfByEffM) {
