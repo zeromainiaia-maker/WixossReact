@@ -1,5 +1,102 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-126`＝`cost_modifiers` は書かれるだけで誰も読まない死にストアだった
+
+> **1巡（続き697・Opus 5 単独）**。ユーザー指示＝Sheet1 の機構待ちを解決する。
+> 📊**進捗3計器＝Sheet1 要対応 29→28 / 863（3.4%→3.2%）｜台帳 残 OPEN 579→578｜census 高シグナル 522（据置＝parser を触っていないため）**
+> gates 全緑（golden **2912→2915**）。実機＝新規2本 `b19costup` / `b19costupnone` PASS（**反転確認済み**）＋回帰 `b14costup` / `craftTurnEndP03078` PASS。
+
+### ① 登録票は**また**実態と違った（4回連続）
+
+§5.3 の `O-126` は「`COST_INCREASE` に『カットインされたスペルは影響を受けない』の除外が無い＝
+カットインにも課税している」と書かれていた。**着手前に live と実コードを1分見たら、課税は
+そもそも1度も起きていなかった。**
+
+`execCostIncrease`（`effectExecutor.ts:6820`）は `duration:'UNTIL_END_OF_TURN'` を
+`PlayerState.cost_modifiers` へ積む。ところが `cost_modifiers` の**読み手はどこにも無い**
+（grep の全ヒット＝executor の書き込み1／BattleScreen のターン終了クリア4／型宣言1／golden 1）。
+`BUGFIXES.md:30297` に「既存の `cost_modifiers` ストアは書かれるだけでコスト計算で読まれていなかった」と
+**当時すでに書かれており**、そのときは `NEXT_OPP_TURN` 型だけを別フィールド
+（`opp_cost_up_until_opp_turn`）で迂回して実装し、**本体のストアは死んだまま残されていた**。
+
+**母集団（実測）**＝live の `COST_INCREASE` は13ノード。内訳は
+`CONTINUOUS/PERMANENT` 5（`calcActiveCostMods` が盤面から毎回読む＝ストアを経由しない）／
+`AUTO/NEXT_OPP_TURN` 4（迂回済み）／**`ACTIVATED/UNTIL_END_OF_TURN` 4 ＝ このストア経路**。
+効くカードは **`WX09-Re05`（ロック・ユー）と `WXK11-003`（ロック・ユアハート）の2枚**で、
+どちらも「このターン、対戦相手の、アーツとスペルの使用コストは《無×3》増える」＝**完全な no-op** だった。
+
+### ② 直し方＝収集を `calcActiveCostMods` の1本に寄せる
+
+消費側の入口は3つ（`artsUseGate` / `spellUseGate` / `CutinModal`）あるが、いずれも
+`ArtsPayerCtx.costModsForMy` ＝ **`calcActiveCostMods` の戻り値**しか見ていない。
+その `costModsForMy` を組む場所が**2つ**ある（人間UI＝`BattleScreen` の `activeCostMods` useMemo／
+CPU＝`artsUseGate.buildArtsPayerCtx`）ので、**両方に写経すると片方だけ直る**。
+⇒ `calcActiveCostMods` の末尾でストアを読む形にした（`effectEngine.ts`）。
+
+```ts
+const storedMods = (s: PlayerState): ActiveCostMod[] =>
+  (s.cost_modifiers ?? []).map(m => ({ direction: m.direction, targetCardType: m.targetCardType, amount: m.amount as EnergyCost[] }));
+forMy.push(...storedMods(myState));   // cost_modifiers は「その PlayerState 自身のコスト」への修正
+forOp.push(...storedMods(opState));   // execCostIncrease は targetOwner 側の state へ積む
+```
+
+### ③ ついでに踏んでいた寿命の穴（配線した瞬間に効き始める）
+
+ターン終了時のクリアは BattleScreen の4経路に**手書き**で
+`cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN')` と書かれていたが、
+**どれも「ターンプレイヤー側」の state にしか当たっていなかった**。
+「対戦相手のコストを増やす」は**相手の state** に載るので、**自分のターンに使うと相手のターンを
+丸ごと1ターン余分に生き延びる**（`lrig_abilities_disabled` と同じクラスの穴）。
+
+⇒ 手書き4箇所を削除し、`clearTurnEndScopedState`（**両プレイヤーに当たる唯一の境界**）へ
+`advanceCostModifiers` を1本置いた。`NEXT_TURN` は「次のターンいっぱい」＝そこで `END_OF_TURN` へ
+**昇格**させ、次の境界で落とす（`abilities_removed_next_turn` の2スロット式を `until` タグ1本で表した形）。
+
+### ④ 「カットインされたスペルは対象外」は**死にフラグを作らずに満たした**
+
+原文の括弧句は `stripRuleParens` で落ちるため「剥がす前に符号化する」と登録票にはあったが、
+**符号化した先に読み手を作れない**ことが実測で分かった＝`O-125` が指摘した死にフラグそのものになる。
+
+実際の順序を追うと、除外は**構造的にすでに成立している**：
+
+| 段 | 場所 | いつ |
+|---|---|---|
+| 使用封じの判定 | `isSpellUseBlockedFor`（`BattleScreen.tsx:7463`） | 宣言時 |
+| コストの請求・支払い | `computeSpellEffectiveCost` → `payUseTimeCost` | 宣言時 |
+| `pending_spell` が立つ | `BattleScreen.tsx:7735` | **上の後** |
+| カットイン窓が開く | `CutinModal`（`bs.pending_spell` を見る） | さらに後 |
+
+⇒ カットインで積んだ修正／封じが、**すでに支払い済みのそのスペルへ遡って効く経路が無い**。
+`CutinModal` が計算するのは**応答側のアーツ**のコストだけで、こちらは「カットインされた**スペル**」ではない
+（＝課税されるのが正しい）。同じ理屈が除外句を持つ live 3枚
+（`WX09-Re05`＝`COST_INCREASE`／`WX10-023`＝`NAME_BAN`／`WX13-005B`＝`BLOCK_ACTION`）すべてに当たる。
+
+**代わりに golden へトリップワイヤを置いた**（`O-126 トリップワイヤ:`）＝
+①「スペル解決待ちの間は新しいスペルを宣言できない」（＝窓の中で再請求が起きない）を assert
+②除外句つき3枚が積む縛りの型をスナップショットで固定＝**別の型が増えたら FAIL** し、手当てを考え直させる。
+
+### ⑤ 検証
+
+- **golden 2912 → 2915**（+3）。**反転確認済み**＝配線と寿命を戻すと新規2本が FAIL
+  （`forMy` が 0 件／`END_OF_TURN` が境界で消えない）。
+- **実機（新規2本・`verifyBattleDrive.mjs`）**
+  - `b19costup`（🔴判別力はこちら）＝`WD01-018`（噴流する知識・**《無》×０**）に
+    `cost_modifiers +《無》×3` を載せる → **エナ3枚を請求され energy 3→0**。旧挙動は0枚。
+  - `b19costupnone`（対照）＝修正なしなら **energy 3→3**（過剰適用を作っていないことの確認）。
+  - この層は golden では守れない＝`BattleScreen` の `activeCostMods` useMemo →
+    `SpellCastModal` の `spellExtraCosts` という **UI 側の配線**が観測対象。
+- **回帰**＝`b14costup`（アーツ／スペルの追加コスト請求）PASS・`craftTurnEndP03078`（`ON_TURN_END`）PASS。
+
+### ⑥ 教訓
+
+- 🔑**「フラグが無い」と書かれた登録票は、まず「そのフラグを読む側が生きているか」を見る。**
+  今回は読み手ごと死んでいたので、除外フラグを足しても**何も変わらなかった**。
+- ⚠**過去の BUGFIXES に「読まれていない」と書いてある機構は、迂回実装されただけで残っていることがある。**
+  迂回した回に本体を消すか `DEFERRED_` を刻むかしていれば、2年分の no-op は起きなかった。
+- ⚠**ターン限定の状態を手書きでクリアしている箇所は「ターンプレイヤー側だけ」を疑う**
+  （`blocked_card_names` / `abilities_removed` / `lrig_abilities_disabled` に続き4例目）。
+  相手に課す効果は**相手の state** に載るので、レジストリ／`clearTurnEndScopedState` へ寄せるのが唯一の正。
+
 ## 2026-08-28：§5.3 `O-108`＝コスト側の「それぞれ名前の異なる」が無く、同名4枚でも払えていた
 
 > **1巡（続き696・Opus 5 単独）**。ユーザー指示＝このバッチで区切る。

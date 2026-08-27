@@ -2878,6 +2878,22 @@ export function calcActiveCostMods(
   scanOwner(myState, opState, isMyTurn && myIsOwner);
   scanOwner(opState, myState, !isMyTurn);
 
+  // 🔴**ストア済みのコスト修正**（`execCostIncrease` が `PlayerState.cost_modifiers` へ積む
+  // ACTIVATED/AUTO 由来の増加）。**ここに足すまで書かれるだけで誰も読まない死にストアだった**
+  // （§5.3 `O-126`・実測 `WX09-Re05`「このターン、対戦相手のスペルの使用コストは《無×3》増える」と
+  //  `WXK11-003` の2枚が**完全な no-op**）。CONTINUOUS 由来（上の scanOwner）は盤面から毎回読むので
+  // ストアに載らない＝この2経路は排他。
+  // ⚠**収集をこの関数1本に寄せる**のが要点＝人間UI（`BattleScreen` の `activeCostMods` useMemo）と
+  //   CPU（`artsUseGate.buildArtsPayerCtx`）が**同じ式**を見る（両方に写経すると片方だけ直る）。
+  // ⚠`cost_modifiers` は「**その PlayerState 自身のコスト**への修正」＝`execCostIncrease` は
+  //   `targetOwner` 側の state へ積む。よって myState 側は forMy、opState 側は forOp。
+  const storedMods = (s: PlayerState): ActiveCostMod[] =>
+    (s.cost_modifiers ?? []).map(m => ({
+      direction: m.direction, targetCardType: m.targetCardType, amount: m.amount as EnergyCost[],
+    }));
+  forMy.push(...storedMods(myState));
+  forOp.push(...storedMods(opState));
+
   return { forMy, forOp };
 }
 

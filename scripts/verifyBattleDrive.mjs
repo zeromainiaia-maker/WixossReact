@@ -17,6 +17,73 @@ const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 
 /**
+ * §5.3 `O-126` の実機ドライバ（課税あり／なしで共有）。
+ * `WD01-018`（噴流する知識・**《無》×０**）を手札から使用し、**消費エナ枚数**を見る。
+ * ⚠**判別力があるのは positive**（`b19costup`）＝`cost_modifiers` が読まれていなかった旧実装では
+ *   0コストのまま撃ててエナが1枚も減らない。課税が届いていれば《無》×3 ＝ エナ3枚を要求される。
+ * ⚠この層は golden では守れない＝`BattleScreen` の `activeCostMods` useMemo →
+ *   `SpellCastModal` の `spellExtraCosts` という **UI 側の配線**が観測対象。
+ */
+async function driveB19(page, H, expectTax) {
+  const tag = expectTax ? 'b19costup' : 'b19costupnone';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  const e0 = st0?.host?.energy ?? 0;
+  H.log(`開始 energy=${e0} hand=${JSON.stringify(st0?.host?.handCards)} costMods=${JSON.stringify(st0?.host?.costModifiers)}`);
+  if (expectTax && !(st0?.host?.costModifiers ?? []).length) {
+    return { pass: false, detail: '前提崩れ＝cost_modifiers が注入されていない' };
+  }
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  let opened = false;
+  const picked = new Set();
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    if (!opened) {
+      const o = await H.clickTestId('my-hand-card-0');
+      if (o) { did = o; opened = true; }
+    }
+    if (!did) did = await clickExact('発動');       // CardModal（スペル詳細）
+    if (!did) did = await clickExact('発動する');   // 支払い確定（要求枚数が揃うまで disabled）
+    if (!did) {
+      // ⚠**選択済みを覚えて1枚ずつ足す**（同じ testid を押し直すとトグルで外れる）。
+      for (let i = 0; i < 6 && !did; i++) {
+        if (picked.has(i)) continue;
+        const c = page.getByTestId(`spellcost-energy-${i}`).first();
+        if (await c.count() && await c.isVisible().catch(() => false)) {
+          await c.click().catch(() => {}); picked.add(i); did = `spellcost-energy-${i}`;
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const resolved = (st?.host?.trashCards ?? []).some(n => String(n).startsWith('WD01-018#1'));
+    const e = st?.host?.energy ?? 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 選択=${[...picked]} energy=${e0}→${e} resolved=${resolved} hand=${st?.host?.hand ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (resolved) {
+      const spent = e0 - e;
+      if (expectTax) {
+        return spent === 3
+          ? { pass: true, detail: `課税が届いた＝《無》×0 のスペルにエナ3枚を請求された（energy ${e0}→${e}）` }
+          : { pass: false, detail: `🔴旧挙動＝cost_modifiers が読まれずエナ${spent}枚しか請求されなかった（energy ${e0}→${e}）` };
+      }
+      return spent === 0
+        ? { pass: true, detail: `対照＝修正が無ければ《無》×0 のまま（energy ${e0}→${e}）` }
+        : { pass: false, detail: `対照が崩れた＝修正なしなのにエナ${spent}枚消費（energy ${e0}→${e}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `スペルが解決しなかった（energy ${e0}→${fin?.host?.energy ?? '-'} hand=${JSON.stringify(fin?.host?.handCards)}）` };
+}
+
+/**
  * §5.3 `O-108` の実機ドライバ（positive / negative で共有）。
  * シグニの【起】を開き、手札の＜精元＞4枚を選んで確定できるかを見る。
  * 観測点は **相手の白シグニが場から消えるか**（本体＝無色ではないすべてのシグニをトラッシュ）。
@@ -2268,6 +2335,42 @@ const scenarios = {
         detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
       };
     },
+  },
+
+  // ── B19（2026-08-28）＝§5.3 `O-126`（`cost_modifiers` は書かれるだけの死にストアだった）の実機観測点 ──
+  //   🔴**判別力があるのは positive 側**（`b19costup`）＝修正が読まれていないと0コストのまま撃ててしまう。
+  b19costup: {
+    title: 'WD01-018 噴流する知識（cost_modifiers +《無》×3 が届く＝エナ3枚を請求／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WD01-018#1'],                                  // スペル《無》×０「カードを１枚引く。」
+        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4'],    // 課税ぶん3枚ちょうど
+        // 相手が `WX09-Re05` を撃った後の状態＝「このターン、あなたのスペルの使用コストは《無×3》増える」。
+        'cost_modifiers': [{ direction: 'increase', targetCardType: 'スペル', amount: [{ color: '無', count: 3 }], until: 'END_OF_TURN' }],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB19(page, H, true); },
+  },
+
+  b19costupnone: {
+    title: 'WD01-018 噴流する知識（対照＝修正なしならエナを消費しない／negative）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WD01-018#1'],
+        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4'],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB19(page, H, false); },
   },
 
   // ── B18（2026-08-28）＝§5.3 `O-108`（コスト側の「それぞれ名前の異なる」）の実機観測点 ──
@@ -34812,6 +34915,9 @@ try {
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
         actionsDone: s.actions_done ?? [],
+        // 🆕§5.3 O-126（2026-08-28）＝`execCostIncrease` が積む使用コスト修正。
+        //   **旧実装では書かれるだけで誰も読まなかった**ので、載っていること自体も観測点にする。
+        costModifiers: s.cost_modifiers ?? null,
         lrigTrash: (s.lrig_trash ?? []).length,
         // §5.3 O-121: このターンに**この側が**相手シグニをバニッシュした台帳（by / byEffect）。
         oppBanishLedger: s.opp_signi_banished_this_turn ?? null,

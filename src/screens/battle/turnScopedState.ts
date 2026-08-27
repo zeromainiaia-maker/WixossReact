@@ -265,6 +265,25 @@ function advanceSigniAttackBans(
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * `cost_modifiers`（`execCostIncrease` が積む使用コスト修正）をグローバルターン終了で失効させる（§5.3 `O-126`）。
+ * ⚠固定リセット値のレジストリでは表せない（エントリごとに `until` が違う）ので `advanceSigniDeployBans` と
+ *   同じ個別扱いにする。
+ * 🔴**登録前は BattleScreen の turn-end 4経路が「ターンプレイヤー側だけ」手書きで落としていた**＝
+ *   「対戦相手のコストを増やす」を**自分のターン**に使うと修正は相手（＝非ターンプレイヤー）の state に載るので、
+ *   相手のターンを**丸ごと1ターン余分に**生き延びた（`lrig_abilities_disabled` と同じクラスの穴）。
+ * ⚠`NEXT_TURN` は「次のターンいっぱい」＝ここで `END_OF_TURN` へ**昇格**させ、次の境界で落とす
+ *   （`abilities_removed_next_turn` の2スロット式を `until` タグ1本で表した形）。
+ */
+function advanceCostModifiers(mods: PlayerState['cost_modifiers']): PlayerState['cost_modifiers'] {
+  // ⚠T3 トリップワイヤは全 turn-end フィールドへ番兵値を入れるので、配列以外が来る前提で守る。
+  if (!Array.isArray(mods)) return undefined;
+  const next = mods
+    .filter(m => m.until !== 'END_OF_TURN')
+    .map(m => (m.until === 'NEXT_TURN' ? { ...m, until: 'END_OF_TURN' as const } : m));
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
@@ -298,6 +317,7 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     field_keyword_grants_active: undefined,
     field_keyword_grants_next_opp_turn: undefined,
     prevent_damage_windows: advancePreventDamageWindows(state.prevent_damage_windows),
+    cost_modifiers: advanceCostModifiers(state.cost_modifiers),
     // ⚠パワー配置制限（旧 `signi_deploy_power_limit`）もここへ統合した＝原文は「このターンと次のターン」なのに
     //   **どこでもクリアされておらず永続していた**（§6.4 O-3 続き487 で発見）。
     signi_deploy_bans: advanceSigniDeployBans(state.signi_deploy_bans),

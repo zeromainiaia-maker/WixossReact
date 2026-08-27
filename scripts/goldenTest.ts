@@ -43035,6 +43035,103 @@ test('O-1 spellUseGate: 手札スペルの提示はフェイズ・封じ3軸・�
   ok(!poor.affordable, '払えないことは affordable 側で表す');
 }));
 
+// ===== §5.3 O-126: `execCostIncrease` が積む `cost_modifiers` は誰も読んでいなかった（死にストア） =====
+// 実測母集団＝`WX09-Re05`（このターン、対戦相手のスペル／アーツの使用コストは《無×3》増える）と
+// `WXK11-003`（同《無》×3）の**2枚**。どちらも増加が**完全な no-op** だった。
+// 🔑受け皿は `calcActiveCostMods` の1本に寄せた＝人間UI（`BattleScreen` の useMemo）と
+//   CPU（`buildArtsPayerCtx`）が同じ値を見る。
+test('O-126 cost_modifiers: 保存済みのコスト増加がスペル／アーツの請求額に届く', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const mod = (targetCardType: string, count: number): PlayerState['cost_modifiers'] =>
+    [{ direction: 'increase', targetCardType, amount: [{ color: '無', count }], until: 'END_OF_TURN' }];
+  // ---- 収集関数そのもの（forMy / forOp の振り分け）
+  const my = { ...mkState({}), cost_modifiers: mod('スペル', 3) } as PlayerState;
+  const op = { ...mkState({}), cost_modifiers: mod('アーツ', 2) } as PlayerState;
+  const mods = calcActiveCostMods(my, op, true, effectsMap, cardMap);
+  eq(mods.forMy.filter(m => m.direction === 'increase' && m.targetCardType === 'スペル').length, 1,
+    '自分の state に載った修正は forMy（＝自分のコストが増える）');
+  eq(mods.forOp.filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ').length, 1,
+    '相手の state に載った修正は forOp');
+  eq(mods.forMy.filter(m => m.targetCardType === 'アーツ').length, 0, '相手側の修正が自分へ漏れない');
+  // ---- スペル入口（`WX09-Re05` 第1文の到達点）
+  const casterBase = { ...mkState({ energy: 0, signi: [SIGNI, null, null] }), hand: ['T-SPELL-1'], energy: [ART_RED] } as PlayerState;
+  const spellCheck = (caster: PlayerState) => {
+    const f = spellFixture({ actor: caster });
+    return checkSpellUse({
+      card: f.card, my: f.actor, op: f.opponent, isMyTurn: true, turnPhase: 'MAIN', pendingSpell: false,
+      cards: allCards, cardMap: f.cm, effectsMap: f.em, payer: f.payer,
+    });
+  };
+  eq(spellCheck(casterBase).extraCosts.length, 0, '対照：修正が無ければ追加コストなし');
+  const taxedSpell = spellCheck({ ...casterBase, cost_modifiers: mod('スペル', 3) });
+  eq(taxedSpell.extraCosts.reduce((n, e) => n + e.count, 0), 3, '🔴スペルの請求額に《無》×3 が乗る');
+  ok(!taxedSpell.affordable, 'エナ1枚では払えなくなる（増加が効いている）');
+  eq(spellCheck({ ...casterBase, cost_modifiers: mod('アーツ', 3) }).extraCosts.length, 0,
+    'targetCardType が違えば乗らない');
+  // ---- アーツ入口（`WX09-Re05` 第2文＝＜ピルルク＞条件つきの到達点）
+  const artsBase = { ...mkState({ energy: 0 }), lrig_deck: ['T-ARTS-1'], energy: [ART_RED] } as PlayerState;
+  const artsCheck = (user: PlayerState) => {
+    const f = artsFixture({ actor: user });
+    return checkArtsUse({
+      card: f.card, my: f.actor, op: f.opponent, isMyTurn: false, turnPhase: 'ATTACK_ARTS_OP',
+      cards: allCards, cardMap: f.cm, effectsMap: f.em, payer: f.payer,
+    });
+  };
+  eq(artsCheck(artsBase).extraCosts.length, 0, '対照：修正が無ければ追加コストなし');
+  const taxedArts = artsCheck({ ...artsBase, cost_modifiers: mod('アーツ', 3) });
+  eq(taxedArts.extraCosts.reduce((n, e) => n + e.count, 0), 3, '🔴アーツの請求額に《無》×3 が乗る');
+  ok(!taxedArts.affordable, 'エナ1枚では払えなくなる');
+}));
+
+// 🔴寿命＝旧実装は BattleScreen の turn-end 4経路で**ターンプレイヤー側だけ**手書きクリアしていた。
+//   「対戦相手のコストを増やす」は**相手の state** に載るので、自分のターンに使うと1ターン余分に残った。
+test('O-126 cost_modifiers: ターン境界で END_OF_TURN が両プレイヤーぶん落ちる', () => withSavedCursor(() => {
+  const mk = (until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT'): PlayerState =>
+    ({ ...mkState({}), cost_modifiers: [{ direction: 'increase', targetCardType: 'スペル', amount: [{ color: '無', count: 3 }], until }] } as PlayerState);
+  eq(clearTurnEndScopedState(mk('END_OF_TURN')).cost_modifiers, undefined, 'END_OF_TURN はその境界で消える');
+  eq(clearTurnEndScopedState(mk('PERMANENT')).cost_modifiers?.length, 1, 'PERMANENT は残る');
+  // NEXT_TURN は「次のターンいっぱい」＝ここで END_OF_TURN へ昇格し、次の境界で消える（2スロット式）。
+  const promoted = clearTurnEndScopedState(mk('NEXT_TURN'));
+  eq(promoted.cost_modifiers?.[0]?.until, 'END_OF_TURN', 'NEXT_TURN は1つ目の境界で END_OF_TURN へ昇格');
+  eq(clearTurnEndScopedState(promoted).cost_modifiers, undefined, '2つ目の境界で消える（永続しない）');
+}));
+
+// ⚠**「（カットインされたスペルはこの効果の影響を受けない）」の除外は死にフラグを作らずに満たしている。**
+// 根拠＝コストの請求も使用封じの判定も**宣言時**に済み、`pending_spell` が立つのはその**後**。
+// カットインで積んだ修正／封じは、既に支払い済みのそのスペルへ遡って効かない（再請求経路が無い）。
+// この test は**その前提が崩れたら落ちる**トリップワイヤ＝
+//   ①スペル解決待ちの間は新しいスペルを宣言できない（＝窓の中でスペルコストが再計算されない）
+//   ②除外句を持つ live 3枚が積むのは「宣言時に読む」型だけ（別型が増えたら手当てを考え直す）
+test('O-126 トリップワイヤ: カットイン除外は「宣言時に確定する」構造で満たされている', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const f = spellFixture({});
+  const pending = checkSpellUse({
+    card: f.card, my: f.actor, op: f.opponent, isMyTurn: true, turnPhase: 'MAIN', pendingSpell: true,
+    cards: allCards, cardMap: f.cm, effectsMap: f.em, payer: f.payer,
+  });
+  ok(!pending.usable, '①スペル解決待ちの間は新しいスペルを宣言できない＝窓の中で再請求が起きない');
+  // ②除外句つき live カードが積む「相手への継続的な縛り」の型を**スナップショットで固定**する。
+  //    ここが動いたら（新しい縛りの型が増えたら）除外の手当てを考え直す＝ラチェット。
+  const RESTRICTION_TYPES = /^(COST_INCREASE|BLOCK_ACTION|NAME_BAN)$/;
+  const collectTypes = (a: unknown, out: Set<string>): void => {
+    if (!a || typeof a !== 'object') return;
+    if (Array.isArray(a)) { a.forEach(x => collectTypes(x, out)); return; }
+    const rec = a as Record<string, unknown>;
+    if (typeof rec.type === 'string') out.add(rec.type);
+    Object.values(rec).forEach(v => collectTypes(v, out));
+  };
+  const found: string[] = [];
+  for (const c of cardMap.values()) {
+    if (!(c.EffectText ?? '').includes('カットインされたスペルはこの効果の影響を受けない')) continue;
+    const types = new Set<string>();
+    for (const e of effectsMap.get(c.CardNum) ?? []) collectTypes(e.action, types);
+    for (const t of [...types].sort()) if (RESTRICTION_TYPES.test(t)) found.push(`${c.CardNum}:${t}`);
+  }
+  eq(found.sort().join(' / '),
+    'WX09-Re05:COST_INCREASE / WX10-023:NAME_BAN / WX13-005B:BLOCK_ACTION',
+    '🔴除外句つき3枚の縛りは全て「宣言時に読む」型（COST_INCREASE/NAME_BAN/BLOCK_ACTION）');
+}));
+
 test('O-1 cpuSpell: CPU は「除去・正面が塞がれている・払える・未使用」の4条件を満たす1枚を使う', () => withSavedCursor(() => {
   const allCards = [...cardMap.values()];
   const pick = (o: Parameters<typeof spellFixture>[0], already: string[] = []) => {

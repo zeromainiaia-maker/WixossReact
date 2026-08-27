@@ -4023,7 +4023,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           pending_crash_source_card_nums: [], crash_source_card_num: undefined, pending_crash_causes: [], crash_cause: undefined,
-          cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
           prevent_next_damage_reservations: undefined,
           turn_end_mill_count: undefined,
@@ -4514,7 +4513,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, pending_crash_causes: [], crash_cause: undefined,
-        cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
@@ -5217,7 +5215,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             keyword_grants:     {},
             granted_effects:    {},
             actions_done:       [],
-            cost_modifiers: (activeState.cost_modifiers ?? []).filter((m: {until?: string}) => m.until !== 'END_OF_TURN'),
           });
 
           // 次のターンプレイヤー（相手）のシグニをアップ（凍結中はアップせず凍結解除）
@@ -11877,7 +11874,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crash_replacements: undefined,
         turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined,
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
-        cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(cpuEndState).lrig_granted_auto_effects,
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,
         banish_redirect_power0_target_nums: undefined,
