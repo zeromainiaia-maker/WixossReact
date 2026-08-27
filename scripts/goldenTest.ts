@@ -25777,6 +25777,56 @@ test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
   ok(!resolve([other]), 'non-Ancient trashed => false');
 });
 
+// ===== §5.3 O-127: 「好きな枚数をトラッシュに置き、**その枚数と同じ枚数**の…」＝直前の選択枚数への後方参照 =====
+// 🔴旧 live は前半（見る＋好きな枚数を捨てる）が丸ごと落ち、後半も `count:1` の固定枚数だった
+//   ＝原文はライフの**入れ替え**なので「捨てずに1枚増える」別の効果になっていた。
+// 🔑受け皿は engine に全部在った（`canTrash` ／ `destLocation==='life'` のとき `lastProcessedCards` に
+//   trashed を入れる分岐 ／ `execAddToLife` の `resolveCountRef`）＝**parser が合成していないだけ**。
+// ⚠母集団は全 CSV で **`WX05-010` の1枚**（「ライフクロスを見て」の全数＝1）。
+test('O-127 WX05-010-E1: ライフを見て好きな枚数を捨て、同じ枚数だけデッキ上から補充する', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX05-010') ?? []).find(e => e.effectId === 'WX05-010-E1')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('"canTrash":true'), '前半＝好きな枚数をトラッシュに置ける LOOK_AND_REORDER');
+  ok(json.includes('"location":"life_cloth"'), '見る先はライフクロス');
+  ok(json.includes('"$ref":"last_processed_count"'), '🔴補充枚数は固定ではなく直前に捨てた枚数への後方参照');
+  ok(!json.includes('"type":"ADD_TO_LIFE","owner":"self","count":1'), '固定1枚の旧形が残っていない');
+  // ---- engine E2E：捨てた枚数だけライフが戻る（数の一致が観測点）----
+  const steps = (eff.action as SequenceAction).steps;
+  const firstHalf = steps[0];   // SEQUENCE[LOOK_AND_REORDER, ADD_TO_LIFE]
+  const deckTop = [SIGNI_L1, SIGNI_L2, SIGNI_L3, SIGNI_L4];
+  const play = (trashCount: number) => {
+    const ctx = mkCtx({ deckTop, life: 3 }, {}, 'WX05-010');
+    const life0 = ctx.ownerState.life_cloth.length;
+    const trash0 = ctx.ownerState.trash.length;
+    const r = executeEffect({ effectId: 'o127', effectType: 'AUTO', action: firstHalf, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    if (r.done) throw new Error('LOOK_AND_REORDER で中断しなかった');
+    const looked = (r.pending as { cards: string[] }).cards;
+    eq(looked.length, life0, 'すべてのライフクロスを見る（count:ALL）');
+    const trashed = looked.slice(0, trashCount);
+    const after = resumeLookAndReorder(looked, trashed, r.pending as never,
+      { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx);
+    const fin = finish(after, ctx);
+    return {
+      life: fin.ownerState.life_cloth.length, trash: fin.ownerState.trash.length, life0, trash0,
+      // ⚠`deck.includes(...)` は使えない（POOL カーソル方式のフィラーに同じ CardNum が再出現する）。
+      //   枚数と**ライフ末尾の並び**で見る。
+      deckLen: fin.ownerState.deck.length, deck0: ctx.ownerState.deck.length,
+      lifeTail: fin.ownerState.life_cloth.slice(life0 - trashCount),
+    };
+  };
+  const two = play(2);
+  eq(two.trash - two.trash0, 2, '2枚捨てるとトラッシュが2枚増える');
+  eq(two.life, two.life0, '🔴捨てた枚数と同じ枚数が補充される＝ライフ総数は変わらない');
+  eq(two.deck0 - two.deckLen, 2, 'デッキが2枚減る＝補充はデッキから');
+  eq(two.lifeTail.join(','), [SIGNI_L1, SIGNI_L2].join(','), '補充はデッキの一番上から順に2枚');
+  // 🔴判別力はこちら＝旧実装（count:1 固定）だと「0枚捨てても1枚増える」になる。
+  const zero = play(0);
+  eq(zero.trash - zero.trash0, 0, '0枚捨てるとトラッシュは増えない');
+  eq(zero.life, zero.life0, '🔴0枚なら補充も0枚（旧挙動＝固定1枚だとライフが1枚増えて FAIL）');
+  const three = play(3);
+  eq(three.life, three.life0, '3枚（全部）捨てても同数が戻る');
+}));
+
 test('PLAN §6.3 stored target and self power modifications', () => {
   const self = SIGNI_L4, target = SIGNI_L3, other = SIGNI_L2;
   const ctx = { ...mkCtx({ signi: [self, null, null] }, { signi: [target, other, null] }, self), storedTargetCards: [target] } as ExecCtx;

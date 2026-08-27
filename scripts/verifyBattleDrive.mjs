@@ -17,6 +17,63 @@ const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 
 /**
+ * §5.3 `O-127` の実機ドライバ（捨てる枚数を変えて共有）。
+ * `WX05-010`（エルドラ＝マークⅤ）へグロウ → 【出】「あなたのすべてのライフクロスを見て、その中から
+ * **好きな枚数**をトラッシュに置き、**その枚数と同じ枚数**のカードをデッキの上からライフクロスに加える」。
+ * 🔴**観測点はライフ総数が変わらないこと**＝旧 live は前半が落ちて `ADD_TO_LIFE{count:1}` の固定1枚だったので、
+ *   **0枚捨てても（そもそも捨てる UI が出ず）ライフが1枚増える**。
+ * ⚠`canTrash` の「トラッシュ」ボタンには testid が無い＝**ボタン名で押す**（押すと表示が「戻す」に変わるので
+ *   `.first()` を押し続ければ未選択のカードが順に選ばれる）。
+ * ⚠**LOOK_AND_REORDER は2回出る**（前半＝トラッシュ選択／後半＝並べ替えのみ）。どちらも「決定」で閉じる。
+ */
+async function driveB20(page, H, trashCount) {
+  const tag = trashCount > 0 ? 'b20lifeswap' : 'b20lifeswapzero';
+  const st0 = await H.queryState();
+  const life0 = st0?.host?.life ?? (st0?.host?.lifeCloth ?? 0);
+  const trash0 = st0?.host?.trash ?? 0;
+  H.log(`開始 life=${life0} trash=${trash0} lrigTop=${st0?.host?.lrigTop} lrigDeck=${st0?.host?.lrigDeck}`);
+  const grew = await H.openGrow(/エルドラ＝マークⅤ/);
+  H.log('グロウ実行（Lv4→Lv5・エルドラ＝マークⅤ）:', grew ? 'OK' : '失敗');
+  if (!grew) return { pass: false, detail: '前提崩れ＝WX05-010 へグロウできなかった（候補が出ない）' };
+  let picked = 0, confirms = 0;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // ① トラッシュに置く枚数を選ぶ（必要数まで）。
+    if (picked < trashCount) {
+      const tb = page.getByRole('button', { name: 'トラッシュ', exact: true }).first();
+      if (await tb.count() && await tb.isVisible().catch(() => false)) {
+        await tb.click().catch(() => {}); picked++; did = `trash-${picked}`;
+      }
+    }
+    // ② 「決定」で確定（前半／後半の2回出る）。
+    if (!did) {
+      const ok = page.getByRole('button', { name: '決定', exact: true }).first();
+      if (await ok.count() && await ok.isVisible().catch(() => false) && await ok.isEnabled().catch(() => false)) {
+        await ok.click().catch(() => {}); confirms++; did = `決定#${confirms}`;
+      }
+    }
+    const st = await H.queryState();
+    const life = st?.host?.life ?? 0, trash = st?.host?.trash ?? 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 選択=${picked}/${trashCount} 決定=${confirms} life=${life0}→${life} trash=${trash0}→${trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    const settled = confirms >= 2 && !(st?.stackLen > 0) && !st?.pendingEffect;
+    if (settled) {
+      const gainedTrash = trash - trash0;
+      if (life !== life0) {
+        return { pass: false, detail: `🔴ライフ総数が変わった（life ${life0}→${life}・捨てた${trashCount}枚）＝入れ替えになっていない` };
+      }
+      if (gainedTrash !== trashCount) {
+        return { pass: false, detail: `トラッシュ増分が捨てた枚数と一致しない（+${gainedTrash} ≠ ${trashCount}）` };
+      }
+      return { pass: true, detail: `${trashCount}枚捨てて同数が補充された（life ${life0}→${life}／trash +${gainedTrash}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `解決しなかった（決定=${confirms} life ${life0}→${fin?.host?.life ?? '-'} trash ${trash0}→${fin?.host?.trash ?? '-'}）` };
+}
+
+/**
  * §5.3 `O-126` の実機ドライバ（課税あり／なしで共有）。
  * `WD01-018`（噴流する知識・**《無》×０**）を手札から使用し、**消費エナ枚数**を見る。
  * ⚠**判別力があるのは positive**（`b19costup`）＝`cost_modifiers` が読まれていなかった旧実装では
@@ -2335,6 +2392,44 @@ const scenarios = {
         detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
       };
     },
+  },
+
+  // ── B20（2026-08-28）＝§5.3 `O-127`（直前の選択枚数への後方参照）の実機観測点 ──
+  //   🔴**判別力があるのは 0枚側**（`b20lifeswapzero`）＝旧 live（固定1枚）だと**捨てていないのにライフが1枚増える**。
+  b20lifeswap: {
+    title: 'WX05-010 エルドラ＝マークⅤ（ライフ2枚を捨てて同数を補充＝総数不変／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD06-001#1'],          // エルドラ＝マークⅣ´（Lv4・カード名に《エルドラ》を含む）
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX05-010#1'],
+        'free_grow_this_turn': true,           // グロウコスト《青》×3 を無償化（検証対象はグロウ後の【出】）
+        'life_cloth': ['WD01-013#301', 'WD01-013#302', 'WD01-013#303'],
+        'trash': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB20(page, H, 2); },
+  },
+
+  b20lifeswapzero: {
+    title: 'WX05-010 エルドラ＝マークⅤ（🔴0枚捨てたら補充も0枚／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD06-001#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX05-010#1'],
+        'free_grow_this_turn': true,
+        'life_cloth': ['WD01-013#301', 'WD01-013#302', 'WD01-013#303'],
+        'trash': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null] },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB20(page, H, 0); },
   },
 
   // ── B19（2026-08-28）＝§5.3 `O-126`（`cost_modifiers` は書かれるだけの死にストアだった）の実機観測点 ──
@@ -34911,6 +35006,7 @@ try {
         trash: (s.trash ?? []).length,
         trashCards: s.trash ?? [],
         energy: (s.energy ?? []).length,
+        life: (s.life_cloth ?? []).length,
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),

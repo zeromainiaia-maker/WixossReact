@@ -3054,6 +3054,33 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return lookDeck;
   }
 
+  // ---- 「あなたのすべてのライフクロスを見て、その中から**好きな枚数**をトラッシュに置き、
+  //        **その枚数と同じ枚数**のカードをデッキの上からライフクロスに加える」（`WX05-010-E1`・§5.3 `O-127`）----
+  // 🔴**前半（見る＋好きな枚数を捨てる）が丸ごと落ち、後半も `count:1` の固定枚数**になっていた
+  //   （実測 live＝`ADD_TO_LIFE{count:1,fromTop}` ＋ 並べ替えだけ）。原文はライフの**入れ替え**なので、
+  //   固定1枚だと「捨てずに1枚増える」＝別の効果になる。
+  // 🔑**受け皿は engine に全部在った**（§5-8′「兄弟枝にはある」型）＝
+  //   ①`LookAndReorderAction.count:'ALL'` の型コメントが**このカードを名指し**している
+  //   ②`canTrash` で「好きな枚数をトラッシュ」を表せる
+  //   ③`resumeLookAndReorder` は **`destLocation==='life'` のとき `lastProcessedCards` に trashed を入れる**
+  //     ＝この文型のために書かれた分岐で、後段の `{$ref:'last_processed_count'}` がそのまま読める
+  //   ④`execAddToLife` は `count` を `resolveCountRef` で解決する。
+  //   ⇒ **parser がこの1本を合成していないだけ**だった。
+  // ⚠前半は「並び替える」と書いていない＝`reorder:false`（後半の文が別途 `reorder:true` を出す）。
+  // ⚠母集団は全 CSV で**このカード1枚**（「ライフクロスを見て」の全数＝1）。汎用化しない。
+  if (/^あなたのすべてのライフクロスを見て、その中から好きな枚数をトラッシュに置き、その枚数と同じ枚数のカードをデッキの(?:一番)?上から(?:あなたの)?ライフクロスに加える$/.test(t)) {
+    return { type: 'SEQUENCE', steps: [
+      {
+        type: 'LOOK_AND_REORDER',
+        source: { location: 'life_cloth', owner: 'self' },
+        count: 'ALL', private: true, reorder: false, canTrash: true,
+        destination: { location: 'life_cloth', owner: 'self', position: 'any' },
+      } as EffectAction,
+      // 「その枚数と同じ枚数」＝直前に**ライフから**トラッシュした枚数（resumeLookAndReorder が記録する）。
+      { type: 'ADD_TO_LIFE', owner: 'self', count: { $ref: 'last_processed_count' }, fromTop: true } as EffectAction,
+    ] } as SequenceAction;
+  }
+
   // ---- ライフクロスに加える ----
   // 🔴**出所（どこから）と持ち主（誰のライフ）を必ず読む**（2026-08-24・段2 の `filter.状態 × ADD_TO_LIFE`）＝
   //   旧実装は文頭の「手札を〜」だけを分岐し、**それ以外を無条件で `fromTop:true`（自分のデッキの一番上）**

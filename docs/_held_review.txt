@@ -46,6 +46,24 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
 
+## +LOOK_AND_REORDER +SEQUENCE ［1枚］
+WX05-010
+--- WX05-010
+  原文: 【グロウ】あなたのセンタールリグがカード名に《エルドラ》を含む【出】：あなたのすべてのライフクロスを見て、その中から好きな枚数をトラッシュに置き、その枚数と同じ枚数のカードをデッキの上からライフクロスに加える。その後、あなたのすべてのライフクロスを見て、好きな順番で並び替える。【起】エクシード２：あなたのライフクロス１枚をクラッシュする。そうした場合、手札を
+  - [0].action.steps[0].owner = "self"
+  - [0].action.steps[0].count = 1
+  - [0].action.steps[0].fromTop = true
+  ~ [0].action.steps[0].type : "ADD_TO_LIFE" → "SEQUENCE"
+  + [0].action.steps[0].steps[0].type = "LOOK_AND_REORDER"
+  + [0].action.steps[0].steps[0].source.location = "life_cloth"
+  + [0].action.steps[0].steps[0].source.owner = "self"
+  + [0].action.steps[0].steps[0].count = "ALL"
+  + [0].action.steps[0].steps[0].private = true
+  + [0].action.steps[0].steps[0].reorder = false
+  + [0].action.steps[0].steps[0].canTrash = true
+  + [0].action.steps[0].steps[0].destination.location = "life_cloth"
+  …（他 6 行）
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
