@@ -1,5 +1,56 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-27：§5.3 `O-120`＝【ランサー】によるクラッシュの**原因限定**が無く、通常のバトルダメージでも発火していた
+
+> **1巡（続き693・Opus 5 単独）**。ユーザー指示＝①Sheet1 の機構待ちを解消する ②codex は最初の1バッチだけ（B14 で使用上限）＝**以後は Claude が直接実装**。
+> 📊**進捗3計器＝Sheet1 要対応 33→32 / 863（3.8%→3.7%）｜台帳 残 OPEN 584→583｜census 高シグナル 528→525**
+> gates 全緑（golden **2908→2909**）。実機＝新規2本 `b15plaincrash` / `b15lancercrash` PASS（**反転確認済み**）＋回帰 `b14costup` / `b13colorpower` PASS。
+
+### ① 症状＝主語も原因も落ちていた（実測3効果）
+
+「【自】：あなたのシグニが**【ランサー】によって**対戦相手のライフクロスをクラッシュしたとき、カードを１枚引く」
+（`WX07-042-E1`（Sheet1）／`WX19-028-E1`／`WX19-071-E1`）の live は
+**`triggerScope` も `triggerFilter` も `triggerCondition` も無かった**。
+⇒ collector が全ソースを無条件に通し、**通常のバトルダメージによるクラッシュでも1ドローしていた**（過剰実行）。
+
+🔑**真因は parser の1本の regex**＝`parseAllyLifeCrashSubject`（`effectParser.ts:10211`）が
+`シグニ…が対戦相手のライフ…` を**密着マッチ**していたため、**主語と「対戦相手の」の間に原因句が挟まる**この文型で
+**丸ごと外れていた**。外れた結果 `any_ally` も `triggerFilter` も付かず、原因条件どころか**主語の限定まで消えていた**。
+
+### ② 足した受け皿
+
+- **`triggerCondition.crashedByKeywords: string[]`**（配列は OR＝「【ランサー】か【Ｓランサー】」）
+- **`PlayerState.crash_cause` / `pending_crash_causes`**＝`crash_source_card_num` / `pending_crash_source_card_nums` と
+  **同じ添字規約**で持つ（別実装にすると片方だけ直る）。
+- **`crashCauseMatches`（`triggerCollect.ts`）が唯一の判定**＝headless collector と BattleScreen の実機経路が**同じ関数**を通る。
+  🔴**fail-closed**＝原因不明（`crash_cause` 未設定）なら発火しない。ここを `true` へ倒すと元の過剰実行に戻る。
+
+⚠**書き手を1つでも落とすと壊れる**ので、`crash_source_card_num` を書く**全地点**で原因も同時に書いた：
+`crashOneLife`（唯一の funnel・ランサー経路だけ `'ランサー'`/`'Sランサー'` を渡す）／通常バトルダメージ（`BattleScreen:8568`）／
+ダブル・トリプルクラッシュの pending 追加（**列の長さを揃えないと添字がずれて別のクラッシュの原因を読む**）／
+`execLifeCrash` 2地点（`effectExecutor.ts`）／`lifeCost.ts`／ターン境界のリセット2地点。
+
+⚠**全角【Ｓランサー】と半角 `'Sランサー'` の綴りズレ**（`utils/keywords.ts` 冒頭＝これで live 27効果が無言 no-op になった前例）を踏まないよう、
+判定は **両端を `normalizeKeywordName` で正規化**してから比較している。
+
+### ③ 既存の「据置契約」golden を反転させた
+
+`段2 第37バッチ C群据置契約: ランサー原因を運ばない間は死フラグを生成しない` は、
+**「原因funnel実装時に本テストを反転」とコメントに明記して**「いまは通常クラッシュも拾う」ことを固定していた
+（CODEX_GUIDE §5-4 の据置契約）。**今回それを逆向きに固定し直した**＝据置は永久放置ではないの実例。
+
+### ④ 実機＝判別力があるのは negative 側
+
+- 🔴**`b15plaincrash`（negative）が反転確認の本体**＝正面を空にしてダイレクトアタック＝**通常ダメージでライフを割り**、
+  **手札が増えないこと**を assert する。live から `triggerCondition` を外すと **hand 5→6 で FAIL**（旧バグが再現）。
+- `b15lancercrash`（positive）＝【ランサー】付与で正面シグニに勝ち、追加クラッシュで **hand 6→7**。
+  ⚠**positive 単独では反転確認にならない**（修正の有無にかかわらず引く）ので、両方書いて初めて判別力が出る。
+
+### ⑤ スコープ外として分離
+
+`WX24-P2-055-E1` も原文に「【ランサー】か【Ｓランサー】によって」を持つが、**live は付与（`GRANT_EFFECT`）自体が丸ごと落ちて
+引用能力の本体が `ON_ATTACK_PHASE_START` で直接走る別物**になっている（原因限定以前の問題）＝`O-128` と同族なので分離した。
+
 ## 2026-08-27：§5.3 O-119/O-111＝カード自身の比例使用コストを `cost.costScaling` へ移管
 
 「このスペル／アーツ／カード／ピースの使用コストは…につき…減る／増える」の対象40効果を、
