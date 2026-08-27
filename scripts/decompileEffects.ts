@@ -836,7 +836,9 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_HAS_NO_ABILITIES': return 'この方法で処理したカードが能力を持たない';
     case 'LIFE_CRASHED_LAST_TURN': return `前のターンに${ownerJa(c.owner)}ライフクロスが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた`;
     case 'LRIG_DECK_COUNT': return `${ownerJa(c.owner)}ルリグデッキが${numJa(c.value)}枚${opJa(c.operator)}`;
-    case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': return `${ownerJa(c.owner ?? 'self')}場にそれぞれ共通する色を持たないシグニが${numJa(c.count)}体ある`;
+    case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': return c.count === undefined
+      ? `${ownerJa(c.owner ?? 'self')}場にあるシグニがそれぞれ共通する色を持たない`
+      : `${ownerJa(c.owner ?? 'self')}場にそれぞれ共通する色を持たないシグニが${numJa(c.count)}体ある`;
     case 'NO_OTHER_ARTS_USED_THIS_TURN': return `このターンに《${c.exceptCardName}》以外のアーツを使用していない`;
     case 'THIS_CARD_FROM_NON_HAND_THIS_TURN': return 'このターンにこのシグニが手札以外の領域から場に出ていた';
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;

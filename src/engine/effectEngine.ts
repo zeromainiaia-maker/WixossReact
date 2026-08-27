@@ -118,7 +118,8 @@ export function checkActiveCondition(
       const signi = ownerState.field.signi
         .map(stack => stack?.at(-1))
         .filter((cardNum): cardNum is string => !!cardNum);
-      if (signi.length !== cond.count) return false;
+      if (signi.length === 0) return false;
+      if (cond.count !== undefined && signi.length !== cond.count) return false;
       const colorSets = signi.map(cardNum => new Set(splitFieldColors(cardMap.get(cardNum)?.Color)));
       const common = new Set(colorSets[0]);
       for (const colors of colorSets.slice(1)) {

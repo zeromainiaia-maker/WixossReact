@@ -22858,6 +22858,135 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       ok(!!treeFind(eff.action, x => x.type === 'PREVENT_NEXT_DAMAGE'), `${effectId}: 予約アクションが消えた`);
     }
   });
+
+  // 2026-08-27 Sheet1 B7：「対戦相手のシグニを対象とし、…それのパワーをA。
+  //  〈条件〉場合、代わりにそれのパワーをB」＝置換2枝を同時に相手対象へ束縛する。
+  test('(B7) 群A: then/else 両枝が相手シグニを指し trigger source を参照しない', () => {
+    for (const [cardNum, effectId, deltas] of [
+      ['WX24-D5-07', 'WX24-D5-07-E1', [-20000, -8000]],
+      ['WXK08-053', 'WXK08-053-E1', [-3000, -1000]],
+    ] as const) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const pms: Array<{ target?: { owner?: string }; delta?: number; targetsTriggerSource?: boolean }> = [];
+      const walk = (v: unknown): void => {
+        if (!v || typeof v !== 'object') return;
+        if (Array.isArray(v)) { v.forEach(walk); return; }
+        const o = v as Record<string, unknown>;
+        if (o.type === 'POWER_MODIFY' && deltas.includes(o.delta as never)) pms.push(o);
+        Object.values(o).forEach(walk);
+      };
+      walk(eff.action);
+      eq(pms.length, 2, `${effectId}: base/置換の2ノードが必要`);
+      ok(pms.every(p => p.target?.owner === 'opponent'), `${effectId}: 2枝とも対戦相手のシグニ`);
+      ok(pms.every(p => p.targetsTriggerSource !== true), `${effectId}: trigger source（自分のシグニ）参照を残さない`);
+    }
+  });
+
+  test('(B7) 群A E2E: 下カード条件の成立/不成立で -3000/-1000 が排他になり自分のアタッカーは無傷', () => {
+    const action = effectsMap.get('WXK08-053')!.find(e => e.effectId === 'WXK08-053-E1')!.action as
+      { type: string; steps: EffectAction[] };
+    const replacement = action.steps[1];
+    const source = 'WXK08-053';
+    const target = SIGNI_P3000;
+    const under = SIGNI_L1;
+    const resolve = (hasUnder: boolean) => {
+      const ctx = mkCtx({ signi: [source, null, null] }, { signi: [target, null, null] }, source);
+      if (hasUnder) ctx.ownerState.field.signi[0] = [under, source];
+      return run(replacement, ctx);
+    };
+    const yes = resolve(true);
+    ok((yes.otherState.temp_power_mods ?? []).some(m => m.cardNum === target && m.delta === -3000),
+      '下カードあり＝置換側 -3000');
+    ok(!(yes.otherState.temp_power_mods ?? []).some(m => m.delta === -1000), '成立時に基本 -1000 を重ねない');
+    ok(!(yes.ownerState.temp_power_mods ?? []).some(m => m.cardNum === source), '成立時も自分のアタッカーを下げない');
+    const no = resolve(false);
+    ok((no.otherState.temp_power_mods ?? []).some(m => m.cardNum === target && m.delta === -1000),
+      '下カードなし＝基本側 -1000');
+    ok(!(no.otherState.temp_power_mods ?? []).some(m => m.delta === -3000), '不成立時に置換 -3000 を撃たない');
+    ok(!(no.ownerState.temp_power_mods ?? []).some(m => m.cardNum === source), '不成立時も自分のアタッカーを下げない');
+  });
+
+  test('(B7) 群B: SELECT/STORE→任意コスト→did-it→置換条件の順で両枝が targetsStored', () => {
+    const cases = [
+      ['WX24-P3-076', 'WX24-P3-076-E1', 'HAND_COUNT'],
+      ['WXDi-P02-042', 'WXDi-P02-042-E1', 'TURN_HAND_DISCARD_GTE'],
+      ['WXDi-P14-067', 'WXDi-P14-067-E1', 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'],
+      ['WXDi-P15-074', 'WXDi-P15-074-E1', 'COINS_PAID_THIS_TURN'],
+    ] as const;
+    for (const [cardNum, effectId, condType] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const seq = treeFind(eff.action, x => x.type === 'SEQUENCE'
+        && Array.isArray((x as { steps?: unknown[] }).steps)
+        && ((x as { steps: Array<{ id?: string }> }).steps[0]?.id === 'SELECT_TARGET_ONLY')) as
+        { steps: Array<{ type: string; id?: string; condition?: { type: string }; then?: unknown }> } | null;
+      ok(!!seq, `${effectId}: SELECT_TARGET_ONLY で対象をコスト前に確定`);
+      if (!seq) continue;
+      eq(seq.steps[1]?.id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 対象を固定`);
+      ok(seq.steps[2]?.type === 'STUB', `${effectId}: 任意コスト STUB を消さない`);
+      eq(seq.steps[3]?.condition?.type, 'IS_MY_TURN', `${effectId}: did-it ゲートをコスト直後に保つ`);
+      const inner = treeFind(seq.steps[3]?.then, x => x.type === 'CONDITIONAL'
+        && (x as { condition?: { type?: string }; else?: unknown }).condition?.type === condType
+        && !!(x as { else?: unknown }).else) as
+        { then?: { targetsStored?: boolean; target?: { owner?: string }; delta?: number }; else?: { targetsStored?: boolean; target?: { owner?: string }; delta?: number } } | null;
+      ok(!!inner?.then && !!inner.else, `${effectId}: 置換条件が then/else に載る`);
+      for (const branch of [inner?.then, inner?.else]) {
+        ok(branch?.targetsStored === true, `${effectId}: 両枝が宣言済み対象へ束縛`);
+        eq(branch?.target?.owner, 'opponent', `${effectId}: 両枝とも対戦相手のシグニ`);
+      }
+    }
+  });
+
+  test('(B7) 群B 条件評価: 4条件すべて成立時は置換値・原因だけ外すと基本値', () => {
+    const target = SIGNI_P3000;
+    const distinct = [...cardMap.values()].filter(c => c.Type === 'シグニ')
+      .filter((c, i, all) => ['赤', '青', '緑'].includes(c.Color ?? '')
+        && all.findIndex(x => x.Color === c.Color) === i).slice(0, 3).map(c => c.CardNum);
+    const shared = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.Color === '赤').slice(0, 3).map(c => c.CardNum);
+    eq(distinct.length, 3, '共通色なし盤面の3色が必要');
+    eq(shared.length, 3, '共通色あり盤面の赤3体が必要');
+    const cases: Array<[string, string, string, number, number, (ctx: ExecCtx, yes: boolean) => void]> = [
+      ['WX24-P3-076', 'WX24-P3-076-E1', 'HAND_COUNT', -5000, -3000,
+        (ctx, yes) => { ctx.ownerState.hand = fill(yes ? 5 : 4); }],
+      ['WXDi-P02-042', 'WXDi-P02-042-E1', 'TURN_HAND_DISCARD_GTE', -8000, -3000,
+        (ctx, yes) => { ctx.otherState.turn_hand_discarded_count = yes ? 2 : 1; }],
+      ['WXDi-P14-067', 'WXDi-P14-067-E1', 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', -3000, -2000,
+        // 2体盤面で原因（共通色の有無）だけを変える。count:3 の過小条件へ退化すると成立側が落ちる。
+        (ctx, yes) => { ctx.ownerState.field.signi = (yes ? distinct.slice(0, 2) : shared.slice(0, 2)).map(n => [n]); }],
+      ['WXDi-P15-074', 'WXDi-P15-074-E1', 'COINS_PAID_THIS_TURN', -8000, -5000,
+        (ctx, yes) => { ctx.ownerState.coins_paid_this_turn = yes ? 5 : 4; }],
+    ];
+    for (const [cardNum, effectId, condType, thenDelta, elseDelta, setup] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const inner = treeFind(eff.action, x => x.type === 'CONDITIONAL'
+        && (x as { condition?: { type?: string }; else?: unknown }).condition?.type === condType
+        && !!(x as { else?: unknown }).else) as EffectAction | null;
+      ok(!!inner, `${effectId}: 実行する置換条件が無い`);
+      if (!inner) continue;
+      const resolve = (yes: boolean) => {
+        const ctx = { ...mkCtx({}, { signi: [target, null, null] }), storedTargetCards: [target] } as ExecCtx;
+        setup(ctx, yes);
+        return run(inner, ctx);
+      };
+      const yes = resolve(true);
+      ok((yes.otherState.temp_power_mods ?? []).some(m => m.cardNum === target && m.delta === thenDelta),
+        `${effectId}: 成立側 ${thenDelta}`);
+      ok(!(yes.otherState.temp_power_mods ?? []).some(m => m.delta === elseDelta), `${effectId}: 成立時に基本値を重ねない`);
+      ok((yes.ownerState.temp_power_mods ?? []).length === 0, `${effectId}: 成立時に自分側を下げない`);
+      const no = resolve(false);
+      ok((no.otherState.temp_power_mods ?? []).some(m => m.cardNum === target && m.delta === elseDelta),
+        `${effectId}: 原因だけ外した不成立側 ${elseDelta}`);
+      ok(!(no.otherState.temp_power_mods ?? []).some(m => m.delta === thenDelta), `${effectId}: 不成立時に置換値を撃たない`);
+      ok((no.ownerState.temp_power_mods ?? []).length === 0, `${effectId}: 不成立時に自分側を下げない`);
+    }
+  });
+
+  test('(B7) 据置契約: 場の＜解放派＞全体の下カード合計を表せない効果は部分採用しない', () => {
+    const eff = effectsMap.get('WXDi-P16-056')!.find(e => e.effectId === 'WXDi-P16-056-E1')!;
+    const j = JSON.stringify(eff.action);
+    ok(!j.includes('targetsStored'), 'WXDi-P16-056-E1: 条件なしで target だけ直す部分採用は禁止');
+    ok(j.includes('"targetsTriggerSource":true') && j.includes('"owner":"any"'),
+      'WXDi-P16-056-E1: 受け皿ができるまで旧構造を丸ごと据置する契約');
+  });
   // 2026-08-27 Sheet1 B5：**「AかBの〜」＝色のOR**。`parseColorFilter` が単色しか返さず、
   // 🔴「白か黒のシグニ」が **黒しか選べない過小効果**になっていた（`WX09-016-BURST` ほか実測7効果）。
   test('(B5) 「AかBの〜」の色ORが filter.color 配列に載る', () => {
@@ -41090,6 +41219,11 @@ test('§6.4 O-11: NO_COMMON_COLOR_AMONG_FIELD_SIGNI の filter が engine で効
   eq(evalCondition({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: 3,
     filter: { cardType: 'シグニ', story: '存在しないクラス' } } as never, ctx),
     false, '🔴filter に一致しなければ偽（filter を無視して素通りしない）');
+  eq(evalCondition({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self' } as never, ctx),
+    true, 'count 省略＝現在場にいる2体全体で共通色なし');
+  eq(checkActiveCondition({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self' },
+    ctx.ownerState, ctx.otherState, true, cardMap), true,
+  'ActiveCondition 側も count 省略＝現在場にいる2体全体で共通色なし');
 });
 
 test('§6.4 O-11: WX12-CB02-E1 のレベル別5分岐が全部ある（else の入れ子で1本だけ走る）', () => {

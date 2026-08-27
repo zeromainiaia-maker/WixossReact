@@ -2648,7 +2648,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // ActiveCondition 側（`checkActiveCondition`）にだけ実装があり、こちらには case が無く
     // **無条件 true へフォールスルー**していた（live 使用0件の潜在穴・タスク12(cxv)）。
     case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': {
-      // filter 省略＝場のシグニ全体（従来どおり**ちょうど count 体**）。
+      // count 省略＝現在場にいる全シグニ。指定時は従来どおりの体数条件。
       // filter 指定時は「〈filter〉のシグニが count 体以上あり、その全員に共通する色が無い」（§6.4 O-11）。
       // ⚠シグニゾーンは3つなので「＜X＞が3体」は実質「ちょうど3体」＝両解釈は一致する。
       const nccAll = st(cond.owner).field.signi
@@ -2657,7 +2657,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const nccSigni = cond.filter
         ? nccAll.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), cond.filter))
         : nccAll;
-      if (cond.filter ? nccSigni.length < cond.count : nccSigni.length !== cond.count) return false;
+      if (nccSigni.length === 0) return false;
+      if (cond.count !== undefined
+          && (cond.filter ? nccSigni.length < cond.count : nccSigni.length !== cond.count)) return false;
       const nccSets = nccSigni.map(n => new Set(splitColors(ctx.cardMap.get(getCardNum(n))?.Color)));
       const nccCommon = new Set(nccSets[0]);
       for (const colors of nccSets.slice(1)) for (const c of nccCommon) if (!colors.has(c)) nccCommon.delete(c);

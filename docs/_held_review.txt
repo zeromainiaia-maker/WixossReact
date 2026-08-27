@@ -3,13 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［52枚］
-PR-387 PR-Di017B WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX24-P1-048 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-D06-014 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P04-022 WXDi-P05-005 WXDi-P06-011 WXDi-P08-040 WXDi-P08-072 WXDi-P09-005 WXDi-P11-050 WXDi-P11-051 WXDi-P11-064 WXDi-P11-078 WXDi-P12-031 WXDi-P14-057 WXDi-P15-084 WXDi-P16-001B WXK01-020 WXK01-044 WXK03-006 WXK08-056 WXK09-005 WXK09-040 WXK09-084 WXK11-019 WXK11-026
---- PR-387
-  原文: ベット―《コインアイコン》あなたのデッキからレベル４以下の白か黒のシグニ１枚を探してダウン状態で場に出し、デッキをシャッフルする。その後、あなたがベットしていた場合、追加であなたのトラッシュからこの方法で場に出したシグニのクロス条件に含まれるシグニ１枚を対象とし、それを場に出す。,-
-  - [0].action.steps[0].filter.color = "黒"
-  + [0].action.steps[0].filter.color[0] = "白"
-  + [0].action.steps[0].filter.color[1] = "黒"
+## （type増減なし＝値/構造変更） ［42枚］
+PR-Di017B WD07-006 WX05-023 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX24-P1-048 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -17,6 +12,10 @@ PR-387 PR-Di017B WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 
 --- WD07-006
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
+--- WX05-023
+  原文: 【常】：このシグニはアタックできない。【常】：このシグニのパワーはこのシグニの下にあるカード１枚につき＋2000される。【出】：あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。そうしない場合、このシグニを場からトラッシュに置く。【起】《ダウン》：このシグニの下からカード１枚を対象とし、それを手札に加える。
+  - [2].action.steps[1].target.filter.cardType = "シグニ"
+  - [2].action.steps[1].target.filter.thisCardOnly = true
 
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
@@ -47,57 +46,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.count = 1
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
-
-## +CONDITIONAL +NO_COMMON_COLOR_AMONG_FIELD_SIGNI -SEQUENCE ［2枚］
-SP27-012 WX21-039
---- SP27-012
-  原文: 【自】：このシグニがアタックしたとき、あなたの場にこのシグニと共通する色を持たない他の＜天使＞のシグニがある場合、カードを１枚引く。あなたの場にそれぞれ共通する色を持たない＜天使＞のシグニが３体ある場合、代わりにカードを２枚引く。,-
-  - [0].action.steps[0].type = "DRAW"
-  - [0].action.steps[0].owner = "self"
-  - [0].action.steps[0].count = 1
-  - [0].action.steps[1].type = "DRAW"
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 2
-  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.condition.type = "NO_COMMON_COLOR_AMONG_FIELD_SIGNI"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.count = 3
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.story = "天使"
-  …（他 6 行）
---- WX21-039
-  原文: 【自】：このシグニがアタックしたとき、あなたの場にこのシグニと共通する色を持たない他の＜天使＞のシグニがある場合、あなたのデッキの一番上のカードをエナゾーンに置く。あなたの場にそれぞれ共通の色を持たない＜天使＞のシグニが３体ある場合、代わりにあなたのデッキの上からカードを２枚エナゾーンに置く。,-
-  - [0].action.steps[0].type = "ENERGY_CHARGE_FROM_DECK"
-  - [0].action.steps[0].owner = "self"
-  - [0].action.steps[0].count = 1
-  - [0].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 2
-  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.condition.type = "NO_COMMON_COLOR_AMONG_FIELD_SIGNI"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.count = 3
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.story = "天使"
-  …（他 6 行）
-
-## +CONDITIONAL +FIELD_SIGNI_SHARE_CLASS -SEQUENCE ［1枚］
-WX09-045
---- WX09-045
-  原文: 対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。あなたの場に赤のシグニが３体あり、それらが共通するクラスを持つ場合、代わりに対戦相手のパワー15000以下のシグニ１体を対象とし、それをバニッシュする。,-
-  - [0].action.steps[0].type = "BANISH"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.powerRange.max = 8000
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].type = "BANISH"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  …（他 21 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -321,42 +269,6 @@ WXDi-P15-052
   + [0].action.choices[1].condition.owner = "self"
   + [0].action.choices[1].condition.operator = "gte"
   …（他 1 行）
-
-## +COINS_PAID_THIS_TURN×2 +CONDITIONAL×2 ［1枚］
-WXDi-P15-074
---- WXDi-P15-074
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたが《コインアイコン》を合計１枚以上支払っていた場合、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－5000する。このターンにあなたが《コインアイコン》を合計５枚以上支払っていた場合、代わりにターン終了時まで、それのパワーを－8000する。【起】
-  - [0].action.steps[0].id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
-  - [0].action.steps[0].costColors[0] = "黒"
-  - [0].action.steps[2].type = "POWER_MODIFY"
-  - [0].action.steps[2].target.type = "SIGNI"
-  - [0].action.steps[2].target.owner = "any"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].delta = -8000
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "COINS_PAID_THIS_TURN"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.operator = "gte"
-  + [0].action.steps[0].condition.value = 1
-  …（他 16 行）
-
-## +CONDITIONAL +THIS_CARD_HAS_SOUL -SEQUENCE ［1枚］
-WXDi-P16-089
---- WXDi-P16-089
-  原文: 【チーム】＜デウス・エクス・マキナ＞【チーム自】：このシグニがアタックしたとき、対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。このシグニに【ソウル】が付いている場合、代わりに対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。【常】：あなたの場に＜デウス・エクス・マキナ＞のルリグが３体いないかぎり、このカード
-  - [0].action.steps[0].type = "BANISH"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.powerRange.max = 2000
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].type = "BANISH"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  …（他 18 行）
 
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055

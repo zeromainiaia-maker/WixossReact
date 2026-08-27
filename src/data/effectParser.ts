@@ -3042,6 +3042,9 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 「このターンにあなたが手札をN枚以上捨てていた場合」＝既存 TURN_HAND_DISCARD_GTE（turn_hand_discarded_count）。WXDi-P11-067「代わりに－3000」
   [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
     g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+  // 対戦相手側の対称形。owner を明示しないと evalCondition は self を見るため、相手が捨てた履歴を読めない。
+  [/このターンに対戦相手が手札を([０-９\d]+)枚以上捨てていた場合/,
+    g => ({ type: 'TURN_HAND_DISCARD_GTE', owner: 'opponent', value: parseNum(g[0]) })],
   // 「このターンにこのシグニが効果によってダウン状態からアップしていた場合」＝効果元シグニが upped_from_down_this_turn に在中。WX14-070「代わりに－7000」
   [/このターンにこのシグニが効果によってダウン状態からアップしていた場合/,
     () => ({ type: 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN' })],
@@ -3169,6 +3172,10 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     //   （`SP27-012-E1` は「共通**する**色」・`WX21-039-E1` は「共通**の**色」で、後者だけ条件が丸ごと消えていた）。
     [/あなたの場にそれぞれ共通(?:する|の)色を持たない＜([^＞]+)＞のシグニが([０-９\d]+)体ある場合/,
       g => ({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: parseNum(g[1]), filter: { cardType: 'シグニ', story: g[0] } })],
+    // 体数を省いた「場にあるシグニがそれぞれ〜」は、現在場にいる全シグニ間の共通色を見る。
+    // 2体しかいない盤面も成立しうるため、シグニゾーン上限の3を補ってはいけない。
+    [/あなたの場にあるシグニがそれぞれ共通(?:する|の)色を持たない場合/,
+      () => ({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self' })],
     [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある(?:場合|間)/,
       g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
     // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
@@ -10393,6 +10400,142 @@ function parseActionText(text: string): EffectAction {
  * ⚠**条件が解けたときだけ**畳む。解けない条件で then/else を作ると、原文と逆の枝が常に走る。
  */
 function foldKawariSubstitution(text: string, action: EffectAction): EffectAction {
+  // 「対戦相手のシグニN体を対象とし、〈任意コスト〉。そうした場合、それのパワーを±A。
+  //  〈盤面条件〉場合、代わりにそれのパワーを±B」専用の照応＋置換補正。
+  //
+  // `applyLeadingOpponentDesignation` は従来「代わりに」を丸ごと据置していた。理由は、平坦化された
+  // base/enhanced の片方だけを findTailAction で直すと、もう片方が trigger source（自分のシグニ）のまま
+  // 残るため。ここでは (1) 原文の照応 power 値が2本、(2) 対象宣言が1本、(3) 木の対応ノードも2本、
+  // を同時に要求し、2枝を名指しで直す。条件を解けない平坦形は target も含め丸ごと据置する。
+  const powerRefs = [...text.matchAll(/それの(?:基本)?パワーを([－\-＋+])([０-９\d,，]+)する/g)]
+    .map(m0 => ((m0[1] === '－' || m0[1] === '-') ? -1 : 1) * parseNum(m0[2].replace(/[,，]/g, '')));
+  const designationMatches = [...text.matchAll(/(対戦相手の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、/g)];
+  const isOpponentPowerKawari = powerRefs.length === 2
+    && designationMatches.length === 1
+    && /代わりに(?:ターン終了時まで、)?それの(?:基本)?パワーを/.test(text);
+  if (isOpponentPowerKawari) {
+    const desig = parseSigniTarget(designationMatches[0][1], 'opponent');
+    const refSet = new Set(powerRefs);
+    const powerNodes = collectPowerModifyNodes(action)
+      .filter(n => typeof n.delta === 'number' && refSet.has(n.delta));
+
+    // 既に then/else へ畳めている形（リコレクト／THIS_CARD_HAS_UNDER）は構造を変えず、両枝の照応だけ直す。
+    const seqForGroupA = action.type === 'SEQUENCE' ? (action as SequenceAction).steps : [];
+    const groupAConditional = action.type === 'CONDITIONAL'
+      ? action as import('../types/effects').ConditionalAction
+      : seqForGroupA.length === 2 && seqForGroupA[1]?.type === 'CONDITIONAL'
+          && (seqForGroupA[1] as import('../types/effects').ConditionalAction).condition.type === 'THIS_CARD_HAS_UNDER'
+        ? seqForGroupA[1] as import('../types/effects').ConditionalAction : null;
+    if (groupAConditional?.else && powerNodes.length === 2) {
+      for (const node of powerNodes) {
+        node.target = JSON.parse(JSON.stringify(desig));
+        // designation が「それ」の指し先を確定したので、trigger source 優先を必ず落とす。
+        if ((node as { targetsTriggerSource?: boolean }).targetsTriggerSource) {
+          delete (node as { targetsTriggerSource?: boolean }).targetsTriggerSource;
+        }
+      }
+      return action;
+    }
+
+    // 共通表が先に条件を解いて `cost, replacement{then:enhanced, else:did-it(base)}` まで畳んだ形も、
+    // 対象宣言をコストより前へ戻す。外側にコスト提示条件があれば canonical sequence 全体をその中へ保つ。
+    const km = text.match(/。([^。]*?場合)、代わりに/);
+    const replacementCondition = km ? resolveStateConditionClause(km[1]) : null;
+    if (replacementCondition && action.type === 'SEQUENCE') {
+      const pre = (action as SequenceAction).steps;
+      const repl = pre.length === 2 && pre[1]?.type === 'CONDITIONAL'
+        ? pre[1] as import('../types/effects').ConditionalAction : null;
+      const baseGate = repl?.else && isDidItGate(repl.else) ? repl.else : null;
+      const basePm = baseGate?.then;
+      const enhancedPm = repl?.then;
+      const isPower = (a: EffectAction | undefined, delta: number): a is import('../types/effects').PowerModifyAction =>
+        a?.type === 'POWER_MODIFY' && (a as import('../types/effects').PowerModifyAction).delta === delta;
+      const costCarrier = pre[0];
+      const wrappedCost = costCarrier?.type === 'CONDITIONAL'
+        && !(costCarrier as import('../types/effects').ConditionalAction).else
+        && (costCarrier as import('../types/effects').ConditionalAction).then.type === 'STUB'
+        ? costCarrier as import('../types/effects').ConditionalAction : null;
+      const rawCost = (wrappedCost?.then ?? costCarrier) as EffectAction | undefined;
+      if (repl && baseGate && isPower(basePm, powerRefs[0]) && isPower(enhancedPm, powerRefs[1])
+          && rawCost?.type === 'STUB') {
+        let costStub = rawCost as StubAction;
+        if (costStub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+          costStub = { ...costStub, id: 'OPTIONAL_COST' };
+          delete costStub.optionalCostTarget;
+        }
+        if (costStub.id === 'OPTIONAL_COST') {
+          const bindPower = (pm: import('../types/effects').PowerModifyAction): EffectAction => {
+            const fixed = { ...pm, target: JSON.parse(JSON.stringify(desig)) } as import('../types/effects').PowerModifyAction;
+            delete (fixed as { targetsTriggerSource?: boolean }).targetsTriggerSource;
+            return bindToStoredTarget(fixed, desig);
+          };
+          const canonical: EffectAction = {
+            type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: JSON.parse(JSON.stringify(desig)) } as EffectAction,
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+              costStub,
+              { ...baseGate, then: {
+                type: 'CONDITIONAL', condition: replacementCondition,
+                then: bindPower(enhancedPm as import('../types/effects').PowerModifyAction),
+                else: bindPower(basePm as import('../types/effects').PowerModifyAction),
+              } },
+            ],
+          } as SequenceAction;
+          return wrappedCost ? { ...wrappedCost, then: canonical } : canonical;
+        }
+      }
+    }
+
+    // 平坦形は `cost, did-it(base), enhanced` の3段だけを正準形へ組み替える。
+    // 条件が解けない／コストを同定できない形では上の照応補正も行わない（部分採用＝踏み倒し防止）。
+    if (km && action.type === 'SEQUENCE') {
+      const steps = (action as SequenceAction).steps;
+      const cost = steps.length === 3 ? steps[0] : undefined;
+      const didIt = steps.length === 3 ? steps[1] : undefined;
+      const enhanced = steps.length === 3 ? steps[2] : undefined;
+      const base = isDidItGate(didIt) ? didIt.then : undefined;
+      const condition = resolveStateConditionClause(km[1]);
+      const isPower = (a: EffectAction | undefined, delta: number): a is import('../types/effects').PowerModifyAction =>
+        a?.type === 'POWER_MODIFY' && (a as import('../types/effects').PowerModifyAction).delta === delta;
+      if (condition && cost?.type === 'STUB' && isDidItGate(didIt)
+          && isPower(base, powerRefs[0]) && isPower(enhanced, powerRefs[1])) {
+        let costStub = cost as StubAction;
+        if (costStub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+          // 対象は SELECT/STORE で先に固定済み。ここは色コストの pay/skip だけを担わせる。
+          costStub = { ...costStub, id: 'OPTIONAL_COST' };
+          delete costStub.optionalCostTarget;
+        } else if (costStub.id === 'TRADE_BANISH_SELF_SIGNI'
+            && /あなたのエナゾーンから[^。]*?(?:シグニ|カード)[０-９\d]+枚をトラッシュに置いてもよい/.test(text)) {
+          // 旧 catch-all は「自シグニをトラッシュ＋相手をバニッシュ」という別効果。既存の任意エナ捨て
+          // STUB に戻す（STUB 自体は残すため census のバケットを不意に移動させない）。
+          costStub = { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
+        }
+        const supportedCost = ['OPTIONAL_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'].includes(costStub.id);
+        if (supportedCost) {
+          const bindPower = (pm: import('../types/effects').PowerModifyAction): EffectAction => {
+            const fixed = { ...pm, target: JSON.parse(JSON.stringify(desig)) } as import('../types/effects').PowerModifyAction;
+            delete (fixed as { targetsTriggerSource?: boolean }).targetsTriggerSource;
+            return bindToStoredTarget(fixed, desig);
+          };
+          const replacement: EffectAction = {
+            type: 'CONDITIONAL', condition,
+            then: bindPower(enhanced as import('../types/effects').PowerModifyAction),
+            else: bindPower(base as import('../types/effects').PowerModifyAction),
+          };
+          return {
+            type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: JSON.parse(JSON.stringify(desig)) } as EffectAction,
+              { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+              costStub,
+              { ...didIt, then: replacement },
+            ],
+          } as SequenceAction;
+        }
+      }
+    }
+    return action;
+  }
+
   const m = text.match(/。([^。]*?場合)、代わりに(.{0,14})/);
   if (!m) return action;
   if (/^(?:それ|その|そのカード|そのシグニ)/.test(m[2])) return action;   // 照応語＝参照先を失う

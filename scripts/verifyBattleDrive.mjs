@@ -17145,8 +17145,18 @@ const b5Spec = (hostSigni, guestSigni) => ({
   top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
 });
 // label / 生き残っていなければならないカード / 消えていなければならないカード
-const b5Drive = (label, mustSurvive, mustVanish) => async (page, H) => {
-  const before = await H.queryState();
+const b5Drive = (label, mustSurvive, mustVanish, specFn) => async (page, H) => {
+  let before = await H.queryState();
+  // 🔴**盤面が載るまで再注入する**（§4.4 罠34・2026-08-27 Sheet1 B7 の回帰実行で実測）＝
+  //   直前シナリオ（`b6DesignationClassReachesTarget`）の壁 `WD01-010#9610` が guest 場に残ったまま
+  //   1ティック目の `mustSurvive` チェックが走り、**engine は正しいのに「2体バニッシュしている」と誤報**した
+  //   （単独実行では PASS＝典型的な位置依存フレーク）。注入そのものが競合で流れる形なので載るまで打ち直す。
+  for (let r = 0; specFn && r < 4 && !JSON.stringify(before?.guest?.fieldSigni ?? []).includes(mustVanish); r++) {
+    H.log(`再注入(${r})… guest=${JSON.stringify(before?.guest?.fieldSigni)}`);
+    await injectScenario(page, specFn());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
   H.log('開始 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
   await H.ensureMain();
   const clickExact = async (name) => {
@@ -17203,14 +17213,16 @@ const b5Drive = (label, mustSurvive, mustVanish) => async (page, H) => {
 scenarios.b5KawariElseBanishesOnlyLow = {
   title: 'WX09-045-E1（Sheet1 B5＝異クラス → else の≤8000だけ・10000は候補にも出ない）',
   spec: b5Spec(b5RedDistinct, [['WXDi-P04-055#9440'], ['WX04-065#9441'], null]),
-  drive: b5Drive('b5KawariElseBanishesOnlyLow', 'WX04-065#9441', 'WXDi-P04-055#9440'),
+  drive: b5Drive('b5KawariElseBanishesOnlyLow', 'WX04-065#9441', 'WXDi-P04-055#9440',
+    () => b5Spec(b5RedDistinct, [['WXDi-P04-055#9440'], ['WX04-065#9441'], null])),
 };
 // 対照＝条件を**満たす**（全部 精羅：鉱石）ので `then`（≤15000）へ置換される。
 //   guest は 10000 の1体だけ＝**then 枝が届かなければ何も起きない**。
 scenarios.b5KawariThenReachesHigh = {
   title: 'WX09-045-E1 対照（Sheet1 B5＝赤3体が共通クラス → then の≤15000が届く）',
   spec: b5Spec(b5RedShared, [['WX04-065#9450'], null, null]),
-  drive: b5Drive('b5KawariThenReachesHigh', null, 'WX04-065#9450'),
+  drive: b5Drive('b5KawariThenReachesHigh', null, 'WX04-065#9450',
+    () => b5Spec(b5RedShared, [['WX04-065#9450'], null, null])),
 };
 
 order.push('servantMultiEnaPaysColor');
@@ -17472,6 +17484,124 @@ scenarios.b6DesignationClassReachesTarget = {
   drive: b6bDesigFilterDrive,
 };
 order.push('b6DesignationClassReachesTarget');
+// ── Sheet1 B7（2026-08-27）＝「それのパワーをA。〈条件〉場合、代わりにB」の対象照応＋置換 ──
+// `WXDi-P14-067-E1`「【自】：あなたのアタックフェイズ開始時、**対戦相手のシグニ１体を対象とし**、《無》を
+//   支払ってもよい。そうした場合、ターン終了時まで、**それの**パワーを－2000する。あなたの場にあるシグニが
+//   それぞれ共通する色を持たない場合、代わりに…－3000する。」
+// 🔴旧 live は `POWER_MODIFY{owner:'self', targetsTriggerSource:true}`＝engine が
+//   `triggeringCardNum ?? sourceCardNum`（＝**効果元＝自分のシグニ**）へ解決するため、
+//   **相手を縮めるはずの効果が自分のシグニのパワーを下げていた**。さらに「代わりに」側が
+//   ゲート外の素の兄弟ステップで、条件も落ちたまま**コストを払わなくても走る**二重バグだった。
+// ⚠**この層は golden では守れない**＝対象宣言→任意コスト（インタラクションの resume）→`targetsStored` で
+//   同じ対象を撃つ、という**pause を跨いだ対象の生存**は実機経路でしか通らない。
+// ⚠host の場はこの1体だけ＝「それぞれ共通する色を持たない」は**偽**（単体の色集合がそのまま共通色になる）
+//   ＝基本値 -2000 側が正しい枝。置換側 -3000 が出たら条件評価が壊れている。
+const B7_SRC   = 'WXDi-P14-067#7301';  // コードメイズ ムジカ//フェゾーネ（黒・Lv1）＝効果元
+const B7_LRIG  = 'WD03-003#7300';
+const B7_TGT   = 'WD01-010#7311';      // 大剣 カリバン（白・Lv3）＝**選ぶ相手シグニ**
+const B7_OTHER = 'WX01-094#7312';      // 幻獣 スワロウ（緑・Lv1）＝候補には出るが選ばない
+const B7_ENE   = 'WX01-090#7320';      // 《無》1つの支払い用
+const b7KawariSpec = () => ({
+  hostSet: {
+    'field.lrig': [B7_LRIG],
+    'field.signi': [null, [B7_SRC], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'energy': [B7_ENE],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#7302'],
+    'field.signi': [[B7_TGT], null, [B7_OTHER]],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'energy': [],
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+async function b7KawariDrive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(B7_SRC); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, b7KawariSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni),
+    ' guest signi:', JSON.stringify(before?.guest?.fieldSigni),
+    ' hPowerMods:', JSON.stringify(before?.host?.powerMods),
+    ' gPowerMods:', JSON.stringify(before?.guest?.powerMods));
+  let cands = null, picked = false, decided = false, paid = false, last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/b7Kawari-${s}.png`, fullPage: true });
+    let did = null;
+    const st0 = await H.queryState();
+    // ① 対象宣言（SELECT_TARGET_ONLY）の候補＝相手シグニ2体
+    if (!cands && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+      cands = st0.pendingCandidates.slice();
+      H.log('  対象宣言の候補:', JSON.stringify(cands));
+    }
+    if (!did && cands && !picked) { did = await clickPendingInstance(page, H, B7_TGT); if (did) picked = true; }
+    if (!did && picked && !decided) { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) decided = true; }
+    // ② 任意コスト《無》＝エナ枠を1度だけ押してから発動（罠8p＝毎ティック押すとトグルで外れる）
+    if (!did && !paid) {
+      const ec0 = page.getByTestId('optcost-energy-0').first();
+      if (await ec0.count() && await ec0.isVisible().catch(() => false)) {
+        await ec0.click({ timeout: 1200 }).catch(() => {});
+        await page.waitForTimeout(250);
+        const payBtn = page.getByRole('button', { name: /支払|発動/ }).first();
+        if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+          await payBtn.click({ timeout: 1200 }).catch(() => {});
+          paid = true;
+        }
+        did = 'pick:optcost-energy-0→発動';
+      }
+    }
+    if (!did) did = await H.clickBtn('アタックフェイズへ', { exact: true });
+    // ⚠「スキップ」は支払い前に押すとコストを飛ばして本題が消える＝支払い後だけ許す
+    if (!did) did = await H.clickTextOrBtn(paid ? ['決定', 'OK', 'はい', 'アーツ終了', 'ガードしない', 'しない', 'スキップ']
+      : ['決定', 'OK', 'はい', 'アーツ終了', 'ガードしない']);
+    last = await H.queryState();
+    H.log(`  b7[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(cands)} picked=${picked} paid=${paid}`
+      + ` hPM=${JSON.stringify(last?.host?.powerMods)} gPM=${JSON.stringify(last?.guest?.powerMods)}`
+      + ` pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'} phase=${last?.turnPhase ?? '-'}`);
+    if (paid && (last?.guest?.powerMods ?? []).length > 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/b7Kawari-final.png`, fullPage: true });
+  const gPM = last?.guest?.powerMods ?? [];
+  const hPM = last?.host?.powerMods ?? [];
+  const detail = `cands=${JSON.stringify(cands)} picked=${picked} paid=${paid} gPowerMods=${JSON.stringify(gPM)} hPowerMods=${JSON.stringify(hPM)}`;
+  // 🔑旧挙動でも必ず残る痕跡から書く（罠3b）＝「相手の powerMods が空のまま自分の powerMods が動いた」
+  if (hPM.some(m => String(m).startsWith(`${B7_SRC}:`))) {
+    return { pass: false, detail: `🔴効果元（自分のシグニ）のパワーが下がっている＝targetsTriggerSource への誤照応が残っている。${detail}` };
+  }
+  if (!cands) return { pass: false, detail: `前提崩れ＝対象宣言（SELECT_TARGET）を1度も観測できていない。${detail}` };
+  if (!cands.includes(B7_TGT) || !cands.includes(B7_OTHER)) {
+    return { pass: false, detail: `🔴候補が相手シグニ2体になっていない。${detail}` };
+  }
+  if (!paid) return { pass: false, detail: `前提崩れ＝任意コスト《無》を支払えていない。${detail}` };
+  if (!gPM.includes(`${B7_TGT}:-2000`)) {
+    return { pass: false, detail: `🔴選んだ相手シグニ（${B7_TGT}）に -2000 が乗っていない。${detail}` };
+  }
+  if (gPM.some(m => String(m).startsWith(`${B7_OTHER}:`))) {
+    return { pass: false, detail: `🔴選んでいない相手シグニ（${B7_OTHER}）にも乗った＝対象が固定されていない。${detail}` };
+  }
+  if (gPM.some(m => String(m).endsWith(':-3000'))) {
+    return { pass: false, detail: `🔴置換側 -3000 が走った＝「共通する色を持たない」条件が偽なのに then 枝を選んでいる。${detail}` };
+  }
+  return { pass: true, detail: `対象宣言→《無》支払い→**選んだ相手シグニだけ** -2000（置換条件は偽なので else 枝）。自分の場は無傷。${detail}` };
+}
+scenarios.b7KawariBindsOpponentTarget = {
+  title: 'WXDi-P14-067-E1（Sheet1 B7＝「代わりに」の照応）＝旧実装は自分のシグニのパワーを下げていた',
+  spec: b7KawariSpec(),
+  drive: b7KawariDrive,
+};
+order.push('b7KawariBindsOpponentTarget');
 // Sheet1 B4（2026-08-27）＝census 較正の前提（1回で消費）を実機で見張る。
 order.push('b4NextSpellReductionConsumed');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は

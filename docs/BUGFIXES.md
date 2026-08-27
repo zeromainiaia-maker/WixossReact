@@ -1,5 +1,118 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-27：Sheet1 B7＝「〈条件〉場合、代わりに」があると照応補正が**自ら降り**、置換側が自分のシグニのパワーを下げていた
+
+> **1巡（続き685・Opus 5 単独＋Codex 委譲）**＝**相手を縮めるはずの効果が、自分のアタックしているシグニのパワーを
+> 下げていた**系統。gates 全緑（golden **2880→2885**（+5テスト）FAIL 0／smoke 全異常0／fuzz 全0／
+> census **536 据置**／`census:stubs` A群🔴0・C群0／manual-fields 0/0／enginetext A群 141 据置／
+> lint 0 errors・warning 263 ±0／同型★0／held **74→73**）。
+> **live 変化は 6 effectId ちょうど**（新規0・消滅0・`parseStatus` 遷移0）。**意味照合 段2 台帳 OPEN 631 → 630**。
+> **実機シナリオ1本を新設**＝`b7KawariBindsOpponentTarget`（2回連続 PASS・**反転確認あり**）＋回帰4本 ALL PASS。
+> 📊**3計器**＝**Sheet1 要対応 66（動かない）／台帳 OPEN 631→630／census 536（動かない）**。
+> ⚠**Sheet1 が動かない理由**＝6効果はすべて Sheet1 外（WX24／WXDi／WXK）。
+> ⚠**census が動かない理由**＝この6効果は元から「STUB/MANUAL 格納」バケット側で高シグナルに数えられていない
+> （＝**census には最初から映らない穴**だった。この形は逆翻訳・census・golden・smoke・fuzz が全部緑のまま意味が壊れる）。
+
+### ① 症状＝2つのバグが重なっていた
+
+対象は「【自】…、**対戦相手のシグニ１体を対象とし**、〈任意コスト〉てもよい。そうした場合、**それの**パワーを－N する。
+〈条件〉場合、**代わりに** **それの**パワーを－M する。」という1つの文型（全 CSV 実測 **7効果**）。
+
+1. 🔴**帰結が `POWER_MODIFY{owner:'self', targetsTriggerSource:true}`**＝engine は
+   `ctx.triggeringCardNum ?? ctx.sourceCardNum`（＝**効果元＝自分のシグニ**）へ**無選択で**解決する
+   （`effectExecutor.ts:1698-1699`）＝**自分のアタッカーのパワーが下がる**（0以下ならルールバニッシュまで起きる）。
+2. 🔴**「代わりに」がゲート外の素の兄弟ステップへ平坦化**されていた＝
+   `SEQUENCE[〈任意コストSTUB〉, CONDITIONAL{IS_MY_TURN}{then:PM(-N)}, PM(-M)]`。
+   ①置換条件が**丸ごと落ちている** ②基本値と置換値が**両方走る** ③置換側が**任意コストのゲートの外**にあるので
+   **コストを払わなくても撃てる**（踏み倒し）。
+
+**実機で観測した旧挙動**（反転確認＝`WXDi-P14-067-E1` の live を baseline へ戻して再実行）：
+`cands=["WXDi-P14-067#7301","WD01-010#7311","WX01-094#7312"]`＝**候補に自分のシグニまで出る**（素の
+`PM{owner:'any'}` が自由選択を出していた）／`gPowerMods=["WD01-010#7311:-3000"]`＝**条件を満たしていないのに
+置換値 -3000 が走り**、基本値 -2000 はどこにも乗らない。修正後は
+`cands=["WD01-010#7311","WX01-094#7312"]`（相手シグニだけ）／`gPowerMods=["WD01-010#7311:-2000"]`／`hPowerMods=[]`。
+
+### ② 真因＝既存の照応補正が「代わりに」という文字列を見て自ら降りていた
+
+`src/data/effectParser.ts` の**3つの後段関数**が同じ1行で据置していた
+（`applyLeadingSelfDesignationToPowerModify:7681` ／ `applyLeadingOpponentDesignationToPowerModify:7707` ／
+`applyLeadingOpponentDesignation:7775`）：
+
+```ts
+// 「代わりに」置換は前段/後段の二重 power-modify/除去へ平坦化される別系統（タスク6）。findTail が末尾だけ
+// 補正すると片方が誤 owner のまま残るため丸ごと据置する（WX24-P3-076 等）。
+if (/代わりに/.test(text)) return action;
+```
+
+🔑**見送り契約の理由は「片方だけ直すと誤 owner が残る」**であって「照応補正が誤り」ではない。
+⇒ **2ノードを名指しで同時に直せば理由は解消する**＝置換を `CONDITIONAL{条件, then:置換, else:基本}` へ畳んでから
+両枝を対象宣言へ束縛する。**3つのガードは1つも外していない**（外すと同じ regex に当たる131効果へ一気に効くため）。
+補正は `foldKawariSubstitution`（`effectParser.ts:10400` 付近）に**この文型限定**で追加した
+（原文の照応パワー値が2本・対象宣言が1本・木の対応ノードも2本、を同時に要求する）。
+
+### ③ 母集団の測り方（3段で絞った）
+
+| 段 | 条件 | 件数 |
+|---|---|---|
+| 1 | 原文に「対象宣言1つ＋照応『それ』＋代わりに」 | **138効果** |
+| 2 | 宣言が「対戦相手の…シグニN体」で①②③の選択肢形を除く | — |
+| 3 | 帰結ノードに `owner:'self'` か `targetsTriggerSource:true` が残っている | **7効果** |
+
+⚠**残り131効果は既に正しいか別軸**＝正準形①（`SELECT_TARGET_ONLY→STORE→コスト→gate{targetsStored}`＝
+`WX25-P3-072-E1` ほか4件）／正準形②（**差分加算**＝基本 -8000 を撃ってから
+`CONDITIONAL{LAST_PROCESSED_MATCHES}{then:PM(-4000, targetsLastProcessed)}` で合計 -12000 にする＝
+`WX15-027-E1` ほか4件）／「代わりに**N つまで選ぶ**」（選択肢個数の置換＝別軸）。**指示書に「触るな」と明記し、実際に差分0**。
+
+### ④ 採用6／据置1
+
+| effectId | 置換条件の受け皿 | 結果 |
+|---|---|---|
+| `WX24-D5-07-E1` | `LRIG_TRASH_COUNT` | 採用（then/else の**両枝**を相手対象へ。`else` だけ正しく `then` が誤り、という**同一効果内の食い違い**だった） |
+| `WXK08-053-E1` | `THIS_CARD_HAS_UNDER` | 採用（`fixOwnerTOSOC` は**外側の `conditional.then` しか見ない**ので、入れ子の else 側は実行時補正すら届いていなかった） |
+| `WX24-P3-076-E1` | `HAND_COUNT{self,gte,5}` | 採用。⚠**旧 live のコストが `TRADE_BANISH_SELF_SIGNI`＝「自シグニをトラッシュ＋相手をバニッシュ」という別効果**だったので `OPTIONAL_TRASH_ENERGY_CLASS` へ戻した |
+| `WXDi-P02-042-E1` | `TURN_HAND_DISCARD_GTE{opponent,2}` | 採用（**対戦相手側の対称形**を `STATE_CONDITION_CLAUSES` に追加。owner を明示しないと `evalCondition` は self を見る） |
+| `WXDi-P14-067-E1` | `NO_COMMON_COLOR_AMONG_FIELD_SIGNI{self}` | 採用（**`count` を省略可にした**＝下記⑤） |
+| `WXDi-P15-074-E1` | `COINS_PAID_THIS_TURN`（外側1枚・内側5枚） | 採用 |
+| `WXDi-P16-056-E1` | **受け皿なし**（「場にある＜解放派＞のシグニの**下**にカードが合計4枚以上」） | 🔴**丸ごと据置**（§5.3 `O-105`） |
+
+🔑**据置の理由＝部分採用は踏み倒しになる**＝target だけ直して二重適用を残すと、**過小（自分に当たる）から
+過剰（相手が -5000 と -8000 の両方を食らう）へ裏返る**だけで、どの計器にも映らない。
+**非採用契約は golden で固定した**（`(B7) 据置契約: …`＝`targetsStored` が付いていないことと旧構造が残っていることを assert）。
+
+### ⑤ `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` の `count` を省略可にした（型＋両評価器＋逆翻訳＋golden の4点）
+
+原文「あなたの場にあるシグニがそれぞれ共通する色を持たない場合」は**体数を書かない**＝
+既存型は `count: number` 必須で「**ちょうど N 体**」だったため、**2体盤面では成立しなくなる過小条件**になる。
+⇒ `count?: number`（省略＝**現在場にいる全シグニ**）を `Condition`／`ActiveCondition` の**両 union**に入れ、
+`evalCondition`（`execUtils.ts:2650`）と `checkActiveCondition`（`effectEngine.ts:117`）の**両評価器**を揃え、
+`decompileEffects.ts` の `condJa` も分岐させた。**場が0体なら false**（fail-closed）。
+⚠**片側だけ足すと `checkActiveCondition` の `default: return true` で無条件成立に落ちる**（§4.2 の3点セット）。
+
+### ⑥ 実機シナリオ（この層は golden では守れない）
+
+**`b7KawariBindsOpponentTarget`**（`WXDi-P14-067-E1`）＝MAIN →「アタックフェイズへ」→ **対象宣言のピッカー**で
+相手シグニを1体選ぶ →《無》を支払う → **選んだ相手シグニだけ** -2000。
+🔑**この経路は golden では原理的に守れない**＝`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS` で固定した
+`storedTargetCards` が**任意コストのインタラクション resume を跨いで生存するか**は実機経路でしか通らない
+（`freezeStoredTargets` の `FREEZABLE` に **`POWER_MODIFY` は入っていない**＝生存は `PendingEffect.storedTargetCards`
+の永続化（`types/index.ts:1414`／`BattleScreen.tsx:5265`）に依存している。**この組み合わせは今回が初出**）。
+反転確認＝live を baseline へ戻すと FAIL（①の「実機で観測した旧挙動」）、戻して `SKIP_BUILD=0` で再実行して PASS。
+
+### ⑦ 既存シナリオ `b5KawariElseBanishesOnlyLow` の位置依存フレークを直した（engine のバグではない）
+
+回帰実行（B7→B6×2→B5 の順）で **B5 が FAIL** したが、単独実行では PASS。ログの `gField` に
+**直前シナリオ `b6DesignationClassReachesTarget` の壁 `WD01-010#9610`** が写っており、
+**自分の盤面が載る前に1ティック目の `mustSurvive` チェックが走っていた**（§4.4 罠34＝注入そのものが競合で流れる）。
+⇒ `b5Drive` に**盤面が載るまで再注入するループ**を入れた（B6/B7 と同じ形）。以後5本を1バッチで ALL PASS。
+🔑**「engine は正しいのにシナリオが赤い」の典型**＝FAIL 文言（「2体バニッシュしている」）が真犯人を指していなかった。
+
+### ⑧ 運用メモ
+
+- 🔴**`codex exec` の `-C` は `C:/Users/zerom/source/WixossReact`**＝`CODEX_GUIDE.md` §2 に書かれていた
+  `C:/Users/zerom/WixossReact` は**存在しない**（`~/.codex/config.toml` の trusted project も source 側）。ガイドを実測値へ更新した。
+- Codex 側の申告と実測のズレは **0件**（変化集合6・held 74→73・台帳 OPEN 631→630・ゲート数値すべて一致）。
+  ⭐**指示書の G1「全部直すか丸ごと据置か」が機能した**＝受け皿の無い1件を自分で候補から外して報告した。
+
 ## 2026-08-27：Sheet1 B6＝「〈宣言〉を対象とし、〈**別の所有者**の中間動作〉」で宣言側の owner が中間動作へ誤付着していた
 
 > **1巡（続き684・Opus 5 単独）**＝**自分のシグニを失うコストが、相手のシグニを削る利益に化けていた**系統。gates 全緑
