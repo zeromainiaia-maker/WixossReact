@@ -22764,6 +22764,70 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       eq(a.conditionChoose?.thenChooseCount, thenCount, `${effectId}: 条件達成時の選択数`);
     }
   });
+  // 2026-08-27 Sheet1 B6：**同一文に対象が2つある**とき、宣言側の `owner`／`count` が**中間動作へ誤付着**する。
+  // 🔴中間動作の節を単独でパースすると正しい（`あなたの＜原子＞のシグニ３体をバニッシュする` → self/3）のに、
+  //   頭に「対戦相手のシグニ１体を対象とし、」が付くと **opponent/1** に化けていた＝
+  //   **自分のシグニを失うコストが、相手のシグニを追加除去する効果に化ける**（コスト踏み倒し＋過剰除去）。
+  test('(B6) 「〈宣言〉を対象とし、〈別所有者の中間動作〉」＝中間動作へ owner/count が誤付着しない', () => {
+    // [CardNum, effectId, 中間ステップの owner, count]
+    const cases: [string, string, string, number][] = [
+      ['WX14-CB02', 'WX14-CB02-E2', 'self', 1],
+      ['WX25-CP1-082', 'WX25-CP1-082-E1', 'self', 1],
+    ];
+    for (const [cardNum, effectId, owner, count] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const step0 = (eff.action as unknown as { steps?: Array<{ target?: { owner?: string; count?: unknown } }> }).steps?.[0];
+      eq(step0?.target?.owner, owner, `${effectId}: 中間動作の所有者（相手になっていると自分のコストを踏み倒す）`);
+      eq(step0?.target?.count, count, `${effectId}: 中間動作の体数`);
+    }
+    // 引用能力の中でも同じ（`WXK03-018-E1` はセンタールリグへ付与する【起】の中身）。
+    const granted = effectsMap.get('WXK03-018')!.find(e => e.effectId === 'WXK03-018-E1')!;
+    const inner = treeFind(granted.action, x => x.type === 'BANISH') as { target?: { owner?: string } } | null;
+    eq(inner?.target?.owner, 'self', 'WXK03-018-E1-G: 付与能力の中でも中間動作は自分のシグニ');
+  });
+  // 🔴**据置契約**＝中間動作が**場のシグニではないゾーン**（エナゾーン／デッキ）を指す形は、
+  //   owner だけ直すと「場のシグニを相手→自分に付け替える」だけの別物になる（§4.2 部分採用の禁）。
+  //   受け皿ができるまで触らない＝§5.3 `O-104`。⚠**これは「正しい」ではなく「まだ直していない」印**。
+  // ⚠**N体（N≧2）の犠牲も据置**＝`EffectInteractionModal.canConfirm` が非 optional で「選択数 ≧ count」を
+  //   要求するため、候補が足りない盤面で**確定ボタンが押せずソフトロック**する（旧「段2 第24バッチ 見送り契約」と同じ理由。
+  //   実機 UI を読み直して理由が生きていることを確認済み）。`WX07-039-E2` は下の第24バッチ契約が固定している。
+  test('(B6) 据置契約: 別ゾーンを指す中間動作は owner だけ直さない（O-104 待ち）', () => {
+    for (const [cardNum, effectId] of [['WXEX1-14', 'WXEX1-14-E2'], ['WXK06-030', 'WXK06-030-E1']]) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const step0 = (eff.action as unknown as { steps?: Array<{ target?: { owner?: string; type?: string } }> }).steps?.[0];
+      ok(step0?.target?.owner === 'opponent', `${effectId}: 中途半端に owner だけ直っている（O-104 の受け皿を作ってから直す）`);
+    }
+  });
+  // 2026-08-27 Sheet1 B6：`applyDroppedTargetDesignation` の適用範囲を広げた（①中間動作が**強制**でもよい
+  // ②中間動作の位置を同定できないときは**先頭**へ挿す）。🔴広げる前は**宣言側のパワー閾値が帰結に届かず、
+  // どのシグニでもバニッシュできる過剰効果**だった。
+  test('(B6) 対象宣言の復元: 宣言のパワー閾値が帰結（そうした場合、それを〜）へ届く', () => {
+    // [CardNum, effectId, 期待する SELECT_TARGET_ONLY の powerRange]
+    const cases: [string, string, Record<string, number>][] = [
+      ['WXDi-P03-058', 'WXDi-P03-058-E1', { max: 8000 }],
+      ['WXDi-P09-062', 'WXDi-P09-062-E1', { max: 10000 }],
+      ['WX24-P1-042', 'WX24-P1-042-E1', { max: 12000 }],
+      ['WX24-P3-066', 'WX24-P3-066-E1', { max: 5000 }],
+    ];
+    for (const [cardNum, effectId, powerRange] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const sel = treeFind(eff.action, x => x.type === 'STUB'
+        && (x as { id?: string }).id === 'SELECT_TARGET_ONLY') as { selectTarget?: { filter?: { powerRange?: unknown } } } | null;
+      ok(!!sel, `${effectId}: 対象宣言が復元されていない（どのシグニでも撃てる過剰効果）`);
+      eq(JSON.stringify(sel!.selectTarget?.filter?.powerRange), JSON.stringify(powerRange), `${effectId}: 宣言のパワー閾値`);
+      const bound = treeFind(eff.action, x => (x as { targetsStored?: boolean }).targetsStored === true);
+      ok(!!bound, `${effectId}: 帰結が宣言済み対象へ束縛されていない`);
+    }
+  });
+  // 🔴同じ広げ方で**中間動作へ誤付着していた宣言側フィルタが剥がれる**ことまで見張る（`WX08-036-E1`）。
+  //   原文「トラッシュから＜鉱石＞か＜宝石＞のシグニ合計５枚をデッキの一番下に置く」の source に、
+  //   宣言側の「パワー10000以下」が乗っていた（＝トラッシュのカードをパワーで絞る意味不明な条件）。
+  test('(B6) 対象宣言の復元: 宣言のパワー閾値が中間動作の source から剥がれる（WX08-036-E1）', () => {
+    const eff = effectsMap.get('WX08-036')!.find(e => e.effectId === 'WX08-036-E1')!;
+    const mid = treeFind(eff.action, x => x.type === 'TRANSFER_TO_DECK') as { source?: { filter?: Record<string, unknown> } } | null;
+    ok(!!mid, 'WX08-036-E1: デッキ下戻しが無い');
+    eq(mid!.source?.filter?.powerRange, undefined, '🔴宣言側のパワー閾値が中間動作の source に誤付着している');
+  });
   // §5.3 O-99（2026-08-27 Sheet1 B5）：「A。〈条件〉場合、**代わりに** B。」＝**昇格置換**。
   // 🔴畳めていないと `SEQUENCE[A, B]` ＝**条件成立時に A と B が両方走る**（`WX09-045-E1` は
   //   パワー8000以下と15000以下を**2体**バニッシュしていた）。正準形は `CONDITIONAL{cond, then:B, else:A}`。

@@ -4724,3 +4724,19 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   🆕**Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
   **残 OPEN 61件 / 49カード / 52効果**（着手時 69件 / 55カード / 59効果）、
   **要対応カード 69 / 863（8.0%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69）＝🆕**`npm run census:cards -- --sheet 1` で毎回1コマンドで出る**（内訳＝census **32**／意味照合 49（findings 61件）／held 6／partial 0／idset 1。`--list` を足すとカード名つきで列挙＝次バッチの取り出し口）。⚠**「フラグ0 の776枚」は「正しい」ではない**＝計器が見ていないだけで、シートを閉じるには残りへの検出パスが別途要る（計器の出力にも毎回出る）（⚠**Sheet1 スコープの計器はまだ無い**＝`cardProgressCensus.mjs --sheet` が次の小仕事）
+
+### 恒久指標アーカイブ（2026-08-27 続き683 後・PLAN §6 から退避）
+
+- **2026-08-27 続き683 後（本行が直近の正）**：
+  **census 537/537**（Sheet1 B5 で **551→536**＝置換・色OR・公開しの3件を是正。**+1 は退化ではなく可視化**＝`WXEX1-57` の manual 影武者を撤去した結果その効果が MANUAL バケツを出て高シグナル側へ昇格した。詳細は BUGFIXES）、**golden 2876**（Sheet1 B5 で +4 テスト・FAIL 0）、
+  smoke **10697 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置＝Sheet1 B5 は**アクション型**を足していない。足したのは `Condition` 1本＝`THIS_CARD_HAS_SOUL`）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝Sheet1 B5 は engine の原文 regex に触れていない）、
+  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
+  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1013 / PARTIAL 21**（MANUAL −1＝`WXEX1-57-E1` の影武者撤去＋live の `parseStatus` を `AUTO` へ）、
+  **`_held_fresh` 75 / `_partial_fresh` 12 / `_idset_fresh` 24**（Sheet1 B5 の +13／+1 はすべて採用済み＝**ベースラインへ完全復帰**）、
+  **どのフラグも立たないカード 5154 / 5975（86.3%）**（`npm run census:cards`。⚠**「フラグ0＝正しい」ではない**＝計器が見ていないだけ）、
+  **意味照合 段2 台帳＝残 OPEN 634**（段0 221／段1 111／段2 消化 478／HIGH 438・MED 193・LOW 3／影響カード 482・効果 500）、
+  **実機シナリオ +7**（`crossIconBouncePicker` / `servantMultiEnaPaysColor` / `b3ShareClassDrawsFour` / `b3DistinctClassDrawsThree` / `b4NextSpellReductionConsumed` / 🆕`b5KawariElseBanishesOnlyLow` / 🆕`b5KawariThenReachesHigh`＝各2回連続 PASS・既定 `order` へ追加済み）、
+  **Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
+  **要対応カード 67 / 863（7.8%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69 → **B5 後 67**）＝**`npm run census:cards -- --sheet 1` で毎回1コマンドで出る**（内訳＝census **28**／意味照合 49（findings 61件）／held 6／partial 0／idset 1。`--list` を足すとカード名つきで列挙＝次バッチの取り出し口）。⚠**「フラグ0 の796枚」は「正しい」ではない**＝計器が見ていないだけで、シートを閉じるには残りへの検出パスが別途要る（計器の出力にも毎回出る）

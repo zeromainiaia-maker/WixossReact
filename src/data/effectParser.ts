@@ -8009,7 +8009,11 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
 // ⚠ SELECT/STORE は**コストステップより前**に挿す。コストとゲートの間に挟むと execSequence の
 //   「そうした場合」did-it ゲート（前段の直後が CONDITIONAL{IS_MY_TURN} であることを見る）が外れ、
 //   コストを払わなくても本体が撃てる別のバグになる。コストステップを同定できない形は**触らない**。
-const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?てもよい。そうした場合、それ/;
+// 🆕**「てもよい」を必須にしない**（2026-08-27 Sheet1 B6）＝中間の動作が**強制**の形
+//   （「対戦相手のシグニ１体を対象とし、あなたのシグニ１体を場からトラッシュに置く。そうした場合、それを
+//   バニッシュする」＝`WX02-020-E1`）でも**対象宣言は同じように落ちる**。実測＝原文で +40効果。
+//   🔴任意/強制は「対象宣言が帰結へ届くか」とは無関係な軸だったのに、regex が任意形だけを見ていた。
+const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?。そうした場合、それ/;
 
 // else なし CONDITIONAL の中身を覗く（タスク12(lxiii) で条件に包まれたコストステップがあるため）
 function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
@@ -8653,6 +8657,54 @@ function steps0FindDidItGate(action: EffectAction): number {
   return action.type === 'SEQUENCE' ? (action as SequenceAction).steps.findIndex(isDidItGate) : -1;
 }
 
+/**
+ * 「〈対象宣言〉を対象とし、〈**別の所有者**の中間動作〉」＝**同一文に対象が2つある**とき、
+ * 宣言側の `owner`／`count` が**中間動作へ誤付着**するのを直す（2026-08-27 Sheet1 B6）。
+ *
+ * 🔴実測＝中間動作の節を**単独で**パースすると正しい（`あなたの＜原子＞のシグニ３体をバニッシュする`
+ *   → `{SIGNI, self, 3, story:原子}`）のに、頭に「対戦相手のシグニ１体を対象とし、」が付くと
+ *   **`{SIGNI, opponent, 1, story:原子}`** に化ける（`WX07-039-E2`）。
+ *   ＝**自分のシグニ3体を失うコストが、相手のシグニを1体追加で除去する効果に化けていた**
+ *   （コストの踏み倒し＋過剰除去の**二重バグ**）。全 CSV 実測6効果。
+ *
+ * ⚠**場のシグニを指す名詞句に限定する**＝「あなたの**エナゾーンから**〜」「**デッキの上から**〜」は
+ *   `parseSigniTarget` では表せない別ゾーン（`ENERGY_CARD`／ミル）で、owner だけ直すと**ゾーンが場のまま**
+ *   残ってさらに別物になる（§4.2「部分採用は踏み倒しになる」の同型）。該当2効果は §5.3 `O-104` へ登録。
+ * ⚠**動詞は場のシグニに撃てるものだけ**（バニッシュ／ダウン／場からトラッシュ）＝
+ *   「〜を手札に加える」等はゾーンが違うので入れない。
+ */
+const MIDDLE_CLAUSE_FIELD_SIGNI_RE =
+  /(?:対戦相手|あなた)の[^、。]*?を?対象とし、((あなた|対戦相手)の(?:他の)?[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?(?:場から)?(?:バニッシュ|ダウン|トラッシュに置)/;
+
+function fixMiddleClauseTargetOwner(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const scan = text.replace(/「[^」]*」/g, '「」').replace(/（[^（）]*）/g, '');
+  if (/[①②③④⑤]/.test(scan)) return action;                       // 選択肢は文ごとに閉じる
+  if ((scan.match(/を対象とし/g)?.length ?? 0) !== 1) return action; // 宣言が2つ以上ある形は触らない
+  const m = scan.match(MIDDLE_CLAUSE_FIELD_SIGNI_RE);
+  if (!m) return action;
+  const phrase = m[1];
+  // 別ゾーンを指す名詞句は対象外（場のシグニではない）。
+  if (/エナゾーン|トラッシュから|手札|デッキ|ライフクロス|ルリグトラッシュ/.test(phrase)) return action;
+  const owner: Owner = m[2] === '対戦相手' ? 'opponent' : 'self';
+  const step0 = (action as SequenceAction).steps[0] as (EffectAction & { target?: EffectTarget }) | undefined;
+  if (!step0 || !['BANISH', 'DOWN', 'TRASH'].includes(step0.type)) return action;
+  const tgt = step0.target;
+  if (!tgt || tgt.type !== 'SIGNI') return action;
+  if (tgt.owner === owner) return action;            // 既に正しい形は据置（冪等）
+  const fixed = parseSigniTarget(phrase, owner);
+  if (fixed.owner !== owner) return action;          // 名詞句から owner を確定できないなら触らない
+  // 🔴**N体（N≧2）の犠牲は据置**＝`EffectInteractionModal` の `canConfirm` は非 optional で
+  //   「選択数 ≧ count」を要求するので、**候補が count 未満の盤面で確定ボタンが永久に押せない**
+  //   （＝ソフトロック）。旧「段2 第24バッチ 見送り契約」（golden）が同じ理由で据置にしており、
+  //   実機 UI を読み直しても理由は生きている。⚠**owner だけ直して count を1に残すのも不可**
+  //   （3体払うはずが1体で済む踏み倒しになる）＝**まとめて据置**し §5.3 `O-104` で機構ごと解く。
+  if (fixed.count !== 1) return action;
+  const steps = [...(action as SequenceAction).steps];
+  steps[0] = { ...step0, target: fixed } as EffectAction;
+  return { ...action, steps } as EffectAction;
+}
+
 function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (TARGET_LEVEL_SCALE_RE.test(text)) return action;              // (liii) の領分
@@ -8725,12 +8777,22 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   //   （`extraKeys` が空だと `[].every()` が true になって無条件 return していた・続き423）。
   if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k])) && !ownerOrCountDiffers) return action;
 
-  // コストステップ（任意コスト STUB か任意の手札捨て TRASH。条件で包まれていても可）を同定する
+  // 中間ステップ（＝宣言とゲートの間の動作）の位置を同定する。任意コスト STUB／任意の手札捨て TRASH が
+  // 在ればそこ、無ければ**先頭**（原文では対象宣言が文頭に来るので、宣言はすべての動作より前で正しい）。
+  // 🆕**フォールバックを足した**（2026-08-27 Sheet1 B6）＝旧実装は「コスト位置を同定できない形は触らない」で
+  //   諦めており、`isDroppedCostStep` が見ない中間動作（**自分のシグニをバニッシュ／トラッシュ／ダウン**、
+  //   **トラッシュからデッキの一番下へ置く**）の形が丸ごと素通りしていた。⚠**安全性は下の2つのガードが担う**＝
+  //   ①`LAST_PROCESSED` を読むステップが挟まる形は触らない（挿入で `lastProcessedCards` が壊れる）
+  //   ②`bindToStoredTarget` が何も変えられない帰結（BINDABLE 外）は触らない。
+  // ⚠ゲートが先頭（＝中間動作が無い）の形はフォールバックの対象外＝「そうした場合」の前段が無い異形なので触らない。
   let costIdx = -1;
   for (let i = gateIdx - 1; i >= 0; i--) {
     if (isDroppedCostStep(coreOfCondWrap(steps[i]))) { costIdx = i; break; }
   }
-  if (costIdx < 0) return action;   // コスト位置を同定できない形は触らない
+  if (costIdx < 0) {
+    if (gateIdx < 1) return action;
+    costIdx = 0;
+  }
   // ⚠挿入位置から帰結までに「直前に処理したカード」を読むステップがあると、SELECT_TARGET_ONLY が
   //   lastProcessedCards を対象シグニで上書きして条件が壊れる（`WXDi-P01-059-E1`＝デッキ上を公開し
   //   「そのカードがレベル１のシグニの場合」を LAST_PROCESSED_MATCHES で見ている）。その形は触らない。
@@ -10433,14 +10495,14 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
+    applyThisWayTrashOutcomeGuards(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, fixMiddleClauseTargetOwner(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,

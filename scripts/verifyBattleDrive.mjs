@@ -17293,6 +17293,185 @@ order.push('b3ShareClassDrawsFour', 'b3DistinctClassDrawsThree');
 // Sheet1 B5（2026-08-27）＝「〜の場合、代わりに」の昇格置換。**何体消えたか**と**ピッカーの候補集合**は
 //   実機でしか観測できない（golden は JSON の形しか見ない）＝正方向＋対照を既定 order へ。
 order.push('b5KawariElseBanishesOnlyLow', 'b5KawariThenReachesHigh');
+// ── Sheet1 B6（2026-08-27）＝「〈宣言〉を対象とし、〈**別の所有者**の中間動作〉」の owner 誤付着 ──
+// `WX14-CB02-E2`「【自】：このシグニがアタックしたとき、**対戦相手のシグニ１体を対象とし**、
+//   **あなたの**アップ状態の＜アーム＞のシグニ１体を**ダウンしてもよい**。そうした場合、それを手札に戻す。」
+// 🔴旧 live は中間動作が `DOWN{SIGNI, **opponent**, 1, story:アーム, isUp}` ＝
+//   **自分のシグニをダウンするコストが、相手のシグニをダウンする追加の利益に化けていた**
+//   （コストの踏み倒し＋過剰効果の二重バグ）。中間動作の節を単独でパースすると正しく `self` になる＝
+//   **宣言側の `owner` が中間動作へ塗られていた**のが真因。
+// ⚠**実機でしか見えない層**＝ダウンのピッカーが**どちら側のシグニを候補に出したか**。
+//   golden は JSON の owner しか見ない（＝候補集合の実体は engine の scope 解決を通らないと分からない）。
+// 🔑**反転確認**＝guest 側にも＜アーム＞のアップシグニを置く。旧挙動ならそれが候補に出る。
+const B6_SRC       = 'WX14-CB02#9500';   // 暁月（精武：ウェポン・Lv4）＝効果元。中央に置いてアタックさせる
+const B6_SELF_ARM  = 'WD01-013#9501';    // 小剣ククリ（精武：アーム・アップ）＝**正しい候補**
+const B6_SELF_OTHER= 'WD02-013#9502';    // 羅石アイロン（精羅：鉱石）＝アーム以外＝候補に出てはいけない
+const B6_OPP_ARM   = 'WD01-012#9510';    // 中剣フランベル（精武：アーム・アップ）＝**旧挙動なら候補に出る**
+const B6_OPP_WALL  = 'WD01-010#9511';    // 大剣カリバン＝正面の壁（＝「それ」＝手札へ戻る対象）
+const b6MiddleOwnerSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#9520'],
+    // ⚠罠8e＝host と guest のゾーン index は「正面」で一致しない。**中央（zone1）同士だけが対応**する。
+    'field.signi': [[B6_SELF_ARM], [B6_SRC], [B6_SELF_OTHER]],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#9521'],
+    'field.signi': [[B6_OPP_ARM], [B6_OPP_WALL], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function b6MiddleOwnerDrive(page, H) {
+  let before = await H.queryState();
+  // 注入は1発で決まらないことがある（罠34）＝載るまで再注入する。
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(B6_SRC); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, b6MiddleOwnerSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni), 'guest signi:', JSON.stringify(before?.guest?.fieldSigni));
+  let modalOpened = false, candsSeen = null, last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/b6MiddleOwner-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !candsSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
+    const pre = await H.queryState();
+    // ⚠**最初の SELECT_TARGET だけ**を見る＝これが「ダウンするシグニ」のピッカー。
+    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates) && pre.pendingCandidates.length) {
+      candsSeen = pre.pendingCandidates.slice();
+      H.log('  ダウン対象の候補:', JSON.stringify(candsSeen));
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  b6[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(candsSeen)} hSigni=${JSON.stringify(last?.host?.fieldSigni)} hDown=${JSON.stringify(last?.host?.fieldSigniDown)} gSigni=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (candsSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/b6MiddleOwner-final.png`, fullPage: true });
+  const detail = `cands=${JSON.stringify(candsSeen)} hSigni=${JSON.stringify((last?.host?.fieldSigni ?? []).flat().filter(Boolean))} gSigni=${JSON.stringify((last?.guest?.fieldSigni ?? []).flat().filter(Boolean))}`;
+  // ⚠**本題を先に判定**（前提崩れ判定を先に置くと旧挙動の再現が隠れる＝O-80 の教訓）
+  if (candsSeen && candsSeen.includes(B6_OPP_ARM)) {
+    return { pass: false, detail: `🔴相手の＜アーム＞（${B6_OPP_ARM}）がダウン候補に出ている＝宣言側の owner が中間動作へ誤付着している（旧挙動）。${detail}` };
+  }
+  if (candsSeen && candsSeen.includes(B6_SELF_OTHER)) {
+    return { pass: false, detail: `🔴＜アーム＞でない自分のシグニ（${B6_SELF_OTHER}）が候補に出ている＝クラス限定が落ちている。${detail}` };
+  }
+  if (!candsSeen) return { pass: false, detail: `前提崩れ＝SELECT_TARGET を1度も観測できていない（アタック時トリガーが走っていない）。${detail}` };
+  if (candsSeen.join(',') !== B6_SELF_ARM) {
+    return { pass: false, detail: `候補が「自分のアップ状態の＜アーム＞1体」ちょうどではない（期待 ${B6_SELF_ARM}）。${detail}` };
+  }
+  return { pass: true, detail: `ダウン候補は自分の＜アーム＞（${B6_SELF_ARM}）ちょうど＝相手の＜アーム＞も自分の非アームも候補に出ない。${detail}` };
+}
+scenarios.b6MiddleClauseDownsOwnSigni = {
+  title: 'WX14-CB02-E2（Sheet1 B6＝中間動作の owner 誤付着）＝旧実装は相手のシグニをダウンできた',
+  spec: b6MiddleOwnerSpec(),
+  drive: b6MiddleOwnerDrive,
+};
+order.push('b6MiddleClauseDownsOwnSigni');
+// ── Sheet1 B6 その2＝`applyDroppedTargetDesignation` の適用範囲拡大（宣言の filter が帰結へ届く）──
+// `WXEX1-68-E1`「【自】《ターン１回》：このシグニがアタックしたとき、**あなたの＜空獣＞か＜地獣＞のシグニ１体を
+//   対象とし**、手札から＜空獣＞か＜地獣＞のシグニを１枚捨ててもよい。そうした場合、**それを**アップする。」
+// 🔴旧 live は帰結が `UP{SIGNI, self, 1}`＝**クラス限定なし**＝どの自分のシグニでもアップできた（過剰効果）。
+//   規則自体は在ったが「中間動作の位置を同定できない形は触らない」で諦めており、届いていなかった。
+// ⚠**候補集合は実機でしか見えない**（golden は JSON の形しか見ない）＝クラス外のシグニが候補に出ないことを見る。
+const B6B_SRC     = 'WXEX1-68#9600';   // 幻獣コザクラ（精生：空獣・Lv3）＝効果元
+const B6B_SKY     = 'WX01-094#9601';   // 幻獣スワロウ（精生：空獣）＝**正しい候補**（効果元自身も候補になりうる）
+const B6B_OTHER   = 'WD02-013#9602';   // 羅石アイロン（精羅：鉱石）＝クラス外＝候補に出てはいけない
+const B6B_HAND    = 'WX01-090#9603';   // 幻獣スパロウ（空獣）＝手札コスト
+const B6B_WALL    = 'WD01-010#9610';   // 大剣カリバン＝正面の壁
+const b6bDesigFilterSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#9620'],
+    'field.signi': [[B6B_SKY], [B6B_SRC], [B6B_OTHER]],
+    'field.signi_down': [true, false, true],   // ⚠アップ済みは「アップする」の意味が消えるので下げておく
+    'field.check': null,
+    'hand': [B6B_HAND],
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#9621'],
+    'field.signi': [null, [B6B_WALL], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'blocked_actions': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function b6bDesigFilterDrive(page, H) {
+  let before = await H.queryState();
+  for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[1] ?? []).includes?.(B6B_SRC); r++) {
+    H.log(`再注入(${r})… host zone1=${JSON.stringify(before?.host?.fieldSigni?.[1])}`);
+    await injectScenario(page, b6bDesigFilterSpec());
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  H.log('  開始 host signi:', JSON.stringify(before?.host?.fieldSigni), 'hand:', JSON.stringify(before?.host?.handCards));
+  let modalOpened = false, candsSeen = null, last = before;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/b6bDesigFilter-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0) && !candsSeen) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)'; }
+    }
+    if (!did && !modalOpened) { const o = await H.clickTestId('my-signi-zone-1'); if (o) { did = o; modalOpened = true; } }
+    const pre = await H.queryState();
+    // ⚠**最初の SELECT_TARGET だけ**＝これが復元された対象宣言（アップする対象）のピッカー。
+    if (!candsSeen && pre?.pendingEffect === 'SELECT_TARGET' && Array.isArray(pre.pendingCandidates) && pre.pendingCandidates.length) {
+      candsSeen = pre.pendingCandidates.slice();
+      H.log('  対象宣言の候補:', JSON.stringify(candsSeen));
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    last = await H.queryState();
+    H.log(`  b6b[${s}] -> ${did ?? 'なし'} | cands=${JSON.stringify(candsSeen)} hDown=${JSON.stringify(last?.host?.fieldSigniDown)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (candsSeen && last?.pendingEffect == null && (last?.stackLen ?? 0) === 0) break;
+  }
+  await page.screenshot({ path: `${SHOT}/b6bDesigFilter-final.png`, fullPage: true });
+  const detail = `cands=${JSON.stringify(candsSeen)} hSigni=${JSON.stringify(last?.host?.fieldSigni)} hDown=${JSON.stringify(last?.host?.fieldSigniDown)}`;
+  if (candsSeen && candsSeen.includes(B6B_OTHER)) {
+    return { pass: false, detail: `🔴クラス外の＜鉱石＞（${B6B_OTHER}）が候補に出ている＝対象宣言のクラス限定が帰結へ届いていない（旧挙動＝どの自分のシグニでもアップできた）。${detail}` };
+  }
+  if (!candsSeen) return { pass: false, detail: `前提崩れ＝SELECT_TARGET を1度も観測できていない（アタック時トリガーが走っていない）。${detail}` };
+  if (!candsSeen.includes(B6B_SKY)) {
+    return { pass: false, detail: `＜空獣＞（${B6B_SKY}）が候補に出ていない＝絞りすぎ。${detail}` };
+  }
+  return { pass: true, detail: `対象候補は＜空獣＞/＜地獣＞だけ（${JSON.stringify(candsSeen)}）＝クラス外の ${B6B_OTHER} は候補に出ない。${detail}` };
+}
+scenarios.b6DesignationClassReachesTarget = {
+  title: 'WXEX1-68-E1（Sheet1 B6＝対象宣言の復元）＝旧実装はどの自分のシグニでもアップできた',
+  spec: b6bDesigFilterSpec(),
+  drive: b6bDesigFilterDrive,
+};
+order.push('b6DesignationClassReachesTarget');
 // Sheet1 B4（2026-08-27）＝census 較正の前提（1回で消費）を実機で見張る。
 order.push('b4NextSpellReductionConsumed');
 // 段2 第45バッチ（2026-08-27）＝`levelLteLrig` の実機観測。**探索モーダルの候補絞り込み**は

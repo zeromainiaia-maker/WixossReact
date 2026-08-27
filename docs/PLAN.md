@@ -10,49 +10,43 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-27・続き683・Opus 5 単独）＝Sheet1 B5＝parser の穴3つを1バッチで塞いだ。要対応 69→67枚。**
-  ①**「A。〈条件〉場合、代わりに B。」＝昇格置換**（§5.3 `O-99` 消化）が畳めず `SEQUENCE[A,B]` ＝**両枝が走っていた**
-  （`WX09-045-E1` は 8000以下と15000以下を**2体**バニッシュ）②**「白か黒のシグニ」が黒しか選べない**過小効果
-  ③**「探して公開し」の公開が手札行き以外で丸ごと落ちる**。**census 551→536→537**（+1 は可視化）。**台帳 OPEN 641→634**。
-  - 🔑**`O-99` の当ては「除外を外す」ではなく「基本文を `else` に置ける位置に後段パスを足す」だった。**
-    `tryWrapLeadingStateCond` が「代わりに」を除外しているのは**正しい**（単文の位置では then しか作れない）。
-    全文の action が組み上がった後に `foldKawariSubstitution` を置いて `CONDITIONAL{cond, then:B, else:A}` へ畳む
-    （Sheet1 B3 の `foldElseIntoLeadingConditional` の兄弟）。**同じ場所に規則を足そうとすると必ず退化する形。**
-  - 🔴**条件節の共通表は2つあり、`parseHoistStateCondition` は片方しか見ない。** 新ヘルパ
-    `resolveStateConditionClause` で `LEADING_STATE_CLAUSES` ＋ `STATE_CONDITION_CLAUSES` の両方を引く。
-    片方だけだと B3 で新設した `FIELD_SIGNI_SHARE_CLASS` を**静かに取りこぼす**（§4.2 の再実証）。
-  - 🔴**除外を先に実測してから入れた**＝原文「代わりに」**502効果**のうち通したのは**6件**。除外の本命は
-    **予約・置換アクション 45効果**（`PREVENT_NEXT_DAMAGE` 等＝**アクション自身が条件を内包する正表現**・畳むと二重ゲート）。
-    ほかに「代わりにNつ選ぶ」（`betChoose`／`conditionChoose` の領分）と照応語で始まる帰結。**golden で除外側も固定した。**
-  - 🔴**「11効果が落ちている」は計器の作り方が誤りだった**＝live を `CONDITIONAL`／`else` の**型名だけ**で仕分けたため、
-    `betChoose`／`conditionChoose` という**アクションのプロパティ側にある受け皿**を見落として全件を穴と誤認した。
-    **「条件が表現されているか」を型名だけで数えない。**（実測し直して母集団は 11→0）
-  - 🔴**共通ヘルパ自身が穴だった（非対称）**＝`parseColorFilter` は5色を「〈色〉の」で走査して**最初の1色**を返すので、
-    「白**か**黒**の**シグニ」は**黒しか当たらない**。⚠**受け皿が無かったのではない**＝`TargetFilter.color` は配列を受け
-    `matchesFilter` も OR で解き、**同じ原文を配列で正しく出している経路が別に在った**（`TRANSFER_TO_HAND`／`REVEAL_AND_PICK`）。
-    **この入口だけが取り残されていた。**（実測8効果）
-  - 🗑**副産物＝`manualEffects.ts` の `WXEX1-57` 影武者が露出**（`O-42` トリップワイヤ）。**「共通ヘルパが色ORを出さないから」
-    という理由で書かれた手書き**だったので撤去し、**live の `parseStatus` も `MANUAL`→`AUTO` へ直した**（ここまでで1セット）。
-  - 🔑**B4 の教訓を適用して空振りを1つ回避した**＝「公開し」12効果は**消費地点を grep してから**着手した結果、
-    `execReveal`（source なし）も `revealPicked` も**盤面を変えない log 専用**と判明＝**挙動バグとして報告しなかった**。
-    ただし同じ調査で `WX09-016-BURST` の**色OR脱落**（実挙動バグ）を見つけた＝**空振りの調査が本命を連れてくる**。
-  - ⚠**`then` の形が2箇所の依存点になっている**＝`wrapHandOrField.markDeckSearch`（`then.type==='ADD_TO_FIELD'` を見る）と
-    engine の `pending.thenAction.owner`。だから公開は `SEQUENCE[REVEAL,…]` ではなく**アクション側の `revealPicked`** で載せた。
-  - ✅ gates 全緑（golden **2872→2876**（+4テスト）／census **551→537**／`census:enginetext` A群 141 据置／
-    smoke・fuzz 全0／lint 0 errors・warning 263 ±0）。**live 変化は 28 effectId ちょうど**（新規0・消滅0）。
-    ⚠**census +1 は退化ではなく可視化**＝影武者撤去で `WXEX1-57-E1` が MANUAL バケツを出て高シグナル側へ昇格した（中身は正表現）。
-  - ✅**実機シナリオ2本を新設して各2回連続 PASS・既定 order へ追加**＝`b5KawariElseBanishesOnlyLow`
-    （赤3体を**異クラス**にすると `else`（≤8000）だけが走り、**ピッカー候補が5000の1体ちょうど**＝10000 は候補にすら出ない）
-    ＋対照 `b5KawariThenReachesHigh`（**全部 精羅：鉱石**にすると `then`（≤15000）が届く）。回帰4本も ALL PASS。
-  - 📮**送り**＝`O-101`（「そうしない場合」＝否定 did-it ゲート1効果／場全体 attached・under の OR 1効果。
-    ⚠`execPlaceUnderSigni` が候補0で `lastProcessedCards` を触らずに返す点を先に直す）／`O-102`（`SP27-012`・`WX21-039` の
-    **基本文側**の条件＝`O-95` と同根なので**同時に取る**）／`O-103`（行き先3択が `handOrField` の2択に収まらない）。
+- 🏁**セッション（2026-08-27・続き684・Opus 5 単独）＝Sheet1 B6＝「〈宣言〉を対象とし、〈**別の所有者**の中間動作〉」で
+  宣言側の `owner`／`count` が**中間動作へ誤付着**していた。live 変化 11 effectId。台帳 OPEN 634→631。**census 537→536**。**
+  🔴`WX07-039-E2` は「**あなたの**＜原子＞のシグニ**3体**をバニッシュする」が `BANISH{opponent,1}` ＝
+  **自分のシグニを失うコストが、相手のシグニを削る利益に化けていた**（踏み倒し＋過剰除去の二重バグ）。
+  - 🔑**真因は「規則が無い」ではなく「同一文に対象が2つある」ことを見ていなかった**＝中間動作の節を**単独で**
+    パースすると `{self,3}` と正しく出る。頭に「対戦相手のシグニ１体を対象とし、」が付くと `{opponent,1}` に化ける。
+    ⇒ 後段パス `fixMiddleClauseTargetOwner` を新設（実測6効果中**4効果**を是正）。
+  - 🔴**残り2効果は据置にした＝理由が実在した。** N体（N≧2）の犠牲は **owner を直すと実機がソフトロックする**
+    （`EffectInteractionModal.canConfirm` が非 optional で「選択数 ≧ count」を要求＝候補不足で確定ボタンが押せない）。
+    旧「段2 第24バッチ 見送り契約」（golden）が同じ理由で据置にしており、**実機 UI を読み直して理由が今も生きていることを確認**した。
+    ⚠**owner だけ直して count を1に残すのも不可**（3体払うはずが1体で済む踏み倒し）＝**まとめて据置**（§5.3 `O-104`）。
+    🔑**「既存の見送り契約に当たったら、まずその理由が今も有効かをコードで確かめる」**＝今回は有効だったので契約を守った。
+  - 🔴**既存規則が2つの前提で自ら止まっていた**（`applyDroppedTargetDesignation`）＝①regex が
+    「〜**てもよい**。そうした場合、それ」＝**中間動作が任意コストの形**しか見ていなかった（強制形が素通り・原文で +40効果）
+    ②「**コスト位置を同定できない形は触らない**」で諦めていた。⇒ ①必須を外す ②同定できないときは**先頭**へ挿す
+    （原文では対象宣言が文頭に来る）。**宣言側のパワー閾値が帰結に届かず「どのシグニでも撃てる」過剰効果**だった6効果を是正。
+  - 🔴**母集団の測り方を3回作り直した**＝「照応が届いていない」を粗く数えると **268件**だが、①②③の選択肢／後段が
+    自分で宣言し直す形／`代わりに`（`O-99` の領分）を除くと **64件**、live の実データで owner 不一致を数えると **6件**。
+  - ⚠**「任意（〜してもよい）が落ちて強制になっている」軸はバッチにならなかった**＝原文300効果のうち任意の痕跡が無い
+    AUTO は93件だが、末尾句で束ねると**69群でほぼシングルトン**（最大でも「【トラップ】として設置してもよい」11件＝別機構）。
+  - ⚠**Sheet1 の要対応カードは 66 のまま動いていない**＝直した11効果のうち Sheet1 は `WX08-036` の1枚だけで、
+    そのカードは**別の finding（クラスOR）が残る**ので計器から落ちない。**このバッチの価値は Sheet1 の外にある**
+    （§1 続き678 の「parser を直す価値は Sheet1 の外にある」の実例）。
+  - ✅ gates 全緑（golden **2876→2880**（+4テスト）／census **537→536**／smoke・fuzz 全0／lint 0 errors）。
+    **live 変化は 11 effectId ちょうど**（新規0・消滅0）。
+  - ✅**実機シナリオ2本を新設して各2回連続 PASS・既定 order へ追加**＝`b6MiddleClauseDownsOwnSigni`
+    （guest 側にも＜アーム＞を置いた盤面で**ダウン候補が自分の＜アーム＞1体ちょうど**＝旧挙動なら相手のが出る反転確認）
+    ＋`b6DesignationClassReachesTarget`（**候補が＜空獣＞/＜地獣＞だけ**＝旧挙動はどの自分のシグニでもアップできた）。
+    回帰3本（`o88AttackAnaphoraBanishesOpponent`／`b5KawariElseBanishesOnlyLow`／`crossIconBouncePicker`）も ALL PASS。
+  - 📮**送り**＝`O-104`（①N体犠牲のソフトロック＝**UI/engine 側の当てが先** ②別ゾーンを指す中間動作の規則新設
+    ③`WX08-036-E1` のクラスOR filter＝受け皿は在るが `TRANSFER_TO_DECK.source` の合成側が穴）。
 
-**▶ 次の一手**＝**Sheet1 の次バッチ**（**`npm run census:cards -- --sheet 1 --list` から取る**＝要対応 **67枚**。内訳 census 28／意味照合 49（findings 61件）／held 6／idset 1）。
-🔑**取り方の勝ち筋（B3→B5 で3回連続で効いた）**＝カード名の一覧では同一文型が見えない。**`docs/_vocab_census.txt` の語彙カテゴリ別に割り直して**最大クラスタを取る。
-🔴**着手前に必ず2つやる**＝①**engine の消費地点を grep する**（B4＝「過剰効果」と登録してあった11効果が実は正しく実装済み／B5＝「公開し」12効果は log 専用と判明。**JSON のフィールドを見て挙動を推定しない**）②**母集団を live の生データで数え直す**（B5＝「選択数の昇格 11効果が落ちている」は**型名だけで仕分けた計器の誤り**で、実際は `betChoose`／`conditionChoose` という**アクションのプロパティ側の受け皿**に全件載っていた＝実測して 11→0）。
-⚠**`node scripts/archive/semanticAuditLedger.mjs` で数え直し、`CardData_Sheet1.csv` の CardNum で絞る**。
-機構側なら **`O-102`＋`O-95` をセットで**（「このシグニと共通する色を持たない」＝同根・合わせて3効果。別々に取らない）／**`O-98`**（GRANT 系入口の【キーワード】／レゾナ・3枚）／**`O-97`**／**`O-101`**／**`O-103`**／**`O-93`**（manual shadow の掃除）／**`O-94`**。実機の腐り返済なら §5.1 の `V-89`。
+**▶ 次の一手**＝**Sheet1 の次バッチ**（**`npm run census:cards -- --sheet 1 --list` から取る**＝要対応 **66枚**。内訳 census 27／意味照合 48（findings 59件）／held 5／idset 1）。
+🔑**取り方の勝ち筋**＝カード名の一覧では同一文型が見えない。**`docs/_vocab_census.txt` の語彙カテゴリ別**（B3/B5）か、**台帳 OPEN の claim を live の生データへ戻す**（B6）で割る。
+🔴**着手前に必ず3つやる**＝①**engine／UI の消費地点を grep する**（B4＝実は実装済み／B5＝log 専用／B6＝**直すと実機がソフトロックする**）②**母集団を live の生データで数え直す**（B5＝型名だけの仕分けは誤り／B6＝268→64→6 と3回作り直した）③**既存の見送り契約に当たったら、その理由が今も有効かをコードで確かめる**（B6＝有効だったので守った）。
+⚠**Sheet1 の計器が動かない修正もある**（B6＝11効果直して Sheet1 は 0 減）＝**進捗は「Sheet1 の枚数」だけで測らない**。
+機構側なら **`O-104`**（B6 の残り3形）／**`O-102`＋`O-95` をセットで**（同根・合計3効果）／**`O-98`**／**`O-97`**／**`O-101`**／**`O-103`**／**`O-93`**（manual shadow の掃除）／**`O-94`**。実機の腐り返済なら §5.1 の `V-89`。
 
 ---
 
@@ -521,6 +515,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-101** | 🆕**「そうしない場合」＝did-it ゲートの否定形が丸ごと落ちる（実測1効果）／場全体の attached・under の OR 条件（同1効果）** | S〜M | **2026-08-27 Sheet1 B5 で実測**（`O-99` の消化中に分離）。■①**`WX05-023-E3`**「あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。**そうしない場合**、このシグニを場からトラッシュに置く。」＝live は `SEQUENCE[PLACE_UNDER_SIGNI, TRASH{self}]` ＝**3枚置けても必ず自壊する**過剰効果。⚠**原文該当は全 CSV で1効果だけ**（「そうでない場合」＝Sheet1 B3 で消化済みとは別語）。🔑受け皿は既存＝`CONDITIONAL{LAST_PROCESSED_COUNT_GTE{value:3, negate:true}, then:TRASH}`。🔴**着手前に engine を読むこと**＝`execPlaceUnderSigni` は候補0のとき `done(ctx)` で**`lastProcessedCards` を触らずに返す**（`effectExecutor.ts:6896`）＝**前段の値が残ったままゲートを評価しうる**。ここを直さずに否定ゲートを載せると**逆に自壊しなくなる**（過小へ裏返る）。■②**`WXDi-P06-084-E1`**「**場にシグニに付いているカードかシグニの下に置かれているカードがある場合**、代わりに〜」＝場全体の attached（チャーム/アクセ/ソウル）**または** under の存在条件。既存 `THIS_CARD_HAS_ATTACHED`／`THIS_CARD_HAS_UNDER` は**効果元限定**なので流用不可（§5-5e）。⚠**この2件は golden の「段2-18 据置契約」が近似置換を禁止して固定してある**＝受け皿を作るまで触らない。 |
 | **O-102** | 🆕**「あなたの場に**このシグニと**共通する色を持たない他の＜X＞のシグニがある場合」＝基本文側の条件（`O-95` と同根・実測2効果）** | S〜M | **2026-08-27 Sheet1 B5 で実測**＝`SP27-012-E1`／`WX21-039-E1`（＜天使＞の同型サイクル）。■B5 で**置換（「代わりに」）側は畳めた**が、**基本文の条件が別語彙で未表現**のまま残った＝いまは `CONDITIONAL{強化条件, then:強化, else:基本}` で、条件が両方とも偽のときに**基本が無条件で走る**（旧＝基本と強化が両方走って合計3枚だったので**改善ではあるが完全ではない**）。■🔑**`O-95`（`WX21-032-E1`）とまったく同じ受け皿が要る**＝`NO_COMMON_COLOR_WITH_SELF_IN_FIELD{owner,filter,excludeSelf}` 相当を1本新設し、**`Condition` と `ActiveCondition` の両評価器＋golden の3点セット**（§4.2）。⇒ **`O-95` と同時に取ると母集団が3効果になる**（別々に取らない）。■⚠**既存 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は「それぞれ（＝相互に）共通する色を持たない」**で意味が違う＝B5 で使ったのはこちら（強化側の条件）で、基本文側の「**このシグニと**共通しない」には流用できない。 |
 | **O-103** | 🆕**「探して公開し手札に加える**か**エナゾーンに置く**か**場に出し」＝3択の行き先が2択の受け皿に収まらない（実測1効果）** | S | **2026-08-27 Sheet1 B5 で実測**＝`WX14-024-BURST`。受け皿 `SearchAction.handOrField` は**手札/場の2択専用**（engine の `resumeSearch` も2枝しか組まない）ので、エナゾーンの枝が丸ごと落ちて `then:ADD_TO_FIELD` 単独になっている（＝**手札にもエナにも置けない過小効果**）。■🔑当ては `handOrField:boolean` を**行き先の集合**（`destinations:['hand','energy','field']`）へ一般化するか、`then` を `CHOOSE` に開く形。⚠**`handOrField` は `wrapHandOrField` の `markDeckSearch`（`then.type==='ADD_TO_FIELD'` を見る）と engine の `pending.thenAction.owner` の2箇所が形に依存している**ので、型を変えるなら両方を同時に直す（B5 で `revealPicked` を選んだのはこの依存を崩さないため）。 |
+| **O-104** | 🆕**「〈宣言〉を対象とし、〈中間動作〉」の残り3形**（B6 で本体は消化・残りは受け皿が要る） | S〜M | **2026-08-27 Sheet1 B6 で分離**。■①🔴**N体（N≧2）の犠牲**＝`WX07-039-E2`「あなたの＜原子＞のシグニ**３体**をバニッシュする」／`WXEX1-14-E2`「エナゾーンから＜植物＞のシグニ**３枚**をトラッシュに置く」。**owner を直すだけでは実機がソフトロックする**＝`EffectInteractionModal` の `canConfirm` は非 optional で「**選択数 ≧ count**」を要求するので、**候補が count 未満の盤面で確定ボタンが永久に押せない**（旧「段2 第24バッチ 見送り契約」の理由が今も生きている＝golden が固定）。🔑**当ては UI 側**＝「払えないなら払わない（＝コスト不成立で本体を撃たない）」枝を用意するか、`selectOrInteract` が `cands.length < count` を fail-closed で返す。⚠**engine を直さずに parser だけ直してはいけない**。■②**別ゾーンを指す中間動作**＝`WXEX1-14-E2`（エナゾーン→`TRASH{ENERGY_CARD}`）／`WXK06-030-E1`（デッキ上を「＜龍獣＞が8枚置かれるまで」ミル＝`untilFilter`/`untilCount` は既存）。**どちらも中間節を単独でパースしても正しくならない**（前者は `UNKNOWN`・後者は payload 無しの `STUB{DECK_MILL_UNTIL_CLASS}`）＝規則の新設が要る。■③**クラスOR の filter**＝`WX08-036-E1`「トラッシュから**＜鉱石＞か＜宝石＞の**シグニ合計５枚」＝誤付着していたパワー閾値は B6 で剥がれたが、クラスOR そのものは未表現（`TargetFilter.story` は配列＝OR を受けるので**受け皿は在る**＝`TRANSFER_TO_DECK.source` の合成側の穴）。 |
 | **O-74** | 🆕**「《X》の効果**以外**によっては場に出せない」＝例外つき出撃制限が例外ごと潰れる** | S | **2026-08-26 続き661（`O-62` の否定形を実装中）で分離＝1効果**。`PR-470B-E1`「【常】：このシグニは《現実からの逃避　タマ》の効果以外によっては新たに場に出すことができない。」＝live は `SELF_PLAY_RESTRICT {never:true}`＝**例外が消えて永久に場に出せない**（原文はタマの効果でなら出せる）。🔑**当て**＝`SELF_PLAY_RESTRICT` に `exceptSourceCardName`（発生源カード名の例外）を足し、`canSelfPlay` が**いま解決中の効果の発生源**と突き合わせる形。⚠`O-62` で作った `banishedNotByOwnEffect` とは**別軸**（あちらはトリガー条件・こちらは常在制限）＝流用しない。 |
 | **O-75** | 🆕**「このルリグは【X】を得る」が `{type:'SIGNI',owner:'any'}` に誤パースされる** | S | **2026-08-26 続き662（`O-61` の消化）で分離＝実測2効果**＝`WX17-001-E2`（【自】このルリグがアタックしたとき…③ターン終了時まで、**このルリグ**は【ダブルクラッシュ】を得る）と `WD15-001-E2`（…２枚以上ある場合、ターン終了時まで、**このルリグ**は【ダブルクラッシュ】を得る）。どちらも `GRANT_KEYWORD{target:{type:'SIGNI',owner:'any',count:1}}` になっており、**ルリグに乗るべき【ダブルクラッシュ】がシグニの選択UIに化ける**。■**現状の実害**＝効果元がルリグなので `cands`（シグニ）に効果元が入らず、旧実装でも選択UIへ落ちていた＝**`O-61` で挙動は変わっていない**（`O-61` の刻印は `この(シグニ|カード|ルリグ)` ガードで届かないようにした）。■**次の一手**＝`parseSentencePart2.ts` の `kwBracketM` / 引用キーワード枝は owner を `t.includes('あなた')` だけで決めており**対象名詞が「ルリグ」か「シグニ」かを見ていない**。「このルリグは」で始まる付与は `{type:'LRIG',owner:'self'}` へ倒す（`アタックできない` 枝は既に `lrigOnlyCA` で見分けているので**同じ判定を流用できる**）。⚠**母集団は「このルリグ」だけで数えない**＝「そのルリグ」「あなたのセンタールリグ」も同じ枝を通る（`WX19-023-E2` は「そのルリグは【ダブルクラッシュ】を得る」で同型）。 |
 
@@ -641,19 +636,19 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-27 続き683 後（本行が直近の正）**：
-  **census 537/537**（Sheet1 B5 で **551→536**＝置換・色OR・公開しの3件を是正。**+1 は退化ではなく可視化**＝`WXEX1-57` の manual 影武者を撤去した結果その効果が MANUAL バケツを出て高シグナル側へ昇格した。詳細は BUGFIXES）、**golden 2876**（Sheet1 B5 で +4 テスト・FAIL 0）、
+- **2026-08-27 続き684 後（本行が直近の正）**：
+  **census 536/536**（Sheet1 B6 で **537→536**＝中間動作への owner／filter 誤付着と対象宣言の復元。⚠**`WX07-039-E2` は据置**＝実機 UI がソフトロックするため §5.3 `O-104` へ。詳細は BUGFIXES）、**golden 2880**（Sheet1 B6 で +4 テスト・FAIL 0）、
   smoke **10697 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置＝Sheet1 B5 は**アクション型**を足していない。足したのは `Condition` 1本＝`THIS_CARD_HAS_SOUL`）、
-  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置＝Sheet1 B5 は engine の原文 regex に触れていない）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置＝Sheet1 B6 は型を1つも足していない＝**既存の受け皿への配線だけ**）、
+  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置）、
   **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1013 / PARTIAL 21**（MANUAL −1＝`WXEX1-57-E1` の影武者撤去＋live の `parseStatus` を `AUTO` へ）、
-  **`_held_fresh` 75 / `_partial_fresh` 12 / `_idset_fresh` 24**（Sheet1 B5 の +13／+1 はすべて採用済み＝**ベースラインへ完全復帰**）、
-  **どのフラグも立たないカード 5154 / 5975（86.3%）**（`npm run census:cards`。⚠**「フラグ0＝正しい」ではない**＝計器が見ていないだけ）、
-  **意味照合 段2 台帳＝残 OPEN 634**（段0 221／段1 111／段2 消化 478／HIGH 438・MED 193・LOW 3／影響カード 482・効果 500）、
-  **実機シナリオ +7**（`crossIconBouncePicker` / `servantMultiEnaPaysColor` / `b3ShareClassDrawsFour` / `b3DistinctClassDrawsThree` / `b4NextSpellReductionConsumed` / 🆕`b5KawariElseBanishesOnlyLow` / 🆕`b5KawariThenReachesHigh`＝各2回連続 PASS・既定 `order` へ追加済み）、
+  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1013 / PARTIAL 21**（据置＝B6 は `manualEffects.ts` に触れていない）、
+  **`_held_fresh` 74 / `_partial_fresh` 12 / `_idset_fresh` 24**（B6 の +10 はすべて採用済み。⚠**held が 75→74 に減ったのは B6 の採用による**）、
+  **どのフラグも立たないカード 5155 / 5975（86.3%）**（`npm run census:cards`。⚠**「フラグ0＝正しい」ではない**＝計器が見ていないだけ）、
+  **意味照合 段2 台帳＝残 OPEN 631**（段0 221／段1 111／段2 消化 481／HIGH 436・MED 192・LOW 3／影響カード 481・効果 499）、
+  **実機シナリオ +9**（`crossIconBouncePicker` / `servantMultiEnaPaysColor` / `b3ShareClassDrawsFour` / `b3DistinctClassDrawsThree` / `b4NextSpellReductionConsumed` / `b5KawariElseBanishesOnlyLow` / `b5KawariThenReachesHigh` / 🆕`b6MiddleClauseDownsOwnSigni` / 🆕`b6DesignationClassReachesTarget`＝各2回連続 PASS・既定 `order` へ追加済み）、
   **Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
-  **要対応カード 67 / 863（7.8%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69 → **B5 後 67**）＝**`npm run census:cards -- --sheet 1` で毎回1コマンドで出る**（内訳＝census **28**／意味照合 49（findings 61件）／held 6／partial 0／idset 1。`--list` を足すとカード名つきで列挙＝次バッチの取り出し口）。⚠**「フラグ0 の796枚」は「正しい」ではない**＝計器が見ていないだけで、シートを閉じるには残りへの検出パスが別途要る（計器の出力にも毎回出る）
+  **要対応カード 66 / 863（7.6%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69 → B5 後 66 → **B6 後 66（±0）**）。⚠🔑**B6 は11効果を直したが Sheet1 の枚数は動いていない**＝直した中で Sheet1 は `WX08-036` の1枚だけで、そのカードは別の finding が残るため計器から落ちない。**進捗を「Sheet1 の枚数」だけで測らない**（内訳＝census **27**／意味照合 48（findings 59件）／held 5／partial 0／idset 1。`--list` でカード名つき列挙）
 
 ---
 
