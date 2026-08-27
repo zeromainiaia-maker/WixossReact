@@ -4070,7 +4070,12 @@ function effJa(e: Eff): string {
       const cause = e.triggerCondition?.byOwnEffect ? 'あなたの効果によって'
         : e.triggerCondition?.byOpponentEffect ? '対戦相手の効果によって'
         : e.triggerCondition?.byEffect ? '効果によって' : '';
+      // 🆕`movedToDeckFromField`＝「**場から**」。描かないと由来限定なしと同じ文になり、
+      //   engine は区別しているのに原文照合では見えない偽陰性になる（§5.3 `O-116`）。
+      const fromField = e.triggerCondition?.movedToDeckFromField ?? false;
       if (vo === 'self' && fromTrash) s = `あなたのトラッシュからカードが${cause}${vc}枚以上デッキに移動したとき`;
+      else if (vo === 'opponent' && fromField) s = `対戦相手のシグニが${cause}${vc}体以上場からデッキに移動したとき`;
+      else if (vo === 'self' && fromField) s = `あなたのシグニが${cause}${vc}体以上場からデッキに移動したとき`;
       else if (vo === 'opponent') s = `対戦相手のカードが${cause}${vc}枚以上デッキに移動したとき`;
       else if (vo === 'self') s = `あなたのカードが${cause}${vc}枚以上デッキに移動したとき`;
       else s = `いずれかのプレイヤーのカードが${cause}${vc}枚以上デッキに移動したとき`;

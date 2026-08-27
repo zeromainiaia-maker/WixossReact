@@ -15677,6 +15677,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const trig = trigM ? trigM[0] : actionText;
         const cnt = trig.match(/(?:シグニ|カード)が?([０-９\d]+)[枚体]以上デッキに移動したとき/);
         const fromTrash = /あなたのトラッシュから/.test(trig);
+        // 🆕**「場から」**（§5.3 `O-116`・`WX05-019-E3`「対戦相手のシグニ１体が**場から**デッキに移動したとき」）。
+        //   由来限定が「トラッシュから」しか無く、**相手のデッキへ何が戻っても発火する過剰実行**だった。
+        //   ⚠シグニゾーンに居たカードは定義上シグニなので、この1語で「シグニであること」も満たす。
+        const fromField = /場からデッキに移動したとき/.test(trig);
         const owner = /対戦相手の(?:カード|シグニ|トラッシュ)/.test(trig) ? 'opponent'
           : (fromTrash || /あなたのカード/.test(trig)) ? 'self' : 'any';
         extractedTriggerCondObj = {
@@ -15684,6 +15688,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           movedToDeckOwner: owner,
           movedToDeckMinCount: cnt ? parseInt(toHalf(cnt[1]), 10) : 1,
           ...(fromTrash ? { movedToDeckFromTrash: true } : {}),
+          ...(fromField ? { movedToDeckFromField: true } : {}),
         };
       }
       // ON_PLAY + placedFront（「対戦相手のシグニN体がこのシグニの正面に配置されたとき」）: 相手の配置に反応（any_opp）。

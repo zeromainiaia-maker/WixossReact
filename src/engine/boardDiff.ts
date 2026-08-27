@@ -597,6 +597,30 @@ export function countMovedToDeck(before: PlayerState, after: PlayerState, fromTr
 }
 
 /**
+ * **場（シグニゾーン）から**デッキへ移動した枚数（`ON_CARD_MOVED_TO_DECK` の由来限定）。
+ *
+ * §5.3 `O-116`（2026-08-27 Sheet1 B13）＝`WX05-019-E3`「対戦相手のシグニ１体が**場から**デッキに
+ * 移動したとき」。従来の `triggerCondition` は `movedToDeckFromTrash` しか持たず、**「場から」も
+ * 「シグニであること」も表せなかった**＝相手のデッキへ何が戻っても発火する過剰実行だった。
+ * ⚠**シグニゾーンに居たカードは定義上シグニ**なので、この1本で由来とカード種別の両方を満たす。
+ * ⚠`movedToDeckFromTrash` と**同じ形**（before のゾーンに居て after のデッキに居る）に揃えてある。
+ */
+export function countMovedToDeckFromField(before: PlayerState, after: PlayerState): number {
+  if (!before || !after) return 0;
+  const beforeDeck = new Set(before.deck);
+  const beforeField = new Set(
+    (before.field.signi ?? []).flatMap(stack => (stack ?? [])),
+  );
+  let n = 0;
+  for (const c of after.deck) {
+    if (beforeDeck.has(c)) continue;
+    if (!beforeField.has(c)) continue;
+    n++;
+  }
+  return n;
+}
+
+/**
  * センタールリグの下（field.lrig スタックの top 以外）からカードが移動した枚数を算出（ON_LRIG_UNDER_MOVED）。
  * before の under（top 以外）のうち after の lrig スタックに存在しなくなった＝下から離脱したカードを数える。
  * ⚠ センタールリグのみ対象（アシストルリグ下は未対応）。

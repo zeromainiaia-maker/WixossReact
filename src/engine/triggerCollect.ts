@@ -2561,6 +2561,9 @@ export function collectPowerDecreaseTriggers(
 export function collectMoveToDeckTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
   movedToControllerDeck: number, movedToControllerDeckFromTrash: number, movedToOppDeck: number, causeOwnerId?: string,
+  // §5.3 `O-116`＝**場から**デッキへ移った枚数（自分側／相手側）。省略時は 0＝
+  // `movedToDeckFromField` を持つ効果は**発火しない**（fail-closed）。
+  movedToControllerDeckFromField = 0, movedToOppDeckFromField = 0,
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
@@ -2577,10 +2580,14 @@ export function collectMoveToDeckTriggers(
       if (!effectCauseMatches(eff, controllerId, causeOwnerId)) continue;
       const owner = eff.triggerCondition?.movedToDeckOwner ?? 'any';
       const fromTrash = eff.triggerCondition?.movedToDeckFromTrash ?? false;
+      // 🆕`movedToDeckFromField`（§5.3 `O-116`・`WX05-019-E3`「**場から**デッキに移動したとき」）。
+      //   ⚠**由来限定は timing ごとに別実装で散る**ので、`fromTrash` と同じ読み方に揃える。
+      const fromField = eff.triggerCondition?.movedToDeckFromField ?? false;
       const minCount = eff.triggerCondition?.movedToDeckMinCount ?? 1;
-      const relevant = owner === 'self' ? (fromTrash ? movedToControllerDeckFromTrash : movedToControllerDeck)
-        : owner === 'opponent' ? movedToOppDeck
-        : movedToControllerDeck + movedToOppDeck;
+      const relevant = owner === 'self'
+        ? (fromField ? movedToControllerDeckFromField : fromTrash ? movedToControllerDeckFromTrash : movedToControllerDeck)
+        : owner === 'opponent' ? (fromField ? movedToOppDeckFromField : movedToOppDeck)
+        : (fromField ? movedToControllerDeckFromField + movedToOppDeckFromField : movedToControllerDeck + movedToOppDeck);
       if (relevant < minCount) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;

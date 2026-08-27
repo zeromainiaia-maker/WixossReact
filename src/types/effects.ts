@@ -4015,6 +4015,13 @@ export interface CardEffect {
     movedToDeckOwner?: 'self' | 'opponent' | 'any';  // ON_CARD_MOVED_TO_DECK の宛先デッキ（トリガー所有者から見た self/opponent/any）。省略=any
     movedToDeckMinCount?: number;                     // ON_CARD_MOVED_TO_DECK の発火に必要な、その効果解決で対象デッキに加わった最低枚数（省略=1）。「N枚以上」型はこの解決単位での近似（cf. TODO §3.5）
     movedToDeckFromTrash?: boolean;                   // ON_CARD_MOVED_TO_DECK の発生源をトラッシュに限定（「あなたのトラッシュから…デッキに移動したとき」WX09-020/WX22-014）。省略=任意の発生源
+    /**
+     * ON_CARD_MOVED_TO_DECK の発生源を**場（シグニゾーン）**に限定（「対戦相手のシグニ１体が
+     * **場から**デッキに移動したとき」`WX05-019`・§5.3 `O-116`）。省略=任意の発生源。
+     * ⚠シグニゾーンに居たカードは定義上シグニなので、**カード種別の限定も兼ねる**。
+     * ⚠`movedToDeckFromTrash` と排他ではないが、原文で両方書かれる形は実測0件。
+     */
+    movedToDeckFromField?: boolean;
     banishedFilter?: TargetFilter;                    // ON_SIGNI_BANISH_OPPONENT/_BATTLE の被バニッシュシグニ限定（「感染状態の/凍結状態の/【チャーム】が付いている…シグニをバニッシュしたとき」WX16-079/WXK02-054/WXEX2-76 等）。バニッシュ**直前**の盤面状態（matchesStateFilter＝infected/isFrozen/hasCharm）＋カードデータ（matchesFilter）で判定。triggerFilter は any_ally scope で**バニッシュした側**に使われるため別軸
     banishedNotFront?: boolean;                        // ON_SIGNI_BANISH_BATTLE/_OPPONENT の被バニッシュシグニ限定「正面**以外**の」（WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」）。banishedFilter（カード属性/ゾーン状態）とは別軸＝アタッカーの正面ゾーン（対戦相手視点のミラーゾーン）と被バニッシュゾーンの一致判定。犠牲/リダイレクトで実際の被バニッシュ位置が変わった場合も対応
     banishedFrontOfSelf?: boolean;                     // ON_BANISH watcher の正面ゾーンにいたシグニだけに反応（WX15-055/056）
