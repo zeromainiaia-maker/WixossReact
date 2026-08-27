@@ -570,7 +570,15 @@ export function computeArtsEffectiveCost(
   if (myState.trash && cardMap) {
     m = text.match(/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/);
     if (m) {
-      const cls = m[1]; const perN = parseInt(toHalfWidth(m[2])); const col = m[3]; const perRed = parseInt(toHalfWidth(m[4] || '1')) || 1;
+      const cls = m[1]; const perN = parseInt(toHalfWidth(m[2]));
+      // 🔴色指定は《黒×1》（括弧**内**表記）と《黒》×1（括弧外）の両方がある。
+      //   内側を割らないと色名が `黒×1` になり `removeNColorFromCost` が**一度も当たらない**
+      //   ＝軽減が永久に不発（`WXK06-055` は黒×3+無×1 のまま／2026-08-27 Sheet1 B13 で実測）。
+      //   ⚠**すぐ上の「場の＜クラス＞シグニN体につき」分岐は最初から割っていた**＝
+      //     同じファイル内で同じ表記ゆれの扱いが2つに割れていたのが根因（§5-8′ の再実証）。
+      const innerT = m[3].match(/([^×x]+)[×x]?([０-９\d]*)/);
+      const col = (innerT?.[1] ?? m[3]).trim();
+      const perRed = parseInt(toHalfWidth(innerT?.[2] || m[4] || '1')) || 1;
       const cnt = myState.trash.filter(cn => (cardMap.get(cn)?.CardClass ?? '').includes(cls) && cardMap.get(cn)?.Type === 'シグニ').length;
       const reduction = Math.floor(cnt / perN) * perRed;
       if (reduction > 0) return removeNColorFromCost(base, col, reduction);
