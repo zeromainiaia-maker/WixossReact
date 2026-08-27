@@ -549,6 +549,15 @@ export interface EffectCost {
   trash_self?: boolean;   // このシグニを場からトラッシュに置く（【起】コスト）
   trash_key?: boolean;    // このキーを場からルリグトラッシュに置く（【起】コスト）
   exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
+  /**
+   * エクシードで置くカードの**色指定**（`WX10-001`「エクシード１（**白のカード**）」／
+   * 「エクシード２（**白と赤**のカード）」＝§5.3 2026-08-27 Sheet1 B13・実測1カード3効果）。
+   * 配列の各色を**それぞれ別のカード**で満たす必要がある（`['白','赤']`＝白1枚＋赤1枚）。
+   * 🔴無いと**ルリグの下のどのカードでも払える**＝原文より軽い踏み倒しになる。
+   * ⚠原文の括弧は `stripRuleParens` で落ちるので、**剥がす前に符号化**している
+   *   （`encodeExceedColorsInText`）。他の括弧内ルール説明と同じ扱いにすると必ず消える。
+   */
+  exceedColors?: string[];
   beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
   beat_signi_from_trash?: { count: number; filter?: TargetFilter }; // トラッシュからシグニN体を【ビート】にする（コスト・WDK14-013）
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）

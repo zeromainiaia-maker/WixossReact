@@ -511,8 +511,12 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   if (costStr.includes('《ダウン》')) cost.down_self = true;
   const dm = costStr.match(/手札を([０-９\d]+|一)枚捨てる/);
   if (dm) cost.discard = costCount(dm[1]);
-  const em = costStr.match(/エクシード([０-９\d]+)/);
-  if (em) cost.exceed = parseNum(em[1]);
+  const em = costStr.match(/エクシード([０-９\d]+)(?:＠([^＠]*)＠)?/);
+  if (em) {
+    cost.exceed = parseNum(em[1]);
+    // 🆕色指定（`encodeExceedColorsInText` が符号化した `＠白と赤＠`）＝各色を別々のカードで払う。
+    if (em[2]) cost.exceedColors = em[2].split('と').filter(c => '白赤青緑黒'.includes(c));
+  }
   // このルリグの下からカードN枚をルリグトラッシュに置く → exceed（エクシードの文章表現）
   const emLrig = !em ? costStr.match(/このルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/) : null;
   if (emLrig) cost.exceed = parseNum(emLrig[1]);
@@ -14743,6 +14747,21 @@ function parseActionTextInner(text: string): EffectAction {
 
 // ===== 効果ブロック分割 =====
 
+/**
+ * 「エクシードN（**白のカード**）」の色指定を `stripRuleParens` の前に符号化する
+ * （§5.3 2026-08-27 Sheet1 B13・`WX10-001` の3効果）。
+ *
+ * 🔴原文の括弧は**ルール説明とみなして丸ごと落とされる**ため、そのままだとコストの色指定が
+ * parser に一度も届かない＝`cost:{exceed:1}` だけになり、**ルリグの下のどのカードでも払える**
+ * （原文より軽い＝踏み倒し）。⚠**括弧内ルール説明を能力として数えない**という §4.1 の原則とは
+ * 別軸＝これは**コストの一部**なので、剥がす前に取り出す。
+ * 符号は `＠…＠`（全角）＝原文に出現しない文字を選ぶ（半角 @ はカード名に出うる）。
+ */
+function encodeExceedColorsInText(t: string): string {
+  return t.replace(/エクシード([０-９\d]+)（([白赤青緑黒](?:と[白赤青緑黒])*)のカード）/g,
+    (_m, n, cols) => `エクシード${n}＠${cols}＠`);
+}
+
 function splitEffectBlocks(text: string): string[] {
   // 【マルチエナ】の直後に別の効果マーカーが続く場合は句点を挿入（WX04-054等）
   // 「。」と効果マーカーの間の全角/半角スペースを除去（WX10-029等）
@@ -19831,7 +19850,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
       // 対象限定キーワードのスコープ条件を stripRuleParens で括弧除去される前に符号化する
-      let effectText = restoreElidedSwapSource(encodeLancerScopesInText(encodeAssassinScopesInText(encodeShadowScopesInText(card.EffectText))));
+      let effectText = restoreElidedSwapSource(encodeExceedColorsInText(encodeLancerScopesInText(encodeAssassinScopesInText(encodeShadowScopesInText(card.EffectText)))));
       // 【歌のカケラ】は下段で独立した SONG effect として解析する。通常能力ブロックへ残すと、
       // 直前の【自】等へ歌本文が連結され、E1 に UNKNOWN/STUB が漏れる（WX26-CP1-061）。
       effectText = effectText.replace(/【歌のカケラ】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');

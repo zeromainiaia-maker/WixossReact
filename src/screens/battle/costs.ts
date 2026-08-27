@@ -100,16 +100,48 @@ export function exceedPoolOf(state: PlayerState): string[] {
   ];
 }
 
-export function canPayExceed(state: PlayerState, count: number): boolean {
-  return count <= 0 || exceedPoolOf(state).length >= count;
+/**
+ * エクシードの**色指定**（`cost.exceedColors`）を満たす組み合わせが `cards` の中に在るか。
+ * `['白','赤']` は「白1枚＋赤1枚」＝**各色をそれぞれ別のカードで**満たす。
+ * ⚠**`cardMap` が引けないときは満たさない扱い**（fail-closed）＝色を確かめられないまま払わせない。
+ * ⚠多色カードが絡む割り当ては貪欲法で見る（実データは単色指定が最大2色なので十分）。
+ */
+export function exceedColorsSatisfied(
+  cards: string[], colors: string[] | undefined, cardMap?: Map<string, CardData>,
+): boolean {
+  if (!colors || colors.length === 0) return true;
+  if (!cardMap) return false;
+  const used = new Set<number>();
+  return colors.every(col => {
+    const idx = cards.findIndex((cn, i) => !used.has(i) && (cardMap.get(cn)?.Color ?? '').includes(col));
+    if (idx < 0) return false;
+    used.add(idx);
+    return true;
+  });
+}
+
+export function canPayExceed(
+  state: PlayerState, count: number, colors?: string[], cardMap?: Map<string, CardData>,
+): boolean {
+  if (count <= 0) return true;
+  const pool = exceedPoolOf(state);
+  if (pool.length < count) return false;
+  // 色指定があるなら、プールの中にその色を別々のカードで満たせる組があること。
+  return exceedColorsSatisfied(pool, colors, cardMap);
 }
 
 /** UI で選んだプール index のカードをルリグトラッシュへ移す。選択不正時は null。 */
-export function paySelectedExceed(state: PlayerState, count: number, selectedIndices: Set<number>): PlayerState | null {
+export function paySelectedExceed(
+  state: PlayerState, count: number, selectedIndices: Set<number>,
+  colors?: string[], cardMap?: Map<string, CardData>,
+): PlayerState | null {
   if (count <= 0) return state;
   const pool = exceedPoolOf(state);
   if (selectedIndices.size !== count || [...selectedIndices].some(i => i < 0 || i >= pool.length)) return null;
   const selected = new Set([...selectedIndices].map(i => pool[i]));
+  // 🆕色指定（`WX10-001`「エクシード１（白のカード）」）＝**支払い実行地点でも必ず見る**。
+  //   ゲートだけに置くと UI を迂回した経路で踏み倒せる（§4.2「3地点を grep」）。
+  if (!exceedColorsSatisfied([...selected], colors, cardMap)) return null;
   return {
     ...state,
     lrig_trash: [...state.lrig_trash, ...selected],
