@@ -47,6 +47,7 @@ interface Props {
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
+import { crashCauseMatches } from '../engine/triggerCollect';
 import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
@@ -4005,7 +4006,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actions_done:       [],   // ターン内行動履歴をリセット
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
-          pending_crash_source_card_nums: [], crash_source_card_num: undefined,
+          pending_crash_source_card_nums: [], crash_source_card_num: undefined, pending_crash_causes: [], crash_cause: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
           prevent_next_damage_reservations: undefined,
@@ -4496,7 +4497,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // clearTurnEndScopedState に集約した（§6.4 O-3）。ここで個別に空へ倒すと予約を握り潰す。
         actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, pending_crash_causes: [], crash_cause: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, banish_redirect: undefined,
@@ -8564,7 +8565,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           await persist.commit(reduceBattle(bs, {
             type: 'WRITE_STATE', myKey: stateKey, myState: newMyState,
             opp: { key: opKey, state: { ...op, life_cloth: op.life_cloth.slice(0, -1),
-              crash_source_card_num: my.field.signi[attackZone]?.at(-1), field: { ...op.field, check: crashed } } },
+              crash_source_card_num: my.field.signi[attackZone]?.at(-1), crash_cause: undefined, field: { ...op.field, check: crashed } } },
           }));
           appendBattleLogs([`シグニアタック：ライフクロスをクラッシュ`]);
         } else {
@@ -12250,23 +12251,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardNum = targetCardNum ?? my.field.check;
       let remainingPending: string[];
       let crashSourceCardNum = my.crash_source_card_num;
+      // §5.3 O-120: 原因キーワードは**発生源と同じ添字規約**で持つ（別実装にすると片方だけ直る）。
+      let crashCause = my.crash_cause;
       let remainingCrashSources: Array<string | null>;
+      let remainingCrashCauses: Array<string | null>;
       if (!targetCardNum || targetCardNum === my.field.check) {
         // check のカードを処理: pending はそのまま残す
         remainingPending = my.pending_crashed_cards ?? [];
         remainingCrashSources = my.pending_crash_source_card_nums ?? [];
+        remainingCrashCauses = my.pending_crash_causes ?? [];
       } else {
         // pending のカードを先に処理: indexOf で最初の一致のみ除き、check を pending 先頭に回す
         const pendingList = my.pending_crashed_cards ?? [];
         const targetIdx = pendingList.indexOf(targetCardNum);
         const pendingSources = my.pending_crash_source_card_nums ?? [];
+        const pendingCauses = my.pending_crash_causes ?? [];
         crashSourceCardNum = targetIdx >= 0 ? pendingSources[targetIdx] ?? undefined : undefined;
+        crashCause = targetIdx >= 0 ? pendingCauses[targetIdx] ?? undefined : undefined;
         const afterRemoval = targetIdx >= 0
           ? [...pendingList.slice(0, targetIdx), ...pendingList.slice(targetIdx + 1)]
           : pendingList;
         remainingPending = [my.field.check!, ...afterRemoval];
         remainingCrashSources = [my.crash_source_card_num ?? null,
           ...pendingSources.filter((_, i) => i !== targetIdx)];
+        remainingCrashCauses = [my.crash_cause ?? null,
+          ...pendingCauses.filter((_, i) => i !== targetIdx)];
       }
       // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
       const crashToTrash = op.crash_to_trash_instead === true;
@@ -12311,6 +12320,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const eff of effectsMap.get(topNum) ?? []) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
           if (!battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap)) continue;
+          // §5.3 O-120: 「【ランサー】によってクラッシュしたとき」＝原因キーワード限定（fail-closed）。
+          if (!crashCauseMatches(eff, crashCause)) continue;
           if (eff.kizunaIcon && !isKizunaActive(op, topNum, battleCardMap)) continue; // 【絆自】は絆獲得時のみ
           if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
           if (!oppLimitOk(eff)) continue;
@@ -12327,6 +12338,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       for (const eff of op.game_granted_auto_effects ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
+        if (!crashCauseMatches(eff, crashCause)) continue;   // §5.3 O-120（付与された能力にも同じ条件が乗りうる）
         if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
         if (!oppLimitOk(eff)) continue;
         oppCrashTriggers.push({
@@ -12402,6 +12414,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_crashed_cards: remainingPending,
         pending_crash_source_card_nums: remainingCrashSources,
         crash_source_card_num: undefined,
+        // §5.3 O-120: 原因列は発生源列と**必ず同時に**更新する（片方だけだと添字がずれる）。
+        pending_crash_causes: remainingCrashCauses,
+        crash_cause: undefined,
         life_crash_counter: myCounterAfter,
         actions_done: crashTriggerUsedIds.length > 0
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]

@@ -685,6 +685,12 @@ export function applyEffectBanishSubstituteChoice(
       pending_crash_source_card_nums: pending.length > 0
         ? [...(state.pending_crash_source_card_nums ?? []), ...pending.map(() => victimNum)]
         : state.pending_crash_source_card_nums,
+      // §5.3 O-120: 効果によるクラッシュに原因キーワードは無い。**発生源と同じ地点で必ず消す**
+      //   （消さないと前のランサークラッシュの原因が残り、別のクラッシュで誤発火する）。
+      crash_cause: checkCard ? undefined : state.crash_cause,
+      pending_crash_causes: pending.length > 0
+        ? [...(state.pending_crash_causes ?? []), ...pending.map(() => null)]
+        : state.pending_crash_causes,
     }, ctx),
       `身代わり：ライフクロス${crashed.length}枚をクラッシュして${nameOf(victimNum)}のバニッシュを回避`);
   }
@@ -2297,6 +2303,12 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       pending_crash_source_card_nums: pending.length > 0
         ? [...(state.pending_crash_source_card_nums ?? []), ...pending.map(() => ctx.sourceCardNum ?? null)]
         : state.pending_crash_source_card_nums,
+      // §5.3 O-120: 効果によるクラッシュに原因キーワードは無い。**発生源と同じ地点で必ず消す**
+      //   （消さないと前のランサークラッシュの原因が残り、別のクラッシュで誤発火する）。
+      crash_cause: checkCard ? undefined : state.crash_cause,
+      pending_crash_causes: pending.length > 0
+        ? [...(state.pending_crash_causes ?? []), ...pending.map(() => null)]
+        : state.pending_crash_causes,
     };
   } else {
     // バースト発動なし: クラッシュしたカードはそのままトラッシュへ

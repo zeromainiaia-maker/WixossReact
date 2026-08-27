@@ -10208,9 +10208,20 @@ function foldRevealUntilShuffleBottomInline(text: string, parsed: EffectAction):
  * 【ランサー】等の原因語や、ドライブ状態／レゾナではない等の未配線修飾が残る文は null にして、
  * 原因・状態限定を黙って捨てた any_ally へ広げない。
  */
-function parseAllyLifeCrashSubject(text: string): { filter: TargetFilter } | null {
-  const m = text.match(/^あなたの(.{0,40}?)シグニ(?:[０-９\d一二三四五六七八九]+体)?が対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュした(?:とき|場合)/);
+function parseAllyLifeCrashSubject(text: string): { filter: TargetFilter; causeKeywords?: string[] } | null {
+  // 🆕§5.3 `O-120`（2026-08-27）＝**主語と「対戦相手の」の間に原因句が挟まる形**を落とさない。
+  //   「あなたのシグニが**【ランサー】によって**対戦相手のライフクロスをクラッシュしたとき」は
+  //   旧 regex が密着マッチだったため丸ごと外れ、**`triggerScope` も `triggerFilter` も付かず**
+  //   collector が全ソースを無条件に通していた（＝通常のバトルダメージでも発火する過剰実行・実測3効果）。
+  const m = text.match(/^あなたの(.{0,40}?)シグニ(?:[０-９\d一二三四五六七八九]+体)?が(【[^】]+】(?:か【[^】]+】)?によって)?対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュした(?:とき|場合)/);
   if (!m) return null;
+  // 原因句は【ランサー】【Ｓランサー】だけを受ける（他のキーワードは意味が別なので取りこぼす方へ倒す）。
+  let causeKeywords: string[] | undefined;
+  if (m[2]) {
+    const kws = [...m[2].matchAll(/【([^】]+)】/g)].map(x => normalizeKeywordName(x[1]));
+    if (!kws.every(k => k === 'ランサー' || k === 'Sランサー')) return null;
+    causeKeywords = kws;
+  }
   let rest = m[1];
   const filter: TargetFilter = { cardType: 'シグニ' };
   const take = (re: RegExp, apply: (mm: RegExpMatchArray) => void): void => {
@@ -10223,7 +10234,7 @@ function parseAllyLifeCrashSubject(text: string): { filter: TargetFilter } | nul
   take(/＜([^＞]+)＞の/, mm => { filter.story = mm[1]; });
   take(/([白赤青緑黒])の/, mm => { filter.color = mm[1]; });
   if (rest.length > 0) return null;
-  return { filter };
+  return { filter, ...(causeKeywords ? { causeKeywords } : {}) };
 }
 
 /**
@@ -16535,6 +16546,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           } else if (allyCrash) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = allyCrash.filter;
+            // §5.3 O-120: 「【ランサー】によって」＝クラッシュの原因キーワード限定（engine は fail-closed）。
+            if (allyCrash.causeKeywords) {
+              extractedTriggerCondObj = {
+                ...(extractedTriggerCondObj ?? {}),
+                crashedByKeywords: allyCrash.causeKeywords,
+              };
+            }
           } else if (/この(?:シグニ|ルリグ)が対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュした(?:とき|場合)/.test(actionText)) {
             // 従来の scope:self 単独と区別する。collector は thisCardOnly 付きだけ watcher===crashSource を照合する。
             extractedTriggerScope = 'self';

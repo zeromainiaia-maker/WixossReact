@@ -33,12 +33,17 @@ export function payLifeOnPlayCost(
     life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + crashed.length,
     field: { ...state.field, check: crashed[0] ?? state.field.check },
     crash_source_card_num: crashed.length > 0 ? undefined : state.crash_source_card_num,
+    // §5.3 O-120: コスト支払いのクラッシュに原因キーワードは無い（発生源と同じ地点で消す）。
+    crash_cause: crashed.length > 0 ? undefined : state.crash_cause,
     pending_crashed_cards: pending.length > 0
       ? [...(state.pending_crashed_cards ?? []), ...pending]
       : state.pending_crashed_cards,
     pending_crash_source_card_nums: pending.length > 0
       ? [...(state.pending_crash_source_card_nums ?? []), ...pending.map(() => null)]
       : state.pending_crash_source_card_nums,
+    pending_crash_causes: pending.length > 0
+      ? [...(state.pending_crash_causes ?? []), ...pending.map(() => null)]
+      : state.pending_crash_causes,
   };
   return {
     state: next,

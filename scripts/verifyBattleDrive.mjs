@@ -2098,6 +2098,116 @@ const scenarios = {
     },
   },
 
+  // ── B15（2026-08-27）＝§5.3 `O-120`（【ランサー】によるクラッシュの原因限定）の実機観測点 ──
+  //   🔴**判別力があるのは negative 側**（`b15plaincrash`）＝原因限定が無いと通常のバトルダメージでも引く。
+  //   positive 側（`b15lancercrash`）は修正の有無にかかわらず引くので、単独では反転確認にならない。
+  b15lancercrash: {
+    title: 'WX07-042 幻獣ラクダ（【ランサー】によるクラッシュ＝1ドローする／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD02-002#1'],
+        'field.signi': [['WX07-042#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // 【起】を撃たずに直接【ランサー】を持たせる（コスト支払いの成否をシナリオの判別に混ぜない）。
+        'keyword_grants': { 'WX07-042#1': ['ランサー'] },
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        // 正面（host zone0 の向かい＝guest zone2）にパワーの低いシグニ＝バトルに勝って【ランサー】が発動する。
+        // ⚠正面が空だとルリグへのダイレクトアタックになり、別経路（通常ダメージ）になってしまう。
+        'field.signi': [null, null, ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      const h0 = st0?.host?.hand ?? -1, gl0 = st0?.guest?.life ?? -1;
+      H.log(`開始 hand=${h0} guestLife=${gl0} 正面=${JSON.stringify(st0?.guest?.fieldSigni?.[2])}`);
+      let attacked = false, modalOpened = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/b15lancer-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', '発動する']);
+        const st = await H.queryState();
+        H.log(`  b15lancer[${s}] -> ${did ?? 'なし'} | hand=${st?.host?.hand ?? '-'}(開始${h0}) guestLife=${st?.guest?.life ?? '-'}(開始${gl0}) stack=${st?.stackLen ?? '-'}`);
+        if (attacked && (st?.guest?.life ?? gl0) < gl0 && (st?.host?.hand ?? h0) > h0) {
+          return { pass: true, detail: `【ランサー】のクラッシュで発火＝1ドロー（hand ${h0}→${st.host.hand} / guestLife ${gl0}→${st.guest.life}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `発火せず（hand ${h0}→${fin?.host?.hand ?? '-'} guestLife ${gl0}→${fin?.guest?.life ?? '-'}）` };
+    },
+  },
+
+  b15plaincrash: {
+    title: 'WX07-042 幻獣ラクダ（🔴通常のバトルダメージのクラッシュでは引かない／negative＝判別力はこちら）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD02-002#1'],
+        // 🔴**【ランサー】を持たせない**＝正面が空なのでダイレクトアタック＝通常ダメージでライフが割れる。
+        //   旧挙動＝原因限定が無かったので、このクラッシュでも E1 が発火して1ドローしていた。
+        'field.signi': [['WX07-042#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'keyword_grants': {},
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      const h0 = st0?.host?.hand ?? -1, gl0 = st0?.guest?.life ?? -1;
+      H.log(`開始 hand=${h0} guestLife=${gl0}`);
+      let attacked = false, modalOpened = false, crashed = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/b15plain-${s}.png`, fullPage: true });
+        let did = null;
+        {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', '決定', 'OK', 'はい', 'スキップ']);
+        const st = await H.queryState();
+        if ((st?.guest?.life ?? gl0) < gl0) crashed = true;
+        H.log(`  b15plain[${s}] -> ${did ?? 'なし'} | hand=${st?.host?.hand ?? '-'}(開始${h0}) guestLife=${st?.guest?.life ?? '-'}(開始${gl0}) crashed=${crashed} stack=${st?.stackLen ?? '-'}`);
+        if ((st?.host?.hand ?? h0) > h0) {
+          return { pass: false, detail: `🔴旧挙動＝通常のバトルダメージのクラッシュで1ドローした（hand ${h0}→${st.host.hand}）` };
+        }
+        // ライフが割れて、スタックも保留も無く落ち着いた時点で「引いていない」ことを確定させる。
+        if (attacked && crashed && !(st?.stackLen > 0) && !st?.pendingEffect && s > 6) {
+          return { pass: true, detail: `通常クラッシュでは発火しない＝手札不変（hand ${h0}→${st.host.hand} / guestLife ${gl0}→${st.guest.life}）` };
+        }
+      }
+      const fin = await H.queryState();
+      if (!crashed) return { pass: false, detail: `ライフが割れなかった＝前提が崩れている（guestLife ${gl0}→${fin?.guest?.life ?? '-'}）` };
+      return { pass: (fin?.host?.hand ?? h0) === h0, detail: `hand ${h0}→${fin?.host?.hand ?? '-'} guestLife ${gl0}→${fin?.guest?.life ?? '-'}` };
+    },
+  },
+
   // ── Sheet1 B14（2026-08-27）＝§5.3 `O-119`（使用コストの比例増減を payload 化）の実機観測点 ──
   b14costup: {
     title: 'WX05-034 至宝の欠片（使用コストがライフクロス1枚につき《無×1》増える＝payload 化で初めて請求される）',

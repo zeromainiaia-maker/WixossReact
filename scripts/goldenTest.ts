@@ -38,7 +38,7 @@ import {
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
@@ -17525,16 +17525,23 @@ test('段2 第37バッチ 既存self非退化契約: source個体マーカーの
     '既存のscope:self単独をwatcher一致へ読み替えない');
 });
 
-test('段2 第37バッチ C群据置契約: ランサー原因を運ばない間は死フラグを生成しない', () => withSavedCursor(() => {
+test('段2 第37バッチ C群→§5.3 O-120 で解消: ランサー原因を運ぶようになった（旧・据置契約の反転）', () => withSavedCursor(() => {
+  // 🔴**このテストは反転前提で書かれていた**＝旧版は「原因 funnel が無い間は死フラグを出すな」を固定し、
+  //   コメントに「原因funnel実装時に本テストを反転」と明記していた（CODEX_GUIDE §5-4 の据置契約）。
+  //   2026-08-27 続き693 で `crash_cause` funnel（`BattleScreen.crashOneLife`）と
+  //   `crashedByKeywords` を実装したので、**同じ3効果を逆向きに固定し直す**。
   for (const [cardNum, effectId] of [['WX07-042', 'WX07-042-E1'], ['WX19-071', 'WX19-071-E1']] as const) {
     const eff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
-    eq(eff.triggerScope, undefined, `${effectId}: ランサー原因をany_allyへ誤近似しない`);
-    eq((eff.triggerCondition as Record<string, unknown> | undefined)?.crashCause, undefined,
-      `${effectId}: consumerの無いcrashCause死フラグを出さない`);
+    eq(eff.triggerScope, 'any_ally', `${effectId}: 「あなたのシグニが」＝any_ally を出す`);
+    eq(JSON.stringify(eff.triggerCondition?.crashedByKeywords), '["ランサー"]',
+      `${effectId}: 原因キーワードを刻む`);
     const ctx = { ...trigCtx(HOST, HOST), effectsMap: new Map([[cardNum, [eff]]]) };
     const state = mkState({ signi: [cardNum, null, null] });
-    eq(collectOppLifeCrashedTriggers(ctx, state, HOST, 'WX03-031').entries.some(e => e.effectId === effectId), true,
-      `${effectId}: 現状は通常クラッシュも拾う既知の過剰実行（原因funnel実装時に本テストを反転）`);
+    // 🔴旧挙動＝**別のシグニによる通常クラッシュでも拾っていた**（過剰実行）。いまは原因を渡さないと発火しない。
+    eq(collectOppLifeCrashedTriggers(ctx, state, HOST, cardNum).entries.some(e => e.effectId === effectId), false,
+      `${effectId}: 原因不明のクラッシュでは発火しない（旧＝ここで発火していた）`);
+    eq(collectOppLifeCrashedTriggers(ctx, state, HOST, cardNum, 'ランサー').entries.some(e => e.effectId === effectId), true,
+      `${effectId}: ランサー原因なら発火する`);
   }
 }));
 test('付与ストア共通走査: ON_LEAVE_FIELD any_ally の付与【自】が味方シグニ離脱で発火（続き404・WX25-P2-049-E1）', () => withSavedCursor(() => {
@@ -50459,6 +50466,42 @@ test('Sheet1 B11: `same:\'level\'` 評価器の3点セット（成立／不成�
     'same:level: 違うレベルは不成立');
   ok(!satisfiesSelectionConstraint(two(a, '__NO_SUCH_CARD__'), sameLv, cardMap as Map<string, CardData>),
     'same:level: レベルが引けないカードが混ざったら**不成立**（fail-closed＝制約が消えて過剰実行に倒れない）');
+}));
+
+test('§5.3 O-120: 「【ランサー】によって」＝クラッシュ原因の限定（3効果・正負両方向）', () => withSavedCursor(() => {
+  // ── ① JSON 契約＝3効果とも any_ally / シグニ限定 / 原因キーワードを持つ ──
+  //   旧 live は **triggerScope も triggerFilter も triggerCondition も無かった**（＝主語も原因も落ちていた）。
+  for (const [cardNum, effId] of [['WX07-042', 'WX07-042-E1'], ['WX19-028', 'WX19-028-E1'], ['WX19-071', 'WX19-071-E1']]) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effId);
+    ok(!!e, `${effId} が live に存在する`);
+    eq(e!.triggerScope, 'any_ally', `${effId}: 「あなたのシグニが」＝any_ally`);
+    eq(e!.triggerFilter?.cardType, 'シグニ', `${effId}: 主語はシグニ`);
+    eq(JSON.stringify(e!.triggerCondition?.crashedByKeywords), '["ランサー"]',
+      `${effId}: 🔴原因が【ランサー】に限定されている（無いと通常のバトルダメージでも発火する）`);
+  }
+
+  // ── ② 判定関数の正負 ──
+  const lancerEff = (effectsMap.get('WX07-042') ?? []).find(x => x.effectId === 'WX07-042-E1')!;
+  const plainEff = (effectsMap.get('WX19-028') ?? []).find(x => x.effectId === 'WX19-028-E2')!; // 条件を持たない対照
+  eq(crashCauseMatches(lancerEff, 'ランサー'), true, '原因がランサー＝成立');
+  eq(crashCauseMatches(lancerEff, 'Ｓランサー'), false, '🔴Ｓランサーは別キーワード＝不成立（原文は【ランサー】のみ）');
+  eq(crashCauseMatches(lancerEff, undefined), false,
+    '🔴fail-closed＝原因不明のクラッシュ（通常のバトルダメージ・効果によるクラッシュ）では発火しない');
+  eq(crashCauseMatches(plainEff, undefined), true, '対照＝条件を持たない効果は原因不明でも従来どおり通る');
+  // 綴りズレ（全角Ｓ / 半角S）を吸収する＝ここを素の includes に戻すと live 27効果を殺した前例と同じ穴になる。
+  eq(crashCauseMatches({ ...lancerEff, triggerCondition: { crashedByKeywords: ['Ｓランサー'] } }, 'Sランサー'), true,
+    '全角【Ｓランサー】と半角 Sランサー が一致する');
+
+  // ── ③ collector の正負（同じ盤面で原因だけ差し替える対照）──
+  const ctx = trigCtx(HOST, HOST);
+  // ⚠`effectsMap` は素の Map（CardNum キー）なので、場にはインスタンス ID ではなく素の番号を置く。
+  const crasher = mkState({ signi: ['WX07-042', null, null] });
+  const fire = (cause?: string) =>
+    collectOppLifeCrashedTriggers(ctx, crasher, HOST, 'WX07-042', cause).entries
+      .filter(e => e.effectId === 'WX07-042-E1').length;
+  eq(fire('ランサー'), 1, 'ランサーによるクラッシュ＝1件発火');
+  eq(fire(undefined), 0, '🔴原因不明＝発火しない（旧実装はここで発火していた＝過剰実行）');
+  eq(fire('Ｓランサー'), 0, '🔴別キーワード＝発火しない');
 }));
 
 test('O-119: proportional self-use cost payload covers G1-G18 and preserves the legacy path', () => withSavedCursor(() => {
