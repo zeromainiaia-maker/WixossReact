@@ -1,5 +1,65 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-121`＝「このターンに…バニッシュしていた場合」の台帳が無く、条件ごと落ちて無条件発火だった
+
+> **1巡（続き694・Opus 5 単独）**。ユーザー指示＝Sheet1 の機構待ちを解消する（codex は使わない）。
+> 📊**進捗3計器＝Sheet1 要対応 32→31 / 863（3.7%→3.6%）｜台帳 残 OPEN 583→581｜census 高シグナル 525→523**
+> gates 全緑（golden **2909→2910**）。実機＝新規2本 `b16banish3` / `b16banish2` PASS（**反転確認済み**）＋回帰 `b15plaincrash` / `b14costup` PASS。
+
+### ① 症状（実測2効果）
+
+- `WX11-031-E1`（Sheet1・HIGH）「このシグニが対戦相手のシグニ１体をバニッシュしたとき、**このターンにあなたの
+  ＜空獣＞か＜地獣＞のシグニが対戦相手のシグニを合計３体バニッシュしていた場合**、このシグニをアップする」
+  → live は条件ごと落ちて**バニッシュするたび無条件にアップ**。
+- `WXK02-034-E1`（HIGH）「あなたのアタックフェイズ開始時、**このターンにあなたの効果によって対戦相手のシグニを
+  ２体以上バニッシュしていた場合**、カードを１枚引く」→ live は**無条件に1ドロー**。
+
+🔴**既存の `signi_banished_this_turn` は流用できない**＝あれは**バニッシュされた側**に積む単なる件数で、
+「**誰が**」も「**何によって**」も持たない。どちらの原文も主語は**バニッシュした側**。
+
+### ② 足した受け皿（型＋両評価器＋golden の3点セット）
+
+- **`PlayerState.opp_signi_banished_this_turn: Array<{ by, byEffect }>`**＝`signi_downed_this_turn` の台帳と同じ形。
+- **`Condition` と `ActiveCondition` の両方**に `OPP_SIGNI_BANISHED_COUNT_THIS_TURN{owner, filter?, byEffect?, operator, value}`。
+  ⚠**片側だけだと `checkActiveCondition` が case 無しで `return true`＝無条件成立へ落ちる**（§5-2‴）。
+- ✅**型システムの網羅性ガードが4つとも仕事をした**＝`ACTIVE_CONDITION_TYPES` / `CONDITION_TYPES` の
+  `Record<union, true>`、`turnScopedState` の `Record<ConventionTurnScopedField, …>`、`checkActiveCondition` 末尾の
+  `const _acExhaustive: never = cond;`。**評価器・ターン境界・レジストリの登録漏れを typecheck が全部止めた。**
+  さらに golden の「型数を固定するトリップワイヤ」2本（Condition 129→130 / ActiveCondition 58→59）と
+  「PlayerState のターン限定フィールド数」2本も落ちた＝**足し忘れが素通りする経路が無い。**
+
+### ③ 記録地点は2つ（片方でも落とすと半分だけ効く条件になる）
+
+| 経路 | 場所 | `byEffect` |
+|---|---|---|
+| バトルによるバニッシュ | `BattleScreen` のバトル解決（`banishedOpCardNum` と攻撃者が同じ場所にある） | `false` |
+| 効果によるバニッシュ | 中央 diff `collectBoardDiffTriggers`（`causeOwnerId` / `causeSourceCardNum`） | `true` |
+
+🔴**`WX11-031-E1` の発火 timing `ON_SIGNI_BANISH_OPPONENT` は「バトルバニッシュ経路にしか配線されていない」**
+（`BattleScreen.tsx` のコメントに明記）。**バトル側の記録を落とすと条件が永久に成立しない＝恒久 no-op** になる。
+
+### ④ parser＝この timing だけ「先頭アンカーの hoist」が効かない
+
+`ON_SIGNI_BANISH_OPPONENT` は**トリガー句を除去しない**規約なので、条件節が文頭に来ず
+`matchLeadingStateCondition`（`^` アンカー）が素通りしていた（`WXK02-034` は文頭に来るので既存の hoist で通る）。
+⇒ **この timing の1文型だけ**を効果組み立ての直前で拾って `CONDITIONAL` へ包む形にした。
+⚠**汎用 hoist をこの timing へ広げてはいけない**（トリガー句そのものを条件節と誤読する）。
+
+### ⑤ 🔴実機で踏んだ罠＝`cardMap` に載っていないカードで台帳を仕込むと数えられない
+
+positive シナリオが最初 FAIL した。台帳は3件正しく積まれていたのに条件が false になる。
+**原因は fixture 側**＝`battleCardMap` は**対戦に登場するカード（両デッキ＋場）しか持たない**ので、
+デッキ外の `WX19-028` を `by` に積むと `matchesFilter(undefined, …)` が false になり**数えられない**（fail-closed）。
+場に居る `WX11-031#1` で仕込み直して PASS。
+⚠**切り分けは「条件を外して UP だけにする」プローブで行った**＝
+「発火していないのか／条件が false なのか」を1回の実行で確定できる。
+
+### ⑥ 実機の両方向
+
+- 共通の仕掛け＝**台帳を先に積んでおき、このバトルの +1 で閾値に届くか届かないかだけを変える**。
+- 🔴**判別力があるのは negative（`b16banish2`＝合計2体でアップしないこと）**。条件を外すと**アップして FAIL**。
+- positive（`b16banish3`＝合計3体でアップする）は機構が動くことの確認。**positive だけでは反転確認にならない。**
+
 ## 2026-08-27：§5.3 `O-120`＝【ランサー】によるクラッシュの**原因限定**が無く、通常のバトルダメージでも発火していた
 
 > **1巡（続き693・Opus 5 単独）**。ユーザー指示＝①Sheet1 の機構待ちを解消する ②codex は最初の1バッチだけ（B14 で使用上限）＝**以後は Claude が直接実装**。

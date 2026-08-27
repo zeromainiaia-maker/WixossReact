@@ -46,37 +46,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
 
-## +CONDITIONAL +OPP_SIGNI_BANISHED_COUNT_THIS_TURN ［2枚］
-WX11-031 WXK02-034
---- WX11-031
-  原文: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このターンにあなたの＜空獣＞か＜地獣＞のシグニが対戦相手のシグニを合計３体バニッシュしていた場合、このシグニをアップする。,：次のターンの間、あなたの中央のシグニゾーンにあるシグニのパワーは＋5000され、それは【ランサー】を得る。
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.thisCardOnly = true
-  ~ [0].action.type : "UP" → "CONDITIONAL"
-  + [0].action.condition.type = "OPP_SIGNI_BANISHED_COUNT_THIS_TURN"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.cardClass[0] = "空獣"
-  + [0].action.condition.filter.cardClass[1] = "地獣"
-  + [0].action.condition.operator = "gte"
-  + [0].action.condition.value = 3
-  …（他 5 行）
---- WXK02-034
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたの効果によって対戦相手のシグニを２体以上バニッシュしていた場合、カードを１枚引く。【出】《赤》：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。,：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "DRAW" → "CONDITIONAL"
-  + [0].action.condition.type = "OPP_SIGNI_BANISHED_COUNT_THIS_TURN"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.byEffect = true
-  + [0].action.condition.operator = "gte"
-  + [0].action.condition.value = 2
-  + [0].action.then.type = "DRAW"
-  + [0].action.then.owner = "self"
-  + [0].action.then.count = 1
-
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040

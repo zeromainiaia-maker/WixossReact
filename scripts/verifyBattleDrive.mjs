@@ -15,6 +15,56 @@ import { join } from 'node:path';
 
 const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
+
+/**
+ * §5.3 `O-121` の実機ドライバ（positive / negative で共有）。
+ * アタック宣言 → バトルで正面をバニッシュ → その瞬間の台帳合計で `WX11-031-E1` が発火するかを見る。
+ * 観測点は **`host.signiDown[0]`**＝アタックでダウンした効果元が「アップして戻るか」。
+ * ⚠**「アップしたか」だけを見ない**＝アタック自体が起きていない状態も「ダウンしていない」なので、
+ *   **正面シグニが実際にバニッシュされたこと**を前提条件として先に確かめる。
+ */
+async function driveB16(page, H, expectUp) {
+  const tag = expectUp ? 'b16banish3' : 'b16banish2';
+  const st0 = await H.queryState();
+  H.log(`開始 down=${JSON.stringify(st0?.host?.signiDown)} 正面=${JSON.stringify(st0?.guest?.fieldSigni?.[2])}`);
+  let attacked = false, modalOpened = false, banished = false, wentDown = false;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-0');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    const st = await H.queryState();
+    const front = st?.guest?.fieldSigni?.[2];
+    if (attacked && !(Array.isArray(front) && front.includes('WD01-013#1'))) banished = true;
+    const down0 = st?.host?.signiDown?.[0] === true;
+    if (down0) wentDown = true;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | down=${JSON.stringify(st?.host?.signiDown)} 正面=${JSON.stringify(front)} 台帳=${JSON.stringify(st?.host?.oppBanishLedger)} stack=${st?.stackLen ?? '-'} log=${JSON.stringify((st?.logTail ?? []).slice(-4))}`);
+    if (banished && wentDown && !(st?.stackLen > 0) && !st?.pendingEffect && s > 4) {
+      const up = st?.host?.signiDown?.[0] === false;
+      if (expectUp) {
+        return up
+          ? { pass: true, detail: `合計3体＝条件成立でアップした（down=${JSON.stringify(st.host.signiDown)}）` }
+          : { pass: false, detail: `条件が成立しているのにアップしなかった（down=${JSON.stringify(st.host.signiDown)}）` };
+      }
+      return up
+        ? { pass: false, detail: `🔴旧挙動＝合計2体しかないのにアップした（条件が効いていない）` }
+        : { pass: true, detail: `合計2体＝条件不成立でダウンのまま（down=${JSON.stringify(st.host.signiDown)}）` };
+    }
+  }
+  const fin = await H.queryState();
+  if (!banished) return { pass: false, detail: `正面をバニッシュできなかった＝前提が崩れている（正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])}）` };
+  return { pass: false, detail: `判定に至らず（down=${JSON.stringify(fin?.host?.signiDown)} wentDown=${wentDown}）` };
+}
 const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
@@ -2112,9 +2162,12 @@ const scenarios = {
         'field.signi_down': [false, false, false],
         // 台帳に**2体ぶん**（＜空獣＞のシグニがバニッシュした記録）を先に積む。
         // このバトルのバニッシュが +1 されて**ちょうど3体**＝条件成立。
+        // ⚠**`cardMap` に載っているカードで仕込む**＝`battleCardMap` は対戦に登場するカード（両デッキ＋場）
+        //   しか持たないので、デッキ外のカード番号を積むと `matchesFilter(undefined, …)` が false になり
+        //   **数えられない**（fail-closed）。実際にそれで positive が空振りした。
         'opp_signi_banished_this_turn': [
-          { by: 'WX19-028', byEffect: false },
-          { by: 'WX19-028', byEffect: false },
+          { by: 'WX11-031#1', byEffect: false },
+          { by: 'WX11-031#1', byEffect: false },
         ],
         'actions_done': [],
       },
@@ -2137,7 +2190,7 @@ const scenarios = {
         'field.signi_down': [false, false, false],
         // 🔴台帳は**1体ぶん**だけ＝このバトルの +1 を足しても**合計2体**＝条件不成立。
         //   旧挙動＝条件そのものが無かったので、ここでもアップしていた。
-        'opp_signi_banished_this_turn': [{ by: 'WX19-028', byEffect: false }],
+        'opp_signi_banished_this_turn': [{ by: 'WX11-031#1', byEffect: false }],
         'actions_done': [],
       },
       guestSet: {
@@ -34553,6 +34606,8 @@ try {
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
         actionsDone: s.actions_done ?? [],
         lrigTrash: (s.lrig_trash ?? []).length,
+        // §5.3 O-121: このターンに**この側が**相手シグニをバニッシュした台帳（by / byEffect）。
+        oppBanishLedger: s.opp_signi_banished_this_turn ?? null,
         lrigTrashCards: s.lrig_trash ?? [],   // 続き475g：ピースが「使用後ルリグトラッシュへ」行くことの観測用
         excludedCards: s.excluded ?? [],      // 続き586：V-58(d) COUNTER_TEAM_PIECE_AND_EXILE の観測用
         lrigUnder: Math.max(0, (s.field?.lrig ?? []).length - 1),
