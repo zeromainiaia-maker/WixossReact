@@ -8483,6 +8483,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + 1, // LIFE_CRASHED_THIS_TURN 用
         field: { ...state.field, check: crashed },
         crash_source_card_num: crashSourceCardNum,
+        // §5.3 O-120: 原因は**発生源と必ず同じ地点で**書く（片方だけだと前のクラッシュの原因が残る）。
+        crash_cause: crashCause,
       },
       crashed,
     };
