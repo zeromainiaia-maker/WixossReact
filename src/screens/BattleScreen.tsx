@@ -9538,7 +9538,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (lancerApplies) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
+            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { opponent: newMyState, isTurnPlayer: bs.active_user_id !== user.id }, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum, isSLancer ? 'Sランサー' : 'ランサー');
             if (crashOpponentInstead) {
               // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」＝
               // 置換した側（防御側）から見た「対戦相手」＝**アタックしている自分**のライフを割る。
@@ -9712,6 +9712,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             life_cloth: newOpState.life_cloth.slice(0, -1),
             pending_crashed_cards: [...(newOpState.pending_crashed_cards ?? []), secondCard],
             pending_crash_source_card_nums: [...(newOpState.pending_crash_source_card_nums ?? []), myTopNum],
+            // §5.3 O-120: 原因列も**同じ長さで**伸ばす（伸ばさないと添字がずれて別のクラッシュの原因を読む）。
+            //   ダブル/トリプルクラッシュはバトルダメージなので原因は null（不明）。
+            pending_crash_causes: [...(newOpState.pending_crash_causes ?? []), null],
           };
           appendBattleLogs([`ダブルクラッシュ：2枚目（${battleCardMap.get(secondCard)?.CardName ?? secondCard}）を同時クラッシュ予約`]);
         }

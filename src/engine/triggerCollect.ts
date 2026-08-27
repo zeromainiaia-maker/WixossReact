@@ -57,7 +57,11 @@ export interface TrigCtx {
 export function crashCauseMatches(effect: CardEffect, crashCause: string | undefined): boolean {
   const want = effect.triggerCondition?.crashedByKeywords;
   if (!want || want.length === 0) return true;
-  return !!crashCause && want.includes(crashCause);
+  if (!crashCause) return false;
+  // ⚠**原文は全角【Ｓランサー】・engine コードは半角 `'Sランサー'`** という既知の綴りズレがある
+  //   （`utils/keywords.ts` 冒頭＝これで live 27効果が無言 no-op になった前例）。両端を正規化して照合する。
+  const cause = normalizeKeywordName(crashCause);
+  return want.some(k => normalizeKeywordName(k) === cause);
 }
 
 export function oppLifeCrashSourceMatches(
