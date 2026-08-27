@@ -1960,6 +1960,86 @@ const scenarios = {
   //    （主語なし・execBanish/applyBanish）を判別する。バトル比較行「（Ｐ）vs（Ｐ）」が出る**前**に
   //    対象が場から消えていれば＝ON_ATTACK_SIGNIのCONDITIONAL BANISHが先に発火した証拠（effectivelyEmpty化
   //    でバトル自体がスキップされる）。
+  // ⑮″ Sheet1 B10（2026-08-27）: `WX10-071` 幻水　イルカ
+  //    【自】：このシグニがアタックしたとき、**対戦相手の**デッキの一番上を見る。
+  //    🔴parser は `LOOK_AND_REORDER` の `source.owner` を **`'self'` 固定**で出しており、
+  //      「相手のデッキを覗く」効果が **自分のデッキを覗く**別物になっていた（実測5枚）。
+  //    🔑実機の観測点＝**どちらのデッキから1枚抜かれるか**。`execLookAndReorder` は見るあいだ
+  //      元ゾーンからカードを外す（`deck.slice(cards.length)`）ので、解決の途中で
+  //      **guest.deck が1枚減り host.deck は不変**なら新挙動、逆なら旧挙動と機械判定できる。
+  //    ⚠JSON 契約（golden `Sheet1 B10`）だけでは守れない層＝`destOwner` を UI 側が読み違えると
+  //      「相手のデッキから抜いて自分のデッキへ戻す」になり、JSON は正しいまま盤面が壊れる。
+  oppdecktop: {
+    title: 'WX10-071（アタック時に「対戦相手の」デッキの一番上を見る＝自分のデッキではない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WX10-071#1'], null, null],   // 攻撃者（幻水　イルカ・L1 P2000）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        // ⚠**正面（host zone0 の向かい＝guest zone2）にシグニを置く**＝空にするとルリグへの
+        //   ダイレクトアタックになり、ガード応答待ちでアタック自体が進まない（実測＝1巡目 FAIL の原因）。
+        'field.signi': [null, null, ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.host?.fieldSigni?.[0] ?? []).includes?.('WX10-071#1'); r++) {
+        H.log(`再注入(${r})… host zone0=${JSON.stringify(before?.host?.fieldSigni?.[0])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      const hDeck0 = before?.host?.deck ?? -1;
+      const gDeck0 = before?.guest?.deck ?? -1;
+      H.log(`開始時 deck: host=${hDeck0} guest=${gDeck0}`);
+      let modalOpened = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppdecktop-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        const st = await H.queryState();
+        const hDeck = st?.host?.deck ?? -1;
+        const gDeck = st?.guest?.deck ?? -1;
+        H.log(`  oppdeck[${s}] -> ${did ?? 'なし'} | host.deck=${hDeck0}→${hDeck} guest.deck=${gDeck0}→${gDeck} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} phase=${st?.turnPhase ?? '-'} log=${JSON.stringify((st?.logTail ?? []).slice(-2))}`);
+        // 🔴旧挙動＝**自分の**デッキから抜ける（host が減って guest は不変）。
+        if (hDeck === hDeck0 - 1 && gDeck === gDeck0) {
+          return { pass: false, detail: `旧挙動＝自分のデッキの一番上を見ている（host.deck ${hDeck0}→${hDeck} / guest.deck 不変）` };
+        }
+        // ✅新挙動＝**相手の**デッキから抜ける。
+        if (gDeck === gDeck0 - 1 && hDeck === hDeck0) {
+          return { pass: true, detail: `対戦相手のデッキの一番上を見た（guest.deck ${gDeck0}→${gDeck} / host.deck 不変＝${hDeck}）` };
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `どちらのデッキも減らず観測できず（host.deck ${hDeck0}→${fin?.host?.deck ?? '-'} / guest.deck ${gDeck0}→${fin?.guest?.deck ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   wxk10068banish: {
     title: 'WXK10-068（LRIG_LEVEL_CMP_OPP＝自Lv≦相手Lvならアタック時、自分より低パワーの相手シグニをバニッシュ）',
     spec: {

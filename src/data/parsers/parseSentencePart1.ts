@@ -1011,12 +1011,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   const costIncM = t.match(/対戦相手の(スペル|アーツ|ルリグ)(?:の【[^】]+】能力)?の使用コストは/);
   if (costIncM && t.includes('増える')) {
     const amount = parseEnergyCosts(t);
+    // 🔴**期間の前置きを読むのは兄弟枝にだけ在った**（2026-08-27・Sheet1 B10・`WX09-Re05-E1`・§5-8′ の再実証）＝
+    //   すぐ上の「アーツとスペル」両種別の枝は「このターン、」「次の対戦相手のターンの間、」を読んでいるのに、
+    //   こちらの単種別の枝は **`PERMANENT` 固定**だった。原文「**このターン、**対戦相手のスペルの使用コストは
+    //   《無×3》増える」が**ゲーム中ずっと**の増加になり、以後相手はスペルを撃てなくなる過剰効果。
+    const durInc = /^次の対戦相手のターンの間、/.test(t) ? 'NEXT_OPP_TURN'
+      : /^このターン、/.test(t) ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
     return {
       type: 'COST_INCREASE',
       targetCardType: costIncM[1] as 'スペル' | 'アーツ' | 'ルリグ',
       targetOwner: 'opponent',
       amount: amount.length > 0 ? amount : [{ color: '無', count: 1 }],
-      duration: 'PERMANENT',
+      duration: durInc,
     } as CostIncreaseAction;
   }
 
@@ -2099,7 +2105,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 🔴「手札をN枚**まで**捨てる」は綴りが無く UNKNOWN に落ちていた（§6.4 O-35・続き528）＝
   //   `WX25-P3-005-E1` は前段の DRAW だけが残って**捨てる節が丸ごと消え**、後段の「この方法で捨てた
   //   カード１枚につき」も 0 枚基準になっていた。正準形は続き522 と同じ `upToCount`（engine 実装済み）。
-  const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚?(まで)?捨てる(?:もよい)?$/);
+  // 🆕**「カードをN枚捨てる」は「手札をN枚捨てる」と同義**（2026-08-27・Sheet1 B10・`WX09-Re15-BURST`
+  //   「カードを２枚捨て、カードを３枚引く」）＝ウィクロスの「捨てる」は常に手札から。旧実装は綴りが
+  //   `手札を` しか無く **UNKNOWN** に落ちており、連用中止の分割（`CONJ_SPLIT_RE`）が
+  //   「左が UNKNOWN なら据置」のガードで諦めて **DRAW だけ**を残していた（＝捨てずに3枚引ける）。
+  //   ⚠**文全体アンカー**は外さない＝「対戦相手はカードをN枚捨てる」「手札からカードをN枚捨てる」等の
+  //   別主語・別ゾーン形を巻き込まないため（原文該当は94枚あるが、そのほとんどは他の規則が受けている）。
+  const selfDiscardM = t.match(/^(?:あなたは)?(?:手札|カード)を([０-９\d]+)枚?(まで)?捨てる(?:もよい)?$/);
   if (selfDiscardM) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]), ...(selfDiscardM[2] ? { upToCount: true } : {}) } };
   }
@@ -2149,6 +2161,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...(toTrapZone ? {} : parseCardTypeFilter(t)),
       ...parseCostTotalFilter(t),
       ...parseLevelFilter(t),
+      // 🆕**探すカードのパワー条件**（2026-08-27・Sheet1 B10・`WX09-Re18-E1`
+      //   「あなたのデッキからパワー10000以上のシグニ１枚を探して公開し手札に加え」）＝
+      //   `powerRange` は型にも `matchesFilter` にも実装済みなのに、この SEARCH の filter 合成からだけ
+      //   漏れており、**どんなシグニでも探せる過剰効果**だった（`census:wiring` の配線漏れ型）。
+      // 🔴**全文に当ててはいけない**＝原文4件のうち3件（`WX09-Re07`／`WX18-077`／`WX22-Re02`）は
+      //   「**このシグニの**パワーが〜の場合」という**別節の発動条件**で、全文に当てると
+      //   探索対象へ誤付着する（§5-4 の照応誤付着と同型）。**「デッキから」以降だけ**を見る。
+      ...parsePowerFilter(t.slice(t.indexOf('デッキから'))),
       ...parseLevelLteLastProcessed(t),
       ...parseLastProcessedComparison(t),
       ...parseColorFilter(t),
@@ -2935,12 +2955,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- デッキ一番上を見る（1枚確認）----
+  // 🔴**「誰のデッキか」を必ず読む**（2026-08-27・Sheet1 B10・段2）＝旧実装は owner を `'self'` に
+  //   固定しており、「**対戦相手の**デッキの一番上を見る」が**自分のデッキ**を見る効果に化けていた
+  //   （実測5枚＝`WX10-071`／`WX11-018`③／`WX19-038`／`WX19-061`／`WX19-063`）。
+  //   受け皿は engine 側に実在する＝`execLookAndReorder` は `ownerState(a.source.owner)` を引き、
+  //   `destOwner` も `a.destination.owner` を honor する（`effectExecutor.ts:5492/5556`）＝
+  //   **parser から合成されていないだけ**の穴（PLAN §4.3 の「配線漏れ」型）。
   if (t.match(/デッキの一番上を見る/)) {
+    const deckOwner: Owner = /対戦相手の(?:[^。]*?)?デッキの一番上を見る/.test(t) ? 'opponent' : 'self';
     return {
       type: 'LOOK_AND_REORDER',
-      source: { location: 'deck', owner: 'self' },
+      source: { location: 'deck', owner: deckOwner },
       count: 1, private: true, reorder: false,
-      destination: { location: 'deck', owner: 'self', position: 'top' },
+      destination: { location: 'deck', owner: deckOwner, position: 'top' },
     };
   }
 
@@ -3087,7 +3114,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (t.includes('ライフクロス') && t.includes('クラッシュ')) {
     const op = t.includes('対戦相手');
     const cM = t.match(/([０-９\d]+)枚をクラッシュ/) ?? t.match(/ライフクロス([０-９\d]+)枚/);
-    return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: true };
+    const count = cM ? parseNum(cM[1]) : 1;
+    // 🆕**「あなたと対戦相手の」＝両者**（2026-08-27・Sheet1 B10・`WX08-024-E2`／`WXDi-P06-033`）＝
+    //   旧実装は `t.includes('対戦相手')` の1つの真偽値しか見ておらず、**自分側のクラッシュが丸ごと落ちて**
+    //   デメリット無しの片側クラッシュに化けていた（＜鉱石＞か＜宝石＞3枚捨てという重コストに対して別物）。
+    //   ⚠自分→相手の順（原文の語順）。`triggerBurst` は両方 true＝どちらのバーストも通常どおり誘発する。
+    if (/あなたと対戦相手の[^。]*ライフクロス/.test(t)) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'LIFE_CRASH', owner: 'self', count, triggerBurst: true },
+        { type: 'LIFE_CRASH', owner: 'opponent', count, triggerBurst: true },
+      ] } as SequenceAction;
+    }
+    return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count, triggerBurst: true };
   }
 
   // ---- 「（このアタックフェイズの間、）〜が場を離れたとき、〜を場に出す」付与型の遅延トリガー ----
@@ -4128,8 +4166,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 自分のすべてのシグニをトラッシュ（任意）----
+  // 🔴**規則名は「（任意）」なのに `optional` を出していなかった**（2026-08-27・Sheet1 B10・
+  //   `WX03-015-E1`／`WX03-021-E1`／`WD20-018`）＝原文は「置いて**もよい**」なのに、
+  //   コストを払った瞬間に**自分の場が強制で全滅**していた。engine 側は同日に
+  //   `execTrash` の `count:'ALL'` 経路へ「全部か0か」の二択を足した（従来は `optional` を見ていなかった）。
   if (t.match(/あなたのすべてのシグニを場からトラッシュに置いてもよい/)) {
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, optional: true };
   }
 
   // ---- 自分の（XかYの）シグニを好きな数トラッシュ ----
@@ -4200,7 +4242,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (signiToDeck) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t) };
-    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;
+    // 🆕**「その後シャッフルする」を読む**（2026-08-27・Sheet1 B10・`WX11-002-E3`
+    //   「それをデッキに戻し、対戦相手は自分のデッキをシャッフルする」）＝旧実装は `shuffle:false` 固定で、
+    //   **戻したシグニがデッキのどこに入ったか分かる**（次のドローが読める）盤面になっていた。
+    //   ⚠原文にシャッフルが書かれていない形（＝デッキの一番上／一番下に置く等）は従来どおり false。
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: /シャッフル/.test(t) } as TransferToDeckAction;
   }
 
   // ---- デッキの一番上を公開する（単独文） ----
@@ -4530,9 +4576,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const isHand = t.includes('手札');
     const isEnergy = t.includes('エナゾーン');
     if (isHand && isEnergy) {
+      // 🔴**除外はトラッシュではない**（2026-08-27・Sheet1 B10・`WX11-052-E3`）＝旧実装は両ゾーンとも
+      //   `TRASH` に落としており、**相手はトラッシュから回収できる**（＜精元＞8枚という重コストに対して
+      //   効果が別物になる）。`execExile` は HAND_CARD を実装済み・ENERGY_CARD は同日に追加した
+      //   （`effectExecutor.ts` の execExile／EXILE apply。⚠追加前は ENERGY_CARD が無言 no-op だった）。
       return { type: 'SEQUENCE', steps: [
-        { type: 'TRASH', target: { type: 'HAND_CARD', owner, count: 'ALL' } },
-        { type: 'TRASH', target: { type: 'ENERGY_CARD', owner, count: 'ALL' } },
+        { type: 'EXILE', target: { type: 'HAND_CARD', owner, count: 'ALL' } },
+        { type: 'EXILE', target: { type: 'ENERGY_CARD', owner, count: 'ALL' } },
       ] };
     }
     const upToM = t.match(/([０-９\d]+)枚まで/);
@@ -4624,10 +4674,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   片方だけ載せると**原文と逆の過小実行**になる。AND/OR/別ピックの区別がこの規則では付かないので
     //   **既存の過剰効果を残すほうを選ぶ**（PLAN §5d-0 (i) へ follow-up として登録）。
     const dbClasses = [...new Set([...dbSpan.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))];
+    // 🆕**OR形（「＜A＞か＜B＞の…合計N枚」）だけは載せる**（2026-08-27・Sheet1 B10・`WX08-036-E1`・§5.3 `O-104`③）＝
+    //   `TargetFilter.story` は**配列＝OR**を受ける（受け皿は既存）。旧実装は「AND/OR/別ピックの区別が付かない」
+    //   として**2クラス以上を丸ごと落として**おり、`WX08-036-E1` は「トラッシュのシグニなら何でも5枚」戻せる
+    //   過剰効果だった（原文は＜鉱石＞か＜宝石＞限定）。
+    // ⚠**別ピック形（「＜A＞のシグニ１枚**と**＜B＞のシグニ１枚」＝`PR-322-E1`）は従来どおり据置**＝
+    //   OR にすると「＜A＞を2枚」でも払えてしまい**別の過剰効果**になる（正しくは `selectionConstraint.groups`）。
+    //   実測＝この文型でクラスが2つ以上あるのは全 CSV で2件だけ（OR 1／別ピック 1）。
+    const dbOrClassM = dbSpan.match(/＜[^＞]+＞(?:か＜[^＞]+＞)+の(?:[^。、]{0,6})?シグニ/);
     const dbStoryM = dbClasses.length === 1
       ? dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/)
       : null;
-    const filter: TargetFilter = { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(dbSpan.length > 0 ? dbSpan : t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
+    const dbOrStories = dbOrClassM ? [...dbOrClassM[0].matchAll(/＜([^＞]+)＞/g)].map(m => m[1]) : null;
+    const filter: TargetFilter = { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(dbSpan.length > 0 ? dbSpan : t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : dbOrStories ? { story: dbOrStories } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
       // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
       //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
       ...(dbClasses.length <= 1 ? parseColorFilter(dbSpan) : {}), ...signiClauseColorFilter(t), ...parseGuardFilter(dbSpan), ...parseIconFilter(dbSpan) };

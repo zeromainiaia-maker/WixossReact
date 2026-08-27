@@ -10664,13 +10664,18 @@ test('続き376d: トラッシュ→デッキ一番下の source に story が�
   }
 }));
 
-// ⚠トリップワイヤ＝**クラスが2つ以上ある span では付けない／「トラッシュから」が無い文では拾わない**。
-//   `PR-322-E1`「＜天使＞のシグニ１枚**と**＜古代兵器＞のシグニ１枚」・`WX08-036-E1`「＜鉱石＞**か**＜宝石＞の
-//   シグニ合計５枚」は片方だけ載せると**原文と逆の過小実行**。`WXDi-P16-069-E2` は ＜解放派＞ が**付与対象**で、
-//   置かれる相手シグニ側に付けるのは誤り。いずれも続き376d の A/B で実際に誤配線して差し戻した。
+// ⚠トリップワイヤ＝**「片側だけ載せる」誤配線を禁止する**。`PR-322-E1`「＜天使＞のシグニ１枚**と**
+//   ＜古代兵器＞のシグニ１枚」は**別々のピック**なので `story` を1つ載せると原文と逆の過小実行になり、
+//   `WXDi-P16-069-E2` は ＜解放派＞ が**付与対象**で、置かれる相手シグニ側に付けるのは誤り。
+//   いずれも続き376d の A/B で実際に誤配線して差し戻した。
+// 🆕**2026-08-27 Sheet1 B10 で `WX08-036-E1` だけを本表から外した**＝「＜鉱石＞**か**＜宝石＞の
+//   シグニ合計５枚」は **OR**（`TargetFilter.story` は配列＝OR を受ける受け皿が既存）で、
+//   載せないままだと「トラッシュのシグニなら何でも5枚」戻せる**過剰効果**のほうが残る。
+//   ⇒ OR形（`＜A＞か＜B＞の…`）だけ配列で載せ、**別ピック形（「と」）は従来どおり据置**する契約に変えた。
+//   その契約は `Sheet1 B10` のテストが両方向（WX08-036=載る／PR-322=載らない）で固定している。
 test('続き376d トリップワイヤ: 複数クラス／付与対象のクラスは source に載せない', () => withSavedCursor(() => {
   for (const [card, effId] of [
-    ['PR-322', 'PR-322-E1'], ['WX08-036', 'WX08-036-E1'], ['WXDi-P16-069', 'WXDi-P16-069-E2'],
+    ['PR-322', 'PR-322-E1'], ['WXDi-P16-069', 'WXDi-P16-069-E2'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
     const sourceFilters: unknown[] = [];
@@ -50038,6 +50043,116 @@ test('Sheet1 B4: 「次に使用する〜のコストが減る」は状態スロ
   eq(seen, 11, '「次に使用する〜のコスト軽減」の live 実数（増減したら census 較正の母集団を数え直す）');
 }));
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sheet1 B10（2026-08-27）＝**Sheet1 の段2 残 OPEN を1バッチで21件消化**したときのトリップワイヤ。
+//
+// 🔑この巡の取り方＝「母集団を Sheet1（段2 残 58件 / 47カード）に固定し、**受け皿が既に engine にある形**
+//    だけをまとめて採る」。live A/B は 21効果 / 20カードで、意図した差分以外はゼロだった。
+// ⚠**ここは JSON 契約と engine 挙動の両方を固定する**＝JSON だけだと `EXILE{ENERGY_CARD}` のように
+//    「型は正しいのに engine に消費地点が無く無言 no-op」を素通りさせる（実際、着手時の execExile は
+//    ENERGY_CARD 分岐が無く `return done(ctx)` に落ちていた）。
+// ══════════════════════════════════════════════════════════════════════════════
+test('Sheet1 B10: 受け皿が在るのに parser から合成されていなかった21件（JSON契約）', () => withSavedCursor(() => {
+  const j = (cardNum: string, effectId: string): string => JSON.stringify(b45Effect(cardNum, effectId));
+
+  // ① 「対戦相手のデッキの一番上を見る」＝owner を読む（旧＝self 固定で**自分の**デッキを見ていた）
+  for (const [cn, id] of [['WX10-071', 'WX10-071-E1'], ['WX19-038', 'WX19-038-E1'],
+    ['WX19-061', 'WX19-061-E1'], ['WX19-063', 'WX19-063-E1']] as const) {
+    const s = j(cn, id);
+    ok(s.includes('"LOOK_AND_REORDER"') && s.includes('"owner":"opponent"'),
+      `${id}: 相手デッキを見る（source/destination とも opponent）`);
+  }
+  ok(j('WX11-018', 'WX11-018-E1').includes('"LOOK_AND_REORDER","source":{"location":"deck","owner":"opponent"}'),
+    'WX11-018-E1: 選択肢③のデッキ閲覧も相手側（⚠手札閲覧は未実装＝この finding は閉じていない）');
+
+  // ② ゲームから除外はトラッシュではない
+  {
+    const s = j('WX11-052', 'WX11-052-E3');
+    ok(s.includes('"EXILE","target":{"type":"HAND_CARD"') && s.includes('"EXILE","target":{"type":"ENERGY_CARD"'),
+      'WX11-052-E3: 手札もエナも EXILE（旧＝両方 TRASH＝相手はトラッシュから回収できた）');
+  }
+
+  // ③ 「カードをN枚捨て、カードをM枚引く」＝捨てが落ちない
+  {
+    const s = j('WX09-Re15', 'WX09-Re15-BURST');
+    ok(s.includes('"SEQUENCE"') && s.includes('"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2')
+      && s.includes('"DRAW","owner":"self","count":3'),
+      'WX09-Re15-BURST: 2枚捨ててから3枚引く（旧＝DRAW だけ＝捨てずに3枚引けた）');
+  }
+
+  // ④ SEARCH のパワー条件（⚠「このシグニのパワーが〜の場合」＝別節の発動条件には誤付着させない）
+  ok(j('WX09-Re18', 'WX09-Re18-E1').includes('"powerRange":{"min":10000}'),
+    'WX09-Re18-E1: 探すのはパワー10000以上のシグニ');
+  for (const [cn, id] of [['WX18-077', 'WX18-077-E1'], ['WX22-Re02', 'WX22-Re02-E1'],
+    ['WX09-Re07', 'WX09-Re07-E1']] as const) {
+    const s = j(cn, id);
+    ok(!/"filter":\{[^}]*"powerRange"/.test(s.slice(s.indexOf('"SEARCH"'))) || !s.includes('"SEARCH"'),
+      `${id}: 自己パワー条件は SEARCH の filter へ誤付着しない`);
+  }
+
+  // ⑤ 条件節のクラスが対象フィルタへ漏れない
+  {
+    const s = j('WX10-062', 'WX10-062-E1');
+    ok(s.includes('"AND"') && s.includes('"story":"ウェポン"') && s.includes('"story":"アーム"'),
+      'WX10-062-E1: 発動条件は2クラスの AND のまま');
+    const banish = s.slice(s.indexOf('"action":{"type":"BANISH"'));
+    ok(!banish.includes('"story"'),
+      'WX10-062-E1: バニッシュ対象にクラス限定は付かない（旧＝＜ウェポン＞か＜アーム＞しか倒せなかった）');
+  }
+
+  // ⑥ その他の単発（すべて「受け皿は在ったが parser が出していなかった」形）
+  ok(j('WX11-002', 'WX11-002-E3').includes('"shuffle":true'), 'WX11-002-E3: デッキに戻したらシャッフルする');
+  ok(j('WX11-045', 'WX11-045-E2').includes('"banishedByEffect":true'),
+    'WX11-045-E2: 効果によるバニッシュ限定（バトルでは発火しない）');
+  ok(j('WX06-020', 'WX06-020-E2').includes('"hasLifeBurst":true'), 'WX06-020-E2: 数えるのは【ライフバースト】持ちだけ');
+  ok(j('WX08-036', 'WX08-036-E1').includes('"story":["鉱石","宝石"]'), 'WX08-036-E1: デッキ下へ戻す5枚はクラスOR限定');
+  ok(!j('PR-322', 'PR-322-E1').includes('"story":["天使","古代兵器"]'),
+    'PR-322-E1: 別ピック形は OR にしない（selectionConstraint.groups のまま＝据置）');
+  for (const [cn, id] of [['WX06-013', 'WX06-013-E1'], ['WX13-035', 'WX13-035-BURST']] as const) {
+    ok(j(cn, id).includes('"split_top_bottom"'), `${id}: 残りは一番上か一番下へ振り分けられる`);
+  }
+  for (const [cn, id] of [['WX02-034', 'WX02-034-E1'], ['WX02-034', 'WX02-034-BURST']] as const) {
+    ok(j(cn, id).includes('"BANISH","target":{"type":"SIGNI","owner":"any"'),
+      `${id}: 素の「シグニ1体を対象とし」は自分のシグニも選べる（owner:any）`);
+  }
+  {
+    const s = j('WX09-Re05', 'WX09-Re05-E1');
+    ok(!s.includes('"PERMANENT"') && (s.match(/"duration":"UNTIL_END_OF_TURN"/g) ?? []).length === 2,
+      'WX09-Re05-E1: コスト増加は2枝とも「このターン」限り（旧＝PERMANENT＝ゲーム中ずっと）');
+  }
+  {
+    const s = j('WX08-024', 'WX08-024-E2');
+    ok(s.includes('"LIFE_CRASH","owner":"self"') && s.includes('"LIFE_CRASH","owner":"opponent"'),
+      'WX08-024-E2: 「あなたと対戦相手の」は両者クラッシュ（旧＝相手だけ＝デメリット無し）');
+  }
+  for (const [cn, id] of [['WX03-015', 'WX03-015-E1'], ['WX03-021', 'WX03-021-E1']] as const) {
+    ok(j(cn, id).includes('"optional":true'), `${id}: 全シグニのトラッシュは任意（旧＝強制で自分の場が全滅）`);
+  }
+}));
+
+test('Sheet1 B10: engine 側の消費地点（EXILE のエナ分岐／count:ALL の optional）', () => withSavedCursor(() => {
+  // ① `EXILE{ENERGY_CARD}`＝**トラッシュを経由せず**エナから消える。
+  //    ⚠着手時は execExile に ENERGY_CARD 分岐が無く**無言 no-op**だった＝JSON 契約だけでは守れない。
+  const exile = b45Effect('WX11-052', 'WX11-052-E3').action;
+  const before = mkCtx({}, { hand: 2, energy: 3, trash: 0 });
+  const after = run(exile, before);
+  eq(after.otherState.energy.length, 0, 'WX11-052-E3: 相手のエナが全部消える');
+  eq(after.otherState.hand.length, 0, 'WX11-052-E3: 相手の手札も全部消える');
+  eq(after.otherState.trash.length, 0,
+    'WX11-052-E3: 除外なのでトラッシュには積まれない（旧 TRASH 近似＝5枚がトラッシュへ行き回収できた）');
+
+  // ② `count:'ALL'` の `optional` は「全部か0か」を必ず問う（旧＝a.optional を見ずに即全滅）。
+  const trashAll = b45Effect('WX03-015', 'WX03-015-E1').action;
+  const pending = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: trashAll, duration: 'INSTANT', mandatory: true } as CardEffect,
+    mkCtx({ signi: ['WD03-009', 'WX01-043', 'WX15-035'] }, {}),
+  ) as { done: boolean; pending?: { type: string; options?: { id: string }[] } };
+  ok(!pending.done && pending.pending?.type === 'CHOOSE',
+    'WX03-015-E1: いきなり全滅させず選択を問う');
+  ok((pending.pending?.options ?? []).some(o => o.id === 'skip'),
+    'WX03-015-E1: スキップ枝がある（＝「置いてもよい」を断れる）');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

@@ -1362,6 +1362,9 @@ export function collectBanishTriggers(
         if (isNaN(banishedLevel) || isNaN(watcherLevel) || banishedLevel >= watcherLevel) continue;
       }
       if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== meId)) continue;
+      // 🆕「**効果によって**バニッシュされたとき」（2026-08-27 Sheet1 B10・`WX11-045-E2`）＝所有者を問わず
+      //   **効果起因のみ**。バトルによるバニッシュは `cause` が渡らないので落ちる。
+      if (eff.triggerCondition?.banishedByEffect && !cause) continue;
       // 🆕§5.3 `O-62`：**否定形**「あなたの効果**以外**によってバニッシュされたとき」（`WX15-003-E1`）。
       //   バトル・ルール処理・相手の効果では発火し、**watcher 所有者自身の効果**が原因のときだけ落とす。
       //   ⚠`banishedByOwnEffect:false` では書けない（未指定と区別できない）＝明示値の別キー。

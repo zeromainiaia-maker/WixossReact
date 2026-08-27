@@ -4000,6 +4000,16 @@ export interface CardEffect {
      */
     banishedNotByOwnEffect?: boolean;
     /**
+     * ON_BANISH watcher の「（このシグニが）**効果によって**バニッシュされたとき」（2026-08-27・Sheet1 B10・
+     * `WX11-045-E2`）＝**誰の効果でもよいが、バトルによるバニッシュでは発火しない**。
+     *
+     * ⚠**`banishedByOwnEffect` では代用できない**＝あちらは「**あなたの**効果によって」＝watcher 所有者の
+     *   効果起因に限る（相手の除去では発火しない）。原文は所有者を問わないので別キーにする（§5-5e）。
+     * 判定＝`collectBanishTriggers` の `cause` の有無1点（バトル経路は `cause` を渡さない＝
+     *   `BattleScreen.tsx` のバトル収集は引数を省略、効果経路は `{ownerId, sourceCardNum}` を渡す）。
+     */
+    banishedByEffect?: boolean;
+    /**
      * ON_BANISH watcher の「**アクセされている**あなたのシグニ１体が…」（`WX15-003-E1`）。
      * `banishedHadCharm` と同じ規約＝**除去直前の `signi_acce`** で判定し、`prevOwnerState` 不明時は保守的に非発火。
      * ⚠**`triggerFilter` では書けない**＝アクセは盤面の状態で、`matchesFilter(cardMap...)` は CardData しか見ない。

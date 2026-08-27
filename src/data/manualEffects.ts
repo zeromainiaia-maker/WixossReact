@@ -1133,24 +1133,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WX04-030 トライ・シグナル（スペル）
-  // E1「対戦相手のシグニ1体を対象とし、それを対戦相手のデッキに戻し、対戦相手は自分のデッキをシャッフルする」
-  //   旧パース誤り: TRANSFER_TO_DECK の shuffle:false（＝デッキの上に置く）。正しくは shuffle:true（デッキに戻してシャッフル）。
+  // 🗑**E1 の手書きコピーは 2026-08-27（Sheet1 B10）で撤去した**＝parser が
+  //   「〜をデッキに戻し、（対戦相手は自分の）デッキをシャッフルする」の `shuffle` を読むようになり、
+  //   出力が実体同一になった（§6.4 O-42 のトリップワイヤが検知）。影武者を残すと**その効果にだけ
+  //   以後の parser 改善が永久に届かない**ので削除して parser に任せる。live 側の `parseStatus` も
+  //   `MANUAL`→`AUTO` へ直した（`PRESERVE_STATUSES` が効いたままだと同じ凍結が起きる）。
   // BURST「手札から＜迷宮＞シグニ1枚を捨てる。そうした場合、対戦相手は対象の自分のシグニ1体をトラッシュに置く」
   //   旧パース誤り: 2段目 TRASH に opponentSelects 欠落（相手自身が選ぶべき）。
   'WX04-030': [
-    {
-      effectId: 'WX04-030-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '白', count: 3 }, { color: '無', count: 2 }] },
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
-        { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, shuffle: true },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
     {
       effectId: 'WX04-030-BURST',
       effectType: 'LIFE_BURST',

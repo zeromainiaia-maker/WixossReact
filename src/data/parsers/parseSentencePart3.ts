@@ -284,6 +284,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
       if (mod.includes('アップ状態')) stateFilter.isUp = true;
       if (mod.includes('感染状態')) stateFilter.infected = true;
       if (mod.includes('他の')) stateFilter.excludeSelf = true;
+      // 🆕**【ライフバースト】所持の限定**（2026-08-27・Sheet1 B10・`WX06-020-E2`
+      //   「あなたの場にある**【ライフバースト】を持つ**他の＜植物＞のシグニ１体につき…」）＝
+      //   `hasLifeBurst` は `TargetFilter` にも `matchesFilter` にも実装済みなのに、この修飾句ビルダーからだけ
+      //   漏れており、**バーストを持たない＜植物＞まで数えてエナが増えすぎる**過剰効果だった
+      //   （`census:wiring` の配線漏れ型）。原文該当は全 CSV でこの1枚。
+      if (mod.includes('【ライフバースト】を持つ')) stateFilter.hasLifeBurst = true;
       return { cardType: 'シグニ', ...parseStoryFilter(mod), ...stateFilter };
     };
     const drawM = t.match(/(あなた|対戦相手)?の?(?:場にある)?(.*?)シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);

@@ -476,8 +476,20 @@ export function parseCostTotalFilter(text: string): Partial<TargetFilter> {
 
 // ＜クラス名＞ を配列で抽出（例: ＜鉱石＞か＜宝石＞ → ['鉱石','宝石']）
 export function parseStoryFilter(text: string): Partial<TargetFilter> {
+  // 🔴**先頭の条件節に書かれたクラスは対象の修飾語ではない**（2026-08-27・Sheet1 B10・`WX10-062-E1`）＝
+  //   「あなたの場に他の**＜ウェポン＞と＜アーム＞**のシグニがある場合、対象の対戦相手のパワー7000以下の
+  //   シグニ１体をバニッシュする」で、**条件節のクラスがバニッシュ対象へ誤付着**し
+  //   「＜ウェポン＞か＜アーム＞の相手シグニしか倒せない」過小実行になっていた（§5-4 の照応誤付着と同型）。
+  //   旧コメントは「条件文＋フィルタ文で＜X＞が2回」＝**同じクラス**しか想定しておらず、
+  //   条件と対象でクラスが違う形を dedup で吸収できていなかった。
+  // 🔑**判定は位置だけ**＝先頭の「…（場合|かぎり|とき）、」までに現れる＜X＞は落とし、
+  //   その後ろに現れる＜X＞だけを対象修飾として採る。⚠**後ろに1つも無ければ空を返す**（条件節の
+  //   クラスで代用しない）＝`WX10-062` はこの枝。⚠この関数には**名詞句スパンだけ**を渡す呼び出しも多く、
+  //   その場合は「場合、」等を含まないので従来どおりの挙動になる。
+  const gate = text.match(/^.*?(?:場合|かぎり|とき)、/s);
+  const scoped = gate ? text.slice(gate[0].length) : text;
   // 同一クラス名が複数回出る場合（条件文＋フィルタ文で＜X＞が2回など）は重複除去
-  const matches = [...new Set([...text.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))];
+  const matches = [...new Set([...scoped.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))];
   if (matches.length === 0) return {};
   return { story: matches.length === 1 ? matches[0] : matches };
 }

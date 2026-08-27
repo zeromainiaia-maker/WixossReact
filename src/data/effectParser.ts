@@ -4332,7 +4332,8 @@ const CONJ_FIN: Array<[RegExp, string]> = [
 
 /** 連用中止形で「左、右」に割るための左半分の語彙（`CONJ_FIN` と対で育てる）。 */
 const CONJ_VERB_ALT =
-  '(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|場に出し|場からトラッシュに置き'
+  '(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|カードを[０-９\\d]+枚捨て'
+  + '|場に出し|場からトラッシュに置き'
   + '|シグニゾーンを?[０-９\\d]+つ(?:まで)?指定し|デッキの一番上のカードをエナゾーンに置き'
   + '|デッキの上からカードを[０-９\\d]+枚トラッシュに置き|すべてのシグニをエナゾーンに置き'
   + '|【エナチャージ[０-９\\d]+】をし|デッキの一番上のカードをライフクロスに加え|カードを[０-９\\d]+枚引き'
@@ -11773,7 +11774,14 @@ function parseActionTextInner(text: string): EffectAction {
   if (text.match(/《[^》]+》を支払ってもよい。そうした場合、このカードを(?:あなたの)?ルリグトラッシュからルリグデッキに戻す/))
     return { type: 'STUB', id: 'ARTS_SELF_RECYCLE_ON_TRIGGER' } as import('../types/effects').StubAction;
   // ---- エナ色条件つき単体除去（「シグニ1体を対象とし、あなたのエナゾーンに〈色〉のカードと〈色〉のカードがある場合、それを〜する」）----
-  // エナの色条件を CONDITIONAL でラップ。対象は対戦相手シグニ（owner未指定の除去はopponent）、色フィルタは付けない。
+  // エナの色条件を CONDITIONAL でラップ。色フィルタは付けない。
+  // 🔴**owner は `'any'`**（2026-08-27・Sheet1 B10・`WX02-034-E1`／`-BURST`）＝旧コメントは
+  //   「owner未指定の除去はopponent」と書いていたが、**この規則の正規表現は `^シグニN体を対象とし` で
+  //   アンカーされている**＝「あなたの」も「対戦相手の」も付いていない形しか来ない。素の
+  //   「シグニ１体を対象とし、それをバニッシュする」を単独でパースすると `signiClauseOwner` が
+  //   正しく `'any'` を返す（＝自分のシグニも選べる）のに、**この専用規則だけが opponent に潰していた**
+  //   （§5-8′ の「兄弟枝には規則が在り、1つの入口だけが取り残されていた」型）。
+  //   ⚠原文該当4枚のうち残り3枚は「**対戦相手の**シグニ1体を対象とし」＝アンカーに掛からず無関係。
   {
     const enaCondM = text.match(/^シグニ([０-９\d]+)体を対象とし、あなたのエナゾーンに(.+?)がある場合、それを(バニッシュする|手札に戻す|トラッシュに置く|ダウンする|凍結する)。?$/);
     if (enaCondM) {
@@ -11781,7 +11789,7 @@ function parseActionTextInner(text: string): EffectAction {
       if (colors.length > 0) {
         const cnt = parseNum(enaCondM[1]);
         const verb = enaCondM[3];
-        const tgt: EffectTarget = { type: 'SIGNI', owner: 'opponent', count: cnt, filter: { cardType: 'シグニ' }, upToCount: false };
+        const tgt: EffectTarget = { type: 'SIGNI', owner: 'any', count: cnt, filter: { cardType: 'シグニ' }, upToCount: false };
         const inner: EffectAction =
           verb === 'バニッシュする'   ? { type: 'BANISH', target: tgt }
           : verb === '手札に戻す'      ? { type: 'BOUNCE', target: tgt }
@@ -16314,6 +16322,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringMainPhase: true, turnOwner: 'self', banishedFromCenterZone: true };
           actionText = centerMainBanM[1];
         }
+        // 🆕「このシグニが**効果によって**バニッシュされたとき」（2026-08-27 Sheet1 B10・`WX11-045-E2`）＝
+        //   **バトルによるバニッシュでは発火しない**。旧実装は「効果によって」を読まず素の `ON_BANISH` に
+        //   潰しており、バトルで倒されただけでエナチャージする過剰効果だった。
+        //   ⚠`banishedByOwnEffect`（＝「**あなたの**効果によって」）とは別キー（§5-5e）。
+        const byEffSelfBanM = actionText.match(/^このシグニが効果によってバニッシュされたとき[、,]\s*(.+)/s);
+        if (byEffSelfBanM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedByEffect: true };
+          actionText = byEffSelfBanM[1];
+        }
         const upSelfBanM = actionText.match(/^アップ状態のこのシグニがバニッシュされたとき[、,]\s*(.+)/s);
         if (upSelfBanM) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedWasUp: true };
@@ -19276,6 +19293,40 @@ export function wireShuffledBottomRemainder(action: EffectAction, sourceText: st
 }
 
 /**
+ * 「残りを（好きな順番で）デッキの一番上**か**一番下に置く」を `split_top_bottom` へ配線する
+ * （2026-08-27・Sheet1 B10・`WX06-013-E1`／`WX13-035`）。
+ *
+ * 🔴旧実装は「一番上か一番下」の**片方だけ**（`position:'top'` または `'bottom'`）に潰しており、
+ *   原文が与えている**振り分けの選択そのものが消えて**いた（＝要らない札を下へ逃がせない）。
+ * 🔑受け皿は既存＝`remainder.position:'split_top_bottom'`（engine は `effectExecutor.ts:9204` で
+ *   ピック後に振り分けUIを出す）／`LOOK_AND_REORDER` 側は `destination.position` の同名値
+ *   （`effectExecutor.ts:9644`）。**新機構ゼロ**。
+ * ⚠`wireShuffledBottomRemainder` と同じ規約＝**AUTO の既存受け皿にだけ**当て、木の形は変えない。
+ */
+export function wireTopOrBottomRemainder(action: EffectAction, sourceText: string): EffectAction {
+  if (!/残りを[^。]*デッキの一番上か一番下に(?:置く|戻す)/.test(sourceText)) return action;
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    const node = value as Record<string, unknown>;
+    if (node.type === 'REVEAL_AND_PICK') {
+      const remainder = node.remainder as Record<string, unknown> | undefined;
+      if (remainder?.location === 'deck' && (remainder.position === 'top' || remainder.position === 'bottom')) {
+        remainder.position = 'split_top_bottom';
+      }
+    } else if (node.type === 'LOOK_AND_REORDER') {
+      const destination = node.destination as Record<string, unknown> | undefined;
+      if (destination?.location === 'deck' && (destination.position === 'top' || destination.position === 'bottom')) {
+        destination.position = 'split_top_bottom';
+      }
+    }
+    for (const child of Object.values(node)) visit(child);
+  };
+  visit(action);
+  return action;
+}
+
+/**
  * O-50: 「公開束から別ゾーンへ置き、残りだけをシャッフルしてデッキ下」を、公開束を保持する
  * REVEAL_AND_PICK / LOOK_PICK_CHAIN へ畳む。カード番号や固定枚数ではなく、原文の数値と既存 action 木を使う。
  */
@@ -20036,6 +20087,17 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     }
   }
   const shuffledBottomSource = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  // 「残りを（好きな順番で）デッキの一番上か一番下に置く」＝振り分けUI（`split_top_bottom`）へ配線する。
+  if (/残りを[^。]*デッキの一番上か一番下に(?:置く|戻す)/.test(shuffledBottomSource)) {
+    for (const effect of effects) {
+      if (effect.parseStatus === 'AUTO') {
+        effect.action = wireTopOrBottomRemainder(
+          effect.action,
+          currentSourceTexts.get(effect.effectId) ?? '',
+        );
+      }
+    }
+  }
   if (/残りをシャッフルしてデッキの一番下に(?:置く|戻す)/.test(shuffledBottomSource)) {
     for (const effect of effects) {
       // PARTIAL は別の欠落を残す未完成木で、curated 側が既に正しいこともある。部分木だけを

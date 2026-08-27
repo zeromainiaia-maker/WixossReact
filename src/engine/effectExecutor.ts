@@ -1449,6 +1449,18 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     const hscope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
     return selectOrInteract(hcands, hcount, tgt.upToCount ?? false, hscope, a, undefined, ctx, !!a.blind);
   }
+  // エナゾーンからゲームから除外（`WX11-052-E3`「対戦相手の手札とエナゾーンにあるすべてのカードを
+  // ゲームから除外する」・2026-08-27 Sheet1 B10）。⚠**HAND_CARD 分岐だけがあって ENERGY_CARD が無く**、
+  // 下の `tgt.type !== 'TRASH_CARD'` で**無言 no-op** に落ちていた（parser 側はそれを避けて
+  // `TRASH`＝エナからトラッシュへ、で近似していた＝除外ではないので相手はトラッシュから回収できる）。
+  if (tgt.type === 'ENERGY_CARD') {
+    const estate = ownerState(tgt.owner, ctx);
+    const ecands = energyCandidates(estate, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (ecands.length === 0) return done({ ...addLog(ctx, '除外できるエナゾーンのカードがない'), lastProcessedCards: [] });
+    const ecount = tgt.count === 'ALL' ? ecands.length : Math.min(resolveNum(tgt.count), ecands.length);
+    const escope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
+    return selectOrInteract(ecands, ecount, tgt.upToCount ?? false, escope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
+  }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
   const state = ownerState(tgt.owner, ctx);
   const cands = movableTrashCandidates(tgt.owner, state, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
@@ -1926,6 +1938,24 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
         return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false,
           { selectionConstraint: tgt.selectionConstraint });
+      }
+      // 🆕**`optional` を count:'ALL' 経路でも honor する**（2026-08-27・Sheet1 B10・`WX03-015-E1`／
+      //   `WX03-021-E1`／`WD20-018`）＝「あなたのすべてのシグニを場からトラッシュに置いて**もよい**。
+      //   この方法で〜が置かれた場合、〜」。旧実装はこの分岐で `a.optional` を**まったく見ておらず**、
+      //   コストを払った瞬間に**自分の場が強制で全滅**していた（原文は撃つかどうかを選べる）。
+      //   ⚠`upToCount`（＝「好きな数」）とは別＝こちらは**全部か0か**の二択（手札側 `execTrash` の
+      //   同形＝`applyTrashHand` 直前の分岐に合わせる）。スキップ時は後続の「そうした場合」も走らない。
+      if (a.optional) {
+        if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+        const trashAllField = { ...a, optional: false } as TrashAction;
+        const skipField = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+        return needsInteraction(addLog(ctx, 'シグニをすべてトラッシュに置きますか？'), {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'trash', label: 'すべてトラッシュに置く', action: trashAllField, available: true },
+            { id: 'skip', label: 'スキップ', action: skipField, available: true },
+          ],
+        });
       }
       // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
       //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
@@ -10158,6 +10188,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
             const newHand = [...s.hand]; newHand.splice(hi, 1);
             return done(addLog(setOwnerState(o, { ...s, hand: newHand, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
               `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札からゲームから除外`));
+          }
+        }
+      }
+      // エナゾーンからの除外（`WX11-052-E3`）＝**トラッシュを経由せず**エナから消す。
+      // ⚠エナ保護（`PREVENT_ZONE_MOVE_BY_OPP`）は `execTrash` のエナ分岐と同じ扱いにする＝
+      //   保護が立っている相手のエナは動かせない。
+      if (exTgt.type === 'ENERGY_CARD') {
+        for (const o of owners) {
+          const s = ownerState(o, ctx);
+          const ei = s.energy.indexOf(cardNum);
+          if (ei >= 0) {
+            if (o === 'opponent'
+                && (ctx.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(ctx.otherState).includes('energy'))) {
+              return done(addLog(ctx, 'エナ保護により効果なし'));
+            }
+            const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
+            return done(addLog(setOwnerState(o, { ...s, energy: newEnergy, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
+              `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンからゲームから除外`));
           }
         }
       }
