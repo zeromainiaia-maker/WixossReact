@@ -2056,6 +2056,48 @@ const scenarios = {
     },
   },
 
+  // ── Sheet1 B13（2026-08-27）＝段2 第4巡の実機観測点 ──
+  b13colorpower: {
+    title: 'WX11-032 羅植姫 スノロップ（自身の色の種類×＋4000＝表記パワー0のカードが場に居られるか）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD12-002#1'],
+        // 🔴表記パワー**0**。旧＝`POWER_MODIFY_PER_OWN_COLOR` が無く、パワー0以下ルールで
+        //   **場に出た瞬間に自動バニッシュ**されていた（＝一生場に存在できないカード）。
+        'field.signi': [['WX11-032#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // エナに白/赤/青/黒＝`COLOR_INHERIT`（E1）で自身の色は緑＋4色＝5種＝＋20000。
+        'energy': ['WD01-013#5', 'WD02-013#5', 'WD03-013#5', 'WD05-013#7'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      // パワー0以下の自動バニッシュ watcher は「自分のターン・スタック空」で毎回走る。
+      // 旧挙動ならこの間に WX11-032#1 が場から消える。
+      let last = null;
+      for (let s = 0; s < 10; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/b13colorpower-${s}.png`, fullPage: true });
+        last = await H.queryState();
+        const onField = Array.isArray(last?.host?.fieldSigni?.[0]) && last.host.fieldSigni[0].includes('WX11-032#1');
+        H.log(`  b13pow[${s}] 場=${JSON.stringify(last?.host?.fieldSigni?.[0])} エナ=${last?.host?.energy ?? '-'} トラッシュ=${last?.host?.trash ?? '-'} stack=${last?.stackLen ?? '-'}`);
+        if (!onField) {
+          return { pass: false, detail: `旧挙動＝パワー0のまま自動バニッシュされた（場=${JSON.stringify(last?.host?.fieldSigni?.[0])}）` };
+        }
+      }
+      return {
+        pass: true,
+        detail: `自身の色の種類×＋4000 が効いて場に残った（10 tick 生存・エナ4色＋印刷緑＝5種＝20000）`,
+      };
+    },
+  },
+
   // ── Sheet1 B12（2026-08-27）＝段2 第3巡の実機観測点 ──
   b12delayattack: {
     title: 'WX10-035 光輝（「このターン、あなたのシグニがアタックしたとき」＝遅延設置。唱えた瞬間ではない）',
