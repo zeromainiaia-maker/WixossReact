@@ -321,6 +321,17 @@ export interface PlayerState {
   crash_source_card_num?: string;
   /** pending_crashed_cards と同じ添字で保持する発生源。null は発生源不明。 */
   pending_crash_source_card_nums?: Array<string | null>;
+  /**
+   * 現在 check にあるクラッシュ札の**原因キーワード**（§5.3 `O-120`・`'ランサー'` / `'Ｓランサー'`）。
+   * 「あなたのシグニが【ランサー】によって対戦相手のライフクロスをクラッシュしたとき」の判定に使う。
+   * 🔴**未設定＝原因不明**であり「通常のバトルダメージ」とは区別しない＝
+   *   `triggerCondition.crashedByKeywords` を持つ効果は**未設定なら発火しない**（fail-closed）。
+   * ⚠**書き手は `crash_source_card_num` と同じ地点に必ず揃える**＝片方だけ書くと
+   *   前のクラッシュの原因が残って**別のクラッシュで誤発火**する。
+   */
+  crash_cause?: string;
+  /** pending_crashed_cards と同じ添字で保持する原因キーワード。null は原因不明。 */
+  pending_crash_causes?: Array<string | null>;
   // 効果エンジン用：ターン終了時にクリア
   // srcType: この修正の発生元カードの Type（'シグニ'/'スペル'/'アーツ'/'ルリグ'/'アシストルリグ'/'レゾナ' 等）。
   //   「あなたのシグニの効果で」（WX04-038-E1）等、発生元の種別を参照する効果のために保持する。
