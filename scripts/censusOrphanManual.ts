@@ -61,6 +61,17 @@ for (const f of EFFECT_FILES) {
 const declared = new Set<string>();
 for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
 
+// ── build 後の修正スクリプトが**毎回生成し直す** effectId（＝孤児ではない）──
+// 🔑`npm run build:effects` は `tsx buildEffectsJson.ts && node fixLrigColorFilters.mjs` の2段で、
+//   後段が live へ効果を**足す**ことがある（`[FIX] … → trashKeyCost` 等）。これらは
+//   `manualEffects.ts` に無くても**生成元がある**ので凍っていない＝C（fresh 無し）と混ぜてはいけない。
+// ⚠判定は**スクリプト本文に effectId リテラルが出るか**＝生成をやめれば自動的に C へ落ちる（自己保守）。
+const generated = new Set<string>();
+try {
+  const fixerSrc = readFileSync(join(root, 'scripts', 'fixLrigColorFilters.mjs'), 'utf-8');
+  for (const m of fixerSrc.matchAll(/['"`]([A-Za-z0-9-]+-(?:E\d+\w*|BURST\w*|ACT|TRAP|SONG))['"`]/g)) generated.add(m[1]);
+} catch { /* 無ければ生成元なしとして扱う */ }
+
 // ── fresh（parser 出力。⚠`mergeManualEffects` は通さない＝「parser だけなら何を出すか」を見る）──
 const rows: Record<string, string>[] = [];
 for (const f of ['CardData_Sheet1.csv', 'CardData_Sheet2.csv', 'CardData_Sheet3.csv', 'CardData_Sheet4.csv',
@@ -93,7 +104,7 @@ const canonLeaves = (o: unknown): string => leafMap(o)
 const same = (a: unknown, b: unknown) => canonLeaves(a) === canonLeaves(b);
 
 // ── 分類 ──
-type Row = { effectId: string; cardNum: string; cls: 'A' | 'B' | 'C'; liveEff: CardEffect; freshEff?: CardEffect };
+type Row = { effectId: string; cardNum: string; cls: 'A' | 'B' | 'C' | 'D'; liveEff: CardEffect; freshEff?: CardEffect };
 const rowsOut: Row[] = [];
 let totalManual = 0;
 for (const [cardNum, effs] of live) {
@@ -109,24 +120,46 @@ for (const [cardNum, effs] of live) {
     //   （`SP38-006-E1`＝「対戦相手の場にあるキーとシグニは能力を失い、新たに得られない」が
     //     `REMOVE_ABILITIES{count:1, PERMANENT}` で未忠実。golden がこの印を assert している）。
     //   ⇒ `MANUAL` の孤児（＝古い手スタンプ）だけを A にし、`PARTIAL` は実体同一でも **B**（要レビュー）へ送る。
-    const cls: Row['cls'] = !f ? 'C' : (same(e, f) && e.parseStatus === 'MANUAL') ? 'A' : 'B';
+    const cls: Row['cls'] = generated.has(e.effectId) ? 'D'
+      : !f ? 'C' : (same(e, f) && e.parseStatus === 'MANUAL') ? 'A' : 'B';
     rowsOut.push({ effectId: e.effectId, cardNum, cls, liveEff: e, freshEff: f });
   }
 }
 
 const byClsIds = (c: Row['cls']): string[] => rowsOut.filter(r => r.cls === c).map(r => r.effectId);
 
-// ── --id：1件の完全 diff ──
+// 由来の原文ブロック（`build:effects` が出す effectId → 原文）。無ければ空で続行する。
+const srcText = new Map<string, string>();
+try {
+  const j = JSON.parse(readFileSync(join(root, 'docs', '_effect_srctext.json'), 'utf-8')) as Record<string, string>;
+  for (const [k, v] of Object.entries(j)) srcText.set(k, v);
+} catch { /* 無ければ原文列は空 */ }
+
+// ── --id：完全 diff（**カンマ区切りで複数指定できる**）──
+// ⚠1回の起動で全カードを parse する（約40秒）ので、**1件ずつ起動し直さない**。
+//   `--id A,B,C` / `--id C群` のようにまとめて渡すこと（分類名を渡すとその分類を全部出す）。
 if (idArg) {
-  const r = rowsOut.find(x => x.effectId === idArg);
-  if (!r) { console.log(`${idArg} は「live 限定 MANUAL スタンプ」ではない（manualEffects.ts に定義があるか、AUTO か、存在しない）`); process.exit(0); }
-  console.log(`## ${r.effectId}  [${r.cls}]  ${fileOf.get(r.cardNum)}`);
-  console.log('live : ' + JSON.stringify(r.liveEff));
-  console.log('fresh: ' + (r.freshEff ? JSON.stringify(r.freshEff) : '(parser は この effectId を出さない)'));
-  if (r.freshEff) {
-    const L = new Map(leafMap(r.liveEff)), F = new Map(leafMap(r.freshEff));
-    for (const [p, v] of L) if (!p.endsWith('.parseStatus') && JSON.stringify(F.get(p)) !== JSON.stringify(v)) console.log(`  - ${p} = ${JSON.stringify(v)}`);
-    for (const [p, v] of F) if (!p.endsWith('.parseStatus') && !L.has(p)) console.log(`  + ${p} = ${JSON.stringify(v)}`);
+  const spec = idArg.trim().toUpperCase();
+  const targets = (spec === 'A' || spec === 'B' || spec === 'C' || spec === 'D')
+    ? rowsOut.filter(r => r.cls === spec)
+    : idArg.split(',').map(x => x.trim()).filter(Boolean)
+        .map(id => rowsOut.find(x => x.effectId === id) ?? { effectId: id, missing: true } as unknown as Row & { missing?: true });
+  for (const r of targets) {
+    if ((r as Row & { missing?: true }).missing) {
+      console.log(`## ${r.effectId}  → 「live 限定 MANUAL スタンプ」ではない（manualEffects.ts に定義があるか、AUTO か、存在しない）
+`);
+      continue;
+    }
+    console.log(`## ${r.effectId}  [${r.cls}]  ${fileOf.get(r.cardNum)}`);
+    console.log('原文: ' + (srcText.get(r.effectId) ?? '(由来ブロックなし)'));
+    console.log('live : ' + JSON.stringify(r.liveEff));
+    console.log('fresh: ' + (r.freshEff ? JSON.stringify(r.freshEff) : '(parser は この effectId を出さない)'));
+    if (r.freshEff) {
+      const L = new Map(leafMap(r.liveEff)), F = new Map(leafMap(r.freshEff));
+      for (const [p, v] of L) if (!p.endsWith('.parseStatus') && JSON.stringify(F.get(p)) !== JSON.stringify(v)) console.log(`  - ${p} = ${JSON.stringify(v)}`);
+      for (const [p, v] of F) if (!p.endsWith('.parseStatus') && !L.has(p)) console.log(`  + ${p} = ${JSON.stringify(v)}`);
+    }
+    console.log('');
   }
   process.exit(0);
 }
@@ -180,9 +213,10 @@ out.push('# live 限定 MANUAL スタンプ（§5.3 O-133）＝ manualEffects.ts
 out.push('# 生成: npx tsx scripts/censusOrphanManual.ts');
 out.push('# A=解凍候補（live と fresh が実体同一） / B=要レビュー（実体が違う） / C=fresh 無し（parser が出さない id）');
 out.push('');
-for (const c of ['A', 'B', 'C'] as const) {
+for (const c of ['A', 'B', 'C', 'D'] as const) {
   const rs = byCls(c);
-  const label = c === 'A' ? '解凍候補（SAME）' : c === 'B' ? '要レビュー（DIFF）' : 'fresh 無し（NO_FRESH）';
+  const label = c === 'A' ? '解凍候補（SAME）' : c === 'B' ? '要レビュー（DIFF）'
+    : c === 'C' ? 'fresh 無し（NO_FRESH）' : '生成元あり（build 後の修正スクリプト）';
   out.push(`## ${c} ${label} ［${rs.length}件］`);
   for (const r of rs) out.push(`  ${r.effectId}`);
   out.push('');
@@ -195,5 +229,6 @@ console.log(`  うち manualEffects.ts に定義が無い   : ${rowsOut.length}`
 console.log(`    A 解凍候補（live == fresh）        : ${byCls('A').length}   ← 機械的に処理できる本体`);
 console.log(`    B 要レビュー（実体が違う）          : ${byCls('B').length}   ⚠一括で AUTO へ落とさない`);
 console.log(`    C fresh 無し（parser が出さない）   : ${byCls('C').length}   ⚠解凍すると効果ごと消える`);
+console.log(`    D 生成元あり（build 後の fixer）    : ${byCls('D').length}   ＝凍っていない（毎回生成し直される）`);
 console.log('明細: docs/_census_orphan_manual.txt');
 console.log('⚠ゲートではない。1件の内訳は --id <効果ID>、採用の入力は --list A。');

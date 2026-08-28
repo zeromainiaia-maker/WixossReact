@@ -51488,7 +51488,10 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // ⇒ **件数のラチェット**を置く＝増えたら「また凍らせた」、大きく減ったら基準を下げる合図。
   // ⚠**この test は parser を回さない**（live と `manualEffects.ts` の集合演算だけ）＝ゲート費用はほぼ0。
   //   A/B/C の内訳は `npx tsx scripts/censusOrphanManual.ts` が出す（そちらは parser を回すのでゲート外）。
-  const BASELINE_ORPHAN_MANUAL = 423;   // 2026-08-28 続き704＝A群186件（MANUAL のみ）を解凍して 609→423
+  // 2026-08-28 続き704＝A群186件（MANUAL のみ）を解凍して 609→423、
+  //   さらに C群21件を `manualEffects.ts` へ移設して 423→402。
+  //   残 402 ＝ B群393（要レビュー）＋ D群9（build 後の fixer が毎回生成＝凍っていない）。
+  const BASELINE_ORPHAN_MANUAL = 402;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];

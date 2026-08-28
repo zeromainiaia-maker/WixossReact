@@ -1,5 +1,107 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-133` 第2バッチ＝C群21件を `manualEffects.ts` へ移設（＋ D群の新設）
+
+> **1巡（続き704 の後半・Opus 5 単独）**。ユーザー指示＝**「A（C群）をやってから B」／「A ができたら区切る」**。
+> ⇒ **C群まで**を実施し、B群399件は次巡へ送った。
+> gates 全緑（golden 2941・据置）。実機＝**既存12シナリオ ALL PASS**（うち1本のフレークを恒久修正）。
+> 📊**進捗3計器＝Sheet1 要対応 2 / 863（据置）｜台帳 残 OPEN 570（据置）｜census 高シグナル 510（据置）**
+> **孤児 MANUAL スタンプ 423 → 402**（A 0 / B 393 / C **0** / D 9）。`_idset_fresh` **23 → 13**。
+
+---
+
+### ① 🔴 C群を触る前に「生成元がある id」を分離した（D群の新設）
+
+C群24件を1件ずつ見たところ、**3件は `manualEffects.ts` に無いだけで毎回生成し直されていた**：
+
+```
+[FIX] WX24-P2-049-E1b → powerPlusBanishedPower
+[FIX] WX25-CP1-040-E1b → variableEnergyTrashLevelBounce
+[FIX] WXK04-015-E1b → trashKeyCost
+```
+
+`npm run build:effects` は **`buildEffectsJson.ts` → `fixLrigColorFilters.mjs` の2段**で、
+後段が live へ効果を**足す**ことがある。これらは**生成元があるので凍っていない**＝
+「parser が出さない孤児」と混ぜると**存在しない作業を作ってしまう**。
+
+⇒ 計器に **D 生成元あり（build 後の fixer）** を新設した。
+判定は**fixer 本文に effectId リテラルが出るか**＝生成をやめれば自動的に C へ落ちる（自己保守）。
+**C 24 → 21 ／ D 9**（B からも6件が D へ移った）。
+
+---
+
+### ② C群21件を `manualEffects.ts` へ逐語移設
+
+**なぜ移すのか**＝これらは live の JSON へ直接足された手書き効果で `manualEffects.ts` に出所が無い。
+収穫マージが MANUAL を不可侵にするので**動きはする**が、二重の死角になっていた：
+
+1. **id 集合がズレて カード丸ごと凍る**（`O-39`）＝そのカードの **AUTO 効果にも parser 改善が届かない**
+2. **`censusManualDrift` の母集団に入らない**＝乖離しても誰も気づかない
+
+**やり方**＝**live の JSON を逐語コピー**して `manualEffects.ts` へ置く（値を作り直さない）。
+`mergeManualEffects` は manual 側だけの id を**追加する**ので、これで fresh と live の id 集合が揃う。
+既存エントリのある2カード（`WXDi-P07-060` / `PR-426`）は**その配列へ追記**、残り17カードは新規エントリ。
+
+**A/B 実測＝`parseStatus だけ変化 0 ／ 実体変化 0`**（`build:effects` 後の live を移設前スナップショットと全数比較）
+＝**移設で live は1バイトも変わらない**。
+
+**副産物**＝`_idset_fresh` が **23 → 13**（10カードが id 集合ズレから解放され、
+そのカードの AUTO 効果へ parser 改善が届くようになった）。
+
+移設した21件：
+```
+WX14-060-E2  WX14-061-E2  WX16-062-TRAP  WX16-064-TRAP  WX17-028-E2
+WX20-038-E1b WX20-038-E1c WXEX2-69-E3P   WXDi-P03-016-E1b WXDi-P07-060-E3
+WXDi-P13-050-E1b WXDi-CP02-103-E2 WX24-P4-058-E1b WX25-P1-054-E1b
+WX25-P2-009-ACT WX25-P2-009-E2 WXK01-074-E1b WXK01-008-E1 WXK01-009-E1
+WDK06-R09-E2b PR-426-E3
+```
+
+---
+
+### ③ 計器の使い勝手を直した（`--id` が複数指定できるようになった）
+
+初版の `--id` は1件しか取れず、**1回の起動で全カードを parse する（約40秒）**ので
+24件を見るのに10分かかって timeout した。⇒ `--id A,B,C` のカンマ区切りと
+**分類名（`--id C`）でその分類を全部出す**形に変えた。原文（`docs/_effect_srctext.json`）も併記する。
+
+---
+
+### ④ 実機シナリオのフレークを1本恒久修正した
+
+`b27orihalmiss` が**単体では PASS・`b28grantedauto` の直後に回すと FAIL**（`前提崩れ＝相手の正面に
+バニッシュ対象が居ない`）になった。注入直後の1発目の `queryState()` がまだ反映前を読む
+**位置依存フレーク**（§4.4-7 と同型）。⇒ **前提チェックを3秒予算で再問い合わせ**する形に直した。
+
+⚠**「単体で PASS するから大丈夫」は通用しない**＝シナリオは**必ず連続実行でも回す**。
+
+---
+
+### 検証
+
+**gates 全緑**＝typecheck / golden **2941**（据置。ラチェット `BASELINE_ORPHAN_MANUAL` を 423→402 へ更新）/
+smoke 全異常0 / fuzz 全0 / census 510（据置）/ `census:stubs` A群🔴0・C群0 / manual-fields 0 /
+`census:enginetext` A群 141行（据置）/ lint 0 errors。
+`censusManualDrift` の**削除候補 0**（移設した21件は live と実体同一なので新しい乖離を作っていない）。
+
+**実機＝既存12シナリオ ALL PASS**（`b28grantedauto` / `b27orihalmiss` / `b27orihalhit` / `b27hestia` /
+`b27heaven` / `b27heavennowatch` / `b25targetfirst` / `b25targethit` / `b26grantquoted` /
+`b22artshit` / `b22artsmiss` / `banishbyeffect`）。**live 変化 0** なので新規シナリオは無し。
+
+---
+
+### 次にやる人へ（B群393件）
+
+**一括処理は不可。** `npx tsx scripts/censusOrphanManual.ts --id B` で live/fresh の完全 diff をまとめて読み、
+1件ずつ次のどちらかへ倒す：
+
+- **fresh のほうが正しい** → **parser 改善が届いていなかった**＝スタンプを外す（`--unfreeze <id>`）。
+  ⚠外すと census の MANUAL 免除も外れるので、**増分が「元から在った欠落」であることを機械照合してから
+  `BASELINE_HIGH` を上げる**（続き704 第1バッチと同じ手順）。
+- **live のほうが正しい／別設計** → **`manualEffects.ts` へ移す**（移さないとまた凍る）。
+  ⚠`PARTIAL` は**意図的なレビュー印**なので外さない。
+
+
 ## 2026-08-28：§5.3 `O-133` 第1バッチ＝**live 限定 MANUAL スタンプ**に計器を付け、186効果を解凍した
 
 > **1巡（続き704・Opus 5 単独）**。ユーザー指示＝**選択肢A（`O-133`）**。

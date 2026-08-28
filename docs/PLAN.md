@@ -10,40 +10,43 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-28・続き704・Opus 5 単独）＝`O-133` 第1バッチ。live 限定 MANUAL スタンプに計器を付け、186効果を解凍した。**
-  ユーザー指示＝**選択肢A（`O-133`）**。前巡（続き703）で「parser を直したのに live に届かない」を**実際に2回踏んだ**のが着手理由。
+- 🏁**セッション（2026-08-28・続き704・Opus 5 単独）＝`O-133` 第1＋第2バッチ。孤児 MANUAL スタンプに計器を新設し 609→402 まで落とした。**
+  ユーザー指示＝**「A（O-133）」→「A（C群）をやってから B」→「A ができたら区切る」**
+  ⇒ **第1バッチ（A群解凍）と第2バッチ（C群移設）まで**を実施し、**B群393件は次巡へ送った**。
   📊**進捗3計器＝Sheet1 要対応 0→2 / 863｜台帳 残 OPEN 570（据置）｜census 高シグナル 491→510**
-  ⚠🔴**Sheet1 +2 と census +19 はどちらも「退化」ではなく「可視化」**（証明は下）。
-  gates 全緑（golden **2940→2941**）。実機＝**既存12シナリオの回帰 ALL PASS**（新規シナリオ無し＝理由も下）。
+  🆕**孤児 MANUAL スタンプ 609 → 402**（A 0 / B 393 / C 0 / D 9）｜`_idset_fresh` **23 → 13**
+  ⚠🔴**Sheet1 +2 と census +19 は「退化」ではなく「可視化」**（証明は下）。
+  gates 全緑（golden **2940→2941**）。実機＝**既存12シナリオ ALL PASS**（うち1本のフレークを恒久修正）。
   - ✅**計器を新設**＝`npm run census:orphanmanual`（`scripts/censusOrphanManual.ts`・明細
-    `docs/_census_orphan_manual.txt`）。**live の MANUAL/PARTIAL なのに `manualEffects.ts` に定義が無い**効果を
-    3分類する＝**A 解凍候補**（実体同一 かつ MANUAL）／**B 要レビュー**（実体が違う・**PARTIAL はここ**）／
-    **C fresh 無し**（parser が出さない id＝解凍すると効果ごと消える）。比較は `buildEffectsJson.ts` の
-    `canonLeaves` と**同じ規約**にしてマージ判定とズラさない。`--unfreeze A` は**分類を実行時に測り直す**。
-    **初回実測＝孤児 609（A 194 / B 391 / C 24）／live の MANUAL・PARTIAL 全体 1,035。**
-  - 🔴**`PARTIAL` を解凍してはいけないことを golden が捕まえた**＝`PARTIAL` は「別軸がまだ忠実でない」という
-    **意図的なレビュー印**で、実体が同じでも落とすと記録が消える（`SP38-006-E1` を golden が assert）。
-    ⇒ A の定義に `parseStatus === 'MANUAL'` を足し、巻き込んだ8件は `PARTIAL` へ戻した。
-  - ✅**A群 186効果を解凍**（`parseStatus` を MANUAL→AUTO・**値は1バイトも変えない**）。
+    `docs/_census_orphan_manual.txt`）。**live が MANUAL/PARTIAL なのに `manualEffects.ts` に定義が無い**効果を
+    **A 解凍候補**（実体同一 かつ MANUAL）／**B 要レビュー**／**C fresh 無し**／
+    🆕**D 生成元あり**（`fixLrigColorFilters.mjs` が毎回生成＝凍っていない）に分ける。
+    比較は `buildEffectsJson.ts` の `canonLeaves` と同じ規約。`--unfreeze A` は分類を実行時に測り直す。
+    `--id` は**カンマ区切り／分類名**で複数出せる（1起動＝全カード parse 約40秒なので1件ずつ起動しない）。
+  - ✅**第1バッチ＝A群186効果を解凍**（`parseStatus` を MANUAL→AUTO・値は不変）。
     **A/B 実測＝`parseStatus だけ変化 186 ／ 実体変化 0`。**
-  - 🔑**可視化の証明**＝census は **STUB/MANUAL を高シグナルから免除する**ので、免除が外れて 491→510。
-    **増えた19件が全部その186効果の中にある**ことを機械照合した（外部からの流入0）＝
-    **解凍前から在った欠落が見えただけ**。Sheet1 の +2（`WX09-019`／`WX10-023`）も同じ理由で、
-    **前巡の警告「Sheet1 0 ＝ 正しい ではない」のそのままの実例**になった。
-  - ⚠**実機検証は対象なし（機械的に確認）**＝`grep -rn "parseStatus" src/engine/ src/screens/` の
-    **全19ヒットが書き込み側**で、**分岐に使っている箇所は0**＝解凍で観測できる差は原理的に無い。
-    それでも live を186効果ぶん触ったので**既存12シナリオの回帰は回した（ALL PASS）**。
-  - ✅**ラチェットを golden に置いた**＝`BASELINE_ORPHAN_MANUAL = 423`（増えたら「また凍らせた」・
-    減ったら基準を下げる）。⚠**この test は parser を回さない**（集合演算だけ）＝ゲート費用ほぼ0。
+  - ✅**第2バッチ＝C群21件を `manualEffects.ts` へ逐語移設**。**A/B 実測＝実体変化 0**。
+    副産物＝**`_idset_fresh` 23→13**（10カードが id 集合ズレから解放＝AUTO 効果へ parser 改善が届くように）。
+  - 🔴**`PARTIAL` は解凍してはいけない**（golden が8件の巻き込みを捕まえた）＝
+    「別軸がまだ忠実でない」という**意図的なレビュー印**（`SP38-006-E1`）。A の定義に `MANUAL` 限定を足した。
+  - 🔴**C群を触る前に D群を分離した**＝`[FIX] … → trashKeyCost` のように **build 後の fixer が毎回生成する id**
+    が3件混ざっていた。**生成元があるので凍っていない**＝混ぜると**存在しない作業を作る**。
+  - 🔑**「可視化」の証明**＝census は STUB/MANUAL を高シグナルから免除するので、解凍で +19。
+    **増えた19件が全部その186効果の中にある**ことを機械照合した（外部からの流入0）。
+  - ⚠**実機検証は対象なし（機械確認）**＝`parseStatus` は実行時に一度も読まれない
+    （`grep` の全19ヒットが書き込み側）。それでも既存12シナリオの回帰は回した。
+  - ⚠**実機シナリオのフレークを1本恒久修正**＝`b27orihalmiss` は**単体 PASS・連続実行で FAIL**だった
+    （注入直後の1発目の `queryState()` が反映前を読む＝§4.4-7 と同型）。前提チェックを3秒予算の再問い合わせに。
+    **「単体で PASS するから大丈夫」は通用しない＝シナリオは必ず連続実行でも回す。**
+  - ✅**ラチェットを golden に**＝`BASELINE_ORPHAN_MANUAL = 402`（増えても減っても FAIL・parser を回さない）。
 
-**▶ 次の一手**＝**`O-133` 第2バッチ＝C群24件**を先に取る。**live 固有 id なので `manualEffects.ts` へ移すだけ**で
-（続き703 の `WX05-021-E4` と同じ手）、B より判断が要らず、**id 集合ズレ（`O-39`）の再発源も同時に消える**。
-その後 **B群 399件**＝1件ずつ `--id <効果ID>` で live/fresh の完全 diff を読む。
-⚠**fresh が正しいものは「parser 改善が届いていなかった」＝直せば live が良くなる**／
-**live が正しいものは `manualEffects.ts` へ移す**（移さないとまた凍る）。**一括処理は不可。**
+**▶ 次の一手**＝**`O-133` 第3バッチ＝B群393件**（ユーザーが「A のあと B」と指示済み）。
+`npx tsx scripts/censusOrphanManual.ts --id B` で live/fresh の完全 diff をまとめて読み、1件ずつ倒す：
+**fresh が正しい**→ スタンプを外す（`--unfreeze <id>`）／**live が正しい・別設計**→ `manualEffects.ts` へ移す。
+⚠**一括処理は不可**。⚠**`PARTIAL` は外さない**。⚠**解凍すると census の MANUAL 免除も外れる**ので、
+**増分が「元から在った欠落」であることを機械照合してから `BASELINE_HIGH` を上げる**（第1バッチと同じ手順）。
+⚠**1バッチ15〜20効果**に切る（393件を一度に読まない）。
 機構側なら **`O-130`**（`ON_OPP_ARTS_USE` の帰結が「そのシグニ」）か **`O-128` 第2バッチ**。
-⚠🔴**計器の数字が増える方向の作業がある**ことを忘れない＝今回のように**免除を外すと高シグナルは増える**。
-**増えた分が「元から在った欠落」であることを毎回機械照合してから baseline を上げる。**
 
 ---
 
@@ -558,7 +561,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-129** | **「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、それを…」で対象の確定が中間動作より後になる**（残り＝トラッシュ/デッキ由来の中間動作 15効果） | M | **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（3効果）を消化。** ■`applyDroppedTargetDesignation` の「filter/owner/count が帰結と一致するなら据置」ガードに **`orderObservable`** を足した＝①中間動作が**宣言と反対側**のカードを動かす ②**強制**（「てもよい」でない） ③中間動作が**場**のカードを動かす（トラッシュ/デッキ/エナ/手札 由来は除く） ④中間ステップの owner が原文と一致している（ズレている形は `O-104` の領分＝順序だけ直して「壊れたまま正しい順」にしない）。**実測で live の AUTO は3効果だけ動く**（`WX02-020-E1`／`WXEX2-18-E2`／`WXEX2-27-E2`）。 ■🔴**実機で機構の穴がもう1つ出た**＝`SELECT_TARGET_ONLY` は**候補0でも `done` を返して SEQUENCE が続く**ので、対象宣言を前に出しただけでは**相手の場が空でも自分のシグニを失う**（`b25targetfirst` が最初 FAIL）。⇒ `StubAction.abortIfNoCandidate` を新設し `execSequence` が打ち切る（**フラグ付きだけ**＝既存93効果の対象宣言は挙動据置）。 ■**残り**＝③を外すと「あなたのトラッシュから〜をデッキの一番下に置く」系が **+15効果**（`WX06-001`／`WX06-014`／`SPDi44-12`／`SPDi44-16`／`WXEX1-53`／`WXEX2-04`／`WXEX2-31`／`PR-322`／`WXDi-P05-019`／`WXDi-P16-008`／`WX25-P1-014`／`WX25-P1-030` ほか）。**1件ずつ原文照合できる規模で次バッチ**。⚠`fixMiddleClauseTargetOwner` は `applyDroppedTargetDesignation` の**前**へ移した（後ろだと先頭に入った宣言 STUB で `steps[0]` 判定が外れ、`WXEX1-52-E2` の owner 是正が消える＝A/B で実測）。 |
 | **O-130** | 🆕**ON_OPP_ARTS_USE の帰結が「そのシグニ」＝効果を受けたシグニを指せない** | M | **2026-08-28 `O-113` の作業中に発見**＝`WXK11-019-E2`（Sheet4）「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、ターン終了時まで、**そのシグニ**は効果によって得ている能力を失う」。■live は `REMOVE_ABILITIES{target:{owner:'opponent'}}` **のみ**＝①**アップが丸ごと落ちている** ②**能力を失わせる相手が逆**（原文は自分の受けたシグニ／live は相手シグニ）。■🔑`O-113` で**発火条件**は正しくなった（`affectedByOppArtsFilter`）が、**帰結が「効果を受けたシグニ」を参照する受け皿が無い**＝`targetsTriggerSource` はこの timing ではアーツを指すので使えない。■**取り方**＝`collectOppArtsAffectedOwnSigni` の結果を StackEntry へ載せ、`targetsAffectedByTrigger` 相当で本体へ束縛する（`triggeringCardNum` と同型の1本）。■母集団＝この1枚（`WX05-020-E2` は帰結が「対戦相手にダメージ」で参照不要）。 |
 | **O-132** | **`vocabCensus.ts` が「JSON に入っている語彙」を知らず、高シグナルの一部が偽陽性**（第1バッチ消化・残＝未調査の 491） | S〜M／1バッチ＝1カテゴリ群 | **2026-08-28 続き701（Sheet1 B27）で分離／続き702 で第1バッチを消化。** ■🔴**この項目は「較正」であって前進ではない**（PLAN §3 の原則）＝**`src/` と `public/` を1バイトも変えない**。報告にも必ず「較正」と明記する。 ■✅**第1バッチ（続き702）＝Sheet1 が指した11カテゴリ・13キー**を追加して **516→491（-25効果）**、Sheet1 の census フラグを **12→0**（要対応 20→8）。追加キー＝`GUARD_MAX_LV`/`GUARD_LV`（レベルが `BLOCK_ACTION.actionId` に埋まる）／`compareToSelf`／`sourceSharedColorWithSelf`／`countFromZone`・`perAllSigni`／`costThreshold`／`STACK_SPELL`／`ON_OPP_SIGNI_ATTACK`／`attackerOwner`／`costSubstitute`／`"once":true`／`"upTo":true`・`PLAY_FREE_FROM_TRASH`＋空枝 CHOOSE の `extraOk`。全文は BUGFIXES.md 2026-08-28。 ■**手口（第1バッチで確立）**＝①候補キーごとに**そのカテゴリの高シグナルのうち何件が救われるか**を先に数える（`docs/_vocab_census.txt` のカテゴリ別 id × live JSON の部分一致）②**救われる効果を1件ずつ**「由来の原文ブロック（`docs/_effect_srctext.json`）× live JSON」で目視③**同じカテゴリに残った効果が本当の欠落であること**も見る（下げすぎ検出）④`BASELINE_HIGH` を実数へ⑤**golden にトリップワイヤ**。 ■🔴**較正の唯一の危険＝キーが免罪符になる**＝キーが JSON から消えても census は静かに合格し続ける。**必ず golden に「較正キーが live に実在する」を追加する**（続き702 で25ペア。空振りでないことも実測済み）。 ■**残り**＝高シグナル **491** は偽陽性かどうか**未調査**。件数の多い順に `条件節(94)` `小さい数(2-5枚/体)不在(74)` `キーワード能力語の不在(53)` `クラス指定(40)` `数値不一致(37)`。⚠**大きいカテゴリほど真の欠落が混ざる**ので、**1カテゴリずつ**上の手口で回す（`条件節` は `extraOk` が既に複雑なので最後）。 |
-| **O-133** | **live 限定の MANUAL スタンプ**（第1バッチ消化・残 **423件**＝A 0 / B 399 / C 24） | M／B は1件ずつ | **2026-08-28 続き703 で分離／続き704 で第1バッチを消化。** ■🆕**計器＝`npm run census:orphanmanual`**（`scripts/censusOrphanManual.ts`・明細 `docs/_census_orphan_manual.txt`・`--id <効果ID>` で1件の live/fresh 完全 diff・`--list A|B|C`・`--unfreeze A`）。**ラチェットは golden**（`BASELINE_ORPHAN_MANUAL`＝増えても減っても FAIL。parser を回さない集合演算だけなのでゲート費用ほぼ0）。 ■**なぜ死角なのか**＝収穫マージは live の `MANUAL/PARTIAL` を**効果単位で不可侵**にする（`buildEffectsJson.ts:264/:274`）ので、`manualEffects.ts` に出所が無いスタンプは①**parser の改善を永久に受け取れず**②`_held_fresh` / `_partial_fresh` / `_idset_fresh` の**どのバケツにも出ない**。⚠**`censusManualDrift.ts` とは向きが逆**（あちらは manual→live が届かない側）。 ■✅**第1バッチ（続き704）＝A群186効果を解凍**（`parseStatus` を MANUAL→AUTO・**値は不変**）。孤児 609→423。**A/B で「parseStatus だけ変化186／実体変化0」**を実測。⚠**census 高シグナルは 491→510 に増える**＝STUB/MANUAL 免除が外れただけで、**増えた19件が全部その186効果の中にある**ことを機械照合してから `BASELINE_HIGH` を上げた（**可視化であって退化ではない**）。 ■🔴**`PARTIAL` は解凍しない**（初版で8件巻き込み golden が捕まえた）＝あれは「別軸がまだ忠実でない」という**意図的なレビュー印**で、実体が同じでも落とすと記録が消える（`SP38-006-E1`）。⇒ A の定義は **実体同一 かつ `MANUAL`**。 ■**残りの取り方**＝**C 24件を先に**（parser が出さない live 固有 id。**解凍すると効果ごと消える**ので `manualEffects.ts` へ移す＝続き703 の `WX05-021-E4` と同じ手。`O-39` の再発源も同時に消える）→ **B 399件**は1件ずつ `--id` で diff を読む。⚠**fresh が正しいものは「parser 改善が届いていなかった」＝直せば live が良くなる**／**live が正しいものは `manualEffects.ts` へ移す**（移さないとまた凍る）。**一括処理は不可。** |
+| **O-133** | **live 限定の MANUAL スタンプ**（第1・第2バッチ消化・残 **402件**＝A 0 / **B 393** / C 0 / D 9） | M／B は1件ずつ・1バッチ15〜20効果 | **2026-08-28 続き703 で分離／続き704 で第1（A群解凍）＋第2（C群移設）バッチを消化。** ■🆕**計器＝`npm run census:orphanmanual`**（`scripts/censusOrphanManual.ts`・明細 `docs/_census_orphan_manual.txt`・`--id <効果ID|分類名>` は**カンマ区切りで複数可**・`--list A|B|C|D`・`--unfreeze A`）。**ラチェットは golden**（`BASELINE_ORPHAN_MANUAL`＝増えても減っても FAIL。parser を回さない集合演算だけなのでゲート費用ほぼ0）。 ■**なぜ死角なのか**＝収穫マージは live の `MANUAL/PARTIAL` を**効果単位で不可侵**にする（`buildEffectsJson.ts:264/:274`）ので、`manualEffects.ts` に出所が無いスタンプは①**parser の改善を永久に受け取れず**②`_held_fresh` / `_partial_fresh` / `_idset_fresh` の**どのバケツにも出ない**。⚠**`censusManualDrift.ts` とは向きが逆**（あちらは manual→live が届かない側）。 ■✅**第1バッチ＝A群186効果を解凍**（`parseStatus` を MANUAL→AUTO・**値は不変**。A/B で「parseStatus だけ変化186／実体変化0」を実測）。⚠**census 高シグナルは 491→510 に増える**＝STUB/MANUAL 免除が外れただけで、**増えた19件が全部その186効果の中にある**ことを機械照合してから `BASELINE_HIGH` を上げた（**可視化であって退化ではない**）。 ■✅**第2バッチ＝C群21件を `manualEffects.ts` へ逐語移設**（A/B で実体変化0）。副産物＝**`_idset_fresh` 23→13**（10カードが `O-39` の凍結から解放）。 ■🔴**`PARTIAL` は解凍しない**（初版で8件巻き込み golden が捕まえた）＝「別軸がまだ忠実でない」という**意図的なレビュー印**（`SP38-006-E1`）。A の定義は **実体同一 かつ `MANUAL`**。 ■🔴**D群（build 後の fixer が毎回生成する id）を C と混ぜない**＝`[FIX] … → trashKeyCost` 等。**生成元があるので凍っていない**＝混ぜると**存在しない作業を作る**。判定は fixer 本文の effectId リテラル（生成をやめれば自動的に C へ落ちる）。 ■**残り＝B群393件。一括処理は不可。** `--id B` で live/fresh の完全 diff をまとめて読み、**fresh が正しい**→スタンプを外す（`--unfreeze <id>`）／**live が正しい・別設計**→`manualEffects.ts` へ移す（移さないとまた凍る）。⚠**解凍のたびに census の免除が外れて数字が増える**ので、**増分の機械照合→`BASELINE_HIGH` 更新**を毎回セットで行う。 |
 
 **■ 個別カードの機構待ち**
 - **📋 個別カード機構待ちの defer 3件＝いずれも根拠つき（着手前にこの理由が今も有効か再判定すること）**：(a) **`WX17-044`＝⚠2026-08-10 再判定＝先行ブロッカーだった §5.3 は消化済（続き403）だが、このカードは**依然として別要因**で止まっている**＝①`WX17-044-E1` に `trashActivated` が立っておらず（parser が「トラッシュにあるこのカードを〜」の【起】をトラッシュ起動と認識していない）②本体アクションが `ADD_TO_FIELD` ではなく**【トラップ】を表向きにして発動させる**（現行の逆翻訳は別物になっている）③コストの `trashExile.self` は `trashActivateCost.ts` の対応キーに入れていない（使う効果が0件のため未実装のまま置いた）。**着手時は parser 側（①②）から。UI は③を足すだけで載る。**(b) **`WXDi-P05-006` choice①＝着手禁止**（ピースカットイン割込み基盤）。(c) **`WX20-Re20`＝一体で要る**（選択数依存コスト・能力なし filter・任意複数配置UI・同一 instance 群のターン終了時 trash）＝部分実装しない。
@@ -679,17 +682,17 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 - **2026-08-28 続き704 後（本行が直近の正）**：
   📊**進捗3計器＝Sheet1 要対応 0→2 / 863｜台帳 残 OPEN 570（据置）｜census 高シグナル 491→510**
-  ⚠🔴**Sheet1 +2 と census +19 はどちらも「退化」ではなく「可視化」**＝
-  `manualEffects.ts` に出所の無い live MANUAL スタンプ **186効果**を解凍した結果、
-  census の **STUB/MANUAL 免除**が外れた。**A/B で「parseStatus だけ変化 186 ／ 実体変化 0」**を実測し、
+  🆕**孤児 MANUAL スタンプ 609 → 402**（A 0 / B 393 / C 0 / D 9）｜**`_idset_fresh` 23 → 13**
+  ⚠🔴**Sheet1 +2 と census +19 はどちらも「退化」ではなく「可視化」**＝孤児 MANUAL スタンプ **186効果**を
+  解凍して census の **STUB/MANUAL 免除**が外れた。**A/B で「parseStatus だけ変化 186 ／ 実体変化 0」**を実測し、
   **増えた19件が全部その186効果の中にある**ことも機械照合済み（外部からの流入0）。
-  **golden 2941**（+1＝孤児 MANUAL のラチェット `BASELINE_ORPHAN_MANUAL=423`）、census 510/510、
+  **golden 2941**（+1＝孤児 MANUAL のラチェット `BASELINE_ORPHAN_MANUAL=402`）、census 510/510、
   smoke 全異常0、fuzz 全0、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行（据置）。
-  **live 変化＝186効果（`parseStatus` のみ）／実体変化 0カード**。
-  🆕**計器を新設**＝`npm run census:orphanmanual`（孤児 **423件**＝A 0 / B 399 / C 24）。
+  `census:enginetext` A群 141行（据置）、`censusManualDrift` 削除候補0。
+  **live 変化＝186効果（`parseStatus` のみ）／実体変化 0**（C群21件の移設でも実体変化 0）。
+  🆕**計器を新設**＝`npm run census:orphanmanual`（A/B/C/**D 生成元あり**の4分類・`--unfreeze A`）。
   **実機シナリオ＝新規なし**（`parseStatus` は実行時に一度も読まれないことを grep で機械確認）。
-  **既存12シナリオの回帰 ALL PASS**。
+  **既存12シナリオ ALL PASS**＋**`b27orihalmiss` の位置依存フレークを恒久修正**。
 
 - **2026-08-28 続き703 後**：
   📊**進捗3計器＝Sheet1 要対応 8→0 / 863（0.9%→0.0%）｜台帳 残 OPEN 575→570｜census 高シグナル 491（据置）**

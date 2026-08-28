@@ -450,8 +450,16 @@ async function driveB16(page, H, expectUp) {
  */
 async function driveB27Orihal(page, H, expectBanish) {
   const tag = expectBanish ? 'b27orihalhit' : 'b27orihalmiss';
-  const st0 = await H.queryState();
-  const front0 = st0?.guest?.fieldSigni?.[2];
+  // ⚠**前提チェックは待ってから**（§4.4-7 と同型のレースを実測）＝注入直後の1発目の `queryState()` は
+  //   まだ反映前のことがあり、**単体では PASS・連続実行の2本目だけ FAIL** という位置依存フレークになる
+  //   （2026-08-28 続き704 で `b28grantedauto` の直後に回して踏んだ）。3秒予算で再問い合わせする。
+  let st0 = await H.queryState();
+  let front0 = st0?.guest?.fieldSigni?.[2];
+  for (let w = 0; w < 6 && !(Array.isArray(front0) && front0.includes('WX09-027#8')); w++) {
+    await page.waitForTimeout(500);
+    st0 = await H.queryState();
+    front0 = st0?.guest?.fieldSigni?.[2];
+  }
   H.log(`開始 hostTrash=${JSON.stringify(st0?.host?.trashCards)} guest正面=${JSON.stringify(front0)} hand=${st0?.host?.hand}`);
   // 前提＝バニッシュ対象が最初から居ること（居なければ「消えた」判定が無意味になる）。
   if (!Array.isArray(front0) || !front0.includes('WX09-027#8')) {
