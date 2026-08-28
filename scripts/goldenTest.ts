@@ -30767,6 +30767,30 @@ test('B13 ON_CARD_MOVED_TO_DECK の「場から」限定＝movedToDeckFromField�
   const after = { ...mkState({}), deck: ['AAA#1', 'ZZZ#1'] } as PlayerState;
   eq(countMovedToDeckFromField(before, after), 1, '場に居た AAA#1 だけを数える（ZZZ#1 は場に居なかった）');
 });
+// §5.3 `O-112`（2026-08-28）＝原文の「**シグニ**１体が場からデッキに移動したとき」の
+//   **カード種別の限定**。旧実装はスタックを flatMap していたので、**下敷き**がデッキへ動いただけでも
+//   発火していた（チャーム／アクセ／裏向き付与は別配列なので元から含まれない）。
+test('O-112 ON_CARD_MOVED_TO_DECK は下敷きの移動では発火しない（シグニ本体だけを数える）', () => {
+  const before = mkState({ signi: [null, null, null] });
+  before.field.signi = [['UNDER#1', 'SIGNI#1'], null, null] as unknown as PlayerState['field']['signi'];
+  // ① シグニ本体がデッキへ → 1（正方向）
+  const signiToDeck = { ...mkState({}), deck: ['SIGNI#1'] } as PlayerState;
+  eq(countMovedToDeckFromField(before, signiToDeck), 1, 'スタックの top（シグニ本体）は数える');
+  // ② 下敷きだけがデッキへ → 0（🔴これが旧実装では 1 になっていた＝過剰発火）
+  const underToDeck = { ...mkState({}), deck: ['UNDER#1'] } as PlayerState;
+  eq(countMovedToDeckFromField(before, underToDeck), 0, '🔴下敷きだけの移動は「シグニが移動した」ではない');
+  // ③ 対照＝両方動いてもシグニ本体の1体ぶんだけ（下敷きを二重に数えない）
+  const bothToDeck = { ...mkState({}), deck: ['UNDER#1', 'SIGNI#1'] } as PlayerState;
+  eq(countMovedToDeckFromField(before, bothToDeck), 1, 'スタックごと動いても数えるのはシグニ1体');
+  // ④ collector まで通す＝②では WX05-019-E3 が誘発しないこと
+  const host = mkState({ signi: ['WX05-019', null, null] });
+  const guest = mkState({});
+  const fired = (fromField: number) =>
+    collectMoveToDeckTriggers(trigCtx(HOST), HOST, host, guest, 0, 0, 1, HOST, 0, fromField)
+      .entries.some(e => e.effectId === 'WX05-019-E3');
+  eq(fired(countMovedToDeckFromField(before, signiToDeck)), true, 'シグニ本体の移動では誘発する');
+  eq(fired(countMovedToDeckFromField(before, underToDeck)), false, '下敷きだけの移動では誘発しない');
+});
 test('B13 エクシードの色指定（WX10-001「エクシード１（白のカード）」）', () => {
   const es = parseCardEffects({
     CardNum: 'TEST-B13-EX', Type: 'ルリグ', Color: '赤', Level: '5',

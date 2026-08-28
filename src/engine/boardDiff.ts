@@ -602,14 +602,21 @@ export function countMovedToDeck(before: PlayerState, after: PlayerState, fromTr
  * §5.3 `O-116`（2026-08-27 Sheet1 B13）＝`WX05-019-E3`「対戦相手のシグニ１体が**場から**デッキに
  * 移動したとき」。従来の `triggerCondition` は `movedToDeckFromTrash` しか持たず、**「場から」も
  * 「シグニであること」も表せなかった**＝相手のデッキへ何が戻っても発火する過剰実行だった。
- * ⚠**シグニゾーンに居たカードは定義上シグニ**なので、この1本で由来とカード種別の両方を満たす。
  * ⚠`movedToDeckFromTrash` と**同じ形**（before のゾーンに居て after のデッキに居る）に揃えてある。
+ *
+ * 🆕**2026-08-28（§5.3 `O-112`）＝数えるのは各スタックの top（＝シグニ本体）だけ**。
+ * 旧実装は `flatMap` でスタック全体を集めており、**下敷き**（`PLACE_CARD_UNDER_SIGNI` 等でシグニの
+ * 下に置かれたカード）がデッキへ動いただけでも「シグニ１体が場からデッキに移動した」と数えていた＝
+ * 原文の**「シグニ」**という限定が効かない過剰実行だった。⚠**チャーム／アクセ／裏向き付与は
+ * `signi_charms` / `signi_acce` / `signi_facedown_attached` の別配列**なので元から含まれない
+ * （つまり残っていた穴は下敷きだけ）。⚠`at(-1)` にすることで「下敷きだけがデッキへ動いた」ケースは
+ * **fail-closed（数えない）**になる＝原文どおり。
  */
 export function countMovedToDeckFromField(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;
   const beforeDeck = new Set(before.deck);
   const beforeField = new Set(
-    (before.field.signi ?? []).flatMap(stack => (stack ?? [])),
+    (before.field.signi ?? []).map(stack => stack?.at(-1)).filter((n): n is string => !!n),
   );
   let n = 0;
   for (const c of after.deck) {
