@@ -51481,6 +51481,31 @@ test('2026-08-28 Sheet1残: WX05-021 は E1/E4 の2本で1つの原文を表す�
   eq(e4?.parseStatus, 'MANUAL', 'WX05-021-E4: manualEffects.ts 由来（live 限定の手スタンプではない）');
 }));
 
+test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増えたら FAIL）', () => withSavedCursor(() => {
+  // 🔴**live の `parseStatus:MANUAL/PARTIAL` は収穫マージで「不可侵」になる**（`buildEffectsJson.ts`）。
+  //   `manualEffects.ts` に出所が無いスタンプは **parser の改善を永久に受け取れず、
+  //   `_held_fresh` / `_partial_fresh` / `_idset_fresh` の どのバケツにも出ない**（§5.3 `O-133` の第4の死角）。
+  // ⇒ **件数のラチェット**を置く＝増えたら「また凍らせた」、大きく減ったら基準を下げる合図。
+  // ⚠**この test は parser を回さない**（live と `manualEffects.ts` の集合演算だけ）＝ゲート費用はほぼ0。
+  //   A/B/C の内訳は `npx tsx scripts/censusOrphanManual.ts` が出す（そちらは parser を回すのでゲート外）。
+  const BASELINE_ORPHAN_MANUAL = 423;   // 2026-08-28 続き704＝A群186件（MANUAL のみ）を解凍して 609→423
+  const declared = new Set<string>();
+  for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
+  const orphans: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      if (e.parseStatus !== 'MANUAL' && e.parseStatus !== 'PARTIAL') continue;
+      if (!declared.has(e.effectId)) orphans.push(e.effectId);
+    }
+  }
+  ok(orphans.length <= BASELINE_ORPHAN_MANUAL,
+    `live 限定 MANUAL スタンプが増えた: ${orphans.length} > ${BASELINE_ORPHAN_MANUAL}`
+    + `（JSON を直接手修正して MANUAL を刻むなら manualEffects.ts へ置く。解凍は censusOrphanManual --unfreeze A）`);
+  // 🔑減ったのに基準を下げ忘れると、以後の再凍結を検出できなくなる（`BASELINE_HIGH` と同じ運用）。
+  ok(orphans.length >= BASELINE_ORPHAN_MANUAL,
+    `live 限定 MANUAL スタンプが減った: ${orphans.length} < ${BASELINE_ORPHAN_MANUAL}（BASELINE_ORPHAN_MANUAL を実数へ下げる）`);
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

@@ -28,7 +28,8 @@
     "census:goldentypes": "tsx scripts/goldenTypeCoverage.ts",
     "census:cards": "node scripts/cardProgressCensus.mjs",
     "census:stubs": "tsx scripts/censusStubs.ts",
-    "census:enginetext": "tsx scripts/censusEngineText.ts"
+    "census:enginetext": "tsx scripts/censusEngineText.ts",
+    "census:orphanmanual": "tsx scripts/censusOrphanManual.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",

@@ -1,5 +1,131 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-133` 第1バッチ＝**live 限定 MANUAL スタンプ**に計器を付け、186効果を解凍した
+
+> **1巡（続き704・Opus 5 単独）**。ユーザー指示＝**選択肢A（`O-133`）**。
+> 前巡（続き703）で「parser を直したのに live に届かない」を**実際に2回踏んだ**のが着手理由。
+> gates 全緑（golden **2940→2941**）。実機＝**既存12シナリオの回帰 ALL PASS**（新規シナリオは無し・理由は下記）。
+> 📊**進捗3計器＝Sheet1 要対応 0→2 / 863｜台帳 残 OPEN 570（据置）｜census 高シグナル 491→510**
+> ⚠**Sheet1 +2 と census +19 はどちらも「退化」ではなく「可視化」**（根拠は下の「④ 可視化の証明」）。
+
+---
+
+### ① 何が問題だったか（第4の死角）
+
+収穫マージ（`buildEffectsJson.ts`）は live の `parseStatus:MANUAL/PARTIAL` を**効果単位で不可侵**にする
+（`:264` の「手修正は不可侵」／`:274` がレビュー判定からも除外）。**JSON を直接手修正した効果を守る**ための
+仕様だが、`manualEffects.ts` に出所が無いスタンプに対しては次の3つが同時に起きる：
+
+1. **parser の改善を永久に受け取れない**（`build:effects` が毎回 live をそのまま温存する）
+2. **`_held_fresh` / `_partial_fresh` / `_idset_fresh` の どのバケツにも出ない**（`:274` で除外されるため）
+3. ⇒ **どの計器にも映らないまま凍る**
+
+⚠**`censusManualDrift.ts` とは向きが逆**＝あちらは「`manualEffects.ts` にあるのに live へ届かない」側で、
+母集団が重ならない。**こちら側の計器は存在しなかった。**
+
+---
+
+### ② 計器を新設（`npm run census:orphanmanual`）
+
+`scripts/censusOrphanManual.ts`（明細 `docs/_census_orphan_manual.txt`）。
+live の MANUAL/PARTIAL 効果を `manualEffects.ts` の定義集合と突き合わせ、**孤児**を3分類する：
+
+| 分類 | 定義 | 処置 |
+|---|---|---|
+| **A 解凍候補** | live と fresh が**実体同一**（`parseStatus` 無視のリーフ集合が一致）**かつ `MANUAL`** | `--unfreeze A` で機械的に解凍 |
+| **B 要レビュー** | 実体が違う（live が正／fresh が正／別設計が混ざる）**＋ `PARTIAL` は実体同一でもここ** | 1件ずつ原文と突き合わせ |
+| **C fresh 無し** | parser がその effectId を出さない（live 固有の id） | **解凍すると効果ごと消える**ので触らない。`manualEffects.ts` へ移すのが筋（`O-39` と同型） |
+
+比較は `buildEffectsJson.ts` の `canonLeaves` と**同じ規約**（キー順非依存・`parseStatus` 無視・`undefined` 無視）
+＝収穫マージの判定とズレない。`--unfreeze` は**分類を実行時に測り直す**ので、古い一覧を渡されても A 以外は触らない。
+
+**初回実測＝孤児 609件（A 194 / B 391 / C 24）／ live の MANUAL・PARTIAL 全体は 1,035件。**
+
+---
+
+### ③ 🔴 `PARTIAL` は解凍してはいけない（golden が捕まえた）
+
+初版は「実体同一なら A」としたが、**`PARTIAL` を8件巻き込んで golden が落ちた**：
+
+```
+✗ §6.4 reveal-until 9効果: … C1 live: E1 は PARTIAL 温存（別軸の未忠実が残る）
+    expected=PARTIAL got=AUTO
+```
+
+`PARTIAL` は「parser 出力を採ったが**別軸がまだ忠実でない**」という**意図的なレビュー印**で、
+実体が fresh と一致していても**印を落とすと未忠実の記録が消える**
+（`SP38-006-E1`＝「対戦相手の場にあるキーとシグニは能力を失い、新たに得られない」が
+`REMOVE_ABILITIES{count:1, PERMANENT}` で未忠実。golden がこの印を assert していた）。
+
+⇒ **A の定義に `parseStatus === 'MANUAL'` を足し**、`PARTIAL` は実体同一でも **B** へ送る。
+巻き込んだ8件（`SP38-006-E1` `WXEX1-03-E1` `WXEX1-47-E1` `WXDi-P02-030-E1` `WX24-P1-017-E1`
+`WX25-P3-084-E2` `WX25-P3-088-E2` `WD08-008-E1`）は `PARTIAL` へ戻した。
+
+---
+
+### ④ 解凍（186効果）と「可視化の証明」
+
+**A群 186効果を解凍**（`parseStatus` を MANUAL → AUTO。**値は1バイトも変えていない**）。
+
+**A/B の実測＝`parseStatus だけ変化 186 ／ 実体変化 0`**（`build:effects` 後の live を解凍前スナップショットと全数比較）。
+
+その結果、計器が2つ動いた：
+
+- **census 高シグナル 491 → 510（+19）**
+  census は **STUB/MANUAL を含む効果を高シグナルから免除する**ので、免除が外れた。
+  🔑**増えた19件が全部その186効果の中にあること**を機械照合した（外部からの流入 0）。
+  ⇒ **解凍前から存在した欠落が見えるようになっただけ**＝退化ではない。`BASELINE_HIGH` を 510 へ更新。
+- **Sheet1 要対応 0 → 2**（`WX09-019` 羅植姫アキナナ／`WX10-023` ブラック・コフィン）
+  同じ理由。**Sheet1 が 0 だったのは「計器が MANUAL を免除していたから」でもあった**という、
+  前巡の警告（「0＝正しい ではない」）のそのままの実例。
+
+---
+
+### ⑤ 実機検証は対象なし（機械的に確認した）
+
+**`parseStatus` は実行時に一度も読まれない。**
+`grep -rn "parseStatus" src/engine/ src/screens/` の全19ヒットが**すべて書き込み側**
+（`parseStatus: 'AUTO'` / `'MANUAL'` のリテラル生成）で、**分岐に使っている箇所は0**。
+⇒ 解凍で観測できる差は原理的に存在しない（④の「実体変化 0」と合わせて二重に確認）。
+
+**それでも既存シナリオ12本の回帰は回した**（live を186効果ぶん書き換えたため）＝**ALL PASS**
+（`b28grantedauto` / `b28grantedautoff` / `b27orihalhit` / `b27orihalmiss` / `b27hestia` / `b27heaven` /
+`b25targetfirst` / `b25targethit` / `b26grantquoted` / `b22artshit` / `b22artsmiss` / `banishbyeffect`）。
+
+---
+
+### ⑥ ラチェットを golden に置いた
+
+計器そのものは parser を回すのでゲートに入れない（費用）。代わりに **件数のラチェット**を golden に置いた：
+
+```
+BASELINE_ORPHAN_MANUAL = 423   // 増えたら「また凍らせた」／減ったら基準を下げる
+```
+
+⚠**この test は parser を回さない**（live と `manualEffects.ts` の集合演算だけ）＝ゲート費用はほぼ0。
+A/B/C の内訳が要るときだけ `npm run census:orphanmanual` を回す。
+
+---
+
+### 検証
+
+**gates 全緑**＝typecheck / golden **2941**（+1）/ smoke 全異常0 / fuzz 全0 / census **510**（`BASELINE_HIGH` 更新）/
+`census:stubs` A群🔴0・C群0 / manual-fields 0 / `census:enginetext` A群 141行（据置）/ lint 0 errors。
+
+**現在地＝孤児 423件（A 0 / B 399 / C 24）。** A を空にしたので、**残りは全部「人が読む」側**。
+
+---
+
+### 次にやる人へ（B と C の取り方）
+
+- **B 399件**＝実体が違う。**一括処理は不可**（live が正／fresh が正／別設計が混ざる）。
+  `npx tsx scripts/censusOrphanManual.ts --id <効果ID>` が live/fresh の完全 diff を出すので1件ずつ読む。
+  ⚠**fresh が正しいものは「parser 改善が届いていなかった」＝直せば live が良くなる**。
+    live が正しいものは **`manualEffects.ts` へ移す**（そうしないとまた凍る）。
+- **C 24件**＝parser がその effectId を出さない live 固有の id。**解凍すると効果ごと消える。**
+  `manualEffects.ts` へ移して id 集合を揃えるのが筋（続き703 の `WX05-021-E4` と同じ手）。
+
+
 ## 2026-08-28：Sheet1 残8枚を1枚ずつ ＝ 🔴**実機だけが見つけた engine バグ2件**（付与能力が丸ごと収集されていなかった）
 
 > **1巡（続き703・Opus 5 単独）**。ユーザー指示＝**選択肢A（Sheet1 の残り8枚を1枚ずつ）**。
