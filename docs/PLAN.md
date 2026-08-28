@@ -10,47 +10,52 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-28・続き707・Opus 5 単独）＝`O-134` 第1バッチ。Sheet1 要対応 2 → 0（計器の較正のみ）。**
-  ユーザー指示＝**「Sheet1 の OPEN を 0 にしたが実際に動くかは未確認。検証機を作る必要があるか」→
-  「要対応の残り2枚と、worklist に Sheet1 のカードが無いか確認」→「Sheet1 要対応を 0 に戻す」**。
-  📊**進捗3計器＝Sheet1 要対応 2→0 / 863｜台帳 残 OPEN 570（据置）｜census 高シグナル 529→521**
-  gates 全緑（golden **2941→2942**／全件・smoke 10700 全0・fuzz 全0）｜🔴**live 実体変化 0**（A/B 全カード比較）
-  **実機シナリオ＝新規なし**（§2.3＝原理的に観測できない。理由は下記の機械確認）。
-  - ✅**直したのは実装ではなく計器2件**。①`NAME_BAN` が「制限『できない』」の語彙キーに無かった
-    （engine は `blocked_card_names_game` まで完全実装済み。**規則の直上コメントが予告していた較正漏れ**が
-    `O-133` の解凍で MANUAL 免除が外れて露出した）＝`WX10-023-E1`／`WXDi-P13-040-E2`。
-    ②**帯分解した効果の由来原文が割られていなかった**（7カード14効果）。
-  - 🔴**②の構造**＝`applyGradedThresholdBatch` は**1能力ブロックを「下位帯／上位帯」の2効果へ割る**のに
-    `docs/_effect_srctext.json` を割っていなかった＝**親は上位帯の文まで背負い、子は登録が無く
-    カード全文へフォールバックする**。⇒ `splitBandSourceText` を新設して6サイトで割り当て直した。
-    ⚠**実測＝srctext に行が無い効果は 43件、うち AUTO 8件で、8件とも高シグナルだった**（母集団は小さいが全滅）。
-  - ✅**実機を省いた根拠を機械で固定した**＝この対応表は engine の `abilityBlockTextOf`（`O-20`）と共有だが
-    **読むのは STUB ハンドラだけ**で、14効果は `census:enginetext` A群に1件も出ない。
-    golden に「**14効果とも STUB でない**」を assert（＝将来 STUB 型を帯分解へ足すと赤くなる＝実機の合図）。
-  - ⚠🔴**「Sheet1 要対応 0」は「Sheet1 に残作業が無い」ではない。** 同日の調査で、
-    **生きている worklist に Sheet1 のカードが6枚**（🆕**2026-08-28 続き708 の実測＝6件消化後**＝
-    **`O-123`×6 だけ**）。**`O-129`×2・`O-128`×2・`O-112`×1・`V-90`・`V-91`・`O-92`×2 は消化済み**
-    （`O-92` の Sheet1 2枚は**仕分けの結果どちらも既に正しかった**＝偽陽性）。
-    🔴**登録票のカード名は3項目とも古かった**＝`O-92` の `WX10-035` は既に `INSTALL_DELAYED_TRIGGER`、
-    `O-128` の `WX09-Re07`／`WX11-053` は既に `POWER_SET`＋`GRANT_FIELD_SIGNI_ABILITY` へ構造化済み。
-    **worklist の例示カードは投げる前に必ず live で実測し直す**（`docs/CODEX_GUIDE.md` §3-1）
-    あり、**そのどれも `census:cards --sheet 1` のフラグに出ていない**ことを実測した。
-    計器の出力自身が毎回言うとおり**「フラグ0＝正しい」ではなく「計器が見ていないだけ」**。
-  - 🆕**検証インフラの棚卸し**（ユーザーの「検証機を作るべきか」への回答）＝**既に3層ある**＝
-    `npm run audit`（全効果を engine 実行して盤面差分／要レビュー・キューに Sheet1 は26枚）・
-    `npm run verify:browser`・`verifyBattleDrive.mjs`（**450シナリオ**・Sheet1 の 206/974枚が登場＝上限値）。
-    **足りないのは機械ではなく「Sheet1 に向ける導線」**（`behaviorAudit.ts` に `--sheet` が無い）
-    **と「1,413効果の OK/NG を誰が付けるか」**。⚠`audit:queue` が拾うのは**真 no-op だけ**で、
-    「動いたが向きが違う」（owner 取り違え・対象違い）は差分が出るのでキューに入らない。
+- 🏁**セッション（2026-08-28・続き708・Opus 5 単独）＝worklist の Sheet1 13枚を1件ずつ消化。7項目のうち6項目を完了。**
+  ユーザー指示＝**「worklist に残っている Sheet1 カード13枚をひとつずつ codex に投げる」→
+  「codex が利用上限で止まったら Claude が引き継ぐ／次のバッチは codex-work へ」→「O-92 の仕分けへ」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置・途中 0→1→0）｜台帳 残 OPEN 570（据置）｜census 高シグナル 521→520**
+  gates 全緑（**golden 2942→2957**・smoke 10700 全0・fuzz 全0・lint 260 据置・同型★0）
+  **実機＝新規1本＋既存4本の回帰がすべて PASS**（反転確認あり）。
+  - ✅**`O-129` 第2バッチ（Codex 完走・18効果）**＝「〈対象宣言〉→〈中間動作〉→そうした場合」で、
+    中間動作の出所が**盤外**（トラッシュ/デッキ/エナ/手札/ライフ）の形も対象宣言を先に確定するようにした。
+    **対象が1体も居ない盤面で支払いだけが起きる過剰実行**を解消。live 差分は18効果ちょうど。
+  - ✅**`O-128` 第2バッチ（Codex が利用上限で中断→Claude が引き取り・5効果）**＝引用能力付与を
+    `GRANT_EFFECT{count:'ALL'／targetsLastProcessed／thisCardOnly}` へ戻した。据置3件は非採用契約を golden 化。
+    🔴**副産物＝収穫マージの第5の死角**を塞いだ（`buildEffectsJson` の `inheritedCostScaling` 分岐が
+    **costScaling 継承後に残る action 差分をどのバケツにも出さず捨てていた**）＝`WX11-039` が1件露出し採用。
+    🔴**Claude 側の是正**＝Codex の E2E golden が**全部 live JSON 読み**で、**parser を退行させても
+    収穫マージが live を温存するのでテストが緑のまま通る**ことを実測（規則を外しても PASS）。
+    4本すべてに fresh パース側の assert を足し、反転まで確認した（→ `CODEX_GUIDE` §5 ガードレール **29**）。
+  - ✅**`O-112` クローズ**＝`ON_CARD_MOVED_TO_DECK` の「シグニ」限定。`countMovedToDeckFromField` が
+    スタックを `flatMap` して**下敷き**まで数えていた。`at(-1)` に絞るだけで閉じ、**死にフラグを増やさずに済んだ**
+    （登録票が言う `movedToDeckFilter` は不要だった）。
+  - ✅**`V-90` クローズ**＝実機で **2/2 PASS**。登録票の「(a) シナリオの腐り」は誤りで、実体は
+    **`36fa75665` で既に直っていた engine バグ**（`augMap` が素の `Map` ＝付与を載せる時に印字能力ごと落ちる）。
+  - ✅**`V-91` クローズ＋engine バグ1件修正**＝新規シナリオ `v91refreshonce` が
+    **スペル解決経路が中央 diff（`collectBoardDiffTriggers`）を1度も通らない**ことを露出させた。
+    既存コードは `ON_DECK_SHUFFLED` だけをインラインで手当てしており、同じ穴が `ON_REFRESH` にも空いていた。
+    `collectRefreshInline` を新設。**残りのトリガー族は §5.3 `O-135` へ登録。**
+  - ✅**`O-92` 仕分け完了＝母集団の大半が偽陽性だった。** 58枚のうち **26枚は既に正しい**
+    （`NEGATE_ATTACK` が `negated_attacks` へ積む＝ターン内登録・アタック時に消費）。
+    **`INSTALL_DELAYED_TRIGGER` でないこと自体はバグではない**＝**JSON の型だけで数えた登録票が誤り**だった。
+    実害は**7効果**（【ガード】不可の期間が「そのアタックの間」なのに `END_OF_TURN` へ広がっていた5件＋
+    遅延付与形の取りこぼし2件）で、すべて消化。⭐**Sheet1 分は 0。**
+  - 📌**この巡の最大の教訓**＝**worklist の登録票は「次に着手する人へのメモ」であって母数ではない。**
+    実測で**3項目のカード名が古く**（`O-92` の `WX10-035`／`O-128` の `WX09-Re07`・`WX11-053` は既に修正済み）、
+    **`V-90` の FAIL も `V-89` 併記の `deckshufflespell` も再現しなかった**。**着手時に必ず実測し直す。**
 
-**▶ 次の一手**＝**`O-134` の残り**＝`代わりに(置換)` 高シグナル11件のうち**帯分解でない6件**
-（`WD06-009-E2` `WX24-P3-043-E1` `WX25-P3-053-E1` `WXDi-P06-084-E1` `WXEX2-28-E1` `WXK07-028-E1`）を仕分けてから
-較正の形を決める（先に較正すると本物の置換落ちを隠す）。
-機構側なら **`O-130`**（`ON_OPP_ARTS_USE` の帰結が「そのシグニ」）か **`O-128` 第2バッチ**、
+**▶ 次の一手**＝**`O-123`**（worklist に残る**唯一の Sheet1 項目・6枚**＝`WX06-024` `WX07-024` `WX07-026`
+`WX07-028` `WX07-030` `WX07-032`）。「この方法でダウンしたシグニ1体につきコストが減る」＝**支払いの最中に数が決まる**形で、
+live は `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`。🔴**UI が本体**（支払いパネルの再計算が成立するかを先に確かめる）＝
+**最後に実機確認が必須**なので、Codex へ投げるならシナリオまで書かせて**実行検証は自分で回す**。
+機構側なら 🆕**`O-135`**（**スペル解決経路が中央 diff を通らない**＝`ON_REFRESH` と `ON_DECK_SHUFFLED` 以外の
+トリガー族が丸ごと収集されない。続き708 の実機で発見・着手順序は §5.3 に記載）。
+実機側は **`V-89`**（`lookReorderCanTrash` の FAIL。⚠**併記されていた `deckshufflespell` は続き708 の実測で
+再現しなかった**ので、残っているのは `lookReorderCanTrash` だけ）。
 計器側なら **`census:enginetext` の miss 上位**（`POWER_MOD_PER_COUNT` miss7/live36 ほか43ハンドラ）。
-実機側は **`V-89`**（`lookReorderCanTrash`／`deckshufflespell` が新規ルームで FAIL＝3セッション連続で再確認済み）。
 🆕**Sheet1 を「本当に閉じる」なら**＝`behaviorAudit.ts` に `--sheet` を足して Sheet1 限定のレビュー表
-（`--html`）を出し、`census:cards --sheet 1` と同じ「単調減少するカウンタ」に乗せる（§1 の棚卸し参照）。
+（`--html`）を出し、`census:cards --sheet 1` と同じ「単調減少するカウンタ」に乗せる。
+⚠**`census:cards --sheet 1` は 0 だが、それは「計器が見ていないだけ」**＝意味照合を通したのは 611/863 枚。
 
 ---
 
@@ -437,32 +442,6 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > ⚠**着手前に §4.4 の29項を読む。** ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
 
-- [x] ✅**`V-88`（クローズ・2026-08-26 続き668）＝旧 `charm_facedown` は §5.3 `O-81` で受け皿ができ、`ATTACH_FACEDOWN_FROM_HAND` へ移行した**（`PLACE_CARD_UNDER_SIGNI` から `charm_facedown` モードごと削除）。「実機から原理的に観測できない」枠から外れ、**実機2本で観測済み**＝`o81FacedownAttachRevealBanish`（付与→離脱で公開し手札へ→同レベルだけバニッシュ）＋対照 `o81NoAttachNoBanish`（【起】を撃たなければ何も起きない）。詳細は BUGFIXES.md 2026-08-26 `O-81`。
-- [x] ✅**`V-91` クローズ（2026-08-28 続き708）＝シナリオ `v91refreshonce` を新設し、実機で engine バグを1件見つけて直した。**
-  ■**書き方**＝登録票の懸念（`deck:[]` にするとドロー処理が先に走る）は、**`deck` を1枚だけにして
-  0コストのドロースペル（`WD01-018` 噴流する知識）で 1→0 にする**と回避できた（`refreshTrigger` と同じ型）。
-  ■🔴**実機で見つかったバグ**＝アーツの設置までは正常（`delayed=1`・`once=true`・ライフは減らない＝即時実行ではない）
-  なのに、**リフレッシュが実際に起きている（deck 1→4・trash 4→2）のに `ON_REFRESH` が発火せず設置も消費されなかった**。
-  真因＝**スペル解決経路が中央 diff（`collectBoardDiffTriggers`）を1度も通らない**。
-  既存コードの `BattleScreen.tsx:7989` が「スタック解決を経由しないスペル解決経路は中央 diff を通らないため
-  ここで拾う」と書いて **`ON_DECK_SHUFFLED` だけ**をインラインで手当てしており、**同じ穴が `ON_REFRESH` にも空いていた**
-  （§5-15＝同型の配線が複数箇所に要るとき1箇所で満足する、の再発）。
-  ⇒ `collectRefreshInline` を新設してスペル解決経路へ配線（`once` の消費まで中央 diff と同じ規約）。
-  ■**反転確認済み**＝修正前 FAIL（`guestLife=5/5 delayed=1` のまま14ティック空振り）→ 修正後 PASS
-  （`guestLife 5→4`・`delayed 1→0`）。回帰＝`refreshTrigger` / `deckshufflespell` / `b12delayattack` とも PASS。
-  ■⚠**残りのトリガー族はまだこの経路を通らない**＝§5.3 `O-135` へ登録した。
-
-- [x] ✅**`V-90` クローズ（2026-08-28 続き708 で実機再実行）＝`banishbyeffect` は `FRESH=1` で 2/2 PASS**。
-  **登録票が推測した「シナリオの腐り（新規ルームでは前提が揃っていない）」ではなく、`36fa75665` で直った engine バグだった。**
-  ■**根拠**＝(a) `WX19-023` / `WX07-036` の live JSON は登録時（`33ea78488`）から**1バイトも変わっていない**
-  （＝データ側の変化ではない）(b) 症状の `grants=-` は `36fa75665` が直した
-  **`BattleScreen` の `augMap` が素の `Map` だった**バグと一致する＝`augMap.get(getCardNum(instanceId))` が
-  常に `undefined` になり、**付与を載せる時にそのインスタンスの印字能力ごと落ちていた**
-  （`BattleScreen.tsx:941-942`）＝watcher の【自】が effectsMap から消えるので収集されない。
-  ⚠**「暖まった部屋だけ PASS」も同じ機構で説明が付く**（再利用ルームでは augMap の再構築を通らない経路がある）。
-  📌**教訓**＝**実機 FAIL の3分類（(a) シナリオの腐り／(b) engine・parser のバグ／(c) 未実装）を登録時に断定しない。**
-  ここでは (a) と書かれていたが実体は (b) で、しかも**別バッチの実機作業が先に踏んで直していた**。
-  **登録票の「切り分けの起点」は仮説であって観測ではない**（`docs/CODEX_GUIDE.md` §3-1 が自分のメモにも効く）。
 - [ ] 🆕**`V-89`（2026-08-26 続き671＝`O-90` の回帰実行で露出）＝既存シナリオ `lookReorderCanTrash`（`WX20-037`・デッキ上3枚を見て好きな枚数をトラッシュ）が FAIL する。**
   ⚠**O-90 とは無関係**＝`git stash` して **HEAD でも同じ FAIL**（`hDeck=2（開始5） hTrash=3（開始0）`）。live の `WX20-037` は O-90 の A/B 差分に入っていない。
   ■**症状**＝「召喚→ゾーン1」の直後に**モーダルが出ないまま3枚がトラッシュへ行き**（`pEff=-`・`trashClicked` が一度も立たない）、以後14ティック空振りする。
@@ -701,260 +680,20 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-28 続き707 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 2→0 / 863 (0.0%)｜台帳 残 OPEN 570（据置）｜census 高シグナル 529→521**
-  🔴**live 実体変化 0**（A/B 全カード比較）＝**この巡で直したのは計器であって実装ではない**。
-  **golden 2941→2942**（+1＝`O-134` の帯分解トリップワイヤ）、census 521/521、
-  smoke 10700 全異常0、fuzz 全0、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行（据置）、孤児 MANUAL スタンプ 12（据置）、`censusManualDrift` 削除候補0。
-  ⚠**台帳が動かない理由**＝この巡は findings を1件も消化していない（触ったのは census の語彙キーと
-  由来原文の対応表だけ）。⚠**Sheet1 −2 は「2枚直した」ではなく「2枚の偽陽性を外した」**。
-  **実機シナリオ＝新規なし**（§2.3＝14効果とも STUB でなく `sourceAbilityText` を読む経路が無いことを golden で固定）。
-
-- **2026-08-28 続き704 後**：
-  📊**進捗3計器＝Sheet1 要対応 0→2 / 863｜台帳 残 OPEN 570（据置）｜census 高シグナル 491→510**
-  🆕**孤児 MANUAL スタンプ 609 → 402**（A 0 / B 393 / C 0 / D 9）｜**`_idset_fresh` 23 → 13**
-  ⚠🔴**Sheet1 +2 と census +19 はどちらも「退化」ではなく「可視化」**＝孤児 MANUAL スタンプ **186効果**を
-  解凍して census の **STUB/MANUAL 免除**が外れた。**A/B で「parseStatus だけ変化 186 ／ 実体変化 0」**を実測し、
-  **増えた19件が全部その186効果の中にある**ことも機械照合済み（外部からの流入0）。
-  **golden 2941**（+1＝孤児 MANUAL のラチェット `BASELINE_ORPHAN_MANUAL=402`）、census 510/510、
-  smoke 全異常0、fuzz 全0、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行（据置）、`censusManualDrift` 削除候補0。
-  **live 変化＝186効果（`parseStatus` のみ）／実体変化 0**（C群21件の移設でも実体変化 0）。
-  🆕**計器を新設**＝`npm run census:orphanmanual`（A/B/C/**D 生成元あり**の4分類・`--unfreeze A`）。
-  **実機シナリオ＝新規なし**（`parseStatus` は実行時に一度も読まれないことを grep で機械確認）。
-  **既存12シナリオ ALL PASS**＋**`b27orihalmiss` の位置依存フレークを恒久修正**。
-
-- **2026-08-28 続き703 後**：
-  📊**進捗3計器＝Sheet1 要対応 8→0 / 863（0.9%→0.0%）｜台帳 残 OPEN 575→570｜census 高シグナル 491（据置）**
-  ⚠**census が動かないのが正しい**＝この巡の本題は **engine の収集配線**と **parser の退化戻し**で、
-  census が見る「原文の修飾句 × JSON 語彙」は元から揃っていた（`WX04-052` の色/クラスだけが例外だが
-  同カードは `partial` 側で数えられていた）。
-  **golden 2940**（+4）、census 491/491、smoke 全異常0、fuzz 全0、lint 0 errors、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行（据置）。
-  **live 変化＝12カード**（`WX04-052` `WX05-021` `WX05-025` `WX06-CB03` `WX07-029` `WX09-Re07`
-  `WX11-053` `WX19-031` `WX19-034` `WX21-056` `WX21-061` `WXK10-033`）。
-  **実機シナリオ +2 全 PASS**（`b28grantedauto` / `b28grantedautoff`）＋**反転確認2本**
-  （`augMap` を素の `Map` へ／`hasFieldGrant` の SEQUENCE 分岐を外す＝**どちらか一方でも FAIL**）
-  ＋**既存12本の回帰 ALL PASS**。
-  🔴**engine 修正2点（実機だけが見つけた層）**＝①`BattleScreen` の `augMap` を `InstanceMap` で組む
-  （素の `Map` は instanceId を解決できず、付与コレクタが**常に0件**だった＝live 71効果）
-  ②`hasFieldGrant` が SEQUENCE の中も見る（連用中止形 live 11効果）。
-  ⚠**Sheet1 要対応 0 は「Sheet1 が終わった」ではない**＝計器が何も指していないだけ。
-  フラグの立たない863枚への検出パス（シート限定の意味照合再監査）は未着手。
-
-- **2026-08-28 続き702 後**：
-  📊**進捗3計器＝Sheet1 要対応 20→8 / 863（2.3%→0.9%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 516→491**
-  🔴**この行は「較正」であって前進ではない**＝`src/` と `public/` は1バイトも変わっていない
-  （`git diff --name-only HEAD -- src/ public/` が 0件）。**Sheet1 の census フラグは 12→0**。
-  **golden 2936**（+1＝較正キーが live に実在することのトリップワイヤ25ペア）、census 491/491、
-  smoke 全異常0、fuzz 全0、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行/137ハンドラ（据置）。**live 変化＝0カード**。
-  **実機シナリオ＝なし**（アプリのバイト列が変わらないので観測対象が原理的に存在しない）。
-  ⚠**Sheet1 の残り8枚は別の検出器**＝`audit` 3／`held` 3／`partial` 1／`idset` 1。
-  ⚠**フラグの立たない855枚は「正しい」ではなく「計器が見ていない」**＝シートを閉じるには
-  シート限定の意味照合再監査が別途要る。
-
-- **2026-08-28 続き701 後**：
-  📊**進捗3計器＝Sheet1 要対応 25→20 / 863（2.9%→2.3%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 522→516**
-  ⚠**台帳が動かないのが正しい**＝今回の6件はどれも意味照合 findings に載っていない
-  （入口が `census:cards --sheet 1 --list` の**全数目視**で、台帳とは別経路の発見）。
-  **golden 2935**（+6＝A〜G の各主張を1本ずつ）、census 516/516（`BASELINE_HIGH` 更新）、
-  smoke 全異常0、fuzz 全0、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行/137ハンドラ（据置）。
-  **live 変化＝22カード**（`WX07-002` `WX07-003` `WX07-004` `WX07-005` `WX07-027` `WX07-028`
-  `WX08-001` `WX08-002` `WX08-003` `WX08-005` `WX08-025` `WX08-035` `WX09-027` `WX11-026`
-  `WX12-021` `WX14-041` `WD10-001` `PR-195` `WX25-P1-085` `WD23-041-EA` `WXDi-P06-040` `WX24-P2-054`）。
-  **実機シナリオ +5 全 PASS**（`b27orihalhit` / `b27orihalmiss` / `b27hestia` / `b27heaven` /
-  `b27heavennowatch`）＝**判別力があるのは `b27orihalmiss` と `b27heaven`**。
-  **反転確認3本**＝①味方 watcher ループを潰す ②`normalizeCrossName` を素の `===` へ戻す
-  ③live の `WX09-027-E2` から `CONDITIONAL` を剥がす＝**3本とも旧挙動を再現**し、
-  FAIL メッセージが原因を指すことまで確認した。
-  **既存シナリオ回帰7本 ALL PASS**（`b11attacktrigger` / `banishbyeffect` / `b25targetfirst` /
-  `b25targethit` / `b26grantquoted` / `b22artshit` / `b22artsmiss`）。
-  ⚠**新規語彙**＝`StubAction.revealPickParams.restDest:'deck_top'`（＋`PendingInteractionDef.restDest`）／
-  `GRANT_PROTECTION.sourceFilter.color`（既存キーの新用途）／`ON_LEAVE_FIELD` 主語の
-  状態・色・レベル修飾（状態は `triggerCondition.leftStateFilter`・色/レベルは `triggerFilter`）／
-  `ON_HEAVEN` の `triggerScope:'any_ally'`。
-  ⚠**engine 追加2点**＝`matchesStateFilter` に `crossState`（**キーを書いても素通り＝無条件成立**していた）／
-  `normalizeCrossName`（クロス相方の名前照合。**7枚が永久に外れていた**）。
-
-- **2026-08-28 続き700 後**：
-  📊**進捗3計器＝Sheet1 要対応 26→25 / 863（3.0%→2.9%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 522（据置）**
-  ⚠**census と台帳が動かないのが正しい**＝この巡の3件はどちらの計器も見ていない
-  （`O-125`＝BLOCK_ACTION の**消費地点**／`O-129`＝木の**順序**／`O-128`＝STUB→構造化で、
-  census は STUB を欠落として数えない）。**Sheet1 が -1 しか動かない**のは Sheet1 側の該当が3枚だけで、
-  うち `WX02-020` は別 finding が残り、`WX09-Re07` は `O-128` の残り27カード側だから。
-  **golden 2929**（`O-125` +2 / `O-128` +3 / `O-129` +4）、census 522/522、smoke 全異常0、fuzz 全0、
-  lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行/137ハンドラ（据置）、
-  **live 変化＝11カード**（`WX02-020` / `WX05-022` / `WX08-073` / `WXEX2-18` / `WXEX2-27` /
-  `WXDi-P06-059` / `WXDi-P12-069` / `WXDi-P13-061` / `WX24-P1-014` / `WX24-P1-078` / `WX25-P1-071`）。
-  **`GRANT_ABILITY_INNER_TEXT` を含む live カード 34→27**。
-  **実機シナリオ +5 全 PASS**（`b24drawblock` / `b24drawok` / `b25targetfirst` / `b25targethit` /
-  `b26grantquoted`）＝**判別力があるのは `b24drawblock` と `b25targetfirst`**（どちらも旧挙動なら FAIL）。
-  ⚠**新規語彙**＝`StubAction.abortIfNoCandidate`（`SELECT_TARGET_ONLY` が候補0なら SEQUENCE を打ち切る。
-  **フラグ付きだけ**＝既存93効果は据置）。`BLOCK_ACTION` の actionId `DRAW_OUTSIDE_DRAW_PHASE` は
-  `DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN` へ改名（原文の3条件と1対1）。
-  ⚠**`public/data/effects_WX.json` が全行差分**＝HEAD が整形済み117,520行だったのを `build:effects` が
-  正準形（1行・他4ファイルと同じ）へ戻したもの。**内容は 1,914 カードすべて一致**を機械照合済み。
-
-- **2026-08-28 続き699 後**：
-  📊**進捗3計器＝Sheet1 要対応 26 / 863（3.0%）｜台帳 残 OPEN 575｜census 高シグナル 522＝いずれも据置**
-  🔴**3計器とも動かないのが正しい**＝`O-131` で欠けていたのは **engine/UI の呼び出し配線**で、
-  **live JSON は1バイトも変わらない**（カードの表現は既に正しかった）。
-  ⇒ **この巡の成果は実機でしか観測できない**（`b22artshit` / `b22artsmiss` が FAIL→PASS）。
-  §3「計器ごとに見えるものが違う」の極端な例＝**3計器が全部見えない層が実在する**。
-  **golden 2921**（`O-131` の配線トリップワイヤ +1）、census 522/522、smoke 全異常0、fuzz 全0、
-  lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
-  `census:enginetext` A群 141行/137ハンドラ（据置）、
-  **実機シナリオ 全6本 PASS**（`b20`×2 / `b21`×2 / `b22`×2＝**据置だった2本が解消**）。
-  ⚠**配線の静的ガード**＝`collectOppArtsUseForResolution(` と `collectArtsUseForResolution(` が
-  **それぞれ2箇所**（スタック解決／対話解決）から呼ばれること、
-  および `applyForcedTurnEnd(` が **2箇所**、`clearTurnEndScopedState(` が BattleScreen に **6箇所**。
-
-- **2026-08-28 続き698 後**：
-  📊**進捗3計器＝Sheet1 要対応 26 / 863（3.0%）｜台帳 残 OPEN 575｜census 高シグナル 522（据置）**
-  （`O-127`／`O-117`／`O-113` の3件。live 変化は **2 effectId / 2カード**（`WX05-010` / `WX05-016`）＋
-  manual 同期1件（`WX05-020`）。B10〜B22 で Sheet1 要対応は 65→26）。
-  **golden 2920**（B20 +1 / B21 +1 / B22 +3）、census 522/522、smoke 全異常0、fuzz 全0、lint 0 errors、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **実機シナリオ +6**（`b20lifeswap` / `b20lifeswapzero` / `b21end5colors` / `b21endsamecolor` PASS ＋
-  🔴**`b22artshit` は FAIL のまま据置＝`O-131`**。⚠`b22artsmiss` は PASS するが
-  **トリガーが一度も発火しない以上「空振りの PASS」**＝判別力はまだ無い）。
-  ⚠**新規語彙**＝`Condition`/`ActiveCondition` に `PAID_COLORS_INCLUDE_ALL`（型数 132 / 61）、
-  `PlayerState.last_paid_energy_colors`（ターン限定フィールド 25／母集団 66）、
-  `triggerCondition.affectedByOppArtsFilter`。
-  ⚠**強制ターン終了は `applyForcedTurnEnd` へ抽出**＝`clearTurnEndScopedState(` の BattleScreen 走査期待値は **6**、
-  `applyForcedTurnEnd(` が **2**（スタック解決／カットイン窓）。
-
-- **2026-08-28 続き694 後**：
-  📊**進捗3計器＝Sheet1 要対応 31 / 863（3.6%）｜台帳 残 OPEN 581｜census 高シグナル 523**
-  （`O-121`＝バニッシュ台帳で **live 変化 2 effectId / 2カード**・**スコープ外0**。B10〜B16 で Sheet1 要対応は 65→31）。
-  **golden 2910**（B16 で 2909→2910）、census 523/523、smoke 全異常0、fuzz 全0、lint 0 errors（263 warn）、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 89 / partial 14 / idset 24**（据置）、
-  **実機シナリオ +2**（🆕`b16banish3`＝合計3体でアップ／🆕`b16banish2`＝合計2体ではアップしない。
-  **反転確認済み**＝条件を外すと negative がアップして FAIL。回帰 `b15plaincrash` / `b14costup` PASS）
-  ⚠**実機 fixture は `battleCardMap` に載っているカードで作る**＝デッキ外のカード番号で台帳を仕込むと数えられない（fail-closed）
-
-- **2026-08-27 続き693 後**：
-  📊**進捗3計器＝Sheet1 要対応 32 / 863（3.7%）｜台帳 残 OPEN 583｜census 高シグナル 525**
-  （`O-120`＝【ランサー】原因限定で **live 変化 3 effectId / 3カード**・**スコープ外0**。B10〜B15 で Sheet1 要対応は 65→32）。
-  **golden 2909**（B15 で 2908→2909）、census 525/525、smoke 全異常0、fuzz 全0、lint 0 errors（263 warn）、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 89 / partial 14 / idset 24**（据置）、
-  **実機シナリオ +2**（🆕`b15plaincrash`＝通常のバトルダメージのクラッシュで**引かない**／🆕`b15lancercrash`＝
-  【ランサー】のクラッシュで**引く**。**反転確認済み**＝`triggerCondition` を外すと negative が hand 5→6 で FAIL。
-  回帰 `b14costup` / `b13colorpower` PASS）
-  ⚠**反転確認の本体は negative 側**＝positive は修正の有無にかかわらず PASS するので単独では判別力がない
-
-- **2026-08-27 続き692 後**：
-  📊**進捗3計器＝Sheet1 要対応 33 / 863（3.8%）｜台帳 残 OPEN 584｜census 高シグナル 528（＋2＝較正）**
-  （`O-119`＝比例使用コストの payload 化で **live 変化 40 effectId / 40カード**・**スコープ外0**。B10〜B14 で Sheet1 要対応は 65→33）。
-  **golden 2908**（B14 で 2907→2908）、census 528/528、smoke 10700効果・全異常0、fuzz 全0、lint 0 errors（263 warn）、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置＝`costs.ts` は A群の走査対象外）、
-  **held 89 / partial 14 / idset 24**（90/15/24 から各−1）、
-  **実機シナリオ +1**（🆕`b14costup`＝`WX05-034` の使用コストがライフ3枚ぶん《無×3》増えてエナ4枚消費。**反転確認済み**＝
-  `costScaling` を外すと1枚消費に戻る。回帰 `b12spellkiten` / `b13colorpower` PASS）
-  ⚠**census +2 は退化ではなく較正**＝コストマーカー STUB が消えて `WX15-060-E1`／`SP26-008-E1` の既存の欠落が見えた（→ `O-124`）
-
-- **2026-08-27 続き691 後**：
-  📊**進捗3計器＝Sheet1 要対応 35 / 863（4.1%）｜台帳 残 OPEN 585｜census 高シグナル 526（据置）**
-  （Sheet1 B13＝4巡目で **5 effectId / 3カード**。B10〜B13 で Sheet1 要対応は 65→35）。
-  **golden 2907**（B13 で 2902→2907）、census 526/526、smoke 全異常0、fuzz 全0、lint 0 errors、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 90 / partial 15 / idset 24**、
-  **実機シナリオ +1**（🆕`b13colorpower`＝表記パワー0の `WX11-032` が場に残る。**反転確認済み**＝
-  旧 JSON へ戻すと 1 tick で自動バニッシュされる。回帰 `b12delayattack` PASS）
-- **2026-08-27 続き690 後**：
-  📊**進捗3計器＝Sheet1 要対応 37 / 863（4.3%）｜台帳 残 OPEN 591｜census 高シグナル 526**
-  （Sheet1 B12＝3巡目で **7効果変更＋3効果追加 / 8カード**。B10〜B12 で Sheet1 要対応は 65→37）。
-  **golden 2902**（B12 で 2896→2902）、census 526/526、smoke 全異常0、fuzz 全0、lint 0 errors、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 90 / partial 15 / idset 24**、**MANUAL 効果数 Sheet1 129→130**（`WX05-020-E2` に《ターン１回》を刻印）、
-  **実機シナリオ +2**（🆕`b12spellkiten`＝唱えても【起】は走らない／🆕`b12delayattack`＝
-  唱えた時点ではエナが増えず**アタック時に**増える。回帰 `b11attacktrigger` PASS）
-- **2026-08-27 続き689 後**：
-  📊**進捗3計器＝Sheet1 要対応 40 / 863（4.6%）｜台帳 残 OPEN 599｜census 高シグナル 528**
-  （Sheet1 B11＝2巡目で **11効果 / 11カード**。B10 と合わせて Sheet1 要対応は 65→40）。
-  **golden 2896**（B11 で 2894→2896）、census 528/528、smoke 10697/全異常0、fuzz 全0、lint 0 errors（263 warn）、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 92 / partial 14 / idset 24**、**live 変化 11 effectId / 11カード**（意図した差分以外ゼロ）、
-  **MANUAL 効果数 Sheet1 129→128**（`WX10-053-E1` の影武者を撤去＝parser より劣化していた）、
-  **実機シナリオ +1**（🆕`b11attacktrigger`＝【常】表記の「アタックしたとき」が**アタック前に走らない**ことを両方向で観測）
-- **2026-08-27 続き688 後**：
-  📊**進捗3計器＝Sheet1 要対応 49 / 863（5.7%）｜台帳 残 OPEN 609｜census 高シグナル 532**
-  （Sheet1 B10＝**1バッチで21 findings** 消化＝65→49／629→609／535→532。従来1〜4効果／巡から規模を上げた初回）。
-  **golden 2894**（B10 で 2892→2894）、census 532/532、smoke 10697/全異常0、fuzz 全0、lint 0 errors（263 warn）、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 91 / partial 14 / idset 24**、**live 変化 22 effectId / 21カード**（意図した差分以外ゼロ）、
-  **MANUAL 効果数 Sheet1 130→129**（`WX04-030-E1` の影武者を撤去＝§6.4 `O-42` 発火）、
-  **実機シナリオ +1**（🆕`oppdecktop`＝「対戦相手のデッキの一番上を見る」を guest.deck の減りで機械判定）
-- **2026-08-27 続き687 後**：
-  📊**進捗3計器＝Sheet1 要対応 65 / 863（7.5%）｜台帳 残 OPEN 629｜census 高シグナル 535**（**B9 ではどれも動かない**＝
-  この失敗クラス（固定挙動 catch-all）を**どの計器も見ていなかった**。⇒ golden にトリップワイヤを新設）。
-  **golden 2892**（B9 で 2890→2892）、census 535/535、smoke 10697/全異常0、fuzz 全0、lint 0 errors（263 warn）、
-  同型★0、`census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` A群 141行/137ハンドラ（据置）、
-  **held 73 / partial 12 / idset 24**（据置）、**live 変化 26 effectId**（新規0・消滅0）、
-  **実機シナリオ +14**（続き686 の12本＋🆕`b9OptionalCostPayRunsBody` / 🆕`b9OptionalCostSkipDoesNothing`）、
-  **残 `TRADE_BANISH_SELF_SIGNI` 6件**（トリップワイヤの許容リストと集合一致・両方向 FAIL）
-- **2026-08-27 続き686 後**：
-  📊**進捗3計器（§3 の併記）＝Sheet1 要対応 65 / 863（7.5%）｜意味照合 段2 台帳 残 OPEN 629｜census 高シグナル 535**。
-  ✅**B8 は3計器とも動いた**（66→65／630→629／536→535）＝「機械で検出できる壊れ方」を1つ決めて全数を3分した回。
-  **census 535/535**（B8 で **536→535**＝ON_PLAY の由来ゾーン限定。`BASELINE_HIGH` も 535 へ更新）、
-  **golden 2890**（B8 で **2885→2890**＝+5テスト・FAIL 0。うち1本は**恒久 no-op のトリップワイヤ**＝AUTO かつ timing 空の集合が許容リストと一致するか）、
-  smoke **10697 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置）、
-  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置）、
-  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1012 / PARTIAL 21**（MANUAL は **1013→1012**＝`WXDi-P07-044-E1` が
-  **manualEffects.ts に実体を持たない live 限りの遺物**（§4.5 `O-54` の形）だったため parser 出力へ戻り、E2 だけを manual 化した）、
-  **`_held_fresh` 73 / `_partial_fresh` 12 / `_idset_fresh` 24**（held は 73 据置。⚠**途中 78 まで増えて parser の退行を1つ捕まえた**＝
-  由来句の抽出を密着マッチにして「トラッシュから＜X＞のシグニが場に出たとき」の語順で `placedFromTrash` が消えていた。live は curated が守っていたので gates は緑のままだった）、
-  **どのフラグも立たないカード 5158 / 5975（86.3%）**（`npm run census:cards`。⚠**「フラグ0＝正しい」ではない**）、
-  **意味照合 段2 台帳＝残 OPEN 629**（段0 221／段1 111／段2 消化 483）、
-  **実機シナリオ +12**（続き685 の10本＋🆕`b8OnPlayOriginTrashFires` / 🆕`b8OnPlayOriginHandBlocked`＝各2回連続 PASS・**反転確認あり**・既定 `order` へ追加済み）、
-  **Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
-  **要対応カード 65 / 863（7.5%）**（着手時 92 → B1 87 → B2 75 → B3 73 → B4 69 → B5 66 → B6 66 → B7 66 → **B8 65**）。
-  内訳＝census **26**／意味照合 47（findings 58件）／held 5／partial 0／idset 1（`--list` でカード名つき列挙）
-- **2026-08-27 続き685 後**：
-  📊**進捗3計器（§3 の併記）＝Sheet1 要対応 66 / 863（7.6%）｜意味照合 段2 台帳 残 OPEN 630｜census 高シグナル 536**。
-  ⚠**B7 で動いたのは台帳だけ（631→630）。** Sheet1 が動かない理由＝**6効果はすべて Sheet1 外**（WX24／WXDi／WXK）。
-  census が動かない理由＝**この6効果は元から「STUB/MANUAL 格納」バケット側**で高シグナルに数えられていない＝
-  **census には最初から映らない穴**だった（逆翻訳・census・golden・smoke・fuzz が全部緑のまま意味が壊れる形）。
-  **census 536/536**（据置）、**golden 2885**（Sheet1 B7 で **2880→2885**＝+5テスト・FAIL 0）、
-  smoke **10697 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置＝B7 は型を1つも足していない＝**既存型の `count` を省略可にしただけ**）、
-  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置）、
-  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1013 / PARTIAL 21**（据置＝B7 は `manualEffects.ts` に触れていない）、
-  **`_held_fresh` 73 / `_partial_fresh` 12 / `_idset_fresh` 24**（held は B7 の採用で 74→73）、
-  **どのフラグも立たないカード 5157 / 5975（86.3%）**（`npm run census:cards`。⚠**「フラグ0＝正しい」ではない**＝計器が見ていないだけ）、
-  **意味照合 段2 台帳＝残 OPEN 630**（段0 221／段1 111／段2 消化 482／HIGH 435・MED 192・LOW 3／影響カード 480・効果 498）、
-  **実機シナリオ +10**（続き684 の9本＋🆕`b7KawariBindsOpponentTarget`＝2回連続 PASS・**反転確認あり**・既定 `order` へ追加済み）、
-  **Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
-  **要対応カード 66 / 863（7.6%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69 → B5 後 66 → B6 後 66 → **B7 後 66（±0・2巡連続）**）。⚠🔑**2巡続けて Sheet1 が動いていない**＝**parser の系統バグは Sheet1 の外に厚く分布している**（B7 の6効果は Sheet1 に1枚も無い）。**Sheet1 の枚数を落としたい巡は、着手時に「Sheet1 のカードを含む母集団か」を先に確かめる**（内訳＝census **27**／意味照合 48（findings 59件）／held 5／partial 0／idset 1。`--list` でカード名つき列挙）
-
-- **2026-08-27 続き684 後**：
-  📊**進捗3計器（§3 の併記）＝Sheet1 要対応 66 / 863（7.6%）｜意味照合 段2 台帳 残 OPEN 631｜census 高シグナル 536**。
-  ⚠**B6 で Sheet1 が動かなかった理由**＝直した11効果のうち Sheet1 は `WX08-036` の1枚だけで、そのカードは別の finding（クラスOR）が残るため計器から落ちない。
-  **census 536/536**（Sheet1 B6 で **537→536**＝中間動作への owner／filter 誤付着と対象宣言の復元。⚠**`WX07-039-E2` は据置**＝実機 UI がソフトロックするため §5.3 `O-104` へ。詳細は BUGFIXES）、**golden 2880**（Sheet1 B6 で +4 テスト・FAIL 0）、
-  smoke **10697 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors**（warning 263・±0）、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、`census:goldentypes` **未カバー0**（`EffectAction` 型 **149**・据置＝Sheet1 B6 は型を1つも足していない＝**既存の受け皿への配線だけ**）、
-  **`census:enginetext` A群 141行 / 137ハンドラ**（B 59／C 27・据置）、
-  **`POWER_MOD_PER_COUNT` の live 36効果**（据置。⚠`O-80` の進捗は A群行数ではなくこの数で測る）、
-  **live カード 5975 / 効果総数 10697 / MANUAL 効果 1013 / PARTIAL 21**（据置＝B6 は `manualEffects.ts` に触れていない）、
-  **`_held_fresh` 74 / `_partial_fresh` 12 / `_idset_fresh` 24**（B6 の +10 はすべて採用済み。⚠**held が 75→74 に減ったのは B6 の採用による**）、
-  **どのフラグも立たないカード 5155 / 5975（86.3%）**（`npm run census:cards`。⚠**「フラグ0＝正しい」ではない**＝計器が見ていないだけ）、
-  **意味照合 段2 台帳＝残 OPEN 631**（段0 221／段1 111／段2 消化 481／HIGH 436・MED 192・LOW 3／影響カード 481・効果 499）、
-  **実機シナリオ +9**（`crossIconBouncePicker` / `servantMultiEnaPaysColor` / `b3ShareClassDrawsFour` / `b3DistinctClassDrawsThree` / `b4NextSpellReductionConsumed` / `b5KawariElseBanishesOnlyLow` / `b5KawariThenReachesHigh` / 🆕`b6MiddleClauseDownsOwnSigni` / 🆕`b6DesignationClassReachesTarget`＝各2回連続 PASS・既定 `order` へ追加済み）、
-  **Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
-  **要対応カード 66 / 863（7.6%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69 → B5 後 66 → **B6 後 66（±0）**）。⚠🔑**B6 は11効果を直したが Sheet1 の枚数は動いていない**＝直した中で Sheet1 は `WX08-036` の1枚だけで、そのカードは別の finding が残るため計器から落ちない。**進捗を「Sheet1 の枚数」だけで測らない**（内訳＝census **27**／意味照合 48（findings 59件）／held 5／partial 0／idset 1。`--list` でカード名つき列挙）
-
----
-
----
+- **2026-08-28 続き708 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)｜台帳 残 OPEN 570（据置）｜census 高シグナル 521→520**
+  **golden 2942→2957**（+15＝`O-129`第2 +6 /`O-128`第2 +5 /`O-112` +1 /`O-92` +3）、census 520/520、
+  smoke 10700 全異常0、fuzz 全0、lint 0 errors／260 warnings（据置）、同型★0、
+  held **31バケット / 91枚**（増減なし）、`census:stubs` A群🔴0／C群0、manual-fields 0、
+  `census:enginetext` A群 141行（据置）、孤児 MANUAL スタンプ 12（据置）。
+  ⚠**台帳 570 が動かないのが正しい**＝この巡で触った7項目は**どれも段2 findings の消化ではない**
+  （実測でも該当効果に OPEN な finding は0件だった）。
+  ⚠**census −1 は `O-92` の「そのアタックの間」是正ぶん**（`BASELINE_HIGH` も 520 へ実測更新）。
+  ⚠**Sheet1 は 0→1→0** と動いた＝`O-128` 第2バッチで**収穫マージの第5の死角**（`inheritedCostScaling`
+  分岐が action 差分を黙って捨てる）を塞いだ結果 `WX11-039` が held に現れ、原文どおりの純改善
+  （`shuffle:false`→`true`）だったので採用して閉じた。**退化ではなく可視化。**
+  **実機シナリオ＝新規1本**（`v91refreshonce`）＋既存4本の回帰（`banishbyeffect` `FRESH=1` 2/2・
+  `refreshTrigger`・`deckshufflespell`・`b12delayattack`）＝**すべて PASS**。反転確認あり。
 
 ## 付録A. 全体像と Definition of Done
 
