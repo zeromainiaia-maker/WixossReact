@@ -4183,6 +4183,24 @@ function bindUnlessGateAnaphora(thenText: string, action: EffectAction): EffectA
   return { ...action, targetsTriggerSource: true } as EffectAction;
 }
 
+/**
+ * 帰結が「（ターン終了時まで、）**この**シグニ〜」＝**能力を持つこのカード自身**への照応。
+ * ⚠`bindUnlessGateAnaphora`（「**その**シグニ」＝トリガー元）とは照応先が違う＝混ぜない。
+ * 🔴ON_PLAY watcher 分岐は**トリガー句を actionText に残す**仕様なので、
+ *   「このシグニのパワーを＋N する」を素で解いたときに立つ `thisCardOnly` が落ち、
+ *   **あなたのシグニなら誰でも選べる**過剰対象化になっていた（`WX22-Re01-E1` で実測）。
+ */
+function bindThisCardAnaphora(thenText: string, action: EffectAction): EffectAction {
+  if (!/^(?:ターン終了時まで[、,])?このシグニ/.test(thenText)) return action;
+  if (!TRIGGER_SOURCE_BINDABLE.includes(action.type)) return action;
+  const withTgt = action as EffectAction & { target?: EffectTarget };
+  if (withTgt.target?.type !== 'SIGNI' || withTgt.target.filter?.thisCardOnly) return action;
+  return {
+    ...action,
+    target: { ...withTgt.target, filter: { ...(withTgt.target.filter ?? {}), thisCardOnly: true } },
+  } as EffectAction;
+}
+
 // ── タスク12(lxi) 第2波「対戦相手は〜しないかぎり、X」＝主語分配形（2026-07-30）──
 // 第1波の「対戦相手**が**」形と違い、帰結 X の**実行主体も対戦相手**（「自分のシグニをトラッシュに置く」＝
 // 置くのは相手／「手札を2枚捨てる」＝捨てるのは相手）。帰結を単独パースすると owner が self へ反転するため
@@ -16644,7 +16662,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         WX10-003-E1 WX14-024-E2 WX14-025-E1 WX16-002-E3 WX17-030-E2 WX18-071-E1 WX18-072-E1 WX20-027-E1
         WX22-Re08-E1 WX22-Re17-E1 WXEX1-08-E2 WXEX1-15-E1 WXEX1-25-E1 WXEX2-25-E1 WXEX2-58-E2
         WXK10-021-E1 WXDi-P07-008-E1 WXDi-P07-058-E1 WXDi-P09-078-E1 WXDi-P11-005-E1 WXDi-CP01-050-E1
-        WX24-P2-092-E1 WX25-P2-026-E1 WX25-P2-077-E1 WDK15-001-E1 WDK17-015-E1 PR-195-E1 PR-466-E2`.split(/\s+/));
+        WX24-P2-092-E1 WX25-P2-026-E1 WX25-P2-077-E1 WDK15-001-E1 WDK17-015-E1 PR-195-E1 PR-466-E2
+        WX03-020-E2 WX07-002-E1 WX07-004-E1 WX07-005-E1 WX08-001-E1 WX08-004-E1 WX10-074-E1 WX10-078-E1
+        WX12-023-E2 WX16-026-E1 WX22-Re01-E1 WXEX1-04-E1 WXEX2-29-E1 WXDi-P07-047-E2 WXK03-028-E2
+        WDK06-C11-E1`.split(/\s+/));
       if (timing[0] === 'ON_PLAY' && watcherScopeRepairIds.has(`${cardNum}-E${index + 1}`)) {
         // ON_PLAY watcher の表記揺れを、既存の triggerScope / triggerFilter /
         // triggerCondition 語彙へ正規化する。「あなたの〜シグニが場に出たとき」は
@@ -16659,7 +16680,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           } else {
             const detailText = actionText;
             const isOpponent = /対戦相手のシグニ(?:[０-９\d]+体)?が(?:対戦相手の)?効果によって場に出たとき|対戦相手のシグニ(?:[０-９\d]+体)?が場に出たとき/.test(onPlayText);
-            const isAllyWatcher = /あなたの.+(?:シグニ|レゾナ)(?:[０-９\d]+体)?が.*場に出たとき|(?:効果によって)?あなたのシグニ(?:[０-９\d]+体)?が.*場に出たとき|あなたの《[^》]+》(?:[０-９\d]+体)?が場に出たとき|《ライズアイコン[^》]*》[^を]*を持つあなたのシグニ(?:[０-９\d]+体)?が場に出たとき/.test(onPlayText);
+            const isAllyWatcher = /あなたの.+(?:シグニ|レゾナ)(?:[０-９\d]+体)?が.*場に出たとき|(?:効果によって)?あなたのシグニ(?:[０-９\d]+体)?が.*場に出たとき|あなたの《[^》]+》(?:[０-９\d]+体)?が場に出たとき|《ライズアイコン[^》]*》[^を]*を持つあなたのシグニ(?:[０-９\d]+体)?が場に出たとき|シグニ(?:[０-９\d]+体)?が[^。]*あなたの場に出たとき/.test(onPlayText);
             if (isOpponent) extractedTriggerScope = 'any_opp';
             else if (isAllyWatcher) extractedTriggerScope = 'any_ally';
 
@@ -17772,9 +17793,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     // any_opp の ON_PLAY で帰結が「（ターン終了時まで、）そのシグニ〜」＝**場に出たそのシグニ**への照応。
     // この分岐はトリガー句を残す仕様なので target が「対戦相手のシグニ１体」＝**任意選択**に落ちており、
     // 原文と別のシグニを撃てる過剰対象化になっていた（`WXK10-022-E1`＝能力を失わせる相手を選び直せた）。
-    if (extractedTriggerScope === 'any_opp' && timing?.[0] === 'ON_PLAY') {
+    // 🆕**`any_ally` も同じ**（§5.3 `O-133` B群 第3バッチ・`WX10-074-E1`／`WX10-078-E1`＝
+    //   「あなたのシグニ１体がダウン状態で場に出たとき、**そのシグニ**をアップする」）。
+    //   照応先は「場に出たそのシグニ」であって陣営に依らない＝any_opp だけに掛けていたのは取りこぼし。
+    //   束縛しないと `UP{SIGNI self 1}` の**自由選択**に落ち、原文と別のシグニをアップできてしまう。
+    if ((extractedTriggerScope === 'any_opp' || extractedTriggerScope === 'any_ally') && timing?.[0] === 'ON_PLAY') {
       const tailM = actionText.match(/場に出たとき[、,](.+)$/s);
-      if (tailM) resolvedAction = bindUnlessGateAnaphora(tailM[1].trim(), resolvedAction);
+      if (tailM) {
+        resolvedAction = bindUnlessGateAnaphora(tailM[1].trim(), resolvedAction);
+        resolvedAction = bindThisCardAnaphora(tailM[1].trim(), resolvedAction);
+      }
     }
     if (timing?.[0] === 'ON_BANISH' && resolvedAction.type === 'BANISH' && /そのシグニと同じレベルの/.test(actionText)) {
       const banish = resolvedAction as import('../types/effects').BanishAction;
