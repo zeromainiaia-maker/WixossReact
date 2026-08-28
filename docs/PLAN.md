@@ -10,39 +10,42 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-28・続き705・Opus 5 単独）＝`O-133` 第3〜第7バッチ。B群105効果を消化し 402→297。**
-  ユーザー指示＝**「pull する」→「回す（gates）」→「`O-133` の B を解消する」**。
-  📊**進捗＝孤児 MANUAL スタンプ 402 → 297**（A 0 / **B 285** / C 0 / D 9 ＋ 母集団外「parser 由来」3）
-  gates 全緑（golden 2941/2941 据置・smoke 10700 全0・fuzz 全0）｜census 高シグナル **510 → 528**（全て可視化）
-  実機＝`g144DownTrigger` / `g145ByEffectTrigger` / `onPlayAnyOpp` / `onPlayUsageLimit` / `keywordgained` /
-  `revealDeckTopBanish` ALL PASS。⚠`lookReorderCanTrash` は FAIL だが**本セッション起因ではない**（`V-89` に再確認を追記）。
-  - ✅**B群の割り方を決めた**＝diff の向きで3バケツ（`FRESH_RICHER`／`LIVE_ONLY`／`MIX`）。
-    `FRESH_RICHER` は**ほぼ全部 fresh が正しい**（34件中33件を採用）、`LIVE_ONLY` は**parser の取りこぼし**なので parser を直す。
-  - ✅**parser を7本直した**（いずれも「凍っていたので誰も気づけなかった」バグ）：
-    ①素の `OPTIONAL_COST` に原文の任意コスト句を載せる（逆翻訳が「コストを支払ってもよい」に潰れていた）
-    ②ON_PLAY watcher の allowlist に16 id 追加＋「シグニN体が…**あなたの場に**出たとき」語順
-    ③「そのシグニ」照応の束縛を `any_ally` にも（自由選択に落ちていた）
-    ④「このシグニ」照応の束縛を新設（`bindThisCardAnaphora`）
-    ⑤**ON_RISE の「そのシグニ」が `owner:'any'` の自由選択＋`PERMANENT` に化けていた**（実測4効果）
-    ⑥「共通するクラスを持つ」＝`commonClass`（逆翻訳と census が読む語彙）
-    ⑦**デッキトップ公開文の前に置かれた対象宣言の限定が落ちていた**（パワーN以下＝実測2効果）
-  - 🔴**最大の発見＝「デッキの一番上を公開する。それが〈条件〉の場合」族33件が旧設計のまま凍っていた。**
-    parser は §6.4 `O-35` で `REVEAL_AND_PICK` へ整備済みなのに、**`O-35` が名指しで直したカードすら届いていなかった**。
-    27件を現行表現へ移行（6件は fresh が帰結・条件を落とすので据置）。
-  - 🔴**手順の穴を1つ潰した**＝`--unfreeze` → `build:effects` だけでは live が旧値のまま残る。
-    **収穫マージが自動採用するのは「純粋上位集合」だけ**で、キーの削除や差し替えは `_held_fresh.json` に落ちる。
-    第3・第4バッチで13カードがそこに埋まっていた（`heldReview.mjs --adopt` で回収）。以後は4段手順を O-133 に明記。
-  - ✅**計器を2つ較正**＝①`--unfreeze` が**明示 id でも B を拒む**実装で PLAN の記述と食い違っていた（明示 id なら B も許す・C/D は拒む）
-    ②**parser 自身が同じ `parseStatus` を出す効果**（`WD08-008-E1` 等3件）を母集団から外した＝出所があるので凍っていない。
-  - ⚠**未決＝実体同一の `PARTIAL` 孤児7件**（解凍すると未忠実の記録が消え、`manualEffects.ts` へ移すと
-    `censusManualDrift` の「削除候補」と衝突する）。**ユーザー判断待ち**。
+- 🏁**セッション（2026-08-28・続き705／706・Opus 5 単独）＝`O-133` 完了。孤児 MANUAL スタンプ 402 → 12（B群 0）。**
+  ユーザー指示＝**「pull する」→「回す（gates）」→「`O-133` の B を解消する」→「PARTIAL は解凍する／最後まで続ける」
+  →「実バグだけ選んで parser 修正」→「次のバッチで区切る」**。全13バッチ（第3〜第15）。
+  📊**孤児 MANUAL スタンプ 402 → 12**（**B 0** / A 0 / C 0 / **D 9**＝凍っていない ＋ parser 由来3）
+  gates 全緑（golden 2941/2941・smoke 10700 全0・fuzz 全0）｜census 高シグナル **510 → 529**（全て可視化）
+  実機＝`wxk09050`／`onPlayAnyOpp`／`g144DownTrigger`／`g145ByEffectTrigger`／`onPlayUsageLimit`／
+  `keywordgained`／`revealDeckTopBanish` **ALL PASS**（`lookReorderCanTrash` の FAIL は本セッション起因ではない＝`V-89`）。
+  - ✅**parser を15本以上直した**（いずれも「凍っていたので誰も気づけなかった」層。詳細は BUGFIXES.md）：
+    任意コスト句の逆翻訳復元／ON_PLAY watcher の allowlist・語順・`levelParity`／「その」「この」照応の束縛／
+    **ON_RISE の照応が `owner:'any'` の自由選択＋`PERMANENT` に化けていた**／`commonClass`／
+    **公開文の前に置かれた対象宣言の限定（パワーN以下）が落ちていた**／ON_DRAW の `outsideDrawPhase`・`any_opp`／
+    **「このシグニを手札に戻す」の owner がトリガー句に引きずられて恒久 no-op だった**／
+    本文中の `BEAT_CONDITION`／ルリグトラッシュの `level.max`／**「代わりに」分岐の持続期間継承**。
+  - 🔴**最大の発見＝凍結は「そのカードの他の効果」まで止める。** 収穫マージは**カード単位**で held に落とすので、
+    golden に「原因不明」として長く登録されていた `WD22-029-G-E2` の parse 失敗は、**兄弟 `E1` の孤児スタンプが原因**だった。
+    ⇒ **原因不明の parse 失敗を見たら、まず同じカードに孤児スタンプが無いか見る。**
+  - 🔴**「デッキの一番上を公開する。それが〈条件〉の場合」族33件が旧設計のまま凍っていた**＝
+    `O-35` の改善が1つも届いておらず、**`O-35` が名指しで直したカードすら旧形のまま**だった。27件を現行表現へ移行。
+  - ⚠🔴**「B群 0」の読み方＝根治は176件、残り217件は「見えない凍結」→「出所のある凍結」への格下げ。**
+    計器の定義は「live が MANUAL/PARTIAL なのに `manualEffects.ts` に定義が無い」なので、**移設すれば定義上 0 になる**。
+    **移設分は凍ったまま**で parser 改善は届かない。変わったのは**どの計器にも映らない状態を脱した**ことだけ。
+    ⇒ **根治の続きは `censusManualDrift` の「削除候補（parser 出力と実体同一）」**（現在 0＝まだ parser は再現できていない）。
+  - ✅**217効果を `manualEffects.ts` へ逐語移設**（第12・14・15バッチ）＝**parser が原理的に出せない専用 STUB**／
+    **表示情報（CHOOSE の説明的ラベル）を live だけが持つ**／**カード固有の表現**。
+    **live の値は1バイトも変えていない**（A/B で実体変化0を実測）＝凍結は続くが**出所が生まれ**、
+    以後 `censusManualDrift` が監視する（parser が追いつけば「削除候補」に載る）。
+  - ✅**計器を3つ較正**＝①`--unfreeze` が明示 id でも B を拒んでいた ②**parser 自身が同じ印を出す効果**を母集団から除外
+    ③`BASELINE_ORPHAN_MANUAL` を 12 へ（以後この数が増えたら「また出所の無いスタンプを押した」合図）。
+  - 🔴**手順の穴を潰した**＝`--unfreeze` → `build:effects` だけでは live は旧値のまま残る
+    （自動採用は「純粋上位集合」だけ。キーの削除・差し替えは `_held_fresh.json` に落ちる）＝**4段手順**を O-133 に明記。
 
-**▶ 次の一手**＝**`O-133` 第8バッチ＝B群 残285件**（内訳は §5.3 `O-133` の行）。
-`npx tsx scripts/censusOrphanManual.ts --id B` を1回だけ回して全 diff を落とし、**3バケツに割ってから**取る
-（`FRESH_RICHER`＝ほぼ採用／`LIVE_ONLY`＝parser を直す／`MIX`＝1件ずつ）。**手順は4段**（`--unfreeze` →
-`build:effects` → **`heldReview.mjs --adopt`** → `regen`＋`gates`）＝**3段目を飛ばすと live が旧値のまま残る**。
-⚠**`PARTIAL` は外さない**。⚠**解凍のたびに census 高シグナルが増える**ので**増分の機械照合→`BASELINE_HIGH` 更新**をセットで。
-機構側なら **`O-130`**（`ON_OPP_ARTS_USE` の帰結が「そのシグニ」）か **`O-128` 第2バッチ**。
+**▶ 次の一手**＝**`censusManualDrift.ts` の「削除候補（実体同一）」**を定期的に見る
+（`O-133` で 217効果を `manualEffects.ts` へ移したので、parser が追いつくたびにそこへ載る＝畳みどころ）。
+機構側なら **`O-130`**（`ON_OPP_ARTS_USE` の帰結が「そのシグニ」）か **`O-128` 第2バッチ**、
+計器側なら **`census:enginetext` の miss 上位**（`POWER_MOD_PER_COUNT` miss7/live36 ほか43ハンドラ）。
+実機側は **`V-89`**（`lookReorderCanTrash`／`deckshufflespell` が新規ルームで FAIL＝3セッション連続で再確認済み）。
 
 ---
 
@@ -560,7 +563,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-129** | **「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、それを…」で対象の確定が中間動作より後になる**（残り＝トラッシュ/デッキ由来の中間動作 15効果） | M | **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（3効果）を消化。** ■`applyDroppedTargetDesignation` の「filter/owner/count が帰結と一致するなら据置」ガードに **`orderObservable`** を足した＝①中間動作が**宣言と反対側**のカードを動かす ②**強制**（「てもよい」でない） ③中間動作が**場**のカードを動かす（トラッシュ/デッキ/エナ/手札 由来は除く） ④中間ステップの owner が原文と一致している（ズレている形は `O-104` の領分＝順序だけ直して「壊れたまま正しい順」にしない）。**実測で live の AUTO は3効果だけ動く**（`WX02-020-E1`／`WXEX2-18-E2`／`WXEX2-27-E2`）。 ■🔴**実機で機構の穴がもう1つ出た**＝`SELECT_TARGET_ONLY` は**候補0でも `done` を返して SEQUENCE が続く**ので、対象宣言を前に出しただけでは**相手の場が空でも自分のシグニを失う**（`b25targetfirst` が最初 FAIL）。⇒ `StubAction.abortIfNoCandidate` を新設し `execSequence` が打ち切る（**フラグ付きだけ**＝既存93効果の対象宣言は挙動据置）。 ■**残り**＝③を外すと「あなたのトラッシュから〜をデッキの一番下に置く」系が **+15効果**（`WX06-001`／`WX06-014`／`SPDi44-12`／`SPDi44-16`／`WXEX1-53`／`WXEX2-04`／`WXEX2-31`／`PR-322`／`WXDi-P05-019`／`WXDi-P16-008`／`WX25-P1-014`／`WX25-P1-030` ほか）。**1件ずつ原文照合できる規模で次バッチ**。⚠`fixMiddleClauseTargetOwner` は `applyDroppedTargetDesignation` の**前**へ移した（後ろだと先頭に入った宣言 STUB で `steps[0]` 判定が外れ、`WXEX1-52-E2` の owner 是正が消える＝A/B で実測）。 |
 | **O-130** | 🆕**ON_OPP_ARTS_USE の帰結が「そのシグニ」＝効果を受けたシグニを指せない** | M | **2026-08-28 `O-113` の作業中に発見**＝`WXK11-019-E2`（Sheet4）「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、ターン終了時まで、**そのシグニ**は効果によって得ている能力を失う」。■live は `REMOVE_ABILITIES{target:{owner:'opponent'}}` **のみ**＝①**アップが丸ごと落ちている** ②**能力を失わせる相手が逆**（原文は自分の受けたシグニ／live は相手シグニ）。■🔑`O-113` で**発火条件**は正しくなった（`affectedByOppArtsFilter`）が、**帰結が「効果を受けたシグニ」を参照する受け皿が無い**＝`targetsTriggerSource` はこの timing ではアーツを指すので使えない。■**取り方**＝`collectOppArtsAffectedOwnSigni` の結果を StackEntry へ載せ、`targetsAffectedByTrigger` 相当で本体へ束縛する（`triggeringCardNum` と同型の1本）。■母集団＝この1枚（`WX05-020-E2` は帰結が「対戦相手にダメージ」で参照不要）。 |
 | **O-132** | **`vocabCensus.ts` が「JSON に入っている語彙」を知らず、高シグナルの一部が偽陽性**（第1バッチ消化・残＝未調査の 491） | S〜M／1バッチ＝1カテゴリ群 | **2026-08-28 続き701（Sheet1 B27）で分離／続き702 で第1バッチを消化。** ■🔴**この項目は「較正」であって前進ではない**（PLAN §3 の原則）＝**`src/` と `public/` を1バイトも変えない**。報告にも必ず「較正」と明記する。 ■✅**第1バッチ（続き702）＝Sheet1 が指した11カテゴリ・13キー**を追加して **516→491（-25効果）**、Sheet1 の census フラグを **12→0**（要対応 20→8）。追加キー＝`GUARD_MAX_LV`/`GUARD_LV`（レベルが `BLOCK_ACTION.actionId` に埋まる）／`compareToSelf`／`sourceSharedColorWithSelf`／`countFromZone`・`perAllSigni`／`costThreshold`／`STACK_SPELL`／`ON_OPP_SIGNI_ATTACK`／`attackerOwner`／`costSubstitute`／`"once":true`／`"upTo":true`・`PLAY_FREE_FROM_TRASH`＋空枝 CHOOSE の `extraOk`。全文は BUGFIXES.md 2026-08-28。 ■**手口（第1バッチで確立）**＝①候補キーごとに**そのカテゴリの高シグナルのうち何件が救われるか**を先に数える（`docs/_vocab_census.txt` のカテゴリ別 id × live JSON の部分一致）②**救われる効果を1件ずつ**「由来の原文ブロック（`docs/_effect_srctext.json`）× live JSON」で目視③**同じカテゴリに残った効果が本当の欠落であること**も見る（下げすぎ検出）④`BASELINE_HIGH` を実数へ⑤**golden にトリップワイヤ**。 ■🔴**較正の唯一の危険＝キーが免罪符になる**＝キーが JSON から消えても census は静かに合格し続ける。**必ず golden に「較正キーが live に実在する」を追加する**（続き702 で25ペア。空振りでないことも実測済み）。 ■**残り**＝高シグナル **491** は偽陽性かどうか**未調査**。件数の多い順に `条件節(94)` `小さい数(2-5枚/体)不在(74)` `キーワード能力語の不在(53)` `クラス指定(40)` `数値不一致(37)`。⚠**大きいカテゴリほど真の欠落が混ざる**ので、**1カテゴリずつ**上の手口で回す（`条件節` は `extraOk` が既に複雑なので最後）。 |
-| **O-133** | **live 限定の MANUAL スタンプ**（第1〜第7バッチ消化・残 **297件**＝A 0 / **B 285** / C 0 / D 9 ＋ 母集団外「parser 由来の印」3） | M／B は1件ずつ・1バッチ15〜30効果 | **2026-08-28 続き703 で分離／続き704 で第1（A群解凍186）＋第2（C群移設21）／続き705 で第3〜第7（B群105効果）を消化。** ■**計器＝`npm run census:orphanmanual`**（`--id <効果ID|分類名>` はカンマ区切り可・`--list A|B|C|D`・`--unfreeze A` は分類名／`--unfreeze <id>,<id>` は**明示 id なら B も許す**〔C・D は明示でも拒む〕）。 **ラチェットは golden**（`BASELINE_ORPHAN_MANUAL`＝増えても減っても FAIL）。⚠**golden の数と計器の表示は 3 ずれる**＝計器は「parser 自身が同じ `parseStatus` を出す効果」を母集団から外すが、golden は parser を回さないので外せない（意図的）。 ■🔴**手順は4段**＝①`--unfreeze` ②`npm run build:effects` ③**`docs/_held_fresh.json` を見て `node scripts/heldReview.mjs --adopt`** ④`npm run regen` → `npm run gates`。**③を飛ばすと解凍しただけで live は旧値のまま残る**（収穫マージが自動採用するのは「純粋上位集合」だけ＝キーの削除や差し替えは held に落ちる。第3・第4バッチで13カード踏んだ）。 ■**B の判定は3バケツに割ると速い**＝`FRESH_RICHER`（fresh がキーを足しただけ・`-` が0本）は**ほぼ全部 fresh が正しい**／`LIVE_ONLY`（live にしか無いキー）は**parser の取りこぼし＝parser を直す**／`MIX` は1件ずつ。 ■**解凍のたびに census の MANUAL 免除が外れて高シグナルが増える**＝**増分の id が全部その解凍集合の中にあることを機械照合してから**`BASELINE_HIGH` を上げる（`docs/_vocab_census.txt` の高シグナル集合を id で差分＝流入0を示す）。 ■🔴**`PARTIAL` は外さない**（`SP38-006-E1` は golden が印を assert）。⚠**実体同一の `PARTIAL` 孤児が7件あり、どう畳むかは未決**＝解凍すると「別軸が未忠実」という記録が消え、`manualEffects.ts` へ移すと `censusManualDrift` の「削除候補（実体同一）」と衝突する。**ユーザー判断待ち**。 ■**据え置いた B（fresh が情報を落とす）**＝`WXK02-071-E1`／`WXK10-057-E1`／`WDK05-T15-E1`（`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`）／`WXDi-D03-017-E1`（そうした場合の帰結が消える）／`WXDi-CP01-040-E1`（live は timing 誤り・fresh は条件脱落＝**両方誤り**）／`SPDi43-31-E1`（3分岐）／`WXK03-028-E2`・`WDK06-C11-E1`（`triggerFilter` の `levelParity`／`cardType`）。 |
+| ~~**O-133**~~ 🏁**完了（2026-08-28 続き704〜705）** | **live 限定の MANUAL スタンプ**＝残 **12**（**B群 0**・A 0 / C 0 / **D 9**＋parser 由来3） | — | **609 → 12。** ■**計器＝`npm run census:orphanmanual`**（`--id <効果ID|分類名>`／`--list A|B|C|D`／`--unfreeze A` は分類名・`--unfreeze <id>,<id>` は**明示 id なら B も許す**〔C・D は明示でも拒む〕）。**ラチェットは golden の `BASELINE_ORPHAN_MANUAL = 12`**（増えたら「また出所の無いスタンプを押した」合図）。⚠**golden の数と計器の表示は 3 ずれる**（計器は「parser 自身が同じ印を出す効果」を母集団から外すが、golden は parser を回さない）。 ■**残 D群9 は凍っていない**＝`fixLrigColorFilters.mjs` が build 後に毎回生成し直す id。触る必要はない。 ■🔴**手順は4段**＝①`--unfreeze` ②`npm run build:effects` ③**`docs/_held_fresh.json` を見て `node scripts/heldReview.mjs --adopt`** ④`npm run regen` → `npm run gates`。**③を飛ばすと解凍しただけで live は旧値のまま残る**（収穫マージが自動採用するのは「純粋上位集合」だけ）。 ■**次の畳みどころ＝`npx tsx scripts/censusManualDrift.ts` の「削除候補（実体同一）」**。第12・14・15バッチで **217効果を `manualEffects.ts` へ逐語移設**したので、parser が追いつくたびにそこへ載る。**移設分は live の値を1バイトも変えていない**（A/B で実体変化0を実測）。 |
 
 **■ 個別カードの機構待ち**
 - **📋 個別カード機構待ちの defer 3件＝いずれも根拠つき（着手前にこの理由が今も有効か再判定すること）**：(a) **`WX17-044`＝⚠2026-08-10 再判定＝先行ブロッカーだった §5.3 は消化済（続き403）だが、このカードは**依然として別要因**で止まっている**＝①`WX17-044-E1` に `trashActivated` が立っておらず（parser が「トラッシュにあるこのカードを〜」の【起】をトラッシュ起動と認識していない）②本体アクションが `ADD_TO_FIELD` ではなく**【トラップ】を表向きにして発動させる**（現行の逆翻訳は別物になっている）③コストの `trashExile.self` は `trashActivateCost.ts` の対応キーに入れていない（使う効果が0件のため未実装のまま置いた）。**着手時は parser 側（①②）から。UI は③を足すだけで載る。**(b) **`WXDi-P05-006` choice①＝着手禁止**（ピースカットイン割込み基盤）。(c) **`WX20-Re20`＝一体で要る**（選択数依存コスト・能力なし filter・任意複数配置UI・同一 instance 群のターン終了時 trash）＝部分実装しない。

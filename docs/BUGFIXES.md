@@ -1,5 +1,56 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-133` 完了＝孤児 MANUAL スタンプを 402 → 12（B群 0）
+
+> **13巡（続き705／706・Opus 5 単独・第3〜第15バッチ）。** 前半の第3〜第11は個別記録が下の節にある。
+> gates 全緑（golden 2941/2941・smoke 10700 全0・fuzz 全0）｜census 高シグナル **510 → 529**（全て可視化）。
+> 実機＝`wxk09050`／`onPlayAnyOpp`／`g144DownTrigger`／`g145ByEffectTrigger`／`onPlayUsageLimit`／
+> `keywordgained`／`revealDeckTopBanish` **ALL PASS**。
+
+### ⚠🔴「B群 0」の読み方（誇張しないための注記）
+計器の定義は「live が MANUAL/PARTIAL なのに `manualEffects.ts` に定義が無い」＝**移設すれば定義上 0 になる**。
+実際の内訳は**根治176件**（parser を直した／parser 出力のほうが正しいので採用した＝**凍結が解けて改善が届く**）と
+**移設217件**（live の値はそのまま＝**凍結は続く**）。移設で得たのは
+「**どの計器にも映らない**」→「**`censusManualDrift` が見る**」という**可視化だけ**である。
+⇒ 根治の続きは `censusManualDrift` の「**削除候補（parser 出力と実体同一）**」＝現在 0
+（＝まだ parser は217件のどれも再現できていない）。ここが増えたら畳める。
+
+### 第12・14・15バッチ＝217効果を `manualEffects.ts` へ逐語移設
+3つの理由で **live 側が正**と判断したものを移した。**live の値は1バイトも変えていない**
+（A/B 実測＝`parseStatus` だけ変化0／実体変化0／追加・消滅 id 0）。
+1. **parser が原理的に出せない専用 STUB**（24効果）＝`effectParser.ts` ＋ `parseSentencePart1-4` の
+   ソースに id リテラルが1つも無い＝到達不能。engine には実装がある
+   （`OPP_DIRECT_ATTACK_NEGATE` / `LIMIT_ALL_FIELD_1` / `REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI` 等）。
+2. **表示情報を live だけが持つ**（31効果）＝**CHOOSE の説明的ラベル**。`execChoose` は
+   `choice.label` を `EffectInteractionModal` へそのまま渡して**画面に出す**。live は手書きで説明的、
+   parser は一律「選択肢1/2/3」。⚠parser 側を説明的にする案は範囲外（live 全体で 汎用1288／説明的376）。
+3. **そのカード固有の表現**（162効果）＝parser 規則を211種類足す代わりに出所を与える側へ倒した。
+   🔑**live 側の挙動バグではない**（凍っている＝live が動いている）。
+⇒ 以後 `npx tsx scripts/censusManualDrift.ts` が監視し、parser が追いつけば
+「削除候補（実体同一）」として自動で浮かぶ＝**そこが次の畳みどころ**。
+
+### 🔴 移設ツールで踏んだ罠（次に同じことをする人へ）
+1. **既存エントリは `"CARD":` と `'CARD':` の2表記が混在**＝片方しか見ないと**重複キー**を作る。
+2. **配列の終端を `],` の文字列検索で探してはいけない**＝整形済みエントリの
+   `timing: ['ON_ATTACK_SIGNI',` のような**要素内の `],`** に引っかかる。**括弧の対応で走査する。**
+3. `manualEffects.ts` は**型検査されるが JSON はされない**＝live に前からあった
+   `StubAction.raw`（由来原文の控え・engine は読まない）が**移設して初めて型エラーになった**。型に宣言を追加。
+
+### 第13バッチ＝「対象を先に宣言する」形13件を採用
+原文「…**１体を対象とし**、《色》を**支払ってもよい**。そうした場合、**それを**バニッシュする」＝
+**対象は支払いの前に決まる**。live は `SEQUENCE[OPTIONAL_COST, CONDITIONAL→BANISH{target}]`＝
+**支払った後に対象を選び直せる**形だった。parser は正準形（`SELECT_TARGET_ONLY` ＋
+`STORE_LAST_PROCESSED_TARGETS` ＋ `targetsStored`）を出せていたのに、凍っていて届いていなかった。
+
+### 仕分けの規準（残りをどう割ったか）
+**意味を絞る軸のリーフ**（`filter.*` / `condition` / `triggerCondition` / `activeCondition` / `owner` /
+`count` / `until` / `duration` / `optional` / `usageLimit` / `keyword` / `delta` / `targetsTriggerSource` /
+`type` / `id`）だけを数え、**live→fresh で失う数と得る数**を比較した。
+⚠**既知の同義キーで機械的に畳める分は実測で尽きた**（`cardClass`↔`story` / `hasIcon:'ライズ'`↔`hasRiseIcon` /
+`upToCount:false`↔未設定 / `cardType:'シグニ'`（SIGNI 対象では絞っていない）/ トップレベル `duration`（engine は
+`a.duration` しか読まない）/ `mandatory:true`（判定は `=== false`）/ `triggerScope` が engine 既定と同値、を
+正規化してから比較して残差0）。
+
 ## 2026-08-28：§5.3 `O-133` 第3〜第7バッチ＝B群105効果を消化（402→297）＋ parser バグ7本
 
 > **5巡（続き705・Opus 5 単独）**。ユーザー指示＝**「pull する」→「回す（gates）」→「`O-133` の B を解消する」**。
