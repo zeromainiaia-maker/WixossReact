@@ -27,17 +27,18 @@
 
 ### 現行コマンド（2026-08-27 実測・codex-cli 0.147.0）
 
-🔴**リポジトリのパスは `C:/Users/zerom/source/WixossReact`**（2026-08-27 Sheet1 B7 で実測）＝`~/.codex/config.toml` の
-`[projects.'c:\users\zerom\source\wixossreact']` が `trust_level = "trusted"` になっている先。
-**`C:/Users/zerom/WixossReact` は存在しない**（`ls` で不在を確認）。
+🔴**リポジトリのパスは `C:/Users/zerom/WixossReact`**（2026-08-28 続き701 で実測）＝`~/.codex/config.toml` の
+`[projects.'c:\users\zerom\wixossreact']` が `trust_level = "trusted"` になっている先。
+⚠**2026-08-27 に書かれた `C:/Users/zerom/source/WixossReact` は現在は存在しない**（`ls` で不在を確認済み・
+config にも `source` を含む projects エントリは無い）。**この行は3回書き換わっている。**
 ⚠**投入のたびに `-C` のパスを実測で確認する**（この行は過去に2回書き換わっている＝[CODEX_LOG.md](./CODEX_LOG.md) §B）。
 
 ```bash
-codex exec -C "C:/Users/zerom/source/WixossReact" -c model_reasoning_effort="high" -o "<scratchpad>/codex_bNN_last.md" - < "<scratchpad>/codex_bNN.md" > "<scratchpad>/codex_bNN.log" 2>&1
+codex exec -C "C:/Users/zerom/WixossReact" -c model_reasoning_effort="high" -o "<scratchpad>/codex_bNN_last.md" - < "<scratchpad>/codex_bNN.md" > "<scratchpad>/codex_bNN.log" 2>&1
 ```
 
 - **既定 `CODEX_HOME`（`~/.codex`）をそのまま使う**。`.codex-work` は利用上限と認証失効で使えないことがある。
-- 前提＝`~/.codex/config.toml` に **`[windows] sandbox = "elevated"`** と **`[projects.'c:\users\zerom\source\wixossreact'] trust_level = "trusted"`** が入っていること。**これで書き込みまで通る**。⚠起動ログの `sandbox:` 行は `workspace-write` と表示されるが、この2つが入っていれば書き込みは通る（2026-08-27 実測）。
+- 前提＝`~/.codex/config.toml` に **`[windows] sandbox = "elevated"`** と **`[projects.'c:\users\zerom\wixossreact'] trust_level = "trusted"`** が入っていること。**これで書き込みまで通る**。⚠起動ログの `sandbox:` 行は `workspace-write` と表示されるが、この2つが入っていれば書き込みは通る（2026-08-27 実測）。
 - `~/.codex` の既定は **`model_reasoning_effort = "low"`** なので `-c` で上書きする。**`-c` は複数回渡せる。**
 - `.claude/settings.local.json` の `permissions.allow` に `Bash(codex *)` / `Bash(CODEX_HOME=* codex *)` は追加済み。
 - **`run_in_background: true` で起動**する（数十分かかる）。ユーザーが `!` で起動した場合はタスク通知が来ないので **Monitor でログ末尾の `tokens used` 出現を待つ**。
