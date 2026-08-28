@@ -2852,6 +2852,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, hostState: h, guestState: g };
   };
 
+  /**
+   * ON_REFRESH をスタックを経由しないスペル解決経路でインライン収集する（§5.1 `V-91`・2026-08-28）。
+   *
+   * 🔴**スペル解決経路は中央 diff（`collectBoardDiffTriggers`）を1度も通らない。**
+   *   隣の `collectDeckShuffleInline` が「スタック解決を経由しないスペル解決経路は中央 diff を
+   *   通らないためここで拾う」と書いているとおりで、**同じ穴が ON_REFRESH にも空いていた**
+   *   （§5-15＝「同型の配線が複数箇所に要るとき1箇所で満足する」の再発）。
+   *   実機で `WX09-Re06`（このターン最初のリフレッシュで相手ライフをクラッシュ）を撃つと、
+   *   **リフレッシュは起きる（deck 1→4・trash 4→2）のに設置が消費されず何も起きなかった**。
+   * ⚠`once`（「このターン**最初の**リフレッシュ」）の消費まで含めて中央 diff と同じ規約に揃える。
+   * ⚠**残りのトリガー族（バニッシュ／トラッシュ／ミル等）は依然このスペル経路を通らない**＝
+   *   全面配線は §5.3 `O-135` へ登録した（回帰が広いので専用の巡が要る）。
+   */
+  const collectRefreshInline = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    const refreshHost = countRefresh(bs.host_state, afterHost);
+    const refreshGuest = countRefresh(bs.guest_state, afterGuest);
+    if (refreshHost <= 0 && refreshGuest <= 0) return { entries: [], hostState: afterHost, guestState: afterGuest };
+    let h = afterHost, g = afterGuest;
+    const entries: StackEntry[] = [];
+    const rfH = collectRefreshTriggers(bs.host_id, h, g, refreshHost, refreshGuest);
+    entries.push(...rfH.entries);
+    if (rfH.usedOncePerTurnIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...rfH.usedOncePerTurnIds] };
+    const rfG = collectRefreshTriggers(bs.guest_id, g, h, refreshGuest, refreshHost);
+    entries.push(...rfG.entries);
+    if (rfG.usedOncePerTurnIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...rfG.usedOncePerTurnIds] };
+    // `once` 遅延 watcher は発火した側だけ設置を消費する（中央 diff と同じ規約）。
+    if (rfH.firedOnceDelayed) h = consumeOnceDelayedTriggers(h, 'ON_REFRESH');
+    if (rfG.firedOnceDelayed) g = consumeOnceDelayedTriggers(g, 'ON_REFRESH');
+    return { entries, hostState: h, guestState: g };
+  };
+
   // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT をスタックを経由しないインライン解決（pending効果 resume＝handleEffectInteraction）
   // で検出する共有ヘルパー。resolveStackNext の中央 diff（4760）はスタック解決のみを通るため、対象選択を伴う効果が
   // resume 経路で解決される場合（[出]バニッシュ等）はこれを呼んで発火させる。source=効果発生源（pe.sourceCardNum）。
@@ -7990,6 +8024,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // スタック解決（resolveStackNext）を経由しないスペル解決経路は中央 diff を通らないためここで拾う。
         const dsInlineSU = collectDeckShuffleInline(hostState, guestState);
         if (dsInlineSU.entries.length > 0) { spellUseEntries.push(...dsInlineSU.entries); hostState = dsInlineSU.hostState; guestState = dsInlineSU.guestState; }
+        // ON_REFRESH: スペルでデッキが0枚になり `applyRefreshOnDone` がリフレッシュした場合（§5.1 `V-91`）。
+        // ⚠`hostState`/`guestState` は上の ON_DECK_SHUFFLED 収集で `actions_done` が伸びうるので、
+        //   **その後の値**を渡す（before は両方とも `bs.*_state` なので二重に数えない）。
+        const rfInlineSU = collectRefreshInline(hostState, guestState);
+        if (rfInlineSU.entries.length > 0 || rfInlineSU.hostState !== hostState || rfInlineSU.guestState !== guestState) {
+          spellUseEntries.push(...rfInlineSU.entries); hostState = rfInlineSU.hostState; guestState = rfInlineSU.guestState;
+        }
       }
       const existingStackSU = bs.effect_stack ?? null;
       await persist.commit(reduceBattle(bs, {
