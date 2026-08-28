@@ -5064,3 +5064,20 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   **実機シナリオ +7**（`crossIconBouncePicker` / `servantMultiEnaPaysColor` / `b3ShareClassDrawsFour` / `b3DistinctClassDrawsThree` / `b4NextSpellReductionConsumed` / 🆕`b5KawariElseBanishesOnlyLow` / 🆕`b5KawariThenReachesHigh`＝各2回連続 PASS・既定 `order` へ追加済み）、
   **Sheet1 分母（`CardData_Sheet1.csv`）**：全 **974枚**（効果あり **863** / バニラ **111**）、
   **要対応カード 67 / 863（7.8%）**（着手時 92 → B1 後 87 → B2 後 75 → B3 後 73 → B4 後 69 → **B5 後 67**）＝**`npm run census:cards -- --sheet 1` で毎回1コマンドで出る**（内訳＝census **28**／意味照合 49（findings 61件）／held 6／partial 0／idset 1。`--list` を足すとカード名つきで列挙＝次バッチの取り出し口）。⚠**「フラグ0 の796枚」は「正しい」ではない**＝計器が見ていないだけで、シートを閉じるには残りへの検出パスが別途要る（計器の出力にも毎回出る）
+
+### 旧・恒久指標（PLAN §6 から退避）
+
+- **2026-08-28 続き708 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)｜台帳 残 OPEN 570（据置）｜census 高シグナル 521→520**
+  **golden 2942→2957**（+15＝`O-129`第2 +6 /`O-128`第2 +5 /`O-112` +1 /`O-92` +3）、census 520/520、
+  smoke 10700 全異常0、fuzz 全0、lint 0 errors／260 warnings（据置）、同型★0、
+  held **31バケット / 91枚**（増減なし）、`census:stubs` A群🔴0／C群0、manual-fields 0、
+  `census:enginetext` A群 141行（据置）、孤児 MANUAL スタンプ 12（据置）。
+  ⚠**台帳 570 が動かないのが正しい**＝この巡で触った7項目は**どれも段2 findings の消化ではない**
+  （実測でも該当効果に OPEN な finding は0件だった）。
+  ⚠**census −1 は `O-92` の「そのアタックの間」是正ぶん**（`BASELINE_HIGH` も 520 へ実測更新）。
+  ⚠**Sheet1 は 0→1→0** と動いた＝`O-128` 第2バッチで**収穫マージの第5の死角**（`inheritedCostScaling`
+  分岐が action 差分を黙って捨てる）を塞いだ結果 `WX11-039` が held に現れ、原文どおりの純改善
+  （`shuffle:false`→`true`）だったので採用して閉じた。**退化ではなく可視化。**
+  **実機シナリオ＝新規1本**（`v91refreshonce`）＋既存4本の回帰（`banishbyeffect` `FRESH=1` 2/2・
+  `refreshTrigger`・`deckshufflespell`・`b12delayattack`）＝**すべて PASS**。反転確認あり。

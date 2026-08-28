@@ -18,6 +18,9 @@ import {
 } from './costs';
 import { type EnergyPayEntry, buildEnergyPayPool, energyPoolCardNums } from './energyPaySource';
 import { effectiveLrigClass, meetsRestriction } from './growLogic';
+// ⚠`useTimeCostCandidates` は別名で受ける＝`use` 始まりだと eslint の `rules-of-hooks` が React Hook と
+//   誤認して警告を出す（`SpellCastModal` が同じ理由で `getTimeCostCandidates` に別名化している）。
+import { applyUseTimeCostReduction, parseUseTimeCostReduction, useTimeCostCandidates as getTimeCostCandidates } from './useTimeCost';
 
 /**
  * アーツが**いま使えるか**（提示の可否＋請求される実効コスト）を1か所で判定する純関数群（§8／§6.4 `O-1`）。
@@ -195,8 +198,21 @@ export interface ArtsUseCheck {
   betCost: string | null;
   /** CONTINUOUS のアーツコスト**増加**ぶん。 */
   extraCosts: { color: string; count: number }[];
-  /** エナで払えるか（ベット宣言での成立を含む）。 */
+  /**
+   * エナで払えるか（ベット宣言での成立を含む）。**使用時の任意支払いは含めない**＝
+   * CPU はその支払いをしないので、CPU の請求額はこちらが正（`listUsableArts` が見るのもこちら）。
+   */
   affordable: boolean;
+  /**
+   * `affordable` は false だが、**使用時の任意支払い**（`useTimeCost.ts`＝「このアーツを使用する際、
+   * 〜してもよい。この方法で〜1枚につき《X》減る」）を**いま盤面にある候補で最大まで払えば**払えるか
+   * （§5.3 `O-123`）。
+   *
+   * 🔴**これを `usable` に入れないと、軽減が効くべき場面でだけアーツが一覧から消える**＝
+   * 支払いUI（`ArtsModal` ＋ `UseCostPaymentPanel`）も解決経路も実装済みなのに、
+   * **印刷コストを払えるプレイヤーにしか支払いパネルが出せない**（実測24枚のアーツが該当）。
+   */
+  affordableWithUseTimePay: boolean;
 }
 
 /**
@@ -247,6 +263,18 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
         payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
         undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)
     : (affordWith(reducedCost) || (betCost !== null && affordWith(betCost)));
+  // 使用時の任意支払い（`useTimeCost.ts`）で下がりうる**最良コスト**＝いま盤面にある候補を上限まで払った額。
+  // ⚠固定形（`perUnit:false`）は候補が上限に届かなければ `applyUseTimeCostReduction` が 0 回に落ちる＝
+  //   「半端に払っても安くならない」原文どおりの挙動がそのまま最良値になる。
+  // ⚠**代替コスト（`altCostOppTurn`）が立っている窓では見ない**＝あちらが請求額そのものなので、
+  //   印刷コストへの軽減を重ねると二重に安くなる。
+  const useTimeSpec = altCostStr === null ? parseUseTimeCostReduction(card.EffectText ?? '') : null;
+  const useTimeBestCost = useTimeSpec
+    ? applyUseTimeCostReduction(reducedCost, useTimeSpec,
+        Math.min(useTimeSpec.max, getTimeCostCandidates(useTimeSpec, my, cardMap).length))
+    : reducedCost;
+  const affordableWithUseTimePay =
+    !affordable && useTimeBestCost !== reducedCost && affordWith(useTimeBestCost);
 
   const timingOk =
     (turnPhase === 'MAIN' && isMyTurn && card.Timing.includes('メインフェイズ')) ||
@@ -259,7 +287,7 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
     !isArtsUseBlockedFor(my, payer.blockedSelf) &&
     timingOk &&
     canUseArtsCondition(effectsMap.get(cardNum) ?? [], my, op, cardMap, cardNum, turnPhase, p.effectivePowers) &&
-    affordable;
+    (affordable || affordableWithUseTimePay);
 
   return {
     usable,
@@ -268,6 +296,7 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
     betCost,
     extraCosts,
     affordable,
+    affordableWithUseTimePay,
   };
 }
 
@@ -282,7 +311,9 @@ export function listUsableArts(p: Omit<ArtsUseGateInput, 'card'>): { card: CardD
     const card = p.cardMap.get(cardNum);
     if (!card || (card.Type !== 'アーツ' && card.Type !== 'アーツ/クラフト')) continue;
     const check = checkArtsUse({ ...p, card });
-    if (check.usable) out.push({ card, check });
+    // ⚠**CPU は `affordable` も要求する**（§5.3 `O-123`）＝`usable` は使用時の任意支払いで払える
+    //   ケースも通すようになったが、CPU はその支払いをしない＝請求額は `affordable` 側が正。
+    if (check.usable && check.affordable) out.push({ card, check });
   }
   return out;
 }

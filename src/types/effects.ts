@@ -583,6 +583,12 @@ export type CostScalingCount =
   | { kind: 'fieldLrig'; owner: Owner; filter?: TargetFilter }
   | { kind: 'lrigLevel'; owner: Owner }
   | { kind: 'coins'; owner: Owner }
+  /**
+   * 「あなたの手札の枚数から対戦相手の手札の枚数を引いた数」（`WD16-006`＝ドント・ステップ）。
+   * `owner` 側の手札から相手の手札を引く。⚠**負なら 0 へクランプする**＝原文は軽減しか言っていないので、
+   * 手札が少ないほうが高くつく（＝増額）という読みにしない。
+   */
+  | { kind: 'handDiff'; owner: Owner }
   | { kind: 'charm' | 'virus'; owner: Owner };
 
 /** 「〜N体／枚につき《色×M》減る／増える」＝使用コストの比例増減1項。 */

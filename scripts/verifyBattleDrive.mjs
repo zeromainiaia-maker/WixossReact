@@ -793,6 +793,123 @@ async function driveB25(page, H, oppHasSigni) {
   return { pass: false, detail: `アーツ使用が完了しなかった（own=${JSON.stringify(fin?.host?.fieldSigni)} lrigTrash=${JSON.stringify(fin?.host?.lrigTrashCards)}）` };
 }
 
+/**
+ * §5.3 `O-123` の実機ドライバ（＜毒牙＞の有無で共有）。
+ * `WX13-025`（フォービドゥン・ゲーム・アーツ・《黒》×４《無》×２）
+ * 「このアーツを使用する際、手札から＜毒牙＞のシグニを２枚まで捨ててもよい。
+ *   このアーツの使用コストは、この方法で捨てたシグニ１枚につき《黒×2》《無×1》減る。」
+ *
+ * 🔴**観測点は「印刷コストでは払えない盤面でアーツが提示されるか」**＝
+ *   支払いUI も解決経路も実装済みだったが、`checkArtsUse.usable` が `affordable`（印刷コスト）を
+ *   要求していたので、**軽減が効くべき場面でだけ一覧から消えて**いた（＝支払いパネルを開けない）。
+ * ⚠**旧挙動でも読める痕跡から判定する**（§4.4-3b）＝旧実装には「支払いパネル」も「使用」も無いので、
+ *   判定の先頭は **`lrig_deck` からアーツが出たか**（＝使えたか）に置く。
+ */
+async function driveO123(page, H, hasDokuga) {
+  const tag = hasDokuga ? 'o123usetimepay' : 'o123usetimenopay';
+  const ENERGY_BASE = 3;   // hostSet の energy と一致させること
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  const st0 = await H.queryState();
+  H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} energy=${st0?.host?.energy}（基準${ENERGY_BASE}） lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} oppField=${JSON.stringify(st0?.guest?.fieldSigni)}`);
+  await H.ensureMain();
+
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  await page.waitForTimeout(700);
+  // 🔑対照の前提＝**カード詳細モーダルが開いていること**（開いていないなら「使用が無い」ことに意味がない）。
+  const modalOpen = await page.getByText('フォービドゥン・ゲーム', { exact: false }).count();
+  H.log(`カード詳細モーダル: ${modalOpen ? '開いた' : '🔴開いていない'}`);
+  if (!modalOpen) return { pass: false, detail: 'アーツのカード詳細モーダルが開かなかった（前提崩れ）' };
+
+  let paidUseCost = false;
+  let used = false;
+  const picked = new Set();
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // ① 使用時の任意支払い＝**先に1枚だけ**選ぶ（2枚選ぶとコストが「なし」になり、
+    //    「エナが3枚ぴったり要る」という軽減の証拠が消える）。
+    if (!paidUseCost) {
+      const cand = page.getByTestId('usecost-h:0').first();
+      if (await cand.count() && await cand.isVisible().catch(() => false)) {
+        await cand.click().catch(() => {}); paidUseCost = true; did = 'usecost-h:0';
+      }
+    }
+    // ② エナを選び切ってから「アーツ使用」
+    if (!did && !used) {
+      const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+      if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+        if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'btn:アーツ使用'; used = true; }
+        else {
+          for (let i = 0; i < 6; i++) {
+            if (picked.has(i)) continue;
+            const e = page.getByTestId(`artscost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); did = `artscost-energy-${i}`; break; }
+          }
+        }
+      }
+    }
+    if (!did && !used) did = await clickExact('使用');
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    const lrigDeckLeft = (st?.host?.lrigDeckCards ?? []).filter(c => String(c).startsWith('WX13-025')).length;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | energy=${st?.host?.energy}/${ENERGY_BASE} hand=${JSON.stringify(st?.host?.handCards)} lrigDeck残=${lrigDeckLeft} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} oppPowerMods=${JSON.stringify(st?.guest?.powerMods)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (s === 4 || s === 12) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
+
+    if (!hasDokuga) {
+      // 対照＝手札に＜毒牙＞が無い＝軽減できない＝**印刷コスト6枚を払えないので提示されない**。
+      if (lrigDeckLeft === 0) {
+        return { pass: false, detail: `🔴軽減できないのにアーツが使えた（energy ${ENERGY_BASE}→${st?.host?.energy} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)}）` };
+      }
+      if (await page.getByTestId('usecost-h:0').count()) {
+        return { pass: false, detail: '🔴＜毒牙＞が無いのに支払い候補が提示された（フィルタが効いていない）' };
+      }
+      if (s >= 6) {
+        return { pass: true, detail: `対照＝＜毒牙＞が無ければ提示されない（lrig_deck に残ったまま／energy ${ENERGY_BASE}→${st?.host?.energy}）` };
+      }
+      continue;
+    }
+
+    const settled = used && !st?.pendingEffect && !(st?.stackLen > 0) && lrigDeckLeft === 0;
+    if (!settled) continue;
+    // ── positive の判定（機構が動いた証拠を全部そろえる：§4.4-4）──
+    const hand = st?.host?.handCards ?? [];
+    const trash = st?.host?.trashCards ?? [];
+    const energyLeft = st?.host?.energy ?? -1;
+    const mods = st?.guest?.powerMods ?? [];
+    const paidLog = (st?.logTail ?? []).some(l => /使用時の任意支払い/.test(l));
+    if (hand.some(c => String(c).startsWith('WX05-077'))) {
+      return { pass: false, detail: `支払った＜毒牙＞が手札に残っている（hand=${JSON.stringify(hand)}）` };
+    }
+    if (!trash.some(c => String(c).startsWith('WX05-077'))) {
+      return { pass: false, detail: `支払った＜毒牙＞がトラッシュへ行っていない（trash=${JSON.stringify(trash)}）` };
+    }
+    if (energyLeft !== 0) {
+      return { pass: false, detail: `請求額が軽減後（《黒》×2《無》×1＝3枚）になっていない（energy ${ENERGY_BASE}→${energyLeft}）` };
+    }
+    if (!mods.some(m => /:-12000$/.test(String(m)))) {
+      return { pass: false, detail: `本体（相手シグニのパワー -12000）が解決していない（powerMods=${JSON.stringify(mods)}）` };
+    }
+    return {
+      pass: true,
+      detail: `印刷コスト《黒》×4《無》×2 は払えない盤面（エナ3枚）で、＜毒牙＞1枚を捨てて《黒》×2《無》×1 で使用できた`
+        + `（energy ${ENERGY_BASE}→${energyLeft} / trash に ${trash.filter(c => String(c).startsWith('WX05-077')).length} 枚 / powerMods=${JSON.stringify(mods)} / 支払いログ=${paidLog}）`,
+    };
+  }
+  const fin = await H.queryState();
+  return hasDokuga
+    ? { pass: false, detail: `🔴アーツが使用できなかった＝提示ゲートが印刷コストで隠している（lrigDeck=${JSON.stringify(fin?.host?.lrigDeckCards)} energy=${fin?.host?.energy} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` }
+    : { pass: false, detail: `対照が判定に到達しなかった（lrigDeck=${JSON.stringify(fin?.host?.lrigDeckCards)}）` };
+}
+
 const scenarios = {
   // ① WXK09-050: 【出】CHOOSE①でバフ済み＜電機＞シグニに「ダウンしない」付与（既存・実証済み）。
   wxk09050: {
@@ -3106,6 +3223,61 @@ const scenarios = {
       const fin = await H.queryState();
       return { pass: false, detail: `リフレッシュ後もライフが減らない（guestLife=${fin?.guest?.life ?? '-'}/${GUEST_LIFE_BASE} delayed=${(fin?.host?.delayedTriggers ?? []).length} deck=${fin?.host?.deck ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
     },
+  },
+
+  // ── B29（2026-08-28）＝§5.3 `O-123`（使用時の任意支払いでコストが下がるアーツ）の実機観測点 ──
+  //   🔴**判別力があるのは positive 側**＝支払いUI（`UseCostPaymentPanel`）も解決経路（`payUseTimeCost`）も
+  //   実装済みだったのに、`checkArtsUse.usable` が**印刷コストで払えること**を要求していたため、
+  //   **軽減が効くべき場面でだけアーツが一覧から消えて**支払いパネルを開く手段が無かった。
+  //   ⚠盤面は「印刷コスト《黒》×4《無》×2＝6枚は払えないが、＜毒牙＞を1枚捨てれば《黒》×2《無》×1＝3枚で払える」
+  //   ちょうどの線に置く（`energy` が3枚ぴったり）＝**軽減が起きた証拠がエナの消費枚数で読める**。
+  o123usetimepay: {
+    title: 'WX13-025 フォービドゥン・ゲーム（＜毒牙＞1枚を捨てて使用コストを軽減＝印刷コストでは払えない／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'],                            // 獄卒の閻魔 ウリス（黒 Lv4・アーツに限定なし）
+        'field.signi': [null, null, null],
+        'field.check': null,
+        'lrig_deck': ['WX13-025#1'],
+        // h:0 / h:1 が＜毒牙＞（バニラ）＝支払い候補。h:2 は候補に出ないバニラ（フィルタが効く証拠）。
+        'hand': ['WX05-077#1', 'WX05-079#1', 'WD01-013#9001'],
+        'energy': ['WD05-009#1', 'WD05-009#2', 'WD05-009#3'],    // 《黒》×3＝印刷コスト6枚には**足りない**
+        'trash': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [['WD05-009#8'], null, null],             // POWER_MODIFY -12000 の対象
+        'field.check': null,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveO123(page, H, true); },
+  },
+
+  o123usetimenopay: {
+    title: 'WX13-025 フォービドゥン・ゲーム（手札に＜毒牙＞が無ければ軽減できず提示もされない／対照）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD05-001#1'],
+        'field.signi': [null, null, null],
+        'field.check': null,
+        'lrig_deck': ['WX13-025#1'],
+        'hand': ['WD01-013#9001', 'WD01-013#9002', 'WD01-013#9003'],   // ＜毒牙＞なし
+        'energy': ['WD05-009#1', 'WD05-009#2', 'WD05-009#3'],
+        'trash': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [['WD05-009#8'], null, null],
+        'field.check': null,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveO123(page, H, false); },
   },
 
   // ── B28（2026-08-28）＝Sheet1 残8枚バッチの実機観測点 ──

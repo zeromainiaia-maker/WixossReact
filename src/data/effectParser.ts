@@ -1126,7 +1126,10 @@ function parseCostScalingSentence(sentence: string): CostScalingTerm[] | null {
     ?? single(new RegExp(`^あなたのライフクロス${num}枚につき${amount}(減る|増える)$`),
       () => ({ kind: 'zone', zone: 'life_cloth', owner: 'self' }), 1, 2, 3)
     ?? single(new RegExp(`^対戦相手の手札${num}枚につき${amount}(減る|増える)$`),
-      () => ({ kind: 'zone', zone: 'hand', owner: 'opponent' }), 1, 2, 3);
+      () => ({ kind: 'zone', zone: 'hand', owner: 'opponent' }), 1, 2, 3)
+    // O-123: 手札の**差**（`WD16-006`）＝盤面のどのゾーンも数えていないので `zone` では書けない。
+    ?? single(new RegExp(`^あなたの手札の枚数から対戦相手の手札の枚数を引いた数${num}につき${amount}(減る|増える)$`),
+      () => ({ kind: 'handDiff', owner: 'self' }), 1, 2, 3);
 }
 
 function parseCostScaling(text: string): CostScalingTerm[] | undefined {

@@ -112,7 +112,7 @@ import { PIECE_CUTIN_COMMIT_ORDER } from '../src/screens/battle/pieceCutinCommit
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
-import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor } from '../src/screens/battle/artsUseGate';
+import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
@@ -43388,6 +43388,85 @@ test('O-1 artsUseGate: 相手ターンの代替コスト（altCostOppTurn）が�
   ok(!onOwnTurn.usable, '対照：印刷コストは払えない');
 }));
 
+// ── §5.3 `O-123`：使用時の任意支払いで払えるアーツを、提示ゲートが印刷コストで隠していた ──
+// 🔴支払いUI（`ArtsModal` ＋ `UseCostPaymentPanel`）も解決経路（`payUseTimeCost`）も実装済みなのに、
+//   `checkArtsUse.usable` が **`affordable`（印刷コスト）** を要求していたため、
+//   **軽減が効くべき場面でだけアーツが一覧から消える**（＝支払いパネルを開く手段が無い）。
+//   実測＝この形のアーツ24枚（スペル側は `checkSpellUse.usable` が最初から `affordable` を含まないので無傷）。
+test('O-123 artsUseGate: 使用時の任意支払いで払えるなら提示する（CPU は従来どおり印刷コストで見る）', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const WHITE = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const GUARD = findCard(c => isSigni(c) && c.Guard === '1');
+  const NOGUARD = findCard(c => isSigni(c) && c.Guard !== '1');
+  const card = cardMap.get('WX24-P3-002') as CardData;
+  const spec = parseUseTimeCostReduction(card.EffectText ?? '')!;
+  eq(applyUseTimeCostReduction(card.Cost, spec, 2), '《白》×1', '前提：《ガードアイコン》2枚払えば《白》×1');
+  const gate = (hand: string[], energy: string[]) => {
+    const actor = { ...mkState({ energy: 0 }), lrig_deck: [card.CardNum], hand, energy } as PlayerState;
+    const opponent = mkState({ signi: [SIGNI, null, null] });
+    const payer = buildArtsPayerCtx({
+      actor, opponent, isActorTurn: false, turnPhase: 'ATTACK_ARTS_OP',
+      cardMap: cardMap as Map<string, CardData>, effectsMap,
+    });
+    return {
+      check: checkArtsUse({
+        card, my: actor, op: opponent, isMyTurn: false, turnPhase: 'ATTACK_ARTS_OP',
+        cards: allCards, cardMap: cardMap as Map<string, CardData>, effectsMap, payer,
+      }),
+      cpu: listUsableArts({
+        my: actor, op: opponent, isMyTurn: false, turnPhase: 'ATTACK_ARTS_OP',
+        cards: allCards, cardMap: cardMap as Map<string, CardData>, effectsMap, payer,
+      }).map(x => x.card.CardNum),
+    };
+  };
+  // 対照＝印刷コスト《白》×5 をそのまま払える盤面なら、任意支払い抜きで使える。
+  const rich = gate([], [WHITE, WHITE, WHITE, WHITE, WHITE]);
+  ok(rich.check.affordable, '対照：白エナ5枚なら印刷コストで払える');
+  ok(!rich.check.affordableWithUseTimePay, '対照：印刷コストで払えるなら任意支払い判定は立てない');
+  ok(rich.check.usable, '対照：使える');
+  // 🔴本命＝白エナ1枚しかないが、手札の《ガードアイコン》2枚を捨てれば《白》×1 で払える。
+  const poor = gate([GUARD, GUARD, NOGUARD], [WHITE]);
+  ok(!poor.check.affordable, '印刷コスト《白》×5 は白エナ1枚では払えない');
+  ok(poor.check.affordableWithUseTimePay, '🔴《ガードアイコン》2枚を捨てれば払える');
+  ok(poor.check.usable, '🔴だから提示する（従来はここで消えていた）');
+  eq(poor.check.effectiveCostForModal, null, '支払いUIへは印刷コストのまま渡す（軽減は選択枚数に追従して引く）');
+  eq(JSON.stringify(poor.cpu), '[]', 'CPU は任意支払いをしないので候補に出さない');
+  // 候補が足りなければ提示しない（＝盤面を見ずに一律で通してはいない）。
+  const none = gate([NOGUARD, NOGUARD], [WHITE]);
+  ok(!none.check.affordableWithUseTimePay, '《ガードアイコン》が手札に無ければ軽減できない');
+  ok(!none.check.usable, '対照：提示しない');
+  const one = gate([GUARD, NOGUARD], [WHITE]);
+  ok(!one.check.usable, '1枚しか捨てられないなら《白》×3 止まりで払えない');
+}));
+
+// 固定形（`perUnit:false`）と、全額が消えて「なし」になる比例形も同じ funnel を通ることを固定する。
+test('O-123 artsUseGate: 固定形は「ちょうどN枚」でだけ提示が開き、全額軽減は「なし」で成立する', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const BLACK = findCard(c => isSigni(c) && (c.Color ?? '') === '黒');
+  const DOKUGA = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙'));
+  const OTHER = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('毒牙') && !(c.CardClass ?? '').includes('精械'));
+  const gate = (num: string, hand: string[], energy: string[]) => {
+    const card = cardMap.get(num) as CardData;
+    const actor = { ...mkState({ energy: 0 }), lrig_deck: [num], hand, energy } as PlayerState;
+    const opponent = mkState({ signi: [SIGNI, null, null] });
+    const payer = buildArtsPayerCtx({
+      actor, opponent, isActorTurn: false, turnPhase: 'ATTACK_ARTS_OP',
+      cardMap: cardMap as Map<string, CardData>, effectsMap,
+    });
+    return checkArtsUse({
+      card, my: actor, op: opponent, isMyTurn: false, turnPhase: 'ATTACK_ARTS_OP',
+      cards: allCards, cardMap: cardMap as Map<string, CardData>, effectsMap, payer,
+    });
+  };
+  // `WX13-025`＝《黒》×4《無》×2。＜毒牙＞2枚で -《黒×4》《無×2》＝**エナ0枚で使える**。
+  ok(gate('WX13-025', [DOKUGA, DOKUGA], []).usable, '🔴全額軽減（「なし」）でもエナ0枚で提示する');
+  ok(!gate('WX13-025', [DOKUGA, OTHER], []).usable, '1枚では《黒》×2《無》×1 が残るので払えない');
+  // `WX20-003`＝固定形（＜精械＞1枚を捨てて -《白×2》）。半端な支払いは軽減0なので提示も開かない。
+  const SEIKAI = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('精械'));
+  ok(gate('WX20-003', [SEIKAI], [BLACK]).usable, '固定形はちょうど1枚で《無》×1 まで下がる');
+  ok(!gate('WX20-003', [OTHER], [BLACK]).usable, '対照：候補が無ければ軽減されない');
+}));
+
 test('O-1 cpuArts: 守りの分類は「無効化→除去→軽減」で、STUB と自分対象は数えない', () => withSavedCursor(() => {
   const kind = (a: unknown) => defensiveKindOf(a as never);
   eq(kind({ type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent' } }), 'negate', 'アタック無効化は最優先');
@@ -51751,13 +51830,38 @@ test('O-119: proportional self-use cost payload covers G1-G18 and preserves the 
   eq(applyCostScalingTerms('《白》×3', increasePerTwo, perTwoState(1), emptyState(), instanceCards), '《白》×3', 'increase per2 count1');
   eq(applyCostScalingTerms('《白》×3', increasePerTwo, perTwoState(3), emptyState(), instanceCards), '《白》×3《無》×1', 'increase per2 floor(3/2)');
 
-  const deferred = 'WX06-024 WX07-024 WX07-026 WX07-028 WX07-030 WX07-032 WX13-025 WX20-004 WX20-007 WD10-006 SP38-003 WX24-P3-002 WX24-P3-006 WX24-P3-008 WX24-P3-010 WD16-006 SP36-001'.split(' ');
-  eq(deferred.length, 17, 'O-119 deferred size');
+  // ⚠**`WD16-006` は O-123 で払い戻した**（手札の**差**＝`handDiff`）＝ここに残すと「STUB のままが正」を assert してしまう。
+  //   残る16枚は「この方法で…枚数につき」＝**支払いの最中に数が決まる**形で、`costScaling` ではなく
+  //   `useTimeCost.ts`（支払いUI）が担当する＝**payload 化しないのが正**。`SP36-001` だけは別軸（このターンの使用実績・§5.3 `O-136`）。
+  const deferred = 'WX06-024 WX07-024 WX07-026 WX07-028 WX07-030 WX07-032 WX13-025 WX20-004 WX20-007 WD10-006 SP38-003 WX24-P3-002 WX24-P3-006 WX24-P3-008 WX24-P3-010 SP36-001'.split(' ');
+  eq(deferred.length, 16, 'O-119 deferred size');
   for (const cardNum of deferred) {
     const parsed = parseCardEffects(cardMap.get(cardNum)!);
     ok(!parsed.some(e => e.cost?.costScaling?.length), `${cardNum}: deferred proportional payment-time form was adopted`);
     ok(JSON.stringify(parsed).includes('ARTS_COST_REDUCTION_BY_EFFECT'), `${cardNum}: deferred marker was removed`);
   }
+}));
+
+// §5.3 `O-123`：手札の**差**（`WD16-006`＝ドント・ステップ）＝盤面のどのゾーンも数えていないので
+// `zone` では書けない新しい count 種別。🔴従来は `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`（no-op）＝
+// **一度も安くならず、常に印刷コスト《青》×6 を請求していた**。
+test('O-123 costScaling handDiff: 手札の差で軽減する（負なら0クランプ）', () => withSavedCursor(() => {
+  const card = cardMap.get('WD16-006') as CardData;
+  const effect = parseCardEffects(card).find(e => e.effectId === 'WD16-006-E1')!;
+  const terms = effect.cost?.costScaling;
+  ok(!!terms?.length, 'costScaling が付く');
+  eq(JSON.stringify(terms), JSON.stringify([{ direction: 'reduce', counts: [{ kind: 'handDiff', owner: 'self' }], per: 1, amount: [{ color: '青', count: 1 }] }]), 'payload の形');
+  ok(!JSON.stringify(effect).includes('ARTS_COST_REDUCTION_BY_EFFECT'), '🔴no-op マーカーは残さない');
+  const instanceCards = new InstanceMap<CardData>(cardMap);
+  const st = (hand: number): PlayerState => ({
+    life_cloth: [], hand: Array.from({ length: hand }, () => SIGNI), energy: [], trash: [], lrig_trash: [], coins: 0,
+    field: { lrig: [], assist_lrig_l: [], assist_lrig_r: [], signi: [[], [], []], signi_acce: [null, null, null], signi_frozen: [false, false, false], signi_charms: [null, null, null], signi_virus: [0, 0, 0] },
+  } as unknown as PlayerState);
+  const cost = (mine: number, theirs: number) => applyCostScalingTerms(card.Cost, terms!, st(mine), st(theirs), instanceCards);
+  eq(cost(5, 5), card.Cost, '同数なら軽減0（印刷コストのまま＝全角表記も動かさない）');
+  eq(cost(7, 4), '《青》×3', '差3ぶん《青×1》ずつ減る');
+  eq(cost(9, 0), 'なし', '差9なら全額消える（0未満へは行かない）');
+  eq(cost(1, 6), card.Cost, '🔴差が負でも増額しない（0クランプ）');
 }));
 
 test('2026-08-28 Sheet1: 「〈数量元〉1体につき〈対象〉を1体まで」の数量元と対象の取り違え', () => withSavedCursor(() => {

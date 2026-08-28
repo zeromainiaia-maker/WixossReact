@@ -323,6 +323,14 @@ function resolveCostScalingCount(
   oppState: CostScalingState | undefined,
   cardMap: Map<string, CardData> | undefined,
 ): number | null {
+  // 手札の**差**だけは両者の state を要る＝所有者1人ぶんへ潰せない（`WD16-006`）。
+  if (count.kind === 'handDiff') {
+    const mine = scalingOwnerState(count.owner, myState, oppState);
+    const theirs = scalingOwnerState(count.owner === 'self' ? 'opponent' : 'self', myState, oppState);
+    if (!mine || !theirs || !Array.isArray(mine.hand) || !Array.isArray(theirs.hand)) return null;
+    return Math.max(0, mine.hand.length - theirs.hand.length);
+  }
+
   const state = scalingOwnerState(count.owner, myState, oppState);
   if (!state) return null;
 
