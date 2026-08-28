@@ -51496,7 +51496,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // 2026-08-28 続き704＝A群186件（MANUAL のみ）を解凍して 609→423、
   //   さらに C群21件を `manualEffects.ts` へ移設して 423→402。
   //   残 402 ＝ B群393（要レビュー）＋ D群9（build 後の fixer が毎回生成＝凍っていない）。
-  const BASELINE_ORPHAN_MANUAL = 381;
+  const BASELINE_ORPHAN_MANUAL = 348;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];
