@@ -866,7 +866,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const top = s?.at(-1);
       if (!top) return false;
       return (baseEffectsMap.get(top) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_FIELD_SIGNI_ABILITY');
+        // 🔴**SEQUENCE の中も見る**（2026-08-28・Sheet1 残8枚バッチ・実機で発見）＝
+        //   「このシグニのパワーは＋Nされ／基本パワーはNになり、このシグニは「【自】…」を得る」の連用中止形は
+        //   `SEQUENCE[POWER_MODIFY|POWER_SET, GRANT_FIELD_SIGNI_ABILITY]` になる。
+        //   `collectContinuousGrantedAbilities`（`effectEngine.ts:6535`）は**この形を明示的に走査している**のに、
+        //   ここのゲートが action 直下しか見ていなかったので **effectsMap が付与つきで組み直されず、
+        //   付与された【自】が1度も収集されなかった**（実測 live 11効果）。
+        //   ⚠すぐ下の `hasPlayerFieldGrant`（プレイヤー付与）は最初から SEQUENCE を見ており、**片側だけの穴**だった。
+        e.effectType === 'CONTINUOUS' && (e.action.type === 'GRANT_FIELD_SIGNI_ABILITY'
+          || (e.action.type === 'SEQUENCE' && e.action.steps.some(a => a.type === 'GRANT_FIELD_SIGNI_ABILITY'))));
     });
     const hasPlayerFieldGrant = [myS, opS].some(st => (st.game_granted_effects ?? []).some(e =>
       e.effectType === 'CONTINUOUS' && (e.action.type === 'GRANT_FIELD_SIGNI_ABILITY'
@@ -899,7 +907,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant && !hasPlayerFieldGrant && !hasAcceGrant && !hasSoulGrant && !hasCopyLrigCont) return baseEffectsMap;
 
-    const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
+    // 🔴**`InstanceMap` で組む**（2026-08-28・Sheet1 残8枚バッチ・実機で発見）＝
+    //   下の付与コレクタ（`collectGrantedFromLayer` / `…FromAcce` / `…FromSoul` / `…FromUnderSigni`）へ
+    //   **この map をそのまま渡している**のに、素の `Map` は `'WX11-053#1'` のような **instanceId を解決できない**
+    //   （`new Map(baseEffectsMap)` は InstanceMap の**実エントリ＝CardNum キー**だけを複製する）。
+    //   コレクタは場のシグニを `field.signi[zi].at(-1)`＝**instanceId** で引くので、
+    //   `effectsMap.get(top)` が常に `undefined` になり **付与宣言が1件も収集されなかった**
+    //   （実機で `myLayer=[]` を実測。live で `GRANT_FIELD_SIGNI_ABILITY` を持つ 71 効果が該当）。
+    //   ⚠`return new InstanceMap(augMap)` は最後に包み直しているので**外から見た型は変わらない**＝
+    //     ここを InstanceMap にしても呼び出し側の挙動は変わらず、内部の付与収集だけが直る。
+    const augMap = new InstanceMap<import('../types/effects').CardEffect[]>(baseEffectsMap);
 
     // COPY_LRIG_NAME_ABILITY 【常】能力コピー：ルリグトラッシュの該当ルリグの CONTINUOUS 効果を
     // センタールリグ（instanceId）に注入する。これにより各 CONTINUOUS 収集関数が自動的に拾う。

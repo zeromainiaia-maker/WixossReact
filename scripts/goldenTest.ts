@@ -12545,7 +12545,9 @@ const MANUAL_DRIFT_KNOWN = new Set([
   'WX24-P4-045-E1', 'WXEX2-71-E2', 'WXEX2-71-E3',   // git 履歴で live が後（--date 判定）
   // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
   'PR-Di017B-E1',       // UNDATED（manual ブロックが blame で取れない）
-  'WX05-025-E2', 'WX13-040-E1', 'WX14-064-E1',       // UNDATED（manual 側の日付が取れない）
+  // ✅`WX05-025-E2` は 2026-08-28（Sheet1 残8枚バッチ）で held を採用して解消＝リストから外した
+  //   （held に落ちていた理由は「live が AUTO・manual が MANUAL」で pure superset にならなかったため）。
+  'WX13-040-E1', 'WX14-064-E1',                      // UNDATED（manual 側の日付が取れない）
   // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
@@ -51407,6 +51409,76 @@ test('2026-08-28 O-132: census 較正キーが live に実在する（較正が�
     ok(JSON.stringify(eff).includes(key),
       `${effectId}: 較正キー ${key} が live から消えた＝census が偽の合格を出す（vocabCensus.ts の対応表を見直す）`);
   }
+}));
+
+test('2026-08-28 Sheet1残: 「このシグニを場からトラッシュに置いてもよい」は OPTIONAL_TRASH_SELF が正準形', () => withSavedCursor(() => {
+  // 🔴旧＝上流の汎用規則が `TRASH{thisCardOnly, optional:true}` を吐くようになり、
+  //   `applySelfTrashOptionalCost` の guard（「thisCardOnly つき TRASH があればコストは生成済み」）に
+  //   引っかかって canonical な `OPTIONAL_TRASH_SELF` が**一度も挿されなくなっていた**。
+  //   素の任意 TRASH は `asCost` が立たない＝engine 側で**自己トラッシュが「効果によるトラッシュ」に見える**。
+  // ⚠`WX17-077-E2` は**意図的に除外**＝live が手作業でラベル付き CHOOSE（2枝それぞれが自己トラッシュを含む・
+  //   `upTo:true` で「してもよい」を表す）に組んである curated 版で、canonical 形とは別設計。
+  //   手作業の curation を機械の正準形で上書きしない（`O-133` の母集団としては数える）。
+  const CANON = ['WX06-CB03-E1', 'WX19-031-E1', 'WX19-034-E1', 'WXK10-033-E1',
+    'WX21-056-E1', 'WX21-061-E1'];
+  for (const effectId of CANON) {
+    const cardNum = effectId.replace(/-(E\d+\w*|BURST\w*)$/, '');
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    const js = JSON.stringify(eff);
+    ok(!!eff, `${effectId}: live に存在しない`);
+    ok(js.includes('OPTIONAL_TRASH_SELF'),
+      `${effectId}: 自己トラッシュの任意コストが OPTIONAL_TRASH_SELF でない（素の TRASH は asCost が立たない）`);
+  }
+}));
+
+test('2026-08-28 Sheet1残: チャーム保護の対象クラスが主語節から落ちない', () => withSavedCursor(() => {
+  // 原文（`WX04-052-E1`）「あなたの**＜悪魔＞の**シグニ１体がバニッシュされる場合、代わりに…」。
+  // 🔴旧＝`parseStoryFilter` は Sheet1 B10 以降「先頭の『…場合、』までの＜X＞は条件節のクラスなので落とす」
+  //   規約になったが、この文型は**その先頭節こそが保護対象の主語**＝クラスが消えて
+  //   **あなたの全シグニを守る過剰実行**になっていた。
+  const e = (effectsMap.get('WX04-052') ?? []).find(x => x.effectId === 'WX04-052-E1');
+  const a = e?.action as { type?: string; signiFilter?: { story?: string } } | undefined;
+  eq(a?.type, 'CHARM_PROTECTION', 'WX04-052-E1: CHARM_PROTECTION');
+  eq(a?.signiFilter?.story, '悪魔', 'WX04-052-E1: 保護対象は＜悪魔＞限定（旧: 全シグニ）');
+}));
+
+test('2026-08-28 Sheet1残: 連用中止「基本パワーはNになり、…「【自】」を得る」', () => withSavedCursor(() => {
+  // 🔴旧＝この語形の分岐が無く、文全体が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちて
+  //   **基本パワー変更と引用能力の両方が消えていた**（`WX09-Re07-E1` は意味照合 findings の HIGH 2本）。
+  for (const [cardNum, effectId, power] of [
+    ['WX09-Re07', 'WX09-Re07-E1', 10000], ['WX11-053', 'WX11-053-E1', 12000],
+  ] as [string, string, number][]) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    const steps = (e?.action as { type?: string; steps?: { type?: string; value?: number }[] } | undefined)?.steps ?? [];
+    eq(steps[0]?.type, 'POWER_SET', `${effectId}: 基本パワー変更が先頭`);
+    eq(steps[0]?.value, power, `${effectId}: 値`);
+    eq(steps[1]?.type, 'GRANT_FIELD_SIGNI_ABILITY', `${effectId}: 引用【自】を自分へ付与（旧: STUB）`);
+    ok(!JSON.stringify(e).includes('GRANT_ABILITY_INNER_TEXT'), `${effectId}: STUB が残っている`);
+  }
+  // 🔴トリップワイヤ＝**引用が【常】の形は平坦化のまま**にする。
+  //   `collectEffectImmuneSigni`（`effectEngine.ts`）は `SEQUENCE[POWER_SET, GRANT_PROTECTION]` の
+  //   **正準形だけ**を leaf として読むので、付与へ包むと**耐性がどこからも読まれなくなる**
+  //   （A/B で実測した退化。`WX06-022-E1`）。
+  const flat = (effectsMap.get('WX06-022') ?? []).find(x => x.effectId === 'WX06-022-E1');
+  const flatSteps = (flat?.action as { steps?: { type?: string }[] } | undefined)?.steps ?? [];
+  eq(flatSteps[0]?.type, 'POWER_SET', 'WX06-022-E1: 正準形の先頭は POWER_SET');
+  eq(flatSteps[1]?.type, 'GRANT_PROTECTION',
+    'WX06-022-E1: 引用【常】は平坦化のまま（付与へ包むと collectEffectImmuneSigni が読まなくなる）');
+}));
+
+test('2026-08-28 Sheet1残: WX05-021 は E1/E4 の2本で1つの原文を表す（id 集合ズレの解消）', () => withSavedCursor(() => {
+  // 原文「【常】：このシグニはパワーが20000以上であるかぎり、**【ダブルクラッシュ】と**
+  //   「【自】：このシグニがアタックしたとき、…バニッシュする。」を得る。」＝キーワードと引用能力の2本。
+  // 🔴旧＝E1 だけが `manualEffects.ts` にあり E4 は live へ直接手パッチ＝**fresh と live の id 集合がズレて
+  //   カード丸ごと凍結**していた（§6.4 `O-39`）。E4 を `manualEffects.ts` へ移して集合を揃えた。
+  const effs = effectsMap.get('WX05-021') ?? [];
+  const e1 = effs.find(e => e.effectId === 'WX05-021-E1');
+  const e4 = effs.find(e => e.effectId === 'WX05-021-E4');
+  ok(!!e1 && !!e4, 'WX05-021: E1 と E4 が両方 live に居る');
+  eq((e1?.action as { type?: string } | undefined)?.type, 'BANISH', 'WX05-021-E1: 引用【自】の本体');
+  eq((e4?.action as { type?: string; keyword?: string } | undefined)?.keyword, 'ダブルクラッシュ',
+    'WX05-021-E4: キーワード付与');
+  eq(e4?.parseStatus, 'MANUAL', 'WX05-021-E4: manualEffects.ts 由来（live 限定の手スタンプではない）');
 }));
 
 if (listMode) {

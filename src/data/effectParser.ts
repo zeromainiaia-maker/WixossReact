@@ -5947,6 +5947,32 @@ function parseContinuousQuotedGrant(text: string): EffectAction | null {
       }
     }
   }
+  // ---- 連用中止「この(シグニ|カード)の基本パワーはNになり、<B>」＝基本パワー変更＋残りの複合 ----
+  // 🆕2026-08-28（Sheet1 残8枚バッチ・§5.3 `O-128` (a)）＝上の「パワーは±Nされ、」の**基本パワー版**。
+  //   従来この語形の分岐が無く、**文全体が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちて
+  //   基本パワー変更と引用能力の両方が消えていた**（`WX09-Re07-E1`＝意味照合 findings の HIGH 2本、
+  //   `WX11-053-E1`）。CONT の `extractPowerSets` は SEQUENCE を再帰するので SEQUENCE 化でそのまま効く。
+  //   ⚠<B> が UNKNOWN に落ちる形は分割せず従来経路へ委ねる（退化防止＝上の枝と同じ規約）。
+  {
+    const baseM = text.match(/^この(?:シグニ|カード)の基本パワーは([０-９\d]+)になり[、,]?(.+)$/s);
+    // 🔴**引用が【常】の形はここで取らない**（A/B で退化を実測＝`WX06-022-E1`）＝
+    //   「基本パワーは10000になり、このシグニは「**【常】**：…バニッシュされない。」を得る」は
+    //   既存経路が **`SEQUENCE[POWER_SET, GRANT_PROTECTION]` へ平坦化**しており、
+    //   `collectEffectImmuneSigni`（`effectEngine.ts:5287`）は**この正準形だけ**を leaf として読む。
+    //   付与（`GRANT_FIELD_SIGNI_ABILITY`）へ包むと**収集側がどこからも読まなくなり耐性が消える**。
+    // ⇒ **引用が【自】のときだけ**付与へ回す（トリガー能力は平坦化できないので、STUB へ落ちるしかなかった側）。
+    //   ⚠【常】の引用で平坦化されず STUB に落ちる形が将来出たら、それは `O-128` の残りとして別に扱う。
+    if (baseM && /「【自】/.test(baseM[2])) {
+      const rest = baseM[2].trim();
+      const restAction = parseContinuousQuotedGrant(rest) ?? parseActionText(rest);
+      if (restAction.type !== 'UNKNOWN' && !JSON.stringify(restAction).includes('"UNKNOWN"')) {
+        return { type: 'SEQUENCE', steps: [
+          { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, value: parseNum(baseM[1]) },
+          restAction,
+        ] } as SequenceAction;
+      }
+    }
+  }
   const qfSelf = text.match(/^(?:このシグニは)?「(【[自常起出]】.+)」を得る。?$/s);
   if (qfSelf && !/」と「|」か「/.test(qfSelf[1])) {
     return { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [], rawText: qfSelf[1] } as GrantFieldSigniAbilityAction;
@@ -9044,7 +9070,24 @@ function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectA
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
   const json = JSON.stringify(action);
   if (json.includes('OPTIONAL_TRASH_SELF') || json.includes('selfTrashCost')) return action;
-  if (json.includes('"thisCardOnly":true') && json.includes('"TRASH"')) return action;   // コストは生成済み
+  // 🔴2026-08-28（Sheet1 残8枚バッチ）＝この guard は「`thisCardOnly` つき TRASH があれば**コストは生成済み**」
+  //   と読んでいたが、上流の汎用規則が **`TRASH{thisCardOnly, optional:true}`＝コストではない素の任意トラッシュ**
+  //   を吐くようになったため、canonical な `OPTIONAL_TRASH_SELF` が**一度も挿されなくなっていた**
+  //   （実測3効果＝`WX06-CB03-E1` と、＜天使＞へ同じ能力を配る `WX21-056` / `WX21-061` の引用能力）。
+  // ⚠**素の任意 TRASH は「生成済み」ではない**＝`asCost` が立たないので、engine 側で
+  //   **自己トラッシュが「効果によるトラッシュ」に見える**（`ON_TRASH{byEffect}` 系が誤発火しうる）。
+  //   `OPTIONAL_TRASH_SELF` は `asCost:true` の TRASH を組むのが本来の意味（`effectExecutor` Pattern ③）。
+  // ⇒ **`asCost` が立っているときだけ「生成済み」**と見なし、素の任意 TRASH は下で**置き換える**。
+  const plainSelfTrashIdx = action.type === 'SEQUENCE'
+    ? (action as SequenceAction).steps.findIndex(st => {
+        const o = st as unknown as Record<string, unknown>;
+        const tgt = o.target as Record<string, unknown> | undefined;
+        const flt = tgt?.filter as Record<string, unknown> | undefined;
+        return o.type === 'TRASH' && o.optional === true && !o.asCost
+          && tgt?.type === 'SIGNI' && flt?.thisCardOnly === true;
+      })
+    : -1;
+  if (json.includes('"thisCardOnly":true') && json.includes('"TRASH"') && plainSelfTrashIdx < 0) return action;   // コストは生成済み
   const sentences = sentencesOutsideQuotes(text);
   if (sentences.length === 0) return action;
   if (!SELF_TRASH_COST_SENT_RE.test(sentences[0])) return action;
@@ -9052,6 +9095,13 @@ function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectA
   // 後続は帰結だけ（独立した別命令が続く形にコストゲートを掛けない）
   if (sentences.slice(1).some(s => !/^(?:そうした場合|その後)/.test(s))) return action;
   const stub: StubAction = { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' } as StubAction;
+  // 素の任意自己トラッシュが既に1ステップとして出ているなら、**挿し込まずに置き換える**
+  //   （挿すと自分を2回トラッシュする木になる）。位置は動かさない＝直後の did-it ゲートとの隣接を保つ。
+  if (plainSelfTrashIdx >= 0 && action.type === 'SEQUENCE') {
+    const steps = [...(action as SequenceAction).steps];
+    steps[plainSelfTrashIdx] = stub;
+    return { ...action, steps } as EffectAction;
+  }
   if (action.type === 'SEQUENCE') {
     const steps = [...(action as SequenceAction).steps];
     const gate = steps.findIndex(isDidItGate);

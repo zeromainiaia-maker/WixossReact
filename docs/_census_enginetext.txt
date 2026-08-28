@@ -53,7 +53,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | SUMMON_FROM_ENERGY | execStubPart3.ts:3081 | 1 | 1 | 1 | 1 |
 | TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY | execStubPart2.ts:1706 | 1 | 1 | 1 | 1 |
 | TRASH_ALL_OPP_CARDS | execStubPart2.ts:2447 | 1 | 1 | 1 | 1 |
-| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1477 | 27 | 27 | 0 | 0 |
+| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1477 | 25 | 25 | 0 | 0 |
 | GAIN_SUBSCRIBER_COUNT | execStubPart1.ts:2106 | 21 | 20 | 1 | 0 |
 | GAIN_ABILITY_THIS_GAME | execStubPart1.ts:3635 | 19 | 18 | 24 | 0 |
 | SONG_FRAGMENT | execStubPart1.ts:3550 | 11 | 11 | 0 | 0 |
@@ -402,7 +402,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:《([^》]+)》を含むすべてのカードをトラッシュに置く
     miss: WXK11-047
 
-### GRANT_ABILITY_INNER_TEXT  (live 27効果 / 27カード / miss 0)
+### GRANT_ABILITY_INNER_TEXT  (live 25効果 / 25カード / miss 0)
   execStubPart1.ts:1477  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
 
 ### GAIN_SUBSCRIBER_COUNT  (live 21効果 / 20カード / miss 0)

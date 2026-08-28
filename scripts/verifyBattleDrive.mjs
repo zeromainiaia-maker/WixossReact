@@ -564,6 +564,80 @@ async function driveB27Heaven(page, H, expectDraw) {
   return { pass: false, detail: `決着せず（heaven=${heavenSeen} hand ${hand0}→${fin?.host?.hand ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
 }
 
+/**
+ * 2026-08-28 Sheet1 残8枚バッチの実機ドライバ（`O-128` (a)＝連用中止「基本パワーはNになり、…「【自】」を得る」）。
+ * `WX11-053`（コードメイズ サピドゥ）【常】「対戦相手の場に能力を持たないシグニがあるかぎり、
+ * このシグニの基本パワーは12000になり、このシグニは『【自】：このシグニがアタックしたとき、
+ * 対戦相手のパワー3000以下のシグニ１体を対象とし、それを手札に戻す。』を得る。」
+ * 🔴**観測点は「アタック時に相手の正面が手札へ戻るか」**＝旧 live は文全体が
+ *   `STUB{GRANT_ABILITY_INNER_TEXT}` で、**引用【自】がどこにも付与されず一度も発火しなかった**。
+ * ⚠**基本パワー12000 は旧 live にも入っていた**（`POWER_SET` は残っていた）＝
+ *   パワーだけを見ると判別できない。**バウンスの有無**で見る。
+ */
+async function driveB28Granted(page, H, expectBounce) {
+  const tag = expectBounce ? 'b28grantedauto' : 'b28grantedautoff';
+  const victim = expectBounce ? 'WD01-013#1' : 'WXK07-054-CB#1';
+  const st0 = await H.queryState();
+  const gHand0 = st0?.guest?.hand ?? 0;
+  const hasFront = (st) => {
+    const z = st?.guest?.fieldSigni?.[1];
+    return Array.isArray(z) && z.includes(victim);
+  };
+  H.log(`開始 guestHand=${gHand0} guest中央=${JSON.stringify(st0?.guest?.fieldSigni?.[1])} host中央=${JSON.stringify(st0?.host?.fieldSigni?.[1])}`);
+  // 前提＝バウンス対象が最初から正面に居ること（居なければ「戻った」判定が無意味）。
+  if (!hasFront(st0)) return { pass: false, detail: `前提崩れ＝相手の中央に ${victim} が居ない（${JSON.stringify(st0?.guest?.fieldSigni?.[1])}）` };
+  let attacked = false, modalOpened = false, settled = 0;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (!attacked && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI'
+        && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && !modalOpened) {
+      const opened = await H.clickTestId('my-signi-zone-1');   // アタッカー＝中央のサピドゥ
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+    const st = await H.queryState();
+    const gone = !hasFront(st);
+    const gHand = st?.guest?.hand ?? 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} 正面=${JSON.stringify(st?.guest?.fieldSigni?.[1])} gone=${gone} gHand=${gHand0}→${gHand} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    // ✅バウンス＝**場から消えて手札が増える**（§4.4-8f＝バニッシュはエナ行きなので手札増分で弁別する）。
+    if (attacked && gone && gHand > gHand0) {
+      return expectBounce
+        ? { pass: true, detail: `付与された引用【自】が発火＝正面が手札へ戻った（guestHand ${gHand0}→${gHand}）` }
+        : { pass: false, detail: `🔴対照なのにバウンスした＝「能力を持たない」条件が効いていない（guestHand ${gHand0}→${gHand}）` };
+    }
+    settled = (attacked && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 4) {
+      if (expectBounce) return { pass: false, detail: `🔴旧挙動＝アタックしてもバウンスしない（引用【自】が付与されていない。正面=${JSON.stringify(st?.guest?.fieldSigni?.[1])} guestHand ${gHand0}→${gHand} logs=${JSON.stringify((st?.logTail ?? []).slice(-10))}）` };
+      return { pass: true, detail: `対照＝相手シグニが能力を持つと付与されない（正面はバトルで処理されるが手札は増えない。guestHand ${gHand0}→${gHand}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（正面=${JSON.stringify(fin?.guest?.fieldSigni?.[1])} guestHand ${gHand0}→${fin?.guest?.hand ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
+}
+
 const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
@@ -2910,6 +2984,58 @@ const scenarios = {
       const fin = await H.queryState();
       return { pass: false, detail: `付与ストアが空のまま（granted=${JSON.stringify(fin?.host?.grantedEffectIds)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
     },
+  },
+
+  // ── B28（2026-08-28）＝Sheet1 残8枚バッチの実機観測点 ──
+  //   🔴**判別力があるのは positive 側**（`b28grantedauto`）＝旧 live は文全体が
+  //   `STUB{GRANT_ABILITY_INNER_TEXT}` で、引用【自】が**付与されず一度も発火しなかった**。
+  //   対照（`b28grantedautoff`）は**原因（相手シグニが「能力を持たない」こと）だけ**を外す。
+  b28grantedauto: {
+    title: 'WX11-053 サピドゥ（基本パワー12000＋引用【自】の付与＝アタック時に≦3000を手札へ／positive）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX04-022#1'],                  // プルト/メイデン イオナ Lv3/Limit8（サピドゥは「イオナ限定」）
+        'field.signi': [null, ['WX11-053#1'], null],   // 中央＝正面が guest 中央になる（§4.4-8e）
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        // 中央に**能力を持たない**P3000 シグニ＝①activeCondition（能力を持たないシグニがある）
+        // ②引用【自】のバウンス対象（パワー3000以下）の両方を1枚で満たす。
+        'field.signi': [null, ['WD01-013#1'], null],
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB28Granted(page, H, true); },
+  },
+
+  b28grantedautoff: {
+    title: 'WX11-053 サピドゥ（相手シグニが能力を持つ＝付与されないので何も起きない／対照）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX04-022#1'],
+        'field.signi': [null, ['WX11-053#1'], null],
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        // ⚠**原因だけを外す**＝パワーは同じ3000のまま「能力を持つ」シグニへ差し替える
+        //   （`WXK07-054-CB` の【常】は《羅星　人生さんＲ》が場にあるときだけ＋4000＝ここでは 3000 のまま）。
+        'field.signi': [null, ['WXK07-054-CB#1'], null],
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB28Granted(page, H, false); },
   },
 
   // ── B27（2026-08-28）＝Sheet1 census バッチ（実バグ6件＋ON_HEAVEN 監視スコープ）の実機観測点 ──

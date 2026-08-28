@@ -1,5 +1,165 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：Sheet1 残8枚を1枚ずつ ＝ 🔴**実機だけが見つけた engine バグ2件**（付与能力が丸ごと収集されていなかった）
+
+> **1巡（続き703・Opus 5 単独）**。ユーザー指示＝**選択肢A（Sheet1 の残り8枚を1枚ずつ）**。
+> 8枚は `audit` 3／`held` 3／`partial` 1／`idset` 1＝**別々の検出器**が指していたので、1枚ずつ出所を辿った。
+> gates 全緑（golden **2936→2940**）。実機＝**新規2シナリオ ALL PASS ＋ 反転確認2本 ＋ 既存12本の回帰 ALL PASS**。
+> 📊**進捗3計器＝Sheet1 要対応 8→0 / 863（0.9%→0.0%）｜台帳 残 OPEN 575→570｜census 高シグナル 491（据置）**
+>
+> 🔴🔴**この巡の本題は Sheet1 ではない。**「JSON を直したのに実機で何も起きない」を追った結果、
+> **`GRANT_FIELD_SIGNI_ABILITY` を持つ live 71効果が、場のシグニでは1件も収集されていなかった**ことが分かった。
+> **golden も smoke も fuzz も census も全部緑のまま**で、**実機シナリオだけが見つけられる層**だった。
+
+---
+
+### 🔴 A. `augMap` が素の `Map` で、付与コレクタが instanceId を解決できなかった（本命）
+
+**症状**＝`WX11-053-E1`（コードメイズ サピドゥ）に引用【自】を正しく載せたのに、実機でアタックしても何も起きない。
+バトルログには `コードメイズ　サピドゥ（12000）vs 小剣　ククリ（3000）` と出るので
+**基本パワー12000（同じ効果の `POWER_SET`）は効いている**＝「効果は生きているのに付与だけ死んでいる」。
+
+**真因**＝`BattleScreen.tsx` の `effectsMap` メモは
+
+```ts
+const augMap = new Map<string, CardEffect[]>(baseEffectsMap);   // ← 素の Map
+…
+const myLayer = collectGrantedFromLayer(myS, opS, myTurn, augMap, battleCardMap);
+```
+
+- `baseEffectsMap` は **`InstanceMap`**（`'X#1'` を引くと `'X'` へフォールバックする）。
+- **`new Map(baseEffectsMap)` は InstanceMap の“実エントリ”＝CardNum キーだけを複製する**＝フォールバック機能が消える。
+- ところが `collectGrantedFromLayer` は場のシグニを `field.signi[zi].at(-1)`＝**instanceId** で引く
+  （`effectsMap.get(top)`）。⇒ **常に `undefined`＝付与宣言を1件も収集しない。**
+- 最後に `return new InstanceMap(augMap)` で包み直しているので、**外から見た型は正しく、内部だけが壊れていた。**
+
+**実機で実測した証拠**＝一時 `console.error` を仕込んで `myLayer=[]`（付与0件）を確認。
+⇒ `const augMap = new InstanceMap<CardEffect[]>(baseEffectsMap);` に変えるだけで `PASS` へ反転。
+
+**影響**＝live で `GRANT_FIELD_SIGNI_ABILITY` を持つ **71効果**（CONTINUOUS 直下60＋SEQUENCE の中11）。
+同じ `augMap` は `collectGrantedFromUnderSigni` / `…FromAcce` / `…FromSoul` へも渡っているので**同型の穴**だった。
+
+⚠**この壊れ方は JSON を見ても分からない**（payload は正しい）。**逆翻訳・census・golden・smoke・fuzz は全部緑のまま。**
+
+---
+
+### 🔴 B. `hasFieldGrant` が SEQUENCE の中を見ていなかった（A の手前のゲート）
+
+`augMap` を組み直すかどうかのゲートが **action 直下の `GRANT_FIELD_SIGNI_ABILITY` しか見ていなかった**。
+「このシグニのパワーは＋Nされ／基本パワーはNになり、このシグニは「【自】…」を得る」の**連用中止形**は
+`SEQUENCE[POWER_MODIFY|POWER_SET, GRANT_FIELD_SIGNI_ABILITY]` になるので、**ゲートで落ちて収集自体が走らなかった**
+（live 11効果）。⚠**すぐ下の `hasPlayerFieldGrant`（プレイヤー付与）は最初から SEQUENCE を見ており、片側だけの穴**。
+`collectContinuousGrantedAbilities` 本体（`effectEngine.ts:6535`）も**この形を明示的に走査している**のに、
+呼ぶかどうかの判定だけが取り残されていた。
+
+⇒ A と B は**両方直さないと通らない**（B だけ直しても A で 0件、A だけ直しても B で呼ばれない）。
+
+---
+
+### C. Sheet1 の8枚（フラグ別の出所と処置）
+
+| カード | フラグ | 何だったか | 処置 |
+|---|---|---|---|
+| `WX02-020` | audit | **既に直っていた**（B27 の `O-129` で対象宣言が前に出た） | 台帳へ closure を追記 |
+| `WX05-022` | audit | **既に直っていた**（B24 の `O-125` で3条件が actionId と1対1・消費2地点） | 同（findings 2本） |
+| `WX09-Re07` | audit | ①基本パワー10000 欠落 ②引用【自】が STUB＝本バッチで両方解消 | 下の E |
+| `WX05-025` | held | live が AUTO・`manualEffects.ts` が MANUAL で pure superset にならず凍結 | held 採用（manual を live へ届けた） |
+| `WX06-CB03` | held | **fresh のほうが退化**していた（下の D） | parser を直して fresh==live に |
+| `WX07-029` | held | `thisCardOnly` の有無だけ＝**挙動同一**（CONTINUOUS `POWER_SET` は `count!=='ALL'` なら効果元に適用。`matchesFilter` は `thisCardOnly` を無視する） | held 採用（195効果ある同型の1件だけ外れ値だった） |
+| `WX04-052` | partial | **fresh のほうが退化**していた（下の D） | parser を直した |
+| `WX05-021` | idset | E1 だけ manual・E4 は live 限定の手パッチ＝**id 集合がズレてカード丸ごと凍結** | E4 を `manualEffects.ts` へ移設 |
+
+---
+
+### D. parser の退化2件（held/partial が正しく止めていた）
+
+**D-1 `OPTIONAL_TRASH_SELF` が一度も挿されなくなっていた（7効果）**
+`applySelfTrashOptionalCost` の guard が「`thisCardOnly` つき TRASH があれば**コストは生成済み**」と読んでいたが、
+上流の汎用規則が **`TRASH{thisCardOnly, optional:true}`＝コストではない素の任意トラッシュ**を吐くようになり、
+canonical な `OPTIONAL_TRASH_SELF` へ到達しなくなっていた。
+⚠**素の任意 TRASH は `asCost` が立たない**＝engine 側で**自己トラッシュが「効果によるトラッシュ」に見える**
+（`ON_TRASH{byEffect}` 系が誤発火しうる）。`OPTIONAL_TRASH_SELF` は `asCost:true` の TRASH を組むのが本来の意味。
+⇒ `asCost` が立っているときだけ「生成済み」と見なし、素の任意 TRASH は**置き換える**（挿すと2回トラッシュになる）。
+対象＝`WX06-CB03-E1` `WX19-031-E1` `WX19-034-E1` `WXK10-033-E1` `WX17-077-E2` `WX21-056-E1` `WX21-061-E1`。
+
+**D-2 チャーム保護の対象クラスが落ちていた（1効果）**
+`parseStoryFilter` は Sheet1 B10（`WX10-062-E1`）以降「**先頭の『…場合、』までに現れる＜X＞は条件節のクラスなので落とす**」
+規約になった。ところが `WX04-052-E1`「あなたの**＜悪魔＞の**シグニ１体が**バニッシュされる場合**、代わりに…」は
+**その先頭節こそが保護対象の主語**で、落とすと**あなたの全シグニを守る過剰実行**になる。
+⇒ 主語スパン（「〜シグニ」まで）を切り出してからクラスを取る。母集団は全 CSV でこの1効果。
+
+---
+
+### E. `O-128` (a)＝連用中止「基本パワーはNになり、…「【自】」を得る」（3効果のうち2効果）
+
+`parseContinuousQuotedGrant` には「このシグニのパワーは±Nされ、<B>」の枝はあったが**基本パワー版が無く**、
+文全体が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちていた。同型の枝を1本足して
+`SEQUENCE[POWER_SET, GRANT_FIELD_SIGNI_ABILITY{thisCardOnly}]` にする（`WX09-Re07-E1` / `WX11-053-E1`）。
+
+🔴**A/B が退化を1件捕まえた**＝引用が**【常】**の形（`WX06-022-E1`「基本パワーは10000になり、このシグニは
+「【常】：…バニッシュされない。」を得る」）は既存経路が **`SEQUENCE[POWER_SET, GRANT_PROTECTION]` へ平坦化**しており、
+`collectEffectImmuneSigni`（`effectEngine.ts:5287`）は**この正準形だけ**を leaf として読む。
+付与へ包むと**耐性がどこからも読まれなくなる**。⇒ **引用が【自】のときだけ**付与へ回す。
+（`WD16-014-E1` は AUTO の一時付与で受け皿が別＝`O-128` の残りに据置。）
+
+---
+
+### F. live 限定の MANUAL スタンプ（新 `O-133` として登録）
+
+D-1 の parser 修正が **`WXK10-033-E1` と `WX17-077-E2` には届かなかった**。理由＝
+**live の `parseStatus` が MANUAL なのに `manualEffects.ts` に定義が無い**＝収穫マージの
+「手修正は不可侵」で素通りし、**held / partial / idset のどのバケツにも出ない第4の死角**。
+
+**実測＝live の MANUAL/PARTIAL 1,035効果のうち 612効果が `manualEffects.ts` に定義を持たない。**
+
+- `WXK10-033-E1` は live と fresh が**トラッシュの形以外まったく同一**だったので、
+  live を canonical 形へ直し**スタンプを AUTO へ落として解凍**した（以後は parser 出力が流れる）。
+- `WX17-077-E2` は **意図的な curation**（ラベル付き CHOOSE の2枝それぞれが自己トラッシュを含み、`upTo:true` で
+  「してもよい」を表す別設計）なので**触らない**。golden の対象からも明示的に外した。
+
+---
+
+### 検証
+
+**gates 全緑**＝typecheck / golden **2940**（+4）/ smoke 全異常0 / fuzz 全0 / census 491（据置）/
+`census:stubs` A群🔴0・C群0 / manual-fields 0 / `census:enginetext` A群 141行（据置）/ lint 0 errors。
+
+**golden 追加4本**＝D-1（正準形7効果）／D-2（クラス）／E（連用中止＋🔴【常】は平坦化のままのトリップワイヤ）／
+`WX05-021` の id 集合。
+
+**実機（新規2シナリオ・ALL PASS）**
+
+| シナリオ | 何を見るか |
+|---|---|
+| **`b28grantedauto`** | 🔴**本命**＝サピドゥのアタックで正面（P3000）が**手札へ戻る**（旧は付与が収集されず何も起きない） |
+| `b28grantedautoff` | 対照＝相手シグニが**能力を持つ**と `activeCondition` が外れて付与されない（原因だけを外す） |
+
+**反転確認2本**（A と B を1つずつ戻して旧挙動を再現）
+1. `augMap` を素の `Map` へ戻す → `🔴旧挙動＝アタックしてもバウンスしない`
+2. `hasFieldGrant` の SEQUENCE 分岐を外す → 同上
+⇒ **A と B は両方必要**であることを実機で確かめた。
+
+**既存シナリオの回帰＝12本 ALL PASS**（`b27orihalhit` / `b27orihalmiss` / `b27hestia` / `b27heaven` /
+`b27heavennowatch` / `b11attacktrigger` / `banishbyeffect` / `b25targetfirst` / `b25targethit` /
+`b26grantquoted` / `b22artshit` / `b22artsmiss`）。
+
+**live 変化＝12カード**（A/B で全数照合）
+`WX04-052` `WX05-021` `WX05-025` `WX06-CB03` `WX07-029` `WX09-Re07` `WX11-053` `WX19-031` `WX19-034`
+`WX21-056` `WX21-061` `WXK10-033`
+
+---
+
+### Sheet1 の現在地＝要対応 0 / 863
+
+🔴**「0＝正しい」ではない。** 4つの検出器（census／意味照合／held・partial・idset）が
+**いま何も指していない**というだけで、**フラグの立たない863枚は計器が見ていない**。
+シートを本当に閉じるには**シート限定の意味照合再監査**という別の検出パスが要る
+（`census:cards` の出力にも毎回この警告が出る）。
+
+⚠**本巡がまさにその証拠**＝Sheet1 の8枚を追った副産物として、**どの計器にも映らない engine バグ2件**が出た。
+**計器がゼロを指しても、実機シナリオを増やす手は止めない。**
+
+
 ## 2026-08-28：§5.3 `O-132` 第1バッチ＝語彙センサスの**較正**（実装は1行も変えていない）
 
 > **1巡（続き702・Opus 5 単独）**。ユーザー指示＝**選択肢A（`O-132` を取る）**。

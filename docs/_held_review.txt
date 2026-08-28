@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［59枚］
-PR-Di017B WD07-006 WD15-001 WDK16-13 WX05-025 WX07-003 WX07-027 WX07-029 WX08-005 WX12-Re10 WX13-031 WX13-073 WX14-069 WX14-072 WX17-009 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
+## （type増減なし＝値/構造変更） ［54枚］
+PR-Di017B WD07-006 WD15-001 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX14-072 WX17-009 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -16,86 +16,26 @@ PR-Di017B WD07-006 WD15-001 WDK16-13 WX05-025 WX07-003 WX07-027 WX07-029 WX08-00
   原文: 【自】：あなたの＜龍獣＞のシグニ１体が場に出たとき、対戦相手のシグニ１体を対象とし、《赤》《赤》を支払ってもよい。そうした場合、それをバニッシュする。【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの上からカードを２枚トラッシュに置く。その中に＜龍獣＞のシグニが１枚以上ある場合、それをバニッシュする。２枚以上ある場合、ターン終了時まで、このルリグは【ダ
   - [1].action.steps[1].target.filter.story = "龍獣"
 
-## +SIGNI +TRASH -STUB ［3枚］
-WX06-CB03 WX21-056 WX21-061
---- WX06-CB03
-  原文: 【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。,：【エナチャージ１】
-  - [0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
-  ~ [0].action.steps[0].type : "STUB" → "TRASH"
-  + [0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[0].target.owner = "self"
-  + [0].action.steps[0].target.count = 1
-  + [0].action.steps[0].target.filter.thisCardOnly = true
-  + [0].action.steps[0].optional = true
---- WX21-056
-  原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、カードを２枚引く。」を得る。,-
-  - [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
-  ~ [0].action.abilities[0].action.steps[0].type : "STUB" → "TRASH"
-  + [0].action.abilities[0].action.steps[0].target.type = "SIGNI"
-  + [0].action.abilities[0].action.steps[0].target.owner = "self"
-  + [0].action.abilities[0].action.steps[0].target.count = 1
-  + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
-  + [0].action.abilities[0].action.steps[0].optional = true
---- WX21-061
-  原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。」を得る。,-
-  - [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
-  ~ [0].action.abilities[0].action.steps[0].type : "STUB" → "TRASH"
-  + [0].action.abilities[0].action.steps[0].target.type = "SIGNI"
-  + [0].action.abilities[0].action.steps[0].target.owner = "self"
-  + [0].action.abilities[0].action.steps[0].target.count = 1
-  + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
-  + [0].action.abilities[0].action.steps[0].optional = true
-
-## +ADD_TO_ENERGY +REVEAL_AND_PICK -LOOK_AND_REORDER -SEQUENCE -STUB ［2枚］
-WX12-021 WX14-041
---- WX12-021
-  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
-  - [0].action.steps[0].type = "LOOK_AND_REORDER"
-  - [0].action.steps[0].source.location = "deck"
-  - [0].action.steps[0].source.owner = "self"
-  - [0].action.steps[0].count = 2
-  - [0].action.steps[0].private = false
-  - [0].action.steps[0].reorder = false
-  - [0].action.steps[0].canTrash = false
-  - [0].action.steps[0].destination.location = "deck"
-  - [0].action.steps[0].destination.owner = "self"
-  - [0].action.steps[0].destination.position = "top"
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "REVEAL_PICK_CLASS_TO_ENERGY"
-  …（他 10 行）
---- WX14-041
-  原文: 【出】手札から赤の＜龍獣＞のシグニを１枚捨てる：対戦相手は自分のエナゾーンからカード１枚を対象とし、対戦相手のエナゾーンにカードが３枚以上ある場合、それをトラッシュに置く。【出】手札から緑の＜龍獣＞のシグニを１枚捨てる：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。,
-  - [1].action.steps[0].type = "LOOK_AND_REORDER"
-  - [1].action.steps[0].source.location = "deck"
-  - [1].action.steps[0].source.owner = "self"
-  - [1].action.steps[0].count = 2
-  - [1].action.steps[0].private = false
-  - [1].action.steps[0].reorder = false
-  - [1].action.steps[0].canTrash = false
-  - [1].action.steps[0].destination.location = "deck"
-  - [1].action.steps[0].destination.owner = "self"
-  - [1].action.steps[0].destination.position = "top"
-  - [1].action.steps[1].type = "STUB"
-  - [1].action.steps[1].id = "REVEAL_PICK_CLASS_TO_ENERGY"
-  …（他 10 行）
-
-## +CHOOSE +CONDITIONAL +DRAW +IS_MY_TURN +SEQUENCE +SIGNI +STUB×3 ［1枚］
-WX07-028
---- WX07-028
-  原文: このスペルを使用する際、あなたのアップ状態の＜原子＞のシグニを好きな数ダウンしてもよい。そうした場合、このカードの使用コストはこの方法でダウンしたシグニ１体につき《青×2》減る。あなたのデッキから＜原子＞のシグニを３枚まで探して公開し手札に加え、デッキをシャッフルする。,：どちらか１つを選ぶ。①カードを１枚引く。②対戦相手のシグニを２体まで対象とし、手札から
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  ~ [1].action.type : "BANISH" → "CHOOSE"
-  + [1].action.choose_count = 1
-  + [1].action.from_count = 2
-  + [1].action.choices[0].choiceId = "c0"
-  + [1].action.choices[0].label = "選択肢1"
-  + [1].action.choices[0].action.type = "DRAW"
-  + [1].action.choices[0].action.owner = "self"
-  …（他 27 行）
+## +STUB -SIGNI -TRASH ［2枚］
+WX19-031 WX19-034
+--- WX19-031
+  原文: 【自】：あなたのセンタールリグがアタックしたとき、このシグニを場からトラッシュに置いてもよい。そうした場合、そのルリグをアップする。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.thisCardOnly = true
+  - [0].action.steps[0].optional = true
+  ~ [0].action.steps[0].type : "TRASH" → "STUB"
+  + [0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
+--- WX19-034
+  原文: 【自】：あなたのセンタールリグがアタックしたとき、このシグニを場からトラッシュに置いてもよい。そうした場合、そのアタックの間、クラッシュされたカードはエナゾーンに置かれる代わりにトラッシュに置かれる。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.thisCardOnly = true
+  - [0].action.steps[0].optional = true
+  ~ [0].action.steps[0].type : "TRASH" → "STUB"
+  + [0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -446,24 +386,6 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
-
-## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER -STUB ［1枚］
-WD23-041-EA
---- WD23-041-EA
-  原文: 【出】：あなたのトラッシュから《大水罠　ルアー》以外のそれぞれレベルの異なる青のシグニ４枚をデッキに加えてシャッフルする。そうした場合、あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番上に戻す。,：カードを１枚引く。
-  - [0].action.steps[1].then.source.location = "deck"
-  - [0].action.steps[1].then.source.owner = "self"
-  - [0].action.steps[1].then.count = 2
-  - [0].action.steps[1].then.private = true
-  - [0].action.steps[1].then.reorder = false
-  - [0].action.steps[1].then.canTrash = false
-  - [0].action.steps[1].then.destination.location = "deck"
-  - [0].action.steps[1].then.destination.owner = "self"
-  - [0].action.steps[1].then.destination.position = "top"
-  - [0].action.steps[2].type = "STUB"
-  - [0].action.steps[2].id = "REVEAL_PICK_HAND_SHUFFLE_BOTTOM"
-  - [0].action.steps[2].revealPickParams.pickCount = 1
-  …（他 10 行）
 
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009

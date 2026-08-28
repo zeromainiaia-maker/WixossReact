@@ -1385,7 +1385,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- チャーム保護（バニッシュ時チャーム消費で防ぐ）----
   if (t.match(/シグニ.*バニッシュされる場合.*チャーム.*トラッシュに置いてもよい/)) {
-    const storyF = parseStoryFilter(t) as TargetFilter;
+    // 🔴**ここでは `parseStoryFilter` を使えない**（2026-08-28・Sheet1 残8枚バッチ・`WX04-052-E1`）＝
+    //   あちらは Sheet1 B10（`WX10-062-E1`）以降「**先頭の『…場合、』までに現れる＜X＞は条件節の
+    //   クラスなので落とす**」規約になっている。だがこの文型は
+    //   「あなたの**＜悪魔＞の**シグニ１体が**バニッシュされる場合**、代わりに…」＝
+    //   **その先頭節こそが保護対象の主語**なので、落とすと `signiFilter` からクラスが消えて
+    //   **あなたの全シグニを守る過剰実行**になる（live は正しくクラス付きで、fresh だけが退化していた）。
+    // ⇒ 主語スパン（「〜シグニ」まで）を切り出してからクラスを取る。母集団は全 CSV でこの1効果。
+    const subjectSpan = t.match(/^[^。]*?シグニ/)?.[0] ?? t;
+    const storyF = parseStoryFilter(subjectSpan) as TargetFilter;
     return {
       type: 'CHARM_PROTECTION',
       signiFilter: { cardType: 'シグニ', ...storyF },

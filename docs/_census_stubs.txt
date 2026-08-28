@@ -1,14 +1,14 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 2883 件）
+live JSON の STUB id 種類 : 598（総ノード 2884 件）
 逆翻訳シートの [STUB:…] 総数: 622  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 6 種 / 7 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 6 種 / 7 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 86 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 592 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 348 種
@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart2.ts:445
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:18459
+        生成: src\data\effectParser.ts:18509
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
         生成: src\data\parsers\parseSentencePart3.ts:2314
@@ -34,7 +34,7 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart3.ts:2020
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
-        生成: src\data\parsers\parseSentencePart1.ts:1992
+        生成: src\data\parsers\parseSentencePart1.ts:2000
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2025
@@ -45,8 +45,8 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
     22件  22枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他16枚
         消費: src\engine\effectExecutor.ts:5127 / src\engine\effectExecutor.ts:5142 / src\engine\triggerCollect.ts:429
-    14件  14枚  OPTIONAL_TRASH_SELF
-        カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX21-056 …他8枚
+    17件  17枚  OPTIONAL_TRASH_SELF
+        カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
         消費: src\engine\effectExecutor.ts:4748 / src\engine\effectExecutor.ts:4753
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
