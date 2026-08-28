@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-128` 第2バッチ＝引用能力付与5効果を `GRANT_EFFECT` へ戻す（**Codex が利用上限で中断→Claude が引き取って完遂**）
+
+「〈期間〉、〈場のシグニ〉は「Q」を得る」が `STUB{GRANT_ABILITY_INNER_TEXT}`（engine が実行時に原文を
+regex で読み直す catch-all＝どのハンドラも当たらない**無言の no-op**）へ落ちていた分のうち、
+**受け皿が既に engine にある3群**を `restoreQuotedTargetGrant`（`effectParser.ts`）の前段で戻した。
+
+**採用5効果**（生パース差分・live 差分とも**この5件ちょうど**・outlier 0）
+- **A群①（全体付与）**＝`WX07-065-E1`（Sheet1）＝`GRANT_EFFECT{target:{SIGNI, owner:self, count:'ALL'}, UNTIL_END_OF_TURN}`。
+  引用の【常】「このシグニの正面のシグニが凍結状態であるかぎり」用に `parseActiveCondition` へ
+  **語順違いの `FRONT_SIGNI{isFrozen}`** を1本足した（既存の `FRONT_SIGNI` 判定は
+  `matchesStateFilter` で状態フィルタまで見るので engine 変更なし）。**効果まるごと no-op だった。**
+- **A群②**＝`WX09-053-E1`（Sheet1）＝「それら」＝`FIELD_SIGNI_SHARE_CLASS` が照合した**緑**のシグニ集合へ
+  `count:'ALL' + filter.color` で付与。**パワーだけ上がって能力が付かない**状態だった。
+- **B群**＝`WX25-P2-110-E1`＝「場に出す。〈期間〉、それは…」＝別文の照応なので既存ガード③を通せず、
+  **直前ステップが `ADD_TO_FIELD` の SEQUENCE 末尾**という木の形でだけ `targetsLastProcessed` で束縛。
+- **C群**＝`WD16-014-E1`（`SEQUENCE[POWER_SET, GRANT_EFFECT{thisCardOnly}]`）と
+  `WX25-CP1-064-E1`（`UNTIL_OPP_TURN_END` の長期ストア側）。
+
+**据置3効果（非採用契約を golden 化）**＝`WX25-CP1-003-E1`（置換能力の引用が UNKNOWN）／
+`WXDi-P05-068-E1`（対象固有の常時無効耐性が UNKNOWN）／**`WD17-001-E2`**（引用の
+「正面にあるシグニをバニッシュしたとき」が timing 語彙に無く `ON_PLAY` へフォールバックする＝
+そのまま付与すると**原文に無い能力を配る**＝no-op より悪い）。
+
+🔴**収穫マージの第5の死角を1つ塞いだ**＝`buildEffectsJson.ts` の `inheritedCostScaling` 分岐は
+**costScaling を継承したあとに残る action 差分を黙って捨てていた**（`_held_fresh` にも `_partial_fresh` にも
+`_idset_fresh` にも出ない）。held へ出すよう直したところ、**`WX11-039` が1件現れた**＝原文
+「対戦相手は自分のデッキを**シャッフルする**」に対し live が `shuffle:false`。**今回のスコープ外なので
+held に置いたまま**（同じ効果に「すべてのシグニ」が `count:1` になっている別バグがあり、片方だけ直すと
+半端になるため）。
+
+⚠**Claude 側で足した検証**＝Codex の E2E golden は**すべて live JSON（`b45Effect`）だけ**を読んでおり、
+**parser を退行させても収穫マージが live を温存するのでテストが緑のまま通る**ことを実測した
+（`FRONT_SIGNI` 規則を外しても PASS した）。⇒ 4本すべてに **fresh パース（`batch29Effect`）側の assert** を足し、
+反転（規則を外す→赤・戻す→緑）まで確認した。**`WX07-065` は E2E が1本も無かったので新規に追加**
+（A群①の regex と新設 `FRONT_SIGNI{isFrozen}` を通る live 効果はこの1枚だけ）。
+
+**ゲート**＝golden **2948 → 2953 PASS / 0 FAIL**、census 521 維持、smoke/fuzz 全0、
+lint 260 warnings / 0 errors 維持、同型★0、held **31バケット/91枚 → 31バケット/92枚**（+1＝上記 `WX11-039`）、
+`census:stubs` A/C 0、`census:enginetext` A 141行/137ハンドラ 維持、エンコーディング新規増0（14ファイル）。
+
+**未修正（報告のみ）**＝`WD16-014-E1` の逆翻訳が「**あなたの効果によって**対戦相手が手札を捨てたとき」と
+原文に無い限定を出す（`ON_HAND_DISCARDED` の既存表示）。`POWER_SET` は「基本パワー」と「パワー」を
+区別せず `temp_power_mods` の delta で近似する（既存の全域的な近似）。
+
 ## 2026-08-28：§5.3 `O-129` 第2バッチ＝盤外由来の中間動作18効果の対象宣言順序を是正
 
 `applyDroppedTargetDesignation` から、第1バッチの件数を1桁に保つ目的だった「中間動作が場のカードを動かす」限定だけを外した。対象不在時にトラッシュ／デッキ／エナ／手札／ライフ由来の中間動作だけが起きる問題も、既存の `SELECT_TARGET_ONLY{abortIfNoCandidate:true}` → `STORE_LAST_PROCESSED_TARGETS` → `bindToStoredTarget` で打ち切る。生パース差分は指定された18 effectId と完全一致（不足0／余分0）、live JSON差分も同じ18効果だけで兄弟効果0件。

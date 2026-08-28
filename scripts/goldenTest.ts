@@ -46340,7 +46340,9 @@ test('段2 第29バッチ E2E: WX25-CP1-064-E1 は自身+4000と引用【自】�
   const base = Number(cardMap.get(source)?.Power ?? 0);
   const result = batch29Resolve(effect, ctx);
   eq(batch27Power(result.ownerState, result.otherState, source), base + 4000, '自身+4000');
-  ok(batch29GrantedAutos(result, source, true).some(granted => granted.action.type === 'REVEAL_AND_PICK'), '引用ターン終了時能力も長期付与');
+  ok(batch29GrantedAutos(result, source, true).some(granted => granted.action.type === 'SEQUENCE'
+    && granted.action.steps[0]?.type === 'REVEAL_DECK_TOP'
+    && granted.action.steps[1]?.type === 'CONDITIONAL'), '引用ターン終了時能力も長期付与（公開→条件分岐）');
   const ownEnded = batch27TurnEnd(result.ownerState);
   eq(batch27Power(ownEnded, result.otherState, source), base + 4000, '自ターン終了では+4000維持');
   ok((ownEnded.granted_effects_until_opp_turn?.[source]?.length ?? 0) > 0, '自ターン終了では引用能力も維持');
@@ -46457,11 +46459,22 @@ test('段2 第29バッチ E2E: WX09-Re07-E1 はアーム/ウェポン合計3体�
   eq(collectGrantedFromLayer(inactive, other, true, local, cardMap).get(source)?.length ?? 0, 0, '合計2体では引用能力なし');
 }));
 
-test('段2 第29バッチ 非採用契約: WD16-014-E1 は期間つきPOWER_SET語彙が無い間STUB単独を維持', () => {
+test('段2 第29バッチ 採用契約: WD16-014-E1 はターン終了時まで基本12000とアタック時ドローを自身へ付与', () => {
   const effect = batch29Effect('WD16-014-E1');
-  eq(effect.action.type, 'STUB', '期間を表せないPOWER_SETを部分採用しない');
-  if (effect.action.type === 'STUB') eq(effect.action.id, 'GRANT_ABILITY_INNER_TEXT', '既存引用付与STUBを維持');
-  ok(!JSON.stringify(effect.action).includes('POWER_SET'), 'ターン終了失効不能な基本パワー固定を入れない');
+  eq(effect.action.type, 'SEQUENCE', '基本パワー変更と引用付与を両方保持');
+  if (effect.action.type !== 'SEQUENCE') return;
+  eq(effect.action.steps[0]?.type, 'POWER_SET', '基本パワー12000は既存のターン内 temp_power_mods 経路');
+  eq((effect.action.steps[0] as { value?: number }).value, 12000, '基本パワー値');
+  eq(effect.action.steps[1]?.type, 'GRANT_EFFECT', 'アタック時ドローを自身へ付与');
+  const source = 'WD16-014';
+  const base = Number(cardMap.get(source)?.Power ?? 0);
+  const result = batch29Resolve(effect, mkCtx({ signi: [source, null, null] }, {}, source));
+  eq(batch27Power(result.ownerState, result.otherState, source), 12000, '解決中は基本12000');
+  ok(batch29GrantedAutos(result, source).some(granted => granted.action.type === 'DRAW'), '引用アタック時ドローが付与済み');
+  // BattleScreen の通常／強制ターン終了経路と同じく、短期付与ストアを境界前に空へ戻す。
+  const ended = batch27TurnEnd({ ...result.ownerState, granted_effects: {} });
+  eq(batch27Power(ended, result.otherState, source), base, 'ターン終了で基本パワー変更が失効');
+  eq(ended.granted_effects?.[source]?.length ?? 0, 0, 'ターン終了で引用能力も失効');
 });
 
 // §6.4 `O-42` は残0でクローズ。ここに effectId が増えたら、また影武者コピーが生えたということ。
@@ -50814,6 +50827,188 @@ test('Sheet1 B3: 「共通するクラスを持つ場合」が live に載り、
   const tooFew = run(draw, mkCtx({ signi: [SHARED[0], SHARED[1], null], hand: 0 }, {}));
   eq(tooFew.ownerState.hand.length, 3, 'WX09-049-E1: 同クラスでも2体なら不成立＝else（fail-closed）');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 O-128 第2バッチ＝引用能力付与のうち、既存 GRANT_EFFECT の受け皿で評価できる3群。
+// 静的 JSON だけでなく、外側を実行 → 付与ストアから【自】を収集 → 内側を実行して盤面が動く所まで固定する。
+// ══════════════════════════════════════════════════════════════════════════════
+const o128AugmentedEffects = (...states: PlayerState[]): Map<string, CardEffect[]> => {
+  const augmented = new Map(effectsMap);
+  for (const state of states) {
+    const stores = [state.granted_effects ?? {}, state.granted_effects_until_opp_turn ?? {}];
+    for (const store of stores) {
+      for (const [instanceId, granted] of Object.entries(store)) {
+        augmented.set(instanceId, [...(augmented.get(getCardNumG(instanceId)) ?? []), ...granted]);
+      }
+    }
+  }
+  return augmented;
+};
+
+test('O-128 第2 A群 E2E: WX07-065 は自分の全シグニへ付与し、正面が凍結のときだけ【アサシン】になる', () => withSavedCursor(() => {
+  // ⚠A群①（「〈期間〉、あなたのすべてのシグニは「Q」を得る」）を通る live 効果はこの1枚だけ＝
+  //   ここが無いと A群①の regex も、引用の中で新設した FRONT_SIGNI{isFrozen} も無検査で通る。
+  // 🔴**fresh も見る**＝live だけを assert すると、parser が退行しても収穫マージが live を温存するので
+  //   このテストは緑のまま通る（実測＝FRONT_SIGNI 規則を外しても live 版だけでは PASS した）。
+  const fresh065 = batch29Effect('WX07-065-E1');
+  const freshJson = JSON.stringify(fresh065.action);
+  ok(!freshJson.includes('GRANT_ABILITY_INNER_TEXT'), 'fresh: STUB へ落ちない');
+  ok(freshJson.includes('"count":"ALL"') && freshJson.includes('"type":"GRANT_EFFECT"'),
+    'fresh: 自分の全シグニへの GRANT_EFFECT になる');
+  ok(freshJson.includes('"FRONT_SIGNI"') && freshJson.includes('"isFrozen":true'),
+    'fresh: 引用【常】の「正面のシグニが凍結状態であるかぎり」が条件として展開される');
+
+  const effect = b45Effect('WX07-065', 'WX07-065-E1');
+  const mineA = 'WD04-009', mineC = 'WD03-009';
+  const frontOfA = findCard(card => card.Type === 'シグニ');   // 自分ゾーン0 の正面＝相手ゾーン2
+  const ctx = mkCtx({ signi: [mineA, null, mineC] }, { signi: [null, null, frontOfA] });
+  const granted = run(effect.action, ctx);
+  for (const signi of [mineA, mineC]) {
+    ok((granted.ownerState.granted_effects?.[signi] ?? []).some(e => e.effectId === 'WX07-065-sub-E1'),
+      `${signi}: count:'ALL' で自分の場のシグニ全員へ付与`);
+  }
+  eq(Object.keys(granted.otherState.granted_effects ?? {}).length, 0, '対戦相手のシグニには付与しない');
+
+  // 付与された【常】の activeCondition を両方向で固定する（正面が凍結のときだけ成立）。
+  const inner = (granted.ownerState.granted_effects?.[mineA] ?? [])
+    .find(e => e.effectId === 'WX07-065-sub-E1');
+  ok(!!inner?.activeCondition, '引用【常】が activeCondition つきで展開されている');
+  eq(inner?.action.type, 'GRANT_KEYWORD', '引用の中身は【アサシン】付与');
+  const frozenOther = { ...granted.otherState,
+    field: { ...granted.otherState.field, signi_frozen: [false, false, true] } } as PlayerState;
+  ok(checkActiveCondition(inner!.activeCondition, granted.ownerState, frozenOther, true,
+    cardMap as Map<string, CardData>, mineA), '正面が凍結 → 成立');
+  ok(!checkActiveCondition(inner!.activeCondition, granted.ownerState, granted.otherState, true,
+    cardMap as Map<string, CardData>, mineA), '正面が凍結でなければ不成立（無条件アサシンにしない）');
+  // ⚠対照＝正面が空でも成立させない（FRONT_SIGNI は fail-closed）。
+  const emptyFront = { ...granted.otherState,
+    field: { ...granted.otherState.field, signi: [null, null, null], signi_frozen: [false, false, true] } } as PlayerState;
+  ok(!checkActiveCondition(inner!.activeCondition, granted.ownerState, emptyFront, true,
+    cardMap as Map<string, CardData>, mineA), '正面が空なら成立しない');
+}));
+
+test('O-128 第2 A群 E2E: WX09-053 は緑3体・共通クラスの全員だけに付与し、アタック時にエナチャージ', () => withSavedCursor(() => {
+  // 🔴live だけでは parser 退行を捕まえられない（収穫マージが live を温存する）＝fresh も見る。
+  ok(JSON.stringify(batch29Effect('WX09-053-E1').action).includes('"color":"緑"'),
+    'fresh: 「それら」＝緑のシグニ全員への GRANT_EFFECT になる');
+  const effect = b45Effect('WX09-053', 'WX09-053-E1');
+  const shared = ['WD04-009', 'WD04-010', 'WD04-011']; // 緑／精生
+  const yesCtx = mkCtx({ signi: shared, deckTop: [SIGNI_L1] }, {}, 'WX09-053');
+  const granted = run(effect.action, yesCtx);
+  for (const signi of shared) {
+    ok((granted.ownerState.granted_effects?.[signi] ?? []).some(e => e.effectId === 'WX09-053-sub-E1'),
+      `${signi}: 条件成立時に引用【自】を付与`);
+  }
+  const entries = collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST),
+    effectsMap: o128AugmentedEffects(granted.ownerState, granted.otherState) },
+  granted.ownerState, granted.otherState, shared[0], HOST);
+  const entry = entries.find(e => e.effectId === 'WX09-053-sub-E1');
+  ok(!!entry, '付与先自身のアタックで引用【自】が誘発');
+  if (entry) {
+    const fireCtx = { ...yesCtx, ownerState: granted.ownerState, otherState: granted.otherState,
+      sourceCardNum: shared[0], triggeringCardNum: shared[0] } as ExecCtx;
+    const before = fireCtx.ownerState.energy.length;
+    const fired = finish(executeEffect(entry.effect, fireCtx), fireCtx);
+    eq(fired.ownerState.energy.length, before + 1, '誘発した引用【自】がデッキ上をエナへ置く');
+  }
+
+  const noCtx = mkCtx({ signi: [shared[0], shared[1], null], deckTop: [SIGNI_L1] }, {}, 'WX09-053');
+  const notGranted = run(effect.action, noCtx);
+  eq(Object.values(notGranted.ownerState.granted_effects ?? {}).flat().filter(e => e.effectId === 'WX09-053-sub-E1').length,
+    0, '緑が2体なら共通クラスでも付与しない');
+  eq(collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST),
+    effectsMap: o128AugmentedEffects(notGranted.ownerState, notGranted.otherState) },
+  notGranted.ownerState, notGranted.otherState, shared[0], HOST).some(e => e.effectId === 'WX09-053-sub-E1'),
+    false, '条件不成立では引用【自】も発火しない');
+}));
+
+test('O-128 第2 B群 E2E: WX25-P2-110 はトラッシュから出した同じ電機だけに付与し、アタック時に相手手札を捨てる', () => withSavedCursor(() => {
+  // 🔴live だけでは parser 退行を捕まえられない＝fresh も見る。
+  ok(JSON.stringify(batch29Effect('WX25-P2-110-E1').action).includes('"targetsLastProcessed":true'),
+    'fresh: 場に出した同一個体（lastProcessedCards）への付与になる');
+  const effect = b45Effect('WX25-P2-110', 'WX25-P2-110-E1');
+  const placed = 'WD03-009'; // ＜電機＞
+  const yesCtx = mkCtx({ signi: [null, null, null] }, { hand: 4 }, 'WX25-P2-110');
+  yesCtx.ownerState.trash = [placed];
+  const granted = run(effect.action, yesCtx);
+  ok(granted.ownerState.field.signi.some(zone => zone?.at(-1) === placed), '対象の＜電機＞をトラッシュから場に出す');
+  ok((granted.ownerState.granted_effects?.[placed] ?? []).some(e => e.effectId === 'WX25-P2-110-sub-E1'),
+    'ADD_TO_FIELD の lastProcessedCards と同じ個体へ引用【自】を付与');
+  const entries = collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST),
+    effectsMap: o128AugmentedEffects(granted.ownerState, granted.otherState) },
+  granted.ownerState, granted.otherState, placed, HOST);
+  const entry = entries.find(e => e.effectId === 'WX25-P2-110-sub-E1');
+  ok(!!entry, '場に出した付与先のアタックで引用【自】が誘発');
+  if (entry) {
+    const fireCtx = { ...yesCtx, ownerState: granted.ownerState, otherState: granted.otherState,
+      sourceCardNum: placed, triggeringCardNum: placed } as ExecCtx;
+    const before = fireCtx.otherState.hand.length;
+    const fired = finish(executeEffect(entry.effect, fireCtx), fireCtx);
+    eq(fired.otherState.hand.length, before - 2, '選択肢①が相手の手札を2枚捨てさせる');
+  }
+
+  const noCtx = mkCtx({ signi: [null, null, null] }, { hand: 4 }, 'WX25-P2-110');
+  noCtx.ownerState.trash = [];
+  const notGranted = run(effect.action, noCtx);
+  eq(Object.values(notGranted.ownerState.granted_effects ?? {}).flat().filter(e => e.effectId === 'WX25-P2-110-sub-E1').length,
+    0, '場に出せる＜電機＞が無ければ付与先を捏造しない');
+  eq(collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST),
+    effectsMap: o128AugmentedEffects(notGranted.ownerState, notGranted.otherState) },
+  notGranted.ownerState, notGranted.otherState, placed, HOST).some(e => e.effectId === 'WX25-P2-110-sub-E1'),
+    false, '付与先不在では引用【自】も発火しない');
+}));
+
+test('O-128 第2 C群 E2E: WX25-CP1-064 は自身へ長期付与し、相手ターン終了時にブルアカなら相手手札を捨てる', () => withSavedCursor(() => {
+  // 🔴live だけでは parser 退行を捕まえられない＝fresh も見る。
+  ok(JSON.stringify(batch29Effect('WX25-CP1-064-E1').action).includes('"duration":"UNTIL_OPP_TURN_END"'),
+    'fresh: 「次の対戦相手のターン終了時まで」が長期ストア側の duration で出る');
+  const effect = b45Effect('WX25-CP1-064', 'WX25-CP1-064-E1');
+  const source = 'WX25-CP1-064';
+  const blueArchive = findCard(card => card.Type === 'シグニ' && (card.CardClass ?? '').includes('ブルアカ'));
+  const yesCtx = mkCtx({ signi: [source, null, null], deckTop: [blueArchive] }, { hand: 3 }, source);
+  const granted = run(effect.action, yesCtx);
+  ok((granted.ownerState.granted_effects_until_opp_turn?.[source] ?? [])
+    .some(e => e.effectId === 'WX25-CP1-064-sub-E1'), '引用【自】は granted_effects_until_opp_turn に入る');
+  eq(granted.ownerState.granted_effects?.[source]?.length ?? 0, 0, '短期ストアには誤って入れない');
+  const turnCtx = { ...trigCtx(GUEST, HOST),
+    effectsMap: o128AugmentedEffects(granted.ownerState, granted.otherState) };
+  const entries = cttEntries(turnCtx, 'ON_TURN_END', granted.otherState, granted.ownerState);
+  const entry = entries.find(e => e.effectId === 'WX25-CP1-064-sub-E1');
+  ok(!!entry, '次の対戦相手のターン終了時に引用【自】が誘発');
+  if (entry) {
+    const fireCtx = { ...yesCtx, ownerState: granted.ownerState, otherState: granted.otherState,
+      sourceCardNum: source, triggeringCardNum: source, currentPhase: 'END' as const } as ExecCtx;
+    const before = fireCtx.otherState.hand.length;
+    const fired = finish(executeEffect(entry.effect, fireCtx), fireCtx);
+    eq(fired.otherState.hand.length, before - 1, 'デッキ上が＜ブルアカ＞なら相手手札を1枚捨てる');
+  }
+  const expired = clearUntilOppTurnEffects(granted.ownerState);
+  eq(expired.granted_effects_until_opp_turn?.[source]?.length ?? 0, 0, '次の対戦相手ターン終了で引用能力が失効');
+
+  const noCtx = mkCtx({ signi: [null, null, null], deckTop: [blueArchive] }, { hand: 3 }, source);
+  const notGranted = run(effect.action, noCtx);
+  eq(notGranted.ownerState.granted_effects_until_opp_turn?.[source]?.length ?? 0, 0,
+    'このシグニが場に無ければ thisCardOnly の付与先を捏造しない');
+  eq(cttEntries({ ...trigCtx(GUEST, HOST), effectsMap: o128AugmentedEffects(notGranted.ownerState, notGranted.otherState) },
+    'ON_TURN_END', notGranted.otherState, notGranted.ownerState)
+    .some(e => e.effectId === 'WX25-CP1-064-sub-E1'), false, '付与先不在では引用【自】も発火しない');
+}));
+
+test('O-128 第2 非採用契約: 展開不能／timing fallback の3効果は GRANT_EFFECT にしない', () => {
+  for (const [cardNum, effectId, why] of [
+    ['WX25-CP1-003', 'WX25-CP1-003-E1', '置換能力の引用が UNKNOWN'],
+    ['WXDi-P05-068', 'WXDi-P05-068-E1', '対象固有の常時無効耐性が UNKNOWN'],
+    ['WD17-001', 'WD17-001-E2', 'バニッシュ時 timing が ON_PLAY へ fallback'],
+  ] as const) {
+    const freshEffect = batch29Effect(effectId);
+    const liveEffect = b45Effect(cardNum, effectId);
+    for (const [kind, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
+      const json = JSON.stringify(effect.action);
+      ok(json.includes('"id":"GRANT_ABILITY_INNER_TEXT"'), `${effectId} ${kind}: STUB 据置（${why}）`);
+      ok(!json.includes('"type":"GRANT_EFFECT"'), `${effectId} ${kind}: 解釈不能な引用能力を配らない`);
+    }
+  }
+});
 
 
 // ══════════════════════════════════════════════════════════════════════════════

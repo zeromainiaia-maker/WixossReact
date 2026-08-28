@@ -1216,6 +1216,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
         rest: text.slice(frontStateM[0].length), conditionFound: true,
       };
     }
+    // 「このシグニの正面のシグニが〈状態〉であるかぎり、」＝上と同じ FRONT_SIGNI の語順違い。
+    // 引用能力の内側にも現れるため、主語・助詞で同義に畳む（O-128 第2バッチ・WX07-065）。
+    const frontSubjectStateM = text.match(/^このシグニの正面のシグニが(凍結状態|ダウン状態|アップ状態)であるかぎり、/);
+    if (frontSubjectStateM) {
+      const sf = frontSubjectStateM[1] === '凍結状態' ? { isFrozen: true }
+        : frontSubjectStateM[1] === 'ダウン状態' ? { isDown: true } : { isUp: true };
+      return {
+        condition: { type: 'FRONT_SIGNI', filter: sf } as import('../types/effects').ActiveCondition,
+        rest: text.slice(frontSubjectStateM[0].length), conditionFound: true,
+      };
+    }
     // 「このシグニより〈レベル/パワー〉の高いシグニがこの正面にあるかぎり、」（WX10-036-E2）
     const frontCmpM = text.match(/^このシグニより(レベル|パワー)の(高い|低い)シグニがこの正面にあるかぎり、/);
     if (frontCmpM) {
@@ -11507,6 +11518,130 @@ function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAct
   const stubs = collectActionNodesByType(parsed, 'STUB')
     .filter(n => (n as StubAction).id === 'GRANT_ABILITY_INNER_TEXT');
   if (stubs.length !== 1) return parsed;
+
+  // 引用の試験展開（結果は捨てる＝実展開は expandGrantEffectRawTexts に委ねる）。
+  // timing の無言フォールバックも AUTO 扱いになるため、parseStatus と別に拒否する。
+  const quotedIsSafe = (quoted: string): boolean => {
+    const savedFb = _silentFallbacks;
+    _silentFallbacks = [];
+    const timingMark = _timingFallbackLog.length;
+    try {
+      const subs = splitEffectBlocks(quoted)
+        .map((b, si) => parseBlock('QTG-trial', b, si))
+        .filter((e): e is CardEffect => e !== null);
+      const timingFellBack = _timingFallbackLog.slice(timingMark)
+        .some(e => /とき|(?<!まで)時/.test(e.text) && !/場に出たとき/.test(e.text));
+      return subs.length === 1 && subs[0].parseStatus === 'AUTO' && !timingFellBack;
+    } finally {
+      _timingFallbackLog.length = timingMark;
+      _silentFallbacks = savedFb;
+    }
+  };
+
+  const replaceStub = (node: EffectAction, replacement: EffectAction): EffectAction => {
+    if (node.type === 'STUB' && node.id === 'GRANT_ABILITY_INNER_TEXT') return replacement;
+    if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(step => replaceStub(step, replacement)) };
+    if (node.type === 'CONDITIONAL') return {
+      ...node,
+      then: replaceStub(node.then, replacement),
+      ...(node.else ? { else: replaceStub(node.else, replacement) } : {}),
+    };
+    if (node.type === 'CHOOSE') return {
+      ...node,
+      choices: node.choices.map(choice => ({ ...choice, action: replaceStub(choice.action, replacement) })),
+    };
+    return node;
+  };
+
+  const durationOf = (raw: string): EffectDuration => raw.startsWith('次の対戦相手')
+    ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+
+  // A群①：「〈期間〉、あなた/対戦相手のすべてのシグニは「Q」を得る」。
+  // target.count:'ALL' は execGrantEffect が選択UIなしで全候補へ付与する既存経路。
+  const allM = text.trim().replace(/。$/, '').match(
+    /(?:^|。)(ターン終了時まで|次の対戦相手のターン終了時まで)、(あなたの|対戦相手の)(.*?)すべての(.*?)シグニは「(【[自出起常]】[\s\S]+)」を得る$/);
+  if (allM && !/」と「|」か「/.test(allM[5]) && quotedIsSafe(allM[5])) {
+    const owner: Owner = allM[2] === '対戦相手の' ? 'opponent' : 'self';
+    const seg = allM[3] + allM[4];
+    const filter: TargetFilter = {
+      cardType: 'シグニ', ...parseStoryFilter(seg), ...parseLevelFilter(seg), ...parseColorFilter(seg),
+    };
+    if (seg.includes('感染状態')) filter.infected = true;
+    return replaceStub(parsed, {
+      type: 'GRANT_EFFECT',
+      target: { type: 'SIGNI', owner, count: 'ALL', filter },
+      duration: durationOf(allM[1]), rawText: allM[5],
+    } as EffectAction);
+  }
+
+  // A群②：「場に〈色〉のシグニがN体あり、それらが共通クラスなら、それらは追加でQを得る」。
+  // 「それら」は条件が照合した色の集合を指すので、盤面3枠という現在の上限には依存せず色 filter を保持する。
+  const sharedM = text.trim().replace(/。$/, '').match(
+    /場合、(ターン終了時まで|次の対戦相手のターン終了時まで)、それらは(?:追加で)?「(【[自出起常]】[\s\S]+)」を得る$/);
+  if (sharedM && !/」と「|」か「/.test(sharedM[2]) && quotedIsSafe(sharedM[2])) {
+    const conds = collectActionNodesByType(parsed, 'CONDITIONAL')
+      .filter(node => (node as import('../types/effects').ConditionalAction).condition.type === 'FIELD_SIGNI_SHARE_CLASS');
+    if (conds.length === 1) {
+      const cond = (conds[0] as import('../types/effects').ConditionalAction).condition as Extract<Condition, { type: 'FIELD_SIGNI_SHARE_CLASS' }>;
+      return replaceStub(parsed, {
+        type: 'GRANT_EFFECT',
+        target: {
+          type: 'SIGNI', owner: cond.owner, count: 'ALL',
+          filter: { cardType: 'シグニ', ...(cond.color ? { color: cond.color } : {}) },
+        },
+        duration: durationOf(sharedM[1]), rawText: sharedM[2],
+      } as EffectAction);
+    }
+  }
+
+  // B群：「対象を場に出す。〈期間〉、それはQを得る」＝ADD_TO_FIELD が確定した同じ個体へ付与。
+  // 別文なので既存ガード③には通さず、直前の同一 SEQUENCE が ADD_TO_FIELD→STUB のときだけ採る。
+  const placedM = text.trim().replace(/。$/, '').match(
+    /を対象とし、[^。「」]*場に出す。(ターン終了時まで|次の対戦相手のターン終了時まで)、(?:それ|そのシグニ)は「(【[自出起常]】[\s\S]+)」を得る$/);
+  if (placedM && !/」と「|」か「/.test(placedM[2]) && quotedIsSafe(placedM[2])) {
+    const scan = text.replace(/「[\s\S]*?」/g, '「」').replace(/『[\s\S]*?』/g, '『』');
+    const topSteps = parsed.type === 'SEQUENCE' ? parsed.steps : [];
+    const last = topSteps.at(-1);
+    const prev = topSteps.at(-2);
+    if ((scan.match(/を対象とし/g)?.length ?? 0) === 1
+        && last?.type === 'STUB' && last.id === 'GRANT_ABILITY_INNER_TEXT'
+        && prev?.type === 'ADD_TO_FIELD') {
+      return { ...parsed, steps: [
+        ...topSteps.slice(0, -1),
+        { type: 'GRANT_EFFECT', targetsLastProcessed: true,
+          duration: durationOf(placedM[1]), rawText: placedM[2] } as EffectAction,
+      ] } as EffectAction;
+    }
+  }
+
+  // C群：「〈期間〉、このシグニのパワーを±Nし、このシグニはQを得る」。
+  // POWER_MODIFY と付与は自己参照なので、付与先は targetsLastProcessed ではなく thisCardOnly を明示する。
+  // 今回は引用のトリガーも「対戦相手のターン終了時」の同型だけを取る。別 timing の同形まで広げると
+  // O-128 第2バッチ外の効果を同時採用するため、主語・助詞・timing 文型で境界を置く。
+  const selfPowerM = text.trim().replace(/。$/, '').match(
+    /(ターン終了時まで|次の対戦相手のターン終了時まで)、このシグニのパワーを[＋+－-][０-９\d,，]+し、このシグニは「(【自】：対戦相手のターン終了時、[\s\S]+)」を得る$/);
+  if (selfPowerM && !/」と「|」か「/.test(selfPowerM[2]) && quotedIsSafe(selfPowerM[2])) {
+    return replaceStub(parsed, {
+      type: 'GRANT_EFFECT',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      duration: durationOf(selfPowerM[1]), rawText: selfPowerM[2],
+    } as EffectAction);
+  }
+
+  // C群：「〈期間〉、このシグニの基本パワーはNになりQを得る」。
+  // AUTO/ACTIVATED は parseContinuousQuotedGrant を通らないため、安全網の後段で既存 POWER_SET と GRANT_EFFECT に戻す。
+  const selfBaseM = text.trim().replace(/。$/, '').match(
+    /(ターン終了時まで|次の対戦相手のターン終了時まで)、このシグニの基本パワーは([０-９\d,，]+)になり[、,]?「(【[自出起常]】[\s\S]+)」を得る$/);
+  if (selfBaseM && !/」と「|」か「/.test(selfBaseM[3]) && quotedIsSafe(selfBaseM[3])) {
+    const target: EffectTarget = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
+    return replaceStub(parsed, {
+      type: 'SEQUENCE', steps: [
+        { type: 'POWER_SET', target, value: parseNum(selfBaseM[2].replace(/[,，]/g, '')) },
+        { type: 'GRANT_EFFECT', target, duration: durationOf(selfBaseM[1]), rawText: selfBaseM[3] } as EffectAction,
+      ],
+    } as EffectAction);
+  }
+
   // ②
   const scan = text.replace(/「[\s\S]*?」/g, '「」').replace(/『[\s\S]*?』/g, '『』');
   if ((scan.match(/を対象とし/g)?.length ?? 0) !== 1) return parsed;
@@ -11518,29 +11653,8 @@ function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAct
   const quoted = m[3];
   if (/」と「|」か「/.test(quoted)) return parsed;
   const duration: EffectDuration = m[2].startsWith('次の対戦相手') ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
-  // ④ 引用の試験展開（結果は捨てる＝実展開は expandGrantEffectRawTexts に委ねる。
-  //   無言フォールバック刻印は退避して汚染しない＝`QG2` の先例と同じ）。
-  const savedFb = _silentFallbacks;
-  _silentFallbacks = [];
-  const timingMark = _timingFallbackLog.length;
-  let innerOk: boolean;
-  try {
-    const subs = splitEffectBlocks(quoted)
-      .map((b, si) => parseBlock('QTG-trial', b, si))
-      .filter((e): e is CardEffect => e !== null);
-    // 🔴**timing がフォールバックした引用は採らない**（`census:timing` と同じ判定）＝
-    //   `WD17-001-E2` の「このシグニが正面にあるシグニ１体をバニッシュしたとき」は timing 語彙が無く
-    //   `ON_PLAY` へ落ちるが、`parseStatus` は **AUTO のまま**なので上の判定だけでは通ってしまう。
-    //   そのまま付与すると**「場に出たとき自分をアップする」という原文に無い能力**を配ることになる
-    //   （no-op より悪い＝幻覚）。据置なら STUB のまま＝`census:stubs` の worklist に残り、次で拾える。
-    const timingFellBack = _timingFallbackLog.slice(timingMark)
-      .some(e => /とき|(?<!まで)時/.test(e.text) && !/場に出たとき/.test(e.text));
-    innerOk = subs.length === 1 && subs[0].parseStatus === 'AUTO' && !timingFellBack;
-  } finally {
-    _timingFallbackLog.length = timingMark;   // 試験展開の記録は計器（census:timing）へ漏らさない
-    _silentFallbacks = savedFb;
-  }
-  if (!innerOk) return parsed;
+  // ④
+  if (!quotedIsSafe(quoted)) return parsed;
 
   const owner: Owner = /対戦相手の/.test(designation) ? 'opponent' : 'self';
   // 対象宣言から付与先を組む（STUB 単独形で使う）。ルリグ／シグニ以外は据置。
@@ -18758,6 +18872,28 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
   return hasUnknownSub;
 }
 
+/**
+ * 「デッキの一番上を公開する。そのカードが〈条件〉の場合、別の動作をする」という引用内能力を、
+ * 公開札そのものへの pick 動作ではなく、既存の公開記録＋条件分岐へ戻す。
+ *
+ * `REVEAL_AND_PICK.then` は選んだ公開札へ `applyDirectAction` する契約なので、そこへ相手手札 TRASH 等を
+ * 載せると公開札を相手手札から探して no-op になる。主語・助詞でこの文型を限定し、新しい action 型は作らない。
+ */
+function normalizeQuotedDeckTopCondition(rawText: string, effect: CardEffect): CardEffect {
+  const m = rawText.match(/(あなたの|対戦相手の)デッキの一番上(?:のカード)?を公開する。そのカードが＜[^＞]+＞の場合、/);
+  if (!m || effect.action.type !== 'REVEAL_AND_PICK') return effect;
+  const reveal = effect.action as import('../types/effects').RevealAndPickAction;
+  if (reveal.revealCount !== 1 || reveal.pickCount !== 1 || !reveal.filter
+      || reveal.remainder?.location !== 'deck' || reveal.remainder.position !== 'top') return effect;
+  return {
+    ...effect,
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'REVEAL_DECK_TOP', owner: m[1] === '対戦相手の' ? 'opponent' : 'self', count: 1 },
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: reveal.filter }, then: reveal.then },
+    ] },
+  };
+}
+
 // GRANT_EFFECT の rawText（引用「…」の原文）を parseBlock で CardEffect へ展開する（§5c 続き30）。
 // SEQUENCE/CONDITIONAL/CHOOSE 内の GRANT_EFFECT も対象。引用が単一ブロックかつ AUTO でパースできた
 // 場合のみ effect に設定して rawText を削除。展開できなければ rawText を温存して true（=PARTIAL相当）を
@@ -18797,7 +18933,7 @@ function expandGrantEffectRawTexts(action: EffectAction, cardNum: string): boole
           .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
           .filter((e): e is CardEffect => e !== null);
         if (subs.length === 1 && subs[0].parseStatus === 'AUTO') {
-          ge.effect = subs[0];
+          ge.effect = normalizeQuotedDeckTopCondition(cleanRaw, subs[0]);
           delete ge.rawText;
         } else {
           // 複数ブロック引用 or パース不全＝据置（採用ゲートで PARTIAL として弾かれる）

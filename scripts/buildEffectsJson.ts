@@ -225,6 +225,14 @@ for (const id of allIds) {
   });
   if (inheritedCostScaling) {
     report.adopted_cost_scaling.push(id);
+    // costScaling だけを継承したあとにも action 差分が残る場合、それを黙って捨てない。
+    // 自動採用はせず held へ出し、通常のレビュー契約で効果単位に確認してから採る。
+    if (!equalIgnoringParseStatus(existing, fresh)) {
+      heldFresh[id] = fresh;
+      report.preserved_held.push(id);
+    } else if (JSON.stringify(existing) !== JSON.stringify(fresh)) {
+      report.preserved_metaOnly.push(id);
+    }
     result[id] = existing as ReturnType<typeof parseCardEffects>;
     continue;
   }
