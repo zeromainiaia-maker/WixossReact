@@ -24345,8 +24345,13 @@ test('対象filter合成 第2波: WX09-020-BURST（PRESERVE直パッチ）の白
   const e = effectsMap.get('WX09-020')!.find(x => x.effectId === 'WX09-020-BURST')!;
   const s = JSON.stringify(e.action);
   eq((s.match(/"color":\["白","黒"\]/g) || []).length, 2, 'CHOOSE両枝に color:[白,黒]');
-  // MANUAL兄弟E1は不変（PRESERVE温存）
-  eq(effectsMap.get('WX09-020')!.find(x => x.effectId === 'WX09-020-E1')!.parseStatus, 'MANUAL', 'E1 MANUAL温存');
+  // 兄弟E1は不変（直パッチで壊れていない）。
+  // ⚠**2026-08-28（§5.3 `O-133` B群 第1バッチ）で E1 の孤児 MANUAL スタンプを外した**＝parser が
+  //   同じ実体を出せるようになり、`triggerScope:'self'` は engine 既定と同値なので落とした。
+  //   この test の主題は BURST 側の color 実体化なので、**兄弟は実体で見る**（`parseStatus` は主題ではない）。
+  const e1 = effectsMap.get('WX09-020')!.find(x => x.effectId === 'WX09-020-E1')!;
+  eq(e1.triggerCondition?.movedToDeckFromTrash, true, 'E1 実体温存（トラッシュ起源限定）');
+  eq((e1.action as { delta?: number }).delta, -2000, 'E1 実体温存（-2000）');
 });
 
 // ── レポート ──
@@ -51491,7 +51496,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // 2026-08-28 続き704＝A群186件（MANUAL のみ）を解凍して 609→423、
   //   さらに C群21件を `manualEffects.ts` へ移設して 423→402。
   //   残 402 ＝ B群393（要レビュー）＋ D群9（build 後の fixer が毎回生成＝凍っていない）。
-  const BASELINE_ORPHAN_MANUAL = 402;
+  const BASELINE_ORPHAN_MANUAL = 381;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];

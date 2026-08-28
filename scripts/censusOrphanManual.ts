@@ -29,6 +29,8 @@
  *   npx tsx scripts/censusOrphanManual.ts              … サマリ＋明細（docs/_census_orphan_manual.txt）
  *   npx tsx scripts/censusOrphanManual.ts --list A     … その分類の effectId だけを列挙（採用の入力）
  *   npx tsx scripts/censusOrphanManual.ts --id <効果ID> … 1件の live/fresh 完全 diff
+ *   npx tsx scripts/censusOrphanManual.ts --unfreeze A          … A を機械的に解凍（分類は実行時に測り直す）
+ *   npx tsx scripts/censusOrphanManual.ts --unfreeze <id>,<id>  … **B を1件ずつ**解凍（原文照合で fresh を採った分）
  *
  * ⚠ゲートではない（exit 0）。件数はベースラインを置かない＝**減らすこと自体が目的の worklist** なので、
  *   進捗は PLAN §6 の3計器と一緒に「A/B/C の内訳」で報告する。
@@ -172,9 +174,13 @@ if (idArg) {
 if (argv.includes('--unfreeze')) {
   const spec = (argv[argv.indexOf('--unfreeze') + 1] ?? '').trim();
   if (!spec) { console.error('--unfreeze には A か effectId のカンマ区切りを渡す'); process.exit(1); }
-  const wanted = spec.toUpperCase() === 'A'
-    ? new Set(byClsIds('A'))
-    : new Set(spec.split(',').map(x => x.trim()).filter(Boolean));
+  // 🔑**分類名は `A` だけ**（B を一括で落とすと curation を潰す）。**明示 id なら B も許す**＝
+  //   PLAN §5.3 O-133 が定める B の処理経路（「fresh が正しい → `--unfreeze <id>`」）そのもの。
+  //   ⚠**C／D は明示 id でも拒む**＝C は効果ごと消え、D は生成元があるので触る意味が無い。
+  const explicit = spec.toUpperCase() !== 'A';
+  const wanted = explicit
+    ? new Set(spec.split(',').map(x => x.trim()).filter(Boolean))
+    : new Set(byClsIds('A'));
   const skipped: string[] = [];
   const touchedByFile = new Map<string, number>();
   for (const f of EFFECT_FILES) {
@@ -186,7 +192,8 @@ if (argv.includes('--unfreeze')) {
       for (const e of effs) {
         if (!wanted.has(e.effectId)) continue;
         const r = rowsOut.find(x => x.effectId === e.effectId);
-        if (!r || r.cls !== 'A') { skipped.push(`${e.effectId}(${r ? r.cls : '対象外'})`); continue; }
+        const ok = r && (r.cls === 'A' || (explicit && r.cls === 'B'));
+        if (!ok) { skipped.push(`${e.effectId}(${r ? r.cls : '対象外'})`); continue; }
         e.parseStatus = 'AUTO';
         n++;
       }
@@ -194,7 +201,7 @@ if (argv.includes('--unfreeze')) {
     if (n > 0) { writeFileSync(p, JSON.stringify(j), 'utf-8'); touchedByFile.set(f, n); }
   }
   for (const [f, n] of touchedByFile) console.log(`${f}: ${n}効果 解凍（MANUAL/PARTIAL → AUTO）`);
-  if (skipped.length) console.log(`⚠ A ではないので触らなかった: ${skipped.join(' ')}`);
+  if (skipped.length) console.log(`⚠ 解凍できる分類ではないので触らなかった: ${skipped.join(' ')}`);
   console.log(`計 ${[...touchedByFile.values()].reduce((a, b) => a + b, 0)}効果。⚠必ず npm run build:effects → A/B → npm run gates`);
   process.exit(0);
 }

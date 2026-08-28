@@ -4823,8 +4823,47 @@ function collectPowerModifyNodes(node: unknown, out: PowerModifyAction[] = []): 
   return out;
 }
 
+/**
+ * 「支払う中身をひとつも持たない `STUB{OPTIONAL_COST}`」か。
+ * ⚠**`costText` は表示専用キーなので数えない**（`attachOptionalCostText` が後から載せる）＝
+ *   ここを `Object.keys(step).length === 2` で書くと、逆翻訳用の文字列を足しただけで
+ *   **「エナから0..N枚置く」を実処理 `TRASH` へ差し替える規則が丸ごと外れる**（`WX25-CP1-080-E1` で実測）。
+ */
+function isBareOptionalCost(step: unknown): boolean {
+  if (!step || typeof step !== 'object') return false;
+  const o = step as Record<string, unknown>;
+  return o.type === 'STUB' && o.id === 'OPTIONAL_COST'
+    && Object.keys(o).every(k => k === 'type' || k === 'id' || k === 'costText');
+}
+
+/**
+ * 素の `STUB{OPTIONAL_COST}`（ペイロードが1つも無い＝逆翻訳が「コストを支払ってもよい」へ潰れる形）に
+ * **原文の任意コスト句**を `costText` として載せる（§5.3 `O-133` B群 第2バッチ）。
+ * 🔴これが無いと逆翻訳から「何を払うのか」が丸ごと消え、原文照合でコスト取り違えを見つけられない
+ *   （`decompileEffects.ts:2592` は `costText` があればそれを原文どおり描画する）。
+ * ⚠**ペイロードを持つ OPTIONAL_COST には触らない**＝そちらは専用レンダリング（`selfTrash` 等）が先に立つ。
+ */
+function attachOptionalCostText(action: EffectAction, text: string): EffectAction {
+  // ⚠落とすのは**トリガー句／使用宣言の前置き／接続詞**だけ＝支払う中身は1文字も削らない。
+  const clause = text.trim()
+    .replace(/^.*?(?:とき|時|場合|際)、/, '')
+    .replace(/^その後、/, '')
+    .replace(/[。．]+$/, '').trim();
+  if (!clause) return action;
+  const walk = (n: unknown): void => {
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    if (isBareOptionalCost(o) && o.costText === undefined) o.costText = clause;
+    for (const k of Object.keys(o)) walk(o[k]);
+  };
+  walk(action);
+  return action;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
+  action = attachOptionalCostText(action, text);
   action = rewritePerLastProcessedCount(action, text);
   action = rewriteSameLevelAsLastProcessed(action, text);
   action = wrapHandOrField(action, text);
@@ -15332,7 +15371,7 @@ function applyDynamicCountTargetLimit(action: EffectAction, sourceText: string):
   const energyUpTo = sourceText.match(/あなたのエナゾーンから(.+?)のカードを([０-９\d]+)枚までトラッシュに置いてもよい。その後/);
   if (energyUpTo && action.type === 'SEQUENCE') {
     const idx = action.steps.findIndex(step => step.type === 'STUB' && step.id === 'OPTIONAL_COST'
-      && Object.keys(step).length === 2);
+      && isBareOptionalCost(step));
     if (idx >= 0) {
       const sourceFilter = extractNounPhraseFilter(`${energyUpTo[1]}のカード`);
       const steps = [...action.steps];

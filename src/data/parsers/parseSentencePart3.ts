@@ -1088,7 +1088,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
     if (m) {
       return {
         type: 'STUB', id: 'OPTIONAL_COST',
-        costText: t.replace(/^その後、/, ''),
+        // ⚠使用宣言の前置き（「このピースを使用する際、」）は逆翻訳に出さない＝支払う中身だけを残す（O-133 B群）。
+        costText: t.replace(/^(?:その後、)?(?:この(?:スペル|ピース|アーツ|カード)を使用する際、)?/, ''),
         exceed: parseNum(m[1]),
       } as StubAction;
     }
