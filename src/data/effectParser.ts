@@ -185,7 +185,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase,
+  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -13792,6 +13792,31 @@ function parseActionTextInner(text: string): EffectAction {
           } as AddToFieldAction)
         : thenAction;
       thenAction = fieldThen;
+      // 🆕**公開文の前に置かれた対象宣言の限定を落とさない**（§5.3 `O-133` B群 第5バッチ・実測2効果）。
+      // 🔴`WX22-027-E2`「対戦相手の**パワー12000以下**のシグニ１体を対象とし、あなたのデッキの一番上を
+      //   公開する。それが《ライズアイコン》を持つシグニの場合、**それをバニッシュする**」／
+      //   `WXEX1-62-E2`（**パワー1000以下**）＝帰結の「それ」は**先に宣言した対象**を指すのに、
+      //   この規則は公開文の前半を捨てていたため **相手のどのシグニでもバニッシュできる**過剰効果だった。
+      const preDeclTxt = revealSentence.slice(0, revealSentence.search(/(?:あなたの)?デッキの一番上/));
+      const preDecl = /を対象とし[、,]\s*$/.test(preDeclTxt) ? signiClauseTargetSpec(preDeclTxt) : null;
+      if (preDecl) {
+        // ⚠`extractNounPhraseFilter` は**パワー句を見ない**（実測）＝ここで明示的に足さないと
+        //   「パワーN以下」限定だけが静かに落ちる。レベル／クラス／色も同じ理由で並べる。
+        const declFilter: TargetFilter = {
+          ...extractNounPhraseFilter(`${preDecl.modifiers}シグニ`),
+          ...parsePowerFilter(preDecl.modifiers),
+          ...parseLevelFilter(preDecl.modifiers),
+          ...parseStoryFilter(preDecl.modifiers),
+          ...parseColorFilter(preDecl.modifiers),
+        };
+        const declTgt = (thenAction as EffectAction & { target?: EffectTarget }).target;
+        if (Object.keys(declFilter).length > 0 && declTgt?.type === 'SIGNI' && declTgt.owner === preDecl.owner) {
+          thenAction = {
+            ...thenAction,
+            target: { ...declTgt, filter: { ...(declTgt.filter ?? {}), ...declFilter } },
+          } as EffectAction;
+        }
+      }
       const rp = {
         type: 'REVEAL_AND_PICK', owner: revealOwner, revealCount: 1, filter, pickCount: 1,
         ...(revealIndex > 0 && revealCardType === undefined ? { pickNoun: 'カード' as const } : {}),

@@ -49058,8 +49058,13 @@ test('O-63 live: 「〈あなた/対戦相手〉のターンの間／に」の�
 test('O-63 live: ターン境界 timing（ON_TURN_END 等）へは turnOwner を足していない', () => {
   ok(b43Live('WXDi-P03-065-E1').triggerCondition?.turnOwner === undefined,
      'WXDi-P03-065-E1（ON_TURN_END・あなたのターン終了時）は triggerScope:self が担保＝turnOwner 不要');
-  ok(b43Live('WXDi-CP02-074-E1').triggerCondition?.turnOwner === 'self',
-     'WXDi-CP02-074-E1 は従来から turnOwner を持つ＝既存値を壊していない');
+  // 🆕**2026-08-28（§5.3 `O-133` B群 第5バッチ）で `WXDi-CP02-074-E1` の孤児 MANUAL スタンプを外した**＝
+  //   旧 live は手で `turnOwner:'self'` を刻んでいたが、parser は ON_TURN_END に turnOwner を付けない
+  //   （この test の主題そのもの）。**挙動は同値**＝`collectTurnTriggers` の ON_TURN_END 経路は
+  //   `eff.triggerScope ?? 'self'` で自分側の場だけを走査するので、`turnOwner` が無くても相手ターンには乗らない。
+  //   ⇒ 兄弟の `WXDi-P03-065-E1` と**同じ期待値**に揃える（＝この規律に例外を作らない）。
+  ok(b43Live('WXDi-CP02-074-E1').triggerCondition?.turnOwner === undefined,
+     'WXDi-CP02-074-E1（ON_TURN_END・あなたのターン終了時）も triggerScope:self が担保＝turnOwner 不要');
 });
 
 // ── §5.3 `O-64`：トリガー句のフェイズ主限定（`duringMainPhase` / `outsideMainPhase` / `duringAttackPhase`）──
@@ -51499,7 +51504,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // ⚠**`census:orphanmanual` の表示値とは 3 だけずれる**（2026-08-28 B群 第4バッチ）＝
   //   あちらは **parser 自身が同じ `parseStatus` を出す効果**（＝出所あり・毎回再生成）を母集団から外すが、
   //   この test は **parser を回さない**ので外せない。ずれは意図的＝**同じ数を期待しない**。
-  const BASELINE_ORPHAN_MANUAL = 324;
+  const BASELINE_ORPHAN_MANUAL = 297;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];
