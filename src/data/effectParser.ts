@@ -11313,6 +11313,13 @@ function parseActionTextBody(text: string): EffectAction {
   // 付与が構造化済みなら、その兄弟（CHOOSE の別枝等）に同型の正当な即時アクションが
   // あっても引用漏出とはみなさない。安全網は付与ノード自体を作れなかった文だけに限定する。
   if (hasStructuredGrant(parsed)) return parsed;
+  // 🆕**引用漏出の受け皿は文型で選ぶ**（§5.3 `O-133` B群 第10バッチ・実測2効果＝`WXDi-P11-004-E1`／
+  //   `WX25-P2-003-E1`）。「**このゲームの間、あなたは以下の能力を得る**」には**専用の受け皿**がある
+  //   （`GAIN_ABILITY_THIS_GAME`＝engine が `game_hand_size_bonus` / `game_opp_guard_extra_colorless` 等を
+  //   ここから立てる恒久獲得）。汎用の `GRANT_ABILITY_INNER_TEXT`（実行時に原文を regex 検出するだけ）へ
+  //   落とすと**「ゲーム中ずっと」の意味が丸ごと消える**。
+  const leakStubId = /このゲームの間、あなたは以下の能力を得る/.test(text)
+    ? 'GAIN_ABILITY_THIS_GAME' : 'GRANT_ABILITY_INNER_TEXT';
   let safeResult = parsed;
   if (hasNakedImmediate(parsed)) {
     const masked = text
@@ -11320,7 +11327,7 @@ function parseActionTextBody(text: string): EffectAction {
       .replace(/『[\s\S]*?』/g, '『__QUOTED_ABILITY__』');
     const safe = parse(masked);
     safeResult = safe.type === 'GRANT_KEYWORD' || JSON.stringify(safe).includes('__QUOTED_ABILITY__')
-      ? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction
+      ? { type: 'STUB', id: leakStubId } as StubAction
       : safe;
   }
 
@@ -11347,7 +11354,7 @@ function parseActionTextBody(text: string): EffectAction {
     }
     return node;
   };
-  const pruned = pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+  const pruned = pruneExtraLeak(safeResult) ?? { type: 'STUB', id: leakStubId } as StubAction;
   const restoredGrant = restoreQuotedLrigDamageReplaceGrant(text, pruned);
   // ⚠**`restoreQuotedTargetGrant` は `prependOuterPowerBeforeQuotedGrant` の後**に置く（`O-128`）＝
   //   外側の「それのパワーを±Nし、」は**STUB のときだけ**前置される（あちらは `parsed.type === 'STUB'` を要求）。
@@ -15550,6 +15557,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (beatIconM) {
     beatCondition = { type: 'BEAT_CONDITION', condText: beatIconM[1] };
     costStr = costStr.slice(beatIconM[0].length).trim();
+  }
+  // 🆕**本文中の「あなたの【ビート】がN枚の場合、」も同じ受け皿へ持ち上げる**（§5.3 `O-133` B群 第10バッチ・
+  //   実測2効果＝`WXK08-070-E1`／`WXK10-069-E1`）。従来は**コスト欄の `《ビートアイコン》[…]` だけ**を見ており、
+  //   本文に書かれた形は条件が丸ごと落ちて**【ビート】の枚数を問わず発火**していた。
+  //   engine（`checkBeatCondition`）は最初から「N枚／N枚以上／N枚以下」を読める＝受け皿はあった。
+  // ⚠**`actionText` からは削らない**＝現行の本文パース結果は live と一致しており、句を抜くと
+  //   その先の解釈が変わりうる（条件を足すだけにして、本文側は1文字も動かさない）。
+  if (!beatCondition) {
+    const beatBodyM = actionText.match(/あなたの【ビート】が([０-９\d]+枚(?:以上|以下)?)の場合[、,]/);
+    if (beatBodyM) beatCondition = { type: 'BEAT_CONDITION', condText: beatBodyM[1] };
   }
 
   // 英知=N 条件を costStr から抽出（AUTO/ACTIVATED 効果の使用条件）。

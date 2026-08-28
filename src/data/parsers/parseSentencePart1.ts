@@ -528,7 +528,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (t.match(/ルリグトラッシュから.*ルリグデッキに加える/)) {
     // 「《スピリット・サルベージ》以外のアーツ1枚」（`WD13-009-E1`）＝自分自身を回収できる過剰効果だった
     // （§5d パターンA・続き371）。
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseCostTotalFilter(t), ...parseExcludeCardNameFilter(t) };
+    // 🆕**レベル限定を落とさない**（§5.3 `O-133` B群 第10バッチ・実測2効果＝`SPK16-8C-E2`／`PR-465-E2`＝
+    //   「ルリグトラッシュから**レベル４以下の**ルリグ１枚を対象とし、それをルリグデッキに加える」）。
+    //   `parseLevelFilter` を呼んでいなかったため**どのレベルのルリグでも戻せる**過剰効果だった。
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parseCostTotalFilter(t), ...parseExcludeCardNameFilter(t) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 1, filter },
@@ -2104,7 +2107,6 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- バウンス（手札に戻す / 戻してもよい）----
   if (t.includes('手札に戻す') || t.includes('手札に戻してもよい')) {
-    const owner: Owner = signiClauseOwner(t);
     const upToM = t.match(/([０-９\d]+)体まで/);
     const countM = t.match(/([０-９\d]+)体を対象/);
     const all = t.includes('すべて');
@@ -2112,6 +2114,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「このシグニを（場から）手札に戻す」＝自身限定（thisCardOnly）。トリガーの「このシグニが…とき」とは
     // 区別するため「このシグニを…手札に戻」の語順で判定する（対戦相手/他シグニ対象には付けない）。
     const isThisCard = /このシグニを(?:場から)?手札に戻/.test(t);
+    // 🔴**「このシグニを」なら持ち主は必ず自分**（§5.3 `O-133` B群 第10バッチ・実測2効果＝
+    //   `WD12-012-E1`／`WD12-014-E1`）。`signiClauseOwner` は**文中に「対戦相手」があれば opponent** を返すため、
+    //   「このシグニが**対戦相手の**シグニ１体をバニッシュしたとき、**このシグニを**手札に戻してもよい」で
+    //   **トリガー句の「対戦相手」に引きずられて** owner が opponent になっていた。
+    //   `thisCardOnly` と組むと候補を**相手の場から**探すことになり、**恒久 no-op**（1体も戻せない）。
+    const owner: Owner = isThisCard ? 'self' : signiClauseOwner(t);
     return {
       type: 'BOUNCE',
       target: {
