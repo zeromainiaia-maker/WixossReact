@@ -3079,6 +3079,13 @@ export interface SetCardCostReplacementAction {
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
   /**
+   * 由来の原文（parser が受け皿 STUB へ落とすときに残す控え）。**engine は読まない**＝
+   * 逆翻訳・原文照合のための記録。
+   * ⚠live には以前から入っていたが型に無く、`manualEffects.ts` へ移すと**そこで初めて型エラーになる**
+   * （JSON は型検査されないため）。§5.3 `O-133` B群 第15バッチで露出したので宣言を追加した。
+   */
+  raw?: string;
+  /**
    * `LIFE_CRASH_PREVENTION`（§5.3 `O-66`・2026-08-25）＝「ライフクロスは〜クラッシュされない／
    * N枚までしかクラッシュされない」の中身。
    * ⚠**このペイロードが無い `LIFE_CRASH_PREVENTION` は「全面防止」に化ける**ので、

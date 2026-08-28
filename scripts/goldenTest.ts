@@ -51512,7 +51512,11 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // ⚠**`census:orphanmanual` の表示値とは 3 だけずれる**（2026-08-28 B群 第4バッチ）＝
   //   あちらは **parser 自身が同じ `parseStatus` を出す効果**（＝出所あり・毎回再生成）を母集団から外すが、
   //   この test は **parser を回さない**ので外せない。ずれは意図的＝**同じ数を期待しない**。
-  const BASELINE_ORPHAN_MANUAL = 174;
+  // 🏁**2026-08-28 続き705 で B群を 0 にした**（`O-133` 第3〜第15バッチ）。
+  //   残 12 ＝ **D群9**（`fixLrigColorFilters.mjs` が build 後に毎回生成し直す id＝凍っていない）
+  //   ＋ **parser 自身が同じ印を出す3件**（この test は parser を回さないので母集団から外せない）。
+  //   ⇒ **以後この数が増えたら「また出所の無いスタンプを押した」** の合図。
+  const BASELINE_ORPHAN_MANUAL = 12;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];
