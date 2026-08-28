@@ -16592,7 +16592,28 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/あなたのターンの間[、,]/.test(trigText)) drCond.turnOwner = 'self';
         if (/アタックフェイズの間に/.test(trigText)) drCond.duringAttackPhase = true;
         if (/あなたの効果[０-９\d]*つ?によって/.test(trigText)) drCond.drawByDrawerOwnEffect = true;
+        // 🆕**「ドローフェイズ以外で」**（§5.3 `O-133` B群 第8バッチ・実測2効果＝`WXDi-D09-P19-E1`／
+        //   `WXDi-P05-062-E1`）。engine は `collectDrawTriggers` の `outsideDrawPhase && isDrawPhaseDraw`
+        //   で実装済みなのに parser が一度も出しておらず、**毎ターンの通常ドローでも発火**していた。
+        if (/ドローフェイズ以外で/.test(trigText)) drCond.outsideDrawPhase = true;
         if (Object.keys(drCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...drCond };
+      }
+      // 🆕**対戦相手のドローに反応する形**（§5.3 `O-133` B群 第8バッチ・実測2効果）＝
+      //   `WXDi-P04-038-E1`「メインフェイズとアタックフェイズの間、**対戦相手が**カードを１枚引いたとき」／
+      //   `WXDi-P15-091-E1`「**対戦相手が効果によって**カードを１枚引いたとき」。
+      // 🔴`collectOppDrawTriggers` は **`triggerScope === 'any_opp'` を必須**にする（既定 `self` では読まない）＝
+      //   scope が落ちると**丸ごと不発**だった。位相限定（`drawPhaseRestriction`）も engine 実装済み。
+      if (timing[0] === 'ON_DRAW' && /対戦相手が[^。]{0,12}カードを[０-９\d]+枚(?:以上)?引いたとき/.test(trigText)) {
+        extractedTriggerScope = 'any_opp';
+        const odCond: NonNullable<typeof extractedTriggerCondObj> = {};
+        // ⚠**「と」も「か」も同じ位相**（`WXDi-P04-038-E1` は「と」・`PR-423-E1` は「か」）。
+        if (/メインフェイズ(?:と|か)アタックフェイズの間/.test(trigText)) odCond.drawPhaseRestriction = 'main_attack';
+        if (/対戦相手のアタックフェイズの間/.test(trigText)) odCond.drawPhaseRestriction = 'opp_attack';
+        // ⚠原因句は2綴り＝「効果によって」／「自分の効果で」（後者は**引いた本人の効果**なので
+        //   `drawByDrawerOwnEffect` も併せて立てる＝engine が発生源プレイヤーを見る側のキー）。
+        if (/効果によって|自分の効果で/.test(trigText)) odCond.drawByEffect = true;
+        if (/(?:対戦相手が)?自分の効果で/.test(trigText)) odCond.drawByDrawerOwnEffect = true;
+        if (Object.keys(odCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...odCond };
       }
       // ON_OPP_POWER_DECREASED: 「あなたの（他の）＜X＞のシグニの効果によって」の発生源限定を
       //   triggerCondition.powerDecreaseSourceStory / powerDecreaseExcludeSelf に抽出する

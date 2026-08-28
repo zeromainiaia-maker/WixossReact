@@ -4311,9 +4311,13 @@ test('§6.4 reveal-until 9効果: 停止条件・ヒット先・残り先が liv
   //   出したくない札しか公開されなくても**相手に必ず場出しさせる**別物になる（段2 第43バッチ）。
   eq(JSON.stringify(c1Pick.stages), JSON.stringify([{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field', pickUpTo: true }]), 'C1 live: シグニ1枚まで場出し（まで＝上限）');
   eq(JSON.stringify(c1Pick.remainder), JSON.stringify({ location: 'deck', position: 'bottom' }), 'C1 live: 残りはデッキの一番下');
-  // ⚠E1 は PARTIAL のまま＝同じ効果の1つ目の内側能力（「対戦相手の場にあるキーとシグニは能力を失い、
-  //   新たに得られない」→ REMOVE_ABILITIES{count:1, PERMANENT}）が別軸で未忠実なのでレビュー印を落とさない。
-  eq(manualEffect('SP38-006', 'SP38-006-E1').parseStatus, 'PARTIAL', 'C1 live: E1 は PARTIAL 温存（別軸の未忠実が残る）');
+  // 🆕**2026-08-28（§5.3 `O-133` B群 第8バッチ・ユーザー決定）で `PARTIAL` の孤児スタンプを外した**＝
+  //   live の実体は parser 出力と**完全一致**しており、印は `manualEffects.ts` に出所を持たない
+  //   （＝parser の改善を永久に受け取れない第4の死角）。**未忠実の記録はここに残す**：
+  //   1つ目の内側能力「対戦相手の場にあるキーとシグニは能力を失い、新たに得られない」が
+  //   `REMOVE_ABILITIES{count:1, PERMANENT}` で**「すべて」「新たに得られない」を表せていない**。
+  //   ⚠印を外したので census の MANUAL 免除も外れる＝**この未忠実は高シグナル側で見える**（隠れていない）。
+  eq(manualEffect('SP38-006', 'SP38-006-E1').parseStatus, 'AUTO', 'C1 live: E1 は解凍済み（未忠実は上のコメントと census が持つ）');
   const c1Fresh = findEffectDeep(parseCardEffects(cardMap.get('SP38-006')!), 'SP38-006-E1-G2')!;
   const c1FreshPick = (c1Fresh.action as SequenceAction).steps[1] as unknown as LookPickChainAction;
   eq(c1FreshPick.type, 'LOOK_PICK_CHAIN', 'C1 fresh も同じ型（live 外科パッチと parser の一致）');
@@ -39929,7 +39933,11 @@ const B9_TRADE_STUB_ALLOWED = [
   'WX25-CP1-003-E1',  // 「手札から〜を**好きな枚数公開**」＝可変枚数＋公開が表せない
   'WXDi-P16-069-E1',  // 「シグニの**下から**」＝`underAnySigniTrash` 系の別受け皿が要る
   'WXK10-051-E1',     // 「トラッシュから〜4枚を**デッキに加えて**」＝デッキ戻しコストが表せない
-  'WD22-029-G-E2',    // 「-G」バリアント＝別の parse 入口を通るため後段規則が当たらない（要調査）
+  // 🏁**`WD22-029-G-E2` は 2026-08-28（§5.3 `O-133` B群 第8バッチ）で解消**＝
+  //   「別の parse 入口を通るため後段規則が当たらない（要調査）」の正体は **parse 入口ではなく凍結**だった。
+  //   同カードの `E1` が孤児 MANUAL で凍っていたため、収穫マージが**カード単位で held に落とし**、
+  //   `E2` への parser 改善（`SELECT_TARGET_ONLY` ＋ `OPTIONAL_COST{fieldTrash}` ＋ 帰結ゲート）が
+  //   一緒に止まっていた。`E1` を解凍したら `E2` も自動で catch-all を抜けた。
 ];
 test('B9 トリップワイヤ: 固定挙動 catch-all の残存は許容リストと一致', () => {
   const users: string[] = [];
@@ -51504,7 +51512,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // ⚠**`census:orphanmanual` の表示値とは 3 だけずれる**（2026-08-28 B群 第4バッチ）＝
   //   あちらは **parser 自身が同じ `parseStatus` を出す効果**（＝出所あり・毎回再生成）を母集団から外すが、
   //   この test は **parser を回さない**ので外せない。ずれは意図的＝**同じ数を期待しない**。
-  const BASELINE_ORPHAN_MANUAL = 297;
+  const BASELINE_ORPHAN_MANUAL = 280;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];
