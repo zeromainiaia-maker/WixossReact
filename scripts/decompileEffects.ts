@@ -1515,7 +1515,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // `else { immune.add(sourceNum) }`）が**発生源シグニ自身だけ**を守る形。主語なしで
       // 「シグニは…」と書くと場の全シグニと読めてしまうので「このシグニ」と明示する（タスク12(cxiii)）。
       const protSelfOnly = effectType === 'CONTINUOUS' && !a.subjectFilter && !a.target;
-      const subject = protThisOnly || protSelfOnly ? 'このシグニ'
+      // targetsTriggerSource:「それ（トリガー元シグニ）」＝出現条件の支払いで場に出たレゾナ等（`WX14-049`）。
+      // ⚠他の action（POWER_MODIFY / UP / GRANT_KEYWORD…）は既に表示していたが**ここだけ抜けており**、
+      //   `target` を素で読んで「あなたのシグニ1体」と書いていた＝**対象が広く見える誤読**を生む。
+      const subject = a.targetsTriggerSource ? 'それ（トリガー元シグニ）'
+        : protThisOnly || protSelfOnly ? 'このシグニ'
         : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + subjNoun;
       const protectionDurationJa = effectType !== 'CONTINUOUS'
         ? a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、'

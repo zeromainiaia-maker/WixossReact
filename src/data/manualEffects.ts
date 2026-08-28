@@ -5467,6 +5467,49 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK01-074": [{"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","effectId":"WXK01-074-E1b","effectType":"AUTO","timing":["ON_SIGNI_BECOMES_DRIVE"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":5000}}],
   "WXK01-008": [{"effectId":"WXK01-008-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"STUB","id":"CENTER_LRIG_RIDES_ON_SIGNI"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
   "WXK01-009": [{"effectId":"WXK01-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"STUB","id":"CENTER_LRIG_RIDES_ON_SIGNI"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  // §5.2 Sheet2 バッチ1（2026-08-29）＝【常】の条件と帰結が入れ替わり、後半の1文が丸ごと落ちていた。
+  //   原文「他の＜空獣＞があるかぎり…『バニッシュされない』を得、他の＜地獣＞があるかぎり…＋2000され【ランサー】を得る」
+  //   旧 live＝`activeCondition:空獣 → POWER_MODIFY +2000` の1本だけ（空獣で+2000／地獣は何も起きない）。
+  //   ⚠E1 の `appearanceCondition`（レゾナ出現条件）は E1 側にだけ残す（E1b へ複製しない＝二重に払わせない）。
+  "WX21-015": [
+    {"effectId":"WX21-015-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"空獣"},"excludeSelf":true},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"バニッシュされない","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL","appearanceCondition":{"rawText":"《メインフェイズアイコン》合計２枚のレゾナではない＜空獣＞か＜地獣＞のシグニをあなたのエナゾーンと場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["energy","field"],"count":2,"filter":{"cardType":"シグニ","story":["空獣","地獣"],"excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"}},
+    {"effectId":"WX21-015-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"地獣"},"excludeSelf":true},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"PERMANENT"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX21-015-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","story":"空獣"},"upToCount":false,"explicitTarget":true},"keyword":"バニッシュされない","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // §5.2 Sheet2 バッチ1（2026-08-29）＝発火条件と保護対象の両方が広がっていた。
+  //   原文「このシグニが＜宇宙＞のレゾナの出現条件によって場からトラッシュに置かれたとき、…そのレゾナは…効果を受けない」
+  //   旧 live＝`fromZones:['field']` だけ（場から落ちれば何でも発火）＋ `owner:'self',count:'ALL'`（自分のシグニ全部が守られる）。
+  //   🔑受け皿は既にあった＝`forResonaCondition`/`resonaClass`（`triggerCollect.ts:1193`・先例 `WX10-055`）と
+  //     `targetsTriggerSource`（`effectExecutor.ts:6084`＝「そのレゾナ」へ直接付与する分岐）。
+  "WX14-049": [
+    {"effectId":"WX14-049-E1","effectType":"AUTO","timing":["ON_TRASH"],"triggerCondition":{"forResonaCondition":true,"resonaClass":"宇宙","fromZones":["field"]},"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"from":["シグニ"],"sourceOwner":"opponent","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // §5.2 Sheet2 バッチ1（2026-08-29）＝公開した＜英知＞を**手札に加える処理が丸ごと落ちていた**。
+  //   原文「それが＜英知＞のシグニの場合、**それを手札に加え**、…エナゾーンに置く」／旧 live の `then` はエナチャージだけ。
+  //   受け皿は既存（`REVEAL_AND_PICK.then` の `ADD_TO_HAND`＝`WX02-025` ほか多数）。
+  "WX18-073": [
+    {"effectId":"WX18-073-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"activeCondition":{"type":"EICHI_LEVEL_SUM","operator":"eq","value":8},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"英知"},"pickCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_HAND","owner":"self"},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}]},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  // §5.2 Sheet2 バッチ1（2026-08-29）＝1文の後半（対戦相手のターン中の＋3000）が丸ごと落ちていた。
+  //   原文「…＜アーム＞のシグニは対戦相手のルリグの効果を受けず、**それらのパワーを対戦相手のターンの間、＋3000する**」
+  //   ⚠E1（耐性）は parser 出力のままで正しいので触らない。**足りない1本だけ**を E1b として足す。
+  //   受け皿は既存（`AND{TURN_OWNER opponent, HAS_CARD_IN_FIELD}`＝`WX20-052` ほか）。
+  "WX19-021": [
+    {"effectId":"WX19-021-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"TURN_OWNER","owner":"opponent"},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"ウェポン"}}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"アーム"}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // §5.2 Sheet2 バッチ1（2026-08-29）＝「パワー合計が10000以下になるように好きな数」が
+  //   **パワー制限なしの1体バニッシュ**に化けていた（枚数も上限も別物）。
+  //   受け皿は既存（`count:"ALL"` ＋ `totalPowerMax`＝`WX07-026-BURST` ほか同型3件）。
+  "WX13-030": [
+    {"effectId":"WX13-030-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"totalPowerMax":10000}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // §5.2 Sheet2 バッチ1（2026-08-29）＝BURST のサーチ対象から**スペルの選択肢が丸ごと落ちていた**
+  //   （原文「＜原子＞のシグニ１枚**かスペル１枚**を探して」／旧 live は＜原子＞のシグニしか探せない）。
+  //   ⚠`cardType` 配列では表せない＝**スペルに＜原子＞は付かない**ので `story:"原子"` が両方に掛かってしまう。
+  //     現行語彙で忠実に書ける形は「2つの SEARCH を `CHOOSE` で択一にする」。
+  "WX13-049": [
+    {"effectId":"WX13-049-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"＜原子＞のシグニ1枚を探す","label":"＜原子＞のシグニ1枚を探す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"原子"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"スペル1枚を探す","label":"スペル1枚を探す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"スペル"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   "WDK06-R09": [{"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","effectId":"WDK06-R09-E2b","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"usageLimit":"once_per_turn","cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":2000}}],
 };
 

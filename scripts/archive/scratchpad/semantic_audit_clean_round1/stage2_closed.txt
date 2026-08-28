@@ -810,3 +810,31 @@ WX05-022-E1 :: グロウフェイズとドローフェイズ以外
 #   SEQUENCE[POWER_SET, GRANT_FIELD_SIGNI_ABILITY{thisCardOnly}] になり、基本パワー10000 と引用【自】の両方が載った
 WX09-Re07-E1 :: 基本パワーは10000になり
 WX09-Re07-E1 :: 効果によってこのシグニが場を離れたとき
+
+# ── §5.2 Sheet2 バッチ1（2026-08-29・PLAN §2.0「速いレーン」の初回）──
+# §5.2 Sheet2 バッチ1（2026-08-29・§2.0 速いレーン初回）＝【常】の条件と帰結が入れ替わり後半1文が欠落。
+#   manualEffects.ts へ E1（空獣→バニッシュされない）/ E1b（地獣→+2000＋ランサー）で書き直し、E3 の owner を any へ。
+WX21-015-E1 :: 他の＜空獣＞のシグニ
+WX21-015-E1 :: 他の＜地獣＞のシグニ
+WX21-015-E3 :: ＜空獣＞のシグニ１体
+# §5.2 Sheet2 バッチ1＝発火条件と保護対象の両方が広がっていた。受け皿は既にあった
+#   （`forResonaCondition`/`resonaClass`＝triggerCollect.ts:1193・先例 WX10-055／`targetsTriggerSource`＝effectExecutor.ts:6084）。
+WX14-049-E1 :: ＜宇宙＞のレゾナの出現条件
+WX14-049-E1 :: そのレゾナは
+# §5.2 Sheet2 バッチ1＝公開した＜英知＞を手札に加える処理が欠落。`REVEAL_AND_PICK.then` を SEQUENCE[ADD_TO_HAND, ENERGY_CHARGE] へ。
+WX18-073-E2 :: それを手札に加え
+# §5.2 Sheet2 バッチ1＝1文の後半（相手ターン中の＋3000）が欠落。E1b を CONTINUOUS で追加（AND{TURN_OWNER opponent, HAS_CARD_IN_FIELD}）。
+WX19-021-E1 :: 相手ターンの間、＋3000
+# §5.2 Sheet2 バッチ1＝「パワー合計10000以下になるよう好きな数」が制限なしの1体に化けていた。count:"ALL"＋totalPowerMax:10000 へ。
+WX13-030-BURST :: パワー合計が10000以下
+# §5.2 Sheet2 バッチ1＝BURST のサーチ対象からスペルが欠落。cardType 配列では表せない（スペルに＜原子＞は付かない）ので CHOOSE の2択へ。
+WX13-049-BURST :: かスペル１枚
+# §5.2 Sheet2 バッチ1＝🔵**偽陽性**。live には既に `activeCondition:{IS_SELF_ACCED, cardName:"コードイート　テキソス"}` があり、
+#   監査時点より後に直っていた（実測して確認）。
+WX15-038-E2 :: テキソスにアクセされている
+# §5.2 Sheet2 バッチ1＝🔵**偽陽性**。live は `STUB{LIFE_CRASH_PREVENTION, maxPerTurn:1, protects:"self"}` で
+#   「1ターンに1枚まで」を正しく実装済み（claim の「自分のライフを1枚クラッシュする効果」は誤読）。
+WX20-032-E1 :: １ターンに１枚までしかクラッシュされない
+# WX19-061＝🔵**偽陽性1件のみ閉じる**。live は既に `source:{location:"deck",owner:"opponent"}` で相手デッキを見ている。
+#   残り2件（＜水獣＞なら1枚引く／スペルなら相手デッキトップとライフを入れ替える）は受け皿が無く §5.3 `O-137` へ。
+WX19-061-E1 :: 対戦相手のデッキの一番上を見る

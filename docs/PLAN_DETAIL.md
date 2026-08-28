@@ -5081,3 +5081,19 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   （`shuffle:false`→`true`）だったので採用して閉じた。**退化ではなく可視化。**
   **実機シナリオ＝新規1本**（`v91refreshonce`）＋既存4本の回帰（`banishbyeffect` `FRESH=1` 2/2・
   `refreshTrigger`・`deckshufflespell`・`b12delayattack`）＝**すべて PASS**。反転確認あり。
+
+### 旧・恒久指標（PLAN §6 から退避）
+
+- **2026-08-28 続き709 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)｜台帳 残 OPEN 570（据置）｜census 高シグナル 520（据置）**
+  **golden 2957→2960**（+3＝アーツ提示ゲート2本／`handDiff` 1本）、census 520/520、
+  smoke 10700 全異常0、fuzz 全0、lint 0 errors／260 warnings（据置）、同型★0、
+  held **31バケット / 91枚**（増減なし）、`census:stubs` A群🔴0／C群0、manual-fields 0、
+  `census:enginetext` A群 141行（据置）、孤児 MANUAL スタンプ 12（据置）。
+  ⚠**3計器が1つも動かないのが正しい**＝今回の穴は **UI の提示ゲート**で、
+  **JSON にも逆翻訳にも1バイトも現れない層**にあった（`census` も `census:cards` もここを見ていない）。
+  live 実体の変化は **`WD16-006` の1カードだけ**（`handDiff` の払い戻し）で、それも高シグナルではない。
+  🔴**この層の唯一の防御が実機シナリオ**（§2.2）＝今回も golden（純関数のゲート判定）と
+  実機（支払いパネル→エナ請求→解決）の**両方で反転確認**して初めて挙動が固定できた。
+  **実機シナリオ＝新規2本**（`o123usetimepay` / `o123usetimenopay`）＋既存4本の回帰
+  （`b25targetfirst` `b25targethit` `exceedCostPay` `artsUsedThisTurnGate`）＝**すべて PASS**。
