@@ -1,5 +1,73 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-133` 第3〜第7バッチ＝B群105効果を消化（402→297）＋ parser バグ7本
+
+> **5巡（続き705・Opus 5 単独）**。ユーザー指示＝**「pull する」→「回す（gates）」→「`O-133` の B を解消する」**。
+> gates 全緑（golden 2941/2941・smoke 10700 全0・fuzz 全0）。
+> 実機＝`g144DownTrigger` / `g145ByEffectTrigger` / `onPlayAnyOpp` / `onPlayUsageLimit` / `keywordgained` /
+> `revealDeckTopBanish` ALL PASS。⚠`lookReorderCanTrash` の FAIL は**本セッション起因ではない**（`V-89` に3度目の再確認を追記）。
+> 📊**孤児 MANUAL スタンプ 402 → 297**｜**census 高シグナル 510 → 528**（増分は毎回 id で機械照合＝全て可視化）
+
+### B群の割り方（この worklist の作業単位）
+`--id B` の diff を**向き**で3つに割る。これで393件の性格が一目で分かる：
+- **`FRESH_RICHER`**（fresh がキーを足しただけ・`-` が0本）＝**ほぼ全部 fresh が正しい**（34件中33件を採用）
+- **`LIVE_ONLY`**（live にしか無いキー）＝**parser の取りこぼし**。スタンプを外すと情報が消えるので**parser を直す**
+- **`MIX`** ＝1件ずつ原文照合
+
+### 直した parser バグ（7本・いずれも「凍っていたので誰も気づけなかった」層）
+1. **素の `STUB{OPTIONAL_COST}` に原文の任意コスト句を載せる**（`attachOptionalCostText`）。
+   `decompileEffects.ts:2592` は `costText` が無いと**「コストを支払ってもよい」へ潰す**＝何を払うのかが
+   逆翻訳から丸ごと消えていた。元から AUTO だった5効果も同時に復元。
+   🔴**罠**＝`costText` を足すと **`Object.keys(step).length === 2` で「素の STUB」を判定していた規則が外れ**、
+   「エナから0..N枚トラッシュに置いてもよい。その後」を実処理 `TRASH` へ差し替える変換が死んだ
+   （`WX25-CP1-080-E1`）。判定を **`isBareOptionalCost()`** に集約し、表示専用キーは数えないと明文化。
+2. **ON_PLAY watcher の allowlist（`watcherScopeRepairIds`）に16 id 追加**＋
+   **「シグニN体が…あなたの場に出たとき」の語順**を `isAllyWatcher` に追加（主語が「あなたの」で始まらない形は
+   scope も由来句も落ちて既定 `self` に退化していた）。
+3. **「そのシグニ」照応の束縛を `any_ally` にも掛ける**（従来 `any_opp` のみ）。
+   `WX10-074-E1`／`WX10-078-E1`「あなたのシグニ１体がダウン状態で場に出たとき、**そのシグニ**をアップする」が
+   `UP{SIGNI self 1}` の**自由選択**に落ちていた。
+4. 🆕**「このシグニ」照応の束縛を新設**（`bindThisCardAnaphora`）。ON_PLAY watcher 分岐はトリガー句を
+   actionText に残す仕様なので、素で解けば立つ `thisCardOnly` が落ち、**あなたのシグニなら誰でも選べる**
+   過剰対象化になっていた（`WX22-Re01-E1`）。⚠「その」（トリガー元）とは照応先が違う。
+5. 🔴**ON_RISE の「そのシグニ」が `owner:'any'` の自由選択に落ちていた**（実測4効果＝`WX16-037-E1`／
+   `WX16-039-E1`／`WX20-056-E1`／`WD17-011-E1`）＝**対戦相手のシグニまで**強化・保護できた。
+   さらに先頭の「ターン終了時まで、」が効かず `WX16-037-E1` の付与は **`PERMANENT`（永続）に化けていた**。
+6. **「共通するクラスを持つ」＝`commonClass`** を parser から出す（型にも追加）。engine に消費地点は無いが
+   **逆翻訳と語彙センサスが読む**語彙＝落とすと原文照合から制約が消える。
+   🔴**罠**＝「この方法で捨てたシグニ**と**共通するクラスを持つ」は**参照比較**で別物（`WXK10-056-E2` で誤検出）。
+   lookbehind `(?<!と)` で分離。
+7. 🔴**デッキトップ公開文の前に置かれた対象宣言の限定が落ちていた**（`WX22-027-E2`「対戦相手の**パワー12000以下**の
+   シグニ１体を対象とし、…それをバニッシュする」／`WXEX1-62-E2`）＝**相手のどのシグニでもバニッシュできる**過剰効果。
+   ⚠`extractNounPhraseFilter` は**パワー句を見ない**ので `parsePowerFilter` 等を明示的に併せる。
+
+### 最大の発見＝「デッキの一番上を公開する。それが〈条件〉の場合」族33件が旧設計のまま凍っていた
+live は `SEQUENCE[LOOK_AND_REORDER, CONDITIONAL{DECK_TOP_MATCHES}]`（旧）、parser は §6.4 `O-35` で整備した
+`REVEAL_AND_PICK{filter, then, remainder}`（現行）。**`O-35` の改善（スペル判定の分岐逆転・裸の色/アイコン/
+レベル奇偶・前置き条件の持ち上げ・`elseAction`）が1つも届いておらず、`O-35` が名指しで直した `WX24-P1-066-E1`
+すら旧形のまま**だった。27件を現行表現へ移行。
+**据え置き6件**＝`WXK02-071-E1`／`WXK10-057-E1`／`WDK05-T15-E1`（`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI` が割れる）／
+`WXDi-D03-017-E1`（「そうした場合」の帰結が消える）／`WXDi-CP01-040-E1`（**live は timing 誤り・fresh は条件脱落＝両方誤り**）／
+`SPDi43-31-E1`（レベル3分岐）。
+
+### 🔴手順の穴＝`--unfreeze` → `build:effects` だけでは live は変わらない
+**収穫マージが自動採用するのは「純粋上位集合」だけ**で、**キーの削除や差し替えは `docs/_held_fresh.json` に温存される**。
+第3・第4バッチで解凍した13カードがそこに埋まっていた（`triggerScope` の削除・`costText` の差し替え・
+ネスト能力の `thisCardOnly`）。⇒ **手順は4段**＝①`--unfreeze` ②`build:effects` ③**`heldReview.mjs --adopt`**
+④`regen` ＋ `gates`。PLAN §5.3 `O-133` に明記した。
+
+### 計器の較正2件
+- **`--unfreeze` が明示 id でも B を拒んでいた**＝PLAN が定める B の処理経路（「fresh が正しい → `--unfreeze <id>`」）が
+  実行できなかった。**分類名は `A` だけ／明示 id なら B も許す／C・D は明示でも拒む**（C は効果ごと消え、D は生成元がある）。
+- **「parser 自身が同じ `parseStatus` を出す効果」を母集団から外した**（`WD08-008-E1` 等3件）。
+  `effectParser` は条件節を解ききれないとき自分で `parseStatus='PARTIAL'` を刻む＝**出所があるので凍っていない**。
+  ⚠**golden のラチェットとは 3 ずれる**（あちらは parser を回さない集合演算）＝意図的。
+
+### 未決（ユーザー判断待ち）
+**実体同一の `PARTIAL` 孤児7件**（`WXEX1-03-E1`／`WXEX1-47-E1`／`WXDi-P02-030-E1`／`WX24-P1-017-E1`／
+`WX25-P3-084-E2`／`WX25-P3-088-E2`／`SP38-006-E1`）。解凍すると「別軸が未忠実」という記録が消え、
+`manualEffects.ts` へ移すと `censusManualDrift` の「削除候補（実体同一）」と衝突する。
+
 ## 2026-08-28：§5.3 `O-133` 第2バッチ＝C群21件を `manualEffects.ts` へ移設（＋ D群の新設）
 
 > **1巡（続き704 の後半・Opus 5 単独）**。ユーザー指示＝**「A（C群）をやってから B」／「A ができたら区切る」**。
