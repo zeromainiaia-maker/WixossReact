@@ -4888,6 +4888,14 @@ function containsPowerModPerCount(node: unknown): boolean {
   return Object.values(o).some(containsPowerModPerCount);
 }
 
+/**
+ * 原典に混じった「パワーをー15000する」の長音記号だけを数値マイナスへ正規化する。
+ * カタカナ語や「N枚につきー1000」まで一律変換しない（今回の生パース変化集合をこの文型だけに閉じる）。
+ */
+function normalizePowerNumericMinusTypo(text: string | undefined): string | undefined {
+  return text?.replace(/(パワーを)ー(?=\s?[０-９\d]{3,})/g, '$1－');
+}
+
 /** action ツリー中の `POWER_MODIFY` ノードを（書き換え可能な参照のまま）集める（§5.3 `O-80` 第1バッチ）。 */
 function collectPowerModifyNodes(node: unknown, out: PowerModifyAction[] = []): PowerModifyAction[] {
   if (Array.isArray(node)) { node.forEach(v => collectPowerModifyNodes(v, out)); return out; }
@@ -11363,6 +11371,7 @@ function parseActionTextBody(text: string): EffectAction {
         applyDeckTopMillTargetAnaphora(source,
           applySelectedTargetTrashReplacement(source, parseBase(source))))));
   let parsed = parse(text);
+  parsed = rewritePowerModPerCountPayload(text, parsed);
   // 🔴**fail-closed の最後の砦**（§5.3 `O-80` 第1バッチ・2026-08-26）＝
   //   「ターン終了時まで、**それの**パワーをこの方法で〜1枚につき±N」の「それ」が、
   //   カード全文を見る `applyLeadingOpponentDesignation` でも確定できなかった場合、
@@ -12305,6 +12314,161 @@ function bindTargetedCountAndDoubleMinus(text: string, action: EffectAction): Ef
       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
       { ...action, targetsStored: true } as StubAction,
     ] } as SequenceAction;
+  }
+  return action;
+}
+
+/** action 木に POWER_MOD_PER_COUNT がちょうど1個ある場合だけ、型付き action へ置き換える。 */
+function replaceUniquePowerModPerCount(action: EffectAction, replacement: EffectAction): EffectAction {
+  const found: Record<string, unknown>[] = [];
+  const scan = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(scan); return; }
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'POWER_MOD_PER_COUNT') found.push(o);
+    Object.values(o).forEach(scan);
+  };
+  scan(action);
+  if (found.length !== 1) return action;
+  for (const key of Object.keys(found[0])) delete found[0][key];
+  Object.assign(found[0], replacement);
+  return action;
+}
+
+function visitActionObjects(node: unknown, fn: (value: Record<string, unknown>) => void): void {
+  if (Array.isArray(node)) { node.forEach(value => visitActionObjects(value, fn)); return; }
+  if (!node || typeof node !== 'object') return;
+  const value = node as Record<string, unknown>;
+  fn(value);
+  Object.values(value).forEach(child => visitActionObjects(child, fn));
+}
+
+function removeStubFromSequences(node: unknown, id: string): void {
+  visitActionObjects(node, value => {
+    if (value.type !== 'SEQUENCE' || !Array.isArray(value.steps)) return;
+    value.steps = value.steps.filter(step => !(step && typeof step === 'object'
+      && (step as Record<string, unknown>).type === 'STUB' && (step as Record<string, unknown>).id === id));
+  });
+}
+
+/** §5.3 O-80 第2バッチ: 数えるゾーン／場と適用先を action payload へ刻む。 */
+function rewritePowerModPerCountPayload(text: string, action: EffectAction): EffectAction {
+  if (!containsPowerModPerCount(action)) return action;
+  const t = text.trim();
+  const signOf = (s: string) => (s === '－' || s === '-') ? -1 : 1;
+  const selfThis: EffectTarget = {
+    type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true },
+  };
+  const opponentOne: EffectTarget = {
+    type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' },
+  };
+  const countFilter = (phrase: string): TargetFilter => {
+    const filter: TargetFilter = {};
+    const story = phrase.match(/＜([^＞]+)＞/);
+    const color = phrase.match(/([白青赤緑黒])の/);
+    if (story) filter.story = story[1];
+    if (color) filter.color = color[1];
+    if (/《ディソナアイコン》/.test(phrase)) filter.isDisona = true;
+    if (/ルリグ/.test(phrase)) filter.cardType = ['ルリグ', 'アシストルリグ'];
+    else if (/シグニ/.test(phrase)) filter.cardType = 'シグニ';
+    return filter;
+  };
+
+  // catch-all への誤流入。既存機構が無い2文型は id を意味に合わせて honest defer にする。
+  if (/対戦相手のルリグ[１1]体を対象とし[^。]*レベルを[－-][１1]する/.test(t)) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'STUB', id: 'DEFERRED_OPP_LRIG_LEVEL_MODIFY',
+    } as StubAction);
+  }
+  if (/このシグニは色を失い[^。]*宣言した色を得る/.test(t)) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'STUB', id: 'DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED',
+    } as StubAction);
+  }
+  if (/対戦相手のデッキの上からカードを宣言した数字に等しい枚数トラッシュに置く/.test(t)) {
+    visitActionObjects(action, value => {
+      if (value.type === 'STUB' && value.id === 'DECLARE_NUMBER_RANGE') value.decompileDeclarationOnly = true;
+    });
+    return replaceUniquePowerModPerCount(action, {
+      type: 'MILL', owner: 'opponent', count: 0, useDeclaredCount: true,
+    } as EffectAction);
+  }
+  if (/デッキの上からそれのレベルと同じ枚数のカードをトラッシュに置く/.test(t)) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'MILL', owner: 'self', count: 0, countIsLastProcessedLevelSum: true,
+      lastProcessedLevelVerbJa: 'バニッシュしたシグニ',
+    } as EffectAction);
+  }
+
+  // 「トラッシュにある〈filter〉N枚につき」。通常対象1体／先行指定済み対象の双方を payload で固定する。
+  const trashM = t.match(/パワーをあなたのトラッシュにある((?:それぞれレベルの異なる)?[^、。]*?)([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (trashM) {
+    const ownTarget = t.match(/(あなたの他の[^、。]*シグニ[０-９\d]*体(?:まで)?)を対象とし/);
+    const target = ownTarget ? parseSigniTarget(ownTarget[1], 'self') : opponentOne;
+    const cap = t.match(/この効果は([０-９\d]+)枚までしか適用されない/);
+    const rewritten = replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY', target, delta: 0,
+      ...(ownTarget ? { targetsStored: true } : {}),
+      deltaFromZone: {
+        zone: 'trash', owner: 'self', filter: countFilter(trashM[1]),
+        unitSize: parseNum(trashM[2]), per: signOf(trashM[3]) * parseNum(trashM[4]),
+        ...(/それぞれレベルの異なる/.test(trashM[1]) ? { distinctBy: 'level' as const } : {}),
+        ...(cap ? { maxCount: parseNum(cap[1]) } : {}),
+      },
+    } as PowerModifyAction);
+    if (cap) removeStubFromSequences(rewritten, 'EFFECT_LIMIT');
+    return rewritten;
+  }
+
+  // 「場にいる／ある〈filter〉N体につき」。countOwner/target.owner の any を区別して保持する。
+  const fieldM = t.match(/パワーを(あなたの)?場に(?:いる|ある)(他の)?([^、。]*?)([０-９\d]+)体につき([＋+－-])([０-９\d]+)/);
+  if (fieldM) {
+    const allBoth = /すべてのシグニのパワーを/.test(t);
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_FIELD',
+      target: allBoth
+        ? { type: 'SIGNI', owner: 'any', count: 'ALL', filter: { cardType: 'シグニ' } }
+        : opponentOne,
+      deltaPerUnit: signOf(fieldM[5]) * parseNum(fieldM[6]),
+      countFilter: countFilter(fieldM[3]),
+      countOwner: fieldM[1] ? 'self' : 'any',
+      ...(fieldM[2] ? { excludeSelf: true } : {}),
+    } as EffectAction);
+  }
+
+  // 常時の手札差／N枚単位。差は負数を0に丸め、activeCondition と二重に安全側へ倒す。
+  const handDiffM = t.match(/パワーはその差[１1]枚につき([＋+－-])([０-９\d]+)/);
+  if (handDiffM) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_HAND_COUNT', target: selfThis,
+      deltaPerCard: signOf(handDiffM[1]) * parseNum(handDiffM[2]), handOwner: 'self', subtractHandOwner: 'opponent',
+    } as EffectAction);
+  }
+  const handM = t.match(/パワーはあなたの手札([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (handM) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_HAND_COUNT', target: selfThis,
+      deltaPerCard: signOf(handM[2]) * parseNum(handM[3]), handOwner: 'self', unitSize: parseNum(handM[1]),
+    } as EffectAction);
+  }
+
+  // 効果元シグニ自身の実効レベルを基準にする（付与能力内でもカード全文を読まない）。
+  const sourceLevelM = t.match(/パワー(?:を|は)このシグニのレベル[１1]につき([＋+－-])([０-９\d]+)/);
+  if (sourceLevelM) {
+    const selfTarget = /^このシグニのパワーは/.test(t);
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_BY_SOURCE', target: selfTarget ? selfThis : opponentOne,
+      basis: 'level', multiplier: signOf(sourceLevelM[1]) * parseNum(sourceLevelM[2]),
+      ...(/ターン終了時まで/.test(t) ? { until: 'UNTIL_END_OF_TURN' as const } : {}),
+    } as EffectAction);
+  }
+
+  const lrigLevelM = t.match(/パワーはあなたの場にいるルリグのレベルの合計[１1]につき([＋+－-])([０-９\d]+)/);
+  if (lrigLevelM) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_LRIG_LEVEL', target: selfThis,
+      deltaPerLevel: signOf(lrigLevelM[1]) * parseNum(lrigLevelM[2]), lrigOwner: 'self', sumFieldLrigLevels: true,
+    } as EffectAction);
   }
   return action;
 }
@@ -20682,6 +20846,11 @@ function repairGrantKeywordMetadataBatch41(
 }
 
 export function parseCardEffects(card: CardData): CardEffect[] {
+  card = {
+    ...card,
+    EffectText: normalizePowerNumericMinusTypo(card.EffectText),
+    BurstText: normalizePowerNumericMinusTypo(card.BurstText),
+  };
   const effects: CardEffect[] = [];
   const currentSourceTexts = new Map<string, string>();
   // ⚠深さを覚えて末尾で「その深さへ戻す」＝素の pop() だと、再入した parseCardEffects が

@@ -7196,7 +7196,7 @@ for (const [cardNum, effectId, key, count] of [
   ['WXDi-P13-058', 'WXDi-P13-058-E1', '"isDisona":true', 1],
   ['WX10-028', 'WX10-028-E3', '"excludeResona":true', 1],
   ['WX10-049', 'WX10-049-E1', '"excludeResona":true', 1],
-  ['WXDi-P13-002', 'WXDi-P13-002-E1', '"isDisona":true', 1],
+  ['WXDi-P13-002', 'WXDi-P13-002-E1', '"isDisona":true', 2],
 ] as [string, string, string, number][]) {
   test(`batch19 structure: ${effectId}`, () => {
     const effect = batch19Effect(cardNum, effectId);
@@ -41317,7 +41317,7 @@ test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集�
   }
   const FROZEN = ['execAttachCharm', 'execBlockAction', 'execExile', 'execFreeze', 'execGrantEffect',
     'execGrantKeyword', 'execGrantProtection', 'execLevelModify', 'execLifeCrash', 'execLookAndReorder',
-    'execNegateAttack', 'execPowerModify', 'execPowerModifyByTargetLevel', 'execPowerModifyPerField',
+    'execNegateAttack', 'execPowerModify', 'execPowerModifyByTargetLevel',
     'execPowerModifyPerHandCount', 'execPowerModifyPerLevelSum', 'execPowerModifyPerLifeCount',
     'execPowerModifyPerLrigLevel', 'execPowerModifyPerTrashCount', 'execPowerMultiply', 'execPowerSet',
     'execRemoveAbilities', 'execReveal', 'execRevealDeckTop', 'execStoryChange', 'execTransferToDeck',
@@ -52065,6 +52065,177 @@ test('2026-08-28 Sheet1残: WX05-021 は E1/E4 の2本で1つの原文を表す�
   eq((e4?.action as { type?: string; keyword?: string } | undefined)?.keyword, 'ダブルクラッシュ',
     'WX05-021-E4: キーワード付与');
   eq(e4?.parseStatus, 'MANUAL', 'WX05-021-E4: manualEffects.ts 由来（live 限定の手スタンプではない）');
+}));
+
+// ── §5.3 O-80 第2バッチ：ゾーン／場カウント payload と catch-all 誤流入 ──
+const o80b2Fresh = (cardNum: string, effectId: string): CardEffect => {
+  const effect = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+};
+
+test('O-80② parser契約: A群14効果は数える対象／効く相手をfresh木へ出す', () => withSavedCursor(() => {
+  const cases = [
+    ['WDK06-C17', 'WDK06-C17-E1', ['"deltaFromZone"', '"unitSize":2', '"maxCount":20', '"targetsStored":true']],
+    ['WX24-P3-057', 'WX24-P3-057-E2', ['"zone":"trash"', '"story":"悪魔"', '"per":-1000']],
+    ['WX14-048', 'WX14-048-E1', ['"distinctBy":"level"', '"story":"毒牙"', '"per":-3000']],
+    ['WXDi-P03-037', 'WXDi-P03-037-E1', ['"POWER_MODIFY_PER_HAND_COUNT"', '"subtractHandOwner":"opponent"']],
+    ['WXDi-P06-037', 'WXDi-P06-037-E1', ['"POWER_MODIFY_PER_HAND_COUNT"', '"unitSize":2']],
+    ['WXDi-P06-041', 'WXDi-P06-041-E1', ['"POWER_MODIFY_PER_FIELD"', '"cardType":["ルリグ","アシストルリグ"]', '"color":"黒"']],
+    ['WXDi-P12-086', 'WXDi-P12-086-E1', ['"isDisona":true', '"excludeSelf":true']],
+    ['WXDi-P12-089', 'WXDi-P12-089-E1', ['"isDisona":true', '"countOwner":"self"']],
+    ['WXDi-P13-002', 'WXDi-P13-002-E1', ['"deltaPerUnit":-5000', '"isDisona":true']],
+    ['WX25-CP1-049', 'WX25-CP1-049-E1', ['"owner":"any","count":"ALL"', '"countOwner":"any"']],
+    ['WXK08-078', 'WXK08-078-E1', ['"POWER_MODIFY_BY_SOURCE"', '"multiplier":-2000']],
+    ['SPDi01-132', 'SPDi01-132-E1', ['"POWER_MODIFY_BY_SOURCE"', '"multiplier":-1000']],
+    ['WX24-P3-TK1A', 'WX24-P3-TK1A-E1', ['"POWER_MODIFY_BY_SOURCE"', '"multiplier":5000']],
+    ['WXDi-P16-090', 'WXDi-P16-090-E1', ['"POWER_MODIFY_PER_LRIG_LEVEL"', '"sumFieldLrigLevels":true']],
+  ] as const;
+  for (const [cardNum, effectId, needles] of cases) {
+    const json = JSON.stringify(o80b2Fresh(cardNum, effectId));
+    ok(!json.includes('POWER_MOD_PER_COUNT'), `${effectId}: 旧 catch-all が残る`);
+    for (const needle of needles) ok(json.includes(needle), `${effectId}: ${needle}`);
+  }
+  ok(!JSON.stringify(o80b2Fresh('WDK06-C17', 'WDK06-C17-E1')).includes('EFFECT_LIMIT'),
+    'A1: maxCount へ移した旧上限STUBを二重に残さない');
+  // A8 はスペル＝効果元シグニではないため「他の」を捏造しない。
+  ok(!JSON.stringify(o80b2Fresh('WXDi-P12-089', 'WXDi-P12-089-E1')).includes('"excludeSelf":true'),
+    'A8不成立方向: スペルに excludeSelf を付けない');
+}));
+
+test('O-80② parser契約: B群5効果を固定値／既存MILL／honest deferへ分離する', () => withSavedCursor(() => {
+  const expected = [
+    ['PR-460', 'PR-460-E1', ['"type":"POWER_MODIFY"', '"delta":-15000']],
+    ['SP38-005', 'SP38-005-E1', ['DEFERRED_OPP_LRIG_LEVEL_MODIFY']],
+    ['WX22-042', 'WX22-042-E1', ['DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED']],
+    ['WX25-CP1-007', 'WX25-CP1-007-E1', ['"type":"MILL","owner":"opponent","count":0,"useDeclaredCount":true']],
+    ['WXDi-P11-048', 'WXDi-P11-048-E3', ['"type":"MILL","owner":"self","count":0,"countIsLastProcessedLevelSum":true', '"lastProcessedLevelVerbJa":"バニッシュしたシグニ"']],
+  ] as const;
+  for (const [cardNum, effectId, needles] of expected) {
+    const json = JSON.stringify(o80b2Fresh(cardNum, effectId));
+    ok(!json.includes('POWER_MOD_PER_COUNT'), `${effectId}: 誤った id が残る`);
+    for (const needle of needles) ok(json.includes(needle), `${effectId}: ${needle}`);
+  }
+  // 不成立方向: 同じ長音誤字でも「N枚につきー1000」は今回の固定パワー正規化へ横取りしない。
+  const typoBurst = findEffectDeep(parseCardEffects(cardMap.get('WX22-Re07')!), 'WX22-Re07-BURST');
+  ok(JSON.stringify(typoBurst).includes('POWER_MODIFY_PER_TRASH_COUNT') && !JSON.stringify(typoBurst).includes('"delta":-1000'),
+    'B群不成立方向: スコープ外の「N枚につきー1000」は既存PER_TRASH_COUNTのまま');
+  const nonPower = parseCardEffects({
+    CardNum: 'TEST-O80-B2-NONPOWER', Type: 'シグニ',
+    EffectText: '【出】：あなたの場にあるシグニ１体につきカードを１枚引く。',
+  } as unknown as CardData)[0];
+  ok(!JSON.stringify(nonPower).includes('POWER_MODIFY_PER_FIELD'), 'B群不成立方向: パワー文でない「1体につき」を奪わない');
+}));
+
+test('O-80② engine両方向: zone filter／異なるレベル／上限を盤面から数える', () => withSavedCursor(() => {
+  const target = SIGNI;
+  const warrior = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('武勇'));
+  const poisonByLevel = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('毒牙'))
+    .filter((card, i, cards) => cards.findIndex(other => other.Level === card.Level) === i)
+    .slice(0, 3).map(card => card.CardNum);
+  eq(poisonByLevel.length, 3, '異なるレベルの＜毒牙＞を3枚用意');
+  const cappedCtx = mkCtx({}, { signi: [target, null, null] });
+  cappedCtx.ownerState.trash = Array(22).fill(warrior);
+  const capped = run({
+    type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, delta: 0,
+    deltaFromZone: { zone: 'trash', owner: 'self', filter: { cardType: 'シグニ', story: '武勇' }, unitSize: 2, per: 1000, maxCount: 20 },
+  } as EffectAction, cappedCtx);
+  eq((capped.otherState.temp_power_mods ?? []).find(m => m.cardNum === target)?.delta, 10000, '成立方向: 22枚でも上限20÷2×1000');
+
+  const distinctCtx = mkCtx({}, { signi: [target, null, null] });
+  distinctCtx.ownerState.trash = [poisonByLevel[0], poisonByLevel[0], poisonByLevel[1], poisonByLevel[2]];
+  const distinct = run({
+    type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, delta: 0,
+    deltaFromZone: { zone: 'trash', owner: 'self', filter: { cardType: 'シグニ', story: '毒牙' }, per: -3000, distinctBy: 'level' },
+  } as EffectAction, distinctCtx);
+  eq((distinct.otherState.temp_power_mods ?? []).find(m => m.cardNum === target)?.delta, -9000, '成立方向: 重複Lv1を1種類としてLv3種×-3000');
+  const noneCtx = mkCtx({}, { signi: [target, null, null] });
+  noneCtx.ownerState.trash = [findCard(c => c.Type === 'スペル')];
+  const none = run({
+    type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, delta: 0,
+    deltaFromZone: { zone: 'trash', owner: 'self', filter: { cardType: 'シグニ', story: '毒牙' }, per: -3000, distinctBy: 'level' },
+  } as EffectAction, noneCtx);
+  eq((none.otherState.temp_power_mods ?? []).reduce((sum, mod) => sum + mod.delta, 0), 0, '不成立方向: filter一致0枚なら修正量0');
+}));
+
+test('O-80② engine両方向: 場／手札／効果元Lv／3ルリグ合計を payload だけで評価する', () => withSavedCursor(() => {
+  const blackLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('黒'));
+  const blackAssist = findCard(c => c.Type === 'アシストルリグ' && (c.Color ?? '').includes('黒'));
+  const opp = SIGNI;
+  const lrigCtx = mkCtx({}, { signi: [opp, null, null] });
+  lrigCtx.ownerState.field.lrig = [blackLrig];
+  lrigCtx.ownerState.field.assist_lrig_l = [blackAssist];
+  const lrigCount = run({
+    type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, deltaPerUnit: -2000,
+    countFilter: { cardType: ['ルリグ', 'アシストルリグ'], color: '黒' }, countOwner: 'self',
+  } as EffectAction, lrigCtx);
+  eq((lrigCount.otherState.temp_power_mods ?? []).find(m => m.cardNum === opp)?.delta, -4000, '成立方向: 中央＋アシストの黒ルリグ2体');
+
+  const noLrigCtx = mkCtx({}, { signi: [opp, null, null] });
+  const noLrig = run({
+    type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, deltaPerUnit: -2000,
+    countFilter: { cardType: ['ルリグ', 'アシストルリグ'], color: '黒' }, countOwner: 'self',
+  } as EffectAction, noLrigCtx);
+  eq((noLrig.otherState.temp_power_mods ?? []).length, 0, '不成立方向: 黒ルリグ0体なら修正0');
+
+  const allFieldCtx = mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null] }, { signi: [SIGNI_L3, SIGNI_L4, null] });
+  const allField = run({
+    type: 'POWER_MODIFY_PER_FIELD',
+    target: { type: 'SIGNI', owner: 'any', count: 'ALL', filter: { cardType: 'シグニ' } },
+    deltaPerUnit: -1000, countFilter: { cardType: 'シグニ' }, countOwner: 'any',
+  } as EffectAction, allFieldCtx);
+  eq((allField.ownerState.temp_power_mods ?? []).filter(m => m.delta === -4000).length, 2, '成立方向: 自分の全シグニにも両場4体×-1000');
+  eq((allField.otherState.temp_power_mods ?? []).filter(m => m.delta === -4000).length, 2, '成立方向: 相手の全シグニにも両場4体×-1000');
+
+  const continuous = (source: string, action: EffectAction) => new Map<string, CardEffect[]>([[source, [{
+    effectId: `${source}-TEST`, effectType: 'CONTINUOUS', action, duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
+  } as CardEffect]]]);
+  const handSource = 'WXDi-P06-037';
+  const handAction = { type: 'POWER_MODIFY_PER_HAND_COUNT', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, deltaPerCard: 1000, handOwner: 'self', unitSize: 2 } as EffectAction;
+  eq(calcFieldPowers(mkState({ signi: [handSource, null, null], hand: 5 }), mkState({}), true, continuous(handSource, handAction), cardMap).get(handSource), printedPower(handSource) + 2000, '成立方向: 手札5枚÷2＝2単位');
+  eq(calcFieldPowers(mkState({ signi: [handSource, null, null], hand: 1 }), mkState({}), true, continuous(handSource, handAction), cardMap).get(handSource), printedPower(handSource), '不成立方向: 手札1枚は2枚単位未満');
+
+  const diffSource = 'WXDi-P03-037';
+  const diffAction = { type: 'POWER_MODIFY_PER_HAND_COUNT', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, deltaPerCard: 1000, handOwner: 'self', subtractHandOwner: 'opponent' } as EffectAction;
+  eq(calcFieldPowers(mkState({ signi: [diffSource, null, null], hand: 5 }), mkState({ hand: 3 }), true, continuous(diffSource, diffAction), cardMap).get(diffSource), printedPower(diffSource) + 2000, '成立方向: 手札差2枚×1000');
+  eq(calcFieldPowers(mkState({ signi: [diffSource, null, null], hand: 3 }), mkState({ hand: 5 }), true, continuous(diffSource, diffAction), cardMap).get(diffSource), printedPower(diffSource), '不成立方向: 自分の手札が少なければ差を0クランプ');
+
+  const levelSource = 'WX24-P3-TK1A';
+  const levelAction = { type: 'POWER_MODIFY_BY_SOURCE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, basis: 'level', multiplier: 5000 } as EffectAction;
+  const raised = mkState({ signi: [levelSource, null, null] });
+  raised.temp_level_mods = [{ cardNum: levelSource, delta: 1 }];
+  eq(calcFieldPowers(raised, mkState({}), true, continuous(levelSource, levelAction), cardMap).get(levelSource), printedPower(levelSource) + 10000, '成立方向: 実効Lv2×5000');
+  eq(calcFieldPowers(mkState({ signi: [levelSource, null, null] }), mkState({}), true, continuous(levelSource, levelAction), cardMap).get(levelSource), printedPower(levelSource) + 5000, '不成立方向: Lv上昇なしはLv1×5000だけ');
+
+  const lrigSumSource = 'WXDi-P16-090';
+  const lrigSumAction = { type: 'POWER_MODIFY_PER_LRIG_LEVEL', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, deltaPerLevel: 1000, lrigOwner: 'self', sumFieldLrigLevels: true } as EffectAction;
+  const lrigLevels = [1, 2, 3].map(level => findCard(c => (c.Type === 'ルリグ' || c.Type === 'アシストルリグ') && Number(c.Level) === level));
+  const sumState = mkState({ signi: [lrigSumSource, null, null], lrig: [lrigLevels[0]], assistL: [lrigLevels[1]], assistR: [lrigLevels[2]] });
+  eq(calcFieldPowers(sumState, mkState({}), true, continuous(lrigSumSource, lrigSumAction), cardMap).get(lrigSumSource), printedPower(lrigSumSource) + 6000, '成立方向: 3ゾーンLv合計6');
+  eq(calcFieldPowers(mkState({ signi: [lrigSumSource, null, null] }), mkState({}), true, continuous(lrigSumSource, lrigSumAction), cardMap).get(lrigSumSource), printedPower(lrigSumSource), '不成立方向: ルリグ不在は+0');
+}));
+
+test('O-80② engine両方向: 宣言数MILL／直前対象Lv合計MILLを既存受け皿で実行する', () => withSavedCursor(() => {
+  const declaredCtx = mkCtx({}, {});
+  declaredCtx.ownerState.declared_number = 2;
+  const declaredBefore = declaredCtx.otherState.deck.length;
+  const declared = run({ type: 'MILL', owner: 'opponent', count: 0, useDeclaredCount: true } as EffectAction, declaredCtx);
+  eq(declared.otherState.deck.length, declaredBefore - 2, '成立方向: 宣言2で相手デッキ2枚');
+  const undeclaredCtx = mkCtx({}, {});
+  const undeclaredBefore = undeclaredCtx.otherState.deck.length;
+  eq(run({ type: 'MILL', owner: 'opponent', count: 0, useDeclaredCount: true } as EffectAction, undeclaredCtx).otherState.deck.length,
+    undeclaredBefore, '不成立方向: 未宣言なら0枚');
+
+  const lv1 = findCard(c => c.Type === 'シグニ' && Number(c.Level) === 1);
+  const lv3 = findCard(c => c.Type === 'シグニ' && Number(c.Level) === 3);
+  const levelCtx = { ...mkCtx({}, {}), lastProcessedCards: [lv1, lv3] };
+  const before = levelCtx.ownerState.deck.length;
+  eq(run({ type: 'MILL', owner: 'self', count: 0, countIsLastProcessedLevelSum: true } as EffectAction, levelCtx).ownerState.deck.length,
+    before - 4, '成立方向: 直前Lv1+Lv3で4枚');
+  const emptyCtx = { ...mkCtx({}, {}), lastProcessedCards: [] };
+  const emptyBefore = emptyCtx.ownerState.deck.length;
+  eq(run({ type: 'MILL', owner: 'self', count: 0, countIsLastProcessedLevelSum: true } as EffectAction, emptyCtx).ownerState.deck.length,
+    emptyBefore, '不成立方向: 直前対象なしなら0枚');
 }));
 
 test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増えたら FAIL）', () => withSavedCursor(() => {

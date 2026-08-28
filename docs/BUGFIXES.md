@@ -1,5 +1,110 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3 `O-80` 第2バッチ＝`POWER_MOD_PER_COUNT` は「当たらない」より「**当たったうえで別のものを数えていた**」
+
+**Codex へ委譲した回**（`docs/CODEX_GUIDE.md` の分担）。⚠**Codex は実装を完走した直後、最終の差分確認中に
+ChatGPT の利用上限に到達して停止**した（報告書は未生成）。**検証と簿記は Claude が引き取って完遂**（§CODEX_GUIDE §7）。
+
+■**真因**＝`STUB{POWER_MOD_PER_COUNT}` は live 36効果のうち **35効果が裸**（payload なし）で、engine の**2つの消費地点**が
+**効果元カードの `EffectText`＋`BurstText` を連結した全文**に regex を当てて意味を決めていた
+（①`execStubPart1.ts:1679` に10本／②`effectEngine.ts:2599` の CONTINUOUS collector に3本）。
+🔴**実害は「regex が外れる（miss7）」ことではなく、当たった29効果の側にあった**：
+
+| 壊れ方 | 実体 |
+|---|---|
+| **数え元が違う** | ①の主力 regex `N枚につき±X` に当たると、掛ける枚数は**常に `ctx.lastProcessedCards.length`**（直前ステップの処理枚数）。原文が「**あなたのトラッシュにある**＜悪魔＞のシグニ1枚につき－1000」でも**トラッシュを1枚も数えていない** |
+| **効く相手が違う** | ①の既定分岐は**対戦相手3ゾーンの最上面すべて**に満額を掛ける。原文が「シグニ**１体**を対象とし」でも3体に効く（`WX25-CP1-049` は原文が「**すべてのシグニ**（お互い）」なのに**自分のシグニに一度も掛かっていなかった**） |
+| **他の能力の文が判定を奪う** | カード全文を読むので、複数能力のカードは**どの能力から発動しても同じ regex 結果**。付与能力（`GRANT_*` の `abilities[]`）は**効果元が付与先カード**なので、読む全文が**まったく別のカードの原文**（`WXK08-078` / `SPDi01-132`） |
+| **CONTINUOUS は恒久 0** | ②は手札／エナ／登録者数の3本だけ。`WX24-P3-TK1A`（レベル1につき＋5000）・`WXDi-P16-090`（ルリグのレベル合計1につき＋1000）・`WXDi-P03-037`（手札の差1枚につき＋1000）は**一度も効いたことがない** |
+
+■✅**採用 19効果（A群14＋B群5）／据置 17効果（C群）**
+
+**A群＝ゾーン／場を数える 14効果**（受け皿は**全部すでに在った**＝parser が payload を吐いていなかっただけ）：
+`WDK06-C17-E1` `WX24-P3-057-E2` `WX14-048-E1` `WXDi-P03-037-E1` `WXDi-P06-037-E1` `WXDi-P06-041-E1`
+`WXDi-P12-086-E1` `WXDi-P12-089-E1` `WXDi-P13-002-E1` `WX25-CP1-049-E1` `WXK08-078-E1` `SPDi01-132-E1`
+`WX24-P3-TK1A-E1` `WXDi-P16-090-E1`
+⇒ `POWER_MODIFY.deltaFromZone` ／ `POWER_MODIFY_PER_FIELD` ／ `POWER_MODIFY_BY_SOURCE` ／
+`POWER_MODIFY_PER_HAND_COUNT` ／ `POWER_MODIFY_PER_LRIG_LEVEL` へ振り分け。
+
+**B群＝この STUB に居るべきでない 5効果**＝**3件を既存受け皿へ流し、2件は honest な明示保留**：
+`PR-460-E1`（固定値 `POWER_MODIFY{-15000}`）／`WX25-CP1-007-E1`（宣言数 `MILL`）／`WXDi-P11-048-E3`（直前対象のレベル合計 `MILL`）
+／`SP38-005-E1`・`WX22-042-E1` は `DEFERRED_*` へ改名（engine 分岐は作らない）。
+
+■🔑**新しいアクション型は0**。既存型へのフィールド追加5本だけで足りた（§CODEX_GUIDE §5-8）：
+`CountFromZone.maxCount`（「この効果は20枚までしか適用されない」）／`CountFromZone.distinctBy:'level'`（「それぞれレベルの異なる」）／
+`PowerModifyPerLrigLevelAction.sumFieldLrigLevels`（センター＋左右アシストの合計）／
+`PowerModifyPerHandCountAction.subtractHandOwner`（「その差」）・`unitSize`（「N枚につき」）。
+**5本とも executor と CONTINUOUS collector の両方で消費**することをコードで確認済み（§CODEX_GUIDE §5-14）。
+
+■🔑**`POWER_MODIFY_BY_SOURCE` と `POWER_MODIFY_PER_HAND_COUNT` に CONTINUOUS collector を新設した。**
+指示書には「この2型に collector は**無い**」と書いてあり、そのまま使えば**恒久 no-op**（§CODEX_GUIDE §5-2⁗）になるところを、
+Codex が collector を足して塞いだ。**`basis:'power'` は循環参照になるため `level` 基準だけに限定**している。
+
+■🔑**原文データの誤字を1件見つけた**＝`PR-460` の「パワーを**ー**15000する」のマイナスが
+**U+30FC（カタカナ長音記号「ー」）**で、正しい U+FF0D（「－」）ではない。これが10本すべてを外していた真因。
+**CSV 全10シート＋TK＋Variants を全数走査した結果、同種の誤字は2枚だけ**（`PR-460` と `WX22-Re07`）。
+⚠**CSV は書き換えず parser 側で正規化**した。⚠**長音記号を一律にマイナス扱いにしない**
+（`パワー`／`エナゾーン`／`レベル` が全部壊れる）＝`(パワーを)ー(?=数字3桁以上)` に限定してある。
+
+■**据置 17効果（C群）＝受け皿が無いことをコードで確認したもの**（§2.4 の「新機構が要る」＝先送りしてよい枠）：
+- **割り振り5**（`SP26-003-E1` `SPDi47-05-E2` `PR-K026-E1` `WXK11-073-BURST` `WX24-P2-009-E1`）＝
+  「合わせて／合計で－N を好きな数の対象へ1000単位で割り振る」機構が live に**1つも無い**（`grep` 0件）。
+  🔴**現行は既定分岐が相手3体それぞれに満額**＝`SP26-003` は －20000 が3体で**計 －60000 の過剰実行**。→ `O-140`
+- **下のカード3**（`WXDi-CP02-054-E1` `WXK09-060-E1` `WXDi-P07-065-E1`）＝`CountFromZone.zone` にスタックが無く、
+  `POWER_MODIFY_PER_STACK` は **`effectExecutor.ts:8379` が `addLog` するだけの no-op**（CONTINUOUS 専用）。→ `O-141`
+- **「同じだけ」6**（`WXEX2-79-E2` `WX24-P1-046-E2` `WXDi-P14-037-E1` `WXK10-026-E1` `WXK03-018-E1` `WXK10-053-E2`）＝
+  直前処理カードの**パワー値／レベル値**を運ぶ受け皿が無い（枚数の `last_processed_count` は在る）。→ `O-142`
+- **チェックゾーン1**（`WXDi-P11-006-E2`）＝`PlayerState.field.check` が **`string | null` の1スロット**
+  （`src/types/index.ts:251`）＝**複数枚を保持できない**。原文は「４枚以下の場合」と書いており engine のモデル自体が足りない。→ `O-143`
+- **lastProcessed カウント2**（`WX25-P3-102-E1` `WX24-P2-035-E1`）＝第1バッチの手口の残り（当時の fail-closed 判断の読み直しが要る）。
+
+■**検証**（Claude が独立実行）
+- `npm run gates` **全緑**＝golden **2960→2965**（+5・FAIL 0）／smoke 10702 全0／fuzz 全0／lint 260 据置／
+  `census:stubs` A群🔴0・C群0／`manual-fields` 0／`census:enginetext` A群 **141行 据置**。同型★ **0**。
+- **`POWER_MOD_PER_COUNT` は miss7/live36 → miss4/live17**（19効果ぶんちょうど減った）。
+  ⚠**A群の行数（141）が動かないのは正しい**＝ハンドラは C群17効果のために生かしてあり、
+  計器が数えるのは「`EffectText` を読む代入行」であって regex の本数ではない。
+- 🔴**不変条件の機械確認**（§CODEX_GUIDE §5-26）＝**live で変化した効果は 19 ちょうど・outlier 0・追加/削除 0**。
+  C群17効果と他の 10,600 効果の JSON は1バイトも変わっていない（effectId 単位で全数比較・`build:effects` 再実行後も同じ）。
+- 🔴**反転確認**（§CODEX_GUIDE §5-29）＝`effectParser.ts:11374` の `rewritePowerModPerCountPayload` 呼び出しを外すと、
+  新 golden の **parser 契約2本が赤くなる**ことを実測（`WDK06-C17-E1: 旧 catch-all が残る` / `SP38-005-E1: 誤った id が残る`）。
+  新 golden 5本の内訳＝**parser 契約2本**（`parseCardEffects` の fresh 木を assert）＋**engine 両方向3本**。
+- **逆翻訳の目視照合**＝19件中17件を原文と突き合わせて一致を確認
+  （残り2件は `WX24-P3-TK1A`＝TK 系カードで逆翻訳シートの母数外。JSON を直接照合した）。
+- **エンコーディング検査**（§CODEX_GUIDE §5-19）＝変更30ファイルで BOM / U+FFFD / `???` の**新規増 0**。
+- **実機なし**＝§2.2 の表どおり（触ったのは `src/data/` `src/engine/` `src/types/` `scripts/` `public/data/` だけ＝`src/screens/` に触れていない）。
+
+■⚠**census 高シグナル 518 → 520 は退化ではなく可視化。**
+増分の正体を高シグナル集合の差分で特定した＝**`WX14-048-E1` と `WXDi-P06-041-E1` の2件だけ**で、
+どちらも**STUB を外したことで census の STUB 免除が外れた**もの（続き529 と同型）。`BASELINE_HIGH` を 520 へ実数更新。
+`WXDi-P06-041-E1` は「この効果によってそれのパワーが０以下になった場合」の条件欠落が**新たに見えるようになった**＝
+今回作り込んだ穴ではなく、STUB の陰に隠れていた既存の穴。
+
+■📌**`execPowerModifyPerField` は丸ごと書き直された**＝スコープ外の8効果（AUTO/ACTIVATED 経路）も通る。
+live 24件の利用を全数列挙して確認したところ、**危険な組み合わせ（`excludeSelf` ＋ `owner:'self'` ＋ `!thisCardOnly` の executor 経路）は0件**だった。
+🔑**旧実装は `excludeSelf` の基準に「対象候補の先頭（`tgtCandsPre[0]`）」を使っており、これ自体が誤り**（正しくは `ctx.sourceCardNum`）。
+新実装はそこを直したうえで、ルリグを数える場合にセンター＋左右アシストを含めるようにしてある。
+
+■📌**held の申告は「`build:effects` を回し直してから読む」**（§CODEX_GUIDE §6 の但し書き）。
+コミット済みの `_held_fresh.json` は **95件で stale** だったが、再生成すると **91件**＝
+**前セッション（§5.2 Sheet2 バッチ1）が `syncManualLive.ts` を回した後に `build:effects` を回していなかった**ためで、
+減った4件（`WX13-030` `WX13-049` `WX14-049` `WX18-073`）と `_partial_fresh` の1件（`WX21-015`）は
+**すべて前セッションで採用済みのカード**。今回のバッチが動かしたものではない。
+
+■🔴**ついでに直した道具のバグ1件＝`scripts/syncManualLive.ts` が live JSON を pretty-print で書き戻していた。**
+`buildEffectsJson.ts:477` は `JSON.stringify(j)`（**ミニファイ1行**）で書くのがリポジトリ規約
+（CODEX_GUIDE §5-9「pretty-print は巨大 diff になる」）だが、`syncManualLive.ts:87` だけが
+**`JSON.stringify(j, null, 2)`** だった。⇒ 前セッション（続き710）が `syncManualLive` を回した
+`effects_WX.json` だけが **1行 → 117,992行**に化けており、今回の `build:effects` が規約どおりへ戻した結果、
+**このコミットに「118,496行の削除」が乗っている**（中身の変化は19効果ぶんだけ＝per-effect diff で確認済み）。
+⚠**この事故はどの計器にもゲートにも一切映らない**＝JSON として同値なので golden も census も smoke も緑のまま。
+**見えるのは commit の diff だけ**で、しかも巨大化してレビュー不能になるという形で効く。
+⇒ `syncManualLive.ts` をミニファイ1行へ揃えた（`--dry` で回帰なしを確認）。
+■📌**Codex が上限で止まったときの引き取り方**＝**実装が完走しているかは `git status` と per-effect diff で機械判定できる。**
+今回は「最終差分確認の途中」で止まっており、**実装・golden・逆翻訳・計器更新はすべて着地済み**だった。
+⇒ **報告書が無くても、不変条件・反転確認・エンコーディング検査を検証側でやり直せば採用判断はできる。**
+
+
 ## 2026-08-29：§5.2 Sheet2 バッチ1（PLAN §2.0「速いレーン」の初回）＝6枚を手書きで直し、残 OPEN 570→558
 
 **様式は §2.1 ⑥の「速いレーン」＝1件ごとではなく10件まとめて。**

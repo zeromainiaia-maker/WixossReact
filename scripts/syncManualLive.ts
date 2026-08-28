@@ -84,7 +84,12 @@ for (const id of ids) {
     console.log(`      NEW ${JSON.stringify(next).slice(0, 240)}`);
     if (!dryRun) {
       j[id] = next;
-      writeFileSync(p, JSON.stringify(j, null, 2) + '\n', 'utf-8');
+      // 🔴**ミニファイ1行で書き戻す**（`buildEffectsJson.ts:477` と同じ形＝リポジトリ規約・CODEX_GUIDE §5-9）。
+      //   2026-08-29 続き711 で発覚＝ここが `JSON.stringify(j, null, 2)` で **pretty-print** していたため、
+      //   続き710 が `syncManualLive` を回した `effects_WX.json` だけが**1行 → 117,992行**に化け、
+      //   次の `npm run build:effects` が元へ戻すときに**118,496行の削除**という巨大 diff を生んだ。
+      //   ⚠**中身は同じなので計器にもゲートにも一切映らない**（見えるのは commit の diff だけ）。
+      writeFileSync(p, JSON.stringify(j), 'utf-8');
       changed++;
     }
     break;

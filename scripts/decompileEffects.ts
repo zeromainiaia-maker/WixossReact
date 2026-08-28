@@ -1064,6 +1064,15 @@ function actionJa(a?: Action, effectType?: string): string {
         const plpUnit = plp?.unit === 'level_sum' ? 'のレベルの合計1' : `${plp?.divisor ?? 1}枚`;
         return `${pmSubj}のパワーをこの方法で処理した${plpNoun}${plpUnit}につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
       }
+      if (a.deltaFromZone) {
+        const z = a.deltaFromZone;
+        const d = z.per ?? 0;
+        const filter = z.filter ?? {};
+        const noun = `${z.distinctBy === 'level' ? 'それぞれレベルの異なる' : ''}${filterJa(filter)}${filter.cardType ?? 'カード'}`;
+        const location = z.zone === 'trash' ? 'トラッシュにある' : `${z.zone}にある`;
+        const cap = z.maxCount === undefined ? '' : `（この効果は${z.maxCount}枚までしか適用されない）`;
+        return `${pmSubj}のパワーを${ownerJa(z.owner)}${location}${noun}${z.unitSize ?? 1}枚につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する${pmDuration}${cap}`;
+      }
       // deltaPerTargetLevel: 倍率は「対象シグニ自身のレベル」＝delta はレベル1あたりの単価（§6.4 O-16(a)）
       if (a.deltaPerTargetLevel) {
         return `${pmSubj}のパワーをそのシグニのレベル1につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
@@ -1079,7 +1088,10 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'POWER_MODIFY_PER_HAND_COUNT': {
       const dHand = a.deltaPerCard ?? a.delta ?? 0;
-      return `${targetJa(a.target)}のパワーを${ownerJa(a.handOwner)}手札1枚につき${dHand >= 0 ? '＋' : '－'}${Math.abs(dHand)}する`;
+      const countHand = a.subtractHandOwner
+        ? `${ownerJa(a.handOwner)}手札と${ownerJa(a.subtractHandOwner)}手札の差`
+        : `${ownerJa(a.handOwner)}手札`;
+      return `${a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}のパワーを${countHand}${a.unitSize ?? 1}枚につき${dHand >= 0 ? '＋' : '－'}${Math.abs(dHand)}する`;
     }
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
@@ -1278,6 +1290,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${src}${loc}${cntJa}を見る${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
     }
     case 'MILL':
+      if (a.useDeclaredCount) return `${ownerJa(a.owner)}デッキの上から宣言した数字に等しい枚数のカードをトラッシュに置く`;
       if (a.countIsLastProcessedLevelSum) return `この方法で${a.lastProcessedLevelVerbJa ?? '場に出たシグニ'}のレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
       if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
       // optional＝原文「〜トラッシュに置いてもよい」（続き417 で任意デッキミルをここへ寄せた）
@@ -1999,6 +2012,8 @@ function actionJa(a?: Action, effectType?: string): string {
         ? 'この方法でトラッシュに置いた【チャーム】の枚数'
         : (a.type === 'POWER_MODIFY_PER_LRIG_LEVEL' && a.useLastDownedLrigLevelSum)
           ? 'この方法でダウンしたルリグのレベルの合計'
+        : (a.type === 'POWER_MODIFY_PER_LRIG_LEVEL' && a.sumFieldLrigLevels)
+          ? '場にいるルリグのレベルの合計'
         : (perJaMap[a.type] ?? a.type.replace('POWER_MODIFY_PER_', '') + '数');
       const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.deltaPerCharm ?? a.deltaPerCard ?? a.deltaPerVirus ?? a.delta ?? a.deltaPerColor ?? 0;
       // count!=='ALL' かつ self/any =「このシグニ」（常時自己強化）
@@ -2274,7 +2289,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const pwPV = a.powerDeltaOnZone !== undefined ? `（そのゾーンのシグニのパワーを${a.powerDeltaOnZone >= 0 ? '＋' : '－'}${Math.abs(a.powerDeltaOnZone)}）` : '';
       return `${ownerJa(a.targetOwner)}${zonesPV}に【ウィルス】を${a.virusCount > 1 ? `${a.virusCount}つずつ` : ''}置く${pwPV}`;
     }
-    case 'POWER_MODIFY_BY_SOURCE': return `${targetJa(a.target)}のパワーを効果元の${a.basis === 'level' ? 'レベル' : 'パワー'}×${a.multiplier}だけ変更する`;
+    case 'POWER_MODIFY_BY_SOURCE': {
+      const tgt = a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
+      const unit = a.basis === 'level' ? 'このシグニのレベル1' : 'このシグニのパワーと同じ値';
+      return `${tgt}のパワーを${unit}につき${a.multiplier >= 0 ? '＋' : '－'}${Math.abs(a.multiplier)}する`;
+    }
     case 'LOOK_AT_DECK_AND_LIFE': return `${ownerJa(a.targetOwner)}デッキの上${a.mode === 'both' ? 'とライフクロスの上' : 'かライフクロスの上'}を見る`;
     // ⚠カード名限定（`filter.cardName`）は「《名前》シグニ」と重ねると原文とズレるので名詞を落とす。
     case 'GRANT_SIGNI_ABOVE_ABILITY': return a.filter?.cardName
@@ -3068,6 +3087,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // 数字宣言してミル（DECLARE_NUMBER/DECLARE_NUMBER_RANGE・engine実装済み）＝
       // 「X～Yの数字１つを宣言する。（あなた/対戦相手の）デッキの上から（カードを）宣言した数字に等しい枚数…トラッシュに置く」。
       if (a.id === 'DECLARE_NUMBER' || a.id === 'DECLARE_NUMBER_RANGE') {
+        if (a.decompileDeclarationOnly) {
+          const declaration = currentCardText.match(/[０-９\d]+～[０-９\d]+の数字１つを宣言する/);
+          if (declaration) return declaration[0];
+        }
         const m = currentCardText.match(/[０-９\d]+～[０-９\d]+の数字１つを宣言する。[^。]*?宣言した数字に等しい枚数[^。]*?トラッシュに置く/);
         if (m) return m[0];
       }
@@ -3468,6 +3491,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §5.3 O-80 第2バッチ: POWER_MOD_PER_COUNT へ誤流入していたが、既存 engine に受け皿が無い2文型。
+        DEFERRED_OPP_LRIG_LEVEL_MODIFY: '【未実装】ターン終了時まで、対象の対戦相手のルリグ1体のレベルを－1する',
+        DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED: '【未実装】色1つを宣言し、ターン終了時まで、このシグニは色を失い、宣言した色を得る',
         // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝旧 `CONDITIONAL_ARTS_COST` の catch-all から分離した4文型。
         //   **どれもコストの話を1文字もしていない**ので、id を意味に合わせて honest にした（§5.3 `O-82`）。
         DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL: '【未実装】あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい',

@@ -9,6 +9,8 @@ import type {
   PowerModifyPerFieldAction,
   PowerModifyPerLevelSumAction,
   PowerModifyPerLrigLevelAction,
+  PowerModifyBySourceAction,
+  PowerModifyPerHandCountAction,
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
   PowerModifyPerDeckCountAction,
@@ -1452,6 +1454,18 @@ function extractPowerModifiesPerLrigLevel(action: EffectAction): PowerModifyPerL
   return [];
 }
 
+function extractPowerModifiesBySource(action: EffectAction): PowerModifyBySourceAction[] {
+  if (action.type === 'POWER_MODIFY_BY_SOURCE') return [action as PowerModifyBySourceAction];
+  if (action.type === 'SEQUENCE') return action.steps.flatMap(extractPowerModifiesBySource);
+  return [];
+}
+
+function extractPowerModifiesPerHandCount(action: EffectAction): PowerModifyPerHandCountAction[] {
+  if (action.type === 'POWER_MODIFY_PER_HAND_COUNT') return [action as PowerModifyPerHandCountAction];
+  if (action.type === 'SEQUENCE') return action.steps.flatMap(extractPowerModifiesPerHandCount);
+  return [];
+}
+
 function extractPowerModifiesPerTrashCount(action: EffectAction): PowerModifyPerTrashCountAction[] {
   if (action.type === 'POWER_MODIFY_PER_TRASH_COUNT') {
     const a = action as PowerModifyPerTrashCountAction;
@@ -2355,8 +2369,12 @@ export function calcFieldPowers(
         const perLrigLevelMods = extractPowerModifiesPerLrigLevel(effect.action);
         for (const mod of perLrigLevelMods) {
           const lrigState = mod.lrigOwner === 'self' ? ownerState : otherState;
-          const lrigNum = lrigState.field.lrig.at(-1);
-          const lv = parseInt(cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+          const lv = mod.sumFieldLrigLevels
+            ? lrigZoneTops(lrigState.field).reduce((sum, n) => {
+                const level = parseInt(cardMap.get(n ?? '')?.Level ?? '0', 10);
+                return sum + (Number.isFinite(level) ? level : 0);
+              }, 0)
+            : parseInt(cardMap.get(lrigState.field.lrig.at(-1) ?? '')?.Level ?? '0', 10);
           if (isNaN(lv) || lv === 0) continue;
           const delta = mod.deltaPerLevel * lv;
           if (mod.target.count === 'ALL') {
@@ -2367,6 +2385,55 @@ export function calcFieldPowers(
             applyDeltaToState(tgtState, delta, mod.target.filter, cardMap, powers, prot, mult);
           } else if (powers.has(topNum)) {
             applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
+          }
+        }
+
+        // POWER_MODIFY_BY_SOURCE: 効果元自身の実効レベルに比例（CONTINUOUS は level 基準だけ循環なく評価可能）。
+        const bySourceMods = extractPowerModifiesBySource(effect.action);
+        for (const mod of bySourceMods) {
+          if (mod.basis !== 'level') continue;
+          const printedLevel = parseInt(cardMap.get(topNum)?.Level ?? '0', 10) || 0;
+          const tempDelta = (ownerState.temp_level_mods ?? [])
+            .filter(modifier => modifier.cardNum === topNum)
+            .reduce((sum, modifier) => sum + modifier.delta, 0);
+          const level = levelMods.get(topNum) ?? Math.max(0, printedLevel + tempDelta);
+          const delta = level * mod.multiplier;
+          if (delta === 0) continue;
+          if (mod.target.count !== 'ALL') {
+            if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
+              applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
+            }
+          } else {
+            if (mod.target.owner === 'self' || mod.target.owner === 'any') {
+              applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+            }
+            if (mod.target.owner === 'opponent' || mod.target.owner === 'any') {
+              applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
+            }
+          }
+        }
+
+        // POWER_MODIFY_PER_HAND_COUNT: 手札N枚単位／両者の差を盤面更新のたびに再評価する常時修正。
+        const perHandMods = extractPowerModifiesPerHandCount(effect.action);
+        for (const mod of perHandMods) {
+          const handState = mod.handOwner === 'self' ? ownerState : otherState;
+          const subtractState = mod.subtractHandOwner === undefined ? undefined
+            : mod.subtractHandOwner === 'self' ? ownerState : otherState;
+          const rawCount = Math.max(0, handState.hand.length - (subtractState?.hand.length ?? 0));
+          const units = Math.floor(rawCount / Math.max(1, mod.unitSize ?? 1));
+          const delta = mod.deltaPerCard * units;
+          if (delta === 0) continue;
+          if (mod.target.count !== 'ALL') {
+            if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
+              applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
+            }
+          } else {
+            if (mod.target.owner === 'self' || mod.target.owner === 'any') {
+              applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+            }
+            if (mod.target.owner === 'opponent' || mod.target.owner === 'any') {
+              applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
+            }
           }
         }
 

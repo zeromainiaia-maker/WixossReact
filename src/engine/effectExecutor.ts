@@ -6949,56 +6949,34 @@ function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): ExecResult {
-  // excludeSelf は「カウント対象から効果元自身を除く」。thisCardOnly では対象そのものは除外しない。
-  const tgtOwnerForExclude = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
-  const tgtStatePre = ownerState(tgtOwnerForExclude, ctx);
-  const tgtCandsPre = a.target.count !== 'ALL'
-    ? fieldCandidates(tgtStatePre, a.target.filter, ctx.cardMap, ctx.effectivePowers)
-    : [];
-  const excludeCardNum = a.excludeSelf
-    ? (a.target.filter?.thisCardOnly ? ctx.sourceCardNum : tgtCandsPre[0])
-    : undefined;
-
-  const countSigniInState = (s: PlayerState) => s.field.signi.filter(stack => {
-    if (!stack || stack.length === 0) return false;
-    const cn = stack[stack.length - 1];
-    if (a.excludeSelf && cn === excludeCardNum) return false;
-    const card = ctx.cardMap.get(cn);
-    return matchesFilter(card, a.countFilter);
-  }).length;
+  // excludeSelf は「カウント対象から効果元自身を除く」。対象候補の先頭ではなく sourceCardNum が基準。
+  // cardType がルリグならセンター＋左右アシストも数える（CONTINUOUS collector と同じ盤面定義）。
+  const countTypes = a.countFilter.cardType === undefined ? []
+    : Array.isArray(a.countFilter.cardType) ? a.countFilter.cardType
+    : [a.countFilter.cardType];
+  const countsLrig = countTypes.includes('ルリグ') || countTypes.includes('アシストルリグ');
+  const countCardsInState = (s: PlayerState) => {
+    const signi = s.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+    const lrigs = countsLrig ? lrigZoneTops(s.field).filter((n): n is string => !!n) : [];
+    return [...signi, ...lrigs].filter(cn => {
+      if (a.excludeSelf && cn === ctx.sourceCardNum) return false;
+      return matchesFilter(ctx.cardMap.get(getCardNum(cn)), a.countFilter);
+    }).length;
+  };
 
   const fieldCount = a.countOwner === 'any'
-    ? countSigniInState(ctx.ownerState) + countSigniInState(ctx.otherState)
-    : countSigniInState(ownerState(a.countOwner, ctx));
+    ? countCardsInState(ctx.ownerState) + countCardsInState(ctx.otherState)
+    : countCardsInState(ownerState(a.countOwner, ctx));
 
   if (fieldCount === 0) return done(ctx);
 
   const delta = a.deltaPerUnit * fieldCount;
-  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
-  const state = ownerState(tgtOwner, ctx);
-  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  if (a.excludeSelf && ctx.sourceCardNum && !a.target.filter?.thisCardOnly) {
-    cands = cands.filter(cn => cn !== ctx.sourceCardNum);
-  }
-
-  function applyMod(selected: string[], c: ExecCtx): ExecCtx {
-    const s = ownerState(tgtOwner, c);
-    const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
-    const mods = [...(s[key] ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
-    return addLog(setOwnerState(tgtOwner, { ...s, [key]: mods }, c),
-      `${delta > 0 ? '+' : ''}${delta}（フィールド${fieldCount}体）`);
-  }
-
-  if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
-  if (a.target.filter?.thisCardOnly && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
-    return done(applyMod([ctx.sourceCardNum], ctx));
-  }
-  const cnt = resolveNum(a.target.count);
-  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
-  // 選択後は解決済み delta の POWER_MODIFY を適用（applyDirectAction が直接処理。
-  // PER_FIELD case 欠落による default 再入＝同一SELECT_TARGET無限再発行を回避。続き93）。
-  const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta, duration: a.duration };
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, pmAction, undefined, ctx);
+  // thisCardOnly は候補が効果元1体に確定しているため、既存の PER_FIELD と同じく対話を挟まず適用する。
+  const target = a.target.filter?.thisCardOnly
+    ? { ...a.target, count: 'ALL' as const }
+    : a.target;
+  const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target, delta, duration: a.duration };
+  return execPowerModify(pmAction, ctx);
 }
 
 function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction, ctx: ExecCtx): ExecResult {
@@ -7175,10 +7153,14 @@ function execEnergyChargeFromDeckPerFieldCount(a: import('../types/effects').Ene
 
 function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: ExecCtx): ExecResult {
   const lrigState = a.lrigOwner === 'self' ? ctx.ownerState : ctx.otherState;
-  const lrigNum = lrigState.field.lrig.at(-1);
   const lv = a.useLastDownedLrigLevelSum
     ? (ctx.seqVars?.lastDownedLrigLevelSum ?? ctx.ownerState.last_lrig_down_level_sum ?? 0)
-    : parseInt(ctx.cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+    : a.sumFieldLrigLevels
+      ? lrigZoneTops(lrigState.field).reduce((sum, n) => {
+          const level = parseInt(ctx.cardMap.get(getCardNum(n ?? ''))?.Level ?? '0', 10);
+          return sum + (Number.isFinite(level) ? level : 0);
+        }, 0)
+      : parseInt(ctx.cardMap.get(getCardNum(lrigState.field.lrig.at(-1) ?? ''))?.Level ?? '0', 10);
   if (isNaN(lv) || lv === 0) return done(ctx);
 
   const delta = a.deltaPerLevel * lv;
@@ -7518,6 +7500,11 @@ function execPowerModifyBySource(a: import('../types/effects').PowerModifyBySour
   let base: number;
   if (a.basis === 'level') {
     base = parseInt(ctx.cardMap.get(getCardNum(src))?.Level ?? '0', 10);
+    const srcState = ctx.ownerState.field.signi.some(stack => stack?.at(-1) === src)
+      ? ctx.ownerState
+      : ctx.otherState.field.signi.some(stack => stack?.at(-1) === src) ? ctx.otherState : undefined;
+    if (srcState) base = Math.max(0, base + (srcState.temp_level_mods ?? [])
+      .filter(mod => mod.cardNum === src).reduce((sum, mod) => sum + mod.delta, 0));
   } else {
     base = ctx.effectivePowers?.get(src)
       ?? parseInt(ctx.cardMap.get(getCardNum(src))?.Power ?? '0', 10);
@@ -7783,7 +7770,11 @@ function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: Exec
 
 function execPowerModifyPerHandCount(a: import('../types/effects').PowerModifyPerHandCountAction, ctx: ExecCtx): ExecResult {
   const handState = a.handOwner === 'self' ? ctx.ownerState : ctx.otherState;
-  const count = handState.hand.length;
+  const subtractState = a.subtractHandOwner === undefined ? undefined
+    : a.subtractHandOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const rawCount = Math.max(0, handState.hand.length - (subtractState?.hand.length ?? 0));
+  const unitSize = Math.max(1, a.unitSize ?? 1);
+  const count = Math.floor(rawCount / unitSize);
   const delta = a.deltaPerCard * count;
   if (delta === 0) return done(ctx);
 

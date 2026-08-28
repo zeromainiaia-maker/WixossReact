@@ -215,11 +215,17 @@ export function countFromZone(
     : fromZone.zone === 'acce' ? (state.field.signi_acce ?? []).flatMap(slot => slot ?? [])
     : fromZone.zone === 'charm' ? (state.field.signi_charms ?? []).filter((n): n is string => !!n)
     : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
-  const matched = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter)).length;
+  const matchedCards = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
+  const rawMatched = fromZone.distinctBy === 'level'
+    ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.Level ?? '')
+      .filter(level => level !== '')).size
+    : matchedCards.length;
+  const matched = fromZone.maxCount === undefined ? rawMatched : Math.min(rawMatched, Math.max(0, fromZone.maxCount));
   // unitSize<=0 は無制限・既定1へ倒さず fail-closed。既存 per は乗数のまま維持する。
   if (fromZone.unitSize !== undefined && (!Number.isFinite(fromZone.unitSize) || fromZone.unitSize <= 0)) return 0;
   const units = fromZone.unitSize === undefined ? matched : Math.floor(matched / fromZone.unitSize);
-  return Math.max(0, units * (fromZone.per ?? 1));
+  // units（枚数）は常に非負。per は POWER_MODIFY.deltaFromZone の単価にも使うため負符号を潰さない。
+  return units * (fromZone.per ?? 1);
 }
 
 // 「それのレベル１につき」族（タスク12(liii)）の倍率。対象は常に単数なので最大値＝そのカードのレベル。

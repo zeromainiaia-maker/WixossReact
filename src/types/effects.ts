@@ -167,6 +167,10 @@ export interface CountFromZone {
   unitSize?: number;
   /** 既存の「1枚につきN」用乗数。unitSize とは意味が逆なので互換性のため分離する。 */
   per?: number;
+  /** 「この効果はN枚までしか適用されない」: filter 後のカウントをこの値で上限固定する。 */
+  maxCount?: number;
+  /** 「それぞれレベルの異なる」: filter 後のカードをレベルの異なる種類数として数える。 */
+  distinctBy?: 'level';
 }
 
 // ===== 発動条件 =====
@@ -2331,6 +2335,8 @@ export interface PowerModifyPerLrigLevelAction {
   deltaPerLevel: number;
   lrigOwner: Owner; // どちらのルリグのレベルを参照するか
   useLastDownedLrigLevelSum?: boolean; // 直前の可変ルリグダウンコストで記録したレベル合計を参照
+  /** true=センターだけでなく左右アシストを含む「場にいるルリグのレベルの合計」。 */
+  sumFieldLrigLevels?: boolean;
 }
 
 // このターンを強制終了する（例: ジャッジメント・クロス）
@@ -2910,6 +2916,10 @@ export interface PowerModifyPerHandCountAction {
   target: EffectTarget;
   deltaPerCard: number;
   handOwner: Owner;
+  /** 「その差」: handOwner の手札枚数からこの owner の手札枚数を引き、負数は0に丸める。 */
+  subtractHandOwner?: Owner;
+  /** 「手札N枚につき」の N。省略時1。 */
+  unitSize?: number;
   excludeSelf?: boolean; // 「あなたの他のシグニ」: 効果元カード自身を対象から除外
   until?: EffectDuration; // 'UNTIL_OPP_TURN_END' なら次の相手ターン終了時まで（省略時はターン終了時まで）
 }
@@ -3084,6 +3094,8 @@ export interface SetCardCostReplacementAction {
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /** 宣言後の処理が別の型付き action にある場合、逆翻訳では宣言文だけを描く。engine は読まない。 */
+  decompileDeclarationOnly?: boolean;
   /**
    * 由来の原文（parser が受け皿 STUB へ落とすときに残す控え）。**engine は読まない**＝
    * 逆翻訳・原文照合のための記録。
