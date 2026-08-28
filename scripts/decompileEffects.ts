@@ -1758,9 +1758,15 @@ function actionJa(a?: Action, effectType?: string): string {
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
         : a.remainder?.location === 'hand' ? '残りを手札に加える'
-        : a.remainder?.position === 'top' ? '残りをデッキの上に戻す'
+        // §5.3 `O-51`（2026-08-29）＝**「好きな順番で」は payload（`remainder.reorder`）から描く**。
+        //   🔴旧実装は bottom の既定文に「好きな順番で」を**常に**入れ、top には**決して**入れなかった＝
+        //     原文が「残りをデッキの一番下に置く」（順序の指定なし）でも「好きな順番で」と嘘をつき、
+        //     逆に「残りを好きな順番でデッキの一番上に戻す」は指定が消えていた。どちらも逆翻訳の偽情報。
+        : a.remainder?.position === 'top'
+          ? (a.remainder?.reorder ? '残りを好きな順番でデッキの一番上に戻す' : '残りをデッキの上に戻す')
         : a.remainder?.shuffle ? '残りをシャッフルしてデッキの一番下に置く'
-        : '残りを好きな順番でデッキの一番下に置く';
+        : a.remainder?.reorder ? '残りを好きな順番でデッキの一番下に置く'
+        : '残りをデッキの一番下に置く';
       const supLPC = (a.stages || []).some((s: any) => s.then === 'field' && s.suppressOnPlay) ? '。その【出】能力は発動しない' : '';
       // §6.4 O-2: `opponentResponds` を落とすと「相手のデッキを**自分が**見て選ぶ」と同じ文になる（偽陰性）。
       const pickerLPC = a.opponentResponds ? '対戦相手はその中から' : 'その中から';
@@ -1795,8 +1801,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : rem.location === 'trash' ? `、残りを${remShuf}トラッシュに置く`
         : rem.location === 'deck'
           // split_top_bottom＝ピックのあとに残りを上下へ振り分ける（タスク12(lix)）。落とすと分割が見えない。
+          // §5.3 `O-51`＝`reorder` が立っていれば「好きな順番で」を出す（payload から描く）。
           ? (rem.position === 'split_top_bottom' ? '、好きな枚数を好きな順番でデッキの一番下に置き、残りを好きな順番でデッキの一番上に戻す'
-             : rem.position === 'bottom' ? `、残りを${remShuf}デッキの一番下に置く` : `、残りを${remShuf}デッキの上に戻す`)
+             : rem.position === 'bottom' ? `、残りを${remShuf}${rem.reorder ? '好きな順番で' : ''}デッキの一番下に置く`
+             : `、残りを${remShuf}${rem.reorder ? '好きな順番で' : ''}デッキの${rem.reorder ? '一番上に戻す' : '上に戻す'}`)
           : '、残りを戻す';
       if ((a.pickCount ?? 1) === 0 && rem?.location === 'deck' && rem.position === 'bottom') {
         return `${ownerJa(rapOwner)}デッキの上からカードを${numJa(rapCnt)}枚公開し、公開したカードを${rem.shuffle ? 'シャッフルして' : ''}デッキの一番下に置く`;

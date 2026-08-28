@@ -11372,6 +11372,7 @@ function parseActionTextBody(text: string): EffectAction {
           applySelectedTargetTrashReplacement(source, parseBase(source))))));
   let parsed = parse(text);
   parsed = rewritePowerModPerCountPayload(text, parsed);
+
   // 🔴**fail-closed の最後の砦**（§5.3 `O-80` 第1バッチ・2026-08-26）＝
   //   「ターン終了時まで、**それの**パワーをこの方法で〜1枚につき±N」の「それ」が、
   //   カード全文を見る `applyLeadingOpponentDesignation` でも確定できなかった場合、
@@ -12352,6 +12353,43 @@ function removeStubFromSequences(node: unknown, id: string): void {
 }
 
 /** §5.3 O-80 第2バッチ: 数えるゾーン／場と適用先を action payload へ刻む。 */
+/**
+ * §5.3 `O-51`（2026-08-29）＝「残りを**好きな順番で**デッキの一番下（上）に置く」に `remainder.reorder` を刻む。
+ *
+ * 🔑**位置（top/bottom）は既存の解析が正しく出している**ので、ここで足すのは「並び順をプレイヤーが決める」
+ *   という1ビットだけ。⇒ `remainder` の生成地点は49箇所あるが、**後段の一括マークで足りる**。
+ *
+ * ⚠**原文の言い回しは実測で2種類に集中している**（`docs/_effect_srctext.json` 全10,745効果を走査）＝
+ *   「好きな順番でデッキの一番下に」331／「好きな順番でデッキの一番上に」55。残りは単発11種で、
+ *   その大半は**この機構と無関係**（「好きな順番で発動する」「好きな順番でアタックでき」等）。
+ *   ⇒ **`一番上／一番下` まで含めて照合する**（「好きな順番で」だけで拾うと無関係な文まで巻き込む）。
+ *
+ * ⚠**`split_top_bottom` には立てない**＝あちらは既に分割UI が並び順も決めている（二重に問うことになる）。
+ * ⚠**`location` が deck 以外（trash / energy / hand）には立てない**＝順序に意味が無い。
+ */
+function markRemainderReorder(text: string, action: EffectAction): EffectAction {
+  const m = text.match(/好きな順番で(?:デッキの)?一番([上下])/);
+  if (!m) return action;
+  const wantPos = m[1] === '下' ? 'bottom' : 'top';
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if ((o.type === 'REVEAL_AND_PICK' || o.type === 'LOOK_PICK_CHAIN') && o.remainder && typeof o.remainder === 'object') {
+      const rem = o.remainder as Record<string, unknown>;
+      // 🔴**原文の位置と JSON の position が食い違うときは立てない**（fail-closed）＝
+      //   食い違いは「原文の別の文を見ている」可能性があり、そこで対話を出すと**別の効果の順序**を問う。
+      //   実測では食い違い5件で、5件とも `split_top_bottom`（＝下の条件で既に除外される）。
+      // ⚠`shuffle`（「残りを**シャッフルして**デッキの一番下に置く」）とは両立しない＝
+      //   順序がランダムに決まる効果で並び順を問うと原文と逆になる。
+      if (rem.location === 'deck' && rem.position === wantPos && rem.shuffle !== true) rem.reorder = true;
+    }
+    for (const v of Object.values(o)) if (v && typeof v === 'object') visit(v);
+  };
+  visit(action);
+  return action;
+}
+
 function rewritePowerModPerCountPayload(text: string, action: EffectAction): EffectAction {
   if (!containsPowerModPerCount(action)) return action;
   const t = text.trim();
@@ -20654,6 +20692,10 @@ export function wireTopOrBottomRemainder(action: EffectAction, sourceText: strin
       const remainder = node.remainder as Record<string, unknown> | undefined;
       if (remainder?.location === 'deck' && (remainder.position === 'top' || remainder.position === 'bottom')) {
         remainder.position = 'split_top_bottom';
+        // §5.3 `O-51`＝順序が入れ替わっても二重に問わないための保険（現在は markRemainderReorder が
+        //   この関数より**後**に走るので通常は立っていない）。分割UI は並び順も決めるため、
+        //   残すと**同じ札の順序を2回問う**。⇒ 変換した時点で落とす（fail-closed・実測 `WX06-013-E1`）。
+        delete remainder.reorder;
       }
     } else if (node.type === 'LOOK_AND_REORDER') {
       const destination = node.destination as Record<string, unknown> | undefined;
@@ -21465,6 +21507,18 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         );
       }
     }
+  }
+  // §5.3 `O-51`（2026-08-29）＝「残りを**好きな順番で**デッキの一番下（上）に置く」に `remainder.reorder` を刻む。
+  // 🔴**ここ（カード単位の後段）でやる**＝`parseActionText` の中で走らせると**取りこぼす**。
+  //   実測24効果（`WX15-002-E1` 等の【トラップ】設置系）は「〜２枚見る。…設置してもよい。**残りを好きな順番で**〜」
+  //   のように**文をまたいで**組み立てられており、`remainder` を持つノードを作る文と「好きな順番で」を含む文が別。
+  //   ⇒ 効果単位の全文（`currentSourceTexts`）で照合する。
+  // ⚠**上2つの wire* より後に置く**＝`wireTopOrBottomRemainder` が position を `split_top_bottom` へ倒すので、
+  //   先に立てると分割UI と二重に順序を問うことになる（先に踏んだ＝`WX06-013-E1`）。
+  for (const effect of effects) {
+    // 上2つと同じ規約＝完全に解析できている AUTO の既存受け皿にだけ当てる。
+    if (effect.parseStatus !== 'AUTO') continue;
+    effect.action = markRemainderReorder(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。

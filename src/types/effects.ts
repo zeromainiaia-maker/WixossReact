@@ -2094,7 +2094,8 @@ export interface LookPickChainAction {
   owner: Owner;
   revealCount: NumberOrRef;
   stages: LookPickChainStage[];
-  remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
+  /** reorder は `RevealAndPickAction.remainder` と同義（§5.3 `O-51`）。 */
+  remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean; reorder?: boolean };
   _revealed?: string[]; // 内部用: 段間 continuation で公開済みカードを引き継ぐ（JSONには書かない）
   _picked?: string[];   // 内部用: 完了済み stages の全選択（最終 lastProcessedCards／後続条件用）
   _topReserved?: string[]; // 内部用: then:'deck_top' で確定済みの「一番上へ戻す」カード（JSONには書かない）
@@ -2128,7 +2129,12 @@ export interface RevealAndPickAction {
   opponentChoosesPileToTrash?: boolean;
   // position:'split_top_bottom'＝「好きな枚数を（好きな順番で）デッキの一番下に置き、残りを一番上に戻す」
   // ＝ピックの**あと**に残りの振り分けをプレイヤーへ問う（G168 の分割UIを resumeSearch から再利用する）。
-  remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean };
+  // reorder:true＝「残りを**好きな順番で**デッキの一番下（上）に置く」（§5.3 `O-51`）。
+  //   位置は position のまま（top/bottom）で、**並び順だけ**をプレイヤーに問う。engine は
+  //   `INTERNAL_REORDER_REMAINDER` 経由で既存の `LOOK_AND_REORDER` 対話へ載せる。
+  //   ⚠残りが1枚以下のときは選択肢が無いので**対話を出さない**（従来どおり即座に置く）。
+  //   ⚠`split_top_bottom` は既に分割UI が並び順も決めるので、この旗を立てない。
+  remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean; reorder?: boolean };
   // 後段が「この方法で公開したカード」を参照する場合、選んで移動したカードではなく公開 snapshot 全体を残す。
   recordRevealed?: boolean;
   /**

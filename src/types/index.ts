@@ -1322,7 +1322,8 @@ export type PendingInteractionDef =
       restDest?: 'deck_bottom' | 'deck_top' | 'trash' | 'energy';
       // REVEAL_AND_PICK の残り公開カード（ピックしなかった非対象/未選択カードを含む全公開カード）を
       // 指定場所へ移す。cards＝公開した全カード（visibleCards=選択可能な部分集合とは別）。
-      revealRemainder?: { cards: string[]; location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean };
+      // reorder:true＝残りを置く**順番**をプレイヤーが決める（§5.3 `O-51`）。位置は position のまま。
+      revealRemainder?: { cards: string[]; location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean; reorder?: boolean };
       lastProcessedCardsAfter?: string[]; // REVEAL_AND_PICK の公開 snapshot（選択結果とは別）
       // handOrField: ピックしたカードを1枚ずつ「手札に加える or 場に出す」の対話選択で処理する（「公開し手札に加えるか場に出し」）
       handOrField?: boolean;
@@ -1384,6 +1385,15 @@ export type PendingInteractionDef =
       private: boolean;       // true=自分だけ見る（見る）/ false=両者公開（公開する）
       revealTopAfterReorder?: boolean; // WX16-004: 非公開で戻した後、トップ1枚だけを公開
       shuffle?: boolean;
+      /**
+       * true = この並べ替えで `lastProcessedCards` を**上書きしない**（§5.3 `O-51`・2026-08-29）。
+       * 🔴既定の `resumeLookAndReorder` は「見た札全部」を `lastProcessedCards` へ書く。
+       *   「残りを好きな順番で置く」を**チェーンの途中**に挟むと、後段の
+       *   `{$ref:'last_processed_count'}`（「この方法で**手札に加えた**カード1枚につき〜」）が
+       *   **ピック数ではなく残り枚数**を読む＝実測 `WXDi-P03-061-E2` が 2→3 に化けた。
+       * ⇒ 残りを片付けるだけの並べ替えでは、直前のピック結果をそのまま持ち越す。
+       */
+      keepLastProcessed?: boolean;
       continuation?: EffectAction;
     }
   | {

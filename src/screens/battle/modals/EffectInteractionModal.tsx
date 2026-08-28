@@ -768,6 +768,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     ? `トラッシュに置くカードを選び、残りを並べ替えてください（上がデッキトップ）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
                     : inter.destPosition === 'first_top_rest_bottom'
                     ? '1枚目をデッキトップへ戻し、残りはデッキ下へ（上が優先）'
+                    // §5.3 `O-51`＝行き先が**デッキの一番下**のときに「上がデッキトップ」と書くと嘘になる。
+                    //   どちらの位置でも「リストの上ほど先に引く」は共通なので、そちらを案内する。
+                    : inter.destPosition === 'bottom'
+                    ? 'カードを見て並べ替えてください（すべてデッキの一番下へ。上ほど先に引きます）'
                     : 'カードを見て並べ替えてください（上がデッキトップ）'}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

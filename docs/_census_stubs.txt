@@ -11,7 +11,7 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 86 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 592 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 348 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 349 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         生成: src\data\parsers\parseSentencePart2.ts:445
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:19088
+        生成: src\data\effectParser.ts:19126
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
         生成: src\data\parsers\parseSentencePart3.ts:2315
@@ -34,7 +34,7 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         生成: src\data\parsers\parseSentencePart3.ts:2021
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:12380
+        生成: src\data\effectParser.ts:12418
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2015
@@ -43,7 +43,7 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         生成: src\data\parsers\parseSentencePart4.ts:2025
      1件   1枚  DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED
         カード: WX22-042
-        生成: src\data\effectParser.ts:12385
+        生成: src\data\effectParser.ts:12423
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -98,10 +98,10 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:8228
+        消費: src\engine\effectExecutor.ts:8253
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:8230
+        消費: src\engine\effectExecutor.ts:8255
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66

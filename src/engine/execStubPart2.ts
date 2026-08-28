@@ -3007,6 +3007,42 @@ export function execStubPart2(
       private: true,
     });
   }
+  // INTERNAL_REORDER_REMAINDER（§5.3 `O-51`・2026-08-29）: 公開してピックしなかった残りを
+  //   「**好きな順番で**デッキの一番下（上）に置く」。行き先の位置は確定していて、**並び順だけ**を問う。
+  //   ⚠`INTERNAL_SPLIT_REVEALED` との違いは destPosition だけ＝あちらは「上か下か」も選ばせる。
+  //   カードは呼び出し側（resumeSearch / execRevealAndPick / execLookPickChain）が既にデッキから
+  //   抜いてあるので、`LOOK_AND_REORDER` の並べ替えUI へそのまま載せる。
+  //   🔴**1枚以下なら対話を出さない**＝順序に選択肢が無いのにモーダルを出すと、288効果すべてで
+  //     「OK を押すだけの窓」が増える（`O-51` のブラスト半径はここで決まる）。呼び出し側でも弾くが、
+  //     ここでも弾いて二重に守る（fail-safe）。
+  if (stub.id === 'INTERNAL_REORDER_REMAINDER') {
+    const cardsRR = stub.revealed ?? [];
+    const posRR = stub.value === 'top' ? 'top' : 'bottom';
+    const ownerRR = stub.owner === 'opponent' ? 'opponent' : 'self';
+    if (cardsRR.length === 0) return done(ctx);
+    if (cardsRR.length === 1) {
+      // 並べ替える余地が無い＝そのまま置く（呼び出し側は既にデッキから抜いている）。
+      const sRR = ownerState(ownerRR, ctx);
+      const deckRR = posRR === 'bottom' ? [...sRR.deck, ...cardsRR] : [...cardsRR, ...sRR.deck];
+      return done(addLog(setOwnerState(ownerRR, { ...sRR, deck: deckRR }, ctx),
+        `残り1枚をデッキの${posRR === 'bottom' ? '一番下' : '一番上'}へ`));
+    }
+    return needsInteraction(ctx, {
+      type: 'LOOK_AND_REORDER',
+      cards: cardsRR,
+      canTrash: false,
+      destLocation: 'deck',
+      // ⚠owner を渡さないと**効果オーナーのデッキ**へ戻す（deckOwner:'opponent' で複製バグ）＝
+      //   `INTERNAL_SPLIT_REVEALED` が §6.4 O-2 で踏んだ穴と同じ。
+      destOwner: ownerRR,
+      destPosition: posRR,
+      private: true,
+      // 🔴**残りを片付けるだけの並べ替えで `lastProcessedCards` を潰さない**＝後段の
+      //   `{$ref:'last_processed_count'}`（「この方法で手札に加えたカード1枚につき〜」）が
+      //   ピック数ではなく残り枚数を読む（実測 `WXDi-P03-061-E2` が 2→3 に化けた）。
+      keepLastProcessed: true,
+    });
+  }
   // INTERNAL_ASK_TRAP_ZONE / INTERNAL_PICK_TO_TRAP（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）。
   // ⚠既存の INTERNAL_SET_TRAP は **手札からの設置専用**（`hand.filter` でしか元ゾーンから抜かない）ため、
   //   デッキ公開札には使えない（デッキに残ったままトラップゾーンにも現れる＝複製バグになる）。

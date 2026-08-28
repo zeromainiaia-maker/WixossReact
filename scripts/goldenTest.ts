@@ -219,6 +219,26 @@ function finish(initial: ExecResult, ctx: ExecCtx): ExecResult {
   return result;
 }
 
+/**
+ * §5.3 `O-51`（2026-08-29）＝「残りを**好きな順番で**デッキの一番下（上）に置く」で増えた
+ * `LOOK_AND_REORDER` を、**並び順を変えずに**1段だけ畳む。
+ *
+ * 🔑既存テストの多くは手書きの stepping で「ここで完了する」前提で書かれている。原文に
+ *   「好きな順番で」がある効果は**対話が1つ増えるのが正しい**ので、テスト側を追随させる。
+ * ⚠**順序を変えずに応答する**＝畳んだあとの盤面は対話が無かった頃と同じになる。
+ *   これで既存 assert（残りの並び・枚数）は**そのまま意味を保つ**（緩めていない）。
+ * ⚠対話が立たなかったときは何もしない＝この helper を挟んでも「立たないこと」の検査は壊れない。
+ */
+function settleReorder(result: ExecResult, ctx: ExecCtx): ExecResult {
+  if (result.done) return result;
+  const pending = (result as { pending: { type: string; cards?: string[] } }).pending;
+  if (pending.type !== 'LOOK_AND_REORDER') return result;
+  return resumeLookAndReorder(pending.cards ?? [], [], pending as never, {
+    ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+    lastProcessedCards: result.lastProcessedCards,
+  } as ExecCtx);
+}
+
 function finishPayingCosts(initial: ExecResult, ctx: ExecCtx): ExecResult {
   let result = initial;
   for (let steps = 0; !result.done; steps++) {
@@ -4184,7 +4204,10 @@ function assertMagicBoxLookPick(effectId: string): void {
     c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
       lastProcessedCards: result.lastProcessedCards } as ExecCtx;
     result = resumeChoose('zone_1', result.pending, c);
-    ok(result.done, `${effectId} ゾーン選択後に完了`);
+    // §5.3 O-51＝原文「残りを**好きな順番で**デッキの一番下に置く」＝ここで並べ替え対話が1つ増える。
+    ok(!result.done && result.pending.type === 'LOOK_AND_REORDER', `${effectId} 残り2枚の並べ替えを問う`);
+    result = settleReorder(result, c);
+    ok(result.done, `${effectId} 並べ替え後に完了`);
     eq(result.ownerState.field.signi_magic_boxes?.[1], picked, `${effectId} 選択札をMBとして実設置`);
     ok(!result.ownerState.deck.includes(picked), `${effectId} 設置札をデッキから除去`);
     eq(result.ownerState.deck[0], untouched, `${effectId} 未公開札がデッキトップへ`);
@@ -4198,11 +4221,14 @@ function assertMagicBoxLookPick(effectId: string): void {
     const skipDone = resumeSearch([], skipFirst.pending, {
       ...skipCtx, ownerState: skipFirst.ownerState, otherState: skipFirst.otherState, logs: skipFirst.logs,
     });
-    ok(skipDone.done, `${effectId} 0枚選択で設置CHOOSEを出さず完了`);
-    eq(JSON.stringify(skipDone.ownerState.field.signi_magic_boxes ?? [null, null, null]), JSON.stringify([null, null, null]),
+    const skipSettled = settleReorder(skipDone, skipCtx);
+    ok(!skipDone.done && (skipDone as { pending: { type: string } }).pending.type === 'LOOK_AND_REORDER',
+      `${effectId} 0枚選択でも見た3枚の並べ替えを問う`);
+    ok(skipSettled.done, `${effectId} 0枚選択で設置CHOOSEを出さず完了`);
+    eq(JSON.stringify(skipSettled.ownerState.field.signi_magic_boxes ?? [null, null, null]), JSON.stringify([null, null, null]),
       `${effectId} 0枚選択ではMBを設置しない`);
-    eq(skipDone.ownerState.deck[0], skipUntouched, `${effectId} 0枚選択でも未公開札がトップへ`);
-    eq(skipDone.ownerState.deck.slice(-3).join('|'), [skip1, skip2, skip3].join('|'), `${effectId} 0枚選択時も見た3枚をデッキ下`);
+    eq(skipSettled.ownerState.deck[0], skipUntouched, `${effectId} 0枚選択でも未公開札がトップへ`);
+    eq(skipSettled.ownerState.deck.slice(-3).join('|'), [skip1, skip2, skip3].join('|'), `${effectId} 0枚選択時も見た3枚をデッキ下`);
   });
 }
 
@@ -5971,7 +5997,8 @@ test('§6.4 reveal-pick 11効果: live JSON の公開元・枚数・filter・行
   const di08 = rap('WXDi-P08-046', 'WXDi-P08-046-E2');
   eq(JSON.stringify([di08.revealCount, di08.pickCount, di08.filter, di08.then, di08.remainder]), JSON.stringify([
     4, 1, { cardType: 'シグニ', cardName: 'コードラビリンス　アト//メモリア' },
-    { type: 'ADD_TO_FIELD', owner: 'self', asDown: true }, { location: 'deck', position: 'bottom' },
+    // §5.3 O-51＝原文は「残りを**好きな順番で**デッキの一番下に置く」＝`reorder` が立つのが正しい。
+    { type: 'ADD_TO_FIELD', owner: 'self', asDown: true }, { location: 'deck', position: 'bottom', reorder: true },
   ]));
   const di08Steps = manualEffect('WXDi-P08-046', 'WXDi-P08-046-E2').action as SequenceAction;
   eq(di08Steps.steps.map(step => step.type).join('|'), 'STUB|SHUFFLE_DECK|MILL|REVEAL_AND_PICK');
@@ -6520,6 +6547,10 @@ test('WXDi-P03-005: エクシード置換で pay=2枚・skip=1枚を手札へ（
       } else if (pending.type === 'SEARCH') {
         const vis = (p.visibleCards as string[]) ?? [];
         result = resumeSearch(vis.slice(0, Math.min((p.maxPick as number) ?? 0, vis.length)), pending as never, c);
+      } else if (pending.type === 'LOOK_AND_REORDER') {
+        // §5.3 O-51＝原文「残りを**好きな順番で**デッキの一番下に置く」＝対話が1つ増える。
+        //   並び順は変えずに畳む＝下の手札枚数の assert はそのまま意味を保つ。
+        result = settleReorder(result, c);
       } else throw new Error(`unhandled ${pending.type}`);
     }
     eq(result.ownerState.hand.length, h0 + 1, 'skip（エクシード払わない）で1枚だけ手札へ（過小/過剰でない）');
@@ -8962,11 +8993,17 @@ test('(xlvi) WXDi-P03-061-E2: 2枚pickなら手札純増0・2枚捨て、0枚pic
     const r1 = resumeSearch(spells, r0.pending, {
       ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs,
     });
-    ok(!r1.done && r1.pending.type === 'SELECT_TARGET', 'pick後に同数の手札捨て選択へ進む');
-    eq(r1.pending.count, 2, '🔴捨てる枚数はpickした2枚に比例');
-    const r2 = resumeSelectTarget(r1.pending.candidates.slice(0, 2), r1.pending, {
+    // §5.3 O-51＝原文「残りを**好きな順番で**デッキの一番下に置く」＝pick の直後に並べ替え対話が挟まる。
+    ok(!r1.done && r1.pending.type === 'LOOK_AND_REORDER', 'pick後にまず残り3枚の並べ替えを問う');
+    const r1b = settleReorder(r1, {
       ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs,
       lastProcessedCards: r1.lastProcessedCards,
+    } as ExecCtx);
+    ok(!r1b.done && r1b.pending.type === 'SELECT_TARGET', 'pick後に同数の手札捨て選択へ進む');
+    eq(r1b.pending.count, 2, '🔴捨てる枚数はpickした2枚に比例');
+    const r2 = resumeSelectTarget(r1b.pending.candidates.slice(0, 2), r1b.pending, {
+      ...ctx, ownerState: r1b.ownerState, otherState: r1b.otherState, logs: r1b.logs,
+      lastProcessedCards: r1b.lastProcessedCards,
     });
     ok(r2.done, '2枚捨てまで完走');
     eq(r2.ownerState.hand.length, before.hand, '🔴2枚加えて2枚捨てるため手札は純増しない');
@@ -8982,11 +9019,17 @@ test('(xlvi) WXDi-P03-061-E2: 2枚pickなら手札純増0・2枚捨て、0枚pic
     const z1 = resumeSearch([], z0.pending as never, {
       ...zeroCtx, ownerState: z0.ownerState, otherState: z0.otherState, logs: z0.logs,
     });
-    if (!z1.done) {
-      eq(z1.pending.type, 'SELECT_TARGET', '0枚参照の後段は対象選択経路へ入る場合もある');
-      eq(z1.pending.count, 0, '0枚pickの動的捨て枚数は0');
+    // §5.3 O-51＝0枚pickでも「残りを好きな順番で」の並べ替えは走る（残り5枚）。
+    ok(!z1.done && z1.pending.type === 'LOOK_AND_REORDER', '0枚pickでも残り5枚の並べ替えを問う');
+    const z1b = settleReorder(z1, {
+      ...zeroCtx, ownerState: z1.ownerState, otherState: z1.otherState, logs: z1.logs,
+      lastProcessedCards: z1.lastProcessedCards,
+    } as ExecCtx);
+    if (!z1b.done) {
+      eq(z1b.pending.type, 'SELECT_TARGET', '0枚参照の後段は対象選択経路へ入る場合もある');
+      eq(z1b.pending.count, 0, '0枚pickの動的捨て枚数は0');
     }
-    const z2 = finish(z1, zeroCtx);
+    const z2 = finish(z1b, zeroCtx);
     ok(z2.done, '0枚pickは0枚選択で完走');
     eq(z2.ownerState.hand.length, zeroHand, '0枚pickなら手札増減0');
     eq(z2.ownerState.trash.length, zeroTrash, '0枚pickなら捨ても0');
@@ -28222,6 +28265,12 @@ test('(xlvi) wave16 WXDi-P08-007-E3: 相手が3回とも支払わないと各回
       bottomExpected.push(...visible.slice(1));
       c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
       result = resumeSearch(visible.slice(0, 1), result.pending, c);
+      // §5.3 O-51＝原文「残りを**好きな順番で**デッキの一番下に置く」＝各回 pick のあと並べ替えを問う。
+      //   順序を変えずに畳むので、下の「残り6枚はデッキ下」の assert はそのまま意味を保つ。
+      ok(!result.done && result.pending.type === 'LOOK_AND_REORDER', `不払い${prompts}回目の残り2枚を並べ替え`);
+      c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+        lastProcessedCards: result.lastProcessedCards } as ExecCtx;
+      result = settleReorder(result, c);
     }
     eq(prompts, 3, '不払いでも3回を独立に問う');
     eq(result.ownerState.hand.length, ctx.ownerState.hand.length + 3, 'pickで手札+3');
@@ -28267,8 +28316,11 @@ test('(xlvi) wave17 WXDi-P15-005-E1: ピース実戦ゾーンでルリグ不在�
     ctx.ownerState.field.check = source;
     ctx.ownerState.deck = fill(5).map((n, i) => `${n}#${500 + i}`);
     const deck0 = [...ctx.ownerState.deck];
-    const result = executeEffect(manualEffect('WXDi-P15-005', 'WXDi-P15-005-E1'), ctx);
-    ok(result.done, 'ルリグ0体なら3段とも候補ゼロで対話なし');
+    const raw = executeEffect(manualEffect('WXDi-P15-005', 'WXDi-P15-005-E1'), ctx);
+    // §5.3 O-51＝原文「残りを**好きな順番で**デッキの一番下に置く」＝候補ゼロでも並べ替えだけは問う。
+    ok(!raw.done && raw.pending.type === 'LOOK_AND_REORDER', 'ルリグ0体でも見た5枚の並べ替えは問う');
+    const result = settleReorder(raw, ctx);
+    ok(result.done, 'ルリグ0体なら3段とも候補ゼロでピック対話は無い');
     eq(result.ownerState.hand.length, ctx.ownerState.hand.length, '手札に過剰取得しない');
     eq(result.ownerState.energy.length, ctx.ownerState.energy.length, 'エナにも過剰取得しない');
     eq(result.ownerState.deck.slice(-5).join('|'), deck0.join('|'), '見た5枚はデッキ下');
@@ -28304,6 +28356,11 @@ test('(xlvi) wave17 WXDi-P15-005-E1: ルリグ1体ならそのindexの1段だけ
     ok(!result.done && result.pending.type === 'CHOOSE', '公開札の手札/エナ選択');
     c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
     result = resumeChoose('energy', result.pending, c);
+    // §5.3 O-51＝残り4枚の並べ替えを問う（順序を変えずに畳むので下の枚数 assert は不変）。
+    ok(!result.done && result.pending.type === 'LOOK_AND_REORDER', '残り4枚の並べ替えを問う');
+    c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+      lastProcessedCards: result.lastProcessedCards } as ExecCtx;
+    result = settleReorder(result, c);
     ok(result.done, '不在の左右アシスト段は空振りして完了');
     ok(result.ownerState.energy.includes(pick), '選んだ公開札をエナへ');
     eq(result.ownerState.hand.length, ctx.ownerState.hand.length, '手札は増えない');
@@ -39169,6 +39226,11 @@ test('wave2 B3 WX10-041-E1: empty picked set overwrites stale state and downs se
     ctx.lastProcessedCards = stale;
     const first = startWave2('WX10-041', 'WX10-041-E1', ctx);
     if (first.done) return first;
+    // §5.3 O-51＝原文「残りを**好きな順番で**デッキの一番上に戻す」＝ピック候補が0件のときは
+    //   SEARCH ではなく並べ替え対話が先に立つ。順序を変えずに畳んでから後段（自身ダウン）を見る。
+    //   🔑この巡で `keepLastProcessed` を入れたので、**stale な lastProcessedCards は畳んでも復活しない**
+    //   （0件パスが先に [] へ落としている）＝このテストの主題（stale 上書き）はそのまま生きる。
+    if (first.pending.type === 'LOOK_AND_REORDER') return settleReorder(first, wave2Ctx(ctx, first));
     if (first.pending.type === 'SEARCH') return resumeSearch(picks, first.pending, wave2Ctx(ctx, first));
     if (first.pending.type === 'SELECT_TARGET' && picks.length === 0) {
       return resumeSelectTarget(['WX10-041'], first.pending, wave2Ctx(ctx, first));
@@ -52236,6 +52298,159 @@ test('O-80② engine両方向: 宣言数MILL／直前対象Lv合計MILLを既存
   const emptyBefore = emptyCtx.ownerState.deck.length;
   eq(run({ type: 'MILL', owner: 'self', count: 0, countIsLastProcessedLevelSum: true } as EffectAction, emptyCtx).ownerState.deck.length,
     emptyBefore, '不成立方向: 直前対象なしなら0枚');
+}));
+
+// ── §5.3 O-51：「残りを好きな順番でデッキの一番下（上）に置く」の並べ替え対話 ──
+const o51Fresh = (cardNum: string, effectId: string): CardEffect => {
+  const effect = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+};
+
+test('O-51 parser契約: 「好きな順番で」だけに reorder を立て、split/shuffle/無印には立てない', () => withSavedCursor(() => {
+  // 🔴**fresh パースを見る**＝収穫マージは fresh が純粋上位集合でなければ live を温存するので、
+  //   live を読む assert では**規則を外しても緑のまま**になる（§CODEX_GUIDE §5-29 で実測済み）。
+  // ■成立方向＝原文に「残りを好きな順番でデッキの一番下（上）に置く／戻す」がある効果。
+  //   ⚠`WX15-002-E1` / `WX20-012-E1` は**文をまたぐ**形（「〜２枚見る。…設置してもよい。**残りを好きな順番で**〜」）＝
+  //     `parseActionText` の中でマークすると取りこぼす（実測24効果）。カード単位の後段で当てている。
+  for (const [cardNum, effectId, pos] of [
+    ['WX15-002', 'WX15-002-E1', 'bottom'],   // LOOK_PICK_CHAIN・文またぎ・一番下
+    ['WX20-012', 'WX20-012-E1', 'top'],      // LOOK_PICK_CHAIN・文またぎ・一番上
+    ['WDK13-022', 'WDK13-022-E1', 'bottom'], // REVEAL_AND_PICK・一番下
+  ] as const) {
+    const json = JSON.stringify(o51Fresh(cardNum, effectId));
+    ok(json.includes('"reorder":true'), `${effectId}: 成立方向＝reorder が立つ`);
+    ok(json.includes(`"position":"${pos}"`), `${effectId}: 位置は ${pos} のまま（reorder は順序だけを問う）`);
+  }
+  // ■不成立方向（対照）＝どれか1つでも立つと「全部に立てている」だけの規則になる。
+  //   ① split_top_bottom＝分割UI が既に並び順も決める（二重に問わない・実測 `WX06-013-E1` で踏んだ）
+  ok(!JSON.stringify(o51Fresh('WX06-013', 'WX06-013-E1')).includes('"reorder":true'),
+    'WX06-013-E1: 不成立方向＝split_top_bottom には立てない（分割UIが順序も決める）');
+  //   ② shuffle＝順序がランダムに決まるので、並び順を問うと原文と逆になる
+  ok(!JSON.stringify(o51Fresh('WX21-037', 'WX21-037-E2')).includes('"reorder":true'),
+    'WX21-037-E2: 不成立方向＝シャッフルして置く効果には立てない');
+  //   ③「好きな順番で」が無い＝ただ「残りをデッキの一番下に置く」（順序に選択肢が無い）
+  ok(!JSON.stringify(o51Fresh('WX16-027', 'WX16-027-E1')).includes('"reorder":true'),
+    'WX16-027-E1: 不成立方向＝「好きな順番で」が無い効果には立てない');
+}));
+
+test('O-51 engine両方向: 2枚以上なら順序を問い、1枚／reorder無しなら問わない', () => withSavedCursor(() => {
+  const deckTop = [...cardMap.keys()].slice(0, 3);
+  const rest = [...cardMap.keys()].slice(20, 24);
+  const mk = (top: string[]) => {
+    const c = mkCtx({}, {});
+    c.ownerState.deck = [...top, ...rest];
+    return c;
+  };
+  const pickNone = { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction;
+  const mkAction = (revealCount: number, reorder?: boolean): EffectAction => ({
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount,
+    filter: { cardType: '存在しないクラス' }, pickCount: 1, pickUpTo: true, then: pickNone,
+    remainder: { location: 'deck', position: 'bottom', ...(reorder ? { reorder: true } : {}) },
+  } as EffectAction);
+
+  // ■成立方向＝残り3枚 → LOOK_AND_REORDER が立ち、**プレイヤーが決めた順**でデッキ下へ入る。
+  const ctx3 = mk(deckTop);
+  const pending3 = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: mkAction(3, true), duration: 'INSTANT', mandatory: true } as CardEffect, ctx3);
+  ok(!pending3.done, 'reorder＋残り3枚: 対話が立つ');
+  const inter3 = (pending3 as { pending: { type: string; destPosition?: string; cards?: string[] } }).pending;
+  eq(inter3.type, 'LOOK_AND_REORDER', 'reorder＋残り3枚: 並べ替え対話');
+  eq(inter3.destPosition, 'bottom', 'reorder: 行き先はデッキの一番下のまま');
+  eq((inter3.cards ?? []).length, 3, 'reorder: 公開3枚がそのまま並べ替え候補');
+  // 🔑**逆順で応答する**＝プレイヤーの並び順が本当に反映されるかを見る（順序を無視していても
+  //   「対話が出た」だけなら緑になるため、反映まで assert する）。
+  const reversed = [...(inter3.cards ?? [])].reverse();
+  const after3 = finish(resumeLookAndReorder(reversed, [], inter3 as never, {
+    ...ctx3, ownerState: pending3.ownerState, otherState: pending3.otherState, logs: pending3.logs,
+  } as ExecCtx), ctx3);
+  eq(after3.ownerState.deck.slice(-3).join(','), reversed.join(','),
+    'reorder: デッキの一番下がプレイヤーの指定した順に並ぶ');
+
+  // ■不成立方向①＝残り1枚は選択肢が無いので**対話を出さない**（288効果すべてで「OKを押すだけの窓」が増えるのを防ぐ）。
+  const ctx1 = mk(deckTop.slice(0, 1));
+  const res1 = run(mkAction(1, true), ctx1);
+  ok(res1.done, 'reorder＋残り1枚: 対話を出さずに完了する');
+  eq(res1.ownerState.deck.slice(-1)[0], deckTop[0], 'reorder＋残り1枚: そのままデッキの一番下へ');
+
+  // ■不成立方向②＝reorder が無ければ従来どおり公開順のままデッキ下へ（対話ゼロ）。
+  const ctxNo = mk(deckTop);
+  const resNo = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: mkAction(3), duration: 'INSTANT', mandatory: true } as CardEffect, ctxNo);
+  ok(resNo.done, 'reorder 無し: 対話は立たない');
+  eq(resNo.ownerState.deck.slice(-3).join(','), deckTop.join(','),
+    'reorder 無し: 公開順のままデッキの一番下（既存挙動が変わっていない）');
+}));
+
+test('O-51 engine両方向: 配線3箇所（ピック無し／ピック有り／CHAIN）すべてで順序を問う', () => withSavedCursor(() => {
+  // 🔴**配線先は3箇所**（§CODEX_GUIDE §5-15／§5-20＝「同型の配線が複数あるとき1箇所で満足する」の対策）＝
+  //   ①`execRevealAndPick` のピック対象0件パス ②`resumeSearch`（ピックの対話を挟んだあと）
+  //   ③`execLookPickChain`。**1箇所だけ通るテストにすると、残り2箇所を外しても緑になる**（実測で踏んだ）。
+  const signi = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
+  eq(signi.length, 3, 'シグニ3枚を用意');
+  const tail = [...cardMap.keys()].slice(40, 44);
+  const mk = () => { const c = mkCtx({}, {}); c.ownerState.deck = [...signi, ...tail]; return c; };
+  const rem = { location: 'deck', position: 'bottom', reorder: true } as const;
+
+  // 対話が LOOK_AND_REORDER になるまで自動応答で進め、その時点の pending を返す。
+  const untilReorder = (action: EffectAction, ctx: ExecCtx) => {
+    let result = executeEffect(
+      { effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    for (let i = 0; i < 10 && !result.done; i++) {
+      const pending = (result as { pending: { type: string; [k: string]: unknown } }).pending;
+      if (pending.type === 'LOOK_AND_REORDER') return { pending, result };
+      const c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+        lastProcessedCards: result.lastProcessedCards } as ExecCtx;
+      if (pending.type === 'SEARCH') {
+        // 3枚中1枚だけ拾う＝残り2枚が並べ替えの対象になる
+        result = resumeSearch(((pending.visibleCards as string[]) ?? []).slice(0, 1), pending as never, c);
+      } else if (pending.type === 'CHOOSE') {
+        const opts = (pending.options as { id: string }[]) ?? [];
+        result = resumeChoose(opts[0].id, pending as never, c);
+      } else { throw new Error(`unexpected pending ${pending.type}`); }
+    }
+    return { pending: null as unknown as { type: string; [k: string]: unknown }, result };
+  };
+
+  // ── ① execRevealAndPick のピック対象0件パス ──
+  const noPick = untilReorder({
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 3, filter: { cardType: '存在しないクラス' },
+    pickCount: 1, pickUpTo: true, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder: rem,
+  } as EffectAction, mk());
+  eq(noPick.pending?.type, 'LOOK_AND_REORDER', '配線①（ピック対象0件）: 並べ替え対話が立つ');
+  eq((noPick.pending.cards as string[]).length, 3, '配線①: 公開3枚すべてが並べ替え対象');
+
+  // ── ② resumeSearch（ピックの対話を挟んだあと）──
+  const withPick = untilReorder({
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 3, filter: { cardType: 'シグニ' },
+    pickCount: 1, pickUpTo: true, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder: rem,
+  } as EffectAction, mk());
+  eq(withPick.pending?.type, 'LOOK_AND_REORDER', '配線②（resumeSearch）: 並べ替え対話が立つ');
+  eq((withPick.pending.cards as string[]).length, 2, '配線②: ピックした1枚を除いた残り2枚だけが対象');
+
+  // ── ③ execLookPickChain ──
+  const chain = untilReorder({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3,
+    stages: [{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'hand' }],
+    remainder: rem,
+  } as EffectAction, mk());
+  eq(chain.pending?.type, 'LOOK_AND_REORDER', '配線③（LOOK_PICK_CHAIN）: 並べ替え対話が立つ');
+  eq((chain.pending.cards as string[]).length, 2, '配線③: ピックした1枚を除いた残り2枚だけが対象');
+
+  // ── 不成立方向（対照）＝reorder を外すと3箇所とも対話が立たない ──
+  //   ⚠これが無いと「常に対話を出す実装」でも上の3件は緑になる。
+  const plain = { location: 'deck', position: 'bottom' } as const;
+  for (const [label, action] of [
+    ['①', { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 3, filter: { cardType: '存在しないクラス' },
+      pickCount: 1, pickUpTo: true, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder: plain }],
+    ['②', { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 3, filter: { cardType: 'シグニ' },
+      pickCount: 1, pickUpTo: true, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder: plain }],
+    ['③', { type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3,
+      stages: [{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'hand' }], remainder: plain }],
+  ] as const) {
+    const r = untilReorder(action as EffectAction, mk());
+    ok(r.pending === null, `不成立方向${label}: reorder が無ければ並べ替え対話は立たない`);
+  }
 }));
 
 test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増えたら FAIL）', () => withSavedCursor(() => {

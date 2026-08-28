@@ -6378,6 +6378,20 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
       const deckRest = fromBottom
         ? state.deck.slice(0, Math.max(0, state.deck.length - visible.length))
         : state.deck.slice(visible.length);
+      // §5.3 `O-51`＝ピック対象が1枚も無くても、原文が「残りを**好きな順番で**」と書いているなら
+      //   並び順はプレイヤーが決める（公開札は全部が「残り」になる）。2枚以上のときだけ問う。
+      if (a.remainder.reorder && a.remainder.location === 'deck'
+        && a.remainder.position !== 'split_top_bottom' && visible.length >= 2) {
+        const pulled = setOwnerState(a.owner, { ...state, deck: deckRest }, ctx);
+        const askCtx = { ...addLog(pulled, `デッキ${fromBottom ? '下' : '上'}${count}枚を確認`),
+          lastProcessedCards: a.recordRevealed ? visible : [] };
+        const reorderStub: EffectAction = { type: 'STUB', id: 'INTERNAL_REORDER_REMAINDER',
+          revealed: [...visible], owner: a.owner,
+          value: a.remainder.position === 'top' ? 'top' : 'bottom' } as StubAction as EffectAction;
+        return executeAction(a.elseAction
+          ? ({ type: 'SEQUENCE', steps: [reorderStub, a.elseAction] } as SequenceAction)
+          : reorderStub, askCtx);
+      }
       // 行き先を実装していない location（hand/field/lrig_* 等）ではデッキから抜かない＝公開札の消失を防ぐ。
       const movesOutOfDeck = a.remainder.location === 'trash' || a.remainder.location === 'energy';
       const newS: PlayerState = {
@@ -6411,7 +6425,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     ...(a.handOrField ? { handOrField: true } : {}),
     ...(a.handOrEnergy ? { handOrEnergy: true } : {}),
     ...(a.opponentChoosesPileToTrash ? { opponentChoosesPileToTrash: true } : {}),
-    ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}) } } : {}),
+    ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}), ...(a.remainder.reorder ? { reorder: true } : {}) } } : {}),
     ...(a.recordRevealed ? { lastProcessedCardsAfter: visible } : {}),
     // §6.4 O-2: 公開元／残り札の行き先の持ち主と、選ぶ人を pending へ引き継ぐ。
     // deckOwner を落とすと resumeSearch が**効果オーナーのデッキ**を掘る（相手の公開札が自分のデッキから消える）。
@@ -6528,6 +6542,17 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   const withTop = (deck: string[]) => (reservedTop.length > 0 ? [...reservedTop, ...deck] : deck);
   const topLog = (c: ExecCtx) => (reservedTop.length > 0 ? addLog(c, `${reservedTop.length}枚をデッキの一番上へ戻す`) : c);
   if (a.remainder.location === 'deck') {
+    // §5.3 `O-51`＝「残りを**好きな順番で**デッキの一番下／上に置く」（live 71効果がこの型）。
+    //   ⚠**予約分（then:'deck_top'）を先にデッキへ戻してから**並び順を問う＝予約は原文で位置が
+    //     確定しており、並べ替えの対象ではない。⚠2枚以上のときだけ対話を挟む。
+    if (a.remainder.reorder && rest.length >= 2) {
+      const pulledDeck = withTop(deckRest);
+      const pulled = setOwnerState(owner, { ...state, deck: pulledDeck }, cur);
+      const reorderStub: EffectAction = { type: 'STUB', id: 'INTERNAL_REORDER_REMAINDER',
+        revealed: [...rest], owner,
+        value: a.remainder.position === 'top' ? 'top' : 'bottom' } as StubAction as EffectAction;
+      return executeAction(reorderStub, topLog(pulled));
+    }
     const orderedRest = a.remainder.shuffle ? shuffle([...rest]) : rest;
     const newDeck = withTop(a.remainder.position === 'bottom' ? [...deckRest, ...orderedRest] : [...orderedRest, ...deckRest]);
     const moved = setOwnerState(owner, { ...state, deck: newDeck }, cur);
@@ -9320,6 +9345,30 @@ export function resumeSearch(
       : splitStub;
     pending = { ...pending, revealRemainder: undefined, continuation: contSplit };
   }
+  // §5.3 `O-51`（2026-08-29）＝`reorder:true`（「残りを**好きな順番で**デッキの一番下／上に置く」）も
+  //   行き先が対話になる。位置は確定しているので `split_top_bottom` と同じ手口で並び順だけを問う。
+  //   ⚠**2枚以上のときだけ**対話を挟む（1枚以下は選択肢が無い＝下の通常経路がそのまま置く）。
+  //   ⚠この書き換えも下の早期 return 分岐より**前**に置く（continuation を読む分岐があるため）。
+  if (pending.revealRemainder?.reorder
+    && pending.revealRemainder.location === 'deck'
+    && pending.revealRemainder.position !== 'split_top_bottom') {
+    const rrRe = pending.revealRemainder;
+    const restRe = rrRe.cards.filter(n => !picked.includes(n));
+    if (restRe.length >= 2) {
+      let sRe = { ...deckState(cur) };
+      const deckRe = [...sRe.deck];
+      const movedRe: string[] = [];
+      for (const cn of restRe) { const di = deckRe.indexOf(cn); if (di >= 0) { deckRe.splice(di, 1); movedRe.push(cn); } }
+      sRe = { ...sRe, deck: deckRe };
+      cur = setOwnerState(dOwner, sRe, cur);
+      const reorderStub: EffectAction = { type: 'STUB', id: 'INTERNAL_REORDER_REMAINDER',
+        revealed: movedRe, owner: dOwner, value: rrRe.position === 'top' ? 'top' : 'bottom' } as StubAction as EffectAction;
+      const contRe: EffectAction = pending.continuation
+        ? { type: 'SEQUENCE', steps: [reorderStub, pending.continuation] } as SequenceAction
+        : reorderStub;
+      pending = { ...pending, revealRemainder: undefined, continuation: contRe };
+    }
+  }
   // revealRemainder: 公開したがピックしなかった全カード（非対象カード含む）を指定場所へ移す（REVEAL_AND_PICK）。
   //   デッキ非スライス設計＝picked も未pick も公開時点でデッキに残っており、ここで未pick分を先に退避する。
   if (pending.revealRemainder) {
@@ -9759,9 +9808,12 @@ export function resumeLookAndReorder(
   // 見た/公開したカード（reordered＝全閲覧カード）を lastProcessedCards に記録する。後続の
   //   「この方法で公開されたN枚/すべて〜の場合」（LAST_PROCESSED_COUNT_GTE/ALL_MATCH/MATCHES）が参照する。
   //   ⚠現状 parser は公開(private:false)の LOOK_AND_REORDER 前段のみ条件を emit する（呼び出し側 prevRecords）。
+  // §5.3 `O-51`＝`keepLastProcessed` のときは直前のピック結果を持ち越す（上のコメント参照）。
   const cur = {
     ...addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`),
-    lastProcessedCards: pending.destLocation === 'life' ? trashed : reordered,
+    lastProcessedCards: pending.keepLastProcessed
+      ? ctx.lastProcessedCards
+      : (pending.destLocation === 'life' ? trashed : reordered),
     lastLookTrashedCards: trashed,
   };
   if (pending.revealTopAfterReorder) {
