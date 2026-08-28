@@ -51512,7 +51512,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   // ⚠**`census:orphanmanual` の表示値とは 3 だけずれる**（2026-08-28 B群 第4バッチ）＝
   //   あちらは **parser 自身が同じ `parseStatus` を出す効果**（＝出所あり・毎回再生成）を母集団から外すが、
   //   この test は **parser を回さない**ので外せない。ずれは意図的＝**同じ数を期待しない**。
-  const BASELINE_ORPHAN_MANUAL = 243;
+  const BASELINE_ORPHAN_MANUAL = 218;
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];
