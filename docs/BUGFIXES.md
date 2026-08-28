@@ -1,5 +1,110 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-132` 第1バッチ＝語彙センサスの**較正**（実装は1行も変えていない）
+
+> **1巡（続き702・Opus 5 単独）**。ユーザー指示＝**選択肢A（`O-132` を取る）**。
+> 🔴**これは前進ではなく計器の較正**（PLAN §3 の原則）＝**`src/` と `public/` は1バイトも変わっていない**。
+> ゲームの挙動は完全に同一で、変えたのは `scripts/vocabCensus.ts`（対応語彙表）と `scripts/goldenTest.ts`（トリップワイヤ）だけ。
+> 📊**進捗3計器＝Sheet1 要対応 20→8 / 863（2.3%→0.9%・census フラグ 12→0）｜台帳 残 OPEN 575（据置）｜census 高シグナル 516→491**
+
+---
+
+### 何が壊れていたか（計器の側）
+
+`vocabCensus.ts` の高シグナル判定は「**原文に修飾句があるのに、その効果の JSON 文字列に対応語彙キーが1つも含まれない**」。
+対応語彙は**部分一致の文字列キー配列**なので、**同じ意味を別の綴り／別の型で表している実装が対応表から漏れる**と
+**正しく表現できている効果が「欠落」として計上され続ける**。
+
+前巡（B27）で Sheet1 の census フラグ17枚を1枚ずつ live と原文で照合したところ、**12枚がこれ**だった。
+本巡はその12枚を起点に、**同じキーで救われる効果を全数（25効果）洗い出して個別に目視確認**してから較正した。
+
+---
+
+### 追加したキー（11カテゴリ・13キー）と、その根拠
+
+| カテゴリ | 追加キー | なぜ正表現なのか |
+|---|---|---|
+| レベル閾値(N以上/以下) | `GUARD_MAX_LV` / `GUARD_LV` | レベルが `BLOCK_ACTION.actionId` の**文字列に埋まっている**形（§6.4 `O-41`・`effectExecutor.ts:3890` が消費）。`level` フィールドは持たない |
+| 動的比較(〜より高い/低い) | `compareToSelf` | `ActiveCondition.FRONT_SIGNI{compareToSelf:{key,operator}}`＝「このシグニより**レベルの高い**シグニが正面にあるかぎり」 |
+| 共通する色 | `sourceSharedColorWithSelf` | `GRANT_PROTECTION` の**保護元限定**なので `colorMatches*` 系のどれにも当たらなかった |
+| 数量比例(1枚/1体につき) | `countFromZone` / `perAllSigni` | 前者は**ゾーンの枚数（÷unitSize）×per**を数える正表現、後者は `ATTACH_CHARM` の「相手のシグニ1体につき1枚ずつ」 |
+| 合計制約(合計がN以上/以下) | `costThreshold` | `PLAY_FREE`／`PLAY_FREE_FROM_TRASH` の「コストの合計がN以下のスペル/アーツ」。`costMax`（TargetFilter 側）と綴りが違うだけ |
+| シグニの下に置く | `STACK_SPELL` | 「トラッシュからスペルをN枚まで**このカードの下に置く**」（executor は `PLACE_UNDER_SIGNI` へ委譲）。**型名に under が入らないだけ** |
+| トリガー:アタックしたとき | `ON_OPP_SIGNI_ATTACK` | ⚠**`ON_ATTACK` を部分文字列に含まない**綴りなので既存キーで拾えなかった |
+| triggerScope(他シグニ起点) | `ON_OPP_SIGNI_ATTACK` / `attackerOwner` | 主語は `triggerScope` 以外でも表せる＝①timing 自体が主語を含む型 ②遅延トリガーの `trigger.attackerOwner` |
+| 代わりに(置換) | `costSubstitute` | **コスト側の置換**（「《青》を支払う際、代わりに手札から＜原子＞を1枚捨ててもよい」） |
+| 条件節(〜の場合) | `"once":true` | `INSTALL_DELAYED_TRIGGER` が「このターンで**最初の**リフレッシュ**である場合**」を設置側フラグで内包。⚠narrow に取る＝`usageLimit:"once_per_turn"` には当たらない |
+| 任意(してもよい) | `"upTo":true` / `PLAY_FREE_FROM_TRASH` ＋ `extraOk`（空枝 CHOOSE） | 「してもよい」の表現は `mandatory:false` 系だけではない＝①`CHOOSE.upTo`（0個選べる）②`CHOOSE` の片枝が**空の SEQUENCE**（＝何もしない）③`execPlayFreeFromTrash` は **SEARCH（0枚選択可）** で解決＝型が辞退を内包 |
+
+---
+
+### 母集団と全数確認（ここが本項の要）
+
+**高シグナル 516 → 491（-25効果）／新しく高シグナルへ入った効果 0。**
+🔑**消えた25効果は1件ずつ「由来の原文ブロック」と live JSON を並べて目視確認した**（`docs/_effect_srctext.json` を使用）。
+
+```
+WX01-004-E3 WX18-040-E1                        （GUARD_MAX_LV1/2）
+WX10-036-E2                                    （compareToSelf）
+WX11-032-E2                                    （sourceSharedColorWithSelf）
+WX07-027-BURST WX26-CP1-009-E1 WXDi-CP02-093-E1 WXEX1-22-E1 WXEX2-46-E1   （countFromZone）
+WX08-046-BURST WX08-081-E1 WX13-037-E1 WX18-038-E3                        （perAllSigni）
+PR-466-E3 WX09-012-E2 WX19-002-E4 WX21-038-E1 WXK01-021-E1                （costThreshold）
+WX09-Re06-E1                                   （"once":true）
+SPDi43-32-E1 WX01-057-E1 WX09-012-E2           （upTo / 空枝 CHOOSE / PLAY_FREE_FROM_TRASH）
+WX05-013-E2 WX10-035-E1                        （ON_OPP_SIGNI_ATTACK / attackerOwner）
+WX07-027-E2                                    （costSubstitute）
+WX11-029-E1                                    （STACK_SPELL）
+```
+
+⚠**下げすぎていないことの確認**＝同じカテゴリに残った効果は**本当の欠落**であることも見た。例＝
+`シグニの下に置く` の残り8効果は全部 `LOOK_AND_REORDER` 単独で、**「下に置く」が実際に落ちている**（`STACK_SPELL` は1件だけ）。
+`任意` の残り9効果は「【トラップ】として設置**してもよい**」等で `upTo` も空枝 CHOOSE も持たない。
+`共通する色` `動的比較` も新キーに当たるのは各1件だけ。
+
+---
+
+### 🔴 較正の唯一の危険＝キーが免罪符になる（golden で塞いだ）
+
+対応表にキーを足すと、**そのキーが JSON から消えても census は静かに合格し続ける**（高シグナルへ戻らない）。
+⇒ golden に **「較正キーが live に実在する」トリップワイヤ**を1本追加した（25ペア）。
+どれか1つでも live から消えたら FAIL し、**「較正を外すか parser を直すか」の分岐点**に立てる。
+
+**このテストが空振りでないことも確認済み**＝1ペアのキーを故意に別文字列へ変えると
+`WX11-029-E1: 較正キー … が live から消えた` で FAIL することを実測した。
+
+---
+
+### 検証
+
+**gates 全緑**＝typecheck / golden **2936**（+1）/ smoke 全異常0 / fuzz 全0 / census **491**（`BASELINE_HIGH` 更新）/
+`census:stubs` A群🔴0・C群0 / manual-fields 0 / `census:enginetext` A群 141行（据置）/ lint 0 errors。
+
+**実機検証は対象なし**＝`git diff --name-only HEAD -- src/ public/` が **0件**＝
+**アプリのバイト列が変わっていない**ので、実機で観測できる差が原理的に存在しない
+（PLAN §2.3 の「実機から原理的に観測できない」の最も強い形）。両方向の固定は上の golden トリップワイヤが担う。
+
+---
+
+### Sheet1 の現在地（8枚）
+
+census フラグは **0** になった。残り8枚は**別の検出器**が指しているもの：
+
+| カード | フラグ |
+|---|---|
+| `WX02-020` ブラッディ・スラッシュ | audit |
+| `WX05-022` コードラブハート Ｃ・Ｍ・Ｒ | audit |
+| `WX09-Re07` 巨弓 ヤエキリ | audit |
+| `WX05-025` 高尚たる一筆 スイボク | held |
+| `WX06-CB03` 羅植 カヤッパ | held |
+| `WX07-029` 幻獣 ウサ | held |
+| `WX04-052` 堕落の虚無 パイモン | partial |
+| `WX05-021` 幻竜姫 ムシュフシュ | idset |
+
+⚠**「フラグ0＝正しい」ではない**（計器が見ていないだけ）＝このシートを閉じるには、
+フラグの立たない855枚への**シート限定の意味照合再監査**が別途要る（`census:cards` の出力にも毎回出る警告）。
+
+
 ## 2026-08-28：Sheet1 census バッチ B27＝「census が指した Sheet1 の実バグ」6件 ＋ 死んでいた2機構
 
 > **1巡（続き701・Opus 5 単独）**。ユーザー指示＝**「Sheet1 要対応を進める」**。

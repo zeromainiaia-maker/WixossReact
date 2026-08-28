@@ -104,7 +104,14 @@ import { fileURLToPath } from 'url';
 // 2026-08-28 O-121: 「このターンに（あなたの＜X＞のシグニ／あなたの効果）が対戦相手のシグニをN体
 // バニッシュしていた場合」の台帳を新設。2効果とも条件ごと落ちて無条件発火だった。525→523。
 // 2026-08-28 O-108: コスト側の「それぞれ名前の異なる」（`handDiscardSigni.selectionConstraint`）を新設。523→522。
-const BASELINE_HIGH = 516;
+const BASELINE_HIGH = 491;
+// 旧・続き701: const BASELINE_HIGH = 516; // 2026-08-28 O-132 第1バッチ＝**計器の較正**（実装は1行も変えていない）。
+//   「JSON に語彙が入っているのに対応表がそのキーを知らない」11カテゴリ13キーを追加し 516→491（-25効果）。
+//   ⚠**消えた25効果は全数（1件ずつ原文＋live JSON を目視）確認済み**＝新しく高シグナルへ入った効果は0。
+//   追加キー＝GUARD_MAX_LV/GUARD_LV（レベル閾値）／compareToSelf（動的比較）／sourceSharedColorWithSelf（共通する色）／
+//   countFromZone・perAllSigni（数量比例）／costThreshold（合計制約）／STACK_SPELL（下に置く）／
+//   ON_OPP_SIGNI_ATTACK（アタックトリガー・triggerScope）／attackerOwner（triggerScope）／costSubstitute（代わりに）／
+//   "once":true（条件節）／"upTo":true・PLAY_FREE_FROM_TRASH ＋ 空枝 CHOOSE の extraOk（任意）。
 // 旧・続き700: const BASELINE_HIGH = 522; // 2026-08-28 Sheet1 B27（census 実バグ6件＋ON_HEAVEN 監視スコープ）で 522→516。
 //   内訳＝WX07-027-BURST（数量元と対象の取り違え）／WX07-028-BURST（2択の消失）／WX08-005-E2（色の脱落）／
 //         WX09-027-E2（条件の脱落）／WX11-026-E2（場出しの消失）／WX08-025-E2/E3。
@@ -652,7 +659,11 @@ const PATTERNS: Pattern[] = [
       'powerLtTrigger', 'powerLteTrigger', 'levelLtTrigger', 'levelGtTrigger', 'powerLtAnyAlly', 'powerLtPrinted', 'powerGtPrinted',
       'powerBelowLeftCard', 'levelBelowLeftCard',
       'powerLteLastProcessed', 'powerLtLastProcessed', 'levelLteLastProcessed', 'levelLtLastProcessed', 'levelLteDiscardSigni',
-      'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER'],
+      'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER',
+      // 🆕`compareToSelf`＝`ActiveCondition.FRONT_SIGNI{compareToSelf:{key,operator}}`
+      //   （「このシグニより**レベルの高い**シグニがこの正面にあるかぎり」`WX10-036-E2`）。
+      //   関係で表す正表現なのに対応表から漏れていた。
+      'compareToSelf'],
   },
   {
     name: 'パワー閾値(NN以上/以下)',
@@ -666,7 +677,13 @@ const PATTERNS: Pattern[] = [
     re: /レベル[０-９\d]以[上下]/,
     // `LRIG_LEVEL` = 「あなたの/対戦相手のセンタールリグがレベルN以上」条件（値は value）。
     // `LRIG_LEVEL_CMP_OPP` = 両者のレベル比較。いずれもレベル閾値の正表現なのに対応表から漏れていた（§5c で較正）。
-    keys: ['"level"', 'levelRange', 'levelFilter', 'LEVEL_GTE', 'LEVEL_LTE', 'levelMax', 'levelMin', 'requiredLevel', 'LRIG_LEVEL'],
+    // 🆕`GUARD_MAX_LV<n>`／`GUARD_LV<n>[_<m>…]`＝**レベルが `BLOCK_ACTION.actionId` の文字列に埋まっている**形
+    //   （§6.4 `O-41`。`effectExecutor.ts:3890` が消費）。「対戦相手はレベルN以下のシグニで【ガード】ができない」は
+    //   これが正表現で、`level` フィールドは持たない＝キー漏れによる偽陽性だった（`WX01-004-E3`／`WX18-040-E1`）。
+    //   ⚠`GUARD_LV_DECLARED`／`GUARD_LV_LAST_DOWNED` は**動的**（宣言値・直前にダウンしたレベル）で
+    //     literal 閾値ではないが、そもそも原文に「レベルN以上/以下」が出ないので本 re に掛からない。
+    keys: ['"level"', 'levelRange', 'levelFilter', 'LEVEL_GTE', 'LEVEL_LTE', 'levelMax', 'levelMin', 'requiredLevel', 'LRIG_LEVEL',
+      'GUARD_MAX_LV', 'GUARD_LV'],
   },
   {
     name: '同一性(〜と同じ色/レベル/名前)',
@@ -684,7 +701,10 @@ const PATTERNS: Pattern[] = [
     name: '共通する色',
     re: /共通する色/,
     // colorMatches=バッチ5系列（Lrig/LastProcessed/UnderCards/CostTrashed）・SHARE_COLOR=FIELD_LRIGS_SHARE_COLOR/LAST_PROCESSED_SHARE_COLOR
-    keys: ['MatchesLrig', 'eachDistinctColor', 'commonColor', 'sharedColor', 'SAME_COLOR', 'COMMON_COLOR', 'colorMatches', 'SHARE_COLOR', 'NO_COMMON_COLOR'],
+    // 🆕`sourceSharedColorWithSelf`＝「このシグニは**自身と共通する色を持つ**対戦相手のシグニの効果を受けない」
+    //   （`WX11-032-E2`）。`GRANT_PROTECTION` 側の保護元限定なので `colorMatches*` 系のどれにも当たらなかった。
+    keys: ['MatchesLrig', 'eachDistinctColor', 'commonColor', 'sharedColor', 'SAME_COLOR', 'COMMON_COLOR', 'colorMatches', 'SHARE_COLOR', 'NO_COMMON_COLOR',
+      'sourceSharedColorWithSelf'],
   },
   {
     name: '凍結状態フィルタ',
@@ -719,8 +739,13 @@ const PATTERNS: Pattern[] = [
   {
     name: '数量比例(1枚/1体につき)',
     re: /(１|1)(枚|体|つ)につき/,
+    // 🆕`countFromZone`＝**ゾーンの枚数（÷unitSize）×per** をそのまま数える正表現（`CountFromZone`。
+    //   `resolveCountRef`／`countFromZone()` が消費）。「あなたの場にある＜X＞のシグニ1体につき」等。
+    // 🆕`perAllSigni`＝`ATTACH_CHARM` の「相手のシグニ**1体につき**1枚ずつ」（`to.count:'ALL'` と対で使う）。
+    //   どちらも「1枚/1体につき」の語彙そのものなのに対応表から漏れていた（実測10効果が偽陽性）。
     keys: ['deltaPer', 'PER_', 'perCount', 'countFilter', 'PerCard', 'PerLevel', 'PerCharm',
-      '$ref', 'last_processed', 'lastProcessed', 'addLast', 'costScaling'],
+      '$ref', 'last_processed', 'lastProcessed', 'addLast', 'costScaling',
+      'countFromZone', 'perAllSigni'],
   },
   {
     name: '合計制約(合計がN以上/以下)',
@@ -729,7 +754,10 @@ const PATTERNS: Pattern[] = [
     //   対応表には `costMax`（TargetFilter 側の名前）しか無く、**大文字小文字が違うだけで部分一致しない**
     //   ため偽陽性になっていた（`WX13-015-E1`。§5d-0 ② の無作為20件で発見）。
     //   ⚠これは続き368 の `minPower`／`Under` と**同じ罠**＝「対応語彙は部分一致なので大文字小文字で穴が空く」。
-    keys: ['costMax', 'costMin', 'maxCost', 'Sum', 'sum', 'totalPower', 'totalLevel'],
+    // 🆕`costThreshold`＝`PLAY_FREE`／`PLAY_FREE_FROM_TRASH` の「**コストの合計がN以下**のスペル/アーツ」。
+    //   `costMax`（TargetFilter 側）とは綴りが違うだけの同義で、`maxCost` を足したとき（続き376c）と同じ罠。
+    keys: ['costMax', 'costMin', 'maxCost', 'Sum', 'sum', 'totalPower', 'totalLevel',
+      'costThreshold'],
   },
   {
     name: 'それぞれ異なる',
@@ -758,7 +786,12 @@ const PATTERNS: Pattern[] = [
       // `RESERVE_DRAW_PHASE_REPLACEMENT{fromCount:N}` が**条件（N枚引く場合）を内包する正表現**
       // （§6.4 O-3 続き492・live 1件）。⚠較正キーは narrow に取る＝`DRAW` を鍵にすると
       //   ドロー系の高シグナルを丸ごと隠す。
-      'RESERVE_DRAW_PHASE_REPLACEMENT'],
+      'RESERVE_DRAW_PHASE_REPLACEMENT',
+      // 🆕`"once":true`＝`INSTALL_DELAYED_TRIGGER` の「それがこのターンであなたの**最初の**
+      //   リフレッシュ**である場合**」（`WX09-Re06-E1`）。**回数条件を設置側のフラグで内包する正表現**で、
+      //   `CONDITIONAL` にはならない。⚠narrow に取る＝`usageLimit:"once_per_turn"` は
+      //   `"once_per_turn"` なのでこのキー（閉じ引用符つき）には当たらない。
+      '"once":true'],
     // 「（公開して）それが＜X＞のシグニの場合、それを手札/エナ/場へ」は REVEAL_AND_PICK{filter:story}
     // の pick 表現で条件が JSON に載る（続き24・70枚較正＝WX02-030/WXK01-050 系サイクル）。
     // 各節の＜X＞が JSON の story 値に居ることを個別確認し、他に条件節が残らないときだけ合格。
@@ -797,7 +830,15 @@ const PATTERNS: Pattern[] = [
   {
     name: '任意(してもよい)',
     re: /(してもよい|することができる)/,
-    keys: ['"mandatory":false', '"optional":true', '"upToTarget":true', '"pickUpTo":true', 'mayChoose'],
+    // 🆕「してもよい」の表現は `mandatory:false` 系だけではない：
+    //   ①`CHOOSE.upTo:true`＝**0個選べる**2択（`SPDi43-32-E1`「引くか【エナチャージ1】をしてもよい」）
+    //   ②`CHOOSE` の片枝が**空の SEQUENCE**（＝「何もしない」。`WX01-057-E1`「場に出してもよい」）
+    //     ＝`extraOk` で判定する（キーの部分一致では枝の中身まで見られない）
+    //   ③`PLAY_FREE_FROM_TRASH`＝`execPlayFreeFromTrash` が **SEARCH（0枚選択可）** で解決する
+    //     ＝型そのものが「使用してもよい」（辞退）を内包する（`WX09-012-E2`）。
+    keys: ['"mandatory":false', '"optional":true', '"upToTarget":true', '"pickUpTo":true', 'mayChoose',
+      '"upTo":true', 'PLAY_FREE_FROM_TRASH'],
+    extraOk: js => js.includes('"CHOOSE"') && js.includes('"steps":[]'),
   },
   {
     name: '能力を持たない/失っている',
@@ -823,7 +864,9 @@ const PATTERNS: Pattern[] = [
   // ⚠`escapeDiscard` は「〜がアタックしたとき、〈相手が手札N枚を捨てないかぎり〉そのアタックを無効にする」の
   //   **事前登録型**（`NEGATE_ATTACK`＝アタック宣言時に消費される）＝この構文の正表現。
   //   ⚠`NEGATE_ATTACK` そのものを鍵にすると既存の高シグナル11件を丸ごと隠すので**narrow なキーにする**（続き489）。
-  { name: 'トリガー:アタックしたとき', re: /がアタックしたとき/, keys: ['ON_ATTACK', 'ATTACK_ARTS', 'escapeDiscard'], src: 'eff' },
+  // 🆕`ON_OPP_SIGNI_ATTACK`＝「この能力は**対戦相手のシグニ１体がアタックしたとき**にしか使用できない」
+  //   （`WX05-013-E2`）。⚠**`ON_ATTACK` を部分文字列に含まない**綴りなので既存キーで拾えなかった。
+  { name: 'トリガー:アタックしたとき', re: /がアタックしたとき/, keys: ['ON_ATTACK', 'ON_OPP_SIGNI_ATTACK', 'ATTACK_ARTS', 'escapeDiscard'], src: 'eff' },
   { name: 'トリガー:場に出たとき', re: /場に出たとき/, keys: ['ON_PLAY', 'ON_ZONE_MOVED', 'ADD_TO_FIELD'], src: 'eff' },
   { name: 'トリガー:バニッシュされたとき', re: /バニッシュされたとき/, keys: ['ON_BANISH'], src: 'eff' },
   // ⚠`ADD_EXTRA_ATTACK_PHASE`＝「この方法で加えたアタックフェイズ**開始時**、〜」（§6.4 O-3）。
@@ -935,13 +978,19 @@ const PATTERNS: Pattern[] = [
   { name: 'ダメージを受けない', re: /ダメージを受けない/, keys: ['PREVENT', 'DAMAGE', 'damage'] },
   { name: '付着(チャーム/トラップ/アクセとして)', re: /(チャーム|トラップ|アクセ)として/, keys: ['CHARM', 'TRAP', 'ACCE', 'charm', 'trap', 'acce'] },
   { name: 'X変数コスト/効果', re: /[《【]無×Ｘ[》】]|Ｘ[はにをと]|Ｘ枚|Ｘ体|Ｘ000/, keys: ['ariable', '"X"', 'xCost', 'XCOST', '$ref'], src: 'eff' },
-  { name: 'triggerScope(他シグニ起点トリガー)', re: /(あなたの|対戦相手の)(他の)?シグニ[０-９\d]体が(場に出た|バニッシュされた|アタックした)とき/, keys: ['triggerScope'], src: 'eff' },
+  // 🆕主語は `triggerScope` 以外の形でも表せる＝①`timing` そのものが主語を含む型
+  //   （`ON_OPP_SIGNI_ATTACK`＝「対戦相手のシグニ1体がアタックしたとき」`WX05-013-E2`）
+  //   ②`INSTALL_DELAYED_TRIGGER.trigger.attackerOwner`（「このターン、**あなたの**シグニ1体がアタックしたとき」
+  //   `WX10-035-E1`＝遅延トリガーなので効果本体に `triggerScope` は付かない）。
+  { name: 'triggerScope(他シグニ起点トリガー)', re: /(あなたの|対戦相手の)(他の)?シグニ[０-９\d]体が(場に出た|バニッシュされた|アタックした)とき/, keys: ['triggerScope', 'ON_OPP_SIGNI_ATTACK', 'attackerOwner'], src: 'eff' },
   // ---- 続き18 追加分・第4弾（引用付与平坦化/置換/制限/機構）----
   { name: '引用能力付与の平坦化', re: /「[^」]*【(自|起|常|出)】[^」]*」を(得る|与え)/, keys: ['GRANT', 'grant', 'rawText', 'keyword'] },
   // PREVENT_NEXT_DAMAGE は「代わりにダメージを受けない」の正当な置換表現（続き25較正）
   // BANISH_REDIRECT は「エナゾーンに置かれる代わりにトラッシュに置かれる」の正当な置換表現（続き28較正・
   // 16枚中15枚が BANISH_REDIRECT で正エンコード済みの偽陽性だった＝キー漏れ）
-  { name: '代わりに(置換)', re: /代わりに/, keys: ['CONDITIONAL', 'REPLACE', 'instead', 'IS_MY_TURN', 'PAID_ADDITIONAL', 'PREVENT_NEXT_DAMAGE', 'BANISH_REDIRECT'],
+  // 🆕`costSubstitute`＝「この能力の使用コストに含まれる《青》を支払う際、**代わりに**手札から
+  //   ＜原子＞のシグニを１枚捨ててもよい」（`WX07-027-E2`）＝**コスト側の置換**の正表現。
+  { name: '代わりに(置換)', re: /代わりに/, keys: ['CONDITIONAL', 'REPLACE', 'instead', 'IS_MY_TURN', 'PAID_ADDITIONAL', 'PREVENT_NEXT_DAMAGE', 'BANISH_REDIRECT', 'costSubstitute'],
     // 「あなたがベットしていた場合、代わりにMつ(まで)選ぶ」＝**選択数の置換**は `betChoose` が正表現
     // （engine が is_betting で choose_count/upTo を上書き）。CONDITIONAL では表せないので keys に載らず、
     // ベットを正しく表現した札が「代わりに」だけを理由に高シグナルへ落ちていた（タスク12(lxxxviii) の較正）。
@@ -971,7 +1020,10 @@ const PATTERNS: Pattern[] = [
   { name: '無作為に(blind)', re: /無作為に/, keys: ['"blind"', 'random', 'RANDOM'] },
   // ⚠`'under'`（小文字）は camelCase の `handToUnderSelf` / `lrigUnder…` に**部分一致しない**＝
   //   「手札から＜X＞のシグニN枚をこのシグニの下に置く：」を cost で忠実表現している札が欠落判定されていた（§5c で較正）。
-  { name: 'シグニの下に置く', re: /の下に置/, keys: ['UNDER', 'under', 'Under'] },
+  // 🆕`STACK_SPELL`＝「あなたのトラッシュからスペルをN枚まで対象とし、それらを**このカードの下に置く**」
+  //   （`WX11-029-E1`。executor は `PLACE_UNDER_SIGNI` へ委譲する）。型名に under が入らないだけの綴り漏れ。
+  //   ⚠他の8効果は `LOOK_AND_REORDER` 単独＝**「下に置く」が本当に落ちている真の欠落**なので残す。
+  { name: 'シグニの下に置く', re: /の下に置/, keys: ['UNDER', 'under', 'Under', 'STACK_SPELL'] },
   { name: 'ゲームから除外', re: /ゲームから除外/, keys: ['EXILE', 'exile'] },
   // `escapeDiscard`＝上と同じ事前登録型（「このターン、それがアタックしたとき、…無効にする」）。
   { name: '遅延トリガー(このターン〜したとき)', re: /このターン、[^。]{0,40}したとき/, keys: ['DELAYED', 'delayed', 'this_turn', 'turn_end', 'ON_', 'escapeDiscard'] },

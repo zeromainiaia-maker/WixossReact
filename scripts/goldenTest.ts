@@ -51366,6 +51366,49 @@ test('2026-08-28 Sheet1: 「あなたの〔色の〕シグニが《ヘブン》�
   eq(selfHeaven?.triggerScope ?? 'self', 'self', 'WX07-027-E3: 「このシグニが」は self のまま');
 }));
 
+test('2026-08-28 O-132: census 較正キーが live に実在する（較正がアリバイに化けない）', () => withSavedCursor(() => {
+  // 🔴**較正の唯一の危険は「キーが免罪符になる」こと**＝`vocabCensus.ts` に対応キーを足すと、
+  //   そのキーが JSON から**消えても** census は静かに合格し続ける（高シグナルへ戻らない）。
+  //   ⇒ 較正で高シグナルから外した25効果について、**外した根拠のキーが今も live に在る**ことを固定する。
+  //   ここが落ちたら「census が緑なのに語彙が落ちた」状態＝較正を外すか、parser を直すかの分岐点。
+  const CALIBRATED: [string, string][] = [
+    // レベル閾値 ← BLOCK_ACTION.actionId にレベルが埋まる形（§6.4 O-41）
+    ['WX01-004-E3', 'GUARD_MAX_LV2'], ['WX18-040-E1', 'GUARD_MAX_LV1'],
+    // 動的比較 ← FRONT_SIGNI.compareToSelf
+    ['WX10-036-E2', 'compareToSelf'],
+    // 共通する色 ← GRANT_PROTECTION.sourceSharedColorWithSelf
+    ['WX11-032-E2', 'sourceSharedColorWithSelf'],
+    // 数量比例 ← countFromZone / perAllSigni
+    ['WX07-027-BURST', 'countFromZone'], ['WX26-CP1-009-E1', 'countFromZone'],
+    ['WXDi-CP02-093-E1', 'countFromZone'], ['WXEX1-22-E1', 'countFromZone'],
+    ['WXEX2-46-E1', 'countFromZone'],
+    ['WX08-046-BURST', 'perAllSigni'], ['WX08-081-E1', 'perAllSigni'],
+    ['WX13-037-E1', 'perAllSigni'], ['WX18-038-E3', 'perAllSigni'],
+    // 合計制約 ← PLAY_FREE / PLAY_FREE_FROM_TRASH の costThreshold
+    ['PR-466-E3', 'costThreshold'], ['WX09-012-E2', 'costThreshold'],
+    ['WX19-002-E4', 'costThreshold'], ['WX21-038-E1', 'costThreshold'],
+    ['WXK01-021-E1', 'costThreshold'],
+    // 条件節 ← INSTALL_DELAYED_TRIGGER.once（「このターン最初のリフレッシュである場合」）
+    ['WX09-Re06-E1', '"once":true'],
+    // 任意 ← CHOOSE.upTo / 空枝 CHOOSE / PLAY_FREE_FROM_TRASH
+    ['SPDi43-32-E1', '"upTo":true'], ['WX01-057-E1', '"steps":[]'],
+    ['WX09-012-E2', 'PLAY_FREE_FROM_TRASH'],
+    // アタックトリガー／triggerScope ← timing 自体が主語を含む型・遅延トリガーの attackerOwner
+    ['WX05-013-E2', 'ON_OPP_SIGNI_ATTACK'], ['WX10-035-E1', 'attackerOwner'],
+    // 代わりに ← コスト側の置換
+    ['WX07-027-E2', 'costSubstitute'],
+    // シグニの下に置く ← STACK_SPELL（型名に under が入らない）
+    ['WX11-029-E1', 'STACK_SPELL'],
+  ];
+  for (const [effectId, key] of CALIBRATED) {
+    const cardNum = effectId.replace(/-(E\d+\w*|BURST\w*|SONG\w*|CB-E\d+.*)$/, '');
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId}: live に存在しない（較正の根拠が消えている）`);
+    ok(JSON.stringify(eff).includes(key),
+      `${effectId}: 較正キー ${key} が live から消えた＝census が偽の合格を出す（vocabCensus.ts の対応表を見直す）`);
+  }
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
