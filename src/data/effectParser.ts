@@ -13612,6 +13612,9 @@ function parseActionTextInner(text: string): EffectAction {
           const filter: TargetFilter = {
             ...parseStoryFilter(filterSrc), ...parseColorFilter(filterSrc), ...parseLevelFilter(filterSrc),
             ...(/《ガードアイコン》を持たない/.test(filterSrc) ? { noGuard: true } : {}),
+            // 「共通するクラスを持つシグニN枚」＝選択制約（§5.3 `O-133` B群 第4バッチ・実測3効果）。
+            // ⚠engine には消費地点が無い（＝まだ絞れない）が、**逆翻訳と語彙センサスが読む**ので出す。
+            ...(/(?<!と)共通するクラスを持つ/.test(filterSrc) ? { commonClass: true } : {}),
             ...(/《ライズアイコン》を持つ/.test(filterSrc) ? { hasRiseIcon: true } : {}),
             ...(/《アクセアイコン》を持つ/.test(filterSrc) ? { hasIcon: 'アクセ' as const } : {}),
             ...(/《ディソナアイコン》/.test(filterSrc) ? { isDisona: true } : {}),
@@ -17802,6 +17805,25 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (tailM) {
         resolvedAction = bindUnlessGateAnaphora(tailM[1].trim(), resolvedAction);
         resolvedAction = bindThisCardAnaphora(tailM[1].trim(), resolvedAction);
+      }
+    }
+    // 🆕**ON_RISE の「そのシグニ」＝ライズされたこのシグニ**（§5.3 `O-133` B群 第4バッチ・実測4効果＝
+    //   `WX16-037-E1`／`WX16-039-E1`／`WX20-056-E1`／`WD17-011-E1`）。
+    // 🔴旧＝トリガー句が actionText に残るため帰結が独立に解かれ、**`owner:'any'` の自由選択**に落ちていた
+    //   （＝「そのシグニ」のはずが**対戦相手のシグニまで**強化・保護の対象にできた）。さらに先頭の
+    //   「ターン終了時まで、」も `^` アンカーが外れて効かず、付与が **`PERMANENT`（永続）へ化けて**いた。
+    // ⚠ライズは「このシグニの上に重ねる」＝ライズされた側は**このカード自身**なので `thisCardOnly`。
+    if (timing?.[0] === 'ON_RISE') {
+      const riseTail = actionText.match(/^このシグニがライズされたとき[、,](.+)$/s)?.[1]?.trim();
+      if (riseTail && /^(?:ターン終了時まで[、,])?そのシグニ/.test(riseTail)) {
+        if (/^ターン終了時まで[、,]/.test(riseTail)) restoreLeadUntilEndOfTurn(resolvedAction);
+        const rt = (resolvedAction as EffectAction & { target?: EffectTarget }).target;
+        if (rt?.type === 'SIGNI' && !rt.filter?.thisCardOnly) {
+          resolvedAction = {
+            ...resolvedAction,
+            target: { ...rt, owner: 'self', filter: { ...(rt.filter ?? {}), thisCardOnly: true } },
+          } as EffectAction;
+        }
       }
     }
     if (timing?.[0] === 'ON_BANISH' && resolvedAction.type === 'BANISH' && /そのシグニと同じレベルの/.test(actionText)) {

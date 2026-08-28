@@ -109,6 +109,7 @@ const same = (a: unknown, b: unknown) => canonLeaves(a) === canonLeaves(b);
 type Row = { effectId: string; cardNum: string; cls: 'A' | 'B' | 'C' | 'D'; liveEff: CardEffect; freshEff?: CardEffect };
 const rowsOut: Row[] = [];
 let totalManual = 0;
+let parserSourced = 0;   // parser 自身が同じ parseStatus を出している＝出所あり（母集団外）
 for (const [cardNum, effs] of live) {
   const fr = fresh.get(cardNum);
   for (const e of effs) {
@@ -116,6 +117,12 @@ for (const [cardNum, effs] of live) {
     totalManual++;
     if (declared.has(e.effectId)) continue;                     // manualEffects.ts に出所がある＝対象外
     const f = fr?.find(x => x.effectId === e.effectId);
+    // 🔑**parser 自身が同じ `parseStatus` を出しているなら「出所なし」ではない**（2026-08-28 O-133 B群 第4バッチ）。
+    //   `parseSingleSentence` 系は条件節を解ききれなかったときに **`parseStatus:'PARTIAL'` を自分で刻む**
+    //   （`effectParser.ts` の `parseStatus = 'PARTIAL'`）。この印は毎回の build で再生成されるので
+    //   **凍っていない**＝D群（build 後の fixer が生成し直す id）と同じ理由で母集団から外す。
+    //   ⚠外さないと「`manualEffects.ts` へ移す」という**存在しない作業**を作る（D群で踏んだ罠と同型）。
+    if (f && f.parseStatus === e.parseStatus) { parserSourced++; continue; }
     // 🔴**`PARTIAL` は解凍候補にしない**（2026-08-28 続き704 に golden で実測して分離）＝
     //   `PARTIAL` は「parser 出力を採ったが**別軸がまだ忠実でない**」という**意図的なレビュー印**で、
     //   実体が fresh と一致していても**印を落とすと未忠実の記録が消える**
@@ -232,6 +239,7 @@ writeFileSync(join(root, 'docs', '_census_orphan_manual.txt'), out.join('\n'), '
 
 console.log('===== live 限定 MANUAL スタンプ（§5.3 O-133）=====');
 console.log(`  live の MANUAL/PARTIAL 効果          : ${totalManual}`);
+console.log(`  うち parser 自身が同じ印を出す       : ${parserSourced}   ＝出所あり（毎回の build で再生成）`);
 console.log(`  うち manualEffects.ts に定義が無い   : ${rowsOut.length}`);
 console.log(`    A 解凍候補（live == fresh）        : ${byCls('A').length}   ← 機械的に処理できる本体`);
 console.log(`    B 要レビュー（実体が違う）          : ${byCls('B').length}   ⚠一括で AUTO へ落とさない`);

@@ -876,6 +876,15 @@ export interface TargetFilter {
   // 「**センタールリグではない**あなたのいずれかのルリグと共通する色を持つ」＝アシストルリグの色の和
   // （WXDi-P02-017-E1）。アシスト不在なら候補ゼロ（参照先が無い＝絞れないので過剰実行しない側へ）
   colorMatchesNonCenterLrig?: boolean;
+  /**
+   * 「**共通するクラスを持つ**シグニN枚を対象とし」＝選んだN枚が同じクラスを1つ以上共有すること
+   * （`WXDi-P10-029-E1` 等3効果）。
+   * 🔴**engine に消費地点が無い**＝候補の絞り込みは効かず、**バラバラのクラスでも選べる**（原文より緩い）。
+   *   読んでいるのは逆翻訳（`decompileEffects.ts:261`）と語彙センサス（`vocabCensus.ts:815`）だけ＝
+   *   **落とすと原文照合から制約が消える**ので、機構が入るまでは出し続ける。
+   * ⚠機構は PLAN §5.3 に登録済み（選択制約は `SelectionConstraint` がコスト側にだけ在る＝対象側にも要る）。
+   */
+  commonClass?: boolean;
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
   colorNotMatchesOppLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（効果使用者基準。WXDi-P02-038）
   colorMatchesLastProcessed?: boolean; // 直前に処理したカード（lastProcessedCards[0]＝この方法でダウンしたルリグ等）と共通する色を持つか。owner非依存＝相手エナを自ルリグ色で絞る用途（WX25-P2-112）。参照不能なら空ヒット＝did-it ゲートを兼ねる。resolveDynamicFilterが解決

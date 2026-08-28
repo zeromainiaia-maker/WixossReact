@@ -2929,6 +2929,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (/そのシグニと共通する色/.test(trashTargetPhrase)) {
       delete filter.nonColorless;
     }
+    // 🆕「**共通するクラスを持つ**シグニN枚を対象とし」＝選択制約（§5.3 `O-133` B群 第4バッチ・実測3効果＝
+    //   `WXDi-P10-029-E1`／`WXDi-CP01-020-E1`／`WXDi-CP02-046-E1`）。
+    // ⚠engine には消費地点が無い（＝候補はまだ絞れない）が、**逆翻訳（`decompileEffects.ts:261`）と
+    //   語彙センサス（`vocabCensus.ts:815`）が読む**＝出さないと原文照合から制約が丸ごと消える。
+    // ⚠**「〜と共通するクラスを持つ」（参照比較）を巻き込まない**＝あちらは「この方法で捨てたシグニ**と**」の
+    //   ように**別カードを基準にした動的比較**で、ここの「選んだN枚が互いにクラスを共有する」とは別物
+    //   （`WXK10-056-E2` で誤検出を実測）。直前の「と」を lookbehind で弾く。
+    if (/(?<!と)共通するクラスを持つ/.test(trashTargetPhrase)) filter.commonClass = true;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
