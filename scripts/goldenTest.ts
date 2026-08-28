@@ -41280,6 +41280,48 @@ test('SPDi43-13-sub-E1: 付与ON_ENERGY_CHARGEの《ターン2回》を2件だ�
 //   続き463 の inferTriggerScope はどちらも全ゲート緑だった）＝計器に映らないので、
 //   ここで「ブロック限定読みが効いていること」を明示的に固定する。
 // ══════════════════════════════════════════════════════════════════════════════
+test('§5.3 O-134: 帯分解した効果は「その帯の原文」だけを由来に持つ（census の効果単位判定）', () => {
+  // `applyGradedThresholdBatch` ほかの後処理は **1つの能力ブロックを「下位帯／上位帯」の2効果へ割る**。
+  // 由来原文の対応表（`_sourceTextLog` → `docs/_effect_srctext.json`）を割らずに放置すると
+  //   ・親（下位帯）＝上位帯の「代わりに＋N」まで**自分の原文として**突き合わせられる
+  //   ・子（上位帯）＝そもそも登録が無く **カード全文**へフォールバックする
+  // ＝`npm run census` が両方を高シグナルへ落とす（2026-08-28 実測 14効果／7カード・529→521）。
+  // 🔴**この割り当ては live JSON に焼かれない**（parser の実行時ログ）ので、
+  //   壊れても smoke/fuzz/逆翻訳は緑のまま census の数字だけが静かに増える＝ここで固定する。
+  const blkT = (num: string, effId: string): string => abilityBlockTextOf(cardMap.get(num), effId);
+  // [cardNum, effectId, その帯の原文に**在る**語, 相方の帯の語＝**無い**こと]
+  const bands: Array<[string, string, string, string]> = [
+    ['WX09-019',     'WX09-019-E4',      '14000',        '18000'],
+    ['WX09-019',     'WX09-019-E5',      'ランサー',      '14000'],
+    ['WX20-Re18',    'WX20-Re18-E2',     'レベルが４以上', 'レベルが５以上'],
+    ['WX20-Re18',    'WX20-Re18-E4',     'レベルが５以上', 'レベルが４以上'],
+    ['WXEX1-33',     'WXEX1-33-E2',      '20000',        '30000'],
+    ['WXEX1-33',     'WXEX1-33-E2b',     '30000',        '20000'],
+    ['WXDi-P05-076', 'WXDi-P05-076-E1',  '２体いるかぎり', '３体いるかぎり'],
+    ['WXDi-P05-076', 'WXDi-P05-076-E1b', '３体いるかぎり', '２体いるかぎり'],
+    ['WXK02-038',    'WXK02-038-E1',     '１５枚',        '２５枚'],
+    ['WXK02-038',    'WXK02-038-E1b',    '２５枚',        '１５枚'],
+    ['WXK10-035',    'WXK10-035-E1',     'レベル１以下',   '登録者数'],
+    ['WXK10-035',    'WXK10-035-E1b',    '登録者数',      'レベル１以下'],
+    ['WXK10-036',    'WXK10-036-E1',     '＋1000',       '登録者数'],
+    ['WXK10-036',    'WXK10-036-E1b',    '登録者数',      '＋1000'],
+  ];
+  for (const [num, effId, present, absent] of bands) {
+    const t = blkT(num, effId);
+    ok(t.includes(present), `🔴${effId} の由来原文に「${present}」が無い（帯の割り当てが壊れた）: ${t}`);
+    ok(!t.includes(absent), `🔴${effId} の由来原文に相方の帯「${absent}」が混ざっている: ${t}`);
+  }
+  // ⚠この対応表は engine の `sourceAbilityText`（O-20）とも共有だが、**読むのは STUB ハンドラだけ**。
+  //   14効果とも STUB でない＝原文を狭めても実行時の挙動は変わらない、を機械で固定する。
+  //   （STUB 型を帯分解へ足すときはここが赤くなる＝実機で確かめる合図）
+  for (const [num, effId] of bands) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === effId);
+    ok(!!e, `${effId} が live に存在する`);
+    eq((e!.action as { type?: string }).type === 'STUB', false,
+      `🔴${effId} が STUB になった＝由来原文を engine が読む＝帯を狭めた影響を実機で確かめる必要がある`);
+  }
+});
+
 test('§6.4 O-20: 能力ブロック解決が根拠カードで効いている（全文なら別能力の文を拾う）', () => {
   const blk = (num: string, effId: string): string => abilityBlockTextOf(cardMap.get(num), effId);
   const full = (num: string): string =>

@@ -104,8 +104,16 @@ import { fileURLToPath } from 'url';
 // 2026-08-28 O-121: 「このターンに（あなたの＜X＞のシグニ／あなたの効果）が対戦相手のシグニをN体
 // バニッシュしていた場合」の台帳を新設。2効果とも条件ごと落ちて無条件発火だった。525→523。
 // 2026-08-28 O-108: コスト側の「それぞれ名前の異なる」（`handDiscardSigni.selectionConstraint`）を新設。523→522。
-const BASELINE_HIGH = 529;
-// 旧: const BASELINE_HIGH = 528; // 2026-08-28 §5.3 `O-133` B群 第10バッチ（**可視化**）。
+// 2026-08-28 §5.3 `O-134`（**計器の較正のみ＝live 実体変化 0**）。529→521。内訳は2件：
+//   ① `NAME_BAN` を「制限『できない』」の keys へ追加（engine は完全実装済みなのにキーだけ無かった）
+//      ＝`WX10-023-E1`／`WXDi-P13-040-E2`。⚠この較正漏れは直上のコメントが予告していたとおりのもの。
+//   ② **帯分解した効果の由来原文を割り当て直した**（`effectParser.ts` の `splitBandSourceText`）。
+//      1能力ブロックを「下位帯／上位帯」の2効果へ割る後処理が srctext を更新しておらず、
+//      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
+//      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
+//      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
+const BASELINE_HIGH = 521;
+// 旧: const BASELINE_HIGH = 529; // 2026-08-28 §5.3 `O-133` B群 第10バッチ（**可視化**）。
 //   `WXK10-069-E1`（本文中の「あなたの【ビート】が２枚の場合」を `BEAT_CONDITION` へ持ち上げて解凍）が
 //   MANUAL 免除を外れて高シグナルへ1件移っただけ（id 差分で確認＝流入0）。
 // 旧: const BASELINE_HIGH = 513; // 2026-08-28 §5.3 `O-133` B群 第5バッチ（**可視化であって退化ではない**）。
@@ -1032,7 +1040,11 @@ const PATTERNS: Pattern[] = [
     // `CARD_NAME_LOCK`＝§6.4 O-3 続き498 の `DECLARE_CARD_NAME_LOCK`（「宣言されたカード名のスペルを
     // 使用できない」／「宣言したカード名以外のアーツを使用できない」）。受け皿 STUB を実装で置き換えると
     // その効果が STUB バケツから出るので、**同時にここへキーを足さないと較正漏れで +N する**。
-    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN', 'CARD_NAME_LOCK'],
+    // `NAME_BAN`＝「このゲームの間、対戦相手はそれと同じ名前のカードを使用できない」。engine は
+    // `effectExecutor.ts` の `NAME_BAN` → `blocked_card_names_game` → `artsUseGate` / `cardNameUseBlock` /
+    // `deployLimit` まで完全に実装済みなのに、**ここへキーを足し忘れていた**（2026-08-28・`O-133` の解凍で
+    // MANUAL 免除が外れて露出した＝上のコメントが予告していた較正漏れそのもの）。
+    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN', 'CARD_NAME_LOCK', 'NAME_BAN'],
     // 「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition・eff.condition で表現）は
     // BLOCK/PREVENT ではなく condition で正しく表現される（extractUseCondition→parseUseCondition が LRIG_STORY／
     // SELF_POWER_GTE／HAS_CARD_IN_FIELD 等へ解析済み）。使用制限のみ（アタック/ガード/場に出せない等の効果制限を

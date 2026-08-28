@@ -2281,6 +2281,49 @@ function logSourceText(effectId: string | undefined, text: string): void {
   if (!_sourceTextLog.has(effectId)) _sourceTextLog.set(effectId, text.trim());
 }
 
+/** いま解析中のカードで、その effectId に登録済みの由来原文を読む（未登録なら undefined）。 */
+function currentSourceText(effectId: string): string | undefined {
+  return _currentParseSourceTextStack.at(-1)?.get(effectId);
+}
+
+/**
+ * 由来原文を**上書き**で登録する（`logSourceText` は初出を残すので上書きできない）。
+ * 用途は「1つの能力ブロックを後処理で複数効果へ割った」ときの割り当て直しだけ。
+ * ⚠通常の構築サイトからは呼ばない（初出を残す規約を壊さないため）。
+ */
+function setSourceText(effectId: string, text: string): void {
+  const t = text.trim();
+  if (!t) return;
+  _currentParseSourceTextStack.at(-1)?.set(effectId, t);
+  if (_collectSourceText) _sourceTextLog.set(effectId, t);
+}
+
+// ── 帯分解した効果へ「その帯を書いている原文の断片」を割り当てる（§5.3 `O-134`）──
+// 後処理（`applyGradedThresholdBatch` ほか）が **1つの能力ブロックを「下位帯／上位帯」の2効果へ割る**
+// 一方、由来原文の対応表（`_sourceTextLog` → `docs/_effect_srctext.json`）は割る前のままだった。すると
+//   ・親（下位帯）＝上位帯の「代わりに＋N」まで**自分の原文として**突き合わせられる
+//   ・子（上位帯）＝そもそも登録が無く **カード全文**へフォールバックする（＝他能力の語彙まで背負う）
+// ＝`npm run census` の効果単位判定が両方を高シグナルへ落とす（実測 14効果／7カード）。
+// ⚠この対応表は engine の `abilityBlockTextOf`（`O-20` の source 配線）とも共有だが、
+//   ここで扱う GRANT_PROTECTION / GRANT_KEYWORD / POWER_MODIFY / BANISH は
+//   `sourceAbilityText` を読むハンドラを持たない（`npm run census:enginetext` A群に不在）＝実行時の挙動は変わらない。
+//   **別の型へ足すときは A群を必ず確認する。**
+/**
+ * 親に登録済みのブロック原文を `boundary` で二分し、前半を親・後半を子へ割り当て直す。
+ * 親が未登録／境界が見つからないときは**何もしない**（＝従来どおりのフォールバック）。
+ */
+function splitBandSourceText(parentId: string, childId: string, boundary: RegExp): void {
+  const whole = currentSourceText(parentId);
+  if (!whole) return;
+  const m = whole.match(boundary);
+  if (!m || m.index === undefined || m.index === 0) return;
+  setSourceText(parentId, whole.slice(0, m.index));
+  setSourceText(childId, whole.slice(m.index));
+}
+
+/** 「〜。（＋N される）。M以上あるかぎり、代わりに…」の**置換文の先頭**（直前の句点の次）に当たる。 */
+const REPLACEMENT_SENTENCE = /[^。]*代わりに/;
+
 // ===== 能力ブロック原文の実行時解決（§6.4 O-20 の source 配線） =====
 // engine のハンドラが `cardMap.get(sourceCardNum).EffectText` の**カード全文**を regex で読むと、
 // **その効果を生んだ能力ブロックを知らない**ため別能力の文に一致して意味が決まる事故が起きる
@@ -6948,6 +6991,7 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
         activeCondition: { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: 30000 },
         action: { type: 'GRANT_KEYWORD', target: { ...selfSigni }, keyword: 'トリプルクラッシュ', duration: 'PERMANENT' },
       });
+      splitBandSourceText('WXEX1-33-E2', 'WXEX1-33-E2b', REPLACEMENT_SENTENCE);
     }
   }
 
@@ -6965,6 +7009,7 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
         activeCondition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: 25 },
         action: { type: 'POWER_MODIFY', target: { ...selfSigni, filter: { ...thisCard } }, delta: 2000 },
       });
+      splitBandSourceText('WXK02-038-E1', 'WXK02-038-E1b', REPLACEMENT_SENTENCE);
     }
   }
 
@@ -6985,6 +7030,7 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
         activeCondition: { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 50 },
         action: boost(1000),
       });
+      splitBandSourceText('WXK10-036-E1', 'WXK10-036-E1b', REPLACEMENT_SENTENCE);
     }
   }
 
@@ -7012,6 +7058,7 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
         activeCondition: { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 50 },
         action: prot(2),
       });
+      splitBandSourceText('WXK10-035-E1', 'WXK10-035-E1b', REPLACEMENT_SENTENCE);
     }
   }
 
@@ -7036,6 +7083,8 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
         // 「対戦相手の効果を受けない」＝種別を問わないので fromAll。
         action: { type: 'GRANT_PROTECTION', fromAll: true, sourceOwner: 'opponent', duration: 'PERMANENT' },
       } as CardEffect);
+      // 「…を得、レベルが５以上であるかぎり、…を得る。」＝1文に2帯。句点が無いので接続部で割る。
+      splitBandSourceText('WX20-Re18-E2', 'WX20-Re18-E4', /レベルが[５5]以上であるかぎり/);
     }
   }
 
@@ -7062,6 +7111,16 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
         activeCondition: { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: 18000 },
         action: { type: 'GRANT_KEYWORD', target: { ...selfSigni }, keyword: 'ランサー', duration: 'PERMANENT' },
       } as CardEffect);
+      // 由来原文の割り当て（`O-134`）＝この【常】ブロックは**3効果**に割れている（帯2つ＋引用【自】）。
+      // `E2`（引用された【自】）は既存の登録＝ブロック全文のまま触らない（MANUAL＝census 免除で
+      // 利得が無く、`abilityBlockTextOf` の入力を動かす副作用だけが残るため）。
+      const blk019 = currentSourceText('WX09-019-E2');
+      const upper019 = blk019 ? blk019.indexOf('18000以上') : -1;
+      if (blk019 && upper019 > 0) {
+        setSourceText('WX09-019-E4', blk019.slice(0, upper019));
+        // 【ランサー】と並記された引用【自】は `E2` の取り分なので `E5` の原文からは外す。
+        setSourceText('WX09-019-E5', blk019.slice(upper019).replace(/と?「[^」]*」/, ''));
+      }
     }
   }
 }
@@ -7501,6 +7560,7 @@ function applySharedColorBatch5c2(effects: CardEffect[]): void {
       action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 1000 },
       activeCondition: { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount: 3 },
     });
+    splitBandSourceText('WXDi-P05-076-E1', 'WXDi-P05-076-E1b', REPLACEMENT_SENTENCE);
   }
 
   const addFilter = (id: string, flags: TargetFilter): void => {
