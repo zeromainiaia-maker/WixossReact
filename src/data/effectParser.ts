@@ -9358,11 +9358,9 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   const midOppositeSide = target.owner === 'opponent'
     ? (midMentionsSelf && !midMentionsOpp)
     : (midMentionsOpp && !midMentionsSelf);
-  // ③中間動作が**場のカードを動かす**（＝支払いが盤面に対して起きる）。
-  //   ⚠トラッシュ／デッキ／エナ／手札を出所にする形は**この巡では取らない**＝実測で15効果ぶん増え、
-  //   1件ずつ原文照合できる規模（PLAN §5.3 `O-129` の「1桁に保つ」）を超える。次バッチへ回す。
-  const midFieldVerb = /(?:バニッシュ|トラッシュに置|エナゾーンに置|手札に戻|ダウン)/.test(midClause);
-  const midOffFieldZone = /トラッシュから|デッキ|エナゾーン(?:から|に)|手札|ライフクロス|ルリグトラッシュ|の下から/.test(midClause);
+  // ③「中間動作が場のカードを動かす」限定は外す。
+  //   第1バッチを1桁に保つために先送りしていた限定であり、トラッシュ／デッキ／エナ／手札／
+  //   ライフクロスなど盤外由来の支払いでも、対象不在時に中間動作だけが起きる順序は同じく観測できる。
   // ④**中間動作が既に別バグで壊れている形には積み増さない**（§5.3 `O-104` の領分）＝
   //   中間節が「あなたの…」と言っているのに木の中間ステップが `owner:'opponent'` のまま、という効果
   //   （`WX07-039-E2`＝自分の＜原子＞3体の犠牲が**相手1体の除去**に化けている／
@@ -9375,7 +9373,7 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
     : midMentionsOpp && !midMentionsSelf ? 'opponent' : undefined;
   const midStepAgrees = !midStepOwner || !midClauseOwner || midStepOwner === midClauseOwner;
   const orderObservable = midOppositeSide && !/てもよい$/.test(midClause)
-    && midFieldVerb && !midOffFieldZone && midStepAgrees;
+    && midStepAgrees;
   if (extraKeys.length === 0 && !ownerOrCountDiffers && !orderObservable) return action;   // 本当に等価な場合だけ据置
 
   const steps = [...(action as SequenceAction).steps];
@@ -9410,7 +9408,7 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k])) && !ownerOrCountDiffers && !orderObservable) return action;
 
   // 中間ステップ（＝宣言とゲートの間の動作）の位置を同定する。任意コスト STUB／任意の手札捨て TRASH が
-  // 在ればそこ、無ければ**先頭**（原文では対象宣言が文頭に来るので、宣言はすべての動作より前で正しい）。
+  // 在ればそこ、無ければ**先頭**。ただし原文で対象宣言より前に条件節がある形は、下でその条件の内側へ入れる。
   // 🆕**フォールバックを足した**（2026-08-27 Sheet1 B6）＝旧実装は「コスト位置を同定できない形は触らない」で
   //   諦めており、`isDroppedCostStep` が見ない中間動作（**自分のシグニをバニッシュ／トラッシュ／ダウン**、
   //   **トラッシュからデッキの一番下へ置く**）の形が丸ごと素通りしていた。⚠**安全性は下の2つのガードが担う**＝
@@ -9434,13 +9432,39 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   const boundThen = bindToStoredTarget(gate.then, target);
   if (JSON.stringify(boundThen) === JSON.stringify(gate.then)) return action;
 
+  const selectTargetStep = {
+    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target,
+    ...(orderObservable ? { abortIfNoCandidate: true } : {}),
+  } as EffectAction;
+  const storeTargetStep = { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction;
+
+  // 「〈条件〉の場合、〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、…」は条件が先。
+  // 木も `SEQUENCE[CONDITIONAL{then:中間動作}, そうした場合]` の2ステップになるので、カードIDではなく
+  // **原文上の語順＋木の形**で、対象宣言から帰結までを条件の内側へまとめる。先頭へ平坦挿入すると
+  // 条件不成立でも対象選択UIを出し、lastProcessedCards / storedTargetCards を汚すため。
+  const conditionPrecedesDesignation = /場合、[^。]*$/.test(text.slice(0, m.index ?? 0));
+  const leadingCondition = steps[0]?.type === 'CONDITIONAL'
+    ? steps[0] as import('../types/effects').ConditionalAction : undefined;
+  if (orderObservable && costIdx === 0 && gateIdx === 1
+      && conditionPrecedesDesignation && leadingCondition && !leadingCondition.else) {
+    return {
+      ...action,
+      steps: [{
+        ...leadingCondition,
+        then: {
+          type: 'SEQUENCE',
+          steps: [selectTargetStep, storeTargetStep, leadingCondition.then, { ...gate, then: boundThen }],
+        } as SequenceAction,
+      } as EffectAction, ...steps.slice(gateIdx + 1)],
+    } as EffectAction;
+  }
+
   const rebuilt: EffectAction[] = [
     ...steps.slice(0, costIdx),
-    // §5.3 `O-129`: 順序が観測できる形（＝中間動作が反対側の**場の**カードを失わせる強制の支払い）でだけ、
+    // §5.3 `O-129`: 順序が観測できる形（＝中間動作が反対側のカードを動かす強制の支払い）でだけ、
     //   「対象を取れなければ何もしない」を engine へ伝える（既存の対象宣言は従来どおり打ち切らない）。
-    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target,
-      ...(orderObservable ? { abortIfNoCandidate: true } : {}) } as EffectAction,
-    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+    selectTargetStep,
+    storeTargetStep,
     ...steps.slice(costIdx, gateIdx),
     { ...gate, then: boundThen },
     ...steps.slice(gateIdx + 1),

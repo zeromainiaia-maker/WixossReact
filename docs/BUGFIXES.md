@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-28：§5.3 `O-129` 第2バッチ＝盤外由来の中間動作18効果の対象宣言順序を是正
+
+`applyDroppedTargetDesignation` から、第1バッチの件数を1桁に保つ目的だった「中間動作が場のカードを動かす」限定だけを外した。対象不在時にトラッシュ／デッキ／エナ／手札／ライフ由来の中間動作だけが起きる問題も、既存の `SELECT_TARGET_ONLY{abortIfNoCandidate:true}` → `STORE_LAST_PROCESSED_TARGETS` → `bindToStoredTarget` で打ち切る。生パース差分は指定された18 effectId と完全一致（不足0／余分0）、live JSON差分も同じ18効果だけで兄弟効果0件。
+
+- C群：`WX25-P2-063-E2` は原文の「APEX2がいる場合」を外側に保ち、その成立後に対象宣言を入れる一般形へ修正。`WXK05-024-E3` は原文どおり対象宣言を先頭に置き、トラッシュ【起】のトップレベルコストと `trashActivated` を維持した。
+- D群：`WX04-073-E1` と `WX06-014-E2` は `manualEffects.ts` を完全置換し、`parseStatus:MANUAL` と全トップレベルフィールドを維持したまま live 同期した。fresh parser の `LIFE_CRASH owner` 反転と `《古代兵器》` story 欠落はスコープ外なので未修正。
+- 追加で `WXDi-P05-077-E1` の①からエナゾーン支払いが欠落し、手札捨てが任意化されている既存不一致を発見したが、今回の順序修正とは独立なので未修正。
+- golden は A/B 両群の候補あり・候補0・修正前対照、C/D構造を追加して **2942 → 2948 PASS / 0 FAIL**。`npm run gates` 全緑、census 521、smoke/fuzz 全0、lint 260 warnings / 0 errors、同型★割れ0、held 31バケット／91枚、stub A/C 0、enginetext A 141行／137ハンドラ。
+
+詳細：`scripts/archive/codex_reports/O129_BATCH2_REPORT.md`。
+
 ## 2026-08-28：§5.3 `O-134` 第1バッチ＝Sheet1 要対応を 2 → 0（**計器の較正のみ・live 実体変化 0**）
 
 > **1巡（続き707・Opus 5 単独）。** ユーザー指示＝**「Sheet1 要対応を 0 に戻す」**。

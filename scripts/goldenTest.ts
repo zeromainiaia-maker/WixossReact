@@ -16327,13 +16327,144 @@ test('O-129 実行: 対象が居なければ中間動作（自分のシグニの
   ok(!rHit.ownerState.field.signi.some(s => s?.at(-1) === mine), '対象が居れば犠牲を払う');
   ok(!rHit.otherState.field.signi.some(s => s?.at(-1) === theirs), '宣言した相手シグニがバニッシュされる');
 }));
-test('parse O-129: 取らない形（トラッシュ/デッキ由来の中間・中間ステップが別バグで壊れている形）', () => {
-  // ①出所が場でない中間動作＝この巡では取らない（実測15効果ぶん増えるので次バッチ）
-  const trashSrc = parseCardEffects({ CardNum: 'TEST-O129B', Type: 'シグニ', EffectText: '【起】《白×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから＜天使＞のシグニ７枚をデッキの一番下に置く。そうした場合、それをバニッシュし、デッキをシャッフルする。' } as unknown as CardData)[0];
-  ok(!JSON.stringify(trashSrc.action).includes('SELECT_TARGET_ONLY'), 'トラッシュ由来の中間動作は据置');
-  // ②中間ステップの所有者が原文とズレたまま（§5.3 O-104 の領分）＝順序だけ直して「壊れたまま正しい順」にしない
+test('parse O-129: 取らない形（中間ステップが別バグで壊れている形）', () => {
+  // 中間ステップの所有者が原文とズレたまま（§5.3 O-104 の領分）＝順序だけ直して「壊れたまま正しい順」にしない
   const brokenMid = parseCardEffects({ CardNum: 'TEST-O129C', Type: 'シグニ', EffectText: '【起】《青×0》：対戦相手のシグニ１体を対象とし、あなたの＜原子＞のシグニ３体をバニッシュする。そうした場合、それをバニッシュする。' } as unknown as CardData)[0];
   ok(!JSON.stringify(brokenMid.action).includes('SELECT_TARGET_ONLY'), '中間ステップの owner がズレている形は据置');
+});
+
+// §5.3 O-129 第2バッチ＝盤外由来の中間動作でも対象宣言を先に確定する。
+const parseO129OffField = (designation: string): SequenceAction => {
+  const e = parseCardEffects({
+    CardNum: 'TEST-O129-OFFFIELD', Type: 'スペル',
+    EffectText: `${designation}を対象とし、あなたのトラッシュからカード１枚をデッキの一番下に置く。そうした場合、それをバニッシュする。`,
+  } as unknown as CardData)[0];
+  ok(e.action.type === 'SEQUENCE', 'O-129 第2バッチ: SEQUENCE');
+  return e.action as SequenceAction;
+};
+
+test('parse O-129 第2バッチ A群: 盤外中間の前に対象宣言＋保存を新設する', () => {
+  const action = parseO129OffField('対戦相手のシグニ１体');
+  const steps = action.steps as (EffectAction & { id?: string; abortIfNoCandidate?: boolean; targetsStored?: boolean; then?: EffectAction })[];
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', 'A群: 対象宣言を新設');
+  eq(steps[0].abortIfNoCandidate, true, 'A群: 候補0なら打ち切る');
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', 'A群: 宣言対象を保存');
+  eq(steps[2].type, 'TRANSFER_TO_DECK', 'A群: 盤外中間は宣言後');
+  eq((steps[3].then as EffectAction & { targetsStored?: boolean }).targetsStored, true, 'A群: 帰結を宣言対象へ束縛');
+});
+
+test('O-129 第2バッチ A群 実行: 候補ありは中間＋帰結、候補0は中間なし、旧木は破れる', () => withSavedCursor(() => {
+  const action = parseO129OffField('対戦相手のシグニ１体');
+  const target = fresh();
+  const hit = mkCtx({ trash: 1 }, { signi: [target, null, null] });
+  const hitTrash = hit.ownerState.trash.length, hitDeck = hit.ownerState.deck.length;
+  const rHit = run(action, hit);
+  eq(rHit.ownerState.trash.length, hitTrash - 1, 'A群 候補あり: トラッシュ1枚を支払う');
+  eq(rHit.ownerState.deck.length, hitDeck + 1, 'A群 候補あり: デッキへ1枚移す');
+  ok(!rHit.otherState.field.signi.some(s => s?.at(-1) === target), 'A群 候補あり: 宣言対象をバニッシュ');
+
+  const empty = mkCtx({ trash: 1 }, { signi: [null, null, null] });
+  const emptyTrash = empty.ownerState.trash.length, emptyDeck = empty.ownerState.deck.length;
+  const rEmpty = run(action, empty);
+  eq(rEmpty.ownerState.trash.length, emptyTrash, 'A群 候補0: トラッシュ不変');
+  eq(rEmpty.ownerState.deck.length, emptyDeck, 'A群 候補0: デッキ不変');
+
+  const oldTree = { ...action, steps: action.steps.slice(2) } as SequenceAction;
+  const oldCtx = mkCtx({ trash: 1 }, { signi: [null, null, null] });
+  const oldTrash = oldCtx.ownerState.trash.length, oldDeck = oldCtx.ownerState.deck.length;
+  const rOld = run(oldTree, oldCtx);
+  eq(rOld.ownerState.trash.length, oldTrash - 1, 'A群 修正前対照: 候補0でもトラッシュが減る');
+  eq(rOld.ownerState.deck.length, oldDeck + 1, 'A群 修正前対照: 候補0でもデッキが増える');
+}));
+
+test('parse O-129 第2バッチ B群: 既存対象宣言には abortIfNoCandidate だけを足す', () => {
+  const action = parseO129OffField('対戦相手のパワー10000以下のシグニ１体');
+  const steps = action.steps as (EffectAction & { id?: string; abortIfNoCandidate?: boolean })[];
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', 'B群: 既存対象宣言');
+  eq(steps[0].abortIfNoCandidate, true, 'B群: 打ち切りフラグを追加');
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', 'B群: 既存保存ステップ');
+  eq(steps[2].type, 'TRANSFER_TO_DECK', 'B群: 中間位置は据置');
+});
+
+test('O-129 第2バッチ B群 実行: 候補ありは中間＋帰結、候補0は中間なし、旧木は破れる', () => withSavedCursor(() => {
+  const action = parseO129OffField('対戦相手のパワー10000以下のシグニ１体');
+  const target = findCard(c => c.Type === 'シグニ' && (parseInt(c.Power || '0', 10) || 0) <= 10000);
+  const hit = mkCtx({ trash: 1 }, { signi: [target, null, null] });
+  const hitTrash = hit.ownerState.trash.length, hitDeck = hit.ownerState.deck.length;
+  const rHit = run(action, hit);
+  eq(rHit.ownerState.trash.length, hitTrash - 1, 'B群 候補あり: トラッシュ1枚を支払う');
+  eq(rHit.ownerState.deck.length, hitDeck + 1, 'B群 候補あり: デッキへ1枚移す');
+  ok(!rHit.otherState.field.signi.some(s => s?.at(-1) === target), 'B群 候補あり: 宣言対象をバニッシュ');
+
+  const empty = mkCtx({ trash: 1 }, { signi: [null, null, null] });
+  const emptyTrash = empty.ownerState.trash.length, emptyDeck = empty.ownerState.deck.length;
+  const rEmpty = run(action, empty);
+  eq(rEmpty.ownerState.trash.length, emptyTrash, 'B群 候補0: トラッシュ不変');
+  eq(rEmpty.ownerState.deck.length, emptyDeck, 'B群 候補0: デッキ不変');
+
+  const oldTree = JSON.parse(JSON.stringify(action)) as SequenceAction;
+  delete (oldTree.steps[0] as StubAction).abortIfNoCandidate;
+  const oldCtx = mkCtx({ trash: 1 }, { signi: [null, null, null] });
+  const oldTrash = oldCtx.ownerState.trash.length, oldDeck = oldCtx.ownerState.deck.length;
+  const rOld = run(oldTree, oldCtx);
+  eq(rOld.ownerState.trash.length, oldTrash - 1, 'B群 修正前対照: 候補0でもトラッシュが減る');
+  eq(rOld.ownerState.deck.length, oldDeck + 1, 'B群 修正前対照: 候補0でもデッキが増える');
+}));
+
+test('parse O-129 第2バッチ C群: 前置条件は対象宣言の外、後置条件は対象宣言の後', () => withSavedCursor(() => {
+  const before = parseCardEffects({ CardNum: 'TEST-O129-C-BEFORE', Type: 'シグニ', EffectText: '【起】《ターン１回》《青》《黒》：あなたの場に《コード・ピルルク・APEX2》がいる場合、対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜電機＞のシグニ３枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。' } as unknown as CardData)[0];
+  const beforeSteps = (before.action as SequenceAction).steps;
+  eq(beforeSteps.length, 1, '前置条件: 外側は条件1ステップだけ');
+  eq(beforeSteps[0].type, 'CONDITIONAL', '前置条件を先に評価');
+  const inner = ((beforeSteps[0] as ConditionalAction).then as SequenceAction).steps as (EffectAction & { id?: string })[];
+  eq(inner[0].id, 'SELECT_TARGET_ONLY', '前置条件成立後に対象宣言');
+  eq(inner[1].id, 'STORE_LAST_PROCESSED_TARGETS', '前置条件の内側で対象保存');
+  eq(inner[2].type, 'TRANSFER_TO_DECK', 'その後に中間動作');
+
+  const noApexCtx = mkCtx({ trash: 3 }, { signi: [fresh(), null, null] });
+  const beforeTrash = noApexCtx.ownerState.trash.length, beforeDeck = noApexCtx.ownerState.deck.length;
+  const noApex = executeEffect(before, noApexCtx);
+  ok(noApex.done, '前置条件不成立なら対象選択UIを出さない');
+  eq(noApex.ownerState.trash.length, beforeTrash, '前置条件不成立: トラッシュ不変');
+  eq(noApex.ownerState.deck.length, beforeDeck, '前置条件不成立: デッキ不変');
+  eq(noApex.lastProcessedCards?.length ?? 0, 0, '前置条件不成立: lastProcessedCardsを汚さない');
+  eq(noApex.storedTargetCards?.length ?? 0, 0, '前置条件不成立: storedTargetCardsを汚さない');
+
+  const after = parseCardEffects({ CardNum: 'TEST-O129-C-AFTER', Type: 'シグニ', EffectText: '【起】《青》《無》：対戦相手のシグニ１体を対象とし、あなたの手札が０枚の場合、このシグニをトラッシュから場に出す。そうした場合、それをトラッシュに置く。' } as unknown as CardData)[0];
+  const afterSteps = (after.action as SequenceAction).steps as (EffectAction & { id?: string })[];
+  eq(afterSteps[0].id, 'SELECT_TARGET_ONLY', '後置条件: 対象宣言が先頭');
+  eq(afterSteps[2].type, 'CONDITIONAL', '後置条件: 対象宣言の後に条件');
+  eq(JSON.stringify(after.cost?.energy), '[{"color":"青","count":1},{"color":"無","count":1}]', 'トラッシュ【起】コストはトップレベルに維持');
+  eq(after.trashActivated, true, 'トラッシュから撃つ【起】の提示経路を維持');
+}));
+
+test('O-129 第2バッチ D群: MANUAL完全置換は既存限定とトップレベル情報を落とさない', () => {
+  const life = effectsMap.get('WX04-073')?.find(e => e.effectId === 'WX04-073-E1');
+  ok(!!life, 'WX04-073-E1 live');
+  eq(life!.parseStatus, 'MANUAL', 'WX04-073-E1: MANUAL維持');
+  eq(JSON.stringify(life!.cost), '{"energy":[{"color":"赤","count":1}]}', 'WX04-073-E1: cost維持');
+  eq(JSON.stringify(life!.timing), '["MAIN"]', 'WX04-073-E1: timing維持');
+  eq(life!.duration, 'INSTANT', 'WX04-073-E1: duration維持');
+  eq(life!.mandatory, false, 'WX04-073-E1: mandatory維持');
+  const lifeSteps = (life!.action as SequenceAction).steps as (EffectAction & { id?: string; abortIfNoCandidate?: boolean; owner?: string; target?: EffectTarget; targetsStored?: boolean; then?: EffectAction })[];
+  eq(lifeSteps[0].id, 'SELECT_TARGET_ONLY', 'WX04-073-E1: 対象宣言が先頭');
+  eq(lifeSteps[0].abortIfNoCandidate, true, 'WX04-073-E1: 候補0打ち切り');
+  eq(lifeSteps[2].type, 'LIFE_CRASH', 'WX04-073-E1: 中間はライフクラッシュ');
+  eq(lifeSteps[2].owner, 'self', 'WX04-073-E1: あなたのライフを維持');
+  eq(((lifeSteps[3].then as EffectAction & { target?: EffectTarget }).target?.filter?.powerRange as { max?: number })?.max, 8000, 'WX04-073-E1: パワー8000以下を維持');
+
+  const ancient = effectsMap.get('WX06-014')?.find(e => e.effectId === 'WX06-014-E2');
+  ok(!!ancient, 'WX06-014-E2 live');
+  eq(ancient!.parseStatus, 'MANUAL', 'WX06-014-E2: MANUAL維持');
+  eq(JSON.stringify(ancient!.cost), '{"exceed":1}', 'WX06-014-E2: exceed cost維持');
+  eq(ancient!.usageLimit, 'once_per_turn', 'WX06-014-E2: usageLimit維持');
+  eq(JSON.stringify(ancient!.timing), '["MAIN"]', 'WX06-014-E2: timing維持');
+  eq(ancient!.duration, 'INSTANT', 'WX06-014-E2: duration維持');
+  eq(ancient!.mandatory, false, 'WX06-014-E2: mandatory維持');
+  const ancientSteps = (ancient!.action as SequenceAction).steps as (EffectAction & { id?: string; abortIfNoCandidate?: boolean; source?: EffectTarget })[];
+  eq(ancientSteps[0].id, 'SELECT_TARGET_ONLY', 'WX06-014-E2: 対象宣言が先頭');
+  eq(ancientSteps[0].abortIfNoCandidate, true, 'WX06-014-E2: 候補0打ち切り');
+  eq(ancientSteps[2].source?.filter?.story, '古代兵器', 'WX06-014-E2: 《古代兵器》限定を維持');
 });
 
 // §5.3 O-128 第1バッチ＝「〈対象〉を対象とし、〈期間〉、（それのパワーを±Nし、）それは「【自】…」を得る」が
@@ -47605,16 +47736,21 @@ test('段2 第38バッチ engine両方向: デッキ戻し2群は1回だけシ�
   const action = freshBatch38('WXEX1-53', 'WXEX1-53-E2').action;
   const bothCtx = mkCtx({}, { signi: [target, null, null] }); bothCtx.ownerState.trash = [arm, weapon];
   const offer = executeAction(action, bothCtx);
-  if (offer.done || offer.pending.type !== 'SELECT_TARGET') throw new Error('2群デッキ戻し選択なし');
-  const bouncedOffer = resumeSelectTarget([arm, weapon], offer.pending, ctxAfter(offer, bothCtx));
+  if (offer.done || offer.pending.type !== 'SELECT_TARGET') throw new Error('先行する相手シグニ対象宣言なし');
+  ok(offer.pending.candidates.includes(target) && offer.pending.count === 1, '原文どおり2群を戻す前に相手シグニ1体を宣言');
+  const designated = resumeSelectTarget([target], offer.pending, ctxAfter(offer, bothCtx));
+  if (designated.done || designated.pending.type !== 'SELECT_TARGET') throw new Error('2群デッキ戻し選択なし');
+  const bouncedOffer = resumeSelectTarget([arm, weapon], designated.pending, ctxAfter(designated, bothCtx));
   const both = finish(bouncedOffer, ctxAfter(bouncedOffer, bothCtx));
   ok(both.ownerState.deck_shuffled_count === 1, '2枚を加えた後のシャッフルは1回');
   ok(both.otherState.hand.includes(target), '両群を戻した場合だけ保存対象をバウンス');
 
   const oneCtx = mkCtx({}, { signi: [target, null, null] }); oneCtx.ownerState.trash = [arm];
   const oneOffer = executeAction(action, oneCtx);
-  if (oneOffer.done || oneOffer.pending.type !== 'SELECT_TARGET') throw new Error('片群デッキ戻し選択なし');
-  const one = resumeSelectTarget([arm], oneOffer.pending, ctxAfter(oneOffer, oneCtx));
+  if (oneOffer.done || oneOffer.pending.type !== 'SELECT_TARGET') throw new Error('片群時の相手シグニ対象宣言なし');
+  const oneDesignated = resumeSelectTarget([target], oneOffer.pending, ctxAfter(oneOffer, oneCtx));
+  if (oneDesignated.done || oneDesignated.pending.type !== 'SELECT_TARGET') throw new Error('片群デッキ戻し選択なし');
+  const one = resumeSelectTarget([arm], oneDesignated.pending, ctxAfter(oneDesignated, oneCtx));
   ok(one.done && !one.otherState.hand.includes(target), '片群1枚だけでは「そうした場合」を発火しない');
 }));
 

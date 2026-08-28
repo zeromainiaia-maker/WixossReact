@@ -3,15 +3,18 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［69枚］
-PR-Di017B SP07-009 WD07-006 WD15-001 WD19-009 WDK08-Y13 WDK16-13 WX08-039 WX09-020 WX12-Re10 WX13-031 WX13-073 WX14-069 WX14-072 WX16-Re05 WX17-009 WX18-086 WX18-089 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P09-TK02A WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P12-048 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXEX1-70 WXEX2-02 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK05-072 WXK08-056 WXK09-040 WXK09-084 WXK10-025 WXK11-019 WXK11-026
+## （type増減なし＝値/構造変更） ［61枚］
+PR-Di017B SP27-009 WD07-006 WD15-001 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX14-072 WX17-009 WX20-066 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P03-002 WXDi-P05-005 WXDi-P06-011 WXDi-P08-053 WXDi-P08-072 WXDi-P09-005 WXDi-P10-002 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
---- SP07-009
-  原文: あなたのデッキの一番上のカードをライフクロスに加える。その後、手札から＜美巧＞のシグニを２枚捨ててよい。そうした場合、このカードをあなたのルリグデッキに戻す。,-
-  ~ [0].action.steps[1].costText : "手札から＜美巧＞のシグニを２枚捨ててもよい" → "手札から＜美巧＞のシグニを２枚捨ててよい"
+--- SP27-009
+  原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から＜天使＞か＜悪魔＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.filter.cardClass[0] = "天使"
+  - [0].action.filter.cardClass[1] = "悪魔"
+  + [0].action.filter.story[0] = "天使"
+  + [0].action.filter.story[1] = "悪魔"
 --- WD07-006
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
