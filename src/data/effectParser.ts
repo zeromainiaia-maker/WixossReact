@@ -10234,6 +10234,38 @@ function removeStructuredRevealConsequence(action: EffectAction, fold: Structure
   return action;
 }
 
+/**
+ * 「〈基本〉。あなたがベットしていた場合、**代わりに**〈強化〉。」の**強化側に持続期間を引き継ぐ**
+ * （§5.3 `O-133` B群 第11バッチ・実測1効果＝`WDA-F01-09-E1`）。
+ *
+ * 🔴原文は「**ターン終了時まで**、それは能力を失う。あなたがベットしていた場合、代わりに対戦相手の
+ * すべてのシグニは能力を失う。」＝**「代わりに」は対象範囲だけを置換**し、持続期間は基本側のまま。
+ * ところが強化側の文には「ターン終了時まで」が書かれていないので単独パースでは `PERMANENT` になり、
+ * **ベットすると相手の全シグニが恒久的に能力を失う**（原文より遥かに強い）誤りになっていた。
+ *
+ * 🔑**適用条件を3枚重ねる**（fail-closed）＝①基本側の文にだけ「ターン終了時まで」がある
+ * ②`CONDITIONAL` の `then` と `else` が**同じアクション型** ③`else`（基本側）が
+ * `UNTIL_END_OF_TURN` を持ち、`then`（強化側）が `PERMANENT` か未設定。
+ * ⚠**期間を書いてある強化側は触らない**（原文が別の期間を指定している形を壊さないため）。
+ */
+function inheritReplacedBranchDuration(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'CONDITIONAL') return parsed;
+  const cond = parsed as import('../types/effects').ConditionalAction;
+  if (!cond.else) return parsed;
+  const [baseSent, ...restSents] = text.split(/(?=あなたがベットしていた場合、代わりに)/);
+  const enhancedSent = restSents.join('');
+  if (!enhancedSent || !/ターン終了時まで/.test(baseSent) || /ターン終了時まで/.test(enhancedSent)) return parsed;
+  const thenA = cond.then as EffectAction & { until?: string; duration?: string };
+  const elseA = cond.else as EffectAction & { until?: string; duration?: string };
+  if (thenA.type !== elseA.type) return parsed;
+  const patch: Record<string, string> = {};
+  for (const key of ['until', 'duration'] as const) {
+    if (elseA[key] === 'UNTIL_END_OF_TURN' && (thenA[key] === undefined || thenA[key] === 'PERMANENT')) patch[key] = 'UNTIL_END_OF_TURN';
+  }
+  if (Object.keys(patch).length === 0) return parsed;
+  return { ...cond, then: { ...thenA, ...patch } } as EffectAction;
+}
+
 function foldStructuredRevealUntil(text: string, parsed: EffectAction): EffectAction {
   const fold = structuredRevealFoldForText(text);
   // 木の形もガードに使う。対応する旧公開アンカーが一つだけの効果にしか一般化を適用しない。
@@ -11245,6 +11277,7 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
   parsed = foldRevealShuffleToDeckBottom(text, parsed);
+  parsed = inheritReplacedBranchDuration(text, parsed);
   parsed = foldRevealUntilShuffleBottomInline(text, parsed);
   parsed = wireSelectedSigniConditionalUp(text, parsed);
   parsed = stripReplacementConditionColor(text, parsed);
@@ -16758,6 +16791,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
               if (storyM) tf.story = storyM[1];
               if (colorM) tf.color = colorM[1];
               if (/あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき/.test(detailText)) tf.cardType = 'レゾナ';
+              // 🆕**「レベルが偶数／奇数のあなたのシグニが場に出たとき」**（§5.3 `O-133` B群 第11バッチ・
+              //   実測1効果＝`WXK03-028-E2`）。`matchesFilter` は `levelParity` を実装済みで、
+              //   デッキトップ公開の条件節（`parseDeckTopRevealConditionalAt`）では既に拾っていたのに、
+              //   この watcher 入口だけ落ちて**どのレベルのシグニでも発火**していた。
+              if (/レベルが(偶数|奇数)の/.test(onPlayText)) {
+                tf.levelParity = /偶数/.test(onPlayText) ? 'even' as const : 'odd' as const;
+              }
               if (/《クロスアイコン》を持つ/.test(onPlayText)) tf.hasCrossIcon = true;
               if (/《ライズアイコン(?:_[^》]+)?》[^を]*を持つ/.test(onPlayText)) tf.hasRiseIcon = true;
               if (nameM && !nameM[1].includes('アイコン')) tf.cardName = nameM[1];
