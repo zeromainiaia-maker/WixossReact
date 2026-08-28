@@ -34,7 +34,7 @@ live JSON の STUB id 種類 : 598（総ノード 2937 件）
         生成: src\data\parsers\parseSentencePart3.ts:2021
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
-        生成: src\data\parsers\parseSentencePart1.ts:2009
+        生成: src\data\parsers\parseSentencePart1.ts:2015
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2025

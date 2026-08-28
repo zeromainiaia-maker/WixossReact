@@ -584,7 +584,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //     `GUARD_LV_DECLARED` ＝宣言された数字と同じレベル（実行時に解決）
   //     `GUARD_LV_LAST_DOWNED` ＝この方法でダウンしたシグニと同じレベル（実行時に解決）
   if (t.match(/対戦相手は(?:.*シグニで)?【ガード】ができない/)) {
-    const until: BlockActionAction['until'] = t.includes('次の') ? 'NEXT_TURN' : 'END_OF_TURN';
+    // 🆕§5.3 `O-92` の仕分けで発見（2026-08-28）＝**「そのアタックの間」は `END_OF_ATTACK`**。
+    //   従来は一律 `END_OF_TURN` へ落ちており、**そのアタック1回だけのはずのガード不可が
+    //   ターン中ずっと続く過剰実行**になっていた（`WXEX2-08` / `WX24-P1-012` / `WX25-P3-027`）。
+    //   ⚠正しい形の先例は既に live に在る（`WXEX2-21-E1` / `WX25-CP1-024-E1` が `END_OF_ATTACK`）＝
+    //   受け皿は `effectExecutor.ts:3784` に実装済みで、engine 変更は要らない。
+    const until: BlockActionAction['until'] = /そのアタックの間/.test(t) ? 'END_OF_ATTACK'
+      : t.includes('次の') ? 'NEXT_TURN' : 'END_OF_TURN';
     const blockGuard = (actionId: string): BlockActionAction =>
       ({ type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId, until });
     // 「レベルN以下のシグニで【ガード】ができない」はレベル制限ガード（GUARD_MAX_LVN）として扱う。

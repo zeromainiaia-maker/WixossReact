@@ -20356,10 +20356,17 @@ function applyDurationsBatch40(card: CardData, effects: CardEffect[]): void {
       continue;
     }
 
-    // 「このターン、次にこのルリグがアタック」＝一回消費の付与AUTO。発火後の禁止だけ END_OF_ATTACK。
-    if (/このターン、次にこのルリグがアタックしたとき、そのアタックの間、対戦相手は【ガード】ができない/.test(source)
-        && effect.action.type === 'BLOCK_ACTION' && effect.action.actionId === 'GUARD') {
-      effect.action = {
+    // 「このターン、次に〈このルリグ／あなたのルリグ〉がアタックしたとき、そのアタックの間、〜【ガード】ができない」
+    //   ＝**一回消費の付与AUTO**。発火後の禁止だけ END_OF_ATTACK。
+    // 🆕§5.3 `O-92` の仕分けで2つの穴を塞いだ（2026-08-28）＝
+    //   ①主語が**「あなたのルリグ」**の形が regex から外れていた（`WX26-CP1-068-SONG`）
+    //   ②`effect.action` が**トップレベルで BLOCK_ACTION のときだけ**差し替えていたので、
+    //     コストや条件と一緒に `SEQUENCE`／`CONDITIONAL` に包まれている形が素通りしていた
+    //     （`WXDi-P13-007-E3` ＝手札を全部捨ててからガード不可）。
+    //   ⇒ **木の中の `BLOCK_ACTION{GUARD}` ノードだけを差し替える**（他のステップは触らない）。
+    //   ⚠正しい形の先例は `SP38-008-E3` / `WXDi-P09-006-E2`（どちらも live で既にこの形）。
+    if (/このターン、次に(?:この|あなたの)ルリグがアタックしたとき、そのアタックの間、対戦相手は【ガード】ができない/.test(source)) {
+      const nextAttackGrant = (): EffectAction => ({
         type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_END_OF_TURN', abilities: [{
           effectId: `${effect.effectId}-next-attack`, effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
           action: {
@@ -20367,8 +20374,24 @@ function applyDurationsBatch40(card: CardData, effects: CardEffect[]): void {
           },
           duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO', consumeOnTrigger: true,
         }],
-      } as GrantLrigAbilityAction;
-      continue;
+      } as GrantLrigAbilityAction);
+      const swapGuardNode = (node: EffectAction): { node: EffectAction; hit: boolean } => {
+        if (node.type === 'BLOCK_ACTION' && node.actionId === 'GUARD') return { node: nextAttackGrant(), hit: true };
+        if (node.type === 'SEQUENCE') {
+          let hit = false;
+          const steps = node.steps.map(st => { const r = swapGuardNode(st); hit = hit || r.hit; return r.node; });
+          return { node: hit ? { ...node, steps } as EffectAction : node, hit };
+        }
+        if (node.type === 'CONDITIONAL') {
+          const th = swapGuardNode(node.then);
+          const el = node.else ? swapGuardNode(node.else) : { node: undefined as EffectAction | undefined, hit: false };
+          const hit = th.hit || el.hit;
+          return { node: hit ? { ...node, then: th.node, ...(el.node ? { else: el.node } : {}) } as EffectAction : node, hit };
+        }
+        return { node, hit: false };
+      };
+      const swapped = swapGuardNode(effect.action);
+      if (swapped.hit) { effect.action = swapped.node; continue; }
     }
 
     // 長期付与の中身だけが相手ターン中に有効。直接キーワードを長期付与すると自分ターンにも有効になる。

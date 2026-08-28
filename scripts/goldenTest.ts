@@ -50853,6 +50853,73 @@ test('Sheet1 B3: 「共通するクラスを持つ場合」が live に載り、
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-92` の仕分け（2026-08-28）＝「そのアタックの間」の期間限定が `END_OF_TURN` へ広がっていた。
+//   ⚠**この項目の母集団の大半は偽陽性だった**＝「このターン、次にそれがアタックしたとき、そのアタックを
+//   無効にする」は `NEGATE_ATTACK` が `negated_attacks`（ターン内・アタック時に消費）へ積むので**既に正しい**。
+//   実際に落ちていたのは【ガード】不可の期間と、遅延付与形の取りこぼし2件だけ。
+// ══════════════════════════════════════════════════════════════════════════════
+test('parse O-92: 「そのアタックの間」の【ガード】不可は END_OF_ATTACK（ターン全体に広げない）', () => {
+  // ① そのアタック中に解決する形＝until だけ END_OF_ATTACK になる
+  const inAttack = batch29Effect('WX24-P1-012-E1');
+  const jIn = JSON.stringify(inAttack.action);
+  ok(jIn.includes('"actionId":"GUARD"'), 'WX24-P1-012-E1: ガード不可を出す');
+  ok(jIn.includes('"until":"END_OF_ATTACK"'), '🔴そのアタックの間だけ（旧＝END_OF_TURN でターン中ずっと）');
+  ok(!jIn.includes('"until":"END_OF_TURN"'), 'ターン全体の禁止に化けない');
+
+  // ② 対照＝「このターン、対戦相手は【ガード】ができない」形は END_OF_TURN のまま（広げも縮めもしない）
+  const wholeTurn = parseCardEffects({
+    CardNum: 'TEST-O92-TURN', Type: 'アーツ',
+    EffectText: 'このターン、対戦相手は【ガード】ができない。',
+  } as unknown as CardData)[0];
+  ok(JSON.stringify(wholeTurn.action).includes('"until":"END_OF_TURN"'),
+    '対照: 「このターン」形は END_OF_TURN のまま');
+});
+
+test('parse O-92: 「次に〈ルリグ〉がアタックしたとき」は遅延付与形（木に包まれていても・主語が「あなたの」でも）', () => {
+  // 🔴旧実装の穴2つ＝(a) `effect.action` がトップレベル BLOCK_ACTION のときしか差し替えず、
+  //   コストと一緒に SEQUENCE に包まれている形が素通り (b) 主語が「あなたのルリグ」だと regex から外れる。
+  for (const [effectId, why] of [
+    ['WXDi-P13-007-E3', 'SEQUENCE に包まれている（手札を全部捨ててからガード不可）'],
+    ['WX26-CP1-068-SONG', '主語が「あなたのルリグ」＋CONDITIONAL に包まれている'],
+  ] as const) {
+    // ⚠`batch29Effect` は -E<n>/-BURST しか剥がさないので **-SONG は自前で解決する**。
+    const cardNumO92 = effectId.replace(/-(E\d+|BURST|SONG)$/, '');
+    const cardO92 = cardMap.get(cardNumO92);
+    if (!cardO92) throw new Error(`${effectId}: card missing`);
+    const fresh = parseCardEffects(cardO92).find(e => e.effectId === effectId);
+    if (!fresh) throw new Error(`${effectId}: fresh effect missing`);
+    const j = JSON.stringify(fresh.action);
+    ok(j.includes('"type":"GRANT_LRIG_ABILITY"'), `${effectId}: 遅延付与形へ（${why}）`);
+    ok(j.includes('"timing":["ON_ATTACK_LRIG"]'), `${effectId}: 次のルリグアタックで発火`);
+    ok(j.includes('"consumeOnTrigger":true'), `${effectId}: 一度発火したら消費される`);
+    ok(j.includes('"until":"END_OF_ATTACK"'), `${effectId}: 禁止はそのアタックの間だけ`);
+    // ⚠**前段のコスト／条件を巻き込んで消していないこと**（差し替えるのは GUARD ノードだけ）
+    const live = b45Effect(cardNumO92, effectId);
+    ok(JSON.stringify(live.action).includes('"type":"GRANT_LRIG_ABILITY"'), `${effectId}: live にも届いている`);
+  }
+  // 前段が残っていることを個別に見る（WXDi-P13-007-E3 は手札全捨て＋相手エナのトラッシュが先）
+  const p13 = batch29Effect('WXDi-P13-007-E3');
+  ok(p13.action.type === 'SEQUENCE', 'WXDi-P13-007-E3: SEQUENCE のまま');
+  if (p13.action.type === 'SEQUENCE') {
+    eq(p13.action.steps[0]?.type, 'TRASH', '前段の手札全捨てが残っている');
+    eq(p13.action.steps.at(-1)?.type, 'GRANT_LRIG_ABILITY', '最後のガード不可だけが差し替わっている');
+  }
+});
+
+test('O-92 実行: END_OF_ATTACK のガード不可は prevent_opp_guard を立てる（END_OF_TURN 経路とは別）', () => {
+  // 受け皿の確認＝`execBlockAction` は GUARD×END_OF_ATTACK だけを `prevent_opp_guard` へ落とす。
+  const endOfAttack = { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+    actionId: 'GUARD', until: 'END_OF_ATTACK' } as unknown as EffectAction;
+  const r1 = run(endOfAttack, mkCtx({}, {}));
+  eq(r1.ownerState.prevent_opp_guard, true, 'END_OF_ATTACK は prevent_opp_guard（アタック単位）へ');
+  // 対照＝END_OF_TURN は blocked_actions（ターン単位）へ行き、prevent_opp_guard は立たない
+  const endOfTurn = { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+    actionId: 'GUARD', until: 'END_OF_TURN' } as unknown as EffectAction;
+  const r2 = run(endOfTurn, mkCtx({}, {}));
+  ok(r2.ownerState.prevent_opp_guard !== true, '対照: END_OF_TURN はアタック単位のフラグを立てない');
+});
+
 // §5.3 O-128 第2バッチ＝引用能力付与のうち、既存 GRANT_EFFECT の受け皿で評価できる3群。
 // 静的 JSON だけでなく、外側を実行 → 付与ストアから【自】を収集 → 内側を実行して盤面が動く所まで固定する。
 // ══════════════════════════════════════════════════════════════════════════════
