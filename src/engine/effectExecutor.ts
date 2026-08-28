@@ -9518,6 +9518,10 @@ export function resumeSearch(
    if (pending.restDest) {
     const remaining = pending.visibleCards.filter(n => !picked.includes(n));
     let logMsg = '';
+    // 'deck_top'＝残りはデッキ上に留めるだけ（公開はデッキ上から行うので移動不要）。
+    if (pending.restDest === 'deck_top') {
+      if (remaining.length > 0) cur = addLog(cur, '残りをデッキ上へ戻す');
+    } else
     for (const cardNum of remaining) {
       const st = deckState(cur);
       const di = st.deck.indexOf(cardNum);

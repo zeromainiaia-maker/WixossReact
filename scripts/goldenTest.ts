@@ -10507,7 +10507,23 @@ test('続き377k: 先頭文の条件節は継続節の後続文まで及ぶ', ()
   const a = e?.action as { type?: string; condition?: { type?: string }; then?: { type?: string; steps?: unknown[] } } | undefined;
   eq(a?.type, 'CONDITIONAL', 'WX11-026-E2: 最上位が CONDITIONAL（旧: SEQUENCE[CONDITIONAL, 無条件LOOK]）');
   eq(a?.condition?.type, 'LIFE_COUNT', 'WX11-026-E2: 条件は LIFE_COUNT');
-  eq(a?.then?.type, 'SEQUENCE', 'WX11-026-E2: then が SEQUENCE＝2文とも条件の内側');
+  // 🆕2026-08-28（Sheet1 バッチ）＝2文は `REVEAL_AND_PICK` へ**融合**するようになった。
+  //   この test が守っているのは「**2文とも条件の内側**（＝先頭文だけを包んで後続文が無条件に走らない）」
+  //   ことなので、融合形（1ノード）も同じ不変条件を満たす＝どちらも受理する。
+  //   ⚠受理してよいのは `REVEAL_AND_PICK`（公開＋ピックを1ノードにした形）だけ＝
+  //     `LOOK_AND_REORDER` 単独に戻ったら**ピック節が消えた退化**なので落とす。
+  eq(a?.then?.type === 'SEQUENCE' || a?.then?.type === 'REVEAL_AND_PICK', true,
+    `WX11-026-E2: then は SEQUENCE か REVEAL_AND_PICK＝2文とも条件の内側 (got=${a?.then?.type})`);
+  // 融合形なら「＜天使＞を2枚まで場に出す」まで載っていること（旧 live は pick が丸ごと消えていた）。
+  if (a?.then?.type === 'REVEAL_AND_PICK') {
+    const rp = a.then as unknown as { filter?: { story?: string }; pickCount?: number; pickUpTo?: boolean;
+      then?: { type?: string }; remainder?: { position?: string } };
+    eq(rp.filter?.story, '天使', 'WX11-026-E2: pick は＜天使＞限定');
+    eq(rp.pickCount, 2, 'WX11-026-E2: 2枚');
+    eq(rp.pickUpTo, true, 'WX11-026-E2: 「まで」');
+    eq(rp.then?.type, 'ADD_TO_FIELD', 'WX11-026-E2: 場に出す');
+    eq(rp.remainder?.position, 'top', 'WX11-026-E2: 残りはデッキの一番上');
+  }
 }));
 
 test('続き377k: デッキトップ公開分岐の後続文は【出】不発だけ引き連れる（分岐文は足さない）', () => withSavedCursor(() => {
@@ -51258,6 +51274,96 @@ test('O-119: proportional self-use cost payload covers G1-G18 and preserves the 
     ok(!parsed.some(e => e.cost?.costScaling?.length), `${cardNum}: deferred proportional payment-time form was adopted`);
     ok(JSON.stringify(parsed).includes('ARTS_COST_REDUCTION_BY_EFFECT'), `${cardNum}: deferred marker was removed`);
   }
+}));
+
+test('2026-08-28 Sheet1: 「〈数量元〉1体につき〈対象〉を1体まで」の数量元と対象の取り違え', () => withSavedCursor(() => {
+  // 原文（`WX07-027` BURST）「あなたの＜原子＞のシグニ1体につき**シグニ**を1体まで対象とし、それらをバニッシュする」。
+  // 🔴旧: `BANISH{owner:'self', filter:{story:'原子'}, upToCount}` ＝**自分の原子シグニを1体バニッシュする自傷**。
+  const e = (effectsMap.get('WX07-027') ?? []).find(x => x.effectId === 'WX07-027-BURST');
+  const a = e?.action as { type?: string; target?: Record<string, unknown> } | undefined;
+  eq(a?.type, 'BANISH', 'WX07-027-BURST: BANISH');
+  eq(a?.target?.owner, 'any', 'WX07-027-BURST: 対象は所有者を問わないシグニ（旧: self＝自傷）');
+  eq((a?.target?.filter as { story?: string } | undefined)?.story, undefined,
+    'WX07-027-BURST: 対象側に＜原子＞限定は付かない（それは数量元の条件）');
+  const cfz = a?.target?.countFromZone as { zone?: string; owner?: string; filter?: { story?: string } } | undefined;
+  eq(cfz?.zone, 'field', 'WX07-027-BURST: 上限は場の枚数から');
+  eq(cfz?.owner, 'self', 'WX07-027-BURST: あなたの場');
+  eq(cfz?.filter?.story, '原子', 'WX07-027-BURST: ＜原子＞のシグニ数');
+  eq(a?.target?.upToCount, true, 'WX07-027-BURST: 「まで」');
+}));
+
+test('2026-08-28 Sheet1: 「どちらか1つを選ぶ」の option tail は任意コストでなくても拾う', () => withSavedCursor(() => {
+  // 原文（`WX07-028` BURST）「どちらか１つを選ぶ。①カードを１枚引く。②…３枚捨てる。そうした場合、それらをバニッシュする。」
+  // 🔴旧: ②の支払いが**必須コスト**で本文に「てもよい。」が無いため option tail 判定が外れ、
+  //       CHOOSE が丸ごと消えて残存文だけが単文パスへ流れ **`BANISH{owner:'self'}`** になっていた。
+  const e = (effectsMap.get('WX07-028') ?? []).find(x => x.effectId === 'WX07-028-BURST');
+  const a = e?.action as { type?: string; choices?: { action?: { type?: string } }[] } | undefined;
+  eq(a?.type, 'CHOOSE', 'WX07-028-BURST: 2択（旧: BANISH{self}）');
+  eq(a?.choices?.length, 2, 'WX07-028-BURST: 選択肢2つ');
+  eq(a?.choices?.[0]?.action?.type, 'DRAW', 'WX07-028-BURST: ①はドロー');
+  ok(JSON.stringify(a?.choices?.[1]).includes('"owner":"opponent"'),
+    'WX07-028-BURST: ②の対象は対戦相手のシグニ');
+}));
+
+test('2026-08-28 Sheet1: 「対戦相手の〈色〉のカードの効果を受けない」の色を落とさない', () => withSavedCursor(() => {
+  // 原文（`WX08-005-E2`）「このシグニは対戦相手の**白の**カードの効果を受けない」。
+  // 🔴旧: 色が落ちて `from:['any']` の**全効果耐性**＝原文より広い過剰耐性。
+  const e = (effectsMap.get('WX08-005') ?? []).find(x => x.effectId === 'WX08-005-E2');
+  const a = e?.action as { type?: string; sourceFilter?: { color?: string }; sourceOwner?: string } | undefined;
+  eq(a?.type, 'GRANT_PROTECTION', 'WX08-005-E2: GRANT_PROTECTION');
+  eq(a?.sourceFilter?.color, '白', 'WX08-005-E2: 保護元は白のカードだけ');
+  eq(a?.sourceOwner, 'opponent', 'WX08-005-E2: 対戦相手の効果');
+}));
+
+test('2026-08-28 Sheet1: 「トラッシュにカード名に《X》を含む“シグニ”がある場合」の条件が落ちない', () => withSavedCursor(() => {
+  // 原文（`WX09-027-E2`）「…あなたのトラッシュにカード名に《アダマスフィア》を含む**シグニ**がある場合、それをバニッシュする」。
+  // 🔴旧: 名詞が「カード」の規則しか無く条件が丸ごと落ち、**無条件バニッシュ**だった。
+  const e = (effectsMap.get('WX09-027') ?? []).find(x => x.effectId === 'WX09-027-E2');
+  const a = e?.action as { type?: string; condition?: { type?: string; filter?: { cardName?: string; cardType?: string } } } | undefined;
+  eq(a?.type, 'CONDITIONAL', 'WX09-027-E2: 条件付き（旧: 素の BANISH）');
+  eq(a?.condition?.type, 'TRASH_HAS_CARD', 'WX09-027-E2: トラッシュ存在条件');
+  eq(a?.condition?.filter?.cardName, 'アダマスフィア', 'WX09-027-E2: 名前部分一致');
+  eq(a?.condition?.filter?.cardType, 'シグニ', 'WX09-027-E2: 名詞「シグニ」を filter へ運ぶ');
+}));
+
+test('2026-08-28 Sheet1: 場を離れる主語の「状態／色／レベル」修飾で scope が self へ退化しない', () => withSavedCursor(() => {
+  // 🔴旧: 主語の選択肢が「他の」「カード名に《X》を含む」「＜Y＞の」だけで、それ以外の修飾が付くと
+  //       `^` アンカーごと外れ **triggerScope が既定の self**＝「このシグニが場を離れたとき」に化けていた。
+  const cross = (effectsMap.get('WX08-025') ?? []).find(x => x.effectId === 'WX08-025-E2');
+  eq(cross?.triggerScope, 'any_ally', 'WX08-025-E2: あなたのクロス状態のシグニ（旧: self）');
+  eq((cross?.triggerCondition?.leftStateFilter as { crossState?: boolean } | undefined)?.crossState, true,
+    'WX08-025-E2: クロス状態は leftStateFilter（離脱直前の盤面で判定）');
+  const black = (effectsMap.get('WXDi-P06-040') ?? []).find(x => x.effectId === 'WXDi-P06-040-E3');
+  eq(black?.triggerScope, 'any_ally', 'WXDi-P06-040-E3: あなたの黒のシグニ（旧: self）');
+  eq(black?.triggerFilter?.color, '黒', 'WXDi-P06-040-E3: 色は triggerFilter');
+  const lvl = (effectsMap.get('WX24-P2-054') ?? []).find(x => x.effectId === 'WX24-P2-054-E1');
+  eq(lvl?.triggerScope, 'any_ally', 'WX24-P2-054-E1: あなたのレベル2以上の＜植物＞のシグニ（旧: self）');
+  eq(JSON.stringify(lvl?.triggerFilter), '{"level":{"min":2},"story":"植物"}',
+    'WX24-P2-054-E1: レベル範囲とクラスの両方を triggerFilter へ');
+}));
+
+test('2026-08-28 Sheet1: 「あなたの〔色の〕シグニが《ヘブン》したとき」は監視スコープ', () => withSavedCursor(() => {
+  // 🔴旧: 12効果すべて triggerScope 既定 self のままで、engine（BattleScreen のヘブン収集）は
+  //       **ヘブンしたクロスシグニ自身の効果しか集めない**＝ルリグ6枚＋非クロスのシグニに載った
+  //       9効果は**一度も発火しない死に能力**だった。
+  const allyHeaven: [string, string][] = [
+    ['WX07-002', 'WX07-002-E2'], ['WX07-003', 'WX07-003-E2'], ['WX07-004', 'WX07-004-E2'],
+    ['WX07-005', 'WX07-005-E2'], ['WX08-001', 'WX08-001-E2'], ['WX08-002', 'WX08-002-E2'],
+    ['WX08-003', 'WX08-003-E2'], ['WX08-025', 'WX08-025-E3'], ['WX08-035', 'WX08-035-E2'],
+    ['WD10-001', 'WD10-001-E2'], ['PR-195', 'PR-195-E2'], ['WX25-P1-085', 'WX25-P1-085-E1'],
+  ];
+  for (const [cardNum, effectId] of allyHeaven) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(e?.timing?.includes('ON_HEAVEN'), `${effectId}: ON_HEAVEN`);
+    eq(e?.triggerScope, 'any_ally', `${effectId}: 味方監視スコープ（旧: self＝一度も発火しない）`);
+  }
+  // 「あなたの**赤の**シグニが」だけ色限定が付く（他11効果は無限定）。
+  const red = (effectsMap.get('WX08-025') ?? []).find(x => x.effectId === 'WX08-025-E3');
+  eq(red?.triggerFilter?.color, '赤', 'WX08-025-E3: 赤限定');
+  // 🔴トリップワイヤ＝「**この**シグニが《ヘブン》したとき」（36件）は self のまま
+  //   （any_ally にすると味方のヘブンでも発火する過剰効果になる）。
+  const selfHeaven = (effectsMap.get('WX07-027') ?? []).find(x => x.effectId === 'WX07-027-E3');
+  eq(selfHeaven?.triggerScope ?? 'self', 'self', 'WX07-027-E3: 「このシグニが」は self のまま');
 }));
 
 if (listMode) {

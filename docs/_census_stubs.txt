@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 598（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 625  うち生ID露出 5 箇所（4 種）
+逆翻訳シートの [STUB:…] 総数: 622  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 6 種 / 7 件
@@ -25,13 +25,13 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart2.ts:445
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:18379
+        生成: src\data\effectParser.ts:18459
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
-        生成: src\data\parsers\parseSentencePart3.ts:2301
+        生成: src\data\parsers\parseSentencePart3.ts:2314
      1件   1枚  DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL
         カード: SP38-001
-        生成: src\data\parsers\parseSentencePart3.ts:2007
+        生成: src\data\parsers\parseSentencePart3.ts:2020
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:1992
@@ -50,16 +50,16 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         消費: src\engine\effectExecutor.ts:4748 / src\engine\effectExecutor.ts:4753
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-        消費(ペイロードキー): src\engine\effectEngine.ts:1880
+        消費(ペイロードキー): src\engine\effectEngine.ts:1888
      4件   4枚  DAMAGE_REPLACE_BY_COST
         カード: SPDi44-12, WX24-P3-005, WX24-P4-021, WX25-P1-014
         消費: src\screens\battle\lifeCrashReplace.ts:54
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:5201
+        消費: src\engine\effectEngine.ts:5240
      3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
-        消費: src\engine\effectEngine.ts:4719
+        消費: src\engine\effectEngine.ts:4758
      3件   3枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
         カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
         消費: src\engine\effectExecutor.ts:499
@@ -107,7 +107,7 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
      1件   1枚  OPP_TURN_ARTS_COST_REDUCTION_ONCE
         カード: WXK03-071
-        消費: src\engine\effectEngine.ts:4853
+        消費: src\engine\effectEngine.ts:4892
      1件   1枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P05-009
         消費: src\engine\effectExecutor.ts:4536
@@ -122,7 +122,7 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         消費: src\engine\execUtils.ts:1548
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:7393
+        消費: src\engine\effectEngine.ts:7432
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53

@@ -440,6 +440,130 @@ async function driveB16(page, H, expectUp) {
   if (!banished) return { pass: false, detail: `正面をバニッシュできなかった＝前提が崩れている（正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])}）` };
   return { pass: false, detail: `判定に至らず（down=${JSON.stringify(fin?.host?.signiDown)} wentDown=${wentDown}）` };
 }
+/**
+ * 2026-08-28 Sheet1 B27 の実機ドライバ（条件の有無で共有）。
+ * `WX09-027`（羅石 オリハルティア）【出】「対戦相手のパワー7000以下のシグニ1体を対象とし、
+ * **あなたのトラッシュにカード名に《アダマスフィア》を含むシグニがある場合**、それをバニッシュする」。
+ * 🔴**観測点は相手の正面シグニが場から消えるか**＝旧 live は条件が丸ごと落ちた素の `BANISH` で、
+ *   トラッシュが空でも必ずバニッシュしていた（＝`b27orihalmiss` が判別力を持つ側）。
+ * ⚠バニッシュの行き先はエナ（§4.4-8f）＝「場に無い」で見る（トラッシュだけ見ると偽陰性）。
+ */
+async function driveB27Orihal(page, H, expectBanish) {
+  const tag = expectBanish ? 'b27orihalhit' : 'b27orihalmiss';
+  const st0 = await H.queryState();
+  const front0 = st0?.guest?.fieldSigni?.[2];
+  H.log(`開始 hostTrash=${JSON.stringify(st0?.host?.trashCards)} guest正面=${JSON.stringify(front0)} hand=${st0?.host?.hand}`);
+  // 前提＝バニッシュ対象が最初から居ること（居なければ「消えた」判定が無意味になる）。
+  if (!Array.isArray(front0) || !front0.includes('WX09-027#8')) {
+    return { pass: false, detail: `前提崩れ＝相手の正面にバニッシュ対象が居ない（${JSON.stringify(front0)}）` };
+  }
+  await H.ensureMain();
+  H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false;
+  let settled = 0;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const front = st?.guest?.fieldSigni?.[2];
+    const gone = !(Array.isArray(front) && front.includes('WX09-027#8'));
+    const onField = JSON.stringify(st?.host?.fieldSigni ?? []).includes('WX09-027#1');
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 召喚=${onField} guest正面=${JSON.stringify(front)} gone=${gone} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (gone) {
+      return expectBanish
+        ? { pass: true, detail: `対照＝トラッシュに《アダマスフィア》があればバニッシュする（正面 ${JSON.stringify(front0)}→${JSON.stringify(front)}）` }
+        : { pass: false, detail: `🔴旧挙動＝トラッシュが空なのにバニッシュした（条件が落ちている）` };
+    }
+    // 🔑「起きなかった」判定は**効果が走り出したことを1度でも観測してから**（§4.4-5）。
+    //   ここでは「召喚が盤面に反映された」＋「対話も解決も残っていない」を2ティック続けて見る。
+    settled = (onField && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 3) {
+      return expectBanish
+        ? { pass: false, detail: `前提崩れ＝条件を満たすのにバニッシュしなかった（正面=${JSON.stringify(front)}）` }
+        : { pass: true, detail: `✅トラッシュが空なら発動しない＝条件が効いている（正面 ${JSON.stringify(front0)} のまま）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（召喚=${JSON.stringify(fin?.host?.fieldSigni)} 正面=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
+}
+
+/**
+ * 2026-08-28 Sheet1 B27 の実機ドライバ（ヘブンヘブンの味方監視）。
+ * 判定は**2段**＝①バトルログに「ヘブンヘブン！」が出たか（＝クロス相方の名前照合が通ったか）
+ * ②手札が1枚増えたか（＝`ON_HEAVEN` の `any_ally` 監視が収集されたか）。
+ * 🔴旧挙動＝①で止まる（全角/半角のズレでクロス状態にならない）。仮に①が通っても
+ *   ②は**ヘブンしたシグニ自身の効果しか集めない**ので永久に不発だった。
+ */
+async function driveB27Heaven(page, H, expectDraw) {
+  const tag = expectDraw ? 'b27heaven' : 'b27heavennowatch';
+  const st0 = await H.queryState();
+  const hand0 = st0?.host?.hand ?? 0;
+  H.log(`開始 hand=${hand0} field=${JSON.stringify(st0?.host?.fieldSigni)} down=${JSON.stringify(st0?.host?.signiDown)} guest中央=${JSON.stringify(st0?.guest?.fieldSigni?.[1])}`);
+  let attacked = false, modalOpened = false, heavenSeen = false;
+  let settled = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const phaseChk = await H.queryState();
+    if (!attacked && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI'
+        && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      modalOpened = false;
+      did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+    }
+    if (!did) {
+      const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+        await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && !modalOpened) {
+      // アタッカーは**中央（zone1）の 羅原 Ｏ**（zone0 は注入時点でダウン済み）。
+      const opened = await H.clickTestId('my-signi-zone-1');
+      if (opened) { did = opened; modalOpened = true; }
+    }
+    // ⚠ヘブンヘブンは**複数の【自】が同時に積まれる**（監視者のドロー＋ヘブンしたシグニ自身の
+    //   【クロス自】）ので `StackOrderModal`（「発動順序を確定」）が挟まる。これを押さないと
+    //   `stack=2` のまま永久に進まない（初版で26ティック空振りした）。
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動する', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', '選ばない']);
+    const st = await H.queryState();
+    const logs = st?.logTail ?? [];
+    if (logs.some(l => /ヘブンヘブン/.test(String(l)))) heavenSeen = true;
+    const hand = st?.host?.hand ?? 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} heaven=${heavenSeen} hand=${hand0}→${hand} down=${JSON.stringify(st?.host?.signiDown)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (heavenSeen && hand > hand0) {
+      return expectDraw
+        ? { pass: true, detail: `ヘブンヘブン成立→監視者（ルリグ）の【自】が発火してドロー（hand ${hand0}→${hand}）` }
+        : { pass: false, detail: `🔴対照が引いた＝監視者以外の経路でドローしている（hand ${hand0}→${hand}）` };
+    }
+    settled = (attacked && heavenSeen && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 4) {
+      if (expectDraw) return { pass: false, detail: `🔴ヘブンヘブンは成立したのにドローしない＝ON_HEAVEN の味方監視が収集されていない（hand ${hand0}→${hand}）` };
+      return { pass: true, detail: `対照＝監視者を外すとヘブンヘブンが成立しても引かない（hand ${hand0}→${hand}）` };
+    }
+  }
+  const fin = await H.queryState();
+  if (!heavenSeen) {
+    return { pass: false, detail: `🔴ヘブンヘブンが成立しなかった＝クロス相方の照合が通っていない（down=${JSON.stringify(fin?.host?.signiDown)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
+  }
+  return { pass: false, detail: `決着せず（heaven=${heavenSeen} hand ${hand0}→${fin?.host?.hand ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
+}
+
 const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
@@ -2786,6 +2910,179 @@ const scenarios = {
       const fin = await H.queryState();
       return { pass: false, detail: `付与ストアが空のまま（granted=${JSON.stringify(fin?.host?.grantedEffectIds)} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
     },
+  },
+
+  // ── B27（2026-08-28）＝Sheet1 census バッチ（実バグ6件＋ON_HEAVEN 監視スコープ）の実機観測点 ──
+  //   🔴**判別力があるのは miss 側**（`b27orihalmiss`）＝旧 live は条件が丸ごと落ちていて、
+  //   トラッシュに《アダマスフィア》が1枚も無くても【出】で必ずバニッシュしていた。
+  b27orihalhit: {
+    title: 'WX09-027 羅石オリハルティア（トラッシュに《アダマスフィア》あり＝バニッシュする／対照）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],                 // ピルルク Lv3/Limit8（Lv2 シグニを許容・限定なし）
+        'field.signi': [null, null, null],
+        'field.check': null,                          // §4.4-1＝前シナリオのライフクラッシュ確認を持ち越さない
+        'trash': ['WXDi-D03-017#1'],                  // 羅石 アダマスフィア（カード名部分一致）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, ['WX09-027#8']],  // host zone0 の正面＝guest zone2（P5000 ≦7000）
+        'field.check': null,
+        'actions_done': [],
+      },
+      handPrepend: ['WX09-027#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB27Orihal(page, H, true); },
+  },
+
+  b27orihalmiss: {
+    title: 'WX09-027 羅石オリハルティア（トラッシュが空＝バニッシュしない／🔴旧挙動は無条件バニッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'field.check': null,
+        'trash': [],                                  // ⚠原因だけを外す（盤面は hit と1文字も変えない）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, ['WX09-027#8']],
+        'field.check': null,
+        'actions_done': [],
+      },
+      handPrepend: ['WX09-027#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB27Orihal(page, H, false); },
+  },
+
+  b27hestia: {
+    title: 'WX11-026 聖火の祭壇ヘスチア（デッキ上3枚から＜天使＞を2枚まで場に出す＝旧挙動は完全 no-op）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],                 // タマヨリヒメ Lv4/Limit11（ヘスチアは「タマ限定」）
+        'field.signi': [null, null, null],
+        'field.check': null,
+        'life_cloth': ['WD01-013#90'],                // ライフ1枚＝【出】の条件「1枚以下」を満たす
+        // デッキ上3枚＝＜天使＞2枚＋非天使1枚（残り1枚がデッキの一番上へ戻る形）
+        'deck': ['WX04-060#1', 'WX04-057#1', 'WD01-013#91', 'WD01-013#92', 'WD01-013#93'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, null],
+        'field.check': null,
+        'actions_done': [],
+      },
+      handPrepend: ['WX11-026#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`開始 field=${JSON.stringify(st0?.host?.fieldSigni)} life=${st0?.host?.life} deck=${st0?.host?.deck}`);
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      const picked = new Set();
+      const occupiedOf = (st) => (st?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length > 0).length;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/b27hestia-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) {   // 公開札から＜天使＞を選ぶ
+          // ⚠§4.4-8p＝**候補セルはトグル**。毎ティック押すと選択が外れて「決定」に一度も到達しない
+          //   （初版でこれを踏み、24ティックまるごと pick-0 の on/off を繰り返した）。
+          //   ⇒ 一度押した testid は二度と押さない。
+          for (const tid of ['pick-0', 'pick-1']) {
+            if (picked.has(tid)) continue;
+            const pk = page.getByTestId(tid).first();
+            if (await pk.count() && await pk.isVisible().catch(() => false)) {
+              await pk.click().catch(() => {}); picked.add(tid); did = 'pick:' + tid; break;
+            }
+          }
+        }
+        // SELECT_SIGNI_ZONE（＜天使＞の配置先）＝「ゾーンN」ボタン。空きが2つあるので毎回出る。
+        if (!did) {
+          for (const zn of ['ゾーン2', 'ゾーン3', 'ゾーン1']) {
+            const zb = page.getByRole('button', { name: new RegExp('^' + zn) }).first();
+            if (await zb.count() && await zb.isVisible().catch(() => false) && await zb.isEnabled().catch(() => false)) {
+              await zb.click().catch(() => {}); did = 'btn:' + zn; break;
+            }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', '確定', 'OK', 'はい', 'スキップ']);
+        const st = await H.queryState();
+        const flat = JSON.stringify(st?.host?.fieldSigni ?? []);
+        H.log(`  b27hestia[${s}] -> ${did ?? 'なし'} | field=${flat} 埋まり=${occupiedOf(st)} deck=${st?.host?.deck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        // ✅新挙動＝ヘスチア自身に加えて＜天使＞が場に出る（旧 live は `LOOK_AND_REORDER{count:0}` だけで**1体も出なかった**）。
+        if (flat.includes('WX04-060#1') || flat.includes('WX04-057#1')) {
+          return { pass: true, detail: `公開3枚から＜天使＞が場に出た（field=${flat}）` };
+        }
+      }
+      const fin = await H.queryState();
+      const flatF = JSON.stringify(fin?.host?.fieldSigni ?? []);
+      if (!flatF.includes('WX11-026#1')) return { pass: false, detail: `前提崩れ＝ヘスチアが場に出ていない（field=${flatF}）` };
+      return { pass: false, detail: `🔴旧挙動＝＜天使＞が1体も場に出なかった（field=${flatF} logs=${JSON.stringify((fin?.logTail ?? []).slice(-6))}）` };
+    },
+  },
+
+  // 🔑この2本は**2つの修正を1本の線で通す**：
+  //   ①クロス相方のカード名照合（全角/半角）＝これが無いと 羅原 Ｈ/Ｏ は**クロス状態にならず**
+  //     そもそもヘブンヘブンが成立しない（ログに「ヘブンヘブン！」が出ない）。
+  //   ②ON_HEAVEN の味方監視スコープ＝ヘブンしたシグニ**以外**に載った【自】が発火する。
+  //   ⇒ 判定は「①ログにヘブンヘブンが出た」→「②手札が1枚増えた」の順に見る（どちらで落ちたか分かる）。
+  b27heaven: {
+    title: 'PR-195（あなたのシグニが《ヘブン》したとき1枚引く＝ヘブンしたシグニ以外の監視／旧は永久に不発）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['PR-195#1'],                   // 星占の巫女 リメンバ・ミッドナイト（ON_HEAVEN any_ally でドロー）
+        // 羅原 Ｈ（《羅原 O》の左）＋ 羅原 Ｏ（《羅原 H》の右）＝隣接クロスペア
+        'field.signi': [['WX07-027#1'], ['WX07-040#1'], null],
+        'field.signi_down': [true, false, false],      // zone0 は既にダウン＝zone1 のアタックで全クロスがダウン
+        'field.check': null,
+        'deck': ['WD01-013#80', 'WD01-013#81', 'WD01-013#82', 'WD01-013#83'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        // 中央同士だけが正面（§4.4-8e）。P3000＝アタッカー（羅原 Ｏ P8000）が勝つのでライフは動かない。
+        'field.signi': [null, ['WX05-064#1'], null],
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB27Heaven(page, H, true); },
+  },
+
+  b27heavennowatch: {
+    title: 'PR-195 を ON_HEAVEN を持たないルリグへ差し替え＝ヘブンしても引かない（対照）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],                 // ⚠**原因（監視者）だけを外す**。盤面は他を1文字も変えない
+        'field.signi': [['WX07-027#1'], ['WX07-040#1'], null],
+        'field.signi_down': [true, false, false],
+        'field.check': null,
+        'deck': ['WD01-013#80', 'WD01-013#81', 'WD01-013#82', 'WD01-013#83'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, ['WX05-064#1'], null],
+        'field.signi_down': [false, false, false],
+        'field.check': null,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) { return driveB27Heaven(page, H, false); },
   },
 
   // ── B22（2026-08-28）＝§5.3 `O-113`（相手アーツの効果を「受けた」ときだけ発火）の実機観測点 ──

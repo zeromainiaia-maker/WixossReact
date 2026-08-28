@@ -104,7 +104,10 @@ import { fileURLToPath } from 'url';
 // 2026-08-28 O-121: 「このターンに（あなたの＜X＞のシグニ／あなたの効果）が対戦相手のシグニをN体
 // バニッシュしていた場合」の台帳を新設。2効果とも条件ごと落ちて無条件発火だった。525→523。
 // 2026-08-28 O-108: コスト側の「それぞれ名前の異なる」（`handDiscardSigni.selectionConstraint`）を新設。523→522。
-const BASELINE_HIGH = 522;
+const BASELINE_HIGH = 516;
+// 旧・続き700: const BASELINE_HIGH = 522; // 2026-08-28 Sheet1 B27（census 実バグ6件＋ON_HEAVEN 監視スコープ）で 522→516。
+//   内訳＝WX07-027-BURST（数量元と対象の取り違え）／WX07-028-BURST（2択の消失）／WX08-005-E2（色の脱落）／
+//         WX09-027-E2（条件の脱落）／WX11-026-E2（場出しの消失）／WX08-025-E2/E3。
 // 旧・続き695: const BASELINE_HIGH = 523; // O-121（バニッシュ台帳）で 525→523。
 // 旧・続き693: const BASELINE_HIGH = 525; // O-120（【ランサー】原因限定）で 528→525。
 // 旧・続き692: const BASELINE_HIGH = 528; // O-119 で STUB が隠していた既存欠落2件が可視化（較正・退化ではない）。

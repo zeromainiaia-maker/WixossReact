@@ -10,39 +10,47 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-28・続き700・Opus 5 単独）＝`O-125` / `O-128`第1バッチ / `O-129`第1バッチ。「宣言はあるのに読み手が居ない」3件。**
-  ユーザー指示＝`O-129` / `O-125` / `O-128`。⚠登録票の警告どおり**影響枚数の小さい順**（`O-125`→`O-128`→`O-129`）で取った。
-  📊**進捗3計器＝Sheet1 要対応 26→25 / 863（3.0%→2.9%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 522（据置）**
-  ＝**census と台帳はこの3件を見ていない**（`O-125` は BLOCK_ACTION の消費地点／`O-129` は木の**順序**／
-  `O-128` は STUB→構造化で、census は STUB を欠落として数えない）。**Sheet1 が -1 しか動かない**のは
-  Sheet1 側の該当が3枚しか無く、うち2枚は別 finding／残り27カード側だから。
-  gates 全緑（golden **2920→2929**）。実機＝**新規5シナリオ ALL PASS**。
-  - ✅**`O-125`**＝`BLOCK_ACTION{DRAW_OUTSIDE_DRAW_PHASE}` は**生成側1箇所にしか出てこない死にフラグ**だった。
-    id を原文と1対1（`DRAW_OR_ADD_OUTSIDE_GROW_DRAW_PHASE_OWN_TURN`）にし、`execDraw`／`execTransferToHand`
-    の**2地点**（兄弟枝 `DRAW_OR_ADD_TO_HAND_BY_EFFECT` と同じ場所）で消費。母集団は live **1カード**。
-  - ✅**`O-128` 第1バッチ（8効果）**＝「〈対象〉を対象とし、〈期間〉、それは「【自】…」を得る」を
-    `GRANT_EFFECT` へ戻した（**engine 変更なし**）。live の `GRANT_ABILITY_INNER_TEXT` は **34→27カード**。
-  - ✅**`O-129` 第1バッチ（3効果）**＝「順序が観測できる形」に4条件で絞った（A/B 実測で live は3効果だけ動く）。
-  - 🔴**実機が機構の穴を1つ増やした**＝`SELECT_TARGET_ONLY` は**候補0でも `done` を返して SEQUENCE が続く**
-    ので、対象宣言を前に出しただけでは**相手の場が空でも自分のシグニを失う**（`b25targetfirst` が最初 FAIL）。
-    ⇒ `StubAction.abortIfNoCandidate` を新設し `execSequence` が打ち切る（**フラグ付きだけ**＝既存93効果は据置）。
-  - ⚠**A/B 差分が2度「直したつもりの退化」を捕まえた**＝①付与への差し替えを
-    `prependOuterPowerBeforeQuotedGrant` より前に置くと**外側のパワー修正が丸ごと落ちる**（5効果）
-    ②宣言 STUB を先頭に入れると `fixMiddleClauseTargetOwner` の `steps[0]` 判定が外れて
-    **`WXEX1-52-E2` の owner 是正が消える**。**parser を触ったら全カード A/B は必ず取る。**
-  - ⚠🔴**`parseStatus:'AUTO'` は「正しく解けた」ではない**＝`WD17-001-E2` は引用【自】の timing が
-    `ON_PLAY` へ**黙ってフォールバック**したまま AUTO だった。採ると**原文に無い能力**を配る（no-op より悪い）。
-    ⇒ 試験展開中の `getTimingFallbackLog()` の増分を見て据置する規則を入れた。
+- 🏁**セッション（2026-08-28・続き701・Opus 5 単独）＝Sheet1 census バッチ B27。「census が指した Sheet1 の実バグ」6件＋死んでいた2機構。**
+  ユーザー指示＝**「Sheet1 要対応を進める」**。`census:cards --sheet 1 --list` の25枚を**全数**開き、
+  census フラグ17枚を**1枚ずつ live JSON と原文で照合**して**実バグ6／計器の盲点12**に仕分けた。
+  📊**進捗3計器＝Sheet1 要対応 25→20 / 863（2.9%→2.3%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 522→516**
+  ＝**台帳が動かないのは正しい**（今回の6件はどれも意味照合 findings に載っていない別経路の発見）。
+  gates 全緑（golden **2929→2935**）。実機＝**新規5シナリオ ALL PASS ＋ 反転確認3本**。
+  - ✅**実バグ6件**＝①`WX07-027-BURST`「〈数量元〉1体につき〈対象〉を1体まで」で**数量元をそのまま対象**にしていた
+    （＝自分の＜原子＞シグニをバニッシュする**自傷**。`countFromZone` で上限だけを盤面から取る形へ）
+    ②`WX07-028-BURST`「どちらか1つを選ぶ」の option tail 判定が**任意コスト（「てもよい。」）のときしか働かず**、
+    **CHOOSE が丸ごと消えて自分のシグニを1体バニッシュ**していた ③`WX08-005-E2` は「対戦相手の**白の**カードの効果」の
+    色が落ちて**全効果耐性** ④`WX09-027-E2` は「トラッシュに《アダマスフィア》を含む**シグニ**がある場合」の
+    条件が落ちて**無条件バニッシュ**（条件規則の名詞が「カード」限定だった）
+    ⑤`WX11-026-E2` は「残りを**デッキの一番上に**戻す」の語彙が無く、下流の単文規則が先に当たって
+    **「＜天使＞を2枚まで場に出す」が丸ごと消失**（`restDest:'deck_top'` を新設。巻き添えで4効果が改善）
+    ⑥`WX08-025-E2` は場を離れる主語の修飾が**状態／色／レベル**だと `^` アンカーが外れて
+    **triggerScope が `self` へ退化**（＝原文と別のカードを見る。実測3効果）。
+  - 🔴**死んでいた機構2つを同じ巡で直した**（CLAUDE.md「作業中に見つけた engine/parser バグはその場で直す」）＝
+    (G)**`ON_HEAVEN` の味方監視スコープが無い**＝「**あなたの**〔色の〕シグニが《ヘブン》したとき」12効果は
+    `triggerScope` が既定 `self` のまま、engine も**ヘブンしたシグニ自身しか見ていない**＝
+    **ルリグ6枚＋非クロスのシグニ**に載った9効果は**構造上どこからも収集されない死に能力**だった。
+    (H)**クロス相方のカード名照合が7枚で永久に外れていた**＝全角/半角（`《羅原　O》` vs 「羅原　Ｏ」）4枚・
+    全角スペース欠落2枚・原文の誤字1枚。**クロス状態にならないのでヘブンヘブンの判定にも一度も乗らない。**
+  - ⚠🔴**この2つは JSON にも census にも golden にも映らない**（データ側の表記揺れ／収集側の配線）＝
+    **実機シナリオだけが計器**。`b27heaven` は①ログ「ヘブンヘブン！」で H を、②手札+1 で G を**別々に判定**する。
+  - ⚠**計器の盲点12枚は触っていない**＝`GUARD_MAX_LV2` / `CHOOSE` / `ON_OPP_SIGNI_ATTACK` / `costSubstitute` /
+    `perAllSigni` / `once` / `attackerOwner` / `compareToSelf` / `maxCount` / `sourceSharedColorWithSelf` は
+    **JSON に語彙が入っているのに `vocabCensus.ts` がそのキーを知らない**だけ。→ **`O-132` で較正する**
+    （⚠**前進ではない**ので必ず「較正」と明記して報告する）。
+  - ⚠**`census:cards` の held/partial は `docs/_held_fresh.json` を読む**＝`heldReview --adopt` の**あとに
+    `npm run build:effects` を回し直さない**と、採用済みカードが「未採用」として数え直され**要対応が増えて見える**
+    （実測 25→27。回し直して 20）。
 
-**▶ 次の一手**＝**`O-130`（`ON_OPP_ARTS_USE` の帰結が「そのシグニ」＝効果を受けたシグニを指せない）**。
-`O-131` で発火が通ったので次は帰結側＝`WXK11-019-E2` は「そのシグニをアップし…能力を失う」なのに
-live は `REMOVE_ABILITIES{owner:'opponent'}` のみ。`collectOppArtsAffectedOwnSigni` の結果を StackEntry へ
-載せて本体へ束縛する（`triggeringCardNum` と同型の1本）。
-その後は **`O-129` 第2バッチ**（トラッシュ/デッキ由来の中間動作 15効果）か **`O-128` 第2バッチ**
-（残り27カードのうち【常】自己付与3枚＝「基本パワーはNになり、…「Q」を得る」の連用中止形）。
-⚠**「消費側の入口が2つ以上ある」型を最優先で疑う**＝解決の完了地点（対話あり／なし）、支払いサイト
-（通常／カットイン）、収集の呼び出し元（人間UI／CPU）。**片方だけ配線しても golden は緑のまま通る。**
-⚠**登録票は6回連続で実態と違った**（`O-125` の母集団も「2枚」→実測1枚）＝着手前に live と実コードを必ず1分見る。
+**▶ 次の一手**＝**`O-132`（census 語彙検出の較正）**。Sheet1 に残る20枚のうち**12枚が偽陽性**なので、
+`vocabCensus.ts` に JSON キーを教えるだけで Sheet1 は 20→8 付近まで落ちる。⚠**これは前進ではなく計器の較正**
+（PLAN §3 の原則）＝**BUGFIXES にも報告にも「較正」と明記する**。較正後の Sheet1 残りは
+`held` 3（`WX05-025`／`WX06-CB03`／`WX07-029`）・`audit` 3（`WX02-020`／`WX05-022`／`WX09-Re07`）・
+`partial` 1（`WX04-052`）・`idset` 1（`WX05-021`）＝**8枚**で、ここからは1枚ずつの照合になる。
+その後は **`O-130`**（`ON_OPP_ARTS_USE` の帰結が「そのシグニ」を指せない）か **`O-128` 第2バッチ**。
+⚠**「宣言はあるのに読み手が居ない」型を最優先で疑う**＝今回の G（収集側に味方ループが無い）と
+H（照合が文字列一致で永久に外れる）は**どちらも live JSON を見ても分からない**。
+**engine の収集地点と、データの表記の突き合わせは実機でしか取れない。**
 
 ---
 
@@ -556,6 +564,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-128** | **【常】/【起】の中の引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちる**（残り27カード） | M〜L | **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（8効果）を消化。** ■母集団は live **34カード → 27カード**。■🆕**第1バッチで取った同型**＝「〈対象〉１体を対象とし、〈期間〉、（それのパワーを±Nし、）それ／そのシグニは「【自】…」を得る」＝`restoreQuotedTargetGrant`（`effectParser.ts`・引用漏出安全網の後段で STUB を `GRANT_EFFECT` へ戻す）。**受け皿は既存の `GRANT_EFFECT` だけで engine 変更なし**（STUB 単独→`target` つき／`SEQUENCE[POWER_MODIFY, STUB]`→`targetsLastProcessed`）。⚠**`prependOuterPowerBeforeQuotedGrant` の後に置く**＝先に付与へ差し替えると外側のパワー修正が丸ごと落ちる（実測5効果）。⚠**引用の timing がフォールバックする形は据置**＝`parseStatus` は AUTO のままなので `getTimingFallbackLog()` を見ないと**原文に無い能力**を配る（`WD17-001-E2`＝「正面をバニッシュしたとき」が `ON_PLAY` に化ける）。 ■**残り27カードの分類（未消化）**＝(a)【常】の場全体／自己付与（`WX09-Re07`／`WX11-053`／`WD16-014`＝「このシグニの基本パワーはNになり、…「Q」を得る」の連用中止形。`parseContinuousQuotedGrant` に 基本パワー版の連用中止分岐が無い） (b)【ライフバースト】付与4枚（`WXEX1-11`／`WXDi-P08-008`／`WXDi-P12-036`／`WX24-P3-022`） (c)ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`） (d)「このゲームの間、あなたは以下の能力を得る『…』」2枚（`WXDi-P03-002`／`WXDi-P10-002`） (e)【ソウル】/下カード/レイヤー4枚（`WXDi-D07-002`／`WXDi-P05-060`／`WXDi-P05-069`／`WXEX1-32`） (f)《トラップアイコン》付与1枚（`WXEX2-66`） (g)残り＝相手全体付与ほか。**同型ごとにバッチを切る**（1カードだけ直さない）。 |
 | **O-129** | **「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、それを…」で対象の確定が中間動作より後になる**（残り＝トラッシュ/デッキ由来の中間動作 15効果） | M | **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（3効果）を消化。** ■`applyDroppedTargetDesignation` の「filter/owner/count が帰結と一致するなら据置」ガードに **`orderObservable`** を足した＝①中間動作が**宣言と反対側**のカードを動かす ②**強制**（「てもよい」でない） ③中間動作が**場**のカードを動かす（トラッシュ/デッキ/エナ/手札 由来は除く） ④中間ステップの owner が原文と一致している（ズレている形は `O-104` の領分＝順序だけ直して「壊れたまま正しい順」にしない）。**実測で live の AUTO は3効果だけ動く**（`WX02-020-E1`／`WXEX2-18-E2`／`WXEX2-27-E2`）。 ■🔴**実機で機構の穴がもう1つ出た**＝`SELECT_TARGET_ONLY` は**候補0でも `done` を返して SEQUENCE が続く**ので、対象宣言を前に出しただけでは**相手の場が空でも自分のシグニを失う**（`b25targetfirst` が最初 FAIL）。⇒ `StubAction.abortIfNoCandidate` を新設し `execSequence` が打ち切る（**フラグ付きだけ**＝既存93効果の対象宣言は挙動据置）。 ■**残り**＝③を外すと「あなたのトラッシュから〜をデッキの一番下に置く」系が **+15効果**（`WX06-001`／`WX06-014`／`SPDi44-12`／`SPDi44-16`／`WXEX1-53`／`WXEX2-04`／`WXEX2-31`／`PR-322`／`WXDi-P05-019`／`WXDi-P16-008`／`WX25-P1-014`／`WX25-P1-030` ほか）。**1件ずつ原文照合できる規模で次バッチ**。⚠`fixMiddleClauseTargetOwner` は `applyDroppedTargetDesignation` の**前**へ移した（後ろだと先頭に入った宣言 STUB で `steps[0]` 判定が外れ、`WXEX1-52-E2` の owner 是正が消える＝A/B で実測）。 |
 | **O-130** | 🆕**ON_OPP_ARTS_USE の帰結が「そのシグニ」＝効果を受けたシグニを指せない** | M | **2026-08-28 `O-113` の作業中に発見**＝`WXK11-019-E2`（Sheet4）「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、ターン終了時まで、**そのシグニ**は効果によって得ている能力を失う」。■live は `REMOVE_ABILITIES{target:{owner:'opponent'}}` **のみ**＝①**アップが丸ごと落ちている** ②**能力を失わせる相手が逆**（原文は自分の受けたシグニ／live は相手シグニ）。■🔑`O-113` で**発火条件**は正しくなった（`affectedByOppArtsFilter`）が、**帰結が「効果を受けたシグニ」を参照する受け皿が無い**＝`targetsTriggerSource` はこの timing ではアーツを指すので使えない。■**取り方**＝`collectOppArtsAffectedOwnSigni` の結果を StackEntry へ載せ、`targetsAffectedByTrigger` 相当で本体へ束縛する（`triggeringCardNum` と同型の1本）。■母集団＝この1枚（`WX05-020-E2` は帰結が「対戦相手にダメージ」で参照不要）。 |
+| **O-132** | 🆕**`vocabCensus.ts` が「JSON に入っている語彙」を知らず、高シグナルの相当数が偽陽性** | S〜M | **2026-08-28 続き701（Sheet1 B27）で分離**＝Sheet1 の census フラグ17枚を1枚ずつ live と原文で照合したら、**12枚が偽陽性**だった（＝語彙は JSON に載っているのに検出器がそのキーを見ていない）。■実測した対応表＝`GUARD_MAX_LV2` 等の `BLOCK_ACTION.actionId` に埋まったレベル閾値（`WX01-004-E3`）／`CHOOSE` の片枝が「〜しない」＝「してもよい」（`WX01-057-E1`）／`timing:['ON_OPP_SIGNI_ATTACK']`（`WX05-013-E2`）／`cost.costSubstitute`＝「代わりに」（`WX07-027-E2`）／`ATTACH_CHARM.perAllSigni`＝「1体につき」（`WX08-046-BURST`・`WX08-081-E1`）／`INSTALL_DELAYED_TRIGGER.once`＝「最初の〜である場合」（`WX09-Re06-E1`）／`PLAY_FREE_FROM_TRASH.costThreshold`＝「合計がN以下」（`WX09-012-E2`）／`trigger.attackerOwner`（`WX10-035-E1`）／`activeCondition.FRONT_SIGNI.compareToSelf`＝動的比較（`WX10-036-E2`）／`STACK_SPELL.maxCount`＝「N枚まで」（`WX11-029-E1`）／`GRANT_PROTECTION.sourceSharedColorWithSelf`＝「共通する色」（`WX11-032-E2`）。■🔴**これは前進ではなく計器の較正**（PLAN §3 の原則）＝**BUGFIXES にも報告にも「較正」と明記する**。同型の事故は `cardProgressCensus.mjs` でも起きている（2026-08-27＝台帳の残 OPEN を自前で数えて 643→948 と過大報告）。■**取り方**＝①`vocabCensus.ts` の語彙カテゴリごとに「対応する JSON キー」を洗い出して足す ②`BASELINE_HIGH` を実数へ下げる ③⚠**下げすぎに注意**＝キーを足すと**本当に欠けている効果まで免除**しうるので、カテゴリごとに「そのキーが立っている live 効果」を全数目視してから足す。■**見込み**＝Sheet1 は **20→8 付近**（残り＝`held` 3／`audit` 3／`partial` 1／`idset` 1）。全体の高シグナル 516 も相当数が落ちるはず（着手時に実測する）。 |
 
 **■ 個別カードの機構待ち**
 - **📋 個別カード機構待ちの defer 3件＝いずれも根拠つき（着手前にこの理由が今も有効か再判定すること）**：(a) **`WX17-044`＝⚠2026-08-10 再判定＝先行ブロッカーだった §5.3 は消化済（続き403）だが、このカードは**依然として別要因**で止まっている**＝①`WX17-044-E1` に `trashActivated` が立っておらず（parser が「トラッシュにあるこのカードを〜」の【起】をトラッシュ起動と認識していない）②本体アクションが `ADD_TO_FIELD` ではなく**【トラップ】を表向きにして発動させる**（現行の逆翻訳は別物になっている）③コストの `trashExile.self` は `trashActivateCost.ts` の対応キーに入れていない（使う効果が0件のため未実装のまま置いた）。**着手時は parser 側（①②）から。UI は③を足すだけで載る。**(b) **`WXDi-P05-006` choice①＝着手禁止**（ピースカットイン割込み基盤）。(c) **`WX20-Re20`＝一体で要る**（選択数依存コスト・能力なし filter・任意複数配置UI・同一 instance 群のターン終了時 trash）＝部分実装しない。
@@ -674,7 +683,31 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-28 続き700 後（本行が直近の正）**：
+- **2026-08-28 続き701 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 25→20 / 863（2.9%→2.3%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 522→516**
+  ⚠**台帳が動かないのが正しい**＝今回の6件はどれも意味照合 findings に載っていない
+  （入口が `census:cards --sheet 1 --list` の**全数目視**で、台帳とは別経路の発見）。
+  **golden 2935**（+6＝A〜G の各主張を1本ずつ）、census 516/516（`BASELINE_HIGH` 更新）、
+  smoke 全異常0、fuzz 全0、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0、
+  `census:enginetext` A群 141行/137ハンドラ（据置）。
+  **live 変化＝22カード**（`WX07-002` `WX07-003` `WX07-004` `WX07-005` `WX07-027` `WX07-028`
+  `WX08-001` `WX08-002` `WX08-003` `WX08-005` `WX08-025` `WX08-035` `WX09-027` `WX11-026`
+  `WX12-021` `WX14-041` `WD10-001` `PR-195` `WX25-P1-085` `WD23-041-EA` `WXDi-P06-040` `WX24-P2-054`）。
+  **実機シナリオ +5 全 PASS**（`b27orihalhit` / `b27orihalmiss` / `b27hestia` / `b27heaven` /
+  `b27heavennowatch`）＝**判別力があるのは `b27orihalmiss` と `b27heaven`**。
+  **反転確認3本**＝①味方 watcher ループを潰す ②`normalizeCrossName` を素の `===` へ戻す
+  ③live の `WX09-027-E2` から `CONDITIONAL` を剥がす＝**3本とも旧挙動を再現**し、
+  FAIL メッセージが原因を指すことまで確認した。
+  **既存シナリオ回帰7本 ALL PASS**（`b11attacktrigger` / `banishbyeffect` / `b25targetfirst` /
+  `b25targethit` / `b26grantquoted` / `b22artshit` / `b22artsmiss`）。
+  ⚠**新規語彙**＝`StubAction.revealPickParams.restDest:'deck_top'`（＋`PendingInteractionDef.restDest`）／
+  `GRANT_PROTECTION.sourceFilter.color`（既存キーの新用途）／`ON_LEAVE_FIELD` 主語の
+  状態・色・レベル修飾（状態は `triggerCondition.leftStateFilter`・色/レベルは `triggerFilter`）／
+  `ON_HEAVEN` の `triggerScope:'any_ally'`。
+  ⚠**engine 追加2点**＝`matchesStateFilter` に `crossState`（**キーを書いても素通り＝無条件成立**していた）／
+  `normalizeCrossName`（クロス相方の名前照合。**7枚が永久に外れていた**）。
+
+- **2026-08-28 続き700 後**：
   📊**進捗3計器＝Sheet1 要対応 26→25 / 863（3.0%→2.9%）｜台帳 残 OPEN 575（据置）｜census 高シグナル 522（据置）**
   ⚠**census と台帳が動かないのが正しい**＝この巡の3件はどちらの計器も見ていない
   （`O-125`＝BLOCK_ACTION の**消費地点**／`O-129`＝木の**順序**／`O-128`＝STUB→構造化で、

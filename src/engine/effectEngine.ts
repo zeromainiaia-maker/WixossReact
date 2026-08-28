@@ -965,6 +965,14 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     const v = state.field.signi_armor?.[zoneIdx] ?? false;
     if (filter.isArmored !== v) return false;
   }
+  // 🆕クロス状態（2026-08-28 Sheet1 バッチ）＝`WX08-025-E2`「あなたの**クロス状態の**シグニ1体が
+  //   場を離れたとき」の `triggerCondition.leftStateFilter` 評価に要る。
+  //   ⚠`execUtils` の候補列挙側（:1422）には既にあったが、この状態フィルタ評価器には無く、
+  //     **キーを書いても素通り＝無条件成立**していた（過剰発火）。
+  if (filter.crossState !== undefined) {
+    const v = state.field.cross_state?.[zoneIdx] ?? false;
+    if (filter.crossState !== v) return false;
+  }
   if (filter.hasCharm !== undefined) {
     const v = (state.field.signi_charms?.[zoneIdx] ?? null) !== null;
     if (filter.hasCharm !== v) return false;
@@ -4237,6 +4245,37 @@ function getZoneTopCardName(state: PlayerState, zoneIndex: number, cardMap: Map<
   return cardMap.get(stack[stack.length - 1])?.CardName ?? null;
 }
 
+/**
+ * クロス相方のカード名照合用の正規化（2026-08-28 Sheet1 バッチ）。
+ *
+ * 🔴**素の `===` 比較は7枚のクロスペアを全部落としていた**（全 CSV を実測＝一致78／不一致7）。
+ *   クロス条件文とカード名で表記が揺れており、**相方が永久に見つからない＝そのカードの
+ *   【クロス常】【クロス出】【クロス自】【クロス起】が1つも働かない**（`collectCrossStates` が
+ *   常に false を返すので、ヘブンヘブンの判定にも一度も乗らない）。
+ *   ⚠この壊れ方は **JSON にも census にも golden にも映らない**（データ側の表記揺れなので
+ *   逆翻訳は正しく「《羅原　O》の左」と描く）＝実機でしか見つからない層。
+ *
+ * 内訳：
+ *   ① **全角/半角の英字**（4枚）＝`WX07-027`「《羅原　O》の左」 vs カード名「羅原　Ｏ」
+ *      （`WX07-040` / `WX07-041` / `WX07-063` も同型）。
+ *   ② **区切りの全角スペース欠落**（2枚）＝`WX25-P1-072` / `WX25-P1-075` の
+ *      「《小右砲エペナナ》」 vs カード名「小右砲　エペナナ」。
+ *   ③ **原文の誤字**（1枚）＝`WX09-020` の「《混沌の豊穣　シュ**プ**ニグラ》」 vs
+ *      実在カード名「混沌の豊穣　シュ**ブ**ニグラ」（`WX09-016`）。正規化では吸収できないので
+ *      下の `CROSS_NAME_ALIASES` に**この1件だけ**を明示する。
+ */
+const CROSS_NAME_ALIASES: Record<string, string> = {
+  // ③ 誤字（半濁点→濁点）。⚠一般規則へ広げない＝別カードを誤って相方にしうる。
+  '混沌の豊穣シュプニグラ': '混沌の豊穣シュブニグラ',
+};
+function normalizeCrossName(name: string | null | undefined): string {
+  if (!name) return '';
+  const folded = name
+    .replace(/[\s　]+/g, '')                                                    // ② 空白を落とす
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)); // ① 全角英数→半角
+  return CROSS_NAME_ALIASES[folded] ?? folded;
+}
+
 function evaluateSingleCross(state: PlayerState, zoneIndex: number, text: string, cardMap: Map<string, CardData>): boolean {
   const m = text.match(/《([^》]+)》の([左右])/);
   if (!m) return false;
@@ -4244,7 +4283,7 @@ function evaluateSingleCross(state: PlayerState, zoneIndex: number, text: string
   // "の右" = このシグニはcardNameの右にいる → cardNameはzoneIndex-1にいる
   const targetZone = m[2] === '左' ? zoneIndex + 1 : zoneIndex - 1;
   if (targetZone < 0 || targetZone > 2) return false;
-  return getZoneTopCardName(state, targetZone, cardMap) === m[1];
+  return normalizeCrossName(getZoneTopCardName(state, targetZone, cardMap)) === normalizeCrossName(m[1]);
 }
 
 function evaluateCrossCondition(state: PlayerState, zoneIndex: number, condText: string, cardMap: Map<string, CardData>): boolean {
@@ -4267,8 +4306,8 @@ function evaluateCrossCondition(state: PlayerState, zoneIndex: number, condText:
       const dir = sharedM[2];
       const targetZone = dir === '左' ? zoneIndex + 1 : zoneIndex - 1;
       if (targetZone < 0 || targetZone > 2) return false;
-      const targetName = getZoneTopCardName(state, targetZone, cardMap);
-      return names.some(n => targetName === n);
+      const targetName = normalizeCrossName(getZoneTopCardName(state, targetZone, cardMap));
+      return names.some(n => targetName === normalizeCrossName(n));
     }
   }
 

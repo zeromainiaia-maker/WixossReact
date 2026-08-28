@@ -50,8 +50,13 @@ export function makeRevealPickStub(t: string): StubAction {
     const countM2 = t.match(/([０-９\d]+)枚(?:まで)?(?:を)?手札に加え/);
     if (countM2) pickCount = parseNum(countM2[1]);
   }
-  let restDest: 'deck_bottom' | 'trash' | 'energy' = 'deck_bottom';
-  if (desc) {
+  let restDest: 'deck_bottom' | 'deck_top' | 'trash' | 'energy' = 'deck_bottom';
+  // 「残りを（好きな順番で）デッキの**一番上**に戻す／置く」（2026-08-28 Sheet1 バッチ）。
+  // ⚠**一番下より先に見る**＝下の既存分岐は `残り.*デッキ` を見ないので取り違えは起きないが、
+  //   ここで先に確定しておかないと `desc` 有無の枝分かれで拾い漏れる。
+  const restTop = /残り[^。]*デッキの一番上に(?:戻す|置く)/.test(t);
+  if (restTop) restDest = 'deck_top';
+  else if (desc) {
     // 記述子が解けたときは pick の行き先が文末に来る（「宣言したカードをすべてエナゾーンに置く」WX13-054）。
     // 従来の文末アンカー（`エナゾーンに置く$`）はそれを**残りの行き先**と誤読し、非対象の公開札まで
     // エナへ送る過剰実行になるため、「残り」を明示する句だけを見る。

@@ -137,10 +137,16 @@ function countFromZoneJa(spec: any): string {
 function countFromZonePerJa(spec: any, suffix: string, upTo = false): string {
   const unit = spec?.unitSize ?? 1;
   const per = spec?.per ?? 1;
+  // 🆕`field`＝場のシグニを数える形（`WX07-027-BURST`「あなたの＜原子＞のシグニ1体につき」）。
+  //   ⚠従来この zone は表になく `${spec.zone}にあるカード` へ落ちて **`fieldにあるカード` と生の英語**が出ていた。
+  //   フィルタ（＜原子＞等）も描かないと「場のカード全部」に見えるので `filterJa` を通す。
+  const filJa = spec?.filter ? filterJa(spec.filter) : '';
   const subject = spec?.zone === 'deck' ? `${ownerJa(spec.owner)}デッキの枚数`
     : spec?.zone === 'charm' ? `${ownerJa(spec.owner)}場にある【チャーム】`
-    : `${ownerJa(spec.owner)}${({ acce: '【アクセ】', trash: 'トラッシュにあるカード' } as Record<string, string>)[spec?.zone] ?? `${spec?.zone}にあるカード`}`;
-  return `${subject}${unit}枚につき${per}${suffix}${upTo ? 'まで' : ''}`;
+    : spec?.zone === 'field' ? `${ownerJa(spec.owner)}場にある${filJa}${([] as string[]).concat(spec.filter?.cardType ?? []).join('か') || 'カード'}`
+    : `${ownerJa(spec.owner)}${filJa}${({ acce: '【アクセ】', trash: 'トラッシュにあるカード' } as Record<string, string>)[spec?.zone] ?? `${spec?.zone}にあるカード`}`;
+  const counterJa = spec?.zone === 'field' && spec?.filter?.cardType === 'シグニ' ? '体' : '枚';
+  return `${subject}${unit}${counterJa}につき${per}${suffix}${upTo ? 'まで' : ''}`;
 }
 
 /** `NumberOrRef.$ref` の日本語（§5.3 `O-87`＝`REPEAT.countRef` の逆翻訳用。未知の ref は生 id を出す）。 */
@@ -354,6 +360,13 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
     : '';
+  // 動的数：盤面/ゾーンの枚数（`countFromZone`）＝「あなたの＜原子＞のシグニ1体につき1体まで」
+  //   （2026-08-28 Sheet1 バッチ・`WX07-027-BURST`）。⚠描かないと「1体まで」に見え、
+  //   **上限が盤面で決まることが原文照合で消える**（engine は `resolveCountRef` で実数を使う）。
+  if (t.countFromZone) {
+    const perJa = countFromZonePerJa(t.countFromZone, counter, !!t.upToCount);
+    return `${own}${setConstraint}${filterJa(t.filter)}${u}を${perJa}`.trim();
+  }
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
     return `${own}${filterJa(t.filter)}${u}をこの方法で処理した枚数と同じ数だけ`.trim();
@@ -1542,7 +1555,12 @@ function actionJa(a?: Action, effectType?: string): string {
         return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`);
       }
       if (fromArr.includes('any')) {
-        return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}効果を受けない`);
+        // 🆕`sourceFilter.color`＝「対戦相手の**白の**カードの効果を受けない」（`WX08-005-E2`）。
+        //   描かないと**あらゆる効果への耐性**と同じ文になり、engine は区別しているのに
+        //   原文照合では見えない偽陰性になる（`srcLvJa` / `sharedColorJa` と同じ理由）。
+        const srcColor = (a.sourceFilter as { color?: string | string[] } | undefined)?.color;
+        const srcColorJa = srcColor ? `${([] as string[]).concat(srcColor as never).join('か')}のカードの` : '';
+        return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}${srcColorJa}効果を受けない`);
       }
       // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等。
       // bySourceType/bySourceLevel は発生源の複数種別と表記レベル制限を両方描く。
@@ -3789,6 +3807,28 @@ function effJa(e: Eff): string {
         : lsf.isFrozen ? '、このシグニが凍結状態だった場合' : '';
       if (condJa) s = `${s}${condJa}`;
     }
+    // ON_LEAVE_FIELD any_ally ＋ leftStateFilter（状態修飾つき主語・2026-08-28 Sheet1 バッチ）。
+    //   「あなたの**クロス状態の**シグニ１体が場を離れたとき」（`WX08-025-E2`）＝状態語を主語へ戻す。
+    //   ⚠描かないと逆翻訳が「あなたのシグニが場を離れたとき」になり、**原文より広く見える**。
+    if (t === 'ON_LEAVE_FIELD' && e.triggerScope === 'any_ally' && e.triggerCondition?.leftStateFilter
+      && !e.triggerCondition?.byOpponentEffect) {
+      const lsfA = e.triggerCondition.leftStateFilter as
+        { crossState?: boolean; isFrozen?: boolean; isDown?: boolean; isUp?: boolean; hasAcce?: boolean };
+      const stJa = lsfA.crossState ? 'クロス状態の' : lsfA.isFrozen ? '凍結状態の'
+        : lsfA.isDown ? 'ダウン状態の' : lsfA.isUp ? 'アップ状態の' : lsfA.hasAcce ? 'アクセされている' : '';
+      if (stJa) {
+        const fJaA = e.triggerFilter ? filterJa(e.triggerFilter) : '';
+        s = `あなたの${stJa}${fJaA}シグニ１体が場を離れたとき`;
+      }
+    }
+    // ON_HEAVEN の監視スコープ（2026-08-28 Sheet1 バッチ）＝「あなたの〔色の〕シグニが《ヘブン》したとき」。
+    //   ⚠これが無いと `〔範囲:any_ally〕` という**生の英語ラベル**がシートに出るだけで、
+    //     「誰がヘブンしたら発火するのか」が原文照合できない（`WX08-025-E3` の「赤の」も落ちる）。
+    if (t === 'ON_HEAVEN' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any')) {
+      const fJaH = e.triggerFilter ? filterJa(e.triggerFilter) : '';
+      const whoH = e.triggerScope === 'any' ? '' : 'あなたの';
+      s = `${whoH}${fJaH}シグニが《ヘブン》したとき（ヘブンヘブン）`;
+    }
     // ON_LEAVE_FIELD の「（あなた/対戦相手の）アタックフェイズの間、」前置き（WX21-004/WX21-027/WX24-P2-077/WX24-P4-070）。
     //   ⚠従来 ON_LEAVE_FIELD だけこの軸を描いておらず、engine は duringAttackPhase/turnOwner を3ループ全部で
     //     評価しているのに**逆翻訳シート上は無制限に発火するように見えていた**（原文照合で限定が欠けて見える）。
@@ -4272,7 +4312,7 @@ function effJa(e: Eff): string {
     return s;
   }).filter(Boolean).join('/');
   // 主語に反映できなかった scope のみマーカー表示
-  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_ATTACK_PHASE_START') && !(e.timing || []).includes('ON_TURN_END') && !(e.timing || []).includes('ON_TURN_START') && !(e.timing || []).includes('ON_LRIG_GROW') && !(e.timing || []).includes('ON_OPP_ARTS_USE') && !(e.timing || []).includes('ON_OPP_LIFE_CRASHED') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_ATTACK_PHASE_START') && !(e.timing || []).includes('ON_TURN_END') && !(e.timing || []).includes('ON_TURN_START') && !(e.timing || []).includes('ON_LRIG_GROW') && !(e.timing || []).includes('ON_OPP_ARTS_USE') && !(e.timing || []).includes('ON_OPP_LIFE_CRASHED') && !(e.timing || []).includes('ON_HEAVEN') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
   const timingOwnsCondition = (e.timing || []).includes('ON_OPP_ENERGY_ADDED') && e.condition?.type === 'DURING_PHASE';

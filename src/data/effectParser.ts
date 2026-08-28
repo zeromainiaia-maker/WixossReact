@@ -2878,8 +2878,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(g[0]) }, minCount: parseNum(g[1]) })],
   [/あなたのトラッシュに(白|赤|青|緑|黒)のカードが([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { color: g[0] }, minCount: parseNum(g[1]) })],
-  [/あなたのトラッシュにカード名に《([^》]+)》を含むカードがある場合/,
-    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: g[0] } })],
+  // 2026-08-28 Sheet1 バッチ＝**名詞が「シグニ」の形が落ちていた**（`WX09-027-E2` の《アダマスフィア》／
+  //   `WX24-P3-047-E1` の《ダイオ姫》＝全 CSV 実測で「カード」12件・「シグニ」2件）。
+  // 🔴条件が丸ごと落ちると **CONDITIONAL が生えず本文だけが無条件に走る**＝
+  //   `WX09-027-E2` はトラッシュに《アダマスフィア》が1枚も無くても【出】で7000以下を必ずバニッシュしていた。
+  [/あなたのトラッシュにカード名に《([^》]+)》を含む(カード|シグニ)がある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self',
+      filter: { ...(g[1] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), cardName: g[0] } })],
   [/あなたの場にカード名に《([^》]+)》を含むシグニがある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: g[0] } })],
   [/あなたのルリグトラッシュにカードが([０-９\d]+)枚以上ある場合/,
@@ -7248,6 +7253,22 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
           o.to = { type: 'SIGNI', owner: 'opponent', count: 'ALL' };
           o.perAllSigni = true;
         });
+        break;
+
+      // 2026-08-28 Sheet1 バッチ＝「〈数量元〉１体につき〈対象〉を１体まで対象とし」の**数量元と対象の取り違え**。
+      // 原文「あなたの＜原子＞のシグニ１体につき**シグニ**を１体まで対象とし、それらをバニッシュする」。
+      // 🔴従来は数量元の名詞句（あなたの＜原子＞のシグニ）を**そのまま対象**にしており、
+      //   `BANISH{owner:'self', filter:{story:'原子'}, upToCount}` ＝**自分の原子シグニを1体バニッシュする自傷**
+      //   に化けていた（対象は所有者を問わないシグニ・上限は自分の原子シグニ数）。
+      // 🔑上限は盤面から実行時に決まるので `countFromZone`（`execBanish` が `resolveCountRef` で読む）。
+      case 'WX07-027-BURST':
+        if (e.action.type === 'BANISH') {
+          e.action.target = {
+            type: 'SIGNI', owner: 'any', count: 1,
+            countFromZone: { zone: 'field', owner: 'self', filter: { cardType: 'シグニ', story: '原子' } },
+            filter: { cardType: 'シグニ' }, upToCount: true,
+          };
+        }
         break;
     }
   }
@@ -13204,7 +13225,15 @@ function parseActionTextInner(text: string): EffectAction {
     //     `WXDi-P07-094-BURST`／`WXDi-D09-P17-BURST` は**コストが消えて無条件で強い方の効果**）。
     //   「そうした場合、」は直前の任意コストを受ける帰結節なので、**単独文としては絶対に正しく読めない**
     //   ＝選択肢の続きとみなして buildChoose へ回すのが安全（buildChoose は複数文の選択肢を扱える）。
-    const isOptionTail = /^そうした場合、/.test(s.trim()) && /てもよい。/.test(text);
+    // 🆕2026-08-28（Sheet1 バッチ）＝**任意コスト（「〜てもよい。」）でなくても option tail は起きる**。
+    //   `WX07-028-BURST`「どちらか１つを選ぶ。①カードを１枚引く。②対戦相手のシグニを２体まで対象とし、
+    //   手札から＜原子＞のシグニを３枚捨てる。**そうした場合、それらをバニッシュする。**」＝②の支払いは
+    //   **必須コスト**なので「てもよい。」が本文に無く、この行の追加条件で isOptionTail が false になり、
+    //   CHOOSE が丸ごと消えて残存文だけが単文パスへ流れていた（🔴実測 live＝`BANISH{owner:'self',count:1}`
+    //   ＝**2択が消えたうえ自分のシグニを1体バニッシュ**）。
+    //   ⚠外側の if が既に「①②…がある」かつ「どちらか/いずれかN つ選ぶ ヘッダがある」を要求しているので、
+    //     そこで「そうした場合、」だけが生き残った文は**選択肢の続き以外にありえない**＝「てもよい。」は冗長。
+    const isOptionTail = /^そうした場合、/.test(s.trim());
     if (
       /[①②③④⑤]/.test(text) &&
       /(?:どちらか|いずれか)[１-９\d０-９]*つ?を?選ぶ/.test(text) &&
@@ -14730,9 +14759,20 @@ function parseActionTextInner(text: string): EffectAction {
       // 条件境界を跨ぐ融合は、今回追加する「直前に処理したシグニのレベル」参照だけ。
       // 数値固定の既存 conditional look-pick は後続文の意味が多様で、一般融合すると既存の honest STUB を
       // 勝手に実行型へ昇格させるため触らない（WX14-037 の非採用 golden）。
+      // 🆕2026-08-28（Sheet1 バッチ）＝**`restDest:'deck_top'` の pick も条件境界を跨いで融合する**。
+      //   `WX11-026-E2`「あなたのライフクロスが１枚以下の場合、…３枚公開する。その中から＜天使＞のシグニを
+      //   ２枚まで場に出し、残りを好きな順番でデッキの一番上に戻す。」＝条件節が文1だけを包むので
+      //   steps は `[CONDITIONAL{LIFE_COUNT → LOOK_AND_REORDER}, STUB{REVEAL_PICK…}]` になり、
+      //   上の `last_processed_level` 限定では融合できず**pick が STUB のまま残る**（＝場出しが no-op）。
+      //   ⚠一般融合を避ける理由（既存 honest STUB の勝手な昇格＝`WX14-037` の非採用 golden）はそのまま。
+      //     `deck_top` は**この回に新設した行き先語彙**なので、既存の融合対象・非融合対象を1件も動かさない。
+      const nextRestDest = nxt?.type === 'STUB'
+        ? (nxt as StubAction).revealPickParams?.restDest
+        : undefined;
       const gatedLook = gatedLookCandidate
-        && typeof gatedLookCandidate.count === 'object'
-        && gatedLookCandidate.count.$ref === 'last_processed_level'
+        && ((typeof gatedLookCandidate.count === 'object'
+              && gatedLookCandidate.count.$ref === 'last_processed_level')
+          || nextRestDest === 'deck_top')
         ? gatedLookCandidate
         : undefined;
       const lookCandidate = directLook ?? gatedLook;
@@ -14755,6 +14795,10 @@ function parseActionTextInner(text: string): EffectAction {
             : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
         const remainder = restDest === 'trash'
           ? { location: 'trash' as import('../types/effects').CardLocation, position: 'bottom' as const }
+          // 🆕`deck_top`＝「残りを好きな順番でデッキの一番上に戻す」（2026-08-28 Sheet1 バッチ・`WX11-026-E2`）。
+          : restDest === 'deck_top'
+            ? { location: 'deck' as import('../types/effects').CardLocation, position: 'top' as const,
+                ...(rpp?.restShuffle ? { shuffle: true } : {}) }
           : { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' as const,
               ...(rpp?.restShuffle ? { shuffle: true } : {}) };
         // 宣言参照 pick（タスク12(xlvi)(c)）は「数字を宣言する」を**ガード制限なし**の宣言へ差し替える。
@@ -16611,7 +16655,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // （除去しないと後続 parser が末尾の「…それを場に出す」を GRANT_LEAVE_PLACE_PENDING STUB へ丸める＝WXEX2-51-E1 が no-op）。
         // ⚠「対戦相手の効果によって場を離れたとき」(WX19-026・下記4068)・「場から手札に戻った/移動したとき」(4049/4055) は
         //   別スコープ（byOpponentEffect/any_opp/leftToZone）で既処理＝ここでは除去しない（guard 参照）。
-        const lm = leaveScan.match(/^((?:(あなた|対戦相手)の|この)?アタックフェイズの間[、,])?(このシグニ|あなたの(他の)?(?:カード名に《([^》]+)》を含む|(?:＜([^＞]+)＞の)?)シグニ)(?:[０-９\d]+体)?が場を離れたとき[、,]\s*/);
+        // 🆕2026-08-28（Sheet1 バッチ）＝主語の修飾を **状態／色／レベル** まで広げる。
+        //   従来の選択肢は「他の」「カード名に《X》を含む」「＜Y＞の」だけで、それ以外の修飾が付くと
+        //   `^` アンカーごと外れて **scope が既定の `self` へ退化**＝「このシグニが場を離れたとき」に化けていた
+        //   （＝原文と別のカードを見る。実測3効果＝`WX08-025-E2` クロス状態／`WXK09-035-E1` 黒／
+        //     `WXDi-P05-060-E1` レベル2以上の＜植物＞）。
+        //   ⚠状態語（クロス/凍結/ダウン/アップ）は `matchesFilter` では判定できない＝**離脱直前の盤面**を見る
+        //     `triggerCondition.leftStateFilter`（`matchesStateFilter`）へ落とす。色・レベルはカード属性なので
+        //     従来どおり `triggerFilter`。
+        const lm = leaveScan.match(/^((?:(あなた|対戦相手)の|この)?アタックフェイズの間[、,])?(このシグニ|あなたの(他の)?(?:カード名に《([^》]+)》を含む|(?:(クロス状態|凍結状態|ダウン状態|アップ状態)の)?(?:(白|赤|青|緑|黒|無)の)?(?:レベル([０-９\d]+)(以上|以下)?の)?(?:＜([^＞]+)＞の)?)シグニ)(?:[０-９\d]+体)?が場を離れたとき[、,]\s*/);
         if (lm && !/対戦相手の効果によって|場から手札に(?:戻った|移動した)とき/.test(leaveScan)) {
           if (lm[1]) extractedTriggerCondObj = {
             ...(extractedTriggerCondObj ?? {}),
@@ -16623,8 +16675,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
             const lf: NonNullable<typeof extractedTriggerFilter> = {};
             if (lm[4]) lf.excludeSelf = true;   // 「他の」＝自身を除く
             if (lm[5]) lf.cardName = lm[5];      // 「カード名に《X》を含む」＝部分一致（WXEX2-51 ユラギ）
-            else if (lm[6]) lf.story = lm[6];    // 「＜Y＞の」
+            else {
+              if (lm[7]) lf.color = lm[7];       // 「〈色〉の」
+              if (lm[8]) lf.level = lm[9] === '以上' ? { min: parseNum(lm[8]) }
+                : lm[9] === '以下' ? { max: parseNum(lm[8]) } : parseNum(lm[8]);
+              if (lm[10]) lf.story = lm[10];     // 「＜Y＞の」
+            }
             if (Object.keys(lf).length) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...lf };
+            // 状態修飾（「クロス状態の」等）＝離脱**直前**の盤面で判定する（`collectLeaveFieldTriggers` の
+            // `leftStateOk`）。⚠除去前 state が渡らないバトル離脱では保守的に非発火＝過小 side に倒れる。
+            if (lm[6]) {
+              const stateKey = lm[6] === 'クロス状態' ? 'crossState'
+                : lm[6] === '凍結状態' ? 'isFrozen'
+                : lm[6] === 'ダウン状態' ? 'isDown' : 'isUp';
+              extractedTriggerCondObj = {
+                ...(extractedTriggerCondObj ?? {}),
+                leftStateFilter: { ...(extractedTriggerCondObj?.leftStateFilter ?? {}), [stateKey]: true },
+              };
+            }
           }
           actionText = leaveScan.slice(lm[0].length);
         }
@@ -16865,6 +16933,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
+        // 🆕2026-08-28（Sheet1 バッチ）＝**「あなたの〔色の〕シグニが《ヘブン》したとき」は監視型**。
+        //   全 CSV 実測＝「このシグニが…」36件／「あなたのシグニが…」11件／「あなたの赤のシグニが…」1件。
+        // 🔴後者12件は従来 `triggerScope` が既定の `self` のままで、engine（`BattleScreen` のヘブン収集）は
+        //   **ヘブンしたクロスシグニ自身の効果しか集めない**＝ルリグ6枚（`WX07-002/003/004/005`・
+        //   `WX08-001/002/003`）や非クロスのシグニ（`WX08-025`）に載った12効果は**一度も発火しない**死に能力だった。
+        //   ⇒ ここで `any_ally`（＋色限定は `triggerFilter`）へ落とし、engine 側に味方監視のループを足す。
+        const allyHeavenM = actionText.match(/^あなたの(?:(白|赤|青|緑|黒|無)の)?シグニが《ヘブン》したとき[、,]\s*(.+)/s);
+        if (allyHeavenM) {
+          extractedTriggerScope = 'any_ally';
+          if (allyHeavenM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), color: allyHeavenM[1] };
+          actionText = allyHeavenM[2];
+        }
       }
       if (timing[0] === 'ON_TRAP_SET') {
         const m = actionText.match(/^あなたの【トラップ】(?:[０-９\d]+つ)?が設置されたとき[、,]\s*(.+)/s);

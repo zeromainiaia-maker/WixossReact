@@ -3597,13 +3597,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (t.includes('スペル')) from.push('スペル');
     if (t.includes('アーツ')) from.push('アーツ');
     if (from.length === 0) from.push('any');
+    // 「対戦相手の〈色〉のカードの効果を受けない」（2026-08-28 Sheet1 バッチ・`WX08-005-E2`。
+    //   全 CSV を実測して**この1効果だけ**の形）。
+    // 🔴従来は色修飾が落ちて `from:['any']` の**全効果耐性**になっていた＝原文より広い過剰耐性
+    //   （「白のカードの効果」だけのはずが、対戦相手のあらゆる効果を弾いていた）。
+    // 🔑保護元カードの属性で絞るのは既存の `sourceFilter`＝`collectEffectImmuneSigni` が
+    //   解決中ソースカードの CardData を `matchesFilter` で判定する（engine 変更不要）。
+    const srcColorM = t.match(/対戦相手の([白赤青緑黒無])の(?:カード|シグニ|スペル|アーツ|ルリグ)の効果を受け(?:ない|ず)/);
+    const srcColor = srcColorM ? { sourceFilter: { color: srcColorM[1] } as TargetFilter } : {};
     // 「あなたの＜CLASS＞のシグニは」→ CONTINUOUS用 subjectFilter（全一致シグニを保護）
     const classM = t.match(/あなたの(?:他の)?＜([^＞]+)＞のシグニは/);
     if (classM) {
       return {
         type: 'GRANT_PROTECTION',
         subjectFilter: { cardType: 'シグニ', story: classM[1] },
-        from, sourceOwner: 'opponent', duration: 'PERMANENT',
+        from, ...srcColor, sourceOwner: 'opponent', duration: 'PERMANENT',
       } as GrantProtectionAction;
     }
     // 個別シグニへの保護（従来通り）
@@ -3618,10 +3626,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       : { type: 'SIGNI', owner: 'self', count: protCount };
     const renyoPower = activeRenyoPower();
     if (!renyoPower) {
-      return { type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
+      return { type: 'GRANT_PROTECTION', target, from, ...srcColor, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
     }
     const protection: GrantProtectionAction = {
-      type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: renyoPower.duration,
+      type: 'GRANT_PROTECTION', target, from, ...srcColor, sourceOwner: 'opponent', duration: renyoPower.duration,
     };
     const selectable = typeof target.count === 'number' && !target.filter?.thisCardOnly;
     return {

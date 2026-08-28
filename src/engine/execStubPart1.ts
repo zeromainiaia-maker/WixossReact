@@ -4076,7 +4076,7 @@ export function execStubPart1(
     // ⚠ 絞り込むときは残りの行き先を restDest（visibleCards 基準）ではなく revealRemainder（公開全体基準）で渡す。
     //   restDest のままだと**非対象の公開カードがデッキ上に取り残される**（remainder の取りこぼし）。
     const restLoc = params.restDest === 'trash' ? 'trash' as const : params.restDest === 'energy' ? 'energy' as const : 'deck' as const;
-    const restPos = params.restDest === 'deck_bottom' ? 'bottom' as const : 'any' as const;
+    const restPos = params.restDest === 'deck_bottom' ? 'bottom' as const : params.restDest === 'deck_top' ? 'top' as const : 'any' as const;
     if (params.filter) {
       const pickable = deckCards.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), params.filter));
       if (pickable.length === 0) {

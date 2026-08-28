@@ -1316,7 +1316,10 @@ export type PendingInteractionDef =
       revealPicked?: boolean;     // 選択したカードを公開ログへ記録
       thenAction: EffectAction;   // ピックしたカードに対するアクション
       afterAction?: EffectAction; // 完了後のアクション（通常はSHUFFLE_DECK）
-      restDest?: 'deck_bottom' | 'trash' | 'energy'; // 未ピックカードの行き先（REVEAL_PICK_HAND_SHUFFLE_BOTTOM用）
+      // 未ピックカードの行き先（REVEAL_PICK_HAND_SHUFFLE_BOTTOM用）。
+      // 🆕`'deck_top'`＝「残りを好きな順番でデッキの一番上に戻す」（2026-08-28 Sheet1 バッチ）。
+      //   公開札はデッキ上から取っているので、**未ピック分はそのまま上に残す**のが忠実（順序の入れ替えは近似）。
+      restDest?: 'deck_bottom' | 'deck_top' | 'trash' | 'energy';
       // REVEAL_AND_PICK の残り公開カード（ピックしなかった非対象/未選択カードを含む全公開カード）を
       // 指定場所へ移す。cards＝公開した全カード（visibleCards=選択可能な部分集合とは別）。
       revealRemainder?: { cards: string[]; location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean };

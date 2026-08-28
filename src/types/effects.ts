@@ -3740,7 +3740,10 @@ export interface StubAction {
   costText?: string;     // OPTIONAL_COST: エナ色以外の任意コスト句を原文どおり明示（例: 「このシグニを場からトラッシュに置いてもよい」「使用コストとして追加でエクシード４を支払ってもよい」）。decompiler はこれをそのまま描画。engine 精緻化は別途（A3）
   revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
     pickCount: number | 'ALL';
-    restDest: 'deck_bottom' | 'trash' | 'energy';
+    // 🆕`'deck_top'`＝「残りを好きな順番でデッキの**一番上**に戻す」（2026-08-28 Sheet1 バッチ・`WX11-026-E2`）。
+    //   従来は行き先語彙が一番下／トラッシュ／エナだけで、一番上の形は reveal-pick 規則にすら入れず
+    //   **単文規則の `LOOK_AND_REORDER{count:0}` が先に当たって pick 節ごと消えていた**。
+    restDest: 'deck_bottom' | 'deck_top' | 'trash' | 'energy';
     restShuffle?: boolean; // 「残りをシャッフルしてデッキの一番下に置く」（PR-434）
     // ⚠`'field'` は `parseRevealPickDescriptor` が最初から解けていたのに `makeRevealPickStub` が
     //   `'hand'` へ落としていた（＝「場に出す」が黙って「手札に加える」に化ける潜在バグ。§6.4 UNKNOWN 消化で是正）。

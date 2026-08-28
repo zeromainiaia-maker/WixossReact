@@ -9940,6 +9940,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             for (const cardNum of heavenZoneNums) {
               for (const e of (effectsMap.get(cardNum) ?? [])) {
                 if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_HEAVEN')) continue;
+                // 自己スコープ（「**このシグニ**が《ヘブン》したとき」）だけをここで拾う。
+                // 味方監視（`any_ally`）は下の watcher ループが担当＝ここで拾うと二重発火する。
+                if ((e.triggerScope ?? 'self') !== 'self') continue;
                 heavenEntries.push({
                   id: generateUUID(),
                   playerId: attackerId,
@@ -9948,6 +9951,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【クロス自】効果（ヘブンヘブン）`,
                   effect: e,
                 } satisfies StackEntry);
+              }
+            }
+            // 🆕2026-08-28（Sheet1 バッチ）＝**味方監視スコープ（`any_ally`）の ON_HEAVEN**。
+            //   原文「あなたの〔色の〕シグニが《ヘブン》したとき」（全 CSV で12効果）は、**ヘブンした
+            //   クロスシグニ自身ではないカード**（ルリグ6枚＋非クロスのシグニ）に載る。従来この収集は
+            //   `heavenZoneNums`（＝ヘブンしたシグニ）しか見ておらず、**9効果が一度も発火しない死に能力**だった。
+            //   ⚠発火は**ヘブン1回につき1度**（ヘブンしたシグニの体数だけ繰り返さない）＝原文は
+            //     「あなたのシグニが《ヘブン》したとき」であって「1体につき」ではない。
+            //   ⚠`triggerFilter`（「あなたの**赤の**シグニが」＝`WX08-025-E3`）は
+            //     **ヘブンしたシグニのいずれかが一致すれば成立**とする（複数体が同時にヘブンするため）。
+            {
+              const heavenCards = heavenZoneNums.map(n => battleCardMap.get(getCardNum(n)));
+              const lrigTopH = stateAfterDown.field.lrig.at(-1);
+              const watcherNumsH = [
+                ...stateAfterDown.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+                ...(lrigTopH ? [lrigTopH] : []),
+              ];
+              for (const watcherNum of watcherNumsH) {
+                for (const e of (effectsMap.get(getCardNum(watcherNum)) ?? [])) {
+                  if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_HEAVEN')) continue;
+                  const scopeH = e.triggerScope ?? 'self';
+                  if (scopeH !== 'any_ally' && scopeH !== 'any') continue;
+                  if (e.triggerFilter?.excludeSelf && heavenZoneNums.every(n => n === watcherNum)) continue;
+                  if (e.triggerFilter) {
+                    const { excludeSelf: _exH, ...restFilterH } = e.triggerFilter;
+                    if (Object.keys(restFilterH).length > 0
+                      && !heavenCards.some(c => matchesFilter(c, restFilterH))) continue;
+                  }
+                  heavenEntries.push({
+                    id: generateUUID(),
+                    playerId: attackerId,
+                    cardNum: watcherNum,
+                    effectId: e.effectId,
+                    label: `${battleCardMap.get(getCardNum(watcherNum))?.CardName ?? watcherNum} の【自】効果（味方がヘブンヘブン）`,
+                    effect: e,
+                  } satisfies StackEntry);
+                }
               }
             }
             if (heavenEntries.length > 0 || crossZones.length >= 2) {
