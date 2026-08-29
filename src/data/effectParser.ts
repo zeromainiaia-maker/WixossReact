@@ -13216,6 +13216,39 @@ function parseActionTextInner(text: string): EffectAction {
     const trap = parseActionText(inlineTrapM[2]);
     return { type: 'SEQUENCE', steps: base.type === 'SEQUENCE' ? [...(base as SequenceAction).steps, trap] : [base, trap] };
   }
+  // ---- 「対戦相手は以下のNつから1つを選び、〈あなた／対戦相手〉はそれを行う。①…②…」（§5.3 `O-60` 第14バッチ）----
+  // 🔴従来は `STUB{OPP_CHOOSE_EFFECT}` / `STUB{OPP_CHOOSES_FOR_YOU}` で、**JSON は STUB 1個だけ**だった。
+  //   engine（`execStubPart3.ts`）が実行時に**カード全文**から `①([^②③]+)` を切り出し、
+  //   数本の regex でアクションを推測していた＝**当たらない選択肢は静かに消え、0個なら「解析不可」の no-op**。
+  //   しかも実行者を **`stub.id` で決めていた**（`OPP_CHOOSE_EFFECT` なら相手、それ以外は自分）。
+  // 🔑受け皿は既存＝`CHOOSE{opponentResponds:true, costlessOpponentChoice:true}`（握手 `PR-Di007-E1` が先例）。
+  // ⚠「**対戦相手は**それを行う」のときは①②の**主語が省略されている**ので、`parseActionText` に渡す前に
+  //   「対戦相手は」を補う。**解決後の owner を一括で書き換えてはいけない**＝原文が所有者を明記している側
+  //   （`WXDi-P07-007`「①**対戦相手の**デッキ／②**あなたの**トラッシュ」）まで裏返る。
+  {
+    const oppChooseM = text.match(
+      /対戦相手は以下の([０-９\d二三四五六七八九]+)つから([０-９\d一二三四五六七八九]+)つを選び、(あなた|対戦相手)はそれを行う/);
+    if (oppChooseM && /[①②③④⑤]/.test(text)) {
+      const oppItems = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
+      if (oppItems.length >= 2) {
+        const actorJa = oppChooseM[3] === '対戦相手' ? '対戦相手は' : '';
+        return {
+          type: 'CHOOSE',
+          choose_count: parseNum(oppChooseM[2]),
+          from_count: oppItems.length,
+          opponentResponds: true,
+          costlessOpponentChoice: true,
+          choices: oppItems.map((m, i) => {
+            const optRaw = m[1].replace(/[。）\s]+$/, '').trim();
+            const withActor = actorJa && !/^(あなた|対戦相手|各プレイヤー)/.test(optRaw) ? `${actorJa}${optRaw}` : optRaw;
+            const { action, condition } = liftChoiceOptionCondition(parseActionText(withActor), withActor);
+            return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
+          }),
+        } as ChooseAction;
+      }
+    }
+  }
+
   // ---- ベット選択数変更型（最優先）----
   // 「以下のN個からMつ(まで)選ぶ。あなたがベットしていた場合、代わりにKつ(まで)選ぶ。①…②…」
   // → CHOOSE(choose_count=M) に betChoose(thenChooseCount=K) を付与（ベット宣言で選択数が増える）。

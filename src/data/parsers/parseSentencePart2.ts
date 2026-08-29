@@ -2370,11 +2370,6 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DECLARE_CARD_NAME' } as StubAction;
   }
 
-  // ---- 対戦相手が選択して行う（以下の〜から〜を選ぶ）----
-  if (t.match(/対戦相手は以下の[２-９\d]つから[１-９\d]つを選び.*対戦相手はそれを行う/s)) {
-    return { type: 'STUB', id: 'OPP_CHOOSE_EFFECT' } as StubAction;
-  }
-
   // ---- 【アクセ】にする ----
   if (t.match(/【アクセ】にする/)) {
     return { type: 'STUB', id: 'ACCE_FROM_HAND' } as StubAction;

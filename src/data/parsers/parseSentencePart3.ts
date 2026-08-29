@@ -814,11 +814,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ENERGY_TO_TRASH' } as StubAction;
   }
 
-  // ---- 対戦相手は以下のN個から1個を選び、あなたが行う ----
-  if (t.match(/対戦相手は以下の[２-９]つから[１-９]つを選び.*あなた/)) {
-    return { type: 'STUB', id: 'OPP_CHOOSES_FOR_YOU' } as StubAction;
-  }
-
   // ---- 対戦相手のトラッシュからデッキトップに ----
   if (t.match(/対戦相手のトラッシュから.*デッキの一番上に置いてもよい/)) {
     return { type: 'STUB', id: 'OPP_TRASH_TO_DECK_TOP' } as StubAction;

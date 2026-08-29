@@ -1758,7 +1758,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const condCh = a.conditionChoose
         ? `。${condJa(a.conditionChoose.condition)}なら代わりに${numJa(a.conditionChoose.thenChooseCount)}つ${a.conditionChoose.thenUpTo ? 'まで' : ''}選ぶ`
         : '';
-      return `以下の${numJa(totalCh)}つから${cntCh}${betCh}${recoCh}${condCh}【${chOpts.join(' / ')}】`;
+      // 🔴**誰が選ぶか**を書かないと原文照合できない（§5.3 `O-60` 第14バッチ）＝「対戦相手は以下の2つから
+      //   1つを選び、あなたはそれを行う」は**選ぶ主体が相手**であることが効果の要点。
+      //   `opponentResponds` を落とすと「あなたが選ぶ」と読めてしまい、逆翻訳が原文と真逆になる。
+      const chooserCh = a.opponentResponds ? '対戦相手は' : '';
+      return `${chooserCh}以下の${numJa(totalCh)}つから${cntCh}${betCh}${recoCh}${condCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる

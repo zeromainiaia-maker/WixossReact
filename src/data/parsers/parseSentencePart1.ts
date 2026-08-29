@@ -3548,7 +3548,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「場に出してもよい」＝任意（optional）。engine execAddToField が optional で「出す/出さない」を提示する。
     //   （旧・続き207 は down 変種に限定していたが、対象カード数が3枚と限定的で退化なしと確認し plain も付与＝§3 タスク12(vii)系）。
     const asDownHand = t.includes('ダウン状態で場に出');
-    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter },
+    // 🔴**主語を読む**（§5.3 `O-60` 第14バッチ・2026-08-30）＝従来は `owner` を 'self' に焼いており、
+    //   「**対戦相手は**（自分の）手札からシグニ１枚を場に出す」が**自分が出す真逆の効果**になっていた
+    //   （`WXK06-025-E2`／`WX11-039-E1`・原文 CSV 実測で該当は2文だけ）。
+    //   ⚠「あなたは対戦相手の手札から〜」とは語順が違うので「対戦相手は(自分の)手札から」に限定する。
+    const handOutOwner: Owner = /対戦相手は(?:自分の)?手札から/.test(t) ? 'opponent' : 'self';
+    return { type: 'ADD_TO_FIELD', owner: handOutOwner, source: { type: 'HAND_CARD', owner: handOutOwner, count, upToCount: !!upToM, filter },
       ...(asDownHand ? { asDown: true } : {}),
       ...(t.includes('場に出してもよい') ? { optional: true } : {}) };
   }
@@ -4410,7 +4415,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   「それをデッキに戻し、対戦相手は自分のデッキをシャッフルする」）＝旧実装は `shuffle:false` 固定で、
     //   **戻したシグニがデッキのどこに入ったか分かる**（次のドローが読める）盤面になっていた。
     //   ⚠原文にシャッフルが書かれていない形（＝デッキの一番上／一番下に置く等）は従来どおり false。
-    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: /シャッフル/.test(t) } as TransferToDeckAction;
+    // 🔴**「すべての」を読む**（§5.3 `O-60` 第14バッチ・2026-08-30）＝上の regex は `(?:すべての)?` を
+    //   受けているのに **count が 1 固定**で、`WX11-039-E1`「対戦相手の**すべての**シグニをデッキに戻し」が
+    //   **1体しか戻らない過少実行**だった（CSV 原文の全数検索で該当は この1文だけ）。
+    const allSigniToDeck = /すべてのシグニを(?:対戦相手の)?デッキに戻[すし]/.test(t);
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: allSigniToDeck ? 'ALL' : 1, filter }, shuffle: /シャッフル/.test(t) } as TransferToDeckAction;
   }
 
   // ---- デッキの一番上を公開する（単独文） ----

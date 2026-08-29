@@ -1,7 +1,7 @@
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, TransferToHandAction, PowerModifyAction, AttachAcceAction, } from '../types/effects';
+  EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, PowerModifyAction, AttachAcceAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -2506,11 +2506,15 @@ export function execStubPart3(
       fixedCardNums: [targetDIR],
     } as unknown as EffectAction, cDIR);
   }
-  // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
-  if (stub.id === 'OPP_DECLARE_CHOICE' || stub.id === 'OPP_CHOOSE_EFFECT' || stub.id === 'OPP_CHOOSES_FOR_YOU') {
+  // OPP_DECLARE_CHOICE: 対戦相手が《色》を宣言する（ウリス系のエクシード）。
+  // ⚠①②パターン（「対戦相手は以下のNつから1つを選び、〇〇はそれを行う」）は
+  //   §5.3 `O-60` 第14バッチで **parser の `CHOOSE{opponentResponds, costlessOpponentChoice}`** へ移した。
+  //   旧実装は実行時に**カード全文**から `①([^②③]+)` を切り出して数本の regex でアクションを推測しており、
+  //   **当たらない選択肢は静かに消え、0個なら no-op**、さらに**実行者を `stub.id` で決めていた**。
+  //   ここに戻さないこと（JSON を見ても何が起きるか分からなくなる）。
+  if (stub.id === 'OPP_DECLARE_CHOICE') {
     const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
-    const toHWODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 色宣言パターン（ウリス系）: 「対戦相手は《白》《赤》...から１つを宣言する」
     if (txtODC.match(/対戦相手は.*から１つを宣言する/) && txtODC.match(/《白[^》]*》.*《赤[^》]*》/)) {
       const colorList = ['白', '赤', '青', '緑', '黒', '無'];
@@ -2522,46 +2526,6 @@ export function execStubPart3(
       }));
       return needsInteraction(addLog(ctx, `対戦相手が色を宣言（対象カード: ${ctx.lastProcessedCards?.[0] ? ctx.cardMap.get(getCardNum(ctx.lastProcessedCards[0]))?.CardName ?? '?' : '未選択'}）`), {
         type: 'CHOOSE', options: colorOpts, count: 1, opponentResponds: true,
-      });
-    }
-    // ①②パターンを解析
-    const choicePatsODC = [{ m: /①([^②③]+)/, idx: 0 }, { m: /②([^③④]+)/, idx: 1 }];
-    const optsODC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    for (const { m, idx } of choicePatsODC) {
-      const mat = txtODC.match(m);
-      if (!mat) continue;
-      const ctxt = mat[1].replace(/。\s*$/, '').trim();
-      let act: EffectAction | null = null;
-      // 「対戦相手のデッキの上からN枚トラッシュ」→ 相手（otherState）のデッキをトラッシュ
-      if (!act && ctxt.match(/対戦相手のデッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
-        const cnt = parseInt(toHWODC(ctxt.match(/([０-９\d]+)枚/)![1]));
-        act = ({ type: 'STUB', id: 'INTERNAL_OPP_DECK_TRASH_N', value: cnt } as StubAction) as EffectAction;
-      }
-      // 「デッキの上からN枚トラッシュ」（所有者不明 = 両者）
-      if (!act && ctxt.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
-        const cnt = parseInt(toHWODC(ctxt.match(/([０-９\d]+)枚/)![1]));
-        act = ({ type: 'STUB', id: 'INTERNAL_DECK_TRASH_BOTH', value: cnt } as StubAction) as EffectAction;
-      }
-      // 「カードをN枚引く」（相手が引く = opponentResponds文脈では自分が引くことが多い）
-      if (!act && ctxt.match(/カードを([０-９\d]+)枚引く/)) {
-        const cnt = parseInt(toHWODC(ctxt.match(/([０-９\d]+)枚/)![1]));
-        act = ({ type: 'DRAW', owner: stub.id === 'OPP_CHOOSE_EFFECT' ? 'opponent' : 'self', count: cnt } as DrawAction) as EffectAction;
-      }
-      // 「手札からシグニ1枚を場に出す」（対戦相手が出す）
-      if (!act && ctxt.match(/手札から.*シグニ.*場に出す/)) {
-        act = ({ type: 'ADD_TO_FIELD', owner: 'opponent', source: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as AddToFieldAction) as EffectAction;
-      }
-      // 「トラッシュからシグニ1枚を手札に加える」
-      if (!act && ctxt.match(/トラッシュから.*シグニ.*手札に加える/)) {
-        act = ({ type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as TransferToHandAction) as EffectAction;
-      }
-      // 旧フォールバック: 「手札を加える」系
-      if (!act && ctxt.match(/手札.+を.+加える/)) act = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as TransferToHandAction;
-      if (act) optsODC.push({ id: `odc_${idx}`, label: `${'①②'[idx]}${ctxt.slice(0, 20)}...`, action: act, available: true });
-    }
-    if (optsODC.length > 0) {
-      return needsInteraction(addLog(ctx, `対戦相手が選択（${optsODC.length}択）`), {
-        type: 'CHOOSE', options: optsODC, count: 1, opponentResponds: true,
       });
     }
     return done(addLog(ctx, `相手選択（解析不可: ${stub.id}）`));

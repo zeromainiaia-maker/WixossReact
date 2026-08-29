@@ -29873,6 +29873,111 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     }
   }));
 
+  // §5.3 `O-60` 第14バッチ＝engine が実行時にカード全文から①②を切り出していた2ハンドラを撤去し、
+  // parser の `CHOOSE{opponentResponds, costlessOpponentChoice}` へ移した。
+  // ⚠ live JSON を読む assert だけでは収穫マージが parser 退行を隠すので fresh parse 側も固定する（§5-29）。
+  test('O-60⑭ fresh: 相手が選ぶ2択は CHOOSE{opponentResponds} になり、実行者の主語も読む', () => {
+    const freshEffect = (cardNum: string, effectId: string) => {
+      const e = parseCardEffects(cardMap.get(cardNum)!).find(x => x.effectId === effectId);
+      if (!e) throw new Error(`${effectId} not found in fresh parse`);
+      return e;
+    };
+    const noLegacyStub = (json: string, effectId: string) => {
+      ok(!json.includes('OPP_CHOOSE_EFFECT') && !json.includes('OPP_CHOOSES_FOR_YOU'),
+        `${effectId}: 旧 STUB が fresh parse に残った`);
+    };
+
+    // (a)「あなたはそれを行う」＝選ぶのは相手・実行するのは自分。①②は原文が所有者を明記している。
+    const forYou = freshEffect('WXDi-P07-007', 'WXDi-P07-007-E1');
+    noLegacyStub(JSON.stringify(forYou.action), 'WXDi-P07-007-E1');
+    const forYouAct = forYou.action as ChooseAction;
+    eq(forYouAct.type, 'CHOOSE', 'WXDi-P07-007-E1: CHOOSE になる');
+    eq(forYouAct.opponentResponds, true, 'WXDi-P07-007-E1: 選ぶのは対戦相手');
+    eq(forYouAct.costlessOpponentChoice, true, 'WXDi-P07-007-E1: コスト無しの相手応答');
+    eq(forYouAct.from_count, 2, 'WXDi-P07-007-E1: 2択');
+    const fy0 = forYouAct.choices[0].action as import('../src/types/effects').TrashAction;
+    eq(fy0.type, 'TRASH', 'WXDi-P07-007-E1 ①: デッキトラッシュ');
+    eq(fy0.target.owner, 'opponent', 'WXDi-P07-007-E1 ①: 落ちるのは対戦相手のデッキ');
+    eq(fy0.target.count, 4, 'WXDi-P07-007-E1 ①: 4枚');
+    const fy1 = forYouAct.choices[1].action as import('../src/types/effects').TransferToHandAction;
+    eq(fy1.type, 'TRANSFER_TO_HAND', 'WXDi-P07-007-E1 ②: 手札に加える');
+    eq(fy1.source?.owner, 'self', 'WXDi-P07-007-E1 ②: 拾うのは自分のトラッシュ');
+
+    // (b)「対戦相手はそれを行う」＝①②の主語が省略されている。実行者を補って解く。
+    const forOpp = freshEffect('WXK04-032', 'WXK04-032-E1');
+    noLegacyStub(JSON.stringify(forOpp.action), 'WXK04-032-E1');
+    const forOppAct = forOpp.action as ChooseAction;
+    eq(forOppAct.opponentResponds, true, 'WXK04-032-E1: 選ぶのは対戦相手');
+    const fo0 = forOppAct.choices[0].action as import('../src/types/effects').DrawAction;
+    eq(fo0.type, 'DRAW', 'WXK04-032-E1 ①: ドロー');
+    eq(fo0.owner, 'opponent', '🔴WXK04-032-E1 ①: 引くのは対戦相手（旧実装は stub.id で実行者を決めていた）');
+    const fo1 = forOppAct.choices[1].action as import('../src/types/effects').AddToFieldAction;
+    eq(fo1.type, 'ADD_TO_FIELD', 'WXK04-032-E1 ②: 場に出す');
+    eq(fo1.owner, 'opponent', '🔴WXK04-032-E1 ②: 出すのは対戦相手');
+    eq(fo1.source?.owner, 'opponent', 'WXK04-032-E1 ②: 相手自身の手札から');
+
+    // (c) 主語を読むようにした副産物＝「対戦相手は（自分の）手札から〜場に出す」の2効果（CSV 原文実測で全数）。
+    //     旧実装は owner を 'self' に焼いており、**自分が出す真逆の効果**だった。
+    for (const [cardNum, effectId] of [['WXK06-025', 'WXK06-025-E2'], ['WX11-039', 'WX11-039-E1']] as const) {
+      const json = JSON.stringify(freshEffect(cardNum, effectId).action);
+      const nodes = [...json.matchAll(/\{"type":"ADD_TO_FIELD","owner":"(self|opponent)"/g)].map(m => m[1]);
+      ok(nodes.length > 0, `${effectId}: ADD_TO_FIELD がある`);
+      ok(nodes.every(o => o === 'opponent'), `🔴${effectId}: 出すのは対戦相手（真逆に戻っている）`);
+    }
+
+    // (d) 同じ効果を原文照合していて見つけた別軸＝「対戦相手の**すべての**シグニをデッキに戻し」。
+    //     regex は `(?:すべての)?` を受けていたのに **count が 1 固定**で、1体しか戻らない過少実行だった。
+    const allBack = freshEffect('WX11-039', 'WX11-039-E1').action as import('../src/types/effects').SequenceAction;
+    const toDeck = allBack.steps[0] as import('../src/types/effects').TransferToDeckAction;
+    eq(toDeck.type, 'TRANSFER_TO_DECK', 'WX11-039-E1: 先頭はデッキ戻し');
+    eq(toDeck.source.count, 'ALL', '🔴WX11-039-E1: 戻すのは相手の**すべての**シグニ（1体固定へ戻っている）');
+    eq(toDeck.shuffle, true, 'WX11-039-E1: 戻した後にシャッフルする');
+  });
+
+  test('O-60⑭ engine: 選んだ選択肢だけが実行され、撤去した旧STUBは no-op', () => withSavedCursor(() => {
+    const signi = findCard(c => isSigni(c));
+    const effect = effectsMap.get('WXDi-P07-007')!.find(e => e.effectId === 'WXDi-P07-007-E1')!;
+    const mkBase = () => {
+      const base = mkCtx({ trash: 0 }, { deckTop: fill(6) }, 'WXDi-P07-007');
+      base.ownerState = { ...base.ownerState, trash: [signi], hand: [] };
+      return base;
+    };
+
+    // ① を選ぶ＝相手デッキだけが4枚減り、自分の手札は増えない。
+    const pickDeck = (() => {
+      const base = mkBase();
+      const initial = executeEffect(effect, base);
+      ok(!initial.done && initial.pending.type === 'CHOOSE', '2択が提示される');
+      if (initial.done || initial.pending.type !== 'CHOOSE') throw new Error('CHOOSE pending expected');
+      eq(initial.pending.opponentResponds, true, '🔴選ぶのは対戦相手（UI の応答者）');
+      eq(initial.pending.options.length, 2, '選択肢は2つとも提示される（旧実装は解析できない側が消えた）');
+      const before = base.otherState.deck.length;
+      const r = finish(resumeChoose('c0', initial.pending, execCtxFrom(initial, base)), base);
+      return { r, before, base };
+    })();
+    eq(pickDeck.r.otherState.deck.length, pickDeck.before - 4, '①: 相手デッキが4枚減る');
+    eq(pickDeck.r.ownerState.hand.length, 0, '①: 手札は増えない');
+
+    // ② を選ぶ＝自分のトラッシュのシグニが手札へ。相手デッキは減らない（対照）。
+    const pickHand = (() => {
+      const base = mkBase();
+      const initial = executeEffect(effect, base);
+      if (initial.done || initial.pending.type !== 'CHOOSE') throw new Error('CHOOSE pending expected');
+      const before = base.otherState.deck.length;
+      const r = finish(resumeChoose('c1', initial.pending, execCtxFrom(initial, base)), base);
+      return { r, before };
+    })();
+    eq(pickHand.r.ownerState.hand.length, 1, '②: トラッシュのシグニが手札へ');
+    eq(pickHand.r.otherState.deck.length, pickHand.before, '②: 相手デッキは減らない');
+
+    // 撤去した旧ハンドラは payload を持たないので何もしない（fail-closed）。
+    const legacyBase = mkBase();
+    const legacyDeck = legacyBase.otherState.deck.length;
+    const legacy = run({ type: 'STUB', id: 'OPP_CHOOSE_EFFECT' } as EffectAction, legacyBase);
+    eq(legacy.otherState.deck.length, legacyDeck, '旧STUB: 相手デッキを削らない');
+    eq(legacy.ownerState.hand.length, 0, '旧STUB: 手札も増やさない');
+  }));
+
   test('(xxix)(1) 第11波＋第12波: 相互制約つきコスト4効果を構造化し全件収集', () => {
     const expected: Record<string, import('../src/types/effects').EffectCost> = {
       'WXDi-D01-017-E1': { energyTrash: { count: 3, filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'class' } } },

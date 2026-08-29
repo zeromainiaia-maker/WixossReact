@@ -1056,7 +1056,10 @@ const PATTERNS: Pattern[] = [
     },
   },
   { name: '次の相手ターン終了時まで', re: /次の(対戦相手の)?ターン(の)?終了時まで/, keys: ['UNTIL_OPP_TURN_END', 'NEXT_OPP_TURN', 'NEXT_TURN'] },
-  { name: '相手が選ぶ', re: /対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/, keys: ['opponentSelects', 'actingPlayerSelects', 'OPPONENT_SELECT'] },
+  // ⚠`opponentResponds` は「対戦相手が選択する」の**既存フィールド**（`effects.ts:1767` の `CHOOSE` ほか）。
+  //   対応表から漏れており、§5.3 `O-60` 第14バッチで `STUB{OPP_CHOOSE_EFFECT}` を
+  //   `CHOOSE{opponentResponds}` へ移した2効果が高シグナルへ回った（＝計器側の穴・前進ではない）。
+  { name: '相手が選ぶ', re: /対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/, keys: ['opponentSelects', 'actingPlayerSelects', 'OPPONENT_SELECT', 'opponentResponds'] },
   { name: '出現条件(レゾナ/クラフト)', re: /【出現条件】/, keys: ['forResonaCondition', 'playCondition', 'appearCondition', '出現条件'] },
   { name: 'ダメージを受けない', re: /ダメージを受けない/, keys: ['PREVENT', 'DAMAGE', 'damage'] },
   { name: '付着(チャーム/トラップ/アクセとして)', re: /(チャーム|トラップ|アクセ)として/, keys: ['CHARM', 'TRAP', 'ACCE', 'charm', 'trap', 'acce'] },
