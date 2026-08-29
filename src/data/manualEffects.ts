@@ -228,7 +228,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX24-P1-081-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":10000},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-2000}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","condition":{"type":"SELF_POWER_GTE","value":5000}},
   ],
   "WX24-P2-049": [
-    {"effectId":"WX24-P2-049-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"pickCount":1,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX24-P2-049-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_BATTLE"],"action":{"type":"STUB","id":"POWER_PLUS_BANISHED_POWER","powerPlusBanishedPower":{"target":{"type":"SIGNI","owner":"self","count":1,"filter":{"color":"白"}},"duration":"UNTIL_OPP_TURN_END"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX24-P2-061": [
     {"effectId":"WX24-P2-061-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPPONENT_PAY_OPTIONAL","costColors":["無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"filter":{"cardType":"シグニ","cardClass":"龍獣"},"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
@@ -5455,7 +5455,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX20-038": [{"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX20-038-E1b","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"PERMANENT"}}, {"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX20-038-E1c","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH","DOWN"],"sourceOwner":"opponent","duration":"PERMANENT"}}],
   "WXEX2-69": [{"effectId":"WXEX2-69-E3P","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"acceHost":true,"cardClass":"調理"}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   "WXDi-P03-016": [{"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","effectId":"WXDi-P03-016-E1b","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000}}],
-  "WXDi-P13-050": [{"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WXDi-P13-050-E1b","effectType":"AUTO","timing":["ON_PLAY"],"activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"コード・ピルルク・極"}},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"スペル"},"pickCount":1,"pickUpTo":true,"pickNoun":"スペル","then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}}],
   "WXDi-CP02-103": [{"effectId":"WXDi-CP02-103-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_CLASS_ALL_ZONES"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   "WX24-P4-058": [{"duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL","effectId":"WX24-P4-058-E1b","effectType":"AUTO","timing":["ON_SIGNI_BANISH_BATTLE"],"usageLimit":"once_per_turn","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000,"duration":"UNTIL_OPP_TURN_END"}}],
   "WX25-P1-054": [{"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX25-P1-054-E1b","effectType":"AUTO","timing":["ON_HEAVEN"],"usageLimit":"once_per_turn","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"合炎奇炎　タマヨリヒメ之参"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]}}],
@@ -5571,6 +5570,28 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //    凍っていただけ**だった（`heldReview.mjs --adopt WX20-066` で解けた）。手で書くと §2.0 の禁じ手
   //    「移設だけの manual 化」になり、`§6.4 O-42` トリップワイヤ（golden）が実際に発火して検知した。
   //    ⇒ **live が原文と違うとき、まず `_held_fresh`／`_partial_fresh`／`_idset_fresh` を見る。**
+
+  // ── §5.3 1〜3枚の機構項目（2026-08-29・速いレーン）──────────────────────
+  // `O-98` A1＝対象の印字能力【ダブルクラッシュ】が付与能力へ誤着し、原文の【アサシン】が消えていた。
+  "WXK10-024": [
+    {"effectId":"WXK10-024-E3","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"赤","keyword":"ダブルクラッシュ"},"explicitTarget":true},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  // `O-98` A2＝選択肢②の印字能力 OR 条件が落ち、任意のシグニをバニッシュできていた。
+  "WXK07-002": [
+    {"effectId":"WXK07-002-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"緑","count":3},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_CENTER_LRIG"},{"type":"CHOOSE","choose_count":2,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":12000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","keyword":["アサシン","ダブルクラッシュ"]},"upToCount":false}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"filter":{"color":"緑"},"pickCount":"ALL","pickNoun":"カード","then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}},{"choiceId":"c3","label":"選択肢4","action":{"type":"PREVENT_NEXT_DAMAGE","count":1}}],"upTo":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // `O-98` A3＝「レゾナ」をルリグ対象へ誤分類していた。
+  "WXEX1-16": [
+    {"effectId":"WXEX1-16-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"coin":1},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"レゾナ"}},"keyword":"バニッシュされない","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // `O-151(b)`＝トラッシュ枚数で決まる総量を、選んだ好きな数の相手シグニへ1000単位で割り振る。
+  "WX24-P2-009": [
+    {"effectId":"WX24-P2-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"MILL","owner":"self","count":3,"optional":true},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","upToCount":true,"filter":{"cardType":"シグニ"}},"delta":-1000,"deltaFromZone":{"zone":"trash","owner":"self","per":-1000},"splitTotal":{"unit":1000},"duration":"UNTIL_END_OF_TURN"},{"type":"STUB","id":"RULE_REMINDER_TEXT"},{"type":"RECOLLECT_GATE","minArts":4},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","colorMatchesLrig":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // `O-94①`＝汎用 ADD_TO_FIELD の「最初の空き」ではなく、既存STUBで中央 zone[1] へ固定配置する。
+  "WXDi-P03-087": [
+    {"effectId":"WXDi-P03-087-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"discard":2},"action":{"type":"STUB","id":"FROM_TRASH_TO_CENTER_ZONE"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","trashActivated":true}
+  ],
 };
 
 /**

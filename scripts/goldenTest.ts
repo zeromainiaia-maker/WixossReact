@@ -6971,13 +6971,13 @@ test('(xlvi) anyOf filter: 「スペルか＜原子＞のシグニ」＝種別�
   ok(matchesFilter(mk('シグニ', '原子'), withLevel), 'anyOf 成立＋level 成立で該当');
   ok(!matchesFilter({ ...mk('シグニ', '原子'), Level: '4' } as CardData, withLevel), 'anyOf 成立でも level 不成立なら非該当（AND合成）');
 });
-// (e) WX24-P2-049-E2＝filter 無しの純粋な「カードを1枚まで手札に加え」。MANUAL の E1b を持つ PRESERVE カードで
-// build が curated を温存し、fresh 側の pick（effectId は E3 へずれる）が live へ届いていなかった＝外科採用案件。
-test('(xlvi) WX24-P2-049-E2: filter無し look-pick が手札へ入る（PRESERVE カードの外科採用）', () => {
+// (e) WX24-P2-049-E3＝filter 無しの純粋な「カードを1枚まで手札に加え」。
+// O-149 で shadow id を正規化し、parser の正しい E3 が live へ届くようにした。
+test('(xlvi) WX24-P2-049-E3: filter無し look-pick が手札へ入る（O-149 id正規化後）', () => {
   const savedCursor = cursor;
   try {
     const effs = effectsMap.get('WX24-P2-049') ?? [];
-    const eff = effs.find(e => e.effectId === 'WX24-P2-049-E2');
+    const eff = effs.find(e => e.effectId === 'WX24-P2-049-E3');
     ok(!!eff, 'live 効果が存在');
     const a = eff!.action as import('../src/types/effects').RevealAndPickAction;
     eq(a.type, 'REVEAL_AND_PICK', 'LOOK_AND_REORDER（pick 丸ごと消失）へ戻っていない');
@@ -6990,9 +6990,10 @@ test('(xlvi) WX24-P2-049-E2: filter無し look-pick が手札へ入る（PRESERV
     const r = run(eff!.action as EffectAction, ctx);
     eq(r.ownerState.hand.length, hand0 + 1, '1枚が手札へ');
     eq(r.ownerState.deck.length, deck0 - 1, '残り2枚はデッキに保持（消失なし）');
-    // 兄弟効果は不変（外科採用が他効果を巻き込んでいない）
-    eq(effs.find(e => e.effectId === 'WX24-P2-049-E1')?.action.type, 'GRANT_KEYWORD', 'E1【常】シュートは不変');
-    eq((effs.find(e => e.effectId === 'WX24-P2-049-E1b')?.action as { id?: string })?.id, 'POWER_PLUS_BANISHED_POWER', 'E1b MANUAL は不変');
+    // 兄弟効果は正規 id で共存する（E1b shadow は再発させない）。
+    eq(effs.find(e => e.effectId === 'WX24-P2-049-E1')?.action.type, 'GRANT_KEYWORD', 'E1【常】シュートを保持');
+    eq((effs.find(e => e.effectId === 'WX24-P2-049-E2')?.action as { id?: string })?.id, 'POWER_PLUS_BANISHED_POWER', 'E2【自】を保持');
+    ok(!effs.some(e => e.effectId === 'WX24-P2-049-E1b'), '旧shadow E1bを残さない');
     eq(effs.find(e => e.effectId === 'WX24-P2-049-BURST')?.action.type, 'TRASH', 'BURST は不変');
   } finally {
     cursor = savedCursor;
@@ -12870,13 +12871,7 @@ const MANUAL_DRIFT_KNOWN = new Set([
   // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
-  // 🆕2026-08-29（§5.3 `O-144`）＝**`syncManualLive` が id 集合の変化で fail-closed に止めた2件**。
-  //   `manualEffects.ts` の shadow と live/parser で effectId が食い違っており、同期すると
-  //   `WX24-P2-049` は **live 限定の `-E1b`（【自】バトルでバニッシュしたとき…パワー＋）が丸ごと消え**、
-  //   `WXDi-P13-050` は **【出】が `-E2` と `-E1b` の二重**になる（同じ能力が2回発動する）。
-  //   ⚠**どちらも `gates` の他のどの計器にも映らない**（id 集合を見るのはこのトリップワイヤだけ）。
-  //   ⇒ manual 側の id を live/parser に揃えてから外す＝§5.3 `O-149`。
-  'WX24-P2-049-E2', 'WXDi-P13-050-E1b',
+  // ✅2026-08-29（§5.3 `O-149`）＝WX24-P2-049 / WXDi-P13-050 の shadow id は正規化して解消。
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
   // ⚠比較は**リーフパス集合**で行う（`JSON.stringify` の素朴比較はキー順に依存し、実体が同一でも
@@ -26011,8 +26006,8 @@ test('POWER_PLUS_BANISHED_POWER: 被バニッシュ実効パワーを白シグ�
   const white = findCard(c => isSigni(c) && c.Color?.includes('白'));
   const otherWhite = findCard(c => isSigni(c) && c.Color?.includes('白') && c.CardNum !== white);
   const banished = findCard(c => isSigni(c) && c.CardNum !== white && c.CardNum !== otherWhite);
-  const effect = effectsMap.get('WX24-P2-049')?.find(e => e.effectId === 'WX24-P2-049-E1b');
-  ok(!!effect && effect.action.type === 'STUB', 'WX24-P2-049-E1b の構造化STUBが必要');
+  const effect = effectsMap.get('WX24-P2-049')?.find(e => e.effectId === 'WX24-P2-049-E2');
+  ok(!!effect && effect.action.type === 'STUB', 'WX24-P2-049-E2 の構造化STUBが必要');
   if (!effect || effect.action.type !== 'STUB') return;
   eq(JSON.stringify(effect.action.powerPlusBanishedPower), JSON.stringify({
     target: { type: 'SIGNI', owner: 'self', count: 1, filter: { color: '白' } },
@@ -51312,9 +51307,8 @@ test('Sheet1 B2: 印字キーワードの付与は thisCardOnly（自分の任�
     ['WX10-052', 'WX10-052-E1', 'マルチエナ'],
     ['WX11-052', 'WX11-052-E1', 'マルチエナ'],
     ['WXDi-P04-040', 'WXDi-P04-040-E1', 'ランサー'],
-    // ⚠**`WX24-P2-049`（【シュート】）はここに入れられない**＝`docs/_idset_fresh.json` に
-    //   残っている**まだ凍結中のカード**（署名 `+-E3 / --E1b`）で、この修正が live へ届いていない。
-    //   idset の残り25枚を解凍したらここへ足す（＝解凍できたかの合図になる）。
+    // O-149 で id 集合を正規化し、凍結中だった parser の thisCardOnly 改善が live へ届いた。
+    ['WX24-P2-049', 'WX24-P2-049-E1', 'シュート'],
   ] as const;
   for (const [cardNum, effectId, keyword] of POSITIVE) {
     const eff = b45Effect(cardNum, effectId);
@@ -53054,10 +53048,11 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   あちらは **parser 自身が同じ `parseStatus` を出す効果**（＝出所あり・毎回再生成）を母集団から外すが、
   //   この test は **parser を回さない**ので外せない。ずれは意図的＝**同じ数を期待しない**。
   // 🏁**2026-08-28 続き705 で B群を 0 にした**（`O-133` 第3〜第15バッチ）。
-  //   残 12 ＝ **D群9**（`fixLrigColorFilters.mjs` が build 後に毎回生成し直す id＝凍っていない）
+  //   残 11 ＝ **D群8**（`fixLrigColorFilters.mjs` が build 後に毎回生成し直す id＝凍っていない）
   //   ＋ **parser 自身が同じ印を出す3件**（この test は parser を回さないので母集団から外せない）。
+  //   （O-149 で WX24-P2-049-E1b を manual E2 へ正規化して D群を9→8。）
   //   ⇒ **以後この数が増えたら「また出所の無いスタンプを押した」** の合図。
-  const BASELINE_ORPHAN_MANUAL = 12;
+  const BASELINE_ORPHAN_MANUAL = 11; // 旧12。O-149 で live 限定 WX24-P2-049-E1b を撤去。
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];
@@ -53118,7 +53113,7 @@ test('rise: getRiseFilter が【ライズ】カードの配置条件を取りこ
 // ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
 //   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
 test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
-  const BASELINE_REORDER_MISSING = 16;   // 減ったら実数へ下げる（増えたら退化）
+  const BASELINE_REORDER_MISSING = 14;   // 旧16。O-149で WX24-P2-049-E3 / WXDi-P13-050-E2 の reorder:true が正規idで到達。
   const srcPath = join(root, 'docs/_effect_srctext.json');
   const srcMap = JSON.parse(fs.readFileSync(srcPath, 'utf8')) as Record<string, unknown>;
   const hasReorder = (o: unknown): boolean => {
@@ -53191,7 +53186,7 @@ test('O-140: splitTotal は「総量」＝1体なら全部・複数なら ALLOCA
   ok(oddMods.every(m => Math.abs(m.delta) % 1000 === 0), '1000単位に丸めていない');
 
   // 母集団のラチェット＝live で splitTotal を持つ効果数（減ったら退化）。
-  const BASELINE_SPLIT_TOTAL = 4;
+  const BASELINE_SPLIT_TOTAL = 5; // 旧4。manual1 で WX24-P2-009-E1 を既存機構へ載せた。
   let nSplit = 0;
   const walkSp = (o: unknown): void => {
     if (!o || typeof o !== 'object') return;
@@ -53203,6 +53198,120 @@ test('O-140: splitTotal は「総量」＝1体なら全部・複数なら ALLOCA
   for (const effs of effectsMap.values()) walkSp(effs);
   eq(nSplit, BASELINE_SPLIT_TOTAL, 'splitTotal を持つ live 効果数（増えたら基準を上げる）');
 }));
+
+// ── §5.3 1〜3枚の機構項目（2026-08-29・manual 速いレーン）──────────────
+const manualFreshEffect = (cardNum: string, effectId: string): CardEffect => {
+  const merged = mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!));
+  const effect = merged.find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: fresh＋manual 合成結果に効果が無い`);
+  return effect;
+};
+
+test('manual1 A1 WXK10-024-E3: 【ダブルクラッシュ】持ち赤シグニだけに【アサシン】を付与', () => {
+  const effect = manualFreshEffect('WXK10-024', 'WXK10-024-E3');
+  const action = effect.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  eq(action.type, 'GRANT_KEYWORD');
+  eq(action.keyword, 'アサシン', '原文が与えるのは【アサシン】');
+  ok(action.keyword !== 'ダブルクラッシュ', '旧誤動作の【ダブルクラッシュ】付与へ戻っていない');
+  const filter = action.target.filter;
+  const card = (effectText: string) => ({
+    CardNum: 'x', CardName: 'x', Type: 'シグニ', CardClass: '', Color: '赤', Level: '1', Power: '1000', EffectText: effectText,
+  } as unknown as CardData);
+  ok(matchesFilter(card('【常】：【ダブルクラッシュ】'), filter), '【ダブルクラッシュ】持ち赤シグニは候補');
+  ok(!matchesFilter(card('【常】：【ランサー】'), filter), '【ダブルクラッシュ】を持たない赤シグニは候補外');
+});
+
+test('manual1 A2 WXK07-002-E1: 選択肢②は【アサシン】または【ダブルクラッシュ】持ちだけ', () => {
+  const effect = manualFreshEffect('WXK07-002', 'WXK07-002-E1');
+  const sequence = effect.action as SequenceAction;
+  const choose = sequence.steps[1] as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const banish = choose.choices[1].action as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(JSON.stringify(banish.target.filter?.keyword), JSON.stringify(['アサシン', 'ダブルクラッシュ']), '能力条件は配列OR');
+  const card = (effectText: string) => ({
+    CardNum: 'x', CardName: 'x', Type: 'シグニ', CardClass: '', Color: '白', Level: '1', Power: '1000', EffectText: effectText,
+  } as unknown as CardData);
+  ok(matchesFilter(card('【常】：【アサシン】'), banish.target.filter), '【アサシン】だけでも候補');
+  ok(matchesFilter(card('【常】：【ダブルクラッシュ】'), banish.target.filter), '【ダブルクラッシュ】だけでも候補');
+  ok(!matchesFilter(card('【常】：【ランサー】'), banish.target.filter), 'どちらも持たないシグニは候補外（旧＝全通し）');
+});
+
+test('manual1 A3 WXEX1-16-E2: レゾナだけがバニッシュ耐性の対象', () => {
+  const effect = manualFreshEffect('WXEX1-16', 'WXEX1-16-E2');
+  const action = effect.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  eq(action.target.type, 'SIGNI', '対象種別はルリグではなくシグニ');
+  eq(action.keyword, 'バニッシュされない');
+  const resona = { CardNum: 'r', CardName: 'r', Type: 'レゾナ', CardClass: '', Color: '白', Level: '4', Power: '15000', EffectText: '' } as unknown as CardData;
+  const signi = { ...resona, CardNum: 's', Type: 'シグニ' } as CardData;
+  ok(matchesFilter(resona, action.target.filter), 'レゾナは候補');
+  ok(!matchesFilter(signi, action.target.filter), '非レゾナのシグニは候補外');
+});
+
+test('manual1 B WX24-P2-009-E1: トラッシュ5枚は総量-5000を割り振り、0枚はno-op', () => withSavedCursor(() => {
+  const effect = manualFreshEffect('WX24-P2-009', 'WX24-P2-009-E1');
+  const action = (effect.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'POWER_MODIFY' }>;
+  eq(action.type, 'POWER_MODIFY', '裸 POWER_MOD_PER_COUNT の無言no-opへ戻っていない');
+  eq(action.deltaFromZone?.zone, 'trash');
+  eq(action.deltaFromZone?.per, -1000);
+  eq(action.splitTotal?.unit, 1000);
+
+  const ctx5 = mkCtx({ trash: 5 }, { signi: [SIGNI, SIGNI_P3000, null] }, 'WX24-P2-009');
+  const selected = executeAction(action, ctx5);
+  ok(!selected.done && selected.pending.type === 'SELECT_TARGET', '好きな数の対象選択へ入る');
+  if (selected.done || selected.pending.type !== 'SELECT_TARGET') return;
+  const allocated = resumeSelectTarget([SIGNI, SIGNI_P3000], selected.pending, {
+    ...ctx5, ownerState: selected.ownerState, otherState: selected.otherState, logs: selected.logs,
+  });
+  ok(!allocated.done && allocated.pending.type === 'ALLOCATE_POWER', '2体なら割り振り対話へ入る');
+  if (!allocated.done && allocated.pending.type === 'ALLOCATE_POWER') {
+    eq(allocated.pending.total, -5000, 'トラッシュ5枚×-1000＝総量-5000');
+    eq(allocated.pending.unit, 1000, '1000単位でのみ割り振る');
+  }
+
+  const ctx0 = mkCtx({ trash: 0 }, { signi: [SIGNI, SIGNI_P3000, null] }, 'WX24-P2-009');
+  const zero = executeAction(action, ctx0);
+  ok(zero.done, 'トラッシュ0枚なら対象選択も割り振りも起こさない');
+  eq((zero.otherState.temp_power_mods ?? []).length, 0, '総量0ではパワーを変更しない');
+}));
+
+test('manual1 C WXDi-P03-087-E2: トラッシュから中央zone[1]へ出し、最初の空きzone[0]へ出さない', () => withSavedCursor(() => {
+  const effect = manualFreshEffect('WXDi-P03-087', 'WXDi-P03-087-E2');
+  ok(effect.trashActivated === true, 'トラッシュ起動の判別子を保持');
+  eq(effect.cost?.discard, 2, '手札2枚を捨てるコストを保持');
+  ok(effect.action.type === 'STUB' && effect.action.id === 'FROM_TRASH_TO_CENTER_ZONE', '中央専用ハンドラへ配線');
+  const oldCenter = fresh();
+  const ctx = mkCtx({ signi: [null, oldCenter, null], trash: 0 }, {}, 'WXDi-P03-087');
+  ctx.ownerState = { ...ctx.ownerState, trash: ['WXDi-P03-087'] };
+  const result = executeEffect(effect, ctx);
+  ok(result.done, '中央配置は対話なしで完了');
+  eq(result.ownerState.field.signi[0], null, '旧挙動なら埋まる最初の空きzone[0]を空のまま保つ');
+  eq(result.ownerState.field.signi[1]?.at(-1), 'WXDi-P03-087', '中央zone[1]へこのカードを出す');
+  ok(result.ownerState.energy.includes(oldCenter), '中央にいた既存シグニはエナへ');
+  ok(!result.ownerState.trash.includes('WXDi-P03-087'), 'このカードをトラッシュから取り除く');
+}));
+
+test('manual1 D1 WX24-P2-049: E2を【自】に戻し、parser E3と正規idで共存', () => {
+  const p049 = mergeManualEffects('WX24-P2-049', parseCardEffects(cardMap.get('WX24-P2-049')!));
+  const live = effectsMap.get('WX24-P2-049') ?? [];
+  eq(p049.map(e => e.effectId).sort().join(','), live.map(e => e.effectId).sort().join(','),
+    'WX24-P2-049: fresh＋manual と live のid集合');
+  eq(p049.map(e => e.effectId).join(','), 'WX24-P2-049-E1,WX24-P2-049-E2,WX24-P2-049-E3,WX24-P2-049-BURST');
+  const auto = p049.find(e => e.effectId === 'WX24-P2-049-E2')!;
+  ok(auto.action.type === 'STUB' && auto.action.id === 'POWER_PLUS_BANISHED_POWER', 'E2が【自】バトルバニッシュ能力');
+  ok(!p049.some(e => e.effectId === 'WX24-P2-049-E1b'), '旧E1b shadowは消えている');
+});
+
+test('manual1 D2 WXDi-P13-050: parser E2を採用し、E1b shadowを残さない', () => {
+  const p050 = mergeManualEffects('WXDi-P13-050', parseCardEffects(cardMap.get('WXDi-P13-050')!));
+  const live = effectsMap.get('WXDi-P13-050') ?? [];
+  eq(p050.map(e => e.effectId).sort().join(','), live.map(e => e.effectId).sort().join(','),
+    'WXDi-P13-050: fresh＋manual と live のid集合');
+  eq(p050.map(e => e.effectId).join(','), 'WXDi-P13-050-E1,WXDi-P13-050-E2,WXDi-P13-050-BURST');
+  const onPlay = p050.find(e => e.effectId === 'WXDi-P13-050-E2')!;
+  eq(onPlay.condition?.type, 'HAS_CARD_IN_FIELD', '原文の《コード・ピルルク・極》在場条件をconditionで保持');
+  ok(onPlay.action.type === 'REVEAL_AND_PICK' && onPlay.action.pickUpTo !== true,
+    '「スペル1枚を公開し手札に加え」は必須1枚（「まで」ではない）');
+  ok(!p050.some(e => e.effectId === 'WXDi-P13-050-E1b'), '旧E1b shadowは消えている');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

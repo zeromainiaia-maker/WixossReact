@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3「1〜3枚」の機構項目4件を **manualEffects.ts への手書き**で消化（7効果・Codex 実装／Claude 検証）
+
+PLAN §5.3 の「取る順」表の **2位＝残り約30件（1件あたり1〜3枚）** に当たる項目から、
+**受け皿（型・engine の消費地点）が既に在って parser の出力だけが誤っているもの**だけを選び、
+**parser も engine も1行も触らず** `src/data/manualEffects.ts` に手で正しい JSON を書いた（§2.0 速いレーン）。
+実装は Codex CLI（`docs/CODEX_GUIDE.md` の分担）、スコープ決定・実測・検証・簿記は Claude。
+**Codex の完全報告は [`scripts/archive/codex_manual1_report.md`](../scripts/archive/codex_manual1_report.md)**（採用7効果の生成 JSON・逆翻訳照合・反転確認・`syncManualLive --dry` 差分・紐づく findings の `quote` 一覧）。
+
+### 真因（1効果ずつ）
+
+| 効果 | 項目 | 真因 | 向き |
+|---|---|---|---|
+| `WXK10-024-E3` | `O-98`① | 対象名詞句の修飾語【ダブルクラッシュ】が**付与するキーワードの側へ誤着**し、原文が与える【アサシン】が消えていた | 別物（原文がどこにも与えない能力を与える） |
+| `WXK07-002-E1`（選択肢②） | `O-98`② | 「【アサシン】**か**【ダブルクラッシュ】を持つ」の **OR 形キーワードフィルタが丸ごと脱落** | 過剰（どのシグニでもバニッシュできる） |
+| `WXEX1-16-E2` | `O-98`③ | 「あなたの**レゾナ**1体」が `target.type:'LRIG'` に化けていた（**レゾナはシグニであってルリグではない**） | 別物 |
+| `WX24-P2-009-E1` | `O-151`(b) | 「それらのパワーを**合計で**トラッシュのカード1枚につき－1000」が裸の `STUB{POWER_MOD_PER_COUNT}` | **無言 no-op** |
+| `WXDi-P03-087-E2` | `O-94`① | 「トラッシュから**中央の**シグニゾーンに出す」が汎用 `ADD_TO_FIELD`＝**最初の空きゾーン**へ出る | 別物（中央が埋まっていると別ゾーンへ出る） |
+| `WX24-P2-049-E2` | `O-149` | manual の `-E2`（【出】）が **parser の `-E2`（【自】バトルバニッシュ）を上書きして消していた** | 欠落＋id 集合ズレ |
+| `WXDi-P13-050-E1b` | `O-149` | manual の shadow `-E1b` があるため **parser の `-E2` が永久に live へ届かない**（`_idset_fresh` 凍結） | 凍結 |
+
+**影響**＝live 7カード12効果（うち5効果は凍結解除に伴う parser 改善の到達）。**新しいアクション型・条件型は0本**。
+
+### 受け皿はすべて既存（消費地点を実測してから書いた）
+
+- `TargetFilter.keyword`（`src/types/effects.ts:945`）＝`execUtils.ts:1037-1051` が評価し、**配列は OR**。
+- `filter.cardType:'レゾナ'`＝`execUtils.ts:912-914` の非対称ルール（`シグニ` はレゾナを含む／`レゾナ` はレゾナのみ）。live 43カードが使用中。
+- `deltaFromZone` → `splitTotal`＝`effectExecutor.ts:1727`（`resolveCountRef` で総量を解決）→ `:1878`（`ALLOCATE_POWER` 対話）。**順序が既に正しく engine は0行**。同型 live 4件（`SP26-003` `WXK11-073` `WX17-021` `SPDi47-05`）から形を写した。
+- `STUB{FROM_TRASH_TO_CENTER_ZONE}`＝`execStubPart2.ts:2045-2064`（zone[1] 固定・既存シグニはエナへ）。**live 使用0だった実装済みハンドラに初めて配線**。
+- `STUB{POWER_PLUS_BANISHED_POWER}`＝`execStubPart1.ts:111`。
+
+### 🔴 この巡の一番大事な発見＝**登録票（`O-149`）の見立てが実測と外れていた（通算9巡連続）**
+
+PLAN は「`WX24-P2-049` は live 限定の `-E1b` を `manualEffects.ts` へ**持ち込む**」と書いていたが、
+実測（`parseCardEffects` の直呼び）では **parser は既に `E1/E2/E3/BURST` の4本**を出しており、
+- parser の `-E2` ＝【自】バトルバニッシュ（`{"type":"UNKNOWN"}` に落ちている）
+- parser の `-E3` ＝【出】REVEAL_AND_PICK（内容は正しい）
+
+に対して `manualEffects.ts` の `-E2` が**【出】の内容**だった＝**手書きが parser の【自】を上書きして消していた**。
+⇒ 正しい直し方は「持ち込む」ではなく **`-E2` を【自】へ差し替え、【出】の手書き上書きは削除して parser の `-E3` に任せる**。
+**着手したらまず `parseCardEffects` を直に呼んで id 集合を見る**（登録票は症状の記録であって設計判断ではない）。
+
+### 凍結解除で「ついでに」届いた parser 改善（2効果）
+
+- `WX24-P2-049-E1`＝【常】【シュート】が **`thisCardOnly` なし・`UNTIL_END_OF_TURN`** だった（＝自分のシグニ1体に1ターンだけ付与）。
+  正規化後は **`filter:{thisCardOnly:true}` ＋ `PERMANENT`** で原文どおり。**id 集合ズレのカードは兄弟効果まで丸ごと凍る**ことの実例。
+- `WXDi-P13-050-E2`＝`remainder.reorder:true`（「好きな順番で」）が届き、`BASELINE_REORDER_MISSING` が 16→14。
+
+### 付帯物（`O-149` はデータだけ直しても閉じない）
+
+1. `scripts/fixLrigColorFilters.mjs` の `WX24-P2-049-E1b / powerPlusBanishedPower` エントリを削除（payload を manual に手書きしたので不要。**残すと `[SKIP] … not found` を warn するだけの死荷重**）。
+2. `scripts/goldenTest.ts` の §6.3 K トリップワイヤ既知リストから `'WX24-P2-049-E2'` / `'WXDi-P13-050-E1b'` を削除。
+3. 同 `:51315` 付近の「`WX24-P2-049` は idset 凍結中なのでここに入れられない」コメントを解凍済みへ更新し、正例として追加。
+4. `BASELINE_ORPHAN_MANUAL` 12→11（live 限定 MANUAL スタンプが1件消えたため。**このラチェットは増えても減っても FAIL**）。
+5. `BASELINE_SPLIT_TOTAL` 4→5 ／ `BASELINE_REORDER_MISSING` 16→14 ／ `BASELINE_HIGH` 518→517。
+   ⚠**`BASELINE_HIGH` の減少は前進ではない**＝`vocabCensus.ts` が MANUAL を高シグナルから免除するための**不可視化**（基準行のコメントに明記）。
+
+### 検証（Claude 側・独立実行）
+
+- `npm run gates` **全緑**（独立実行）。**golden 2988→2995**（+7＝対象効果ごとに1本）・smoke **10703 全0**・fuzz 全0・
+  `census:enginetext` **A 136行/133ハンドラ・miss 40/56 で据置**（engine 非改変の裏取り）・lint **0 errors / 249 warnings（据置）**。
+- **ベースライン commit（`f391b4f98`）比の per-effect 機械 diff＝変化した効果は12件のみ**で、**すべて対象7カードの中**。
+  他カードへの巻き込み 0（`ADD` 2 / `DEL` 2 / `MOD` 8）。
+- 変更23ファイルのエンコーディング検査（`U+FFFD`・3文字以上連続 `?`・先頭 BOM）＝**新規増0**。
+- golden は **`mergeManualEffects(cardNum, parseCardEffects(row))` を読む fresh assert**で書かれており（§5-29）、
+  **7効果すべて反転確認済み**（manual を外すと当該テストが赤くなることを確認）。
+  B は `ALLOCATE_POWER` の総量 −5000／トラッシュ0枚で no-op の**両方向**、C は中央 zone[1] へ出る／**zone[0] を空のまま保つ**対照つき。
+- 🆕**`fresh` バケツ**＝held **93→93**・partial **12→11**・idset **13→11**（`WX24-P2-049` / `WXDi-P13-050` が解凍）。
+
+### ⑤実機の要否＝**不要**（④まで）
+
+判定理由＝**触ったディレクトリが `src/data/` `public/data/` `scripts/` だけ**で `src/screens/` を触っておらず、
+**新しい型・機構も0本**（PLAN §2.2 の機械判定）。⚠`WXDi-P03-087-E2` だけは UI（トラッシュ【起】）から撃つ効果なので
+`canOfferTrashActivate`（`src/screens/battle/trashActivateCost.ts:109`）を読んで確認した＝**あの関数は `effect.cost` しか見ない**ので
+action 型を `ADD_TO_FIELD` → `STUB` に変えても提示可否は変わらない。engine 側は E2E golden が押さえている。
+
+### 残った穴（今回は閉じていない）
+
+- `O-94`②（`WXDi-P14-068`＝配置制限 collector が通常召喚UIの1箇所からしか呼ばれず CPU 配置・効果配置が素通り）＝`src/screens/` を触るので遅いレーン。
+- `O-151`(a)（`PR-K026-E1`＝照応が文をまたぐ「それら…合わせて－18000」）＝`parseSentencePart4` の narrow catch-all はこの1件のために残してある。
+- `WXDi-P03-087` の **parser 優先順位**（Part1 の汎用「トラッシュ→場」が Part3 の中央専用規則より先に返す）は**未修正**＝manual で閉じただけ。
+
+
 ## 2026-08-29：§5.2 Sheet2 バッチ2（速いレーン）＝台帳の残 OPEN から HIGH 11件を消化（live 9効果を修正／2件は偽陽性）
 
 意味照合 段2 台帳（`node scripts/archive/semanticAuditLedger.mjs`）の残 OPEN のうち **Sheet2 の

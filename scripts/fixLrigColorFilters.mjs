@@ -113,8 +113,6 @@ const FIXES = [
     locate: e => e.action?.choices?.[0]?.action },
 
   // PLAN §6.3 続き20: 既存MANUAL STUBへ engine 解決用の構造化パラメータを追加。
-  { file: 'effects_WX24_26', card: 'WX24-P2-049', eid: 'WX24-P2-049-E1b', type: 'powerPlusBanishedPower',
-    locate: e => e.action },
   { file: 'effects_WX24_26', card: 'WX25-CP1-040', eid: 'WX25-CP1-040-E1b', type: 'variableEnergyTrashLevelBounce',
     locate: e => e.action },
 

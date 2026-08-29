@@ -2,6 +2,32 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き724・Opus 5 単独）＝§5.2 Sheet2 バッチ2（速いレーン）。
+  台帳の残 OPEN から「1カード1 finding の HIGH」11件を消化（live 9効果を修正／2件は偽陽性）。**
+  ユーザー指示＝**「PLAN をよく読み、早いレーンで Sheet2 の段2 を消化する」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 558→547｜census 高シグナル 520→518**
+  （Sheet2 の残 OPEN は **107→96**・うち「1カード1 finding の HIGH」44→33）。
+  gates 全緑（**golden 2988 PASS**・smoke **10702→10703** 全0・fuzz 全0・`census:enginetext` 136 据置）。
+  全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は9件すべて既存**＝`ADD_TO_LIFE.fromTrash`／`THIS_CARD_IN_LOCATION{trash}`／
+    `TRAP_ICON`＋`ON_TRAP_ACTIVATE`／`filter.frontOfSelf`／`TargetFilter.keyword`／
+    `triggerFilter.powerRange`／`ENERGY_CARD count:"ALL"`。**新しいアクション型・条件型は0本**（通算でも0）。
+  - 🔴**この巡の一番大事な発見＝`WX20-066-E1` は parser のバグではなかった。**
+    live が原文と食い違っていたので手で書いたが、**parser の最新出力は既に正しく、`_held_fresh` に
+    温存されて live へ届いていなかっただけ**だった。手書きは §2.0 の禁じ手「移設だけの manual 化」に当たり、
+    **`§6.4 O-42` トリップワイヤ（golden）が実際に発火して検知した**。撤去後 live の刻印が `MANUAL` で
+    凍ったので `censusOrphanManual.ts --unfreeze A` で `AUTO` へ戻した。
+    ⇒ **live が原文と違うときは、まず `_held_fresh` / `_partial_fresh` / `_idset_fresh` を見る。**
+  - ⚠**findings の反復する偽陽性を1つ特定した**＝「そうした場合」の `CONDITIONAL{IS_MY_TURN}` は
+    **parser の慣例エンコード**（did-it ゲート・engine 特別処理あり）。狭めて実測すると
+    「optional の直後の `CONDITIONAL{IS_MY_TURN}`」は65効果あり、**前段 owner が実際に誤っていたのは3効果だけ**。
+    **この語だけで母集団を数えない。**
+  - ⚠**手順の罠を2つ再実証**＝①`manualEffects.ts` を書いても `build:effects` だけでは live に届かない
+    （`heldReview.mjs --adopt` が要る）②**既存 id の書き直しは `_partial_fresh` に回る**ので
+    `syncManualLive.ts` が要る（`WX16-041` で実際に踏んだ＝新設 `-TRAP` だけが通っていた）。
+  - ⚠**`manualEffects.ts` は `TargetFilter` が型付き**＝live に居た `cardType:"カード"` は
+    `CardTypeFilter` に無く typecheck が落ちる（`hasIcon` だけで足りるので落として通した）。
+
 - 🏁**セッション（2026-08-29・続き720〜723・Opus 5 単独）＝§5.3 `O-80` 残 C群を消化しきった。
   `O-141`（3効果）／`O-142`（6効果）／`O-143`（3効果）／第3バッチ（1効果）＝計13効果。**
   ユーザー指示＝**「`O-80` 残 C群を行う」→「O-80をつづけ」→「O-143」→「O-80 残り2効果、早いレーンでできる？」**。

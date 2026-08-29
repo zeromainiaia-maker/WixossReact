@@ -25,8 +25,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | HAND_SIZE_INCREASE|REDUCE_OPP_HAND_LIMIT | execStubPart3.ts:503 | 4 | 4 | 3 | 1 |
 | NEGATE_NTH_ATTACK | execStubPart3.ts:1108 | 3 | 3 | 3 | 1 |
 | PLAY_SPELL_FREE_IGNORE_RESTRICTION | execStubPart2.ts:4051 | 3 | 2 | 1 | 1 |
-| POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 3 | 3 | 8 | 1 |
 | LAYER_ABILITY_COPY | execStubPart2.ts:4876 | 2 | 2 | 1 | 1 |
+| POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 2 | 2 | 8 | 1 |
 | TARGET_ONLY | execStubPart1.ts:4018 | 2 | 2 | 3 | 1 |
 | ALL_PLAYER_MILL | execStubPart3.ts:4093 | 1 | 1 | 2 | 1 |
 | DOWN_UP_SIGNI_AND_CHOOSE | execStubPart3.ts:3172 | 1 | 1 | 1 | 1 |
@@ -238,7 +238,12 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:コストの合計が([０-９\d]+)以下
     miss: WX14-014
 
-### POWER_MOD_PER_COUNT  (live 3効果 / 3カード / miss 1)
+### LAYER_ABILITY_COPY  (live 2効果 / 2カード / miss 1)
+  execStubPart2.ts:4876  const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';
+    lit str:トラッシュから
+    miss: WXEX2-59
+
+### POWER_MOD_PER_COUNT  (live 2効果 / 2カード / miss 1)
   execStubPart1.ts:1703  const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
     lit re:([０-９\d]+)[体枚つ個]?につき([－＋][０-９\d]+)
     lit re:レベル([０-９\d]+)につき([－＋][０-９\d]+)
@@ -249,11 +254,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:登録者数([０-９\d]*)万人につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
     lit re:(?:あなたの|この)シグニ
     miss: PR-K026
-
-### LAYER_ABILITY_COPY  (live 2効果 / 2カード / miss 1)
-  execStubPart2.ts:4876  const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';
-    lit str:トラッシュから
-    miss: WXEX2-59
 
 ### TARGET_ONLY  (live 2効果 / 2カード / miss 1)
   execStubPart1.ts:4018  const txtTO = srcTO ? (srcTO.EffectText ?? '') + ' ' + (srcTO.BurstText ?? '') : '';

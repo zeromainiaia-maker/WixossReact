@@ -1,5 +1,68 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-29 整理（§6 恒久指標・続き723時点値の退避・続き725）
+
+- **2026-08-29 続き723 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 520（据置）**
+  **golden 2977→2988**（`O-141` 3本／`O-142` 5本／`O-143` 3本＋ラチェット2本の更新）、census 520/520、
+  smoke 10702 全異常0、fuzz 全0、lint 0 errors／248 warnings（据置）、同型★0、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、孤児 MANUAL 12。
+  🆕**`census:enginetext` A群 136行 据置**＝カード全文 regex を2本（パターン4・5）撤去したが、
+  **A群は「読み出し地点の行数」であって regex 本数ではない**ので動かない（`O-141` で較正済み）。
+  🆕**`POWER_MOD_PER_COUNT` の live 17→3効果**（`O-140` 5／`O-141` 3／`O-142` 6／第3バッチ1 を消化。
+  残3＝`O-151` の2＋`O-153` の1）＝**この族の進捗は行数ではなく live 効果数で測る。**
+  🆕**`Condition` の型数 132→133**（`CHECK_ZONE_COUNT`・golden がラチェット）。
+  ⚠**この4巡も3計器はどれも動かない**＝機構バッチは「意味の計器」ではなく「機構の計器」で測る（§3 の原則）。
+
+## 2026-08-29 クローズ（§5.3 `O-98` / `O-151`(b) / `O-94`① / `O-149`＝「1〜3枚」の機構項目を manual 手書きで消化・続き725）
+
+**ユーザー指示＝「§5.3 の『1件あたり1〜3枚』を codex に投げる。manual で実装することで高速化を狙う」。**
+実装は Codex CLI、スコープ決定・実測・検証・簿記は Claude（`docs/CODEX_GUIDE.md` の分担）。**全文は BUGFIXES.md 2026-08-29 の項。**
+
+### ■ 結果（7効果・4群）
+
+| 群 | 項目 | 効果 | 直し方 |
+|---|---|---|---|
+| A | `O-98`（**クローズ**） | `WXK10-024-E3` / `WXK07-002-E1`② / `WXEX1-16-E2` | 付与キーワードの取り違え／OR 形キーワードフィルタの脱落／レゾナを `LRIG` へ誤分類 を手書きで是正 |
+| B | `O-151`(b) | `WX24-P2-009-E1` | 裸 `STUB{POWER_MOD_PER_COUNT}` → `POWER_MODIFY{deltaFromZone, splitTotal}` |
+| C | `O-94`① | `WXDi-P03-087-E2` | 汎用 `ADD_TO_FIELD`（最初の空き）→ `STUB{FROM_TRASH_TO_CENTER_ZONE}`（zone[1] 固定） |
+| D | `O-149`（**クローズ**） | `WX24-P2-049` / `WXDi-P13-050` | manual shadow の id を parser に揃えて **idset 凍結を解除** |
+
+**受け皿は7件すべて既存＝engine も parser も1行も触っていない。新しいアクション型・条件型は0本。**
+
+### 🔑 この巡の教訓＝**登録票の見立てが実測と外れた（通算9巡連続）**
+
+`O-149` の登録票は「`WX24-P2-049` は live 限定の `-E1b` を `manualEffects.ts` へ**持ち込む**」だったが、
+実測では **parser は既に `E1/E2/E3/BURST` を出しており、`-E2`＝【自】バトルバニッシュ・`-E3`＝【出】**。
+`manualEffects.ts` の `-E2` が【出】の内容だったため、**手書きが parser の【自】を上書きして消していた**。
+⇒ 正解は「持ち込む」ではなく **`-E2` を【自】へ差し替え、【出】の手書きは削除して parser の `-E3` に任せる**。
+**着手したらまず `parseCardEffects` を直に呼んで id 集合を見る。**
+
+🆕**id 集合ズレのカードは兄弟効果まで丸ごと凍る**＝解凍した `WX24-P2-049-E1`（【常】【シュート】）は
+**`thisCardOnly` なし・`UNTIL_END_OF_TURN`** という別物だった（正しくは `thisCardOnly` ＋ `PERMANENT`）。
+**`_idset_fresh` は「そのカードへの parser 改善が全部止まっている」という意味**で、当該効果だけの話ではない。
+
+### ■ `O-149` の付帯物（データだけ直しても閉じない）
+
+1. `scripts/fixLrigColorFilters.mjs` の `WX24-P2-049-E1b / powerPlusBanishedPower` エントリ削除。
+2. `scripts/goldenTest.ts` §6.3 K トリップワイヤ既知リストから `'WX24-P2-049-E2'` / `'WXDi-P13-050-E1b'` 削除。
+3. 同 `:51315` 付近の「idset 凍結中」コメントを解凍済みへ更新（正例として追加）。
+4. `BASELINE_ORPHAN_MANUAL` 12→11 ／ `BASELINE_SPLIT_TOTAL` 4→5 ／ `BASELINE_REORDER_MISSING` 16→14 ／ `BASELINE_HIGH` 518→517。
+
+### ■ 登録票（クローズ時点で PLAN §5.3 から退避した原文）
+
+| **O-149** | 🆕**`manualEffects.ts` の shadow と live/parser で effectId が食い違い、`syncManualLive` が使えない2カード** | **2カード**（`WX24-P2-049` / `WXDi-P13-050`） | **2026-08-29 続き718（`O-144`）で分離。** ■**実測**＝`syncManualLive` は `mergeManualEffects(parseCardEffects(row))` を**カード単位で丸ごと**書くので、`WX24-P2-049` は **live 限定の `-E1b`（【自】このシグニがバトルによってシグニ1体をバニッシュしたとき…パワー＋）が丸ごと消え**、`WXDi-P13-050` は **【出】が `-E2`（parser）と `-E1b`（manual shadow）の二重**になった（同じ能力が2回発動する）。 ■✅**ツール側は fail-closed にした**（`syncManualLive.ts`＝id 集合が変わるカードは**書かずにスキップして exit 1**・意図してやるときだけ `--allow-idset-change`）。**この2カードは `golden` の §6.3 K トリップワイヤの既知リストへ入れてある。** ■**やること**＝manual 側の id を live/parser に揃える＝(a) `WX24-P2-049` は `-E1b` を `manualEffects.ts` へ持ち込む (b) `WXDi-P13-050` は shadow `-E1b` を捨てて parser の `-E2` に条件を寄せる（`O-93` の「manual shadow」族）。 ■⚠**どちらも `gates` の他のどの計器にも映らない**（id 集合を見るのはあのトリップワイヤだけ）。 |
+| **O-151** | 🆕**「合わせて／合計で±N」のうち、対象宣言が同じ文に無い形／総量が可変の形が割り振り機構に乗っていない** | **2効果**（`PR-K026-E1`（の付与【起】）／`WX24-P2-009-E1`） | **2026-08-29 続き719（`O-140`）で分離。** ■**現在地**＝`O-140` で `POWER_MODIFY{splitTotal}` ＋ `ALLOCATE_POWER` 対話を新設し、**同じ文に「〈owner〉のシグニを好きな数対象とし」がある4効果**（`SP26-003` `WXK11-073` `SPDi47-05` `WX17-021`）は乗せた。**この2つは乗っていない**＝挙動は旧のまま（`parseSentencePart4` に残した narrow な catch-all が `STUB{POWER_MOD_PER_COUNT}` を返す）。 ■**形と要るもの**＝(a) `PR-K026`＝「対戦相手のシグニを**２体まで**対象とし、…（別の文で）**それら**のパワーを合わせて－18000する」＝**照応が文をまたぐ**。⚠`O-80` の教訓どおり**確定できない照応は fail-closed**にしてある。受け皿は `targetsStored` ＋ `splitTotal` の組み合わせ（engine 側は数行）だが、**前の文が対象を stored に積む形に parse されているかの確認が先**。 (b) `WX24-P2-009`＝「それらのパワーを**合計であなたのトラッシュにあるカード１枚につき－1000**する」＝**総量が可変**。受け皿は `deltaFromZone{zone:trash, per:-1000}` ＋ `splitTotal`（型は両方あるので**組み合わせるだけ**）。⚠`execPowerModify` は `deltaFromZone` を先に解決してから `splitTotal` を見るので**そのまま動くはず**＝手で書けば済む見込み。 ■⚠**着手したら `parseSentencePart4` の narrow catch-all（`それらのパワーを(合わせて|合計で)`）を撤去すること**（残すと死んだ枝＝catch-all の温床）。 |
+| **O-94** | 🆕**シグニゾーン限定の残穴2枚**（受け皿は在るのに届いていない） | S | **2026-08-26 続き675（段2 第43バッチ 群D）で実測**＝原文に「〜のシグニゾーン」を含む **76枚中 74枚は正しく配線済み**（`centerZoneOnly`／`zoneSide`／`IS_SELF_IN_CENTER_ZONE`／`THIS_CARD_IN_CENTER_ZONE`／`SIGNI_ATTACK_BAN{zones:[1]}`／`PLACE_VIRUS_CENTER`）。残り2枚だけが穴。■①**`WXDi-P03-087`＝parser の優先順位**＝dispatch は Part1→2→3（`effectParser.ts:5271-5273`）で、Part1 の汎用「トラッシュ→場」（`parseSentencePart1.ts:3226`・return `:3259`）が先に `ADD_TO_FIELD` を返すため、Part3 の中央専用規則（`parseSentencePart3.ts:755-757`）へ届かない。専用 engine は `execStubPart2.ts:2044-2064` に実在し zone[1] へ置く。⚠汎用 executor は最初の空きへ置く（`effectExecutor.ts:3117-3121`）＝**中央が埋まっていると別ゾーンへ出る**。■②**`WXDi-P14-068`＝配置制限 collector の部分配線**＝parser は `OPP_ZONE_PLACEMENT_RESTRICT`（`parseSentencePart3.ts:409-411`）、collector は `effectEngine.ts:6610-6633`。**呼び出しは通常召喚 UI の1箇所だけ**（`BattleScreen.tsx:5942-5946`）＝**CPU 配置・効果配置は素通りする**。 |
+| **O-98** | 🆕**GRANT 系入口で対象名詞句の【キーワード】／レゾナが落ちる・化ける（実測3枚）** | S | **2026-08-27 続き678（Sheet1 B1）で実測**＝対象名詞句の修飾語は `parseSigniTarget`（parserUtils）と BOUNCE ビルダーには配線したが、**GRANT 系の入口だけ別経路**で残った。■①🔴**`WXK10-024-E3` は付与キーワードそのものを取り違えている**＝原文「あなたの**【ダブルクラッシュ】を持つ**赤のシグニ１体を対象とし、ターン終了時まで、それは**【アサシン】**を得る」に対し live は `keyword:'ダブルクラッシュ'`（＝**原文がどこにも与えていない能力を与え、与えるはずの【アサシン】を与えない**）。⚠`parseSentencePart2.ts:2241` の `kwBracketM` は「【X】を得る」を要求していて正しいので、**別の（未特定の）規則が先に返している**＝着手時はまず発火規則を特定する（`GRANT_KEYWORD` の構築点は40箇所ある）。■②**`WXK07-002-E1` の選択肢①**＝「**【アサシン】か【ダブルクラッシュ】を持つ**シグニ１体を対象とし、それをバニッシュする」＝**OR 形のキーワードフィルタ**が丸ごと落ちて `{cardType:'シグニ'}`（＝どのシグニでもバニッシュできる過剰効果）。受け皿は在る（`TargetFilter.keyword` は `string | string[]` で配列＝OR）。■③**`WXEX1-16-E2`**＝「あなたの**レゾナ**１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る」が `target.type:'LRIG'` に化けている（**レゾナはシグニであってルリグではない**）＝`cardType` ではなく `target.type` の誤りなので `signiClauseResonaFilter` では届かない。■**母集団は3枚とも Sheet1 外**（Sheet4／WXK／WXEX1）＝Sheet1 分母では 0。着手時に「【X】を持つ…を対象とし」「か【」の OR 形を全数で数え直すこと。 |
+
+### ■ ここから残した生きている項目
+
+- **`O-94`②**（`WXDi-P14-068`＝配置制限 collector が通常召喚 UI の1箇所からしか呼ばれない）＝`src/screens/` を触るので遅いレーン。
+- **`O-151`(a)**（`PR-K026-E1`＝照応が文をまたぐ「それら…合わせて－18000」）＝`parseSentencePart4` の narrow catch-all はこの1件のために残してある。
+
+---
+
 ## 2026-08-29 整理（§6 恒久指標・続き719時点値の退避・続き723）
 
 - **2026-08-29 続き719 後（本行が直近の正）**：
