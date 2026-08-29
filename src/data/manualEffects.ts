@@ -7,6 +7,85 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 2026-08-30 §5.2 **カード単位バッチ 第1回**（`census` と `audit` が**両方**立つ86枚から）。
+  // 母集団の作り方＝`npm run census:cards -- --list` の `census,audit` かつ **`mech` が立たない**行
+  // （`mech`＝PLAN §5.3 に名指しされた機構待ち。同日に計器へ追加した＝188枚）。
+  // 🔑**3件とも受け皿は既存**＝新しい型・条件型・payload キーの新設は **0本**。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // PR-046 星占の巫女　リメンバ・ナイト
+  // 原文【起】《無》《無》**手札から白か青のシグニを１枚捨てる**：シグニ１体を対象とし、それを凍結する。
+  // 🔴旧＝`cost` が `energy:[無,無]` だけで、**手札コストが丸ごと無い**＝エナ2つで撃ち放題だった。
+  // 受け皿＝`cost.discard` ＋ `cost.discardFilter`（`effects.ts:638-639`）。色の OR は `color: string[]`（同797行）。
+  'PR-046': [
+    {
+      effectId: 'PR-046-E3',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: {
+        energy: [{ color: '無', count: 1 }, { color: '無', count: 1 }],
+        discard: 1,
+        discardFilter: { cardType: 'シグニ', color: ['白', '青'] },
+      },
+      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // SP27-010 火電一閃
+  // 原文②「カードを１枚引く。**このターンに対戦相手がスペルを使用していた場合、追加で**カードを１枚引く。」
+  // 🔴旧＝`SEQUENCE[DRAW 1, DRAW 1]`＝**条件なしで常に2枚引いていた**（過剰効果）。
+  // 受け皿＝`SPELL_USED_THIS_TURN{owner}`（`effects.ts:363`／`execUtils.ts:1950` が `actions_done` の
+  // `'USE_SPELL'` を数える）。⚠**この効果の owner は `opponent`**＝自分のスペル使用では成立しない。
+  // ⚠①③は旧のまま（③の「対象とし、〜の場合、バニッシュ」＝`CONDITIONAL{then:BANISH}` は既存の慣例エンコード）。
+  // ⚠アンコール注記が `cost` に出ないのは**偽陽性パターン**（PLAN 付録B-5）＝触らない。
+  'SP27-010': [
+    {
+      effectId: 'SP27-010-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN', 'ATTACK'],
+      cost: { energy: [{ color: '赤', count: 1 }] },
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 3,
+        choices: [
+          { choiceId: 'c0', label: '選択肢1', action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', level: { max: 2 }, excludeResona: true }, upToCount: false } } },
+          { choiceId: 'c1', label: '選択肢2', action: { type: 'SEQUENCE', steps: [
+            { type: 'DRAW', owner: 'self', count: 1 },
+            { type: 'CONDITIONAL', condition: { type: 'SPELL_USED_THIS_TURN', owner: 'opponent' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+          ] } },
+          { choiceId: 'c2', label: '選択肢3', action: { type: 'CONDITIONAL', condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: 0 }, then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 12000 } }, upToCount: false } } } },
+        ],
+      } as ChooseAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WDK05-T14 讃の遊　ユキガッセン
+  // 原文【出】：対戦相手のレベル３以下のシグニ１体を対象とし、**あなたのターンにこのシグニがデッキから場に出た場合**、それを手札に戻す。
+  // 🔴旧＝`BOUNCE` 無条件＝**手札から普通に召喚しても、相手ターンに出ても**バウンスしていた。
+  // 受け皿＝`IS_MY_TURN`（`effects.ts:491`）と `THIS_CARD_FROM_DECK`（同475／`execUtils.ts` が
+  // `signi_played_from_deck` を見る）を `AND`（同490）で束ねる。**3つとも既存**。
+  // ⚠発動条件（効果レベルの `condition`）に置く＝原文の「〜場合」は発動そのもののゲート。
+  'WDK05-T14': [
+    {
+      effectId: 'WDK05-T14-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      condition: { type: 'AND', conditions: [{ type: 'IS_MY_TURN' }, { type: 'THIS_CARD_FROM_DECK' }] },
+      action: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', level: { max: 3 } } }, optional: false },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
   // 2026-08-28 §5.3 `O-133` B群 第15バッチ＝**残る B群162効果を逐語移設して B を 0 にした**。
   // 🔑**いずれも「live が手作りで正・parser が別物を出す」型で、live 側の挙動バグではない**（凍っている＝live が動いている）。
   // **parser の欠陥のうち「凍っていない他カードにも効く systemic なもの」は本セッションで15本以上直した**（BUGFIXES.md 参照）。

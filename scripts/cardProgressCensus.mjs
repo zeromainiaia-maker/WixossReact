@@ -137,6 +137,27 @@ if (fs.existsSync('docs/_idset_fresh.json')) {
   for (const c of Object.keys(JSON.parse(fs.readFileSync('docs/_idset_fresh.json', 'utf-8')))) mark(c, 'idset');
 }
 
+// (6) 🆕**PLAN §5.3 の機構 worklist（`O-nn`）に名指しされているカード**（2026-08-30 続き736 新設）。
+//     ここに載るカードは「JSON を直すだけでは閉じられない＝engine/型に受け皿が要る」と判定済みなので、
+//     **カード単位のバッチから外して取る**（外さないと「調べ直して → 機構待ちと再確認 → 据置」に時間を使う。
+//     実測＝§5.2 Sheet2 バッチ6 は 54件の triage で 19件が既登録の機構待ちで、閉じられたのは6件だった）。
+// ⚠**この判定は下限**＝登録票は代表カードしか書いていないものが多い（「母集団未計測」が頻出）。
+//     **`mech` が立たない ≠ 機構待ちでない。** 開いた先で機構待ちと分かるカードは依然として出る。
+// ⚠**部分一致の罠**＝`WX24-P2` は `WX24-P2-009` の部分文字列なので、直後が英数字なら別カードとして弾く
+//     （`-E1` / `-BURST` のような接尾辞つき表記は同じカードなので拾う）。
+{
+  const planText = fs.readFileSync('docs/PLAN.md', 'utf-8');
+  const from = planText.indexOf('### 5.3'), to = planText.indexOf('### 5.4');
+  const sec53 = from >= 0 && to > from ? planText.slice(from, to) : '';
+  if (!sec53) console.error('⚠ PLAN.md の §5.3 節を切り出せなかった＝mech フラグは0件になる（節見出しが変わった可能性）');
+  for (const c of rows.keys()) {
+    for (let i = sec53.indexOf(c); i >= 0; i = sec53.indexOf(c, i + 1)) {
+      const next = sec53[i + c.length];
+      if (!next || !/[0-9A-Za-z]/.test(next)) { mark(c, 'mech'); break; }
+    }
+  }
+}
+
 // ── 集計（`--sheet` 指定時はすべてそのシートに帰属するカードだけ）──
 const all = [...rows.keys()].filter(inScope);
 const withText = all.filter(hasText);
@@ -163,9 +184,17 @@ console.log(`  （参考）STUB を含むカード   : ${stubCards.size}（STUB�
 console.log(`  held（parser 改善の未採用）  : ${byFlag('held')}`);
 console.log(`  partial（同上・MANUAL 混在） : ${byFlag('partial')}`);
 console.log(`  idset（id 集合ズレ＝§6.4 O-39）: ${byFlag('idset')}`);
+console.log(`  🆕mech（PLAN §5.3 に登録済み＝機構待ち）: ${byFlag('mech')}  ※JSON 修正では閉じない。開く前に §5.3 を読む（この判定は**下限**）`);
 console.log(`\n===== 束ねた現在地（${scopeLabel}）=====`);
 console.log(`  🎯要対応カード（フラグ1つ以上）: ${flagged.length} / ${withEffects.length}  (${pct(flagged.length, withEffects.length)})`);
 console.log(`  どのフラグも立たないカード     : ${clean.length} / ${withEffects.length}  (${pct(clean.length, withEffects.length)})`);
+{
+  // 🆕**バッチの取り出し口はここ**＝機構待ち（mech）を除いた「JSON 修正で閉じうる」母集団。
+  const actionable = flagged.filter(c => !flags.get(c).has('mech'));
+  const both = actionable.filter(c => flags.get(c).has('census') && flags.get(c).has('audit'));
+  console.log(`  🎯うち機構待ち(mech)を除く即着手可能   : ${actionable.length}`);
+  console.log(`     └ census と audit が**両方**立つ    : ${both.length}  ★2つの独立した検出器が一致＝最優先`);
+}
 if (!sheetArg) {
   console.log(`  意味照合監査を通したカード  : ${audited.size}（clean群）＋ 2401（stub群・PLAN 記載）= ${audited.size + 2401} / ${withEffects.length}  (${pct(audited.size + 2401, withEffects.length)})`);
 } else {
@@ -178,8 +207,9 @@ if (!sheetArg) {
 
 if (listMode) {
   console.log(`\n===== 要対応カード一覧（${scopeLabel}・${flagged.length}枚）=====`);
-  console.log('  ※次バッチはここから取る。フラグの並びは census / audit / held / partial / idset。');
-  const order = ['census', 'audit', 'held', 'partial', 'idset'];
+  console.log('  ※次バッチはここから取る。フラグの並びは census / audit / held / partial / idset / mech。');
+  console.log('  ※🆕mech が立つカードは PLAN §5.3 の機構待ち＝**バッチから外す**（`grep -v mech` で絞れる）。');
+  const order = ['census', 'audit', 'held', 'partial', 'idset', 'mech'];
   for (const c of flagged.sort()) {
     const fs_ = order.filter(f => flags.get(c).has(f));
     const name = (rows.get(c)?.CardName ?? '').trim();

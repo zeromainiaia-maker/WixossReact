@@ -29294,8 +29294,12 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
-    eq(eligible.length - conditional.length, 1396, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
-    eq(conditional.length, 58, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
+    // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
+    // **脱落していたトップレベル condition を復元**した分（原文「あなたのターンにこのシグニが
+    // デッキから場に出た場合」＝`AND{IS_MY_TURN, THIS_CARD_FROM_DECK}`）。上の 1404→1403→1401 と同型の移動で、
+    // **集合の総数（`eligible.length`=1454）は動かない**＝条件なし側から条件あり側へ1件移っただけ。
+    eq(eligible.length - conditional.length, 1395, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    eq(conditional.length, 59, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     eq(optionalCost.length, 961, '任意costあり（可変捨て4効果を action-local TRASH へ移した後）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
