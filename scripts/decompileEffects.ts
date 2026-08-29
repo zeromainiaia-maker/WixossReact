@@ -218,6 +218,7 @@ function filterJa(f?: any): string {
     if (f.costMin != null) parts.push(`コストの合計が${f.costMin}以上の`);
   }
   if (f.powerLteSelf) parts.push('このシグニのパワー以下の');
+  if (f.powerEqSelf) parts.push('このシグニと同じパワーの');
   if (f.powerLteSelfHalf) parts.push('このシグニのパワーの半分以下の');
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
   if (f.powerGtSelf) parts.push('このシグニよりパワーの高い');
@@ -597,6 +598,11 @@ function condJa(c?: any): string {
       return c.conditions.map(condJa).filter(Boolean).join('かつ');
     }
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
+    case 'SAME_ZONE_HAS_SEED': return '同じシグニゾーンに【シード】がある';
+    // ⚠**「アタックした」を落とさない**（2026-08-30 Claude 検証）＝
+    //   「このターンにシグニが4回以上」だけだと**何が4回なのか**が読めず、原文照合で差が見えない。
+    case 'ATTACK_ORDINAL_THIS_TURN':
+      return `このターンに${c.signiOnly ? 'シグニが' : 'ルリグかシグニが'}${numJa(c.value)}回${opJa(c.operator)}アタックしていた`;
     case 'FIELD_HAS_GATE': return `${ownerJa(c.owner)}場に【ゲート】がある`;
     case 'TURN_OWNER': return c.owner === 'opponent' ? '対戦相手のターンの間' : '自分のターンの間';
     // §6.3「正面」サブ機構(d): 効果元シグニの正面（2-zi）を条件にする型。
@@ -613,7 +619,7 @@ function condJa(c?: any): string {
     case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
     // 🆕§5.3 `O-65`：`DURING_ATTACK_PHASE` の対（【常】のメインフェイズ限定）。
     case 'DURING_MAIN_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}メインフェイズの間`;
-    case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${countPredicateJa(c.operator)}`;
+    case 'FIELD_COUNT': return `${ownerJa(c.owner)}場の${c.filter ? filterJa(c.filter) : ''}シグニが${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'DECK_COUNT_FILTER': return `${ownerJa(c.owner)}デッキに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
     case 'HAND_COUNT': return c.owner === 'any'

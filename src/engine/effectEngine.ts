@@ -643,6 +643,14 @@ export function checkActiveCondition(
       return (ownerState.own_gate_zones ?? []).includes(zi);
     }
 
+    case 'SAME_ZONE_HAS_SEED': {
+      // 期間つき付与の activeCondition でも、付与元シグニの現在ゾーンにある【シード】を毎回見る。
+      if (!sourceCardNum) return false;
+      const zi = ownerState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum);
+      if (zi < 0) return false;
+      return (ownerState.field.signi_seeds?.[zi] ?? null) !== null;
+    }
+
     case 'FIELD_HAS_GATE': {
       const gateState = cond.owner === 'self' ? ownerState : otherState;
       return (gateState.own_gate_zones ?? []).length > 0;

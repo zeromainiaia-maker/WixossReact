@@ -21766,8 +21766,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 61, 'ActiveCondition の型数（61＝§5.3 O-117 で PAID_COLORS_INCLUDE_ALL を追加）');
-  eq(Object.keys(C_TYPES).length, 133, 'Condition の型数（133＝§5.3 O-143 で CHECK_ZONE_COUNT を新設。132 は O-117 の PAID_COLORS_INCLUDE_ALL 時点）');
+  eq(Object.keys(AC_TYPES).length, 62, 'ActiveCondition の型数（62＝§5.2 Sheet3 バッチ1で SAME_ZONE_HAS_SEED を追加）');
+  eq(Object.keys(C_TYPES).length, 134, 'Condition の型数（134＝§5.2 Sheet3 バッチ1で SAME_ZONE_HAS_SEED を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -50109,7 +50109,9 @@ test('段2 第46バッチ 偽陽性／据置: 専用実行器と新機構待ち�
   const allColor = b43Live('WXK05-029-E1');
   eq(allColor.activeCondition, undefined, 'ALL_COLOR専用collectorへ一般条件を二重配線しない');
   ok(JSON.stringify(allColor).includes('ALL_COLOR'), 'ALL_COLOR専用実行器を維持');
-  for (const id of ['WXEX1-40-E1', 'WXDi-CP01-031-E1', 'WXDi-P11-003-E1', 'WXDi-P15-003-E1']) {
+  // WXEX1-40-E1 は §5.2 Sheet3 バッチ1で CONTINUOUS を閾値別に分割できる受け皿を
+  // engine 実測したため据置契約から外した。残る3件は引き続き部分条件を採用しない。
+  for (const id of ['WXDi-CP01-031-E1', 'WXDi-P11-003-E1', 'WXDi-P15-003-E1']) {
     const json = JSON.stringify(b43Live(id));
     ok(!json.includes('distinctName') && !json.includes('distinctColor') && !json.includes('distinctLevels'), `${id}: 部分条件を採用しない`);
   }
@@ -54112,6 +54114,172 @@ test('段2 Sheet2⑥ ON_TRASH「コストか効果によってシグニの下か
       `${id}: 原因限定が無いと**ライズで上が場を離れた等のルール処理**でも発火する`);
     eq(eff.triggerCondition?.fromZones?.[0], 'under_signi', `${id}: 出自は「シグニの下」（「場」ではない）`);
   }
+});
+
+// ── §5.2 Sheet3 バッチ1（2026-08-30）：発動条件の丸ごと脱落 ──
+const sheet3b1Fresh = (cardNum: string, effectId: string): CardEffect => {
+  const effect = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+};
+
+test('段2 Sheet3① fresh: A群の条件・分岐・可変CHOOSEを parser 出力で固定', () => withSavedCursor(() => {
+  const wx22 = sheet3b1Fresh('WX22-002', 'WX22-002-E2').action as SequenceAction;
+  eq(wx22.steps.length, 5, 'WX22-002-E2: 5色5枝');
+  for (const [index, color] of ['白', '赤', '青', '緑', '黒'].entries()) {
+    const branch = wx22.steps[index] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(branch.type, 'CONDITIONAL', `${color}: 枝ごとに条件を持つ`);
+    eq((branch.condition as Extract<Condition, { type: 'HAS_CARD_IN_FIELD' }>).filter.color, color, `${color}: 自分の場の色条件`);
+  }
+  const red = (wx22.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).then as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(red.target.filter?.color, undefined, '赤条件を相手BANISH対象へ誤付着させない');
+  eq(red.target.filter?.story, undefined, '相手の任意のシグニを対象にできる');
+
+  const ex148 = sheet3b1Fresh('WXEX1-48', 'WXEX1-48-E2').action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const count = ex148.condition as Extract<Condition, { type: 'FIELD_COUNT' }>;
+  eq(count.type, 'FIELD_COUNT', 'WXEX1-48-E2: 自分の場を数える');
+  eq(count.operator, 'eq', '「1体」はちょうど1体');
+  eq(count.filter?.isDown, true, 'ダウン状態だけを数える');
+  eq((ex148.then as Extract<EffectAction, { type: 'BANISH' }>).target.filter?.isDown, undefined,
+    '相手対象にダウン条件を付けない');
+
+  const atom10 = sheet3b1Fresh('WXEX1-40', 'WXEX1-40-E1');
+  const atom15 = sheet3b1Fresh('WXEX1-40', 'WXEX1-40-E1b');
+  eq((atom10.activeCondition as Extract<ActiveCondition, { type: 'TRASH_HAS_CARD' }>).minCount, 10, 'シグニ耐性は原子10種類');
+  eq((atom10.action as GrantProtectionAction).from?.join(','), 'シグニ', '10種類側はシグニ効果だけ');
+  eq((atom15.activeCondition as Extract<ActiveCondition, { type: 'TRASH_HAS_CARD' }>).minCount, 15, 'ルリグ耐性は原子15種類');
+  eq((atom15.action as GrantProtectionAction).from?.join(','), 'ルリグ', '15種類側はルリグ効果だけ');
+
+  const charm = sheet3b1Fresh('WXK07-028', 'WXK07-028-E1');
+  eq((charm.condition as Extract<Condition, { type: 'CHARM_COUNT' }>).value, 1, '発動にはチャーム1枚以上');
+  const choose = charm.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(choose.conditionChoose?.thenChooseCount, 2, 'チャーム3枚なら2つ');
+  eq(choose.conditionChoose?.thenUpTo, true, '2つ「まで」');
+  eq((choose.choices[1].action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>).target.owner, 'any', '選択肢2は双方のシグニ');
+  eq((choose.choices[2].condition as Extract<Condition, { type: 'CHARM_COUNT' }>).value, 3, '選択肢3はチャーム3枚条件');
+
+  const toy = sheet3b1Fresh('WXK03-050', 'WXK03-050-E1').action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq((toy.then as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>).remainder?.position, 'bottom',
+    'WXK03-050-E1: 外れ札の行き先はデッキの一番下（任意性は未機構で別契約）');
+}));
+
+test('段2 Sheet3① E2E: WX22-002 赤枝と WXEX1-48 は条件の成立・不成立を両方向で止める', () => withSavedCursor(() => {
+  const redAngel = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('赤') && (c.CardClass ?? '').includes('天使'));
+  const redBranch = (sheet3b1Fresh('WX22-002', 'WX22-002-E2').action as SequenceAction).steps[1];
+  const noAngel = executeAction(redBranch, mkCtx({ signi: [SIGNI, null, null] }, { signi: [SIGNI_L1, null, null] }, 'WX22-002'));
+  ok(noAngel.done, '赤天使なしならBANISH選択を出さない');
+  const hasAngel = executeAction(redBranch, mkCtx({ signi: [redAngel, null, null] }, { signi: [SIGNI_L1, null, null] }, 'WX22-002'));
+  ok(!hasAngel.done && hasAngel.pending.type === 'SELECT_TARGET', '赤天使ありなら任意の相手シグニをBANISH対象にする');
+
+  const ex148 = sheet3b1Fresh('WXEX1-48', 'WXEX1-48-E2').action;
+  const oneDown = executeAction(ex148, mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null], down: [true, false, false] }, { signi: [SIGNI_L3, null, null] }, 'WXEX1-48'));
+  ok(!oneDown.done && oneDown.pending.type === 'SELECT_TARGET', '自分のダウン状態がちょうど1体なら発動');
+  const twoDown = executeAction(ex148, mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null], down: [true, true, false] }, { signi: [SIGNI_L3, null, null] }, 'WXEX1-48'));
+  ok(twoDown.done, '自分のダウン状態が2体なら不発（gte化を防ぐ）');
+}));
+
+test('段2 Sheet3① E2E: WXEX1-40 の2閾値を CONTINUOUS collector が別々に読む', () => withSavedCursor(() => {
+  const atoms = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('原子'))
+    .filter((c, i, all) => all.findIndex(x => x.CardName === c.CardName) === i).slice(0, 15).map(c => c.CardNum);
+  eq(atoms.length, 15, '異なる名前の＜原子＞を15種類用意できる');
+  const freshEffects = parseCardEffects(cardMap.get('WXEX1-40')!);
+  const freshMap = new Map<string, CardEffect[]>([['WXEX1-40', freshEffects]]);
+  const state = mkState({ signi: ['WXEX1-40', atoms[0], null] });
+  state.trash = atoms.slice(0, 10);
+  ok(collectEffectImmuneSigni(state, mkState(), cardMap, freshMap, true, 'シグニ', SIGNI_L1).has(atoms[0]),
+    '10種類で＜原子＞は相手シグニ効果を受けない');
+  ok(!collectEffectImmuneSigni(state, mkState(), cardMap, freshMap, true, 'ルリグ', 'WX22-002').has(atoms[0]),
+    '10種類ではルリグ効果耐性はまだ付かない');
+  state.trash = atoms;
+  ok(collectEffectImmuneSigni(state, mkState(), cardMap, freshMap, true, 'ルリグ', 'WX22-002').has(atoms[0]),
+    '15種類でルリグ効果耐性も付く');
+}));
+
+test('段2 Sheet3① E2E: WXK07-028 はチャーム数で発動・選択数・選択肢3を切り替える', () => withSavedCursor(() => {
+  const effect = sheet3b1Fresh('WXK07-028', 'WXK07-028-E1');
+  const make = (charms: number) => {
+    const ctx = mkCtx({ signi: ['WXK07-028', SIGNI_L1, SIGNI_L2] }, {}, 'WXK07-028');
+    ctx.ownerState.field.signi_charms = [charms >= 1 ? SIGNI : null, charms >= 2 ? SIGNI_L3 : null, charms >= 3 ? SIGNI_L4 : null];
+    return ctx;
+  };
+  ok(!evalCondition(effect.condition!, make(0)), 'チャーム0枚では効果自体が不発');
+  ok(evalCondition(effect.condition!, make(1)), 'チャーム1枚なら効果は発動');
+  const one = executeAction(effect.action, make(1));
+  ok(!one.done && one.pending.type === 'CHOOSE', '1枚時は選択を提示');
+  if (!one.done && one.pending.type === 'CHOOSE') {
+    eq(one.pending.count, 1, '1枚時は1つ選ぶ');
+    eq(one.pending.options.find(o => o.id === 'c2')?.available, false, '1枚時は選択肢3を実行できない');
+  }
+  const three = executeAction(effect.action, make(3));
+  ok(!three.done && three.pending.type === 'CHOOSE', '3枚時も選択を提示');
+  if (!three.done && three.pending.type === 'CHOOSE') {
+    eq(three.pending.count, 2, '3枚時は2つまで');
+    eq(three.pending.upTo, true, '「まで」なので1つで確定できる');
+    eq(three.pending.options.find(o => o.id === 'c2')?.available, true, '3枚時だけ選択肢3を実行できる');
+  }
+}));
+
+test('段2 Sheet3① B群: powerEqSelf と SAME_ZONE_HAS_SEED は正負・参照不能を固定', () => withSavedCursor(() => {
+  const powerEffect = sheet3b1Fresh('WXK07-052', 'WXK07-052-E1');
+  const selfPower = cardMap.get('WXK07-052')!.Power;
+  const same = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WXK07-052' && c.Power === selfPower);
+  const different = findCard(c => c.Type === 'シグニ' && c.Power !== selfPower);
+  const exact = executeAction(powerEffect.action, mkCtx({ signi: ['WXK07-052', null, null] }, { signi: [same, different, null] }, 'WXK07-052'));
+  ok(!exact.done && exact.pending.type === 'SELECT_TARGET', '同じ実効パワーの対象だけ選択できる');
+  if (!exact.done && exact.pending.type === 'SELECT_TARGET') {
+    ok(exact.pending.candidates.includes(same), '同値は候補');
+    ok(!exact.pending.candidates.includes(different), '非同値は候補外');
+  }
+  const unresolved = executeAction(powerEffect.action, mkCtx({}, { signi: [same, different, null] }));
+  ok(unresolved.done, '効果元参照不能時は空ヒット（fail-closed）');
+
+  const seedEffect = sheet3b1Fresh('WXK05-053', 'WXK05-053-E1-G');
+  eq(seedEffect.condition?.type, 'SAME_ZONE_HAS_SEED', 'fresh の付与能力内に条件を保持');
+  const seedState = mkState({ signi: [null, 'WXK05-053', null] });
+  seedState.field.signi_seeds = [null, SIGNI, null];
+  const seedCtx = { ...mkCtx({}, {}, 'WXK05-053'), ownerState: seedState };
+  ok(evalCondition(seedEffect.condition!, seedCtx), '同じゾーンにシードがあれば Condition 成立');
+  ok(checkActiveCondition(seedEffect.condition as ActiveCondition, seedState, mkState(), true, cardMap, 'WXK05-053'),
+    '同じ盤面を ActiveCondition 経路でも成立（両評価器の3点セット）');
+  seedState.field.signi_seeds = [SIGNI, null, null];
+  ok(!evalCondition(seedEffect.condition!, seedCtx), '別ゾーンのシードでは不成立');
+  ok(!checkActiveCondition(seedEffect.condition as ActiveCondition, seedState, mkState(), true, cardMap, 'WXK05-053'),
+    'ActiveCondition も別ゾーンでは不成立');
+
+  const grantedMap = new Map<string, CardEffect[]>([['WXK05-053', parseCardEffects(cardMap.get('WXK05-053')!)]]);
+  seedState.field.signi_seeds = [null, SIGNI, null];
+  const granted = collectGrantedFromLayer(seedState, mkState(), true, grantedMap, cardMap).get('WXK05-053') ?? [];
+  eq(findEffectDeep(granted, 'WXK05-053-E1-G')?.condition?.type, 'SAME_ZONE_HAS_SEED',
+    '期間つき GRANT_FIELD_SIGNI_ABILITY を通っても条件を失わない');
+}));
+
+test('段2 Sheet3① C1: ATTACK_ORDINAL signiOnly はルリグアタックを数えない', () => withSavedCursor(() => {
+  const effect = sheet3b1Fresh('WXK06-023', 'WXK06-023-E1-G');
+  const cond = effect.condition as Extract<Condition, { type: 'ATTACK_ORDINAL_THIS_TURN' }>;
+  eq(cond.signiOnly, true, 'fresh の付与能力にシグニのみを刻む');
+  const holds = (signi: number, lrig: boolean) => {
+    const ctx = mkCtx({}, {}, 'WXK06-023');
+    ctx.ownerState.attacked_signi_ids = Array.from({ length: signi }, (_, i) => `attack-${i}`);
+    ctx.ownerState.lrig_has_attacked = lrig;
+    return evalCondition(cond, ctx);
+  };
+  ok(holds(4, false), 'シグニ4回で成立');
+  ok(!holds(3, true), 'シグニ3回＋ルリグ1回では不成立');
+  ok(holds(4, true), 'シグニ4回ならルリグの有無にかかわらず成立');
+}));
+
+test('段2 Sheet3① 見送り契約: A5/C2/C3 は表せない軸を見せかけ実装しない', () => {
+  const a5 = sheet3b1Fresh('WXEX2-03', 'WXEX2-03-E1');
+  const granted = (a5.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).abilities;
+  eq(granted.length, 1, 'A5: 場＋トラッシュだけを表す target が無いため第2引用能力は据置');
+  ok((a5.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).rawText?.includes('場とトラッシュ'),
+    'A5: 未実装原文を rawText から消さない');
+  const c2 = sheet3b1Fresh('WXK07-048', 'WXK07-048-E1');
+  eq(c2.triggerCondition?.banishedHadCharm, undefined,
+    'C2: self ON_BANISH 枝が banishedHadCharm を読まない間は死フラグを載せない');
+  const c3 = sheet3b1Fresh('WX22-047', 'WX22-047-E1');
+  ok(!JSON.stringify(c3).includes('powerDiffersFromPrinted'),
+    'C3: 印刷パワー≠実効パワーの受け皿が無いので据置');
 });
 
 if (listMode) {

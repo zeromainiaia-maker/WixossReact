@@ -7842,6 +7842,154 @@ function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void
   if (cardNum === 'WX22-038') { const e = find('WX22-038-E1'); if (e?.action.type === 'SEARCH') { e.action.filter = { cardType: 'スペル', costMin: 2 }; gate(e.effectId, trash('原子', 7, true)); } }
 }
 
+// §5.2 Sheet3 バッチ1（2026-08-30）：原文の発動条件が対象フィルタへ誤付着、または
+// 並列節・引用能力の内側で脱落した効果を、既存の条件語彙へ戻す。
+// 一般の SEQUENCE へ条件を配ると別文型まで変えるため、原文照合済み effectId を単一チョークポイントにする。
+function applyStage2Sheet3Batch1(cardNum: string, effects: CardEffect[]): void {
+  const find = (id: string) => effects.find(e => e.effectId === id);
+  const findDeep = (id: string, list: readonly CardEffect[] = effects): CardEffect | undefined => {
+    for (const effect of list) {
+      if (effect.effectId === id) return effect;
+      const abilities = (effect.action as { abilities?: CardEffect[] }).abilities;
+      if (abilities) {
+        const hit = findDeep(id, abilities);
+        if (hit) return hit;
+      }
+    }
+    return undefined;
+  };
+  const fieldAngel = (color: string): Condition => ({
+    type: 'HAS_CARD_IN_FIELD', owner: 'self',
+    filter: { cardType: 'シグニ', color, story: '天使' },
+  });
+
+  if (cardNum === 'WX22-002') {
+    const effect = find('WX22-002-E2');
+    if (effect?.action.type === 'SEQUENCE' && effect.action.steps.length === 5) {
+      const colors = ['白', '赤', '青', '緑', '黒'];
+      effect.action.steps = effect.action.steps.map((step, index) => {
+        if (index === 0 && step.type === 'CONDITIONAL') return step;
+        if (index === 1 && step.type === 'BANISH') {
+          step.target.filter = { cardType: 'シグニ' };
+        }
+        return { type: 'CONDITIONAL', condition: fieldAngel(colors[index]), then: step };
+      });
+    }
+  }
+
+  if (cardNum === 'WXEX1-48') {
+    const effect = find('WXEX1-48-E2');
+    if (effect?.action.type === 'BANISH') {
+      effect.action.target.filter = { cardType: 'シグニ' };
+      effect.action = {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 1,
+          filter: { cardType: 'シグニ', isDown: true },
+        },
+        then: effect.action,
+      };
+    }
+  }
+
+  if (cardNum === 'WXEX1-40') {
+    const effect = find('WXEX1-40-E1');
+    if (effect?.effectType === 'CONTINUOUS' && effect.action.type === 'GRANT_PROTECTION'
+        && !find('WXEX1-40-E1b')) {
+      const atomTrash = (minCount: number): ActiveCondition => ({
+        type: 'TRASH_HAS_CARD', owner: 'self', minCount, distinctName: true,
+        filter: { cardType: 'シグニ', story: '原子' },
+      });
+      effect.activeCondition = atomTrash(10);
+      effect.action = { ...effect.action, from: ['シグニ'] };
+      effects.push({
+        ...effect,
+        effectId: 'WXEX1-40-E1b',
+        activeCondition: atomTrash(15),
+        action: { ...effect.action, from: ['ルリグ'] },
+      });
+      splitBandSourceText(effect.effectId, 'WXEX1-40-E1b', /[、,]\s*[０-９\d]+種類以上あるかぎり/);
+    }
+  }
+
+  if (cardNum === 'WXK07-028') {
+    const effect = find('WXK07-028-E1');
+    if (effect) {
+      const charmCount = (value: number): Condition => ({
+        type: 'CHARM_COUNT', owner: 'self', operator: 'gte', value,
+      });
+      effect.condition = charmCount(1);
+      // fresh は3択全体を RULE_REMINDER_TEXT に潰していたため、live の正しい選択肢を土台に
+      // 条件・対象所有者・可変選択数をすべて明示する（カード本文 regex は使わない）。
+      effect.action = {
+        type: 'CHOOSE', choose_count: 1, from_count: 3,
+        conditionChoose: { condition: charmCount(3), thenChooseCount: 2, thenUpTo: true },
+        choices: [
+          {
+            choiceId: 'c0', label: '選択肢1',
+            action: {
+              type: 'SEQUENCE', steps: [
+                {
+                  type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'any', count: 1 },
+                  delta: 3000, duration: 'UNTIL_END_OF_TURN',
+                },
+                {
+                  type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'any', count: 1 },
+                  keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN', targetsLastProcessed: true,
+                },
+              ],
+            },
+          },
+          {
+            choiceId: 'c1', label: '選択肢2',
+            action: {
+              type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'any', count: 1 },
+              keyword: 'バニッシュされない', duration: 'UNTIL_END_OF_TURN',
+            },
+          },
+          {
+            choiceId: 'c2', label: '選択肢3', condition: charmCount(3),
+            action: {
+              type: 'BANISH',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+            },
+          },
+        ],
+      };
+    }
+  }
+
+  if (cardNum === 'WXK03-050') {
+    const effect = find('WXK03-050-E1');
+    const reveal = effect?.action.type === 'CONDITIONAL' ? effect.action.then : undefined;
+    // 任意で置く受け皿は未実装。行き先だけ原文どおり bottom に直し、任意性は台帳で開いたままにする。
+    if (reveal?.type === 'REVEAL_AND_PICK' && reveal.remainder?.location === 'deck') {
+      reveal.remainder.position = 'bottom';
+    }
+  }
+
+  if (cardNum === 'WXK07-052') {
+    const effect = find('WXK07-052-E1');
+    if (effect?.action.type === 'BANISH') {
+      effect.action.target.filter = { ...(effect.action.target.filter ?? {}), powerEqSelf: true };
+    }
+  }
+
+  if (cardNum === 'WXK05-053') {
+    const granted = findDeep('WXK05-053-E1-G');
+    if (granted) granted.condition = { type: 'SAME_ZONE_HAS_SEED' };
+  }
+
+  if (cardNum === 'WXK06-023') {
+    const granted = findDeep('WXK06-023-E1-G');
+    if (granted) {
+      granted.condition = {
+        type: 'ATTACK_ORDINAL_THIS_TURN', owner: 'self', operator: 'gte', value: 4, signiOnly: true,
+      };
+    }
+  }
+}
+
 // 段2 第14バッチ：
 // 「あなたの場に＜クラス＞のシグニがある場合／あるかぎり」が対象句へ吸われる文型を、
 // 原文照合済みの効果だけ既存 HAS_CARD_IN_FIELD へ戻す。汎用の story 抽出を緩めると
@@ -21932,6 +22080,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
+  applyStage2Sheet3Batch1(card.CardNum, effects);
   applyFieldStoryConditionBatch14(card.CardNum, effects);
   applyConditionalLookPickWave11(card.CardNum, effects);
   applyLookPickProportionalDiscardWave12(card.CardNum, effects);

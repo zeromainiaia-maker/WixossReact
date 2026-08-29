@@ -261,6 +261,7 @@ export type ActiveCondition =
   //   `Condition` 側に同型が既にあるので**両評価器を揃える**（PLAN §4.2 の3点セット）。
   | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string }
   | { type: 'SAME_ZONE_HAS_GATE' }                              // このシグニと同じシグニゾーンにTHE DOOR【ゲート】があるかぎり（own_gate_zones）
+  | { type: 'SAME_ZONE_HAS_SEED' }                              // このシグニと同じシグニゾーンに【シード】があるかぎり（signi_seeds）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                    // 指定プレイヤーの場にTHE DOOR【ゲート】があるかぎり（own_gate_zones が非空）
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number } // エナゾーンにレベル帯の各レベルごとに一致カードがN枚以上あるかぎり
@@ -303,7 +304,7 @@ export type Condition =
   | { type: 'TURN_OWNER'; owner: 'self' | 'opponent' }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count?: number; filter?: TargetFilter } // count 省略＝場にいる全シグニ間で共通色なし。指定時は従来のN体条件（§6.4 O-11）
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
-  | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
+  | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; filter?: TargetFilter; operator: CompareOp; value: NumberOrRef }
   | { type: 'DECK_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'DECK_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef } // デッキ内のfilter一致枚数（選択肢availabilityにも使用。WX20-053）
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
@@ -423,7 +424,7 @@ export type Condition =
   //   ON_ATTACK_SIGNI を収集するので、一度目のアタックの解決時点で既に 1 になっている。
   // ⚠「一度目**か二度目**」（`WX10-018`／`WX17-006`／`SP27-016`）は**別機構**＝`negateNthAttack` の
   //   カウントダウン窓が既に実装済み。ここで拾わないこと（regex は「N度目の場合」に限定してある）。
-  | { type: 'ATTACK_ORDINAL_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }
+  | { type: 'ATTACK_ORDINAL_THIS_TURN'; owner: Owner; operator: CompareOp; value: number; signiOnly?: boolean }
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; owner?: Owner; value: number }  // このターンに owner（省略=self）が手札をN枚以上捨てている場合。⚠ActiveCondition 側にも同型あり＝両方揃えて更新すること
   | { type: 'SIGNI_BANISHED_THIS_TURN'; owner: Owner; minCount?: number }  // このターンに owner のシグニがN体以上バニッシュされていた場合（signi_banished_this_turn。省略=1）
@@ -508,6 +509,7 @@ export type Condition =
   | { type: 'ACTIVATED_DISCARD_COUNT_GTE'; value: number }    // 直前の【起】コストで捨てた合計枚数（手札+エナ）≥ N
   | { type: 'OPP_LIFE_CRASH_EVENT_GTE'; value: number }       // 今回の相手ライフクラッシュイベントで同時にN枚以上クラッシュされた場合（ダブルクラッシュ判定。ON_OPP_LIFE_CRASHED収集時に専用評価）
   | { type: 'SAME_ZONE_HAS_GATE' }                            // このシグニと同じシグニゾーンにTHE DOOR【ゲート】がある場合（own_gate_zones）
+  | { type: 'SAME_ZONE_HAS_SEED' }                            // このシグニと同じシグニゾーンに【シード】がある場合（signi_seeds）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                  // 指定プレイヤーの場にTHE DOOR【ゲート】がある場合（own_gate_zones が非空）
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' }       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
   | { type: 'DECK_TOP_SHARES_COLOR_WITH_LRIG'; owner: Owner } // デッキの一番上のカードと共通する色を持つルリグ（センター/アシスト）が場にいる場合（G157）
@@ -545,7 +547,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
-  LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
+  LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
   OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true, PAID_COLORS_INCLUDE_ALL: true,
@@ -585,7 +587,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED: true, LAST_PROCESSED_LEVEL_SUM: true,
   TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true,
   ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
-  HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true,
+  HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true,
   FIELD_HAS_GATE: true, NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN: true, DECK_TOP_SHARES_COLOR_WITH_LRIG: true,
   FIELD_SIGNI_ALL_DISTINCT_CLASS: true, FIELD_SIGNI_SHARE_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
   LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
@@ -859,6 +861,7 @@ export interface TargetFilter {
   levelLteLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベル以下。参照不能時は空ヒット
   levelEqSelf?: boolean; // 効果元カード（付与先ルリグを含む）の表記レベルと一致。参照不能時は空ヒット
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。resolveDynamicFilterがpowerRange.maxへ解決）
+  powerEqSelf?: boolean;  // 効果元シグニと同じ実効パワー（resolveDynamicFilterがpowerRange.min/maxへ解決。参照不能時は空ヒット）
   // 効果元の実効パワーはバフ／デバフで実行時に変わるため、静的な powerRange には焼き込めない。
   powerLteSelfHalf?: boolean; // 効果元シグニの実効パワーの半分以下（resolveDynamicFilterがpowerRange.maxへ解決）
   powerLtSelf?: boolean;  // 効果元シグニの実効パワーより低い（「このシグニ/自身よりパワーの低い」。resolveDynamicFilterがpowerRange.maxへ解決）

@@ -1783,9 +1783,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const colors = new Set(nums.flatMap(n => splitColors(ctx.cardMap.get(getCardNum(n))?.Color)));
       return cmp(colors.size, cond.operator, cond.value);
     }
-    case 'FIELD_COUNT':
-      return cmp(st(cond.owner).field.signi.filter(s => s && s.length > 0).length,
-        cond.operator, resolveNum(cond.value));
+    case 'FIELD_COUNT': {
+      const fieldStates = cond.owner === 'any' ? [s, o] : [st(cond.owner)];
+      const filter = { ...(cond.cardType ? { cardType: cond.cardType } : {}), ...(cond.filter ?? {}) };
+      const count = fieldStates.reduce((total, fst) => total + fst.field.signi.reduce((n, stack, zoneIdx) => {
+        const top = stack?.at(-1);
+        if (!top) return n;
+        if (filter.isDown !== undefined && (fst.field.signi_down?.[zoneIdx] ?? false) !== filter.isDown) return n;
+        return n + (matchesFilter(ctx.cardMap.get(getCardNum(top)), filter, ctx.effectivePowers?.get(top)) ? 1 : 0);
+      }, 0), 0);
+      return cmp(count, cond.operator, resolveNum(cond.value));
+    }
     case 'DECK_COUNT':
       return cmp(st(cond.owner).deck.length, cond.operator, resolveNum(cond.value));
     case 'DECK_COUNT_FILTER': {
@@ -2200,7 +2208,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // ⚠アタックフェイズを追加するカードがあるので上限は決め打ちしない。
     case 'ATTACK_ORDINAL_THIS_TURN': {
       const stAO = st(cond.owner);
-      const nAO = (stAO.attacked_signi_ids ?? []).length + (stAO.lrig_has_attacked ? 1 : 0);
+      const nAO = (stAO.attacked_signi_ids ?? []).length + (cond.signiOnly ? 0 : stAO.lrig_has_attacked ? 1 : 0);
       return cmp(nAO, cond.operator, cond.value);
     }
     case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
@@ -2267,6 +2275,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const zi = s.field.signi.findIndex(z => z?.at(-1) === src);
       if (zi < 0) return false;
       return (s.own_gate_zones ?? []).includes(zi);
+    }
+    case 'SAME_ZONE_HAS_SEED': {
+      // このシグニ（sourceCardNum）と同じシグニゾーンに【シード】がある場合。
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zi = s.field.signi.findIndex(z => z?.at(-1) === src);
+      if (zi < 0) return false;
+      return (s.field.signi_seeds?.[zi] ?? null) !== null;
     }
     case 'FIELD_HAS_GATE':
       return (st(cond.owner).own_gate_zones ?? []).length > 0;

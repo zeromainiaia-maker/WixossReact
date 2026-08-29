@@ -2655,6 +2655,18 @@ function resolveDynamicFilter(
       : NaN;
     result = !isNaN(level) ? { ...rest, level } : noMatch(rest);
   }
+  // powerEqSelf: 効果元シグニの実効パワーと同値。参照不能時は空ヒットへ倒す。
+  // 既存 powerLteSelf 系は歴史的に fail-open だが、新設の同値条件は無制限化すると過剰実行になる。
+  if (result.powerEqSelf) {
+    const { powerEqSelf: _eq, ...rest } = result;
+    const selfPower = sourceCardNum
+      ? (effectivePowers?.get(sourceCardNum)
+        ?? parseInt(cardMap.get(getCardNum(sourceCardNum))?.Power ?? '', 10))
+      : NaN;
+    result = Number.isFinite(selfPower)
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), min: selfPower, max: selfPower } }
+      : noMatch(rest);
+  }
   // powerLteSelf / powerLteSelfHalf / powerLtSelf / powerGtSelf: 効果元シグニの実効パワーを基準に powerRange へ解決
   // （「このシグニ/自身よりパワーの低い・高い」。参照不能ならフラグを外すだけ＝制限なしにフォールバック）
   if ((result.powerLteSelf || result.powerLteSelfHalf || result.powerLtSelf || result.powerGtSelf) && sourceCardNum) {

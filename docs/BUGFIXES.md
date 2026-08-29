@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：§5.2 Sheet3 バッチ1＝発動条件が落ちて無条件実行される効果を是正（13 finding）
+
+Sheet3 の指定11効果を原文・live・消費地点まで再照合し、**8効果を採用、3効果を機構不足で据置、1効果を部分採用、1効果の既存正実装を偽陽性と確認**した。台帳は段2 **660→673**、残 OPEN **460→447**。
+
+- `WX22-002-E2`：白だけに付いていた `HAS_CARD_IN_FIELD` を赤・青・緑・黒の4枝にも付与し、赤枝の対象へ誤付着した色・クラスを除去。
+- `WXEX1-48-E2`：相手対象の `isDown` を外し、自分の場のダウン状態シグニが**ちょうど1体**という `FIELD_COUNT{operator:'eq'}` へ移動。
+- `WXEX1-40-E1`：無条件のシグニ／ルリグ耐性を、原子10種類・15種類の `TRASH_HAS_CARD{distinctName:true}` を持つCONTINUOUS 2本へ分割。
+- `WXK07-028-E1`：チャーム1枚の外側条件、3枚なら2つまで選ぶ可変選択、選択肢②の双方対象、選択肢③のチャーム3枚条件を復元。
+- `WXK03-050-E1`：外れ札の戻し先をデッキ上から下へ修正。ただし「置いてもよい」の任意性は受け皿がなく、finding はOPENのまま。
+- `WXK07-052-E1`：`powerEqSelf` を `powerLteSelf` と同じ動的フィルタ解決経路へ追加。参照不能時は空ヒット（fail-closed）。
+- `WXK05-053-E1-G`：`SAME_ZONE_HAS_SEED` を Condition／ActiveCondition・両評価器へ追加。
+- `WXK06-023-E1-G`：既存 `ATTACK_ORDINAL_THIS_TURN` に `signiOnly` を追加し、ルリグアタックを数えず自分のシグニ4回以上だけで成立。
+
+`WXEX2-03-E1` は `REMOVE_ABILITIES.allZones` が手札・エナまで含み「場とトラッシュ」だけを表せないため、`WXK07-048-E1` は自己ON_BANISH経路が除去前チャームを読まないため、`WX22-047-E1` は印刷パワーと実効パワーの差を見るフィルタが無いため据置。`WXK07-028-E1` の＋3000 finding は live に既に存在する偽陽性。
+
+検証は `npm run regen` と `npm run gates` を実行し、**golden 3037/0、smoke 10705全0、fuzz全0、census 481→477、census:enginetext 131行/128ハンドラ、lint 0 errors/249 warnings、同型★0**。fresh規則を外す反転確認でも新規 fresh assert が赤になることを確認した。live A/B は変更8 effectId＋分割追加1 effectId、outlier 0。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_sheet3_batch1_report.md`。
+
+### 🔎 Claude 側の独立検証（Codex の報告を鵜呑みにしない・CODEX_GUIDE §7）
+
+**差し戻し0・是正1（逆翻訳の文言）。** Codex の数値申告は**全項目が独立実行と一致**した。
+
+- **ゲート独立実行**＝golden 3037/0・census 高シグナル 477/477・smoke 全0・fuzz 全0・lint 249 warnings/0 errors・
+  `census:enginetext` 131行/128ハンドラ（**すべて申告どおり**）。
+- **per-effect A/B（ベースライン `e31decf00` と比較）**＝**changed 8 / added 1 / removed 0 / outlier 0**。申告と一致。
+  ⚠**`HEAD` ではなくベースライン SHA と比較した**（今回は自動コミットフックが発火せず HEAD＝ベースラインだった）。
+- 🔑**census −4 の中身を集合で確認した**＝消えたのは `WXEX1-48-E2` / `WXK03-050-E1` / `WXK05-053-E1` / `WXK07-028-E1` の
+  **4件ちょうどで、新規流入は0**。**8効果とも `parseStatus` は `AUTO` のまま**＝
+  **MANUAL 免除で計器から消したのではなく、実際に語彙が入ったことによる真の改善**（§2.0 の「移設だけ」ではない）。
+- **新設した型の消費地点を4本とも実コードで確認した**（§7「新規追加された型/フィールドを engine が実際に評価しているか」）＝
+  `SAME_ZONE_HAS_SEED`→`execUtils.evalCondition` ＋ `effectEngine.checkActiveCondition`（**両評価器**）／
+  `powerEqSelf`→`resolveDynamicFilter`／`FIELD_COUNT.filter`・`signiOnly`→`evalCondition`。**死にフィールドは0本。**
+- 🔴**`FIELD_COUNT` は既存条件の評価式そのものが変わった**（「空でないゾーン数」→「トップ札を `matchesFilter`」）ので
+  **影響面を live 全体で数えた**＝**使用は11箇所しかなく、既存10箇所は `cardType` も `filter` も `owner:'any'` も使っていない**
+  ＝フィルタ省略時は従来と同じ挙動に落ちる。⚠**ただし `matchesFilter` は `card` を引けないと `false` を返す**ので、
+  `cardMap` に無いトップ札があれば数えなくなる（`getCardNum` でインスタンス接尾辞は剥がれるため実害は確認できず）。
+- **選択UIのソフトロックを確認した**（§5.2 の既知の罠）＝`WXK07-028-E1` が使う `conditionChoose{thenUpTo}` は
+  **既に live 11効果が使っている共有経路**で、`EffectInteractionModal` は `inter.upTo ? true : …` で
+  **少ない選択数でも確定できる**（同ファイル 642行）。**新しい詰み経路は増えていない。**
+- **是正1件**＝`ATTACK_ORDINAL_THIS_TURN` の逆翻訳が「このターンにシグニが4回以上**の場合**」で
+  **何が4回なのかが読めなかった**ので「〜4回以上**アタックしていた**場合」へ直した（`scripts/decompileEffects.ts`）。
+
+### ⚠ 実機（§2.2）＝新しい条件型を足したので走らせた。**FAIL 2件は本バッチの退化ではない**
+
+**`centerZoneOnlyPicker` は PASS**（付与能力＋ゾーン条件＝`WXK05-053`／`WXK06-023` に最も近い経路）。
+**`wx17040ConditionsTrueExecuteAll` と `wx17040ConditionsFalseNoop` は FAIL** したが、
+🔑**`git stash` してベースライン `e31decf00` で同じ2本を回したら同じく FAIL した**＝**投入前から赤**。
+しかも**実行ごとに停止段階が変わる**（`gateChecked=true picked=true confirmed=false` ↔ `gateChecked=false picked=false`）＝
+**ドライバ側の待ち/セレクタの腐り**で、対象カード `WX17-040`（Sheet2）は**今回の差分に含まれていない**。
+⇒ **本バッチのスコープ外**として §5.1 へ `V-93` で登録した（切り分け済みの証拠つき）。
+⚠**「実機が赤いから差し戻す」を避けられたのは、ベースラインで同じシナリオを回したから**＝
+**実機 FAIL を見たら、まず投入前 SHA で同じシナリオを回す。**
+
+
 ## 2026-08-30：§5.2 Sheet2 バッチ6（速いレーン）＝台帳の残 OPEN から **11 finding** を消化（Sheet2 54→43・全体 472→461）
 
 **真因は1つ＝「受け皿は既に在るのに、parser が別の場所へ載せている／原因限定を落としている」。新しい型・条件型は0本。**
