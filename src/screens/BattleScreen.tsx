@@ -2826,11 +2826,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, hostState: h, guestState: g };
   };
 
-  // ON_DECK_SHUFFLED をスタックを経由しないインライン解決（スペル＝handleCutinPass／pending効果 resume＝
-  // handleEffectInteraction）で検出する共有ヘルパー。resolveStackNext の中央 diff（deck_shuffled_count
-  // before/after）はスタック解決のみを通るため、スペル/resume はこれを呼んで ON_DECK_SHUFFLED を拾う。
+  // ON_DECK_SHUFFLED を検出する共有ヘルパー（deck_shuffled_count の before/after 差分）。
   // before は bs.host_state/guest_state。entries（スタックへ積む）と once_per_turn の actions_done を反映した
   // host/guest を返す（呼び出し側で update.host_state/guest_state に反映する）。
+  // ⚠**呼び出し元は中央 diff（`collectBoardDiffTriggers`）1箇所だけ**＝2026-08-29 の §5.3 `O-135` で
+  //   スペル解決経路（`handleCutinPass`）を中央 diff へ一本化したため、こちらの直呼びは無くなった。
   const collectDeckShuffleInline = (
     afterHost: PlayerState,
     afterGuest: PlayerState,
@@ -2849,40 +2849,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         else g = { ...g, actions_done: [...(g.actions_done ?? []), ...ds.usedOncePerTurnIds] };
       }
     }
-    return { entries, hostState: h, guestState: g };
-  };
-
-  /**
-   * ON_REFRESH をスタックを経由しないスペル解決経路でインライン収集する（§5.1 `V-91`・2026-08-28）。
-   *
-   * 🔴**スペル解決経路は中央 diff（`collectBoardDiffTriggers`）を1度も通らない。**
-   *   隣の `collectDeckShuffleInline` が「スタック解決を経由しないスペル解決経路は中央 diff を
-   *   通らないためここで拾う」と書いているとおりで、**同じ穴が ON_REFRESH にも空いていた**
-   *   （§5-15＝「同型の配線が複数箇所に要るとき1箇所で満足する」の再発）。
-   *   実機で `WX09-Re06`（このターン最初のリフレッシュで相手ライフをクラッシュ）を撃つと、
-   *   **リフレッシュは起きる（deck 1→4・trash 4→2）のに設置が消費されず何も起きなかった**。
-   * ⚠`once`（「このターン**最初の**リフレッシュ」）の消費まで含めて中央 diff と同じ規約に揃える。
-   * ⚠**残りのトリガー族（バニッシュ／トラッシュ／ミル等）は依然このスペル経路を通らない**＝
-   *   全面配線は §5.3 `O-135` へ登録した（回帰が広いので専用の巡が要る）。
-   */
-  const collectRefreshInline = (
-    afterHost: PlayerState,
-    afterGuest: PlayerState,
-  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
-    const refreshHost = countRefresh(bs.host_state, afterHost);
-    const refreshGuest = countRefresh(bs.guest_state, afterGuest);
-    if (refreshHost <= 0 && refreshGuest <= 0) return { entries: [], hostState: afterHost, guestState: afterGuest };
-    let h = afterHost, g = afterGuest;
-    const entries: StackEntry[] = [];
-    const rfH = collectRefreshTriggers(bs.host_id, h, g, refreshHost, refreshGuest);
-    entries.push(...rfH.entries);
-    if (rfH.usedOncePerTurnIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...rfH.usedOncePerTurnIds] };
-    const rfG = collectRefreshTriggers(bs.guest_id, g, h, refreshGuest, refreshHost);
-    entries.push(...rfG.entries);
-    if (rfG.usedOncePerTurnIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...rfG.usedOncePerTurnIds] };
-    // `once` 遅延 watcher は発火した側だけ設置を消費する（中央 diff と同じ規約）。
-    if (rfH.firedOnceDelayed) h = consumeOnceDelayedTriggers(h, 'ON_REFRESH');
-    if (rfG.firedOnceDelayed) g = consumeOnceDelayedTriggers(g, 'ON_REFRESH');
     return { entries, hostState: h, guestState: g };
   };
 
@@ -7967,70 +7933,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       let hostState  = casterIsHost ? casterAfter : result.otherState;
       let guestState = casterIsHost ? result.otherState : casterAfter;
-      // ON_PLAY（any_ally/any・効果配置）: スペル効果で新たに場に出たシグニへの他シグニの反応（G145「他のシグニが効果で場に出たとき」等）。
-      // ソースはスペルのため placeSourceIsSigni=false（bySigniEffect は非発火、byEffect は発火）。
-      if (result.done) {
-        const spellPlaceSourceIsSigni = battleCardMap.get(card_num)?.Type === 'シグニ';
-        const selfOnPlayOpts = fieldPlacementOnPlayOpts(spellEff);
-        // 開花（【シード】→シグニ）は「場に出た」扱いではないため ON_PLAY から除外し、ON_BLOOM として別収集する。
-        const hostBloomedSU  = detectBloomedSigni(bs.host_state, hostState);
-        const guestBloomedSU = detectBloomedSigni(bs.guest_state, guestState);
-        const bloomedSetSU = new Set<string>([...hostBloomedSU, ...guestBloomedSU,
-          ...detectFacedownFlipped(bs.host_state, hostState), ...detectFacedownFlipped(bs.guest_state, guestState)]);
-        // usageLimit 消費は収集の合間に actions_done へ畳み込む（次の収集が見て再発火を止める）。
-        const useSU = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
-          if (r.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...r.usedHostIds] };
-          if (r.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...r.usedGuestIds] };
-        };
-        for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
-          if (bloomedSetSU.has(placedNum)) continue;
-          const placedFromZone = detectPlacedFromZone(bs.host_state, placedNum, hostState);
-          if (selfOnPlayOpts.collectPlacedSelfOnPlay) {
-            const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, hostState, guestState, bs.host_id, {
-              placedByEffect: true,
-              sourceIsSigni: spellPlaceSourceIsSigni,
-              suppressOnPlay: selfOnPlayOpts.suppressOnPlay,
-              placedFromZone,
-            });
-            spellUseEntries.push(...self.entries); useSU(self);
-          }
-          const ft = collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni, placedFromZone });
-          spellUseEntries.push(...ft.entries); useSU(ft);
-        }
-        for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
-          if (bloomedSetSU.has(placedNum)) continue;
-          const placedFromZone = detectPlacedFromZone(bs.guest_state, placedNum, guestState);
-          if (selfOnPlayOpts.collectPlacedSelfOnPlay) {
-            const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, guestState, hostState, bs.guest_id, {
-              placedByEffect: true,
-              sourceIsSigni: spellPlaceSourceIsSigni,
-              suppressOnPlay: selfOnPlayOpts.suppressOnPlay,
-              placedFromZone,
-            });
-            spellUseEntries.push(...self.entries); useSU(self);
-          }
-          const ft = collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni, placedFromZone });
-          spellUseEntries.push(...ft.entries); useSU(ft);
-        }
-        for (const bloomedNum of hostBloomedSU) {
-          const bl = collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id);
-          spellUseEntries.push(...bl.entries); useSU(bl);
-        }
-        for (const bloomedNum of guestBloomedSU) {
-          const bl = collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id);
-          spellUseEntries.push(...bl.entries); useSU(bl);
-        }
-        // ON_DECK_SHUFFLED: スペル効果がインラインで完了し（SEARCH の afterSearch 等）デッキがシャッフルされた場合。
-        // スタック解決（resolveStackNext）を経由しないスペル解決経路は中央 diff を通らないためここで拾う。
-        const dsInlineSU = collectDeckShuffleInline(hostState, guestState);
-        if (dsInlineSU.entries.length > 0) { spellUseEntries.push(...dsInlineSU.entries); hostState = dsInlineSU.hostState; guestState = dsInlineSU.guestState; }
-        // ON_REFRESH: スペルでデッキが0枚になり `applyRefreshOnDone` がリフレッシュした場合（§5.1 `V-91`）。
-        // ⚠`hostState`/`guestState` は上の ON_DECK_SHUFFLED 収集で `actions_done` が伸びうるので、
-        //   **その後の値**を渡す（before は両方とも `bs.*_state` なので二重に数えない）。
-        const rfInlineSU = collectRefreshInline(hostState, guestState);
-        if (rfInlineSU.entries.length > 0 || rfInlineSU.hostState !== hostState || rfInlineSU.guestState !== guestState) {
-          spellUseEntries.push(...rfInlineSU.entries); hostState = rfInlineSU.hostState; guestState = rfInlineSU.guestState;
-        }
+      // === 盤面差分トリガーの統合収集（§5.3 `O-135`・2026-08-29）===
+      // 🔴**旧実装はここで ON_PLAY／ON_BLOOM／ON_DECK_SHUFFLED／ON_REFRESH の4族だけを手書きで収集していた。**
+      //   スペル解決経路は `resolveStackNext` の中央 diff を1度も通らないので、**それ以外の全族**
+      //   （ON_BANISH 166効果／ON_TRASH 105／ON_LEAVE_FIELD 71／ON_ZONE_MOVED 21／ミル 17／ドロー 13／
+      //   ON_ENERGY_CHARGE 12／ON_HAND_ADDED 9／ダウン・凍結・エナ・ライフ・パワー減少…）は
+      //   **スペルがその変化を起こしても watcher が1件も誘発しなかった**（golden も census も緑のまま）。
+      //   実測＝スペル391カードのうち BANISH 130／TRASH 105／DRAW 72／BOUNCE 29 が該当する。
+      // 🔑**中央 diff へ一本化できたのは、手書きの4族が中央 diff の同名ブロックと同一コードだったから**＝
+      //   ON_PLAY 自身分は `collectPlacedSelfOnPlay`／`suppressOnPlay` の opt-in で同じく制御され、
+      //   `placeSourceIsSigni` も `causeSourceCardNum`（＝`card_num`）から同じ式で決まる。
+      //   ⇒ **二重 collection は起きない**（登録票が懸念していた点は、実装を読むと既に解けていた）。
+      // ⚠**`result.done` で分岐しない**＝`!done`（対話待ち）でこの段が確定させた盤面変化も収集する。
+      //   resume 経路が同じ理由で `midBd` を持っているのと同型で、こちらだけ落としていた
+      //   （resume 側の before は**ここで commit した state**なので、拾い直す機会は二度と来ない）。
+      {
+        const bdSpell = collectBoardDiffTriggers(hostState, guestState, {
+          causeOwnerId: caster_id,
+          causeSourceCardNum: card_num,
+          fieldTrashCostCards: result.fieldTrashCostCards,
+          ...fieldPlacementOnPlayOpts(spellEff),
+        });
+        spellUseEntries.push(...bdSpell.entries);
+        hostState = bdSpell.hostState;
+        guestState = bdSpell.guestState;
       }
       const existingStackSU = bs.effect_stack ?? null;
       await persist.commit(reduceBattle(bs, {

@@ -36095,6 +36095,155 @@ order.push('o73DelayedMillTrigger');
 
 
 
+// ── §5.3 O-135（スペル解決経路が中央 diff を1度も通らない）BEGIN ──
+/**
+ * `O-135` の実機ドライバ（族ごとに共有）。
+ *
+ * 🔴**旧実装＝スペル解決（`handleCutinPass`）は `collectBoardDiffTriggers` を1度も呼ばず、
+ *   ON_PLAY／ON_BLOOM／ON_DECK_SHUFFLED／ON_REFRESH の4族だけを手書きで収集していた。**
+ *   ⇒ スペルがバニッシュ／トラッシュ／ミル／ドロー／エナ移動／凍結…を起こしても
+ *   **watcher が1件も誘発しない**。golden も census も smoke も緑のまま（BattleScreen を通らないため）。
+ * ⚠**対象選択を伴うスペルは resume 経路（`handleEffectInteraction`）が中央 diff を呼ぶので既に動いていた**＝
+ *   **観測は「対話なしでインライン完了するスペル」でなければ旧バグを再現しない**（count:'ALL' / DRAW など）。
+ * ⚠観測点は必ず**別の族を2本**取る（1族だけだとその族の個別配線でも緑になり、一本化の証拠にならない）。
+ */
+function o135SettleTick(st) {
+  return !st?.pendingSpell && !st?.pendingEffect && !(st?.stackLen > 0);
+}
+async function o135CastSpellStep(page, picked) {
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  const did = await clickExact('発動');
+  if (did) return did;
+  // 🔴**スペルコストのエナは「まだ押していない index」を1つずつ押す**＝同じ tile を押し続けると
+  //   **トグルで選択が外れて永久に揃わない**（初回実装で 26 ティック空振りした）。
+  for (const i of [0, 1, 2, 3, 4, 5]) {
+    if (picked.has(i)) continue;
+    const e = page.getByTestId(`spellcost-energy-${i}`).first();
+    if (await e.count() && await e.isVisible().catch(() => false)) {
+      await e.click().catch(() => {}); picked.add(i); return `spellcost-energy-${i}`;
+    }
+  }
+  return await clickExact('発動する');
+}
+
+/**
+ * ①ON_BANISH（live 166効果・スペル 130カードが BANISH を持つ＝最大の族）。
+ * host が `WX03-033`（超損・《緑》×4「対戦相手のパワー12000以上のすべてのシグニをバニッシュする」＝
+ * count:'ALL' なので**対象選択なし＝インライン完了**）を使い、guest の `WXDi-P00-054`（幻獣 カリュドーン・
+ * パワー12000・「【自】：このシグニがバニッシュされたとき、カードを１枚引く。」）が発火するかを見る。
+ * 🔑**観測点は guest の手札**（バニッシュ自体は旧実装でも起きるので、バニッシュだけ見ても差が出ない）。
+ */
+scenarios.o135SpellBanishTrigger = {
+  title: 'WX03-033→WXDi-P00-054（O-135①＝スペルのバニッシュで ON_BANISH）＝旧実装は中央 diff を通らず1件も発火しなかった',
+  spec: {
+    hostSet: {
+      'field.signi': [['WX01-094#90'], null, null], // 盤面 valid 化（緑バニラ）
+      'energy': ['WX01-094#91', 'WX01-094#92', 'WX01-094#93', 'WX01-094#94'], // 《緑》×4
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WXDi-P00-054#1'], null, null], // ON_BANISH watcher（パワー12000＝超損の射程）
+      'actions_done': [],
+    },
+    handPrepend: ['WX03-033#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    const gHand0 = st0?.guest?.hand ?? 0;
+    H.log(`開始 guestHand=${gHand0} guestField=${JSON.stringify(st0?.guest?.fieldSigni)} hostEnergy=${st0?.host?.energy}`);
+    await H.ensureMain();
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let banished = false, drew = false, settledStreak = 0;
+    let last = st0;
+    const picked = new Set();
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(850);
+      await page.screenshot({ path: `${SHOT}/o135banish-${s}.png`, fullPage: true });
+      let did = await o135CastSpellStep(page, picked);
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      const zone0 = (last?.guest?.fieldSigni ?? [])[0];
+      if (!zone0 || zone0.length === 0) banished = true;
+      if ((last?.guest?.hand ?? 0) > gHand0) drew = true;
+      H.log(`  o135banish[${s}] -> ${did ?? 'なし'} | guestField=${JSON.stringify(last?.guest?.fieldSigni)}`
+        + ` banished=${banished} gHand=${gHand0}→${last?.guest?.hand} gTrash=${last?.guest?.trash}`
+        + ` stack=${last?.stackLen ?? '-'} pSpell=${last?.pendingSpell ?? '-'} pEff=${last?.pendingEffect ?? '-'}`);
+      if (drew) break;
+      settledStreak = o135SettleTick(last) ? settledStreak + 1 : 0;
+      if (banished && settledStreak >= 4) break;
+    }
+    const detail = `banished=${banished} gHand=${gHand0}→${last?.guest?.hand ?? '-'}`
+      + ` guestField=${JSON.stringify(last?.guest?.fieldSigni)} gTrash=${last?.guest?.trash ?? '-'}`;
+    // ⚠**本題を先に判定**（前提崩れを先に置くと旧挙動の再現が判定文から読めなくなる＝O-80/O-73 の教訓）
+    if (banished && !drew) {
+      return { pass: false, detail: `🔴バニッシュは起きたのに ON_BANISH が1件も発火していない＝スペル解決経路が中央 diff を通っていない（旧挙動）。${detail}` };
+    }
+    if (!banished) return { pass: false, detail: `前提崩れ＝スペルが解決していない（バニッシュが起きていない）。${detail}` };
+    return { pass: true, detail: `スペルのバニッシュで guest の ON_BANISH が発火＝ドロー。${detail}` };
+  },
+};
+order.push('o135SpellBanishTrigger');
+
+/**
+ * ②ON_DRAW（live 13効果・スペル 72カードが DRAW を持つ）。①と**別の族・別の側**を取る。
+ * host が `WD01-018`（噴流する知識・《無》×0「カードを１枚引く。」＝コストも対話も無い最小のスペル）を使い、
+ * 自分の場の `WXK02-090`（船英の速度 リュウスイ・「【自】《ターン１回》：あなたがカードを１枚引いたとき、
+ * ターン終了時まで、このシグニのパワーを＋5000する。」）が発火するかを見る。
+ * 🔑**観測点は `temp_power_mods`**（手札はスペル使用で減りドローで増えるので相殺して見えない）。
+ */
+scenarios.o135SpellDrawTrigger = {
+  title: 'WD01-018→WXK02-090（O-135②＝スペルのドローで ON_DRAW）＝別の族でも同じ穴だったことの確認',
+  spec: {
+    hostSet: {
+      'field.signi': [['WXK02-090#1'], null, null], // ON_DRAW watcher（+5000）
+      'temp_power_mods': [],
+      'actions_done': [],
+    },
+    handPrepend: ['WD01-018#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    const hand0 = st0?.host?.hand ?? 0, deck0 = st0?.host?.deck ?? 0;
+    H.log(`開始 hostHand=${hand0} hostDeck=${deck0} powerMods=${JSON.stringify(st0?.host?.powerMods)}`);
+    await H.ensureMain();
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    const buffed = (st) => (st?.host?.powerMods ?? []).some(m => /^WXK02-090#1:5000$/.test(m));
+    let drew = false, settledStreak = 0, last = st0;
+    const picked = new Set();
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(850);
+      await page.screenshot({ path: `${SHOT}/o135draw-${s}.png`, fullPage: true });
+      let did = await o135CastSpellStep(page, picked);
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      if ((last?.host?.deck ?? deck0) < deck0) drew = true;
+      H.log(`  o135draw[${s}] -> ${did ?? 'なし'} | deck=${deck0}→${last?.host?.deck} hand=${hand0}→${last?.host?.hand}`
+        + ` drew=${drew} powerMods=${JSON.stringify(last?.host?.powerMods)}`
+        + ` stack=${last?.stackLen ?? '-'} pSpell=${last?.pendingSpell ?? '-'} pEff=${last?.pendingEffect ?? '-'}`);
+      if (buffed(last)) break;
+      settledStreak = o135SettleTick(last) ? settledStreak + 1 : 0;
+      if (drew && settledStreak >= 4) break;
+    }
+    const detail = `drew=${drew} deck=${deck0}→${last?.host?.deck ?? '-'} hand=${hand0}→${last?.host?.hand ?? '-'}`
+      + ` powerMods=${JSON.stringify(last?.host?.powerMods)}`;
+    if (drew && !buffed(last)) {
+      return { pass: false, detail: `🔴ドローは起きたのに ON_DRAW が発火していない＝スペル解決経路が中央 diff を通っていない（旧挙動）。${detail}` };
+    }
+    if (!drew) return { pass: false, detail: `前提崩れ＝スペルが解決していない（デッキが減っていない）。${detail}` };
+    return { pass: true, detail: `スペルのドローで自分の ON_DRAW が発火＝リュウスイに +5000。${detail}` };
+  },
+};
+order.push('o135SpellDrawTrigger');
+// ── §5.3 O-135 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

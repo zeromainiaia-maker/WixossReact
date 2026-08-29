@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3 `O-135` クローズ＝スペル解決経路を中央 diff へ一本化（全トリガー族がやっと届いた）
+
+■🔴**真因＝スペル解決（`BattleScreen.handleCutinPass`）は `collectBoardDiffTriggers` を1度も呼ばず、
+`ON_PLAY` / `ON_BLOOM` / `ON_DECK_SHUFFLED` / `ON_REFRESH` の4族だけを手書きで収集していた。**
+⇒ **それ以外の全族**（`ON_BANISH` / `ON_TRASH` / `ON_LEAVE_FIELD` / ミル / ドロー / エナ移動 / 凍結 /
+ダウン・アップ / ライフ / デッキ移動 / パワー減少 / チャーム・アクセ / キーワード獲得 …）は、
+**スペルがその盤面変化を起こしても watcher が1件も誘発しなかった。**
+⚠**この形は全ゲートを素通りする**＝`golden` も `census` も `smoke` も `fuzz` も `BattleScreen` を通らない。
+
+■**母集団（着手前に実測）**
+
+| 側 | 実測 |
+|---|---|
+| watcher（live 効果数） | `ON_BANISH` 166 ／ `ON_TRASH` 105 ／ `ON_LEAVE_FIELD` 71 ／ `ON_ZONE_MOVED` 21 ／ ミル 17 ／ `ON_DRAW` 13 ／ `ON_ENERGY_CHARGE` 12 ／ `ON_HAND_ADDED` 9 ／ `ON_SIGNI_DOWN` 8 …（届いていなかった族の合計 **約370効果**） |
+| 起こす側（スペル391カード） | `BANISH` 130 ／ `TRASH` 105 ／ `DRAW` 72 ／ `ENERGY_CHARGE_FROM_DECK` 68 ／ `ADD_TO_HAND` 65 ／ `BOUNCE` 29 ／ `DOWN` 16 ／ `FREEZE` 8 … |
+
+■🔑**登録票は「一括で中央 diff を呼ぶのが正しい形だが、ON_PLAY 系と二重 collection になりうる」と
+書いていたが、実装を読むと既に解けていた**＝中央 diff の `ON_PLAY` ブロックは
+**スペル側の手書きコードと同一**（自身【出】は `meta.collectPlacedSelfOnPlay` / `suppressOnPlay` の
+opt-in で同じく制御され、`placeSourceIsSigni` も `causeSourceCardNum` から同じ式で決まる）。
+⇒ **`fieldPlacementOnPlayOpts(spellEff)` を spread して渡せば、二重にならずそのまま置き換わる**
+（resume 経路＝`handleEffectInteraction` が既にこの形で呼んでいた）。
+⇒ **段階的にインライン収集を族ごとに足す（登録票の②）必要は無く、③の一本化へ直行できた。**
+
+■**直した内容**（`src/screens/BattleScreen.tsx`・−128/+27行）
+1. 手書き4族ブロックを削除し、`collectBoardDiffTriggers(hostState, guestState, { causeOwnerId: caster_id,
+   causeSourceCardNum: card_num, fieldTrashCostCards: result.fieldTrashCostCards,
+   ...fieldPlacementOnPlayOpts(spellEff) })` の1呼び出しに置き換えた。
+2. ⚠**`result.done` で分岐しない**＝`!done`（対話待ち）でこの段が確定させた盤面変化も収集する。
+   resume 経路が同じ理由で `midBd` を持っているのに**スペル側だけ落としていた**
+   （resume 側の before は**ここで commit した state**なので、拾い直す機会は二度と来ない）。
+3. `collectRefreshInline`（`V-91`・2026-08-28 新設）は**唯一の呼び出し元が消えて dead になった**ので削除。
+   中身は中央 diff の `ON_REFRESH` ブロックと1行ずつ同一（`consumeOnceDelayedTriggers` まで含めて）。
+4. `collectDeckShuffleInline` の説明を「呼び出し元は中央 diff 1箇所だけ」に直した。
+   ＋ `causeOwnerId` がスペル経路にも刻まれるようになった副次効果として、
+   `hand_discarded_just_cause_owner_id` などの原因主体マークもスペル経路で初めて立つ。
+
+■**実機検証**（`scripts/verifyBattleDrive.mjs` に2シナリオ新設。**族を2本・側を2本**取った）
+
+| シナリオ | 構成 | 修正後 | 🔁反転確認（修正前コードで実行） |
+|---|---|---|---|
+| `o135SpellBanishTrigger` | host が `WX03-033`（超損・《緑》×4「対戦相手のパワー12000以上の**すべての**シグニをバニッシュする」＝`count:'ALL'` で**対話なしインライン完了**）→ guest の `WXDi-P00-054`（幻獣 カリュドーン・pw12000・「【自】：このシグニがバニッシュされたとき、カードを１枚引く」） | ✅PASS（guest 手札 5→6） | ❌FAIL「🔴バニッシュは起きたのに `ON_BANISH` が1件も発火していない」（guest 手札 6→6） |
+| `o135SpellDrawTrigger` | host が `WD01-018`（噴流する知識・《無》×0「カードを１枚引く」）→ 自分の `WXK02-090`（船英の速度 リュウスイ・「【自】《ターン１回》：あなたがカードを１枚引いたとき、…このシグニのパワーを＋5000」） | ✅PASS（`temp_power_mods` に `WXK02-090#1:5000`） | ❌FAIL「🔴ドローは起きたのに `ON_DRAW` が発火していない」（`powerMods=[]`） |
+
+⚠**観測は「対話なしでインライン完了するスペル」でなければ旧バグを再現しない**＝
+**対象選択を伴うスペルは resume 経路が中央 diff を呼ぶので前から動いていた**（`ontargeted` 系が緑だった理由）。
+
+■**既存スペル経路の回帰**（全 PASS）＝`deckshufflespell` / `v91refreshonce` / `ontargeted` /
+`ontargeted2` / `ontargeted3` / `ontargeted4` / `ontargeted5` / `ontargetedUsageLimit` /
+`keywordgained` / `b26grantquoted` / `b24drawok` / `b24drawblock` / `b14costup` / `b12spellkiten`。
+⚠`b12spellkiten` は4件バッチで1度 FAIL したが**単独実行で PASS**＝スクリプト自身が警告している
+「バッチ位置依存 flakiness（ルーム消耗・前シナリオの手札残留）」であり、本修正とは無関係。
+
+■**ゲート**＝`npm run gates` 全緑（golden 2972/2972・smoke 10702 全0・fuzz 全0・census 高シグナル 520 据置・
+`census:enginetext` A群 141 据置・lint **260→248 warning**＝削除した手書きブロックのぶん）。
+
+■**踏んだ落とし穴**＝実機ドライバのエナ選択で**同じ `spellcost-energy-0` を押し続けてトグルで外し、
+26ティック空振り**した（コスト《緑》×4）。⇒ **押した index を `Set` で覚えて未選択だけを押す**形に直した
+（`o135CastSpellStep`）。既存シナリオも同じ形で書かれている＝**ヘルパー化するときに落とした規約**。
+
+■**残り**＝`O-138`（「対戦相手のチェックゾーンにスペルがある場合」条件＋割り込み順序）は
+`O-135` を前提にしていたので着手可能になった。⚠ただし `O-138` の本体は**スペルカットイン機構**であって、
+本修正（収集の funnel）とは別の層＝**前提が外れただけで、実装量は減っていない。**
+
 ## 2026-08-29：§5.3 `O-76` クローズ ＋ `O-77` 第2バッチ＝2つの catch-all を空にした（17効果）
 
 ■**やったこと**＝`LOOK_OPP_LIFE_TOP` と `LRIG_UNDER_CARD_OP` に残っていた

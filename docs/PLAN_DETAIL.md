@@ -1,5 +1,37 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-29 整理（§6 恒久指標・続き714時点値の退避・続き715）
+
+- **2026-08-29 続き714 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 520（据置）**
+  golden **2970→2972**（`O-76/O-77②` の parser 契約1本＋engine 両方向1本）、census 520/520、
+  smoke 10702 全異常0、fuzz 全0、lint 0 errors／260 warnings（据置）、同型★0、
+  held **30バケット/90枚**（92→90）、`_partial_fresh` 12／`_idset_fresh` 13、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` **A群 141行（据置）**、孤児 MANUAL 12。
+  🆕**catch-all の裸 STUB＝両方 0**＝`LOOK_OPP_LIFE_TOP` **27→18効果**（真の穴 9→0）／
+  `LRIG_UNDER_CARD_OP` **10→2効果**（真の穴 8→0）。**残りは全部 payload つき＝正当な用法。**
+  ⚠**3計器がどれも動かないのが正しい**＝catch-all の分解は**機構バッチ**で、台帳の finding にも
+  census の高シグナルにも紐づかない（JSON 上は「STUB がある」だけなので欠落として検出されない）。
+  **この巡を測る計器は「裸 STUB の数」と `census:stubs` の明示 defer 欄。**
+  ⚠**held の申告は必ず `build:effects` → `heldReview` を回し直してから**（採用直後は +14 に見えた）。
+
+## 2026-08-29 クローズ（§5.3 `O-135`＝スペル解決経路が中央 diff を通らない・続き715）
+
+**■登録票（クローズ時点で PLAN §5.3 から退避した原文）**
+
+| **O-135** | 🆕**スペル解決経路が中央 diff を1度も通らない＝盤面変化のトリガーが丸ごと収集されない** | **M〜L（回帰が広い）** | **2026-08-28 続き708（`V-91` の実機で発見）。** ■`BattleScreen` のスペル解決（`castSpell` 内・`applyRefreshOnDone` の後）は **`collectBoardDiffTriggers` を呼んでいない**＝収集しているのは `ON_SPELL_USE` と placed-self と bloom と、**インラインで個別に手当てされた**`ON_DECK_SHUFFLED`（`collectDeckShuffleInline`）と `ON_REFRESH`（`collectRefreshInline`・`V-91` で新設）だけ。■**まだ通らない族**＝バニッシュ／トラッシュ／ミル／ドロー／エナ移動／凍結／デッキ移動／キーワード獲得ほか**中央 diff が見る全部**。スペルがそれらを起こしても watcher が1件も誘発しない（golden も census も緑のまま）。■🔴**一括で `collectBoardDiffTriggers` を呼ぶのが正しい形だが、回帰が広い**＝いま個別収集しているON_PLAY 系と**二重collection**になりうるので `suppressOnPlay` 等の meta 設計と、**スペルを使う既存シナリオ全部の回帰**が要る（`verifyBattleDrive` は引数なしフルバッチがフリーズするので1本ずつ）。■**着手の順序**＝①スペル経路で起こしうる族を live 実測で数える ②多い族から**インライン収集を1つずつ足す**（`ON_DECK_SHUFFLED`／`ON_REFRESH` と同じ形＝退化の面を狭く保てる） ③全族が揃った時点で中央 diff へ一本化する。 |
+
+**■結果**＝**登録票の見立ては外れていた。** 「族ごとにインライン収集を足す（②）→揃ったら一本化（③）」ではなく、
+**③へ直行できた**（−128/+27行）。理由＝**中央 diff の `ON_PLAY` ブロックはスペル側の手書きと同一コード**で、
+自身【出】は `meta.collectPlacedSelfOnPlay` / `suppressOnPlay` の opt-in で同じく制御されていた
+＝`fieldPlacementOnPlayOpts(spellEff)` を spread して渡せば**二重 collection は起きない**。
+`collectRefreshInline`（`V-91`）は呼び出し元が消えて dead になり削除。
+■**追加で塞いだ穴**＝`result.done` での分岐をやめた（`!done`＝対話待ちでこの段が確定させた変化も収集する。
+resume 側の before は**そこで commit した state** なので、拾い直す機会は二度と来なかった）。
+■**実機**＝`o135SpellBanishTrigger`（`WX03-033`→`WXDi-P00-054`・`ON_BANISH`）と
+`o135SpellDrawTrigger`（`WD01-018`→`WXK02-090`・`ON_DRAW`）を新設＝**両方 PASS・反転確認で両方 FAIL**。
+既存スペル経路14シナリオも全 PASS。**全文は BUGFIXES.md 2026-08-29 の項。**
+
 ## 2026-08-29 整理（§6 恒久指標・続き713時点値の退避・続き714）
 
 - **2026-08-29 続き713 後（本行が直近の正）**：
