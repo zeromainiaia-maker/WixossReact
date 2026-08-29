@@ -3499,6 +3499,15 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §5.3 `O-77`（2026-08-29）＝`LRIG_UNDER_CARD_OP` の catch-all から分離した3文型。
+        //   ⚠**原文の帰結（「そうした場合、〜」）まで書く**＝改名と同時に did-it ゲートごと落としているので、
+        //     ここに書かないと「何が実装されていないのか」が逆翻訳から読めなくなる。
+        DEFERRED_TRASH_UNDER_DISTINCT_LEVELS:
+          '【未実装】このシグニの下からそれぞれレベルの異なるシグニ3枚をトラッシュに置いてもよい（そうした場合、ターン終了時まで【アサシン】を得る）',
+        DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE:
+          '【未実装】そのカードをデッキに加えてシャッフルしてもよい（そうした場合、デッキの一番上のカードをライフクロスに加える）',
+        DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE:
+          '【未実装】対戦相手のトラッシュから対象のカード1枚をデッキの一番下に置く（そうした場合、対象のシグニ1体を他のシグニゾーンに配置してもよい）',
         // §5.3 O-80 第2バッチ: POWER_MOD_PER_COUNT へ誤流入していたが、既存 engine に受け皿が無い2文型。
         DEFERRED_OPP_LRIG_LEVEL_MODIFY: '【未実装】ターン終了時まで、対象の対戦相手のルリグ1体のレベルを－1する',
         DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED: '【未実装】色1つを宣言し、ターン終了時まで、このシグニは色を失い、宣言した色を得る',

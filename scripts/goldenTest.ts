@@ -8071,7 +8071,10 @@ test('O-60② parser: LRIG_UNDER_CARD_OP は underCardOp で操作と絞り込�
     Object.values(obj).forEach(v => walk(effectId, v));
   };
   for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
-  ok(found.length >= 15, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  // §5.3 `O-77`（2026-08-29）＝catch-all から7効果を引き剥がしたので母集団が縮んだ（15→10）。
+  //   ⚠**「>= 15」のまま残すと、引き剥がすたびに赤くなる**＝この assert は「live から数え直しているか」を
+  //     見るためのもので、件数そのものを固定したいわけではない。下限を実測に合わせて下げる。
+  ok(found.length >= 8, `母集団は live から再導出（実測 ${found.length} ノード）`);
 
   const energyUp = found.find(x => x.effectId === 'SPDi43-26-E1' && x.uc);
   eq(energyUp?.uc?.op, 'energy_signi_to_deck_top', 'エナ→デッキ上の操作を刻む');
@@ -8079,8 +8082,8 @@ test('O-60② parser: LRIG_UNDER_CARD_OP は underCardOp で操作と絞り込�
   eq(found.find(x => x.effectId === 'WXDi-CP02-054-E1' && x.uc)?.uc?.op, 'trash_all_under_self',
     '「下にあるすべてのカードをトラッシュ」だけがトラッシュ操作を刻む');
   // 🔑「下をトラッシュ」の文が無い効果は payload を持たない＝engine は下に触れない（旧バグの母集団）。
-  ok(found.some(x => x.effectId === 'WX24-P4-046-E2' && !x.uc),
-    '🔴「下からレベルの異なる3枚を…してもよい」は trash_all_under_self を持たない');
+  // §5.3 `O-77`＝`WX24-P4-046-E2` は honest な `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` へ改名したので
+  //   この id からは外れた（受け皿が無いことを宣言済み）。母集団に残っているのは `WXK08-084-E1` 側。
   ok(found.some(x => x.effectId === 'WXK08-084-E1' && !x.uc),
     '🔴「下に**置く**」効果も持たない（旧実装はここで下を全部トラッシュしていた）');
 });
@@ -52451,6 +52454,98 @@ test('O-51 engine両方向: 配線3箇所（ピック無し／ピック有り／
     const r = untilReorder(action as EffectAction, mk());
     ok(r.pending === null, `不成立方向${label}: reorder が無ければ並べ替え対話は立たない`);
   }
+}));
+
+// ── §5.3 O-77：LRIG_UNDER_CARD_OP の catch-all から「場／トラッシュ →デッキ」を引き剥がす ──
+const o77Fresh = (cardNum: string, effectId: string): CardEffect => {
+  const effect = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+};
+
+test('O-77 parser契約: 4効果を TRANSFER_TO_DECK へ・3効果を honest defer へ分ける', () => withSavedCursor(() => {
+  // 🔴**fresh パースを見る**＝収穫マージは STUB→typed の置換を純粋上位集合と見なさず live を温存するので、
+  //   live を読む assert では規則を外しても緑のまま（§CODEX_GUIDE `5-29`）。
+  // ■成立方向＝先例 `WX24-P2-075-E1` とまったく同じ文型（「〜を場からデッキの一番下に置いてもよい。
+  //   そうした場合、」）が catch-all にも落ちていた分。
+  for (const [cardNum, effectId, needles] of [
+    ['WX24-P3-053', 'WX24-P3-053-E2', ['"TRANSFER_TO_DECK"', '"thisCardOnly":true', '"position":"bottom"', '"optional":true']],
+    ['WXDi-P08-058', 'WXDi-P08-058-E2', ['"TRANSFER_TO_DECK"', '"thisCardOnly":true', '"position":"bottom"', '"optional":true']],
+    ['WX24-P2-022', 'WX24-P2-022-E1', ['"TRANSFER_TO_DECK"', '"story":"遊具"', '"position":"bottom"', '"optional":true']],
+    ['WXDi-P10-044', 'WXDi-P10-044-E3', ['"TRANSFER_TO_DECK"', '"TRASH_CARD"', '"noGuard":true', '"upToCount":true']],
+  ] as const) {
+    const json = JSON.stringify(o77Fresh(cardNum, effectId));
+    ok(!json.includes('LRIG_UNDER_CARD_OP'), `${effectId}: 旧 catch-all が残る`);
+    for (const needle of needles) ok(json.includes(needle), `${effectId}: ${needle}`);
+    // 🔑「そうした場合」（CONDITIONAL{IS_MY_TURN}）は**残す**＝スキップ時に
+    //   stripDidItConditional が無効化する仕組みなので、落とすと無条件成立へ化ける。
+    ok(json.includes('"IS_MY_TURN"'), `${effectId}: 「そうした場合」のゲートを残す`);
+  }
+  // ■不成立方向①＝受け皿が無い3文型は honest な DEFERRED_* へ改名し、**did-it ゲートごと落とす**
+  //   （実装していない任意アクションの「そうした場合」を残すと自分のターンに常時成立する）。
+  for (const [cardNum, effectId, id] of [
+    ['WX24-P4-046', 'WX24-P4-046-E2', 'DEFERRED_TRASH_UNDER_DISTINCT_LEVELS'],
+    ['WXDi-P12-034', 'WXDi-P12-034-E2', 'DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE'],
+    ['WDK09-015', 'WDK09-015-E1', 'DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE'],
+  ] as const) {
+    const json = JSON.stringify(o77Fresh(cardNum, effectId));
+    ok(json.includes(`"${id}"`), `${effectId}: honest な defer id`);
+    ok(!json.includes('LRIG_UNDER_CARD_OP'), `${effectId}: 旧 catch-all が残る`);
+    ok(!json.includes('"IS_MY_TURN"'), `${effectId}: 未実装なのに「そうした場合」が残っている（無条件成立に化ける）`);
+  }
+  // ■不成立方向②＝payload を持つ正当な用法（`SPDi43-26-E1` のエナ→デッキ上）は**触らない**。
+  const keep = JSON.stringify(o77Fresh('SPDi43-26', 'SPDi43-26-E1'));
+  ok(keep.includes('LRIG_UNDER_CARD_OP') && keep.includes('energy_signi_to_deck_top'),
+    'SPDi43-26-E1: payload つきの正当な用法は据え置く');
+}));
+
+test('O-77 engine両方向: 任意の場→デッキ下はスキップで「そうした場合」を止める', () => withSavedCursor(() => {
+  // 🔴この巡の実害は「効かない」ではなく **①原文が要求しないコスト（下のカード）を払わせて捨てる
+  //   ②下にカードが無いと発動できない** の2つだった。撤去後の正しい姿を両方向で固定する。
+  const self = SIGNI;
+  const mk = () => {
+    const c = mkCtx({ signi: [self, null, null] }, {}, self);
+    c.otherState.hand = [...cardMap.keys()].slice(0, 4);
+    return c;
+  };
+  const action: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'TRANSFER_TO_DECK',
+      source: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } },
+      shuffle: false, position: 'bottom', optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
+      then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 2 } } },
+  ] } as EffectAction;
+
+  // ■成立方向＝実行すると、このシグニがデッキの一番下へ行き、相手が2枚捨てる。
+  const ctxDo = mk();
+  const done1 = run(action, ctxDo);
+  eq(done1.ownerState.deck.at(-1), self, '成立方向: このシグニがデッキの一番下へ');
+  eq(done1.ownerState.field.signi[0], null, '成立方向: 場から離れる');
+  eq(done1.otherState.hand.length, ctxDo.otherState.hand.length - 2, '成立方向: 「そうした場合」が走り相手が2枚捨てる');
+
+  // ■不成立方向＝0体選択（スキップ）なら**場に残り、相手も捨てない**。
+  //   ⚠これが無いと「常に実行する実装」でも上の成立方向は緑になる。
+  const ctxSkip = mk();
+  const first = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctxSkip);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'optional なので選択が立つ');
+  const skipped = resumeSelectTarget([], first.pending as never, {
+    ...ctxSkip, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs } as ExecCtx);
+  const fin = finish(skipped, ctxSkip);
+  eq(fin.ownerState.field.signi[0]?.at(-1), self, '不成立方向: スキップならシグニは場に残る');
+  eq(fin.otherState.hand.length, ctxSkip.otherState.hand.length,
+    '不成立方向: スキップなら「そうした場合」が走らない（stripDidItConditional）');
+
+  // ■旧実装の痕跡が消えたことの確認（§4.4 3b＝旧挙動で観測できる痕跡で書く）＝
+  //   下にカードを敷いても「シグニ下のカードを使用して発動しますか？」は**もう出ない**。
+  const ctxStack = mkCtx({ signi: [self, null, null] }, {}, self);
+  ctxStack.ownerState.field.signi[0] = [SIGNI_L2, self];
+  const stacked = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctxStack);
+  ok(!stacked.done && stacked.pending.type === 'SELECT_TARGET',
+    '旧コスト先取り（CHOOSE「シグニ下のカードを使用して発動しますか？」）が出ない');
+  ok(!(stacked.logs ?? []).some(l => String(l).includes('シグニ下のカードを使用して発動')),
+    '旧コスト先取りのログも出ない');
 }));
 
 test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増えたら FAIL）', () => withSavedCursor(() => {

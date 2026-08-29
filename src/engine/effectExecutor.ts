@@ -4592,31 +4592,19 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, 'ソウルを使用して発動しますか？'), pendingSO);
         }
 
-        // LRIG_UNDER_CARD_OP: シグニ下のカードを消費してコスト支払い（WX24/WX25/WXDiシリーズ）
-      if (stub.id === 'LRIG_UNDER_CARD_OP') {
-          const srcZoneLUCO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
-          const stackLUCO = srcZoneLUCO >= 0 ? cur.ownerState.field.signi[srcZoneLUCO] : null;
-          const hasUnder = stackLUCO != null && stackLUCO.length >= 2;
-          const underCard = hasUnder ? stackLUCO![0] : null;
-          const underName = underCard ? (cur.cardMap.get(underCard)?.CardName ?? underCard) : null;
-          const consumeUnderStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_CONSUME_SOUL' };
-          const payActionLUCO: EffectAction = hasUnder
-            ? ({ type: 'SEQUENCE', steps: [consumeUnderStub as EffectAction, conditional.then] } as SequenceAction)
-            : conditional.then;
-          const optionsLUCO = [
-            {
-              id: 'pay', available: hasUnder,
-              label: underName ? `「${underName}」を使用して発動` : 'シグニ下のカードを使用して発動',
-              action: payActionLUCO,
-            },
-            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
-          ];
-          const pendingLUCO: PendingInteractionDef = {
-            type: 'CHOOSE', options: optionsLUCO, count: 1,
-            ...(cont ? { continuation: cont } : {}),
-          };
-          return needsInteraction(addLog(cur, 'シグニ下のカードを使用して発動しますか？'), pendingLUCO);
-        }
+        // 🔴**LRIG_UNDER_CARD_OP のコスト先取りは撤去した**（§5.3 `O-77`・2026-08-29）。
+        //   ここは `SEQUENCE[STUB{LRIG_UNDER_CARD_OP}, CONDITIONAL]` を見つけると
+        //   「シグニ下のカードを使用して発動しますか？」を出し、払うと `INTERNAL_CONSUME_SOUL` が
+        //   **効果元シグニの下のカードをルリグトラッシュへ捨てて**いた。
+        //   ⇒ **live 8効果すべてで原文がそんなコストを要求していなかった**（「このシグニを場から
+        //     デッキの一番下に置いてもよい」「トラッシュから2枚までデッキに加えてもよい」等）。
+        //   さらに `available: hasUnder` なので、**下にカードが無いシグニでは「スキップ」しか選べず
+        //     能力が一度も発動できなかった**（大多数がこれ）。`SPDi43-26-E1` に至っては効果元が
+        //     **ルリグ**でシグニゾーンに居ないため、payload を正しく持っているのに恒久 no-op だった。
+        //   ⇒ 正しい文型は parser が `TRANSFER_TO_DECK{optional:true}` を吐き、スキップ時は
+        //     `stripDidItConditional` が「そうした場合」を無効化する（先例 `WX24-P2-075-E1`）。
+        //   ⚠**復活させないこと**＝この id は「ルリグデッキ下操作」ではなく22文型の catch-all で、
+        //     ここに戻すと**無関係な効果が盤面のカードを失う**（`O-60` 第2バッチと同じ壊れ方）。
 
         // OPTIONAL_HAND_REVEAL_NAMED: 名前指定カードを手札から任意公開 → そうした場合 conditional.then
         if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
@@ -5990,7 +5978,15 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       return cur;
     }
 
-    if (deckThisCardOnly) return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
+    // 🔴**`optional`（「〜してもよい」）のときは thisCardOnly でも即実行しない**（§5.3 `O-77`・2026-08-29）。
+    //   旧実装はここで無条件に `return done(...)` しており、「**このシグニを**場からデッキの一番下に
+    //   置いて**もよい**」が**強制**になっていた（先例 `WX24-P2-075-E1` も同じ壊れ方をしていた）。
+    //   ⚠**`INTERNAL_SKIP_OPTIONAL_ACTION` を使う CHOOSE 形にはしない**＝あちらは `lastProcessedCards` を
+    //     空にするだけで、後続の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）を落とさない＝
+    //     スキップしたのに帰結だけ走る。`selectOrInteract` 経由なら `resumeSelectTarget` が
+    //     `stripDidItConditional` を呼ぶ（`:9231`）ので、0体選択で帰結ごと止まる。
+    if (deckThisCardOnly && !a.optional) return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
+    if (deckThisCardOnly) return selectOrInteract(cands, 1, true, scope, a, undefined, ctx);
 
     if (src.count === 'ALL') {
       // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する

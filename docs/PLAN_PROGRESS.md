@@ -2,6 +2,44 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き712・Opus 5 単独）＝§5.3 `O-51` クローズ。「残りを好きな順番で置く」の並べ替え対話を288効果へ通した。**
+  ユーザー指示＝**「O-51 を行う」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 520（据置）**
+  gates 全緑（**golden 2965→2968**・smoke 10702 全0（**SKIP(対話未対応) 0**）・fuzz 全0・lint 260 据置・同型★0・
+  `census:enginetext` 141 据置）。**実機 `o51ReorderRemainder` PASS＋反転確認あり。** 全文は BUGFIXES.md 冒頭。
+  - 🔴**登録票を2回訂正した**＝真の穴は **279→288効果**で、内訳に **`LOOK_PICK_CHAIN` 71効果**が居た
+    （1回目の走査が `REVEAL_AND_PICK` しか集めておらず**丸ごと取りこぼし**＝§CODEX_GUIDE `3-3⁹` と同型）。
+    **配線先3箇所のうち1つが死んだ枝かどうかの判断がこれで逆転した。**
+  - ✅**新しいアクション型は0**＝`remainder.reorder?: boolean` を1つ足し、engine は先例
+    `INTERNAL_SPLIT_REVEALED` と同じ手口で既存の `LOOK_AND_REORDER` 対話へ載せる（新設は
+    `INTERNAL_REORDER_REMAINDER` の1ハンドラ・約25行）。**配線3箇所とも個別に反転確認済み。**
+  - 🔑**ブラスト半径の抑え込み＝残りが1枚以下なら対話を出さない**（順序に選択肢が無い）。
+  - 🔴**踏んだ穴3つ**＝①`resumeLookAndReorder` が `lastProcessedCards` を潰し、後段の
+    `{$ref:'last_processed_count'}` が**ピック数ではなく残り枚数**を読んだ（`WXDi-P03-061-E2` が 2→3枚捨て）
+    ⇒ `keepLastProcessed` を新設 ②`parseActionText` の中でマークすると**文をまたぐ24効果**を取りこぼす
+    ⇒ カード単位の後段へ移した（213→237） ③`wireTopOrBottomRemainder` が後から `split_top_bottom` へ倒すので
+    `reorder` が取り残され**二重に順序を問う** ⇒ 変換地点で落とす（fail-closed）。
+  - 🔴**live は sticky＝「規則を外して作り直す」だけでは反転確認にならない**（収穫マージが live を温存し
+    `reorder:true` が214件残った）。**live をベースラインへ `git checkout` してから再ビルド**して初めて
+    「規則OFF＝変化0」を確認できた。
+  - 📌**既存 golden 11本が落ちたのが「288効果すべてに対話が1つ増える」の実体**＝9枚とも原文を1件ずつ確認して
+    から追随させた。⚠**うち1本（`WX25-P3-052-E1`）はテストの追随ではなく `keepLastProcessed` で消えた本物のバグ。**
+  - 📌**逆翻訳の嘘を両方向で潰した**＝旧実装は bottom に「好きな順番で」を**常に**入れ、top には**決して**
+    入れなかった（`WX16-027-E1` に嘘をつき、`WX20-012-E1` から指定が消えていた）⇒ payload から描く。
+  - 📌**分離**＝`O-144`（MANUAL/PARTIAL で凍っている46効果に機構が届いていない。挙動は従来どおりで退化ではない）。
+
+**▶ 次の一手**＝🆕**`O-77`（§5.3「取る順」2位・15効果）**＝`LRIG_UNDER_CARD_OP` が22文型の catch-all。
+⚠**着手前に `effectExecutor.ts:4433` を読む**（`SEQUENCE[STUB{LRIG_UNDER_CARD_OP}, CONDITIONAL]` は
+**別の消費地点が「下のカードを1枚払うコスト」として先取りする**＝executor のハンドラに到達しない）。
+**進め方は `O-76` と同じ**＝①既存の受け皿型を先に探す ②無ければ `DEFERRED_*` の honest な id へ改名。
+
+**`O-51` の残りを片付けるなら**＝`O-144`（46効果）。**機構は既に在る**ので、`manualEffects.ts` 側を
+`reorder` つきへ直すか、parser に任せられるものは manual 定義を削除する（`censusManualDrift.ts` の「削除候補」を見る）。
+
+**速いレーンを挟むなら**＝§5.2 Sheet2 バッチ2（残 **107件**）。**1カード1 finding の HIGH**（Sheet2 に50件）で
+`axis` が `owner/範囲` `count/upTo` `filter.*` のものを10件。**findings が多いカードから取らない**。
+⚠**`build:effects` だけでは既存 id の手修正が live に届かない**＝`syncManualLive.ts` を必ず回す。
+
 - 🏁**セッション（2026-08-29・続き711・Opus 5＋Codex）＝§5.3 `O-80` 第2バッチ。`POWER_MOD_PER_COUNT` は「当たらない」より「当たったうえで別のものを数えていた」。**
   ユーザー指示＝**「次の一手の `O-80` を codex に投げる。PLAN をよく読むこと」**→**「簿記して commit / push まで進めて」**。
   📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 518→520（可視化）**

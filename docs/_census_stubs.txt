@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 600（総ノード 2918 件）
+live JSON の STUB id 種類 : 603（総ノード 2913 件）
 逆翻訳シートの [STUB:…] 総数: 602  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 8 種 / 9 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 8 種 / 9 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 11 種 / 12 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 11 種 / 12 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 86 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
@@ -25,35 +25,44 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         生成: src\data\parsers\parseSentencePart2.ts:445
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:19126
+        生成: src\data\effectParser.ts:19244
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
         生成: src\data\parsers\parseSentencePart3.ts:2315
      1件   1枚  DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL
         カード: SP38-001
         生成: src\data\parsers\parseSentencePart3.ts:2021
+     1件   1枚  DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE
+        カード: WXDi-P12-034
+        生成: src\data\effectParser.ts:12429
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:12418
+        生成: src\data\effectParser.ts:12536
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2015
+     1件   1枚  DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE
+        カード: WDK09-015
+        生成: src\data\effectParser.ts:12431
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2025
      1件   1枚  DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED
         カード: WX22-042
-        生成: src\data\effectParser.ts:12423
+        生成: src\data\effectParser.ts:12541
+     1件   1枚  DEFERRED_TRASH_UNDER_DISTINCT_LEVELS
+        カード: WX24-P4-046
+        生成: src\data\effectParser.ts:12427
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
 ==============================================================================
     22件  22枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他16枚
-        消費: src\engine\effectExecutor.ts:5127 / src\engine\effectExecutor.ts:5142 / src\engine\triggerCollect.ts:429
+        消費: src\engine\effectExecutor.ts:5115 / src\engine\effectExecutor.ts:5130 / src\engine\triggerCollect.ts:429
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
-        消費: src\engine\effectExecutor.ts:4748 / src\engine\effectExecutor.ts:4753
+        消費: src\engine\effectExecutor.ts:4736 / src\engine\effectExecutor.ts:4741
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
         消費(ペイロードキー): src\engine\effectEngine.ts:1902
@@ -83,7 +92,7 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         消費: src\engine\effectExecutor.ts:398
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
-        消費: src\engine\effectExecutor.ts:4772
+        消費: src\engine\effectExecutor.ts:4760
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:109
@@ -98,10 +107,10 @@ live JSON の STUB id 種類 : 600（総ノード 2918 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:8253
+        消費: src\engine\effectExecutor.ts:8249
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:8255
+        消費: src\engine\effectExecutor.ts:8251
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66

@@ -5324,12 +5324,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK11-018": [
     {"effectId":"WXK11-018-E2","effectType":"AUTO","timing":["ON_ATTACK_END"],"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","levelLtSelf":true,"excludeSelf":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","triggerCondition":{"attackDealtNoDamage":true},"usageLimit":"once_per_turn"}
   ],
-  //   `WX24-P2-075-E1`＝「このシグニを場からデッキの一番下に置いてもよい」が無関係な STUB `LRIG_UNDER_CARD_OP`
-  //   （シグニ下カードのコスト消費）に化けていた。TRANSFER_TO_DECK{position:bottom, optional} が正しい。
-  //   続く CONDITIONAL{IS_MY_TURN} は「そうした場合」の慣例エンコード（engine に専用の解き処理あり）。
-  "WX24-P2-075": [
-    {"effectId":"WX24-P2-075-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_END"],"condition":{"type":"SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE","owner":"self","filter":{"cardType":"シグニ","story":"遊具"}},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"shuffle":false,"position":"bottom","optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":2},"story":"遊具"}},"asDown":true,"optional":true,"suppressOnPlay":true}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
+  // §5.3 `O-77`（2026-08-29）＝`WX24-P2-075-E1` の手書きコピーは**削除した**。
+  //   parser が `LRIG_UNDER_CARD_OP` の catch-all から `TRANSFER_TO_DECK{position:bottom, optional}` を
+  //   出せるようになり、**実体が1バイト違わず一致した**（`censusManualDrift` の削除候補・§CODEX_GUIDE `5-10′`）。
+  //   ⚠残すと影武者コピーになり、この効果だけ以後の parser 改善が永久に届かない。
   "WXDi-P11-010B": [
     {"effectId":"WXDi-P11-010B-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
   ],

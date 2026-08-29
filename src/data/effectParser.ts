@@ -12354,6 +12354,124 @@ function removeStubFromSequences(node: unknown, id: string): void {
 
 /** §5.3 O-80 第2バッチ: 数えるゾーン／場と適用先を action payload へ刻む。 */
 /**
+ * §5.3 `O-77`（2026-08-29）＝`STUB{LRIG_UNDER_CARD_OP}` の catch-all から
+ * 「〜を場（トラッシュ）からデッキへ置いてもよい。**そうした場合**、〜」を既存の
+ * `TRANSFER_TO_DECK` へ引き剥がす。
+ *
+ * 🔑**新機構ゼロ**＝先例 `WX24-P2-075-E1` が**まったく同じ文**（「このシグニを場からデッキの一番下に
+ *   置いてもよい。そうした場合、」）を既に
+ *   `SEQUENCE[TRANSFER_TO_DECK{thisCardOnly, position:'bottom', optional:true}, CONDITIONAL{IS_MY_TURN}]`
+ *   で正しく表している。**同じ文型が catch-all にも落ちていた**だけ（§CODEX_GUIDE `3-4″`）。
+ *
+ * 🔴**なぜ急ぐか＝いまの挙動は「効かない」ではなく実害である。**
+ *   `SEQUENCE[STUB{LRIG_UNDER_CARD_OP}, CONDITIONAL]` の形は `effectExecutor.ts` の
+ *   **コスト先取り**（「シグニ下のカードを使用して発動しますか？」）に食われ、
+ *   ①**原文が要求していないコスト**（効果元シグニの下のカード）を払わせ、払うと
+ *     `INTERNAL_CONSUME_SOUL` が**そのカードをルリグトラッシュへ捨てる**（取り返しがつかない）
+ *   ②`available: hasUnder` なので、**下にカードが無いシグニでは「スキップ」しか選べない**＝
+ *     この能力は**一度も発動できない**（大多数のシグニが該当）。
+ *
+ * ⚠**`CONDITIONAL{IS_MY_TURN}` はこのリポジトリでの「そうした場合」の綴り**（did-it ゲートの型ではない）。
+ *   スキップ時に後段が走らないのは `selectOrInteract` → `stripDidItConditional`
+ *   （`effectExecutor.ts:9231`）が担当する＝**`optional` を落とすと「そうした場合」が無条件成立に化ける。**
+ * ⚠**STUB を素で消すだけにしてはいけない**＝`CONDITIONAL{IS_MY_TURN}` だけが残ると
+ *   **自分のターンなら常に `then` が走る**（`WX24-P3-053-E2` なら「置かずに相手が2枚捨てる」）＝
+ *   コスト先取りより悪い過剰実行になる。**必ず optional な typed アクションへ置き換える。**
+ */
+function rewriteUnderCardOpToTransfer(text: string, action: EffectAction): EffectAction {
+  if (!/LRIG_UNDER_CARD_OP/.test(JSON.stringify(action))) return action;
+  const t = text.replace(/\s+/g, '');
+
+  /** 置き換え後の action。決まらなければ null（＝触らない＝fail-closed）。 */
+  let replacement: EffectAction | null = null;
+
+  // ①「（あなたの〈filter〉の）シグニ１体を場からデッキの一番下に置いてもよい」
+  //    ＝先例 `WX24-P2-075-E1` と同じ形。「このシグニ」は thisCardOnly。
+  const selfToBottom = t.match(/(この|あなたの(?:＜([^＞]+)＞の)?)シグニ(?:１体)?を場からデッキの一番下に置いてもよい/);
+  if (selfToBottom) {
+    const filter: TargetFilter = { cardType: 'シグニ' };
+    if (selfToBottom[1] === 'この') filter.thisCardOnly = true;
+    else if (selfToBottom[2]) filter.story = selfToBottom[2];
+    replacement = {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'SIGNI', owner: 'self', count: 1, filter },
+      shuffle: false, position: 'bottom', optional: true,
+    } as EffectAction;
+  }
+
+  // ②「あなたのトラッシュから〈filter〉を N枚まで対象とし、それらをデッキに加えてもよい」
+  //    ⚠**位置を書かない**＝原文は「デッキに加えて（シャッフルする）」で一番下/上を指定していない。
+  //      `shuffle` は後段の「そうした場合、デッキをシャッフルする」が別ステップで持っているので**ここでは付けない**
+  //      （二重シャッフルにしない）。
+  if (!replacement) {
+    const trashToDeck = t.match(/あなたのトラッシュから(《ガードアイコン》を持たない)?(?:レベル[０-９\d]+以下の)?シグニを([０-９\d]+)枚まで対象とし、それらをデッキに加えてもよい/);
+    if (trashToDeck) {
+      const filter: TargetFilter = { cardType: 'シグニ' };
+      if (trashToDeck[1]) filter.noGuard = true;
+      const n = parseInt(trashToDeck[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+      replacement = {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'TRASH_CARD', owner: 'self', count: n, upToCount: true, filter },
+        shuffle: false, optional: true,
+      } as EffectAction;
+    }
+  }
+
+  // ③ 受け皿が無いものは **honest な `DEFERRED_*` へ改名**する（`census:stubs` C群の作法）。
+  //    🔴**改名と同時に、直後の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）を落とす。**
+  //      理由＝この綴りは「直前の任意アクションがスキップされたら後段も走らない」ことに依存しており、
+  //      その任意アクションを**実装していない**のに残すと、**自分のターンなら常に `then` が走る**
+  //      （`WX24-P4-046-E2` なら「下を1枚も捨てずに【アサシン】を得る」）＝コスト先取りより悪い過剰実行。
+  //    ⇒ **何もしないことを明示する**（`miscStubMap` に原文の帰結まで日本語で書いてある）。
+  const deferId = /このシグニの下からそれぞれレベルの異なるシグニ[０-９\d]+枚をトラッシュに置いてもよい/.test(t)
+    ? 'DEFERRED_TRASH_UNDER_DISTINCT_LEVELS'
+    : /そのカードをデッキに加えてシャッフルしてもよい/.test(t)
+      ? 'DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE'
+      : /対戦相手のトラッシュから対象のカード[０-９\d]+枚をデッキの一番下に置く/.test(t)
+        ? 'DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE'
+        : null;
+  if (!replacement && deferId) {
+    const renameAndDropGate = (node: unknown): void => {
+      if (Array.isArray(node)) { node.forEach(renameAndDropGate); return; }
+      if (!node || typeof node !== 'object') return;
+      const o = node as Record<string, unknown>;
+      if (o.type === 'SEQUENCE' && Array.isArray(o.steps)) {
+        const steps = o.steps as Record<string, unknown>[];
+        for (let i = 0; i < steps.length; i++) {
+          const st = steps[i];
+          if (st?.type === 'STUB' && st.id === 'LRIG_UNDER_CARD_OP') {
+            st.id = deferId;
+            const next = steps[i + 1] as Record<string, unknown> | undefined;
+            const cond = next?.condition as Record<string, unknown> | undefined;
+            if (next?.type === 'CONDITIONAL' && cond?.type === 'IS_MY_TURN') steps.splice(i + 1, 1);
+          }
+        }
+      }
+      for (const v of Object.values(o)) if (v && typeof v === 'object') renameAndDropGate(v);
+    };
+    renameAndDropGate(action);
+    return action;
+  }
+
+  if (!replacement) return action;
+
+  // 置き換えは**この id の STUB がツリーにちょうど1つのときだけ**行う（複数あるとどれが本文か決まらない）。
+  const found: Record<string, unknown>[] = [];
+  const scan = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(scan); return; }
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'LRIG_UNDER_CARD_OP') found.push(o);
+    for (const v of Object.values(o)) if (v && typeof v === 'object') scan(v);
+  };
+  scan(action);
+  if (found.length !== 1) return action;
+  for (const key of Object.keys(found[0])) delete found[0][key];
+  Object.assign(found[0], replacement);
+  return action;
+}
+
+/**
  * §5.3 `O-51`（2026-08-29）＝「残りを**好きな順番で**デッキの一番下（上）に置く」に `remainder.reorder` を刻む。
  *
  * 🔑**位置（top/bottom）は既存の解析が正しく出している**ので、ここで足すのは「並び順をプレイヤーが決める」
@@ -21519,6 +21637,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // 上2つと同じ規約＝完全に解析できている AUTO の既存受け皿にだけ当てる。
     if (effect.parseStatus !== 'AUTO') continue;
     effect.action = markRemainderReorder(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+  }
+  // §5.3 `O-77`（2026-08-29）＝`STUB{LRIG_UNDER_CARD_OP}` の catch-all から「場／トラッシュ →デッキ」を引き剥がす。
+  for (const effect of effects) {
+    if (effect.parseStatus !== 'AUTO') continue;
+    effect.action = rewriteUnderCardOpToTransfer(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
