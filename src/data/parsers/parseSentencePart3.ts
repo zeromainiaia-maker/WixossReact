@@ -1460,13 +1460,45 @@ export function parseSentencePart3(t: string): EffectAction | null {
       position: 'bottom',
     };
   }
+  // 🔴🆕§5.3 `O-142` の道中で発見（2026-08-29）＝**この2規則は原文が「一番下」なのに
+  //   `TRASH{DECK_CARD}` を返しており、`execTrash` は `state.deck.slice(0, count)`＝**デッキの上**から捨てる。
+  //   ⇒ 落ちるカードが原文と違い、後続の「この方法でトラッシュに置かれた〜」（`LAST_PROCESSED_*`／
+  //     `perLastProcessed`）が**別のカードを見る**（`WXK10-026-E1` `WXK11-036-E2` `WXDi-P13-049-E1`）。
+  // 🔑正準形 `MILL{fromBottom:true}` は**最初から在った**（`PR-K049`／`WXK02-055`／`WXK03-040` が使用）＝
+  //   `parseSentencePart4` の「置く」版だけが正しく、**兄弟枝の2つが取り残されていた**（§5-8′ の再実証）。
+  // 🆕**任意性（「置いてもよい」）はこの修正で一緒に戻った**＝上流が `STUB{OPTIONAL_ACTIVATE}` を
+  //   前置する形になり、旧 `TRASH{DECK_CARD}`（任意性を落とした無条件ミル）から2点とも直った
+  //   （`WXK10-026-E1` 実測）。
   if (t.match(/あなたのデッキの(?:下|一番下)からカードを?([０-９\d]+)枚?トラッシュに置く/)) {
     const m = t.match(/([０-９\d]+)枚/);
     const cnt = m ? parseNum(m[1]) : 1;
-    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: cnt } };
+    return { type: 'MILL', owner: 'self', count: cnt, fromBottom: true } as EffectAction;
   }
   if (t.match(/あなたのデッキの一番下のカードをトラッシュに置いてもよい/)) {
-    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } };
+    return { type: 'MILL', owner: 'self', count: 1, fromBottom: true } as EffectAction;
+  }
+  // 🔴🆕§5.3 `O-142` の道中で発見（2026-08-29）＝下の `LOOK_AND_REORDER` 規則は文末だけを見るので、
+  //   「あなたの**トラッシュから**〈filter〉1枚を対象とし、それをデッキの一番下に置いてもよい」まで食い、
+  //   **トラッシュではなくデッキの一番上を見る**別物になっていた（`WX24-P1-046-E2` `WX24-P4-048-E?`）。
+  //   実害は2段＝①移動元が違う ②`lastProcessedCards` に別のカードが残るので、後続の
+  //   「この方法でデッキに移動したシグニのパワーと同じだけ＋」（§5.3 `O-142`）が**別のカードのパワー**を掛ける。
+  // 🔑受け皿 `TRANSFER_TO_DECK{source:TRASH_CARD, position:'bottom', optional}` は最初から在った。
+  {
+    const trashToBottomM = t.match(
+      /^(?:あなたの)?トラッシュから(.*?)([０-９\d]+)枚(?:まで)?を?対象とし、それを(?:あなたの)?デッキの一番下に置いてもよい$/);
+    if (trashToBottomM) {
+      const np = trashToBottomM[1];
+      const filter: TargetFilter = { cardType: /スペル/.test(np) ? 'スペル' : 'シグニ' };
+      const story = np.match(/＜([^＞]+)＞/);
+      if (story) filter.story = story[1];
+      const color = np.match(/([白青赤緑黒])の/);
+      if (color) filter.color = color[1];
+      return {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToBottomM[2]), filter },
+        shuffle: false, position: 'bottom', optional: true,
+      } as EffectAction;
+    }
   }
   if (t.match(/(?:それ|そのカード)をデッキの一番下に置いてもよい$/)) {
     return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };

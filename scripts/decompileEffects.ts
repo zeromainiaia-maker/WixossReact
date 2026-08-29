@@ -1073,6 +1073,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const plp = a.perLastProcessed;
         const plpF = plp?.filter;
         const plpNoun = `${plpF?.color ? `${plpF.color}の` : ''}${plpF?.story ? `＜${plpF.story}＞の` : ''}${plpF?.cardType ?? 'カード'}`;
+        // 🆕`power_sum`＝「〜の**パワーと同じだけ**」（§5.3 `O-142`）＝「N枚につき」ではなく倍率そのもの。
+        //   ⚠ここを既定の「1枚につき－1する」に落とすと、逆翻訳が**原文とまったく違う嘘**になる。
+        if (plp?.unit === 'power_sum') {
+          return `${pmSubj}のパワーをこの方法で処理した${plpNoun}のパワーと同じだけ${a.delta >= 0 ? '＋' : '－'}する${pmDuration}`;
+        }
         const plpUnit = plp?.unit === 'level_sum' ? 'のレベルの合計1' : `${plp?.divisor ?? 1}枚`;
         return `${pmSubj}のパワーをこの方法で処理した${plpNoun}${plpUnit}につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
       }
@@ -2206,7 +2211,15 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FIELD_SIGNI_TO_CHECK_ZONE':
       // ⚠往復を1アクションに畳んであるので**戻す側まで出す**（片方だけだと脱落が逆翻訳に映らない）。
       return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを場に出す`;
-    case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
+    case 'LEVEL_MODIFY': {
+      // 🆕§5.3 `O-142`＝「それのレベルをこの方法で公開されたシグニの**レベルと同じだけ**－する」。
+      if (a.deltaPerLastProcessedCount) {
+        const lmF = a.perLastProcessed?.filter;
+        const lmNoun = `${lmF?.color ? `${lmF.color}の` : ''}${lmF?.story ? `＜${lmF.story}＞の` : ''}${lmF?.cardType ?? 'カード'}`;
+        return `${targetJa(a.target)}のレベルをこの方法で処理した${lmNoun}のレベルと同じだけ${a.delta >= 0 ? '＋' : '－'}する`;
+      }
+      return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
+    }
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
     case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;

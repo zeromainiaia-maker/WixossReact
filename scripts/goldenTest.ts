@@ -8587,6 +8587,144 @@ test('O-80① engine: 倍率は絞り込み・レベル合計・N枚単位で決
   eq(modOf(picked), -3000, '🔴選択UIを通っても3倍のまま（焼き込み無しだと -1000 に潰れる）');
 }));
 
+// 🔴§5.3 `O-142`（2026-08-29）＝「…のパワー／レベルを**この方法で〜したシグニのパワー／レベルと同じだけ**±」。
+//    倍率が「枚数」ではなく**直前ステップで処理したカードの値そのもの**の族。旧挙動は engine の
+//    カード全文 regex `…シグニのパワーと同じだけ([－＋])` で、①対象を読まず「負なら相手の全シグニ／
+//    正なら効果元自身」へ倒し（`WX24-P1-046-E2` は原文が「**あなたの**＜地獣＞のシグニ1体に**＋**」なのに
+//    **相手の全シグニを強化**していた＝逆方向）②レベル側は regex に「パワー」しか無く**1つも当たらず
+//    無言 no-op**（`WXK10-053-E2`）だった。
+test('O-142 parser: 「〜のパワー/レベルと同じだけ」は power_sum / level_sum の倍率になり、対象を持つ', () => {
+  const nodes: Array<{ effectId: string; node: Record<string, unknown> }> = [];
+  const walk = (effectId: string, v: unknown): void => {
+    if (!v || typeof v !== 'object') return;
+    if (Array.isArray(v)) { v.forEach(x => walk(effectId, x)); return; }
+    const o = v as Record<string, unknown>;
+    // ⚠**入れ子の能力（`GRANT_LRIG_ABILITY.abilities[]`）は自前の `effectId` を持つ**（`WXK03-018-E1-G`）＝
+    //   外側の id のまま潜ると、付与能力の中の穴が親カードの名前で報告されて追えなくなる。
+    const here = typeof o.effectId === 'string' ? o.effectId : effectId;
+    const plp = o.perLastProcessed as { unit?: string } | undefined;
+    if (o.deltaPerLastProcessedCount === true && (plp?.unit === 'power_sum' || plp?.unit === 'level_sum')) {
+      nodes.push({ effectId: here, node: o });
+    }
+    Object.values(o).forEach(x => walk(here, x));
+  };
+  for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
+  const one = (effectId: string) => nodes.find(x => x.effectId === effectId)?.node;
+  const unitOf = (effectId: string) => (one(effectId)?.perLastProcessed as { unit?: string } | undefined)?.unit;
+  const tgt = (effectId: string) => one(effectId)?.target as { owner?: string; count?: unknown; filter?: Record<string, unknown> } | undefined;
+
+  for (const id of ['WXEX2-79-E2', 'WX24-P1-046-E2', 'WXDi-P14-037-E1', 'WXK10-026-E1', 'WXK03-018-E1-G']) {
+    ok(one(id), `${id} の「パワーと同じだけ」倍率が落ちている`);
+    eq(unitOf(id), 'power_sum', `${id} は枚数ではなくパワー総和が倍率`);
+    eq(Math.abs(one(id)?.delta as number), 1, `${id} の delta は符号だけ（±1）`);
+  }
+  // 🔴向きと適用先＝旧実装が一番外していたところ。
+  eq(tgt('WX24-P1-046-E2')?.owner, 'self', '🔴「あなたの＜地獣＞のシグニ1体」＝相手の全シグニを強化していた旧挙動に戻っていない');
+  eq((tgt('WX24-P1-046-E2')?.filter ?? {}).story, '地獣', '同・クラス絞り込み');
+  eq(one('WX24-P1-046-E2')?.delta, 1, '同・向きは＋');
+  eq(tgt('WXDi-P14-037-E1')?.owner, 'opponent', '「対戦相手のシグニ1体」');
+  eq(tgt('WXDi-P14-037-E1')?.count, 1, '🔴1体だけ（旧実装は相手の全シグニ）');
+  eq((tgt('WXEX2-79-E2')?.filter ?? {}).infected, true, '「対戦相手の**感染状態の**シグニ1体」の状態フィルタも復元される');
+  // 🔴レベル側＝旧 regex に「パワー」しか無く1件も当たらなかった枝。
+  eq(one('WXK10-053-E2')?.type, 'LEVEL_MODIFY', 'WXK10-053-E2 はパワーではなくレベルを下げる');
+  eq(unitOf('WXK10-053-E2'), 'level_sum', '同・倍率は公開したシグニのレベル');
+});
+
+test('O-142 engine: power_sum / level_sum の倍率が値そのものになり、選択を跨いでも保たれる', () => withSavedCursor(() => {
+  const p3000 = SIGNI_P3000;
+  const p12000 = SIGNI_P12000;
+  const spell = findCard(c => c.Type === 'スペル');
+  const victim = fresh();
+  const base = mkCtx({}, { signi: [victim, null, null] }, SIGNI);
+  const ctx = { ...base, lastProcessedCards: [p3000, p12000, spell] } as ExecCtx;
+  const sumOf = (r: ExecResult) => (r.otherState.temp_power_mods ?? []).reduce((s, m) => s + m.delta, 0);
+  const pm = (extra: Record<string, unknown>) => ({
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+    delta: -1, deltaPerLastProcessedCount: true, ...extra,
+  } as unknown as EffectAction);
+
+  const both = parseInt(cardMap.get(p3000)?.Power ?? '0', 10) + parseInt(cardMap.get(p12000)?.Power ?? '0', 10);
+  eq(sumOf(run(pm({ perLastProcessed: { filter: { cardType: 'シグニ' }, unit: 'power_sum' } }), ctx)), -both,
+    '🔴倍率はシグニのパワー総和（スペルは filter で外れる）');
+  eq(sumOf(run(pm({ perLastProcessed: { unit: 'power_sum' } }), ctx)), -both,
+    'スペルのパワーは0なので絞り込み無しでも同じ値');
+  // 🔴直前ステップが空振り（処理カード0枚）なら倍率0＝何もしないへ fail-closed。
+  eq(sumOf(run(pm({ perLastProcessed: { unit: 'power_sum' } }), { ...base, lastProcessedCards: [] } as ExecCtx)), 0,
+    '🔴処理カード0枚なら±0（旧既定は相手の全シグニへ撃っていた）');
+  // 🔴対象選択を挟んでも倍率が1倍（＝符号だけ）に潰れない。
+  const picked = run({
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+    delta: -1, deltaPerLastProcessedCount: true, perLastProcessed: { filter: { cardType: 'シグニ' }, unit: 'power_sum' },
+  } as unknown as EffectAction, ctx);
+  eq(sumOf(picked), -both, '🔴選択UIを通ってもパワー総和のまま（焼き込み無しだと -1 に潰れる）');
+
+  // LEVEL_MODIFY 側も同じ口で動く（`temp_level_mods` に載る）。
+  const lvCtx = { ...mkCtx({}, { signi: [fresh(), null, null] }, SIGNI), lastProcessedCards: [SIGNI_L3] } as ExecCtx;
+  const lv = run({
+    type: 'LEVEL_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+    delta: -1, until: 'UNTIL_END_OF_TURN',
+    deltaPerLastProcessedCount: true, perLastProcessed: { filter: { cardType: 'シグニ' }, unit: 'level_sum' },
+  } as unknown as EffectAction, lvCtx);
+  eq((lv.otherState.temp_level_mods ?? []).reduce((s, m) => s + m.delta, 0), -3,
+    '🔴レベル3のシグニを公開したら -3（旧実装はレベル側の regex が無く無言 no-op）');
+}));
+
+test('O-142 E2E: WXK10-053-E2 は公開したシグニのレベルぶんだけ相手のレベルを下げる（実機再現）', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXK10-053') ?? []).find(e => e.effectId === 'WXK10-053-E2');
+  ok(!!effect, 'WXK10-053-E2: live effect');
+  // ⚠**実機シナリオ（`o142LevelSame` / `o142LevelSameLv1`）と同じカード**を使う＝
+  //   POOL から拾うと実機で落ちた組み合わせを再現できない。
+  const victim = 'WX01-083';                        // 幻水 クマノミン（Lv1）
+  const runTop = (top: string): number => {
+    const base = mkCtx({ signi: ['WXK10-053', null, null], deckTop: [top] }, { signi: [victim, null, null] }, 'WXK10-053');
+    const r = finish(executeEffect(effect as CardEffect, base), base);
+    return (r.otherState.temp_level_mods ?? []).reduce((sum, m) => sum + m.delta, 0);
+  };
+  // 🔴実機（`o142LevelSame`）が炙った穴＝公開が Lv3 でも 0 になり、Lv1 のときだけ「たまたま」-1 が出ていた。
+  eq(runTop('WX01-036'), -3, '🔴公開した巨弓 カタパル（Lv3）のぶんだけ下がる');
+  eq(runTop('WD01-013'), -1, '公開が小剣 ククリ（Lv1）なら -1');
+}));
+
+// 🔴§5.3 `O-142` の道中で発見＝「デッキの**一番下**のカードをトラッシュに置く」の**兄弟枝2つ**が
+//    `TRASH{DECK_CARD}`（＝`execTrash` はデッキの**上**から捨てる）を返していた。正準形
+//    `MILL{fromBottom:true}` は最初から在り、`parseSentencePart4` の「置く」版だけが正しかった。
+test('O-142/付随: 「デッキの一番下のカードをトラッシュに置く」は MILL{fromBottom} になる', () => {
+  const tree = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  for (const [num, id] of [['WXK10-026', 'WXK10-026-E1'], ['WXK11-036', 'WXK11-036-E2'], ['WXDi-P13-049', 'WXDi-P13-049-E1']] as const) {
+    const t = tree(num, id);
+    ok(t.includes('"fromBottom":true'), `${id} が「一番下」を落としている（デッキの上から捨てる旧挙動）`);
+    ok(!t.includes('"DECK_CARD"'), `${id} が TRASH{DECK_CARD}（＝上から）に戻っている`);
+  }
+  ok(tree('WXK10-026', 'WXK10-026-E1').includes('OPTIONAL_ACTIVATE'),
+    'WXK10-026-E1 の「置いてもよい」（任意）が落ちている');
+});
+
+// 🔴§5.3 `O-142` の道中で発見＝「あなたの**トラッシュから**〈filter〉1枚を対象とし、それをデッキの一番下に
+//    置いてもよい」が、文末だけを見る `LOOK_AND_REORDER` 規則に食われて**デッキの一番上を見る**別物に
+//    なっていた。実害は2段＝①移動元が違う ②`lastProcessedCards` に別のカードが残るので、後続の
+//    「この方法でデッキに移動したシグニのパワーと同じだけ＋」（`WX24-P1-046-E2`）が**別のカードのパワー**を掛ける。
+test('O-142/付随: 「トラッシュから〜を対象とし、それをデッキの一番下に置いてもよい」はトラッシュから動く', () => {
+  const tree = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  for (const [num, id] of [['WX24-P1-046', 'WX24-P1-046-E2'], ['WX24-P4-048', 'WX24-P4-048-E2']] as const) {
+    const t = tree(num, id);
+    ok(t.includes('"TRANSFER_TO_DECK"'), `${id} の「トラッシュから」移動が落ちている`);
+    ok(t.includes('"TRASH_CARD"'), `🔴${id} が「デッキの一番上を見る」旧挙動に戻っている`);
+    ok(t.includes('"position":"bottom"'), `${id} の行き先（デッキの一番下）が落ちている`);
+    ok(t.includes('"optional":true'), `${id} の「してもよい」が落ちている`);
+  }
+  ok(tree('WX24-P1-046', 'WX24-P1-046-E2').includes('"story":"地獣"'),
+    'WX24-P1-046-E2 の＜地獣＞絞り込みが落ちている');
+  // 🔑対照（§4.4 罠3）＝**トラッシュを源に取らない**「デッキの一番上を見て、それをデッキの一番下に
+  //    置いてもよい」（`WXDi-P03-050-E2`）は新規則に食われない＝規則が広すぎないことの証拠。
+  ok(!tree('WXDi-P03-050', 'WXDi-P03-050-E2').includes('TRANSFER_TO_DECK'),
+    '🔴デッキ由来の「一番下に置いてもよい」まで新規則が食っている（regex が広すぎる）');
+});
+
 // 🔴§5.3 `O-60` 第8バッチ（2026-08-26）＝`CONDITIONAL_ARTS_COST` は**カード全文**（`EffectText`＋`BurstText`）を
 //    regex 2本で読んで条件を判定していた。実害は「この id が**コストの話を1文字もしていない4文型**の
 //    catch-all だった」こと＝`SP38-001`（センタールリグをグロウしてもよい）・`WX16-Re20`（追加で
@@ -45676,6 +45814,13 @@ type Batch24Case = {
   choiceId?: string;
   costType: 'BANISH' | 'TRASH';
   bodyFired: (result: ExecResult, opponent: string) => boolean;
+  /**
+   * 🆕§5.3 `O-142`（2026-08-29）＝**相手側の盤面状態を作ってから回す**フック。
+   * `WXEX2-79-E2` の原文は「対戦相手の**感染状態の**シグニ1体を対象とし」で、payload 化によって
+   * `filter.infected` が復元された＝**素の相手シグニでは候補0**になり、旧 catch-all
+   * （相手の全シグニへ無条件に撃つ）でだけ通っていたことが露呈した。
+   */
+  oppFieldSetup?: (state: PlayerState) => PlayerState;
 };
 
 // 🆕§5.3 `O-129`（2026-08-28）＝「〈対象宣言〉を対象とし、〈中間動作〉。そうした場合、…」の
@@ -45719,11 +45864,14 @@ function runBatch24RequiredSacrifice(c: Batch24Case): void {
   const ownField = (includeSacrifice: boolean) => c.sourceOnField
     ? [c.cardNum, ...(includeSacrifice ? [sacrifice] : []), null].slice(0, 3) as (string | null)[]
     : [includeSacrifice ? sacrifice : null, null, null];
-  const ctx = (includeSacrifice: boolean) => mkCtx(
-    { signi: ownField(includeSacrifice), hand: 0, trash: 0, energy: 0 },
-    { signi: [opponent, null, null], hand: 0, trash: 0, energy: 0 },
-    c.cardNum,
-  );
+  const ctx = (includeSacrifice: boolean) => {
+    const base = mkCtx(
+      { signi: ownField(includeSacrifice), hand: 0, trash: 0, energy: 0 },
+      { signi: [opponent, null, null], hand: 0, trash: 0, energy: 0 },
+      c.cardNum,
+    );
+    return c.oppFieldSetup ? { ...base, otherState: c.oppFieldSetup(base.otherState) } as ExecCtx : base;
+  };
 
   // ① 第1ステップ単体：自分の該当クラスだけが消え、相手盤面は犠牲処理では減らない。
   const paidOnly = run(cost, ctx(true));
@@ -45779,6 +45927,9 @@ test('段2 第24バッチ E2E: WXEX2-27-E2 は＜遊具＞を場からトラッ�
 test('段2 第24バッチ E2E: WXEX2-79-E2 は他の＜微菌＞を犠牲にして初めて相手のパワーを下げる', () => withSavedCursor(() => {
   runBatch24RequiredSacrifice({
     cardNum: 'WXEX2-79', effectId: 'WXEX2-79-E2', story: '微菌', sourceOnField: true, costType: 'BANISH',
+    // 🔴原文は「対戦相手の**感染状態の**シグニ1体」＝ゾーン0に【ウィルス】を置いてから回す
+    //   （§5.3 `O-142` で `filter.infected` が復元された。旧 catch-all は状態を見ずに相手の全シグニへ撃っていた）。
+    oppFieldSetup: state => ({ ...state, field: { ...state.field, signi_virus: [1, 0, 0] } }),
     bodyFired: (result, opponent) => !!result.otherState.temp_power_mods?.some(mod => mod.cardNum === opponent && mod.delta < 0),
   });
 }));

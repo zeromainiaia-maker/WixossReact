@@ -1712,10 +1712,11 @@ export function execStubPart1(
     // ✅パターン4（"自身の下にあるすべてのシグニのパワーの合計と同じだけ+"）は §5.3 `O-141`（2026-08-29）で
     //   撤去した＝`POWER_MODIFY{deltaFromZone:{zone:'under', sumBy:'power'}}` が payload で持つ。
     //   旧実装は「シグニの」を無視して**下段の全カード**（このカードの【出】は種別問わず置く）を足していた。
-    // パターン5: "この方法で〜したシグニのパワーと同じだけ-" (WXDi-P14-037, WXK10-026)
-    const lastPwM = (!perM && !lvlM && !totalM)
-      ? effText.match(/(?:この方法で|ターン終了時まで、|そうした場合、).*シグニのパワーと同じだけ([－＋])/)
-      : null;
+    // ✅パターン5（"この方法で〜したシグニのパワーと同じだけ±"）は §5.3 `O-142`（2026-08-29）で撤去した＝
+    //   `POWER_MODIFY{deltaPerLastProcessedCount, perLastProcessed:{unit:'power_sum'}}` が payload で持つ。
+    //   旧実装は①**対象を読まず**「負なら相手の全シグニ／正なら効果元自身」へ倒し
+    //   （`WX24-P1-046-E2` は原文が「**あなたの**＜地獣＞のシグニ1体に**＋**」なのに相手の全シグニを強化＝逆方向）
+    //   ②`processed[0]` の1枚だけを見ていた ③レベル側（`WXK10-053-E2`）には当たりようが無かった。
 
     let totalDelta = 0;
     const processed = ctx.lastProcessedCards ?? [];
@@ -1734,12 +1735,6 @@ export function execStubPart1(
       totalDelta = Math.floor(sumLvl / unitLvl) * deltaPerLvl;
     } else if (totalM) {
       totalDelta = toSigned(totalM[1]);
-    } else if (lastPwM && processed.length > 0) {
-      // パターン5: lastProcessedCards[0] のパワーと同じだけ±
-      const sign = lastPwM[1] === '－' ? -1 : 1;
-      const refCN = processed[0];
-      const refPw = ctx.effectivePowers?.get(refCN) ?? (parseInt(ctx.cardMap.get(refCN)?.Power ?? '0') || 0);
-      totalDelta = sign * refPw;
     }
 
     // ドローパターン: "枚数に+Nを加えた枚数のカードを引く"

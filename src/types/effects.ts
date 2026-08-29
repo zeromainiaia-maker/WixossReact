@@ -1380,8 +1380,13 @@ export interface PowerModifyAction {
   perLastProcessed?: {
     /** 数える対象の絞り込み（「**黒の**シグニ1枚につき」「**＜悪魔＞の**シグニ1枚につき」）。 */
     filter?: TargetFilter;
-    /** `'level_sum'`＝「〜の**レベル(の合計)1**につき」。省略＝枚数。 */
-    unit?: 'cards' | 'level_sum';
+    /**
+     * `'level_sum'`＝「〜の**レベル(の合計)1**につき」。省略＝枚数。
+     * 🆕`'power_sum'`＝「〜の**パワーと同じだけ**」（§5.3 `O-142`・2026-08-29）＝
+     *   直前ステップで処理したカードの **Power の総和**が倍率。`delta` は ±1 を入れて符号だけを担う。
+     *   ⚠**「パワー」は倍率であって単価ではない**＝`divisor` は原文に現れない（1固定）。
+     */
+    unit?: 'cards' | 'level_sum' | 'power_sum';
     /** 「**N枚**につき」の N（既定1）。端数は切り捨て。 */
     divisor?: number;
   };
@@ -2409,6 +2414,15 @@ export interface LevelModifyAction {
   target: EffectTarget;
   delta: number;
   until: EffectDuration;
+  /**
+   * 🆕「それのレベルを**この方法で公開されたシグニのレベルと同じだけ**－する」（`WXK10-053-E2`・
+   * §5.3 `O-142`・2026-08-29）＝`PowerModifyAction` と**同じ口**（`lastProcessedUnits` を共有）。
+   * `delta` は ±1 を入れて符号だけを担い、倍率は直前ステップの処理カードから決まる。
+   * 🔴従来はこの文型が catch-all `STUB{POWER_MOD_PER_COUNT}` に落ち、engine のカード全文 regex が
+   *   「パワーと同じだけ」しか見ていなかったため**レベル側は1つも当たらず無言 no-op** だった。
+   */
+  deltaPerLastProcessedCount?: boolean;
+  perLastProcessed?: PowerModifyAction['perLastProcessed'];
 }
 
 // チャーム枚数比例パワー変更（フィールドまたはこの効果でトラッシュした枚数）

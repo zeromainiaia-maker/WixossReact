@@ -749,6 +749,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
+    // 🔴🆕**解決待ちの `pending_effect` が抱えているカードも載せる**（§5.3 `O-142`・2026-08-29 実機で発見）。
+    //   `LOOK_AND_REORDER` は見たカードを**デッキから抜いて `interaction.cards` に持つ**ので、その間だけ
+    //   どのゾーンにも居らず `battleCardMap` から落ちる。⇒ resume の continuation で走る後続ステップが
+    //   `cardMap.get(...)===undefined` を引き、**そのカードの属性を読む判定が全部 false / 0 に倒れる**。
+    //   実測（実機 `o142LevelSame`）＝「この方法で公開されたシグニの**レベルと同じだけ**－」が
+    //   Lv3 のカードでも **0**（＝レベル修整なし）になった。デッキに同名カードが他にも残っていると
+    //   **たまたま正しく動く**ため、`WD01-013`（複数枚）では気づけなかった。
+    //   ⚠`signi_facedown_attached` を足したとき（`WX16-003-E3`）と**同じクラスの穴**＝
+    //   「どのゾーンにも居ない一時的な保持場所」は全部ここへ足す。
+    //   ⚠**深さ優先で全文字列を拾う**＝`cards` / `candidates` / `cardNum` / `revealed` … と
+    //   `PendingInteractionDef` の形ごとにキー名が違い、増えるたびに漏れるため。
+    //   カード番号でない文字列（effectId 等）が混ざっても `cards.filter` で落ちるので無害。
+    if (bs?.pending_effect) {
+      const addFromPending = (v: unknown): void => {
+        if (typeof v === 'string') { nums.add(getCardNum(v)); return; }
+        if (Array.isArray(v)) { v.forEach(addFromPending); return; }
+        if (v && typeof v === 'object') Object.values(v).forEach(addFromPending);
+      };
+      addFromPending(bs.pending_effect);
+    }
     nums.add('WXDi-P07-TK01-A'); // サーバントZEROトークン（常時ロード）
     nums.add('WX24-D1-TK1');     // 【リミットアッパー】トークン（ルリグゾーン左に表示・常時ロード）
     // クラフトカード（ADD_CRAFT_TO_LRIG_DECKでゲーム外から生成・cardMapに必要）

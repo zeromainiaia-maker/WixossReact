@@ -1,5 +1,86 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3 `O-142` クローズ＝「この方法で〜したシグニのパワー／レベルと**同じだけ**」の受け皿（6効果）＋ 実機が炙った `battleCardMap` の穴
+
+`O-80` 残 C群の最大の小群。**6効果とも catch-all `STUB{POWER_MOD_PER_COUNT}`** に落ち、engine の**カード全文 regex**
+（`(?:この方法で|…).*シグニのパワーと同じだけ([－＋])`）が意味を決めていた。
+
+### 真因＝倍率が「枚数」ではなく**直前ステップで処理したカードの値そのもの**
+
+| 効果 | 原文の要点 | 旧 live の実挙動 |
+|---|---|---|
+| `WX24-P1-046-E2` | **あなたの**＜地獣＞のシグニ1体に**＋** | 🔴regex に当たったが**対象を読まない**＝正のデルタは `あなたのシグニ`／`このシグニ` にしか一致せず、この文は外れて**既定分岐＝相手の全シグニを強化**（＝**逆方向**） |
+| `WXEX2-79-E2` `WXDi-P14-037-E1` `WXK10-026-E1` `WXK03-018-E1-G` | 対戦相手のシグニ**1体**に－ | 🔴**相手の3ゾーンすべて**に満額（過剰）／倍率は `processed[0]` の1枚だけ |
+| `WXK10-053-E2` | それの**レベル**を－ | 🔴regex に「パワー」しか書いていない＝**1つも当たらず無言 no-op** |
+
+### 受け皿（§5.3「まず受け皿を疑う」）＝**新しいアクション型の新設は 0**
+
+登録票は「パワー値そのもの／レベル値そのものを運ぶ口が見つからなかった」と書いていたが、
+`grep` すると `POWER_MODIFY.deltaPerLastProcessedCount` ＋ `perLastProcessed{filter, unit, divisor}`
+（`O-80` 第1バッチで新設）が**そのまま使えた**。足したのは列挙値と型の横展開だけ：
+
+- `perLastProcessed.unit` に **`'power_sum'`**（枚数ではなく Power の総和を単位量にする）。`delta` は ±1 で符号だけを担う。
+- `LevelModifyAction` に `deltaPerLastProcessedCount` / `perLastProcessed` を横展開（`lastProcessedUnits` を共有）。
+  ⚠`execPowerModify` と同じく**選択UIへ渡す action に delta を焼き込む**（`applyDirectAction` の時点で
+  `lastProcessedCards` は「いま選んだ対象」に置き換わっており、焼き込まないと必ず1倍＝符号だけに潰れる）。
+- fail-closed ガード `revertUnresolvedPerLastProcessed` を **`LEVEL_MODIFY` へも広げた**（片方だけ守ると
+  「相手のレベルを下げる」が「自分のシグニのレベルを下げる」に化ける）。
+- parser は `O-80` 第1バッチと**同じ手口**＝修飾句を `±1` へ畳んで通常経路に解かせ、倍率だけ payload で足す。
+- engine のカード全文 regex **パターン5 を撤去**（live で1件も当たらなくなったことを `census:enginetext --id` で確認）。
+
+⚠**`WXEX2-79-E2` は「対戦相手の感染状態のシグニ1体」の `filter.infected` まで復元された**＝
+既存 golden（段2 第24バッチ）が**素の相手シグニ盤面**で回っていて落ちた。**テストが旧 catch-all の
+「相手の全シグニへ無条件」でだけ通っていた**ということ＝盤面に【ウィルス】を置く hook を足して直した。
+
+### 🔴 実機だけが見つけた穴＝`pending_effect` が抱えるカードが `battleCardMap` から落ちる
+
+`WXK10-053-E2` は **golden（headless）では -3 で PASS するのに、実機では 0（レベル修整なし）**になった。
+
+- 真因＝`LOOK_AND_REORDER` は見たカードを**デッキから抜いて `pending_effect.interaction.cards` に持つ**。
+  `battleCardNums`（`BattleScreen.tsx`）は各ゾーンしか走査しないので、**その間だけそのカードが
+  `battleCardMap` から消える**。resume の continuation で走る後続ステップが `cardMap.get(...)===undefined` を引き、
+  `matchesFilter(undefined, {cardType:'シグニ'})` が false → 倍率 0 → **レベル修整が乗らない**。
+- 🔑**デッキに同名カードが他にも残っていると「たまたま」正しく動く**＝対照に使った `WD01-013`（4枚）では
+  再現せず、`WX01-036`（1枚）でだけ落ちた。**対照の作り方しだいで見逃していた。**
+- ⇒ `bs.pending_effect` を**深さ優先で全文字列走査**して `battleCardNums` へ足した
+  （`cards`／`candidates`／`cardNum`／`revealed` …と形ごとにキー名が違い、増えるたびに漏れるため）。
+  ⚠`signi_facedown_attached` を足したとき（`WX16-003-E3`）と**同じクラスの穴**。
+- 🔴**この穴は `LOOK_AND_REORDER` に限らない**＝`pending_effect` が一時的に抱える全経路に効いていた
+  （逆翻訳・census・golden・smoke・fuzz のどれにも映らない）。
+
+### 付随して直した2件（作業中に見つけた parser バグ）
+
+1. **「デッキの一番下のカードをトラッシュに置く」の兄弟枝2つ**（`parseSentencePart3.ts`）が
+   `TRASH{DECK_CARD}`＝`execTrash` は **`deck.slice(0, count)`＝上から**捨てる、を返していた。
+   正準形 `MILL{fromBottom:true}` は最初から在り、`parseSentencePart4` の「置く」版だけが正しかった（§5-8′ の再実証）。
+   影響＝`WXK10-026-E1` `WXK11-036-E2` `WXDi-P13-049-E1`。**「置いてもよい」の任意性も一緒に戻った**
+   （上流が `STUB{OPTIONAL_ACTIVATE}` を前置する形になった）。
+2. **「あなたのトラッシュから〈filter〉1枚を対象とし、それをデッキの一番下に置いてもよい」**が、
+   文末だけを見る `LOOK_AND_REORDER` 規則に食われて**デッキの一番上を見る**別物になっていた。
+   実害は2段＝①移動元が違う ②`lastProcessedCards` に別のカードが残るので、後続の「この方法でデッキに
+   移動したシグニのパワーと同じだけ＋」（`WX24-P1-046-E2`）が**別のカードのパワー**を掛ける。
+   受け皿 `TRANSFER_TO_DECK{source:TRASH_CARD, position:'bottom', optional}` は最初から在った。
+   影響＝`WX24-P1-046-E2` `WX24-P4-048-E2`。対照（デッキ由来の同じ文末）が食われないことも golden で固定。
+
+### 影響枚数
+
+**O-142 本体 6効果／6カード**＋付随 **5効果**（重複 `WXK10-026-E1`／`WX24-P1-046-E2` を含む）。
+`POWER_MOD_PER_COUNT` の live は **11→5 効果**（初回 58）。
+
+### 検証コマンド
+
+- `npm run gates` — **全緑**（golden 2985/2985・census 520/520・census:enginetext A群 136 据え置き）。
+- `npm run golden -- --only "O-142"` — 新規5本（parser payload／engine 倍率と fail-closed／E2E 実機再現／付随2件）。
+- 🆕**⑤実機まで回した**（§2.2＝**新しい機構**＋**`src/screens/` を触った**の両方に該当）＝
+  `node scripts/verifyBattleDrive.mjs o142LevelSame o142LevelSameLv1` が **2本とも PASS**。
+  **反転確認＝盤面はそのままで公開カードを Lv3→Lv1 にすると -3→-1 に追随**（§4.4 罠3 の対照）。
+  `src/screens/` を触ったので **`O-141` の実機2本（`o141UnderCount` / `o141UnderCountOne`）も回帰確認して PASS**。
+
+### 残り（`O-80` 残 C群）
+
+**3効果**＝`O-143`（チェックゾーン1）＋ lastProcessed カウント2（`WX25-P3-102-E1` `WX24-P2-035-E1`）。`O-142` はクローズ。
+
+
 ## 2026-08-29：§5.3 `O-141` クローズ＝「このシグニの**下にあるカード**」を数える受け皿を新設（3効果）
 
 `O-80` 残 C群の1小群。**3効果とも catch-all `STUB{POWER_MOD_PER_COUNT}`** に落ち、engine の**カード全文 regex**が意味を決めていた。

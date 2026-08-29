@@ -1650,6 +1650,13 @@ function srcTypeOf(ctx: ExecCtx): string | undefined {
 function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: ExecCtx): ExecResult {
   const tgtO: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
   const state = ownerState(tgtO, ctx);
+  // 🆕「この方法で公開されたシグニの**レベルと同じだけ**－」（§5.3 `O-142`）＝`POWER_MODIFY` と同じ口。
+  //   `a.delta` は符号だけ（±1）を持ち、倍率は直前ステップの処理カードから決まる。
+  //   ⚠**倍率が0（直前ステップが空振り）なら delta も0**＝何もしないへ fail-closed。
+  const lvDelta = a.deltaPerLastProcessedCount
+    ? a.delta * lastProcessedUnits(a.perLastProcessed, ctx)
+    : a.delta;
+  a = lvDelta === a.delta ? a : { ...a, delta: lvDelta };
   // thisCardOnly:「このシグニのレベルを＋X」＝効果元シグニ自身へ選択UIなしで適用（WX16-070・execPowerModify と同型・続き137）
   if (a.target.filter?.thisCardOnly) {
     const selfNum = ctx.sourceCardNum;
@@ -1674,7 +1681,13 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
     return done(addLog(cur, `レベル${a.delta > 0 ? '+' : ''}${a.delta}`));
   }
   const cnt = resolveNum(a.target.count);
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, lmScope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
+  // 🔴`execPowerModify` と同じ理由で**選択の向こう側では解けない**（§5.3 `O-80` 第1バッチ）＝
+  //   `applyDirectAction` の時点で `lastProcessedCards` は**いま選んだ対象**に置き換わっている。
+  //   ⇒ 選択UIへ渡す action には解決済みの delta を焼き込み、フラグを外す。
+  const lmActionForSelect = a.deltaPerLastProcessedCount
+    ? { ...a, deltaPerLastProcessedCount: false, perLastProcessed: undefined }
+    : a;
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, lmScope, lmActionForSelect, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 /**
@@ -1695,6 +1708,13 @@ function lastProcessedUnits(spec: PowerModifyAction['perLastProcessed'], ctx: Ex
         const lv = Number.parseInt(ctx.cardMap.get(getCardNum(cn))?.Level ?? '', 10);
         return sum + (Number.isFinite(lv) ? lv : 0);
       }, 0)
+    // 🆕`power_sum`＝「この方法で〜したシグニの**パワーと同じだけ**」（§5.3 `O-142`・2026-08-29）。
+    //   ⚠場に出た直後のカードは実効パワー（`effectivePowers`）を持つことがあるので、旧 STUB の
+    //     パターン5 と同じ順（実効→印刷値）で読む＝この文型で唯一動いていた経路を退化させない。
+    : spec?.unit === 'power_sum'
+      ? matched.reduce((sum, cn) =>
+          sum + (ctx.effectivePowers?.get(cn)
+            ?? (Number.parseInt(ctx.cardMap.get(getCardNum(cn))?.Power ?? '', 10) || 0)), 0)
     : matched.length;
   return Math.floor(raw / Math.max(1, spec?.divisor ?? 1));
 }

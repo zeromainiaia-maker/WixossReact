@@ -4870,7 +4870,10 @@ function revertUnresolvedPerLastProcessed(node: unknown): void {
   if (Array.isArray(node)) { node.forEach(revertUnresolvedPerLastProcessed); return; }
   if (!node || typeof node !== 'object') return;
   const o = node as Record<string, unknown>;
-  if (o.type === 'POWER_MODIFY' && o.deltaPerLastProcessedCount === true && o.targetsTriggerSource === true) {
+  // ⚠**`LEVEL_MODIFY` も同じ口を使う**（§5.3 `O-142`）＝片方だけ守ると
+  //   「相手のレベルを下げる」が「自分のシグニのレベルを下げる」に化ける。
+  if ((o.type === 'POWER_MODIFY' || o.type === 'LEVEL_MODIFY')
+      && o.deltaPerLastProcessedCount === true && o.targetsTriggerSource === true) {
     for (const k of Object.keys(o)) delete o[k];
     o.type = 'STUB';
     o.id = 'POWER_MOD_PER_COUNT';
@@ -4903,6 +4906,16 @@ function collectPowerModifyNodes(node: unknown, out: PowerModifyAction[] = []): 
   const o = node as Record<string, unknown>;
   if (o.type === 'POWER_MODIFY') out.push(o as unknown as PowerModifyAction);
   Object.values(o).forEach(v => collectPowerModifyNodes(v, out));
+  return out;
+}
+
+/** `LEVEL_MODIFY` 版（§5.3 `O-142`＝「それの**レベル**を〜と同じだけ－」）。 */
+function collectLevelModifyNodes(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (Array.isArray(node)) { node.forEach(v => collectLevelModifyNodes(v, out)); return out; }
+  if (!node || typeof node !== 'object') return out;
+  const o = node as Record<string, unknown>;
+  if (o.type === 'LEVEL_MODIFY') out.push(o);
+  Object.values(o).forEach(v => collectLevelModifyNodes(v, out));
   return out;
 }
 
@@ -5841,6 +5854,54 @@ function parseSingleSentenceInner(text: string): EffectAction {
           ...(divisorLp > 1 ? { divisor: divisorLp } : {}),
         };
         return innerLp;
+      }
+    }
+  }
+
+  // 🆕🔴§5.3 `O-142`（2026-08-29）＝「…のパワー／レベルを**この方法で〜したシグニのパワー／レベルと
+  //   同じだけ**±する」。倍率が「枚数」ではなく**直前ステップで処理したカードの値そのもの**の族。
+  //   🔴旧挙動（engine のカード全文 regex `…シグニのパワーと同じだけ([－＋])`）は二重に壊れていた：
+  //   ①**対象を読まず**「負なら相手の全シグニ／正なら効果元自身」へ倒す
+  //     （`WX24-P1-046-E2` は原文が「**あなたの**＜地獣＞のシグニ1体に**＋**」なのに
+  //      `あなたのシグニ` に一致せず**相手の全シグニを強化**していた＝**逆方向**）
+  //   ②**レベル側は regex に「パワー」しか書いていないので1つも当たらず無言 no-op**（`WXK10-053-E2`）。
+  //   ⇒ 上の「N枚につき」族と**同じ手口**＝修飾句を数値へ畳んで通常経路に解かせ、倍率だけ payload で足す。
+  //   ⚠**符号だけを `delta`（±1）に持たせる**＝倍率は engine 側の `lastProcessedUnits` が毎回決める。
+  //   ⚠**通常経路の後ろ**に置く（専用の受け皿を持つ文を横取りしない＝第1バッチと同じ理由）。
+  if (containsPowerModPerCount(result)) {
+    const sameM = t.match(/この方法で([^、。]*?)の(パワー|レベル)と同じだけ([＋－+-])(?:（(?:プラス|マイナス)）)?/);
+    if (sameM) {
+      const signSame = (sameM[3] === '－' || sameM[3] === '-') ? '－' : '＋';
+      // 修飾句を「±1」へ畳む＝通常経路の対象句パーサ（「対戦相手のシグニ1体を対象とし」等）はそのまま効く。
+      const strippedSame = t.replace(sameM[0], `${signSame}1`);
+      const innerSame =
+        parseSentencePart1(strippedSame, _parsingCardNum) ??
+        parseSentencePart2(strippedSame) ??
+        parseSentencePart3(strippedSame) ??
+        parseSentencePart4(strippedSame);
+      if (innerSame) {
+        const isLevel = sameM[2] === 'レベル';
+        const nodesSame: Record<string, unknown>[] = isLevel
+          ? collectLevelModifyNodes(innerSame)
+          : (collectPowerModifyNodes(innerSame) as unknown as Record<string, unknown>[]);
+        // ⚠**倍率を足せるノードがちょうど1つ**のときだけ引き取る（複数あるとどれに掛かるか決まらない）。
+        //   ⚠`delta` が ±1 に畳めていない＝畳み込みが効いていない＝差し戻す（fail-closed）。
+        if (nodesSame.length === 1 && Math.abs(nodesSame[0].delta as number) === 1) {
+          const npSame = sameM[1];
+          const filterSame: TargetFilter = {};
+          const colorSameM = npSame.match(/([白青赤緑黒])の/);
+          if (colorSameM) filterSame.color = colorSameM[1];
+          const storySameM = npSame.match(/＜([^＞]+)＞/);
+          if (storySameM) filterSame.story = storySameM[1];
+          if (/シグニ/.test(npSame)) filterSame.cardType = 'シグニ';
+          else if (/スペル/.test(npSame)) filterSame.cardType = 'スペル';
+          nodesSame[0].deltaPerLastProcessedCount = true;
+          nodesSame[0].perLastProcessed = {
+            ...(Object.keys(filterSame).length ? { filter: filterSame } : {}),
+            unit: isLevel ? ('level_sum' as const) : ('power_sum' as const),
+          };
+          return innerSame;
+        }
       }
     }
   }
