@@ -2554,28 +2554,9 @@ export function execStubPart1(
     };
     return selectOrInteract(ctx.ownerState.hand, 1, false, 'self_hand', discardDAT as EffectAction, undefined, ctx);
   }
-  // 手札から任意でエナゾーンに置く
-  if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
-    const srcHTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtHTE = srcHTE ? (srcHTE.EffectText ?? '') + ' ' + (srcHTE.BurstText ?? '') : '';
-    const toHWHTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const maxM = txtHTE.match(/手札から(?:カード)?([０-９\d]+)枚まで/);
-    const maxHTE = maxM ? parseInt(toHWHTE(maxM[1])) : 1;
-    if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（エナ任意置きスキップ）'));
-    // thenAction: noop（RULE_REMINDER_TEXT）, continuation: INTERNAL_HAND_TO_ENERGY でエナ移動
-    const noopHTE: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    const contHTE: StubAction = { type: 'STUB', id: 'INTERNAL_HAND_TO_ENERGY' };
-    const pendingHTE: PendingInteractionDef = {
-      type: 'SELECT_TARGET',
-      candidates: ctx.ownerState.hand,
-      count: maxHTE,
-      optional: true,
-      targetScope: 'self_hand',
-      thenAction: noopHTE as EffectAction,
-      continuation: contHTE as EffectAction,
-    };
-    return needsInteraction(addLog(ctx, '手札からエナゾーンに置いてもよい'), pendingHTE);
-  }
+  // 手札から任意でエナゾーンに置くは §5.3 `O-60` 第15バッチで既存の `ENERGY_CHARGE{target:{HAND_CARD, upToCount}}` へ移した。
+  // 旧 `STUB{HAND_TO_ENERGY_OPTIONAL}` は実行時に**カード全文**へ `/手札から(?:カード)?N枚まで/` を当てて枚数を決めており、
+  // live 2効果の原文はどちらも「カード１枚を」で**1本も当たっていなかった**（既定1で結果的に合っていただけ）。ここに戻さないこと。
   // INTERNAL: lastProcessedCardsの手札カードをエナへ移動
   if (stub.id === 'INTERNAL_HAND_TO_ENERGY') {
     const selected = ctx.lastProcessedCards ?? [];

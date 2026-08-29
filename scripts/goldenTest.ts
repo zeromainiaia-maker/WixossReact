@@ -29978,6 +29978,57 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(legacy.ownerState.hand.length, 0, '旧STUB: 手札も増やさない');
   }));
 
+  // §5.3 `O-60` 第15バッチ＝`STUB{HAND_TO_ENERGY_OPTIONAL}` を撤去し、既存の
+  // `ENERGY_CHARGE{target:{HAND_CARD, upToCount}}` へ移した（受け皿は live に兄弟が複数あった）。
+  test('O-60⑮ fresh: 「手札からカード1枚をエナゾーンに置いてもよい」は ENERGY_CHARGE へ', () => {
+    for (const [cardNum, effectId] of [['WX14-067', 'WX14-067-E1'], ['WXDi-P06-076', 'WXDi-P06-076-E1']] as const) {
+      const e = parseCardEffects(cardMap.get(cardNum)!).find(x => x.effectId === effectId)!;
+      const json = JSON.stringify(e.action);
+      ok(!json.includes('HAND_TO_ENERGY_OPTIONAL'), `${effectId}: 旧 STUB が fresh parse に残った`);
+      const a = e.action as import('../src/types/effects').EnergyChargeAction;
+      eq(a.type, 'ENERGY_CHARGE', `${effectId}: ENERGY_CHARGE になる`);
+      eq(a.target.type, 'HAND_CARD', `${effectId}: 手札から置く`);
+      eq(a.target.owner, 'self', `${effectId}: 自分の手札`);
+      eq(a.target.count, 1, `${effectId}: 原文どおり1枚`);
+      eq(a.target.upToCount, true, `🔴${effectId}: 「置いてもよい」＝0枚を選べる（強制になっている）`);
+    }
+  });
+
+  test('O-60⑮ engine: 選べばエナへ、選ばなければ何も起きない。撤去した旧STUBは no-op', () => withSavedCursor(() => {
+    const effect = effectsMap.get('WX14-067')!.find(e => e.effectId === 'WX14-067-E1')!;
+    const mkBase = () => {
+      const base = mkCtx({ energy: 0 }, {}, 'WX14-067');
+      base.ownerState = { ...base.ownerState, hand: fill(2), energy: [] };
+      return base;
+    };
+
+    // 成立方向＝1枚選ぶとエナが1枚増え、手札が1枚減る。
+    const base = mkBase();
+    const initial = executeEffect(effect, base);
+    ok(!initial.done && initial.pending.type === 'SELECT_TARGET', '手札の選択が提示される');
+    if (initial.done || initial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+    eq(initial.pending.optional, true, '「置いてもよい」＝任意');
+    const picked = base.ownerState.hand[0];
+    const took = finish(resumeSelectTarget([picked], initial.pending, execCtxFrom(initial, base)), base);
+    eq(took.ownerState.energy.length, 1, '選んだ1枚がエナゾーンへ');
+    eq(took.ownerState.energy[0], picked, 'エナに入るのは選んだカード');
+    eq(took.ownerState.hand.length, 1, '手札が1枚減る');
+
+    // 不成立方向（対照）＝0枚を選ぶと盤面が動かない。
+    const base0 = mkBase();
+    const initial0 = executeEffect(effect, base0);
+    if (initial0.done || initial0.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+    const none = finish(resumeSelectTarget([], initial0.pending, execCtxFrom(initial0, base0)), base0);
+    eq(none.ownerState.energy.length, 0, '0枚ならエナは増えない');
+    eq(none.ownerState.hand.length, 2, '0枚なら手札も減らない');
+
+    // 撤去した旧ハンドラは payload を持たないので何もしない（fail-closed）。
+    const legacyBase = mkBase();
+    const legacy = run({ type: 'STUB', id: 'HAND_TO_ENERGY_OPTIONAL' } as EffectAction, legacyBase);
+    eq(legacy.ownerState.energy.length, 0, '旧STUB: エナを増やさない');
+    eq(legacy.ownerState.hand.length, 2, '旧STUB: 手札も動かさない');
+  }));
+
   test('(xxix)(1) 第11波＋第12波: 相互制約つきコスト4効果を構造化し全件収集', () => {
     const expected: Record<string, import('../src/types/effects').EffectCost> = {
       'WXDi-D01-017-E1': { energyTrash: { count: 3, filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'class' } } },

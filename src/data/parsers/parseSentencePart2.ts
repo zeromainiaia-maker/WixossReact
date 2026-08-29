@@ -5,6 +5,7 @@ import type {
   Owner,
   SequenceAction,
   TransferToDeckAction,
+  EnergyChargeAction,
   CostReductionAction,
   GrantProtectionAction,
   GrantKeywordAction,
@@ -676,8 +677,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 手札からカードをエナゾーンに置く（optional）----
-  if (t.match(/あなたの手札からカード([０-９\d]+)枚をエナゾーンに置いてもよい/)) {
-    return { type: 'STUB', id: 'HAND_TO_ENERGY_OPTIONAL' } as StubAction;
+  // §5.3 `O-60` 第15バッチ＝**受け皿は最初から在った**（`ENERGY_CHARGE{target:{HAND_CARD}}` は live に兄弟が複数）。
+  // 🔴旧 `STUB{HAND_TO_ENERGY_OPTIONAL}` は engine が実行時に**カード全文**へ
+  //   `/手札から(?:カード)?N枚まで/` を当てて枚数を決めていたが、**live 2効果の原文はどちらも
+  //   「カード１枚を」で「まで」が無く1本も当たっていなかった**（既定1で結果的に合っていただけ）。
+  //   ここは枚数を既にキャプチャしているので、そのまま payload へ刻む。
+  // ⚠「置いても**よい**」＝`upToCount:true`（0枚を選べる）。`execEnergyCharge` が `selectOrInteract` へ渡す。
+  {
+    const handEnaM = t.match(/あなたの手札からカード([０-９\d]+)枚をエナゾーンに置いてもよい/);
+    if (handEnaM) {
+      return {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'HAND_CARD', owner: 'self', count: parseNum(handEnaM[1]), upToCount: true },
+      } as EnergyChargeAction;
+    }
   }
 
   // ---- 対戦相手のエナゾーンにカードが置かれたとき、超過分をトラッシュ ----
