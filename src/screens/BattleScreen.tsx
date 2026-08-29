@@ -725,6 +725,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //    効果生成シグニも確実にロードするため）。
       s.field.signi.forEach(stack => stack?.forEach(n => nums.add(getCardNum(n))));
       if (s.field.check) nums.add(getCardNum(s.field.check));
+      // 🆕チェックゾーンに留まっているカード（§5.3 `O-143`）＝どのゾーンにも居ないのでここで拾う。
+      (s.field.check_rest ?? []).forEach(n => nums.add(getCardNum(n)));
       if (s.field.key_piece) nums.add(getCardNum(s.field.key_piece));
       (s.field.key_piece_extra ?? []).forEach(n => nums.add(getCardNum(n)));
       addAll(s.field.assist_lrig_l); addAll(s.field.assist_lrig_r);

@@ -221,6 +221,8 @@ export function countFromZone(
     : fromZone.zone === 'deck' ? state.deck
     : fromZone.zone === 'acce' ? (state.field.signi_acce ?? []).flatMap(slot => slot ?? [])
     : fromZone.zone === 'charm' ? (state.field.signi_charms ?? []).filter((n): n is string => !!n)
+    // 🆕`check`＝チェックゾーン（§5.3 `O-143`）＝`check` ＋ `check_rest` の合計。
+    : fromZone.zone === 'check' ? checkZoneCards(state)
     : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
   const matchedCards = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
   const rawMatched = fromZone.sumBy === 'power'
@@ -238,6 +240,15 @@ export function countFromZone(
   const units = fromZone.unitSize === undefined ? matched : Math.floor(matched / fromZone.unitSize);
   // units（枚数）は常に非負。per は POWER_MODIFY.deltaFromZone の単価にも使うため負符号を潰さない。
   return units * (fromZone.per ?? 1);
+}
+
+/**
+ * 🆕**チェックゾーンにあるカード**（§5.3 `O-143`・2026-08-29）＝`field.check`（ライフバースト確認中の1枚）と
+ * `field.check_rest`（効果で置かれてターン終了まで留まる分）の**合計**。
+ * 🔴**片方だけを見ない**＝原文「チェックゾーンにあるカード１枚につき」「４枚以下の場合」はゾーン全体を数える。
+ */
+export function checkZoneCards(state: PlayerState): string[] {
+  return [...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? [])];
 }
 
 /**
@@ -2466,6 +2477,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return (ctx.ownerState.story_overrides?.['__selected_colors__']?.split(',') ?? []).includes(cond.color);
     case 'BEAT_ZONE_COUNT':
       return cmp(ctx.ownerState.field.beat_zone?.length ?? 0, cond.operator, cond.value);
+    // 🆕「あなたのチェックゾーンにあるカードがN枚以下の場合」（§5.3 `O-143`）。
+    //   ⚠**`check` と `check_rest` の両方**を数える（`checkZoneCards`）＝片方だけだと原文と合わない。
+    case 'CHECK_ZONE_COUNT':
+      return cmp(checkZoneCards(cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).length,
+        cond.operator, cond.value);
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN':
       return !!ctx.sourceCardNum && (ctx.ownerState.upped_from_down_this_turn ?? []).includes(ctx.sourceCardNum);
     case 'COST_TRASHED_PUPPET':

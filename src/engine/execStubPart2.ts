@@ -3380,12 +3380,19 @@ export function execStubPart2(
         try { remainderCards = (JSON.parse(stub.value) as string[]).filter(card => card !== cardToCheck); } catch { remainderCards = []; }
       }
       const remove = new Set([cardToCheck, ...remainderCards]);
+      // 🆕`trapCheckRest`＝**バースト確認を伴わずチェックゾーンに留める**（§5.3 `O-143`）。
+      //   🔴既定の `field.check` はライフバースト確認中の1枚のスロット＝そこへ置くと確認モーダルが開き、
+      //     `BattleScreen` のブロック条件に引っかかって盤面が固まる。原文が「置いてもよい
+      //     （チェックゾーンにあるカードはターン終了時にトラッシュに置かれる）」の形は `check_rest` へ。
+      const checkField = stub.trapCheckRest
+        ? { ...ctx.ownerState.field, check_rest: [...(ctx.ownerState.field.check_rest ?? []), cardToCheck] }
+        : { ...ctx.ownerState.field, check: cardToCheck };
       const newOwner = {
         ...ctx.ownerState,
         deck: ctx.ownerState.deck.filter(card => !remove.has(card)),
         hand: [...ctx.ownerState.hand.filter(card => card !== cardToCheck), ...remainderCards.filter(card => !ctx.ownerState.hand.includes(card))],
         trash: ctx.ownerState.trash.filter(card => card !== cardToCheck),
-        field: { ...ctx.ownerState.field, check: cardToCheck },
+        field: checkField,
       };
       return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [cardToCheck] },
         `${ctx.cardMap.get(getCardNum(cardToCheck))?.CardName ?? cardToCheck}をチェックゾーンへ`));

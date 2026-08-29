@@ -2371,6 +2371,25 @@ export function parseSentencePart4(t: string): EffectAction | null {
     if (trapSet) return trapSet;
   }
 
+  // 🆕§5.3 `O-143`（2026-08-29）＝「あなたのチェックゾーンから《ガードアイコン》を持たないカードを
+  //   N枚まで対象とし、それを手札に加える」（`WXDi-P11-006-E2` 後半）。
+  //   🔴従来は `DEFERRED_CHECK_ZONE_TO_HAND`（明示 defer＝no-op）だった。受け皿は
+  //   `TRANSFER_TO_HAND{source:{type:'CHECK_CARD'}}`（`checkZoneCards` から候補を作る）。
+  {
+    const chkHandM = t.match(
+      /^あなたのチェックゾーンから(《ガードアイコン》を持たない)?カードを([０-９\d]+)枚(まで)?対象とし、それを?手札に加える$/);
+    if (chkHandM) {
+      return {
+        type: 'TRANSFER_TO_HAND',
+        source: {
+          type: 'CHECK_CARD', owner: 'self', count: parseNum(chkHandM[2]),
+          ...(chkHandM[3] ? { upToCount: true } : {}),
+          ...(chkHandM[1] ? { filter: { noGuard: true } } : {}),
+        },
+      } as EffectAction;
+    }
+  }
+
   // ---- チェックゾーン操作（置く／LB発動／離れる、を別の判別子にする） ----
   if (/チェックゾーン(?:に?置|から|を離れ|のライフ|置いた)/.test(t)) {
     if (/チェックゾーンから.*(?:メモリア|シグニ).*の下に置いてもよい/.test(t)) {
@@ -2387,6 +2406,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return {
       type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'to_check', trapSource, count: 1,
       ...(/置いてもよい/.test(t) ? { upToCount: true } : {}),
+      // 🆕§5.3 `O-143`＝**トラッシュからチェックゾーンへ置く形はライフバースト確認を伴わない**
+      //   （バースト確認はライフクラッシュ経由でしか起きない）＝`field.check` ではなく
+      //   `field.check_rest` へ置く。既定スロットに置くと確認モーダルが開いて盤面が固まる。
+      //   ⚠他の `trapSource`（`looked` / `deck_top`）は**置いた直後にバースト／トラップを発動する**
+      //     文型なので従来どおり `field.check` を使う。
+      ...(trapSource === 'trash' ? { trapCheckRest: true } : {}),
     } as StubAction;
   }
 

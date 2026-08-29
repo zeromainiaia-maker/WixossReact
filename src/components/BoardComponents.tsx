@@ -1146,6 +1146,10 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   );
 
   const check     = state.field.check ?? null;
+  // 🆕**チェックゾーンに留まっているカード**（§5.3 `O-143`）＝`check_rest`。1枚も無ければ従来どおり
+  //   `CardSlot`（バースト確認中の1枚だけ）を描く＝**既存カードの見た目は1ピクセルも変えない**。
+  //   ⚠ここを描かないと、プレイヤーは「チェックゾーンにあるカード1枚につき－1000」の枚数を**盤面から読めない**。
+  const checkRest = state.field.check_rest ?? [];
   const assist_l  = state.field.assist_lrig_l ?? [];
   const lrig      = state.field.lrig ?? [];
   const assist_r  = state.field.assist_lrig_r ?? [];
@@ -1160,9 +1164,14 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
     ? { key: 'assist-l', cardNum: LIMIT_UPPER_CARD, label: 'Lアッパー', w: lowerW, h: lowerH }
     : { key: 'assist-l', stack: assist_l, label: 'アシスト左', w: lowerW, h: lowerH };
 
+  // 留まっているカードがあるときだけスタック表示（枚数が見える）。無ければ従来の1枚スロット。
+  const checkSlot: Slot = checkRest.length > 0
+    ? { key: 'check', stack: [...checkRest, ...(check ? [check] : [])], label: `CHECK(${checkRest.length + (check ? 1 : 0)})`, w: lowerW, h: lowerH }
+    : { key: 'check', cardNum: check, label: 'CHECK', w: lowerW, h: lowerH };
+
   const lowerSlots: Slot[] = isMe
     ? [
-        { key: 'check', cardNum: check,    label: 'CHECK',      w: lowerW, h: lowerH },
+        checkSlot,
         assistLSlot,
         { key: 'center', stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
         { key: 'assist-r', stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
@@ -1173,7 +1182,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
         { key: 'assist-r', stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
         { key: 'center', stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
         assistLSlot,
-        { key: 'check', cardNum: check,    label: 'CHECK',       w: lowerW, h: lowerH },
+        checkSlot,
       ];
 
   const lrig_down = state.field.lrig_down ?? false;

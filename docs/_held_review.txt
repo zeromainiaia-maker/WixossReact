@@ -21,49 +21,36 @@ PR-Di017B SP27-009 SP38-006 WD07-006 WD15-001 WD19-009 WDK16-13 WX12-Re10 WX13-0
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
 
-## +POWER_MODIFY +SIGNI -STUB ［3枚］
-WXDi-CP02-054 WXDi-P07-065 WXK09-060
---- WXDi-CP02-054
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニの下にあるカード１枚につき－4000する。このシグニの下にあるすべてのカードをトラッシュに置く。【起】手札から＜ブルアカ＞のカードを１枚捨てる：あなたのトラッシュから＜ブルアカ＞のカードを２枚まで対象とし、それらをこのシグニの下に置く。【絆自】《タ
-  - [0].action.steps[0].id = "POWER_MOD_PER_COUNT"
-  ~ [0].action.steps[0].type : "STUB" → "POWER_MODIFY"
-  + [0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[0].target.owner = "opponent"
-  + [0].action.steps[0].target.count = 1
-  + [0].action.steps[0].target.filter.cardType = "シグニ"
-  + [0].action.steps[0].delta = 0
-  + [0].action.steps[0].deltaFromZone.zone = "under"
-  + [0].action.steps[0].deltaFromZone.owner = "self"
-  + [0].action.steps[0].deltaFromZone.unitSize = 1
-  + [0].action.steps[0].deltaFromZone.per = -4000
---- WXDi-P07-065
-  原文: 【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ＋する。その後、このシグニのパワーが15000以上の場合、《赤》《赤》《無》を支払ってもよい。そうした場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：あなたのデッキの一番上のカードをこのシグニの下に置く。【起】《
-  - [0].action.steps[0].id = "POWER_MOD_PER_COUNT"
-  ~ [0].action.steps[0].type : "STUB" → "POWER_MODIFY"
-  + [0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[0].target.owner = "self"
-  + [0].action.steps[0].target.count = 1
-  + [0].action.steps[0].target.filter.cardType = "シグニ"
-  + [0].action.steps[0].target.filter.thisCardOnly = true
-  + [0].action.steps[0].delta = 0
-  + [0].action.steps[0].deltaFromZone.zone = "under"
-  + [0].action.steps[0].deltaFromZone.owner = "self"
-  + [0].action.steps[0].deltaFromZone.filter.cardType = "シグニ"
-  + [0].action.steps[0].deltaFromZone.sumBy = "power"
-  …（他 1 行）
---- WXK09-060
-  原文: 【ライズ】あなたの《楽隊の童話　ロバン》１体の上に置く【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニの下にあるカード１枚につき－4000する。【自】：対戦相手のターンの間、このシグニが場を離れたとき、対戦相手のデッキの上からカードを４枚トラッシュに置く。【出】：あなたのトラッシュから《楽隊の
-  - [0].action.id = "POWER_MOD_PER_COUNT"
-  ~ [0].action.type : "STUB" → "POWER_MODIFY"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "opponent"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.delta = 0
-  + [0].action.deltaFromZone.zone = "under"
-  + [0].action.deltaFromZone.owner = "self"
-  + [0].action.deltaFromZone.unitSize = 1
-  + [0].action.deltaFromZone.per = -4000
+## +MILL -DECK_CARD -TRASH ［3枚］
+WDK05-R11 WDK05-R14 WXK03-025
+--- WDK05-R11
+  原文: 【自】：このシグニがアタックしたとき、《青》を支払ってもよい。そうした場合、あなたのデッキの下からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計と同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。,：対戦相手のシグニ１体を対象とし、それをダウンする。カードを１枚引く。
+  - [0].action.steps[1].then.target.type = "DECK_CARD"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 2
+  ~ [0].action.steps[1].then.type : "TRASH" → "MILL"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.count = 2
+  + [0].action.steps[1].then.fromBottom = true
+--- WDK05-R14
+  原文: 【出】：カードを１枚引き、手札からカード１枚をデッキの一番下に置く。【起】《ターン１回》《青×0》：あなたのデッキの下からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が４の場合、対戦相手のシグニを２体まで対象とし、それらを凍結する。,：カードを１枚引く。
+  - [1].action.steps[0].target.type = "DECK_CARD"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 2
+  ~ [1].action.steps[0].type : "TRASH" → "MILL"
+  + [1].action.steps[0].owner = "self"
+  + [1].action.steps[0].count = 2
+  + [1].action.steps[0].fromBottom = true
+--- WXK03-025
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを４枚トラッシュに置く。この方法でそれぞれレベルの異なるシグニ４枚がトラッシュに置かれた場合、対戦相手は手札を２枚捨てる。【出】：対戦相手の場にある凍結状態のシグニ１体につきカードを１枚引く。この方法で引いたカードの枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く。,：対戦相手
+  - [0].action.steps[0].target.type = "DECK_CARD"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 4
+  ~ [0].action.steps[0].type : "TRASH" → "MILL"
+  + [0].action.steps[0].owner = "self"
+  + [0].action.steps[0].count = 4
+  + [0].action.steps[0].fromBottom = true
+  + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -270,6 +257,24 @@ WXDi-P11-003
   - [0].action.steps[1].choices[0].action.type = "DRAW"
   …（他 22 行）
 
+## +CHECK_CARD +CHECK_ZONE_COUNT +CONDITIONAL +POWER_MODIFY +SIGNI +TRANSFER_TO_HAND -STUB×2 ［1枚］
+WXDi-P11-006
+--- WXDi-P11-006
+  原文: 【自】：あなたがシグニを１枚捨てたとき、あなたのチェックゾーンにあるカードが４枚以下の場合、そのシグニをトラッシュからチェックゾーンに置いてもよい。【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのチェックゾーンにあるカード１枚につき－1000する。その後、あなたのチェックゾーンから《ガードアイコ
+  - [0].action.id = "TRAP_OPERATION"
+  - [0].action.trapOp = "to_check"
+  - [0].action.trapSource = "trash"
+  - [0].action.count = 1
+  - [0].action.upToCount = true
+  - [1].action.steps[0].id = "POWER_MOD_PER_COUNT"
+  - [1].action.steps[1].id = "DEFERRED_CHECK_ZONE_TO_HAND"
+  ~ [0].action.type : "STUB" → "CONDITIONAL"
+  + [0].action.condition.type = "CHECK_ZONE_COUNT"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.operator = "lte"
+  + [0].action.condition.value = 4
+  …（他 23 行）
+
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052
 --- WXDi-P15-052
@@ -287,6 +292,15 @@ WXDi-P15-052
   + [0].action.choices[1].condition.owner = "self"
   + [0].action.choices[1].condition.operator = "gte"
   …（他 1 行）
+
+## +UNKNOWN -STUB ［1枚］
+WX24-P2-051
+--- WX24-P2-051
+  原文: 【自】《ターン１回》：コストか効果によってあなたが《ガードアイコン》を持たないカードを１枚捨てたとき、そのカードをトラッシュからエナゾーンに置く。【自】：あなたのアタックフェイズ開始時、《赤》《赤》《赤》を支払ってもよい。そうした場合、ターン終了時まで、このシグニは【アサシン】を得る。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それ
+  - [0].action.id = "NON_GUARD_DISCARD_TO_ENERGY"
+  ~ [0].action.type : "STUB" → "UNKNOWN"
+  + [0].action.raw = "そのカードをトラッシュからエナゾーンに置く"
+  ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
@@ -323,6 +337,24 @@ WX25-CP1-008
   - [0].action.choices[0].action.steps[1].condition.minCount = 1
   ~ [0].action.choices[0].action.steps[1].condition.type : "LAST_PROCESSED_MATCHES" → "LAST_PROCESSED_COUNT_GTE"
   + [0].action.choices[0].action.steps[1].condition.value = 1
+
+## +MILL -CONDITIONAL -DECK_CARD -LAST_PROCESSED_LEVEL_SUM -TRASH ［1枚］
+WXK03-068
+--- WXK03-068
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを２枚トラッシュに置く。この方法でトラッシュに置かれたシグニのレベルの合計が５の場合、カードを１枚引く。,：カードを１枚引く。
+  - [0].action.steps[0].target.type = "DECK_CARD"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 2
+  - [0].action.steps[1].condition.type = "LAST_PROCESSED_LEVEL_SUM"
+  - [0].action.steps[1].condition.operator = "eq"
+  - [0].action.steps[1].condition.value = 5
+  - [0].action.steps[1].then.type = "DRAW"
+  - [0].action.steps[1].then.owner = "self"
+  - [0].action.steps[1].then.count = 1
+  ~ [0].action.steps[0].type : "TRASH" → "MILL"
+  + [0].action.steps[0].owner = "self"
+  + [0].action.steps[0].count = 2
+  …（他 4 行）
 
 ## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +PREVENT_DAMAGE +SEQUENCE ［1枚］
 WXK04-014

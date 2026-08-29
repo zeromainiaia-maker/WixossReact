@@ -365,6 +365,20 @@ function parseUseCondition(text: string): Condition {
   if (text.match(/このスペルがエナゾーンにある/))
     return { type: 'THIS_CARD_IN_LOCATION', location: 'energy' };
 
+  // 🆕§5.3 `O-143`（2026-08-29）＝「あなたのチェックゾーンにあるカードがN枚以下の場合」
+  //   （`WXDi-P11-006-E1`）。枚数は `field.check` ＋ `field.check_rest` の合計（`checkZoneCards`）。
+  //   🔴従来はこの条件節がどの規則にも当たらず**丸ごと落ちて無条件成立**していた＝
+  //   チェックゾーンが何枚でも置けた（原文は4枚以下＝上限5枚）。
+  m = text.match(/^(あなた|対戦相手)のチェックゾーンにあるカードが([０-９\d]+)枚(以下|以上)の場合$/);
+  if (m) {
+    return {
+      type: 'CHECK_ZONE_COUNT',
+      owner: m[1] === '対戦相手' ? 'opponent' : 'self',
+      operator: m[3] === '以下' ? 'lte' : 'gte',
+      value: n(m[2]),
+    };
+  }
+
   // あなたのトラッシュにカード名に《X》を含むカードがある
   m = text.match(/あなたのトラッシュにカード名に《([^》]+)》を含むカードがある/);
   if (m) return { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] } };
@@ -2770,6 +2784,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     }, minCount: parseNum(g[1]) })],
   [/(あなた|対戦相手)の場に【チャーム】が([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'CHARM_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gte', value: parseNum(g[1]) })],
+  // 🆕§5.3 `O-143`（2026-08-29）＝「〈誰か〉のチェックゾーンにあるカードがN枚以下／以上の場合」
+  //   （`WXDi-P11-006-E1`）。枚数は `field.check` ＋ `field.check_rest` の合計（`checkZoneCards`）。
+  //   🔴従来はこの条件節がどの規則にも当たらず**丸ごと落ちて無条件成立**していた＝原文の上限
+  //   （4枚以下のときだけ置ける）が効かず、チェックゾーンに何枚でも置けた。
+  [/(あなた|対戦相手)のチェックゾーンにあるカードが([０-９\d]+)枚(以下|以上)の場合/,
+    g => ({ type: 'CHECK_ZONE_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      operator: g[2] === '以下' ? 'lte' : 'gte', value: parseNum(g[1]) })],
   // 自分−相手の符号付きライフ差。両条件表へ同じ規則を供給し、AUTO/ACTIVATEDの枝条件を落とさない。
   [/あなたのライフクロス(?:の枚数)?が対戦相手より([０-９\d]+)枚以上(多い|少ない)場合/,
     g => ({ type: 'LIFE_COMPARE_OPP', operator: g[1] === '多い' ? 'gte' : 'lte', value: (g[1] === '多い' ? 1 : -1) * parseNum(g[0]) })],
@@ -5485,6 +5506,17 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^対戦相手がアーツを使用したとき、/, '')
     .replace(/^あなたの[^、「」]{2,30}が場に出たとき、/, '')
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
+    // 🆕§5.3 `O-143`（2026-08-29）＝「〈誰か〉が（＜X＞の）シグニ／カードをN枚捨てたとき、」。
+    //   🔴このトリガー句だけ strip-list に無く、**直後の状態条件節が `tryWrapLeadingStateCond` に届かず
+    //     丸ごと脱落していた**（＝条件が消えて無条件発火）。上の「アタックしたとき」「バニッシュされたとき」
+    //     と**同じクラスの穴**（続き156 のコメントが警告していたのと同型）。
+    //   実測＝`WXDi-P11-006-E1` の「あなたのチェックゾーンにあるカードが4枚以下の場合」が落ちていた。
+    // 🔴⚠**無条件に剥がしてはいけない**＝トリガー句込みで書かれた既存規則が当たらなくなる。
+    //   実測＝`WX24-P2-051-E1`（「コストか効果によってあなたが《ガードアイコン》を持たないカードを1枚
+    //   捨てたとき、そのカードをトラッシュからエナゾーンに置く」）が `STUB{NON_GUARD_DISCARD_TO_ENERGY}`
+    //   （実装済み）から **`UNKNOWN` へ退化**した。⇒ **直後が状態条件節のときだけ**剥がす。
+    .replace(/^([^、。「」]{2,60}捨てたとき、)([\s\S]+)$/,
+      (whole, _trig, rest: string) => (matchLeadingStateCondition(rest) ? rest : whole))
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
 
   // second pass（トリガー句除去後の t 先頭に居残った状態条件節を拾う・続き155）。
@@ -12437,7 +12469,6 @@ const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
   [/このカードをトラッシュからデッキの一番下に置く/, 'DEFERRED_SELF_TRASH_TO_DECK_BOTTOM'],
   [/各プレイヤーは手札からカードを[０-９\d]+枚公開する/, 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
   [/対戦相手はデッキの一番下のカードをトラッシュに置く/, 'DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH'],
-  [/あなたのチェックゾーンから《ガードアイコン》を持たないカードを[０-９\d]+枚まで対象とし/, 'DEFERRED_CHECK_ZONE_TO_HAND'],
   // ── LRIG_UNDER_CARD_OP 側（第1バッチの残り8文型）──
   [/あなたのライフクロスの一番上を見る。その後、それをクラッシュしてもよい/, 'DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH'],
   [/このシグニをそれの【アクセ】にしてもよい/, 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
@@ -12490,6 +12521,22 @@ function rewriteCatchAllStubs(text: string, action: EffectAction): EffectAction 
       type: 'TRANSFER_TO_DECK',
       source: { type: 'TRASH_CARD', owner: 'opponent', count: n, upToCount: true },
       shuffle: false, position: 'top',
+    } as EffectAction;
+  } else if (/あなたのチェックゾーンから(?:《ガードアイコン》を持たない)?カードを([０-９\d]+)枚(まで)?対象とし、それを?手札に加える/.test(t)) {
+    // 🆕§5.3 `O-143`（2026-08-29）＝`WXDi-P11-006-E2` 後半。受け皿は
+    //   `TRANSFER_TO_HAND{source:{type:'CHECK_CARD'}}`（候補は `checkZoneCards`＝`check`＋`check_rest`）。
+    //   🔴従来は `DEFERRED_CHECK_ZONE_TO_HAND`（明示 defer＝no-op）で、置いた札を回収できなかった。
+    //   ⚠**この関数（catch-all の後始末）で拾う**＝`parseSentencePart4` まで降りてこない
+    //     （「〜を対象とし、それを手札に加える」を上流の汎用規則が先に食って `LOOK_OPP_LIFE_TOP` になる）。
+    const mChk = t.match(/あなたのチェックゾーンから(《ガードアイコン》を持たない)?カードを([０-９\d]+)枚(まで)?対象とし/)!;
+    const nChk = parseInt(mChk[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    replacement = {
+      type: 'TRANSFER_TO_HAND',
+      source: {
+        type: 'CHECK_CARD', owner: 'self', count: nChk,
+        ...(mChk[3] ? { upToCount: true } : {}),
+        ...(mChk[1] ? { filter: { noGuard: true } } : {}),
+      },
     } as EffectAction;
   }
   if (replacement) {
@@ -12744,6 +12791,22 @@ function rewritePowerModPerCountPayload(text: string, action: EffectAction): Eff
     } as PowerModifyAction);
     if (cap) removeStubFromSequences(rewritten, 'EFFECT_LIMIT');
     return rewritten;
+  }
+
+  // 🆕「チェックゾーンにある〈filter〉N枚につき」（§5.3 `O-143`・`WXDi-P11-006-E2` 前半）。
+  //   受け皿は `deltaFromZone{zone:'check'}`＝`field.check` ＋ `field.check_rest` の合計を数える。
+  //   🔴旧挙動＝catch-all の engine 側 regex `N枚につき±X` に当たり、倍率が `lastProcessedCards.length`
+  //     （トリガー直後は0枚）＝**一度も効かない**うえ、当たれば**相手の全シグニ**に撃っていた。
+  const checkM = t.match(/パワーを(あなた|対戦相手)のチェックゾーンにある([^、。]*?)([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (checkM) {
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY', target: opponentOne, delta: 0,
+      deltaFromZone: {
+        zone: 'check', owner: checkM[1] === '対戦相手' ? 'opponent' : 'self',
+        ...(Object.keys(countFilter(checkM[2])).length ? { filter: countFilter(checkM[2]) } : {}),
+        unitSize: parseNum(checkM[3]), per: signOf(checkM[4]) * parseNum(checkM[5]),
+      },
+    } as PowerModifyAction);
   }
 
   // 「場にいる／ある〈filter〉N体につき」。countOwner/target.owner の any を区別して保持する。

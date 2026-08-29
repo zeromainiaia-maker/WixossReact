@@ -249,6 +249,17 @@ export interface PlayerState {
     assist_lrig_l_frozen?: boolean; // true=左アシストルリグが凍結中（次のアップフェイズにアップせず解除）
     assist_lrig_r_frozen?: boolean; // true=右アシストルリグが凍結中（次のアップフェイズにアップせず解除）
     check?: string | null;
+    /**
+     * 🆕**チェックゾーンに「留まっている」カード**（§5.3 `O-143`・2026-08-29）。
+     * 🔴`check` は**ライフバースト確認中の1枚**専用のスロット**（`LifeBurstCheckModal` の表示条件・
+     *   `BattleScreen` の各種ブロック条件がここを見る）で、後続は `pending_crashed_cards` が待つ。
+     *   ⇒ 効果で置かれてターン終了まで**留まる**カードをそこへ入れると、バースト確認モーダルが
+     *   誤って開いて盤面が固まる。**別スロットに置く**（`key_piece` / `key_piece_extra` と同じ規約）。
+     * ⚠**「チェックゾーンにあるカード」を数える／探すときは必ず `checkZoneCards()` を通す**
+     *   （`check` と両方を見る。片方だけ見ると原文の枚数と合わない）。
+     * ⚠ターン終了時にトラッシュへ送られる（原文の括弧書き＝`clearTurnEndScopedState`）。
+     */
+    check_rest?: string[];
     key_piece?: string | null;
     key_piece_extra?: string[];  // UNLIMITED_KEYS: 2枚目以降のキー/ピース
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null

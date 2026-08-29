@@ -13,7 +13,7 @@ import {
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
-  sourceAbilityText, deckSigniOverrideLevel, countFromZone,
+  sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -2952,6 +2952,12 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
       cands = cands.filter(n => allowed.has(n));
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
+  } else if (src.type === 'CHECK_CARD') {
+    // 🆕**チェックゾーンから手札へ**（§5.3 `O-143`・`WXDi-P11-006-E2`）。
+    //   候補は `checkZoneCards()`＝`field.check`（バースト確認中の1枚）＋`field.check_rest`（留まっている分）。
+    const resolvedCheckFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+    cands = checkZoneCards(state).filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedCheckFilter));
+    scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンから手札に加える」＝バニッシュで
     // エナへ行った自分自身を拾う。`WX17-052-LAYER`・§6.4 O-4）。⚠TRASH_CARD 側と同じ規約。
@@ -2974,10 +2980,17 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
         newS = { ...newS, trash: newS.trash.filter(x => x !== n), hand: [...newS.hand, n] };
       } else if (src.type === 'ENERGY_CARD') {
         newS = { ...newS, energy: newS.energy.filter(x => x !== n), hand: [...newS.hand, n] };
+      } else if (src.type === 'CHECK_CARD') {
+        // 🆕どちらのスロットに居たかで抜き方が違う（§5.3 `O-143`）。
+        //   ⚠`check` を抜くのは**バースト確認が終わった後**に限られる想定だが、原文はゾーンを区別しないので
+        //     両方から抜けるようにしておく（片方しか抜けないと「1枚まで対象」が空振りする）。
+        newS = newS.field.check === n
+          ? { ...newS, field: { ...newS.field, check: null }, hand: [...newS.hand, n] }
+          : { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== n) }, hand: [...newS.hand, n] };
       }
     }
     const names = selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・');
-    const from = src.type === 'TRASH_CARD' ? 'トラッシュ' : 'エナ';
+    const from = src.type === 'TRASH_CARD' ? 'トラッシュ' : src.type === 'CHECK_CARD' ? 'チェックゾーン' : 'エナ';
     return {
       ...addLog(setOwnerState(tgtOwner, newS, c), `${from}から${names}を手札へ`),
       lastProcessedCards: selected,
@@ -10646,6 +10659,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const ei = newS.energy.indexOf(cardNum);
         if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
         newS = { ...newS, hand: [...newS.hand, cardNum] };
+      } else if (src.type === 'CHECK_CARD') {
+        // 🆕チェックゾーン（§5.3 `O-143`）。⚠**`execTransferToHand` 側だけ書くと選択UIを通る経路で
+        //   カードが動かない**（`deltaFromZone` を片方だけ直したときと同じ罠＝§6.4 O-3 のコメント）。
+        newS = newS.field.check === cardNum
+          ? { ...newS, field: { ...newS.field, check: null }, hand: [...newS.hand, cardNum] }
+          : { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== cardNum) }, hand: [...newS.hand, cardNum] };
       }
       return done(addLog(setOwnerState(src.owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
     }

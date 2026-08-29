@@ -8703,6 +8703,71 @@ test('O-142/付随: 「デッキの一番下のカードをトラッシュに置
     'WXK10-026-E1 の「置いてもよい」（任意）が落ちている');
 });
 
+// 🔴§5.3 `O-143`（2026-08-29）＝チェックゾーンを**複数枚のゾーン**として扱う（`WXDi-P11-006`）。
+//    🔴`field.check` は**ライフバースト確認中の1枚**専用のスロット（`LifeBurstCheckModal` の表示条件・
+//    `BattleScreen` の各種ブロック条件がここを見る）＝効果で置いてターン終了まで留まるカードを入れると
+//    確認モーダルが誤って開いて盤面が固まる。⇒ `field.check_rest` を新設し、**枚数は両方の合計**で数える。
+test('O-143 parser: チェックゾーンの枚数条件・枚数比例・回収が payload になっている', () => {
+  const effs = effectsMap.get('WXDi-P11-006') ?? [];
+  const e1 = JSON.stringify(effs.find(e => e.effectId === 'WXDi-P11-006-E1')?.action ?? {});
+  const e2 = JSON.stringify(effs.find(e => e.effectId === 'WXDi-P11-006-E2')?.action ?? {});
+  // 🔴E1＝「チェックゾーンにあるカードが4枚以下の場合」＝**旧実装では条件節が丸ごと落ちて無条件成立**だった。
+  ok(e1.includes('"CHECK_ZONE_COUNT"'), 'E1 の枚数上限条件が落ちている（何枚でも置ける旧挙動）');
+  ok(e1.includes('"operator":"lte"') && e1.includes('"value":4'), 'E1 の閾値（4枚以下）が違う');
+  // 🔴E1 の置き先＝`check_rest`（バースト確認を伴わない）。既定スロットだと確認モーダルが開いて固まる。
+  ok(e1.includes('"trapCheckRest":true'), 'E1 がバースト確認スロット（field.check）へ置く旧挙動に戻っている');
+  // 🔴E2 前半＝枚数比例。旧実装は catch-all STUB で倍率が lastProcessedCards（0枚）だった。
+  ok(e2.includes('"zone":"check"'), 'E2 のチェックゾーン枚数参照が落ちている');
+  ok(e2.includes('"per":-1000'), 'E2 の1枚あたりの単価が落ちている');
+  // 🔴E2 後半＝回収。旧実装は `DEFERRED_CHECK_ZONE_TO_HAND`（明示 defer＝no-op）。
+  ok(e2.includes('"CHECK_CARD"'), 'E2 のチェックゾーンからの回収が落ちている');
+  ok(e2.includes('"noGuard":true'), '《ガードアイコン》を持たない、の絞り込みが落ちている');
+  ok(!e2.includes('POWER_MOD_PER_COUNT') && !e2.includes('DEFERRED_CHECK_ZONE_TO_HAND'),
+    'E2 が catch-all／明示 defer に戻っている');
+});
+
+test('O-143 engine: check と check_rest の合計で数え、回収は両方から抜ける', () => withSavedCursor(() => {
+  const victim = fresh();
+  const a = fresh(); const b = fresh(); const c = fresh();
+  const mk = (check: string | null, rest: string[]): ExecCtx => {
+    const base = mkCtx({}, { signi: [victim, null, null] }, SIGNI);
+    return { ...base, ownerState: { ...base.ownerState,
+      field: { ...base.ownerState.field, check, check_rest: rest } } } as ExecCtx;
+  };
+  const pm = {
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+    delta: 0, deltaFromZone: { zone: 'check', owner: 'self', unitSize: 1, per: -1000 },
+  } as unknown as EffectAction;
+  const modOf = (r: ExecResult) => (r.otherState.temp_power_mods ?? []).reduce((s, m) => s + m.delta, 0);
+  eq(modOf(run(pm, mk(null, []))), 0, 'チェックゾーンが空なら±0');
+  eq(modOf(run(pm, mk(null, [a, b, c]))), -3000, '留まっている3枚を数える');
+  // 🔴**両方を数える**＝片方だけ見ると原文の枚数と合わない。
+  eq(modOf(run(pm, mk(a, [b, c]))), -3000, 'バースト確認中の1枚も合わせて3枚');
+
+  // 回収（TRANSFER_TO_HAND{CHECK_CARD}）は `check_rest` からも `check` からも抜ける。
+  const grab = (check: string | null, rest: string[]) => run({
+    type: 'TRANSFER_TO_HAND',
+    source: { type: 'CHECK_CARD', owner: 'self', count: 1 },
+  } as unknown as EffectAction, mk(check, rest));
+  const r1 = grab(null, [a]);
+  ok(r1.ownerState.hand.includes(a), 'check_rest から手札へ入っていない');
+  eq((r1.ownerState.field.check_rest ?? []).length, 0, 'check_rest から抜けていない');
+  const r2 = grab(a, []);
+  ok(r2.ownerState.hand.includes(a), 'check から手札へ入っていない');
+  eq(r2.ownerState.field.check ?? null, null, 'check スロットが空になっていない');
+}));
+
+test('O-143 engine: check_rest はターン終了時にトラッシュへ送られる', () => withSavedCursor(() => {
+  const a = fresh(); const b = fresh(); const keep = fresh();
+  const before = { ...mkState({}), field: { ...mkState({}).field, check: keep, check_rest: [a, b] } } as PlayerState;
+  const after = clearTurnEndScopedState(before);
+  eq((after.field.check_rest ?? []).length, 0, '🔴留まっていたカードがターンを越えて残っている');
+  ok(after.trash.includes(a) && after.trash.includes(b), 'トラッシュへ送られていない');
+  // ⚠`field.check`（バースト確認中の1枚）は触らない＝あちらはバースト解決の経路が片付ける。
+  eq(after.field.check, keep, 'バースト確認中の1枚まで巻き込んでいる');
+}));
+
 // 🔴§5.3 `O-142` の道中で発見＝「あなたの**トラッシュから**〈filter〉1枚を対象とし、それをデッキの一番下に
 //    置いてもよい」が、文末だけを見る `LOOK_AND_REORDER` 規則に食われて**デッキの一番上を見る**別物に
 //    なっていた。実害は2段＝①移動元が違う ②`lastProcessedCards` に別のカードが残るので、後続の
@@ -21639,7 +21704,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 61, 'ActiveCondition の型数（61＝§5.3 O-117 で PAID_COLORS_INCLUDE_ALL を追加）');
-  eq(Object.keys(C_TYPES).length, 132, 'Condition の型数（132＝§5.3 O-117 で PAID_COLORS_INCLUDE_ALL を新設。131 は O-122 の APPEARANCE_COST_SAME_NAME 時点）');
+  eq(Object.keys(C_TYPES).length, 133, 'Condition の型数（133＝§5.3 O-143 で CHECK_ZONE_COUNT を新設。132 は O-117 の PAID_COLORS_INCLUDE_ALL 時点）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -52881,7 +52946,9 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
     && toDeck.includes('"upToCount":true') && toDeck.includes('"position":"top"'),
     'WXK06-028-E1: 相手トラッシュ2枚までをデッキの上へ');
 
-  // ■成立方向②＝受け皿が無い15文型は honest な DEFERRED_* へ。
+  // ■成立方向②＝受け皿が無い文型は honest な DEFERRED_* へ。
+  // ✅`DEFERRED_CHECK_ZONE_TO_HAND`（`WXDi-P11-006-E2`）は §5.3 `O-143`（2026-08-29）で受け皿ができたので
+  //   この表から外した＝`TRANSFER_TO_HAND{source:{type:'CHECK_CARD'}}`（成立方向は O-143 の golden が持つ）。
   for (const [cardNum, effectId, id] of [
     ['SPK01-14', 'SPK01-14-E1', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
     ['PR-K070', 'PR-K070-E2', 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
@@ -52889,7 +52956,6 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
     ['WX22-Re17', 'WX22-Re17-E2', 'DEFERRED_SELF_TRASH_TO_DECK_BOTTOM'],
     ['WXEX2-80', 'WXEX2-80-E1', 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
     ['WXDi-P00-037', 'WXDi-P00-037-E2', 'DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH'],
-    ['WXDi-P11-006', 'WXDi-P11-006-E2', 'DEFERRED_CHECK_ZONE_TO_HAND'],
     ['WD23-022-E', 'WD23-022-E-E3', 'DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH'],
     ['WDK17-015', 'WDK17-015-E1', 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
     ['WX24-P4-085', 'WX24-P4-085-E1', 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],

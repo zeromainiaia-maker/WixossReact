@@ -123,7 +123,7 @@ function anyOfJa(list: any[]): string {
 }
 
 function countFromZoneJa(spec: any): string {
-  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】', under: 'このシグニの下' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
+  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】', under: 'このシグニの下', check: 'チェックゾーン' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
   const noun = spec?.filter
     ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || 'カード'}`
     : 'カード';
@@ -330,7 +330,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
   const loc = t.type === 'HAND_CARD' ? '(手札)' : t.type === 'TRASH_CARD' ? '(トラッシュ)'
     : t.type === 'ENERGY_CARD' ? '(エナ)' : t.type === 'DECK_CARD' ? '(デッキ)'
-    : t.type === 'LRIG_TRASH_CARD' ? '(ルリグトラッシュ)' : t.type === 'LIFE_CLOTH_CARD' ? '(ライフ)' : '';
+    : t.type === 'LRIG_TRASH_CARD' ? '(ルリグトラッシュ)' : t.type === 'LIFE_CLOTH_CARD' ? '(ライフ)'
+    // 🆕チェックゾーン（§5.3 `O-143`）＝ここを書かないと逆翻訳でゾーンが消えて「カードを手札に加える」になる。
+    : t.type === 'CHECK_CARD' ? '(チェックゾーン)' : '';
   let u: string;
   if (t.type === 'LRIG') u = 'ルリグ';
   else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = t.count === 'ALL' ? 'ルリグとシグニ' : 'センタールリグかシグニ';
@@ -815,6 +817,8 @@ function condJa(c?: any): string {
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN': return `このターンに対戦相手のカードがあなたの効果によって${numJa((c as { value: number }).value)}枚以上デッキに移動していた`;
     case 'SELF_DECK_TO_ENERGY_THIS_TURN': return `このターンにあなたのデッキからカードが${numJa((c as { value: number }).value)}枚以上エナゾーンに移動していた`;
     case 'SELECTED_COLOR': return `${(c as { color: string }).color}を選んだ`;
+    // 🆕§5.3 `O-143`＝チェックゾーンの枚数（`field.check` ＋ `field.check_rest` の合計）。
+    case 'CHECK_ZONE_COUNT': return `${ownerJa(c.owner)}チェックゾーンにあるカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'BEAT_ZONE_COUNT': return `${c.thisWay ? 'この方法で' : ''}あなたの【ビート】が${numJa(c.value)}枚${c.operator === 'lte' ? '以下' : c.operator === 'eq' ? 'になった' : opJa(c.operator)}`;
     case 'COST_TRASHED_PUPPET': return 'この能力のコストで傀儡状態のシグニをトラッシュに置いた';
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
@@ -1090,6 +1094,8 @@ function actionJa(a?: Action, effectType?: string): string {
         //   ⚠ここを既定の `${z.zone}にある` に落とすと逆翻訳に**生の英語 `under`** が出る（census:stubs C群と同じ穴）。
         const location = z.zone === 'trash' ? 'トラッシュにある'
           : z.zone === 'under' ? 'このシグニの下にある'
+          // 🆕§5.3 `O-143`＝チェックゾーン。ここを既定に落とすと逆翻訳に生の英語 `check` が出る。
+          : z.zone === 'check' ? 'チェックゾーンにある'
           : `${z.zone}にある`;
         const ownerPrefix = z.zone === 'under' ? '' : ownerJa(z.owner);
         const cap = z.maxCount === undefined ? '' : `（この効果は${z.maxCount}枚までしか適用されない）`;

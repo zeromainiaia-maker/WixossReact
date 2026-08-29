@@ -297,9 +297,17 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     state.field_grants_next_opp_turn,
     state.field_keyword_grants_next_opp_turn,
   );
+  // 🆕**チェックゾーンに留まっているカードはターン終了時にトラッシュへ**（§5.3 `O-143`＝
+  //   `WXDi-P11-006` の括弧書き「チェックゾーンにあるカードはターン終了時にトラッシュに置かれる」）。
+  //   ⚠**リセットではなく移動**なので登録表（`resetBoundary`）ではここで書く。
+  //   ⚠`field.check`（バースト確認中の1枚）は触らない＝あちらはバースト解決の経路が自分で片付ける。
+  const checkRest = reset.field.check_rest ?? [];
   // safety は戻り値の最終段に置く。呼び出し側の古い値を spread し直して復活させない。
   return {
     ...reset,
+    ...(checkRest.length > 0
+      ? { trash: [...reset.trash, ...checkRest], field: { ...reset.field, check_rest: [] } }
+      : {}),
     life_crashed_last_turn: lifeCrashedLastTurn,
     // §6.4 O-3: `abilities_removed`／`keyword_abilities_removed` の失効は上の登録（resetBoundary）が行う。
     // ⚠**旧実装は turn-end 4経路のうち2本（手札上限の捨て札を挟む confirmEndDiscard 側）でしか

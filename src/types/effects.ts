@@ -132,7 +132,8 @@ export type Owner = 'self' | 'opponent' | 'any';
 
 export type CardLocation =
   | 'field' | 'hand' | 'deck' | 'trash'
-  | 'lrig_deck' | 'lrig_trash' | 'energy' | 'life_cloth';
+  // 🆕`check`＝チェックゾーン（§5.3 `O-143`）。**`field.check` と `field.check_rest` の合計**で数える。
+  | 'lrig_deck' | 'lrig_trash' | 'energy' | 'life_cloth' | 'check';
 
 export type CardTypeFilter =
   | 'シグニ' | 'ルリグ' | 'アーツ' | 'スペル'
@@ -166,7 +167,7 @@ export interface CountFromZone {
    *   できない経路（付与展開・`effect_stack` 注入）では **0 へ fail-closed** する（旧 STUB も
    *   カード全文 regex が読めず no-op だったので退化しない）。
    */
-  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under';
+  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check';
   owner: Owner;
   filter?: TargetFilter;
   /**
@@ -367,6 +368,13 @@ export type Condition =
   | { type: 'SELF_DECK_TO_ENERGY_THIS_TURN'; operator: CompareOp; value: number }
   | { type: 'SELECTED_COLOR'; color: string }
   | { type: 'BEAT_ZONE_COUNT'; operator: CompareOp; value: number; thisWay?: boolean }
+  /**
+   * 🆕「あなたのチェックゾーンにあるカードが**N枚以下**の場合」（§5.3 `O-143`・`WXDi-P11-006-E1`）。
+   * 枚数は `checkZoneCards()`＝`field.check` ＋ `field.check_rest` の合計。
+   * ⚠`ActiveCondition` 側には置いていない（この文型は【自】のトリガー条件だけに出る）＝
+   *   両 union に置いたら**評価器も両方に実装する**（片方だけだと未知型フォールバックで無条件成立に倒れる）。
+   */
+  | { type: 'CHECK_ZONE_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'COST_TRASHED_PUPPET' } // この能力のコストで傀儡状態のシグニをトラッシュに置いた場合（last_cost_trashed_puppet）。WDK17-014「代わりに－10000」
   | { type: 'COST_DISCARDED_SIGNI_LEVEL'; level: number } // このコストで指定レベルのシグニを手札から捨てた場合（last_discarded_signi_level）。WX25-P2-101「レベル１→代わりに－5000」
   // 「このコストで<filter に合うカード>を捨てた／トラッシュに置いた場合」＝直前のコスト支払いでトラッシュへ送った
@@ -556,7 +564,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   PAID_COLORS_INCLUDE_ALL: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
-  SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
+  SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, CHECK_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
   COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true, FIELD_LEVEL_SUM: true,
   HAS_KEY_IN_FIELD: true, ALL_FIELD_SIGNI_MATCH: true, TRASH_HAS_CARD: true, ALL_SELF_SIGNI_DOWN: true,
   TRASH_COUNT: true, DECK_TOP_MATCHES: true, LRIG_LEVEL: true, LRIG_STORY: true, THIS_CARD_IN_LOCATION: true,
@@ -1007,6 +1015,14 @@ export interface EffectTarget {
      *   engine の `activeKeyAbilitySources` funnel が受ける。
      */
     | 'KEY'
+    /**
+     * 🆕**チェックゾーンにあるカード**（§5.3 `O-143`・`WXDi-P11-006-E2`
+     * 「あなたのチェックゾーンから《ガードアイコン》を持たないカードを1枚まで対象とし、それを手札に加える」）。
+     * 候補は `checkZoneCards()`＝`field.check` ＋ `field.check_rest` の合計。
+     * ⚠現状の受け皿は `TRANSFER_TO_HAND` だけ＝他のアクションへ配線するときは
+     *   **どちらのスロットから抜くか**（`check` は1枚スロット・`check_rest` は配列）を必ず書く。
+     */
+    | 'CHECK_CARD'
     | 'PLAYER';
   owner: Owner;
   count: NumberOrRef | 'ALL'; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）
@@ -3911,6 +3927,14 @@ export interface StubAction {
    *   **無言で done する**（`WXK11-036-E2` が実機でライフバーストを1度も発動しなかった）。
    */
   trapBurstCard?: string;
+  /**
+   * 🆕`to_check` で置いたカードを**チェックゾーンに「留める」**（§5.3 `O-143`・`WXDi-P11-006-E1`）。
+   * 🔴既定（`false`）は `field.check`＝**ライフバースト確認中の1枚**のスロットへ置く＝置いた瞬間に
+   *   バースト確認モーダルが開き、`BattleScreen` の各種ブロック条件（アタック不可・スタック停止…）に
+   *   引っかかって**盤面が固まる**。原文が「置いてもよい（ターン終了時にトラッシュに置かれる）」＝
+   *   バースト確認を伴わない形はこのフラグを立てて `field.check_rest` へ置く。
+   */
+  trapCheckRest?: boolean;
   /** `count` が「N枚まで／好きな枚数」という上限であること。既存語彙名をStubActionでも共有する。 */
   upToCount?: boolean;
   /**

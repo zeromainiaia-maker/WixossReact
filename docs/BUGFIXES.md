@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3 `O-143` クローズ＝チェックゾーンを「複数枚のゾーン」にした（`WXDi-P11-006` 3効果）
+
+`O-80` 残 C群の最後から2番目。**1カード3効果**だが、`PlayerState` のモデル自体が足りなかった項目。
+
+### 🔑 登録票の設計案は採らなかった（`field.check` の配列化は**間違い**）
+
+登録票は「`field.check` を配列化し、既存の消費地点（56箇所）を全部追随させる／回帰が広い」と書いていたが、
+`grep` して読むと **`field.check` はゾーンではなく「ライフバースト確認中の1枚」専用のスロット**だった：
+
+- `LifeBurstCheckModal` の表示条件がここ（`{my.field.check && createPortal(...)}`）。
+- `BattleScreen` の**アタック不可・スタック解決停止・フェイズ進行停止**の各ガードがここを見る。
+- 2枚目以降のクラッシュ札は `pending_crashed_cards` が別に待っている。
+
+⇒ **効果で置かれてターン終了まで留まるカードをそこへ入れると、確認モーダルが開いて盤面が固まる。**
+`field.check_rest`（配列）を新設し、**「チェックゾーンにあるカード」は必ず両方の合計**で数える
+（`checkZoneCards()` を唯一の入口にした）。`key_piece` / `key_piece_extra` と同じ規約。
+**既存56箇所の消費地点は1つも触っていない**＝バースト解決の経路に手を入れずに済んだ。
+
+### 直した3効果（`WXDi-P11-006` アロス・ピルルク MIRA）
+
+| 効果 | 原文 | 旧 live の実挙動 |
+|---|---|---|
+| E1 | チェックゾーンにあるカードが**4枚以下の場合**、捨てたシグニをトラッシュからチェックゾーンに置いてもよい | 🔴**条件節が丸ごと落ちて無条件成立**（何枚でも置ける）／置き先が確認スロット |
+| E2 前半 | それのパワーを**チェックゾーンにあるカード1枚につき**－1000 | 🔴catch-all `STUB{POWER_MOD_PER_COUNT}`＝倍率が `lastProcessedCards`（0枚）＝**一度も効かない**／当たれば相手の全シグニへ |
+| E2 後半 | チェックゾーンから《ガードアイコン》を持たないカードを1枚まで手札に加える | 🔴`DEFERRED_CHECK_ZONE_TO_HAND`（明示 defer＝no-op）＝**置いた札を回収できない** |
+
+### 足したもの
+
+- **状態**＝`PlayerState.field.check_rest?: string[]` ＋ 唯一の読み口 `checkZoneCards(state)`。
+- **条件**＝`Condition` に `CHECK_ZONE_COUNT`（⚠`ActiveCondition` には置いていない＝この文型は【自】にしか出ない。
+  両 union に置くなら評価器も両方に実装する、という規約どおり）。
+- **ゾーン語彙**＝`CardLocation` と `CountFromZone.zone` に `'check'`（`getLocationCards` / `getLocationCount` /
+  `countFromZone` の3つの入口すべてに配線）。
+- **対象**＝`EffectTarget.type` に `'CHECK_CARD'`（受け皿は `TRANSFER_TO_HAND`）。
+  ⚠**`execTransferToHand` と `applyDirectAction` の両方に書く**＝片方だけだと**選択UIを通る経路でカードが動かない**
+  （`deltaFromZone` を片方だけ直したときと同じ罠。実機 golden で実際に踏んだ）。
+- **payload**＝`StubAction.trapCheckRest`（`to_check` の置き先を `check_rest` にする）。
+  parser は **`trapSource === 'trash'` のときだけ**立てる＝トラッシュ→チェックゾーンはバースト確認を伴わない
+  （確認はライフクラッシュ経由でしか起きない）。他の `trapSource` は置いた直後にバースト／トラップを発動する文型。
+- **寿命**＝`clearTurnEndScopedState` で `check_rest` をトラッシュへ掃き出す（原文の括弧書き）。
+  ⚠**リセットではなく移動**なので `resetBoundary` の登録表ではなくここに書く。⚠`field.check` は触らない。
+- **UI**＝`BoardComponents` は `check_rest` が空なら**従来どおりの1枚スロット**、あるときだけスタック表示に切り替える
+  （既存カードの見た目は変えない）。⚠これが無いとプレイヤーは「1枚につき－1000」の枚数を盤面から読めない。
+  `battleCardNums` にも `check_rest` を足した（どのゾーンにも居ないので拾わないとカードデータが落ちる）。
+
+### 🔴 付随して直した parser バグ（**この項目の真因の半分**）
+
+「〈誰か〉が…**捨てたとき、**」というトリガー句が**トリガー句の strip-list に無く**、直後の状態条件節が
+`tryWrapLeadingStateCond` に届かずに**丸ごと脱落していた**（＝条件が消えて無条件発火）。
+上の「アタックしたとき」「バニッシュされたとき」と同じクラスの穴で、そのコメント自身が警告していた再発。
+
+🔴⚠**無条件に剥がしてはいけない**＝トリガー句込みで書かれた既存規則が当たらなくなる。実測＝
+`WX24-P2-051-E1` が `STUB{NON_GUARD_DISCARD_TO_ENERGY}`（実装済み）から **`UNKNOWN` へ退化**した。
+⇒ **直後が状態条件節のときだけ**剥がす形にして、影響カードを **2枚→1枚（対象カードのみ）** に絞った。
+
+### 影響枚数
+
+**3効果／1カード**（+ parser 修正の巻き添えは0枚＝A/B で確認）。
+
+### 検証コマンド
+
+- `npm run gates` — **全緑**（golden 2988/2988・census 520/520・census:enginetext A群 136 据え置き）。
+  ⚠ラチェット2本を実測値へ更新＝`Condition の型数 132→133`（`CHECK_ZONE_COUNT` 新設）／
+  honest-defer 契約表から `DEFERRED_CHECK_ZONE_TO_HAND` を削除（受け皿ができたので）。
+- `npm run golden -- --only "O-143"` — 新規3本（parser payload／`check`＋`check_rest` の合計と回収／ターン終了時の掃き出し）。
+- 🆕**⑤実機まで回した**（§2.2＝**新しい機構**＋**`src/screens/` を触った**の両方）＝
+  `node scripts/verifyBattleDrive.mjs o143CheckCount o143CheckCountOne` が **2本とも PASS**。
+  **反転確認＝盤面はそのままでチェックゾーンを 3枚→1枚 にすると -3000→-1000 に追随**（§4.4 罠3）。
+  ⚠**判定は2段**＝①枚数比例 ②回収（`CHECK_CARD`）。①だけ見ると「数えられたが回収は no-op」を見逃す。
+  🔑**「盤面が固まらない」ことの witness**＝`check_rest` に3枚入った状態でフェイズ進行・効果解決・回収が
+  すべて通った（`field.check` に入っていれば確認モーダルで全部止まっていた）。
+
+### ⚠ 実機が炙った**別の穴**を `O-152` として登録（この項目の範囲外）
+
+置く側（E1）を実機で確かめようとして、**`ON_HAND_DISCARDED` の watcher が1件も発火しない**ことが分かった
+（【起】で手札2枚を捨てても、`hand_discarded_just` は立ち、collector にセンタールリグ走査もあるのに entry が
+積まれない）。**チェックゾーンの置く側は実機で観測できない**＝`O-152` へ登録し、再現シナリオ
+`o143CheckPlace` をドライバに残した（既定 `order` からは外してある）。
+
+### 残り（`O-80` 残 C群）
+
+**2効果**＝lastProcessed カウント（`WX25-P3-102-E1` `WX24-P2-035-E1`）。`O-143` はクローズ。
+
+
 ## 2026-08-29：§5.3 `O-142` クローズ＝「この方法で〜したシグニのパワー／レベルと**同じだけ**」の受け皿（6効果）＋ 実機が炙った `battleCardMap` の穴
 
 `O-80` 残 C群の最大の小群。**6効果とも catch-all `STUB{POWER_MOD_PER_COUNT}`** に落ち、engine の**カード全文 regex**

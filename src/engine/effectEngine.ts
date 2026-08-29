@@ -829,6 +829,8 @@ function getLocationCount(state: PlayerState, location: string): number {
     case 'life_cloth': return state.life_cloth.length;
     case 'lrig_deck': return (state.lrig_deck ?? []).length;
     case 'lrig_trash': return (state.lrig_trash ?? []).length;
+    // 🆕チェックゾーン（§5.3 `O-143`）＝`getLocationCards` と同じ定義で数える。
+    case 'check':    return (state.field.check ? 1 : 0) + (state.field.check_rest ?? []).length;
     default:         return 0;
   }
 }
@@ -843,6 +845,8 @@ function getLocationCards(state: PlayerState, location: string): string[] {
     case 'life_cloth': return state.life_cloth;
     case 'lrig_deck':  return state.lrig_deck ?? [];
     case 'lrig_trash': return state.lrig_trash ?? [];
+    // 🆕チェックゾーン（§5.3 `O-143`）＝バースト確認中の1枚（`check`）＋留まっている分（`check_rest`）。
+    case 'check':      return [...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? [])];
     default:           return [];
   }
 }
