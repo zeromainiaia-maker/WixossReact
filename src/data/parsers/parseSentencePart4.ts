@@ -298,9 +298,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: n, virusCount: 1, fillToTotal: n } as PlaceVirusAction;
   }
 
-  // ---- 対戦相手の場のすべての【ウィルス】を取り除く ----
-  if (t.match(/対戦相手の場にあるすべての【ウィルス】を取り除く/))
-    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  // ---- すべての【ウィルス】を取り除く ----
+  // ⚠**「対戦相手の場にある」を必須にしない**＝`WX16-033-E1`（「…すべてのカードをトラッシュに置き
+  //   **すべての【ウィルス】を取り除く**」）は前置きが違うので落ちて、下の catch-all に流れていた。
+  if (t.match(/すべての【ウィルス】を取り除く/))
+    return { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'all' } as StubAction;
 
   // ---- シグニ１体の基本レベルをN～Nにする ----
   if (t.match(/それの基本レベルを[１-９\d０-９]～[１-９\d０-９]いずれかのレベル[１-９\d０-９]つにする/))
@@ -2108,7 +2110,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手の【Xトークン名】を好きな数取り除いてもよい ----
   if (t.match(/対戦相手の【.+】を好きな数取り除いてもよい/))
-    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+    return { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'any', virusOptional: true } as StubAction;
 
   // ---- アタック終了時、このシグニを場から〜に置いてもよい ----
   if (t.match(/そのアタック終了時.*このシグニを場から.*に置いてもよい/))

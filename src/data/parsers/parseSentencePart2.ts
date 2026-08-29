@@ -589,8 +589,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- シードを開花する ----
+  // 🆕**枚数と対象を payload で刻む**（§5.3 `O-60` 第9バッチ・2026-08-29）＝engine が
+  //   **カード全文に `好きな枚数` が1度でも出るか**で分岐していたのを剥がすため。
+  //   ⚠ここは**文単位**の `t` なので、同じカードの別能力の「好きな枚数」を巻き込まない。
   if (t.match(/【シード】.*開花する/)) {
-    return { type: 'STUB', id: 'SEED_BLOOM' } as StubAction;
+    return {
+      type: 'STUB', id: 'SEED_BLOOM',
+      ...(/好きな枚数/.test(t) ? { seedCount: 'any' as const } : {}),
+      ...(/この【シード】を開花する/.test(t) ? { seedTargetSelf: true } : {}),
+    } as StubAction;
   }
 
   // ---- 選んだ能力を得る ----
@@ -828,7 +835,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- シード開花（optional）----
   if (t.match(/あなたの【シード】.*開花してもよい/)) {
-    return { type: 'STUB', id: 'SEED_BLOOM_OPTIONAL' } as StubAction;
+    return {
+      type: 'STUB', id: 'SEED_BLOOM_OPTIONAL',
+      ...(/好きな枚数/.test(t) ? { seedCount: 'any' as const } : {}),
+    } as StubAction;
   }
 
   // ---- 手札から無色ではないカードをエナゾーンに置く ----

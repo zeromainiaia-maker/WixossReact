@@ -4786,14 +4786,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 
         // REMOVE_VIRUS: ウイルスをN個取り除いてからconditional.thenを実行
       if (stub.id === 'REMOVE_VIRUS') {
-          const toHWRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const virusArrRV = cur.otherState.field.signi_virus ?? [0, 0, 0];
           const totalVirusRV = virusArrRV.reduce((s, v) => s + v, 0);
-          const srcRV = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
-          const txtRV = srcRV ? (srcRV.EffectText ?? '') + ' ' + (srcRV.BurstText ?? '') : '';
-          const cntMRV = txtRV.match(/【ウィルス】([０-９\d]+)つを?取り除く/);
-          const removeCountRV = cntMRV ? parseInt(toHWRV(cntMRV[1])) : 1;
-          const isOptionalRV = !!(txtRV.match(/取り除いてもよい/));
+          // 🆕**個数と任意性は payload**（§5.3 `O-60` 第11バッチ・2026-08-29）。
+          // 🔴旧実装はここでも `execStubPart1` でも**カード全文**を3本の regex で読み直しており、
+          //   しかも**既定値が2地点で食い違っていた**（ここは1・向こうは全部）。
+          // ⚠`'any'`（好きな数）は最大数＝旧挙動の維持（枚数を選ばせる UI は §5.3 `O-148`）。
+          const removeCountRV = stub.virusCount === 'all' || stub.virusCount === 'any'
+            ? totalVirusRV
+            : (typeof stub.virusCount === 'number' ? stub.virusCount : 1);
+          const isOptionalRV = !!stub.virusOptional;
           // ウイルス除去スタブ + conditional.then を連結したアクション
           const removeStubRV: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_N', value: removeCountRV,

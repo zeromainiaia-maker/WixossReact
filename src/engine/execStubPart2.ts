@@ -1459,10 +1459,11 @@ export function execStubPart2(
   // 追加ターンを獲得（ログのみ、ゲームエンジン実装が必要）
   // GAIN_EXTRA_TURN: 追加ターンフラグをセット（BattleScreen側でターン終了時に追加ターンを付与）
   if (stub.id === 'GAIN_EXTRA_TURN') {
-    const srcET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtET = srcET ? (srcET.EffectText ?? '') + ' ' + (srcET.BurstText ?? '') : '';
-    // SP26-006: 「対戦相手はこのターンの次に、追加の１ターンを得る」→ otherState に付与
-    if (txtET.match(/対戦相手は(?:このターンの次に、)?追加の[１-９\d０-９]*ターンを得る/)) {
+    // 🆕**誰が得るかは payload**（§5.3 `O-60` 第10バッチ・2026-08-29）。
+    // 🔴旧実装は**カード全文**を `/対戦相手は…追加の…ターンを得る/` で読んでいた＝
+    //   同じカードの別能力にその一文があれば `あなたは…` の追加ターンまで相手へ渡る形だった。
+    // ⚠省略＝`self`（live 5効果中4が自分側）。
+    if (stub.extraTurnOwner === 'opponent') {
       return done(addLog({ ...ctx, otherState: { ...ctx.otherState, extra_turn: true } }, '対戦相手が追加ターンを獲得'));
     }
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, extra_turn: true } }, '追加ターンを獲得'));
@@ -3561,45 +3562,48 @@ export function execStubPart2(
     const seedsSB = ctx.ownerState.field.signi_seeds ?? [null, null, null];
     const availableZonesSB = [0, 1, 2].filter(zi => seedsSB[zi] !== null);
     if (availableZonesSB.length === 0) return done(addLog(ctx, 'シード開花：シードなし'));
-    // 「好きな枚数」全開花パターン
-    const srcSB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSB = srcSB ? (srcSB.EffectText ?? '') + ' ' + (srcSB.BurstText ?? '') : '';
-    if (txtSB.includes('好きな枚数')) {
-      let curSB = ctx;
-      const bloomedCardsSB: string[] = [];
-      for (const zi of [0, 1, 2]) {
-        const s = (curSB.ownerState.field.signi_seeds ?? [null, null, null])[zi];
-        if (!s) continue;
-        if (curSB.ownerState.field.signi[zi]?.length) { curSB = addLog(curSB, `開花：ゾーン${zi + 1}シグニあり`); continue; }
-        const sd = curSB.cardMap.get(s);
-        const newSeeds2 = [...(curSB.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
-        newSeeds2[zi] = null;
-        if (!sd || sd.Type !== 'シグニ') {
-          curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：シグニ以外→トラッシュ`);
-          continue;
-        }
-        const lrigInst2 = curSB.ownerState.field.lrig.at(-1);
-        const lrigCard2 = lrigInst2 ? curSB.cardMap.get(lrigInst2) : null;
-        const lrigLv2 = parseInt(lrigCard2?.Level ?? '0', 10);
-        const signiLv2 = parseInt(sd.Level ?? '0', 10);
-        if (signiLv2 > lrigLv2) {
-          curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}レベル超過→トラッシュ`);
-          continue;
-        }
-        const lrigLim2 = lrigCard2?.Limit === '∞' ? Infinity : (parseInt(lrigCard2?.Limit ?? '0', 10) || 0);
-        let usedLim2 = 0;
-        for (let zj = 0; zj < 3; zj++) { if (zj !== zi) { const top2 = curSB.ownerState.field.signi[zj]?.at(-1); if (top2) usedLim2 += parseInt(curSB.cardMap.get(top2)?.Level ?? '0', 10); } }
-        if (usedLim2 + signiLv2 > lrigLim2) {
-          curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}リミット超過→トラッシュ`);
-          continue;
-        }
-        const newSig2 = [...curSB.ownerState.field.signi] as (string[] | null)[];
-        newSig2[zi] = [s];
-        bloomedCardsSB.push(s);
-        curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, field: { ...curSB.ownerState.field, signi: newSig2, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}がゾーン${zi + 1}に出た`);
-      }
-      const doneAllSB = done(curSB) as { done: true; ownerState: PlayerState; otherState: PlayerState; logs: string[] };
-      return bloomedCardsSB.length > 0 ? { ...doneAllSB, lastProcessedCards: bloomedCardsSB } : doneAllSB;
+    // 🆕**枚数・対象は payload で決める**（§5.3 `O-60` 第9バッチ・2026-08-29）。
+    // 🔴**旧実装は `(EffectText + BurstText).includes('好きな枚数')`** ＝**カード全文**に1度でも出れば
+    //   `１枚を対象とし`の開花まで全開花に化ける形だった（A群でいちばん粗い「リテラル1本」）。
+    //   しかも全開花は**過剰実行**でもあった＝レベル超過・リミット超過・シグニ以外のシードを
+    //   **問答無用でトラッシュへ送る**ので、プレイヤーは「開花しない」を選べなかった。
+    // ⚠**payload が無いときは1枚**（fail-closed＝旧既定の「全開花」の逆側）。
+
+    // 「この【シード】を開花する」＝効果元自身がシード（`WXK04-060-E2`）。選ばせずに直接開花する。
+    // ⚠**効果元がシードゾーンに居なければ何もしない**（旧実装はここで「どれでも選べる」に落ちていて、
+    //   **別のシードを開花できてしまった**）。
+    if (stub.seedTargetSelf) {
+      const selfNumSB = ctx.sourceCardNum ? getCardNum(ctx.sourceCardNum) : '';
+      const selfZoneSB = [0, 1, 2].find(zi => {
+        const sd = seedsSB[zi];
+        return !!sd && (sd === ctx.sourceCardNum || getCardNum(sd) === selfNumSB);
+      });
+      if (selfZoneSB === undefined) return done(addLog(ctx, '開花：この【シード】が見つからない'));
+      return exec(({ ...stub, id: 'INTERNAL_BLOOM_SEED', value: selfZoneSB } as StubAction) as EffectAction, ctx);
+    }
+
+    // 「好きな枚数」＝**1枚ずつ選んで好きなところで止める**ループ（全開花の強制ではない）。
+    // ⚠`continuation` ではなく**選択肢の action を SEQUENCE にして自分を呼び直す**＝
+    //   `continuation` は選択肢によらず必ず走るので「やめる」で抜けられない。
+    if (stub.seedCount === 'any') {
+      const anyOptsSB = availableZonesSB.map(zi => {
+        const seedName = ctx.cardMap.get(seedsSB[zi]!)?.CardName ?? seedsSB[zi]!;
+        return {
+          id: `bloom_any_${zi}`,
+          label: `ゾーン${zi + 1}（${seedName}）を開花`,
+          action: ({ type: 'SEQUENCE', steps: [
+            ({ type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: zi,
+              ...(stub.bounceOccupant ? { bounceOccupant: true } : {}) } as StubAction) as EffectAction,
+            ({ type: 'STUB', id: stub.id, seedCount: 'any',
+              ...(stub.bounceOccupant ? { bounceOccupant: true } : {}) } as StubAction) as EffectAction,
+          ] } as SequenceAction) as EffectAction,
+          available: true,
+        };
+      });
+      anyOptsSB.push({ id: 'bloom_any_stop', label: 'これで開花を終える', action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction, available: true });
+      return needsInteraction(addLog(ctx, '開花するシードを選択（好きな枚数・終えるまで繰り返す）'), {
+        type: 'CHOOSE', options: anyOptsSB, count: 1,
+      });
     }
     const optional = stub.id === 'SEED_BLOOM_OPTIONAL';
     const zoneOptsSB = availableZonesSB.map(zi => {

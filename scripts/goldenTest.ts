@@ -2285,6 +2285,47 @@ test('§6.3 H4 WXDi-P13-003B-E2: 追加ターンの配置数制限は自分側�
     cursor = savedCursor;
   }
 });
+test('GAIN_EXTRA_TURN / REMOVE_VIRUS: 誰が得るか・何個取り除くかは payload（§5.3 O-60 第10/11バッチ）', () => withSavedCursor(() => {
+  // 🔴どちらも**カード全文 regex**で決めていた＝同じカードの別能力の言い回しを拾う形だった。
+  //   ここは **payload だけ**で決まることを、カードに紐づかない裸の STUB で確かめる（原文が無くても正しく動く）。
+  const base = mkCtx({}, {});
+  const extra = (p: Record<string, unknown>) => run({ type: 'STUB', id: 'GAIN_EXTRA_TURN', ...p } as EffectAction, base);
+  eq(extra({}).ownerState.extra_turn, true, 'payload 省略は自分側（既定）');
+  eq(extra({}).otherState.extra_turn, undefined, 'payload 省略で相手側へ渡っている');
+  eq(extra({ extraTurnOwner: 'opponent' }).otherState.extra_turn, true, 'opponent 指定で相手が得ていない');
+  eq(extra({ extraTurnOwner: 'opponent' }).ownerState.extra_turn, undefined, 'opponent 指定なのに自分も得ている');
+
+  // REMOVE_VIRUS＝相手の3ゾーンに 2/1/1 の計4個。payload の個数だけ減ることを見る。
+  const vctx = { ...base, otherState: { ...base.otherState,
+    field: { ...base.otherState.field, signi_virus: [2, 1, 1] } } } as ExecCtx;
+  const left = (p: Record<string, unknown>) => {
+    const r = run({ type: 'STUB', id: 'REMOVE_VIRUS', ...p } as EffectAction, vctx);
+    return (r.otherState.field.signi_virus ?? []).reduce((a, b) => a + b, 0);
+  };
+  eq(left({}), 3, 'payload 省略は1個（fail-closed＝旧 execStubPart1 の既定「全部」の逆）');
+  eq(left({ virusCount: 2 }), 2, '個数指定が効いていない');
+  eq(left({ virusCount: 'all' }), 0, 'すべて取り除けていない');
+  eq(left({ virusCount: 'any' }), 0, '「好きな数」は現状は最大数（O-148 で選択UIにする）');
+  // 🔴実害の再現＝`WX15-040-E1`「【ウィルス】**２つ**を取り除いてもよい」。
+  //   旧個数 regex は終止形 `取り除く` しか見ないので当たらず、**1個しか取り除いていなかった**。
+  const wx15040 = effectsMap.get('WX15-040')!.find(e => e.effectId === 'WX15-040-E1')!;
+  const stubW = ((wx15040.action as { steps?: unknown[] }).steps?.[0] ?? {}) as { id?: string; virusCount?: number; virusOptional?: boolean };
+  eq(stubW.id, 'REMOVE_VIRUS', 'WX15-040-E1 の1手目が REMOVE_VIRUS でない');
+  eq(stubW.virusCount, 2, 'WX15-040-E1 が原文どおり2個を刻んでいない');
+  eq(stubW.virusOptional, true, 'WX15-040-E1 の「てもよい」が落ちている');
+  // 母集団のラチェット＝live の REMOVE_VIRUS が全部 payload を持つ（「これを取り除く」の1件だけ既定）。
+  const rvNodes: { virusCount?: unknown }[] = [];
+  const walkRV = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return;
+    if (Array.isArray(o)) { o.forEach(walkRV); return; }
+    const r = o as Record<string, unknown>;
+    if (r.type === 'STUB' && r.id === 'REMOVE_VIRUS') rvNodes.push(r as { virusCount?: unknown });
+    Object.values(r).forEach(walkRV);
+  };
+  for (const effs of effectsMap.values()) walkRV(effs);
+  eq(rvNodes.length, 9, 'live の REMOVE_VIRUS ノード数');
+  eq(rvNodes.filter(n => n.virusCount === undefined).length, 1, 'payload 無しは「これを取り除く」（WX25-P3-TK03）の1件だけ');
+}));
 test('GAIN_EXTRA_TURN: 同じ能力の「対戦相手は…追加ターン」で相手側へ付与する（成立方向）', () => withSavedCursor(() => {
   const effect = effectsMap.get('SP26-006')!.find(e => e.effectId === 'SP26-006-E1')!;
   const ctx = mkCtx({}, {}, 'SP26-006');
@@ -35774,6 +35815,55 @@ test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから�
   ok(bounced.hand.includes(SIGNI), '居座るシグニが手札に戻っていない');
   eq(bounced.field.signi[0]?.at(-1), SEED_LV1, 'シードが開花して場に出ていない');
   eq(bounced.field.signi_seeds?.[0] ?? null, null, 'シードが残っている');
+}));
+test('SEED_BLOOM: 枚数と対象は payload で決まる（§5.3 O-60 第9バッチ＝カード全文 regex の撤去）', () => withSavedCursor(() => {
+  // 🔴**旧 engine は `(EffectText + BurstText).includes('好きな枚数')`** ＝**カード全文**に1度でも出れば
+  //   `１枚を対象とし`の開花まで全開花に化けた。しかも全開花は**過剰実行**で、レベル/リミット超過や
+  //   シグニ以外のシードを**問答無用でトラッシュへ送っていた**（プレイヤーは「開花しない」を選べない）。
+  // ⚠**`run` はオートパイロットで対話を潰す**ので、選択肢そのものを見るここでは `executeEffect` を直に呼ぶ。
+  const LRIG4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const SEED_A = findCard(c => isSigni(c) && c.Level === '1');
+  const SEED_B = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== SEED_A);
+  const ctx = mkCtx({ signi: [null, null, null], lrig: [LRIG4] }, {}, SIGNI);
+  const seeded: PlayerState = {
+    ...ctx.ownerState,
+    field: { ...ctx.ownerState.field, signi_seeds: [SEED_A, SEED_B, null] },
+  };
+  const sctx = { ...ctx, ownerState: seeded } as ExecCtx;
+  const raw = (eff: EffectAction, c: ExecCtx) =>
+    executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, c);
+  const optsOf = (r: ExecResult) => ((r as { pending?: { options?: { id: string; action?: unknown }[] } }).pending?.options ?? []);
+
+  // ① payload なし＝1枚（fail-closed）＝選択肢はゾーン2つだけ、「終える」は出ない。
+  const one = raw({ type: 'STUB', id: 'SEED_BLOOM' } as EffectAction, sctx);
+  eq(one.done, false, '1枚開花が対話を要求していない');
+  eq(optsOf(one).length, 2, '1枚開花の選択肢数');
+  ok(!optsOf(one).some(o => o.id === 'bloom_any_stop'), '1枚開花なのに「終える」が出ている');
+
+  // ② seedCount:'any' ＝1枚ずつ選ぶループ。選択肢に「終える」があり、各ゾーンは SEQUENCE で自分を呼び直す。
+  const any = raw({ type: 'STUB', id: 'SEED_BLOOM', seedCount: 'any' } as EffectAction, sctx);
+  eq(any.done, false, '好きな枚数が対話を要求していない');
+  eq(optsOf(any).length, 3, '好きな枚数の選択肢数（シード2＋終える）');
+  ok(optsOf(any).some(o => o.id === 'bloom_any_stop'), '「終える」が無い＝好きな枚数を途中でやめられない');
+  const firstSeq = optsOf(any)[0].action as { type: string; steps?: { id?: string; seedCount?: string }[] };
+  eq(firstSeq.type, 'SEQUENCE', '好きな枚数の選択肢が SEQUENCE ループになっていない');
+  eq(firstSeq.steps?.[0]?.id, 'INTERNAL_BLOOM_SEED', 'ループ1手目が開花でない');
+  eq(firstSeq.steps?.[1]?.seedCount, 'any', 'ループが自分を呼び直していない＝2枚目を選べない');
+
+  // ③ seedTargetSelf ＝効果元自身のシードだけを開花する（選ばせない）。
+  const selfR = raw({ type: 'STUB', id: 'SEED_BLOOM', seedTargetSelf: true } as EffectAction,
+    { ...sctx, sourceCardNum: SEED_B } as ExecCtx);
+  eq(selfR.done, true, 'この【シード】の開花が対話を挟んでいる');
+  const selfAfter = selfR.ownerState as PlayerState;
+  eq(selfAfter.field.signi[1]?.at(-1), SEED_B, '効果元のシード（ゾーン2）が開花していない');
+  eq(selfAfter.field.signi_seeds?.[0] ?? null, SEED_A, '関係ないシード（ゾーン1）まで動いた');
+  // ⚠fail-closed＝効果元がシードゾーンに居なければ何もしない（旧実装は「どれでも選べる」に落ちていた）。
+  const strayR = raw({ type: 'STUB', id: 'SEED_BLOOM', seedTargetSelf: true } as EffectAction,
+    { ...sctx, sourceCardNum: SIGNI } as ExecCtx);
+  eq(strayR.done, true, '効果元がシードでないのに対話が出ている＝別のシードを開花できてしまう');
+  const strayAfter = strayR.ownerState as PlayerState;
+  eq(strayAfter.field.signi_seeds?.[0] ?? null, SEED_A, '効果元がシードでないのにシードが動いた');
+  eq(strayAfter.field.signi_seeds?.[1] ?? null, SEED_B, '効果元がシードでないのにシードが動いた');
 }));
 test('FIELD_SIGNI_TO_CHECK_ZONE: チェックゾーン往復でアップし直しアタック済みが落ちる（§6.4 O-3）', () => withSavedCursor(() => {
   // 🔑「場を離れて出直す」＝追加アタックフェイズでもう一度アタックできるのがこのカードの主眼。

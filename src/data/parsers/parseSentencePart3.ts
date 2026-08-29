@@ -1316,8 +1316,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 追加ターン ----
+  // 🆕**誰が得るかを payload で刻む**（§5.3 `O-60` 第10バッチ・2026-08-29）＝engine が
+  //   **カード全文**を regex で読んで相手側かを決めていたのを剥がすため。
+  //   ⚠ここは**文単位**の `t` なので、同じカードの別能力の「対戦相手は」を巻き込まない。
   if (t.match(/追加の[０-９\d]*ターンを得る/)) {
-    return { type: 'STUB', id: 'GAIN_EXTRA_TURN' } as StubAction;
+    return {
+      type: 'STUB', id: 'GAIN_EXTRA_TURN',
+      ...(/対戦相手は[^。]*追加の[０-９\d]*ターンを得る/.test(t) ? { extraTurnOwner: 'opponent' as const } : {}),
+    } as StubAction;
   }
 
   // ---- 括弧ルール説明（【ビート】等）----
@@ -1573,9 +1579,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CHOOSE_HAND_OR_ENERGY' } as StubAction;
   }
 
-  // ---- ウィルスを除く ----
+  // ---- ウィルスを除く（好きな数）----
+  // 🆕**個数を payload で刻む**（§5.3 `O-60` 第11バッチ）＝engine がカード全文を読むのを剥がすため。
   if (t.match(/【ウィルス】を好きな数取り除く/)) {
-    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+    return { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'any' } as StubAction;
   }
 
   // ---- マジックボックス/トラップ設置 ----
@@ -1870,8 +1877,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手の場にある【ウィルス】を取り除く ----
-  if (t.match(/対戦相手の場にある【ウィルス】[０-９\d]*つを取り除く(?:てもよい)?/)) {
-    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  {
+    const mRV = t.match(/対戦相手の場にある【ウィルス】([０-９\d]*)つを取り除く(?:てもよい)?/);
+    if (mRV) {
+      const nRV = mRV[1] ? parseNum(mRV[1]) : 1;
+      return { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: nRV } as StubAction;
+    }
   }
 
   // ---- あなたのシグニに手札からカードを裏向きで付ける ----
@@ -2926,9 +2937,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/感染状態の場合、代わりに/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- ウィルスN個取り除く（複数形） ----
-  if (t.match(/対戦相手の場にある【ウィルス】[０-９\d]+つを取り除いてもよい/))
-    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  // ---- ウィルスN個取り除く（複数形・任意） ----
+  // 🔴**旧 engine の個数 regex は終止形 `取り除く` しか見ておらず、この「取り除い**て**もよい」形が
+  //   丸ごと落ちて既定の1個になっていた**（`WX15-040-E1` は原文2個）＝ここで個数を刻む。
+  {
+    const mRVO = t.match(/対戦相手の場にある【ウィルス】([０-９\d]+)つを取り除いてもよい/);
+    if (mRVO) {
+      return { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: parseNum(mRVO[1]), virusOptional: true } as StubAction;
+    }
+  }
 
   // ---- シグニがアクセされたとき自動能力 ----
   if (t.match(/シグニ[１-９1-9０-９\d]*体?がアクセされたとき/))

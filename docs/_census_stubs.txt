@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 618（総ノード 2911 件）
-逆翻訳シートの [STUB:…] 総数: 602  うち生ID露出 5 箇所（4 種）
+逆翻訳シートの [STUB:…] 総数: 594  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 26 種 / 27 件
@@ -31,10 +31,10 @@ live JSON の STUB id 種類 : 618（総ノード 2911 件）
         生成: src\data\effectParser.ts:12379
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
-        生成: src\data\parsers\parseSentencePart3.ts:2315
+        生成: src\data\parsers\parseSentencePart3.ts:2326
      1件   1枚  DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL
         カード: SP38-001
-        生成: src\data\parsers\parseSentencePart3.ts:2021
+        生成: src\data\parsers\parseSentencePart3.ts:2032
      1件   1枚  DEFERRED_EACH_PLAYER_REVEAL_HAND
         カード: WXEX2-80
         生成: src\data\effectParser.ts:12377
@@ -82,7 +82,7 @@ live JSON の STUB id 種類 : 618（総ノード 2911 件）
         生成: src\data\effectParser.ts:12387
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
-        生成: src\data\parsers\parseSentencePart4.ts:2025
+        生成: src\data\parsers\parseSentencePart4.ts:2027
      1件   1枚  DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI
         カード: WDK17-015
         生成: src\data\effectParser.ts:12382
@@ -104,7 +104,7 @@ live JSON の STUB id 種類 : 618（総ノード 2911 件）
 ==============================================================================
     22件  22枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他16枚
-        消費: src\engine\effectExecutor.ts:5115 / src\engine\effectExecutor.ts:5130 / src\engine\triggerCollect.ts:429
+        消費: src\engine\effectExecutor.ts:5117 / src\engine\effectExecutor.ts:5132 / src\engine\triggerCollect.ts:429
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
         消費: src\engine\effectExecutor.ts:4736 / src\engine\effectExecutor.ts:4741
@@ -152,10 +152,10 @@ live JSON の STUB id 種類 : 618（総ノード 2911 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:8249
+        消費: src\engine\effectExecutor.ts:8251
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:8251
+        消費: src\engine\effectExecutor.ts:8253
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66

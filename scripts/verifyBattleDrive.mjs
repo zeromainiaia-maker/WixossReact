@@ -15653,8 +15653,14 @@ async function injectScenario(page, spec) {
       //   `ON_OPP_ARTS_USE` は「相手が持つアーツの StackEntry が解決されたとき」に収集されるので、
       //   CPU にアーツを撃たせずに窓を作るにはスタックを注入するしかない（`pendingSpell` と同じ手）。
       // ⚠`turnPlayerId` は注入時にしか分からない（uid はブラウザ側で取る）ので、ここで埋める。
+      // ⚠🆕**`playerId: null` のエントリは実 uid で埋める**（2026-08-29・`O-60` 第9バッチ）＝
+      //   自分側の効果を注入したいとき、spec 側では uid が分からない（ブラウザでしか取れない）。
       effect_stack: top.effectStack
-        ? { ...top.effectStack, turnPlayerId: (top.active === 'cpu' ? CPU_PLAYER_ID : uid) }
+        ? {
+            ...top.effectStack,
+            turnPlayerId: (top.active === 'cpu' ? CPU_PLAYER_ID : uid),
+            queue: (top.effectStack.queue ?? []).map(e => (e && e.playerId === null ? { ...e, playerId: uid } : e)),
+          }
         : null,
       pending_effect: null, pending_spell: top.pendingSpell ?? null,
       // ログもシナリオごとに白紙化する。前シナリオのログ行（「アーツ使用: …」等）が盤面テキストに残ると
@@ -36438,6 +36444,103 @@ scenarios.riseGateLevelColor = {
 order.push('riseGateLevelColor');
 // ── ライズ配置条件ゲート END ──
 
+// ── §5.3 `O-60` 第9バッチ（`SEED_BLOOM` の枚数を payload へ）の実機観測点 ──
+/**
+ * 🔴**旧 engine は `(EffectText + BurstText).includes('好きな枚数')`** ＝**カード全文**に1度でも出れば
+ *   `１枚を対象とし`の開花まで全開花に化ける、A群でいちばん粗い「リテラル1本」だった。
+ *   しかも全開花は**過剰実行**でもあった＝**選択肢が1つも出ず、レベル/リミット超過やシグニ以外のシードは
+ *   問答無用でトラッシュへ送られる**（プレイヤーは「開花しない」を選べない）。
+ * 🔑**観測点は「1枚だけ開花して、残りをシードのまま残せるか」**。
+ * 🔴**旧実装は経路によって2通りに化ける**（＝カード全文 regex の本質的な問題）＝
+ *   ①効果元のカード全文が読める経路では**選択肢ゼロで全開花**（超過側・不適格シードはトラッシュへ）
+ *   ②読めない経路（このシナリオの stack 注入＝効果元が場に居ない）では**「終える」が出ず1枚だけ**（過少側）。
+ *   **同じ効果が経路で変わる**のが旧実装の姿で、payload 化するとどちらの経路でも同じになる。
+ * ⚠`WDK07-Y01-E1` は**ルリグの【出】**（グロウでしか撃てない）ので、`effect_stack` を注入して解決させる
+ *   （`O-113` の相手アーツと同じ手）。**live の effectId をそのまま使う**＝payload は live 由来。
+ */
+function o60SeedBloomStack() {
+  return {
+    turnPlayerId: null,                        // injectScenario が実 uid で埋める
+    pendingTurn: [], pendingOpp: [],
+    orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      // ⚠**`playerId: null` は injectScenario が実 uid で埋める**（自分側の効果として解決させる）。
+      id: 'o60-seed-1', playerId: null,
+      cardNum: 'WDK07-Y01', effectId: 'WDK07-Y01-E1',
+      label: '花軍の巫女　ユキ の【出】（注入）',
+      // ⚠**`effect` は必須**（null にすると `effectType` 読みで client が落ちる）。
+      //   ⚠**payload は live と同じものを書く**＝`docs/../effects_WXK.json` の `WDK07-Y01-E1` と一致させること
+      //   （`seedCount:'any'` が本バッチの成果物なので、ここを手で書き換えると観測の意味が消える）。
+      effect: {
+        effectId: 'WDK07-Y01-E1', effectType: 'AUTO', timing: ['ON_PLAY'],
+        action: { type: 'STUB', id: 'SEED_BLOOM', seedCount: 'any' },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+      },
+    }],
+  };
+}
+scenarios.o60SeedBloomAny = {
+  title: 'WDK07-Y01（O-60 第9バッチ＝【シード】を好きな枚数開花）＝1枚だけ開花して残りをシードのまま残せる【旧実装は問答無用で全開花】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],                       // Lv4 / Limit11
+      'field.signi': [null, null, null],
+      'field.signi_seeds': ['WD01-013#71', 'WD09-014#72', null], // どちらも白Lv1＝開花できる
+      'energy': ['WD01-013#73'],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o60SeedBloomStack() },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 seeds=${JSON.stringify(st0?.host?.fieldSeeds ?? null)} field=${JSON.stringify(st0?.host?.fieldSigni)} trash=${st0?.host?.trash}`);
+    let sawStop = false, last = st0, bloomedOnce = false;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(850);
+      await page.screenshot({ path: `${SHOT}/o60seed-${s}.png`, fullPage: true });
+      let did = null;
+      // 🔑**「これで開花を終える」が出ていること自体が観測点**（旧実装は選択肢が1つも出ない）。
+      const stopBtn = page.getByRole('button', { name: /これで開花を終える/ }).first();
+      if (await stopBtn.count() && await stopBtn.isVisible().catch(() => false)) {
+        sawStop = true;
+        // 1枚開花してから止める＝「好きな枚数」が本当に途中で止められるかを見る。
+        if (bloomedOnce) { await stopBtn.click().catch(() => {}); did = 'btn:これで開花を終える'; }
+      }
+      if (!did && !bloomedOnce) {
+        const z1 = page.getByRole('button', { name: /ゾーン1（.*）を開花/ }).first();
+        if (await z1.count() && await z1.isVisible().catch(() => false)) {
+          await z1.click().catch(() => {}); did = 'btn:ゾーン1を開花'; bloomedOnce = true;
+        }
+      }
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o60seed[${s}] -> ${did ?? 'なし'} | seeds=${JSON.stringify(last?.host?.fieldSeeds ?? null)}`
+        + ` field=${JSON.stringify(last?.host?.fieldSigni)} trash=${last?.host?.trash} 終える表示=${sawStop}`
+        + ` stack=${last?.stackLen ?? '-'} pEff=${last?.pendingEffect ?? '-'}`);
+      if (sawStop && bloomedOnce && !(last?.stackLen > 0) && !last?.pendingEffect) break;
+    }
+    const seeds = last?.host?.fieldSeeds ?? [null, null, null];
+    const onField = (last?.host?.fieldSigni ?? []).flatMap(z => z ?? []);
+    const detail = `終える表示=${sawStop} seeds=${JSON.stringify(seeds)} field=${JSON.stringify(last?.host?.fieldSigni)}`
+      + ` trash=${st0?.host?.trash}→${last?.host?.trash}`;
+    // ⚠**本題を先に判定**（旧挙動は2通りに化ける＝それがカード全文 regex の本質的な問題）
+    if (!sawStop && onField.includes('WD01-013#71') && onField.includes('WD09-014#72')) {
+      return { pass: false, detail: `🔴選択肢が1つも出ないまま2枚とも開花した＝「好きな枚数」が全開花に化けている（旧挙動・リテラルが読めた側）。${detail}` };
+    }
+    if (!sawStop && onField.includes('WD01-013#71')) {
+      return { pass: false, detail: `🔴「これで開花を終える」が出ず1枚しか開花できない＝「好きな枚数」が1枚に化けている（旧挙動・**効果元のカード全文が読めなかった側**）。${detail}` };
+    }
+    if (!sawStop) return { pass: false, detail: `前提崩れ＝開花の選択肢が出ていない（効果に到達していない）。${detail}` };
+    if (!onField.includes('WD01-013#71')) return { pass: false, detail: `前提崩れ＝選んだ1枚が開花していない。${detail}` };
+    if (onField.includes('WD09-014#72')) return { pass: false, detail: `🔴止めたのに2枚目まで開花した。${detail}` };
+    if (seeds[1] !== 'WD09-014#72') return { pass: false, detail: `🔴開花しなかったシードが残っていない（トラッシュへ送られた＝旧全開花の副作用）。${detail}` };
+    return { pass: true, detail: `1枚だけ開花し、残り1枚は【シード】のまま残った。${detail}` };
+  },
+};
+order.push('o60SeedBloomAny');
+// ── O-60 第9バッチ END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -36681,6 +36784,9 @@ try {
         signiFrozen: s.field?.signi_frozen ?? null,
         // §5.3 O-55：【トラップ】設置の観測点（どのカードがどのゾーンに裏向きで置かれたか）。
         signiTraps: s.field?.signi_traps ?? [null, null, null],
+        // 🆕§5.3 `O-60` 第9バッチ（2026-08-29）＝【シード】ゾーンの中身。「開花しなかったシードが
+        //   **シードのまま残る**」（＝旧全開花ならトラッシュへ行っていた）の観測に要る。
+        fieldSeeds: s.field?.signi_seeds ?? [null, null, null],
         signiDown: s.field?.signi_down ?? null,
         // 🆕Sheet1 B4（2026-08-27）：「このターン、あなたが**次に**スペル／アーツを使用する場合、コストが減る」の
         //   状態スロット。**「次の1回だけ」はここが持っている**（executor が積み、使用時にクリアされる）。

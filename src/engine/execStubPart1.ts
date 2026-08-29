@@ -2111,17 +2111,18 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, subscriber_count: newCnt };
     return done(addLog({ ...ctx, ownerState: newOwner }, `登録者数＋${gain}万人（計${newCnt}万人）`));
   }
-  // ウイルス除去：テキストを解析して適切な数のウイルスを取り除く
+  // ウイルス除去：**個数は payload で決まる**（§5.3 `O-60` 第11バッチ・2026-08-29）。
+  // 🔴旧実装は**カード全文**を3本の regex で読み直しており、しかも**既定値が「全部」**だった
+  //   （もう1つの消費地点 `effectExecutor` の既定は「1」＝2地点で食い違っていた）。
+  // ⚠`'any'`（好きな数）は最大数＝旧挙動の維持（枚数を選ばせる UI は §5.3 `O-148`）。
+  // ⚠**payload 省略時は1個**（fail-closed＝旧既定「全部」の逆）。
   if (stub.id === 'REMOVE_VIRUS') {
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const totalVirus = virusArr.reduce((s, v) => s + v, 0);
     if (totalVirus === 0) return done(addLog(ctx, 'ウイルスなし'));
-    const srcRV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRV = srcRV ? (srcRV.EffectText ?? '') + ' ' + (srcRV.BurstText ?? '') : '';
-    const toHWRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const removeAllRV = !!(txtRV.match(/すべての【ウィルス】を取り除く/) || txtRV.match(/すべての.*ウィルス.*取り除く/));
-    const cntMRV = txtRV.match(/【ウィルス】([０-９\d]+)つを?取り除く/);
-    const removeCount = removeAllRV ? totalVirus : (cntMRV ? Math.min(parseInt(toHWRV(cntMRV[1])), totalVirus) : totalVirus);
+    const removeCount = stub.virusCount === 'all' || stub.virusCount === 'any'
+      ? totalVirus
+      : Math.min(typeof stub.virusCount === 'number' ? stub.virusCount : 1, totalVirus);
     const newVirus = [...virusArr];
     let removed = 0;
     for (let z = 0; z < 3 && removed < removeCount; z++) {

@@ -1,5 +1,18 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-29 整理（§6 恒久指標・続き716時点値の退避・続き717）
+
+- **2026-08-29 続き716 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 520（据置）**
+  **golden 2972→2973**（`getRiseFilter` の形＋件数ラチェット1本）、census 520/520、smoke 10702 全異常0、fuzz 全0、
+  lint 0 errors／248 warnings（据置）、同型★0、held 30バケット/90枚、`_partial_fresh` 12／`_idset_fresh` 13、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、`census:enginetext` **A群 141行（据置）**、孤児 MANUAL 12。
+  🆕**ライズ配置条件が立つカード＝10 → 28 / 41枚**（`RISE_CARD_GATED` で golden がラチェット）。
+  **残 13枚は複数体ライズ＝`O-147`**（＝**いまもライズ条件なしで召喚できる既知の穴**）。
+  🆕**実機シナリオ＝3本追加**（`riseGateLevelColor` / `o135SpellMidInteractionTrigger` ＋ `lookReorderCanTrash` 作り直し）。
+  ⚠**3計器がどれも動かないのが正しい**＝今回も live JSON ではなく **`BattleScreen` / `execUtils` の配線**の修正で、
+  3計器はどれも live JSON しか見ていない。**この巡を測る計器は golden の件数ラチェットと実機。**
+
 ## 2026-08-29 整理（§6 恒久指標・続き715時点値の退避・続き716）
 
 - **2026-08-29 続き715 後（本行が直近の正）**：

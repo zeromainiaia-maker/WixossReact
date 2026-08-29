@@ -3003,14 +3003,17 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'ターン終了時まで、対戦相手のシグニを《サーバント　ＺＥＲＯ》にする';
       }
-      // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）＝「（あなたの）【シード】（N枚/好きな枚数）を（対象とし）開花する」。
-      // 対象数/語順がカードごとに異なるため currentCardText から【シード】を含む開花クレーズを抽出（コスト句 : はまたがない）。
+      // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）。
+      // 🆕**payload から描く**（§5.3 `O-60` 第9バッチ・2026-08-29）＝旧実装は `currentCardText` から
+      //   【シード】を含む開花クレーズを**切り出して**いたので、**JSON が枚数も対象も持っていなくても
+      //   逆翻訳シートは原文どおりに見えた**（`O-55` と同じ「計器が嘘をつく」形）。
       if (a.id === 'SEED_BLOOM' || a.id === 'SEED_BLOOM_OPTIONAL') {
         // ⚠`bounceOccupant`（開花の置換）まで描く＝落とすと「居座るシグニを手札に戻す」の脱落が逆翻訳に映らない。
         const bounceSB = a.bounceOccupant ? '。そのシグニゾーンにシグニがある場合、代わりにそのシグニを手札に戻してから開花する' : '';
-        const m = currentCardText.match(/(?:あなたの)?[^。：]*【シード】[^。：]*?開花する/);
-        if (m) return m[0] + bounceSB;
-        return 'あなたの【シード】を開花する' + bounceSB;
+        const tailSB = a.id === 'SEED_BLOOM_OPTIONAL' ? '開花してもよい' : '開花する';
+        if (a.seedTargetSelf) return 'この【シード】を' + tailSB + bounceSB;
+        const countSB = a.seedCount === 'any' ? 'を好きな枚数' : '１枚';
+        return 'あなたの【シード】' + countSB + 'を対象とし、それを' + tailSB + bounceSB;
       }
       // 公開からシード設置（PLACE_SEED_FROM_REVEALED・engine実装済み）＝LOOK/シャッフルは別描画され、
       // 本体は「その中からカードN枚を【シード】としてあなたのシグニゾーンに出す（してもよい）」。currentCardText から抽出。
@@ -3091,10 +3094,20 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/対戦相手の手札の上限は[０-９\d]*減る/);
         if (m) return m[0];
       }
-      // 追加ターン（GAIN_EXTRA_TURN・engine実装済み）＝「（あなた/対戦相手）はこのターンの次に、追加のNターンを得る」。
+      // ウィルス除去（REMOVE_VIRUS・engine実装済み）。
+      // 🆕**payload から描く**（§5.3 `O-60` 第11バッチ）＝それまでは `[STUB:ウイルス除去：テキストを解析して…]`
+      //   というハンドラのコメントがそのまま出ていた＝**逆翻訳シートを見ても「何個取り除くか」が分からない**。
+      if (a.id === 'REMOVE_VIRUS') {
+        const cntRV = a.virusCount === 'all' ? 'すべて'
+          : a.virusCount === 'any' ? '好きな数'
+          : `${a.virusCount ?? 1}つ`;
+        return `対戦相手の場にある【ウィルス】を${cntRV}${a.virusOptional ? '取り除いてもよい' : '取り除く'}`;
+      }
+      // 追加ターン（GAIN_EXTRA_TURN・engine実装済み）。
+      // 🆕**payload から描く**（§5.3 `O-60` 第10バッチ）＝旧実装は `currentCardText` から切り出していたので、
+      //   **JSON が「誰が得るか」を持っていなくても逆翻訳シートは原文どおりに見えた**。
       if (a.id === 'GAIN_EXTRA_TURN') {
-        const m = currentCardText.match(/(?:あなた|対戦相手)は?このターンの次に、追加の[０-９\d]*ターンを得る/);
-        if (m) return m[0];
+        return (a.extraTurnOwner === 'opponent' ? '対戦相手' : 'あなた') + 'はこのターンの次に、追加の１ターンを得る';
       }
       // 数字宣言してミル（DECLARE_NUMBER/DECLARE_NUMBER_RANGE・engine実装済み）＝
       // 「X～Yの数字１つを宣言する。（あなた/対戦相手の）デッキの上から（カードを）宣言した数字に等しい枚数…トラッシュに置く」。
