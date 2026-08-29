@@ -84,6 +84,7 @@ import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstS
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/execUtils';
+import { getRiseFilter } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
 import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
@@ -52673,6 +52674,44 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   ok(orphans.length >= BASELINE_ORPHAN_MANUAL,
     `live 限定 MANUAL スタンプが減った: ${orphans.length} < ${BASELINE_ORPHAN_MANUAL}（BASELINE_ORPHAN_MANUAL を実数へ下げる）`);
 }));
+
+// ── ライズ配置条件（`getRiseFilter`）＝2026-08-29・§5.1 `V-89` の切り分けで見つかった engine バグの回帰ガード ──
+// 🔴**旧実装は終端が `（この条件` 固定**で、【ライズ】41枚のうち **31枚で null**（＝ライズ条件が丸ごと無効・
+//   空きシグニゾーンへ普通に召喚できた）。さらに色は「あなたの」直後限定、レベルは「以上」だけを読んでいた。
+// ⚠**カバレッジは件数でロックする**（テキストは CSV 側で増えるので、個別カードだけ見ると母集団の変化に気づけない）。
+test('rise: getRiseFilter が【ライズ】カードの配置条件を取りこぼさない（終端・色・レベル・カード名）', () => {
+  // 単体ライズ＝終端が `【`（旧実装が全部取りこぼしていた形）
+  const oda = getRiseFilter('【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【常】：このシグニは…');
+  eq(oda?.cardType, 'シグニ', 'WX15-032 cardType');
+  eq(oda?.story, '武勇', 'WX15-032 story');
+  // 「あなたの」直後に色が来ない形＝旧実装は色を落として**どの色にも乗れた**
+  const ake = getRiseFilter('【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【自】：…');
+  eq(ake?.color, '赤', 'WX15-041 color');
+  eq(JSON.stringify(ake?.level), JSON.stringify({ max: 2 }), 'WX15-041 level(以下)');
+  // 「レベルNの」＝旧実装は「以上」しか読まずレベル無制限だった
+  const kin = getRiseFilter('【ライズ】あなたのレベル１の赤のシグニ１体の上に置く【常】：…');
+  eq(JSON.stringify(kin?.level), JSON.stringify({ min: 1, max: 1 }), 'WX16-059 level(丁度)');
+  // 「（この条件…）」つきの新しい書式は従来どおり通る
+  const nob = getRiseFilter('【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさない場合、このシグニは場に出せない）【出】：…');
+  eq(nob?.color, '赤', 'WXDi-D09-H13 color');
+  // カード名指定（《…アイコン》はカード名ではない）
+  const kok = getRiseFilter('【ライズ】あなたの《楽隊の童話　ロバン》１体の上に置く【自】：…');
+  eq(kok?.cardName, '楽隊の童話　ロバン', 'WXK09-060 cardName');
+  const jin = getRiseFilter('【ライズ】あなたの《ディソナアイコン》のシグニ１体の上に置く（この条件を満たさない場合、このシグニは場に出せない）【常】：…');
+  eq(jin?.cardName, undefined, 'アイコンを cardName にしない');
+  eq(jin?.isDisona, true, 'WXDi-P12-068 isDisona');
+  // 🔴**複数体ライズは null のまま**＝1体ぶんだけ通すと「半分だけ実装した嘘」になる（機構は §5.3 `O-147`）
+  eq(getRiseFilter('【ライズ】あなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【出】：…'), null, '2体ライズは受けない');
+  eq(getRiseFilter('【ライズ】あなたの《轟左砲　ドーラ》１体と《弩中砲　グスタフト》１体と《轟右砲　ドスラフ》１体の上に置く【常】：…'), null, '3枚指定ライズは受けない');
+  eq(getRiseFilter('【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつを重ね、その上に置く【常】：…'), null, '「重ね」は受けない');
+  // 母集団のラチェット＝CSV 全件で「フィルタが立つ枚数」を固定する。
+  const RISE_CARD_TOTAL = 41;   // 先頭が【ライズ】の CSV カード数（新カードで増えたら実数へ上げる）
+  const RISE_CARD_GATED = 28;   // うちライズ条件が立つ枚数（残 13 = 複数体ライズ＝§5.3 `O-147`）
+  const riseCards = [...cardMap.values()].filter(c => /^【ライズ】/.test(c.EffectText ?? ''));
+  const gated = riseCards.filter(c => getRiseFilter(c.EffectText ?? '') !== null);
+  eq(riseCards.length, RISE_CARD_TOTAL, '【ライズ】カード総数');
+  eq(gated.length, RISE_CARD_GATED, 'ライズ条件が立つカード数（減ったら退化・増えたら基準を上げる）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

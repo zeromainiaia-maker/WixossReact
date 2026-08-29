@@ -5696,7 +5696,10 @@ const scenarios = {
     spec: {
       hostSet: {
         'field.lrig': ['WD01-001#1'],                     // 任意センター（Lv4/Limit11）
-        'field.signi': [null, ['WXDi-P04-043#1'], null],  // watcher（幻竜姫 ドラゴンメイド・zone1）／zone0は召喚用に空ける
+        // 🆕**2026-08-29 `V-89` の巡で zone0 に赤Lv1シグニを置いた**＝`WX15-073` は
+        //   **【ライズ】あなたのレベル１の赤のシグニ１体の上に置く**で、`getRiseFilter` の終端修正により
+        //   **空きゾーンへは召喚できなくなった**（旧実装は 41枚中31枚でライズ条件が丸ごと効いていなかった）。
+        'field.signi': [['WD02-013#2'], ['WXDi-P04-043#1'], null],  // zone0=ライズ元（羅石 アイロン・赤Lv1）／zone1=watcher（幻竜姫 ドラゴンメイド）
         'hand': ['WX15-073#1'],                           // 勝利の円卓 アルスラ（E1バニッシュ候補なしで即done・E2ドローがデッキ最後の1枚を引いてちょうど0枚化）
         'deck': ['WD03-013#1'],                           // 残り1枚＝E1では減らずE2のDRAWで初めて0枚化（0枚のままだとE1単独でも即リフレッシュ→2回目リフレッシュでターン強制終了しwatcher収集に届かない）
         'trash': ['WD02-013#1'],                          // リフレッシュ元（トラッシュ非空）
@@ -8023,17 +8026,27 @@ const scenarios = {
     },
   },
 
+  // ⚠**シナリオID は歴史的なもの**（旧題「LOOK_AND_REORDER canTrash UI」）。**2026-08-29・§5.1 `V-89` で中身を作り直した**＝
+  //    `WX20-037` の live はもう `LOOK_AND_REORDER{canTrash}` ではなく
+  //    `LOOK_PICK_CHAIN{revealCount:3, stages:[{filter:{赤のシグニ}, pickCount:2, pickUpTo, then:'field'}], remainder:{trash}}`。
+  //    旧シナリオは**存在しない「トラッシュ」トグルUI**を待って16ティック空振りしていた（＝engine は正しかった）。
+  //    ⚠**旧 spec は deck が白バニラ5枚だけ**で、赤のシグニが1枚も無かった＝**pick 0枚→3枚とも remainder→トラッシュ**が
+  //    起きていた（`hDeck=2 hTrash=3`）＝**あの数字自体が「仕様どおり」の証拠だった。**
   lookReorderCanTrash: {
-    title: 'LOOK_AND_REORDER canTrash UI（WX20-037・デッキ上3枚見てトラッシュ選択）',
+    title: 'WX20-037（V-89 作り直し＝デッキ上3枚から赤のシグニ2枚を場に出し、残りをトラッシュ）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD03-002#1'],
+        'field.lrig': ['WD03-002#1'],                 // Lv3・リミット8
         'field.signi': [null, null, null],
-        'deck': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5'],
+        // 🔑**上から3枚に「赤のシグニ2枚＋非赤1枚」を仕込む**＝pick される側と remainder される側を1回で見る。
+        'deck': ['WD02-013#1', 'WX04-070#1', 'WD01-013#1',
+                 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5',
+                 'WD01-013#6', 'WD01-013#7', 'WD01-013#8', 'WD01-013#9', 'WD01-013#10'],
+        'trash': [],
         'energy': [],
         'actions_done': [],
       },
-      handPrepend: ['WX20-037#1'], // 暴食の暴君　トウタク（Lv2・ON_PLAY LOOK_AND_REORDER count3 canTrash）
+      handPrepend: ['WX20-037#1'], // 暴食の暴君　トウタク（Lv2・【出】LOOK_PICK_CHAIN）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
@@ -8045,42 +8058,70 @@ const scenarios = {
       }
       await H.ensureMain();
       const before = await H.queryState();
-      H.log('開始時 host.deck:', before?.host?.deck, 'host.trash:', before?.host?.trash);
+      H.log(`開始 deck=${before?.host?.deck} trash=${before?.host?.trash} field=${JSON.stringify(before?.host?.fieldSigni)}`);
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-      let trashClicked = false;
-      for (let s = 0; s < 16; s++) {
+      const onField = (st) => (st?.host?.fieldSigni ?? []).flatMap(z => z ?? []);
+      let last = before;
+      const picked = new Set();
+      for (let s = 0; s < 20; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lookReorderCanTrash-${s}.png`, fullPage: true });
         let did = await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', 'ライフに加える']);
         if (!did) did = await H.clickBtn('召喚', { exact: true });
+        // 🔴**ゾーン選択は `.first()` で取らない**＝マッチする最初のボタンが**前のモーダルの残骸や
+        //   disabled のゾーン**（このカードは自分が居るゾーン1が押せない）だと、そこで打ち止めになって
+        //   `SELECT_SIGNI_ZONE` のまま14ティック空振りする（実測）。**全マッチを走査して押せる1つを押す。**
+        //   ⚠ADD_TO_FIELD が2枚ぶんあるので**このモーダルは2回出る**。
         if (!did) {
-          const zoneBtn = page.getByRole('button', { name: /^ゾーン1/ }).first();
-          if (await zoneBtn.count() && await zoneBtn.isVisible().catch(() => false) && await zoneBtn.isEnabled().catch(() => false)) {
-            await zoneBtn.click().catch(() => {}); did = 'btn:ゾーン1';
+          const zoneBtns = page.getByRole('button', { name: /^ゾーン[123]/ });
+          const n = await zoneBtns.count().catch(() => 0);
+          for (let i = 0; i < n; i++) {
+            const b = zoneBtns.nth(i);
+            if (await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+              const nm = await b.textContent().catch(() => '');
+              await b.click().catch(() => {}); did = 'btn:' + String(nm).slice(0, 6); break;
+            }
           }
         }
+        // 🔑**pickUpTo:2 なので「決定 (n/2)」が出ていても押し切らずに pick を2枚積む**
+        //   （`H.stdStep` は「決定 (1/」しか見ないので、2枚選ぶ画面では pick を1枚も押さずに素通りする）。
+        // 🔴**押した index を覚える**＝同じ `pick-0` を押し続けると**トグルで選択が外れて永久に揃わない**
+        //   （`O-135` のエナ選択で踏んだのと同じ罠）。
         if (!did) {
-          const summonZone = page.getByTestId('summon-zone-1').first();
-          if (await summonZone.count() && await summonZone.isVisible().catch(() => false)) {
-            await summonZone.click().catch(() => {}); did = 'tid:summon-zone-1';
+          for (const i of [0, 1, 2]) {
+            if (picked.has(i)) continue;
+            const pk = page.getByTestId(`pick-${i}`).first();
+            if (await pk.count() && await pk.isVisible().catch(() => false) && await pk.isEnabled().catch(() => true)) {
+              await pk.click().catch(() => {}); picked.add(i); did = `pick-${i}`; break;
+            }
           }
         }
-        if (!did && !trashClicked) {
-          const trashBtn = page.getByRole('button', { name: 'トラッシュ', exact: true }).first();
-          if (await trashBtn.count() && await trashBtn.isVisible().catch(() => false)) {
-            await trashBtn.click().catch(() => {}); did = 'btn:トラッシュ(toggle)'; trashClicked = true;
-          }
-        }
-        if (!did && trashClicked) did = await H.clickBtn('決定', { exact: true });
-        if (!did) did = await H.stdStep();
-        const st = await H.queryState();
-        H.log(`  lrct[${s}] -> ${did ?? 'なし'} | hDeck=${st?.host?.deck}（開始${before?.host?.deck}） hTrash=${st?.host?.trash}（開始${before?.host?.trash}） pEff=${st?.pendingEffect ?? '-'}`);
-        if (trashClicked && st?.host?.trash > before?.host?.trash && !st?.pendingEffect) {
-          return { pass: true, detail: `canTrash UI経由で1枚トラッシュ確定＝hTrash ${before.host.trash}→${st.host.trash}・hDeck ${before.host.deck}→${st.host.deck}（3枚見て1枚トラッシュ・2枚デッキトップへ戻す）` };
-        }
+        if (!did) did = await H.clickTextOrBtn(['決定', '確定', 'OK', 'はい', 'スキップ', '選ばない']);
+        last = await H.queryState();
+        H.log(`  lrct[${s}] -> ${did ?? 'なし'} | deck=${before?.host?.deck}→${last?.host?.deck}`
+          + ` trash=${before?.host?.trash}→${last?.host?.trash} field=${JSON.stringify(last?.host?.fieldSigni)}`
+          + ` pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+        const f = onField(last);
+        if (f.includes('WD02-013#1') && f.includes('WX04-070#1')
+            && (last?.host?.trashCards ?? []).includes('WD01-013#1')) break;
       }
-      const fin = await H.queryState();
-      return { pass: false, detail: `トラッシュ確定未確認（hDeck=${fin?.host?.deck}（開始${before?.host?.deck}） hTrash=${fin?.host?.trash}（開始${before?.host?.trash}） pEff=${fin?.pendingEffect ?? '-'}）` };
+      const f = onField(last);
+      const placed = ['WD02-013#1', 'WX04-070#1'].filter(n => f.includes(n));
+      const remainderTrashed = (last?.host?.trashCards ?? []).includes('WD01-013#1');
+      const detail = `場に出た赤=${JSON.stringify(placed)} remainder(WD01-013#1)がトラッシュ=${remainderTrashed}`
+        + ` deck=${before?.host?.deck}→${last?.host?.deck} trash=${before?.host?.trash}→${last?.host?.trash}`
+        + ` field=${JSON.stringify(last?.host?.fieldSigni)}`;
+      // ⚠**本題を先に判定**（前提崩れを先に置くと旧挙動の再現が判定文から読めなくなる）
+      if (placed.length === 2 && remainderTrashed) {
+        return { pass: true, detail: `赤のシグニ2枚が場に出て、残り1枚がトラッシュへ。${detail}` };
+      }
+      if (placed.length === 0 && (last?.host?.trash ?? 0) - (before?.host?.trash ?? 0) >= 3) {
+        return { pass: false, detail: `🔴3枚とも remainder へ流れた＝pick 段（赤のシグニ2枚まで場に出す）が走っていない。${detail}` };
+      }
+      if (placed.length === 1) {
+        return { pass: false, detail: `🔴赤のシグニが1枚しか出ていない＝pickUpTo:2 の2枚目が取れていない（空きゾーン不足の可能性も見る）。${detail}` };
+      }
+      return { pass: false, detail: `未完了。${detail}` };
     },
   },
 
@@ -36242,7 +36283,160 @@ scenarios.o135SpellDrawTrigger = {
   },
 };
 order.push('o135SpellDrawTrigger');
+/**
+ * ③`result.done === false` 分岐（§5.1 `V-92`・2026-08-29）＝**スペルが「対話に入る前に確定させた盤面変化」**。
+ *
+ * 🔴**旧実装はこの枝で `ON_PLAY` すら1件も収集していなかった。**
+ *   しかも**resume 側で拾い直せない**＝resume（`handleEffectInteraction`）の diff の before は
+ *   **この段で commit した state** なので、step0 の変化は既に before に含まれていて差分ゼロになる。
+ *   ⇒ 「対話を挟むスペルの1つ目の step」で起きた変化は**永久に誰にも見えなかった**。
+ * 🔑**観測点**＝`WX17-045`（ＦＬＡＳＨ・《青》×0「カードを１枚引き、手札を１枚捨てる。」＝
+ *   `SEQUENCE[DRAW 1, TRASH{HAND_CARD}]`。**捨てる側で必ず中断する**）を使い、
+ *   自分の場の `WXK02-090`（リュウスイ・「【自】《ターン１回》：あなたがカードを１枚引いたとき、
+ *   ターン終了時まで、このシグニのパワーを＋5000する」）が**対話を挟んでも発火する**ことを見る。
+ * ⚠**二重発火が無いことも同時に見る**＝`temp_power_mods` に `+5000` が**1件だけ**であること。
+ */
+scenarios.o135SpellMidInteractionTrigger = {
+  title: 'WX17-045→WXK02-090（V-92＝対話に入る前に確定した変化も収集される）＝旧実装はこの枝で1件も収集しなかった',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WXK02-090#1'], null, null],       // ON_DRAW watcher（+5000）
+      'hand': ['WX17-045#1', 'WD01-013#20', 'WD01-013#21'], // index0=スペル／残り2枚は捨てる候補
+      'temp_power_mods': [],
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    const deck0 = st0?.host?.deck ?? 0, hand0 = st0?.host?.hand ?? 0;
+    H.log(`開始 deck=${deck0} hand=${hand0} powerMods=${JSON.stringify(st0?.host?.powerMods)}`);
+    await H.ensureMain();
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    const mods = (st) => (st?.host?.powerMods ?? []).filter(m => /^WXK02-090#1:5000$/.test(m));
+    const picked = new Set();
+    let drew = false, sawPending = false, settledStreak = 0, last = st0;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(850);
+      await page.screenshot({ path: `${SHOT}/o135mid-${s}.png`, fullPage: true });
+      let did = await o135CastSpellStep(page, picked);
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      if ((last?.host?.deck ?? deck0) < deck0) drew = true;
+      if (last?.pendingEffect) sawPending = true;
+      H.log(`  o135mid[${s}] -> ${did ?? 'なし'} | deck=${deck0}→${last?.host?.deck} hand=${hand0}→${last?.host?.hand}`
+        + ` drew=${drew} pending見た=${sawPending} powerMods=${JSON.stringify(last?.host?.powerMods)}`
+        + ` stack=${last?.stackLen ?? '-'} pSpell=${last?.pendingSpell ?? '-'} pEff=${last?.pendingEffect ?? '-'}`);
+      settledStreak = (!last?.pendingSpell && !last?.pendingEffect && !(last?.stackLen > 0)) ? settledStreak + 1 : 0;
+      if (mods(last).length > 0 && settledStreak >= 2) break;
+      if (drew && settledStreak >= 4) break;
+    }
+    const n = mods(last).length;
+    const detail = `drew=${drew} 対話に入った=${sawPending} +5000の件数=${n}`
+      + ` deck=${deck0}→${last?.host?.deck ?? '-'} hand=${hand0}→${last?.host?.hand ?? '-'}`
+      + ` powerMods=${JSON.stringify(last?.host?.powerMods)}`;
+    // ⚠**本題を先に判定**
+    if (drew && sawPending && n === 0) {
+      return { pass: false, detail: `🔴対話を挟んだら ON_DRAW が発火しなかった＝!done 分岐が盤面差分を1件も収集していない（旧挙動）。${detail}` };
+    }
+    if (n > 1) return { pass: false, detail: `🔴+5000 が${n}件＝二重 collection（!done 分岐と resume 分岐で同じ変化を2回数えている）。${detail}` };
+    if (!drew) return { pass: false, detail: `前提崩れ＝スペルが解決していない（デッキが減っていない）。${detail}` };
+    if (!sawPending) return { pass: false, detail: `前提崩れ＝対話（手札を1枚捨てる）に入っていない＝この枝を通っていない。${detail}` };
+    return { pass: true, detail: `対話に入る前に確定したドローの ON_DRAW が発火し、しかも1件だけ。${detail}` };
+  },
+};
+order.push('o135SpellMidInteractionTrigger');
 // ── §5.3 O-135 END ──
+
+// ── ライズ配置条件ゲート（2026-08-29・§5.1 `V-89` の切り分けで発見した engine バグの観測点）BEGIN ──
+/**
+ * 🔴**旧実装＝`getRiseFilter` の終端が「（この条件」固定**で、【ライズ】41枚のうち **31枚で null** を返していた
+ *   ＝**ライズ条件がまったく効かず、空きシグニゾーンへ普通に召喚できた**（下にカードが1枚も無いので
+ *   「このシグニの下から〜」のコストやパワー参照も死ぬ）。終端を「（この条件 ／ 次の `【` ／ 文末」にして
+ *   **10 → 28枚**が正しくゲートされるようにした（残 13枚＝複数体ライズは `O-147`）。
+ * 🔴**同時に色・レベルの抽出も緩すぎた**＝色は「あなたの」直後限定で
+ *   「あなたの**レベル２以下の**赤のシグニ」の赤が落ち、レベルは「以上」しか読まず「以下」「レベルNの」が全部落ちていた。
+ * 🔑**観測点は「どのゾーンが選べるか」**＝`WX15-073`（勝利の円卓 アルスラ・**レベル１の赤の**シグニ１体の上に置く）を
+ *   ①赤Lv1（ライズ可）②白Lv1（色が違う）③空きゾーン、の3択に対して出す。
+ */
+scenarios.riseGateLevelColor = {
+  title: 'WX15-073（ライズ条件ゲート）＝赤Lv1の上にしか出せない【旧実装は空きゾーンへ普通に召喚できた】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],                                  // Lv4 / Limit11
+      'field.signi': [['WD02-013#1'], ['WD01-013#1'], null],         // zone0=赤Lv1（ライズ可）／zone1=白Lv1（色違い）／zone2=空
+      'trash': [],
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [null, null, null],                             // 【出】E1（パワー1000以下をバニッシュ）の候補を0にして対話を挟まない
+      'actions_done': [],
+    },
+    handPrepend: ['WX15-073#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log(`開始 field=${JSON.stringify(before?.host?.fieldSigni)}`);
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let labels = null, tried = [];
+    let last = before;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/riseGate-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      if (!did && labels === null) {
+        // ゾーンボタンが出ていれば、押す前に3つのラベルと disabled を記録する（これが本命の観測）。
+        const z0 = page.getByTestId('summon-zone-0').first();
+        if (await z0.count() && await z0.isVisible().catch(() => false)) {
+          labels = [];
+          for (const zi of [0, 1, 2]) {
+            const b = page.getByTestId(`summon-zone-${zi}`).first();
+            labels.push({
+              zone: zi,
+              text: (await b.textContent().catch(() => '') ?? '').replace(/\s+/g, ' ').trim(),
+              enabled: await b.isEnabled().catch(() => false),
+            });
+          }
+          H.log(`  ゾーンボタン: ${JSON.stringify(labels)}`);
+        }
+      }
+      // 🔑**先に「出せてはいけないゾーン」を押す**＝旧実装ならここで配置が通ってしまう（＝旧挙動の再現）。
+      if (!did) {
+        for (const zi of [2, 1, 0]) {
+          if (tried.includes(zi)) continue;
+          const hit = await H.clickTestId(`summon-zone-${zi}`);
+          if (hit) { tried.push(zi); did = hit; break; }
+          tried.push(zi);
+        }
+      }
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  rise[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      const zones = last?.host?.fieldSigni ?? [];
+      if (zones.some(z => Array.isArray(z) && z.includes('WX15-073#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WX15-073#1'));
+    const detail = `配置先ゾーン=${at} field=${JSON.stringify(zones)} ゾーンボタン=${JSON.stringify(labels)}`;
+    // ⚠**本題を先に判定**（前提崩れを先に置くと旧挙動の再現が判定文から読めなくなる）
+    if (at === 2) return { pass: false, detail: `🔴空きゾーンへ普通に召喚できた＝ライズ条件が効いていない（旧挙動）。${detail}` };
+    if (at === 1) return { pass: false, detail: `🔴白のLv1シグニの上に乗った＝ライズ条件の「赤の」が効いていない（旧挙動）。${detail}` };
+    if (at !== 0) return { pass: false, detail: `前提崩れ＝召喚自体が完了していない。${detail}` };
+    const stacked = (zones[0] ?? []).join(',') === 'WD02-013#1,WX15-073#1';
+    if (!stacked) return { pass: false, detail: `🔴ゾーン0には出たがライズ（下に元シグニが残る）になっていない。${detail}` };
+    const gated = labels && labels[0].enabled && !labels[1].enabled && !labels[2].enabled;
+    if (!gated) return { pass: false, detail: `🔴結果は正しいが、選べてはいけないゾーンのボタンが有効だった。${detail}` };
+    return { pass: true, detail: `赤Lv1（ゾーン1）だけが「ライズ可」で、白Lv1と空きゾーンは選べない。配置は下に元シグニを残す積み方。${detail}` };
+  },
+};
+order.push('riseGateLevelColor');
+// ── ライズ配置条件ゲート END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

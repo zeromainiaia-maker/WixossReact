@@ -3106,9 +3106,24 @@ export function canAddToSelection(
  * ライズカードでない場合は null を返す。
  */
 export function getRiseFilter(effectText: string): TargetFilter | null {
-  const m = effectText.match(/【ライズ】(.+?)（この条件/s);
+  // 🔴**終端は「（この条件」だけではない**（2026-08-29・§5.1 `V-89` の切り分けで発見）。
+  //   旧実装は `/【ライズ】(.+?)（この条件/` ＝**「（この条件を満たさない場合…）」を書いている新しめのカードにしか
+  //   当たらず、41枚中31枚で null を返していた**＝**ライズ条件がまったく効かず、空きシグニゾーンへ
+  //   普通に召喚できていた**（下にカードが1枚も無いので「このシグニの下から〜」のコスト・パワー参照も死ぬ）。
+  //   ⇒ 終端を「（この条件」か**次の能力マーカー `【`** か**文末**にした。
+  const m = effectText.match(/【ライズ】(.+?)(?=（この条件|【|$)/s);
   if (!m) return null;
   const cond = m[1];
+
+  // 🔴**複数体ライズ（2体以上／トラッシュ・エナから重ねる）はここでは受けない**＝
+  //   「赤のシグニ**２体**の上に置く（どちらかのシグニがあるシグニゾーンに出す）」は
+  //   **2体を消費して1ゾーンへ積む**機構で、`matchesRiseFilter`（1ゾーンのトップ1枚を見る）では表せない。
+  //   1体ぶんだけ通すと**「半分だけ実装した嘘」**になるので null のまま（＝現状維持）にして、
+  //   機構は §5.3 `O-147` に登録した。⚠**該当13枚は依然ライズ条件が効かない**（既知の穴）。
+  if (/[２-９2-9]体|[２-９2-9]枚|重ね/.test(cond)) return null;
+  // 「《A》１体と《B》１体と《C》１体の上に置く」（`WX20-038`）も複数体ライズ＝「体」が2回以上出たら除外。
+  if ((cond.match(/体/g) ?? []).length >= 2) return null;
+
   const filter: TargetFilter = { cardType: 'シグニ' };
 
   // ＜クラス＞フィルター
@@ -3118,16 +3133,28 @@ export function getRiseFilter(effectText: string): TargetFilter | null {
   // 《ディソナアイコン》→ CSVの Story==='Dissona'（filter.story は CardClass 照合なのでここでは使えない）
   if (cond.includes('《ディソナアイコン》')) filter.isDisona = true;
 
-  // 色フィルター（「赤の」「青の」等）
-  const colorM = cond.match(/^あなたの(白|赤|青|緑|黒)の/);
+  // 色フィルター（「赤の」「青の」等）。
+  // ⚠**「あなたの」直後に限定しない**＝「あなたの**レベル２以下の**赤のシグニ１体の上に置く」（`WX15-041` ほか）で
+  //   色が落ちて**どの色のシグニにも乗れる**過剰許可になっていた（2026-08-29・`V-89` の切り分けで発見）。
+  const colorM = cond.match(/(白|赤|青|緑|黒)の(?:シグニ|＜)/);
   if (colorM) filter.color = colorM[1];
 
-  // レベルフィルター（「レベルN以上の」）
-  const lvM = cond.match(/レベル([０-９\d])以上/);
-  if (lvM) {
-    const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    filter.level = { min: parseInt(toHW(lvM[1])) };
-  }
+  // レベルフィルター（「レベルN以上の」／🆕「レベルN以下の」／🆕「レベルNの」）。
+  // ⚠旧実装は**「以上」だけ**だった＝実データの主流である「レベル２以下の」「レベル１の」が全部落ちて
+  //   **レベル無制限**になっていた（`WX15-041`/`WX15-073`/`WX16-038`/`WX16-059`/`WX17-055`/`WX18-061`/
+  //   `WX21-Re05`/`WXEX2-61` の8枚）。
+  const toHW = (v: string) => v.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const lvGe = cond.match(/レベル([０-９\d])以上/);
+  const lvLe = cond.match(/レベル([０-９\d])以下/);
+  const lvEq = cond.match(/レベル([０-９\d])の/);
+  if (lvGe) filter.level = { min: parseInt(toHW(lvGe[1])) };
+  else if (lvLe) filter.level = { max: parseInt(toHW(lvLe[1])) };
+  else if (lvEq) { const n = parseInt(toHW(lvEq[1])); filter.level = { min: n, max: n }; }
+
+  // カード名指定（`WXK09-060`＝「あなたの《楽隊の童話　ロバン》１体の上に置く」）。
+  // ⚠**《…アイコン》はカード名ではない**（《ライズアイコン》《ディソナアイコン》＝上で別扱い）ので除外する。
+  const nameM = cond.match(/《([^》]{3,})》/);
+  if (nameM && !nameM[1].endsWith('アイコン')) filter.cardName = nameM[1];
 
   // 《ライズアイコン》を持つ → hasRiseIcon フラグ（matchesFilter拡張なしでは使えないので特殊扱い）
   if (cond.includes('《ライズアイコン》')) {
