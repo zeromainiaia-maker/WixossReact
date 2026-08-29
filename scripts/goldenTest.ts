@@ -8555,6 +8555,22 @@ test('O-80① parser: この方法で〜1枚につきのパワー修整は POWER
   // 「それ」が前文の対象を指す形も、カード全文を見る後段が owner を復元する。
   eq(tgt('WXEX1-64-E1')?.owner, 'opponent',
     '🔴「対戦相手のシグニ1体を対象とし…。ターン終了時まで、それの」＝自分のシグニに化けない');
+
+  // 🆕§5.3 `O-80` 第3バッチ（2026-08-29）＝**「この効果で」も同じ形**。第1バッチは「この方法で」しか
+  //   見ておらず、この1効果だけが catch-all に残っていた（fail-closed ではなく語が1つ足りなかった）。
+  eq(tgt('WX25-P3-102-E1')?.owner, 'opponent', 'WX25-P3-102-E1: 対象は対戦相手');
+  eq(tgt('WX25-P3-102-E1')?.count, 1, '🔴1体だけ（旧 catch-all は相手の全シグニへ撃っていた）');
+  eq(plp('WX25-P3-102-E1')?.filter?.story, '悪魔',
+    '🔴数えるのは＜悪魔＞のシグニだけ（旧実装はミルした4枚を全部数えていた）');
+  eq(one('WX25-P3-102-E1')?.delta, -2000, '1枚あたりの単価');
+
+  // 🔴**「場に出た」は引き取らない**（§5.3 `O-153`）＝倍率元の `lastProcessedCards` に
+  //   `LOOK_PICK_CHAIN` の**手札行きも混ざる**ので、`level_sum` にすると手札の札まで数える。
+  //   ⚠`perLastProcessed.filter` はカードデータしか見ないので2ステージ（同一 filter）を分離できない。
+  eq(one('WX24-P2-035-E1'), undefined,
+    '🔴「この効果で場に出たシグニのレベル1につき」を引き取っている＝手札に加えた札まで数える');
+  ok(JSON.stringify(effectsMap.get('WX24-P2-035')?.find(e => e.effectId === 'WX24-P2-035-E1')?.action ?? {})
+    .includes('POWER_MOD_PER_COUNT'), 'WX24-P2-035-E1 は catch-all に据え置き（O-153 で扱う）');
 });
 
 test('O-80① engine: 倍率は絞り込み・レベル合計・N枚単位で決まり、対象選択を跨いでも保たれる', () => withSavedCursor(() => {

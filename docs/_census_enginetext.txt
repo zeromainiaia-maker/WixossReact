@@ -23,9 +23,9 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | OPP_SIGNI_ATTACK_POWER_RESTRICT | execStubPart2.ts:4335 | 2 | 2 | 1 | 2 |
 | CLASS_CHANGE | execStubPart3.ts:131 | 4 | 4 | 4 | 1 |
 | HAND_SIZE_INCREASE|REDUCE_OPP_HAND_LIMIT | execStubPart3.ts:503 | 4 | 4 | 3 | 1 |
-| POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 4 | 4 | 8 | 1 |
 | NEGATE_NTH_ATTACK | execStubPart3.ts:1108 | 3 | 3 | 3 | 1 |
 | PLAY_SPELL_FREE_IGNORE_RESTRICTION | execStubPart2.ts:4051 | 3 | 2 | 1 | 1 |
+| POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 3 | 3 | 8 | 1 |
 | LAYER_ABILITY_COPY | execStubPart2.ts:4876 | 2 | 2 | 1 | 1 |
 | TARGET_ONLY | execStubPart1.ts:4018 | 2 | 2 | 3 | 1 |
 | ALL_PLAYER_MILL | execStubPart3.ts:4093 | 1 | 1 | 2 | 1 |
@@ -226,18 +226,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:[（(].*から([０-９\d]+)枚になる[）)]
     miss: WDK09-009
 
-### POWER_MOD_PER_COUNT  (live 4効果 / 4カード / miss 1)
-  execStubPart1.ts:1703  const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
-    lit re:([０-９\d]+)[体枚つ個]?につき([－＋][０-９\d]+)
-    lit re:レベル([０-９\d]+)につき([－＋][０-９\d]+)
-    lit re:合計で([－＋][０-９\d]+)
-    lit re:枚数に([０-９\d]+)を加えた枚数のカードを引く
-    lit re:手札([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
-    lit re:エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
-    lit re:登録者数([０-９\d]*)万人につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
-    lit re:(?:あなたの|この)シグニ
-    miss: PR-K026
-
 ### NEGATE_NTH_ATTACK  (live 3効果 / 3カード / miss 1)
   execStubPart3.ts:1108  const txtNNA = srcNNA ? (srcNNA.EffectText ?? '') + ' ' + (srcNNA.BurstText ?? '') : '';
     lit re:[一1１]度目か[二2２]度目
@@ -249,6 +237,18 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:4051  const txtPSFIR = srcPSFIR ? (srcPSFIR.EffectText ?? '') + ' ' + (srcPSFIR.BurstText ?? '') : '';
     lit re:コストの合計が([０-９\d]+)以下
     miss: WX14-014
+
+### POWER_MOD_PER_COUNT  (live 3効果 / 3カード / miss 1)
+  execStubPart1.ts:1703  const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
+    lit re:([０-９\d]+)[体枚つ個]?につき([－＋][０-９\d]+)
+    lit re:レベル([０-９\d]+)につき([－＋][０-９\d]+)
+    lit re:合計で([－＋][０-９\d]+)
+    lit re:枚数に([０-９\d]+)を加えた枚数のカードを引く
+    lit re:手札([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
+    lit re:エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
+    lit re:登録者数([０-９\d]*)万人につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)
+    lit re:(?:あなたの|この)シグニ
+    miss: PR-K026
 
 ### LAYER_ABILITY_COPY  (live 2効果 / 2カード / miss 1)
   execStubPart2.ts:4876  const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';

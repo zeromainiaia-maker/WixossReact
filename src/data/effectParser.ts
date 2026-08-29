@@ -5848,8 +5848,22 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   ような**専用の受け皿を持つ文まで横取りして退化させる**（実測3枚。初版でこれを踏んだ）。
   //   catch-all の `STUB{POWER_MOD_PER_COUNT}` に落ちた文だけを引き取る。
   if (containsPowerModPerCount(result)) {
-    const perLpM = t.match(/この方法で([^、。]*?)(のレベル(?:の合計)?)?([０-９\d]+)[枚体つ個]?につき/);
-    if (perLpM && /パワーを/.test(t)) {
+    // 🆕§5.3 `O-80` 第3バッチ（2026-08-29）＝**「この効果で」も同じ形**（`WX25-P3-102-E1`
+    //   「それのパワーをこの**効果で**トラッシュに置かれた＜悪魔＞のシグニ1枚につき－2000する」）。
+    //   🔴第1バッチが「この方法で」しか見ておらず、この2効果だけが catch-all に残っていた＝
+    //   **fail-closed で差し戻したのではなく、単に語が1つ足りなかった**（登録票の「当時の判断の読み直し」
+    //   はここで解決）。⚠影響は `containsPowerModPerCount` ガードで **catch-all に落ちた文だけ**に閉じる
+    //   （「この効果で」を含む6カードのうち4枚は既に専用の受け皿へ行っており、横取りしない）。
+    const perLpM = t.match(/この(?:方法|効果)で([^、。]*?)(のレベル(?:の合計)?)?([０-９\d]+)[枚体つ個]?につき/);
+    // 🔴🆕**「場に出た」だけは引き取らない**（§5.3 `O-153`・2026-08-29 実測）＝倍率元の
+    //   `lastProcessedCards` は `LOOK_PICK_CHAIN` が**手札行きと場行きの両方**を入れる
+    //   （`effectExecutor.ts` の `lastProcessedCards: completedPicks`）ので、`level_sum` にすると
+    //   **手札に加えた札のレベルまで数える**。しかも2ステージの `filter` が同一（＜遊具＞／＜悪魔＞の
+    //   シグニ）なので **`perLastProcessed.filter` では分離できない**（あれはカードデータしか見ない）。
+    //   ⇒ 行き先別の記録は engine 側の仕事＝**確定できない倍率は差し戻す**（`O-80` の fail-closed 則）。
+    //   ⚠同型は2枚（`WX24-P2-035-E1` と、別の受け皿で**既に同じ穴に落ちている** `WX24-P3-039-E1`）。
+    const perLpUnresolvable = !!perLpM && /場に出た/.test(perLpM[1]);
+    if (perLpM && !perLpUnresolvable && /パワーを/.test(t)) {
       // ⚠修飾句を外すと**読点が余る**（`WXK07-054-CB`「それのパワーを、この方法で…につき－1000する」→
       //   「それのパワーを、－1000する」）＝そのままでは通常経路も解けない。読点を畳んでから解かせる。
       const strippedLp = t.replace(perLpM[0], '').replace(/、\s*、/g, '、').replace(/を、(?=[＋－+-])/, 'を');
