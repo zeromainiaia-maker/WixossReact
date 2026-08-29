@@ -36,6 +36,7 @@ interface EffectInteractionModalProps {
   handleSelectSigniZoneForEffect: (zoneIndex: number) => void;
   handleSelectVirusZoneForEffect: (zoneIndex: number | null) => void;
   handleRearrangeSigniConfirm: (newArrangement: string[] | null) => void;
+  handleAllocatePowerConfirm: (alloc: Record<string, number>) => void;
 }
 
 export function EffectInteractionModal(p: EffectInteractionModalProps) {
@@ -46,8 +47,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
    *   `inter.allowRepeat` のときだけこちらを使う（既存の複数選択UIの挙動は一切変えない）。
    */
   const [repeatChoiceCounts, setRepeatChoiceCounts] = useState<Record<string, number>>({});
+  /** `ALLOCATE_POWER`（§5.3 `O-140`）の下書き配分（cardNum → 絶対値。符号は total 側が持つ）。 */
+  const [allocDraft, setAllocDraft] = useState<Record<string, number>>({});
   const { bs, user, my, op, loading, battleCardMap, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
-  const { effectSelectedNums, setEffectSelectedNums, selectedOptCost, setSelectedOptCost, selectedMultiChoiceIds, setSelectedMultiChoiceIds, lookReorderOrder, setLookReorderOrder, lookReorderTrash, setLookReorderTrash, lookReorderBottom, setLookReorderBottom, rearrangeSlots, setRearrangeSlots, handleEffectInteraction, handleSelectZoneForEffect, handleSelectSigniZoneForEffect, handleSelectVirusZoneForEffect, handleRearrangeSigniConfirm } = p;
+  const { effectSelectedNums, setEffectSelectedNums, selectedOptCost, setSelectedOptCost, selectedMultiChoiceIds, setSelectedMultiChoiceIds, lookReorderOrder, setLookReorderOrder, lookReorderTrash, setLookReorderTrash, lookReorderBottom, setLookReorderBottom, rearrangeSlots, setRearrangeSlots, handleEffectInteraction, handleSelectZoneForEffect, handleSelectSigniZoneForEffect, handleSelectVirusZoneForEffect, handleRearrangeSigniConfirm, handleAllocatePowerConfirm } = p;
   return (
     <>
       {/* ===== 効果インタラクション モーダル ===== */}
@@ -880,6 +883,69 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     );
                   })}
                 </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
+        // ALLOCATE_POWER：総量を選んだ対象へ unit 単位で割り振る（§5.3 `O-140`）。
+        // ⚠**「合計は total ちょうど」**＝余っているうちは確定させない（原文は配り切る）。
+        //   検算は `resumeAllocatePower` にも入っているが、UI 側でも出させない（二重の砦）。
+        if (inter.type === 'ALLOCATE_POWER') {
+          const signAP = inter.total < 0 ? -1 : 1;
+          const unitAP = Math.max(1, Math.abs(inter.unit || 1000));
+          const budgetAP = Math.abs(inter.total);
+          const assignedAP = inter.targets.reduce((acc, n) => acc + (allocDraft[n] ?? 0), 0);
+          const restAP = budgetAP - assignedAP;
+          const bump = (n: string, d: number) => setAllocDraft(prev => {
+            const cur = prev[n] ?? 0;
+            const next = Math.max(0, cur + d * unitAP);
+            const others = inter.targets.reduce((acc, m) => acc + (m === n ? 0 : (prev[m] ?? 0)), 0);
+            if (others + next > budgetAP) return prev;
+            return { ...prev, [n]: next };
+          });
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: 18, width: 'min(94vw, 460px)', textAlign: 'center' }}>
+                <p style={{ color: C.text, fontSize: 14, margin: '0 0 6px', fontWeight: 'bold' }}>
+                  パワーを割り振ってください（{unitAP}単位）
+                </p>
+                <p style={{ color: restAP === 0 ? C.textDim : C.danger, fontSize: 12, margin: '0 0 12px' }}>
+                  総量 {signAP < 0 ? '−' : '＋'}{budgetAP} ／ 残り {signAP < 0 ? '−' : '＋'}{restAP}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {inter.targets.map(n => (
+                    <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+                      <span style={{ color: C.text, fontSize: 13 }}>{battleCardMap.get(getCardNum(n))?.CardName ?? n}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button data-testid={`alloc-minus-${n}`} onClick={() => bump(n, -1)} disabled={loading || (allocDraft[n] ?? 0) === 0}
+                          style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton, color: C.text, cursor: 'pointer' }}>−</button>
+                        <span style={{ color: C.text, fontSize: 13, minWidth: 64, textAlign: 'center' }}>
+                          {signAP < 0 ? '−' : '＋'}{allocDraft[n] ?? 0}
+                        </span>
+                        <button data-testid={`alloc-plus-${n}`} onClick={() => bump(n, 1)} disabled={loading || restAP < unitAP}
+                          style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton, color: C.text, cursor: 'pointer' }}>＋</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button data-testid="alloc-confirm" disabled={loading || restAP !== 0}
+                  onClick={() => {
+                    const out: Record<string, number> = {};
+                    for (const n of inter.targets) out[n] = signAP * (allocDraft[n] ?? 0);
+                    setAllocDraft({});
+                    handleAllocatePowerConfirm(out);
+                  }}
+                  style={{ marginTop: 14, padding: '8px 24px', borderRadius: 8, border: 'none',
+                    backgroundColor: restAP === 0 ? C.accent : C.disabled,
+                    color: restAP === 0 ? '#fff' : C.textFaint, cursor: restAP === 0 ? 'pointer' : 'default', fontSize: 14 }}>
+                  決定（残り {restAP}）
+                </button>
               </div>
             </div>,
             document.body,

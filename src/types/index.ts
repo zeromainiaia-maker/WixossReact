@@ -1444,6 +1444,20 @@ export type PendingInteractionDef =
       continuation?: EffectAction;
     }
   | {
+      /**
+       * `ALLOCATE_POWER`（§5.3 `O-140`・2026-08-29）＝**総量を選んだ対象へ `unit` 単位で割り振る**。
+       * 「それらのパワーを合わせて－20000する。この効果では1000単位でしか数字を割り振ることができない。」
+       * ⚠**合計は `total` ちょうど**（余らせない）。UI・CPU・resume の3者が同じ規約で検算する。
+       */
+      type: 'ALLOCATE_POWER';
+      targets: string[];          // 割り振り先（すでに対象宣言済み）
+      total: number;              // 割り振る総量（負＝マイナス）
+      unit: number;               // 割り振り単位（原文は毎回 1000）
+      owner: 'self' | 'opponent' | 'any'; // targets がどちら側の場にあるか（'any'＝カードごとに判定）
+      untilOppTurnEnd?: boolean;  // true＝power_mods_until_opp_turn へ（省略＝temp_power_mods）
+      continuation?: EffectAction;
+    }
+  | {
       type: 'REARRANGE_SIGNI';   // フィールド上のシグニを好きなように配置し直す（「対戦相手のすべてのシグニを配置し直す」WX04-041-E2）
       owner: 'self' | 'opponent';  // 並び替えるシグニの持ち主（効果オーナー視点）
       signiNums: string[];         // 並び替え対象のシグニ（各ゾーンのトップ instance id）

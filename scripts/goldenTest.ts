@@ -31,7 +31,7 @@ import {
   applyRefreshOnDone,
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeOptionalCost, resumeOpponentPayOptional,
-  resumeLookAndReorder, resumeRevealCards, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
+  resumeLookAndReorder, resumeRevealCards, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni, resumeAllocatePower,
   applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   applyEffectLeaveSubstitutes, collectLeaveSubstituteOptions, autoChooseLeaveSubstitute,
@@ -52839,6 +52839,67 @@ test('O-144: 「残りを好きな順番で」の並べ替えが live に届い�
   eq(missing.length, BASELINE_REORDER_MISSING,
     `並べ替えが届いていない効果数（未達: ${missing.slice(0, 8).join(', ')}…）`);
 });
+
+// ── `POWER_MODIFY{splitTotal}`＝総量を割り振る（§5.3 `O-140`・2026-08-29）──
+// 🔴**旧 live は5効果とも `STUB{POWER_MOD_PER_COUNT}` の裸で、2通りに壊れていた**＝
+//   ①`合わせて` はどの regex にも当たらず**無言 no-op** ②`合計で` は当たるが**相手3体それぞれに満額**。
+test('O-140: splitTotal は「総量」＝1体なら全部・複数なら ALLOCATE_POWER で割り振る', () => withSavedCursor(() => {
+  const raw = (eff: EffectAction, c: ExecCtx) =>
+    executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, c);
+  const split = (): EffectAction => ({
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true, filter: { cardType: 'シグニ' } },
+    delta: -20000, splitTotal: { unit: 1000 }, duration: 'UNTIL_END_OF_TURN',
+  } as unknown as EffectAction);
+
+  // 相手3体＝対象選択（好きな数）で中断する。⚠**全員に満額**を配ってはいけない（旧 engine の過剰実行）。
+  const ctx3 = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_P12000] }, SIGNI);
+  const sel = raw(split(), ctx3);
+  eq(sel.done, false, '「好きな数」の対象選択で中断していない');
+  const selPending = (sel as { pending: { type: string; count?: number; optional?: boolean } }).pending;
+  eq(selPending.type, 'SELECT_TARGET', '対象選択が出ていない');
+  eq(selPending.optional, true, '「好きな数」なのに0体を選べない');
+  eq(selPending.count, 3, '候補3体すべてを上限にしていない');
+
+  // 2体選ぶ → 割り振り対話へ（合計は総量ちょうど）
+  const alloc = resumeSelectTarget([SIGNI, SIGNI_P3000], selPending as never, ctx3);
+  eq(alloc.done, false, '2体選んだのに割り振り対話が出ていない');
+  const ap = (alloc as { pending: { type: string; total?: number; unit?: number; targets?: string[] } }).pending;
+  eq(ap.type, 'ALLOCATE_POWER', '割り振り対話の型');
+  eq(ap.total, -20000, '総量が渡っていない');
+  eq(ap.unit, 1000, '割り振り単位が渡っていない');
+  eq(ap.targets?.length, 2, '割り振り先が2体でない');
+
+  // 1体だけ選んだら対話を挟まず全部そこへ（O-51 と同じ「2つ以上のときだけ問う」規約）
+  const one = resumeSelectTarget([SIGNI], selPending as never, ctx3);
+  eq(one.done, true, '1体なら対話を挟まないはず');
+  const oneMods = (one.otherState.temp_power_mods ?? []).filter(m => m.cardNum === SIGNI);
+  eq(oneMods.length, 1, '1体に1件だけ乗るはず');
+  eq(oneMods[0].delta, -20000, '1体なら総量まるごと');
+
+  // 🔴**resume の検算**＝外から壊れた配分が来ても総量を超えない／単位で丸める／余りは先頭へ寄せる。
+  const apPending = ap as never as import('../src/types/index').PendingInteractionDef & { type: 'ALLOCATE_POWER' };
+  const over = resumeAllocatePower({ [SIGNI]: -999999, [SIGNI_P3000]: -999999 }, apPending, ctx3);
+  const overMods = over.otherState.temp_power_mods ?? [];
+  eq(overMods.reduce((a2, m) => a2 + m.delta, 0), -20000, '総量を超えて配れてしまった（旧挙動＝過剰実行）');
+  const odd = resumeAllocatePower({ [SIGNI]: -1500, [SIGNI_P3000]: -1500 }, apPending, ctx3);
+  const oddMods = odd.otherState.temp_power_mods ?? [];
+  eq(oddMods.reduce((a2, m) => a2 + m.delta, 0), -20000, '配り残しを総量ちょうどへ寄せていない');
+  ok(oddMods.every(m => Math.abs(m.delta) % 1000 === 0), '1000単位に丸めていない');
+
+  // 母集団のラチェット＝live で splitTotal を持つ効果数（減ったら退化）。
+  const BASELINE_SPLIT_TOTAL = 4;
+  let nSplit = 0;
+  const walkSp = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return;
+    if (Array.isArray(o)) { o.forEach(walkSp); return; }
+    const r = o as Record<string, unknown>;
+    if (r.type === 'POWER_MODIFY' && r.splitTotal) nSplit++;
+    Object.values(r).forEach(walkSp);
+  };
+  for (const effs of effectsMap.values()) walkSp(effs);
+  eq(nSplit, BASELINE_SPLIT_TOTAL, 'splitTotal を持つ live 効果数（増えたら基準を上げる）');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

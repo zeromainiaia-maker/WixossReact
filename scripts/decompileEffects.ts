@@ -1041,6 +1041,15 @@ function actionJa(a?: Action, effectType?: string): string {
       const aboveRest = a.target?.filter?.aboveSelf ? { ...a.target.filter, aboveSelf: undefined } : undefined;
       const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : (a.targetsLastProcessed || a.targetsStored) ? 'それ' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.aboveSelf ? `このカードの上にある${filterJa(aboveRest)}${a.target.filter.cardName ? '' : 'シグニ'}` : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
       if (a.deltaFromOppPowerDecrease) return `${pmSubj}のパワーを減った値と同じだけ＋する`;
+      // 🆕`splitTotal`（§5.3 `O-140`）＝delta は**1体あたりではなく総量**なので「合わせて」と描く。
+      //   ⚠これを落とすと「対象それぞれに満額」に読めてしまい、まさに旧 engine の過剰実行と同じ嘘になる。
+      if (a.splitTotal) {
+        // ⚠**枚数は書かない**（「好きな数」が枚数そのもの）＝`targetJa` を通すと `1体まで` が混ざる。
+        const spOwner = a.target?.owner === 'opponent' ? '対戦相手の' : a.target?.owner === 'self' ? 'あなたの' : '';
+        const spNoun = `${filterJa(a.target?.filter ?? {})}${a.target?.filter?.cardType ?? 'シグニ'}`;
+        return `${spOwner}${spNoun}を好きな数対象とし、それらのパワーを合わせて`
+          + `${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する（${a.splitTotal.unit ?? 1000}単位で割り振る）`;
+      }
       const pmDuration = a.duration === 'NEXT_TURN'
         ? a.appliesThisTurn
           // 「このターン＋次の対戦相手のターン」＝原文の「次のあなたのターンまで」（§6.4 O-16(a)）。

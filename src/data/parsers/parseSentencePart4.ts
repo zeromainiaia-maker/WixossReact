@@ -877,8 +877,8 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return makeRevealPickStub(t);
 
   // ---- 対戦相手のシグニを対象とし、パワーをN体/N枚につき変動 ----
-  if (t.match(/対戦相手のシグニ[１-９\d０-９]*体?を対象とし.*パワーを.*につき[＋－][０-９\d０-９]+する/) ||
-      t.match(/対戦相手のシグニを好きな数対象とし.*それらのパワーを合計で/))
+  // ⚠**「好きな数対象とし…合計で」の枝も撤去**（§5.3 `O-140`）＝part3 の `splitTotal` が先に受ける。
+  if (t.match(/対戦相手のシグニ[１-９\d０-９]*体?を対象とし.*パワーを.*につき[＋－][０-９\d０-９]+する/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
   // ---- このターン〜スペルを使用していた場合 ----
@@ -1842,8 +1842,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^残りを好きな順番でデッキの一番上に置く$/))
     return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
 
-  // ---- それらのパワーを合わせて－Nする ----
-  if (t.match(/それらのパワーを合わせて[－-][０-９\d]+する/))
+  // ---- それらのパワーを合わせて／合計で±N する（**割り振り機構が受けられない残り**）----
+  // 🔴**ここへ来るのは「対象宣言が同じ文に無い」形だけ**（§5.3 `O-140`・2026-08-29）＝
+  //   同じ文に「〈owner〉のシグニを好きな数対象とし」がある形は `parseSentencePart3` が
+  //   `POWER_MODIFY{splitTotal}` を返すので**この枝には来ない**。
+  // ⚠**残しているのは「消すと逆翻訳からノードごと消える」から**＝挙動は旧のまま（＝まだ正しくない）で、
+  //   `PR-K026`（「それら」が前文の《２体まで》を指す）と `WX24-P2-009`（総量が可変）の2効果が該当する。
+  //   **§5.3 `O-151` に登録済み。** 直すときはこの枝ごと撤去すること。
+  if (t.match(/それらのパワーを(?:合わせて|合計で)/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
   // ---- センタールリグと共通する色を持つすべてのカードをエナゾーンに置き ----

@@ -36658,6 +36658,123 @@ scenarios.o144ManualReorder = {
 order.push('o144ManualReorder');
 // ── O-144 END ──
 
+// ── §5.3 `O-140`（「それらのパワーを合わせて－N する」＝総量の割り振り）の実機観測点 ──
+/**
+ * 🔴**旧 live は5効果とも `STUB{POWER_MOD_PER_COUNT}` の裸で、2通りに壊れていた**＝
+ *   ①`合わせて` はどの regex にも当たらず**無言 no-op**（`SP26-003` `PR-K026` `WXK11-073`）
+ *   ②`合計で` は当たるが**相手3体それぞれに満額**（`SPDi47-05` は 計 －60000）。
+ * 🔑**観測点は「相手3体のパワー修正の合計」**＝原文は総量ちょうど（－20000）。
+ *   旧 engine は `count:'ALL'` を見て**選択もさせず3体に満額**を配るので **－60000** になる（＝判別力がある）。
+ * ⚠**`effect_stack` 注入で解決させる**（`SP26-003` はアーツで、《黒×7》＋ウィルス軽減の支払いが要るため）。
+ *   ⚠**payload は live（`SP26-003-E1` の第1ステップ）と一致させること**＝ここを手で書き換えると観測の意味が消える。
+ */
+function o140SplitStack() {
+  return {
+    turnPlayerId: null,
+    pendingTurn: [], pendingOpp: [],
+    orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o140-entry-1', playerId: null,   // injectScenario が実 uid で埋める
+      cardNum: 'SP26-003', effectId: 'SP26-003-E1',
+      label: '幻怪姫 スイコ（注入）',
+      effect: {
+        effectId: 'SP26-003-E1', effectType: 'ACTIVATED', timing: ['ATTACK_ARTS'],
+        action: {
+          type: 'POWER_MODIFY',
+          target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true, filter: { cardType: 'シグニ' } },
+          delta: -20000, splitTotal: { unit: 1000 }, duration: 'UNTIL_END_OF_TURN',
+        },
+        duration: 'UNTIL_END_OF_TURN', mandatory: true, parseStatus: 'AUTO',
+      },
+    }],
+  };
+}
+scenarios.o140AllocatePower = {
+  title: 'SP26-003（O-140＝合わせて－20000 を割り振る）＝合計は総量ちょうど【旧実装は3体それぞれに満額＝－60000】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#1'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'temp_power_mods': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD01-013#41'], ['WD01-012#42'], ['WD05-009#43']],
+      'field.signi_down': [false, false, false],
+      'temp_power_mods': [],
+      'field.check': null,
+      'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o140SplitStack() },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 guestField=${JSON.stringify(st0?.guest?.fieldSigni)} guestMods=${JSON.stringify(st0?.guest?.powerMods)}`);
+    const picked = new Set();
+    let sawAlloc = false, confirmed = false, last = st0;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(850);
+      await page.screenshot({ path: `${SHOT}/o140alloc-${s}.png`, fullPage: true });
+      let did = null;
+      // 割り振りモーダル＝残りが0になるまで「＋」を押し切ってから決定する。
+      const confirmBtn = page.getByTestId('alloc-confirm').first();
+      if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+        sawAlloc = true;
+        // ⚠**1ティックで押し切る**＝1000単位×20回を毎ティック1回にすると20ティック掛かる。
+        // 🔑**2体へ交互に押す**＝1体に全部寄せると「割り振れた」ことの証明にならない（分割こそが本題）。
+        const plusAll = page.getByTestId(/^alloc-plus-/);
+        const nPlus = await plusAll.count().catch(() => 0);
+        for (let k = 0; k < 60 && nPlus > 0; k++) {
+          if (await confirmBtn.isEnabled().catch(() => false)) break;
+          const b = plusAll.nth(k % nPlus);
+          if (!(await b.isEnabled().catch(() => false))) break;
+          await b.click().catch(() => {});
+        }
+        if (await confirmBtn.isEnabled().catch(() => false)) {
+          await confirmBtn.click().catch(() => {}); confirmed = true; did = 'btn:割り振り決定';
+        } else { did = 'alloc-plus(押し切れず)'; }
+      }
+      // 対象選択＝2体選んでから決定（「好きな数」なので決定は最初から押せる）。
+      if (!did && !sawAlloc) {
+        for (const i of [0, 1]) {
+          if (picked.has(i)) continue;
+          const pk = page.getByTestId(`pick-${i}`).first();
+          if (await pk.count() && await pk.isVisible().catch(() => false)) {
+            await pk.click().catch(() => {}); picked.add(i); did = `pick-${i}`; break;
+          }
+        }
+        if (!did && picked.size >= 2) did = await H.clickBtn('決定');
+      }
+      if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o140[${s}] -> ${did ?? 'なし'} | 割り振りUI=${sawAlloc} 決定=${confirmed}`
+        + ` guestMods=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      if (confirmed && !last?.pendingEffect && !(last?.stackLen > 0)) break;
+      if (!sawAlloc && !last?.pendingEffect && !(last?.stackLen > 0) && s >= 5) break;
+    }
+    const mods = last?.guest?.powerMods ?? [];
+    const sum = mods.reduce((a, m) => a + (parseInt(String(m).split(':')[1] || '0', 10) || 0), 0);
+    const detail = `割り振りUI=${sawAlloc} 決定=${confirmed} guestMods=${JSON.stringify(mods)} 合計=${sum}`;
+    // ⚠**本題を先に判定**
+    if (!sawAlloc && sum <= -60000) {
+      return { pass: false, detail: `🔴選択も割り振りもさせず3体に満額を配った＝合計${sum}（旧挙動＝過剰実行）。${detail}` };
+    }
+    if (!sawAlloc && mods.length === 0) {
+      return { pass: false, detail: `🔴何も起きなかった＝無言 no-op（旧挙動のもう一方）。${detail}` };
+    }
+    if (!sawAlloc) return { pass: false, detail: `前提崩れ＝割り振りUIが出ていない。${detail}` };
+    if (!confirmed) return { pass: false, detail: `前提崩れ＝割り振りを確定できていない（残りを0にできない）。${detail}` };
+    if (sum !== -20000) return { pass: false, detail: `🔴合計が総量と違う（期待 -20000／実測 ${sum}）。${detail}` };
+    if (mods.length > 2) return { pass: false, detail: `🔴選んでいない相手にも乗っている（${mods.length}件）。${detail}` };
+    // 🔑**2体に分かれていること**＝1体へ全部寄っていたら「割り振り」の証明にならない。
+    if (mods.length !== 2) return { pass: false, detail: `🔴2体に分割できていない（${mods.length}件）。${detail}` };
+    return { pass: true, detail: `選んだ2体だけに、合計ちょうど－20000 を1000単位で割り振れた。${detail}` };
+  },
+};
+order.push('o140AllocatePower');
+// ── O-140 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

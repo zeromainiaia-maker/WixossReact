@@ -1388,6 +1388,18 @@ export interface PowerModifyAction {
    * ⚠常在の `POWER_MODIFY_PER_ENERGY` とは別物（あちらは CONTINUOUS 専用・filter 無し・期間なし）。
    */
   deltaFromZone?: CountFromZone;
+  /**
+   * 「それらのパワーを**合わせて**／**合計で**－N する」（§5.3 `O-140`・2026-08-29）＝
+   * **`delta`（または `deltaFromZone` の解決値）を1体あたりではなく「総量」として扱い、
+   * 選んだ対象へプレイヤーが割り振る**。原文は毎回「この効果では1000単位でしか数字を割り振ることが
+   * できない」と添えるので、単位は `unit`（省略＝1000）。
+   *
+   * 🔴**旧 live は5効果とも `STUB{POWER_MOD_PER_COUNT}` の裸で、実測すると2通りに壊れていた**＝
+   *   ①`合わせて` はどの regex にも当たらず**無言 no-op**（`SP26-003` `PR-K026` `WXK11-073`）
+   *   ②`合計で` は当たるが**相手3体それぞれに満額**（`SPDi47-05` は 計 －60000）。
+   * ⚠**`target.count` は「好きな数」＝候補全部を上限に `upToCount`**（0体も選べる）。
+   */
+  splitTotal?: { unit?: number };
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
   /** NEXT_TURN の基準。next=解決中のグローバルターンの次（isOwnerTurn で self/opponent を確定）。 */
   nextTurnOwner?: 'self' | 'opponent' | 'next';

@@ -3001,9 +3001,29 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/この方法で場に出たレゾナの【出】能力は発動しない/))
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' } as BlockActionAction;
 
-  // ---- 好きな数のシグニを対象とし、合わせてパワーを増やす ----
-  if (t.match(/好きな数のシグニを対象とし、ターン終了時まで、それらのパワーを合わせて/))
-    return { type: 'STUB', id: 'POWER_MOD_DISTRIBUTE' } as StubAction;
+  // ---- 「それらのパワーを**合わせて／合計で**±N する」＝総量を割り振る（§5.3 `O-140`・2026-08-29）----
+  // 🔴**旧実装は2つの STUB に割れていた**＝`POWER_MOD_DISTRIBUTE`（＋側1効果・engine は**均等割りの近似**で
+  //   しかも総量をカード全文 regex から読んでいた）と `POWER_MOD_PER_COUNT`（−側4効果・
+  //   `合わせて` はどの regex にも当たらず**無言 no-op**／`合計で` は当たるが**相手3体それぞれに満額**）。
+  //   ⇒ `POWER_MODIFY{splitTotal}` の1本に統合し、engine は payload だけを見る。
+  // ⚠**「対象とし」の前後どちらに「好きな数」が来るか2形ある**（`対戦相手のシグニを好きな数対象とし` ／
+  //   `好きな数の対戦相手のシグニを対象とし`）。⚠**owner の語が無い形は `any`**（プロジェクト規約）。
+  {
+    const spM =
+      t.match(/(?:(あなた|対戦相手)の)?シグニを好きな数対象とし、(?:ターン終了時まで、)?それらのパワーを(?:合わせて|合計で)([－＋])([０-９\d]+)する/)
+      ?? t.match(/好きな数の(?:(あなた|対戦相手)の)?シグニを対象とし、(?:ターン終了時まで、)?それらのパワーを(?:合わせて|合計で)([－＋])([０-９\d]+)する/);
+    if (spM) {
+      const ownerSp: Owner | 'any' = spM[1] === '対戦相手' ? 'opponent' : spM[1] === 'あなた' ? 'self' : 'any';
+      const magSp = parseNum(spM[3]);
+      return {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: ownerSp, count: 'ALL', upToCount: true, filter: { cardType: 'シグニ' } },
+        delta: spM[2] === '－' ? -magSp : magSp,
+        splitTotal: { unit: 1000 },
+        duration: 'UNTIL_END_OF_TURN',
+      } as EffectAction;
+    }
+  }
 
   // ---- この下から好きな枚数のシグニをトラッシュ ----
   if (t.match(/この下から好きな枚数のシグニを対象とし、それらをトラッシュに置く/))

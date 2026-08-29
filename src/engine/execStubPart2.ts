@@ -4202,31 +4202,10 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: selfMods } },
       `リアクティブパワーアップ：+${totalMinus}（相手マイナス合計分）`));
   }
-  // POWER_MOD_DISTRIBUTE: 合計パワーを選択シグニに均等配分（自場シグニ最大3体）
-  if (stub.id === 'POWER_MOD_DISTRIBUTE') {
-    const toHWPMD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcPMD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMD = srcPMD ? (srcPMD.EffectText ?? '') + ' ' + (srcPMD.BurstText ?? '') : '';
-    const mPMD = txtPMD.match(/合わせて[＋+]([０-９\d]+)/);
-    const totalBoostPMD = mPMD ? parseInt(toHWPMD(mPMD[1])) : 20000;
-    const existOwnPMD = (ctx.lastProcessedCards ?? []).filter(cn =>
-      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
-    if (existOwnPMD.length > 0) {
-      const perSigniPMD = Math.floor(totalBoostPMD / existOwnPMD.length / 1000) * 1000;
-      const modsPMD = [...(ctx.ownerState.temp_power_mods ?? [])];
-      for (const cn of existOwnPMD) modsPMD.push({ cardNum: cn, delta: perSigniPMD });
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPMD } },
-        `${existOwnPMD.length}体に+${perSigniPMD}ずつ（合計+${totalBoostPMD}配分）`));
-    }
-    const ownCandsPMD = [0, 1, 2].flatMap(zi => {
-      const top = ctx.ownerState.field.signi[zi]?.at(-1);
-      return top ? [top] : [];
-    });
-    if (ownCandsPMD.length === 0) return done(addLog(ctx, '自場にシグニなし（POWER_MOD_DISTRIBUTE）'));
-    const contPMD: StubAction = { type: 'STUB', id: 'POWER_MOD_DISTRIBUTE' };
-    const noopPMD: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    return selectOrInteract(ownCandsPMD, Math.min(ownCandsPMD.length, 3), false, 'self_field', noopPMD as EffectAction, contPMD as EffectAction, ctx);
-  }
+  // ⚠**`POWER_MOD_DISTRIBUTE` は撤去した**（§5.3 `O-140`・2026-08-29）＝
+  //   ①総量を**カード全文 regex**（`合わせて＋N`）から読み ②配分は**均等割りの近似**（プレイヤーが選べない）
+  //   ③自分の場のシグニ限定（原文 `WX17-021` は修飾語が無く両方選べる）――の3点で原文と食い違っていた。
+  //   ⇒ `POWER_MODIFY{splitTotal}` ＋ `ALLOCATE_POWER` 対話に統合した（parser が payload を刻む）。
   // POWER_MOD_ON_FRONT_PLACE: 正面に配置された相手シグニに任意で-3000
   if (stub.id === 'POWER_MOD_ON_FRONT_PLACE') {
     const srcZonePMOP = ctx.sourceCardNum

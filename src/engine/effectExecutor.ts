@@ -1851,6 +1851,18 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     return done({ ...applied, autoTargetedCards: [...(ctx.autoTargetedCards ?? []), ...autoNums] });
   }
 
+  // 🆕**割り振り（§5.3 `O-140`・2026-08-29）**＝「それらのパワーを**合わせて**－N する」。
+  //   `delta` は1体あたりではなく**総量**なので、まず「好きな数」を対象宣言させ、
+  //   そのあと `ALLOCATE_POWER` で 1000 単位の配分を決めさせる（`resumeSelectTarget` が繋ぐ）。
+  // ⚠**総量0なら何もしない**（`deltaFromZone` が0枚を数えた場合＝原文どおり）。
+  if (a.splitTotal) {
+    if (delta === 0) return done(addLog(ctx, '割り振る総量が0'));
+    const scopeSp: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
+    // 「好きな数」＝候補全部が上限・0体も選べる。原文が「N体まで」と書く場合は target.count が入る。
+    const maxSp = a.target.count === 'ALL' ? cands.length : Math.min(resolveNum(a.target.count), cands.length);
+    return selectOrInteract(cands, maxSp, true, scopeSp, { ...a, delta }, undefined, ctx, false);
+  }
+
   // targetsStored:「それのパワーを…」＝対象は先行の SELECT_TARGET_ONLY / 対象宣言ステップで**すでに確定**している。
   // 再び選択UIを出すのは冗長で、しかも同じ対象へ ON_TARGETED が二度立つ（対象宣言は1回）。ここで自動適用する
   // （autoTargetedCards には積まない＝対象化はその宣言ステップで済んでいる。タスク12(lx)②）。
@@ -9091,6 +9103,37 @@ export function resumeSelectTarget(
     if (pending.continuation) return executeAction(pending.continuation, cur);
     return done(cur);
   }
+  // 🆕**割り振り（§5.3 `O-140`）＝選んだ全対象をまとめて `ALLOCATE_POWER` へ渡す。**
+  //   ⚠下の per-card ループへ落とすと**1体ごとに満額**が乗る（＝旧 `POWER_MOD_PER_COUNT` と同じ過剰実行）。
+  if (pending.thenAction.type === 'POWER_MODIFY' && (pending.thenAction as PowerModifyAction).splitTotal) {
+    const pmSp = pending.thenAction as PowerModifyAction;
+    if (selected.length === 0) {
+      // 0体を選んだ＝割り振り先が無い（原文「好きな数」は0体を許す）。
+      if (pending.continuation) return executeAction(pending.continuation, cur);
+      return done(addLog(cur, '割り振り先を選ばなかった'));
+    }
+    const totalSp = resolveNum(pmSp.delta);
+    const unitSp = pmSp.splitTotal!.unit ?? 1000;
+    const ownerSp: Owner | 'any' = pmSp.target.owner === 'any' ? 'any' : (pmSp.target.owner === 'opponent' ? 'opponent' : 'self');
+    // 1体だけなら配分の余地が無いので対話を挟まず全部そこへ（§O-51 と同じ「2つ以上のときだけ問う」規約）。
+    if (selected.length === 1) {
+      const applied = applyAllocatedPower({ [selected[0]]: totalSp }, ownerSp,
+        pmSp.duration === 'UNTIL_OPP_TURN_END', cur);
+      const withTgt = { ...applied, lastProcessedCards: selected };
+      if (pending.continuation) return executeAction(pending.continuation, withTgt);
+      return done(withTgt);
+    }
+    return needsInteraction({ ...cur, lastProcessedCards: selected }, {
+      type: 'ALLOCATE_POWER',
+      targets: selected,
+      total: totalSp,
+      unit: unitSp,
+      owner: ownerSp,
+      ...(pmSp.duration === 'UNTIL_OPP_TURN_END' ? { untilOppTurnEnd: true } : {}),
+      ...(pending.continuation ? { continuation: pending.continuation } : {}),
+    });
+  }
+
   // §6.4 O-5: レゾナの複数枚配置＝**選んだ全枚数をまとめて渡す**。
   // ⚠下の per-card ループは**最初の pause で残りを落とす**（ADD_TO_FIELD が特例回避しているのと同じ理由）＝
   //   ゾーン選択を挟む配置を個別適用すると2枚目以降が無言で消える（実測で1枚しか出なかった）。
@@ -10008,6 +10051,66 @@ function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, 
 
 // REARRANGE_SIGNI 解決: newArrangement[newZone] = 配置するシグニのトップ instance id（''=空き）。
 // 元ゾーンのゾーン状態（スタック・ダウン・凍結・チャーム・アクセ・ソウル・武装・ウィルス）ごと新ゾーンへ移す。
+
+/**
+ * `ALLOCATE_POWER` の適用（§5.3 `O-140`・2026-08-29）。
+ * ⚠**`unit` の検算とクランプは呼び出し側（`resumeAllocatePower`）でやる**＝ここは書き込みだけ。
+ */
+function applyAllocatedPower(
+  alloc: Record<string, number>,
+  owner: Owner | 'any',
+  untilOppTurnEnd: boolean,
+  ctx: ExecCtx,
+): ExecCtx {
+  const key = untilOppTurnEnd ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+  let cur = ctx;
+  for (const [cardNum, delta] of Object.entries(alloc)) {
+    if (!delta) continue;
+    // ⚠`owner:'any'`（原文に修飾語が無い「シグニを対象とし」）は**カードごとに所属を判定する**。
+    const side: Owner = owner === 'any' ? sideOfFieldCard(cardNum, cur) : owner;
+    const s = ownerState(side, cur);
+    const mods = [...(s[key] ?? []), { cardNum, delta, srcType: srcTypeOf(cur), srcCardNum: cur.sourceCardNum }];
+    cur = addLog(setOwnerState(side, { ...s, [key]: mods }, cur),
+      `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワー${delta > 0 ? '+' : ''}${delta}`);
+  }
+  return cur;
+}
+
+/**
+ * `ALLOCATE_POWER` の resume（§5.3 `O-140`）。
+ *
+ * 🔴**ここが最後の砦**＝UI が壊れても、外から渡された配分が原文の規約を破らないようにする：
+ *   ①`unit` の倍数へ丸める ②符号を `total` に揃える ③**合計が `total` を超えないよう順にクランプ**
+ *   ④余りが出たら**最初の対象へ寄せる**（原文は総量を配り切る）。
+ * ⚠**「多すぎる側」を黙って通さない**のが要点＝旧実装の過剰実行（相手3体に満額）を二度と作らない。
+ */
+export function resumeAllocatePower(
+  alloc: Record<string, number>,
+  pending: PendingInteractionDef & { type: 'ALLOCATE_POWER' },
+  ctx: ExecCtx,
+): ExecResult {
+  const sign = pending.total < 0 ? -1 : 1;
+  const unit = Math.max(1, Math.abs(pending.unit || 1000));
+  const budget = Math.abs(pending.total);
+  let used = 0;
+  const fixed: Record<string, number> = {};
+  for (const cardNum of pending.targets) {
+    const raw = Math.abs(Math.trunc(alloc?.[cardNum] ?? 0));
+    const rounded = Math.floor(raw / unit) * unit;
+    const give = Math.max(0, Math.min(rounded, budget - used));
+    used += give;
+    fixed[cardNum] = sign * give;
+  }
+  // 配り残しは先頭の対象へ寄せる（原文は総量を配り切る＝余らせる選択肢が無い）。
+  if (used < budget && pending.targets.length > 0) {
+    fixed[pending.targets[0]] += sign * (budget - used);
+  }
+  const applied = applyAllocatedPower(fixed, pending.owner, !!pending.untilOppTurnEnd, ctx);
+  const withTgt = { ...applied, lastProcessedCards: [...pending.targets] };
+  if (pending.continuation) return executeAction(pending.continuation, withTgt);
+  return done(withTgt);
+}
+
 export function resumeRearrangeSigni(
   newArrangement: string[],
   pending: PendingInteractionDef & { type: 'REARRANGE_SIGNI' },

@@ -8,7 +8,7 @@ import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, cal
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
-import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
@@ -566,6 +566,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : null;
       const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(requiredChoice); }, CPU_ACTION_DELAY);
       return () => clearTimeout(timerRS);
+    }
+    // 🆕`ALLOCATE_POWER`（§5.3 `O-140`）＝効果オーナーが割り振る。CPU なら**先頭の対象へ全部**寄せる
+    //   （`unit` の丸めと総量の検算は `resumeAllocatePower` が最後にやるので、ここは素直な配分でよい）。
+    if (inter.type === 'ALLOCATE_POWER') {
+      if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
+      const allocCpu: Record<string, number> = {};
+      if (inter.targets.length > 0) allocCpu[inter.targets[0]] = inter.total;
+      const timerAP = setTimeout(() => { handleAllocatePowerConfirm(allocCpu); }, CPU_ACTION_DELAY);
+      return () => clearTimeout(timerAP);
     }
     // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
     if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
@@ -5701,6 +5710,49 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? (existingStack && !isStackDone(existingStack)
               ? pushToStack(existingStack, bd.entries)
               : initStack(bs.active_user_id ?? user.id, bd.entries))
+          : undefined,
+      }));
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * `ALLOCATE_POWER` の確定（§5.3 `O-140`・2026-08-29）＝「それらのパワーを合わせて－N する」の配分。
+   * ⚠**検算は `resumeAllocatePower` に集約する**（UI・CPU・ここの3者で同じ計算を書かない）。
+   */
+  const handleAllocatePowerConfirm = async (alloc: Record<string, number>) => {
+    if (!bs?.pending_effect || loading) return;
+    setLoading(true);
+    try {
+      const pe = bs.pending_effect;
+      const inter = pe.interaction;
+      if (inter.type !== 'ALLOCATE_POWER') return;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const ownerState = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState = ownerIsHost ? bs.guest_state : bs.host_state;
+      const declaredCardMapAP = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapAP, logs: [], currentPhase: bs.turn_phase ?? undefined, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners };
+      ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
+      let result: ExecResult = resumeAllocatePower(alloc, inter, ctx);
+      result = applyRefreshOnDone(result, battleCardMap);
+      result = finalizePendingSpellPlacement(result, pe);
+      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
+      let hostState = ownerIsHost ? result.ownerState : result.otherState;
+      let guestState = ownerIsHost ? result.otherState : result.ownerState;
+      // 割り振りはパワー修正だけなので中央 diff（`ON_OPP_POWER_DECREASED` 等）を通す。
+      const bdAP = collectBoardDiffTriggers(hostState, guestState, {
+        causeOwnerId: pe.sourcePlayerId,
+        causeSourceCardNum: pe.sourceCardNum,
+      });
+      hostState = bdAP.hostState; guestState = bdAP.guestState;
+      const existingStackAP = bs.effect_stack ?? null;
+      await persist.commit(reduceBattle(bs, {
+        type: 'RESOLVE_EFFECT_STEP', hostState, guestState,
+        pending: result.done ? null : ({ ...pe, interaction: result.pending } satisfies PendingEffect),
+        effectStack: bdAP.entries.length > 0
+          ? (existingStackAP ? pushToStack(existingStackAP, bdAP.entries) : initStack(bs.active_user_id ?? user.id, bdAP.entries))
           : undefined,
       }));
       await flushBattleLogs();
@@ -14802,7 +14854,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <StackOrderModal ctx={modalCtx} stackOrderIds={stackOrderIds} setStackOrderIds={setStackOrderIds} handleConfirmStackOrder={handleConfirmStackOrder} />
 
       {/* ===== 効果インタラクション モーダル ===== */}
-      <EffectInteractionModal ctx={modalCtx} effectSelectedNums={effectSelectedNums} setEffectSelectedNums={setEffectSelectedNums} selectedOptCost={selectedOptCost} setSelectedOptCost={setSelectedOptCost} selectedMultiChoiceIds={selectedMultiChoiceIds} setSelectedMultiChoiceIds={setSelectedMultiChoiceIds} lookReorderOrder={lookReorderOrder} setLookReorderOrder={setLookReorderOrder} lookReorderTrash={lookReorderTrash} setLookReorderTrash={setLookReorderTrash} lookReorderBottom={lookReorderBottom} setLookReorderBottom={setLookReorderBottom} rearrangeSlots={rearrangeSlots} setRearrangeSlots={setRearrangeSlots} handleEffectInteraction={handleEffectInteraction} handleSelectZoneForEffect={handleSelectZoneForEffect} handleSelectSigniZoneForEffect={handleSelectSigniZoneForEffect} handleSelectVirusZoneForEffect={handleSelectVirusZoneForEffect} handleRearrangeSigniConfirm={handleRearrangeSigniConfirm} />
+      <EffectInteractionModal ctx={modalCtx} effectSelectedNums={effectSelectedNums} setEffectSelectedNums={setEffectSelectedNums} selectedOptCost={selectedOptCost} setSelectedOptCost={setSelectedOptCost} selectedMultiChoiceIds={selectedMultiChoiceIds} setSelectedMultiChoiceIds={setSelectedMultiChoiceIds} lookReorderOrder={lookReorderOrder} setLookReorderOrder={setLookReorderOrder} lookReorderTrash={lookReorderTrash} setLookReorderTrash={setLookReorderTrash} lookReorderBottom={lookReorderBottom} setLookReorderBottom={setLookReorderBottom} rearrangeSlots={rearrangeSlots} setRearrangeSlots={setRearrangeSlots} handleEffectInteraction={handleEffectInteraction} handleSelectZoneForEffect={handleSelectZoneForEffect} handleSelectSigniZoneForEffect={handleSelectSigniZoneForEffect} handleSelectVirusZoneForEffect={handleSelectVirusZoneForEffect} handleRearrangeSigniConfirm={handleRearrangeSigniConfirm} handleAllocatePowerConfirm={handleAllocatePowerConfirm} />
 
       {/* ===== 観戦表示＋長押し拡大＋終了ボタン ===== */}
       <SystemOverlays ctx={modalCtx} expandedPickImgUrl={expandedPickImgUrl} setShowEndConfirm={setShowEndConfirm} />
