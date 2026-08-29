@@ -9080,6 +9080,66 @@ function handDiscardSpecFilter(spec: string): TargetFilter | null {
   return filter;
 }
 
+/**
+ * O-173 主群：「対象1体を先に固定 → 手札を可変枚数捨てる → 捨てた枚数×単価のパワー修整」。
+ *
+ * 旧形は `TARGET_AND_DISCARD_HAND` と `POWER_MOD_BY_DISCARD_COUNT_HIGH` の2 STUB に分かれ、
+ * 前者が無条件に手札末尾を1枚だけ捨て、後者は重複実装の一方がカード全文から単価を拾い、
+ * どちらの実装も相手の全シグニへ配っていた。
+ * `WX12-020-E3` と同じ既存 typed 4ステップへ畳み、対象・可変上限・手札filter・単価をJSONに刻む。
+ *
+ * ⚠全文の文型が完全に対応し、かつ旧2 STUB が実際に生成された場合だけ置換する。名詞句filterを
+ * `handDiscardSpecFilter` が完全に解けない場合も無変換（部分採用で捨て札制限を緩めない）。
+ */
+function rewriteDiscardCountPowerSequence(text: string, parsed: EffectAction): EffectAction {
+  const m = text.trim().match(
+    /^(?:[^。]*、)?対戦相手のシグニ([０-９\d]*)体?を対象とし、手札(?:(?:から(.{1,32}?)を)|を)?((?:[０-９\d]+枚まで)|好きな枚数)(?:捨てる|捨ててもよい)。(?:ターン終了時まで、)?それのパワーをこの方法で捨てた(?:カード|手札)([０-９\d]+)枚につき([－＋][０-９\d]+)する。?$/,
+  );
+  if (!m || parseNum(m[4]) !== 1) return parsed;
+  const oldJson = JSON.stringify(parsed);
+  if (!oldJson.includes('"TARGET_AND_DISCARD_HAND"')
+      || !oldJson.includes('"POWER_MOD_BY_DISCARD_COUNT_HIGH"')) return parsed;
+
+  const discardFilter = handDiscardSpecFilter(m[2] ?? '');
+  if (discardFilter === null) return parsed;
+  const target: EffectTarget = {
+    type: 'SIGNI', owner: 'opponent', count: m[1] ? parseNum(m[1]) : 1,
+    filter: { cardType: 'シグニ' }, upToCount: false,
+  };
+  const discardCount = m[3] === '好きな枚数'
+    ? 'ALL' as const
+    : parseNum(m[3].replace(/枚まで$/, ''));
+  const typed: SequenceAction = {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+      {
+        type: 'TRASH',
+        target: {
+          type: 'HAND_CARD', owner: 'self', count: discardCount, upToCount: true,
+          ...(Object.keys(discardFilter).length ? { filter: discardFilter } : {}),
+        },
+      } as EffectAction,
+      {
+        type: 'POWER_MODIFY', target, targetsStored: true,
+        delta: parseSignedNum(m[5]), deltaPerLastProcessedCount: true,
+        perLastProcessed: { unit: 'cards' }, duration: 'UNTIL_END_OF_TURN',
+      } as EffectAction,
+    ],
+  };
+
+  // `WX24-P3-052-E2` の場条件は旧parseが正しく解けている。旧形では捨て札だけを包み、
+  // 後段STUBが条件外に漏れていたため、正準4ステップ全体を同じ条件で包み直す。
+  if (parsed.type === 'SEQUENCE') {
+    const gate = parsed.steps.find((step): step is ConditionalAction =>
+      step.type === 'CONDITIONAL'
+      && JSON.stringify(step.then).includes('"TARGET_AND_DISCARD_HAND"'));
+    if (gate) return { ...gate, then: typed };
+  }
+  return typed;
+}
+
 // 🔴**幻の手札コスト**（続き421）＝`TARGET_AND_DISCARD_HAND` は「対戦相手のシグニを対象とし、〈何か〉を
 // 消費してもよい」という**広すぎる catch-all**（`parseSentencePart3` 実測）から出ており、原文の
 // コストが**エナゾーン／このシグニ自身／このシグニの下**でも同じ STUB になっていた。engine は
@@ -11712,6 +11772,7 @@ function parseActionTextBody(text: string): EffectAction {
           applySelectedTargetTrashReplacement(source, parseBase(source))))));
   let parsed = parse(text);
   parsed = rewritePowerModPerCountPayload(text, parsed);
+  parsed = rewriteDiscardCountPowerSequence(text, parsed);
 
   // 🔴**fail-closed の最後の砦**（§5.3 `O-80` 第1バッチ・2026-08-26）＝
   //   「ターン終了時まで、**それの**パワーをこの方法で〜1枚につき±N」の「それ」が、

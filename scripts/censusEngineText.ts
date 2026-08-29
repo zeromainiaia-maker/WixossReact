@@ -44,7 +44,9 @@ const onlyId = (() => {
 //   （`EffectText` を読む行＝`txtCAC` の代入1行だけが A群に数えられる）＝**行数は「撤去量」ではない**。
 // 142 → 141 ＝ §5.3 `O-87`（`CHOOSE_COLOR_FROM_LIST` の `最大N色`）。「エナゾーンにある色から最大N色まで選ぶ」を
 //   typed アクション `SELECT_COLOR{from:'energy',count}` へ移し、engine の全文読みを撤去した（残る枝は固定リスト表記のみ＝live 0）。
-const BASELINE_SELF_TEXT = 131;
+// 131 → 130 ＝ §5.3 `O-173` 主群（`POWER_MOD_BY_DISCARD_COUNT_HIGH`）。対象・捨て札filter/上限・単価を
+//   `SELECT_TARGET_ONLY`→`TRASH`→`POWER_MODIFY{deltaPerLastProcessedCount}` の payload へ移した。
+const BASELINE_SELF_TEXT = 130;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

@@ -1,5 +1,61 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：§5.3 `O-173` 主群4効果を typed 化＝可変手札捨ての制約・係数・対象1体を構造化
+
+**対象**＝`WXDi-P05-078-E1` / `WXDi-P08-043-E1` / `WX24-P3-052-E2` / `WX26-CP1-051-E1`。
+旧 live JSON は全件 `TARGET_AND_DISCARD_HAND` → `POWER_MOD_BY_DISCARD_COUNT_HIGH` で、前段は
+**無条件・無filterの1枚捨て**、後段は**相手シグニ全体**へのパワーマイナスだった。さらに後段は
+`execStubPart1.ts` / `execStubPart2.ts` に重複実装され、part2 はカード全文の最初の符号付き数値を読むため、
+`WX24-P3-052` では別能力の－2000を拾う実装だった（通常 dispatch では先行する part1 が能力ブロックを読み
+－8000を返していたが、重複枝と全文fallbackが意味的な時限バグとして残っていた）。
+
+**修正**＝`WX12-020-E3` と同じ既存4ステップへ parser で置換した。
+
+1. `SELECT_TARGET_ONLY` で相手シグニ1体を選ぶ
+2. `STORE_LAST_PROCESSED_TARGETS` で対象を固定する
+3. `TRASH{HAND_CARD,upToCount:true}` で実際に捨てる（天使/水獣はシグニ限定、プリオケはカード、
+   `WXDi-P08-043` は `count:3`、ほかは `count:'ALL'`）
+4. `POWER_MODIFY{targetsStored:true,deltaPerLastProcessedCount:true}` で捨てた実枚数だけ係数を掛ける
+
+文型・旧2 STUB・手札filterの全てを確定できた場合だけ置換する fail-closed とし、
+`WX24-P3-052-E2` は場条件の内側へ4ステップ全体を収めた。新アクション型は追加していない。
+旧 `POWER_MOD_BY_DISCARD_COUNT_HIGH` 実行ハンドラは2コピーとも撤去した。
+
+**回帰固定**＝golden
+`O-173 主群: 可変手札捨て4効果は対象1体へ捨てた枚数×係数を適用する`
+（`withSavedCursor`）を追加。4件の fresh/live JSON、捨て札filter・上限・係数を固定し、engine 実行で
+`WX24-P3-052-E2` が水獣2枚を捨てて**選択1体だけに－16000**、残る2体に修整なしとなることを確認した。
+既存の「好きな枚数は据置」golden も削除せず、typed 化後の境界保証へ更新した。
+
+**計器**＝`census:enginetext` A🔴 SELF_TEXT は **131行/128ハンドラ → 130行/127ハンドラ**、
+`BASELINE_SELF_TEXT` も 131→130。vocab census は高シグナル **474 / BASELINE 474** のまま、
+STUB/MANUAL 格納の「数量比例」は45→41、「クラス指定」は128→125、「N枚まで」は78→77と減少
+（MANUAL 免除による不可視化ではない）。`npm run regen` は逆翻訳割れグループ0、`npm run gates` は
+golden **3038/3038**、smoke **10705/10705・異常0**、fuzz **全0**、typecheck/census/lintを含め全緑。
+実機ブラウザ確認は新アクション型/UI変更なしのため省略した。
+
+### 🔎 Claude 側の独立検証（差し戻し0・**ただし Claude の見立てが1件外れた**）
+
+- **ゲート独立実行**＝golden **3038/0**・census **474/474**・smoke 10705 全0・fuzz 全0・
+  `census:enginetext` **A🔴 130行/127ハンドラ**・lint 0 errors。**すべて申告どおり。**
+- **per-effect A/B（ベースライン `6077119af` と比較）**＝**changed 4 / added 0 / removed 0**＝**巻き添えゼロ**。
+- **`POWER_MOD_BY_DISCARD_COUNT_HIGH` は live からも `src/engine/` からも完全に消えた**（grep 0件）。
+- **新フィールドの消費地点を実コードで確認**＝`targetsStored`（`effectExecutor.ts:134/1252/1384`）／
+  `deltaPerLastProcessedCount`（同1656/1687）／`perLastProcessed`（同1657）。**死にフィールドは0本。**
+- **逆翻訳を目視**＝`WX24-P3-052-E2` が「…この方法で処理したカード1枚につき**－8000**する」、
+  `WXDi-P08-043-E1` が「あなたの手札を**3枚まで**トラッシュに置く」で**原文一致**。
+
+🔴🔑**Claude の投入前実測が1件外れていた（記録として残す）。**
+指示書には「`WX24-P3-052` は【常】の**－2000 を拾って現に誤動作している**」と書いたが、**これは誤り**。
+**`execStubPart1.ts:4600` に先行ハンドラがあり、そちらは `sourceAbilityText(ctx)` ＋
+`/枚につき([－＋][０-９\d]+)/` で正しく －8000 を読んでいた**（しかも**そのコメントに
+「§6.4 `O-20`: 全文だと別能力の値を拾い効果量が変わる（`WX24-P3-052-E2` は E1 の －2000＝本来 －8000 の1/4）」と
+同じバグを過去に直した記録が書いてあった**）。**Codex が実測して訂正し、Claude が `git show` で裏を取った。**
+⚠**原因＝Claude が指示書に「消費地点を全部数えろ」と書きながら、自分は `execStubPart2.ts` だけを読んで実害と断定した。**
+（実在したのは**バグ②＝対象1体のはずが相手の全シグニ3体に配る**のほうで、これは part1 側でも同じだった＝4枚とも過剰効果。）
+🔑**教訓＝`grep -rn "<STUB_ID>" src/engine/` は「指示する側」も必ず先に打つ。**
+**同じ id が複数ファイルに重複実装されていると、後ろの枝だけ読んで実害を断定する事故が起きる。**
+
 ## 2026-08-30：§5.3 **全項目の母集団を実測**＝「取る順」表が誤っていたことが判明（登録票「1効果」の実体は34枚）
 
 **きっかけ**＝ユーザーの問い「663枚を受け皿のありなしで回して、ないのを全部機構待ちにした後、その機構を作ればいい？」。

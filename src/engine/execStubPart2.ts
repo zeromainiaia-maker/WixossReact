@@ -2611,21 +2611,6 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerDBPM },
       `${ctx.cardMap.get(discardedDBPM)?.CardName ?? discardedDBPM}を捨て（相手手札にパワー${discardedPwDBPM}のシグニなし）`));
   }
-  // POWER_MOD_BY_DISCARD_COUNT_HIGH: 捨てた枚数の高い方×deltaをパワー修正
-  if (stub.id === 'POWER_MOD_BY_DISCARD_COUNT_HIGH') {
-    const toHWPMBDCH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcPMBDCH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMBDCH = srcPMBDCH ? (srcPMBDCH.EffectText ?? '') + ' ' + (srcPMBDCH.BurstText ?? '') : '';
-    const mPMBDCH = txtPMBDCH.match(/([＋+－-][０-９\d]+)/);
-    if (!mPMBDCH) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_DISCARD_COUNT_HIGH）'));
-    const singleDeltaPMBDCH = parseInt(toHWPMBDCH(mPMBDCH[1]).replace('＋', '+').replace('－', '-'));
-    const discardCountPMBDCH = ctx.lastProcessedCards?.length ?? 0;
-    const totalDeltaPMBDCH = singleDeltaPMBDCH * discardCountPMBDCH;
-    const modsPMBDCH = [...(ctx.otherState.temp_power_mods ?? [])];
-    for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBDCH.push({ cardNum: top, delta: totalDeltaPMBDCH }); }
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBDCH } },
-      `捨て${discardCountPMBDCH}枚×${singleDeltaPMBDCH}→相手パワー${totalDeltaPMBDCH}`));
-  }
   // === バッチ9: ルリグ・条件サーチ・選択系 ===
   // CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ
   // 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。

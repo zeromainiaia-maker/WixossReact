@@ -4596,25 +4596,6 @@ export function execStubPart1(
     }
     return done(addLog(newCtxL, `${logs.join(' / ')}（エナフェイズ終了まで）`));
   }
-  // 捨てた枚数基準パワー修正
-  if (stub.id === 'POWER_MOD_BY_DISCARD_COUNT_HIGH') {
-    const count = (ctx.lastProcessedCards ?? []).length;
-    if (count === 0) return done(addLog(ctx, 'パワー修正（捨てた0枚）'));
-    // §6.4 O-20: 全文だと別能力の値を拾い効果量が変わる（`WX24-P3-052-E2` は E1 の －2000＝本来 －8000 の1/4）。
-    const txtPH = sourceAbilityText(ctx);
-    const toHWPH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mPH = txtPH.match(/枚につき([－＋][０-９\d]+)/);
-    const deltaPerCard = mPH ? parseInt(toHWPH(mPH[1]).replace('－', '-').replace('＋', '+')) : -3000;
-    const totalDelta = deltaPerCard * count;
-    const mods = [...(ctx.otherState.temp_power_mods ?? [])];
-    for (let zi = 0; zi < 3; zi++) {
-      const top = ctx.otherState.field.signi[zi]?.at(-1);
-      if (top) mods.push({ cardNum: top, delta: totalDelta });
-    }
-    const newOther = { ...ctx.otherState, temp_power_mods: mods };
-    return done(addLog({ ...ctx, otherState: newOther },
-      `パワー${totalDelta}（${count}枚捨て×${deltaPerCard}）`));
-  }
   // デッキ上2枚を見てクラスシグニをエナへ、残りをデッキ上へ
   if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY') {
     const srcRPC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

@@ -33369,6 +33369,62 @@ test('task12(lx)② WX12-020-E3: 「この方法で捨てた手札1枚につき�
   ok(!mods3.some(m => m.cardNum === other), '宣言していないシグニには乗らない');
 });
 
+test('O-173 主群: 可変手札捨て4効果は対象1体へ捨てた枚数×係数を適用する', () => withSavedCursor(() => {
+  const cases = [
+    ['WXDi-P05-078', 'WXDi-P05-078-E1', -4000, 'ALL', '天使', 'シグニ'],
+    ['WXDi-P08-043', 'WXDi-P08-043-E1', -3000, 3, undefined, undefined],
+    ['WX24-P3-052', 'WX24-P3-052-E2', -8000, 'ALL', '水獣', 'シグニ'],
+    ['WX26-CP1-051', 'WX26-CP1-051-E1', -5000, 'ALL', 'プリオケ', undefined],
+  ] as const;
+  const typedBody = (action: EffectAction): SequenceAction => {
+    const body = action.type === 'CONDITIONAL' ? action.then : action;
+    eq(body.type, 'SEQUENCE', 'typed本体はSEQUENCE');
+    return body as SequenceAction;
+  };
+  for (const [cardNum, effectId, delta, discardCount, story, cardType] of cases) {
+    const freshEff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const liveEff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    for (const [label, eff] of [['fresh', freshEff], ['live', liveEff]] as const) {
+      const seq = typedBody(eff.action);
+      eq(seq.steps.length, 4, `${effectId} ${label}: 対象宣言→固定→捨てる→修整`);
+      const trash = seq.steps[2] as Extract<EffectAction, { type: 'TRASH' }>;
+      const power = seq.steps[3] as Extract<EffectAction, { type: 'POWER_MODIFY' }>;
+      eq(trash.type, 'TRASH', `${effectId} ${label}: typed手札捨て`);
+      eq(trash.target.count, discardCount, `${effectId} ${label}: 捨て札上限`);
+      eq(trash.target.upToCount, true, `${effectId} ${label}: 0枚から上限まで`);
+      eq(trash.target.filter?.story, story, `${effectId} ${label}: 捨て札クラス`);
+      eq(trash.target.filter?.cardType, cardType, `${effectId} ${label}: 捨て札種別`);
+      eq(power.type, 'POWER_MODIFY', `${effectId} ${label}: typedパワー修整`);
+      eq(power.target.count, 1, `${effectId} ${label}: 対象は1体`);
+      eq(power.targetsStored, true, `${effectId} ${label}: 先に選んだ同一対象を使う`);
+      eq(power.delta, delta, `${effectId} ${label}: 1枚あたりの係数`);
+      eq(power.deltaPerLastProcessedCount, true, `${effectId} ${label}: 捨てた実枚数を掛ける`);
+      ok(!JSON.stringify(seq).includes('POWER_MOD_BY_DISCARD_COUNT_HIGH'), `${effectId} ${label}: 全文regex STUBを撤去`);
+      ok(!JSON.stringify(seq).includes('TARGET_AND_DISCARD_HAND'), `${effectId} ${label}: 固定1枚捨て STUBを撤去`);
+    }
+  }
+
+  // 実害カードをengineで固定：E1の－2000ではなくE2の－8000を2枚分、選んだ1体だけへ載せる。
+  const wx24 = parseCardEffects(cardMap.get('WX24-P3-052')!).find(e => e.effectId === 'WX24-P3-052-E2')!;
+  const action = typedBody(wx24.action);
+  const water = [...cardMap.values()]
+    .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('水獣'))
+    .slice(0, 2).map(c => c.CardNum);
+  eq(water.length, 2, '水獣シグニを2枚用意');
+  const [victim, untouched1, untouched2] = fill(3);
+  const ctx = mkCtx({ hand: 0 }, { signi: [victim, untouched1, untouched2] }, 'WX24-P3-052');
+  ctx.ownerState = { ...ctx.ownerState, hand: water };
+  const trashBefore = ctx.ownerState.trash.length;
+  const result = run(action, ctx);
+  eq(result.ownerState.hand.length, 0, '水獣2枚を実際に捨てる');
+  eq(result.ownerState.trash.length, trashBefore + 2, '捨てた水獣2枚はトラッシュへ');
+  const mods = (result.otherState.temp_power_mods ?? []) as { cardNum: string; delta: number }[];
+  eq(mods.length, 1, 'パワー修整は対象1体だけ');
+  eq(mods[0].cardNum, victim, '先に選んだ対象へだけ適用');
+  eq(mods[0].delta, -16000, '－8000×2枚（旧全文先頭の－2000を拾わない）');
+  ok(!mods.some(mod => mod.cardNum === untouched1 || mod.cardNum === untouched2), '他の2体へ修整しない');
+}));
+
 test('cost-total batch: 静的8効果とPLAY_FREE静的3効果の生成JSONを全件固定', () => {
   const json = (cardNum: string) => JSON.stringify(effectsMap.get(cardNum) ?? []);
   for (const [cardNum, effectId, needle] of [
@@ -40763,15 +40819,23 @@ test('§6.4 ルリグ宣言の取りこぼし: 本体が LRIG{opponent} にな�
 });
 
 // 変換を掛けてはいけない形＝据置のトリップワイヤ（誤った filter を作るより無変換が安全）。
-test('§6.4 手札コスト変換の据置: 表現できない形は TARGET_AND_DISCARD_HAND のまま', () => {
+// 「好きな枚数」は TRASH{count:'ALL',upToCount:true} で表現できるため、O-173 の2件は typed 化済み。
+test('§6.4 手札コスト変換の境界: 複合クラスだけ据置、可変枚数は typed 化', () => {
   const stillStub = (cardNum: string, effectId: string, why: string) => {
     const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
     ok(!!e, `${effectId} が存在する`);
     ok(JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'), `${effectId}: ${why}`);
   };
   stillStub('WXDi-P11-041', 'WXDi-P11-041-E2', '「＜アーム＞と＜ウェポン＞を合計2枚」＝handDiscardGroups の領分');
-  stillStub('WX26-CP1-051', 'WX26-CP1-051-E1', '「好きな枚数」＝固定枚数で表せない');
-  stillStub('WX24-P3-052', 'WX24-P3-052-E2', '「好きな枚数」＝固定枚数で表せない');
+  for (const [cardNum, effectId] of [
+    ['WX26-CP1-051', 'WX26-CP1-051-E1'],
+    ['WX24-P3-052', 'WX24-P3-052-E2'],
+  ] as const) {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    ok(!JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'), `${effectId}: 可変枚数を typed TRASH で表す`);
+    ok(JSON.stringify(e).includes('"upToCount":true'), `${effectId}: 0枚を含む好きな枚数を維持する`);
+  }
 });
 
 // ── 🔴 幻の手札コスト（2026-08-10・続き421）───────────────────────────────────────────────
@@ -42307,7 +42371,9 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
   // 各ファイルで sourceAbilityText を使っている箇所数を凍結する。
   // 減ったら「全文読みへ差し戻された」＝無言で別能力の文に従い始めるので赤にする。
   const FROZEN: Record<string, number> = {
-    'src/engine/execStubPart1.ts': 7,
+    // 7 → 6（2026-08-30 §5.3 O-173）＝`POWER_MOD_BY_DISCARD_COUNT_HIGH` を typed 化して
+    // 実行時の能力文読みを廃止。単価・対象・捨て札条件は live JSON が構造で持つ。
+    'src/engine/execStubPart1.ts': 6,
     // 9 → 8（2026-08-15 §6.4 O-22(a)）＝`CHARM_CONDITIONAL_POWER` ハンドラを削除したぶん。
     // 差し戻しではなく**サイトごと消えた**（帰結は parser の「代わりに」置換 fixup が構造で持つ）。
     // 8 → 7（2026-08-15 §6.4 O-3 続き493）＝`PREVENT_ZONE_MOVE_BY_OPP` の実行時ゾーン判定を廃止。
