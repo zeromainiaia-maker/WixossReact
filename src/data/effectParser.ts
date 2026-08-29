@@ -20369,14 +20369,19 @@ function foldPlaceTrapFromRevealed(
   action: EffectAction,
   sourceText: string,
 ): EffectAction {
-  const trapM = sourceText.match(/その中から(?:カード)?([０-９\d]+)枚(まで)?を?【トラップ】として(?:あなたの)?シグニゾーンに設置(?:してもよい|し|する)。(?:その後、)?残りを(?:好きな順番で|シャッフルして)?デッキの一番(上|下)に(?:置く|戻す)/);
+  const trapM = sourceText.match(/その中から(?:カード)?([０-９\d]+)枚(まで)?を?【トラップ】として(?:あなたの)?シグニゾーンに設置(してもよい|し|する)。(?:その後、)?残りを(?:好きな順番で|シャッフルして)?デッキの一番(上|下)に(?:置く|戻す)/);
   if (!trapM) return action;
   const makeLpc = (look: import('../types/effects').LookAndReorderAction): EffectAction => ({
     type: 'LOOK_PICK_CHAIN',
     owner: 'self',
     revealCount: look.count,
-    stages: [{ pickCount: parseNum(trapM[1]), then: 'trap', pickNoun: 'カード' }],
-    remainder: { location: 'deck', position: trapM[3] === '上' ? 'top' : 'bottom' },
+    stages: [{
+      pickCount: parseNum(trapM[1]),
+      ...(trapM[3] === 'してもよい' ? { pickUpTo: true } : {}),
+      then: 'trap',
+      pickNoun: 'カード',
+    }],
+    remainder: { location: 'deck', position: trapM[4] === '上' ? 'top' : 'bottom' },
   } as import('../types/effects').LookPickChainAction);
   const visit = (node: EffectAction): EffectAction => {
     if (node.type === 'SEQUENCE') {

@@ -33425,6 +33425,76 @@ test('O-173 主群: 可変手札捨て4効果は対象1体へ捨てた枚数×�
   ok(!mods.some(mod => mod.cardNum === untouched1 || mod.cardNum === untouched2), '他の2体へ修整しない');
 }));
 
+test('O-175: 「トラップとして設置してもよい」8効果だけを0枚選択可にする', () => withSavedCursor(() => {
+  type TrapStage = import('../src/types/effects').LookPickChainStage;
+  const trapStages = (action: EffectAction): TrapStage[] => {
+    const found: TrapStage[] = [];
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      const record = node as Record<string, unknown>;
+      if (record.type === 'LOOK_PICK_CHAIN') {
+        const stages = (record.stages ?? []) as TrapStage[];
+        found.push(...stages.filter(stage => stage.then === 'trap'));
+      }
+      Object.values(record).forEach(visit);
+    };
+    visit(action);
+    return found;
+  };
+  const effect = (cardNum: string, effectId: string, fresh: boolean): CardEffect => {
+    const effects = fresh ? parseCardEffects(cardMap.get(cardNum)!) : (effectsMap.get(cardNum) ?? []);
+    const hit = effects.find(e => e.effectId === effectId);
+    ok(!!hit, `${effectId} ${fresh ? 'fresh' : 'live'}: 効果が存在`);
+    return hit!;
+  };
+
+  const optionalCases = [
+    ['WX15-035', 'WX15-035-E2'],
+    ['WX15-082', 'WX15-082-E1'],
+    ['WX15-092', 'WX15-092-E1'],
+    ['WX17-041', 'WX17-041-E1'],
+    ['WX20-012', 'WX20-012-E1'],
+    ['WD23-032-A', 'WD23-032-A-E2'],
+    ['WD23-040-A', 'WD23-040-A-E1'],
+    ['SP26-001', 'SP26-001-E1'],
+  ] as const;
+  for (const [cardNum, effectId] of optionalCases) {
+    for (const fresh of [true, false]) {
+      const label = fresh ? 'fresh' : 'live';
+      const stages = trapStages(effect(cardNum, effectId, fresh).action);
+      eq(stages.length, 1, `${effectId} ${label}: CHOOSE内を含むトラップstageは1つ`);
+      eq(stages[0].pickCount, 1, `${effectId} ${label}: 上限は1枚`);
+      eq(stages[0].pickUpTo, true, `${effectId} ${label}: 0..1枚を選択可`);
+    }
+  }
+
+  const unchangedCases = [
+    ['WX15-083', 'WX15-083-TRAP', undefined],
+    ['WX19-039', 'WX19-039-E1', undefined],
+    // 「設置する」だが「2枚まで」なので、修正前から0..2枚選択が正しい。
+    ['WXEX1-13', 'WXEX1-13-E2', true],
+  ] as const;
+  for (const [cardNum, effectId, expectedPickUpTo] of unchangedCases) {
+    for (const fresh of [true, false]) {
+      const label = fresh ? 'fresh' : 'live';
+      const stages = trapStages(effect(cardNum, effectId, fresh).action);
+      ok(stages.length > 0, `${effectId} ${label}: トラップstageが存在`);
+      ok(stages.every(stage => stage.pickUpTo === expectedPickUpTo),
+        `${effectId} ${label}: 「してもよい」以外の既存任意性を変えない`);
+    }
+  }
+
+  // optional:true は候補0枚・選択0枚でもUIの確定条件を満たす（ソフトロックしない）。
+  ok(fixedSelectionCountCanConfirm(0, 1, 0, true), '任意選択は候補0枚でも0枚確定できる');
+  const noCandidate = run({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 1,
+    stages: [{ filter: { cardName: '__O175_NO_CANDIDATE__' }, pickCount: 1, pickUpTo: true, then: 'trap' }],
+    remainder: { location: 'deck', position: 'bottom' },
+  } as EffectAction, mkCtx({ deckTop: [fresh()] }, {}));
+  eq(noCandidate.done, true, 'LOOK_PICK_CHAINは候補0枚なら対話を開かず完了する');
+}));
+
 test('cost-total batch: 静的8効果とPLAY_FREE静的3効果の生成JSONを全件固定', () => {
   const json = (cardNum: string) => JSON.stringify(effectsMap.get(cardNum) ?? []);
   for (const [cardNum, effectId, needle] of [
