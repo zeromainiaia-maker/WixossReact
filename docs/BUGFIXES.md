@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3「1〜3枚」manual 第2バッチ＝`O-75` / `O-124` をクローズ（5効果・Codex 実装／Claude 検証）
+
+前バッチ（同日・7効果）と同じ形。**受け皿（型・engine の消費地点）が既に在って parser の出力だけが誤っているもの**を
+`src/data/manualEffects.ts` に手書きで完全 override した（§2.0 速いレーン）。**parser / engine / screens は1行も触っていない。**
+実装は Codex CLI（今回は `CODEX_HOME=.codex-work` で起動）、スコープ決定・実測・検証・簿記は Claude。
+**Codex の完全報告は [`scripts/archive/codex_manual2_report.md`](../scripts/archive/codex_manual2_report.md)**。
+
+### 真因（1効果ずつ）
+
+| 効果 | 項目 | 真因 | 向き |
+|---|---|---|---|
+| `WX17-001-E2`（選択肢③） | `O-75` | 「**このルリグ**は【ダブルクラッシュ】を得る」が `GRANT_KEYWORD{target:{SIGNI, any}}` ＝**シグニの選択UIに化ける** | 別物（ルリグに乗らない） |
+| `WD15-001-E2`（第3ステップ） | `O-75` | 同上 | 別物 |
+| `WX19-023-E2` | `O-75` | 同上 ＋ **`duration:'PERMANENT'`**（原文は「**そのアタックの間**」なのに**永続で【ダブルクラッシュ】が乗る**） | 別物＋過剰 |
+| `WX15-060-E1` | `O-124`① | 「**対象のあなたのシグニ１体よりパワーの低い**」が丸ごと落ち、`BANISH{filter:{cardType:'シグニ'}}` だけ | 過剰（どの相手シグニでも割れる） |
+| `SP26-008-E1` | `O-124`② | 「**それ**は〜を得る」の照応が `target:{SIGNI, any}` ＝**別のシグニを選び直せる**／3段目の引用能力付与が **`UP{thisCardOnly}`（アーツ自身を即アップ）という無意味な即時実行**に落ちていた | 別物（付与が丸ごと消失） |
+
+**影響**＝live 5カード5効果。**新しいアクション型・条件型は0本**（前バッチと通算でも0）。
+
+### 受け皿はすべて既存（写せる実例まで特定してから書いた）
+
+- `GRANT_KEYWORD{target:{type:'LRIG',owner:'self',count:1}}`＝**live に4件の正例**（`WX01-030` / `WD15-010` / `WD21-009` / `WDK05-T01`）。
+- 「そのアタックの間」＝**`UNTIL_END_OF_TURN` が live の慣例エンコード**（当該句を含む12効果を全数走査＝`SP38-008-E3` / `WX26-CP1-068-SONG` / `WXDi-P09-006-E2` / `WXDi-P13-007-E3` の4件が一致。`WX19-023-E2` の `PERMANENT` だけが外れ値だった）。
+- `STUB{SELECT_TARGET_ONLY}` → `BANISH{filter:{powerLtLastProcessed:true}}`＝**engine 内に同型の組み立て済みテンプレ**（`src/engine/choiceTextParser.ts:380-394`＝`WDK06-R08`①）。
+  消費地点＝`resumeSelectTarget`（`effectExecutor.ts:9277` が `lastProcessedCards = selected`）→ `resolveDynamicFilter`（`:2731-2740` が `powerRange.max = N-1` へ解決・参照不能なら空レンジ＝fail-closed）。
+- `GRANT_KEYWORD{targetsLastProcessed:true}` / `GRANT_EFFECT{targetsLastProcessed:true, effect:{…}}`＝**live に正例**（`WX04-094-E1` / `WX08-073-E1` / `WX24-P1-014-E1`）。
+  消費地点＝`execGrantKeyword`（`:3993-4009`）／`execGrantEffect`（`:4142-4158`）が**新しい対象選択をせず同一個体へ付与**する。
+  ⇒ **`STORE_LAST_PROCESSED_TARGETS` は不要**（直後のステップが `lastProcessedCards` を読むだけで上書きしない）ことを実コードで確認した。
+
+### 🔑 この巡の教訓＝**「在庫を実測する」で1件が着手前に消えた**
+
+`O-104`③（`WX08-036-E1` の「＜鉱石＞か＜宝石＞」のクラス OR）は**既に live で正しかった**
+（`TRANSFER_TO_DECK{source.filter:{cardType:'シグニ', story:['鉱石','宝石']}}`）。
+指示書では**「触るな」群（群X）として先に分離**し（§5-3-4″）、Codex には確認だけさせた＝**触っていないことを before/after 一致で報告**させた。
+⇒ **登録票の残件はバッチを切る前に必ず live で数え直す**（`O-75` も「2効果」の登録に対し実測は3効果だった）。
+
+### 🆕 見つけて直さなかったもの＝`O-154` として登録
+
+`WD15-001-E2` の**第2ステップ**は原文「その中に＜龍獣＞のシグニが**１枚以上ある場合**、**それ**（＝冒頭で対象化した**相手**のシグニ）をバニッシュする」に対し、
+live は `BANISH{owner:'self', filter:{story:'龍獣'}}` ＝**条件なしで自分の＜龍獣＞を割る**。第3ステップの【ダブルクラッシュ】も「**２枚以上ある場合**」の条件を持たず**無条件**。
+⇒ **受け皿は既存**（`LAST_PROCESSED_MATCHES{filter, minCount}` ＋ `targetsStored`／`targetsLastProcessed`）＝**次の速いレーンで取れる**。§5.3 `O-154`。
+
+### 検証（Claude 側・独立実行）
+
+- `npm run gates` **全緑**（独立実行）。**golden 2995→3000**（+5＝対象効果ごとに1本）・smoke **10703 全0**・fuzz 全0・
+  `census:enginetext` **A 136行/133ハンドラ 据置**（engine 非改変の裏取り）・lint **0 errors / 249 warnings 据置**。
+- **ベースライン commit（`dd2d0c571`）比の per-effect 機械 diff＝変化した効果は5件のみ**で、**すべて指定した効果**（`ADD`/`DEL` 0・`MOD` 5）。兄弟効果への巻き込み0。
+- 変更ファイルのエンコーディング検査（`U+FFFD`・3文字以上連続 `?`・先頭 BOM）＝**新規増0**（`docs/BUGFIXES.md` の `???` 29件は投入前と同数＝既存本文）。
+- `_held_fresh` **93→92**（消えたのは今回手書きした `WD15-001` のみ・**増分0**）／`_partial_fresh` 11 据置／`_idset_fresh` 11 据置／`BASELINE_ORPHAN_MANUAL` 11 据置。
+- golden は **`mergeManualEffects(cardNum, parseCardEffects(row))` を読む fresh assert**（前バッチで足した `manualFreshEffect` ヘルパ）で、**5効果すべて反転確認済み**。
+  E2E は **①ルリグに乗りシグニには乗らない ②比較元8000に対し 7000 は候補・12000 は候補外・比較元不在なら何も割れない（fail-closed）
+  ③選んだ個体だけに3つとも乗り、付与された【自】が実際に発火してアタッカーをアップする**の3本。
+
+### ⑤実機の要否＝**不要**（④まで）
+
+判定理由＝**触ったのは `src/data/` `public/data/` `scripts/` だけ**で `src/screens/` を触っておらず、**新しい型・機構も0本**（PLAN §2.2 の機械判定）。
+engine 側の挙動は E2E golden（対象選択の resume と付与後の誘発まで）が押さえている。
+
+### 残った穴
+
+- `O-154`（上記 `WD15-001-E2` の条件欠落と「それ」照応）＝**次の速いレーン候補**。
+- `WX17-001-E1`（「自身以外の効果を受けない」が逆翻訳で「このシグニは対戦相手の効果を受けない」）／`WX19-023-E1`（「あなたのターン中、＜ウェポン＞＋3000」が逆翻訳に出ない）＝**既存の別軸**として据置（Codex が報告・今回のスコープ外）。
+
 ## 2026-08-29：§5.3「1〜3枚」の機構項目4件を **manualEffects.ts への手書き**で消化（7効果・Codex 実装／Claude 検証）
 
 PLAN §5.3 の「取る順」表の **2位＝残り約30件（1件あたり1〜3枚）** に当たる項目から、

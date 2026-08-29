@@ -932,8 +932,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // PLAN §6.3 sub-case (b): Carnival -Q- ignores opponent effects. The
   // own-other-source part of "except itself" is near-inert and intentionally
   // deferred; sourceOwner keeps the lrig's own effects from being blocked.
+  // `O-75`＝E2 の「このルリグ」も任意のシグニへ誤分類されていたため、既存の LRIG 付与形へ戻す。
   "WX17-001": [
     {"effectId":"WX17-001-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX17-001-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}},{"choiceId":"c2","label":"選択肢3","action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c3","label":"選択肢4","action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // PLAN §6.3 sub-case (d): designation survives the intervening optional reveal.
   // The zero-delta POWER_MODIFY is the existing count:1 field selector/recorder;
@@ -5591,6 +5593,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // `O-94①`＝汎用 ADD_TO_FIELD の「最初の空き」ではなく、既存STUBで中央 zone[1] へ固定配置する。
   "WXDi-P03-087": [
     {"effectId":"WXDi-P03-087-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"discard":2},"action":{"type":"STUB","id":"FROM_TRASH_TO_CENTER_ZONE"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","trashActivated":true}
+  ],
+  // ── §5.3 1〜3枚の機構項目・manual第2バッチ（2026-08-29・速いレーン）──────
+  "WD15-001": [
+    {"effectId":"WD15-001-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":2}},{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"龍獣"},"upToCount":false}},{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // 「そのアタックの間」は既存の一時付与慣例 `UNTIL_END_OF_TURN` で表す（新しい duration は作らない）。
+  "WX19-023": [
+    {"effectId":"WX19-023-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","usageLimit":"once_per_turn"}
+  ],
+  // `O-124`①＝比較元を先に対象化し、参照不能時は powerLtLastProcessed が空候補へ fail-closed する。
+  "WX15-060": [
+    {"effectId":"WX15-060-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":3}],"costScaling":[{"direction":"reduce","counts":[{"kind":"zone","zone":"field","owner":"self","filter":{"cardType":"シグニ","cardClass":"調理","hasAcce":true}}],"per":1,"amount":[{"color":"緑","count":1}]}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"abortIfNoCandidate":true},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLtLastProcessed":true},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // `O-124`②＝最初に選んだ赤シグニを lastProcessedCards で束縛し、追加2能力も同じ個体へ付与する。
+  "SP26-008": [
+    {"effectId":"SP26-008-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":6}],"costScaling":[{"direction":"reduce","counts":[{"kind":"lrigLevel","owner":"self"}],"per":1,"amount":[{"color":"赤","count":1}]}]},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"赤"}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2},"then":{"type":"GRANT_KEYWORD","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"GRANT_EFFECT","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"SP26-008-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self","triggerFilter":{"thisCardOnly":true},"usageLimit":"once_per_turn"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 };
 

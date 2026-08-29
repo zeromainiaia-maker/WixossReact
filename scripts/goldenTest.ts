@@ -53313,6 +53313,123 @@ test('manual1 D2 WXDi-P13-050: parser E2を採用し、E1b shadowを残さない
   ok(!p050.some(e => e.effectId === 'WXDi-P13-050-E1b'), '旧E1b shadowは消えている');
 });
 
+test('manual2 A1 WX17-001-E2: 選択肢③はルリグだけにダブルクラッシュを付与', () => withSavedCursor(() => {
+  const effect = manualFreshEffect('WX17-001', 'WX17-001-E2');
+  const choose = effect.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const grant = choose.choices[2].action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  eq(grant.target.type, 'LRIG', '「このルリグ」の対象型');
+  ok(grant.target.type !== 'SIGNI', '旧誤動作のシグニ対象へ戻っていない');
+
+  const lrig = findCard(card => card.Type === 'ルリグ');
+  const signi = findCard(card => card.Type === 'シグニ');
+  const base = mkCtx({ lrig: [lrig], signi: [signi, null, null] }, {}, 'WX17-001');
+  const offered = executeAction(effect.action, base);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '4択の選択UIへ入る');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const applied = finish(resumeChoose('c2', offered.pending, ctxAfter(offered, base)), base);
+  ok(applied.ownerState.keyword_grants?.[lrig]?.includes('ダブルクラッシュ') ?? false,
+    'ルリグへダブルクラッシュが付く');
+  ok(!(applied.ownerState.keyword_grants?.[signi]?.includes('ダブルクラッシュ') ?? false),
+    '対照: シグニにはダブルクラッシュが付かない');
+}));
+
+test('manual2 A2 WD15-001-E2: 第3ステップはルリグだけにダブルクラッシュを付与', () => {
+  const effect = manualFreshEffect('WD15-001', 'WD15-001-E2');
+  const steps = (effect.action as SequenceAction).steps;
+  const grant = steps[2] as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  eq(JSON.stringify(steps[0]), JSON.stringify({ type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 2 } }),
+    '第1ステップは不変');
+  ok(steps[1].type === 'BANISH' && steps[1].target.owner === 'self'
+    && steps[1].target.filter?.story === '龍獣', '第2ステップは既存liveのまま不変');
+  eq(grant.target.type, 'LRIG', '「このルリグ」の対象型');
+  ok(grant.target.type !== 'SIGNI', '旧誤動作のシグニ対象へ戻っていない');
+  eq(grant.duration, 'UNTIL_END_OF_TURN', 'ターン終了時までを保持');
+});
+
+test('manual2 A3 WX19-023-E2: そのアタック中の付与はLRIG・非PERMANENT', () => {
+  const effect = manualFreshEffect('WX19-023', 'WX19-023-E2');
+  const grant = effect.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  eq(grant.target.type, 'LRIG', '「そのルリグ」の対象型');
+  ok(grant.target.type !== 'SIGNI', '旧誤動作のシグニ対象へ戻っていない');
+  eq(grant.duration, 'UNTIL_END_OF_TURN', '既存のアタック中一時付与慣例');
+  ok(grant.duration !== 'PERMANENT', '旧誤動作の永続付与へ戻っていない');
+});
+
+test('manual2 B WX15-060-E1: 比較元8000未満だけを候補にし、比較元不在はfail-closed', () => withSavedCursor(() => {
+  const effect = manualFreshEffect('WX15-060', 'WX15-060-E1');
+  const steps = (effect.action as SequenceAction).steps;
+  const designate = steps[0] as StubAction;
+  const banish = steps[1] as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(designate.id, 'SELECT_TARGET_ONLY', '比較元を先に対象宣言する');
+  ok(designate.abortIfNoCandidate === true, '比較元がいなければ後続を打ち切る');
+  ok(banish.target.filter?.powerLtLastProcessed === true, '比較元未満の動的フィルタ');
+
+  const own8000 = findCard(card => card.Type === 'シグニ' && card.Power === '8000');
+  const opp7000 = findCard(card => card.Type === 'シグニ' && card.Power === '7000');
+  const opp12000 = findCard(card => card.Type === 'シグニ' && card.Power === '12000');
+  const base = mkCtx({ signi: [own8000, null, null] }, { signi: [opp7000, opp12000, null] }, 'WX15-060');
+  const first = executeAction(effect.action, base);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '比較元の対象選択へ入る');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  const second = resumeSelectTarget([own8000], first.pending, ctxAfter(first, base));
+  ok(!second.done && second.pending.type === 'SELECT_TARGET', '相手シグニの対象選択へ入る');
+  if (second.done || second.pending.type !== 'SELECT_TARGET') return;
+  ok(second.pending.candidates.includes(opp7000), '8000未満の7000は候補');
+  ok(!second.pending.candidates.includes(opp12000), '8000以上の12000は候補外');
+  const resolved = finish(resumeSelectTarget([opp7000], second.pending, ctxAfter(second, base)), base);
+  ok(resolved.otherState.energy.includes(opp7000), '選んだ7000をバニッシュできる');
+  ok(resolved.otherState.field.signi.some(stack => stack?.at(-1) === opp12000), '対照: 12000は場に残る');
+
+  const noRef = run(effect.action, mkCtx({ signi: [null, null, null] }, { signi: [opp7000, opp12000, null] }, 'WX15-060'));
+  ok(noRef.otherState.field.signi.some(stack => stack?.at(-1) === opp7000)
+    && noRef.otherState.field.signi.some(stack => stack?.at(-1) === opp12000),
+  '比較元0体では無制限バニッシュへ倒れない');
+}));
+
+test('manual2 C SP26-008-E1: 最初に選んだ赤シグニだけへ3能力を付与し、引用AUTOが発火', () => withSavedCursor(() => {
+  const effect = manualFreshEffect('SP26-008', 'SP26-008-E1');
+  const steps = (effect.action as SequenceAction).steps;
+  const second = steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const third = steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  ok((second.then as { targetsLastProcessed?: boolean }).targetsLastProcessed === true,
+    'ダブルクラッシュは最初の対象へ束縛');
+  ok(third.then.type === 'GRANT_EFFECT' && third.then.targetsLastProcessed === true,
+    '引用AUTOも最初の対象へ束縛');
+  if (third.then.type !== 'GRANT_EFFECT' || !third.then.effect) return;
+  eq(third.then.effect.timing?.join(','), 'ON_ATTACK_SIGNI');
+  eq(third.then.effect.usageLimit, 'once_per_turn');
+  eq(third.then.effect.triggerScope, 'self');
+  ok(third.then.effect.triggerFilter?.thisCardOnly === true, '「このシグニが」アタックしたとき');
+
+  const reds = [...cardMap.values()].filter(card => card.Type === 'シグニ' && card.Color.includes('赤')).slice(0, 2);
+  ok(reds.length === 2, '赤シグニfixtureが2体必要');
+  const [chosen, other] = reds.map(card => card.CardNum);
+  const base = mkCtx({ signi: [chosen, other, null], down: [true, false, false], life: 0 }, {}, 'SP26-008');
+  const offered = executeAction(effect.action, base);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '最初の赤シグニ対象選択へ入る');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  const granted = finish(resumeSelectTarget([chosen], offered.pending, ctxAfter(offered, base)), base);
+  ok(granted.ownerState.keyword_grants?.[chosen]?.includes('アサシン') ?? false, '選んだ個体へアサシン');
+  ok(granted.ownerState.keyword_grants?.[chosen]?.includes('ダブルクラッシュ') ?? false, '選んだ個体へダブルクラッシュ');
+  ok((granted.ownerState.granted_effects?.[chosen] ?? []).some(e => e.effectId === 'SP26-008-sub-E1'),
+    '選んだ個体へ引用AUTO');
+  ok(!granted.ownerState.keyword_grants?.[other]
+    && !(granted.ownerState.granted_effects?.[other]?.length), '対照: 別のシグニには何も付かない');
+
+  const entries = collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST),
+    effectsMap: o128AugmentedEffects(granted.ownerState, granted.otherState) },
+  granted.ownerState, granted.otherState, chosen, HOST);
+  const entry = entries.find(e => e.effectId === 'SP26-008-sub-E1');
+  ok(!!entry, '付与先自身のアタックで引用AUTOが誘発');
+  if (entry) {
+    const fireBase = { ...base, ownerState: granted.ownerState, otherState: granted.otherState,
+      sourceCardNum: chosen, triggeringCardNum: chosen } as ExecCtx;
+    const fired = finish(executeEffect(entry.effect, fireBase), fireBase);
+    ok(fired.ownerState.field.signi_down?.[0] === false, '引用AUTOが発火してアタッカーをアップ');
+    ok(fired.ownerState.field.signi_down?.[1] === false, '対照: 別のシグニの状態は変えない');
+  }
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

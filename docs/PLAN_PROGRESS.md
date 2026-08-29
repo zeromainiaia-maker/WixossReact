@@ -2,6 +2,32 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き725・Opus 5 単独＋Codex 実装）＝§5.3「1件あたり1〜3枚」の機構項目4件を
+  `manualEffects.ts` への手書きで消化（7効果）。`O-98` / `O-151`(b) / `O-94`① / `O-149` をクローズ（`O-94`②・`O-151`(a) は残す）。**
+  ユーザー指示＝**「§5.3 の『1件あたり1〜3枚』を codex に投げる。manual で実装することで高速化を狙う」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 547（据置）｜census 高シグナル 518→517**
+  ⚠**Sheet1 と台帳が動かない理由**＝対象7カードは**Sheet1 外**（Sheet4/7/8/9・WXK・WXEX1）で、
+  台帳の finding も **6件は紐づくが段2 バッチではないので close していない**（次巡が `stage2_closed.txt` へ書ける）。
+  ⚠**census の −1 は前進ではない**＝MANUAL 免除による不可視化（`BASELINE_HIGH` の行コメントに明記）。
+  gates 全緑（**golden 2988→2995**・smoke 10703 全0・fuzz 全0・**`census:enginetext` 136 据置**＝engine 非改変の裏取り）。
+  全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は7件すべて既存＝engine も parser も1行も触っていない**（`TargetFilter.keyword` の配列 OR／
+    `cardType:'レゾナ'`／`deltaFromZone`→`splitTotal`／`STUB{FROM_TRASH_TO_CENTER_ZONE}`／`STUB{POWER_PLUS_BANISHED_POWER}`）。
+    **新しいアクション型・条件型は0本。** ⇒ **§2.0 の速いレーンは §5.3 の小粒項目にもそのまま効く**というのが今回の実証。
+  - 🔴**登録票の見立てはこれで通算9巡連続で実測と外れた**＝`O-149` は「live 限定の `-E1b` を manual へ**持ち込む**」と
+    書いてあったが、実測すると **parser は既に `E1/E2/E3` を出していて、manual の `-E2`（【出】）が
+    parser の `-E2`（【自】）を上書きして消していた**。正解は「持ち込む」ではなく**「`-E2` を【自】へ差し替え、
+    【出】の手書きは削除して parser の `-E3` に任せる」**。⇒ **着手したらまず `parseCardEffects` を直に呼んで id 集合を見る。**
+  - 🆕**id 集合ズレのカードは兄弟効果まで丸ごと凍る**＝解凍した `WX24-P2-049-E1`（【常】【シュート】）は
+    **`thisCardOnly` なし・`UNTIL_END_OF_TURN`** という別物だった（正しくは `thisCardOnly` ＋ `PERMANENT`）。
+    **`_idset_fresh` は「そのカードへの parser 改善が全部止まっている」という意味**で、当該効果だけの話ではない。
+  - ⚠**`O-149` はデータだけ直しても閉じない**＝`fixLrigColorFilters.mjs` の生成エントリ削除／§6.3 K トリップワイヤ2行削除／
+    `BASELINE_ORPHAN_MANUAL` 12→11 の**付帯物3点**が要る（どれも他のどの計器にも映らない）。
+  - ⚠**Codex へ投げるときの効いた形**＝①**受け皿の消費地点（ファイル:行）を指示書に実測で書く**
+    ②**`parser`／`engine`／`screens` を触らないことを禁止事項に明記**（触る必要が出たら止まって報告）
+    ③**golden は `mergeManualEffects(parseCardEffects(row))` を読む fresh assert＋反転確認**を必須にする（§5-29）。
+    ⇒ 見送り0件・スコープ外の巻き込み0（ベースライン比の per-effect diff で12効果＝全部対象7カード内）。
+
 - 🏁**セッション（2026-08-29・続き724・Opus 5 単独）＝§5.2 Sheet2 バッチ2（速いレーン）。
   台帳の残 OPEN から「1カード1 finding の HIGH」11件を消化（live 9効果を修正／2件は偽陽性）。**
   ユーザー指示＝**「PLAN をよく読み、早いレーンで Sheet2 の段2 を消化する」**。
