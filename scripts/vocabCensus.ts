@@ -958,7 +958,24 @@ const PATTERNS: Pattern[] = [
       // ②ベット分を除いた残りの《コイン》がすべて ×0 なら covered
       return !/《コイン(?![×x][０0]》)/.test(t.replace(/ベット[―─](?:《[^》]+》)*/g, ''));
     } },
-  { name: 'コスト:手札を捨てる', re: /手札[かをら][^。：]{0,12}捨て(る|て)：/, keys: ['discard', 'handDiscard', 'Discard'], src: 'eff' },
+  {
+    name: 'コスト:手札を捨てる', re: /手札[かをら][^。：]{0,12}捨て(る|て)：/, keys: ['discard', 'handDiscard', 'Discard'], src: 'eff',
+    // §5.3 `O-60` 第13バッチ（2026-08-30）＝「手札をN枚まで捨てる：この方法で捨てた〜」は
+    // **コストを `EffectCost` へ出すと後段と別 ExecCtx になり `lastProcessedCards` が失われる**ため、
+    // action 先頭の `TRASH{asCost:true, HAND_CARD, upToCount:true}` で徴収する形へ移した。
+    // ⚠`asCost` と `HAND_CARD` の両方を必須にする（ただの手札トラッシュ効果まで免除しないため）。
+    extraOk: js => {
+      const hasCostDiscard = (node: unknown): boolean => {
+        if (!node || typeof node !== 'object') return false;
+        if (Array.isArray(node)) return node.some(hasCostDiscard);
+        const obj = node as Record<string, unknown>;
+        const tgt = obj.target as Record<string, unknown> | undefined;
+        return (obj.type === 'TRASH' && obj.asCost === true && tgt?.type === 'HAND_CARD')
+          || Object.values(obj).some(hasCostDiscard);
+      };
+      try { return hasCostDiscard(JSON.parse(js)); } catch { return false; }
+    },
+  },
   { name: 'コスト:エナからトラッシュ', re: /エナゾーンから[^。：]{0,18}(トラッシュに置く|支払う)：?/, keys: ['energyTrash', 'ENERGY'], src: 'eff' },
   // ⚠`trash_key` は続き376c 追加＝「このキーを場からルリグトラッシュに置く：」（【起】コスト）の正表現。
   //   型（`effects.ts:355`）にも engine（`BattleScreen.tsx:6314` で実際に支払い、コスト表示にも出る）にも

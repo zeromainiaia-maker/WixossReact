@@ -1729,6 +1729,8 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     : a.deltaPerLastProcessedCount
       ? resolveNum(a.delta) * lastProcessedUnits(a.perLastProcessed, ctx)
       : resolveNum(a.delta);
+  // 直前処理倍率が0なら対象選択自体を出さない。0枚捨てた「1枚につき±N」は no-op。
+  if (a.deltaPerLastProcessedCount && delta === 0) return done(ctx);
   const srcType = srcTypeOf(ctx);
   // 「そのシグニのレベル１につき±N」（§6.4 O-16(a)）＝delta はレベル1あたりの単価。**ここで数値へ
   // 焼き込まない**＝倍率は grant の適用時に対象シグニ自身のレベルから毎回決まる。
@@ -1889,7 +1891,10 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   if (a.targetsStored) return done(applyPowerMod(cands, ctx));
 
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
-  const count = resolveNum(a.target.count);
+  // target.count も NumberOrRef。捨てた枚数と同じ体数を対象にする形では直前処理数を解く。
+  // 0体指定は選択UIを出さず fail-closed（旧カード全文ハンドラの左端自動適用へ戻さない）。
+  const count = resolveCountRef(a.target.count, ctx, a.target.countFromZone);
+  if (count <= 0) return done(ctx);
   const scope: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
   // 🔴**`deltaPerLastProcessedCount` は選択の向こう側では解けない**（§5.3 `O-80` 第1バッチ）＝
   //   選択後に走る `applyDirectAction` の時点では `lastProcessedCards` が**いま選んだ対象**に

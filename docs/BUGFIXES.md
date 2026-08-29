@@ -1,5 +1,66 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：§5.3 `O-60` 第13バッチ＝可変手札捨ての18リテラルを撤去（Codex が利用上限で中断→**Claude が引き取って完成**）
+
+`COUNT_BASED_DRAW_OR_POWER`（リテラル10本・live 15効果）と `INTERNAL_CBDOP_AFTER_DISCARD`（リテラル8本）を
+engine から撤去し、15効果を既存 payload へ移した。**A群 134→132行 / 131→129ハンドラ、miss 38→37ハンドラ・50→48カード。**
+
+- **群A 2効果**（`WXK01-064-E1` / `WXK10-020-E2`）＝「デッキの上からN枚トラッシュ→この方法でトラッシュに置かれた
+  シグニのレベルの合計1につき－1000」。**どのリテラルにも当たらず無言で何も起きていなかった**。
+- **群B 12効果**＝「手札をN枚まで捨てる：〜」。🔑**コストを `EffectCost` から action 内の
+  `TRASH{asCost:true, HAND_CARD, upToCount:true}` へ移した**のが肝で、`EffectCost` のままだと
+  **支払いと本体が別 ExecCtx になり `lastProcessedCards`（捨てた枚数）が本体へ届かない**。
+- **群C 1効果**（`WX19-Re18-E1`）＝「＜凶蟲＞を好きな枚数捨てて、そのレベル合計だけ－2000」。
+- **過剰実行を2種類是正**＝`COUNT_BASED_DRAW_OR_POWER` は「捨てた枚数につきパワー」を**相手全3体**へ、
+  `INTERNAL_CBDOP_AFTER_DISCARD` は**左端の相手シグニに固定適用**していた（原文はどちらも「1体を対象とし」）。
+- **新しい効果型・フィールドは0本**（`TRASH.asCost` / `$ref:'last_processed_count'` / `STUB{SELECT_TARGET_ONLY}` は
+  すべてベースラインに実在するものを流用）。
+
+### 🔴 Codex が上限で切れ、Claude が引き取った（この分担は初めて）
+
+`.codex-work`（5:47AM 回復）→ 既定 `~/.codex`（4:46AM 回復）と**2アカウント連続で利用上限**。
+2回目は **実装・live 採用・`regen` まで完了して最終検証の直前で切れた**（529,823 tokens）。
+`git status` に20ファイルの変更が残り、**報告書は書かれていない**状態。ゲートを回すと **golden FAIL 1・census 482→489** で赤。
+ユーザー判断で **Claude が引き取って完成**させた。**残していた実装そのものは正しく、直したのは検証工程で出るはずだった2件**：
+
+1. **census 482→489 の回帰**＝群Bで `cost.discardUpTo` を action 内 `TRASH{asCost}` へ移したため、
+   census の「コスト:手札を捨てる」が `cost` キーを探して**7効果を高シグナル化**していた。
+   ⇒ 第12バッチの「公開し」と同じ形で `extraOk` を1本足して較正（`asCost` と `HAND_CARD` の**両方**を必須にし、
+   ただの手札トラッシュ効果まで免除しない）。**7件とも live JSON を原文照合して真の偽陽性だと確認済み。**
+2. **golden FAIL 1**＝🔴**`withSavedCursor` の付け忘れ**。engine を回す新テストが POOL カーソルを進め、
+   **無関係な `Stage2 power B44 E2E` が落ちた**（CLAUDE.md が警告している「カーソルはテスト間で共有される」の実例）。
+   ⇒ engine を回す4テストを `withSavedCursor` で包んだ。
+   ⚠**包んだだけでは直らなかった**＝`WX21-032-E1` のスペックが `story:'天使'` フィルタつきで、
+   **POOL から引いたカードのクラス次第で候補0になる**という既存の脆さがあった（ベースラインではたまたま通っていた）。
+   ⇒ そのスペックだけ天使シグニを実カードから決定的に選ぶようにした（assert の意味は不変）。
+
+### 🔑 引き取り検証で分かったこと＝**追加された parser 規則の片方は不要だった**
+
+§5-29 の反転確認をしたら、群Aの専用規則（`deckLevelPower`＝カード文型を丸ごと焼いた長い regex）を外しても
+**まったく同じ JSON が出た**＝`STUB{COUNT_BASED_DRAW_OR_POWER}` の生成を外した時点で、
+**既存の `perLastProcessed{unit:'level_sum'}` 経路が同じ結果を出せるようになっていた**。⇒ **規則ごと削除した**（§5-5c）。
+`handLevelPower`（群C）は外すと `STUB{TARGET_AND_DISCARD_HAND}` へ落ちるので**必要**＝反転確認が成立する。
+**「反転しない assert は、実装が要らない証拠かもしれない」**＝反転確認は退行検知だけでなく**冗長規則の検出器**でもある。
+
+### Claude 側の検証（CODEX_GUIDE §7）
+
+`npm run gates` 全緑（**golden 3021/3021**・smoke 10704/10704・fuzz 全0・**census 482/482**・
+census:stubs A/C 0・manual-fields 0・lint 0 errors / **249 warnings で増減0**）。
+①live JSON をベースライン `52c270b46` と **effectId 単位で機械 diff＝変化は15効果ちょうど**（追加0・削除0・巻き添え0）
+②`build:effects`→`heldReview` 再実行で **held 89枚／31署名＝投入前と同一**
+③`git diff --name-only` 全件で `U+FFFD`／`???`／BOM の**新規増0**
+④**逆翻訳15効果を原文照合**＝1件だけ表示漏れを発見して修正（`WX19-Re18-E1` が
+「あなたは手札を好きな枚数捨てる」と描かれ**＜凶蟲＞限定が逆翻訳から消えていた**＝`decompileEffects.ts` の
+`HAND_CARD/count:'ALL'/upToCount` 分岐が `filterJa` を通していなかった。JSON 側は正しい）
+⑤スコープ外に見えた3ファイルも**理由が通っていることを確認**＝`fixLrigColorFilters.mjs` は
+`WX25-P3-084-E1` を build のたびに旧 STUB へ**戻す外科パッチ**（撤去必須・§5.3 `O-133` の「D 生成元あり」）、
+`triggerCollect.ts` は旧 STUB を特別扱いしていた分岐の差し替え、`parseSentencePart1.ts` は
+「捨てた形は取らない」という封じの解除（typed TRASH が先行するので安全になった）。
+
+**⑤実機の要否＝不要**（`src/screens/` 不変・新型0本）。
+
+---
+
 ## 2026-08-30：§5.3 `O-60` 第12バッチ＝公開札倍率／デッキトップ条件ルートのカード全文 regex を撤去
 
 engine が効果元の `EffectText` / `BurstText` を再解析していた

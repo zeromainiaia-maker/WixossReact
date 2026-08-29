@@ -1574,11 +1574,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 🔑機構は既存＝`DRAW{count:N, addLastProcessedCount:true}` が「定数＋直前に処理した枚数」を解決する。
   //   直前ステップ（手札→デッキ下の `TRANSFER_TO_DECK`）が `lastProcessedCards` を実枚数で置く。
   {
-    // ⚠**「捨てた」枚数の形は取らない**＝`WXDi-P16-038`（「【出】手札を４枚まで捨てる：この方法で捨てた
-    //   カードの枚数に１を加えた枚数のカードを引く」）は `STUB{COUNT_BASED_DRAW_OR_POWER}` が
-    //   **可変枚数の捨て（対話）そのものを駆動している**ので、ここで DRAW へ差し替えると
-    //   支払いの提示が消えて常に1枚ドローになる（過少）。移動先が明示された形だけを受ける。
-    const plusLastM = t.match(/^この方法で(?:デッキに移動した|公開した)カードの枚数に([０-９\d]+)を加えた枚数のカードを引く$/);
+    // 「捨てた」形も O-60 第13バッチ以降は同じ action 内の typed TRASH が先行するため安全に読める。
+    const plusLastM = t.match(/^この方法で(?:デッキに移動した|公開した|捨てた)カードの枚数に([０-９\d]+)を加えた枚数のカードを引く$/);
     if (plusLastM) {
       return { type: 'DRAW', owner: 'self', count: parseNum(plusLastM[1]), addLastProcessedCount: true } as EffectAction;
     }

@@ -410,13 +410,19 @@ export function wrapOptionalOnPlay(
   // 本体がコストで動かしたカードを参照していて、参照が未実装のまま包むと過剰実行になる効果は収集しない
   // （理由と対象は `OPTIONAL_ON_PLAY_COST_REF_DEFERRED` の定義コメント参照）。
   if (OPTIONAL_ON_PLAY_COST_REF_DEFERRED.has(eff.effectId)) return null;
-  // 可変枚数捨ては COUNT_BASED_DRAW_OR_POWER 自身が任意 SELECT_TARGET を提示し、
-  // continuation で実際に手札→トラッシュへ移す。外側の OPTIONAL_ACTIVATE / OPTIONAL_COST は
-  // 二重プロンプトまたは偽の支払いUIになるため、action をそのまま積む。
+  // 可変枚数捨ては action 先頭の typed TRASH が任意 SELECT_TARGET を提示し、同じ ExecCtx の後段へ
+  // lastProcessedCards を渡す。外側の OPTIONAL_ACTIVATE / OPTIONAL_COST は二重プロンプトになるため、
+  // この構造に限って action をそのまま積む。
   // ⚠ 落としてよい cost は **action 自身が徴収する `discardUpTo` だけ**。他のコスト（エナ・コイン等）が
   //   混ざっている効果まで無条件に落とすと、そのコストを踏み倒して action だけ通る。
   //   `discardUpTo` 以外を持つ場合は下の通常経路（包むか、包めなければ null）へ落とす。
-  if (eff.action.type === 'STUB' && eff.action.id === 'COUNT_BASED_DRAW_OR_POWER') {
+  const selfPaidVariableDiscard = eff.action.type === 'SEQUENCE'
+    && eff.action.steps[0]?.type === 'TRASH'
+    && eff.action.steps[0].asCost === true
+    && eff.action.steps[0].target.type === 'HAND_CARD'
+    && eff.action.steps[0].target.owner === 'self'
+    && eff.action.steps[0].target.upToCount === true;
+  if (selfPaidVariableDiscard) {
     const otherCostKeys = Object.keys(eff.cost ?? {})
       .filter(k => k !== 'discardUpTo' && (eff.cost as Record<string, unknown>)[k] !== undefined);
     if (otherCostKeys.length === 0) return { ...eff, cost: undefined };

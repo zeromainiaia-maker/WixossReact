@@ -1028,7 +1028,9 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${ownerJa(t.owner)}手札が${a.untilHandCount}枚になるようにカードを捨てる`;
       }
       if (t?.type === 'HAND_CARD' && t.owner === 'self' && t.count === 'ALL') {
-        if (t.upToCount) return 'あなたは手札を好きな枚数捨てる';
+        // 🔴フィルタつき（「手札から＜凶蟲＞のシグニを好きな枚数捨てる」`WX19-Re18-E1`）を
+        //   「手札を好きな枚数捨てる」と描くと**クラス限定が逆翻訳から消える**（§5.3 `O-60` 第13バッチで検出）。
+        if (t.upToCount) return `あなたは${filterJa(t.filter)}手札を好きな枚数捨てる`;
         return `あなたの手札をすべて捨てる${a.optional ? '（してもよい）' : ''}`;
       }
       if (t?.type === 'ENERGY_CARD' && t.owner === 'self' && t.count === 'ALL' && a.optional) {

@@ -5000,6 +5000,20 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // O-60 第13バッチ：直前の typed TRASH が残した実枚数を読む帰結は、総称 STUB より先に固定する。
+  // ここは単文 funnel なので、アーツ内の「捨て、…引く」後半にも届く。
+  {
+    const t = text.trim().replace(/。$/, '');
+    const plus = t.match(/^この方法で捨てた(?:カードの)?枚数に([０-９\d]+)を加えた枚数のカードを引く$/);
+    if (plus) return { type: 'DRAW', owner: 'self', count: parseNum(plus[1]), addLastProcessedCount: true };
+    if (/^この方法で捨てたカードの枚数(?:に等しい枚数|と同じ枚数)のカードを引く$/.test(t)) {
+      return { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };
+    }
+    const per = t.match(/^この方法で捨てたカード([０-９\d]+)枚につきカードを([０-９\d]+)枚引く$/);
+    if (per && parseNum(per[1]) === 1 && parseNum(per[2]) === 1) {
+      return { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };
+    }
+  }
   // §5.3 `O-60` 第12バッチ＝「デッキトップを公開し、それが〈条件〉のシグニなら移動」。
   // 旧は `STUB{REVEAL_TOP_CONDITIONAL_ROUTE}` がカード全文 regex から無関係なレベル数値を探し、
   // ヒットしないと閾値3にした上で常にトラッシュへ落としていた。ここで文型から既存 payload だけを組む。
@@ -13991,6 +14005,68 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- O-60 第13バッチ：直前処理 payload で解くカウント基準ドロー／パワー ----
+  // engine がカード全文を読み直さないよう、数・対象・倍率元を parser で既存 typed action に刻む。
+  // いずれも効果全文の文型へアンカーし、値そのものをカード固有リテラルとして判定には使わない。
+  {
+    // ⚠「デッキの上からN枚トラッシュ→この方法でトラッシュに置かれたシグニのレベルの合計1につき－N」は
+    //   **専用規則を置かない**＝`STUB{COUNT_BASED_DRAW_OR_POWER}` の生成を外した時点で、既存の
+    //   `perLastProcessed{unit:'level_sum'}` 経路が同じ JSON を出す（O-60 第13バッチで実測・反転確認済み）。
+    //   カード文型を丸ごと焼いた長い regex を足すと §5-5c の禁じ手になるので、冗長なら置かない。
+    const handLevelPower = text.trim().match(/^対戦相手のシグニ([０-９\d]+)体を対象とし、手札から(.{1,32}?)を好きな枚数捨てる。(?:ターン終了時まで、)?それのパワーを、この方法で捨てたシグニのレベルを合計した数だけ([－＋][０-９\d]+)する。(?:（[^）]*）)?$/);
+    if (handLevelPower) {
+      const filter = handDiscardSpecFilter(handLevelPower[2]);
+      if (filter !== null) {
+        const target = { type: 'SIGNI' as const, owner: 'opponent' as const, count: parseNum(handLevelPower[1]), filter: { cardType: 'シグニ' }, upToCount: false };
+        return {
+          type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+            { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true, filter } } as EffectAction,
+            {
+              type: 'POWER_MODIFY', target, targetsStored: true,
+              delta: parseSignedNum(handLevelPower[3]), deltaPerLastProcessedCount: true,
+              perLastProcessed: { filter: { cardType: 'シグニ' }, unit: 'level_sum' },
+              duration: 'UNTIL_END_OF_TURN',
+            } as EffectAction,
+          ],
+        } as SequenceAction;
+      }
+    }
+
+    const resultText = text.trim().replace(/。$/, '');
+    const drawPlus = resultText.match(/^この方法で捨てた(?:カードの)?枚数に([０-９\d]+)を加えた枚数のカードを引く$/);
+    if (drawPlus) return { type: 'DRAW', owner: 'self', count: parseNum(drawPlus[1]), addLastProcessedCount: true };
+    if (/^この方法で捨てたカードの枚数(?:に等しい枚数|と同じ枚数)のカードを引く$/.test(resultText)) {
+      return { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };
+    }
+    const drawPer = resultText.match(/^この方法で捨てたカード([０-９\d]+)枚につきカードを([０-９\d]+)枚引く$/);
+    if (drawPer && parseNum(drawPer[1]) === 1 && parseNum(drawPer[2]) === 1) {
+      return { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };
+    }
+    const chargePer = resultText.match(/^この方法で捨てたカード([０-９\d]+)枚につき【エナチャージ([０-９\d]+)】をする$/);
+    if (chargePer && parseNum(chargePer[1]) === 1 && parseNum(chargePer[2]) === 1) {
+      return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: { $ref: 'last_processed_count' } };
+    }
+    const countTargetsPower = resultText.match(/^この方法で捨てたカードの枚数と同じ数の対戦相手のシグニを対象とし、(?:ターン終了時まで、)?それらのパワーをそれぞれ([－＋][０-９\d]+)する$/);
+    if (countTargetsPower) {
+      return {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'last_processed_count' }, filter: { cardType: 'シグニ' }, upToCount: false },
+        delta: parseSignedNum(countTargetsPower[1]),
+      } as PowerModifyAction;
+    }
+    const perCardPower = resultText.match(/^対戦相手のシグニ([０-９\d]+)体を対象とし、(?:ターン終了時まで、)?それのパワーをこの方法で捨てたカード([０-９\d]+)枚につき([－＋][０-９\d]+)する$/);
+    if (perCardPower && parseNum(perCardPower[2]) === 1) {
+      return {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(perCardPower[1]), filter: { cardType: 'シグニ' }, upToCount: false },
+        delta: parseSignedNum(perCardPower[3]), deltaPerLastProcessedCount: true,
+        perLastProcessed: { unit: 'cards' },
+      } as PowerModifyAction;
+    }
+  }
+
   const sentences = splitSentences(text).filter(s => {
     const c = s.trim().replace(/。$/, '');
     if (!c) return false;
@@ -19067,17 +19143,53 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     resolvedAction = pinTriggerSource(resolvedAction);
   }
 
-  // 「N枚まで／好きな枚数捨てる」は支払いコストではなく、選んだ枚数を後段で参照する
-  // action の一部。COUNT_BASED_DRAW_OR_POWER が SELECT_TARGET → continuation で実際に
-  // 手札からトラッシュへ移すため、この具体文型では cost/costUnparsed を出力しない。
-  // 既存の「捨てたカードの枚数（に1を加えた枚数）」形は curated JSON を不変に保つ。
-  const variableHandDiscardText =
+  // O-60 第13バッチ：「N枚まで／好きな枚数捨てる」は、後段と同じ ExecCtx で動く typed TRASH にする。
+  // 通常の EffectCost 支払いは効果本体と別 ExecCtx なので、外側へ残すと lastProcessedCards が失われる。
+  const variableHandDiscardMatch =
     effectType === 'AUTO'
     && timing?.includes('ON_PLAY')
-    && /^【出】手札(?:から(?:＜[^＞]+＞の)?(?:シグニ|カード))?を?(?:[０-９\d]+枚まで|好きな枚数)捨てる：/.test(block)
-    && /この方法で捨てたカード[０-９\d]+枚につき(?:カードを[０-９\d]+枚引く|【エナチャージ[０-９\d]+】をする|[－＋][０-９\d]+する)/.test(block);
-  if (variableHandDiscardText) {
-    resolvedAction = { type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' } as StubAction;
+    ? block.match(/^【出】手札(?:から(.{1,32}?))?を?((?:[０-９\d]+枚まで)|好きな枚数)捨てる：/)
+    : null;
+  const readsLastProcessed = (a: EffectAction): boolean => {
+    if (a.type === 'DRAW') {
+      return a.addLastProcessedCount === true || a.perLastProcessedLevel === true
+        || (typeof a.count === 'object' && a.count.$ref === 'last_processed_count');
+    }
+    if (a.type === 'ENERGY_CHARGE_FROM_DECK') return typeof a.count === 'object' && a.count.$ref === 'last_processed_count';
+    if (a.type === 'POWER_MODIFY') {
+      return a.deltaPerLastProcessedCount === true
+        || (typeof a.target.count === 'object' && a.target.count.$ref === 'last_processed_count');
+    }
+    return a.type === 'SEQUENCE' && a.steps.some(readsLastProcessed);
+  };
+  const normalizeLastProcessedDraw = (a: EffectAction): EffectAction => {
+    if (a.type === 'DRAW' && a.addLastProcessedCount === true
+        && typeof a.count === 'object' && a.count.$ref === 'last_processed_count') {
+      return { ...a, count: 0 };
+    }
+    if (a.type === 'SEQUENCE') return { ...a, steps: a.steps.map(normalizeLastProcessedDraw) };
+    return a;
+  };
+  let actionOwnsVariableHandDiscard = false;
+  if (variableHandDiscardMatch && readsLastProcessed(resolvedAction)) {
+    const filter = handDiscardSpecFilter(variableHandDiscardMatch[1] ?? '');
+    if (filter !== null) {
+      const countText = variableHandDiscardMatch[2];
+      const count = countText === '好きな枚数' ? 'ALL' as const : parseNum(countText.replace(/枚まで$/, ''));
+      resolvedAction = {
+        type: 'SEQUENCE', steps: [
+          {
+            type: 'TRASH', asCost: true,
+            target: {
+              type: 'HAND_CARD', owner: 'self', count, upToCount: true,
+              ...(Object.keys(filter).length ? { filter } : {}),
+            },
+          } as EffectAction,
+          normalizeLastProcessedDraw(resolvedAction),
+        ],
+      } as SequenceAction;
+      actionOwnsVariableHandDiscard = true;
+    }
   }
   // WX24-P4-103: 可変ルリグダウンで実際にダウンしたルリグのレベル合計を倍率にする。
   // 「好きな数」かつこの参照句を持つ具体文型だけに限定し、通常の中央ルリグレベル倍率へ波及させない。
@@ -19092,10 +19204,6 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       useLastDownedLrigLevelSum: true,
     };
   }
-  const actionOwnsVariableHandDiscard =
-    variableHandDiscardText
-    && resolvedAction.type === 'STUB'
-    && (resolvedAction as StubAction).id === 'COUNT_BASED_DRAW_OR_POWER';
   const outputCost = actionOwnsVariableHandDiscard ? undefined : cost;
   const outputCostUnparsed = actionOwnsVariableHandDiscard ? false : costUnparsed;
 

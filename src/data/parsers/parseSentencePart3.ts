@@ -696,11 +696,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'MOVE_TO_ATTACKER_FRONT' } as StubAction;
   }
 
-  // ---- この方法で捨てた・置いた・減ったカード枚数分だけドロー/修正 ----
-  if (t.match(/この方法で(?:捨てた|トラッシュに置かれた|ダウンした).*(?:枚数|合計|値).*(?:引く|する|＋)/)) {
-    return { type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' } as StubAction;
-  }
-
   // ---- 正面シグニのレベルにつきパワー修正 ----
   if (t.match(/正面のシグニのパワーをそのシグニのレベル.*につき/)) {
     return { type: 'STUB', id: 'POWER_MOD_BY_FRONT_LEVEL' } as StubAction;
