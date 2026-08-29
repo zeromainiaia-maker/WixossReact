@@ -1,5 +1,94 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：選択UIの候補不足ソフトロックを塞いだ（Codex 実装＋Claude 検証・実機で再現/解消を確認）
+
+🔴**人間プレイヤーの選択UIが、候補が要求枚数に足りない盤面で「決定」も「スキップ」も押せず、ゲームが進行不能になっていた。**
+
+### 真因＝下流3つはクランプ済みで**人間UIだけが取り残されていた**
+
+`selectOrInteract`（`execUtils.ts:3014`）は `count` を候補数へクランプせず pending に載せる。その先：
+
+| 消費地点 | 挙動 |
+|---|---|
+| `resumeSelectTarget`（`effectExecutor.ts:9081`） | ✅ `slice(0, count)`＝**上限だけ**。少ない選択を受け入れる |
+| CPU 自動応答（`BattleScreen.tsx:618-641`） | ✅ 候補が尽きればそのまま応答＝**自然にクランプ** |
+| golden autopilot（`goldenTest.ts:209`） | ✅ `min(count, cands.length)` |
+| **人間UI**（`EffectInteractionModal.tsx`） | 🔴 `maxPick = inter.count` ＋ `canConfirm` が `選択数 >= maxPick` を要求 |
+
+**脱出口も無い**＝`スキップ` は `optional` のときだけ、`該当なし` は `SEARCH` のときだけ描画され、
+閉じる／キャンセル／オーバーレイ dismiss は無い。
+
+🔑**なぜ全ゲートが緑のまま素通りしたか**＝**CPU と自動テストだけが助かっていた**。
+smoke も fuzz も golden も「クランプする側」の経路しか通らないので、**人間の操作でしか踏めない**。
+
+### 母集団（実測）
+
+```
+🔴 詰みうる形の live 出現: 129箇所 / 123効果 / 122カード（うち filter 付き32＝候補が枯れやすい）
+   TRASH/HAND_CARD 86 ・ TRANSFER_TO_HAND/TRASH_CARD 18 ・ TRASH/ENERGY_CARD 10
+   ADD_TO_FIELD/TRASH_CARD 6 ・ TRANSFER_TO_DECK/HAND_CARD 4 ・ ENERGY_CHARGE/TRASH_CARD 3 ほか
+```
+
+⚠**「詰みうる形が129箇所」であって「129件直った」ではない**（実際に詰むには候補 < count の盤面が要る）。
+⚠**アクション×ゾーンごとに経路が違う**＝`TRASH{TRASH_CARD}` / `TRANSFER_TO_HAND{HAND_CARD}` / `REVEAL` は
+候補不足で `done` に落ちるので安全、`EXILE` は count が1にクランプされる。**一律に決めつけない。**
+
+### 修正＝**最終ピッカー**で実効要求数をクランプ（`src/screens/battle/effectInteractionSelection.ts` 新設）
+
+```ts
+export function fixedSelectionPickLimit(requestedCount, candidateCount, optional) {
+  return optional ? requestedCount : Math.min(requestedCount, candidateCount);
+}
+```
+
+🔑**engine（`selectOrInteract`）ではなく UI を合流点にしたのは Codex の訂正による**＝
+**`BattleScreen.tsx:5011-5018` の `FORCE_TARGET_SELF` が pending 生成"後"に `candidates` だけを絞る**
+（`count` は据え置き）ため、engine 側でクランプしても**最終候補数と食い違う**。
+⚠**Claude の当初の見立て（「合流点＝engine」）は誤りで、Codex が実コードで訂正した。**
+
+`optional` / 候補充足時 / `SEARCH` / `totalPowerMax` 分岐は不変。
+
+### 🔴 随伴して直したもの＝**枚数を見ない did-it ゲートが部分払いで走る**（Claude の検証で発見）
+
+クランプを入れると「N枚捨てる。**そうした場合**」の後段が**一部しか払っていなくても走る**。
+実測＝**`WX25-P1-TK2-E1` は原文3枚のところ手札2枚で相手の場を全滅させた**。
+
+129箇所のうち did-it ゲートが直後にあるのは4箇所。うち2件（`WD14-011-BURST` / `WXK01-001-E2`）は
+元から `LAST_PROCESSED_COUNT_GTE{value:2}` で正しく、**残り2件が `CONDITIONAL{IS_MY_TURN}`（枚数を見ない慣例形）**
+だった＝**同じカード群の中で書き方が2種類に割れていた**。
+
+⇒ `WX14-012-E1`（2枚）と `WX25-P1-TK2-E1`（3枚）を `LAST_PROCESSED_COUNT_GTE{value:N}` へ。
+⚠**Codex は「既存engine規約どおり1枚以上処理できれば後段を行う」と判断して据置したが、検証で覆した**
+（原文の「そうした場合」は枚数を満たしたときのみ）。
+
+これに伴い §6.4 トリップワイヤ（「〜てもよい。そうした場合」の任意コスト検出）が
+「解消済みなのに既知リストに残っている」で発火。**リストから2件を外した**
+＝**許可リストを縮めるので検知は緩まない**（`IS_MY_TURN` へ戻れば即FAILする）。
+
+### 検証
+
+- `npm run gates` **全緑**（**golden 3012→3016**・census 489/489 据置・smoke 全0・fuzz 全0・
+  lint 0 errors/249 warnings 据置・同型★0・`census:enginetext` 136 据置）。
+- **golden の反転確認 2/2**＝①クランプを外すと FAIL ②did-it ゲートを `IS_MY_TURN` へ戻すと FAIL。
+- 🔴**実機で「詰み」を再現し、修正で解消することを確認**（新シナリオ `softlockshortpick`）：
+
+  | | 決定ボタン | 結果 |
+  |---|---|---|
+  | 修正前 | **`決定 (0/2)`** | 26ステップ進まず `pendingEffect=SELECT_TARGET` 残留・手札1のまま＝**詰み** |
+  | 修正後 | `決定 (0/1)` | 1枚選んで確定 → 手札1→0・trash=1・解決完了 |
+
+  復元後は `SKIP_BUILD=0` を付けて再実行（`dist` の mtime 判定で偽の赤が出るため）。
+  既存シナリオ `b25targetfirst`（SELECT_TARGET 経路）も PASS＝回帰なし。
+  ⚠**シナリオ作成で2回踏んだ**＝①`WX14-012` は**スペルではなくアーツ**（ルリグデッキから開く）
+  ②**花代限定**なのでルリグが花代でないと `使用` ボタンが出ない。
+
+### 分担
+
+**Codex**＝原因調査・UI 修正・純粋関数への切り出し・golden 3本。**申告値はすべて独立実行と一致。**
+**Claude**＝投入前の母集団/消費地点の実測、did-it 隣接4件の検証と是正2件、トリップワイヤ対応、実機シナリオと反転確認、簿記。
+
+---
+
 ## 2026-08-29：§5.2 Sheet3 バッチ7（速いレーン）＝11効果を消化（＋偽陽性1件・据置契約3本が発火）
 
 Sheet3 の2巡目。実装先は原則 `src/data/manualEffects.ts`（§2.0 速いレーン）。🔴**engine は1行**（照応の配線漏れ）。

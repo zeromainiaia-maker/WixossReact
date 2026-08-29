@@ -6,6 +6,7 @@ import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot, canAddToSelection
 import { C } from '../../../components/BoardComponents';
 import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi';
 import { energyPayEntryLabel } from '../energyPaySource';
+import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../effectInteractionSelection';
 import type { BattleModalCtx } from './types';
 import type { EffectAction } from '../../../types/effects';
 
@@ -108,7 +109,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
         // SELECT_TARGET / SEARCH 共通：カード選択ピッカー
         if (inter.type === 'SELECT_TARGET' || inter.type === 'SEARCH') {
           const candidates = inter.type === 'SELECT_TARGET' ? inter.candidates : inter.visibleCards;
-          const maxPick = inter.type === 'SELECT_TARGET' ? inter.count : inter.maxPick;
+          const maxPick = inter.type === 'SELECT_TARGET'
+            ? fixedSelectionPickLimit(inter.count, candidates.length, inter.optional)
+            : inter.maxPick;
 
           // ── opp_hand「見て選び」の**手札の持ち主**（タスク12(cv)）──
           // `targetScope:'opp_hand'` は「効果のコントローラーから見た対戦相手の手札」だが、
@@ -228,7 +231,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           const canConfirm = inter.type === 'SELECT_TARGET'
             ? (inter.totalPowerMax !== undefined
                 ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
-                : ((inter.optional || effectSelectedNums.length >= maxPick)
+                : (fixedSelectionCountCanConfirm(effectSelectedNums.length, inter.count, candidates.length, inter.optional)
                   && satisfiesSelectionConstraint(
                     effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
                     inter.selectionConstraint,

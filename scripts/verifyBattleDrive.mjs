@@ -1149,6 +1149,79 @@ const scenarios = {
   //    pending 効果 resume（handleEffectInteraction）で解決され、これらは resolveStackNext の中央 diff を通らないため
   //    ON_DECK_SHUFFLED が未発火だった。→両経路に collectDeckShuffleInline 検出を追加（engine 層は診断で発火確認済）。
   //    ⚠スペル経路の実 UI 確認は未完（診断ログが盤面に出ず非決定的＝別解決経路 or ツール障害の疑い）。要 follow-up 実行。
+  // 🔴**選択UIのソフトロック回帰ガード**（2026-08-30）＝非 optional の固定枚数選択で
+  //   **候補が要求数に足りない**とき、旧 UI は `決定` が disabled・`スキップ` も出ず**操作不能**だった
+  //   （`EffectInteractionModal.canConfirm` が `選択数 >= count` を要求し、`selectOrInteract` は
+  //   `count` を候補数へクランプしないため）。CPU と golden autopilot だけがクランプしており人間が詰んでいた。
+  // **観測点＝「手札が減って解決が終わること」**（詰んでいれば手札1のまま pendingEffect が残る）。
+  // ⚠**判別力は「手札1枚（原文は2枚）」の側にある**＝2枚あれば旧 UI でも普通に押せてしまう。
+  // ⚠`WX14-012` は**アーツ**（スペルではない）＝ルリグデッキから `my-lrig-dk`→`zone-card-0` で開く。
+  softlockshortpick: {
+    title: 'WX14-012 炎軍奮闘（手札2枚捨てるが手札は1枚＝候補不足でも確定できる／ソフトロック回帰ガード）',
+    spec: {
+      hostSet: {
+        // ⚠`WX14-012` は**花代限定**＝ルリグが花代でないと `使用` ボタンが出ない（初回実装でここを踏んだ）。
+        'field.lrig': ['WD02-001#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX14-012#1'],
+        'energy': ['WD01-013#2', 'WD01-013#3'],
+        'hand': ['WD01-013#7'],          // 🔑捨てられる手札は**1枚だけ**（原文の要求は2枚）
+        'actions_done': [],
+      },
+      guestSet: { 'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'actions_done': [] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`開始 hand=${st0?.host?.hand} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+      await H.ensureMain();
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let used = false, sawPicker = false, seenLabel = null;
+      const picked = new Set();
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/softlockshortpick-${s}.png`, fullPage: true });
+        let did = null;
+        if (!used) {
+          did = await clickExact('使用');
+          if (!did) {
+            const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+            if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+              if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'btn:アーツ使用'; used = true; }
+              else {
+                for (let i = 0; i < 6; i++) {
+                  if (picked.has(i)) continue;
+                  const e = page.getByTestId(`artscost-energy-${i}`).first();
+                  if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); did = `artscost-energy-${i}`; break; }
+                }
+              }
+            }
+          }
+        }
+        if (!did) {   // 手札を捨てる SELECT_TARGET（要求2・候補1）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            sawPicker = true;
+            const lbl = await page.getByRole('button', { name: /決定 \(/ }).first().textContent().catch(() => null);
+            if (lbl && !seenLabel) { seenLabel = lbl.trim(); H.log(`    ピッカー表示: 決定ボタン="${seenLabel}"（修正前は「決定 (0/2)」で押せない）`); }
+            const ready = await page.getByRole('button', { name: /決定 \(1\/1\)/ }).count();
+            if (!ready) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        H.log(`  softlock[${s}] -> ${did ?? 'なし'} | hand=${st?.host?.hand ?? '-'} trash=${st?.host?.trash ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (sawPicker && st?.host?.hand === 0 && !st?.pendingEffect) {
+          return { pass: true, detail: `候補不足（要求2・候補1）でも確定でき、手札1→0・解決完了（決定ボタン="${seenLabel ?? '-'}" trash=${st.host.trash}）` };
+        }
+      }
+      const st = await H.queryState();
+      return { pass: false, detail: `詰み疑い＝ピッカー表示=${sawPicker} 決定ボタン="${seenLabel ?? '-'}" hand=${st?.host?.hand} pendingEffect=${st?.pendingEffect}` };
+    },
+  },
   deckshufflespell: {
     title: 'PR-470A（ON_DECK_SHUFFLED・スペル経路＝SEARCHER／修正回帰ガード）',
     spec: {

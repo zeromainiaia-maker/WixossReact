@@ -67,6 +67,7 @@ import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
+import { fixedSelectionCountCanConfirm, fixedSelectionPickLimit } from '../src/screens/battle/effectInteractionSelection';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost } from '../src/screens/battle/lrigDownCost';
 import { payFieldBanishCost } from '../src/screens/battle/fieldBanishCost';
@@ -12807,8 +12808,14 @@ test('§6.4 fieldDown: アップ状態の該当シグニが足りなければ支
 const FORCED_HAND_COST_KNOWN = new Set([
   // ── 原文が強制の手札捨て（＝バグではない。「捨てる。そうした場合」形）──
   'WDK07-E01-E2', 'WDK07-E06-E1', 'WX03-034-BURST', 'WX04-030-BURST', 'WX05-030-BURST',
-  'WX05-045-BURST', 'WX14-012-E1', 'WX19-001-E3', 'WX25-P1-TK2-E1', 'WX25-P3-TK03-E1',
+  'WX05-045-BURST', 'WX19-001-E3', 'WX25-P3-TK03-E1',
   'WX26-CP1-068-E1',
+  // ⚠`WX14-012-E1` / `WX25-P1-TK2-E1` は **2026-08-30 にリストから外した**（この test が stale として検出した）。
+  //   原文が強制の手札捨てである点は変わらないが、**did-it ゲートを `IS_MY_TURN` から
+  //   `LAST_PROCESSED_COUNT_GTE{value:N}` へ替えた**ので、この wire が見張る形（`IS_MY_TURN` 直後）から外れた。
+  //   🔴**替えた理由**＝選択UIの候補不足クランプ（同日）を入れると、**枚数を見ないゲートは部分払いで後段が走る**
+  //   （実測＝`WX25-P1-TK2-E1` が手札2枚／原文3枚で相手の場を全滅させた）。
+  //   ⚠**リストから外すのは検知を緩めない**＝もし将来 `IS_MY_TURN` へ戻ったら「新しい強制の手札捨てコスト」として即FAILする。
   // ⚠`WXK05-003-E1` は §6.4 O-33（続き502）で**リストから外した**＝素の TRASH は原文の
   //   「③…バニッシュする。**手札を１枚捨てる。**」＝選択肢③の2文目が top-level へ漏れていたもので、
   //   選択肢本文の漏れを落とす一般ガードで消えた（強制の手札捨てではなかった）。
@@ -53593,6 +53600,54 @@ test('manual2 C SP26-008-E1: 最初に選んだ赤シグニだけへ3能力を�
     ok(fired.ownerState.field.signi_down?.[0] === false, '引用AUTOが発火してアタッカーをアップ');
     ok(fired.ownerState.field.signi_down?.[1] === false, '対照: 別のシグニの状態は変えない');
   }
+}));
+
+test('選択UI枚数ゲート: 候補不足なら非optionalでも全候補の選択で確定できる', () => {
+  eq(fixedSelectionPickLimit(3, 2, false), 2, '要求3・候補2の実効要求数');
+  ok(fixedSelectionCountCanConfirm(2, 3, 2, false), '候補2枚をすべて選んでも確定不能');
+});
+
+test('選択UI枚数ゲート: 候補充足時は要求枚数をすべて選ぶまで確定できない', () => {
+  eq(fixedSelectionPickLimit(3, 4, false), 3, '候補が足りる通常ケースの要求数');
+  ok(!fixedSelectionCountCanConfirm(2, 3, 4, false), '2/3枚で早期確定できてしまう');
+  ok(fixedSelectionCountCanConfirm(3, 3, 4, false), '3/3枚でも確定できない');
+});
+
+test('選択UI枚数ゲート: optionalは従来どおり0枚で確定できる', () => {
+  eq(fixedSelectionPickLimit(3, 1, true), 3, 'optionalの宣言上限を候補数で書き換えない');
+  ok(fixedSelectionCountCanConfirm(0, 3, 1, true), 'optionalの0枚確定が失われた');
+});
+
+// 🔴**クランプの随伴＝「N枚捨てる。そうした場合」の did-it ゲートが枚数を見ていないと過剰実行になる**
+//   （2026-08-30 検証で発見）。候補不足クランプが入るまでは「決定が押せない＝そこで止まる」ので露見しなかった。
+//   ⚠実測＝`WX25-P1-TK2-E1` は原文3枚のところ**手札2枚で相手の場を全滅**させた。
+//   ⇒ `CONDITIONAL{IS_MY_TURN}`（枚数を見ない慣例形）を `LAST_PROCESSED_COUNT_GTE{value:N}` へ。
+//   ⚠**両方向で固定する**（§5-3′）＝足りない盤面で走らないことと、足りる盤面で走ることの対照。
+test('選択UI枚数ゲート E2E: 部分払いでは「そうした場合」が走らない（WX25-P1-TK2-E1 / WX14-012-E1）', () => withSavedCursor(() => {
+  const wipe = (handCount: number) => {
+    const eff = effectsMap.get('WX25-P1-TK2')!.find(e => e.effectId === 'WX25-P1-TK2-E1')!;
+    const ctx = mkCtx({ hand: handCount }, { signi: [SIGNI_P3000, SIGNI_P12000, null] }, 'WX25-P1-TK2');
+    const first = executeEffect(eff, ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', '手札選択が出る');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') return 99;
+    // クランプ後の人間の操作＝候補を全部選んで確定（足りなければ足りないまま）
+    const r = finish(resumeSelectTarget(first.pending.candidates, first.pending, ctxAfter(first, ctx)), ctx);
+    return tops(r.otherState as PlayerState).filter(n => n !== null).length;
+  };
+  eq(wipe(2), 2, '手札2枚（原文は3枚）では全滅しない＝部分払いで後段が走らない');
+  eq(wipe(3), 0, '手札3枚なら原文どおり相手の場が全滅する（対照＝ゲートが強すぎないこと）');
+
+  // `WX14-012-E1`（2枚捨てる→《フレイスロ》を2枚まで場に出す）も同じ形。
+  const searched = (handCount: number) => {
+    const eff = effectsMap.get('WX14-012')!.find(e => e.effectId === 'WX14-012-E1')!;
+    const ctx = mkCtx({ hand: handCount }, {}, 'WX14-012');
+    const first = executeEffect(eff, ctx);
+    if (first.done || first.pending.type !== 'SELECT_TARGET') return false;
+    const r = finish(resumeSelectTarget(first.pending.candidates, first.pending, ctxAfter(first, ctx)), ctx);
+    return (r.logs ?? []).some(l => l.includes('シャッフル'));   // サーチまで到達したか
+  };
+  eq(searched(1), false, '手札1枚（原文は2枚）ではサーチへ進まない');
+  eq(searched(2), true, '手札2枚なら原文どおりサーチへ進む（対照）');
 }));
 
 if (listMode) {

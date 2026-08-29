@@ -5783,6 +5783,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK05-046": [
     {"effectId":"WXK05-046-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"POWER_MODIFY_PER_TRASH_COUNT","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerUnit":-1000,"unitSize":1,"trashOwner":"self","countFilter":{"cardNames":["幕末の人斬り　イゾウ"]},"until":"UNTIL_END_OF_TURN"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"fromZones":["deck"]}},
   ],
+  // 2026-08-30 ソフトロック修正の随伴（検証で発見）＝「N枚捨てる。**そうした場合**」の did-it ゲートが
+  // `CONDITIONAL{IS_MY_TURN}`（＝枚数を見ない慣例形）だと、**候補不足クランプ後に一部しか払っていなくても
+  // 後段が走る**。⚠実測＝`WX25-P1-TK2-E1` は手札2枚（原文は3枚）で**相手の場を全滅**させた。
+  // ⇒ 枚数を明示する `LAST_PROCESSED_COUNT_GTE{value:N}` へ置き換える（兄弟の `WD14-011-BURST` /
+  //   `WXK01-001-E2` は元からこの形＝**同じカード群の中で書き方が2種類に割れていた**）。
+  "WX14-012": [
+    {"effectId":"WX14-012-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","cardName":"フレイスロ"},"maxCount":2,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX25-P1-TK2": [
+    {"effectId":"WX25-P1-TK2-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":3}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}},{"type":"STUB","id":"ARTS_IMMOVABLE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
 };
 
 /**
