@@ -160,9 +160,22 @@ export interface Variable {
 export type NumberOrRef = number | { $ref: string; filter?: TargetFilter };
 
 export interface CountFromZone {
-  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap';
+  /**
+   * 🆕`under`＝**効果元シグニの下にあるカード**（＝そのスタックの最上面より下・§5.3 `O-141`）。
+   * ⚠他のゾーンと違い `owner` ではなく **`ExecCtx.sourceCardNum`** で場所が決まる＝効果元が特定
+   *   できない経路（付与展開・`effect_stack` 注入）では **0 へ fail-closed** する（旧 STUB も
+   *   カード全文 regex が読めず no-op だったので退化しない）。
+   */
+  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under';
   owner: Owner;
   filter?: TargetFilter;
+  /**
+   * 🆕「〈ゾーン〉にあるすべてのシグニの**パワーの合計**と同じだけ」（§5.3 `O-141`）。
+   * 指定時は「枚数」ではなく filter 一致カードの **Power の総和**を単位量にする
+   * （`unitSize`／`maxCount`／`per` は総和に対して同じ意味で掛かる）。
+   * ⚠パワーは**印刷値**で数える＝場に出ていないカード（スタック下段）は実効パワーを持たない。
+   */
+  sumBy?: 'power';
   /** 「N枚につき」の単位。該当枚数をこの値で割り、端数を切り捨てる。 */
   unitSize?: number;
   /** 既存の「1枚につきN」用乗数。unitSize とは意味が逆なので互換性のため分離する。 */

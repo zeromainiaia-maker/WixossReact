@@ -18674,6 +18674,65 @@ test('POWER_MODIFY deltaFromZone: エナゾーンの該当枚数×per をパワ�
     { ...ctx, ownerState: withEnergy } as ExecCtx);
   eq(((filtered.ownerState as PlayerState).power_mods_until_opp_turn ?? [])[0]?.delta, 0, 'filter 不一致は数えない');
 }));
+// ── §5.3 `O-141`「このシグニの下にあるカードN枚につき±X」／「下にあるすべてのシグニのパワーの合計」──
+// 🔴従来は catch-all `STUB{POWER_MOD_PER_COUNT}` に落ち、engine が**カード全文 regex**で意味を決めていた
+//   （枚数側は倍率を `lastProcessedCards.length`＝トリガー直後は 0 から取るので**一度も効かない**、
+//   パワー合計側は「シグニの」を無視して**下段の全カード**を足していた）。
+test('POWER_MODIFY deltaFromZone zone:under＝効果元スタックの下段枚数×per（§5.3 O-141）', () => withSavedCursor(() => {
+  const src = SIGNI;
+  const ctx = mkCtx({ signi: [src, null, null] }, { signi: [SIGNI_P12000, null, null] }, src);
+  const stacked = {
+    ...ctx.ownerState,
+    field: { ...ctx.ownerState.field, signi: [[SIGNI_L1, SIGNI_L2, src], null, null] },
+  } as unknown as PlayerState;
+  const act = {
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+    delta: 0,
+    deltaFromZone: { zone: 'under', owner: 'self', unitSize: 1, per: -4000 },
+  } as unknown as EffectAction;
+  const r = run(act, { ...ctx, ownerState: stacked } as ExecCtx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  eq(mods.length, 1, '相手シグニ1体へ乗る');
+  eq(mods[0].delta, -8000, '下段2枚×-4000');
+  // 🔴下段が無い／効果元が特定できない場合は **0**（fail-closed）＝旧 STUB の no-op と同じ向き。
+  eq(((run(act, ctx).otherState as PlayerState).temp_power_mods ?? [])[0]?.delta, 0, '下段0枚なら±0');
+  const noSrc = run(act, { ...ctx, ownerState: stacked, sourceCardNum: undefined } as unknown as ExecCtx);
+  eq(((noSrc.otherState as PlayerState).temp_power_mods ?? [])[0]?.delta, 0, '効果元不明なら±0');
+}));
+test('POWER_MODIFY deltaFromZone zone:under + sumBy:power＝下段シグニのパワー合計（§5.3 O-141）', () => withSavedCursor(() => {
+  const src = SIGNI;
+  const spell = findCard(c => c.Type === 'スペル');
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const stacked = {
+    ...ctx.ownerState,
+    field: { ...ctx.ownerState.field, signi: [[SIGNI_P3000, spell, src], null, null] },
+  } as unknown as PlayerState;
+  const act = {
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } },
+    delta: 0,
+    deltaFromZone: { zone: 'under', owner: 'self', filter: { cardType: 'シグニ' }, sumBy: 'power', per: 1 },
+  } as unknown as EffectAction;
+  const r = run(act, { ...ctx, ownerState: stacked } as ExecCtx);
+  eq(((r.ownerState as PlayerState).temp_power_mods ?? [])[0]?.delta, 3000,
+    '下段のシグニ（3000）だけを足す＝スペルは数えない');
+}));
+test('§5.3 O-141: 「下にあるカード」参照の3効果が payload になっている（カード全文 regex を撤去）', () => {
+  const tree = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  for (const num of ['WXDi-CP02-054', 'WXK09-060']) {
+    const t = tree(num, `${num}-E1`);
+    ok(t.includes('"zone":"under"'), `${num}-E1 の下段参照が落ちている`);
+    ok(t.includes('"per":-4000'), `${num}-E1 の1枚あたりの単価が落ちている`);
+    ok(!t.includes('POWER_MOD_PER_COUNT'), `${num}-E1 が catch-all STUB へ戻っている`);
+  }
+  const p07 = tree('WXDi-P07-065', 'WXDi-P07-065-E1');
+  ok(p07.includes('"sumBy":"power"'), 'WXDi-P07-065-E1 の「パワーの合計」参照が落ちている');
+  ok(p07.includes('"zone":"under"'), 'WXDi-P07-065-E1 の下段参照が落ちている');
+  ok(/"filter":\{"cardType":"シグニ"\},"sumBy"/.test(p07),
+    '「すべてのシグニの」の種別 filter が落ちている（下段の全カードを足す旧挙動に戻っている）');
+});
 test('「このシグニを場からトラッシュに置き、〜」＝自己トラッシュ＋後続（§6.4 O-3）', () => {
   const tree = (num: string, effectId: string) =>
     JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});

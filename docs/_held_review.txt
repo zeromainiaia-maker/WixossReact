@@ -21,6 +21,50 @@ PR-Di017B SP27-009 SP38-006 WD07-006 WD15-001 WD19-009 WDK16-13 WX12-Re10 WX13-0
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
 
+## +POWER_MODIFY +SIGNI -STUB ［3枚］
+WXDi-CP02-054 WXDi-P07-065 WXK09-060
+--- WXDi-CP02-054
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニの下にあるカード１枚につき－4000する。このシグニの下にあるすべてのカードをトラッシュに置く。【起】手札から＜ブルアカ＞のカードを１枚捨てる：あなたのトラッシュから＜ブルアカ＞のカードを２枚まで対象とし、それらをこのシグニの下に置く。【絆自】《タ
+  - [0].action.steps[0].id = "POWER_MOD_PER_COUNT"
+  ~ [0].action.steps[0].type : "STUB" → "POWER_MODIFY"
+  + [0].action.steps[0].target.type = "SIGNI"
+  + [0].action.steps[0].target.owner = "opponent"
+  + [0].action.steps[0].target.count = 1
+  + [0].action.steps[0].target.filter.cardType = "シグニ"
+  + [0].action.steps[0].delta = 0
+  + [0].action.steps[0].deltaFromZone.zone = "under"
+  + [0].action.steps[0].deltaFromZone.owner = "self"
+  + [0].action.steps[0].deltaFromZone.unitSize = 1
+  + [0].action.steps[0].deltaFromZone.per = -4000
+--- WXDi-P07-065
+  原文: 【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ＋する。その後、このシグニのパワーが15000以上の場合、《赤》《赤》《無》を支払ってもよい。そうした場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：あなたのデッキの一番上のカードをこのシグニの下に置く。【起】《
+  - [0].action.steps[0].id = "POWER_MOD_PER_COUNT"
+  ~ [0].action.steps[0].type : "STUB" → "POWER_MODIFY"
+  + [0].action.steps[0].target.type = "SIGNI"
+  + [0].action.steps[0].target.owner = "self"
+  + [0].action.steps[0].target.count = 1
+  + [0].action.steps[0].target.filter.cardType = "シグニ"
+  + [0].action.steps[0].target.filter.thisCardOnly = true
+  + [0].action.steps[0].delta = 0
+  + [0].action.steps[0].deltaFromZone.zone = "under"
+  + [0].action.steps[0].deltaFromZone.owner = "self"
+  + [0].action.steps[0].deltaFromZone.filter.cardType = "シグニ"
+  + [0].action.steps[0].deltaFromZone.sumBy = "power"
+  …（他 1 行）
+--- WXK09-060
+  原文: 【ライズ】あなたの《楽隊の童話　ロバン》１体の上に置く【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニの下にあるカード１枚につき－4000する。【自】：対戦相手のターンの間、このシグニが場を離れたとき、対戦相手のデッキの上からカードを４枚トラッシュに置く。【出】：あなたのトラッシュから《楽隊の
+  - [0].action.id = "POWER_MOD_PER_COUNT"
+  ~ [0].action.type : "STUB" → "POWER_MODIFY"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "opponent"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.delta = 0
+  + [0].action.deltaFromZone.zone = "under"
+  + [0].action.deltaFromZone.owner = "self"
+  + [0].action.deltaFromZone.unitSize = 1
+  + [0].action.deltaFromZone.per = -4000
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -64,7 +108,7 @@ WX16-005
   + [0].action.choices[0].action.target.count = 1
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
-  …（他 24 行）
+  …（他 25 行）
 
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005

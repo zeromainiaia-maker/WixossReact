@@ -1,8 +1,8 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 617（総ノード 2907 件）
-逆翻訳シートの [STUB:…] 総数: 590  うち生ID露出 5 箇所（4 種）
+live JSON の STUB id 種類 : 617（総ノード 2904 件）
+逆翻訳シートの [STUB:…] 総数: 587  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 26 種 / 27 件
@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 617（総ノード 2907 件）
         生成: src\data\parsers\parseSentencePart2.ts:445
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:19353
+        生成: src\data\effectParser.ts:19402
      1件   1枚  DEFERRED_CHECK_ZONE_TO_HAND
         カード: WXDi-P11-006
         生成: src\data\effectParser.ts:12379
@@ -179,7 +179,7 @@ live JSON の STUB id 種類 : 617（総ノード 2907 件）
         消費: src\screens\battle\costs.ts:1156
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1554
+        消費: src\engine\execUtils.ts:1585
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:7499

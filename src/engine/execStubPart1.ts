@@ -1709,10 +1709,11 @@ export function execStubPart1(
     const lvlM = !perM ? effText.match(/レベル([０-９\d]+)につき([－＋][０-９\d]+)/) : null;
     // パターン3: "合計で±X" （固定合計値）
     const totalM = (!perM && !lvlM) ? effText.match(/合計で([－＋][０-９\d]+)/) : null;
-    // パターン4: "自身の下にあるすべてのシグニのパワーの合計と同じだけ+" (WXDi-P07-065 ライズ系)
-    const stackPwM = (!perM && !lvlM && !totalM) ? effText.match(/自身の下にある.*シグニのパワー.*合計/) : null;
+    // ✅パターン4（"自身の下にあるすべてのシグニのパワーの合計と同じだけ+"）は §5.3 `O-141`（2026-08-29）で
+    //   撤去した＝`POWER_MODIFY{deltaFromZone:{zone:'under', sumBy:'power'}}` が payload で持つ。
+    //   旧実装は「シグニの」を無視して**下段の全カード**（このカードの【出】は種別問わず置く）を足していた。
     // パターン5: "この方法で〜したシグニのパワーと同じだけ-" (WXDi-P14-037, WXK10-026)
-    const lastPwM = (!perM && !lvlM && !totalM && !stackPwM)
+    const lastPwM = (!perM && !lvlM && !totalM)
       ? effText.match(/(?:この方法で|ターン終了時まで、|そうした場合、).*シグニのパワーと同じだけ([－＋])/)
       : null;
 
@@ -1733,19 +1734,6 @@ export function execStubPart1(
       totalDelta = Math.floor(sumLvl / unitLvl) * deltaPerLvl;
     } else if (totalM) {
       totalDelta = toSigned(totalM[1]);
-    } else if (stackPwM && ctx.sourceCardNum) {
-      // パターン4: 自身の下にあるシグニのパワー合計と同じだけ+（ライズスタック）
-      const srcCNSP = ctx.sourceCardNum;
-      for (const stack of ctx.ownerState.field.signi) {
-        const topIdx = stack?.indexOf(srcCNSP) ?? -1;
-        if (topIdx < 0) continue;
-        const underCards = stack!.slice(0, topIdx);
-        totalDelta = underCards.reduce((acc, cn) => {
-          const pw = ctx.effectivePowers?.get(cn) ?? (parseInt(ctx.cardMap.get(cn)?.Power ?? '0') || 0);
-          return acc + pw;
-        }, 0);
-        break;
-      }
     } else if (lastPwM && processed.length > 0) {
       // パターン5: lastProcessedCards[0] のパワーと同じだけ±
       const sign = lastPwM[1] === '－' ? -1 : 1;

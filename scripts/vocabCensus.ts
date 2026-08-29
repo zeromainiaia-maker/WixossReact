@@ -112,7 +112,8 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 520; // §5.3 O-80 第2バッチ（2026-08-29）＝STUB免除を外した WX14-048-E1 / WXDi-P06-041-E1 の可視化で 518→520。
+const BASELINE_HIGH = 520; // §5.3 O-141（2026-08-29）＝**据え置き**。STUB を外した `WXK09-060-E1` の免除が切れて 521 へ上がったが、`deltaFromZone` を「数量比例」の対応語彙へ足す較正（`countFromZone` と同じ `CountFromZone` なのに**綴り違いで部分一致しない**＝`maxCost`／`Under` と同じ罠）で相殺して 520 に戻った。⚠`WX14-048-E1` も偽陽性として落ちたが**別クラスタでも高シグナル**なので重複除外後の総数は動かない。
+// 旧: const BASELINE_HIGH = 520; // §5.3 O-80 第2バッチ（2026-08-29）＝STUB免除を外した WX14-048-E1 / WXDi-P06-041-E1 の可視化で 518→520。
 // 旧: const BASELINE_HIGH = 518; // §5.2 Sheet2 バッチ1（2026-08-29・速いレーン初回）＝6枚の手書き修正で 520→518。
 // 旧: const BASELINE_HIGH = 521; // 2026-08-28 §5.3 `O-92` の仕分け（「そのアタックの間」の期間限定を
 //     END_OF_ATTACK へ直したぶん、ガード不可の高シグナルが1件解消した）。
@@ -782,9 +783,12 @@ const PATTERNS: Pattern[] = [
     //   `resolveCountRef`／`countFromZone()` が消費）。「あなたの場にある＜X＞のシグニ1体につき」等。
     // 🆕`perAllSigni`＝`ATTACH_CHARM` の「相手のシグニ**1体につき**1枚ずつ」（`to.count:'ALL'` と対で使う）。
     //   どちらも「1枚/1体につき」の語彙そのものなのに対応表から漏れていた（実測10効果が偽陽性）。
+    // 🆕`deltaFromZone`＝`POWER_MODIFY` 側の同義キー（§5.3 `O-141`・2026-08-29）。中身は同じ
+    //   `CountFromZone` なのに**綴りが違うだけで部分一致しない**＝`countFromZone` だけを表に載せていた
+    //   ため `WX14-048-E1`／`WXK09-060-E1` が偽陽性で高シグナルに立っていた（`maxCost`／`Under` と同じ罠）。
     keys: ['deltaPer', 'PER_', 'perCount', 'countFilter', 'PerCard', 'PerLevel', 'PerCharm',
       '$ref', 'last_processed', 'lastProcessed', 'addLast', 'costScaling',
-      'countFromZone', 'perAllSigni'],
+      'countFromZone', 'deltaFromZone', 'perAllSigni'],
   },
   {
     name: '合計制約(合計がN以上/以下)',

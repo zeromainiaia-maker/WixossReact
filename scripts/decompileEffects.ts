@@ -123,13 +123,15 @@ function anyOfJa(list: any[]): string {
 }
 
 function countFromZoneJa(spec: any): string {
-  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
+  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】', under: 'このシグニの下' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
   const noun = spec?.filter
     ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || 'カード'}`
     : 'カード';
   const owner = ownerJa(spec?.owner);
   const base = spec?.zone === 'deck' ? `${owner}デッキの枚数`
     : spec?.zone === 'charm' ? `${owner}場にある【チャーム】の枚数`
+    // `under`＝効果元スタックの下段（§5.3 `O-141`）。所有者は効果元で決まるので owner を出さない。
+    : spec?.zone === 'under' ? `${zone}にある${noun}の枚数`
     : `${owner}${zone}にある${noun}の枚数`;
   return `${base}${spec?.unitSize ? `÷${spec.unitSize}` : ''}${spec?.per && spec.per !== 1 ? `×${spec.per}` : ''}`;
 }
@@ -144,6 +146,7 @@ function countFromZonePerJa(spec: any, suffix: string, upTo = false): string {
   const subject = spec?.zone === 'deck' ? `${ownerJa(spec.owner)}デッキの枚数`
     : spec?.zone === 'charm' ? `${ownerJa(spec.owner)}場にある【チャーム】`
     : spec?.zone === 'field' ? `${ownerJa(spec.owner)}場にある${filJa}${([] as string[]).concat(spec.filter?.cardType ?? []).join('か') || 'カード'}`
+    : spec?.zone === 'under' ? `このシグニの下にある${filJa}${([] as string[]).concat(spec.filter?.cardType ?? []).join('か') || 'カード'}`
     : `${ownerJa(spec.owner)}${filJa}${({ acce: '【アクセ】', trash: 'トラッシュにあるカード' } as Record<string, string>)[spec?.zone] ?? `${spec?.zone}にあるカード`}`;
   const counterJa = spec?.zone === 'field' && spec?.filter?.cardType === 'シグニ' ? '体' : '枚';
   return `${subject}${unit}${counterJa}につき${per}${suffix}${upTo ? 'まで' : ''}`;
@@ -1078,9 +1081,18 @@ function actionJa(a?: Action, effectType?: string): string {
         const d = z.per ?? 0;
         const filter = z.filter ?? {};
         const noun = `${z.distinctBy === 'level' ? 'それぞれレベルの異なる' : ''}${filterJa(filter)}${filter.cardType ?? 'カード'}`;
-        const location = z.zone === 'trash' ? 'トラッシュにある' : `${z.zone}にある`;
+        // 🆕`under`＝効果元シグニの下段（§5.3 `O-141`）。所有者は効果元で決まるので owner を出さない。
+        //   ⚠ここを既定の `${z.zone}にある` に落とすと逆翻訳に**生の英語 `under`** が出る（census:stubs C群と同じ穴）。
+        const location = z.zone === 'trash' ? 'トラッシュにある'
+          : z.zone === 'under' ? 'このシグニの下にある'
+          : `${z.zone}にある`;
+        const ownerPrefix = z.zone === 'under' ? '' : ownerJa(z.owner);
         const cap = z.maxCount === undefined ? '' : `（この効果は${z.maxCount}枚までしか適用されない）`;
-        return `${pmSubj}のパワーを${ownerJa(z.owner)}${location}${noun}${z.unitSize ?? 1}枚につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する${pmDuration}${cap}`;
+        // 🆕`sumBy:'power'`＝枚数比例ではなく**下段のパワー総和**と同じだけ増減する（§5.3 `O-141`）。
+        if (z.sumBy === 'power') {
+          return `${pmSubj}のパワーを${ownerPrefix}${location}すべての${noun}のパワーの合計と同じだけ${d >= 0 ? '＋' : '－'}する${pmDuration}${cap}`;
+        }
+        return `${pmSubj}のパワーを${ownerPrefix}${location}${noun}${z.unitSize ?? 1}枚につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する${pmDuration}${cap}`;
       }
       // deltaPerTargetLevel: 倍率は「対象シグニ自身のレベル」＝delta はレベル1あたりの単価（§6.4 O-16(a)）
       if (a.deltaPerTargetLevel) {

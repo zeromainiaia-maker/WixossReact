@@ -149,7 +149,7 @@ export function sourceAbilityText(ctx: ExecCtx): string {
 
 export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFromZone): number {
   if (fromZone) {
-    return countFromZone(fromZone, ctx.ownerState, ctx.otherState, ctx.cardMap);
+    return countFromZone(fromZone, ctx.ownerState, ctx.otherState, ctx.cardMap, ctx.sourceCardNum);
   }
   if (typeof n === 'number') return n;
   if (n.$ref === 'seven_minus_self_life_count') return Math.max(0, 7 - ctx.ownerState.life_cloth.length);
@@ -200,9 +200,16 @@ export function countFromZone(
   ownerSt: PlayerState,
   otherSt: PlayerState,
   cardMap: Map<string, CardData>,
+  sourceCardNum?: string,
 ): number {
   const state = fromZone.owner === 'self' ? ownerSt : otherSt;
-  const cards = fromZone.zone === 'field'
+  // 🆕`under`＝効果元シグニのスタックのうち**その位置より下**（§5.3 `O-141`）。
+  // ⚠`owner` は見ない（効果元は常にその効果を出したプレイヤーの場にいる）＝`ownerSt` を使う。
+  // ⚠効果元が特定できない／場にいない経路は **0**（fail-closed）。旧 `STUB{POWER_MOD_PER_COUNT}` も
+  //   `ctx.sourceCardNum` が無ければ何もしなかったので退化しない。
+  const cards = fromZone.zone === 'under'
+    ? underCardsOfSource(ownerSt, sourceCardNum)
+    : fromZone.zone === 'field'
     ? [
         ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
         ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
@@ -216,7 +223,12 @@ export function countFromZone(
     : fromZone.zone === 'charm' ? (state.field.signi_charms ?? []).filter((n): n is string => !!n)
     : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
   const matchedCards = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
-  const rawMatched = fromZone.distinctBy === 'level'
+  const rawMatched = fromZone.sumBy === 'power'
+    // 「パワーの合計と同じだけ」＝枚数ではなく Power の総和を単位量にする（§5.3 `O-141`）。
+    // スタック下段のカードは場に出ていない＝実効パワー（`effectivePowers`）を持たないので印刷値で数える。
+    ? matchedCards.reduce((sum, cardNum) =>
+        sum + (Number.parseInt(cardMap.get(getCardNum(cardNum))?.Power ?? '', 10) || 0), 0)
+    : fromZone.distinctBy === 'level'
     ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.Level ?? '')
       .filter(level => level !== '')).size
     : matchedCards.length;
@@ -226,6 +238,25 @@ export function countFromZone(
   const units = fromZone.unitSize === undefined ? matched : Math.floor(matched / fromZone.unitSize);
   // units（枚数）は常に非負。per は POWER_MODIFY.deltaFromZone の単価にも使うため負符号を潰さない。
   return units * (fromZone.per ?? 1);
+}
+
+/**
+ * 効果元シグニの**下にあるカード**（`CountFromZone.zone:'under'`・§5.3 `O-141`）。
+ * ⚠**「最上面を除く」ではなく「効果元の位置より下」**＝効果元がライズの下段に潜っている盤面でも
+ *   原文（「このシグニの下にあるカード」）どおりに数える。
+ * ⚠instanceId（`CardNum#N`）で持つ経路があるので、完全一致→素の番号一致の順で探す。
+ */
+function underCardsOfSource(ownerSt: PlayerState, sourceCardNum?: string): string[] {
+  if (!sourceCardNum) return [];
+  const bare = getCardNum(sourceCardNum);
+  for (const stack of ownerSt.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const exact = stack.indexOf(sourceCardNum);
+    const idx = exact >= 0 ? exact : stack.findIndex(cardNum => getCardNum(cardNum) === bare);
+    if (idx < 0) continue;
+    return stack.slice(0, idx);
+  }
+  return [];
 }
 
 // 「それのレベル１につき」族（タスク12(liii)）の倍率。対象は常に単数なので最大値＝そのカードのレベル。

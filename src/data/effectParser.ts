@@ -12701,6 +12701,55 @@ function rewritePowerModPerCountPayload(text: string, action: EffectAction): Eff
     } as EffectAction);
   }
 
+  // 🆕「〈対象〉のパワーをこのシグニの下にあるカードN枚につき±X」（§5.3 `O-141`・2026-08-29）。
+  // 🔴従来は catch-all `STUB{POWER_MOD_PER_COUNT}` に落ち、engine が**カード全文 regex**
+  //   `N枚につき±X` に当たったうえで倍率を `lastProcessedCards.length` から取っていた＝
+  //   トリガー直後は 0枚なので**一度も効かない無言 no-op**（当たっているのに別のものを数えている）。
+  // 🔑倍率元は `CountFromZone.zone:'under'`（効果元スタックの下段）＝payload で確定させる。
+  // ⚠「それ」の照応は**同じ文の「対戦相手のシグニ〜を対象とし」**でのみ確定させる（§5.3 `O-80` の
+  //   fail-closed 則）。主語が「このシグニのパワーを」なら効果元自身。どちらでもなければ差し戻す。
+  const underCountM = t.match(/パワーを(?:この|その)シグニの下にある([^、。]*?)([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (underCountM) {
+    const selfSubject = /(?:この|その)シグニのパワーを(?:この|その)シグニの下にある/.test(t);
+    const oppAnaphora = /対戦相手のシグニ[０-９\d]*体(?:まで)?を対象とし/.test(t) && /それのパワーを/.test(t);
+    if (selfSubject || oppAnaphora) {
+      const underFilter = countFilter(underCountM[1]);
+      return replaceUniquePowerModPerCount(action, {
+        type: 'POWER_MODIFY',
+        target: selfSubject ? selfThis : opponentOne,
+        delta: 0,
+        deltaFromZone: {
+          zone: 'under', owner: 'self',
+          ...(Object.keys(underFilter).length ? { filter: underFilter } : {}),
+          unitSize: parseNum(underCountM[2]),
+          per: signOf(underCountM[3]) * parseNum(underCountM[4]),
+        },
+      } as PowerModifyAction);
+    }
+  }
+
+  // 🆕「このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ＋する」
+  //   （`WXDi-P07-065-E1`・§5.3 `O-141`）。倍率ではなく**下段の Power 総和**が加算量。
+  // 🔴従来は engine のカード全文 regex `自身の下にある.*シグニのパワー.*合計` が読んでいた＝
+  //   ①効果元が特定できない経路では丸ごと落ちる ②**「シグニの」を無視して下段の全カード**
+  //   （このカードの【出】はデッキの一番上を種別問わず下に置く）を足していた。
+  const underPowerSumM = t.match(
+    /(?:この|その)シグニのパワーを(?:自身|(?:この|その)シグニ)の下にあるすべての([^、。]*?)のパワーの合計と同じだけ([＋+－-])/);
+  if (underPowerSumM) {
+    const sumFilter = countFilter(underPowerSumM[1]);
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY',
+      target: selfThis,
+      delta: 0,
+      deltaFromZone: {
+        zone: 'under', owner: 'self',
+        ...(Object.keys(sumFilter).length ? { filter: sumFilter } : {}),
+        sumBy: 'power',
+        per: signOf(underPowerSumM[2]),
+      },
+    } as PowerModifyAction);
+  }
+
   // 常時の手札差／N枚単位。差は負数を0に丸め、activeCondition と二重に安全側へ倒す。
   const handDiffM = t.match(/パワーはその差[１1]枚につき([＋+－-])([０-９\d]+)/);
   if (handDiffM) {
