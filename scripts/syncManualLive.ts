@@ -22,6 +22,10 @@
  * - `appearanceCondition`（出現条件＝カード単位メタ）は既存 live の値を引き継ぐ
  *   （`build:effects` がカード単位で付け直すフィールドなので、ここで落とすと次回の差分になる）。
  * - ⚠**実行後は必ず `npm run gates`**（live を直接書くのでゲートだけが安全網）。
+ * - 🔴**id 集合が変わるカードは書かずにスキップする**（2026-08-29 続き718）＝カード単位で丸ごと書くので、
+ *   **live にしか無い effectId は消え**、**manual の古い shadow が parser の新しい id と二重になる**と
+ *   **同じ能力が2回発動する**。⚠**どちらも `npm run gates` では1つも赤くならない**（id 集合を見る計器が無い）。
+ *   意図してやるときだけ `--allow-idset-change`。
  */
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -55,6 +59,7 @@ for (const f of [...Array.from({ length: 10 }, (_, i) => `CardData_Sheet${i + 1}
 }
 
 let changed = 0;
+let skipped = 0;
 for (const id of ids) {
   const row = rows.get(id);
   if (!row) { console.error(`  ✗ ${id}: CSV に無い`); continue; }
@@ -78,6 +83,26 @@ for (const id of ids) {
         return { ...existing, condition: generated.condition };
       });
     }
+    // 🔴**id 集合が変わるカードは書かない**（2026-08-29 続き718・§5.3 `O-144` で踏んだ）。
+    //   このツールは `mergeManualEffects(parseCardEffects(row))` を**カード単位で丸ごと**書くので、
+    //   **live にしか無い effectId（手で足した live 限定の能力）は消える**し、
+    //   **manual の古い shadow が parser の新しい id と二重になる**と**同じ能力が2回発動する**。
+    //   実測＝`WX24-P2-049` は `-E1b`（【自】バトルでバニッシュしたとき…パワー＋）が**丸ごと消え**、
+    //   `WXDi-P13-050` は 【出】が **E2 と E1b の二重**になった。
+    //   ⚠**どちらも `npm run gates` では1つも赤くならない**（golden も census も id 集合を見ていない）。
+    //   ⇒ **fail-closed で止める**（意図してやるときだけ `--allow-idset-change`）。
+    if (!conditionOnly && !args.includes('--allow-idset-change')) {
+      const liveIds = (j[id] ?? []).map((e: { effectId?: string }) => e.effectId).filter(Boolean) as string[];
+      const nextIds = next.map((e: { effectId?: string }) => e.effectId).filter(Boolean) as string[];
+      const lost = liveIds.filter(x => !nextIds.includes(x));
+      const added = nextIds.filter(x => !liveIds.includes(x));
+      if (lost.length || added.length) {
+        console.error(`  ✗ ${id}: **id 集合が変わるのでスキップした**（消える=[${lost.join(',')}] 増える=[${added.join(',')}]）`);
+        console.error(`     ⇒ manual の shadow と live/parser の id を先に揃えること（それでも書くなら --allow-idset-change）。`);
+        skipped++;
+        break;
+      }
+    }
     if (JSON.stringify(j[id]) === JSON.stringify(next)) { console.log(`  = ${id}: 差分なし（${f}）`); break; }
     console.log(`  ~ ${id}（${f}）`);
     console.log(`      OLD ${JSON.stringify(j[id]).slice(0, 240)}`);
@@ -97,3 +122,7 @@ for (const id of ids) {
   if (!found) console.error(`  ✗ ${id}: effects_*.json に無い`);
 }
 console.log(dryRun ? '(--dry: 書き込みなし)' : `${changed}枚を同期。⚠ npm run gates を回すこと。`);
+if (skipped > 0) {
+  console.error(`🔴 ${skipped}枚を id 集合の変化でスキップした（上の ✗ 行）。**放置せず manual 側を直すか §5.3 へ登録すること。**`);
+  process.exitCode = 1;
+}

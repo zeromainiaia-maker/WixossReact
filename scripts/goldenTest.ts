@@ -12647,6 +12647,13 @@ const MANUAL_DRIFT_KNOWN = new Set([
   // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
+  // 🆕2026-08-29（§5.3 `O-144`）＝**`syncManualLive` が id 集合の変化で fail-closed に止めた2件**。
+  //   `manualEffects.ts` の shadow と live/parser で effectId が食い違っており、同期すると
+  //   `WX24-P2-049` は **live 限定の `-E1b`（【自】バトルでバニッシュしたとき…パワー＋）が丸ごと消え**、
+  //   `WXDi-P13-050` は **【出】が `-E2` と `-E1b` の二重**になる（同じ能力が2回発動する）。
+  //   ⚠**どちらも `gates` の他のどの計器にも映らない**（id 集合を見るのはこのトリップワイヤだけ）。
+  //   ⇒ manual 側の id を live/parser に揃えてから外す＝§5.3 `O-149`。
+  'WX24-P2-049-E2', 'WXDi-P13-050-E1b',
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
   // ⚠比較は**リーフパス集合**で行う（`JSON.stringify` の素朴比較はキー順に依存し、実体が同一でも
@@ -52801,6 +52808,36 @@ test('rise: getRiseFilter が【ライズ】カードの配置条件を取りこ
   const gated = riseCards.filter(c => getRiseFilter(c.EffectText ?? '') !== null);
   eq(riseCards.length, RISE_CARD_TOTAL, '【ライズ】カード総数');
   eq(gated.length, RISE_CARD_GATED, 'ライズ条件が立つカード数（減ったら退化・増えたら基準を上げる）');
+});
+
+// ── `remainder.reorder`（`O-51` の並べ替え対話）の到達率ラチェット（§5.3 `O-144`・2026-08-29） ──
+// 🔑**「原文が『残りを好きな順番で』と書いているのに、live のどこにも `reorder:true` が無い」効果数**を固定する。
+// ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
+//   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
+test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
+  const BASELINE_REORDER_MISSING = 16;   // 減ったら実数へ下げる（増えたら退化）
+  const srcPath = join(root, 'docs/_effect_srctext.json');
+  const srcMap = JSON.parse(fs.readFileSync(srcPath, 'utf8')) as Record<string, unknown>;
+  const hasReorder = (o: unknown): boolean => {
+    if (!o || typeof o !== 'object') return false;
+    if (Array.isArray(o)) return o.some(hasReorder);
+    const r = o as Record<string, unknown>;
+    if (r.reorder === true) return true;
+    return Object.values(r).some(hasReorder);
+  };
+  let popn = 0; const missing: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const raw = srcMap[e.effectId];
+      const t = typeof raw === 'string' ? raw : ((raw as { text?: string } | undefined)?.text ?? '');
+      if (!/残りを好きな順番で/.test(t)) continue;
+      popn++;
+      if (!hasReorder(e.action)) missing.push(e.effectId);
+    }
+  }
+  ok(popn >= 300, `母集団が急に減った（${popn}）＝原文か srctext の生成が壊れている疑い`);
+  eq(missing.length, BASELINE_REORDER_MISSING,
+    `並べ替えが届いていない効果数（未達: ${missing.slice(0, 8).join(', ')}…）`);
 });
 
 if (listMode) {

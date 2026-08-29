@@ -1,5 +1,35 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-29 整理（§6 恒久指標・続き717時点値の退避・続き718）
+
+- **2026-08-29 続き717 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 520（据置）**
+  **golden 2973→2975**（`SEED_BLOOM` の payload 1本＋`GAIN_EXTRA_TURN`/`REMOVE_VIRUS` の payload 1本）、
+  census 520/520、smoke 10702 全異常0、fuzz 全0、lint 0 errors／248 warnings（据置）、同型★0、
+  held **90→91→90枚**（`WX16-033` を採用）、`_partial_fresh` 12／`_idset_fresh` 13、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、孤児 MANUAL 12。
+  🆕🔴**`census:enginetext` A群 141行/137ハンドラ → 137行/134ハンドラ**（`BASELINE_SELF_TEXT` も 137 へ）。
+  **miss 43ハンドラ/70カード → 40ハンドラ/59カード。**
+  🆕**ライズ配置条件が立つカード 28 / 41枚（据置）。**
+  ⚠**3計器がどれも動かないのが正しい**＝A群の payload 化は**JSON に情報が増える**修正で、
+  census は「原文の語彙が JSON に無い」を測る計器なので、**STUB のまま payload が増えても動かない**。
+  **この巡を測る計器は `census:enginetext` の A群行数と miss 数、それに実機。**
+
+## 2026-08-29 クローズ（§5.3 `O-144`＝`remainder.reorder` を MANUAL/PARTIAL へ届けた・続き718）
+
+**■登録票（クローズ時点で PLAN §5.3 から退避した原文）**
+
+| **O-144** | 🆕**`remainder.reorder`（`O-51` の並べ替え対話）が MANUAL/PARTIAL の46効果に届いていない** | **46効果**（機構は実装済み・配線だけ） | **2026-08-29 続き712（`O-51`）で分離。** ■**実測**＝母集団288効果のうち live へ届いたのは **237ノード/234効果**で、**未達51の内訳は「live が MANUAL/PARTIAL＝収穫マージが効果単位で不可侵」46 ＋ `_held_fresh` 5**（**説明できない未達は0**）。 ■⚠**退化ではない**＝46効果は**従来どおりの挙動**（公開順のままデッキへ置く）で、原文が与える順序の選択権が無いだけ。**`O-51` 以前と同じ**。 ■**やること**＝①`manualEffects.ts` に定義がある効果は `remainder` に `reorder:true` を足す ②`censusManualDrift.ts` の「削除候補」に出る（＝parser 出力と実体同一の）ものは**manual 定義を削除して parser に任せる**（§CODEX_GUIDE `5-10′`）③live 限定スタンプは `censusOrphanManual --unfreeze A`。 ■⚠**`syncManualLive.ts` を回すこと**（`build:effects` だけでは既存 id の手修正が live に届かない）。⚠**着手前に46効果を数え直す**（`manualEffects.ts` を触る他バッチで自然に減る）。 |
+
+**■結果**＝**44効果のうち41効果へ届けた**（`manualEffects.ts` の `remainder` へ `reorder:true` を47ノード追加 →
+`syncManualLive.ts` で live へ同期）。live A/B は **41カード / 45パス差分がすべて `reorder:true` の追加**で、
+id 集合の変化も他の drift も0。
+**■残り2カード**（`WX24-P2-049` / `WXDi-P13-050`）＝**新しく入れた fail-closed ガードが止めた**（§5.3 `O-149`）。
+**■🔴一番大事な発見**＝**フラグを届けても実機の挙動は変わらなかった**（2形で反転確認して2回とも PASS）＝
+`remainder.reorder` は並べ替え対話の唯一のスイッチではない。⇒ §5.3 `O-150`。
+**■副産物**＝`syncManualLive.ts` に **id 集合ガード**（消える/増える id があれば書かずに exit 1）。
+**全文は BUGFIXES.md 2026-08-29（続き718）の項。**
+
 ## 2026-08-29 整理（§6 恒久指標・続き716時点値の退避・続き717）
 
 - **2026-08-29 続き716 後（本行が直近の正）**：

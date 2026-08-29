@@ -36541,6 +36541,123 @@ scenarios.o60SeedBloomAny = {
 order.push('o60SeedBloomAny');
 // ── O-60 第9バッチ END ──
 
+// ── §5.3 `O-144`（`remainder.reorder` を MANUAL/PARTIAL の44効果へ届けた）の実機観測点 ──
+/**
+ * 🔴🔑**このシナリオは「フラグの効果」を証明しない（測って分かったことを残す）。**
+ *   `remainder.reorder` を live へ届ける前後で**実機の挙動は同じ**だった＝
+ *   **並べ替えUIはフラグが無くても出ていた**。2つの形で確かめて2回とも同じ結果：
+ *     ① `WXDi-P04-047`（`REVEAL_AND_PICK`）＝候補0件の枝でもピック後の枝でも出る
+ *     ② `WXDi-P06-053`（`LOOK_PICK_CHAIN`・こちらは `effectExecutor.ts:6546` が
+ *        `a.remainder.reorder && rest.length >= 2` で素直に分岐しているように読める）でも出る
+ *   ⇒ **`remainder.reorder` は並べ替え対話の唯一のスイッチではない**（別経路が
+ *   `LOOK_AND_REORDER` を無条件に立てている）。**`O-144` 登録票の「46効果に届いていない」という
+ *   見立ては、少なくともこの2形については確認できなかった。** 追跡は §5.3 `O-150`。
+ *
+ * ⇒ **本シナリオの役割は「`LOOK_PICK_CHAIN` の remainder で並べ替えUIが出て順序が反映される」ことの
+ *   回帰ガード**（`o51ReorderRemainder` は `REVEAL_AND_PICK` 側なので形が違う）。
+ *
+ * `WXDi-P06-053`（小装 ボーニャ・Lv1赤・【出】《無》×3「デッキの上から5枚見る。その中から赤のシグニを1枚までと、
+ * 白か青か緑か黒のシグニを1枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く」）。
+ * ⚠**デッキ上5枚をスペルで埋める**＝どちらの stage も候補0件になり、5枚すべてが remainder になる。
+ * ⚠**「スキップ」を押さない**＝【出】は任意コスト（《無》×3）なので、既定の `stdStep` ラベルに 'スキップ' を
+ *   残すと**能力そのものを断って**しまい、デッキが1枚も動かないまま終わる（初回実装で実測）。
+ */
+scenarios.o144ManualReorder = {
+  title: 'WXDi-P06-053（LOOK_PICK_CHAIN の remainder＝並べ替えUIが出て順序が反映される）⚠フラグの有無では変わらない（O-150）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#1'],
+      'field.signi': [null, null, null],
+      'field.check': null,                       // §4.4 罠1
+      // ⚠**上5枚は全部スペル**＝2つの stage とも候補0件 → 5枚まるごとが remainder（2枚以上＝対話条件を満たす）
+      'deck': ['WD01-018#71', 'WD01-018#72', 'WD01-018#73', 'WD01-018#74', 'WD01-018#75', 'WD01-013#76', 'WD01-013#77'],
+      'energy': ['WD01-013#81', 'WD01-013#82', 'WD01-013#83'],  // 《無》×3
+      'actions_done': [],
+    },
+    guestSet: { 'field.check': null },
+    handPrepend: ['WXDi-P06-053#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let k = 0; k < 4; k++) {
+      const cleared = await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', 'ライフに加える']);
+      if (!cleared) break;
+      await page.waitForTimeout(600);
+    }
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始 deck=', JSON.stringify(before?.host?.deckCards));
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let sawModal = false, movedOnce = false, confirmed = false, last = before;
+    const paidEnergy = new Set();
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/o144reorder-${s}.png`, fullPage: true });
+      const bottomMsg = page.getByText('すべてデッキの一番下へ', { exact: false }).first();
+      if (await bottomMsg.count() && await bottomMsg.isVisible().catch(() => false)) sawModal = true;
+      let did = null;
+      if (sawModal && !movedOnce) {
+        const downs = page.getByRole('button', { name: '↓', exact: true });
+        if (await downs.count() > 0 && await downs.first().isEnabled().catch(() => false)) {
+          await downs.first().click().catch(() => {}); movedOnce = true; did = 'btn:↓';
+        }
+      }
+      if (!did && sawModal && movedOnce && !confirmed) {
+        const ok = page.getByRole('button', { name: '決定', exact: true }).first();
+        if (await ok.count() && await ok.isEnabled().catch(() => false)) { await ok.click().catch(() => {}); confirmed = true; did = 'btn:決定'; }
+      }
+      if (!did) did = await H.clickBtn('召喚', { exact: true });
+      if (!did) {
+        const zoneBtns = page.getByRole('button', { name: /^ゾーン[123]/ });
+        const n = await zoneBtns.count().catch(() => 0);
+        for (let i = 0; i < n; i++) {
+          const b = zoneBtns.nth(i);
+          if (await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:ゾーン'; break; }
+        }
+      }
+      // 🔴**「スキップ」を押さない**＝【出】《無》×3 は**任意コスト**なので、既定の `stdStep` ラベルに
+      //   'スキップ' を残すと**能力そのものを断って**しまい、デッキが1枚も動かないまま終わる（初回実装で実測）。
+      // ⚠testid は `onplaycost-energy-N`（`SigniOnPlayCostModal.tsx`）。`optcost-*` は別モーダルの綴り。
+      if (!did) {
+        const oc0 = page.getByTestId('onplaycost-energy-0').first();
+        if (await oc0.count() && await oc0.isVisible().catch(() => false)) {
+          for (const i of [0, 1, 2]) {
+            if (paidEnergy.has(i)) continue;
+            const e = page.getByTestId(`onplaycost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); paidEnergy.add(i); did = `onplaycost-energy-${i}`; break; }
+          }
+          if (!did) {
+            const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click().catch(() => {}); did = 'btn:発動'; }
+          }
+        }
+      }
+      if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o144[${s}] -> ${did ?? 'なし'} | modal=${sawModal} moved=${movedOnce} ok=${confirmed}`
+        + ` deck=${JSON.stringify(last?.host?.deckCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      if (confirmed && !last?.pendingEffect && !(last?.stackLen > 0)) break;
+      // 旧挙動＝対話ゼロで5枚が公開順のまま一番下へ落ちて解決する
+      if (!sawModal && !last?.pendingEffect && !(last?.stackLen > 0) && s >= 6) break;
+    }
+    const deckNow = last?.host?.deckCards ?? [];
+    const tail5 = deckNow.slice(-5).join(',');
+    const detail = `並べ替えUI=${sawModal} ↓操作=${movedOnce} 決定=${confirmed}`
+      + ` deck=${JSON.stringify(deckNow)}（開始 ${JSON.stringify(before?.host?.deckCards)}）`;
+    // ⚠**本題を先に判定**
+    if (!sawModal) {
+      return { pass: false, detail: `🔴並べ替えUIが出ないまま解決した＝LOOK_PICK_CHAIN の remainder 対話が落ちている。${detail}` };
+    }
+    if (!confirmed) return { pass: false, detail: `前提崩れ＝並べ替えUIは出たが確定できていない。${detail}` };
+    if (tail5 === 'WD01-018#71,WD01-018#72,WD01-018#73,WD01-018#74,WD01-018#75') {
+      return { pass: false, detail: `🔴並べ替えたのにデッキ下は公開順のまま＝選んだ順序が反映されていない。${detail}` };
+    }
+    return { pass: true, detail: `LOOK_PICK_CHAIN の remainder で並べ替えUIが出て順序が反映された（デッキ下5枚=${tail5}）。${detail}` };
+  },
+};
+order.push('o144ManualReorder');
+// ── O-144 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
