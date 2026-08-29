@@ -54050,6 +54050,70 @@ test('選択UI枚数ゲート E2E: 部分払いでは「そうした場合」が
   eq(searched(2), true, '手札2枚なら原文どおりサーチへ進む（対照）');
 }));
 
+// ── §5.2 Sheet2 バッチ6（2026-08-30）：意味照合 段2 の残 OPEN 消化 ──
+// どれも「受け皿は既に在って parser/live だけが取り残されていた」型。反転（旧 JSON に戻す）と
+// 対照（同じ受け皿を使う兄弟カード）を必ず1本ずつ張る。
+
+test('段2 Sheet2⑥ WX19-063-E1: 相手デッキトップを見て**任意でトラッシュ**（盤面のシグニは撃たない）', () => {
+  const eff = effectsMap.get('WX19-063')!.find(e => e.effectId === 'WX19-063-E1')!;
+  const a = eff.action as unknown as Record<string, unknown>;
+  eq(a.type, 'LOOK_AND_REORDER', '単一の LOOK_AND_REORDER（SEQUENCE ではない）');
+  eq((a.canTrash as boolean), true, '見た札を任意でトラッシュへ置ける');
+  eq((a.source as Record<string, string>).owner, 'opponent', '見るのは対戦相手のデッキ');
+  eq((a.destination as Record<string, string>).owner, 'opponent', '戻す/捨てる先も対戦相手側');
+  // 🔴反転の要：旧 JSON は SEQUENCE[LOOK_AND_REORDER, TRASH{SIGNI,opponent}] ＝
+  //   「相手の場のシグニ1体を強制トラッシュ」という別物だった。TRASH leaf が復活したら落とす。
+  ok(!JSON.stringify(eff).includes('"TRASH"'), '盤面シグニへの TRASH leaf を持たない');
+});
+
+test('段2 Sheet2⑥ WX16-024-LAYER-E1: パワー15000以上は**発生源側**の限定（守られる側ではない）', () => {
+  const eff = effectsMap.get('WX16-024')!.find(e => e.effectId === 'WX16-024-LAYER')!;
+  const inner = (eff.action as unknown as { abilities: { effectId: string; action: Record<string, unknown> }[] })
+    .abilities.find(x => x.effectId === 'WX16-024-LAYER-E1')!;
+  const gp = inner.action as unknown as { sourceFilter?: { powerRange?: { min?: number } }; target?: { filter?: unknown }; sourceOwner?: string };
+  eq(gp.sourceFilter?.powerRange?.min, 15000, '発生源（相手シグニ）のパワー下限が sourceFilter にある');
+  eq(gp.sourceOwner, 'opponent', '発生源は対戦相手');
+  eq(gp.target?.filter, undefined, '守られる側（このシグニ）にはパワー条件を付けない＝主語の取り違えを固定');
+  // 対照＝同じ受け皿で書けている兄弟（コスト合計1以下のアーツ）。
+  const sib = effectsMap.get('WX16-034')!.find(e => e.effectId === 'WX16-034-LAYER')!;
+  ok(JSON.stringify(sib).includes('"sourceFilter":{"costMax":1}'), '兄弟 WX16-034 も sourceFilter で書けている');
+});
+
+test('段2 Sheet2⑥ WX18-036-E3: 手札から起動し、**このカード自身**だけを場に出す', () => {
+  const eff = effectsMap.get('WX18-036')!.find(e => e.effectId === 'WX18-036-E3')!;
+  eq((eff as unknown as { handActivated?: boolean }).handActivated, true, '手札からの起動として提示される');
+  const src = (eff.action as unknown as { source: { type: string; filter: { cardNum?: string } } }).source;
+  eq(src.type, 'HAND_CARD', '出す先は手札');
+  eq(src.filter.cardNum, 'WX18-036', 'このカード番号だけ＝手札の任意のシグニを出せない');
+  // ⚠`HAND_CARD` 分岐は `thisCardOnly` を読まない（`matchesFilter` が黙って無視する）ので
+  //   自己限定は cardNum で書く。thisCardOnly に書き換えたらこの assert が落ちる＝設計メモの固定。
+  ok(!JSON.stringify(src.filter).includes('thisCardOnly'), 'thisCardOnly では効かないので使わない');
+});
+
+test('段2 Sheet2⑥ ON_TRASH「コストとして場から」＝3枚とも any_ally + fromFieldByCostOnly', () => {
+  for (const [num, id, story] of [
+    ['WX12-029', 'WX12-029-E1', undefined],
+    ['WXEX2-78', 'WXEX2-78-E1', '毒牙'],
+    ['WXK10-056', 'WXK10-056-E1', undefined],
+  ] as [string, string, string | undefined][]) {
+    const eff = effectsMap.get(num)!.find(e => e.effectId === id)!;
+    eq(eff.triggerScope, 'any_ally', `${id}: 「あなたのシグニが」＝味方 watcher（self に潰れると恒久 no-op）`);
+    eq(eff.triggerCondition?.fromFieldByCostOnly, true, `${id}: コスト起因だけに限定（効果・バトル・ルール処理を除外）`);
+    if (story) eq(eff.triggerFilter?.story, story, `${id}: ＜${story}＞限定を保つ`);
+  }
+});
+
+test('段2 Sheet2⑥ ON_TRASH「コストか効果によってシグニの下から」＝3枚とも fromFieldByCostOrEffect', () => {
+  for (const [num, id] of [
+    ['WX18-062', 'WX18-062-E1'], ['WX22-027', 'WX22-027-E1'], ['WXK03-033', 'WXK03-033-E1'],
+  ] as [string, string][]) {
+    const eff = effectsMap.get(num)!.find(e => e.effectId === id)!;
+    eq(eff.triggerCondition?.fromFieldByCostOrEffect, true,
+      `${id}: 原因限定が無いと**ライズで上が場を離れた等のルール処理**でも発火する`);
+    eq(eff.triggerCondition?.fromZones?.[0], 'under_signi', `${id}: 出自は「シグニの下」（「場」ではない）`);
+  }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

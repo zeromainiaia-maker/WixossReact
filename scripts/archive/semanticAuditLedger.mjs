@@ -79,8 +79,13 @@ if (fs.existsSync(closedPath)) {
   }
 }
 /** その finding は段2 で消化済みか（効果ごと／finding 単体のどちらでも）。 */
+// 🆕**`effectId:null` の finding（23件・出現条件系）は識別子が CardNum**（段1 の verdict 参照と同じ規約＝
+//   上の `verdicts.get(f.cardNum)` フォールバック）。⚠**`CARDNUM :: quote` の finding 単体形だけ**を許す＝
+//   裸の CardNum 行まで許すと「その効果の finding を全部閉じる」意味になり、
+//   **effectId を持つ他の finding まで巻き込んで閉じてしまう**（2026-08-30 §5.2 Sheet2 バッチ6 で追加）。
 const isClosed = f => closedAll.has(f.effectId)
-  || (closedOne.get(f.effectId) ?? []).some(q => String(f.quote ?? '').startsWith(q));
+  || (closedOne.get(f.effectId) ?? []).some(q => String(f.quote ?? '').startsWith(q))
+  || (!f.effectId && (closedOne.get(f.cardNum) ?? []).some(q => String(f.quote ?? '').startsWith(q)));
 const closed = closedAll;                    // 既存の参照（統計表示）との互換
 
 // 段3：欠落語彙キー軸（再クラスタ化の結果を再利用）

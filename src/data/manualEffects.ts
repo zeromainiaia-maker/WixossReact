@@ -5791,6 +5791,46 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX14-012": [
     {"effectId":"WX14-012-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","cardName":"フレイスロ"},"maxCount":2,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2026-08-30 §5.2 Sheet2 バッチ6（速いレーン・原文を読み直して手書き）。
+  // ⚠**移設ではない**＝3件とも parser 出力と実体が違う（原文と突き合わせて書き直した）。
+  // 🔴**4件目（`WX15-010-E1`＝すべての＜武勇＞へ集合耐性）は据置**＝golden の見送り契約
+  //   「段2 第23バッチ 見送り契約: WX15-010-E1 は1回消費語彙が無いため集合耐性へ広げない」が発火した。
+  //   原文は「**次に**バニッシュされる場合」＝**1回だけ吸収して消える盾**で、受け皿が今も無い。
+  //   ⇒ scope だけ広げると「ターン中ずっと＜武勇＞全員がバニッシュ耐性」になり**過剰実行が拡大する**。
+  //   契約は生きているので手を出さない（§5.3 `O-164` に登録）。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // 原文「【出】：対戦相手のデッキの一番上を見る。あなたはそれをトラッシュに置いてもよい。」
+  // 🔴 parser は「それ」を**相手の場のシグニ**と読み、`TRASH{SIGNI,opponent}` を強制で撃っていた
+  //   （＝見た札は必ずデッキに戻り、代わりに盤面のシグニが1体トラッシュへ行く別物）。
+  //   正しくは `LOOK_AND_REORDER{canTrash}`＝閲覧した札を任意でトラッシュへ。
+  //   `resumeLookAndReorder` は trashed を `destOwner` のトラッシュへ入れる＝相手の札は相手のトラッシュ。
+  "WX19-063": [
+    {"effectId":"WX19-063-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"opponent"},"count":1,"private":true,"reorder":false,"canTrash":true,"destination":{"location":"deck","owner":"opponent","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // 原文《レイヤーアイコン》「【常】：このシグニは対戦相手の**パワー15000以上のシグニ**の効果を受けない。」
+  // 🔴 parser は「パワー15000以上」を**守られる側**（target.filter）に載せていた＝主語が真逆で、
+  //   実際には（`collectEffectImmuneSigni` が target を見ず効果元自身を守る慣例のため）
+  //   **相手シグニの効果すべてから無条件保護**になっていた。発生源の限定は `sourceFilter`。
+  //   ⚠兄弟の `WX16-034-LAYER-E1`（コストの合計1以下のアーツ）は最初から `sourceFilter` で書けている。
+  //   ⚠`sourceFilter` の `powerRange` は `matchesFilter(srcCard, …)` ＝**印刷パワー**で判定される近似。
+  "WX16-024": [
+    {"effectId":"WX16-024-LAYER","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX16-024-LAYER-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["シグニ"],"sourceOwner":"opponent","sourceFilter":{"cardType":"シグニ","powerRange":{"min":15000}},"duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"},{"effectId":"WX16-024-LAYER-E2","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"action":{"type":"DRAW","owner":"self","count":2},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"byOpponentEffect":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // 原文「【起】《アタックフェイズアイコン》**このカードを手札から公開し**、あなたの＜悪魔＞のシグニ２体を
+  //   場からトラッシュに置く：**このシグニをあなたの手札から場に出す。**」
+  // 🔴 parser は (a) `handActivated` を落とし（＝手札からの起動として提示されない）
+  //   (b) 出す先を `HAND_CARD{filter:{cardType:'シグニ'}}` ＝**手札の任意のシグニ**にしていた。
+  //   ⚠`HAND_CARD` 分岐は `thisCardOnly` を読まない（`matchesFilter` が黙って無視する）ので
+  //   自己限定は `cardNum` で書く（`execAddToField` の HAND_CARD 分岐に thisCardOnly の枝が無い）。
+  //   ⚠「公開し」は資源の移動を伴わない宣言なのでコストには載せない。
+  "WX18-036": [
+    {"effectId":"WX18-036-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"悪魔"}}},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","cardNum":"WX18-036"}}},"duration":"INSTANT","mandatory":false,"handActivated":true,"parseStatus":"MANUAL"},
+  ],
+
   "WX25-P1-TK2": [
     {"effectId":"WX25-P1-TK2-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":3}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}},{"type":"STUB","id":"ARTS_IMMOVABLE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],

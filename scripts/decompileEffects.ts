@@ -190,6 +190,10 @@ function filterJa(f?: any): string {
   if (f.cardClassExclude) parts.push(`＜${[].concat(f.cardClassExclude).join('・')}＞ではない`);
   if (f.story) parts.push(`＜${[].concat(f.story).join('・')}＞の`);
   if (f.cardName) parts.push(`《${f.cardName}》`);
+  // 🆕`cardNum`＝カード番号での自己限定（`WX18-036-E3`「**このシグニを**あなたの手札から場に出す」＝
+  //   `HAND_CARD` 分岐は `thisCardOnly` を読まないので番号で書く／2026-08-30 §5.2 Sheet2 バッチ6）。
+  //   描かないと「手札の任意のシグニ」と逆翻訳が同じ文になり、原文照合で差が見えない。
+  if (f.cardNum) parts.push(`カード番号${f.cardNum}の`);
   if (f.excludeCardName) parts.push(`《${f.excludeCardName}》以外の`);
   if (f.cardNames) parts.push(`《${f.cardNames.join('》《')}》のいずれか`);
   if (typeof f.level === 'number') parts.push(`レベル${f.level}の`);
@@ -1609,10 +1613,18 @@ function actionJa(a?: Action, effectType?: string): string {
       //   （`WX11-032`）。描かないと**全相手シグニからの無条件保護**と逆翻訳が同じ文になり、
       //   engine は区別しているのに原文照合では見えない偽陰性になる。
       const sharedColorJa = a.sourceSharedColorWithSelf ? '自身と共通する色を持つ' : '';
+      // 🆕`sourceFilter.powerRange`＝「対戦相手の**パワー15000以上の**シグニの効果を受けない」
+      //   （`WX16-024-LAYER-E1`・2026-08-30 §5.2 Sheet2 バッチ6）。描かないと**全相手シグニからの
+      //   無条件保護**と同じ文になり、engine は区別しているのに原文照合では見えない偽陰性になる
+      //   （`srcLvJa` / `sharedColorJa` と同じ理由）。⚠engine 側は**印刷パワー**で判定する近似。
+      const srcPw = (a.sourceFilter as { powerRange?: { min?: number; max?: number } } | undefined)?.powerRange;
+      const srcPwJa = srcPw?.min !== undefined ? `パワー${srcPw.min}以上の`
+        : srcPw?.max !== undefined ? `パワー${srcPw.max}以下の` : '';
       // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
       if (srcTokens.length > 0) {
         if (costMaxJa) return timedProtection(`${subject}は${costMaxJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`);
         if (sharedColorJa) return timedProtection(`${subject}は${sharedColorJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`);
+        if (srcPwJa) return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}${srcPwJa}${srcTokens.join('と')}の効果を受けない`);
         return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`);
       }
       if (fromArr.includes('any')) {
@@ -3903,6 +3915,12 @@ function effJa(e: Eff): string {
   const scopeNoun = e.triggerFilter?.cardType && !Array.isArray(e.triggerFilter.cardType) ? e.triggerFilter.cardType : 'シグニ';
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
+    // 🆕`handActivated`＝**手札にあるこのカードから起動する【起】**（`WX18-036-E3` ほか。
+    //   2026-08-30 §5.2 Sheet2 バッチ6）。engine/UI は区別しているのに逆翻訳が描いておらず、
+    //   「場のシグニの【起】」と同じ文になっていた＝原文照合で使用場所の差が見えない偽陰性。
+    if (e.handActivated && (t === 'MAIN' || t === 'ATTACK' || t === 'ATTACK_ARTS' || t === 'SPELL_CUTIN')) {
+      s = `${s}（手札から起動）`;
+    }
     if (t === 'ON_OPP_LIFE_CRASHED' && e.triggerScope === 'self' && e.triggerFilter?.thisCardOnly) {
       const noun = /このルリグが[^。]{0,100}ライフ(?:クロス)?/.test(currentEffectText) ? 'ルリグ' : 'シグニ';
       s = `この${noun}が対戦相手のライフクロス1枚をクラッシュしたとき`;
@@ -4165,14 +4183,27 @@ function effJa(e: Eff): string {
       const phase = tc.duringMainPhase ? 'あなたのメインフェイズの間、' : '';
       s = `${phase}${subject}${cause}${origin}トラッシュに置かれたとき`;
     }
-    // ON_TRASH の「コストか効果によって場から」限定を反映（バトル・ルール処理では発火しない。G204）
+    // ON_TRASH の「コストか効果によって〈ゾーン〉から」限定を反映（バトル・ルール処理では発火しない。G204）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrEffect) {
       // fromZones/scope で組み立て済みの主語（self/any_ally/any_opp）を維持したまま原因句を差し込む。
       // self の原文だけは「このカード」ではなく「このシグニ」なので名詞も合わせる。
+      // 🆕2026-08-30（§5.2 Sheet2 バッチ6）＝**出自ゾーンは「場」固定ではない**＝
+      //   `WX18-062`/`WX22-027`/`WXK03-033` は「**シグニの下から**」で、旧実装は
+      //   「シグニの下からコストか効果によって**場から**トラッシュに置かれたとき」という
+      //   **原文に無いゾーンを足した二重表記**を出していた。既に組み立て済みのゾーン句へ原因句だけを挿す。
       s = s.replace(/^このカード/, 'このシグニ');
+      const zoneCE = (e.triggerCondition.fromZones ?? []).includes('under_signi') ? 'シグニの下' : '場';
+      s = s.includes(`${zoneCE}からトラッシュに置かれたとき`)
+        ? s.replace(`${zoneCE}からトラッシュに置かれたとき`, `コストか効果によって${zoneCE}からトラッシュに置かれたとき`)
+        : s.replace('トラッシュに置かれたとき', `コストか効果によって${zoneCE}からトラッシュに置かれたとき`);
+    }
+    // 🆕ON_TRASH の「（【起】能力の）コストとして場から」限定（効果・バトル・ルール処理では発火しない）。
+    //   2026-08-30（§5.2 Sheet2 バッチ6）＝`fromFieldByCostOnly` は engine が読んでいるのに
+    //   逆翻訳が1文字も描いていなかった＝**「置かれたら必ず発火」と読める偽陰性**（3枚）。
+    if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOnly) {
       s = s.includes('場からトラッシュに置かれたとき')
-        ? s.replace('場からトラッシュに置かれたとき', 'コストか効果によって場からトラッシュに置かれたとき')
-        : s.replace('トラッシュに置かれたとき', 'コストか効果によって場からトラッシュに置かれたとき');
+        ? s.replace('場からトラッシュに置かれたとき', 'コストとして場からトラッシュに置かれたとき')
+        : s.replace('トラッシュに置かれたとき', 'コストとして場からトラッシュに置かれたとき');
     }
     // ON_TRASH の「コストかあなたの効果によって場から」限定（相手効果・バトル・ルール処理では発火しない）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrOwnEffect) {
