@@ -1,5 +1,60 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.2 Sheet2 バッチ2（速いレーン）＝台帳の残 OPEN から HIGH 11件を消化（live 9効果を修正／2件は偽陽性）
+
+意味照合 段2 台帳（`node scripts/archive/semanticAuditLedger.mjs`）の残 OPEN のうち **Sheet2 の
+「1カード1 finding の HIGH」44件**から11件。実装先はすべて `src/data/manualEffects.ts`（§2.0 速いレーン）。
+
+### 真因（1行ずつ）
+
+| 効果 | 真因 | 向き |
+|---|---|---|
+| `WX13-001-E4` | 【起】エクシード5 の「エナゾーンからすべてトラッシュ」が**丸ごと欠落** | 過剰（コストを払わず全体バニッシュ） |
+| `WX13-050-E1` | ライフに加えるのが**デッキトップ**（`fromTop`）＝原文は対象に取った**トラッシュのカード** | 別物 |
+| `WX14-033-E2` | 「**あなたの他の**シグニ1体をバニッシュ」の `owner` が `opponent` | 過剰（相手を1体多く割る） |
+| `WX15-Re15-E1` | 「このシグニが**トラッシュにある場合にしか**使用できない」が欠落 | 過剰（場でも撃てる） |
+| `WX16-041-E1` | 《トラップアイコン》能力が**【出】の SEQUENCE 末尾**に同居 | 過剰（【出】でデッキトップ送りも走る） |
+| `WX17-035-LAYER-E1` | 「**このシグニの正面の**シグニ1体」の `owner` が `self` | 逆向き（自分の能力を自分で消す） |
+| `WX18-060-E1` | サーチの「【レイヤー】を持つ」限定が欠落（同型 `WXEX1-05` の2効果も併せて是正） | 過剰（任意のシグニを探せる） |
+| `WX20-046-E3` | 「アタックしたそのシグニのパワーが**20000以上の場合**」が欠落 | 過剰（緑シグニのアタック全部で撃てる） |
+| `WX20-066-E1` | 「**このシグニを**場から手札に戻す」の `owner` が `opponent`（`thisCardOnly` と同居＝候補0） | 無言 no-op |
+| `WX19-038-E1` / `WX20-057-E1` | 🔵**偽陽性**＝live は既に正しい（監査時点より後に parser が直っていた） | — |
+
+**影響枚数**＝live 10カード11効果（＋新設 `WX16-041-TRAP` 1効果で総効果 10702→10703）。受け皿は**全部既存**＝
+`ADD_TO_LIFE.fromTrash` / `THIS_CARD_IN_LOCATION{trash}` / `TRAP_ICON`+`ON_TRAP_ACTIVATE` / `filter.frontOfSelf` /
+`TargetFilter.keyword` / `triggerFilter.powerRange` / `ENERGY_CARD count:"ALL"`。**新しいアクション型・条件型は0本。**
+
+### 🔴 この巡の一番大事な発見＝**`WX20-066-E1` は parser のバグではなかった**
+
+live が原文と食い違っていたので手で書いたが、**parser の最新出力は既に `owner:'self'` で正しく**、
+`_held_fresh.json` に温存されたまま live へ届いていなかっただけだった（`heldReview.mjs --adopt` で解けた）。
+手書きは §2.0 の禁じ手「**移設だけの manual 化**」に当たり、**`§6.4 O-42` トリップワイヤ（golden）が実際に発火して検知した**
+（`parseCardEffects` の出力と実体同一の manual を残0で守る assert）。manual を撤去したあと live の刻印が
+`MANUAL` のまま凍っていたので `npx tsx scripts/censusOrphanManual.ts --unfreeze A` で `AUTO` へ戻した。
+⇒ **live が原文と違うときは、まず `_held_fresh` / `_partial_fresh` / `_idset_fresh` の3ファイルを見る。**
+
+### ⚠ 偽陽性だった finding の型（今後も出る）
+
+findings は「そうした場合」の `CONDITIONAL{IS_MY_TURN}` を**無関係な条件**と繰り返し指摘してくるが、
+あれは **parser の慣例エンコード**（did-it ゲート・engine 特別処理あり＝`effectParser.ts:8592`）。
+狭めて実測すると「optional なステップの直後の `CONDITIONAL{IS_MY_TURN}`」は 65効果あり、
+そのうち**前段の owner が本当に間違っていたのは3効果だけ**（残りは正しい）。**この語だけで母集団を数えない。**
+
+### 検証
+
+`npm run gates` **全緑**（typecheck / **golden 2988 PASS 0 FAIL** / smoke 10703 全0 / fuzz 全0 /
+census **520→518**（`BASELINE_HIGH` を実数更新）/ census:stubs / manual-fields / census:enginetext 136 据置 / lint）。
+`npm run regen` 済み・**逆翻訳を10枚とも原文と目視照合**。live の A/B 差分＝**変化したカードちょうど10枚**（意図どおり）。
+golden は2本を**新しい正へ更新**した（`§5d-0(i) 第21バッチ`＝パワー15000限定の assert を `WX16-041-TRAP` へ移設＋
+【出】側に残っていないことを追加 assert ／ `続き377f`＝`WX20-046-E3` の `triggerFilter` に `powerRange` を併記）。
+
+**⑤実機は不要と判定**＝触ったのは `src/data/` と `public/data/` だけ（`src/screens/` も `src/engine/` も未変更・新しい型0本）。
+
+**進捗3計器**＝Sheet1 要対応 **0 / 863**（据置）｜台帳 残 OPEN **558→547**｜census 高シグナル **520→518**。
+Sheet2 の残 OPEN は **107→96 件**（うち「1カード1 finding の HIGH」44→33）。
+
+---
+
 ## 2026-08-29：§5.3 `O-80` 第3バッチ（速いレーン）＝「この**効果**で〜N枚につき」を第1バッチの機構へ載せた（1効果）
 
 `O-80` 残 C群の最後の小群（lastProcessed カウント2効果）。PLAN の登録票は

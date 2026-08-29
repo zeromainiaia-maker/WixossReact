@@ -10928,8 +10928,12 @@ test('続き377f: 複合修飾のアタック主語も any_ally＋triggerFilter 
     ['WXK10-084', 'WXK10-084-E2', { levelParity: 'even', story: 'トリック' }],
     ['WXDi-P12-064', 'WXDi-P12-064-E1', { isDisona: true }],
     ['WXEX1-60', 'WXEX1-60-E1', { cardName: 'フレイスロ' }],
-    // 「あなたの緑のシグニ**１体**が」＝旧 regex は「N体」を許していなかったため色が落ちていた
-    ['WX20-046', 'WX20-046-E3', { color: '緑' }],
+    // 「あなたの緑のシグニ**１体**が」＝旧 regex は「N体」を許していなかったため色が落ちていた。
+    // 🆕**2026-08-29 §5.2 Sheet2 バッチ2**＝原文の後半「アタックしたそのシグニのパワーが**20000以上の場合**」も
+    //   同じ主語への限定なので `powerRange` を併記した（`manualEffects.ts` 側で付与）。落ちていたときは
+    //   **緑シグニのアタック全部**でエナ送りが撃てる過剰実行だった。⚠`triggerFilter` は
+    //   `collectFieldTriggers`／`attackerSelfTriggerFilterOk` が**実効パワー**で照合する。
+    ['WX20-046', 'WX20-046-E3', { color: '緑', powerRange: { min: 20000 } }],
   ];
   for (const [card, effId, want] of cases) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
@@ -34865,9 +34869,16 @@ test('§5d-0(i) 第21バッチ: 対象名詞句の色／クラス／パワーが
   const toDeck = effectsMap.get('WX17-071')!.find(e => e.effectId === 'WX17-071-E1')!;
   eq((toDeck.action as { source: { filter: { story?: string } } }).source.filter.story, '精元',
     '「対戦相手の＜精元＞のシグニ1体…デッキの一番上に置く」＝クラス限定');
-  const trap = effectsMap.get('WX16-041')!.find(e => e.effectId === 'WX16-041-E1')!;
-  const trapStep = (trap.action as { steps: { source?: { filter?: { powerRange?: { min?: number } } } }[] }).steps[1];
-  eq(trapStep.source?.filter?.powerRange?.min, 15000, '「対戦相手のパワー15000以上のシグニ1体」＝パワー限定');
+  // 🆕**2026-08-29 §5.2 Sheet2 バッチ2**＝この「パワー15000以上」は **`WX16-041-E1`（【出】）の
+  //   SEQUENCE 末尾ではなく、独立した《トラップアイコン》能力（`WX16-041-TRAP`）**へ移した。
+  //   旧 live は【出】を撃つだけでデッキトップ送りまで一緒に走る過剰実行だった（原文は別々の能力）。
+  //   ⚠パワー限定そのものは第21バッチの成果なので、移設先で assert を続ける。
+  const trap = effectsMap.get('WX16-041')!.find(e => e.effectId === 'WX16-041-TRAP')!;
+  eq(trap.effectType, 'TRAP_ICON', '《トラップアイコン》能力は独立した TRAP_ICON 効果');
+  eq((trap.action as { source?: { filter?: { powerRange?: { min?: number } } } }).source?.filter?.powerRange?.min,
+    15000, '「対戦相手のパワー15000以上のシグニ1体」＝パワー限定');
+  const trapPlay = effectsMap.get('WX16-041')!.find(e => e.effectId === 'WX16-041-E1')!;
+  eq((trapPlay.action as { type: string }).type, 'SEARCH', '【出】側にはデッキトップ送りが残っていない');
 });
 
 test('§5d-0(i) 第21バッチ: `signiClauseColorFilter` は対象名詞句の色だけを拾う（条件節・参照句は拾わない）', () => {

@@ -10,27 +10,31 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-29・続き720〜723・Opus 5 単独）＝§5.3 `O-80` 残 C群を消化しきった。
-  `O-141`（3効果）／`O-142`（6効果）／`O-143`（3効果）／第3バッチ（1効果）＝計13効果。**
-  ユーザー指示＝**「`O-80` 残 C群を行う」→「O-80をつづけ」→「O-143」→「O-80 残り2効果、早いレーンでできる？」**。
-  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 558（据置）｜census 高シグナル 520（据置）**
-  gates 全緑（**golden 2977→2988**・smoke 10702 全0・fuzz 全0・**`census:enginetext` 136 据置**・
-  **`POWER_MOD_PER_COUNT` の live 17→3効果**）。全文は BUGFIXES.md 冒頭4件／PLAN_DETAIL.md 2026-08-29。
-  - 🔑🔴**この4巡の一番大事な発見＝登録票の見立ては5巡連続で実測と外れた。**
-    `O-142`「値を運ぶ口が**見つからなかった**」→**在った**（`perLastProcessed` に列挙値1つ）／
-    `O-143`「`field.check` を**配列化して56箇所追随**」→あれは**ゾーンではなくバースト確認中の1枚専用スロット**で、
-    別スロット `check_rest` を足せば**既存56箇所は0箇所改変**／第3バッチ「**fail-closed で差し戻した**分」→
-    **「この効果で」という語が1つ足りなかっただけ**。⇒ **着手したらまず `grep` して読む。**
-  - 🔑**5巡とも「受け皿は最初から在り、parser がそこへ吐いていなかっただけ」＝新しいアクション型の新設は通算0。**
-  - 🔴**実機（⑤）が2回、golden が緑のまま見えない穴を炙った。**
-    ①`O-142`＝**`pending_effect` が抱えるカードが `battleCardMap` から落ちる**（`LOOK_AND_REORDER` の閲覧札は
-    どのゾーンにも居ない）＝resume の continuation で `cardMap.get()` が undefined を引き、後続の属性判定が
-    **全部 false/0 に倒れる**。⚠**同名カードがデッキに複数あると「たまたま」動く**ので対照の作り方しだいで見逃す。
-    ②`O-143`＝置く側（`ON_HAND_DISCARDED`）の watcher が**効果由来の捨て札で1件も発火しない**＝**`O-152`** へ登録。
-  - ⚠**ドライバの罠を2つ再実証**＝§4.4 罠2c（`clickPendingInstance` を毎ティック呼ぶと pick がトグルで外れ続ける）／
-    **初回注入直後に `effect_stack` が滞留して `pending_effect` が立たない**（再注入で必ず割れる）。
-  - 📌**分離した生きている項目**＝`O-151`（`O-140` の残2形）／`O-152`（上記）／`O-153`（`LOOK_PICK_CHAIN` が
-    手札行きと場行きを `lastProcessedCards` に混ぜる・2効果。うち `WX24-P3-039-E1` は**live で既に過剰**）。
+- 🏁**セッション（2026-08-29・続き724・Opus 5 単独）＝§5.2 Sheet2 バッチ2（速いレーン）。
+  台帳の残 OPEN から「1カード1 finding の HIGH」11件を消化（live 9効果を修正／2件は偽陽性）。**
+  ユーザー指示＝**「PLAN をよく読み、早いレーンで Sheet2 の段2 を消化する」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 558→547｜census 高シグナル 520→518**
+  （Sheet2 の残 OPEN は **107→96**・うち「1カード1 finding の HIGH」44→33）。
+  gates 全緑（**golden 2988 PASS**・smoke **10702→10703** 全0・fuzz 全0・`census:enginetext` 136 据置）。
+  全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は9件すべて既存**＝`ADD_TO_LIFE.fromTrash`／`THIS_CARD_IN_LOCATION{trash}`／
+    `TRAP_ICON`＋`ON_TRAP_ACTIVATE`／`filter.frontOfSelf`／`TargetFilter.keyword`／
+    `triggerFilter.powerRange`／`ENERGY_CARD count:"ALL"`。**新しいアクション型・条件型は0本**（通算でも0）。
+  - 🔴**この巡の一番大事な発見＝`WX20-066-E1` は parser のバグではなかった。**
+    live が原文と食い違っていたので手で書いたが、**parser の最新出力は既に正しく、`_held_fresh` に
+    温存されて live へ届いていなかっただけ**だった。手書きは §2.0 の禁じ手「移設だけの manual 化」に当たり、
+    **`§6.4 O-42` トリップワイヤ（golden）が実際に発火して検知した**。撤去後 live の刻印が `MANUAL` で
+    凍ったので `censusOrphanManual.ts --unfreeze A` で `AUTO` へ戻した。
+    ⇒ **live が原文と違うときは、まず `_held_fresh` / `_partial_fresh` / `_idset_fresh` を見る。**
+  - ⚠**findings の反復する偽陽性を1つ特定した**＝「そうした場合」の `CONDITIONAL{IS_MY_TURN}` は
+    **parser の慣例エンコード**（did-it ゲート・engine 特別処理あり）。狭めて実測すると
+    「optional の直後の `CONDITIONAL{IS_MY_TURN}`」は65効果あり、**前段 owner が実際に誤っていたのは3効果だけ**。
+    **この語だけで母集団を数えない。**
+  - ⚠**手順の罠を2つ再実証**＝①`manualEffects.ts` を書いても `build:effects` だけでは live に届かない
+    （`heldReview.mjs --adopt` が要る）②**既存 id の書き直しは `_partial_fresh` に回る**ので
+    `syncManualLive.ts` が要る（`WX16-041` で実際に踏んだ＝新設 `-TRAP` だけが通っていた）。
+  - ⚠**`manualEffects.ts` は `TargetFilter` が型付き**＝live に居た `cardType:"カード"` は
+    `CardTypeFilter` に無く typecheck が落ちる（`hasIcon` だけで足りるので落として通した）。
 
 **▶ 次の一手**＝🆕**`O-150`（`remainder.reorder` が効いていない件の特定）**＝`O-144` が「配線しても挙動が変わらない」で
 終わったので、**まず「フラグを外すと消える」形を1つ実機で作る**（作れないなら `O-51` の機構理解が間違っている）。
@@ -44,7 +48,9 @@
 `O-143`「56箇所を追随」→**0箇所**／`O-80` 第3バッチ「fail-closed の読み直し」→**語が1つ足りないだけ**）。
 **登録票は「症状の記録」であって設計判断ではない。着手したらまず `grep` して読む。**
 
-**軽い巡を挟むなら**＝§5.2 Sheet2 バッチ2（残 **107件**・**1カード1 finding の HIGH** から10件）。
+**軽い巡を挟むなら**＝§5.2 **Sheet2 バッチ3**（残 **96件**・**1カード1 finding の HIGH** が **33件**残っている）。
+⚠**バッチ2 の実測＝44件のうち2件は既に直っていた（偽陽性）／1件は parser ではなく `_held_fresh` の凍結**＝
+**着手したらまず live と原文を突き合わせ、食い違ったら 3つの fresh バケツを見る**（それだけで1件5分で閉じる）。
 **`O-138`（スペルカットイン割り込み）は `O-135` が片付いたので着手可能**になった。
 ⚠ただし本体は**カットイン機構そのもの**＝前提が外れただけで実装量は減っていない。
 🆕**`O-147`（複数体ライズ・13カード）**＝`V-89` の道中で分離。**召喚UIを複数ゾーン選択にする**ので回帰は召喚全体。
@@ -549,8 +555,8 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > 🆕🔴**2026-08-29 改定＝ここが「速いレーン」（§2.0）の本線キューになった。** 3つの計器のうち**段1 で真バグと確定しているのはここだけ**（census 571 と `behaviorAudit --queue` 566 は疑いで、偽陽性の選別にまた時間がかかる。両者の重なりはわずか28件＝**ほぼ別のものを見ている**）。
-> **母集団＝残 OPEN 570件（うち effectId 付き 445件・影響カード 431枚）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-29 続き709 時点＝段2 消化543／段0除去220／段1偽陽性111／HIGH・MED・LOW＝398・169・3）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
-> **シート別**＝Sheet2 **91** ／ Sheet8 78 ／ Sheet3 73 ／ Sheet7 60 ／ Sheet9 50 ／ Sheet4 42 ／ Sheet5 19 ／ Sheet6 8 ／ Sheet10 6 ／ 帰属不明 18。**Sheet1 は 0**（消化済み）＝**次に取るなら Sheet2。**
+> **母集団＝残 OPEN 547件（影響カード 412枚・効果 426件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-29 続き724 時点＝段2 消化566／段0除去220／段1偽陽性111／HIGH・MED・LOW＝377・167・3）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> **シート別（2026-08-29 続き724 実測）**＝Sheet2 **96** ／ Sheet8 78 ／ Sheet3 73 ／ Sheet7 60 ／ Sheet9 50 ／ Sheet4 42 ／ Sheet5 19 ／ Sheet6 8 ／ Sheet10 6 ／ 帰属不明 18。**Sheet1 は 0**（消化済み）＝**続けるなら Sheet2**（残 96・うち「1カード1 finding の HIGH」**33件**）。
 > 🔑**消し方（2026-08-29 以降の既定）**＝**1件ずつ原文を読み直して `manualEffects.ts` に正しい JSON を手で書く**（§2.0 速いレーン）。同型が3枚以上あるときだけ parser へ回す。**10件たまったら `gates` 1回・commit 1回・BUGFIXES 10行。**
 > ⚠**「移設だけ」は禁止**（§2.0）＝parser の出力をそのままコピーすると**中身が変わらないうえ census の MANUAL 免除で計器から消える**。
 > 原文 vs effects JSON を LLM で意味比較して見つけた指摘の worklist。仕組みは [SEMANTIC_AUDIT.md](./SEMANTIC_AUDIT.md)、Codex 運用は [CODEX_GUIDE.md](./CODEX_GUIDE.md)。

@@ -5509,6 +5509,68 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX13-049-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"＜原子＞のシグニ1枚を探す","label":"＜原子＞のシグニ1枚を探す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"原子"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"スペル1枚を探す","label":"スペル1枚を探す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"スペル"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WDK06-R09": [{"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","effectId":"WDK06-R09-E2b","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"usageLimit":"once_per_turn","cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":2000}}],
+
+  // ── §5.2 Sheet2 バッチ2（2026-08-29・§2.0 速いレーン）───────────────────────
+  // 台帳（`node scripts/archive/semanticAuditLedger.mjs`）の残 OPEN のうち **Sheet2 の「1カード1 finding の HIGH」**
+  // から9件。⚠**すべて受け皿は既存**＝parser がそこへ吐いていなかっただけで、新しいアクション型・条件型は0本。
+  // ⚠**「そうした場合」の `CONDITIONAL{IS_MY_TURN}` は parser の慣例エンコード**（engine 特別処理あり・
+  //   `effectParser.ts:8592`）＝**findings がここを「無関係な条件」と書いていたのは偽陽性**なので触っていない。
+
+  // ① 「あなたのエナゾーンからすべてのカードをトラッシュに置き」が丸ごと落ちていた
+  //    （旧 live は手札全捨て＋全バニッシュだけ＝**自分のエナを払わずに撃てる**過剰実行）。
+  "WX13-001": [
+    {"effectId":"WX13-001-E4","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // ② ライフに加えるのは**対象に取ったトラッシュのカード**（旧 live は `fromTop`＝デッキの一番上）。
+  //    受け皿は既存＝`ADD_TO_LIFE.fromTrash`（原文は「カード１枚」なので filter は付けない）。
+  "WX13-050": [
+    {"effectId":"WX13-050-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":2},{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":false},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":false,"fromTrash":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // ③ 「**あなたの他の**シグニ１体をバニッシュしてもよい」の owner が opponent に化けていた
+  //    （＝コストのつもりが**相手を1体多く割る**過剰実行）。`excludeSelf` は旧 live のまま正しい。
+  "WX14-033": [
+    {"effectId":"WX14-033-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","excludeSelf":true},"upToCount":false},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  // ④ 「（この能力は、このシグニが**トラッシュにある場合にしか**使用できない）」が落ちていた＝場に居ても撃てた。
+  //    受け皿は既存＝`condition:THIS_CARD_IN_LOCATION{trash}`（`WX13-038-E2`／`WX21-021-E3` と同型）。
+  "WX15-Re15": [
+    {"effectId":"WX15-Re15-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"condition":{"type":"THIS_CARD_IN_LOCATION","location":"trash"},"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","nonColorless":true},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"SHUFFLE_DECK","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // ⑤ 《トラップアイコン》能力が**独立した能力ではなく【出】の SEQUENCE 末尾**に混ざっていた
+  //    ＝【出】を撃つだけで「パワー15000以上をデッキトップへ」まで一緒に走る過剰実行。
+  //    受け皿は既存＝`<CardNum>-TRAP` / `effectType:'TRAP_ICON'` / `timing:['ON_TRAP_ACTIVATE']`（`WX16-062` ほか）。
+  "WX16-041": [
+    {"effectId":"WX16-041-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1,"discardFilter":{"hasIcon":"トラップ"}},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"トリック"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX16-041-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":15000}}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // ⑥ 【レイヤー】付与能力の1本目「**このシグニの正面の**シグニ１体」が `owner:'self'` に化けていた
+  //    ＝**自分のシグニの能力を自分で消す**逆向きの実行。受け皿は既存＝`filter.frontOfSelf`
+  //    （`REMOVE_ABILITIES` での前例＝`WXK11-029-E2` / `WXDi-P04-049-E1`）。2本目は原文どおりなので据置。
+  "WX17-035": [
+    {"effectId":"WX17-035-LAYER","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX17-035-LAYER-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},{"effectId":"WX17-035-LAYER-E2","effectType":"AUTO","timing":["ON_BANISH"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // ⑦ サーチ対象の「【レイヤー】を持つ」限定が落ちていた＝**任意のシグニ**を探せた。
+  //    受け皿は既存＝`TargetFilter.keyword`（`matchesFilter` が原文照合。`execSearch` はこれを消費する）。
+  //    ⚠同型は `WXEX1-05` の2効果だけ＝合計2カード（§2.0 の速いレーン基準内）なので併せて是正した。
+  "WX18-060": [
+    {"effectId":"WX18-060-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","keyword":"レイヤー"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WXEX1-05": [
+    {"effectId":"WXEX1-05-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","keyword":"レイヤー"},"maxCount":2,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXEX1-05-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"coin":2},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","keyword":"レイヤー"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
+  ],
+  // ⑧ 「アタックしたそのシグニのパワーが**20000以上の場合**」が落ちていた＝緑シグニのアタック全部で撃てた。
+  //    受け皿は既存＝`triggerFilter`（`collectFieldTriggers` / `attackerSelfTriggerFilterOk` が
+  //    **実効パワー**を `matchesFilter` に渡す＝CONTINUOUS 増減後で判定される）。
+  "WX20-046": [
+    {"effectId":"WX20-046-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"color":"緑","powerRange":{"min":20000}}}
+  ],
+  // ⑨ `WX20-066-E1`（「**このシグニを**場から手札に戻してもよい」の owner が opponent に化けていた
+  //    ＝`thisCardOnly` と `owner:'opponent'` が同居＝**相手の場に自分は居ない**ので候補0の無言 no-op）は
+  //    🔴**ここに書かない**＝**parser は既に正しい JSON を出しており、live 側が `_held_fresh` に温存されて
+  //    凍っていただけ**だった（`heldReview.mjs --adopt WX20-066` で解けた）。手で書くと §2.0 の禁じ手
+  //    「移設だけの manual 化」になり、`§6.4 O-42` トリップワイヤ（golden）が実際に発火して検知した。
+  //    ⇒ **live が原文と違うとき、まず `_held_fresh`／`_partial_fresh`／`_idset_fresh` を見る。**
 };
 
 /**

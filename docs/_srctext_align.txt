@@ -1,6 +1,6 @@
 # effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）
 
-解決 13 / 棄却カード 0 / 未解決 37
+解決 13 / 棄却カード 0 / 未解決 38
 
 ALIGN WDK06-R09: WDK06-R09-E2b ← WDK06-R09-E3「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：シグニ１体を対象とし」
 ALIGN WX24-P2-049: WX24-P2-049-E1b ← WX24-P2-049-E2「【自】：このシグニがバトルによってシグニ１体をバニッシュしたとき、あなたの白のシ」
@@ -26,6 +26,7 @@ SKIP(件数不一致) WX12-Re09: curated 2 vs parser 1
 SKIP(件数不一致) WX14-060: curated 2 vs parser 1
 SKIP(件数不一致) WX14-061: curated 2 vs parser 1
 SKIP(件数不一致) WX16-003: curated 3 vs parser 2
+SKIP(件数不一致) WX16-041: curated 2 vs parser 1
 SKIP(件数不一致) WX16-062: curated 1 vs parser 0
 SKIP(件数不一致) WX16-064: curated 1 vs parser 0
 SKIP(件数不一致) WX17-028: curated 2 vs parser 1
