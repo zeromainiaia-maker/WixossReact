@@ -2,6 +2,30 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き730・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet3 バッチ6（速いレーン）。
+  Sheet2 を切り上げて Sheet3 へ移り、12効果を消化して偽陽性7件を確定した（計21 finding クローズ）。
+  前巡に見つけた `excludeSelf` の配線漏れを合流点1箇所へ集約し、live 11効果ぶんの無言 no-op をまとめて塞いだ。**
+  ユーザー指示＝**「Sheet3（99件）へ移る」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 505→484｜census 高シグナル 499→492**
+  （**Sheet3 の残 OPEN は 99→78**・単発 HIGH 35／単発 MED 13）。
+  gates 全緑（**golden 3010→3011**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**）。全文は BUGFIXES.md 冒頭。
+  - 🔑**Sheet3 の歩留まりは Sheet2 より良い**＝**1巡で12効果**（Sheet2 の直近2巡と同等以上）。
+    **12件中7件が「語彙キーを1〜2個足すだけ」**（`cardName`／`hasIcon`／`powerRange`／`isDrive`／`keyword`／
+    `hasLifeBurst`＋`nonColorless`／`level`＋`excludeSelf`）。**Sheet3 を続けるのが今のところ最短。**
+  - 🔴🔑**`excludeSelf` を合流点へ集約した（engine 3行）**＝前巡は `execPowerSet` に1行足しただけだったが、
+    **`UP` 5・`DOWN` 2・`BOUNCE` 2・`FREEZE` 1・`POWER_SET` 1（live 実測11効果）が同じ理由で黙って自分自身も選べていた**。
+    ⇒ **`fieldCandidatesByOwner`（`execUtils.ts`）は `ctx` を持っている**ので、そこで落とすのが正しい合流点だった。
+    executor 側の既存4本（`execBanish`／`execPowerModify`／`execGrantKeyword`／`execGrantProtection`）は冪等なのでそのまま。
+    **教訓＝「1つの executor に足す」で済ませると同じ穴が残る。ctx を持つ合流点を探す。**
+  - 🔵**偽陽性は計7件**＝`WXEX1-05-E1/E2`（既に `keyword:'レイヤー'`）／`WXEX1-76-E2-G`（既に `sourceOwner:'any'`）／
+    🔑**`WXEX1-60-E1`・`WXEX2-01-E1`＝原文に所有者の限定が無い形は `owner:'any'` が正しい**
+    （同型の `WX06-017-E2` も live で `any`）＝**監査 LLM の「有利な効果は自分側だろう」という推測が外れた型**／
+    🔑**`WXK01-042-E1`＝`triggerCondition.turnOwner` の消費地点は collector ではなく中央の
+    `effectStack.ts:8 turnGateOk`**（スタック投入前に弾く＝`O-63` の設計）。⚠**一度 `activeCondition` へ移して
+    `O-63` の golden を落として気付いた＝戻した。**
+  - ⚠**「据置契約」golden が1本発火した**＝第33バッチが `WXEX2-51-E3` の「パワー12000以下が未表現」を
+    トリップワイヤとして固定していた。**実装したら落ちるのが仕様**なので、消さずに**期待値を反転**した。
+
 - 🏁**セッション（2026-08-29・続き729・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ5（速いレーン）。
   台帳の残 OPEN から 10効果を消化し、偽陽性5件を確定した（計15 finding クローズ）。
   受け皿の配線漏れを1件見つけて engine を1行だけ直した（`execPowerSet` の `excludeSelf`）。**

@@ -1015,3 +1015,39 @@ WXEX1-76-E2-G :: バニッシュされない
 #    `effectStack.ts:8` の `turnGateOk` がスタック投入前に弾く**（collector 側には無い＝§5.3 `O-63` の設計）。
 #    ⚠一度 `activeCondition{TURN_OWNER}` へ移してしまい `O-63` の golden が落ちて気付いた＝**戻した**。
 WXK01-042-E1 :: あなたのターンに
+
+# ── 2026-08-29 §5.2 Sheet3 バッチ7（速いレーン・manualEffects.ts 手書き11効果＋偽陽性1件）──
+# ① リフレッシュ時に「デッキの一番上のカードをエナゾーンに置き」が丸ごと落ちてドローだけしていた。
+WX22-045-E1
+# ② 「**対戦相手の**シグニ１体が場からトラッシュに置かれたとき」の発生源限定が無く、既定の
+#    triggerScope:'self'（このカード自身がトラッシュされたとき）のままだった。any_opp ＋ triggerFilter。
+WXEX1-29-E1
+# ③ 「**このシグニと**それをデッキの一番上に置く」の効果元自身が落ちていた。
+#    対象宣言も先なので SELECT_TARGET_ONLY/STORE ＋ TRANSFER_TO_DECK{targetsStored} で固定。
+WXEX1-39-E2
+# ④ ルリグデッキへ戻す緑のアーツが「すべて」ではなく1枚だった。count:'ALL'。
+WXEX2-16-E1 :: すべての緑のアーツ
+WXEX2-16-E3
+# ⑤ 「デッキの**下から**カードを２枚トラッシュに置く」が通常のデッキ上からになっていた。
+#    受け皿は `MILL.fromBottom`（`TRASH{DECK_CARD}` には無い）＝`lastProcessedCards` も同じく載る。
+WXK03-068-E1
+# ⑥ 「**その**シグニのパワーを＋5000」の照応が owner:any の任意シグニ1体になっていた。targetsTriggerSource。
+#    🔴engine 側で `collectArmorTriggers` の any_ally 経路だけ `triggeringCardNum` を載せておらず、
+#    照応が watcher 自身へフォールバックしていた＝1行足して golden で固定（反転確認済み）。
+WXK04-043-E2
+# ⑦ 「【アクセ】が付いている」あなたのシグニ限定が落ち、**自分の全シグニ**に＋2000していた。filter.hasAcce。
+WXK04-049-E2
+# ⑧ 「あなたのトラッシュから＜水獣＞のシグニ１枚を手札に加え」が丸ごと落ちていた。
+WXK04-059-E1
+# ⑨ 「手札から＜水獣＞のシグニを１枚**公開しないかぎり**、このシグニをトラッシュに置く」の二択が
+#    「自分の場の＜水獣＞1体をトラッシュ」に化けていた。`WX14-072/075` と同型（CHOOSE ＋ HAND_REVEAL_CLASS_SIGNI）。
+WXK04-090-E1
+# ⑩ 「同じ選択肢を２回選んでもよい」が落ちていた。ChooseAction.allowRepeat。
+WXK05-010-E1
+# ⑪ パワー減少の集計が「トラッシュの全カード」になっており《幕末の人斬り　イゾウ》限定が落ちていた。
+#    POWER_MODIFY_PER_TRASH_COUNT.countFilter.cardNames。
+WXK05-046-E1
+# ⑫ 🔵**偽陽性**＝原文は「【起】《**ターン１回**》ダイレクト《コインアイコン》」で、live の
+#    `usageLimit:'once_per_turn'` が正しい（監査は「ゲーム1回」と読み違えている）。
+#    ⚠同じ効果の HIGH（ダメージ時の遅延誘発）は `O-160` 待ちなので**開いたまま**。
+WXEX2-27-E3 :: ゲーム１回

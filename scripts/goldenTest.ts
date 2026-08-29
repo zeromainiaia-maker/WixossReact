@@ -22572,6 +22572,19 @@ test('collectArmorTriggers: any_ally watcher は story filter を評価（Opus�
   eq(fired(GUREN), true, '＜紅蓮＞の血晶武装で発火（従来は self に潰れてルリグでは絶対発火しなかった）');
   eq(fired(OTHER), false, '＜紅蓮＞以外は非発火（engine が filter 未評価だと過剰発火する）');
 });
+test('collectArmorTriggers: any_ally watcher は triggeringCardNum に「血晶武装したシグニ」を載せる（§5.2 Sheet3 バッチ7）', () => {
+  // 🔴この collector の any_ally 経路だけ `triggeringCardNum` を載せておらず、
+  //   `targetsTriggerSource`（「**その**シグニのパワーを＋5000」＝`WXK04-043-E2`）が
+  //   `ctx.sourceCardNum`（＝watcher 自身）へフォールバックして**別のシグニを強化していた**。
+  //   他の collector 31箇所は既に載せている＝ここだけの配線漏れ。
+  const armored = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('紅蓮') && c.CardNum !== 'WXK04-043');
+  const base = mkState({});
+  const host = { ...base, field: { ...base.field, signi: [['WXK04-043'], [armored], null] } } as PlayerState;
+  const entry = collectArmorTriggers(trigCtx(HOST), armored, HOST, host, mkState({})).entries
+    .find(x => x.effectId === 'WXK04-043-E2');
+  ok(!!entry, 'any_ally watcher が発火する');
+  eq(entry?.triggeringCardNum, armored, '照応先は血晶武装したシグニ（watcher 自身ではない）');
+});
 
 // ── semantic audit Tier 1（続き168）：条件ゲート4件 ──
 test('PR-K073-E1: レベル2/3/4の場条件がCHOOSE全体をANDゲートし、検索は同名以外', () => {
@@ -39407,9 +39420,17 @@ test('続き394 WD21-012-E2: ミルしたレベル合計10だけがバニッシ�
 }));
 
 test('続き394 WXK03-068-E1: ミルしたレベル合計5だけがドローを許可する', () => withSavedCursor(() => {
+  // 🆕**デッキの「下」から2枚**（§5.2 Sheet3 バッチ7）＝原文「あなたのデッキの**下から**カードを２枚
+  //   トラッシュに置く」に合わせて `MILL{fromBottom:true}` へ直したので、シナリオも**一番下**へ仕込む。
+  //   ⚠`mkCtx` の `deckTop` は先頭に積むので、そのままだと**別のカードがミルされて条件が化ける**。
   const action = conditionBatchEffect('WXK03-068', 'WXK03-068-E1').action;
-  eq(run(action, mkCtx({ deckTop: ['WD01-010', 'WD01-012'], hand: 0 }, {})).ownerState.hand.length, 1, '3+2=5 は1枚引く');
-  eq(run(action, mkCtx({ deckTop: ['WD01-012', 'WD02-012'], hand: 0 }, {})).ownerState.hand.length, 0, '2+2=4 は引かない');
+  const atBottom = (cards: string[]) => {
+    const ctx = mkCtx({ hand: 0 }, {});
+    ctx.ownerState.deck = [...ctx.ownerState.deck, ...cards];
+    return ctx;
+  };
+  eq(run(action, atBottom(['WD01-010', 'WD01-012'])).ownerState.hand.length, 1, '3+2=5 は1枚引く');
+  eq(run(action, atBottom(['WD01-012', 'WD02-012'])).ownerState.hand.length, 0, '2+2=4 は引かない');
 }));
 
 test('続き394 WXDi-CP01-032-E2: 前段成立かつ相手ミル合計7だけ追加7枚を落とす', () => withSavedCursor(() => {

@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.2 Sheet3 バッチ7（速いレーン）＝11効果を消化（＋偽陽性1件・据置契約3本が発火）
+
+Sheet3 の2巡目。実装先は原則 `src/data/manualEffects.ts`（§2.0 速いレーン）。🔴**engine は1行**（照応の配線漏れ）。
+
+### 真因（1効果ずつ）
+
+| 効果 | 真因 | 向き | 使った受け皿（すべて既存） |
+|---|---|---|---|
+| `WX22-045-E1` | リフレッシュ時の「デッキの一番上のカードを**エナゾーンに置き**」が丸ごと落ちてドローだけしていた | 過少 | `ENERGY_CHARGE_FROM_DECK` を前段に |
+| `WXEX1-29-E1` | 「**対戦相手の**シグニ１体が場からトラッシュに置かれたとき」の発生源限定が無く、既定の `triggerScope:'self'`（このカード自身がトラッシュされたとき）のままだった | 別物 | `triggerScope:'any_opp'` ＋ `triggerFilter:{cardType:'シグニ'}` |
+| `WXEX1-39-E2` | 「**このシグニと**それをデッキの一番上に置く」の**効果元自身が落ちていた**（＋対象宣言が先） | 過少＋別物 | `SELECT_TARGET_ONLY`／`STORE_LAST_PROCESSED_TARGETS` ＋ `TRANSFER_TO_DECK{targetsStored}` |
+| `WXEX2-16-E3` | ルリグデッキへ戻す緑のアーツが「**すべて**」ではなく1枚だった | 過少 | `count:'ALL'` |
+| `WXK03-068-E1` | 「デッキの**下から**カードを２枚トラッシュに置く」が通常のデッキ**上**からになっていた | 別物 | `MILL{fromBottom:true}`（`TRASH{DECK_CARD}` には `fromBottom` が無い。`lastProcessedCards` も同じく載るので後段の `LAST_PROCESSED_LEVEL_SUM` はそのまま効く） |
+| `WXK04-043-E2` | 「**その**シグニのパワーを＋5000」の照応が `owner:'any'` の任意シグニ1体になっていた | 別物 | `targetsTriggerSource`（🔴engine 側の配線漏れも同時に修正＝下記） |
+| `WXK04-049-E2` | 「**【アクセ】が付いている**あなたのシグニ」の限定が落ちて**自分の全シグニ**に＋2000していた | 過剰 | `filter.hasAcce`（CONTINUOUS の `applyDeltaToState` がゾーン状態フィルタを見る） |
+| `WXK04-059-E1` | 「あなたのトラッシュから＜水獣＞のシグニ１枚を手札に加え」が**丸ごと落ちていた** | 過少 | `TRANSFER_TO_HAND{TRASH_CARD}` |
+| `WXK04-090-E1` | 「手札から＜水獣＞のシグニを１枚**公開しないかぎり**、このシグニをトラッシュに置く」の二択が「自分の場の＜水獣＞1体をトラッシュ」に化けていた | 別物 | `CHOOSE` ＋ `STUB{HAND_REVEAL_CLASS_SIGNI}` ＋ `ChoiceOption.condition{HAND_COUNT_FILTER}`（`WX14-072/075` と同型） |
+| `WXK05-010-E1` | 「**同じ選択肢を２回選んでもよい**」が落ちていた | 過少 | `ChooseAction.allowRepeat` |
+| `WXK05-046-E1` | パワー減少の集計が「トラッシュの**全カード**」で《幕末の人斬り　イゾウ》限定が落ちていた | 過剰 | `POWER_MODIFY_PER_TRASH_COUNT.countFilter.cardNames` |
+
+**影響**＝live 11カード11効果。**新しいアクション型・条件型は0本**（速いレーン通算7巡62効果でも0本）。
+
+### 🔴 「据置契約」golden が3本発火した — うち1本は「直してはいけない」側だった
+
+据置契約は**「実装したら必ず落ちる」トリップワイヤ**なので、落ちたら**消さずに2択で判断する**。
+
+**(a) 受け皿ができたなら期待値を反転** — 前巡の `WXEX2-51-E3`（第33バッチの契約）。
+
+**(b) 据置の理由がまだ生きているなら手を出さない** — 今回の 🔴**`WXEX1-14-E2`**。
+「対戦相手のシグニ１体を対象とし、あなたの**エナゾーンから＜植物＞のシグニ３枚**をトラッシュに置く」を
+`TRASH{ENERGY_CARD, count:3}` へ直したところ、**2本の契約が同時に止めた**
+（`(B6) 据置契約: 別ゾーンを指す中間動作は owner だけ直さない（O-104 待ち）` と
+`段2 第24バッチ 見送り契約: 3体犠牲・エナ3枚はlive/freshとも据え置く`）。
+理由を実機コードで読み直すと**まだ生きていた**：
+
+- `EffectInteractionModal.canConfirm`（`:231`）は**非 optional で「選択数 ≧ maxPick」を要求する**。
+- `selectOrInteract`（`execUtils.ts:3014`）は **`count` を候補数へクランプせずそのまま pending に載せる**。
+
+⇒ **エナに＜植物＞のシグニが3枚無い盤面では決定ボタンが押せず、ゲームが進まなくなる**。
+**過剰実行より操作不能のほうが重い**ので、**実装済みだったものを差し戻した**（live は parser 出力へ復元）。
+受け皿（N枚コストの支払いUI）は **§5.3 `O-104`** 待ち。
+
+🔑**教訓＝`scripts/goldenTest.ts` を「据置契約」で grep してから触る。** 現在止めているのは
+`WXEX1-14-E2` / `WXK06-030-E1` / `WX07-039-E2` / `PR-322-E2`。
+
+### 🔴 照応の配線漏れ（engine 1行）＝`collectArmorTriggers` の any_ally 経路
+
+`collectArmorTriggers`（ON_BLOOD_CRYSTAL_ARMOR）の **any_ally 経路だけ `triggeringCardNum` を載せていなかった**
+（他の collector 31箇所は載せている）。⇒ `targetsTriggerSource`（「**その**シグニのパワーを＋5000」）が
+`ctx.sourceCardNum`（＝watcher 自身）へフォールバックし、**血晶武装したシグニではなく watcher を強化していた**。
+1行足して golden を1本追加、**反転確認**（外すと FAIL・戻すと PASS）まで取った。
+
+### ⚠ golden 1本が「シナリオの腐り」（§5.1 の分類(a)＝その場で直す）
+
+`WXK03-068-E1` を `MILL{fromBottom:true}` に直したので、`続き394 WXK03-068-E1` が `mkCtx` の **`deckTop`**
+に仕込んでいた検証カード（レベル3＋2＝5）が**もうミルされなくなった**。仕込み先を**デッキの一番下**へ直した。
+
+### 🔵 偽陽性1件
+
+`WXEX2-27-E3` の MED＝原文は「【起】《**ターン１回**》ダイレクト《コインアイコン》」で live の
+`usageLimit:'once_per_turn'` が正しい（監査が「ゲーム1回」と読み違えている）。
+⚠**同じ効果の HIGH（「このターン、対戦相手がダメージを受けたとき」の遅延誘発）は `O-160` 待ちなので開いたまま。**
+
+### 🆕 見つけたが取らなかったもの（§5.3 へ登録）
+
+- **`ATTACH_CHARM` の `charm:{type:'SIGNI'}` が engine に無い**（`WXEX1-28-E1` / `WX05-080`＝**2効果**）＝
+  `execAttachCharm` は `DECK_CARD` / `TRASH_CARD` 以外を**手札／エナ枝へ落とす**ので、**場のカードを一度も見ない**。
+  「対戦相手のシグニ1体を対戦相手の他のシグニの【チャーム】にする」は**現状 真no-op**。
+- **「このシグニに【チャーム】が付いていた場合」を ON_BANISH で判定する受け皿が無い**（`WXK07-048-E1`＝1効果）＝
+  `THIS_CARD_IS_CHARMED`（`execUtils.ts:2189`）は**場のゾーンを引く**ので、バニッシュ後は必ず false。
+  **入れると過剰実行が過少実行へ裏返るだけ**なので、スナップショット機構ができるまで触らない。
+
+### 検証
+
+- `npm run gates` **全緑**（typecheck / **golden 3012**（3011→3012・全件） / smoke 全0 / fuzz 全0 / census / census:stubs / manual-fields / **census:enginetext 136 据置** / lint）。
+- 逆翻訳（`npx tsx scripts/decompileEffects.ts <12枚>`）を目視で原文と照合。**反転確認 1/1**（`triggeringCardNum` 配線）。
+- 台帳＝`node scripts/archive/semanticAuditLedger.mjs` で **残 OPEN 484→472**（影響カード 366→355・効果 371→360）。**Sheet3 は 78→66**。
+- `census` 高シグナル **492→489**。⚠**前進ではなく不可視化**（MANUAL 免除）＝`BASELINE_HIGH` を 489 へ実数更新。
+- ⑤実機は**不要**と判定（触ったのは `src/data/` `src/engine/` `public/data/` `scripts/`。`src/screens/` 非改変・新型0本）。
+
+---
+
 ## 2026-08-29：§5.2 Sheet3 バッチ6（速いレーン）＝12効果を消化（＋偽陽性7件・`excludeSelf` を合流点へ集約）
 
 Sheet2 を切り上げて **Sheet3 の 99件**へ移った初回。実装先は原則 `src/data/manualEffects.ts`（§2.0 速いレーン）。

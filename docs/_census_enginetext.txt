@@ -57,11 +57,11 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | BET_MECHANIC | execStubPart1.ts:1072 | 8 | 8 | 2 | 0 |
 | ADD_CARD_TO_LRIG_DECK|ADD_CARD_TO_LRIG_DECK_HIDDEN | execStubPart2.ts:1919 | 6 | 6 | 0 | 0 |
 | CONDITIONAL_CARD_COST_BY_OPP_LRIG | execStubPart2.ts:4613 | 5 | 5 | 1 | 0 |
+| HAND_REVEAL_CLASS_SIGNI | execStubPart3.ts:3416 | 5 | 5 | 2 | 0 |
 | POWER_MOD_PER_REVEALED | execStubPart1.ts:5206 execStubPart2.ts:695 | 5 | 5 | 2 | 0 |
 | CHOOSE_HAND_OR_ENERGY | execStubPart3.ts:2394 | 4 | 4 | 1 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER | execStubPart3.ts:2751 | 4 | 4 | 3 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE | execStubPart1.ts:3026 | 4 | 4 | 4 | 0 |
-| HAND_REVEAL_CLASS_SIGNI | execStubPart3.ts:3416 | 4 | 4 | 2 | 0 |
 | PLACE_TRAP_FROM_REVEALED | execStubPart2.ts:3244 | 4 | 4 | 1 | 0 |
 | POWER_MOD_BY_DISCARD_COUNT_HIGH | execStubPart2.ts:2645 | 4 | 4 | 1 | 0 |
 | REVEAL_PICK_HAND_SHUFFLE_BOTTOM | execStubPart1.ts:4034 | 4 | 4 | 0 | 0 |
@@ -427,6 +427,11 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:4613  const txtCCOL = srcCCOL ? (srcCCOL.EffectText ?? '') + ' ' + (srcCCOL.BurstText ?? '') : '';
     lit re:対戦相手のセンタールリグが([赤青緑黒白]+)の場合[、,](?:このカードの|このアーツの)?(?:基本|使用)コストは(.+?)になる
 
+### HAND_REVEAL_CLASS_SIGNI  (live 5効果 / 5カード / miss 0)
+  execStubPart3.ts:3416  const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
+    lit re:手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]
+    lit str:好きな枚数
+
 ### POWER_MOD_PER_REVEALED  (live 5効果 / 5カード / miss 0)
   execStubPart1.ts:5206  const txtPR = srcPR ? (srcPR.EffectText ?? '') + ' ' + (srcPR.BurstText ?? '') : '';
   execStubPart2.ts:695  const txtPMPR = srcPMPR ? (srcPMPR.EffectText ?? '') + ' ' + (srcPMPR.BurstText ?? '') : '';
@@ -449,11 +454,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:代わりに([２-９\d])つ(?:まで)?選ぶ
     lit re:センタールリグのレベルが([１-９\d])以上
     lit re:追加で(?:エクシード([１-９\d])|((?:《[^》]+》)+))を支払(?:ってい)?た場合
-
-### HAND_REVEAL_CLASS_SIGNI  (live 4効果 / 4カード / miss 0)
-  execStubPart3.ts:3416  const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
-    lit re:手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]
-    lit str:好きな枚数
 
 ### PLACE_TRAP_FROM_REVEALED  (live 4効果 / 4カード / miss 0)
   execStubPart2.ts:3244  const txtPTFR = srcPTFR ? (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '') : '';
@@ -892,4 +892,4 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execUtils.ts:1131 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
   execUtils.ts:2063 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
   execUtils.ts:3238 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
-  triggerCollect.ts:1533 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+  triggerCollect.ts:1538 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

@@ -984,6 +984,11 @@ export function collectArmorTriggers(
         effectId: eff.effectId,
         label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（血晶武装時）`,
         effect: eff,
+        // 🆕`triggeringCardNum`＝**血晶武装状態になったシグニ**（§5.2 Sheet3 バッチ7・2026-08-29）。
+        // 🔴この any_ally 経路だけ載せておらず、`targetsTriggerSource`（「**その**シグニのパワーを＋5000」＝
+        //   `WXK04-043-E2`）が `ctx.sourceCardNum`（＝watcher 自身）へフォールバックしていた。
+        //   他の collector 31箇所は既に載せている＝ここだけの配線漏れ。
+        triggeringCardNum: armoredCardNum,
       });
     }
   }

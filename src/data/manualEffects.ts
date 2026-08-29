@@ -5744,6 +5744,45 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK07-082": [
     {"effectId":"WXK07-082-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":4,"hasLifeBurst":false,"nonColorless":true}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+  // 2026-08-29 §5.2 Sheet3 バッチ7（速いレーン）＝台帳の残 OPEN から 12効果を消化。
+  // 受け皿はすべて既存（`MILL.fromBottom` / `filter.hasAcce` / `ChooseAction.allowRepeat` /
+  // `POWER_MODIFY_PER_TRASH_COUNT.countFilter` / `targetsTriggerSource` / `triggerScope:'any_opp'` /
+  // `STUB{HAND_REVEAL_CLASS_SIGNI}` / `SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。
+  // ⚠`targetsTriggerSource` は engine 側の `triggeringCardNum` が ON_BLOOD_CRYSTAL_ARMOR の
+  //   any_ally 経路だけ載っていなかったので1行足した（`triggerCollect.ts`）。
+  "WX22-045": [
+    {"effectId":"WX22-045-E1","effectType":"AUTO","timing":["ON_REFRESH"],"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"refreshedOwner":"any"},"usageLimit":"once_per_turn"},
+  ],
+  "WXEX1-29": [
+    {"effectId":"WXEX1-29-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp","triggerFilter":{"cardType":"シグニ"},"triggerCondition":{"fromZones":["field"]}},
+  ],
+  "WXEX1-39": [
+    {"effectId":"WXEX1-39-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"shuffle":false,"position":"top"},{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsStored":true,"shuffle":false,"position":"top"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXEX2-16": [
+    {"effectId":"WXEX2-16-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"LRIG_TRASH_CARD","owner":"self","count":"ALL","filter":{"cardType":"アーツ","color":"緑"}},"shuffle":false,"destination":"lrig_deck"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXK03-068": [
+    {"effectId":"WXK03-068-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"MILL","owner":"self","count":2,"fromBottom":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_LEVEL_SUM","operator":"eq","value":5},"then":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  "WXK04-043": [
+    {"effectId":"WXK04-043-E2","effectType":"AUTO","timing":["ON_BLOOD_CRYSTAL_ARMOR"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"delta":5000,"targetsTriggerSource":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","usageLimit":"once_per_turn"},
+  ],
+  "WXK04-049": [
+    {"effectId":"WXK04-049-E2","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","hasAcce":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXK04-059": [
+    {"effectId":"WXK04-059-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":4}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1}},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"水獣"}}},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXK04-090": [
+    {"effectId":"WXK04-090-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"WXK04-090-E1-c1","label":"手札から＜水獣＞のシグニ1枚を公開する","condition":{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"水獣"},"operator":"gte","value":1},"action":{"type":"STUB","id":"HAND_REVEAL_CLASS_SIGNI"}},{"choiceId":"WXK04-090-E1-c2","label":"このシグニを場からトラッシュに置く","action":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXK05-010": [
+    {"effectId":"WXK05-010-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"allowRepeat":true,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXK05-046": [
+    {"effectId":"WXK05-046-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"POWER_MODIFY_PER_TRASH_COUNT","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerUnit":-1000,"unitSize":1,"trashOwner":"self","countFilter":{"cardNames":["幕末の人斬り　イゾウ"]},"until":"UNTIL_END_OF_TURN"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"fromZones":["deck"]}},
+  ],
 };
 
 /**
