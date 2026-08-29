@@ -53355,6 +53355,90 @@ test('manual2 A3 WX19-023-E2: そのアタック中の付与はLRIG・非PERMANE
   ok(grant.duration !== 'PERMANENT', '旧誤動作の永続付与へ戻っていない');
 });
 
+// ── §5.2 Sheet2 バッチ3（2026-08-29・速いレーン）＝台帳の残 OPEN から HIGH 7効果 ──
+//   すべて `manualFreshEffect`（fresh＋manual 合成）を読む＝manual を外すと赤くなる（§5-29）。
+
+test('S2B3 ① WX15-057-E1: エナに置いたのが《アクセ》シグニのときだけ追加ドロー', () => withSavedCursor(() => {
+  const effect = manualFreshEffect('WX15-057', 'WX15-057-E1');
+  const steps = (effect.action as SequenceAction).steps;
+  eq(steps.length, 2, '無条件ドローの2ステップ構成へ戻っていない');
+  const gate = steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(gate.type, 'CONDITIONAL', '旧＝無条件 DRAW へ戻っていない');
+  eq(gate.condition.type, 'LAST_PROCESSED_MATCHES', 'エナに置いたカードを見る');
+  eq((gate.condition as { filter?: { hasIcon?: string } }).filter?.hasIcon, 'アクセ');
+
+  // ⚠`hasIcon:'アクセ'` の判定は `execUtils.ts:1018` ＝**カード自身のテキストに `【アクセ】` があるか**の近似。
+  //   「アクセ」を含むだけのカードでは一致しない（fixture をここで間違えて1回赤くした）。
+  const acce = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【アクセ】'));
+  const plain = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【アクセ】'));
+  const hit = run(effect.action, mkCtx({ deckTop: [acce], hand: 0 }, {}, 'WX15-057'));
+  eq(hit.ownerState.hand.length, 1, '《アクセ》シグニなら追加で1枚引く');
+  const miss = run(effect.action, mkCtx({ deckTop: [plain], hand: 0 }, {}, 'WX15-057'));
+  eq(miss.ownerState.hand.length, 0, '対照: 《アクセ》を持たないなら引かない（旧は必ず引いた）');
+}));
+
+test('S2B3 ② WX17-072-E1: バニッシュ耐性は「このシグニ」限定', () => {
+  const effect = manualFreshEffect('WX17-072', 'WX17-072-E1');
+  const grant = effect.action as Extract<EffectAction, { type: 'GRANT_PROTECTION' }>;
+  ok(grant.target?.filter?.thisCardOnly === true, '効果元自身へ限定される');
+  eq(effect.activeCondition?.type, 'EICHI_LEVEL_SUM', '英知＝7 の有効条件を保持');
+});
+
+test('S2B3 ③ WX18-070-E1: レベル4は「エナに置くか手札に加える」の2択', () => {
+  const effect = manualFreshEffect('WX18-070', 'WX18-070-E1');
+  const rp = effect.action as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+  ok(rp.handOrEnergy === true, '2択の受け皿へ載っている');
+  eq(rp.filter?.level, 4, 'レベル4限定を保持');
+  ok(rp.handOrField !== true, '対照: 「場に出す」側の2択へ化けていない');
+});
+
+test('S2B3 ④ WX17-022-E1: 「あなたか対戦相手の」トラッシュを選べる', () => {
+  const effect = manualFreshEffect('WX17-022', 'WX17-022-E1');
+  const choose = effect.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(choose.type, 'CHOOSE', '旧＝自分のトラッシュ固定へ戻っていない');
+  eq(choose.choices.length, 2);
+  const owners = choose.choices.map(c => (c.action as { source?: { owner?: string } }).source?.owner);
+  eq(JSON.stringify(owners.sort()), JSON.stringify(['opponent', 'self']), '両プレイヤーが選べる');
+  ok(choose.choices.every(c => (c.action as { shuffle?: boolean }).shuffle === true), 'そのプレイヤーがシャッフルする');
+});
+
+test('S2B3 ⑤ WX14-076-E1: チャームにするのは対戦相手のトラッシュのカード', () => {
+  const effect = manualFreshEffect('WX14-076', 'WX14-076-E1');
+  const attach = effect.action as Extract<EffectAction, { type: 'ATTACH_CHARM' }>;
+  eq(attach.charm.type, 'TRASH_CARD', '旧＝自分のシグニをチャームにしていた');
+  eq(attach.charm.owner, 'opponent');
+  eq(attach.to.owner, 'opponent', '付ける先は対戦相手のシグニ');
+});
+
+test('S2B3 ⑥ WX21-Re19-E2: 自壊は任意で、そうした場合だけルリグへ付与', () => {
+  const effect = manualFreshEffect('WX21-Re19', 'WX21-Re19-E2');
+  const steps = (effect.action as SequenceAction).steps;
+  const trash = steps[0] as Extract<EffectAction, { type: 'TRASH' }>;
+  eq(trash.type, 'TRASH', '旧＝自壊なしで無条件付与へ戻っていない');
+  ok(trash.optional === true, '「置いてもよい」＝任意');
+  ok(trash.target?.filter?.thisCardOnly === true, '置くのはこのシグニ自身');
+  const gate = steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(gate.condition.type, 'IS_MY_TURN', '「そうした場合」の did-it ゲート（stripDidItConditional）');
+  eq((gate.then as { type?: string }).type, 'GRANT_LRIG_ABILITY', '付与本体はゲートの内側');
+});
+
+test('S2B3 ⑦ WX21-045-E2: 手札1枚捨て＋デッキ3枚トラッシュが入り、－5000は宣言した同じ対象へ', () => {
+  const effect = manualFreshEffect('WX21-045', 'WX21-045-E2');
+  const steps = (effect.action as SequenceAction).steps;
+  eq((steps[0] as StubAction).id, 'SELECT_TARGET_ONLY', '先に対象を宣言する');
+  eq((steps[1] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', '中間動作を跨いで対象を保持');
+  const discard = steps[2] as Extract<EffectAction, { type: 'TRASH' }>;
+  eq(discard.target.type, 'HAND_CARD');
+  eq(discard.target.owner, 'opponent', '捨てるのは対戦相手の手札');
+  const mill = steps[3] as Extract<EffectAction, { type: 'TRASH' }>;
+  eq(mill.target.type, 'DECK_CARD');
+  eq(mill.target.owner, 'opponent');
+  eq(mill.target.count, 3, 'デッキの上から3枚');
+  const pm = steps[4] as Extract<EffectAction, { type: 'POWER_MODIFY' }>;
+  ok(pm.targetsStored === true, '対照: 「それの」が再選択へ戻っていない');
+  eq(pm.delta, -5000);
+});
+
 test('manual2 B WX15-060-E1: 比較元8000未満だけを候補にし、比較元不在はfail-closed', () => withSavedCursor(() => {
   const effect = manualFreshEffect('WX15-060', 'WX15-060-E1');
   const steps = (effect.action as SequenceAction).steps;

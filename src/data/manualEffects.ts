@@ -5610,6 +5610,30 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "SP26-008": [
     {"effectId":"SP26-008-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":6}],"costScaling":[{"direction":"reduce","counts":[{"kind":"lrigLevel","owner":"self"}],"per":1,"amount":[{"color":"赤","count":1}]}]},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"赤"}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2},"then":{"type":"GRANT_KEYWORD","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"GRANT_EFFECT","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"SP26-008-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self","triggerFilter":{"thisCardOnly":true},"usageLimit":"once_per_turn"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+
+  // ── §5.2 Sheet2 バッチ3（2026-08-29・速いレーン）＝台帳の残 OPEN から1カード1 finding の HIGH ──
+  //   受け皿はすべて既存。1件ずつ CSV 原文を読み直して手で書いた（§2.0）。
+  "WX15-057": [
+    {"effectId":"WX15-057-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","hasIcon":"アクセ"},"minCount":1},"then":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX17-072": [
+    {"effectId":"WX17-072-E1","effectType":"AUTO","timing":["ON_PLAY"],"activeCondition":{"type":"EICHI_LEVEL_SUM","operator":"eq","value":7},"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"from":["BANISH"],"sourceOwner":"any","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX18-070": [
+    {"effectId":"WX18-070-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","level":4},"pickCount":1,"then":{"type":"ADD_TO_ENERGY","owner":"self"},"remainder":{"location":"deck","position":"top"},"handOrEnergy":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WX17-022": [
+    {"effectId":"WX17-022-E1","effectType":"ACTIVATED","timing":["ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"self","label":"あなたのトラッシュ","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true}},{"choiceId":"opponent","label":"対戦相手のトラッシュ","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX14-076": [
+    {"effectId":"WX14-076-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"ATTACH_CHARM","charm":{"type":"TRASH_CARD","owner":"opponent","count":1},"to":{"type":"SIGNI","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX21-Re19": [
+    {"effectId":"WX21-Re19-E2","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WX21-Re19-sub-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}},"upToCount":false,"explicitTarget":true},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}],"rawText":"【起】《ターン１回》《アタックフェイズアイコン》《白×0》：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。","duration":"UNTIL_OPP_TURN_END"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX21-045": [
+    {"effectId":"WX21-045-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"removeOppVirus":3},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":3}},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000,"targetsStored":true}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
+  ],
 };
 
 /**

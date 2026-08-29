@@ -1,5 +1,67 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.2 Sheet2 バッチ3（速いレーン）＝台帳の残 OPEN から HIGH 7効果を消化（＋偽陽性2件を確定）
+
+意味照合 段2 台帳の残 OPEN のうち **Sheet2 の「1カード1 finding の HIGH」33件**から着手。
+実装先はすべて `src/data/manualEffects.ts`（§2.0 速いレーン）＝**parser も engine も1行も触っていない**。
+
+### 真因（1効果ずつ）
+
+| 効果 | 真因 | 向き | 使った受け皿（すべて既存） |
+|---|---|---|---|
+| `WX15-057-E1` | 「それが《アクセアイコン》を持つシグニの場合」の条件が無く**必ず追加ドロー**していた | 過剰 | `CONDITIONAL{LAST_PROCESSED_MATCHES{hasIcon:'アクセ'}}`（`execEnergyChargeFromDeck` が置いたカードを `lastProcessedCards` に残す＝`effectExecutor.ts:2368`） |
+| `WX17-072-E1` | 「**このシグニは**」なのに**自分のシグニ1体を選ぶ選択UI**になっていた | 別物 | `filter.thisCardOnly` |
+| `WX18-070-E1` | 「エナゾーンに置く**か手札に加える**」の2択が落ちて**エナ固定** | 過少 | `REVEAL_AND_PICK.handOrEnergy` |
+| `WX17-022-E1` | 「**あなたか対戦相手の**トラッシュ」の選択が落ちて**自分のトラッシュ固定** | 別物 | `CHOOSE` の2枝（`execTransferToDeck` は `source.owner` の山をシャッフルする＝相手側でも正しく動く） |
+| `WX14-076-E1` | 【チャーム】にするのが「**対戦相手のトラッシュのカード**」ではなく**自分のシグニ**だった | 別物 | `ATTACH_CHARM.charm:{TRASH_CARD, owner:'opponent'}`（`execAttachCharm` が `charm.owner` を見る） |
+| `WX21-Re19-E2` | 「このシグニを場からトラッシュに置いても**よい**。**そうした場合**」が丸ごと無く、**無条件でセンタールリグへ【起】を付与**していた | 過剰 | `TRASH{optional:true}` ＋ `CONDITIONAL{IS_MY_TURN}`（did-it ゲートの慣例＝`stripDidItConditional`） |
+| `WX21-045-E2` | 「対戦相手は手札を１枚捨て、デッキの上から３枚トラッシュに置き」が**丸ごと欠落**＋「**それの**」が対象を選び直していた | 過少＋別物 | `SELECT_TARGET_ONLY` ＋ `STORE_LAST_PROCESSED_TARGETS` ＋ `POWER_MODIFY{targetsStored}` |
+
+**影響**＝live 7カード7効果。**新しいアクション型・条件型は0本**（速いレーンの通算3巡19効果でも0本）。
+
+### 🔵 偽陽性2件（live は既に正しい＝監査時点より後に直っていた）
+
+- `WX17-055-E1`＝live は `fromLeftFieldUnder:true`（**離場直前にこのシグニの下にあったカード限定**）＋ `noRiseIcon:true` を持つ。finding の「このカード自身に限定されている」は誤読。
+- `WX18-039-E1`＝live の `BLOCK_ACTION{actionId:'GUARD_LV2_3'}` は `makeGuardLevelBlocker`（`src/screens/battle/guard.ts:55`）が**レベル列挙として解く**。**§6.4 `O-41` で是正済みの6効果の1つとして当該関数のコメントに名指しされている。**
+
+### ⚠ 1件だけ判定を保留した（`O-157` へ登録）
+
+`WX21-Re07-E1`（「＜天使＞のシグニを**１０枚まで**探してトラッシュに置き」）は
+live が `SEARCH{maxCount:10, then:TRASH{DECK_CARD, count:1}}` で、**この形は live 18効果の慣例エンコード**
+（`WD07-006-E1` `WX11-006-E1` ほか＝`maxCount>1` でも `then` は `count:1`）。
+finding の「TRASH 対象数が1枚になっている」は**その慣例を読み違えた偽陽性に見えた**が、
+`bindSearchedDeckCards`（`effectExecutor.ts:9330`）が **`TRANSFER_TO_DECK` と `CHOOSE` しかバインドしない**ため、
+**`then` が `TRASH` のとき選んだ全枚数に適用されるのかを実コードで確定できなかった**。
+⇒ **偽陽性として閉じず**、`O-157` として登録した（**18効果に効く可能性があるので単独で確かめる**）。
+
+### 検証
+
+- `npm run gates` **全緑**（2回＝手書き直後と `build:effects` 再実行後）。**golden 3000→3007**（7効果に1本ずつ）・smoke 10703 全0・fuzz 全0・
+  `census:enginetext` **136行 据置**（engine 非改変の裏取り）。
+- golden は **`manualFreshEffect`（`mergeManualEffects(parseCardEffects(row))`）を読む fresh assert**（§5-29）で、
+  **7効果すべて反転確認済み**＝manual ブロックを一時削除すると **7/7 が FAIL** することを実際に確認した。
+- **per-effect 機械 diff＝変化した効果は7件のみ**（対象カードの兄弟効果への巻き込み0）。
+- `npm run regen` 後の**逆翻訳を7件とも原文と目視照合**（「対戦相手のトラッシュからカード1枚を…【チャーム】にする」
+  「この方法で《アクセアイコン》を持つシグニを1枚以上処理したなら…引く」等、すべて原文どおり）。
+
+### 台帳・計器
+
+- **段2 消化 566→575**／**残 OPEN 547→538**（**−9＝追記した9行と一致**）。
+- **Sheet2 の残 OPEN 96→87**、うち「1カード1 finding の HIGH」**33→24**。
+- ⚠**Sheet1 要対応は 0 のまま**（対象は全部 Sheet2）。census 高シグナルは MANUAL 免除で動く分だけ下がる（前進ではない）。
+
+### ⑤実機の要否＝**不要**（④まで）
+
+`src/screens/` 非改変・新しい型0本（PLAN §2.2 の機械判定）。engine 側の挙動は
+`WX15-057` の E2E golden（《アクセ》なら引く／持たなければ引かない）が両方向で押さえている。
+
+### 🆕 見つけて直さなかった機構ギャップ（§5.3 へ登録）
+
+- **`O-155`**＝`SelectionConstraint` に **`same:'power'`（「同じパワーを持つシグニN体」＝`WX13-013` `WX21-010`）** と
+  **「コストの合計が互いに異なる」（`WX21-046`）** の軸が無い。⚠**`same` の消費地点は engine 1・screens 2 の計3箇所**なので遅いレーン。
+- **`O-156`**＝**「あなたの場に【トラップ】がある場合」の条件型が無い**（実測6効果）。
+- **`O-157`**＝上記 `WX21-Re07-E1` の要確認（`SEARCH.then` が `TRASH` のとき全枚数に効くか）。
+
 ## 2026-08-29：§5.3「1〜3枚」manual 第2バッチ＝`O-75` / `O-124` をクローズ（5効果・Codex 実装／Claude 検証）
 
 前バッチ（同日・7効果）と同じ形。**受け皿（型・engine の消費地点）が既に在って parser の出力だけが誤っているもの**を
