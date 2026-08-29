@@ -2230,7 +2230,11 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.source?.type === 'HAND_CARD') {
         // 「N枚まで」（upToCount）と選んだ複数枚どうしの相互差異（selectionConstraint）を落とさない。
         const revCnt = a.source.count === 'ALL' ? 'を好きな枚数' : `${a.source.count ?? 1}枚${a.source.upToCount ? 'まで' : ''}を`;
-        return `${ownerJa(a.source.owner)}手札から${constraintJa(a.source.selectionConstraint)}${filterJa(a.source.filter)}シグニ${revCnt}公開する${a.optional ? '（してもよい）' : ''}`;
+        // §5.3 `O-76` 第2バッチ（2026-08-29）＝**名詞は payload から describe する**。
+        //   🔴旧実装は `cardType` を無視して常に「シグニ」と書いており、
+        //   `WXDi-P04-045-E1`「手札から**スペル**2枚を公開してもよい」が「シグニ2枚」と嘘をついていた。
+        const revNoun = typeof a.source.filter?.cardType === 'string' ? a.source.filter.cardType : 'シグニ';
+        return `${ownerJa(a.source.owner)}手札から${constraintJa(a.source.selectionConstraint)}${filterJa(a.source.filter)}${revNoun}${revCnt}公開する${a.optional ? '（してもよい）' : ''}`;
       }
       return `${ownerJa(a.owner)}デッキの上を公開する`;
     }
@@ -3499,6 +3503,39 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §5.3 `O-76`／`O-77` 第2バッチ（2026-08-29）＝2つの catch-all から分離した15文型。
+        //   ⚠**原文の帰結まで書く**＝保留と同時に「そうした場合」のゲートごと落としているので、
+        //     ここに書かないと何が未実装なのか逆翻訳から読めない。
+        DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD:
+          '【未実装】対戦相手はあなたの手札を2枚見ないで選び、あなたはそれらを捨てる',
+        DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK:
+          '【未実装】対戦相手は手札を公開する。対戦相手はあなたのルリグデッキからカード1枚を見ないで選び、あなたはそれを公開する',
+        DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL:
+          '【未実装】対戦相手はあなたの手札を1枚見ないで選び、あなたはそれを公開する（それが＜悪魔＞かレベル3以上のシグニの場合、ターン終了時まで【ランサー】を得る）',
+        DEFERRED_SELF_TRASH_TO_DECK_BOTTOM:
+          '【未実装】このカードをトラッシュからデッキの一番下に置く',
+        DEFERRED_EACH_PLAYER_REVEAL_HAND:
+          '【未実装】各プレイヤーは手札からカードを1枚公開する（その後、公開されたシグニ2枚のレベルの差以下のシグニを場に出す）',
+        DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH:
+          '【未実装】対戦相手はデッキの一番下のカードをトラッシュに置く（その後、そのカードと同じカード名の対戦相手のシグニ1体をバニッシュする）',
+        DEFERRED_CHECK_ZONE_TO_HAND:
+          '【未実装】あなたのチェックゾーンから《ガードアイコン》を持たないカードを1枚まで対象とし、それを手札に加える',
+        DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH:
+          '【未実装】あなたのライフクロスの一番上を見る。その後、それをクラッシュしてもよい',
+        DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI:
+          '【未実装】このシグニを、場に出たあなたのシグニの【アクセ】にしてもよい',
+        DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL:
+          '【未実装】あなたのデッキの一番上のカードをトラッシュに置いてもよい（この方法でトラッシュに置かれたシグニのレベル1につき対戦相手のデッキの上から1枚トラッシュに置く）',
+        DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM:
+          '【未実装】対戦相手はデッキの一番上を公開する。あなたはそれを対戦相手のデッキの一番下に置いてもよい',
+        DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE:
+          '【未実装】対戦相手のシグニ1体を対象とし、それを他のシグニゾーン1つに配置する',
+        DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP:
+          '【未実装】対戦相手のライフクロスの一番上のカードと、対戦相手のデッキの一番上のカードを入れ替えてもよい',
+        DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI:
+          '【未実装】見たカードの中から1枚を対象のシグニの下に置く（残りはデッキの一番下）',
+        DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END:
+          '【未実装】対戦相手は手札を1枚チェックゾーンに置く（このターン終了時、対戦相手はそれを手札に戻す）',
         // §5.3 `O-77`（2026-08-29）＝`LRIG_UNDER_CARD_OP` の catch-all から分離した3文型。
         //   ⚠**原文の帰結（「そうした場合、〜」）まで書く**＝改名と同時に did-it ゲートごと落としているので、
         //     ここに書かないと「何が実装されていないのか」が逆翻訳から読めなくなる。

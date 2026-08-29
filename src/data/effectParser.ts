@@ -12354,6 +12354,115 @@ function removeStubFromSequences(node: unknown, id: string): void {
 
 /** §5.3 O-80 第2バッチ: 数えるゾーン／場と適用先を action payload へ刻む。 */
 /**
+ * §5.3 `O-76`／`O-77` 第2バッチ（2026-08-29）＝`LOOK_OPP_LIFE_TOP` と `LRIG_UNDER_CARD_OP` の
+ * catch-all に残っていた文型を、**受け皿があるものは typed アクションへ／無いものは honest な
+ * `DEFERRED_*` へ**振り分ける。
+ *
+ * 🔴**`LOOK_OPP_LIFE_TOP` 側には live の過剰実行が1件あった**＝`WXDi-P04-045-E1`
+ *   「手札からスペル2枚を公開して**もよい**。**そうした場合**、カードを1枚引く」は
+ *   `SEQUENCE[STUB{LOOK_OPP_LIFE_TOP}, CONDITIONAL{IS_MY_TURN}]` で、STUB が payload 無しの
+ *   no-op なので**何も公開しないまま自分のターンなら必ず1枚引いていた**。
+ *   ⚠この id には `LRIG_UNDER_CARD_OP` のようなコスト先取りが無いぶん、**素通りで帰結だけ走る**。
+ *
+ * ⚠**保留するときは「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）ごと落とす**（`O-77` 第1バッチの教訓）。
+ *   この綴りの成立判定は「直前の任意アクションがスキップされたら `stripDidItConditional` が走る」ことに
+ *   依存しているので、任意アクションを実装しないまま残すと**無条件成立**になる。
+ */
+const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
+  // ── LOOK_OPP_LIFE_TOP 側 ──
+  [/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれらを捨てる/, 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
+  [/対戦相手はあなたのルリグデッキからカード[０-９\d]+枚を見ないで選び/, 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
+  [/対戦相手はあなたの手札を[０-９\d]+枚見ないで選び、あなたはそれを公開する/, 'DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL'],
+  [/このカードをトラッシュからデッキの一番下に置く/, 'DEFERRED_SELF_TRASH_TO_DECK_BOTTOM'],
+  [/各プレイヤーは手札からカードを[０-９\d]+枚公開する/, 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
+  [/対戦相手はデッキの一番下のカードをトラッシュに置く/, 'DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH'],
+  [/あなたのチェックゾーンから《ガードアイコン》を持たないカードを[０-９\d]+枚まで対象とし/, 'DEFERRED_CHECK_ZONE_TO_HAND'],
+  // ── LRIG_UNDER_CARD_OP 側（第1バッチの残り8文型）──
+  [/あなたのライフクロスの一番上を見る。その後、それをクラッシュしてもよい/, 'DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH'],
+  [/このシグニをそれの【アクセ】にしてもよい/, 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
+  [/あなたのデッキの一番上のカードをトラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベル/, 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
+  [/対戦相手はデッキの一番上を公開する。あなたはそれを対戦相手のデッキの一番下に置いてもよい/, 'DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
+  [/それを他のシグニゾーン[０-９\d]*つ?に配置する/, 'DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE'],
+  [/そのカードと対戦相手のデッキの一番上のカードを入れ替えてもよい/, 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP'],
+  [/その中から[０-９\d]+枚をそれの下に置く/, 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
+  [/対戦相手は手札を[０-９\d]+枚チェックゾーンに置く/, 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
+];
+
+function rewriteCatchAllStubs(text: string, action: EffectAction): EffectAction {
+  const json = JSON.stringify(action);
+  const hasLook = json.includes('LOOK_OPP_LIFE_TOP');
+  const hasUnder = json.includes('LRIG_UNDER_CARD_OP');
+  if (!hasLook && !hasUnder) return action;
+  const t = text.replace(/\s+/g, '');
+
+  /** payload 無しの当該 STUB を数える（payload つき＝正当な用法は絶対に触らない）。 */
+  const bareIds = new Set<string>();
+  if (hasLook) bareIds.add('LOOK_OPP_LIFE_TOP');
+  if (hasUnder) bareIds.add('LRIG_UNDER_CARD_OP');
+  const bare: Record<string, unknown>[] = [];
+  const scan = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(scan); return; }
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (o.type === 'STUB' && typeof o.id === 'string' && bareIds.has(o.id)
+      && Object.keys(o).every(k => k === 'type' || k === 'id')) bare.push(o);
+    for (const v of Object.values(o)) if (v && typeof v === 'object') scan(v);
+  };
+  scan(action);
+  if (bare.length !== 1) return action;   // 複数あるとどれが本文か決まらない＝触らない（fail-closed）
+
+  // ① 受け皿がある文型＝typed アクションへ置き換える。
+  //    ⚠**「そうした場合」の CONDITIONAL は残す**＝スキップ時に stripDidItConditional が無効化する仕組み。
+  let replacement: EffectAction | null = null;
+  if (/あなたの手札からスペル([０-９\d]+)枚を公開してもよい/.test(t)) {
+    const n = parseInt((t.match(/あなたの手札からスペル([０-９\d]+)枚を公開してもよい/)![1])
+      .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    replacement = {
+      type: 'REVEAL',
+      source: { type: 'HAND_CARD', owner: 'self', count: n, filter: { cardType: 'スペル' } },
+      optional: true,
+    } as EffectAction;
+  } else if (/対戦相手のトラッシュからカードを([０-９\d]+)枚まで対象とし、それらをデッキの一番上に置く/.test(t)) {
+    const n = parseInt((t.match(/対戦相手のトラッシュからカードを([０-９\d]+)枚まで対象とし/)![1])
+      .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    replacement = {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'TRASH_CARD', owner: 'opponent', count: n, upToCount: true },
+      shuffle: false, position: 'top',
+    } as EffectAction;
+  }
+  if (replacement) {
+    for (const key of Object.keys(bare[0])) delete bare[0][key];
+    Object.assign(bare[0], replacement);
+    return action;
+  }
+
+  // ② 受け皿が無い文型＝honest な `DEFERRED_*` へ改名し、直後の「そうした場合」を落とす。
+  const hit = CATCH_ALL_DEFER_TABLE.find(([re]) => re.test(t));
+  if (!hit) return action;
+  const deferId = hit[1];
+  const renameAndDropGate = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(renameAndDropGate); return; }
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (o.type === 'SEQUENCE' && Array.isArray(o.steps)) {
+      const steps = o.steps as Record<string, unknown>[];
+      for (let i = 0; i < steps.length; i++) {
+        if (steps[i] === bare[0]) {
+          const next = steps[i + 1] as Record<string, unknown> | undefined;
+          const cond = next?.condition as Record<string, unknown> | undefined;
+          if (next?.type === 'CONDITIONAL' && cond?.type === 'IS_MY_TURN') steps.splice(i + 1, 1);
+        }
+      }
+    }
+    for (const v of Object.values(o)) if (v && typeof v === 'object') renameAndDropGate(v);
+  };
+  renameAndDropGate(action);
+  bare[0].id = deferId;
+  return action;
+}
+
+/**
  * §5.3 `O-77`（2026-08-29）＝`STUB{LRIG_UNDER_CARD_OP}` の catch-all から
  * 「〜を場（トラッシュ）からデッキへ置いてもよい。**そうした場合**、〜」を既存の
  * `TRANSFER_TO_DECK` へ引き剥がす。
@@ -21642,6 +21751,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (const effect of effects) {
     if (effect.parseStatus !== 'AUTO') continue;
     effect.action = rewriteUnderCardOpToTransfer(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // §5.3 `O-76`／`O-77` 第2バッチ＝残った catch-all を typed / honest defer へ振り分ける。
+    effect.action = rewriteCatchAllStubs(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。

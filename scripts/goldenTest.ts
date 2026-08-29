@@ -8010,7 +8010,9 @@ test('O-60 parser: 「見る／公開する」の LOOK_OPP_LIFE_TOP が lookZone
     Object.values(obj).forEach(v => walk(effectId, v));
   };
   for (const effects of effectsMap.values()) for (const effect of effects) walk(effect.effectId, effect.action);
-  ok(found.length >= 25, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  // §5.3 `O-76` 第2バッチ（2026-08-29）＝裸の catch-all 9件を引き剥がしたので 27→18 ノードへ縮んだ。
+  //   ⚠この assert は「live から数え直しているか」を見るためのもので、件数を固定したいわけではない。
+  ok(found.length >= 18, `母集団は live から再導出（実測 ${found.length} ノード）`);
 
   // 🔑ゾーン別の代表を live から assert する＝「相手ライフ」以外の枝が実在することを固定し、
   //    payload を落として既定へ倒す退化（＝旧バグの形）を検出する。
@@ -8074,7 +8076,8 @@ test('O-60② parser: LRIG_UNDER_CARD_OP は underCardOp で操作と絞り込�
   // §5.3 `O-77`（2026-08-29）＝catch-all から7効果を引き剥がしたので母集団が縮んだ（15→10）。
   //   ⚠**「>= 15」のまま残すと、引き剥がすたびに赤くなる**＝この assert は「live から数え直しているか」を
   //     見るためのもので、件数そのものを固定したいわけではない。下限を実測に合わせて下げる。
-  ok(found.length >= 8, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  // §5.3 `O-77` 第2バッチ（2026-08-29）＝裸の catch-all 8件を引き剥がし、残りは payload つきの正当な用法だけ（10→2）。
+  ok(found.length >= 2, `母集団は live から再導出（実測 ${found.length} ノード）`);
 
   const energyUp = found.find(x => x.effectId === 'SPDi43-26-E1' && x.uc);
   eq(energyUp?.uc?.op, 'energy_signi_to_deck_top', 'エナ→デッキ上の操作を刻む');
@@ -8083,9 +8086,10 @@ test('O-60② parser: LRIG_UNDER_CARD_OP は underCardOp で操作と絞り込�
     '「下にあるすべてのカードをトラッシュ」だけがトラッシュ操作を刻む');
   // 🔑「下をトラッシュ」の文が無い効果は payload を持たない＝engine は下に触れない（旧バグの母集団）。
   // §5.3 `O-77`＝`WX24-P4-046-E2` は honest な `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` へ改名したので
-  //   この id からは外れた（受け皿が無いことを宣言済み）。母集団に残っているのは `WXK08-084-E1` 側。
-  ok(found.some(x => x.effectId === 'WXK08-084-E1' && !x.uc),
-    '🔴「下に**置く**」効果も持たない（旧実装はここで下を全部トラッシュしていた）');
+  //   この id からは外れた（受け皿が無いことを宣言済み）。
+  // §5.3 `O-77` 第2バッチ＝`WXK08-084-E1`（「下に**置く**」）も
+  //   `DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` へ改名して母集団から外れた。
+  //   「下を全部トラッシュしない」ことの固定は `O-76/O-77② parser契約` が引き継いでいる。
 });
 
 test('O-60② engine: 下のカードは payload があるときだけ落ち、色フィルタはエナの選択に効く', () => withSavedCursor(() => {
@@ -52546,6 +52550,93 @@ test('O-77 engine両方向: 任意の場→デッキ下はスキップで「そ�
     '旧コスト先取り（CHOOSE「シグニ下のカードを使用して発動しますか？」）が出ない');
   ok(!(stacked.logs ?? []).some(l => String(l).includes('シグニ下のカードを使用して発動')),
     '旧コスト先取りのログも出ない');
+}));
+
+// ── §5.3 O-76 / O-77 第2バッチ：2つの catch-all を空にする ──
+const o76Fresh = (cardNum: string, effectId: string): CardEffect => {
+  const effect = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+};
+
+test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無いものは honest defer へ', () => withSavedCursor(() => {
+  // ■成立方向①＝受け皿が確認できた2文型は typed アクションへ。
+  //   🔴`WXDi-P04-045-E1` は**live の過剰実行**だった＝`SEQUENCE[STUB{LOOK_OPP_LIFE_TOP}, CONDITIONAL{IS_MY_TURN}]`
+  //     で STUB が payload 無しの no-op なので、**何も公開しないまま自分のターンなら必ず1枚引いていた**。
+  const reveal = JSON.stringify(o76Fresh('WXDi-P04-045', 'WXDi-P04-045-E1'));
+  ok(reveal.includes('"REVEAL"') && reveal.includes('"cardType":"スペル"') && reveal.includes('"optional":true'),
+    'WXDi-P04-045-E1: 「手札からスペル2枚を公開してもよい」を REVEAL{optional} で表す');
+  ok(reveal.includes('"IS_MY_TURN"'),
+    'WXDi-P04-045-E1: 「そうした場合」は残す（スキップ時に stripDidItConditional が止める）');
+  const toDeck = JSON.stringify(o76Fresh('WXK06-028', 'WXK06-028-E1'));
+  ok(toDeck.includes('"TRANSFER_TO_DECK"') && toDeck.includes('"owner":"opponent"')
+    && toDeck.includes('"upToCount":true') && toDeck.includes('"position":"top"'),
+    'WXK06-028-E1: 相手トラッシュ2枚までをデッキの上へ');
+
+  // ■成立方向②＝受け皿が無い15文型は honest な DEFERRED_* へ。
+  for (const [cardNum, effectId, id] of [
+    ['SPK01-14', 'SPK01-14-E1', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD'],
+    ['PR-K070', 'PR-K070-E2', 'DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK'],
+    ['PR-K078', 'PR-K078-E2', 'DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL'],
+    ['WX22-Re17', 'WX22-Re17-E2', 'DEFERRED_SELF_TRASH_TO_DECK_BOTTOM'],
+    ['WXEX2-80', 'WXEX2-80-E1', 'DEFERRED_EACH_PLAYER_REVEAL_HAND'],
+    ['WXDi-P00-037', 'WXDi-P00-037-E2', 'DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH'],
+    ['WXDi-P11-006', 'WXDi-P11-006-E2', 'DEFERRED_CHECK_ZONE_TO_HAND'],
+    ['WD23-022-E', 'WD23-022-E-E3', 'DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH'],
+    ['WDK17-015', 'WDK17-015-E1', 'DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI'],
+    ['WX24-P4-085', 'WX24-P4-085-E1', 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
+    ['WXDi-P00-063', 'WXDi-P00-063-E2', 'DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
+    ['WXDi-P06-045', 'WXDi-P06-045-E1', 'DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE'],
+    ['WXDi-P08-008', 'WXDi-P08-008-E2', 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP'],
+    ['WXK08-084', 'WXK08-084-E1', 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
+    ['WXK10-045', 'WXK10-045-E2', 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
+  ] as const) {
+    const json = JSON.stringify(o76Fresh(cardNum, effectId));
+    ok(json.includes(`"${id}"`), `${effectId}: honest な defer id`);
+    // ⚠**「catch-all id が1つも無いこと」を全件に課さない**＝`WXDi-P08-008-E2` は
+    //   「対戦相手のライフクロスの一番上を**公開する**」（payload つきの正当な `LOOK_OPP_LIFE_TOP`）＋
+    //   「**入れ替えてもよい**」（受け皿なし＝defer）の2ステップで、**前者は残るのが正しい**。
+    //   ⇒ 「payload の無い裸の catch-all が残っていないこと」で見る。
+    ok(!/"id":"(LOOK_OPP_LIFE_TOP|LRIG_UNDER_CARD_OP)"}/.test(json),
+      `${effectId}: payload の無い裸の catch-all id が残っている`);
+  }
+
+  // ■不成立方向＝payload を持つ**正当な用法**は1つも触らない（この id 自体は生きている）。
+  //   ⚠これが無いと「その id を全部 DEFERRED へ置換する実装」でも上が全部緑になる。
+  const keepLook = JSON.stringify(o76Fresh('WD06-006', 'WD06-006-E1'));
+  ok(keepLook.includes('LOOK_OPP_LIFE_TOP') && !keepLook.includes('DEFERRED_'),
+    'payload つきの LOOK_OPP_LIFE_TOP は据え置く');
+  const keepUnder = JSON.stringify(o76Fresh('SPDi43-26', 'SPDi43-26-E1'));
+  ok(keepUnder.includes('LRIG_UNDER_CARD_OP') && keepUnder.includes('energy_signi_to_deck_top'),
+    'payload つきの LRIG_UNDER_CARD_OP は据え置く');
+}));
+
+test('O-76② engine両方向: 任意の手札公開はスキップで「そうした場合」を止める', () => withSavedCursor(() => {
+  // 🔴旧挙動＝STUB が no-op なので**何も公開せず自分のターンなら必ず1枚引いた**。
+  //   §4.4 3b のとおり「旧実装でも残る痕跡」（手札枚数が変わらないのにデッキが減る）で書く。
+  const spells = [...cardMap.values()].filter(c => c.Type === 'スペル').slice(0, 2).map(c => c.CardNum);
+  eq(spells.length, 2, 'スペル2枚を確保');
+  const action: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count: 2, filter: { cardType: 'スペル' } }, optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as EffectAction;
+  const mk = () => { const c = mkCtx({}, {}); c.ownerState.hand = [...spells]; return c; };
+
+  // ■成立方向＝2枚公開すると1枚引く（手札は公開なので減らない＝+1）。
+  const ctxDo = mk();
+  const did = run(action, ctxDo);
+  eq(did.ownerState.hand.length, ctxDo.ownerState.hand.length + 1, '成立方向: 公開して1枚引く（公開は手札に残る）');
+
+  // ■不成立方向＝0枚選択（公開しない）なら**引かない**。
+  const ctxSkip = mk();
+  const first = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctxSkip);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'optional なので公開の選択が立つ');
+  const skipped = resumeSelectTarget([], first.pending as never, {
+    ...ctxSkip, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs } as ExecCtx);
+  const fin = finish(skipped, ctxSkip);
+  eq(fin.ownerState.hand.length, ctxSkip.ownerState.hand.length,
+    '不成立方向: 公開しなければ引かない（旧実装はここで必ず1枚引いていた）');
 }));
 
 test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増えたら FAIL）', () => withSavedCursor(() => {

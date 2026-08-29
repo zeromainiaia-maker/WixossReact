@@ -1,5 +1,73 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.3 `O-76` クローズ ＋ `O-77` 第2バッチ＝2つの catch-all を空にした（17効果）
+
+■**やったこと**＝`LOOK_OPP_LIFE_TOP` と `LRIG_UNDER_CARD_OP` に残っていた
+**payload を持たない裸の STUB（＝id が嘘をつく catch-all 流入）を 0 にした。**
+
+| id | 着手前 | 着手後 |
+|---|---|---|
+| `LOOK_OPP_LIFE_TOP` | live 27効果（payload 18 ／**真の穴 9**） | live 18効果（**全部 payload つき＝正当な用法**／真の穴 **0**） |
+| `LRIG_UNDER_CARD_OP` | live 10効果（payload 2 ／**真の穴 8**） | live 2効果（**全部 payload つき**／真の穴 **0**） |
+
+⚠**登録票は `O-76` を「11効果」と書いていたが実測は 9**（残りは既に payload つきへ移っていた）。
+
+■🔴**live の過剰実行を1件見つけて直した**＝`WXDi-P04-045-E1`
+「あなたの手札からスペル2枚を公開して**もよい**。**そうした場合**、カードを1枚引く」は
+`SEQUENCE[STUB{LOOK_OPP_LIFE_TOP}, CONDITIONAL{IS_MY_TURN}]` で、STUB が payload 無しの no-op なので
+**何も公開しないまま、自分のターンなら必ず1枚引いていた**。
+⚠**`LRIG_UNDER_CARD_OP` と違いこの id にはコスト先取りが無い**ぶん、**素通りで帰結だけが走る**形だった。
+⇒ `REVEAL{source:{HAND_CARD, count:2, filter:{cardType:'スペル'}}, optional:true}` へ。
+スキップ（0枚選択）で `resumeSelectTarget` → `stripDidItConditional` が「そうした場合」を止める。
+
+■✅**受け皿があった2文型は typed アクションへ**（**新しいアクション型は0**）：
+- `WXDi-P04-045-E1` → `REVEAL{optional}`（上記）
+- `WXK06-028-E1`（「対戦相手のトラッシュからカードを2枚まで対象とし、それらをデッキの一番上に置く」）
+  → `TRANSFER_TO_DECK{TRASH_CARD, owner:'opponent', upToCount, position:'top'}`（先例98件）
+
+■✅**受け皿が無い15文型は honest な `DEFERRED_*` へ**（`census:stubs` C群の作法・`miscStubMap` に
+**原文の帰結まで**日本語で記載）：
+`DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD` ／ `..._MY_LRIG_DECK` ／ `..._MY_HAND_REVEAL` ／
+`DEFERRED_SELF_TRASH_TO_DECK_BOTTOM` ／ `DEFERRED_EACH_PLAYER_REVEAL_HAND` ／
+`DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH` ／ `DEFERRED_CHECK_ZONE_TO_HAND` ／
+`DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH` ／ `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` ／
+`DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL` ／ `DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM` ／
+`DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE` ／ `DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP` ／
+`DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI` ／ `DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END`。
+⚠**保留と同時に「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）を落とす**（`O-77` 第1バッチの教訓）。
+
+■🔑**「裸の STUB が1つだけ」のときにしか触らない**（fail-closed）＝
+payload つきの正当な用法は1つも変えていない。実際 `WXDi-P08-008-E2` は
+**「公開する」＝payload つき `LOOK_OPP_LIFE_TOP` を残したまま**、「入れ替えてもよい」だけを defer した。
+⚠**golden の最初の書き方は「その id が1つも残っていないこと」だったが、これは強すぎて赤くなった**＝
+**「payload の無い裸の id が残っていないこと」に直した**（テストが過剰な assert を捕まえた）。
+
+■🔴**ついでに直した逆翻訳の嘘**＝`REVEAL{HAND_CARD}` のレンダラが `filter.cardType` を無視して
+**常に「シグニ」**と書いていた（`decompileEffects.ts:2233`）。
+`WXDi-P04-045-E1` が「手札から**シグニ**2枚を公開する」と出て原文（**スペル**）と食い違っていた。
+⇒ **名詞を payload から描く**ようにした。同型★ は 0 のまま。
+
+■**検証**
+- `npm run gates` **全緑**＝golden **2970→2972**（+2・FAIL 0）／smoke 10702 全0／fuzz 全0／
+  census 520 据置／`census:enginetext` 141 据置／lint 260 据置。`npm run regen` 後の**同型★ 0**。
+- **live A/B 差分＝実体が変わった効果は 18 ちょうど**（採用2＋保留15＋`WXDi-P00-037-E1`）。
+  **outlier 0・キー順のみの差 0。**
+  ⚠`WXDi-P00-037-E1` は**私の変更ではない**＝同じカードの兄弟効果が**カード単位の採用で連れられた**もので、
+  差分は**stale な `costUnparsed:true` が落ちただけ**（action は1バイトも同じ＝parser が既にコストを読めていた）。
+- **golden 新規2本**＝parser 契約（typed 2件＋defer 15件＋**payload つきの正当な用法は触らない対照**）
+  ＋ engine 両方向（公開すると引く／**公開しなければ引かない**＝旧実装はここで必ず引いていた）。
+- **既存 golden 3箇所を更新**＝母集団の下限2つ（25→18／8→2。**件数を固定する assert ではない**ので実測へ）と、
+  `WXK08-084-E1` の在籍 assert（honest な defer へ移ったので新テストが引き継ぐ）。
+- **実機なし**＝§2.2 の表どおり（`src/data/` `scripts/` `public/data/` だけで **`src/screens/` に触れていない**、
+  かつ**新しいアクション型・条件型を1つも足していない**）。任意公開の funnel は golden が両方向で押さえている。
+
+■📌**踏んだ落とし穴＝held の読み値が stale だった**（§CODEX_GUIDE §6 の但し書きそのもの）。
+採用直後に読むと **92→106（+14）**に見え、その14件は**いま採用したカードそのもの**だった。
+`npm run build:effects` → `heldReview` を回し直すと **90**（−2）。**報告前に必ず再生成する。**
+
+■**残り**＝両 catch-all の**裸の STUB は 0**。`DEFERRED_*` 15件は「機構が無いことを宣言済み」の状態で、
+`census:stubs` の**明示 defer** に並ぶ（無言 no-op は 0 のまま）。個々の実装は別項目。
+
 ## 2026-08-29：§5.3 `O-77`＝`LRIG_UNDER_CARD_OP` の catch-all は「効かない」ではなく**払っていないコストを取り立てていた**
 
 ■🔴**登録票は「過剰実行は止めてある（payload なし＝何もしない）」と書いていたが、これは誤りだった。**
