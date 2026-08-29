@@ -10,53 +10,53 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-29・続き729・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ5（速いレーン）。
-  台帳の残 OPEN から 10効果を消化し、偽陽性5件を確定した（計15 finding クローズ）。
-  受け皿の配線漏れを1件見つけて engine を1行だけ直した（`execPowerSet` の `excludeSelf`）。**
-  ユーザー指示＝**「続けてバッチ５を行う、早いレーンを優先する」**。
-  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 520→505｜census 高シグナル 504→499**
-  （**Sheet2 の残 OPEN は 69→54**・単発 HIGH 20→**21**／単発 MED 8）。
-  gates 全緑（**golden 3008→3010**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**）。全文は BUGFIXES.md 冒頭。
-  - 🔑**受け皿は10件すべて既存**（`filter.color:'無'`／`hasLifeBurst`／`noAbilities`／`powerRange`／`excludeSelf`／
-    `cost.energyTrash{filter}`／`LookPickChainStage.pickUpTo`／`SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。
-    **新しいアクション型・条件型は0本**（速いレーン通算5巡39効果でも0本）。
-  - 🔴🔑**「受け皿はあるのに1つの executor にだけ配線が無い」を1件踏んだ**＝`TargetFilter.excludeSelf` は
-    `execBanish:1267`／`execPowerModify:1795`／`execGrantKeyword:4066` に在るのに **`execPowerSet` にだけ無かった**
-    （`fieldCandidates` は `sourceCardNum` を受け取らないので `matchesFilter` では解けない形）。
-    ⇒ **engine 1行＋golden 1本（反転確認済み）**。**`census:wiring` が測っているのと同じ軸**なので、
-    「型に語彙がある」だけで受け皿ありと判定しない＝**その executor が読んでいるか**まで見る。
-  - 🔵**偽陽性は計5件**（**5件中4件が「監査後に直っていた」／1件が慣例エンコードの読み違い**）＝
-    `WX20-050-E1`（`cardName` を既に持つ）／`WX21-043-E2`（`handDiscardSigni` を既に持つ）／
-    `WX18-077-E1`・`WX18-078-E1`（`duringMainPhase` を既に持ち `BattleScreen.tsx:1954` が消費＝`O-64` で是正済み）／
-    🔑**`WX12-Re14-E1`＝CONTINUOUS `POWER_SET` は `count!=='ALL'` を「効果元シグニのみ」として扱う**
-    （`effectEngine.ts:2168-2175`）＝**`target:{SIGNI,self,count:1}` が「このシグニの基本パワーは」の正しい書き方**（live 207カードの慣例）。
-    **`GRANT_PROTECTION` の `subjectFilter` と同じ形の罠**（§5.2 第43バッチの再演）。
-  - ⚠**golden 1本が「シナリオの腐り」で落ちた**（§5.1 の分類(a)）＝`WX12-004-E1` の対象宣言をライフクラッシュ前へ
-    移したので、**最初の対話が「クラッシュ後のバニッシュ対象」から「先頭の対象宣言」へ変わった**。
-    その場で spec を直し、**2体並べて2体目を宣言する**判別テストを足した（1体だけの盤面では
-    autopilot が先頭を選ぶので `targetsStored` が効いていなくても通ってしまう）。
+- 🏁**セッション（2026-08-29・続き730・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet3 バッチ6（速いレーン）。
+  Sheet2 を切り上げて Sheet3 へ移り、12効果を消化して偽陽性7件を確定した（計21 finding クローズ）。
+  前巡に見つけた `excludeSelf` の配線漏れを合流点1箇所へ集約し、live 11効果ぶんの無言 no-op をまとめて塞いだ。**
+  ユーザー指示＝**「Sheet3（99件）へ移る」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 505→484｜census 高シグナル 499→492**
+  （**Sheet3 の残 OPEN は 99→78**・単発 HIGH 35／単発 MED 13）。
+  gates 全緑（**golden 3010→3011**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**）。全文は BUGFIXES.md 冒頭。
+  - 🔑**Sheet3 の歩留まりは Sheet2 より良い**＝**1巡で12効果**（Sheet2 の直近2巡と同等以上）。
+    **12件中7件が「語彙キーを1〜2個足すだけ」**（`cardName`／`hasIcon`／`powerRange`／`isDrive`／`keyword`／
+    `hasLifeBurst`＋`nonColorless`／`level`＋`excludeSelf`）。**Sheet3 を続けるのが今のところ最短。**
+  - 🔴🔑**`excludeSelf` を合流点へ集約した（engine 3行）**＝前巡は `execPowerSet` に1行足しただけだったが、
+    **`UP` 5・`DOWN` 2・`BOUNCE` 2・`FREEZE` 1・`POWER_SET` 1（live 実測11効果）が同じ理由で黙って自分自身も選べていた**。
+    ⇒ **`fieldCandidatesByOwner`（`execUtils.ts`）は `ctx` を持っている**ので、そこで落とすのが正しい合流点だった。
+    executor 側の既存4本（`execBanish`／`execPowerModify`／`execGrantKeyword`／`execGrantProtection`）は冪等なのでそのまま。
+    **教訓＝「1つの executor に足す」で済ませると同じ穴が残る。ctx を持つ合流点を探す。**
+  - 🔵**偽陽性は計7件**＝`WXEX1-05-E1/E2`（既に `keyword:'レイヤー'`）／`WXEX1-76-E2-G`（既に `sourceOwner:'any'`）／
+    🔑**`WXEX1-60-E1`・`WXEX2-01-E1`＝原文に所有者の限定が無い形は `owner:'any'` が正しい**
+    （同型の `WX06-017-E2` も live で `any`）＝**監査 LLM の「有利な効果は自分側だろう」という推測が外れた型**／
+    🔑**`WXK01-042-E1`＝`triggerCondition.turnOwner` の消費地点は collector ではなく中央の
+    `effectStack.ts:8 turnGateOk`**（スタック投入前に弾く＝`O-63` の設計）。⚠**一度 `activeCondition` へ移して
+    `O-63` の golden を落として気付いた＝戻した。**
+  - ⚠**「据置契約」golden が1本発火した**＝第33バッチが `WXEX2-51-E3` の「パワー12000以下が未表現」を
+    トリップワイヤとして固定していた。**実装したら落ちるのが仕様**なので、消さずに**期待値を反転**した。
 
-**▶ 次の一手**＝**§5.2 は Sheet2 を切り上げて Sheet3（99件）へ移る**（残 OPEN **505**）。
-🔑**Sheet2 は 96→54 まで削ったが、残りは HIGH に機構待ちが濃縮している**＝残 HIGH 21件の多くが
-§5.3 登録済み（`O-155` 同パワー／`O-156` トラップ条件／`O-158`〜`O-161`）。**歩留まりは Sheet3 のほうが高い。**
-着手はこれまでどおり「1件ずつ受け皿を確かめる」選別から。判定は次の**4手**（🆕④を追加）：
+**▶ 次の一手**＝**§5.2 Sheet3 バッチ7**（残 OPEN **484**・Sheet3 は **78件**・単発 HIGH 35／単発 MED 13）。
+🔑**Sheet3 は「語彙キー1〜2個」が濃いので歩留まりが良い**（続き730 は12効果／1巡）。**このまま Sheet3 を続ける。**
+着手はこれまでどおり「1件ずつ受け皿を確かめる」選別から。判定は次の**5手**（🆕⑤を追加）：
 ①原文の言い回しで `src/types/effects.ts` と `src/engine/` を grep（受け皿の有無）
-②**同じ句を含む live 効果を全数走査して慣例エンコードを確かめる**（続き729 は `POWER_SET` の慣例で1件助かった）
+②**同じ句を含む live 効果を全数走査して慣例エンコードを確かめる**（続き730 は `owner:'any'` の慣例で2件助かった）
 ③受け皿の**消費地点が `src/screens/` に及ぶか**を見る（及べば遅いレーン＝`O-155`／`O-158` がその実例）
-④🆕**「型に語彙がある」だけで受け皿ありと判定しない**＝**その executor が読んでいるか**まで見る（続き729 の `execPowerSet`）。
-⚠**MED 146件は未着手**＝HIGH が枯れたシートから順にそちらへ。
+④**「型に語彙がある」だけで受け皿ありと判定しない**＝**その executor が読んでいるか**まで見る（続き729 の `execPowerSet`）
+⑤🆕**消費地点は executor とは限らない**＝`triggerCondition.turnOwner` は**中央の `turnGateOk`**、
+  `duringMainPhase` は**collector ごと**。**「読んでいる場所」を1つ見つけて満足しない**（続き730 の `WXK01-042-E1`）。
+⚠**MED 128件は未着手**＝HIGH が枯れたシートから順にそちらへ。
 
 **同じ速いレーンで取れる §5.3 の残り**＝**`O-154`**（`WD15-001-E2`＝「その中に＜龍獣＞が１枚以上ある場合、それを」の
 条件と照応が両方落ち、条件なしで自分の＜龍獣＞を割る。受け皿は `LAST_PROCESSED_MATCHES` ＋ `targetsStored` で既存）。
 
 **重い巡を取るなら**＝**`O-156`**（トラップ条件・**6効果**＝parser に規則1本＋条件型1本で6件同時に閉じる。
-🆕**Sheet2 の残 HIGH に `WX15-048-E1`／`WX15-049-E1` の2件が居るので、いま取ると台帳も動く**）か
+Sheet2 の残 HIGH に `WX15-048-E1`／`WX15-049-E1` の2件が居るので台帳も動く）か
 **`O-155`（`SelectionConstraint` の軸2つ・3効果・screens まで触る）**。
+🆕**`SIGNI_RETURNED_TO_HAND_THIS_TURN` の owner が CONTINUOUS 経路だけ `self` に落ちる**（`WXK02-067/069/072`＝**3効果**）＝
+**parser の同型3枚**なので遅いレーン。**AUTO 経路（`WXK02-040/042/065`）は `any` で正しい**＝生成側が2本に割れている。
 🆕**`O-150`（`remainder.reorder` が効いていない件の特定）**＝**まず「フラグを外すと消える」形を1つ実機で作る**。
 `O-60` を続けるなら次は `GRANT_QUOTED_AUTO_ABILITY`（miss3/live4）か `POWER_MOD_PER_REVEALED_LEVEL`（miss3/live4）。
-🆕**`O-147`（複数体ライズ・13カード）**＝召喚UIを複数ゾーン選択にするので回帰は召喚全体。
 
-⚠**登録票の見立ては通算13巡連続で実測とズレた**（続き729 は偽陽性5件のうち4件が「監査後に直っていた」）。
+⚠**登録票の見立ては通算14巡連続で実測とズレた**（続き730 は偽陽性7件＝**1巡の消化数の6割**）。
 **着手したらまず `grep` して読む。** ⚠**live が原文と違うときは、まず 3つの fresh バケツ
 （`_held_fresh` / `_partial_fresh` / `_idset_fresh`）を見る**＝直近5巡で「parser のバグではなく凍結だった」が3件出ている。
 
@@ -560,9 +560,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > 🆕🔴**2026-08-29 改定＝ここが「速いレーン」（§2.0）の本線キューになった。** 3つの計器のうち**段1 で真バグと確定しているのはここだけ**（census 571 と `behaviorAudit --queue` 566 は疑いで、偽陽性の選別にまた時間がかかる。両者の重なりはわずか28件＝**ほぼ別のものを見ている**）。
-> **母集団＝残 OPEN 505件（影響カード 382枚・効果 390件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-29 続き729 時点＝段2 消化612／段0除去216／段1偽陽性111／HIGH・MED・LOW＝356・146・3）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
-> **シート別（2026-08-29 続き729 実測・シート帰属は先勝ち）**＝Sheet3 **99** ／ Sheet8 93 ／ Sheet7 84 ／ Sheet4 70 ／ Sheet9 63 ／ Sheet2 **54** ／ Sheet5 21 ／ Sheet6 10 ／ Sheet10 7 ／ 帰属不明 4。**Sheet1 は 0**（消化済み）。**Sheet2 は 96→87→69→54 と4巡で削れた**（残 54・うち「1効果1 finding」＝HIGH **21件**／MED **8件**）。
-> 🔑**Sheet2 の残りは HIGH に機構待ちが濃縮した**＝残 HIGH 21件の多くが §5.3 登録済み（`O-155` 同パワー／`O-156` トラップ条件／`O-158`〜`O-161`）。**次からは Sheet3（99件）へ移るほうが速いレーンの歩留まりが高い。**
+> **母集団＝残 OPEN 484件（影響カード 366枚・効果 371件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-29 続き730 時点＝段2 消化636／段0除去213／段1偽陽性111／HIGH・MED・LOW＝353・128・3）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> **シート別（2026-08-29 続き730 実測・シート帰属は先勝ち）**＝Sheet8 **93** ／ Sheet7 84 ／ Sheet3 **78** ／ Sheet4 70 ／ Sheet9 63 ／ Sheet2 54 ／ Sheet5 21 ／ Sheet6 10 ／ Sheet10 7 ／ 帰属不明 4。**Sheet1 は 0**（消化済み）。
+> **Sheet2 は 96→54 で4巡・Sheet3 は 99→78 で1巡**（Sheet3 の残 78・うち「1効果1 finding」＝HIGH **35件**／MED **13件**）。
+> 🔑**Sheet3 の歩留まりは Sheet2 より良い**（1巡で12効果＝Sheet2 の直近2巡と同じかそれ以上）。**MED に「filter を1つ足すだけ」が濃い**＝
+> 続き730 の12件中7件が単なる語彙キー1〜2個の欠落だった。**Sheet3 を続けるのが今のところ最短。**
 > ⚠**続き724 の表とシート別の内訳が合わないのは計器の差**＝あちらは帰属不明18、こちらは4（`CardData_Sheet1..10` を先勝ちで舐め直した）。**総数（残 OPEN）だけが台帳の正**で、シート別は選び方の目安として読む。
 > 🔑**消し方（2026-08-29 以降の既定）**＝**1件ずつ原文を読み直して `manualEffects.ts` に正しい JSON を手で書く**（§2.0 速いレーン）。同型が3枚以上あるときだけ parser へ回す。**10件たまったら `gates` 1回・commit 1回・BUGFIXES 10行。**
 > ⚠**「移設だけ」は禁止**（§2.0）＝parser の出力をそのままコピーすると**中身が変わらないうえ census の MANUAL 免除で計器から消える**。
@@ -841,20 +843,20 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-29 続き729 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 520→505｜census 高シグナル 504→499**
-  **golden 3008→3010**（`excludeSelf` の配線を固定する1本＋`WX12-004-E1` の対象固定を判別する1本）、
-  census 499/499、smoke 全異常0、fuzz 全0、lint 0 errors／249 warnings（据置）、同型★0、
+- **2026-08-29 続き730 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 505→484｜census 高シグナル 499→492**
+  **golden 3010→3011**（`excludeSelf` の合流点集約を UP/DOWN/BOUNCE で固定する1本）、census 492/492、
+  smoke 全異常0、fuzz 全0、lint 0 errors／249 warnings（据置）、同型★0、
   `census:stubs` A群🔴0／C群0、manual-fields 0。
-  🆕**台帳 段2 消化 596→612（+16）／残 OPEN は −15**（**追記は15行**＝1件は `WX15-049-E1` の MED だけを閉じた
-  finding 単位クローズ、`WX18-077/078` の2件は元「段0除去」から移動したので +16 と −15 がズレる）。
-  **Sheet2 の残 OPEN 69→54**・単発 HIGH 20→**21**（MED を閉じた効果が単発 HIGH に落ちてきたぶん増える）／単発 MED 8。
+  🆕**台帳 段2 消化 612→636（+24）／残 OPEN は −21**（**追記は19行**＝`WXEX1-05` の2件と `WXEX1-60`／`WXEX2-01`／
+  `WXEX1-76-E2-G`／`WXK01-042` は finding 単位クローズ。**3件は元「段0除去」から移動**したので +24 と −21 がズレる）。
+  **Sheet3 の残 OPEN 99→78**・単発 HIGH 35／単発 MED 13。**Sheet2 は 54 据置**（今回は触っていない）。
   🆕**`census:enginetext` A群 136行 / 133ハンドラ 据置**＝**regex 判定を1本も足していない裏取り**
-  （⚠今回は engine を1行触ったが、それは `excludeSelf` の候補フィルタで SELF_TEXT ではない）。
-  🆕**`_held_fresh` 91 据置**（手書き10カードは `heldReview --adopt` で解けた・**増分0**）／
+  （⚠engine は3行触ったが `fieldCandidatesByOwner` の候補フィルタで SELF_TEXT ではない）。
+  🆕**`_held_fresh` 91 据置**（手書き13カードは `heldReview --adopt` で解けた・**増分0**）／
   `_partial_fresh` 11 据置／`_idset_fresh` 11 据置。
-  ⚠**census の −5 は前進ではない**＝MANUAL 免除による不可視化（`BASELINE_HIGH` の行コメントに明記済み）。
-  🆕**速いレーンの通算＝5巡39効果・新しいアクション型/条件型は0本**（engine は配線1行のみ）。
+  ⚠**census の −7 は前進ではない**＝MANUAL 免除による不可視化（`BASELINE_HIGH` の行コメントに明記済み）。
+  🆕**速いレーンの通算＝6巡51効果・新しいアクション型/条件型は0本**（engine は配線の集約のみ）。
 
 ## 付録A. 全体像と Definition of Done
 

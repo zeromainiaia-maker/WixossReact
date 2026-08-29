@@ -1907,14 +1907,9 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドが候補（タスク12(lii)）。
   // 単体適用は applyDirectAction の POWER_SET が選択カードの所属側で解決する（既存実装）。
-  const { cands: psAllCands, scope: psScope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
-  // excludeSelf（「**他の**シグニ1体を対象とし」）＝効果元シグニ自身を候補から外す（`WX20-074-E1`）。
-  // ⚠`fieldCandidates` は `sourceCardNum` を受け取らないので `matchesFilter` では解けない＝
-  //   `execBanish:1267` / `execPowerModify:1795` / `execGrantKeyword:4066` と同じ形でここに書く
-  //   （この executor だけ配線漏れだった＝§5.2 Sheet2 バッチ5 で発見）。
-  const cands = a.target.filter?.excludeSelf && ctx.sourceCardNum
-    ? psAllCands.filter(n => n !== ctx.sourceCardNum)
-    : psAllCands;
+  // excludeSelf（「**他の**シグニ1体を対象とし」＝`WX20-074-E1`）は
+  // `fieldCandidatesByOwner`（`execUtils.ts`）の合流点で落ちる（§5.2 Sheet3 バッチ6 で集約）。
+  const { cands, scope: psScope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
   if (cands.length === 0) return done(ctx);
 
   function applyPowerSet(targets: string[], c: ExecCtx): ExecCtx {

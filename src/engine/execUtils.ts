@@ -1373,22 +1373,32 @@ export function removeOneBarrierToken(freeZone: string[] | undefined, base: stri
 // 潰れていた＝原文が「どちらでもよい」と言っている対象が半分しか選べない。候補を両フィールドから
 // 集めて scope='both_field' を返す。適用側は選ばれたカードがどちらの場にあるかで所属を決める
 // （execPowerModify が先行実装していた規約を共通化したもの）。
+//
+// 🔴**`filter.excludeSelf`（「（あなたの）**他の**シグニ」）はここで落とす**（§5.2 Sheet3 バッチ6・2026-08-29）。
+//   `matchesFilter` は `card` 単体しか見ないので `sourceCardNum` を知らず、`fieldCandidates` にも渡っていない。
+//   そのため各 executor が**自前で1行書く**規約になっていたが、実際に書いていたのは
+//   `execBanish` / `execPowerModify` / `execGrantKeyword` / `execGrantProtection` だけで、
+//   **`UP` 5・`DOWN` 2・`BOUNCE` 2・`FREEZE` 1・`POWER_SET` 1（live 実測）は黙って自分自身も選べていた**。
+//   ⇒ **ctx を持つこの合流点1箇所に集約する**（executor 側の既存1行は冪等なのでそのまま残る）。
+//   ⚠**ゾーン外の候補（トラッシュ／エナ／手札）はここを通らない**＝`execTrash` 等が別途扱う。
 export function fieldCandidatesByOwner(
   owner: Owner,
   filter: TargetFilter | undefined,
   ctx: ExecCtx,
 ): { cands: string[]; scope: TargetScope; isAny: boolean } {
+  const dropSelf = (cands: string[]): string[] =>
+    filter?.excludeSelf && ctx.sourceCardNum ? cands.filter(n => n !== ctx.sourceCardNum) : cands;
   if (owner !== 'any') {
     const state = ownerState(owner, ctx);
     return {
-      cands: fieldCandidates(state, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors),
+      cands: dropSelf(fieldCandidates(state, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)),
       scope: owner === 'self' ? 'self_field' : 'opp_field',
       isAny: false,
     };
   }
   const self = fieldCandidates(ctx.ownerState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const opp = fieldCandidates(ctx.otherState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  return { cands: [...self, ...opp], scope: 'both_field', isAny: true };
+  return { cands: dropSelf([...self, ...opp]), scope: 'both_field', isAny: true };
 }
 
 // owner:'any' で選ばれた1枚が「どちらの場のシグニか」を判定する。どちらにも無ければ opponent 扱い

@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.2 Sheet3 バッチ6（速いレーン）＝12効果を消化（＋偽陽性7件・`excludeSelf` を合流点へ集約）
+
+Sheet2 を切り上げて **Sheet3 の 99件**へ移った初回。実装先は原則 `src/data/manualEffects.ts`（§2.0 速いレーン）。
+🔴**engine は3行**（`fieldCandidatesByOwner` への `excludeSelf` 集約＝後述）。
+
+### 真因（1効果ずつ）
+
+| 効果 | 真因 | 向き | 使った受け皿（すべて既存） |
+|---|---|---|---|
+| `WXEX1-03-E2` | トラッシュに置く対象の `owner` が `any`＝**自分のシグニも巻き込めた**。加えて「対象とし」がデッキ戻しより後 | 過剰＋別物 | `owner:'opponent'` ＋ `SELECT_TARGET_ONLY`／`STORE_LAST_PROCESSED_TARGETS`／`targetsStored` |
+| `WXEX1-08-E1` | 「《コインアイコン》を得る」が**2枚**になっていた（原文は1枚） | 過剰 | `GAIN_COIN.count` |
+| `WXEX1-60-E2` | トラッシュからデッキへ戻す対象の「カード名に《フレイスロ》を含む」が落ちて**任意のシグニを戻せた** | 過剰 | `filter.cardName` |
+| `WXEX1-63-E1` | 選択肢②のバニッシュ対象に「**ドライブ状態の**」が落ちていた | 過剰 | `filter.isDrive`（`fieldCandidates` の `lrig_riding_signi` 判定） |
+| `WXEX2-05-E1` | 【アサシン】付与の対象が「あなたの＜宇宙＞の**レゾナ**」ではなく `owner:any` の＜宇宙＞**シグニ1体**だった | 過剰＋過少 | `owner:'self'` ＋ `cardType:'レゾナ'` ＋ `count:'ALL'`（原文「〜は得る」＝全体） |
+| `WXEX2-05-E2` | 「あなたの**レゾナ**１体が場を離れたとき」の発生源条件が無く、既定の `triggerScope:'self'`（このカード自身）のままだった | 別物 | `triggerScope:'any_ally'` ＋ `triggerFilter:{cardType:'レゾナ'}` |
+| `WXEX2-19-E1` | エナへ置くトラッシュのシグニに「《アクセアイコン》を持つ」が落ちていた | 過剰 | `filter.hasIcon:'アクセ'` |
+| `WXEX2-51-E3` | トラッシュから場に出す黒のシグニに「**パワー12000以下**」が落ちていた | 過剰 | `powerRange{max:12000}`（⚠第33バッチの「据置契約」golden が発火＝後述） |
+| `WXK01-055-E1` | 「あなたの手札が**２枚以下**で」「**あなたのメインフェイズ**の場合」の2条件が**両方**落ちていた | 過剰 | `HAND_COUNT{lte,2}` ＋ `triggerCondition.duringMainPhase` |
+| `WXK01-104-E1` | 「あなたのメインフェイズの場合」が落ちていた | 過剰 | `triggerCondition.duringMainPhase` |
+| `WXK03-052-E1` | エナからトラッシュに置く対象の「【マルチエナ】を持つ」が落ちていた | 過剰 | `filter.keyword`（`WX04-009-E1` と同形） |
+| `WXK07-053-E2` | レベル変更の対象に「**レベル２以上**」と「**他の**」が両方落ちていた | 過剰 | `level{min:2}` ＋ `excludeSelf`（🔴`execLevelModify` でも無視されていた＝下記） |
+| `WXK07-082-E1` | デッキ上へ置く対象の「**【ライフバースト】を持たず**」「**無色ではない**」が両方落ちていた | 過剰 | `hasLifeBurst:false` ＋ `nonColorless` |
+
+**影響**＝live 13カード13効果（うち台帳に載るのは12効果）。**新しいアクション型・条件型は0本**（速いレーン通算6巡51効果でも0本）。
+
+### 🔴 `excludeSelf` を `fieldCandidatesByOwner` の合流点へ集約（engine 3行）
+
+前巡（Sheet2 バッチ5）は `execPowerSet` に1行足して済ませたが、**同じ穴が他にも空いていた**。
+`TargetFilter.excludeSelf` は `matchesFilter` では解けない（`fieldCandidates` が `ctx.sourceCardNum` を受け取らない）ため
+**各 executor が自前で1行書く規約**だったが、実際に書いていたのは
+`execBanish` / `execPowerModify` / `execGrantKeyword` / `execGrantProtection` の**4本だけ**。
+
+**live 実測で無視されていた分**＝`UP` 5・`DOWN` 2・`BOUNCE` 2・`FREEZE` 1・`POWER_SET` 1＝**11効果が黙って効果元自身も選べていた**
+（`LEVEL_MODIFY` も同様で、今回の `WXK07-053-E2` がその1件目）。
+
+⇒ **`fieldCandidatesByOwner`（`execUtils.ts`）は `ctx` を持っている**ので、そこ1箇所で落とすように変えた：
+
+```ts
+const dropSelf = (cands: string[]): string[] =>
+  filter?.excludeSelf && ctx.sourceCardNum ? cands.filter(n => n !== ctx.sourceCardNum) : cands;
+```
+
+executor 側の既存4本は冪等なのでそのまま残した（前巡に足した `execPowerSet` の1行だけは合流点に吸収して削除）。
+golden を1本追加し **反転確認**（`dropSelf` を素通しにすると FAIL・戻すと PASS）まで取った。
+
+🔑**教訓＝「1つの executor に足す」で済ませると同じ穴が残る。`ctx` を持つ合流点を探す。**
+
+### ⚠ 「据置契約」golden が1本発火した（消さずに期待値を反転）
+
+段2 第33バッチが `WXEX2-51-E3` の「**別軸のパワー上限欠落を据置として固定**」というトリップワイヤを張っていた。
+今回それを実装したので golden が落ちた。**実装したら落ちるのが仕様**なので、テストを消さずに
+「黒とパワー12000以下の**両方**を要求する」へ**期待値を反転**した。
+
+### 🔵 偽陽性7件
+
+| 効果 | 判定根拠 |
+|---|---|
+| `WXEX1-05-E1` `WXEX1-05-E2` | live は既に `filter.keyword:'レイヤー'` を持つ（§5.2 バッチ3 で `WX18-060-E1` と同時に是正済み） |
+| `WXEX1-76-E2-G` | live の `GRANT_PROTECTION` は既に `sourceOwner:'any'`（バニッシュ全般を防ぐ） |
+| `WXEX1-60-E1` `WXEX2-01-E1` | 🔑**原文に所有者の限定が無い**（「（カード名に《フレイスロ》を含む）他のシグニ１体を対象とし」／「＜アーム＞か＜ウェポン＞のシグニ１体を対象とし」）＝**`owner:'any'` が正しい**。live 全数走査でも同型の `WX06-017-E2`（「シグニ１体を対象とし、それをアップするかダウンする」）は `any`。**監査 LLM の「有利な効果は自分側だろう」という推測が外れた型** |
+| `WXK01-042-E1` | 🔑**`triggerCondition.turnOwner` の消費地点は collector ではなく中央の `effectStack.ts:8 turnGateOk`**（スタック投入前に弾く＝§5.3 `O-63` の設計）。⚠**一度 `activeCondition{TURN_OWNER}` へ移してしまい `O-63` の golden が落ちて気付いた＝戻した** |
+
+**7件は今回の消化数の6割**。⇒ **5巡連続で「偽陽性の主因は監査の陳腐化と読み違い」。**
+
+### 🆕 見つけたが今回は取らなかったもの（同型3枚＝遅いレーン）
+
+`SIGNI_RETURNED_TO_HAND_THIS_TURN` の `owner` が **CONTINUOUS 経路だけ `self` に落ちる**
+（`WXK02-067` / `WXK02-069` / `WXK02-072` の3効果）。原文は「このターンに**シグニが**場から手札に戻っていた場合」で
+持ち主を言わないので `any` が正（`execUtils.ts:2253` のコメントが明示）。**AUTO 経路（`WXK02-040/042/065`）は `any` で正しい**
+＝**parser の生成側が2本に割れている**。同型3枚なので §2.0 のとおり parser 側で直す（PLAN §1「次の一手」に登録）。
+
+### 検証
+
+- `npm run gates` **全緑**（typecheck / **golden 3011**（3010→3011・全件） / smoke 全0 / fuzz 全0 / census / census:stubs / manual-fields / **census:enginetext 136 据置** / lint）。
+- 逆翻訳（`npx tsx scripts/decompileEffects.ts <13枚>`）を目視で原文と照合。**反転確認 1/1**（`excludeSelf` 集約）。
+- 台帳＝`node scripts/archive/semanticAuditLedger.mjs` で **残 OPEN 505→484**（影響カード 382→366・効果 390→371）。**Sheet3 は 99→78**。
+  ⚠**追記19行／段2 消化 +24／OPEN −21 の3つが食い違うのは正常**＝①finding 単位クローズが6件 ②**3件は元「段0除去」に数えられていた**（216→213）。**OPEN の減りだけが進捗。**
+- `census` 高シグナル **499→492**。⚠**前進ではなく不可視化**（MANUAL 免除）＝`BASELINE_HIGH` を 492 へ実数更新。
+- ⑤実機は**不要**と判定（触ったのは `src/data/` `src/engine/` `public/data/` `scripts/`＝PLAN §2.2 の機械判定どおり。`src/screens/` 非改変・新型0本）。
+
+---
+
 ## 2026-08-29：§5.2 Sheet2 バッチ5（速いレーン）＝台帳の残 OPEN から 10効果を消化（＋偽陽性5件・`execPowerSet` の配線漏れ1件）
 
 意味照合 段2 台帳の **Sheet2 の 69件**から着手。実装先は原則 `src/data/manualEffects.ts`（§2.0 速いレーン）。

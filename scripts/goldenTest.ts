@@ -19697,6 +19697,23 @@ test('POWER_SET + filter.excludeSelf: 「他のシグニ1体」は効果元自�
   ok(mods.some(m => m.cardNum === SIGNI_P12000 && m.delta === 10000 - base), `他のシグニが対象 (${JSON.stringify(mods)})`);
   ok(!mods.some(m => m.cardNum === SIGNI_P3000), `効果元自身は対象外 (${JSON.stringify(mods)})`);
 });
+test('filter.excludeSelf は fieldCandidatesByOwner の合流点で落ちる（UP/DOWN/BOUNCE/FREEZE も効く・§5.2 Sheet3 バッチ6）', () => {
+  // 🔴**旧実装は各 executor が自前で1行書く規約**で、実際に書いていたのは
+  //   execBanish / execPowerModify / execGrantKeyword / execGrantProtection だけ。
+  //   live 実測で **UP 5・DOWN 2・BOUNCE 2・FREEZE 1・POWER_SET 1** の `excludeSelf` が黙って無視され、
+  //   「**他の**シグニ1体」が効果元自身を選べていた。⇒ `fieldCandidatesByOwner` へ集約した。
+  const other = SIGNI_P12000;
+  const each = (action: (t: object) => object, pick: (r: ExecResult) => string[]) => {
+    const ctx = mkCtx({ signi: [SIGNI_P3000, other, null] }, {}, SIGNI_P3000);
+    const r = run(action({ type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', excludeSelf: true } }) as EffectAction, ctx);
+    return pick(r);
+  };
+  const downed = each(target => ({ type: 'DOWN', target }), r => (r.ownerState as PlayerState).field.signi
+    .flatMap((st, i) => ((r.ownerState as PlayerState).field.signi_down?.[i] ? [st?.at(-1) ?? ''] : [])));
+  eq(downed.join(','), other, 'DOWN は効果元自身を選ばない');
+  const bouncedField = each(target => ({ type: 'BOUNCE', target }), r => tops(r.ownerState as PlayerState).map(n => n ?? ''));
+  eq(bouncedField.join(','), `${SIGNI_P3000},,`, 'BOUNCE は効果元自身を残して他のシグニを戻す');
+});
 test('POWER_MODIFY_PER_FIELD(count:1・選択): 自場の＜毒牙＞数×deltaを選んだ相手シグニに適用（WX04-037）', () => {
   const ctx = mkCtx({ signi: ['WX04-037', 'WX04-053', null] }, { signi: [SIGNI, null, null] });
   const r = run({ type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerUnit: -1000, countFilter: { cardType: 'シグニ', story: '毒牙' }, countOwner: 'self' } as EffectAction, ctx);
@@ -47828,10 +47845,13 @@ test('段2 第33バッチ E2E: WX25-CP1-047-E1 は黒かつ＜ブルアカ＞だ
   ok(done.ownerState.deck.includes(allowed) && done.ownerState.trash.includes(denied), '黒ブルアカだけをデッキ下へ');
 }));
 
-test('段2 第33バッチ 据置契約: WXEX2-51-E3 はパワー12000以下が未表現なので採用扱いにしない', () => {
+// 🆕**据置を解除した**（§5.2 Sheet3 バッチ6・2026-08-29）＝第33バッチ当時は「別軸のパワー上限欠落」を
+//   据置として固定していたが、台帳 `WXEX2-51-E3` の finding をこのバッチで消化したので**両軸とも要求する**へ反転。
+//   ⚠**据置契約は「実装したら必ず落ちる」トリップワイヤ**＝落ちたら消すのではなく期待値を反転させる。
+test('段2 第33バッチ→Sheet3 バッチ6: WXEX2-51-E3 は黒とパワー12000以下の両方を要求する', () => {
   const encoded = JSON.stringify(manualEffect('WXEX2-51', 'WXEX2-51-E3').action);
   ok(encoded.includes('"color":"黒"'), '既存の黒指定は保持');
-  ok(!encoded.includes('"powerRange":{"max":12000}'), '別軸のパワー上限欠落を据置として固定');
+  ok(encoded.includes('"powerRange":{"max":12000}'), 'パワー上限も表現されている');
 });
 
 test('段2 第33バッチ 据置契約: PR-322-E2 は手札から出す選択肢が未表現なので採用扱いにしない', () => {

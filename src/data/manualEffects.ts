@@ -5702,6 +5702,48 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX20-074": [
     {"effectId":"WX20-074-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"any","count":1,"explicitTarget":true,"filter":{"cardType":"シグニ","excludeSelf":true}},"value":10000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],
+  // 2026-08-29 §5.2 Sheet3 バッチ6（速いレーン）＝台帳の残 OPEN から 12効果を消化。
+  // 受け皿はすべて既存（`filter.cardName` / `hasIcon` / `powerRange` / `isDrive` / `keyword` /
+  // `hasLifeBurst` / `nonColorless` / `excludeSelf` / `level` / `HAND_COUNT` /
+  // `triggerCondition.duringMainPhase` / `activeCondition{TURN_OWNER}` /
+  // `SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。
+  "WXEX1-03": [
+    {"effectId":"WXEX1-03-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"coin":1},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":7,"filter":{"cardType":"シグニ","story":"天使"},"selectionConstraint":{"distinct":"name"}},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+  "WXEX1-08": [
+    {"effectId":"WXEX1-08-E1","effectType":"AUTO","timing":["ON_COIN_PAID"],"condition":{"type":"IS_BETTING"},"action":{"type":"GAIN_COIN","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+  "WXEX1-60": [
+    {"effectId":"WXEX1-60-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":5,"upToCount":true,"filter":{"cardType":"シグニ","cardName":"フレイスロ"}},"shuffle":true},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","levelEqLastProcessedCount":true},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXEX1-63": [
+    {"effectId":"WXEX1-63-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"WXEX1-63-E1-c1","label":"あなたの＜乗機＞のシグニ1体をバニッシュする。そうした場合、対戦相手のパワー12000以下のシグニ1体をバニッシュする","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"乗機"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000}},"upToCount":false}}}]}},{"choiceId":"WXEX1-63-E1-c2","label":"あなたのドライブ状態の＜乗機＞のシグニ1体をバニッシュする。そうした場合、デッキから＜乗機＞のシグニ1枚を探して公開し手札に加える","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"乗機","isDrive":true},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"乗機"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXEX2-05": [
+    {"effectId":"WXEX2-05-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"レゾナ","story":"宇宙"}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXEX2-05-E2","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"宇宙"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerFilter":{"cardType":"レゾナ"},"usageLimit":"once_per_turn"},
+  ],
+  "WXEX2-19": [
+    {"effectId":"WXEX2-19-E1","effectType":"AUTO","timing":["ON_ACCE_TO_TRASH"],"action":{"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"level":{"max":2},"cardType":"シグニ","hasIcon":"アクセ"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","usageLimit":"once_per_turn"},
+  ],
+  "WXEX2-51": [
+    {"effectId":"WXEX2-51-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":3}},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":3}}]},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒","powerRange":{"max":12000}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXK01-055": [
+    {"effectId":"WXK01-055-E1","effectType":"AUTO","timing":["ON_TRASH"],"condition":{"type":"HAND_COUNT","owner":"self","operator":"lte","value":2},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerCondition":{"fromZones":["hand"],"duringMainPhase":true}},
+  ],
+  "WXK01-104": [
+    {"effectId":"WXK01-104-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerCondition":{"fromZones":["deck"],"duringMainPhase":true}},
+  ],
+  "WXK03-052": [
+    {"effectId":"WXK03-052-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"handDiscardSigni":{"count":2,"story":"アーム"}},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"keyword":"マルチエナ"}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXK07-053": [
+    {"effectId":"WXK07-053-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LEVEL_MODIFY","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","level":{"min":2},"excludeSelf":true}},"delta":-1,"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXK07-082": [
+    {"effectId":"WXK07-082-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":4,"hasLifeBurst":false,"nonColorless":true}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
 };
 
 /**

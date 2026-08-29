@@ -965,3 +965,53 @@ WX21-043-E2 :: 手札から＜毒牙＞のシグニを１枚捨て
 #    `BattleScreen.tsx:1954` の ON_POWER_THRESHOLD watcher が `mainPhaseGateOkFor` で消費している（§5.3 `O-64` で是正済み）。
 WX18-077-E1 :: あなたのメインフェイズの間
 WX18-078-E1 :: あなたのメインフェイズの間
+
+# ── 2026-08-29 §5.2 Sheet3 バッチ6（速いレーン・manualEffects.ts 手書き12効果＋偽陽性7件）──
+# ① トラッシュに置く対象の owner が any（＝自分のシグニも巻き込む）だった。owner:'opponent'。
+#    ついでに「対象とし」がデッキ戻しより後だったので SELECT_TARGET_ONLY/STORE/targetsStored で固定。
+WXEX1-03-E2
+# ② 「《コインアイコン》を得る」が2枚になっていた（原文は1枚）。GAIN_COIN.count。
+WXEX1-08-E1
+# ③ トラッシュからデッキへ戻す対象の「カード名に《フレイスロ》を含む」が落ちて任意のシグニを戻せた。filter.cardName。
+WXEX1-60-E2
+# ④ 選択肢②のバニッシュ対象に「ドライブ状態の」が落ちていた。filter.isDrive（`fieldCandidates` が消費）。
+WXEX1-63-E1
+# ⑤ 【アサシン】付与の対象が「あなたの＜宇宙＞の**レゾナ**」ではなく owner:any の＜宇宙＞シグニだった。
+#    owner:'self' ＋ cardType:'レゾナ' ＋ count:'ALL'（原文は「〜は得る」＝全体）。
+WXEX2-05-E1
+# ⑥ 「あなたの**レゾナ**１体が場を離れたとき」の発生源条件が無く、既定の triggerScope:'self'（このカード自身）
+#    のままだった。triggerScope:'any_ally' ＋ triggerFilter:{cardType:'レゾナ'}。
+WXEX2-05-E2
+# ⑦ エナへ置くトラッシュのシグニに「《アクセアイコン》を持つ」が落ちていた。filter.hasIcon:'アクセ'。
+WXEX2-19-E1
+# ⑧ トラッシュから場に出す黒のシグニに「パワー12000以下」が落ちていた。powerRange{max:12000}。
+#    ⚠第33バッチの「据置契約」golden が発火したので**期待値を反転**（据置解除）。
+WXEX2-51-E3
+# ⑨ 「あなたの手札が２枚以下で」「あなたのメインフェイズの場合」の2条件が両方落ちていた。
+#    HAND_COUNT{lte,2} ＋ triggerCondition.duringMainPhase。
+WXK01-055-E1
+# ⑩ 「あなたのメインフェイズの場合」が落ちていた。triggerCondition.duringMainPhase。
+WXK01-104-E1
+# ⑪ エナからトラッシュに置く対象の「【マルチエナ】を持つ」が落ちていた。filter.keyword（`WX04-009-E1` と同形）。
+WXK03-052-E1
+# ⑫ レベル変更の対象に「レベル２以上」と「**他の**」が両方落ちていた。level{min:2} ＋ excludeSelf。
+#    🔴`excludeSelf` は `execLevelModify` でも無視されていた（live 実測 UP 5・DOWN 2・BOUNCE 2・FREEZE 1・POWER_SET 1 も同様）
+#    ＝`fieldCandidatesByOwner`（`execUtils.ts`）の合流点1箇所へ集約した（golden＋反転確認）。
+WXK07-053-E2
+# ⑬ デッキ上へ置く対象の「【ライフバースト】を持たず」「無色ではない」が両方落ちていた。
+#    hasLifeBurst:false ＋ nonColorless。
+WXK07-082-E1
+# ⑭ 🔵**偽陽性**（2件）＝live は既に `filter.keyword:'レイヤー'` を持つ（§5.2 バッチ3 の `WX18-060-E1` と同時に是正済み）。
+WXEX1-05-E1 :: 【レイヤー】を持つシグニ
+WXEX1-05-E2 :: 【レイヤー】を持つシグニ
+# ⑮ 🔵**偽陽性**（2件）＝**原文に所有者の限定が無い**（「（カード名に《フレイスロ》を含む）他のシグニ１体を対象とし」
+#    ／「＜アーム＞か＜ウェポン＞のシグニ１体を対象とし」）＝`owner:'any'` が正しい。
+#    live 全数で同型の `WX06-017-E2`（「シグニ１体を対象とし、それをアップするかダウンする」）も `any`。
+WXEX1-60-E1 :: 他のシグニ１体
+WXEX2-01-E1 :: あなたのシグニ１体
+# ⑯ 🔵**偽陽性**＝live の `GRANT_PROTECTION` は既に `sourceOwner:'any'`（バニッシュ全般を防ぐ）。
+WXEX1-76-E2-G :: バニッシュされない
+# ⑰ 🔵**偽陽性**＝live は既に `triggerCondition:{turnOwner:'self'}` を持ち、**中央ゲート
+#    `effectStack.ts:8` の `turnGateOk` がスタック投入前に弾く**（collector 側には無い＝§5.3 `O-63` の設計）。
+#    ⚠一度 `activeCondition{TURN_OWNER}` へ移してしまい `O-63` の golden が落ちて気付いた＝**戻した**。
+WXK01-042-E1 :: あなたのターンに

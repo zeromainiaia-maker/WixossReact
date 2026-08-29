@@ -2,6 +2,32 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き729・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ5（速いレーン）。
+  台帳の残 OPEN から 10効果を消化し、偽陽性5件を確定した（計15 finding クローズ）。
+  受け皿の配線漏れを1件見つけて engine を1行だけ直した（`execPowerSet` の `excludeSelf`）。**
+  ユーザー指示＝**「続けてバッチ５を行う、早いレーンを優先する」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 520→505｜census 高シグナル 504→499**
+  （**Sheet2 の残 OPEN は 69→54**・単発 HIGH 20→**21**／単発 MED 8）。
+  gates 全緑（**golden 3008→3010**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**）。全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は10件すべて既存**（`filter.color:'無'`／`hasLifeBurst`／`noAbilities`／`powerRange`／`excludeSelf`／
+    `cost.energyTrash{filter}`／`LookPickChainStage.pickUpTo`／`SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。
+    **新しいアクション型・条件型は0本**（速いレーン通算5巡39効果でも0本）。
+  - 🔴🔑**「受け皿はあるのに1つの executor にだけ配線が無い」を1件踏んだ**＝`TargetFilter.excludeSelf` は
+    `execBanish:1267`／`execPowerModify:1795`／`execGrantKeyword:4066` に在るのに **`execPowerSet` にだけ無かった**
+    （`fieldCandidates` は `sourceCardNum` を受け取らないので `matchesFilter` では解けない形）。
+    ⇒ **engine 1行＋golden 1本（反転確認済み）**。**`census:wiring` が測っているのと同じ軸**なので、
+    「型に語彙がある」だけで受け皿ありと判定しない＝**その executor が読んでいるか**まで見る。
+  - 🔵**偽陽性は計5件**（**5件中4件が「監査後に直っていた」／1件が慣例エンコードの読み違い**）＝
+    `WX20-050-E1`（`cardName` を既に持つ）／`WX21-043-E2`（`handDiscardSigni` を既に持つ）／
+    `WX18-077-E1`・`WX18-078-E1`（`duringMainPhase` を既に持ち `BattleScreen.tsx:1954` が消費＝`O-64` で是正済み）／
+    🔑**`WX12-Re14-E1`＝CONTINUOUS `POWER_SET` は `count!=='ALL'` を「効果元シグニのみ」として扱う**
+    （`effectEngine.ts:2168-2175`）＝**`target:{SIGNI,self,count:1}` が「このシグニの基本パワーは」の正しい書き方**（live 207カードの慣例）。
+    **`GRANT_PROTECTION` の `subjectFilter` と同じ形の罠**（§5.2 第43バッチの再演）。
+  - ⚠**golden 1本が「シナリオの腐り」で落ちた**（§5.1 の分類(a)）＝`WX12-004-E1` の対象宣言をライフクラッシュ前へ
+    移したので、**最初の対話が「クラッシュ後のバニッシュ対象」から「先頭の対象宣言」へ変わった**。
+    その場で spec を直し、**2体並べて2体目を宣言する**判別テストを足した（1体だけの盤面では
+    autopilot が先頭を選ぶので `targetsStored` が効いていなくても通ってしまう）。
+
 - 🏁**セッション（2026-08-29・続き728・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ4（速いレーン）。
   台帳の残 OPEN から 10効果を `manualEffects.ts` の手書きで消化し、偽陽性4件を確定した（計18 finding クローズ）。
   ついでに `O-157`（`SEARCH.then` の全枚数問題）を実測で決着させ、golden 1本で固定した。**
