@@ -2,6 +2,33 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き728・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ4（速いレーン）。
+  台帳の残 OPEN から 10効果を `manualEffects.ts` の手書きで消化し、偽陽性4件を確定した（計18 finding クローズ）。
+  ついでに `O-157`（`SEARCH.then` の全枚数問題）を実測で決着させ、golden 1本で固定した。**
+  ユーザー指示＝**「5.2 意味照合監査（semantic audit）の段2 消化の sheet2 の OPEN を消化する。早いレーンを優先すること」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 538→520｜census 高シグナル 512→504**
+  （**Sheet2 の残 OPEN は 87→69**・うち「1効果1 finding の HIGH」**24→20**）。
+  gates 全緑（**golden 3007→3008**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**＝engine 非改変の裏取り）。
+  全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は10件すべて既存＝parser も engine も1行も触っていない**（`STUB{HAND_REVEAL_CLASS_SIGNI}`／
+    `STUB{REMOVE_VIRUS_TARGET_ZONE}`／`TAKE_FROM_UNDER_SIGNI{fromThis}`＋`targetsStored`／`ChoiceOption.condition`／
+    `BanishAction.conditional`／`cost.discardFilter`／`filter.color:'無'`／`filter.cardNames`）。**新しい型は0本**
+    （速いレーン通算4巡29効果でも0本）。
+  - ✅🔑**`O-157` を実測で決着＝偽陽性だった**。`resumeSearch` は picked を**1枚ずつ** `applyDirectAction` へ渡す
+    （`effectExecutor.ts:9626`）ので `then:{TRASH{DECK_CARD,count:1}}` でも**探した全枚数が落ちる**＝`count` はこの経路で読まれない。
+    **live 18効果の慣例エンコードは正しかった**（過少実行ではない）。⇒ **golden を1本足して固定**（同じ疑いが蒸し返らないように）。
+  - 🔵**偽陽性は計4件**＝`WX16-024-LAYER-E2`（live は既に `triggerCondition:{byOpponentEffect:true}`）／
+    `WX21-020-E1` の2件（選択肢③は既に `POWER_MODIFY{+5000}`＋`GRANT_KEYWORD{ダブルクラッシュ}` を持つ）／`WX21-Re07-E1`（上記）。
+    **4件とも監査時点より後に直っていた**＝**3巡連続で「偽陽性の主因は監査の陳腐化」**。
+  - 🔑**「新しい effectId を足す」修正が2件あった**＝`WX20-062-TRAP`（《トラップアイコン》能力が【出】の SEQUENCE 末尾に
+    混ざっていた）と `WX17-071-TRAP`。⚠**新 id は収穫マージが素通りさせるが、既存 id の書き直しは `_held_fresh` に温存される**
+    ＝**`heldReview.mjs --adopt` は「カンマ区切り」**（空白区切りだと**先頭1枚しか採用されず黙って通る**＝今回踏んだ）。
+    新旧が混在するカード（`WX20-062`）は `_partial_fresh` に回るので **`syncManualLive.ts` の側**で通す。
+  - 🆕**機構ギャップを4件登録**＝`O-158`（エナの《アクセアイコン》カードを**選んで**アクセにできない・2効果。
+    `ATTACH_ACCE` のエナ経路がホストしか選ばせない）／`O-159`（「能力を失い、**新たに得られない**」の一過性版が無く
+    キーワード付与が素通りする）／`O-160`（「対戦相手がダメージを受けたとき」の遅延トリガー timing が無い）／
+    `O-161`（「このシグニと共通する色を持たない他の＜X＞」条件が無い・2効果）。
+
 - 🏁**セッション（2026-08-29・続き727・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ3（速いレーン）。
   台帳の残 OPEN から HIGH 7効果を `manualEffects.ts` の手書きで消化し、偽陽性2件を確定した（計9件クローズ）。**
   ユーザー指示＝**「5.2 意味照合監査（semantic audit）の段2 消化の sheet2 のカードを行う」**。

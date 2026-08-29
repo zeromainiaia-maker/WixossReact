@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.2 Sheet2 バッチ5（速いレーン）＝台帳の残 OPEN から 10効果を消化（＋偽陽性5件・`execPowerSet` の配線漏れ1件）
+
+意味照合 段2 台帳の **Sheet2 の 69件**から着手。実装先は原則 `src/data/manualEffects.ts`（§2.0 速いレーン）。
+🔴**1件だけ engine を1行触った**（`execPowerSet` の `excludeSelf` 配線漏れ＝後述）。
+
+### 真因（1効果ずつ）
+
+| 効果 | 真因 | 向き | 使った受け皿（すべて既存） |
+|---|---|---|---|
+| `WX12-004-E1` | 「対戦相手のシグニ1体を**対象とし**、あなたのライフクロス1枚をクラッシュする」の**対象宣言がクラッシュより後**にあり、**クラッシュ（＝相手のライフバースト解決）を跨いで対象を選び直せた** | 別物 | `STUB{SELECT_TARGET_ONLY}` ＋ `STUB{STORE_LAST_PROCESSED_TARGETS}` ＋ `BANISH{targetsStored}` |
+| `WX12-Re17-E1` | トラッシュから手札に加えるカードの「**無色の**」限定が落ちて**どの色でも拾えた** | 過剰 | `filter.color:'無'`（無色カードは CSV の `Color` が `無`） |
+| `WX13-027-E1` | 同上（《ガードアイコン》を持つ**無色の**シグニ） | 過剰 | 同上 |
+| `WX15-002-E1` `WX15-049-E1` | 【トラップ】設置の「**してもよい**」が落ちて**1枚の設置が強制**だった | 過剰 | `LookPickChainStage.pickUpTo` |
+| `WX15-097-E1` | 起動コスト「エナゾーンから《アクセアイコン》を持つカード1枚をトラッシュに置く」が**丸ごと無く無料で撃てた** | 過剰 | `cost.energyTrash{count:1, filter:{hasIcon:'アクセ'}}`（live 109効果の実績形） |
+| `WX16-Re08-E1` | サーチ対象の「**【ライフバースト】を持つ**」が落ちていた（`nonColorless` だけ在った） | 過剰 | `filter.hasLifeBurst`。ついでに「そうした場合」を `IS_MY_TURN` → `LAST_PROCESSED_COUNT_GTE` へ |
+| `WX19-022-E1` | デッキ下へ置く対象の「**能力を持たない**」が落ちていた（**同じカードの E3 には在った**＝片側だけの取り残し） | 過剰 | `filter.noAbilities` |
+| `WX20-039-CB-E1` | バニッシュ対象の「**パワー5000以下**」が落ち、かつ「対象とし」が任意の場出しより後だった | 過剰＋別物 | `powerRange{max:5000}` ＋ `SELECT_TARGET_ONLY`／`STORE_LAST_PROCESSED_TARGETS`／`targetsStored` |
+| `WX20-074-E1` | 「**他の**シグニ1体」の自己除外が落ちて**自分自身を選べた** | 過剰 | `filter.excludeSelf`（🔴受け皿は在ったが `execPowerSet` にだけ配線が無かった＝下記） |
+
+**影響**＝live 10カード10効果。**新しいアクション型・条件型は0本**（速いレーン通算5巡39効果でも0本）。
+
+### 🔴 `execPowerSet` の `excludeSelf` 配線漏れ（engine 1行＋golden 1本）
+
+`TargetFilter.excludeSelf`（「（あなたの）**他の**シグニ」）は **`matchesFilter` では解けない**
+（`fieldCandidates` が `ctx.sourceCardNum` を受け取らないため）。だから各 executor が**自前で1行書く**規約になっており、
+`execBanish`（`effectExecutor.ts:1267`）／`execPowerModify`（`:1795`）／`execGrantKeyword`（`:4066`）には在ったが、
+**`execPowerSet` にだけ無かった**。⇒ 同じ形の1行を追加：
+
+```ts
+const cands = a.target.filter?.excludeSelf && ctx.sourceCardNum
+  ? psAllCands.filter(n => n !== ctx.sourceCardNum)
+  : psAllCands;
+```
+
+⚠**これは `census:wiring` が測っているのと同じ軸**（語彙は型にも engine にもあるのに、一部の入口からだけ合成/消費されない）。
+**教訓＝「型に語彙がある」だけで受け皿ありと判定しない。その executor が読んでいるかまで見る。**
+golden に1本追加し、**反転確認**（1行を外すと FAIL・戻すと PASS）まで取った。
+
+### ⚠ golden 1本が「シナリオの腐り」で落ちた（§5.1 の分類(a)＝その場で直す）
+
+`WX12-004-E1` の対象宣言をライフクラッシュ**前**へ移したので、**最初の対話が
+「クラッシュ後のバニッシュ対象」から「先頭の対象宣言」へ変わった**（`wave2 D1 WX12-004-E1`）。spec をその場で更新。
+さらに🔑**判別テストを1本足した**＝**相手シグニを2体並べて「2体目」を宣言する**。
+**1体だけの盤面では autopilot が先頭を選ぶので `targetsStored` が効いていなくてもテストが通ってしまう**（反転確認で実証）。
+
+### 🔵 偽陽性5件
+
+| 効果 | 判定根拠 |
+|---|---|
+| `WX12-Re14-E1` | 🔑**CONTINUOUS `POWER_SET` は `count!=='ALL'` を「効果元シグニのみ」として扱う**（`effectEngine.ts:2168-2175`）⇒ `target:{SIGNI,self,count:1}` が「**このシグニの**基本パワーは」の正しい書き方。**live 207カードの慣例エンコード**で `thisCardOnly` は不要。**`GRANT_PROTECTION` の `subjectFilter` と同じ形の罠**（§5.2 第43バッチの再演） |
+| `WX20-050-E1` | live は既に `filter.cardName:'ニャローブ'` を持つ |
+| `WX21-043-E2` | live は既に `cost.handDiscardSigni:{count:1, story:'毒牙'}` を持つ |
+| `WX18-077-E1` `WX18-078-E1` | live は既に `triggerCondition:{duringMainPhase:true}` を持ち、`BattleScreen.tsx:1954` の ON_POWER_THRESHOLD watcher が `mainPhaseGateOkFor` で消費している（§5.3 `O-64` で是正済み） |
+
+**5件中4件が「監査時点より後に直っていた」／1件が慣例エンコードの読み違い。** ⇒ **4巡連続で偽陽性の主因は監査の陳腐化。**
+
+### 検証
+
+- `npm run gates` **全緑**（typecheck / **golden 3010**（3008→3010・全件） / smoke 全0 / fuzz 全0 / census / census:stubs / manual-fields / **census:enginetext 136 据置** / lint）。
+- 逆翻訳（`npx tsx scripts/decompileEffects.ts <10枚>`）を目視で原文と照合。**反転確認 2/2**（`excludeSelf` 配線・`targetsStored` 固定）。
+- 台帳＝`node scripts/archive/semanticAuditLedger.mjs` で **残 OPEN 520→505**（影響カード 394→382・効果 404→390）。**Sheet2 は 69→54**。
+  ⚠**追記15行／段2 消化 +16／OPEN −15 の3つが食い違うのは正常**＝①`WX15-049-E1` は MED だけを閉じた finding 単位クローズ ②`WX18-077/078` は元「段0除去」に数えられていた（217→216）。**OPEN の減りだけが進捗。**
+- `census` 高シグナル **504→499**。⚠**前進ではなく不可視化**（MANUAL 免除）＝`BASELINE_HIGH` を 499 へ実数更新。
+- ⑤実機は**不要**と判定（触ったのは `src/data/` `src/engine/` `public/data/` `scripts/`＝PLAN §2.2 の機械判定どおり。`src/screens/` 非改変・新型0本）。
+
+---
+
 ## 2026-08-29：§5.2 Sheet2 バッチ4（速いレーン）＝台帳の残 OPEN から 10効果を消化（＋偽陽性4件を確定・`O-157` を実測で決着）
 
 意味照合 段2 台帳の残 OPEN のうち **Sheet2 の 87件**から着手（「1効果1 finding の HIGH」28件＋2 finding の効果）。

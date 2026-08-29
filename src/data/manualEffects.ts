@@ -5667,6 +5667,41 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX21-031-CB": [
     {"effectId":"WX21-031-CB-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1}],"down_self":true,"discard":1,"discardFilter":{"cardNames":["究極　ニパ子"]}},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // 2026-08-29 §5.2 Sheet2 バッチ5（速いレーン）＝台帳の残 OPEN から 10効果を消化。
+  // 受け皿はすべて既存（`filter.color:'無'` / `hasLifeBurst` / `noAbilities` / `powerRange` /
+  // `excludeSelf` / `cost.energyTrash{filter}` / `LookPickChainStage.pickUpTo` /
+  // `SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。
+  // ⚠`excludeSelf` だけは `execPowerSet` に配線が無かったので engine を1行だけ足した（golden で固定）。
+  "WX12-004": [
+    {"effectId":"WX12-004-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":1},{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}},{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LRIG_NAME_CONTAINS","owner":"self","name":"ユヅキ"},{"type":"LAST_PROCESSED_HAS_BURST"}]},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX12-Re17": [
+    {"effectId":"WX12-Re17-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}],"trash_self":true},"action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"color":"無"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX13-027": [
+    {"effectId":"WX13-027-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"無","count":2}]},"action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","hasGuard":true,"color":"無"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX15-002": [
+    {"effectId":"WX15-002-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"pickUpTo":true,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WX15-049": [
+    {"effectId":"WX15-049-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"pickUpTo":true,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL"},
+  ],
+  "WX15-097": [
+    {"effectId":"WX15-097-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true,"energyTrash":{"count":1,"filter":{"hasIcon":"アクセ"}}},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":12000}},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX16-Re08": [
+    {"effectId":"WX16-Re08-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"nonColorless":true,"hasLifeBurst":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX19-022": [
+    {"effectId":"WX19-022-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","noAbilities":true}},"shuffle":false,"position":"bottom"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WX20-039-CB": [
+    {"effectId":"WX20-039-CB-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"遊具","colorExclude":"赤"}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WX20-074": [
+    {"effectId":"WX20-074-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"any","count":1,"explicitTarget":true,"filter":{"cardType":"シグニ","excludeSelf":true}},"value":10000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
 };
 
 /**

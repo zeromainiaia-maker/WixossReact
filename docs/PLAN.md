@@ -10,52 +10,53 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-29・続き728・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ4（速いレーン）。
-  台帳の残 OPEN から 10効果を `manualEffects.ts` の手書きで消化し、偽陽性4件を確定した（計18 finding クローズ）。
-  ついでに `O-157`（`SEARCH.then` の全枚数問題）を実測で決着させ、golden 1本で固定した。**
-  ユーザー指示＝**「5.2 意味照合監査（semantic audit）の段2 消化の sheet2 の OPEN を消化する。早いレーンを優先すること」**。
-  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 538→520｜census 高シグナル 512→504**
-  （**Sheet2 の残 OPEN は 87→69**・うち「1効果1 finding の HIGH」**24→20**）。
-  gates 全緑（**golden 3007→3008**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**＝engine 非改変の裏取り）。
-  全文は BUGFIXES.md 冒頭。
-  - 🔑**受け皿は10件すべて既存＝parser も engine も1行も触っていない**（`STUB{HAND_REVEAL_CLASS_SIGNI}`／
-    `STUB{REMOVE_VIRUS_TARGET_ZONE}`／`TAKE_FROM_UNDER_SIGNI{fromThis}`＋`targetsStored`／`ChoiceOption.condition`／
-    `BanishAction.conditional`／`cost.discardFilter`／`filter.color:'無'`／`filter.cardNames`）。**新しい型は0本**
-    （速いレーン通算4巡29効果でも0本）。
-  - ✅🔑**`O-157` を実測で決着＝偽陽性だった**。`resumeSearch` は picked を**1枚ずつ** `applyDirectAction` へ渡す
-    （`effectExecutor.ts:9626`）ので `then:{TRASH{DECK_CARD,count:1}}` でも**探した全枚数が落ちる**＝`count` はこの経路で読まれない。
-    **live 18効果の慣例エンコードは正しかった**（過少実行ではない）。⇒ **golden を1本足して固定**（同じ疑いが蒸し返らないように）。
-  - 🔵**偽陽性は計4件**＝`WX16-024-LAYER-E2`（live は既に `triggerCondition:{byOpponentEffect:true}`）／
-    `WX21-020-E1` の2件（選択肢③は既に `POWER_MODIFY{+5000}`＋`GRANT_KEYWORD{ダブルクラッシュ}` を持つ）／`WX21-Re07-E1`（上記）。
-    **4件とも監査時点より後に直っていた**＝**3巡連続で「偽陽性の主因は監査の陳腐化」**。
-  - 🔑**「新しい effectId を足す」修正が2件あった**＝`WX20-062-TRAP`（《トラップアイコン》能力が【出】の SEQUENCE 末尾に
-    混ざっていた）と `WX17-071-TRAP`。⚠**新 id は収穫マージが素通りさせるが、既存 id の書き直しは `_held_fresh` に温存される**
-    ＝**`heldReview.mjs --adopt` は「カンマ区切り」**（空白区切りだと**先頭1枚しか採用されず黙って通る**＝今回踏んだ）。
-    新旧が混在するカード（`WX20-062`）は `_partial_fresh` に回るので **`syncManualLive.ts` の側**で通す。
-  - 🆕**機構ギャップを4件登録**＝`O-158`（エナの《アクセアイコン》カードを**選んで**アクセにできない・2効果。
-    `ATTACH_ACCE` のエナ経路がホストしか選ばせない）／`O-159`（「能力を失い、**新たに得られない**」の一過性版が無く
-    キーワード付与が素通りする）／`O-160`（「対戦相手がダメージを受けたとき」の遅延トリガー timing が無い）／
-    `O-161`（「このシグニと共通する色を持たない他の＜X＞」条件が無い・2効果）。
+- 🏁**セッション（2026-08-29・続き729・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ5（速いレーン）。
+  台帳の残 OPEN から 10効果を消化し、偽陽性5件を確定した（計15 finding クローズ）。
+  受け皿の配線漏れを1件見つけて engine を1行だけ直した（`execPowerSet` の `excludeSelf`）。**
+  ユーザー指示＝**「続けてバッチ５を行う、早いレーンを優先する」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 520→505｜census 高シグナル 504→499**
+  （**Sheet2 の残 OPEN は 69→54**・単発 HIGH 20→**21**／単発 MED 8）。
+  gates 全緑（**golden 3008→3010**・smoke 全0・fuzz 全0・**`census:enginetext` 136 据置**）。全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は10件すべて既存**（`filter.color:'無'`／`hasLifeBurst`／`noAbilities`／`powerRange`／`excludeSelf`／
+    `cost.energyTrash{filter}`／`LookPickChainStage.pickUpTo`／`SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。
+    **新しいアクション型・条件型は0本**（速いレーン通算5巡39効果でも0本）。
+  - 🔴🔑**「受け皿はあるのに1つの executor にだけ配線が無い」を1件踏んだ**＝`TargetFilter.excludeSelf` は
+    `execBanish:1267`／`execPowerModify:1795`／`execGrantKeyword:4066` に在るのに **`execPowerSet` にだけ無かった**
+    （`fieldCandidates` は `sourceCardNum` を受け取らないので `matchesFilter` では解けない形）。
+    ⇒ **engine 1行＋golden 1本（反転確認済み）**。**`census:wiring` が測っているのと同じ軸**なので、
+    「型に語彙がある」だけで受け皿ありと判定しない＝**その executor が読んでいるか**まで見る。
+  - 🔵**偽陽性は計5件**（**5件中4件が「監査後に直っていた」／1件が慣例エンコードの読み違い**）＝
+    `WX20-050-E1`（`cardName` を既に持つ）／`WX21-043-E2`（`handDiscardSigni` を既に持つ）／
+    `WX18-077-E1`・`WX18-078-E1`（`duringMainPhase` を既に持ち `BattleScreen.tsx:1954` が消費＝`O-64` で是正済み）／
+    🔑**`WX12-Re14-E1`＝CONTINUOUS `POWER_SET` は `count!=='ALL'` を「効果元シグニのみ」として扱う**
+    （`effectEngine.ts:2168-2175`）＝**`target:{SIGNI,self,count:1}` が「このシグニの基本パワーは」の正しい書き方**（live 207カードの慣例）。
+    **`GRANT_PROTECTION` の `subjectFilter` と同じ形の罠**（§5.2 第43バッチの再演）。
+  - ⚠**golden 1本が「シナリオの腐り」で落ちた**（§5.1 の分類(a)）＝`WX12-004-E1` の対象宣言をライフクラッシュ前へ
+    移したので、**最初の対話が「クラッシュ後のバニッシュ対象」から「先頭の対象宣言」へ変わった**。
+    その場で spec を直し、**2体並べて2体目を宣言する**判別テストを足した（1体だけの盤面では
+    autopilot が先頭を選ぶので `targetsStored` が効いていなくても通ってしまう）。
 
-**▶ 次の一手**＝**§5.2 Sheet2 バッチ5**（残 OPEN **520**・Sheet2 は **69件**・「1効果1 finding の HIGH」**20件**）。
-🔑**通算実測＝Sheet2 の「単発 HIGH」から速いレーンで取れるのは3〜4割**（33→7・28→10）。残りは機構ギャップか登録済み項目なので、
-**着手はまず「1件ずつ受け皿を確かめる」選別から**。判定は次の3手で付く：
+**▶ 次の一手**＝**§5.2 は Sheet2 を切り上げて Sheet3（99件）へ移る**（残 OPEN **505**）。
+🔑**Sheet2 は 96→54 まで削ったが、残りは HIGH に機構待ちが濃縮している**＝残 HIGH 21件の多くが
+§5.3 登録済み（`O-155` 同パワー／`O-156` トラップ条件／`O-158`〜`O-161`）。**歩留まりは Sheet3 のほうが高い。**
+着手はこれまでどおり「1件ずつ受け皿を確かめる」選別から。判定は次の**4手**（🆕④を追加）：
 ①原文の言い回しで `src/types/effects.ts` と `src/engine/` を grep（受け皿の有無）
-②**同じ句を含む live 効果を全数走査して慣例エンコードを確かめる**（続き727/728 はここで2度 `SEARCH.then` を踏んだ）
-③受け皿の**消費地点が `src/screens/` に及ぶか**を見る（及べば遅いレーン＝`O-155`／`O-158` がその実例）。
-⚠**Sheet2 が枯れたら Sheet3（99件）へ移る**＝**シートを跨いでも速いレーンの取り方は同じ**。
-⚠**MED 161件は未着手**＝HIGH が枯れたらそちらへ。
+②**同じ句を含む live 効果を全数走査して慣例エンコードを確かめる**（続き729 は `POWER_SET` の慣例で1件助かった）
+③受け皿の**消費地点が `src/screens/` に及ぶか**を見る（及べば遅いレーン＝`O-155`／`O-158` がその実例）
+④🆕**「型に語彙がある」だけで受け皿ありと判定しない**＝**その executor が読んでいるか**まで見る（続き729 の `execPowerSet`）。
+⚠**MED 146件は未着手**＝HIGH が枯れたシートから順にそちらへ。
 
 **同じ速いレーンで取れる §5.3 の残り**＝**`O-154`**（`WD15-001-E2`＝「その中に＜龍獣＞が１枚以上ある場合、それを」の
 条件と照応が両方落ち、条件なしで自分の＜龍獣＞を割る。受け皿は `LAST_PROCESSED_MATCHES` ＋ `targetsStored` で既存）。
 
-**重い巡を取るなら**＝**`O-156`**（トラップ条件・**6効果**＝parser に規則1本＋条件型1本で6件同時に閉じる）か
+**重い巡を取るなら**＝**`O-156`**（トラップ条件・**6効果**＝parser に規則1本＋条件型1本で6件同時に閉じる。
+🆕**Sheet2 の残 HIGH に `WX15-048-E1`／`WX15-049-E1` の2件が居るので、いま取ると台帳も動く**）か
 **`O-155`（`SelectionConstraint` の軸2つ・3効果・screens まで触る）**。
 🆕**`O-150`（`remainder.reorder` が効いていない件の特定）**＝**まず「フラグを外すと消える」形を1つ実機で作る**。
 `O-60` を続けるなら次は `GRANT_QUOTED_AUTO_ABILITY`（miss3/live4）か `POWER_MOD_PER_REVEALED_LEVEL`（miss3/live4）。
 🆕**`O-147`（複数体ライズ・13カード）**＝召喚UIを複数ゾーン選択にするので回帰は召喚全体。
 
-⚠**登録票の見立ては通算12巡連続で実測とズレた**（続き728 は `O-157` が**丸ごと偽陽性**で消えた）。
+⚠**登録票の見立ては通算13巡連続で実測とズレた**（続き729 は偽陽性5件のうち4件が「監査後に直っていた」）。
 **着手したらまず `grep` して読む。** ⚠**live が原文と違うときは、まず 3つの fresh バケツ
 （`_held_fresh` / `_partial_fresh` / `_idset_fresh`）を見る**＝直近5巡で「parser のバグではなく凍結だった」が3件出ている。
 
@@ -559,8 +560,9 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > 🆕🔴**2026-08-29 改定＝ここが「速いレーン」（§2.0）の本線キューになった。** 3つの計器のうち**段1 で真バグと確定しているのはここだけ**（census 571 と `behaviorAudit --queue` 566 は疑いで、偽陽性の選別にまた時間がかかる。両者の重なりはわずか28件＝**ほぼ別のものを見ている**）。
-> **母集団＝残 OPEN 520件（影響カード 394枚・効果 404件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-29 続き728 時点＝段2 消化596／段0除去217／段1偽陽性111／HIGH・MED・LOW＝356・161・3）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
-> **シート別（2026-08-29 続き728 実測・シート帰属は先勝ち）**＝Sheet3 **99** ／ Sheet8 93 ／ Sheet7 84 ／ Sheet4 70 ／ Sheet2 **69** ／ Sheet9 63 ／ Sheet5 21 ／ Sheet6 10 ／ Sheet10 7 ／ 帰属不明 4。**Sheet1 は 0**（消化済み）。**Sheet2 は 96→87→69 と3巡で削れた**（残 69・うち「1効果1 finding の HIGH」**20件**）。
+> **母集団＝残 OPEN 505件（影響カード 382枚・効果 390件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-29 続き729 時点＝段2 消化612／段0除去216／段1偽陽性111／HIGH・MED・LOW＝356・146・3）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> **シート別（2026-08-29 続き729 実測・シート帰属は先勝ち）**＝Sheet3 **99** ／ Sheet8 93 ／ Sheet7 84 ／ Sheet4 70 ／ Sheet9 63 ／ Sheet2 **54** ／ Sheet5 21 ／ Sheet6 10 ／ Sheet10 7 ／ 帰属不明 4。**Sheet1 は 0**（消化済み）。**Sheet2 は 96→87→69→54 と4巡で削れた**（残 54・うち「1効果1 finding」＝HIGH **21件**／MED **8件**）。
+> 🔑**Sheet2 の残りは HIGH に機構待ちが濃縮した**＝残 HIGH 21件の多くが §5.3 登録済み（`O-155` 同パワー／`O-156` トラップ条件／`O-158`〜`O-161`）。**次からは Sheet3（99件）へ移るほうが速いレーンの歩留まりが高い。**
 > ⚠**続き724 の表とシート別の内訳が合わないのは計器の差**＝あちらは帰属不明18、こちらは4（`CardData_Sheet1..10` を先勝ちで舐め直した）。**総数（残 OPEN）だけが台帳の正**で、シート別は選び方の目安として読む。
 > 🔑**消し方（2026-08-29 以降の既定）**＝**1件ずつ原文を読み直して `manualEffects.ts` に正しい JSON を手で書く**（§2.0 速いレーン）。同型が3枚以上あるときだけ parser へ回す。**10件たまったら `gates` 1回・commit 1回・BUGFIXES 10行。**
 > ⚠**「移設だけ」は禁止**（§2.0）＝parser の出力をそのままコピーすると**中身が変わらないうえ census の MANUAL 免除で計器から消える**。
@@ -839,19 +841,20 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-29 続き728 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 538→520｜census 高シグナル 512→504**
-  **golden 3007→3008**（`O-157` の決着を固定する1本）、census 504/504、smoke 全異常0、fuzz 全0、
-  lint 0 errors／249 warnings（据置）、同型★0、`census:stubs` A群🔴0／C群0、manual-fields 0。
-  🆕**台帳 段2 消化 575→596（+21）／残 OPEN は −18**（**追記は14行**）。⚠**3つの数が食い違うのは正常**＝
-  ①1効果に複数 finding が付く（行数14 < クローズ18） ②**うち3件は元々「段0除去」に数えられていた**ので
-  `消化 +21` と `OPEN −18` がズレる（段0除去 220→217）。**OPEN の減りだけが進捗**。
-  **Sheet2 の残 OPEN 87→69**・うち「1効果1 finding の HIGH」**24→20**。
-  🆕**`census:enginetext` A群 136行 / 133ハンドラ 据置**＝**engine を1行も触っていない裏取り**（4巡連続）。
-  🆕**`_held_fresh` 92→91**（今回手書きした8カードは `heldReview --adopt` で解けた・**増分0**）／
-  **`_partial_fresh` 12→11**（`WX20-062` を `syncManualLive` で通した）／`_idset_fresh` 11 据置／孤児 MANUAL A/B/C=0・D=8（据置）。
-  ⚠**census の −8 は前進ではない**＝MANUAL 免除による不可視化（`BASELINE_HIGH` の行コメントに明記済み）。
-  🆕**速いレーンの通算＝4巡29効果・新しいアクション型/条件型は0本**（`manualEffects.ts` だけで閉じた）。
+- **2026-08-29 続き729 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 520→505｜census 高シグナル 504→499**
+  **golden 3008→3010**（`excludeSelf` の配線を固定する1本＋`WX12-004-E1` の対象固定を判別する1本）、
+  census 499/499、smoke 全異常0、fuzz 全0、lint 0 errors／249 warnings（据置）、同型★0、
+  `census:stubs` A群🔴0／C群0、manual-fields 0。
+  🆕**台帳 段2 消化 596→612（+16）／残 OPEN は −15**（**追記は15行**＝1件は `WX15-049-E1` の MED だけを閉じた
+  finding 単位クローズ、`WX18-077/078` の2件は元「段0除去」から移動したので +16 と −15 がズレる）。
+  **Sheet2 の残 OPEN 69→54**・単発 HIGH 20→**21**（MED を閉じた効果が単発 HIGH に落ちてきたぶん増える）／単発 MED 8。
+  🆕**`census:enginetext` A群 136行 / 133ハンドラ 据置**＝**regex 判定を1本も足していない裏取り**
+  （⚠今回は engine を1行触ったが、それは `excludeSelf` の候補フィルタで SELF_TEXT ではない）。
+  🆕**`_held_fresh` 91 据置**（手書き10カードは `heldReview --adopt` で解けた・**増分0**）／
+  `_partial_fresh` 11 据置／`_idset_fresh` 11 据置。
+  ⚠**census の −5 は前進ではない**＝MANUAL 免除による不可視化（`BASELINE_HIGH` の行コメントに明記済み）。
+  🆕**速いレーンの通算＝5巡39効果・新しいアクション型/条件型は0本**（engine は配線1行のみ）。
 
 ## 付録A. 全体像と Definition of Done
 

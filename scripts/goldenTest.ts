@@ -19685,6 +19685,18 @@ test('POWER_SET(SIGNI count:1・選択): 相手シグニ1体のパワーを0に�
   const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
   ok(mods.some(m => m.cardNum === SIGNI && m.delta === -base), `temp_power_mods (${JSON.stringify(mods)})`);
 });
+test('POWER_SET + filter.excludeSelf: 「他のシグニ1体」は効果元自身を候補から外す（WX20-074-E1・§5.2 Sheet2 バッチ5）', () => {
+  // 🔴`fieldCandidates` は sourceCardNum を受け取らないので `matchesFilter` では excludeSelf を解けない。
+  //   execBanish / execPowerModify / execGrantKeyword には在った同じ1行が **execPowerSet にだけ無く**、
+  //   「他のシグニ1体を対象とし、それの基本パワーを10000にする」が**自分自身を選べていた**。
+  const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, {}, SIGNI_P3000);
+  const base = parseInt(cardMap.get(SIGNI_P12000)?.Power || '0');
+  const r = run({ type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1, explicitTarget: true,
+    filter: { cardType: 'シグニ', excludeSelf: true } }, value: 10000 } as EffectAction, ctx);
+  const mods = (r.ownerState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI_P12000 && m.delta === 10000 - base), `他のシグニが対象 (${JSON.stringify(mods)})`);
+  ok(!mods.some(m => m.cardNum === SIGNI_P3000), `効果元自身は対象外 (${JSON.stringify(mods)})`);
+});
 test('POWER_MODIFY_PER_FIELD(count:1・選択): 自場の＜毒牙＞数×deltaを選んだ相手シグニに適用（WX04-037）', () => {
   const ctx = mkCtx({ signi: ['WX04-037', 'WX04-053', null] }, { signi: [SIGNI, null, null] });
   const r = run({ type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerUnit: -1000, countFilter: { cardType: 'シグニ', story: '毒牙' }, countOwner: 'self' } as EffectAction, ctx);
@@ -39680,9 +39692,12 @@ test('wave2 D1 WX12-004-E1: self life crash snapshot survives banish and gates Y
     const ctx = mkCtx({ life: 0, lrig, deckTop: ['WD01-014'] }, { signi: [target, null, null], life: 2 }, 'WX12-004');
     ctx.ownerState.life_cloth = [life];
     const first = startWave2('WX12-004', 'WX12-004-E1', ctx);
-    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'post-crash banish target');
+    // 🆕§5.2 Sheet2 バッチ5＝原文「対戦相手のシグニ1体を**対象とし**、あなたのライフクロス1枚をクラッシュする」
+    //   に合わせて**対象宣言をライフクラッシュより前**へ移した（`SELECT_TARGET_ONLY`＋`targetsStored`）。
+    //   ⇒ 最初の対話は「クラッシュ後のバニッシュ対象」ではなく**先頭の対象宣言**になる。
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'pre-crash target declaration');
     if (first.done || first.pending.type !== 'SELECT_TARGET') return first;
-    return resumeSelectTarget([target], first.pending, wave2Ctx(ctx, first));
+    return finish(resumeSelectTarget([target], first.pending, wave2Ctx(ctx, first)), ctx);
   };
   const yes = resolve('WD01-009', ['SPDi34-13']);
   eq(yes.ownerState.life_cloth.length, 1, 'burst under Yuzuki adds top card to life');
@@ -39690,6 +39705,19 @@ test('wave2 D1 WX12-004-E1: self life crash snapshot survives banish and gates Y
   eq(yes.otherState.life_cloth.length, 2, 'opponent life is not crashed');
   eq(resolve('WD01-010', ['SPDi34-13']).ownerState.life_cloth.length, 0, 'non-burst adds no life');
   eq(resolve('WD01-009', []).ownerState.life_cloth.length, 0, 'non-Yuzuki adds no life');
+}));
+test('§5.2 Sheet2 バッチ5 WX12-004-E1: 宣言した対象がライフクラッシュを跨いで固定される（再選択にならない）', () => withSavedCursor(() => {
+  // 🔴**2体並べて「2体目」を宣言する**のが要点＝再選択に戻っていると autopilot は先頭（1体目）を選ぶので、
+  //   1体しか置かない盤面では `targetsStored` が効いていなくてもテストが通ってしまう。
+  const t1 = 'WD01-013', t2 = 'WD01-012';
+  const ctx = mkCtx({ life: 0, lrig: [], deckTop: ['WD01-014'] }, { signi: [t1, t2, null], life: 2 }, 'WX12-004');
+  ctx.ownerState.life_cloth = ['WD01-010'];
+  const first = startWave2('WX12-004', 'WX12-004-E1', ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'クラッシュ前に対象を宣言する');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  const r = finish(resumeSelectTarget([t2], first.pending, wave2Ctx(ctx, first)), ctx);
+  eq(r.otherState.field.signi[1], null, '宣言した2体目がバニッシュされる');
+  eq(r.otherState.field.signi[0]?.at(-1), t1, '1体目は残る（再選択で先頭を取り直していない）');
 }));
 
 // ── §6.3 C 第3波: 効果内 discard / 起動コスト discardAll / エナ配置の結果条件 ──

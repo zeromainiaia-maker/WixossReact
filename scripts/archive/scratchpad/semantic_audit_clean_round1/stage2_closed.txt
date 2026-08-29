@@ -925,3 +925,43 @@ WX21-020-E1 :: 【ダブルクラッシュ】を得る
 # ⑪ 🔵**偽陽性**＝`SEARCH.then` は**選んだ札1枚ずつに applyDirectAction される**（effectExecutor.ts:9627）＝
 #    `TRASH{DECK_CARD,count:1}` でも maxCount:10 の全部がトラッシュされる。`count` はこの経路では読まれない。
 WX21-Re07-E1 :: シグニを１０枚まで探してトラッシュ
+
+# ── 2026-08-29 §5.2 Sheet2 バッチ5（速いレーン・manualEffects.ts 手書き10効果＋偽陽性5件）──
+# ① 「対象とし」がライフクラッシュより後になっており、クラッシュ（＝相手のライフバースト）を跨いで
+#    対象を選び直せていた。SELECT_TARGET_ONLY ＋ STORE_LAST_PROCESSED_TARGETS ＋ BANISH{targetsStored}。
+WX12-004-E1
+# ② トラッシュから手札に加えるカードの「**無色の**」限定が落ちていた。filter.color:'無'。
+WX12-Re17-E1
+# ③ 同上（《ガードアイコン》を持つ**無色の**シグニ）。
+WX13-027-E1
+# ④ 【トラップ】設置の「してもよい」が落ちて**1枚の設置が強制**だった。LookPickChainStage.pickUpTo。
+WX15-002-E1 :: 設置してもよい
+WX15-049-E1 :: 設置してもよい
+# ⑤ 起動コスト「エナゾーンから《アクセアイコン》を持つカード1枚をトラッシュに置く」が丸ごと無かった。
+#    cost.energyTrash{count:1, filter:{hasIcon:'アクセ'}}。
+WX15-097-E1
+# ⑥ サーチ対象の「**【ライフバースト】を持つ**」が落ちていた（無色ではない条件だけ在った）。
+#    filter.hasLifeBurst。ついでに「そうした場合」を IS_MY_TURN → LAST_PROCESSED_COUNT_GTE へ。
+WX16-Re08-E1
+# ⑦ デッキ下へ置く対象の「**能力を持たない**」が落ちていた（同じカードの E3 には在った＝片側だけの取り残し）。
+#    filter.noAbilities。
+WX19-022-E1
+# ⑧ バニッシュ対象の「パワー5000以下」限定が落ち、かつ「対象とし」が任意の場出しより後だった。
+#    powerRange{max:5000} ＋ SELECT_TARGET_ONLY/STORE/targetsStored。
+WX20-039-CB-E1
+# ⑨ 「**他の**シグニ1体」の自己除外が落ちて**自分自身を選べた**。filter.excludeSelf。
+#    🔴受け皿は在ったが `execPowerSet` にだけ配線が無かった（execBanish/execPowerModify/execGrantKeyword には在る）
+#    ＝engine を1行足して golden で固定（反転確認済み）。
+WX20-074-E1 :: 他のシグニ１体
+# ⑩ 🔵**偽陽性**＝CONTINUOUS `POWER_SET` は `count!=='ALL'` を**効果元シグニのみ**として扱う
+#    （`effectEngine.ts:2168-2175`）＝`target:{SIGNI,self,count:1}` が「このシグニの基本パワーは」の正しい書き方。
+#    live 207カードの慣例エンコードで、`thisCardOnly` は不要。
+WX12-Re14-E1 :: このシグニの基本パワー
+# ⑪ 🔵**偽陽性**＝live は既に `filter.cardName:'ニャローブ'` を持つ。
+WX20-050-E1 :: 《ニャローブ》を含むシグニ
+# ⑫ 🔵**偽陽性**＝live は既に `cost.handDiscardSigni:{count:1, story:'毒牙'}` を持つ。
+WX21-043-E2 :: 手札から＜毒牙＞のシグニを１枚捨て
+# ⑬ 🔵**偽陽性**（2件）＝live は既に `triggerCondition:{duringMainPhase:true}` を持ち、
+#    `BattleScreen.tsx:1954` の ON_POWER_THRESHOLD watcher が `mainPhaseGateOkFor` で消費している（§5.3 `O-64` で是正済み）。
+WX18-077-E1 :: あなたのメインフェイズの間
+WX18-078-E1 :: あなたのメインフェイズの間
