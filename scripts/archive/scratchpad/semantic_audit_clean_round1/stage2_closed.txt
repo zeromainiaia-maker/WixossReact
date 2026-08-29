@@ -888,3 +888,40 @@ WX17-055-E1 :: このシグニの下にあった
 # ⑨ 🔵**偽陽性**＝live の `GUARD_LV2_3` は `makeGuardLevelBlocker`（screens/battle/guard.ts:55）がレベル列挙として解く。
 #   §6.4 O-41 で是正済みの6効果の1つとしてコメントに名指しされている（監査時点より後の修正）。
 WX18-039-E1 :: レベル２とレベル３のシグニ
+
+# ── 2026-08-29 §5.2 Sheet2 バッチ4（速いレーン・manualEffects.ts 手書き10効果＋偽陽性4件）──
+# ① 「そうした場合」が IS_MY_TURN に化け、②枝の2体目が自分側限定・②枝のエナに【マルチエナ】限定が無かった。
+#    BanishAction.conditional / owner:'any' / filter.keyword:'マルチエナ' で是正。
+WX12-Re13-E1
+# ② 「手札から＜天使＞のシグニ1枚を公開するか、このシグニをトラッシュに置く」の二択が
+#    「自分の場の＜天使＞1体をトラッシュ」1本に化けていた。CHOOSE＋STUB{HAND_REVEAL_CLASS_SIGNI}＋
+#    ChoiceOption.condition{HAND_COUNT_FILTER} へ。サーチの発生条件も「この方法で公開した場合」へ移した。
+WX14-072-E1
+WX14-075-E1
+# ③ 「それと同じシグニゾーンにある【ウィルス】1つを取り除き」が丸ごと無かった。
+#    受け皿は既存（STUB{REMOVE_VIRUS_TARGET_ZONE}＝兄弟カード WX15-064 が使用中）。
+WX15-115-E1
+# ④ 「このシグニの下からカード1枚をトラッシュ」が「対象の相手シグニ自体をトラッシュ」に化けていた。
+#    TAKE_FROM_UNDER_SIGNI{fromThis}＋SELECT_TARGET_ONLY/STORE_LAST_PROCESSED_TARGETS→BANISH{targetsStored}。
+#    「そうした場合」は THIS_CARD_HAS_UNDER で前置ゲート化（lastProcessedCards の持ち越し誤爆を避ける）。
+WX16-027-E2
+# ⑤ 【ライフバースト】/《トラップアイコン》の両方で「無色の」限定が2枝とも落ちていた。filter.color:'無'。
+WX17-071-BURST
+WX17-071-TRAP
+# ⑥ 《トラップアイコン》能力が【出】の SEQUENCE 末尾に混ざり、しかも付与キーワードが
+#    【アサシン】ではなく「トラップアイコン」・対象が《超罠　ハニトラ》でなく自分自身だった。
+#    WX20-062-TRAP（TRAP_ICON）へ分離し filter.cardNames で対象を限定。
+WX20-062-E1
+# ⑦ 「カード名に《Ne》を含むシグニ1体と」のバニッシュが欠落し、「そうした場合」も IS_MY_TURN に化けていた。
+#    HAS_CARD_IN_FIELD{cardName:'Ｎｅ'} で前置ゲート化＋filter.cardName。
+WX20-063-E3
+# ⑧ 「手札から《究極　ニパ子》を1枚捨てる」の起動コストが丸ごと無かった。cost.discard＋discardFilter.cardNames。
+WX21-031-CB-E1
+# ⑨ 🔵**偽陽性**＝live は既に `triggerCondition:{byOpponentEffect:true}`（監査後に直っていた）。
+WX16-024-LAYER-E2 :: 対戦相手の効果によって
+# ⑩ 🔵**偽陽性**（2件）＝live の選択肢③は既に POWER_MODIFY{+5000} と GRANT_KEYWORD{ダブルクラッシュ} を持つ。
+WX21-020-E1 :: パワーを＋5000し
+WX21-020-E1 :: 【ダブルクラッシュ】を得る
+# ⑪ 🔵**偽陽性**＝`SEARCH.then` は**選んだ札1枚ずつに applyDirectAction される**（effectExecutor.ts:9627）＝
+#    `TRASH{DECK_CARD,count:1}` でも maxCount:10 の全部がトラッシュされる。`count` はこの経路では読まれない。
+WX21-Re07-E1 :: シグニを１０枚まで探してトラッシュ

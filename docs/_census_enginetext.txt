@@ -61,6 +61,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | CHOOSE_HAND_OR_ENERGY | execStubPart3.ts:2394 | 4 | 4 | 1 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER | execStubPart3.ts:2751 | 4 | 4 | 3 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE | execStubPart1.ts:3026 | 4 | 4 | 4 | 0 |
+| HAND_REVEAL_CLASS_SIGNI | execStubPart3.ts:3416 | 4 | 4 | 2 | 0 |
 | PLACE_TRAP_FROM_REVEALED | execStubPart2.ts:3244 | 4 | 4 | 1 | 0 |
 | POWER_MOD_BY_DISCARD_COUNT_HIGH | execStubPart2.ts:2645 | 4 | 4 | 1 | 0 |
 | REVEAL_PICK_HAND_SHUFFLE_BOTTOM | execStubPart1.ts:4034 | 4 | 4 | 0 | 0 |
@@ -74,7 +75,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY | execStubPart2.ts:4737 | 3 | 3 | 5 | 0 |
 | CRASH_LIFE_TO_HAND | execStubPart1.ts:3802 | 2 | 2 | 1 | 0 |
 | EXTRA_COST_REMOVE_VIRUS | execStubPart1.ts:2200 | 2 | 2 | 1 | 0 |
-| HAND_REVEAL_CLASS_SIGNI | execStubPart3.ts:3416 | 2 | 2 | 2 | 0 |
 | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY | execStubPart1.ts:5034 | 2 | 2 | 1 | 0 |
 | OPP_HAND_TO_DECK_TOP | execStubPart1.ts:2661 | 2 | 2 | 1 | 0 |
 | OPTIONAL_DISCARD_HAND_CLASS | effectExecutor.ts:4807 | 2 | 2 | 1 | 0 |
@@ -450,6 +450,11 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:センタールリグのレベルが([１-９\d])以上
     lit re:追加で(?:エクシード([１-９\d])|((?:《[^》]+》)+))を支払(?:ってい)?た場合
 
+### HAND_REVEAL_CLASS_SIGNI  (live 4効果 / 4カード / miss 0)
+  execStubPart3.ts:3416  const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
+    lit re:手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]
+    lit str:好きな枚数
+
 ### PLACE_TRAP_FROM_REVEALED  (live 4効果 / 4カード / miss 0)
   execStubPart2.ts:3244  const txtPTFR = srcPTFR ? (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '') : '';
     lit re:カードを([０-９\d]+)枚見(?:る|て)
@@ -505,11 +510,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 ### EXTRA_COST_REMOVE_VIRUS  (live 2効果 / 2カード / miss 0)
   execStubPart1.ts:2200  const txtECRV = srcECRV ? (srcECRV.EffectText ?? '') + ' ' + (srcECRV.BurstText ?? '') : '';
     lit re:【ウィルス】を([０-９\d]+)つまで取り除|好きな数取り除
-
-### HAND_REVEAL_CLASS_SIGNI  (live 2効果 / 2カード / miss 0)
-  execStubPart3.ts:3416  const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
-    lit re:手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]
-    lit str:好きな枚数
 
 ### OPP_CHOOSE_OWN_SIGNI_TO_ENERGY  (live 2効果 / 2カード / miss 0)
   execStubPart1.ts:5034  const txtOCS = srcOCS ? (srcOCS.EffectText ?? '') + ' ' + (srcOCS.BurstText ?? '') : '';

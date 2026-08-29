@@ -2,6 +2,28 @@
 
 > [PLAN.md](./PLAN.md) §4「進捗サマリ」から追い出した過去のセッション要約を積む倉庫。**運用＝PLAN.md §4 には直近の作業1件だけを置き、次に作業したら古い要約をこの節の先頭へ移す**（入れ替え式）。`BUGFIXES.md` と同じく新しいものを上に。詳しい修正内容は `BUGFIXES.md`（新しい順）を参照。
 
+- 🏁**セッション（2026-08-29・続き727・Opus 5 単独）＝§5.2 意味照合 段2 の Sheet2 バッチ3（速いレーン）。
+  台帳の残 OPEN から HIGH 7効果を `manualEffects.ts` の手書きで消化し、偽陽性2件を確定した（計9件クローズ）。**
+  ユーザー指示＝**「5.2 意味照合監査（semantic audit）の段2 消化の sheet2 のカードを行う」**。
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 547→538｜census 高シグナル 514→512**
+  （**Sheet2 の残 OPEN は 96→87**・うち「1カード1 finding の HIGH」**33→24**）。
+  gates 全緑（**golden 3000→3007**・smoke 10703 全0・fuzz 全0・**`census:enginetext` 136 据置**＝engine 非改変の裏取り）。
+  全文は BUGFIXES.md 冒頭。
+  - 🔑**受け皿は7件すべて既存＝parser も engine も1行も触っていない**（`LAST_PROCESSED_MATCHES{hasIcon}`／`filter.thisCardOnly`／
+    `REVEAL_AND_PICK.handOrEnergy`／`CHOOSE` の2枝／`ATTACH_CHARM.charm{TRASH_CARD,opponent}`／`TRASH{optional}`＋did-it ゲート／
+    `SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS`＋`targetsStored`）。**新しい型は0本**（速いレーン通算3巡19効果でも0本）。
+  - 🔑**33件のうち実際に速いレーンで取れたのは7件**＝残りは**機構ギャップ**（`SelectionConstraint` の軸不足・トラップ条件・ライズ条件・
+    `THIS_CARD_FROM_HAND`・場全体の色条件）と**既に §5.3 に登録済みの項目**だった。⇒ **「HIGH の単発」でも中身は機構待ちが多い**＝
+    **着手前に1件ずつ受け皿を確かめる**のがそのまま選別になる（今回はこの選別に時間の大半を使った）。
+  - 🔵**偽陽性2件を確定**＝`WX17-055-E1`（live は `fromLeftFieldUnder` を持つ）／`WX18-039-E1`（`GUARD_LV2_3` は
+    `makeGuardLevelBlocker` がレベル列挙として解く＝**§6.4 `O-41` で是正済みの6効果の1つ**）。**どちらも監査時点より後に直っていた。**
+  - ⚠🔴**1件は「偽陽性に見えたが断定できない」ので閉じずに `O-157` へ登録した**＝`WX21-Re07-E1` の
+    `SEARCH{maxCount:10, then:TRASH{count:1}}` は **live 18効果の慣例エンコード**だが、`bindSearchedDeckCards` が
+    **`TRANSFER_TO_DECK` と `CHOOSE` しかバインドしない**ため「探した全枚数がトラッシュへ行く」ことをコードで確認できなかった。
+    **18効果に波及しうるので単独で確かめる。**
+  - 🆕**機構ギャップを3件登録**＝`O-155`（`SelectionConstraint` に `same:'power'` / `distinct:'cost'` が無い・3効果。
+    ⚠消費地点が engine 1・screens 2 の**3箇所**なので遅いレーン）／`O-156`（「場に【トラップ】がある場合」の条件型が無い・**実測6効果**）／`O-157`（上記）。
+
 - 🏁**セッション（2026-08-29・続き726・Opus 5 単独＋Codex 実装）＝§5.3「1〜3枚」の manual 第2バッチ（5効果）。
   `O-75` と `O-124` をクローズし、`O-104`③ は「既に正しい」ことを確認して外した。新規 `O-154` を登録。**
   ユーザー指示＝**「さらに早いレーンのものを、今度は codex-work に投げる」**（起動は `CODEX_HOME=.codex-work`）。

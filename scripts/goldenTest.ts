@@ -19654,6 +19654,18 @@ test('ENERGY_CHARGE(SEARCH→then:DECK_CARD): デッキから探して見つけ�
     then: { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' } }, afterAction: { type: 'SHUFFLE_DECK', owner: 'self' } } as unknown as EffectAction, ctx);
   eq(r.ownerState.energy.length, e0 + 1, 'エナ+1'); eq(r.ownerState.deck.length, d0 - 1, 'デッキ-1（場のシグニ選択へすり替わらない）');
 });
+test('§5.3 O-157: SEARCH(maxCount:3)→then:TRASH{DECK_CARD,count:1} は探した3枚すべてをトラッシュへ送る', () => {
+  // 🔴live 18効果の慣例エンコード＝「N枚まで探してトラッシュに置き」は `maxCount:N` ＋ `then:{TRASH{DECK_CARD,count:1}}`。
+  //   `resumeSearch` は picked を**1枚ずつ** `applyDirectAction` へ渡す（`effectExecutor.ts:9626`）ので
+  //   `then` 側の `count` は読まれない＝**N枚全部が落ちる**。ここを固定しないと
+  //   「count:1 だから1枚しか落ちない過少実行では」という疑いが毎回蒸し返る（§5.2 段2 の finding 1件が実際そうだった）。
+  const ctx = mkCtx({}, {});
+  const t0 = ctx.ownerState.trash.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: {}, maxCount: 3,
+    then: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.trash.length, t0 + 3, 'トラッシュ+3（then.count:1 に丸められない）');
+  eq(r.ownerState.deck.length, d0 - 3, 'デッキ-3');
+});
 test('TRANSFER_TO_DECK(SIGNI count:1・選択): 相手シグニ1体をデッキ下へ 場から除去', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const d0 = ctx.otherState.deck.length;

@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［59枚］
-PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX14-072 WX17-009 WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P02-018 WXDi-P03-002 WXDi-P05-005 WXDi-P06-011 WXDi-P08-053 WXDi-P08-072 WXDi-P09-005 WXDi-P10-002 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
+## （type増減なし＝値/構造変更） ［60枚］
+PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX17-009 WX17-071 WX21-031-CB WX21-032 WX22-002 WX24-P1-048 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-CP1-085 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-111 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-015 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-094 WXDi-D06-010 WXDi-D09-H07 WXDi-P02-018 WXDi-P03-002 WXDi-P05-005 WXDi-P06-011 WXDi-P08-053 WXDi-P08-072 WXDi-P09-005 WXDi-P10-002 WXDi-P10-061 WXDi-P11-064 WXDi-P12-031 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXEX2-35 WXK01-020 WXK01-044 WXK03-006 WXK04-090 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -52,6 +52,24 @@ WDK05-R11 WDK05-R14 WXK03-025
   + [0].action.steps[0].fromBottom = true
   + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
 
+## +LAST_PROCESSED_COUNT_GTE -CONDITIONAL -IS_MY_TURN×2 ［1枚］
+WX12-Re13
+--- WX12-Re13
+  原文: 以下の２つから１つを選ぶ。①対象のあなたのシグニ１体をバニッシュする。そうした場合、対象のパワー8000以下のシグニ１体をバニッシュする。②対象のあなたのシグニ１体をバニッシュする。そうした場合、対戦相手のエナゾーンから対象の【マルチエナ】を持つカード１枚をトラッシュに置く。,-
+  - [0].action.choices[0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.choices[0].action.steps[1].then.type = "BANISH"
+  - [0].action.choices[0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.choices[0].action.steps[1].then.target.owner = "self"
+  - [0].action.choices[0].action.steps[1].then.target.count = 1
+  - [0].action.choices[0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.choices[0].action.steps[1].then.target.filter.powerRange.max = 8000
+  - [0].action.choices[0].action.steps[1].then.target.upToCount = false
+  ~ [0].action.choices[0].choiceId : "c0" → "WX12-Re13-E1-c1"
+  ~ [0].action.choices[0].label : "選択肢1" → "あなたのシグニ1体をバニッシュする。そうした場合、パワー8000以下のシグニ1体をバニッシュする"
+  ~ [0].action.choices[0].action.steps[1].type : "CONDITIONAL" → "BANISH"
+  + [0].action.choices[0].action.steps[1].target.type = "SIGNI"
+  …（他 12 行）
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -79,6 +97,60 @@ WX14-064
   ~ [0].mandatory : true → false
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
+## +CHOOSE +HAND_COUNT_FILTER +STUB -CONDITIONAL -LAST_PROCESSED_MATCHES ［1枚］
+WX14-072
+--- WX14-072
+  原文: 【出】：あなたの手札から＜天使＞のシグニ１枚を公開するか、このシグニを場からトラッシュに置く。この方法で＜天使＞のシグニを公開した場合、あなたのデッキから＜天使＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
+  - [0].action.steps[0].type = "TRASH"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.story = "天使"
+  - [0].action.steps[1].type = "CONDITIONAL"
+  - [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  - [0].action.steps[1].condition.filter.story = "天使"
+  - [0].action.steps[1].condition.filter.cardType = "シグニ"
+  - [0].action.steps[1].condition.minCount = 1
+  - [0].action.steps[1].then.type = "SEARCH"
+  …（他 46 行）
+
+## +CHOOSE +HAND_COUNT_FILTER +STUB ［1枚］
+WX14-075
+--- WX14-075
+  原文: 【出】：あなたの手札から＜天使＞のシグニ１枚を公開するか、このシグニを場からトラッシュに置く。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.filter.story = "天使"
+  ~ [0].action.type : "TRASH" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "WX14-075-E1-c1"
+  + [0].action.choices[0].label = "手札から＜天使＞のシグニ1枚を公開する"
+  + [0].action.choices[0].condition.type = "HAND_COUNT_FILTER"
+  + [0].action.choices[0].condition.owner = "self"
+  …（他 15 行）
+
+## +SEQUENCE +STUB ［1枚］
+WX15-115
+--- WX15-115
+  原文: 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じシグニゾーンにある【ウィルス】１つを取り除き、ターン終了時まで、それのパワーを－5000する。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.filter.infected = true
+  - [0].action.target.upToCount = false
+  - [0].action.delta = -5000
+  ~ [0].action.type : "POWER_MODIFY" → "SEQUENCE"
+  + [0].action.steps[0].type = "POWER_MODIFY"
+  + [0].action.steps[0].target.type = "SIGNI"
+  + [0].action.steps[0].target.owner = "opponent"
+  + [0].action.steps[0].target.count = 1
+  …（他 7 行）
+
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
 --- WX16-005
@@ -96,6 +168,24 @@ WX16-005
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
   …（他 25 行）
+
+## +SEQUENCE +STUB×2 +TAKE_FROM_UNDER_SIGNI +THIS_CARD_HAS_UNDER -IS_MY_TURN -TRASH ［1枚］
+WX16-027
+--- WX16-027
+  原文: 【ライズ】あなたの＜武勇＞のシグニ２体の上に置く【出】：あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番下に置く。【起】《ターン１回》《アタックフェイズアイコン》《赤×0》：対戦相手のシグニ１体を対象とし、このシグニの下からカード１枚をトラッシュに置く。そうした場合、それをバニッシュする。,：対戦相手のパワー12000以
+  - [1].action.steps[0].target.type = "SIGNI"
+  - [1].action.steps[0].target.owner = "opponent"
+  - [1].action.steps[0].target.count = 1
+  - [1].action.steps[0].target.filter.cardType = "シグニ"
+  - [1].action.steps[0].target.upToCount = false
+  - [1].action.steps[1].condition.type = "IS_MY_TURN"
+  - [1].action.steps[1].then.type = "BANISH"
+  - [1].action.steps[1].then.target.type = "SIGNI"
+  - [1].action.steps[1].then.target.owner = "opponent"
+  - [1].action.steps[1].then.target.count = 1
+  - [1].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [1].action.steps[1].then.target.upToCount = false
+  …（他 26 行）
 
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005
@@ -147,6 +237,24 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 21 行）
+
+## +BANISH +HAS_CARD_IN_FIELD +SIGNI -IS_MY_TURN ［1枚］
+WX20-063
+--- WX20-063
+  原文: 【自】：対戦相手がスペルを使用したとき、対戦相手は手札を１枚捨てる。【出】他の＜原子＞のシグニ１体を場からトラッシュに置く：あなたのデッキからコストの合計が０のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。【起】《アタックフェイズアイコン》《青×0》：あなたのカード名に《Ne》を含むシグニ１体とこのシグニをバニッシュする。そうした場合、対戦相手
+  - [2].action.steps[0].type = "BANISH"
+  - [2].action.steps[0].target.type = "SIGNI"
+  - [2].action.steps[0].target.owner = "self"
+  - [2].action.steps[0].target.count = 1
+  - [2].action.steps[0].target.filter.cardType = "シグニ"
+  - [2].action.steps[0].target.filter.thisCardOnly = true
+  - [2].action.steps[1].type = "CONDITIONAL"
+  - [2].action.steps[1].condition.type = "IS_MY_TURN"
+  - [2].action.steps[1].then.type = "BANISH"
+  - [2].action.steps[1].then.target.type = "SIGNI"
+  - [2].action.steps[1].then.target.owner = "opponent"
+  - [2].action.steps[1].then.target.count = "ALL"
+  …（他 26 行）
 
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［1枚］
 WXEX2-09

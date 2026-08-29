@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-29：§5.2 Sheet2 バッチ4（速いレーン）＝台帳の残 OPEN から 10効果を消化（＋偽陽性4件を確定・`O-157` を実測で決着）
+
+意味照合 段2 台帳の残 OPEN のうち **Sheet2 の 87件**から着手（「1効果1 finding の HIGH」28件＋2 finding の効果）。
+実装先はすべて `src/data/manualEffects.ts`（§2.0 速いレーン）＝**parser も engine も1行も触っていない**。
+
+### 真因（1効果ずつ）
+
+| 効果 | 真因 | 向き | 使った受け皿（すべて既存） |
+|---|---|---|---|
+| `WX12-Re13-E1` | 「**そうした場合**」が `IS_MY_TURN` に化け、②枝の2体目が**自分側限定**・②枝のエナに**【マルチエナ】限定が無い** | 過剰＋別物 | `BanishAction.conditional`（`effectExecutor.ts:1165` が `lastProcessedCards` 空なら実行しない）／`target.owner:'any'`／`filter.keyword:'マルチエナ'`（`WX04-009-E1` と同形） |
+| `WX14-072-E1` `WX14-075-E1` | 「手札から＜天使＞のシグニ1枚を**公開するか**、このシグニをトラッシュに置く」の**二択が消え**、「自分の場の＜天使＞1体をトラッシュ」1本に化けていた | 別物 | `CHOOSE`＋`STUB{HAND_REVEAL_CLASS_SIGNI}`（`execStubPart3.ts:3414`）＋`ChoiceOption.condition{HAND_COUNT_FILTER}`（`execChoose` が `available` に反映＝`effectExecutor.ts:5438`） |
+| `WX15-115-E1` | 「それと**同じシグニゾーンにある【ウィルス】1つを取り除き**」が丸ごと無かった | 過少 | `STUB{REMOVE_VIRUS_TARGET_ZONE}`（`execStubPart1.ts:2138`。兄弟カード `WX15-064-E1` が使用中の実績あり） |
+| `WX16-027-E2` | 「**このシグニの下から**カード1枚をトラッシュ」が「**対象の相手シグニ自体**をトラッシュ」に化け、「そうした場合」も `IS_MY_TURN` だった | 別物 | `TAKE_FROM_UNDER_SIGNI{destination:'trash', fromThis:true}` ＋ `SELECT_TARGET_ONLY`／`STORE_LAST_PROCESSED_TARGETS`／`BANISH{targetsStored}`。**「そうした場合」は `THIS_CARD_HAS_UNDER{minCount:1}` で前置ゲート化**（後述） |
+| `WX17-071-BURST` `WX17-071-TRAP` | 【ライフバースト】と《トラップアイコン》の**両方**で、2枝とも「**無色の**」限定が落ちていた | 過剰 | `filter.color:'無'`（無色カードは CSV の `Color` が `無`＝187枚。`matchesFilter` の `card.Color?.includes(c)` で通る） |
+| `WX20-062-E1` | 《トラップアイコン》能力が【出】の `SEQUENCE` 末尾に混ざり、しかも付与キーワードが**【アサシン】ではなく「トラップアイコン」**・対象が《超罠　ハニトラ》でなく**自分自身**だった | 別物 | `WX20-062-TRAP`（`effectType:'TRAP_ICON'` / `timing:['ON_TRAP_ACTIVATE']`）へ**分離**＋`filter.cardNames:['超罠　ハニトラ']` |
+| `WX20-063-E3` | 「カード名に《Ne》を含むシグニ1体**と**」のバニッシュが**欠落**し、「そうした場合」も `IS_MY_TURN` だった | 過少＋過剰 | `CONDITIONAL{HAS_CARD_IN_FIELD{cardName:'Ｎｅ'}}` で前置ゲート化＋`filter.cardName`（部分一致・全角。live で `Ｎｅ` を含む名は `WX04-033` の1枚だけ） |
+| `WX21-031-CB-E1` | 「手札から《究極　ニパ子》を1枚捨てる」の**起動コストが丸ごと無かった**（無料で撃てた） | 過剰 | `cost.discard:1` ＋ `cost.discardFilter.cardNames`（`screens/battle/trashActivateCost.ts:58` が読む） |
+
+**影響**＝live 9カード10効果（新規 effectId 2本を含む）。**新しいアクション型・条件型は0本**（速いレーンの通算4巡29効果でも0本）。
+
+### 「そうした場合」を `conditional` ではなく前置ゲートにした2件
+
+`BanishAction.conditional` / `LAST_PROCESSED_COUNT_GTE` は「**直前ステップが `lastProcessedCards` を残したか**」で判定する。
+🔴**候補0で空振りしたステップは `lastProcessedCards` を書き換えず素通りする**ので、
+**その前のステップの選択結果が残ったまま did-it ゲートを通過してしまう**。
+
+- `WX16-027-E2`＝`SELECT_TARGET_ONLY`（相手シグニを対象化）→ `TAKE_FROM_UNDER_SIGNI`。下にカードが無いと後者が空振りし、
+  **対象化した相手シグニが `lastProcessedCards` に残ってバニッシュが通る**。⇒ `THIS_CARD_HAS_UNDER{minCount:1}` で**前に**ゲートを置いた。
+- `WX20-063-E3`＝「《Ne》シグニと このシグニ」の2連バニッシュ。《Ne》が居ないと片方だけ空振りする。
+  ⇒ `HAS_CARD_IN_FIELD{cardName:'Ｎｅ'}` で**全体を**ゲートした（原文どおり「両方バニッシュできたときだけ」全体バニッシュ）。
+
+### 🔵 偽陽性4件（監査時点より後に直っていた／そもそも正しかった）
+
+| 効果 | 判定根拠 |
+|---|---|
+| `WX16-024-LAYER-E2` | live は既に `triggerCondition:{byOpponentEffect:true}` を持ち、`triggerCollect.ts:87/1009/…` が消費している |
+| `WX21-020-E1`（2 finding） | 選択肢③は既に `POWER_MODIFY{delta:5000}` と `GRANT_KEYWORD{'ダブルクラッシュ'}` を持つ |
+| `WX21-Re07-E1` | 下記 `O-157` の決着どおり、`SEARCH.then` は探した全枚数に効く |
+
+### ✅ `O-157` を実測で決着（`SEARCH.then:TRASH` は探した全枚数に効く）＝クローズ
+
+**問い**＝「N枚まで探してトラッシュに置き」の慣例エンコード `SEARCH{maxCount:N, then:{TRASH{DECK_CARD, count:1}}}` は
+**1枚しか落ちない過少実行なのか**（live 18効果に波及）。
+**答え**＝`resumeSearch` は picked を **1枚ずつ** `applyDirectAction` へ渡す（`src/engine/effectExecutor.ts:9626`）。
+`applyDirectAction` の `TRASH{DECK_CARD}` 分岐は**渡された1枚を落とすだけ**で `target.count` を読まない
+⇒ **`count:1` はこの経路では無視され、N枚全部が落ちる**。前巡が確認できなかったのは `bindSearchedDeckCards`（`:9330`）だけを見ていたため
+（あれは `then` を**書き換える**関数で、実行そのものは上のループが担う）。
+⇒ **golden を1本追加**（`§5.3 O-157: SEARCH(maxCount:3)→then:TRASH{DECK_CARD,count:1} は探した3枚すべてをトラッシュへ送る`）。
+
+### ⚠ 収穫マージの罠を1つ踏んだ（`heldReview --adopt` の区切り文字）
+
+`manualEffects.ts` の**既存 effectId 書き直し**は live へ直行せず `docs/_held_fresh.json` に温存される（既知）。
+今回はそこから `node scripts/heldReview.mjs --adopt …` で採用したが、
+🔴**`--adopt` は「カンマ区切り」で、空白区切りだと先頭1枚しか採用せずエラーも出さない**（`計 1枚 採用` とだけ出る）。
+**新旧 id が混在するカード**（`WX20-062`＝既存 `-E1` 書き直し＋新規 `-TRAP`）は `_held_fresh` ではなく
+`docs/_partial_fresh.json` に回るので、そちらは **`npx tsx scripts/syncManualLive.ts <CardNum>`** で通す。
+
+### 🆕 機構ギャップ4件を §5.3 へ登録（速いレーンから撤退した分）
+
+- **`O-158`**＝エナゾーンの《アクセアイコン》カードを**選んで**シグニの【アクセ】にできない（`WX20-002-E2` / `WX16-022-E1`）。
+  `ATTACH_ACCE` のエナ経路は**ホストシグニしか選ばせず**、アクセ札は `_pickedAcceCard ?? ctx.sourceCardNum ?? lastProcessedCards[0]`
+  （`effectExecutor.ts:10784`）で決める⇒ **効果元がルリグだと「エナ/手札にない」で黙って no-op**。
+  現状の live は `GRANT_KEYWORD{'アクセ'}`＝**エナのカードを1枚も動かさない**。
+- **`O-159`**＝「能力を失い、**新たに得られない**」の一過性版が無い（`WX19-022-BURST`）。
+  `abilities_removed` は能力収集のたびに読まれるので**元の能力は消える**が、`GRANT_KEYWORD` は別 store（`keyword_grants`）で
+  ゲートが `keyword_abilities_removed` しか見ない⇒ **あとから【アサシン】等を付け直せる**。
+- **`O-160`**＝「このターン、対戦相手が**ダメージを受けたとき**」の遅延トリガー timing が無い（`WX18-002-E3`）。
+  現状は**起動した瞬間に無条件で `LIFE_CRASH`**。
+- **`O-161`**＝「このシグニと**共通する色を持たない**他の＜X＞のシグニがある場合」条件が無い（`WX21-032-E1` / `WX21-039-E1`）。
+  既存の `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は「場の該当シグニ**全員に**共通色が無い」＝別物（3体目が居ると結果が変わる）。
+
+### 検証
+
+- `npm run gates` **全緑**（typecheck / **golden 3008**（3007→3008・全件） / smoke 全0 / fuzz 全0 / census / census:stubs / manual-fields / **census:enginetext 136 据置**＝engine 非改変の裏取り / lint）。
+- 逆翻訳（`npx tsx scripts/decompileEffects.ts <9枚>`）を目視で原文と照合。
+- 台帳＝`node scripts/archive/semanticAuditLedger.mjs` で **残 OPEN 538→520**（影響カード 403→394・効果 417→404）。**Sheet2 は 87→69**。
+  ⚠**追記14行／段2 消化 +21／OPEN −18 の3つが食い違うのは正常**＝①1効果に複数 finding が付く ②**うち3件は元々「段0除去」に数えられていた**（220→217）。**OPEN の減りだけが進捗。**
+- `census` 高シグナル **512→504**。⚠**前進ではなく不可視化**（`vocabCensus.ts` は MANUAL/PARTIAL を高シグナルから免除する）＝`BASELINE_HIGH` を 504 へ実数更新。
+- ⑤実機は**不要**と判定（触ったのは `src/data/manualEffects.ts`・`public/data/effects_*.json`・`scripts/goldenTest.ts` のみ＝`src/screens/` も新機構も無し。PLAN §2.2 の機械判定）。
+
+---
+
 ## 2026-08-29：§5.2 Sheet2 バッチ3（速いレーン）＝台帳の残 OPEN から HIGH 7効果を消化（＋偽陽性2件を確定）
 
 意味照合 段2 台帳の残 OPEN のうち **Sheet2 の「1カード1 finding の HIGH」33件**から着手。
