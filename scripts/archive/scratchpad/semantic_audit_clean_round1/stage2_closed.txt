@@ -1098,3 +1098,7 @@ WX16-Re09-E1 :: パワーを＋3000し
 WX16-059 :: レベル１の赤のシグニ１体の上
 WX18-061 :: レベル２以下のシグニ１体の上
 WX21-Re05 :: 【ライズ】あなたのレベル１
+
+# 2026-08-30 バッチ6 の取りこぼし＝`WXEX2-78-E1` は同じ parser 修正（any_ally + fromFieldByCostOnly）で
+#   一緒に直っており（live 実測済み）、＜毒牙＞限定も `triggerFilter.story` に入っている。Sheet3 側の finding。
+WXEX2-78-E1 :: 【起】能力のコストとして
