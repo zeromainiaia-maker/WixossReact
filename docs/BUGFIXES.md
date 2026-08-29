@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：§5.3 `O-60` 第12バッチ＝公開札倍率／デッキトップ条件ルートのカード全文 regex を撤去
+
+engine が効果元の `EffectText` / `BurstText` を再解析していた
+`POWER_MOD_PER_REVEALED_LEVEL` と `REVEAL_TOP_CONDITIONAL_ROUTE` を撤去し、7効果を既存 payload へ移行した。
+
+- `WDK13-012-E1` / `WXK10-030-E1` / `WXK07-091-E1` は
+  `POWER_MODIFY{deltaPerLastProcessedCount,perLastProcessed.unit:level_sum}` へ移行。
+  旧ハンドラの相手シグニ全3体への過剰適用をやめ、原文どおり選んだ1体だけにした。
+- `SPK01-09-E1` は同じ倍率口へ `filter.levelParity:odd` を配線し、奇数レベルのシグニだけを数える。
+- `WX08-025-BURST` / `WX10-030-BURST` / `WXK05-021-BURST` は
+  `REVEAL_DECK_TOP → CONDITIONAL{LAST_PROCESSED_MATCHES}` へ移行。条件は `hasCrossIcon` / `cardClass`、
+  行き先は `TRANSFER_TO_HAND{DECK_CARD,fromTop:true}` / `ENERGY_CHARGE_FROM_DECK` に刻んだ。
+  不成立時は何も動かさず、公開札をデッキトップに残す。
+- 随伴修正として `WXK10-030-E1` の公開4枚をトラッシュ1枚に潰していた枚数を4枚へ是正。
+  `WXK07-091-E1` は公開1枚／トラッシュ1枚のまま。
+
+**新しい効果型・フィールドは0本。** `TRANSFER_TO_HAND` のデッキ実行は `fromTop:true` のときだけに閉じ、
+payload 欠落時は no-op の fail-closed を維持した。
+
+計器は `census:enginetext` A群 **136→134行 / 133→131ハンドラ**、miss **40→38ハンドラ / 56→50カード**。
+`census` は typed 化で顕在化した「公開し」の偽陽性を `LOOK_AND_REORDER{private:false}` の木形で較正し、
+**489→482** へ払い戻した（`private:true`＝見る、は免除しない）。
+
+検証は `npm run gates` 全緑（golden **3019/3019**、smoke **10704/10704**、fuzz 200ゲーム×40手で全不具合0、
+census:stubs A/C 0、manual field loss 0、lint 0 errors / 249 warnings）。fresh assert は旧 catch-all 復活、
+奇数フィルタ除去、条件ルート規則停止の3反転がすべて exit 1 になることを確認済み。
+
+**分担**＝実装は Codex CLI（`CODEX_HOME=.codex-work`・`model_reasoning_effort=high`）、
+スコープ決定・投入前実測・検証・簿記は Claude。**差し戻し0件・Claude 側の是正0件。**
+
+**Claude 側の検証（CODEX_GUIDE §7）**＝①`npm run gates` を独立実行して全緑・数値が申告と一致
+（golden 3016→**3019**、census 489→**482**、smoke 10704、lint 249 warnings で増減0）
+②live JSON をベースライン `75605959d` と **effectId 単位で機械 diff**＝変化は申告どおり**7効果ちょうど**（追加0・削除0・巻き添え0）
+③`build:effects`→`heldReview` を回し直して **held 89枚／31署名＝投入前と同一**
+④`scripts/goldenTest.ts` は **141行追加・0行削除**＝既存 assert の書き換えなし（§5-22）
+⑤`git diff --name-only` 全件で `U+FFFD`／`???`／BOM の**新規増0**（BUGFIXES.md の `???` 30件はベースラインから存在）
+⑥🔴**census 較正で高シグナルから消えた11効果を全部原文照合した**＝`WD21-001-E1` `WDK04-014-E1` `WX17-015-E1`
+`WX24-P3-022-E1` `WXDi-P02-036-E1` `WXDi-P06-071-E1` `WXDi-P07-064-E1` `WXK01-045-E2` `WXK05-051-E1`
+`WXK07-051-E1` `WXK10-053-E2`＝**11件とも原文が「デッキから公開する」で `LOOK_AND_REORDER{private:false}` を持つ**
+（＝真の偽陽性。計器を甘くしたのではない）。
+
+**⑤実機の要否＝不要（④ゲートまでで閉じる）**＝触ったのは `src/data/` `src/engine/` `scripts/` `public/data/` だけで
+**`src/screens/` は1行も触っていない**、かつ**新しいアクション型・条件型の新設が0本**（既存 `TRANSFER_TO_HAND` に
+`fromTop:true` 分岐を足しただけ）＝CLAUDE.md の機械判定に従って実機は省略した。
+
+詳細報告書（15KB・調査／採用全件／反転確認の全文）＝`scripts/archive/O60_BATCH12_REPORT.md`。
+
+---
+
 ## 2026-08-30：選択UIの候補不足ソフトロックを塞いだ（Codex 実装＋Claude 検証・実機で再現/解消を確認）
 
 🔴**人間プレイヤーの選択UIが、候補が要求枚数に足りない盤面で「決定」も「スキップ」も押せず、ゲームが進行不能になっていた。**

@@ -2300,14 +2300,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/その中から.*(?:緑|青|黒|白|赤)の.*カード.*(?:エナゾーンに置き|手札に加え).*残り.*(?:トラッシュ|デッキ)/))
     return { type: 'STUB', id: 'LOOK_TOP_COLOR_SORT' } as StubAction;
 
-  // ---- デッキの一番上を公開し条件でルートへ ----
-  if (t.match(/デッキの一番上を公開し.*シグニの場合/))
-    return { type: 'STUB', id: 'REVEAL_TOP_CONDITIONAL_ROUTE' } as StubAction;
-
-  // ---- クロスアイコン条件で手札に加える ----
-  if (t.match(/《クロスアイコン》を持つシグニの場合.*手札に加える/))
-    return { type: 'STUB', id: 'REVEAL_TOP_CONDITIONAL_ROUTE' } as StubAction;
-
   // （「対戦相手は…シグニゾーンに…シグニを新たに配置することができない」は
   //   parseSentencePart3 の BLOCK_OPP_ZONE_PLACEMENT へ統合＝タスク12(lxi) 第10波。
   //   期間（このターン／次のターン）と《無》の支払い回避を同時に読むため1本にまとめた）

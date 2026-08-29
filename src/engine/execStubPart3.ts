@@ -3711,23 +3711,6 @@ export function execStubPart3(
     const newOwnerIDP = { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(cntIDP), trash: [...ctx.ownerState.trash, ...toDiscardIDP] };
     return done(addLog({ ...ctx, ownerState: newOwnerIDP }, `ペナルティ：手札${cntIDP}枚捨て`));
   }
-  // REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
-  if (stub.id === 'REVEAL_TOP_CONDITIONAL_ROUTE') {
-    const toHWRTCR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const sRTCR = ctx.ownerState;
-    if (sRTCR.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
-    const topRTCR = sRTCR.deck[0];
-    const cardRTCR = ctx.cardMap.get(topRTCR);
-    const topLevelRTCR = cardRTCR ? parseInt(toHWRTCR(cardRTCR.Level ?? '0')) || 0 : 0;
-    const srcRTCR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRTCR = srcRTCR ? (srcRTCR.EffectText ?? '') + ' ' + (srcRTCR.BurstText ?? '') : '';
-    const mLvRTCR = txtRTCR.match(/レベル([０-９\d]+)以上/);
-    const threshRTCR = mLvRTCR ? parseInt(toHWRTCR(mLvRTCR[1])) : 3;
-    const condMetRTCR = topLevelRTCR >= threshRTCR;
-    const newSRTCR: PlayerState = { ...sRTCR, deck: sRTCR.deck.slice(1), trash: [...sRTCR.trash, topRTCR] };
-    return done(addLog({ ...ctx, ownerState: newSRTCR },
-      `公開${cardRTCR?.CardName ?? topRTCR}(Lv${topLevelRTCR})：条件${condMetRTCR ? '達成' : '未達成'}→トラッシュ`));
-  }
   // REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI: このシグニを手札に戻した場合のみ、デッキの一番上を公開し、シグニならアタッカーの元ゾーンにダウン状態で出してアタックを継続する（G186）
   if (stub.id === 'REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI') {
     const sRTP = ctx.ownerState;

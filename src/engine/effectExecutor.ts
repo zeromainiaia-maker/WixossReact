@@ -2941,6 +2941,21 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
       ...addLog(setOwnerState(tgtOwner, newS, ctx), `ライフクロス${moved.length}枚を手札へ`),
       lastProcessedCards: moved,
     });
+  } else if (src.type === 'DECK_CARD' && src.fromTop === true) {
+    // §5.3 `O-60` 第12バッチ＝ `REVEAL_DECK_TOP` で公開したデッキトップを「手札に加える」。
+    // `DECK_CARD` だけでは従来どおり no-op。`fromTop:true` が payload に明記されたときだけ
+    // 先頭から移す（デッキ内検索や未公開札の選択へ広げない fail-closed 分岐）。
+    const count = src.count === 'ALL' ? state.deck.length : Math.max(0, resolveNum(src.count));
+    const moved = state.deck.slice(0, count);
+    const newS: PlayerState = {
+      ...state,
+      deck: state.deck.slice(moved.length),
+      hand: [...state.hand, ...moved],
+    };
+    return done({
+      ...addLog(setOwnerState(tgtOwner, newS, ctx), `デッキの一番上から${moved.length}枚を手札へ`),
+      lastProcessedCards: moved,
+    });
   } else if (src.type === 'TRASH_CARD') {
     // thisCardOnly: 効果元カード自身のみ（「このシグニを手札に加える」。トラッシュに置かれた自身を回収。WX04-035-E2）
     if (src.filter?.thisCardOnly) {

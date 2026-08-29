@@ -112,7 +112,8 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 489; // §5.2 Sheet3 バッチ7（2026-08-29）＝手書きMANUAL化による免除で 492→489。前進ではなく不可視化。
+const BASELINE_HIGH = 482; // 2026-08-30 §5.3 O-60⑫＝「公開し」の正規表現 `LOOK_AND_REORDER{private:false}` を木の形で計器に配線。489→482（公開動作は実装済みだった偽陽性の払い戻し）。
+// 旧: const BASELINE_HIGH = 489; // §5.2 Sheet3 バッチ7（2026-08-29）＝手書きMANUAL化による免除で 492→489。前進ではなく不可視化。
 // 旧: const BASELINE_HIGH = 492; // §5.2 Sheet3 バッチ6（2026-08-29）＝手書きMANUAL化による免除で 499→492。前進ではなく不可視化。
 // 旧: const BASELINE_HIGH = 499; // §5.2 Sheet2 バッチ5（2026-08-29）＝手書きMANUAL化による免除で 504→499。前進ではなく不可視化。
 // 旧: const BASELINE_HIGH = 504; // §5.2 Sheet2 バッチ4（2026-08-29）＝手書きMANUAL化による免除で 512→504。前進ではなく不可視化。
@@ -1022,7 +1023,21 @@ const PATTERNS: Pattern[] = [
       return need > 0 && slots >= need;
     },
   },
-  { name: '公開し', re: /公開し/, keys: ['REVEAL', 'reveal'] },
+  {
+    name: '公開し', re: /公開し/, keys: ['REVEAL', 'reveal'],
+    // `LOOK_AND_REORDER{private:false}` も「デッキの上からN枚公開」の正規表現。
+    // ⚠型名だけで免除すると private:true（「見る」）まで通るため、木の公開フラグを必須にする。
+    extraOk: js => {
+      const hasPublicLook = (node: unknown): boolean => {
+        if (!node || typeof node !== 'object') return false;
+        if (Array.isArray(node)) return node.some(hasPublicLook);
+        const obj = node as Record<string, unknown>;
+        return (obj.type === 'LOOK_AND_REORDER' && obj.private === false)
+          || Object.values(obj).some(hasPublicLook);
+      };
+      try { return hasPublicLook(JSON.parse(js)); } catch { return false; }
+    },
+  },
   { name: '次の相手ターン終了時まで', re: /次の(対戦相手の)?ターン(の)?終了時まで/, keys: ['UNTIL_OPP_TURN_END', 'NEXT_OPP_TURN', 'NEXT_TURN'] },
   { name: '相手が選ぶ', re: /対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/, keys: ['opponentSelects', 'actingPlayerSelects', 'OPPONENT_SELECT'] },
   { name: '出現条件(レゾナ/クラフト)', re: /【出現条件】/, keys: ['forResonaCondition', 'playCondition', 'appearCondition', '出現条件'] },

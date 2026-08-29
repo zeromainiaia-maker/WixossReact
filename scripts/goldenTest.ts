@@ -53618,6 +53618,147 @@ test('選択UI枚数ゲート: optionalは従来どおり0枚で確定できる'
   ok(fixedSelectionCountCanConfirm(0, 3, 1, true), 'optionalの0枚確定が失われた');
 });
 
+// §5.3 `O-60` 第12バッチ＝ engine がカード全文を読んでいた2ハンドラを payload 化。
+// ⚠ live JSON だけでは収穫マージが parser 退行を隠すため、7効果すべてを fresh parse で固定する（§5-29）。
+test('O-60⑫ fresh: 公開レベル倍率とデッキトップ条件ルートが7効果すべて payload になる', () => {
+  const freshAction = (cardNum: string, effectId: string): EffectAction => {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    if (!effect) throw new Error(`${effectId} not found in fresh parse`);
+    return effect.action;
+  };
+  const nodesOf = (root: unknown, type: string, out: Record<string, unknown>[] = []): Record<string, unknown>[] => {
+    if (!root || typeof root !== 'object') return out;
+    const obj = root as Record<string, unknown>;
+    if (obj.type === type) out.push(obj);
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(v => nodesOf(v, type, out));
+      else if (value && typeof value === 'object') nodesOf(value, type, out);
+    }
+    return out;
+  };
+  const assertNoLegacy = (action: EffectAction, effectId: string) => {
+    const ids = nodesOf(action, 'STUB').map(n => n.id);
+    ok(!ids.includes('POWER_MOD_PER_REVEALED_LEVEL') && !ids.includes('REVEAL_TOP_CONDITIONAL_ROUTE'),
+      `${effectId}: 旧STUBが fresh parse に残った`);
+  };
+
+  const powerCases = [
+    ['WDK13-012', 'WDK13-012-E1', -1000, 'level_sum', undefined, undefined],
+    ['WXK10-030', 'WXK10-030-E1', -1000, 'level_sum', undefined, 4],
+    ['SPK01-09', 'SPK01-09-E1', -2000, undefined, 'odd', undefined],
+    ['WXK07-091', 'WXK07-091-E1', -1000, 'level_sum', undefined, 1],
+  ] as const;
+  for (const [cardNum, effectId, delta, unit, parity, trashCount] of powerCases) {
+    const action = freshAction(cardNum, effectId);
+    assertNoLegacy(action, effectId);
+    const powers = nodesOf(action, 'POWER_MODIFY');
+    eq(powers.length, 1, `${effectId}: POWER_MODIFY数`);
+    const power = powers[0];
+    eq(power.delta, delta, `${effectId}: 単価`);
+    eq(power.deltaPerLastProcessedCount, true, `${effectId}: 直前処理枚数倍率`);
+    const per = power.perLastProcessed as { unit?: string; filter?: TargetFilter };
+    eq(per?.unit, unit, `${effectId}: 倍率単位`);
+    eq(per?.filter?.cardType, 'シグニ', `${effectId}: シグニだけ数える`);
+    eq(per?.filter?.levelParity, parity, `${effectId}: レベル偶奇`);
+    const target = power.target as { owner?: string; count?: number };
+    eq(target.owner, 'opponent', `${effectId}: 相手対象`);
+    eq(target.count, 1, `${effectId}: 相手シグニ1体だけ`);
+    if (trashCount !== undefined) {
+      const trash = nodesOf(action, 'TRASH').find(n => (n.target as { type?: string })?.type === 'DECK_CARD');
+      eq((trash?.target as { count?: number })?.count, trashCount, `${effectId}: 公開枚数とトラッシュ枚数`);
+    }
+  }
+
+  const routeCases = [
+    ['WX08-025', 'WX08-025-BURST', { cardType: 'シグニ', hasCrossIcon: true }, 'TRANSFER_TO_HAND'],
+    ['WX10-030', 'WX10-030-BURST', { cardType: 'シグニ', cardClass: ['鉱石', '宝石'] }, 'TRANSFER_TO_HAND'],
+    ['WXK05-021', 'WXK05-021-BURST', { cardType: 'シグニ', cardClass: '植物' }, 'ENERGY_CHARGE_FROM_DECK'],
+  ] as const;
+  for (const [cardNum, effectId, expectedFilter, destinationType] of routeCases) {
+    const action = freshAction(cardNum, effectId);
+    assertNoLegacy(action, effectId);
+    eq(nodesOf(action, 'REVEAL_DECK_TOP').length, 1, `${effectId}: 記録付きトップ公開`);
+    const conditionals = nodesOf(action, 'CONDITIONAL');
+    eq(conditionals.length, 1, `${effectId}: 条件分岐数`);
+    const cond = conditionals[0].condition as { type?: string; filter?: TargetFilter };
+    eq(cond.type, 'LAST_PROCESSED_MATCHES', `${effectId}: 公開札を条件判定`);
+    eq(JSON.stringify(cond.filter), JSON.stringify(expectedFilter), `${effectId}: 公開札条件`);
+    eq((conditionals[0].then as { type?: string }).type, destinationType, `${effectId}: 成立時の行き先`);
+    if (destinationType === 'TRANSFER_TO_HAND') {
+      const source = (conditionals[0].then as { source?: Record<string, unknown> }).source;
+      eq(JSON.stringify(source), JSON.stringify({ type: 'DECK_CARD', owner: 'self', count: 1, fromTop: true }),
+        `${effectId}: 公開したデッキトップだけ手札へ`);
+    }
+  }
+});
+
+test('O-60⑫ engine: 公開レベル倍率は絞り込み・対象1体・payload欠落 no-op', () => withSavedCursor(() => {
+  const spell = findCard(card => card.Type === 'スペル');
+  const opponents = [...cardMap.values()].filter(isSigni).slice(10, 13).map(card => card.CardNum);
+  const wdk = parseCardEffects(cardMap.get('WDK13-012')!).find(e => e.effectId === 'WDK13-012-E1')!.action;
+  const levelSum = run(wdk, mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2, SIGNI_L3, SIGNI_L4] }, { signi: opponents }, 'WDK13-012'));
+  const sumMods = levelSum.otherState.temp_power_mods ?? [];
+  eq(sumMods.length, 1, '相手3体のうち選んだ1体だけ修正');
+  eq(sumMods[0].delta, -10000, '公開シグニのレベル合計10×-1000');
+
+  const spk = parseCardEffects(cardMap.get('SPK01-09')!).find(e => e.effectId === 'SPK01-09-E1')!.action;
+  const odd = run(spk, mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2, SIGNI_L3, SIGNI_L4, spell] }, { signi: opponents }, 'SPK01-09'));
+  eq((odd.otherState.temp_power_mods ?? [])[0]?.delta, -4000, '奇数レベルのシグニ2枚×-2000');
+  const noOdd = run(spk, mkCtx({ deckTop: [SIGNI_L2, SIGNI_L4, spell, spell, spell] }, { signi: opponents }, 'SPK01-09'));
+  ok(!(noOdd.otherState.temp_power_mods ?? []).some(mod => mod.delta !== 0), '不成立: 奇数レベルが0枚ならパワーは下がらない');
+
+  const legacy = run({ type: 'STUB', id: 'POWER_MOD_PER_REVEALED_LEVEL' },
+    mkCtx({}, { signi: opponents }, 'WDK13-012'));
+  ok((legacy.otherState.temp_power_mods ?? []).length === 0, 'payload欠落の旧STUBは相手全体修正へ倒れない');
+}));
+
+test('O-60⑫ engine: トップ条件ルートは成立時のみ移動し、不成立はトップに残す', () => withSavedCursor(() => {
+  const cross = findCard(card => isSigni(card) && (card.EffectText ?? '').startsWith('《クロスアイコン》'));
+  const oreGem = findCard(card => isSigni(card)
+    && ((card.CardClass ?? '').includes('鉱石') || (card.CardClass ?? '').includes('宝石')));
+  const plant = findCard(card => isSigni(card) && (card.CardClass ?? '').includes('植物'));
+  const miss = findCard(card => isSigni(card)
+    && !(card.EffectText ?? '').startsWith('《クロスアイコン》')
+    && !(card.CardClass ?? '').includes('植物')
+    && !(card.CardClass ?? '').includes('鉱石') && !(card.CardClass ?? '').includes('宝石'));
+  const routeOf = (cardNum: string, effectId: string): EffectAction => {
+    const full = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!.action as SequenceAction;
+    return full.steps[1]; // DRAW の後の「公開→条件」だけを制御盤面で実行する。
+  };
+
+  const handRoute = routeOf('WX08-025', 'WX08-025-BURST');
+  const handHitBase = mkCtx({ deckTop: [cross], hand: 0 }, {}, 'WX08-025');
+  const handHit = run(handRoute, handHitBase);
+  eq(handHit.ownerState.hand.at(-1), cross, '成立: クロスアイコン・シグニを手札へ');
+  ok(handHit.ownerState.deck[0] !== cross, '成立: 移動した公開札はデッキから抜ける');
+  const handMissBase = mkCtx({ deckTop: [miss], hand: 0 }, {}, 'WX08-025');
+  const handMiss = run(handRoute, handMissBase);
+  eq(handMiss.ownerState.hand.length, 0, '不成立: 手札に加えない');
+  eq(handMiss.ownerState.deck[0], miss, '不成立: 公開札はデッキトップに残る');
+  eq(handMiss.ownerState.trash.length, handMissBase.ownerState.trash.length, '不成立: 勝手にトラッシュへ落とさない');
+
+  const classRoute = routeOf('WX10-030', 'WX10-030-BURST');
+  const classHit = run(classRoute, mkCtx({ deckTop: [oreGem], hand: 0 }, {}, 'WX10-030'));
+  eq(classHit.ownerState.hand.at(-1), oreGem, '成立: ＜鉱石＞か＜宝石＞のOR条件で手札へ');
+  const classMiss = run(classRoute, mkCtx({ deckTop: [miss], hand: 0 }, {}, 'WX10-030'));
+  eq(classMiss.ownerState.hand.length, 0, '不成立: 鉱石／宝石以外は手札に加えない');
+  eq(classMiss.ownerState.deck[0], miss, '不成立: 鉱石／宝石以外はトップに残る');
+
+  const energyRoute = routeOf('WXK05-021', 'WXK05-021-BURST');
+  const energyHitBase = mkCtx({ deckTop: [plant], energy: 0 }, {}, 'WXK05-021');
+  const energyHit = run(energyRoute, energyHitBase);
+  eq(energyHit.ownerState.energy.at(-1), plant, '成立: ＜植物＞のシグニをエナへ');
+  const energyMissBase = mkCtx({ deckTop: [miss], energy: 0 }, {}, 'WXK05-021');
+  const energyMiss = run(energyRoute, energyMissBase);
+  eq(energyMiss.ownerState.energy.length, 0, '不成立: エナに置かない');
+  eq(energyMiss.ownerState.deck[0], miss, '不成立: エナ経路でもトップに残る');
+
+  const legacyBase = mkCtx({ deckTop: [cross] }, {}, 'WX08-025');
+  const legacy = run({ type: 'STUB', id: 'REVEAL_TOP_CONDITIONAL_ROUTE' }, legacyBase);
+  eq(legacy.ownerState.deck[0], cross, 'payload欠落の旧STUBはデッキトップを動かさない');
+  eq(legacy.ownerState.trash.length, legacyBase.ownerState.trash.length, 'payload欠落の旧STUBはトラッシュしない');
+}));
+
 // 🔴**クランプの随伴＝「N枚捨てる。そうした場合」の did-it ゲートが枚数を見ていないと過剰実行になる**
 //   （2026-08-30 検証で発見）。候補不足クランプが入るまでは「決定が押せない＝そこで止まる」ので露見しなかった。
 //   ⚠実測＝`WX25-P1-TK2-E1` は原文3枚のところ**手札2枚で相手の場を全滅**させた。

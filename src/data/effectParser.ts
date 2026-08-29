@@ -5000,6 +5000,39 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // §5.3 `O-60` 第12バッチ＝「デッキトップを公開し、それが〈条件〉のシグニなら移動」。
+  // 旧は `STUB{REVEAL_TOP_CONDITIONAL_ROUTE}` がカード全文 regex から無関係なレベル数値を探し、
+  // ヒットしないと閾値3にした上で常にトラッシュへ落としていた。ここで文型から既存 payload だけを組む。
+  // ⚠条件句と行き先を列挙し、解けない句は従来経路へ返す（fail-closed）。
+  {
+    const routeM = text.trim().match(/^(?:その後、)?(?:あなたの)?デッキの一番上を公開し、?それが(.+?)の場合、それを(手札に加える|エナゾーンに置く)[。.]?$/);
+    if (routeM) {
+      const conditionText = routeM[1];
+      let filter: TargetFilter | undefined;
+      if (conditionText === '《クロスアイコン》を持つシグニ') {
+        filter = { cardType: 'シグニ', hasCrossIcon: true };
+      } else {
+        const classM = conditionText.match(/^＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニ$/);
+        if (classM) filter = {
+          cardType: 'シグニ',
+          cardClass: classM[2] ? [classM[1], classM[2]] : classM[1],
+        };
+      }
+      if (filter) {
+        const then: EffectAction = routeM[2] === '手札に加える'
+          ? { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1, fromTop: true } }
+          : { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 };
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 },
+            { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter, verbJa: '公開された' }, then },
+          ],
+        } as EffectAction;
+      }
+    }
+  }
+
   // 🆕「このシグニのパワーは**自身が持つ色の種類**１つにつき＋N（され、このシグニは**自身と共通する色を持つ**
   //   対戦相手のシグニの効果を受けない）」＝`WX11-032`（§5.3 2026-08-27 Sheet1 B13・実測1効果）。
   // 🔴旧＝前半は catch-all `STUB{POWER_MOD_PER_COUNT}` へ落ち、2文節形では**前半ごと消えて**
@@ -5892,6 +5925,8 @@ function parseSingleSentenceInner(text: string): EffectAction {
         if (storyLpM) filterLp.story = storyLpM[1];
         if (/シグニ/.test(npLp)) filterLp.cardType = 'シグニ';
         else if (/スペル/.test(npLp)) filterLp.cardType = 'スペル';
+        const parityLpM = npLp.match(/レベルが(奇数|偶数)/);
+        if (parityLpM) filterLp.levelParity = parityLpM[1] === '奇数' ? 'odd' : 'even';
         const divisorLp = parseNum(perLpM[3]);
         pmNodes[0].deltaPerLastProcessedCount = true;
         pmNodes[0].perLastProcessed = {
@@ -10572,6 +10607,42 @@ function foldRevealShuffleToDeckBottom(text: string, parsed: EffectAction): Effe
 }
 
 /**
+ * 「N枚公開…公開したカードをトラッシュに置く」の後始末枚数を公開枚数に揃える。
+ * 旧の汎用 TRASH parser は「カード」の無指定を1枚にし、`WXK10-030-E1` の4枚公開を1枚しか落とさなかった。
+ * ⚠カード固有IDではなく、同じ SEQUENCE に「公開（デッキ上に戻す）→公開枚数 payload のパワー修正→
+ * デッキ上を1枚トラッシュ」がちょうど1組ある木だけに閉じる。
+ */
+function alignRevealedTrashCount(text: string, parsed: EffectAction): EffectAction {
+  if (!/公開したカードをトラッシュに置く/.test(text)) return parsed;
+
+  const rewrite = (node: EffectAction): EffectAction => {
+    if (node.type !== 'SEQUENCE') return node;
+    const steps = node.steps.map(rewrite);
+    const looks = steps.filter((step): step is Extract<EffectAction, { type: 'LOOK_AND_REORDER' }> =>
+      step.type === 'LOOK_AND_REORDER'
+      && step.source.location === 'deck' && step.source.owner === 'self'
+      && step.private === false && typeof step.count === 'number' && step.count > 0
+      && step.destination.location === 'deck' && step.destination.position === 'top');
+    const powers = steps.filter(step => step.type === 'POWER_MODIFY' && step.deltaPerLastProcessedCount === true);
+    const trashes = steps.filter((step): step is Extract<EffectAction, { type: 'TRASH' }> =>
+      step.type === 'TRASH' && step.target.type === 'DECK_CARD'
+      && step.target.owner === 'self' && step.target.count === 1);
+    if (looks.length !== 1 || powers.length !== 1 || trashes.length !== 1) return { ...node, steps };
+    const lookIndex = steps.indexOf(looks[0]);
+    const powerIndex = steps.indexOf(powers[0]);
+    const trashIndex = steps.indexOf(trashes[0]);
+    if (!(lookIndex < powerIndex && powerIndex < trashIndex)) return { ...node, steps };
+    return {
+      ...node,
+      steps: steps.map(step => step === trashes[0]
+        ? { ...step, target: { ...step.target, count: looks[0].count } }
+        : step),
+    };
+  };
+  return rewrite(parsed);
+}
+
+/**
  * 🆕§5.3 `O-90`（2026-08-26）＝`WD21-020` の**連用形で後始末まで一文に繋がった公開**。
  *
  * 原文＝「あなたのデッキの上からシグニがめくれるまで公開**し、公開したカードをシャッフルし、
@@ -11492,6 +11563,7 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
   parsed = foldRevealShuffleToDeckBottom(text, parsed);
+  parsed = alignRevealedTrashCount(text, parsed);
   parsed = inheritReplacedBranchDuration(text, parsed);
   parsed = foldRevealUntilShuffleBottomInline(text, parsed);
   parsed = wireSelectedSigniConditionalUp(text, parsed);

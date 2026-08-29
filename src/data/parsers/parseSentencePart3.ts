@@ -2127,11 +2127,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'POWER_MOD_PER_REVEALED' } as StubAction;
   }
 
-  // ---- ターン終了時まで、公開シグニのレベル合計につき±Nパワー ----
-  if (t.match(/ターン終了時まで.*公開された.*レベル.*につき[＋－][０-９\d]+する/)) {
-    return { type: 'STUB', id: 'POWER_MOD_PER_REVEALED_LEVEL' } as StubAction;
-  }
-
   // ---- このカードはこのターンにアーツを使用していた場合、使用できない ----
   if (t.match(/このカードはあなたがこのターンにアーツを使用していた場合、使用できない/)) {
     return { type: 'STUB', id: 'USE_CONDITION_ARTS_USED' } as StubAction;

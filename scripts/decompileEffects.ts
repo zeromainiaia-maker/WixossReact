@@ -861,6 +861,13 @@ function condJa(c?: any): string {
         : `この方法で共通するクラスを持つカード${numJa(value)}枚を${c.verbJa ?? '処理した'}`;
       if (c.shareLevel) return `この方法で共通するレベルを持つシグニが${numJa(value)}枚以上処理された`;
       if (c.levelLteCenterLrig) return `この方法であなたのセンタールリグのレベル以下のシグニが${c.verbJa ?? '処理された'}`;
+      if (c.verbJa === '公開された' && value === 1 && op === 'gte' && c.filter?.cardType === 'シグニ') {
+        const revealedNoun = c.filter.hasCrossIcon ? '《クロスアイコン》を持つシグニ'
+          : Array.isArray(c.filter.cardClass) ? `${c.filter.cardClass.map((s: string) => `＜${s}＞`).join('か')}のシグニ`
+          : c.filter.cardClass ? `＜${c.filter.cardClass}＞のシグニ`
+          : `${filterJa(c.filter)}シグニ`;
+        return `この方法で公開されたカードが${revealedNoun}である`;
+      }
       if (c.verbJa === '手札に加えた' && c.filter?.color && c.filter?.cardType === 'シグニ') return `この方法で${[].concat(c.filter.color).join('か')}のシグニを手札に加えた`;
       if (c.verbJa) {
         const subject = c.filter?.hasIcon ? `《${c.filter.hasIcon}アイコン》を持つカード`
@@ -1076,7 +1083,8 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.deltaPerLastProcessedCount) {
         const plp = a.perLastProcessed;
         const plpF = plp?.filter;
-        const plpNoun = `${plpF?.color ? `${plpF.color}の` : ''}${plpF?.story ? `＜${plpF.story}＞の` : ''}${plpF?.cardType ?? 'カード'}`;
+        const plpNoun = `${plpF?.color ? `${plpF.color}の` : ''}${plpF?.story ? `＜${plpF.story}＞の` : ''}`
+          + `${plpF?.levelParity ? `レベルが${plpF.levelParity === 'odd' ? '奇数' : '偶数'}の` : ''}${plpF?.cardType ?? 'カード'}`;
         // 🆕`power_sum`＝「〜の**パワーと同じだけ**」（§5.3 `O-142`）＝「N枚につき」ではなく倍率そのもの。
         //   ⚠ここを既定の「1枚につき－1する」に落とすと、逆翻訳が**原文とまったく違う嘘**になる。
         if (plp?.unit === 'power_sum') {
@@ -1341,6 +1349,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「このシグニをエナゾーンから手札に加える」自己回収（thisCardOnly source）。⚠出所を描かないと
       //   `targetJa` が「このシグニを手札に加える」としか書かず、**エナから拾う話だと読めない**
       //   （`ADD_TO_FIELD`／`ADD_TO_LIFE` の同型分岐と揃える＝§5.3 O-54）。
+      : (a.source?.type === 'DECK_CARD' && a.source?.fromTop === true)
+      ? `あなたのデッキの一番上のカードを手札に加える`
       : (a.source?.filter?.thisCardOnly && a.source?.type === 'ENERGY_CARD')
       ? `このシグニをエナゾーンから手札に加える${a.source?.upToCount ? '（してもよい）' : ''}`
       : `${targetJa(a.source)}を手札に加える`;

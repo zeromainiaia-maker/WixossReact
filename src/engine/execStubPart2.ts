@@ -544,33 +544,6 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMAL } },
       `パワー${totalDeltaPMAL > 0 ? '+' : ''}${totalDeltaPMAL}（アタッカーLv${attackerLvPMAL}）`));
   }
-  // 公開したシグニのレベルに基づくパワー修正（lastProcessedCards使用）
-  if (stub.id === 'POWER_MOD_PER_REVEALED_LEVEL') {
-    const srcPMRL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMRL = srcPMRL ? (srcPMRL.EffectText ?? '') + ' ' + (srcPMRL.BurstText ?? '') : '';
-    const toHWPMRL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const revealedPMRL = ctx.lastProcessedCards ?? [];
-    const lvSumPMRL = revealedPMRL.reduce((acc, cn) => {
-      const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
-      return acc + (isNaN(lv) ? 0 : lv);
-    }, 0);
-    const perMPMRL = txtPMRL.match(/シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
-    if (perMPMRL) {
-      const divisorPMRL = parseInt(toHWPMRL(perMPMRL[1] || '1')) || 1;
-      const deltaPMRL = parseInt(toHWPMRL(perMPMRL[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPMRL = Math.floor(lvSumPMRL / divisorPMRL) * deltaPMRL;
-      if (totalDeltaPMRL !== 0) {
-        const modsPMRL = [...(ctx.otherState.temp_power_mods ?? [])];
-        for (let zi = 0; zi < 3; zi++) {
-          const top = ctx.otherState.field.signi[zi]?.at(-1);
-          if (top) modsPMRL.push({ cardNum: top, delta: totalDeltaPMRL });
-        }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMRL } },
-          `パワー${totalDeltaPMRL > 0 ? '+' : ''}${totalDeltaPMRL}（公開シグニLv${lvSumPMRL}）`));
-      }
-    }
-    return done(addLog(ctx, `パワー修正（公開シグニレベル${lvSumPMRL}）`));
-  }
   // 複数の自シグニにパワー+5000（SELECT_TARGET→INTERNAL_POWER_UP_SELECTED）
   if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
     const srcMSPU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
