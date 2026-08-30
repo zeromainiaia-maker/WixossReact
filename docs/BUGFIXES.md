@@ -1,5 +1,40 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：census 較正 第6弾＝**276 → 254（-22・全部が較正／live 不変）**
+
+前エントリ（Codex の対象フィルタ脱落バッチ）の直後。**22件を1件ずつ原文 × live JSON で目視**し、
+高シグナル id 集合の機械差分で **消えた22件＝新規流入0件** を確認済み。
+
+| # | 死角 | 件数 | 正表現 |
+|---|---|---|---|
+| ⑮ | ルリグデッキに戻す | 4 | `RETURN_ASSIST_LRIG_TO_DECK`。キーの `'LRIG_DECK'` は **`LRIG_TO_DECK` と綴りが違う** |
+| ⑯ | カード名包含 | 2 | `LRIG_NAME_CONTAINS`（**大文字** `NAME_CONTAINS`）が `'nameContains'` に当たらなかった |
+| ⑰ | 「トラッシュに置かれたとき」 | 5 | **何が置かれたかで timing が分かれる**＝`ON_LIFE_CLOTH_MOVED`＋`lifeMovedTo` ／ `ON_HAND_DISCARDED` ／ `ON_LEAVE_FIELD`＋`leftToZone` ／ `ON_HAND_OR_ENERGY_LOST_BY_OPP`。どれも `ON_TRASH` にならない |
+| ⑱ | 「このターン、次に〜アタックしたとき、そのアタックを無効にする」 | 4 | `NEGATE_ATTACK` ／ `BLOCK_ACTION{NEGATE_NEXT_SIGNI_ATTACK}` が**遅延を内包する正表現**。🔴キー表へは足さない（続き489）＝この1文型だけ落として残渣を見る |
+| ⑲ | 動的比較の**基準が「自分」以外** | 5 | `levelLtOppLrig` ／ `levelGtLastProcessed` ／ `LRIG_LEVEL_CMP_OPP` ／ `banishedLevelLtWatcher` |
+| ⑳ | 同一性を**実行時に焼き込む**形 | 2 | `NAME_BAN` ／ `GUARD_LV_LAST_DOWNED` |
+
+🔑**「綴り違い／基準違いで当たらない」罠はこれで10種類を超えた。**
+⇒ **受け皿を新設したら `vocabCensus.ts` の対応表にも足す**のを恒久の運用にする（さもないと
+**正しい実装がカテゴリ単位でまとめて「バグ」に見える**）。
+
+🔑**見つけ方（今回確立）**＝**カテゴリごとに高シグナル効果の JSON の型名・キー名を集計し、
+2件以上に出る名前を並べる**（`tmp_scan` 相当）。⑮⑯⑰⑱は**同じ名前が縦に並んだ**ことで一発で分かった。
+
+## 2026-08-30：census 対象フィルタ脱落4群＝**285 → 276（-9）**
+
+原文にある対象制限が live JSON から落ちていた指定10効果を監査し、既存の受け皿だけで正確に表現できる9効果を修正した。
+
+- A群5効果：＜凶蟲／微菌／英知＞の回収・山札戻し、および公開3枚からの選択へ `levelRange.max` を追加。
+- B群1効果：`WX24-P3-047-E1` の `LEVEL_MODIFY.target` へ `levelRange.min:2` を追加（`owner:'any'` は維持）。
+- C群1効果：`WXEX1-50-E2` を「自分のデッキトップ」から、`HAND_CARD owner:'opponent'`・非無色・レベル3以下を相手の場へ出す形へ修正。`suppressOnPlay` を維持し `opponentSelectsZone:true` を追加。
+- D群2効果：対戦相手のエナ対象へ `filter.color:'無'` を追加。逆翻訳は「無色」と表示する。
+- `WXDi-P03-077-BURST` は据置。既存 `PREVENT_DAMAGE` は ALL/LRIG のみ、`PREVENT_NEXT_DAMAGE` は有限回数のみで、「このターンずっと＋相手のレベル3以下シグニ由来」双方を表す受け皿が無いため近似しなかった。
+
+`docs/_effect_srctext.json` の同型母集団は、Aクラス型80効果（指定4＋他76）・A公開型1、B型15（指定1＋他14）、C手札場出し型2（静的レベル型は指定1）・Cダメージ文型1（広義2）、D型2。今回の effectId だけに parser 規則を限定した。初回の汎用適用ではスコープ外7効果が harvest の「純改善」で自動採用されたため、live 5ファイルをベースライン `37a06e2b1` へ戻して再生成し、意味正規化した effectId 差分が指定9件だけであることを機械確認した。
+
+検証：`npm run gates` 全緑（typecheck、golden **3060/0**、smoke **10706/10706・異常0**、fuzz 全0、census **276/276**、census:stubs 無言no-op 0、manual-fields 0、census:enginetext ratchet、lint 0 errors/249 warnings）。`npm run regen` 後、修正9効果の逆翻訳へ制限が現れ、据置1効果は旧訳のままであることを原文と目視照合した。
+
 ## 2026-08-30：census 実バグ3群＋兄弟効果の畳み込み＝**338 → 285（-53）**
 
 ユーザー依頼「さらに census を50減らす」への1巡。**目標 -50 に対して -53**。

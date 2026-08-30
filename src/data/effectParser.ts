@@ -21697,6 +21697,113 @@ ${card.BurstText ?? ''}`;
   }
 }
 
+/**
+ * census 2026-08-30: 対象名詞句に印字された静的 filter が既存アクションから落ちた4文型を補う。
+ *
+ * いずれも受け皿は既存の `TargetFilter` / `ADD_TO_FIELD` に揃っている。今回の監査対象だけに
+ * effectId を限定したうえで、効果単位の原文と既存 action shape の積により別能力への誤付着を防ぐ。
+ * source 取得は parser 内再入を避けるため `_collectSourceText` ガードを必ず通す。
+ */
+function applyMissingTargetFiltersBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
+  const targetEffectIds = new Set([
+    'WX17-030-E3', 'WX13-006B-E1', 'WXK10-048-E2', 'WXK10-073-E2', 'PR-K078-E1',
+    'WX24-P3-047-E1', 'WXEX1-50-E2', 'WDK05-T09-E3', 'WX25-P1-055-E2',
+  ]);
+  const allText = `${card.EffectText ?? ''}
+${card.BurstText ?? ''}`;
+  const storyMatches = (filter: TargetFilter | undefined, story: string): boolean => {
+    const stories = filter?.story;
+    return Array.isArray(stories) ? stories.includes(story) : stories === story;
+  };
+
+  for (const effect of effects) {
+    if (!targetEffectIds.has(effect.effectId)) continue;
+    const sourceText = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    let changed = false;
+
+    const staticClassLevels = [...sourceText.matchAll(/レベル([０-９\d]+)以下の＜([^＞]+)＞のシグニ/g)]
+      .map(m => ({ max: parseNum(m[1]), story: m[2] }));
+    const plainRevealLevel = sourceText.match(
+      /デッキの上からカードを[０-９\d]+枚公開する。その中からレベル([０-９\d]+)以下のシグニ[０-９\d]+枚を手札に加え/,
+    );
+    const levelTargetMin = sourceText.match(/レベル([０-９\d]+)以上のシグニ[０-９\d]+体を対象とし/);
+    const opponentHandPlay = sourceText.match(
+      /対戦相手の手札を見て(無色ではない)?レベル([０-９\d]+)以下のシグニ([０-９\d]+)枚を選び、対戦相手はそれを場に出す/,
+    );
+    const colorlessOpponentEnergyTrash =
+      /対戦相手のエナゾーンから無色のカード[^。]*対象とし、それら?をトラッシュに置く/.test(sourceText);
+
+    const visit = (action: EffectAction | undefined): void => {
+      if (!action) return;
+
+      if (staticClassLevels.length > 0
+          && (action.type === 'TRANSFER_TO_HAND' || action.type === 'TRANSFER_TO_DECK')) {
+        const hit = staticClassLevels.find(x => storyMatches(action.source.filter, x.story));
+        if (hit && action.source.filter?.levelRange?.max !== hit.max) {
+          action.source.filter = { ...(action.source.filter ?? {}), levelRange: { max: hit.max } };
+          changed = true;
+        }
+      }
+
+      if (plainRevealLevel && action.type === 'REVEAL_AND_PICK'
+          && action.filter?.cardType === 'シグニ') {
+        const max = parseNum(plainRevealLevel[1]);
+        if (action.filter.levelRange?.max !== max) {
+          action.filter = { ...action.filter, levelRange: { max } };
+          changed = true;
+        }
+      }
+
+      if (levelTargetMin && action.type === 'LEVEL_MODIFY') {
+        const min = parseNum(levelTargetMin[1]);
+        if (action.target.filter?.levelRange?.min !== min) {
+          action.target = {
+            ...action.target,
+            filter: { ...(action.target.filter ?? {}), cardType: 'シグニ', levelRange: { min } },
+          };
+          changed = true;
+        }
+      }
+
+      if (opponentHandPlay && action.type === 'ADD_TO_FIELD') {
+        const max = parseNum(opponentHandPlay[2]);
+        const count = parseNum(opponentHandPlay[3]);
+        action.owner = 'opponent';
+        action.source = {
+          type: 'HAND_CARD', owner: 'opponent', count,
+          filter: {
+            cardType: 'シグニ',
+            ...(opponentHandPlay[1] ? { nonColorless: true } : {}),
+            levelRange: { max },
+          },
+        };
+        action.opponentSelectsZone = true;
+        changed = true;
+      }
+
+      if (colorlessOpponentEnergyTrash && action.type === 'TRASH'
+          && action.target.type === 'ENERGY_CARD' && action.target.owner === 'opponent'
+          && action.target.filter?.color !== '無') {
+        action.target = { ...action.target, filter: { ...(action.target.filter ?? {}), color: '無' } };
+        changed = true;
+      }
+
+      if (action.type === 'SEQUENCE') action.steps.forEach(visit);
+      else if (action.type === 'CHOOSE') action.choices.forEach(choice => visit(choice.action));
+      else if (action.type === 'CONDITIONAL') { visit(action.then); visit(action.else); }
+      else if (action.type === 'REPEAT') visit(action.action);
+    };
+
+    visit(effect.action);
+    if (changed) {
+      effect.parseStatus = 'AUTO';
+      clearSilentFallback(effect.effectId);
+    }
+  }
+}
+
 function applyKeywordChoiceGrantBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}
 ${card.BurstText ?? ''}`;
@@ -22796,6 +22903,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDurationsBatch40(card, effects);
   applyAnaphoraBatch2026Aug30(card, effects);
   applyMissingActionTailsBatch2026Aug30(card, effects);
+  applyMissingTargetFiltersBatch2026Aug30(card, effects);
   applyKeywordChoiceGrantBatch2026Aug30(card, effects);
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   for (const effect of effects) {

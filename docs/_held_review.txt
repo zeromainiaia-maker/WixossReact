@@ -52,15 +52,6 @@ WDK05-R11 WDK05-R14 WXK03-025
   + [0].action.steps[0].fromBottom = true
   + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
 
-## +EXILE -TRASH ［2枚］
-WXDi-P05-014 WXEX2-08
---- WXDi-P05-014
-  原文: 【自】：このルリグがアタックしたとき、対戦相手の手札が３枚以下である場合、カードを１枚引く。４枚以上ある場合、対戦相手は手札を１枚捨てる。【出】：対戦相手が手札を１枚捨てないかぎり、あなたはカードを２枚引く。【起】《ゲーム１回》《青×0》：対戦相手の手札を見て１枚選び、ゲームから除外する。,-
-  ~ [2].action.type : "TRASH" → "EXILE"
---- WXEX2-08
-  原文: 【自】：このルリグがアタックしたとき、対戦相手は《無》《無》を支払ってもよい。そうしなかった場合、そのアタックの間、対戦相手は【ガード】ができない。【出】《赤》《赤》《緑》《緑》：次の対戦相手のターン終了時まで、あなたはゲームに敗北しない。【起】《ターン１回》エクシード１：【エナチャージ２】をする。その後、あなたのエナゾーンから＜龍獣＞のシグニを３枚まで対象
-  ~ [3].action.type : "TRASH" → "EXILE"
-
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -157,6 +148,19 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 21 行）
 
+## +HAND_CARD ［1枚］
+WXEX1-50
+--- WXEX1-50
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にパワー20000以上の＜毒牙＞のシグニがある場合、カードを１枚引き、【エナチャージ１】をする。【起】《ターン１回》《黒》：対戦相手の手札を見て無色ではないレベル３以下のシグニ１枚を選び、対戦相手はそれを場に出す。それの【出】能力は発動しない。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  ~ [1].action.steps[0].owner : "self" → "opponent"
+  + [1].action.steps[0].source.type = "HAND_CARD"
+  + [1].action.steps[0].source.owner = "opponent"
+  + [1].action.steps[0].source.count = 1
+  + [1].action.steps[0].source.filter.cardType = "シグニ"
+  + [1].action.steps[0].source.filter.nonColorless = true
+  + [1].action.steps[0].source.filter.levelRange.max = 3
+  + [1].action.steps[0].opponentSelectsZone = true
+
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［1枚］
 WXEX2-09
 --- WXEX2-09
@@ -238,24 +242,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
-## +CHOOSE +POWER_MODIFY +POWER_SET +SEQUENCE +SIGNI×2 ［1枚］
-WXDi-P04-079
---- WXDi-P04-079
-  原文: あなたのシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。ターン終了時まで、対戦相手のすべてのシグニは能力を失い、それらの基本パワーを10000にする。,：どちらか１つを選ぶ。①ターン終了時まで、あなたのすべてのシグニのパワーを＋10000する。②あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残り
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = "ALL"
-  - [0].action.steps[1].until = "UNTIL_END_OF_TURN"
-  - [1].action.owner = "self"
-  - [1].action.revealCount = 3
-  - [1].action.filter.cardType = "シグニ"
-  - [1].action.pickCount = 1
-  - [1].action.handOrField = true
-  - [1].action.then.type = "ADD_TO_HAND"
-  - [1].action.then.owner = "self"
-  - [1].action.remainder.location = "deck"
-  …（他 39 行）
-
 ## +AND +IS_SELF_UP ［1枚］
 WXDi-P07-056
 --- WXDi-P07-056
@@ -283,24 +269,6 @@ WXDi-P11-003
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "DRAW"
   …（他 22 行）
-
-## +POWER_MODIFY +SEQUENCE +SIGNI ［1枚］
-WXDi-P13-043
---- WXDi-P13-043
-  原文: 【出】：対戦相手のシグニを２体まで対象とし、次のあなたのターン終了時まで、それらは能力を失い、それらのパワーを－5000する。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 2
-  - [0].action.target.upToCount = true
-  - [0].action.until = "UNTIL_END_OF_TURN"
-  ~ [0].action.type : "REMOVE_ABILITIES" → "SEQUENCE"
-  + [0].action.steps[0].type = "REMOVE_ABILITIES"
-  + [0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[0].target.owner = "opponent"
-  + [0].action.steps[0].target.count = 2
-  + [0].action.steps[0].target.upToCount = true
-  + [0].action.steps[0].until = "UNTIL_END_OF_TURN"
-  …（他 7 行）
 
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052

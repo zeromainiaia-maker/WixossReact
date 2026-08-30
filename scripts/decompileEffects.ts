@@ -184,7 +184,10 @@ function filterJa(f?: any): string {
   if (f.isFrozen) parts.push('凍結状態の');
   if (f.isPuppet) parts.push('傀儡状態の');
   if (f.attackedThisTurn) parts.push('このターンにアタックした');
-  if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
+  if (f.color) {
+    const colors = ([] as string[]).concat(f.color);
+    parts.push(colors.length === 1 && colors[0] === '無' ? '無色の' : `《${colors.join('・')}》の`);
+  }
   if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
   if (f.cardClass) parts.push(`＜${[].concat(f.cardClass).join('・')}＞の`);
   if (f.cardClassExclude) parts.push(`＜${[].concat(f.cardClassExclude).join('・')}＞ではない`);
@@ -1243,6 +1246,15 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'ADD_TO_FIELD': {
       const supAF = a.suppressOnPlay ? '。その【出】能力は発動しない' : '';
+      if (a.source?.type === 'HAND_CARD' && a.source.owner === 'opponent'
+          && a.owner === 'opponent' && a.opponentSelectsZone) {
+        const sourceFilter = a.source.filter ?? {};
+        const nonColorless = sourceFilter.nonColorless ? '無色ではない' : '';
+        const restFilter = filterJa({ ...sourceFilter, nonColorless: undefined });
+        const noun = sourceFilter.cardType === 'シグニ' ? 'シグニ' : 'カード';
+        const count = typeof a.source.count === 'number' ? a.source.count : 1;
+        return `対戦相手の手札を見て${nonColorless}${restFilter}${noun}${count}枚を選び、対戦相手はそれを${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
+      }
       if (a.source?.fromLeftFieldUnder)
         return `トラッシュにある、このシグニの下にあったシグニ1枚を${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）

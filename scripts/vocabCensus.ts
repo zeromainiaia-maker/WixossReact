@@ -112,7 +112,21 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 285; // 2026-08-30 census 実バグ3群＋兄弟効果の畳み込み＝294→285（-9）。**内訳を混ぜない**：
+const BASELINE_HIGH = 254; // 2026-08-30 較正 第6弾＝276→254（-22）。**全部が較正**（live 不変・全件を原文 × live JSON で目視）。
+//   ⑮**`RETURN_ASSIST_LRIG_TO_DECK`**（-4）＝キーの `'LRIG_DECK'` は **`LRIG_TO_DECK` と綴りが違う**。
+//   ⑯**`LRIG_NAME_CONTAINS`**（-2）＝**大文字 `NAME_CONTAINS`** が `'nameContains'` に当たらなかった。
+//   ⑰**「何がトラッシュに置かれたか」で timing が分かれる**（-5）＝`ON_LIFE_CLOTH_MOVED`＋`lifeMovedTo` ／
+//     `ON_HAND_DISCARDED` ／ `ON_LEAVE_FIELD`＋`leftToZone` ／ `ON_HAND_OR_ENERGY_LOST_BY_OPP`。
+//     どれも `ON_TRASH` にはならない。
+//   ⑱**「このターン、次に〜アタックしたとき、そのアタックを無効にする」**（-4）＝`NEGATE_ATTACK` ／
+//     `BLOCK_ACTION{NEGATE_NEXT_SIGNI_ATTACK}` が**遅延そのものを内包する正表現**。
+//     🔴キー表へは足さない（続き489）＝この1文型だけ落として残渣を見る。
+//   ⑲**基準が「自分」以外の比較キー**（-5）＝`levelLtOppLrig` / `levelGtLastProcessed` /
+//     `LRIG_LEVEL_CMP_OPP` / `banishedLevelLtWatcher`。
+//   ⑳**`NAME_BAN` / `GUARD_LV_LAST_DOWNED`**（-2）＝同一性を**実行時に焼き込む**正表現。
+// 旧: const BASELINE_HIGH = 276; // 2026-08-30 対象フィルタ脱落9効果を修正＝285→276（-9）。
+// レベル上限5・レベル下限1・無色エナ2・相手手札からの場出し1を、既存 TargetFilter / ADD_TO_FIELD へ配線。
+// 旧: const BASELINE_HIGH = 285; // 2026-08-30 census 実バグ3群＋兄弟効果の畳み込み＝294→285（-9）。**内訳を混ぜない**：
 //   ■**実装 -5**＝①「ゲームから除外」が `TRASH` へ退化していた2件（`WXDi-P05-014-E3` 相手手札／`WXEX2-08-E4` エナ）
 //     ②「能力を失い、それらのパワーを－N／基本パワーをNにする」の**後半脱落**2件（`WXDi-P13-043-E1`／`WXDi-P04-079-E1`）
 //     ③ライフバーストの**2択の①が丸ごと消えていた**（`WXDi-P04-079-BURST`）。
@@ -857,6 +871,11 @@ const PATTERNS: Pattern[] = [
       'powerBelowLeftCard', 'levelBelowLeftCard',
       'powerLteLastProcessed', 'powerLtLastProcessed', 'levelLteLastProcessed', 'levelLtLastProcessed', 'levelLteDiscardSigni',
       'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER',
+      // 🆕2026-08-30 較正＝**基準が「自分」以外の比較キー**が対応表から漏れていた（実測5効果を全数目視）。
+      //   `levelLtOppLrig`（対戦相手のセンタールリグより低いレベル）／`levelGtLastProcessed`（それよりレベルの高い）／
+      //   `LRIG_LEVEL_CMP_OPP`（自センターと相手センターのレベル比較・Condition 型）／
+      //   `banishedLevelLtWatcher`（このシグニより低いレベルのシグニがバニッシュされたとき・triggerCondition）。
+      'levelLtOppLrig', 'levelGtLastProcessed', 'LRIG_LEVEL_CMP_OPP', 'banishedLevelLtWatcher',
       // 🆕`compareToSelf`＝`ActiveCondition.FRONT_SIGNI{compareToSelf:{key,operator}}`
       //   （「このシグニより**レベルの高い**シグニがこの正面にあるかぎり」`WX10-036-E2`）。
       //   関係で表す正表現なのに対応表から漏れていた。
@@ -899,6 +918,10 @@ const PATTERNS: Pattern[] = [
       // 🆕2026-08-30 較正＝`nameMatchesAnyTrashCard`（「対戦相手のトラッシュにあるいずれかのカードと同じ名前の」）は
       //   2026-08-30 に新設した受け皿なのに対応表へ足し忘れていた（実測1効果）。
       'nameMatchesAnyTrashCard',
+      // 🆕2026-08-30 較正＝`NAME_BAN`（「それと同じ名前のカードを使用できない」）と
+      //   `GUARD_LV_LAST_DOWNED`（「この方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない」）は
+      //   **同一性を実行時に焼き込む正表現**（`levelFromLastProcessed` / `namesFromTargets` の兄弟）。
+      'NAME_BAN', 'GUARD_LV_LAST_DOWNED',
       'namesFromTargets'], // nameEq*=バッチ5b（nameEqLastProcessed）・field name集合=第14波・fetchCardName=PR-470A 名指しフェッチ
   },
   {
@@ -953,7 +976,9 @@ const PATTERNS: Pattern[] = [
   {
     name: '名前包含(カード名に《X》を含む)',
     re: /カード名に《[^》]+》を含む/,
-    keys: ['cardName', 'cardNames', 'nameContains'],
+    // 🆕2026-08-30 較正＝`LRIG_NAME_CONTAINS`（「場にカード名に《X》を含むセンタールリグがいる」条件）は
+    //   **大文字の `NAME_CONTAINS`** なので `'nameContains'`（キャメル）に当たらなかった（実測2効果）。
+    keys: ['cardName', 'cardNames', 'nameContains', 'NAME_CONTAINS'],
   },
   {
     name: '否定フィルタ(〜ではない○○)',
@@ -1137,7 +1162,13 @@ const PATTERNS: Pattern[] = [
   //   本文は `action` に載る＝timing キーは付かないので、これも対応語彙に入れる。
   { name: 'トリガー:アタックフェイズ開始時', re: /アタックフェイズ開始時/, keys: ['ON_ATTACK_PHASE_START', 'ADD_EXTRA_ATTACK_PHASE', 'DELAY_TO_NEXT_OPP_ATTACK_PHASE'], src: 'eff' },
   { name: 'トリガー:ターン終了時に', re: /ターン終了時[、に]/, keys: ['ON_TURN_END', 'TURN_END', 'turn_end'], src: 'eff' },
-  { name: 'トリガー:トラッシュに置かれたとき', re: /トラッシュに置かれたとき/, keys: ['ON_TRASH', 'ON_CARD_MILLED_FROM_DECK', 'ON_CHARM_TO_TRASH', 'ON_ENERGY_TO_TRASH', 'ON_EXCEED_COST'], src: 'eff' },
+  { name: 'トリガー:トラッシュに置かれたとき', re: /トラッシュに置かれたとき/,
+    // 🆕2026-08-30 較正＝**「何がトラッシュに置かれたか」で timing が分かれる**（実測5効果を全数目視）。
+    //   `ON_LIFE_CLOTH_MOVED`＋`triggerCondition.lifeMovedTo:['trash']`（ライフクロス）／`ON_HAND_DISCARDED`（手札）／
+    //   `ON_LEAVE_FIELD`＋`leftToZone:['hand','trash']`（場のシグニ）／`ON_HAND_OR_ENERGY_LOST_BY_OPP`。
+    //   どれも `ON_TRASH` にはならないので対応表から漏れていた。
+    keys: ['ON_TRASH', 'ON_CARD_MILLED_FROM_DECK', 'ON_CHARM_TO_TRASH', 'ON_ENERGY_TO_TRASH', 'ON_EXCEED_COST',
+      'ON_LIFE_CLOTH_MOVED', 'lifeMovedTo', 'ON_HAND_DISCARDED', 'leftToZone', 'ON_HAND_OR_ENERGY_LOST_BY_OPP'], src: 'eff' },
   { name: 'トリガー:場を離れたとき', re: /場を離れ(たとき|るとき)/, keys: ['ON_LEAVE_FIELD'], src: 'eff' },
   { name: 'トリガー:スペルを使用したとき', re: /スペルを使用した(とき|場合)/, keys: ['ON_SPELL_USE', 'SPELL'], src: 'eff' },
   { name: 'トリガー:アーツを使用したとき', re: /アーツを使用した(とき|場合)/, keys: ['ARTS_USE', 'ARTS_USED'], src: 'eff' },
@@ -1205,7 +1236,10 @@ const PATTERNS: Pattern[] = [
       && !/エナゾーンに置/.test(t.replace(/エナゾーンに置かれる代わりに[^。]*?トラッシュに置[くか]/g, '')),
   },
   { name: 'ゾーン:デッキの一番下', re: /デッキの一番下/, keys: ['BOTTOM', 'bottom', 'Bottom'] },
-  { name: 'ゾーン:ルリグデッキに戻す', re: /ルリグデッキに戻/, keys: ['LRIG_DECK', 'lrigDeck', 'RETURN_TO_LRIG'] },
+  { name: 'ゾーン:ルリグデッキに戻す', re: /ルリグデッキに戻/,
+    // 🆕2026-08-30 較正＝正表現は `RETURN_ASSIST_LRIG_TO_DECK`（`effectExecutor.ts:8343` が消費）。
+    //   キーの `'LRIG_DECK'` は **`LRIG_TO_DECK` と綴りが違う**ので一度も当たらなかった（実測4効果）。
+    keys: ['LRIG_DECK', 'LRIG_TO_DECK', 'lrigDeck', 'RETURN_TO_LRIG'] },
   { name: '基本パワー変更', re: /基本パワーは/, keys: ['POWER_SET', 'basePower', 'SET_POWER'], src: 'eff' },
   // ---- 続き18 追加分・第3弾（構造/様相。マーカー構造・逆方向は下部の専用セクション）----
   // ⚠`upTo`（小文字u）は `pickUpTo`（大文字U）に**部分一致しない**＝REVEAL_AND_PICK が「N枚まで」を
@@ -1344,7 +1378,21 @@ const PATTERNS: Pattern[] = [
     },
   },
   // `escapeDiscard`＝上と同じ事前登録型（「このターン、それがアタックしたとき、…無効にする」）。
-  { name: '遅延トリガー(このターン〜したとき)', re: /このターン、[^。]{0,40}したとき/, keys: ['DELAYED', 'delayed', 'this_turn', 'turn_end', 'ON_', 'escapeDiscard'] },
+  {
+    name: '遅延トリガー(このターン〜したとき)',
+    re: /このターン、[^。]{0,40}したとき/,
+    keys: ['DELAYED', 'delayed', 'this_turn', 'turn_end', 'ON_', 'escapeDiscard'],
+    // 🆕2026-08-30 較正＝「このターン、次に〈それ〉がアタックしたとき、そのアタックを無効にする」は
+    //   `NEGATE_ATTACK`（**事前登録型**＝アタック宣言時に消費）／`BLOCK_ACTION{NEGATE_NEXT_SIGNI_ATTACK}` が
+    //   **遅延そのものを内包する正表現**で、`timing` には出ない（`PREVENT_NEXT_DAMAGE` と同型）。
+    //   🔴`NEGATE_ATTACK` をキー表へ足さない（続き489 の判断）＝**この1文型だけを落として残渣を見る**。
+    extraOk: (js, t) => {
+      if (!/"NEGATE_ATTACK"|NEGATE_NEXT_SIGNI_ATTACK/.test(js)) return false;
+      const s2 = t
+        .replace(/このターン[、,](?:次に)?(?:それら?|そのシグニ|そのルリグ|(?:対戦相手の)?シグニ)が(?:それぞれ)?(?:次に)?アタックしたとき[、,]そのアタックを無効にする/g, '');
+      return s2 !== t && !/このターン、[^。]{0,40}したとき/.test(s2);
+    },
+  },
   { name: '機構:ライズ', re: /【ライズ】/, keys: ['RISE', 'ise'] },
   { name: '機構:クロス', re: /【クロス/, keys: ['cross', 'CROSS', 'crossOnly'] },
   { name: '機構:ハーモニー', re: /【ハーモニー/, keys: ['HARMONY', 'harmony'] },

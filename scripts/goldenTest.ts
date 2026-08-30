@@ -55053,6 +55053,113 @@ test('census 2026-08-30 C群: 外側条件とターン条件をANDし、該当�
   eq(opponentTurn.get('WX19-023'), 12000, '🔴相手ターンにはウェポン側+3000が載らない');
 }));
 
+const findCensusTargetFilterAction = (action: EffectAction, type: EffectAction['type']): EffectAction | undefined => {
+  if (action.type === type) return action;
+  if (action.type === 'SEQUENCE') {
+    for (const step of action.steps) {
+      const hit = findCensusTargetFilterAction(step, type);
+      if (hit) return hit;
+    }
+  } else if (action.type === 'CHOOSE') {
+    for (const choice of action.choices) {
+      const hit = findCensusTargetFilterAction(choice.action, type);
+      if (hit) return hit;
+    }
+  } else if (action.type === 'CONDITIONAL') {
+    return findCensusTargetFilterAction(action.then, type)
+      ?? (action.else ? findCensusTargetFilterAction(action.else, type) : undefined);
+  } else if (action.type === 'REPEAT') return findCensusTargetFilterAction(action.action, type);
+  return undefined;
+};
+
+test('census 対象filter A群: レベル上限5効果を保持し、上限外の凶蟲は回収候補にならない', () => withSavedCursor(() => {
+  const cases = [
+    ['WX17-030', 'WX17-030-E3', 'TRANSFER_TO_HAND', 3],
+    ['WX13-006B', 'WX13-006B-E1', 'TRANSFER_TO_HAND', 3],
+    ['WXK10-048', 'WXK10-048-E2', 'TRANSFER_TO_HAND', 3],
+    ['WXK10-073', 'WXK10-073-E2', 'TRANSFER_TO_DECK', 3],
+    ['PR-K078', 'PR-K078-E1', 'REVEAL_AND_PICK', 2],
+  ] as const;
+  for (const [cardNum, effectId, actionType, max] of cases) {
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const action = findCensusTargetFilterAction(effect.action, actionType);
+    ok(!!action, `${effectId}: ${actionType} が無い`);
+    const filter = action?.type === 'TRANSFER_TO_HAND' || action?.type === 'TRANSFER_TO_DECK'
+      ? action.source.filter
+      : action?.type === 'REVEAL_AND_PICK' ? action.filter : undefined;
+    eq(filter?.levelRange?.max, max, `${effectId}: levelRange.max`);
+  }
+
+  const low = findCard(c => isSigni(c) && c.Level === '3' && (c.CardClass ?? '').includes('凶蟲'));
+  const high = findCard(c => isSigni(c) && c.Level === '4' && (c.CardClass ?? '').includes('凶蟲'));
+  const effect = effectsMap.get('WX17-030')!.find(e => e.effectId === 'WX17-030-E3')!;
+  const transfer = findCensusTargetFilterAction(effect.action, 'TRANSFER_TO_HAND')!;
+  const ctx = mkCtx({}, {}, 'WX17-030');
+  ctx.ownerState = { ...ctx.ownerState, trash: [low, high], hand: [] };
+  const result = run(transfer, ctx);
+  ok(result.ownerState.hand.includes(low), 'レベル3の凶蟲は回収できる');
+  ok(result.ownerState.trash.includes(high), '🔴レベル4の凶蟲は候補外のまま');
+}));
+
+test('census 対象filter B群: owner:anyを保ち、レベル1はLEVEL_MODIFY候補にならない', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WX24-P3-047')!.find(e => e.effectId === 'WX24-P3-047-E1')!;
+  const levelModify = findCensusTargetFilterAction(effect.action, 'LEVEL_MODIFY');
+  ok(levelModify?.type === 'LEVEL_MODIFY', 'LEVEL_MODIFY が無い');
+  if (levelModify?.type !== 'LEVEL_MODIFY') return;
+  eq(levelModify.target.owner, 'any', '原文どおり両方の場を対象にできる');
+  eq(levelModify.target.filter?.levelRange?.min, 2, 'levelRange.min=2');
+
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2');
+  const ctx = mkCtx({ signi: [lv1, null, null] }, { signi: [lv2, null, null] }, 'WX24-P3-047');
+  const result = run(levelModify, ctx);
+  ok(!(result.ownerState.temp_level_mods ?? []).some(m => m.cardNum === lv1), '🔴レベル1は候補外');
+  ok((result.otherState.temp_level_mods ?? []).some(m => m.cardNum === lv2 && m.delta === -1), '相手のレベル2は選べる');
+}));
+
+test('census 対象filter C群: 相手手札の有色Lv3以下だけを相手の場へ出し【出】を抑止する', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WXEX1-50')!.find(e => e.effectId === 'WXEX1-50-E2')!;
+  const add = findCensusTargetFilterAction(effect.action, 'ADD_TO_FIELD');
+  ok(add?.type === 'ADD_TO_FIELD', 'ADD_TO_FIELD が無い');
+  if (add?.type !== 'ADD_TO_FIELD') return;
+  eq(add.owner, 'opponent', '相手の場へ出す');
+  eq(add.source?.type, 'HAND_CARD', '相手手札が source');
+  eq(add.source?.owner, 'opponent', 'source.owner=opponent');
+  eq(add.source?.filter?.nonColorless, true, '無色ではない');
+  eq(add.source?.filter?.levelRange?.max, 3, 'レベル3以下');
+  eq(add.opponentSelectsZone, true, '対戦相手が配置ゾーンを選ぶ');
+  eq(add.suppressOnPlay, true, '【出】能力を発動しない');
+
+  const colorless = findCard(c => isSigni(c) && c.Level === '3' && c.Color === '無');
+  const valid = findCard(c => isSigni(c) && c.Level === '3' && c.Color !== '無');
+  const high = findCard(c => isSigni(c) && c.Level === '4' && c.Color !== '無');
+  const ctx = mkCtx({}, { signi: [null, null, null] }, 'WXEX1-50');
+  ctx.otherState = { ...ctx.otherState, hand: [colorless, valid, high] };
+  const result = run(add, ctx);
+  ok(tops(result.otherState).includes(valid), '有色Lv3は相手の場に出る');
+  ok(result.otherState.hand.includes(colorless), '🔴無色Lv3は候補外');
+  ok(result.otherState.hand.includes(high), '🔴有色Lv4は候補外');
+  ok(!tops(result.ownerState).includes(valid), '自分の場には出ない');
+}));
+
+test('census 対象filter D群: 無色エナだけをトラッシュ候補にする', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['WDK05-T09', 'WDK05-T09-E3'], ['WX25-P1-055', 'WX25-P1-055-E2']] as const) {
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const trash = findCensusTargetFilterAction(effect.action, 'TRASH');
+    ok(trash?.type === 'TRASH', `${effectId}: TRASH が無い`);
+    if (trash?.type === 'TRASH') eq(trash.target.filter?.color, '無', `${effectId}: color=無`);
+  }
+
+  const colorless = findCard(c => isSigni(c) && c.Color === '無');
+  const colored = findCard(c => isSigni(c) && c.Color !== '無');
+  const action = effectsMap.get('WDK05-T09')!.find(e => e.effectId === 'WDK05-T09-E3')!.action;
+  const ctx = mkCtx({}, {}, 'WDK05-T09');
+  ctx.otherState = { ...ctx.otherState, energy: [colorless, colored], trash: [] };
+  const result = run(action, ctx);
+  ok(result.otherState.trash.includes(colorless), '無色カードはトラッシュへ');
+  ok(result.otherState.energy.includes(colored), '🔴有色カードは候補外のまま');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
