@@ -480,6 +480,19 @@ export type Condition =
   // 「対戦相手の手札があなたより多い場合」＝自分 lt 相手。閾値比較の HAND_COUNT/ENERGY_COUNT（値と比べる）とは別物。
   | { type: 'HAND_COMPARE_OPP'; operator: CompareOp }
   | { type: 'ENERGY_COMPARE_OPP'; operator: CompareOp }
+  /**
+   * 🆕**同一プレイヤーの2ゾーンの枚数を比較する**（2026-08-30 §5.2 カード単位バッチ第3回）。
+   * `cmp(left, operator, right)`＝「あなたの**手札**の枚数があなたの**エナゾーン**にあるカードの
+   * 枚数**より少ない**場合」＝`{left:{zone:'hand',owner:'self'}, operator:'lt', right:{zone:'energy',owner:'self'}}`。
+   *
+   * ⚠**`HAND_COMPARE_OPP`／`ENERGY_COMPARE_OPP` とは軸が違う**＝あちらは「同じゾーンを両プレイヤーで」比較する。
+   *   ここは「**別ゾーンどうし**」なので、両者は代用にならない。
+   * ⚠**`HAND_COUNT{value:{$ref:…}}` では書けない**＝条件側の `value` は `resolveNum` で解決され、
+   *   `$ref` は**黙って 0 になる**（`execUtils.resolveNum`）＝「手札0枚以下」という別の条件に化ける。
+   * 受け皿は既存の `CountFromZone` をそのまま使う（`countFromZone` が唯一の解決器＝filter/単位換算も共通）。
+   * 例＝`WX24-P4-053-E1` の選択肢①②③（手札 < エナ／エナ < 手札／同数）。
+   */
+  | { type: 'ZONE_COUNT_COMPARE'; left: CountFromZone; right: CountFromZone; operator: CompareOp }
   | { type: 'EFFECTIVE_LRIG_LIMIT_GTE'; value: number }
   | { type: 'DURING_PHASE'; phases: string[] }
   // 対戦相手のシグニがアタックしている最中（アタック宣言済み・バトル未解決）か。
@@ -592,7 +605,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   SELF_LEVEL_THRESHOLD: true,
   THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
   THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,
-  LIFE_COMPARE_OPP: true, HAND_COMPARE_OPP: true, ENERGY_COMPARE_OPP: true, EFFECTIVE_LRIG_LIMIT_GTE: true,
+  LIFE_COMPARE_OPP: true, HAND_COMPARE_OPP: true, ENERGY_COMPARE_OPP: true, ZONE_COUNT_COMPARE: true, EFFECTIVE_LRIG_LIMIT_GTE: true,
   DURING_PHASE: true, OPP_SIGNI_ATTACKING: true, AND: true, IS_MY_TURN: true, IS_OPPONENT_TURN: true,
   IS_BETTING: true, IS_BOOSTING: true, PAID_ADDITIONAL_COST: true, ANY_PLAYER_REFRESHED_THIS_TURN: true,
   BEAT_CONDITION: true, COND_STUB: true, LAST_PROCESSED_COUNT_GTE: true,
@@ -943,6 +956,33 @@ export interface TargetFilter {
    * ⚠**参照不能なら空ヒット（fail-closed）**＝`colorMatchesLastProcessed` と同じ倒し方。
    */
   colorMatchesTriggerSource?: boolean;
+  /**
+   * 🆕**「**このシグニ／このルリグ**と共通する色を持つ」＝**効果元カード自身**との色比較
+   * （§5.2 カード単位バッチ第3回・2026-08-30）。参照先は `ctx.sourceCardNum`。
+   *
+   * ⚠**`colorMatchesLrig` では書けない**＝あちらは「センタールリグ」であり、しかも
+   *   `effectExecutor` の対象解決は **`target.owner==='opponent'` のとき対戦相手のセンタールリグへ
+   *   基準を swap する**（`colorUsesTargetLrig`）。「このルリグと共通する色を持つ**対戦相手の**シグニ」
+   *   （`WXDi-P15-004`）に `colorMatchesLrig` を書くと**相手のルリグ色で絞ってしまい主語が真逆**になる。
+   *   このキーは swap の対象外＝常に効果元カードの色。
+   * 例＝`WX24-P4-038`（付与された【起】「あなたのトラッシュから**このルリグと共通する色を持つ**シグニ1枚」）／
+   *   `WXDi-P15-004`（同「**このルリグと共通する色を持つ対戦相手の**シグニ1体をバニッシュ」）。
+   *   ⚠`GRANT_LRIG_ABILITY` の子は **`ctx.sourceCardNum` が付与先ルリグ**になる（`execStubPart1.ts:3766`）
+   *   ＝「このルリグ」がそのまま引ける。
+   * ⚠**参照不能なら空ヒット（fail-closed）**＝`colorMatchesTriggerSource` と同じ倒し方。
+   */
+  colorMatchesSourceCard?: boolean;
+  /**
+   * 🆕**「〈owner〉のトラッシュにあるいずれかのカードと同じ名前の」**＝そのゾーンに同名カードが
+   * 存在するものだけを候補にする（§5.2 カード単位バッチ第3回・2026-08-30）。
+   * `nameMatchesAnyFieldSigni`（場のシグニ名で絞る既存キー）の**トラッシュ版の兄弟**。
+   * 値は**照合するトラッシュの持ち主（効果オーナー基準）**＝`'self'`／`'opponent'`
+   * （**候補シグニの持ち主とは独立**）。
+   * ⚠`resolveDynamicFilter` の `ownerSt` は**候補側**の state なので、ここは owner を明示で持つ
+   *   （`WX24-P2-040`＝候補も照合先も対戦相手だが、両者が一致する保証はない）。
+   * ⚠**該当名が1つも無ければ空ヒット（fail-closed）**＝絞れないなら過剰実行しない側へ倒す。
+   */
+  nameMatchesAnyTrashCard?: Owner;
   colorMatchesUnderCards?: boolean; // 効果元シグニのスタック下カード群のいずれかと共通色。下カード無しは空ヒット
   colorMatchesCostTrashed?: boolean; // 直前の能力コストでトラッシュに置いたカード群のいずれかと共通色。記録無しは空ヒット
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）

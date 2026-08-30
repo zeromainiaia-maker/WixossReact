@@ -2441,6 +2441,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(s.hand.length, cond.operator, o.hand.length);
     case 'ENERGY_COMPARE_OPP':
       return cmp(s.energy.length, cond.operator, o.energy.length);
+    // 🆕**同一プレイヤーの2ゾーンの枚数比較**（2026-08-30 §5.2 カード単位バッチ第3回・`WX24-P4-053-E1`）。
+    // ⚠上の2本（HAND/ENERGY_COMPARE_OPP）は「同じゾーンを両プレイヤーで」比較する別軸＝代用にならない。
+    // ⚠**`HAND_COUNT{value:{$ref:…}}` では書けない**＝条件側の `value` は `resolveNum` が `$ref` を
+    //   黙って 0 にするので「手札0枚以下」に化ける。ゾーン数え上げは `countFromZone` 1本へ寄せる。
+    case 'ZONE_COUNT_COMPARE':
+      return cmp(
+        countFromZone(cond.left, s, o, ctx.cardMap, ctx.sourceCardNum),
+        cond.operator,
+        countFromZone(cond.right, s, o, ctx.cardMap, ctx.sourceCardNum),
+      );
     case 'EFFECTIVE_LRIG_LIMIT_GTE':
       return !!ctx.effectsMap && computeEffectiveLrigLimit(
         s, o, ctx.cardMap, ctx.effectsMap, ctx.isOwnerTurn ?? true,

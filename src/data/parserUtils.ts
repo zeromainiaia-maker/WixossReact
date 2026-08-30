@@ -192,11 +192,20 @@ export function parseColorFilter(text: string): Partial<TargetFilter> {
 //   ＝肯定形だけが取り残されていた非対称。
 const LRIG_COLOR_RE = /センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:(?:あなた|対戦相手)の)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:すべての)?(?:シグニ|スペル|カード)/;
 const LRIG_COLOR_NOT_RE = /センタールリグと共通する色を持たない(?:対戦相手の)?(?:シグニ|カード)/;
+// 🆕「**この**シグニ／**この**ルリグと共通する色を持つ〜」＝**効果元カード自身**との色比較
+// （2026-08-30 §5.2 カード単位バッチ第3回・`colorMatchesSourceCard`）。
+// 🔴**`colorMatchesLrig` へ寄せてはいけない**＝あちらは「センタールリグ」で、しかも engine の対象解決は
+//   `target.owner==='opponent'` のとき**相手のセンタールリグへ基準を swap する**（`colorUsesTargetLrig`）。
+//   「このルリグと共通する色を持つ**対戦相手の**シグニ」（`WXDi-P15-004`）に使うと主語が真逆になる。
+// 原文4枚＝`WX24-P4-038`／`WXDi-P15-004`（付与された【起】の「このルリグ」）・
+//   `SPDi43-22`／`WXK05-029`（「このシグニ」）。いずれも色の限定が丸ごと落ちていた（過剰実行）。
+const SOURCE_COLOR_RE = /この(?:シグニ|ルリグ)と共通する色を持つ(?:(?:あなた|対戦相手)の)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:すべての)?(?:シグニ|スペル|カード)/;
 export function parseColorMatchesLrig(
   text: string,
   options: { includeNegative?: boolean } = {},
 ): Partial<TargetFilter> {
   if (options.includeNegative && LRIG_COLOR_NOT_RE.test(text)) return { colorNotMatchesLrig: true };
+  if (SOURCE_COLOR_RE.test(text)) return { colorMatchesSourceCard: true };
   return LRIG_COLOR_RE.test(text) ? { colorMatchesLrig: true } : {};
 }
 
@@ -741,8 +750,28 @@ export function signiClauseColorFilter(text: string): Partial<TargetFilter> {
  *   シグニがあるかぎり」）にも出る。`[^。、]` で読点を跨がせず「を対象とし」で終わる形に限定する。
  */
 const SIGNI_TARGET_ADJACENT_LRIG_COLOR = /センタールリグと共通する色を持つ(?:[^。、]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+// 🆕「**この**シグニ／ルリグと共通する色を持つ〈…〉シグニN体を対象とし」＝効果元カード自身の色
+// （`colorMatchesSourceCard`。上の `SOURCE_COLOR_RE` の対象節版）。`WXDi-P15-004`／`SPDi43-22`／`WXK05-029`。
+const SIGNI_TARGET_ADJACENT_SOURCE_COLOR = /この(?:シグニ|ルリグ)と共通する色を持つ(?:[^。、]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
 export function signiClauseLrigColorFilter(text: string): Partial<TargetFilter> {
+  if (SIGNI_TARGET_ADJACENT_SOURCE_COLOR.test(text)) return { colorMatchesSourceCard: true };
   return SIGNI_TARGET_ADJACENT_LRIG_COLOR.test(text) ? { colorMatchesLrig: true } : {};
+}
+
+/**
+ * 🆕「〈owner〉のトラッシュにあるいずれかのカードと同じ名前の〈…〉シグニN体を対象とし」＝
+ * `nameMatchesAnyTrashCard`（2026-08-30 §5.2 カード単位バッチ第3回）。
+ * `signiClauseLrigColorFilter` と同じ「対象名詞句に隣接するときだけ拾う」規約
+ * （読点を跨がせず「対象とし」で終わる形に限定＝条件節・コスト節の同綴りを引き込まない）。
+ * 🔴これが無い間、`WX24-P2-040`（アーツ「シャドウ・ケージ」）は
+ *   **相手のどのシグニでもトラッシュできる**過剰効果だった（同名条件が丸ごと落ちていた）。
+ * ⚠**読点（「〜同じ名前の、対戦相手のシグニ」）が入る形がある**＝`WX24-P2-040` の原文がそれ。
+ *   ここだけは名詞句の内側で読点を1つ許す。
+ */
+const SIGNI_TARGET_ADJACENT_TRASH_NAME = /(あなた|対戦相手)のトラッシュにあるいずれかのカードと同じ名前の、?(?:[^。、]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClauseTrashNameFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_TARGET_ADJACENT_TRASH_NAME);
+  return m ? { nameMatchesAnyTrashCard: (m[1] === '対戦相手' ? 'opponent' : 'self') as Owner } : {};
 }
 
 /**
@@ -851,6 +880,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...signiClauseColorFilter(text),
     // 「センタールリグと共通する色を持つ〈…〉シグニN体を対象とし」＝ルリグ色参照（engine が動的解決）
     ...signiClauseLrigColorFilter(text),
+    // 「〈owner〉のトラッシュにあるいずれかのカードと同じ名前の〈…〉シグニN体を対象とし」（engine が動的解決）
+    ...signiClauseTrashNameFilter(text),
     ...parseStoryFilter(text),
     // 《ライズ／クロス／アクセアイコン》＝**対象名詞句に隣接**するときだけ（続き377c）。全文スキャンだと
     // 「あなたの場に《ライズアイコン》を持つシグニが２体ある場合、…対戦相手のシグニ１体を対象とし」の

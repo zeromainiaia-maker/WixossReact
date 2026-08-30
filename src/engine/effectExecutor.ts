@@ -2845,6 +2845,30 @@ function resolveDynamicFilter(
       : { ...restCT, color: '__none__' };
   }
 
+  // 🆕colorMatchesSourceCard:「**この**シグニ／ルリグと共通する色を持つ」＝**効果元カード自身**との色比較
+  // （2026-08-30 §5.2 カード単位バッチ第3回）。⚠`colorMatchesLrig` は「センタールリグ」かつ
+  //   `target.owner==='opponent'` で**相手のセンタールリグへ基準が swap される**ので、
+  //   「このルリグと共通する色を持つ**対戦相手の**シグニ」（`WXDi-P15-004`）には使えない（主語が真逆になる）。
+  //   このキーは swap の対象外＝常に `sourceCardNum` の色。
+  // ⚠**参照不能なら空ヒット（fail-closed）**＝`colorMatchesTriggerSource` と同じ倒し方。
+  if (result.colorMatchesSourceCard) {
+    const { colorMatchesSourceCard: _cs, ...restCS } = result;
+    const srcColor = sourceCardNum ? (cardMap.get(getCardNum(sourceCardNum))?.Color ?? '') : '';
+    const srcCols = srcColor.split(/[/／、,]/).map(x => x.trim()).filter(Boolean);
+    result = srcCols.length ? { ...restCS, color: srcCols } : { ...restCS, color: '__none__' };
+  }
+  // 🆕nameMatchesAnyTrashCard:「〈owner〉のトラッシュにあるいずれかのカードと同じ名前の」（2026-08-30）。
+  // `nameMatchesAnyFieldSigni`（場のシグニ名）のトラッシュ版。⚠**照合先の owner は候補の owner とは独立**
+  //   ＝キーの値（効果オーナー基準）で state を選ぶ。⚠**該当名ゼロなら空ヒット（fail-closed）**。
+  if (result.nameMatchesAnyTrashCard) {
+    const { nameMatchesAnyTrashCard: trashOwner, ...restNT } = result;
+    const trashSt = trashOwner === 'opponent' ? otherSt : ownerSt;
+    const names = [...new Set((trashSt?.trash ?? [])
+      .map(n => cardMap.get(getCardNum(n))?.CardName)
+      .filter((name): name is string => !!name))];
+    result = names.length > 0 ? { ...restNT, cardNames: names } : noMatch(restNT);
+  }
+
   // 「この方法でダウンしたルリグと同じレベル／共通する色」（タスク12(cix)）。
   // 参照先は ①lastProcessedCards[0] がルリグならそれ（同一 SEQUENCE 内の DOWN。任意ダウンのスキップで空＝did-it
   // ゲート）②なければ ownerSt.last_lrig_down_cards（コスト経路。実UIは支払いと解決が別 ExecCtx なので

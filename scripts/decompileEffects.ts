@@ -287,6 +287,13 @@ function filterJa(f?: any): string {
   if (f.classEqDeclaredClass) parts.push('宣言したクラスを持つ');
   if (f.nameEqDeclaredName) parts.push('宣言したカード名の');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
+  // 🆕2026-08-30 §5.2 カード単位バッチ第3回＝**逆翻訳が黙って落としていた3語彙**を追加した。
+  // 速いレーンの検証は「逆翻訳を目視」なので、ここに無い語彙は**直したのに直って見えない／
+  // 落ちているのに落ちて見えない**（`colorMatchesTriggerSource` は第2回で新設した当日から欠けていた）。
+  if (f.colorMatchesTriggerSource) parts.push('そのカードと共通する色を持つ');
+  if (f.colorMatchesSourceCard) parts.push('このカード自身と共通する色を持つ');
+  if (f.nameMatchesAnyFieldSigni) parts.push('場のシグニのいずれかと同じ名前の');
+  if (f.nameMatchesAnyTrashCard) parts.push(`同名カードが${f.nameMatchesAnyTrashCard === 'opponent' ? '対戦相手' : 'あなた'}のトラッシュにある`);
   if (f.colorMatchesLastDownedLrig) parts.push('この方法でダウンしたルリグと共通する色を持つ');
   if (f.colorMatchesUnderCards) parts.push('このシグニの下にあるカードと共通する色を持つ');
   if (f.colorMatchesCostTrashed) parts.push('このコストでトラッシュに置いたカードと共通する色を持つ');
@@ -777,6 +784,13 @@ function condJa(c?: any): string {
     }
     case 'HAND_COMPARE_OPP': return `自分の手札が対戦相手${opJa(c.operator)}`;
     case 'ENERGY_COMPARE_OPP': return `自分のエナが対戦相手${opJa(c.operator)}`;
+    // 🆕別ゾーンどうしの枚数比較（2026-08-30 §5.2 カード単位バッチ第3回）。
+    case 'ZONE_COUNT_COMPARE': {
+      const zoneJa: Record<string, string> = { hand: '手札', energy: 'エナ', trash: 'トラッシュ', deck: 'デッキ', field: '場', lrig_trash: 'ルリグトラッシュ', check: 'チェックゾーン' };
+      const side = (z: { zone: string; owner: string }) => `${z.owner === 'opponent' ? '対戦相手' : '自分'}の${zoneJa[z.zone] ?? z.zone}の枚数`;
+      if (c.operator === 'eq') return `${side(c.left)}と${side(c.right)}が同じ`;
+      return `${side(c.left)}が${side(c.right)}${countPredicateJa(c.operator)}`;
+    }
     case 'EFFECTIVE_LRIG_LIMIT_GTE': return `このルリグのリミットが${numJa(c.value)}以上`;
     case 'DURING_PHASE': {
       // アタックフェイズの4実値がそろっていれば「アタック」1語に畳む（列挙のまま出すと読めない）

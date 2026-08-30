@@ -21853,7 +21853,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 62, 'ActiveCondition の型数（62＝§5.2 Sheet3 バッチ1で SAME_ZONE_HAS_SEED を追加）');
-  eq(Object.keys(C_TYPES).length, 135, 'Condition の型数（135＝§5.3 O-166 で LAST_PROCESSED_POWER_LTE を追加）');
+  eq(Object.keys(C_TYPES).length, 136, 'Condition の型数（136＝§5.2 カード単位バッチ第3回で ZONE_COUNT_COMPARE を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -33532,6 +33532,88 @@ test('§5.2 バッチ2 WX24-P1-013-E1: 回収はスペル限定＋トリガー�
 
   const noTrigger = run(eff!.action as EffectAction, { ...ctx, triggeringCardNum: undefined });
   ok(!noTrigger.ownerState.hand.includes(spell), 'トリガー元が引けないときは空ヒット（fail-closed）');
+}));
+
+test('§5.2 バッチ3 colorMatchesSourceCard: 「この(シグニ|ルリグ)と共通する色を持つ」は効果元自身の色で絞る', () => withSavedCursor(() => {
+  // 🔴旧 live は**色の限定が丸ごと落ちていた**（4枚とも過剰実行＝相手のどのシグニでも取れた）。
+  // 🔴**`colorMatchesLrig` へ寄せてはいけない**＝あれは「センタールリグ」で、しかも engine は
+  //   `target.owner==='opponent'` のとき**相手のセンタールリグへ基準を swap する**（`colorUsesTargetLrig`）＝
+  //   「このルリグと共通する色を持つ**対戦相手の**シグニ」に使うと**主語が真逆**になる。
+  const subFilterOf = (cardNum: string, effectId: string): Record<string, unknown> | undefined => {
+    const parent = (effectsMap.get(cardNum) ?? []).find(e => JSON.stringify(e).includes(effectId));
+    const sub = ((parent?.action as { abilities?: CardEffect[] } | undefined)?.abilities ?? [])
+      .find(a => a.effectId === effectId);
+    const act = sub?.action as { target?: { filter?: Record<string, unknown> }; source?: { filter?: Record<string, unknown> } } | undefined;
+    return act?.target?.filter ?? act?.source?.filter;
+  };
+  // ①付与された【起】の「このルリグ」＝`GRANT_LRIG_ABILITY` の子は ctx.sourceCardNum が付与先ルリグ
+  eq(subFilterOf('WX24-P4-038', 'WX24-P4-038-sub-E1')?.colorMatchesSourceCard, true,
+     'WX24-P4-038: トラッシュから場に出すシグニがこのルリグと共通色');
+  eq(subFilterOf('WXDi-P15-004', 'WXDi-P15-004-sub-E1')?.colorMatchesSourceCard, true,
+     'WXDi-P15-004: バニッシュ対象がこのルリグと共通色');
+  ok(!JSON.stringify(effectsMap.get('WXDi-P15-004')).includes('colorMatchesLrig'),
+     '🔴相手対象なので colorMatchesLrig にしていない（swap で主語が真逆になる）');
+  // ②「このシグニ」＝素の【自】
+  const wxk05 = (effectsMap.get('WXK05-029') ?? []).find(e => e.effectId === 'WXK05-029-E2');
+  eq(((wxk05?.action as { target?: { filter?: Record<string, unknown> } }).target?.filter ?? {}).colorMatchesSourceCard, true,
+     'WXK05-029-E2: トラッシュ対象がこのシグニと共通色');
+
+  // 🔴engine 側＝効果元の色で絞れる／参照不能なら空ヒット（fail-closed）
+  const red = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const blue = findCard(c => isSigni(c) && (c.Color ?? '') === '青');
+  const act = { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', colorMatchesSourceCard: true }, upToCount: false } } as unknown as EffectAction;
+  const hit = run(act, mkCtx({ signi: [red, null, null] }, { signi: [red, blue, null] }, red));
+  ok(hit.otherState.trash.includes(red), '効果元と同じ色のシグニはトラッシュできる');
+  ok(!hit.otherState.trash.includes(blue), '色が違うシグニは候補に入らない');
+
+  const noSrc = run(act, mkCtx({ signi: [red, null, null] }, { signi: [red, blue, null] }, undefined));
+  ok(!noSrc.otherState.trash.includes(red) && !noSrc.otherState.trash.includes(blue),
+     '効果元が引けないときは空ヒット（fail-closed）');
+}));
+
+test('§5.2 バッチ3 nameMatchesAnyTrashCard: 「トラッシュにあるいずれかのカードと同じ名前の」で絞る', () => withSavedCursor(() => {
+  // 🔴旧 live は同名条件が丸ごと無く、`WX24-P2-040`（シャドウ・ケージ）は
+  //   **相手のどのシグニでもトラッシュできる**過剰効果だった。
+  const eff = (effectsMap.get('WX24-P2-040') ?? []).find(e => e.effectId === 'WX24-P2-040-E1');
+  ok(!!eff, 'WX24-P2-040-E1 が live に存在');
+  const filter = (eff!.action as { target?: { filter?: Record<string, unknown> } }).target?.filter ?? {};
+  eq(filter.nameMatchesAnyTrashCard, 'opponent', '照合先は対戦相手のトラッシュ（原文どおり）');
+
+  // 🔴engine 側＝同名がトラッシュにあるものだけが候補／1つも無ければ空ヒット（fail-closed）
+  const a = findCard(c => isSigni(c) && (c.Level ?? '') === '1');
+  const b = findCard(c => isSigni(c) && (c.Level ?? '') === '2' && c.CardName !== cardMap.get(a)?.CardName);
+  const ctx = mkCtx({ signi: [null, null, null] }, { signi: [a, b, null] });
+  ctx.otherState.trash = [a];
+  const hit = run(eff!.action as EffectAction, ctx);
+  ok(hit.otherState.trash.filter(n => n === a).length === 2, '相手トラッシュに同名があるシグニは取れる');
+  ok(!hit.otherState.trash.includes(b), '同名がトラッシュに無いシグニは候補に入らない');
+
+  const empty = mkCtx({ signi: [null, null, null] }, { signi: [a, b, null] });
+  empty.otherState.trash = [];
+  const miss = run(eff!.action as EffectAction, empty);
+  ok(!miss.otherState.trash.includes(a) && !miss.otherState.trash.includes(b),
+     'トラッシュが空なら空ヒット（fail-closed＝全部取れる側へ倒れない）');
+}));
+
+test('§5.2 バッチ3 ZONE_COUNT_COMPARE: 選択肢ごとの「手札とエナの枚数比較」が効く', () => withSavedCursor(() => {
+  // 🔴旧 live は3つの選択肢すべてに条件が無く、**盤面に関係なくどれでも選べた**（`WX24-P4-053-E1`）。
+  // ⚠**`HAND_COUNT{value:{$ref:…}}` では書けない**＝条件側の `value` は `resolveNum` が `$ref` を
+  //   黙って 0 にするので「手札0枚以下」に化ける（＝型を足しただけで無条件成立に倒れる罠）。
+  const eff = (effectsMap.get('WX24-P4-053') ?? []).find(e => e.effectId === 'WX24-P4-053-E1');
+  ok(!!eff, 'WX24-P4-053-E1 が live に存在');
+  const choices = (eff!.action as { choices?: { condition?: { type: string; operator?: string } }[] }).choices ?? [];
+  eq(choices.length, 3, '選択肢は3つ');
+  ok(choices.every(c => c.condition?.type === 'ZONE_COUNT_COMPARE'), '3つとも枚数比較の条件を持つ');
+  eq(choices[2].condition?.operator, 'eq', '③は「同じ場合」＝eq');
+
+  // 🔴engine 側＝盤面で成立する選択肢が切り替わる（3盤面とも1つだけ available）
+  const availables = (hand: number, energy: number): boolean[] => {
+    const ctx = mkCtx({ hand, energy }, {});
+    return choices.map(c => (c.condition ? evalCondition(c.condition as Condition, ctx) : true));
+  };
+  eq(availables(2, 5).join(','), 'true,false,false', '手札 < エナ → ①だけ');
+  eq(availables(5, 2).join(','), 'false,true,false', 'エナ < 手札 → ②だけ');
+  eq(availables(3, 3).join(','), 'false,false,true', '同数 → ③だけ');
 }));
 
 test('O-159: 「このターン、あなたのシグニは新たに能力を得られない」が真 no-op だったのを実働化する', () => withSavedCursor(() => {

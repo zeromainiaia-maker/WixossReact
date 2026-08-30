@@ -2,6 +2,7 @@ import type { CardData } from '../types';
 import { mergeManualEffects } from './manualEffects';
 import type {
   EffectAction,
+  CountFromZone,
   ConditionalAction,
   CardEffect,
   EffectType,
@@ -2735,6 +2736,17 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // 状態条件を先に消費してしまうブロック終端の救済で同じ1本を共有する。
 const FIELD_LEVEL_KIND_COUNT_RE = /場にあるシグニが持つレベルが合計([０-９\d]+)種類以上ある場合/;
 
+// 🆕**別ゾーンどうしの枚数比較**（`ZONE_COUNT_COMPARE`・2026-08-30 §5.2 カード単位バッチ第3回）。
+// 対応ゾーン語は `CountFromZone.zone` に受け皿がある3つだけに絞る（ライフクロスは `CountFromZone` に無い＝
+// 増やすなら型側から。**知らない語を既定ゾーンへ倒さない**＝黙って別ゾーンを数える事故を作らない）。
+const ZONE_CMP_ZONE_JA = '(手札|エナゾーンにあるカード|トラッシュにあるカード)';
+const zoneCountKeyJa = (ja: string): CountFromZone['zone'] =>
+  ja === '手札' ? 'hand' : ja === 'エナゾーンにあるカード' ? 'energy' : 'trash';
+const ZONE_CMP_LESS_MORE_RE = new RegExp(
+  `(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数が(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数より(少ない|多い)場合`);
+const ZONE_CMP_SAME_RE = new RegExp(
+  `(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数と(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数が同じ場合`);
+
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
   // ── 段2 第45バッチ：トラッシュ／エナゾーンの存在・枚数条件 ──
   // 第44バッチの HAS_CARD_IN_FIELD と既存 TRASH_HAS_CARD を OR で組み、2ゾーン形を新型にしない。
@@ -3064,6 +3076,23 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     () => ({ type: 'HAND_COMPARE_OPP', operator: 'lt' })],
   [/対戦相手のエナゾーンにあるカード(?:の枚数)?があなたより多い場合/,
     () => ({ type: 'ENERGY_COMPARE_OPP', operator: 'lt' })],
+  // 🆕「〈あなた／対戦相手〉の〈ゾーンA〉の枚数が〈…〉の〈ゾーンB〉の枚数より少ない／多い場合」
+  //   ＝**別ゾーンどうし**の枚数比較（`ZONE_COUNT_COMPARE`・2026-08-30 §5.2 カード単位バッチ第3回）。
+  // 🔴上の2本（`HAND_COMPARE_OPP`／`ENERGY_COMPARE_OPP`）は「**同じゾーンを両プレイヤーで**」比較する
+  //   別軸なので代用にならない＝この形の規則が無かったため `WX24-P4-053-E1` は
+  //   **3つの選択肢すべてが無条件で選べる**過剰効果だった（原文は盤面で1つに定まる）。
+  [ZONE_CMP_LESS_MORE_RE, g => ({
+    type: 'ZONE_COUNT_COMPARE',
+    left: { zone: zoneCountKeyJa(g[1]), owner: g[0] === '対戦相手' ? 'opponent' : 'self' },
+    right: { zone: zoneCountKeyJa(g[3]), owner: g[2] === '対戦相手' ? 'opponent' : 'self' },
+    operator: g[4] === '多い' ? 'gt' : 'lt',
+  })],
+  [ZONE_CMP_SAME_RE, g => ({
+    type: 'ZONE_COUNT_COMPARE',
+    left: { zone: zoneCountKeyJa(g[1]), owner: g[0] === '対戦相手' ? 'opponent' : 'self' },
+    right: { zone: zoneCountKeyJa(g[3]), owner: g[2] === '対戦相手' ? 'opponent' : 'self' },
+    operator: 'eq',
+  })],
   // 「あなたのセンタールリグと対戦相手のセンタールリグのレベルが同じ場合」＝両中央ルリグ同レベル（LRIG_LEVEL_EQ_OPP）。
   [/あなたのセンタールリグと対戦相手のセンタールリグのレベルが同じ場合/,
     () => ({ type: 'LRIG_LEVEL_EQ_OPP' })],
