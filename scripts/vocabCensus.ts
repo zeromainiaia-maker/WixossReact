@@ -112,7 +112,25 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 245; // 2026-08-30 同一性フィルタ脱落バッチ＋較正㉑＝254→245（-9）。**内訳を混ぜない**：
+const BASELINE_HIGH = 189; // 2026-08-30 census -56（245→189）。🔴**内訳を混ぜない**：
+//   ■**較正 -31**（live は1バイトも変わっていない＝計器の受け皿漏れ／原文 regex の誤爆）
+//     ①`機構:アンコール` -16 相当＝**アンコールは JSON に語彙を持たない設計**（`costs.ts` の
+//       `parseEncoreCost` が EffectText を直接読む＝ベットと同じ raw text 実装）。`pre` で注記と
+//       アイコンのみのコストを落とした。⚠アイコン以外のコスト2件（`WX14-016-E1`／`WDA-F02-08-E1`）は
+//       `parseEncoreCost` が null を返す**本物の穴**なのでフラグ維持。
+//     ②`コスト:《コイン》` ＝アンコール宣言コインを既存のベット較正と同じ扱いにした（`WXK03-014-E3` は残る）。
+//     ③`最上級` -2＝`一番(?![上下])`。「デッキの**一番下**に置く：対戦相手の**レベル**」に誤爆していた。
+//     ④`引用能力付与の平坦化` -8＝`SIGNI_ATTACK_BAN`／`FORCE_SIGNI_ATTACK`／`BANISH_REDIRECT` は
+//       **引用の中身そのものを表す専用型**＝平坦化ではない（残渣チェック＝引用が1つでも外れたらフラグ維持）。
+//     ⑤`次の相手ターン終了時まで` ＝`SigniAttackBanAction.turns:2` が正表現（綴り違いで当たらなかった）。
+//     ⑥`代わりに`／`数値不一致`／`幻覚` ＝`applyGradedThresholdBatch` の**帯分解／加算分解の兄弟効果**
+//       （`-E1b`）は置換を `activeCondition` の帯で、数値を**差分**で表すのが正しい（`isGradedBandSibling`）。
+//   ■**実装 -21**（`manualEffects.ts` へ手書き＝速いレーン。live 21効果を書き換え・`syncManualLive` で配達）
+//     `WXK10-062`/`WXK10-060`/`SPDi43-08`/`WXDi-P04-014`/`WXEX1-49`/`WXDi-CP02-035`/`WXDi-P07-064`/
+//     `WXDi-P09-068`/`WXDi-P05-009`/`WX25-P1-098`/`WXK05-035`/`WXK07-087`/`WX13-032`/`WXK07-050`/
+//     `WXDi-P01-004`/`WXDi-P05-016`/`WXDi-P03-038`/`WXDi-P02-036`/`WXDi-P13-009`/`WXDi-P03-030`/`WXDi-P05-014`。
+//   ⚠較正の前後で高シグナル id 集合を毎回機械差分し、**新規流入0**を確認済み（§4.3 の手順4）。
+// 旧: const BASELINE_HIGH = 245; // 2026-08-30 同一性フィルタ脱落バッチ＋較正㉑＝254→245（-9）。**内訳を混ぜない**：
 //   ■**実装 -8**＝「〜と同じレベル／同じ名前の」を既存の `TargetFilter.levelEqLastProcessed` /
 //     `nameEqLastProcessed` へ配線（`WXEX2-29-E3`／`WX25-P1-113-E1`②／`WXEX2-58-E1`／`WXK11-042-E2`）＋
 //     `cost.beat_signi` を `{count, excludeSelf}` の構造化コストへ広げて「《X》以外のシグニを【ビート】に」を表現（3効果）＋
@@ -850,6 +868,19 @@ const stripConditionChooseClause = (js: string, text: string): string =>
     ? text.replace(/[^。]*?場合[、,]代わりに[０-９\d一二三四五六七八九]+つ(?:まで)?を?選ぶ[。]?/g, '')
     : text;
 
+/**
+ * 🆕2026-08-30 較正＝多段閾値【常】「N以上であるかぎり X。M以上であるかぎり、**代わりに** Y。」を
+ * `effectParser.ts` の `applyGradedThresholdBatch` が**帯分解**（`AND[gte lo, lt hi]`）または
+ * **加算分解**（上位帯には差分だけを足す）して切り出した**兄弟効果**（`-E1b` / `-E2b`）。
+ * この形では ①置換は `activeCondition` の帯そのもの ②数値は**差分だけ**を持つのが正しい表現なので、
+ * 「代わりに(置換)」「数値不一致」「逆:JSON数値が原文に無い(幻覚)」の3軸がまとめて誤爆する
+ * （実測5効果＝`WXDi-P05-076-E1b`／`WXEX1-33-E2b`／`WXK02-038-E1b`／`WXK10-035-E1b`／`WXK10-036-E1b`）。
+ * 🔴**narrow**＝`splitBandSourceText` が切り出した**置換文1文だけ**の原文ブロックで、かつ
+ * `activeCondition` を持つものに限る（本体側の効果や、他の文が続く効果は素通しする）。
+ */
+export const isGradedBandSibling = (js: string, t: string): boolean =>
+  /^[^。]*かぎり[、,]代わりに[^。]*。?$/.test(t.trim()) && /"activeCondition":\{/.test(js);
+
 export const replacementClauseExtraOk = (js: string, t: string): boolean => {
   const modeled = removeModeledReplacementClauses(js, t);
   if (modeled !== t && !/代わりに/.test(modeled)) return true;
@@ -871,7 +902,10 @@ export const replacementClauseExtraOk = (js: string, t: string): boolean => {
 const PATTERNS: Pattern[] = [
   {
     name: '最上級(最も×パワー/レベル)',
-    re: /(最も|一番)[^。]{0,10}(パワー|レベル)|(パワー|レベル)[^。]{0,6}(最も|一番)(高|低|大き|小さ)/,
+    // 🆕2026-08-30 較正＝`一番` の直後が `上/下` のときは**デッキの位置**（「デッキの一番下に置く」）であって
+    //   最上級ではない。`一番下に置く：対戦相手の` のような10字以内に「レベル」が続くと誤爆していた
+    //   （`WXK10-043-E2`／`WXK10-057-E2`＝どちらも `level.max` を正しく持っている）。
+    re: /(最も|一番(?![上下]))[^。]{0,10}(パワー|レベル)|(パワー|レベル)[^。]{0,6}(最も|一番(?![上下]))(高|低|大き|小さ)/,
     keys: ['superlative', 'HIGHEST', 'LOWEST'],
   },
   {
@@ -1206,8 +1240,13 @@ const PATTERNS: Pattern[] = [
       //   ベットを正しく表現している札まで高シグナルに落ちていた（`WX18-003`／`WDK05-T10` で実測）。
       //   ベット表現の判定は大文字小文字を問わない（タスク12(lxxxviii) の較正）。
       if (betPrefixes.some(p => p.includes('《コイン')) && !/BET/i.test(js)) return false;
-      // ②ベット分を除いた残りの《コイン》がすべて ×0 なら covered
-      return !/《コイン(?![×x][０0]》)/.test(t.replace(/ベット[―─](?:《[^》]+》)*/g, ''));
+      // 🆕③**アンコール宣言コストの《コイン》**も JSON に載らない設計＝`costs.ts` の `parseEncoreCost` が
+      //   EffectText を直接読む（ベット①と同じ「raw text 実装」）。8効果が実装済みのまま高シグナルだった。
+      //   ⚠ベット①と違って「JSON がアンコールを表現しているか」の判定は置けない（**表現する語彙が無い**のが設計）。
+      //   🔴残渣チェック＝アンコール以外の《コイン》（`WXK03-014-E3`「コストは《コイン×1》減る」）は残る。
+      // ②ベット/アンコール分を除いた残りの《コイン》がすべて ×0 なら covered
+      return !/《コイン(?![×x][０0]》)/.test(
+        t.replace(/ベット[―─](?:《[^》]+》)*/g, '').replace(/アンコール[－\-―─](?:《[^》]+》)+/g, ''));
     } },
   {
     name: 'コスト:手札を捨てる', re: /手札[かをら][^。：]{0,12}捨て(る|て)：/, keys: ['discard', 'handDiscard', 'Discard'], src: 'eff',
@@ -1309,7 +1348,11 @@ const PATTERNS: Pattern[] = [
       try { return hasPublicLook(JSON.parse(js)); } catch { return false; }
     },
   },
-  { name: '次の相手ターン終了時まで', re: /次の(対戦相手の)?ターン(の)?終了時まで/, keys: ['UNTIL_OPP_TURN_END', 'NEXT_OPP_TURN', 'NEXT_TURN'] },
+  // 🆕2026-08-30 較正＝`SigniAttackBanAction.turns`／`SigniDeployBan` の **`"turns":2`** が
+  //   「次の対戦相手のターン終了時まで」の正表現（`effects.ts:2716` に「2＝次の対戦相手のターン」と明記・
+  //   `clearTurnEndScopedState` の1点だけがカウントダウンする）。綴りが `UNTIL_OPP_TURN_END` と違うだけで
+  //   3効果が高シグナルに落ちていた（§4.3「綴り違いで当たらない」の再発）。
+  { name: '次の相手ターン終了時まで', re: /次の(対戦相手の)?ターン(の)?終了時まで/, keys: ['UNTIL_OPP_TURN_END', 'NEXT_OPP_TURN', 'NEXT_TURN', '"turns":2'] },
   // ⚠`opponentResponds` は「対戦相手が選択する」の**既存フィールド**（`effects.ts:1767` の `CHOOSE` ほか）。
   //   対応表から漏れており、§5.3 `O-60` 第14バッチで `STUB{OPP_CHOOSE_EFFECT}` を
   //   `CHOOSE{opponentResponds}` へ移した2効果が高シグナルへ回った（＝計器側の穴・前進ではない）。
@@ -1324,7 +1367,23 @@ const PATTERNS: Pattern[] = [
   //   `WX10-035-E1`＝遅延トリガーなので効果本体に `triggerScope` は付かない）。
   { name: 'triggerScope(他シグニ起点トリガー)', re: /(あなたの|対戦相手の)(他の)?シグニ[０-９\d]体が(場に出た|バニッシュされた|アタックした)とき/, keys: ['triggerScope', 'ON_OPP_SIGNI_ATTACK', 'attackerOwner'], src: 'eff' },
   // ---- 続き18 追加分・第4弾（引用付与平坦化/置換/制限/機構）----
-  { name: '引用能力付与の平坦化', re: /「[^」]*【(自|起|常|出)】[^」]*」を(得る|与え)/, keys: ['GRANT', 'grant', 'rawText', 'keyword'] },
+  // 🆕2026-08-30 較正＝**引用能力を専用アクション型へコンパイルした形は「平坦化」ではない**。
+  //   `SIGNI_ATTACK_BAN`（「対戦相手は…シグニでアタックできない」を得る＝§6.4 O-3 の受け皿）／
+  //   `FORCE_SIGNI_ATTACK`（「可能ならばアタックしなければならない」を得る）／
+  //   `BANISH_REDIRECT`（「…バニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」を得る）
+  //   の3型は**引用の中身そのもの**を表しており、`GRANT_*` で包む必要がない（「代わりに(置換)」軸では
+  //   `BANISH_REDIRECT` を同じ理由で既に較正済み）。8効果が実装済みのまま高シグナルだった。
+  //   🔴**残渣チェック**＝引用が**1つでも**この3型に当たらなければフラグ維持（`WXEX2-69-E3` の
+  //   `BLOCK_ACTION` 平坦化のような本物の穴を隠さない）。
+  { name: '引用能力付与の平坦化', re: /「[^」]*【(自|起|常|出)】[^」]*」を(得る|与え)/, keys: ['GRANT', 'grant', 'rawText', 'keyword'],
+    extraOk: (js, t) => {
+      const quoted = t.match(/「[^」]*【(?:自|起|常|出)】[^」]*」を(?:得る|与え)/g) ?? [];
+      if (quoted.length === 0) return false;
+      return quoted.every(q =>
+        (/アタックできない/.test(q) && /SIGNI_ATTACK_BAN/.test(js)) ||
+        (/アタックしなければならない/.test(q) && /FORCE_SIGNI_ATTACK/.test(js)) ||
+        (/バニッシュされる場合[^」]*代わりに/.test(q) && /BANISH_REDIRECT/.test(js)));
+    } },
   // PREVENT_NEXT_DAMAGE は「代わりにダメージを受けない」の正当な置換表現（続き25較正）
   // BANISH_REDIRECT は「エナゾーンに置かれる代わりにトラッシュに置かれる」の正当な置換表現（続き28較正・
   // 16枚中15枚が BANISH_REDIRECT で正エンコード済みの偽陽性だった＝キー漏れ）
@@ -1335,7 +1394,7 @@ const PATTERNS: Pattern[] = [
     // （engine が is_betting で choose_count/upTo を上書き）。CONDITIONAL では表せないので keys に載らず、
     // ベットを正しく表現した札が「代わりに」だけを理由に高シグナルへ落ちていた（タスク12(lxxxviii) の較正）。
     // ⚠無条件マスクにはしない＝ベット節を除いた残りに「代わりに」が残るならフラグ維持（別の置換を隠さない）。
-    extraOk: replacementClauseExtraOk },
+    extraOk: (js, t) => isGradedBandSibling(js, t) || replacementClauseExtraOk(js, t) },
   {
     name: '制限「できない」', re: /(場に出すことができない|使用できない|アタックできない|ガードできない|支払うことができない|選べない|引けない|出せない)/,
     // `ATTACK_BAN`＝§6.4 O-3 の `SIGNI_ATTACK_BAN`（「このターン、対戦相手は〈条件〉のシグニで
@@ -1417,7 +1476,17 @@ const PATTERNS: Pattern[] = [
   { name: '機構:ウィルス', re: /ウィルス/, keys: ['VIRUS', 'irus'] },
   { name: '機構:シード', re: /【シード|シードを/, keys: ['SEED', 'eed'] },
   { name: '機構:エクシード持ち', re: /エクシード/, keys: ['exceed', 'EXCEED'] },
-  { name: '機構:アンコール', re: /アンコール/, keys: ['ENCORE', 'encore', 'coin'] },
+  // 🆕2026-08-30 較正＝**アンコールは JSON に語彙を持たない設計**（`src/screens/battle/costs.ts`
+  //   `parseEncoreCost` が **EffectText の「アンコール－《…》」プレフィックスを直接読む**＝ベットの
+  //   `is_betting_this_effect` と同じ「raw text 実装」）。18効果中16件が**実装済みなのに高シグナル**だった。
+  //   ⇒ `pre` で ①注記の丸括弧 ②**アイコンのみで書かれたアンコールコスト**を落とす。
+  //   🔴**残渣チェック**＝アイコン以外のアンコールコスト（`WX14-016-E1`「手札から＜美巧＞のシグニを１枚捨てる」／
+  //   `WDA-F02-08-E1`「センタールリグの下からカード３枚をルリグトラッシュに置く」）は `parseEncoreCost` が
+  //   **null を返して使用不能**＝本物の穴なので、プレフィックスが残りフラグは維持される。
+  { name: '機構:アンコール', re: /アンコール/, keys: ['ENCORE', 'encore', 'coin'],
+    pre: t => t
+      .replace(/（アンコールコストを追加で支払って使用してもよい。[^）]*）/g, '')
+      .replace(/^アンコール[－\-―─](?:《[^》]+》)+/, '') },
   { name: '機構:ソウル', re: /【ソウル/, keys: ['SOUL', 'soul'] },
   { name: '機構:ドライブ', re: /【ドライブ|ドライブ状態/, keys: ['DRIVE', 'rive'] },
 ];
@@ -1639,7 +1708,7 @@ function main(): void {
       if (nums.length === 0) continue;
       hits++;
       const missing = [...new Set(nums.filter(n => !u.js.includes(n) && !additiveCovers(u.js, n)))];
-      if (missing.length === 0) continue;
+      if (missing.length === 0 || isGradedBandSibling(u.js, u.text)) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
     }
@@ -1697,7 +1766,7 @@ function main(): void {
       hits++;
       const t = zen2han(corpus.rawAll.get(u.cardNum) ?? '');
       const missing = nums.filter(n => !t.includes(n));
-      if (!missing.length) continue;
+      if (!missing.length || isGradedBandSibling(u.js, u.text)) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
     }

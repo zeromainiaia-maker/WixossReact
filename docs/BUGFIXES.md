@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30（続き743）：census 高シグナルを 245 → 189（**-56**）＝較正 -31／実装 -21（＋ドリフト -4）
+
+ユーザー指示「PLAN を読み、census を50減らす」の1巡。**live 変更 21カード（21効果）**。gates 全緑
+（golden **3063→3064 / 0 FAIL**・smoke 全0・fuzz 全0・census **189 / BASELINE 189**・lint 0 errors）＋ `regen`。
+⑤実機は**不要**判定（PLAN §2.2＝`src/screens/` 不変・`src/engine/` 不変・新しい型/条件0本。触ったのは
+`src/data/manualEffects.ts` と `public/data/effects_*.json` と計器 `scripts/vocabCensus.ts` だけ）。
+
+### ■ 内訳（🔴混ぜない）
+
+| 種別 | 減 | 性質 |
+|---|---|---|
+| **ドリフト** | **-4** | 前回セッション以降の副次的な改善（着手前の実測で 245→241 だった） |
+| **較正** | **-31** | **live は1バイトも変わっていない**＝計器の受け皿漏れ／原文 regex の誤爆 |
+| **実装** | **-21** | `manualEffects.ts` へ**原文から書き直し**（速いレーン §2.0）→ `syncManualLive` で live へ配達 |
+
+⚠**較正の前後で高シグナル id 集合を毎回機械差分し、「消えた分＝目視した分／新規流入0」を確認**した（PLAN §4.3 手順4）。
+3回の較正すべてで新規流入 0（18件／8件／5件）。
+
+### ■ 較正 -31（計器の穴・実装は1行も変えていない）
+
+| # | 軸 | 真因 | 残渣チェック |
+|---|---|---|---|
+| ① | `機構:アンコール` | 🔑**アンコールは JSON に語彙を持たない設計**＝`src/screens/battle/costs.ts` の `parseEncoreCost` が **EffectText の「アンコール－《…》」を直接読む**（ベットの `is_betting_this_effect` と同じ raw text 実装）。18効果中16件が**実装済みのまま高シグナル**だった | アイコン以外のコスト（`WX14-016-E1` 手札から＜美巧＞を捨てる／`WDA-F02-08-E1` ルリグの下から3枚）は `parseEncoreCost` が **null＝使用不能**＝**本物の穴**なのでフラグ維持 |
+| ② | `コスト:《コイン》` | 同上。アンコール宣言コインを**既存のベット較正と同じ扱い**にした | `WXK03-014-E3`「コストは《コイン×1》減る」は残る |
+| ③ | `最上級` | `/(最も|一番)[^。]{0,10}(パワー|レベル)/` が「デッキの**一番下**に置く：対戦相手の**レベル**３以下」に誤爆（`WXK10-043-E2`／`WXK10-057-E2` はどちらも `level.max` を正しく持っていた） | `一番(?![上下])` に絞った |
+| ④ | `引用能力付与の平坦化` | `SIGNI_ATTACK_BAN`／`FORCE_SIGNI_ATTACK`／`BANISH_REDIRECT` は**引用の中身そのものを表す専用型**＝`GRANT_*` で包む必要がない（「代わりに」軸では `BANISH_REDIRECT` を同じ理由で既に較正済みだった） | 引用が**1つでも**この3型に当たらなければフラグ維持（`WXEX2-69-E3` の `BLOCK_ACTION` 平坦化は残る） |
+| ⑤ | `次の相手ターン終了時まで` | `SigniAttackBanAction.turns:2` が「次の対戦相手のターン終了時まで」の正表現（`effects.ts` に明記）。**綴りが `UNTIL_OPP_TURN_END` と違うだけ**で3効果が落ちていた | — |
+| ⑥ | `代わりに`／`数値不一致`／`幻覚` | `effectParser.ts` の `applyGradedThresholdBatch` が多段閾値【常】を**帯分解／加算分解**して切り出す**兄弟効果**（`-E1b`）は、置換を `activeCondition` の帯で・数値を**差分**で表すのが正しい。3軸がまとめて誤爆していた（`WXDi-P05-076-E1b`／`WXEX1-33-E2b`／`WXK02-038-E1b`／`WXK10-035-E1b`／`WXK10-036-E1b`） | `isGradedBandSibling`＝**置換文1文だけの原文ブロック**かつ `activeCondition` 持ちに限定 |
+
+🔑**教訓（§4.3 の再実証）**＝**「実装は UI 層／raw text 側にあり JSON に語彙が無い」設計は、census からはカテゴリ丸ごとバグに見える。**
+アンコールとベットが同じ形（`costs.ts` が EffectText を直接読む）なのに、ベットだけ較正済みでアンコールが未較正だった。
+
+### ■ 実装 -21（`manualEffects.ts` へ原文から手書き）
+
+🔴**「移設だけ」の manual 化はしていない**＝21件すべて**旧 live に実害（過剰効果／脱落）があり、原文を読み直して書き直した**。
+
+| # | カード | 旧 live の穴（すべて過剰効果側） | 受け皿（既存語彙・新設0） |
+|---|---|---|---|
+| 1 | `WXK10-062-E1` | 「ドライブ状態の」が落ち `owner:'any' count:1`＝**両者の任意1体**に＋2000 | `isDrive` |
+| 2 | `WXK10-060-E1` | 【シード】条件が落ち**無条件で常時＋3000** | `SAME_ZONE_HAS_SEED` |
+| 3 | `SPDi43-08-E1` | 【ソウル】条件が落ち**自分ターンなら常時＋5000** | `IS_SELF_SOUL_ATTACHED` |
+| 4 | `WXDi-P04-014-E1` | 引用能力が**平坦化**＝CONTINUOUS 直下で毎回トラッシュ回収 | `GRANT_SOUL_HOST_ABILITY`（同弾 `WXDi-P04-011-E1` が先例） |
+| 5 | `WXEX1-49-E1` | `powerRange` が両分岐とも無く**トラッシュの＜悪魔＞なら何でも**回収／場出し | `powerRange` |
+| 6 | `WXDi-CP02-035-E1` | パワー15000ゲートが落ち**手札破棄が無条件** | `LAST_PROCESSED_MATCHES` |
+| 7 | `WXDi-P07-064-E1` | `destination.position:'top'`＝原文と**逆のゾーン端**（公開分がデッキトップに残る） | — |
+| 8 | `WXDi-P09-068-E1` | `remainder.position:'top'`＝外れたカードが一番上に残る（原文は一番下） | — |
+| 9 | `WXDi-P05-009-E2` | `LOOK_AND_REORDER` 単独＝**選択段が丸ごと落ち**デッキトップ固定ができない | `LOOK_PICK_CHAIN{then:'deck_top'}`（🔴**live 初出**） |
+| 10 | `WX25-P1-098-E1` | `canTrash:true` に**上限が無く**公開3枚すべてを捨てられた（PLAN §5.4(ii) 既知項目） | `LOOK_PICK_CHAIN{then:'trash'}`（🔴**live 初出**） |
+| 11 | `WXK05-035-E2` | 条件が落ちたうえ**対象側に `level:3`** が付いていた＝無条件でレベル3だけをバニッシュ（二重に誤り） | `THIS_CARD_HAS_UNDER` ×3 |
+| 12 | `WXK07-087-E2` | 条件が落ち**無条件ドロー**。「場に」は両者 | `HAS_CARD_IN_FIELD{owner:'any'}` ×4 |
+| 13 | `WX13-032-BURST` | LB判定が落ち**無条件に**デッキトップをライフへ | `REVEAL_AND_PICK{filter:{hasLifeBurst}}` |
+| 14 | `WXK07-050-E1` | 【ランサー】付与が**丸ごと欠落**し【Ｓランサー】が**フィルタ無しで自分の全シグニ**に付いていた | `powerRange` ×2 |
+| 15 | `WXDi-P01-004-E1` | 【使用条件】が落ち**色を問わず使えた** | `HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ']}` |
+| 16 | `WXDi-P05-016-E2` | `TRASH`＝**原文に無いトラッシュ送り**（デッキ下より強い） | `TRANSFER_TO_DECK{position:'bottom'}` |
+| 17 | `WXDi-P03-038-E1` | 下の色ごとの3条件が**すべて落ちて3効果が全部乗る**／【シャドウ】付与も欠落 | `THIS_CARD_HAS_UNDER{filter:{cardClass,color}}` ×3 |
+| 18 | `WXDi-P02-036-E1` | 「レベル1が3枚以上」ゲートが落ち**無条件＋3000**／【シャドウ】欠落／公開札は `count:0` の空 LOOK で下へ戻す**振り**だけ | `LAST_PROCESSED_MATCHES{minCount:3}` |
+| 19 | `WXDi-P13-009-E2` | 「その後、エナゾーンからシグニ1枚まで手札に加える」が**丸ごと欠落** | `TRANSFER_TO_HAND{ENERGY_CARD}` |
+| 20 | `WXDi-P03-030-E1` | 同上 | 同上 |
+| 21 | `WXDi-P05-014-E1` | 「3枚以下／4枚以上」の**排他な2帯が両方とも無条件**＝常にドロー＋相手の手札破棄 | `HAND_COUNT{opponent}` の `then`/`else` |
+
+### ■ 配達経路と検証
+
+- 🔴**`build:effects` だけでは live に1バイトも届かなかった**＝21カード中18が `_held_fresh`／3が `_partial_fresh` に落ちた
+  （収穫マージが構造変更を held に回す）。**`npx tsx scripts/syncManualLive.ts <CardNum>…` で配達**した（CLAUDE.md の既定手順）。
+- ⚠`syncManualLive` は**カード単位で丸ごと書く**ので、**同カードの他の効果への巻き込み変更**を機械 diff で全数確認した
+  ＝**巻き込み0／id 集合変化0**（`tmp_livediff.py` で `git show HEAD:` と比較）。
+- 逆翻訳（`npm run regen`）を21件すべて原文と目視照合＝全件一致。
+- 🔴**golden を1本追加**（`census 189: 手書き是正21件のトップレベル形を固定する`）＝**反転確認つき**
+  （条件が付いたことだけでなく「旧 live の形に戻っていない」ことも見る。`WXK05-035-E2` は対象側から `level:3` が
+  消えたことまで assert）。**修正前データで実際に落ちることを確認してから採った**（PLAN §4.3）。
+  ⚠`then:'deck_top'` / `then:'trash'` は**型の union にはあったが live 利用が1件も無かった**値なので、
+  この golden が唯一の見張りになる（§4.3「executor が union の全値を分岐しているかはどの計器も見ていない」）。
+
+### ■ 残り（次に取る人へ）
+
+- `censusKeyScan` で全 189 件を軸別に読んだ限り、**まとまった較正の在庫はほぼ払い出した**（残る反復は `条件節` 64件中の
+  多段閾値と、`小さい数` の枚数脱落＝どちらも**1件ずつの実装**）。
+- **機構が要る塊**＝(a)「このルリグの下にカードがN枚以上ある場合」の条件型が無い（`THIS_CARD_HAS_UNDER` はシグニ専用＝
+  `execUtils.ts` が `field.signi` しか走査しない）＝`WXDi-D05-004-E2`／`WXDi-P02-023-E2`／`WXDi-P03-023-E2`
+  (b) `LOOK_PICK_CHAIN.then` に **`'under'`（このシグニの下に置く）が無い**＝`WXDi-P11-047-E1`／`WXDi-P10-040-E3`
+  (c) 【ソウル】が付いているシグニを指す **triggerFilter/対象フィルタ**が無い＝`WXDi-P04-016-E1`／`WXDi-P04-013-E1`。
+
+---
+
 ## 2026-08-30（続き742-2）：意味照合 段2 の残 OPEN を 336 → 306（**-30**）＝解凍 -5／実装 -22／再照合 -3
 
 同日2巡目。**live 変更 26カード**、gates 全緑（golden **3063 / 0 FAIL**・smoke 全0・fuzz 全0・census 245/245・lint 0 errors）＋ `regen`。

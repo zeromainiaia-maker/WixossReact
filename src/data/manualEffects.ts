@@ -8,6 +8,569 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // census 高シグナル 21効果の是正（2026-08-30・速いレーン §2.0）
+  // どれも **原文を読み直して手で書き直した**（parser 出力の移設ではない＝`O-42` tripwire 対象外）。
+  // 検証＝`build:effects` → 逆翻訳を目視 → `npm run gates`。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // WXK10-062 ／ 原文【常】：あなたの**ドライブ状態の**シグニのパワーを＋2000する。
+  // 🔴旧 live＝`{SIGNI owner:'any' count:1}` フィルタ無し＝**両者の任意の1体**（対象も枚数も持ち主も誤り）。
+  // 受け皿は既存＝`isDrive`（`WXK01-001-E1` と同型）。
+  'WXK10-062': [
+    {
+      effectId: 'WXK10-062-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', isDrive: true } },
+        delta: 2000,
+        duration: 'PERMANENT',
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK10-060 ／ 原文【常】：**このシグニと同じシグニゾーンに【シード】があるかぎり**、このシグニのパワーは＋3000される。
+  // 🔴旧 live＝条件が丸ごと落ちて**無条件で常時＋3000**。受け皿は既存 `SAME_ZONE_HAS_SEED`（ActiveCondition）。
+
+  // SPDi43-08 ／ 原文【常】《自分ターン》：**このシグニに【ソウル】が付いているかぎり**、このシグニのパワーは＋5000される。
+  // 🔴旧 live＝`TURN_OWNER` だけで**ソウル条件が丸ごと欠落**＝自分ターンなら常時＋5000。
+  // 受け皿は既存 `IS_SELF_SOUL_ATTACHED`（同弾の `SPDi43-09/10` が使用済み）。
+  'SPDi43-08': [
+    {
+      effectId: 'SPDi43-08-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: {
+        type: 'AND',
+        conditions: [{ type: 'TURN_OWNER', owner: 'self' }, { type: 'IS_SELF_SOUL_ATTACHED' }],
+      },
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        delta: 5000,
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P04-014 ／ 原文【常】：**このカードが【ソウル】として付いているシグニは**「【自】《ターン１回》：
+  //   このシグニがアタックしたとき、あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを手札に加える。」を得る。
+  // 🔴旧 live＝引用能力が**平坦化**され、CONTINUOUS が直接 `TRANSFER_TO_HAND` を持っていた
+  //   （＝ホストへの付与でも「アタックしたとき」でもない）。
+  // 受け皿は既存 `GRANT_SOUL_HOST_ABILITY`（同カード群 `WXDi-P04-011-E1` が同型で実装済み）。
+  'WXDi-P04-014': [
+    {
+      effectId: 'WXDi-P04-014-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_SOUL_HOST_ABILITY',
+        abilities: [
+          {
+            effectId: 'WXDi-P04-014-E1-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_SIGNI'],
+            triggerScope: 'self',
+            usageLimit: 'once_per_turn',
+            action: {
+              type: 'TRANSFER_TO_HAND',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', noGuard: true },
+              },
+            },
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXEX1-49 ／ 原文【自】：このシグニがアタックしたとき、あなたのトラッシュから**パワー7000以下の**＜悪魔＞のシグニ１枚を…
+  // 🔴旧 live＝両分岐とも `powerRange` が無く、**トラッシュの＜悪魔＞なら何でも**回収／場出しできた。
+
+  // WXDi-CP02-035 ／ 原文【出】：対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。
+  //   **それのパワーが15000以上の場合**、対戦相手は手札を１枚捨てる。
+  // 🔴旧 live＝15000ゲートが丸ごと落ちて**手札破棄が無条件**（過剰効果）。
+  // 受け皿は既存 `LAST_PROCESSED_MATCHES`（直前にデッキ下へ置いたシグニを見る）。
+  'WXDi-CP02-035': [
+    {
+      effectId: 'WXDi-CP02-035-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'TRANSFER_TO_DECK',
+            source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+            shuffle: false, position: 'bottom',
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_MATCHES', filter: { powerRange: { min: 15000 } } },
+            then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P07-064 ／ 原文【出】：あなたのデッキの上からカードを３枚公開し、それらのカードを好きな順番で**デッキの一番下**に置く。…
+  // 🔴旧 live＝`destination.position:'top'`＝原文と**逆のゾーン端**へ戻していた（公開分がそのままデッキトップに残る）。
+  'WXDi-P07-064': [
+    {
+      effectId: 'WXDi-P07-064-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'LOOK_AND_REORDER',
+            source: { location: 'deck', owner: 'self' },
+            count: 3, private: false, reorder: true, canTrash: false,
+            destination: { location: 'deck', owner: 'self', position: 'bottom' },
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_ALL_MATCH', filter: { level: 1, cardType: 'シグニ' } },
+            then: {
+              type: 'BANISH',
+              target: {
+                type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', powerRange: { max: 3000 } },
+              },
+            },
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P09-068 ／ 原文【出】：あなたのデッキの一番上を公開する。そのカードがレベル１のシグニの場合、カードを１枚引く。
+  //   **そうでない場合、そのカードをデッキの一番下に置く。**
+  // 🔴旧 live＝`remainder.position:'top'`＝外れたカードが**一番上に残る**（原文はデッキの一番下）。
+  'WXDi-P09-068': [
+    {
+      effectId: 'WXDi-P09-068-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 1,
+        filter: { cardType: 'シグニ', level: 1 },
+        pickCount: 1,
+        then: { type: 'DRAW', owner: 'self', count: 1 },
+        remainder: { location: 'deck', position: 'bottom' },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P05-009 ／ 原文【出】：あなたのデッキの上からカードを３枚見る。**その中からカードを１枚までデッキの一番上に戻し**、
+  //   残りを好きな順番でデッキの一番下に置く。
+  // 🔴旧 live＝`LOOK_AND_REORDER` 単独＝**選択段が丸ごと落ち**、3枚とも一番下へ行っていた（デッキトップ固定ができない）。
+  // 受け皿は既存 `LOOK_PICK_CHAIN` の `then:'deck_top'`（`effectExecutor.ts:6615` が `INTERNAL_KEEP_ON_DECK_TOP` で予約）。
+
+  // WX25-P1-098 ／ 原文【出】：あなたのデッキの上からカードを３枚見る。**その中からカードを１枚までトラッシュに置き**、
+  //   残りを好きな順番でデッキの一番下に置く。
+  // 🔴旧 live＝`LOOK_AND_REORDER{canTrash:true}`＝**上限が無く**公開した3枚すべてを捨てられた（PLAN §5.4(ii) の既知項目）。
+  'WX25-P1-098': [
+    {
+      effectId: 'WX25-P1-098-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'LOOK_PICK_CHAIN',
+        owner: 'self',
+        revealCount: 3,
+        stages: [{ pickCount: 1, pickUpTo: true, pickNoun: 'カード', then: 'trash' }],
+        remainder: { location: 'deck', position: 'bottom', reorder: true },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK05-035 ／ 原文【出】：対戦相手のシグニ１体を対象とし、**このシグニの下にレベル１、レベル２、レベル３のシグニがある場合**、それをバニッシュする。
+  // 🔴旧 live＝条件が落ち、代わりに**対象側へ `level:3`** が付いていた（＝無条件でレベル3だけをバニッシュ＝二重に誤り）。
+  'WXK05-035': [
+    {
+      effectId: 'WXK05-035-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'AND',
+          conditions: [
+            { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 1 } },
+            { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 2 } },
+            { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: 3 } },
+          ],
+        },
+        then: {
+          type: 'BANISH',
+          target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK07-087 ／ 原文【出】《黒》：**場にレベル１、レベル２、レベル３、レベル４のシグニがある場合**、カードを１枚引く。
+  // 🔴旧 live＝条件が丸ごと落ちて**無条件ドロー**。⚠「場に」は両者の場（`owner:'any'`＝`execUtils.ts` の
+  //   `HAS_CARD_IN_FIELD` が両 state を見る）。
+  'WXK07-087': [
+    {
+      effectId: 'WXK07-087-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      cost: { energy: [{ color: '黒', count: 1 }] },
+      action: {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'AND',
+          conditions: [
+            { type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ', level: 1 } },
+            { type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ', level: 2 } },
+            { type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ', level: 3 } },
+            { type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ', level: 4 } },
+          ],
+        },
+        then: { type: 'DRAW', owner: 'self', count: 1 },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX13-032 BURST ／ 原文：あなたのデッキの一番上を公開する。**それが《ライフバースト》を持っていた場合**、それをライフクロスに加える。
+  // 🔴旧 live＝公開してデッキトップへ戻したうえで**無条件に**デッキトップをライフへ加えていた（LB判定が丸ごと欠落）。
+  // 受け皿は既存 `REVEAL_AND_PICK{filter:{hasLifeBurst}}`＋`remainder`（外れたら一番上のまま）。
+  'WX13-032': [
+    {
+      effectId: 'WX13-032-BURST',
+      effectType: 'LIFE_BURST',
+      timing: ['ON_LIFE_BURST'],
+      action: {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 1,
+        filter: { hasLifeBurst: true },
+        pickCount: 1,
+        pickNoun: 'カード',
+        then: { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromSearch: true },
+        remainder: { location: 'deck', position: 'top' },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK07-050 ／ 原文…ターン終了時まで、あなたの**パワー10000以上の**すべてのシグニは【ランサー】を得、
+  //   **15000以上の**すべてのシグニは【Ｓランサー】を得る。
+  // 🔴旧 live＝【ランサー】付与が**丸ごと欠落**し、【Ｓランサー】が**フィルタ無しで自分の全シグニ**に付いていた。
+  'WXK07-050': [
+    {
+      effectId: 'WXK07-050-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 2 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'ATTACH_CHARM',
+            charm: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { story: '微菌' } },
+            to: { type: 'SIGNI', owner: 'self', count: 1 },
+          },
+          {
+            type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: false, filter: { cardType: 'シグニ', hasCharm: true } },
+            delta: 3000,
+            duration: 'UNTIL_END_OF_TURN',
+          },
+          {
+            type: 'GRANT_KEYWORD',
+            target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', powerRange: { min: 10000 } } },
+            keyword: 'ランサー',
+            duration: 'UNTIL_END_OF_TURN',
+          },
+          {
+            type: 'GRANT_KEYWORD',
+            target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', powerRange: { min: 15000 } } },
+            keyword: 'Sランサー',
+            duration: 'UNTIL_END_OF_TURN',
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P01-004 ／ 原文【使用条件】**あなたの場に青と緑のルリグがいる**／あなたのライフクロスが０枚の場合、…
+  // 🔴旧 live＝【使用条件】が丸ごと落ち、ライフ0条件だけが残っていた（＝色を問わず使える過剰効果）。
+  // ⚠「ルリグ」はセンター＋アシストの両方＝`cardType` は配列形（PLAN §5.4(ii) の既知の落とし穴）。
+  'WXDi-P01-004': [
+    {
+      effectId: 'WXDi-P01-004-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 3 }] },
+      condition: {
+        type: 'AND',
+        conditions: [
+          { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], color: '青' } },
+          { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], color: '緑' } },
+          { type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: 0 },
+        ],
+      },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'SHUFFLE_DECK', owner: 'self' },
+          { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P05-016 ／ 原文【出】：対戦相手の手札を見て１枚選び、**デッキの一番下に置く**。
+  // 🔴旧 live＝`TRASH`＝原文に無い**トラッシュ送り**（デッキ下より強い＝過剰効果）。
+  'WXDi-P05-016': [
+    {
+      effectId: 'WXDi-P05-016-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+        shuffle: false,
+        position: 'bottom',
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P03-038 ／ 原文【自】：このシグニがアタックしたとき、**このシグニの下に白の＜天使＞がある場合**、次の対戦相手の
+  //   ターン終了時まで、このシグニのパワーは＋3000されこのシグニは【シャドウ】を得る。**青の＜天使＞がある場合**、カードを２枚引く。
+  //   **緑の＜天使＞がある場合**、【エナチャージ２】をする。
+  // 🔴旧 live＝3つの条件が**すべて落ちて**3つの効果が無条件に全部乗り、【シャドウ】付与も欠落していた。
+  'WXDi-P03-038': [
+    {
+      effectId: 'WXDi-P03-038-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardClass: '天使', color: '白' } },
+            then: {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'POWER_MODIFY',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                  delta: 3000,
+                  duration: 'UNTIL_OPP_TURN_END',
+                },
+                {
+                  type: 'GRANT_KEYWORD',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                  keyword: 'シャドウ:{"cardType":"シグニ"}',
+                  duration: 'UNTIL_OPP_TURN_END',
+                },
+              ],
+            },
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardClass: '天使', color: '青' } },
+            then: { type: 'DRAW', owner: 'self', count: 2 },
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardClass: '天使', color: '緑' } },
+            then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
+          },
+        ],
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P02-036 ／ 原文【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを４枚公開する。
+  //   **その中にレベル１のシグニが３枚以上ある場合**、次の対戦相手のターン終了時まで、このシグニのパワーは＋3000され、
+  //   このシグニは【シャドウ】を得る。この効果で公開したカードを好きな順番でデッキの一番下に置く。
+  // 🔴旧 live＝3枚以上ゲートが落ちて**無条件に＋3000**、【シャドウ】付与も欠落、公開札は `count:0` の空 LOOK で
+  //   一番下へ戻す振りをしていた（実際はデッキトップに残る）。
+  'WXDi-P02-036': [
+    {
+      effectId: 'WXDi-P02-036-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'LOOK_AND_REORDER',
+            source: { location: 'deck', owner: 'self' },
+            count: 4, private: false, reorder: true, canTrash: false,
+            destination: { location: 'deck', owner: 'self', position: 'bottom' },
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 1 }, minCount: 3 },
+            then: {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'POWER_MODIFY',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                  delta: 3000,
+                  duration: 'UNTIL_OPP_TURN_END',
+                },
+                {
+                  type: 'GRANT_KEYWORD',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                  keyword: 'シャドウ:{"cardType":"シグニ"}',
+                  duration: 'UNTIL_OPP_TURN_END',
+                },
+              ],
+            },
+          },
+        ],
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P13-009 ／ 原文【自】：あなたのアタックフェイズ開始時、あなたの場に《ディソナアイコン》のシグニが２体以上ある場合、
+  //   【エナチャージ１】をし、**その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加える**。
+  // 🔴旧 live＝**後段（エナ→手札の回収）が丸ごと欠落**していた。
+  'WXDi-P13-009': [
+    {
+      effectId: 'WXDi-P13-009-E2',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      action: {
+        type: 'CONDITIONAL',
+        condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, minCount: 2 },
+        then: {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+            {
+              type: 'TRANSFER_TO_HAND',
+              source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { cardType: 'シグニ' } },
+            },
+          ],
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P03-030 ／ 原文【チーム自】：あなたのアタックフェイズ開始時、あなたの場に青と緑と黒のシグニがある場合、
+  //   【エナチャージ１】をし、**その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加える**。
+  // 🔴旧 live＝`WXDi-P13-009` と同じく**後段が丸ごと欠落**。
+  'WXDi-P03-030': [
+    {
+      effectId: 'WXDi-P03-030-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      condition: { type: 'LRIG_TEAM_COUNT', owner: 'self', team: 'DIAGRAM', operator: 'gte', value: 3 },
+      action: {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'AND',
+          conditions: [
+            { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '青' } },
+            { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '緑' } },
+            { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '黒' } },
+          ],
+        },
+        then: {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+            {
+              type: 'TRANSFER_TO_HAND',
+              source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { cardType: 'シグニ' } },
+            },
+          ],
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P05-014 ／ 原文【自】：このルリグがアタックしたとき、**対戦相手の手札が３枚以下である場合**、カードを１枚引く。
+  //   **４枚以上ある場合**、対戦相手は手札を１枚捨てる。
+  // 🔴旧 live＝2つの排他的な帯が**両方とも無条件**に実行され、常にドロー＋相手の手札破棄になっていた。
+  'WXDi-P05-014': [
+    {
+      effectId: 'WXDi-P05-014-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_LRIG'],
+      action: {
+        type: 'CONDITIONAL',
+        condition: { type: 'HAND_COUNT', owner: 'opponent', operator: 'lte', value: 3 },
+        then: { type: 'DRAW', owner: 'self', count: 1 },
+        else: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX24-P1-013 ロストコード・ピルルク（§5.2 カード単位バッチ第2回・2026-08-30）
   // 原文【自】《自分ターン》《ターン１回》：あなたの＜電機＞のシグニ１体が場に出たとき、
   //   あなたのトラッシュから**そのシグニと共通する色を持つスペル**１枚を対象とし、それを手札に加える。
@@ -255,6 +818,42 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXEX1-06-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"coin":2},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ"},"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","shuffle":true},"recordRevealed":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardName":"フレイスロ"},"minCount":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
   "WXEX1-49": [
+    {
+      effectId: 'WXEX1-49-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          {
+            choiceId: 'hand', label: '手札に加える',
+            action: {
+              type: 'TRANSFER_TO_HAND',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', story: '悪魔', powerRange: { max: 7000 } },
+              },
+            },
+          },
+          {
+            choiceId: 'field', label: '場に出す',
+            action: {
+              type: 'ADD_TO_FIELD', owner: 'self',
+              source: {
+                type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+                filter: { cardType: 'シグニ', story: '悪魔', powerRange: { max: 7000 } },
+              },
+            },
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
     {"effectId":"WXEX1-49-E2","effectType":"AUTO","timing":["ON_CARD_MILLED_FROM_DECK"],"triggerCondition":{"milledDeckOwner":"self","milledMinCount":3},"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
   "WXEX1-69": [
@@ -955,6 +1554,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WD07-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1},{"color":"白","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":4}},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"color":"黒"}},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"color":"白"}},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","color":"白"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}] }]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WXK10-060": [
+    {
+      effectId: 'WXK10-060-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'SAME_ZONE_HAS_SEED' },
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        delta: 3000,
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
     {"effectId":"WXK10-060-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_DECK_TOP","owner":"self","count":3},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"植物"},"operator":"eq","value":3,"distinctName":true,"verbJa":"公開された"},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"filter":{"cardType":"シグニ","story":"植物"},"pickCount":1,"then":{"type":"ADD_TO_ENERGY","owner":"self"},"remainder":{"location":"deck","position":"bottom","shuffle":true}},"else":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"pickCount":0,"then":{"type":"STUB","id":"INTERNAL_NOOP"},"remainder":{"location":"deck","position":"bottom","shuffle":true}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXDi-P11-039": [
@@ -1008,6 +1620,21 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXEX1-72-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"keyword":"バニッシュされない","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"forResonaCondition":true,"resonaClass":"遊具","fromZones":["field"]}}
   ],
   "WXDi-P05-009": [
+    {
+      effectId: 'WXDi-P05-009-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'LOOK_PICK_CHAIN',
+        owner: 'self',
+        revealCount: 3,
+        stages: [{ pickCount: 1, pickUpTo: true, pickNoun: 'カード', then: 'deck_top' }],
+        remainder: { location: 'deck', position: 'bottom', reorder: true },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
     {"effectId":"WXDi-P05-009-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_LRIG_UNDER_COST"},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1},"shuffle":false,"position":"top"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
   ],
   "WX24-P1-050": [

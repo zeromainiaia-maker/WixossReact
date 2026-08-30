@@ -55247,6 +55247,140 @@ test('census 対象filter D群: 無色エナだけをトラッシュ候補にす
   ok(result.otherState.energy.includes(colored), '🔴有色カードは候補外のまま');
 }));
 
+
+// ── census 高シグナル 21効果の是正（2026-08-30・速いレーン §2.0）────────────────────────
+// 🔴**反転確認つき**＝「条件／フィルタが付いた」だけでなく「**付く前の形に戻っていない**」ことも見る。
+//   どれも旧 live は**条件やフィルタが丸ごと落ちた過剰効果**だったので、
+//   parser が再びトップレベルを書き換えたらここが赤くなる。
+// ⚠`then:'deck_top'` / `then:'trash'` は **live 初出**（型の union にはあったが利用が1件も無かった）＝
+//   §4.3「型の union にある値を executor が全部分岐しているか はどの計器も見ていない」への保険。
+test('census 189: 手書き是正21件のトップレベル形を固定する（条件/フィルタの脱落へ戻らない）', () => {
+  const act = (cardNum: string, effectId: string) => manualEffect(cardNum, effectId).action as Record<string, unknown>;
+  const stepsOf = (cardNum: string, effectId: string) =>
+    (act(cardNum, effectId) as unknown as SequenceAction).steps as unknown as Record<string, unknown>[];
+
+  // ① ドライブ状態フィルタ（旧＝owner:'any' count:1 のフィルタ無し＝両者の任意1体）
+  const drive = act('WXK10-062', 'WXK10-062-E1');
+  eq(JSON.stringify([drive.type, drive.target]), JSON.stringify(['POWER_MODIFY',
+    { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', isDrive: true } }]));
+
+  // ② 同じゾーンの【シード】条件（旧＝無条件で常時＋3000）
+  eq(JSON.stringify(manualEffect('WXK10-060', 'WXK10-060-E1').activeCondition),
+    JSON.stringify({ type: 'SAME_ZONE_HAS_SEED' }));
+
+  // ③ 【ソウル】条件（旧＝TURN_OWNER だけ＝自分ターンなら常時）
+  eq(JSON.stringify(manualEffect('SPDi43-08', 'SPDi43-08-E1').activeCondition), JSON.stringify(
+    { type: 'AND', conditions: [{ type: 'TURN_OWNER', owner: 'self' }, { type: 'IS_SELF_SOUL_ATTACHED' }] }));
+
+  // ④ 引用能力をホストへ付与（旧＝TRANSFER_TO_HAND が CONTINUOUS 直下＝平坦化）
+  const soulHost = act('WXDi-P04-014', 'WXDi-P04-014-E1');
+  eq(soulHost.type, 'GRANT_SOUL_HOST_ABILITY');
+  const soulAbil = (soulHost.abilities as CardEffect[])[0]!;
+  eq(JSON.stringify([soulAbil.timing, soulAbil.triggerScope, soulAbil.usageLimit]),
+    JSON.stringify([['ON_ATTACK_SIGNI'], 'self', 'once_per_turn']));
+
+  // ⑤ パワー7000以下（旧＝両分岐とも powerRange 無し）。⚠2分岐の**両方**を見る
+  const choices = (act('WXEX1-49', 'WXEX1-49-E1').choices as Record<string, unknown>[]);
+  eq(choices.length, 2);
+  for (const c of choices) {
+    const inner = c.action as Record<string, unknown>;
+    const src = (inner.source ?? {}) as Record<string, unknown>;
+    eq(JSON.stringify(src.filter), JSON.stringify({ cardType: 'シグニ', story: '悪魔', powerRange: { max: 7000 } }));
+  }
+
+  // ⑥ パワー15000以上ゲート（旧＝手札破棄が無条件）
+  const cp02 = stepsOf('WXDi-CP02-035', 'WXDi-CP02-035-E1');
+  eq(cp02.map(s => s.type).join('|'), 'TRANSFER_TO_DECK|CONDITIONAL');
+  eq(JSON.stringify(cp02[1]!.condition),
+    JSON.stringify({ type: 'LAST_PROCESSED_MATCHES', filter: { powerRange: { min: 15000 } } }));
+
+  // ⑦⑧ 「デッキの一番下」（旧＝position:'top'＝原文と逆の端）
+  eq((stepsOf('WXDi-P07-064', 'WXDi-P07-064-E1')[0]!.destination as Record<string, string>).position, 'bottom');
+  eq((stepsOf('WXDi-P02-036', 'WXDi-P02-036-E1')[0]!.destination as Record<string, string>).position, 'bottom');
+  eq((act('WXDi-P09-068', 'WXDi-P09-068-E1').remainder as Record<string, string>).position, 'bottom');
+
+  // ⑨⑩ LOOK_PICK_CHAIN の選択段（旧＝LOOK_AND_REORDER 単独＝選択段が丸ごと欠落／上限無し）
+  //    🔴`deck_top` / `trash` は live 初出の `then` 値
+  for (const [cardNum, effectId, then] of [
+    ['WXDi-P05-009', 'WXDi-P05-009-E2', 'deck_top'],
+    ['WX25-P1-098', 'WX25-P1-098-E1', 'trash'],
+  ] as const) {
+    const chain = act(cardNum, effectId);
+    eq(chain.type, 'LOOK_PICK_CHAIN', effectId);
+    eq(JSON.stringify(chain.stages),
+      JSON.stringify([{ pickCount: 1, pickUpTo: true, pickNoun: 'カード', then }]), effectId);
+  }
+
+  // ⑪ 下のレベル1/2/3（旧＝条件が落ち、代わりに**対象側**へ level:3 が付いていた）
+  const oni = act('WXK05-035', 'WXK05-035-E2');
+  eq(oni.type, 'CONDITIONAL');
+  eq(JSON.stringify(oni.condition), JSON.stringify({ type: 'AND', conditions: [1, 2, 3].map(level =>
+    ({ type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level } })) }));
+  // 反転確認＝対象フィルタからレベル指定が消えている（原文は「対戦相手のシグニ1体」）
+  eq(JSON.stringify(((oni.then as Record<string, unknown>).target as Record<string, unknown>).filter),
+    JSON.stringify({ cardType: 'シグニ' }));
+
+  // ⑫ 場のレベル1〜4（旧＝無条件ドロー）。⚠「場に」＝両者＝owner:'any'
+  const kura = act('WXK07-087', 'WXK07-087-E2');
+  eq(JSON.stringify(kura.condition), JSON.stringify({ type: 'AND', conditions: [1, 2, 3, 4].map(level =>
+    ({ type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ', level } })) }));
+
+  // ⑬ LB判定（旧＝無条件にデッキトップをライフへ）
+  const deme = act('WX13-032', 'WX13-032-BURST');
+  eq(deme.type, 'REVEAL_AND_PICK');
+  eq(JSON.stringify(deme.filter), JSON.stringify({ hasLifeBurst: true }));
+
+  // ⑭ パワー帯ごとのキーワード付与（旧＝ランサーが欠落・Sランサーがフィルタ無し）
+  const kansyu = stepsOf('WXK07-050', 'WXK07-050-E1');
+  eq(kansyu.map(s => s.type).join('|'), 'ATTACH_CHARM|POWER_MODIFY|GRANT_KEYWORD|GRANT_KEYWORD');
+  eq(JSON.stringify(kansyu.slice(2).map(s => [s.keyword, (s.target as Record<string, unknown>).filter])),
+    JSON.stringify([
+      ['ランサー', { cardType: 'シグニ', powerRange: { min: 10000 } }],
+      ['Sランサー', { cardType: 'シグニ', powerRange: { min: 15000 } }],
+    ]));
+
+  // ⑮ 【使用条件】の色（旧＝ライフ0だけ＝色を問わず使えた）
+  const lo = manualEffect('WXDi-P01-004', 'WXDi-P01-004-E1').condition as Record<string, unknown>;
+  eq(JSON.stringify(lo), JSON.stringify({ type: 'AND', conditions: [
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], color: '青' } },
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], color: '緑' } },
+    { type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: 0 },
+  ] }));
+
+  // ⑯ デッキ下へ（旧＝TRASH＝原文に無いトラッシュ送り）。反転確認＝TRASH に戻っていない
+  const umr = act('WXDi-P05-016', 'WXDi-P05-016-E2');
+  eq(JSON.stringify([umr.type, umr.position, (umr.source as Record<string, unknown>).type]),
+    JSON.stringify(['TRANSFER_TO_DECK', 'bottom', 'HAND_CARD']));
+
+  // ⑰ 下の色ごとの3条件（旧＝3つとも無条件に全部乗る）
+  const zeus = stepsOf('WXDi-P03-038', 'WXDi-P03-038-E1');
+  eq(zeus.map(s => s.type).join('|'), 'CONDITIONAL|CONDITIONAL|CONDITIONAL');
+  eq(JSON.stringify(zeus.map(s => (s.condition as Record<string, Record<string, string>>).filter.color)),
+    JSON.stringify(['白', '青', '緑']));
+
+  // ⑱ 公開4枚のうちレベル1が3枚以上（旧＝無条件に＋3000）
+  const cassio = stepsOf('WXDi-P02-036', 'WXDi-P02-036-E1');
+  eq(JSON.stringify(cassio[1]!.condition),
+    JSON.stringify({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 1 }, minCount: 3 }));
+
+  // ⑲⑳ 「その後、エナゾーンからシグニ1枚まで手札に加える」の後段（旧＝丸ごと欠落）
+  for (const [cardNum, effectId] of [
+    ['WXDi-P13-009', 'WXDi-P13-009-E2'],
+    ['WXDi-P03-030', 'WXDi-P03-030-E1'],
+  ] as const) {
+    const inner = (act(cardNum, effectId).then as unknown as SequenceAction).steps as unknown as Record<string, unknown>[];
+    eq(inner.map(s => s.type).join('|'), 'ENERGY_CHARGE_FROM_DECK|TRANSFER_TO_HAND', effectId);
+    eq(JSON.stringify((inner[1]!.source as Record<string, unknown>)),
+      JSON.stringify({ type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { cardType: 'シグニ' } }), effectId);
+  }
+
+  // ㉑ 3枚以下／4枚以上の排他（旧＝両方とも無条件＝常にドロー＋相手の手札破棄）
+  const miko = act('WXDi-P05-014', 'WXDi-P05-014-E1');
+  eq(JSON.stringify([miko.type, miko.condition, (miko.then as Record<string, unknown>).type,
+    (miko.else as Record<string, unknown>).type]),
+    JSON.stringify(['CONDITIONAL', { type: 'HAND_COUNT', owner: 'opponent', operator: 'lte', value: 3 }, 'DRAW', 'TRASH']));
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
