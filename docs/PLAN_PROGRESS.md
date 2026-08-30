@@ -1,5 +1,50 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-08-30・続き737・Opus 5）＝§5.2 意味照合 段2 を3バッチ回して 残 OPEN を 437 → 366 にした。**
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 437→366｜census 高シグナル 464→460**
+  gates 全緑（**golden 3037→3049 / 0 FAIL**・smoke 10705 全0・fuzz 全0・census 460/460・lint 0 errors）。
+  ⚠**内訳を混ぜない**＝**−48 は「較正」（live 不変）／実装で減ったのは −23**。全文は BUGFIXES.md 冒頭3エントリ。
+
+  | # | バッチ | 減 | 中身 |
+  |---|---|---|---|
+  | ① | **カード単位バッチ第3回** | −3 | census+audit 両立70枚の上から**7枚を triage** → 3枚消化（live 5効果）／4枚を §5.3 へ登録（`O-180`〜`O-183`）／2枚を既登録 `O-96` へ帰属 |
+  | ② | 🆕**再照合バッチ** | **−48** | **台帳の「消化漏れ」を計器で一括回収**（live は1バイトも変えていない＝**較正**） |
+  | ③ | **再照合後バッチ** | −20 | parser 規則7本＋受け皿2キー（live 19カード） |
+
+  **新設した型は5本**（フィルタキー `colorMatchesSourceCard`／`nameMatchesAnyTrashCard`／`powerDiffersFromPrinted`／
+  `noRecollectIcon`、条件型 `ZONE_COUNT_COMPARE`）＝**新しいアクション型は0本**。`Condition` 型数 135→136。
+
+  🆕🔑**②で新設した計器＝`node scripts/archive/semanticAuditRecheck.mjs`（§5.2）。**
+  台帳は `stage2_closed.txt` へ手で追記しないと減らないのに、段2 は parser 規則1本で標本外まで一緒に直る＝
+  **「直っているのに OPEN のまま」が恒常的に溜まる**（実測＝残434 のうち **48件＝11%** が既に済み）。
+  ⚠**候補出しであって判定ではない**（LCS≥7 の108件のうち真は48件＝**約44%**）＝必ず `--full` で原文と突き合わせる。
+  🔑**バッチを1本回すたびに、実装の前にこれを回す。**
+
+  🔴🔑**この巡で確定した実装側の指針＝「受け皿は既にあるのに生成側だけが取り残されている」型が本命。**
+  ③の20件は**新しいアクション型0本・新キー2本だけ**で、残りは `targetsLastProcessed`／`noRiseIcon`／
+  `HAS_CARD_IN_FIELD{negate}`／`triggerCondition.byEffect`／`anyOf` という**既存の受け皿へ parser を配線しただけ**。
+  ⇒ **finding を読んだらまず語彙を `src/types/effects.ts` に grep する。**
+  ⚠**逆に「近い名前の受け皿」を流用してはいけない**＝`colorMatchesLrig` は `target.owner==='opponent'` で
+  **相手のセンタールリグへ基準を swap する**（`effectExecutor.ts:1183`）＝主語が真逆になる。**executor が swap する側か読む。**
+
+  🔴**踏んだ罠4つ（同じ場所を触る人向け）**
+  1. **`abilityBlockTextOf` を parser の中から素で呼ぶと無限再帰する**（`getAbilityBlockTexts`→`parseCardEffects` 再入）。
+     `_collectSourceText` ガードを通すこと。初版は `build:effects` が終わらなかった。
+  2. **`applyDurationsBatch40` の中に規則を書くと、期間句を含まないカードで一度も走らない**（早期 return）。
+     全カードで走らせたいものは独立関数へ（`applyAnaphoraBatch2026Aug30`）。
+  3. **逆翻訳の語彙落ち**＝新フィルタキーを `decompileEffects.ts` の `filterJa` に足し忘れると**直っても見えない**し、
+     `HAS_CARD_IN_FIELD` の `negate` は**「いる**なら**」と真逆に出ていた**。速いレーンの検証は目視なので致命的。
+  4. **据置契約 golden は「消して通す」のが禁止**＝受け皿ができたら**期待値を反転**する（今回3本）。
+     うち1本は `WXDi-P15-098` の **manual 影武者**で、罠1の parser バグを避けるための手書きだった＝parser を直して撤去。
+
+**▶ 次の一手**＝**§5.2 カード単位バッチ第4回**（census+audit 両立 **63枚**の続き＝`WX25-CP1-042` から）。
+⚠**着手前に `semanticAuditRecheck.mjs` を回す**（消化漏れが残っていれば実装より先に回収できる）。
+シート別で歩留まりを狙うなら **Sheet8（82）／Sheet7（72）／Sheet4（56）＝まだ1巡もしていない**。
+§5.3 から取るなら **`O-181`（6効果・`collectAttackEndTriggers` の呼び出し元とスコープを広げるだけ）**が最も安い
+（`O-180` は4効果だが `growLogic` ＝ `src/screens/` を触るので実機まで要る）。
+⚠ **§5.1 の実機返済は2件**（`V-93` ドライバの腐り・`V-94` `O-159` の一過性フラグ）。
+⚠ **§5.3 の「取る順」表の数字は上限**＝着手時に必ず原文を1枚ずつ読んで用法で割り直す。
+
 - 🏁**セッション（2026-08-30・続き736・Opus 5 ＋ Codex）＝§5.3「取る順」上位を消化し、計器の限界を確定した。**
   📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 447→437｜census 高シグナル 477→464**
   gates 全緑（**golden 3037→3044 / 0 FAIL**・smoke 10705 全0・fuzz 全0・lint 0 errors）。全文は BUGFIXES.md 冒頭8エントリ。

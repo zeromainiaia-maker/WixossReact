@@ -18,6 +18,7 @@ import type {
   CompareOp,
   SequenceAction,
   ChooseAction,
+  ChoiceOption,
   UnknownAction,
   RevealAndPickAction,
   EnergyChargeAction,
@@ -21586,6 +21587,98 @@ ${card.BurstText ?? ''}`;
 }
 
 /**
+ * 「〈対象〉は【A】か【B】を得る」＝**2つのキーワードから1つを選ぶ**付与（2026-08-30・母集団6効果）。
+ *
+ * 🔴従来は先頭の【A】だけを見て `GRANT_KEYWORD{keyword:A}` を1本出しており、**【B】は丸ごと落ちていた**
+ *   （`WXDi-P15-048-E2` はコイン5枚を払って必ず【アサシン】＝【ダブルクラッシュ】を選べない過小実行）。
+ * ⚠受け皿は既存の `CHOOSE`＋`GRANT_KEYWORD` だけ＝**新しい型は要らない**。
+ * ⚠`keyword` は【】の中身をそのまま使う（`アサシン:{"levelLte":2}` のような**修飾つき変種**も
+ *   engine 側は同じ文字列で解決するため。`SPDi43-06-E2`）。
+ * ⚠**既に `CHOOSE` になっている効果は触らない**（手書き／別規則で2択化済みのものを壊さない）。
+ */
+function applyKeywordChoiceGrantBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}
+${card.BurstText ?? ''}`;
+  if (!/【[^】]+】か【[^】]+】を得る/.test(allText)) return;
+  for (const effect of effects) {
+    // 🔴`abilityBlockTextOf` を素で呼ぶと `parseCardEffects` へ再入して無限再帰する（§ applyAnaphoraBatch2026Aug30）。
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    const m = source.match(/【([^】]+)】か【([^】]+)】を得る/);
+    if (!m) continue;
+    const [, kwA, kwB] = m;
+    let replaced = false;
+    const rewrite = (a: EffectAction | undefined, seen: Set<unknown>): EffectAction | undefined => {
+      if (!a || typeof a !== 'object' || seen.has(a)) return a;
+      seen.add(a);
+      if (!replaced && a.type === 'GRANT_KEYWORD' && a.keyword === kwA) {
+        replaced = true;
+        const mk = (keyword: string, idx: number): ChoiceOption => ({
+          choiceId: `${effect.effectId}-kw${idx}`,
+          label: `【${keyword}】を得る`,
+          action: { ...a, keyword } as EffectAction,
+        });
+        return { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [mk(kwA, 0), mk(kwB, 1)] } as ChooseAction;
+      }
+      if (a.type === 'SEQUENCE') { a.steps = a.steps.map(st => rewrite(st, seen) as EffectAction); return a; }
+      if (a.type === 'CONDITIONAL') {
+        a.then = rewrite(a.then, seen) as EffectAction;
+        if (a.else) a.else = rewrite(a.else, seen) as EffectAction;
+        return a;
+      }
+      if (a.type === 'REPEAT') { a.action = rewrite(a.action, seen) as EffectAction; return a; }
+      return a;
+    };
+    const next = rewrite(effect.action, new Set());
+    if (replaced && next) {
+      effect.action = next;
+      clearSilentFallback(effect.effectId);
+    }
+  }
+}
+
+/**
+ * 「〈対象〉は【K】と「【常】：バニッシュされない。」を得る」＝**キーワード＋引用能力の同時付与**で
+ * 引用側だけが落ちる形（2026-08-30・母集団1効果＝`WXEX2-07-E1`）。
+ *
+ * 🔴「【シャドウ】と「【常】：アタックできない。」を得る」（`WXDi-P02-055-E1`）は既存経路が
+ *   **引用側もキーワードとして** 拾えるので通っていたが、「バニッシュされない」は
+ *   `GRANT_KEYWORD` では表せない（正表現は `GRANT_PROTECTION{from:['BANISH']}`）ため、
+ *   引用ブロックが丸ごと消えて**ダブルクラッシュだけ**になっていた（＝耐性が恒久的に無い過小実行）。
+ * ⚠**無条件形だけ**を扱う＝`WX25-CP1-079-E1` の「パワーが1000以下であるかぎり、バニッシュされない」は
+ *   付与される能力の側に条件が要る（`GRANT_EFFECT` が要る）ので触らない（§5.3 へは登録済みの機構待ち）。
+ */
+function applyQuotedBanishImmunityGrantBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}
+${card.BurstText ?? ''}`;
+  if (!/】と「【常】：バニッシュされない。?」を得る/.test(allText)) return;
+  for (const effect of effects) {
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    const m = source.match(/【([^】]+)】と「【常】：バニッシュされない。?」を得る/);
+    if (!m) continue;
+    const grant = effect.action as GrantKeywordAction;
+    if (grant?.type !== 'GRANT_KEYWORD' || grant.keyword !== m[1]) continue;
+    effect.action = {
+      type: 'SEQUENCE',
+      steps: [
+        grant,
+        {
+          type: 'GRANT_PROTECTION',
+          target: JSON.parse(JSON.stringify(grant.target)) as EffectTarget,
+          from: ['BANISH'],
+          sourceOwner: 'any',
+          duration: grant.duration ?? 'PERMANENT',
+        } as GrantProtectionAction,
+      ],
+    } as SequenceAction;
+    clearSilentFallback(effect.effectId);
+  }
+}
+
+/**
  * 段2 第40バッチ：期間句を、その action を実際に保持するストアの語彙へ落とす。
  * wrapper だけを辿り、GRANT_* の abilities 内側には潜らない（外側付与期間との混同を防ぐ）。
  */
@@ -22601,6 +22694,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyLevelConditionsBatch39(card, effects);
   applyDurationsBatch40(card, effects);
   applyAnaphoraBatch2026Aug30(card, effects);
+  applyKeywordChoiceGrantBatch2026Aug30(card, effects);
+  applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
     // LOOK_AND_REORDER 専用分岐が単文条件ラッパより先に本文を消費する形の補完。

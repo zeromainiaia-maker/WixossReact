@@ -112,7 +112,22 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 460; // 2026-08-30 §5.2 カード単位バッチ第3回＝464→460。**真の改善**＝
+const BASELINE_HIGH = 407; // 2026-08-30 census 較正＋キーワード付与バッチ＝460→407（-53）。
+// 🔴**内訳を混ぜない**＝**-49 は計器の較正（live は1バイトも変えていない）／実装で減ったのは -4**。
+//   ■較正 -49（`docs/_vocab_census.txt` の高シグナル id 集合を差分＝**消えた49件は全数が下の2群で、
+//     新しく入った id は0件**）。
+//   ①「キーワード能力語の不在」の **バニッシュされない 40件**＝JSON の正表現は日本語の語ではなく
+//     `GRANT_PROTECTION{from:['BANISH']}`（`sourceOwner`／`bySourceType`／`activeCondition` に
+//     「対戦相手の効果によって」「対戦相手のシグニの効果によって」「〜であるかぎり」まで載る）。
+//     ⇒ `KW_ALT` を narrow に足した（`from` に `BANISH` が入るときだけ通す）。
+//     ⚠**43件を1件ずつ原文 × live JSON で目視**＝真の脱落は `WXEX2-07-E1` の1件だけで、それは実装で直した。
+//   ②「ダウン/アップ状態フィルタ」9件＝自分／自分のセンタールリグの状態は `TargetFilter` ではなく
+//     `Condition`（`THIS_CARD_IS_UP` / `CENTER_LRIG_IS_UP`）で表す。⇒ `extraOk` に残渣チェック付きで追加。
+//     （本ファイル冒頭 続き704 のメモが「計器の認識漏れ」と書いたまま較正されずに残っていた分）。
+//   ■実装 -4＝「【A】か【B】を得る」を `CHOOSE`×2 の `GRANT_KEYWORD` へ（`WXDi-P15-048-E2` ほか3効果。
+//     従来は前段だけを付与＝**後段を選べない過小実行**）＋ `WXEX2-07-E1` の引用「【常】：バニッシュされない。」
+//     を `GRANT_PROTECTION` へ（引用ブロックが丸ごと落ちていた）。**新しいアクション型は0本**。
+// 旧: const BASELINE_HIGH = 460; // 2026-08-30 §5.2 カード単位バッチ第3回＝464→460。**真の改善**＝
 // 5効果を parser で直しただけで **parseStatus 内訳（AUTO 9942 / MANUAL 752 / PARTIAL 11）も
 // STUB 効果数（2224）も1件も動いていない**＝MANUAL/STUB 免除で計器から消えた減り方ではない。
 // 旧: const BASELINE_HIGH = 464; // 2026-08-30 §5.2 カード単位バッチ第2回＝465→464。**真の改善**＝
@@ -796,10 +811,30 @@ const PATTERNS: Pattern[] = [
     //  parser/支払い経路を直してからここを緩めている）。
     // ⚠ 無条件マスクにはしない＝コスト句を除いた残りに状態語が残るならフラグを維持する
     //   （lrigDown コストと「アップ状態のシグニ」フィルタを併せ持つ将来のカードを隠さないため）。
-    extraOk: (js, t) => (js.includes('lrigDown') || js.includes('lrigDownVariable'))
-      && !/(ダウン状態の|アップ状態の)/.test(
-        t.replace(/アップ状態の(?:レベル[０-９\d]+の)?(?:センター)?ルリグ(?:[０-９\d]+体を|を好きな数)ダウンする/g, ''),
-      ),
+    // 🆕2026-08-30 較正＝**自分自身／自分のセンタールリグの「アップ状態か」は `Condition` 型で表す**
+    //   （`THIS_CARD_IS_UP` / `THIS_CARD_IS_DOWN` / `CENTER_LRIG_IS_UP`＝`src/types/effects.ts:401-403`）。
+    //   計器は `TargetFilter` 語彙の `isUp`/`isDown` だけを探していたので、**正しく条件化されている
+    //   「このシグニがアップ状態の場合」族が丸ごと高シグナルへ落ちていた**（`vocabCensus.ts` 冒頭の
+    //   続き704 メモが「計器の認識漏れ」と書いたまま較正されずに残っていた分）。
+    //   ⚠ 無条件マスクにはしない＝**その節を除いた残りに状態語が残るならフラグを維持する**
+    //     （条件は自分、フィルタは相手、という併用カードを隠さないため）。
+    extraOk: (js, t) => {
+      let s = t;
+      if (js.includes('THIS_CARD_IS_UP')) {
+        s = s.replace(/(?:この(?:シグニ|カード|レゾナ)が)?アップ状態(?:の場合|である(?:かぎり|限り))/g, '');
+      }
+      if (js.includes('THIS_CARD_IS_DOWN')) {
+        s = s.replace(/(?:この(?:シグニ|カード|レゾナ)が)?ダウン状態(?:の場合|である(?:かぎり|限り))/g, '');
+      }
+      if (js.includes('CENTER_LRIG_IS_UP')) {
+        s = s.replace(/あなたのセンタールリグがアップ状態(?:の場合|である(?:かぎり|限り))/g, '');
+      }
+      if (s !== t && !/(ダウン状態の|アップ状態の)/.test(s)) return true;
+      return (js.includes('lrigDown') || js.includes('lrigDownVariable'))
+        && !/(ダウン状態の|アップ状態の)/.test(
+          t.replace(/アップ状態の(?:レベル[０-９\d]+の)?(?:センター)?ルリグ(?:[０-９\d]+体を|を好きな数)ダウンする/g, ''),
+        );
+    },
   },
   {
     name: '名前包含(カード名に《X》を含む)',
@@ -1369,6 +1404,19 @@ function main(): void {
   {
     const KWS = ['アサシン', 'ダブルクラッシュ', 'トリプルクラッシュ', 'ランサー', 'シャドウ', 'マルチエナ',
       'シュート', 'チアガール', 'バニッシュされない', 'ガードできない'];
+    // 🆕2026-08-30 較正＝**「バニッシュされない」だけは日本語のキーワード語では表さない**。
+    //   正表現は `GRANT_PROTECTION{from:[…'BANISH'…]}`（`effectExecutor` / `calcContinuousSigniMutations`
+    //   が消費する保護テーブル）で、`sourceOwner` / `bySourceType` / `activeCondition` に
+    //   「対戦相手の効果によって」「対戦相手のシグニの効果によって」「〜であるかぎり」まで載る。
+    //   ⇒ 語の有無だけを見る本センサスでは**正しく実装された42効果が丸ごと高シグナルへ落ちていた**
+    //   （2026-08-30 に43件を1件ずつ原文 × live JSON で目視確認。真の脱落は `WXEX2-07-E1` の1件だけ）。
+    //   ⚠ narrow に取る＝`GRANT_PROTECTION` が在るだけでは通さず、**`from` に `BANISH` が入っている**
+    //     ことまで要求する（`from:['DOWN']` 等の別保護で「バニッシュされない」を隠さないため）。
+    //     `fromAll:true`（＝「効果を受けない」）は意図的に含めない＝別語彙なので保守側に倒す。
+    const KW_ALT: Record<string, (js: string) => boolean> = {
+      'バニッシュされない': js => js.includes('"type":"GRANT_PROTECTION"')
+        && /"from":\[[^\]]*"BANISH"[^\]]*\]/.test(js),
+    };
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
@@ -1376,7 +1424,7 @@ function main(): void {
       const found = KWS.filter(k => u.text.includes(k));
       if (!found.length) continue;
       hits++;
-      const missing = found.filter(k => !u.js.includes(k));
+      const missing = found.filter(k => !u.js.includes(k) && !(KW_ALT[k]?.(u.js) ?? false));
       if (!missing.length) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }

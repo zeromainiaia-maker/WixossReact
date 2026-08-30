@@ -10873,9 +10873,14 @@ test('続き377l: 【K】は「を得る」隣接では取らない（保有フ�
   const wx08 = (effectsMap.get('WX08-061') ?? []).find(x => x.effectId === 'WX08-061-E1');
   eq((wx08?.action as { keyword?: string } | undefined)?.keyword, 'アサシン',
     'WX08-061-E1: 「【ダブルクラッシュ】を持つシグニ」は保有フィルタ＝付与するのはアサシン');
+  // 🆕2026-08-30 に**期待値を反転**＝「【A】か【B】を得る」の受け皿（`CHOOSE` × 2つの `GRANT_KEYWORD`）が
+  //   出来たので、正解は「前段だけ」でも「後段だけ」でもなく**両方が2択で載る**。
+  //   ⚠トリップワイヤの意図（＝**後段だけを採る退化を止める**）は活きている＝順序も固定する。
   const p15 = (effectsMap.get('WXDi-P15-048') ?? []).find(x => x.effectId === 'WXDi-P15-048-E2');
-  eq((p15?.action as { keyword?: string } | undefined)?.keyword, 'アサシン',
-    'WXDi-P15-048-E2: 「【アサシン】か【ダブルクラッシュ】」の後段だけを採らない');
+  const p15a = p15?.action as { type?: string; choices?: { action?: { keyword?: string } }[] } | undefined;
+  eq(p15a?.type, 'CHOOSE', 'WXDi-P15-048-E2: 「【A】か【B】」は2択の CHOOSE');
+  eq(p15a?.choices?.map(c => c.action?.keyword).join('/'), 'アサシン/ダブルクラッシュ',
+    'WXDi-P15-048-E2: 前段・後段の両方が原文順で載る（後段だけを採らない）');
   for (const [card, effId] of [['WXK02-057', 'WXK02-057-E1'], ['WXDi-P11-071', 'WXDi-P11-071-E2']] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
     eq(e?.action?.type, 'STUB',
@@ -54763,6 +54768,46 @@ test('段2 Sheet3① 見送り契約: A5/C2/C3 は表せない軸を見せかけ
   ok(JSON.stringify(c3).includes('powerDiffersFromPrinted'),
     'C3: 印刷パワー≠実効パワーの受け皿ができたので載る');
 });
+
+test('census較正バッチ 2026-08-30: 「【A】か【B】を得る」は2択の CHOOSE になる', () => withSavedCursor(() => {
+  // 🔴従来は先頭の【A】だけを `GRANT_KEYWORD` にしており、**【B】は選べなかった**（過小実行）。
+  //   受け皿は既存の `CHOOSE` ＋ `GRANT_KEYWORD` だけ＝新しい型は足していない。
+  const cases: [string, string, string][] = [
+    ['WXDi-P15-048', 'WXDi-P15-048-E2', 'アサシン/ダブルクラッシュ'],
+    ['WX24-P4-010', 'WX24-P4-010-E1', 'アサシン/ダブルクラッシュ'],
+    ['WXDi-P12-007', 'WXDi-P12-007-E1', 'アサシン/ダブルクラッシュ'],
+    // ⚠変種キーワード（`アサシン:{"levelLte":2}`）も【】の中身をそのまま keyword にする
+    ['SPDi43-06', 'SPDi43-06-E2', 'アサシン:{"levelLte":2}/シャドウ:{"levelGte":3}'],
+  ];
+  for (const [card, effId, want] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const stack: unknown[] = [e?.action];
+    let found: { choose_count?: number; from_count?: number; choices?: { action?: { keyword?: string } }[] } | undefined;
+    while (stack.length && !found) {
+      const cur = stack.pop();
+      if (!cur || typeof cur !== 'object') continue;
+      if ((cur as { type?: string }).type === 'CHOOSE') { found = cur as typeof found; break; }
+      stack.push(...Object.values(cur as Record<string, unknown>));
+    }
+    eq(found?.choose_count, 1, `${effId}: 2つから1つ`);
+    eq(found?.from_count, 2, `${effId}: from_count=2`);
+    eq(found?.choices?.map(c => c.action?.keyword).join('/'), want, `${effId}: ${want}`);
+  }
+}));
+
+test('census較正バッチ 2026-08-30: 「【K】と「【常】：バニッシュされない。」を得る」の引用側を落とさない', () => withSavedCursor(() => {
+  // 🔴`WXEX2-07-E1` は引用ブロックが丸ごと消えて【ダブルクラッシュ】だけになっていた
+  //   ＝＜宝石＞のシグニがバニッシュ耐性を恒久的に持たない過小実行。
+  //   「バニッシュされない」は `GRANT_KEYWORD` では表せない（正表現は `GRANT_PROTECTION{from:['BANISH']}`）。
+  const e = (effectsMap.get('WXEX2-07') ?? []).find(x => x.effectId === 'WXEX2-07-E1');
+  const seq = e?.action as { type?: string; steps?: { type?: string; keyword?: string; from?: string[]; target?: EffectTarget }[] } | undefined;
+  eq(seq?.type, 'SEQUENCE', 'WXEX2-07-E1: キーワードと保護の2ステップ');
+  eq(seq?.steps?.[0]?.keyword, 'ダブルクラッシュ', 'WXEX2-07-E1: 前段はキーワード付与');
+  eq(seq?.steps?.[1]?.type, 'GRANT_PROTECTION', 'WXEX2-07-E1: 後段は保護付与');
+  eq(JSON.stringify(seq?.steps?.[1]?.from), JSON.stringify(['BANISH']), 'WXEX2-07-E1: from=[BANISH]');
+  eq(JSON.stringify(seq?.steps?.[1]?.target?.filter), JSON.stringify(seq?.steps?.[0]?.target?.filter),
+    'WXEX2-07-E1: 保護の対象は付与と同じ＜宝石＞のシグニ');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
