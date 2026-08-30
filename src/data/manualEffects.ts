@@ -8,6 +8,38 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
+  // WX24-P1-013 ロストコード・ピルルク（§5.2 カード単位バッチ第2回・2026-08-30）
+  // 原文【自】《自分ターン》《ターン１回》：あなたの＜電機＞のシグニ１体が場に出たとき、
+  //   あなたのトラッシュから**そのシグニと共通する色を持つスペル**１枚を対象とし、それを手札に加える。
+  // 🔴旧 live の穴は**2つ**＝①**回収する種別が「シグニ」になっていた**（原文は**スペル**）
+  //   ②**「そのシグニと共通する色を持つ」の色条件が丸ごと無い**＝トラッシュの任意のシグニを回収できた。
+  // 受け皿＝`cardType` は自明、色は 🆕`colorMatchesTriggerSource`（本バッチで新設）。
+  // ⚠**`colorMatchesLastProcessed` では駄目**＝あちらは `lastProcessedCards[0]`（この効果が直前に処理した札）を見るが、
+  //   ここで要るのは **`ctx.triggeringCardNum`**（＝【自】を誘発させた「そのシグニ」）＝**常に空ヒットになる**。
+  // ⚠**同型は原文で7枚**（`SPDi01-121` / `WX14-003` / `WXK09-029` / `WX24-P4-105` / `WX25-P1-115` / `WX25-P3-110`）＝
+  //   **用法を確認して parser へ回すのが本筋**（§2.0 の3枚以上ルール）。本バッチは受け皿の新設と1枚の実証まで。
+  'WX24-P1-013': [
+    {
+      effectId: 'WX24-P1-013-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      triggerScope: 'any_ally',
+      triggerFilter: { story: '電機' },
+      triggerCondition: { turnOwner: 'self' },
+      usageLimit: 'once_per_turn',
+      action: {
+        type: 'TRANSFER_TO_HAND',
+        source: {
+          type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+          filter: { cardType: 'スペル', colorMatchesTriggerSource: true },
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX21-071 ワイズ・スパーク（§5.3 `O-166`・2026-08-30）
   // 原文「…それのパワーを－8000する。**この効果によってそのシグニのパワーが０以下になった場合、
   //   カードを１枚引き**、対戦相手は手札を１枚捨てる。」

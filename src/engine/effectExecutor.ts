@@ -2834,6 +2834,17 @@ function resolveDynamicFilter(
     const cols = ref ? (cardMap.get(getCardNum(ref))?.Color?.match(/[白赤青緑黒無]/g) ?? []) : [];
     result = cols.length ? { ...rest, color: cols } : { ...rest, color: ['__NONE__'] };
   }
+  // 🆕colorMatchesTriggerSource:「**その**シグニと共通する色を持つ」＝**トリガー元**との色比較（2026-08-30）。
+  // ⚠上の `colorMatchesLastProcessed` と**参照先が違う**（あちらは lastProcessedCards[0]）＝混同すると常に空ヒット。
+  // ⚠**参照不能なら空ヒット（fail-closed）**＝`color: '__none__'` を置いて候補ゼロに倒す（上と同じ倒し方）。
+  if (result.colorMatchesTriggerSource) {
+    const { colorMatchesTriggerSource: _ct, ...restCT } = result;
+    const trigColor = triggeringCardNum ? (cardMap.get(getCardNum(triggeringCardNum))?.Color ?? '') : '';
+    result = trigColor
+      ? { ...restCT, color: trigColor.split(/[/／、,]/).map(x => x.trim()).filter(Boolean) }
+      : { ...restCT, color: '__none__' };
+  }
+
   // 「この方法でダウンしたルリグと同じレベル／共通する色」（タスク12(cix)）。
   // 参照先は ①lastProcessedCards[0] がルリグならそれ（同一 SEQUENCE 内の DOWN。任意ダウンのスキップで空＝did-it
   // ゲート）②なければ ownerSt.last_lrig_down_cards（コスト経路。実UIは支払いと解決が別 ExecCtx なので

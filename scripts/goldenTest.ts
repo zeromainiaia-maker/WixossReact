@@ -33511,6 +33511,29 @@ test('O-173 主群: 可変手札捨て4効果は対象1体へ捨てた枚数×�
   ok(!mods.some(mod => mod.cardNum === untouched1 || mod.cardNum === untouched2), '他の2体へ修整しない');
 }));
 
+test('§5.2 バッチ2 WX24-P1-013-E1: 回収はスペル限定＋トリガー元と共通色（colorMatchesTriggerSource）', () => withSavedCursor(() => {
+  // 🔴旧 live の穴は2つ＝①回収する種別が「シグニ」だった（原文はスペル）②「そのシグニと共通する色を持つ」が丸ごと無かった。
+  // ⚠受け皿は本バッチで新設した `colorMatchesTriggerSource`。**`colorMatchesLastProcessed` では駄目**
+  //   （あちらは lastProcessedCards[0]、こちらは ctx.triggeringCardNum ＝常に空ヒットになる）。
+  const eff = (effectsMap.get('WX24-P1-013') ?? []).find(e => e.effectId === 'WX24-P1-013-E1');
+  ok(!!eff, 'WX24-P1-013-E1 が live に存在');
+  const src = (eff!.action as { source?: { filter?: Record<string, unknown> } }).source;
+  eq(src?.filter?.cardType, 'スペル', '回収対象はスペル（旧はシグニ＝原文と別種別）');
+  eq(src?.filter?.colorMatchesTriggerSource, true, 'トリガー元と共通する色の条件がある');
+  ok(!JSON.stringify(eff).includes('colorMatchesLastProcessed'), '参照先を取り違えていない（lastProcessed ではない）');
+
+  // 🔴engine 側＝トリガー元の色で絞れること／参照不能なら空ヒット（fail-closed）
+  const spell = findCard(c => c.Type === 'スペル' && (c.Color ?? '').includes('青'));
+  const trigger = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('青'));
+  const ctx = mkCtx({ signi: [null, null, null] }, { signi: [null, null, null] });
+  ctx.ownerState.trash = [spell];
+  const withTrigger = run(eff!.action as EffectAction, { ...ctx, triggeringCardNum: trigger });
+  ok(withTrigger.ownerState.hand.includes(spell), '同じ色のスペルが回収できる');
+
+  const noTrigger = run(eff!.action as EffectAction, { ...ctx, triggeringCardNum: undefined });
+  ok(!noTrigger.ownerState.hand.includes(spell), 'トリガー元が引けないときは空ヒット（fail-closed）');
+}));
+
 test('O-159: 「このターン、あなたのシグニは新たに能力を得られない」が真 no-op だったのを実働化する', () => withSavedCursor(() => {
   // §5.3 `O-159`（2026-08-30）＝`WX13-029-E1` の選択肢③。
   // 🔴**旧実装は `STUB{SUPPRESS_GAIN_ABILITY}` が他の保護 STUB と同じ枝で `[保護効果: …]` とログを出すだけ**で、

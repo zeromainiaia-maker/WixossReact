@@ -934,6 +934,15 @@ export interface TargetFilter {
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
   colorNotMatchesOppLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（効果使用者基準。WXDi-P02-038）
   colorMatchesLastProcessed?: boolean; // 直前に処理したカード（lastProcessedCards[0]＝この方法でダウンしたルリグ等）と共通する色を持つか。owner非依存＝相手エナを自ルリグ色で絞る用途（WX25-P2-112）。参照不能なら空ヒット＝did-it ゲートを兼ねる。resolveDynamicFilterが解決
+  /**
+   * 🆕**「**その**シグニと共通する色を持つ」＝**トリガー元シグニ**との色比較（§5.2 カード単位バッチ第2回・2026-08-30）。
+   * ⚠**`colorMatchesLastProcessed` とは参照先が違う**＝あちらは `lastProcessedCards[0]`（この効果が直前に処理した札）、
+   *   こちらは **`ctx.triggeringCardNum`**（＝【自】を誘発させた「そのシグニ」）。**混同すると常に空ヒットになる。**
+   * 例＝`WX24-P1-013-E1`「あなたの＜電機＞のシグニ１体が場に出たとき、あなたのトラッシュから
+   *   **そのシグニと共通する色を持つ**スペル１枚を対象とし、それを手札に加える」。
+   * ⚠**参照不能なら空ヒット（fail-closed）**＝`colorMatchesLastProcessed` と同じ倒し方。
+   */
+  colorMatchesTriggerSource?: boolean;
   colorMatchesUnderCards?: boolean; // 効果元シグニのスタック下カード群のいずれかと共通色。下カード無しは空ヒット
   colorMatchesCostTrashed?: boolean; // 直前の能力コストでトラッシュに置いたカード群のいずれかと共通色。記録無しは空ヒット
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
