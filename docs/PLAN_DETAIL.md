@@ -1,5 +1,18 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-30 整理（§6 恒久指標・続き736 中間値の退避）
+
+- **2026-08-30 続き736 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 447→438｜census 高シグナル 477→465**
+  ＝**§5.2 カード単位バッチ第1回（3効果）＋ §5.3「取る順」上位5項目（21効果）**。
+  **golden 3037→3043 / 0 FAIL**、smoke 効果総数 10705 全異常0、fuzz 全0、
+  lint 0 errors／**249 warnings（据置）**、同型★0、`census:stubs` A群🔴0／C群0、manual-fields 0、held **87枚**。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 SELF_TEXT 131→130行 / 128→127ハンドラ**（`BASELINE_SELF_TEXT` も 130）。
+  🆕**計器2本を追加**＝`census:cards` の **`mech` フラグ**（§5.3 名指し 188枚。要対応 663→779・即着手可能 591・census+audit 両立 86）と
+  **`scripts/archive/censusMechPopulation.mjs`**（§5.3 の母集団を原文×live の2段で測る）。
+  🆕**新設した型は2本だけ**（条件型 `LAST_PROCESSED_POWER_LTE`／状態 `ability_gain_blocked_this_turn`）＝
+  **新しいアクション型は0本**。⚠**実機未検証が2件**（§5.1 `V-93`・`V-94`）。
+
 ## 2026-08-30 整理（§6 恒久指標・続き733時点値の退避・続き736）
 
 - **2026-08-30 続き733 後（本行が直近の正）**：
