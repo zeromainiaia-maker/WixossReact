@@ -1019,6 +1019,7 @@ export function matchesFilter(
       filter.hasIcon === 'ライズ'   ? txt.includes('【ライズ】') :
       filter.hasIcon === 'トラップ' ? txt.includes('《トラップアイコン》：') :
       filter.hasIcon === 'アクセ'   ? txt.includes('【アクセ】') :
+      filter.hasIcon === 'レイヤー' ? txt.includes('【レイヤー】') :
       false;
     if (!iconOk) return false;
   }
@@ -2310,9 +2311,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return (st(cond.owner).own_gate_zones ?? []).length > 0;
     case 'THIS_CARD_HAS_UNDER': {
       // filter 指定時は下カードのいずれかがフィルタ一致（「下にレベルNのシグニがあるかぎり」等。WX24-P1-043）
+      // subject:'lrig'＝**このルリグの下**＝グロウで積んだ `field.lrig` スタック（センター＋アシスト）。
+      // ⚠既定（signi）は `field.signi` しか見ないので、ルリグ札で使うと常に false になる。
       const src = ctx.sourceCardNum;
       if (!src) return false;
-      const stack = ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
+      const stack = cond.subject === 'lrig'
+        ? [ctx.ownerState.field.lrig, ctx.ownerState.field.assist_lrig_l, ctx.ownerState.field.assist_lrig_r]
+            .find(z => z?.at(-1) === src)
+        : ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
       // minCount は「下にカードがN枚以上ある場合」（省略=1）。filter 併用時は filter 一致だけを数える。
       const unders = (stack ?? []).slice(0, -1).filter(cn => {
         if (!cond.filter) return true;
@@ -2382,6 +2388,42 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // 場に付いている【チャーム】の枚数（signi_charms は「ゾーンごとに1枚 or null」）。
     case 'CHARM_COUNT':
       return cmp((st(cond.owner).field.signi_charms ?? []).filter(Boolean).length, cond.operator, cond.value);
+    case 'ZONE_SUM_COUNT': {
+      // 「〈ゾーンA〉と〈ゾーンB〉に〈filter〉のカードが合計N枚以上ある場合」。
+      // ⚠数え方は `countFromZone` に一本化（filter/unitSize/per/distinctBy を共有）＝AND 近似では表せない軸。
+      const total = cond.zones.reduce(
+        (n, z) => n + countFromZone(z, s, o, ctx.cardMap, ctx.sourceCardNum), 0);
+      return cmp(total, cond.operator, cond.value);
+    }
+    case 'CENTER_LRIG_ATTACKED_THIS_TURN': {
+      // このターンに owner のセンタールリグがアタックしていたか（`lrig_has_attacked` はターン開始時リセット）。
+      const attacked = st(cond.owner).lrig_has_attacked ?? false;
+      return cond.negate ? !attacked : attacked;
+    }
+    case 'FIELD_ATTACHED_COUNT': {
+      // 「場のシグニに付いているカード／下に置かれているカード」の枚数（owner:'any' は両者を合算）。
+      // ⚠付いているカード＝【チャーム】/【アクセ】/【ソウル】/裏向き付け（`THIS_CARD_HAS_ATTACHED` と同じ集合）。
+      // include: 'attached'＝付いているカード／'under'＝下のカード／'both'＝合計／
+      //          'soul'＝【ソウル】だけ／'zone'＝シグニゾーンにあるカード全部（場のシグニ本体も数える）
+      const kind = cond.include ?? 'both';
+      const countIn = (ps: typeof s): number => {
+        const f = ps.field;
+        let n = 0;
+        for (let zi = 0; zi < 3; zi++) {
+          if (kind === 'soul') { n += f.signi_soul?.[zi] ? 1 : 0; continue; }
+          if (kind !== 'under') {
+            n += (f.signi_charms?.[zi] ? 1 : 0)
+              + acceCardsAt(f, zi).length
+              + (f.signi_soul?.[zi] ? 1 : 0)
+              + (f.signi_facedown_attached?.[zi]?.length ?? 0);
+          }
+          if (kind !== 'attached') n += Math.max(0, (f.signi[zi]?.length ?? 0) - (kind === 'zone' ? 0 : 1));
+        }
+        return n;
+      };
+      const total = cond.owner === 'any' ? countIn(s) + countIn(o) : countIn(st(cond.owner));
+      return cmp(total, cond.operator, cond.value);
+    }
     case 'VIRUS_COUNT':
       return cmp((st(cond.owner).field.signi_virus ?? []).reduce((sum, count) => sum + count, 0), cond.operator, cond.value);
     // 「この方法で（シグニを）公開したとき」（§5.3 `O-81`・`WX16-003-E3`）。

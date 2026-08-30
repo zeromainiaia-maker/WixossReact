@@ -250,7 +250,7 @@ export type ActiveCondition =
   | { type: 'TURN_HAND_DISCARD_GTE'; owner?: Owner; value: number }  // このターンに owner（省略=self）が手札をN枚以上捨てている場合。⚠Condition 側にも同型あり＝両方揃えて更新すること
   | { type: 'SIGNI_BANISHED_THIS_TURN'; owner: Owner; minCount?: number }  // このターンに owner のシグニがN体以上バニッシュされていた場合（signi_banished_this_turn。省略=1）
   | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（deck_to_trash_count_this_turn。省略=1）
-  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; minCount?: number } // このシグニの下にカードがN枚以上あるかぎり（省略=1。filter指定時は一致カードを数える）
+  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; minCount?: number; subject?: 'signi' | 'lrig' } // このシグニの下にカードがN枚以上あるかぎり（省略=1。filter指定時は一致カードを数える）。subject:'lrig'＝**このルリグの下**（グロウで積んだ `field.lrig` スタック）
   | { type: 'SELF_HAS_KEYWORD'; keyword: string; subject?: 'self' | 'center_lrig' } // 自身またはセンタールリグが【keyword】を持っているかぎり
   | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number }  // 登録者数条件（N万人以上等）
@@ -435,7 +435,13 @@ export type Condition =
   // このシグニの下にカードがある場合。negate=true は「無い場合」。
   // minCount は「下にカードがN枚以上ある場合」（省略=1）＝`WXK08-030-E1` の２枚/５枚の多段閾値。
   // ⚠ filter 併用時は **filter 一致の枚数**を数える（無指定なら下カード総数）。
-  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; negate?: boolean; minCount?: number }
+  /**
+   * `subject:'lrig'`＝**このルリグの下にあるカード**（グロウで積み上がった `field.lrig` スタックの最上面より下）。
+   * 🔴既定（`'signi'`）は `field.signi` しか走査しないので、「このルリグの下にカードがN枚以上ある場合」を
+   *   既定で書くと**常に false** になる（`WXDi-D05-004-E2`／`WXDi-P02-023-E2`／`WXDi-P03-023-E2` は
+   *   条件ごと落ちて**多段閾値が両方とも無条件**に実行されていた）。
+   */
+  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; negate?: boolean; minCount?: number; subject?: 'signi' | 'lrig' }
   | { type: 'LRIG_LEVEL_EQ_OPP' }                             // 自分のセンタールリグのレベルが対戦相手のセンタールリグと同じ場合
   | { type: 'LRIG_LEVEL_CMP_OPP'; operator: 'lt' | 'lte' | 'gt' | 'gte' } // 自分のセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上 の場合（WXK07-025/WXK10-068。EQ の不等号版）
   | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string } // センタールリグのカード名が name を含む場合
@@ -457,6 +463,31 @@ export type Condition =
   // 場に付いている【チャーム】の枚数（「対戦相手の場に【チャーム】が３枚ある場合」WX11-049-E2）。
   // 【ウィルス】の VIRUS_COUNT（ActiveCondition 側）と対になる使用条件版。
   | { type: 'CHARM_COUNT'; owner: Owner; operator: CompareOp; value: number }
+  /**
+   * 「〈owner〉の**場にあるシグニに付いているカード**／**シグニの下に置かれているカード**の枚数」。
+   * `include`＝`'attached'`（【チャーム】/【アクセ】/【ソウル】/裏向き付け の合計）／`'under'`（スタック下段）／
+   * `'both'`（省略時＝合計。原文「シグニに付いているカード**か**シグニの下に置かれているカード」）。
+   * `owner:'any'` は両プレイヤーの場を合算する（原文が「場に」とだけ言う形）。
+   * 🔴`THIS_CARD_HAS_UNDER` / `THIS_CARD_HAS_ATTACHED` は**効果元自身**しか見ないので流用できない
+   *   （`WXDi-P04-081-E1`／`WXDi-P06-084-E1`／`WXK09-036-E1`／`WXK11-069-E1` は条件ごと落ちて無条件実行だった）。
+   */
+  | { type: 'FIELD_ATTACHED_COUNT'; owner: Owner; include?: 'attached' | 'under' | 'both' | 'soul' | 'zone'; operator: CompareOp; value: number }
+  /**
+   * 「〈ゾーンA〉**と**〈ゾーンB〉に〈filter〉のカードが**合計**N枚以上ある場合」（§5.4(ii) の登録済み機構ギャップ）。
+   * 🔴`AND` では同値にならない＝「合計7枚」は 3+4 でも成立するので、`ENERGY_HAS_CARD`＋`TRASH_HAS_CARD` の
+   *   `AND`（＝どちらも単独で7枚）に**近似すると過小実行**になる。⇒ 合算専用の型を1つ置く。
+   * 🔑**数え方は既存の `countFromZone` に一本化**する（filter／`unitSize`／`per`／`distinctBy` を共有）。
+   * ⚠`zones` の各要素は `owner` を持つので「あなた**と対戦相手の**エナゾーンの合計」も同じ形で書ける
+   *   （`WDA-F03-13-E3`）。
+   */
+  | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number }
+  /**
+   * 「このターンに〈owner〉の**センタールリグがアタックしていた／いなかった**場合」（`WXK03-060-E1`）。
+   * 実体は `PlayerState.lrig_has_attacked`（ターン開始時にリセット）＝アシストルリグのアタックは含まない。
+   * ⚠`ATTACK_ORDINAL_THIS_TURN` は**通算の序数**で「1回も無かった」を表せない（0 と比較しても
+   *   シグニのアタック数が混ざる）ので流用しない。
+   */
+  | { type: 'CENTER_LRIG_ATTACKED_THIS_TURN'; owner: Owner; negate?: boolean }
   /**
    * 「**この方法でシグニを公開したとき**」（§5.3 `O-81`・`WX16-003-E3`）＝
    * 直前の離脱で `signi_facedown_attached` から公開して手札へ戻したカード
@@ -602,7 +633,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE: true, ATTACK_ORDINAL_THIS_TURN: true, IS_DRIVE_STATE: true,
   TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
   LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,
-  LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, OPP_USING_TEAM_PIECE: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, VIRUS_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
+  LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, OPP_USING_TEAM_PIECE: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, FIELD_ATTACHED_COUNT: true, CENTER_LRIG_ATTACKED_THIS_TURN: true, ZONE_SUM_COUNT: true, VIRUS_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
   FACEDOWN_REVEALED_JUST: true,
   SELF_LEVEL_THRESHOLD: true,
   THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
@@ -1020,7 +1051,7 @@ export interface TargetFilter {
   // AUTO/ACTIVATED は execPowerModify が sourceCardNum を含むスタックの頂点へ解決し、CONTINUOUS は
   // calcFieldPowers の「下カード→ホスト」ループが加算する（主体が場の最前面シグニのときは自己適用しない）。
   aboveSelf?: boolean;
-  hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
+  hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ' | 'レイヤー'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
   /**
    * 出現条件アイコンを**持たない**シグニ（`WXDi-P07-041-E2`・§6.4 O-34(a) の母集団）。
    * ⚠原文の CSV では該当アイコンが `【　　】icon_txt_frame_null` という**レンダリング欠落**で入っており、
@@ -4169,6 +4200,14 @@ export interface PreventNextDamageAction {
   // 直前に処理したカード（WX24-P4-006ではダウンした相手ルリグ）のレベル未満の
   // シグニによるダメージだけを対象にする。実行時にレベル値を予約へ固定する。
   sourceLevelLtLastProcessed?: boolean;
+  /**
+   * ダメージ源シグニの**パワー／レベル上限**（「対戦相手の**パワー15000以下の**シグニによってダメージを受けない」
+   * ＝`WX25-P3-051-E1`／「**レベル３以下の**シグニによって」＝`WXDi-P03-077-BURST`）。
+   * ⚠**`damageSource` と同じ規約＝逆翻訳の忠実化用**（engine は現状ダメージ源を区別せず次の1回を無効化する）。
+   *   落とすと原文の限定が JSON のどこにも残らず、**「どんなダメージでも防ぐ」as-written** に読めてしまう。
+   */
+  sourcePowerLte?: number;
+  sourceLevelLte?: number;
   // 防いだ1回ごとに、ターン終了時のデッキミル予約を1能力ぶん得る（デウスシールド）。
   millAtTurnEndPerPrevented?: number;
 }

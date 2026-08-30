@@ -2489,7 +2489,16 @@ function execInstallDelayedTrigger(
     return done(addLog(ctx, '条件未達成 → 遅延トリガー設置スキップ'));
   }
   const state = ctx.ownerState;
-  const installed = { ...a, sourceCardNum: ctx.sourceCardNum };
+  // 🔴**「それ」＝設置時に選んだ対象は、設置時に焼き込む**（2026-08-31）。
+  //   `storedTargetCards` は**設置と発火で ExecCtx が別物**なので、`targetsStored` のまま設置すると
+  //   発火時に候補が空になって**黙って空振り**する（「このターン終了時、それをバニッシュする」＝
+  //   `WXDi-CP02-043-E2`／`WXDi-P12-006-E1`②／`WXDi-P16-069-E2`）。
+  //   任意コストの pay/skip 分岐で使っている `freezeStoredTargets` と同じ焼き込みをここでも通す。
+  const installed = {
+    ...a,
+    effect: freezeStoredTargets(a.effect, ctx),
+    sourceCardNum: ctx.sourceCardNum,
+  };
   const newS: PlayerState = { ...state, delayed_triggers: [...(state.delayed_triggers ?? []), installed] };
   const label = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン';
   return done(addLog(setOwnerState('self', newS, ctx), `${label}の遅延トリガーを設置`));

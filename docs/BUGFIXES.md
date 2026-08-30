@@ -1,5 +1,235 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き746）：census 高シグナルを 122 → 91（**-31**）＝実装 -26／較正 -5
+
+ユーザー指示「さらに30減らす」の1巡。**live 変更 26カード**。gates 全緑
+（golden **3067→3068 / 0 FAIL**・smoke 全0・fuzz 全0・census **91 / BASELINE 91**・lint 0 errors）＋ `regen`。
+高シグナル id 集合を前後で機械差分＝**消えた31／増えた0**。
+⑤実機は**必要**判定（新しい条件型・機構を足した）だが、**ブラウザ実行環境のブロッカー**で実走できないため
+**§5.1 に `V-99` として登録**（`V-93`／`V-95`〜`V-98` と同じ理由）。`src/screens/` は1バイトも触っていない。
+
+### ■ 内訳（🔴混ぜない）
+
+| 種別 | 減 | 性質 |
+|---|---|---|
+| **較正** | **-5** | live 不変。対応表と除外句の**取りこぼし**（うち1件は**否定形の境界ずれ**） |
+| **実装** | **-26** | `manualEffects.ts` へ**原文から書き直し** → `syncManualLive` で live へ配達 |
+
+### ■ 較正（-5）＝すべて `scripts/vocabCensus.ts` の対応表・除外句
+
+1. **`ARTS_LIMIT_1`**（「対戦相手は**各ターンに一度しか**アーツを使用できない」＝`WX13-007-E1`）＝
+   回数制限を **actionId が内包する正表現**で、能力側の `usageLimit` には載らない軸。
+2. **`TRASHED_DISTINCT_LEVELS_GTE`**（`WXK03-025-E1`）＝型名がそのまま軸なのに、対応表は複数形の
+   `distinctLevels`（`HAS_CARD_IN_FIELD` 側の綴り）しか持っていなかった。
+3. **`ON_ENERGY_TO_FIELD`**（「エナゾーンから…**場に出たとき**」＝`WXDi-P11-007-E1`）＝
+   由来ゾーン限定の専用 timing で、`ON_PLAY` を部分文字列に含まない綴り。
+4. **`IS_MY_TURN` の除外句**に「**あなたの〈メイン／アタック〉フェイズの間**」を追加（`WX24-P1-015-E1`）＝
+   自分のフェイズ＝自分のターン。従来は「あなたのターンの間」だけを許していた。
+5. 🔴**否定形は境界が1つずれる**（`WXK05-047-E1`）＝「〈X〉が**N枚以上ない**かぎり」は
+   `operator:'lte', value:N-1` が正表現なのに、「小さい数」軸が原文の N を探して落としていた。
+   ⚠**原文に否定形がある数だけ**を対象にする narrow 較正（肯定側の脱落は従来どおり検出する）。
+
+### ■ 実装：新設した受け皿は3つだけ
+
+- 🆕**`ZONE_SUM_COUNT{zones: CountFromZone[], operator, value}`**＝**2ゾーン合算**。
+  `WXDi-P12-056-E1`（エナ＋トラッシュに《ディソナアイコン》が合計7枚以上）／
+  `WDA-F03-13-E3`（あなたと対戦相手のエナの合計が7枚以下）。どちらも条件ごと落ちて**無条件実行**だった。
+  🔴**`AND` では同値にならない**（合計7枚は 3+4 でも成立する）＝§5.4(ii) に「近似禁止」で登録されていた項目。
+  🔑**数え方は既存 `countFromZone` に一本化**（filter/unitSize/per/distinctBy を共有）。
+- 🆕**`PREVENT_NEXT_DAMAGE.sourcePowerLte` / `.sourceLevelLte`**（`WX25-P3-051-E1`／`WXDi-P03-077-BURST`）。
+  ⚠**既存 `damageSource` と同じ「逆翻訳の忠実化用」規約**＝engine は現状ダメージ源を区別しないが、
+  落とすと原文の限定が JSON のどこにも残らず「どんなダメージでも防ぐ」as-written に読めてしまう。
+- 🆕**`execInstallDelayedTrigger` で `freezeStoredTargets` を通す**（下記「踏んだ罠」1.）。
+- （＋STUB ハンドラ1本＝`TRASH_UNDER_LRIG_CARD`。`WXK09-001-E2` のアップキープ4択の1枝。
+  移動そのものは `INTERNAL_PAY_EXCEED` と同じ操作で、選択UIを出さない近似であることをコメントに明記した。）
+
+**あとは全部既存語彙**＝`COST_TRASHED_MATCHES`／`LAST_PROCESSED_SHARES_COLOR_WITH_LRIG`／`FIELD_ATTACHED_COUNT`／
+`PLACE_VIRUS`／`nameEqLastProcessed`／`hasIcon`（'レイヤー' を1値追加）／`countFromZone`／
+`OPTIONAL_COST{unlessPay,fieldTrash}`／`LRIG_GROW_RESTRICT`／`SEARCH`／`CHOOSE`。
+
+### ■ 🔴 原文とまるで違うカードになっていた効果
+
+- **`WX25-CP1-040-E1`**＝原文は「【常】：【シュート】。」だけなのに、**後続【起】の内容が【常】の枠へ漏れて**
+  「相手の＜ブルアカ＞シグニを常時トラッシュ＋エナチャージ」になっていた。
+- **`WXK09-001-E2`**＝原文は**3択のアップキープ**なのに、**毎ターン強制でライフクロスを1枚失う**（最も重い枝に固定）。
+- **`WXDi-P05-072-E2`**＝「**対戦相手は**【エナチャージ１】を**してもよい**」が「**自分が必ず**エナチャージ」＝正反対。
+- **`WXEX1-38-E1`**＝手札干渉（「対戦相手の手札を1枚見ないで選び」）が**場のシグニ除去**に化けていた。
+- **`WXK02-004-E1`**＝相手が受ける3つの損失のうち**シグニ1体だけ**、しかも選ぶのが自分側だった。
+- **`WX24-P4-058-E1`**＝「【常】：【シュート】。」が**パワー＋5000**。
+- **`WXK11-040-E2`**＝名前一致が落ちて**デッキのどのシグニでもサーチできる**過剰効果。
+
+### ■ 🔴 途中で踏んだ罠（次に読む人へ）
+
+1. **`INSTALL_DELAYED_TRIGGER` の「それ」は設置時に焼かないと消える。**
+   `targetsStored` は**設置と発火で ExecCtx が別物**なので、そのまま設置すると発火時に候補が空＝**黙って空振り**。
+   ⇒ `execInstallDelayedTrigger` に既存の `freezeStoredTargets`（任意コストの pay/skip 分岐で使っているもの）を
+   通した。`WXDi-CP02-043-E2`／`WXDi-P12-006-E1`②／`WXDi-P16-069-E2` の「このターン終了時、それを〜」が対象。
+   ⚠**前回の `fireCondition` と同じ形の穴**＝「型は合うがどのゲートも鳴らない」。
+2. 🔑**effectId の割り当てを直すと parser が勝手に正しくなることがある。**
+   `WX24-P4-058` / `WX25-CP1-040` / `WX25-P1-054` は**手書きの `-E1b` が原文ブロックの割り当てを歪めて**おり、
+   `-E1b`→`-E2` へ改名しただけで **parser が E1 に正しい JSON を出すようになった**。
+   結果、先に書いた手書き E1 が **`O-42` tripwire に「影武者コピー」として検出**され、**削除**が正解だった。
+   ⇒ **手で書く前に「id 集合が原文ブロックと合っているか」を疑う。**
+   ⚠`WX25-CP1-040-E1b` は **live 限定 MANUAL スタンプ**（`census:orphanmanual` の D）で、`fixLrigColorFilters.mjs`
+   と golden が id で参照していた＝**3箇所を同時に `-E2` へ揃える**必要があった。
+3. **既存キーへの追記を忘れると `Record` のキー重複で typecheck が落ちる**（前回に続き再発）。
+4. **`ENERGY_CHARGE_FROM_DECK` に `optional` は無い**＝「してもよい」は `CHOOSE` の空枝で書く
+   （census の「任意」軸も `CHOOSE` + `"steps":[]` を extraOk として認識する）。
+   ⚠**効果自体は `mandatory:true` のまま**にする＝`mandatory:false` は「効果を使うかどうかを**こちら側**が問われる」
+   別の意味で、golden `(xxix)` の集合も動く。
+5. **`blind`（「見ないで選び」）は `EffectTarget` 側**（`source` の中）＝アクション直下に書くと typecheck で落ちる。
+
+### ■ 逆翻訳の目視で見つかった**表示だけの嘘** 4件（2回連続で有効な手順）
+
+1. **`unlessPay` の支払い節が `costColors` しか見ていない**＝`fieldTrash` だと**空文字**になり、
+   「を支払わないかぎり、このシグニをダウンする」という**主語なしの文**が出ていた（`WX24-P1-048-E3`）。
+   ⇒ `fieldTrash` / `handDiscard` / `energyTrash` / `costText` の各軸を描き分けた。
+2. **`FIELD_ATTACHED_COUNT` の語尾が無く「…が1枚以上場合」**（呼び出し側が `${cond}場合` を続けるため）。
+3. **`LRIG_GROW_RESTRICT` の説明が「対戦相手の no_grow フラグをセット」**＝**実装と無関係な古いコメント**が
+   `genStubsMd` 経由でそのまま逆翻訳に出ていた（判定は `BattleScreen` の growCandidates 側）。
+4. `ZONE_SUM_COUNT` の新規表示（`countFromZoneJa` を再利用）。
+
+### ■ golden：更新した契約
+
+- `§6.4 O-3 LRIG_GROW_RESTRICT の乗っ取り解消`＝「本来の用法」判定の regex が助詞「**の**」を必須にしており、
+  **連体修飾が動詞で終わる形**（`WX17-002`「カード名に《アロス》を**含む**ルリグにしかグロウできない」）を弾いていた。
+- `(cxv)` `Condition` 型数 139→140（`ZONE_SUM_COUNT`）。
+- `(xxix)` 段階2 mandatory 集合 1454→1455 / 条件なし 1395→1396（`WX17-002-E1` を2能力へ割って `-E1b` を新設した分）。
+- `O-133` `BASELINE_ORPHAN_MANUAL` 11→10（live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移した）。
+
+### ■ 検証コマンド
+
+```
+npm run gates            # 全緑（golden 3068/0 FAIL・census 91/91）
+npm run regen            # 逆翻訳シート再生成（目視で表示バグ4件を発見）
+node scripts/genStubsMd.mjs             # 新設 STUB の日本語ラベル（census:stubs C群 0 を維持）
+npx tsx scripts/censusOrphanManual.ts   # A/B/C=0
+npx tsx scripts/censusManualDrift.ts    # 削除候補 0
+```
+
+**反転確認**＝`ZONE_SUM_COUNT` は golden で成立／不成立の両方向を assert（空盤面で false を含む）。
+高シグナル id 集合の前後差分＝**消えた31／増えた0**。
+
+---
+
+## 2026-08-31（続き745）：census 高シグナルを 153 → 122（**-31**）＝実装 -28／較正 -3
+
+ユーザー指示「census を30減らす」の1巡。**live 変更 28カード（28効果）**。gates 全緑
+（golden **3066→3067 / 0 FAIL**・smoke 全0・fuzz 全0・census **122 / BASELINE 122**・lint 0 errors）＋ `regen`。
+高シグナル id 集合を前後で機械差分＝**消えた31／増えた0**。
+⑤実機は**必要**判定（PLAN §2.2＝**新しい条件型を3つ足した**）だが、**ブラウザ実行環境のブロッカー**
+（Playwright 既定 Chromium 未導入／既存 Chrome・Edge は外部認証のログイン待ちで timeout）で実走できないため、
+`V-93`〜`V-97` と同じ理由で **§5.1 に `V-98` として登録**した。`src/screens/` は1バイトも触っていない。
+
+### ■ 内訳（🔴混ぜない）
+
+| 種別 | 減 | 性質 |
+|---|---|---|
+| **較正** | **-3** | live 不変。**注記 `（…）` の除去が入れ子に未対応**だった |
+| **実装** | **-28** | `manualEffects.ts` へ**原文から書き直し** → `syncManualLive` で live へ配達 |
+
+### ■ 較正（-3）＝`vocabCensus.ts` の注記除去が入れ子で壊れていた
+
+旧実装は `s.replace(/（[^）]*）/g, '')`。**引数つきキーワードのリマインダー文**
+（`（【アサシン（パワー10000以下のシグニ）】を持つシグニがアタックすると、正面のシグニがパワー10000以下の場合、…）`）
+では**内側の `）` で閉じてしまい**、リマインダー本文が原文として残る。
+⇒「正面」「〜の場合」が語彙脱落として誤検出されていた（`WX25-P1-044-E1`／`WX25-P2-039-E1`／`WX25-P2-089-E1`）。
+深さを数える `stripAnnotations` を新設して2箇所（`loadTexts` / `buildUnits`）を差し替え。**live は1バイトも変わっていない。**
+
+### ■ 実装(a)：「下にあるカード／付いているカード」の条件脱落 7効果
+
+どれも条件節が丸ごと落ちて**無条件実行**。受け皿を2つ新設した（型＋`evalCondition`（＋【常】側は `checkActiveCondition`）＋逆翻訳＋golden）。
+
+- 🆕**`THIS_CARD_HAS_UNDER.subject:'lrig'`**＝**このルリグの下**（グロウで積んだ `field.lrig`／`assist_lrig_*` スタック）。
+  🔴既定の `'signi'` は `field.signi` しか走査しないので、**ルリグ札で使うと常に false** ＝
+  `WXDi-D05-004-E2`／`WXDi-P02-023-E2`／`WXDi-P03-023-E2` は「5枚以上…7枚以上…追加で」の**多段閾値が両方とも無条件**だった。
+  ⚠**自動フォールバックにしない**（既存効果の意味を変えないため、明示オプトイン）。
+- 🆕**`FIELD_ATTACHED_COUNT{owner, include, operator, value}`**＝場全体の枚数。
+  `include`＝`attached`（チャーム/アクセ/ソウル/裏向き付け）／`under`／`both`／`soul`／`zone`（シグニ本体も数える）。
+  `owner:'any'` は両者を合算。🔴`THIS_CARD_HAS_ATTACHED`／`THIS_CARD_HAS_UNDER` は**効果元自身しか見ない**ので流用不可。
+  `WXDi-P04-081-E1`／`WXK09-036-E1`／`WXK11-069-E1`／`WXDi-P06-084-E1`（**「代わりに」が SEQUENCE の2連＝条件を問わず2枚回収**していた
+  → `CONDITIONAL` の then/else へ）。
+
+### ■ 実装(b)：引用能力付与の平坦化 9効果
+
+「…は「Q」を得る」の引用が**外側の即時アクションとして漏れ**、付与が消えていた。**受け皿は既存だけ**
+（`GRANT_EFFECT` / `GRANT_LRIG_ABILITY` / `GRANT_ACCE_HOST_ABILITY` / `GRANT_SIGNI_ABOVE_ABILITY`）＝**新しい型は0本**。
+
+`WX24-P2-001-E1`（「場に出す」も付与も消えて無条件 `BOUNCE` だけ）／`WX25-CP1-TK2A-E2`（コスト無しで毎回 −5000）／
+`WX25-P1-111-E1`（**owner も対象も逆**＝自分の＜怪異＞を選ぶはずが相手の＜怪異＞を −8000）／`WXDi-CP02-026-E1`／
+`WXDi-CP02-048-E1`（外側の −8000 が消えて引用内の −5000 だけ即時）／`WXDi-CP02-078-E1`／`WXDi-P11-038-E1`／
+`WXDi-P15-083-E1`（回避コストごと消えて無条件 −8000）／`WXEX2-69-E3`（**常時いきなり相手のアーツ／スペルを封じて**いた）。
+
+⚠**`WXEX2-69` は既存の手書きレコード `-E3P` を `-E3b` へ改名**した＝`vocabCensus` の兄弟畳み込みは
+**小文字1字サフィックス**だけを親（`-E3`）へ畳む規約なので、大文字 `P` のままだと親が「3000 が無い」と誤検出される。
+あわせて原文どおり `activeCondition:{TURN_OWNER self}` を足した（旧レコードは**相手ターンにも +3000**していた）。
+
+⚠**`WXK10-075-E1` は据置**＝「【アクセ】が付いているかぎり『【自】…』を得る」を **`condition` つきの【自】へ持ち上げる**のは
+意味が等価（自己付与）なので、`GRANT_FIELD_SIGNI_ABILITY{thisCardOnly}` へ書き換える実利が無い。
+**`WX25-P2-052-E2` も据置**＝「レゾナとしても扱う」の語彙が無い（機構ギャップ）。
+
+### ■ 実装(c)：既存の受け皿だけで直る条件節・対象・数量比例 12効果
+
+`WXDi-D09-H15-E1`（`ENERGY_COUNT eq 0` ＋ `SET_BASE_LEVEL`）／`WXDi-P16-094-E1`（`LRIG_ANY_TEAM_COUNT`＝
+使用条件が丸ごと落ちて**いつでも撃てるピース**だった）／`WXK05-052-E1`（**旧 live は「自分のシグニに【シード】を
+永続付与」という原文と無関係のカード**になっていた → `SAME_ZONE_HAS_SEED` ＋ `SIGNI_ATTACK_BAN{targetsStored,turns:2}`）／
+`WX25-P2-079-E1`／`WXEX2-06-E2`（トリガー主語のクラス限定が落ちて**どのシグニのアタックでも**発火）／`WXK05-035-E1`／
+`WXEX2-34-E1`（`countFromZone`＝ドローが丸ごと消え、エナチャージが固定1だった）／
+`WX17-053-E2`（対象が `owner:'self'`＝**自分のシグニを自爆**させていた）／`WXK08-032-E1`／`WXDi-P04-034-E1`／
+`WXDi-P08-030-E2`（**使った瞬間に相手シグニ1体を無条件バニッシュ**していた）／`WXK03-060-E1`（新設 `CENTER_LRIG_ATTACKED_THIS_TURN`）。
+
+### ■ 🔴 途中で踏んだ罠（次に読む人へ）
+
+1. **`fireCondition` は `ON_SIGNI_DOWN` 経路しか読まれていない。**
+   `WXDi-P08-030-E2` の序数条件（「二度目以降の対戦相手によるアタック」）を最初 `INSTALL_DELAYED_TRIGGER.fireCondition` へ
+   置いたが、`triggerCollect.ts` の `collectSigniAttackDelayedTriggers` / `collectAttackerSelfDelayedTriggers` は
+   **`fireCondition` を評価していない**＝**黙って無条件バニッシュに戻る**（型は合うのでどのゲートも鳴らない）。
+   ⇒ `effect` の中の `CONDITIONAL{ATTACK_ORDINAL_THIS_TURN}` へ移した。⚠**`once` を使うときだけは収集時評価が要る**
+   （空振りで設置が消費されるため）＝そのときは collector 側に `fireCondition` を足すこと。
+2. **`manualEffects.ts` の手修正は `build:effects` だけでは live に届かない。**
+   収穫マージは fresh と live が食い違うカードを `_held_fresh` へ温存する。**必ず `npx tsx scripts/syncManualLive.ts <CardNum>…`**。
+   id 集合が変わる回（`-E3P`→`-E3b`）は `--allow-idset-change` が要る。
+3. **同じカードに既存の manual エントリがあると `Record` のキー重複で typecheck が落ちる**（`WXDi-P11-038`／`WXEX2-69`／`WXK05-035`）。
+   **新しいキーを作らず既存の配列へ足す。**
+
+### ■ 逆翻訳の目視で見つかった**表示だけの嘘** 4件（engine は正しかった）
+
+`npm run regen` 後に触ったカードの逆翻訳を1行ずつ読んで発見。**JSON も engine も正しいのに逆翻訳が別のことを言う**類。
+
+1. **`SIGNI_ATTACK_BAN{targetsStored}` が回避コスト不在でも「《無》×0を支払わないかぎり」と描く**（`?? 0` フォールバック）
+   ＝**タダで回避できる**と読める。⇒ 支払い節そのものを出さない。
+2. 同分岐が **`turns` を無視**して常に「このターン」と描く。⇒ 一般枝と同じく `turns===2` を「次のターンの間」に。
+3. **`DRAW` / `ENERGY_CHARGE_FROM_DECK` の `countFromZone` を `unitSize` があるときしか描かない**
+   ＝「〈X〉のシグニ**１体につき**1枚」（`unitSize` 既定1）が**固定1枚**に見えていた。⇒ `countFromZone` の有無で分岐。
+4. **`LRIG_ANY_TEAM_COUNT` の日本語が無く生の英語 ID が漏れていた**（`[条件:LRIG_ANY_TEAM_COUNT]`）。
+
+### ■ golden：据置契約4本を「卒業」させた（+ 件数ラチェット2本）
+
+🔑**据置契約は「触るな」ではなく「正しい語彙が無い間は近似で埋めるな」**（`段2-18` の注記が明文化している）。
+受け皿を作った時点で**正方向の assert へ置き換える**のが正しく、契約が守っていた軸（所有者・片肺 AND）は新しい assert に引き継ぐ。
+
+- `§6.4 NEXT_TURN 据置 WXK05-052-E1: …受け皿なし` → `§6.4 WXK05-052-E1: 同列【シード】条件つきで…` へ
+- `続き377n トリップワイヤ③`（体数を広げない）→ 「2体まで」「対象も枝も相手側」の正方向へ
+- `段2-18 据置契約`（場全体 attached/under OR は未表現のまま）→ `FIELD_ATTACHED_COUNT{include:'both'}` ＋ else 枝を assert
+- `段2 第45バッチ`（SOUL 存在機構待ちへ部分配線しない）→ AND の**両辺**が載っていることを assert
+- 件数ラチェット＝`OPPONENT_PAY_OPTIONAL` live 出現 78→79（増分は回避枝あり側＝安全弁 0 は不変）／`Condition` 型数 137→139
+- 🆕**新設条件型3つを `evalCondition` で実走する golden を1本追加**（`census 第3/5弾 新設条件型: …`）＝
+  空盤面で false になることまで見る（§4.3＝union に足しただけでは `return true`＝無条件成立に落ちる）
+
+### ■ 検証コマンド
+
+```
+npm run gates            # 全緑（golden 3067/0 FAIL・census 122/122）
+npm run regen            # 逆翻訳シート再生成（目視で表示バグ4件を発見）
+npx tsx scripts/censusOrphanManual.ts   # A/B/C=0（live 限定 MANUAL スタンプ無し）
+npx tsx scripts/censusManualDrift.ts    # 削除候補 0（O-42 tripwire に触れていない）
+```
+
+**反転確認**＝新設条件型3つは golden で**成立／不成立の両方向**を assert（空盤面で false になることを含む）。
+高シグナル id 集合の前後差分＝**消えた31／増えた0**。
+
+---
+
 ## 2026-08-31（続き744）：census 高シグナルを 189 → 153（**-36**）＝実装 -32／較正 -4
 
 ユーザー指示「さらに30減らす」の1巡。**live 変更 31カード（32効果）**。gates 全緑

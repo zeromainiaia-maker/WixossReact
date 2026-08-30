@@ -494,6 +494,23 @@ export function execStubPart1(
       ],
     });
   }
+  // TRASH_UNDER_LRIG_CARD: センタールリグの下にあるカード1枚をルリグトラッシュに置く
+  // （`WXK09-001-E2` のアップキープ3択の1枝。原文＝「センタールリグの下から対象のカード１枚をルリグトラッシュに置く」）。
+  // 🔑移動そのものは `INTERNAL_PAY_EXCEED` と同じ操作（`field.lrig` の最上面より下 → `lrig_trash`）。
+  // ⚠**選択UIは出さない近似**＝スタックの最下段（グロウ順の最も古い1枚）を置く。原文は「対象の」だが、
+  //   ルリグの下は非公開領域で盤面上の区別が無く、どの1枚でも後続の参照（枚数条件・エクシード原資）は同値。
+  // ⚠下にカードが無ければ**何も起きない**（no-op）＝この枝は選べても支払えない（他の2枝がある）。
+  if (stub.id === 'TRASH_UNDER_LRIG_CARD') {
+    const under = ctx.ownerState.field.lrig.slice(0, -1);
+    if (under.length === 0) return done(addLog(ctx, 'センタールリグの下にカードが無い'));
+    const moved = under[0];
+    const newOwner = {
+      ...ctx.ownerState,
+      lrig_trash: [...ctx.ownerState.lrig_trash, moved],
+      field: { ...ctx.ownerState.field, lrig: ctx.ownerState.field.lrig.filter(n => n !== moved) },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner }, 'センタールリグの下からカード1枚をルリグトラッシュへ'));
+  }
   if (stub.id === 'INTERNAL_PAY_EXCEED') {
     const count = typeof stub.value === 'number' ? stub.value : 0;
     const pool = [
@@ -1964,7 +1981,9 @@ export function execStubPart1(
     }
     return done(addLog(ctx, '条件付きパワー修正'));
   }
-  // グロウ制限：対戦相手の no_grow フラグをセット
+  // LRIG_GROW_RESTRICT: このルリグは指定された名前/色のルリグにしかグロウできない
+  // ⚠判定は `BattleScreen` の growCandidates 側（原文を読む）＝ここは実行時 no-op のログ1行。
+  //   旧コメント「対戦相手の no_grow フラグをセット」は**実装と無関係**で、逆翻訳にそのまま出ていた。
   if (stub.id === 'LRIG_GROW_RESTRICT') {
     // CONTINUOUS効果のため、BattleScreenのgrowCandidatesフィルタリングで色制限を適用
     // （effectTextの「このルリグは〜のルリグにしかグロウできない」をBattleScreen側で解析）

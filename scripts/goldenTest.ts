@@ -796,6 +796,92 @@ test('§3 タスク6「代わりに」B1残: 各置換ゲートの evalCondition
   cursor = savedCursor;
 });
 
+/* ══════════════════════════════════════════════════════════════════════════════
+ * census 高シグナル 第3/5弾（2026-08-31）で新設した条件型を **evalCondition で実走**させる。
+ *
+ * 🔴`evalCondition` は switch を抜けると `return true`＝**未実装の型は無条件成立**なので、
+ *   union と `CONDITION_TYPES` に足しただけでは「条件つきの効果が常時発動」に化ける（§4.2）。
+ *   件数ラチェット（`(cxv)` の型数）は「表に足したか」しか見ないので、**評価器の実挙動はここで見張る**。
+ * ══════════════════════════════════════════════════════════════════════════════ */
+test('census 第6弾 新設条件型 ZONE_SUM_COUNT: 2ゾーンの合算は AND 近似では表せない', () => withSavedCursor(() => {
+  // 🔴これが新型の存在理由＝「合計7枚以上」は **3+4 でも成立**する。`ENERGY_HAS_CARD` ＋ `TRASH_HAS_CARD` の
+  //   `AND`（どちらも単独で7枚）に近似すると**過小実行**になるので、その差分をここで固定する。
+  const zs = (o: Record<string, unknown>, ctx: ExecCtx) =>
+    evalCondition({ type: 'ZONE_SUM_COUNT', ...o } as unknown as Condition, ctx);
+  const board = (myEnergy: number, myTrash: number, oppEnergy: number): ExecCtx => {
+    const ctx = mkCtx({ energy: myEnergy, trash: myTrash }, { energy: oppEnergy });
+    return ctx;
+  };
+  const bothZones = [{ zone: 'energy', owner: 'self' }, { zone: 'trash', owner: 'self' }];
+  ok(zs({ zones: bothZones, operator: 'gte', value: 7 }, board(3, 4, 0)), '3+4=7 → 合計7以上で成立');
+  ok(!zs({ zones: bothZones, operator: 'gte', value: 7 }, board(3, 3, 0)), '3+3=6 → 不成立');
+  // 🔴AND 近似との差分＝どちらの単独ゾーンも7未満なのに合算では成立する盤面
+  ok(!evalCondition({ type: 'AND', conditions: [
+    { type: 'ENERGY_COUNT', owner: 'self', operator: 'gte', value: 7 },
+    { type: 'TRASH_COUNT', owner: 'self', operator: 'gte', value: 7 },
+  ] } as unknown as Condition, board(3, 4, 0)), 'AND 近似では 3+4 が通らない（＝新型が要る理由）');
+  // 両プレイヤーの同一ゾーンを合算する形（`WDA-F03-13-E3`「あなたと対戦相手のエナゾーンの合計が7枚以下」）
+  const bothPlayers = [{ zone: 'energy', owner: 'self' }, { zone: 'energy', owner: 'opponent' }];
+  ok(zs({ zones: bothPlayers, operator: 'lte', value: 7 }, board(3, 0, 3)), '3+3=6 → 合計7以下で成立');
+  ok(!zs({ zones: bothPlayers, operator: 'lte', value: 7 }, board(5, 0, 5)), '5+5=10 → 7以下ではない');
+}));
+
+test('census 第3/5弾 新設条件型: FIELD_ATTACHED_COUNT / THIS_CARD_HAS_UNDER{subject:lrig} / CENTER_LRIG_ATTACKED_THIS_TURN', () => withSavedCursor(() => {
+  const A = fresh(), B = fresh(), C = fresh(), D = fresh(), E = fresh();
+
+  // ① FIELD_ATTACHED_COUNT — include ごとに数える集合が変わる
+  const withAttach = (): ExecCtx => {
+    const ctx = mkCtx({ signi: [A, B, null] }, { signi: [C, null, null] });
+    ctx.ownerState.field.signi = [[D, A], [B], null];        // A の下に D（under 1枚）
+    ctx.ownerState.field.signi_charms = [null, E, null];      // B に【チャーム】1枚
+    ctx.otherState.field.signi = [[C], null, null];
+    ctx.otherState.field.signi_soul = [fresh(), null, null];  // 相手 C に【ソウル】1枚
+    return ctx;
+  };
+  const fa = (o: Record<string, unknown>, ctx: ExecCtx) =>
+    evalCondition({ type: 'FIELD_ATTACHED_COUNT', operator: 'gte', ...o } as unknown as Condition, ctx);
+  const ctxA = withAttach();
+  ok(fa({ owner: 'self', include: 'under', value: 1 }, ctxA), 'under=1 → 1枚以上');
+  ok(!fa({ owner: 'self', include: 'under', value: 2 }, ctxA), 'under は2枚無い');
+  ok(fa({ owner: 'self', include: 'attached', value: 1 }, ctxA), 'attached=1（チャーム）');
+  ok(fa({ owner: 'self', include: 'both', value: 2 }, ctxA), 'both=2（under1＋attached1）');
+  ok(!fa({ owner: 'self', include: 'both', value: 3 }, ctxA), 'both は3枚無い');
+  ok(!fa({ owner: 'self', include: 'soul', value: 1 }, ctxA), '自分の場に【ソウル】は無い');
+  ok(fa({ owner: 'opponent', include: 'soul', value: 1 }, ctxA), '相手の場には【ソウル】が1枚');
+  ok(fa({ owner: 'any', include: 'both', value: 3 }, ctxA), "owner:'any' は両者を合算（2＋1）");
+  // include:'zone'＝シグニ本体も数える（自分＝場のシグニ2体＋下1＋チャーム1＝4）
+  ok(fa({ owner: 'self', include: 'zone', value: 4 }, ctxA), "zone=4（本体2＋下1＋付随1）");
+  ok(!fa({ owner: 'self', include: 'zone', value: 5 }, ctxA), 'zone は5枚無い');
+  // 🔴無条件成立に落ちていないことの反証＝盤面を空にしたら必ず false
+  const empty = mkCtx({}, {});
+  ok(!fa({ owner: 'any', include: 'both', value: 1 }, empty), '空盤面では成立しない（return true に落ちていない）');
+
+  // ② THIS_CARD_HAS_UNDER{subject:'lrig'} — ルリグのグロウスタックを見る
+  const lrigCtx = (stack: string[]): ExecCtx => {
+    const ctx = mkCtx({ signi: [A, null, null] }, {}, stack[stack.length - 1]);
+    ctx.ownerState.field.lrig = stack;
+    return ctx;
+  };
+  const hu = (o: Record<string, unknown>, ctx: ExecCtx) =>
+    evalCondition({ type: 'THIS_CARD_HAS_UNDER', ...o } as unknown as Condition, ctx);
+  ok(hu({ subject: 'lrig', minCount: 5 }, lrigCtx([A, B, C, D, E, fresh()])), '下5枚 → 5枚以上で成立');
+  ok(!hu({ subject: 'lrig', minCount: 7 }, lrigCtx([A, B, C, D, E, fresh()])), '下5枚では7枚以上は不成立');
+  ok(hu({ subject: 'lrig', minCount: 7 }, lrigCtx([...fill(7), fresh()])), '下7枚 → 7枚以上で成立');
+  // 🔴既定（signi）でルリグ札を見ると常に false＝subject を落とすと条件が死ぬ（この差分が新設の理由）
+  ok(!hu({ minCount: 5 }, lrigCtx([A, B, C, D, E, fresh()])), "subject 既定 'signi' ではルリグの下を見ない");
+
+  // ③ CENTER_LRIG_ATTACKED_THIS_TURN
+  const cl = (o: Record<string, unknown>, attacked: boolean) => {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.lrig_has_attacked = attacked || undefined;
+    return evalCondition({ type: 'CENTER_LRIG_ATTACKED_THIS_TURN', owner: 'self', ...o } as unknown as Condition, ctx);
+  };
+  ok(cl({}, true), 'アタック済み → true');
+  ok(!cl({}, false), '未アタック → false');
+  ok(!cl({ negate: true }, true), 'negate: アタック済み → false');
+  ok(cl({ negate: true }, false), 'negate: 未アタック → true');
+}));
+
 test('§3 タスク6 WXK06-071: 多段閾値がネスト CONDITIONAL（4+→-12000／1-3→-5000／0→無変化）で同一相手対象', () => {
   const savedCursor = cursor;
   const e = manualEffect('WXK06-071', 'WXK06-071-E1');
@@ -5938,8 +6024,11 @@ test('§6.4 O-3 live: 未パース節の受け皿が honest な id を名乗る�
     if (JSON.stringify(effs).includes('"LRIG_GROW_RESTRICT"')) growOnly.push(cardNum);
   }
   // 残ってよいのは本来の用法（【常】：このルリグは〜のルリグにしかグロウできない）だけ。
+  // 🆕2026-08-31＝助詞「の」を必須にしていたので**連体修飾が動詞で終わる形**を弾いていた
+  //   （`WX17-002`「このルリグはカード名に《アロス》を**含む**ルリグにしかグロウできない」）。
+  //   規則の意図は「本来のグロウ制限文にだけ付く」なので、`の` を省いて主語と述部だけで見る。
   for (const cardNum of growOnly) {
-    ok(/このルリグは.+のルリグにしかグロウできない/.test(cardMap.get(cardNum)?.EffectText ?? ''),
+    ok(/このルリグは.+ルリグにしかグロウできない/.test(cardMap.get(cardNum)?.EffectText ?? ''),
       `${cardNum}: LRIG_GROW_RESTRICT は本来のグロウ制限文にだけ付く`);
   }
   ok(growOnly.length > 0, '本来の用法は live に残っている（規則ごと消していない）');
@@ -5966,9 +6055,17 @@ test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は�
   }
 });
 
-test('§6.4 NEXT_TURN 据置 WXK05-052-E1: 相手2体＋同列シード条件の受け皿なし', () => {
-  const a = nextTurnLiveAction('WXK05-052', 'WXK05-052-E1');
-  ok(a.type === 'GRANT_KEYWORD' && a.keyword === 'シード' && a.target.owner === 'self', '誤パースをNEXT_TURN化して固定しない');
+// 🆕**2026-08-31 に据置を卒業**（census 高シグナル 第5弾）＝旧契約は「相手2体＋同列シード条件の受け皿なし」なので
+//   誤パース（自分のシグニへ【シード】キーワードを永続付与＝原文と無関係）を**そのまま固定**していた。
+//   受け皿は最初から全部あった＝`SAME_ZONE_HAS_SEED`（条件）＋`SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS`
+//   →`SIGNI_ATTACK_BAN{owner:'opponent', targetsStored, turns:2}`（`WXDi-P08-030-E1` と同型）。
+//   ⇒ 契約を**正方向**へ置き換える（片方でも欠けたらここで落ちる）。
+test('§6.4 WXK05-052-E1: 同列【シード】条件つきで相手2体までのアタック禁止を次ターンまで張る', () => {
+  const json = JSON.stringify(nextTurnLiveAction('WXK05-052', 'WXK05-052-E1'));
+  ok(json.includes('"SAME_ZONE_HAS_SEED"'), '同じシグニゾーンの【シード】条件を持つ');
+  ok(json.includes('"SIGNI_ATTACK_BAN"') && json.includes('"owner":"opponent"'), '相手シグニのアタック禁止');
+  ok(json.includes('"targetsStored":true') && json.includes('"turns":2'), '対象固定＋次のターンの間');
+  ok(!json.includes('"keyword":"シード"'), '【シード】をキーワード付与として誤読しない');
 });
 
 test('§6.4 O-3 続き493 WXDi-P16-002-E1: 複合保護は「両方」載せる（片側だけ採用しない）', () => {
@@ -21336,9 +21433,12 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   //   （「対戦相手が手札を１枚捨てないかぎり、このシグニをエナゾーンからダウン状態で場に出す」）。
   //   従来は引用内の「バニッシュされたとき」に外側の【常】が乗っ取られて**付与ごと消えていた**。
   //   ⚠`opponentHandDiscard` を持つ＝回避枝あり側なので、下の安全弁（回避枝なし＝0）は不変。
-  eq(stubs.length, 78, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  // 79＝2026-08-31 census 高シグナル 第4弾。**増えた1件は引用付与の復元**＝`WXDi-P15-083-E1` の granted 能力
+  //   （「対戦相手が手札を３枚捨てないかぎり、ターン終了時まで、それのパワーを－8000する」）。
+  //   従来は付与ごと消えて**その場で無条件に－8000**していた。⚠`opponentHandDiscard` を持つ＝回避枝あり側。
+  eq(stubs.length, 79, 'OPPONENT_PAY_OPTIONAL の live 出現数');
   eq(withCost.length, 41, 'エナコストを持つ（＝pay 枝が出る）STUB');  // 40→41＝続き508 の `WXDi-P16-062-E1`（《無》×1）
-  eq(noCost.length, 37, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
+  eq(noCost.length, 38, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
      'エナコスト非搭載の STUB はすべて別の回避手段（手札捨て/エナトラッシュ等）を持つ');
@@ -21924,7 +22024,10 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 63, 'ActiveCondition の型数（63＝census 条件節B群で HAS_TRAP_IN_FIELD を追加）');
-  eq(Object.keys(C_TYPES).length, 137, 'Condition の型数（137＝census 条件節B群で HAS_TRAP_IN_FIELD を追加）');
+  // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
+  //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
+  // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
+  eq(Object.keys(C_TYPES).length, 140, 'Condition の型数（140＝ZONE_SUM_COUNT を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -26271,8 +26374,9 @@ test('POWER_PLUS_BANISHED_POWER: 白シグニ不在またはパワー0はno-op',
 test('VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: ブルアカ2枚を選んでトラッシュし相手レベル2をバウンス', () => {
   const blueArchive = [...cardMap.values()].filter(c => c.CardClass?.includes('ブルアカ')).slice(0, 3).map(c => c.CardNum);
   eq(blueArchive.length, 3, 'ブルアカ3枚のfixture');
-  const effect = effectsMap.get('WX25-CP1-040')?.find(e => e.effectId === 'WX25-CP1-040-E1b');
-  ok(!!effect && effect.action.type === 'STUB', 'WX25-CP1-040-E1b の構造化STUBが必要');
+  // 🆕2026-08-31＝`-E1b` から `-E2` へ改名（E1 の【常】【シュート】是正で parser が `-E2` を出すようになったため）。
+  const effect = effectsMap.get('WX25-CP1-040')?.find(e => e.effectId === 'WX25-CP1-040-E2');
+  ok(!!effect && effect.action.type === 'STUB', 'WX25-CP1-040-E2 の構造化STUBが必要');
   if (!effect || effect.action.type !== 'STUB') return;
   eq(JSON.stringify(effect.action.variableEnergyTrashLevelBounce), JSON.stringify({ story: 'ブルアカ', maxCount: 3 }));
 
@@ -29451,14 +29555,18 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1455→1454＝§6.4 O-19（2026-08-15）で parser が由来句「トラッシュから」を読み、
     // `triggerScope:'any_ally'` ＋ `triggerCondition.placedFromTrash` を書くようになったので
     // **予告どおりこの集合から抜けた**（＝自身の【出】ではなく味方シグニ登場の watcher に確定）。
-    eq(eligible.length, 1454, '段階2 mandatory集合');
+    // 🆕1454→1455＝2026-08-31 census 第6弾で `WX17-002-E1` を2能力へ割った分（原文ブロックが
+    //   【常】グロウ制限 ＋【出】カードを２枚引く の**2能力ぶん**で、live は「【常】の枠で毎回ドロー2」に
+    //   化けていた）。新設した `WX17-002-E1b`（AUTO / ON_PLAY / mandatory・条件なし）がこの集合へ入る。
+    eq(eligible.length, 1455, '段階2 mandatory集合');
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
     // **脱落していたトップレベル condition を復元**した分（原文「あなたのターンにこのシグニが
     // デッキから場に出た場合」＝`AND{IS_MY_TURN, THIS_CARD_FROM_DECK}`）。上の 1404→1403→1401 と同型の移動で、
     // **集合の総数（`eligible.length`=1454）は動かない**＝条件なし側から条件あり側へ1件移っただけ。
-    eq(eligible.length - conditional.length, 1395, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    // 🆕1395→1396＝上と同じ `WX17-002-E1b`（条件なし側）。`conditional` は動かない。
+    eq(eligible.length - conditional.length, 1396, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 59, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     eq(optionalCost.length, 961, '任意costあり（可変捨て4効果を action-local TRASH へ移した後）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
@@ -39111,11 +39219,14 @@ test('続き377n トリップワイヤ: 「ターン終了時まで」で upToCo
   ] as [string, string, string][]) {
     eq(act(card, effId).includes(`"story":${want}`), true, `${effId}: クラスORを保つ`);
   }
-  // ⚠トリップワイヤ③＝**対象句と枝の所有者が食い違うときは体数を広げない**＝
-  //   `WXK05-052-E1` は条件節の【シード】をキーワードと誤読した構造混線（§5d-0(iii) 在庫）で、
-  //   体数だけ2体へ広げると**誤りを2体ぶんに増幅**する。
-  eq(act('WXK05-052', 'WXK05-052-E1').includes('"count":2'), false,
-    'WXK05-052-E1: 所有者が食い違う（対象は相手・枝は自分）ので体数を広げない');
+  // ⚠トリップワイヤ③（旧）＝「所有者が食い違う（対象は相手・枝は自分）ので体数を広げない」。
+  //   🆕**2026-08-31 に構造混線そのものを解消したので契約を反転**＝いまは対象も枝も相手側なので、
+  //   原文どおり「対戦相手のシグニを**２体まで**」でなければならない（上の `§6.4 WXK05-052-E1` が内容を見張る）。
+  //   ⚠所有者が自分に戻っていたらこの `owner":"opponent"` で落ちる＝旧トリップワイヤの守備範囲は残す。
+  eq(act('WXK05-052', 'WXK05-052-E1').includes('"count":2,"upToCount":true'), true,
+    'WXK05-052-E1: 原文どおり2体まで');
+  eq(act('WXK05-052', 'WXK05-052-E1').includes('"owner":"opponent"'), true,
+    'WXK05-052-E1: 対象も枝も対戦相手側');
 }));
 
 
@@ -46196,9 +46307,15 @@ test('段2-18 WXDi-P16-087-E1 E2E: Lv合計3以下は+5000だけ、4以上はバ
 //   受け皿ができた時点で契約から外すのが正しい。両者は上の `(O-99)` テストが**内容まで**見張る。
 test('段2-18 据置契約: 語彙の無い残り2効果は誤った近似語彙へ変更しない', () => {
   const raw = (c: string, e: string) => JSON.stringify(stage2B16Effect(c, e).action);
-  // 🔴「場にシグニに付いているカード**か**シグニの下に置かれているカードがある場合」＝場全体の attached/under の OR。
-  //   `THIS_CARD_HAS_UNDER`（効果元限定）で近似すると別物になる＝受け皿ができるまで据置（§5.3 `O-101`）。
-  ok(!raw('WXDi-P06-084','WXDi-P06-084-E1').includes('CONDITIONAL'), '場全体attached/under ORは未表現のまま');
+  // 🆕**2026-08-31 に据置を卒業**＝「場にシグニに付いているカード**か**シグニの下に置かれているカードがある場合」の
+  //   受け皿 `FIELD_ATTACHED_COUNT{include:'both'}` を新設した（`THIS_CARD_HAS_UNDER` は効果元限定なので近似不可、
+  //   という旧契約の理由がそのまま解消した）。⚠**「代わりに」は CONDITIONAL の then/else**＝
+  //   旧 live は SEQUENCE の2連で**条件を問わず2枚回収**していた。
+  {
+    const p06 = raw('WXDi-P06-084','WXDi-P06-084-E1');
+    ok(p06.includes('"FIELD_ATTACHED_COUNT"') && p06.includes('"include":"both"'), '場全体attached/under ORを表現する');
+    ok(p06.includes('"else"'), '「代わりに」は else 枝（2連 SEQUENCE にしない）');
+  }
   ok(raw('WXDi-P00-037','WXDi-P00-037-E1').includes('"source":{"type":"SIGNI"'), '相手手札処理の語彙が無い間は誤本体を勝手に別語彙へ変えない');
 });
 
@@ -50542,7 +50659,14 @@ test('段2 第45バッチ 偽陽性／据置: 専用実行器と別バッチ対�
   ];
   for (const [effectId, token] of stable) ok(JSON.stringify(b43Live(effectId)).includes(token), `${effectId}: ${token} を維持`);
   ok(JSON.stringify(b43Live('WXDi-P12-047-E1')).includes('ALL_FIELD_SIGNI_MATCH'), '既に正しい複合条件を維持');
-  ok(!JSON.stringify(b43Live('WXDi-P04-034-E1')).includes('ENERGY_COUNT'), 'SOUL存在機構待ちへ部分配線しない');
+  // 🆕**2026-08-31 に据置を卒業**＝旧契約は「【ソウル】存在の受け皿が無いのに ENERGY_COUNT だけ配線すると
+  //   AND が片肺になって過剰実行になる」という**部分配線の禁止**だった。`FIELD_ATTACHED_COUNT{include:'soul'}`
+  //   を新設して**両方**を載せたので、いまは AND の両辺が揃っていることを見張る（片方が消えたら落ちる）。
+  {
+    const p04 = JSON.stringify(b43Live('WXDi-P04-034-E1'));
+    ok(p04.includes('"FIELD_ATTACHED_COUNT"') && p04.includes('"include":"soul"'), '場の【ソウル】存在を表現する');
+    ok(p04.includes('"ENERGY_COUNT"') && p04.includes('"AND"'), '相手エナ2枚以上と AND で結ぶ');
+  }
   ok(!JSON.stringify(b43Live('WXDi-P12-056-E1')).includes('TRASH_HAS_CARD'), '2ゾーン合算は新機構なしで近似しない');
 });
 
@@ -53974,7 +54098,8 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   ＋ **parser 自身が同じ印を出す3件**（この test は parser を回さないので母集団から外せない）。
   //   （O-149 で WX24-P2-049-E1b を manual E2 へ正規化して D群を9→8。）
   //   ⇒ **以後この数が増えたら「また出所の無いスタンプを押した」** の合図。
-  const BASELINE_ORPHAN_MANUAL = 11; // 旧12。O-149 で live 限定 WX24-P2-049-E1b を撤去。
+  const BASELINE_ORPHAN_MANUAL = 10; // 旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
+  //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);
   const orphans: string[] = [];

@@ -109,7 +109,9 @@ const FIXES = [
     locate: e => e.action?.choices?.[0]?.action },
 
   // PLAN §6.3 続き20: 既存MANUAL STUBへ engine 解決用の構造化パラメータを追加。
-  { file: 'effects_WX24_26', card: 'WX25-CP1-040', eid: 'WX25-CP1-040-E1b', type: 'variableEnergyTrashLevelBounce',
+  // 🆕2026-08-31＝`-E1b` から `-E2` へ改名（E1 の【常】【シュート】を直した結果、parser が同じ原文ブロックから
+  //   `-E2` を出すようになったため。定義は `manualEffects.ts` へ移した）。
+  { file: 'effects_WX24_26', card: 'WX25-CP1-040', eid: 'WX25-CP1-040-E2', type: 'variableEnergyTrashLevelBounce',
     locate: e => e.action },
 
   // PLAN §6.3「続き20の近似・STUBテール」:

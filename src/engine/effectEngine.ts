@@ -574,7 +574,11 @@ export function checkActiveCondition(
       // このシグニの下にカードがあるかぎり（filter 指定時は下カードのいずれかがフィルタ一致
       // ＝「下にレベルNのシグニがあるかぎり」等。WX24-P1-043）
       if (!sourceCardNum) return false;
-      const stack = ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
+      // subject:'lrig'＝**このルリグの下**＝グロウで積んだルリグスタック（`Condition` 側と同実装）。
+      const stack = cond.subject === 'lrig'
+        ? [ownerState.field.lrig, ownerState.field.assist_lrig_l, ownerState.field.assist_lrig_r]
+            .find(z => z?.at(-1) === sourceCardNum)
+        : ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
       if (!stack || stack.length <= 1) return false;
       const under = stack.slice(0, -1);
       const matched = !cond.filter ? under : under.filter(cn => {

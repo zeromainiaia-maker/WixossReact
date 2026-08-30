@@ -112,7 +112,62 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 153; // 2026-08-31 census -36（189→153）。🔴**内訳を混ぜない**：
+const BASELINE_HIGH = 91; // 2026-08-31 census -31（122→91）。🔴**内訳を混ぜない**：
+//   ■**較正 -5**（live は1バイトも変わっていない＝どれも対応表／除外句の**取りこぼし**）
+//     ①`ARTS_LIMIT_1`（「対戦相手は**各ターンに一度しか**アーツを使用できない」＝回数制限を actionId が内包する正表現）
+//     ②`TRASHED_DISTINCT_LEVELS_GTE`（「それぞれレベルの異なる」の型名。対応表は複数形 `distinctLevels` しか持っていなかった）
+//     ③`ON_ENERGY_TO_FIELD`（「エナゾーンから…場に出たとき」＝由来ゾーン限定の専用 timing・`ON_PLAY` を含まない綴り）
+//     ④`IS_MY_TURN` の除外句に「**あなたの〈メイン／アタック〉フェイズの間**」を追加（自分のフェイズ＝自分のターン）
+//     ⑤🔴**否定形は境界が1つずれる**＝「〈X〉が**N枚以上ない**かぎり」は `operator:'lte', value:N-1` が正表現
+//       （`WXK05-047-E1`）。「小さい数」軸が N を探して落としていた。⚠原文に否定形がある数だけを対象にする narrow 較正。
+//   ■**実装 -26**（`manualEffects.ts` へ原文から書き直し＋`syncManualLive` で live へ配達・26カード）
+//     新設した受け皿は**3つだけ**＝
+//       ①`ZONE_SUM_COUNT{zones: CountFromZone[]}`＝**2ゾーン合算**（`WDA-F03-13-E3`「あなたと対戦相手のエナゾーンの合計が7枚以下」／
+//         `WXDi-P12-056-E1`「エナゾーンとトラッシュに合計7枚以上」）。🔴`AND` では同値にならない（3+4 でも成立）＝
+//         §5.4(ii) に「近似禁止」で登録されていた項目。数え方は既存 `countFromZone` に一本化した。
+//       ②`PREVENT_NEXT_DAMAGE.sourcePowerLte` / `.sourceLevelLte`（既存 `damageSource` と同じ**逆翻訳の忠実化用**規約）。
+//       ③`execInstallDelayedTrigger` で `freezeStoredTargets` を通す＝「このターン終了時、**それ**を〜」の
+//         **対象を設置時に焼き込む**（設置と発火で ExecCtx が別物なので `targetsStored` のままだと黙って空振り）。
+//     あとは全部既存語彙＝`COST_TRASHED_MATCHES`／`LAST_PROCESSED_SHARES_COLOR_WITH_LRIG`／`FIELD_ATTACHED_COUNT`／
+//     `PLACE_VIRUS`／`nameEqLastProcessed`／`hasIcon`／`countFromZone`／`OPTIONAL_COST{unlessPay,fieldTrash}`／`LRIG_GROW_RESTRICT`。
+//     🔴**原文と無関係のカードになっていたもの**が複数あった＝`WX25-CP1-040-E1`（【常】【シュート】が
+//     「相手の＜ブルアカ＞を常時トラッシュ＋エナチャージ」に）／`WXK09-001-E2`（3択のアップキープが
+//     **毎ターン強制ライフクラッシュ**に）／`WXDi-P05-072-E2`（「対戦相手は〜してもよい」が**自分が必ず**に）。
+//   ⚠前後で高シグナル id 集合を機械差分し、**消えた31／増えた0**を確認済み（§4.3 手順4）。
+// 旧: const BASELINE_HIGH = 122; // 2026-08-31 census -31（153→122）。🔴**内訳を混ぜない**：
+//   ■**較正 -3**（live は1バイトも変わっていない）＝**注記 `（…）` の除去が入れ子に対応していなかった**。
+//     旧 `strip` は `/（[^）]*）/g` で、**引数つきキーワードのリマインダー文**
+//     （`（【アサシン（パワー10000以下のシグニ）】を持つシグニがアタックすると、正面のシグニが
+//       パワー10000以下の場合、バトルをせず…）`）だと**内側の `）` で閉じてしまい**、
+//     リマインダー本文が原文として残っていた＝「正面」「〜の場合」が語彙脱落として誤検出されていた
+//     （`WX25-P1-044-E1`／`WX25-P2-039-E1`／`WX25-P2-089-E1`）。⇒ `stripAnnotations`（深さ数え）へ置換。
+//   ■**実装 -28**（`manualEffects.ts` へ原文から書き直し＋`syncManualLive` で live へ配達・28カード）
+//     (a)**「下にあるカード／付いているカード」の条件脱落 7件**＝どれも条件節ごと落ちて**無条件実行**だった。
+//       受け皿を2つ新設＝`THIS_CARD_HAS_UNDER.subject:'lrig'`（**ルリグの下**＝`field.lrig` スタック。
+//       既定の `'signi'` は `field.signi` しか走査しないのでルリグ札では**常に false**）と
+//       `FIELD_ATTACHED_COUNT`（場全体の「付いているカード／下のカード」枚数。`include` で
+//       attached / under / both / soul / zone を切り替え）。型＋両評価器（`Condition` 側は execUtils のみ）＋逆翻訳。
+//       `WXDi-D05-004-E2`／`WXDi-P02-023-E2`／`WXDi-P03-023-E2`（多段閾値が両方とも無条件）／
+//       `WXDi-P04-081-E1`／`WXDi-P06-084-E1`（「代わりに」が SEQUENCE 2連＝**2枚回収**していた）／
+//       `WXK09-036-E1`／`WXK11-069-E1`。
+//     (b)**引用能力付与の平坦化 9件**＝引用の中身が外側の即時アクションとして漏れ、付与が消えていた。
+//       受け皿は既存の `GRANT_EFFECT` / `GRANT_LRIG_ABILITY` / `GRANT_ACCE_HOST_ABILITY` /
+//       `GRANT_SIGNI_ABOVE_ABILITY` だけ＝**新しい型は足していない**。
+//       `WX24-P2-001-E1`／`WX25-CP1-TK2A-E2`／`WX25-P1-111-E1`（owner も対象も逆だった）／
+//       `WXDi-CP02-026-E1`／`WXDi-CP02-048-E1`／`WXDi-CP02-078-E1`／`WXDi-P11-038-E1`／
+//       `WXDi-P15-083-E1`／`WXEX2-69-E3`。
+//       ⚠`WXEX2-69` は既存の手書きレコード `-E3P` を **`-E3b` へ改名**した＝本ファイルの兄弟畳み込みは
+//         **小文字1字サフィックス**だけを親へ畳む規約なので、大文字 `P` のままだと親が「3000 が無い」と誤検出する。
+//     (c)**既存の受け皿だけで直る条件節・対象・数量比例 12件**＝
+//       `WXDi-D09-H15-E1`（`ENERGY_COUNT eq 0` ＋ `SET_BASE_LEVEL`）／`WXDi-P16-094-E1`（`LRIG_ANY_TEAM_COUNT`）／
+//       `WXK05-052-E1`（`SAME_ZONE_HAS_SEED` ＋ `SIGNI_ATTACK_BAN{targetsStored,turns:2}`。旧 live は
+//       「自分のシグニに【シード】を永続付与」という**原文と無関係のカード**になっていた）／
+//       `WX25-P2-079-E1`／`WXEX2-06-E2`（トリガー主語のクラス限定）／`WXK05-035-E1`／
+//       `WXEX2-34-E1`（`countFromZone`）／`WX17-053-E2`（対象が `owner:'self'`＝**自分のシグニを自爆**させていた）／
+//       `WXK08-032-E1`／`WXDi-P04-034-E1`／`WXDi-P08-030-E2`（`INSTALL_DELAYED_TRIGGER`＋`ATTACK_ORDINAL_THIS_TURN`。
+//       旧 live は**使った瞬間に相手シグニ1体を無条件バニッシュ**）／`WXK03-060-E1`（新設 `CENTER_LRIG_ATTACKED_THIS_TURN`）。
+//   ⚠前後で高シグナル id 集合を機械差分し、**消えた31／増えた0**を確認済み（§4.3 手順4）。
+// 旧: const BASELINE_HIGH = 153; // 2026-08-31 census -36（189→153）。🔴**内訳を混ぜない**：
 //   ■**実装 -32**（`manualEffects.ts` へ原文から書き直し＋`syncManualLive` で live へ配達・31カード）
 //     🔴**うち5件は golden の「見送り契約」が赤で差し戻した**（直しかけて捕まった＝契約は生きている）＝
 //       `WDA-F02-07-E1`／`WX24-P2-036-E1`（「同じレベル」の**ペア付け機構**が無いまま対象数を増やすと過剰実行）／
@@ -1107,7 +1162,10 @@ const PATTERNS: Pattern[] = [
     // 🆕2026-08-31 較正＝`CountFromZone.distinctBy:'level'`（「トラッシュにある**それぞれレベルの異なる**
     //   ＜X＞のシグニ1枚につき－N」＝`WX14-048-E1`）が対応表から漏れていた。`distinctName`／`distinctLevels`
     //   とは綴りが違うだけで意味は同じ軸（`maxCost`／`Under` と同じ「綴り違いで部分一致しない」罠）。
-    keys: ['eachDistinct', 'distinctName', 'selectionConstraint', 'distinctLevels', 'distinctBy'], // selectionConstraint=バッチ5c の集合制約・distinctLevels=HAS_CARD_IN_FIELD 条件
+    // 🆕2026-08-31 較正＝`TRASHED_DISTINCT_LEVELS_GTE`（「この方法で**それぞれレベルの異なる**シグニ４枚が
+    //   トラッシュに置かれた場合」＝`WXK03-025-E1`）。型名がそのまま軸を表しているのに、対応表が
+    //   `distinctLevels`（複数形・`HAS_CARD_IN_FIELD` 側の綴り）しか持っていなかった。
+    keys: ['eachDistinct', 'distinctName', 'selectionConstraint', 'distinctLevels', 'distinctBy', 'TRASHED_DISTINCT_LEVELS_GTE'], // selectionConstraint=バッチ5c の集合制約・distinctLevels=HAS_CARD_IN_FIELD 条件
   },
   {
     name: '奇数/偶数',
@@ -1216,7 +1274,10 @@ const PATTERNS: Pattern[] = [
   {
     name: 'ターン1回制限',
     re: /《ターン(１|1)回》|ターンに(一度|１回|1回|一回)/,
-    keys: ['usageLimit'],
+    // 🆕2026-08-31 較正＝`ARTS_LIMIT_1`（「対戦相手は**各ターンに一度しか**アーツを使用できない」＝`WX13-007-E1`）は
+    //   **回数制限を actionId が内包する正表現**で、`usageLimit`（能力側の使用回数）には載らない軸。
+    //   ⚠narrow に取る＝`BLOCK_ACTION` そのものを鍵にすると回数制限の脱落を丸ごと隠す。
+    keys: ['usageLimit', 'ARTS_LIMIT_1'],
   },
   {
     name: 'ゲーム1回制限',
@@ -1245,7 +1306,9 @@ const PATTERNS: Pattern[] = [
       return s !== t && !/がアタックしたとき/.test(s);
     },
   },
-  { name: 'トリガー:場に出たとき', re: /場に出たとき/, keys: ['ON_PLAY', 'ON_ZONE_MOVED', 'ADD_TO_FIELD'], src: 'eff' },
+  // 🆕2026-08-31 較正＝`ON_ENERGY_TO_FIELD`（「あなたの**エナゾーンから**シグニ１枚が手札に加わるか
+  //   **場に出たとき**」＝`WXDi-P11-007-E1`）。由来ゾーン限定の専用 timing で、`ON_PLAY` を含まない綴り。
+  { name: 'トリガー:場に出たとき', re: /場に出たとき/, keys: ['ON_PLAY', 'ON_ZONE_MOVED', 'ADD_TO_FIELD', 'ON_ENERGY_TO_FIELD'], src: 'eff' },
   { name: 'トリガー:バニッシュされたとき', re: /バニッシュされたとき/, keys: ['ON_BANISH'], src: 'eff' },
   // ⚠`ADD_EXTRA_ATTACK_PHASE`＝「この方法で加えたアタックフェイズ**開始時**、〜」（§6.4 O-3）。
   //   本文は `onStart` に載る＝timing キーは付かないので、これを対応語彙に入れないと
@@ -1554,6 +1617,24 @@ interface Corpus {
   ctiming: Map<string, string>;
 }
 
+/**
+ * 注釈・キーワード説明の（…）を除去する。
+ * 🔴**入れ子に対応する**（2026-08-31 較正）＝旧実装は `/（[^）]*）/g` で、
+ *   `【アサシン（パワー10000以下のシグニ）】を持つシグニがアタックすると、正面のシグニが
+ *    パワー10000以下の場合、…` のような**引数つきキーワードのリマインダー文**では
+ *   内側の `）` で閉じてしまい、**リマインダー本文が原文として残っていた**
+ *   （＝「正面」「〜の場合」「パワー閾値」が語彙脱落として誤検出される）。実測4効果。
+ */
+export function stripAnnotations(s: string): string {
+  let out = '', depth = 0;
+  for (const ch of s) {
+    if (ch === '（') { depth++; continue; }
+    if (ch === '）') { if (depth > 0) { depth--; continue; } }
+    if (depth === 0) out += ch;
+  }
+  return out;
+}
+
 function loadTexts(): Corpus {
   // 効果テキスト列（0-idx 18）・LBテキスト列（19以降）を保持し、注釈・キーワード説明の（…）を除去
   const all = new Map<string, string>(), eff = new Map<string, string>(), burst = new Map<string, string>();
@@ -1565,7 +1646,7 @@ function loadTexts(): Corpus {
       const cols = line.split(',');
       const id = cols[0];
       if (!id || !/^[A-Z]/.test(id) || id === 'CardNum') continue;
-      const strip = (s: string) => s.replace(/（[^）]*）/g, '');
+      const strip = stripAnnotations;
       const e = strip(cols[18] ?? '');
       const b = strip(cols.slice(19).join(','));
       eff.set(id, (eff.get(id) ?? '') + e);
@@ -1616,7 +1697,7 @@ function buildUnits(corpus: Corpus, jsonObj: Map<string, unknown[]>): Unit[] {
     process.exit(1);
   }
   const src = JSON.parse(fs.readFileSync(SRC_PATH, 'utf8')) as Record<string, string>;
-  const strip = (s: string) => s.replace(/（[^）]*）/g, '');
+  const strip = stripAnnotations;
   const units: Unit[] = [];
   for (const [cardNum, effs] of jsonObj) {
     if (!Array.isArray(effs)) continue;
@@ -1790,7 +1871,17 @@ function main(): void {
       // 🆕③**符号つきで載る数も「載っている」**＝「対戦相手の手札があなたより**N枚以上多い**」は
       //   `HAND_DIFF{operator:'lte', value:-N}` が正表現（差の符号で向きを表す）。`[:[,]N[,}]]` は
       //   `-N` の前に `-` が挟まるので当たらなかった（実測2効果＝`SPK01-15-E2`／`WXK03-062-E1`）。
-      const missing = nums.filter(n => !new RegExp('[:\\[,]-?' + n + '[,}\\]]').test(u.js) && !beatNums.has(n));
+      // 🆕④**否定形は境界が1つずれる**＝「〈X〉が**N枚以上ない**かぎり」は `operator:'lte', value:N-1` が正表現
+      //   （`WXK05-047-E1`「あなたの場にキーが２枚以上ないかぎり」＝`HAS_KEY_IN_FIELD{lte,1}`）。
+      //   原文に `N(枚|体)以上(ない|無い)` があり JSON に `N-1` が載っているなら「表現済み」と数える。
+      //   ⚠narrow に取る＝否定形が原文にある数だけを対象にする（肯定側の脱落は従来どおり検出する）。
+      const negBoundary = new Set(
+        [...t.matchAll(/(?<![0-9])([2-5])(?:枚|体)以上(?:ない|無い)/g)]
+          .map(m => m[1])
+          .filter(n => new RegExp('[:\\[,]' + (Number(n) - 1) + '[,}\\]]').test(u.js)),
+      );
+      const missing = nums.filter(n => !new RegExp('[:\\[,]-?' + n + '[,}\\]]').test(u.js)
+        && !beatNums.has(n) && !negBoundary.has(n));
       if (!missing.length) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
@@ -1999,7 +2090,10 @@ function main(): void {
     for (const u of units) {
       if (!u.js.includes('IS_MY_TURN')) continue;
       hits++;
-      if (/そう(した|しなかった)場合|支払わなかった場合|捨てなかった場合|しなければ|代わりに|あなたのターンの間|しない場合/.test(u.text)) continue;
+      // 🆕2026-08-31 較正＝「**あなたの〈メイン／アタック／グロウ〉フェイズの間**」も `IS_MY_TURN` の正当な由来
+      //   （自分のフェイズ＝自分のターン。`WX24-P1-015-E1` は `AND[DURING_PHASE MAIN, IS_MY_TURN]` が正表現）。
+      //   ⚠「あなたのターンの間」だけを許していたので、フェイズ表記の同義句が誤検出されていた。
+      if (/そう(した|しなかった)場合|支払わなかった場合|捨てなかった場合|しなければ|代わりに|あなたのターンの間|あなたの(メイン|アタック|グロウ|エナ)フェイズの間|しない場合/.test(u.text)) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(u.effectId); highAll.add(u.effectId); }
     }

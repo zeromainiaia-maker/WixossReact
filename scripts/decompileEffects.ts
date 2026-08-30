@@ -808,6 +808,8 @@ function condJa(c?: any): string {
     }
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
     case 'CHARM_COUNT': return `${ownerJa(c.owner)}場の【チャーム】が${numJa(c.value)}枚${opJa(c.operator)}`;
+    // ⚠チーム名を名指ししない形（「場にいるルリグN体が**同じチーム**の場合」）。`LRIG_TEAM_COUNT` と違い team を持たない。
+    case 'LRIG_ANY_TEAM_COUNT': return `${ownerJa(c.owner)}場にいるルリグ${numJa(c.value)}体が同じチーム`;
     // §5.3 `O-81`：「この方法で（シグニを）公開したとき」＝離脱で裏向き付けカードが公開されたか。
     case 'FACEDOWN_REVEALED_JUST': return `この方法で${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}を公開した`;
     case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator ?? 'gte')}`;
@@ -867,11 +869,29 @@ function condJa(c?: any): string {
       return `そのアタックフェイズの間に${who}の${cls}シグニが場を離れていた`;
     }
     case 'THIS_CARD_HAS_ATTACHED': return `このシグニにカードが${(c.minCount ?? 1) > 1 ? `${c.minCount}枚以上` : ''}付いている`;
+    case 'ZONE_SUM_COUNT': {
+      const zonesJa = c.zones.map(z => countFromZoneJa(z)).join('と');
+      return `${zonesJa}の合計が${numJa(c.value)}${opJa(c.operator)}`;
+    }
+    case 'CENTER_LRIG_ATTACKED_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグがアタックしてい${c.negate ? 'なかった' : 'た'}`;
     case 'THIS_CARD_HAS_UNDER': {
       const n = (c.minCount ?? 1) > 1 ? `${numJa(c.minCount!)}枚以上` : '';
+      const subj = c.subject === 'lrig' ? 'このルリグ' : 'このシグニ';
       return c.filter
-        ? `このシグニの下に${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${n}${c.negate ? '無い' : 'ある'}`
-        : `このシグニの下にカードが${n}${c.negate ? '無い' : 'ある'}`;
+        ? `${subj}の下に${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${n}${c.negate ? '無い' : 'ある'}`
+        : `${subj}の下にカードが${n}${c.negate ? '無い' : 'ある'}`;
+    }
+    case 'FIELD_ATTACHED_COUNT': {
+      const who = c.owner === 'any' ? '' : c.owner === 'opponent' ? '対戦相手の' : 'あなたの';
+      const kind = c.include ?? 'both';
+      const what = kind === 'attached' ? '場のシグニに付いているカード'
+        : kind === 'under' ? '場のシグニの下にあるカード'
+          : kind === 'soul' ? '場の【ソウル】'
+            : kind === 'zone' ? 'シグニゾーンにあるカード'
+              : '場のシグニに付いているカードとシグニの下にあるカードの合計';
+      // ⚠語尾に「ある」を付ける＝呼び出し側が `${cond}場合` / `${cond}なら` を続けるので、
+      //   これが無いと「…が1枚以上場合」という壊れた文になる。
+      return `${who}${what}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
     }
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン${c.owner === 'opponent' ? '対戦相手が' : ''}手札を${numJa(c.value)}枚以上捨てている`;
@@ -1045,7 +1065,9 @@ function actionJa(a?: Action, effectType?: string): string {
   switch (a.type) {
     case 'DRAW': return a.untilHandCount !== undefined
       ? `${ownerJa(a.owner)}手札が${a.untilHandCount}枚より少ない場合、その差の分だけカードを引く`
-      : a.countFromZone?.unitSize
+      // ⚠`unitSize` の有無で分岐しない＝「〈X〉のシグニ**１体につき**1枚引く」は `unitSize` を持たない
+      //   （既定1）ので、旧実装では `countFromZone` ごと描かれず**固定1枚**に見えていた（`WXEX2-34-E1`）。
+      : a.countFromZone
       ? `${countFromZonePerJa(a.countFromZone, '枚')}カードを引く`
       : a.perLastProcessedLevel
       ? `${ownerJa(a.owner)}そのシグニのレベル1につきカードを${numJa(a.count)}枚引く`
@@ -1213,6 +1235,12 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'PREVENT_NEXT_DAMAGE':
       if (a.millAtTurnEndPerPrevented) return `このターン、次の${a.count ?? 1}回のダメージを受けず、防いだ回数だけ「ターン終了時、デッキの上からカードを${a.millAtTurnEndPerPrevented}枚トラッシュに置く。」を得る`;
       if (a.sourceLevelLtLastProcessed) return `このターン、次にあなたがそれより低いレベルを持つ対戦相手のシグニによってダメージを受ける場合、代わりにダメージを受けない`;
+      // ⚠ダメージ源の値限定（`damageSource` と同じ「逆翻訳の忠実化用」規約）。出さないと
+      //   「どんなダメージでも防ぐ」as-written に読めてしまう。
+      if (a.sourcePowerLte !== undefined || a.sourceLevelLte !== undefined) {
+        const lim = a.sourcePowerLte !== undefined ? `パワー${a.sourcePowerLte}以下` : `レベル${a.sourceLevelLte}以下`;
+        return `このターン、あなたは対戦相手の${lim}のシグニによってダメージを受けない`;
+      }
       return a.damageSource
         ? `このターン、次にあなたが${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}によってダメージを受ける場合、代わりにダメージを受けない`
         : `このターン、次の${a.count ?? 1}回のダメージを受けない`;
@@ -1243,7 +1271,8 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
     }
     case 'ENERGY_CHARGE_FROM_DECK':
-      if (a.countFromZone?.unitSize)
+      // ⚠`unitSize` の有無で分岐しない（DRAW と同じ理由＝既定1の「1体につき」が描かれず固定1回に見えた）。
+      if (a.countFromZone)
         return `${countFromZonePerJa(a.countFromZone, '回')}【エナチャージ1】をする`;
       if (typeof a.count === 'object' && LEVEL_REFS.includes(a.count?.$ref))
         return `それのレベル1につき${ownerJa(a.owner)}デッキの上から1枚をエナゾーンに置く`;
@@ -1753,8 +1782,19 @@ function actionJa(a?: Action, effectType?: string): string {
           && a.steps[0].unlessPay === true
           && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1].condition?.type === 'PAID_ADDITIONAL_COST'
           && a.steps[1].else) {
-        const costJa = (a.steps[0].costColors ?? []).map((c: string) => `《${c}》`).join('');
-        return `${costJa}を支払わないかぎり、${actionJa(a.steps[1].else)}`;
+        // 🆕2026-08-31＝**支払い軸は `costColors` だけではない**（`fieldTrash` / `handDiscard` /
+        //   `energyTrash` / `costText`）。色だけを見ていたので、それ以外だと**空文字**になり
+        //   「を支払わないかぎり、…」という主語なしの文が出ていた（`WX24-P1-048-E3`）。
+        const oc = a.steps[0];
+        const colorsJa = (oc.costColors ?? []).map((c: string) => `《${c}》`).join('');
+        const ft = oc.fieldTrash;
+        const costJa = colorsJa ? `${colorsJa}を支払わ`
+          : ft ? `あなたの${ft.excludeSelf ? '他の' : ''}${filterJa(ft.filter ?? {})}シグニ${numJa(ft.count)}体を場からトラッシュに置か`
+          : oc.handDiscard ? `手札を${numJa(oc.handDiscard.count)}枚捨て`
+          : oc.energyTrash ? `エナゾーンからカードを${numJa(oc.energyTrash.count)}枚トラッシュに置か`
+          : oc.costText ? `${oc.costText}を行わ`
+          : 'コストを支払わ';
+        return `${costJa}ないかぎり、${actionJa(a.steps[1].else)}`;
       }
       if (a.steps.length === 2 && a.steps[0]?.type === 'STUB' && a.steps[0].id === 'OPTIONAL_COST'
           && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1].condition?.type === 'PAID_ADDITIONAL_COST') {
@@ -2251,10 +2291,13 @@ function actionJa(a?: Action, effectType?: string): string {
         : '';
       if (a.targetsStored) {
         // ⚠支払い軸は《無》だけではない（`unlessPayHandDiscard` を見ないと《無》×0 と描いてしまう）。
-        const payAB = a.unlessPayHandDiscard
-          ? `手札を${a.unlessPayHandDiscard}枚捨てないかぎり`
-          : `《無》×${a.unlessPayColorless ?? 0}を支払わないかぎり`;
-        return `このターン、${whoAB}が${payAB}それはアタックできない`
+        // 🆕**回避コストが1つも無いときは支払い節そのものを描かない**＝旧実装は `?? 0` に落ちて
+        //   「《無》×0を支払わないかぎり」＝**タダで回避できる**という嘘の逆翻訳になっていた（`WXK05-052-E1`）。
+        // 🆕期間（`turns:2`＝次のターンの間）も出す（下の一般枝と同じ規約）。
+        const payAB = a.unlessPayHandDiscard ? `${whoAB}が手札を${a.unlessPayHandDiscard}枚捨てないかぎり`
+          : a.unlessPayColorless ? `${whoAB}が《無》×${a.unlessPayColorless}を支払わないかぎり`
+            : '';
+        return `${a.turns === 2 ? '次のターンの間、' : 'このターン、'}${payAB}それはアタックできない`
           + (a.unlessPayHandDiscard ? '（アタックするごとに捨てる）' : '');
       }
       // 「選んだシグニ以外のシグニでアタックできない」（§6.4 O-3）＝`targetsStored` の逆向き。

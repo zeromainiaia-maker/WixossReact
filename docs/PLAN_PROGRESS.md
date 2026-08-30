@@ -1,5 +1,55 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-08-31・続き745・Opus 5 単独）＝census 高シグナルを 153 → 122（-31）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 153→122**
+  gates 全緑（**golden 3066→3067 / 0 FAIL**・smoke 全0・fuzz 全0・census 122/122・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 -28／較正 -3（live 不変）**。live 変更は **28カード（28効果）**。
+
+  🔴🔑**最大の教訓＝「据置契約」は5本中4本が「受け皿が無い」を理由にしていた。受け皿を作った時点で契約は卒業させる。**
+  今回 golden が赤で差し戻した6本のうち **4本は据置契約**（`WXK05-052-E1` の NEXT_TURN 据置／同カードの体数トリップワイヤ／
+  段2-18「場全体 attached/under OR は未表現のまま」／段2 第45バッチ「SOUL 存在機構待ちへ部分配線しない」）で、
+  **どれも「受け皿ができるまで近似で埋めるな」**という条件つきの禁止だった。⇒ **正方向の assert へ置き換えた**
+  （契約が守っていた「所有者が逆になっていないか」「片肺 AND になっていないか」は新しい assert に引き継いだ）。
+  残り2本は**件数ラチェット**（`OPPONENT_PAY_OPTIONAL` 78→79・`Condition` 型数 137→139）。
+
+  🆕**新設した受け皿は3つ**＝①`THIS_CARD_HAS_UNDER.subject:'lrig'`（**ルリグの下**＝`field.lrig` スタック。既定の
+  `'signi'` は `field.signi` しか走査しないので**ルリグ札では常に false**＝多段閾値が両方とも無条件に落ちていた）
+  ②`FIELD_ATTACHED_COUNT`（場全体の「付いているカード／下のカード」枚数。`include`＝attached/under/both/soul/zone）
+  ③`CENTER_LRIG_ATTACKED_THIS_TURN`。**3つとも `evalCondition` を実走させる golden を1本足した**
+  （§4.3＝union に足しただけでは `return true`＝無条件成立に落ちる）。
+
+  🔴**`fireCondition` は ON_SIGNI_DOWN 経路しか読まれていない**＝`WXDi-P08-030-E2` の序数条件を最初そこへ置いたが、
+  `collectSigniAttackDelayedTriggers` / `collectAttackerSelfDelayedTriggers` は**読んでいない**＝**黙って無条件へ戻る**。
+  ⇒ `effect` の中の `CONDITIONAL` へ移した（`once` を使わないので収集時評価は不要）。**逆翻訳で気づいた。**
+
+  🔑**逆翻訳の目視で計器バグを3つ見つけた**＝①`SIGNI_ATTACK_BAN{targetsStored}` が回避コスト不在でも
+  「《無》×0を支払わないかぎり」＝**タダで回避できる**と描いていた（`?? 0` フォールバック）②同分岐が `turns` を無視
+  ③`DRAW`/`ENERGY_CHARGE_FROM_DECK` の `countFromZone` を `unitSize` があるときしか描かず、「1体につき1枚」が
+  **固定1枚**に見えていた。④`LRIG_ANY_TEAM_COUNT` は生の英語 ID が漏れていた。**engine は全部正しく、表示だけが嘘だった。**
+
+- 🏁**セッション（2026-08-31・続き744・Opus 5 単独）＝census 高シグナルを 189 → 153（-36）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 189→153**
+  gates 全緑（**golden 3064→3066 / 0 FAIL**・smoke 全0・fuzz 全0・census 153/153・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 -32／較正 -4（live 不変）**。live 変更は **31カード（32効果）**。
+  ⑤実機は**不要**判定（`src/screens/` 不変・新しい**アクション型**0本）。
+
+  🔴🔑**最大の教訓＝「census に出ている＝直すべき」ではない。**
+  直しかけた**5効果が既存の golden「見送り契約」で赤になり**、読み直すと**どれも理由が生きていた**＝
+  ①「同じレベル」の**ペア付け機構**が無いまま `count` を増やすと過剰実行（`WDA-F02-07-E1`／`WX24-P2-036-E1`）
+  ②**N体強制の中間動作**は `EffectInteractionModal.canConfirm` の「選択数 ≧ count」で**ソフトロック**（`WX07-039-E2`／`WXEX1-14-E2`・`O-104` 待ち）
+  ③「**次に**バニッシュされる場合」の**1回消費**耐性の語彙が無い（`WX15-010-E1`）。
+  ⇒ **census だけを見て手を出すと、先行セッションが理由つきで見送った判断を黙って踏み潰す。**
+  ⇒ 逆に**1件は解除した**（`WXK09-029-BURST`）＝契約自身が「表せるようになったら採用する」と書いており、
+  `colorMatchesLastProcessed` が後から入って**前提が変わっていた**。**契約は毎回読み直す。**
+
+  🔴**`WXDi-CP02-TK02A` は効果 id が1つずつズレていた**＝E1 に E2 の内容（【常】【ランサー】が恒久 no-op）・
+  E2 に E3 の内容・**E3 は live に不在**。原文3能力へ 1:1 に割り直した（`--allow-idset-change` が要る）。
+  ⚠**manual に残すのは E2 だけ**＝E1/E3 は parser 出力と実体同一で、コピーを置くと `O-42` tripwire が発火する。
+
+  🆕**新設した受け皿は2つだけ**＝`LOOK_PICK_CHAIN.then:'under'`（3効果の「下に置く」が**恒久 no-op** だった）と
+  `HAS_TRAP_IN_FIELD.minCount`。前者は **golden で engine を実走**させて確かめた
+  （§4.3「union に値を足しても executor が分岐しなければ無言 no-op」への直接の見張り）。
+
 - 🏁**セッション（2026-08-30・続き743・Opus 5 単独）＝census 高シグナルを 245 → 189（-56）。**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（うち機構待ち17・即着手0・据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 245→189**
   gates 全緑（**golden 3063→3064 / 0 FAIL**・smoke 全0・fuzz 全0・census 189/189・lint 0 errors）＋ `regen`。
