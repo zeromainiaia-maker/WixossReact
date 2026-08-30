@@ -50,7 +50,10 @@ const P = [
   ['O-158', 'エナのアクセを選ぶ',         /エナゾーンから.{0,30}【アクセ】にする/, /ATTACH_ACCE/],
   ['O-159', '新たに得られない(一過性)',   /新たに.{0,8}得られない/, /ability_gain_blocked_this_turn|PREVENT_ABILITY_GAIN_BY_OPP|PREVENT_OPP_SIGNI_ABILITY_GAIN|PREVENT_ABILITY_CHANGE_BY_OPP|SUPPRESS_GAIN_ABILITY/],
   ['O-160', '相手がダメージを受けたとき',  /対戦相手がダメージを受けたとき/, null],
-  ['O-161', '効果元と共通する色を持たない', /この(シグニ|カード)と共通する色を持たない/, /NO_COMMON_COLOR_AMONG_FIELD_SIGNI|colorNotMatchesLrig|colorNotMatchesOppLrig|sharedColor/],
+  // 🔴`NO_COMMON_COLOR_AMONG_FIELD_SIGNI` を受け皿に数えてはいけない（2026-08-30 続き736 に実測して訂正）。
+  // あれは**場のシグニ同士の相互比較**で「効果元1体と他のシグニの色比較」ではない＝**似て非なる受け皿**。
+  // 数えていたせいで `SP27-012-E1` / `WX21-039-E1`（どちらも誤用したまま）を「受け皿あり」と誤報していた。
+  ['O-161', '効果元と共通する色を持たない', /この(シグニ|カード)と共通する色を持たない/, /noCommonColorWithSelf|distinctColors/],
   ['O-162', 'プレイヤーを選ぶ',           /プレイヤーを.{0,8}人(まで)?(を)?選/, null],
   ['O-164', '次にバニッシュされる場合',    /次に.{0,14}バニッシュされる場合/, null],
   ['O-165', '相手ターンの間の効果耐性',    /対戦相手のターンの間.{0,40}(効果を受けない|対象にならない)/, null],
