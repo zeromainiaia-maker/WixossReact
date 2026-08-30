@@ -21767,7 +21767,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 62, 'ActiveCondition の型数（62＝§5.2 Sheet3 バッチ1で SAME_ZONE_HAS_SEED を追加）');
-  eq(Object.keys(C_TYPES).length, 134, 'Condition の型数（134＝§5.2 Sheet3 バッチ1で SAME_ZONE_HAS_SEED を追加）');
+  eq(Object.keys(C_TYPES).length, 135, 'Condition の型数（135＝§5.3 O-166 で LAST_PROCESSED_POWER_LTE を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -33425,6 +33425,56 @@ test('O-173 主群: 可変手札捨て4効果は対象1体へ捨てた枚数×�
   ok(!mods.some(mod => mod.cardNum === untouched1 || mod.cardNum === untouched2), '他の2体へ修整しない');
 }));
 
+test('O-166: 「この効果によってパワーが０以下になった場合」の did-it ゲートが6効果に入り、ルール注記には入らない', () => withSavedCursor(() => {
+  // §5.3 `O-166`（2026-08-30）＝原文の後半ゲートが丸ごと落ちており、**0以下にならなくても
+  // ドロー／バニッシュ／エナチャージ／ミルが走っていた**（6効果とも過剰効果）。
+  // 🔴**反転側が本体**＝原文に同じ字面が出るが「（シグニとのバトルやパワーが０以下になった場合は
+  //   バニッシュされる）」という**ルール注記**（PLAN 付録B-4）の9枚には**絶対に入れてはいけない**。
+  const hasZeroGate = (action: EffectAction): boolean => {
+    let found = false;
+    const visit = (node: unknown): void => {
+      if (found || !node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      const rec = node as Record<string, unknown>;
+      const cond = rec.condition as { type?: string; value?: number } | undefined;
+      if (rec.type === 'CONDITIONAL' && cond?.type === 'LAST_PROCESSED_POWER_LTE' && cond.value === 0) { found = true; return; }
+      Object.values(rec).forEach(visit);
+    };
+    visit(action);
+    return found;
+  };
+  const liveEffect = (cardNum: string, effectId: string): CardEffect => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!hit, `${effectId} live: 効果が存在`);
+    return hit!;
+  };
+
+  // ── 本体＝did-it ゲートが要る6効果 ──
+  for (const [cardNum, effectId] of [
+    ['WX15-039', 'WX15-039-E1'],       // 0以下→このシグニをバニッシュしてもよい→そうした場合トラッシュから場に出す
+    ['WX15-064', 'WX15-064-E1'],       // 0以下→カードを1枚引く（旧 STUB{DRAW_IF_POWER_ZERO_TEMP} を条件型へ引き上げ）
+    ['WX20-074', 'WX20-074-E2'],       // 0以下→デッキの一番上をエナゾーンへ
+    ['WX21-071', 'WX21-071-E1'],       // 0以下→カードを1枚引き、相手は手札を1枚捨てる
+    ['WX22-048', 'WX22-048-E1'],       // 0以下→このシグニをバニッシュする
+    ['WXDi-P06-041', 'WXDi-P06-041-E1'], // 0以下→相手デッキの上から2枚トラッシュ
+  ] as const) {
+    ok(hasZeroGate(liveEffect(cardNum, effectId).action), `${effectId}: パワー0以下の did-it ゲートがある`);
+  }
+
+  // ── 🔴反転側＝ルール注記の9枚（同じ字面が原文に出るが効果ではない）──
+  for (const cardNum of ['WXK01-094', 'WXK01-096', 'WXK01-099', 'WXK04-064', 'WXK08-036',
+    'WDK07-Y17', 'WXDi-D05-015', 'WXDi-P06-046', 'WXDi-P10-046', 'WXDi-CP01-038'] as const) {
+    for (const eff of effectsMap.get(cardNum) ?? []) {
+      ok(!hasZeroGate(eff.action), `${eff.effectId}: ルール注記にはゲートを入れない（付録B-4）`);
+    }
+  }
+
+  // ── `WX21-071-E1` は自分のドロー1枚も欠落していた（同じ効果内の食い違い）──
+  const wx21 = JSON.stringify(liveEffect('WX21-071', 'WX21-071-E1'));
+  ok(wx21.includes('"DRAW"'), 'WX21-071-E1: 自分のドロー1枚が復元されている');
+  ok(wx21.includes('"ARTS_COST_REDUCTION_BY_EFFECT"'), 'WX21-071-E1: コスト軽減の慣例エンコードを壊していない');
+}));
+
 test('O-175: 「トラップとして設置してもよい」8効果だけを0枚選択可にする', () => withSavedCursor(() => {
   type TrapStage = import('../src/types/effects').LookPickChainStage;
   const trapStages = (action: EffectAction): TrapStage[] => {
@@ -34206,7 +34256,12 @@ test('optional discard for cost: paying the declared hand groups replaces the pr
   // 本体が実際に走る（支払い有無に関わらず）＝WX21-071 は相手シグニのパワーを－8000する
   const eff71 = (effectsMap.get('WX21-071') ?? [])[0];
   const st71 = (eff71.action as { steps: { type: string }[] }).steps;
-  eq(st71.map(s => s.type).join(','), 'CONDITIONAL,POWER_MODIFY,TRASH', 'WX21-071: コスト marker＋本体2ステップ');
+  // 🆕2026-08-30（§5.3 `O-166`）＝3番目が `TRASH`→`CONDITIONAL` に変わった。
+  // 原文「…－8000する。**この効果によってそのシグニのパワーが０以下になった場合、カードを１枚引き**、
+  // 対戦相手は手札を１枚捨てる。」の **did-it ゲートが丸ごと落ちており、相手の手札破棄が無条件だった**
+  // （＋**自分のドロー1枚も欠落**）。ゲート内へ `SEQUENCE[DRAW, TRASH]` を入れた形が正。
+  // ⚠このテストが測りたいのは**コスト marker が本体へ漏れないこと**なので、その軸は不変。
+  eq(st71.map(s => s.type).join(','), 'CONDITIONAL,POWER_MODIFY,CONDITIONAL', 'WX21-071: コスト marker＋本体2ステップ');
   const st35 = ((effectsMap.get('WX21-035') ?? [])[0].action as { steps: { type: string }[] }).steps;
   eq(st35.map(s => s.type).join(','), 'CHOOSE', 'WX21-035: 4択2つまでの本体だけが残る');
 });
@@ -50087,14 +50142,20 @@ test('段2 第45バッチ LRIG_TRASH_COUNT filter: タマ／イオナのANDを�
 test('段2 第45バッチ 2ゾーンOR: 場／別ゾーン／双方0の三方向を実行結果で固定', () => withSavedCursor(() => {
   const lucifer = findCard(c => (c.CardName ?? '').includes('ルシファル'));
   const action = b43Live('WX20-074-E2').action;
-  const energyAfter = (field: boolean, trash: boolean) => {
+  // 🔴**観測点を「エナ枚数」から「パワー修整が乗ったか」へ変えた**（2026-08-30・§5.3 `O-166`）。
+  // 理由＝`O-166` でこの効果に **「この効果によってパワーが０以下になった場合」の did-it ゲート**が入り、
+  // エナチャージが**そのゲートの内側**へ移った。テストの `SIGNI` は －7000 しても 0 以下にならないので
+  // **エナ枚数では OR 条件の成否が観測できなくなった**（＝テストが測りたい軸と別の軸で落ちる）。
+  // ⇒ **OR 条件そのものの検証は `POWER_MODIFY` が走ったかで見る**。did-it ゲートの検証は
+  //    `O-166: 「この効果によってパワーが０以下になった場合」…` のテストが別に持っている。
+  const powerModsAfter = (field: boolean, trash: boolean) => {
     const ctx = mkCtx({ signi: field ? [lucifer, null, null] : [null, null, null] }, { signi: [SIGNI, null, null] });
     ctx.ownerState.trash = trash ? [lucifer] : [];
-    return run(action, ctx).ownerState.energy.length;
+    return (run(action, ctx).otherState.temp_power_mods ?? []).length;
   };
-  eq(energyAfter(true, false), 6, '場にあればOR成立');
-  eq(energyAfter(false, true), 6, 'トラッシュにあればOR成立');
-  eq(energyAfter(false, false), 5, '両ゾーン0枚なら本文を実行しない');
+  eq(powerModsAfter(true, false), 1, '場にあればOR成立（パワー修整が乗る）');
+  eq(powerModsAfter(false, true), 1, 'トラッシュにあればOR成立（パワー修整が乗る）');
+  eq(powerModsAfter(false, false), 0, '両ゾーン0枚なら本文を実行しない');
 }));
 
 test('段2 第45バッチ 偽陽性／据置: 専用実行器と別バッチ対象を変更しない', () => {

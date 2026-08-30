@@ -2768,6 +2768,22 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const base = ctx.effectivePowers?.get(lp) ?? parseInt(ctx.cardMap.get(lp)?.Power ?? '0', 10);
       return base + (cond.addDelta ?? 0) >= cond.value;
     }
+    case 'LAST_PROCESSED_POWER_LTE': {
+      // 「この効果によってそれのパワーが０以下になった場合」＝**パワー減少の did-it ゲート**（§5.3 `O-166`）。
+      // 🔴上の GTE と基準が違う＝あちらは `effectivePowers`（POWER_MODIFY 適用**前**）＋ `addDelta` で
+      //   「これから乗る分」を手で足すが、こちらは **`temp_power_mods` に実際に積まれた分**を読む（適用**後**）。
+      //   この効果自身が乗せた修整を数えたいので、後者でないと常に不成立になる。
+      // ⚠`effectivePowers` は `temp_power_mods` を含まない（`BattleScreen.tsx:1020` で確認）＝二重加算しない。
+      // ⚠対象が自分側か相手側かは効果によるので**両方の `temp_power_mods` を見る**（cardNum で引くので混ざらない）。
+      // ⚠参照不能なら **false（fail-closed）**＝「0以下になっていない」に倒す方が過剰効果にならない。
+      const lpL = ctx.lastProcessedCards?.[0];
+      if (!lpL) return false;
+      const baseL = ctx.effectivePowers?.get(lpL) ?? (parseInt(ctx.cardMap.get(lpL)?.Power ?? '0', 10) || 0);
+      const tempL = [...(ctx.ownerState.temp_power_mods ?? []), ...(ctx.otherState.temp_power_mods ?? [])]
+        .filter(m => m.cardNum === lpL)
+        .reduce((sum, m) => sum + m.delta, 0);
+      return baseL + tempL <= cond.value;
+    }
     // ActiveCondition 側（`checkActiveCondition`）にだけ実装があり、こちらには case が無く
     // **無条件 true へフォールスルー**していた（live 使用0件の潜在穴・タスク12(cxv)）。
     case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': {

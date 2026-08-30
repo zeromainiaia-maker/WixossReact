@@ -19182,6 +19182,41 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     };
   }
 
+  // §5.3 `O-166`（2026-08-30）＝「この効果によってそれのパワーが０以下になった場合、〜」＝
+  // **パワー減少の did-it ゲート**。従来は句ごと落ちており、**0以下にならなくても後続が無条件で走っていた**
+  // （ドロー／バニッシュ／エナチャージ／ミルが6効果で過剰実行）。
+  // ⇒ **パワー修整ステップの「次のステップ以降」**を `CONDITIONAL{LAST_PROCESSED_POWER_LTE, value:0}` で包む。
+  // ⚠**`STUB{DRAW_IF_POWER_ZERO_TEMP}` を含む木は触らない**＝`WX15-064` は同じ判定の専用ハンドラが
+  //   既にあり（`execStubPart1.ts:2150`）、包むと二重ゲートになる。
+  // ⚠**`CONDITIONAL` の `then` の内側にも降りる**＝`WX20-074-E2` は直前の後処理で
+  //   `CONDITIONAL{OR{ルシファル}}` に包まれた形になっているため。
+  // ⚠**「そうした場合」の `CONDITIONAL{IS_MY_TURN}` はそのまま tail に入れて包む**＝あれは慣例エンコードで
+  //   engine が特別処理する（`effectExecutor.ts:2102/4430/4500`）。**中身を書き換えない**（PLAN 付録B-9）。
+  if (/この効果によって(それ|そのシグニ|それら)のパワーが[０0]以下になった場合/.test(actionText)
+      && !JSON.stringify(resolvedAction).includes('DRAW_IF_POWER_ZERO_TEMP')) {
+    const POWER_STEP_TYPES = ['POWER_MODIFY', 'POWER_MODIFY_PER_FIELD', 'POWER_MODIFY_PER_CHARM',
+      'POWER_MODIFY_PER_LIFE_COUNT', 'POWER_MODIFY_PER_VIRUS_COUNT', 'POWER_SET'];
+    const wrapAfterPowerO166 = (a: EffectAction): EffectAction => {
+      if (a?.type === 'CONDITIONAL' && a.then) return { ...a, then: wrapAfterPowerO166(a.then) } as EffectAction;
+      if (a?.type !== 'SEQUENCE') return a;
+      const pi = a.steps.findIndex(st => POWER_STEP_TYPES.includes(st?.type));
+      if (pi < 0 || pi === a.steps.length - 1) return a;
+      const tailO166 = a.steps.slice(pi + 1);
+      // 既にゲート済みなら二重に包まない（再実行や手書きとの衝突を避ける）
+      if (tailO166.length === 1 && tailO166[0]?.type === 'CONDITIONAL'
+          && (tailO166[0] as { condition?: { type?: string } }).condition?.type === 'LAST_PROCESSED_POWER_LTE') return a;
+      return {
+        type: 'SEQUENCE',
+        steps: [...a.steps.slice(0, pi + 1), {
+          type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_POWER_LTE', value: 0 },
+          then: tailO166.length === 1 ? tailO166[0] : { type: 'SEQUENCE', steps: tailO166 },
+        }],
+      } as EffectAction;
+    };
+    resolvedAction = wrapAfterPowerO166(resolvedAction);
+  }
+
   resolvedAction = applyDynamicCountTargetLimit(resolvedAction, actionText);
   // 一部の「対象とし、条件の場合、それを〜」は複合アクション側が先に本文を消費するため、
   // 単文の状態条件持ち上げを通らない。場全体のレベル種類数だけを効果ブロック終端で補う。

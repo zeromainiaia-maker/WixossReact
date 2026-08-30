@@ -8,6 +8,49 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
+  // WX21-071 ワイズ・スパーク（§5.3 `O-166`・2026-08-30）
+  // 原文「…それのパワーを－8000する。**この効果によってそのシグニのパワーが０以下になった場合、
+  //   カードを１枚引き**、対戦相手は手札を１枚捨てる。」
+  // 🔴旧 live の穴は**2つ**＝①**0以下ゲートが丸ごと無く**相手の手札破棄が無条件だった
+  //   ②**自分のドロー1枚が丸ごと欠落**していた。
+  // ⚠parser の `O-166` 汎用規則（`effectParser.ts`）はこの効果に届かない（スペルの文分割で
+  //   「この効果によって〜」が別ブロックに落ちる）ので手書きにした。**同型は他に無い**（残り5効果は parser 側で解決済み）。
+  // ⚠先頭の `CONDITIONAL{IS_MY_TURN}` は**「そうした場合」の慣例エンコード**（`effectExecutor.ts:2102/4430/4500` が
+  //   特別処理する／PLAN 付録B-9）＝原文「捨ててもよい。そうした場合、使用コストは《黒×0》になる」に対応。**触らない。**
+  'WX21-071': [
+    {
+      effectId: 'WX21-071-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '黒', count: 1 }, { color: '青', count: 1 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } },
+          {
+            type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+            delta: -8000,
+          },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_POWER_LTE', value: 0 },
+            then: {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'DRAW', owner: 'self', count: 1 },
+                { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+              ],
+            },
+          },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // ══════════════════════════════════════════════════════════════════════════════
   // 2026-08-30 §5.2 **カード単位バッチ 第1回**（`census` と `audit` が**両方**立つ86枚から）。
   // 母集団の作り方＝`npm run census:cards -- --list` の `census,audit` かつ **`mech` が立たない**行
@@ -2904,7 +2947,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             delta: -7000,
           },
           { type: 'STUB', id: 'REMOVE_VIRUS_TARGET_ZONE' },
-          { type: 'STUB', id: 'DRAW_IF_POWER_ZERO_TEMP' },
+          // §5.3 `O-166`（2026-08-30）＝**専用 STUB を汎用の条件型へ引き上げた**。
+          // 旧＝`STUB{DRAW_IF_POWER_ZERO_TEMP}`（`execStubPart1.ts:2150`・このカード専用で
+          // 「lastProcessedCards[0] が temp_power_mods 適用後パワー0以下なら1枚引く」を丸ごと持っていた）。
+          // 新＝`CONDITIONAL{LAST_PROCESSED_POWER_LTE:0}`＋既存 `DRAW`＝**同じ判定を6効果で共有できる形**。
+          // ⚠**位置は変えない**＝旧 STUB もこの位置で `lastProcessedCards[0]` を読んで正しく動いていた
+          //   （＝間の `REMOVE_VIRUS_TARGET_ZONE` は `lastProcessedCards` を壊さない、が実証済み）。
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_POWER_LTE', value: 0 },
+            then: { type: 'DRAW', owner: 'self', count: 1 },
+          },
         ],
       } as SequenceAction,
       duration: 'UNTIL_END_OF_TURN',

@@ -2147,22 +2147,10 @@ export function execStubPart1(
     const newOwnerRVTZ = { ...ctx.ownerState, opp_virus_removed_just: true };
     return done(addLog({ ...ctx, ownerState: newOwnerRVTZ, otherState: newOtherRVTZ }, `ゾーン${zoneIdxRVTZ + 1}の【ウィルス】を取り除く`));
   }
-  // DRAW_IF_POWER_ZERO_TEMP: lastProcessedCards[0]がtemp_power_mods適用後パワー0以下なら1枚引く（WX15-064型）
-  if (stub.id === 'DRAW_IF_POWER_ZERO_TEMP') {
-    const targetNumDIPZT = ctx.lastProcessedCards?.[0];
-    if (!targetNumDIPZT) return done(addLog(ctx, 'DRAW_IF_POWER_ZERO_TEMP: 対象不明'));
-    const cardDIPZT = ctx.cardMap.get(targetNumDIPZT);
-    const basePowerDIPZT = parseInt(cardDIPZT?.Power ?? '0') || 0;
-    const deltaDIPZT = (ctx.otherState.temp_power_mods ?? [])
-      .filter(m => m.cardNum === targetNumDIPZT)
-      .reduce((s, m) => s + m.delta, 0);
-    const effectivePowerDIPZT = basePowerDIPZT + deltaDIPZT;
-    if (effectivePowerDIPZT > 0) return done(addLog(ctx, `${cardDIPZT?.CardName ?? targetNumDIPZT}のパワー${effectivePowerDIPZT}のためドローせず`));
-    if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし（DRAW_IF_POWER_ZERO_TEMP）'));
-    const drawnDIPZT = ctx.ownerState.deck[0];
-    const newOwnerDIPZT = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(1), hand: [...ctx.ownerState.hand, drawnDIPZT] };
-    return done(addLog({ ...ctx, ownerState: newOwnerDIPZT }, `${cardDIPZT?.CardName ?? targetNumDIPZT}のパワーが${effectivePowerDIPZT}以下のためカードを1枚引く`));
-  }
+  // DRAW_IF_POWER_ZERO_TEMP は §5.3 `O-166`（2026-08-30）で撤去した。
+  // `WX15-064` 専用で「lastProcessedCards[0] が temp_power_mods 適用後パワー0以下なら1枚引く」を
+  // ハンドラごと抱えていたが、**同じ判定を6効果が必要としていた**ので条件型
+  // `LAST_PROCESSED_POWER_LTE`（`execUtils.evalCondition`）へ引き上げ、`CONDITIONAL` ＋ 既存 `DRAW` で表す形にした。
   // INTERNAL_RV_BATCH_TRANSFER: N個ウイルス除去 + トラッシュからシグニN枚を手札へ（WX15-028型）
   if (stub.id === 'INTERNAL_RV_BATCH_TRANSFER') {
     const n = typeof stub.value === 'number' ? stub.value : 0;

@@ -502,6 +502,18 @@ export type Condition =
   | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number; allSigniDistinct?: boolean; allSameLevel?: boolean }   // 相異なるレベルがcount種以上。allSigniDistinct は処理した全シグニのレベルが相異なる（WXK09-100）、allSameLevel はシグニ1枚以上かつ全て同レベル
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
   | { type: 'LAST_PROCESSED_POWER_GTE'; value: number; addDelta?: number }  // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー(+addDelta)がvalue以上（WX03-046「それのパワーが15000以上」。addDeltaで直前の+パワーを加味）
+  /**
+   * 「**この効果によって**それのパワーが０以下になった場合」＝**パワー減少の did-it ゲート**（§5.3 `O-166`・2026-08-30）。
+   * 直前に処理したシグニ(`lastProcessedCards[0]`)の**実効パワー**が `value` 以下なら成立。
+   * 🔴**`LAST_PROCESSED_POWER_GTE` とは基準が違う**＝あちらは `effectivePowers`（**POWER_MODIFY 適用前**の
+   *   スナップショット）＋ `addDelta` で「これから乗る分」を手で加味するが、こちらは
+   *   **`temp_power_mods` に実際に積まれた分を読む**（＝**適用後**）。この効果自身が乗せた修整を数えるため。
+   *   ⚠`effectivePowers` は `temp_power_mods` を含まないので**二重加算にならない**（`BattleScreen.tsx:1020` で確認）。
+   * ⚠**参照不能（`lastProcessedCards` が空）なら false へ倒す（fail-closed）**＝
+   *   「0以下になっていない」と見なす方が過剰効果にならない。
+   * 先例＝`STUB{DRAW_IF_POWER_ZERO_TEMP}`（`execStubPart1.ts:2150`・`WX15-064` 専用だった）をこの型へ引き上げた。
+   */
+  | { type: 'LAST_PROCESSED_POWER_LTE'; value: number }
   | { type: 'ENERGY_TRASH_COLOR_COUNT_GTE'; value: number }   // 直前コスト(energyTrashColorAll)でトラッシュした指定色カードがvalue枚以上（WX04-002-E2「この方法で赤が3枚以上」）
   | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
   | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }                    // 自分が任意効果（自バニッシュ等）を実行した場合
@@ -585,7 +597,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   IS_BETTING: true, IS_BOOSTING: true, PAID_ADDITIONAL_COST: true, ANY_PLAYER_REFRESHED_THIS_TURN: true,
   BEAT_CONDITION: true, COND_STUB: true, LAST_PROCESSED_COUNT_GTE: true,
   LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED: true, LAST_PROCESSED_LEVEL_SUM: true,
-  TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true,
+  TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true, LAST_PROCESSED_POWER_LTE: true,
   ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
   HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true,
   FIELD_HAS_GATE: true, NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN: true, DECK_TOP_SHARES_COLOR_WITH_LRIG: true,

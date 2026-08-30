@@ -857,6 +857,13 @@ function condJa(c?: any): string {
         : `この方法でそれぞれレベルの異なるシグニが${numJa(c.count)}体トラッシュに置かれた`;
     case 'TRASHED_STORY_COUNT_GTE': return `この方法で${numJa(c.count)}体の＜${c.story}＞のシグニがトラッシュに置かれた`;
     case 'LAST_PROCESSED_POWER_GTE': return `直前に選んだシグニのパワー${c.addDelta ? `（+${c.addDelta}後）` : ''}が${numJa(c.value)}以上`;
+    // §5.3 `O-166`＝「**この効果によって**それのパワーが０以下になった場合」＝パワー減少の did-it ゲート。
+    // ⚠上の GTE と基準が違う（あちらは POWER_MODIFY 適用**前**＋`addDelta`、こちらは `temp_power_mods` 込みの**適用後**）
+    // ので、訳し分けて「この効果によって」を明示する。
+    case 'LAST_PROCESSED_POWER_LTE':
+      return c.value === 0
+        ? 'この効果によってそれのパワーが0以下になった'
+        : `この効果によってそれのパワーが${numJa(c.value)}以下になった`;
     case 'LAST_PROCESSED_MATCHES': {
       const value = c.value ?? c.minCount ?? 1;
       const op = c.operator ?? 'gte';
