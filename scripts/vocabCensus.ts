@@ -112,7 +112,24 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 407; // 2026-08-30 census 較正＋キーワード付与バッチ＝460→407（-53）。
+const BASELINE_HIGH = 351; // 2026-08-30 census 較正 第2弾（3大カテゴリ）＝407→351（-56）。**全部が較正**（live 不変）。
+// 高シグナル id 集合を機械差分＝**消えた56件は全数が下の4群・新しく入った id は0件**。全件を原文 × live JSON で目視した。
+//   ①**小さい数：2桁の数の下1桁を拾っていた**（-25）＝`([2-5])(枚|体)` が「**１５枚**以上」「**２５枚**以上」
+//     「**１３枚**以上」の `5枚`/`3枚` に当たり、JSON が正しく `value:15`/`25`/`minCount:13` を持つのに
+//     「5 が無い」と報告していた。⇒ `(?<![0-9])` を付けた。**計器のバグであって実装の穴ではない。**
+//   ②**小さい数：`BEAT_CONDITION.condText`**（-7）＝【ビート】の枚数条件は `condText:"５枚以上"` という
+//     **全角のままの生文字列**で、`effectEngine.ts:4264` の `checkBeatCondition` が全角のまま parse して
+//     実際に評価している。⚠**JSON 全体を zen2han してはいけない**（`rawText` の中の数まで拾って本物の脱落を隠す）
+//     ＝`condText` の値だけを取り出して数える。
+//   ③**クラス指定：`triggerCondition.*SourceStory`**（-8）＝トリガー元のクラス限定は `banishedSourceStory` /
+//     `revealSourceStory` / `trashSourceStory` / `powerDecreaseSourceStory` / `discardCostSourceStory` に載る。
+//     対応表の `story` は**小文字**なので大文字 S の綴りに一度も当たらなかった。
+//     ⚠キー表ではなく `extraOk`＋残渣チェックにした（対象側の ＜Y＞ 脱落まで隠さないため）。
+//   ④**条件節：`REVEAL_AND_PICK.filter` の記述子語彙が4つしか無かった**（-16）＝旧実装は ＜X＞／レベル閾値／
+//     「シグニ」／単色 しか知らず、スペル／レベルの偶奇／《ライズアイコン》／《ディソナアイコン》／《X》以外／
+//     センタールリグと共通する色／複数色 OR／無色ではない／自身よりパワーが低い が全部「未表現」に見えていた。
+//     ⇒ `DESC_RULES` 表へ外出しし、**各規則が JSON のキーを実際に要求する**形にした（残渣チェックは維持）。
+// 旧: const BASELINE_HIGH = 407; // 2026-08-30 census 較正＋キーワード付与バッチ＝460→407（-53）。
 // 🔴**内訳を混ぜない**＝**-49 は計器の較正（live は1バイトも変えていない）／実装で減ったのは -4**。
 //   ■較正 -49（`docs/_vocab_census.txt` の高シグナル id 集合を差分＝**消えた49件は全数が下の2群で、
 //     新しく入った id は0件**）。
@@ -682,25 +699,56 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
   if (!js.includes('REVEAL_AND_PICK') && !(js.includes('ADD_TO_FIELD') && js.includes('"fromTop":true'))) return false;
   let allCovered = true;
   const zh = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  // 🆕2026-08-30 較正＝**記述子の語彙表を外出しにした**。
+  //   🔴旧実装は ＜X＞／レベル閾値／「シグニ」／単色 の**4つしか知らず**、`REVEAL_AND_PICK.filter` に
+  //     正しく載っている 15効果（スペル／レベルの偶奇／《ライズアイコン》／《ディソナアイコン》／
+  //     《X》以外／センタールリグと共通する色／複数色 OR／無色ではない／自身よりパワーが低い）が
+  //     まとめて高シグナルへ落ちていた。
+  //   ⚠**残渣チェックは旧実装のまま維持する**＝語彙を1つ足すたびに「その語を desc から取り除き、
+  //     残りが空でなければ不合格」を通す。**知らない修飾が1つでも残ればフラグは立ったまま。**
+  //   ⚠**各規則は JSON 側のキーを実際に要求する**（語を消すだけの規則を作らない）。
+  //     OR は「同じ意味を別綴りで持つ」場合だけ（`hasRiseIcon` と `"hasIcon":"ライズ"`）。
+  const DESC_RULES: Array<{ re: RegExp; need: (m: RegExpMatchArray) => string[][] }> = [
+    { re: /《ライズアイコン》を持たない/, need: () => [['noRiseIcon']] },
+    { re: /《ライズアイコン》を持つ/, need: () => [['hasRiseIcon', '"hasIcon":"ライズ"']] },
+    { re: /《ディソナアイコン》/, need: () => [['"isDisona":true']] },
+    { re: /《([^》]+)》以外/, need: m => [[`"excludeCardName":"${m[1]}"`]] },
+    { re: /(?:あなたの)?センタールリグと共通する色を持つ/, need: () => [['colorMatchesLrig']] },
+    { re: /レベルが偶数/, need: () => [['"levelParity":"even"']] },
+    { re: /レベルが奇数/, need: () => [['"levelParity":"odd"']] },
+    { re: /無色ではない/, need: () => [['nonColorless']] },
+    { re: /この(?:シグニ|カード)よりパワーの低い/, need: () => [['powerLtSelf']] },
+    { re: /スペル/, need: () => [['"cardType":"スペル"']] },
+  ];
   const t2 = t.replace(/(?:それ|そのカード|この方法で公開したカード)が([^。]*?)(ではない)?場合[、,][^。]*。?/g,
     (whole, desc: string, neg: string | undefined) => {
-      const need: string[] = [];
-      for (const m of desc.matchAll(/＜([^＞]+)＞/g)) need.push(`"${m[1]}"`);
-      const lvMin = desc.match(/レベル([０-９\d]+)以上/);
-      const lvMax = desc.match(/レベル([０-９\d]+)以下/);
-      const lvEq = desc.match(/レベル([０-９\d]+)(?!以)/);
-      if (lvMin) need.push(`"min":${zh(lvMin[1])}`);
-      else if (lvMax) need.push(`"max":${zh(lvMax[1])}`);
-      else if (lvEq) need.push(`"level":${zh(lvEq[1])}`);
-      if (/シグニ/.test(desc)) need.push('"cardType":"シグニ"');
-      const colM = desc.match(/([白赤青緑黒])の/);
-      if (colM) need.push(`"color":"${colM[1]}"`);
-      if (neg) need.push('elseAction');
-      const residue = desc
+      const need: string[][] = [];
+      let rest = desc;
+      for (const rule of DESC_RULES) {
+        const m = rest.match(rule.re);
+        if (!m) continue;
+        need.push(...rule.need(m));
+        rest = rest.replace(rule.re, '');
+      }
+      for (const m of rest.matchAll(/＜([^＞]+)＞/g)) need.push([`"${m[1]}"`]);
+      const lvMin = rest.match(/レベル([０-９\d]+)以上/);
+      const lvMax = rest.match(/レベル([０-９\d]+)以下/);
+      const lvEq = rest.match(/レベル([０-９\d]+)(?!以)/);
+      if (lvMin) need.push([`"min":${zh(lvMin[1])}`]);
+      else if (lvMax) need.push([`"max":${zh(lvMax[1])}`]);
+      else if (lvEq) need.push([`"level":${zh(lvEq[1])}`]);
+      if (/シグニ/.test(rest)) need.push(['"cardType":"シグニ"']);
+      // 🆕色は**列挙を全部**要求する（「白か黒の」＝`"color":["白","黒"]`）。旧実装は先頭1色しか見ず、
+      //   配列形にも当たらなかった。
+      const colors = [...new Set([...rest.matchAll(/([白赤青緑黒])[のか]/g)].map(m => m[1]))];
+      for (const c of colors) need.push([`"color":"${c}"`, `"${c}"`]);
+      if (neg) need.push(['elseAction']);
+      const residue = rest
         .replace(/＜[^＞]+＞/g, '').replace(/レベル[０-９\d]+(?:以上|以下)?/g, '')
-        .replace(/[白赤青緑黒]の/g, '').replace(/シグニ|カード/g, '')
+        .replace(/[白赤青緑黒][のか]/g, '').replace(/シグニ|カード/g, '')
         .replace(/[のかそれ、\s]/g, '').trim();
-      if (residue !== '' || need.length === 0 || !need.every(k => js.includes(k))) { allCovered = false; return whole; }
+      if (residue !== '' || need.length === 0
+        || !need.every(group => group.some(k => js.includes(k)))) { allCovered = false; return whole; }
       return '';
     });
   return allCovered && t2 !== t && !/場合[、,]/.test(stripResultClauses(t2));
@@ -914,6 +962,19 @@ const PATTERNS: Pattern[] = [
     name: 'クラス指定(＜X＞のシグニ)',
     re: /＜[^＞]+＞の(シグニ|カード)/,
     keys: ['story', 'cardClass', 'commonClass', 'CLASS'],
+    // 🆕2026-08-30 較正＝**トリガー元のクラス限定は `triggerCondition` の `*SourceStory` に載る**
+    //   （`banishedSourceStory` / `revealSourceStory` / `trashSourceStory` /
+    //    `powerDecreaseSourceStory` / `discardCostSourceStory`）。
+    //   🔴対応表の `story` は**小文字**なので、**大文字 S の綴りには一度も当たらなかった**
+    //   （`maxCost` / `Under` / `deltaFromZone` と同じ「綴り違いで部分一致しない」罠。実測8効果）。
+    //   ⚠**キー表に足すのではなく `extraOk` にする**＝「＜X＞の効果によって発火」と
+    //     「＜Y＞のシグニを対象とする」を併せ持つ札で、**対象側の脱落まで隠さない**ため。
+    //     その節を除いた残りに ＜…＞の(シグニ|カード) が残るならフラグを維持する。
+    extraOk: (js, t) => {
+      const stripped = t.replace(/＜([^＞]+)＞の(?:シグニ|カード)(?=の)/g,
+        (whole, story: string) => new RegExp(`"[A-Za-z]*SourceStory":"${story}"`).test(js) ? '' : whole);
+      return stripped !== t && !/＜[^＞]+＞の(シグニ|カード)/.test(stripped);
+    },
   },
   {
     // 色値はコスト側（energy/handDiscardSigni）にも正当に現れるため、
@@ -1361,16 +1422,31 @@ function main(): void {
   }
 
   // ---- 小さい数（2〜5枚/体が JSON に独立数値として無い・続き18第2弾。粗い網＝脱落節の検出器）----
+  // 🆕2026-08-30 に**2つ較正した**（どちらも計器のバグ。実装は1行も変えていない）。
+  //   ①🔴**2桁の数の下1桁を拾っていた**＝`([2-5])(枚|体)` は「**１５枚**以上」「**２５枚**以上」「**１３枚**以上」の
+  //     `5枚`／`3枚` に当たり、JSON 側は正しく `value:15` / `25` / `minCount:13` を持っているのに
+  //     「5 が無い」と報告していた（実測 28効果＝このカテゴリの高シグナルの約4割）。⇒ `(?<![0-9])` を付けた。
+  //   ②🔴**`BEAT_CONDITION.condText` の中の数を見ていなかった**＝【ビート】の枚数条件は
+  //     `{"type":"BEAT_CONDITION","condText":"５枚以上"}` という**全角のままの生文字列**で保持され、
+  //     `effectEngine.ts:4264` の `checkBeatCondition` が全角のまま parse して**実際に評価している**（＝表現済み）。
+  //     ⚠**JSON 全体を zen2han して照合してはいけない**＝`rawText` の中の数まで拾って**本物の脱落を隠す**。
+  //     **`condText` の値だけ**を取り出して半角化した数を「載っている」と数える（実測 11効果）。
   {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
     for (const u of units) {
       const t = zen2han(u.text);
-      const nums = [...new Set([...t.matchAll(/([2-5])(枚|体)/g)].map(m => m[1]))];
+      // ⚠`(?<![0-9])`＝「15枚」の 5 を拾わない。付けないと2桁の閾値条件が全部この網に落ちる。
+      const nums = [...new Set([...t.matchAll(/(?<![0-9])([2-5])(枚|体)/g)].map(m => m[1]))];
       if (!nums.length) continue;
       hits++;
-      const missing = nums.filter(n => !new RegExp('[:\\[,]' + n + '[,}\\]]').test(u.js));
+      // `condText` は engine が全角のまま読む構造フィールド＝ここの数は「JSON に載っている」。
+      const beatNums = new Set(
+        [...u.js.matchAll(/"condText":"([^"]*)"/g)]
+          .flatMap(m => [...zen2han(m[1]).matchAll(/\d+/g)].map(x => x[0])),
+      );
+      const missing = nums.filter(n => !new RegExp('[:\\[,]' + n + '[,}\\]]').test(u.js) && !beatNums.has(n));
       if (!missing.length) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
