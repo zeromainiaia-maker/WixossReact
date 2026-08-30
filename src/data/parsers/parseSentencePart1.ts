@@ -531,7 +531,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 🆕**レベル限定を落とさない**（§5.3 `O-133` B群 第10バッチ・実測2効果＝`SPK16-8C-E2`／`PR-465-E2`＝
     //   「ルリグトラッシュから**レベル４以下の**ルリグ１枚を対象とし、それをルリグデッキに加える」）。
     //   `parseLevelFilter` を呼んでいなかったため**どのレベルのルリグでも戻せる**過剰効果だった。
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parseCostTotalFilter(t), ...parseExcludeCardNameFilter(t) };
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parseCostTotalFilter(t), ...parseExcludeCardNameFilter(t),
+      // 🆕**《リコレクトアイコン》を持たない**（2026-08-30・`SPDi43-14-E2`／`SPDi43-16-E2`）＝
+      //   この限定が落ちていたため**リコレクト持ちの強力アーツまでルリグデッキへ戻せる**過剰効果だった。
+      ...(/《リコレクトアイコン》を持たない/.test(t) ? { noRecollectIcon: true } : {}) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 1, filter },
@@ -4800,7 +4803,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (t.match(/デッキの一番上のカードをトラッシュに置く/) || t.match(/あなたのデッキの一番上のカードをトラッシュに置く/)) {
     const cM = t.match(/([０-９\d]+)枚/);
     const count = cM ? parseNum(cM[1]) : 1;
-    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count } };
+    // 🔴**所有者を読んでいなかった**（2026-08-30・`WX24-P1-048-E1`）＝この規則は owner を `'self'` に
+    //   固定しており、原文が「**対戦相手の**デッキの一番上のカードをトラッシュに置く」でも
+    //   **自分のデッキを削る**符号が逆の効果になっていた。
+    // ⚠**名詞句に直接付く所有者だけを見る**（全文スキャンだと同じ文の別節の「対戦相手」を拾う）。
+    const deckOwner: Owner = /対戦相手のデッキの一番上のカードをトラッシュに置く/.test(t) ? 'opponent' : 'self';
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: deckOwner, count } };
   }
 
   // ---- シグニをデッキの一番下に置く ----

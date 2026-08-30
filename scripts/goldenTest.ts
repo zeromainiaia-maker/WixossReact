@@ -33595,6 +33595,58 @@ test('§5.2 バッチ3 nameMatchesAnyTrashCard: 「トラッシュにあるい�
      'トラッシュが空なら空ヒット（fail-closed＝全部取れる側へ倒れない）');
 }));
 
+test('§5.2 再照合後バッチ powerDiffersFromPrinted: 「表記と異なるパワーの」だけを候補にする', () => withSavedCursor(() => {
+  // 🔴旧 live は条件が丸ごと落ち、**パワーが変動していない相手シグニまで**対象にできた（3効果）。
+  // ⚠`SigniAttackBan.powerDiffersFromPrinted`（アタック禁止側）と**同名だが別の受け皿**＝流用しない。
+  const eff = (effectsMap.get('WX22-047') ?? []).find(e => e.effectId === 'WX22-047-E1');
+  eq(((eff!.action as { target?: { filter?: Record<string, unknown> } }).target?.filter ?? {}).powerDiffersFromPrinted, true,
+     'WX22-047-E1 に表記パワー相違の条件がある');
+  // 🔴選択肢②だけに付く（①は原文に条件が無い）
+  const p3040 = (effectsMap.get('WX24-P3-040') ?? []).find(e => e.effectId === 'WX24-P3-040-E1');
+  const choices = (p3040!.action as { choices?: { action: { target?: { filter?: Record<string, unknown> } } }[] }).choices ?? [];
+  ok(!choices[0].action.target?.filter?.powerDiffersFromPrinted, '①（パワー－8000）には付けない');
+  eq(choices[1].action.target?.filter?.powerDiffersFromPrinted, true, '②（バニッシュ）にだけ付く');
+
+  // 🔴engine 側＝実効パワーが表記と一致するシグニは候補から外れる（両方向）
+  const signi = findCard(c => isSigni(c) && /^\d+$/.test(c.Power ?? ''));
+  const printed = parseInt(cardMap.get(signi)!.Power!, 10);
+  const st = mkState({ signi: [signi, null, null] });
+  const filter = { cardType: 'シグニ', powerDiffersFromPrinted: true } as TargetFilter;
+  const same = fieldCandidates(st, filter, cardMap as Map<string, CardData>, new Map([[signi, printed]]));
+  ok(same.length === 0, '表記どおりのパワーなら候補に入らない');
+  const buffed = fieldCandidates(st, filter, cardMap as Map<string, CardData>, new Map([[signi, printed + 1000]]));
+  ok(buffed.includes(signi), '増強中なら候補に入る');
+  const nerfed = fieldCandidates(st, filter, cardMap as Map<string, CardData>, new Map([[signi, printed - 1000]]));
+  ok(nerfed.includes(signi), '低下中でも候補に入る（`powerLtPrinted`/`powerGtPrinted` の OR）');
+}));
+
+test('§5.2 再照合後バッチ: 照応・所有者・アイコン否定の6件が live に載っている', () => withSavedCursor(() => {
+  const eff = (id: string): CardEffect | undefined =>
+    (effectsMap.get(id.replace(/-(?:E|BURST|sub).*$/, '')) ?? []).find(e => e.effectId === id);
+  const json = (id: string): string => JSON.stringify(eff(id) ?? {});
+
+  // ① 「場に出す。それのパワーを±N」＝直前に場へ出した札への照応（旧＝owner:'any' の別対象を選び直していた）
+  for (const id of ['WX24-P3-041-E1', 'WX24-P3-086-E1', 'WXDi-P08-074-E1']) {
+    ok(/"targetsLastProcessed":true/.test(json(id)), `${id}: 「それ」が直前に場へ出した札に固定される`);
+  }
+  // ② 「対戦相手のデッキの一番上」＝所有者を読んでいなかった（自分のデッキを削っていた）
+  const p1048 = eff('WX24-P1-048-E1');
+  eq(((p1048!.action as { target?: { owner?: string } }).target ?? {}).owner, 'opponent', 'WX24-P1-048-E1: 削るのは相手のデッキ');
+  // ③ 《ライズアイコン》の肯定／否定が選択肢ごとに分かれる
+  const wd17 = json('WD17-018-E1');
+  ok(/"noRiseIcon":true/.test(wd17) && /"hasIcon":"ライズ"/.test(wd17), 'WD17-018-E1: ①持たない／②持つ の両方が載る');
+  // ④ 《リコレクトアイコン》を持たないアーツ限定
+  for (const id of ['SPDi43-14-E2', 'SPDi43-16-E2']) {
+    ok(/"noRecollectIcon":true/.test(json(id)), `${id}: リコレクト持ちは戻せない`);
+  }
+  // ⑤ 「場に《X》がない場合」＝否定条件（旧＝条件が丸ごと落ちて何度でも出せた）
+  ok(/"negate":true/.test(json('WX25-CP1-066-E1')), 'WX25-CP1-066-E1: 《雷ちゃん》不在ゲートが載る');
+  // ⑥ 「あなたの《X》N体を対象とし」＝所有者とカード名（旧＝owner:'any'）
+  const e2 = (eff('WX25-CP1-066-E2')!.action as { target?: { owner?: string; filter?: { cardName?: string } } }).target;
+  eq(e2?.owner, 'self', 'WX25-CP1-066-E2: 自分の《雷ちゃん》限定');
+  eq(e2?.filter?.cardName, '雷ちゃん', '同上（カード名）');
+}));
+
 test('§5.2 バッチ3 ZONE_COUNT_COMPARE: 選択肢ごとの「手札とエナの枚数比較」が効く', () => withSavedCursor(() => {
   // 🔴旧 live は3つの選択肢すべてに条件が無く、**盤面に関係なくどれでも選べた**（`WX24-P4-053-E1`）。
   // ⚠**`HAND_COUNT{value:{$ref:…}}` では書けない**＝条件側の `value` は `resolveNum` が `$ref` を
@@ -49494,8 +49546,11 @@ test('段2 第40バッチ 偽陽性／据置契約: 常時グロウスキップ�
     ok(calcContinuousBlockedActions(clearTurnEndScopedState(field), mkState({}), true, local, cardMap).forSelf.has('GROW'), `${effectId}: 成立方向・ターン末後も再収集される`);
     ok(!calcContinuousBlockedActions(mkState({}), mkState({}), true, local, cardMap).forSelf.has('GROW'), `${effectId}: 不成立方向・場を離れれば封じない`);
   }
+  // 🔄**据置を解除**（2026-08-30 §5.2 再照合後バッチ）＝第40バッチが「duration では直せない・主因は対象束縛」と
+  //   据え置いた当のもの（`targetsLastProcessed`）を、`場に出す。それのパワーを±N` 規則で実装した。
+  //   **契約は「据置」から「実装済み」へ反転させる**（落ちたテストを消して通すのは禁止・PLAN §5.2）。
   const lastProcessed = freshBatch40('WX24-P3-086', 'WX24-P3-086-E1');
-  ok(!JSON.stringify(lastProcessed).includes('targetsLastProcessed'), 'WX24-P3-086-E1 は対象束縛が主因なので duration バッチでは据置');
+  ok(JSON.stringify(lastProcessed).includes('targetsLastProcessed'), 'WX24-P3-086-E1 は「それ」が直前に場へ出した札へ束縛される');
   const attackEnd = freshBatch40('WXDi-D04-004', 'WXDi-D04-004-E2');
   ok(JSON.stringify(attackEnd).includes('WXDi-D04-004-sub-E1') && !JSON.stringify(attackEnd).includes('ON_ATTACK_END'), 'WXDi-D04-004-sub-E1 は発動タイミングが主因なので据置');
 });
@@ -54701,9 +54756,12 @@ test('段2 Sheet3① 見送り契約: A5/C2/C3 は表せない軸を見せかけ
   const c2 = sheet3b1Fresh('WXK07-048', 'WXK07-048-E1');
   eq(c2.triggerCondition?.banishedHadCharm, undefined,
     'C2: self ON_BANISH 枝が banishedHadCharm を読まない間は死フラグを載せない');
+  // 🔄**据置を解除**（2026-08-30 §5.2 再照合後バッチ）＝`TargetFilter.powerDiffersFromPrinted` を新設し、
+  //   `fieldCandidates` の per-candidate 判定（`powerLtPrinted`/`powerGtPrinted` の兄弟）へ配線した。
+  //   **契約は「据置」から「実装済み」へ反転させる**（挙動は別テストで固定＝`§5.2 再照合後バッチ powerDiffersFromPrinted`）。
   const c3 = sheet3b1Fresh('WX22-047', 'WX22-047-E1');
-  ok(!JSON.stringify(c3).includes('powerDiffersFromPrinted'),
-    'C3: 印刷パワー≠実効パワーの受け皿が無いので据置');
+  ok(JSON.stringify(c3).includes('powerDiffersFromPrinted'),
+    'C3: 印刷パワー≠実効パワーの受け皿ができたので載る');
 });
 
 if (listMode) {

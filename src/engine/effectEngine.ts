@@ -948,6 +948,8 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   if (filter.hasCrossIcon && !(cardData.EffectText?.startsWith('《クロスアイコン》'))) return false;
   if (filter.hasRiseIcon && !(cardData.EffectText?.includes('【ライズ】'))) return false;
   if (filter.noRiseIcon && (cardData.EffectText?.includes('【ライズ】'))) return false;
+  // 🆕《リコレクトアイコン》を持たない（`noRiseIcon` と同じ印字判定の近似）。
+  if (filter.noRecollectIcon && (cardData.EffectText?.includes('《リコレクトアイコン》'))) return false;
   if (filter.hasLifeBurst !== undefined) {
     const hasLB = cardData.LifeBurst === '1';
     if (filter.hasLifeBurst !== hasLB) return false;

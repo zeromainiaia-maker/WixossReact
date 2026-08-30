@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 607（総ノード 2884 件）
         生成: src\data\parsers\parseSentencePart2.ts:446
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:20116
+        生成: src\data\effectParser.ts:20139
      1件   1枚  DEFERRED_CONDITIONAL_EXTRA_USE_TIMING
         カード: WX16-Re20
         生成: src\data\parsers\parseSentencePart3.ts:2343
@@ -34,67 +34,67 @@ live JSON の STUB id 種類 : 607（総ノード 2884 件）
         生成: src\data\parsers\parseSentencePart3.ts:2054
      1件   1枚  DEFERRED_EACH_PLAYER_REVEAL_HAND
         カード: WXEX2-80
-        生成: src\data\effectParser.ts:12880
+        生成: src\data\effectParser.ts:12885
      1件   1枚  DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE
         カード: WXDi-P12-034
-        生成: src\data\effectParser.ts:13056
+        生成: src\data\effectParser.ts:13061
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
-        生成: src\data\effectParser.ts:12883
+        生成: src\data\effectParser.ts:12888
      1件   1枚  DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE
         カード: WXDi-P06-045
-        生成: src\data\effectParser.ts:12887
+        生成: src\data\effectParser.ts:12892
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD
         カード: SPK01-14
-        生成: src\data\effectParser.ts:12876
+        生成: src\data\effectParser.ts:12881
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL
         カード: PR-K078
-        生成: src\data\effectParser.ts:12878
+        生成: src\data\effectParser.ts:12883
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK
         カード: PR-K070
-        生成: src\data\effectParser.ts:12877
+        生成: src\data\effectParser.ts:12882
      1件   1枚  DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH
         カード: WXDi-P00-037
-        生成: src\data\effectParser.ts:12881
+        生成: src\data\effectParser.ts:12886
      1件   1枚  DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM
         カード: WXDi-P00-063
-        生成: src\data\effectParser.ts:12886
+        生成: src\data\effectParser.ts:12891
      1件   1枚  DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END
         カード: WXK10-045
-        生成: src\data\effectParser.ts:12890
+        生成: src\data\effectParser.ts:12895
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:13163
+        生成: src\data\effectParser.ts:13168
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
-        生成: src\data\parsers\parseSentencePart1.ts:2012
+        生成: src\data\parsers\parseSentencePart1.ts:2015
      1件   1枚  DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE
         カード: WDK09-015
-        生成: src\data\effectParser.ts:13058
+        生成: src\data\effectParser.ts:13063
      1件   1枚  DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL
         カード: WX24-P4-085
-        生成: src\data\effectParser.ts:12885
+        生成: src\data\effectParser.ts:12890
      1件   1枚  DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI
         カード: WXK08-084
-        生成: src\data\effectParser.ts:12889
+        生成: src\data\effectParser.ts:12894
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2033
      1件   1枚  DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI
         カード: WDK17-015
-        生成: src\data\effectParser.ts:12884
+        生成: src\data\effectParser.ts:12889
      1件   1枚  DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED
         カード: WX22-042
-        生成: src\data\effectParser.ts:13168
+        生成: src\data\effectParser.ts:13173
      1件   1枚  DEFERRED_SELF_TRASH_TO_DECK_BOTTOM
         カード: WX22-Re17
-        生成: src\data\effectParser.ts:12879
+        生成: src\data\effectParser.ts:12884
      1件   1枚  DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP
         カード: WXDi-P08-008
-        生成: src\data\effectParser.ts:12888
+        生成: src\data\effectParser.ts:12893
      1件   1枚  DEFERRED_TRASH_UNDER_DISTINCT_LEVELS
         カード: WX24-P4-046
-        生成: src\data\effectParser.ts:13054
+        生成: src\data\effectParser.ts:13059
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -107,16 +107,16 @@ live JSON の STUB id 種類 : 607（総ノード 2884 件）
         消費: src\engine\effectExecutor.ts:4850 / src\engine\effectExecutor.ts:4855
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-        消費(ペイロードキー): src\engine\effectEngine.ts:1914
+        消費(ペイロードキー): src\engine\effectEngine.ts:1916
      4件   4枚  DAMAGE_REPLACE_BY_COST
         カード: SPDi44-12, WX24-P3-005, WX24-P4-021, WX25-P1-014
         消費: src\screens\battle\lifeCrashReplace.ts:54
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:5319
+        消費: src\engine\effectEngine.ts:5321
      3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
-        消費: src\engine\effectEngine.ts:4837
+        消費: src\engine\effectEngine.ts:4839
      3件   3枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
         カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
         消費: src\engine\effectExecutor.ts:499
@@ -164,7 +164,7 @@ live JSON の STUB id 種類 : 607（総ノード 2884 件）
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
      1件   1枚  OPP_TURN_ARTS_COST_REDUCTION_ONCE
         カード: WXK03-071
-        消費: src\engine\effectEngine.ts:4971
+        消費: src\engine\effectEngine.ts:4973
      1件   1枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P05-009
         消費: src\engine\effectExecutor.ts:4650
@@ -176,10 +176,10 @@ live JSON の STUB id 種類 : 607（総ノード 2884 件）
         消費: src\screens\battle\costs.ts:1156
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1606
+        消費: src\engine\execUtils.ts:1610
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:7518
+        消費: src\engine\effectEngine.ts:7520
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53

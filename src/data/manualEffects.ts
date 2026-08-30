@@ -4415,36 +4415,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXDi-P15-098 凶将　アオトラ
-  // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
-  // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
-  // 自分の黒シグニ全体への付与＝GRANT_FIELD_SIGNI_ABILITY（collectGrantedFromLayer が augMap へ合成）。
-  // 付与能力は ON_ATTACK_SIGNI で相手デッキ上1枚をトラッシュ（mill）。BURST はパーサー生成を維持。
-  'WXDi-P15-098': [
-    {
-      effectId: 'WXDi-P15-098-E1',
-      effectType: 'CONTINUOUS',
-      action: {
-        type: 'GRANT_FIELD_SIGNI_ABILITY',
-        filter: { cardType: 'シグニ', color: '黒' },
-        abilities: [
-          {
-            effectId: 'WXDi-P15-098-E1-G',
-            effectType: 'AUTO',
-            timing: ['ON_ATTACK_SIGNI'],
-            triggerScope: 'self',
-            action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 1 } },
-            duration: 'INSTANT',
-            mandatory: true,
-            parseStatus: 'MANUAL',
-          },
-        ],
-      },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-  ],
+  // WXDi-P15-098 凶将　アオトラ ＝ **2026-08-30 に manual を撤去して parser へ返した**（§6.4 O-40 のトリップワイヤ発火）。
+  //   手書きが要った理由は「デッキの一番上のカードをトラッシュに置く」の**所有者を parser が読まず self 固定**
+  //   だったことだけで、同日その規則を直した（`parseSentencePart1.ts` の deckOwner）ため実体が同一になった。
+  //   🔴影武者を残すと**その効果にだけ parser の改善が永久に届かない**ので、実体同一になったら必ず消す。
 
   // WXDi-P10-072 凶美　アルフォウ//メモリア
   // 【常】：対戦相手のシグニは「【自】：あなたのアタックフェイズ開始時、あなたのデッキの一番上のカードをトラッシュに置く。」を得る。

@@ -946,6 +946,8 @@ export function matchesFilter(
   if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   // 《ライズアイコン》を持たない（hasRiseIcon の否定）
   if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
+  // 🆕《リコレクトアイコン》を持たない（`noRiseIcon` と同じ印字判定の近似）。
+  if (filter.noRecollectIcon && (card.EffectText?.includes('《リコレクトアイコン》'))) return false;
   // 出現条件アイコンを持たない（`WXDi-P07-041-E2`）＝【ライズ】／【ハーモニー】／【出現条件】のいずれも無い。
   if (filter.noDeployConditionIcon && /【(?:ライズ|ハーモニー|出現条件)】/.test(card.EffectText ?? '')) return false;
   if (filter.story) {
@@ -1498,12 +1500,14 @@ export function fieldCandidates(
     }
     // 表記パワー比較（per-candidate）: 実効パワー vs 自身の表記パワー。低い=低下中／高い=増強中。
     // 表記が数値でない（∞等）シグニは比較不能＝対象外。
-    if (filter?.powerLtPrinted || filter?.powerGtPrinted) {
+    if (filter?.powerLtPrinted || filter?.powerGtPrinted || filter?.powerDiffersFromPrinted) {
       const printed = parseInt(cardMap.get(cardNum)?.Power ?? '', 10);
       if (Number.isNaN(printed)) return [];
       const eff = effectivePowers?.get(cardNum) ?? printed;
       if (filter.powerLtPrinted && !(eff < printed)) return [];
       if (filter.powerGtPrinted && !(eff > printed)) return [];
+      // 🆕「表記されているパワーと**異なる**パワーの」＝増強中でも低下中でもよい（上2本の OR）。
+      if (filter.powerDiffersFromPrinted && eff === printed) return [];
     }
     // card_class_overridesによるクラス上書きを考慮してフィルター適用
     const classOverride = state.card_class_overrides?.[cardNum];

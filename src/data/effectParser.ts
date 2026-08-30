@@ -2748,6 +2748,11 @@ const ZONE_CMP_SAME_RE = new RegExp(
   `(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数と(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数が同じ場合`);
 
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 🆕「(あなた|対戦相手)の場に《X》が**ない**場合」＝`HAS_CARD_IN_FIELD{negate:true}`（2026-08-30・`WX25-CP1-066-E1`）。
+  //   受け皿（`negate`）は §6.4 O-11 で実装済みだったが、**カード名指定の否定形だけ規則が無かった**＝
+  //   条件が丸ごと落ち、**《雷ちゃん》が既に場にいても何度でも出せる**過剰効果になっていた。
+  [/(あなた|対戦相手)の場に《([^》]+)》がない場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardName: g[1] }, negate: true })],
   // ── 段2 第45バッチ：トラッシュ／エナゾーンの存在・枚数条件 ──
   // 第44バッチの HAS_CARD_IN_FIELD と既存 TRASH_HAS_CARD を OR で組み、2ゾーン形を新型にしない。
   [/あなたの場かトラッシュにカード名に《([^》]+)》を含むシグニがある場合/,
@@ -17501,6 +17506,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         }
       }
       if (timing[0] === 'ON_TRASH') {
+        // 🆕**「バニッシュされる**か**場からトラッシュに置かれたとき」＝契機が2つ**（2026-08-30・`WD21-017-E1`）。
+        // 🔴`ON_TRASH` だけに落ちており、**バニッシュされたときに一度も発火しなかった**（過小実行）。
+        //   ⚠バトルバニッシュはエナへ行くので `ON_TRASH` では拾えない＝この2契機は別物。
+        // ⚠原文は全CSVでこの1枚だけ（regex も語順ごと固定して他形を巻き込まない）。
+        if (/バニッシュされるか場からトラッシュに置かれたとき/.test(trigText) && !timing.includes('ON_BANISH')) {
+          timing.push('ON_BANISH');
+        }
+        // 🆕**主語なしの「このカードが効果によって〜トラッシュに置かれたとき」**（2026-08-30・原文3枚＝
+        //   `WX25-P3-109`「いずれかの領域から」／「デッキから」／「手札かデッキから」）。
+        // 🔴下の `actorCause` は「**あなた／対戦相手の**効果によって」しか見ておらず、主語を書かない形が
+        //   丸ごと漏れていた＝**原因の限定が落ちて、コスト支払いでトラッシュへ置いても発火する**過剰発火。
+        //   受け皿（`triggerCondition.byEffect`）は `collectDeckTrashSelfTriggers` に実装済み。
+        if (/このカードが効果によって[^。]*トラッシュに置かれたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+          if (/いずれかの領域からトラッシュに置かれたとき/.test(trigText)) {
+            extractedTriggerCondObj = { ...extractedTriggerCondObj, fromAnyZone: true };
+          }
+        }
         const actorCause = /(?:あなた|対戦相手)の効果によって/.test(trigText);
         if (actorCause && /いずれかの領域からトラッシュに置かれたとき/.test(trigText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromAnyZone: true };
@@ -21442,6 +21465,126 @@ function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): voi
   }
 }
 
+
+/**
+ * 🆕**2026-08-30 追加分の後処理**（§5.2 再照合後バッチ）。
+ * 🔴**`applyDurationsBatch40` の中に置いてはいけない**＝あの関数は先頭で
+ *   「期間句を含まないカードは即 return」する。実際に `WXDi-P11-051-E1`（期間句なし）が
+ *   **規則を書いたのに一度も走らない**という事故を踏んだ。ここは**全カードで走る**独立の関数にする。
+ */
+function applyAnaphoraBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}
+${card.BurstText ?? ''}`;
+  // 🔴**訪問済み集合が要る**＝この関数は**全カード**で走るので、`applyDurationsBatch40` の素朴な再帰を
+  //   そのまま流用すると**同じ action オブジェクトを共有／自己参照する木**（付与展開や置換の生成物）で
+  //   無限再帰に落ちる。実測＝流用した初版は `build:effects` が10分経っても終わらなかった。
+  const outerActions = (action: EffectAction): EffectAction[] => {
+    const out: EffectAction[] = [];
+    const seen = new Set<unknown>();
+    const walk = (a: EffectAction | undefined): void => {
+      if (!a || seen.has(a)) return;
+      seen.add(a);
+      out.push(a);
+      if (a.type === 'SEQUENCE') for (const step of a.steps) walk(step);
+      else if (a.type === 'CHOOSE') for (const choice of a.choices) walk(choice.action);
+      else if (a.type === 'CONDITIONAL') { walk(a.then); walk(a.else); }
+      else if (a.type === 'REPEAT') walk(a.action);
+    };
+    walk(action);
+    return out;
+  };
+  for (const effect of effects) {
+    // 🔴**`abilityBlockTextOf` を素で呼んではいけない**＝あれは未キャッシュのとき
+    //   `getAbilityBlockTexts` → **`parseCardEffects` を再入**するので、パーサの中から呼ぶと無限再帰する
+    //   （実測＝初版は `build:effects` が終わらなかった）。`applyDurationsBatch40` と同じ
+    //   `_collectSourceText` ガードを通す＝収集中は `_sourceTextLog` を読み、平常時だけブロック限定読みをする。
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    const actions = outerActions(effect.action);
+    // 🆕**「このシグニと〈あなたの〉《カード名》のパワーを±N する」＝効果元と名指しカードの2体**（2026-08-30）。
+    // 🔴`WXDi-P11-051-E1` は **`thisCardOnly` だけ**が載っており、原文が明示している
+    //   《融合の儀　ウムル//メモリア》側の＋4000 が丸ごと落ちていた（CONTINUOUS なので恒久的に過小）。
+    // ⚠受け皿は既存の `TargetFilter.anyOf`（`matchesFilter` の OR）＝新しい型は要らない。
+    // ⚠`count` は `'ALL'` にする（2体に効くので1体固定では片方しか当たらない）。
+    {
+      const selfAndNamedM = source.match(/このシグニと(?:あなたの)?《([^》]+)》の(?:基本)?パワーを([＋－])([０-９\d]+)する/);
+      const act0 = effect.action as EffectAction & { delta?: number; target?: { count?: unknown; filter?: TargetFilter } };
+      if (selfAndNamedM && act0.type === 'POWER_MODIFY'
+          && act0.delta === (selfAndNamedM[2] === '＋' ? 1 : -1) * parseNum(selfAndNamedM[3])
+          && act0.target?.filter?.thisCardOnly) {
+        act0.target.count = 'ALL';
+        act0.target.filter = { anyOf: [{ thisCardOnly: true }, { cardName: selfAndNamedM[1] }] };
+      }
+    }
+
+    // 🆕**「〈あなた／対戦相手〉の《カード名》N体を対象とし」＝シグニ名詞が無い対象宣言**（2026-08-30）。
+    // 🔴この語順は対象名詞（「シグニ」）を含まないため所有者判定の regex に一度も当たらず、
+    //   `owner:'any'`（＝自分でも相手でもよい）のフォールバックへ落ちていた＝
+    //   `WX25-CP1-066-E2` は「**あなたの**《雷ちゃん》」なのに**相手のシグニでも強化できた**。
+    // ⚠**`owner:'any'` の対象にだけ**上書きする（所有者が既に決まっている枝は触らない）。
+    // ⚠原文2枚（`WX25-CP1-066` / `WXDi-P02-070`）＝どちらも自分側。
+    {
+      const namedM = source.match(/(あなた|対戦相手)の《([^》]+)》[０-９\d]*体を対象とし/);
+      if (namedM) {
+        const namedOwner: Owner = namedM[1] === '対戦相手' ? 'opponent' : 'self';
+        for (const act of actions) {
+          const tgt = (act as { target?: { owner?: Owner; filter?: TargetFilter } }).target;
+          if (!tgt || tgt.owner !== 'any') continue;
+          tgt.owner = namedOwner;
+          tgt.filter = { ...(tgt.filter ?? {}), cardName: namedM[2] };
+        }
+      }
+    }
+
+    // 🆕**「それと**このシグニ**のパワーを（それぞれ）±N する」＝対象と効果元の2体に同じ修整**
+    //   （2026-08-30・原文3枚＝`WXDi-CP01-029` / `WX25-P3-062` / `WX25-P3-068`）。
+    // 🔴これが無い間、`WX25-P3-068-E1` は**対象の＜天使＞だけが＋4000され、このシグニが上がらなかった**。
+    // ⚠**delta が一致する POWER_MODIFY にだけ足す**（同じ能力内の別のパワー修整を巻き込まない）。
+    // ⚠**既に効果元自身を対象にしている枝（`thisCardOnly`）には足さない**（二重適用になる）。
+    {
+      const bothM = source.match(/それとこのシグニの(?:基本)?パワーを(?:それぞれ)?([＋－])([０-９\d]+)する/);
+      if (bothM) {
+        const want = (bothM[1] === '＋' ? 1 : -1) * parseNum(bothM[2]);
+        const addSelf = (holder: { action: EffectAction }): void => {
+          const a = holder.action as EffectAction & { delta?: number; duration?: EffectDuration; target?: { filter?: TargetFilter } };
+          if (a.type !== 'POWER_MODIFY' || a.delta !== want) return;
+          if (a.target?.filter?.thisCardOnly) return;
+          holder.action = { type: 'SEQUENCE', steps: [
+            a,
+            { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } },
+              delta: want, ...(a.duration ? { duration: a.duration } : {}) } as EffectAction,
+          ] } as EffectAction;
+        };
+        // ⚠**トップレベルの POWER_MODIFY だけ**を扱う。SEQUENCE / CONDITIONAL の内側は
+        //   `WXDi-CP01-029-E2` のように受け皿 STUB（§5.3 `O-96`）で対象選択ごと別物になっており、
+        //   ここで自分への修整だけ足すと**対象が違うまま片方だけ正しい**中途半端な木になる。
+        if (effect.action.type === 'POWER_MODIFY') addSelf(effect as { action: EffectAction });
+      }
+    }
+
+    // 🆕**「〈カードを〉場に出す。（期間、）**それの**パワーを±N する」＝直前に場へ出した札への照応**
+    //   （2026-08-30・`targetsLastProcessed` は POWER_MODIFY に実装済みで、parser が載せていなかっただけ）。
+    // 🔴これが無い間、後段の POWER_MODIFY が `owner:'any'` の**別対象を選び直す**選択UIを出していた
+    //   （＝原文が「それ」と言っている札とは無関係のシグニを強化できる過剰効果）。
+    // ⚠**SEQUENCE の隣接ステップに限定する**＝原文の「それの」を全文スキャンで拾うと、
+    //   同じカードの別能力の「それの」に一致して無関係な POWER_MODIFY を固定してしまう。
+    // ⚠**既に照応が付いている（`targetsStored`／`targetsLastProcessed`）ものは触らない。**
+    if (/場に出す。[^。]{0,24}それの(?:基本)?パワーを/.test(source)) {
+      for (const act of actions) {
+        if (act.type !== 'SEQUENCE') continue;
+        for (let i = 1; i < act.steps.length; i++) {
+          const prev = act.steps[i - 1], cur = act.steps[i];
+          if (prev?.type !== 'ADD_TO_FIELD' || cur?.type !== 'POWER_MODIFY') continue;
+          if (cur.targetsLastProcessed || cur.targetsStored) continue;
+          if (cur.target?.owner !== 'any') continue;
+          cur.targetsLastProcessed = true;
+        }
+      }
+    }
+  }
+}
+
 /**
  * 段2 第40バッチ：期間句を、その action を実際に保持するストアの語彙へ落とす。
  * wrapper だけを辿り、GRANT_* の abilities 内側には潜らない（外側付与期間との混同を防ぐ）。
@@ -22457,6 +22600,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDynamicActionCountBatch35(card, effects);
   applyLevelConditionsBatch39(card, effects);
   applyDurationsBatch40(card, effects);
+  applyAnaphoraBatch2026Aug30(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
     // LOOK_AND_REORDER 専用分岐が単文条件ラッパより先に本文を消費する形の補完。

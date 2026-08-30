@@ -227,6 +227,8 @@ function filterJa(f?: any): string {
   if (f.powerLtAnyAlly) parts.push('あなたのいずれかのシグニよりパワーの低い');
   if (f.powerLtPrinted) parts.push('表記されているパワーよりパワーの低い');
   if (f.powerGtPrinted) parts.push('表記されているパワーよりパワーの高い');
+  if (f.powerDiffersFromPrinted) parts.push('表記されているパワーと異なるパワーの');
+  if (f.noRecollectIcon) parts.push('《リコレクトアイコン》を持たない');
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
   if (f.powerLteTrigger) parts.push('そのシグニのパワー以下の');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
@@ -690,6 +692,14 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_SHARE_COLOR': return 'それらがそれぞれ共通する色を持つ';
     case 'FIELD_LRIGS_SHARE_COLOR': return `${ownerJa(c.owner)}場に共通する色を持つルリグが${numJa(c.minCount)}体以上いる`;
     case 'HAS_CARD_IN_FIELD':
+      // 🔴**`negate` を表示していなかった**（2026-08-30 実測）＝JSON は「**ない**場合」なのに
+      //   逆翻訳が「いるなら」と**真逆**に出ていた。速いレーンの検証は逆翻訳の目視なので致命的。
+      //   ⚠この節は分岐が多いので、**先頭で否定形を1本に畳む**（各枝に付け足すと必ず漏れる）。
+      if (c.negate) {
+        const inner = condJa({ ...c, negate: undefined });
+        return inner.endsWith('いる') ? `${inner.slice(0, -2)}いない`
+          : inner.endsWith('ある') ? `${inner.slice(0, -2)}ない` : `${inner}ではない`;
+      }
       // 「場に《X》がいる」（X はルリグ名等の特定カード名）＝名前のみのフィルタは「シグニ」を付けない
       if (c.filter?.cardName && !c.filter?.cardType && !c.filter?.story && !c.filter?.color)
         return `${ownerJa(c.owner)}場に《${c.filter.cardName}》がいる`;

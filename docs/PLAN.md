@@ -11,7 +11,7 @@
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
 - 🏁**セッション（2026-08-30・続き737・Opus 5）＝§5.2 意味照合 段2 を「カード単位バッチ第3回」で消化した。**
-  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 437→434→386｜census 高シグナル 464→460**
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 437→434→386→366｜census 高シグナル 464→460**
   gates 全緑（**golden 3044→3047 / 0 FAIL**・smoke 10705 全0・fuzz 全0・lint 0 errors）。全文は BUGFIXES.md 冒頭。
   - **母集団**＝`census:cards --list` の **census+audit 両立 かつ `mech` なし＝70枚**。上から **7枚を triage**して
     **3枚を消化（live 5効果）／4枚を §5.3 へ登録（`O-180`〜`O-183`）／2枚を既登録 `O-96` へ帰属**。
@@ -32,6 +32,16 @@
     ⇒ 新設 **`node scripts/archive/semanticAuditRecheck.mjs`**（quote と現在の逆翻訳の最長共通部分文字列で
     「直っている疑い」を出す。⚠**候補であって判定ではない**＝LCS≥7 の 108件のうち真は 48件＝**約44%**）。
     🔑**バッチを1本回すたびに、実装の前にこれを回す**（実装より安い在庫が先に見つかる）。
+  - 🆕**さらに「再照合後バッチ」で20件を実装消化（386→366）＝parser 規則7本＋受け皿2キー**
+    （`powerDiffersFromPrinted`／`noRecollectIcon`。live 19カード）。**新しいアクション型は0本**＝
+    **7本すべて「受け皿は既にあるのに生成側だけが取り残されていた」**（`targetsLastProcessed`／`noRiseIcon`／
+    `HAS_CARD_IN_FIELD{negate}`／`triggerCondition.byEffect`／`anyOf`）。
+    🔴**踏んだ罠3つ**＝①**`abilityBlockTextOf` を parser の中から素で呼ぶと無限再帰する**
+    （`getAbilityBlockTexts`→`parseCardEffects` 再入。`_collectSourceText` ガードを通すこと）
+    ②**`applyDurationsBatch40` の中に規則を書くと、期間句の無いカードで一度も走らない**（早期 return）
+    ③**逆翻訳が `negate` を表示しておらず「いる**なら**」と真逆に出ていた**（速いレーンの検証は目視なので致命的）。
+    🔄**据置契約 golden 3本を「実装済み」へ反転**（消して通すのは禁止）＝うち1本は
+    **`WXDi-P15-098` の manual 影武者**で、①の parser バグを避けるための手書きだった＝parser を直したので撤去。
 
 **▶ 次の一手**＝**§5.2 カード単位バッチ第4回**（census+audit 両立 **63枚**の続き＝`WX25-CP1-042` から）。
 ⚠**着手前に `semanticAuditRecheck.mjs` を回す**（消化漏れが残っていれば実装より先に回収できる）。
@@ -555,7 +565,12 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > 🆕🔴**2026-08-29 改定＝ここが「速いレーン」（§2.0）の本線キューになった。** 3つの計器のうち**段1 で真バグと確定しているのはここだけ**（census 571 と `behaviorAudit --queue` 566 は疑いで、偽陽性の選別にまた時間がかかる。両者の重なりはわずか28件＝**ほぼ別のものを見ている**）。
-> **母集団＝残 OPEN 386件（影響カード 294枚・効果 297件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-30 再照合バッチ 時点＝段2 消化735／段0除去212／段1偽陽性111／HIGH・MED・LOW＝287・98・1）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> **母集団＝残 OPEN 366件（影響カード 282枚・効果 281件）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-30 再照合後バッチ 時点＝段2 消化755／段0除去212／段1偽陽性111／HIGH・MED・LOW＝273・92・1）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> 🆕🔑**2026-08-30 の実測＝「受け皿は既にあるのに生成側だけが取り残されている」型が本命。**
+> 再照合後バッチで消化した20件のうち、**新しいアクション型は0本・新しいキーは2本だけ**で、
+> 残りはすべて **`targetsLastProcessed` / `noRiseIcon` / `HAS_CARD_IN_FIELD{negate}` /
+> `triggerCondition.byEffect` / `anyOf` という既存の受け皿へ parser を配線しただけ**だった。
+> ⇒ **finding を読んだら、まず「その語彙が `src/types/effects.ts` に在るか」を grep する**（在れば数行で終わる）。
 > 🆕🔑**2026-08-30＝着手前に必ず `node scripts/archive/semanticAuditRecheck.mjs` を回す（新設）。**
 > 台帳は **`stage2_closed.txt` へ手で追記しないと減らない**のに、段2 のバッチは **parser 規則1本で標本外の効果まで
 > 一緒に直る**（この節の下に「175効果を直して母集団に載っていたのは約半分」と実測がある）。
@@ -897,15 +912,16 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
 - **2026-08-30 続き737 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 437→434→386｜census 高シグナル 464→460**
-  ＝**§5.2 カード単位バッチ第3回（7枚 triage → 3枚消化・live 5効果）＋ 再照合バッチ（消化漏れ48件を回収）**。
-  ⚠**386 のうち −48 は「較正」であって前進ではない**（live 不変）。**実装で減ったのは −3。**
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 437→434→386→366｜census 高シグナル 464→460**
+  ＝**カード単位バッチ第3回（live 5効果）＋ 再照合バッチ（消化漏れ48件を回収）＋ 再照合後バッチ（live 19カード・20件消化）**。
+  ⚠**内訳を混ぜない**＝**−48 は「較正」（live 不変）／実装で減ったのは −23。**
   **golden 3044→3047 / 0 FAIL**、smoke 効果総数 10705 全異常0、fuzz 全0、
   lint 0 errors／**249 warnings（据置）**、同型★0、`census:stubs` A群🔴0／C群0、manual-fields 0、held 88→87枚。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 SELF_TEXT 130行 / 127ハンドラ（据置）**。
-  **`census:cards`＝要対応 776→747／即着手可能 572→529／census+audit 両立 70→63／`mech` 201→218枚。**
-  🆕**新設した型は3本**（フィルタキー `colorMatchesSourceCard`／`nameMatchesAnyTrashCard`、
-  条件型 `ZONE_COUNT_COMPARE`）＝**新しいアクション型は0本**。**`Condition` 型数 135→136。**
+  **`census:cards`＝要対応 776→737／即着手可能 572→519／census+audit 両立 70→63／`mech` 201→218枚。**
+  🆕**新設した型は5本**（フィルタキー `colorMatchesSourceCard`／`nameMatchesAnyTrashCard`／
+  `powerDiffersFromPrinted`／`noRecollectIcon`、条件型 `ZONE_COUNT_COMPARE`）＝**新しいアクション型は0本**。
+  **`Condition` 型数 135→136。** golden 3044→**3049**。
   ⚠**実機未検証が2件**（§5.1 `V-93`・`V-94`）。
 
 ## 付録A. 全体像と Definition of Done

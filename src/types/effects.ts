@@ -842,6 +842,12 @@ export interface TargetFilter {
   hasCrossIcon?: boolean; // 《クロスアイコン》を持つシグニ（EffectText が《クロスアイコン》で始まる）。matchesFilter で判定（WX07-002 等「クロスアイコンを持つシグニが場に出たとき」triggerFilter）
   hasRiseIcon?: boolean;  // 《ライズアイコン》を持つシグニ（EffectText に【ライズ】を含む）。matchesFilter で判定（WX16-026 等「ライズアイコンを持つシグニが場に出たとき」triggerFilter）
   noRiseIcon?: boolean;   // 《ライズアイコン》を持たないシグニ（hasRiseIcon の否定）。matchesFilter で判定（WX16-038-E2「ライズアイコンを持たない＜武勇＞のシグニ」）
+  /**
+   * 🆕《リコレクトアイコン》を**持たない**カード（2026-08-30・`SPDi43-14-E2` / `SPDi43-16-E2`）。
+   * `noRiseIcon` と同じく **`EffectText` に印字があるか**で判定する近似（原文62枚のアーツが該当）。
+   * 🔴これが無い間、両カードの【起】は**リコレクト持ちの強力アーツまでルリグデッキへ戻せる**過剰効果だった。
+   */
+  noRecollectIcon?: boolean;
   // ⚠🔴**`eachDistinctColor` / `eachDistinctLevel` は 2026-08-23（段2 第42バッチ）で削除**＝
   //   parser だけが書いて **engine に消費が1行も無い死にキー**だった（＝制約が黙って消える過剰実行）。
   //   選択集合の相互差異は `SelectionConstraint.distinct` / `sharedColor` が正準形で、
@@ -901,6 +907,16 @@ export interface TargetFilter {
   powerLtAnyAlly?: boolean; // 自分の場のシグニのいずれか（＝最大実効パワー）より低い（「あなたのいずれかのシグニよりパワーの低い」。resolveDynamicFilterがownerState.field.signiの最大実効パワー-1をpowerRange.maxへ解決。WXDi-P01-020/WXDi-P07-031）
   powerLtPrinted?: boolean; // 各候補の実効パワーが自身の表記パワーより低い＝パワー低下中（「表記されているパワーよりパワーの低い」。fieldCandidatesがper-candidateで判定。WX25-CP1-093）
   powerGtPrinted?: boolean; // 各候補の実効パワーが自身の表記パワーより高い＝パワー増強中（「表記されているパワーよりパワーの高い」。fieldCandidatesがper-candidateで判定。WXK10-027）
+  /**
+   * 🆕各候補の実効パワーが自身の表記パワーと**異なる**（増強中でも低下中でもよい）＝
+   * 「**表記されているパワーと異なるパワーの**シグニ」（2026-08-30 §5.2 再照合後バッチ）。
+   * `powerLtPrinted` / `powerGtPrinted` の OR にあたる第3の兄弟で、`fieldCandidates` が per-candidate で判定する。
+   * ⚠**`SigniAttackBan.powerDiffersFromPrinted` とは別物**（あちらはアタック禁止の適用条件で、
+   *   `screens/battle/signiAttackBan.ts` が読む）。**同名だが受け皿が違うので流用しない。**
+   * 🔴これが無い間、`WX22-047-E1` / `WX24-P3-040-E1`②/`WX25-P1-009-sub-E2` は
+   *   **パワーが変動していない相手シグニまで対象にできる**過剰効果だった。
+   */
+  powerDiffersFromPrinted?: boolean;
   superlative?: { key: 'power' | 'level'; dir: 'max' | 'min' }; // 候補集合のうち最大/最小のパワー/レベルを持つもののみ（「対戦相手のシグニのうち最も大きいパワーを持つシグニ」WXDi-P08-009 等）。fieldCandidates が集合単位でポストフィルタ（同値は全て残す＝「すべて」対応）
   frontOfGateZone?: boolean; // THE DOOR【ゲート】がある自分のシグニゾーンの正面にある対戦相手のシグニ（own_gate_zones の各 zi に対し相手ゾーン 2-zi。execTransferToDeck が解決）
   inGateZone?: boolean;      // このシグニと同じシグニゾーンに THE DOOR【ゲート】がある（own_gate_zones にゾーンが含まれる。状態ベース＝fieldCandidates/matchesStateFilter で判定）

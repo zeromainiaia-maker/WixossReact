@@ -428,6 +428,10 @@ export function parseAnyAllyComparison(text: string): Partial<TargetFilter> {
 export function parsePrintedComparison(text: string): Partial<TargetFilter> {
   if (/表記されているパワーよりパワーの低い/.test(text)) return { powerLtPrinted: true };
   if (/表記されているパワーよりパワーの高い/.test(text)) return { powerGtPrinted: true };
+  // 🆕「表記されているパワーと**異なる**パワーの〜シグニ」＝上2本の OR（2026-08-30）。
+  // ⚠原文には「（表記されているパワーとは、元々それに印刷されている値である）」というルール注記が
+  //   併記されることがある（PLAN 付録B-4）。注記側は「異なるパワーの」を含まないので誤検出しない。
+  if (/表記されているパワーと異なるパワーの/.test(text)) return { powerDiffersFromPrinted: true };
   return {};
 }
 
@@ -479,10 +483,16 @@ export function parseLastProcessedComparison(text: string): Partial<TargetFilter
 }
 
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
-  if (text.includes('シグニ')) return { cardType: 'シグニ' };
-  if (text.includes('スペル')) return { cardType: 'スペル' };
-  if (text.includes('アーツ')) return { cardType: 'アーツ' };
-  if (text.includes('ルリグ')) return { cardType: 'ルリグ' };
+  // 🔴**`ルリグ` は「対象の種別」ではなく「参照先」として出ることがある**（2026-08-30・`PR-318-E1`）＝
+  //   「あなたのデッキから**あなたのセンタールリグと共通する色を持つカード**１枚を探して」。
+  //   素の `includes('ルリグ')` だと種別が `ルリグ` に化け、**デッキからルリグしか探せない**過小実行になる。
+  //   ⚠`シグニ`/`スペル`/`アーツ` が先に当たる形（「センタールリグと共通する色を持つシグニ」）は
+  //     もともと正しかったので、**取りこぼしていたのは名詞が「カード」のときだけ**。
+  const t = text.replace(/(?:センター|アシスト)?ルリグと(?:共通する色を持(?:つ|たない)|同じレベルの?|同じ色の?)/g, '');
+  if (t.includes('シグニ')) return { cardType: 'シグニ' };
+  if (t.includes('スペル')) return { cardType: 'スペル' };
+  if (t.includes('アーツ')) return { cardType: 'アーツ' };
+  if (t.includes('ルリグ')) return { cardType: 'ルリグ' };
   return {};
 }
 
@@ -578,8 +588,17 @@ export function signiClauseStoryFilter(text: string): Partial<TargetFilter> {
  * いずれも「を対象とし」が名詞句に続かないので、この regex では自然に外れる。
  */
 const SIGNI_TARGET_ADJACENT_ICON = /《(ライズ|クロス|アクセ)アイコン》を持つ(?:あなたの|対戦相手の)?(?:[^。、シ]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+// 🆕**否定形**「《ライズアイコン》を**持たない**〈…〉シグニN体を対象とし」＝`noRiseIcon`（既存キー・engine 実装済み）。
+//   2026-08-30 実測＝`WD17-018-E1`① は**この形の規則だけが無く**、選択肢①で
+//   **ライズ持ちの＜武勇＞まで生け贄にできる**過剰実行だった（肯定形は在ったのに否定形が無い非対称）。
+const SIGNI_TARGET_ADJACENT_NO_RISE = /《ライズアイコン》を持たない(?:あなたの|対戦相手の)?(?:[^。、シ]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+// 🆕**「対象の〜をバニッシュする」語順**（動詞が先に来ず「対象の」が名詞句の頭に付く古い表記）。
+//   `WD17-018-E1`② の「**対象の**あなたの《ライズアイコン》を持つ＜武勇＞のシグニ１体を**バニッシュする**」は
+//   「を対象とし」で終わらないため上の2本から漏れていた。
+const SIGNI_CLAUSE_LEADING_TARGET_ICON = /対象の(?:あなたの|対戦相手の)?《(ライズ|クロス|アクセ)アイコン》を持つ(?:[^。、シ]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?(?:バニッシュ|トラッシュに置|手札に戻|エナゾーンに置|ダウン)/;
 export function signiClauseIconFilter(text: string): Partial<TargetFilter> {
-  const m = text.match(SIGNI_TARGET_ADJACENT_ICON);
+  if (SIGNI_TARGET_ADJACENT_NO_RISE.test(text)) return { noRiseIcon: true };
+  const m = text.match(SIGNI_TARGET_ADJACENT_ICON) ?? text.match(SIGNI_CLAUSE_LEADING_TARGET_ICON);
   return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};
 }
 
