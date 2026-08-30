@@ -757,6 +757,7 @@ export interface EffectCost {
   // の色オーバーライド経路＝WX08-042/WX21-044 とは別＝エナゾーン外からの支払いなので表現できない）。
   costSubstitute?: { originalCost: EnergyCost; discardFromHand?: { count: number; filter?: TargetFilter } };
   handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
+  fieldExileSelf?: boolean;    // 場にあるこのシグニをゲームから除外する
   selfToDeckBottom?: boolean;  // このシグニをデッキの一番下に置く（コスト）
   selfPowerDown?: number;      // このシグニのパワーをN減らす（コスト）
   fieldToLrigTrash?: { count: number; filter?: TargetFilter }; // 場のカードをルリグトラッシュに置く
@@ -1529,6 +1530,11 @@ export interface PowerSetAction {
   type: 'POWER_SET';
   target: EffectTarget;
   value: NumberOrRef;
+  // ⚠**engine は読まない（逆翻訳の表示専用）**。`execPowerSet` は `temp_power_mods` に書くだけで、
+  //   あのバケツは**ターン終了時にリセットされる**ので即時 POWER_SET は常に「ターン終了時まで」。
+  //   常設（【常】）の基本パワー変更は `calcContinuousSigniMutations` の別経路なのでここは通らない。
+  //   ⇒ **`'PERMANENT'` と書いても永続にはならない**。永続が要るなら engine 側の受け皿を先に作ること。
+  duration?: EffectDuration;
 }
 
 // カードをゲームから除外する（トラッシュ等から取り除く。除外ゾーンは未実装のため取り除き＝消去で近似）。

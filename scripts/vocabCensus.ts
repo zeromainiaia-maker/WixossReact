@@ -112,7 +112,18 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 294; // 2026-08-30 census 較正 第4弾＝338→294（-44）。**全部が較正**（live 不変）。
+const BASELINE_HIGH = 285; // 2026-08-30 census 実バグ3群＋兄弟効果の畳み込み＝294→285（-9）。**内訳を混ぜない**：
+//   ■**実装 -5**＝①「ゲームから除外」が `TRASH` へ退化していた2件（`WXDi-P05-014-E3` 相手手札／`WXEX2-08-E4` エナ）
+//     ②「能力を失い、それらのパワーを－N／基本パワーをNにする」の**後半脱落**2件（`WXDi-P13-043-E1`／`WXDi-P04-079-E1`）
+//     ③ライフバーストの**2択の①が丸ごと消えていた**（`WXDi-P04-079-BURST`）。
+//     ＋`WXK06-031-E2` の**自身除外コストの脱落**（`cost.fieldExileSelf` を新設。census には出ない軸）。
+//   ■**較正 -4**＝**兄弟効果（`-E1b` / `-E1c`）を親の効果単位へ畳んだ**（`buildUnits`）。
+//     🔴あれは「1つの原文ブロックを2つの effect レコードに割った断片」で**自前の原文ブロックを持たない**ため、
+//     従来は**親（語彙が半分）と子（カード全文と比較）の両方**が高シグナルになっていた。
+//     ⇒ `WX19-021-E1`／`WX19-023-E1`（耐性＝親・パワー修整＝子）／`WX20-038-E1`（【アサシン】＝親・
+//     【ダブルクラッシュ】＝子）／`WXK04-072-E1`（パワー＝親・多面アタック STUB＝子）が解消。
+//     ⚠**親が居ない子・自前ブロックを持つ子は畳まない**（従来どおり）。
+// 旧: const BASELINE_HIGH = 294; // 2026-08-30 census 較正 第4弾＝338→294（-44）。**全部が較正**（live 不変）。
 // 高シグナル id 集合を機械差分＝**消えた44件は全数が下の7群・新しく入った id は0件**。全件を原文 × live JSON で目視した。
 //   ⑧**コスト側の「ゲームから除外」**（-12）＝`cost.trashExile` / `cost.handExileSelf` は**大文字 E** なので
 //     キー `'exile'` に一度も当たらなかった。⚠キー表ではなく `extraOk`＋残渣チェックにした＝
@@ -1430,14 +1441,36 @@ function buildUnits(corpus: Corpus, jsonObj: Map<string, unknown[]>): Unit[] {
   const units: Unit[] = [];
   for (const [cardNum, effs] of jsonObj) {
     if (!Array.isArray(effs)) continue;
-    for (const e of effs as Array<Record<string, unknown>>) {
+    // 🆕2026-08-30 較正＝**兄弟効果（`-E1b` / `-E1c` …）は親の効果単位へ畳む**。
+    //   🔴あれは「1つの原文ブロックを2つの effect レコードに割った断片」で、**自前の原文ブロックを持たない**
+    //   （`_effect_srctext.json` に無い）。従来はその1件だけを**カード全文**と突き合わせていたので、
+    //   **親と子の両方が高シグナルになる**（親＝半分の語彙しか持たない／子＝カード全文と比べられる）。
+    //   実例＝`WX20-038`（【アサシン】は E1・【ダブルクラッシュ】は E1b）、
+    //   `WX19-021`／`WX19-023`（耐性は E1・パワー修整は E1b）。
+    //   ⇒ **親の原文ブロック × 親＋子の JSON** で1件として判定する（これが本来の「効果単位」）。
+    //   ⚠**親が存在しないときは畳まない**（従来どおりカード全文 fallback）。
+    //   ⚠**別の原文ブロックを持つ子は畳まない**（`_effect_srctext.json` に自前のブロックがあるもの）。
+    const arr = effs as Array<Record<string, unknown>>;
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const e of arr) byId.set((e?.effectId as string) ?? '', e);
+    const mergedInto = new Map<string, Record<string, unknown>[]>();
+    for (const e of arr) {
+      const effectId = (e?.effectId as string) ?? '';
+      const m = effectId.match(/^(.*-(?:E\d+|BURST|LAYER|TRAP))[a-z]$/);
+      if (!m || src[effectId] !== undefined || !byId.has(m[1]) || src[m[1]] === undefined) continue;
+      mergedInto.set(m[1], [...(mergedInto.get(m[1]) ?? []), e]);
+    }
+    const folded = new Set([...mergedInto.values()].flat().map(e => e?.effectId as string));
+    for (const e of arr) {
       const effectId = (e?.effectId as string) ?? `${cardNum}-?`;
+      if (folded.has(effectId)) continue;
       const raw = src[effectId];
+      const siblings = mergedInto.get(effectId) ?? [];
       units.push({
         effectId,
         cardNum,
         text: strip(raw ?? corpus.all.get(cardNum) ?? ''),
-        js: JSON.stringify(e),
+        js: siblings.length ? JSON.stringify([e, ...siblings]) : JSON.stringify(e),
         obj: e,
         isBurst: e?.effectType === 'LIFE_BURST' || /-BURST$/.test(effectId),
         fallback: raw === undefined,

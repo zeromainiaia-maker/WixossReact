@@ -54933,6 +54933,126 @@ test('census 条件節 B群: 場の【トラップ】有無を4効果で保持�
     'トラップありでだけ1枚引く');
 }));
 
+test('census 2026-08-30 A群: ゲームから除外を保持し、場の自身の除外コストを落とさない', () => withSavedCursor(() => {
+  const find = (cardNum: string, effectId: string) => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    if (!hit) throw new Error(`${effectId} not found`);
+    return hit;
+  };
+  const hand = find('WXDi-P05-014', 'WXDi-P05-014-E3');
+  eq(hand.action.type, 'EXILE', '手札1枚は TRASH でなく EXILE');
+  if (hand.action.type === 'EXILE') {
+    eq(hand.action.target.type, 'HAND_CARD', '手札対象を保持');
+    eq(hand.action.target.owner, 'opponent', '相手手札を保持');
+    eq(hand.action.target.count, 1, '1枚を保持');
+    eq(hand.action.blind, undefined, '「見て」なので blind を付けない');
+  }
+  const energy = find('WXEX2-08', 'WXEX2-08-E4');
+  eq(energy.action.type, 'EXILE', 'エナ1枚は TRASH でなく EXILE');
+  if (energy.action.type === 'EXILE') {
+    eq(energy.action.target.type, 'ENERGY_CARD', 'エナ対象を保持');
+    eq(energy.action.target.owner, 'self', '既存 owner:self を別軸で変えない');
+    eq(energy.action.target.count, 1, '1枚を保持');
+  }
+  const selfCost = find('WXK06-031', 'WXK06-031-E2').cost;
+  eq(selfCost?.energy?.[0]?.color, '黒', '既存の黒1コストを保持');
+  eq(selfCost?.energy?.[0]?.count, 1, '既存の黒1コスト枚数を保持');
+  eq(selfCost?.fieldExileSelf, true, '場にある自身のゲーム除外コストを保持');
+  eq(CPU_AUTO_PAYABLE_COST_KEYS.has('fieldExileSelf'), true, 'CPU は自動支払い可能なコストとして扱う');
+}));
+
+test('census 2026-08-30 B群: 能力消去と同じ対象へのパワー後半を保持する', () => withSavedCursor(() => {
+  const find = (cardNum: string, effectId: string) => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    if (!hit) throw new Error(`${effectId} not found`);
+    return hit;
+  };
+  const flatten = (a: EffectAction): EffectAction[] => a.type === 'SEQUENCE'
+    ? a.steps.flatMap(flatten) : [a];
+
+  const p13 = find('WXDi-P13-043', 'WXDi-P13-043-E1');
+  const p13Steps = flatten(p13.action);
+  const remove = p13Steps.find(a => a.type === 'REMOVE_ABILITIES');
+  const modify = p13Steps.find(a => a.type === 'POWER_MODIFY');
+  eq(remove?.type, 'REMOVE_ABILITIES', 'P13: 能力消去を保持');
+  eq(modify?.type, 'POWER_MODIFY', 'P13: -5000 を追加');
+  if (modify?.type === 'POWER_MODIFY') {
+    eq(modify.delta, -5000, 'P13: delta=-5000');
+    eq(modify.targetsLastProcessed, true, 'P13: 「それら」は直前に選んだ2体を再利用');
+    eq(modify.duration, 'UNTIL_END_OF_TURN', 'P13: 現行語彙で表せる期間は維持');
+  }
+
+  const p04 = find('WXDi-P04-079', 'WXDi-P04-079-E1');
+  const p04Steps = flatten(p04.action);
+  const set = p04Steps.find(a => a.type === 'POWER_SET');
+  eq(p04Steps.some(a => a.type === 'GRANT_KEYWORD'), true, 'P04: ランサー付与を保持');
+  eq(p04Steps.some(a => a.type === 'REMOVE_ABILITIES'), true, 'P04: 相手全シグニの能力消去を保持');
+  eq(set?.type, 'POWER_SET', 'P04: 基本パワー10000を追加');
+  if (set?.type === 'POWER_SET') {
+    eq(set.target.owner, 'opponent', 'P04: 相手対象');
+    eq(set.target.count, 'ALL', 'P04: すべてを保持');
+    eq(set.value, 10000, 'P04: 基本パワー10000');
+    eq(set.duration, 'UNTIL_END_OF_TURN', 'P04: ターン終了時まで');
+  }
+
+  const burst = find('WXDi-P04-079', 'WXDi-P04-079-BURST').action;
+  eq(burst.type, 'CHOOSE', 'P04 BURST: 2択を保持');
+  if (burst.type === 'CHOOSE') {
+    eq(burst.choose_count, 1, '2択から1つ');
+    eq(burst.from_count, 2, '選択肢は2つ');
+    const power = burst.choices[0]?.action;
+    eq(power?.type, 'POWER_MODIFY', '①は全シグニ+10000');
+    if (power?.type === 'POWER_MODIFY') {
+      eq(power.target.count, 'ALL', '①はすべてのシグニ');
+      eq(power.delta, 10000, '①は+10000');
+      eq(power.duration, 'UNTIL_END_OF_TURN', '①はターン終了時まで');
+    }
+    eq(burst.choices[1]?.action.type, 'REVEAL_AND_PICK', '②の既存 REVEAL_AND_PICK を保持');
+  }
+}));
+
+test('census 2026-08-30 C群: 外側条件とターン条件をANDし、該当ターンだけ+3000する', () => withSavedCursor(() => {
+  const find = (cardNum: string, effectId: string) => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    if (!hit) throw new Error(`${effectId} not found`);
+    return hit;
+  };
+  const flatten = (a: EffectAction): EffectAction[] => a.type === 'SEQUENCE'
+    ? a.steps.flatMap(flatten) : [a];
+  const cases = [
+    { cardNum: 'WX19-021', story: 'アーム', turnOwner: 'opponent' as const },
+    { cardNum: 'WX19-023', story: 'ウェポン', turnOwner: 'self' as const },
+  ];
+  for (const c of cases) {
+    const protection = find(c.cardNum, `${c.cardNum}-E1`);
+    eq(protection.activeCondition?.type, 'HAS_CARD_IN_FIELD', `${c.cardNum}: 耐性はターン外でも場条件だけで有効`);
+    eq(protection.action.type, 'GRANT_PROTECTION', `${c.cardNum}: 元E1の効果耐性を保持`);
+    const e = find(c.cardNum, `${c.cardNum}-E1b`);
+    eq(e.parseStatus, 'AUTO', `${c.cardNum}: パワー後半は manual でなく parser 生成`);
+    eq(e.activeCondition?.type, 'AND', `${c.cardNum}: パワーの場条件とターン条件は AND`);
+    const conditions = e.activeCondition?.type === 'AND' ? e.activeCondition.conditions : [];
+    eq(conditions.some(x => x.type === 'HAS_CARD_IN_FIELD'), true, `${c.cardNum}: 「～があるかぎり」を保持`);
+    eq(conditions.some(x => x.type === 'TURN_OWNER' && x.owner === c.turnOwner), true,
+      `${c.cardNum}: 指定ターンだけ active`);
+    const power = flatten(e.action).find(a => a.type === 'POWER_MODIFY');
+    eq(power?.type, 'POWER_MODIFY', `${c.cardNum}: +3000 を同じ効果へ追加`);
+    if (power?.type === 'POWER_MODIFY') {
+      eq(power.delta, 3000, `${c.cardNum}: delta=+3000`);
+      eq(power.target.count, 'ALL', `${c.cardNum}: 対象集合すべて`);
+      eq(power.target.filter?.story, c.story, `${c.cardNum}: 耐性と同じクラス集合`);
+    }
+  }
+
+  const my = mkState({ signi: ['WX19-021', 'WX19-023', null] });
+  const op = mkState({});
+  const ownTurn = calcFieldPowers(my, op, true, effectsMap, cardMap as Map<string, CardData>);
+  eq(ownTurn.get('WX19-021'), 12000, '🔴自分ターンにはアーム側+3000が載らない');
+  eq(ownTurn.get('WX19-023'), 15000, '自分ターンにはウェポン側だけ+3000');
+  const opponentTurn = calcFieldPowers(my, op, false, effectsMap, cardMap as Map<string, CardData>);
+  eq(opponentTurn.get('WX19-021'), 15000, '相手ターンにはアーム側だけ+3000');
+  eq(opponentTurn.get('WX19-023'), 12000, '🔴相手ターンにはウェポン側+3000が載らない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

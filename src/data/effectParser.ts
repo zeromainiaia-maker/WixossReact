@@ -927,6 +927,8 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   }
   // 手札にあるこのカードをゲームから除外する → handExileSelf
   if (/手札にあるこのカードをゲームから除外する/.test(costStr)) cost.handExileSelf = true;
+  // 場にあるこのシグニをゲームから除外する → fieldExileSelf
+  if (/場にあるこのシグニをゲームから除外する/.test(costStr)) cost.fieldExileSelf = true;
   // このシグニを場からデッキの一番下に置く → selfToDeckBottom
   if (/このシグニを(?:場から)?デッキの一番下に置く/.test(costStr)) cost.selfToDeckBottom = true;
   // このシグニのパワーをN減らす（コスト） → selfPowerDown
@@ -21605,6 +21607,96 @@ ${card.BurstText ?? ''}`;
  *   engine 側は同じ文字列で解決するため。`SPDi43-06-E2`）。
  * ⚠**既に `CHOOSE` になっている効果は触らない**（手書き／別規則で2択化済みのものを壊さない）。
  */
+/**
+ * census 2026-08-30: 既存の先頭動詞だけを返した結果、同じ文の後半が脱落した効果を補う。
+ * 対象文型は母集団を実測済みの狭い原文句に限定する。source 取得は収集時の再入を避ける。
+ */
+function applyMissingActionTailsBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}
+${card.BurstText ?? ''}`;
+  const continuousPowerSiblings: CardEffect[] = [];
+  for (const effect of effects) {
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    let changed = false;
+
+    // 「手札を見て1枚選び、ゲームから除外」／「エナの1枚を対象とし、ゲームから除外」。
+    // TRASH へ退化していた移動先だけを直し、既存 target（owner を含む）は保持する。
+    if (/対戦相手の手札を見て１枚選び、ゲームから除外する/.test(source)
+        && effect.action.type === 'TRASH'
+        && effect.action.target.type === 'HAND_CARD') {
+      effect.action = { type: 'EXILE', target: { ...effect.action.target } };
+      changed = true;
+    } else if (/エナゾーンにあるカード１枚を対象とし、それをゲームから除外する/.test(source)
+        && effect.action.type === 'TRASH'
+        && effect.action.target.type === 'ENERGY_CARD') {
+      effect.action = { type: 'EXILE', target: { ...effect.action.target } };
+      changed = true;
+    }
+
+    // 常時耐性の後半。effect-level activeCondition を元E1へ足すと耐性までターン限定になるため、
+    // POWER_MODIFY だけを AUTO sibling に分離し「～があるかぎり」とターン所有者を AND にする。
+    const protectionPower = source.match(/効果を受けず、それらのパワーを(対戦相手|あなた)のターンの間、[＋+]([０-９\d]+)する/);
+    if (protectionPower && effect.effectType === 'CONTINUOUS' && effect.action.type === 'GRANT_PROTECTION') {
+      const turnOwner: Owner = protectionPower[1] === '対戦相手' ? 'opponent' : 'self';
+      const turnCondition: Condition = { type: 'TURN_OWNER', owner: turnOwner };
+      const priorCondition = effect.activeCondition;
+      const activeCondition: ActiveCondition = priorCondition?.type === 'AND'
+        ? { type: 'AND', conditions: [...priorCondition.conditions, turnCondition] }
+        : priorCondition
+          ? { type: 'AND', conditions: [priorCondition, turnCondition] }
+          : turnCondition;
+      const subjectFilter = { ...(effect.action.subjectFilter ?? {}), cardType: 'シグニ' as const };
+      continuousPowerSiblings.push({
+        effectId: `${effect.effectId}b`,
+        effectType: 'CONTINUOUS',
+        activeCondition,
+        action: {
+          type: 'POWER_MODIFY',
+          target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: subjectFilter },
+          delta: parseNum(protectionPower[2]),
+          // ⚠`duration` は置かない＝CONTINUOUS の POWER_MODIFY は `calcContinuousSigniMutations` が
+          //   毎フレーム再計算する経路で、action 側の期間は読まれない（既存の同型もすべて未指定）。
+        },
+        duration: 'PERMANENT',
+        mandatory: true,
+        parseStatus: 'AUTO',
+      });
+    }
+
+    // バーストの「どちらか1つ」。既存の②をそのまま選択肢に残し、脱落した①を前へ足す。
+    if (/どちらか１つを選ぶ。①ターン終了時まで、あなたのすべてのシグニのパワーを＋10000する/.test(source)
+        && effect.effectId.endsWith('-BURST')
+        && effect.action.type === 'REVEAL_AND_PICK') {
+      effect.action = {
+        type: 'CHOOSE', choose_count: 1, from_count: 2,
+        choices: [
+          {
+            choiceId: 'power_all_10000', label: 'すべてのシグニを＋10000',
+            action: {
+              type: 'POWER_MODIFY',
+              target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } },
+              delta: 10000,
+              duration: 'UNTIL_END_OF_TURN',
+            },
+          },
+          { choiceId: 'reveal_and_pick', label: 'デッキの上から3枚見る', action: effect.action },
+        ],
+      };
+      changed = true;
+    }
+
+    if (changed) {
+      effect.parseStatus = 'AUTO';
+      clearSilentFallback(effect.effectId);
+    }
+  }
+  for (const sibling of continuousPowerSiblings) {
+    if (!effects.some(e => e.effectId === sibling.effectId)) effects.push(sibling);
+  }
+}
+
 function applyKeywordChoiceGrantBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}
 ${card.BurstText ?? ''}`;
@@ -22703,6 +22795,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyLevelConditionsBatch39(card, effects);
   applyDurationsBatch40(card, effects);
   applyAnaphoraBatch2026Aug30(card, effects);
+  applyMissingActionTailsBatch2026Aug30(card, effects);
   applyKeywordChoiceGrantBatch2026Aug30(card, effects);
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   for (const effect of effects) {

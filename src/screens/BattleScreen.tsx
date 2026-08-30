@@ -12920,6 +12920,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), cardNum],
         };
       }
+      // fieldExileSelf: このシグニ自身を場からゲームから除外する起動コスト。
+      // removeFromField で下敷き・チャーム・アクセの離場処理を共通化し、効果元本体だけ excluded へ置く。
+      if (effect.cost?.fieldExileSelf) {
+        const afterRemove = removeFromField(cardNum, paid);
+        paid = {
+          ...afterRemove,
+          excluded: [...(afterRemove.excluded ?? []), cardNum],
+        };
+      }
       // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
       const charmTrashNAct2 = effect.cost?.charmTrash ?? 0;
       if (charmTrashNAct2 > 0) {
@@ -14115,6 +14124,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.underSelfTrash ? `このシグニの下${eff.cost.underSelfTrash.count}枚トラッシュ` : null,
               eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
               eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
+              eff.cost.fieldExileSelf ? 'このシグニをゲームから除外' : null,
               eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
               eff.cost.acceTrash ? `アクセ${eff.cost.acceTrash}枚トラッシュ` : null,

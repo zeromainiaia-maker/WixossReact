@@ -922,7 +922,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 従来はここで能力消去だけを返し **パワー修正が丸ごと脱落**していた（WX26-CP1-009-E1 の－30000）。
     // REMOVE_ABILITIES が対象を lastProcessedCards に記録するので、後段は targetsLastProcessed で同一対象に載る。
     {
-      const pmM = t.match(/能力を失[うい]、(?:それの|その)パワーを([－\-＋+])([０-９\d]+)する/);
+      const pmM = t.match(/能力を失[うい]、(?:それ(?:ら)?の|その)パワーを([－\-＋+])([０-９\d]+)する/);
       if (pmM && !isQuotedGrant && ra.target.count !== 'ALL') {
         return {
           type: 'SEQUENCE',
@@ -937,6 +937,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
             },
           ],
         } as EffectAction;
+      }
+      const psM = t.match(/能力を失[うい]、それらの基本パワーを([０-９\d]+)にする/);
+      if (psM && !isQuotedGrant) {
+        return {
+          type: 'SEQUENCE',
+          steps: [ra, {
+            type: 'POWER_SET',
+            target: { ...ra.target },
+            value: parseNum(psM[1]),
+            duration: dur,
+          }],
+        };
       }
     }
     return ra;

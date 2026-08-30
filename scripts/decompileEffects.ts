@@ -556,6 +556,7 @@ function costJa(c?: any): string {
   if (c.discardVariable) parts.push(`手札から${filterJa(c.discardVariable.filter)}カードを${c.discardVariable.min}枚以上捨てる`);
   if (c.handBottomDeck != null) parts.push(`手札を${c.handBottomDeck}枚デッキの一番下に置く`);
   if (c.handExileSelf) parts.push('手札にあるこのカードをゲームから除外する');
+  if (c.fieldExileSelf) parts.push('場にあるこのシグニをゲームから除外する');
   if (c.energyTrashAll) parts.push('エナゾーンにあるすべてのカードをトラッシュに置く');
   if (c.energyTrashColorAll) parts.push(`エナゾーンからすべての${c.energyTrashColorAll}のカードをトラッシュに置く`);
   if (c.energyTrashSelf) parts.push('エナゾーンからこのカードをトラッシュに置く');
@@ -1172,7 +1173,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const thisOnly = effectType === 'CONTINUOUS' && a.target?.count !== 'ALL'
         && (a.target?.owner === 'self' || a.target?.owner === 'any');
       const tgt = thisOnly ? 'このシグニの基本パワー' : `${targetJa(a.target)}のパワー`;
-      return `${tgt}を${a.value}にする`;
+      const dur = a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、' : '';
+      return `${dur}${tgt}を${a.value}にする`;
     }
     case 'POWER_MODIFY_PER_HAND_COUNT': {
       const dHand = a.deltaPerCard ?? a.delta ?? 0;
@@ -1200,7 +1202,12 @@ function actionJa(a?: Action, effectType?: string): string {
         : `対戦相手のライフクロス${a.count}枚を${a.optional ? 'クラッシュしてもよい' : 'クラッシュする'}`;
       return `このターン、${a.once ? '次に' : ''}あなたのライフクロスが${src}クラッシュされる場合、代わりに${what}`;
     }
-    case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
+    case 'EXILE':
+      if (a.target?.type === 'HAND_CARD' && a.target?.count !== 'ALL') {
+        const owner = a.target.owner === 'opponent' ? '対戦相手の' : 'あなたの';
+        return `${owner}手札を${a.blind ? '見ないで' : '見て'}${numJa(a.target.count)}枚選び、ゲームから除外する`;
+      }
+      return `${targetJa(a.target)}をゲームから除外する`;
     // `targetsStored`＝先行の対象宣言で固定した集合（§6.4 O-8(b)「この方法で移動したシグニ」）。
     // ⚠出さないと「好きな数のダウン状態のシグニをアップする」＝**盤面全体から選べる**逆翻訳になる。
     case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.targetsStored ? `この方法で処理した${targetJa(a.target)}` : targetJa(a.target)}をアップする`;

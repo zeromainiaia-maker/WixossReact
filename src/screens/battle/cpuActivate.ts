@@ -39,6 +39,7 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   'none',          // コストなしの任意効果
   'down_self',     // 効果元をダウン（自動）
   'trash_self',    // 効果元を場からトラッシュ（自動）
+  'fieldExileSelf',// 効果元を場からゲームから除外（自動）
   'trash_key',     // キーをルリグトラッシュ（自動）
   'fieldDown',     // 該当ゾーンを順にダウン（自動）
   'lrigDown',      // payLrigDownCost（センター→アシストの順・自動）

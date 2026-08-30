@@ -5627,13 +5627,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX18-073": [
     {"effectId":"WX18-073-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"activeCondition":{"type":"EICHI_LEVEL_SUM","operator":"eq","value":8},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"英知"},"pickCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_HAND","owner":"self"},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}]},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
   ],
-  // §5.2 Sheet2 バッチ1（2026-08-29）＝1文の後半（対戦相手のターン中の＋3000）が丸ごと落ちていた。
-  //   原文「…＜アーム＞のシグニは対戦相手のルリグの効果を受けず、**それらのパワーを対戦相手のターンの間、＋3000する**」
-  //   ⚠E1（耐性）は parser 出力のままで正しいので触らない。**足りない1本だけ**を E1b として足す。
-  //   受け皿は既存（`AND{TURN_OWNER opponent, HAS_CARD_IN_FIELD}`＝`WX20-052` ほか）。
-  "WX19-021": [
-    {"effectId":"WX19-021-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"TURN_OWNER","owner":"opponent"},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"ウェポン"}}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"アーム"}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
   // §5.2 Sheet2 バッチ1（2026-08-29）＝「パワー合計が10000以下になるように好きな数」が
   //   **パワー制限なしの1体バニッシュ**に化けていた（枚数も上限も別物）。
   //   受け皿は既存（`count:"ALL"` ＋ `totalPowerMax`＝`WX07-026-BURST` ほか同型3件）。
