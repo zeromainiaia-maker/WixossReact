@@ -112,7 +112,25 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-// 2026-08-30 census 条件節丸ごと脱落バッチ＋較正 第3弾＝351→338（-13）。**内訳を混ぜない**：
+const BASELINE_HIGH = 294; // 2026-08-30 census 較正 第4弾＝338→294（-44）。**全部が較正**（live 不変）。
+// 高シグナル id 集合を機械差分＝**消えた44件は全数が下の7群・新しく入った id は0件**。全件を原文 × live JSON で目視した。
+//   ⑧**コスト側の「ゲームから除外」**（-12）＝`cost.trashExile` / `cost.handExileSelf` は**大文字 E** なので
+//     キー `'exile'` に一度も当たらなかった。⚠キー表ではなく `extraOk`＋残渣チェックにした＝
+//     `WXDi-P05-014-E3` / `WXEX2-08-E4` の**本文側 EXILE→TRASH 退化は高シグナルのまま残す**ため。
+//   ⑨**加算モデル**（-9）＝「－8000する。〈条件〉の場合、代わりに－15000する」を
+//     `POWER_MODIFY{-8000}` ＋ `CONDITIONAL{…POWER_MODIFY{-7000, targetsLastProcessed}}` で表すので
+//     **合計値 15000 が JSON に literal で現れない**。⚠**base と加算の和が原文の値に一致するときだけ**通す（算術判定）。
+//     🔴この形は本ファイル 2026-08-10 のコメントが「既知の良性クラス」と書いたまま較正されずに残っていた。
+//   ⑩**「パワーが０以下になったとき」は timing**（-7）＝`ON_SIGNI_POWER_ZERO_OR_LESS` ／
+//     `BANISH_REDIRECT.whenPowerZero`。閾値が型名に埋まっていて `powerRange` 系に当たらなかった。
+//   ⑪**「次にそれがアタックしたとき、そのアタックを無効にする」**（-7）＝`NEGATE_ATTACK` が
+//     **事前登録型としてトリガーを内包する正表現**（`PREVENT_NEXT_DAMAGE` と同型・`timing` に出ない）。
+//     🔴**キー表へ足してはいけない**（続き489＝当時それをやると高シグナル11件を丸ごと隠した）＝この1文型だけ落とす。
+//   ⑫**`FIELD_LEVEL_SUM` / `LAST_PROCESSED_LEVEL_SUM`**（-6）＝**大文字 `_SUM`** がキー `'Sum'` に当たらなかった。
+//   ⑬**`countPerLastProcessed`**（-2）／⑭**`nameMatchesAnyTrashCard`**（-1）＝どちらも綴りが対応表から漏れていた。
+// 🔑**この巡で6つ目〜14個目の「綴り違いで当たらない」罠**＝`maxCost` / `Under` / `deltaFromZone` / `*SourceStory` /
+//   `_SUM` / `Exile` / `LastProcessed`。**受け皿を新設したら必ずこの対応表にも足す**（CLAUDE.md の運用どおり）。
+// 旧: 2026-08-30 census 条件節丸ごと脱落バッチ＋較正 第3弾＝351→338（-13）。**内訳を混ぜない**：
 //   ■実装 -8（Codex）＝A「配置元カード種別」4効果（`THIS_CARD_PLACED_BY_CLASS.sourceCardTypes` を追加）＋
 //     B「場の【トラップ】有無」4効果（`HAS_TRAP_IN_FIELD` を新設）を `CONDITIONAL` へ復元。
 //     8効果とも条件が丸ごと落ちて**無条件実行**していた（過剰効果）。
@@ -123,7 +141,7 @@ import { fileURLToPath } from 'url';
 //     ⑥`REARRANGE_SIGNI{swapIfSameLevel:true}` が「それらのレベルが同じ場合」を内包＝`WXDi-P14-058-E2`。
 //     ⑦**符号つきで載る数**＝「N枚以上多い」は `HAND_DIFF{value:-N}` が正表現で、`[:[,]N[,}]]` が
 //       `-N` に当たらなかった＝`SPK01-15-E2`／`WXK03-062-E1`。
-const BASELINE_HIGH = 338;
+// 旧: const BASELINE_HIGH = 338;
 // 旧: const BASELINE_HIGH = 351; // 2026-08-30 census 較正 第2弾（3大カテゴリ）＝407→351（-56）。**全部が較正**（live 不変）。
 // 高シグナル id 集合を機械差分＝**消えた56件は全数が下の4群・新しく入った id は0件**。全件を原文 × live JSON で目視した。
 //   ①**小さい数：2桁の数の下1桁を拾っていた**（-25）＝`([2-5])(枚|体)` が「**１５枚**以上」「**２５枚**以上」
@@ -838,7 +856,11 @@ const PATTERNS: Pattern[] = [
     re: /パワー(が)?[０-９\d]+以[上下]/,
     // `minPower` = FIELD_SIGNI_POWER_COUNT（「あなたの場にパワーN以上のシグニがある場合」）の閾値フィールド。
     // `powerLtSelf`/`powerGtSelf` = 「このシグニより低い/高いパワー」の動的比較（値ではなく関係で表す正表現）。§5c で較正。
-    keys: ['powerRange', 'SELF_POWER', 'FRONT_SIGNI_POWER', 'POWER_GTE', 'POWER_LTE', 'powerGte', 'powerLte', 'powerMin', 'powerMax', 'minPower'],
+    keys: ['powerRange', 'SELF_POWER', 'FRONT_SIGNI_POWER', 'POWER_GTE', 'POWER_LTE', 'powerGte', 'powerLte', 'powerMin', 'powerMax', 'minPower',
+      // 🆕2026-08-30 較正＝**「パワーが０以下になったとき」は timing で表す**（`ON_SIGNI_POWER_ZERO_OR_LESS`）。
+      //   閾値そのものが型名に埋まっているので `powerRange` 系のどれにも当たらなかった（実測5効果）。
+      //   `whenPowerZero`＝`BANISH_REDIRECT` の「パワーが０以下の対戦相手のシグニが」限定（実測2効果）。
+      'ON_SIGNI_POWER_ZERO_OR_LESS', 'whenPowerZero'],
   },
   {
     name: 'レベル閾値(N以上/以下)',
@@ -863,6 +885,9 @@ const PATTERNS: Pattern[] = [
       // levelFromLastProcessed＝§6.4 O-3 の `SIGNI_ATTACK_BAN`（「そのカードと同じレベルのシグニでアタックできない」）。
       // 公開したカードのレベルを**実行時に焼き込む**指定（続き489 で追加）。`levelEq*` とは別綴り。
       'levelFromLastProcessed',
+      // 🆕2026-08-30 較正＝`nameMatchesAnyTrashCard`（「対戦相手のトラッシュにあるいずれかのカードと同じ名前の」）は
+      //   2026-08-30 に新設した受け皿なのに対応表へ足し忘れていた（実測1効果）。
+      'nameMatchesAnyTrashCard',
       'namesFromTargets'], // nameEq*=バッチ5b（nameEqLastProcessed）・field name集合=第14波・fetchCardName=PR-470A 名指しフェッチ
   },
   {
@@ -936,7 +961,10 @@ const PATTERNS: Pattern[] = [
     //   ため `WX14-048-E1`／`WXK09-060-E1` が偽陽性で高シグナルに立っていた（`maxCost`／`Under` と同じ罠）。
     keys: ['deltaPer', 'PER_', 'perCount', 'countFilter', 'PerCard', 'PerLevel', 'PerCharm',
       '$ref', 'last_processed', 'lastProcessed', 'addLast', 'costScaling',
-      'countFromZone', 'deltaFromZone', 'perAllSigni'],
+      'countFromZone', 'deltaFromZone', 'perAllSigni',
+      // 🆕2026-08-30 較正＝`countPerLastProcessed`（「この方法で〜したカード1枚につき」）は
+      //   `'lastProcessed'`（小文字 l）にも `'PerCard'` にも当たらない綴りだった（実測2効果）。
+      'countPerLastProcessed'],
   },
   {
     name: '合計制約(合計がN以上/以下)',
@@ -948,6 +976,9 @@ const PATTERNS: Pattern[] = [
     // 🆕`costThreshold`＝`PLAY_FREE`／`PLAY_FREE_FROM_TRASH` の「**コストの合計がN以下**のスペル/アーツ」。
     //   `costMax`（TargetFilter 側）とは綴りが違うだけの同義で、`maxCost` を足したとき（続き376c）と同じ罠。
     keys: ['costMax', 'costMin', 'maxCost', 'Sum', 'sum', 'totalPower', 'totalLevel',
+      // 🆕2026-08-30 較正＝`FIELD_LEVEL_SUM` / `LAST_PROCESSED_LEVEL_SUM` は**大文字の `_SUM`** なので
+      //   `'Sum'`（キャメル）に当たらなかった（`*SourceStory` と同じ綴り違いの罠。実測6効果を全数目視）。
+      '_SUM',
       'costThreshold'],
   },
   {
@@ -1070,7 +1101,22 @@ const PATTERNS: Pattern[] = [
   //   ⚠`NEGATE_ATTACK` そのものを鍵にすると既存の高シグナル11件を丸ごと隠すので**narrow なキーにする**（続き489）。
   // 🆕`ON_OPP_SIGNI_ATTACK`＝「この能力は**対戦相手のシグニ１体がアタックしたとき**にしか使用できない」
   //   （`WX05-013-E2`）。⚠**`ON_ATTACK` を部分文字列に含まない**綴りなので既存キーで拾えなかった。
-  { name: 'トリガー:アタックしたとき', re: /がアタックしたとき/, keys: ['ON_ATTACK', 'ON_OPP_SIGNI_ATTACK', 'ATTACK_ARTS', 'escapeDiscard'], src: 'eff' },
+  {
+    name: 'トリガー:アタックしたとき',
+    re: /がアタックしたとき/,
+    keys: ['ON_ATTACK', 'ON_OPP_SIGNI_ATTACK', 'ATTACK_ARTS', 'escapeDiscard'],
+    src: 'eff',
+    // 🆕2026-08-30 較正＝「このターン、**次にそれがアタックしたとき**、そのアタックを無効にする」は
+    //   `NEGATE_ATTACK`（**事前登録型**＝アタック宣言時に消費される）が**トリガーを内包する正表現**で、
+    //   `timing` には出ない（`PREVENT_NEXT_DAMAGE` と同型）。実測7効果・全数を原文 × live JSON で目視。
+    //   🔴**`NEGATE_ATTACK` をキー表へ足してはいけない**（続き489 の判断＝当時それをやると高シグナル11件を
+    //   丸ごと隠した）。**この1文型だけを落として残渣を見る**形にすること。
+    extraOk: (js, t) => {
+      if (!js.includes('"NEGATE_ATTACK"')) return false;
+      const s = t.replace(/このターン[、,]次に(?:それ|そのシグニ|そのルリグ)がアタックしたとき[、,]そのアタックを無効にする/g, '');
+      return s !== t && !/がアタックしたとき/.test(s);
+    },
+  },
   { name: 'トリガー:場に出たとき', re: /場に出たとき/, keys: ['ON_PLAY', 'ON_ZONE_MOVED', 'ADD_TO_FIELD'], src: 'eff' },
   { name: 'トリガー:バニッシュされたとき', re: /バニッシュされたとき/, keys: ['ON_BANISH'], src: 'eff' },
   // ⚠`ADD_EXTRA_ATTACK_PHASE`＝「この方法で加えたアタックフェイズ**開始時**、〜」（§6.4 O-3）。
@@ -1266,7 +1312,26 @@ const PATTERNS: Pattern[] = [
   //   （`WX11-029-E1`。executor は `PLACE_UNDER_SIGNI` へ委譲する）。型名に under が入らないだけの綴り漏れ。
   //   ⚠他の8効果は `LOOK_AND_REORDER` 単独＝**「下に置く」が本当に落ちている真の欠落**なので残す。
   { name: 'シグニの下に置く', re: /の下に置/, keys: ['UNDER', 'under', 'Under', 'STACK_SPELL'] },
-  { name: 'ゲームから除外', re: /ゲームから除外/, keys: ['EXILE', 'exile'] },
+  {
+    name: 'ゲームから除外',
+    re: /ゲームから除外/,
+    keys: ['EXILE', 'exile'],
+    // 🆕2026-08-30 較正＝**コスト側の「ゲームから除外」は `cost.trashExile` / `cost.handExileSelf`**
+    //   （どちらも**大文字 E**なので `'exile'` に一度も当たらなかった＝`*SourceStory` と同じ綴り違いの罠。実測12効果）。
+    //   ⚠**キー表に足さず `extraOk`＋残渣チェック**にする＝「コストで除外し、さらに本文でも除外する」札で
+    //     **本文側の脱落まで隠さない**ため。実際 `WXDi-P05-014-E3`／`WXEX2-08-E4` は本文の除外が
+    //     `TRASH` へ退化しており（EXILE→TRASH＝据置禁止の退化型）、この較正でも**高シグナルのまま残る**。
+    extraOk: (js, t) => {
+      let s = t;
+      if (js.includes('"trashExile"')) {
+        s = s.replace(/(?:あなたの)?トラッシュにある(?:このカード|《[^》]+》[０-９\d]*枚)をゲームから除外する/g, '');
+      }
+      if (js.includes('"handExileSelf"')) {
+        s = s.replace(/手札にあるこのカードをゲームから除外する/g, '');
+      }
+      return s !== t && !/ゲームから除外/.test(s);
+    },
+  },
   // `escapeDiscard`＝上と同じ事前登録型（「このターン、それがアタックしたとき、…無効にする」）。
   { name: '遅延トリガー(このターン〜したとき)', re: /このターン、[^。]{0,40}したとき/, keys: ['DELAYED', 'delayed', 'this_turn', 'turn_end', 'ON_', 'escapeDiscard'] },
   { name: '機構:ライズ', re: /【ライズ】/, keys: ['RISE', 'ise'] },
@@ -1434,6 +1499,40 @@ function main(): void {
   // ---- 数値不一致（語彙有無では見えない別軸・2026-07-04 続き17）----
   // 原文のパワー系数値（4〜5桁）がカードJSONのどこにも現れない＝値の脱落/誤記の候補。
   // 《…》内のカード名由来の数字（例: タンポポ2434）は除外。抜き取り4/4が確定バグ
+    // 🆕2026-08-30 較正＝**加算モデル**（本ファイル 2026-08-10 のコメントが「既知の良性クラス」と
+    //   書いたまま較正されずに残っていた分）。「〜のパワーを－8000する。〈条件〉の場合、**代わりに**－15000する」は
+    //   engine 側で**差分を足す**形（`POWER_MODIFY{delta:-8000}` ＋
+    //   `CONDITIONAL{…, then: POWER_MODIFY{delta:-7000, targetsLastProcessed:true}}`）で表すため、
+    //   **原文の合計値 15000 は JSON に literal で現れない**。
+    //   🔴この形を else 置換にすると `LAST_PROCESSED_MATCHES` が対象選択前に評価されて**恒久 no-op** になるので、
+    //   加算モデルは**意図した正表現**（2026-08-10 のバッチ記録）。
+    //   ⚠narrow に取る＝**base と加算の和がちょうど原文の値に一致するときだけ**通す（算術で確かめる）。
+    //     ＋`targetsLastProcessed` / `targetsTriggerSource` が JSON に在ることも要求する（加算モデルの目印）。
+    const powerDeltas = (js: string): number[] => {
+      const root = parseJsonRecord(js);
+      const out: number[] = [];
+      const walk = (node: unknown): void => {
+        if (Array.isArray(node)) { node.forEach(walk); return; }
+        if (!node || typeof node !== 'object') return;
+        const r = node as JsonRecord;
+        if (r.type === 'POWER_MODIFY' && typeof r.delta === 'number') out.push(r.delta);
+        Object.values(r).forEach(walk);
+      };
+      walk(root);
+      return out;
+    };
+    const additiveCovers = (js: string, n: string): boolean => {
+      if (!/"targetsLastProcessed":true|"targetsTriggerSource":true/.test(js)) return false;
+      const ds = powerDeltas(js);
+      const want = Number(n);
+      for (let a = 0; a < ds.length; a++) {
+        for (let b = a + 1; b < ds.length; b++) {
+          if (Math.abs(ds[a] + ds[b]) === want) return true;
+        }
+      }
+      return false;
+    };
+
   // （WX06-028 第2対象丸ごと・WX13-030 パワー合計上限・WX09-017 基本パワー/×3000・WX11-053 基本パワー）。
   {
     let hits = 0;
@@ -1443,7 +1542,7 @@ function main(): void {
       const nums = [...zen2han(u.text.replace(/《[^》]*》/g, '')).matchAll(/\d{4,5}/g)].map(m => m[0]);
       if (nums.length === 0) continue;
       hits++;
-      const missing = [...new Set(nums.filter(n => !u.js.includes(n)))];
+      const missing = [...new Set(nums.filter(n => !u.js.includes(n) && !additiveCovers(u.js, n)))];
       if (missing.length === 0) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
