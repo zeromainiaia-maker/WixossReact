@@ -359,7 +359,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
             target = { ...target, filter: { ...target.filter, ...nameF } };
           }
         } else if (/ルリグ/.test(pre)) {
-          target = { type: 'LRIG', owner, count: 1 };
+          // 🆕ルリグ側にもクラス・色の限定が付く（続き742・`WXDi-P00-026-E1`
+          //   「あなたの**＜さんばか＞の**ルリグ１体を対象とし…を得る」）＝シグニ枝は
+          //   `parseSigniTarget` が拾うのに**ルリグ枝だけ素の `{LRIG,owner,1}`** で、
+          //   クラス外のルリグにも能力が付く過剰効果だった（意味照合 段2 finding）。
+          const lrigF: TargetFilter = { ...parseStoryFilter(pre), ...parseColorFilter(pre) };
+          target = { type: 'LRIG', owner, count: 1, ...(Object.keys(lrigF).length ? { filter: lrigF } : {}) };
         }
         if (target) return { type: 'GRANT_EFFECT', target, duration: dur, rawText: qgM[3] } as EffectAction;
       }
@@ -1662,6 +1667,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 「各プレイヤーはカードをN枚引く」＝**自分ぶんと相手ぶんの2本に割る**（続き742・§4.2 の
+  //   「『各プレイヤーは』は2本に割る」と同型）。🔴汎用 DRAW が先に食うと `owner:'self'` 1本に潰れ、
+  //   **対戦相手のドローが丸ごと落ちる**（`WXDi-P04-067-E1`＝アタックフェイズ開始時の相互ドローが
+  //   自分だけの一方的なドローに化けていた＝意味照合 段2 finding）。
+  {
+    const eachPlayerDrawM = t.match(/^各プレイヤーは(?:自分の)?カードを?([０-９\d]+)枚引く$/);
+    if (eachPlayerDrawM) {
+      const n = parseNum(eachPlayerDrawM[1]);
+      return { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'self', count: n },
+        { type: 'DRAW', owner: 'opponent', count: n },
+      ] } as EffectAction;
+    }
+  }
+
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
@@ -2837,11 +2857,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   **「他の」の有無ではなく対象名詞句かどうかで判定する**のが正しい。
     //   ⚠`parseSigniTarget(文全体)` へ寄せるとトリガー節・条件節のクラスを引き込む（続き376d のトラップ(a)）ので、
     //     **対象名詞句 span**（読点/鉤括弧/コロンまで）を切って `extractNounPhraseFilter` で合成する。
-    const upSpanM = t.match(/([^。、：「」]*?)シグニ(?:を)?([０-９\d]+)体(?:まで)?を対象とし/);
+    // ⚠🔴**「N体まで対象とし」（「を」なし）を取りこぼしていた**（続き742）＝旧 regex は
+    //   `体(?:まで)?を対象とし` と **`を` を必須**にしていたので、原文が「２体**まで**対象とし」と書く形
+    //   （「まで」の後に「を」が入らない日本語）だけがマッチせず、**filter 丸ごと脱落＋count が1に潰れる**
+    //   （`WX25-P3-083-E1`「あなたの＜天使＞のシグニを２体まで対象とし、それらをアップする」＝
+    //    クラス無制限の1体アップに化けていた＝意味照合 段2 finding）。あわせて `upToCount` も立てる。
+    const upSpanM = t.match(/([^。、：「」]*?)シグニ(?:を)?([０-９\d]+)体(まで)?を?対象とし/);
     const upFilter: TargetFilter = { cardType: 'シグニ', ...(upSpanM ? extractNounPhraseFilter(upSpanM[1]) : {}) };
     if (upSpanM && upSpanM[1].includes('他の')) upFilter.excludeSelf = true;
     return { type: 'UP', target: {
       type: 'SIGNI', owner: signiClauseOwner(t), count: upSpanM ? parseNum(upSpanM[2]) : 1,
+      ...(upSpanM?.[3] ? { upToCount: true } : {}),
       ...(Object.keys(upFilter).length > 1 ? { filter: upFilter } : {}),
     } };
   }

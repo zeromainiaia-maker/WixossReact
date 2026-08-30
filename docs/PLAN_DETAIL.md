@@ -1,5 +1,25 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+
+### 恒久指標アーカイブ（2026-08-30 続き741 後）
+
+- **2026-08-30 続き741 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 366（据置）｜census 高シグナル 285→245**
+  ＝**対象フィルタ脱落＋同一性フィルタ脱落の2バッチ（Codex）＋較正 第6弾・㉑**。
+  🔴**内訳を混ぜない**＝**-23 は「較正」（live 不変）／実装で減ったのは -17**。
+  **セッション通算 460 → 245（-215）＝較正 -173／実装 -42。**
+  **golden 3056→3062 / 0 FAIL**、smoke 効果総数 **10706** 全異常0、fuzz 全0、census **245 / BASELINE 245**、
+  lint 0 errors／249 warnings（据置）、`census:stubs` A群🔴0／C群0、manual-fields 0、held 92枚、idset 11。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  **`census:cards`＝要対応 673→643／即着手可能 417→386／census+audit 両立 52→50／`mech` 256→257枚。**
+  🆕**新設した型は0本**。**既存型の拡張2本**＝`EffectCost.beat_signi` を `number` → `BeatSigniCost{count, excludeSelf}`、
+  `PowerSetAction.duration`（**表示専用**）。
+  🔴**census に出ない engine バグを2件直した**＝①`execPowerModify` が `nameEqLastProcessed` /
+  `levelEqLastProcessed` / `colorMatchesLastProcessed` を**解決せずに `matchesFilter` へ渡していた**
+  （＝絞り込みが丸ごと効かない・既存の無言バグ）②`nameEqLastProcessed` の解決先が `cardName`（部分一致）だった。
+  🔴**実機未検証は5件**（§5.1 `V-93`〜`V-97`）＝**うち4件は同じブラウザ実行環境のブロッカー**
+  （Playwright Chromium 未導入・外部認証待ち）で、**バグの疑いではない**。
+
 ## 2026-08-30 整理（§6 恒久指標・続き736 中間値の退避）
 
 - **2026-08-30 続き736 後（本行が直近の正）**：

@@ -290,6 +290,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
       //   漏れており、**バーストを持たない＜植物＞まで数えてエナが増えすぎる**過剰効果だった
       //   （`census:wiring` の配線漏れ型）。原文該当は全 CSV でこの1枚。
       if (mod.includes('【ライフバースト】を持つ')) stateFilter.hasLifeBurst = true;
+      // 🆕**《Xアイコン》所持の限定**（続き742・`SP23-009-E1`「あなたの場にある**《ライフアイコン》を持つ**
+      //   シグニ１体につきカードを１枚引く」）＝上の `hasLifeBurst` と同型の配線漏れで、**アイコンを持たない
+      //   シグニまで数えて引きすぎる**過剰効果だった（意味照合 段2 finding）。`hasIcon` は `TargetFilter`・
+      //   `matchesFilter` とも実装済み＝ここから合成されていなかっただけ。
+      const iconM = mod.match(/《(クロス|ライズ|トラップ|アクセ)アイコン》を持つ/);
+      if (iconM) stateFilter.hasIcon = iconM[1] as TargetFilter['hasIcon'];
       return { cardType: 'シグニ', ...parseStoryFilter(mod), ...stateFilter };
     };
     const drawM = t.match(/(あなた|対戦相手)?の?(?:場にある)?(.*?)シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);

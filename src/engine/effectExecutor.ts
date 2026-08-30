@@ -4065,6 +4065,38 @@ function resolveDynamicShadowKeyword(kw: string, ctx: ExecCtx): string {
   return kw;
 }
 
+/**
+ * `{type:'LRIG'}` 対象に付いたカード属性フィルタ（クラス／色／レベル等）を判定する（続き742）。
+ * 🔴**「候補に入るか」ではなく「書き込み先を誰が読むか」で受け皿を判定する**（PLAN §5.2）＝
+ *   parser は前から `LRIG` 対象に filter を載せられたが、`execGrantKeyword` / `execGrantEffect` の
+ *   LRIG 分岐は filter を**一切読まず**センタールリグへ無条件付与していた。
+ * ⚠盤面ステート語彙（`isUp` 等）はここでは扱わない＝`matchesFilter` はカード属性だけを見る。
+ *   ルリグのアップ/ダウンは `execUp` / `execDown` 側の管轄で、そちらは別に判定している。
+ * ⚠`thisCardOnly` は呼び出し側が別途処理するのでここでは無視する。
+ */
+function lrigLikeFilterOk(lrigNum: string, filter: import('../types/effects').TargetFilter | undefined, ctx: ExecCtx): boolean {
+  if (!filter) return true;
+  const keys = Object.keys(filter).filter(k => k !== 'thisCardOnly' && k !== 'isUp' && k !== 'isDown');
+  if (keys.length === 0) return true;
+  const card = ctx.cardMap.get(getCardNum(lrigNum));
+  // 🔴🔑**ルリグの ＜X＞ は `CardClass` ではなく `Team` に入っている**（続き742 の実測）。
+  //   `matchesFilter` の `story` は `CardClass` 照合なので、ルリグに素で当てると**必ず不一致**＝
+  //   「フィルタを足したら恒久 no-op になった」という、直したつもりで壊す典型になる
+  //   （`さんばか` を `CardClass` に持つカードは全 CSV で **0枚**／`Team` に持つカードは **37枚**）。
+  //   ⇒ ルリグ相手のときだけ `story` を **CardClass または Team** で判定する。
+  //   ⚠この読み替えはこの1関数（LRIG 対象の付与2経路）に閉じる＝シグニ側の `story` 意味は変えない。
+  const { story, ...rest } = filter as Record<string, unknown> & { story?: string };
+  if (story !== undefined) {
+    const cls = card?.CardClass ?? '';
+    const team = (card as { Team?: string } | undefined)?.Team ?? '';
+    if (!cls.includes(story) && !team.includes(story)) return false;
+  }
+  const restKeys = Object.keys(rest).filter(k => k !== 'thisCardOnly' && k !== 'isUp' && k !== 'isDown');
+  if (restKeys.length === 0) return true;
+  const attrOnly = Object.fromEntries(restKeys.map(k => [k, rest[k]])) as import('../types/effects').TargetFilter;
+  return matchesFilter(card, attrOnly);
+}
+
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const resolvedKeyword = resolveDynamicShadowKeyword(a.keyword, ctx);
   const a2 = resolvedKeyword !== a.keyword ? { ...a, keyword: resolvedKeyword } : a;
@@ -4121,9 +4153,14 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 
   let cands: string[];
   if (tgt.type === 'LRIG') {
-    // ルリグ対象：センタールリグトップを直接付与（ユーザー選択不要）
+    // 🆕**ルリグ側のカード属性フィルタを消費する**（続き742・§4.2「書き込み先を誰が読むか」）＝
+    //   parser が `{type:'LRIG', filter:{story:'さんばか'}}` を出せるようになったのに、ここは
+    //   `filter` を**一切見ずセンタールリグへ無条件付与**していた＝JSON だけ直って挙動は変わらない
+    //   「見せかけの実装」になる（`WXDi-P00-026-E1`＝＜さんばか＞以外のルリグにも能力が付いていた）。
+    //   ⚠盤面ステート（isUp 等）はここでは見ない＝`matchesFilter` はカード属性だけを判定する
+    //   （live で LRIG+filter を持つ効果は7件で、isUp 系は別 executor の管轄）。
     const lrigTop = state.field.lrig.at(-1);
-    cands = lrigTop ? [lrigTop] : [];
+    cands = lrigTop && lrigLikeFilterOk(lrigTop, tgt.filter, ctx) ? [lrigTop] : [];
   } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
     // センタールリグとシグニ両方を候補に追加
     const lrigTop = state.field.lrig.at(-1);
@@ -4241,9 +4278,14 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   // LRIG / CENTER_LRIG_OR_SIGNI 対象（execGrantKeyword と同ロジック。fieldCandidates はシグニ限定のため）
   let cands: string[];
   if (tgt.type === 'LRIG') {
-    // ルリグ対象：センタールリグトップへ直接付与（ユーザー選択不要）
+    // 🆕**ルリグ側のカード属性フィルタを消費する**（続き742・§4.2「書き込み先を誰が読むか」）＝
+    //   parser が `{type:'LRIG', filter:{story:'さんばか'}}` を出せるようになったのに、ここは
+    //   `filter` を**一切見ずセンタールリグへ無条件付与**していた＝JSON だけ直って挙動は変わらない
+    //   「見せかけの実装」になる（`WXDi-P00-026-E1`＝＜さんばか＞以外のルリグにも能力が付いていた）。
+    //   ⚠盤面ステート（isUp 等）はここでは見ない＝`matchesFilter` はカード属性だけを判定する
+    //   （live で LRIG+filter を持つ効果は7件で、isUp 系は別 executor の管轄）。
     const lrigTop = state.field.lrig.at(-1);
-    cands = lrigTop ? [lrigTop] : [];
+    cands = lrigTop && lrigLikeFilterOk(lrigTop, tgt.filter, ctx) ? [lrigTop] : [];
   } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
     const lrigTop = state.field.lrig.at(-1);
     const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);

@@ -8938,7 +8938,21 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
 //   丸ごと素通りして、帰結の `BOUNCE` が既定の `{SIGNI, owner:'self'}` へ落ちていた
 //   ＝**相手の正面シグニを戻すはずが自分のシグニを戻す**（所有者が反転する過小＋自傷）。
 // ⚠**m[2]＝中間動作の節**（`O-129` で捕獲を追加）。既存の参照は m[1] だけなので添字は動かない。
-const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:(?:対戦相手|あなた)の|このシグニの正面の)[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、([^。]*?)。そうした場合、それ/;
+// ⚠🔴**「そうした場合、」と「それ」の間に持続句が挟まる形を取りこぼしていた**（続き742）＝
+//   原文の大多数は「そうした場合、**ターン終了時まで、**それのパワーを－Nする」と書く。旧 regex は
+//   `そうした場合、それ` と**直結**を要求していたため、この形だけが `applyDroppedTargetDesignation` に
+//   届かず、**先頭の対象宣言（所有者・体数・フィルタ）が丸ごと落ちて帰結が別のシグニを選び直せる**
+//   状態だった（`WX14-031-E3` / `WXDi-P08-081-E1`＝意味照合 段2 finding）。
+//   ⚠持続句は「ターン終了時まで」「次の〜のターン終了時まで」に限定する（任意の節を許すと別文を飲む）。
+//   ⚠🔴**広げた分は「中間動作が強制」のときだけ使う**（`DESIG_DURATION_ONLY_IF_MANDATORY`）。
+//   実測＝広げただけだと22カードが動き、そのうち3カードが**退化**した
+//   （`WXDi-P14-067` / `WX24-P3-076`＝「代わりに」置換の `CONDITIONAL` が無条件2本へ平坦化／
+//    `WXK05-071`＝`OPTIONAL_COST{handReveal}`＋`PAID_ADDITIONAL_COST` が
+//    `REVEAL_AND_PICK`＋`IS_MY_TURN` へ落ちる）。**退化した3件はいずれも中間動作が「〜てもよい」**で、
+//   その形は既存の任意コスト経路が別に面倒を見ている（下の `orderObservable` も同じ理由で除外している）。
+//   ⇒ 強制の中間動作だけに絞ると **8カードが動いて全部が改善**になる（§4.3「汎用化は退化を連れてくる」）。
+const DESIG_BEFORE_COST_NARROW_RE = /((?:能力を持たない)?(?:(?:対戦相手|あなた)の|このシグニの正面の)[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、([^。]*?)。そうした場合、それ/;
+const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:(?:対戦相手|あなた)の|このシグニの正面の)[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、([^。]*?)。そうした場合、(?:(?:次の(?:あなた|対戦相手)の)?ターン終了時まで、)?それ/;
 
 // else なし CONDITIONAL の中身を覗く（タスク12(lxiii) で条件に包まれたコストステップがあるため）
 function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
@@ -9483,6 +9497,19 @@ function applyOptionalActivateGate(text: string, action: EffectAction): EffectAc
   if (sentences.slice(1).some(s => !/^(?:そうした場合|その後)/.test(s))) return action;
   const steps = action.type === 'SEQUENCE' ? [...(action as SequenceAction).steps] : [action];
   const first = steps[0];
+  // 🆕**先頭が `CONDITIONAL` で `then` だけを持つ形は `then` の中へ入れる**（続き742）。
+  //   「〈条件〉の場合、カードを1枚引いて**もよい**」は文全体が「てもよい」で終わるのに、生成される
+  //   action は `CONDITIONAL{cond, then:DRAW}` なので**先頭型が CONDITIONAL** となり型ホワイトリストを
+  //   外れて**強制ドローのまま**だった（`WXDi-P10-062-E1`＝意味照合 段2 finding）。
+  //   ⚠`else` を持つ形は触らない＝「そうでなければ」側まで辞退で消える意味になってしまう。
+  if (first?.type === 'CONDITIONAL') {
+    const c = first as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    if (steps.length === 1 && !c.else && OPTIONAL_ACTIVATE_TYPES.has(c.then.type)) {
+      const inner = c.then as EffectAction & { optional?: boolean; target?: EffectTarget; source?: EffectTarget };
+      if (inner.optional === true || inner.target?.upToCount === true || inner.source?.upToCount === true) return action;
+      return { ...c, then: { type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction, c.then] } as SequenceAction } as EffectAction;
+    }
+  }
   if (!first || !OPTIONAL_ACTIVATE_TYPES.has(first.type)) return action;
   // ③既に辞退できる形（`optional` / `upToCount`）なら二重に問わない
   const f = first as EffectAction & { optional?: boolean; target?: EffectTarget; source?: EffectTarget };
@@ -9738,6 +9765,8 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   }
   const m = text.match(DESIG_BEFORE_COST_RE);
   if (!m) return action;
+  // 持続句が挟まる**広げた分**（続き742）は、中間動作が**強制**のときだけ通す（上のコメント参照）。
+  if (!DESIG_BEFORE_COST_NARROW_RE.test(text) && /てもよい$/.test(m[2] ?? '')) return action;
   // ⚠所有者は名詞句の**最後の**「対戦相手の／あなたの」から取る。前方に別プレイヤーの語が混ざる修飾
   //   （「レベルが**あなたの**場にいる白のルリグの数以下の**対戦相手の**シグニ１体」WXDi-P06-032）で
   //   先頭一致に頼ると owner が反転し、bindToStoredTarget が**自分のシグニを撃つ**別物にしてしまう。
@@ -18366,6 +18395,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'any_ally';
           extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
         }
+        // 🔴主語判定を終えたらトリガー句を actionText から落とす（続き742）。残したままだと
+        //   本文のカード名抽出が**トリガー句の《改造素材》を拾って対象フィルタへ載せる**＝
+        //   `WXK09-049-E1`「デッキから＜電機＞のシグニ１枚を探して」が `cardName:'改造素材'` 付きになり、
+        //   通常の＜電機＞シグニを1枚も探せない無言バグになっていた（意味照合 段2 finding）。
+        //   ⚠削除は「〜とき、」の直後までに限る（前置きの条件節は本文側で消費する）。
+        const matUsedM = actionText.match(/^.*?《改造素材》[^。]{0,12}(?:が使用された|を使用した)とき[、,]\s*(.+)/s);
+        if (matUsedM) actionText = matUsedM[1];
       }
       // ON_LRIG_GROW（「あなた/対戦相手の[他の]ルリグがグロウしたとき」）：主語の所有者を triggerScope に抽出（actionText 非改変）。
       if (timing[0] === 'ON_LRIG_GROW') {

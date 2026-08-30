@@ -48579,13 +48579,31 @@ test('段2 第33バッチ E2E: WX20-079-E1 はレベルの異なる黒4枚だけ
   const red = batch33Signi('B33-WX20-RED', '赤', 1);
   const ctx = mkCtx({}, {}, 'WX20-079');
   ctx.ownerState.trash = [red, ...blacks];
-  const action = batch33Step(manualEffect('WX20-079', 'WX20-079-E1').action, 0);
+  // ⚠添字が 0→2 へずれた（続き742）＝先頭の対象宣言（原文「対戦相手のシグニ１体を対象とし、」）が
+  //   `DESIG_BEFORE_COST_RE` の拡張で復活し、`SEQUENCE` が
+  //   `[SELECT_TARGET_ONLY, STORE_LAST_PROCESSED_TARGETS, TRANSFER_TO_DECK, そうした場合]` になったため。
+  //   このテストが固定しているのは**トラッシュ4枚のフィルタ**なので、見る step を追随させる（期待値は不変）。
+  const seq = manualEffect('WX20-079', 'WX20-079-E1').action;
+  eq((batch33Step(seq, 0) as { id?: string }).id, 'SELECT_TARGET_ONLY', '先頭は対象宣言');
+  const action = batch33Step(seq, 2);
   const offer = executeEffect({ effectId: 'b33-wx20', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
   ok(!offer.done && offer.pending.type === 'SELECT_TARGET', '4枚選択を提示');
   if (offer.done || offer.pending.type !== 'SELECT_TARGET') return;
   ok(!offer.pending.candidates.includes(red) && blacks.every(card => offer.pending.candidates.includes(card)), '黒4枚だけが候補');
   const done = finish(resumeSelectTarget(blacks, offer.pending, ctxAfter(offer, ctx)), ctx);
   ok(blacks.every(card => done.ownerState.deck.includes(card)) && done.ownerState.trash.includes(red), '黒4枚だけを移動');
+}));
+
+test('段2 §5.2 続き742: WXDi-P00-026-E1 は＜さんばか＞のルリグにだけ能力を付与する', () => withSavedCursor(() => {
+  // 🔑**反転確認つき**＝「付与される」だけでなく「＜さんばか＞でないルリグには付与されない」まで見る。
+  //   フィルタを足すだけの golden では、`execGrantEffect` の LRIG 分岐が filter を読んでいない
+  //   （＝JSON だけ直って挙動は不変）という本当の穴が絶対に出なかった（続き742）。
+  // ⚠ルリグの ＜X＞ は `CardClass` ではなく `Team`＝素の `matchesFilter` だと逆に恒久 no-op になる。
+  const action = manualEffect('WXDi-P00-026', 'WXDi-P00-026-E1').action;
+  const granted = (r: ExecResult): number =>
+    Object.keys(r.ownerState.granted_effects ?? {}).length;
+  eq(granted(run(action, mkCtx({ lrig: ['WXDi-CP01-005'] }, {}, 'WXDi-P00-026'))), 1, '＜さんばか＞のルリグには付与');
+  eq(granted(run(action, mkCtx({ lrig: ['WX12-001'] }, {}, 'WXDi-P00-026'))), 0, '＜さんばか＞でないルリグには付与しない');
 }));
 
 test('段2 第33バッチ collector E2E: WX10-038-E1 は赤すべてを15000にし、青を変えない', () => withSavedCursor(() => {
