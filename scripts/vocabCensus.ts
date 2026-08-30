@@ -112,7 +112,29 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 189; // 2026-08-30 census -56（245→189）。🔴**内訳を混ぜない**：
+const BASELINE_HIGH = 153; // 2026-08-31 census -36（189→153）。🔴**内訳を混ぜない**：
+//   ■**実装 -32**（`manualEffects.ts` へ原文から書き直し＋`syncManualLive` で live へ配達・31カード）
+//     🔴**うち5件は golden の「見送り契約」が赤で差し戻した**（直しかけて捕まった＝契約は生きている）＝
+//       `WDA-F02-07-E1`／`WX24-P2-036-E1`（「同じレベル」の**ペア付け機構**が無いまま対象数を増やすと過剰実行）／
+//       `WX07-039-E2`／`WXEX1-14-E2`（N体・N枚の**強制**中間動作は `EffectInteractionModal.canConfirm` が
+//       「選択数 ≧ count」を要求するため候補不足で**ソフトロック**＝§5.3 `O-104` 待ち）／
+//       `WX15-010-E1`（「**次に**バニッシュされる場合」の**1回消費**耐性の語彙が無い）。
+//     受け皿は**ほぼ全部が既存語彙**。新設したのは2つだけ＝
+//       ①`LOOK_PICK_CHAIN.then:'under'`（＋`PLACE_UNDER_SOURCE_SIGNI.fromLocation:'deck'`）＝
+//         「その中から〈X〉をN枚まで**このシグニの下に置き**」の受け皿。3効果（`WXDi-P11-047`／`WXDi-P10-040`／`WXDi-P09-044`）が
+//         `LOOK_AND_REORDER` 単独に落ちて**選択段ごと消えていた**。
+//       ②`HAS_TRAP_IN_FIELD.minCount`（「【トラップ】がN枚以上ある場合」＝`WX20-040-E2`）。型＋両評価器＋逆翻訳。
+//     ⚠**見送り契約を1件だけ解除した**＝`WXK09-029-BURST`（「そのシグニと共通する色を持つスペル」）。
+//       契約自身が「表せるようになったら採用する」と書いており、`colorMatchesLastProcessed`
+//       （`resolveDynamicFilter` が消費）が後から入って**表せるようになった**ため。
+//     🔴**`WXDi-CP02-TK02A` は効果 id が1つずつズレていた**（E1 に E2 の内容・E2 に E3 の内容・E3 は live に存在せず）＝
+//       3能力を原文どおりに割り直した（id 集合が `{E1,E2}`→`{E1,E2,E3}` に増えるのが**修正**）。
+//   ■**較正 -4**（live は1バイトも変わっていない＝すべて「綴り違いで部分一致しない」）
+//     `accedHostMaxLevel`/`accedHostMinLevel`（レベル閾値）／`accedHostStory`（クラス指定・extraOk）／
+//     `BEAT_CONDITION.condText` の中のレベル値（「小さい数」軸では既に較正済みだったのに漏れていた）／
+//     `CountFromZone.distinctBy`（それぞれ異なる）。
+//   ⚠較正の前後で高シグナル id 集合を機械差分し、**新規流入0**を確認済み（§4.3 手順4）。
+// 旧: const BASELINE_HIGH = 189; // 2026-08-30 census -56（245→189）。🔴**内訳を混ぜない**：
 //   ■**較正 -31**（live は1バイトも変わっていない＝計器の受け皿漏れ／原文 regex の誤爆）
 //     ①`機構:アンコール` -16 相当＝**アンコールは JSON に語彙を持たない設計**（`costs.ts` の
 //       `parseEncoreCost` が EffectText を直接読む＝ベットと同じ raw text 実装）。`pre` で注記と
@@ -947,8 +969,25 @@ const PATTERNS: Pattern[] = [
     //   これが正表現で、`level` フィールドは持たない＝キー漏れによる偽陽性だった（`WX01-004-E3`／`WX18-040-E1`）。
     //   ⚠`GUARD_LV_DECLARED`／`GUARD_LV_LAST_DOWNED` は**動的**（宣言値・直前にダウンしたレベル）で
     //     literal 閾値ではないが、そもそも原文に「レベルN以上/以下」が出ないので本 re に掛からない。
+    //   🆕2026-08-31 較正＝`accedHostMaxLevel` / `accedHostMinLevel`（`triggerCondition`＝「【アクセ】として
+    //     **レベルN以下/以上の**シグニに付いたとき」）は **大文字 L** なので `"level"` にも `levelMax` にも
+    //     部分一致しなかった（`WX17-076-E2/E3` が実装済みのまま高シグナル）。
     keys: ['"level"', 'levelRange', 'levelFilter', 'LEVEL_GTE', 'LEVEL_LTE', 'levelMax', 'levelMin', 'requiredLevel', 'LRIG_LEVEL',
-      'GUARD_MAX_LV', 'GUARD_LV'],
+      'GUARD_MAX_LV', 'GUARD_LV', 'accedHostMaxLevel', 'accedHostMinLevel'],
+    // 🆕2026-08-31 較正＝【ビート】の枚数/レベル条件は `{"type":"BEAT_CONDITION","condText":"レベル３以上が４枚以上"}`
+    //   という**全角のままの生文字列**で保持され、`effectEngine.ts` の `checkBeatCondition` が全角のまま
+    //   parse して**実際に評価している**（＝表現済み）。「小さい数」軸では既に較正済みだったのに
+    //   こちらが漏れていた（`WXK08-041-E2`）。⚠**JSON 全体を zen2han しない**＝`condText` の値だけを見る。
+    extraOk: (js, t) => {
+      const z2h = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const lv = [...z2h(t).matchAll(/レベル(\d)以[上下]/g)].map(m => m[1]);
+      if (lv.length === 0) return false;
+      const beatNums = new Set(
+        [...js.matchAll(/"condText":"([^"]*)"/g)]
+          .flatMap(m => [...z2h(m[1]).matchAll(/\d+/g)].map(x => x[0])),
+      );
+      return lv.every(n => beatNums.has(n));
+    },
   },
   {
     name: '同一性(〜と同じ色/レベル/名前)',
@@ -1065,7 +1104,10 @@ const PATTERNS: Pattern[] = [
   {
     name: 'それぞれ異なる',
     re: /それぞれ(色|レベル|カード名|名前)?の?異なる/,
-    keys: ['eachDistinct', 'distinctName', 'selectionConstraint', 'distinctLevels'], // selectionConstraint=バッチ5c の集合制約・distinctLevels=HAS_CARD_IN_FIELD 条件
+    // 🆕2026-08-31 較正＝`CountFromZone.distinctBy:'level'`（「トラッシュにある**それぞれレベルの異なる**
+    //   ＜X＞のシグニ1枚につき－N」＝`WX14-048-E1`）が対応表から漏れていた。`distinctName`／`distinctLevels`
+    //   とは綴りが違うだけで意味は同じ軸（`maxCost`／`Under` と同じ「綴り違いで部分一致しない」罠）。
+    keys: ['eachDistinct', 'distinctName', 'selectionConstraint', 'distinctLevels', 'distinctBy'], // selectionConstraint=バッチ5c の集合制約・distinctLevels=HAS_CARD_IN_FIELD 条件
   },
   {
     name: '奇数/偶数',
@@ -1113,8 +1155,13 @@ const PATTERNS: Pattern[] = [
     //     「＜Y＞のシグニを対象とする」を併せ持つ札で、**対象側の脱落まで隠さない**ため。
     //     その節を除いた残りに ＜…＞の(シグニ|カード) が残るならフラグを維持する。
     extraOk: (js, t) => {
-      const stripped = t.replace(/＜([^＞]+)＞の(?:シグニ|カード)(?=の)/g,
+      let stripped = t.replace(/＜([^＞]+)＞の(?:シグニ|カード)(?=の)/g,
         (whole, story: string) => new RegExp(`"[A-Za-z]*SourceStory":"${story}"`).test(js) ? '' : whole);
+      // 🆕2026-08-31＝`accedHostStory`（「このカードが【アクセ】として＜X＞のシグニ**に付いたとき**」）。
+      //   装着先ホストのクラス限定で、綴りが `story`／`*SourceStory` のどちらとも違うため当たらなかった
+      //   （`WX17-076-E2/E3`）。⚠助詞が「の」ではなく「に」なので上の strip では落ちない。
+      stripped = stripped.replace(/＜([^＞]+)＞の(?:シグニ|カード)に付いたとき/g,
+        (whole, story: string) => new RegExp(`"accedHostStory":"${story}"`).test(js) ? '' : whole);
       return stripped !== t && !/＜[^＞]+＞の(シグニ|カード)/.test(stripped);
     },
   },

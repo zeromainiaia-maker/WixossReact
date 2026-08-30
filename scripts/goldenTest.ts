@@ -24996,8 +24996,11 @@ test('対象filter合成 第1波: 表せない系統だけを見送る（表せ�
   //   `nonColorless` の**2系統とも表現できる**ようになった。部分filter禁止は「片方を表せない」ときの規律。
   const wxex206 = JSON.stringify(effectsMap.get('WXEX2-06')!.find(x => x.effectId === 'WXEX2-06-E2')!.action);
   ok(wxex206.includes('"levelEqTrigger":true') && wxex206.includes('"nonColorless":true'), 'WXEX2-06-E2: 2系統とも採用');
-  // 残り2件は動的参照（センタールリグ共通色／そのシグニと共通する色）を表せないままなので見送り継続。
-  for (const [card, id] of [['WXDi-P02-003','WXDi-P02-003-E1'], ['WXK09-029','WXK09-029-BURST']] as const) {
+  // ⚠`WXK09-029-BURST` も **2026-08-31 に見送りを解除**＝`colorMatchesLastProcessed`（`resolveDynamicFilter`
+  //   が消費・`effectExecutor.ts:2841`）が入ったので「そのシグニと共通する色を持つ**スペル**」を表現できる。
+  //   本テストの見出しどおり「表せるようになったら採用する」側の判断。
+  // 残る1件はセンタールリグ共通色の動的参照を表せないままなので見送り継続。
+  for (const [card, id] of [['WXDi-P02-003','WXDi-P02-003-E1']] as const) {
     const e = effectsMap.get(card)!.find(x => x.effectId === id)!;
     const s = JSON.stringify(e.action);
     ok(!s.includes('"nonColorless":true') && !s.includes('levelEqTrigger'), `${id}: 未採用`);
@@ -55379,6 +55382,169 @@ test('census 189: 手書き是正21件のトップレベル形を固定する（
   eq(JSON.stringify([miko.type, miko.condition, (miko.then as Record<string, unknown>).type,
     (miko.else as Record<string, unknown>).type]),
     JSON.stringify(['CONDITIONAL', { type: 'HAND_COUNT', owner: 'opponent', operator: 'lte', value: 3 }, 'DRAW', 'TRASH']));
+});
+
+
+// ── census 高シグナル 第2弾（2026-08-31・36効果）────────────────────────────────────
+// 🔴**反転確認つき**＝「条件／フィルタが付いた」だけでなく「**旧 live の形に戻っていない**」ことも見る。
+//   旧 live はどれも**条件・フィルタ・段が丸ごと落ちた過剰／過小実行**だった。
+test('census 149: 手書き是正36件のトップレベル形を固定する（条件/フィルタの脱落へ戻らない）', () => {
+  const act = (cardNum: string, effectId: string) => manualEffect(cardNum, effectId).action as Record<string, unknown>;
+  const steps = (cardNum: string, effectId: string) =>
+    ((act(cardNum, effectId) as unknown as SequenceAction).steps as unknown as Record<string, unknown>[]);
+  const j = (v: unknown) => JSON.stringify(v);
+
+  // ① 条件が「丸ごと落ちて無条件」だったものが CONDITIONAL で包まれたこと（反転＝トップが素のアクションでない）
+  for (const [cardNum, effectId, cond] of [
+    ['WXK07-006', 'WXK07-006-E3', { type: 'LRIG_DECK_COUNT', owner: 'self', operator: 'lte', value: 2 }],
+    ['WX21-044', 'WX21-044-E2', { type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '遊具' }],
+    ['WX20-040', 'WX20-040-E2', { type: 'HAS_TRAP_IN_FIELD', owner: 'self', minCount: 3 }],
+    ['WX18-056', 'WX18-056-E1', { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', owner: 'self' }],
+  ] as const) {
+    const a = act(cardNum, effectId);
+    eq(a.type, 'CONDITIONAL', effectId);
+    eq(j(a.condition), j(cond), effectId);
+  }
+
+  // ② 「そのカードが〈X〉**でない場合**」＝ LAST_PROCESSED_MATCHES{operator:'eq', value:0}
+  eq(j(steps('WXDi-CP01-029', 'WXDi-CP01-029-E3')[1]!.condition),
+    j({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', cardClass: 'バーチャル' }, operator: 'eq', value: 0 }));
+
+  // ③ 「それぞれ名前の異なる＜植物＞のシグニ３枚」＝ distinctName の全数一致
+  eq(j(steps('WXK05-051', 'WXK05-051-E1')[1]!.condition),
+    j({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '植物' }, operator: 'eq', value: 3, distinctName: true, verbJa: '公開された' }));
+
+  // ④ 公開 → ピックのフィルタ／枚数（旧 live はどちらも filter 無し・pickCount:1）
+  for (const [cardNum, effectId, filter, constraint] of [
+    ['WX22-008', 'WX22-008-E1', { cardType: 'シグニ', story: '原子' }, { distinct: 'name' }],
+    ['WX18-001', 'WX18-001-E1', { cardType: 'シグニ', story: '悪魔' }, undefined],
+  ] as const) {
+    const a = act(cardNum, effectId);
+    eq(a.type, 'REVEAL_AND_PICK', effectId);
+    eq(j([a.filter, a.pickCount, a.selectionConstraint]), j([filter, 'ALL', constraint]), effectId);
+  }
+
+  // ⑤ トリガーの主語（旧 live＝誰のどのシグニがアタックしても発火／「場に出たとき」が欠落）
+  const doku = manualEffect('WX22-023', 'WX22-023-E2');
+  eq(j([doku.timing, doku.triggerScope, doku.triggerFilter]),
+    j([['ON_PLAY', 'ON_ATTACK_SIGNI'], 'any_ally', { cardType: 'シグニ', story: '毒牙' }]));
+
+  // ⑥ 出所（source）が無かった／別ゾーンだったもの
+  eq(j((steps('WX25-P1-TK6', 'WX25-P1-TK6-E2')[1]!.then as Record<string, unknown>).source),
+    j({ type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: true, filter: { cardType: 'シグニ', story: '怪異' } }));
+  eq(j((steps('WX24-P2-093', 'WX24-P2-093-E1')[1]!.then as Record<string, unknown>).target),
+    j({ type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', story: '植物' } }));
+
+  // ⑦ ⚠**`WX07-039-E2` / `WXEX1-14-E2` / `WX15-010-E1` / `WDA-F02-07-E1` / `WX24-P2-036-E1` は据置**＝
+  //   既存の「見送り契約」golden（O-104 待ちの中間動作／3体犠牲の UI ソフトロック／1回消費耐性の語彙欠如／
+  //   「同じレベル」のペア付け機構）が**理由つきで固定している**。2026-08-31 に一度直しかけて赤で捕まった＝
+  //   **契約は生きている**。受け皿ができるまで触らない。
+
+  // ⑧ カード名ゲート／複合条件
+  eq(j(steps('WXDi-P09-055', 'WXDi-P09-055-E1')[1]!.condition), j({
+    type: 'LAST_PROCESSED_MATCHES',
+    filter: { cardNames: ['コードハート　LION//メモリア', '幻獣　LOVIT//メモリア', '爆砲　WOLF//メモリア'] },
+  }));
+  eq(j(act('WXK06-024', 'WXK06-024-E2').condition), j({ type: 'AND', conditions: [
+    { type: 'ATTACK_ORDINAL_THIS_TURN', owner: 'self', operator: 'eq', value: 4 },
+    { type: 'LRIG_STORY', owner: 'self', story: 'エマ' },
+  ] }));
+  eq(j((act('WXDi-D07-017', 'WXDi-D07-017-E1')).condition), j({ type: 'AND', conditions: [
+    { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 2 },
+    { type: 'TURN_HAND_DISCARD_GTE', owner: 'self', value: 1 },
+  ] }));
+
+  // ⑨ フィルタ（奇数レベル／キーワード所持／色×パワー×キーワード）
+  eq(j(((act('SPK01-09', 'SPK01-09-E2')).source as Record<string, unknown>).filter),
+    j({ cardType: 'シグニ', story: 'トリック', levelParity: 'odd', excludeCardName: '大罠　ハート・クイーン' }));
+  const lancer = act('WXK10-027', 'WXK10-027-E1');
+  eq(j([(lancer.target as Record<string, unknown>).filter, lancer.keyword]),
+    j([{ cardType: 'シグニ', color: '緑', powerRange: { min: 15000 }, keyword: 'ランサー' }, 'Sランサー']));
+  // 反転確認＝旧 live の「効果元自身に【ランサー】を付ける」形へ戻っていない
+  ok(!/thisCardOnly/.test(j(lancer)), 'WXK10-027-E1: thisCardOnly へ戻っていない');
+  const wx14 = (act('WX14-004', 'WX14-004-E1').choices as Record<string, unknown>[])[2]!;
+  eq(j(((wx14.action as Record<string, unknown>).target as Record<string, unknown>).filter),
+    j({ cardType: 'シグニ', keyword: ['アサシン', 'ランサー', 'ダブルクラッシュ'] }));
+
+  // ⑩ 自己レベル条件（旧 live＝両方とも無条件）＋「このゲームの間」
+  const tk2 = act('WX24-P3-TK1A', 'WX24-P3-TK1A-E2');
+  eq(j([tk2.condition, (tk2.then as Record<string, unknown>).until]),
+    j([{ type: 'SELF_LEVEL_THRESHOLD', operator: 'lte', value: 2 }, 'PERMANENT']));
+  eq(j(act('WX24-P3-TK1A', 'WX24-P3-TK1A-E3').condition),
+    j({ type: 'SELF_LEVEL_THRESHOLD', operator: 'gte', value: 3 }));
+
+  // ⑪ 集合制約（互いに色を共有しない）
+  eq(j(((act('WXDi-P10-070', 'WXDi-P10-070-E1')).target as Record<string, unknown>).selectionConstraint),
+    j({ sharedColor: 'none' }));
+
+  // ⑫ 「N枚まで」×2群（旧 live＝シグニ1枚だけ）
+  eq(j(steps('WX20-042-CB', 'WX20-042-CB-E1')), j([
+    { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 3, upToCount: true, filter: { cardType: 'シグニ', story: '原子' } },
+    { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 1, upToCount: true, filter: { cardType: 'スペル', color: '青' } },
+  ]));
+
+  // ⑬ 「コストの合計が１以下のスペル」（旧 live＝相手トラッシュの任意スペルを踏み倒せた）
+  const p4040 = steps('WX24-P4-040', 'WX24-P4-040-E2')[1]!;
+  eq(j(p4040.condition), j({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'スペル', costMax: 1 } }));
+  // ⚠使用コスト上限の正準形は `costThreshold`（`filter.costMax` と併記すると逆翻訳が二重に出る）
+  eq((p4040.then as Record<string, unknown>).costThreshold, 1);
+  eq(j(((p4040.then as Record<string, unknown>).filter as Record<string, unknown>)), j({ cardType: 'スペル' }));
+
+  // ⑮ 多段閾値の**排他**（旧 live＝上位帯が無条件の追加バニッシュ＝2体取れた）
+  const shiva = steps('WXDi-P06-035', 'WXDi-P06-035-E2')[1]!;
+  eq(j(shiva.condition), j({ type: 'LAST_PROCESSED_COUNT_GTE', value: 3 }));
+  eq((shiva.else as Record<string, unknown>).type, 'CONDITIONAL', 'WXDi-P06-035-E2: 2枚帯は else に入る（追加ではない）');
+
+  // ⑯ 欠落していた段が戻ったもの（LB の選択肢／2つ目のキーワード付与／エナチャージ）
+  eq((act('WXDi-P03-071', 'WXDi-P03-071-BURST')).type, 'CHOOSE');
+  eq(steps('WXDi-D04-007', 'WXDi-D04-007-E2').map(s => s.keyword).join('|'), 'アサシン|ランサー');
+  eq(steps('WX21-062', 'WX21-062-E2').map(s => s.type).join('|'), 'ENERGY_CHARGE_FROM_DECK|DRAW');
+
+  // ⑰ 「共通する色を持つ**スペル**」（旧 live＝2枚目もシグニで色制限なし）
+  eq(j((steps('WXK09-029', 'WXK09-029-BURST')[1]!.source as Record<string, unknown>).filter),
+    j({ cardType: 'スペル', colorMatchesLastProcessed: true }));
+
+  // ⑲🔴 `WXDi-CP02-TK02A` の id ズレ（旧 live＝**E1 に E2 の内容**・E2 に E3 の内容・**E3 は live に不在**）。
+  //   ⚠manual に残すのは **E2 だけ**＝E1/E3 は parser 出力と実体同一で、コピーを置くと `O-42` tripwire が発火する。
+  eq(act('WXDi-CP02-TK02A', 'WXDi-CP02-TK02A-E1').keyword, 'ランサー', 'E1 は【常】【ランサー】');
+  eq(j(manualEffect('WXDi-CP02-TK02A', 'WXDi-CP02-TK02A-E2').timing), j(['ON_SIGNI_BATTLE']));
+  eq(act('WXDi-CP02-TK02A', 'WXDi-CP02-TK02A-E3').type, 'EXILE', 'E3 は相手ターン終了時の自己除外');
+
+  // ⑳🔴 `LOOK_PICK_CHAIN{then:'under'}`（2026-08-31 新設・**live 初出**）＝
+  //    旧 live は3件とも `LOOK_AND_REORDER` 単独で「下に置く」が恒久 no-op だった。
+  for (const [cardNum, effectId, stages] of [
+    ['WXDi-P11-047', 'WXDi-P11-047-E1', [{ filter: { cardType: 'シグニ', story: '地獣' }, pickCount: 2, pickUpTo: true, then: 'under' }]],
+    ['WXDi-P10-040', 'WXDi-P10-040-E3', [
+      { filter: { cardType: 'スペル' }, pickCount: 1, pickUpTo: true, pickNoun: 'スペル', then: 'under' },
+      { filter: { cardType: 'シグニ', color: '青' }, pickCount: 1, pickUpTo: true, then: 'under' },
+    ]],
+    ['WXDi-P09-044', 'WXDi-P09-044-E2', [{ pickCount: 1, pickNoun: 'カード', then: 'under' }]],
+  ] as const) {
+    const chain = act(cardNum, effectId);
+    eq(chain.type, 'LOOK_PICK_CHAIN', effectId);
+    eq(j(chain.stages), j(stages), effectId);
+    eq(j(chain.remainder), j({ location: 'deck', position: 'bottom', reorder: true }), effectId);
+  }
+});
+
+// 🔴`LOOK_PICK_CHAIN{then:'under'}` を **engine で実際に走らせる**（型だけ足して executor が分岐しない、を防ぐ）。
+//   §4.3「型の union にある値を executor が全部分岐しているか はどの計器も見ていない」への直接の見張り。
+test('census 149: LOOK_PICK_CHAIN then:under が公開札をデッキから抜いて効果元シグニの下へ置く', () => {
+  const [under, other, host] = fill(3) as [string, string, string];
+  const ctx = exactDeckCtx([under, other], host);
+  ctx.ownerState.field.signi = [[host], null, null];
+  const res = run({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 2,
+    stages: [{ pickCount: 1, pickNoun: 'カード', then: 'under' }],
+    remainder: { location: 'deck', position: 'bottom', reorder: true },
+  } as EffectAction, ctx);
+  const st = res.ownerState;
+  const zone = st.field.signi.find(s => s?.includes(host));
+  eq(zone?.length, 2, 'ピックした1枚が効果元シグニのスタックへ入る');
+  eq(zone?.[0], under, 'スタックの**先頭**＝下に入る');
+  eq(zone?.at(-1), host, '効果元シグニは最上面のまま');
+  ok(!st.deck.includes(under), '🔴デッキから抜けている（fromLocation:"deck" が効いている）');
+  ok(st.deck.includes(other), '残りはデッキへ戻る');
 });
 
 if (listMode) {

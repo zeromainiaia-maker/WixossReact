@@ -215,10 +215,12 @@ export function checkActiveCondition(
       return count >= (cond.minCount ?? 1);
     }
     case 'HAS_TRAP_IN_FIELD': {
+      // 🆕minCount（2026-08-31）＝`execUtils.evalCondition` と同じ意味で揃える（§4.2 の両評価器規約）。
       const states = cond.owner === 'any'
         ? [ownerState, otherState]
         : [cond.owner === 'self' ? ownerState : otherState];
-      const hasTrap = states.some(state => (state.field.signi_traps ?? []).some(Boolean));
+      const need = cond.minCount ?? 1;
+      const hasTrap = states.some(state => (state.field.signi_traps ?? []).filter(Boolean).length >= need);
       return cond.negate ? !hasTrap : hasTrap;
     }
     case 'HAS_KEY_IN_FIELD': {

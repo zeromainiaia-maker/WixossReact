@@ -1,5 +1,120 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き744）：census 高シグナルを 189 → 153（**-36**）＝実装 -32／較正 -4
+
+ユーザー指示「さらに30減らす」の1巡。**live 変更 31カード（32効果）**。gates 全緑
+（golden **3064→3066 / 0 FAIL**・smoke 全0・fuzz 全0・census **153 / BASELINE 153**・lint 0 errors）＋ `regen`。
+⑤実機は**不要**判定（PLAN §2.2＝`src/screens/` 不変。engine は消費点2本を足しただけで新しい**アクション型**は0本）。
+
+### ■ 内訳（🔴混ぜない）
+
+| 種別 | 減 | 性質 |
+|---|---|---|
+| **実装** | **-32** | `manualEffects.ts` へ**原文から書き直し** → `syncManualLive` で live へ配達 |
+| **較正** | **-4** | **live は1バイトも変わっていない**＝すべて「綴り違いで部分一致しない」 |
+
+⚠**較正の前後で高シグナル id 集合を機械差分し、新規流入0を確認**（PLAN §4.3 手順4）。
+
+### ■ 新設した受け皿は2つだけ（あとは既存語彙への配線）
+
+1. 🆕**`LOOK_PICK_CHAIN.then: 'under'`**（＋`PlaceUnderSourceSigniAction.fromLocation: 'deck'`）
+   ＝「その中から〈X〉を**N枚まで**このシグニの**下に置き**、残りを好きな順番でデッキの一番下に置く」。
+   受け皿が無い間は3効果（`WXDi-P11-047-E1`／`WXDi-P10-040-E3`／`WXDi-P09-044-E2`）が
+   **`LOOK_AND_REORDER` 単独に落ちて、選択段ごと消えて公開札が全部デッキ下**へ行っていた（＝「下に置く」が恒久 no-op）。
+   型＋`lookPickThenAction` の1分岐＋`PLACE_UNDER_SOURCE_SIGNI` の `deck` 除去＋逆翻訳の1語。
+   🔴**golden は JSON 形だけでなく engine を実際に走らせて確かめる**（`then` の union に値を足しても
+   executor が分岐しなければ無言 no-op になる＝§4.3 の「union の全値を分岐しているかはどの計器も見ていない」）。
+2. 🆕**`HAS_TRAP_IN_FIELD.minCount`**（「【トラップ】が**N枚以上**ある場合」＝`WX20-040-E2`）。
+   型（Condition／ActiveCondition の**両方**）＋両評価器＋逆翻訳。
+
+### ■ 実装 -32（旧 live の穴は全部「条件・フィルタ・段が丸ごと落ちた」型）
+
+| # | 効果 | 旧 live の穴 | 受け皿 |
+|---|---|---|---|
+| 1 | `WXK07-006-E3` | ルリグデッキ2枚以下の条件が落ちて**いつでもコイン2枚** | `LRIG_DECK_COUNT` |
+| 2 | `WXDi-CP01-029-E3` | 「＜バーチャル＞**でない**場合」が落ちて**必ず自分がダウン** | `LAST_PROCESSED_MATCHES{operator:'eq',value:0}` |
+| 3 | `WXK05-051-E1` | 「それぞれ名前の異なる＜植物＞3枚」が落ちて**毎ターン無条件にアップ**（実質2回アタック） | `LAST_PROCESSED_MATCHES{distinctName}` |
+| 4 | `WX22-008-E1` | filter 無し `pickCount:1`＝**任意のカード1枚**（＜原子＞制限も同名制限も無し） | `selectionConstraint{distinct:'name'}` |
+| 5 | `WX18-001-E1` | 同上（＜悪魔＞制限も「好きな数」も無し） | filter＋`pickCount:'ALL'` |
+| 6 | `WX22-023-E2` | 「場に出たとき」が欠落し、しかも**誰のどのシグニがアタックしても**発火 | timing 2値＋`triggerScope`＋`triggerFilter` |
+| 7 | `WX25-P1-TK6-E2` | `ADD_TO_FIELD` に **`source` が無い**（出所不明）＋＜怪異＞制限も欠落 | `TRASH_CARD{upToCount}` |
+| 8 | `WX24-P2-093-E1` | エナへ送るのが `DECK_CARD`＝**デッキの上から**（トラッシュ回収が別物） | `ENERGY_CHARGE{TRASH_CARD}` |
+| 9 | `WXDi-P09-055-E1` | カード名ゲートが落ちて**どのシグニでも覚醒** | `LAST_PROCESSED_MATCHES{cardNames}` |
+| 10 | `WXK06-024-E2` | 2条件が**両方落ちて**毎アタックで強力な3択 | `AND[ATTACK_ORDINAL_THIS_TURN, LRIG_STORY]` |
+| 11 | `WX21-044-E2` | 「＜遊具＞の効果で場に出た場合」が落ちて**手出しでもエナ加速** | `THIS_CARD_PLACED_BY_CLASS` |
+| 12 | `SPK01-09-E2` | 「レベルが奇数」が落ちて**偶数も回収** | `levelParity:'odd'` |
+| 13 | `WXK10-027-E1` | **効果元自身に【ランサー】を付ける**別物（3フィルタ全落ち＋対象が逆） | `keyword` フィルタ＋`color`＋`powerRange` |
+| 14 | `WX24-P3-TK1A-E2` | レベル条件が落ちて**毎回レベルが上がる**／`until` も「このゲームの間」と食い違い | `SELF_LEVEL_THRESHOLD`＋`until:'PERMANENT'` |
+| 15 | `WX24-P3-TK1A-E3` | レベル条件が落ちて**毎ターン相打ちが強制** | `SELF_LEVEL_THRESHOLD` |
+| 16 | `WXDi-P10-070-E1` | 「互いに色を共有しない」が落ちて**同色2枚でも取れた** | `selectionConstraint{sharedColor:'none'}` |
+| 17 | `WX20-042-CB-E1` | シグニ1枚だけ＝**＜原子＞制限も枚数も青スペルも欠落** | `PLACE_UNDER_SIGNI` ×2 |
+| 18 | `WX24-P4-040-E2` | コスト条件が落ちて**相手トラッシュの任意スペルを踏み倒せた** | `costThreshold`＋`LAST_PROCESSED_MATCHES{costMax}` |
+| 19 | `WX18-056-E1` | 条件が落ちて**毎アタック無条件に－7000**（**PARTIAL**＝受け皿は行き先を問わない） | `SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` |
+| 20 | `WX24-P2-072-E1` | パワー条件が落ちて**相手のどのシグニでも**バニッシュ（**PARTIAL**＝`BANISH` に `targetsTriggerSource` が無い） | `powerRange` |
+| 21 | `WXK09-029-BURST` | 2ステップとも「シグニ」で色制限なし＝**2枚目がスペルですらなかった** | `nonColorless`＋`colorMatchesLastProcessed` |
+| 22 | `WXDi-CP02-TK02A-E2` | 🔴**効果 id が1つずつズレていた**（下記） | — |
+| 23 | `WX20-040-E2` | 【トラップ】3枚以上が落ちて**毎アタック無条件にエナ加速** | `HAS_TRAP_IN_FIELD{minCount}`（新設） |
+| 24 | `WXDi-P03-071-BURST` | **選択肢そのものが消え**、①の後半だけが残っていた | `CHOOSE` |
+| 25 | `WXDi-D07-017-E1` | 2つの発動条件が**丸ごと落ちて毎ターン無条件** | `AND[ENERGY_COUNT, TURN_HAND_DISCARD_GTE]` |
+| 26 | `WXDi-P06-035-E2` | 上位帯が**無条件の追加**バニッシュ＝「代わりに」の排他が消えて**2体**取れた | `CONDITIONAL{gte3, else: CONDITIONAL{gte2}}` |
+| 27 | `WX14-004-E1` | キーワード条件が落ちて**両者の全シグニを全部バニッシュ**する選択肢に | `keyword` の配列（OR） |
+| 28 | `WXDi-D04-007-E2` | **【ランサー】の付与が丸ごと欠落**（片方だけ） | GRANT_KEYWORD ×2 |
+| 29 | `WX21-062-E2` | **エナチャージが丸ごと欠落**してドローだけ | SEQUENCE 2段 |
+| 30〜32 | `WXDi-P11-047-E1` / `WXDi-P10-040-E3` / `WXDi-P09-044-E2` | 「下に置く」が**恒久 no-op** | `LOOK_PICK_CHAIN{then:'under'}`（新設） |
+
+🔴**`WXDi-CP02-TK02A` は効果 id が1つずつズレていた**＝旧 live は **E1 に E2 の内容**（【常】【ランサー】が恒久 no-op）・
+**E2 に E3 の内容**・**E3 は live に存在しなかった**。原文3能力を 1:1 に割り直した（id 集合が `{E1,E2}`→`{E1,E2,E3}`
+へ**増えるのが修正**なので `syncManualLive --allow-idset-change` を使った）。
+⚠**manual に残したのは E2 だけ**＝E1/E3 は parser 出力と実体同一で、コピーを置くと `O-42` tripwire が発火する
+（実際に一度発火して気づいた）。
+
+### ■ 較正 -4（live 不変・すべて「綴り違いで部分一致しない」）
+
+| 軸 | 真因 |
+|---|---|
+| レベル閾値 | `accedHostMaxLevel` / `accedHostMinLevel`（`triggerCondition`＝「【アクセ】として**レベルN以下/以上の**シグニに付いたとき」）は**大文字 L** なので `"level"` にも `levelMax` にも当たらなかった（`WX17-076-E2/E3`） |
+| クラス指定 | `accedHostStory`＝「＜X＞のシグニ**に付いたとき**」。既存の `*SourceStory` strip は助詞が「の」の形しか落とさない |
+| レベル閾値 | `BEAT_CONDITION.condText`（**全角のままの生文字列**を `checkBeatCondition` が実際に評価している）を見ていなかった。「小さい数」軸では**既に較正済み**だったのにこちらが漏れていた（`WXK08-041-E2`） |
+| それぞれ異なる | `CountFromZone.distinctBy:'level'`（`WX14-048-E1`）が対応表に無かった |
+
+### ■ 🔴🔑 最大の教訓＝**「見送り契約」の golden が5件を差し戻した**
+
+直しかけた5効果が **既存の golden（見送り契約）で赤になった**。読み直すと**どれも理由が生きていた**：
+
+- `WDA-F02-07-E1` / `WX24-P2-036-E1`＝「この方法で捨てたシグニ1枚につき**それと同じレベルの**相手シグニ」の
+  **ペア付け機構**が無い。`count` だけ `{$ref:'last_processed_count'}` に増やすと、
+  **捨てたレベルのどれか1つに一致する相手シグニをまとめてN体**取れる＝過剰実行。
+- `WX07-039-E2` / `WXEX1-14-E2`＝**N体・N枚の強制の中間動作**は `EffectInteractionModal.canConfirm` が
+  「選択数 ≧ count」を要求するため、候補が足りない盤面で**確定ボタンが押せずソフトロック**する（§5.3 `O-104` 待ち）。
+- `WX15-010-E1`＝「**次に**バニッシュされる場合」の**1回消費**耐性の語彙が無く、
+  集合耐性へ広げるとターン終了時までの恒常耐性になる。
+
+⇒ 🔑**「census に出ている＝直すべき」ではない。**先行セッションが**理由つきで見送った**ものが混ざっている。
+**census だけを見て手を出すと、過去の判断を黙って踏み潰す。** golden の見送り契約が唯一の歯止めだった。
+⇒ 逆に **1件は解除した**＝`WXK09-029-BURST`。契約自身が「**表せるようになったら採用する**」と書いており、
+`colorMatchesLastProcessed`（`resolveDynamicFilter` が消費）が後から入って前提が変わっていた。
+**契約は「永久に触るな」ではなく「前提が生きているか毎回読む」もの。**
+
+### ■ 検証
+
+- `build:effects` では届かず（収穫マージが構造変更を held に回す）＝**`syncManualLive` で配達**。
+  カード単位で丸ごと書くので**同カードの他効果への巻き込み diff を機械確認**（巻き込み0）。
+- 逆翻訳（`regen`）を全件、原文と目視照合。`WX24-P4-040-E2` で
+  `filter.costMax` と `costThreshold` の**併記が逆翻訳に二重に出た**ので `costThreshold` 一本へ寄せた。
+- 🔴**golden を2本追加**（JSON 形の反転確認＋`then:'under'` の engine 実走）。
+  **修正前データで実際に落ちることを確認してから採った**（`manualEffects.ts` / `public/data` / `effectExecutor.ts` /
+  `types/effects.ts` を一時的に HEAD へ戻して 2/2 FAIL を確認）。
+
+### ■ 残り（次に取る人へ）
+
+- **まとまった較正の在庫はもう無い**（`censusKeyScan` の型名・キー名集計は全カテゴリで generic 名しか並ばない）。
+- **機構が要る塊**＝(a)「同じレベル」の**ペア付け**（2効果・上記契約）(b) **N体強制の中間動作**の UI（`O-104`・2効果）
+  (c) **1回消費の耐性**（1効果）(d) **2ゾーン合算の枚数条件**（`WXDi-P12-056-E1` ほか）
+  (e) **`ATTACH_ACCE` がエナから filter でアクセ札を選べない**（`execAttachAcce` のエナ経路は
+  アクセ札＝`ctx.sourceCardNum` 固定＝`WX22-Re02-E2` が書けない）(f)【ソウル】付きシグニを指すフィルタ。
+
+---
+
 ## 2026-08-30（続き743）：census 高シグナルを 245 → 189（**-56**）＝較正 -31／実装 -21（＋ドリフト -4）
 
 ユーザー指示「PLAN を読み、census を50減らす」の1巡。**live 変更 21カード（21効果）**。gates 全緑

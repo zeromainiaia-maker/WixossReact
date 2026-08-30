@@ -759,7 +759,8 @@ function condJa(c?: any): string {
       //   minCount と比べているのに逆翻訳は体数条件に丸めており、`WXK08-027-E1`「あなたの場にそれぞれレベルの
       //   異なるシグニが３体ある場合」が**ただの3体以上**に見えて原文照合で気づけなかった。
       return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${c.distinctLevels ? 'それぞれレベルの異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
-    case 'HAS_TRAP_IN_FIELD': return `${ownerJa(c.owner)}場に【トラップ】が${c.negate ? 'ない' : 'ある'}`;
+    // 🆕minCount（2026-08-31・`WX20-040-E2`）＝「N枚以上」まで描く（逆翻訳は必ず JSON のフィールドから描く）。
+    case 'HAS_TRAP_IN_FIELD': return `${ownerJa(c.owner)}場に【トラップ】が${(c.minCount ?? 1) > 1 ? `${c.minCount}枚以上` : ''}${c.negate ? 'ない' : 'ある'}`;
     case 'HAS_KEY_IN_FIELD': return c.operator && c.value !== undefined
       ? `${ownerJa(c.owner)}場にキーが${numJa(c.value)}枚${opJa(c.operator)}`
       : `${ownerJa(c.owner)}場にキーがある`;
@@ -1894,7 +1895,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
-      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : 'トラッシュに置き';
+      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : t === 'under' ? 'このシグニの下に置き' : 'トラッシュに置き';
       const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'

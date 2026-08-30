@@ -2033,8 +2033,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cond.negate ? !hasEnough : hasEnough;
     }
     case 'HAS_TRAP_IN_FIELD': {
+      // 🆕minCount＝「【トラップ】がN枚以上ある場合」（2026-08-31・`WX20-040-E2`）。省略=1＝従来の存在判定。
+      //   ⚠`any` のときは**両者の合計**ではなく「どちらかが N 枚以上」（従来の some と同じ向き）。
       const trapStates = cond.owner === 'any' ? [s, o] : [st(cond.owner)];
-      const hasTrap = trapStates.some(state => (state.field.signi_traps ?? []).some(Boolean));
+      const need = cond.minCount ?? 1;
+      const hasTrap = trapStates.some(state => (state.field.signi_traps ?? []).filter(Boolean).length >= need);
       return cond.negate ? !hasTrap : hasTrap;
     }
     case 'HAS_KEY_IN_FIELD': {

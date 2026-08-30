@@ -6601,7 +6601,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
   // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
@@ -6613,6 +6613,10 @@ function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat'
   // 'deck_top': 盤面は動かさない（デッキ内に残したまま）。execLookPickChain が remainder 処理時に
   // lastProcessedCards 経由で受け取った予約カードを一番上へ置く。
   if (then === 'deck_top') return { type: 'STUB', id: 'INTERNAL_KEEP_ON_DECK_TOP' } as EffectAction;
+  // 'under': 公開札を**効果元シグニの下**へ置く（2026-08-31）。resume の `PLACE_UNDER_SOURCE_SIGNI` が
+  //   `fromLocation:'deck'` でデッキから抜いてゾーンの先頭へ差す。⚠公開札はまだデッキに居るので
+  //   移動元は 'deck' で固定（trash/hand/energy 経路と同じ関数を共有する）。
+  if (then === 'under') return { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'deck' } as EffectAction;
   if (then === 'energy') return { type: 'ADD_TO_ENERGY', owner } as EffectAction;
   // 'field': resumeSearch の ADD_TO_FIELD 分岐がゾーン選択チェーン＋外側 continuation を処理する
   if (then === 'field') return { type: 'ADD_TO_FIELD', owner } as EffectAction;
@@ -11092,6 +11096,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newState = { ...newState, hand: newState.hand.filter(c => c !== cardNum) };
       } else if (fromLoc === 'energy') {
         newState = { ...newState, energy: newState.energy.filter(c => c !== cardNum) };
+      } else if (fromLoc === 'deck') {
+        // 🆕`LOOK_PICK_CHAIN{then:'under'}` の公開札（2026-08-31）＝まだデッキに残っているので抜く。
+        newState = { ...newState, deck: newState.deck.filter(c => c !== cardNum) };
       } else if (fromLoc === 'field') {
         const newSigniWithRemoval = newState.field.signi.map(stack => {
           if (!stack?.includes(cardNum)) return stack;

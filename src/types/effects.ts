@@ -202,7 +202,7 @@ export type ActiveCondition =
   | { type: 'FRONT_SIGNI'; filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: CompareOp } }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' }
-  | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean } // シグニゾーンに裏向きの【トラップ】がある／ない
+  | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // シグニゾーンに裏向きの【トラップ】がある／ない。🆕minCount（2026-08-31・Condition 側と対で更新）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner; operator?: CompareOp; value?: number }
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number }
@@ -388,7 +388,7 @@ export type Condition =
   //   とは参照先が違う（あちらは効果の実行結果・こちらはコスト支払い＝`last_cost_trashed_cards`）。
   | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number; distinctColors?: boolean }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
-  | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean } // field.signi_traps の存在条件。negate=true は「場に【トラップ】がない場合」
+  | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // field.signi_traps の存在条件。negate=true は「場に【トラップ】がない場合」。🆕minCount＝「【トラップ】がN枚以上ある場合」（省略=1・2026-08-31 `WX20-040-E2`）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
@@ -1396,7 +1396,7 @@ export interface PlaceUnderSigniAction {
 // SELECT_TARGET の thenAction：選択カードをソースシグニの下に置く
 export interface PlaceUnderSourceSigniAction {
   type: 'PLACE_UNDER_SOURCE_SIGNI';
-  fromLocation: 'trash' | 'hand' | 'energy' | 'field';
+  fromLocation: 'trash' | 'hand' | 'energy' | 'field' | 'deck'; // 🆕'deck'＝LOOK_PICK_CHAIN{then:'under'} の公開札（2026-08-31）
 }
 
 // このターン、次にターゲットシグニ（またはルリグ）がアタックしたとき、そのアタックを無効にする
@@ -2220,7 +2220,11 @@ export interface LookPickChainStage {
   // （remainder より先に動かすと「残り」を下へ送る操作でその1枚まで巻き込まれるため）。
   // 'trap'／'seed'＝公開札を【トラップ】／【シード】としてシグニゾーンへ設置する。
   // ピックしたカードをデッキから抜き、対応する裏向きゾーンへ置く（ゾーンは1枚ずつ対話選択）。
-  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box';
+  // 🆕`under`＝**効果元シグニの下に置く**（2026-08-31・`WXDi-P11-047-E1`／`WXDi-P10-040-E3`／`WXDi-P09-044-E2`）。
+  //   「その中から〈X〉を N枚まで**このシグニの下に置き**、残りを好きな順番でデッキの一番下に置く」。
+  //   🔴受け皿が無い間はこの文型が `LOOK_AND_REORDER` 単独へ落ち、**選択段が丸ごと消えて全部デッキ下**だった。
+  //   消費は `lookPickThenAction` → `PLACE_UNDER_SOURCE_SIGNI{fromLocation:'deck'}`。
+  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under';
   handOrEnergy?: boolean;         // 選んだ各カードを手札かエナへ（SEARCH continuation の既存対話を再利用）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   // 直前ステージで選んだカードと**共通するクラスを持たない**もののみ（「緑のシグニ1枚と、そのシグニと
