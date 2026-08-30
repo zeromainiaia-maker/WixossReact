@@ -1302,8 +1302,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- そのカードをデッキの一番下に置いてもよい ----
+  // 🔴**「置いて**もよい**」＝任意なので行き先は `split_top_bottom`**（続き742-2）。
+  //   `position:'bottom'` は**必ずデッキ下へ送る**ので、原文の「置いてもよい」が**強制**に化けていた
+  //   （意味照合 段2 finding が4件）。`split_top_bottom` は「選んだものだけ下・残りは上」なので、
+  //   **1枚のときは そのまま『下に置く／置かない』の二択**になる＝これが既存の受け皿
+  //   （UI は `EffectInteractionModal` の isSplit 分岐、確定は `BattleScreen` の bottomList＝**実装済み**）。
   if (t.match(/そのカードをデッキの一番下に置いてもよい/)) {
-    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'split_top_bottom' } };
   }
 
   // ---- 対戦相手がアーツを使用できない ----
@@ -1496,8 +1501,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
       } as EffectAction;
     }
   }
+  // 上の「そのカードを〜」枝と同じ理由で `split_top_bottom`（続き742-2）＝任意を行き先で表す。
   if (t.match(/(?:それ|そのカード)をデッキの一番下に置いてもよい$/)) {
-    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'split_top_bottom' } };
   }
   // ---- 「（その｜指定された）シグニゾーンにあるシグニでアタックできない」＝**ゾーン継続**（§6.4 O-16 第3波）----
   // ⚠従来は `count:1` へ落ちており、直前の DESIGNATE で選んだゾーンではなく**相手シグニ1体を選ぶ**別物だった。

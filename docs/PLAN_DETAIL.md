@@ -1,5 +1,22 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+### 恒久指標アーカイブ（2026-08-30 続き742 後）
+
+- **2026-08-30 続き742 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・うち機構待ち 17／即着手可能 0)｜台帳 残 OPEN 366→336｜census 高シグナル 245（据置）**
+  ＝**意味照合 段2 を1巡**（再照合 -18／実装 -9／段1 の偽陽性 -3）。**live 変更 17カード。**
+  🔴**内訳を混ぜない**＝**-18 は台帳の較正（live 不変）／実装で減ったのは -9**。
+  **golden 3062→3063 / 0 FAIL**、smoke 全異常0、fuzz 全0、census **245 / BASELINE 245**、
+  lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設した型は0本**（`TargetFilter` にキーを足していない＝`filter.story` の**照合先**をルリグ対象のときだけ
+  `CardClass` **または** `Team` に広げた・消費点は `effectExecutor.lrigLikeFilterOk` の1箇所）。
+  🔴**census にも逆翻訳にも出ない engine バグを1件直した**＝`execGrantKeyword` / `execGrantEffect` の
+  **LRIG 分岐が `target.filter` を一切読まず**センタールリグへ無条件付与していた（＝JSON だけ直しても挙動不変）。
+  🔴**実機未検証は5件**（§5.1 `V-93`〜`V-97`）＝据置。**うち4件は同じブラウザ実行環境のブロッカー**
+  （Playwright Chromium 未導入・外部認証待ち）で、**バグの疑いではない**。
+
+
 
 ### 恒久指標アーカイブ（2026-08-30 続き741 後）
 

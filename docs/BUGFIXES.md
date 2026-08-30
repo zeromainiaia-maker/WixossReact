@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30（続き742-2）：意味照合 段2 の残 OPEN を 336 → 306（**-30**）＝解凍 -5／実装 -22／再照合 -3
+
+同日2巡目。**live 変更 26カード**、gates 全緑（golden **3063 / 0 FAIL**・smoke 全0・fuzz 全0・census 245/245・lint 0 errors）＋ `regen`。
+⑤実機は**不要**判定（`src/screens/` 不変。engine は消費点2本を直しただけで新しい型は0本）。
+
+### ■ 内訳（混ぜない）
+
+| 種別 | 減 | 中身 |
+|---|---|---|
+| **held 解凍** | **-5** | parser は既に直っていたのに `_held_fresh` で凍っていた分を1枚ずつ diff 目視して `heldReview --adopt`（live 変更9カード） |
+| **実装**（parser 規則11本＋engine 2本＋手書き3件） | **-22** | 下表 |
+| **再照合**（live 不変） | **-3** | 指摘の内容が既に live に在った（過去の parser 改善が届いていた） |
+
+### ■ 実装した真因
+
+| # | 真因 | 受け皿 |
+|---|---|---|
+| 1 | 「そのカードをデッキの一番下に置いて**もよい**」の行き先が `position:'bottom'`＝**必ず下へ送る**＝任意が強制に化けていた | 既存の `split_top_bottom`（UI・resume とも実装済み。1枚なら「下に置く／置かない」の二択になる） |
+| 2 | 「トラッシュにある**＜X＞のカード**N枚につき」の `countFilter` が合成されず**全カードを数えて**下げ幅が過大 | `PowerModifyPerTrashCountAction.countFilter` |
+| 3 | 「この方法で**＜X＞のカード**が…トラッシュに置かれた場合」がシグニ限定規則から外れ `LAST_PROCESSED_COUNT_GTE`＝**クラスを数えない**条件に落ちていた | `LAST_PROCESSED_MATCHES{story}` |
+| 4 | 🔴**`LEADING_STATE_CLAUSES` と `STATE_CONDITION_CLAUSES` の語彙ズレ**＝「場にシグニがない場合」は後者に在るのに**前者に無く**、文頭に置かれた形だけ条件ごと落ちて無条件実行 | 既存 `FIELD_COUNT` / `ENERGY_COUNT` |
+| 5 | 同上で「場に〈色〉のシグニがある場合」（単色／**主語省略**／3色）と「シグニゾーンに裏向きのカードがある場合」が無かった | `HAS_CARD_IN_FIELD` / `HAS_TRAP_IN_FIELD` |
+| 6 | `parseSelfComparison` の据置1行が**そのカード専用**のまま残り、「パワーがこのシグニのパワーの半分以下」が丸ごと落ちていた | `powerLteSelfHalf`（据置の理由＝対象照応は `SELECT_TARGET_ONLY→targetsStored` で解消済み） |
+| 7 | 「このシグニ**と同じパワーを持つ**」の語彙が無く、さらに「すべてのシグニをバニッシュ」の名詞句ビルダーが `parseSelfComparison` を呼んでいなかった | `powerEqSelf` |
+| 8 | 「各プレイヤーは【エナチャージN】をする」が `owner:'self'` 1本に潰れ**相手のチャージが落ちる** | 2本に割る（同日1巡目の DRAW と同型） |
+| 9 | `selectionConstraintFromPhrase` に「同じレベルの／同じ名前の」が無く、**レベルがばらばらの2枚**でも取れた | `SelectionConstraint.same` |
+| 10 | 🔴`execExile` が `resolveNum`（＝`{$ref:…}` を **0 に潰す**）を使っており、参照つき枚数が**無言 no-op** | `resolveCountRef` |
+| 11 | 逆翻訳が `count:{$ref:…}` を `[object Object]枚` と出していた＝**速いレーンの唯一の検証手段（目視）が効かない** | `decompileEffects` に参照名の和訳を追加 |
+| 12 | 多軸破綻の一点物5件を `manualEffects.ts` へ**原文から書き直し**（`WXK11-004`／`WXK04-025-CB`／`WXK11-022`／`WXK11-023`／`WXK11-027`） | すべて既存語彙。**新しい型は0本** |
+
+### ■ この巡の教訓
+
+- 🔴**「掃き出せば取れる」は実測で否定された**＝PLAN に登録した「`体(?:まで)?を対象とし` の『を』必須バグ」を
+  **parser 全入口（5ファイル十数箇所）へ広げても live は1バイトも変わらなかった**（＝他の規則が先に食っている）。
+  1巡目に効いたのは **UP 入口の1つだけ**。⇒ **登録票の見立てより実測**（§4.1）。**この掃き出しは打ち切ってよい。**
+- 🔑**`_held_fresh` は「安い在庫」**＝OPEN を持つ held カード15枚を1枚ずつ diff 目視したら、**9枚が採用可・5枚で finding が閉じた**。
+  ⚠**残り6枚は fresh 側が退化していた**（`LAST_PROCESSED_MATCHES` のクラス脱落・`thisCardOnly`→`excludeSelf` の反転・
+  `OPTIONAL_COST{handReveal}`→`REVEAL_AND_PICK`）＝**件数で採用しない。1枚ずつ読む。**
+- 🔴**解凍が gates を割ることがある**（`WXDi-P12-031`）＝fresh の `cost:{energyTrashAll,discardAll}` は
+  `optionalOnPlayCostStub` の SUPPORTED に無く、任意【出】が**払えないコスト**を抱えて積まれなくなる。
+  **finding が閉じない解凍は、据置の理由が生きているなら取り消す**（§5.2 の `WXEX1-14-E2` と同型）。
+- 🔴**manualEffects に parser 出力と実体同一の効果を書かない**（`WXK04-025-CB-E1` で `O-42` tripwire が発火）。
+  **同じカードの別 effectId だけを書く**のが正しい（manual は effectId 単位で勝つ）。
+- 🔑**付与能力の中の「あなた」は付与先のコントローラー**＝`granted_effects` は付与先の state に積まれ
+  その持ち主の枠で解決されるので `owner:'self'` と書く。`'opponent'` と書くと**自分のライフが割れる**真逆になる。
+
 ## 2026-08-30：意味照合 段2 の残 OPEN を 366 → 336（**-30**）＝再照合 -18／実装 -9／段1 の偽陽性 -3
 
 PLAN §5.2 の手順（①再照合で済みを回収 → ②受け皿を grep → ③parser 規則）をそのまま1巡。

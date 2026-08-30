@@ -403,8 +403,16 @@ export function isUnderLeftCardPhrase(text: string): boolean {
 export function parseSelfComparison(text: string): Partial<TargetFilter> {
   // 先に対象化したシグニとは別のシグニを後段で処理する複数対象文では、全文から比較句を拾うと
   // 後段側へ誤付着する。各対象の照応を木で保持できる専用規則ができるまで据置する。
-  if (/パワーの半分以下[^。]*を対象とし、[^。]*シグニ[^。]*ダウン/.test(text)) return {};
+  // 🆕**この据置を外した**（続き742-2）＝据置の理由（「対象の照応を木で保持できる専用規則ができるまで」）は
+  //   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈帰結〉{targetsStored}` が出来たことで解消済み。
+  //   ⚠該当は全 CSV で **`WX25-CP1-082` の1枚だけ**（＝この行はこのカード専用の据置だった）。
+  //   据置のあいだ「パワーがこのシグニのパワーの半分以下」という**対象制限が丸ごと消え、
+  //   相手のどのシグニでもバニッシュできる**過剰効果になっていた（意味照合 段2 finding）。
   if (/(?:このシグニ|自身)のパワーの半分以下/.test(text)) return { powerLteSelfHalf: true };
+  // 🆕「このシグニ**と同じパワーを持つ**」＝`powerEqSelf`（`TargetFilter`・`resolveDynamicFilter` とも実装済みで、
+  //   ここから合成されていなかっただけ）。`WX17-046-E3`「このシグニと同じパワーを持つ他のすべてのシグニを
+  //   バニッシュする」が**他の全シグニを無条件で薙ぎ払う**過剰効果になっていた。
+  if (/(?:このシグニ|自身)と同じパワー(?:を持つ|の)/.test(text)) return { powerEqSelf: true };
   if (/(?:このシグニ|自身)のパワー以下/.test(text)) return { powerLteSelf: true };
   const m = text.match(/(?:このシグニ|自身)より(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};
@@ -1123,6 +1131,12 @@ export function selectionConstraintFromPhrase(span: string): SelectionConstraint
   if (/レベルの異なる/.test(span)) return { distinct: 'level' };
   if (/名前の異なる/.test(span)) return { distinct: 'name' };
   if (/共通する色を持つ/.test(span)) return { sharedColor: 'all' };
+  // 🆕**「（それぞれ）同じレベルの」**（続き742-2・`WXK11-023-BURST`「あなたのトラッシュから**同じレベルの**
+  //   シグニ２枚を対象とし、それらを手札に加える」）＝`SelectionConstraint.same:'level'` は実装済みなのに
+  //   この共通ヘルパーから合成されておらず、**レベルがばらばらの2枚でも取れる**過剰効果だった。
+  //   ⚠`distinct:'level'`（レベルの異なる）と**逆**なので上の行より後ろに置く（誤マッチ防止）。
+  if (/(?:それぞれ)?同じレベルの/.test(span)) return { same: 'level' };
+  if (/(?:それぞれ)?同じ名前の|同じカード名の/.test(span)) return { same: 'name' };
   return undefined;
 }
 

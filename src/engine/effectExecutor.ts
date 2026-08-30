@@ -1550,7 +1550,10 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     const estate = ownerState(tgt.owner, ctx);
     const ecands = energyCandidates(estate, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     if (ecands.length === 0) return done({ ...addLog(ctx, '除外できるエナゾーンのカードがない'), lastProcessedCards: [] });
-    const ecount = tgt.count === 'ALL' ? ecands.length : Math.min(resolveNum(tgt.count), ecands.length);
+    // 🔴`resolveNum` は `{$ref:…}` を **0 に潰す**（＝無言 no-op）ので `resolveCountRef` を使う（続き742-2）。
+    //   `WXK11-004-E1`「あなたのセンタールリグのレベル**１につき**対戦相手のエナゾーンにあるカードを
+    //   １枚まで対象とし…ゲームから除外する」は `{$ref:'center_lrig_level'}` が要る。
+    const ecount = tgt.count === 'ALL' ? ecands.length : Math.min(resolveCountRef(tgt.count, ctx), ecands.length);
     const escope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     return selectOrInteract(ecands, ecount, tgt.upToCount ?? false, escope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
   }

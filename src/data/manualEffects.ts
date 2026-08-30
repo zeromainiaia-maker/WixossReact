@@ -745,6 +745,50 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX26-CP1-001": [
     {"effectId":"WX26-CP1-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"GAIN_SIGNI_BARRIER"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"pickCount":2,"then":"hand","pickUpTo":true},{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード","pickUpTo":true}],"remainder":{"location":"deck","position":"bottom","reorder":true}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"プリオケ"}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX26-CP1-001-GRANT","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}}],"recollectArts":{"minArts":4,"thenChooseCount":2,"thenUpTo":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // ── 続き742-2（意味照合 段2）＝parser では表せない多軸破綻を原文から書き直した2件 ──
+  // 🔴**「移設」ではない**（§2.0）＝parser 出力のコピーではなく、原文を読み直して組み直したもの。
+  //   受け皿はすべて既存（`EXILE{ENERGY_CARD}` / `{$ref:'center_lrig_level'}` / `COST_TRASHED_MATCHES{minCount}` /
+  //   `POWER_SET{count:'ALL'}` / `GRANT_EFFECT`）＝新しい型は1つも足していない。
+  "WXK11-004": [
+    // 原文＝「あなたのセンタールリグのレベル１につき対戦相手のエナゾーンにあるカードを１枚まで対象とし、
+    //        対戦相手のすべてのシグニをゲームから除外する。エナゾーンにあるそれらをゲームから除外する。」
+    // 旧 live は ①相手エナを **全部トラッシュ**（除外でも枚数制限でもない）②**自分のエナを1枚トラッシュ**
+    // （原文に無い）③**相手シグニの除外が丸ごと欠落**、の3点が壊れていた（finding 4件）。
+    // ⚠対象宣言（エナ）は先だが、原文の解決順はシグニ除外 → エナ除外。`upToCount` で「N枚**まで**」を表す。
+    {"effectId":"WXK11-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":4},{"color":"無","count":4}]},"action":{"type":"SEQUENCE","steps":[{"type":"EXILE","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}},{"type":"EXILE","target":{"type":"ENERGY_CARD","owner":"opponent","count":{"$ref":"center_lrig_level"},"upToCount":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXK04-025-CB": [
+    // 原文＝コスト「このキーを場からルリグトラッシュに置き、エナゾーンにあるすべてのカードをトラッシュに置く」→
+    //   ①1枚以上置いた場合＝対象1体の基本パワーを1に ②5枚以上＝相手の**すべての**シグニの基本パワーを1に
+    //   ③9枚以上＝相手の**すべての**シグニに「【自】：このシグニがバニッシュされたとき、あなたのライフクロス
+    //   １枚をクラッシュする。」を**付与**（＝即時クラッシュではない）。
+    //   ⚠付与能力の中の「**あなた**」は**付与先のコントローラー**（＝対戦相手）を指す。`granted_effects` は
+    //     付与先の state に積まれ、そのシグニの持ち主の枠で解決されるので `owner:'self'` と書くのが正しい
+    //     （`owner:'opponent'` と書くと**自分のライフが割れる**真逆になる）。
+    // 旧 live は3段の枚数条件がすべて無く、②が1体固定、③が**即時ライフクラッシュ**に化けていた（finding 3件）。
+    // ⚠枚数は**コスト支払いでトラッシュした枚数**なので `COST_TRASHED_MATCHES{minCount}`（`last_cost_trashed_cards`）。
+    //   本文の直前ステップを見る `LAST_PROCESSED_COUNT_GTE` とは参照先が違う（型定義のコメント参照）。
+    // ⚠**E1 は書かない**＝parser 出力と実体同一の「影武者コピー」になり `§6.4 O-42` の golden tripwire が発火する
+    //   （manual は effectId 一致で常に勝つので、コピーを置くとその効果に parser 改善が永久に届かなくなる）。
+    {"effectId":"WXK04-025-CB-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"trash_key":true,"energyTrashAll":true},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":1},"then":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"value":1,"duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":5},"then":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"value":1,"duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"COST_TRASHED_MATCHES","filter":{},"minCount":9},"then":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK04-025-CB-E2-GRANT","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"self","action":{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  // ── 続き742-2（意味照合 段2）＝一点物3件を原文から書き直し（受け皿はすべて既存・新しい型は0本）──
+  "WXK11-022": [
+    // 原文＝「【自】《ターン１回》：**他の**シグニ１体がアタックしたとき、あなたのすべてのシグニを好きなように配置し直す。」
+    // 旧 live は `triggerScope` 無し（＝既定 self）で**このシグニ自身のアタックでも発動**していた（finding）。
+    // ⚠原文は所有者を言わない＝どちらのシグニでもよい `any`。「他の」は `triggerFilter.excludeSelf` で表す。
+    {"effectId":"WXK11-022-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"any","triggerFilter":{"excludeSelf":true},"action":{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"self","count":"ALL"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+  "WXK11-023": [
+    // 原文（LB）＝「あなたのトラッシュから**同じレベルの**シグニ２枚を対象とし、それらを手札に加える。」
+    // 旧 live は制約が無く**レベルがばらばらの2枚**でも取れた（finding）。`selectionConstraint.same:'level'` は実装済み。
+    {"effectId":"WXK11-023-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":false,"filter":{"cardType":"シグニ"},"selectionConstraint":{"same":"level"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  "WXK11-027": [
+    // 原文＝「【自】：このシグニがアタックしたとき、**対戦相手は**自分のシグニ１体を対象とし、それをトラッシュに置く。」
+    // 旧 live は `opponentSelects` が無く**こちらが相手のシグニを選べる**（＝除去として強すぎる）別物だった。
+    {"effectId":"WXK11-027-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"opponentSelects":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
   "WXK01-054": [
     {"effectId":"WXK01-054-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":2},"action":{"type":"STUB","id":"DRAW_AT_TURN_END","value":2},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],

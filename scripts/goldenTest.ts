@@ -54032,7 +54032,8 @@ test('rise: getRiseFilter が【ライズ】カードの配置条件を取りこ
 // ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
 //   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
 test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
-  const BASELINE_REORDER_MISSING = 14;   // 旧16。O-149で WX24-P2-049-E3 / WXDi-P13-050-E2 の reorder:true が正規idで到達。
+  const BASELINE_REORDER_MISSING = 13;   // 旧16→14（O-149）→**13**（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）。⚠**払い戻したら実測値へ下げる**（CLAUDE.md）。
   const srcPath = join(root, 'docs/_effect_srctext.json');
   const srcMap = JSON.parse(fs.readFileSync(srcPath, 'utf8')) as Record<string, unknown>;
   const hasReorder = (o: unknown): boolean => {

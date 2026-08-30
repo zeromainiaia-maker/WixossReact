@@ -414,7 +414,17 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     return `${own}好きな数の${filterJa(t.filter)}${u}`.trim();
   }
   const cnt = t.count === 'ALL' ? 'すべての' : '';
-  const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
+  // 🆕**`count` は `{$ref:…}` にもなる**（続き742-2）＝素で埋め込むと `[object Object]枚` と出て
+  //   逆翻訳の目視検証（速いレーンの唯一の検証手段）が効かなくなる。参照名を日本語へ開く。
+  const cntRefJa = (n: unknown): string => {
+    if (typeof n === 'number') return String(n);
+    const ref = (n as { $ref?: string } | null)?.$ref;
+    return ref === 'center_lrig_level' ? 'あなたのセンタールリグのレベルと同じ数'
+      : ref === 'last_processed_count' ? 'この方法で処理した枚数と同じ数'
+      : ref === 'last_processed_level_sum' ? 'この方法で処理したレベル合計と同じ数'
+      : ref ? `〈${ref}〉` : String(n);
+  };
+  const cntSuf = t.count === 'ALL' ? '' : `${cntRefJa(t.count)}${t.upToCount ? counter + 'まで' : counter}`;
   const blind = t.blind ? '（見ないで）' : '';
   return `${own}${cnt}${setConstraint}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
 }

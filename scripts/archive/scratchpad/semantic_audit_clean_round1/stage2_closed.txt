@@ -1245,3 +1245,60 @@ WXDi-D08-011-E1 :: 【使用条件】あなたの場に白と赤のルリグが�
 # `WXDi-CP02-094`＝parser は既に直っていたのに **held のまま live へ届いていなかった**（`heldReview --adopt` で解凍）。
 #   ⚠発動条件（デッキから＜ブルアカ＞が1枚以上トラッシュ）の欠落は別 finding として OPEN のまま残す。
 WXDi-CP02-094-E1 :: 対戦相手のシグニ１体
+
+# 2026-08-30 §5.2 **held 解凍バッチ（続き742-2）**＝parser は既に直っていたのに `_held_fresh` で凍っていた分を
+#   1枚ずつ diff 目視して `heldReview --adopt`。live 変更9カード（うち5カードで finding が閉じた）。
+#   ⚠**`WXDi-P11-003` は解凍しない**＝fresh は `STUB{GAIN_ABILITY_THIS_GAME}` になるが、
+#   そのハンドラの「このゲームの間、あなたは以下の能力を得る」枝は**ログのみ**で、選択肢が丸ごと消える。
+#   ⚠**`WX25-CP1-008` / `WXK06-030` / `WXDi-P11-064` も解凍しない**（fresh 側に退化がある＝
+#   `LAST_PROCESSED_MATCHES` の ＜ブルアカ＞/＜龍獣＞ フィルタ脱落・`thisCardOnly`→`excludeSelf` の反転）。
+WXDi-D08-004-E1 :: シグニ２体をダウンし《白》《無》を支払ってもよい
+WXDi-P07-056-E1
+WXDi-P08-053-E1
+WXDi-P15-052-E1
+WDK05-R14-E2
+
+# 2026-08-30 §5.2 **実装バッチ2（続き742-2）**＝parser 規則4本。
+#  ①「置いてもよい」の行き先を `split_top_bottom` に（＝任意を行き先で表す既存受け皿）
+#  ②「＜X＞の**カード**N枚につき」の `countFilter` 合成（`PowerModifyPerTrashCountAction.countFilter` は実装済み）
+#  ③「この方法で＜X＞の**カード**が…トラッシュに置かれた場合」＝`LAST_PROCESSED_MATCHES{story}`（シグニ限定の
+#    既存規則が外れて `LAST_PROCESSED_COUNT_GTE`＝クラスを数えない条件に落ちていた）
+#  ④`LEADING_STATE_CLAUSES` に「場にシグニがない場合」「エナゾーンにカードがない場合」を追加
+#    （下の `STATE_CONDITION_CLAUSES` 側には在ったのに**先頭節テーブルにだけ無く**、文頭形が無条件実行だった）
+WXDi-P08-062-E1 :: 一番下に置いてもよい
+WX25-CP1-008-E1 :: ＜ブルアカ＞のカード１枚につき
+WX14-022-E1
+WX26-CP1-023-E1
+
+# 2026-08-30 §5.2 **実装バッチ3（続き742-2）**
+#  ⑤`parseSelfComparison` の据置解除（`powerLteSelfHalf`）＋「このシグニと同じパワー」＝`powerEqSelf` を新配線
+#  ⑥「すべてのシグニをバニッシュ」の名詞句ビルダーが `parseSelfComparison` を呼んでいなかった配線漏れ
+#  ⑦`LEADING_STATE_CLAUSES` に「場に〈色〉のシグニがある場合」（単色／主語省略／3色）と
+#    「シグニゾーンに裏向きのカードがある場合」＝`HAS_TRAP_IN_FIELD` を追加
+#  ⑧`execExile` が `resolveNum`（＝`$ref` を 0 に潰す）を使っていたのを `resolveCountRef` へ
+#  ⑨多軸破綻の2効果を `manualEffects.ts` へ**原文から書き直し**（移設ではない。新しい型は0本）
+WX17-046-E3
+WXDi-D01-007-E1
+WXDi-P03-030-E1 :: 青と緑と黒のシグニがある場合
+WXDi-P02-070-E1
+WXK11-004-E1
+WXK04-025-CB-E2
+
+# 2026-08-30 §5.2 **実装バッチ4（続き742-2・締め）**
+#  ⑩「各プレイヤーは【エナチャージN】をする」を2本に割る（DRAW と同型の取りこぼし）
+#  ⑪`selectionConstraintFromPhrase` に「同じレベルの／同じ名前の」を追加（`same` は実装済みで配線漏れ）
+#  ⑫一点物3件を `manualEffects.ts` へ原文から書き直し（`triggerFilter.excludeSelf` / `same:'level'` / `opponentSelects`）
+WXDi-P06-067-E2
+WXDi-P14-063-E2
+WXK11-022-E1
+WXK11-023-BURST
+WXK11-027-E2
+# 再照合＝live に既に在った（過去の parser 改善が届いていた）
+WXDi-P16-012-E2
+WXDi-P15-055-E1
+WXK11-028-E1 :: 好きな順番で
+
+# ⚠**`WXDi-P12-031` の解凍は取り消した**（続き742-2 の gates で判明）＝fresh の
+#   `cost:{energyTrashAll,discardAll}` は `optionalOnPlayCostStub` の SUPPORTED に無く、
+#   任意【出】の包み（OPTIONAL_COST）が**払えないコスト**を抱えて「表現できないコストは積まない」側へ落ちる。
+#   finding は元から閉じない解凍だったので、据置の理由が生きているほうを採った（§5.2 の `WXEX1-14-E2` と同型）。

@@ -2454,6 +2454,18 @@ function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Cond
     // この方法で＜X＞のシグニ（が）トラッシュに置かれた場合（枚数指定なし＝1枚以上・WXDi-P10-071）
     const sc3 = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のシグニ(?:が)?トラッシュに置かれた場合/);
     if (sc3) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc3[1], count: 1 };
+    // 🆕**「この方法で＜X＞の**カード**がN枚(以上)トラッシュに置かれた場合」**（続き742-2・実測3効果＝
+    //   `WX25-CP1-008` / `WX26-CP1-058` / `WX26-CP1-092`）＝**シグニに限らない**ので上の `sc2`/`sc3`
+    //   （「＜X＞の**シグニ**」限定）が外れ、下の `cc` が拾って **`LAST_PROCESSED_COUNT_GTE`＝クラスを
+    //   数えない**条件に落ちていた（＝どのカードを落としても成立する過剰効果）。
+    //   ⚠受け皿は `TRASHED_STORY_COUNT_GTE`（シグニ前提）ではなく `LAST_PROCESSED_MATCHES`＝
+    //   `filter` をそのまま `matchesFilter` に通すのでカード種別を問わない。
+    {
+      const cardCls = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のカード(?:が([０-９\d]+)枚(?:以上)?|([０-９\d]+)枚(?:以上)?が|が)?トラッシュに置かれた場合/);
+      if (cardCls) {
+        return { type: 'LAST_PROCESSED_MATCHES', filter: { story: cardCls[1] }, minCount: parseNum(cardCls[2] ?? cardCls[3] ?? '1') };
+      }
+    }
     // 語順違い：「この方法でトラッシュに＜X＞のシグニがN枚(以上)置かれた場合」（「トラッシュに」が
     //   フィルタ名詞句の前に来る形＝WXEX1-47・WX26-CP1-058「デッキから」付き）。上の sc2/sc3 は
     //   「＜X＞のシグニ…トラッシュに置かれた」語順専用でこの形を取りこぼす。
@@ -3501,6 +3513,21 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
     [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
       g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
+    // 🆕**「ゾーンが空」の2形**（続き742-2）＝下の `STATE_CONDITION_CLAUSES` 側には
+    //   「場にシグニがない場合」が在るのに、**この先頭節テーブルには無かった**ので、
+    //   文頭に置かれた形（`WX14-022-E1` の②③）だけ条件ごと脱落して**無条件に実行**されていた
+    //   （＝このファイル冒頭の警告「語彙を足すときはこの表だけを触る」が守られていなかった側）。
+    //   実測＝「場にシグニがない場合」6カード／「エナゾーンにカードがない場合」4カード。
+    // 🆕「(あなた|対戦相手)のシグニゾーンに裏向きのカードがある場合」＝**【トラップ】の存在**
+    //   （続き742-2・`WXDi-P02-070-E1`）。裏向きでシグニゾーンに置けるのは【トラップ】だけなので
+    //   受け皿は `HAS_TRAP_IN_FIELD`（`field.signi_traps` を見る＝実装済み）。
+    //   条件が落ちて**無条件に1枚引く**過剰効果になっていた。
+    [/(あなた|対戦相手)のシグニゾーンに裏向きのカードがある場合/,
+      g => ({ type: 'HAS_TRAP_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self' })],
+    [/(あなた|対戦相手)の場にシグニがない場合/,
+      g => ({ type: 'FIELD_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'eq', value: 0 })],
+    [/(あなた|対戦相手)のエナゾーンに(?:ある)?カードがない場合/,
+      g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'eq', value: 0 })],
     // 「あなたの場にそれぞれ共通する色を持たない＜C＞のシグニがN体ある場合」（§6.4 O-11・`WX21-006-E1`）。
     // 🔴受け皿 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は engine 実装済みなのに **live 利用者0の死んだ受け皿**
     //   だった（クラス filter が無く、この文型を表せなかったため）。filter を足して繋いだ。
@@ -3517,6 +3544,22 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
     // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
     // 従来は語彙が無くルリグアタック時に無条件発火の過剰効果（WX14-010/WX14-013/WX20-009/WX20-015/WX20-019・census 条件節クラスタ）。
+    // 🆕**「場に〈X〉のシグニがある場合」の取りこぼし3形**（続き742-2）。
+    //   ①**単色**（`WXDi-D01-007`「あなたの場に赤のシグニがある場合」）＝2色形は在るのに単色形が無かった。
+    //   ②**主語省略**（同カードの2文目以降「青のシグニがある場合、カードを２枚引く。」）＝原文は
+    //     1文目の「あなたの場に」を受けて省略する。落ちると**無条件ドロー**になる。
+    //   ③**3色**（`WXDi-P03-030`「あなたの場に青と緑と黒のシグニがある場合」）。
+    //   ④**クラス（枚数指定なし）**（`あなたの場に＜X＞のシグニがある場合`）＝「N体ある場合」形は在るが
+    //     枚数を言わない形が無かった。⚠「他の＜X＞」は上の既存規則が先に食う（`excludeSelf` 付き）。
+    [/あなたの場に(白|赤|青|緑|黒)と(白|赤|青|緑|黒)と(白|赤|青|緑|黒)のシグニがある場合/,
+      g => ({ type: 'AND', conditions: g.slice(0, 3).map(c => (
+        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: c } } as Condition)) })],
+    [/(あなた|対戦相手)の場に(白|赤|青|緑|黒|無色)のシグニがある場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[1] } })],
+    [/^(白|赤|青|緑|黒|無色)のシグニがある場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } })],
+    [/(あなた|対戦相手)の場に＜([^＞]+)＞のシグニがある場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', story: g[1] } })],
     [/あなたの場に(白|赤|青|緑|黒|無色)と(白|赤|青|緑|黒|無色)のシグニがある場合/,
       g => ({ type: 'AND', conditions: [
         { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } },
@@ -9776,13 +9819,21 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   // それ以外の前方所有者句（レベル比較の基準など）は従来どおり最後の所有者語から切る。
   const keepLeadingNoAbilities = /^能力を持たない(?:対戦相手|あなた)の/.test(desig0);
   const desig = cut > 0 && !keepLeadingNoAbilities ? desig0.slice(cut) : desig0;
+  // 🆕**所有者語より前に置かれた「パワーが〜」比較句を拾い直す**（続き742-2）＝
+  //   `WX25-CP1-082-E1`「**パワーがこのシグニのパワーの半分以下の**対戦相手のシグニ１体を対象とし…」は
+  //   `cut`（最後の所有者語で切る）で比較句ごと落ち、**相手のどのシグニでもバニッシュできる**過剰効果だった。
+  //   ⚠`cut` 自体は残す（別プレイヤーの語を引き込む事故を防ぐガード）。比較句だけを明示的に戻す。
+  const selfCmpBefore = cut > 0 ? parseSelfComparison(desig0.slice(0, cut)) : {};
   // 🆕「このシグニの正面の」＝**相手側**の正面シグニ（`frontOfSelf` は `matchesFilter` に実装済み）。
   //   ⚠`parseSigniTarget` は正面句を読まないので、この入口でだけ足す（全域に広げると別の入口を壊す）。
   const isFrontDesig = /このシグニの正面の/.test(desig);
   const target0 = parseSigniTarget(desig, desig.includes('対戦相手の') ? 'opponent' : isFrontDesig ? 'opponent' : 'self');
-  const target = isFrontDesig
-    ? { ...target0, owner: 'opponent' as const, filter: { ...(target0.filter ?? {}), cardType: 'シグニ' as const, frontOfSelf: true } }
+  const target0b = Object.keys(selfCmpBefore).length
+    ? { ...target0, filter: { ...(target0.filter ?? {}), ...selfCmpBefore } }
     : target0;
+  const target = isFrontDesig
+    ? { ...target0b, owner: 'opponent' as const, filter: { ...(target0b.filter ?? {}), cardType: 'シグニ' as const, frontOfSelf: true } }
+    : target0b;
   const extraKeys = Object.keys(target.filter ?? {}).filter(k => k !== 'cardType');
   // ⚠🔴**「フィルタが無いから脱落しても等価」は誤り**（続き423）。脱落するのは filter だけでなく
   //   **所有者と体数**も＝帰結は既定の `SIGNI{owner:'self', count:1}` に落ちる。素の

@@ -1250,10 +1250,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         m[2] === 'すべてのプレイヤー' ? 'both' : m[2] === 'あなた' ? 'self' : 'opponent';
       const sign = m[5] === '＋' ? 1 : -1;
       const filterStr = m[3].trim();
+      // 🆕**「＜X＞の**カード**」（＝シグニに限らない）を数える形**（続き742-2・実測3効果＝
+      //   `WX25-CP1-008` / `WXDi-CP02-060` / `WX26-CP1-057`）。旧実装は「シグニ」「スペル」「色」しか見ず、
+      //   クラス指定の**カード**は `undefined` に落ちて**トラッシュの全カードを数える**＝下げ幅が過大な
+      //   過剰効果だった（`countFilter` は `PowerModifyPerTrashCountAction` にも `matchesFilter` にも実装済みで、
+      //   ここから合成されていなかっただけ＝`census:wiring` の配線漏れ型）。
+      const classOnly = !filterStr.includes('シグニ') && !filterStr.includes('スペル')
+        ? parseStoryFilter(filterStr) : {};
       const filter: TargetFilter | undefined =
         filterStr === 'カード' ? undefined
         : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...parseColorFilter(filterStr) }
         : filterStr.includes('スペル') ? { cardType: 'スペル' }
+        : Object.keys(classOnly).length > 0 ? { ...classOnly, ...parseColorFilter(filterStr) }
         : filterStr.match(/[赤青緑黒白]/u) ? { color: filterStr.replace(/のカード|のシグニ/g, '').trim() }
         : undefined;
       return {
@@ -1572,6 +1580,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) },
       ] };
     }
+    // 🆕**「各プレイヤーは【エナチャージN】をする」＝自分ぶんと相手ぶんの2本に割る**（続き742-2・
+    //   `WXDi-P06-067-E2` / `WXDi-P14-063-E2`）＝上の DRAW と同型の取りこぼしで、**相手のエナチャージが
+    //   丸ごと落ちて自分だけ得をする**別効果になっていた（意味照合 段2 finding）。
+    if (/各プレイヤーは/.test(t)) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) },
+        { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'opponent', count: parseNum(ecM[1]) },
+      ] };
+    }
     return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
   }
 
@@ -1887,6 +1904,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         cardType: 'シグニ',
         ...parsePowerFilter(banishAllSpan), ...parseStateFilter(banishAllSpan),
         ...parseLevelFilter(banishAllSpan), ...parseColorFilter(banishAllSpan), ...parseStoryFilter(banishAllSpan),
+        // 🆕**効果元基準の比較**（続き742-2・`WX17-046-E3`「**このシグニと同じパワーを持つ**他のすべての
+        //   シグニをバニッシュする」）＝この名詞句ビルダーだけ `parseSelfComparison` を呼んでおらず、
+        //   限定が丸ごと落ちて**他の全シグニを無条件で薙ぎ払う**過剰効果だった（`powerEqSelf` は
+        //   `TargetFilter`・`resolveDynamicFilter` とも実装済み＝配線漏れ）。
+        ...parseSelfComparison(banishAllSpan),
         ...(banishAllOther ? { excludeSelf: true } : {}),
       };
       // 「レベルが奇数/偶数の」（levelParity）・「《ライズアイコン》を持つ/持たない」＝型にも matchesFilter にも実装済み。
