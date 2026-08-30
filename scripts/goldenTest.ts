@@ -4932,7 +4932,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 41, 'PlayerState の命名規約由来フィールド数（41＝§5.3 O-121 で opp_signi_banished_this_turn を追加）');
+  eq(convention.length, 42, 'PlayerState の命名規約由来フィールド数（42＝§5.3 O-159 で ability_gain_blocked_this_turn を追加）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4947,7 +4947,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 25, '命名規約外のターン限定フィールド数（25＝§5.3 O-117 で last_paid_energy_colors を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 66, '型由来38件＋命名規約外25件の母集団（66＝§5.3 O-117 で +1）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 67, '型由来38件＋命名規約外25件の母集団（67＝§5.3 O-159 で ability_gain_blocked_this_turn を追加）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -33423,6 +33423,34 @@ test('O-173 主群: 可変手札捨て4効果は対象1体へ捨てた枚数×�
   eq(mods[0].cardNum, victim, '先に選んだ対象へだけ適用');
   eq(mods[0].delta, -16000, '－8000×2枚（旧全文先頭の－2000を拾わない）');
   ok(!mods.some(mod => mod.cardNum === untouched1 || mod.cardNum === untouched2), '他の2体へ修整しない');
+}));
+
+test('O-159: 「このターン、あなたのシグニは新たに能力を得られない」が真 no-op だったのを実働化する', () => withSavedCursor(() => {
+  // §5.3 `O-159`（2026-08-30）＝`WX13-029-E1` の選択肢③。
+  // 🔴**旧実装は `STUB{SUPPRESS_GAIN_ABILITY}` が他の保護 STUB と同じ枝で `[保護効果: …]` とログを出すだけ**で、
+  //   engine のどこにも消費が無かった（`census:stubs` の消費地点0）＝**選んでも何も起きなかった**。
+  // ⚠既存の恒久版（`PREVENT_ABILITY_GAIN_BY_OPP` ほか）は `collectAbilityGainProtectedSigni` が
+  //   **CONTINUOUS 能力からしか集めない**ので使えない＝一過性は `PlayerState` のフラグで持つ。
+  const mySigni = findCard(c => c.Type === 'シグニ' && (c.Level ?? '') === '1');
+  const ctx = mkCtx({ signi: [mySigni, null, null] }, { signi: [SIGNI, null, null] });
+
+  // 実装前は false のまま（フラグが立たない＝no-op だった）
+  const before = collectAbilityGainProtectedSigni(ctx.ownerState, ctx.otherState, cardMap as Map<string, CardData>, effectsMap, true);
+  ok(!before.includes(mySigni), '前提: このシグニは最初から能力取得禁止ではない');
+
+  const after = run({ type: 'STUB', id: 'SUPPRESS_GAIN_ABILITY' } as EffectAction, ctx);
+  eq(after.ownerState.ability_gain_blocked_this_turn, true, 'このターンの能力獲得禁止フラグが立つ');
+
+  const protectedNums = collectAbilityGainProtectedSigni(after.ownerState, after.otherState, cardMap as Map<string, CardData>, effectsMap, true);
+  ok(protectedNums.includes(mySigni), '自分の場のシグニが能力取得禁止に入る');
+
+  // 🔴反転側＝**相手のシグニまで巻き込まない**（原文は「あなたのシグニは」）。
+  const oppView = collectAbilityGainProtectedSigni(after.otherState, after.ownerState, cardMap as Map<string, CardData>, effectsMap, false);
+  ok(!oppView.includes(SIGNI), '相手のシグニまで能力取得禁止にしない');
+
+  // live 側も STUB のまま残っていること（この効果は選択肢③の中にあり、typed 化はしていない）
+  const wx13 = (effectsMap.get('WX13-029') ?? []).find(e => e.effectId === 'WX13-029-E1');
+  ok(JSON.stringify(wx13).includes('SUPPRESS_GAIN_ABILITY'), 'WX13-029-E1③ が SUPPRESS_GAIN_ABILITY を使う');
 }));
 
 test('O-166: 「この効果によってパワーが０以下になった場合」の did-it ゲートが6効果に入り、ルール注記には入らない', () => withSavedCursor(() => {

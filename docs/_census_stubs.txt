@@ -179,7 +179,7 @@ live JSON の STUB id 種類 : 609（総ノード 2887 件）
         消費: src\engine\execUtils.ts:1606
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:7511
+        消費: src\engine\effectEngine.ts:7518
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53

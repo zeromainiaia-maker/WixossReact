@@ -6289,6 +6289,13 @@ export function collectAbilityGainProtectedSigni(
     }
   }
 
+  // 🆕§5.3 `O-159`＝「**このターン**、あなたのシグニは新たに能力を得られない」（`WX13-029-E1`③）。
+  // 恒久版（下の CONTINUOUS 群）と違い**一度きりのフラグ**なので状態から読む。
+  // ⚠フラグは効果を使った側（`ownerState`）に立つので、保護するのも `ownerState` の場のシグニ。
+  if (ownerState.ability_gain_blocked_this_turn) {
+    for (const s of ownerState.field.signi) { const top = s?.at(-1); if (top) protected_.add(top); }
+  }
+
   // ownerState（自分）がPREVENT_ABILITY_CHANGE_BY_OPP CONTを持つ場合、自分の対象クラスシグニが保護
   const selfCands: string[] = [];
   for (const stack of ownerState.field.signi) { if (stack?.length) selfCands.push(stack[stack.length - 1]); }

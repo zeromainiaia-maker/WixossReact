@@ -4480,11 +4480,20 @@ export function execStubPart2(
       || stub.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN'
       || stub.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP' || stub.id === 'PREVENT_POWER_MINUS_BY_OPP'
       || stub.id === 'PREVENT_OPP_POWER_PLUS' || stub.id === 'PREVENT_ABILITY_CHANGE_BY_OPP'
-      || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP' || stub.id === 'SUPPRESS_GAIN_ABILITY'
+      || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP'
       || stub.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE'
       || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
       || stub.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY') {
     return done(addLog(ctx, `[保護効果: ${stub.id}]`));
+  }
+  // 🆕SUPPRESS_GAIN_ABILITY:「このターン、あなたのシグニは新たに能力を得られない」（§5.3 `O-159`・2026-08-30）。
+  // 🔴**旧実装は上の共通枝で `[保護効果: …]` とログを出すだけの真 no-op**だった（engine のどこにも消費が無く、
+  //   `WX13-029-E1` の選択肢③は**選んでも何も起きなかった**）。⇒ 状態フラグを立て、
+  //   `effectEngine.ts` の能力付与 `protected_` 収集がこれを読む（ターン終了時リセットは `turnScopedState.ts` に登録済み）。
+  // ⚠**対象は「あなたのシグニ」＝効果を使った側**なので `ownerState` に立てる。
+  if (stub.id === 'SUPPRESS_GAIN_ABILITY') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, ability_gain_blocked_this_turn: true } },
+      'このターン、あなたのシグニは新たに能力を得られない'));
   }
   // PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE: 次の相手ATKフェイズ開始時、このシグニはアタック不可
   if (stub.id === 'PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE') {

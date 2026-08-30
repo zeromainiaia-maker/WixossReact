@@ -113,6 +113,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
   extra_attack_phases_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'extra attack phases queued for the current turn' },
   // 「宣言したカード名以外のアーツを使用できない」の whitelist は、課されたターンだけ有効（§6.4 O-3）。
   arts_name_whitelist_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'declared-arts-name whitelist imposed for the current turn' },
+  // 🆕「このターン、あなたのシグニは新たに能力を得られない」（§5.3 `O-159`・2026-08-30）。
+  // ⚠`*_this_turn` 命名なので**規約テーブル側**に置く（IRREGULAR 側に書くと `satisfies` が落ちる）。
+  ability_gain_blocked_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'one-shot ability-gain lockout for the current turn (O-159)' },
 } as const satisfies Record<ConventionTurnScopedField, TurnScopedSpec>;
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */

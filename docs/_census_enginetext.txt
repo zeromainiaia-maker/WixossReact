@@ -20,7 +20,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | HAND_SIZE_INCREASE|REDUCE_OPP_HAND_LIMIT | execStubPart3.ts:503 | 4 | 4 | 3 | 1 |
 | NEGATE_NTH_ATTACK | execStubPart3.ts:1108 | 3 | 3 | 3 | 1 |
 | PLAY_SPELL_FREE_IGNORE_RESTRICTION | execStubPart2.ts:4009 | 3 | 2 | 1 | 1 |
-| LAYER_ABILITY_COPY | execStubPart2.ts:4834 | 2 | 2 | 1 | 1 |
+| LAYER_ABILITY_COPY | execStubPart2.ts:4843 | 2 | 2 | 1 | 1 |
 | POWER_MOD_PER_COUNT | execStubPart1.ts:1703 | 2 | 2 | 8 | 1 |
 | TARGET_ONLY | execStubPart1.ts:3987 | 2 | 2 | 3 | 1 |
 | ALL_PLAYER_MILL | execStubPart3.ts:4040 | 1 | 1 | 2 | 1 |
@@ -41,7 +41,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | POWER_MOD_BY_FIELD_CLASS_LEVEL | execStubPart2.ts:373 | 1 | 1 | 1 | 1 |
 | POWER_MOD_BY_FRONT_LEVEL | execStubPart2.ts:780 | 1 | 1 | 1 | 1 |
 | REVEAL_PICK_CLASS_TO_ENERGY | execStubPart1.ts:4590 | 1 | 1 | 1 | 1 |
-| RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY | execStubPart2.ts:4800 | 1 | 1 | 4 | 1 |
+| RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY | execStubPart2.ts:4809 | 1 | 1 | 4 | 1 |
 | SUMMON_FROM_ENERGY | execStubPart3.ts:3045 | 1 | 1 | 1 | 1 |
 | TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY | execStubPart2.ts:1680 | 1 | 1 | 1 | 1 |
 | TRASH_ALL_OPP_CARDS | execStubPart2.ts:2421 | 1 | 1 | 1 | 1 |
@@ -51,7 +51,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | SONG_FRAGMENT | execStubPart1.ts:3503 | 11 | 11 | 0 | 0 |
 | BET_MECHANIC | execStubPart1.ts:1072 | 8 | 8 | 2 | 0 |
 | ADD_CARD_TO_LRIG_DECK|ADD_CARD_TO_LRIG_DECK_HIDDEN | execStubPart2.ts:1892 | 6 | 6 | 0 | 0 |
-| CONDITIONAL_CARD_COST_BY_OPP_LRIG | execStubPart2.ts:4571 | 5 | 5 | 1 | 0 |
+| CONDITIONAL_CARD_COST_BY_OPP_LRIG | execStubPart2.ts:4580 | 5 | 5 | 1 | 0 |
 | HAND_REVEAL_CLASS_SIGNI | execStubPart3.ts:3380 | 5 | 5 | 2 | 0 |
 | POWER_MOD_PER_REVEALED | execStubPart1.ts:4929 execStubPart2.ts:668 | 5 | 5 | 2 | 0 |
 | CHOOSE_HAND_OR_ENERGY | execStubPart3.ts:2394 | 4 | 4 | 1 | 0 |
@@ -59,7 +59,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE | execStubPart1.ts:2995 | 4 | 4 | 4 | 0 |
 | PLACE_TRAP_FROM_REVEALED | execStubPart2.ts:3202 | 4 | 4 | 1 | 0 |
 | REVEAL_PICK_HAND_SHUFFLE_BOTTOM | execStubPart1.ts:4003 | 4 | 4 | 0 | 0 |
-| CONDITIONAL_COST_REDUCTION_BY_FIELD | execStubPart2.ts:4555 | 3 | 3 | 0 | 0 |
+| CONDITIONAL_COST_REDUCTION_BY_FIELD | execStubPart2.ts:4564 | 3 | 3 | 0 | 0 |
 | DISCARD_OR_PENALTY | execStubPart3.ts:3631 | 3 | 3 | 3 | 0 |
 | DRAW_DISCARD_COUNT_PLUS_N | execStubPart2.ts:1719 | 3 | 3 | 1 | 0 |
 | EFFECT_LIMIT | execStubPart3.ts:1139 | 3 | 3 | 1 | 0 |
@@ -67,7 +67,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | OPP_DECLARE_CHOICE | execStubPart3.ts:2517 | 3 | 3 | 1 | 0 |
 | POWER_MOD_BY_LRIG_TRASH_ARTS | execStubPart2.ts:223 | 3 | 3 | 1 | 0 |
 | REVEAL_CLASS_SIGNI_FROM_HAND | execStubPart1.ts:4737 | 3 | 3 | 1 | 0 |
-| SIGNI_GRANT_QUOTED_CONSTANT_ABILITY | execStubPart2.ts:4695 | 3 | 3 | 5 | 0 |
+| SIGNI_GRANT_QUOTED_CONSTANT_ABILITY | execStubPart2.ts:4704 | 3 | 3 | 5 | 0 |
 | CRASH_LIFE_TO_HAND | execStubPart1.ts:3771 | 2 | 2 | 1 | 0 |
 | EXTRA_COST_REMOVE_VIRUS | execStubPart1.ts:2188 | 2 | 2 | 1 | 0 |
 | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY | execStubPart1.ts:4757 | 2 | 2 | 1 | 0 |
@@ -89,7 +89,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | DISCARD_IF_NO_CLASS_SIGNI | execStubPart1.ts:2517 | 1 | 1 | 1 | 0 |
 | GAIN_COIN_AND_DISCARD | execStubPart2.ts:1121 | 1 | 1 | 2 | 0 |
 | GRANT_QUOTED_ACTIVATE_ABILITY | execStubPart1.ts:1105 | 1 | 1 | 1 | 0 |
-| GRANT_SIGNI_CLASS | execStubPart2.ts:4820 | 1 | 1 | 1 | 0 |
+| GRANT_SIGNI_CLASS | execStubPart2.ts:4829 | 1 | 1 | 1 | 0 |
 | HAND_SIGNI_UNDER_SIGNI | execStubPart2.ts:68 | 1 | 1 | 2 | 0 |
 | LRIG_LIMIT_MODIFY | execStubPart2.ts:2096 | 1 | 1 | 1 | 0 |
 | MULTI_DAMAGE_ON_LRIG_ATTACK | execStubPart3.ts:1021 | 1 | 1 | 1 | 0 |
@@ -106,7 +106,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | POWER_MOD_BY_LRIG_LEVEL | execStubPart2.ts:249 | 1 | 1 | 1 | 0 |
 | POWER_MOD_BY_UNDER_COUNT | execStubPart2.ts:408 | 1 | 1 | 2 | 0 |
 | POWER_MOD_TARGET_AND_SELF | execStubPart2.ts:1139 | 1 | 1 | 1 | 0 |
-| REDUCE_PLAY_ABILITY_COST | execStubPart2.ts:4592 | 1 | 1 | 2 | 0 |
+| REDUCE_PLAY_ABILITY_COST | execStubPart2.ts:4601 | 1 | 1 | 2 | 0 |
 | TRASH_CLASS_TO_HAND_OR_ENERGY | execStubPart2.ts:1592 | 1 | 1 | 2 | 0 |
 | TRASH_SPELL_FREE_USE_LIMIT | execStubPart3.ts:2166 | 1 | 1 | 1 | 0 |
 | ARTS_USE_DISCARD_COLOR_HAND | execStubPart2.ts:3989 | 0 | 0 | 2 | 0 |
@@ -121,7 +121,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | ENERGY_LEVEL_CONDITION_CHOOSE | execStubPart3.ts:1210 | 0 | 0 | 1 | 0 |
 | FIELD_COND_DRAW_REVEAL | execStubPart3.ts:3349 | 0 | 0 | 1 | 0 |
 | fn:analyzeBeatSigniCost | execUtils.ts:1171 | 0 | 0 | 3 | 0 |
-| fn:collectGrantedFromLayer | effectEngine.ts:6635 | 0 | 0 | 0 | 0 |
+| fn:collectGrantedFromLayer | effectEngine.ts:6642 | 0 | 0 | 0 | 0 |
 | INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS | execStubPart1.ts:3256 | 0 | 0 | 1 | 0 |
 | INTERNAL_DISCARD_MATCHING_HAND_DOP | execStubPart3.ts:3659 | 0 | 0 | 2 | 0 |
 | INTERNAL_ECRV_APPLY | execStubPart1.ts:2227 | 0 | 0 | 0 | 0 |
@@ -199,7 +199,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     miss: WX14-014
 
 ### LAYER_ABILITY_COPY  (live 2効果 / 2カード / miss 1)
-  execStubPart2.ts:4834  const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';
+  execStubPart2.ts:4843  const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';
     lit str:トラッシュから
     miss: WXEX2-59
 
@@ -316,7 +316,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     miss: WX18-034
 
 ### RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY  (live 1効果 / 1カード / miss 1)
-  execStubPart2.ts:4800  const txtRTSGA = riseCardRTSGA ? (riseCardRTSGA.EffectText ?? '') : '';
+  execStubPart2.ts:4809  const txtRTSGA = riseCardRTSGA ? (riseCardRTSGA.EffectText ?? '') : '';
     lit str:アサシン
     lit str:ランサー
     lit str:ダブルクラッシュ
@@ -384,7 +384,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:1892  const txtACLD = srcACLD ? (srcACLD.EffectText ?? '') + ' ' + (srcACLD.BurstText ?? '') : '';
 
 ### CONDITIONAL_CARD_COST_BY_OPP_LRIG  (live 5効果 / 5カード / miss 0)
-  execStubPart2.ts:4571  const txtCCOL = srcCCOL ? (srcCCOL.EffectText ?? '') + ' ' + (srcCCOL.BurstText ?? '') : '';
+  execStubPart2.ts:4580  const txtCCOL = srcCCOL ? (srcCCOL.EffectText ?? '') + ' ' + (srcCCOL.BurstText ?? '') : '';
     lit re:対戦相手のセンタールリグが([赤青緑黒白]+)の場合[、,](?:このカードの|このアーツの)?(?:基本|使用)コストは(.+?)になる
 
 ### HAND_REVEAL_CLASS_SIGNI  (live 5効果 / 5カード / miss 0)
@@ -423,7 +423,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart1.ts:4003  ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
 
 ### CONDITIONAL_COST_REDUCTION_BY_FIELD  (live 3効果 / 3カード / miss 0)
-  execStubPart2.ts:4555  const txtCCRF = srcCCRF ? (srcCCRF.EffectText ?? '') + ' ' + (srcCCRF.BurstText ?? '') : '';
+  execStubPart2.ts:4564  const txtCCRF = srcCCRF ? (srcCCRF.EffectText ?? '') + ' ' + (srcCCRF.BurstText ?? '') : '';
 
 ### DISCARD_OR_PENALTY  (live 3効果 / 3カード / miss 0)
   execStubPart3.ts:3631  const txtDOP = srcDOP ? (srcDOP.EffectText ?? '') + ' ' + (srcDOP.BurstText ?? '') : '';
@@ -456,7 +456,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:手札から(?:それぞれ名前の異なる)?[<＜]([^>＞]+)[>＞]のシグニ
 
 ### SIGNI_GRANT_QUOTED_CONSTANT_ABILITY  (live 3効果 / 3カード / miss 0)
-  execStubPart2.ts:4695  const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';
+  execStubPart2.ts:4704  const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';
     lit str:アサシン
     lit str:シャドウ
     lit str:ランサー
@@ -553,7 +553,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:「(【起】[^」]{1,30})
 
 ### GRANT_SIGNI_CLASS  (live 1効果 / 1カード / miss 0)
-  execStubPart2.ts:4820  const txtGSC = srcCardGSC ? (srcCardGSC.EffectText ?? '') : '';
+  execStubPart2.ts:4829  const txtGSC = srcCardGSC ? (srcCardGSC.EffectText ?? '') : '';
     lit re:このシグニは＜([^＞]+)＞を持つ
 
 ### HAND_SIGNI_UNDER_SIGNI  (live 1効果 / 1カード / miss 0)
@@ -628,7 +628,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:([－＋][０-９\d]+)
 
 ### REDUCE_PLAY_ABILITY_COST  (live 1効果 / 1カード / miss 0)
-  execStubPart2.ts:4592  const txtRPAC = srcRPAC ? (srcRPAC.EffectText ?? '') : '';
+  execStubPart2.ts:4601  const txtRPAC = srcRPAC ? (srcRPAC.EffectText ?? '') : '';
     lit re:発動コストは《([白赤青緑黒無])
     lit re:《[白赤青緑黒無]×([０-９\d]+)》減る
 
@@ -709,7 +709,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:《([^》]+)》以外のシグニ
 
 ### fn:collectGrantedFromLayer  (live 0効果 / 0カード / miss 0)
-  effectEngine.ts:6635  return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
+  effectEngine.ts:6642  return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
 
 ### INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS  (live 0効果 / 0カード / miss 0)
   execStubPart1.ts:3256  const txtPMBCL = srcPMBCL ? (srcPMBCL.EffectText ?? '') + ' ' + (srcPMBCL.BurstText ?? '') : '';
@@ -814,21 +814,21 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:5243 <fn:collectDownProtectedSigni + GRANT_ABILITY_INNER_TEXT|PREVENT_BOUNCE_AND_DOWN_BY_OPP|WEAPON_SIGNI_PREVENT_DOWN|PREVENT_SIGNI_DOWN_BY_OPP_ALL|PREVENT_SELF_DOWN_BY_OPP> const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
   effectEngine.ts:5975 <fn:collectPowerProtectedSigni + GRANT_ABILITY_INNER_TEXT|PREVENT_POWER_MINUS_BY_OPP> const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
   effectEngine.ts:6136 <fn:collectTrashFieldProtectedSigni + PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH|PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH|PREVENT_SELF_MOVE_BY_OPP> const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-  effectEngine.ts:6303 <fn:collectAbilityGainProtectedSigni + PREVENT_ABILITY_CHANGE_BY_OPP|PREVENT_OPP_SIGNI_ABILITY_GAIN> const txt = (cardMap.get(cn)?.EffectText ?? '');
-  effectEngine.ts:6320 <fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT|PREVENT_ABILITY_GAIN_BY_OPP|PREVENT_ABILITY_CHANGE_BY_OPP|PREVENT_OPP_SIGNI_ABILITY_GAIN> const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-  effectEngine.ts:6468 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
-  effectEngine.ts:6563 <fn:collectAllColorSigni> const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
-  effectEngine.ts:7198 <fn:collectFieldSigniExtraColors + INHERIT_UNDER_SIGNI_COLOR|GAIN_LRIG_COLOR|ALL_ZONE_BLACK> const txt = card?.EffectText ?? '';
-  effectEngine.ts:7283 <fn:collectFieldSigniExtraColors + INHERIT_UNDER_SIGNI_COLOR|GAIN_LRIG_COLOR|ALL_ZONE_BLACK> const txt = card?.EffectText ?? '';
-  effectEngine.ts:7320 <fn:collectAltAttackFlipSigni> const txt = card?.EffectText ?? '';
-  effectEngine.ts:7351 <fn:collectGrowCostSubstitute> const txt = card.EffectText ?? '';
-  effectEngine.ts:7383 <fn:collectGuardAlternativeCost> const txt = txtCard?.EffectText ?? '';
-  effectEngine.ts:7513 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
+  effectEngine.ts:6310 <fn:collectAbilityGainProtectedSigni + PREVENT_ABILITY_CHANGE_BY_OPP|PREVENT_OPP_SIGNI_ABILITY_GAIN> const txt = (cardMap.get(cn)?.EffectText ?? '');
+  effectEngine.ts:6327 <fn:collectAbilityGainProtectedSigni + GRANT_ABILITY_INNER_TEXT|PREVENT_ABILITY_GAIN_BY_OPP|PREVENT_ABILITY_CHANGE_BY_OPP|PREVENT_OPP_SIGNI_ABILITY_GAIN> const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+  effectEngine.ts:6475 <fn:collectBanishSubstitutes> const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
+  effectEngine.ts:6570 <fn:collectAllColorSigni> const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
+  effectEngine.ts:7205 <fn:collectFieldSigniExtraColors + INHERIT_UNDER_SIGNI_COLOR|GAIN_LRIG_COLOR|ALL_ZONE_BLACK> const txt = card?.EffectText ?? '';
+  effectEngine.ts:7290 <fn:collectFieldSigniExtraColors + INHERIT_UNDER_SIGNI_COLOR|GAIN_LRIG_COLOR|ALL_ZONE_BLACK> const txt = card?.EffectText ?? '';
+  effectEngine.ts:7327 <fn:collectAltAttackFlipSigni> const txt = card?.EffectText ?? '';
+  effectEngine.ts:7358 <fn:collectGrowCostSubstitute> const txt = card.EffectText ?? '';
+  effectEngine.ts:7390 <fn:collectGuardAlternativeCost> const txt = txtCard?.EffectText ?? '';
+  effectEngine.ts:7520 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
   effectExecutor.ts:6393 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
   execStubPart1.ts:926 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:2182 <POWER_BOOST_PER_SIGNI_WITH_ICON> else if ((ctx.cardMap.get(cn)?.EffectText ?? '').includes('【')) countPBPSWI++;
-  execStubPart2.ts:4780 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
-  execStubPart2.ts:4868 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+  execStubPart2.ts:4789 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
+  execStubPart2.ts:4877 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execStubPart3.ts:3455 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
   execUtils.ts:944 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:946 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;

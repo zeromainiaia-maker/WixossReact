@@ -464,6 +464,18 @@ export interface PlayerState {
   // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
   keyword_abilities_removed?: Record<string, string[]>;
   /**
+   * 🆕**「このターン、あなたのシグニは新たに能力を得られない」＝能力獲得禁止の一過性版**（§5.3 `O-159`・2026-08-30）。
+   *
+   * 🔴**旧実装は真 no-op**＝`STUB{SUPPRESS_GAIN_ABILITY}`（`execStubPart2.ts`）が他の保護 STUB と同じ枝で
+   *   **`[保護効果: …]` とログを出すだけ**で、engine のどこにも消費が無かった（`census:stubs` の消費地点0）。
+   *   ⇒ `WX13-029-E1` の選択肢③は**選んでも何も起きなかった**。
+   * ⚠**既存の恒久版（`PREVENT_ABILITY_GAIN_BY_OPP` ほか）は使えない**＝あちらは
+   *   `effectEngine.ts` の `protected_` を **CONTINUOUS 能力からしか集めない**（`eff.effectType !== 'CONTINUOUS'` で弾く）。
+   *   こちらは AUTO の選択肢から一度だけ立つフラグなので、**状態側に持つ**必要がある。
+   * ⚠ターン終了時リセットは `turnScopedState.ts` に登録済み（手書きで倒さない）。
+   */
+  ability_gain_blocked_this_turn?: boolean;
+  /**
    * §6.4 O-10（続き507）＝**「代わりに〜、ターン終了時まで、この能力を失う」で自壊した効果の effectId**。
    *
    * 🔑この語彙の能力は「置換を1回起こすこと」**だけ**が仕事なので、能力喪失を `abilities_removed`
