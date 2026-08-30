@@ -75,6 +75,7 @@ const stubDescMap = new Map<string, string>();
 // ── 部品の和文化 ──
 // 現在和文化中のカードの原文（STUB等で原文からパラメータを補完する用。出力ループでカードごとに設定）
 let currentCardText = '';
+let currentCardName = '';
 // restoreLeadDuration 用に、いま和文化中の効果に対応する原文セクション（本文 or バースト）だけを保持する。
 // カード全体（currentCardText）だと本文とバーストで同キーワードを別 duration で付与するカード（WX05-034＝本文
 // 「ターン終了時まで…【ダブルクラッシュ】」／バースト「このターンと次のターンの間…【ダブルクラッシュ】」）で
@@ -381,6 +382,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
+    // 🆕2026-08-30＝`same`（選択集合の**全カードで同一**の軸）を描いていなかった＝
+    //   「共通するレベルを持つ2体」が**ただの2体**に見えて原文照合で気付けなかった（`WXK11-042-E2`）。
+    //   ⚠`distinct` の**逆**なので訳語を取り違えないこと。
+    : t.selectionConstraint?.same ? `共通する${t.selectionConstraint.same === 'level' ? 'レベル' : t.selectionConstraint.same === 'name' ? '名前' : 'クラス'}を持つ`
     : '';
   // 動的数：盤面/ゾーンの枚数（`countFromZone`）＝「あなたの＜原子＞のシグニ1体につき1体まで」
   //   （2026-08-28 Sheet1 バッチ・`WX07-027-BURST`）。⚠描かないと「1体まで」に見え、
@@ -508,7 +513,13 @@ function costJa(c?: any): string {
   //   シグニ／スペルが混ざる形もある＝群ごとの cardType を使う）。
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}${g.filter?.cardType ?? 'カード'}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
-  if (c.beat_signi != null) parts.push(`シグニ${c.beat_signi}体を【ビート】にする`);
+  if (c.beat_signi != null) {
+    const beat = typeof c.beat_signi === 'number' ? { count: c.beat_signi } : c.beat_signi;
+    const excluded = beat.excludeSelf
+      ? `《${currentCardName || 'このカードと同じ名前'}》以外の`
+      : '';
+    parts.push(`${excluded}シグニ${beat.count}体を【ビート】にする`);
+  }
   if (c.beat_signi_from_trash) parts.push(`トラッシュから${filterJa(c.beat_signi_from_trash.filter)}シグニ${c.beat_signi_from_trash.count}枚を【ビート】にする`);
   if (c.energyTrash) parts.push(`エナゾーンから${constraintJa(c.energyTrash.selectionConstraint)}${filterJa(c.energyTrash.filter)}カード${c.energyTrash.count}枚をトラッシュに置く`);
   if (c.charmTrash != null) parts.push(`場の【チャーム】${c.charmTrash}枚をトラッシュ`);
@@ -4172,9 +4183,12 @@ function effJa(e: Eff): string {
       const turnJa = sdTc?.turnOwner === 'self' ? 'あなたのターンの間、' : sdTc?.turnOwner === 'opponent' ? '対戦相手のターンの間、' : '';
       const deckOnly = sdTc?.fromZones?.length === 1 && sdTc.fromZones[0] === 'deck';
       const phaseJa = sdTc?.duringMainPhase ? 'あなたのメインフェイズの間、' : turnJa;
+      const handOnly = sdTc?.fromZones?.length === 1 && sdTc.fromZones[0] === 'hand';
       s = deckOnly
         ? `${phaseJa}このカードが${causeJa}デッキからトラッシュに置かれたとき`
-        : `${phaseJa}${causeJa}このカードが捨てられたとき`;
+        : handOnly
+          ? `${phaseJa}このカードが${causeJa}手札からトラッシュに置かれたとき`
+          : `${phaseJa}${causeJa}このカードが捨てられたとき`;
     }
     // ON_DRAW の限定軸（「アタックフェイズの間に」「あなたのターンの間、あなたの効果によって」WX11-030/WXK10-040）
     if (t === 'ON_DRAW' && (e.triggerScope ?? 'self') === 'self'
@@ -4672,6 +4686,7 @@ function renderCards(ids: string[]): string {
     out.push('\n【JSON 逆翻訳】');
     if (!effs) { out.push('  (effects.json に登録なし)'); continue; }
     currentCardText = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+    currentCardName = card?.CardName ?? '';
     // グロウ条件（EffectText の【グロウ】〜【 を runtime checkGrowCondition が評価。JSON効果には含まれないため別途表示）
     const growCondM = (card?.EffectText ?? '').match(/【グロウ】([^【]*)/);
     if (growCondM && growCondM[1].trim()) {
@@ -4683,6 +4698,7 @@ function renderCards(ids: string[]): string {
       out.push(`  ${e.effectId}: ${effJa(e)}`);
     }
     currentEffectText = '';
+    currentCardName = '';
   }
   out.push('\n' + '='.repeat(78));
   out.push(`${ids.length}枚を表示。逆翻訳は JSON 宣言の和文化（近似/STUBは明示）。原文との食い違いは要確認シグナル。`);

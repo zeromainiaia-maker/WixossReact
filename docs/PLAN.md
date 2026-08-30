@@ -10,41 +10,41 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-30・続き740・Opus 5 ＋ Codex）＝census を 338 → 285（-53）。**
-  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 366（据置）｜census 高シグナル 338→285**
-  gates 全緑（**golden 3053→3056 / 0 FAIL**・smoke 10706 全0・fuzz 全0・census 285/285・lint 0 errors）＋ `regen`・同型★0。
-  🔴**内訳を混ぜない**＝**-48 は「較正」（`vocabCensus.ts` だけ・live 不変）／実装で減ったのは -5**。
-  live 差分は **8効果ちょうど**。
+- 🏁**セッション（2026-08-30・続き741・Opus 5 ＋ Codex ×3バッチ）＝census を 285 → 245（-40）。**
+  📊**進捗3計器＝Sheet1 要対応 0 / 863（据置）｜台帳 残 OPEN 366（据置）｜census 高シグナル 285→245**
+  gates 全緑（**golden 3056→3062 / 0 FAIL**・smoke 10706 全0・fuzz 全0・census 245/245・lint 0 errors）＋ `regen`・同型★0。
+  🔴**内訳を混ぜない**＝**-23 は「較正」（`vocabCensus.ts` だけ・live 不変）／実装で減ったのは -17**。
+  **セッション通算では 460 → 245（-215）／較正 -173・実装 -42。**
 
   | # | 中身 | 減 | 種別 |
   |---|---|---|---|
-  | ⑧〜⑭ | コスト側 `Exile` 12／加算モデル 9／`ON_SIGNI_POWER_ZERO_OR_LESS` 7／`NEGATE_ATTACK` 予約形 7／`_SUM` 6／他3 | **-44** | 較正 |
-  | 🆕 | **兄弟効果（`-E1b`）を親の効果単位へ畳む** | **-4** | 較正 |
-  | — | 「ゲームから除外」の `TRASH` 退化2／後半脱落2／2択の①消失1（＋除外コスト1） | **-5** | 実装 |
+  | 1 | **対象フィルタ脱落**（`levelRange` 5／対象の level 1／`ADD_TO_FIELD` の source 消失 1／無色 2） | **-9** | 実装 |
+  | 2 | ⑮`LRIG_TO_DECK` 4／⑯`NAME_CONTAINS` 2／⑰トラッシュ系 timing 5／⑱`NEGATE_ATTACK` 予約形 4／⑲比較の基準違い 5／⑳`NAME_BAN`・`GUARD_LV_LAST_DOWNED` 2 | **-22** | 較正 |
+  | 3 | **同一性フィルタ脱落**（`levelEqLastProcessed`／`nameEqLastProcessed` 4／`beat_signi` 構造化 3／`trashSourceStory` 1） | **-8** | 実装 |
+  | 4 | ㉑`機構:ゲート` の `re:/ゲート/` が《イリスア**ゲート**》に当たっていた | **-1** | 較正 |
 
-  🔑🔴**この巡の最大の発見＝「兄弟効果（`-E1b`）」が census を二重に汚していた。**
-  あれは**1つの原文ブロックを2レコードに割った断片**で、`_effect_srctext.json` に自前のブロックを持たない。
-  従来は子を**カード全文**と突き合わせていたので、**親（語彙が半分）と子（全文と比較）の両方**が高シグナルになる。
-  ⇒ `buildUnits` で**親の原文ブロック × 親＋子の JSON** を1件として判定する形にした
-  （PLAN が「census の死角＝効果単位の粒度」と書いていた穴そのもの）。
-  ⚠**親が居ない子・自前ブロックを持つ子は畳まない。**
+  🔴🔑**この巡の最大の収穫は census の外にある＝`execPowerModify` が動的 filter をほとんど解決していなかった。**
+  `colorMatchesLrig` 系のときだけ `resolveDynamicFilter` を通しており、`nameEqLastProcessed` /
+  `levelEqLastProcessed` / **`colorMatchesLastProcessed`** を持つ `POWER_MODIFY` は
+  **未解決のまま `matchesFilter` を素通り＝絞り込みが丸ごと効かず盤面の全シグニが候補**だった
+  （`colorMatchesLastProcessed` は**今回より前から live に居た既存の無言バグ**）。
+  あわせて `nameEqLastProcessed` の解決先が `cardName`（**部分一致**）で、短い名前を含む別カードまで通っていた。
+  🔑**これを捕まえたのは「反転確認つき golden」**＝Codex が書いた「同名コピーだけが候補」が中断後に赤で残り、
+  そこから engine の穴に行き着いた。**フィルタを足すだけの golden では絶対に出なかった。**
 
-  🔑**「綴り違いで当たらない」罠はこれで7種類目**＝`maxCost` / `Under` / `deltaFromZone` / `*SourceStory` /
-  `_SUM` / `Exile` / `LastProcessed`。**受け皿を新設したら必ず `vocabCensus.ts` の対応表にも足す**（さもないと
-  正しい実装がカテゴリ単位でまとめて「バグ」に見える）。
+  🔑**較正の見つけ方（前巡で確立した4手順の続き）＝カテゴリごとに高シグナル効果の
+  JSON 型名・キー名を集計し、2件以上に出る名前を並べる。** ⑮⑯⑰⑱はこれで一発で出た。
+  ⚠**`re` 側の誤検出もある**（㉑）＝**キー名だけでなく原文正規表現も疑う**。
 
-  🔴**Codex が利用上限で中断した**（`usage limit` で exit 1・CODEX_GUIDE §8 の既知パターン）。
-  **Claude が引き取って完成**＝`build:effects` → `heldReview` 採用 → **id 集合ズレの手当て**
-  （`WX19-023-E1b` は fresh 固有 id なので収穫マージが足さない＝手で live へ入れた）→ ゲート → `regen` → 簿記。
-  🔑**引き取りの型**＝①`git diff` で「型・engine・parser・golden がどこまで揃っているか」を先に読む
-  ②**engine の消費地点を自分で確かめる**（`PowerSetAction.duration` が**読まれない**のはこれで判明＝型にコメントを入れた）
-  ③`_held_fresh` / `_idset_fresh` / `_partial_fresh` の3ファイルで **live へ届いていない分**を洗う。
+  🔴**Codex は2バッチとも利用上限で中断した**（既定 `~/.codex` と `.codex-work` の**両方**）。
+  **どちらも Claude が引き取って完成**＝①`git diff` で到達点を読む ②**engine の消費地点を自分で確かめる**
+  ③`_held_fresh` / `_idset_fresh` / `_partial_fresh` で live へ届いていない分を洗う ④**赤い golden を追う**。
 
-**▶ 次の一手**＝**§5.3 `O-185`**（census 3大カテゴリの残り）。**残る大カテゴリは
-「条件節」27／「小さい数」13／「クラス指定」11／「レベル閾値」9／「機構:アンコール」9**（＝そのカテゴリだけで高シグナル）。
-⚠**着手前に §1 の4手順**（全数 dump →型名を縦に並べる→目視→id 集合の機械差分）**を必ず通す**。
-⚠ §5.1 の実機返済は**4件**（`V-93`／`V-94`／`V-95`／`V-96`）＝**うち3件は同じブラウザ実行環境のブロッカー**
-（Playwright Chromium 未導入・外部認証待ち）で、**バグの疑いではない**。**環境を1回直せば3件まとめて返る。**
+**▶ 次の一手**＝**§5.3 `O-185`**（残り＝**条件節 27／小さい数 13／クラス指定 11／機構:アンコール 9／
+引用能力付与 8／同一性 6／数量比例 6／ゾーン:デッキの一番下 6／「Nまで」6**）。
+⚠**もう「同じキー名が縦に並ぶ」較正クラスタは尽きた**（最後の3巡で 173件を払い出した）＝**残りは実装**。
+⚠ §5.1 の実機返済は**5件**（`V-93`〜`V-97`）＝**うち4件は同じブラウザ実行環境のブロッカー**
+（Playwright Chromium 未導入・外部認証待ち）で**バグの疑いではない**。**環境を1回直せば4件まとめて返る。**
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -556,6 +556,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **修正前の詰みを実機で再現**してから直したので返済済み）。
 > 🔴🔑**この節が要る理由の実例**＝あのバグは **smoke / fuzz / golden / CPU がすべて「クランプする側」の経路しか
 > 通らない**ため、**全ゲート緑のまま人間だけが操作不能**だった。**`src/screens/` に関わる疑いは実機を書くまで
+- [ ] 🆕**`V-97`（2026-08-30・census 同一性バッチ B群）＝`cost.beat_signi` を構造化した「《X》以外のシグニ1体を【ビート】にする」の実機確認**＝`WDK14-014`（【出】《ビートアイコン》［４枚以下］《炎魔の孔雀　カイム》以外のシグニ1体を【ビート】にする：1枚引く）を出し、**①自分自身は【ビート】に選べないこと ②他のシグニ1体を選べること ③【ビート】が5枚以上なら撃てないこと**を見る。■**触ったのは `src/screens/BattleScreen.tsx`／`battle/modals/SigniActivatedModal.tsx`／`battle/modals/SigniOnPlayCostModal.tsx`（コスト表示と支払い）**＝PLAN §2.2 の機械判定で**実機必須**。■⚠**`cost.beat_signi` の型を `number` → `BeatSigniCost` へ広げた**ので、**数値形のまま残っている既存効果が回帰していないか**も同時に1枚見る（`beatSigniCostCount` が後方互換の入口）。■`V-93`／`V-95`／`V-96` と**同じブラウザ実行環境のブロッカー**（Playwright Chromium 未導入・外部認証待ち）。**環境を1回直せば4件まとめて返済できる。**
 - [ ] 🆕**`V-96`（2026-08-30・census 実バグ3群）＝新設コストキー `EffectCost.fieldExileSelf` の実機確認**＝`WXK06-031`（【起】《黒》**場にあるこのシグニをゲームから除外する**：トラッシュの黒を全部デッキへ）を場に出して起動し、**①シグニが場から消えること ②トラッシュへ行かず `excluded` へ入ること（＝トラッシュ回収の対象にならない）③《黒》1つだけでは撃てないこと**を見る。■**触ったのは `src/screens/BattleScreen.tsx`（支払い）／`battle/cpuActivate.ts`（CPU 自動支払い）／`battle/modals/SigniActivatedModal.tsx`（表示）**＝PLAN §2.2 の機械判定で**実機必須**。■⚠**`removeFromField` を通しているので下敷き・チャーム・アクセの離場処理は共通経路**だが、**除外は「トラッシュに置く」ではない**ので、離場置換（`applyEffectLeaveSubstitutes`）が働く盤面で挙動が変わりうる。**そこを1回見る。**■`V-93`／`V-95` と**同じブラウザ実行環境のブロッカー**（Playwright Chromium 未導入・外部認証待ち）で止まっているので、**環境を1回直せば3件まとめて返済できる**。
 - [ ] 🆕**`V-95`（2026-08-30・census 条件節バッチ B群）＝新設条件型 `HAS_TRAP_IN_FIELD` の実機確認**＝`WX15-048`（【出】：場に【トラップ】がある場合、1枚引く）を **①トラップ無しで場に出して引かないこと ②トラップを設置してから出して引くこと** の2方向で見る。■**ドライバは書いてある**＝`scripts/verifyBattleDrive.mjs` の `censusHasTrapInField`（Codex が追加・`node --check` は通過）。■🔴**未実走の理由は環境**＝Playwright 既定 Chromium revision 1228 未導入／既存 Chrome・Edge はどちらも**外部認証のログイン待ちで timeout**／in-app Browser も接続先0件。**バグの疑いではない。** ■⚠**新しい条件型を足した回は実機まで必須**（PLAN §2.2）＝ここを飛ばすと「`signi_traps` を engine が読めるが UI 経路では別の state を見ている」類の穴が残る。■**同じ環境ブロッカーで `V-93` も止まっている**ので、**まずブラウザ実行環境の復旧を1回やれば2件まとめて返済できる**。
 - [ ] **`V-94`（2026-08-30・§5.3 `O-159`）＝「このターン、あなたのシグニは新たに能力を得られない」の実機確認**＝`WX13-029-E1` の選択肢③を選び、**相手が能力付与を試みて防がれること**と**ターン終了で解けること**を通しで見る。■**背景**＝旧実装は `[保護効果: …]` とログを出すだけの真 no-op で、今回 `PlayerState.ability_gain_blocked_this_turn` ＋ `collectAbilityGainProtectedSigni` の配線で実働化した。■⚠**ドライバに該当シナリオが無い**（新規作成が要る）。■**ターン境界リセットの登録漏れだけは golden `§6.4 turn-scoped T1` が機械的に検出する**ので、そこは実機を待たなくてよい。
@@ -919,26 +920,22 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-30 続き740 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 366（据置）｜census 高シグナル 338→285**
-  ＝**census 実バグ3群＋兄弟効果の畳み込み**（ユーザー依頼「さらに census を50減らす」／目標 -50 に対して **-53**）。
-  🔴**内訳を混ぜない**＝**-48 は「較正」（`vocabCensus.ts` だけ・live 不変）／実装で減ったのは -5**。
-  較正の中身＝コスト側 `Exile` 12／加算モデル 9（算術判定）／`ON_SIGNI_POWER_ZERO_OR_LESS` 7／
-  `NEGATE_ATTACK` 予約形 7／`_SUM` 6／`countPerLastProcessed`・`nameMatchesAnyTrashCard` 3
-  ＋ 🆕**兄弟効果（`-E1b`）を親の効果単位へ畳む** 4。
-  **どの巡も「消えた id 集合＝全数を目視した集合／新規流入0」を機械差分で確認済み。**
-  実装は5効果＝「ゲームから除外」の `TRASH` 退化2（`WXDi-P05-014-E3`／`WXEX2-08-E4`）／
-  「能力を失い…パワーを±N」の後半脱落2／ライフバーストの2択の①消失1
-  ＋ **`EffectCost.fieldExileSelf` 新設**（`WXK06-031-E2` が《黒》1つで撃ち放題だった＝census には出ない軸）。
-  **golden 3053→3056 / 0 FAIL**、smoke 効果総数 **10706** 全異常0、fuzz 全0、census **285 / BASELINE 285**、
-  lint 0 errors／249 warnings（据置）、`census:stubs` A群🔴0／C群0、manual-fields 0、held 88枚、idset 11。
+- **2026-08-30 続き741 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 0 / 863 (0.0%)（据置）｜台帳 残 OPEN 366（据置）｜census 高シグナル 285→245**
+  ＝**対象フィルタ脱落＋同一性フィルタ脱落の2バッチ（Codex）＋較正 第6弾・㉑**。
+  🔴**内訳を混ぜない**＝**-23 は「較正」（live 不変）／実装で減ったのは -17**。
+  **セッション通算 460 → 245（-215）＝較正 -173／実装 -42。**
+  **golden 3056→3062 / 0 FAIL**、smoke 効果総数 **10706** 全異常0、fuzz 全0、census **245 / BASELINE 245**、
+  lint 0 errors／249 warnings（据置）、`census:stubs` A群🔴0／C群0、manual-fields 0、held 92枚、idset 11。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
-  **`census:cards`＝要対応 705→673／即着手可能 478→417／census+audit 両立 60→52／`mech` 227→256枚。**
-  **`census:orphanmanual`＝A 0／B 0／C 0／D 8。**
-  🆕**新設した型は0本**（アクション型・条件型とも0）。**コストキー1本**（`fieldExileSelf`）。
-  ⚠**`PowerSetAction.duration` は engine が読まない**（表示専用）ことを型のコメントに明記した。
-  🔴**実機未検証は4件**（§5.1 `V-93`／`V-94`／`V-95`／`V-96`）＝**うち3件は同じブラウザ実行環境の
-  ブロッカー**（Playwright Chromium 未導入・外部認証待ち）で、**バグの疑いではない**。
+  **`census:cards`＝要対応 673→643／即着手可能 417→386／census+audit 両立 52→50／`mech` 256→257枚。**
+  🆕**新設した型は0本**。**既存型の拡張2本**＝`EffectCost.beat_signi` を `number` → `BeatSigniCost{count, excludeSelf}`、
+  `PowerSetAction.duration`（**表示専用**）。
+  🔴**census に出ない engine バグを2件直した**＝①`execPowerModify` が `nameEqLastProcessed` /
+  `levelEqLastProcessed` / `colorMatchesLastProcessed` を**解決せずに `matchesFilter` へ渡していた**
+  （＝絞り込みが丸ごと効かない・既存の無言バグ）②`nameEqLastProcessed` の解決先が `cardName`（部分一致）だった。
+  🔴**実機未検証は5件**（§5.1 `V-93`〜`V-97`）＝**うち4件は同じブラウザ実行環境のブロッカー**
+  （Playwright Chromium 未導入・外部認証待ち）で、**バグの疑いではない**。
 
 ## 付録A. 全体像と Definition of Done
 

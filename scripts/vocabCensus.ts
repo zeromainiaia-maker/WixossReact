@@ -112,7 +112,18 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 254; // 2026-08-30 較正 第6弾＝276→254（-22）。**全部が較正**（live 不変・全件を原文 × live JSON で目視）。
+const BASELINE_HIGH = 245; // 2026-08-30 同一性フィルタ脱落バッチ＋較正㉑＝254→245（-9）。**内訳を混ぜない**：
+//   ■**実装 -8**＝「〜と同じレベル／同じ名前の」を既存の `TargetFilter.levelEqLastProcessed` /
+//     `nameEqLastProcessed` へ配線（`WXEX2-29-E3`／`WX25-P1-113-E1`②／`WXEX2-58-E1`／`WXK11-042-E2`）＋
+//     `cost.beat_signi` を `{count, excludeSelf}` の構造化コストへ広げて「《X》以外のシグニを【ビート】に」を表現（3効果）＋
+//     `WXEX2-39-E3` の `trashSourceStory`（どんな捨て方でも蘇る状態を解消）。
+//     🔴**同時に engine のバグを2つ直した**＝①`execPowerModify` が `colorMatchesLrig` 系のときしか
+//     `resolveDynamicFilter` を通しておらず、`nameEqLastProcessed` 等が**未解決のまま `matchesFilter` を素通り
+//     ＝絞り込みが丸ごと効いていなかった** ②`nameEqLastProcessed` の解決先が `cardName`（部分一致）で、
+//     **短い名前を含む別カードまで通っていた**（`cardNames:[完全一致]` へ）。
+//   ■**較正 -1**＝㉑`機構:ゲート` の `re:/ゲート/` が《イリスア**ゲート**》のような**カード名の一部**に当たっていた
+//     （母数40のうち1件＝`WX20-059-E1`）。⇒ `【ゲート】|《ゲートアイコン》` へ絞った（取りこぼし0）。
+// 旧: const BASELINE_HIGH = 254; // 2026-08-30 較正 第6弾＝276→254（-22）。**全部が較正**（live 不変・全件を原文 × live JSON で目視）。
 //   ⑮**`RETURN_ASSIST_LRIG_TO_DECK`**（-4）＝キーの `'LRIG_DECK'` は **`LRIG_TO_DECK` と綴りが違う**。
 //   ⑯**`LRIG_NAME_CONTAINS`**（-2）＝**大文字 `NAME_CONTAINS`** が `'nameContains'` に当たらなかった。
 //   ⑰**「何がトラッシュに置かれたか」で timing が分かれる**（-5）＝`ON_LIFE_CLOTH_MOVED`＋`lifeMovedTo` ／
@@ -1398,7 +1409,11 @@ const PATTERNS: Pattern[] = [
   { name: '機構:ハーモニー', re: /【ハーモニー/, keys: ['HARMONY', 'harmony'] },
   { name: '機構:ベット', re: /ベット―|【ベット/, keys: ['BET', 'bet', 'Betting'] },
   { name: '機構:チーム', re: /【チーム/, keys: ['TEAM', 'team', 'Team'] },
-  { name: '機構:ゲート', re: /ゲート/, keys: ['GATE', 'Gate', 'gate'] },
+  { name: '機構:ゲート',
+    // 🆕2026-08-30 較正＝**素の `/ゲート/` は《イリスア**ゲート**》のような
+    //   カード名の一部にも当たる**（実測＝母数40のうち1件が純粋な誤検出＝`WX20-059-E1`）。
+    //   ⚠絞っても取りこぼしは無い（【ゲート】か《ゲートアイコン》を持つ39件は全部残る）。
+    re: /【ゲート】|《ゲートアイコン》/, keys: ['GATE', 'Gate', 'gate'] },
   { name: '機構:ウィルス', re: /ウィルス/, keys: ['VIRUS', 'irus'] },
   { name: '機構:シード', re: /【シード|シードを/, keys: ['SEED', 'eed'] },
   { name: '機構:エクシード持ち', re: /エクシード/, keys: ['exceed', 'EXCEED'] },

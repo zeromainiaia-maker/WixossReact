@@ -25,7 +25,7 @@ import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyA
 import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit } from '../src/engine/effectEngine';
-import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
+import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -15622,23 +15622,89 @@ test('stage2 batch1 E2E: excludeCardName は同名を除外し別名の適合シ
   ok(!result.ownerState.trash.includes(allowed), '別名適合札はトラッシュから取り除かれる');
 }));
 
-// 【ビート】コストの「《X》以外のシグニ1体を【ビート】にする」（`WDK14-014`／`WXK08-043`／`WXK10-041`）は
-// cost.beat_signi が count しか持たないため JSON に語彙が載らないが、**engine が EffectText から除外名を読む**
-// （`analyzeBeatSigniCost` の `excludedName`）＝据置で正しい。census にだけ残る形なので回帰を固定する。
-test('§5d(A) beat コストの《X》以外は engine 側（analyzeBeatSigniCost）で効く', () => {
+test('census同一性 A群: live 4効果は動的filterを持ち、不一致レベル／名前を候補外にする', () => withSavedCursor(() => {
+  const wx29 = (effectsMap.get('WXEX2-29') ?? []).find(e => e.effectId === 'WXEX2-29-E3')!;
+  const wx25 = (effectsMap.get('WX25-P1-113') ?? []).find(e => e.effectId === 'WX25-P1-113-E1')!;
+  const wx58 = (effectsMap.get('WXEX2-58') ?? []).find(e => e.effectId === 'WXEX2-58-E1')!;
+  const wx42 = (effectsMap.get('WXK11-042') ?? []).find(e => e.effectId === 'WXK11-042-E2')!;
+  const encoded = [wx29, wx25, wx58, wx42].map(e => JSON.stringify(e));
+  ok(encoded[0].includes('"levelEqLastProcessed":true'), 'WXEX2-29-E3 SEARCH は直前処理と同レベル');
+  ok(encoded[1].includes('"nameEqLastProcessed":true'), 'WX25-P1-113-E1 選択肢②は直前処理と同名');
+  ok(encoded[2].includes('"SELECT_TARGET_ONLY"') && encoded[2].includes('"cardType":"レゾナ"')
+    && encoded[2].includes('"STORE_LAST_PROCESSED_TARGETS"') && encoded[2].includes('"levelEqLastProcessed":true'),
+  'WXEX2-58-E1 はレゾナ対象宣言→保存→同レベルBOUNCE');
+  ok(encoded[3].includes('"selectionConstraint":{"same":"level"}')
+    && encoded[3].includes('"levelEqLastProcessed":true'), 'WXK11-042-E2 は前後とも共通レベル限定');
+
+  const search = ((wx29.action as SequenceAction).steps[1] as { then: EffectAction }).then;
+  const searchCtx = mkCtx({}, {}, 'WXEX2-29');
+  searchCtx.ownerState.deck = [SIGNI_L1, SIGNI_L2];
+  searchCtx.lastProcessedCards = [SIGNI_L2];
+  const searched = run(search, searchCtx);
+  ok(searched.ownerState.field.signi.some(stack => stack?.at(-1) === SIGNI_L2), '成立方向: Lv2だけを場に出す');
+  ok(searched.ownerState.deck.includes(SIGNI_L1), '反転確認: 不一致Lv1は探索候補外でデッキに残る');
+
+  const sameNameBase = findCard(c => isSigni(c) && !!c.CardName);
+  const sameCopy1 = `${sameNameBase}#copy1`;
+  const sameCopy2 = `${sameNameBase}#copy2`;
+  const differentName = findCard(c => isSigni(c) && c.CardName !== cardMap.get(sameNameBase)!.CardName);
+  const nameAction = (((wx25.action as SequenceAction).steps[1] as import('../src/types/effects').ChooseAction)
+    .choices[1].action) as EffectAction;
+  const nameCtx = mkCtx({}, { signi: [sameCopy1, sameCopy2, differentName] }, 'WX25-P1-113');
+  nameCtx.lastProcessedCards = [sameNameBase];
+  cardMap.set(sameCopy1, cardMap.get(sameNameBase)!);
+  cardMap.set(sameCopy2, cardMap.get(sameNameBase)!);
+  try {
+    const named = executeAction(nameAction, nameCtx);
+    ok(!named.done && named.pending.type === 'SELECT_TARGET', '同名コピー2体から選択する');
+    if (!named.done && named.pending.type === 'SELECT_TARGET') {
+      eq(named.pending.candidates.join(','), `${sameCopy1},${sameCopy2}`, '成立方向: 同名コピーだけが候補');
+      ok(!named.pending.candidates.includes(differentName), '反転確認: 別名は修整候補外');
+    }
+  } finally {
+    cardMap.delete(sameCopy1);
+    cardMap.delete(sameCopy2);
+  }
+
+  const blackL1 = findCard(c => isSigni(c) && c.Color === '黒' && c.Level === '1');
+  const blackL2 = findCard(c => isSigni(c) && c.Color === '黒' && c.Level === '2');
+  const blackL1b = findCard(c => isSigni(c) && c.Color === '黒' && c.Level === '1' && c.CardNum !== blackL1);
+  ok(satisfiesSelectionConstraint([blackL1, blackL1b], { same: 'level' }, cardMap), '成立方向: 共通Lv1の2体');
+  ok(!satisfiesSelectionConstraint([blackL1, blackL2], { same: 'level' }, cardMap), '反転確認: 異なるレベル2体は選択不能');
+}));
+
+// B群はカード全文 regex 依存をやめ、live JSON の構造化コストだけで同名コピーを除外する。
+test('censusコスト B群: beat_signi.excludeSelf は同名コピーを除外し、別名だけを支払い候補にする', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WDK14-014') ?? []).find(e => e.effectId === 'WDK14-014-E2')!;
+  eq(JSON.stringify(effect.cost?.beat_signi), JSON.stringify({ count: 1, excludeSelf: true }), 'live JSON に除外を保持');
   const st = { field: { signi: [['WDK14-014'], ['WDK14-012'], null] } } as unknown as PlayerState;
   const m = new Map<string, CardData>([
-    ['WDK14-014', { CardName: '炎魔の孔雀　カイム', EffectText: '【出】《ビートアイコン》［４枚以下］《炎魔の孔雀　カイム》以外のシグニ１体を【ビート】にする：カードを１枚引く。' } as CardData],
+    // EffectText は空。除外が JSON payload だけで効くことを固定する。
+    ['WDK14-014', { CardName: '炎魔の孔雀　カイム', EffectText: '' } as CardData],
     ['WDK14-012', { CardName: '炎魔の陽杖　トービエ' } as CardData],
   ]);
-  const a = analyzeBeatSigniCost(st, 'WDK14-014', m, 1);
+  const a = analyzeBeatSigniCost(st, 'WDK14-014', m, effect.cost!.beat_signi!);
   ok(!a.includeSelf, '自身は【ビート】にしない');
   ok(a.eligibleOtherZones.length === 1 && a.eligibleOtherZones[0] === 1, '除外名以外のシグニだけが候補');
   // 場のもう1体も同名なら候補が消える＝支払い不能側へ倒れる
   const st2 = { field: { signi: [['WDK14-014'], ['WDK14-014b'], null] } } as unknown as PlayerState;
   const m2 = new Map(m); m2.set('WDK14-014b', { CardName: '炎魔の孔雀　カイム' } as CardData);
-  ok(analyzeBeatSigniCost(st2, 'WDK14-014', m2, 1).eligibleOtherZones.length === 0, '同名だけなら候補ゼロ');
-});
+  ok(analyzeBeatSigniCost(st2, 'WDK14-014', m2, effect.cost!.beat_signi!).eligibleOtherZones.length === 0,
+    '反転確認: 同名だけなら候補ゼロ');
+}));
+
+test('censusトリガー C群: 凶蟲効果だけで蘇生し、別クラス／発生源不明／別ゾーンでは発火しない', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXEX2-39') ?? []).find(e => e.effectId === 'WXEX2-39-E3')!;
+  eq(effect.triggerCondition?.trashSourceStory, '凶蟲', 'live JSON に凶蟲発生源限定');
+  const bug = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('凶蟲'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('凶蟲'));
+  const collect = (source: string | undefined, origin: 'hand' | 'energy' = 'hand') =>
+    collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WXEX2-39', HOST, false, origin, source, true);
+  ok(collect(bug).some(e => e.effectId === 'WXEX2-39-E3'), '成立方向: 凶蟲シグニの効果で手札から置けば発火');
+  ok(!collect(other).some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: 別クラス効果では非発火');
+  ok(!collect(undefined).some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: 発生源不明では非発火');
+  ok(!collect(bug, 'energy').some(e => e.effectId === 'WXEX2-39-E3'), '反転確認: エナ起点では非発火');
+}));
 // §5c 文型バッチ「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」。
 // 規則自体は `parseSingleSentence` の局所 CLAUSES にあったが**共通表（STATE_CONDITION_CLAUSES_V2）に無かった**ため、
 // 【自】トリガー文の条件節 hoist 経路では拾えず、3カードが条件節ごと落ちて無条件発火していた。
@@ -32179,13 +32245,15 @@ test('task12(xxix)(1) wave7: seven beat costs preserve per-effect shape and are 
     const stub = optionalOnPlayCostStub(effect.cost!, effectId);
     ok(!!stub, `${effectId}: shared OPTIONAL_COST に収集`);
     if (want.key === 'beat_signi') {
-      eq(stub!.beat_signi, 1, `${effectId}: beat_signi payload`);
+      eq(beatSigniCostCount(stub!.beat_signi), 1, `${effectId}: beat_signi count`);
       const state = mkState({ signi: [cardNum, other, null] });
       const a = analyzeBeatSigniCost(state, cardNum, cardMap, effect.cost!.beat_signi!);
       eq(a.includeSelf, want.includeSelf, `${effectId}: 自身を支払いに含むか`);
       eq(a.otherPart, want.otherPart, `${effectId}: 自身以外の必要数`);
       ok(!a.eligibleOtherZones.includes(a.selfZone), `${effectId}: 自身は他シグニ候補へ重複しない`);
       if (['WDK14-014-E2', 'WXK08-043-E1', 'WXK10-041-E3'].includes(effectId)) {
+        eq(JSON.stringify(stub!.beat_signi), JSON.stringify({ count: 1, excludeSelf: true }),
+          `${effectId}: structured excludeSelf payload`);
         const duplicate = mkState({ signi: [cardNum, `${cardNum}#duplicate`, other] });
         const named = analyzeBeatSigniCost(duplicate, cardNum, cardMap, effect.cost!.beat_signi!);
         eq(named.eligibleOtherZones.join(','), '2', `${effectId}: 除外名の別コピーも候補にしない`);

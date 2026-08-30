@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：census 同一性フィルタの脱落＝3群8効果＋engine のバグ2件（**254 → 245**）
+
+Codex（`codex-work`）が実装し、**また利用上限で中断**したので Claude が引き取って完成させた。
+**-8 が実装／-1 が較正。**
+
+### ■ 実装 -8
+
+| 群 | 直したこと |
+|---|---|
+| **A 同一性** | 「〜と**同じレベル／同じ名前**の」を既存の `TargetFilter.levelEqLastProcessed` / `nameEqLastProcessed` へ配線。`WXEX2-29-E3`（探すシグニのレベル）／`WX25-P1-113-E1`②（同じカード名）／`WXEX2-58-E1`（レゾナ対象宣言→`STORE_LAST_PROCESSED_TARGETS`→同レベル BOUNCE）／`WXK11-042-E2`（前段に `selectionConstraint.same:'level'`・後段に同レベル） |
+| **B ビートコスト** | 🔴**`cost.beat_signi` が `number` しか持てず、「《X》以外のシグニ1体を【ビート】にする」の除外が表せなかった**＝`{count, excludeSelf}` の構造化コストへ広げ、支払い経路（`BattleScreen` / 2モーダル / `analyzeBeatSigniCost`）まで配線（`WDK14-014-E2` / `WXK08-043-E1` / `WXK10-041-E3`） |
+| **C トリガー元** | `WXEX2-39-E3`＝「**コストか＜凶蟲＞のシグニの効果によって**手札からトラッシュに置かれたとき」の限定が丸ごと無く、**どんな捨て方でも蘇っていた**。`triggerCondition.trashSourceStory` を付与 |
+
+### 🔴 同時に見つかった engine のバグ2件（**census には出ない軸**）
+
+1. 🔴**`execPowerModify` が動的 filter をほとんど解決していなかった**＝
+   `colorMatchesLrig` / `colorNotMatchesLrig` のときだけ `resolveDynamicFilter` を通しており、
+   `nameEqLastProcessed` / `levelEqLastProcessed` / **`colorMatchesLastProcessed`** を持つ `POWER_MODIFY` は
+   **未解決のまま `matchesFilter` を素通り＝絞り込みが丸ごと効かず盤面の全シグニが候補**だった。
+   ⚠**`colorMatchesLastProcessed` は今回より前から live に居た**（`WX25-P1-113-E1`①）＝**既存の無言バグ**。
+   ⇒ 解決対象に last-processed 系を足した。⚠`owner:'any'` 枝は自陣・敵陣で基準が変わる語彙を巻き込むので**据置**。
+2. 🔴**`nameEqLastProcessed` の解決先が `cardName`（＝`matchesFilter` は部分一致）**で、
+   **短い名前を含む別カードまで通っていた**。⇒ `cardNames:[完全一致]` へ。
+
+**これは golden が捕まえた**＝Codex が書いた反転 golden（「同名コピーだけが候補」）が中断後に赤で残り、
+Claude がそれを追って engine 側の穴に行き着いた。**反転確認つきの golden を先に書く効き目の実例。**
+
+### ■ 較正 -1（㉑）
+
+`機構:ゲート` の `re: /ゲート/` が《イリスア**ゲート**》のような**カード名の一部**にも当たっていた
+（母数40のうち1件＝`WX20-059-E1`）。⇒ `/【ゲート】|《ゲートアイコン》/` へ絞った（**取りこぼし0**＝39件は全部残る）。
+
+### 逆翻訳の追随
+
+`selectionConstraint.same`（選択集合の**全カードで同一**の軸）を描いていなかったので
+「共通するレベルを持つ2体」が**ただの2体**に見えていた。⚠`distinct` の**逆**なので訳語を取り違えないこと。
+
+### 検証
+
+`npm run gates` **全緑**（**golden 3060→3062 / 0 FAIL**・smoke 10706 全異常0・fuzz 全0・
+census **245 / BASELINE 245**・census:stubs A群🔴0／C群0・manual-fields 0・enginetext ratchet・lint 0 errors）
+＋ `npm run regen`・同型★0。**live 差分は8効果ちょうど**（キー順を正規化して比較）。
+⚠**`src/screens/` を触ったので実機が要る**（→ §5.1 `V-97`）。
+
+### 据置
+
+`WXEX2-31-E1`（参照先が**トリガー元シグニ**で `lastProcessed` ではない）／`WXK11-040-E2`（参照先が**コストで捨てた札**＝
+コスト支払いは別 ExecCtx なので届かない）は、**近似すると別のシグニを縛る**ので触っていない。
+
 ## 2026-08-30：census 較正 第6弾＝**276 → 254（-22・全部が較正／live 不変）**
 
 前エントリ（Codex の対象フィルタ脱落バッチ）の直後。**22件を1件ずつ原文 × live JSON で目視**し、

@@ -21804,6 +21804,117 @@ ${card.BurstText ?? ''}`;
   }
 }
 
+/**
+ * census 2026-08-30: 同一性 filter／【ビート】コスト除外／ON_TRASH 発生源限定の外科補修。
+ *
+ * 広い「同じレベル」「同じ名前」はそれぞれ117/38効果あるため、原文照合済みの effectId と
+ * 既存 action shape の積で今回の10効果だけを扱う。コスト起点／トリガー起点の参照受け皿が無い
+ * 2効果（WXK11-040-E2 / WXEX2-31-E1）は、誤った lastProcessed へ近似しないため意図的に触らない。
+ */
+function applyIdentityCostTriggerBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
+  const targetEffectIds = new Set([
+    'WXEX2-29-E3', 'WX25-P1-113-E1', 'WXEX2-58-E1', 'WXK11-042-E2',
+    'WDK14-014-E2', 'WXK08-043-E1', 'WXK10-041-E3', 'WXEX2-39-E3',
+  ]);
+  const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  const findAction = <T extends EffectAction['type']>(node: EffectAction, type: T): Extract<EffectAction, { type: T }> | undefined => {
+    if (node.type === type) return node as Extract<EffectAction, { type: T }>;
+    if (node.type === 'SEQUENCE') {
+      for (const step of node.steps) { const hit = findAction(step, type); if (hit) return hit; }
+    } else if (node.type === 'CHOOSE') {
+      for (const choice of node.choices) { const hit = findAction(choice.action, type); if (hit) return hit; }
+    } else if (node.type === 'CONDITIONAL') {
+      const hit = findAction(node.then, type) ?? (node.else ? findAction(node.else, type) : undefined);
+      if (hit) return hit;
+    } else if (node.type === 'REPEAT') return findAction(node.action, type);
+    return undefined;
+  };
+
+  for (const effect of effects) {
+    if (!targetEffectIds.has(effect.effectId)) continue;
+    // 🔴abilityBlockTextOf の素呼びは parseCardEffects へ再入するため、収集中はログだけを読む。
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    let changed = false;
+
+    if (effect.effectId === 'WXEX2-29-E3'
+        && /そのシグニと同じレベルのシグニ１枚を探して場に出し/.test(source)) {
+      const search = findAction(effect.action, 'SEARCH');
+      if (search) {
+        search.filter = { ...(search.filter ?? {}), cardType: 'シグニ', levelEqLastProcessed: true };
+        changed = true;
+      }
+    }
+
+    if (effect.effectId === 'WX25-P1-113-E1'
+        && /この効果でデッキに移動したシグニと同じカード名/.test(source)
+        && effect.action.type === 'SEQUENCE') {
+      const choose = effect.action.steps.find((step): step is ChooseAction => step.type === 'CHOOSE');
+      const nameChoice = choose?.choices.find(choice => choice.action.type === 'POWER_MODIFY'
+        && choice.action.delta === -3000)?.action as PowerModifyAction | undefined;
+      if (nameChoice?.target.type === 'SIGNI') {
+        nameChoice.target.filter = { ...(nameChoice.target.filter ?? {}), cardType: 'シグニ', nameEqLastProcessed: true };
+        changed = true;
+      }
+    }
+
+    if (effect.effectId === 'WXEX2-58-E1'
+        && /対象のあなたのレゾナ１体と同じレベルの対象の対戦相手のシグニ１体を手札に戻す/.test(source)
+        && effect.action.type === 'BOUNCE' && effect.action.target.type === 'SIGNI') {
+      const bounce = effect.action;
+      effect.action = {
+        type: 'SEQUENCE', steps: [
+          {
+            type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'レゾナ' } },
+          } as StubAction,
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+          {
+            ...bounce,
+            target: { ...bounce.target, filter: { ...(bounce.target.filter ?? {}), cardType: 'シグニ', levelEqLastProcessed: true } },
+          },
+        ],
+      } as SequenceAction;
+      changed = true;
+    }
+
+    if (effect.effectId === 'WXK11-042-E2'
+        && /共通するレベルを持つ対象の黒のシグニ２体/.test(source)
+        && /それらと同じレベルの対象の対戦相手のシグニ１体をバニッシュ/.test(source)
+        && effect.action.type === 'SEQUENCE') {
+      const first = effect.action.steps[0];
+      const second = effect.action.steps[1];
+      if (first?.type === 'BANISH' && first.target.type === 'SIGNI'
+          && second?.type === 'CONDITIONAL' && second.then.type === 'BANISH' && second.then.target.type === 'SIGNI') {
+        first.target.selectionConstraint = { ...(first.target.selectionConstraint ?? {}), same: 'level' };
+        second.then.target.filter = {
+          ...(second.then.target.filter ?? {}), cardType: 'シグニ', levelEqLastProcessed: true,
+        };
+        changed = true;
+      }
+    }
+
+    if (['WDK14-014-E2', 'WXK08-043-E1', 'WXK10-041-E3'].includes(effect.effectId)
+        && /《[^》]+》以外のシグニ１体を【ビート】にする/.test(source)
+        && typeof effect.cost?.beat_signi === 'number') {
+      effect.cost.beat_signi = { count: effect.cost.beat_signi, excludeSelf: true };
+      changed = true;
+    }
+
+    if (effect.effectId === 'WXEX2-39-E3'
+        && /コストか＜凶蟲＞のシグニの効果によって手札からトラッシュに置かれたとき/.test(source)) {
+      effect.triggerCondition = { ...(effect.triggerCondition ?? {}), trashSourceStory: '凶蟲' };
+      changed = true;
+    }
+
+    if (changed) {
+      effect.parseStatus = 'AUTO';
+      clearSilentFallback(effect.effectId);
+    }
+  }
+}
+
 function applyKeywordChoiceGrantBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}
 ${card.BurstText ?? ''}`;
@@ -22904,6 +23015,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyAnaphoraBatch2026Aug30(card, effects);
   applyMissingActionTailsBatch2026Aug30(card, effects);
   applyMissingTargetFiltersBatch2026Aug30(card, effects);
+  applyIdentityCostTriggerBatch2026Aug30(card, effects);
   applyKeywordChoiceGrantBatch2026Aug30(card, effects);
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   for (const effect of effects) {

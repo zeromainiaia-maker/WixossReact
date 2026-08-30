@@ -12,6 +12,7 @@ import type {
   Condition,
   ActiveCondition,
   SelectionConstraint,
+  BeatSigniCost,
 } from '../types/effects';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
@@ -319,7 +320,7 @@ export interface OptionalCostSpec {
    *   （バニッシュで既にエナへ行った自分自身が対価なので、場に居たら**払えない**）。
    */
   selfEnergyToDeckBottom?: boolean;
-  beat_signi?: number;
+  beat_signi?: BeatSigniCost;
   beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
   lifeTrash?: number;
@@ -1159,21 +1160,30 @@ export function addToBeatZone(state: PlayerState, cards: string[]): PlayerState 
 
 // ─── 【ビート】コスト支払い（cost.beat_signi）───────────────────────────────
 // 「シグニを【ビート】にする」コストを支払う＝対象シグニを場から beat_zone へ移し beat_became_just に積む
-//（ON_BECOME_BEAT 発火用）。beat_signi は count のみ保持するため、対象の意味（このシグニ/他の/以外/任意）は
-// 効果元の EffectText から導出する。**近似：「他の」シグニはレベルが低い順に自動選択**（プレイヤー選択は未実装）。
+//（ON_BECOME_BEAT 発火用）。数値形の対象の意味（このシグニ/他の/任意）は後方互換のため
+// 効果元の EffectText から導出する。構造化形の除外条件は JSON payload だけを読む。
+// **近似：「他の」シグニはレベルが低い順に自動選択**（プレイヤー選択は未実装）。
 // 【ビート】コストの構造を解析（UIのプレイヤー選択／payBeatSigniCost の自動近似の双方が参照）。
 // includeSelf=自身も【ビート】に／otherPart=「他の/任意」で選ぶ枚数／eligibleOtherZones=その選択候補ゾーン。
+export function beatSigniCostCount(cost: BeatSigniCost | undefined): number {
+  return typeof cost === 'number' ? cost : (cost?.count ?? 0);
+}
+
 export function analyzeBeatSigniCost(
   state: PlayerState,
   sourceCardNum: string,
   cardMap: Map<string, CardData>,
-  count: number,
+  cost: BeatSigniCost,
 ): { includeSelf: boolean; selfZone: number; otherPart: number; eligibleOtherZones: number[] } {
   const srcNum = getCardNum(sourceCardNum);
-  const text = cardMap.get(srcNum)?.EffectText ?? '';
+  const sourceCard = cardMap.get(srcNum);
+  const text = sourceCard?.EffectText ?? '';
+  const count = beatSigniCostCount(cost);
   const includeSelf = /このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に/.test(text);
   const selfOtherM = text.match(/このシグニと他のシグニ([０-９0-9]+)体/);
-  const excludedName = text.match(/《([^》]+)》以外のシグニ/)?.[1];
+  // `excludeSelf` はインスタンス1体ではなく「効果元と同じカード名」を除外する。
+  // 原文が効果元自身のカード名を《〜》以外と印字する文型なので、同名の別コピーも支払えない。
+  const excludedName = typeof cost === 'object' && cost.excludeSelf ? sourceCard?.CardName : undefined;
   const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30)), 10);
   const otherPart = includeSelf ? (selfOtherM ? toN(selfOtherM[1]) : 0) : Math.max(1, count);
   const signi = state.field.signi;
@@ -1192,11 +1202,11 @@ export function payBeatSigniCost(
   state: PlayerState,
   sourceCardNum: string,
   cardMap: Map<string, CardData>,
-  count: number,
+  cost: BeatSigniCost,
   selectedOtherZones?: number[],
 ): { state: PlayerState; moved: string[]; ok: boolean; log: string } {
   const { includeSelf, selfZone, otherPart, eligibleOtherZones } =
-    analyzeBeatSigniCost(state, sourceCardNum, cardMap, count);
+    analyzeBeatSigniCost(state, sourceCardNum, cardMap, cost);
 
   const signi = [...state.field.signi] as (string[] | null)[];
   const moved: string[] = [];

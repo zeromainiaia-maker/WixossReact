@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { PlayerState, StackEntry } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied } from '../fieldLimit';
-import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
+import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied } from '../costs';
@@ -99,7 +99,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 ?? pState.field.signi.findIndex(s => s?.at(-1) === pendingSigniOnPlayCost.cardNum);
               // beat_signi: 「他の/任意」beat対象のゾーン選択。候補が必要数より多いときだけプレイヤーに選ばせる（同数以下は自動）。
               const beatCostM = analyzeBeatSigniCost(pState, pendingSigniOnPlayCost.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
-              const beatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && beatCostM.otherPart > 0 && beatCostM.eligibleOtherZones.length > beatCostM.otherPart;
+              const beatNeedSelect = beatSigniCostCount(eff.cost?.beat_signi) > 0 && beatCostM.otherPart > 0 && beatCostM.eligibleOtherZones.length > beatCostM.otherPart;
               const beatTrashCostM = eff.cost?.beat_signi_from_trash;
               const beatTrashCandidates = beatTrashCostM
                 ? beatSigniFromTrashCandidates(pState, battleCardMap, beatTrashCostM.filter)
@@ -214,7 +214,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                             charmNeeded > 0 ? `チャーム${charmNeeded}枚トラッシュ` : null,
                             charmVarOPCostM ? `チャーム${charmVarOPCostM.min}枚以上トラッシュ（現在${totalOPCharmsM}枚）` : null,
                             artsTrashOPCostM ? `ルリグデッキから${artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツ${artsTrashOPCostM.count}枚をトラッシュ` : null,
-                            (eff.cost?.beat_signi ?? 0) > 0 ? `シグニ${eff.cost!.beat_signi}体を【ビート】に` : null,
+                            beatSigniCostCount(eff.cost?.beat_signi) > 0 ? `シグニ${beatSigniCostCount(eff.cost?.beat_signi)}体を【ビート】に` : null,
                             beatTrashCostM ? `トラッシュから${filterLabel(beatTrashCostM.filter) || 'シグニ'}${beatTrashCostM.count}枚を【ビート】に` : null,
                             virusNeeded > 0 ? `相手の【ウィルス】${virusNeeded}個除去` : null,
                             coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pState.coins ?? 0}）` : null,

@@ -9,14 +9,14 @@ import {
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
-  evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
+  evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount,
   canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
-export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
+export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
 import { activeKeyAbilitySources, activeOppMoveImmunityZones, checkActiveCondition, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
@@ -1771,9 +1771,17 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = isAny ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
   const colorUsesTargetLrig = !!(a.target.filter?.colorMatchesLrig || a.target.filter?.colorNotMatchesLrig);
+  // 🆕2026-08-30＝**「直前に処理したカード」基準の動的語彙も解決する**。
+  //   🔴従来は `colorMatchesLrig` 系のときだけ `resolveDynamicFilter` を通していたので、
+  //   `nameEqLastProcessed` / `levelEqLastProcessed` / `colorMatchesLastProcessed` を持つ
+  //   `POWER_MODIFY` は **filter が未解決のまま `fieldCandidates` へ渡り、絞り込みが丸ごと効かなかった**
+  //   （`matchesFilter` はこれらのキーを知らないので素通り＝**盤面の全シグニが候補**）。
+  //   ⚠`owner:'any'` 枝は自陣・敵陣で基準が変わる語彙（`colorMatchesLrig`）を巻き込むので**従来どおり生の filter**。
+  const filterUsesLastProcessed = !!(a.target.filter?.nameEqLastProcessed
+    || a.target.filter?.levelEqLastProcessed || a.target.filter?.colorMatchesLastProcessed);
   const targetOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const targetOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
-  const resolvedTargetFilter = colorUsesTargetLrig
+  const resolvedTargetFilter = (colorUsesTargetLrig || filterUsesLastProcessed)
     ? resolveDynamicFilter(a.target.filter, targetOwnerSt, ctx.cardMap, targetOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum)
     : a.target.filter;
   let cands: string[];
@@ -2618,8 +2626,10 @@ function resolveDynamicFilter(
     if (levelEq || nameEq) {
       const ref = processed[0] ? cardMap.get(getCardNum(processed[0])) : undefined;
       const level = ref ? parseInt(ref.Level ?? '', 10) : NaN;
+      // `cardName` は既存語彙上「名前を含む」（matchesFilter が includes）なので、
+      // 「同じカード名」をそこへ落とすと短い名前を含む別カードまで通る。完全一致の cardNames を使う。
       result = nameEq
-        ? (ref?.CardName ? { ...rest, cardName: ref.CardName } : noMatch(rest))
+        ? (ref?.CardName ? { ...rest, cardNames: [ref.CardName] } : noMatch(rest))
         : (!isNaN(level) ? { ...rest, level } : noMatch(rest));
     } else if (countFilter || lteCountFilter) {
       const selectedFilter = countFilter || lteCountFilter;

@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
-import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
+import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
@@ -166,7 +166,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               ) !== null);
               // beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき）
               const actBeatCost = analyzeBeatSigniCost(my, pendingSigniActivated.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
-              const actBeatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && actBeatCost.otherPart > 0 && actBeatCost.eligibleOtherZones.length > actBeatCost.otherPart;
+              const actBeatNeedSelect = beatSigniCostCount(eff.cost?.beat_signi) > 0 && actBeatCost.otherPart > 0 && actBeatCost.eligibleOtherZones.length > actBeatCost.otherPart;
               const actBeatSelectOk = !actBeatNeedSelect || selectedSigniActivatedBeat.size === actBeatCost.otherPart;
               // lrigDown: アップ状態のルリグN体をダウンするコスト（自動支払い）。支払い可否は実際の
               // 支払い関数に判定させる（centerOnly / level の条件を UI 側で写経しない）。タスク12(cviii)

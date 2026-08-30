@@ -658,6 +658,14 @@ export interface CostScalingTerm {
   minCount?: number;
 }
 
+/**
+ * 場のシグニを【ビート】にするコスト。
+ *
+ * 数値形は既存データとの後方互換。構造化形の `excludeSelf` は「効果元と同じカード名を除外する」
+ * （原文が効果元自身のカード名を《〜》以外と印字する形）で、同名の別コピーも候補にしない。
+ */
+export type BeatSigniCost = number | { count: number; excludeSelf?: boolean };
+
 export interface EffectCost {
   energy?: EnergyCost[];
   /** カード自身の使用コストを、盤面の枚数／レベル等に比例して増減する項（各項は順に累積）。 */
@@ -690,7 +698,7 @@ export interface EffectCost {
    *   （`encodeExceedColorsInText`）。他の括弧内ルール説明と同じ扱いにすると必ず消える。
    */
   exceedColors?: string[];
-  beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
+  beat_signi?: BeatSigniCost; // 場のシグニN体をビートにする（コスト）
   beat_signi_from_trash?: { count: number; filter?: TargetFilter }; // トラッシュからシグニN体を【ビート】にする（コスト・WDK14-013）
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
   // ─ v0.263 追加: 無発火だった任意【出】コストの表現（ONPLAY_DEAD_OPTIONAL対策）─
@@ -3783,7 +3791,7 @@ export interface StubAction {
    */
   selfTrash?: boolean;
   /** OPTIONAL_COST: 場のシグニを【ビート】にする任意コスト。原文上の自身/他の区別は共通解析器が担う。 */
-  beat_signi?: number;
+  beat_signi?: BeatSigniCost;
   /** OPTIONAL_COST: トラッシュのシグニを【ビート】にする任意コスト。 */
   beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
