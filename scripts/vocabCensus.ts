@@ -112,7 +112,19 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 351; // 2026-08-30 census 較正 第2弾（3大カテゴリ）＝407→351（-56）。**全部が較正**（live 不変）。
+// 2026-08-30 census 条件節丸ごと脱落バッチ＋較正 第3弾＝351→338（-13）。**内訳を混ぜない**：
+//   ■実装 -8（Codex）＝A「配置元カード種別」4効果（`THIS_CARD_PLACED_BY_CLASS.sourceCardTypes` を追加）＋
+//     B「場の【トラップ】有無」4効果（`HAS_TRAP_IN_FIELD` を新設）を `CONDITIONAL` へ復元。
+//     8効果とも条件が丸ごと落ちて**無条件実行**していた（過剰効果）。
+//   ■較正 -5（live 不変・5件を1件ずつ原文 × live JSON で目視）＝
+//     ⑤`LIFE_CRASH_REPLACE` が「〜クラッシュされる場合、代わりに〜」の**発動条件を内包する正表現**
+//       （`PREVENT_NEXT_DAMAGE` と同型。`effectExecutor.ts:9020` が消費）＝`WX24-P4-009-E1`／`WXDi-CP01-023-E1`。
+//       ⚠**注釈（…）はルール文であって効果本文ではない**ので残渣判定の前に落とす。
+//     ⑥`REARRANGE_SIGNI{swapIfSameLevel:true}` が「それらのレベルが同じ場合」を内包＝`WXDi-P14-058-E2`。
+//     ⑦**符号つきで載る数**＝「N枚以上多い」は `HAND_DIFF{value:-N}` が正表現で、`[:[,]N[,}]]` が
+//       `-N` に当たらなかった＝`SPK01-15-E2`／`WXK03-062-E1`。
+const BASELINE_HIGH = 338;
+// 旧: const BASELINE_HIGH = 351; // 2026-08-30 census 較正 第2弾（3大カテゴリ）＝407→351（-56）。**全部が較正**（live 不変）。
 // 高シグナル id 集合を機械差分＝**消えた56件は全数が下の4群・新しく入った id は0件**。全件を原文 × live JSON で目視した。
 //   ①**小さい数：2桁の数の下1桁を拾っていた**（-25）＝`([2-5])(枚|体)` が「**１５枚**以上」「**２５枚**以上」
 //     「**１３枚**以上」の `5枚`/`3枚` に当たり、JSON が正しく `value:15`/`25`/`minCount:13` を持つのに
@@ -689,6 +701,24 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
     const tn = stripResultClauses(
       t.replace(/(?:このターン[、,])?(?:あなたが)?次に(?:あなたが)?(?:スペル|アーツ)を使用する場合[、,]/g, ''));
     if (tn !== t && !/場合[、,]/.test(tn)) return true;
+  }
+  // 🆕2026-08-30 較正＝「（このターン、）〈ライフクロス〉が〜クラッシュされる場合、代わりに〜してもよい」は
+  //   `LIFE_CRASH_REPLACE` が**置換の発動条件を内包する正表現**（`effectExecutor.ts:9020` が消費）。
+  //   `PREVENT_NEXT_DAMAGE` と同型で `condition` フィールドでは表せない。
+  //   ⚠**注釈（…）はルール文であって効果本文ではない**ので、残渣判定の前に落とす
+  //     （`WX24-P4-009-E1` の「（デッキが９枚以下の場合は置き換えられない）」で残渣が残っていた）。
+  //   ⚠narrow に取る＝当該節を除いた残りに `場合、` が残るならフラグを維持する。
+  if (js.includes('"type":"LIFE_CRASH_REPLACE"')) {
+    const tl = stripResultClauses(t
+      .replace(/（[^）]*）/g, '')
+      .replace(/(?:このターン[、,])?あなたのライフクロス(?:[０-９\d]+枚)?が[^。]{0,30}?クラッシュされる場合[、,]/g, ''));
+    if (tl !== t && !/場合[、,]/.test(tl)) return true;
+  }
+  // 🆕2026-08-30 較正＝「〈2体を対象とし〉それらのレベルが同じ場合、それらの場所を入れ替える」は
+  //   `REARRANGE_SIGNI{swapIfSameLevel:true}` が条件を内包する正表現（`effectExecutor.ts:10251` が消費）。
+  if (js.includes('"swapIfSameLevel":true')) {
+    const ts = stripResultClauses(t.replace(/それらのレベルが同じ場合[、,]/g, ''));
+    if (ts !== t && !/場合[、,]/.test(ts)) return true;
   }
   // 「配置する場合」は条件節ではなく FORCE_PLACE_FRONT の行動表現。
   if (js.includes('FORCE_PLACE_FRONT')) {
@@ -1446,7 +1476,10 @@ function main(): void {
         [...u.js.matchAll(/"condText":"([^"]*)"/g)]
           .flatMap(m => [...zen2han(m[1]).matchAll(/\d+/g)].map(x => x[0])),
       );
-      const missing = nums.filter(n => !new RegExp('[:\\[,]' + n + '[,}\\]]').test(u.js) && !beatNums.has(n));
+      // 🆕③**符号つきで載る数も「載っている」**＝「対戦相手の手札があなたより**N枚以上多い**」は
+      //   `HAND_DIFF{operator:'lte', value:-N}` が正表現（差の符号で向きを表す）。`[:[,]N[,}]]` は
+      //   `-N` の前に `-` が挟まるので当たらなかった（実測2効果＝`SPK01-15-E2`／`WXK03-062-E1`）。
+      const missing = nums.filter(n => !new RegExp('[:\\[,]-?' + n + '[,}\\]]').test(u.js) && !beatNums.has(n));
       if (!missing.length) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }

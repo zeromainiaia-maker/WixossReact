@@ -2749,6 +2749,15 @@ const ZONE_CMP_SAME_RE = new RegExp(
   `(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数と(あなた|対戦相手)の${ZONE_CMP_ZONE_JA}の枚数が同じ場合`);
 
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 🆕「〈種別〉の効果によってこのシグニが場に出た場合」＝配置元の Type 条件。
+  // `signi_placed_by_source` は種別に関係なく発生源を記録済みなので、既存の
+  // THIS_CARD_PLACED_BY_CLASS に sourceCardTypes を載せる（新しい条件型は作らない）。
+  [/(?:このシグニが)?(シグニ|ルリグかアーツ|スペル)の効果によって(?:このシグニが)?場に出た場合/,
+    g => ({ type: 'THIS_CARD_PLACED_BY_CLASS', sourceCardTypes: g[0] === 'ルリグかアーツ' ? ['ルリグ', 'アーツ'] : [g[0]] })],
+  // 🆕「あなたの場に【トラップ】がある／ない場合」＝裏向きトラップの存在条件。
+  // 通常カードの HAS_CARD_IN_FIELD では signi_traps を走査しないため、専用条件で表す。
+  [/あなたの場に【トラップ】が(ある|ない)場合/,
+    g => ({ type: 'HAS_TRAP_IN_FIELD', owner: 'self', ...(g[0] === 'ない' ? { negate: true } : {}) })],
   // 🆕「(あなた|対戦相手)の場に《X》が**ない**場合」＝`HAS_CARD_IN_FIELD{negate:true}`（2026-08-30・`WX25-CP1-066-E1`）。
   //   受け皿（`negate`）は §6.4 O-11 で実装済みだったが、**カード名指定の否定形だけ規則が無かった**＝
   //   条件が丸ごと落ち、**《雷ちゃん》が既に場にいても何度でも出せる**過剰効果になっていた。

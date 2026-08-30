@@ -5823,7 +5823,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX15-002-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"pickUpTo":true,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WX15-049": [
-    {"effectId":"WX15-049-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"pickUpTo":true,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL"},
+    {"effectId":"WX15-049-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_TRAP_IN_FIELD","owner":"self","negate":true},"then":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":2,"stages":[{"pickCount":1,"pickUpTo":true,"then":"trap","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL"},
   ],
   "WX15-097": [
     {"effectId":"WX15-097-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true,"energyTrash":{"count":1,"filter":{"hasIcon":"アクセ"}}},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":12000}},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},

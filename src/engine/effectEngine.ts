@@ -214,6 +214,13 @@ export function checkActiveCondition(
       const count = distinctColorSet?.size ?? distinctNameSet?.size ?? distinctLevelSet?.size ?? distinctClassSet?.size ?? matched;
       return count >= (cond.minCount ?? 1);
     }
+    case 'HAS_TRAP_IN_FIELD': {
+      const states = cond.owner === 'any'
+        ? [ownerState, otherState]
+        : [cond.owner === 'self' ? ownerState : otherState];
+      const hasTrap = states.some(state => (state.field.signi_traps ?? []).some(Boolean));
+      return cond.negate ? !hasTrap : hasTrap;
+    }
     case 'HAS_KEY_IN_FIELD': {
       const f = (cond.owner === 'self' ? ownerState : otherState).field;
       const count = (f.key_piece != null ? 1 : 0) + (f.key_piece_extra?.length ?? 0);

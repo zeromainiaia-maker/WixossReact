@@ -202,6 +202,7 @@ export type ActiveCondition =
   | { type: 'FRONT_SIGNI'; filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: CompareOp } }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' }
+  | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean } // シグニゾーンに裏向きの【トラップ】がある／ない
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner; operator?: CompareOp; value?: number }
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number }
@@ -387,6 +388,7 @@ export type Condition =
   //   とは参照先が違う（あちらは効果の実行結果・こちらはコスト支払い＝`last_cost_trashed_cards`）。
   | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number; distinctColors?: boolean }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
+  | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean } // field.signi_traps の存在条件。negate=true は「場に【トラップ】がない場合」
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
@@ -471,7 +473,7 @@ export type Condition =
   | { type: 'SELF_LEVEL_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
   | { type: 'THIS_CARD_FROM_NON_HAND_THIS_TURN' } // このターンにこのシグニが手札以外の領域から場に出ていた場合
-  | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass?: string } // class省略時は効果起因の配置全般
+  | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass?: string; sourceCardTypes?: string[] } // class省略・sourceCardTypes省略時は効果起因の配置全般。cardClass 指定時は従来どおりシグニ限定
   | { type: 'THIS_CARD_FROM_DECK' } // このシグニがデッキから場に出た場合
   | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
@@ -564,7 +566,7 @@ export type Condition =
 // `never` 代入が別途 typecheck で捕まえる。
 export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   LRIG_DECK_COUNT: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
-  FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true,
+  FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true,
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
   HAND_DIFF: true, LIFE_COMPARE_OPP: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, ENERGY_COUNT_FILTER: true, LRIG_LEVEL: true,
@@ -592,7 +594,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, CHECK_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
-  COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true, FIELD_LEVEL_SUM: true,
+  COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true, FIELD_LEVEL_SUM: true,
   HAS_KEY_IN_FIELD: true, ALL_FIELD_SIGNI_MATCH: true, TRASH_HAS_CARD: true, ALL_SELF_SIGNI_DOWN: true,
   TRASH_COUNT: true, DECK_TOP_MATCHES: true, LRIG_LEVEL: true, LRIG_STORY: true, THIS_CARD_IN_LOCATION: true,
   THIS_CARD_IN_CENTER_ZONE: true, THIS_CARD_IS_DOWN: true, THIS_CARD_IS_UP: true, CENTER_LRIG_IS_UP: true,

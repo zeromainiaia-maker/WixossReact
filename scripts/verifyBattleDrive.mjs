@@ -37262,6 +37262,88 @@ scenarios.o140AllocatePower = {
 order.push('o140AllocatePower');
 // ── O-140 END ──
 
+// census 条件節丸ごと脱落 B群：新条件型 HAS_TRAP_IN_FIELD の実機回帰。
+// 同じ WX15-048を2枚連続で召喚し、1枚目はトラップ無しでドロー不発、2枚目は
+// トラップ注入後に1枚ドローすることを、手札 2→1→1 の反転で確認する。
+scenarios.censusHasTrapInField = {
+  title: 'census B群 WX15-048：場に【トラップ】無しで不発／ありで1枚ドロー',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX22-009#9100'], // Lv4・Limit12・あや
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_traps': [null, null, null],
+      'field.check': null,
+      'hand': ['WX15-048#9101', 'WX15-048#9102'],
+      'deck': ['WD01-013#9111', 'WD01-014#9112', 'WD05-013#9113'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9190'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+
+    const summon = async (instId, zone, tag) => {
+      let opened = false;
+      let summonClicked = false;
+      let settled = 0;
+      let last = await H.queryState();
+      for (let s = 0; s < 28; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        if (!opened) {
+          const o = await H.clickTestId('my-hand-card-0');
+          if (o) { did = o; opened = true; }
+        }
+        if (!did && !summonClicked) {
+          const b = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await b.count() && await b.isVisible().catch(() => false)) {
+            await b.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true;
+          }
+        }
+        if (!did && summonClicked) did = await H.clickTestId(`summon-zone-${zone}`);
+        if (!did) did = await H.stdStep(['発動順序を確定', '発動する', '発動', '確定', '決定', 'OK', 'はい']);
+        last = await H.queryState();
+        const placed = (last?.host?.fieldSigni?.[zone] ?? []).includes?.(instId);
+        settled = placed && !last?.pendingEffect && (last?.stackLen ?? 0) === 0 ? settled + 1 : 0;
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | placed=${placed} hand=${last?.host?.hand} traps=${JSON.stringify(last?.host?.signiTraps)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+        if (settled >= 3) return last;
+      }
+      throw new Error(`${tag}の召喚が確定しない（field=${JSON.stringify(last?.host?.fieldSigni)} hand=${last?.host?.hand}）`);
+    };
+
+    const start = await H.queryState();
+    if (start?.host?.hand !== 2 || (start?.host?.signiTraps ?? []).some(Boolean)) {
+      return { pass: false, detail: `前提崩れ（hand=${start?.host?.hand} traps=${JSON.stringify(start?.host?.signiTraps)}）` };
+    }
+
+    const withoutTrap = await summon('WX15-048#9101', 0, 'trap-none');
+    if (withoutTrap?.host?.hand !== 1) {
+      return { pass: false, detail: `🔴トラップ無しでDRAWが走った（hand 2→${withoutTrap?.host?.hand}）` };
+    }
+
+    const patched = await H.patchPlayerState('host', { 'field.signi_traps': [null, null, 'WD01-013#9191'] });
+    if (patched?.error) return { pass: false, detail: `トラップ注入失敗: ${patched.error}` };
+    await page.waitForTimeout(500);
+    const armed = await H.queryState();
+    if (!(armed?.host?.signiTraps ?? []).some(Boolean)) {
+      return { pass: false, detail: `トラップ注入を観測できない（${JSON.stringify(armed?.host?.signiTraps)}）` };
+    }
+
+    const withTrap = await summon('WX15-048#9102', 1, 'trap-present');
+    return withTrap?.host?.hand === 1
+      ? { pass: true, detail: '手札 2→1（トラップ無しは不発）→1（召喚で0後、トラップありでDRAWし1）の反転確認' }
+      : { pass: false, detail: `トラップありでDRAW不発（期待 hand=1／実測 ${withTrap?.host?.hand}）` };
+  },
+};
+order.push('censusHasTrapInField');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

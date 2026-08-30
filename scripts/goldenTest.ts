@@ -21857,8 +21857,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 62, 'ActiveCondition の型数（62＝§5.2 Sheet3 バッチ1で SAME_ZONE_HAS_SEED を追加）');
-  eq(Object.keys(C_TYPES).length, 136, 'Condition の型数（136＝§5.2 カード単位バッチ第3回で ZONE_COUNT_COMPARE を追加）');
+  eq(Object.keys(AC_TYPES).length, 63, 'ActiveCondition の型数（63＝census 条件節B群で HAS_TRAP_IN_FIELD を追加）');
+  eq(Object.keys(C_TYPES).length, 137, 'Condition の型数（137＝census 条件節B群で HAS_TRAP_IN_FIELD を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -54807,6 +54807,130 @@ test('census較正バッチ 2026-08-30: 「【K】と「【常】：バニッシ
   eq(JSON.stringify(seq?.steps?.[1]?.from), JSON.stringify(['BANISH']), 'WXEX2-07-E1: from=[BANISH]');
   eq(JSON.stringify(seq?.steps?.[1]?.target?.filter), JSON.stringify(seq?.steps?.[0]?.target?.filter),
     'WXEX2-07-E1: 保護の対象は付与と同じ＜宝石＞のシグニ');
+}));
+
+test('census 条件節 A群: 場に出した効果のカード種別を4効果で保持し、不一致なら発動しない', () => withSavedCursor(() => {
+  const effect = (cardNum: string, effectId: string) => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    if (!hit) throw new Error(`${effectId} not found`);
+    return hit;
+  };
+  const condition = (cardNum: string, effectId: string) => {
+    const action = effect(cardNum, effectId).action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(action.type, 'CONDITIONAL', `${effectId}: 条件節を丸ごと落とさない`);
+    return action.condition as Extract<Condition, { type: 'THIS_CARD_PLACED_BY_CLASS' }>;
+  };
+  const e1 = condition('WD22-037-UG', 'WD22-037-UG-E1');
+  const e2 = condition('WD22-037-UG', 'WD22-037-UG-E2');
+  const e3 = condition('WD22-037-UG', 'WD22-037-UG-E3');
+  const wk = condition('WXK11-030', 'WXK11-030-E2');
+  eq(JSON.stringify(e1.sourceCardTypes), '["シグニ"]', 'E1: シグニの効果だけ');
+  eq(JSON.stringify(e2.sourceCardTypes), '["ルリグ","アーツ"]', 'E2: ルリグかアーツの効果だけ');
+  eq(JSON.stringify(e3.sourceCardTypes), '["スペル"]', 'E3: スペルの効果だけ');
+  eq(JSON.stringify(wk.sourceCardTypes), '["シグニ"]', 'WXK11-030-E2: シグニの効果だけ');
+  eq(JSON.stringify(effect('WD22-037-UG', 'WD22-037-UG-E3').cost?.energy),
+    '[{"color":"黒","count":1},{"color":"黒","count":1},{"color":"黒","count":1}]',
+    'WD22-037-UG-E3: 《黒》《黒》《黒》コストを維持');
+
+  const placed = 'WXK11-030';
+  const sourceOfType = (type: string) => findCard(card => card.Type === type);
+  const ctxBy = (source: string) => {
+    const ctx = mkCtx({ deckTop: [fresh()] }, {}, placed);
+    ctx.ownerState.signi_placed_by_source = { [placed]: source };
+    return ctx;
+  };
+  eq(evalCondition(e1, ctxBy(sourceOfType('シグニ'))), true, 'シグニ条件はシグニ発生源で成立');
+  eq(evalCondition(e1, ctxBy(sourceOfType('スペル'))), false, '🔴シグニ条件はスペル発生源で不成立');
+  eq(evalCondition(e2, ctxBy(sourceOfType('ルリグ'))), true, 'ルリグ／アーツ条件はルリグで成立');
+  eq(evalCondition(e2, ctxBy(sourceOfType('アーツ'))), true, 'ルリグ／アーツ条件はアーツで成立');
+  eq(evalCondition(e2, ctxBy(sourceOfType('シグニ'))), false, '🔴ルリグ／アーツ条件はシグニで不成立');
+  eq(evalCondition(e3, ctxBy(sourceOfType('スペル'))), true, 'スペル条件はスペルで成立');
+  eq(evalCondition(e3, ctxBy(sourceOfType('ルリグ'))), false, '🔴スペル条件はルリグで不成立');
+
+  // 実効果を駆動し、旧 live の「発生源が何でもエナチャージ」を反転確認する。
+  const wkAction = effect('WXK11-030', 'WXK11-030-E2').action;
+  const noCtx = ctxBy(sourceOfType('スペル'));
+  const noEnergy = noCtx.ownerState.energy.length;
+  eq(run(wkAction, noCtx).ownerState.energy.length, noEnergy,
+    '🔴スペルの効果で出た場合は【エナチャージ1】が発動しない');
+  const yesCtx = ctxBy(sourceOfType('シグニ'));
+  const yesEnergy = yesCtx.ownerState.energy.length;
+  eq(run(wkAction, yesCtx).ownerState.energy.length, yesEnergy + 1,
+    'シグニの効果で出た場合だけ【エナチャージ1】が発動する');
+
+  // cardClass 指定時の既存契約はシグニ限定のまま（Type 軸追加で緩めない）。
+  const fakeSource = '__SPELL_WITH_SIGNI_CLASS__';
+  const fakeMap = new Map(cardMap as Map<string, CardData>);
+  fakeMap.set(fakeSource, { ...cardMap.values().next().value!, CardNum: fakeSource, Type: 'スペル', CardClass: '遊具' });
+  const legacyCtx = ctxBy(fakeSource);
+  legacyCtx.cardMap = fakeMap;
+  eq(evalCondition({ type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '遊具' }, legacyCtx), false,
+    '既存 cardClass 条件は CardClass が一致しても非シグニ発生源を弾く');
+}));
+
+test('census 条件節 B群: 場の【トラップ】有無を4効果で保持し、2段目だけをゲートする', () => withSavedCursor(() => {
+  const effect = (cardNum: string, effectId: string) => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    if (!hit) throw new Error(`${effectId} not found`);
+    return hit;
+  };
+  const wx15035 = effect('WX15-035', 'WX15-035-BURST');
+  const burstSeq = wx15035.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+  eq(burstSeq.type, 'SEQUENCE', 'WX15-035-BURST: 2段のまま');
+  eq(burstSeq.steps[0]?.type, 'TRASH', '1段目の手札破棄は無条件のまま');
+  eq(burstSeq.steps[1]?.type, 'CONDITIONAL', '2段目のダウンだけを条件で包む');
+  eq((burstSeq.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).then.type, 'DOWN', '条件成立時だけダウン');
+
+  const positiveIds: Array<[string, string]> = [
+    ['WX15-048', 'WX15-048-E1'], ['WX18-033', 'WX18-033-BURST'],
+  ];
+  for (const [cardNum, effectId] of positiveIds) {
+    const action = effect(cardNum, effectId).action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(action.type, 'CONDITIONAL', `${effectId}: 条件節を保持`);
+    eq(action.condition.type, 'HAS_TRAP_IN_FIELD', `${effectId}: トラップ存在条件`);
+    eq((action.condition as Extract<Condition, { type: 'HAS_TRAP_IN_FIELD' }>).negate, undefined,
+      `${effectId}: 肯定形`);
+  }
+  const noTrapEffect = effect('WX15-049', 'WX15-049-E1');
+  const noTrapAction = noTrapEffect.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(noTrapAction.type, 'CONDITIONAL', 'WX15-049-E1: 条件節を保持');
+  eq(noTrapAction.condition.type, 'HAS_TRAP_IN_FIELD', 'WX15-049-E1: トラップ条件');
+  eq((noTrapAction.condition as Extract<Condition, { type: 'HAS_TRAP_IN_FIELD' }>).negate, true,
+    'WX15-049-E1: 「ない」を真逆にしない');
+  eq(noTrapEffect.parseStatus, 'PARTIAL', 'LOOK_PICK_CHAIN の別軸が残るため PARTIAL を維持');
+
+  const cond: Extract<Condition, { type: 'HAS_TRAP_IN_FIELD' }> = { type: 'HAS_TRAP_IN_FIELD', owner: 'self' };
+  const mkTrapCtx = (hasTrap: boolean) => {
+    const ctx = mkCtx({ deckTop: [fresh()] }, {});
+    ctx.ownerState.field.signi_traps = hasTrap ? ['WD23-032-A', null, null] : [null, null, null];
+    return ctx;
+  };
+  eq(evalCondition(cond, mkTrapCtx(false)), false, 'Condition: トラップなしで不成立');
+  eq(evalCondition(cond, mkTrapCtx(true)), true, 'Condition: トラップありで成立');
+  eq(evalCondition({ ...cond, negate: true }, mkTrapCtx(false)), true, 'Condition: 否定形はトラップなしで成立');
+  eq(evalCondition({ ...cond, negate: true }, mkTrapCtx(true)), false, '🔴Condition: 否定形はトラップありで不成立');
+  const active = cond as ActiveCondition;
+  const activeNone = mkTrapCtx(false);
+  const activeYes = mkTrapCtx(true);
+  eq(checkActiveCondition(active, activeNone.ownerState, activeNone.otherState, true, cardMap as Map<string, CardData>), false,
+    'ActiveCondition: トラップなしで不成立');
+  eq(checkActiveCondition(active, activeYes.ownerState, activeYes.otherState, true, cardMap as Map<string, CardData>), true,
+    'ActiveCondition: トラップありで成立');
+  eq(checkActiveCondition({ ...active, negate: true }, activeYes.ownerState, activeYes.otherState, true, cardMap as Map<string, CardData>), false,
+    '🔴ActiveCondition: 否定形はトラップありで不成立');
+  eq(ACTIVE_CONDITION_TYPES.HAS_TRAP_IN_FIELD, true, 'ActiveCondition registry に登録');
+  eq(CONDITION_TYPES.HAS_TRAP_IN_FIELD, true, 'Condition registry に登録');
+
+  // 実効果を駆動し、旧 live の「トラップなしでも1枚引く」を反転確認する。
+  const drawAction = effect('WX15-048', 'WX15-048-E1').action;
+  const noCtx = mkTrapCtx(false);
+  const noHand = noCtx.ownerState.hand.length;
+  eq(run(drawAction, noCtx).ownerState.hand.length, noHand,
+    '🔴トラップなしではドローが発動しない');
+  const yesCtx = mkTrapCtx(true);
+  const yesHand = yesCtx.ownerState.hand.length;
+  eq(run(drawAction, yesCtx).ownerState.hand.length, yesHand + 1,
+    'トラップありでだけ1枚引く');
 }));
 
 if (listMode) {

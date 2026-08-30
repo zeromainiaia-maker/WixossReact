@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：census 較正 第3弾＝343 → 338（-5・全部が較正／live 不変）
+
+前エントリ（Codex の実装バッチ）の直後に、**残っていた計器の死角を3つ**払い戻した。
+**5件を1件ずつ原文 × live JSON で目視**し、高シグナル id 集合の機械差分で **消えた5件＝新規流入0件** を確認済み。
+
+| # | 死角 | 件数 | 正表現 |
+|---|---|---|---|
+| ⑤ | 「〜クラッシュされる場合、代わりに〜してもよい」 | 2 | `LIFE_CRASH_REPLACE`（`effectExecutor.ts:9020` が消費）が**置換の発動条件を内包する**＝`PREVENT_NEXT_DAMAGE` と同型で `condition` では表せない。`WX24-P4-009-E1` / `WXDi-CP01-023-E1` |
+| ⑥ | 「それらのレベルが同じ場合、場所を入れ替える」 | 1 | `REARRANGE_SIGNI{swapIfSameLevel:true}`（`effectExecutor.ts:10251` が消費）。`WXDi-P14-058-E2` |
+| ⑦ | 「N枚以上**多い**」＝**符号つきの数** | 2 | `HAND_DIFF{operator:'lte', value:-N}`。「小さい数」の照合 `[:[,]N[,}]]` は `-N` の `-` に阻まれて当たらなかった。`SPK01-15-E2` / `WXK03-062-E1` |
+
+🔑**⑤で分かったこと＝原文の注釈（…）はルール文であって効果本文ではない。**
+`WX24-P4-009-E1` は本文を落としても「（デッキが９枚以下の**場合**は置き換えられない）」が残渣に残り、
+残渣チェックが不合格にしていた。⇒ `conditionClauseExtraOk` は残渣判定の前に `（…）` を落とす。
+
+## 2026-08-30：census「〜の場合」条件節丸ごと脱落＝2群8効果を無条件実行から復旧（351 → 343）
+
+### A群：「〈種別〉の効果によってこのシグニが場に出た場合」（4効果）
+
+- 既存 `THIS_CARD_PLACED_BY_CLASS` に `sourceCardTypes?: string[]` を追加。`signi_placed_by_source`
+  の既存記録を発生源カードの `Type` で照合するのみで、新しい state は追加していない。
+- 従来の `cardClass` 指定は**引き続きシグニ限定**。早期 return を `cardClass` 指定時だけに移し、
+  スペル／アーツ／ルリグの `Type` 判定を可能にした。
+- parser は `STATE_CONDITION_CLAUSES_V2` の1規則で `シグニ` / `ルリグかアーツ` / `スペル` を
+  `CONDITIONAL` へ持ち上げる。`WD22-037-UG-E1/E2` の対象宣言も内側に入る。
+- live 4件＝`WD22-037-UG-E1/E2/E3` / `WXK11-030-E2`。E3 の《黒》×3コストは不変。
+
+### B群：「あなたの場に【トラップ】がある／ない場合」（4効果）
+
+- `HAS_TRAP_IN_FIELD { owner, negate? }` を `Condition` / `ActiveCondition` の両方に新設。
+  両レジストリ、`evalCondition`、`checkActiveCondition` で `field.signi_traps` を判定する。
+- parser は `STATE_CONDITION_CLAUSES_V2` の1規則。「ない」は `negate:true` へ固定し、decompiler も
+  `ある` / `ない` を分けて反転訳にならないようにした。
+- live 4件＝`WX15-048-E1` / `WX18-033-BURST` / `WX15-035-BURST` / `WX15-049-E1`。
+  `WX15-035-BURST` は `SEQUENCE` 2段目の `DOWN` だけを包み、1段目の相手手札破棄は無条件のまま。
+- `WX15-049-E1` は parser 自体は条件を生成できるが、既存の `PARTIAL` 不可侵定義が live の
+  `LOOK_PICK_CHAIN` を保持するカード。**manual へ新規逃避したのではなく**、既存の PARTIAL 定義に
+  同じ条件を追随させた。`parseStatus` は指示どおり `PARTIAL` のまま。
+
+### 母集団・live 差分・検証
+
+- `docs/_effect_srctext.json` 全文検索：A群の指定文型は**4効果ちょうど**、B群も**4効果ちょうど**。
+  広義検索ではA群7件（他 `WX21-044-E2/E3`, `WXK03-020-E2`）、B群6件（他 `WX20-040-E2`, `WXEX1-67-E2`）だが、
+  いずれもクラス／出自／個数／ゾーン複合条件の別文型なので今回は変更していない。
+- HEAD と作業ツリーの `public/data/effects_*.json` を effectId 単位で機械差分＝**changed 8 / extras 0 / expected_not_changed 0**。
+- golden はA/B群1本ずつ追加（ともに `withSavedCursor`）。成立／不成立の両方、実 action、
+  `cardClass` のシグニ限定維持、型レジストリを固定。`npm run gates` は全緑（golden **3053/0**、
+  smoke **10705/10705・異常0**、fuzz 全0、census **343/343**、manual-fields 0、lint 0 errors/249 warnings）。
+- census は**live 実装だけで 351→343（-8）**。`BASELINE_HIGH` を343へ下げ、`npm run regen` 後の
+  8逆翻訳で全条件の復元と否定の向きを目視照合した。
+- 新条件型のため `censusHasTrapInField` 実機シナリオ（トラップ無し不発／ありDRAW）を追加。
+  ドライバは構文検査を通過したが、実行環境は Chromium revision 1228 未導入、既存 Chrome/Edge では
+  両方とも外部認証のログイン完了待ちで timeout、in-app Browser も接続先0件だったため**実機のPASSは未取得**。
+
+## 2026-08-30：census 較正 第2弾（3大カテゴリ）＝**407 → 351（-56・全部が較正／live 不変）**
+
+ユーザー依頼「『条件節』54 ／『小さい数』46 ／『クラス指定』19 を処理する」への1巡目。
+**まず「そのカテゴリの高シグナルを全数 dump して JSON の型名を並べる」**（前エントリで確立した手順）を実行したところ、
+**119件のうち56件が計器のバグだった**。高シグナル id 集合を機械差分＝**消えた56件は全数が下の4群・新規流入0件**。
+
+| # | 死角 | 件数 | 中身 |
+|---|---|---|---|
+| ① | 🔴**2桁の数の下1桁を拾っていた** | **25** | `([2-5])(枚\|体)` が「**１５枚**以上」「**２５枚**以上」「**１３枚**以上」の `5枚`/`3枚` に当たっていた。JSON は正しく `value:15`/`25`・`minCount:13` を持つ。⇒ `(?<![0-9])` を付けた |
+| ② | **`BEAT_CONDITION.condText`** | **7** | 【ビート】の枚数条件は `condText:"５枚以上"` という**全角のままの生文字列**で、`effectEngine.ts:4264` の `checkBeatCondition` が全角のまま parse して**実際に評価している** |
+| ③ | **`triggerCondition.*SourceStory`** | **8** | トリガー元のクラス限定は `banishedSourceStory` / `revealSourceStory` / `trashSourceStory` / `powerDecreaseSourceStory` / `discardCostSourceStory` に載る。対応表の `story` は**小文字**なので**大文字 S の綴りに一度も当たらなかった** |
+| ④ | **`REVEAL_AND_PICK.filter` の記述子語彙が4つしかなかった** | **16** | 旧実装は ＜X＞／レベル閾値／「シグニ」／単色 しか知らず、スペル／レベルの偶奇／《ライズアイコン》／《ディソナアイコン》／《X》以外／センタールリグと共通する色／複数色 OR／無色ではない／自身よりパワーが低い が全部「未表現」に見えていた |
+
+### 🔴 やり方＝narrow に取る＋残渣チェック（この2つを外すと本物の脱落まで隠れる）
+
+- ②は**`condText` の値だけ**を取り出して半角化する。⚠**JSON 全体を `zen2han` してはいけない**
+  （`rawText` の中の数まで拾って本物の脱落を隠す）。
+- ③は**キー表に足さず `extraOk`＋残渣チェック**にした＝「＜X＞の効果によって発火」と
+  「＜Y＞のシグニを対象とする」を併せ持つ札で、**対象側の脱落まで隠さない**ため。
+- ④は `DESC_RULES` 表へ外出しし、**各規則が JSON のキーを実際に要求する**形にした
+  （語を消すだけの規則を作らない）。**知らない修飾が1つでも desc に残ればフラグは立ったまま。**
+
+### 🔑 次に census を減らす人へ
+
+**「計器が知らない受け皿」はカテゴリ単位でまとまって溜まる。**
+この巡だけで **25＋16＋8＋7** の塊が4つ出た。⇒ **実装に手を付ける前に必ず全数 dump して型名を並べる。**
+⚠**較正した件数を「前進」と書かない**（PLAN §6 も -56 / -8 / -5 に分けて記録した）。
+
 ## 2026-08-30：census 較正＋キーワード付与バッチ＝**460 → 407（-53）**
 
 ユーザー依頼「census を30個減らしたい」への1巡。**目標 -30 に対して -53**。

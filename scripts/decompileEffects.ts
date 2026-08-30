@@ -734,6 +734,7 @@ function condJa(c?: any): string {
       //   minCount と比べているのに逆翻訳は体数条件に丸めており、`WXK08-027-E1`「あなたの場にそれぞれレベルの
       //   異なるシグニが３体ある場合」が**ただの3体以上**に見えて原文照合で気づけなかった。
       return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${c.distinctLevels ? 'それぞれレベルの異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+    case 'HAS_TRAP_IN_FIELD': return `${ownerJa(c.owner)}場に【トラップ】が${c.negate ? 'ない' : 'ある'}`;
     case 'HAS_KEY_IN_FIELD': return c.operator && c.value !== undefined
       ? `${ownerJa(c.owner)}場にキーが${numJa(c.value)}枚${opJa(c.operator)}`
       : `${ownerJa(c.owner)}場にキーがある`;
@@ -750,7 +751,11 @@ function condJa(c?: any): string {
       : `あなたがベットしてい${c.negate ? 'なかった' : 'た'}`;
     case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}`;
     case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': return `${ownerJa(c.owner)}場にそのカードと共通する色を持つルリグがいる`;
-    case 'THIS_CARD_PLACED_BY_CLASS': return c.cardClass ? `このシグニが＜${c.cardClass}＞のシグニの効果によって場に出ていた` : 'このターンにあなたの効果によってこのシグニが場に出ていた';
+    case 'THIS_CARD_PLACED_BY_CLASS': return c.cardClass
+      ? `このシグニが＜${c.cardClass}＞のシグニの効果によって場に出ていた`
+      : c.sourceCardTypes?.length
+        ? `このシグニが${c.sourceCardTypes.join('か')}の効果によって場に出ていた`
+        : 'このターンにあなたの効果によってこのシグニが場に出ていた';
     case 'THIS_CARD_FROM_DECK': return 'このシグニがデッキから場に出ていた';
     case 'OR': return c.conditions.map(condJa).join('か');
     case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': return `それが${ownerJa(c.owner)}センタールリグと共通する色を持つ`;

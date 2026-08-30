@@ -2022,6 +2022,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const hasEnough = matched >= (cond.minCount ?? 1);
       return cond.negate ? !hasEnough : hasEnough;
     }
+    case 'HAS_TRAP_IN_FIELD': {
+      const trapStates = cond.owner === 'any' ? [s, o] : [st(cond.owner)];
+      const hasTrap = trapStates.some(state => (state.field.signi_traps ?? []).some(Boolean));
+      return cond.negate ? !hasTrap : hasTrap;
+    }
     case 'HAS_KEY_IN_FIELD': {
       const f = st(cond.owner).field;
       return f.key_piece != null || (f.key_piece_extra?.length ?? 0) > 0;
@@ -2408,14 +2413,19 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_deck?.includes(ctx.sourceCardNum) ?? false);
     case 'THIS_CARD_PLACED_BY_CLASS': {
       // このシグニが＜X＞のシグニの効果によって場に出ていた場合（出自条件・WX26-CP1-048）。
-      // signi_placed_by_source に記録された発生源カードの CardClass に cardClass が含まれ、かつシグニであること。
+      // signi_placed_by_source に記録された発生源カードの Type / CardClass を照合する。
+      // 🔑cardClass 指定時だけ従来どおりシグニ限定。Type 指定だけの条件でスペル／アーツ／ルリグを
+      //   早期 return すると、条件が永久に成立しない。
       if (!ctx.sourceCardNum) return false;
       const srcPBC = ctx.ownerState.signi_placed_by_source?.[ctx.sourceCardNum];
       if (!srcPBC) return false;
-      if (!cond.cardClass) return true;
-      const wantedClass = cond.cardClass;
+      if (!cond.cardClass && !cond.sourceCardTypes) return true;
       const srcCardPBC = ctx.cardMap.get(getCardNum(srcPBC));
-      if (!srcCardPBC || srcCardPBC.Type !== 'シグニ') return false;
+      if (!srcCardPBC) return false;
+      if (cond.sourceCardTypes && !cond.sourceCardTypes.includes(srcCardPBC.Type)) return false;
+      if (!cond.cardClass) return true;
+      if (srcCardPBC.Type !== 'シグニ') return false;
+      const wantedClass = cond.cardClass;
       return (srcCardPBC.CardClass ?? '').split(/[/／]/).map(s => s.trim()).some(c => c.includes(wantedClass));
     }
     case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': {
