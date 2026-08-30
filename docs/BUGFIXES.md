@@ -1,5 +1,82 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-30：§5.3 `O-161`/`O-95`/`O-102`＝「共通する色を持たない」選択5効果を既存 `sharedColor:'none'` へ配線
+
+**原文52枚を live と再照合し、用法を「選択集合内／効果元との比較／ルリグとの比較」に分離した。**
+着手前の `sharedColor` 全探索は `src/` 23箇所で、実消費は `execUtils.ts` の
+`satisfiesSelectionConstraint`。型・engine とも既存受け皿が完成していたため変更していない。
+
+### 主群5枚（parser レーン）
+
+| effectId | before | after |
+|---|---|---|
+| `WX21-024-E1` | `sharedColor:'none'` | **同じ（着手前から正しい）** |
+| `WX21-028-BURST` | `sharedColor:'none'` | **同じ（着手前から正しい）** |
+| `WX22-050-E1` | 制約なし（`SELECT_NO_COMMON_COLOR` STUB） | `selectionConstraint:{sharedColor:'none'}` |
+| `WXDi-P12-039-E1` | 制約なし（`LOOK_AND_REORDER`） | `selectionConstraint:{sharedColor:'none'}` |
+| `WX25-P1-003-sub-E1` | 制約なし・相手エナ1枚まで | `selectionConstraint:{sharedColor:'none'}`・2枚まで |
+
+`effectParser.ts` に**原文全文＋既存木の一意スロット**で閉じた3文型だけを追加し、文型一致後に
+スロットを解決できない異常時は `UNKNOWN`（候補ゼロ）へ倒す fail-closed な入口にした。
+`WXDi-P12-039` と `WX25-P1-003` は2枚組内の相互制約なので
+`selectionConstraint.groups` は増設していない。5効果すべて「まで／好きな枚数」の
+`upToCount` / `pickUpTo` を保持した。
+
+### 副群2枚は据置
+
+- `WX21-032-E1`：効果元自身と色が非共通な**味方**の存在条件
+- `WXDi-P16-058-E3`：効果元自身と色が非共通な**相手対象**のフィルタ
+
+`sharedColor` の全生産・消費地点、全 Condition/TargetFilter、`NO_COMMON_COLOR` 系を横断確認したが、
+**効果元カードとの色比較を表す受け皿は無い**。既存 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は
+場の対象全員の集合条件なので流用すると意味が変わるため、両効果とも live/fresh を変えていない。
+
+### 反転確認・台帳
+
+CSV原文の該当52枚を HEAD `87b1df37e` と live JSON でA/Bし、**変更は上記3枚だけ／残り49枚は同一**。
+これにより、既存受け皿入り43枚、主群の既存正解2枚、副群2枚、`WX25-P3-003` の
+`colorNotMatchesLrig`、`WXK11-038` のライズ条件が不変であることを確認した。
+
+`findings.jsonl` の実 quote を確認して、`stage2_closed.txt` に
+`WX25-P1-003-sub-E1` と `WXDi-P12-039-E1` の該当 finding だけを追記。
+台帳は 段0 212／段1 111／段2 683／OPEN 438（2 finding 消化に対してOPENは1減＝1件は段0と重複）。
+
+### 追加した golden
+
+- `O-161/O-95/O-102 主群: 「共通する色を持たない」選択5効果へ sharedColor:none を配線する`
+- `O-161/O-95/O-102 反転: 効果元比較・ルリグ比較・既存受け皿・ライズへ集合制約を漏らさない`
+
+前者は `withSavedCursor` 内で engine の制約判定を両方向実行し、異色2枚を許可・共通色2枚を拒否することも確認した。
+
+### 計器・検証
+
+`npm run regen`：全10シート生成、`groupSimilar --all` の ★逆翻訳割れ **0**。
+`npm run gates` **全緑**＝golden **3043 PASS / 0 FAIL**・smoke 10705 全0・fuzz 全0・
+census **465 / BASELINE 465**・`census:enginetext` 130行/127ハンドラ（不変）・lint 0 errors。
+
+census は 467→465。`共通する色` 高シグナル 10→8／格納13→13、`エナゾーンに置く` 4→3／格納8→8、
+`Nまで` 18→17／格納77→77で、**STUB・MANUAL格納は増えていないため真の改善**として baseline を更新した。
+実装・生成物14ファイルと本記録は U+FFFD 0・連続疑問符 0・UTF-8 BOM 0。engine/type/BattleScreen は変更していないため実機確認は不要。
+
+### 🔎 Claude 側の独立検証（差し戻し0・**Claude の実測がまた1件外れた**）
+
+- **ゲート独立実行**＝golden **3043/0**・census **465/465**・smoke 10705 全0・fuzz 全0・
+  `census:enginetext` **130行/127ハンドラ（不変＝engine を触っていない証拠）**・lint 0 errors。**すべて申告どおり。**
+- **per-effect A/B（ベースライン `87b1df37e`・全4 JSON）**＝**changed 3 / added 0 / removed 0**
+  （`WX22-050-E1` / `WX25-P1-003-E1` / `WXDi-P12-039-E1`）＝**巻き添えゼロ**。
+- **census −2 は真の改善**＝「共通する色」高シグナル 10→8 / **格納 13→13（不変）**、
+  「ゾーン:エナゾーンに置く」4→3 / 格納 8→8（不変）、「クラス指定」格納 **125→124（むしろ減）**。
+  **格納が増えていない＝MANUAL 免除による不可視化ではない。**
+- **台帳 残 OPEN 439 → 438。**
+
+🔴**Claude の投入前実測が1件外れた（今日6回目）。**
+指示書では主群を **5枚**としたが、**`WX21-024-E1` と `WX21-028-BURST` は既に
+`selectionConstraint:{sharedColor:'none'}` を持っていた**＝**実際の穴は3枚**。
+⚠**原因＝`WX21-024` は該当効果を live ダンプで拾えていなかった／`WX21-028` は `-E2` だけ見て
+`-BURST` を見ていなかった**（**効果単位で見るときにカードの全効果を舐めていない**）。
+**Codex が全52枚を HEAD と A/B して「変わったのは3枚だけ」と実証し、Claude が独立に確認した。**
+🔑**教訓＝「live に無い」と言う前に、そのカードの効果を全部（BURST 含めて）列挙する。**
+
 ## 2026-08-30：§5.3 `O-159`＝「このターン、あなたのシグニは新たに能力を得られない」が**真 no-op** だったのを実働化
 
 **投入前実測で母集団が 10枚 → 実質1枚になった。** 受け皿が**3つの専用 STUB に分裂していて、全部 engine で消費済み**だった：

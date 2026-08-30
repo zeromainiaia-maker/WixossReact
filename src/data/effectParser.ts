@@ -11212,6 +11212,73 @@ function groupUnionFilter(groups: SelectionGroupSpec[]): TargetFilter {
 }
 
 /**
+ * 「共通する色を持たない」選択のうち、旧 parser が選択スロット自体を組めていなかった3文型を
+ * 既存の `REVEAL_AND_PICK` / `TRASH` へ畳む（§5.3 O-161/O-95/O-102）。
+ *
+ * 用法は必ず分ける：
+ * - 「互いに／それぞれ」＝選択集合の `selectionConstraint.sharedColor:'none'`（ここで扱う）
+ * - 「このシグニと」＝効果元との比較（別機構。触らない）
+ * - 「センタールリグと」＝`colorNotMatchesLrig`（既存。触らない）
+ *
+ * 🔴参照形でも「カード1枚と、そのカードと共通色を持たないカード1枚まで」は、選ばれる2枚の
+ * 組の中で共通色が無いという同じ集合制約になる。`groups` は不要。
+ * ⚠全文が既知文型へ一致し、既存木の対応スロットが一意なときだけ書き換える。
+ * 一致後にスロットを解決できない異常時は、制約なしで実行せず `UNKNOWN`（候補ゼロ）へ倒す。
+ */
+function rewriteNoSharedColorSelectionShape(text: string, parsed: EffectAction): EffectAction {
+  const splitPick = text.match(/^あなたのデッキの上からカードを([０-９\d]+)枚公開する。その中からそれぞれ共通する色を持たないように好きな枚数の＜([^＞]+)＞のシグニを選ぶ。選んだ中から好きな枚数をあなたのエナゾーンに置き、好きな枚数を手札に加える。残りをトラッシュに置く。?$/);
+  if (splitPick) {
+    return {
+      type: 'REVEAL_AND_PICK',
+      owner: 'self',
+      revealCount: parseNum(splitPick[1]),
+      filter: { cardType: 'シグニ', story: splitPick[2] },
+      pickCount: 'ALL',
+      pickUpTo: true,
+      then: { type: 'ADD_TO_HAND', owner: 'self' },
+      handOrEnergy: true,
+      remainder: { location: 'trash', position: 'bottom' },
+    } as RevealAndPickAction;
+  }
+
+  const pairLook = text.match(/^あなたのデッキの上からカードを([０-９\d]+)枚見る。その中からカード１枚と、そのカードと共通する色を持たないカードを１枚までエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。?$/);
+  if (pairLook) {
+    return {
+      type: 'REVEAL_AND_PICK',
+      owner: 'self',
+      revealCount: parseNum(pairLook[1]),
+      pickCount: 2,
+      pickUpTo: true,
+      then: { type: 'ADD_TO_ENERGY', owner: 'self' },
+      remainder: { location: 'deck', position: 'bottom', reorder: true },
+    } as RevealAndPickAction;
+  }
+
+  const pairTrash = /^(?:対戦相手のセンタールリグがレベル[３3]以上の場合、)?対戦相手のエナゾーンから、カード１枚と、(?:そのカード|それ)と共通する色を持たないカードを１枚まで対象とし、それらをトラッシュに置く。?$/.test(text);
+  if (!pairTrash) {
+    return parsed;
+  }
+  const slots: Array<Record<string, unknown>> = [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'TRASH') {
+      const target = obj.target as (Record<string, unknown> | undefined);
+      if (target?.type === 'ENERGY_CARD' && target.owner === 'opponent' && target.count === 1) slots.push(target);
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(parsed);
+  if (slots.length === 1) {
+    slots[0].count = 2;
+    slots[0].upToCount = true;
+    return parsed;
+  }
+  return { type: 'UNKNOWN', raw: text };
+}
+
+/**
  * 単一 filter/count へ潰れた action に、原文の群割当を戻す。
  * action 型は増やさず、SEARCH/各ゾーン選択が共有する SelectionConstraint を使う。
  */
@@ -11248,6 +11315,10 @@ function applyMutualDistinctSelection(text: string, parsed: EffectAction): Effec
       if (constraint) found.push(constraint);
     }
   }
+  // 「カード1枚＋それと共通色を持たないカード1枚まで」は参照語を含むが、2枚組の相互制約と同義。
+  // `stripReferenceColorPhrase` で落とす一般の参照比較（効果元／ルリグ基準）から、この完全形だけを戻す。
+  const pairMatches = text.match(/カード１枚と、(?:そのカード|それ)と共通する色を持たないカードを１枚まで/g) ?? [];
+  if (pairMatches.length === 1) found.push({ sharedColor: 'none' });
   if (found.length !== 1) return parsed;
   const sc = found[0];
   // 「N枚まで」「好きな枚数」も相互差異の対象＝上限が2以上あれば同名/同レベルを重ねられてしまう。
@@ -11792,6 +11863,7 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = wireSelectedSigniConditionalUp(text, parsed);
   parsed = stripReplacementConditionColor(text, parsed);
   parsed = applyExplicitSelectionGroups(text, parsed);
+  parsed = rewriteNoSharedColorSelectionShape(text, parsed);
   parsed = applyMutualDistinctSelection(text, parsed);
   parsed = applyLookPickUpTo(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を

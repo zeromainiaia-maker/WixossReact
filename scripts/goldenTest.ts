@@ -1427,6 +1427,92 @@ test('PLAN §6.3 WX14-028: 緑除外サーチ／BURSTの異色2枚制約', () =>
   ok(!satisfiesSelectionConstraint([red, red2], burstSearch.selectionConstraint, cardMap), '同色を共有する2枚は選択不可');
 });
 
+test('O-161/O-95/O-102 主群: 「共通する色を持たない」選択5効果へ sharedColor:none を配線する', () => withSavedCursor(() => {
+  const specs = [
+    ['WX21-024', 'WX21-024-E1', 2, 'upToCount'],
+    ['WX21-028', 'WX21-028-BURST', 2, 'pickUpTo'],
+    ['WX22-050', 'WX22-050-E1', 'ALL', 'pickUpTo'],
+    ['WXDi-P12-039', 'WXDi-P12-039-E1', 2, 'pickUpTo'],
+    ['WX25-P1-003', 'WX25-P1-003-sub-E1', 2, 'upToCount'],
+  ] as const;
+  const findConstrained = (value: unknown): Record<string, unknown> | undefined => {
+    if (!value || typeof value !== 'object') return undefined;
+    const obj = value as Record<string, unknown>;
+    if ((obj.selectionConstraint as { sharedColor?: string } | undefined)?.sharedColor === 'none') return obj;
+    for (const child of Object.values(obj)) {
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          const found = findConstrained(item);
+          if (found) return found;
+        }
+      } else {
+        const found = findConstrained(child);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  const findNestedEffect = (value: unknown, effectId: string): CardEffect | undefined => {
+    if (!value || typeof value !== 'object') return undefined;
+    const obj = value as Record<string, unknown>;
+    if (obj.effectId === effectId) return obj as unknown as CardEffect;
+    for (const child of Object.values(obj)) {
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          const found = findNestedEffect(item, effectId);
+          if (found) return found;
+        }
+      } else {
+        const found = findNestedEffect(child, effectId);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  const red = findCard(c => (c.Color ?? '').includes('赤') && !(c.Color ?? '').includes('青'));
+  const blue = findCard(c => (c.Color ?? '').includes('青') && !(c.Color ?? '').includes('赤'));
+  const red2 = findCard(c => c.CardNum !== red && (c.Color ?? '').includes('赤'));
+  for (const [cardNum, effectId, count, upToKey] of specs) {
+    const live = findNestedEffect(effectsMap.get(cardNum) ?? [], effectId);
+    const freshEffect = findNestedEffect(parseCardEffects(cardMap.get(cardNum)!), effectId);
+    ok(!!live && !!freshEffect, `${effectId}: live/fresh effect が存在する`);
+    for (const [label, effect] of [['live', live], ['fresh', freshEffect]] as const) {
+      const node = findConstrained(effect!.action);
+      ok(!!node, `${effectId} ${label}: sharedColor:none が選択スロットに載る`);
+      const actualCount = node!.type === 'REVEAL_AND_PICK' ? node!.pickCount : node!.count;
+      eq(actualCount, count, `${effectId} ${label}: 選択上限を保持`);
+      eq(node![upToKey], true, `${effectId} ${label}: 「まで／好きな枚数」を保持`);
+      const constraint = node!.selectionConstraint as import('../src/types/effects').SelectionConstraint;
+      eq(constraint.groups, undefined, `${effectId} ${label}: 2枚組にも groups を増設しない`);
+      ok(satisfiesSelectionConstraint([red, blue], constraint, cardMap), `${effectId} ${label}: 非共通色2枚は選べる`);
+      ok(!satisfiesSelectionConstraint([red, red2], constraint, cardMap), `${effectId} ${label}: 共通色を持つ2枚は選べない`);
+    }
+  }
+}));
+
+test('O-161/O-95/O-102 反転: 効果元比較・ルリグ比較・既存受け皿・ライズへ集合制約を漏らさない', () => {
+  for (const [cardNum, effectId] of [
+    ['WX21-032', 'WX21-032-E1'],
+    ['WXDi-P16-058', 'WXDi-P16-058-E3'],
+    ['WX25-P3-003', 'WX25-P3-003-E1'],
+    ['WXK11-038', 'WXK11-038-E1'],
+  ] as const) {
+    const live = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+    const freshEffect = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId)!;
+    ok(!JSON.stringify(live.action).includes('selectionConstraint'), `${effectId} live: 別用法へ sharedColor を漏らさない`);
+    ok(!JSON.stringify(freshEffect.action).includes('selectionConstraint'), `${effectId} fresh: 別用法へ sharedColor を漏らさない`);
+  }
+  const fieldMutual = findEffectDeep(effectsMap.get('WX21-006') ?? [], 'WX21-006-E1')!;
+  eq((fieldMutual.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition.type,
+    'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', '場全体の相互比較は既存 Condition のまま');
+  const lrigRelative = findEffectDeep(effectsMap.get('WXDi-P04-020') ?? [], 'WXDi-P04-020-E2')
+    ?? findEffectDeep(effectsMap.get('WXDi-P04-020') ?? [], 'WXDi-P04-020-E1')!;
+  ok(JSON.stringify(lrigRelative.action).includes('"colorNotMatchesLrig":true'), 'ルリグ基準は colorNotMatchesLrig のまま');
+  const oppLrigRelative = findEffectDeep(effectsMap.get('WXDi-P02-038') ?? [], 'WXDi-P02-038-E1')!;
+  ok(JSON.stringify(oppLrigRelative.action).includes('"colorNotMatchesOppLrig":true'), '相手ルリグ基準の既存受け皿も不変');
+});
+
 test('PLAN §6.3 WXDi-P16-092: チームルリグ3体未満だけ全領域色喪失', () => {
   const target = 'WXDi-P16-092';
   const teamLrig = findCard(c => c.Type === 'ルリグ' && [c.Team, c.Story, c.CardClass, c.CardName].some(v => (v ?? '').includes('アンシエント・サプライズ')));
@@ -48913,11 +48999,15 @@ test('段2 第38バッチ engine両方向: CENTER_LRIG_OR_SIGNIは各カード�
     && (doneResult.otherState.keyword_grants?.[signiA] ?? []).includes('アタックできない'), '両タイプへ付与');
 }));
 
-test('段2 第38バッチ 据置契約: 依存filter・レベル別場出し・動的クロスは既存木のまま', () => {
+test('段2 第38バッチ 回帰契約: 2枚組の色非共通は集合制約、レベル別場出し・動的クロスは既存木のまま', () => {
   const dependent = freshBatch38('WXDi-P12-039', 'WXDi-P12-039-E1').action;
   const levels = freshBatch38('WXDi-D01-011', 'WXDi-D01-011-E1').action;
   const cross = freshBatch38('WX13-012', 'WX13-012-E1').action;
-  ok(dependent.type === 'LOOK_AND_REORDER', '1枚目依存の共通色なしは群制約へ誤変換しない');
+  ok(dependent.type === 'REVEAL_AND_PICK'
+    && dependent.selectionConstraint?.sharedColor === 'none'
+    && dependent.pickCount === 2
+    && dependent.pickUpTo === true,
+  'カード1枚＋それと共通色を持たない1枚までは groups でなく sharedColor:none の2枚選択');
   ok(levels.type === 'LOOK_AND_REORDER', 'レベル1/2/3各1枚は第39バッチと重なるため据置');
   ok(cross.type === 'CHOOSE' && JSON.stringify(cross).includes('"maxCount":1'), '動的クロス構成枚数は固定groupsへ誤変換しない');
 });
