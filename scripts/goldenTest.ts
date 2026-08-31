@@ -18079,12 +18079,58 @@ test('型網羅 GRANT_SOUL_HOST_ABILITY: ソウルとして付いたカードが
   eq((collectGrantedFromSoul(bare, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(host) ?? []).length, 0,
     'ソウルが無ければ付与されない');
 }));
+test('O-128 第4 A-1: WXDi-D07-002-E1 はソウル先へターン1回の攻撃時二者択一能力を付与する', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-D07-002') ?? []).find(e => e.effectId === 'WXDi-D07-002-E1');
+  ok(!!eff, 'WXDi-D07-002-E1 が live に存在');
+  eq(eff!.effectType, 'CONTINUOUS', 'collector が読む CONTINUOUS');
+  eq(eff!.action.type, 'GRANT_SOUL_HOST_ABILITY', 'action 直下がソウルホスト付与');
+  const host = fresh();
+  const st = mkState({ signi: [host, null, null] });
+  st.field.signi_soul = ['WXDi-D07-002', null, null];
+  const granted = collectGrantedFromSoul(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  const ability = (granted.get(host) ?? []).find(e => e.effectId === 'WXDi-D07-002-E1-G');
+  ok(!!ability, 'collectGrantedFromSoul が付与能力を返す');
+  eq(JSON.stringify(ability!.timing), JSON.stringify(['ON_ATTACK_SIGNI']), 'シグニのアタック時');
+  eq(ability!.triggerScope, 'self', '付与先自身のアタック');
+  eq(ability!.usageLimit, 'once_per_turn', '《ターン1回》を保持');
+  eq(ability!.action.type, 'CHOOSE', 'ドローかエナチャージの二者択一');
+  const choose = ability!.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(choose.choose_count, 1, '1つ選ぶ');
+  eq(choose.from_count, 2, '2択');
+  eq(choose.choices[0]?.action.type, 'DRAW', '選択肢1は1枚ドロー');
+  eq(choose.choices[1]?.action.type, 'ENERGY_CHARGE_FROM_DECK', '選択肢2はエナチャージ1');
+}));
 test('型網羅 GRANT_SIGNI_ABOVE_ABILITY: 下のカードが上のシグニへ能力を付与する（WXDi-P15-060-E2）', () => withSavedCursor(() => {
   const top = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('解放派'));
   const st = mkState({ signi: [null, null, null] });
   st.field.signi = [['WXDi-P15-060', top], null, null];
   const granted = collectGrantedFromUnderSigni(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   ok((granted.get(top) ?? []).some(e => e.effectId === 'WXDi-P15-060-E2-G'), `上のシグニへ付与 (${[...granted.keys()]})`);
+}));
+test('O-128 第4 A-2: WXDi-P05-060-E2 は CONTINUOUS action 直下から赤の上シグニへ能力を付与する', () => withSavedCursor(() => {
+  const effects = effectsMap.get('WXDi-P05-060') ?? [];
+  const e1 = effects.find(e => e.effectId === 'WXDi-P05-060-E1');
+  ok(!!e1 && e1.action.type === 'SEQUENCE', 'E1 の設置シーケンスが live に存在');
+  const stepTypes = e1!.action.type === 'SEQUENCE' ? e1!.action.steps.map(s => s.type) : [];
+  eq(JSON.stringify(stepTypes), JSON.stringify(['STUB', 'POWER_MODIFY']), 'E1 から無言 no-op の付与STUBだけを除去');
+  const e2 = effects.find(e => e.effectId === 'WXDi-P05-060-E2');
+  ok(!!e2, '新設 E2 が live に存在');
+  eq(e2!.effectType, 'CONTINUOUS', 'Pattern B が読む CONTINUOUS');
+  eq(e2!.action.type, 'GRANT_SIGNI_ABOVE_ABILITY', 'action 直下が上シグニ付与');
+  const redTop = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('赤'));
+  const st = mkState({ signi: [null, null, null] });
+  st.field.signi = [['WXDi-P05-060', redTop], null, null];
+  const granted = collectGrantedFromUnderSigni(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  const ability = (granted.get(redTop) ?? []).find(e => e.effectId === 'WXDi-P05-060-E2-G');
+  ok(!!ability, 'collectGrantedFromUnderSigni Pattern B が赤の上シグニへ返す');
+  eq(JSON.stringify(ability!.timing), JSON.stringify(['ON_ATTACK_PHASE_START']), 'アタックフェイズ開始時');
+  eq(ability!.triggerScope, 'self', '付与先自身の能力');
+  eq(ability!.action.type, 'ENERGY_CHARGE_FROM_DECK', 'エナチャージ1');
+  const nonRedTop = findCard(c => c.Type === 'シグニ' && !(c.Color ?? '').includes('赤'));
+  const nonRed = mkState({ signi: [null, null, null] });
+  nonRed.field.signi = [['WXDi-P05-060', nonRedTop], null, null];
+  eq((collectGrantedFromUnderSigni(nonRed, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(nonRedTop) ?? []).length, 0,
+    '赤でない上シグニには付与しない');
 }));
 test('型網羅 GROW_FREE: live のコスト無しグロウが action 木から検出できる（WX03-024-E1）', () => withSavedCursor(() => {
   const eff = (effectsMap.get('WX03-024') ?? []).find(e => e.effectId === 'WX03-024-E1');
@@ -18240,6 +18286,32 @@ test('型網羅 GRANT_PLAYER_ABILITY: プレイヤー自身がゲーム中の能
   // 同じ effectId は二重登録しない
   const again = run(eff!.action as EffectAction, { ...mkCtx({}, {}), ownerState: r.ownerState as PlayerState } as ExecCtx);
   eq(((again.ownerState as PlayerState).game_granted_effects ?? []).length, 1, '二重付与しない');
+}));
+test('O-128 第4 A-4: WXDi-P10-002-E1 は使用条件を保ち自分へ攻撃フェイズ開始時の二者択一能力を恒久付与する', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P10-002') ?? []).find(e => e.effectId === 'WXDi-P10-002-E1');
+  ok(!!eff, 'WXDi-P10-002-E1 が live に存在');
+  eq(JSON.stringify(eff!.condition), JSON.stringify({ type: 'FIELD_LRIG_COLOR_COUNT', owner: 'self', operator: 'gte', value: 3, minLrigs: 3 }),
+    '【ドリームチーム】3色以上の使用条件を保持');
+  eq(JSON.stringify(eff!.cost), JSON.stringify({ energy: [{ color: '無', count: 0 }] }), '既存コストを保持');
+  eq(eff!.action.type, 'GRANT_PLAYER_ABILITY', 'プレイヤー能力付与');
+  const grant = eff!.action as Extract<EffectAction, { type: 'GRANT_PLAYER_ABILITY' }>;
+  eq(grant.targetOwner, undefined, 'targetOwner 省略＝効果のオーナー自身');
+  eq(grant.permanent, true, 'このゲームの間');
+  const ability = grant.abilities[0];
+  eq(JSON.stringify(ability?.timing), JSON.stringify(['ON_ATTACK_PHASE_START']), 'アタックフェイズ開始時');
+  eq(ability?.triggerScope, 'self', '自分のフェイズ開始時');
+  eq(ability?.action.type, 'CHOOSE', '2つから1つを選ぶ');
+  const choose = ability!.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(choose.choose_count, 1, '1つ選ぶ');
+  eq(choose.from_count, 2, '2択');
+  const energyToHand = choose.choices[0]?.action as Extract<EffectAction, { type: 'TRANSFER_TO_HAND' }>;
+  eq(energyToHand.type, 'TRANSFER_TO_HAND', '選択肢1はエナから手札');
+  eq(JSON.stringify(energyToHand.source.filter), JSON.stringify({ cardType: 'シグニ', colorMatchesLrig: true }),
+    'センタールリグと共通色のシグニに限定');
+  eq(choose.choices[1]?.action.type, 'ENERGY_CHARGE_FROM_DECK', '選択肢2はエナチャージ1');
+  const r = run(eff!.action as EffectAction, mkCtx({}, {}));
+  eq(((r.ownerState as PlayerState).game_granted_effects ?? [])[0]?.effectId, 'WXDi-P10-002-E1-GRANT', '自分の game_granted_effects へ格納');
+  eq(((r.otherState as PlayerState).game_granted_effects ?? []).length, 0, '対戦相手へは付与しない');
 }));
 test('型網羅 PREVENT_REFRESH: このターンと次のターンの間リフレッシュできないフラグが立つ', () => withSavedCursor(() => {
   const r = run({ type: 'PREVENT_REFRESH' } as EffectAction, mkCtx({}, {}));

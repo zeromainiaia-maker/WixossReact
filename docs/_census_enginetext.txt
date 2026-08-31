@@ -47,7 +47,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | TRASH_ALL_OPP_CARDS | execStubPart2.ts:2428 | 1 | 1 | 1 | 1 |
 | GAIN_SUBSCRIBER_COUNT | execStubPart1.ts:2130 | 21 | 20 | 1 | 0 |
 | GAIN_ABILITY_THIS_GAME | execStubPart1.ts:3629 | 19 | 18 | 24 | 0 |
-| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1516 | 17 | 17 | 0 | 0 |
+| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1516 | 14 | 14 | 0 | 0 |
 | SONG_FRAGMENT | execStubPart1.ts:3544 | 11 | 11 | 0 | 0 |
 | BET_MECHANIC | execStubPart1.ts:1111 | 8 | 8 | 2 | 0 |
 | ADD_CARD_TO_LRIG_DECK|ADD_CARD_TO_LRIG_DECK_HIDDEN | execStubPart2.ts:1892 | 6 | 6 | 0 | 0 |
@@ -369,7 +369,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:基本レベルと基本リミットは.*対象の対戦相手のセンタールリグ.*と同じ値になる
     lit re:このゲームの間にあなたが《コインアイコン》を得ていない場合
 
-### GRANT_ABILITY_INNER_TEXT  (live 17効果 / 17カード / miss 0)
+### GRANT_ABILITY_INNER_TEXT  (live 14効果 / 14カード / miss 0)
   execStubPart1.ts:1516  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
 
 ### SONG_FRAGMENT  (live 11効果 / 11カード / miss 0)

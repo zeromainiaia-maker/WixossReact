@@ -9,47 +9,43 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-- 🏁**セッション（2026-09-01・続き761・Opus 5 ＋ Codex 委譲）＝§5.3 機構 worklist の `O-128` 第3バッチ＝【ライフバースト】付与3効果を既存受け皿へ配線。**
-  📊**進捗3計器＝Sheet1 要対応 18 / 863（⚠+1 は退化ではなく計器の偽陽性＝新設 `O-187`）｜台帳 残 OPEN 46（据置・今回は §5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
-  gates 全緑（**golden 3145 → 3148（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
-  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**`O-128` の live 残 STUB は 20 → 17 カード。**
+- 🏁**セッション（2026-09-01・続き762・Opus 5 ＋ Codex 委譲）＝§5.3 `O-128` 第4バッチ（3効果）。`O-128` は事実上クローズ。**
+  📊**進捗3計器＝Sheet1 要対応 18 / 863（据置・+1 は `O-187` の偽陽性）｜台帳 残 OPEN 46（据置＝§5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3148 → 3151（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**`O-128` の live 残 STUB は 17 → 14 カード。**
 
-  🔑🔴**この巡の主産物＝「§5.3 の登録票は母集団だけでなく"受け皿の有無"も間違える」と分かったこと。**
-  登録票は「受け皿が無い」としていたが、実測すると `GRANT_ALL_ZONE_LIFEBURST` は
-  **型（`burstFilter`/`burstAction`/`burstAdditive`）・`screens/battle/allZoneBurst.ts`・
-  `BattleScreen.tsx:12707` の消費・逆翻訳・golden まで完成済み**で、
-  **生成側（parser / `manualEffects.ts`）が4件しか繋いでいなかった**だけだった。
-  ⇒ **engine 0行・`src/screens/` 0行**で3効果が無言 no-op から実挙動になった。
-  **§4.1「まず受け皿を疑う」は §5.3 の機構項目にも当てる**（あの節は「1〜3枚の項目」向けに書かれているが、規模に関係なく効く）。
+  🔑🔴**この巡の主産物＝「受け皿には収集契約がある」と分かったこと。**
+  `GRANT_SIGNI_ABOVE_ABILITY`（`effectEngine.ts:7094`）と `GRANT_SOUL_HOST_ABILITY`（同 `7007`）は
+  **`effectType:'CONTINUOUS'` の `action` 直下しか走査しない**。`WXDi-P05-060` は STUB が `SEQUENCE` の
+  第2ステップにいたので、**そこを置き換えると JSON も逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**。
+  ⇒ **効果を E1（設置）と E2（付与宣言）へ分割**して配線した。
+  **型名を合わせるだけでは足りない＝収集側の走査条件まで読む。**
+  golden も「JSON の形」ではなく **`collectGrantedFromUnderSigni` が能力を返すこと＋赤でなければ返らないこと**を assert してある。
 
   🔑**新しく分かったこと3つ**＝
-  🔴①**「取る順」1位（`O-106`・25枚）は投入対象にならなかった**＝`censusMechPopulation.mjs` の regex が
-  「能力を**持たない**」を数えているのに、登録票の中身は「【出】能力を**持つ**」の triggerFilter で**別物を測っていた**
-  （しかも前者は `hasNoAbilities` で実装済み）。**表の母集団は「登録票の中身と同じものを数えているか」から確かめる。**
-  🔴②**「壊れて見えるが動いている」在庫が `O-128` の中に4枚あった**＝ルリグへの【常】付与
-  （`WXDi-P15-033`/`WXDi-P16-044`/`WX24-P2-030`/`SPDi43-01`）は `execStubPart1.ts:1449-1490` の
-  **`quotedText` リテラル分岐で既に動いている**＝**バグではなく `O-60`（engine 全文 regex）の在庫**。
-  **`O-128` の残 17 枚のうち実質の未実装は 13 枚。**
-  🔑③**`burstAdditive` の判定ルールを実測で確定**＝原文が「**【ライフバースト】を持たない**カードは」と明示 → 書かない（`WD14-001`）／
-  **修飾なし**「すべての領域にあるカードは…を得る/持つ」 → **`true`**（`WX02-002`）。
-  ⚠**既存 `WX17-036` はこのルールに反している**（修飾なしなのに非追加）＝**未検証の不整合1件**として残した。
+  🔴①**`O-128` は既存受け皿だけで取れる在庫が尽きた**＝残14の内訳は
+  **engine の全文 regex で既に動作5**（`O-60` の在庫）／**据置契約を golden 化済み3**／**新機構待ち6**。
+  🔴②**「壊れて見えるが動いている」在庫が 4枚 → 5枚に増えた**＝`WXDi-P05-069` も
+  `collectAltAttackFlipSigni`（`effectEngine.ts:7577` が `EffectText` を regex で読む）→`BattleScreen.tsx:14233` で消費済みだった。
+  **`GRANT_ABILITY_INNER_TEXT` を持つ＝壊れている、ではない。**
+  🔑③**`O-96` の母集団を「原文の文字列一致」から「欠陥署名」へ数え直した（下の取る順 表4）**＝
+  旧57枚／広い regex なら311枚だが**どちらも過大**（最大群「《色》を支払ってもよい」217枚は executor が処理済み）。
+  **真の署名で 161効果 / 155カード**＝**次の本命はここ。**
 
-  ⚠**実機は不要と判定**（§2.2 の「触ったディレクトリ」ルール）＝`src/data/manualEffects.ts`・`scripts/goldenTest.ts`・
-  `public/data/` と生成物だけで、**`src/screens/` も新型も新機構も触っていない**（消費地点の BattleScreen は既存・golden 済み）。
-  反転確認は未実施。代わりに **`npm run build:effects` の再実行で live JSON がビット同一に再生成される**ことを確認した
-  （手編集ではなく manual→live の正規経路で届いている）。
-  ⚠**据置1件**＝`WXDi-P12-036-E1`（「1枚目と2枚目にチェックゾーンに置かれた」の**序数**を表す受け皿が無い）。
-  ⚠**既知の近似1件**＝`WX24-P3-022-E2` の一時付与は**自ターン中に読まれない**ので、
-  自分のターンに自分のライフがクラッシュされた場合だけ原文より弱い（`WX25-P3-027` と同じ近似）。
+  ⚠**実機は不要と判定**（§2.2）＝`src/data/manualEffects.ts`・`scripts/goldenTest.ts`・`public/data/` と生成物のみ。
+  **`src/screens/` も新型も新機構も触っていない**（消費地点は既存で golden 済み）。反転確認は未実施で、
+  代わりに `build:effects` 2回の SHA-256 一致で manual→live の正規経路を確認した。
+  ⚠**据置2件**＝`WXDi-P03-002-E1`（「そのターン最初のグロウ」の条件型が無い。`COND_STUB` は `return true` なので入れない）／
+  `WXDi-P05-069-E2`（既に動作中）。
+  ⚠**運用の訂正**＝**Codex の投げ先は `CODEX_HOME=/c/Users/zerom/.codex-work`**（2026-09-01 ユーザー指摘。
+  続き761・762 は既定 `~/.codex` で投げてしまった。`docs/CODEX_GUIDE.md §2` を訂正済み）。
 
-**▶ 次の一手**＝**選択肢は2つ。どちらも §5 の上からではなく実測で選ぶこと。**
-① **§5.2 の残 46**（前巡の申し送り）＝主成分は**コスト（消費地点が `src/screens/` の支払いUI＝実機必須）約10件**・
-`O-147` 複数体ライズ7件・ハーモニー2件・ピース使用履歴2件。**「コスト10件を実機込みの1バッチ」が最も歩留まりが高い**
-（支払いUIは funnel が共通）。⚠着手前に `node scripts/archive/semanticAuditLedger.mjs` で数え直す。
-② **§5.3 の `O-128` 続き（残 13枚）**＝次のサブ群は「【ソウル】/下カード/レイヤー4枚」
-（`WXDi-D07-002`/`WXDi-P05-060`/`WXDi-P05-069`/`WXEX1-32`）か「このゲームの間、あなたは以下の能力を得る2枚」
-（`WXDi-P03-002`/`WXDi-P10-002`）。**今回と同じく「受け皿を先に grep する」から始める。**
-⚠**`O-187`（`mech` フラグの偽陽性）を先に潰すと Sheet1 計器が単調減少に戻る**＝安い較正1件。
+**▶ 次の一手**＝**§5.3 `O-96`（161効果 / 155カード）**。⚠**`O-128` からはもう取らない**（残りは全部新機構待ち）。
+🔴**遅いレーン（parser）＝1本の規則で多数が直るが 161効果に挙動変更が及ぶので、必ず1つの下位形に絞る。**
+直す形は実績がある＝`SELECT_TARGET_ONLY{abortIfNoCandidate} > STORE_LAST_PROCESSED_TARGETS > OPTIONAL_COST >
+CONDITIONAL{PAID_ADDITIONAL_COST} > <帰結>{targetsStored}`（第3バッチ `WX24-P3-022` と同型）。
+⚠**着手前に署名で数え直す**（`scratchpad/tmp_o96b.mjs` の判定＝原文の順序 × live の `OPTIONAL_COST` 前に対象固定があるか）。
+② 他の候補＝§5.2 の残 46（主成分はコスト系＝支払いUI＝実機必須が約10件）／`O-187`（`mech` フラグの偽陽性＝安い較正）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -903,10 +899,10 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 | 順 | ID | 真の母集団 | 内容 | メモ |
 |---|---|---|---|---|
-| **1** | `O-106` | **25枚** | トリガー元の「能力の有無」で絞る受け皿が無い（原文「能力を持たない〜」） | `LAST_PROCESSED_HAS_NO_ABILITIES` は既存だが 26枚中25枚が未配線。**登録票は「実測1効果」だった** |
-| **2** | `O-128` | 🆕**17枚**（2026-09-01 第3バッチ後） | 【常】/【起】の中の引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちる | live 実測（`liveOnly`）＝**この計器で唯一「受け皿名を知らなくても数えられる」項目**なので数字が信頼できる。⚠**17枚のうち4枚（`WXDi-P15-033`/`WXDi-P16-044`/`WX24-P2-030`/`SPDi43-01`）は engine の `quotedText` regex で既に動いている**＝**実際の未実装は13枚**。次のサブ群は「【ソウル】/下カード/レイヤー4枚」か「このゲームの間、あなたは以下の能力を得る2枚」 |
+| ⚠**1** | `O-106` | 🔴**未確定（表の25枚は別物を数えている）** | トリガー元の「**能力を持つ**」で絞る受け皿が無い | 🔴**2026-09-01 続き761 実測＝この行の「25枚」は信用しない。**`censusMechPopulation.mjs` の regex は「能力を**持たない**」を数えているが、**登録票の中身は「【出】能力を持つ」の triggerFilter**＝**別物**。しかも「持たない」側は `hasNoAbilities` で**実装済み**。⇒ **着手するなら「能力を持つ」で数え直すのが先。** |
+| ~~2~~ 🏁 | `O-128` | 🆕**残14枚だが実質0**（2026-09-01 第4バッチ後） | 【常】/【起】の中の引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちる | 🔴**事実上クローズ＝ここから取らない。** 残14の内訳＝**engine の全文 regex で既に動作5**（`O-60` の在庫）／**据置契約を golden 化済み3**／**新機構待ち6**。**既存受け皿だけで取れる在庫は尽きた。** |
 | **3** | `O-159` | 20枚 ⚠**要精査** | 「能力を失い、**新たに得られない**」 | 🔴**2026-08-30 に個別実測したときは「残1効果」だった**＝**`liveRe` に漏れがある**（`GRANT_FIELD_SIGNI_ABILITY` 内の引用や `keyword_abilities_removed` を数えていない）。**着手前に必ず割り直す** |
-| **4** | `O-96` | 🆕**57枚**（2026-08-30 実測・旧16枚） | 「〜を対象とし、（別のカードを）〜してもよい。**そうした場合、それを**〜」の照応 | `targetsStored` / `targetsLastProcessed` は既存で未配線。**原文 regex＝「対戦相手の…シグニN体を対象とし、〈自分側の処理〉。そうした場合、…それ…」かつ live に `targetsStored` 無し**で57枚。⚠**台帳 OPEN との重なりは5件だけ**＝OPEN を減らす目的では効率が悪いが、**過剰実行としては本命級**（対象宣言が任意コストの前に固定されない） |
+| **4** 🔼 | `O-96` | 🆕🔴**161効果 / 155カード**（2026-09-01 続き762 に「欠陥署名」で実測） | 「〜を対象とし、（別のことを）〜してもよい。**そうした場合、それを**〜」＝**任意コストを跨ぐ対象の照応** | 🔑**数え方を「原文の文字列一致」から「欠陥署名」へ変えた。**旧 57枚／広い regex なら 311枚だが、**どちらも過大**＝最大群「《色》を支払ってもよい」217枚は executor の SEQUENCE インターセプトで既に処理済み。**正しい署名**＝原文が「対象とし→…てもよい→そうした場合」の順 **かつ** live の同一効果に `OPTIONAL_COST` があり、**その前に `SELECT_TARGET_ONLY`/`STORE_LAST_PROCESSED_TARGETS` が無く、帰結にも `targetsStored` 等が無い**もの。⇒ **315効果中 154 は固定済み・161 が未固定**。壊れている側は形が均一（`OPTIONAL_COST > CONDITIONAL{PAID} > <帰結>`）。■**実害**＝対象が支払いの**後**に選ばれる＝(a) 対象が無いのに支払いを提示する (b) 宣言後に対象が変わりうる。■**直す形は既に実績がある**＝`SELECT_TARGET_ONLY{abortIfNoCandidate} > STORE_LAST_PROCESSED_TARGETS > OPTIONAL_COST > CONDITIONAL{PAID_ADDITIONAL_COST} > <帰結>{targetsStored}`（第3バッチの `WX24-P3-022` と同型）。■⚠**遅いレーン（parser）**＝1本の規則で多数が直るが**161効果に挙動変更が及ぶ**ので、**1つの下位形に絞って着手する**（測り直しは `scratchpad/tmp_o96b.mjs` の署名を使う）。 |
 | **5** | `O-92` | **13枚** | 「このターン、〜したとき」の遅延設置 | `INSTALL_DELAYED_TRIGGER` は既存。登録票の「受け皿待ち18枚」に近い |
 | **6** | `O-70` | 12枚 * | 「下に置く」の複合対象 | `liveRe` 未確定＝過大の可能性 |
 | **7** | `O-69` | 10枚 * | 「この方法でN枚以上トラッシュに置かれた場合」 | `liveRe` 未確定 |
@@ -1004,7 +1000,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-138** | 🆕**「対戦相手のチェックゾーンにスペルがある場合」条件と、「そのスペルの効果より先に発動する」処理順序** | M | **2026-08-29 §5.2 Sheet2 バッチ1 で分離＝`WX13-005B`（白羅星 ニュームーン）1枚・findings 2件。** 原文「【出】：**対戦相手のチェックゾーンにスペルがある場合**、以下の２つから１つを選ぶ。**この【出】能力はそのスペルの効果より先に発動する。**」■live は `CHOOSE` のみ＝**条件も順序も無い**（チェックゾーンが空でも撃てる）。■**受け皿はどちらも無い**＝(a) `field.check` は**【ライフバースト】確認フロー専用**で、条件型からは読めない (b) 「割り込んだ側が先に解決する」順序制御は `effectStack` に無い。■⚠このカードは**スペルカットインで出るレゾナ**（`appearanceCondition.timings:["SPELL_CUTIN"]`）＝**(b) はカットイン機構そのものの話**で、`O-135`（スペル解決経路が中央 diff を通らない）と同じ層にある。🆕**2026-08-29 続き715＝`O-135` はクローズ済み（スペル解決経路は中央 diff へ一本化した）**＝前提は外れた。⚠ただし `O-135` は**収集の funnel** の話で、`O-138` の本体は**カットイン機構そのもの**＝**実装量は減っていない。** |
 | **O-139** | 🆕**「このシグニが〈クラス〉の効果によって**手札から**場に出た場合」＝`THIS_CARD_FROM_NON_HAND_THIS_TURN` に否定が無い** | S | **2026-08-29 §5.2 Sheet2 バッチ1 で分離＝`WX21-044`（惨之遊 †シャテキ†）の E2。** 原文「このシグニが＜遊具＞のシグニの効果によって**手札から**場に出た場合、…２枚エナゾーンに置く」／live は条件なしの `ENERGY_CHARGE_FROM_DECK`＝**どの方法で場に出ても2枚チャージ**する。■🔑**兄弟枝の E3（トラッシュから版）は既に正しい**（`AND{THIS_CARD_FROM_TRASH, THIS_CARD_PLACED_BY_CLASS}`）＝**手札版だけが取り残されている**。■**足りないもの**＝「手札から出た」を表す条件。`THIS_CARD_FROM_TRASH`／`THIS_CARD_FROM_DECK` はあるが**`THIS_CARD_FROM_HAND` が無く**、`THIS_CARD_FROM_NON_HAND_THIS_TURN` には **`negate` が無い**（`negate` を持つのは `HAS_CARD_IN_FIELD`／`LRIG_STORY`／`THIS_CARD_HAS_UNDER` の3つだけ）。■🔴**型に無い `negate` を書くと評価器が読まず無条件成立に落ちる**（§4.2）＝**型＋両評価器＋golden の3点セット**で足すこと。■**母集団は「手札から場に出た場合」で全数実測してから**着手する（1枚のために条件型を足すなら遅いレーン）。 |
 | **O-136** | 🆕**「このターンに対戦相手が使用したスペル／アーツの枚数」で使用コストが下がるアーツ（live 0＝一度も安くならない）** | S〜M | **2026-08-28 続き709（`O-123` の消化中にスコープ外へ分離）＝実測1カード**（`SP36-001` 炎のタマ・《赤》×３《無》×３）。原文「このターンに対戦相手がスペルを使用していた場合、このアーツの使用コストは**使用されたスペル１枚につき**《赤×1》《無×1》減る。このターンに対戦相手がアーツを使用していた場合、このアーツの使用コストは《赤×3》《無×3》減る。」■live は `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`×2（**no-op マーカー**）＝**常に印刷コスト6枚を請求**している。■**受け皿は2つ要る**＝①`CostScalingCount` に「このターンに owner が使用したスペル枚数」（材料は既存＝`actions_done` の `USE_SPELL` マーカー＝`SPELL_USED_THIS_TURN` 条件が同じものを数えている） ②**2文目は「につき」ではなく条件つき定額軽減**なので `costScaling`（`counts`＋`per`）では書けない＝別表現が要る（`per:1` で書くと**アーツ枚数に比例して**減る別物になる）。■⚠**`parseStatus:'MANUAL'`**（`manualEffects.ts:906`）＝**parser を直しても live へ届かない**（収穫マージが MANUAL を不可侵にする）＝`npx tsx scripts/syncManualLive.ts SP36-001` か manual 側の直接修正が要る。■⚠**着手時に母集団を数え直す**＝「使用されたスペル１枚につき」で全数実測すること（続き709 時点では live 1件）。 |
-| **O-128** | **【常】/【起】の中の引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちる**（残り27カード） | M〜L | **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（8効果）を消化。** ■母集団は live **34カード → 27カード**。■🆕**第1バッチで取った同型**＝「〈対象〉１体を対象とし、〈期間〉、（それのパワーを±Nし、）それ／そのシグニは「【自】…」を得る」＝`restoreQuotedTargetGrant`（`effectParser.ts`・引用漏出安全網の後段で STUB を `GRANT_EFFECT` へ戻す）。**受け皿は既存の `GRANT_EFFECT` だけで engine 変更なし**（STUB 単独→`target` つき／`SEQUENCE[POWER_MODIFY, STUB]`→`targetsLastProcessed`）。⚠**`prependOuterPowerBeforeQuotedGrant` の後に置く**＝先に付与へ差し替えると外側のパワー修正が丸ごと落ちる（実測5効果）。⚠**引用の timing がフォールバックする形は据置**＝`parseStatus` は AUTO のままなので `getTimingFallbackLog()` を見ないと**原文に無い能力**を配る（`WD17-001-E2`＝「正面をバニッシュしたとき」が `ON_PLAY` に化ける）。 ■**残り27カードの分類（未消化）**＝(a)【常】の場全体／自己付与＝🆕**2026-08-28 続き708 の実測で残りは `WD16-014` の1枚だけ**（「このシグニの基本パワーはNになり、…「Q」を得る」の連用中止形。`parseContinuousQuotedGrant` に基本パワー版の連用中止分岐が無い）。⚠**`WX09-Re07` と `WX11-053` は既に `POWER_SET`＋`GRANT_FIELD_SIGNI_ABILITY` へ構造化済み**＝live の STUB 保持カードは**25枚**（27ではない）で、この2枚は入っていない (b)【ライフバースト】付与4枚（`WXEX1-11`／`WXDi-P08-008`／`WXDi-P12-036`／`WX24-P3-022`） (c)ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`） (d)「このゲームの間、あなたは以下の能力を得る『…』」2枚（`WXDi-P03-002`／`WXDi-P10-002`） (e)【ソウル】/下カード/レイヤー4枚（`WXDi-D07-002`／`WXDi-P05-060`／`WXDi-P05-069`／`WXEX1-32`） (f)《トラップアイコン》付与1枚（`WXEX2-66`） (g)残り＝相手全体付与ほか。**同型ごとにバッチを切る**（1カードだけ直さない）。 | ■🆕**2026-08-28 続き708＝第2バッチ（5効果）を消化**＝(a) の `WD16-014` と `WX25-CP1-064`（自己付与）／全体付与 `WX07-065`・`WX09-053`（**Sheet1 の2枚はこれで消化**）／別文照応 `WX25-P2-110`。**受け皿は既存の `GRANT_EFFECT{count:'ALL'}`／`targetsLastProcessed`／`thisCardOnly` だけで engine 変更なし。** ⚠**据置3件は非採用契約を golden 化**＝`WX25-CP1-003`／`WXDi-P05-068`（引用が UNKNOWN）／**`WD17-001`（引用の timing が `ON_PLAY` へフォールバック＝配ると原文に無い能力になる）**。■**live の残り STUB は 25 → 20 カード。** ■🆕🔑**2026-09-01 続き761＝第3バッチ（3効果）を Codex へ委譲して消化＝【ライフバースト】付与群。**🔴**登録票の「受け皿が無い」は誤りだった**＝`GRANT_ALL_ZONE_LIFEBURST` は**型（`burstFilter`/`burstAction`/`burstAdditive`）・`screens/battle/allZoneBurst.ts`・`BattleScreen.tsx:12707` の消費・逆翻訳・golden まで完成済み**で、**生成側が `manualEffects.ts` の4件しか繋いでいなかった**だけ（parser は1件も生成しない）。⇒ **engine 0行・`src/screens/` 0行**で3効果が実挙動になった＝§4.1「まず受け皿を疑う」の再現。■**採用**＝`WXEX1-11-E1`（`burstFilter:{cardClass:"水獣"}`＋`CHOOSE`＋`burstAdditive:true`・**フィルタ該当158枚**）／`WXDi-P08-008-E1`（フィルタ無し・`burstAdditive` 無し）／`WX24-P3-022-E2`（起動一時版 `SET_DISPAIR_BURST_GRANT`）。■🔑**`burstAdditive` の判定ルールを実測で確定**＝原文が「**【ライフバースト】を持たない**カードは」と明示 → 書かない（`WD14-001`）／**修飾なし**「すべての領域にあるカードは…を得る/持つ」 → **`true`**（`WX02-002`）。⚠**既存 `WX17-036` はこのルールに反して `burstAdditive` 無し**（修飾なしなのに非追加）＝**未検証の不整合1件**として残す。■**据置1件**＝`WXDi-P12-036-E1`「このターン、**1枚目と2枚目に**チェックゾーンに置かれたライフクロス」＝**序数を表す受け皿が無い**（`burstFilter` は `TargetFilter` でカード属性しか見ない）。必要なのは「ターン中のチェックゾーン投入枚数カウンタ＋序数範囲ペイロード＋BattleScreen の消費」。■⚠**既知の近似（`WX24-P3-022`）**＝原文「このターンと次のターンの間」に対し受け皿 `allzone_burst_grant_until_opp_turn` は**自ターン中は読まれず次の相手ターンだけ有効**（`goldenTest.ts:26936` が assert 済み）＝**自分のターン中に自分のライフがクラッシュされた場合だけ原文より弱い**（`WX25-P3-027` と同じ近似）。■⚠**触っていないのに壊れて見えるもの**＝ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`）は**`execStubPart1.ts:1449-1490` の `quotedText` リテラル分岐で既に動いている**＝**バグではなく `O-60`（engine 全文 regex）の在庫**。■**live の残り STUB は 20 → 17 カード。**
+| **O-128** | **【常】/【起】の中の引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちる**（残り27カード） | M〜L | **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（8効果）を消化。** ■母集団は live **34カード → 27カード**。■🆕**第1バッチで取った同型**＝「〈対象〉１体を対象とし、〈期間〉、（それのパワーを±Nし、）それ／そのシグニは「【自】…」を得る」＝`restoreQuotedTargetGrant`（`effectParser.ts`・引用漏出安全網の後段で STUB を `GRANT_EFFECT` へ戻す）。**受け皿は既存の `GRANT_EFFECT` だけで engine 変更なし**（STUB 単独→`target` つき／`SEQUENCE[POWER_MODIFY, STUB]`→`targetsLastProcessed`）。⚠**`prependOuterPowerBeforeQuotedGrant` の後に置く**＝先に付与へ差し替えると外側のパワー修正が丸ごと落ちる（実測5効果）。⚠**引用の timing がフォールバックする形は据置**＝`parseStatus` は AUTO のままなので `getTimingFallbackLog()` を見ないと**原文に無い能力**を配る（`WD17-001-E2`＝「正面をバニッシュしたとき」が `ON_PLAY` に化ける）。 ■**残り27カードの分類（未消化）**＝(a)【常】の場全体／自己付与＝🆕**2026-08-28 続き708 の実測で残りは `WD16-014` の1枚だけ**（「このシグニの基本パワーはNになり、…「Q」を得る」の連用中止形。`parseContinuousQuotedGrant` に基本パワー版の連用中止分岐が無い）。⚠**`WX09-Re07` と `WX11-053` は既に `POWER_SET`＋`GRANT_FIELD_SIGNI_ABILITY` へ構造化済み**＝live の STUB 保持カードは**25枚**（27ではない）で、この2枚は入っていない (b)【ライフバースト】付与4枚（`WXEX1-11`／`WXDi-P08-008`／`WXDi-P12-036`／`WX24-P3-022`） (c)ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`） (d)「このゲームの間、あなたは以下の能力を得る『…』」2枚（`WXDi-P03-002`／`WXDi-P10-002`） (e)【ソウル】/下カード/レイヤー4枚（`WXDi-D07-002`／`WXDi-P05-060`／`WXDi-P05-069`／`WXEX1-32`） (f)《トラップアイコン》付与1枚（`WXEX2-66`） (g)残り＝相手全体付与ほか。**同型ごとにバッチを切る**（1カードだけ直さない）。 | ■🆕**2026-08-28 続き708＝第2バッチ（5効果）を消化**＝(a) の `WD16-014` と `WX25-CP1-064`（自己付与）／全体付与 `WX07-065`・`WX09-053`（**Sheet1 の2枚はこれで消化**）／別文照応 `WX25-P2-110`。**受け皿は既存の `GRANT_EFFECT{count:'ALL'}`／`targetsLastProcessed`／`thisCardOnly` だけで engine 変更なし。** ⚠**据置3件は非採用契約を golden 化**＝`WX25-CP1-003`／`WXDi-P05-068`（引用が UNKNOWN）／**`WD17-001`（引用の timing が `ON_PLAY` へフォールバック＝配ると原文に無い能力になる）**。■**live の残り STUB は 25 → 20 カード。** ■🆕🔑**2026-09-01 続き761＝第3バッチ（3効果）を Codex へ委譲して消化＝【ライフバースト】付与群。**🔴**登録票の「受け皿が無い」は誤りだった**＝`GRANT_ALL_ZONE_LIFEBURST` は**型（`burstFilter`/`burstAction`/`burstAdditive`）・`screens/battle/allZoneBurst.ts`・`BattleScreen.tsx:12707` の消費・逆翻訳・golden まで完成済み**で、**生成側が `manualEffects.ts` の4件しか繋いでいなかった**だけ（parser は1件も生成しない）。⇒ **engine 0行・`src/screens/` 0行**で3効果が実挙動になった＝§4.1「まず受け皿を疑う」の再現。■**採用**＝`WXEX1-11-E1`（`burstFilter:{cardClass:"水獣"}`＋`CHOOSE`＋`burstAdditive:true`・**フィルタ該当158枚**）／`WXDi-P08-008-E1`（フィルタ無し・`burstAdditive` 無し）／`WX24-P3-022-E2`（起動一時版 `SET_DISPAIR_BURST_GRANT`）。■🔑**`burstAdditive` の判定ルールを実測で確定**＝原文が「**【ライフバースト】を持たない**カードは」と明示 → 書かない（`WD14-001`）／**修飾なし**「すべての領域にあるカードは…を得る/持つ」 → **`true`**（`WX02-002`）。⚠**既存 `WX17-036` はこのルールに反して `burstAdditive` 無し**（修飾なしなのに非追加）＝**未検証の不整合1件**として残す。■**据置1件**＝`WXDi-P12-036-E1`「このターン、**1枚目と2枚目に**チェックゾーンに置かれたライフクロス」＝**序数を表す受け皿が無い**（`burstFilter` は `TargetFilter` でカード属性しか見ない）。必要なのは「ターン中のチェックゾーン投入枚数カウンタ＋序数範囲ペイロード＋BattleScreen の消費」。■⚠**既知の近似（`WX24-P3-022`）**＝原文「このターンと次のターンの間」に対し受け皿 `allzone_burst_grant_until_opp_turn` は**自ターン中は読まれず次の相手ターンだけ有効**（`goldenTest.ts:26936` が assert 済み）＝**自分のターン中に自分のライフがクラッシュされた場合だけ原文より弱い**（`WX25-P3-027` と同じ近似）。■⚠**触っていないのに壊れて見えるもの**＝ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`）は**`execStubPart1.ts:1449-1490` の `quotedText` リテラル分岐で既に動いている**＝**バグではなく `O-60`（engine 全文 regex）の在庫**。■**live の残り STUB は 20 → 17 カード。** ■🏁🔴**2026-09-01 続き762＝第4バッチ（3効果）を Codex へ委譲して消化し、`O-128` は事実上クローズ。****採用**＝`WXDi-D07-002-E1`（→`GRANT_SOUL_HOST_ABILITY`。双子 `WXDi-D07-003` が既に配線済みだった）／`WXDi-P05-060-E1`＋**新設 `E2`**（→`GRANT_SIGNI_ABOVE_ABILITY{filter:{color:"赤"}}`）／`WXDi-P10-002-E1`（→`GRANT_PLAYER_ABILITY{permanent:true}`＋既存 `colorMatchesLrig`）。**engine/parser 変更なし。**■🔑🔴**この巡の最大の教訓＝受け皿には「収集契約」がある。**`GRANT_SIGNI_ABOVE_ABILITY`（`effectEngine.ts:7094`）と`GRANT_SOUL_HOST_ABILITY`（同 `7007`）は **`effectType:"CONTINUOUS"` の `action` 直下しか走査しない**＝`SEQUENCE` のステップに置くと**逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**。`WXDi-P05-060` はまさにその形だったので、**効果を E1（設置）と E2（付与宣言）へ分割**して配線した。⇒ **型名を合わせるだけでは足りない。収集側の走査条件まで読む。**（golden も「JSON の形」ではなく**`collectGrantedFromUnderSigni` が能力を返すこと＋赤でなければ返らないこと**を assert してある。）■**据置2件**＝`WXDi-P03-002-E1`（`ON_LRIG_GROW` は実在するが「**そのターン最初のグロウ**」を表す条件型が無い。⚠`COND_STUB` は `return true` なので入れてはいけない）／`WXDi-P05-069-E2`（後述のとおり**既に動いている**）。■🔴**「壊れて見えるが動いている」在庫は 4枚 → 5枚**＝`WXDi-P05-069` も `collectAltAttackFlipSigni`（`effectEngine.ts:7577` が `EffectText` を regex で読む）→`BattleScreen.tsx:14233` で消費されていた＝`O-60` の在庫。■**live の残り STUB は 17 → 14 カード。内訳＝既に動作5／据置契約 golden 済み3／新機構待ち6**（レイヤー `WXEX1-32`／トラップアイコン付与 `WXEX2-66`／序数 `WXDi-P12-036`／最初のグロウ `WXDi-P03-002`／`WX25-P2-004`／`WXDi-P07-085`）。🔑**既存受け皿だけで取れる在庫は尽きた＝次はこの項目から取らない。**
 | **O-130** | 🆕**ON_OPP_ARTS_USE の帰結が「そのシグニ」＝効果を受けたシグニを指せない** | M | **2026-08-28 `O-113` の作業中に発見**＝`WXK11-019-E2`（Sheet4）「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、ターン終了時まで、**そのシグニ**は効果によって得ている能力を失う」。■live は `REMOVE_ABILITIES{target:{owner:'opponent'}}` **のみ**＝①**アップが丸ごと落ちている** ②**能力を失わせる相手が逆**（原文は自分の受けたシグニ／live は相手シグニ）。■🔑`O-113` で**発火条件**は正しくなった（`affectedByOppArtsFilter`）が、**帰結が「効果を受けたシグニ」を参照する受け皿が無い**＝`targetsTriggerSource` はこの timing ではアーツを指すので使えない。■**取り方**＝`collectOppArtsAffectedOwnSigni` の結果を StackEntry へ載せ、`targetsAffectedByTrigger` 相当で本体へ束縛する（`triggeringCardNum` と同型の1本）。■母集団＝この1枚（`WX05-020-E2` は帰結が「対戦相手にダメージ」で参照不要）。 |
 | **O-132** | **`vocabCensus.ts` が「JSON に入っている語彙」を知らず、高シグナルの一部が偽陽性**（第1バッチ消化・残＝未調査の 491） | S〜M／1バッチ＝1カテゴリ群 | **2026-08-28 続き701（Sheet1 B27）で分離／続き702 で第1バッチを消化。** ■🔴**この項目は「較正」であって前進ではない**（PLAN §3 の原則）＝**`src/` と `public/` を1バイトも変えない**。報告にも必ず「較正」と明記する。 ■✅**第1バッチ（続き702）＝Sheet1 が指した11カテゴリ・13キー**を追加して **516→491（-25効果）**、Sheet1 の census フラグを **12→0**（要対応 20→8）。追加キー＝`GUARD_MAX_LV`/`GUARD_LV`（レベルが `BLOCK_ACTION.actionId` に埋まる）／`compareToSelf`／`sourceSharedColorWithSelf`／`countFromZone`・`perAllSigni`／`costThreshold`／`STACK_SPELL`／`ON_OPP_SIGNI_ATTACK`／`attackerOwner`／`costSubstitute`／`"once":true`／`"upTo":true`・`PLAY_FREE_FROM_TRASH`＋空枝 CHOOSE の `extraOk`。全文は BUGFIXES.md 2026-08-28。 ■**手口（第1バッチで確立）**＝①候補キーごとに**そのカテゴリの高シグナルのうち何件が救われるか**を先に数える（`docs/_vocab_census.txt` のカテゴリ別 id × live JSON の部分一致）②**救われる効果を1件ずつ**「由来の原文ブロック（`docs/_effect_srctext.json`）× live JSON」で目視③**同じカテゴリに残った効果が本当の欠落であること**も見る（下げすぎ検出）④`BASELINE_HIGH` を実数へ⑤**golden にトリップワイヤ**。 ■🔴**較正の唯一の危険＝キーが免罪符になる**＝キーが JSON から消えても census は静かに合格し続ける。**必ず golden に「較正キーが live に実在する」を追加する**（続き702 で25ペア。空振りでないことも実測済み）。 ■**残り**＝高シグナル **491** は偽陽性かどうか**未調査**。件数の多い順に `条件節(94)` `小さい数(2-5枚/体)不在(74)` `キーワード能力語の不在(53)` `クラス指定(40)` `数値不一致(37)`。⚠**大きいカテゴリほど真の欠落が混ざる**ので、**1カテゴリずつ**上の手口で回す（`条件節` は `extraOk` が既に複雑なので最後）。 |
 
@@ -1216,24 +1212,21 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-09-01 続き761 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 18 / 863 (2.1%)｜台帳 残 OPEN 46（据置）｜census 高シグナル 11 / BASELINE 12**
-  ＝🔴**3計器とも「今回の作業では動いていない」**。census の 12 → 11 は**今回の成果ではない**＝
-  **投入前ベースラインの時点で既に 11 だった**（続き760 の簿記が 12 のままだった＝どの巡で落ちたかは未特定）。
-  ⚠**`BASELINE_HIGH` は 12 のまま据え置いた**＝原因を特定していないラチェットは締めない（締めるなら原因を先に書く）。
-  ⚠**Sheet1 の 17 → 18 は退化ではなく計器の偽陽性**＝
-  `mech` フラグが「§5.3 に出てくるカード番号」を全部拾うので、**受け皿の雛形として `WX02-002` を書いた**だけで
-  正しく動いているカードが要対応に化けた（→ 新設 `O-187`）。⚠台帳が動かないのは今回 §5.2 を触っていないから。
-  **golden 3145 → 3148（+3本＝`GRANT_ALL_ZONE_LIFEBURST` 常在2件と `SET_DISPAIR_BURST_GRANT` 一時1件）**、
+- **2026-09-01 続き762 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 18 / 863 (2.1%)｜台帳 残 OPEN 46｜census 高シグナル 11 / BASELINE 12**
+  ＝🔴**3計器とも据置**（今回は §5.2 を触っておらず、直した3効果はどれも Sheet1 外）。
+  ⚠Sheet1 の 18 は続き761 で入った `O-187`（`mech` フラグの偽陽性）を含んだままで、**退化ではない**。
+  ⚠**`BASELINE_HIGH` は 12 のまま据え置き**（11 に落ちた原因が未特定なのでラチェットを締めない）。
+  **golden 3148 → 3151（+3本＝ソウル付与／下カード付与／プレイヤー恒久付与を「収集されること」まで assert）**、
   smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、lint 0 errors / 249 warnings、
   `census:stubs` A群🔴0／C群0、manual-fields 0。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置＝engine を1行も触っていない）**。
-  🆕**新設語彙 0本**＝**今回は既存の受け皿だけで閉じた**（`GRANT_ALL_ZONE_LIFEBURST` / `SET_DISPAIR_BURST_GRANT` /
-  `OPTIONAL_COST{handDiscard}` / `SELECT_TARGET_ONLY{abortIfNoCandidate}` / `STORE_LAST_PROCESSED_TARGETS` / `DOWN{targetsStored}`）。
-  **`O-128` の live 残 STUB＝20 → 17 カード**（うち4枚は engine の `quotedText` regex で既に動作＝実質の未実装は13枚）。
+  🆕**新設語彙 0本**＝既存の受け皿だけで閉じた（`GRANT_SOUL_HOST_ABILITY` / `GRANT_SIGNI_ABOVE_ABILITY` /
+  `GRANT_PLAYER_ABILITY` / `colorMatchesLrig` / `TRANSFER_TO_HAND`）。
+  **`O-128` の live 残 STUB＝17 → 14 カード**（内訳＝既に動作5／据置契約 golden 済み3／新機構待ち6＝**事実上クローズ**）。
   ⚠**実機は不要と判定**（`src/screens/` 不変更・新型/新機構なし）。反転確認は未実施で、代わりに
-  **`build:effects` 再実行で live JSON がビット同一に再生成される**ことを確認（manual→live の正規経路）。
-  ⚠**未検証の不整合1件を残した**＝`WX17-036` の `burstAdditive`（今回確定したルールでは `true` のはず）。
+  **`build:effects` 2回の SHA-256 一致**を確認。
+  🆕**`O-96` を「欠陥署名」で実測＝161効果 / 155カード**（旧 57枚・広い regex 311枚はどちらも過大）＝**次の本命**。
 
 ## 付録A. 全体像と Definition of Done
 

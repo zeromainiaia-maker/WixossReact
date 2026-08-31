@@ -34,10 +34,25 @@ config にも `source` を含む projects エントリは無い）。**この行
 ⚠**投入のたびに `-C` のパスを実測で確認する**（この行は過去に2回書き換わっている＝[CODEX_LOG.md](./CODEX_LOG.md) §B）。
 
 ```bash
-codex exec -C "C:/Users/zerom/WixossReact" -c model_reasoning_effort="high" -o "<scratchpad>/codex_bNN_last.md" - < "<scratchpad>/codex_bNN.md" > "<scratchpad>/codex_bNN.log" 2>&1
+CODEX_HOME=/c/Users/zerom/.codex-work codex exec -C "C:/Users/zerom/WixossReact" -c model_reasoning_effort="high" -o "<scratchpad>/codex_bNN_last.md" - < "<scratchpad>/codex_bNN.md" > "<scratchpad>/codex_bNN.log" 2>&1
 ```
 
-- **既定 `CODEX_HOME`（`~/.codex`）をそのまま使う**。`.codex-work` は利用上限と認証失効で使えないことがある。
+🔴🔑**2026-09-01 ユーザー訂正＝`CODEX_HOME` は必ず付ける。投げ先は `.codex-work`。**
+ユーザーが「**codex-work に投げる**」と言うのは**この環境変数の指定のこと**であって、ワークフロー名ではない。
+⚠**2026-09-01 続き761・762 の2バッチは、これを付け忘れて既定 `~/.codex` で走らせた**（ユーザーの指摘で判明）。
+⚠下の「既定 `CODEX_HOME` をそのまま使う」（2026-08-27 記載）は**この訂正で失効**。
+当時 `.codex-work` が使えなかったのは一時的な事情で、**2026-09-01 実測では生きている**
+（`auth.json` が更新されており、`config.toml` に `sandbox_mode = "danger-full-access"` と
+このリポの `trust_level = "trusted"` が入っている）。
+⚠`.claude/settings.local.json` の `permissions.allow` に **`Bash(CODEX_HOME=* codex *)` は追加済み**なので
+この形でも分類器に弾かれない。
+
+**🔑どの `CODEX_HOME` で走ったかを事後に確かめる方法**（付け忘れは起動ログに出ないので、これで検算する）：
+- `ls -la <home>/logs_2.sqlite-wal` の mtime が**投入時刻と一致するか**（一致した方が実際に使われた home）。
+- `Get-CimInstance Win32_Process -Filter "Name='codex.exe'"` の `CommandLine` を見る。
+  **自分の1本は `-o` のパスで特定できる**（子プロセスは `CommandLine` が空なので混同しない）。
+
+- ~~**既定 `CODEX_HOME`（`~/.codex`）をそのまま使う**。`.codex-work` は利用上限と認証失効で使えないことがある。~~ 🔴**2026-09-01 に失効**（上の訂正を見ること）。**この行を根拠に `CODEX_HOME` を省略しない。**
 - 前提＝`~/.codex/config.toml` に **`[windows] sandbox = "elevated"`** と **`[projects.'c:\users\zerom\wixossreact'] trust_level = "trusted"`** が入っていること。**これで書き込みまで通る**。⚠起動ログの `sandbox:` 行は `workspace-write` と表示されるが、この2つが入っていれば書き込みは通る（2026-08-27 実測）。
 - `~/.codex` の既定は **`model_reasoning_effort = "low"`** なので `-c` で上書きする。**`-c` は複数回渡せる。**
 - `.claude/settings.local.json` の `permissions.allow` に `Bash(codex *)` / `Bash(CODEX_HOME=* codex *)` は追加済み。

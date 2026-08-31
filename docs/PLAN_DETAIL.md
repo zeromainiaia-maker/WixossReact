@@ -1,5 +1,26 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+### 恒久指標（退避）2026-09-01 続き761 後
+
+- **2026-09-01 続き761 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 18 / 863 (2.1%)｜台帳 残 OPEN 46（据置）｜census 高シグナル 11 / BASELINE 12**
+  ＝🔴**3計器とも「今回の作業では動いていない」**。census の 12 → 11 は**今回の成果ではない**＝
+  **投入前ベースラインの時点で既に 11 だった**（続き760 の簿記が 12 のままだった＝どの巡で落ちたかは未特定）。
+  ⚠**`BASELINE_HIGH` は 12 のまま据え置いた**＝原因を特定していないラチェットは締めない（締めるなら原因を先に書く）。
+  ⚠**Sheet1 の 17 → 18 は退化ではなく計器の偽陽性**＝
+  `mech` フラグが「§5.3 に出てくるカード番号」を全部拾うので、**受け皿の雛形として `WX02-002` を書いた**だけで
+  正しく動いているカードが要対応に化けた（→ 新設 `O-187`）。⚠台帳が動かないのは今回 §5.2 を触っていないから。
+  **golden 3145 → 3148（+3本＝`GRANT_ALL_ZONE_LIFEBURST` 常在2件と `SET_DISPAIR_BURST_GRANT` 一時1件）**、
+  smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、lint 0 errors / 249 warnings、
+  `census:stubs` A群🔴0／C群0、manual-fields 0。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置＝engine を1行も触っていない）**。
+  🆕**新設語彙 0本**＝**今回は既存の受け皿だけで閉じた**（`GRANT_ALL_ZONE_LIFEBURST` / `SET_DISPAIR_BURST_GRANT` /
+  `OPTIONAL_COST{handDiscard}` / `SELECT_TARGET_ONLY{abortIfNoCandidate}` / `STORE_LAST_PROCESSED_TARGETS` / `DOWN{targetsStored}`）。
+  **`O-128` の live 残 STUB＝20 → 17 カード**（うち4枚は engine の `quotedText` regex で既に動作＝実質の未実装は13枚）。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更・新型/新機構なし）。反転確認は未実施で、代わりに
+  **`build:effects` 再実行で live JSON がビット同一に再生成される**ことを確認（manual→live の正規経路）。
+  ⚠**未検証の不整合1件を残した**＝`WX17-036` の `burstAdditive`（今回確定したルールでは `true` のはず）。
+
 ### 恒久指標（退避）2026-09-01 続き760 後
 
 - **2026-09-01 続き760 後（本行が直近の正）**：
