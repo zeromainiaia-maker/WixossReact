@@ -10022,6 +10022,65 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   return { ...action, steps: rebuilt } as EffectAction;
 }
 
+// ── PLAN §5.3 `O-96` 第1バッチ（2026-09-01）──
+// 「〈相手シグニ〉を対象とし、《色…》を支払ってもよい。そうした場合、それを手札に戻す」だけを、
+// 対象宣言→保存→任意エナ支払い→同じ対象の BOUNCE へ組み替える。
+//
+// 🔴`TRANSFER_TO_HAND` は `targetsStored` を型・executor ともサポートしていないため対象外。
+// 🔴CHOOSE / GRANT_LRIG_ABILITY 内は器が違うため、root SEQUENCE 以外を対象外にする。
+// 🔴既に固定済みの効果へ二重適用しない（O-96 欠陥署名③④をそのままガードにする）。
+const O96_ENERGY_COST_BOUNCE_RE =
+  /(?:対戦相手の|このシグニの正面の)[^「」。]{0,120}?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし、(?:《[赤青緑黒白無]》)+を支払ってもよい。そうした場合、それを手札に戻す/;
+
+function hasStoredTargetBinding(node: unknown): boolean {
+  if (!node || typeof node !== 'object') return false;
+  if (Array.isArray(node)) return node.some(hasStoredTargetBinding);
+  const obj = node as Record<string, unknown>;
+  if (obj.type === 'STUB' && (obj.id === 'SELECT_TARGET_ONLY' || obj.id === 'STORE_LAST_PROCESSED_TARGETS')) return true;
+  if (obj.targetsStored || obj.targetsLastProcessed || obj.targetsTriggerSource || obj.thisCardOnly) return true;
+  return Object.values(obj).some(hasStoredTargetBinding);
+}
+
+function applyO96EnergyCostBounceTargetFirst(text: string, action: EffectAction): EffectAction {
+  if (!O96_ENERGY_COST_BOUNCE_RE.test(text) || action.type !== 'SEQUENCE') return action;
+  if (hasStoredTargetBinding(action)) return action;
+
+  const steps = [...action.steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 1) return action;
+  const costIdx = gateIdx - 1;
+  const carrier = steps[costIdx];
+  const wrapped = carrier.type === 'CONDITIONAL' && !(carrier as import('../types/effects').ConditionalAction).else
+    ? carrier as import('../types/effects').ConditionalAction : undefined;
+  const cost = (wrapped?.then ?? carrier) as StubAction;
+  // この下位形は「エナ支払いだけ」。別の任意コスト payload が混ざる形へ広げない。
+  if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST' || !cost.costColors?.length) return action;
+  if (Object.keys(cost).some(k => !['type', 'id', 'costColors'].includes(k))) return action;
+
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  const bounce = gate.then as import('../types/effects').BounceAction;
+  if (bounce.type !== 'BOUNCE' || bounce.target.type !== 'SIGNI') return action;
+
+  const selectTargetStep: EffectAction = {
+    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: bounce.target, abortIfNoCandidate: true,
+  } as StubAction;
+  const storeTargetStep: EffectAction = { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction;
+  const paidGate: EffectAction = {
+    ...gate,
+    condition: { type: 'PAID_ADDITIONAL_COST' },
+    then: { ...bounce, targetsStored: true },
+  };
+  const fixedSteps: EffectAction[] = [selectTargetStep, storeTargetStep, cost, paidGate];
+
+  if (wrapped) {
+    // 「〈条件〉の場合、対象とし、支払ってもよい」＝条件不成立時は対象選択も支払いも帰結も出さない。
+    steps.splice(costIdx, 2, { ...wrapped, then: { type: 'SEQUENCE', steps: fixedSteps } as SequenceAction });
+  } else {
+    steps.splice(costIdx, 2, ...fixedSteps);
+  }
+  return { ...action, steps } as SequenceAction;
+}
+
 /**
  * 「〈対象宣言〉を対象とし、〈誰か〉のデッキの一番上のカードをトラッシュに置く。それが〜の場合、〈帰結〉」
  * の**帰結を宣言済み対象へ束縛する**（§6.4 O-35・続き530）。
@@ -12032,14 +12091,14 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, fixMiddleClauseTargetOwner(source,
+    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, applyO96EnergyCostBounceTargetFirst(source, fixMiddleClauseTargetOwner(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))))));
+      applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applyPlaceUnderOtherwiseGate(source,

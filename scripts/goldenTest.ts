@@ -17241,6 +17241,71 @@ test('O-129 第2バッチ D群: MANUAL完全置換は既存限定とトップレ
   eq(ancientSteps[2].source?.filter?.story, '古代兵器', 'WX06-014-E2: 《古代兵器》限定を維持');
 });
 
+// PLAN §5.3 O-96 第1バッチ＝「対象宣言→任意エナ支払い→それを手札に戻す」の対象を支払い前に固定する。
+const o96Live = (cardNum: string, effectId: string): CardEffect => {
+  const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+  ok(!!effect, `${effectId}: live effect`);
+  return effect!;
+};
+const o96FixedSteps = (effect: CardEffect): EffectAction[] => {
+  ok(effect.action.type === 'SEQUENCE', `${effect.effectId}: root SEQUENCE`);
+  const root = (effect.action as SequenceAction).steps;
+  const wrapped = root.find(step => step.type === 'CONDITIONAL'
+    && (step as ConditionalAction).then.type === 'SEQUENCE'
+    && JSON.stringify((step as ConditionalAction).then).includes('SELECT_TARGET_ONLY')) as ConditionalAction | undefined;
+  return wrapped ? (wrapped.then as SequenceAction).steps : root;
+};
+const assertO96FixedOrder = (cardNum: string, effectId: string): void => {
+  const steps = o96FixedSteps(o96Live(cardNum, effectId)) as (EffectAction & { id?: string; abortIfNoCandidate?: boolean; then?: EffectAction })[];
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', `${effectId}: 対象宣言が任意コストより前`);
+  eq(steps[0].abortIfNoCandidate, true, `${effectId}: 候補0なら支払い前に打ち切る`);
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 宣言対象を保存`);
+  eq(steps[2].id, 'OPTIONAL_COST', `${effectId}: 保存後に任意コスト`);
+  eq(steps[3].type, 'CONDITIONAL', `${effectId}: 支払いゲート`);
+  eq((steps[3] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', `${effectId}: 実支払いだけで帰結`);
+  eq(((steps[3] as ConditionalAction).then as import('../src/types/effects').BounceAction).targetsStored, true,
+    `${effectId}: 帰結は宣言済み対象だけ`);
+};
+
+test('O-96 第1バッチ JSON順序: 直列・前置条件・公開条件のBOUNCE 3効果を固定する', () => {
+  assertO96FixedOrder('WX20-054', 'WX20-054-E1');
+  assertO96FixedOrder('WXDi-P08-052', 'WXDi-P08-052-E1');
+  assertO96FixedOrder('WX24-P3-047', 'WX24-P3-047-E2');
+
+  const fieldGate = ((o96Live('WXDi-P08-052', 'WXDi-P08-052-E1').action as SequenceAction).steps[0] as ConditionalAction);
+  eq(fieldGate.condition.type, 'HAS_CARD_IN_FIELD', 'WXDi-P08-052: 場条件を対象宣言の外側に保持');
+  const reveal = (o96Live('WX24-P3-047', 'WX24-P3-047-E2').action as SequenceAction).steps;
+  eq(reveal[0].type, 'REVEAL_DECK_TOP', 'WX24-P3-047: 公開は対象宣言より前に保持');
+  eq((reveal[1] as ConditionalAction).condition.type, 'LAST_PROCESSED_MATCHES', 'WX24-P3-047: 公開札条件を保持');
+});
+
+test('O-96 第1バッチ 実行: 候補0なら任意コストを提示せず、旧木なら提示する', () => withSavedCursor(() => {
+  const effect = o96Live('WX20-054', 'WX20-054-E1');
+  const empty = mkCtx({}, { signi: [null, null, null] }, 'WX20-054');
+  const energyBefore = empty.ownerState.energy.length;
+  const fixed = runEffect(effect.action, empty);
+  ok(fixed.done, '修正後: 対象候補0なら CHOOSE（支払い提示）を返さず完了');
+  eq(fixed.ownerState.energy.length, energyBefore, '修正後: エナを支払わない');
+
+  const steps = o96FixedSteps(effect);
+  const gate = steps[3] as ConditionalAction;
+  const { targetsStored: _drop, ...oldBounce } = gate.then as import('../src/types/effects').BounceAction;
+  const oldTree: SequenceAction = { type: 'SEQUENCE', steps: [
+    steps[2],
+    { ...gate, condition: { type: 'IS_MY_TURN' }, then: oldBounce as EffectAction },
+  ] };
+  const old = runEffect(oldTree, mkCtx({}, { signi: [null, null, null] }, 'WX20-054'));
+  ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも任意コストを提示してしまう');
+}));
+
+test('O-96 第1バッチ 据置契約: TRANSFER_TO_HAND は targetsStored 非対応なので固定形へ変えない', () => {
+  const effect = o96Live('SPK01-12', 'SPK01-12-E1');
+  const json = JSON.stringify(effect.action);
+  ok(!json.includes('SELECT_TARGET_ONLY'), 'TRANSFER_TO_HAND へ対象宣言を足さない');
+  ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), 'TRANSFER_TO_HAND へ保存を足さない');
+  ok(!json.includes('targetsStored'), '未対応フィールドを足さない');
+});
+
 // §5.3 O-128 第1バッチ＝「〈対象〉を対象とし、〈期間〉、（それのパワーを±Nし、）それは「【自】…」を得る」が
 //   `STUB{GRANT_ABILITY_INNER_TEXT}`（engine が原文を regex で読み直す catch-all）へ落ちて no-op だった。
 test('parse O-128: 対象への引用能力付与が GRANT_EFFECT へ戻る（パワー修正を落とさない）', () => {

@@ -2479,6 +2479,44 @@ live は `REMOVE_ABILITIES{owner:'opponent'}` のみ（アップが落ち、対�
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-09-01・続き762・Opus 5 ＋ Codex 委譲）＝§5.3 `O-128` 第4バッチ（3効果）。`O-128` は事実上クローズ。**
+  📊**進捗3計器＝Sheet1 要対応 18 / 863（据置・+1 は `O-187` の偽陽性）｜台帳 残 OPEN 46（据置＝§5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3148 → 3151（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**`O-128` の live 残 STUB は 17 → 14 カード。**
+
+  🔑🔴**この巡の主産物＝「受け皿には収集契約がある」と分かったこと。**
+  `GRANT_SIGNI_ABOVE_ABILITY`（`effectEngine.ts:7094`）と `GRANT_SOUL_HOST_ABILITY`（同 `7007`）は
+  **`effectType:'CONTINUOUS'` の `action` 直下しか走査しない**。`WXDi-P05-060` は STUB が `SEQUENCE` の
+  第2ステップにいたので、**そこを置き換えると JSON も逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**。
+  ⇒ **効果を E1（設置）と E2（付与宣言）へ分割**して配線した。
+  **型名を合わせるだけでは足りない＝収集側の走査条件まで読む。**
+  golden も「JSON の形」ではなく **`collectGrantedFromUnderSigni` が能力を返すこと＋赤でなければ返らないこと**を assert してある。
+
+  🔑**新しく分かったこと3つ**＝
+  🔴①**`O-128` は既存受け皿だけで取れる在庫が尽きた**＝残14の内訳は
+  **engine の全文 regex で既に動作5**（`O-60` の在庫）／**据置契約を golden 化済み3**／**新機構待ち6**。
+  🔴②**「壊れて見えるが動いている」在庫が 4枚 → 5枚に増えた**＝`WXDi-P05-069` も
+  `collectAltAttackFlipSigni`（`effectEngine.ts:7577` が `EffectText` を regex で読む）→`BattleScreen.tsx:14233` で消費済みだった。
+  **`GRANT_ABILITY_INNER_TEXT` を持つ＝壊れている、ではない。**
+  🔑③**`O-96` の母集団を「原文の文字列一致」から「欠陥署名」へ数え直した（下の取る順 表4）**＝
+  旧57枚／広い regex なら311枚だが**どちらも過大**（最大群「《色》を支払ってもよい」217枚は executor が処理済み）。
+  **真の署名で 161効果 / 155カード**＝**次の本命はここ。**
+
+  ⚠**実機は不要と判定**（§2.2）＝`src/data/manualEffects.ts`・`scripts/goldenTest.ts`・`public/data/` と生成物のみ。
+  **`src/screens/` も新型も新機構も触っていない**（消費地点は既存で golden 済み）。反転確認は未実施で、
+  代わりに `build:effects` 2回の SHA-256 一致で manual→live の正規経路を確認した。
+  ⚠**据置2件**＝`WXDi-P03-002-E1`（「そのターン最初のグロウ」の条件型が無い。`COND_STUB` は `return true` なので入れない）／
+  `WXDi-P05-069-E2`（既に動作中）。
+  ⚠**運用の訂正**＝**Codex の投げ先は `CODEX_HOME=/c/Users/zerom/.codex-work`**（2026-09-01 ユーザー指摘。
+  続き761・762 は既定 `~/.codex` で投げてしまった。`docs/CODEX_GUIDE.md §2` を訂正済み）。
+
+**▶ 次の一手**＝**§5.3 `O-96`（161効果 / 155カード）**。⚠**`O-128` からはもう取らない**（残りは全部新機構待ち）。
+🔴**遅いレーン（parser）＝1本の規則で多数が直るが 161効果に挙動変更が及ぶので、必ず1つの下位形に絞る。**
+直す形は実績がある＝`SELECT_TARGET_ONLY{abortIfNoCandidate} > STORE_LAST_PROCESSED_TARGETS > OPTIONAL_COST >
+CONDITIONAL{PAID_ADDITIONAL_COST} > <帰結>{targetsStored}`（第3バッチ `WX24-P3-022` と同型）。
+⚠**着手前に署名で数え直す**（`scratchpad/tmp_o96b.mjs` の判定＝原文の順序 × live の `OPTIONAL_COST` 前に対象固定があるか）。
+② 他の候補＝§5.2 の残 46（主成分はコスト系＝支払いUI＝実機必須が約10件）／`O-187`（`mech` フラグの偽陽性＝安い較正）。
+
 - 🏁**セッション（2026-09-01・続き761・Opus 5 ＋ Codex 委譲）＝§5.3 機構 worklist の `O-128` 第3バッチ＝【ライフバースト】付与3効果を既存受け皿へ配線。**
   📊**進捗3計器＝Sheet1 要対応 18 / 863（⚠+1 は退化ではなく計器の偽陽性＝新設 `O-187`）｜台帳 残 OPEN 46（据置・今回は §5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
   gates 全緑（**golden 3145 → 3148（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
