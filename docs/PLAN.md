@@ -10,35 +10,44 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-31・続き752・Opus 5 単独／Codex 不使用）＝意味照合 段2 の残 OPEN を 217 → 187（-30）。**
-  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 217→187｜census 高シグナル 12（据置）**
-  gates 全緑（**golden 3091→3119 / 0 FAIL**・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）＋ `regen`。
-  🔴**内訳を混ぜない**＝**実装 25／較正 5**（live 変更は 27効果＝修正25＋新設 `E1b` 2・巻き込み0）。
-  ⑤実機は**不要と判定**。**同日 続き750/751 と合わせて 306 → 187（-119）。**
+- 🏁**セッション（2026-08-31・続き753・Opus 5 単独／Codex 不使用）＝§5.1 実機未検証の返済を 10 → 7 件**
+  （`V-93` / `V-95` / `V-102` をクローズ）。
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 187（据置）｜census 高シグナル 12 / BASELINE 12（据置）**。
+  ⚠**3計器が据置なのは正しい**＝この巡は**`src/` を1バイトも触っていない**（変更は `scripts/verifyBattleDrive.mjs` と docs だけ）。
+  §5.1 は3計器のどれにも載らない第4の軸＝**「全ゲート緑のまま人間だけが操作不能」を潰す**ための節なので、
+  ここが減ったことは3計器では見えない。**進捗は「§5.1 残 10→7」で読む。**
+  gates 全緑（golden 3119 / 0 FAIL・smoke 全0・fuzz 全0・census 12/12・census-stubs A🔴0/C0・
+  manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors）。
 
-  🔑**この巡の主題＝「受け皿を先に grep する」を30件ぶん愚直にやった。** 新設した機構は**2つだけ**
-  （`ActiveCondition` の `FIELD_SIGNI_ALL_DISTINCT_CLASS` ／ `$ref` の `opp_lrig_level`）＋
-  `BounceAction.targetsLastProcessed` の1フィールド。残り27件は既存の受け皿への配線。
+  🔴🔑**この巡の最大の収穫＝`V-93` は engine のバグではなく「実機ドライバのフレーク」だった。**
+  4回連続 PASS（単独・単独・連続2本）。真因は**「クリックしたこと」を進行条件にしていた**こと＝
+  `await c1.click().catch(()=>{}); await c2.click(); await c3.click(); picked = true;` と3つ続けて押していたが、
+  `multiSelect` の CHOOSE は1クリックごとに再描画する（ラベルが `選択肢N` → `✓ 選択肢N` に変わる）ので、
+  **直後の locator が detach 済みを掴んで throw → `.catch` が握り潰し → 2つしか選ばれないまま「決定」へ進む**。
+  `upTo` の確定ボタンは常に enabled なので**そのまま確定できてしまい**、停止段階だけが実行ごとに変わる。
+  ⇒ **✓ が付いたことを確かめ、3つ揃うまで `picked` を立てない**方式へ直した。
+  🔑**教訓＝実機ドライバでは「押した」ではなく「盤面/DOM が変わった」を進行条件にする。**
+  **`.catch(() => {})` を置いた行は必ず次の行で「効いたか」を測る。** これが無いと engine のバグと区別が付かない。
 
-  🔴**`REMOVE_ABILITIES{SIGNI,self}` で「このルリグは能力を失う」を書くのは見せかけの実装**（§5.2 第45バッチの**再発**）。
-  書き込み先の `abilities_removed` は cardNum リストで**ルリグ能力を止める消費地点が無い**。
-  受け皿は `lrig_abilities_disabled` を立てる `SELF_LRIG_LOSE_ABILITY`。⇒ `WXDi-D08-004-E1` / `WXDi-D09-H07-E1`。
+  ✅**`V-95` は書いてあった `censusHasTrapInField` を回すだけで PASS（9秒）。**
+  🔑**「ドライバは書いてあるが未実走」の在庫は実装より圧倒的に安い＝§5.1 に来たらまず全部回す。**
 
-  🔴🔑**逆翻訳の語彙を5つ足した＝この巡でいちばん効いた作業。** 続き750（`crashedByKeywords`）・
-  続き751（`selectionConstraint.groups`）に続き、**engine には在るのに描かれないキー**が今回も5つ出た
-  （`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` のターン限定／`asDown`／`abilityTypes` 汎用枝／
-  `BOUNCE.targetsLastProcessed`／`totalLevelMaxRef`）。**3巡連続で出ている＝これは単発ではなく系統的な穴。**
-  巻き込みで `WXEX1-02-E1` / `WX12-Re02-E1` も正しく描けるようになった。
+  ✅**`V-102` は新規シナリオ3本を書いて4方向すべて PASS**（`censusSelfCrashToTrashRefill` ／
+  `censusSideAttackLancerFires` ／ `censusSideAttackLancerFrontNoop`）。どちらも**実機でしか通らない1点**を踏んでいる＝
+  `SELF_CRASH_TO_TRASH_AND_REFILL` は engine がカウンタを積むだけで**置換は `performLifeBurstResponse` の1点にしかない**／
+  `triggerCondition.attackedNotFront` は **fail-closed** で `sideAttack` を渡す `BattleScreen.tsx:8942` の**1箇所だけ**が生命線。
 
-  🔴**自分が踏んだ事故**＝§5-16 を「そのカードの全効果を並べる」と誤読し、**変更していない兄弟効果13件を
-  manualEffects へコピー**した（＝影武者＝parser 改善から凍る）。`check:manual-fields` と golden の
-  O-42 トリップワイヤが即 FAIL して露見し、削って解消。**この2本が無ければ静かに凍っていた。**
+  🔴**シナリオ作成で踏んだ罠3つ**（全文は BUGFIXES 続き753）＝
+  ①**「召喚ボタンが出ない」ときはまずルリグ限定**（`meetsRestriction`）＝エルドラ限定のシグニは あや のルリグでは出せない。
+  **盤面注入は成功しているのに操作が1手も始まらない**のが症状で、30ティック空振りした。
+  ②**回数制の置換は「同じ札・同じ操作で1ビットだけ反転」**＝チェックゾーンはクリック待ちで止まるので、
+  そこでカウンタを patch すれば経路を1本も変えずに対照が取れる（別カードは `triggerBurst:false` の別経路を踏む）。
+  ③**patch のあとを固定 sleep で済ませない**＝realtime 反映前に押すと**赤を誤報する**。**値を観測してから進む。**
 
-  ✅**続き751 の反省を実行した**＝着手のたびに**同型の live 母集団を実測**してからレーンを決めた
-  （例＝`GRANT_KEYWORD×ENERGY_CARD×count:'ALL'` は live 6件だが**5件は原文が「あるカードは」＝正しく**、
-  誤りは1件だけ ⇒ 速いレーン）。`censusManualDrift` の削除候補は **0**。
+  📋**直していない粗**＝チェックゾーンのボタンは置換が乗っていても「エナに送る」のまま（実際はトラッシュ＋補填）。
+  **実機ドライバの 99箇所がこの名前でボタンを掴んでいる**ので触っていない（直すならラベルとドライバを1巡で揃える）。
 
-**▶ 次の一手**＝**§5.1 の実機返済**（`V-93`／`V-95`〜`V-102`）。**3巡続けて据置**になっている。
+**▶ 次の一手**＝**§5.1 の実機返済 残7件**（`V-94`／`V-96`〜`V-101`）。**2026-08-31 続き753 に `V-93`／`V-95`／`V-102` を返済**（据置は解消）。
 §5.2 の残 187 は主成分が機構待ち（続き751 の全数 triage 参照）＝取るなら
 `scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る。
 
@@ -583,14 +592,16 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > ⚠**着手前に §4.4 の29項を読む。** ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
 
-> 🔴**2026-08-30＝`V-93` を追加**（残1）＝**`wx17040ConditionsTrueExecuteAll` と `wx17040ConditionsFalseNoop` の2本が赤**。
-> ■**切り分け済み**＝`git stash` して**投入前 SHA `e31decf00` で回しても同じく FAIL** ＝**Sheet3 バッチ1 の退化ではない**。
-> 対象カード `WX17-040`（Sheet2・「以下の3つから3つまで選ぶ。①手札が多い場合〜」）は**その日の差分に含まれていない**。
-> ■**症状**＝**実行ごとに停止段階が変わる**（`gateChecked=true picked=true confirmed=false` ↔ `gateChecked=false picked=false`）＝
-> **ドライバ側の待ち/セレクタの腐り**の疑いが濃い（live JSON と逆翻訳は原文と一致していることを確認済み）。
-> ■**取り方**＝`scripts/verifyBattleDrive.mjs` の当該2シナリオの `drive` を読み、**スペル使用（`spellcost-energy-0`）→
-> 複数選択 → 決定** のどの待ちが飛んでいるかを1段ずつ潰す。⚠**「直す前に必ずベースラインでも回す」**（今回それで誤差し戻しを避けた）。
-> ⚠**寝かせるほど切り分けが高くつく**ので次に §5.1 を見た人が取ること。
+> 🏁🔴**2026-08-31 続き753＝`V-93` クローズ（`wx17040ConditionsTrueExecuteAll` / `…FalseNoop`）。**
+> **単独・逆順・連続の3通り＝計4回すべて PASS**（9秒／6秒）。engine・parser・live JSON は無変更。
+> ⇒ 記録されていた「実行ごとに停止段階が変わる」は**ドライバ側のフレークだった**。
+> 🔑**真因は「クリックしたこと」を進行条件にしていたこと**＝`await c1.click(); await c2.click(); await c3.click();` と
+> **3つを続けて押して `.catch(() => {})` で握り潰していた**。1クリックごとに React が再描画するので
+> 直後の locator は detach 済みを掴みうる＝**2つしか選ばれていないまま「決定」へ進む**。
+> ⇒ **選択済みはラベルが `✓ 選択肢N` へ変わる**ので、**1つずつ押して ✓ が付いたことを確かめ、
+> 3つ揃うまで `picked` を立てない**方式へ直した（`FalseNoop` の③も同様に ✓ 確認へ）。
+> 🔑**教訓＝実機ドライバでは「押した」ではなく「盤面/DOM が変わった」を進行条件にする。**
+> `.catch(() => {})` を置いた行は**必ず「効いたか」を次の行で測る**（黙って半端な状態で先へ進むのが最悪）。
 
 > 🏁**2026-08-29 続き716＝この節は再び残0**（`V-89`／`V-92` をクローズ。全文は PLAN_DETAIL と BUGFIXES）。
 > 🆕**2026-08-30 続き732＝`softlockshortpick` を追加して即クローズ**（選択UIの候補不足ソフトロック。
@@ -599,19 +610,26 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > 通らない**ため、**全ゲート緑のまま人間だけが操作不能**だった。**`src/screens/` に関わる疑いは実機を書くまで
 > 🏁🔴**2026-08-31 続き747＝「ブラウザ実行環境のブロッカー」はもう無い。**
 > `node scripts/verifyBattleDrive.mjs censusHasTrapInField` を回したら**普通に PASS した**（14秒）。
-> ⇒ 下の `V-93`／`V-95`〜`V-99` に書いてある「Playwright Chromium 未導入／外部認証で timeout」は**古い記述**。
+> ⇒ 下の `V-96`〜`V-99` に残っている「Playwright Chromium 未導入／外部認証で timeout」は**古い記述**（無視してよい）。
 > **残っているのは「シナリオを書く」作業だけ**なので、次に §5.1 を見た人は**まず1本回してから**読むこと。
 > 同日に新規シナリオ `censusAcceSelfPlayGate` を書いて PASS させた実績あり（書き方は BUGFIXES 続き747）。
 
-- [ ] 🆕**`V-102`（2026-08-31・census 高シグナル 第10弾）＝`src/screens/BattleScreen.tsx` を触った3点**＝
-  ①**自分のライフクロスのクラッシュ置換**（`self_crash_to_trash_and_refill`・`performLifeBurstResponse` で消費）＝
-  `WD06-009`（【出】《青》：ライフ1枚をクラッシュ／置換つき）を出して、**割った札がエナではなくトラッシュへ行き**、
-  **デッキの一番上がライフクロスに加わる**こと・**2回目のクラッシュでは置換が起きない**（回数制）ことを見る。
-  ②**側面アタックの受け渡し**（`triggerCondition.attackedNotFront`）＝`WXEX2-71` を場に出し、
-  **正面へアタック（発火しない）／正面以外のシグニゾーンへアタック（【ランサー】を得る）**の2方向。
-  ③**ON_ACCE のトリガー元**は続き748 で返済済み＝ここには含めない。
-  ■**golden は①②とも engine を実走**させて両方向を固定済み（`WD15-007-E1` の正面パワー grant も同様）。
-  ■⚠①は**チェックゾーン解決の1点**を書き換えている＝ライフバースト発動フローの回帰も同時に見ること。
+
+> 🏁**2026-08-31 続き753＝`V-95`／`V-102` をクローズ。残り 7件（`V-94`／`V-96`〜`V-101`）。**
+> ■`V-95`＝既に書いてあった `censusHasTrapInField` を**回すだけ**で PASS（9秒）。
+> 🔑**「ドライバは書いてあるが未実走」の在庫は実装より圧倒的に安い＝§5.1 に来たらまず全部回す。**
+> ■`V-102`＝新規シナリオ3本（`censusSelfCrashToTrashRefill` ／ `censusSideAttackLancerFires` ／
+> `censusSideAttackLancerFrontNoop`）を書いて**4方向すべて PASS**。③（ON_ACCE のトリガー元）は続き748 で返済済み。
+> 🔑**盤面注入で「召喚ボタンが出ない」ときは まずルリグ限定を疑う**＝`getMyHandCardActions` が
+> `meetsRestriction(Restriction, lrigClass)` を見るので、**エルドラ限定のシグニは あや のルリグでは召喚できない**。
+> 初版はこれで30ティック空振りした（**盤面注入は成功しているのに操作が1手も始まらない**のが症状）。
+> 🔑**回数制の置換は「同じ札・同じ操作で1ビットだけ反転」して測る**＝チェックゾーンは**クリック待ちで止まる**ので、
+> そこで `self_crash_to_trash_and_refill` を 1→0 に patch してから同じボタンを押せば、**経路を1本も変えずに**対照が取れる
+> （別カードで反転すると `triggerBurst:false`＝チェックゾーンを通らない別経路を踏んで比較にならない）。
+> ⚠**patch のあとを固定 sleep で済ませない**＝realtime 反映前に押すと**対照のつもりで置換つきを踏み、赤を誤報する**
+> （初版がこれ）。**patch した値を `queryState` で観測してから**次へ進む。
+> 📋**観測した粗**（挙動バグではないので §5.3 には登録しない）＝チェックゾーンのボタンは置換が乗っていても
+> **「エナに送る」のまま**（実際はトラッシュ＋ライフ補填）。**ラベルは実機ドライバの 99箇所が名前で掴んでいるので触っていない。**
 
 - [ ] 🆕**`V-101`（2026-08-31・census 高シグナル 第9弾）＝新設した受け皿のうち**実機で炙るべき3つ**＝
   ①**`ATTACH_ACCE.fromEnergy`**＝`WX22-Re02`（【出】《緑×0》：エナの《アクセアイコン》を持つ＜調理＞のシグニ1枚を
@@ -647,7 +665,6 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 - [ ] 🆕**`V-98`（2026-08-31・census 高シグナル 第3/5弾）＝新設条件型3つの実機確認**＝①**`THIS_CARD_HAS_UNDER{subject:'lrig'}`**＝`WXDi-P02-023` をグロウで積んで**下が4枚のとき何も起きず／5枚でエナチャージ／7枚でさらに【ランサー】付与**の3方向を見る（ルリグの下＝`field.lrig` スタックを UI 経路でも同じように数えているか）②**`FIELD_ATTACHED_COUNT`**＝`WXK09-036`（【出】：あなたのシグニの下にカードがある場合、【エナチャージ１】）を**下カード0体の盤面と1体の盤面**で1回ずつ出す③**`CENTER_LRIG_ATTACKED_THIS_TURN`**＝`WXK03-060` を場に出し、**ルリグアタックした turn としなかった turn**でターン終了時のエナチャージ有無が変わることを見る。■**触ったのは `src/types/effects.ts`／`src/engine/execUtils.ts`／`src/engine/effectEngine.ts`／`scripts/decompileEffects.ts` だけ**（`src/screens/` は不変）だが、**新しい条件型を足した回は実機まで必須**（PLAN §2.2）。■**golden は3型とも `evalCondition` を実走**させて両方向を固定済み（`census 第3/5弾 新設条件型: …`）＝**型だけ足して評価器が無い**類の穴はここで潰れている。実機で炙るのは「UI 経路が別の state を見ている」型の穴。■🔴**`V-93`／`V-95`／`V-96`／`V-97` と同じブラウザ実行環境のブロッカー**（Playwright 既定 Chromium 未導入／既存 Chrome・Edge は外部認証のログイン待ちで timeout）＝**環境を1回直せば5件まとめて返済できる。バグの疑いではない。**
 - [ ] 🆕**`V-97`（2026-08-30・census 同一性バッチ B群）＝`cost.beat_signi` を構造化した「《X》以外のシグニ1体を【ビート】にする」の実機確認**＝`WDK14-014`（【出】《ビートアイコン》［４枚以下］《炎魔の孔雀　カイム》以外のシグニ1体を【ビート】にする：1枚引く）を出し、**①自分自身は【ビート】に選べないこと ②他のシグニ1体を選べること ③【ビート】が5枚以上なら撃てないこと**を見る。■**触ったのは `src/screens/BattleScreen.tsx`／`battle/modals/SigniActivatedModal.tsx`／`battle/modals/SigniOnPlayCostModal.tsx`（コスト表示と支払い）**＝PLAN §2.2 の機械判定で**実機必須**。■⚠**`cost.beat_signi` の型を `number` → `BeatSigniCost` へ広げた**ので、**数値形のまま残っている既存効果が回帰していないか**も同時に1枚見る（`beatSigniCostCount` が後方互換の入口）。■`V-93`／`V-95`／`V-96` と**同じブラウザ実行環境のブロッカー**（Playwright Chromium 未導入・外部認証待ち）。**環境を1回直せば4件まとめて返済できる。**
 - [ ] 🆕**`V-96`（2026-08-30・census 実バグ3群）＝新設コストキー `EffectCost.fieldExileSelf` の実機確認**＝`WXK06-031`（【起】《黒》**場にあるこのシグニをゲームから除外する**：トラッシュの黒を全部デッキへ）を場に出して起動し、**①シグニが場から消えること ②トラッシュへ行かず `excluded` へ入ること（＝トラッシュ回収の対象にならない）③《黒》1つだけでは撃てないこと**を見る。■**触ったのは `src/screens/BattleScreen.tsx`（支払い）／`battle/cpuActivate.ts`（CPU 自動支払い）／`battle/modals/SigniActivatedModal.tsx`（表示）**＝PLAN §2.2 の機械判定で**実機必須**。■⚠**`removeFromField` を通しているので下敷き・チャーム・アクセの離場処理は共通経路**だが、**除外は「トラッシュに置く」ではない**ので、離場置換（`applyEffectLeaveSubstitutes`）が働く盤面で挙動が変わりうる。**そこを1回見る。**■`V-93`／`V-95` と**同じブラウザ実行環境のブロッカー**（Playwright Chromium 未導入・外部認証待ち）で止まっているので、**環境を1回直せば3件まとめて返済できる**。
-- [ ] 🆕**`V-95`（2026-08-30・census 条件節バッチ B群）＝新設条件型 `HAS_TRAP_IN_FIELD` の実機確認**＝`WX15-048`（【出】：場に【トラップ】がある場合、1枚引く）を **①トラップ無しで場に出して引かないこと ②トラップを設置してから出して引くこと** の2方向で見る。■**ドライバは書いてある**＝`scripts/verifyBattleDrive.mjs` の `censusHasTrapInField`（Codex が追加・`node --check` は通過）。■🔴**未実走の理由は環境**＝Playwright 既定 Chromium revision 1228 未導入／既存 Chrome・Edge はどちらも**外部認証のログイン待ちで timeout**／in-app Browser も接続先0件。**バグの疑いではない。** ■⚠**新しい条件型を足した回は実機まで必須**（PLAN §2.2）＝ここを飛ばすと「`signi_traps` を engine が読めるが UI 経路では別の state を見ている」類の穴が残る。■**同じ環境ブロッカーで `V-93` も止まっている**ので、**まずブラウザ実行環境の復旧を1回やれば2件まとめて返済できる**。
 - [ ] **`V-94`（2026-08-30・§5.3 `O-159`）＝「このターン、あなたのシグニは新たに能力を得られない」の実機確認**＝`WX13-029-E1` の選択肢③を選び、**相手が能力付与を試みて防がれること**と**ターン終了で解けること**を通しで見る。■**背景**＝旧実装は `[保護効果: …]` とログを出すだけの真 no-op で、今回 `PlayerState.ability_gain_blocked_this_turn` ＋ `collectAbilityGainProtectedSigni` の配線で実働化した。■⚠**ドライバに該当シナリオが無い**（新規作成が要る）。■**ターン境界リセットの登録漏れだけは golden `§6.4 turn-scoped T1` が機械的に検出する**ので、そこは実機を待たなくてよい。
 
 > 「直った」と言わない。**
@@ -1101,15 +1118,18 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-31 続き752 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 217→187｜census 高シグナル 12（据置）**
-  ＝**台帳を1巡で -30**（**実装 25／較正 5**）。**同日 続き750/751 と合わせて 306 → 187（-119）。**
-  **golden 3119 / 0 FAIL**（+28本）、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
+- **2026-08-31 続き753 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 187（据置）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**3計器とも据置が正しい**（`src/` を1バイトも触っていない巡＝変更は `scripts/verifyBattleDrive.mjs` と docs だけ）。
+  🆕**この巡が動かした軸は §5.1＝実機未検証の返済 10 → 7 件**（`V-93` / `V-95` / `V-102`）。
+  ⚠**§5.1 は3計器のどれにも載らない第4の軸**＝「全ゲート緑のまま人間だけが操作不能」を潰す節なので、
+  ここの前進は3計器では見えない。**両方を併記しないと進捗を取り違える。**
+  **golden 3119 / 0 FAIL（据置）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
   `census:stubs` A群🔴0／C群0、manual-fields 0、orphan manual 10（据置）、`censusManualDrift` 削除候補 0。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
-  ⑤実機は**不要と判定**＝§5.1 の未返済（`V-93`／`V-95`〜`V-102`）は**3巡続けて据置**。
-  🔴**逆翻訳の語彙不足による偽陰性が3巡連続で出ている**（続き750 `crashedByKeywords` → 751 `selectionConstraint.groups`
-  → 752 は5つ）＝**新しいキーを足したら `decompileEffects.ts` にも足す**を毎回やること。
+  🆕**実機シナリオ（`verifyBattleDrive.mjs` の `order` 登録・重複除外）604 → 607本**（`censusSelfCrashToTrashRefill` / `censusSideAttackLancerFires` / `…FrontNoop`）。
+  🔴**`V-93` の赤は engine ではなくドライバのフレークだった**＝`.catch(() => {})` で握り潰したクリックを
+  「押せた」と数えていた。**実機ドライバは「押した」ではなく「DOM/盤面が変わった」を進行条件にする。**
 
 ## 付録A. 全体像と Definition of Done
 

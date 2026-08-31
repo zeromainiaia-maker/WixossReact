@@ -1,5 +1,34 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-08-31・続き752・Opus 5 単独／Codex 不使用）＝意味照合 段2 の残 OPEN を 217 → 187（-30）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 217→187｜census 高シグナル 12（据置）**
+  gates 全緑（**golden 3091→3119 / 0 FAIL**・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 25／較正 5**（live 変更は 27効果＝修正25＋新設 `E1b` 2・巻き込み0）。
+  ⑤実機は**不要と判定**。**同日 続き750/751 と合わせて 306 → 187（-119）。**
+
+  🔑**この巡の主題＝「受け皿を先に grep する」を30件ぶん愚直にやった。** 新設した機構は**2つだけ**
+  （`ActiveCondition` の `FIELD_SIGNI_ALL_DISTINCT_CLASS` ／ `$ref` の `opp_lrig_level`）＋
+  `BounceAction.targetsLastProcessed` の1フィールド。残り27件は既存の受け皿への配線。
+
+  🔴**`REMOVE_ABILITIES{SIGNI,self}` で「このルリグは能力を失う」を書くのは見せかけの実装**（§5.2 第45バッチの**再発**）。
+  書き込み先の `abilities_removed` は cardNum リストで**ルリグ能力を止める消費地点が無い**。
+  受け皿は `lrig_abilities_disabled` を立てる `SELF_LRIG_LOSE_ABILITY`。⇒ `WXDi-D08-004-E1` / `WXDi-D09-H07-E1`。
+
+  🔴🔑**逆翻訳の語彙を5つ足した＝この巡でいちばん効いた作業。** 続き750（`crashedByKeywords`）・
+  続き751（`selectionConstraint.groups`）に続き、**engine には在るのに描かれないキー**が今回も5つ出た
+  （`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` のターン限定／`asDown`／`abilityTypes` 汎用枝／
+  `BOUNCE.targetsLastProcessed`／`totalLevelMaxRef`）。**3巡連続で出ている＝これは単発ではなく系統的な穴。**
+  巻き込みで `WXEX1-02-E1` / `WX12-Re02-E1` も正しく描けるようになった。
+
+  🔴**自分が踏んだ事故**＝§5-16 を「そのカードの全効果を並べる」と誤読し、**変更していない兄弟効果13件を
+  manualEffects へコピー**した（＝影武者＝parser 改善から凍る）。`check:manual-fields` と golden の
+  O-42 トリップワイヤが即 FAIL して露見し、削って解消。**この2本が無ければ静かに凍っていた。**
+
+  ✅**続き751 の反省を実行した**＝着手のたびに**同型の live 母集団を実測**してからレーンを決めた
+  （例＝`GRANT_KEYWORD×ENERGY_CARD×count:'ALL'` は live 6件だが**5件は原文が「あるカードは」＝正しく**、
+  誤りは1件だけ ⇒ 速いレーン）。`censusManualDrift` の削除候補は **0**。
+
+
 - 🏁**セッション（2026-08-31・続き751・Opus 5 ＋ Codex）＝意味照合 段2 の残 OPEN を 249 → 217（-32）。**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 249→217｜census 高シグナル 12（据置）**
   gates 全緑（**golden 3070→3091 / 0 FAIL**・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）＋ `regen`。

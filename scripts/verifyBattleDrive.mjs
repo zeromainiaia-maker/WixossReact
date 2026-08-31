@@ -11635,7 +11635,12 @@ const scenarios = {
             }
           }
           if (!choose3Clicked && await c3.count() && await c3.isVisible().catch(() => false) && await c3.isEnabled().catch(() => false)) {
-            await c3.click().catch(() => {}); did = 'btn:選択肢3'; choose3Clicked = true;
+            // ⚠**クリックしたことではなく ✓ が付いたことを進行条件にする**（`V-93`）＝
+            //   取りこぼしたまま決定へ進むと「③を選んだのに無効果」と区別が付かない。
+            await c3.click().catch(() => {});
+            await page.waitForTimeout(150);
+            choose3Clicked = (await page.getByRole('button', { name: '✓ 選択肢3', exact: true }).first().count()) > 0;
+            did = `btn:選択肢3(sel=${choose3Clicked})`;
           }
         }
         if (!did && choose3Clicked && !confirmed) {
@@ -11725,10 +11730,24 @@ const scenarios = {
                 return { pass: false, detail: `条件成立のはずの選択肢1/選択肢2がdisabled（①enabled=${c1Enabled}／②enabled=${c2Enabled}）＝choice.conditionによるavailable制御が想定と逆` };
               }
             }
-            await c1.click().catch(() => {});
-            await c2.click().catch(() => {});
-            await c3.click().catch(() => {});
-            did = 'click:選択肢1+2+3'; picked = true;
+            // 🔴**3つを続けて click しない**（`V-93` の断続 FAIL の真因候補）＝1クリックごとに React が
+            //   再描画するので、直後の `c2`/`c3` は detach 済みの要素を掴んで `.catch(() => {})` に
+            //   落ちうる＝**2つしか選ばれていないまま決定へ進む**。選択済みはラベルが `✓ 選択肢N` へ
+            //   変わるので、**1つずつ押して ✓ が付いたことを確かめ、3つ揃うまで `picked` を立てない**。
+            let selCount = 0;
+            for (const n of [1, 2, 3]) {
+              const selName = `✓ 選択肢${n}`;
+              if (await page.getByRole('button', { name: selName, exact: true }).first().count()) { selCount++; continue; }
+              const btn = page.getByRole('button', { name: `選択肢${n}`, exact: true }).first();
+              if (await btn.count() && await btn.isEnabled().catch(() => false)) {
+                await btn.click().catch(() => {});
+                await page.waitForTimeout(150);
+                if (await page.getByRole('button', { name: selName, exact: true }).first().count()) selCount++;
+              }
+            }
+            H.log(`  選択済み ${selCount}/3`);
+            did = `click:選択肢(${selCount}/3)`;
+            picked = selCount === 3;
           }
         }
         if (!did && picked && !confirmed) {
@@ -37611,6 +37630,298 @@ scenarios.censusAcceTriggerSourceLv3 = {
 };
 order.push('censusAcceTriggerSourceLv3');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第10弾（2026-08-31 続き753）＝`V-102`①の実機返済。
+// `WD06-009`（幻水 シィラ）【出】《青》：あなたのライフクロス1枚をクラッシュする。**この方法で
+// チェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにそれをトラッシュへ置き
+// あなたのデッキの一番上のカードをライフクロスに加える。**
+//
+// 🔴**観測点は3つとも「チェックゾーン解決の1点」に集まっている**（`BattleScreen.tsx:12644` 付近）＝
+//   ①割った札が **energy ではなく trash** へ行く ②**デッキの一番上が life_cloth の末尾へ**加わる
+//   ③置換は**回数制**なので使い切ると次のクラッシュは素の挙動（エナ・補填なし）へ戻る。
+// ⚠engine（`execStubPart3.ts`）はカウンタを積むだけで、**置換そのものは UI 側の1点にしかない**＝
+//   golden / smoke / fuzz はこの経路を1行も通らない。ここが実機必須の理由。
+// ⚠反転は**別のカード**で取る＝`WD06-009` をもう1枚出すとカウンタが再充填されてしまい
+//   「回数制」の検証にならない。素の自ライフクラッシュ（`WX14-056`＝コスト無し・強制）で踏む。
+// ⚠ライフクロスは **`life.pop()`＝末尾から**割れる（`effectExecutor.ts:execLifeCrash`）ので、
+//   補填された札（末尾に積まれる）が次に割れる札になる。バースト無しの `WD01-013` で揃える。
+scenarios.censusSelfCrashToTrashRefill = {
+  title: 'census 第10弾 WD06-009：自ライフのクラッシュ置換（トラッシュ＋デッキ上を補填）／置換が無ければ同じ操作でエナへ',
+  spec: {
+    hostSet: {
+      // 🔴**ルリグは「エルドラ」でないと 召喚ボタンが出ない**＝`getMyHandCardActions` が
+      //   `meetsRestriction(cardData.Restriction, lrigClass)` を見る（`WD06-009` は エルドラ限定）。
+      //   初版は あや のルリグで組んで**30ティック空振り**した（盤面注入は成功しているのに操作が始まらない）。
+      'field.lrig': ['WD06-001#9300'],                  // エルドラ Lv4・Limit11（Lv4×2＝8 が置ける）
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_charms': [null, null, null],
+      'field.check': null,
+      'hand': ['WD06-009#9301', 'WD06-009#9302'],       // 同じカード2枚＝操作を完全に揃えて1ビットだけ反転する
+      'energy': ['WD06-009#9311', 'WD06-009#9312'],     // 《青》×1 を2回払う
+      'life_cloth': ['WD01-013#9321', 'WD01-013#9322', 'WD01-013#9323'], // 全部バースト無し
+      'deck': ['WD01-013#9331', 'WD01-013#9332', 'WD01-013#9333'],
+      'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9390'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+
+    // 手札先頭の `WD06-009` を zone へ召喚し、《青》×1 を払って**チェックゾーンで止める**。
+    // 🔑ここが停止点になるのが重要＝置換のカウンタを差し替える窓が「クリック待ち」として開く。
+    const summonToCheck = async (tag, zone, instId) => {
+      await H.closeModals();
+      await page.waitForTimeout(400);
+      let summonClicked = false, paid = false;
+      let last = await H.queryState();
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(600);
+        let did = null;
+        // ⚠**手札モーダルを「1回開けば開いたまま」と仮定しない**＝毎ティック「召喚ボタンが見えているか」を
+        //   測り、見えていなければ手札札を押し直す（`censusAcceSelfPlayGate` と同型）。
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        const summonVisible = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+        if (summonVisible && !summonClicked) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true;
+        }
+        if (!did && summonClicked) did = await H.clickTestId(`summon-zone-${zone}`);
+        if (!did && !summonVisible && !summonClicked) did = await H.clickTestId('my-hand-card-0');
+        // 【出】のコスト支払い（《青》×1）＝エナを1枚選んでから「発動」。
+        if (!did && !paid) {
+          const e0 = page.getByTestId('onplaycost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            await e0.click().catch(() => {});
+            await page.waitForTimeout(250);
+            const go = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await go.count() && await go.isEnabled().catch(() => false)) {
+              await go.click().catch(() => {}); paid = true; did = 'pay:青×1→発動';
+            } else { did = 'click:onplaycost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        last = await H.queryState();
+        const placed = (last?.host?.fieldSigni?.[zone] ?? []).includes?.(instId);
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | placed=${placed} refill残=${last?.host?.selfCrashRefill} check=${last?.host?.checkSlot ?? '-'} life=${JSON.stringify(last?.host?.lifeCards)} ena=${JSON.stringify(last?.host?.energyCards)} pEff=${last?.pendingEffect ?? '-'}`);
+        if (placed && last?.host?.checkSlot) return last;    // チェックゾーンで停止＝ここで待つ
+      }
+      throw new Error(`${tag} がチェックゾーンまで進まない（field=${JSON.stringify(last?.host?.fieldSigni)} check=${last?.host?.checkSlot}）`);
+    };
+
+    // チェックゾーンを解決する（バースト無しなので「エナに送る」1択）。
+    // ⚠**ボタン名は「エナに送る」だが、置換が乗っていればトラッシュへ流れるのが正**。
+    const resolveCheck = async (tag) => {
+      let settled = 0;
+      let last = await H.queryState();
+      for (let s = 0; s < 20; s++) {
+        const did = await H.clickTextOrBtn(['エナに送る', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        await page.waitForTimeout(600);
+        last = await H.queryState();
+        H.log(`  ${tag}解決[${s}] -> ${did ?? 'なし'} | refill残=${last?.host?.selfCrashRefill} check=${last?.host?.checkSlot ?? '-'} life=${JSON.stringify(last?.host?.lifeCards)} trash=${JSON.stringify(last?.host?.trashCards)} ena=${JSON.stringify(last?.host?.energyCards)} deck=${last?.host?.deck}`);
+        settled = (!last?.host?.checkSlot && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) ? settled + 1 : 0;
+        if (settled >= 3) return last;
+      }
+      throw new Error(`${tag} のチェックゾーンが解決しない（check=${last?.host?.checkSlot}）`);
+    };
+
+    const start = await H.queryState();
+    if (start?.host?.hand !== 2 || start?.host?.life !== 3 || start?.host?.deck !== 3) {
+      return { pass: false, detail: `前提崩れ（hand=${start?.host?.hand} life=${start?.host?.life} deck=${start?.host?.deck}）` };
+    }
+
+    // ── ① 対照（置換なし）＝**チェックゾーンで止まっている間にカウンタだけを0へ落とす**。
+    //    操作列・カード・盤面は②と完全に同一で、変わるのは「置換の残り回数」1ビットだけ。
+    const armed1 = await summonToCheck('ctrl', 0, 'WD06-009#9301');
+    if ((armed1?.host?.selfCrashRefill ?? 0) !== 1) {
+      return { pass: false, detail: `🔴【出】が置換のカウンタを積んでいない（残=${armed1?.host?.selfCrashRefill}）＝STUB が実行されていない` };
+    }
+    const p1 = await H.patchPlayerState('host', { 'self_crash_to_trash_and_refill': 0 });
+    if (p1?.error) return { pass: false, detail: `カウンタ差し替え失敗: ${p1.error}` };
+    // ⚠**固定 sleep で済ませない**＝realtime の反映を待たずに押すと「対照のつもりで置換つき」を
+    //   踏んで、`置換が無条件に乗っている` と**誤って赤を出す**（初版がこれ）。0 を観測してから進む。
+    let zeroed = false;
+    for (let k = 0; k < 12; k++) {
+      await page.waitForTimeout(500);
+      const chk = await H.queryState();
+      if ((chk?.host?.selfCrashRefill ?? 0) === 0) { zeroed = true; H.log(`  カウンタ 1→0 を観測（${k + 1}回目・check=${chk?.host?.checkSlot ?? '-'}）`); break; }
+    }
+    if (!zeroed) return { pass: false, detail: 'カウンタを0へ落とせなかった（realtime 未反映）' };
+    const after1 = await resolveCheck('ctrl');
+    if (!(after1?.host?.energyCards ?? []).includes('WD01-013#9323')) {
+      return { pass: false, detail: `🔴対照（置換なし）なのに割った札がエナへ行かない（ena=${JSON.stringify(after1?.host?.energyCards)} trash=${JSON.stringify(after1?.host?.trashCards)}）＝置換が無条件に乗っている` };
+    }
+    if ((after1?.host?.trashCards ?? []).includes('WD01-013#9323')) {
+      return { pass: false, detail: `🔴対照なのにトラッシュへ流れた（trash=${JSON.stringify(after1?.host?.trashCards)}）＝カウンタを見ずに置換している` };
+    }
+    if (after1?.host?.life !== 2 || after1?.host?.deck !== 3) {
+      return { pass: false, detail: `🔴対照なのに補填が走った（life=${after1?.host?.life} deck=${after1?.host?.deck} 期待 life2・deck3）` };
+    }
+
+    // ── ② 本命（置換あり）＝同じ操作。割れるのは life 末尾＝`#9322`、補填はデッキ先頭＝`#9331`。
+    const armed2 = await summonToCheck('refill', 1, 'WD06-009#9302');
+    if ((armed2?.host?.selfCrashRefill ?? 0) !== 1) {
+      return { pass: false, detail: `🔴2枚目で置換のカウンタが積まれていない（残=${armed2?.host?.selfCrashRefill}）` };
+    }
+    const after2 = await resolveCheck('refill');
+    const trash2 = after2?.host?.trashCards ?? [];
+    const ena2 = after2?.host?.energyCards ?? [];
+    const life2 = after2?.host?.lifeCards ?? [];
+    if (!trash2.includes('WD01-013#9322')) {
+      return { pass: false, detail: `🔴割った札がトラッシュに無い＝置換が乗っていない（trash=${JSON.stringify(trash2)} ena=${JSON.stringify(ena2)}）` };
+    }
+    if (ena2.includes('WD01-013#9322')) {
+      return { pass: false, detail: `🔴割った札がエナへ行った＝置換が乗っていない（ena=${JSON.stringify(ena2)}）` };
+    }
+    if (life2.at(-1) !== 'WD01-013#9331' || life2.length !== 2) {
+      return { pass: false, detail: `🔴デッキの一番上がライフクロスへ加わっていない（life=${JSON.stringify(life2)} 期待末尾=WD01-013#9331・2枚）` };
+    }
+    if (after2?.host?.deck !== 2) {
+      return { pass: false, detail: `🔴補填でデッキが減っていない（deck=${after2?.host?.deck} 期待2）` };
+    }
+    if ((after2?.host?.selfCrashRefill ?? 0) !== 0) {
+      return { pass: false, detail: `🔴置換の回数が消費されていない（残=${after2?.host?.selfCrashRefill}）＝回数制になっていない` };
+    }
+
+    return {
+      pass: true,
+      detail: `①対照（残0）＝割った札はエナ（${JSON.stringify(after1?.host?.energyCards)}）・補填なし（life 3→2・deck 3のまま）／②置換あり（残1）＝同じ操作で割った札がトラッシュ（${JSON.stringify(trash2)}）・デッキ上をライフ末尾へ補填（life=${JSON.stringify(life2)}・deck 3→2）・残回数 1→0`,
+    };
+  },
+};
+order.push('censusSelfCrashToTrashRefill');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第10弾（2026-08-31 続き753）＝`V-102`②の実機返済。
+// `WXEX2-71`（並英の規則 ホウジンザン）【自】《ターン１回》：あなたのシグニ１体が**正面以外の**
+// シグニゾーンにアタックしたとき、ターン終了時まで、そのシグニは【ランサー】を得る。
+//
+// 🔴**`triggerCondition.attackedNotFront` は fail-closed**（`triggerCollect.ts:4280`）＝
+//   `sideAttack` を渡さない収集経路では**永久に発火しない**。渡しているのは
+//   `BattleScreen.tsx:8942` の `collectFieldTriggers('ON_ATTACK_SIGNI', …, { sideAttack })` **1箇所だけ**
+//   なので、UI のアタック経路を通さないと「配線されているか」を誰も見ていない。
+// ⚠観測点は**2段**＝①`keyword_grants` に【ランサー】が載ること（＝`targetsTriggerSource` が
+//   アタッカーへ解決できている）②その【ランサー】が**実際に効く**こと（バトルでバニッシュ→相手ライフ−1）。
+//   ①だけだと「載ったが誰にも読まれない」旧型の穴を素通りする。
+// ⚠ゾーン対応は **host zone i ↔ opp zone (2−i)**。アタッカーを host zone0 に置くと正面は opp zone2、
+//   側面候補は opp zone1 のみ（zone3 は範囲外）。両方 埋めておく。
+const wxex271Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WX22-009#9400'],                                   // Lv4・Limit12
+    'field.signi': [['WX15-054#9401'], ['WXEX2-71#9402'], null],       // zone0＝アタッカー／zone1＝監視者
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'keyword_grants': { 'WX15-054#9401': ['側面アタック'] },            // 側面アタックの手段を直接付与
+    'hand': [],
+    'energy': [],
+    'life_cloth': ['WD01-013#9421', 'WD01-013#9422', 'WD01-013#9423'],
+    'deck': ['WD01-013#9431', 'WD01-013#9432', 'WD01-013#9433'],
+    'trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9490'],
+    // opp zone1＝側面の的／opp zone2＝正面の的。どちらも pow3000＝pow8000 のアタッカーが必ず勝つ。
+    'field.signi': [null, ['WD01-013#9491'], ['WD01-013#9492']],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'life_cloth': ['WD01-013#9493', 'WD01-013#9494', 'WD01-013#9495'], // 全部バースト無し
+    'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+// side=true＝側面（opp zone1）へアタック／false＝正面（opp zone2）へアタック。
+async function driveWxex271(page, H, side) {
+  const tag = side ? 'sideLancer' : 'frontNoLancer';
+  const before = await H.queryState();
+  const gLife0 = before?.guest?.life ?? 0;
+  H.log(`開始 phase=${before?.turnPhase} grants=${JSON.stringify(before?.host?.keywordGrants)} gLife=${gLife0} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+  if (gLife0 !== 3) return { pass: false, detail: `前提崩れ＝相手ライフが3枚でない（${gLife0}）` };
+
+  let opened = false, attacked = false, settled = 0;
+  let last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const st0 = await H.queryState();
+    // 注入直後にフェイズがドリフトすることがあるので、アタック前だけ引き戻す。
+    if (!attacked && st0?.turnPhase !== 'ATTACK_SIGNI' && !st0?.pendingEffect && !(st0?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      opened = false;
+      did = `repatch:ATTACK_SIGNI(was ${st0.turnPhase})`;
+    }
+    if (!did && !attacked) {
+      if (side) {
+        // 側面アタックのボタン名は `側面アタック→<相手カード名>`。
+        did = await H.clickBtn('側面アタック→', { exact: false });
+        if (did) attacked = true;
+      } else {
+        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atk.count() && await atk.isVisible().catch(() => false)) {
+          await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+        }
+      }
+    }
+    if (!did && !opened) {
+      const o = await H.clickTestId('my-signi-zone-0');   // アタッカー＝host zone0
+      if (o) { did = o; opened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動する', '確定', '決定', 'OK', 'はい', 'ガードしない', 'エナに送る']);
+    last = await H.queryState();
+    const grants = last?.host?.keywordGrants ?? [];
+    const lancer = grants.some(g => String(g).startsWith('WX15-054#9401') && String(g).includes('ランサー'));
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} lancer=${lancer} grants=${JSON.stringify(grants)} gLife=${last?.guest?.life} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (attacked && !last?.pendingEffect && !(last?.stackLen > 0) && !last?.guest?.checkSlot) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+
+  const grants = last?.host?.keywordGrants ?? [];
+  const lancer = grants.some(g => String(g).startsWith('WX15-054#9401') && String(g).includes('ランサー'));
+  const gLife = last?.guest?.life ?? gLife0;
+  const targetZone = side ? 1 : 2;
+  const banished = !((last?.guest?.fieldSigni?.[targetZone] ?? []) ?? []).length;
+  if (!attacked) return { pass: false, detail: `アタックできなかった（phase=${last?.turnPhase} grants=${JSON.stringify(grants)}）` };
+  if (!banished) return { pass: false, detail: `前提崩れ＝バトルで相手シグニ（opp zone${targetZone}）が落ちていない（gField=${JSON.stringify(last?.guest?.fieldSigni)}）` };
+
+  if (side) {
+    if (!lancer) {
+      return { pass: false, detail: `🔴側面アタックしたのに【ランサー】が付かない（grants=${JSON.stringify(grants)}）＝attackedNotFront が fail-closed のまま（UI が sideAttack を渡していない）` };
+    }
+    return gLife === gLife0 - 1
+      ? { pass: true, detail: `側面アタック→【ランサー】付与（grants=${JSON.stringify(grants)}）→バトルバニッシュで相手ライフ ${gLife0}→${gLife}（付与が実際に効いている）` }
+      : { pass: false, detail: `🔴【ランサー】は載ったのに効いていない（相手ライフ ${gLife0}→${gLife}・期待 ${gLife0 - 1}）＝keyword_grants を読む側の穴` };
+  }
+  if (lancer) {
+    return { pass: false, detail: `🔴正面アタックで【ランサー】が付いた（grants=${JSON.stringify(grants)}）＝attackedNotFront の限定が効いていない（過剰発火）` };
+  }
+  return gLife === gLife0
+    ? { pass: true, detail: `対照＝正面アタックでは【ランサー】が付かず（grants=${JSON.stringify(grants)}）、バトルバニッシュだけで相手ライフは ${gLife0} のまま` }
+    : { pass: false, detail: `🔴対照なのに相手ライフが減った（${gLife0}→${gLife}）` };
+}
+
+scenarios.censusSideAttackLancerFires = {
+  title: 'census 第10弾 WXEX2-71：正面以外へアタック→そのシグニが【ランサー】を得る（相手ライフ−1まで見る）',
+  spec: wxex271Spec(),
+  drive: (page, H) => driveWxex271(page, H, true),
+};
+scenarios.censusSideAttackLancerFrontNoop = {
+  title: 'census 第10弾 WXEX2-71 対照：正面へアタックすると【ランサー】は付かない',
+  spec: wxex271Spec(),
+  drive: (page, H) => driveWxex271(page, H, false),
+};
+order.push('censusSideAttackLancerFires', 'censusSideAttackLancerFrontNoop');
+
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -37934,6 +38245,10 @@ try {
         // 使用時に消費されたかを決定論的に見る計器。
         nextArtsCostReduction: (s.next_arts_cost_reduction ?? []).map(r => `${r.color}x${r.count}`),
         assistDown: [s.field?.assist_lrig_l_down ?? false, s.field?.assist_lrig_r_down ?? false],
+        // 🆕V-102①（2026-08-31）＝`SELF_CRASH_TO_TRASH_AND_REFILL` の**残り回数**。
+        //   置換は回数制なので、「2回目に乗らない」ことを盤面差分だけで言うと
+        //   「そもそも1回目も乗っていない」と区別が付かない＝**カウンタ自体**を観測点にする。
+        selfCrashRefill: s.self_crash_to_trash_and_refill ?? 0,
         lifeCrashReplacements: s.life_crash_replacements ?? [],
         damageReplaceMill: s.damage_replace_mill ?? [],
         leaveSubstituteChoices: s.leave_substitute_choices ?? null,

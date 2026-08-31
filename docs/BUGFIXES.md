@@ -1,5 +1,118 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き753）：§5.1 実機返済を 10 → 7 件（`V-93` / `V-95` / `V-102` をクローズ）
+
+ユーザー指示「§5.1【最優先】実機未検証の返済」の1巡。**`src/` は1バイトも触っていない**＝変更は
+`scripts/verifyBattleDrive.mjs`（ドライバのフレーク修正＋観測点1つ＋新規シナリオ3本）と docs のみ。
+gates 全緑（typecheck / golden 3119・0 FAIL / smoke 全0 / fuzz 全0 / census 12 / census-stubs A🔴0・C0 /
+manual-fields 0 / census-enginetext A🔴130行 据置 / lint 0 errors）。
+
+### ■ `V-93`＝**engine のバグではなく、実機ドライバのフレークだった**
+
+`wx17040ConditionsTrueExecuteAll` / `wx17040ConditionsFalseNoop`（`WX17-040-E1`＝「以下の3つから3つまで選ぶ」）。
+**単独 → 単独 → 連続2本の計4回すべて PASS**（9秒／6秒）。live JSON も逆翻訳も原文と一致したままで、
+engine・parser には手を入れていない。
+
+**真因**＝ドライバが**「クリックしたこと」を進行条件にしていた**こと。
+
+```js
+await c1.click().catch(() => {});
+await c2.click().catch(() => {});
+await c3.click().catch(() => {});
+did = 'click:選択肢1+2+3'; picked = true;   // ← 押せたかを一度も測っていない
+```
+
+`multiSelect` の CHOOSE は1クリックごとに React が再描画する（`EffectInteractionModal.tsx:640` の
+`selectedMultiChoiceIds` が更新され、選択済みのラベルが `選択肢N` → `✓ 選択肢N` に変わる）。
+続けて押すと直後の locator が **detach 済みの要素を掴んで throw** しうるが、`.catch(() => {})` が
+それを握り潰すので、**2つしか選ばれていないまま `picked = true` になって「決定」へ進む**。
+`upTo` の確定ボタンは常に enabled なので**そのまま確定できてしまい**、後段の観測（バニッシュ／エナチャージ）
+だけが空振りする＝**実行ごとに停止段階が変わる**という記録どおりの症状になる。
+
+**直し方**＝選択済みラベル `✓ 選択肢N` を進行条件にした。1つずつ押して ✓ が付いたことを確かめ、
+**3つ揃うまで `picked` を立てない**（`FalseNoop` の③も同じく ✓ 確認へ）。揃わなければ次ティックで押し直す。
+
+🔑**教訓＝実機ドライバでは「押した」ではなく「盤面/DOM が変わった」を進行条件にする。**
+`.catch(() => {})` を置いた行は**必ず次の行で「効いたか」を測る**。黙って半端な状態で先へ進むのが最悪の形で、
+これは engine のバグと見分けが付かない赤を出し続ける。
+
+### ■ `V-95`＝**書いてあったシナリオを回すだけ**（`HAS_TRAP_IN_FIELD`）
+
+`node scripts/verifyBattleDrive.mjs censusHasTrapInField` → **PASS（9秒）**。
+手札 2→1（トラップ無しは不発）→ トラップを `patchPlayerState` で設置してもう1枚召喚 → DRAW で1 の反転確認。
+PLAN に書かれていた「Playwright Chromium 未導入／外部認証で timeout」は**既に古い記述**だった（続き747 で解消済み）。
+
+🔑**「ドライバは書いてあるが未実走」の在庫は実装より圧倒的に安い。§5.1 に来たらまず全部回す。**
+
+### ■ `V-102`＝新規シナリオ3本（4方向すべて PASS）
+
+| シナリオ | カード | 見たもの |
+|---|---|---|
+| `censusSelfCrashToTrashRefill` | `WD06-009` | 自ライフのクラッシュ置換（トラッシュ＋デッキ上を補填）と**回数制**の反転 |
+| `censusSideAttackLancerFires` | `WXEX2-71` | 正面以外へアタック→そのシグニが【ランサー】を得る→相手ライフ−1 |
+| `censusSideAttackLancerFrontNoop` | `WXEX2-71` | 対照＝正面へアタックすると付かない |
+
+③（`ON_ACCE` のトリガー元）は続き748 で返済済みなので含めていない。
+
+**なぜ実機でしか見えないか**＝
+- `SELF_CRASH_TO_TRASH_AND_REFILL` は engine（`execStubPart3.ts:989`）が**カウンタを積むだけ**で、
+  置換そのものは `BattleScreen.performLifeBurstResponse`（`BattleScreen.tsx:12644` 付近）の**1点にしかない**。
+  golden / smoke / fuzz はこの経路を1行も通らない。
+- `triggerCondition.attackedNotFront` は `triggerCollect.ts:4280` で **fail-closed**＝`sideAttack` を渡さない
+  収集経路では永久に発火しない。渡しているのは `BattleScreen.tsx:8942` の
+  `collectFieldTriggers('ON_ATTACK_SIGNI', …, { sideAttack: isSideAttack })` **1箇所だけ**。
+
+**観測結果**（`censusSelfCrashToTrashRefill`）：
+- 対照（残0）＝割った札 `WD01-013#9323` は**エナへ**・life 3→2・deck 3のまま。
+- 置換あり（残1）＝**同じ操作**で割った札 `#9322` が**トラッシュへ**・デッキ上 `#9331` がライフ末尾へ・deck 3→2・残回数 1→0。
+
+**観測結果**（`censusSideAttackLancer*`）：
+- 側面（host zone0 → opp zone1）＝`keyword_grants` が `側面アタック` → `側面アタック/ランサー` になり、
+  バトルバニッシュで**相手ライフ 3→2**（付与が読まれていることまで確認）。
+- 正面（host zone0 → opp zone2）＝**付かず**、バニッシュしても相手ライフは 3 のまま。
+
+### ■ シナリオを書くときに踏んだ罠（次の人が同じ時間を払わないために）
+
+1. 🔴**盤面注入で「召喚ボタンが出ない」ときは、まずルリグ限定を疑う。**
+   `getMyHandCardActions`（`BattleScreen.tsx:8298`）が `meetsRestriction(cardData.Restriction, lrigClass)` を見るので、
+   **エルドラ限定の `WD06-009` は あや のルリグ（`WX22-009`）では召喚できない**。
+   症状は「**盤面注入は成功しているのに操作が1手も始まらない**」＝30ティック空振り。
+   ⇒ ルリグを `WD06-001`（エルドラ Lv4・Limit11）へ替えて解決。
+2. 🔴**回数制の置換は「同じ札・同じ操作で1ビットだけ反転」して測る。**
+   チェックゾーンは**クリック待ちで止まる**ので、そこで `self_crash_to_trash_and_refill` を 1→0 に patch してから
+   同じ「エナに送る」を押せば、**経路を1本も変えずに**対照が取れる。
+   ⚠**別カードで反転しようとしない**＝素の自ライフクラッシュはたいてい `triggerBurst:false` で、
+   あれは `execLifeCrash` の else 枝で**直接トラッシュへ**行く（チェックゾーンを通らない別経路）＝比較にならない。
+   ⚠**ルリグ限定が違うカードも使えない**（1と同じ理由）。
+3. 🔴**patch のあとを固定 sleep で済ませない。**
+   realtime 反映前にボタンを押すと**対照のつもりで置換つきを踏み、「置換が無条件に乗っている」と赤を誤報する**（初版がこれ）。
+   ⇒ **patch した値を `queryState` で観測してから**次へ進む（最大12回・500ms ポーリング）。
+4. **手札モーダルを「1回開けば開いたまま」と仮定しない。**
+   毎ティック「召喚ボタンが見えているか」を測り、見えていなければ手札札を押し直す（`censusAcceSelfPlayGate` と同型）。
+
+### ■ 追加した観測点
+
+`queryState` の `sideOf` に **`selfCrashRefill`**（`self_crash_to_trash_and_refill`）を追加。
+置換は回数制なので、「2回目に乗らない」を盤面差分だけで言うと**「そもそも1回目も乗っていない」と区別が付かない**＝
+カウンタ自体を観測点にした。
+
+### ■ 直していない粗（挙動バグではないので §5.3 には登録しない）
+
+チェックゾーンのボタンは置換が乗っていても **「エナに送る」のまま**（実際はトラッシュ＋ライフ補填）。
+**ラベルを変えると実機ドライバの 99箇所がアクセシブル名でこのボタンを掴んでいる**（`grep -c "エナに送る" scripts/verifyBattleDrive.mjs`）ので触っていない。
+直すなら「ラベル変更＋ドライバ側の名前を一斉に追随」を1巡で通すこと。
+
+### ■ 再現手段
+
+```
+node scripts/verifyBattleDrive.mjs wx17040ConditionsTrueExecuteAll wx17040ConditionsFalseNoop
+node scripts/verifyBattleDrive.mjs censusHasTrapInField
+node scripts/verifyBattleDrive.mjs censusSelfCrashToTrashRefill
+node scripts/verifyBattleDrive.mjs censusSideAttackLancerFires
+node scripts/verifyBattleDrive.mjs censusSideAttackLancerFrontNoop
+```
+
+
 ## 2026-08-31（続き752）：意味照合 段2 の残 OPEN を 217 → 187（**-30**）＝実装 25／較正 5
 
 ユーザー指示「さらに30減らす。Claude が行う」の1巡（Codex は使っていない）。
