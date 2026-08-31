@@ -38408,6 +38408,549 @@ scenarios.censusDelayedPlacedBySummonNoop = {
 };
 order.push('censusDelayedPlacedByEffectFires', 'censusDelayedPlacedBySummonNoop');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第8弾（`V-100`①）＝`TargetFilter.hasSoul` × `triggerStateFilterOk` の実機返済。
+// `WXDi-P04-016`（マキナ・スリー・ルリグ）【自】：**【ソウル】が付いている**あなたのシグニ1体が
+// アタックしたとき、対戦相手のデッキを2枚トラッシュに置く。
+//
+// 🔴**ここが本命**（PLAN `V-100`①）＝`triggerFilter` の**状態キー**（`hasSoul`／`hasAcce` の類）は
+//   `matchesFilter` では**素通りする**。評価するのは `triggerCollect.ts:4232` の `triggerStateFilterOk` 1本だけで、
+//   そこへ配線し忘れると**「主語の限定が無いのと同じ」＝どのシグニがアタックしても発火する**（過剰発火）。
+// ⚠**否定側（ソウル無しで撃たない）まで見ないと意味が無い**＝肯定だけなら「無条件発火」と区別が付かない。
+// ⚠攻撃側 pow3000 ／ 相手 pow2000 に揃えて**アタッカーが生き残る**ようにしてある
+//   （アタッカーが落ちると2回目のアタックが撃てず、同一盤面で両方向を取れない）。
+const p04016Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WXDi-P04-016#9800'],                                // マキナ・スリー Lv3・Limit6
+    'field.signi': [['WD05-013#9801'], ['WD05-013#9802'], null],        // どちらも 黒 Lv1 pow3000
+    'field.signi_down': [false, false, false],
+    'field.signi_soul': ['WD01-013#9805', null, null],                  // 🔑zone0 だけ【ソウル】付き
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'hand': [],
+    'energy': [],
+    'life_cloth': ['WD01-013#9821', 'WD01-013#9822', 'WD01-013#9823'],
+    'deck': ['WD01-013#9831', 'WD01-013#9832', 'WD01-013#9833'],
+    'trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9890'],
+    // opp zone1＝host zone1 の正面／opp zone2＝host zone0 の正面。どちらも pow2000（アタッカーが勝つ）。
+    'field.signi': [null, ['WXDi-CP02-064#9891'], ['WXDi-CP02-064#9892']],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    // 🔑観測点＝ここが2枚減るか（ミル）。バースト無しで揃える。
+    'deck': ['WD01-013#9941', 'WD01-013#9942', 'WD01-013#9943', 'WD01-013#9944',
+             'WD01-013#9945', 'WD01-013#9946', 'WD01-013#9947', 'WD01-013#9948'],
+    'life_cloth': ['WD01-013#9951', 'WD01-013#9952', 'WD01-013#9953'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+// soulZone=true＝【ソウル】付きの zone0 でアタック／false＝ソウル無しの zone1 でアタック。
+async function driveP04016(page, H, soulZone) {
+  const tag = soulZone ? 'soulAttack' : 'noSoulAttack';
+  const zone = soulZone ? 0 : 1;
+  const before = await H.queryState();
+  const gDeck0 = before?.guest?.deck ?? 0;
+  H.log(`開始 soul=${JSON.stringify(before?.host?.fieldSoul)} gDeck=${gDeck0} hField=${JSON.stringify(before?.host?.fieldSigni)} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+  if (gDeck0 !== 8) return { pass: false, detail: `前提崩れ＝相手デッキが8枚でない（${gDeck0}）` };
+  const soul = before?.host?.fieldSoul ?? [];
+  if (!soul[0] || soul[1]) return { pass: false, detail: `前提崩れ＝【ソウル】の付き方が想定外（${JSON.stringify(soul)}）` };
+
+  let opened = false, attacked = false, settled = 0;
+  let last = before;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const st0 = await H.queryState();
+    if (!attacked && st0?.turnPhase !== 'ATTACK_SIGNI' && !st0?.pendingEffect && !(st0?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      opened = false;
+      did = `repatch:ATTACK_SIGNI(was ${st0.turnPhase})`;
+    }
+    if (!did && !attacked) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) {
+        await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && !opened) {
+      const o = await H.clickTestId(`my-signi-zone-${zone}`);
+      if (o) { did = o; opened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'エナに送る']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gDeck=${gDeck0}→${last?.guest?.deck} gTrash=${(last?.guest?.trashCards ?? []).length} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (attacked && !last?.pendingEffect && !(last?.stackLen > 0) && !last?.guest?.checkSlot) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  if (!attacked) return { pass: false, detail: `アタックできなかった（phase=${last?.turnPhase}）` };
+
+  const gDeck = last?.guest?.deck ?? gDeck0;
+  const milled = gDeck0 - gDeck;
+  if (soulZone) {
+    return milled === 2
+      ? { pass: true, detail: `【ソウル】付きのシグニでアタック → 相手デッキを2枚ミル（gDeck ${gDeck0}→${gDeck}）` }
+      : { pass: false, detail: `🔴【ソウル】付きなのにミルが ${milled} 枚（gDeck ${gDeck0}→${gDeck}・期待2枚）` };
+  }
+  return milled === 0
+    ? { pass: true, detail: `対照＝【ソウル】が付いていないシグニのアタックでは発火しない（gDeck ${gDeck0}→${gDeck}）` }
+    : { pass: false, detail: `🔴ソウル無しのアタックで ${milled} 枚ミルした（gDeck ${gDeck0}→${gDeck}）＝triggerFilter の状態キーが素通りしている（過剰発火）` };
+}
+
+scenarios.censusSoulAttackerMill = {
+  title: 'census 第8弾 WXDi-P04-016：【ソウル】付きのシグニがアタックしたとき相手デッキを2枚ミル',
+  spec: p04016Spec(),
+  drive: (page, H) => driveP04016(page, H, true),
+};
+scenarios.censusSoulAttackerNoSoulNoop = {
+  title: 'census 第8弾 WXDi-P04-016 対照：ソウル無しのシグニのアタックでは発火しない',
+  spec: p04016Spec(),
+  drive: (page, H) => driveP04016(page, H, false),
+};
+order.push('censusSoulAttackerMill', 'censusSoulAttackerNoSoulNoop');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第8弾（`V-100`②）＝`INSTALL_DELAYED_TRIGGER.trigger.attackerFilter` と
+// **設置時に選んだ対象の焼き込み**の実機返済。
+// `WX25-CP1-085`（薬子サヤ・黒／奏武：ブルアカ・Lv1）【自】アタックフェイズ開始時：
+//   相手シグニ1体を選び、**このターン、黒の＜ブルアカ＞のシグニがアタックしたとき**、その1体に －1000。
+//
+// 🔴**観測点は2つ**＝①**attackerFilter の色とクラス**（黒＜ブルアカ＞でだけ発火）
+//   ②**「選んだその1体」に乗ること**（別の相手シグニに乗ったら焼き込み失敗）。
+// ⚠**アタックフェイズ開始時のトリガーなので、`turn_phase` を直接 ATTACK_SIGNI へ patch してはいけない**＝
+//   それだと `ON_ATTACK_PHASE_START` を飛ばして設置自体が起きない。**MAIN から UI でフェイズを進める。**
+// ⚠対照は「＜ブルアカ＞だが**白**」（`WXDi-CP02-063` 下江コハル）＝クラスは通って**色だけ外れる**札。
+//   まったく無関係な札で対照を取ると「クラスだけ見て色を見ていない」穴を素通りする。
+const cp1085Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WX22-009#9600'],                                     // Lv4・Limit12
+    // zone0＝黒＜ブルアカ＞（発火する側）／zone1＝白＜ブルアカ＞（色だけ外れる対照）
+    'field.signi': [['WX25-CP1-085#9901'], ['WXDi-CP02-063#9902'], null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'hand': [],
+    'energy': [],
+    'life_cloth': ['WD01-013#9921', 'WD01-013#9922', 'WD01-013#9923'],
+    'deck': ['WD01-013#9931', 'WD01-013#9932', 'WD01-013#9933'],
+    'trash': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9990'],
+    // 2体置く＝「選んだその1体」に乗ったかを見分けるため。どちらも pow12000＝バニッシュされず mod が残る。
+    'field.signi': [null, ['WD03-009#9991'], ['WD03-009#9992']],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'life_cloth': ['WD01-013#9995', 'WD01-013#9996', 'WD01-013#9997'],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+// blackBuruaka=true＝黒＜ブルアカ＞（zone0）でアタック／false＝白＜ブルアカ＞（zone1）でアタック。
+async function driveCp1085(page, H, blackBuruaka) {
+  const tag = blackBuruaka ? 'blackBuruaka' : 'whiteBuruaka';
+  const zone = blackBuruaka ? 0 : 1;
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`開始 phase=${before?.turnPhase} gPowerMods=${JSON.stringify(before?.guest?.powerMods)} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+
+  let advanced = false, installed = false, opened = false, attacked = false, settled = 0;
+  let chosen = null;
+  let last = before;
+  for (let s = 0; s < 34; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const st0 = await H.queryState();
+    // ── ① MAIN → アタックフェイズへ（ここで ON_ATTACK_PHASE_START が走る）
+    if (!advanced) {
+      if (st0?.turnPhase === 'ATTACK_SIGNI') { advanced = true; }
+      else {
+        await H.closeModals();
+        did = await H.clickTextOrBtn(['アタックフェイズへ', 'アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        if (!did) did = await H.clickTextOrBtn(['パス（カットインしない）', 'パス', 'スキップ']);
+      }
+    }
+    // ── ② 設置時の対象選択（相手シグニ1体）。⚠pick は「決定」より先。
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) {
+          const cands = st0?.pendingCandidates ?? null;
+          if (Array.isArray(cands) && cands.length > 0 && chosen === null) {
+            // 🔴**`opp_field` の候補は表示時に反転される**（`EffectInteractionModal.tsx:214`＝
+            //   「相手シグニ選択時はゾーン3→2→1の順で表示」）。つまり `pick-0` は**DB 候補の末尾**。
+            //   ここを `cands[0]` と読むと「選んだのと違う1体に乗った」と**誤って赤を出す**（初版がこれ）。
+            chosen = cands[cands.length - 1];
+            H.log(`  設置時に選ぶ対象: ${chosen}（DB候補=${JSON.stringify(cands)}／pick-0 は表示反転で末尾）`);
+          }
+          await pick0.click().catch(() => {}); did = 'pick:pick-0';
+        }
+      }
+    }
+    // ── ③ アタック
+    if (!did && advanced && !attacked) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) {
+        await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && advanced && !opened && !attacked) {
+      const o = await H.clickTestId(`my-signi-zone-${zone}`);
+      if (o) { did = o; opened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'エナに送る']);
+    last = await H.queryState();
+    installed = (last?.host?.delayedTriggers ?? []).length > 0;
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | phase=${last?.turnPhase} advanced=${advanced} delayed=${(last?.host?.delayedTriggers ?? []).length} attacked=${attacked} chosen=${chosen ?? '-'} gPowerMods=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'} q=${JSON.stringify(last?.stackQueue)} p=${JSON.stringify(last?.stackPending)}`);
+    settled = (attacked && !last?.pendingEffect && !(last?.stackLen > 0) && !last?.guest?.checkSlot) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  if (!installed) {
+    return { pass: false, detail: `🔴アタックフェイズ開始時の設置が起きていない（delayed=${JSON.stringify(last?.host?.delayedTriggers)} phase=${last?.turnPhase}）` };
+  }
+  if (!attacked) return { pass: false, detail: `アタックできなかった（phase=${last?.turnPhase} installed=${installed}）` };
+  if (!chosen) return { pass: false, detail: `設置時の対象を観測できなかった（pendingCandidates が取れていない）` };
+
+  const mods = last?.guest?.powerMods ?? [];
+  const onChosen = mods.some(m => String(m).startsWith(chosen) && String(m).includes('-1000'));
+  const onOther = mods.some(m => !String(m).startsWith(chosen) && String(m).includes('-1000'));
+  if (blackBuruaka) {
+    if (!onChosen) {
+      return { pass: false, detail: `🔴黒＜ブルアカ＞でアタックしたのに選んだ1体（${chosen}）へ －1000 が乗らない（powerMods=${JSON.stringify(mods)}）` };
+    }
+    if (onOther) {
+      return { pass: false, detail: `🔴選んでいない相手シグニにも －1000 が乗った（chosen=${chosen} powerMods=${JSON.stringify(mods)}）＝対象の焼き込みが効いていない` };
+    }
+    return { pass: true, detail: `黒＜ブルアカ＞でアタック → 設置時に選んだその1体（${chosen}）にだけ －1000（powerMods=${JSON.stringify(mods)}）` };
+  }
+  const anyMinus1000 = mods.some(m => String(m).includes('-1000'));
+  return !anyMinus1000
+    ? { pass: true, detail: `対照＝＜ブルアカ＞でも**白**のシグニのアタックでは発火しない（powerMods=${JSON.stringify(mods)}・設置は済んでいる）` }
+    : { pass: false, detail: `🔴白＜ブルアカ＞のアタックで －1000 が乗った（powerMods=${JSON.stringify(mods)}）＝attackerFilter の色が効いていない（過剰発火）` };
+}
+
+scenarios.censusDelayedAttackerFilterFires = {
+  title: 'census 第8弾 WX25-CP1-085：黒＜ブルアカ＞のアタックで、設置時に選んだその1体へ －1000',
+  spec: cp1085Spec(),
+  drive: (page, H) => driveCp1085(page, H, true),
+};
+scenarios.censusDelayedAttackerFilterColorNoop = {
+  title: 'census 第8弾 WX25-CP1-085 対照：＜ブルアカ＞でも白のシグニのアタックでは発火しない',
+  spec: cp1085Spec(),
+  drive: (page, H) => driveCp1085(page, H, false),
+};
+order.push('censusDelayedAttackerFilterFires', 'censusDelayedAttackerFilterColorNoop');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第8弾（`V-100`③）＝`TRANSFER_TO_DECK.position:'third'` の実機返済。
+// `WDK09-011`（コードメイズ リュウジョウ）【出】《青》：**【ゲート】がある自分のシグニゾーンの正面にある**
+// 対戦相手のシグニ1体を対象とし、それをデッキの**上から三番目**に置く。
+//
+// ⚠観測点は**枚数ではなく順序**＝「戻った」だけなら top でも bottom でも同じに見える。
+//   相手デッキのインスタンス id を全部別にして、**index 2 に入ったこと**を直に見る。
+// ⚠ゾーン対応は **host zone i ↔ opp zone (2−i)**（`effectExecutor.ts:6211` の `2 - zi`）。
+//   【ゲート】を host zone0 に置くので、候補になれるのは **opp zone2 の1体だけ**。
+//   相手シグニを3体とも埋めて、**候補が1件に絞られること**まで見る（絞られないなら限定が効いていない）。
+scenarios.censusTransferToDeckThird = {
+  title: 'census 第8弾 WDK09-011：【ゲート】の正面の相手シグニだけを対象に、デッキの上から三番目へ置く',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX09-009#8300'],                    // 虚心の鍵主 ウムル＝フィーラ Lv4・Limit12
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_charms': [null, null, null],
+      'field.check': null,
+      'own_gate_zones': [0],                              // 🔑【ゲート】は自分の zone0＝正面は opp zone2
+      'hand': ['WDK09-011#8301'],
+      'energy': ['WDK09-011#8311'],                       // 《青》×1
+      'life_cloth': ['WD01-013#8321', 'WD01-013#8322', 'WD01-013#8323'],
+      'deck': ['WD01-013#8331', 'WD01-013#8332', 'WD01-013#8333'],
+      'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#8390'],
+      // 3体とも埋める＝候補が「opp zone2 の1体」に絞られることを見るため。
+      'field.signi': [['WD01-014#8391'], ['WD01-016#8392'], ['WD03-009#8393']],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [],
+      // 🔑インスタンス id を全部別にして「上から三番目」を順序で見る。
+      'deck': ['WD01-013#8341', 'WD01-013#8342', 'WD01-013#8343', 'WD01-013#8344', 'WD01-013#8345'],
+      'life_cloth': ['WD01-013#8351', 'WD01-013#8352', 'WD01-013#8353'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log(`開始 gDeck=${JSON.stringify(before?.guest?.deckCards)} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+
+    let summonClicked = false, paid = false, placed = false, settled = 0;
+    let cands = null;
+    let last = before;
+    for (let s = 0; s < 28; s++) {
+      await page.waitForTimeout(600);
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      const summonVisible = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+      if (summonVisible && !summonClicked) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true; }
+      if (!did && summonClicked && !placed) did = await H.clickTestId('summon-zone-1');
+      if (!did && !summonVisible && !summonClicked) did = await H.clickTestId('my-hand-card-0');
+      if (!did && !paid) {
+        const e0 = page.getByTestId('onplaycost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          await e0.click().catch(() => {});
+          await page.waitForTimeout(250);
+          const go = await H.clickBtn('発動', { exact: true });
+          if (go) { paid = true; did = 'pay:青×1→発動'; } else did = 'click:onplaycost-energy-0';
+        }
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      placed = (last?.host?.fieldSigni?.[1] ?? []).includes?.('WDK09-011#8301');
+      if (cands === null && last?.pendingEffect === 'SELECT_TARGET' && Array.isArray(last?.pendingCandidates)) {
+        cands = last.pendingCandidates;
+        H.log(`  対象候補: ${JSON.stringify(cands)}`);
+      }
+      H.log(`  deckThird[${s}] -> ${did ?? 'なし'} | placed=${placed} gDeck=${JSON.stringify(last?.guest?.deckCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'}`);
+      settled = (placed && paid && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+    if (!placed) return { pass: false, detail: `召喚できなかった（field=${JSON.stringify(last?.host?.fieldSigni)}）` };
+    if (cands === null) return { pass: false, detail: `対象選択が開かなかった（【ゲート】の正面限定が候補0件に落ちている疑い）` };
+
+    // ① 候補は「【ゲート】(host zone0) の正面＝opp zone2」の1体だけ
+    if (cands.length !== 1 || !cands.includes('WD03-009#8393')) {
+      return { pass: false, detail: `🔴候補が【ゲート】の正面1体に絞られていない（候補=${JSON.stringify(cands)}／期待=["WD03-009#8393"]）` };
+    }
+    // ② その1体がデッキの**上から三番目**（index 2）に入る
+    const gDeck = last?.guest?.deckCards ?? [];
+    if (gDeck[2] !== 'WD03-009#8393') {
+      return { pass: false, detail: `🔴デッキの上から三番目に入っていない（gDeck=${JSON.stringify(gDeck)}／index2=${gDeck[2]}）` };
+    }
+    if ((last?.guest?.fieldSigni?.[2] ?? []).length !== 0) {
+      return { pass: false, detail: `🔴場から取り除かれていない（gField=${JSON.stringify(last?.guest?.fieldSigni)}）` };
+    }
+    return { pass: true, detail: `候補は【ゲート】の正面1体だけ（${JSON.stringify(cands)}）→ デッキの上から三番目（index2）に入った（gDeck=${JSON.stringify(gDeck)}）` };
+  },
+};
+order.push('censusTransferToDeckThird');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第8弾（`V-100`④）＝`ActiveCondition` 側の `ZONE_SUM_COUNT` の実機返済。
+// `WXEX1-31`（先導の堕天使 シェムハザ）【常】：**エナゾーンとトラッシュに赤・青・緑のカードが1枚も無いかぎり**、
+// あなたの＜天使＞は対戦相手のルリグの効果を受けず、「【自】アタック時：相手シグニ1体を手札に戻す」を得る。
+//
+// ⚠**観測点は付与された【自】が実際に走るか**＝バウンス（相手の手札 +1）で見る。
+//   対照はバトルによるバニッシュ（＝相手の**エナ**へ行き手札は増えない）なので、**手札の増減で弁別できる**。
+// ⚠反転は**赤を1枚エナに置くだけ**＝`activeCondition` の1項目だけを外す（盤面の他は完全に同じ）。
+const wxex131Spec = (redInEnergy) => ({
+  hostSet: {
+    'field.lrig': ['WX09-007#8400'],                       // 導きし者 タウィル＝フィーラ Lv4・Limit12
+    'field.signi': [['WXEX1-31#8401'], null, null],        // 精像：天使 Lv4 pow12000
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    // 🔑ここだけが両方向の違い＝赤が1枚でもあると activeCondition が崩れる。
+    'energy': redInEnergy ? ['WX14-056#8411'] : [],
+    'trash': [],
+    'hand': [],
+    'life_cloth': ['WD01-013#8421', 'WD01-013#8422', 'WD01-013#8423'],
+    'deck': ['WD01-013#8431', 'WD01-013#8432', 'WD01-013#8433'],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8490'],
+    'field.signi': [null, null, ['WD01-013#8491']],        // host zone0 の正面
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'life_cloth': ['WD01-013#8495', 'WD01-013#8496', 'WD01-013#8497'],
+    'deck': ['WD01-013#8481', 'WD01-013#8482', 'WD01-013#8483'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveWxex131(page, H, redInEnergy) {
+  const tag = redInEnergy ? 'zoneSumBroken' : 'zoneSumMet';
+  const before = await H.queryState();
+  const gHand0 = before?.guest?.hand ?? 0;
+  H.log(`開始 ena=${JSON.stringify(before?.host?.energyCards)} trash=${JSON.stringify(before?.host?.trashCards)} gHand=${gHand0} gField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+  if (gHand0 !== 0) return { pass: false, detail: `前提崩れ＝相手手札が0枚でない（${gHand0}）` };
+
+  let opened = false, attacked = false, settled = 0;
+  let last = before;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const st0 = await H.queryState();
+    if (!attacked && st0?.turnPhase !== 'ATTACK_SIGNI' && !st0?.pendingEffect && !(st0?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      opened = false;
+      did = `repatch:ATTACK_SIGNI(was ${st0.turnPhase})`;
+    }
+    if (!did && !attacked) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+    }
+    if (!did && !opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'エナに送る']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gHand=${gHand0}→${last?.guest?.hand} gEna=${last?.guest?.energy} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (attacked && !last?.pendingEffect && !(last?.stackLen > 0) && !last?.guest?.checkSlot) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  if (!attacked) return { pass: false, detail: `アタックできなかった（phase=${last?.turnPhase}）` };
+
+  const bounced = (last?.guest?.handCards ?? []).includes('WD01-013#8491');
+  if (!redInEnergy) {
+    return bounced
+      ? { pass: true, detail: `エナ・トラッシュに赤青緑が0枚 → 付与された【自】が走って相手シグニが手札へ戻った（gHand ${gHand0}→${last?.guest?.hand}）` }
+      : { pass: false, detail: `🔴条件を満たすのに付与された【自】が走らない（gHand ${gHand0}→${last?.guest?.hand} gField=${JSON.stringify(last?.guest?.fieldSigni)}）` };
+  }
+  return !bounced
+    ? { pass: true, detail: `対照＝エナに赤が1枚あるだけで条件が崩れ、付与が起きない（gHand ${gHand0}→${last?.guest?.hand}・バトルのバニッシュはエナへ）` }
+    : { pass: false, detail: `🔴赤が1枚あるのに付与された【自】が走った（gHand ${gHand0}→${last?.guest?.hand}）＝ZONE_SUM_COUNT が活性条件で評価されていない` };
+}
+
+scenarios.censusZoneSumActiveGranted = {
+  title: 'census 第8弾 WXEX1-31：エナ＋トラッシュに赤青緑0枚なら＜天使＞が【自】バウンスを得る',
+  spec: wxex131Spec(false),
+  drive: (page, H) => driveWxex131(page, H, false),
+};
+scenarios.censusZoneSumActiveBroken = {
+  title: 'census 第8弾 WXEX1-31 対照：エナに赤が1枚あると付与されない',
+  spec: wxex131Spec(true),
+  drive: (page, H) => driveWxex131(page, H, true),
+};
+order.push('censusZoneSumActiveGranted', 'censusZoneSumActiveBroken');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第8弾（`V-100`⑤）＝`ZONE_SUM_COUNT.distinctBy:'name'` の実機返済。
+// `WXDi-CP01-031`（コード２４３４ 周央サンゴ）【自】アタックフェイズ開始時：場とエナゾーンの
+// ＜世怜音女学院＞のシグニが**5種類以上**なら、このシグニのパワーを 35000 にする。
+//
+// 🔴**焦点は「枚数」ではなく「種類」**＝同名を何枚並べても1種類。
+//   対照は**5枚あるが2種類**（同名4枚＋別名1枚）にして、`distinctBy` を落とすと通ってしまう形を踏む。
+// ⚠観測点は `temp_power_mods`＝`POWER_SET` は `delta = 35000 − 基本パワー12000 = +23000` として積まれる
+//   （`effectExecutor.ts:execPowerSet`）。「パワーが変わったか」を盤面の別の何かで代用しない。
+// ⚠アタックフェイズ開始時のトリガーなので **MAIN から UI でフェイズを進める**（直接 patch すると飛ぶ）。
+const cp01031Spec = (distinct5) => ({
+  hostSet: {
+    'field.lrig': ['WX22-009#8500'],                                  // Lv4・Limit12
+    'field.signi': [['WXDi-CP01-031#8501'], null, null],              // 周央サンゴ（1種類目）
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    // 5種類＝場1＋エナ4／2種類＝場1＋エナは同名4枚（**枚数は同じ5枚**）
+    'energy': distinct5
+      ? ['WXDi-CP01-028#8511', 'WXDi-CP01-035#8512', 'WXDi-CP01-039#8513', 'WXDi-CP01-044#8514']
+      : ['WXDi-CP01-035#8511', 'WXDi-CP01-035#8512', 'WXDi-CP01-035#8513', 'WXDi-CP01-035#8514'],
+    'hand': [],
+    'trash': [],
+    'life_cloth': ['WD01-013#8521', 'WD01-013#8522', 'WD01-013#8523'],
+    'deck': ['WD01-013#8531', 'WD01-013#8532', 'WD01-013#8533'],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8590'],
+    'field.signi': [null, null, ['WD03-009#8591']],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'life_cloth': ['WD01-013#8595', 'WD01-013#8596', 'WD01-013#8597'],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveCp01031(page, H, distinct5) {
+  const tag = distinct5 ? 'distinct5' : 'sameName5';
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`開始 ena=${JSON.stringify(before?.host?.energyCards)} powerMods=${JSON.stringify(before?.host?.powerMods)}`);
+
+  let advanced = false, settled = 0;
+  let last = before;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const st0 = await H.queryState();
+    if (!advanced) {
+      if (st0?.turnPhase === 'ATTACK_SIGNI') advanced = true;
+      else {
+        await H.closeModals();
+        did = await H.clickTextOrBtn(['アタックフェイズへ', 'アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        if (!did) did = await H.clickTextOrBtn(['パス（カットインしない）', 'パス', 'スキップ']);
+      }
+    }
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | phase=${last?.turnPhase} powerMods=${JSON.stringify(last?.host?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (advanced && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  if (!advanced) return { pass: false, detail: `アタックフェイズへ進めなかった（phase=${last?.turnPhase}）` };
+
+  const mods = last?.host?.powerMods ?? [];
+  // POWER_SET 35000 は基本パワー12000 との差＝+23000 として積まれる。
+  const set35000 = mods.some(m => String(m).startsWith('WXDi-CP01-031#8501') && String(m).includes('23000'));
+  if (distinct5) {
+    return set35000
+      ? { pass: true, detail: `場＋エナで＜世怜音女学院＞が5種類 → パワーが35000へ（powerMods=${JSON.stringify(mods)}＝基本12000 との差 +23000）` }
+      : { pass: false, detail: `🔴5種類あるのにパワーが変わらない（powerMods=${JSON.stringify(mods)}）` };
+  }
+  return !set35000
+    ? { pass: true, detail: `対照＝**枚数は同じ5枚でも2種類**なら発動しない（powerMods=${JSON.stringify(mods)}）＝distinctBy:'name' が効いている` }
+    : { pass: false, detail: `🔴同名4枚＋別名1枚（2種類）で発動した（powerMods=${JSON.stringify(mods)}）＝枚数で数えている（distinctBy が効いていない）` };
+}
+
+scenarios.censusDistinctByNameMet = {
+  title: 'census 第8弾 WXDi-CP01-031：＜世怜音女学院＞が5種類でパワー35000',
+  spec: cp01031Spec(true),
+  drive: (page, H) => driveCp01031(page, H, true),
+};
+scenarios.censusDistinctByNameSameName = {
+  title: 'census 第8弾 WXDi-CP01-031 対照：5枚あっても2種類なら発動しない',
+  spec: cp01031Spec(false),
+  drive: (page, H) => driveCp01031(page, H, false),
+};
+order.push('censusDistinctByNameMet', 'censusDistinctByNameSameName');
+
+
+
 
 
 
@@ -38742,6 +39285,9 @@ try {
         // 🆕V-101②（2026-08-31）＝このターンに手札から捨てたカードの**実体**とカウンタ。
         //   `HAND_DISCARDED_THIS_TURN{filter}` は**実体を絞って数える**ので、
         //   実体を積み忘れた捨て経路があると条件が永久に false になる（枚数だけ見ても分からない）。
+        // 🆕V-100①（2026-08-31）＝【ソウル】の付き方。`triggerFilter` の状態キー（`hasSoul`）は
+        //   `matchesFilter` では素通りし `triggerStateFilterOk` だけが見る＝前提の観測点として要る。
+        fieldSoul: s.field?.signi_soul ?? [null, null, null],
         turnHandDiscarded: s.turn_hand_discarded_cards ?? [],
         turnHandDiscardedCount: s.turn_hand_discarded_count ?? 0,
         lifeCrashReplacements: s.life_crash_replacements ?? [],

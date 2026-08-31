@@ -4281,6 +4281,16 @@ export function collectFieldTriggers(
   const delayedFieldEntries: StackEntry[] = [];
   for (const dt of myState.delayed_triggers ?? []) {
     if (dt.trigger?.timing !== event) continue;
+    // 🔴**`ON_ATTACK_SIGNI` はここで拾わない**（2026-08-31 続き755・`V-100`② の実機で検出）＝
+    //   あのイベントには**専用の対**（`collectAttackerSelfDelayedTriggers` ／
+    //   `collectSigniAttackDelayedTriggers`）が既にあり、**`attackerOwner` の振り分けと
+    //   `attackerFilter` の照合はそちらにしか無い**。ここでも拾うと2つ同時に壊れる＝
+    //   ①**同じ watcher が2回積まれて効果が二重に走る**（`WX25-CP1-085` は 相手シグニに －1000 が2回乗った）
+    //   ②**`attackerFilter` を見ない**ので「黒の＜ブルアカ＞のシグニがアタックしたとき」が
+    //   **誰がアタックしても発火する**（白の＜ブルアカ＞でも乗った）。
+    //   ⚠この汎用ループは `ON_PLAY`/`ON_BLOOM` の遅延を拾うために足したもの（続き748）で、
+    //   `ON_ATTACK_SIGNI` を巻き込んだのは事故。**専用コレクタがあるイベントはそちらに任せる。**
+    if (event === 'ON_ATTACK_SIGNI') continue;
     if (dt.trigger.placedByEffect && !opts?.placedByEffect) continue;
     if (dt.trigger.triggerFilter
       && !matchesFilter(ctx.cardMap.get(getCardNum(triggeringCardNum)), dt.trigger.triggerFilter)) continue;

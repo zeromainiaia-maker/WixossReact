@@ -5964,6 +5964,31 @@ function execPlaceLrigsUnderCenter(a: import('../types/effects').PlaceLrigsUnder
     `ルリグトラッシュのルリグ${lrigs.length}枚をセンタールリグの下に置く`));
 }
 
+/**
+ * `TRANSFER_TO_DECK.position` → デッキ配列への挿入 index（先頭＝一番上）。
+ *
+ * 🔴**`toBottom` の2値に潰さない**（2026-08-31 続き755・`V-100`③ の実機で検出）＝
+ *   `'second'` / `'third'` を実装していたのは `transferSpecificDeckCard`（`DECK_CARD` 由来）**だけ**で、
+ *   場・手札・エナ・トラッシュ・ライフクロス由来を通す `insertToDeck` は「上か下か」しか見ていなかった。
+ *   そのため `WDK09-011-E2`「デッキの**上から三番目**に置く」は**黙って一番上へ**置かれていた
+ *   （枚数はどちらでも同じなので、順序を見る計器が無いと気づけない）。
+ * ⚠**2箇所に同じ式を書かない**＝ここを唯一の実装にする。
+ */
+function deckInsertIndex(position: TransferToDeckAction['position'], deckLen: number): number {
+  return position === 'bottom' ? deckLen
+    : position === 'second' ? Math.min(1, deckLen)
+    : position === 'third' ? Math.min(2, deckLen)
+    : 0;
+}
+
+/** 同上の日本語ラベル（ログの表記ゆれを防ぐ）。 */
+function deckInsertPosJa(position: TransferToDeckAction['position']): string {
+  return position === 'bottom' ? '一番下'
+    : position === 'second' ? '上から二番目'
+    : position === 'third' ? '上から三番目'
+    : '一番上';
+}
+
 function transferSpecificDeckCard(a: TransferToDeckAction, cardNum: string, ctx: ExecCtx): ExecResult {
   const owner = a.source.owner as Owner;
   const state = ownerState(owner, ctx);
@@ -5976,14 +6001,9 @@ function transferSpecificDeckCard(a: TransferToDeckAction, cardNum: string, ctx:
     const newS = { ...state, deck: shuffle(deck) };
     return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキに加えてシャッフル`), lastProcessedCards: [cardNum] });
   }
-  // 🆕`'third'`＝「デッキの**上から三番目**に置く」（2026-08-31 続き747・`WDK09-011-E2`）。
-  const insertAt = a.position === 'bottom' ? deck.length
-    : a.position === 'second' ? Math.min(1, deck.length)
-    : a.position === 'third' ? Math.min(2, deck.length) : 0;
-  deck.splice(insertAt, 0, cardNum);
-  const posJa = a.position === 'bottom' ? '一番下'
-    : a.position === 'second' ? '上から二番目'
-    : a.position === 'third' ? '上から三番目' : '一番上';
+  // 位置解決は `deckInsertIndex` 1本（`insertToDeck` と共有）。
+  deck.splice(deckInsertIndex(a.position, deck.length), 0, cardNum);
+  const posJa = deckInsertPosJa(a.position);
   const newS = { ...state, deck };
   return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキの${posJa}に置く`), lastProcessedCards: [cardNum] });
 }
@@ -6025,9 +6045,12 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
   function insertToDeck(s: PlayerState, cards: string[]): PlayerState {
     if (a.shuffle) return { ...s, deck: shuffle([...s.deck, ...cards]) };
-    return toBottom
-      ? { ...s, deck: [...s.deck, ...cards] }
-      : { ...s, deck: [...cards, ...s.deck] };
+    // 🔴**`toBottom` で分岐しない**（`V-100`③）＝`'second'`/`'third'` がここだけ実装されておらず、
+    //   「デッキの上から三番目に置く」が黙って一番上へ落ちていた。index 0＝一番上／deck.length＝一番下
+    //   なので、この式は従来の top/bottom と完全に同値のまま second/third を足せる。
+    const deck = [...s.deck];
+    deck.splice(deckInsertIndex(a.position, deck.length), 0, ...cards);
+    return { ...s, deck };
   }
 
   // LIFE_CLOTH_CARD: ライフクロスをデッキへ（「対戦相手のライフクロス１枚をデッキの一番下に置く」SPDi47-03）。
@@ -11447,8 +11470,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンへ`));
     }
     case 'TRANSFER_TO_DECK': {
-      // 外部SELECT_TARGET経由で選ばれた単一カードをデッキへ戻す（top/bottom/shuffle）。
-      // execTransferToDeck の insertToDeck と同じ配置ロジック（続き93）。
+      // 外部SELECT_TARGET経由で選ばれた単一カードをデッキへ戻す。
+      // 🔴**配置ロジックは `deckInsertIndex` 1本に寄せる**（2026-08-31 続き755・`V-100`③）＝
+      //   ここは「execTransferToDeck の insertToDeck と同じ」と書きながら **top/bottom しか見ておらず**、
+      //   `'second'`/`'third'` が黙って一番上へ落ちていた。**SELECT_TARGET を挟む効果は必ずこの経路を通る**
+      //   ので、`WDK09-011-E2`「デッキの上から三番目に置く」は実質どこにも実装されていなかった。
+      //   ⚠同じ式を3箇所に書いたのが事故の形（transferSpecificDeckCard／insertToDeck／ここ）。
       const tdA = action as TransferToDeckAction;
       if (tdA.source.type === 'DECK_CARD') return transferSpecificDeckCard(tdA, cardNum, ctx);
       const tdOwner = tdA.source.owner;
@@ -11468,10 +11495,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else return done(ctx);
       if (tdA.destination === 'lrig_deck') tdNew = { ...tdNew, lrig_deck: [...(tdNew.lrig_deck ?? []), cardNum] };
       else if (tdA.shuffle) tdNew = { ...tdNew, deck: shuffle([...tdNew.deck, cardNum]) };
-      else if (tdA.position === 'bottom') tdNew = { ...tdNew, deck: [...tdNew.deck, cardNum] };
-      else tdNew = { ...tdNew, deck: [cardNum, ...tdNew.deck] };
+      else {
+        const tdDeck = [...tdNew.deck];
+        tdDeck.splice(deckInsertIndex(tdA.position, tdDeck.length), 0, cardNum);
+        tdNew = { ...tdNew, deck: tdDeck };
+      }
       return done(addLog(setOwnerState(tdOwner, tdNew, tdCtx),
-        `${tdCtx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を${tdA.destination === 'lrig_deck' ? 'ルリグデッキ' : `デッキ${tdA.position === 'bottom' ? '下' : '上'}`}へ`));
+        `${tdCtx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を${tdA.destination === 'lrig_deck' ? 'ルリグデッキ' : `デッキの${deckInsertPosJa(tdA.position)}`}へ`));
     }
     case 'GRANT_PROTECTION': {
       // 外部SELECT_TARGET経由で選ばれた単一シグニへ効果耐性を付与（execGrantProtection の applyProtection と同じ）。

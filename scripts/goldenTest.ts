@@ -56244,6 +56244,93 @@ test('V-101② HAND_DISCARDED_THIS_TURN は実体を絞って数える（ブル�
     'V-101② 何も捨てていないのに成立した');
 });
 
+
+// ── `V-100`② 遅延トリガーの二重収集と attackerFilter 素通り（2026-08-31 続き755）────────────
+// 🔴実機（`WX25-CP1-085`）で見つけた真バグ2件＝`collectFieldTriggers` の汎用 `delayed_triggers` ループ
+//   （`ON_PLAY`/`ON_BLOOM` 用に続き748 で足したもの）が **`ON_ATTACK_SIGNI` まで巻き込んでいた**。
+//   ①専用の対（`collectAttackerSelfDelayedTriggers` ／ `collectSigniAttackDelayedTriggers`）と**二重に積まれる**
+//   ②汎用側は `attackerOwner`／`attackerFilter` を見ないので**誰がアタックしても発火する**。
+//   ⇒ 汎用ループは `ON_ATTACK_SIGNI` を読み飛ばす。**専用コレクタがあるイベントはそちらに任せる。**
+test('V-100② ON_ATTACK_SIGNI の遅延は専用コレクタだけが拾う（汎用 collectFieldTriggers は拾わない）', () => withSavedCursor(() => {
+  const dt = {
+    type: 'INSTALL_DELAYED_TRIGGER',
+    duration: 'THIS_TURN',
+    trigger: {
+      timing: 'ON_ATTACK_SIGNI',
+      attackerOwner: 'self',
+      attackerFilter: { cardType: 'シグニ', color: '黒', story: 'ブルアカ' },
+    },
+    effect: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: -1000 },
+  } as unknown as import('../src/types/effects').InstallDelayedTriggerAction;
+  const attacker: PlayerState = { ...mkState({ signi: ['WX25-CP1-085', null, null] }), delayed_triggers: [dt] };
+  const watcher = mkState({});
+
+  // ① 汎用コレクタは ON_ATTACK_SIGNI の遅延を1件も積まない（旧実装はここで1件積んで二重発動していた）
+  const viaField = cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', 'WX25-CP1-085', attacker, watcher, HOST)
+    .filter(e => e.effectId === 'DELAYED_TRIGGER');
+  eq(viaField.length, 0, 'V-100② 汎用 collectFieldTriggers が ON_ATTACK_SIGNI の遅延を積んだ＝専用コレクタと二重になる');
+
+  // ② 専用コレクタは拾う（＝読み飛ばしで発火ごと消えていないこと）
+  eq(collectAttackerSelfDelayedTriggers(trigCtx(HOST), HOST, attacker, 'WX25-CP1-085').length, 1,
+    'V-100② 専用コレクタが黒＜ブルアカ＞のアタックで拾わない');
+
+  // ③ 🔴`attackerFilter` は専用コレクタにしか無い＝**色が外れたら拾わない**。
+  //    `WXDi-CP02-063`（下江コハル）は＜ブルアカ＞だが**白**＝クラスは通って色だけ外れる札。
+  eq(collectAttackerSelfDelayedTriggers(trigCtx(HOST), HOST, attacker, 'WXDi-CP02-063').length, 0,
+    'V-100② 白の＜ブルアカ＞でも拾ってしまう＝attackerFilter の色が効いていない（過剰発火）');
+
+  // ④ ON_PLAY の遅延（続き748 で汎用ループを足した本来の用途）は**引き続き汎用側が拾う**＝
+  //    ③の読み飛ばしが巻き添えで ON_PLAY を殺していないこと。
+  const dtPlay = {
+    type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN',
+    trigger: { timing: 'ON_PLAY', placedByEffect: true, triggerFilter: { cardType: 'シグニ' } },
+    effect: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: -8000 },
+  } as unknown as import('../src/types/effects').InstallDelayedTriggerAction;
+  const placer: PlayerState = { ...mkState({}), delayed_triggers: [dtPlay] };
+  const byEffect = cftEntries(trigCtx(HOST), 'ON_PLAY', SIGNI, placer, mkState({}), HOST, { placedByEffect: true })
+    .filter(e => e.effectId === 'DELAYED_TRIGGER');
+  eq(byEffect.length, 1, 'V-100② ON_PLAY の遅延まで読み飛ばしてしまった（巻き添え）');
+  const bySummon = cftEntries(trigCtx(HOST), 'ON_PLAY', SIGNI, placer, mkState({}), HOST)
+    .filter(e => e.effectId === 'DELAYED_TRIGGER');
+  eq(bySummon.length, 0, 'V-100② 通常召喚でも ON_PLAY の遅延が発火した（placedByEffect の弁別が効いていない）');
+}));
+
+
+
+// ── `V-100`③ `TRANSFER_TO_DECK.position` は場由来でも効く（2026-08-31 続き755）────────────
+// 🔴実機（`WDK09-011-E2`「デッキの**上から三番目**に置く」）で見つけた真バグ＝
+//   位置解決が**3箇所に別々**に書かれており（`transferSpecificDeckCard` / `insertToDeck` /
+//   `applyDirectAction`）、`'second'`/`'third'` を実装していたのは `DECK_CARD` 由来の1箇所だけだった。
+//   **SELECT_TARGET を挟む効果は必ず `applyDirectAction` を通る**ので、あのカードは実質どこにも実装が無く、
+//   黙って**一番上**へ置かれていた。⇒ `deckInsertIndex` 1本へ集約。
+// ⚠枚数はどの位置でも同じ＝**順序でしか観測できない**。だからデッキの中身を全部別 id にして index で見る。
+test('V-100③ TRANSFER_TO_DECK: 場のシグニでも top/second/third/bottom が位置どおりに入る', () => {
+  const deck5 = ['D#1', 'D#2', 'D#3', 'D#4', 'D#5'];
+  const at = (position: string | undefined): string[] => {
+    const oppSigni = fresh();
+    const ctx = mkCtx({}, { signi: [oppSigni, null, null] });
+    ctx.otherState.deck = [...deck5];
+    const act = {
+      type: 'TRANSFER_TO_DECK', shuffle: false,
+      ...(position ? { position } : {}),
+      source: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+    } as unknown as EffectAction;
+    const r = run(act, ctx);
+    return [r.otherState.deck.indexOf(oppSigni) === -1 ? 'MISSING' : String(r.otherState.deck.indexOf(oppSigni)),
+      String(r.otherState.deck.length)];
+  };
+  // 既定（position 無し）＝一番上。ここが変わると既存の大量の効果が壊れるので必ず先に固定する。
+  eq(at(undefined)[0], '0', 'V-100③ 既定（position 無し）が一番上でなくなった');
+  eq(at('top')[0], '0', 'V-100③ top が一番上でない');
+  eq(at('second')[0], '1', 'V-100③ second が上から二番目でない');
+  eq(at('third')[0], '2', 'V-100③ third が上から三番目でない＝場由来の経路に実装が無い（旧バグ）');
+  eq(at('bottom')[0], '5', 'V-100③ bottom が一番下でない');
+  // どの位置でも「1枚増えて場から消える」ことは同じ＝順序だけが違う、を明示しておく。
+  for (const p of [undefined, 'top', 'second', 'third', 'bottom']) {
+    eq(at(p)[1], '6', `V-100③ ${p ?? '既定'} でデッキ枚数が6枚にならない`);
+  }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
