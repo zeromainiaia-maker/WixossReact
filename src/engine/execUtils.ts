@@ -163,6 +163,16 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   if (n.$ref === 'bet_coins_paid') return Math.max(0, ctx.ownerState.bet_coins_paid ?? 0);
   // 「対戦相手のセンタールリグの**ルリグタイプ１つにつき**」（`PR-471`・§6.4 O-11）。
   // ルリグタイプは `CardClass` の `/` 区切り（例＝`タマ/イオナ` は2種）。ルリグ不在は0。
+  // 🆕**2026-08-31 続き752**＝対戦相手のセンタールリグの**レベル**（`WXDi-P00-012-E1`
+  //   「レベルの合計が対戦相手のセンタールリグのレベル以下になるように好きな数対象とし」）。
+  // ⚠**fail-closed**＝センタールリグが引けない／`Level` が数値でないときは **0**（＝1体も選べない）。
+  //   上限が消えて盤面全部をバニッシュできる fail-open のほうが原文より強いので、0 側へ倒す。
+  if (n.$ref === 'opp_lrig_level') {
+    const oppCenter = ctx.otherState.field.lrig.at(-1);
+    if (!oppCenter) return 0;
+    const lv = Number.parseInt(ctx.cardMap.get(getCardNum(oppCenter))?.Level ?? '', 10);
+    return Number.isFinite(lv) ? lv : 0;
+  }
   if (n.$ref === 'opp_center_lrig_type_count' || n.$ref === 'self_center_lrig_type_count') {
     const st = n.$ref === 'opp_center_lrig_type_count' ? ctx.otherState : ctx.ownerState;
     const center = st.field.lrig.at(-1);

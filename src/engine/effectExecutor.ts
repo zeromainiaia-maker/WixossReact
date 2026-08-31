@@ -1382,6 +1382,10 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   const { cands: allCands, scope: bounceScope } = fieldCandidatesByOwner(tgt.owner, resolvedFilter, ctx);
   let cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  // 「それを手札に戻す」＝直前ステップで処理した同一シグニだけに絞る（2026-08-31 続き752・`WX25-P1-002-E1`）。
+  // ⚠**fail-closed**＝`lastProcessedCards` が空なら候補も空＝何も戻さない。原文は「（対象とした）それ」なので
+  //   前段が空振りした回に別のシグニを戻すほうが誤り。
+  if (a.targetsLastProcessed) cands = cands.filter(n => (ctx.lastProcessedCards ?? []).includes(n));
   if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   const scope: TargetScope = bounceScope;
 

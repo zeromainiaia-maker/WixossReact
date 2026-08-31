@@ -1,5 +1,90 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き752）：意味照合 段2 の残 OPEN を 217 → 187（**-30**）＝実装 25／較正 5
+
+ユーザー指示「さらに30減らす。Claude が行う」の1巡（Codex は使っていない）。
+gates 全緑（typecheck / **golden 3091→3119（+28本）・0 FAIL** / smoke 全0 / fuzz 全0 / census 12 / census-stubs /
+manual-fields / census-enginetext / lint 0 errors）＋ `npm run regen`。
+**⑤実機は不要と判定**＝`src/screens/` を触っていない（PLAN §2.2 の機械判定）。
+
+### ■ 母集団の切り方
+
+残 217 を「前回 81プールの残り 49」と「未 triage 168」に割り、後者から
+**live JSON が在る 135件**（除外＝live 無 23／逆翻訳が `[STUB:` 6／「※コスト未表現」4）を作業対象にした。
+ここから**受け皿を先に grep して**閉じられると確認できた 30件だけを取っている。
+
+### ■ 真因（症状ではなく）
+
+1. 🔴**`REMOVE_ABILITIES{SIGNI,self}` は「このルリグは能力を失う」の受け皿ではない**（`WXDi-D08-004-E1` / `WXDi-D09-H07-E1`）。
+   書き込み先の `abilities_removed` は **cardNum リスト**で、**ルリグ能力を止める消費地点がどこにも無い**＝見せかけの実装。
+   唯一の受け皿は `PlayerState.lrig_abilities_disabled` を立てる `SELF_LRIG_LOSE_ABILITY`（`execStubPart3.ts:4757`）。
+   §5.2 第45バッチで一度実証されている形の**再発**。
+2. 🔴**同じ語彙が `Condition` にだけ在って `ActiveCondition` に無い**（`WX25-P1-088-E1`）。
+   `FIELD_SIGNI_ALL_DISTINCT_CLASS` は `evalCondition` にはあったが CONTINUOUS からは使えず、
+   **`checkActiveCondition` の default が `return true`＝無条件成立**へ落ちる形だった（§5-2‴ の実例）。
+3. **排他分岐（「代わりに」）が SEQUENCE で並列実行されていた**＝`WX25-P2-054-E1`（5000以下と13000以下を**両方**バニッシュ）／
+   `WXDi-P16-051-E2`（ランサーと Sランサーを両方付与）。
+4. **1つの CONTINUOUS に閾値の違う2つの効果が同居**＝`WX26-CP1-059-E1`（5枚でパワー／**10枚**でシャドウ）／
+   `WXDi-P01-049-E1`（シャドウは**相手ターンだけ**）。⇒ `E1b` へ割って別 activeCondition を与えた。
+5. 残りは既存の受け皿へ配線しただけ＝`asDown` / `crossState` / `abilityTypes` / `targetsTriggerSource` /
+   `classMatchesDiscardSigni` / `THIS_CARD_IS_AWAKENED` / `cardNames` ほか。
+
+### ■ 新設した機構は2つだけ
+
+| 追加 | 場所 | 向き |
+|---|---|---|
+| `ActiveCondition` に `FIELD_SIGNI_ALL_DISTINCT_CLASS` | 型＋`checkActiveCondition`（`effectEngine.ts`） | 空盤面は true（`evalCondition` と同じ向きに揃えた） |
+| `$ref: 'opp_lrig_level'` | `resolveCountRef`（`execUtils.ts`） | 🔴**fail-closed**＝ルリグ不在／レベル非数値は **0**（上限が消えて盤面全部を巻き込む fail-open のほうが原文より強い） |
+| `BounceAction.targetsLastProcessed` | 型＋`execBounce` | 🔴**fail-closed**＝`lastProcessedCards` が空なら候補も空 |
+
+いずれも**成立／不成立／参照不能の3方向**を golden で固定した（§5-3′ / §5-3′′）。
+
+### ■ 🔴 逆翻訳の語彙を5つ足した（この巡でいちばん効いた作業）
+
+**engine には在るのに逆翻訳が描かないキーは、原文照合では「実装が無い」ようにしか見えない恒久の偽陰性**になる。
+続き750 の `crashedByKeywords`・続き751 の `selectionConstraint.groups` に続いて、今回も5つ見つかった。
+
+| キー | 影響 |
+|---|---|
+| `ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` の「あなたのターンの間」 | collector（`triggerCollect.ts:4984`）が強制していたのに未描画＝`WXDi-P11-064-E1` が**直っているのに OPEN のまま**だった |
+| `ADD_TO_FIELD.asDown`（SEARCH 経由） | アップ配置と同じ文＝「そのターン殴れるか」の差が消えていた |
+| `REMOVE_ABILITIES.abilityTypes`（汎用枝） | 従来は `frontOfSelf` 枝にしか無く、**全能力喪失と【常】限定が同じ文**だった。巻き込みで `WXEX1-02-E1` も正しく描けるようになった |
+| `BOUNCE.targetsLastProcessed` | 「それを戻す」と「別のを選べる」が同じ文だった |
+| `selectionConstraint.totalLevelMaxRef` | 上限が消えて「無制限に好きな数」と同じ文＝巻き込みで `WX12-Re02-E1` も可視化 |
+
+### ■ 🔴 途中で自分が踏んだ事故（記録）
+
+**§5-16「override は同じ effectId を完全置換する」を「そのカードの全効果を並べる」と誤読し、
+変更していない兄弟効果13件まで manualEffects へコピーした。** `check:manual-fields`（AUTO 禁止）と
+golden の O-42 トリップワイヤが即 FAIL して露見。⇒ **変更した effectId だけに削って解消**。
+🔑**この2本のゲートが無ければ、13効果が parser 改善から静かに凍っていた。**
+もう1件、`manualEffects.ts` を直しても `build:effects` の収穫マージは held に回すだけなので
+**`npx tsx scripts/syncManualLive.ts <CardNum>` を通すまで live に届かない**（CLAUDE.md 記載どおり）。
+最初これを忘れて「直したのに live が変わらない」を1度踏んだ。
+
+### ■ レーンの決め方（続き751 の反省を実行した）
+
+前巡は12件すべてが manual 手書き（parser 変更0）で、**測らずに**そうなっていた。
+今回は**着手のたびに同型の live 母集団を実測**してから決めている。実例＝
+`GRANT_KEYWORD × ENERGY_CARD × count:'ALL'` は live 6件あるが、**5件は原文が「あるカードは」＝全体で正しく**、
+誤りは `WXDi-P08-009-E2` の1件だけだった ⇒ 速いレーン（manual）が正解。
+`censusManualDrift` の**削除候補は 0**＝今回追加した override はどれも parser 出力と実体が違う（「移設だけ」ではない）。
+
+### ■ 検証コマンド
+
+```
+node scripts/archive/semanticAuditLedger.mjs        # 217 → 187
+npm run gates                                       # golden 3119 / 0 FAIL
+npx tsx scripts/censusManualDrift.ts                # 削除候補 0
+npm run golden -- --only "B47-752"                  # 28本
+```
+
+**反転確認**＝live の A/B 差分は**効果単位で27件**（修正25＋新設 `E1b` 2）で巻き込み0。
+逆翻訳 diff は**30行**＝上記27＋語彙追加で可視化された3件（`WXDi-P11-064-E1` / `WXEX1-02-E1` / `WX12-Re02-E1`）。
+**3件とも原文と突き合わせて改善であることを確認済み。**
+
+---
+
 ## 2026-08-31（続き751）：意味照合 段2 第46バッチ＝条件・限定欠落 32 findings 消化（実装13／再照合19）
 
 `tmp_cand.json` の81 findingsを原文・live JSON・逆翻訳・engine消費地点まで1件ずつ照合し、

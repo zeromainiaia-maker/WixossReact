@@ -391,6 +391,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   const setConstraint = t.selectionConstraint?.totalLevelExact !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelExact}になるように`
     : t.selectionConstraint?.totalLevelExactRef?.$ref === 'last_processed_count' ? 'レベルの合計がこの方法で処理した枚数と同じになるように'
     : t.selectionConstraint?.totalLevelMax !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelMax}以下になるように`
+    // 🆕**2026-08-31 続き752**＝実行時解決の上限（`totalLevelMaxRef`）も描く。落とすと「無制限に好きな数」と
+    //   同じ文になり、上限が入ったことが原文照合に映らない（`WXDi-P00-012-E1`）。
+    : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'opp_lrig_level' ? 'レベルの合計が対戦相手のセンタールリグのレベル以下になるように'
+    : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'last_processed_count' ? 'レベルの合計がこの方法で処理した枚数以下になるように'
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
@@ -445,6 +449,10 @@ function constraintJa(c?: import('../src/types/effects').SelectionConstraint): s
   if (c?.totalLevelExact !== undefined) return `レベルの合計が${c.totalLevelExact}になるように`;
   if (c?.totalLevelExactRef?.$ref === 'last_processed_count') return 'レベルの合計がこの方法で処理した枚数と同じになるように';
   if (c?.totalLevelMax !== undefined) return `レベルの合計が${c.totalLevelMax}以下になるように`;
+  // 🆕**2026-08-31 続き752**＝実行時解決の上限（`totalLevelMaxRef`）も描く。
+  //   落とすと「無制限に好きな数」と同じ文になり、上限が入ったことが原文照合に映らない（`WXDi-P00-012-E1`）。
+  if (c?.totalLevelMaxRef?.$ref === 'opp_lrig_level') return 'レベルの合計が対戦相手のセンタールリグのレベル以下になるように';
+  if (c?.totalLevelMaxRef?.$ref === 'last_processed_count') return 'レベルの合計がこの方法で処理した枚数以下になるように';
   if (c?.sharedColor === 'all') return '共通する色を持つ';
   if (c?.sharedColor === 'none') return '共通する色を持たない';
   if (c?.distinct === 'class') return '共通するクラスを持たない';
@@ -1111,7 +1119,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'BANISH': return a.targetsStored ? 'それをバニッシュする' : a.opponentSelects
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
-    case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
+    // 🆕**2026-08-31 続き752**＝`targetsLastProcessed`（「**それ**を手札に戻す」）を描く。
+    //   落とすと「別のシグニを選べる」実装と同じ文になり、過剰実行が原文照合に映らない（`WX25-P1-002-E1`）。
+    case 'BOUNCE': return `${a.targetsLastProcessed ? 'それ（直前に処理したシグニ）' : targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
     case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
     // ATTACH_ACCE: シグニを別シグニの【アクセ】にする。fromHand=手札から（デコレ）／省略時=エナゾーンから（アクセクラフト）
     case 'ATTACH_ACCE': {
@@ -1543,7 +1553,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
       const dest = a.handOrField ? '手札に加えるか場に出す'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
-        : thenSteps.some((s: any) => s?.type === 'ADD_TO_FIELD') ? '場に出す'
+        // 🆕**2026-08-31 続き752**＝`asDown`（ダウン状態で場に出す）を描く。落とすとアップ配置と同じ文になり、
+        //   「そのターン殴れるか」という実害の差が原文照合から消える（`PR-387-E1` の finding が実際に残っていた）。
+        : thenSteps.some((s: any) => s?.type === 'ADD_TO_FIELD')
+          ? (thenSteps.some((s: any) => s?.type === 'ADD_TO_FIELD' && s.asDown) ? 'ダウン状態で場に出す' : '場に出す')
         : thenSteps.some((s: any) => s?.type === 'TRASH') ? 'トラッシュに置く'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_ENERGY' || s?.type === 'ENERGY_CHARGE') ? 'エナゾーンに置く'
         : '処理する';
@@ -1711,6 +1724,13 @@ function actionJa(a?: Action, effectType?: string): string {
           : `このシグニの正面のシグニは能力を失い、新たに得られない${durRA}`;
       }
       const subjRA = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
+      // 🆕**2026-08-31 続き752**＝`abilityTypes`（【常】能力だけを失う 等）を**汎用枝でも**描く。
+      //   🔴従来は `filter.frontOfSelf` 枝にしか描画が無く、そこを通らない効果では
+      //   「全能力を失う」と同じ文になっていた＝**過剰実行と正しい実装が逆翻訳で区別できない**
+      //   （`WX25-P2-055-E2` の finding が実際にここで残っていた）。
+      if (a.abilityTypes?.length && !a.keywords?.length) {
+        return `${subjRA}は${(a.abilityTypes as string[]).map(k => `【${k}】`).join('')}能力を失い、新たに得られない${durRA}`;
+      }
       // alsoKeys: 「場にある**キーと**シグニ」＝シグニに加えてそのプレイヤーの全キーも失う（§6.4 O-16(b)）。
       // 落とすと「シグニだけ」に見えて、キー側の実装が入ったことが計器に映らない。
       // allZones: 場だけでなく手札／エナ／トラッシュも対象（§6.4 O-17）。落とすと場限定と同じ文になり、
@@ -4341,7 +4361,13 @@ function effJa(e: Eff): string {
     }
     // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（複合ORトリガー WXDi-P11-064）：triggerFilter（他の＜天使＞の）を主語に反映
     if (t === 'ON_ALLY_PLAY_OR_OPP_HAND_DISCARD') {
-      s = `あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体が場に出るか、あなたの効果によって対戦相手が手札を１枚捨てたとき`;
+      // 🆕**2026-08-31 続き752**＝「あなたのターンの間」を必ず書く。
+      //   🔴この限定は **JSON ではなく collector 側**（`triggerCollect.ts:4984` の
+      //   `if (controllerId !== ctx.activeUserId) return`）で強制されているので、
+      //   逆翻訳が黙っていると**原文照合では「限定が落ちている」ようにしか見えない**
+      //   （意味照合の finding `WXDi-P11-064-E1` が、直っているのに OPEN のまま残っていた）。
+      //   §5.2 の `crashedByKeywords`（続き750）と同型の恒久偽陰性。
+      s = `あなたのターンの間、あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体が場に出るか、あなたの効果によって対戦相手が手札を１枚捨てたとき`;
     }
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;

@@ -86,6 +86,7 @@ import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimi
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/execUtils';
 import { getRiseFilter } from '../src/engine/execUtils';
+import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
 import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
@@ -22212,7 +22213,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 65, 'ActiveCondition の型数（65＝続き748 で HAND_DISCARDED_THIS_TURN を両 union に追加＝「このターンに手札から〈filter〉のカードを捨てていた場合」）');
+  eq(Object.keys(AC_TYPES).length, 66, 'ActiveCondition の型数（66＝続き752 で FIELD_SIGNI_ALL_DISTINCT_CLASS を ActiveCondition 側へ追加＝「場のすべてのシグニがそれぞれ共通するクラスを持たないかぎり」。Condition 側には元から在り、片側だけ育っていた＝§5-2‴ の実例）');
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
@@ -55964,6 +55965,88 @@ for (const [cardNum, effectId, tokens] of [
   test(`Stage2 B46-751 fresh+manual contract: ${effectId}`, () => {
     const json = JSON.stringify(batch46FreshMerged(cardNum, effectId));
     for (const token of tokens) ok(json.includes(token), `${effectId}: missing ${token}`);
+  });
+}
+
+
+// ============================================================================
+// 意味照合 段2 第47バッチ（2026-08-31 続き752・Claude 単独）
+//   ①新設した2機構（ActiveCondition の FIELD_SIGNI_ALL_DISTINCT_CLASS ／ \`$ref\` の opp_lrig_level）を
+//     **成立/不成立の両方向 ＋ 参照不能時の向き**で固定する（§5-3′ / §5-3′′）。
+//   ②修正した26効果を **fresh+manual** で固定する（§5-29＝live 読みだけだと parser/manual を
+//     退行させても収穫マージが live を温存して緑のまま通る）。
+// ============================================================================
+
+// ①-1 FIELD_SIGNI_ALL_DISTINCT_CLASS（ActiveCondition 側・\`WX25-P1-088-E1\`）
+test('Stage2 B47-752 FIELD_SIGNI_ALL_DISTINCT_CLASS honors both directions in checkActiveCondition', () => withSavedCursor(() => {
+  const classOf = (n: string) => (cardMap.get(n)?.CardClass ?? '').split('／').map(x => x.trim()).filter(Boolean);
+  const a = findCard(c => isSigni(c) && classOf(c.CardNum).length > 0);
+  const aCls = classOf(a);
+  const sameCls = findCard(c => isSigni(c) && c.CardNum !== a && classOf(c.CardNum).some(x => aCls.includes(x)));
+  const diffCls = findCard(c => isSigni(c) && c.CardNum !== a && classOf(c.CardNum).length > 0
+    && !classOf(c.CardNum).some(x => aCls.includes(x)));
+  const cond = { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS', owner: 'self' } as const;
+  const empty = mkState({ signi: [null, null, null] });
+  // 互いに異クラス → 成立
+  ok(checkActiveCondition(cond, mkState({ signi: [a, diffCls, null] }), empty, true, cardMap, a),
+    '異クラス2体 → true');
+  // 🔴対照＝クラスを共有する2体なら**不成立**（片方向だけだと「常に true」でも満点に見える）
+  ok(!checkActiveCondition(cond, mkState({ signi: [a, sameCls, null] }), empty, true, cardMap, a),
+    '同クラスを共有する2体 → false');
+  // 空盤面は「共有しているペアが無い」＝成立（evalCondition 側と同じ向き）
+  ok(checkActiveCondition(cond, empty, empty, true, cardMap, a), '空盤面 → true（evalCondition と同じ向き）');
+}));
+
+// ①-2 \`$ref: 'opp_lrig_level'\`（\`WXDi-P00-012-E1\`）＝値・境界・参照不能の3点セット
+test('Stage2 B47-752 opp_lrig_level resolves the opponent center level and fails closed', () => withSavedCursor(() => {
+  const lrig = findCard(c => c.Type === 'ルリグ' && (parseInt(c.Level ?? '', 10) || 0) >= 1);
+  const lv = parseInt(cardMap.get(lrig)?.Level ?? '', 10);
+  const withLrig = mkCtx({}, {}, undefined);
+  withLrig.otherState = { ...withLrig.otherState, field: { ...withLrig.otherState.field, lrig: [lrig] } };
+  eq(resolveCountRef({ $ref: 'opp_lrig_level' }, withLrig), lv, '相手センタールリグのレベルを返す');
+  // 🔴参照不能（センタールリグ不在）は **0＝1体も選べない** へ倒す（fail-open だと盤面全部を巻き込む）
+  const noLrig = mkCtx({}, {}, undefined);
+  noLrig.otherState = { ...noLrig.otherState, field: { ...noLrig.otherState.field, lrig: [] } };
+  eq(resolveCountRef({ $ref: 'opp_lrig_level' }, noLrig), 0, 'ルリグ不在は 0（fail-closed）');
+}));
+
+// ② 修正26効果の fresh+manual 契約
+for (const [cardNum, effectId, tokens] of [
+  ['WXDi-P08-009', 'WXDi-P08-009-E2', ['"type":"ENERGY_CARD","owner":"self","count":1']],
+  ['WX25-P3-080', 'WX25-P3-080-E1', ['"colorNotMatchesLrig":true}}}']],
+  ['WDA-F03-13', 'WDA-F03-13-E3', ['"type":"SIGNI","owner":"any"']],
+  ['WXDi-P12-064', 'WXDi-P12-064-E1', ['"targetsTriggerSource":true']],
+  ['WXK10-038', 'WXK10-038-E1', ['"classMatchesDiscardSigni":true']],
+  ['PR-387', 'PR-387-E1', ['"asDown":true']],
+  ['WDK07-Y08', 'WDK07-Y08-E1', ['"type":"SIGNI","owner":"opponent","count":1},"keyword":"アタックできない"']],
+  ['WX24-P2-045', 'WX24-P2-045-E1', ['"type":"LRIG","owner":"opponent"']],
+  ['WX25-P2-055', 'WX25-P2-055-E2', ['"abilityTypes":["常"]']],
+  ['WX25-P1-002', 'WX25-P1-002-E1', ['"targetsLastProcessed":true']],
+  ['WXDi-P02-078', 'WXDi-P02-078-E1', ['"thisCardOnly":true']],
+  ['WXDi-P03-030', 'WXDi-P03-030-E1', ['"type":"ENERGY_CARD"']],
+  ['WXDi-P05-063', 'WXDi-P05-063-E1', ['"type":"DRAW","owner":"opponent"']],
+  ['WXDi-P08-074', 'WXDi-P08-074-E1', ['"cardNames"']],
+  ['WXDi-P11-078', 'WXDi-P11-078-E1', ['"cardName":"融合の儀　タウィル//メモリア"']],
+  ['WXDi-P14-033', 'WXDi-P14-033-E1', ['"type":"ADD_TO_LIFE"']],
+  ['WX25-P1-079', 'WX25-P1-079-E1', ['"crossState":true']],
+  ['WX25-P2-054', 'WX25-P2-054-E1', ['"THIS_CARD_IS_AWAKENED"']],
+  ['WX26-CP1-059', 'WX26-CP1-059-E1b', ['"minCount":10']],
+  ['WXDi-P01-049', 'WXDi-P01-049-E1b', ['"TURN_OWNER","owner":"opponent"']],
+  ['WXDi-P16-051', 'WXDi-P16-051-E2', ['"ENERGY_COUNT","owner":"self","operator":"lte","value":0']],
+  ['WXK01-001', 'WXK01-001-E2', ['"GRANT_PROTECTION"']],
+  ['WX25-P1-088', 'WX25-P1-088-E1', ['"FIELD_SIGNI_ALL_DISTINCT_CLASS"']],
+  ['WXDi-P00-012', 'WXDi-P00-012-E1', ['"totalLevelMaxRef"', '"opp_lrig_level"']],
+  ['WXDi-D08-004', 'WXDi-D08-004-E1', ['"SELF_LRIG_LOSE_ABILITY"']],
+  ['WXDi-D09-H07', 'WXDi-D09-H07-E1', ['"SELF_LRIG_LOSE_ABILITY"']],
+] as const) {
+  test(`Stage2 B47-752 fresh+manual contract: ${effectId}`, () => {
+    const json = JSON.stringify(batch46FreshMerged(cardNum, effectId));
+    for (const token of tokens) ok(json.includes(token), `${effectId}: missing ${token}`);
+    // 🔴退化の対照＝この effectId が REMOVE_ABILITIES{SIGNI,self} へ戻っていないこと（該当2件のみ）
+    if (effectId.startsWith('WXDi-D08-004') || effectId.startsWith('WXDi-D09-H07')) {
+      ok(!json.includes('"type":"REMOVE_ABILITIES"'),
+        `${effectId}: ルリグの能力喪失が REMOVE_ABILITIES（消費地点なし）へ戻っている`);
+    }
   });
 }
 

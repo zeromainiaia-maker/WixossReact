@@ -198,6 +198,10 @@ export type ActiveCondition =
   | { type: 'TURN_OWNER'; owner: Owner }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count?: number; filter?: TargetFilter } // count 省略＝場にいる全シグニ間で共通色なし。指定時は従来のN体条件（§6.4 O-11）
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
+  // 🆕**2026-08-31 続き752**＝`Condition` 側にだけ在って `ActiveCondition` に無く、CONTINUOUS から使えなかった
+  //   （§5-2‴「2つの union は別物・片側だけ育つのが常習」の実例）。
+  //   `WX25-P1-088-E1`「あなたの場にあるすべてのシグニがそれぞれ共通するクラスを持たないかぎり」。
+  | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }
   // §6.3「正面」サブ機構(d)：効果元シグニ（sourceCardNum）の**正面**（相手ゾーン 2-zi）を条件にする型。
   // 「このシグニの正面に〈filter〉のシグニがあるかぎり」／「このシグニより〈key〉が高いシグニがこの正面にあるかぎり」。
   // filter は matchesFilter＋matchesStateFilter（凍結/ダウン等の盤面状態）の両方で評価する。
@@ -643,6 +647,7 @@ export type Condition =
 // `never` 代入が別途 typecheck で捕まえる。
 export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   LRIG_DECK_COUNT: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
+  FIELD_SIGNI_ALL_DISTINCT_CLASS: true,
   FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true,
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
@@ -1573,6 +1578,14 @@ export interface BounceAction {
   optional?: boolean; // true = 「してもよい」（プレイヤーがスキップ可能）
   opponentSelects?: boolean; // 「対戦相手は対象の自分のシグニ1体を手札に戻す」：対戦相手が自分のシグニを選んで手札に戻す（target.owner='opponent'。WDK05-T20/WDK16-22）
   targetsStored?: boolean;
+  /**
+   * 「それ**を**手札に戻す」＝**直前ステップで処理した同一シグニ**へ絞る（選択UIを出さない）。
+   * 🔴無いと「別の相手シグニを選べる」＝原文より強い過剰実行になる
+   *   （`WX25-P1-002-E1`「対戦相手のシグニ１体を対象とし…それは能力を失う。
+   *   あなたがブーストしていた場合、**それ**を手札に戻す」）。
+   * 消費地点＝`execBounce`（`targetsStored` と同じ絞り込み位置）。
+   */
+  targetsLastProcessed?: boolean;
   fixedCardNums?: string[];
 }
 

@@ -133,6 +133,23 @@ export function checkActiveCondition(
     case 'FIELD_LRIGS_SHARE_COLOR':
       return fieldLrigsShareColor(cond.owner === 'opponent' ? otherState : ownerState, cond.minCount, cardMap);
 
+    // 🆕**2026-08-31 続き752**＝`evalCondition`（`execUtils.ts:2709`）と同形を ActiveCondition 側にも置く。
+    //   🔴無いと `checkActiveCondition` の default が **`return true`＝無条件成立**へ落ちる（§5-2‴）。
+    //   クラスは `／` 区切りの複数持ち（「精武：アーム」等）を全トークンで突き合わせる。
+    case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': {
+      const dcState = cond.owner === 'opponent' ? otherState : ownerState;
+      const dcSets = dcState.field.signi
+        .map(stack => stack?.at(-1))
+        .filter((n): n is string => !!n)
+        .map(n => new Set((cardMap.get(n)?.CardClass ?? '').split('／').map(x => x.trim()).filter(Boolean)));
+      for (let i = 0; i < dcSets.length; i++) {
+        for (let j = i + 1; j < dcSets.length; j++) {
+          for (const cl of dcSets[i]) if (dcSets[j].has(cl)) return false;
+        }
+      }
+      return true;
+    }
+
     // Condition 側（`evalCondition`）と同形。ActiveCondition の union には昔からあったが
     // ここに case が無く**無条件 true へフォールスルー**していた（live 使用0件の潜在穴・タスク12(cxv)）。
     case 'FIELD_LRIGS_HAVE_COLORS': {
