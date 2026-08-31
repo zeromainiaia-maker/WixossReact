@@ -5765,6 +5765,23 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   （`b25targetfirst` `b25targethit` `exceedCostPay` `artsUsedThisTurnGate`）＝**すべて PASS**。
 
 <!-- 恒久指標アーカイブ（PLAN §6 から退避） -->
+- **2026-08-31 続き759 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕67（97 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
+  **golden 3139 / 0 FAIL（本数は据置＝据置契約1本を反転、判定バグ1本を修正）**、smoke 全異常0、fuzz 全0、
+  census **12 / BASELINE 12**、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙11本**＝`ZONE_COUNT_COMPARE.offset`／`TargetFilter.isAttacking`／
+  `TargetFilter.discardedFromHandThisTurn`／`TargetFilter.restrictionMatchesCenterLrig`(+`restrictionContains`)／
+  `trashedPick.dest:'field'`／`StubAction.declareFromLastProcessed`／`CHECK_ZONE_COUNT.filter`／
+  `GrantProtectionAction.duringOppTurn`／`PlayFreeAction.source:'trash'`＋`targetsLastProcessed`／
+  `ATTACH_CHARM` の場ソース＋`toOther`／`Condition REFRESH_COUNT_THIS_TURN`。
+  **実装25件のうち14件は既存受け皿への配線**（`REVEAL_UNTIL` だけで3 finding）。
+  ⚠**据置契約 golden を1本卒業**（`WXK06-030` の B6＝実装済みを見張る側へ反転）／
+  **判定バグを1本修正**（`(l)` が `rawText:undefined` を「句点のみ」と誤検出していた）。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更）。**live の A/B 差分＝20カード**（巻き添え0）。
+
+<!-- 恒久指標アーカイブ（PLAN §6 から退避） -->
 - **2026-08-31 続き758 後（本行が直近の正）**：
   📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕97（127 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
   ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。

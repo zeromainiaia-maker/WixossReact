@@ -763,6 +763,17 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: selected }, `ルリグの下から${selected.length}枚をトラッシュに置いた`));
   }
+  // INTERNAL_MARK_CHOICE_TAKEN: `CHOOSE{noRepeat}`（「まだ選んでいないもの１つを選ぶ」）で
+  //   **いま選んだ選択肢**を `taken_choice_keys` に刻む（2026-09-01 続き760・`WXDi-P11-003-E1-GRANT`）。
+  //   🔑この STUB は `execChoose` が**実行時に生成する**＝live JSON には現れない（`noRepeat` だけが載る）。
+  //   ⚠ターン境界でリセットしない（原文は「このゲームの間」）＝`turnScopedState` にも登録しない。
+  if (stub.id === 'INTERNAL_MARK_CHOICE_TAKEN') {
+    const keyMCT = typeof stub.value === 'string' ? stub.value : '';
+    if (!keyMCT) return done(ctx);
+    const prevMCT = ctx.ownerState.taken_choice_keys ?? [];
+    if (prevMCT.includes(keyMCT)) return done(ctx);
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, taken_choice_keys: [...prevMCT, keyMCT] } });
+  }
   // 任意の全件処理（手札全公開／手札・エナ全トラッシュ）の非実行枝。
   // 直前効果の記録を持ち越さず、後続 LAST_PROCESSED_* 条件を確実に不成立にする。
   if (stub.id === 'INTERNAL_SKIP_OPTIONAL_ACTION') {

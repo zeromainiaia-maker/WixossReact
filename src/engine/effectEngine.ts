@@ -1958,6 +1958,31 @@ function buildLevelMods(
       }
     }
   }
+  // 🆕**スタック下カードの CONTINUOUS `LEVEL_MODIFY{aboveSelf}` をホストへ適用**
+  //   （2026-09-01 続き760・`WX25-CP1-TK2A-E1`「これの上にある《鰐渕アカリ（正月）》の**レベルを＋１**し」）。
+  //   🔴上のループは各ゾーンの**最前面だけ**を効果元にするので、クラフト（下段）の能力は1つも拾われない
+  //     ＝**書いても恒久 no-op**。パワー側は `calcFieldPowers` の aboveSelf ループが既に同じことをしている。
+  //   ⚠`activeCondition` 付きは評価器を通していないので適用しない（過剰実行を作らない側へ倒す）。
+  for (const stack of ownerState.field.signi) {
+    if (!stack || stack.length < 2) continue;
+    const hostNum = stack[stack.length - 1];
+    const hostBase = hostNum.includes('#') ? hostNum.slice(0, hostNum.indexOf('#')) : hostNum;
+    const hostLv = levelMods.get(hostNum) ?? parseInt(cardMap.get(hostBase)?.Level ?? '', 10);
+    if (isNaN(hostLv)) continue;
+    let delta = 0;
+    for (const underNum of stack.slice(0, -1)) {
+      for (const eff of (effectsMap.get(underNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS' || eff.activeCondition) continue;
+        if (eff.action.type !== 'LEVEL_MODIFY') continue;
+        const lm = eff.action as import('../types/effects').LevelModifyAction;
+        if (!lm.target?.filter?.aboveSelf || typeof lm.delta !== 'number') continue;
+        const rest = { ...lm.target.filter }; delete rest.aboveSelf;
+        if (Object.keys(rest).length > 0 && !matchesFilter(cardMap.get(hostBase), rest)) continue;
+        delta += lm.delta;
+      }
+    }
+    if (delta !== 0) levelMods.set(hostNum, Math.max(0, hostLv + delta));
+  }
   return levelMods;
 }
 

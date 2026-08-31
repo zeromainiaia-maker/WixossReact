@@ -17,7 +17,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
-import { activeKeyAbilitySources, activeOppMoveImmunityZones, checkActiveCondition, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, activeOppMoveImmunityZones, checkActiveCondition, collectBanishPreventLoseAbility, collectBanishSubstitutes, collectMultiAcceLimits, extractBlockActions, getCrossConditionText, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
@@ -1482,6 +1482,42 @@ function execRevealDeckTop(a: import('../types/effects').RevealDeckTopAction, ct
   return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `デッキの上から${revealed.length}枚を公開（公開シグニのレベル合計${levelSum}）`), lastProcessedCards: revealed });
 }
 
+/**
+ * SWAP_DECK_TOP_AND_LIFE: 「〈owner〉のデッキの一番上と〈owner〉のライフクロス1枚を入れ替える」
+ * （2026-09-01 続き760・`WX19-061-E1`）。
+ *
+ * 🔑ライフクロスは裏向きなので「1枚」は選ばせず**末尾（一番上）**を使う＝`TRANSFER_TO_HAND` の
+ *   `LIFE_CLOTH_CARD` 分岐と同じ規約。⚠ライフ用の `TargetScope` が無いので選択させると UI 層に踏み込む。
+ * ⚠**片方でも空なら何もしない**＝ライフ枚数／デッキ枚数が狂わない側へ倒す。
+ */
+function execSwapDeckTopAndLife(
+  a: import('../types/effects').SwapDeckTopAndLifeAction, ctx: ExecCtx,
+): ExecResult {
+  if (a.optional) {
+    const doIt = { ...a, optional: false } as import('../types/effects').SwapDeckTopAndLifeAction;
+    const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as StubAction;
+    return needsInteraction(ctx, {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'swap', label: 'デッキの一番上とライフクロス1枚を入れ替える', action: doIt as EffectAction, available: true },
+        { id: 'skip', label: '入れ替えない', action: skip as EffectAction, available: true },
+      ],
+    });
+  }
+  const st = ownerState(a.owner, ctx);
+  if (st.deck.length === 0 || st.life_cloth.length === 0) {
+    return done(addLog(ctx, '入れ替えるカードがない（デッキかライフクロスが空）'));
+  }
+  const deckTop = st.deck[0];
+  const lifeTop = st.life_cloth[st.life_cloth.length - 1];
+  const newS: PlayerState = {
+    ...st,
+    deck: [lifeTop, ...st.deck.slice(1)],
+    life_cloth: [...st.life_cloth.slice(0, -1), deckTop],
+  };
+  return done(addLog(setOwnerState(a.owner, newS, ctx),
+    `${a.owner === 'opponent' ? '対戦相手の' : ''}デッキの一番上とライフクロス1枚を入れ替えた`));
+}
+
 // TRASH_REVEALED（B2）: 直前に REVEAL_DECK_TOP で公開したカード（last_revealed_deck_cards）をデッキからトラッシュへ移す。WX17-028。
 function execTrashRevealed(a: import('../types/effects').TrashRevealedAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
@@ -2612,6 +2648,18 @@ function resolveDynamicFilter(
     const { classEqDeclaredClass: _cd, ...rest } = result;
     const cls = declarationState.declared_class;
     result = cls ? { ...rest, story: cls } : noMatch(rest);
+  }
+  // 🆕「それの**クロス条件に含まれる**シグニ」（`WX13-012-E1` / `PR-387-E1`）。
+  //   クロス条件文（`《クロスアイコン》《名前》の右　かつ　《名前》の左`）に出るカード名を全部集める。
+  //   ⚠基準カードが取れない／クロスシグニでないときは**空ヒット**（デッキの任意のシグニを持ってこられないように）。
+  if (result.nameInCrossConditionOfLastProcessed) {
+    const { nameInCrossConditionOfLastProcessed: _cx, ...rest } = result;
+    const baseNumCX = lastProcessedCards?.[lastProcessedCards.length - 1];
+    const crossTxt = baseNumCX ? getCrossConditionText(cardMap.get(getCardNum(baseNumCX))) : null;
+    const namesCX = crossTxt
+      ? [...new Set([...crossTxt.matchAll(/《([^》]+)》/g)].map(m => m[1].trim()).filter(Boolean))]
+      : [];
+    result = namesCX.length > 0 ? { ...rest, cardNames: namesCX } : noMatch(rest);
   }
   // 🆕「限定条件にあなたのセンタールリグの**ルリグタイプ**を持つカード」（`SP15-001-E1`）。
   //   ルリグタイプは CSV の `CardClass` 列（ルリグ側＝「ユヅキ」）で、限定条件は `Restriction` 列（「ユヅキ限定」）。
@@ -4132,6 +4180,16 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
   const blocked = [...(state.blocked_actions ?? []), id];
   const newS: PlayerState = { ...state, blocked_actions: blocked };
+  // 🆕`bothPlayers`＝「このターン、〈ステップ〉をスキップする」（`WXDi-P09-031-E1`）＝**両者**に積む。
+  //   効果の使用者だけに積むと、相手のターンに解決したとき相手のステップが飛ばない（原文は持ち主を問わない）。
+  if (a.bothPlayers) {
+    const otherOwner: Owner = a.target.owner === 'self' ? 'opponent' : 'self';
+    const otherSt = ownerState(otherOwner, ctx);
+    const ctxBoth = setOwnerState(otherOwner,
+      { ...otherSt, blocked_actions: [...(otherSt.blocked_actions ?? []), id] }, ctx);
+    return done(addLog(setOwnerState(a.target.owner, newS, ctxBoth),
+      `両プレイヤー：${BLOCK_ACTION_LABELS[a.actionId] ?? a.actionId}（このターン）`));
+  }
   const baseId = a.actionId
     .replace(/^PLAY_SIGNI_POWER_(\d+)_OR_MORE$/, 'パワー$1以上のシグニ出し封じ')
     // §6.4 O-41: レベル限定つきガード禁止（`GUARD_MAX_LV<n>` ＝n以下／`GUARD_LV<n>[_<m>…]` ＝ちょうど・列挙）。
@@ -4283,6 +4341,15 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   }
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
+
+  // 🆕`target.type:'PLAYER'`＝**プレイヤー自身がキーワードトークンを得る**（`WXDi-P12-050-E1`
+  //   「対戦相手は【みこみこ親衛隊】1つを得る」）。🔴シグニへ付けると**誰がコストを払うか**が変わる。
+  if (tgt.type === 'PLAYER') {
+    const prevPK = state.player_keywords ?? [];
+    const newStatePK: PlayerState = { ...state, player_keywords: [...prevPK, a.keyword] };
+    return done(addLog(setOwnerState(tgtOwner, newStatePK, ctx),
+      `${tgtOwner === 'opponent' ? '対戦相手' : 'あなた'}は【${a.keyword}】1つを得た`));
+  }
 
   const abilityGainBlocked = tgtOwner === 'opponent' ? new Set(ctx.otherAbilityGainProtectedNums ?? []) : new Set<string>();
 
@@ -5688,12 +5755,28 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 }
 
 function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
+  // 🆕`noRepeat`＝「まだ選んでいないもの１つを選ぶ」（`WXDi-P11-003-E1-GRANT`）。
+  //   🔑記録キーは **実行時に組み立てる**（live JSON には `noRepeat` しか入れない）＝
+  //     マーカー STUB が JSON へ漏れず、`census:stubs` の C群（生の英語 id が逆翻訳に出る）も汚さない。
+  //   ⚠キーの土台は `sourceEffectId`（付与された能力なら付与側の effectId）＝無ければカード番号。
+  const noRepeatKeyBase = a.noRepeat ? (ctx.sourceEffectId ?? ctx.sourceCardNum ?? 'anon') : '';
+  const takenChoiceKeys = a.noRepeat ? (ctx.ownerState.taken_choice_keys ?? []) : [];
   const options = a.choices.map(ch => ({
     id: ch.choiceId,
     label: ch.label,
-    action: ch.action,
-    available: ch.condition ? evalCondition(ch.condition, ctx) : true,
+    action: a.noRepeat
+      ? ({ type: 'SEQUENCE', steps: [
+          ch.action,
+          { type: 'STUB', id: 'INTERNAL_MARK_CHOICE_TAKEN', value: `${noRepeatKeyBase}:${ch.choiceId}` } as StubAction,
+        ] } as SequenceAction as EffectAction)
+      : ch.action,
+    available: (ch.condition ? evalCondition(ch.condition, ctx) : true)
+      && !(a.noRepeat && takenChoiceKeys.includes(`${noRepeatKeyBase}:${ch.choiceId}`)),
   }));
+  // 全部選び終えた（＝候補0）なら何も起こらない。原文「まだ選んでいないもの」の自然な帰結。
+  if (a.noRepeat && options.every(o => !o.available)) {
+    return done(addLog(ctx, 'まだ選んでいない選択肢がない（何も起きない）'));
+  }
   let effectiveCount = a.choose_count;
   let effectiveUpTo = a.upTo ?? false;
   // リコレクト条件: トラッシュの<プリオケ>カード数が閾値以上なら choose_count/upTo を上書き
@@ -5994,6 +6077,35 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     ...(a.revealTopAfterReorder ? { revealTopAfterReorder: true } : {}),
     ...(a.shuffle ? { shuffle: true } : {}),
   });
+}
+
+/**
+ * PLACE_KEY_FROM_LRIG_DECK: 「あなたのルリグデッキから《カード名》1枚を場に出す」（`WDK03-001-E1`）。
+ *
+ * 🔑行き先は**キー枠**（`field.key_piece`）。既にキーが在るならそれをルリグトラッシュへ送って差し替える
+ *   （キーは1枚しか場に置けないルール。`UNLIMITED_KEYS` を持つ盤面は `key_piece_extra` へ積む既存規約に乗る）。
+ * ⚠**キーの【出】能力は発動させない**＝この経路は BattleScreen のキー使用フローを通らないので、
+ *   発動させると「誰も支払っていないコストで【出】が走る」ことになる。過剰実行を作らない側へ倒した近似。
+ */
+function execPlaceKeyFromLrigDeck(
+  a: import('../types/effects').PlaceKeyFromLrigDeckAction, ctx: ExecCtx,
+): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const want = a.cardName;
+  const found = (state.lrig_deck ?? []).find(n => {
+    const c = ctx.cardMap.get(getCardNum(n));
+    return !!c && c.Type === 'キー' && c.CardName === want;
+  });
+  if (!found) return done(addLog(ctx, `ルリグデッキに《${want}》がない`));
+  const replaced = state.field.key_piece ?? null;
+  const newS: PlayerState = {
+    ...state,
+    lrig_deck: (state.lrig_deck ?? []).filter(n => n !== found),
+    lrig_trash: replaced ? [...state.lrig_trash, replaced] : state.lrig_trash,
+    field: { ...state.field, key_piece: found },
+  };
+  return done(addLog(setOwnerState(a.owner, newS, ctx),
+    `《${want}》を場に出す${replaced ? `（${ctx.cardMap.get(getCardNum(replaced))?.CardName ?? replaced}をルリグトラッシュへ）` : ''}`));
 }
 
 // PLACE_LRIGS_UNDER_CENTER: ルリグトラッシュのすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001）。
@@ -6325,6 +6437,13 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
       { const ask = leaveSubstituteAskQueue('TRANSFER_TO_DECK', cands, ctx);
         if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
+      // 🆕`orderChosenBy:'opponent'`＝「置く順番は対戦相手が決める」（`WXDi-P09-002-E1`）＝
+      //   **1体ずつ相手に選ばせて**順に置く。`continuation` に同じ action を積むので、
+      //   候補が尽きる（または1体になる）まで自動で繰り返す。
+      //   ⚠一括処理のままだと engine の内部順（ゾーン順）で積まれる＝「順番を決める」が消える。
+      if (a.orderChosenBy === 'opponent' && cands.length >= 2) {
+        return selectOrInteract(cands, 1, false, scope, a, a as EffectAction, ctx, true);
+      }
       return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
     }
     const oppResponds = !!a.opponentSelects && src.owner === 'opponent';
@@ -6780,7 +6899,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under', owner: Owner, gateZoneOnly?: boolean): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
   // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
@@ -6798,7 +6917,7 @@ function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat'
   if (then === 'under') return { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'deck' } as EffectAction;
   if (then === 'energy') return { type: 'ADD_TO_ENERGY', owner } as EffectAction;
   // 'field': resumeSearch の ADD_TO_FIELD 分岐がゾーン選択チェーン＋外側 continuation を処理する
-  if (then === 'field') return { type: 'ADD_TO_FIELD', owner } as EffectAction;
+  if (then === 'field') return { type: 'ADD_TO_FIELD', owner, ...(gateZoneOnly ? { gateZoneOnly: true } : {}) } as EffectAction;
   // 'beat': 公開中のデッキカードを【ビート】にする（applyDirectAction の ADD_TO_BEAT 分岐・ゾーン選択不要）
   if (then === 'beat') return { type: 'ADD_TO_BEAT', owner } as EffectAction;
   return { type: 'TRASH', target: { type: 'DECK_CARD', owner } } as EffectAction;
@@ -6870,7 +6989,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       visibleCards: cands,
       maxPick: stageMax,
       ...(stage.pickUpTo ? { optional: true } : {}),
-      thenAction: lookPickThenAction(stage.then, owner),
+      thenAction: lookPickThenAction(stage.then, owner, stage.gateZoneOnly),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
       // §6.4 O-2: 「対戦相手は自分のデッキの上から〜見て」＝相手のデッキを相手自身が掘る。
@@ -7816,8 +7935,13 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   // 「対戦相手の**手札と場とエナゾーンとトラッシュにある**シグニは能力を失う」（`SPDi47-01-E2`）。
   // `abilities_removed` は cardNum のリストでゾーンに依存しないので、候補プールを広げるだけで載る。
   // ⚠デッキ／ライフは足さない＝消費地点が無く「実装したように見えるだけ」になる。
-  if (a.target.allZones) {
-    const zoneCards = [...state.hand, ...state.energy, ...state.trash]
+  // 🆕`extraZones`＝**足すゾーンを明示**（`allZones` は手札・エナ・トラッシュをまとめて足すので
+  //   「場とトラッシュ」しか言っていない原文には広すぎる＝`WXEX2-03-E1`）。
+  const extraZoneList: ('hand' | 'energy' | 'trash')[] = a.target.allZones
+    ? ['hand', 'energy', 'trash']
+    : (a.target.extraZones ?? []);
+  if (extraZoneList.length > 0) {
+    const zoneCards = extraZoneList.flatMap(z => state[z])
       .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedFilter));
     cands = [...new Set([...cands, ...zoneCards])];
   }
@@ -8371,7 +8495,9 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
       type: 'SELECT_TARGET',
       candidates: enaCands,
       count: 1,
-      optional: false,
+      // 🆕`optional`＝「〜にしてもよい」／`repeatWhilePossible` のループを**やめられる**ようにする
+      //   （やめる択が無いと候補が尽きるまで強制になる＝原文の「好きな枚数」と真逆）。
+      optional: a.optional === true,
       targetScope: 'self_energy',
       thenAction: pickFromEna as import('../types/effects').EffectAction,
     });
@@ -8546,6 +8672,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
     case 'INSTALL_DELAYED_TRIGGER': return execInstallDelayedTrigger(action as import('../types/effects').InstallDelayedTriggerAction, ctx);
     case 'REVEAL_DECK_TOP':         return execRevealDeckTop(action as import('../types/effects').RevealDeckTopAction, ctx);
+    case 'SWAP_DECK_TOP_AND_LIFE': return execSwapDeckTopAndLife(action as import('../types/effects').SwapDeckTopAndLifeAction, ctx);
     case 'TRASH_REVEALED':          return execTrashRevealed(action as import('../types/effects').TrashRevealedAction, ctx);
     case 'SHUFFLE_DECK':            return execShuffleDeck(action as ShuffleDeckAction, ctx);
     case 'REVEAL':                  return execReveal(action as import('../types/effects').RevealAction, ctx);
@@ -8571,6 +8698,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
+    case 'PLACE_KEY_FROM_LRIG_DECK': return execPlaceKeyFromLrigDeck(action as import('../types/effects').PlaceKeyFromLrigDeckAction, ctx);
     case 'PLACE_LRIGS_UNDER_CENTER': return execPlaceLrigsUnderCenter(action as import('../types/effects').PlaceLrigsUnderCenterAction, ctx);
     case 'COUNTER_SPELL':           return done(ctx); // 打ち消しログはBattleScreen側でスペル名付きで出力
     case 'SELF_PLAY_RESTRICT':      return done(ctx); // CONTINUOUS 出撃制限。実 enforcement は handleSummonSigni の canSelfPlay（executor では no-op）
@@ -10653,6 +10781,27 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
+      // 🆕**「このシグニが次にバニッシュされる場合、バニッシュされない」**（2026-09-01 続き760・`WX15-010-E1`）＝
+      //   `BATTLE_BANISH_PREVENT_LOSE_ABILITY` は名前どおり**バトルバニッシュ経路だけ**が読んでおり、
+      //   🔴**効果によるバニッシュには一切効かなかった**（原文は発生源を限定していない）。
+      //   ここで同じ collector を呼び、防いだ回は肩代わりした側の能力を `abilities_removed` へ積む
+      //   （＝同ターン中は再発動不可＝原文の「次に」の一回性）。
+      //   ⚠**候補から外すのではなく適用地点で止める**＝対象には取れる（原文どおり）。
+      if (ctx.effectsMap) {
+        const victimSt = ownerState(found, ctx);
+        const otherSt = ownerState(found === 'self' ? 'opponent' : 'self', ctx);
+        const isVictimTurn = found === 'self' ? (ctx.isOwnerTurn ?? true) : !(ctx.isOwnerTurn ?? true);
+        const shieldSrc = collectBanishPreventLoseAbility(
+          victimSt, otherSt, isVictimTurn, ctx.cardMap, ctx.effectsMap, cardNum);
+        if (shieldSrc) {
+          const withLoss: PlayerState = {
+            ...victimSt,
+            abilities_removed: [...new Set([...(victimSt.abilities_removed ?? []), shieldSrc])],
+          };
+          return done(addLog(setOwnerState(found, withLoss, ctx),
+            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}はバニッシュされず、${ctx.cardMap.get(getCardNum(shieldSrc))?.CardName ?? shieldSrc}がこの能力を失った`));
+        }
+      }
       // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx, { isBanish: true });
       if (sub.replaced) return done(sub.ctx);
@@ -11083,7 +11232,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const signi = [...newS.field.signi] as (string[] | null)[];
-      const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+      let emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+      // 🆕`gateZoneOnly`＝「【ゲート】があるあなたのシグニゾーンに出す」（`WXDi-P15-079-E1`）。
+      //   ⚠ゾーン選択UIは `src/screens/` の管轄で全空きゾーンを見せるので、**ここで1ゾーンに畳んで**
+      //     自動配置へ倒す（ゲートが複数空いていても先頭を使う＝過剰許容を作らない側）。
+      if ((action as AddToFieldAction).gateZoneOnly) {
+        const gateZs = newS.own_gate_zones ?? [];
+        emptyZones = emptyZones.filter(z => gateZs.includes(z.i)).slice(0, 1);
+        if (emptyZones.length === 0) {
+          return done(addLog(setOwnerState(owner, newS, ctx),
+            `【ゲート】のある空きシグニゾーンがない（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
+        }
+      }
       if (emptyZones.length === 0) {
         return done(addLog(setOwnerState(owner, newS, ctx), `空きシグニゾーンなし（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
       }
@@ -11164,7 +11324,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         ...tgt3,
         acce_just_done: cardNum, // ホストシグニのcardNum
       };
-      return done(setOwnerState(acceAction.targetSigniOwner, withFlag, ctx3));
+      const ctx4 = setOwnerState(acceAction.targetSigniOwner, withFlag, ctx3);
+      // 🆕`repeatWhilePossible`＝「**好きな枚数**を**好きな数の**シグニの【アクセ】にする」（`WX16-022-E1`）＝
+      //   1ペア付けるたびに同じ問いへ戻る。⚠`optional` を必ず立てて**やめる択**を残す
+      //   （立てないと候補が尽きるまで強制＝原文と真逆）。候補0でも `execAttachAcce` が no-op で止まる。
+      if (acceAction.repeatWhilePossible) {
+        const nextAcce: import('../types/effects').AttachAcceAction = {
+          ...acceAction, fromEnergy: true, optional: true,
+          _selectingAcceFromHand: false, _pickedAcceCard: undefined,
+        };
+        return execAttachAcce(nextAcce, ctx4);
+      }
+      return done(ctx4);
     }
     case 'FIELD_SIGNI_TO_ACCE': {
       const fieldAcce = action as import('../types/effects').FieldSigniToAcceAction;

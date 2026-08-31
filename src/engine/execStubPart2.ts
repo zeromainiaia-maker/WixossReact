@@ -2322,6 +2322,13 @@ export function execStubPart2(
   }
   // REMOVE_MIKO_KEYWORD: みこみこ親衛隊キーワードをsourceCardNumのシグニのkeyword_grantsから取り除く（WX25-P3-TK03）
   if (stub.id === 'REMOVE_MIKO_KEYWORD') {
+    // 🆕**プレイヤーが得たぶん**（`player_keywords`）を先に消す（2026-09-01 続き760・`WXDi-P12-050-E1`）。
+    //   ⚠シグニ側の `keyword_grants` と**同じ地点で消す**＝片方だけ残すと「取り除いたのに毎ターン発火」する。
+    if ((ctx.ownerState.player_keywords ?? []).includes('みこみこ親衛隊')) {
+      const restPK = (ctx.ownerState.player_keywords ?? []).filter(kw => kw !== 'みこみこ親衛隊');
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, player_keywords: restPK.length ? restPK : undefined } },
+        'みこみこ親衛隊をあなたから取り除く'));
+    }
     const mikoNum = ctx.sourceCardNum;
     if (!mikoNum) return done(addLog(ctx, 'シグニ番号不明（REMOVE_MIKO_KEYWORD）'));
     const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };

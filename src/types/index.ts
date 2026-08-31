@@ -735,6 +735,20 @@ export interface PlayerState {
   attacked_signi_ids?: string[];
   // 絆を獲得したカード名一覧（ゲーム中に失われない。【絆】アイコン能力の発動条件として参照）
   bonds?: string[];
+  /**
+   * 🆕`CHOOSE{noRepeat}` で**このゲーム中に既に選んだ選択肢**のキー（2026-09-01 続き760・
+   * `WXDi-P11-003-E1-GRANT`「以下の３つから**まだ選んでいないもの**１つを選ぶ」）。
+   * 形＝`"<effectId|cardNum>:<choiceId>"`。⚠**ターン境界でリセットしない**（原文は「このゲームの間」）。
+   */
+  taken_choice_keys?: string[];
+  /**
+   * 🆕**プレイヤー自身が得たキーワードトークン**（2026-09-01 続き760・`WXDi-P12-050-E1`
+   * 「**対戦相手は**【みこみこ親衛隊】１つを得る」）。
+   * 🔴従来この語彙が無く、キーワードトークンは `keyword_grants[シグニ番号]` にしか置けなかったので、
+   *   **プレイヤーが得る**原文は「任意のシグニ1体へ付与」に化けていた（誰が捨てるかが変わる）。
+   * 🔑消費は `triggerCollect` の `KEYWORD_TOKEN_MAP` ループ（シグニ側と同じトークンカードを引く）。
+   */
+  player_keywords?: string[];
   // このターン、自分のシグニは合計1回しかアタックできない（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL）
   signi_attack_once_limit?: boolean;
   // 相手効果による自シグニのダウンを防ぐ（PREVENT_SIGNI_DOWN_BY_OPP_ALL）

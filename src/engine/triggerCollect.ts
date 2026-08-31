@@ -1414,6 +1414,32 @@ export function collectBanishTriggers(
     return watcherZone >= 0 && banishedZone === 2 - watcherZone;
   };
 
+  // 🆕**0'. このターン設置された ON_BANISH の遅延トリガー**（2026-09-01 続き760・`WX15-006-E1`
+  //   「このターン、あなたのシグニ1体が**あなたの効果以外によって**バニッシュされたとき、〜」）。
+  //   🔴従来 `delayed_triggers` を読む地点にバニッシュ（効果／ルール処理）が無く、
+  //     設置しても**永久に発火しない**＝アーツ本体が丸ごと死んでいた。
+  //   🔑保持者は**バニッシュされたシグニのオーナー**（原文の主語が「あなたのシグニ」）。
+  //   ⚠`notByOwnEffect`＝`cause.ownerId` が保持者本人なら発火しない（自分で落として得をする抜け道を塞ぐ）。
+  {
+    const holderState = banishedPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+    for (const dt of holderState.delayed_triggers ?? []) {
+      if (dt.trigger?.timing !== 'ON_BANISH') continue;
+      if (dt.trigger.notByOwnEffect && cause?.ownerId === banishedPlayerId) continue;
+      if (dt.trigger.triggerFilter
+        && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), dt.trigger.triggerFilter)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: banishedPlayerId,
+        cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+        label: 'このターンの遅延トリガー（ON_BANISH）',
+        effect: {
+          effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_BANISH'],
+          action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+        },
+        triggeringCardNum: banishedCardNum,
+      });
+    }
+  }
+
   // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
   if (prevOwnerState) {
     const zi = prevOwnerState.field.signi.findIndex(s => s?.at(-1) === banishedCardNum);
@@ -4827,6 +4853,25 @@ export function collectTurnTriggers(
           label: `${cardNameKT}【${kw}】（${labelSuffix}）`, effect: eff,
         });
       }
+    }
+  }
+
+  // 🆕**プレイヤー自身が得たキーワードトークン**（2026-09-01 続き760・`WXDi-P12-050-E1`）。
+  //   トークンカードの能力は「これを得た**プレイヤー**が『あなた』」なので、ホストはセンタールリグに置く
+  //   （`effectId` を一意にするための器＝盤面には何も付いていない）。
+  for (const kwP of (myState.player_keywords ?? [])) {
+    const tokenCardPK = KEYWORD_TOKEN_MAP[kwP];
+    if (!tokenCardPK || ownAutoBlockedTurn) continue;
+    const hostPK = myState.field.lrig.at(-1);
+    if (!hostPK) continue;
+    for (const eff of (ctx.effectsMap.get(tokenCardPK) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      if (!limitOkMy(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: hostPK,
+        effectId: `${tokenCardPK}:${eff.effectId}:PLAYER`,
+        label: `あなたの【${kwP}】（${labelSuffix}）`, effect: eff,
+      });
     }
   }
 

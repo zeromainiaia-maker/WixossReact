@@ -1664,3 +1664,62 @@ WXDi-P14-070-E1 :: このピースの後に場に出たシグニにも影響
 # 「次の対戦相手のメインフェイズの間」＝until:'NEXT_TURN' の実体は pending_lrig_limit_mod →
 # 次ターンの GROW→MAIN で適用、lrig_limit_mod はターン開始時リセット＝原文どおり（逆翻訳の語だけ直した）
 WX16-Re19-E2 :: 次の対戦相手のメインフェイズ
+
+# ════════════════════════════════════════════════════════════════════════
+# 2026-09-01 続き760（意味照合 段2・実装19／較正1）
+# 新設した engine 語彙は12＝EffectTarget.extraZones / LEVEL_MODIFY の aboveSelf 適用（buildLevelMods）/
+# ChooseAction.noRepeat（+PlayerState.taken_choice_keys）/ SWAP_DECK_TOP_AND_LIFE /
+# TargetFilter.nameInCrossConditionOfLastProcessed / AttachAcceAction.repeatWhilePossible /
+# LookPickChainStage.gateZoneOnly + AddToFieldAction.gateZoneOnly /
+# InstallDelayedTrigger の ON_BANISH 収集地点 + trigger.notByOwnEffect /
+# GRANT_KEYWORD の target.type:'PLAYER'（+PlayerState.player_keywords）/
+# 効果バニッシュへの BATTLE_BANISH_PREVENT_LOSE_ABILITY 適用 /
+# BlockActionAction.bothPlayers / PLACE_KEY_FROM_LRIG_DECK / TransferToDeckAction.orderChosenBy。
+# ════════════════════════════════════════════════════════════════════════
+# 「この方法で公開した生徒との絆を獲得する」＝GAIN_BOND{source:'last_found'}（既存受け皿）
+WXDi-CP02-005-E1 :: 公開した生徒との絆を獲得
+# 「これの上にある《鰐渕アカリ（正月）》のレベルを＋1し、パワーを＋10000する」＝aboveSelf
+# （旧＝任意のシグニ1体へ＋10000のみ。レベル側は buildLevelMods に aboveSelf ループを新設）
+WX25-CP1-TK2A-E1 :: これの上にある《鰐渕アカリ
+WX25-CP1-TK2A-E1 :: レベルを＋１し
+# 「あなたの場に＜古代兵器＞のシグニがあるかぎり、対戦相手の場とトラッシュにあるシグニは能力を失う」
+# ＝2つ目の付与が丸ごと欠落。EffectTarget.extraZones:['trash']（allZones は手札・エナまで巻き込むので不可）
+WXEX2-03-E1 :: 場とトラッシュにある
+# 「以下の3つからまだ選んでいないもの1つを選ぶ」＝ChooseAction.noRepeat
+WXDi-P11-003-E1 :: メインフェイズ開始時
+# 「スペルの場合、対戦相手のデッキの一番上とライフクロス1枚を入れ替えてもよい」＝SWAP_DECK_TOP_AND_LIFE
+WX19-061-E1 :: スペルの場合、対戦相手の
+# 「それのクロス条件に含まれるすべてのシグニ」＝TargetFilter.nameInCrossConditionOfLastProcessed
+WX13-012-E1 :: クロス条件に含まれるすべて
+PR-387-E1 :: クロス条件に含まれるシグニ
+# 「エナゾーンから好きな枚数を好きな数のシグニの【アクセ】にする」＝ATTACH_ACCE{fromEnergy,repeatWhilePossible}
+# （旧＝GRANT_KEYWORD{アクセ}＝エナのカードが1枚も動かない真 no-op）
+WX16-022-E1 :: エナゾーンから対象の好きな枚数
+WX16-022-E1 :: 好きな数のシグニの【アクセ】
+# 「シグニ1枚を【ゲート】があるあなたのシグニゾーンに出し」＝LookPickChainStage.gateZoneOnly
+WXDi-P15-079-E1 :: シグニ１枚を【ゲート】がある
+# 「このターン、あなたのシグニ1体があなたの効果以外によってバニッシュされたとき」＝
+# INSTALL_DELAYED_TRIGGER{ON_BANISH, notByOwnEffect}（収集地点を collectBanishTriggers に新設）
+WX15-006-E1 :: バニッシュされたとき
+WX15-006-E1 :: ベットしていた場合
+# 「対戦相手は【みこみこ親衛隊】1つを得る」＝GRANT_KEYWORD{target.type:'PLAYER'}＋player_keywords
+WXDi-P12-050-E1 :: 対戦相手は【みこみこ親衛隊】
+# 「このシグニが次にバニッシュされる場合、バニッシュされない」＝効果バニッシュ経路にも
+# collectBanishPreventLoseAbility を通した（旧＝バトルバニッシュ経路だけ）
+WX15-010-E1 :: 次にバニッシュされる場合
+# 「このターン、シグニアタックステップをスキップする」＝BlockActionAction.bothPlayers
+WXDi-P09-031-E1 :: シグニアタックステップをスキップ
+# 「あなたのルリグデッキから《異体同心　華代》1枚を場に出す」＝PLACE_KEY_FROM_LRIG_DECK
+# （旧＝ADD_TO_FIELD{source なし}＝デッキの一番上を出す別のカード）
+WDK03-001-E1 :: ルリグデッキから《異体同心　華代》
+# 「（置く順番は対戦相手が決める）」＝TransferToDeckAction.orderChosenBy:'opponent'
+WXDi-P09-002-E1 :: 置く順番は対戦相手が決める
+# ---- 較正（live を開いたら既に実装済みだったもの）----
+# STUB{LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS}（execStubPart3.ts:4800）が
+# ルリグトラッシュの全ルリグをセンタールリグの下へ置いている＝claim が stale
+WXEX2-84-E1 :: すべてのルリグをこのカードの下に置き
+# 「対戦相手のルリグ1体を対象とし、エナ1枚トラッシュか手札1枚捨てを合計3回行う。そうした場合、
+# それがアタックしたとき、そのアタックを無効にする」＝REPEAT{3}＋CHOOSE（支払いの2択）＋
+# NEGATE_ATTACK{target:{type:'LRIG'}}（旧＝エナ1枚だけ・無効化の対象がシグニ）
+WXDi-P05-003-E1 :: か「手札を１枚捨てる。」
+WXDi-P05-003-E1 :: 対戦相手のルリグ１体

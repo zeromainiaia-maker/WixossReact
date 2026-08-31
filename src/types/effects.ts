@@ -1009,6 +1009,16 @@ export interface TargetFilter {
   // resolveDynamicFilter が declared_class を story（CardClass 部分一致＝多クラス対応）へ解決する。未宣言なら空ヒット。
   classEqDeclaredClass?: boolean;
   /**
+   * 🆕**直前に選んだ／置いたシグニの「クロス条件」に名前が挙がっているカード**
+   * （2026-09-01 続き760・`WX13-012-E1`「それの**クロス条件に含まれるすべてのシグニ**を1枚ずつ探して場に出す」／
+   * `PR-387-E1`「この方法で場に出したシグニの**クロス条件に含まれる**シグニ1枚」）。
+   * 🔑クロス条件は `EffectText` 冒頭の `《クロスアイコン》《名前》の右　かつ　《名前》の左`（`getCrossConditionText`）。
+   *   そこに出る `《…》` を全部集めて `cardNames`（完全一致・OR）へ解決する。
+   * ⚠**基準カードが取れない／クロスシグニでないときは空ヒット**（fail-closed）＝
+   *   落とすと「デッキの任意のシグニ」を持ってこられる（原文より強い）。
+   */
+  nameInCrossConditionOfLastProcessed?: boolean;
+  /**
    * 🆕**限定条件があなたのセンタールリグのルリグタイプと一致するカード**（2026-08-31 続き759・
    * `SP15-001-E1`「あなたのデッキから、**限定条件にあなたのセンタールリグのルリグタイプを持つ**カード１枚を
    * 探して公開し手札に加える」）。`resolveDynamicFilter` が `restrictionContains`（下）へ解決する。
@@ -1345,6 +1355,14 @@ export interface EffectTarget {
    * ⚠現状の受け皿は `REMOVE_ABILITIES` だけ（`abilities_removed` は cardNum のリストでゾーン非依存）。
    */
   allZones?: boolean;
+  /**
+   * 🆕**足すゾーンを明示する**（2026-09-01 続き760・`WXEX2-03-E1`「対戦相手の**場とトラッシュにある**
+   * シグニは能力を失う」）。`allZones` は手札・エナ・トラッシュを**まとめて**足すので、
+   * 原文が「場とトラッシュ」しか言っていない札に使うと**手札とエナまで巻き込む過剰実行**になる。
+   * ⚠受け皿は `allZones` と同じ `REMOVE_ABILITIES` の候補プール拡張1点（`abilities_removed` は
+   *   cardNum のリストでゾーン非依存）。⚠デッキ／ライフは足さない（消費地点が無い）。
+   */
+  extraZones?: ('hand' | 'energy' | 'trash')[];
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
   actingPlayerSelects?: boolean; // true = 手札を見て自分が選ぶ（「手札を見てN枚選び捨てさせる」）
@@ -1553,6 +1571,7 @@ export type EffectAction =
   | GrantEffectAction
   | InstallDelayedTriggerAction
   | RevealDeckTopAction
+  | SwapDeckTopAndLifeAction
   | TrashRevealedAction
   | GrantSigniAboveAbilityAction
   | GrantFieldSigniAbilityAction
@@ -1563,6 +1582,7 @@ export type EffectAction =
   | RevealUntilAction
   | RevealUntilToHandAction
   | RevealUntilToFieldAction
+  | PlaceKeyFromLrigDeckAction
   | PlaceLrigsUnderCenterAction
   | StubAction
   | SelfPlayRestrictAction
@@ -1944,6 +1964,13 @@ export interface AddToFieldAction {
    *   既存の「相手の場に出す」効果の応答者まで変わるため、**明示フラグでのみ**切り替える。
    */
   opponentSelectsZone?: boolean;
+  /**
+   * 🆕**【ゲート】があるシグニゾーンにだけ出す**（2026-09-01 続き760・`WXDi-P15-079-E1`）。
+   * 🔑候補ゾーンを `own_gate_zones` へ絞る＝該当ゾーンが空いていなければ**出せない**。
+   * ⚠**ゾーン選択UIを出さない**（`SELECT_SIGNI_ZONE` は `src/screens/` の管轄で全空きゾーンを見せる）＝
+   *   ゲートが複数空いていても**先頭のゲートゾーンへ自動配置**する。過剰許容を作らない側へ倒した近似。
+   */
+  gateZoneOnly?: boolean;
 }
 
 export interface FreezeAction {
@@ -1977,6 +2004,13 @@ export interface BlockActionAction {
   suppressSigniOnPlayThisTurn?: boolean;
   /** 「他のシグニN体を場からトラッシュに置かないかぎりアタックできない」の解除コスト。 */
   attackCost?: { fieldTrash: { count: number; excludeSelf?: boolean } };
+  /**
+   * 🆕**そのターンの「ステップ」そのものを飛ばす**形（2026-09-01 続き760・`WXDi-P09-031-E1`
+   * 「このターン、シグニアタックステップをスキップする」）＝**両プレイヤー**の `blocked_actions` へ積む。
+   * 🔴`owner:'self'`（＝効果の使用者）だけに積むと、**相手のターンに場へ出た場合**に相手のステップが飛ばない
+   *   （原文はターンの持ち主を問わない）。⚠期間は `until` に従う＝このターン限定なら自分側は次ターンに残らない。
+   */
+  bothPlayers?: boolean;
 }
 
 export interface StoryChangeAction {
@@ -2101,6 +2135,14 @@ export interface ChooseAction {
    */
   countChoose?: { count: NumberOrRef; countFromZone?: CountFromZone; upTo?: boolean };
   /**
+   * 🆕「以下のN個から**まだ選んでいないもの**１つを選ぶ」（2026-09-01 続き760・`WXDi-P11-003-E1-GRANT`）＝
+   * **このゲーム中に一度選んだ選択肢は二度と選べない**。
+   * 🔑記録は `PlayerState.taken_choice_keys`（`"<effectId|cardNum>:<choiceId>"`）＝**ターン境界でリセットしない**。
+   * ⚠`allowRepeat`（同じ選択肢を2回以上選んでもよい）とは**真逆の軸**＝同時に立てない。
+   * ⚠選択肢を消し込むだけ＝**全部選び終えたら候補0**（`execChoose` はそこで no-op に倒す）。
+   */
+  noRepeat?: boolean;
+  /**
    * 「**同じ選択肢を２回以上選んでもよい**」（§6.4 O-29・`WX17-003-E1`／`WX22-016-E1`）。
    * ⚠**engine（`resumeChoose`）は最初から重複 id を受けられる**（`['c1','c1']` を順に実行する）＝
    *   本当の穴は **UI が `Set<string>` で持っていた**ことだった。ここを立てると UI が回数マップへ切り替わる。
@@ -2217,6 +2259,14 @@ export interface InstallDelayedTriggerAction {
     /** ON_SIGNI_DOWN のダウンしたシグニの所有者（設置者から見て）。省略=any。`WX05-042`＝self（§6.4 O-11） */
     downedOwner?: 'self' | 'opponent' | 'any';
     /**
+     * 🆕`ON_BANISH` の**原因の除外**（2026-09-01 続き760・`WX15-006-E1`
+     * 「このターン、あなたのシグニ1体が**あなたの効果以外によって**バニッシュされたとき」）。
+     * 🔑判定は `collectBanishTriggers` の `cause.ownerId`＝**バニッシュを起こした効果の持ち主**。
+     *   設置者本人の効果で落ちた場合は発火しない（自分でバニッシュして得をする抜け道を塞ぐ）。
+     * ⚠バトルバニッシュ・ルール処理は `cause` が設置者でないので**発火する側**（原文どおり）。
+     */
+    notByOwnEffect?: boolean;
+    /**
      * ON_CARD_MILLED_FROM_DECK の発生源デッキ（設置者から見て）。省略=self。
      * §5.3 `O-73`＝`WX24-P3-030-E2`「このターン、あなたの効果１つによって**デッキから**カードが
      * 合計１枚以上トラッシュに置かれたとき、」。**通常の【自】側と同じキー名**（`milledDeckOwner` /
@@ -2248,6 +2298,22 @@ export interface RevealDeckTopAction {
   type: 'REVEAL_DECK_TOP';
   owner: Owner;
   count: number;
+}
+
+/**
+ * 🆕「〈owner〉のデッキの一番上と〈owner〉のライフクロス１枚を**入れ替えて**もよい」
+ * （2026-09-01 続き760・`WX19-061-E1` の3枝目）。
+ *
+ * 🔑**ライフクロスは裏向きで区別が付かない**ので「1枚」は選択させず**一番上**（`life_cloth` の末尾＝
+ *   `TRANSFER_TO_HAND` の `LIFE_CLOTH_CARD` 分岐と同じ規約）を使う。⚠ライフ用の `TargetScope` が
+ *   そもそも無い（`self_life` は存在しない）ので、選択させようとすると UI 層（`src/screens/`）に踏み込む。
+ * ⚠**デッキが空／ライフが0のときは何も起きない**（片方だけ動かすと枚数が狂う）。
+ */
+export interface SwapDeckTopAndLifeAction {
+  type: 'SWAP_DECK_TOP_AND_LIFE';
+  owner: Owner;
+  /** 「入れ替えて**もよい**」＝やる／やらないの2択を出す。 */
+  optional?: boolean;
 }
 
 // B2: 直前に REVEAL_DECK_TOP で公開したカード（last_revealed_deck_cards）をトラッシュに置く。WX17-028「公開したカードをトラッシュに置く」。
@@ -2378,6 +2444,24 @@ export interface RevealUntilToFieldAction {
   suppressOnPlay?: boolean; // true =「その（それらの）シグニの【出】能力は発動しない」（AddToFieldAction 参照）。REVEAL_UNTIL_TO_FIELD は自身 ON_PLAY を発火させるため即有効
 }
 
+/**
+ * 🆕「あなたの**ルリグデッキから**《カード名》１枚を**場に出す**」（2026-09-01 続き760・`WDK03-001-E1`
+ * 「【起】《コインアイコン》：あなたのルリグデッキから《異体同心　華代》１枚を場に出す。」）。
+ *
+ * 🔴受け皿が無いあいだ live は `ADD_TO_FIELD{source なし}`＝**デッキの一番上のシグニを場に出す**別のカードだった
+ *   （`ADD_TO_FIELD` はキー枠を知らないので、`source:'LRIG_DECK_CARD'` を足しても行き先が無い）。
+ * 🔑行き先は**キー枠**（`field.key_piece` ／ 埋まっていれば既存キーをルリグトラッシュへ送って差し替える）。
+ *   読み手は既存の `activeKeyAbilitySources`（キーの【常】を集める funnel）なので、置くだけで能力が効く。
+ * ⚠**キーの【出】能力は発動させない**（この経路は BattleScreen のキー使用フローを通らない）＝
+ *   過剰実行を作らない側へ倒した近似。原文が【出】を持つキーを出す札が現れたら別途配線する。
+ */
+export interface PlaceKeyFromLrigDeckAction {
+  type: 'PLACE_KEY_FROM_LRIG_DECK';
+  owner: Owner;
+  /** 出すキーのカード名（部分一致ではなく完全一致）。 */
+  cardName: string;
+}
+
 // ルリグトラッシュにあるすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001「創世の巫女 マユ」の【出】）。
 export interface PlaceLrigsUnderCenterAction {
   type: 'PLACE_LRIGS_UNDER_CENTER';
@@ -2395,6 +2479,14 @@ export interface TransferToDeckAction {
   opponentSelects?: boolean;          // 「対戦相手は自分のシグニ1体を選びデッキに置く」
   targetsStored?: boolean;            // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象（SIGNI 経路）
   fixedCardNums?: string[];           // インタラクション生成時に固定済みの対象instanceId
+  /**
+   * 🆕**置く順番を対戦相手が決める**（2026-09-01 続き760・`WXDi-P09-002-E1`
+   * 「対戦相手のすべてのシグニをデッキの一番上に置く。**（置く順番は対戦相手が決める）**」）。
+   * 🔑`count:'ALL'` の一括処理をやめ、**1体ずつ相手に選ばせて**順に置く（`opponentResponds` の SELECT_TARGET）。
+   *   デッキの一番上に積むので**選ばれた順＝最終的な並び**になる（原文の「順番を決める」がそのまま出る）。
+   * ⚠候補が1体以下なら順番の余地が無いので従来どおり一括で処理する（無意味なモーダルを出さない）。
+   */
+  orderChosenBy?: 'opponent';
 }
 
 // スペル/アーツの効果を打ち消す
@@ -2513,6 +2605,12 @@ export interface LookPickChainStage {
   //   🔴受け皿が無い間はこの文型が `LOOK_AND_REORDER` 単独へ落ち、**選択段が丸ごと消えて全部デッキ下**だった。
   //   消費は `lookPickThenAction` → `PLACE_UNDER_SOURCE_SIGNI{fromLocation:'deck'}`。
   then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'seed' | 'magic_box' | 'under';
+  /**
+   * 🆕`then:'field'` 限定＝**【ゲート】があるシグニゾーンへ出す**（2026-09-01 続き760・`WXDi-P15-079-E1`
+   * 「その中からシグニ１枚を**【ゲート】があるあなたのシグニゾーンに出し**」）。
+   * 🔴無いと「空いているどのゾーンでもよい」に化ける（【ゲート】を作った意味が消える）。
+   */
+  gateZoneOnly?: boolean;
   handOrEnergy?: boolean;         // 選んだ各カードを手札かエナへ（SEARCH continuation の既存対話を再利用）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   // 直前ステージで選んだカードと**共通するクラスを持たない**もののみ（「緑のシグニ1枚と、そのシグニと
@@ -3514,6 +3612,13 @@ export interface AttachAcceAction {
   targetsLastProcessed?: boolean;
   /** 🆕true＝「〜の【アクセ】にして**もよい**」＝スキップ枝を出す。 */
   optional?: boolean;
+  /**
+   * 🆕「エナゾーンから**好きな枚数**の《アクセアイコン》を持つシグニを、**好きな数の**シグニの【アクセ】にする」
+   * （2026-09-01 続き760・`WX16-022-E1`）＝**1枚付けるたびに同じ問いへ戻る**（枚数の上限は候補が尽きるまで）。
+   * 🔴無いと1ペアで止まる（原文の「好きな枚数×好きな数」が1×1に潰れる）。
+   * ⚠必ず `optional` と併用する＝**やめる択が無いと無限に付けさせられる**（候補が尽きるまで強制になる）。
+   */
+  repeatWhilePossible?: boolean;
   signiFilter?: TargetFilter;   // アクセカードのフィルター（手札から選ぶ場合に使用）
   targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
   _selectingAcceFromHand?: boolean; // 内部: fromHand step1（手札からアクセカード選択中）のthenActionマーカー

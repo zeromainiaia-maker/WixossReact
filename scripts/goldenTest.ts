@@ -34046,6 +34046,107 @@ test('§5.2 再照合後バッチ: 照応・所有者・アイコン否定の6�
   eq(e2?.filter?.cardName, '雷ちゃん', '同上（カード名）');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 意味照合 段2（2026-09-01 続き760）＝新設した engine 語彙の3点セット（型＋評価器＋反転確認）
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('続き760 SWAP_DECK_TOP_AND_LIFE: デッキの一番上とライフクロス1枚を入れ替える（WX19-061-E1）', () => withSavedCursor(() => {
+  // 🔑ライフクロスは裏向きで区別が付かないので「1枚」は選ばせず**末尾（一番上）**を使う
+  //   （`TRANSFER_TO_HAND` の `LIFE_CLOTH_CARD` 分岐と同じ規約）。
+  const ctx = mkCtx({}, {});
+  const deckTopBefore = ctx.otherState.deck[0];
+  const lifeTopBefore = ctx.otherState.life_cloth[ctx.otherState.life_cloth.length - 1];
+  ok(deckTopBefore !== lifeTopBefore, '前提：入れ替え前は別カード');
+  const r = run({ type: 'SWAP_DECK_TOP_AND_LIFE', owner: 'opponent' } as EffectAction, ctx);
+  eq(r.otherState.deck[0], lifeTopBefore, 'デッキの一番上が元のライフクロスになる');
+  eq(r.otherState.life_cloth[r.otherState.life_cloth.length - 1], deckTopBefore, 'ライフクロスが元のデッキトップになる');
+  eq(r.otherState.deck.length, ctx.otherState.deck.length, 'デッキ枚数は変わらない');
+  eq(r.otherState.life_cloth.length, ctx.otherState.life_cloth.length, 'ライフ枚数は変わらない');
+  // 🔴反転確認：ライフが0枚なら**何も起きない**（片方だけ動かすと枚数が狂う）。
+  const ctx0 = mkCtx({}, { life: 0 });
+  const r0 = run({ type: 'SWAP_DECK_TOP_AND_LIFE', owner: 'opponent' } as EffectAction, ctx0);
+  eq(r0.otherState.deck[0], ctx0.otherState.deck[0], 'ライフ0枚なら入れ替えない');
+}));
+
+test('続き760 PLACE_KEY_FROM_LRIG_DECK: ルリグデッキのキーをキー枠へ（WDK03-001-E1）', () => withSavedCursor(() => {
+  // 🔴旧 live は `ADD_TO_FIELD{source なし}`＝**デッキの一番上を場に出す**別のカードだった。
+  const keyNum = 'WDK03-006';
+  const ctx = mkCtx({}, {});
+  const withKey = { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: [keyNum] } } as ExecCtx;
+  const r = run({ type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self', cardName: '異体同心　華代' } as EffectAction, withKey);
+  eq(r.ownerState.field.key_piece, keyNum, 'キー枠へ置かれる');
+  eq((r.ownerState.lrig_deck ?? []).length, 0, 'ルリグデッキから抜ける');
+  // 🔴反転確認：名前が違えば置かない（「任意のキーを出す」に化けない）。
+  const r2 = run({ type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self', cardName: '存在しないキー' } as EffectAction, withKey);
+  eq(r2.ownerState.field.key_piece, null, '名前が一致しなければ何も置かない');
+}));
+
+test('続き760 ATTACH_ACCE.repeatWhilePossible: 1ペア付けるたびに同じ問いへ戻る（WX16-022-E1）', () => withSavedCursor(() => {
+  // 🔴旧 live は `GRANT_KEYWORD{アクセ}`＝**エナのカードが1枚も動かない**真 no-op だった。
+  // ⚠**多段対話**（アクセ札→ホスト→…）なので、engine 側の resume チェーンをここで固定する
+  //   （UI 層は実機の管轄。ここが落ちればループの組み立てが壊れたと分かる）。
+  const hosts = [fresh(), fresh(), null] as (string | null)[];
+  const ctx = mkCtx({ signi: hosts, energy: 2 }, {});
+  const before = ctx.ownerState.energy.length;
+  const r = run({ type: 'ATTACH_ACCE', sourceOwner: 'self', targetSigniOwner: 'self',
+    fromEnergy: true, repeatWhilePossible: true, optional: true } as unknown as EffectAction, ctx);
+  const attached = (r.ownerState.field.signi_acce ?? []).flatMap(slot => slot ?? []);
+  ok(attached.length >= 2, `2ペア以上が付く（got=${attached.length}）`);
+  eq(r.ownerState.energy.length, before - attached.length, 'エナから同じ枚数だけ減る');
+  // 🔴反転確認：フラグが無ければ1ペアで止まる。
+  const ctx1 = mkCtx({ signi: hosts, energy: 2 }, {});
+  const r1 = run({ type: 'ATTACH_ACCE', sourceOwner: 'self', targetSigniOwner: 'self',
+    fromEnergy: true } as unknown as EffectAction, ctx1);
+  eq((r1.ownerState.field.signi_acce ?? []).flatMap(slot => slot ?? []).length, 1, 'フラグ無しは1ペアだけ');
+}));
+
+test('続き760 TransferToDeckAction.orderChosenBy: 相手が1体ずつ順番を決める（WXDi-P09-002-E1）', () => withSavedCursor(() => {
+  // 🔑一括処理のままだと engine の内部順（ゾーン順）で積まれる＝「置く順番は対戦相手が決める」が消える。
+  const a = fresh(); const b = fresh(); const c = fresh();
+  const ctx = mkCtx({}, { signi: [a, b, c] });
+  const act = { type: 'TRANSFER_TO_DECK', shuffle: false, position: 'top', orderChosenBy: 'opponent',
+    source: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } } } as unknown as EffectAction;
+  // 1体ずつ選ばせる＝最初の pending は SELECT_TARGET（count 1）。
+  const opened = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!opened.done && opened.pending.type === 'SELECT_TARGET', '1体ずつの選択が開く');
+  if (opened.done || opened.pending.type !== 'SELECT_TARGET') return;
+  eq((opened.pending as unknown as { count: number }).count, 1, '1体ずつ');
+  ok((opened.pending as unknown as { opponentResponds?: boolean }).opponentResponds === true, '選ぶのは対戦相手');
+  // 最後まで回すと全部デッキへ移る。
+  const r = finish(opened, ctx);
+  eq(r.otherState.field.signi.filter(z => z && z.length > 0).length, 0, '相手の場は空になる');
+  eq(r.otherState.deck.slice(0, 3).filter(n => [a, b, c].includes(n)).length, 3, '3体ともデッキの上に積まれる');
+  // 🔴反転確認：フラグが無ければ選択を挟まず一括で終わる。
+  const ctx2 = mkCtx({}, { signi: [a, b, c] });
+  const bulkAct = JSON.parse(JSON.stringify(act)) as { orderChosenBy?: string };
+  delete bulkAct.orderChosenBy;
+  const bulk = executeEffect({ effectId: 't', effectType: 'AUTO', action: bulkAct as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx2);
+  ok(bulk.done, 'フラグ無しは対話を挟まない（＝順番を決める余地が無い）');
+}));
+
+test('続き760 ZONE_COUNT_COMPARE.offset: 「対戦相手より2体以上少ない」（WXK10-003-E1 選択肢③）', () => withSavedCursor(() => {
+  const cond = { type: 'ZONE_COUNT_COMPARE', operator: 'lte', offset: -2,
+    left: { zone: 'field', owner: 'self', filter: { cardType: 'シグニ' } },
+    right: { zone: 'field', owner: 'opponent', filter: { cardType: 'シグニ' } } } as unknown as Condition;
+  // ⚠盤面は**別インスタンス**で作る（同じ CardNum を並べると `countFromZone` の実体が重複しうる）。
+  const mk = (mine: number, theirs: number): ExecCtx => mkCtx(
+    { signi: [mine > 0 ? fresh() : null, mine > 1 ? fresh() : null, mine > 2 ? fresh() : null] },
+    { signi: [theirs > 0 ? fresh() : null, theirs > 1 ? fresh() : null, theirs > 2 ? fresh() : null] });
+  ok(evalCondition(cond, mk(1, 3)), '1体 vs 3体＝2体少ない→成立');
+  ok(!evalCondition(cond, mk(2, 3)), '2体 vs 3体＝1体しか少なくない→不成立');
+  // 🔴反転確認：offset を落とすと「同数以下」で成立してしまう（過剰実行）。
+  const noOffset = { ...(cond as object), offset: 0 } as unknown as Condition;
+  ok(evalCondition(noOffset, mk(2, 3)), 'offset を 0 にすると 2 vs 3 でも成立＝下駄が効いている証拠');
+}));
+
+test('続き760 TargetFilter.isAttacking: 「アタックしているあなたのシグニ」だけを数える（WXDi-D03-004-E1）', () => withSavedCursor(() => {
+  const base = mkCtx({ signi: [fresh(), null, null] }, {});
+  const attacking = { ...base.ownerState, pending_signi_battle: { zoneIndex: 0 } } as unknown as PlayerState;
+  ok(matchesStateFilter(attacking, 0, { isAttacking: true }), 'アタック宣言中のゾーンは一致');
+  ok(!matchesStateFilter(base.ownerState, 0, { isAttacking: true }), '宣言していなければ一致しない（＝常時バフに化けない）');
+  ok(!matchesStateFilter(attacking, 1, { isAttacking: true }), '別ゾーンは一致しない');
+}));
+
 test('§5.2 バッチ3 ZONE_COUNT_COMPARE: 選択肢ごとの「手札とエナの枚数比較」が効く', () => withSavedCursor(() => {
   // 🔴旧 live は3つの選択肢すべてに条件が無く、**盤面に関係なくどれでも選べた**（`WX24-P4-053-E1`）。
   // ⚠**`HAND_COUNT{value:{$ref:…}}` では書けない**＝条件側の `value` は `resolveNum` が `$ref` を
@@ -37851,11 +37952,22 @@ test('task12 lxxiv残: WX09-Re02は選んだ相手アタックステップを実
   eq(lrig.ownerState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, false, '②は使用者stateへ積まない');
   eq(resolveNextPhaseWithSkips('ATTACK_SIGNI', lrig.otherState), 'END', '②の実stateでルリグステップを飛ばす');
 
+  // 🆕**2026-09-01 続き760＝対照の期待値を更新**（意味照合 段2）。`WXDi-P09-031-E1` の原文は
+  //   「このターン、**シグニアタックステップをスキップする**」＝**ターンの持ち主を問わない**ので、
+  //   JSON に `bothPlayers:true` を明示して**両者**へ積むようになった。
+  // ⚠この試験の本来の目的（**主語なしを一律 opponent へ倒さない**）はそのまま保つ＝
+  //   フラグを外した対照が **self だけ**に積むことを同時に見張る（勝手な主語反転はここで落ちる）。
   const control = effectsMap.get('WXDi-P09-031')!.find(e => e.effectId === 'WXDi-P09-031-E1')!;
   const controlCtx = mkCtx({}, {}, 'WXDi-P09-031');
   const controlled = finish(executeEffect(control, controlCtx), controlCtx);
-  eq(controlled.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, '主語なし対照はselfへ積み続ける');
-  eq(controlled.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '主語なし対照を一律opponentへ変えない');
+  eq(controlled.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, '対照はselfへ積み続ける');
+  eq(controlled.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, 'bothPlayers 明示時は相手へも積む（ターンの持ち主を問わない）');
+  const noFlagAct = JSON.parse(JSON.stringify(control.action)) as { bothPlayers?: boolean };
+  delete noFlagAct.bothPlayers;
+  const noFlagCtx = mkCtx({}, {}, 'WXDi-P09-031');
+  const noFlag = finish(executeEffect({ ...control, action: noFlagAct as EffectAction }, noFlagCtx), noFlagCtx);
+  eq(noFlag.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, 'フラグ無しは self へ積む');
+  eq(noFlag.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '🔴主語なしを一律 opponent へ倒さない（本来のトリップワイヤ）');
 });
 
 test('task12(lxx) Batch A WXK10-006-E1: クラス種類数・精元除外を収集時に評価し、CHOOSE両枝を実行する', () => {
@@ -54425,7 +54537,7 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   ＋ **parser 自身が同じ印を出す3件**（この test は parser を回さないので母集団から外せない）。
   //   （O-149 で WX24-P2-049-E1b を manual E2 へ正規化して D群を9→8。）
   //   ⇒ **以後この数が増えたら「また出所の無いスタンプを押した」** の合図。
-  const BASELINE_ORPHAN_MANUAL = 10; // 旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
+  const BASELINE_ORPHAN_MANUAL = 9; // 旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);

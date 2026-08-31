@@ -309,6 +309,8 @@ function filterJa(f?: any): string {
   // 「宣言したクラスを持つシグニ」が単なる「シグニ」に見えてしまう。
   if (f.levelEqDeclaredNumber) parts.push('宣言した数字と同じレベルを持つ');
   if (f.classEqDeclaredClass) parts.push('宣言したクラスを持つ');
+  // 🆕クロス条件に名前が挙がっているカード（落とすと「任意のシグニ」に読める）。
+  if (f.nameInCrossConditionOfLastProcessed) parts.push('それのクロス条件に含まれる');
   // 🆕限定条件（Restriction 列）の一致。落とすと「任意のカード」に読める。
   if (f.restrictionMatchesCenterLrig) parts.push('限定条件にあなたのセンタールリグのルリグタイプを持つ');
   else if (f.restrictionContains) parts.push(`限定条件に「${f.restrictionContains}」を持つ`);
@@ -1150,6 +1152,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcJaAA = a.fromHand ? '手札' : 'エナゾーン';
       const acceFilJaAA = a.signiFilter ? filterJa(a.signiFilter) : '';
       const hostFilJaAA = a.targetFilter ? filterJa(a.targetFilter) : '';
+      // 🆕repeatWhilePossible＝「好きな枚数を好きな数のシグニの【アクセ】にする」（落とすと1×1に読める）。
+      const cntJaAA = a.repeatWhilePossible ? ['好きな枚数の', '好きな数の'] : ['', ''];
+      const tailAA = a.repeatWhilePossible ? '' : '1枚を、あなたの場の';
+      if (a.repeatWhilePossible) {
+        return `${srcJaAA}から${cntJaAA[0]}${acceFilJaAA}シグニを、あなたの場の${cntJaAA[1]}${hostFilJaAA}シグニの【アクセ】にする${a.optional ? '（してもよい）' : ''}`;
+      }
+      void tailAA;
       return `${srcJaAA}から${acceFilJaAA}シグニ1枚を、あなたの場の${hostFilJaAA}シグニ1体の【アクセ】にする`;
     }
     case 'FIELD_SIGNI_TO_ACCE': {
@@ -1390,7 +1399,9 @@ function actionJa(a?: Action, effectType?: string): string {
         const duration = a.until === 'END_OF_TURN' ? 'ターン終了時まで、' : '';
         return `${targetJa(a.target)}を対象とし、${duration}それらは「【常】：あなたの他のシグニ${n}体を場からトラッシュに置かないかぎりアタックできない。」を得る`;
       }
-      const ownerWord = a.target?.owner === 'opponent' ? '対戦相手' : a.target?.owner === 'self' ? 'あなた' : '';
+      // 🆕bothPlayers＝ターンの持ち主を問わず「そのステップ自体を飛ばす」（`WXDi-P09-031-E1`）。
+      const ownerWord = a.bothPlayers ? '両プレイヤー'
+        : a.target?.owner === 'opponent' ? '対戦相手' : a.target?.owner === 'self' ? 'あなた' : '';
       const untilPre = a.until === 'END_OF_TURN' ? 'このターン、'
         : a.until === 'NEXT_TURN' ? `次の${a.target?.owner === 'opponent' ? '対戦相手の' : 'あなたの'}ターンの間、`
         : a.until === 'END_OF_ATTACK' ? 'そのアタックの間、' : '';
@@ -1532,7 +1543,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRANSFER_TO_DECK': {
       const opt = a.optional ? '（してもよい）' : '';
       if (a.destination === 'lrig_deck') return `${targetJa(a.source)}をルリグデッキに戻す${opt}`;
-      const chooser = a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
+      // 🆕orderChosenBy＝「置く順番は対戦相手が決める」（落とすと engine の内部順で積まれると読める）。
+      const chooser = a.orderChosenBy === 'opponent' ? '（置く順番は対戦相手が決める）'
+        : a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
       return a.shuffle
         ? `${targetJa(a.source)}をデッキに加えてシャッフルする${chooser}${opt}`
         : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : a.position === 'third' ? '上から三番目' : '上'}に置く${chooser}${opt}`;
@@ -1620,6 +1633,11 @@ function actionJa(a?: Action, effectType?: string): string {
         // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）。
         // 【${kwBase}[^】]*】＝【アサシン（パワー3000以下のシグニ）】等の括弧付きキーワード変種も拾う。
         : restoreLeadDuration(new RegExp(`【${kwBase}[^】]*】[^。]*?(?:得る|持つ)`));
+      // 🆕`target.type:'PLAYER'`＝**プレイヤー自身が得る**（`WXDi-P12-050-E1`「対戦相手は【みこみこ親衛隊】1つを得る」）。
+      //   シグニ宛の文と混ぜると「誰がコストを払うか」が読めなくなる。
+      if (a.target?.type === 'PLAYER') {
+        return `${a.target.owner === 'opponent' ? '対戦相手' : 'あなた'}は【${kw}】1つを得る${durJa}`;
+      }
       // thisCardOnly: このシグニ自身が持つキーワード（「このシグニは【X】を持つ」）
       if (a.target?.filter?.thisCardOnly) return `このシグニは【${kw}】を持つ${durJa}`;
       // targetsLastProcessed:「それ」= 直前に選択/処理したシグニへ付与
@@ -1666,6 +1684,15 @@ function actionJa(a?: Action, effectType?: string): string {
           : a.trigger?.refreshedOwner === 'self' ? 'あなた' : 'いずれかのプレイヤー';
         const effIDT = a.effect?.type === 'FORCE_END_TURN' ? 'このターンを終了する' : actionJa(a.effect);
         return `このターン、${whoIDT}が次にリフレッシュをした場合、その後で${effIDT}`;
+      }
+      // 🆕ON_BANISH（2026-09-01 続き760・`WX15-006-E1`）＝「このターン、あなたのシグニ1体が
+      //   （あなたの効果以外によって）バニッシュされたとき、…」。原因の除外を落とすと
+      //   「自分で落としても得をする」形に読める。
+      if (a.trigger?.timing === 'ON_BANISH') {
+        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
+        const causeIDT = a.trigger.notByOwnEffect ? 'あなたの効果以外によって' : '';
+        const filJa = filterJa(a.trigger.triggerFilter ?? {});
+        return `${durIDT}、あなたの${filJa}シグニ1体が${causeIDT}バニッシュされたとき、${actionJa(a.effect)}`;
       }
       if (a.trigger?.timing === 'ON_LEAVE_FIELD') {
         const whoIDT = a.trigger.leftOwner === 'opponent' ? '対戦相手の'
@@ -1759,6 +1786,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // 領域を跨いだことが計器に映らない。
       if (a.target?.allZones) {
         return `${ownerJa(a.target?.owner)}手札と場とエナゾーンとトラッシュにある${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
+      }
+      // 🆕extraZones: 足すゾーンを明示した形（「場とトラッシュにある」）。落とすと場限定に見える。
+      if (a.target?.extraZones?.length) {
+        const zoneJaRA: Record<string, string> = { hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ' };
+        const zonesRA = ['場', ...a.target.extraZones.map((z: string) => zoneJaRA[z] ?? z)].join('と');
+        return `${ownerJa(a.target?.owner)}${zonesRA}にある${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
       }
       if (a.alsoKeys) {
         return `${ownerJa(a.target?.owner)}場にあるすべてのキーと${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
@@ -1992,7 +2025,10 @@ function actionJa(a?: Action, effectType?: string): string {
       //   1つを選び、あなたはそれを行う」は**選ぶ主体が相手**であることが効果の要点。
       //   `opponentResponds` を落とすと「あなたが選ぶ」と読めてしまい、逆翻訳が原文と真逆になる。
       const chooserCh = a.opponentResponds ? '対戦相手は' : '';
-      return `${chooserCh}以下の${numJa(totalCh)}つから${cntCh}${betCh}${recoCh}${condCh}【${chOpts.join(' / ')}】`;
+      // 🆕noRepeat＝「まだ選んでいないもの」（このゲーム中に選んだ選択肢は二度と選べない）。
+      //   落とすと毎回同じ選択肢を取れる強い効果に読める（`WXDi-P11-003`）。
+      const noRepCh = a.noRepeat ? 'まだ選んでいないもの' : '';
+      return `${chooserCh}以下の${numJa(totalCh)}つから${noRepCh}${cntCh}${betCh}${recoCh}${condCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
@@ -2030,8 +2066,10 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
-      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : t === 'under' ? 'このシグニの下に置き' : 'トラッシュに置き';
-      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${destVerb(s.then)}`;
+      // 🆕`gateZoneOnly`＝「【ゲート】があるあなたのシグニゾーンに出し」（落とすと空きゾーンならどこでもよいと読める）。
+      const destVerb = (t: string, gate?: boolean) => t === 'field' && gate ? '【ゲート】があるあなたのシグニゾーンに出し'
+        : t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'seed' ? '【シード】としてシグニゾーンに出し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : t === 'under' ? 'このシグニの下に置き' : 'トラッシュに置き';
+      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${destVerb(s.then, s.gateZoneOnly)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
@@ -2485,8 +2523,20 @@ function actionJa(a?: Action, effectType?: string): string {
         const lmNoun = `${lmF?.color ? `${lmF.color}の` : ''}${lmF?.story ? `＜${lmF.story}＞の` : ''}${lmF?.cardType ?? 'カード'}`;
         return `${targetJa(a.target)}のレベルをこの方法で処理した${lmNoun}のレベルと同じだけ${a.delta >= 0 ? '＋' : '－'}する`;
       }
+      // 🆕aboveSelf＝「このカードの上にあるシグニ」（スタック下のクラフト等がホストへ効く形）。
+      //   POWER_MODIFY と同じ規約で主語を出す（`targetJa` だと「あなたのシグニ1体」に化ける）。
+      if (a.target?.filter?.aboveSelf) {
+        const lmAboveRest = { ...a.target.filter, aboveSelf: undefined };
+        return `このカードの上にある${filterJa(lmAboveRest)}${a.target.filter.cardName ? '' : 'シグニ'}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
+      }
       return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     }
+    // 🆕デッキトップとライフクロスの入れ替え（`WX19-061-E1`）。
+    case 'SWAP_DECK_TOP_AND_LIFE':
+      return `${ownerJa(a.owner)}デッキの一番上と${ownerJa(a.owner)}ライフクロス1枚を入れ替える${a.optional ? '（してもよい）' : ''}`;
+    // 🆕ルリグデッキからキーを場に出す（`WDK03-001-E1`）。
+    case 'PLACE_KEY_FROM_LRIG_DECK':
+      return `${ownerJa(a.owner)}ルリグデッキから《${a.cardName}》1枚を場に出す`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
     case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;
