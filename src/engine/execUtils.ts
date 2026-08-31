@@ -1070,6 +1070,11 @@ export function matchesFilter(
     const hasLB = !!card.BurstText && card.BurstText !== '-';
     if (filter.hasLifeBurst !== hasLB) return false;
   }
+  // 🆕限定条件（`Restriction` 列＝「ユヅキ限定」等）にこの語を含むか（`SP15-001-E1`）。
+  // ⚠**`restrictionMatchesCenterLrig` は動的形**＝`resolveDynamicFilter` がここへ解決してから来る。
+  if (filter.restrictionContains !== undefined) {
+    if (!(card.Restriction ?? '').includes(filter.restrictionContains)) return false;
+  }
   if (filter.costMax !== undefined || filter.costMin !== undefined) {
     // 使用コストの合計（《色×N》の合計、コインは除く）
     let total = 0;
@@ -1550,6 +1555,11 @@ export function fieldCandidates(
       const attacked = (state.attacked_signi_ids ?? []).includes(cardNum);
       if (filter.attackedThisTurn !== attacked) return [];
     }
+    // 🆕「**アタックしている**シグニ」＝いま宣言中のアタッカー1体（`pending_signi_battle` のゾーン）。
+    if (filter?.isAttacking !== undefined) {
+      const attacking = state.pending_signi_battle?.zoneIndex === zoneIdx;
+      if (filter.isAttacking !== attacking) return [];
+    }
     if (filter?.crossState !== undefined) {
       const isCross = state.field.cross_state?.[zoneIdx] ?? false;
       if (filter.crossState !== isCross) return [];
@@ -1685,7 +1695,15 @@ export function isTrashImmuneByOpponent(
 }
 
 export function trashCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>, allZoneClassOverrides?: Record<string, string>): string[] {
-  return state.trash.filter(n => matchesFilter(cardMap.get(n), filter, undefined, undefined, allZoneClassOverrides));
+  // 🆕`discardedFromHandThisTurn`＝「**このターンに捨てた**シグニ」（2026-08-31 続き759・`WXK05-016-E2`）。
+  // ⚠**カード属性ではなくインスタンス履歴**なので `matchesFilter` では表せない＝トラッシュ候補の
+  //   唯一の funnel であるここで絞る（executor ごとに1行書くと必ず片側だけ穴が空く）。
+  const historyGate = filter?.discardedFromHandThisTurn
+    ? new Set(state.turn_hand_discarded_cards ?? [])
+    : undefined;
+  return state.trash.filter(n =>
+    (!historyGate || historyGate.has(n))
+    && matchesFilter(cardMap.get(n), filter, undefined, undefined, allZoneClassOverrides));
 }
 
 /**
@@ -2635,10 +2653,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // ⚠**`HAND_COUNT{value:{$ref:…}}` では書けない**＝条件側の `value` は `resolveNum` が `$ref` を
     //   黙って 0 にするので「手札0枚以下」に化ける。ゾーン数え上げは `countFromZone` 1本へ寄せる。
     case 'ZONE_COUNT_COMPARE':
+      // 🆕`offset`＝右辺に足す下駄（「対戦相手より2体以上少ない」＝ left <= right - 2）。
       return cmp(
         countFromZone(cond.left, s, o, ctx.cardMap, ctx.sourceCardNum),
         cond.operator,
-        countFromZone(cond.right, s, o, ctx.cardMap, ctx.sourceCardNum),
+        countFromZone(cond.right, s, o, ctx.cardMap, ctx.sourceCardNum) + (cond.offset ?? 0),
       );
     case 'EFFECTIVE_LRIG_LIMIT_GTE':
       return !!ctx.effectsMap && computeEffectiveLrigLimit(
@@ -2667,6 +2686,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cond.negate ? !betting : betting;
     }
     case 'IS_BOOSTING':           return !!ctx.ownerState.is_boosting_this_effect;
+    // 🆕このターンの owner のリフレッシュ回数（`PR-205-E1`「このターンであなたの最初のリフレッシュである場合」）。
+    // ⚠`refresh.ts` が**リフレッシュ処理の中で先に加算**するので、ON_REFRESH 収集時点で 1回目＝1。
+    case 'REFRESH_COUNT_THIS_TURN':
+      return cmp(st(cond.owner).refresh_count_this_turn ?? 0, cond.operator, cond.value);
     case 'ANY_PLAYER_REFRESHED_THIS_TURN':
       return (ctx.ownerState.refresh_count_this_turn ?? 0) > 0
         || (ctx.otherState.refresh_count_this_turn ?? 0) > 0;
@@ -2704,9 +2727,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(ctx.ownerState.field.beat_zone?.length ?? 0, cond.operator, cond.value);
     // 🆕「あなたのチェックゾーンにあるカードがN枚以下の場合」（§5.3 `O-143`）。
     //   ⚠**`check` と `check_rest` の両方**を数える（`checkZoneCards`）＝片方だけだと原文と合わない。
-    case 'CHECK_ZONE_COUNT':
-      return cmp(checkZoneCards(cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).length,
-        cond.operator, cond.value);
+    case 'CHECK_ZONE_COUNT': {
+      // 🆕`filter` 指定時は**一致するカードだけ**を数える（`WX13-005B-E1`＝「チェックゾーンにスペルがある場合」）。
+      const czCards = checkZoneCards(cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState);
+      const czCount = cond.filter
+        ? czCards.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), cond.filter)).length
+        : czCards.length;
+      return cmp(czCount, cond.operator, cond.value);
+    }
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN':
       return !!ctx.sourceCardNum && (ctx.ownerState.upped_from_down_this_turn ?? []).includes(ctx.sourceCardNum);
     case 'COST_TRASHED_PUPPET':

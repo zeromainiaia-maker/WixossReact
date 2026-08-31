@@ -2502,9 +2502,13 @@ export function execStubPart2(
       .filter(n => ctx.ownerState.trash.includes(n))
       .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), pkPFTC.filter));
     if (candsPFTC.length === 0) return done(addLog(ctx, 'この方法でトラッシュに置いたカードに該当なし'));
+    // 🆕`dest:'field'`＝選んだ札を**必ず場に出す**（`applyDirectAction` の ADD_TO_FIELD が
+    //   選択された1枚を所在を問わず除去して配置する＝`hand_or_field` の場側と同じ受け皿）。
     const thenByDest: EffectAction = pkPFTC.dest === 'energy'
       ? ({ type: 'ENERGY_CHARGE', target: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as EffectAction)
-      : ({ type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as TransferToHandAction as EffectAction);
+      : pkPFTC.dest === 'field'
+        ? ({ type: 'ADD_TO_FIELD', owner: 'self' } as EffectAction)
+        : ({ type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as TransferToHandAction as EffectAction);
     // dest:'hand_or_field'＝選んだ札ごとに「手札に加える／場に出す」を問う（既存 CHOOSE 部品を再利用）。
     const contPFTC: EffectAction | undefined = pkPFTC.dest === 'hand_or_field'
       ? ({ type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD' } as StubAction as EffectAction)

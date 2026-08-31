@@ -393,7 +393,9 @@ export type Condition =
    * ⚠`ActiveCondition` 側には置いていない（この文型は【自】のトリガー条件だけに出る）＝
    *   両 union に置いたら**評価器も両方に実装する**（片方だけだと未知型フォールバックで無条件成立に倒れる）。
    */
-  | { type: 'CHECK_ZONE_COUNT'; owner: Owner; operator: CompareOp; value: number }
+  // 🆕`filter`＝「対戦相手のチェックゾーンに**スペル**がある場合」（2026-08-31 続き759・`WX13-005B-E1`）。
+  //   ⚠枚数だけの器にしない＝原文はカード種別で限定する（無いと**何かあれば成立**＝過剰発火）。
+  | { type: 'CHECK_ZONE_COUNT'; owner: Owner; operator: CompareOp; value: number; filter?: TargetFilter }
   | { type: 'COST_TRASHED_PUPPET' } // この能力のコストで傀儡状態のシグニをトラッシュに置いた場合（last_cost_trashed_puppet）。WDK17-014「代わりに－10000」
   | { type: 'COST_DISCARDED_SIGNI_LEVEL'; level: number } // このコストで指定レベルのシグニを手札から捨てた場合（last_discarded_signi_level）。WX25-P2-101「レベル１→代わりに－5000」
   // 「このコストで<filter に合うカード>を捨てた／トラッシュに置いた場合」＝直前のコスト支払いでトラッシュへ送った
@@ -575,7 +577,13 @@ export type Condition =
    * 受け皿は既存の `CountFromZone` をそのまま使う（`countFromZone` が唯一の解決器＝filter/単位換算も共通）。
    * 例＝`WX24-P4-053-E1` の選択肢①②③（手札 < エナ／エナ < 手札／同数）。
    */
-  | { type: 'ZONE_COUNT_COMPARE'; left: CountFromZone; right: CountFromZone; operator: CompareOp }
+  /**
+   * 🆕`offset`＝**右辺に足す下駄**（2026-08-31 続き759・`WXK10-003-E1` の選択肢③
+   * 「あなたの場にあるシグニの数が対戦相手より**２体以上少ない**場合」＝`left <= right - 2`）。
+   * ⚠`LIFE_COMPARE_OPP` は**差**を `value` と比べる別式なので、ゾーン横断の `countFromZone` では使えない。
+   *   `left`/`right` に filter を掛けたまま「Nだけ差がある」を書けるのはこの下駄だけ。
+   */
+  | { type: 'ZONE_COUNT_COMPARE'; left: CountFromZone; right: CountFromZone; operator: CompareOp; offset?: number }
   | { type: 'EFFECTIVE_LRIG_LIMIT_GTE'; value: number }
   | { type: 'DURING_PHASE'; phases: string[] }
   // 対戦相手のシグニがアタックしている最中（アタック宣言済み・バトル未解決）か。
@@ -589,7 +597,15 @@ export type Condition =
   | { type: 'IS_BETTING'; minCoins?: number; negate?: boolean } // このアーツ/スペルでベットを宣言していた場合（is_betting_this_effect）。minCoins 指定時は支払ったコイン枚数（bet_coins_paid）がN以上の段階ベット判定（WX16-004）。「あなたがベットしていた場合、代わりに」の択一に使う。negate=true は「ベットしていなかった場合」（`WD20-006-E1` のデメリット節）
   | { type: 'IS_BOOSTING' }                                    // このアーツでブースト追加エナを支払っていた場合
   | { type: 'PAID_ADDITIONAL_COST' }
-  | { type: 'ANY_PLAYER_REFRESHED_THIS_TURN' }                  // このターンにいずれかのプレイヤーがリフレッシュしていた場合
+  | { type: 'ANY_PLAYER_REFRESHED_THIS_TURN' }
+  /**
+   * 🆕このターンに owner が行ったリフレッシュ回数（2026-08-31 続き759・`PR-205-E1`
+   * 「それが**このターンであなたの最初のリフレッシュである場合**、それをバニッシュする」）。
+   * 🔑`refresh_count_this_turn` は**リフレッシュ処理の中で先に加算される**（`refresh.ts`）ので、
+   *   `ON_REFRESH` の収集時点では1回目＝1・2回目＝2。最初の1回は `lte 1` で表す。
+   * ⚠`ANY_PLAYER_REFRESHED_THIS_TURN`（両者いずれかが1回以上）とは別軸＝あちらは回数を見ない。
+   */
+  | { type: 'REFRESH_COUNT_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }                  // このターンにいずれかのプレイヤーがリフレッシュしていた場合
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number; verbJa?: string; negate?: boolean; omitGteJa?: boolean } // この方法で直前に処理したカード枚数がN以上。negate=true は「N枚処理しなかった」＝N未満（否定3件）。verbJa/omitGteJa は decompiler 表示専用
@@ -694,7 +710,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LIFE_COMPARE_OPP: true, HAND_COMPARE_OPP: true, ENERGY_COMPARE_OPP: true, ZONE_COUNT_COMPARE: true, EFFECTIVE_LRIG_LIMIT_GTE: true,
   DURING_PHASE: true, OPP_SIGNI_ATTACKING: true, AND: true, IS_MY_TURN: true, IS_OPPONENT_TURN: true,
   IS_BETTING: true, IS_BOOSTING: true, PAID_ADDITIONAL_COST: true, ANY_PLAYER_REFRESHED_THIS_TURN: true,
-  BEAT_CONDITION: true, COND_STUB: true, LAST_PROCESSED_COUNT_GTE: true,
+  BEAT_CONDITION: true, COND_STUB: true, LAST_PROCESSED_COUNT_GTE: true, REFRESH_COUNT_THIS_TURN: true,
   LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED: true, LAST_PROCESSED_LEVEL_SUM: true,
   TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true, LAST_PROCESSED_POWER_LTE: true,
   ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
@@ -962,6 +978,15 @@ export interface TargetFilter {
    *   参照する `attacked_signi_ids` は**アタックした側の state** に積まれる。
    */
   attackedThisTurn?: boolean;
+  /**
+   * 🆕**いまアタック中の**シグニ（2026-08-31 続き759・`WXDi-D03-004-E1`
+   * 「【チーム常】：**アタックしている**あなたのシグニのパワーを＋2000する」）。
+   * ⚠`attackedThisTurn`（このターンに1度でもアタックした）とは**別軸**＝こちらは
+   *   `pending_signi_battle`（アタック宣言済み・バトル未解決）の1体だけ。
+   *   混同すると「アタック済みの全シグニ」が常時強化される（バトル解決後も残る過剰実行）。
+   * ⚠判定は state を持つ層（`fieldCandidates` / `matchesStateFilter`）＝`matchesFilter` では見えない。
+   */
+  isAttacking?: boolean;
   crossState?: boolean; // クロス状態のシグニ（field.cross_state[zone]）。イノセンス等（G159）
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
@@ -983,6 +1008,23 @@ export interface TargetFilter {
   // クラスがこの効果で宣言したクラスと一致（「その中から宣言したクラスを持つシグニ」PR-431／WX24-P1-035）。
   // resolveDynamicFilter が declared_class を story（CardClass 部分一致＝多クラス対応）へ解決する。未宣言なら空ヒット。
   classEqDeclaredClass?: boolean;
+  /**
+   * 🆕**限定条件があなたのセンタールリグのルリグタイプと一致するカード**（2026-08-31 続き759・
+   * `SP15-001-E1`「あなたのデッキから、**限定条件にあなたのセンタールリグのルリグタイプを持つ**カード１枚を
+   * 探して公開し手札に加える」）。`resolveDynamicFilter` が `restrictionContains`（下）へ解決する。
+   * 🔴旧 live は `cardType:'ルリグ'` で、**デッキにいないルリグカード**を探す no-op に近い形だった。
+   * ⚠センタールリグが居ない／ルリグタイプ不明のときは**空ヒット**へ倒す（fail-closed）。
+   */
+  restrictionMatchesCenterLrig?: boolean;
+  /** `Restriction` 列（例「ユヅキ限定」）にこの文字列を含むか。上の解決先＝静的形。 */
+  restrictionContains?: string;
+  /**
+   * 🆕「**このターンに捨てた**シグニ」（2026-08-31 続き759・`WXK05-016-E2`
+   * 「あなたのトラッシュから**このターンに捨てた**シグニ１枚を対象とし、それを場に出す」）。
+   * ⚠**カード属性ではなくインスタンス履歴**（`turn_hand_discarded_cards`）＝`matchesFilter` では表せず、
+   *   トラッシュ候補の funnel（`trashCandidates`）で絞る。無いと**トラッシュの任意のシグニ**が出せる。
+   */
+  discardedFromHandThisTurn?: boolean;
   // DECLARE_COLORS で宣言した色のうち指定番目と一致。参照不能時は空ヒット。
   colorEqDeclaredColorIndex?: number;
   // 自分の場のルリグ（センター→左アシスト→右アシスト）の指定番目と共通色。
@@ -2389,6 +2431,14 @@ export interface GrantProtectionAction {
   sourceCostMin?: number; // 保護元カード（アーツ/スペル）の使用コスト合計がN以上の効果のみ保護する（「対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない」WX15-031）。collectEffectImmuneSigni が解決中ソースカードの Cost 合計で判定
   sourceFilter?: TargetFilter; // 保護元カードの属性で耐性を絞る（sourceCostMin の一般化）。collectEffectImmuneSigni が解決中ソースカードの CardData を matchesFilter で判定し、非マッチなら保護しない（WXEX2-36「ライズアイコンを持たない対戦相手のシグニの効果を受けない」／WXK11-021「ライフバーストではない…」）
   sourceEffectType?: 'LIFE_BURST'; // 発生源カードの属性ではなく、現在解決中の効果種別を限定する（WX11-027「対戦相手のライフバーストの効果」）
+  /**
+   * 🆕**対戦相手のターンの間だけ**有効な耐性（2026-08-31 続き759・`WX16-Re09-E1`
+   * 「【常】：**対戦相手のターンの間**、このシグニは対戦相手の効果を受けない」）。
+   * 🔴無いと**ターンを問わない永続耐性**に化ける（自分のターンにも相手の除去を全部弾く過剰実行）。
+   * ⚠期間つき付与（`keyword_grants`）は条件を持てないので、`PROTECTION_FILTERED:` の JSON へ載せて
+   *   消費側（`collectEffectImmuneSigni` の `protMatches`）が `isOwnerTurn` で判定する。
+   */
+  duringOppTurn?: boolean;
   sourceOwner?: 'self' | 'opponent' | 'any'; // 誰の効果から保護するか（any＝発生源オーナーを問わない。ルール／バトルは含めない）
   /**
    * 発生源カードが**保護されるシグニと1色以上共通する**ときだけ保護する
@@ -2410,6 +2460,15 @@ export interface AttachCharmAction {
   to: EffectTarget;    // 付ける対象シグニ（to.filter.thisCardOnly=効果元シグニ自身）
   optional?: boolean;  // true=「チャームにしてもよい」（付ける/付けないを選択）
   perAllSigni?: boolean; // 各シグニへデッキトップから1枚ずつ一斉付与
+  /**
+   * 🆕`charm.type:'SIGNI'`＝**場のシグニ自身をチャームに変える**（2026-08-31 続き759・`WXEX1-28-E1`
+   * 「対象の対戦相手のシグニ１体を、対象の対戦相手の**他の**シグニ１体の【チャーム】にする」）。
+   * 🔴旧 live は `charm:{type:'SIGNI'}` を書いていたのに engine 側に分岐が無く、
+   *   既定枝（手札／エナ）へ落ちて**相手の手札のカードをチャームにしていた**（別のカード）。
+   * `toOther`＝チャームになる側をホスト候補から外す（「**他の**シグニ」）。
+   * ⚠これが無いと**自分自身の【チャーム】になる**（場から消えるだけの無意味な動作）。
+   */
+  toOther?: boolean;
 }
 
 /**
@@ -2531,7 +2590,14 @@ export interface RevealAndPickAction {
 // コストなしでカードを使用する（手札・相手手札・相手トラッシュ・ルリグデッキから）
 export interface PlayFreeAction {
   type: 'PLAY_FREE';
-  source: 'hand' | 'opp_hand' | 'opp_trash' | 'lrig_deck';
+  /**
+   * 🆕`trash`＝**あなたのトラッシュ**（2026-08-31 続き759・`WX25-P1-022-E2`
+   * 「**あなたと対戦相手の**トラッシュからスペルをそれぞれ1枚まで対象とし、このターン、あなたはそれらを
+   * 使用してもよい。**（コストは支払う）**」）。
+   * ⚠`PLAY_FREE_FROM_TRASH` を流用してはいけない＝あちらは**必ずコストを支払わない**型で、
+   *   `ignoreCost` を持たないので「コストは支払う」を表せない。
+   */
+  source: 'hand' | 'opp_hand' | 'opp_trash' | 'lrig_deck' | 'trash';
   filter: TargetFilter;
   ignoreCost: boolean;
   ignoreRestrictions?: boolean;
@@ -2543,6 +2609,14 @@ export interface PlayFreeAction {
     plus?: number;
   };
   useTimingIncludes?: string; // 使用タイミングに含むべきアイコン（「使用タイミングに《メインフェイズアイコン》を含む」WX04-011）
+  /**
+   * 🆕**「そのスペル」＝直前に処理したカードそのもの**へ候補を絞る（2026-08-31 続き759・`WX24-P4-040-E2`
+   * 「対戦相手の手札を見て１枚選び、捨てさせる。**そのカードが**コストの合計が１以下のスペルの場合、
+   * 対戦相手のトラッシュから**そのスペルを**コストを支払わずに使用してもよい」）。
+   * 🔴無いと「コスト1以下のスペル」という**属性が同じ別のカード**を相手トラッシュから使えてしまう
+   *   （原文の照応が消える＝過剰実行）。
+   */
+  targetsLastProcessed?: boolean;
 }
 
 // コスト増加（CONTINUOUS効果で相手のカード使用コストを増やす）
@@ -3873,8 +3947,13 @@ export interface StubAction {
     upTo?: boolean;
     /** 候補側の絞り込み（「シグニ1枚」等）。省略＝任意カード。 */
     filter?: TargetFilter;
-    /** 行き先。`hand_or_field`＝1枚ずつ「手札に加える／場に出す」の二択。 */
-    dest: 'hand' | 'energy' | 'hand_or_field';
+    /**
+     * 行き先。`hand_or_field`＝1枚ずつ「手札に加える／場に出す」の二択。
+     * 🆕`field`＝**必ず場に出す**（2026-08-31 続き759・`WXK07-106-E1`「その後、この方法でトラッシュに
+     * 置かれたカードがレベルが奇数のシグニの場合、**それを**トラッシュから場に出す」）。
+     * ⚠`hand_or_field` を流用してはいけない＝あちらは**手札に加える択が増える**（原文にない選択肢）。
+     */
+    dest: 'hand' | 'energy' | 'hand_or_field' | 'field';
   };
   /**
    * この STUB が**シグニを場に出す**ことの宣言（§6.4 O-32）。
@@ -4323,6 +4402,14 @@ export interface StubAction {
   // DECLARE_CLASS: 宣言できるクラスを原文が列挙している場合の候補（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）。
   // 省略時は従来どおり盤面/手札/トラッシュから動的収集する。列挙があるのに無制限に宣言させるのは過剰実行なので明示で絞る。
   declareOptions?: string[];
+  /**
+   * 🆕`DECLARE_CLASS` の候補を**直前に処理したカード**（`lastProcessedCards`）に限る
+   * （2026-08-31 続き759・`WD08-008-E1`「この方法でトラッシュに置いたカードの中に、共通するクラスを持つ
+   * カードが３枚以上ある場合、**そのクラス**１つを選択する」）。`minCount` 回以上出たクラスだけを出す。
+   * 🔴無しで動的収集に倒すと、**トラッシュ・手札・両者の場の全クラス**から宣言できてしまう
+   *   （原文の「そのクラス」がどのクラスでもよくなる過剰実行）。
+   */
+  declareFromLastProcessed?: { minCount?: number };
   count?: number;          // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER 等の個数
   /** SIGNI_FLIP_FACEDOWN: 裏向きにする場シグニの対象宣言。 */
   faceDownTarget?: {

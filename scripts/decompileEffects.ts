@@ -189,6 +189,8 @@ function filterJa(f?: any): string {
   if (f.isFrozen) parts.push('凍結状態の');
   if (f.isPuppet) parts.push('傀儡状態の');
   if (f.attackedThisTurn) parts.push('このターンにアタックした');
+  // 🆕いま宣言中のアタッカー限定（`attackedThisTurn` とは別軸＝バトル未解決の1体だけ）。
+  if (f.isAttacking) parts.push('アタックしている');
   if (f.color) {
     const colors = ([] as string[]).concat(f.color);
     parts.push(colors.length === 1 && colors[0] === '無' ? '無色の' : `《${colors.join('・')}》の`);
@@ -307,6 +309,11 @@ function filterJa(f?: any): string {
   // 「宣言したクラスを持つシグニ」が単なる「シグニ」に見えてしまう。
   if (f.levelEqDeclaredNumber) parts.push('宣言した数字と同じレベルを持つ');
   if (f.classEqDeclaredClass) parts.push('宣言したクラスを持つ');
+  // 🆕限定条件（Restriction 列）の一致。落とすと「任意のカード」に読める。
+  if (f.restrictionMatchesCenterLrig) parts.push('限定条件にあなたのセンタールリグのルリグタイプを持つ');
+  else if (f.restrictionContains) parts.push(`限定条件に「${f.restrictionContains}」を持つ`);
+  // 🆕インスタンス履歴フィルタ（このターンに手札から捨てた札だけ）。落とすと逆翻訳から限定が消える。
+  if (f.discardedFromHandThisTurn) parts.push('このターンに捨てた');
   if (f.nameEqDeclaredName) parts.push('宣言したカード名の');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
   // 🆕2026-08-30 §5.2 カード単位バッチ第3回＝**逆翻訳が黙って落としていた3語彙**を追加した。
@@ -859,8 +866,11 @@ function condJa(c?: any): string {
     case 'ZONE_COUNT_COMPARE': {
       const zoneJa: Record<string, string> = { hand: '手札', energy: 'エナ', trash: 'トラッシュ', deck: 'デッキ', field: '場', lrig_trash: 'ルリグトラッシュ', check: 'チェックゾーン' };
       const side = (z: { zone: string; owner: string }) => `${z.owner === 'opponent' ? '対戦相手' : '自分'}の${zoneJa[z.zone] ?? z.zone}の枚数`;
-      if (c.operator === 'eq') return `${side(c.left)}と${side(c.right)}が同じ`;
-      return `${side(c.left)}が${side(c.right)}${countPredicateJa(c.operator)}`;
+      // offset＝右辺の下駄（「対戦相手より2体以上少ない」＝ left <= right-2）。落とすと逆翻訳から差が消える。
+      const off = (c as { offset?: number }).offset ?? 0;
+      const rightJa = off === 0 ? side(c.right) : `${side(c.right)}より${numJa(Math.abs(off))}${off < 0 ? '少ない数' : '多い数'}`;
+      if (c.operator === 'eq') return `${side(c.left)}と${rightJa}が同じ`;
+      return `${side(c.left)}が${rightJa}${countPredicateJa(c.operator)}`;
     }
     case 'EFFECTIVE_LRIG_LIMIT_GTE': return `このルリグのリミットが${numJa(c.value)}以上`;
     case 'DURING_PHASE': {
@@ -943,7 +953,8 @@ function condJa(c?: any): string {
     case 'SELF_DECK_TO_ENERGY_THIS_TURN': return `このターンにあなたのデッキからカードが${numJa((c as { value: number }).value)}枚以上エナゾーンに移動していた`;
     case 'SELECTED_COLOR': return `${(c as { color: string }).color}を選んだ`;
     // 🆕§5.3 `O-143`＝チェックゾーンの枚数（`field.check` ＋ `field.check_rest` の合計）。
-    case 'CHECK_ZONE_COUNT': return `${ownerJa(c.owner)}チェックゾーンにあるカードが${numJa(c.value)}枚${opJa(c.operator)}`;
+    // 🆕filter＝「チェックゾーンにあるスペルが」のようにカード種別で絞る（落とすと逆翻訳から限定が消える）。
+    case 'CHECK_ZONE_COUNT': return `${ownerJa(c.owner)}チェックゾーンにある${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'BEAT_ZONE_COUNT': return `${c.thisWay ? 'この方法で' : ''}あなたの【ビート】が${numJa(c.value)}枚${c.operator === 'lte' ? '以下' : c.operator === 'eq' ? 'になった' : opJa(c.operator)}`;
     case 'COST_TRASHED_PUPPET': return 'この能力のコストで傀儡状態のシグニをトラッシュに置いた';
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
@@ -1045,6 +1056,10 @@ function condJa(c?: any): string {
     // ── §5b「逆翻訳の英語ID漏れ0」の残テール（2026-08-07 §5c 消化のついでに一括意味文化）──
     case 'ALL_SELF_SIGNI_DOWN': return 'あなたのすべてのシグニがダウン状態';
     case 'ANY_PLAYER_REFRESHED_THIS_TURN': return 'このターンにいずれかのプレイヤーがリフレッシュしていた';
+    // 🆕回数つき（`lte 1`＝「このターンで最初のリフレッシュ」）。
+    case 'REFRESH_COUNT_THIS_TURN': return c.operator === 'lte' && c.value === 1
+      ? `それが${ownerJa(c.owner)}このターンで最初のリフレッシュ`
+      : `${ownerJa(c.owner)}このターンのリフレッシュ回数が${numJa(c.value)}回${opJa(c.operator)}`;
     case 'CENTER_LRIG_NOT_GROWN_THIS_TURN': return `このターンに${ownerJa(c.owner)}センタールリグがグロウしていない`;
     case 'FIELD_LRIG_COLOR_COUNT': return `${ownerJa(c.owner)}場のルリグが${c.minLrigs ? `${numJa(c.minLrigs)}体以上いて、` : ''}持つ色が${numJa(c.value)}種類${opJa(c.operator)}`;
     case 'FIELD_LRIGS_HAVE_COLORS': return `${ownerJa(c.owner)}場に${(c.colors || []).join('と')}のルリグがいる`;
@@ -1776,7 +1791,9 @@ function actionJa(a?: Action, effectType?: string): string {
         ? a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、'
           : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、' : ''
         : '';
-      const timedProtection = (body: string): string => `${protectionDurationJa}${body}`;
+      // 🆕`duringOppTurn`＝「対戦相手のターンの間」だけ有効（落とすと永続耐性に読める）。
+      const oppTurnJa = a.duringOppTurn ? '対戦相手のターンの間、' : '';
+      const timedProtection = (body: string): string => `${oppTurnJa}${protectionDurationJa}${body}`;
       if (a.sourceEffectType === 'LIFE_BURST') return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}ライフバーストの効果を受けない`);
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
@@ -2129,13 +2146,15 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.charm?.type === 'DECK_CARD' ? `${ownerJa(a.charm?.owner)}デッキの上からカード${charmCntJa}`
         : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード${charmCntJa}`
         : a.charm?.type === 'HAND_CARD' ? `${ownerJa(a.charm?.owner)}手札から${filterJa(a.charm.filter)}カード${charmCntJa}`
+        // 🆕場のシグニ自身をチャームに変える形（`WXEX1-28-E1`）。「カード」と描くと出所が読めない。
+        : a.charm?.type === 'SIGNI' ? `${ownerJa(a.charm?.owner)}${filterJa(a.charm?.filter)}シグニ${cntJa(a.charm?.count, '体', a.charm?.upToCount)}`
         : `${ownerJa(a.charm?.owner)}カード`;
       // 「好きな数」は数詞ではなく修飾語なので**名詞の前**に置く（「シグニ好きな数の」は日本語にならない）。
       const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ'
         : a.to?.filter?.isTriggerSource ? 'そのシグニ（場に出たシグニ）'
         : a.to?.count === 'ALL' ? `${ownerJa(a.to?.owner)}好きな数の${filterJa(a.to?.filter)}シグニ`
         : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ${toCntJa}`;
-      return `${charmJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
+      return `${charmJa}を${a.toOther ? '他の' : ''}${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'SET_BASE_LEVEL': {
       const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
@@ -2294,6 +2313,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcLoc: Record<string, string> = {
         lrig_deck: 'ルリグデッキ', hand: '手札',
         opp_hand: '対戦相手の手札', opp_trash: '対戦相手のトラッシュ',
+        trash: 'あなたのトラッシュ',
       };
       const from = typeof a.source === 'string' ? (srcLoc[a.source] ?? a.source) : targetJa(a.source ?? a.target);
       const noun = a.filter?.cardType ? ([] as string[]).concat(a.filter.cardType).join('か') : 'カード';
@@ -2303,7 +2323,12 @@ function actionJa(a?: Action, effectType?: string): string {
         : '';
       const costLim = dynamicCostLim || (a.costThreshold != null ? `コストの合計が${a.costThreshold}以下の` : '');
       const restr = a.ignoreRestrictions ? '（限定条件を無視して）' : '';
-      return `${from}から${timingClause}${costLim}${filterJa(a.filter)}${noun}1枚を${restr}コストを支払わずに使用する`;
+      // 🆕`ignoreCost:false`＝原文の「（コストは支払う）」＝**踏み倒しではない**。
+      //   従来は無条件に「コストを支払わずに」と描いており、逆翻訳だけを見ると差が読めなかった。
+      const payJa = a.ignoreCost === false ? 'コストを支払って使用する' : 'コストを支払わずに使用する';
+      // 🆕targetsLastProcessed＝「その〜」＝直前に処理したカード自身（落とすと別カードを使えるように読める）。
+      const thatOne = a.targetsLastProcessed ? 'この方法で処理した' : '';
+      return `${from}から${timingClause}${thatOne}${costLim}${filterJa(a.filter)}${noun}1枚を${restr}${payJa}`;
     }
     case 'PLAY_FREE_FROM_TRASH': {
       const fromPFT = a.filter?.cardType === 'アーツ' ? 'ルリグトラッシュ' : 'トラッシュ';
@@ -2564,7 +2589,10 @@ function actionJa(a?: Action, effectType?: string): string {
       return `あなたの次の${redJa}`;
     }
     case 'LRIG_LIMIT_MODIFY': {
-      const untilLLM = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次のターンの間）' : '';
+      // 🔑`NEXT_TURN` の実体は **`pending_lrig_limit_mod` → 次のターンの GROW→MAIN 遷移で `lrig_limit_mod` へ**
+      //   （`lrig_limit_mod` はターン開始時リセット）＝原文の「次の〈そのプレイヤーの〉メインフェイズの間」そのもの。
+      //   逆翻訳が「次のターンの間」だと**アタックフェイズも含む**ように読め、意味照合で偽の不一致を生む（2026-08-31 続き759）。
+      const untilLLM = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次のメインフェイズの間）' : '';
       return `${ownerJa(a.owner)}センタールリグのリミットを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${untilLLM}`;
     }
     case 'DISCARD_BOTH': return `あなたと対戦相手はそれぞれ手札を${a.count}枚捨てる`;
@@ -3581,6 +3609,15 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'PICK_FROM_TRASHED_CARDS') {
         const m = currentCardText.match(/この方法でトラッシュに置かれたカードの中から[^。]*?対象とし、それら?を手札に加える(?:か場に出す)?/);
         if (m) return m[0];
+        // 🆕原文が「その後、…**それを**トラッシュから場に出す」形（`WXK07-106-E1`）だと上の regex に
+        //   当たらない＝**ペイロードから組み立てる**（カード全文 regex 頼みは §5.3 `O-60` の死角）。
+        const tp = a.trashedPick;
+        if (tp) {
+          const destJa = tp.dest === 'energy' ? 'エナゾーンに置く'
+            : tp.dest === 'field' ? '場に出す'
+              : tp.dest === 'hand_or_field' ? '手札に加えるか場に出す' : '手札に加える';
+          return `この方法でトラッシュに置いたカードの中から${filterJa(tp.filter)}${numJa(tp.count)}枚${tp.upTo ? 'まで' : ''}を${destJa}`;
+        }
       }
       // 場出し制限（DEPLOY_RESTRICT）＝「…新たに(場に)出せない(。（補足）)」をカード別に原文抽出（先頭の【】：は timing 側で描画済のため除外）。
       if (a.id === 'DEPLOY_RESTRICT') {

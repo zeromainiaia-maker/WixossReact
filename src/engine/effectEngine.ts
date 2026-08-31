@@ -1062,6 +1062,12 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     const v = state.field.cross_state?.[zoneIdx] ?? false;
     if (filter.crossState !== v) return false;
   }
+  // 🆕「**アタックしている**シグニ」＝いま宣言中のアタッカー（`pending_signi_battle` のゾーン）。
+  // ⚠CONTINUOUS の `POWER_MODIFY{count:'ALL'}` はここ（`applyDeltaToState`）でしか状態を見られない。
+  if (filter.isAttacking !== undefined) {
+    const v = state.pending_signi_battle?.zoneIndex === zoneIdx;
+    if (filter.isAttacking !== v) return false;
+  }
   if (filter.hasCharm !== undefined) {
     const v = (state.field.signi_charms?.[zoneIdx] ?? null) !== null;
     if (filter.hasCharm !== v) return false;
@@ -6127,7 +6133,11 @@ export function collectEffectImmuneSigni(
           sourceFilter?: import('../types/effects').TargetFilter;
           sourceCostMin?: number;
           sourceEffectType?: import('../types/effects').CardEffect['effectType'];
+          duringOppTurn?: boolean;
         };
+        // 🆕「対戦相手のターンの間」限定の耐性（`WX16-Re09-E1`）＝自分のターンでは効かない。
+        //   ⚠`isOwnerTurn` は**保護される側から見たターン**（この関数の引数）＝そのまま使える。
+        if (spec.duringOppTurn && isOwnerTurn) return false;
         if (spec.sourceOwner && spec.sourceOwner !== 'opponent' && spec.sourceOwner !== 'any') return false;
         if (!sourceMatches(spec.from)) return false;
         if (spec.sourceFilter && !matchesFilter(srcCard, spec.sourceFilter)) return false;

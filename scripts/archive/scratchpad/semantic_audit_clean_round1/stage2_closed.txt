@@ -1594,3 +1594,73 @@ WX20-043-E1 :: エナゾーンに置かれる場合、代わりに
 # 「レベル1のシグニで【ガード】ができない」＝actionId 'GUARD_LV1' は makeGuardLevelBlocker が
 # 正規表現（^GUARD_LV(\d+)）で消費済み。リテラル grep では見つからないだけだった。
 WDK05-T09-E1-G :: レベル１のシグニで
+
+# ════════════════════════════════════════════════════════════════════════
+# 2026-08-31 続き759（意味照合 段2・実装25／較正5）
+# 新設した engine 語彙は10＝ZONE_COUNT_COMPARE.offset / TargetFilter.isAttacking /
+# TargetFilter.discardedFromHandThisTurn / TargetFilter.restrictionMatchesCenterLrig(+restrictionContains) /
+# trashedPick.dest:'field' / DECLARE_CLASS.declareFromLastProcessed / CHECK_ZONE_COUNT.filter /
+# GrantProtectionAction.duringOppTurn / PlayFreeAction.source:'trash'+targetsLastProcessed /
+# ATTACH_CHARM の場ソース＋toOther / Condition REFRESH_COUNT_THIS_TURN。
+# 残りは既存受け皿への配線と JSON の書き直し。
+# ════════════════════════════════════════════════════════════════════════
+# 「あなたのセンタールリグ1体は対戦相手の効果を受けない」＝GRANT_PROTECTION{target:LRIG, from:['any']}
+WXK10-104-E1 :: センタールリグ１体
+WXK10-104-E1 :: 対戦相手の効果を受けない
+# センタールリグへ与える【起】が1つしか無かった（3つのうち2つ欠落）＝GRANT_EFFECT を SEQUENCE で3本
+WXK10-014-E1 :: 《ターン２回》エクシード１
+WXK10-014-E1 :: エクシード２
+# 「あなたの場のシグニが対戦相手より2体以上少ない場合」＝ZONE_COUNT_COMPARE{offset:-2}
+WXK10-003-E1 :: シグニの数が
+# 「アタックしているあなたのシグニ」＝TargetFilter.isAttacking（旧＝自分の全シグニを常時＋2000）
+WXDi-D03-004-E1 :: アタックしているあなたのシグニ
+# 「この方法でトラッシュに置かれたカードを場に出す」＝PICK_FROM_TRASHED_CARDS{dest:'field'}
+WXK07-106-E1 :: それをトラッシュから場に出す
+# 「そのクラス1つを選択する／選択したクラスを持つ」＝DECLARE_CLASS{declareFromLastProcessed}＋classEqDeclaredClass
+WD08-008-E1 :: 選択したクラスを持つ
+# 「あなたか対戦相手は自分のトラッシュを…」＝CHOOSE の2枝（旧＝自分固定）
+WXDi-P04-005-E1 :: あなたか対戦相手は
+# 「＜水獣＞のシグニの場合、カードを1枚引く」＝REVEAL_DECK_TOP＋LAST_PROCESSED_MATCHES
+WX19-061-E1 :: ＜水獣＞のシグニの場合
+# 「対戦相手は自分のトラッシュから…手札に加える」＝取得元と受取人が自分になっていた（主語が真逆）
+WXK11-006-E1-G :: 対戦相手は自分のトラッシュ
+# 「このターンに捨てたシグニ」＝TargetFilter.discardedFromHandThisTurn
+WXK05-016-E2 :: このターンに捨てたシグニ
+# 「（コストは支払う）」＝PLAY_FREE{ignoreCost:false}（自分側は PLAY_FREE_FROM_TRASH＝必ず無料だった）
+WX25-P1-022-E2 :: （コストは支払う）
+# 「手札が1枚以下で使用した場合すべて捨てる」＝手札捨て枚数を候補数で頭打ち（旧＝ソフトロック）
+WDK05-T10-E1 :: 手札が１枚以下で使用した場合
+# 「対戦相手のシグニ1体を他のシグニの【チャーム】にする」＝ATTACH_CHARM の場ソース＋toOther
+WXEX1-28-E1 :: 対戦相手の他のシグニ
+# 「対戦相手のチェックゾーンにスペルがある場合」＝CHECK_ZONE_COUNT{filter}
+WX13-005B-E1 :: チェックゾーンにスペル
+# 「対戦相手のターンの間、対戦相手の効果を受けない」＝GRANT_PROTECTION{duringOppTurn}
+WX16-Re09-E1 :: 対戦相手のターンの間
+# 「あなたのライフクロスの一番上を見て」＝LOOK_AND_REORDER{source:life_cloth}
+WXDi-P03-004-E1 :: 一番上を見て
+# 「このターンであなたの最初のリフレッシュである場合」＝Condition REFRESH_COUNT_THIS_TURN
+PR-205-E1 :: このターンであなたの最初のリフレッシュ
+# 「＜龍獣＞が8枚トラッシュに置かれるまで」＝REVEAL_UNTIL{signiCount, restDestination:'trash'}
+# ＋対象宣言（SELECT_TARGET_ONLY→STORE）＋「それをトラッシュに置き」＝TRASH{targetsStored}
+WXK06-030-E1 :: ８枚トラッシュに置かれるまで
+WXK06-030-E1 :: シグニゾーンからカード１枚
+WXK06-030-E1 :: それをトラッシュに置き
+# 「そうした場合、それを場に出す」＝7枚戻し→LAST_PROCESSED_COUNT_GTE→トラッシュの＜美巧＞1枚
+# （旧＝ADD_TO_FIELD{source無し}＝デッキトップを出す別のカード／ゲートも IS_MY_TURN だった）
+WXK09-090-E1 :: ＜美巧＞のシグニ１枚を対象
+# 「そのスペルを」＝PlayFreeAction.targetsLastProcessed（条件側は既に在り、照応だけが欠けていた）
+WX24-P4-040-E2 :: そのカードがコストの合計が１以下
+# 「限定条件にあなたのセンタールリグのルリグタイプを持つカード」＝restrictionMatchesCenterLrig
+SP15-001-E1 :: 限定条件にあなたのセンタールリグ
+# ---- 較正（live を開いたら既に実装済みだったもの）----
+# 「次とその次にダメージを受ける場合」＝REPLACE_NEXT_DAMAGE_WITH_MILL を2本積む（once:true が2回分）
+WX25-P3-053-E1 :: 次とその次に
+# 「センタールリグ1体とシグニ1体」＝selectionConstraint.groups で既に分けられていた
+WXK11-006-E1-G :: ルリグ１体とシグニ１体
+# 「あなたと対戦相手のトラッシュ」＝自分側の枝は前から在った（claim が stale）
+WX25-P1-022-E2 :: あなたと対戦相手のトラッシュ
+# 「このピースの後に場に出たシグニにも影響」＝duration:'NEXT_TURN' は reserveFieldGrant＝場レベル予約
+WXDi-P14-070-E1 :: このピースの後に場に出たシグニにも影響
+# 「次の対戦相手のメインフェイズの間」＝until:'NEXT_TURN' の実体は pending_lrig_limit_mod →
+# 次ターンの GROW→MAIN で適用、lrig_limit_mod はターン開始時リセット＝原文どおり（逆翻訳の語だけ直した）
+WX16-Re19-E2 :: 次の対戦相手のメインフェイズ

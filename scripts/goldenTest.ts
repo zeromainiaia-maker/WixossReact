@@ -3530,7 +3530,9 @@ test('(l) センタールリグ付与の入れ子化: 36枚すべてで abilitie
       const a = e.action as { type?: string; abilities?: CardEffect[]; rawText?: string };
       if (a?.type !== 'GRANT_LRIG_ABILITY') continue;
       if ((a.abilities?.length ?? 0) > 0) nested++;
-      if (/^[。、\s]*$/.test(a.rawText ?? '')) punctOnly.push(e.effectId);
+      // ⚠`rawText` が**無い**のは「展開済みで消えた」正常形＝空文字扱いで数えると誤検出する
+      //   （2026-08-31 続き759＝`WXK11-006-E1` を manualEffects で abilities 直書きにしたとき発火した）。
+      if (a.rawText !== undefined && /^[。、\s]*$/.test(a.rawText)) punctOnly.push(e.effectId);
     }
   }
   ok(nested >= 36, `付与能力が入れ子化された宣言効果 got=${nested}`);
@@ -22221,7 +22223,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
-  eq(Object.keys(C_TYPES).length, 144, 'Condition の型数（144＝続き748 で HAND_DISCARDED_THIS_TURN／PUBLIC_ZONE_MATCH／THIS_CARD_FROM_ZONE_THIS_TURN／TRIGGER_SOURCE_MATCHES を追加）');
+  eq(Object.keys(C_TYPES).length, 145, 'Condition の型数（145＝続き759 で REFRESH_COUNT_THIS_TURN を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -24139,11 +24141,29 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   //   「選択数 ≧ count」を要求するので候補不足だと確定できない）は **2026-08-30 続き732 で解消済み**
   //   （`fixedSelectionPickLimit` が候補数へクランプし、golden と実機 `softlockshortpick` の両方で固定されている）。
   //   ⇒ 中間動作を**自分のエナから＜植物＞3枚**へ直し、対象は `STORE_LAST_PROCESSED_TARGETS` で固定した。
-  // ⚠`WXK06-030-E1` は**別の理由**（原文照合が未了）で据置＝ここは維持する。
-  test('(B6) 据置契約: 別ゾーンを指す中間動作は owner だけ直さない（WXK06-030 のみ）', () => {
+  // 🆕**2026-08-31 続き759＝`WXK06-030-E1` も契約を卒業**（意味照合 段2）。据置の理由だった「原文照合が未了」を
+  //   解いた結果、原文は3段＝①相手のシグニゾーンのカード1枚を**対象宣言**（無限定）②あなたのデッキの上から
+  //   **＜龍獣＞のシグニが8枚トラッシュに置かれるまで**カードをトラッシュ ③8枚置けたなら**それ**をトラッシュ＋1枚ドロー。
+  //   ⇒ `SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS`→`REVEAL_UNTIL{signiCount, restDestination:'trash'}`
+  //     →`CONDITIONAL{LAST_PROCESSED_MATCHES(龍獣≥8)}` → `TRASH{targetsStored}` + `DRAW`。
+  //   ⚠反転して**この3点セットが揃っていること**を見張る（owner だけ直す退化はここで落ちる）。
+  test('(B6) 卒業: WXK06-030-E1 は 対象宣言→めくり切り→そうした場合 の3段になっている', () => {
     const eff = effectsMap.get('WXK06-030')!.find(e => e.effectId === 'WXK06-030-E1')!;
-    const step0 = (eff.action as unknown as { steps?: Array<{ target?: { owner?: string; type?: string } }> }).steps?.[0];
-    ok(step0?.target?.owner === 'opponent', 'WXK06-030-E1: 中途半端に owner だけ直っている');
+    const sel = treeFind(eff.action, x => x.type === 'STUB'
+      && (x as { id?: string }).id === 'SELECT_TARGET_ONLY') as { selectTarget?: { owner?: string; filter?: Record<string, unknown> } } | null;
+    ok(!!sel, 'WXK06-030-E1: 対象宣言が無い（「それ」の照応が消える）');
+    eq(sel!.selectTarget?.owner, 'opponent', 'WXK06-030-E1: 宣言の対象は対戦相手のシグニ');
+    eq(sel!.selectTarget?.filter?.story, undefined, '🔴原文は＜龍獣＞に限定していない（限定すると過少）');
+    const ru = treeFind(eff.action, x => x.type === 'REVEAL_UNTIL') as
+      { stopCondition?: { kind?: string; count?: number; filter?: Record<string, unknown> }; restDestination?: string; hit?: unknown } | null;
+    ok(!!ru, 'WXK06-030-E1: 「8枚置かれるまで」のめくり切りが無い');
+    eq(ru!.stopCondition?.kind, 'signiCount', 'WXK06-030-E1: 停止条件は枚数');
+    eq(ru!.stopCondition?.count, 8, 'WXK06-030-E1: 8枚');
+    eq(ru!.stopCondition?.filter?.story, '龍獣', 'WXK06-030-E1: 数えるのは＜龍獣＞のシグニ');
+    eq(ru!.restDestination, 'trash', 'WXK06-030-E1: めくったカードはトラッシュへ');
+    eq(ru!.hit, undefined, 'WXK06-030-E1: hit を置くと当たり札だけ別行き先になる（原文は全部トラッシュ）');
+    const bound = treeFind(eff.action, x => (x as { targetsStored?: boolean }).targetsStored === true);
+    ok(!!bound, 'WXK06-030-E1: 「それをトラッシュに置き」が宣言済み対象へ束縛されていない');
   });
   // 2026-08-27 Sheet1 B6：`applyDroppedTargetDesignation` の適用範囲を広げた（①中間動作が**強制**でもよい
   // ②中間動作の位置を同定できないときは**先頭**へ挿す）。🔴広げる前は**宣言側のパワー閾値が帰結に届かず、
@@ -47837,9 +47857,12 @@ test('段2 第27バッチ E2E: WX21-020-E1 c2 は3処理を別々に対象選択
   ok(done.ownerState.keyword_grants?.[angels[2]]?.includes('ダブルクラッシュ') ?? false, '3体目にダブルクラッシュ');
 }));
 
-for (const [effectId, delta, sourceType] of [
-  ['WX16-Re09-E1', 3000, 'スペル'],
-  ['WXK03-042-E2', 2000, 'シグニ'],
+// 🆕**2026-08-31 続き759**＝`WX16-Re09-E1` は原文が「【常】：**対戦相手のターンの間**、このシグニは
+//   対戦相手の効果を受けない」なので、耐性を見る窓は**相手ターン（`isOwnerTurn:false`）**へ移した。
+//   ⚠**自分のターンでは耐性が付かないこと**も同時に見る（`duringOppTurn` を落とすと必ずここが落ちる＝反転確認）。
+for (const [effectId, delta, sourceType, duringOppTurn] of [
+  ['WX16-Re09-E1', 3000, 'スペル', true],
+  ['WXK03-042-E2', 2000, 'シグニ', false],
 ] as const) {
   test(`段2 第27バッチ E2E: ${effectId} は同じ対象へパワー加算と効果耐性`, () => withSavedCursor(() => {
     const target = fresh();
@@ -47849,12 +47872,19 @@ for (const [effectId, delta, sourceType] of [
     const before = batch27Power(ctx.ownerState, ctx.otherState, target);
     const applied = run(effect.action, ctx);
     eq(batch27Power(applied.ownerState, applied.otherState, target), before + delta, `${effectId}: 実効パワー`);
-    const immune = collectEffectImmuneSigni(applied.ownerState, applied.otherState, cardMap, new Map(), true, sourceType);
+    // 耐性が有効な窓＝duringOppTurn なら相手ターン（isOwnerTurn:false）、そうでなければ従来どおり自ターン。
+    const immuneTurn = !duringOppTurn;
+    const immune = collectEffectImmuneSigni(applied.ownerState, applied.otherState, cardMap, new Map(), immuneTurn, sourceType);
     ok(immune.has(target), `${effectId}: 選んだ対象は耐性を得る`);
     ok(!immune.has(untouched), `${effectId}: 選ばなかった対象は耐性を得ない`);
+    if (duringOppTurn) {
+      // 反転確認＝「対戦相手のターンの間」限定が効いていること（落とすと永続耐性に化ける）。
+      const ownTurn = collectEffectImmuneSigni(applied.ownerState, applied.otherState, cardMap, new Map(), true, sourceType);
+      ok(!ownTurn.has(target), `${effectId}: あなたのターンには耐性を得ない（duringOppTurn）`);
+    }
     const ended = batch27TurnEnd(applied.ownerState);
     eq(batch27Power(ended, applied.otherState, target), before, `${effectId}: ターン終了でパワー失効`);
-    ok(!collectEffectImmuneSigni(ended, applied.otherState, cardMap, new Map(), true, sourceType).has(target), `${effectId}: ターン終了で耐性失効`);
+    ok(!collectEffectImmuneSigni(ended, applied.otherState, cardMap, new Map(), immuneTurn, sourceType).has(target), `${effectId}: ターン終了で耐性失効`);
   }));
 }
 

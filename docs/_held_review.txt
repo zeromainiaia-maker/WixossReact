@@ -4,7 +4,7 @@
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
 ## （type増減なし＝値/構造変更） ［48枚］
-PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX17-009 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-P02-018 WXDi-P03-002 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-002 WXDi-P10-061 WXDi-P11-064 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK03-050 WXK06-040 WXK08-056 WXK09-040 WXK11-013 WXK11-019 WXK11-026
+PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX17-009 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-D03-004 WXDi-D06-010 WXDi-P02-018 WXDi-P03-002 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-002 WXDi-P10-061 WXDi-P11-064 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK03-050 WXK06-040 WXK08-056 WXK09-040 WXK11-019 WXK11-026
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -291,6 +291,53 @@ WXK06-049
   + [0].action.redirectTo = "trash"
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
+
+## +ZONE_COUNT_COMPARE ［1枚］
+WXK10-003
+--- WXK10-003
+  原文: 以下の４つから２つまで選ぶ。①対戦相手は手札を１枚捨てる。②対戦相手のシグニ１体を対象とし、それをダウンする。③対戦相手のパワー12000以下のシグニ１体を対象とし、あなたの場にあるシグニの数が対戦相手より２体以上少ない場合、それをバニッシュする。④あなたのライフクロスが対戦相手より２枚以上少ない場合、対戦相手のライフクロス１枚をクラッシュする。,-
+  ~ [0].action.choices[0].label : "選択肢1" → "対戦相手は手札を1枚捨てる"
+  ~ [0].action.choices[1].label : "選択肢2" → "対戦相手のシグニ1体をダウンする"
+  ~ [0].action.choices[2].label : "選択肢3" → "場のシグニが2体以上少ないなら、パワー12000以下のシグニ1体をバニッシュ"
+  + [0].action.choices[2].condition.type = "ZONE_COUNT_COMPARE"
+  + [0].action.choices[2].condition.left.zone = "field"
+  + [0].action.choices[2].condition.left.owner = "self"
+  + [0].action.choices[2].condition.left.filter.cardType = "シグニ"
+  + [0].action.choices[2].condition.right.zone = "field"
+  + [0].action.choices[2].condition.right.owner = "opponent"
+  + [0].action.choices[2].condition.right.filter.cardType = "シグニ"
+  + [0].action.choices[2].condition.operator = "lte"
+  + [0].action.choices[2].condition.offset = -2
+  …（他 2 行）
+
+## +DOWN +GRANT_EFFECT×2 +LRIG×2 +SEQUENCE +SIGNI +TRANSFER_TO_HAND +TRASH_CARD ［1枚］
+WXK10-014
+--- WXK10-014
+  原文: あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは「【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。」「【起】《ターン２回》《アタックフェイズアイコン》エクシード１：あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。」「【起】《アタックフェイズアイコン
+  - [0].action.target.type = "LRIG"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.duration = "UNTIL_END_OF_TURN"
+  - [0].action.effect.effectId = "WXK10-014-sub-E1"
+  - [0].action.effect.effectType = "ACTIVATED"
+  - [0].action.effect.timing[0] = "ATTACK_ARTS"
+  - [0].action.effect.cost.exceed = 1
+  - [0].action.effect.action.type = "REMOVE_ABILITIES"
+  - [0].action.effect.action.target.type = "SIGNI"
+  - [0].action.effect.action.target.owner = "opponent"
+  - [0].action.effect.action.target.count = 1
+  …（他 62 行）
+
+## +LRIG -SIGNI ［1枚］
+WXK10-104
+--- WXK10-104
+  原文: 以下の３つから１つを選ぶ。この効果をあなたのセンタールリグのレベルと同じ回数行う。①シグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】と【Ｓランサー】を得る。②あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは「【常】：対戦相手の効果を受けない。」を得る。③あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは「【自】：こ
+  ~ [0].action.choices[0].label : "選択肢1" → "シグニ1体に【ダブルクラッシュ】と【Sランサー】を与える"
+  ~ [0].action.choices[1].label : "選択肢2" → "あなたのセンタールリグは対戦相手の効果を受けない"
+  ~ [0].action.choices[1].action.target.type : "SIGNI" → "LRIG"
+  ~ [0].action.choices[1].action.from[0] : "ルリグ" → "any"
+  ~ [0].action.choices[2].label : "選択肢3" → "あなたのルリグは『アタック時に相手エナを2枚にする』を得る"
+  ~ [0].parseStatus : "AUTO" → "MANUAL"
 
 ## +CONDITIONAL +HAS_CARD_IN_FIELD +UNKNOWN -STUB ［1枚］
 WD09-018

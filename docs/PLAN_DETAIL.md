@@ -5763,3 +5763,18 @@ census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:st
   実機（支払いパネル→エナ請求→解決）の**両方で反転確認**して初めて挙動が固定できた。
   **実機シナリオ＝新規2本**（`o123usetimepay` / `o123usetimenopay`）＋既存4本の回帰
   （`b25targetfirst` `b25targethit` `exceedCostPay` `artsUsedThisTurnGate`）＝**すべて PASS**。
+
+<!-- 恒久指標アーカイブ（PLAN §6 から退避） -->
+- **2026-08-31 続き758 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕97（127 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
+  **golden 3131 → 3139（+8本・反転確認4件）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
+  `census:stubs` A群🔴0／C群0、manual-fields 0。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙7つ**＝`TakeFromUnderSigni.count:'ALL'`／`SelectionConstraint.distinct:'costSum'`／
+  `triggerCondition.targetedByOpponent`／`triggerCondition.centerLrigOnly`／
+  `TargetFilter.classMatchesAnyFieldSigni`／`$ref:'assist_lrig_level_sum'`／
+  `ATTACH_ACCE.targetsLastProcessed`＋`optional`。**実装26件のうち19件は既存受け皿への配線。**
+  ⚠**census の較正を1箇所広げた**（「**この**ルリグがアタックしたとき」＝`ON_GUARD` 族の綴り違い）＝
+  ベースラインは上げていない。⚠**据置契約 golden を1本反転**（`PR-322-E2` の手札枝）。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更）。**live の A/B 差分＝24カード**（巻き添え0）。

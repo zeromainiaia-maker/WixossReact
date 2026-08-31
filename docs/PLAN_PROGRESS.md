@@ -1,6 +1,33 @@
 # PLAN 進捗サマリ・アーカイブ
 
 
+- 🏁**セッション（2026-08-31・続き758・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 127 → 97（-30）。**
+  （ユーザー指示「さらに３０減らす」。**実装26件／較正4件**。同日 続き757 と合わせて **187 → 97（-90）**。）
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕97（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3131 → 3139**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
+  live の A/B 差分＝**24カード**（すべて意図したもの・巻き添え0）。
+
+  🔑**この巡の主産物＝「1つの受け皿に複数カードを束ねる」ほうが歩留まりが高い。**
+  新設 engine 語彙は7つ（`TakeFromUnderSigni.count:'ALL'`／`distinct:'costSum'`／
+  `triggerCondition.targetedByOpponent`／`centerLrigOnly`／`TargetFilter.classMatchesAnyFieldSigni`／
+  `$ref:'assist_lrig_level_sum'`／`ATTACH_ACCE.targetsLastProcessed`+`optional`）だが、
+  **実装26件のうち19件は既存受け皿への配線**で、**`LOOK_PICK_CHAIN` だけで4件**を束ねた。
+
+  🔑**新しく分かったこと3つ**＝
+  🔴①**「リテラルで grep して0件だから未実装」と判断しない**＝`GUARD_LV1` は
+  `makeGuardLevelBlocker` が**正規表現 `^GUARD_LV(\d+)` で解釈**しており、文字列検索では絶対に出ない
+  （`WDK05-T09-E1-G` は実装済みだった＝較正）。受け皿が id を regex で読む形は grep の死角。
+  🔴②**収穫マージの関門は2種類ある**＝新規 manual カードは `heldReview --adopt` で届くが、
+  **既に `manualEffects.ts` にあるカードを書き直した分は `build:effects` では live に届かない**
+  （live 側 MANUAL/PARTIAL が不可侵）＝`npx tsx scripts/syncManualLive.ts` が要る。今回2枚踏んだ。
+  🔑③**計器の較正漏れは「同じ族の綴り違い」で出る**＝census の `ON_GUARD`＋`lrigAttackNoDamage`
+  規則は主語が「（センター）ルリグN体」しか剥がせず、「**この**ルリグがアタックしたとき」を
+  同じ受け皿へ配線した瞬間に高シグナルへ昇格した。**ベースラインを上げずに較正で戻す**のが正しい。
+
+  ⚠**実機は不要と判定**（§2.2）＝`src/screens/` を1バイトも触っていない。新語彙は engine 実走 golden で
+  両方向を固定し、**4件で反転確認**（分岐を無効化すると必ず FAIL することを実測）。
+  ⚠**据置契約 golden を1本反転**（`PR-322-E2` の手札枝）＝落ちたら消さずに期待値を反転する規約どおり。
+
 - 🏁**セッション（2026-08-31・続き757・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 157 → 127（-30）。**
   （ユーザー指示「PLANを読み、OPENを30減らす」。**実装18件／較正12件**。）
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕127（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。

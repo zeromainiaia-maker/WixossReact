@@ -3851,6 +3851,38 @@ export function execStubPart1(
         count: 1,
       });
     }
+    // 🆕`declareFromLastProcessed`＝候補は**直前に処理したカード**の中で `minCount` 回以上出たクラスだけ
+    //   （`WD08-008-E1`「この方法でトラッシュに置いたカードの中に共通するクラスを持つカードが3枚以上ある場合、
+    //   そのクラス1つを選択する」）。下の動的収集に倒すと盤面・手札・トラッシュの全クラスが選べてしまう。
+    if (stub.declareFromLastProcessed) {
+      const needDFL = stub.declareFromLastProcessed.minCount ?? 1;
+      const tallyDFL = new Map<string, number>();
+      for (const cn of ctx.lastProcessedCards ?? []) {
+        const c = ctx.cardMap.get(getCardNum(cn));
+        if (c?.Type !== 'シグニ' || !c.CardClass) continue;
+        for (const raw of c.CardClass.replace(/[＜＞]/g, '').split(/[・/]/)) {
+          const t = raw.trim();
+          if (!t || t === '-') continue;
+          tallyDFL.set(t, (tallyDFL.get(t) ?? 0) + 1);
+        }
+      }
+      const optsDFL = [...tallyDFL.entries()].filter(([, n]) => n >= needDFL).map(([cls]) => cls).sort();
+      if (optsDFL.length === 0) return done(addLog(ctx, 'クラス宣言：条件を満たすクラスなし'));
+      if (optsDFL.length === 1) {
+        const onlyDFL = optsDFL[0];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_class: onlyDFL } },
+          `クラス「${onlyDFL}」を選択`));
+      }
+      return needsInteraction(addLog(ctx, 'クラスを1つ選択してください'), {
+        type: 'CHOOSE',
+        options: optsDFL.map(cls => ({
+          id: `dcls_${cls}`, label: `＜${cls}＞`,
+          action: ({ type: 'STUB', id: 'DECLARE_CLASS', value: cls } as StubAction) as EffectAction,
+          available: true,
+        })),
+        count: 1,
+      });
+    }
     // クラス一覧を自トラッシュ・手札・相手フィールドから動的収集
     const classSetDCLS = new Set<string>();
     const addClassesDCLS = (cn: string) => {

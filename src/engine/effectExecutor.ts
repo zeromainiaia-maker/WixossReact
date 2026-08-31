@@ -2210,10 +2210,16 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
       + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     if (count <= 0) return done({ ...addLog(ctx, '手札を捨てる枚数0（処理なし）'), lastProcessedCards: [] });
+    // 🆕**候補数で頭打ちにする**（2026-08-31 続き759・`WDK05-T10-E1`「手札を２枚捨てる。
+    //   **（手札が１枚以下で使用した場合すべて捨てる）**」）＝ルールの「できるかぎり行う」そのもの。
+    // 🔴従来は `count` をそのまま渡しており、`EffectInteractionModal.canConfirm` が「選択数 ≧ count」を
+    //   要求するので**候補不足でソフトロック**した（PLAN §5.2 の `WXEX1-14-E2` 据置理由と同じクラス）。
+    //   ⚠上限を下げるだけ＝候補が足りている盤面の挙動は1バイトも変わらない。
+    const payableCount = Math.min(count, cands.length);
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
-    return selectOrInteract(cands, count, (a.optional || a.target.upToCount) ?? false, scope, a, undefined, ctx, opponentResponds,
+    return selectOrInteract(cands, payableCount, (a.optional || a.target.upToCount) ?? false, scope, a, undefined, ctx, opponentResponds,
       { selectionConstraint: tgt.selectionConstraint });
   }
 
@@ -2606,6 +2612,17 @@ function resolveDynamicFilter(
     const { classEqDeclaredClass: _cd, ...rest } = result;
     const cls = declarationState.declared_class;
     result = cls ? { ...rest, story: cls } : noMatch(rest);
+  }
+  // 🆕「限定条件にあなたのセンタールリグの**ルリグタイプ**を持つカード」（`SP15-001-E1`）。
+  //   ルリグタイプは CSV の `CardClass` 列（ルリグ側＝「ユヅキ」）で、限定条件は `Restriction` 列（「ユヅキ限定」）。
+  //   ⚠センタールリグが居ない／ルリグタイプが読めないときは**空ヒット**（fail-closed）＝
+  //     落とすと「限定条件を持つ任意のカード」が拾える過剰実行になる。
+  if (result.restrictionMatchesCenterLrig) {
+    const { restrictionMatchesCenterLrig: _rc, ...rest } = result;
+    const centerNum = ownerSt.field.lrig.at(-1);
+    const lrigType = centerNum ? (cardMap.get(getCardNum(centerNum))?.CardClass ?? '') : '';
+    const cleaned = lrigType.replace(/[＜＞]/g, '').trim();
+    result = cleaned && cleaned !== '-' ? { ...rest, restrictionContains: cleaned } : noMatch(rest);
   }
   if (result.colorEqDeclaredColorIndex != null) {
     const { colorEqDeclaredColorIndex: index, ...rest } = result;
@@ -6328,13 +6345,15 @@ function protectionKeyword(a: GrantProtectionAction): string {
   }
   // AUTO/ACTIVATED の期間付与でも、解決中ソースカードの属性制約を失わない。
   // CONTINUOUS は collectEffectImmuneSigni が action を直接読むが、こちらは keyword store が消費地点。
-  if (a.sourceFilter || a.sourceCostMin !== undefined || a.sourceEffectType) {
+  // 🆕`duringOppTurn` もここへ載せる（素の `PROTECTION:` 形は条件を持てない）。
+  if (a.sourceFilter || a.sourceCostMin !== undefined || a.sourceEffectType || a.duringOppTurn) {
     return `PROTECTION_FILTERED:${JSON.stringify({
       from: a.from ?? [],
       sourceOwner: a.sourceOwner,
       sourceFilter: a.sourceFilter,
       sourceCostMin: a.sourceCostMin,
       sourceEffectType: a.sourceEffectType,
+      ...(a.duringOppTurn ? { duringOppTurn: true } : {}),
     })}`;
   }
   return `PROTECTION:${(a.from ?? []).join(',')}:${a.sourceOwner ?? ''}`;
@@ -6470,8 +6489,13 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
 
   // //
   let charmCands: string[];
-  let charmFromLocation: 'hand' | 'energy' | 'trash' | 'deck';
-  if (a.charm.type === 'DECK_CARD') {
+  let charmFromLocation: 'hand' | 'energy' | 'trash' | 'deck' | 'field';
+  // 🆕**場のシグニ自身をチャームに変える**（`WXEX1-28-E1`）。分岐が無いと既定枝（手札／エナ）へ落ちて
+  //   まったく別のカードをチャームにする（`charm.type:'SIGNI'` は live に前から在ったのに死んでいた）。
+  if (a.charm.type === 'SIGNI') {
+    charmCands = fieldCandidates(charmSrc, a.charm.filter, ctx.cardMap, ctx.effectivePowers);
+    charmFromLocation = 'field';
+  } else if (a.charm.type === 'DECK_CARD') {
     charmCands = charmSrc.deck.slice(0, Math.min(charmLimit, charmSrc.deck.length));
     charmFromLocation = 'deck';
   } else if (a.charm.type === 'TRASH_CARD') {
@@ -6509,6 +6533,13 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   } else {
     toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   }
+  // 🆕`toOther`＝「**他の**シグニの【チャーム】にする」＝チャームになる側をホスト候補から外す。
+  //   ⚠先に確定するのはチャーム側（下のペアリングが `slice(0, pairCount)` で先頭から取る）なので、
+  //     同じ順序で除外しないと「自分自身のチャームになる」ペアが残る。
+  if (a.toOther) {
+    const charmHead = new Set(charmCands.slice(0, charmLimit === Number.MAX_SAFE_INTEGER ? charmCands.length : charmLimit));
+    toCands = toCands.filter(n => !charmHead.has(n));
+  }
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
   // ペアを i 番目どうしで対応させる（原文は「カードN枚を、シグニN体の【チャーム】にする」＝1体1枚）。
@@ -6527,6 +6558,9 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     newCharmSrc = { ...newCharmSrc, energy: newCharmSrc.energy.filter(n => !charmNums.includes(n)) };
   } else if (charmFromLocation === 'trash') {
     newCharmSrc = { ...newCharmSrc, trash: newCharmSrc.trash.filter(n => !charmNums.includes(n)) };
+  } else if (charmFromLocation === 'field') {
+    // 場から抜くのは `removeFromField`（チャーム／アクセ／下カードの後始末まで面倒を見る唯一の funnel）。
+    for (const n of charmNums) newCharmSrc = removeFromField(n, newCharmSrc);
   } else {
     newCharmSrc = { ...newCharmSrc, hand: newCharmSrc.hand.filter(n => !charmNums.includes(n)) };
   }
@@ -7195,6 +7229,10 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
     cands = handCandidates(ctx.otherState, a.filter, ctx.cardMap, ctx.treatAsClassAllZones);
   } else if (a.source === 'opp_trash') {
     cands = trashCandidates(ctx.otherState, a.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+  } else if (a.source === 'trash') {
+    // 🆕**あなたのトラッシュ**（`WX25-P1-022-E2`）。⚠`PLAY_FREE_FROM_TRASH` は「必ずコスト無し」型なので、
+    //   「コストは支払う」（`ignoreCost:false`）を書けるこちらへ載せる。
+    cands = trashCandidates(ctx.ownerState, a.filter, ctx.cardMap, ctx.treatAsClassAllZones);
   } else {
     // lrig_deck: ルリグデッキの先頭から対象を探す
     cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
@@ -7220,6 +7258,11 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
     cands = cands.filter(n => (ctx.cardMap.get(n)?.Timing ?? '').includes(a.useTimingIncludes!));
   }
 
+  // 🆕`targetsLastProcessed`＝「**その**スペル」＝直前に処理したカード自身に限る（`WX24-P4-040-E2`）。
+  if (a.targetsLastProcessed) {
+    const lastPF = new Set(ctx.lastProcessedCards ?? []);
+    cands = cands.filter(n => lastPF.has(n));
+  }
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
 
   // opp_hand: 相手の手札から選んだスペルを「あなたの手札にあるかのように」コストなしで使用する（WX04-003）。
