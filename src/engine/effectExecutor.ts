@@ -2739,6 +2739,21 @@ function resolveDynamicFilter(
       result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtTrigger ? trigPower - 1 : trigPower } };
     }
   }
+  // 🆕classMatchesAnyFieldSigni（2026-08-31）＝**自分の場のいずれかのシグニと共通するクラスを持つ**。
+  //   自分の場のクラス集合を集めて `cardClass`（配列＝OR）へ潰す。
+  //   🔴場に自シグニが1体も居ない／クラスが読めないときは**空ヒット**へ倒す（fail-closed）＝
+  //   潰さずに残すと `matchesFilter` が未知キーとして黙って素通りし**無条件成立**になる。
+  if (result.classMatchesAnyFieldSigni) {
+    const { classMatchesAnyFieldSigni: _cmafs, ...rest } = result;
+    const allyClasses = new Set<string>();
+    for (const stack of (ownerSt?.field.signi ?? [])) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      for (const c of `${cardMap.get(getCardNum(top))?.CardClass ?? ''}`
+        .split(/[：:／/・,\s]+/).map(v => v.trim()).filter(Boolean)) allyClasses.add(c);
+    }
+    result = allyClasses.size > 0 ? { ...rest, cardClass: [...allyClasses] } : noMatch(rest);
+  }
   // 🆕powerEqTrigger: トリガー元（無ければ直前に処理したカード）と**同じ**実効パワーへ解決する。
   //   ⚠参照不能なら `powerRange:{min:1,max:0}` の空ヒットへ倒す（fail-closed）＝限定が消えない。
   if (result.powerEqTrigger) {
@@ -7379,7 +7394,9 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
     });
   }
   if (cands.length === 0) return done(ctx);
-  return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, a, undefined, ctx);
+  // 🆕`count:'ALL'`＝「下からカードを**好きな枚数**」（`WXDi-P11-077-E1`）＝候補全部を上限にする。
+  const takeCount = a.count === 'ALL' ? cands.length : a.count;
+  return selectOrInteract(cands, takeCount, a.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {
@@ -8324,6 +8341,10 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
     const top = stack[stack.length - 1];
     if (!canAttachAcceToHost(tgtState, tgtOther, top, i, ctx, isTgtTurn)) return [];
     if (a.targetFilter && !matchesFilter(ctx.cardMap.get(top), a.targetFilter)) return [];
+    // 🆕`targetsLastProcessed`＝「それを**この方法で場に出したシグニ**の【アクセ】にする」
+    //   （2026-08-31・`SP24-010-E1`）。🔴無いと場の任意のシグニを選べて原文の照応が消える。
+    //   ⚠**直前に処理したカードが場に居ない**（既に離れた等）ときは候補0＝空振り（fail-closed）。
+    if (a.targetsLastProcessed && !(ctx.lastProcessedCards ?? []).includes(top)) return [];
     return [top];
   });
   if (hostCands.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
@@ -8333,7 +8354,8 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
     type: 'SELECT_TARGET',
     candidates: hostCands,
     count: 1,
-    optional: false,
+    // 🆕`optional`＝「〜の【アクセ】にして**もよい**」＝選ばない枝を出す。
+    optional: a.optional === true,
     targetScope: scope,
     thenAction: a as import('../types/effects').EffectAction,
   });

@@ -621,6 +621,21 @@ const kizunaOk = (ctx: TrigCtx, eff: CardEffect, state: PlayerState, cardNum: st
  * usageLimit を消費した effectId は usedHostIds/usedGuestIds で返す（呼び出し元が watcher 側の
  * actions_done へ書き戻す責務を持つ＝他コレクターと同型。返さないと同一ターン内に何度でも再発火する）。
  */
+/**
+ * `cardNum`（インスタンスIDでも素の CardNum でも可）が `state` のどこかのゾーンに在るか。
+ * `triggerCondition.targetedByOpponent` の「対象にしてきたのは誰の効果か」判定に使う。
+ * ⚠**在るかどうかしか見ない**＝解決中のスペル／アーツは使用者のチェックゾーンかルリグトラッシュに居る。
+ */
+function ownsCardAnyZone(state: PlayerState, cardNum: string): boolean {
+  const want = getCardNum(cardNum);
+  const hit = (arr: readonly (string | null | undefined)[] | undefined): boolean =>
+    !!arr?.some(n => !!n && (n === cardNum || getCardNum(n) === want));
+  if (hit(state.hand) || hit(state.trash) || hit(state.energy) || hit(state.lrig_trash)) return true;
+  if (hit(state.field.lrig) || hit(state.field.assist_lrig_l) || hit(state.field.assist_lrig_r)) return true;
+  if (hit([state.field.key_piece, ...(state.field.key_piece_extra ?? []), state.field.check])) return true;
+  return state.field.signi.some(stack => hit(stack ?? undefined));
+}
+
 export function collectTargetedTriggers(
   ctx: TrigCtx,
   targetedNums: string[],
@@ -678,6 +693,16 @@ export function collectTargetedTriggers(
             && (rule.effectType === undefined || origin.effect.effectType === rule.effectType)
             && (rule.abilityTiming === undefined || origin.effect.timing?.includes(rule.abilityTiming))
           )) continue;
+        }
+        // 🆕`targetedByOpponent`＝「**対戦相手の**、能力か効果の対象になったとき」（2026-08-31・
+        //   `WX24-P4-102-E1` / `WX25-P2-055-E2`）。🔴旧実装は誰の効果でも発火していた＝
+        //   自分の効果で自分のシグニを対象にしただけで誘発する過剰発火だった。
+        //   ⚠`TargetedOrigin` は持ち主を持たないので、**origin のカードが watcher 自身のゾーンに
+        //   居るか**で判定する（場・手札・トラッシュ・エナ・チェック・ルリグ枠を走査）。
+        //   見つからない＝どちらの持ち物か決められない場合は**従来どおり通す**（fail-open＝現状維持）。
+        if (eff.triggerCondition?.targetedByOpponent) {
+          if (!origin) continue;
+          if (ownsCardAnyZone(watcherState, origin.cardNum)) continue;
         }
         const to = eff.triggerCondition?.turnOwner;
         if (to === 'self' && !watcherIsTurn) continue;
@@ -785,6 +810,10 @@ export function collectAllyLrigAttackTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
       if (eff.triggerFilter && !matchesFilter(attackingLrigCard, eff.triggerFilter)) continue;
+      // 🆕`centerLrigOnly`＝「あなたの**センタールリグ**がアタックしたとき」（2026-08-31・`WX19-031-E1`）。
+      //   🔴立てないと `any_ally` が**アシストルリグのアタックでも**誘発する過剰発火になる。
+      if (eff.triggerCondition?.centerLrigOnly
+        && attackingLrigNum !== attackerState.field.lrig.at(-1)) continue;
       if (!limitOk(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: attackerId, cardNum: num, effectId: eff.effectId,

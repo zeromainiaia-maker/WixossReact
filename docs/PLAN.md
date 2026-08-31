@@ -10,34 +10,38 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-31・続き757・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 157 → 127（-30）。**
-  （ユーザー指示「PLANを読み、OPENを30減らす」。**実装18件／較正12件**。）
-  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕127（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。
-  gates 全緑（**golden 3126 → 3131**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
-  live の A/B 差分＝**15カード**（意図した14＋同文型の拡張採用 `WXDi-P07-002` 1）。
+- 🏁**セッション（2026-08-31・続き758・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 127 → 97（-30）。**
+  （ユーザー指示「さらに３０減らす」。**実装26件／較正4件**。同日 続き757 と合わせて **187 → 97（-90）**。）
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕97（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3131 → 3139**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
+  live の A/B 差分＝**24カード**（すべて意図したもの・巻き添え0）。
 
-  🔑🔴**この巡の主産物＝「受け皿は在るのに、生成側の *呼び出し元* が戻り値を捨てていた」型を見つけたこと。**
-  新設した engine 語彙は**2つだけ**（`SelectionConstraint.same:'power'` ／ `TargetFilter.powerEqTrigger`）で、
-  残り16件はすべて既存受け皿への配線（`countChoose`／`ENERGY_CHARGE_PER_LRIG_LEVEL`／`ATTACH_ACCE.fromEnergy`／
-  `GRANT_PLAYER_ABILITY`／`GRANT_LRIG_ABILITY`／`OR`+`HAS_CARD_IN_FIELD`／`LRIG_LIMIT_MODIFY{owner:'any'}`）。
+  🔑**この巡の主産物＝「1つの受け皿に複数カードを束ねる」ほうが歩留まりが高い。**
+  新設 engine 語彙は7つ（`TakeFromUnderSigni.count:'ALL'`／`distinct:'costSum'`／
+  `triggerCondition.targetedByOpponent`／`centerLrigOnly`／`TargetFilter.classMatchesAnyFieldSigni`／
+  `$ref:'assist_lrig_level_sum'`／`ATTACH_ACCE.targetsLastProcessed`+`optional`）だが、
+  **実装26件のうち19件は既存受け皿への配線**で、**`LOOK_PICK_CHAIN` だけで4件**を束ねた。
 
   🔑**新しく分かったこと3つ**＝
-  🔴①**受け皿・生成関数・呼び出し元は別の層**＝`parseChooseHeaderCount` は「センタールリグのレベル１につき
-  １つまで選ぶ」を正しく解いていたのに、**入口が2つあって片方が `countChoose` だけを捨てて**おり、
-  該当5枚が**常に1つ固定**に潰れていた（続き756 の「先に食う規則」の兄弟＝あちらは規則の順序、こちらは戻り値）。
-  🔴②**括弧の注記は `stripRuleParens` で文レベル parser へ届く前に消える**＝
-  「（お互いのセンタールリグに影響する）」を `parseSentencePart2` に書いた規則は**永久に発火しないコード**だった。
-  ⇒ 注記依存の規則は**カード全文が見える後段**、しかも `markRemainderReorder` / `rewriteCatchAllStubs` の**後ろ**に置く。
-  🔑③**較正は「1効果に finding が3本以上ぶら下がっているカード」から出る**（`WXDi-P06-077` は4本とも stale）。
-  ⚠**`semanticAuditRecheck.mjs` の LCS 候補28件とは1件も重ならなかった**＝あの計器は字面で並べるだけ。
+  🔴①**「リテラルで grep して0件だから未実装」と判断しない**＝`GUARD_LV1` は
+  `makeGuardLevelBlocker` が**正規表現 `^GUARD_LV(\d+)` で解釈**しており、文字列検索では絶対に出ない
+  （`WDK05-T09-E1-G` は実装済みだった＝較正）。受け皿が id を regex で読む形は grep の死角。
+  🔴②**収穫マージの関門は2種類ある**＝新規 manual カードは `heldReview --adopt` で届くが、
+  **既に `manualEffects.ts` にあるカードを書き直した分は `build:effects` では live に届かない**
+  （live 側 MANUAL/PARTIAL が不可侵）＝`npx tsx scripts/syncManualLive.ts` が要る。今回2枚踏んだ。
+  🔑③**計器の較正漏れは「同じ族の綴り違い」で出る**＝census の `ON_GUARD`＋`lrigAttackNoDamage`
+  規則は主語が「（センター）ルリグN体」しか剥がせず、「**この**ルリグがアタックしたとき」を
+  同じ受け皿へ配線した瞬間に高シグナルへ昇格した。**ベースラインを上げずに較正で戻す**のが正しい。
 
-  ⚠**実機は不要と判定**（§2.2）。ただし**`src/screens/battle/lrigLimit.ts` を1行だけ触った**＝UI を持たない純関数で、
-  golden が `computeEffectiveLrigLimit` / `collectOppDeclaredLrigLimitDelta` を直接呼んで両側を assert している。
-  観測点だけ `V-104` へ登録した。
+  ⚠**実機は不要と判定**（§2.2）＝`src/screens/` を1バイトも触っていない。新語彙は engine 実走 golden で
+  両方向を固定し、**4件で反転確認**（分岐を無効化すると必ず FAIL することを実測）。
+  ⚠**据置契約 golden を1本反転**（`PR-322-E2` の手札枝）＝落ちたら消さずに期待値を反転する規約どおり。
 
-**▶ 次の一手**＝**§5.2 の残 127**。主成分は依然「機構待ち」（続き751 の全数 triage）。
+**▶ 次の一手**＝**§5.2 の残 97**。
 取るなら ①`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る
-②または**1効果に finding が3本以上ある効果**を開いて claim を読み直す（今回の較正12件はここから出た）。
+②または**同じ受け皿へ束ねられるカードを横断で探す**（今回 `LOOK_PICK_CHAIN` で4件・
+`HAS_CARD_IN_FIELD{colorNotMatchesSource}` で2件・使用条件レベル3で3件を一度に閉じた）。
+⚠**残りの主成分は「複数体ライズ（`O-147`・7件）」「ハーモニー（2件）」など機構待ち。**
 ⚠**着手前に `node scripts/archive/semanticAuditLedger.mjs` で数え直す。**
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -87,7 +91,7 @@
 |---|---|---|
 | census 高シグナル | 🆕**91**（2026-08-31 続き746・460→91） | **疑い**。⚠**まとまった較正の在庫は払い出し済み**＝5巡で**較正 -208／実装 -95**。**残り153は機構待ちが中心**（軸ごとの全数 dump は `node scripts/archive/censusKeyScan.mjs`）。🔴**「census に出ている＝直すべき」ではない**＝先行セッションが理由つきで見送った効果が混ざっており、**golden の「見送り契約」が唯一の歯止め**（2026-08-31 に5件が赤で差し戻された） |
 | `behaviorAudit --queue` 要review | 566 | **疑い**（ヘッダ自身が「対象不在の空振りも含む」と明記） |
-| **意味照合 段2 台帳の残 OPEN** | 🆕**127**（影響カード 106／効果 98・2026-08-31 続き757） | 🔴**2026-08-31 続き751 で性質が変わった**＝81件を全数 triage したら**実装で閉じたのは13件だけ**で、**34件は受け皿ごと無い機構待ち・15件は部分修正になる見送り**。⇒ **残りの主成分は parser の穴ではなく機構待ち。** |
+| **意味照合 段2 台帳の残 OPEN** | 🆕**97**（影響カード 79／効果 71・2026-08-31 続き758） | 🔴**2026-08-31 続き751 で性質が変わった**＝81件を全数 triage したら**実装で閉じたのは13件だけ**で、**34件は受け皿ごと無い機構待ち・15件は部分修正になる見送り**。⇒ **残りの主成分は parser の穴ではなく機構待ち。** |
 
 ⚠ census と behaviorAudit の重なりは **28件だけ**＝**2つの計器はほぼ別のものを見ている**。どちらも「疑い」なので、選別にまた時間がかかる。**確定している187件を先に消す。**
 
@@ -680,7 +684,22 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > 🆕🔴**2026-08-29 改定＝ここが「速いレーン」（§2.0）の本線キューになった。** 3つの計器のうち**段1 で真バグと確定しているのはここだけ**（census 🆕**245**（旧 460）と `behaviorAudit --queue` 566 は疑いで、偽陽性の選別にまた時間がかかる。両者の重なりはわずか28件＝**ほぼ別のものを見ている**）。
-> **母集団＝🆕残 OPEN 127件（影響カード 106枚・効果 98件／2026-08-31 続き757）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。同時点＝段2 消化1001／段0除去205／段1偽陽性111／HIGH・MED・LOW＝101・26・0）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> **母集団＝🆕残 OPEN 97件（影響カード 79枚・効果 71件／2026-08-31 続き758）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。同時点＝段2 消化1035／段0除去201／段1偽陽性111／HIGH・MED・LOW＝81・16・0）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> 🆕🔑**2026-08-31 続き758（-30／実装26・較正4）＝「1つの受け皿に複数カードを束ねる」ほうが歩留まりが高い。**
+> 実装26件のうち**19件は既存受け皿への配線**で、**`LOOK_PICK_CHAIN` だけで4件**（「N枚見て1枚を
+> トラッシュ／デッキの一番上へ、残りを一番下」＝`LOOK_AND_REORDER{canTrash}` では**枚数が無制限**になり
+> 「必ず1枚」も「一番上へ戻す」も表せない）。`HAS_CARD_IN_FIELD{colorNotMatchesSource}` で2件、
+> ピースの使用条件 `LRIG_LEVEL{gte,3}` で3件も同じやり方で束ねた。
+> 🔴**新しい教訓①＝「リテラルで grep して0件だから未実装」と判断しない。**
+> `actionId:'GUARD_LV1'` は `makeGuardLevelBlocker` が**正規表現 `^GUARD_LV(\d+)` で解釈**していたので
+> 文字列検索では出ない（`WDK05-T09-E1-G` は実装済み＝較正）。**id を regex で読む受け皿は grep の死角。**
+> 🔴**新しい教訓②＝収穫マージの関門は2種類ある。** 新規 manual カードは `heldReview --adopt` で届くが、
+> **既に `manualEffects.ts` にあるカードを書き直した分は届かない**（live 側 MANUAL/PARTIAL が不可侵）＝
+> `npx tsx scripts/syncManualLive.ts` が要る。**「新規」と「書き直し」で経路が違う。**
+> 🔑**新しい教訓③＝計器の較正漏れは「同じ族の綴り違い」で出る。** census の
+> `ON_GUARD`＋`lrigAttackNoDamage` 規則が主語「（センター）ルリグN体」しか剥がせず、
+> 「**この**ルリグがアタックしたとき」を同じ受け皿へ配線した瞬間に高シグナルが 12→13 になった。
+> **ベースラインを上げずに較正で戻す**（退化ではなく計器の穴）。
 > 🆕🔑**2026-08-31 続き757（-30／実装18・較正12）＝新しい教訓は3つ。**
 > 🔴**①「受け皿が在るのに届かない」を疑うときは、受け皿の *呼び出し元* まで数える。**
 > `parseChooseHeaderCount` は「センタールリグのレベル１につき１つまで選ぶ」を正しく `countChoose` へ解いていたのに、
@@ -1156,18 +1175,19 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-31 続き757 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕127（157 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
+- **2026-08-31 続き758 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕97（127 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
   ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
-  **golden 3126 → 3131（+5本・反転確認済み）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
+  **golden 3131 → 3139（+8本・反転確認4件）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
   `census:stubs` A群🔴0／C群0、manual-fields 0。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
-  🆕**新設語彙2つ**＝`SelectionConstraint.same:'power'` と `TargetFilter.powerEqTrigger`。
-  **残り16件はすべて既存受け皿への配線**（＝§5.2 の「本命」の再実証）。
-  ⚠**golden のラチェットを1本下げた**＝`ON_TURN_END` 母数 **187 → 186**（`WXK03-008-E3` を原文どおり
-  `GRANT_LRIG_ABILITY` の中へ入れ子にしたのでトップレベルが1件減った＝挙動は消えていない）。
-  ⚠**実機は不要と判定**。ただし `src/screens/battle/lrigLimit.ts` を1行触ったので `V-104` へ観測点を登録。
-  **live の A/B 差分＝15カード**（意図した14＋同文型の拡張採用 `WXDi-P07-002` 1）。
+  🆕**新設語彙7つ**＝`TakeFromUnderSigni.count:'ALL'`／`SelectionConstraint.distinct:'costSum'`／
+  `triggerCondition.targetedByOpponent`／`triggerCondition.centerLrigOnly`／
+  `TargetFilter.classMatchesAnyFieldSigni`／`$ref:'assist_lrig_level_sum'`／
+  `ATTACH_ACCE.targetsLastProcessed`＋`optional`。**実装26件のうち19件は既存受け皿への配線。**
+  ⚠**census の較正を1箇所広げた**（「**この**ルリグがアタックしたとき」＝`ON_GUARD` 族の綴り違い）＝
+  ベースラインは上げていない。⚠**据置契約 golden を1本反転**（`PR-322-E2` の手札枝）。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更）。**live の A/B 差分＝24カード**（巻き添え0）。
 
 
 ## 付録A. 全体像と Definition of Done

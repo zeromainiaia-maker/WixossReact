@@ -1,6 +1,36 @@
 # PLAN 進捗サマリ・アーカイブ
 
 
+- 🏁**セッション（2026-08-31・続き757・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 157 → 127（-30）。**
+  （ユーザー指示「PLANを読み、OPENを30減らす」。**実装18件／較正12件**。）
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕127（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3126 → 3131**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
+  live の A/B 差分＝**15カード**（意図した14＋同文型の拡張採用 `WXDi-P07-002` 1）。
+
+  🔑🔴**この巡の主産物＝「受け皿は在るのに、生成側の *呼び出し元* が戻り値を捨てていた」型を見つけたこと。**
+  新設した engine 語彙は**2つだけ**（`SelectionConstraint.same:'power'` ／ `TargetFilter.powerEqTrigger`）で、
+  残り16件はすべて既存受け皿への配線（`countChoose`／`ENERGY_CHARGE_PER_LRIG_LEVEL`／`ATTACH_ACCE.fromEnergy`／
+  `GRANT_PLAYER_ABILITY`／`GRANT_LRIG_ABILITY`／`OR`+`HAS_CARD_IN_FIELD`／`LRIG_LIMIT_MODIFY{owner:'any'}`）。
+
+  🔑**新しく分かったこと3つ**＝
+  🔴①**受け皿・生成関数・呼び出し元は別の層**＝`parseChooseHeaderCount` は「センタールリグのレベル１につき
+  １つまで選ぶ」を正しく解いていたのに、**入口が2つあって片方が `countChoose` だけを捨てて**おり、
+  該当5枚が**常に1つ固定**に潰れていた（続き756 の「先に食う規則」の兄弟＝あちらは規則の順序、こちらは戻り値）。
+  🔴②**括弧の注記は `stripRuleParens` で文レベル parser へ届く前に消える**＝
+  「（お互いのセンタールリグに影響する）」を `parseSentencePart2` に書いた規則は**永久に発火しないコード**だった。
+  ⇒ 注記依存の規則は**カード全文が見える後段**、しかも `markRemainderReorder` / `rewriteCatchAllStubs` の**後ろ**に置く。
+  🔑③**較正は「1効果に finding が3本以上ぶら下がっているカード」から出る**（`WXDi-P06-077` は4本とも stale）。
+  ⚠**`semanticAuditRecheck.mjs` の LCS 候補28件とは1件も重ならなかった**＝あの計器は字面で並べるだけ。
+
+  ⚠**実機は不要と判定**（§2.2）。ただし**`src/screens/battle/lrigLimit.ts` を1行だけ触った**＝UI を持たない純関数で、
+  golden が `computeEffectiveLrigLimit` / `collectOppDeclaredLrigLimitDelta` を直接呼んで両側を assert している。
+  観測点だけ `V-104` へ登録した。
+
+**▶ 次の一手**＝**§5.2 の残 127**。主成分は依然「機構待ち」（続き751 の全数 triage）。
+取るなら ①`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る
+②または**1効果に finding が3本以上ある効果**を開いて claim を読み直す（今回の較正12件はここから出た）。
+⚠**着手前に `node scripts/archive/semanticAuditLedger.mjs` で数え直す。**
+
 - 🏁**セッション（2026-08-31・続き756・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 187 → 157（-30）。**
   （ユーザー指示「PLANを読み、OPENを30減らす」。**実装21件／較正9件**。）
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕157（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。

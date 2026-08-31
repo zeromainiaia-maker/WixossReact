@@ -167,6 +167,17 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   //   「レベルの合計が対戦相手のセンタールリグのレベル以下になるように好きな数対象とし」）。
   // ⚠**fail-closed**＝センタールリグが引けない／`Level` が数値でないときは **0**（＝1体も選べない）。
   //   上限が消えて盤面全部をバニッシュできる fail-open のほうが原文より強いので、0 側へ倒す。
+  // 🆕`assist_lrig_level_sum`＝「あなたの場にいる**アシストルリグのレベルの合計**」
+  //   （2026-08-31・`WXDi-P05-008-E1`「レベルの合計１につき【エナチャージ１】をする」）。
+  //   🔴旧 live は比例が落ちて**常に1枚**だった。⚠センタールリグは数えない。
+  if (n.$ref === 'assist_lrig_level_sum') {
+    const lvOf = (arr: string[] | undefined): number => {
+      const top = arr?.at(-1);
+      const lv = top ? parseInt(ctx.cardMap.get(getCardNum(top))?.Level ?? '', 10) : NaN;
+      return Number.isFinite(lv) ? lv : 0;
+    };
+    return lvOf(ctx.ownerState.field.assist_lrig_l) + lvOf(ctx.ownerState.field.assist_lrig_r);
+  }
   if (n.$ref === 'opp_lrig_level') {
     const oppCenter = ctx.otherState.field.lrig.at(-1);
     if (!oppCenter) return 0;
@@ -3255,6 +3266,23 @@ export function selectOrInteract(
   });
 }
 
+/**
+ * カードの「コストの合計」＝`Cost` 列の `《色×N》`（`×N` 省略時は1）の総和。
+ * 原文の注記どおり「カードの左上のエナコストの数字の合計」。読めなければ null（fail-closed の材料）。
+ */
+function costSumOf(cost: string | undefined): number | null {
+  const raw = `${cost ?? ''}`.trim();
+  if (!raw || raw === '-') return null;
+  let sum = 0;
+  let seen = false;
+  for (const m of raw.matchAll(/《([^》]+)》(?:×([０-９\d]+))?/g)) {
+    if (!'白赤青緑黒無'.includes(m[1])) continue;
+    seen = true;
+    sum += m[2] ? parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10) : 1;
+  }
+  return seen ? sum : null;
+}
+
 function cardClasses(card: CardData | undefined): Set<string> {
   return new Set((card?.CardClass ?? '').split(/[：:／/・,\s]+/).map((s: string) => s.trim()).filter(Boolean));
 }
@@ -3349,6 +3377,13 @@ export function satisfiesSelectionConstraint(
   } else if (constraint.distinct === 'name') {
     const values = cards.map(c => `${c?.CardName ?? ''}`);
     if (new Set(values).size !== values.length) return false;
+  } else if (constraint.distinct === 'costSum') {
+    // 🆕「それぞれ**コストの合計が異なる**スペルN枚」（`WX21-046-E1`）。
+    //   コストの合計＝`Cost` 列の `《色×N》`（`×N` 省略時は1）の総和。
+    //   🔴読めない札（`Cost` が空/`-`）は**不成立**へ倒す（fail-closed）＝制約を素通りさせない。
+    const sums = cards.map(c => costSumOf(c?.Cost));
+    if (sums.some(v => v === null)) return false;
+    if (new Set(sums).size !== sums.length) return false;
   } else if (constraint.distinct === 'class') {
     const sets = cards.map(cardClasses);
     for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) {

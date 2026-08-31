@@ -9,6 +9,188 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // 意味照合 段2（2026-08-31 続き758）＝「受け皿は在るのに JSON が指していない」20件
+  // 🔑新設した engine 語彙は **`TakeFromUnderSigni.count:'ALL'` / `distinct:'costSum'` /
+  //   `triggerCondition.targetedByOpponent` / `triggerCondition.centerLrigOnly` /
+  //   `TargetFilter.classMatchesAnyFieldSigni` / `$ref:'assist_lrig_level_sum'` /
+  //   `ATTACH_ACCE.targetsLastProcessed`＋`optional`** の7つだけ。残りは既存受け皿への配線。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // ── (A) 「N枚見て、1枚を〈行き先〉、残りを好きな順番でデッキの一番下」＝`LOOK_PICK_CHAIN` ──
+  // 🔴`LOOK_AND_REORDER{canTrash}` は**何枚トラッシュに置けるか無制限**（＝任意）で、
+  //   「必ず1枚をトラッシュに置く」も「1枚をデッキの一番上に戻す」も表せない。
+  //   受け皿は既存の `LOOK_PICK_CHAIN`（`then:'trash'` / `then:'deck_top'` の2段）。
+
+  // SPDi01-133 ／ 原文【出】：あなたのデッキの上からカードを３枚見る。その中から**カード１枚をトラッシュに置き、
+  //   カード１枚をデッキの一番上に戻し**、残りを好きな順番でデッキの一番下に置く。
+  // 🔴旧 live＝`canTrash:true` の裸＝**3枚全部トラッシュへ送れる**うえ「デッキの一番上に戻す」が丸ごと無かった。
+  'SPDi01-133': [
+    {"effectId":"SPDi01-133-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"then":"trash","pickNoun":"カード"},{"pickCount":1,"then":"deck_top","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WX24-P3-078 ／ 原文【出】：あなたのデッキの上からカードを３枚見る。その中から**カード１枚をデッキの一番上に戻し**、
+  //   残りを好きな順番でデッキの一番下に置く。
+  // 🔴旧 live＝3枚とも一番下＝**デッキトップを仕込む**というカードの役目が丸ごと消えていた。
+  'WX24-P3-078': [
+    {"effectId":"WX24-P3-078-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"then":"deck_top","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WXDi-P15-073 ／ 原文【起】《ターン２回》《コインアイコン》：あなたのデッキの上からカードを５枚見る。
+  //   その中から**カード１枚をトラッシュに置き**、残りを好きな順番でデッキの一番下に置く。
+  // 🔴旧 live＝`canTrash:true`＝トラッシュ送りが**任意**（0枚でもよく、5枚全部でもよかった）。
+  'WXDi-P15-073': [
+    {"effectId":"WXDi-P15-073-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"coin":1},"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"pickCount":1,"then":"trash","pickNoun":"カード"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"twice_per_turn"},
+  ],
+
+  // WXDi-P10-075 ／ 原文【自】《ターン１回》：対戦相手のシグニ１体がバニッシュされたとき、
+  //   あなたのデッキの一番上を見る。**そのカードを**トラッシュに置いてもよい。
+  // 🔴旧 live＝「見る」の後ろに `TRASH{SIGNI owner:any}` が付いており、**任意確認なしで
+  //   場のシグニ1体（自分のでも）を強制トラッシュ**していた＝原文と別のカード。
+  //   ⇒ `LOOK_AND_REORDER{count:1, canTrash:true}` 1本で「見て、置いてもよい」を表す。
+  'WXDi-P10-075': [
+    {"effectId":"WXDi-P10-075-E1","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_opp","action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":true,"reorder":false,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // ── (B) 「このシグニと共通する色を持たない他の＜天使＞がある場合」＝`HAS_CARD_IN_FIELD{colorNotMatchesSource}` ──
+  // 🔴旧 live は `else` 枝が**無条件**で、原文の①（1枚引く／1枚エナ）が**条件を満たさなくても必ず通っていた**。
+  //   受け皿は 2026-08-31 続き748 で新設済み（`WX21-032-E1` が使っている式と同じ）。
+
+  // SP27-012 ／ 原文【自】：このシグニがアタックしたとき、**あなたの場にこのシグニと共通する色を持たない
+  //   他の＜天使＞のシグニがある場合**、カードを１枚引く。**それぞれ共通する色を持たない＜天使＞が３体ある場合**、
+  //   代わりにカードを２枚引く。
+  'SP27-012': [
+    {"effectId":"SP27-012-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"NO_COMMON_COLOR_AMONG_FIELD_SIGNI","owner":"self","count":3,"filter":{"cardType":"シグニ","story":"天使"}},"then":{"type":"DRAW","owner":"self","count":2},"else":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"天使","colorNotMatchesSource":true},"excludeSelf":true,"minCount":1},"then":{"type":"DRAW","owner":"self","count":1}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WX21-039 ／ 原文は SP27-012 と同型（引く→エナゾーンに置く）。
+  'WX21-039': [
+    {"effectId":"WX21-039-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"NO_COMMON_COLOR_AMONG_FIELD_SIGNI","owner":"self","count":3,"filter":{"cardType":"シグニ","story":"天使"}},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},"else":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"天使","colorNotMatchesSource":true},"excludeSelf":true,"minCount":1},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── (C) 単発の受け皿配線 ──
+
+  // PR-322 ／ 原文【起】《アタックフェイズアイコン》エクシード２：あなたのトラッシュから黒のシグニ１枚を対象とし、
+  //   **それを場に出すかあなたの手札から黒のシグニ１枚を場に出す**。この方法で場に出たシグニの【出】能力は発動しない。
+  // 🔴旧 live＝手札枝が丸ごと落ちて**トラッシュからしか出せなかった**（選択肢が1つ減る過少実行）。
+  'PR-322': [
+    {"effectId":"PR-322-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"トラッシュから黒のシグニ1枚を場に出す","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}},"suppressOnPlay":true}},{"choiceId":"c1","label":"手札から黒のシグニ1枚を場に出す","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}},"suppressOnPlay":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WD21-017 ／ 原文【自】：このシグニが**効果か**レゾナの出現条件**によって**、バニッシュされるか
+  //   場からトラッシュに置かれたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
+  // 🔴旧 live＝原因の限定が丸ごと無く、**バトルでバニッシュされただけでも**発火していた（過剰発火）。
+  //   受け皿は既存の `triggerCondition.byEffect`（`ON_TRASH` / `ON_BANISH` の両 collector が消費）。
+  // ⚠**レゾナの出現条件（＝コスト支払い）側は拾えない**（コスト経路は `byEffect` を立てない）＝`PARTIAL`。
+  //   過小側へ倒す判断＝現状の「何でも発火」より原文に近い。§5.4(ii) に登録。
+  'WD21-017': [
+    {"effectId":"WD21-017-E1","effectType":"AUTO","timing":["ON_TRASH","ON_BANISH"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerCondition":{"fromZones":["field"],"byEffect":true}},
+  ],
+
+  // WX14-057 ／ 原文【出】：対戦相手のパワー3000以下のシグニ**１体を対象とし**、あなたのトラッシュに
+  //   カード名に《フレイスロ》を含むシグニが５枚以上ある場合、それをバニッシュする。
+  // 🔴旧 live＝条件成立後に対象を選ぶ形＝**条件を満たさないと対象宣言そのものが起きない**。
+  //   原文は先に対象を取るので「対象になったとき」のトリガーが噛み合わなくなる。
+  //   受け皿は既存の `SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → 帰結 `{targetsStored}`。
+  'WX14-057': [
+    {"effectId":"WX14-057-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":3000}}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"CONDITIONAL","condition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardName":"フレイスロ"},"minCount":5},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WDK15-008 ／ 原文：**あなたのシグニの下から**カードを合計２枚までトラッシュに置く。その後、
+  //   この方法でトラッシュに置いたカード１枚につき対戦相手のシグニ１体を対象とし、それらをバニッシュする。
+  // 🔴旧 live＝**自分のシグニ本体を1体、必ず**トラッシュに置いていた（下のカードではなく盤面が減る別物）。
+  //   受け皿は既存の `TAKE_FROM_UNDER_SIGNI`（`fromThis` を付けなければ自分の全スタックの下が候補）。
+  'WDK15-008': [
+    {"effectId":"WDK15-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"TAKE_FROM_UNDER_SIGNI","destination":"trash","count":2,"upToCount":true},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":{"$ref":"last_processed_count"},"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WXDi-P11-077 ／ 原文【自】：あなたのアタックフェイズ開始時、このシグニの下からカードを**好きな枚数**
+  //   トラッシュに置く。この方法でトラッシュに置いたカード１枚につき対戦相手のデッキの上から１枚トラッシュに置く。
+  // 🔴旧 live＝上限が原文に無い **9枚固定**（10枚積んだら1枚取り残す）。新設 `count:'ALL'` で候補全部を上限にする。
+  'WXDi-P11-077': [
+    {"effectId":"WXDi-P11-077-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"TAKE_FROM_UNDER_SIGNI","destination":"trash","count":"ALL","upToCount":true,"fromThis":true},{"type":"MILL","owner":"opponent","count":0,"countPerLastProcessed":1}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WX21-046 ／ 原文【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュから
+  //   **それぞれコストの合計が異なるスペル３枚**をデッキに加えてシャッフルする。そうした場合、〜
+  // 🔴旧 live＝**任意のカード3枚**（スペル指定もコスト相互差異も無し）＝支払いが実質タダになっていた。
+  'WX21-046': [
+    {"effectId":"WX21-046-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":3,"filter":{"cardType":"スペル"},"selectionConstraint":{"distinct":"costSum"}},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000,"duration":"UNTIL_END_OF_TURN"}]}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // SP24-010 ／ 原文：…その後、あなたのエナゾーンから《アクセアイコン》を持つシグニ１枚を対象とし、
+  //   **それをこの方法で場に出したシグニの【アクセ】にしてもよい**。
+  // 🔴旧 live＝`GRANT_KEYWORD{keyword:'アクセ'}`＝**エナのカードは1枚も動かず**、場の任意のシグニに
+  //   「アクセ」という語だけが恒久で付いていた。新設 `targetsLastProcessed`＋`optional` で照応と任意性を持たせる。
+  'SP24-010': [
+    {"effectId":"SP24-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"調理"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self","suppressOnPlay":true},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},{"type":"ATTACH_ACCE","targetSigniOwner":"self","sourceOwner":"self","fromEnergy":true,"signiFilter":{"cardType":"シグニ","hasIcon":"アクセ"},"targetsLastProcessed":true,"optional":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+
+  // WX13-052 ／ 原文【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、あなたのデッキの一番上を公開する。
+  //   それが＜遊具＞のシグニの場合、このシグニをバニッシュしてもよい。**そうした場合、この効果で公開した
+  //   シグニをダウン状態で場に出す。**
+  // 🔴旧 live＝最後の「公開したシグニをダウン状態で場に出す」が丸ごと無く、**自分をバニッシュして終わり**
+  //   という損しかしないカードになっていた。
+  'WX13-052': [
+    {"effectId":"WX13-052-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"triggerScope":"self","action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"遊具"},"pickCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","asDown":true}}]},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WXDi-P00-021 ／ 原文【出】：**あなたの場にあるいずれかのシグニと共通するクラスを持つ**対戦相手のシグニ１体を
+  //   対象とし、それをエナゾーンに置く。そうした場合、【エナチャージ１】をする。
+  // 🔴旧 live＝クラス条件が落ちて**相手のどのシグニでも**エナ送りにできた。
+  //   新設 `TargetFilter.classMatchesAnyFieldSigni`（`nameMatchesAnyFieldSigni` のクラス版の兄弟）。
+  'WXDi-P00-021': [
+    {"effectId":"WXDi-P00-021-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","classMatchesAnyFieldSigni":true}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WX19-031 ／ 原文【自】：あなたの**センタールリグ**がアタックしたとき、このシグニを場からトラッシュに
+  //   置いてもよい。そうした場合、そのルリグをアップする。
+  // 🔴旧 live＝`triggerScope:'any_ally'` だけで、**アシストルリグのアタックでも**誘発していた（過剰発火）。
+  'WX19-031': [
+    {"effectId":"WX19-031-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"any_ally","triggerCondition":{"centerLrigOnly":true},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_TRASH_SELF"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WX24-P4-102 ／ 原文【自】《相手ターン》《ターン１回》：このシグニが**対戦相手の**、能力か効果の対象に
+  //   なったとき、【エナチャージ１】をする。
+  // 🔴旧 live＝**誰の効果でも**発火＝自分の効果で自分のシグニを対象にしただけでエナが増えた。
+  'WX24-P4-102': [
+    {"effectId":"WX24-P4-102-E1","effectType":"AUTO","timing":["ON_TARGETED"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"turnOwner":"opponent","targetedByOpponent":true},"usageLimit":"once_per_turn"},
+  ],
+
+  // WXDi-P05-008 ／ 原文【出】：あなたの場にいる**アシストルリグのレベルの合計１につき**【エナチャージ１】をする。
+  // 🔴旧 live＝比例が落ちて**常に1枚**（レベル2+2でも1枚）。新設 `$ref:'assist_lrig_level_sum'`。
+  'WXDi-P05-008': [
+    {"effectId":"WXDi-P05-008-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":{"$ref":"assist_lrig_level_sum"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WXDi-D04-004 ／ 原文（付与される【自】）：このルリグがアタックしたとき、**そのアタック終了時、そのアタックに
+  //   よって対戦相手にダメージが与えられていなかった場合**、あなたのアップ状態のレベル２のルリグ１体を
+  //   ダウンしてもよい。そうした場合、**このルリグを**アップする。
+  // 🔴旧 live＝①アタック時に即実行（終了時でもダメージ無し条件でもない） ②アップ対象が「自分のルリグ1体」。
+  // 🔑受け皿は**既存の** `ON_GUARD` ＋ `triggerCondition.lrigAttackNoDamage`（2026-08-31 続き749 で新設済み）。
+  // ⚠発火地点は【ガード】された経路だけ＝バリア等でダメージが消えた場合は拾えない（過小側）＝`PARTIAL`。
+  'WXDi-D04-004': [
+    {"effectId":"WXDi-D04-004-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D04-004-sub-E1","effectType":"AUTO","timing":["ON_GUARD"],"triggerCondition":{"lrigAttackNoDamage":true},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true,"level":2}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1,"filter":{"thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL"}],"rawText":"【自】：このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、あなたのアップ状態のレベル２のルリグ１体をダウンしてもよい。そうした場合、このルリグをアップする。"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+  ],
+
+  // ── (D) 「あなたのレベル３のルリグ１体を対象とし」＝使用条件へレベル3を足す（ピース3枚） ──
+  // 🔴旧 live＝使用条件が「チーム全員レベル１以上」だけで、**レベル1のセンターでも撃てた**。
+  //   `GRANT_LRIG_ABILITY` の付与先は常にセンタールリグなので、**センターがレベル3であること**を
+  //   使用条件に足すのが原文の「レベル３のルリグ１体を対象とし」の忠実表現になる。
+  // ⚠**`eq 3` ではなく `gte 3`** にする＝原文は対象の資格（レベル3のルリグ）であって上限ではない。
+
+  'WXDi-D03-011': [
+    {"effectId":"WXDi-D03-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"NoLimit","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":3}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D03-011-sub-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},{"effectId":"WXDi-D03-011-sub-E2","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],"rawText":"【常】：【ダブルクラッシュ】【常】：対戦相手は【ガード】ができない。","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  'WXDi-D05-011': [
+    {"effectId":"WXDi-D05-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"うちゅうのはじまり","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":3}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D05-011-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}}}],"countChoose":{"count":{"$ref":"opp_lrig_level"}},"allowRepeat":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],"rawText":"【自】：このルリグがアタックしたとき、以下の２つから１つを選ぶ。この効果を対戦相手のセンタールリグのレベルと同じ回数行う。①カードを１枚引く。②対戦相手の手札を１枚見ないで選び、捨てさせる。","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  'WXDi-D06-011': [
+    {"effectId":"WXDi-D06-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"DIAGRAM","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":3}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D06-011-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":15}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","noGuard":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],"rawText":"【自】：このルリグがアタックしたとき、以下の２つから１つを選ぶ。①対戦相手のデッキの上からカードを１５枚トラッシュに置く。②あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、それらを手札に加える。","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // 意味照合 段2（2026-08-31 続き757）＝「受け皿は在るのに JSON が指していない」8件
   // 🔑新設した engine 語彙は **`SelectionConstraint.same:'power'` と `TargetFilter.powerEqTrigger` の2つだけ**。
   //   残りは既存の `OR` / `HAS_CARD_IN_FIELD` / `ATTACH_ACCE.fromEnergy` / `GRANT_PLAYER_ABILITY` /
@@ -3444,8 +3626,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX26-CP1-058": [
     {"effectId":"WX26-CP1-058-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CONDITIONAL","condition":{"type":"ALL_FIELD_SIGNI_MATCH","owner":"self","filter":{"cardType":"シグニ","story":"プリオケ"}},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"self_deck","label":"あなたのデッキの上から5枚をトラッシュ","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":5}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"プリオケ"},"operator":"gte","value":3},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000}}]}},{"choiceId":"opp_deck","label":"対戦相手のデッキの上から5枚をトラッシュ","action":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":5}}}]}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"self"},
   ],
+  // 🆕2026-08-31 続き758＝選択肢②の全シグニトラッシュに `optional` を足した（意味照合 段2）。
+  //   🔴原文は「トラッシュに置いて**もよい**」＝旧 live はライフ0のとき**自分の盤面が必ず全滅**していた。
   "WD20-018": [
-    {"effectId":"WD20-018-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"英知"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":4,"pickCount":1,"filter":{"cardType":"シグニ","story":"英知"},"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}},{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":0,"private":true,"reorder":true,"destination":{"location":"deck","owner":"self","position":"bottom"}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":"ALL"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"英知"},"operator":"gte","value":3},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WD20-018-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"英知"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":4,"pickCount":1,"filter":{"cardType":"シグニ","story":"英知"},"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}},{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":0,"private":true,"reorder":true,"destination":{"location":"deck","owner":"self","position":"bottom"}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":"ALL"},"optional":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"英知"},"operator":"gte","value":3},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
   "WX22-Re03": [
     {"effectId":"WX22-Re03-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"怪異"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"怪異"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":2,"filter":{"cardType":"シグニ","story":"怪異"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
@@ -8731,7 +8915,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     // 原文「ターン終了時まで、このシグニは**【常】能力**を失う」＝失うのは常在だけ。
     // ⚠無指定だと全能力（【自】【起】【出】も）を失う過剰実行。受け皿は `RemoveAbilitiesAction.abilityTypes`
     //   （消費地点＝`effectEngine.ts:6369/6386/6421` の3経路）。
-    {"effectId":"WX25-P2-055-E2","effectType":"AUTO","timing":["ON_TARGETED"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"until":"UNTIL_END_OF_TURN","abilityTypes":["常"]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+    // 🆕2026-08-31 続き758＝`triggerCondition.targetedByOpponent` を追加（意味照合 段2）。
+    //   🔴原文は「**対戦相手の**、能力か効果の対象になったとき」＝旧 live は自分の効果で
+    //   自分のシグニを対象にしただけで「バニッシュされない」を失う**自滅**をしていた。
+    {"effectId":"WX25-P2-055-E2","effectType":"AUTO","timing":["ON_TARGETED"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"until":"UNTIL_END_OF_TURN","abilityTypes":["常"]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"targetedByOpponent":true},"usageLimit":"once_per_turn"},
   ],
   // 意味照合 段2 第47バッチ その2（2026-08-31 続き752）＝原文にある処理／限定が丸ごと落ちていた一点物。
   // ⚠**カード単位の完全置換**（§5-16）＝同じカードの他の効果も現行 live のまま並べてある。

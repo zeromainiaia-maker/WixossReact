@@ -3,6 +3,19 @@
 
 ## 恒久指標の過去行（§6 から退避）
 
+- **2026-08-31 続き757 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕127（157 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
+  **golden 3126 → 3131（+5本・反転確認済み）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
+  `census:stubs` A群🔴0／C群0、manual-fields 0。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙2つ**＝`SelectionConstraint.same:'power'` と `TargetFilter.powerEqTrigger`。
+  **残り16件はすべて既存受け皿への配線**（＝§5.2 の「本命」の再実証）。
+  ⚠**golden のラチェットを1本下げた**＝`ON_TURN_END` 母数 **187 → 186**（`WXK03-008-E3` を原文どおり
+  `GRANT_LRIG_ABILITY` の中へ入れ子にしたのでトップレベルが1件減った＝挙動は消えていない）。
+  ⚠**実機は不要と判定**。ただし `src/screens/battle/lrigLimit.ts` を1行触ったので `V-104` へ観測点を登録。
+  **live の A/B 差分＝15カード**（意図した14＋同文型の拡張採用 `WXDi-P07-002` 1）。
+
 - **2026-08-31 続き756 後（本行が直近の正）**：
   📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕157（187 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
   ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。

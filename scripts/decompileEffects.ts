@@ -240,6 +240,7 @@ function filterJa(f?: any): string {
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
   if (f.powerLteTrigger) parts.push('そのシグニのパワー以下の');
   if (f.powerEqTrigger) parts.push('そのシグニと同じパワーの');
+  if (f.classMatchesAnyFieldSigni) parts.push('あなたの場のいずれかのシグニと共通するクラスを持つ');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
   if (f.levelEqTrigger) parts.push('そのシグニと同じレベルの');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
@@ -400,6 +401,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'last_processed_count' ? 'レベルの合計がこの方法で処理した枚数以下になるように'
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
+    : t.selectionConstraint?.distinct === 'costSum' ? 'それぞれコストの合計が異なる'
     : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
     // 🆕2026-08-30＝`same`（選択集合の**全カードで同一**の軸）を描いていなかった＝
     //   「共通するレベルを持つ2体」が**ただの2体**に見えて原文照合で気付けなかった（`WXK11-042-E2`）。

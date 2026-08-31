@@ -49094,10 +49094,18 @@ test('段2 第33バッチ→Sheet3 バッチ6: WXEX2-51-E3 は黒とパワー120
   ok(encoded.includes('"powerRange":{"max":12000}'), 'パワー上限も表現されている');
 });
 
-test('段2 第33バッチ 据置契約: PR-322-E2 は手札から出す選択肢が未表現なので採用扱いにしない', () => {
-  const encoded = JSON.stringify(manualEffect('PR-322', 'PR-322-E2').action);
-  ok(encoded.includes('"type":"TRASH_CARD"') && encoded.includes('"color":"黒"'), '既存トラッシュ枝の黒指定は保持');
-  ok(!encoded.includes('"type":"HAND_CARD"'), '別軸の手札枝欠落を据置として固定');
+// 🆕**据置を解除した**（§5.2・2026-08-31 続き758）＝第33バッチ当時は「手札から出す枝」を据置として
+//   固定していたが、台帳 `PR-322-E2` の finding をこのバッチで消化したので**両枝とも要求する**へ反転。
+//   ⚠**据置契約は「実装したら必ず落ちる」トリップワイヤ**＝落ちたら消すのではなく期待値を反転させる。
+test('段2 第33バッチ→続き758: PR-322-E2 はトラッシュ枝と手札枝の二択になっている', () => {
+  const action = manualEffect('PR-322', 'PR-322-E2').action as ChooseAction;
+  eq(action.type, 'CHOOSE', '原文「それを場に出すか手札から〜出す」＝二択');
+  eq(action.choose_count, 1, '選ぶのは1つ');
+  const srcTypes = action.choices.map(c => ((c.action as { source?: { type?: string; filter?: { color?: string } } }).source));
+  ok(srcTypes.some(sp => sp?.type === 'TRASH_CARD' && sp.filter?.color === '黒'), '既存トラッシュ枝の黒指定は保持');
+  ok(srcTypes.some(sp => sp?.type === 'HAND_CARD' && sp.filter?.color === '黒'), '🔴手札枝が追加された（据置解除）');
+  ok(action.choices.every(c => (c.action as { suppressOnPlay?: boolean }).suppressOnPlay === true),
+    'どちらの枝でも【出】能力は発動しない');
 });
 
 // ── 段2 第34バッチ：「N枚まで」の0枚選択と固定N枚の対照 ──
@@ -56602,6 +56610,174 @@ test('ENERGY_CHARGE_PER_LRIG_LEVEL: レベル比例エナチャージの単独�
   eq(step?.type, 'ENERGY_CHARGE_PER_LRIG_LEVEL', '選択肢②の後段がレベル比例になっている');
   eq(step?.chargePerLevel, 2, '「【エナチャージ２】」＝レベル1につき2枚');
   eq(step?.lrigOwner, 'self', '基準は自分のセンタールリグ');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 意味照合 段2（2026-08-31 続き758）で新設した7語彙の両方向ガード。
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 🆕`TakeFromUnderSigniAction.count:'ALL'`＝「このシグニの下からカードを**好きな枚数**」（`WXDi-P11-077-E1`）。
+// 🔴旧 live は **9枚固定**＝原文に無い数字が上限を決めていた（10枚積むと1枚取り残す）。
+// 🆕`fromThis` なしの経路＝「**あなたのシグニの下から**合計N枚まで」（`WDK15-008-E1`）。
+//    🔴旧 live は**シグニ本体を1体トラッシュ**していた（盤面が減る別のカード）。
+test('TAKE_FROM_UNDER_SIGNI: count:ALL は下カード全部が上限／fromThis なしは自分の全スタックが候補', () => withSavedCursor(() => {
+  const under = [fresh(), fresh(), fresh(), fresh()];
+  const top = fresh();
+  const ctx = mkCtx({}, {}, top);
+  ctx.ownerState.field.signi = [[...under, top], null, null] as unknown as PlayerState['field']['signi'];
+  const trashBefore = ctx.ownerState.trash.length;
+  const res = run({ type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 'ALL', upToCount: true, fromThis: true } as unknown as EffectAction, ctx);
+  eq(res.ownerState.trash.length, trashBefore + under.length, "count:'ALL' は下カード4枚すべてを取れる（9枚固定では無い）");
+  eq(res.ownerState.field.signi[0]?.length, 1, '上のカード（効果元）は残る');
+  // fromThis なし＝自分の**全**スタックの下カードが候補（本体は候補にならない）
+  const a = fresh(), b = fresh(), c2 = fresh(), d = fresh();
+  const ctx2 = mkCtx({}, {}, b);
+  ctx2.ownerState.field.signi = [[a, b], [c2, d], null] as unknown as PlayerState['field']['signi'];
+  const before2 = ctx2.ownerState.trash.length;
+  const res2 = run({ type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 2, upToCount: true } as unknown as EffectAction, ctx2);
+  eq(res2.ownerState.trash.length, before2 + 2, '別スタックの下カードも候補（合計2枚）');
+  ok(tops(res2.ownerState).includes(b) && tops(res2.ownerState).includes(d), '🔴シグニ本体は減らない');
+}));
+
+// 🆕`SelectionConstraint.distinct:'costSum'`＝「**それぞれコストの合計が異なる**スペル３枚」（`WX21-046-E1`）。
+// 🔴旧 live は**任意のカード3枚**＝スペル指定もコスト相互差異も無く、重い支払いが実質タダになっていた。
+test("distinct:costSum: コストの合計が互いに異なることを要求する（WX21-046）", () => withSavedCursor(() => {
+  const costSum = (n: string) => [...`${cardMap.get(n)?.Cost ?? ''}`.matchAll(/《([^》]+)》(?:×([０-９\d]+))?/g)]
+    .filter(m => '白赤青緑黒無'.includes(m[1]))
+    .reduce((s, m) => s + (m[2] ? parseInt(m[2].replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))) : 1), 0);
+  const spells = [...cardMap.values()].filter(c => c.Type === 'スペル' && /《[白赤青緑黒無]/.test(c.Cost ?? ''));
+  const bySum = new Map<number, string[]>();
+  for (const c of spells) {
+    const s = costSum(c.CardNum);
+    bySum.set(s, [...(bySum.get(s) ?? []), c.CardNum]);
+  }
+  const sums = [...bySum.entries()].filter(([, v]) => v.length >= 2).map(([k]) => k);
+  ok(sums.length >= 2, 'テスト素材（同じコスト合計のスペルが2種以上）がある');
+  const [s1, s2] = sums;
+  const same = bySum.get(s1)!.slice(0, 2);
+  const diff = [bySum.get(s1)![0], bySum.get(s2)![0]];
+  ok(satisfiesSelectionConstraint(diff, { distinct: 'costSum' }, cardMap), 'コスト合計が違う2枚は選べる');
+  ok(!satisfiesSelectionConstraint(same, { distinct: 'costSum' }, cardMap), '🔴コスト合計が同じ2枚は選べない');
+  // 🔴コストが読めない札（シグニ等）は不成立へ倒す（fail-closed）
+  const signi = findCard(c => c.Type === 'シグニ');
+  ok(!satisfiesSelectionConstraint([diff[0], signi], { distinct: 'costSum' }, cardMap),
+    '🔴コストが読めない札が混ざったら不成立（制約を素通りさせない）');
+  // live 側の配線
+  const e = (effectsMap.get('WX21-046') ?? []).find(x => x.effectId === 'WX21-046-E1');
+  const step0 = (e?.action as SequenceAction).steps[0] as Extract<EffectAction, { type: 'TRANSFER_TO_DECK' }>;
+  eq(step0.source.filter?.cardType, 'スペル', 'WX21-046-E1: スペル指定が live に届いている');
+  eq(step0.source.selectionConstraint?.distinct, 'costSum', 'WX21-046-E1: コスト相互差異が live に届いている');
+}));
+
+// 🆕`TargetFilter.classMatchesAnyFieldSigni`＝「**あなたの場にあるいずれかのシグニと共通するクラスを持つ**
+//   対戦相手のシグニ1体」（`WXDi-P00-021-E2`）。🔴旧 live はクラス条件が落ちて相手のどのシグニでも取れた。
+test('classMatchesAnyFieldSigni: 自分の場のクラス集合に一致する相手シグニだけを候補にする（WXDi-P00-021）', () => withSavedCursor(() => {
+  const classOf = (n: string) => `${cardMap.get(n)?.CardClass ?? ''}`;
+  const mine = findCard(c => isSigni(c) && !!c.CardClass);
+  const sameCls = findCard(c => isSigni(c) && c.CardNum !== mine && classOf(c.CardNum) === classOf(mine));
+  const otherCls = findCard(c => isSigni(c) && !!c.CardClass
+    && ![...classOf(c.CardNum).split(/[：:／/・,\s]+/)].some(v => v && classOf(mine).includes(v)));
+  const ctx = mkCtx({ signi: [mine, null, null] }, { signi: [sameCls, otherCls, null] });
+  const res = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', classMatchesAnyFieldSigni: true } } } as unknown as EffectAction, ctx);
+  ok(!tops(res.otherState).includes(sameCls), '共通クラスの相手シグニは候補');
+  ok(tops(res.otherState).includes(otherCls), '🔴クラスが重ならない相手シグニは候補外');
+  // 🔴自分の場にシグニが1体も居なければ空ヒット（fail-closed）
+  const empty = mkCtx({}, { signi: [sameCls, null, null] });
+  ok(tops(run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', classMatchesAnyFieldSigni: true } } } as unknown as EffectAction, empty).otherState).includes(sameCls),
+    '🔴自分の場が空なら誰も対象にならない（無条件成立にしない）');
+}));
+
+// 🆕`$ref:'assist_lrig_level_sum'`＝「あなたの場にいる**アシストルリグのレベルの合計**１につき」
+//   （`WXDi-P05-008-E1`）。🔴旧 live は比例が落ちて**常に1枚**だった。
+test("assist_lrig_level_sum: アシストルリグのレベル合計を数える（センターは数えない・WXDi-P05-008）", () => withSavedCursor(() => {
+  const lv = (n: number) => findCard(c => c.Type === 'アシストルリグ' && c.Level === String(n));
+  const center = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const ctx = mkCtx({ lrig: [center], assistL: [lv(1)], assistR: [lv(2)] }, {});
+  eq(resolveCountRef({ $ref: 'assist_lrig_level_sum' }, ctx), 3, 'Lv1 + Lv2 = 3');
+  eq(resolveCountRef({ $ref: 'assist_lrig_level_sum' }, mkCtx({ lrig: [center] }, {})), 0,
+    '🔴アシストが居なければ 0（センタールリグのレベルを数えない）');
+  const e = (effectsMap.get('WXDi-P05-008') ?? []).find(x => x.effectId === 'WXDi-P05-008-E1');
+  eq(JSON.stringify((e?.action as { count?: unknown })?.count), JSON.stringify({ $ref: 'assist_lrig_level_sum' }),
+    'WXDi-P05-008-E1: 比例が live に届いている');
+}));
+
+// 🆕`triggerCondition.targetedByOpponent`＝「このシグニが**対戦相手の**、能力か効果の対象になったとき」
+//   （`WX24-P4-102-E1` / `WX25-P2-055-E2`）。🔴旧 live は**誰の効果でも**発火していた
+//   （`WX25-P2-055` は自分の効果で対象にすると「バニッシュされない」を自分で剥がす自滅をしていた）。
+test('targetedByOpponent: 自分の効果で自分のシグニを対象にしても誘発しない（WX24-P4-102 / WX25-P2-055）', () => withSavedCursor(() => {
+  const watcherSigni = fresh(), oppCard = fresh(), myCard = fresh();
+  const eff = {
+    effectId: 'tb1', effectType: 'AUTO', timing: ['ON_TARGETED'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+    triggerCondition: { targetedByOpponent: true },
+  } as unknown as CardEffect;
+  const em = new Map<string, CardEffect[]>([[watcherSigni, [eff]]]);
+  const host: PlayerState = { ...mkState({}), field: { ...mkState({}).field, signi: [[watcherSigni], null, null] } } as unknown as PlayerState;
+  const guest: PlayerState = { ...mkState({}), field: { ...mkState({}).field, signi: [[oppCard], null, null] } } as unknown as PlayerState;
+  const hostWithMine: PlayerState = { ...host, hand: [...host.hand, myCard] };
+  const ctx: TrigCtx = { ...trigCtx(HOST), effectsMap: em };
+  const origin = (cardNum: string) => ({ cardNum, effect: eff });
+  eq(collectTargetedTriggers(ctx, [watcherSigni], HOST, hostWithMine, guest, origin(oppCard)).entries.length, 1,
+    '相手の場のカードが対象化してきたら誘発する');
+  eq(collectTargetedTriggers(ctx, [watcherSigni], HOST, hostWithMine, guest, origin(myCard)).entries.length, 0,
+    '🔴自分の手札のカードが対象化したときは誘発しない（旧バグ）');
+  eq(collectTargetedTriggers(ctx, [watcherSigni], HOST, hostWithMine, guest, undefined).entries.length, 0,
+    '🔴origin 不明なら誘発しない');
+  // live 側の配線
+  for (const [cn, id] of [['WX24-P4-102', 'WX24-P4-102-E1'], ['WX25-P2-055', 'WX25-P2-055-E2']] as const) {
+    const live = (effectsMap.get(cn) ?? []).find(x => x.effectId === id);
+    eq(live?.triggerCondition?.targetedByOpponent, true, `${id}: 対戦相手限定が live に届いている`);
+  }
+}));
+
+// 🆕`triggerCondition.centerLrigOnly`＝「あなたの**センタールリグ**がアタックしたとき」（`WX19-031-E1`）。
+// 🔴旧 live は `any_ally` だけで、**アシストルリグのアタックでも**誘発していた。
+test('centerLrigOnly: アシストルリグのアタックでは誘発しない（WX19-031）', () => withSavedCursor(() => {
+  const CENTER = 'C#1', ASSIST = 'A#1', WATCH = 'W#1';
+  const eff = {
+    effectId: 'cl1', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], triggerScope: 'any_ally',
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+    triggerCondition: { centerLrigOnly: true },
+  } as unknown as CardEffect;
+  const em = new Map<string, CardEffect[]>([[WATCH, [eff]]]);
+  const st: PlayerState = { ...mkState({}), field: { ...mkState({}).field, lrig: [CENTER], assist_lrig_l: [ASSIST], signi: [[WATCH], null, null] } } as unknown as PlayerState;
+  const call = (attacker: string) => collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, st, HOST, attacker);
+  eq(call(CENTER).entries.length, 1, 'センタールリグのアタックでは誘発する');
+  eq(call(ASSIST).entries.length, 0, '🔴アシストルリグのアタックでは誘発しない（旧バグ）');
+  eq((effectsMap.get('WX19-031') ?? []).find(x => x.effectId === 'WX19-031-E1')?.triggerCondition?.centerLrigOnly,
+    true, 'WX19-031-E1: センター限定が live に届いている');
+}));
+
+// 🆕`ATTACH_ACCE.targetsLastProcessed` / `optional`＝「それを**この方法で場に出したシグニ**の【アクセ】に
+//   **してもよい**」（`SP24-010-E1`）。🔴旧 live は `GRANT_KEYWORD{keyword:'アクセ'}`＝エナのカードが
+//   1枚も動かず、場の任意のシグニに語だけが恒久で付いていた（アクセ機構としては完全な no-op）。
+test('ATTACH_ACCE targetsLastProcessed: ホストを直前に場へ出したシグニへ固定する（SP24-010）', () => {
+  const e = (effectsMap.get('SP24-010') ?? []).find(x => x.effectId === 'SP24-010-E1');
+  const steps = (e?.action as SequenceAction).steps;
+  const acce = steps.find(st => st.type === 'ATTACH_ACCE') as { fromEnergy?: boolean; targetsLastProcessed?: boolean; optional?: boolean; signiFilter?: { hasIcon?: string } } | undefined;
+  ok(!!acce, 'SP24-010-E1: ATTACH_ACCE になっている（GRANT_KEYWORD ではない）');
+  eq(acce?.fromEnergy, true, 'エナゾーンから選ぶ');
+  eq(acce?.targetsLastProcessed, true, 'ホストは「この方法で場に出したシグニ」');
+  eq(acce?.optional, true, '「してもよい」＝任意');
+  eq(acce?.signiFilter?.hasIcon, 'アクセ', '《アクセアイコン》を持つシグニだけ');
+  ok(steps.some(st => st.type === 'STUB' && (st as { id?: string }).id === 'STORE_LAST_PROCESSED_TARGETS'),
+    '場出しの直後に対象を固定している（間のエナチャージで lastProcessed が上書きされる）');
+});
+
+// 🆕「**このシグニと共通する色を持たない他の＜天使＞**がある場合」の else 枝（`SP27-012-E1` / `WX21-039-E1`）。
+// 🔴旧 live は `else` が**無条件**＝条件を満たさなくても必ず1枚引く／1枚エナに置いていた。
+test('天使の非共通色: else 枝にも条件が付いた（SP27-012 / WX21-039）', () => {
+  for (const [cn, id] of [['SP27-012', 'SP27-012-E1'], ['WX21-039', 'WX21-039-E1']] as const) {
+    const a = (effectsMap.get(cn) ?? []).find(x => x.effectId === id)?.action as ConditionalAction | undefined;
+    eq(a?.type, 'CONDITIONAL', `${id}: 3体条件が外側`);
+    const els = a?.else as ConditionalAction | undefined;
+    eq(els?.type, 'CONDITIONAL', `${id}: 🔴else が無条件ではない`);
+    eq(JSON.stringify(els?.condition), JSON.stringify({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self',
+      filter: { cardType: 'シグニ', story: '天使', colorNotMatchesSource: true }, excludeSelf: true, minCount: 1,
+    }), `${id}: else は「共通する色を持たない他の＜天使＞がある場合」`);
+  }
 });
 
 if (listMode) {

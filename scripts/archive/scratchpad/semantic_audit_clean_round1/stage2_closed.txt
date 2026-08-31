@@ -1534,3 +1534,63 @@ WXDi-P07-071-E1 :: このターン終了時
 # ON_GUARD + lrigAttackNoDamage / lrigAttackGuarded（2026-08-31 続き749 で実装済み）
 WX24-P3-055-E2 :: アタック終了時
 WXK11-006-E4 :: アタックがすべて【ガード】
+
+# ════════════════════════════════════════════════════════════════════════
+# 2026-08-31 続き758（意味照合 段2・実装26／較正4）
+# 新設した engine 語彙は7つ＝TakeFromUnderSigni.count:'ALL' / distinct:'costSum' /
+# triggerCondition.targetedByOpponent / triggerCondition.centerLrigOnly /
+# TargetFilter.classMatchesAnyFieldSigni / $ref:'assist_lrig_level_sum' /
+# ATTACH_ACCE.targetsLastProcessed＋optional。残りは既存受け皿への配線。
+# ════════════════════════════════════════════════════════════════════════
+# 「N枚見て、1枚を〈行き先〉、残りを好きな順番でデッキの一番下」＝LOOK_PICK_CHAIN（then:'trash'/'deck_top'）
+SPDi01-133-E1
+WX24-P3-078-E1
+WXDi-P15-073-E2
+# 「デッキの一番上を見る。そのカードをトラッシュに置いてもよい」＝LOOK_AND_REORDER{canTrash}
+# （旧 live は場のシグニ1体を強制トラッシュしていた＝別のカード）
+WXDi-P10-075-E1
+# 「このシグニと共通する色を持たない他の＜天使＞がある場合」＝HAS_CARD_IN_FIELD{colorNotMatchesSource}
+SP27-012-E1
+WX21-039-E1
+# 「それを場に出すか手札から黒のシグニ1枚を場に出す」＝CHOOSE（手札枝が丸ごと落ちていた）
+PR-322-E2
+# 「すべてのシグニを場からトラッシュに置いてもよい」＝TrashAction.optional
+WD20-018-E1
+# 「効果によって〜バニッシュされたとき」＝triggerCondition.byEffect（バトルバニッシュで誤発火していた）
+WD21-017-E1
+# 「1体を対象とし、〜の場合、それをバニッシュする」＝SELECT_TARGET_ONLY→STORE→CONDITIONAL の順序
+WX14-057-E1
+# 「あなたのシグニの下からカードを合計2枚まで」＝TAKE_FROM_UNDER_SIGNI（fromThis なし）
+WDK15-008-E1
+# 「このシグニの下からカードを好きな枚数」＝count:'ALL'（旧 live は 9 枚固定）
+WXDi-P11-077-E1
+# 「それぞれコストの合計が異なるスペル3枚」＝filter.cardType + selectionConstraint.distinct:'costSum'
+WX21-046-E1
+# 「それをこの方法で場に出したシグニの【アクセ】にしてもよい」＝ATTACH_ACCE{fromEnergy,targetsLastProcessed,optional}
+SP24-010-E1
+# 「そうした場合、この効果で公開したシグニをダウン状態で場に出す」＝REVEAL_AND_PICK.then の後段
+WX13-052-E1
+# 「あなたの場のいずれかのシグニと共通するクラスを持つ」＝TargetFilter.classMatchesAnyFieldSigni
+WXDi-P00-021-E2
+# 「あなたのセンタールリグがアタックしたとき」＝triggerCondition.centerLrigOnly
+WX19-031-E1
+# 「対戦相手の、能力か効果の対象になったとき」＝triggerCondition.targetedByOpponent
+WX24-P4-102-E1
+WX25-P2-055-E2
+# 「アシストルリグのレベルの合計1につき【エナチャージ1】」＝$ref:'assist_lrig_level_sum'
+WXDi-P05-008-E1
+# 「そのアタック終了時、ダメージを与えていなかった場合」＝ON_GUARD + lrigAttackNoDamage／アップ先は自身
+WXDi-D04-004-sub-E1
+# 「あなたのレベル3のルリグ1体を対象とし」＝使用条件へ LRIG_LEVEL{gte,3}（ピース3枚）
+WXDi-D03-011-E1
+WXDi-D05-011-E1
+WXDi-D06-011-E1
+# ---- 較正（live を開いたら既に実装済みだったもの）----
+# 自分のライフクラッシュ置換＝STUB{SELF_CRASH_TO_TRASH_AND_REFILL}（2026-08-31 続き749 で実装済み。
+# エナ送りをトラッシュへ差し替え、置換が乗った回だけデッキ上をライフへ足す＝BattleScreen.tsx:12514/12649）
+WD06-009-E2 :: 代わりにそれをトラッシュへ置き
+WD06-009-E2 :: エナゾーンに置かれる場合
+WX20-043-E1 :: エナゾーンに置かれる場合、代わりに
+# 「レベル1のシグニで【ガード】ができない」＝actionId 'GUARD_LV1' は makeGuardLevelBlocker が
+# 正規表現（^GUARD_LV(\d+)）で消費済み。リテラル grep では見つからないだけだった。
+WDK05-T09-E1-G :: レベル１のシグニで

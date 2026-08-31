@@ -972,6 +972,14 @@ export interface TargetFilter {
   nameEqDeclaredName?: boolean;
   /** 公開札のカード名が、自分の場にあるシグニのいずれかのカード名と完全一致。参照先なしは空ヒット。 */
   nameMatchesAnyFieldSigni?: boolean;
+  /**
+   * 🆕**自分の場のいずれかのシグニと共通するクラスを持つ**（2026-08-31・`WXDi-P00-021-E2`
+   * 「あなたの場にあるいずれかのシグニと共通するクラスを持つ対戦相手のシグニ1体」）。
+   * `nameMatchesAnyFieldSigni` の**クラス版の兄弟**。`resolveDynamicFilter` が
+   * 自分の場のクラス集合を集めて `cardClass`（配列＝OR）へ解決する。
+   * 🔴自分の場にシグニが1体も居ないときは**空ヒット**へ倒す（fail-closed）。
+   */
+  classMatchesAnyFieldSigni?: boolean;
   // クラスがこの効果で宣言したクラスと一致（「その中から宣言したクラスを持つシグニ」PR-431／WX24-P1-035）。
   // resolveDynamicFilter が declared_class を story（CardClass 部分一致＝多クラス対応）へ解決する。未宣言なら空ヒット。
   classEqDeclaredClass?: boolean;
@@ -1323,7 +1331,13 @@ export interface SelectionConstraint {
    * 選択自体が任意／候補不足の場合は、満たせる群だけを選べる（必須枚数は action 側の count が担う）。
    */
   groups?: Array<{ filter?: TargetFilter; count: number }>;
-  distinct?: 'level' | 'name' | 'class';
+  /**
+   * 選択集合の**全カードで互いに異なる**ことを要求する軸。
+   * 🆕`'costSum'`＝「**それぞれコストの合計が異なる**スペルN枚」（2026-08-31・`WX21-046-E1`）。
+   * コストの合計＝カード左上のエナコストの数字の合計（`Cost` 列の `《色×N》` を足す。`《色》` は1）。
+   * ⚠**コストが読めないカードは不成立**へ倒す（fail-closed）＝読めない札を混ぜて制約を素通りさせない。
+   */
+  distinct?: 'level' | 'name' | 'class' | 'costSum';
   /**
    * 選択集合の**全カードで同一**であることを要求する軸。
    * `'name'`＝「同じ名前の」／🆕`'level'`＝「**それぞれ同じレベルの**」（2026-08-27・Sheet1 B11・`WX06-016-BURST`
@@ -3418,6 +3432,14 @@ export interface AttachAcceAction {
    *   「エナから選ぶ」が書けなかった（§5.4(ii) の登録済みギャップ）。`fromHand` と同じ2段選択に載せる。
    */
   fromEnergy?: boolean;
+  /**
+   * 🆕true＝アクセを付けるホストを**この効果で直前に処理したシグニ**に固定する
+   * （2026-08-31・`SP24-010-E1`「それを**この方法で場に出したシグニ**の【アクセ】にしてもよい」）。
+   * 🔴無いと `targetFilter` で**場の任意のシグニ**を選べてしまい、原文の照応が消える。
+   */
+  targetsLastProcessed?: boolean;
+  /** 🆕true＝「〜の【アクセ】にして**もよい**」＝スキップ枝を出す。 */
+  optional?: boolean;
   signiFilter?: TargetFilter;   // アクセカードのフィルター（手札から選ぶ場合に使用）
   targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
   _selectingAcceFromHand?: boolean; // 内部: fromHand step1（手札からアクセカード選択中）のthenActionマーカー
@@ -4450,7 +4472,12 @@ export interface ReplaceNextDamageWithMillAction {
 export interface TakeFromUnderSigniAction {
   type: 'TAKE_FROM_UNDER_SIGNI';
   destination: 'hand' | 'energy' | 'trash';
-  count: number;
+  /**
+   * 🆕`'ALL'`＝「下からカードを**好きな枚数**」（2026-08-31・`WXDi-P11-077-E1`）。
+   * 🔴固定数で近似すると**上限が原文に無い数字で決まる**（旧 live は 9 枚固定＝10枚積んだら1枚取り残す）。
+   * `upToCount` と併用して 0..全部 を選ばせる。
+   */
+  count: number | 'ALL';
   upToCount?: boolean;
   filter?: TargetFilter;
   fromThis?: boolean; // true = このシグニの下から（sourceCardNumが基準）
@@ -4687,7 +4714,22 @@ export interface CardEffect {
     byWatcherEffect?: boolean;                        // ON_HAND_DISCARDED any_opp（「あなたの効果によって対戦相手が手札を捨てたとき」）＝その【自】の watcher 所有者の効果が原因のときのみ。捨てた本人を基準にする byOwnEffect とは別軸
     placedOnTrapZone?: boolean;                       // 「対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき」（WX21-025）＝トリガー元シグニの持ち主の signi_traps が当該ゾーンに在る場合のみ発火（ON_PLAY any_opp と併用・タスク16[C]機構⑤）
     placedOnGateZone?: boolean;                       // 「対戦相手のシグニN体が【ゲート】があるシグニゾーンに出たとき」（WXK10-044）＝トリガー元シグニの持ち主の own_gate_zones に当該ゾーンが含まれる場合のみ発火（同上。⚠WXK迷宮のゲート設置が未配線の間は発火しない＝旧 ON_PLAY self 幻覚よりは正直な no-op）
-    lrigAttackGuarded?: boolean;                      // 「このルリグのアタックが【ガード】されたとき」＝防御側の「あなたが【ガード】したとき」と同じ ON_GUARD 上で攻撃側ルリグだけを収集
+    lrigAttackGuarded?: boolean;
+    /**
+     * 🆕「このシグニが**対戦相手の**、能力か効果の対象になったとき」（2026-08-31・
+     * `WX24-P4-102-E1` / `WX25-P2-055-E2`）。`ON_TARGETED` 専用。
+     * 🔴旧 live は**誰の効果でも**発火していた＝自分の効果で自分のシグニを対象にしただけで
+     * エナチャージ／能力喪失が起きる過剰発火だった。
+     * ⚠**対象化してきたカードの持ち主**は `collectTargetedTriggers` が origin のカードを
+     * 両者のゾーンから探して判定する（見つからないときは従来どおり通す＝fail-open）。
+     */
+    targetedByOpponent?: boolean;
+    /**
+     * 🆕「あなたの**センタールリグ**がアタックしたとき」（2026-08-31・`WX19-031-E1`）。
+     * `ON_ATTACK_LRIG` を `triggerScope:'any_ally'` で拾うとき、**アシストルリグのアタックでも
+     * 誘発してしまう**のを止める。センター＝`field.lrig` の頂点。
+     */
+    centerLrigOnly?: boolean;                      // 「このルリグのアタックが【ガード】されたとき」＝防御側の「あなたが【ガード】したとき」と同じ ON_GUARD 上で攻撃側ルリグだけを収集
     trashSourceStory?: string;                        // ON_TRASH 自己discard反応の発生源限定「あなたの＜X＞のシグニの効果によってこのカードが捨てられたとき」（WXDi-P14-086）＝原因効果の発生源カード（中央diff の causeSourceCardNum）の CardClass に X を含むときのみ発火
     revealSourceStory?: string;                       // ON_REVEALED_FROM_HAND 自己反応の発生源限定「あなたの＜X＞のシグニの効果によって手札から公開されたとき」＝公開原因カードの CardClass に X を含むときのみ発火
   };
