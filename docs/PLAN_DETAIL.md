@@ -1,5 +1,21 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+### 恒久指標（退避）2026-09-01 続き764 後
+
+- **2026-09-01 続き764 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 18 / 863 (2.1%)｜台帳 残 OPEN 46｜census 高シグナル 11 / BASELINE 12**
+  ＝🔴**3計器とも据置**（§5.2 を触っておらず、直した21効果はどれも Sheet1 外）。
+  ⚠**`BASELINE_HIGH` は 12 のまま据え置き**（11 に落ちた原因が未特定）。
+  **golden 3154 → 3157（+3本＝帰結型ごとの順序／`POWER_MODIFY` の `until`・`delta` 保存／候補0時の非提示）**、
+  smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、lint 0 errors / 249 warnings、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、**`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙 0本**＝既存の `SELECT_TARGET_ONLY{abortIfNoCandidate}` / `STORE_LAST_PROCESSED_TARGETS` /
+  `OPTIONAL_COST{handDiscard}` / `PAID_ADDITIONAL_COST` / 各帰結型の `targetsStored` だけで組んだ。
+  **parser は規則1本を一般化（`applyO96OptionalCostTargetFirst`）＝新規追加ではなく前回関数の拡張。**
+  **`O-96` の欠陥署名＝154 → 133 効果**（第1＋第2で 161 → 133／**-28**）。
+  🔑**ブラスト半径＝ベースライン commit との effectId 単位 機械 diff で予定21件のみ・予定外0**（Claude 側でも独立再実行）。
+  ⚠**実機は不要と判定**（`src/screens/`・`src/engine/`・`src/types/` いずれも不変更・新型なし）。反転確認は未実施。
+
 ### 恒久指標（退避）2026-09-01 続き763 後
 
 - **2026-09-01 続き763 後（本行が直近の正）**：

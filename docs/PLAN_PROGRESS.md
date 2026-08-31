@@ -2479,6 +2479,43 @@ live は `REMOVE_ABILITIES{owner:'opponent'}` のみ（アップが落ち、対�
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-09-01・続き764・Opus 5 ＋ Codex 委譲）＝§5.3 `O-96` 第2バッチ（21効果）。規則を2方向へ一般化。**
+  📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 46（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3154 → 3157（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。
+  **`O-96` の欠陥署名 154 → 133 効果**（第1＋第2バッチで **161 → 133／-28**）。
+
+  🔑🔴**この巡の最大の学び＝parser 規則は「適用地点」で対象範囲が変わる。ゲートでは出ない。**
+  当初 `parseActionText` の中で適用したら、**`CHOOSE` 組み立て前の枝が一時的に root `SEQUENCE` に見えて
+  スコープ外（群B）へ当たった**。**効果単位の最終 root へ移して解決。**
+  ⚠**このとき `npm run gates` は全部緑のままだった**＝
+  🔑**検出したのは fresh 三帳票（`_held_fresh`/`_partial_fresh`/`_idset_fresh`）とブラスト半径の機械 diff だけ。**
+  ⇒ **遅いレーン（parser）の主要な検証はゲートではなくブラスト半径**、を2バッチ連続で確認した。
+
+  🔑**新しく分かったこと3つ**＝
+  🔴①**規則の一般化は「engine が既に持っているもの」の範囲でやると engine 変更が0になる**＝
+  帰結型 `POWER_MODIFY`/`BANISH`/`TRASH`/`BOUNCE` は**すべて `targetsStored` を持ち `FREEZABLE`
+  （`effectExecutor.ts:133`）にも入っていた**ので、コスト軸と帰結型の2方向へ広げても engine は不要だった。
+  🔴②**`O-188` の登録票は間違っていたので訂正した**＝
+  `SELECT_TARGET_ONLY`（`execStubPart1.ts:168`）は **`SIGNI`/`LRIG`/`CENTER_LRIG_OR_SIGNI` しか受けず、
+  それ以外は候補を空にして黙って返す**。トラッシュ/エナからの選択には使えず、
+  **`abortIfNoCandidate` を付けると効果ごと発火しなくなって今より悪化する**。live に先行例も0件。
+  🆕③**`IS_MY_TURN` は did-it ゲートの誤パースだった**＝21件すべて原文照合し、
+  「自分のターンなら」に相当する条件は**1件も無かった**（Claude 側でも5件を抜き取り再確認）。
+  ⇒ **`PAID_ADDITIONAL_COST` への置換が正しい。**
+
+  ⚠**実機は不要と判定**（§2.2）＝`src/data/effectParser.ts`・`scripts/goldenTest.ts`・`public/data/` と生成物のみ。
+  **`src/screens/` も `src/engine/` も `src/types/` も触っていない。** 反転確認は未実施で、
+  代わりにブラスト半径の機械 diff と `build:effects` 2回の SHA-256 一致を確認した。
+  ⚠**新規登録 `O-189`**＝`handDiscard.filter` から色指定が脱落（`WXK10-029-E1` 黒／`WXK10-040-E2` 赤）＝
+  **任意コストが原文より緩い＝過剰実行側**。旧 live 時点からの残差で今回は未修正。
+
+**▶ 次の一手**＝**`O-96` の残 133 から次の下位形を切る**。
+⚠**`TRANSFER_TO_HAND` 11効果は `O-188` 待ちなので取らない。** ネスト器（`CHOOSE`/`GRANT_LRIG_ABILITY`）6効果か、
+**まだ測っていないコスト軸**（自分をダウン／場・下からトラッシュ／公開）を**署名で数え直してから**切る。
+⚠**着手前に必ず署名で測り直す**（`scratchpad/tmp_o96b.mjs` / `tmp_o96c.mjs`）。
+② 他の候補＝`O-189`（安い・母集団は要計測）／§5.2 の残 46（コスト系＝支払いUI＝実機必須が約10件）／`O-187`（`mech` 偽陽性）。
+
 - 🏁**セッション（2026-09-01・続き763・Opus 5 ＋ Codex 委譲）＝§5.3 `O-96` 第1バッチ（7効果）を parser 1本で消化。**
   📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 46（据置＝§5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
   gates 全緑（**golden 3151 → 3154（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・

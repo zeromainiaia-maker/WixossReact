@@ -10022,17 +10022,30 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   return { ...action, steps: rebuilt } as EffectAction;
 }
 
-// ── PLAN §5.3 `O-96` 第1・第2バッチ（2026-09-01）──
-// 「〈相手シグニ〉を対象とし、〈任意コスト〉。そうした場合、それを〈帰結〉」を、
-// 対象宣言→保存→任意コスト→同じ対象への帰結へ組み替える。
+// ── PLAN §5.3 `O-96` 第1〜第3バッチ（2026-09-01）──
+// 「〈対象〉を対象とし、〈任意コスト〉してもよい。そうした場合、それを〈帰結〉」＝
+// 原文では**対象宣言が任意コストより前**なのに、live は支払いの**後**で対象を選び直していた。
+// 実害＝(a) 対象が1体も無いのに支払いを提示する (b) 宣言後に対象が変わりうる。
+// ⇒ 対象宣言→保存→任意コスト→同じ対象への帰結、へ組み替える。
 //
-// 🔴`TRANSFER_TO_HAND` は `targetsStored` を型・executor ともサポートしていないため対象外。
-// 🔴CHOOSE / GRANT_LRIG_ABILITY 内は器が違うため、root SEQUENCE 以外を対象外にする。
+// 🔑**第3バッチで原文 regex を「語尾の列挙」から「順序だけ」へ切り替えた。**
+//   語尾（バニッシュ／手札に戻す／パワー－N…）や対象句の言い回しを列挙する方式は実測で頭打ちになった
+//   （エナ側の語尾を handDiscard 側と同じだけ広げても**新規は1効果だけ**＝該当5件中4件が MANUAL）。
+//   **範囲は下の構造ガードが担保する**＝原文は「その順序で書かれているか」の確認にしか使わない。
+// 🔴**適用地点は効果単位の最終 root**（`parseActionText` の中でやると `CHOOSE` 組み立て前の枝が
+//   一時的に root SEQUENCE に見えてスコープ外へ当たる。第2バッチで実測。**ゲートでは出ない**）。
+// 🔴`TRANSFER_TO_HAND` は `targetsStored` を型にも executor にも `freezeStoredTargets` にも持たないため
+//   対象外（付けても無視される＝無言 no-op になる。§5.3 `O-188`）。
 // 🔴既に固定済みの効果へ二重適用しない（O-96 欠陥署名③④をそのままガードにする）。
-const O96_ENERGY_COST_BOUNCE_RE =
-  /(?:対戦相手の|このシグニの正面の)[^「」。]{0,120}?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし、(?:《[赤青緑黒白無]》)+を支払ってもよい。そうした場合、それを手札に戻す/;
-const O96_HAND_DISCARD_TARGET_FIRST_RE =
-  /対戦相手の[^「」。]{0,180}?シグニ[０-９\d]*体(?:まで)?を?対象とし、手札(?:から[^「」。]{0,120}?)?を?[０-９\d]+枚捨ててもよい。そうした場合、(?:ターン終了時まで、それのパワーを[＋－+-][０-９\d]+する|それを(?:バニッシュする|手札に戻す|トラッシュに置く))/;
+const O96_TARGET_BEFORE_OPTIONAL_COST_RE = /を対象とし[、,][^。]*?てもよい。そうした場合[、,]/;
+
+// 帰結として `targetsStored` を載せてよい型＝**型に `targetsStored` があり、かつ
+// `freezeStoredTargets` の FREEZABLE（`src/engine/effectExecutor.ts`）にも入っているもの**。
+// ⚠**この2条件のどちらかが欠けると「フィールドは付いたが engine が無視する」＝無言 no-op** になる。
+//   型だけ見て足さないこと（`TRANSFER_TO_HAND` がまさにその形）。
+const O96_STORABLE_OUTCOMES = [
+  'BOUNCE', 'POWER_MODIFY', 'BANISH', 'TRASH', 'TRANSFER_TO_DECK', 'SEND_TO_ENERGY', 'EXILE',
+];
 
 function hasStoredTargetBinding(node: unknown): boolean {
   if (!node || typeof node !== 'object') return false;
@@ -10044,8 +10057,7 @@ function hasStoredTargetBinding(node: unknown): boolean {
 }
 
 function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): EffectAction {
-  if (!(O96_ENERGY_COST_BOUNCE_RE.test(text) || O96_HAND_DISCARD_TARGET_FIRST_RE.test(text))
-      || action.type !== 'SEQUENCE') return action;
+  if (!O96_TARGET_BEFORE_OPTIONAL_COST_RE.test(text) || action.type !== 'SEQUENCE') return action;
   if (hasStoredTargetBinding(action)) return action;
 
   const steps = [...action.steps];
@@ -10069,7 +10081,7 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
 
   const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
   const outcome = gate.then as EffectAction & { target?: EffectTarget };
-  if (!['BOUNCE', 'POWER_MODIFY', 'BANISH', 'TRASH'].includes(outcome.type)
+  if (!O96_STORABLE_OUTCOMES.includes(outcome.type)
       || outcome.target?.type !== 'SIGNI') return action;
 
   const selectTargetStep: EffectAction = {

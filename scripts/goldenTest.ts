@@ -17352,6 +17352,65 @@ test('O-96 第2バッチ 実行: 対象候補0なら手札コストを提示せ�
   ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも手札コストを提示してしまう');
 }));
 
+// PLAN §5.3 O-96 第3バッチ＝原文 regex を「語尾の列挙」から「順序だけ」へ切り替え、
+// 範囲は構造ガード（root SEQUENCE / コスト payload 単一 / 帰結が targetsStored 可能型 かつ SIGNI 対象）で担保する。
+test('O-96 第3バッチ JSON順序: 順序regex＋構造ガードで4帰結型を固定する', () => {
+  const banish = assertO96FixedOrder('WXK08-070', 'WXK08-070-E1');
+  eq((banish[3] as ConditionalAction).then.type, 'BANISH', 'BANISH 帰結');
+
+  const power = assertO96FixedOrder('WXDi-P11-049', 'WXDi-P11-049-E1');
+  eq(((power[3] as ConditionalAction).then as import('../src/types/effects').PowerModifyAction).delta, -10000,
+    'POWER_MODIFY delta を維持');
+  eq(o96Live('WXDi-P11-049', 'WXDi-P11-049-E1').duration, 'UNTIL_END_OF_TURN', '「ターン終了時まで」を維持');
+
+  const bounce = assertO96FixedOrder('WXDi-P04-007', 'WXDi-P04-007-E1');
+  eq((bounce[3] as ConditionalAction).then.type, 'BOUNCE', 'BOUNCE 帰結');
+
+  // SEND_TO_ENERGY は第3バッチで初めて対象に入った帰結型（型に targetsStored があり FREEZABLE にも入っている）。
+  const toEnergy = assertO96FixedOrder('WXDi-P05-073', 'WXDi-P05-073-BURST');
+  const sendAct = (toEnergy[3] as ConditionalAction).then as import('../src/types/effects').SendToEnergyAction;
+  eq(sendAct.type, 'SEND_TO_ENERGY', 'SEND_TO_ENERGY 帰結');
+  eq(sendAct.target.owner, 'opponent', 'SEND_TO_ENERGY の対象オーナーを維持');
+  eq(sendAct.target.filter?.powerRange?.min, 5000, 'パワー5000以上の絞り込みを維持');
+});
+
+// 🔴実害が最大の形＝相手ターンに解決する効果（【トラップ】【ライフバースト】）に `IS_MY_TURN` が残ると
+//   支払いゲートが永久に成立せず、効果が丸ごと発火しなくなる。
+test('O-96 第3バッチ: 相手ターン解決の TRAP/BURST に IS_MY_TURN を残さない', () => {
+  for (const [cardNum, effectId] of [['WX15-053', 'WX15-053-TRAP'], ['WXDi-P05-073', 'WXDi-P05-073-BURST']] as const) {
+    const json = JSON.stringify(o96Live(cardNum, effectId).action);
+    ok(!json.includes('IS_MY_TURN'), `${effectId}: 相手ターンに解決するので IS_MY_TURN を残さない`);
+    ok(json.includes('PAID_ADDITIONAL_COST'), `${effectId}: 実支払いだけを帰結の条件にする`);
+  }
+});
+
+// 前置条件は「効果レベルの condition」として持っているものがある＝対象宣言の追加で落とさない。
+test('O-96 第3バッチ: 効果レベルの前置条件を落とさない', () => {
+  eq(o96Live('WXK08-070', 'WXK08-070-E1').condition?.type, 'BEAT_CONDITION',
+    'WXK08-070: 【ビート】5枚の条件を維持');
+  eq(o96Live('PR-K021', 'PR-K021-E3').condition?.type, 'SELF_POWER_GTE',
+    'PR-K021: 自パワー12000の条件を維持');
+});
+
+test('O-96 第3バッチ 実行: 候補0なら任意コストを提示せず、旧木なら提示する', () => withSavedCursor(() => {
+  const effect = o96Live('WXDi-P16-050', 'WXDi-P16-050-E1');
+  const empty = mkCtx({}, { signi: [null, null, null] }, 'WXDi-P16-050');
+  const energyBefore = empty.ownerState.energy.length;
+  const fixed = runEffect(effect.action, empty);
+  ok(fixed.done, '修正後: 対象候補0なら支払いを提示せず完了');
+  eq(fixed.ownerState.energy.length, energyBefore, '修正後: エナを支払わない');
+
+  const steps = o96FixedSteps(effect);
+  const gate = steps[3] as ConditionalAction;
+  const { targetsStored: _drop, ...oldOutcome } = gate.then as EffectAction & { targetsStored?: boolean };
+  const oldTree: SequenceAction = { type: 'SEQUENCE', steps: [
+    steps[2],
+    { ...gate, condition: { type: 'IS_MY_TURN' }, then: oldOutcome as EffectAction },
+  ] };
+  const old = runEffect(oldTree, mkCtx({}, { signi: [null, null, null] }, 'WXDi-P16-050'));
+  ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも任意コストを提示してしまう');
+}));
+
 test('O-96 第2バッチ 据置契約: CHOOSE 内のネスト器3効果は変更しない', () => {
   for (const [cardNum, effectId] of [
     ['WXDi-D09-P17', 'WXDi-D09-P17-BURST'],
