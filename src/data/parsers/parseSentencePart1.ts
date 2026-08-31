@@ -1583,6 +1583,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 🆕「〈誰か〉のセンタールリグのレベル1につき【エナチャージN】をする」の**単独形**（`WXDi-P14-004-E1`・2026-08-31）。
+  //   🔴受け皿 `ENERGY_CHARGE_PER_LRIG_LEVEL` は上の二択形からしか合成されておらず、単独形は
+  //     下の【エナチャージ】ショートハンドに食われて**レベルに依らない固定N枚**に潰れていた。
+  //   ⚠ドロー単独形（「レベル1につきカードをN枚引く」）も同じ穴なので同時に配線する。
+  {
+    const m = t.match(/(あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき(?:カードを([０-９\d]+)枚引く|【エナチャ[ー―‐−-]ジ([０-９\d]+)】をする)/);
+    if (m && parseNum(m[2]) === 1 && !/につきカードを[０-９\d]+枚引くか/.test(t)) {
+      const lrigOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      return m[3]
+        ? { type: 'DRAW_PER_LRIG_LEVEL', drawPerLevel: parseNum(m[3]), lrigOwner, owner: 'self' } as DrawPerLrigLevelAction
+        : { type: 'ENERGY_CHARGE_PER_LRIG_LEVEL', chargePerLevel: parseNum(m[4]), lrigOwner, owner: 'self' } as EnergyChargePerLrigLevelAction;
+    }
+  }
+
   // 「カードをN枚引くか【エナチャージM】をする」＝**素の**ドロー／エナチャージ二択（§6.4 O-11・`WXEX2-66`）。
   // 🔴上のルリグレベル比例版だけがあり、素の形は下のショートハンドの catch-all に食われて
   //   **「引く」側が丸ごと消えたただのエナチャージ**になっていた（選択肢が1つ減る過少実行）。

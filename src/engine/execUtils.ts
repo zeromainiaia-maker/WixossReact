@@ -3336,6 +3336,13 @@ export function satisfiesSelectionConstraint(
     if (values.some(v => !/^\d+$/.test(v))) return false;
     if (new Set(values).size !== 1) return false;
   }
+  // 🆕`same:'power'`＝「同じパワーを持つシグニN体」。⚠印刷パワーで比較する近似（型定義のコメント参照）＝
+  //   パワー不明（`Power` が数値でない）は**不成立**へ倒す（fail-closed）。
+  if (constraint.same === 'power') {
+    const values = cards.map(c => `${c?.Power ?? ''}`);
+    if (values.some(v => !/^\d+$/.test(v))) return false;
+    if (new Set(values).size !== 1) return false;
+  }
   if (constraint.distinct === 'level') {
     const values = cards.map(c => `${c?.Level ?? ''}`);
     if (new Set(values).size !== values.length) return false;

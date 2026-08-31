@@ -1,6 +1,38 @@
 # PLAN 進捗サマリ・アーカイブ
 
 
+- 🏁**セッション（2026-08-31・続き756・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 187 → 157（-30）。**
+  （ユーザー指示「PLANを読み、OPENを30減らす」。**実装21件／較正9件**。）
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕157（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。
+  ⚠**台帳だけが動くのが正しい**（census は MANUAL/STUB を免除するので母集団が別・Sheet1 は別スコープ）。
+  gates 全緑（**golden 3123 → 3126**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
+
+  🔑🔴**この巡の主産物＝「受け皿は既にあるのに生成側だけが取り残されている」型が、まだ本命だと再実証したこと。**
+  新設した語彙は**2つだけ**（`TargetFilter.hasUnderCards` / `hasAttachedOrUnder`、`triggerCondition.notByBattle`）で、
+  **残り19件はすべて既存受け皿への配線**（`STUB{RIDE_ON}`／`cost.fieldTrash{cardName}`／`split_top_bottom`／
+  `PLACE_SIGNI_ON_FIELD.asDown`／`duringAttackPhase`／`attackedThisTurn`／`STUB{PLACE_LIMIT_UPPER}`／`count:'ALL'`）。
+  最大のものは **【ライド】がルリグ9枚で丸ごと消えていた**こと（`stripKeywordPrefixes` が
+  キーワードを非効果として捨てており、`STUB{RIDE_ON}` は乗機選択まで実装済みだったのに**撃つ入口が無かった**）。
+
+  🔑**新しく分かったこと3つ**＝
+  ①**「受け皿規則は在るのに到達しない」形がある**＝`【リミットアッパー】１つを得る` は `parseSentencePart3` に
+  規則が在ったのに、`parseSentencePart1` の**汎用「【K】を得る」が先に当たって**届いていなかった（＝無言 no-op）。
+  **grep で受け皿を見つけたら「先に食う規則」がいないかまで測る**（今回3件がこの形・直し方は part1 の先頭で引き取る）。
+  ②🔴**`anyOf` にゾーン状態キーを入れてはいけない**＝`anyOf` は `matchesFilter`（CardData 単体）しか通らないので
+  `hasCharm` 等は**中で黙って無視され＝無条件成立**する。OR は**専用キー1本**で持つ。
+  ③**`semanticAuditRecheck.mjs` の LCS 候補30件はほぼ全部が真の未修正**で、較正9件は逆に
+  **バッチ中に live JSON を開いたついでに claim を読み直して**見つかった。**live を開いたらその場で照合し直す。**
+
+  ⚠**実機は不要と判定**（§2.2 の表＝`src/screens/` を1バイトも触っていない）。新設語彙は**engine を実走させる
+  golden で両方向を固定し、修正を外すと FAIL することを実測**した。**UI に新しく面が出る2件だけ `V-103` へ登録**
+  （【ライド】の【起】ボタン9枚／`split_top_bottom` の振り分けUI 5枚）。
+
+**▶ 次の一手**＝**§5.2 の残 157**。主成分は依然「機構待ち」（続き751 の全数 triage）だが、今回の -30 のうち
+21件が**既存受け皿への配線**だったので、**まだ「1件ずつ live JSON を開いて受け皿を grep する」の歩留まりは生きている**。
+取るなら ①`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る
+②または今回と同じく **live を開いて claim を読み直す**（較正が9件も出た＝在庫はまだある）。
+⚠**着手前に `node scripts/archive/semanticAuditLedger.mjs` で数え直す。**
+
 - 🏁🔴**セッション（2026-08-31・続き755・Opus 5 単独／Codex 不使用）＝§5.1「実機未検証の返済」が残0になった。**
   （`V-94`／`V-96`〜`V-100` の6件を一度に返済。**同日 続き753/754 と合わせて 10 → 0**。）
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 187（据置）｜census 高シグナル 12 / BASELINE 12（据置）**。

@@ -14675,6 +14675,19 @@ function parseActionTextInner(text: string): EffectAction {
         },
       };
     }
+    // 🆕「〈誰か〉のセンタールリグのレベル１につき１つまで選ぶ」（`WXDi-P06-003` ほか計4枚・2026-08-31）。
+    //   受け皿は上の `perType` と同型で、参照だけ `center_lrig_level` / `opp_lrig_level` に差し替える
+    //   （どちらも `resolveCountRef` 実装済み＝生成側だけが取り残されていた）。
+    const perLevel = src.match(/以下の[０-９\d２-９]+つから(あなた|対戦相手)のセンタールリグのレベル[１1]につき[１1]つ(まで)?を?選ぶ/);
+    if (perLevel) {
+      return {
+        count: 1, upTo: !!perLevel[2],
+        countChoose: {
+          count: { $ref: perLevel[1] === '対戦相手' ? 'opp_lrig_level' : 'center_lrig_level' },
+          ...(perLevel[2] ? { upTo: true } : {}),
+        },
+      };
+    }
     return null;
   };
 
@@ -14772,7 +14785,11 @@ function parseActionTextInner(text: string): EffectAction {
         return { type: 'STUB', id: gcaId } as unknown as EffectAction;
       }
       const chosen = buildChoose(text, parseNum(headM[1]), !!headM[2]);
-      if (chosen) return chosen;
+      // 🔴**`headParsed.countChoose` をここで捨てていた**（2026-08-31 続き757）＝この入口は
+      //   `parseChooseHeaderCount` の count/upTo だけを読み、動的選択数を落としていたので
+      //   「センタールリグのレベル１につき１つまで選ぶ」等が**常に1つ固定**へ潰れていた
+      //   （`buildChooseFromHeader` 側には配線済み＝**同義の入口が2つあって片方だけ取り残されていた**型）。
+      if (chosen) return headParsed.countChoose ? { ...chosen, countChoose: headParsed.countChoose } : chosen;
     }
   }
 
@@ -21480,6 +21497,7 @@ function applyDynamicActionCountBatch35(card: CardData, effects: CardEffect[]): 
           if (choice.action.type === 'POWER_MODIFY') choice.action.duration = 'UNTIL_END_OF_TURN';
         }
       }
+      continue;
     }
   }
 }
@@ -23296,7 +23314,41 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // §5.3 `O-76`／`O-77` 第2バッチ＝残った catch-all を typed / honest defer へ振り分ける。
     effect.action = rewriteCatchAllStubs(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
-
+  // 🆕「以下のNつから1つを選ぶ。この効果を〈誰か〉のセンタールリグのレベルと同じ回数行う。」
+  //   （`WXK10-104-E1` / `WXDi-D05-011-sub-E1`・2026-08-31 §5.2）。
+  //   ⚠**選択数の上書きであって「1回の選択をN回実行」ではない**＝原文の注記が「他の選択肢と他のシグニを
+  //     選んでもよい」「同じ選択肢を選んでもよい」なので `countChoose`（選ぶ数＝レベル）＋ `allowRepeat` で表す。
+  //   ⚠`upTo` は立てない＝「同じ回数**行う**」は必須回数（「Nつまで」ではない）。
+  //   ⚠**カード単位の後段（`markRemainderReorder`／`rewriteCatchAllStubs` の後ろ）に置く**＝
+  //     あれらは action 木を作り直すので、先に書いた `countChoose` を落としうる。
+  //   ⚠`currentSourceTexts` にこの effect が載らないカードがある（`WXK10-104-E1`）ので、
+  //     無ければカード全文へ落とす。この文型を持つカードは全 CSV で2枚だけ＝取り違えは起きない。
+  for (const effect of effects) {
+    const perLevelSrc = currentSourceTexts.get(effect.effectId)
+      || `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+    const perLevelRepeat = perLevelSrc.match(/この効果を(あなた|対戦相手)のセンタールリグのレベルと同じ回数行う/);
+    if (!perLevelRepeat) continue;
+    const chooseNode = effect.action.type === 'CHOOSE' ? effect.action
+      : effect.action.type === 'GRANT_LRIG_ABILITY'
+        ? (effect.action.abilities ?? []).map(ab => ab.action).find(act => act.type === 'CHOOSE')
+        : undefined;
+    if (chooseNode?.type !== 'CHOOSE' || chooseNode.countChoose) continue;
+    chooseNode.countChoose = {
+      count: { $ref: perLevelRepeat[1] === '対戦相手' ? 'opp_lrig_level' : 'center_lrig_level' },
+    };
+    if (/同じ選択肢を選んでもよい/.test(perLevelSrc)) chooseNode.allowRepeat = true;
+  }
+  // 🆕「センタールリグのリミットは１減る。**（お互いのセンタールリグに影響する）**」＝`owner:'any'`
+  //   （`WXK11-013-E3`・2026-08-31 §5.2）。🔴旧 live は `owner:'self'`＝**自分のリミットだけ**が減っており、
+  //   相手の盤面を縛るという札の主目的が丸ごと消えていた。
+  //   ⚠**注記は `stripRuleParens` で文レベルの parser へ届く前に消える**ので、ここ（カード全文が読める後段）
+  //     でしか刻めない。engine 側は `collectLrigColorAndLimitMods`（自分側）と
+  //     `collectOppDeclaredLrigLimitDelta`（対面側）の両方が `'any'` を拾うようにしてある。
+  if (/（お互いのセンタールリグに影響する）/.test(`${card.EffectText ?? ''}\n${card.BurstText ?? ''}`)) {
+    for (const effect of effects) {
+      if (effect.action.type === 'LRIG_LIMIT_MODIFY') effect.action.owner = 'any';
+    }
+  }
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。
   if (appearanceCondition && effects.length > 0) {

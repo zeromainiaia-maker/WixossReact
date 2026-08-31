@@ -5248,7 +5248,8 @@ export function collectLrigColorAndLimitMods(
       // 直接型: LRIG_LIMIT_MODIFY で自分のリミットを変更
       if (eff.action.type === 'LRIG_LIMIT_MODIFY') {
         const lma = eff.action as import('../types/effects').LrigLimitModifyAction;
-        if (lma.owner === 'self') limitDelta += lma.delta;
+        // 🆕`owner:'any'`＝「（お互いのセンタールリグに影響する）」＝自分側にも掛かる（`WXK11-013-E3`）。
+        if (lma.owner === 'self' || lma.owner === 'any') limitDelta += lma.delta;
         continue;
       }
 
@@ -5286,7 +5287,8 @@ export function collectLrigColorAndLimitMods(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'LRIG_LIMIT_MODIFY') continue;
       const lma = eff.action as import('../types/effects').LrigLimitModifyAction;
-      if (lma.owner !== 'opponent') continue;
+      // 🆕`'any'`＝お互いに掛かる宣言（対面から見た「相手側」もここで拾う）。
+      if (lma.owner !== 'opponent' && lma.owner !== 'any') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, cn)) continue;
       limitDelta += lma.delta;
     }

@@ -998,6 +998,16 @@ export interface TargetFilter {
   levelGtSelf?: boolean;  // 効果元シグニのレベルより高い（「このシグニよりレベルの高い」。resolveDynamicFilterがlevel.min:N+1へ解決）
   powerLtTrigger?: boolean; // トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）よりパワーが低い（「そのシグニよりパワーの低い」。resolveDynamicFilterがpowerRange.max:N-1へ解決。WXK11-020）
   powerLteTrigger?: boolean; // トリガー元シグニのパワー以下（「そのシグニのパワー以下の」。resolveDynamicFilterがpowerRange.maxへ解決。WXEX1-42/WXEX1-53/WDK12-001）
+  /**
+   * 🆕トリガー元シグニ（またはこの効果で直前に処理したシグニ）と**同じ実効パワー**
+   * （2026-08-31・「バニッシュしたシグニと同じパワーを持つ」`WX17-046-E2`／
+   *  「それと同じパワーのシグニ」`WX24-P4-003-E1`）。`resolveDynamicFilter` が
+   *  `powerRange.min/max` を同値へ解決する。
+   * 🔴**参照不能時は空ヒットへ倒す（fail-closed）**＝`powerLteTrigger` の fail-open を真似ると
+   *  「同じパワー」の限定が丸ごと消えて任意のシグニを取れる過剰実行になる（§5-3′′）。
+   * ⚠場を離れたカード（被バニッシュ等）は `effectivePowers` に無いので**表記パワー**で照合する。
+   */
+  powerEqTrigger?: boolean;
   levelLtTrigger?: boolean; // トリガー元シグニのレベルより低い（「そのシグニより低いレベルを持つ」。resolveDynamicFilterがlevel.max:N-1へ解決。WX09-014）
   levelGtTrigger?: boolean; // トリガー元シグニのレベルより高い（「そのシグニより高いレベルを持つ」。resolveDynamicFilterがlevel.min:N+1へ解決。WX24-P1-015）
   levelLtOppLrig?: boolean; // 対戦相手のセンタールリグのレベルより低い（「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニ」。resolveDynamicFilterがotherState中央ルリグのレベル-1をlevel.maxへ解決。参照不能なら制限なしへフォールバック。WX19-042）
@@ -1319,8 +1329,13 @@ export interface SelectionConstraint {
    * `'name'`＝「同じ名前の」／🆕`'level'`＝「**それぞれ同じレベルの**」（2026-08-27・Sheet1 B11・`WX06-016-BURST`
    * 「あなたのデッキからそれぞれ同じレベルの＜天使＞のシグニ２枚を探して…」）。
    * ⚠**`distinct` の逆**（あちらは「互いに異なる」）＝同じキー名で混同しないこと。
+   * 🆕`'power'`＝「**同じパワーを持つ**シグニN体」（2026-08-31・`WX13-013-E1`／`WX21-010-E1`）。
+   * 🔴**印刷パワーで比較する**（`same:'level'` と同じ層）＝`satisfiesSelectionConstraint` は `cardMap` しか
+   *   受け取らないので実効パワーを見られない。強化中のシグニでは実際の卓と食い違いうる**近似**だが、
+   *   **制約が1つも無い現状（どの3体でも取れる）よりは厳密に狭い**ので入れる。
+   *   ⚠**パワー不明（`Power` が数値でない＝「-」等）は不成立**へ倒す（fail-closed）。
    */
-  same?: 'name' | 'level';
+  same?: 'name' | 'level' | 'power';
   sharedColor?: 'all' | 'none';
   /** 選択したカードのレベル合計をちょうど N にする。候補単体ではなく選択集合全体の制約。 */
   totalLevelExact?: number;

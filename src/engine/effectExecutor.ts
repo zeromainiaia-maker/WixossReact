@@ -2739,6 +2739,18 @@ function resolveDynamicFilter(
       result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtTrigger ? trigPower - 1 : trigPower } };
     }
   }
+  // 🆕powerEqTrigger: トリガー元（無ければ直前に処理したカード）と**同じ**実効パワーへ解決する。
+  //   ⚠参照不能なら `powerRange:{min:1,max:0}` の空ヒットへ倒す（fail-closed）＝限定が消えない。
+  if (result.powerEqTrigger) {
+    const { powerEqTrigger: _pq, ...rest } = result;
+    const ref = triggeringCardNum ?? lastProcessedCards?.[0];
+    const refPower = ref
+      ? (effectivePowers?.get(ref) ?? parseInt(cardMap.get(getCardNum(ref))?.Power ?? '', 10))
+      : NaN;
+    result = Number.isFinite(refPower)
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), min: refPower, max: refPower } }
+      : noMatch(rest);
+  }
   // levelLtTrigger / levelEqTrigger / levelGtTrigger
   if ((result.levelLtTrigger || result.levelEqTrigger || result.levelGtTrigger) && triggeringCardNum) {
     const trigLevel = parseInt(cardMap.get(getCardNum(triggeringCardNum))?.Level ?? '', 10);

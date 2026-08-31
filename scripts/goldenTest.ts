@@ -14084,7 +14084,10 @@ test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () =
     return { eff, nonSelf: eff - (scopes.get('self') ?? 0) };
   };
   // ⚠数字が動いたら「母数が変わった」＝parser 側の変化。**意図した変化かを確かめてから**更新する。
-  eq(count('ON_TURN_END').eff, 187, 'ON_TURN_END（CPU 経路に収集が無かった）');
+  // 🆕187→**186**（2026-08-31 続き757）＝`WXK03-008-E3` を原文どおり
+  //   `GRANT_LRIG_ABILITY` の中の【自】へ入れ子にしたので、トップレベルの ON_TURN_END が1件減った
+  //   （挙動は消えていない＝センタールリグが得る能力として発火する。§5.2 意味照合）。
+  eq(count('ON_TURN_END').eff, 186, 'ON_TURN_END（CPU 経路に収集が無かった）');
   eq(count('ON_MAIN_PHASE_START').eff, 31, 'ON_MAIN_PHASE_START（同上）');
   eq(count('ON_TURN_START').eff, 3, 'ON_TURN_START（同上）');
   eq(count('ON_LRIG_ATTACK_STEP_START').eff, 1, 'ON_LRIG_ATTACK_STEP_START（同上）');
@@ -40209,10 +40212,13 @@ const batch390Cases = [
   },
   {
     cardNum: 'WXDi-D05-011', usageLimit: undefined,
+    // 🆕`countChoose`/`allowRepeat` を追加（2026-08-31 続き757・§5.2）＝原文
+    //   「この効果を**対戦相手のセンタールリグのレベルと同じ回数**行う。（１回ずつ行う。**同じ選択肢を選んでもよい**）」
+    //   が丸ごと落ちて**常に1つだけ**になっていた。
     action: { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
       { choiceId: 'c0', label: '選択肢1', action: { type: 'DRAW', owner: 'self', count: 1 } },
       { choiceId: 'c1', label: '選択肢2', action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } },
-    ] },
+    ], countChoose: { count: { $ref: 'opp_lrig_level' } }, allowRepeat: true },
   },
   {
     cardNum: 'WXDi-D06-011', usageLimit: undefined,
@@ -40251,7 +40257,12 @@ for (const spec of batch390Cases) {
     eq(JSON.stringify(ability.action), JSON.stringify(spec.action), `${spec.cardNum}: live の具体actionを内側へ維持`);
 
     const owner = batch390SatisfyingState(spec.cardNum);
-    const opponent = mkState({});
+    // 🆕`WXDi-D05-011` の付与【自】は「この効果を**対戦相手のセンタールリグのレベルと同じ回数**行う」
+    //   （2026-08-31 続き757・§5.2）＝相手センターが居ないと**選択数0で何も起きないのが正しい**。
+    //   ⚠この盤面は「Lv1のセンターが1体いる」＝1回だけ実行される状態に揃える（下で0回側も反証する）。
+    const opponent = mkState(spec.cardNum === 'WXDi-D05-011'
+      ? { lrig: [findCard(c => c.Type === 'ルリグ' && c.Level === '1')] }
+      : {});
     ok(evalUseCondition(effect.condition!, owner, opponent, cardMap, spec.cardNum, 'MAIN'), `${spec.cardNum}: 使用条件成立`);
     ok(canUseArtsCondition([effect], owner, opponent, cardMap, spec.cardNum, 'MAIN'), `${spec.cardNum}: 実使用ゲート成立`);
     ok(!canUseArtsCondition([effect], mkState({}), opponent, cardMap, spec.cardNum, 'MAIN'), `${spec.cardNum}: 条件不成立では使用不可`);
@@ -40298,7 +40309,15 @@ for (const spec of batch390Cases) {
       eq(fired.otherState.life_cloth.length, before.oppLife - 1, 'P07: アタック時に相手ライフを手札へ');
       eq(fired.ownerState.field.signi.filter(Boolean).length, before.ownerSigni + 1, 'P07: アタック時に手札からシグニを場へ');
     }
-    if (spec.cardNum === 'WXDi-D05-011') eq(fired.ownerState.hand.length, before.ownerHand + 1, 'D05: アタック時に選択肢①で1枚引く');
+    if (spec.cardNum === 'WXDi-D05-011') {
+      eq(fired.ownerState.hand.length, before.ownerHand + 1, 'D05: アタック時に選択肢①で1枚引く（相手センターLv1＝1回）');
+      // 🔴反証＝相手のセンタールリグが居なければ回数0＝1枚も引かない（`countChoose` が効いている証拠）。
+      //   これが無いと「レベル比例」を足したつもりで常に1回に潰れていても緑のままになる。
+      const noLrigOpp = mkState({});
+      const zeroCtx = { ...attackCtx, otherState: noLrigOpp } as ExecCtx;
+      const zero = finish(executeEffect(collected.entries[0].effect, zeroCtx), zeroCtx);
+      eq(zero.ownerState.hand.length, before.ownerHand, 'D05: 相手センター不在なら0回＝引かない');
+    }
     if (spec.cardNum === 'WXDi-D06-011') {
       eq(fired.otherState.deck.length, before.oppDeck - 15, 'D06: アタック時に選択肢①で相手デッキ15枚を落とす');
       eq(fired.otherState.trash.length, before.oppTrash + 15, 'D06: 落とした15枚が相手トラッシュへ');
@@ -56452,6 +56471,137 @@ test('続き756③ この巡で配線した既存受け皿（cost/asDown/フェ�
   const k13 = (effectsMap.get('WDK13-001') ?? []).find(x => x.effectId === 'WDK13-001-E3');
   eq((k13?.action as Extract<EffectAction, { type: 'TRASH' }>).target.count, 'ALL',
     'WDK13-001-E3: 「すべてのカード」が1体に潰れていた旧バグ');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 意味照合 段2（2026-08-31 続き757）で新設した2語彙の両方向ガード。
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 🆕`SelectionConstraint.same:'power'`＝「**同じパワーを持つ**シグニN体を対象とし」（`WX13-013`／`WX21-010`）。
+// 🔴旧 live は制約が丸ごと無く**盤面のどの3体でも**薙ぎ払えた。⚠印刷パワーで比較する近似
+//   （`satisfiesSelectionConstraint` は cardMap しか受け取らない＝`same:'level'` と同じ層）。
+test('same:power: 「同じパワーを持つシグニN体」が選択集合の相互制約として効く（WX13-013 / WX21-010）', () => withSavedCursor(() => {
+  const powerOf = (n: string) => cardMap.get(n)?.Power ?? '';
+  const a = findCard(c => isSigni(c) && /^\d+$/.test(c.Power ?? ''));
+  const b = findCard(c => isSigni(c) && c.CardNum !== a && (c.Power ?? '') === powerOf(a));
+  const c2 = findCard(c => isSigni(c) && /^\d+$/.test(c.Power ?? '') && (c.Power ?? '') !== powerOf(a));
+  const noPower = findCard(c => isSigni(c) && !/^\d+$/.test(c.Power ?? ''));
+  ok(satisfiesSelectionConstraint([a, b], { same: 'power' }, cardMap), '同じパワー2体は選べる');
+  ok(!satisfiesSelectionConstraint([a, c2], { same: 'power' }, cardMap), '🔴パワーが違う2体は選べない');
+  ok(satisfiesSelectionConstraint([a], { same: 'power' }, cardMap), '1体だけなら常に成立（部分選択中）');
+  if (noPower) {
+    ok(!satisfiesSelectionConstraint([a, noPower], { same: 'power' }, cardMap),
+      '🔴パワー不明は不成立へ倒す（fail-closed）');
+  }
+  // 逐次選択の補助（`canAddToSelection`）でも同じ判定になる＝UI が候補を出す側の穴を塞ぐ。
+  ok(canAddToSelection([a], b, { same: 'power' }, cardMap), '同パワーは追加できる');
+  ok(!canAddToSelection([a], c2, { same: 'power' }, cardMap), '🔴別パワーは追加できない');
+  // live 側の配線（この制約が JSON から消えたら退化）
+  for (const [cn, id] of [['WX13-013', 'WX13-013-E1'], ['WX21-010', 'WX21-010-E1']] as const) {
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === id);
+    ok(JSON.stringify(e ?? null).includes('"same":"power"'), `${id}: 「同じパワーを持つ」が live に配線されている`);
+  }
+}));
+
+// 🆕`TargetFilter.powerEqTrigger`＝「**バニッシュしたシグニと同じパワーを持つ**」（`WX17-046-E2`）／
+//   「**それと同じパワーの**」（`WX24-P4-003-E1`＝直前に手札へ戻したシグニ）。
+// 🔴参照不能なら**空ヒット**（fail-closed）。fail-open にすると「同じパワー」の限定が消えて
+//   相手のどのシグニでも取れる過剰実行に裏返る（§5-3′′ の3点セット）。
+test('powerEqTrigger: トリガー元／直前処理と同じ実効パワーだけを候補にする（WX17-046 / WX24-P4-003）', () => withSavedCursor(() => {
+  const s1 = findCard(c => isSigni(c));
+  const s2 = findCard(c => isSigni(c) && c.CardNum !== s1);
+  const s3 = findCard(c => isSigni(c) && c.CardNum !== s1 && c.CardNum !== s2);
+  const banishEq = {
+    type: 'BANISH',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerEqTrigger: true } },
+  } as unknown as EffectAction;
+  // ① トリガー元基準（AUTO）＝同じ実効パワーだけが消える
+  const trgCtx = mkCtx({ signi: [s1, null, null] }, { signi: [s2, s3, null] });
+  trgCtx.triggeringCardNum = s1;
+  trgCtx.effectivePowers = new Map([[s1, 10000], [s2, 10000], [s3, 12000]]);
+  const byTrigger = run(banishEq, trgCtx);
+  ok(!tops(byTrigger.otherState).includes(s2), '同じパワー(10000)は候補');
+  ok(tops(byTrigger.otherState).includes(s3), '🔴違うパワー(12000)は候補外');
+  // ② トリガー元が無いときは lastProcessedCards[0] を基準にする（ACTIVATED の「それと同じパワーの」）
+  const lastCtx = mkCtx({ signi: [s1, null, null] }, { signi: [s2, s3, null] });
+  lastCtx.lastProcessedCards = [s1];
+  lastCtx.effectivePowers = new Map([[s1, 12000], [s2, 10000], [s3, 12000]]);
+  const byLast = run(banishEq, lastCtx);
+  ok(!tops(byLast.otherState).includes(s3), '直前処理(12000)と同じパワーは候補');
+  ok(tops(byLast.otherState).includes(s2), '🔴違うパワーは候補外');
+  // ③ 基準がまったく無いときは空ヒット（fail-closed）
+  const noRef = mkCtx({ signi: [s1, null, null] }, { signi: [s2, null, null] });
+  noRef.effectivePowers = new Map([[s2, 10000]]);
+  ok(tops(run(banishEq, noRef).otherState).includes(s2), '🔴基準が無ければ誰も対象にならない');
+  // live 側の配線
+  for (const [cn, id] of [['WX17-046', 'WX17-046-E2'], ['WX24-P4-003', 'WX24-P4-003-E1']] as const) {
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === id);
+    ok(JSON.stringify(e ?? null).includes('powerEqTrigger'), `${id}: 「同じパワー」が live に配線されている`);
+  }
+}));
+
+// 🆕`LRIG_LIMIT_MODIFY{owner:'any'}`＝「（**お互いの**センタールリグに影響する）」（`WXK11-013-E3`）。
+// 🔴旧 live は `owner:'self'`＝**自分のリミットだけ**が減っており、相手を縛るという札の主目的が消えていた。
+// ⚠注記は `stripRuleParens` で文レベル parser へ届く前に消えるので、parser 側はカード単位の後段で刻む。
+test('LRIG_LIMIT_MODIFY owner:any: 「お互いのセンタールリグに影響する」が両者のリミットを下げる（WXK11-013）', () => withSavedCursor(() => {
+  const e3 = (effectsMap.get('WXK11-013') ?? []).find(x => x.effectId === 'WXK11-013-E3');
+  eq((e3?.action as { owner?: string })?.owner, 'any', 'WXK11-013-E3: owner:any が live に届いている');
+  const lrig = findCard(c => c.Type === 'ルリグ' && /^\d+$/.test(c.Limit ?? ''));
+  const baseLimit = parseInt(cardMap.get(lrig)?.Limit ?? '0', 10);
+  const declarer: PlayerState = { ...mkState(), field: { ...mkState().field, lrig: [lrig], key_piece: 'WXK11-013' } };
+  const victim: PlayerState = { ...mkState(), field: { ...mkState().field, lrig: [lrig] } };
+  // 宣言側（キーの持ち主）自身のリミット
+  eq(computeEffectiveLrigLimit(declarer, victim, cardMap, effectsMap, true), baseLimit - 1,
+    '宣言側のセンタールリグも -1（owner:self 相当の経路）');
+  // 対面のリミット＝`collectOppDeclaredLrigLimitDelta` 側
+  eq(collectOppDeclaredLrigLimitDelta(declarer, victim, cardMap, effectsMap, true), -1,
+    '🔴対面のセンタールリグも -1（旧 self では 0 だった）');
+  // 反証＝キーが場に無ければ 0
+  const empty: PlayerState = { ...mkState(), field: { ...mkState().field, lrig: [lrig] } };
+  eq(collectOppDeclaredLrigLimitDelta(empty, victim, cardMap, effectsMap, true), 0, 'キーが無ければ影響しない');
+}));
+
+// 🆕「以下のNつから〈誰か〉のセンタールリグのレベル１につき１つまで選ぶ」／
+//    「この効果を〈誰か〉のセンタールリグのレベルと同じ回数行う」＝`countChoose{$ref:center_lrig_level|opp_lrig_level}`。
+// 🔴受け皿（`ChooseAction.countChoose` と2つの `$ref`）は実装済みで、**生成側の入口が2つあって片方だけ
+//   配線されていなかった**（`buildChooseFromHeader` には在り、素の header 入口では捨てられていた）＝
+//   該当5枚が**常に1つ固定**に潰れていた。
+test('countChoose: センタールリグのレベル比例の選択数が live へ届く（WXDi-P06-003 ほか5枚）', () => withSavedCursor(() => {
+  const cc = (cn: string, id: string) =>
+    ((effectsMap.get(cn) ?? []).find(x => x.effectId === id)?.action as { countChoose?: { count?: unknown; upTo?: boolean }; allowRepeat?: boolean } | undefined)?.countChoose;
+  for (const [cn, id] of [
+    ['WXDi-P06-003', 'WXDi-P06-003-E1'], ['WXDi-P14-003', 'WXDi-P14-003-E1'], ['WXDi-P07-002', 'WXDi-P07-002-E1'],
+  ] as const) {
+    eq(JSON.stringify(cc(cn, id)), JSON.stringify({ count: { $ref: 'center_lrig_level' }, upTo: true }),
+      `${id}: 「レベル１につき１つまで」＝自分センターのレベル・upTo`);
+  }
+  eq(JSON.stringify(cc('WXK10-104', 'WXK10-104-E1')), JSON.stringify({ count: { $ref: 'center_lrig_level' } }),
+    'WXK10-104-E1: 「レベルと同じ回数行う」は必須回数（upTo を立てない）');
+  // 【自】側は GRANT_LRIG_ABILITY の中の CHOOSE に載る（対戦相手のレベル参照）
+  const sub = ((effectsMap.get('WXDi-D05-011') ?? []).find(x => x.effectId === 'WXDi-D05-011-E1')
+    ?.action as { abilities?: { action: { countChoose?: unknown; allowRepeat?: boolean } }[] })?.abilities?.[0]?.action;
+  eq(JSON.stringify(sub?.countChoose), JSON.stringify({ count: { $ref: 'opp_lrig_level' } }),
+    'WXDi-D05-011-sub-E1: 対戦相手のセンタールリグのレベル');
+  eq(sub?.allowRepeat, true, '「同じ選択肢を選んでもよい」＝allowRepeat');
+  // 参照そのものが解決できることを実走で固定（0 に潰れると `execChoose` が「選択数0」で無言スキップする）
+  const lrig3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const lrig1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const ctx = mkCtx({ lrig: [lrig3] }, { lrig: [lrig1] });
+  eq(resolveCountRef({ $ref: 'center_lrig_level' }, ctx), 3, 'center_lrig_level＝自分センターのレベル');
+  eq(resolveCountRef({ $ref: 'opp_lrig_level' }, ctx), 1, 'opp_lrig_level＝対戦相手センターのレベル');
+}));
+
+// 🆕「あなたのセンタールリグのレベル１につき【エナチャージN】をする」の**単独形**（`WXDi-P14-004-E1`）。
+// 🔴受け皿 `ENERGY_CHARGE_PER_LRIG_LEVEL` は二択形からしか合成されておらず、単独形は
+//   【エナチャージ】ショートハンドに食われて**レベルに依らない固定N枚**に潰れていた。
+test('ENERGY_CHARGE_PER_LRIG_LEVEL: レベル比例エナチャージの単独形が固定枚数に潰れない（WXDi-P14-004）', () => {
+  const choice = ((effectsMap.get('WXDi-P14-004') ?? []).find(x => x.effectId === 'WXDi-P14-004-E1')
+    ?.action as { choices?: { action: SequenceAction }[] })?.choices?.[1]?.action;
+  const step = choice?.steps?.[1] as { type?: string; chargePerLevel?: number; lrigOwner?: string } | undefined;
+  eq(step?.type, 'ENERGY_CHARGE_PER_LRIG_LEVEL', '選択肢②の後段がレベル比例になっている');
+  eq(step?.chargePerLevel, 2, '「【エナチャージ２】」＝レベル1につき2枚');
+  eq(step?.lrigOwner, 'self', '基準は自分のセンタールリグ');
 });
 
 if (listMode) {

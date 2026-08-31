@@ -239,6 +239,7 @@ function filterJa(f?: any): string {
   if (f.noRecollectIcon) parts.push('《リコレクトアイコン》を持たない');
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
   if (f.powerLteTrigger) parts.push('そのシグニのパワー以下の');
+  if (f.powerEqTrigger) parts.push('そのシグニと同じパワーの');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
   if (f.levelEqTrigger) parts.push('そのシグニと同じレベルの');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
@@ -403,7 +404,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     // 🆕2026-08-30＝`same`（選択集合の**全カードで同一**の軸）を描いていなかった＝
     //   「共通するレベルを持つ2体」が**ただの2体**に見えて原文照合で気付けなかった（`WXK11-042-E2`）。
     //   ⚠`distinct` の**逆**なので訳語を取り違えないこと。
-    : t.selectionConstraint?.same ? `共通する${t.selectionConstraint.same === 'level' ? 'レベル' : t.selectionConstraint.same === 'name' ? '名前' : 'クラス'}を持つ`
+    : t.selectionConstraint?.same ? `共通する${t.selectionConstraint.same === 'level' ? 'レベル' : t.selectionConstraint.same === 'name' ? '名前' : t.selectionConstraint.same === 'power' ? 'パワー' : 'クラス'}を持つ`
     : '';
   // 動的数：盤面/ゾーンの枚数（`countFromZone`）＝「あなたの＜原子＞のシグニ1体につき1体まで」
   //   （2026-08-28 Sheet1 バッチ・`WX07-027-BURST`）。⚠描かないと「1体まで」に見え、

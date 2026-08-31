@@ -460,6 +460,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
     const limitM = t.match(/(?:対戦相手の)?センタールリグのリミットは([１-９\d]+)(増え|減る)/);
     if (limitM) {
       const delta = parseNum(limitM[1]) * (limitM[2] === '増え' ? 1 : -1);
+      // ⚠「（お互いのセンタールリグに影響する）」の注記は **`stripRuleParens` でここへ届く前に消える**ので
+      //   ここでは読めない＝`owner:'any'` はカード単位の後段（`parseCardEffects` の末尾）で刻む。
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
       const until: LrigLimitModifyAction['until'] = t.includes('次の') ? 'NEXT_TURN' : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
       return { type: 'LRIG_LIMIT_MODIFY', owner, delta, until } as LrigLimitModifyAction;

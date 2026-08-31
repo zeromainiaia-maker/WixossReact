@@ -1482,3 +1482,55 @@ WXK05-035-E2
 WX24-P2-036-E1
 WDA-F02-07-E1
 WXEX1-38-E1
+
+# ════════════════════════════════════════════════════════════════════════
+# 2026-08-31 続き757（意味照合 段2・実装18／較正12）
+# 新設した engine 語彙は `SelectionConstraint.same:'power'` と `TargetFilter.powerEqTrigger` の2つだけ。
+# 残りはすべて既存受け皿への配線（countChoose / ENERGY_CHARGE_PER_LRIG_LEVEL / ATTACH_ACCE.fromEnergy /
+# GRANT_PLAYER_ABILITY / GRANT_LRIG_ABILITY / OR + HAS_CARD_IN_FIELD / LRIG_LIMIT_MODIFY owner:'any'）。
+# ════════════════════════════════════════════════════════════════════════
+# 「同じパワーを持つシグニN体」＝SelectionConstraint.same:'power'（新設）
+WX13-013-E1
+WX21-010-E1
+# 「〈直前に処理したシグニ〉と同じパワー」＝TargetFilter.powerEqTrigger（新設・参照不能なら空ヒット）
+WX17-046-E2
+WX24-P4-003-E1
+# 「センタールリグのレベル１につき１つまで選ぶ」「レベルと同じ回数行う」＝countChoose{$ref:center_lrig_level|opp_lrig_level}
+# 🔴受け皿は在ったが CHOOSE ヘッダの入口が2つあり、素の入口だけが countChoose を捨てていた
+WXDi-P06-003-E1
+WXDi-P14-003-E1
+WXK10-104-E1 :: レベルと同じ回数行う
+WXDi-D05-011-sub-E1
+# 「センタールリグのレベル１につき【エナチャージ２】」の単独形＝ENERGY_CHARGE_PER_LRIG_LEVEL
+WXDi-P14-004-E1
+# 「エナゾーンの《アクセアイコン》カード1枚をシグニの【アクセ】にする」＝ATTACH_ACCE.fromEnergy
+WX20-002-E2
+# 使用条件の OR（3種の指定シグニ or 相手手札1枚以下）＝OR + HAS_CARD_IN_FIELD（旧 live は eq 1 の片枝だけ）
+WXDi-P08-068-E1
+# 「あなたのセンタールリグは以下の能力を得る」＝ON_TURN_END の凍結を GRANT_LRIG_ABILITY の中へ
+WXK03-008-E3
+# 「（お互いのセンタールリグに影響する）」＝LRIG_LIMIT_MODIFY owner:'any'
+WXK11-013-E3
+# ピース「このゲームの間、あなたは以下の能力を得る」＝GRANT_PLAYER_ABILITY{permanent} + ON_MAIN_PHASE_START
+# ⚠「まだ選んでいないもの」＝選択履歴による除外は未実装（PARTIAL）＝finding「メインフェイズ開始時」は残す
+WXDi-P11-003-E1 :: このゲームの間、あなたは以下
+WXDi-P11-003-E1 :: 合計３種類以上の色を持つ
+WXDi-P11-003-E1 :: このゲームの間
+WXDi-P11-003-E1 :: 以下の能力を得る
+WXDi-P11-003-E1 :: あなたのトラッシュから
+# ---- 較正（live を開いて claim を読み直したら既に実装済みだったもの）----
+# WXDi-P06-077＝E2 が独立した【起】として存在し thisCardOnly / 美巧条件も配線済み
+WXDi-P06-077-E1 :: 緑のシグニ１体を対象とし
+WXDi-P06-077-E1 :: エナゾーンからこのカードを
+WXDi-P06-077-E1 :: このカードを手札に加える
+WXDi-P06-077-sub-E1 :: メインフェイズ以外で
+# 選択構造・遅延・排他が実装済みだったもの
+WXDi-P03-071-BURST :: どちらか１つを選ぶ
+WX25-CP1-TK2A-E2 :: 以下の能力を得る
+WXDi-P06-035-E2 :: ３枚以上捨てた場合、代わりに
+WXEX1-14-E2 :: エナゾーンから＜植物＞
+WX25-CP1-008-E1 :: 次にそれがアタックしたとき
+WXDi-P07-071-E1 :: このターン終了時
+# ON_GUARD + lrigAttackNoDamage / lrigAttackGuarded（2026-08-31 続き749 で実装済み）
+WX24-P3-055-E2 :: アタック終了時
+WXK11-006-E4 :: アタックがすべて【ガード】

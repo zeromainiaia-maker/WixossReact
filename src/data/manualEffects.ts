@@ -8,6 +8,89 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 意味照合 段2（2026-08-31 続き757）＝「受け皿は在るのに JSON が指していない」8件
+  // 🔑新設した engine 語彙は **`SelectionConstraint.same:'power'` と `TargetFilter.powerEqTrigger` の2つだけ**。
+  //   残りは既存の `OR` / `HAS_CARD_IN_FIELD` / `ATTACH_ACCE.fromEnergy` / `GRANT_PLAYER_ABILITY` /
+  //   `GRANT_LRIG_ABILITY` へ**配線しただけ**。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // WX13-013 ／ 原文：**同じパワーを持つ**シグニ３体を対象とし、それらをバニッシュする。
+  //   （自分のシグニを含んでもよい。合計２体以下のシグニに使用することはできない）
+  // 🔴旧 live＝制約が丸ごと無く、**盤面のどのシグニ3体でも**薙ぎ払えた（赤1エナの全体除去）。
+  // 🔑新設 `selectionConstraint.same:'power'`＝`same:'level'` の兄弟（印刷パワーで比較する近似）。
+  'WX13-013': [
+    {"effectId":"WX13-013-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":3,"filter":{"cardType":"シグニ"},"upToCount":false,"selectionConstraint":{"same":"power"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WX21-010 ／ 原文：**同じパワーを持つ**対戦相手のシグニ２体を対象とし、それらをバニッシュする。
+  //   その後、それらに白か黒のシグニが１体以上含まれる場合、対戦相手は自分のエナゾーンからカード２枚を
+  //   対象とし、それらをトラッシュに置く。
+  // 🔴旧 live＝「同じパワー」が落ちて**相手のどの2体でも**選べた。
+  // ⚠後段のエナ2枚は**対戦相手が選ぶ**（原文「対戦相手は自分のエナゾーンから…対象とし」）。
+  'WX21-010': [
+    {"effectId":"WX21-010-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":2},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":2,"filter":{"cardType":"シグニ"},"upToCount":false,"selectionConstraint":{"same":"power"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","color":["白","黒"]},"minCount":1},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":2},"opponentSelects":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WX17-046 ／ 原文【自】英知＝７：このシグニがシグニ１体をバニッシュしたとき、**バニッシュしたシグニと
+  //   同じパワーを持つ**対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  // 🔴旧 live＝パワー条件が落ちて**相手のどのシグニでも**連鎖バニッシュできた。
+  // 🔑新設 `TargetFilter.powerEqTrigger`＝トリガー元（＝バニッシュされたシグニ）と同値へ解決。
+  //   ⚠**参照不能なら空ヒット**（fail-closed）＝`powerLteTrigger` の fail-open を真似ない。
+  'WX17-046': [
+    {"effectId":"WX17-046-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"activeCondition":{"type":"EICHI_LEVEL_SUM","operator":"eq","value":7},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerEqTrigger":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
+  // WX24-P4-003 ／ 原文：対戦相手のシグニ１体を対象とし、それを手札に戻す。あなたのトラッシュから
+  //   **それと同じパワーの**シグニ１枚を対象とし、それを手札に加える。
+  // 🔴旧 live＝パワー条件が落ちて**トラッシュのどのシグニでも**回収できた。
+  // 🔑`powerEqTrigger` はトリガー元が無ければ `lastProcessedCards[0]`（＝直前に手札へ戻したシグニ）を見る。
+  'WX24-P4-003': [
+    {"effectId":"WX24-P4-003-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"白","count":1},{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerEqTrigger":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WX20-002 ／ 原文【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：**あなたのエナゾーンから**
+  //   対象の《アクセアイコン》を持つカード１枚を対象のあなたのシグニ１体の【アクセ】にする。
+  // 🔴旧 live＝`GRANT_KEYWORD{keyword:'アクセ'}`＝**エナのカードは1枚も動かず**、場のシグニに
+  //   「アクセ」という語だけが付いていた（＝アクセ機構としては完全な no-op）。
+  // 🔑受け皿は**既存の** `ATTACH_ACCE.fromEnergy`（2026-08-31 続き748 で新設・エナ札→ホストの2段選択）。
+  'WX20-002': [
+    {"effectId":"WX20-002-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"ATTACH_ACCE","targetSigniOwner":"self","sourceOwner":"self","fromEnergy":true,"signiFilter":{"hasIcon":"アクセ"},"targetFilter":{"cardType":"シグニ"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // WXDi-P08-068 ／ 原文：このスペルは**あなたの場に《羅星姫　タマゴ//メモリア》か《羅星　ノヴァ//メモリア》か
+  //   《翠魔　バン//メモリア》があるか、対戦相手の手札が１枚以下の場合**にしか使用できない。
+  // 🔴旧 live＝3種のシグニ枝が丸ごと落ち、しかも手札条件が `eq 1`＝**ちょうど1枚のときだけ**使えた
+  //   （0枚では撃てず、指定シグニが並んでいても撃てない＝両方向に外れていた）。
+  // 🔑受け皿は既存の `OR` ＋ `HAS_CARD_IN_FIELD{filter.cardName}`（`cardName` は部分一致）。
+  'WXDi-P08-068': [
+    {"effectId":"WXDi-P08-068-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"condition":{"type":"OR","conditions":[{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"羅星姫　タマゴ//メモリア"}},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"羅星　ノヴァ//メモリア"}},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"翠魔　バン//メモリア"}},{"type":"HAND_COUNT","owner":"opponent","operator":"lte","value":1}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WXK03-008（キー）／ 原文【常】：**あなたのセンタールリグは以下の能力を得る。**【起】…【自】：対戦相手の
+  //   ターン終了時、対戦相手のシグニ１体を対象とし、それを凍結する。
+  // 🔴旧 live＝2本目の【自】が**キー自身の独立した自動能力**として立っていた＝原文の「センタールリグが得る」
+  //   という帰属が消え、ルリグが能力を失う効果を受けても凍結だけが残る別物になっていた。
+  // 🔑受け皿は同カードの E1 が既に使っている `GRANT_LRIG_ABILITY`（engine 変更なし）。
+  'WXK03-008': [
+    {"effectId":"WXK03-008-E3","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXK03-008-E3-G","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp"}],"rawText":"【自】：対戦相手のターン終了時、対戦相手のシグニ１体を対象とし、それを凍結する。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WXDi-P11-003（ピース）／ 原文【使用条件】【ドリームチーム】合計３種類以上の色を持つ
+  //   **このゲームの間、あなたは以下の能力を得る。**『【自】：あなたのメインフェイズ開始時、以下の３つから
+  //   まだ選んでいないもの１つを選ぶ。①カードを２枚引く。②【エナチャージ２】③あなたの**トラッシュから**
+  //   シグニ１枚を対象とし、それをデッキの一番上に置く。』
+  // 🔴旧 live＝①使用条件（ルリグ3体で3色以上）が無い ②「このゲームの間の付与」が落ちて**使用時に1回だけ
+  //   選択肢を即時実行** ③原文に無い `GRANT_KEYWORD{keyword:'使用条件'}` を自分のシグニ1体へ付けていた
+  //   ④選択肢③の移動元が**場のシグニ**（トラッシュではない）＝自分の盤面を自らデッキへ戻していた。
+  // 🔑受け皿はすべて既存＝`GRANT_PLAYER_ABILITY{permanent:true}` ＋ `ON_MAIN_PHASE_START` ＋
+  //   `FIELD_LRIG_COLOR_COUNT{minLrigs:3}`（同型の `WXDi-P06-003`／`WXDi-P14-003` が使っている）。
+  // ⚠**「まだ選んでいないもの」＝選択履歴による除外は未実装**（parser 側の既存注記と同じ近似）＝`PARTIAL`。
+  //   §5.4(ii) に登録し、意味照合 finding「メインフェイズ開始時」は**閉じずに残す**。
+  'WXDi-P11-003': [
+    {"effectId":"WXDi-P11-003-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"GRANT_PLAYER_ABILITY","abilities":[{"effectId":"WXDi-P11-003-E1-GRANT","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],"triggerScope":"self","action":{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"カードを2枚引く","action":{"type":"DRAW","owner":"self","count":2}},{"choiceId":"c1","label":"【エナチャージ2】","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2}},{"choiceId":"c2","label":"トラッシュのシグニ1枚をデッキの一番上に置く","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL"}],"rawText":"【自】：あなたのメインフェイズ開始時、以下の３つからまだ選んでいないもの１つを選ぶ。①カードを２枚引く。②【エナチャージ２】③あなたのトラッシュからシグニ１枚を対象とし、それをデッキの一番上に置く。","permanent":true},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+  ],
+
   // WXDi-P10-063 ／ 原文：あなたのデッキの上からカードを３枚見る。その中から１枚を手札に加え、残りを好きな
   //   順番でデッキの一番上に戻す。**このスペルをチェックゾーンからあなたの《コードオーダー　エルドラ//メモリア》
   //   １体の下に置いてもよい。**

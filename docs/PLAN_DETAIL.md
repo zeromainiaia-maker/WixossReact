@@ -1,6 +1,17 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+
 ## 恒久指標の過去行（§6 から退避）
+
+- **2026-08-31 続き756 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕157（187 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
+  **golden 3123 → 3126（+3本・反転確認済み）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、`censusManualDrift` 削除候補 0（`WXDi-P14-033-E1` の影武者を1件解消）。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙2つ**＝`TargetFilter.hasUnderCards` / `hasAttachedOrUnder`（両評価器＋PER_FIELD の数え上げに配線）と
+  `triggerCondition.notByBattle`。**残り19件はすべて既存受け皿への配線**（＝§5.2 の「本命」の再実証）。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更・engine 実走 golden で両方向を固定）。UI に面が出る2件だけ `V-103` へ登録。
 
 ### 2026-08-31 続き755
 

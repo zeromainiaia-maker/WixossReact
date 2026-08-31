@@ -79,7 +79,8 @@ export function collectOppDeclaredLrigLimitDelta(
     for (const eff of (effectsMap.get(num) ?? effectsMap.get(baseCardNum(num)) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'LRIG_LIMIT_MODIFY') continue;
       const act = eff.action as import('../../types/effects').LrigLimitModifyAction;
-      if (act.owner !== 'opponent') continue;
+      // 🆕`'any'`＝「（お互いのセンタールリグに影響する）」＝宣言側の場から相手側にも掛かる。
+      if (act.owner !== 'opponent' && act.owner !== 'any') continue;
       if (!checkActiveCondition(eff.activeCondition, declarerState, victimState, isDeclarerTurn, cardMap, num)) continue;
       delta += act.delta;
     }
