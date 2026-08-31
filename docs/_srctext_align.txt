@@ -41,8 +41,8 @@ SKIP(件数不一致) WXDi-P15-003: curated 2 vs parser 1
 SKIP(件数不一致) WXDi-P15-057: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P16-054: curated 3 vs parser 2
 SKIP(件数不一致) WXEX2-69: curated 4 vs parser 3
-SKIP(件数不一致) WXK01-008: curated 1 vs parser 0
-SKIP(件数不一致) WXK01-009: curated 1 vs parser 0
+SKIP(件数不一致) WXK01-008: curated 2 vs parser 0
+SKIP(件数不一致) WXK01-009: curated 2 vs parser 0
 SKIP(件数不一致) WXK04-003: curated 3 vs parser 2
 SKIP(件数不一致) WXK04-016: curated 1 vs parser 0
 SKIP(件数不一致) WXK04-017: curated 1 vs parser 0

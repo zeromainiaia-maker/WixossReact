@@ -570,6 +570,22 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   //   終止形しか見ておらず落ちていた＝`cost` がエナ側だけになり**自己トラッシュを踏み倒して撃てた**
   //   （`WX25-P3-100-E1`／`WXDi-CP02-099-E1`）。直下の `trash_key` は最初から両形を受けている（同じ軸）。
   if (/このシグニを(?:場から)?トラッシュに置[くき]/.test(costStr) || /このシグニと《[^》]+》[０-９\d]*体を場からトラッシュに置く/.test(costStr)) cost.trash_self = true;
+  // 🆕**「このシグニ**と**《カード名》N体を場からトラッシュに置く」の後半**（2026-08-31 §5.2・
+  //   `WXDi-P11-051-E2`／`WXDi-P11-078-E2`）。上の行は `trash_self` だけを立てて**《…》側を黙って捨てて**おり、
+  //   **相方が場に無くても撃てる**（原文より軽い踏み倒し）状態だった。
+  //   ⚠受け皿は既にある＝`fieldTrash{filter.cardName}`（ゾーン選択UI・支払い・可否ゲートすべて配線済み）。
+  //   ⚠**`excludeSelf` は必須**＝効果元自身のゾーンを候補に残すと `trash_self` と二重取りになる。
+  //   ⚠下の `ftM`（「＜クラス＞のシグニN体を場からトラッシュに置く」）は《…》形に当たらないので競合しない。
+  {
+    const ftNamed = costStr.match(/このシグニと《([^》]+)》([０-９\d]*)体を場からトラッシュに置く/);
+    if (ftNamed) {
+      cost.fieldTrash = {
+        count: ftNamed[2] ? parseNum(ftNamed[2]) : 1,
+        filter: { cardType: 'シグニ', cardName: ftNamed[1] },
+        excludeSelf: true,
+      };
+    }
+  }
   // このキーを場からルリグトラッシュに置く（単独 or 複合「置き」形も含む） → trash_key
   if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr) || /このキーを(?:場から)?ルリグトラッシュに置き/.test(costStr)) cost.trash_key = true;
   // 手札からこのカードを捨てる → discardSelfFromHand（「捨てる：」終止形と「捨て、…を取り除く：」複合コストの連用形両対応）
@@ -5089,6 +5105,26 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // 🆕**「トラッシュにあるすべてのカードをデッキに加えてシャッフル**し、**〈後続〉」＝連用形で続く後半が落ちていた**
+  //   （2026-08-31 §5.2・`WXDi-CP01-021-E1`／`WXDi-P12-003-E1`／`WX24-P2-038-E1`。原文の継続形は実測9文）。
+  //   🔴既存規則は文全体を1つの `TRANSFER_TO_DECK{TRASH_CARD, count:'ALL', shuffle}` に潰しており、
+  //     **「し、」の右側（16枚ミル／エナチャージ／ライフ追加…）が丸ごと消えていた**（過小実行）。
+  //   ⚠ここ（単文 funnel の先頭）で分割する＝`parseSentencePart*` からは `parseSingleSentence` を呼べない。
+  //   ⚠**右側は再帰で普通に解析する**（解けなければ従来どおり前半だけに倒れる＝fail-closed）。
+  {
+    const shuffleContM = text.trim().replace(/。$/, '')
+      .match(/^(?:あなたの)?トラッシュ(?:にある|から)すべてのカードをデッキに加えてシャッフルし、(.+)$/);
+    if (shuffleContM) {
+      const rest = parseSingleSentence(shuffleContM[1]);
+      const restJson = JSON.stringify(rest);
+      if (!restJson.includes('"UNKNOWN"') && !restJson.includes('DEFERRED_')) {
+        return { type: 'SEQUENCE', steps: [
+          { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL' }, shuffle: true } as EffectAction,
+          rest,
+        ] } as EffectAction;
+      }
+    }
+  }
   // O-60 第13バッチ：直前の typed TRASH が残した実枚数を読む帰結は、総称 STUB より先に固定する。
   // ここは単文 funnel なので、アーツ内の「捨て、…引く」後半にも届く。
   {
@@ -7590,7 +7626,9 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
             {
               type: 'REVEAL_AND_PICK', owner: 'self', revealCount: ref,
               filter: { cardType: 'シグニ', color: '白' }, pickCount: 1,
-              handOrField: true, then: { type: 'ADD_TO_HAND', owner: 'self' },
+              // 🆕原文は「手札に加えるか**ダウン状態で**場に出す」（2026-08-31 §5.2）＝
+              //   場出し枝の `asDown` が落ちて**アップ状態で出て**おり、そのターンにアタックできた。
+              handOrField: true, handOrFieldAsDown: true, then: { type: 'ADD_TO_HAND', owner: 'self' },
               remainder: { location: 'deck', position: 'top' },
             } as RevealAndPickAction,
           ];
@@ -10367,17 +10405,23 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
     return e;
   };
   const selfSigni = { type: 'SIGNI' as const, owner: 'self' as const, count: 1 as const, filter: { thisCardOnly: true } };
-  const publicTop = (position: 'top' | 'bottom'): LookAndReorderAction => ({
+  const publicTop = (position: 'top' | 'bottom' | 'split_top_bottom'): LookAndReorderAction => ({
     type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1,
     private: false, reorder: false, destination: { location: 'deck', owner: 'self', position },
   });
+  // 🆕**「〜デッキの一番下に置いて**もよい**」は `split_top_bottom`**（2026-08-31 §5.2）。
+  //   `position:'bottom'` は**必ず**デッキ下へ送るので、任意が強制に化ける（意味照合 finding 3件）。
+  //   受け皿は既存＝`parseSentencePart3.ts:1310` が同じ理由で `split_top_bottom` を選んでおり、
+  //   UI（`EffectInteractionModal` の isSplit 分岐）と確定（`BattleScreen` の bottomList）は実装済み。
+  //   ⚠**1枚のときは「下に置く／置かない（＝上に戻す）」の二択**になる＝原文どおり。
+  //   ⚠公開/見るの別は `private` で表す（`split_top_bottom` とは独立）。
   const lastSigniLevel = (level: number): Condition => ({
     type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level },
   });
 
   if (cardNum === 'WXDi-P06-071') {
     setAction('WXDi-P06-071-E1', { type: 'SEQUENCE', steps: [
-      publicTop('bottom'),
+      publicTop('split_top_bottom'),
       { type: 'CONDITIONAL', condition: lastSigniLevel(1), then: {
         type: 'POWER_MODIFY', target: selfSigni, delta: 4000, duration: 'UNTIL_OPP_TURN_END',
       } },
@@ -10388,7 +10432,7 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
     if (e) {
       e.condition = { type: 'THIS_CARD_IN_CENTER_ZONE' };
       e.action = { type: 'SEQUENCE', steps: [
-        publicTop('bottom'),
+        publicTop('split_top_bottom'),
         { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'odd' } }, then: {
           type: 'SEQUENCE', steps: [
             { type: 'POWER_MODIFY', target: selfSigni, delta: 5000 },
@@ -10400,8 +10444,7 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
   }
   if (cardNum === 'WDK04-015') {
     setAction('WDK04-015-E1', { type: 'SEQUENCE', steps: [
-      publicTop('top'),
-      { ...publicTop('bottom'), private: true },
+      publicTop('split_top_bottom'),
       { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'odd' } }, then: {
         type: 'SEQUENCE', steps: [
           { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
@@ -10960,6 +11003,43 @@ function foldRevealShuffleToDeckBottom(text: string, parsed: EffectAction): Effe
  * ⚠カード固有IDではなく、同じ SEQUENCE に「公開（デッキ上に戻す）→公開枚数 payload のパワー修正→
  * デッキ上を1枚トラッシュ」がちょうど1組ある木だけに閉じる。
  */
+/**
+ * 🆕**「デッキの一番上を**見る**。そのカードをデッキの一番下に置いてもよい。」を1ステップへ畳む**
+ * （2026-08-31 §5.2・`WXDi-CP01-025-E2`）。
+ *
+ * 症状＝文分割で `LOOK_AND_REORDER{private:true → top}`（＝見て戻すだけの no-op）と
+ * `LOOK_AND_REORDER{private:false → split_top_bottom}` の**2ステップ**になり、
+ * 後半が **`private:false`＝原文に無い公開**を伴っていた（見るだけのはずが相手に見える）。
+ * 前半は「見る」と書いてあるのに `private` の情報が後半へ渡らないのが真因。
+ *
+ * ⚠**畳めるのは「同じ枚数・同じ deck・前半が top へ戻すだけ」のときだけ**＝
+ *   前半が別ゾーンだったり枚数が違う形は別の効果なので触らない。
+ */
+function foldLookThenOptionalBottom(parsed: EffectAction): EffectAction {
+  const rewrite = (node: EffectAction): EffectAction => {
+    if (node.type !== 'SEQUENCE') return node;
+    const steps = node.steps.map(rewrite);
+    const out: EffectAction[] = [];
+    for (let i = 0; i < steps.length; i++) {
+      const a = steps[i], b = steps[i + 1];
+      if (a?.type === 'LOOK_AND_REORDER' && b?.type === 'LOOK_AND_REORDER'
+          && a.private === true && b.private === false
+          && a.source.location === 'deck' && b.source.location === 'deck'
+          && a.source.owner === b.source.owner
+          && a.count === b.count && !a.canTrash && !b.canTrash
+          && a.destination.location === 'deck' && a.destination.position === 'top'
+          && b.destination.position === 'split_top_bottom') {
+        out.push({ ...b, private: true });
+        i++;
+        continue;
+      }
+      out.push(a);
+    }
+    return { ...node, steps: out };
+  };
+  return rewrite(parsed);
+}
+
 function alignRevealedTrashCount(text: string, parsed: EffectAction): EffectAction {
   if (!/公開したカードをトラッシュに置く/.test(text)) return parsed;
 
@@ -11984,6 +12064,7 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = foldStructuredRevealUntil(text, parsed);
   parsed = foldRevealShuffleToDeckBottom(text, parsed);
   parsed = alignRevealedTrashCount(text, parsed);
+  parsed = foldLookThenOptionalBottom(parsed);
   parsed = inheritReplacedBranchDuration(text, parsed);
   parsed = foldRevealUntilShuffleBottomInline(text, parsed);
   parsed = wireSelectedSigniConditionalUp(text, parsed);
@@ -17597,7 +17678,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
         }
       }
+      // 🆕**「バトル以外によってバニッシュされたとき」**（2026-08-31 §5.2・`WXDi-D06-013-E1`・原文1枚）。
+      //   限定が落ちて**バトルバニッシュでも発火**していた（過剰発火）。
+      //   ⚠`byEffect` ではなく専用キー＝ルール処理（パワー0）のバニッシュも原文では発火する。
+      if (timing[0] === 'ON_BANISH' && /バトル以外によって[^。]{0,10}バニッシュされたとき/.test(trigText)) {
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), notByBattle: true };
+      }
       if (timing[0] === 'ON_TRASH') {
+        // 🆕**「アタックフェイズの間、」前置き**（2026-08-31 §5.2・`SP27-003-E1` ほか原文3枚）＝
+        //   フェイズ限定が落ちて**メインフェイズのトラッシュでも発火**していた（過剰発火）。
+        //   受け皿は既存の `triggerCondition.duringAttackPhase`（ON_BANISH/ON_LEAVE_FIELD/ON_DRAW で配線済み）＝
+        //   今回 `collectTrashTriggers` にも同じ式を足した。
+        if (/^アタックフェイズの間、/.test(trigText.trim()) || /【自】：アタックフェイズの間、/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringAttackPhase: true };
+        }
         // 🆕**「バニッシュされる**か**場からトラッシュに置かれたとき」＝契機が2つ**（2026-08-30・`WD21-017-E1`）。
         // 🔴`ON_TRASH` だけに落ちており、**バニッシュされたときに一度も発火しなかった**（過小実行）。
         //   ⚠バトルバニッシュはエナへ行くので `ON_TRASH` では拾えない＝この2契機は別物。
@@ -22320,7 +22414,13 @@ export function wireShuffledBottomRemainder(action: EffectAction, sourceText: st
  * ⚠`wireShuffledBottomRemainder` と同じ規約＝**AUTO の既存受け皿にだけ**当て、木の形は変えない。
  */
 export function wireTopOrBottomRemainder(action: EffectAction, sourceText: string): EffectAction {
-  if (!/残りを[^。]*デッキの一番上か一番下に(?:置く|戻す)/.test(sourceText)) return action;
+  // 🆕**「そうでない場合、それをデッキの一番下に置いて**もよい**」も同じ受け皿**（2026-08-31 §5.2・
+  //   `WXK03-050-E1`）＝`remainder.position:'bottom'` は**必ず**デッキ下へ送るので、
+  //   ピックしなかった札を**上に残す選択が消えていた**。1枚のときの `split_top_bottom` は
+  //   「下に置く／置かない（＝上に戻す）」の二択＝原文どおり。
+  const optionalBottomRemainder = /そうでない場合、(?:それ|そのカード)を?(?:あなたの)?デッキの一番下に置いてもよい/.test(sourceText);
+  if (!optionalBottomRemainder
+      && !/残りを[^。]*デッキの一番上か一番下に(?:置く|戻す)/.test(sourceText)) return action;
   const visit = (value: unknown): void => {
     if (!value || typeof value !== 'object') return;
     if (Array.isArray(value)) { value.forEach(visit); return; }
@@ -22756,6 +22856,29 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     }
   }
 
+  // 【ライド】（ルリグ・2026-08-31 §5.2）＝**キーワードそのものが1つの【起】能力**。
+  //   原文の注釈「（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。
+  //   これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）」
+  //   は `stripRuleParens` で落ちるため、`stripKeywordPrefixes` が **`【ライド】` を無言で捨てて能力が消えていた**
+  //   （実測＝ルリグ9枚すべてでライドが撃てない）。⚠**受け皿は既にある**＝`STUB{RIDE_ON}`
+  //   （`execStubPart2.ts` の RIDE_ON → `INTERNAL_RIDE_ON_APPLY` で乗機シグニの選択まで実装済み。
+  //   ドライブ状態チェックも stub 側が持つ）＝ここは**生成側の配線だけ**。
+  //   ⚠**効果番号を崩さないため末尾へ `-RIDE` で足す**（`-LAYER`/`-SONG`/`-TRAP` と同じ規約）。
+  if (baseType === 'ルリグ' && /^【ライド】/.test((card.EffectText ?? '').trim())) {
+    logSourceText(`${card.CardNum}-RIDE`, '【ライド】');
+    effects.push({
+      effectId: `${card.CardNum}-RIDE`,
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '赤', count: 0 }] },
+      action: { type: 'STUB', id: 'RIDE_ON' },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      usageLimit: 'once_per_turn',
+      parseStatus: 'AUTO',
+    });
+  }
+
   // ライフバースト（全タイプ共通）
   if (card.LifeBurst === '1' && card.BurstText && card.BurstText !== '-') {
     const burst = parseBurstEffect(card);
@@ -23130,7 +23253,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
   const shuffledBottomSource = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
   // 「残りを（好きな順番で）デッキの一番上か一番下に置く」＝振り分けUI（`split_top_bottom`）へ配線する。
-  if (/残りを[^。]*デッキの一番上か一番下に(?:置く|戻す)/.test(shuffledBottomSource)) {
+  // 🆕**「そうでない場合、それをデッキの一番下に置いてもよい」も同じ入口**（2026-08-31 §5.2・`WXK03-050-E1`）。
+  if (/残りを[^。]*デッキの一番上か一番下に(?:置く|戻す)/.test(shuffledBottomSource)
+      || /そうでない場合、(?:それ|そのカード)を?(?:あなたの)?デッキの一番下に置いてもよい/.test(shuffledBottomSource)) {
     for (const effect of effects) {
       if (effect.parseStatus === 'AUTO') {
         effect.action = wireTopOrBottomRemainder(

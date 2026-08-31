@@ -1236,6 +1236,10 @@ export function collectTrashTriggers(
     }
     // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    // 🆕「**アタックフェイズの間、**…場からトラッシュに置かれたとき」（2026-08-31 §5.2・`SP27-003-E1`）。
+    //   ⚠キー（`triggerCondition.duringAttackPhase`）は既に在るのに **`ON_TRASH` のコレクタだけ見ておらず**、
+    //     メインフェイズのトラッシュでも発火していた（過剰発火）。他コレクタ（:1460/:1692/:1922 …）と同じ式。
+    if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
     // 「効果によって」だけの文型はコストを含まない。effect 起因シグナルが無ければ発火しない。
     if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
     // 「あなたの効果によって」＝自分の効果起因のみ。コスト・バトル・ルール処理（!byEffectCause）と相手効果（causeByOpponent）を除外。
@@ -1430,6 +1434,9 @@ export function collectBanishTriggers(
       if (eff.condition && !evalUseCondition(eff.condition, ownerStateForCond, otherStateForCond, ctx.cardMap, banishedCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!(banishedOwnerIsMe ? limitOkMy : limitOkOp)(eff)) continue;
     }
+    // 🆕「**バトル以外によって**バニッシュされたとき」（2026-08-31 §5.2・`WXDi-D06-013-E1`）。
+    //   バトル経路だけが `battleAttackerNum` を渡すので、それが在るときは発火しない。
+    if (eff.triggerCondition?.notByBattle && battleAttackerNum !== undefined) continue;
     if (eff.triggerCondition?.banishedWasUp
       && (banishedZone < 0 || !prevOwnerState || prevOwnerState.field.signi_down?.[banishedZone] === true)) continue;
     if (eff.triggerCondition?.banishedHadCharm
@@ -1469,6 +1476,7 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.banishedHadAcce && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;
       if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
       if (eff.triggerCondition?.notWhileAttacking && battleAttackerNum === topNum) continue;
+      if (eff.triggerCondition?.notByBattle && battleAttackerNum !== undefined) continue;
       if (eff.triggerCondition?.banishedLevelLtWatcher) {
         const banishedLevel = parseInt(ctx.cardMap.get(getCardNum(banishedCardNum))?.Level ?? '', 10);
         const watcherLevel = parseInt(ctx.cardMap.get(getCardNum(topNum))?.Level ?? '', 10);
@@ -1526,6 +1534,7 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.banishedHadAcce && (banishedZone < 0 || !prevOwnerState?.field.signi_acce?.[banishedZone])) continue;
       if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
       if (eff.triggerCondition?.notWhileAttacking && battleAttackerNum === topNum) continue;
+      if (eff.triggerCondition?.notByBattle && battleAttackerNum !== undefined) continue;
       if (eff.triggerCondition?.banishedLevelLtWatcher) {
         const banishedLevel = parseInt(ctx.cardMap.get(getCardNum(banishedCardNum))?.Level ?? '', 10);
         const watcherLevel = parseInt(ctx.cardMap.get(getCardNum(topNum))?.Level ?? '', 10);
@@ -4238,7 +4247,7 @@ function triggerStateFilterOk(state: PlayerState, cardNum: string, filter: Targe
     const has = effs.some(e => e.effectType === 'AUTO' && (e.timing ?? []).includes('ON_PLAY'));
     if (filter.hasOnPlayAbility !== has) return false;
   }
-  const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'infected', 'isDown', 'isUp', 'isFrozen',
+  const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'hasUnderCards', 'hasAttachedOrUnder', 'infected', 'isDown', 'isUp', 'isFrozen',
     'isAwakened', 'isArmored', 'isPuppet', 'crossState', 'inGateZone', 'centerZoneOnly', 'zoneSide'] as const;
   if (!ZONE_STATE_KEYS.some(k => (filter as Record<string, unknown>)[k] !== undefined)) return true;
   const zi = state.field.signi.findIndex(stack => stack?.at(-1) === cardNum);

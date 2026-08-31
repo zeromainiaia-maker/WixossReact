@@ -8667,9 +8667,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-P11-078": [
     {"effectId":"WXDi-P11-078-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardName":"融合の儀　タウィル//メモリア"}},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","cardName":"融合の儀　タウィル//メモリア"}},"optional":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
-  "WXDi-P14-033": [
-    {"effectId":"WXDi-P14-033-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-  ],
   "WX25-P1-079": [
     // 原文「**あなたのクロス状態のすべてのシグニ**のパワーを＋3000する」＝遅延トリガーの中身が
     // `owner:'any' / count:1`（＝任意の1体を選べる）になっていた。受け皿は `TargetFilter.crossState`。

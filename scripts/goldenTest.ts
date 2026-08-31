@@ -40666,8 +40666,10 @@ test('wave2 A3 WDK04-015-E1: resumed odd reveal encloses optional cost and self 
   const begin = (top: string) => {
     const ctx = mkCtx({ signi: ['WDK04-015', null, null], deckTop: [top], energy: 0 }, {}, 'WDK04-015');
     ctx.ownerState.energy = ['WD05-009'];
-    let result = resumeWave2Look(startWave2('WDK04-015', 'WDK04-015-E1', ctx), ctx);
-    result = resumeWave2Look(result, ctx);
+    // 🆕2026-08-31 §5.2＝原文「公開する。**それをデッキの一番下に置いてもよい。**」は
+    //   `LOOK_AND_REORDER{split_top_bottom}` **1ステップ**に畳んだ（旧＝「公開して上へ戻す」＋
+    //   「非公開で下へ送る」の2ステップで、後半が **原文に無い強制の下送り**だった）。⇒ resume も1回。
+    const result = resumeWave2Look(startWave2('WDK04-015', 'WDK04-015-E1', ctx), ctx);
     return { ctx, result };
   };
   const yes = begin('WD01-010');
@@ -55126,8 +55128,12 @@ test('段2 Sheet3① fresh: A群の条件・分岐・可変CHOOSEを parser 出�
   eq((choose.choices[2].condition as Extract<Condition, { type: 'CHARM_COUNT' }>).value, 3, '選択肢3はチャーム3枚条件');
 
   const toy = sheet3b1Fresh('WXK03-050', 'WXK03-050-E1').action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
-  eq((toy.then as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>).remainder?.position, 'bottom',
-    'WXK03-050-E1: 外れ札の行き先はデッキの一番下（任意性は未機構で別契約）');
+  // 🆕**2026-08-31 §5.2 で期待値を反転**＝旧契約は「任意性は未機構だから `bottom` 据置」だったが、
+  //   受け皿（`remainder.position:'split_top_bottom'`＝ピック後の振り分けUI）は既に在り、
+  //   原文「そうでない場合、それをデッキの一番下に置いて**もよい**」を `bottom` に潰すと
+  //   **上に残す選択が消える**（強制の下送り）。1枚のときの split は「下に置く／置かない」の二択。
+  eq((toy.then as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>).remainder?.position, 'split_top_bottom',
+    'WXK03-050-E1: 外れ札は「デッキの一番下に置いてもよい」＝振り分けUI（split_top_bottom）');
 }));
 
 test('段2 Sheet3① E2E: WX22-002 赤枝と WXEX1-48 は条件の成立・不成立を両方向で止める', () => withSavedCursor(() => {
@@ -56329,6 +56335,123 @@ test('V-100③ TRANSFER_TO_DECK: 場のシグニでも top/second/third/bottom �
   for (const p of [undefined, 'top', 'second', 'third', 'bottom']) {
     eq(at(p)[1], '6', `V-100③ ${p ?? '既定'} でデッキ枚数が6枚にならない`);
   }
+});
+
+// ===== 2026-08-31 続き756（§5.2 バッチ・残 OPEN 187→157）=====
+// この巡で新設／配線した語彙を「型＋両評価器＋golden」の3点セットで固定する（PLAN §4.2）。
+// 🔴新しい **TargetFilter のゾーン状態キー**は、片方の評価器にしか配線しないと
+//   **素通り（無条件成立）**に落ちて全ゲート緑のまま意味が壊れる。両方向（肯定/対照）で見る。
+
+test('続き756① TargetFilter.hasUnderCards / hasAttachedOrUnder: 両評価器に配線されている', () => {
+  // --- 生成側（parser 出力）---
+  const grant = (effectsMap.get('WXDi-P15-063') ?? []).find(e => e.effectId === 'WXDi-P15-063-E1');
+  eq((grant?.action as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>).target.filter?.hasUnderCards, true,
+    'WXDi-P15-063-E1: 「下にカードがある」＜解放派＞に限定する');
+  const pm = (effectsMap.get('WXDi-P11-079') ?? []).find(e => e.effectId === 'WXDi-P11-079-E1');
+  eq((pm?.action as Extract<EffectAction, { type: 'POWER_MODIFY' }>).target.filter?.hasAttachedOrUnder, true,
+    'WXDi-P11-079-E1: 「カードが付いているか下にカードがある」を1キーで持つ');
+  const perField = (effectsMap.get('WXDi-P15-051') ?? []).find(e => e.effectId === 'WXDi-P15-051-E1');
+  eq((perField?.action as Extract<EffectAction, { type: 'POWER_MODIFY_PER_FIELD' }>).countFilter?.hasUnderCards, true,
+    'WXDi-P15-051-E1: 「下にカードがあるシグニ1体につき」の数え上げにも限定を載せる');
+
+  // --- 評価器①: matchesStateFilter（CONTINUOUS/トリガー側）---
+  const st = mkState({ signi: ['WD01-009', 'WD01-010', 'WD01-011'] });
+  st.field.signi[0] = ['WD01-012', 'WD01-009'];      // 下にカードがある
+  st.field.signi_charms = [null, 'WD01-013', null];  // チャームが付いている（下にはカードなし）
+  ok(matchesStateFilter(st, 0, { hasUnderCards: true }), '下にカードがあるゾーンは通る');
+  ok(!matchesStateFilter(st, 1, { hasUnderCards: true }), 'チャームだけのゾーンは「下」ではない＝通らない');
+  ok(!matchesStateFilter(st, 2, { hasUnderCards: true }), '素のシグニは通らない');
+  ok(matchesStateFilter(st, 0, { hasAttachedOrUnder: true }), 'OR キー: 下カードで通る');
+  ok(matchesStateFilter(st, 1, { hasAttachedOrUnder: true }), 'OR キー: チャームでも通る');
+  ok(!matchesStateFilter(st, 2, { hasAttachedOrUnder: true }), 'OR キー: どちらも無ければ通らない');
+
+  // --- 評価器②: fieldCandidates（対象選択側）---
+  const cands = fieldCandidates(st, { cardType: 'シグニ', hasUnderCards: true }, cardMap as Map<string, CardData>);
+  eq(cands.join(','), 'WD01-009', '候補列挙でも下カードのあるシグニだけが残る');
+  const candsOr = fieldCandidates(st, { cardType: 'シグニ', hasAttachedOrUnder: true }, cardMap as Map<string, CardData>);
+  eq([...candsOr].sort().join(','), ['WD01-009', 'WD01-010'].sort().join(','), 'OR キーは下カード＋付属の両方を拾う');
+});
+
+test('続き756② 【ライド】はキーワードそのものが【起】能力（-RIDE 効果を生成する）', () => {
+  const rideCards = ['WDK01-001', 'WDK01-002', 'WDK01-003', 'WDK01-004',
+    'WXK01-001', 'WXK01-008', 'WXK01-009', 'WXK01-010', 'WXEX2-11'] as const;
+  for (const cn of rideCards) {
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === `${cn}-RIDE`);
+    ok(!!e, `${cn}: 【ライド】の【起】能力が無い（stripKeywordPrefixes が黙って捨てていた旧バグ）`);
+    eq(e?.effectType, 'ACTIVATED', `${cn}-RIDE: 【起】能力`);
+    eq(e?.usageLimit, 'once_per_turn', `${cn}-RIDE: 1ターンに一度`);
+    eq((e?.action as StubAction).id, 'RIDE_ON', `${cn}-RIDE: 受け皿は既存の STUB{RIDE_ON}`);
+  }
+});
+
+test('続き756③ この巡で配線した既存受け皿（cost/asDown/フェイズ限定/トークン/連用形の後半）', () => {
+  // 「このシグニと《NAME》N体を場からトラッシュに置く」＝後半が落ちて相方無しでも撃てた
+  for (const [cn, id, name] of [
+    ['WXDi-P11-051', 'WXDi-P11-051-E2', '融合の儀　ウムル//メモリア'],
+    ['WXDi-P11-078', 'WXDi-P11-078-E2', '融合の儀　タウィル//メモリア'],
+  ] as const) {
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === id);
+    eq(e?.cost?.trash_self, true, `${id}: 「このシグニ」側`);
+    eq(e?.cost?.fieldTrash?.filter?.cardName, name, `${id}: 「《NAME》1体」側（落とすと踏み倒せる）`);
+    eq(e?.cost?.fieldTrash?.excludeSelf, true, `${id}: 効果元自身を二重取りしない`);
+  }
+  // 「手札に加えるかダウン状態で場に出す」＝場出し枝の asDown
+  const k28 = (effectsMap.get('WXK11-028') ?? []).find(x => x.effectId === 'WXK11-028-E1');
+  const pick = (k28?.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+  eq(pick.handOrField, true, 'WXK11-028-E1: 手札か場かを選ぶ');
+  eq(pick.handOrFieldAsDown, true, 'WXK11-028-E1: 場に出す枝はダウン状態（落とすとそのターン殴れる）');
+  // 「アタックフェイズの間、…場からトラッシュに置かれたとき」＝ON_TRASH のフェイズ限定
+  const sp = (effectsMap.get('SP27-003') ?? []).find(x => x.effectId === 'SP27-003-E1');
+  eq(sp?.triggerCondition?.duringAttackPhase, true, 'SP27-003-E1: アタックフェイズ限定（メインでも発火していた旧バグ）');
+  // 「バトル以外によってバニッシュされたとき」＝notByBattle
+  const d06 = (effectsMap.get('WXDi-D06-013') ?? []).find(x => x.effectId === 'WXDi-D06-013-E1');
+  eq(d06?.triggerCondition?.notByBattle, true, 'WXDi-D06-013-E1: バトル以外に限定（バトルでも発火していた旧バグ）');
+  // 🔴engine を実走させて両方向を見る＝キーを足しただけの「素通り」を炙る。
+  //   バトル経路だけが `battleAttackerNum` を渡すので、それが在るときは発火してはいけない。
+  {
+    const hostD = mkState({ signi: ['WXDi-D06-013', null, null] });
+    const guestD = mkState({});
+    const fired = (attacker?: string) => hasEffect(
+      collectBanishTriggers(trigCtx(HOST, HOST), 'WXDi-D06-013', HOST, hostD, guestD, hostD,
+        attacker ? undefined : { ownerId: GUEST }, attacker).entries,
+      'WXDi-D06-013-E1');
+    eq(fired(undefined), true, 'WXDi-D06-013-E1: 効果によるバニッシュでは発火する');
+    eq(fired(SIGNI), false, 'WXDi-D06-013-E1: バトルによるバニッシュでは発火しない（旧バグ）');
+  }
+  // 「【リミットアッパー】１つを得る」＝プレイヤーのトークン（GRANT_KEYWORD は無言 no-op だった）
+  const lu = (effectsMap.get('WX24-P3-041') ?? []).find(x => x.effectId === 'WX24-P3-041-E1');
+  eq(((lu?.action as SequenceAction).steps.at(-1) as StubAction).id, 'PLACE_LIMIT_UPPER',
+    'WX24-P3-041-E1: リミットアッパーはプレイヤーのトークン');
+  // 「このターンにアタックしたすべてのシグニをバニッシュする」＝attackedThisTurn
+  const k35 = (effectsMap.get('WXK01-035') ?? []).find(x => x.effectId === 'WXK01-035-E1');
+  const granted = (k35?.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).abilities[0];
+  const delayed = (granted.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'INSTALL_DELAYED_TRIGGER' }>;
+  eq((delayed.effect as Extract<EffectAction, { type: 'BANISH' }>).target.filter?.attackedThisTurn, true,
+    'WXK01-035-E1-G: アタックしたシグニだけをバニッシュする');
+  // 「トラッシュの全カードをデッキに加えてシャッフルし、〈後続〉」＝連用形の後半が落ちていた
+  for (const [cn, id] of [
+    ['WXDi-CP01-021', 'WXDi-CP01-021-E1'], ['WX24-P2-038', 'WX24-P2-038-E1'],
+  ] as const) {
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === id);
+    const steps = (e?.action as SequenceAction).steps;
+    eq(steps[0].type, 'TRANSFER_TO_DECK', `${id}: 前半（トラッシュ→デッキ）`);
+    ok(steps.length >= 2, `${id}: 「し、」の右側が落ちている（旧バグ）`);
+  }
+  // 「デッキの一番下に置いてもよい」＝split_top_bottom（bottom は強制になる）
+  for (const [cn, id] of [
+    ['WDK04-014', 'WDK04-014-E1'], ['WDK04-015', 'WDK04-015-E1'],
+    ['WXDi-P06-071', 'WXDi-P06-071-E1'], ['WXDi-CP01-025', 'WXDi-CP01-025-E2'],
+  ] as const) {
+    const e = (effectsMap.get(cn) ?? []).find(x => x.effectId === id);
+    const look = (e?.action as SequenceAction).steps[0] as Extract<EffectAction, { type: 'LOOK_AND_REORDER' }>;
+    eq(look.destination.position, 'split_top_bottom', `${id}: 任意の下送りは振り分けUIで表す`);
+  }
+  eq(((effectsMap.get('WXDi-CP01-025') ?? []).find(x => x.effectId === 'WXDi-CP01-025-E2')?.action as SequenceAction)
+    .steps.length, 1, 'WXDi-CP01-025-E2: 「見る」＋「下へ」は1ステップ（原文に無い公開が混ざっていた旧バグ）');
+  // 「シグニゾーンにある表向きのすべてのカード」＝count:'ALL'
+  const k13 = (effectsMap.get('WDK13-001') ?? []).find(x => x.effectId === 'WDK13-001-E3');
+  eq((k13?.action as Extract<EffectAction, { type: 'TRASH' }>).target.count, 'ALL',
+    'WDK13-001-E3: 「すべてのカード」が1体に潰れていた旧バグ');
 });
 
 if (listMode) {

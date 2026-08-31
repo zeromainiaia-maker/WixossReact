@@ -1106,6 +1106,25 @@ export interface TargetFilter {
   //   判定は `signi_soul[zoneIdx] !== null`＝`hasAcce` と同じゾーン状態フィルタ（両評価器に配線済み）。
   hasSoul?:   boolean;
   /**
+   * 🆕**下にカードがある**（2026-08-31 §5.2・`WXDi-P15-063-E1`「**下にカードがある**あなたの＜解放派＞の
+   * シグニ1体」／`WXDi-P11-079-E1`「カードが付いているか**下にカードがある**対戦相手のシグニ1体」／
+   * `WXDi-P15-051-E1`「**下にカードがある**あなたのシグニ1体につき」）。
+   * 判定は**シグニスタックの高さ**＝`field.signi[zoneIdx].length > 1`（`THIS_CARD_HAS_UNDER` と同じ式）。
+   * ⚠**【チャーム】/【アクセ】/【ソウル】は「付いている」であって「下」ではない**（別配列）＝
+   *   「カードが付いているか下にカードがある」は `anyOf:[{hasCharm},{hasAcce},{hasSoul},{hasUnderCards}]`。
+   * ⚠`hasCharm`/`hasAcce`/`hasSoul` と同じ**ゾーン状態フィルタ**＝両評価器
+   *   （`matchesStateFilter` / `fieldCandidates`）に配線する。片方だけだと素通り（無条件成立）する。
+   */
+  hasUnderCards?: boolean;
+  /**
+   * 🆕**カードが付いているか下にカードがある**（2026-08-31 §5.2・`WXDi-P11-079-E1`）。
+   * 【チャーム】/【アクセ】/【ソウル】のいずれかが付いている **か** 下にカードがある、の OR。
+   * 🔴**`anyOf:[{hasCharm},{hasUnderCards},…]` では書けない**＝`anyOf` は `matchesFilter`（CardData 単体）
+   *   しか通らず、**ゾーン状態キーは中で黙って無視される＝無条件成立**になる（`execUtils.ts:941`）。
+   *   だから OR を1つのゾーン状態キーとして持つ。
+   */
+  hasAttachedOrUnder?: boolean;
+  /**
    * 🆕**【出】能力を持つ**（2026-08-31 続き748・`WXDi-P07-058-E1`「**【出】能力を持つ**あなたのシグニ1体が
    * 場に出たとき」）。判定には `effectsMap` が要るので `matchesFilter`（CardData 単体）では解けない＝
    * `triggerCollect` の `triggerStateFilterOk` が `ctx.effectsMap` を見て評価する。
@@ -1904,6 +1923,7 @@ export interface SearchAction {
   selectionConstraint?: SelectionConstraint;
   revealPicked?: boolean; // 探したカードを公開する（SEARCH UI 後に公開ログへ記録）
   handOrField?: boolean; // 探したシグニを「手札に加える or 場に出す」から選ぶ。true のとき then は行き先選択の基準だけに使う
+  handOrFieldAsDown?: boolean; // 🆕`handOrField` の「場に出す」枝をダウン状態で出す（`RevealAndPickAction` の同名キーと同義）
   // 見つかったカードに対して行う処理（REVEAL→ADD_TO_HAND など）
   then: EffectAction;
   // サーチ完了後に行う処理（SHUFFLE_DECK など）
@@ -2449,6 +2469,13 @@ export interface RevealAndPickAction {
   then: EffectAction;
   elseAction?: EffectAction; // 公開カードが filter に一致しない場合に実行（「そうでない場合」）
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
+  /**
+   * 🆕**`handOrField` の「場に出す」枝を**ダウン状態**で出す**（2026-08-31 §5.2・`WXK11-028-E1`
+   * 「その中から白のシグニ1枚を手札に加えるか**ダウン状態で場に出す**」）。
+   * 受け皿は `PLACE_SIGNI_ON_FIELD.asDown`（既存）＝**枝へ渡していなかっただけ**。
+   * ⚠落とすと**アップ状態で出る**＝そのターンにアタックできる過剰効果になる。
+   */
+  handOrFieldAsDown?: boolean;
   handOrEnergy?: boolean; // ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理（「手札に加えるかエナゾーンに置き」WXK06-011 等）。true のとき then は無視
   // 公開札を picked / remainder の2束として保持し、対戦相手がトラッシュへ置く束を選ぶ。
   // 選ばれなかった束は手札へ（WXDi-P05-015）。通常の then/remainder 移動より先に専用の相手CHOOSEへ進む。
@@ -4502,6 +4529,14 @@ export interface CardEffect {
     fromZones?: TriggerOriginZone[]; // 移動元を限定。ON_TRASH（「手札かデッキから」等）と ON_PLAY（「エナゾーンから場に出たとき」等）で共用し、指定領域からのみ発火する。
     forResonaCondition?: boolean; // レゾナの出現条件のためにトラッシュに置かれた場合のみ発火（WX10-055等）。通常のトラッシュ（バトル・効果・ルール処理）では発火しない
     resonaClass?: string;         // 出現条件で場に出たレゾナの＜クラス＞限定（CardClass で判定。WXEX1-58/72）
+    /**
+     * 🆕**「バトル以外によって」**（2026-08-31 §5.2・`WXDi-D06-013-E1`
+     * 「このシグニが**バトル以外によって**バニッシュされたとき」）。
+     * `ON_BANISH` 専用＝バトル経由（`collectBanishTriggers` に `battleAttackerNum` が渡る経路）では発火しない。
+     * 🔴**`byEffect` を流用してはいけない**＝あちらは「効果起因の原因主体がいる」ことを要求するので、
+     *   **ルール処理（パワー0）のバニッシュで発火しなくなる**（原文は「バトル以外」＝ルール処理も含む）。
+     */
+    notByBattle?: boolean;
     byEffect?: boolean; // 効果によるイベントのみ発火。ON_PLAY＝通常召喚を除外、ON_SIGNI_DOWN＝アタック/コストを除外、ON_TRASH＝コスト/バトル/ルール処理を除外（任意の効果起因＝自他問わず。WX18-086等）
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     byLrigOrSigniEffect?: boolean; // ルリグかシグニの効果が原因の場合のみ発火（WX14-066-E1）。CardData.Type の 'ルリグ'/'アシストルリグ'/'シグニ'/'レゾナ' を受理＝アシストルリグはルリグ・レゾナはシグニ。原因カード不明・スペル・アーツ・ルール処理では発火しない

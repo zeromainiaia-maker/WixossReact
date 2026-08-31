@@ -288,6 +288,8 @@ function filterJa(f?: any): string {
   if (f.hasCharm) parts.push('チャームのある');
   if (f.hasAcce) parts.push('アクセのある');
   if (f.hasSoul) parts.push('【ソウル】が付いている');
+  if (f.hasUnderCards) parts.push('下にカードがある');
+  if (f.hasAttachedOrUnder) parts.push('カードが付いているか下にカードがある');
   if (f.hasOnPlayAbility) parts.push('【出】能力を持つ');
   if (f.levelEqLastProcessedPlus != null) parts.push(`それよりレベルが${f.levelEqLastProcessedPlus}つ大きい`);
   if (f.powerLtAcceHost) parts.push('これにアクセされているシグニよりパワーの低い');
@@ -470,6 +472,8 @@ function costScalingSigniJa(filter?: any): string {
   const exactNameJa = filter.cardNames?.length === 1 ? `《${filter.cardNames[0]}》` : '';
   const stateJa = filter.hasAcce ? 'アクセされている'
     : filter.hasSoul ? '【ソウル】が付いている'
+    : filter.hasUnderCards ? '下にカードがある'
+    : filter.hasAttachedOrUnder ? 'カードが付いているか下にカードがある'
     : filter.isFrozen ? '凍結状態の'
     : filter.noAbilities ? '能力を持たない'
     : '';
@@ -1551,7 +1555,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // then（SEQUENCE）に REVEAL/ADD_TO_HAND があれば「公開し手札に加える」を反映
       const thenSteps = a.then?.type === 'SEQUENCE' ? (a.then.steps ?? []) : (a.then ? [a.then] : []);
       const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
-      const dest = a.handOrField ? '手札に加えるか場に出す'
+      const dest = a.handOrField ? (a.handOrFieldAsDown ? '手札に加えるかダウン状態で場に出す' : '手札に加えるか場に出す')
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
         // 🆕**2026-08-31 続き752**＝`asDown`（ダウン状態で場に出す）を描く。落とすとアップ配置と同じ文になり、
         //   「そのターン殴れるか」という実害の差が原文照合から消える（`PR-387-E1` の finding が実際に残っていた）。
@@ -2065,7 +2069,7 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 配置系（公開カードを手札/場/エナ/トラッシュ等へ）＝「その中から[filter]を[pickN][動詞]」
       const placeVerb =
-        a.handOrField ? '手札に加えるか場に出す'
+        a.handOrField ? (a.handOrFieldAsDown ? '手札に加えるかダウン状態で場に出す' : '手札に加えるか場に出す')
         : a.handOrEnergy ? '手札に加えるかエナゾーンに置く'
         : (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
         : a.then?.type === 'ADD_TO_FIELD'
@@ -3560,6 +3564,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'RIDE_ON') {
         const m = currentCardText.match(/ターン終了時まで、[^。]*?センタールリグ[^。]*?乗ってもよい/);
         if (m) return m[0];
+        // 🆕**キーワード `【ライド】` から生成した `-RIDE` 効果**（2026-08-31 §5.2）＝原文には
+        //   「センタールリグ…乗ってもよい」という本文が無い（注釈は `（…）` で書かれている）ので
+        //   上の抽出は空振りする。**生の英語 ID を出さない**ため定型文へ落とす（`census:stubs` C群）。
+        return 'ターン終了時まで、このルリグはあなたの＜乗機＞のシグニ1体に乗る（ドライブ状態になる）';
       }
       // 相手ドロー制限（OPP_DRAW_LIMIT）＝「（次の対戦相手の／その）ドローフェイズの間…対戦相手はカードを合計N枚までしか引けない」を原文抽出。
       if (a.id === 'OPP_DRAW_LIMIT') {
@@ -4256,6 +4264,10 @@ function effJa(e: Eff): string {
     }
     if (t === 'ON_BANISH' && e.triggerCondition?.notWhileAttacking) {
       s = `${s}、このシグニがアタック中でない場合`;
+    }
+    // 🆕「バトル以外によって」（2026-08-31 §5.2）＝限定を逆翻訳に必ず出す（出さないと計器から消える）。
+    if (t === 'ON_BANISH' && e.triggerCondition?.notByBattle) {
+      s = `バトル以外によって${s}`;
     }
     if (t === 'ON_BANISH' && e.triggerCondition?.banishedSourceStory) {
       s = `あなたの＜${e.triggerCondition.banishedSourceStory}＞のシグニの効果によって${s}`;

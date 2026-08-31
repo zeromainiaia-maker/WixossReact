@@ -10,38 +10,37 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁🔴**セッション（2026-08-31・続き755・Opus 5 単独／Codex 不使用）＝§5.1「実機未検証の返済」が残0になった。**
-  （`V-94`／`V-96`〜`V-100` の6件を一度に返済。**同日 続き753/754 と合わせて 10 → 0**。）
-  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 187（据置）｜census 高シグナル 12 / BASELINE 12（据置）**。
-  ⚠**3計器が据置なのは正しい**＝直したのは engine の実行経路で、JSON にも語彙にも触っていない。
-  **この巡の前進は「§5.1 残 6→0」「実機シナリオ 612→637本」「golden 3121→3123」でしか見えない。**
-  gates 全緑（**golden 3123**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
+- 🏁**セッション（2026-08-31・続き756・Opus 5 単独／Codex 不使用）＝§5.2 意味照合 段2 の残 OPEN を 187 → 157（-30）。**
+  （ユーザー指示「PLANを読み、OPENを30減らす」。**実装21件／較正9件**。）
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 🆕157（-30）｜census 高シグナル 12 / BASELINE 12（据置）**。
+  ⚠**台帳だけが動くのが正しい**（census は MANUAL/STUB を免除するので母集団が別・Sheet1 は別スコープ）。
+  gates 全緑（**golden 3123 → 3126**・0 FAIL・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）。
 
-  🔴🔑**実機でしか出なかった真バグを2件見つけた。どちらも「同じ式を2箇所以上に書いた」ことが真因。**
-  ①**`ON_ATTACK_SIGNI` の遅延トリガーが二重に積まれ、`attackerFilter` も素通り**していた（`WX25-CP1-085`）。
-  汎用 `collectFieldTriggers` の `delayed_triggers` ループ（`ON_PLAY`/`ON_BLOOM` 用に続き748 で足したもの）が
-  あのイベントまで巻き込み、**専用の対**と二重に積んでいた。`attackerOwner`／`attackerFilter` は専用側にしか
-  無いので、**白の＜ブルアカ＞でアタックしても －1000 が乗り、しかも2回乗った**。
-  ②**`TRANSFER_TO_DECK.position` の `second`/`third` が実経路に実装されていなかった**（`WDK09-011`）。
-  位置解決が3箇所に重複し、**SELECT_TARGET を挟む実経路（`applyDirectAction`）だけが top/bottom しか
-  見ていなかった**＝「デッキの上から三番目に置く」は黙って一番上へ落ちていた。
-  ⇒ どちらも**唯一の入口へ集約**（②は `deckInsertIndex`）。golden で固定し、**修正を外すと FAIL することを確認済み**。
+  🔑🔴**この巡の主産物＝「受け皿は既にあるのに生成側だけが取り残されている」型が、まだ本命だと再実証したこと。**
+  新設した語彙は**2つだけ**（`TargetFilter.hasUnderCards` / `hasAttachedOrUnder`、`triggerCondition.notByBattle`）で、
+  **残り19件はすべて既存受け皿への配線**（`STUB{RIDE_ON}`／`cost.fieldTrash{cardName}`／`split_top_bottom`／
+  `PLACE_SIGNI_ON_FIELD.asDown`／`duringAttackPhase`／`attackedThisTurn`／`STUB{PLACE_LIMIT_UPPER}`／`count:'ALL'`）。
+  最大のものは **【ライド】がルリグ9枚で丸ごと消えていた**こと（`stripKeywordPrefixes` が
+  キーワードを非効果として捨てており、`STUB{RIDE_ON}` は乗機選択まで実装済みだったのに**撃つ入口が無かった**）。
 
-  🔑**この2件から得た検出の型**＝
-  ・**二重発動は肯定側テストでは緑になる**（効いてはいるので）。**回数まで assert する。**
-  ・**枚数が同じで順序だけ違う挙動は、順序を見る計器が無いと永久に気づけない**（デッキの中身を全部別 id にする）。
-  ・**「同じ式を2箇所に書いた」形は、片方だけ機能を足した瞬間に「JSON も型も golden も緑のまま
-  実際に使われる経路にだけ実装が無い」になる**。コメントに「〜と同じロジック」と書いてあったら疑う。
+  🔑**新しく分かったこと3つ**＝
+  ①**「受け皿規則は在るのに到達しない」形がある**＝`【リミットアッパー】１つを得る` は `parseSentencePart3` に
+  規則が在ったのに、`parseSentencePart1` の**汎用「【K】を得る」が先に当たって**届いていなかった（＝無言 no-op）。
+  **grep で受け皿を見つけたら「先に食う規則」がいないかまで測る**（今回3件がこの形・直し方は part1 の先頭で引き取る）。
+  ②🔴**`anyOf` にゾーン状態キーを入れてはいけない**＝`anyOf` は `matchesFilter`（CardData 単体）しか通らないので
+  `hasCharm` 等は**中で黙って無視され＝無条件成立**する。OR は**専用キー1本**で持つ。
+  ③**`semanticAuditRecheck.mjs` の LCS 候補30件はほぼ全部が真の未修正**で、較正9件は逆に
+  **バッチ中に live JSON を開いたついでに claim を読み直して**見つかった。**live を開いたらその場で照合し直す。**
 
-  ✅**25シナリオはすべて両方向（肯定／対照）**＝過剰発火と無言 no-op のどちらにも倒れないことを毎回見た。
-  📋**ドライバの罠7点**（候補の表示反転／`field.lrig_attacked` と `lrig_has_attacked` は別物／
-  【出】コスト付きは払うまで DB に書かれない／CHOOSE のボタン名は `選択肢N` とは限らない／
-  フェイズ送りボタンは複数種／`img[alt]` の枚数で候補を測らない／
-  **対照が「そもそも操作できなかった」で PASS しないようにする**）は BUGFIXES 続き755 に集約した。
+  ⚠**実機は不要と判定**（§2.2 の表＝`src/screens/` を1バイトも触っていない）。新設語彙は**engine を実走させる
+  golden で両方向を固定し、修正を外すと FAIL することを実測**した。**UI に新しく面が出る2件だけ `V-103` へ登録**
+  （【ライド】の【起】ボタン9枚／`split_top_bottom` の振り分けUI 5枚）。
 
-**▶ 次の一手**＝🏁**§5.1 は残0になった**（続き753/754/755 で 10 → 0）。次は **§5.2 意味照合 段2 の残 OPEN 187**。主成分は機構待ちなので、`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る。⚠**着手前に `node scripts/archive/semanticAuditRecheck.mjs` を回す**（続き750 以降の実装が標本外へ波及している可能性がある）。
-§5.2 の残 187 は主成分が機構待ち（続き751 の全数 triage 参照）＝取るなら
-`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る。
+**▶ 次の一手**＝**§5.2 の残 157**。主成分は依然「機構待ち」（続き751 の全数 triage）だが、今回の -30 のうち
+21件が**既存受け皿への配線**だったので、**まだ「1件ずつ live JSON を開いて受け皿を grep する」の歩留まりは生きている**。
+取るなら ①`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md` の34件から機構を1つ選んで縦に切る
+②または今回と同じく **live を開いて claim を読み直す**（較正が9件も出た＝在庫はまだある）。
+⚠**着手前に `node scripts/archive/semanticAuditLedger.mjs` で数え直す。**
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -663,10 +662,35 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > 「直った」と言わない。**
 
+- [ ] 🆕**`V-103`＝続き756（§5.2 バッチ）で「UI に新しく面が出た」2件**（2026-08-31 登録・**この巡は `src/screens/` を1バイトも触っていない**ので §2.2 の表では④まででよいが、**どの計器も見ていない面**なので観測点だけ残す）。
+      ①**【ライド】の【起】ボタン**＝ルリグ**9枚**（`WDK01-001`〜`004`／`WXK01-001`/`008`/`009`/`010`／`WXEX2-11`）に
+      `-RIDE` 効果（`ACTIVATED{MAIN}`・`cost.energy 赤×0`・`once_per_turn`・`STUB{RIDE_ON}`）を**新規生成**した。
+      **見るもの**＝(a) ルリグの【起】一覧にライドが出る (b) 乗機シグニが居ないと撃てない／居れば選べる
+      (c) 既にドライブ状態なら空振りログで止まる (d) **1ターンに一度**。
+      ②**`split_top_bottom` の振り分けUI**＝`WDK04-014`／`WDK04-015`／`WXDi-P06-071`／`WXDi-CP01-025`／`WXK03-050` を
+      `position:'bottom'`（強制）から**振り分けUI**へ移した。**見るもの**＝1枚のとき「下に置く／置かない」の二択になり、
+      **置かない**を選んでも後続の「この方法で公開したカードが〜の場合」が成立すること（`lastProcessedCards` が残る）。
+      ⚠**②の「置かない」枝は golden では固定できていない**（`resumeLookAndReorder` に空配列を渡す経路しか通していない）。
+
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > 🆕🔴**2026-08-29 改定＝ここが「速いレーン」（§2.0）の本線キューになった。** 3つの計器のうち**段1 で真バグと確定しているのはここだけ**（census 🆕**245**（旧 460）と `behaviorAudit --queue` 566 は疑いで、偽陽性の選別にまた時間がかかる。両者の重なりはわずか28件＝**ほぼ別のものを見ている**）。
-> **母集団＝🆕残 OPEN 187件（影響カード 152枚・効果 145件／2026-08-31 続き752）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。2026-08-31 続き751 時点＝段2 消化939／段0除去207／段1偽陽性111／HIGH・MED・LOW＝146・41・0）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> **母集団＝🆕残 OPEN 157件（影響カード 124枚・効果 120件／2026-08-31 続き756）**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。同時点＝段2 消化970／段0除去206／段1偽陽性111／HIGH・MED・LOW＝127・30・0）。⚠**この数字はすぐ古くなる。着手前に必ず実行して数え直す。**
+> 🆕🔑**2026-08-31 続き756（-30／実装21・較正9）＝「受け皿は既にあるのに生成側だけが取り残されている」型がまだ本命だった。**
+> 新設した語彙は**2つだけ**（`TargetFilter.hasUnderCards`／`hasAttachedOrUnder` と `triggerCondition.notByBattle`）で、
+> 残りはすべて**既存の受け皿への配線**（`STUB{RIDE_ON}`／`cost.fieldTrash{cardName}`／`split_top_bottom`／
+> `PLACE_SIGNI_ON_FIELD.asDown`／`duringAttackPhase`／`attackedThisTurn`／`STUB{PLACE_LIMIT_UPPER}`／`count:'ALL'`）。
+> 🔑**新しい教訓①＝「受け皿規則は在るのに到達しない」形がある。** `【リミットアッパー】１つを得る` は
+> `parseSentencePart3` に規則が在ったのに、`parseSentencePart1` の**汎用「【K】を得る」が先に当たって**届いていなかった
+> （単体で part3 を叩くと正しく通る）。⇒ **grep で受け皿を見つけても「先に食う規則」がいないかを必ず測る**
+> （直し方＝part1 の**先頭**で引き取る。今回3件がこの形）。
+> 🔑**新しい教訓②＝`anyOf` にゾーン状態キーを入れてはいけない。** `anyOf` は `matchesFilter`（CardData 単体）しか
+> 通らないので、`hasCharm` 等は**中で黙って無視され＝無条件成立**する（`execUtils.ts:941`）。OR は専用キー1本で持つ。
+> 🔑**新しい教訓③＝`semanticAuditRecheck.mjs` の候補と実際の stale はほぼ重ならなかった。**
+> 較正9件はすべて**バッチの途中で live JSON を開いたついでに claim を照合し直して**見つけたもの。
+> ⇒ **live を開いた効果は、その場で finding の claim を読み直す**（LCS 候補出しより安い）。
+> ⚠**「し、」で続く連用形の後半が落ちる**形が実在する（`トラッシュの全カードをデッキに加えてシャッフル**し、**〜`＝原文9文）。
+> **1文型 = 1アクションに潰す規則は、後半を捨てていないかを必ず A/B で見る。**
 > 🆕🔴**2026-08-31 続き751（第46バッチ・Codex）＝「条件・限定が JSON に無い」81件を全数 triage した結果、残りの性質が判明した。**
 > **実装で閉じた13／既に直っていた19／受け皿ごと無い機構待ち34／受け皿はあるが部分修正になる見送り15。**
 > ⇒ **残 217 の主成分は parser の穴ではなく機構待ち。** 「1件ずつ受け皿を grep する」歩留まりは **13/81＝16%** まで落ちている。
@@ -1112,16 +1136,16 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-31 続き755 後（本行が直近の正）**：
-  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 187（据置）｜census 高シグナル 12 / BASELINE 12（据置）**
-  ＝**3計器とも据置が正しい**（直したのは engine の実行経路で、JSON にも語彙にも触っていない巡）。
-  🏁**§5.1「実機未検証の返済」＝残0**（続き753/754/755 で 10 → 0）。**実機シナリオ 612 → 637本。**
-  ⚠**§5.1 は3計器のどれにも載らない第4の軸**＝「全ゲート緑のまま人間だけが操作不能／無言 no-op／二重発動」を潰す節。
-  **golden 3121 → 3123（+2本）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
-  `census:stubs` A群🔴0／C群0、manual-fields 0、orphan manual 10（据置）、`censusManualDrift` 削除候補 0。
+- **2026-08-31 続き756 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕157（187 から -30）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
+  **golden 3123 → 3126（+3本・反転確認済み）**、smoke 全異常0、fuzz 全0、census **12 / BASELINE 12**、lint 0 errors、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、`censusManualDrift` 削除候補 0（`WXDi-P14-033-E1` の影武者を1件解消）。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
-  🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
-  ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+  🆕**新設語彙2つ**＝`TargetFilter.hasUnderCards` / `hasAttachedOrUnder`（両評価器＋PER_FIELD の数え上げに配線）と
+  `triggerCondition.notByBattle`。**残り19件はすべて既存受け皿への配線**（＝§5.2 の「本命」の再実証）。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更・engine 実走 golden で両方向を固定）。UI に面が出る2件だけ `V-103` へ登録。
+
 
 ## 付録A. 全体像と Definition of Done
 

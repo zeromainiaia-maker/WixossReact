@@ -1499,6 +1499,19 @@ export function fieldCandidates(
       const soulExists = (state.field.signi_soul?.[zoneIdx] ?? null) !== null;
       if (filter.hasSoul !== soulExists) return [];
     }
+    // 🆕下にカードがある（2026-08-31 §5.2）＝スタックの高さで判定。⚠charm/acce/soul は別配列。
+    if (filter?.hasUnderCards !== undefined) {
+      const underExists = (state.field.signi?.[zoneIdx]?.length ?? 0) > 1;
+      if (filter.hasUnderCards !== underExists) return [];
+    }
+    // 🆕「カードが付いているか下にカードがある」＝charm/acce/soul/下カードの OR（2026-08-31 §5.2）。
+    if (filter?.hasAttachedOrUnder !== undefined) {
+      const attachedOrUnder = (state.field.signi_charms?.[zoneIdx] ?? null) !== null
+        || hasAcceAt(state.field, zoneIdx)
+        || (state.field.signi_soul?.[zoneIdx] ?? null) !== null
+        || (state.field.signi?.[zoneIdx]?.length ?? 0) > 1;
+      if (filter.hasAttachedOrUnder !== attachedOrUnder) return [];
+    }
     if (filter?.isDown !== undefined) {
       const isDown = state.field.signi_down?.[zoneIdx] ?? false;
       if (filter.isDown !== isDown) return [];
@@ -2853,7 +2866,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ゾーン状態フィルタ（hasCharm/isFrozen/infected 等）が指定された場合は、直前に処理したカードを
       // 場から探してゾーン状態も照合する（「それに【チャーム】が付いている場合」WX25-P2-102/107/109。
       // matchesFilter は CardData のみで hasCharm 等を黙って無視するため、この補助照合が要る）。
-      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities'] as const;
+      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'hasUnderCards', 'hasAttachedOrUnder', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities'] as const;
       const needsZoneState = !!cond.filter && ZONE_STATE_KEYS.some(k => (cond.filter as Record<string, unknown>)[k] !== undefined);
       const matchedCards = procM.filter(cn => {
         const card = ctx.cardMap.get(getCardNum(cn));

@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter, signiClauseContainsNameFilter,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseUnderFilter, signiClauseTargetSpec, signiClauseResonaFilter, signiClauseExcludeResonaFilter, signiClauseCrossStateFilter, signiClauseNameFilter, signiClauseContainsNameFilter,
 } from '../parserUtils';
 
 /**
@@ -184,6 +184,42 @@ function removeAbilitiesTargetNounPhraseFilter(t: string, owner: Owner): TargetF
 }
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
+  // ---- 🆕「対戦相手のシグニゾーンにある表向きのすべてのカードをトラッシュに置く」（2026-08-31 §5.2・`WDK13-001-E3`）----
+  //   🔴汎用の TRASH 規則に食われて **`count:1`**（＝相手シグニ1体だけ）へ潰れていた。
+  //     原文は「**すべての**カード」なので、選択の余地なく相手の場のシグニ全部が対象。
+  //   ⚠「表向きの」＝裏向きで置かれたカード（クラフト等）を除く趣旨だが、シグニゾーンの表向きカード＝
+  //     場のシグニなので `SIGNI{count:'ALL'}` が忠実な近似（裏向き付属は `signi_facedown_attached` 側で別管理）。
+  {
+    const faceUpZoneM = t.trim().replace(/。$/, '')
+      .match(/^(あなた|対戦相手)のシグニゾーンにある表向きのすべてのカードをトラッシュに置く$/);
+    if (faceUpZoneM) {
+      return {
+        type: 'TRASH',
+        target: { type: 'SIGNI', owner: faceUpZoneM[1] === '対戦相手' ? 'opponent' : 'self', count: 'ALL', filter: { cardType: 'シグニ' } },
+      } as EffectAction;
+    }
+  }
+  // ---- 🆕「【リミットアッパー】１つを得る」（2026-08-31 §5.2・`WX24-P3-041-E1`）----
+  //   🔴汎用の「【K】を得る」規則（この関数の下流）に先に食われて `GRANT_KEYWORD` に化けており、
+  //     **シグニ1体へ文字列を付けるだけ**＝リミット計算が読む `limit_upper_token` にはどこからも届かない
+  //     無言 no-op だった。受け皿は既存＝`STUB{PLACE_LIMIT_UPPER}`（`execStubPart3.ts`・1つまで判定つき）。
+  //   ⚠**part1 の先頭で引き取る**（下流の汎用規則より先に当てないと同じ穴に落ちる）。
+  if (/^【リミットアッパー】[０-９\d]*つを得る$/.test(t.trim())) {
+    return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as EffectAction;
+  }
+  // ---- 🆕「このターンにアタックしたすべてのシグニをバニッシュする」（2026-08-31 §5.2・`WXK01-035-E1-G`）----
+  //   受け皿は既存＝`TargetFilter.attackedThisTurn`（`execUtils.ts:1538` が各 state の `attacked_signi_ids` を読む）。
+  //   🔴限定が落ちて **場の全シグニ**が対象になっていた（アタックしていないシグニまで巻き込む過剰効果）。
+  //   ⚠`owner:'any'`＝`attacked_signi_ids` はアタックした側にしか載らないので、これで「アタックした分だけ」になる。
+  //   ⚠既存の兄弟＝`effectParser.ts` の「**その**ターンにアタックしていたすべてのシグニをバニッシュする」
+  //     （遅延予約の本体）。こちらは「**この**ターン」＝`INSTALL_DELAYED_TRIGGER` の本体として解析される形。
+  if (/^このターンにアタックした(?:すべての)?シグニをバニッシュする$/.test(t)) {
+    return {
+      type: 'BANISH',
+      target: { type: 'SIGNI', owner: 'any', count: 'ALL', filter: { cardType: 'シグニ', attackedThisTurn: true } },
+    } as EffectAction;
+  }
+
   // 🔴§5.3 `O-87`（2026-08-26）＝「あなたの【トラップ】１つを対象とし、それを**手札に戻す**」（`WX21-057-E2`）は
   //   **この関数の汎用 BOUNCE に先に食われて「自分のシグニ1体を手札に戻す」に化けていた**
   //   （盤面から自分のシグニが消える過剰実行）。`TRAP_TO_HAND` は part2 に在るが**そこまで到達しない**ので、
@@ -1361,7 +1397,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         type: 'POWER_MODIFY_PER_FIELD',
         target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
         deltaPerUnit: sign * parseNum(m[4]),
-        countFilter: { cardType: 'シグニ' },
+        // 🆕**「下にカードがある」を落とさない**（2026-08-31 §5.2・`WXDi-P15-051-E1`）＝
+        //   `countFilter` が素の `シグニ` だったので**下カードの無いシグニまで数え**、
+        //   原文より大きな減少になっていた。受け皿は `TargetFilter.hasUnderCards`（両評価器＋
+        //   `execPowerModifyPerField` / CONTINUOUS collector の両方に配線済み）。
+        countFilter: { cardType: 'シグニ', hasUnderCards: true },
         countOwner: 'self',
       } as PowerModifyPerFieldAction;
     }
@@ -4184,7 +4224,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   「＜空獣＞か＜地獣＞のシグニ」の OR（`story:["空獣","地獣"]`）を最後の1クラスへ潰してしまう
       //   （実測 A/B で `WX02-055-E1`／`WX04-069-E1`／`WX05-041-E1`／`WX19-042-E1`／`WX19-070-E1`／`WXEX2-43-E1` が退化）。
       const kwSpecFilterRaw: TargetFilter = kwSpec
-        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t),
+        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t), ...signiClauseUnderFilter(t),
             ...(kwTargetPossessionM ? { keyword: kwTargetPossessionM[1] } : {}),
             ...(kwTargetDrive ? { isDrive: true } : {}) }
         : {};

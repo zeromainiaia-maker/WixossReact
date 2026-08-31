@@ -624,6 +624,18 @@ export function signiClauseDisonaFilter(text: string): Partial<TargetFilter> {
   return SIGNI_CLAUSE_ADJACENT_DISONA.test(text) ? { isDisona: true } : {};
 }
 
+/**
+ * 🆕「**下にカードがある**〈owner/modifier〉シグニN体（まで）」／
+ *    「**カードが付いているか下にカードがある**〈…〉シグニN体」の対象限定（2026-08-31 §5.2）。
+ * `signiClause*Filter` の兄弟＝**対象名詞句に隣接する分だけ**拾う（全文スキャンは条件節を引き込む）。
+ * ⚠OR 形（付いている**か**下にある）を先に見る＝後段だけ当てると charm/acce/soul だけのシグニが落ちる。
+ */
+export function signiClauseUnderFilter(text: string): Partial<TargetFilter> {
+  if (/カードが付いているか下にカードがある(?:(?![。、]).){0,16}シグニ/.test(text)) return { hasAttachedOrUnder: true };
+  if (/下にカードがある(?:(?![。、]).){0,16}シグニ/.test(text)) return { hasUnderCards: true };
+  return {};
+}
+
 /** 「レゾナではない〈owner/modifier〉シグニN体」の対象限定。 */
 export function signiClauseExcludeResonaFilter(text: string): Partial<TargetFilter> {
   const marker = 'レゾナではない';
@@ -960,6 +972,13 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
   if (/【チャーム】が付いている/.test(text)) filter.hasCharm = true; // 「【チャーム】が付いている対戦相手のシグニ」（G153）
+  // 🆕「**カードが付いているか下にカードがある**〈…〉シグニ」／「**下にカードがある**〈…〉シグニ」
+  //   （2026-08-31 §5.2・`WXDi-P11-079-E1`／`WXDi-P15-063-E1`／`WXDi-P15-051-E1`）。
+  //   ⚠**OR 形（付いている**か**下にある）を先に見る**＝後段の「下にカードがある」だけを当てると
+  //     チャーム/アクセ/ソウルだけが付いたシグニが候補から落ちる（原文より狭い＝取りこぼし）。
+  //   ⚠`anyOf` では書けない（ゾーン状態キーは `anyOf` の中で無視される）＝専用キー1本で持つ。
+  if (/カードが付いているか下にカードがある[^。、]*シグニ/.test(text)) filter.hasAttachedOrUnder = true;
+  else if (/下にカードがある[^。、]*シグニ/.test(text)) filter.hasUnderCards = true;
   if (text.includes('アップ状態')) filter.isUp = true;
   if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) filter.isDown = true;
   if (text.includes('凍結状態')) filter.isFrozen = true;

@@ -1439,3 +1439,46 @@ WX15-010-E1 :: すべての＜武勇＞
 WXDi-P11-064-E1 :: あなたのターンの間
 WXK10-027-E1 :: 【Ｓランサー】を得る
 WXK11-006-E4 :: センタールリグ１体がアタック
+
+# ===== 2026-08-31 続き756（§5.2 バッチ・実装21／較正9）=====
+# 【ライド】＝キーワードそのものが1つの【起】能力（受け皿 STUB{RIDE_ON} は既存・生成側だけ欠落）
+WDK01-001 :: 【ライド】
+WDK01-002 :: 【ライド】
+WDK01-003 :: 【ライド】
+WDK01-004 :: 【ライド】
+# 「このシグニと《NAME》N体を場からトラッシュに置く」＝後半（fieldTrash{cardName}）が落ちていた
+WXDi-P11-051-E2
+WXDi-P11-078-E2
+# TargetFilter.hasUnderCards / hasAttachedOrUnder 新設（両評価器＋PER_FIELD カウントに配線）
+WXDi-P11-079-E1
+WXDi-P15-051-E1
+WXDi-P15-063-E1
+# 「デッキの一番下に置いてもよい」＝split_top_bottom（強制に化けていた）
+WDK04-014-E1
+WXDi-CP01-025-E2
+WXDi-P06-071-E1
+WXK03-050-E1
+# REVEAL_AND_PICK handOrField の場出し枝を asDown に
+WXK11-028-E1
+# ON_TRASH に duringAttackPhase ゲートを配線
+SP27-003-E1
+# 「バトル以外によって」＝triggerCondition.notByBattle 新設
+WXDi-D06-013-E1
+# 「このターンにアタックしたすべてのシグニ」＝attackedThisTurn（157 は遅延実装済み＝較正）
+WXK01-035-E1-G
+# 「【リミットアッパー】１つを得る」＝STUB{PLACE_LIMIT_UPPER}（GRANT_KEYWORD に化けて無言 no-op だった）
+WX24-P3-041-E1
+# 「トラッシュの全カードをデッキに加えてシャッフルし、〈後続〉」＝連用形の後半が落ちていた
+WXDi-CP01-021-E1
+WXDi-P12-003-E1
+WX24-P2-038-E1
+# 「シグニゾーンにある表向きのすべてのカード」＝count:'ALL'
+WDK13-001-E3
+# ---- 較正（実装済みだったのに OPEN のまま残っていた）----
+WXDi-P03-087-E2
+SPK01-08-E1
+WD19-007-E1
+WXK05-035-E2
+WX24-P2-036-E1
+WDA-F02-07-E1
+WXEX1-38-E1

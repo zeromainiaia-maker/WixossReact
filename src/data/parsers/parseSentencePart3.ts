@@ -1092,7 +1092,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- あなたのルリグゾーンに【リミットアッパー】を置く ----
-  if (t.match(/ルリグゾーンに【リミットアッパー】[０-９\d]*つを置く/)) {
+  // 🆕**「【リミットアッパー】１つを**得る**」も同じ受け皿**（2026-08-31 §5.2・`WX24-P3-041-E1`・原文1枚）。
+  //   🔴旧＝汎用の `GRANT_KEYWORD{keyword:'リミットアッパー'}` に落ちており、**シグニ1体に文字列を付ける**
+  //     別物だった（`limit_upper_token` を読むリミット計算にはどこからも届かない＝無言 no-op）。
+  if (t.match(/ルリグゾーンに【リミットアッパー】[０-９\d]*つを置く/)
+      || t.match(/^【リミットアッパー】[０-９\d]*つを得る$/)) {
     return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as StubAction;
   }
 

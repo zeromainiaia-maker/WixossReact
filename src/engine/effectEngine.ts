@@ -1075,6 +1075,19 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     const v = (state.field.signi_soul?.[zoneIdx] ?? null) !== null;
     if (filter.hasSoul !== v) return false;
   }
+  // 🆕下にカードがある（2026-08-31 §5.2）＝スタックの高さで判定（`THIS_CARD_HAS_UNDER` と同じ式）。
+  if (filter.hasUnderCards !== undefined) {
+    const v = (state.field.signi?.[zoneIdx]?.length ?? 0) > 1;
+    if (filter.hasUnderCards !== v) return false;
+  }
+  // 🆕「カードが付いているか下にカードがある」＝charm/acce/soul/下カードの OR（2026-08-31 §5.2）。
+  if (filter.hasAttachedOrUnder !== undefined) {
+    const v = (state.field.signi_charms?.[zoneIdx] ?? null) !== null
+      || hasAcceAt(state.field, zoneIdx)
+      || (state.field.signi_soul?.[zoneIdx] ?? null) !== null
+      || (state.field.signi?.[zoneIdx]?.length ?? 0) > 1;
+    if (filter.hasAttachedOrUnder !== v) return false;
+  }
   if (filter.infected !== undefined) {
     const v = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
     if (filter.infected !== v) return false;
@@ -2498,9 +2511,12 @@ export function calcFieldPowers(
           const countsLrig = countTypes.includes('ルリグ') || countTypes.includes('アシストルリグ');
           let count = 0;
           for (const countState of countStates) {
-            for (const stack of countState.field.signi) {
+            for (const [zi, stack] of countState.field.signi.entries()) {
               const countNum = stack?.at(-1);
               if (!countNum || (mod.excludeSelf && countNum === topNum)) continue;
+              // 🆕ゾーン状態フィルタ（`hasUnderCards` 等）は `matchesFilter` を素通りする＝別評価する
+              //   （`execPowerModifyPerField` と**同じ式**＝片方だけ直すと経路で挙動が割れる）。
+              if (!matchesStateFilter(countState, zi, mod.countFilter)) continue;
               if (matchesFilter(cardMap.get(countNum), mod.countFilter)) count++;
             }
             if (countsLrig) {

@@ -1379,6 +1379,7 @@ export type PendingInteractionDef =
       lastProcessedCardsAfter?: string[]; // REVEAL_AND_PICK の公開 snapshot（選択結果とは別）
       // handOrField: ピックしたカードを1枚ずつ「手札に加える or 場に出す」の対話選択で処理する（「公開し手札に加えるか場に出し」）
       handOrField?: boolean;
+      handOrFieldAsDown?: boolean;
       // handOrEnergy: ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理する（「手札に加えるかエナゾーンに置き」）
       handOrEnergy?: boolean;
       opponentChoosesPileToTrash?: boolean;

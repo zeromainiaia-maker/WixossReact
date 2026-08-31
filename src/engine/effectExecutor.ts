@@ -4534,6 +4534,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     revealPicked: a.revealPicked,
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
+    ...(a.handOrFieldAsDown ? { handOrFieldAsDown: true } : {}),
     afterAction: a.afterSearch,
     selectionConstraint: resolvedSelectionConstraint,
   });
@@ -6706,6 +6707,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     ...(a.selectionConstraint ? { selectionConstraint: a.selectionConstraint } : {}),
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
+    ...(a.handOrFieldAsDown ? { handOrFieldAsDown: true } : {}),
     ...(a.handOrEnergy ? { handOrEnergy: true } : {}),
     ...(a.opponentChoosesPileToTrash ? { opponentChoosesPileToTrash: true } : {}),
     ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}), ...(a.remainder.reorder ? { reorder: true } : {}) } } : {}),
@@ -7268,11 +7270,17 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
     : [a.countFilter.cardType];
   const countsLrig = countTypes.includes('ルリグ') || countTypes.includes('アシストルリグ');
   const countCardsInState = (s: PlayerState) => {
-    const signi = s.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
-    const lrigs = countsLrig ? lrigZoneTops(s.field).filter((n): n is string => !!n) : [];
-    return [...signi, ...lrigs].filter(cn => {
+    // 🆕**ゾーン状態フィルタ（`hasUnderCards` 等）は `matchesFilter` を素通りする**ので zoneIdx で別評価する
+    //   （2026-08-31 §5.2・`WXDi-P15-051-E1`「**下にカードがある**あなたのシグニ1体につき」）。
+    //   ⚠ルリグ側には zoneIdx が無い＝ゾーン状態キーは当たらない（シグニ専用の語彙）。
+    const signi = s.field.signi.flatMap((stack, zi) => stack?.at(-1)
+      ? [{ cn: stack.at(-1)!, zi }] : []);
+    const lrigs = countsLrig
+      ? lrigZoneTops(s.field).flatMap(n => n ? [{ cn: n, zi: -1 }] : []) : [];
+    return [...signi, ...lrigs].filter(({ cn, zi }) => {
       if (a.excludeSelf && cn === ctx.sourceCardNum) return false;
-      return matchesFilter(ctx.cardMap.get(getCardNum(cn)), a.countFilter);
+      if (!matchesFilter(ctx.cardMap.get(getCardNum(cn)), a.countFilter)) return false;
+      return zi < 0 || matchesStateFilter(s, zi, a.countFilter);
     }).length;
   };
 
@@ -9781,7 +9789,9 @@ export function resumeSearch(
       : contPartsHF.length === 1 ? contPartsHF[0] : { type: 'SEQUENCE', steps: contPartsHF } as SequenceAction;
     const optsHF = [
       { id: 'hand', label: '手札に加える', available: true, action: { type: 'STUB', id: 'INTERNAL_PICK_TO_HAND', value: card } as EffectAction },
-      { id: 'field', label: '場に出す', available: hasEmptyHF, action: { type: 'PLACE_SIGNI_ON_FIELD', owner: ownerHF, cardNums: [card] } as EffectAction },
+      { id: 'field', label: pending.handOrFieldAsDown ? 'ダウン状態で場に出す' : '場に出す', available: hasEmptyHF,
+        action: { type: 'PLACE_SIGNI_ON_FIELD', owner: ownerHF, cardNums: [card],
+          ...(pending.handOrFieldAsDown ? { asDown: true } : {}) } as EffectAction },
     ];
     return needsInteraction(addLog(cur, `${cur.cardMap.get(getCardNum(card))?.CardName ?? card}を手札に加えるか場に出すか選択`), {
       type: 'CHOOSE', options: optsHF, count: 1, ...(contHF ? { continuation: contHF } : {}),
