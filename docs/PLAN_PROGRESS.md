@@ -1,5 +1,36 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-08-31・続き749・Opus 5 単独）＝census 高シグナルを 30 → 12（-18）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 30→12**
+  gates 全緑（**golden 3070 / 0 FAIL**・smoke 全0・fuzz 全0・census 12/12・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 -15／較正 -3（live 不変）**。
+  ⚠**ユーザー指示は「0にして」だったが 12 で止まっている**＝残りは全部「新しい機構の縦切り」（下記）。
+
+  🔑🏁**この巡の主題＝据置契約を3つ卒業させた**（PLAN §4.3「契約は毎回『理由がまだ生きているか』を読み直す」）。
+  ①**`O-104`（N体の中間動作はソフトロックする）の理由は 2026-08-30 続き732 で既に消えていた**
+  （`fixedSelectionPickLimit` が候補数へクランプ／実機 `softlockshortpick` が回帰ガード）。
+  🔴**契約が死んだことに誰も気づかないまま2セッション残っていた。**
+  ②「同じレベル」の**ペア付け**＝`SelectionConstraint.levelMultiset`（多重集合の1対1割り当て）を新設。
+  ③「**次に**」＝1回消費の耐性は**新機構が要らなかった**＝既存 `BATTLE_BANISH_PREVENT_LOSE_ABILITY`
+  （防いだら能力を失う＝実質1回）へ載せた（付与形も読むよう collector を1箇所広げただけ）。
+
+  🔴**逆に「生きていた契約」もあった**＝`(xxix)(2)`＝**【出】の任意コストは `optionalOnPlayCostStub` が
+  写せるキーでないと、その【自】が丸ごと積まれない（＝発火しない）**。⇒ cost の構造化は差し戻した。
+  **契約は全部が古いわけではない。**
+
+  🔑**「受け皿はあるのに JSON が指していない」死角が2巡連続で出た**＝今回は
+  `TRAP_OPERATION{trapOp:'under_signi'}`（`WXDi-P10-063-E1` そのものの受け皿・スキップ枝つき）。
+
+  🆕**新設**＝正面参照3（`FRONT_SIGNI_POWER_GTE` / `frontOfAllyWithSoul` / `attackedNotFront`）／
+  自分のクラッシュ置換（`self_crash_to_trash_and_refill`）／**`collectGenericDelayedTriggers`**
+  （任意 timing の遅延を1本で収集＝**足し忘れた timing が無言 no-op になる構造をやめた**）＋`duration:'NEXT_TURN'`／
+  `COST_INCREASE.amountFromZone`／ルリグアタック終了時の走査拡張と `lrigAttackNoDamage`。
+
+**▶ 次の一手**＝**§5.1 の実機返済**（`V-93`／`V-95`〜`V-102`）。環境は生きている（3セッション連続で実走）。
+census の残り12は**すべて §5.4(ii) に登録済み**＝アンコールのテキスト形コスト2／キーの場出し2／
+【出】任意コストの新支払い種別1／コスト付き置換2／「レゾナとしても扱う」1／発生源の否定限定1／
+デッキトップ↔ライフの入れ替え1／構造混線2。**どれも UI を含む縦切りなので1件ずつ巡を切る。**
+
 - 🏁**セッション（2026-08-31・続き748・Opus 5 単独）＝census 高シグナルを 61 → 30（-31）。**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 61→30**
   gates 全緑（**golden 3069→3071 / 0 FAIL**・smoke 全0・fuzz 全0・census 30/30・lint 0 errors）＋ `regen`。

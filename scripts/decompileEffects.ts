@@ -4113,6 +4113,16 @@ function effJa(e: Eff): string {
         : `${([] as unknown[]).concat(e.triggerFilter.story as unknown).map(x => `＜${String(x)}＞`).join('か')}の`;
       s = `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${colors}${stories}シグニが対戦相手のライフクロス1枚をクラッシュしたとき`;
     }
+    // 🆕**2026-08-31 §5.2 再照合**＝`triggerCondition.crashedByKeywords`（【ランサー】によるクラッシュ限定）を
+    //   逆翻訳が描いていなかった。engine は `triggerCollect.ts:59` で **fail-closed** に消費しており
+    //   golden も張ってあるのに、原文照合では「限定条件が無い」ようにしか見えず、
+    //   意味照合の finding（`WX19-071-E1`）が**直っているのに OPEN のまま**残っていた。
+    if (t === 'ON_OPP_LIFE_CRASHED' && Array.isArray(e.triggerCondition?.crashedByKeywords)) {
+      const kwJa = (e.triggerCondition!.crashedByKeywords as string[]).map(k => `【${k}】`).join('か');
+      s = s.includes('が対戦相手のライフクロス')
+        ? s.replace('が対戦相手のライフクロス', `が${kwJa}によって対戦相手のライフクロス`)
+        : s.replace('クラッシュ', `${kwJa}によってクラッシュ`);
+    }
     if (t === 'ON_ATTACK_PHASE_START' && e.triggerScope === 'any') s = '各アタックフェイズ開始時';
     if (e.effectType === 'TRAP_ICON' && t === 'ON_TRAP_ACTIVATE') s = '';
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;

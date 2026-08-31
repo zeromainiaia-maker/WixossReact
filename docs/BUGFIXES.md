@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き750）：意味照合 段2 の残 OPEN を 306 → 249（**-57**）＝**較正 -56／実装 -1**
+
+ユーザー指示「PLAN を読み、OPEN を30減らす」の1巡。**PLAN §5.2 の定石どおり、実装より先に再照合で在庫を回収した。**
+gates 全緑（typecheck / golden 117.8s 0 FAIL / smoke 全0 / fuzz 全0 / census 12 / census-stubs / manual-fields /
+census-enginetext / lint 0 errors）＋ `npm run regen`。
+**⑤実機は不要と判定**＝触ったのは `src/data/parsers/`・`scripts/`・`public/data/` だけで、
+`src/screens/` にも新しい型・機構にも触れていない（PLAN §2.2 の機械判定）。
+
+### ■ 真因1行
+
+**段2 の parser 規則は標本外の効果まで一緒に直すのに、台帳（`stage2_closed.txt`）は手で追記しないと減らない**
+＝**直っているのに OPEN のまま残る finding** が恒常的に溜まる。`semanticAuditRecheck.mjs` の候補89件を
+`--full` で 原文 × 逆翻訳 を1件ずつ目視したところ、**55件が既に live で直っていた**（歩留まり 62%）。
+
+- ⚠**これは較正であって前進ではない**＝live は1バイトも変えていない。直したのは**過去のバッチ**。
+- 🔴**閉じなかった34件は「逆翻訳が STUB のまま」「claim の軸が別」「指摘が今も残る」**＝
+  LCS の高さは判定ではない（PLAN §5.2 の警告どおり。閾値を下げて件数を稼いでいない）。
+- 判定の裏取りに **live JSON を6件スポット確認**した（`PLACE_VIRUS` / `GRANT_SOUL_HOST_ABILITY` /
+  `TRIGGER_SOURCE_MATCHES` / `PAID_ADDITIONAL_COST` / `SIGNI_ATTACK_BAN` / `LAST_PROCESSED_MATCHES`）。
+
+### ■ 実装2件（影響 1カード＋計器1本）
+
+1. 🔴**`WX19-071-E1` は「直っているのに逆翻訳が描いていなかった」**＝
+   `triggerCondition.crashedByKeywords`（【ランサー】によるクラッシュ限定）は engine が
+   `triggerCollect.ts:59` で **fail-closed** に消費しており golden も張ってあるのに、
+   **`decompileEffects.ts` に語彙が無く**「限定条件が落ちている」ようにしか見えなかった。
+   ⇒ `ON_OPP_LIFE_CRASHED` の描画に1本追加（影響 **3効果**＝`WX07-042-E1` / `WX19-028-E1` / `WX19-071-E1`）。
+   **速いレーンの検証は「逆翻訳を目視」なので、engine 側にだけ在る限定は永久に偽陰性になる**（§5.2 の再実証）。
+2. **`WXEX1-28-E1`＝「対象の対戦相手のシグニ１体を…の【チャーム】にする」のチャーム側オーナーが常に `self`**。
+   付与先の `toOwner` は同じ文の「対戦相手の…シグニ…【チャーム】」で判定するので**両方に当たってしまい**、
+   出所側は最後のフォールバック（`owner:'self'` 固定）へ落ちていた＝**自分のシグニを相手のチャームにする**別効果。
+   ⇒ `parseSentencePart1.ts` に**「〜を …の【チャーム】に」の『を』より前の名詞句だけ**を見る規則を追加。
+   母集団は**原文全数で1枚**（実測）なので他への波及なし。`heldReview --adopt WXEX1-28` で live へ採用。
+
+### ■ 検証コマンド
+
+```
+node scripts/archive/semanticAuditLedger.mjs        # 306 → 249
+node scripts/archive/semanticAuditRecheck.mjs       # 候補 89 → 34
+node scripts/archive/semanticAuditRecheck.mjs 7 --full   # 目視用（原文 × 逆翻訳）
+npm run gates && npm run regen
+npx tsx scripts/decompileEffects.ts --id WX19-071 --id WXEX1-28
+```
+
+**反転確認**＝`regen` 後の逆翻訳 diff は**4行だけ**（上記3効果＋`WXEX1-28-E1`）。live JSON の A/B 差分も
+`WXEX1-28-E1.action.charm.owner: self → opponent` の1点のみ＝**意図した件数だけが変わった**ことを機械確認済み。
+
+---
+
 ## 2026-08-31（続き749）：census 高シグナルを 30 → 12（**-18**）＝実装 -15／較正 -3
 
 ユーザー指示「census を0にして」の1巡。**0 には到達していない**（残 12＝下に全数と理由を書く）。

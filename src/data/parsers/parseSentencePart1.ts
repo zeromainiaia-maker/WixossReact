@@ -3800,6 +3800,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const charmFromTrash = t.includes('トラッシュから');
     const charmIsSelf = (t.includes('このシグニをそれの') || t.includes('このシグニを')) && !charmIsTopOfDeck && !charmFromTrash;
     const charmIsThisCard = t.includes('このカードをそれの') || t.includes('このカードを');
+    // 🆕**チャームにされる側が対戦相手のシグニ**（2026-08-31 §5.2 再照合・`WXEX1-28-E1`
+    //   「対象の対戦相手のシグニ１体を対象の対戦相手の他のシグニ１体の【チャーム】にする」）。
+    //   ⚠付与先の `toOwner` は同じ文の「対戦相手の…シグニ…【チャーム】」で判定するので**両方に当たる**＝
+    //   ここは**「〜を …の【チャーム】に」の『を』より前の名詞句**だけを見る。
+    //   これが無いと charm 側が常に `owner:'self'` に落ち、**自分のシグニを相手のチャームにする**別効果になる。
+    const charmSigniClauseM = t.match(/(あなた|対戦相手)の[^。、]{0,20}?シグニ(?:[０-９\d]+体)?(?:まで)?を[^。、]{0,30}?の【チャーム】に/);
+    const charmSigniOwner: Owner = charmSigniClauseM?.[1] === '対戦相手' ? 'opponent' : 'self';
     // チャームの出所オーナー（「対戦相手は自分のデッキ…」＝対戦相手が自分のデッキから＝opponent。WXEX2-76/WX08-006）
     const charmOwner: Owner = t.includes('対戦相手のデッキ') || t.includes('対戦相手のトラッシュ')
       || t.includes('対戦相手は自分のデッキ') || t.includes('対戦相手は自分のトラッシュ') ? 'opponent' : 'self';
@@ -3820,7 +3827,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         ? { type: 'TRASH_CARD', owner: charmOwner, count: charmCount, ...charmUpTo, filter: charmStory as TargetFilter }
         : charmIsSelf || charmIsThisCard
           ? { type: 'SIGNI', owner: 'self', count: 1 }
-          : { type: 'SIGNI', owner: 'self', count: 1 };
+          : { type: 'SIGNI', owner: charmSigniOwner, count: 1 };
     // 付与先が「このシグニの【チャーム】」＝効果元シグニ自身（任意選択でなく thisCardOnly。G147）
     const toThisCard = /このシグニの【チャーム】/.test(t);
     // 付与先が「そのシグニの【チャーム】」＝トリガー元シグニ（＝場に出たシグニ）に付与（任意選択でなく isTriggerSource。
