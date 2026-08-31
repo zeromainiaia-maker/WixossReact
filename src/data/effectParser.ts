@@ -10022,15 +10022,17 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   return { ...action, steps: rebuilt } as EffectAction;
 }
 
-// ── PLAN §5.3 `O-96` 第1バッチ（2026-09-01）──
-// 「〈相手シグニ〉を対象とし、《色…》を支払ってもよい。そうした場合、それを手札に戻す」だけを、
-// 対象宣言→保存→任意エナ支払い→同じ対象の BOUNCE へ組み替える。
+// ── PLAN §5.3 `O-96` 第1・第2バッチ（2026-09-01）──
+// 「〈相手シグニ〉を対象とし、〈任意コスト〉。そうした場合、それを〈帰結〉」を、
+// 対象宣言→保存→任意コスト→同じ対象への帰結へ組み替える。
 //
 // 🔴`TRANSFER_TO_HAND` は `targetsStored` を型・executor ともサポートしていないため対象外。
 // 🔴CHOOSE / GRANT_LRIG_ABILITY 内は器が違うため、root SEQUENCE 以外を対象外にする。
 // 🔴既に固定済みの効果へ二重適用しない（O-96 欠陥署名③④をそのままガードにする）。
 const O96_ENERGY_COST_BOUNCE_RE =
   /(?:対戦相手の|このシグニの正面の)[^「」。]{0,120}?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし、(?:《[赤青緑黒白無]》)+を支払ってもよい。そうした場合、それを手札に戻す/;
+const O96_HAND_DISCARD_TARGET_FIRST_RE =
+  /対戦相手の[^「」。]{0,180}?シグニ[０-９\d]*体(?:まで)?を?対象とし、手札(?:から[^「」。]{0,120}?)?を?[０-９\d]+枚捨ててもよい。そうした場合、(?:ターン終了時まで、それのパワーを[＋－+-][０-９\d]+する|それを(?:バニッシュする|手札に戻す|トラッシュに置く))/;
 
 function hasStoredTargetBinding(node: unknown): boolean {
   if (!node || typeof node !== 'object') return false;
@@ -10041,8 +10043,9 @@ function hasStoredTargetBinding(node: unknown): boolean {
   return Object.values(obj).some(hasStoredTargetBinding);
 }
 
-function applyO96EnergyCostBounceTargetFirst(text: string, action: EffectAction): EffectAction {
-  if (!O96_ENERGY_COST_BOUNCE_RE.test(text) || action.type !== 'SEQUENCE') return action;
+function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): EffectAction {
+  if (!(O96_ENERGY_COST_BOUNCE_RE.test(text) || O96_HAND_DISCARD_TARGET_FIRST_RE.test(text))
+      || action.type !== 'SEQUENCE') return action;
   if (hasStoredTargetBinding(action)) return action;
 
   const steps = [...action.steps];
@@ -10053,22 +10056,30 @@ function applyO96EnergyCostBounceTargetFirst(text: string, action: EffectAction)
   const wrapped = carrier.type === 'CONDITIONAL' && !(carrier as import('../types/effects').ConditionalAction).else
     ? carrier as import('../types/effects').ConditionalAction : undefined;
   const cost = (wrapped?.then ?? carrier) as StubAction;
-  // この下位形は「エナ支払いだけ」。別の任意コスト payload が混ざる形へ広げない。
-  if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST' || !cost.costColors?.length) return action;
-  if (Object.keys(cost).some(k => !['type', 'id', 'costColors'].includes(k))) return action;
+  if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST') return action;
+  const hasEnergyCost = !!cost.costColors?.length;
+  const hasHandDiscardCost = !!cost.handDiscard;
+  // 第1バッチの exact なエナ軸か、第2バッチの handDiscard 軸のどちらか一方だけ。
+  // payload 全体を運ぶため、count/filter/selectionConstraint はこの場で作り直さない。
+  if (hasEnergyCost === hasHandDiscardCost) return action;
+  const allowedCostKeys = hasEnergyCost
+    ? ['type', 'id', 'costColors']
+    : ['type', 'id', 'handDiscard'];
+  if (Object.keys(cost).some(k => !allowedCostKeys.includes(k))) return action;
 
   const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
-  const bounce = gate.then as import('../types/effects').BounceAction;
-  if (bounce.type !== 'BOUNCE' || bounce.target.type !== 'SIGNI') return action;
+  const outcome = gate.then as EffectAction & { target?: EffectTarget };
+  if (!['BOUNCE', 'POWER_MODIFY', 'BANISH', 'TRASH'].includes(outcome.type)
+      || outcome.target?.type !== 'SIGNI') return action;
 
   const selectTargetStep: EffectAction = {
-    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: bounce.target, abortIfNoCandidate: true,
+    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: outcome.target, abortIfNoCandidate: true,
   } as StubAction;
   const storeTargetStep: EffectAction = { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction;
   const paidGate: EffectAction = {
     ...gate,
     condition: { type: 'PAID_ADDITIONAL_COST' },
-    then: { ...bounce, targetsStored: true },
+    then: { ...outcome, targetsStored: true } as EffectAction,
   };
   const fixedSteps: EffectAction[] = [selectTargetStep, storeTargetStep, cost, paidGate];
 
@@ -12091,14 +12102,14 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, applyO96EnergyCostBounceTargetFirst(source, fixMiddleClauseTargetOwner(source,
+    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, fixMiddleClauseTargetOwner(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignationToPowerModify(source,
-      applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))))))));
+      applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applyPlaceUnderOtherwiseGate(source,
@@ -23307,6 +23318,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
+    // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に
+    // root SEQUENCE に見えるため、そこで適用すると据置対象のネスト器まで書き換わる。
+    if (effect.parseStatus === 'AUTO') {
+      effect.action = applyO96OptionalCostTargetFirst(sourceText, effect.action);
+    }
     // LOOK_AND_REORDER 専用分岐が単文条件ラッパより先に本文を消費する形の補完。
     // 「5枚見て1枚をトラッシュ、残りをデッキ上へ戻す」形だけに限定し、他の LOOK 群へ波及させない。
     const namedFieldTrashLook = sourceText.match(/あなたの場に《([^》]+)》が(?:ある|いる)場合、あなたのデッキの上からカードを([０-９\d]+)枚見る。その中から[１1]枚をトラッシュに置き、残りを好きな順番でデッキの一番上に戻す/);

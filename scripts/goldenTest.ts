@@ -17255,7 +17255,7 @@ const o96FixedSteps = (effect: CardEffect): EffectAction[] => {
     && JSON.stringify((step as ConditionalAction).then).includes('SELECT_TARGET_ONLY')) as ConditionalAction | undefined;
   return wrapped ? (wrapped.then as SequenceAction).steps : root;
 };
-const assertO96FixedOrder = (cardNum: string, effectId: string): void => {
+const assertO96FixedOrder = (cardNum: string, effectId: string): EffectAction[] => {
   const steps = o96FixedSteps(o96Live(cardNum, effectId)) as (EffectAction & { id?: string; abortIfNoCandidate?: boolean; then?: EffectAction })[];
   eq(steps[0].id, 'SELECT_TARGET_ONLY', `${effectId}: 対象宣言が任意コストより前`);
   eq(steps[0].abortIfNoCandidate, true, `${effectId}: 候補0なら支払い前に打ち切る`);
@@ -17263,8 +17263,9 @@ const assertO96FixedOrder = (cardNum: string, effectId: string): void => {
   eq(steps[2].id, 'OPTIONAL_COST', `${effectId}: 保存後に任意コスト`);
   eq(steps[3].type, 'CONDITIONAL', `${effectId}: 支払いゲート`);
   eq((steps[3] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', `${effectId}: 実支払いだけで帰結`);
-  eq(((steps[3] as ConditionalAction).then as import('../src/types/effects').BounceAction).targetsStored, true,
+  eq(((steps[3] as ConditionalAction).then as EffectAction & { targetsStored?: boolean }).targetsStored, true,
     `${effectId}: 帰結は宣言済み対象だけ`);
+  return steps;
 };
 
 test('O-96 第1バッチ JSON順序: 直列・前置条件・公開条件のBOUNCE 3効果を固定する', () => {
@@ -17304,6 +17305,65 @@ test('O-96 第1バッチ 据置契約: TRANSFER_TO_HAND は targetsStored 非対
   ok(!json.includes('SELECT_TARGET_ONLY'), 'TRANSFER_TO_HAND へ対象宣言を足さない');
   ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), 'TRANSFER_TO_HAND へ保存を足さない');
   ok(!json.includes('targetsStored'), '未対応フィールドを足さない');
+});
+
+test('O-96 第2バッチ JSON順序: handDiscard の4帰結型と payload／期間／delta を保存する', () => {
+  const powerEffect = o96Live('WDK10-014', 'WDK10-014-E1');
+  const power = assertO96FixedOrder('WDK10-014', 'WDK10-014-E1');
+  eq((power[3] as ConditionalAction).then.type, 'POWER_MODIFY', 'POWER_MODIFY 帰結');
+  eq(((power[3] as ConditionalAction).then as import('../src/types/effects').PowerModifyAction).delta, -8000,
+    'POWER_MODIFY delta を維持');
+  eq(powerEffect.duration, 'UNTIL_END_OF_TURN', '「ターン終了時まで」の期間を維持');
+  eq(JSON.stringify((power[2] as import('../src/types/effects').StubAction).handDiscard),
+    '{"count":1,"filter":{"cardType":"シグニ","story":"龍獣"}}', '＜龍獣＞1枚の捨て条件を維持');
+
+  const banish = assertO96FixedOrder('WD23-033-A', 'WD23-033-A-TRAP');
+  eq((banish[3] as ConditionalAction).then.type, 'BANISH', 'BANISH 帰結');
+  eq(JSON.stringify((banish[2] as import('../src/types/effects').StubAction).handDiscard),
+    '{"count":2,"filter":{"cardType":"シグニ","story":"トリック"}}', '＜トリック＞2枚の捨て条件を維持');
+
+  const bounce = assertO96FixedOrder('WXEX1-43', 'WXEX1-43-E2');
+  eq((bounce[3] as ConditionalAction).then.type, 'BOUNCE', 'BOUNCE 帰結');
+  eq(JSON.stringify((bounce[2] as import('../src/types/effects').StubAction).handDiscard),
+    '{"count":1,"filter":{"cardType":"シグニ","story":"美巧"}}', '＜美巧＞1枚の捨て条件を維持');
+
+  const trash = assertO96FixedOrder('PR-370', 'PR-370-E1');
+  eq((trash[3] as ConditionalAction).then.type, 'TRASH', 'TRASH 帰結');
+  eq(JSON.stringify((trash[2] as import('../src/types/effects').StubAction).handDiscard),
+    '{"count":1,"filter":{"cardType":"シグニ","cardName":"槍"}}', 'カード名に《槍》を含む1枚の捨て条件を維持');
+});
+
+test('O-96 第2バッチ 実行: 対象候補0なら手札コストを提示せず、旧木なら提示する', () => withSavedCursor(() => {
+  const effect = o96Live('WXK01-052', 'WXK01-052-E1');
+  const empty = mkCtx({ hand: 1 }, { signi: [null, null, null] }, 'WXK01-052');
+  const handBefore = empty.ownerState.hand.length;
+  const fixed = runEffect(effect.action, empty);
+  ok(fixed.done, '修正後: 対象候補0なら CHOOSE（手札コスト提示）を返さず完了');
+  eq(fixed.ownerState.hand.length, handBefore, '修正後: 手札を捨てない');
+
+  const steps = o96FixedSteps(effect);
+  const gate = steps[3] as ConditionalAction;
+  const { targetsStored: _drop, ...oldOutcome } = gate.then as EffectAction & { targetsStored?: boolean };
+  const oldTree: SequenceAction = { type: 'SEQUENCE', steps: [
+    steps[2],
+    { ...gate, condition: { type: 'IS_MY_TURN' }, then: oldOutcome as EffectAction },
+  ] };
+  const old = runEffect(oldTree, mkCtx({ hand: 1 }, { signi: [null, null, null] }, 'WXK01-052'));
+  ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも手札コストを提示してしまう');
+}));
+
+test('O-96 第2バッチ 据置契約: CHOOSE 内のネスト器3効果は変更しない', () => {
+  for (const [cardNum, effectId] of [
+    ['WXDi-D09-P17', 'WXDi-D09-P17-BURST'],
+    ['WX25-CP1-004', 'WX25-CP1-004-E1'],
+    ['WXDi-P13-045', 'WXDi-P13-045-E1'],
+  ] as const) {
+    const effect = o96Live(cardNum, effectId);
+    eq(effect.action.type, 'CHOOSE', `${effectId}: root CHOOSE を維持`);
+    const json = JSON.stringify(effect.action);
+    ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), `${effectId}: ネスト枝へ保存を足さない`);
+    ok(!json.includes('targetsStored'), `${effectId}: ネスト枝の帰結へ照応キーを足さない`);
+  }
 });
 
 // §5.3 O-128 第1バッチ＝「〈対象〉を対象とし、〈期間〉、（それのパワーを±Nし、）それは「【自】…」を得る」が
@@ -47874,7 +47934,12 @@ function batch26TargetAction(effectId: string): Extract<EffectAction, { target: 
 }
 
 function batch26AssertTargetPending(effectId: string, action: EffectAction, ctx: ExecCtx, exact: string, over: string): ExecResult {
-  const result = executeEffect({ effectId, effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  // この helper は対象 filter 単体の契約を見る。O-96 で leaf に targetsStored が付いた効果も、
+  // ここでは先行 SELECT_TARGET_ONLY を切り離しているため、保存対象への束縛だけ一時的に外す。
+  const isolatedAction = (action as EffectAction & { targetsStored?: boolean }).targetsStored
+    ? { ...action, targetsStored: false } as EffectAction
+    : action;
+  const result = executeEffect({ effectId, effectType: 'AUTO', action: isolatedAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
   ok(!result.done && result.pending.type === 'SELECT_TARGET', `${effectId}: 上限内が2体あるので対象選択`);
   if (result.done || result.pending.type !== 'SELECT_TARGET') return result;
   ok(result.pending.candidates.includes(exact), `${effectId}: ①上限ちょうどは候補`);

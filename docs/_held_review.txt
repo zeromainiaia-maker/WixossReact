@@ -21,119 +21,53 @@ PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-0
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
 
-## +PAID_ADDITIONAL_COST +SEQUENCE +SIGNI +STUB×2 -IS_MY_TURN ［4枚］
-WX24-P3-047 WX25-CP1-055 WXDi-P08-052 WXDi-P14-052
---- WX24-P3-047
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《占星術の巫女　リメンバ・ドウン》がいる場合、レベル２以上のシグニ１体を対象とし、ターン終了時まで、それのレベルを－１する。【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。その後、そのカードが＜宇宙＞のシグニの場合、対戦相手のレベル２以下のシグニ１体を対象とし、《白》《無》を支払って
-  - [1].action.steps[1].then.id = "OPTIONAL_COST"
-  - [1].action.steps[1].then.costColors[0] = "白"
-  - [1].action.steps[1].then.costColors[1] = "無"
-  - [1].action.steps[2].type = "CONDITIONAL"
-  - [1].action.steps[2].condition.type = "IS_MY_TURN"
-  - [1].action.steps[2].then.type = "BOUNCE"
-  - [1].action.steps[2].then.target.type = "SIGNI"
-  - [1].action.steps[2].then.target.owner = "opponent"
-  - [1].action.steps[2].then.target.count = 1
-  - [1].action.steps[2].then.target.upToCount = false
-  - [1].action.steps[2].then.target.filter.cardType = "シグニ"
-  - [1].action.steps[2].then.target.filter.level.max = 2
-  …（他 28 行）
---- WX25-CP1-055
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に他の＜ブルアカ＞のシグニがある場合、対戦相手のレベル１のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。【絆出】手札から＜ブルアカ＞のカードを２枚捨てる：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。,-
-  - [0].action.steps[0].then.id = "OPTIONAL_COST"
-  - [0].action.steps[0].then.costColors[0] = "白"
-  - [0].action.steps[1].type = "CONDITIONAL"
+## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［20枚］
+PR-370 WD23-033-A WDK10-014 WXDi-CP01-049 WXDi-CP02-099 WXDi-P00-033 WXDi-P03-084 WXDi-P04-038 WXDi-P05-082 WXDi-P07-093 WXDi-P08-047 WXDi-P08-075 WXDi-P10-074 WXDi-P11-081 WXDi-P12-085 WXEX1-43 WXK01-052 WXK10-029 WXK10-040 WXK11-017
+--- PR-370
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、手札からカード名に《槍》を含むシグニを１枚捨ててもよい。そうした場合、それをトラッシュに置く。【出】：あなたのデッキの上からカードを４枚公開し、その中からカード名に《槍》を含むシグニ１枚を手札に加える。残りをシャッフルしてデッキの一番下に置く。,：対戦相手のレベル２以下のシグ
+  - [0].action.steps[0].handDiscard.count = 1
+  - [0].action.steps[0].handDiscard.filter.cardType = "シグニ"
+  - [0].action.steps[0].handDiscard.filter.cardName = "槍"
   - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "BOUNCE"
+  - [0].action.steps[1].then.type = "TRASH"
   - [0].action.steps[1].then.target.type = "SIGNI"
   - [0].action.steps[1].then.target.owner = "opponent"
   - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.target.upToCount = false
-  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [0].action.steps[1].then.target.filter.level = 1
-  - [0].action.steps[1].then.optional = false
-  …（他 26 行）
---- WXDi-P08-052
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に白のシグニが３体以上ある場合、対戦相手のパワー3000以下のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。,-
-  - [0].action.steps[0].then.id = "OPTIONAL_COST"
-  - [0].action.steps[0].then.costColors[0] = "白"
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "BOUNCE"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "opponent"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.target.upToCount = false
-  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [0].action.steps[1].then.target.filter.powerRange.max = 3000
-  - [0].action.steps[1].then.optional = false
-  …（他 26 行）
-
-## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［3枚］
-WX20-054 WX25-P3-055 WXDi-P02-048
---- WX20-054
-  原文: 【自】《ターン１回》：シグニ１体が他のシグニゾーンに移動したとき、対戦相手のレベル３以下のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。,：カードを１枚引く。
-  - [0].action.steps[0].costColors[0] = "白"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "BOUNCE"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "opponent"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.target.upToCount = false
   - [0].action.steps[1].then.target.filter.cardType = "シグニ"
   - [0].action.steps[1].then.target.filter.level.max = 3
-  - [0].action.steps[1].then.optional = false
   ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
   + [0].action.steps[0].selectTarget.type = "SIGNI"
-  …（他 22 行）
---- WX25-P3-055
-  原文: 【常】《相手ターン》：このシグニのパワーは＋3000される。【常】《相手ターン》：対戦相手の効果によってこのシグニが場を離れる場合、代わりにターン終了時まで、この能力を失う。【自】：対戦相手のターン終了時、対戦相手のパワー12000以下のシグニ１体を対象とし、《白》《無》を支払ってもよい。そうした場合、それを手札に戻す。,：対戦相手のパワー10000以下のシ
-  - [2].action.steps[0].costColors[0] = "白"
-  - [2].action.steps[0].costColors[1] = "無"
-  - [2].action.steps[1].condition.type = "IS_MY_TURN"
-  - [2].action.steps[1].then.type = "BOUNCE"
-  - [2].action.steps[1].then.target.type = "SIGNI"
-  - [2].action.steps[1].then.target.owner = "opponent"
-  - [2].action.steps[1].then.target.count = 1
-  - [2].action.steps[1].then.target.upToCount = false
-  - [2].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [2].action.steps[1].then.target.filter.powerRange.max = 12000
-  - [2].action.steps[1].then.optional = false
-  ~ [2].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  …（他 24 行）
---- WXDi-P02-048
-  原文: 【常】：あなたの場に他のシグニがあるかぎり、このシグニのパワーは＋4000される。,：対戦相手のパワー8000以下のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。
-  - [1].action.steps[0].costColors[0] = "白"
-  - [1].action.steps[1].condition.type = "IS_MY_TURN"
-  - [1].action.steps[1].then.type = "BOUNCE"
-  - [1].action.steps[1].then.target.type = "SIGNI"
-  - [1].action.steps[1].then.target.owner = "opponent"
-  - [1].action.steps[1].then.target.count = 1
-  - [1].action.steps[1].then.target.upToCount = false
-  - [1].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [1].action.steps[1].then.target.filter.powerRange.max = 8000
-  - [1].action.steps[1].then.optional = false
-  ~ [1].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [1].action.steps[0].selectTarget.type = "SIGNI"
-  …（他 22 行）
-
-## +PAID_ADDITIONAL_COST -IS_MY_TURN ［2枚］
-WX25-P3-072 WXK08-037
---- WX25-P3-072
-  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のパワー8000以下のシグニ１体を対象とし、《白》《無》を支払ってもよい。そうした場合、それを手札に戻す。それが能力を持たない場合、代わりにそれをトラッシュに置く。,-
-  - [0].action.steps[0].selectTarget.filter.powerRange.max = 8000
-  ~ [0].action.steps[0].selectTarget.owner : "opponent" → "self"
-  + [0].action.steps[0].abortIfNoCandidate = true
-  ~ [0].action.steps[3].condition.type : "IS_MY_TURN" → "PAID_ADDITIONAL_COST"
-  ~ [0].action.steps[3].then.then.target.owner : "opponent" → "self"
-  ~ [0].action.steps[3].then.else.target.owner : "opponent" → "self"
---- WXK08-037
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のレベル１以下のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。あなたの登録者数が７０万人を達成している場合、追加で【エナチャージ１】をする。,-
-  - [0].action.steps[0].selectTarget.filter.level.max = 1
-  ~ [0].action.steps[0].selectTarget.owner : "opponent" → "self"
-  + [0].action.steps[0].abortIfNoCandidate = true
-  ~ [0].action.steps[3].condition.type : "IS_MY_TURN" → "PAID_ADDITIONAL_COST"
-  ~ [0].action.steps[3].then.target.owner : "opponent" → "self"
+  …（他 21 行）
+--- WD23-033-A
+  原文: 【出】《青》《青》：あなたのデッキからカードを３枚まで探して【トラップ】としてあなたのシグニゾーンに設置し、デッキをシャッフルする。【起】《アタックフェイズアイコン》＜トリック＞のシグニ１体を場からトラッシュに置く：カードを１枚引く。【トラップアイコン】：対戦相手のシグニ１体を対象とし、手札から＜トリック＞のシグニを２枚捨ててもよい。そうした場合、それをバニ
+  - [3].action.steps[0].handDiscard.count = 2
+  - [3].action.steps[0].handDiscard.filter.cardType = "シグニ"
+  - [3].action.steps[0].handDiscard.filter.story = "トリック"
+  - [3].action.steps[1].condition.type = "IS_MY_TURN"
+  - [3].action.steps[1].then.type = "BANISH"
+  - [3].action.steps[1].then.target.type = "SIGNI"
+  - [3].action.steps[1].then.target.owner = "opponent"
+  - [3].action.steps[1].then.target.count = 1
+  - [3].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [3].action.steps[1].then.target.upToCount = false
+  ~ [3].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [3].action.steps[0].selectTarget.type = "SIGNI"
+  …（他 21 行）
+--- WDK10-014
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、手札から＜龍獣＞のシグニを１枚捨ててもよい。そうした場合、ターン終了時まで、それのパワーを－8000する。,：カードを１枚引く。
+  - [0].action.steps[0].handDiscard.count = 1
+  - [0].action.steps[0].handDiscard.filter.cardType = "シグニ"
+  - [0].action.steps[0].handDiscard.filter.story = "龍獣"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "POWER_MODIFY"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.delta = -8000
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  …（他 20 行）
 
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
@@ -331,6 +265,24 @@ WXDi-P08-062
   - [0].action.steps[1].destination.position = "bottom"
   ~ [0].action.steps[0].destination.position : "top" → "split_top_bottom"
 
+## +PAID_ADDITIONAL_COST +SEQUENCE +SIGNI +STUB×2 -IS_MY_TURN ［1枚］
+WXDi-CP02-076
+--- WXDi-CP02-076
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、対戦相手のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、ターン終了時まで、それのパワーを－3000する。【絆常】：このシグニのパワーは＋4000される。,-
+  - [0].action.steps[0].then.id = "OPTIONAL_COST"
+  - [0].action.steps[0].then.handDiscard.count = 1
+  - [0].action.steps[1].type = "CONDITIONAL"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "POWER_MODIFY"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.delta = -3000
+  ~ [0].action.steps[0].then.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].then.steps[0].type = "STUB"
+  …（他 20 行）
+
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
 --- WX24-P2-055
@@ -357,24 +309,6 @@ WX25-P2-001
   ~ [0].action.type : "STUB" → "SEQUENCE"
   + [0].action.steps[0].type = "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
-
-## +PAID_ADDITIONAL_COST +SEQUENCE +STUB -CONDITIONAL -IS_MY_TURN -LAST_PROCESSED_MATCHES -SIGNI -TRASH ［1枚］
-WX25-P3-069
---- WX25-P3-069
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に他の＜迷宮＞のシグニがある場合、対戦相手のパワー3000以下のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。それが能力を持たない場合、代わりにそれをトラッシュに置く。,-
-  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "opponent"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [0].action.steps[0].selectTarget.filter.powerRange.max = 3000
-  - [0].action.steps[0].selectTarget.upToCount = false
-  - [0].action.steps[2].type = "CONDITIONAL"
-  - [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
-  - [0].action.steps[2].condition.owner = "self"
-  - [0].action.steps[2].condition.filter.cardType = "シグニ"
-  - [0].action.steps[2].condition.filter.story = "迷宮"
-  …（他 55 行）
 
 ## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +PREVENT_DAMAGE +SEQUENCE ［1枚］
 WXK04-014

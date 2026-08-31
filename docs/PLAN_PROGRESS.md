@@ -2479,6 +2479,46 @@ live は `REMOVE_ABILITIES{owner:'opponent'}` のみ（アップが落ち、対�
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-09-01・続き763・Opus 5 ＋ Codex 委譲）＝§5.3 `O-96` 第1バッチ（7効果）を parser 1本で消化。**
+  📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 46（据置＝§5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3151 → 3154（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**`O-96` の欠陥署名 161 → 154 効果。**
+
+  🔑🔴**この巡の主産物＝`O-96` の母集団を「原文の文字列一致」から「欠陥署名」へ数え直したこと。**
+  **署名**＝①原文が「〜を対象とし → 〜てもよい → そうした場合」順 ②live の同一効果に `STUB{OPTIONAL_COST}` がある
+  ③その前に `SELECT_TARGET_ONLY`/`STORE_LAST_PROCESSED_TARGETS` が**無い** ④効果内に `targetsStored` 等の照応キーも**無い**。
+  ⇒ **315効果中 154 は固定済み・161 が未固定。** 旧57枚／広い regex 311カードは**どちらも過大**で、
+  最大群「《色》を支払ってもよい」217枚は **executor の SEQUENCE インターセプトで既に処理済み**だった。
+  🔑**含意＝「原文にフレーズがある」で数える計器は、既存の処理経路を知らないぶん必ず過大に出る。
+  live の構造まで見る署名を作れば、その項目に限っては正しく数えられる。**（§5.3 冒頭の「この表は在庫の答えに使わない」への1つの回答）
+
+  🔑**新しく分かったこと3つ**＝
+  🔴①**2バッチ連続で同じ形の罠に当たった**＝`O-128` 第4は「収集契約」（`CONTINUOUS` の action 直下しか走査しない）、
+  今回は「**`TRANSFER_TO_HAND` は `targetsStored` を型・executor・`freezeStoredTargets` のどれにも持たない**」。
+  **どちらもフィールド／型名を合わせただけでは無言 no-op になる。**
+  ⇒ 🔑**受け皿へ配線するときは「型・実行・（あれば）凍結/収集」の全層に消費地点があるかを確かめる。**
+  今回 Codex は**足さずに11効果を据置した**＝正しい判断（→ `O-188` に登録）。
+  🔴②**遅いレーン（parser）の主要な検証はゲートではなくブラスト半径**＝
+  `git show <baseline>:public/data/effects_*.json` と現行を effectId 単位で機械 diff し、
+  **変わった集合が予定リストと完全一致するか**を見る（今回＝予定7件のみ・予定外0）。
+  🆕③**別件の疑義を2つ記録**＝`WXDi-P04-041-E1/E2` は重複ではない（別々の【自】）。
+  `WXDi-P05-059-E2` は原文がトラッシュ回収なのに `source` が `DECK_CARD`（未修正）。
+
+  ⚠**実機は不要と判定**（§2.2）＝`src/data/effectParser.ts`・`scripts/goldenTest.ts`・`public/data/` と生成物のみ。
+  **`src/screens/` も `src/engine/` も `src/types/` も触っていない**（新しい型・機構も足していない）。
+  反転確認は未実施で、代わりに上記のブラスト半径検算と `build:effects` 2回の SHA-256 一致を確認した。
+  ⚠**運用**＝Codex の投げ先は **`CODEX_HOME=/c/Users/zerom/.codex-work`**（続き761・762 は付け忘れ。
+  今回から検算済み＝`<home>/logs_2.sqlite-wal` の mtime を投入時刻と突き合わせる）。
+
+**▶ 次の一手**＝**`O-188`（`TRANSFER_TO_HAND` の `targetsStored` 対応）**。
+**3箇所を揃えるだけ**＝型（`effects.ts:1909`）／`execTransferToHand`（`effectExecutor.ts:3135` 付近）／
+`freezeStoredTargets` の `FREEZABLE`（同 `133`）。**`BOUNCE` の実装をそのまま写すのが最短**（先行例が7つある）。
+⇒ **解消すれば `O-96` の同じ parser 規則が 11効果へそのまま載る**（第2バッチ）。
+⚠**`src/types/` と `src/engine/` を触るので §2.2 の実機要否判定を必ず書く。**
+⚠**`source` が `TRASH_CARD`/`ENERGY_CARD` を指す点が `BOUNCE`（場のシグニ）と違う**＝
+`storedTargetCards` が場前提の実装になっていないかを確かめてから写す。
+② 他の候補＝§5.2 の残 46（主成分はコスト系＝支払いUI＝実機必須が約10件）／`O-187`（`mech` 偽陽性＝安い較正）。
+
 - 🏁**セッション（2026-09-01・続き762・Opus 5 ＋ Codex 委譲）＝§5.3 `O-128` 第4バッチ（3効果）。`O-128` は事実上クローズ。**
   📊**進捗3計器＝Sheet1 要対応 18 / 863（据置・+1 は `O-187` の偽陽性）｜台帳 残 OPEN 46（据置＝§5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
   gates 全緑（**golden 3148 → 3151（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・

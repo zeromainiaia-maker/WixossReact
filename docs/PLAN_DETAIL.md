@@ -1,5 +1,22 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+### 恒久指標（退避）2026-09-01 続き763 後
+
+- **2026-09-01 続き763 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 18 / 863 (2.1%)｜台帳 残 OPEN 46｜census 高シグナル 11 / BASELINE 12**
+  ＝🔴**3計器とも据置**（§5.2 を触っておらず、直した7効果はどれも Sheet1 外）。
+  ⚠**`BASELINE_HIGH` は 12 のまま据え置き**（11 に落ちた原因が未特定）。
+  **golden 3151 → 3154（+3本＝JSON の順序／前置条件の維持／「候補0なら任意コストを提示しない」実行挙動）**、
+  smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、lint 0 errors / 249 warnings、
+  `census:stubs` A群🔴0／C群0、manual-fields 0、**`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙 0本**＝既存の `SELECT_TARGET_ONLY{abortIfNoCandidate}` / `STORE_LAST_PROCESSED_TARGETS` /
+  `OPTIONAL_COST` / `PAID_ADDITIONAL_COST` / `BOUNCE{targetsStored}` だけで組んだ。
+  **parser に規則1本（`effectParser.ts:10025` `applyO96EnergyCostBounceTargetFirst`・63行）。**
+  **`O-96` の欠陥署名＝161 → 154 効果**（次の11効果は `O-188` 待ち）。
+  🔑**遅いレーンの主要検証＝ブラスト半径**＝ベースライン commit との effectId 単位 機械 diff で
+  **変わったのは予定の7件のみ・予定外0**。
+  ⚠**実機は不要と判定**（`src/screens/`・`src/engine/`・`src/types/` いずれも不変更・新型なし）。反転確認は未実施。
+
 ### 恒久指標（退避）2026-09-01 続き762 後
 
 - **2026-09-01 続き762 後（本行が直近の正）**：

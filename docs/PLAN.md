@@ -9,45 +9,42 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-- 🏁**セッション（2026-09-01・続き763・Opus 5 ＋ Codex 委譲）＝§5.3 `O-96` 第1バッチ（7効果）を parser 1本で消化。**
-  📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 46（据置＝§5.2 を触っていない）｜census 高シグナル 11 / BASELINE 12（据置）**。
-  gates 全緑（**golden 3151 → 3154（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
-  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**`O-96` の欠陥署名 161 → 154 効果。**
+- 🏁**セッション（2026-09-01・続き764・Opus 5 ＋ Codex 委譲）＝§5.3 `O-96` 第2バッチ（21効果）。規則を2方向へ一般化。**
+  📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 46（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
+  gates 全緑（**golden 3154 → 3157（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。
+  **`O-96` の欠陥署名 154 → 133 効果**（第1＋第2バッチで **161 → 133／-28**）。
 
-  🔑🔴**この巡の主産物＝`O-96` の母集団を「原文の文字列一致」から「欠陥署名」へ数え直したこと。**
-  **署名**＝①原文が「〜を対象とし → 〜てもよい → そうした場合」順 ②live の同一効果に `STUB{OPTIONAL_COST}` がある
-  ③その前に `SELECT_TARGET_ONLY`/`STORE_LAST_PROCESSED_TARGETS` が**無い** ④効果内に `targetsStored` 等の照応キーも**無い**。
-  ⇒ **315効果中 154 は固定済み・161 が未固定。** 旧57枚／広い regex 311カードは**どちらも過大**で、
-  最大群「《色》を支払ってもよい」217枚は **executor の SEQUENCE インターセプトで既に処理済み**だった。
-  🔑**含意＝「原文にフレーズがある」で数える計器は、既存の処理経路を知らないぶん必ず過大に出る。
-  live の構造まで見る署名を作れば、その項目に限っては正しく数えられる。**（§5.3 冒頭の「この表は在庫の答えに使わない」への1つの回答）
+  🔑🔴**この巡の最大の学び＝parser 規則は「適用地点」で対象範囲が変わる。ゲートでは出ない。**
+  当初 `parseActionText` の中で適用したら、**`CHOOSE` 組み立て前の枝が一時的に root `SEQUENCE` に見えて
+  スコープ外（群B）へ当たった**。**効果単位の最終 root へ移して解決。**
+  ⚠**このとき `npm run gates` は全部緑のままだった**＝
+  🔑**検出したのは fresh 三帳票（`_held_fresh`/`_partial_fresh`/`_idset_fresh`）とブラスト半径の機械 diff だけ。**
+  ⇒ **遅いレーン（parser）の主要な検証はゲートではなくブラスト半径**、を2バッチ連続で確認した。
 
   🔑**新しく分かったこと3つ**＝
-  🔴①**2バッチ連続で同じ形の罠に当たった**＝`O-128` 第4は「収集契約」（`CONTINUOUS` の action 直下しか走査しない）、
-  今回は「**`TRANSFER_TO_HAND` は `targetsStored` を型・executor・`freezeStoredTargets` のどれにも持たない**」。
-  **どちらもフィールド／型名を合わせただけでは無言 no-op になる。**
-  ⇒ 🔑**受け皿へ配線するときは「型・実行・（あれば）凍結/収集」の全層に消費地点があるかを確かめる。**
-  今回 Codex は**足さずに11効果を据置した**＝正しい判断（→ `O-188` に登録）。
-  🔴②**遅いレーン（parser）の主要な検証はゲートではなくブラスト半径**＝
-  `git show <baseline>:public/data/effects_*.json` と現行を effectId 単位で機械 diff し、
-  **変わった集合が予定リストと完全一致するか**を見る（今回＝予定7件のみ・予定外0）。
-  🆕③**別件の疑義を2つ記録**＝`WXDi-P04-041-E1/E2` は重複ではない（別々の【自】）。
-  `WXDi-P05-059-E2` は原文がトラッシュ回収なのに `source` が `DECK_CARD`（未修正）。
+  🔴①**規則の一般化は「engine が既に持っているもの」の範囲でやると engine 変更が0になる**＝
+  帰結型 `POWER_MODIFY`/`BANISH`/`TRASH`/`BOUNCE` は**すべて `targetsStored` を持ち `FREEZABLE`
+  （`effectExecutor.ts:133`）にも入っていた**ので、コスト軸と帰結型の2方向へ広げても engine は不要だった。
+  🔴②**`O-188` の登録票は間違っていたので訂正した**＝
+  `SELECT_TARGET_ONLY`（`execStubPart1.ts:168`）は **`SIGNI`/`LRIG`/`CENTER_LRIG_OR_SIGNI` しか受けず、
+  それ以外は候補を空にして黙って返す**。トラッシュ/エナからの選択には使えず、
+  **`abortIfNoCandidate` を付けると効果ごと発火しなくなって今より悪化する**。live に先行例も0件。
+  🆕③**`IS_MY_TURN` は did-it ゲートの誤パースだった**＝21件すべて原文照合し、
+  「自分のターンなら」に相当する条件は**1件も無かった**（Claude 側でも5件を抜き取り再確認）。
+  ⇒ **`PAID_ADDITIONAL_COST` への置換が正しい。**
 
   ⚠**実機は不要と判定**（§2.2）＝`src/data/effectParser.ts`・`scripts/goldenTest.ts`・`public/data/` と生成物のみ。
-  **`src/screens/` も `src/engine/` も `src/types/` も触っていない**（新しい型・機構も足していない）。
-  反転確認は未実施で、代わりに上記のブラスト半径検算と `build:effects` 2回の SHA-256 一致を確認した。
-  ⚠**運用**＝Codex の投げ先は **`CODEX_HOME=/c/Users/zerom/.codex-work`**（続き761・762 は付け忘れ。
-  今回から検算済み＝`<home>/logs_2.sqlite-wal` の mtime を投入時刻と突き合わせる）。
+  **`src/screens/` も `src/engine/` も `src/types/` も触っていない。** 反転確認は未実施で、
+  代わりにブラスト半径の機械 diff と `build:effects` 2回の SHA-256 一致を確認した。
+  ⚠**新規登録 `O-189`**＝`handDiscard.filter` から色指定が脱落（`WXK10-029-E1` 黒／`WXK10-040-E2` 赤）＝
+  **任意コストが原文より緩い＝過剰実行側**。旧 live 時点からの残差で今回は未修正。
 
-**▶ 次の一手**＝**`O-188`（`TRANSFER_TO_HAND` の `targetsStored` 対応）**。
-**3箇所を揃えるだけ**＝型（`effects.ts:1909`）／`execTransferToHand`（`effectExecutor.ts:3135` 付近）／
-`freezeStoredTargets` の `FREEZABLE`（同 `133`）。**`BOUNCE` の実装をそのまま写すのが最短**（先行例が7つある）。
-⇒ **解消すれば `O-96` の同じ parser 規則が 11効果へそのまま載る**（第2バッチ）。
-⚠**`src/types/` と `src/engine/` を触るので §2.2 の実機要否判定を必ず書く。**
-⚠**`source` が `TRASH_CARD`/`ENERGY_CARD` を指す点が `BOUNCE`（場のシグニ）と違う**＝
-`storedTargetCards` が場前提の実装になっていないかを確かめてから写す。
-② 他の候補＝§5.2 の残 46（主成分はコスト系＝支払いUI＝実機必須が約10件）／`O-187`（`mech` 偽陽性＝安い較正）。
+**▶ 次の一手**＝**`O-96` の残 133 から次の下位形を切る**。
+⚠**`TRANSFER_TO_HAND` 11効果は `O-188` 待ちなので取らない。** ネスト器（`CHOOSE`/`GRANT_LRIG_ABILITY`）6効果か、
+**まだ測っていないコスト軸**（自分をダウン／場・下からトラッシュ／公開）を**署名で数え直してから**切る。
+⚠**着手前に必ず署名で測り直す**（`scratchpad/tmp_o96b.mjs` / `tmp_o96c.mjs`）。
+② 他の候補＝`O-189`（安い・母集団は要計測）／§5.2 の残 46（コスト系＝支払いUI＝実機必須が約10件）／`O-187`（`mech` 偽陽性）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -904,7 +901,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | ⚠**1** | `O-106` | 🔴**未確定（表の25枚は別物を数えている）** | トリガー元の「**能力を持つ**」で絞る受け皿が無い | 🔴**2026-09-01 続き761 実測＝この行の「25枚」は信用しない。**`censusMechPopulation.mjs` の regex は「能力を**持たない**」を数えているが、**登録票の中身は「【出】能力を持つ」の triggerFilter**＝**別物**。しかも「持たない」側は `hasNoAbilities` で**実装済み**。⇒ **着手するなら「能力を持つ」で数え直すのが先。** |
 | ~~2~~ 🏁 | `O-128` | 🆕**残14枚だが実質0**（2026-09-01 第4バッチ後） | 【常】/【起】の中の引用能力付与が `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちる | 🔴**事実上クローズ＝ここから取らない。** 残14の内訳＝**engine の全文 regex で既に動作5**（`O-60` の在庫）／**据置契約を golden 化済み3**／**新機構待ち6**。**既存受け皿だけで取れる在庫は尽きた。** |
 | **3** | `O-159` | 20枚 ⚠**要精査** | 「能力を失い、**新たに得られない**」 | 🔴**2026-08-30 に個別実測したときは「残1効果」だった**＝**`liveRe` に漏れがある**（`GRANT_FIELD_SIGNI_ABILITY` 内の引用や `keyword_abilities_removed` を数えていない）。**着手前に必ず割り直す** |
-| **4** 🔼 | `O-96` | 🆕**残154効果**（2026-09-01 第1バッチ後・欠陥署名で実測） | 「〜を対象とし、〜してもよい。**そうした場合、それを**〜」＝**任意コストを跨ぐ対象の照応** | 🔑**数え方は「原文の文字列一致」ではなく「欠陥署名」**（登録票を見ること）。旧57枚／広い regex 311枚はどちらも過大。**実害**＝対象が支払いの**後**に選ばれる＝(a) 対象が無いのに支払いを提示 (b) 宣言後に対象が変わりうる。■**第1バッチ（BOUNCE 7効果）を parser 1本で消化済み**。**次は `O-188` を先に解消**（`TRANSFER_TO_HAND` の `targetsStored` 対応）＝それだけで11効果が同じ規則で載る。■⚠**遅いレーン**＝必ず**1つの下位形に絞り、ブラスト半径をベースライン commit との機械 diff で検算する**。 |
+| **4** 🔼 | `O-96` | 🆕**残133効果**（2026-09-01 第2バッチ後・欠陥署名で実測） | 「〜を対象とし、〜してもよい。**そうした場合、それを**〜」＝**任意コストを跨ぐ対象の照応** | 🔑**数え方は「欠陥署名」**（登録票を見ること）。**第1・第2バッチで 161 → 133（-28）を parser 規則1本の一般化で消化。****engine 変更ゼロ**（帰結型が `targetsStored`＋`FREEZABLE` を既に持っていたため）。■**次の下位形**＝`TRANSFER_TO_HAND` 11効果（🔴**`O-188` 待ち**）→ ネスト器（`CHOOSE`/`GRANT_LRIG_ABILITY`）6効果。■⚠**遅いレーンの検証はゲートではなくブラスト半径**＝ベースライン commit との effectId 単位 機械 diff。**適用地点を間違えるとゲートは緑のまま範囲が広がる**（第2バッチで実際に起きた）。 |
 | **5** | `O-92` | **13枚** | 「このターン、〜したとき」の遅延設置 | `INSTALL_DELAYED_TRIGGER` は既存。登録票の「受け皿待ち18枚」に近い |
 | **6** | `O-70` | 12枚 * | 「下に置く」の複合対象 | `liveRe` 未確定＝過大の可能性 |
 | **7** | `O-69` | 10枚 * | 「この方法でN枚以上トラッシュに置かれた場合」 | `liveRe` 未確定 |
@@ -984,7 +981,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-93** | 🆕**`manualEffects.ts` の古い shadow が parser 改善を永久に凍らせる（計器から見えない）** | **M（掃除・要1件ずつ判定）** | **2026-08-26 続き675（段2 第43バッチ）で実測**＝`WX06-022-E1` は「パターン6e が発火していない」ように見えたが、真因は **manual に残った古い無条件コピーが `PRESERVE_STATUSES` でカードごと live を温存していた**こと。🔴**live 側の `parseStatus` は `AUTO` と記録される**ので、§6 恒久指標の「MANUAL 効果数」でも `census:manual-fields` でも**検知できない**（shadow 撤去後も MANUAL は 1034 のまま）。⚠**`npx tsx scripts/censusManualDrift.ts` の「削除候補」は実体同一のものしか出さない**ので、この形（manual が parser より**劣化**）は `CHANGED` に紛れる。■**母集団＝`CHANGED` 20効果のうち「parser 由来 12効果」**（`docs/_manual_drift.txt`）＋`FRESH_ONLY` 20効果（parser 由来 20）。■**取り方**＝1件ずつ「manual 側が parser の出せない本体を持っているか」を原文照合し、持たないなら削除して parser に任せる（§5-10′ の対照＝**影武者コピーになるとその効果だけ以後の parser 改善が永久に届かない**）。⚠**件数を目標にしない**（§5-26）。 |
 | **O-94** | 🆕**配置制限 collector が通常召喚 UI の1箇所からしか呼ばれない（残1枚）** | S | **2026-08-26 続き675（段2 第43バッチ 群D）で実測**＝原文に「〜のシグニゾーン」を含む **76枚中 74枚は正しく配線済み**（`centerZoneOnly`／`zoneSide`／`IS_SELF_IN_CENTER_ZONE`／`THIS_CARD_IN_CENTER_ZONE`／`SIGNI_ATTACK_BAN{zones:[1]}`／`PLACE_VIRUS_CENTER`）。🏁**2026-08-29 続き725 に ①`WXDi-P03-087` をクローズ**（`manualEffects.ts` に `STUB{FROM_TRASH_TO_CENTER_ZONE}` を手書き＝§2.0 速いレーン。全文は PLAN_DETAIL.md 2026-08-29）。⚠**parser の優先順位（Part1 の汎用「トラッシュ→場」が Part3 の中央専用規則より先に返す＝`effectParser.ts:5271-5273` / `parseSentencePart1.ts:3226`）は未修正**＝同じ文型がもう1枚出たら遅いレーンで直す。■**残るのは②`WXDi-P14-068`＝配置制限 collector の部分配線**＝parser は `OPP_ZONE_PLACEMENT_RESTRICT`（`parseSentencePart3.ts:409-411`）、collector は `effectEngine.ts:6610-6633`。**呼び出しは通常召喚 UI の1箇所だけ**（`BattleScreen.tsx:5942-5946`）＝**CPU 配置・効果配置は素通りする**。🔴**`src/screens/` を触るので遅いレーン**（実機まで必須）。 |
 | **O-95** | 🆕**「あなたの場に**このシグニと**共通する色を持たない他の＜X＞のシグニがある場合」＝自己基準の色非共通条件** | S〜M | **2026-08-26 続き676（段2 第44バッチ）で実測**＝`WX21-032-E1`。原文は**発動条件**なのに、live は `BANISH.target.filter.story:「天使」` として**対象フィルタへ寄せている**（＝過小実行）。しかも条件そのものは無いので**無条件で撃てる**（＝過剰実行）。🔴**片方だけ直すと過小→過剰に裏返る**ので、条件の受け皿ができるまで両方据置（§5-2″ の同型）。⚠**既存 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI`（`src/types/effects.ts:178`／`effectEngine.ts:117`）は「**それぞれ**共通する色を持たない〈filter〉のシグニがN体」＝**相互**の意味で、「**このシグニと**共通しない」とは別**＝流用しない（§5-5e）。■**取り方**＝新 Condition を1本（`NO_COMMON_COLOR_WITH_SELF_IN_FIELD{owner,filter,excludeSelf}` 相当）＋**`Condition` と `ActiveCondition` の両評価器＋golden の3点セット**（§5-2‴＝片側だけ足すと `checkActiveCondition` の `return true` で無条件成立に落ちる）。■母集団は着手時に「このシグニと共通する色を持たない」で全数実測すること（`WX21-032` 以外にもある見込み）。 |
-| **O-96** | 🆕**「〜を対象とし、（別のカードを）〜してもよい。そうした場合、**それを**〜する」＝先に対象化したカードと後段の操作対象の照応** | M | **2026-08-26 続き676（段2 第44バッチ）で実測**＝`WX25-CP1-082-E1`「パワーがこのシグニのパワーの半分以下の**対戦相手のシグニ１体を対象とし**、あなたの他のアップ状態の＜ブルアカ＞のシグニ１体を**ダウンしてもよい。そうした場合、それを**バニッシュする」。**対象宣言（相手シグニ）と、その間に挟まる別対象の操作（自分のシグニをダウン）と、did-it ゲート（そうした場合）の3つが1文に同居**していて、木では「最初に対象化したもの」を後段まで運べていない（live は `DOWN` の対象が**対戦相手**になっており、`CONDITIONAL{IS_MY_TURN}` という無関係な条件が付いている）。🔴**全文から比較句を拾うとダウン側の対象へ誤付着する**ので、第44バッチでは `parseSelfComparison` に文型ガードを1本置いて誤付着を防ぎ、**据置判断そのものを golden の contract テストで固定した**（§5-4）。■**取り方**＝`STORE_LAST_PROCESSED_TARGETS`／`targetsStored` の既存機構（`manualEffects.ts` に実例あり）で「最初の対象」を保持できるか実コードで確認してから、parser 側で「対象宣言 → 任意コスト → did-it ゲート → 保持対象への操作」の順に組み直す。■⚠**母集団は1件ではない見込み**＝着手時に「を対象とし、」と「そうした場合、それを」が同居する原文を全数実測すること。  🆕**2026-08-30（§5.2 カード単位バッチ第3回）で同型を2枚追加**＝`SPDi43-22-E2` / `WXDi-P16-053-E1`（どちらも「〈色/名前〉が一致する対戦相手のシグニ１体を**対象とし**、《X》を**支払ってもよい。そうした場合、それを**バニッシュ／トラッシュする」）＝**live は `STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}` ＋ 後段が `CONDITIONAL{IS_MY_TURN}` に化けており、did-it ゲートでも同一対象でもない**。⚠この形は名詞句フィルタを直しても後段の `BANISH`/`TRASH` へ載らない（対象が2回選ばれる）。 ■🆕🔑**2026-09-01 続き763＝母集団を「欠陥署名」で数え直し、第1バッチ（7効果）を消化。****署名**＝①原文が「〜を対象とし → 〜てもよい → そうした場合」順 ②live の同一効果に `STUB{OPTIONAL_COST}` がある ③その前に `SELECT_TARGET_ONLY`/`STORE_LAST_PROCESSED_TARGETS` が**無い** ④効果内に `targetsStored` 等の照応キーも**無い**。⇒ **315効果中 154 は固定済み・161 が未固定**（原文の文字列一致だと 57枚／311カードで**どちらも過大**＝最大群「《色》を支払ってもよい」217枚は executor の SEQUENCE インターセプトで処理済み）。■**第1バッチ＝下位形「《色…》を支払ってもよい。そうした場合、それを手札に戻す」の root SEQUENCE 直下 BOUNCE 7効果**（`WX20-054-E1`／`WXDi-P02-048-BURST`／`WXDi-P08-052-E1`／`WXDi-P14-052-E1`／`WX24-P3-047-E2`／`WX25-P3-055-E3`／`WX25-CP1-055-E1`）。**parser 1本**（`effectParser.ts:10025` `applyO96EnergyCostBounceTargetFirst`）で`SELECT_TARGET_ONLY{abortIfNoCandidate} > STORE_LAST_PROCESSED_TARGETS > OPTIONAL_COST > CONDITIONAL{PAID} > BOUNCE{targetsStored}` へ組み替え。**ブラスト半径＝ベースライン commit との機械 diff で変わった effectId は予定の7件のみ・予定外0。**■🔴**次の11効果は `O-188` 待ち**＝`TRANSFER_TO_HAND` が `targetsStored` を**型にも executor にも `freezeStoredTargets` にも持たない**（実測確認済み）。**フィールドを足しても無視される＝無言 no-op になるので据置した**（正しい判断）。■**残 161 → 154 効果。**次の大きい下位形＝`TRANSFER_TO_HAND` 11件（`O-188` 解消後）→ ネスト器（CHOOSE / GRANT_LRIG_ABILITY）6件。■⚠**別件の疑義2つを記録**＝`WXDi-P04-041-E1/E2` は重複ではなく別々の【自】（自アタック時／相手アタックフェイズ開始時）。`WXDi-P05-059-E2` は**原文がトラッシュからの回収なのに `source` が `DECK_CARD`** になっている（未修正）。|
+| **O-96** | 🆕**「〜を対象とし、（別のカードを）〜してもよい。そうした場合、**それを**〜する」＝先に対象化したカードと後段の操作対象の照応** | M | **2026-08-26 続き676（段2 第44バッチ）で実測**＝`WX25-CP1-082-E1`「パワーがこのシグニのパワーの半分以下の**対戦相手のシグニ１体を対象とし**、あなたの他のアップ状態の＜ブルアカ＞のシグニ１体を**ダウンしてもよい。そうした場合、それを**バニッシュする」。**対象宣言（相手シグニ）と、その間に挟まる別対象の操作（自分のシグニをダウン）と、did-it ゲート（そうした場合）の3つが1文に同居**していて、木では「最初に対象化したもの」を後段まで運べていない（live は `DOWN` の対象が**対戦相手**になっており、`CONDITIONAL{IS_MY_TURN}` という無関係な条件が付いている）。🔴**全文から比較句を拾うとダウン側の対象へ誤付着する**ので、第44バッチでは `parseSelfComparison` に文型ガードを1本置いて誤付着を防ぎ、**据置判断そのものを golden の contract テストで固定した**（§5-4）。■**取り方**＝`STORE_LAST_PROCESSED_TARGETS`／`targetsStored` の既存機構（`manualEffects.ts` に実例あり）で「最初の対象」を保持できるか実コードで確認してから、parser 側で「対象宣言 → 任意コスト → did-it ゲート → 保持対象への操作」の順に組み直す。■⚠**母集団は1件ではない見込み**＝着手時に「を対象とし、」と「そうした場合、それを」が同居する原文を全数実測すること。  🆕**2026-08-30（§5.2 カード単位バッチ第3回）で同型を2枚追加**＝`SPDi43-22-E2` / `WXDi-P16-053-E1`（どちらも「〈色/名前〉が一致する対戦相手のシグニ１体を**対象とし**、《X》を**支払ってもよい。そうした場合、それを**バニッシュ／トラッシュする」）＝**live は `STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}` ＋ 後段が `CONDITIONAL{IS_MY_TURN}` に化けており、did-it ゲートでも同一対象でもない**。⚠この形は名詞句フィルタを直しても後段の `BANISH`/`TRASH` へ載らない（対象が2回選ばれる）。 ■🆕🔑**2026-09-01 続き763＝母集団を「欠陥署名」で数え直し、第1バッチ（7効果）を消化。****署名**＝①原文が「〜を対象とし → 〜てもよい → そうした場合」順 ②live の同一効果に `STUB{OPTIONAL_COST}` がある ③その前に `SELECT_TARGET_ONLY`/`STORE_LAST_PROCESSED_TARGETS` が**無い** ④効果内に `targetsStored` 等の照応キーも**無い**。⇒ **315効果中 154 は固定済み・161 が未固定**（原文の文字列一致だと 57枚／311カードで**どちらも過大**＝最大群「《色》を支払ってもよい」217枚は executor の SEQUENCE インターセプトで処理済み）。■**第1バッチ＝下位形「《色…》を支払ってもよい。そうした場合、それを手札に戻す」の root SEQUENCE 直下 BOUNCE 7効果**（`WX20-054-E1`／`WXDi-P02-048-BURST`／`WXDi-P08-052-E1`／`WXDi-P14-052-E1`／`WX24-P3-047-E2`／`WX25-P3-055-E3`／`WX25-CP1-055-E1`）。**parser 1本**（`effectParser.ts:10025` `applyO96EnergyCostBounceTargetFirst`）で`SELECT_TARGET_ONLY{abortIfNoCandidate} > STORE_LAST_PROCESSED_TARGETS > OPTIONAL_COST > CONDITIONAL{PAID} > BOUNCE{targetsStored}` へ組み替え。**ブラスト半径＝ベースライン commit との機械 diff で変わった effectId は予定の7件のみ・予定外0。**■🔴**次の11効果は `O-188` 待ち**＝`TRANSFER_TO_HAND` が `targetsStored` を**型にも executor にも `freezeStoredTargets` にも持たない**（実測確認済み）。**フィールドを足しても無視される＝無言 no-op になるので据置した**（正しい判断）。■**残 161 → 154 効果。**次の大きい下位形＝`TRANSFER_TO_HAND` 11件（`O-188` 解消後）→ ネスト器（CHOOSE / GRANT_LRIG_ABILITY）6件。■⚠**別件の疑義2つを記録**＝`WXDi-P04-041-E1/E2` は重複ではなく別々の【自】（自アタック時／相手アタックフェイズ開始時）。`WXDi-P05-059-E2` は**原文がトラッシュからの回収なのに `source` が `DECK_CARD`** になっている（未修正）。 ■🆕**2026-09-01 続き764＝第2バッチ（21効果）を消化。**第1バッチの規則を**コスト軸（`costColors` → `handDiscard`）**と**帰結型（`BOUNCE` → ＋`POWER_MODIFY`/`BANISH`/`TRASH`）**の2方向へ一般化（`applyO96OptionalCostTargetFirst`）。**engine も型も1行も触っていない**＝帰結型はすべて `targetsStored` を持ち `FREEZABLE`（`effectExecutor.ts:133`）に入っていたため。**ブラスト半径＝予定21件のみ・予定外0。** ■🔴🔑**この巡の最大の学び＝parser 規則は「適用地点」で対象範囲が変わる。**当初 `parseActionText` の中で適用したら、**`CHOOSE` 組み立て前の枝が一時的に root `SEQUENCE` に見えて群B へ当たった**。**効果単位の最終 root へ移して解決。**⚠**この誤りはゲートでは出ない**（全部緑のままだった）＝**fresh 三帳票とブラスト半径の検算だけが検出できる。** ■**エナ軸は尽きた**（残7効果のうち4件が MANUAL・1件がネスト＝parser で取れるのは2件）。■**残 154 → 133 効果。**次の最大下位形は `TRANSFER_TO_HAND` 11効果だが **`O-188` 待ち**、その次がネスト器6効果。|
 | **O-97** | 🆕**印刷済み【使用条件】が複数あるピースで、本文の先頭ゲートがホイストされない** | S〜M | **2026-08-27 続き677（段2 第45バッチ）で実測**＝`WXDi-CP01-002-E1`「【使用条件】【ドリームチーム】黒のルリグを１体以上含む【使用条件】このゲームの間にあなたがリレーピースを使用している（…）**あなたのセンタールリグがレベル３以上の場合、**対戦相手のデッキの上からカードを２４３４枚トラッシュに置く。」＝**本文のゲートは `LEADING_STATE_CLAUSES` に語彙があるのに、先頭の【使用条件】2本が前置されているせいで先頭一致が外れて丸ごと落ちる**（＝**無条件で2434枚ミル**する過剰効果）。■🔴**【使用条件】の側を部分的に持ち上げてはいけない**（既存規約＝`printedUseConditionPatterns` の直上コメント「複数の【使用条件】を持つカードは、全条件を表現できるまで一部だけを採らない」）。片方（「このゲームの間にあなたがリレーピースを使用している」）は**受け皿が無い**。■**取り方は2つに割れる**＝(a)**本文ゲートだけを先に救う**（`tryWrapLeadingStateCond` のプレフィックス許可リストへ `(?:【使用条件】[^【。]*)+` を足す＝**使用条件は従来どおり落としたまま**）／(b)**「このゲームの間に〈誰か〉が〈カード種別〉を使用している」の受け皿を新設**して(a)と併せて全条件を表現する。■⚠**母集団は着手時に実測する**＝`【使用条件】` が2本以上ある原文を全数数えてから (a)/(b) を決める。
 | **O-101** | 🆕**「そうしない場合」＝did-it ゲートの否定形が丸ごと落ちる（実測1効果）** | S〜M | **2026-08-27 Sheet1 B5 で実測**（`O-99` の消化中に分離）。■①**`WX05-023-E3`**「あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。**そうしない場合**、このシグニを場からトラッシュに置く。」＝live は `SEQUENCE[PLACE_UNDER_SIGNI, TRASH{self}]` ＝**3枚置けても必ず自壊する**過剰効果。⚠**原文該当は全 CSV で1効果だけ**（「そうでない場合」＝Sheet1 B3 で消化済みとは別語）。🔑受け皿は既存＝`CONDITIONAL{LAST_PROCESSED_COUNT_GTE{value:3, negate:true}, then:TRASH}`。🔴**着手前に engine を読むこと**＝`execPlaceUnderSigni` は候補0のとき `done(ctx)` で**`lastProcessedCards` を触らずに返す**（`effectExecutor.ts:6896`）＝**前段の値が残ったままゲートを評価しうる**。ここを直さずに否定ゲートを載せると**逆に自壊しなくなる**（過小へ裏返る）。🏁**②（場全体の attached/under の OR＝`WXDi-P06-084-E1`）は 2026-08-31 続き745 でクローズ**＝`FIELD_ATTACHED_COUNT{include:'both'}` を新設し、「代わりに」を `CONDITIONAL` の then/else へ直した（旧 live は SEQUENCE の2連＝**条件を問わず2枚回収**）。golden の「段2-18 据置契約」も正方向の assert へ置き換え済み。⚠**①は据置のまま**（`execPlaceUnderSigni` が候補0で `lastProcessedCards` を触らずに返す件を先に読むこと）。 |
 | **O-102** | 🆕**「あなたの場に**このシグニと**共通する色を持たない他の＜X＞のシグニがある場合」＝基本文側の条件（`O-95` と同根・実測2効果）** | S〜M | **2026-08-27 Sheet1 B5 で実測**＝`SP27-012-E1`／`WX21-039-E1`（＜天使＞の同型サイクル）。■B5 で**置換（「代わりに」）側は畳めた**が、**基本文の条件が別語彙で未表現**のまま残った＝いまは `CONDITIONAL{強化条件, then:強化, else:基本}` で、条件が両方とも偽のときに**基本が無条件で走る**（旧＝基本と強化が両方走って合計3枚だったので**改善ではあるが完全ではない**）。■🔑**`O-95`（`WX21-032-E1`）とまったく同じ受け皿が要る**＝`NO_COMMON_COLOR_WITH_SELF_IN_FIELD{owner,filter,excludeSelf}` 相当を1本新設し、**`Condition` と `ActiveCondition` の両評価器＋golden の3点セット**（§4.2）。⇒ **`O-95` と同時に取ると母集団が3効果になる**（別々に取らない）。■⚠**既存 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は「それぞれ（＝相互に）共通する色を持たない」**で意味が違う＝B5 で使ったのはこちら（強化側の条件）で、基本文側の「**このシグニと**共通しない」には流用できない。 |
@@ -1024,6 +1021,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 | **O-186** | 🆕**「次のあなたのターン終了時まで」を表す `EffectDuration` が無い** | **1効果**（`WXDi-P13-043-E1`。母集団は「次のあなたのターン終了時まで」の全文検索で要計測） | **2026-08-30 census 実バグ3群バッチで分離。** ■**現状**＝`UNTIL_END_OF_TURN` を当てているが、これは**短すぎる**（相手ターンを跨がずに切れる）＝**過小**。■**受け皿**＝`EffectDuration`（`src/types/effects.ts:124`）は `INSTANT` / `UNTIL_END_OF_TURN` / `UNTIL_OPP_TURN_END`（＝次の**対戦相手の**ターン終了時まで）/ `NEXT_TURN` / `PERMANENT` の5つで、**「次の自分のターン終了時まで」だけが無い**。■⚠**`UNTIL_OPP_TURN_END` の実装（ターン境界での解除）を読んでから対称形を足す**＝`temp_power_mods` / `keyword_abilities_removed` 等の**リセット地点が複数ある**（`turnScopedState.ts` の boundaries）。■⚠**着手前に母集団を実測する**（1効果のために期間型を足すなら §5.3「1〜3枚の項目の取り方」の3点確認を先に通す）。 |
 | **O-187** | 🆕🔴**`census:cards` の `mech` フラグが「§5.3 に出てくるカード番号」を全部拾う＝****実装済みの"雛形として引用したカード"まで機構待ちに数える** | **計器の較正**（実測＝Sheet1 で+1。全シートでは未計測） | **2026-09-01 続き761 で自分で踏んで分離。** ■**症状**＝`O-128` 第3バッチの簿記で、受け皿の**先行実装例**として`WX02-002` を §5.3 に書いたら、**正しく動いているそのカードが Sheet1 の要対応 17 → 18 になった**。■**真因**＝`scripts/cardProgressCensus.mjs:152-156` は §5.3 を切り出して**カード番号の正規表現に当たるものを全部 `mech` にする**。「未実装として登録された番号」と「雛形・反例・スコープ外として引用された番号」を**区別していない**。■🔴**放置すると単調減少しない**＝§5.3 に丁寧に書くほどカウンタが増える＝CLAUDE.md の「1シートを分母に固定して単調減少するカウンタにする」という設計意図と逆に働く。■**取り方（安い順）**＝(a) §5.3 の引用側に印を決めて除外する（例：`（例）`／`（雛形）` を前置した番号は拾わない）(b) 登録票の「対象カード」欄を機械可読にして、そこだけを読む。**(a) が安い見込み**。■⚠**着手前に「全シートで何枚が偽の mech か」を実測する**（Sheet1 の+1 しか測っていない）。 |
 | **O-188** | 🆕**`TRANSFER_TO_HAND` が `targetsStored` を持たない**＝「対象を先に固定してから任意コストを払う」形に載せられない | **11効果**（`O-96` の下位形。実測リストは `O-96` 登録票） | **2026-09-01 続き763（`O-96` 第1バッチ）で分離。** ■**症状**＝`O-96` の規則は `BOUNCE` には当たるが、帰結が `TRANSFER_TO_HAND`（トラッシュ/エナ→手札）の効果には当てられない。■**実測した不足箇所は3つ**＝①`TransferToHandAction`（`src/types/effects.ts:1909`）に `targetsStored` フィールドが無い ②`execTransferToHand`（`src/engine/effectExecutor.ts:3135` 付近）に保存対象での絞り込みが無い ③`freezeStoredTargets`（同 `132`）の `FREEZABLE` 配列に `TRANSFER_TO_HAND` が入っていない。■🔴**フィールドだけ足しても無視される＝無言 no-op**（`O-128` 第4バッチの「収集契約」と同じ罠）。**3箇所を揃えること。**■**先行例が7つある**＝`FREEZABLE` の `BANISH`/`BOUNCE`/`TRASH`/`EXILE`/`SEND_TO_ENERGY`/`TRANSFER_TO_DECK`/`POWER_MODIFY`。**`BOUNCE` の実装（`execBounce` の絞り込み）をそのまま写すのが最短。**■⚠**`source` は `EffectTarget` で `TRASH_CARD`/`ENERGY_CARD` を指す**＝`BOUNCE`（場のシグニ）と**ゾーンが違う**。`storedTargetCards` に入るのが「場のカード」前提の実装になっていないかを確かめてから写す。■🔴🔴**2026-09-01 続き764 に実測して訂正＝「3箇所」は誤り。4箇所目が本体で、しかも一番大きい。**④**`SELECT_TARGET_ONLY`（`execStubPart1.ts:168`）が `SIGNI` / `LRIG` / `CENTER_LRIG_OR_SIGNI` しか受けない**＝それ以外の `selectTarget` は **`lastProcessedCards: []` を返して黙って終わる**。候補集めも `fieldCandidates`＝**場のみ**。⇒ `TRANSFER_TO_HAND` の `source`（`TRASH_CARD` / `ENERGY_CARD`）は**そもそも選択できない**。🔴**このまま `abortIfNoCandidate` を付けると「候補0」と判定されて効果ごと発火しなくなる＝いまより悪化する。**■**先行例が無い**＝live で「`SELECT_TARGET_ONLY` でトラッシュ/エナから選んで保存する」形は**0件**（実測）。`TRANSFER_TO_HAND × OPTIONAL_COST × 対象固定` の2件も、固定しているのは別枝の `SIGNI` であってこの形ではない。■⇒ **これは「フィールドを足すだけ」ではなく、選択機構をゾーンへ広げる作業**。`fieldCandidates` に対応する trash/energy 版の候補集めと `TargetScope` の追加が要る。■⚠**`src/types/` と `src/engine/` を触る**＝§2.2 の実機要否判定を必ず書くこと（**新機構なので実機必須の見込み**）。■🔑**先に安い道を使い切る**＝`O-96` の残りは **`handDiscard` 軸（24効果・AUTO かつ root が21）**が**engine 変更ゼロ**で取れる（帰結の `POWER_MODIFY`/`BANISH`/`BOUNCE`/`TRASH` はすべて `targetsStored` 対応済み）。**`O-188` はその後。** |
+| **O-189** | 🆕**`handDiscard.filter` から色指定が脱落している**＝任意コストが原文より緩い（過剰実行側） | **2効果**（`WXK10-029-E1`＝原文「手札から**黒の**シグニを1枚捨てて」／`WXK10-040-E2`＝同「**赤の**シグニ」）。⚠**母集団は未計測**＝「手札から〈色〉の〜を捨て」の全数を数え直すこと | **2026-09-01 続き764（`O-96` 第2バッチ）で Codex が発見。** ■**旧 live の時点で脱落**していた（今回の対象固定とは別軸なので未修正）。■**受け皿はある**＝`handDiscard.filter` は `TargetFilter` なので `color` を載せるだけ。**engine 変更は不要な見込み。**■⚠**同型が `handDiscardSigni`（`cost` 側）にもありうる**＝両方を数えること。■**取り方**＝原文「手札から〈色〉の」を全数 grep → live の `handDiscard.filter`/`handDiscardSigni.color` と突き合わせ。 |
 
 **■ 個別カードの機構待ち**
 - **📋 個別カード機構待ちの defer 3件＝いずれも根拠つき（着手前にこの理由が今も有効か再判定すること）**：(a) **`WX17-044`＝⚠2026-08-10 再判定＝先行ブロッカーだった §5.3 は消化済（続き403）だが、このカードは**依然として別要因**で止まっている**＝①`WX17-044-E1` に `trashActivated` が立っておらず（parser が「トラッシュにあるこのカードを〜」の【起】をトラッシュ起動と認識していない）②本体アクションが `ADD_TO_FIELD` ではなく**【トラップ】を表向きにして発動させる**（現行の逆翻訳は別物になっている）③コストの `trashExile.self` は `trashActivateCost.ts` の対応キーに入れていない（使う効果が0件のため未実装のまま置いた）。**着手時は parser 側（①②）から。UI は③を足すだけで載る。**(b) **`WXDi-P05-006` choice①＝着手禁止**（ピースカットイン割込み基盤）。(c) **`WX20-Re20`＝一体で要る**（選択数依存コスト・能力なし filter・任意複数配置UI・同一 instance 群のターン終了時 trash）＝部分実装しない。
@@ -1215,19 +1213,18 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。🆕**進捗の報告は §3 の「3つの計器の併記」に従う**（Sheet1 要対応枚数／台帳 残 OPEN／census 高シグナル数＝2026-08-27 ユーザー決定）。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-09-01 続き763 後（本行が直近の正）**：
+- **2026-09-01 続き764 後（本行が直近の正）**：
   📊**進捗3計器＝Sheet1 要対応 18 / 863 (2.1%)｜台帳 残 OPEN 46｜census 高シグナル 11 / BASELINE 12**
-  ＝🔴**3計器とも据置**（§5.2 を触っておらず、直した7効果はどれも Sheet1 外）。
+  ＝🔴**3計器とも据置**（§5.2 を触っておらず、直した21効果はどれも Sheet1 外）。
   ⚠**`BASELINE_HIGH` は 12 のまま据え置き**（11 に落ちた原因が未特定）。
-  **golden 3151 → 3154（+3本＝JSON の順序／前置条件の維持／「候補0なら任意コストを提示しない」実行挙動）**、
+  **golden 3154 → 3157（+3本＝帰結型ごとの順序／`POWER_MODIFY` の `until`・`delta` 保存／候補0時の非提示）**、
   smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、lint 0 errors / 249 warnings、
   `census:stubs` A群🔴0／C群0、manual-fields 0、**`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**。
   🆕**新設語彙 0本**＝既存の `SELECT_TARGET_ONLY{abortIfNoCandidate}` / `STORE_LAST_PROCESSED_TARGETS` /
-  `OPTIONAL_COST` / `PAID_ADDITIONAL_COST` / `BOUNCE{targetsStored}` だけで組んだ。
-  **parser に規則1本（`effectParser.ts:10025` `applyO96EnergyCostBounceTargetFirst`・63行）。**
-  **`O-96` の欠陥署名＝161 → 154 効果**（次の11効果は `O-188` 待ち）。
-  🔑**遅いレーンの主要検証＝ブラスト半径**＝ベースライン commit との effectId 単位 機械 diff で
-  **変わったのは予定の7件のみ・予定外0**。
+  `OPTIONAL_COST{handDiscard}` / `PAID_ADDITIONAL_COST` / 各帰結型の `targetsStored` だけで組んだ。
+  **parser は規則1本を一般化（`applyO96OptionalCostTargetFirst`）＝新規追加ではなく前回関数の拡張。**
+  **`O-96` の欠陥署名＝154 → 133 効果**（第1＋第2で 161 → 133／**-28**）。
+  🔑**ブラスト半径＝ベースライン commit との effectId 単位 機械 diff で予定21件のみ・予定外0**（Claude 側でも独立再実行）。
   ⚠**実機は不要と判定**（`src/screens/`・`src/engine/`・`src/types/` いずれも不変更・新型なし）。反転確認は未実施。
 
 ## 付録A. 全体像と Definition of Done
