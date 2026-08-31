@@ -8,7 +8,7 @@ import type { CardEffect, EffectCost } from '../../types/effects';
 import { matchesFilter } from '../../engine/effectExecutor';
 import { planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import {
-  activatedDiscardCostRecord, canPayExceed, exceedPoolOf, paySelectedExceed,
+  activatedDiscardCostRecord, canPayExceed, exceedPoolOf, handDiscardHistoryRecord, paySelectedExceed,
   fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni,
 } from './costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './lrigDownCost';
@@ -237,6 +237,7 @@ export function payTrashActivateCost(
     last_cost_trashed_cards: [...energyPaid, ...discardedCards],
     // 「この【起】のコストで捨てた枚数」の集約は他のコスト経路と同じ入口で作る
     ...activatedDiscardCostRecord(discardedCards.length, 0, 0, 0),
+    ...handDiscardHistoryRecord(my, discardedCards),
     ...(nextOp ? { opp_virus_removed_just: true } : {}),
   });
   // 「この方法で捨てたシグニ」の参照先（他の【起】コスト経路と同じ規約で記録する）。

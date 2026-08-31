@@ -95,6 +95,7 @@ import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, 
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
@@ -56198,6 +56199,49 @@ test('Stage2 B46-751 stale findings remain represented in fresh+manual definitio
   ] as const) {
     ok(JSON.stringify(batch46FreshMerged(cardNum, effectId)).includes(token), `${effectId}: stale finding regressed (${token})`);
   }
+});
+
+
+// ── `V-101`② 手札捨て台帳（2026-08-31 続き754）＝**枚数と実体は必ず同時に積む** ──────────
+// 🔴実機で見つけた真バグ＝`HAND_DISCARDED_THIS_TURN{filter}` は**実体（`turn_hand_discarded_cards`）を
+//   絞って数える**のに、支払い地点によって「両方書く／枚数だけ書く／どちらも書かない」の3種類があった。
+//   ⇒ `handDiscardHistoryRecord` を唯一の入口にしたので、**片方だけ増える形を機械で禁止**する。
+test('V-101② handDiscardHistoryRecord: 枚数と実体を必ず同時に積む（片方だけは作れない）', () => {
+  const base = {} as Pick<PlayerState, 'turn_hand_discarded_count' | 'turn_hand_discarded_cards'>;
+  // ① 空配列＝1つも動かさない（「捨てていない」支払いで台帳を汚さない）
+  const none = handDiscardHistoryRecord(base, []);
+  eq(none.turn_hand_discarded_count, undefined, 'V-101② 空配列で枚数が動いた');
+  eq(none.turn_hand_discarded_cards, undefined, 'V-101② 空配列で実体が動いた');
+  // ② 初回＝両方が同時に立つ
+  const first = handDiscardHistoryRecord(base, ['A#1', 'B#2']);
+  eq(first.turn_hand_discarded_count, 2, 'V-101② 初回の枚数');
+  eq(JSON.stringify(first.turn_hand_discarded_cards), JSON.stringify(['A#1', 'B#2']), 'V-101② 初回の実体');
+  // ③ 追記＝同じターン内の2回目の支払いが両方に積み増される
+  const second = handDiscardHistoryRecord(first, ['C#3']);
+  eq(second.turn_hand_discarded_count, 3, 'V-101② 追記後の枚数');
+  eq(JSON.stringify(second.turn_hand_discarded_cards), JSON.stringify(['A#1', 'B#2', 'C#3']), 'V-101② 追記後の実体');
+  // ④ 🔴**不変条件**＝枚数は常に実体の長さと一致する（旧バグはここが 2 対 0 に割れていた）
+  for (const st of [none, first, second]) {
+    eq(st.turn_hand_discarded_count ?? 0, (st.turn_hand_discarded_cards ?? []).length,
+      'V-101② 枚数と実体の長さが食い違った＝どちらか一方だけを書いた支払い地点がある');
+  }
+});
+
+// `HAND_DISCARDED_THIS_TURN{filter}` が**実体を読む**こと自体も両方向で固定する
+// （実体を積み忘れると条件が永久に false になる、という因果を機械で保証する）。
+test('V-101② HAND_DISCARDED_THIS_TURN は実体を絞って数える（ブルアカ／非ブルアカ の両方向）', () => {
+  const cond = { type: 'HAND_DISCARDED_THIS_TURN', owner: 'self', filter: { story: 'ブルアカ' }, minCount: 1 };
+  const withCards = (cards: string[]) => ({
+    ...mkCtx({}, {}),
+    ownerState: { ...mkState(), ...handDiscardHistoryRecord({}, cards) },
+  });
+  // `WXDi-CP02-063`＝奏武：ブルアカ ／ `WD01-013`＝精武：アーム
+  ok(evalCondition(cond as never, withCards(['WXDi-CP02-063'])),
+    'V-101② ＜ブルアカ＞を捨てた実体があるのに成立しない');
+  ok(!evalCondition(cond as never, withCards(['WD01-013'])),
+    'V-101② 非ブルアカを捨てただけで成立した（filter が効いていない）');
+  ok(!evalCondition(cond as never, withCards([])),
+    'V-101② 何も捨てていないのに成立した');
 });
 
 if (listMode) {

@@ -23,6 +23,37 @@ export function activatedDiscardPaidCount(
   return fixedDiscardCount + discardAllCount + energyTrashAllCount + variableDiscardCount;
 }
 
+/**
+ * 「このターンに**手札から**捨てた」台帳を積む唯一の入口（`V-101`② / 2026-08-31）。
+ *
+ * 🔴**2つのフィールドは必ず同時に書く**＝`turn_hand_discarded_count`（枚数）と
+ *   `turn_hand_discarded_cards`（実体）。条件側は用途で読み分けており、
+ *   `HAND_DISCARDED_THIS_TURN{filter}`（`effectEngine.ts` / `execUtils.ts`）は**実体を絞って数える**ので、
+ *   枚数だけ書いて実体を落とすと**その捨て経路からは条件が永久に false**になる（無言 no-op）。
+ *   実際、スペルを**手札から**使ったときの支払いだけ枚数しか書いておらず、
+ *   ルリグデッキから使った枝とで挙動が食い違っていた。
+ *
+ * ⚠**「捨てる」以外を渡さない**＝`handToEnergy`（エナへ）／`handToUnder`（このシグニの下へ）／
+ *   `energyTrash`（エナから）は**手札を捨てていない**ので台帳に載せてはいけない。
+ * ⚠ターン終了時のルール処理（手札上限超過）はここを通していない＝あの捨ては
+ *   `turn_*` がリセットされる境界と同じ地点で起きるので、載せると寿命が1ティックの値になる。
+ */
+export function handDiscardHistoryRecord(
+  prev: Pick<PlayerState, 'turn_hand_discarded_count' | 'turn_hand_discarded_cards'>,
+  discarded: readonly string[],
+): Pick<PlayerState, 'turn_hand_discarded_count' | 'turn_hand_discarded_cards'> {
+  if (discarded.length === 0) {
+    return {
+      turn_hand_discarded_count: prev.turn_hand_discarded_count,
+      turn_hand_discarded_cards: prev.turn_hand_discarded_cards,
+    };
+  }
+  return {
+    turn_hand_discarded_count: (prev.turn_hand_discarded_count ?? 0) + discarded.length,
+    turn_hand_discarded_cards: [...(prev.turn_hand_discarded_cards ?? []), ...discarded],
+  };
+}
+
 /** BattleScreen の起動コスト支払いが条件評価へ渡す枚数記録。 */
 export function activatedDiscardCostRecord(
   fixedDiscardCount: number,

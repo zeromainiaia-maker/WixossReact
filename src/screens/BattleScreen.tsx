@@ -140,6 +140,8 @@ import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signi
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
+// 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
+import { handDiscardHistoryRecord } from './battle/costs';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
 import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
@@ -7103,10 +7105,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
         coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost + encoreCoinCost, // COINS_PAID_THIS_TURN
         field: keySub ? { ...my.field, key_piece: null } : my.field,
-        turn_hand_discarded_count: discardNums.length > 0
-          ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
-        turn_hand_discarded_cards: discardNums.length > 0
-          ? [...(my.turn_hand_discarded_cards ?? []), ...discardNums] : my.turn_hand_discarded_cards,
+        ...handDiscardHistoryRecord(my, discardNums),
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
         // 【チェイン】の「次に使用するアーツ」軽減を消費（タスク12(xciii)。スペル版と同型）。
         // ⚠このアーツ自身が新しい【チェイン】を宣言する場合は効果解決（COST_REDUCTION）が
@@ -7444,6 +7443,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: newField,
         lrig_trash: newLrigTrashKey,
         trash: [...my.trash, ...paidNums, ...discardNums, ...keyDiscardAllCards, ...keyEnergyTrashAllCards],
+        // ⚠`keyEnergyTrashAllCards` は**エナ**なので台帳に載せない（手札から捨てた分だけ）。
+        ...handDiscardHistoryRecord(my, [...discardNums, ...keyDiscardAllCards]),
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
       });
@@ -7541,6 +7542,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...my,
         hand: newHand,
         trash: [...my.trash, ...paidNums, ...discardNums],
+        ...handDiscardHistoryRecord(my, discardNums),
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
       });
@@ -7689,10 +7691,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_deck: my.lrig_deck.filter(id => id !== spellInstanceId),
           hand: my.hand.filter((_, i) => !discardSet.has(i)),
           trash: [...my.trash, ...paidNums, ...discardNums],
-          turn_hand_discarded_count: discardNums.length > 0
-            ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
-          turn_hand_discarded_cards: discardNums.length > 0
-            ? [...(my.turn_hand_discarded_cards ?? []), ...discardNums] : my.turn_hand_discarded_cards,
+          ...handDiscardHistoryRecord(my, discardNums),
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
@@ -7707,8 +7706,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...my,
           hand: my.hand.filter((_, i) => i !== handIdx && !discardSet.has(i)),
           trash: [...my.trash, ...paidNums, ...discardNums],
-          turn_hand_discarded_count: discardNums.length > 0
-            ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
+          // 🔴**旧実装はここだけ枚数しか書いていなかった**（上のルリグデッキ枝は両方書いていた）＝
+          //   手札からスペルを使って払った捨ては `HAND_DISCARDED_THIS_TURN{filter}` から見えなかった。
+          ...handDiscardHistoryRecord(my, discardNums),
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
@@ -12875,6 +12875,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins_paid_this_turn: coinCostAct > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostAct : my.coins_paid_this_turn, // COINS_PAID_THIS_TURN
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
         trash: [...my.trash, ...paidNums, ...energyTrashCards, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
+        // ⚠エナ由来（`energyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
+        ...handDiscardHistoryRecord(my, [...discardedCards, ...discardAllCards, ...discardVarCards]),
         lrig_trash: newLrigTrash,
         field: newField,
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
@@ -13330,6 +13332,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...my,
         hand: newHand,
         trash: [...my.trash, cardNum],
+        ...handDiscardHistoryRecord(my, [cardNum]),
         field: { ...my.field, free_zone: fzGBA },
         actions_done: [...(my.actions_done ?? []), 'GUARD_BARRIER_ACT'],
       };
@@ -13528,6 +13531,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         coins_paid_this_turn: (placedState.coins_paid_this_turn ?? 0) + coinCostOPC, // COINS_PAID_THIS_TURN
         trash: [...placedState.trash, ...paidNums, ...discardNums],
+        // 🔴**旧実装はこの経路だけ台帳を1つも書いていなかった**（`V-101`②で実機再現）＝
+        //   `WXDi-CP02-055` は同じカードの【出】コストで＜ブルアカ＞を捨てて【自】が読むのに、
+        //   `HAND_DISCARDED_THIS_TURN` が永久に false で無言 no-op だった。
+        //   ⚠`discardNums` は `handToEnergy`/`handToUnder` のとき `[]` になる（＝捨てていない）ので、そのまま渡してよい。
+        ...handDiscardHistoryRecord(placedState, discardNums),
         // handDiscardSigni コストで捨てたシグニのレベルを記録（COST_DISCARDED_SIGNI_LEVEL。WX25-P2-101「レベル１→代わりに－5000」）
         last_discarded_signi_level: discardNums.length > 0
           ? (() => { const lv = parseInt(battleCardMap.get(getCardNum(discardNums[0]))?.Level ?? '', 10); return isNaN(lv) ? placedState.last_discarded_signi_level : lv; })()
@@ -13912,6 +13920,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins: coinCostLg > 0 ? Math.max(0, (my.coins ?? 0) - coinCostLg) : my.coins,
         coins_paid_this_turn: coinCostLg > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostLg : my.coins_paid_this_turn,
         trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
+        // ⚠エナ由来（`lgEnergyTrash*`）は台帳に載せない（手札から捨てた分だけ）。
+        ...handDiscardHistoryRecord(my, [...discardedHandNums, ...lgDiscardAllCards]),
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId, ...(coinCostLg > 0 ? ['COIN_SPENT'] : [])],

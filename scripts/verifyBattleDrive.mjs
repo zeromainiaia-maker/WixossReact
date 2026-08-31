@@ -5663,7 +5663,7 @@ const scenarios = {
         await page.screenshot({ path: `${SHOT}/oppdrawownfx-${s}.png`, fullPage: true });
         let did = null;
         if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動', '確定', '決定', 'OK', 'はい']);
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
         const st = await H.queryState();
         const pr423Alive = (st?.host?.fieldSigni ?? []).some(z => (z || []).includes('PR-423#1'));
@@ -37921,6 +37921,496 @@ scenarios.censusSideAttackLancerFrontNoop = {
 };
 order.push('censusSideAttackLancerFires', 'censusSideAttackLancerFrontNoop');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第9弾（`V-101`②）＝**このターンに手札から＜ブルアカ＞を捨てていた場合**の実機返済。
+// `WXDi-CP02-055`（猫塚ヒビキ）は1枚で3つとも持っている：
+//   E3【出】：手札から＜ブルアカ＞2枚を捨てる → 相手シグニ1体に －10000（＝**捨てる側**）
+//   E2【自】アタック時：`HAND_DISCARDED_THIS_TURN{story:'ブルアカ', minCount:1}` → 相手が手札を1枚捨てる（＝**読む側**）
+//
+// 🔴**焦点は「どの捨て経路でも `turn_hand_discarded_cards` が積まれるか」**（PLAN `V-101`②）。
+//   条件側（`effectEngine.ts:871` ／ `execUtils.ts:2336`）は**枚数カウンタではなく実体リストを絞って数える**ので、
+//   実体を積み忘れた経路で捨てても**条件が永久に false**＝無言 no-op になる。
+// ⚠E1（`ON_ATTACK_PHASE_START`・`ALL_FIELD_SIGNI_MATCH{ブルアカ}`）も相手の手札を捨てさせるので、
+//   **非ブルアカのシグニを1体置いて E1 を確実に不成立にする**（混ざると観測点が壊れる）。
+// ⚠相手の正面には **pow12000** を置く＝E3 の －10000 を受けても 2000 で**生き残る**ので、
+//   アタックが直接アタックに化けてライフクラッシュ（＝バーストで手札が動く）に流れない。
+const cp02055Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WX22-009#9500'],                      // Lv4・Limit12
+    'field.signi': [null, ['WD01-013#9505'], null],       // 🔑非ブルアカ＝E1 を不成立に固定
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'hand': ['WXDi-CP02-055#9501', 'WXDi-CP02-063#9502', 'WXDi-CP02-063#9503'], // 本体＋捨てる＜ブルアカ＞2枚
+    'energy': [],
+    'life_cloth': ['WD01-013#9521', 'WD01-013#9522', 'WD01-013#9523'],
+    'deck': ['WD01-013#9531', 'WD01-013#9532', 'WD01-013#9533'],
+    'trash': [],
+    'turn_hand_discarded_cards': [],
+    'turn_hand_discarded_count': 0,
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9590'],
+    'field.signi': [null, null, ['WD03-009#9592']],       // pow12000＝－10000 を受けても生き残る
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WD01-013#9593', 'WD01-013#9594'],           // ← 観測点（1枚減るか）
+    'life_cloth': ['WD01-013#9595', 'WD01-013#9596', 'WD01-013#9597'],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+// payDiscard=true＝E3 のコストで＜ブルアカ＞2枚を実際に捨ててからアタックする。
+// payDiscard=false＝【出】をスキップし、代わりに**非ブルアカ**を捨てた履歴だけを注入してアタックする
+//   （＝「捨ててはいるが＜ブルアカ＞ではない」＝フィルタ側の対照）。
+async function driveCp02055(page, H, payDiscard) {
+  const tag = payDiscard ? 'buruakaDiscarded' : 'otherClassDiscarded';
+  const before = await H.queryState();
+  H.log(`開始 hHand=${before?.host?.hand} gHand=${before?.guest?.hand} 捨て履歴=${JSON.stringify(before?.host?.turnHandDiscarded)} phase=${before?.turnPhase}`);
+  if (before?.guest?.hand !== 2) return { pass: false, detail: `前提崩れ＝相手手札が2枚でない（${before?.guest?.hand}）` };
+
+  await H.ensureMain();
+
+  // ── ① 手札の `WXDi-CP02-055` を zone0 へ召喚する（【出】のコストは payDiscard で分岐）
+  let summonClicked = false, costHandled = false, placed = false;
+  let last = before;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(600);
+    let did = null;
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    const summonVisible = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+    if (summonVisible && !summonClicked) {
+      await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true;
+    }
+    if (!did && summonClicked && !placed) did = await H.clickTestId('summon-zone-0');
+    if (!did && !summonVisible && !summonClicked) did = await H.clickTestId('my-hand-card-0');
+    // 【出】のコストモーダル＝＜ブルアカ＞2枚を選んで「発動」／または「発動しない」。
+    if (!did && !costHandled) {
+      const h0 = page.getByTestId('onplaycost-hand-0').first();
+      if (await h0.count() && await h0.isVisible().catch(() => false)) {
+        if (payDiscard) {
+          await h0.click().catch(() => {});
+          await page.waitForTimeout(200);
+          await page.getByTestId('onplaycost-hand-1').first().click().catch(() => {});
+          await page.waitForTimeout(200);
+          const go = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await go.count() && await go.isEnabled().catch(() => false)) {
+            await go.click().catch(() => {}); costHandled = true; did = 'pay:手札2枚捨て→発動';
+          } else { did = 'click:onplaycost-hand-0/1'; }
+        } else {
+          const skip = await H.clickTextOrBtn(['発動しない', 'スキップ', 'キャンセル']);
+          if (skip) { costHandled = true; did = 'skip:' + skip; }
+        }
+      }
+    }
+    // 🔴**対象選択は「決定」より先に置く**＝逆順にすると毎ティック「決定 (0/1)」を押しに行って
+    //   pick へ到達せず、`pEff=SELECT_TARGET` のまま26ティック空回りする（初版がこれ）。
+    if (!did) { // E3 の POWER_MODIFY が要求する対象選択（候補1件）
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    placed = (last?.host?.fieldSigni?.[0] ?? []).includes?.('WXDi-CP02-055#9501');
+    H.log(`  ${tag}召喚[${s}] -> ${did ?? 'なし'} | placed=${placed} hHand=${last?.host?.hand} 捨て履歴=${JSON.stringify(last?.host?.turnHandDiscarded)} 捨て枚数=${last?.host?.turnHandDiscardedCount} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (placed && costHandled && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) break;
+  }
+  if (!placed) return { pass: false, detail: `召喚できなかった（field=${JSON.stringify(last?.host?.fieldSigni)} hHand=${last?.host?.hand}）` };
+
+  if (payDiscard) {
+    // 🔴**ここが本命の観測点**＝【出】のコストで手札から2枚を捨てたのだから、
+    //   `turn_hand_discarded_cards` に＜ブルアカ＞2枚が載っていなければならない。
+    const hist = last?.host?.turnHandDiscarded ?? [];
+    const buruaka = hist.filter(n => String(n).startsWith('WXDi-CP02-063')).length;
+    H.log(`  コスト支払い後の捨て履歴: ${JSON.stringify(hist)}（枚数カウンタ=${last?.host?.turnHandDiscardedCount}）`);
+    if (buruaka < 2) {
+      return { pass: false, detail: `🔴【出】のコストで捨てた2枚が \`turn_hand_discarded_cards\` に積まれていない（履歴=${JSON.stringify(hist)} 枚数カウンタ=${last?.host?.turnHandDiscardedCount}）＝この捨て経路だけ実体を書いていない＝HAND_DISCARDED_THIS_TURN{filter} が永久に false` };
+    }
+  } else {
+    // 対照＝**捨ててはいるが＜ブルアカ＞ではない**履歴を作る（フィルタ側だけを反転させる）。
+    const p = await H.patchPlayerState('host', {
+      'turn_hand_discarded_cards': ['WD01-013#9540', 'WD01-013#9541'],
+      'turn_hand_discarded_count': 2,
+    });
+    if (p?.error) return { pass: false, detail: `履歴注入失敗: ${p.error}` };
+    let seeded = false;
+    for (let k = 0; k < 12; k++) {
+      await page.waitForTimeout(500);
+      const chk = await H.queryState();
+      if ((chk?.host?.turnHandDiscarded ?? []).length === 2) { seeded = true; break; }
+    }
+    if (!seeded) return { pass: false, detail: '非ブルアカの捨て履歴を注入できなかった（realtime 未反映）' };
+  }
+
+  // ── ② アタックフェイズへ進めて `WXDi-CP02-055` でアタックする
+  const gHand0 = (await H.queryState())?.guest?.hand ?? 2;
+  let opened = false, attacked = false, settled = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const st0 = await H.queryState();
+    if (!attacked && st0?.turnPhase !== 'ATTACK_SIGNI' && !st0?.pendingEffect && !(st0?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      opened = false;
+      did = `repatch:ATTACK_SIGNI(was ${st0.turnPhase})`;
+    }
+    if (!did && !attacked) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) {
+        await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+      }
+    }
+    if (!did && !opened) {
+      const o = await H.clickTestId('my-signi-zone-0');
+      if (o) { did = o; opened = true; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動する', '確定', '決定', 'OK', 'はい', 'ガードしない', 'エナに送る']);
+    last = await H.queryState();
+    H.log(`  ${tag}攻撃[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gHand=${gHand0}→${last?.guest?.hand} 捨て履歴=${JSON.stringify(last?.host?.turnHandDiscarded)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (attacked && !last?.pendingEffect && !(last?.stackLen > 0) && !last?.guest?.checkSlot) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  if (!attacked) return { pass: false, detail: `アタックできなかった（phase=${last?.turnPhase}）` };
+
+  const gHand = last?.guest?.hand ?? gHand0;
+  if (payDiscard) {
+    return gHand === gHand0 - 1
+      ? { pass: true, detail: `＜ブルアカ＞2枚を【出】のコストで捨てた → アタック時に相手が手札を1枚捨てた（gHand ${gHand0}→${gHand}・捨て履歴=${JSON.stringify(last?.host?.turnHandDiscarded)}）` }
+      : { pass: false, detail: `🔴＜ブルアカ＞を捨てたのに発動しない（gHand ${gHand0}→${gHand}・捨て履歴=${JSON.stringify(last?.host?.turnHandDiscarded)}）` };
+  }
+  return gHand === gHand0
+    ? { pass: true, detail: `対照＝捨てたのが＜ブルアカ＞でなければ発動しない（gHand ${gHand0}→${gHand}・捨て履歴=${JSON.stringify(last?.host?.turnHandDiscarded)}）` }
+    : { pass: false, detail: `🔴非ブルアカを捨てただけで発動した（gHand ${gHand0}→${gHand}）＝filter が効いていない（過剰発火）` };
+}
+
+scenarios.censusHandDiscardedBuruakaFires = {
+  title: 'census 第9弾 WXDi-CP02-055：【出】コストで＜ブルアカ＞を捨てた turn はアタック時に相手が手札を捨てる',
+  spec: cp02055Spec(),
+  drive: (page, H) => driveCp02055(page, H, true),
+};
+scenarios.censusHandDiscardedOtherClassNoop = {
+  title: 'census 第9弾 WXDi-CP02-055 対照：捨てたのが＜ブルアカ＞でなければ発動しない',
+  spec: cp02055Spec(),
+  drive: (page, H) => driveCp02055(page, H, false),
+};
+order.push('censusHandDiscardedBuruakaFires', 'censusHandDiscardedOtherClassNoop');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第9弾（`V-101`①）＝`ATTACH_ACCE.fromEnergy` の実機返済。
+// `WX22-Re02`（コードイート ウナドン）【出】《緑×0》：あなたのエナゾーンにある《アクセアイコン》を持つ
+// ＜調理＞のシグニ1枚を対象とし、それをこのシグニの【アクセ】にする。
+//
+// 🔴**焦点は「エナから選ぶ2段選択が UI に出るか」**（PLAN `V-101`①）＝
+//   engine（`effectExecutor.ts:8260`）は `fromHand` と同じ2段（段1＝アクセ札を選ぶ／段2＝ホストを選ぶ）に
+//   載せ替えただけなので、**段1 の `targetScope:'self_energy'` を UI が描けるか**が未検証だった。
+//   描けないと候補0件の窓が開いて `pick-N` が1つも立たず、**ソフトロック**になる（§5.1 の `softlockshortpick` と同型）。
+// ⚠**候補の中身まで assert する**＝エナには＜調理＞＋《アクセアイコン》の札と、条件を満たさない札の
+//   2枚を置く。片方しか候補に出ないことまで見ないと「全部出しているだけ」と区別が付かない。
+// ⚠段2 は `targetFilter:{thisCardOnly:true}`＝ホストはこのシグニ自身に固定される（候補1件）。
+scenarios.censusAcceFromEnergy = {
+  title: 'census 第9弾 WX22-Re02：エナの＜調理＞《アクセアイコン》だけが候補に出て、選ぶとエナから【アクセ】へ移る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX22-009#9600'],                    // Lv4・Limit12
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, null, null],
+      'field.signi_charms': [null, null, null],
+      'field.check': null,
+      'hand': ['WX22-Re02#9601'],
+      // 🔑候補1件だけになる組み合わせ＝`WX15-105`（コードイート トロチー・精械：調理・【アクセ】持ち）／
+      //   `WD01-013`（小剣 ククリ・精武：アーム・アクセ無し）は**候補に出てはいけない**。
+      'energy': ['WX15-105#9611', 'WD01-013#9612'],
+      'deck': ['WD01-013#9631', 'WD01-013#9632', 'WD01-013#9633'],
+      'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9690'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log(`開始 hHand=${before?.host?.hand} ena=${JSON.stringify(before?.host?.energyCards)} acce=${JSON.stringify(before?.host?.fieldAcce)}`);
+
+    let summonClicked = false, castStarted = false, placed = false;
+    let enaCandsSeen = null;   // 段1（self_energy）の候補
+    let picks = 0, settled = 0;
+    let last = before;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(600);
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      const summonVisible = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+      if (summonVisible && !summonClicked) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true;
+      }
+      if (!did && summonClicked && !placed) did = await H.clickTestId('summon-zone-0');
+      if (!did && !summonVisible && !summonClicked) did = await H.clickTestId('my-hand-card-0');
+      // 【出】《緑×0》＝色コストは0なのでエナ選択は不要。「発動」を押すだけ。
+      if (!did && !castStarted) {
+        const go = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await go.count() && await go.isVisible().catch(() => false) && await go.isEnabled().catch(() => false)) {
+          await go.click().catch(() => {}); castStarted = true; did = 'btn:発動';
+        }
+      }
+      // 🔴**対象選択は「決定」より先**（押す順を逆にすると「決定 (0/1)」を叩き続けて pick へ到達しない）。
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; picks++; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      placed = (last?.host?.fieldSigni?.[0] ?? []).includes?.('WX22-Re02#9601');
+      // 段1 の候補は「エナの札だけが並んでいる窓」＝最初に見えたものを控える。
+      if (enaCandsSeen === null && last?.pendingEffect === 'SELECT_TARGET') {
+        const c = last?.pendingCandidates ?? null;
+        if (Array.isArray(c) && c.some(n => String(n).startsWith('WX15-105') || String(n).startsWith('WD01-013'))) {
+          enaCandsSeen = c;
+          H.log(`  段1（self_energy）の候補: ${JSON.stringify(c)}`);
+        }
+      }
+      H.log(`  acceEna[${s}] -> ${did ?? 'なし'} | placed=${placed} picks=${picks} ena=${JSON.stringify(last?.host?.energyCards)} acce=${JSON.stringify(last?.host?.fieldAcce)} pEff=${last?.pendingEffect ?? '-'} cand=${JSON.stringify(last?.pendingCandidates)}`);
+      settled = (placed && castStarted && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+
+    if (!placed) return { pass: false, detail: `召喚できなかった（field=${JSON.stringify(last?.host?.fieldSigni)}）` };
+    if (enaCandsSeen === null) {
+      return { pass: false, detail: `🔴エナから選ぶ窓（段1・targetScope:'self_energy'）が一度も開かなかった＝fromEnergy が UI へ届いていない（pEff=${last?.pendingEffect ?? '-'}）` };
+    }
+    // ① 候補は＜調理＞＋《アクセアイコン》の1件だけ（フィルタが効いている）
+    if (!enaCandsSeen.includes('WX15-105#9611')) {
+      return { pass: false, detail: `🔴＜調理＞《アクセアイコン》の札が候補に出ない（候補=${JSON.stringify(enaCandsSeen)}）` };
+    }
+    if (enaCandsSeen.includes('WD01-013#9612')) {
+      return { pass: false, detail: `🔴条件を満たさない札（精武：アーム・アクセ無し）まで候補に出ている（候補=${JSON.stringify(enaCandsSeen)}）＝signiFilter が効いていない` };
+    }
+    // ② 選んだ札がエナから消えて【アクセ】に載る
+    const ena = last?.host?.energyCards ?? [];
+    const acce0 = last?.host?.fieldAcce?.[0];
+    const acceList = typeof acce0 === 'string' ? [acce0] : (acce0 ?? []);
+    if (ena.includes('WX15-105#9611')) {
+      return { pass: false, detail: `🔴選んだ札がエナに残っている（ena=${JSON.stringify(ena)} acce=${JSON.stringify(last?.host?.fieldAcce)}）` };
+    }
+    if (!acceList.includes('WX15-105#9611')) {
+      return { pass: false, detail: `🔴選んだ札が【アクセ】に載っていない（acce=${JSON.stringify(last?.host?.fieldAcce)} ena=${JSON.stringify(ena)}）` };
+    }
+    if (!ena.includes('WD01-013#9612')) {
+      return { pass: false, detail: `🔴候補外の札までエナから消えた（ena=${JSON.stringify(ena)}）` };
+    }
+    return {
+      pass: true,
+      detail: `段1（self_energy）の候補は＜調理＞《アクセアイコン》の1件だけ（${JSON.stringify(enaCandsSeen)}・アーム札は非提示）→ 選ぶとエナから消えて zone0 の【アクセ】へ（acce=${JSON.stringify(last?.host?.fieldAcce)}・残エナ=${JSON.stringify(ena)}）`,
+    };
+  },
+};
+order.push('censusAcceFromEnergy');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第9弾（`V-101`③）＝設置した遅延トリガーの **`placedByEffect` の弁別**の実機返済。
+// `WXDi-P09-010`（グズ子・ルリグ）は1枚で watcher と発火源を両方持っている：
+//   E3【起】《ゲーム１回》《黒×0》：このターン、あなたのシグニ1体が**効果によって**場に出たとき、
+//                                   相手シグニ1体を対象とし、ターン終了時までパワーを－8000（＝**監視する側**）
+//   E2【起】《ターン１回》《黒》《無》：トラッシュからシグニ1枚を**場に出す**（＝**効果による配置**）
+//
+// 🔴**焦点は「効果で出した／手札から通常召喚した」の弁別**（PLAN `V-101`③）＝
+//   `placedByEffect` を落とすと**通常召喚でも発火する**（過剰発火）し、逆に配置側が
+//   フラグを渡し忘れると**効果で出しても発火しない**（無言 no-op）。**両方向を1本ずつ見る**。
+// ⚠相手シグニは **pow12000**（`WD03-009`）＝－8000 を受けても 4000 で場に残るので、
+//   `powerMods` を観測点にできる（pow3000 だとバニッシュされて mod ごと消え、原因が読めない）。
+const p09010Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WXDi-P09-010#9700'],                  // グズ子 Lv3・Limit6
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.signi_charms': [null, null, null],
+    'field.check': null,
+    'hand': ['WD05-013#9701'],                            // 通常召喚する側（黒 Lv1）
+    'energy': ['WD05-013#9711', 'WD05-013#9712'],         // E2 の《黒》《無》＝黒2枚で足りる
+    'trash': ['WD05-013#9721'],                           // E2 で場に出すシグニ
+    'life_cloth': ['WD01-013#9731', 'WD01-013#9732', 'WD01-013#9733'],
+    'deck': ['WD01-013#9741', 'WD01-013#9742', 'WD01-013#9743'],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9790'],
+    'field.signi': [['WD03-009#9791'], null, null],       // pow12000＝－8000 でも生き残る
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+// byEffect=true＝E2（トラッシュから場に出す）で配置する／false＝手札から通常召喚する。
+async function driveP09010(page, H, byEffect) {
+  const tag = byEffect ? 'placedByEffect' : 'placedBySummon';
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log(`開始 delayed=${JSON.stringify(before?.host?.delayedTriggers)} gPowerMods=${JSON.stringify(before?.guest?.powerMods)} ena=${before?.host?.energy} trash=${JSON.stringify(before?.host?.trashCards)}`);
+
+  // ── ① E3（《黒×0》・ゲーム1回）を撃って watcher を設置する。
+  //    ⚠このルリグは【起】を2つ持つので**ボタン名で選び分ける**（「トラッシュから」を含まない側が E3）。
+  const clickLrig = async () => {
+    const img = page.getByAltText('グズ子', { exact: false }).first();
+    if (await img.count()) { await img.click({ force: true }).catch(() => {}); return 'lrig:click'; }
+    return await H.clickTestId('my-lrig-zone') ?? await H.clickTestId('my-lrig');
+  };
+  let installed = false, opened = false;
+  let last = before;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(600);
+    let did = null;
+    if (!opened) { did = await clickLrig(); opened = !!did; }
+    if (!did) {
+      const btns = page.getByRole('button', { name: /【起】/ });
+      const n = await btns.count();
+      if (s === 1) {
+        const names = [];
+        for (let i = 0; i < n; i++) names.push(await btns.nth(i).textContent().catch(() => '?'));
+        H.log(`  【起】ボタン ${n}件: ${JSON.stringify(names)}`);
+      }
+      for (let i = 0; i < n; i++) {
+        const t = (await btns.nth(i).textContent().catch(() => '')) ?? '';
+        // 🔴**ボタン名は効果本文ではなく支払い要約**＝実測で `【起】エナ2`（E2＝《黒》《無》）と
+        //   `【起】コストなし`（E3＝《黒×0》）の2件しか出ない。**効果本文で選び分けようとすると1つも押せない。**
+        if (t.includes('コストなし') && await btns.nth(i).isEnabled().catch(() => false)) {
+          await btns.nth(i).click().catch(() => {}); did = 'btn:【起】E3'; break;
+        }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    installed = (last?.host?.delayedTriggers ?? []).length > 0;
+    H.log(`  ${tag}設置[${s}] -> ${did ?? 'なし'} | installed=${installed} delayed=${JSON.stringify(last?.host?.delayedTriggers)} pEff=${last?.pendingEffect ?? '-'}`);
+    if (installed && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) break;
+    if (!did) opened = false;   // 何も押せなかったらルリグを開き直す
+  }
+  if (!installed) {
+    return { pass: false, detail: `🔴E3（ゲーム1回・《黒×0》）で遅延トリガーを設置できなかった（delayed=${JSON.stringify(last?.host?.delayedTriggers)}）` };
+  }
+
+  // ── ② シグニを場に出す（byEffect で経路を変える）
+  const gModsBefore = JSON.stringify(last?.guest?.powerMods ?? []);
+  let placed = false, settled = 0;
+  opened = false;
+  let summonClicked = false;
+  let enaIdx = 0;   // ルリグ【起】のエナ支払いで試した候補 index（同名カードが複数見えるため）
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(600);
+    let did = null;
+    const busy = !!last?.pendingEffect || (last?.stackLen ?? 0) > 0;
+    if (byEffect && !busy) {
+      // E2＝「トラッシュからシグニ１枚を対象とし、それを場に出す」
+      // ⚠**解決待ちの窓が開いている間はルリグを触らない**（裏のカード詳細が開いて操作を食う）。
+      if (!opened) { did = await clickLrig(); opened = !!did; }
+      if (!did) {
+        const btns = page.getByRole('button', { name: /【起】/ });
+        const n = await btns.count();
+        for (let i = 0; i < n; i++) {
+          const t = (await btns.nth(i).textContent().catch(() => '')) ?? '';
+          if (t.includes('エナ2') && await btns.nth(i).isEnabled().catch(() => false)) {
+            await btns.nth(i).click().catch(() => {}); did = 'btn:【起】E2'; break;
+          }
+        }
+      }
+      // 🔴**「発動」は enabled を見て押す**＝`H.clickTextOrBtn` は isEnabled を検査しないので、
+      //   disabled の「発動」を毎ティック押して「クリックした風だが進まない」に落ちる（初版で30ティック空振り）。
+      if (!did) { const go = await H.clickBtn('発動', { exact: true }); if (go) did = go; }
+      if (!did) {
+        // 発動が押せない＝《黒》《無》のエナが未選択。⚠ルリグ【起】のコストUIに testid は無く、
+        //   エナ札は `<img alt={CardName}>` を包む div の onClick＝**カード名で掴む**。
+        //   モーダル外の同名カード（トラッシュ・手札）はオーバーレイに覆われて click が通らないので、
+        //   force を付けずに順に試し、通ったものだけを支払いとして数える。
+        const imgs = page.getByAltText('小悪の象徴', { exact: false });
+        const n = await imgs.count();
+        while (enaIdx < n && !did) {
+          const im = imgs.nth(enaIdx);
+          enaIdx++;
+          if (!(await im.isVisible().catch(() => false))) continue;
+          const okClick = await im.click({ timeout: 1200 }).then(() => true).catch(() => false);
+          if (okClick) did = 'ena:' + (enaIdx - 1);
+        }
+      }
+    } else if (!byEffect) {
+      // 通常召喚（手札 → summon-zone-1）
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      const summonVisible = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+      if (summonVisible && !summonClicked) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true; }
+      if (!did && summonClicked) did = await H.clickTestId('summon-zone-1');
+      if (!did && !summonVisible && !summonClicked) did = await H.clickTestId('my-hand-card-0');
+    }
+    // 🔴対象選択は「決定」より先に置く
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+    }
+    // 🔴`SELECT_SIGNI_ZONE`＝「効果で場に出す」ときの**配置先ゾーン選択**（ボタン名は `ゾーンN`）。
+    //   ここを捌かないと `pEff=SELECT_SIGNI_ZONE` のまま永久に止まる（初版で30ティック空振りした）。
+    //   通常召喚（`summon-zone-N` の testid）とは**別の窓**なので、片方だけ書いても足りない。
+    if (!did) {
+      const zb = page.getByRole('button', { name: /^ゾーン[0-9]/ }).first();
+      if (await zb.count() && await zb.isVisible().catch(() => false) && await zb.isEnabled().catch(() => false)) {
+        await zb.click().catch(() => {}); did = 'btn:ゾーン';
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動', '確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    placed = (last?.host?.fieldSigni ?? []).some(z => (z ?? []).length > 0);
+    H.log(`  ${tag}配置[${s}] -> ${did ?? 'なし'} | placed=${placed} field=${JSON.stringify(last?.host?.fieldSigni)} gPowerMods=${JSON.stringify(last?.guest?.powerMods)} hPowerMods=${JSON.stringify(last?.host?.powerMods)} delayed=${JSON.stringify(last?.host?.delayedTriggers)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = (placed && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+    if (!did && !placed) { opened = false; summonClicked = false; enaIdx = 0; }
+  }
+  if (!placed) return { pass: false, detail: `${byEffect ? 'E2 で場に出せなかった' : '通常召喚できなかった'}（field=${JSON.stringify(last?.host?.fieldSigni)} ena=${last?.host?.energy}）` };
+
+  const mods = [...(last?.guest?.powerMods ?? []), ...(last?.host?.powerMods ?? [])];
+  const hit = mods.some(m => String(m).includes('WD03-009#9791') && String(m).includes('-8000'));
+  if (byEffect) {
+    return hit
+      ? { pass: true, detail: `効果（E2＝トラッシュから場に出す）で配置 → 遅延トリガーが発火して相手シグニに －8000（powerMods=${JSON.stringify(mods)}）` }
+      : { pass: false, detail: `🔴効果で場に出したのに遅延トリガーが発火しない（powerMods=${JSON.stringify(mods)}・設置前=${gModsBefore}・delayed=${JSON.stringify(last?.host?.delayedTriggers)}）＝配置側が placedByEffect を渡していない` };
+  }
+  return hit
+    ? { pass: false, detail: `🔴通常召喚なのに発火した（powerMods=${JSON.stringify(mods)}）＝placedByEffect の弁別が効いていない（過剰発火）` }
+    : { pass: true, detail: `対照＝手札からの通常召喚では発火しない（powerMods=${JSON.stringify(mods)}・watcher は設置済み=${JSON.stringify(last?.host?.delayedTriggers)}）` };
+}
+
+scenarios.censusDelayedPlacedByEffectFires = {
+  title: 'census 第9弾 WXDi-P09-010：効果で場に出したとき遅延トリガーが発火して相手に －8000',
+  spec: p09010Spec(),
+  drive: (page, H) => driveP09010(page, H, true),
+};
+scenarios.censusDelayedPlacedBySummonNoop = {
+  title: 'census 第9弾 WXDi-P09-010 対照：手札からの通常召喚では発火しない（placedByEffect の弁別）',
+  spec: p09010Spec(),
+  drive: (page, H) => driveP09010(page, H, false),
+};
+order.push('censusDelayedPlacedByEffectFires', 'censusDelayedPlacedBySummonNoop');
+
+
+
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -38249,6 +38739,11 @@ try {
         //   置換は回数制なので、「2回目に乗らない」ことを盤面差分だけで言うと
         //   「そもそも1回目も乗っていない」と区別が付かない＝**カウンタ自体**を観測点にする。
         selfCrashRefill: s.self_crash_to_trash_and_refill ?? 0,
+        // 🆕V-101②（2026-08-31）＝このターンに手札から捨てたカードの**実体**とカウンタ。
+        //   `HAND_DISCARDED_THIS_TURN{filter}` は**実体を絞って数える**ので、
+        //   実体を積み忘れた捨て経路があると条件が永久に false になる（枚数だけ見ても分からない）。
+        turnHandDiscarded: s.turn_hand_discarded_cards ?? [],
+        turnHandDiscardedCount: s.turn_hand_discarded_count ?? 0,
         lifeCrashReplacements: s.life_crash_replacements ?? [],
         damageReplaceMill: s.damage_replace_mill ?? [],
         leaveSubstituteChoices: s.leave_substitute_choices ?? null,
