@@ -1,5 +1,24 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+### 恒久指標（退避）2026-09-01 続き760 後
+
+- **2026-09-01 続き760 後（本行が直近の正）**：
+  📊**進捗3計器＝Sheet1 要対応 17 / 863 (2.0%・据置)｜台帳 残 OPEN 🆕46（67 から -21）｜census 高シグナル 12 / BASELINE 12（据置）**
+  ＝**動いたのは台帳だけ**（census は MANUAL/STUB 免除と母集団が別なので、段2 の消化では基本動かない）。
+  **golden 3139 → 3145（+6本＝新語彙の3点セットと多段対話の resume チェーン）**、smoke 全異常0、fuzz 全0、
+  census **12 / BASELINE 12**、lint 0 errors、`census:stubs` A群🔴0／C群0、manual-fields 0。
+  **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
+  🆕**新設語彙13本**＝`EffectTarget.extraZones`／`LEVEL_MODIFY` の `aboveSelf` 適用（`buildLevelMods`）／
+  `ChooseAction.noRepeat`(+`taken_choice_keys`)／`SWAP_DECK_TOP_AND_LIFE`／
+  `TargetFilter.nameInCrossConditionOfLastProcessed`／`AttachAcceAction.repeatWhilePossible`／
+  `LookPickChainStage.gateZoneOnly`+`AddToFieldAction.gateZoneOnly`／`ON_BANISH` の遅延収集地点+`trigger.notByOwnEffect`／
+  `GRANT_KEYWORD` の `target.type:'PLAYER'`(+`player_keywords`)／効果バニッシュへの `collectBanishPreventLoseAbility` 適用／
+  `BlockActionAction.bothPlayers`／`PLACE_KEY_FROM_LRIG_DECK`／`TransferToDeckAction.orderChosenBy`。
+  ⚠**golden の契約を1本更新**（`task12 lxxiv残` の対照＝本来の目的「主語なしを一律 opponent へ倒さない」は
+  フラグを外した対照で残した）／**影武者1本を撤去**（`WDK03-001-E2`）／`BASELINE_ORPHAN_MANUAL` 10 → 9。
+  ⚠**実機は不要と判定**（`src/screens/` 不変更）。🔴**ただし新機構に多段対話が2つある**ので、
+  UI 層まで見るなら §5.1 へ `V-nn` を足す。**live の A/B 差分＝15カード**（巻き添え0）。
+
 
 ## 恒久指標の過去行（§6 から退避）
 

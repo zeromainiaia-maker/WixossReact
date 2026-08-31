@@ -1,14 +1,14 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 612（総ノード 2965 件）
-逆翻訳シートの [STUB:…] 総数: 557  うち生ID露出 5 箇所（4 種）
+live JSON の STUB id 種類 : 612（総ノード 2968 件）
+逆翻訳シートの [STUB:…] 総数: 560  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 25 種 / 26 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 25 種 / 26 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 89 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 91 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 587 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 347 種
@@ -105,6 +105,9 @@ live JSON の STUB id 種類 : 612（総ノード 2965 件）
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
         消費: src\engine\effectExecutor.ts:5105 / src\engine\effectExecutor.ts:5110
+     5件   5枚  GRANT_ALL_ZONE_LIFEBURST
+        カード: WD14-001, WX02-002, WX17-036, WXEX1-11, WXDi-P08-008
+        消費: src\screens\battle\allZoneBurst.ts:25
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
         消費(ペイロードキー): src\engine\effectEngine.ts:2090
@@ -123,9 +126,6 @@ live JSON の STUB id 種類 : 612（総ノード 2965 件）
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
         カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
         消費: src\engine\effectExecutor.ts:446
-     3件   3枚  GRANT_ALL_ZONE_LIFEBURST
-        カード: WD14-001, WX02-002, WX17-036
-        消費: src\screens\battle\allZoneBurst.ts:25
      3件   3枚  GUARD_LOSS_UNLESS_LRIG
         カード: WX12-025, WX12-034, WX12-036
         消費: src\screens\battle\guard.ts:18

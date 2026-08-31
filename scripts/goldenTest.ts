@@ -26981,6 +26981,108 @@ test('PLAN §6.3 WX25-P3-027-E2 ディスペア：次の相手ターン限定・
   eq(resolveAllZoneBurstGrant(cleared, effectsMap, true), null, '自分の次ターン開始後はクリアされ2ターン後に非発火');
 });
 
+test('O-128 第3バッチ WXEX1-11-E1：全領域の＜水獣＞カードへ選択LBを追加付与', () => withSavedCursor(() => {
+  const cardNum = 'WXEX1-11';
+  const liveEffect = effectsMap.get(cardNum)!.find(e => e.effectId === 'WXEX1-11-E1')!;
+  eq((liveEffect.action as StubAction).id, 'GRANT_ALL_ZONE_LIFEBURST', 'live JSONへ配線済み');
+  const merged = mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!));
+  const effect = merged
+    .find(e => e.effectId === 'WXEX1-11-E1')!;
+  const action = effect.action as StubAction;
+  eq(action.type, 'STUB', 'トップレベルは既存STUB受け皿');
+  eq(action.id, 'GRANT_ALL_ZONE_LIFEBURST', '全領域LB付与へ配線');
+  eq(action.burstFilter?.cardClass, '水獣', '＜水獣＞はCSV CardClassに対応する正準キー');
+  eq(action.burstFilter?.cardType, undefined, '原文は＜水獣＞のカードでありシグニ限定にしない');
+  eq(action.burstAction?.type, 'CHOOSE', '付与LBは2択');
+  eq(action.burstAdditive, true, 'ネイティブLBにも追加付与');
+  const burst = action.burstAction as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(burst.choose_count, 1, '2択から1つを選ぶ');
+  eq(burst.from_count, 2, '選択肢は2つ');
+  eq(burst.choices[0]?.action.type, 'DRAW', '①はカードを1枚引く');
+  const downChoice = burst.choices[1]?.action as Extract<EffectAction, { type: 'DOWN' }>;
+  eq(downChoice.type, 'DOWN', '②はダウン');
+  eq(downChoice.target.owner, 'opponent', '②の対象は対戦相手のシグニ');
+
+  const localEffects = new Map(effectsMap);
+  localEffects.set(cardNum, merged);
+  const state = mkState({ lrig: [cardNum] });
+  const grant = resolveAllZoneBurstGrant(state, localEffects, false);
+  eq(grant?.id, 'GRANT_ALL_ZONE_LIFEBURST', '場のルリグから常在付与を取得');
+  const waterBeastCard = findCard(c => c.Type === 'レゾナ' && (c.CardClass ?? '').includes('水獣'));
+  const nonWaterBeast = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('水獣'));
+  ok(allZoneBurstGrantMatches(waterBeastCard, state, cardMap, localEffects, false), '非シグニの＜水獣＞カードにも一致');
+  ok(!allZoneBurstGrantMatches(nonWaterBeast, state, cardMap, localEffects, false), '＜水獣＞でないカードは不一致');
+}));
+
+test('O-128 第3バッチ WXDi-P08-008-E1：非LBカードへドロー／エナチャージ選択LB', () => withSavedCursor(() => {
+  const cardNum = 'WXDi-P08-008';
+  const liveEffect = effectsMap.get(cardNum)!.find(e => e.effectId === 'WXDi-P08-008-E1')!;
+  eq((liveEffect.action as StubAction).id, 'GRANT_ALL_ZONE_LIFEBURST', 'live JSONへ配線済み');
+  const merged = mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!));
+  const effect = merged
+    .find(e => e.effectId === 'WXDi-P08-008-E1')!;
+  const action = effect.action as StubAction;
+  eq(action.type, 'STUB', 'トップレベルは既存STUB受け皿');
+  eq(action.id, 'GRANT_ALL_ZONE_LIFEBURST', '全領域LB付与へ配線');
+  eq(action.burstFilter, undefined, 'クラッシュ処理専用受け皿なのでカード属性フィルタなし');
+  eq(action.burstAction?.type, 'CHOOSE', '付与LBは2択');
+  eq(action.burstAdditive, undefined, '「LBを持たないカード」限定なので加算しない');
+  const burst = action.burstAction as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(burst.choose_count, 1, '2択から1つを選ぶ');
+  eq(burst.from_count, 2, '選択肢は2つ');
+  eq(burst.choices[0]?.action.type, 'DRAW', '①はカードを1枚引く');
+  eq(burst.choices[1]?.action.type, 'ENERGY_CHARGE_FROM_DECK', '②はエナチャージ1');
+
+  const localEffects = new Map(effectsMap);
+  localEffects.set(cardNum, merged);
+  const state = mkState({ lrig: [cardNum] });
+  const grant = resolveAllZoneBurstGrant(state, localEffects, false);
+  eq(grant?.id, 'GRANT_ALL_ZONE_LIFEBURST', '場のルリグから常在付与を取得');
+  const noBurst = findCard(c => c.LifeBurst !== '1'
+    && !(effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'LIFE_BURST'));
+  const nativeBurst = findCard(c => c.LifeBurst === '1'
+    || (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'LIFE_BURST'));
+  ok(shouldAddGrantedAllZoneBurst(noBurst, state, cardMap, localEffects, false), '非LBカードには付与分を追加');
+  ok(!shouldAddGrantedAllZoneBurst(nativeBurst, state, cardMap, localEffects, false), 'ネイティブLBカードには付与分を追加しない');
+}));
+
+test('O-128 第3バッチ WX24-P3-022-E2：対象固定＋任意手札2枚DOWNの一時追加LB', () => withSavedCursor(() => {
+  const cardNum = 'WX24-P3-022';
+  const liveEffect = effectsMap.get(cardNum)!.find(e => e.effectId === 'WX24-P3-022-E2')!;
+  eq((liveEffect.action as StubAction).id, 'SET_DISPAIR_BURST_GRANT', 'live JSONへ配線済み');
+  const effect = mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!))
+    .find(e => e.effectId === 'WX24-P3-022-E2')!;
+  const action = effect.action as StubAction;
+  eq(action.type, 'STUB', 'トップレベルは既存STUB受け皿');
+  eq(action.id, 'SET_DISPAIR_BURST_GRANT', '起動一時付与へ配線');
+  eq(action.burstFilter, undefined, '全カードへ付与');
+  eq(action.burstAction?.type, 'SEQUENCE', '付与LBは順次処理');
+  eq(action.burstAdditive, true, 'ネイティブLBにも追加付与');
+  const steps = (action.burstAction as SequenceAction).steps;
+  eq(steps[0]?.type, 'DRAW', '最初に1枚引く');
+  const select = steps[1] as StubAction;
+  eq(select.id, 'SELECT_TARGET_ONLY', '任意コストより先に相手シグニを対象宣言');
+  eq(select.selectTarget?.owner, 'opponent', '対象は対戦相手のシグニ');
+  eq(select.abortIfNoCandidate, true, '対象がいなければ後続コストを提示しない');
+  eq((steps[2] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', '対象をコスト前に固定');
+  const optionalCost = steps[3] as StubAction;
+  eq(optionalCost.id, 'OPTIONAL_COST', '手札捨ては任意コスト');
+  eq(optionalCost.handDiscard?.count, 2, '任意コストは手札2枚');
+  const paidGate = steps[4] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(paidGate.condition.type, 'PAID_ADDITIONAL_COST', '支払った場合だけ帰結');
+  const down = paidGate.then as Extract<EffectAction, { type: 'DOWN' }>;
+  eq(down.type, 'DOWN', '帰結はダウン');
+  eq(down.targetsStored, true, '捨てる前に固定した同じ対象をダウン');
+
+  const ctx = mkCtx({}, {}, cardNum);
+  const activated = finish(executeEffect(effect, ctx), ctx);
+  const temporary = activated.ownerState.allzone_burst_grant_until_opp_turn;
+  eq(temporary?.id, 'GRANT_ALL_ZONE_LIFEBURST', '起動で一時全領域LB付与を保存');
+  eq(temporary?.burstAdditive, true, '保存後も追加付与を維持');
+  eq(resolveAllZoneBurstGrant(activated.ownerState, effectsMap, false), null, '設定した自ターン中は一時付与を読まない');
+  eq(resolveAllZoneBurstGrant(activated.ownerState, effectsMap, true)?.id, 'GRANT_ALL_ZONE_LIFEBURST', '次の相手ターン中は一時付与を読む');
+}));
+
 test('PLAN §6.3 tail C-2 WDK07-E15 picked Cooking SIGNI attaches to self', () => {
   const host = 'WDK07-E15';
   const cooking = findCard(c => isSigni(c) && c.CardNum !== host && (c.CardClass ?? '').includes('調理'));
