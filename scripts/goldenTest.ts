@@ -56,7 +56,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../src/screens/battle/costs';
+import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -17392,6 +17392,43 @@ test('O-96 第3バッチ: 効果レベルの前置条件を落とさない', () 
     'PR-K021: 自パワー12000の条件を維持');
 });
 
+// 意味照合 段2（2026-09-01 続き767）＝`cost.energyTrashGroups` の支払いUI（`SigniOnPlayCostModal`）を新設した。
+// 🔴旧 live は `costUnparsed:true` ＝**発動コストが無料**だった（エナを1枚も払わずに相手シグニ2体を触れた）。
+// ⚠**型はもとから在った**が、消費が `resonaSummon.ts`（レゾナ召喚）1箇所だけで、
+//   シグニの【出】コストとしては払われていなかった＝「型があっても消費が無い」型の穴。
+test('意味照合 WXK03-070-E1: エナから《モモイヌ》《モモザル》《モモキジ》各1枚のコストを課す', () => {
+  const effect = effectsMap.get('WXK03-070')?.find(e => e.effectId === 'WXK03-070-E1');
+  ok(!!effect, 'WXK03-070-E1 が live に存在');
+  ok(!(effect as unknown as { costUnparsed?: boolean }).costUnparsed, 'costUnparsed を残さない');
+  const groups = effect!.cost?.energyTrashGroups;
+  eq(groups?.length, 3, '3つのカード名グループ');
+  eq(groups?.map(g => `${g.filter?.cardName}×${g.count}`).join(','),
+    '幻怪　モモイヌ×1,幻怪　モモザル×1,幻怪　モモキジ×1', '各1枚ずつ');
+  eq(effect!.mandatory, false, 'コスト付き【出】は mandatory:false でないと提示されない');
+});
+
+test('意味照合 energyTrashGroups: 支払い判定は「全グループを充足」まで見る', () => {
+  const groups = [
+    { count: 1, filter: { cardName: '幻怪　モモイヌ' } },
+    { count: 1, filter: { cardName: '幻怪　モモザル' } },
+    { count: 1, filter: { cardName: '幻怪　モモキジ' } },
+  ];
+  // WXK03-073=モモイヌ / WXK03-072=モモザル / WXK03-071=モモキジ
+  const ena = ['WXK03-073', 'WXK03-072', 'WXK03-071', 'WXK03-008'];
+  ok(energyTrashGroupsSatisfied(ena, new Set([0, 1, 2]), groups, cardMap), '3種そろえば充足');
+  ok(!energyTrashGroupsSatisfied(ena, new Set([0, 1]), groups, cardMap), '2枚では不足');
+  ok(!energyTrashGroupsSatisfied(ena, new Set([0, 1, 3]), groups, cardMap),
+    '🔴どのグループにも入らないカードを混ぜたら不成立（枚数だけで通さない）');
+  // 選択ガード＝「残りで全グループを埋められる見込み」まで見る
+  ok(canAddEnergyTrashGroupIndex(ena, new Set(), 0, groups, cardMap), 'モモイヌは選べる');
+  ok(!canAddEnergyTrashGroupIndex(ena, new Set(), 3, groups, cardMap), '無関係のカードは選べない');
+  ok(!canAddEnergyTrashGroupIndex(ena, new Set([0, 1, 2]), 3, groups, cardMap), '必要数を超えて選べない');
+  // 支払可否（そもそもエナに構成が在るか）
+  ok(energyTrashGroupsAffordable(ena, groups, cardMap), '3種そろっていれば払える');
+  ok(!energyTrashGroupsAffordable(['WXK03-073', 'WXK03-073', 'WXK03-073'], groups, cardMap),
+    '🔴同名3枚では払えない（グループごとに別カードが要る）');
+});
+
 // 意味照合 段2（2026-09-01 続き766）＝「選択肢ごとのコスト」は `ChoiceOption` ではなく
 // **枝の action の中**に `STUB{OPTIONAL_COST}` → `CONDITIONAL{PAID_ADDITIONAL_COST}` で置く。
 // 🔴旧 live は選択肢②が無償だった＝ライフクロスをタダで手札に加えられる過剰実行。
@@ -30164,10 +30201,11 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1396→1395＝2026-08-31 続き748 で `WXDi-P07-049-E2`（「公開領域に〈X〉がある場合」）に条件が付いた。
     eq(eligible.length - conditional.length, 1395, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 60, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
-    eq(optionalCost.length, 961, '任意costあり（可変捨て4効果を action-local TRASH へ移した後）');
+    // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
+    eq(optionalCost.length, 962, '任意costあり（+WXK03-070-E1＝energyTrashGroups 語彙化）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
-    eq(optionalNoCost.length, 21, '任意costなし（action 自身が徴収する可変捨て11効果を含む）');
+    eq(optionalNoCost.length, 20, '任意costなし（-WXK03-070-E1＝costUnparsed を解いて cost あり側へ移動）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -30194,7 +30232,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   test('(xxix)(1) 任意cost【出】の内訳＝wave10の4語彙追加後も安全側へ分類', () => {
     const SUPPORTED = new Set([
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
-      'handToEnergy', 'handToUnderSelf', 'underAnySigniTrash', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
+      'handToEnergy', 'handToUnderSelf', 'underAnySigniTrash', 'energyTrash', 'energyTrashGroups', 'exceed', 'fieldTrash', 'fieldTrashGroups',
       'fieldToLrigTrash',
       'lrigDown', 'lrigDownVariable', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
       'beat_signi', 'beat_signi_from_trash',
@@ -30208,8 +30246,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
-    eq(optionalCost.length, 961, '母集団（可変捨て4効果を action-local TRASH へ移した後）');
-    eq(mapped.length, 961, 'OPTIONAL_COST へ写せる（可変捨ては action-local TRASH へ分離済み）');
+    eq(optionalCost.length, 962, '母集団（+WXK03-070-E1＝energyTrashGroups 語彙化）');
+    eq(mapped.length, 962, 'OPTIONAL_COST へ写せる（energyTrashGroups もグループごとの TRASH へ分解して写せる）');
     eq(optionalCost.length - mapped.length, 0, '未対応の外側 cost は0件');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -30347,7 +30385,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 17, '包む＝真に任意6効果＋action自身が選択・徴収する可変捨て11効果');
-    eq(deferred, 4, '据え置き＝明示保留した cost 未表現の4効果（parser 在庫）');
+    eq(deferred, 3, '据え置き＝明示保留した cost 未表現の3効果（WXK03-070-E1 は続き767 で語彙化して解消）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -31160,9 +31198,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     } finally { cursor = savedCursor; }
   });
 
-  test('(xxix)(2) 第15波後の明示保留4効果は costUnparsed のまま保持する', () => {
+  // 🆕2026-09-01 続き767＝`WXK03-070-E1` はこのリストから外した。
+  //   保留の理由は「**既存語彙が不完全**だから載せない」であって「永久に据え置く」ではない。
+  //   `cost.energyTrashGroups` を **支払いの2経路**（通常召喚＝`SigniOnPlayCostModal` ／
+  //   効果配置＝`optionalOnPlayCostStub`→`optionalCostPaySteps`）へ通したので保留の前提が消えた。
+  test('(xxix)(2) 第15波後の明示保留3効果は costUnparsed のまま保持する', () => {
     const deferredIds = [
-      'WXK03-070-E1', 'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
+      'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
     ];
     for (const effectId of deferredIds) {
       const cardNum = effectId.replace(/-E\d+$/, '');

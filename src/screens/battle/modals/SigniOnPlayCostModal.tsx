@@ -7,7 +7,7 @@ import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashS
 import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied } from '../costs';
+import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
@@ -88,8 +88,14 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const exceedPool = exceedPoolOf(pState);
               const exceedOk = canPayExceed(pState, exceedNeeded)
                 && (exceedNeeded === 0 || selectedSigniOnPlayExceed.size === exceedNeeded);
-              const enaTrashNeeded = eff.cost?.energyTrash?.count ?? 0;
-              const enaTrashFilter = eff.cost?.energyTrash?.filter;
+              // `energyTrashGroups`＝「エナゾーンから《A》1枚と《B》1枚と…をトラッシュに置く」（異なるフィルタの組）。
+              // 🔑選択集合は `energyTrash` と同じ「エナ index の集合」なので**支払い側（`executeSigniOnPlayCost`）は共通**＝
+              //   ここで分かれるのは**可否判定と選択ガードだけ**。
+              const enaTrashGroups = eff.cost?.energyTrashGroups;
+              const enaTrashNeeded = enaTrashGroups?.length
+                ? enaTrashGroups.reduce((n, g) => n + g.count, 0)
+                : (eff.cost?.energyTrash?.count ?? 0);
+              const enaTrashFilter = enaTrashGroups?.length ? undefined : eff.cost?.energyTrash?.filter;
               // 場のシグニトラッシュコスト
               const ftCost = eff.cost?.fieldTrash
                 ?? (eff.cost?.fieldToLrigTrash ? { ...eff.cost.fieldToLrigTrash, excludeSelf: false } : undefined);
@@ -174,6 +180,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 && handDiscardSigniOk
                 // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
                 && energyTrashCostSatisfied(pcEnergy, selectedSigniOnPlayEnergyTrash, eff.cost?.energyTrash, battleCardMap)
+                && energyTrashGroupsSatisfied(pcEnergy, selectedSigniOnPlayEnergyTrash, enaTrashGroups, battleCardMap)
                 && fieldTrashSelectionSatisfied(
                   ftCost, ftGroups, [...selectedSigniOnPlayFieldTrash],
                   pState, battleCardMap, selfZoneFT,
@@ -370,14 +377,18 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         エナゾーンからトラッシュするカードを選択: {selectedSigniOnPlayEnergyTrash.size} / {enaTrashNeeded}枚
-                        {enaTrashFilter ? `（${filterLabel(enaTrashFilter)}のみ）` : ''}
+                        {enaTrashGroups?.length
+                          ? `（${enaTrashGroups.map(g => `${filterLabel(g.filter) || 'カード'}×${g.count}`).join(' ＋ ')}）`
+                          : enaTrashFilter ? `（${filterLabel(enaTrashFilter)}のみ）` : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {pcEnergy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayEnergyTrash.has(i);
-                          const matchesEna = (!enaTrashFilter || matchesFilter(c, enaTrashFilter))
-                            && canAddEnergyTrashIndex(pcEnergy, selectedSigniOnPlayEnergyTrash, i, eff.cost?.energyTrash, battleCardMap);
+                          const matchesEna = enaTrashGroups?.length
+                            ? canAddEnergyTrashGroupIndex(pcEnergy, selectedSigniOnPlayEnergyTrash, i, enaTrashGroups, battleCardMap)
+                            : ((!enaTrashFilter || matchesFilter(c, enaTrashFilter))
+                              && canAddEnergyTrashIndex(pcEnergy, selectedSigniOnPlayEnergyTrash, i, eff.cost?.energyTrash, battleCardMap));
                           return (
                             <div key={i}
                               onClick={() => matchesEna && setSelectedSigniOnPlayEnergyTrash(prev => {

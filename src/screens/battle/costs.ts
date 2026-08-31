@@ -123,6 +123,101 @@ export function canAddEnergyTrashIndex(
 }
 
 /**
+ * `cost.energyTrashGroups` の選択が**全グループを充足するか**
+ * （「エナゾーンから《A》1枚と《B》1枚と《C》1枚をトラッシュに置く」＝`WXK03-070-E1`）。
+ *
+ * 🔴**先着順の貪欲割り当てでは足りない**＝フィルタが重なるグループがあると、
+ *   先に緩いグループへ吸われて厳しいグループが埋まらず**払えるのに払えないと判定する**。
+ *   ⇒ グループ数は実データで最大3なので**総当たりの割り当て**で判定する
+ *     （`fieldTrashGroupsSatisfied` の貪欲版とは別に、こちらは重なりを許す）。
+ * ⚠**判定はこの1本に集約する**＝可否ゲートと支払いUIで写経すると片肺になる（`energyTrash` 側と同じ規律）。
+ */
+export function energyTrashGroupsSatisfied(
+  energy: string[],
+  selected: Set<number>,
+  groups: { count: number; filter?: import('../../types/effects').TargetFilter }[] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!groups?.length) return true;
+  const need = groups.reduce((n, g) => n + g.count, 0);
+  const nums = energyTrashSelectedNums(energy, selected);
+  if (nums.length !== need) return false;
+  // 各グループを「あと何枚必要か」で持ち、選択カードを1枚ずつ総当たりで割り当てる。
+  const remaining = groups.map(g => g.count);
+  const assign = (i: number): boolean => {
+    if (i >= nums.length) return remaining.every(r => r === 0);
+    const card = cardMap.get(getCardNum(nums[i]));
+    for (let gi = 0; gi < groups.length; gi++) {
+      if (remaining[gi] <= 0) continue;
+      if (groups[gi].filter && !matchesFilter(card, groups[gi].filter)) continue;
+      remaining[gi]--;
+      if (assign(i + 1)) return true;
+      remaining[gi]++;
+    }
+    return false;
+  };
+  return assign(0);
+}
+
+/**
+ * `cost.energyTrashGroups` でエナ index を1枚**追加できるか**（タップ時のガード）。
+ * ⚠**「どれかのグループに入りうる」だけでは足りない**＝残りの選択で全グループを埋められる見込みが要るので、
+ *   仮に足した集合が**まだ充足可能か**（＝部分割り当てが成立するか）で判定する。
+ */
+export function canAddEnergyTrashGroupIndex(
+  energy: string[],
+  selected: Set<number>,
+  index: number,
+  groups: { count: number; filter?: import('../../types/effects').TargetFilter }[] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!groups?.length) return false;
+  if (selected.has(index)) return true;                       // 解除は常に可
+  const need = groups.reduce((n, g) => n + g.count, 0);
+  if (selected.size >= need) return false;
+  if (energy[index] === undefined) return false;
+  const nums = [...energyTrashSelectedNums(energy, selected), energy[index]];
+  const remaining = groups.map(g => g.count);
+  const assign = (i: number): boolean => {
+    if (i >= nums.length) return true;                        // 途中経過なので「残り0」までは求めない
+    const card = cardMap.get(getCardNum(nums[i]));
+    for (let gi = 0; gi < groups.length; gi++) {
+      if (remaining[gi] <= 0) continue;
+      if (groups[gi].filter && !matchesFilter(card, groups[gi].filter)) continue;
+      remaining[gi]--;
+      if (assign(i + 1)) return true;
+      remaining[gi]++;
+    }
+    return false;
+  };
+  return assign(0);
+}
+
+/** `cost.energyTrashGroups` を**そもそも払えるか**（エナゾーンに必要な構成が存在するか）。 */
+export function energyTrashGroupsAffordable(
+  energy: string[],
+  groups: { count: number; filter?: import('../../types/effects').TargetFilter }[] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!groups?.length) return true;
+  const used = new Set<number>();
+  // 候補の少ないグループから確保する（`fieldTrashGroupsAffordable` と同じ規約）。
+  const order = groups
+    .map((g, gi) => ({ gi, g, cands: energy.map((_, i) => i).filter(i => !g.filter || matchesFilter(cardMap.get(getCardNum(energy[i])), g.filter)) }))
+    .sort((a, b) => a.cands.length - b.cands.length);
+  for (const { g, cands } of order) {
+    let take = g.count;
+    for (const i of cands) {
+      if (take <= 0) break;
+      if (used.has(i)) continue;
+      used.add(i); take--;
+    }
+    if (take > 0) return false;
+  }
+  return true;
+}
+
+/**
  * §5.3 `O-108`：`handDiscardSigni` コストの選択が**集合制約**（「それぞれ名前の異なる」）まで満たすか。
  * ⚠**可否ゲート（`signiActivateGate`）と支払いUI（各モーダル）が同じ関数を通る**ようにしてある。
  *   写経すると「提示は絞られるのに支払いは通る」片肺になる（`energyTrash` 側と同じ規律）。

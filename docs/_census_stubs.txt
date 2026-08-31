@@ -101,7 +101,7 @@ live JSON の STUB id 種類 : 612（総ノード 3044 件）
 ==============================================================================
     24件  24枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他18枚
-        消費: src\engine\effectExecutor.ts:5486 / src\engine\effectExecutor.ts:5501 / src\engine\triggerCollect.ts:444
+        消費: src\engine\effectExecutor.ts:5486 / src\engine\effectExecutor.ts:5501 / src\engine\triggerCollect.ts:445
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
         消費: src\engine\effectExecutor.ts:5105 / src\engine\effectExecutor.ts:5110
@@ -173,10 +173,10 @@ live JSON の STUB id 種類 : 612（総ノード 3044 件）
         消費: src\engine\refresh.ts:30
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WXK11-020
-        消費: src\screens\battle\costs.ts:1187
+        消費: src\screens\battle\costs.ts:1282
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1691
+        消費: src\engine\execUtils.ts:1719
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:7766

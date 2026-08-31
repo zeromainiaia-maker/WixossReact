@@ -341,6 +341,8 @@ export interface OptionalCostSpec {
   //   片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される（続き422 で実際に踏んだ）。
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
   energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  /** 異なるフィルタの組でエナから置く（「《A》1枚と《B》1枚と…」）。支払いはグループごとに1ステップへ分解する。 */
+  energyTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
@@ -404,7 +406,8 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
   return {
     costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     underAnySigniTrash: a.underAnySigniTrash,
-    energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
+    energyTrash, energyTrashGroups: a.energyTrashGroups,
+    fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy, selfTrash: a.selfTrash,
     selfEnergyToDeckBottom: a.selfEnergyToDeckBottom,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
@@ -478,6 +481,25 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       !spec.energyTrash!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.energyTrash!.filter));
     if (spec.energyTrash.count !== 'ALL' && matching.length < spec.energyTrash.count) return false;
     if (!hasValidConstrainedSelection(matching, spec.energyTrash.count, spec.energyTrash.selectionConstraint, ctx.cardMap)) return false;
+  }
+  if (spec.energyTrashGroups?.length) {
+    // 🔴**グループごとに別カードが要る**＝合計枚数だけを見ると同名3枚でも払えてしまう。
+    //   候補の少ないグループから確保する（`fieldTrashGroupsAffordable` と同じ規約）。
+    const usedETG = new Set<number>();
+    const orderETG = spec.energyTrashGroups
+      .map(g => ({ g, cands: ctx.ownerState.energy
+        .map((_, i) => i)
+        .filter(i => !g.filter || matchesFilter(ctx.cardMap.get(getCardNum(ctx.ownerState.energy[i])), g.filter)) }))
+      .sort((x, y) => x.cands.length - y.cands.length);
+    for (const { g, cands } of orderETG) {
+      let take = g.count;
+      for (const i of cands) {
+        if (take <= 0) break;
+        if (usedETG.has(i)) continue;
+        usedETG.add(i); take--;
+      }
+      if (take > 0) return false;
+    }
   }
   if (spec.handToEnergy) {
     const matching = ctx.ownerState.hand.filter(n =>
@@ -617,6 +639,12 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
         ...(spec.energyTrash.upToCount ? { upToCount: true } : {}),
         filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
     } as EffectAction] : []),
+    // 🔑`energyTrashGroups` は**グループごとに1ステップ**へ分解する＝
+    //   1本の TRASH に潰すと「《A》1枚と《B》1枚と…」の「各1枚ずつ」が消えて同名3枚でも払えてしまう。
+    ...((spec.energyTrashGroups ?? []).map(g => ({
+      type: 'TRASH', asCost: true,
+      target: { type: 'ENERGY_CARD', owner: 'self', count: g.count, filter: g.filter },
+    } as EffectAction))),
     ...(spec.handToEnergy ? [{
       type: 'ENERGY_CHARGE', asCost: true,
       target: { type: 'HAND_CARD', owner: 'self', count: spec.handToEnergy.count, filter: spec.handToEnergy.filter },

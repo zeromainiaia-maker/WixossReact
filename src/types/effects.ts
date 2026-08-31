@@ -4274,6 +4274,14 @@ export interface StubAction {
   costColorsPerTargetLevel?: string[];
   /** OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。 */
   energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  /**
+   * OPTIONAL_COST: **異なるフィルタの組**でエナゾーンからトラッシュへ置く任意コスト
+   * （「エナゾーンから《A》1枚と《B》1枚と《C》1枚をトラッシュに置く」＝`WXK03-070-E1`）。
+   * ⚠`energyTrash`（単一フィルタ）とは**併用しない**＝parser はどちらか片方だけを立てる。
+   * 🔑支払いは `optionalCostPaySteps` が**グループごとに1ステップ**へ分解する
+   *   （1本の TRASH に潰すと「各1枚ずつ」の制約が消えて同名3枚でも払えてしまう）。
+   */
+  energyTrashGroups?: { count: number; filter?: TargetFilter }[];
   /** OPTIONAL_COST: energyTrash.count を対象シグニのレベルにする。 */
   energyTrashCountFromTargetLevel?: boolean;
   /** OPTIONAL_COST: energyTrash の候補を「対象と同じレベル」に限定（「それと同じレベルの緑のシグニ」）。 */

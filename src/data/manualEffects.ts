@@ -3562,6 +3562,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK03-014": [
     {"effectId":"WXK03-014-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"life_cloth","owner":"self"},"count":3,"private":true,"reorder":true,"canTrash":true,"destination":{"location":"life_cloth","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+  // WXK03-070 幻怪　モモタロ E1【出】＝「エナゾーンから《幻怪　モモイヌ》1枚と《幻怪　モモザル》1枚と
+  //   《幻怪　モモキジ》1枚をトラッシュに置く：…」。🔴旧 live は `costUnparsed:true` で**発動コストが無料**だった
+  //   （意味照合 段2・2026-09-01 続き767）。受け皿は既存の `cost.energyTrashGroups`（異なるフィルタの組）で、
+  //   支払い側 `executeSigniOnPlayCost` は `energyTrash` と同じ「エナ index の集合」を受けるので**共通経路のまま**。
+  //   ⚠この巡で `SigniOnPlayCostModal` 側の**可否判定と選択ガード**（`energyTrashGroupsSatisfied` /
+  //     `canAddEnergyTrashGroupIndex`）を新設して初めて払えるようになった＝**型だけでは払えなかった**。
+  "WXK03-070": [
+    {"effectId":"WXK03-070-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energyTrashGroups":[{"count":1,"filter":{"cardName":"幻怪　モモイヌ"}},{"count":1,"filter":{"cardName":"幻怪　モモザル"}},{"count":1,"filter":{"cardName":"幻怪　モモキジ"}}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   "WXK03-023": [
     {"effectId":"WXK03-023-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"使用コストとして追加であなたのシグニの下からカードを合計４枚までトラッシュに置いてもよい"},{"type":"DRAW","owner":"self","count":1},{"type":"DRAW","owner":"self","count":1},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],

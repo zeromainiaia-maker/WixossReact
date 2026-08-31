@@ -680,6 +680,20 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
       `position:'bottom'`（強制）から**振り分けUI**へ移した。**見るもの**＝1枚のとき「下に置く／置かない」の二択になり、
       **置かない**を選んでも後続の「この方法で公開したカードが〜の場合」が成立すること（`lastProcessedCards` が残る）。
       ⚠**②の「置かない」枝は golden では固定できていない**（`resumeLookAndReorder` に空配列を渡す経路しか通していない）。
+- [ ] 🆕🔴**`V-105`＝続き767（§5.2 支払いUI バッチ）で `cost.energyTrashGroups` の支払いを新設した**（2026-09-01 登録）。
+      **対象**＝`WXK03-070`（幻怪　モモタロ）の【出】「エナゾーンから《幻怪　モモイヌ》1枚と《幻怪　モモザル》1枚と
+      《幻怪　モモキジ》1枚をトラッシュに置く：…」。🔴**旧 live は `costUnparsed:true` ＝発動コストが無料**だった。
+      **触った層は3つ**＝`src/types/effects.ts`（`StubAction.energyTrashGroups`）／
+      `src/engine/execUtils.ts`（`OptionalCostSpec` ＋ `canAffordOptionalCostSpec` ＋ `optionalCostPaySteps`）／
+      `src/screens/battle/costs.ts`＋`modals/SigniOnPlayCostModal.tsx`（可否判定と選択ガード）。
+      🔑**支払い経路は2つある**（片方だけ直すと片肺になる）＝
+      ①**通常召喚** → `SigniOnPlayCostModal`（可否は `energyTrashGroupsSatisfied`、タップ可否は `canAddEnergyTrashGroupIndex`）
+      ②**効果で場に出た** → `optionalOnPlayCostStub` → `optionalCostPaySteps`（**グループごとに1 TRASH ステップへ分解**）。
+      **見るもの**＝(a) エナに3種そろっているときだけ【出】の支払いボタンが押せること
+      (b) **同名3枚では押せない**こと（グループごとに別カードが要る）
+      (c) 支払ったカードが**3枚ともトラッシュへ行く**こと（1枚だけ／4枚は誤り）
+      (d) **効果で場に出した場合**（サーチや蘇生から出したとき）も同じコストを取られること＝②の経路。
+      ⚠golden は純関数と JSON 形しか見ていない＝**選択UIの見た目と②の実挙動は実機でしか確かめられない。**
 - [ ] 🆕**`V-104`＝続き757（§5.2 バッチ）で `src/screens/battle/lrigLimit.ts` を触った1件**（2026-08-31 登録）。
       `LRIG_LIMIT_MODIFY{owner:'any'}`（「（お互いのセンタールリグに影響する）」＝`WXK11-013`）を受けるために
       `collectOppDeclaredLrigLimitDelta` の述語を1行広げた。**UI を持たない純関数**で golden が
