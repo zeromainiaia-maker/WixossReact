@@ -2478,6 +2478,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.source?.type === 'HAND_CARD' && a.source.count === 'ALL' && !a.source.filter) return `${ownerJa(a.source.owner)}手札を公開する${a.optional ? '（してもよい）' : ''}`;
       if (a.source?.type === 'HAND_CARD') {
         // 「N枚まで」（upToCount）と選んだ複数枚どうしの相互差異（selectionConstraint）を落とさない。
+        if (a.source.selectionConstraint?.groups?.length) {
+          return `${ownerJa(a.source.owner)}手札から${selectionGroupsJa(a.source.selectionConstraint.groups)}を公開する${a.optional ? '（してもよい）' : ''}`;
+        }
         const revCnt = a.source.count === 'ALL' ? 'を好きな枚数' : `${a.source.count ?? 1}枚${a.source.upToCount ? 'まで' : ''}を`;
         // §5.3 `O-76` 第2バッチ（2026-08-29）＝**名詞は payload から describe する**。
         //   🔴旧実装は `cardType` を無視して常に「シグニ」と書いており、

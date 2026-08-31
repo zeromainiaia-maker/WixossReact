@@ -1432,6 +1432,8 @@ export function collectBanishTriggers(
     }
     if (eff.triggerCondition?.banishedWasUp
       && (banishedZone < 0 || !prevOwnerState || prevOwnerState.field.signi_down?.[banishedZone] === true)) continue;
+    if (eff.triggerCondition?.banishedHadCharm
+      && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
     // activeCondition チェック（「対戦相手のターンの間」等）
     const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
     if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;

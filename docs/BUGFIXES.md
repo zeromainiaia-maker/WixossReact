@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き751）：意味照合 段2 第46バッチ＝条件・限定欠落 32 findings 消化（実装13／再照合19）
+
+`tmp_cand.json` の81 findingsを原文・live JSON・逆翻訳・engine消費地点まで1件ずつ照合し、
+**12効果の13 findingsを既存受け皿だけで是正**、さらに**17効果の19 findingsが既にliveで直っていた**ため台帳を較正した。
+段2台帳は **207 / 111 / 877 / 249 → 207 / 111 / 909 / 217**。新しいaction型・Condition型・filter keyは0。
+
+- `manualEffects.ts` の外科override：`PR-K054-E1` / `WD20-018-E1` / `WDK04-011-E1` /
+  `WDK06-R01-E2` / `WDK14-009-E1` / `WX25-CP1-082-E1` / `WXDi-P02-049-E1` /
+  `WXDi-P11-075-E1` / `WXDi-P12-052-E2` / `WXDi-P15-050-E1` / `WXK07-048-E1` /
+  `WXK10-023-E1`。`syncManualLive.ts` で12カードだけliveへ同期し、id集合変化0。
+- engineの既存受け皿の死線を2か所修正：`SELECT_TARGET_ONLY` が `powerLteSelfHalf` を無視していた経路と、
+  self `ON_BANISH` が `banishedHadCharm` を無視していた経路。前者は上限ちょうど／+1／参照不能、
+  後者はチャーム有無×ターン所有者の両方向goldenで固定した。
+- `REVEAL{HAND_CARD, selectionConstraint.groups}` の逆翻訳を追加し、レベル1・2・3各1枚の限定を可視化。
+  `npm run regen` の逆翻訳差分は採用12効果の12行だけ。parserは無変更なので生parse差分は空集合。
+- 全ゲート：golden **3091/3091**、smoke **10709件 全0**、fuzz **全0**、census **12/12**、
+  census-stubs **A 0/C 0**、manual-fields **0**、census-enginetext **130行/127ハンドラ**、
+  lint **0 errors / 249 warnings**。
+
+### ■ Claude 側の検証（CODEX_GUIDE §7・Codex の申告は鵜呑みにしない）
+
+**全項目とも申告どおりだった。** ベースラインは投入時 SHA `45c6efd73`（⚠自動コミットフックは発火しておらず HEAD は不動）。
+
+| 検証 | 結果 |
+|---|---|
+| 台帳（独立実行） | 段0 **207**／段1偽陽性 **111**／段2消化 **877→909**／残 OPEN **249→217**＝**内訳が整合**（§5-28′ のズレなし） |
+| gates（独立実行） | 全緑。golden **3070→3091（+21本）/ 0 FAIL** |
+| live JSON 差分（**効果単位**で機械照合） | **ちょうど12効果**。巻き込み **0**（§5-12） |
+| 逆翻訳差分 | **ちょうど12行**。巻き込み 0 |
+| エンコーディング（§5-19） | 変更26ファイル全件で U+FFFD 0／新規 BOM 0／`???` は BUGFIXES の**既存32件のまま増分0** |
+| `censusManualDrift` 削除候補 | **0効果**＝12件の override は**どれも parser 出力と実体が違う**（＝「移設だけ」ではない。PLAN §2.0） |
+| 🔑**反転確認（§5-29）** | `WXDi-P12-052` の manual 定義を落とすと golden が **`missing "isDisona":true` で FAIL**。**戻して全件緑を再確認済み。** |
+| 偽陽性19件の裏取り | うち**15件の live JSON を直接確認**し、主張どおり条件が実在。使った条件キー14種すべてに **engine の消費地点が在る**ことも grep で確認（`THIS_CARD_HAS_UNDER` / `FIELD_ATTACHED_COUNT` / `ZONE_SUM_COUNT` / `powerLteSelfHalf` ほか） |
+
+### ■ 🔴 記録しておく逸脱・留意点（ゲートには出ない）
+
+1. **12件すべてが `manualEffects.ts` の手書きで、parser 変更は0だった。**
+   PLAN §5.2 は「**manual は『parser では表せない形』に限る**（書いた瞬間その効果は parser 改善から凍る）」
+   と書いており、2026-08-30 の3バッチは**手書き0件・全部 parser 規則**だった。今回はその逆。
+   ⇒ **新たに約11効果が parser 改善から凍った。** 件数としては軽微（live 10,700効果中の MANUAL/PARTIAL は 6%台）だが、
+   **`censusManualDrift` の削除候補が 0** であること（＝影武者コピーではない）と、**12件すべてに golden を張った**ことで
+   「凍ったまま静かに腐る」形は避けている。⚠**次バッチで同じ軸を取るなら parser 側で書けないかを先に測る。**
+2. **`powerLteSelfHalf` の参照不能時は fail-open**（制限なしに倒れる）＝兄弟の `powerLteSelf` と同じ規約に合わせた実装。
+   PLAN が「fail-open は JSON にキーを足しただけでは効いていないことに気付けない」と警告している形なので、
+   **golden で「上限ちょうど／上限+1／参照不能」の3方向を固定**してある（§5-3′′）。⚠規約自体は据置。
+3. **`WXK07-048-E1` は逆翻訳がターン限定を二重に描く**（`《相手ターン》《対戦相手のターンの間》`）＝
+   `activeCondition.TURN_OWNER` と `triggerCondition.turnOwner` の両方が立っているため。**挙動は正しい**（どちらも同じ限定）。
+   片方を外すと評価地点が変わるので**触っていない**。原文照合するときのノイズとしてだけ記録する。
+4. **Codex が自主申告した「条件以外の食い違い」4件は閉じていない**＝`WD20-018-E1` に3件
+   （選択肢①の後続が成功判定でなく `IS_MY_TURN` ゲート／原文にない `LOOK_AND_REORDER{count:0}` が残る／選択肢②の
+   「トラッシュに置いてもよい」が非optional）と、`WDK06-R01-E2` の逆翻訳がルリグ能力を「このシグニが場に出たとき」と描く表示不一致。
+5. **受け皿ごと無い34 findings** と**受け皿はあるが部分修正になるため見送った15 findings** の全リストは
+   [`scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md`](../scripts/archive/semantic_audit_batches/stage2_batch46_codex_report.md) にある
+   （指示書は同ディレクトリの `stage2_batch46_instructions.md`）。⚠**34件を §5.3 へ1件ずつ登録はしない**
+   （§5.3 が肥大した過去の失敗と同型になる）。**取るときはこの報告書から拾う。**
+
+### ■ 検証コマンド
+
+```
+node scripts/archive/semanticAuditLedger.mjs                  # 249 → 217
+npm run gates                                                 # golden 3091 / 0 FAIL
+npx tsx scripts/censusManualDrift.ts                          # 削除候補 0
+npm run golden -- --only "B46-751"                            # 21本
+```
+
+---
+
 ## 2026-08-31（続き750）：意味照合 段2 の残 OPEN を 306 → 249（**-57**）＝**較正 -56／実装 -1**
 
 ユーザー指示「PLAN を読み、OPEN を30減らす」の1巡。**PLAN §5.2 の定石どおり、実装より先に再照合で在庫を回収した。**

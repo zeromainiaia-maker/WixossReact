@@ -24111,16 +24111,17 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   //   頭に「対戦相手のシグニ１体を対象とし、」が付くと **opponent/1** に化けていた＝
   //   **自分のシグニを失うコストが、相手のシグニを追加除去する効果に化ける**（コスト踏み倒し＋過剰除去）。
   test('(B6) 「〈宣言〉を対象とし、〈別所有者の中間動作〉」＝中間動作へ owner/count が誤付着しない', () => {
-    // [CardNum, effectId, 中間ステップの owner, count]
-    const cases: [string, string, string, number][] = [
-      ['WX14-CB02', 'WX14-CB02-E2', 'self', 1],
-      ['WX25-CP1-082', 'WX25-CP1-082-E1', 'self', 1],
+    // [CardNum, effectId, 中間動作の型, owner, count]
+    // 対象保存の正準形では SELECT/STORE が先頭に入るため、配列位置ではなく動作型で同定する。
+    const cases: [string, string, string, string, number][] = [
+      ['WX14-CB02', 'WX14-CB02-E2', 'DOWN', 'self', 1],
+      ['WX25-CP1-082', 'WX25-CP1-082-E1', 'DOWN', 'self', 1],
     ];
-    for (const [cardNum, effectId, owner, count] of cases) {
+    for (const [cardNum, effectId, actionType, owner, count] of cases) {
       const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
-      const step0 = (eff.action as unknown as { steps?: Array<{ target?: { owner?: string; count?: unknown } }> }).steps?.[0];
-      eq(step0?.target?.owner, owner, `${effectId}: 中間動作の所有者（相手になっていると自分のコストを踏み倒す）`);
-      eq(step0?.target?.count, count, `${effectId}: 中間動作の体数`);
+      const middle = treeFind(eff.action, x => x.type === actionType) as { target?: { owner?: string; count?: unknown } } | null;
+      eq(middle?.target?.owner, owner, `${effectId}: 中間動作の所有者（相手になっていると自分のコストを踏み倒す）`);
+      eq(middle?.target?.count, count, `${effectId}: 中間動作の体数`);
     }
     // 引用能力の中でも同じ（`WXK03-018-E1` はセンタールリグへ付与する【起】の中身）。
     const granted = effectsMap.get('WXK03-018')!.find(e => e.effectId === 'WXK03-018-E1')!;
@@ -52369,9 +52370,16 @@ test('Stage2 power B44 E2E: WXK02-051-E1 SEARCH placement feeds the later power 
   ok(!tops(missing.otherState).includes(over), 'WXK02-051-E1: no searched reference keeps documented fail-open behavior');
 }));
 
-test('Stage2 power B44 contract: WX25-CP1-082-E1 stays held until the DOWN/then-target structure is represented', () => {
-  const effect = subjectPlacementEffect('WX25-CP1-082', 'WX25-CP1-082-E1');
-  ok(!JSON.stringify(effect).includes('powerLteSelfHalf'), 'WX25-CP1-082-E1: half-power flag is not misattached to DOWN target');
+test('Stage2 power B44 contract: WX25-CP1-082-E1 declares the half-power target before the optional DOWN', () => {
+  const effect = manualEffect('WX25-CP1-082', 'WX25-CP1-082-E1');
+  const seq = effect.action as SequenceAction;
+  const select = seq.steps[0] as StubAction;
+  const down = seq.steps[2] as Extract<EffectAction, { type: 'DOWN' }>;
+  const gate = seq.steps[3] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(select.id, 'SELECT_TARGET_ONLY', 'target is declared before the optional cost');
+  eq(select.selectTarget?.filter?.powerLteSelfHalf, true, 'declared target uses the half-power ceiling');
+  ok(!JSON.stringify(down.target).includes('powerLteSelfHalf'), 'half-power filter is not misattached to the DOWN cost');
+  eq((gate.then as Extract<EffectAction, { type: 'BANISH' }>).targetsStored, true, 'banish remains bound to the declared target');
 });
 
 
@@ -55928,6 +55936,185 @@ test('census 149: LOOK_PICK_CHAIN then:under が公開札をデッキから抜�
   eq(zone?.at(-1), host, '効果元シグニは最上面のまま');
   ok(!st.deck.includes(under), '🔴デッキから抜けている（fromLocation:"deck" が効いている）');
   ok(st.deck.includes(other), '残りはデッキへ戻る');
+});
+
+// Semantic audit stage 2, batch 46 / continuation 751.
+const batch46FreshMerged = (cardNum: string, effectId: string): CardEffect => {
+  const card = cardMap.get(cardNum);
+  if (!card) throw new Error(`${cardNum}: card missing`);
+  const effect = findEffectDeep(mergeManualEffects(cardNum, parseCardEffects(card)), effectId);
+  if (!effect) throw new Error(`${effectId}: fresh+manual effect missing`);
+  return effect;
+};
+
+for (const [cardNum, effectId, tokens] of [
+  ['PR-K054', 'PR-K054-E1', ['"duration":"UNTIL_OPP_TURN_END"']],
+  ['WD20-018', 'WD20-018-E1', ['"story":"英知"']],
+  ['WDK04-011', 'WDK04-011-E1', ['"type":"TRASH_REVEALED"']],
+  ['WDK06-R01', 'WDK06-R01-E2', ['"powerLteLastProcessed":true']],
+  ['WDK14-009', 'WDK14-009-E1', ['"type":"TRASH_CARD"']],
+  ['WX25-CP1-082', 'WX25-CP1-082-E1', ['"powerLteSelfHalf":true', '"targetsStored":true']],
+  ['WXDi-P02-049', 'WXDi-P02-049-E1', ['"triggerScope":"any_opp"', '"cardType":"シグニ"']],
+  ['WXDi-P11-075', 'WXDi-P11-075-E1', ['"selectionConstraint"', '"LAST_PROCESSED_COUNT_GTE"']],
+  ['WXDi-P12-052', 'WXDi-P12-052-E2', ['"isDisona":true']],
+  ['WXDi-P15-050', 'WXDi-P15-050-E1', ['"FIELD_ATTACHED_COUNT"', '"include":"under"']],
+  ['WXK07-048', 'WXK07-048-E1', ['"banishedHadCharm":true']],
+  ['WXK10-023', 'WXK10-023-E1', ['"classMatchesDiscardSigni":true']],
+] as const) {
+  test(`Stage2 B46-751 fresh+manual contract: ${effectId}`, () => {
+    const json = JSON.stringify(batch46FreshMerged(cardNum, effectId));
+    for (const token of tokens) ok(json.includes(token), `${effectId}: missing ${token}`);
+  });
+}
+
+test('Stage2 B46-751 dynamic power ceilings: boundary, boundary+1, and missing reference', () => withSavedCursor(() => {
+  const exact = fresh();
+  const over = fresh();
+  const ref = fresh();
+  const runtimeCards = new Map(cardMap as Map<string, CardData>);
+  runtimeCards.set(exact, { ...runtimeCards.get(exact)!, Type: 'シグニ', Power: '6000' });
+  runtimeCards.set(over, { ...runtimeCards.get(over)!, Type: 'シグニ', Power: '6001' });
+  runtimeCards.set(ref, { ...runtimeCards.get(ref)!, Type: 'シグニ', Power: '6000' });
+
+  const half = (manualEffect('WX25-CP1-082', 'WX25-CP1-082-E1').action as SequenceAction).steps[0];
+  const halfCtx = mkCtx({}, { signi: [over, exact, null] }, 'WX25-CP1-082');
+  halfCtx.cardMap = runtimeCards;
+  halfCtx.effectivePowers = new Map([['WX25-CP1-082', 12000], [exact, 6000], [over, 6001]]);
+  const halfBounded = run(half, halfCtx);
+  eq(halfBounded.lastProcessedCards?.join(','), exact, 'half-power accepts the exact boundary and rejects boundary+1');
+  const halfMissing = mkCtx({}, { signi: [over, null, null] });
+  halfMissing.cardMap = runtimeCards;
+  eq(run(half, halfMissing).lastProcessedCards?.join(','), over, 'missing self reference retains documented fail-open behavior');
+
+  const lte = (manualEffect('WDK06-R01', 'WDK06-R01-E2').action as SequenceAction).steps[1];
+  const lteCtx = mkCtx({}, { signi: [over, exact, null] }, 'WDK06-R01');
+  lteCtx.cardMap = runtimeCards;
+  lteCtx.lastProcessedCards = [ref];
+  lteCtx.effectivePowers = new Map([[ref, 6000], [exact, 6000], [over, 6001]]);
+  const lteBounded = run(lte, lteCtx);
+  ok(tops(lteBounded.otherState).includes(over), 'last-processed boundary+1 remains');
+  ok(!tops(lteBounded.otherState).includes(exact), 'last-processed exact boundary is selectable');
+  const lteMissing = mkCtx({}, { signi: [over, null, null] }, 'WDK06-R01');
+  lteMissing.cardMap = runtimeCards;
+  ok(!tops(run(lte, lteMissing).otherState).includes(over), 'missing last-processed reference retains documented fail-open behavior');
+}));
+
+test('Stage2 B46-751 WDK04-011 odd reveal is trashed before the power reduction', () => withSavedCursor(() => {
+  const odd = findCard(c => isSigni(c) && parseInt(c.Level ?? '', 10) % 2 === 1);
+  const target = findCard(c => isSigni(c) && c.CardNum !== odd);
+  const ctx = mkCtx({}, { signi: [target, null, null] }, 'WDK04-011');
+  ctx.ownerState.deck = [odd];
+  const result = run(manualEffect('WDK04-011', 'WDK04-011-E1').action, ctx);
+  ok(result.ownerState.trash.includes(odd), 'odd revealed card goes to trash');
+  ok(!result.ownerState.deck.includes(odd), 'odd revealed card does not remain on deck');
+}));
+
+test('Stage2 B46-751 WXDi-P02-049 watches only opponent signi moved from field to trash', () => {
+  const watcher = 'WXDi-P02-049';
+  const signi = findCard(c => isSigni(c) && c.CardNum !== watcher);
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const host = mkState({ signi: [watcher, null, null] });
+  const guest = mkState({});
+  const em = new Map(effectsMap);
+  em.set(watcher, mergeManualEffects(watcher, effectsMap.get(watcher) ?? []));
+  const ctx = { ...trigCtx(HOST, HOST), effectsMap: em };
+  ok(hasEffect(collectTrashTriggers(ctx, signi, GUEST, host, guest).entries, 'WXDi-P02-049-E1'), 'opponent signi triggers');
+  ok(!hasEffect(collectTrashTriggers(ctx, signi, HOST, host, guest).entries, 'WXDi-P02-049-E1'), 'own signi does not trigger');
+  ok(!hasEffect(collectTrashTriggers(ctx, lrig, GUEST, host, guest).entries, 'WXDi-P02-049-E1'), 'opponent non-signi does not trigger');
+});
+
+test('Stage2 B46-751 WXDi-P11-075 requires one level 1, 2, and 3 signi and gates both rewards on three reveals', () => {
+  const level = (n: number) => findCard(c => isSigni(c) && parseInt(c.Level ?? '', 10) === n);
+  const l1 = level(1), l2 = level(2), l3 = level(3);
+  const effect = manualEffect('WXDi-P11-075', 'WXDi-P11-075-E1');
+  const choose = effect.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const first = choose.choices[0].action as SequenceAction;
+  const reveal = first.steps[0] as Extract<EffectAction, { type: 'REVEAL' }>;
+  const constraint = reveal.source?.selectionConstraint;
+  ok(!!constraint && satisfiesSelectionConstraint([l1, l2, l3], constraint, cardMap), '1/2/3 set is valid');
+  ok(!!constraint && !satisfiesSelectionConstraint([l1, l2, l2], constraint, cardMap), 'duplicate level set is invalid');
+  const gate = (first.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition;
+  const yes = mkCtx({}, {}); yes.lastProcessedCards = [l1, l2, l3];
+  const no = mkCtx({}, {}); no.lastProcessedCards = [l1, l2];
+  ok(evalCondition(gate, yes), 'three revealed cards enable the reward');
+  ok(!evalCondition(gate, no), 'fewer than three revealed cards suppress the reward');
+});
+
+test('Stage2 B46-751 WXDi-P12-052 moves only a Disona card from under this signi', () => withSavedCursor(() => {
+  const disona = findCard(c => isSigni(c) && matchesFilter(c, { isDisona: true }));
+  const plain = findCard(c => isSigni(c) && !matchesFilter(c, { isDisona: true }) && c.CardNum !== 'WXDi-P12-052');
+  const ctx = mkCtx({ signi: ['WXDi-P12-052', null, null] }, {}, 'WXDi-P12-052');
+  ctx.ownerState.field.signi[0] = [plain, disona, 'WXDi-P12-052'];
+  const result = run(manualEffect('WXDi-P12-052', 'WXDi-P12-052-E2').action, ctx);
+  ok(result.ownerState.energy.includes(disona), 'Disona under-card can move to energy');
+  ok(!result.ownerState.energy.includes(plain), 'non-Disona under-card is excluded');
+}));
+
+test('Stage2 B46-751 WXDi-P15-050 choice 2 is available only with two total under-cards', () => {
+  const choice = (manualEffect('WXDi-P15-050', 'WXDi-P15-050-E1').action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[1];
+  const under = findCard(c => isSigni(c));
+  const one = mkCtx({ signi: ['WXDi-P15-050', null, null] }, {});
+  one.ownerState.field.signi[0] = [under, 'WXDi-P15-050'];
+  const two = mkCtx({ signi: ['WXDi-P15-050', null, null] }, {});
+  two.ownerState.field.signi[0] = [under, under, 'WXDi-P15-050'];
+  ok(!evalCondition(choice.condition!, one), 'one under-card is insufficient');
+  ok(evalCondition(choice.condition!, two), 'two under-cards satisfy the choice condition');
+});
+
+test('Stage2 B46-751 WXK07-048 requires a pre-banish charm and opponent turn', () => {
+  const card = 'WXK07-048';
+  const before = mkState({ signi: [card, null, null] });
+  before.field.signi_charms = ['TEST-CHARM', null, null];
+  const noCharm = mkState({ signi: [card, null, null] });
+  const after = mkState({});
+  const guest = mkState({});
+  const em = new Map(effectsMap);
+  em.set(card, mergeManualEffects(card, effectsMap.get(card) ?? []));
+  const opponentTurn = { ...trigCtx(GUEST, HOST), effectsMap: em };
+  const ownTurn = { ...trigCtx(HOST, HOST), effectsMap: em };
+  ok(hasEffect(collectBanishTriggers(opponentTurn, card, HOST, after, guest, before).entries, 'WXK07-048-E1'), 'charmed self on opponent turn triggers');
+  ok(!hasEffect(collectBanishTriggers(opponentTurn, card, HOST, after, guest, noCharm).entries, 'WXK07-048-E1'), 'uncharmed self does not trigger');
+  ok(!hasEffect(collectBanishTriggers(ownTurn, card, HOST, after, guest, before).entries, 'WXK07-048-E1'), 'own turn does not trigger');
+});
+
+test('Stage2 B46-751 WXK10-023 search resolves the discarded signi class', () => withSavedCursor(() => {
+  const same = fresh();
+  const other = fresh();
+  const runtimeCards = new Map(cardMap as Map<string, CardData>);
+  runtimeCards.set(same, { ...runtimeCards.get(same)!, Type: 'シグニ', Level: '1', Color: '赤', CardClass: '精像：天使' });
+  runtimeCards.set(other, { ...runtimeCards.get(other)!, Type: 'シグニ', Level: '1', Color: '赤', CardClass: '精像：悪魔' });
+  const ctx = mkCtx({}, {}, 'WXK10-023');
+  ctx.cardMap = runtimeCards;
+  ctx.ownerState.deck = [other, same];
+  ctx.ownerState.last_discarded_signi_class = '精像：天使';
+  const result = run(manualEffect('WXK10-023', 'WXK10-023-E1').action, ctx);
+  ok(result.ownerState.hand.includes(same), 'shared-class signi is searchable');
+  ok(!result.ownerState.hand.includes(other), 'non-shared-class signi is excluded');
+}));
+
+test('Stage2 B46-751 stale findings remain represented in fresh+manual definitions', () => {
+  for (const [cardNum, effectId, token] of [
+    ['WDA-F03-13', 'WDA-F03-13-E3', 'ZONE_SUM_COUNT'],
+    ['WX18-056', 'WX18-056-E1', 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'],
+    ['WX21-044', 'WX21-044-E2', 'THIS_CARD_PLACED_BY_CLASS'],
+    ['WX25-P1-113', 'WX25-P1-113-E1', 'nameEqLastProcessed'],
+    ['WXDi-CP01-031', 'WXDi-CP01-031-E1', 'ZONE_SUM_COUNT'],
+    ['WXDi-D07-017', 'WXDi-D07-017-E1', 'ENERGY_COUNT'],
+    ['WXDi-P04-034', 'WXDi-P04-034-E1', 'FIELD_ATTACHED_COUNT'],
+    ['WXDi-P08-048', 'WXDi-P08-048-E1', 'THIS_CARD_HAS_UNDER'],
+    ['WXDi-P08-048', 'WXDi-P08-048-E1b', 'アサシン'],
+    ['WXDi-P12-056', 'WXDi-P12-056-E1', 'ZONE_SUM_COUNT'],
+    ['WXDi-P12-073', 'WXDi-P12-073-E2', 'FREEZE'],
+    ['WXDi-P13-009', 'WXDi-P13-009-E2', 'TRANSFER_TO_HAND'],
+    ['WXDi-P13-067', 'WXDi-P13-067-E1', 'FIELD_ATTACHED_COUNT'],
+    ['WXEX1-31', 'WXEX1-31-E1', 'ZONE_SUM_COUNT'],
+    ['WXEX2-31', 'WXEX2-31-E1', 'nameEqTriggerSource'],
+    ['WXK05-051', 'WXK05-051-E1', 'distinctName'],
+    ['WXK07-087', 'WXK07-087-E2', 'HAS_CARD_IN_FIELD'],
+    ['WXK09-036', 'WXK09-036-E1', 'FIELD_ATTACHED_COUNT'],
+  ] as const) {
+    ok(JSON.stringify(batch46FreshMerged(cardNum, effectId)).includes(token), `${effectId}: stale finding regressed (${token})`);
+  }
 });
 
 if (listMode) {

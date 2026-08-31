@@ -1,72 +1,58 @@
 # manualEffects.ts ↔ live JSON 乖離：git 履歴による方向判定（§6.3 K）
 
-生成: 2026-08-08T12:58:41.484Z
+生成: 2026-08-31T04:35:50.424Z
 
 ⚠**機械判定は着手順を決めるためのもの**＝採用前に必ず原文と engine 実装を照合する。
 ⚠manual 側＝`git blame` のカードブロック最終変更時刻／live 側＝現在の効果JSONが live に入った commit 時刻。
 
 ## 判定ごとの件数
-  PARSER_REVIEW    32 効果
-  LIVE_NEWER       10 効果
-  UNDATED           8 効果
-  SAME_TIME         2 効果
+  PARSER_REVIEW    16 効果
+  MANUAL_NEWER     14 効果
+  LIVE_NEWER        5 効果
+  UNDATED           3 効果
 
-## PARSER_REVIEW（32 効果）
-  WX25-P3-027-E1           CHANGED     manual=2026-07-24 live=2026-07-14
-  WD01-016-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WD01-017-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WD04-016-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WD04-017-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX01-051-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX01-100-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX02-077-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX02-078-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX10-097-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX10-098-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX10-099-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WX10-100-E2              FRESH_ONLY  manual=2026-06-22 live=?
-  WXDi-D01-020-E2          FRESH_ONLY  manual=2026-06-22 live=?
-  WXDi-D03-020-E2          FRESH_ONLY  manual=2026-06-22 live=?
-  WXK01-119-E2             FRESH_ONLY  manual=2026-06-22 live=?
-  WXK01-120-E2             FRESH_ONLY  manual=2026-06-22 live=?
-  WXK01-121-E2             FRESH_ONLY  manual=2026-06-22 live=?
-  WXK01-122-E2             FRESH_ONLY  manual=2026-06-22 live=?
-  WXK05-030-E1             CHANGED     manual=2026-06-22 live=2026-06-27 ⚠STUB減
-  WX22-013-E2              CHANGED     manual=2026-07-22 live=2026-06-28
-  WX05-021-E2              FRESH_GAIN  manual=2026-06-20 live=2026-07-11
-  SP27-015-E1              CHANGED     manual=2026-06-20 live=2026-08-02 ⚠STUB増
-  WX04-029-BURST           CHANGED     manual=? live=2026-06-26
-  WX12-010-E1              FRESH_ONLY  manual=? live=?
-  WX12-010-E3              FRESH_ONLY  manual=? live=?
-  WD07-012-E2              CHANGED     manual=? live=2026-07-23 ⚠STUB増
-  WD07-012-BURST           CHANGED     manual=? live=2026-07-14
-  WDK17-009-E2             CHANGED     manual=? live=2026-07-14 ⚠STUB増
-  WD23-023-E-E2            CHANGED     manual=2026-07-24 live=2026-07-14
-  WX25-P1-052-E2           CHANGED     manual=2026-07-24 live=2026-07-14
-  WX25-P3-062-E1           CHANGED     manual=2026-07-24 live=2026-07-18 ⚠STUB増
+## PARSER_REVIEW（16 効果）
+  WX25-CP1-061-E2          FRESH_ONLY  manual=2026-08-28 live=?
+  WXK03-014-E1             CHANGED     manual=2026-08-28 live=2026-08-17 ⚠STUB増
+  WXK10-075-E1             CHANGED     manual=2026-08-28 live=2026-08-17 ⚠STUB増
+  SPDi43-30-E2             CHANGED     manual=2026-08-28 live=2026-07-14
+  WXDi-CP02-072-E2         FRESH_ONLY  manual=2026-08-28 live=?
+  WXK03-018-E1             CHANGED     manual=2026-07-22 live=2026-08-29 ⚠STUB増
+  WD07-012-BURST           CHANGED     manual=? live=2026-08-28
+  WX20-038-E1              CHANGED     manual=2026-08-30 live=2026-08-28
+  WX20-038-E2              CHANGED     manual=2026-08-30 live=2026-08-28 ⚠fresh_UNKNOWN退化
+  WX20-038-E3              FRESH_ONLY  manual=2026-08-30 live=?
+  WXDi-P03-016-E1          CHANGED     manual=2026-08-28 live=2026-08-22
+  WXDi-P03-016-E2          CHANGED     manual=2026-08-28 live=2026-08-17
+  WXDi-P03-016-E3          FRESH_ONLY  manual=2026-08-28 live=?
+  WXK01-074-E2             FRESH_ONLY  manual=2026-08-28 live=?
+  WDK06-R09-E2             CHANGED     manual=2026-08-29 live=2026-07-14
+  WDK06-R09-E3             FRESH_ONLY  manual=2026-08-29 live=?
 
-## LIVE_NEWER（10 効果）
-  WXEX2-71-E2              CHANGED     manual=2026-07-26 live=2026-07-29 (manual定義)
-  WXEX2-71-E3              CHANGED     manual=2026-07-26 live=2026-07-29 (manual定義)
-  PR-426-E3                LIVE_ONLY   manual=2026-06-20 live=2026-08-08
-  WX05-021-E4              LIVE_ONLY   manual=2026-06-20 live=2026-08-08
-  WXDi-P07-060-E3          LIVE_ONLY   manual=2026-06-20 live=2026-08-08
-  WX20-072-E3P             LIVE_ONLY   manual=2026-07-15 live=2026-06-24
-  WX20-072-E3              LIVE_RICHER manual=2026-07-15 live=2026-06-24 (manual定義)
-  WXK10-039-E2             LIVE_ONLY   manual=? live=2026-07-12
-  WX12-023-E2              LIVE_RICHER manual=2026-07-26 live=2026-06-28
+## MANUAL_NEWER（14 効果）
+  WD20-018-E1              FRESH_GAIN  manual=2026-08-31 live=2026-08-29 (manual定義)
+  WXEX2-71-E2              CHANGED     manual=2026-08-31 live=2026-08-28 (manual定義)
+  WXEX2-71-E3              CHANGED     manual=2026-08-31 live=2026-08-28 (manual定義)
+  PR-K054-E1               FRESH_GAIN  manual=2026-08-31 live=2026-07-14 (manual定義)
+  WDK04-011-E1             CHANGED     manual=2026-08-31 live=2026-07-16 (manual定義)
+  WDK06-R01-E2             FRESH_GAIN  manual=2026-08-31 live=2026-08-28 (manual定義)
+  WDK14-009-E1             FRESH_GAIN  manual=2026-08-31 live=2026-07-14 (manual定義)
+  WX25-CP1-082-E1          CHANGED     manual=2026-08-31 live=2026-08-27 (manual定義) ⚠STUB増
+  WXDi-P02-049-E1          FRESH_GAIN  manual=2026-08-31 live=2026-08-17 (manual定義)
+  WXDi-P11-075-E1          CHANGED     manual=2026-08-31 live=2026-08-17 (manual定義)
+  WXDi-P12-052-E2          FRESH_GAIN  manual=2026-08-31 live=2026-08-17 (manual定義)
+  WXDi-P15-050-E1          FRESH_GAIN  manual=2026-08-31 live=2026-08-17 (manual定義)
+  WXK07-048-E1             FRESH_GAIN  manual=2026-08-31 live=2026-08-25 (manual定義)
+  WXK10-023-E1             FRESH_GAIN  manual=2026-08-31 live=2026-08-17 (manual定義)
+
+## LIVE_NEWER（5 効果）
+  WX25-CP1-061-E3          LIVE_ONLY   manual=2026-08-28 live=2026-07-19
+  WXDi-CP02-072-E3         LIVE_ONLY   manual=2026-08-28 live=2026-08-17
+  WXDi-P02-039-E1          CHANGED     manual=2026-08-02 live=2026-08-17 (manual定義) ⚠STUB減
   WX24-P4-045-E1           CHANGED     manual=2026-07-27 live=2026-07-27 (manual定義)
+  WXEX1-66-E2              CHANGED     manual=2026-07-28 live=2026-08-28 (manual定義)
 
-## UNDATED（8 効果）
-  WXK05-030-MULTIENA       FRESH_ONLY  manual=2026-06-22 live=? (manual定義)
-  WXK04-042-E1b            FRESH_ONLY  manual=2026-06-24 live=? (manual定義)
-  WXK04-003-DECORE         FRESH_ONLY  manual=2026-06-24 live=? (manual定義)
-  WX05-025-E2              FRESH_GAIN  manual=? live=2026-07-28 (manual定義)
-  WX14-064-E1              CHANGED     manual=? live=2026-07-28 (manual定義)
-  WX13-040-E1              CHANGED     manual=? live=2026-07-28 (manual定義) ⚠STUB増
-  WX10-018-E1              FRESH_GAIN  manual=? live=2026-07-04 (manual定義)
+## UNDATED（3 効果）
+  WX14-064-E1              CHANGED     manual=? live=2026-08-28 (manual定義)
+  WX13-040-E1              CHANGED     manual=? live=2026-08-28 (manual定義) ⚠STUB増
   PR-Di017B-E1             CHANGED     manual=? live=2026-07-14 (manual定義)
-
-## SAME_TIME（2 効果）
-  WXDi-P02-039-E1          CHANGED     manual=2026-08-02 live=2026-08-02 (manual定義) ⚠STUB減
-  WXEX1-66-E2              CHANGED     manual=2026-07-28 live=2026-07-28 (manual定義)

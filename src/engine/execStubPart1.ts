@@ -171,17 +171,28 @@ export function execStubPart1(
       return done({ ...ctx, lastProcessedCards: [] });
     }
     const state = ownerState(tgt.owner, ctx);
+    let selectFilter = tgt.filter;
+    if (selectFilter?.powerLteSelfHalf) {
+      const { powerLteSelfHalf: _half, ...rest } = selectFilter;
+      const sourcePower = ctx.sourceCardNum
+        ? (ctx.effectivePowers?.get(ctx.sourceCardNum)
+          ?? Number.parseInt(ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.Power ?? '', 10))
+        : Number.NaN;
+      selectFilter = Number.isFinite(sourcePower)
+        ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: sourcePower / 2 } }
+        : rest;
+    }
     // ⚠センタールリグだけを候補にする（`GRANT_KEYWORD` の同型分岐と同じ近似＝アシストは対象外）。
     const lrigTopSTO = state.field.lrig.at(-1);
     // 🔑`owner:'any'`（修飾語なし「シグニ１体を対象とし」）は `ownerState` が**相手側へ潰す**ので、
     //   両フィールドから候補を集める（`fieldCandidatesByOwner` の規約に合わせる・§6.4 O-34(a)）。
     //   ⚠live に `SELECT_TARGET_ONLY{owner:'any'}` は従来0件＝この分岐は純粋な追加。
     const anySTO = tgt.type === 'SIGNI' && tgt.owner === 'any'
-      ? fieldCandidatesByOwner('any', tgt.filter, ctx) : null;
+      ? fieldCandidatesByOwner('any', selectFilter, ctx) : null;
     let cands = anySTO ? anySTO.cands
       : tgt.type === 'LRIG'
         ? (lrigTopSTO ? [lrigTopSTO] : [])
-        : fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+        : fieldCandidates(state, selectFilter, ctx.cardMap, ctx.effectivePowers);
     if (tgt.type === 'CENTER_LRIG_OR_SIGNI' && lrigTopSTO) cands = [lrigTopSTO, ...cands];
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
