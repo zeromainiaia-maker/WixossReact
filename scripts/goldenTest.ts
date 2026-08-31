@@ -17392,6 +17392,29 @@ test('O-96 第3バッチ: 効果レベルの前置条件を落とさない', () 
     'PR-K021: 自パワー12000の条件を維持');
 });
 
+// 意味照合 段2（2026-09-01 続き766）＝「選択肢ごとのコスト」は `ChoiceOption` ではなく
+// **枝の action の中**に `STUB{OPTIONAL_COST}` → `CONDITIONAL{PAID_ADDITIONAL_COST}` で置く。
+// 🔴旧 live は選択肢②が無償だった＝ライフクロスをタダで手札に加えられる過剰実行。
+test('意味照合 WXDi-P03-004-E1: 選択肢②は《無》×5 を払えたときだけ実行する', () => {
+  const effect = effectsMap.get('WXDi-P03-004')?.find(e => e.effectId === 'WXDi-P03-004-E1');
+  ok(!!effect, 'WXDi-P03-004-E1 が live に存在');
+  const choose = (effect!.action as SequenceAction).steps
+    .find(s => s.type === 'CHOOSE') as import('../src/types/effects').ChooseAction;
+  ok(!!choose, 'CHOOSE を保持');
+  const paid = (choose.choices[1].action as SequenceAction).steps as (EffectAction & { id?: string })[];
+  eq(paid[0].id, 'OPTIONAL_COST', '選択肢②の先頭が任意コスト');
+  eq(JSON.stringify((paid[0] as import('../src/types/effects').StubAction).costColors),
+    '["無","無","無","無","無"]', '《無》×5 を保持');
+  eq(paid[1].type, 'CONDITIONAL', '支払いゲート');
+  eq((paid[1] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', '実支払いだけで帰結');
+  // 帰結は「手札に加える → シャッフル → ライフに加える」の3段をそのまま保持する。
+  const then = (paid[1] as ConditionalAction).then as SequenceAction;
+  eq(then.steps.map(s => s.type).join(','), 'TRANSFER_TO_HAND,SHUFFLE_DECK,ADD_TO_LIFE',
+    '支払い後の3段を保持');
+  // 選択肢①（ドロー）は無償のまま＝コストを付けない。
+  ok(!JSON.stringify(choose.choices[0]).includes('OPTIONAL_COST'), '選択肢①は無償のまま');
+});
+
 test('O-96 第3バッチ 実行: 候補0なら任意コストを提示せず、旧木なら提示する', () => withSavedCursor(() => {
   const effect = o96Live('WXDi-P16-050', 'WXDi-P16-050-E1');
   const empty = mkCtx({}, { signi: [null, null, null] }, 'WXDi-P16-050');

@@ -191,9 +191,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live は「見る」が丸ごと無く、**中身を知らずに選ばされる**別のカードだった
   //   （このカードは「見てから選ぶ」ことが効果の本体）。受け皿は既存の `LOOK_AND_REORDER`
   //   （`source.location:'life_cloth'` は `WX05-010-E1` で実績あり）。
-  // ⚠**選択肢②の《無》×5 は「選択肢ごとのコスト」＝`ChoiceOption` に受け皿が無い**（支払いUIが要る）＝`PARTIAL`。
+  // 🆕🔴**2026-09-01 続き766＝旧コメント「選択肢ごとのコストは `ChoiceOption` に受け皿が無い（支払いUIが要る）」は誤りだった。**
+  //   受け皿は**枝の action の中**に置く既存形＝`STUB{OPTIONAL_COST, costColors}` →
+  //   `CONDITIONAL{PAID_ADDITIONAL_COST}`（engine の `resolveOptionalCostSpec` が支払いの `CHOOSE` を出す。
+  //   `WX25-P2-004-E1` ほかに実績・§5.3 `O-96` の第1〜3バッチで挙動まで golden 済み）。
+  //   ⚠**`ChoiceOption` にコスト欄が無い**ことと**枝の中で払えない**ことは別＝**受け皿の在処を1階層間違えていた**。
+  //   ⇒ 選択肢②を「払えたときだけ実行」へ変更し、`PARTIAL` を解除した（意味照合 段2 の finding を1件消化）。
   'WXDi-P03-004': [
-    {"effectId":"WXDi-P03-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"life_cloth","owner":"self"},"count":1,"private":true,"reorder":false,"destination":{"location":"life_cloth","owner":"self","position":"top"}},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"あなたのカードを1枚引く","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"ライフクロスの一番上を手札に加え、デッキの一番上をライフクロスに加える","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_HAND","source":{"type":"LIFE_CLOTH_CARD","owner":"self","count":1}},{"type":"SHUFFLE_DECK","owner":"self"},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WXDi-P03-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"life_cloth","owner":"self"},"count":1,"private":true,"reorder":false,"destination":{"location":"life_cloth","owner":"self","position":"top"}},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"あなたのカードを1枚引く","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"《無》×5を支払い、ライフクロスの一番上を手札に加え、デッキの一番上をライフクロスに加える","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無","無","無","無"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_HAND","source":{"type":"LIFE_CLOTH_CARD","owner":"self","count":1}},{"type":"SHUFFLE_DECK","owner":"self"},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]}}]}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // ── WXEX1-28 ／ 原文【起】…《黒×0》：**対象の対戦相手のシグニ１体を**対象の対戦相手の**他の**シグニ１体の
