@@ -114,6 +114,10 @@ const numJa = (n: any) => typeof n === 'object'
   ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の'
     : n?.$ref === 'last_processed_count' ? 'この方法で処理した枚数と同じ数の'
     : n?.$ref === 'cards_drawn_this_attack_phase' ? 'このアタックフェイズ中に引いた枚数と同じ数の'
+    // 🆕2026-08-31 続き748＝「このターンにあなたの〈filter〉のシグニがクラッシュした相手ライフ1枚につき」。
+    : n?.$ref === 'left_field_under_count' ? 'このシグニの下にあったカードの枚数と同じ数'
+    : n?.$ref === 'life_crashed_by_signi_this_turn'
+      ? `このターンにあなたの${n.filter ? filterJa(n.filter) : ''}シグニがクラッシュした対戦相手のライフクロスの枚数と同じ数`
     : '[参照値]')
   : String(n);
 
@@ -245,6 +249,7 @@ function filterJa(f?: any): string {
   if (f.levelLteHandDiff) parts.push('あなたと対戦相手の手札の枚数の差以下のレベルを持つ');
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
+  if (f.levelLtTriggerSource) parts.push('そのシグニより低いレベルを持つ');
   if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
   if (f.levelEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じレベルの');
   if (f.levelEqFacedownRevealed) parts.push('この方法で公開したカードと同じレベルの');
@@ -282,6 +287,13 @@ function filterJa(f?: any): string {
   if (f.crossState) parts.push('クロス状態の');
   if (f.hasCharm) parts.push('チャームのある');
   if (f.hasAcce) parts.push('アクセのある');
+  if (f.hasSoul) parts.push('【ソウル】が付いている');
+  if (f.hasOnPlayAbility) parts.push('【出】能力を持つ');
+  if (f.levelEqLastProcessedPlus != null) parts.push(`それよりレベルが${f.levelEqLastProcessedPlus}つ大きい`);
+  if (f.powerLtAcceHost) parts.push('これにアクセされているシグニよりパワーの低い');
+  if (f.nameEqTriggerSource) parts.push('そのカードと同じ名前の');
+  if (f.colorNotMatchesSource) parts.push('このシグニと共通する色を持たない');
+  if (f.frontOfAllyWithSoul) parts.push('【ソウル】が付いているあなたのシグニの正面の');
   if (f.infected) parts.push('感染状態の');
   if (f.colorMatchesLrig) parts.push('センタールリグと共通色の');
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
@@ -449,6 +461,7 @@ function costScalingSigniJa(filter?: any): string {
   const nameJa = filter.cardName ? `カード名に《${filter.cardName}》を含む` : '';
   const exactNameJa = filter.cardNames?.length === 1 ? `《${filter.cardNames[0]}》` : '';
   const stateJa = filter.hasAcce ? 'アクセされている'
+    : filter.hasSoul ? '【ソウル】が付いている'
     : filter.isFrozen ? '凍結状態の'
     : filter.noAbilities ? '能力を持たない'
     : '';
@@ -591,7 +604,7 @@ function costJa(c?: any): string {
   if (c.trashExile) {
     parts.push(c.trashExile.self
       ? 'トラッシュにあるこのカードをゲームから除外する'
-      : `トラッシュにある${filterJa(c.trashExile.filter)}カード${c.trashExile.count ?? 1}枚をゲームから除外する`);
+      : `トラッシュにある${c.trashExile.selectionConstraint?.distinct === 'name' ? 'それぞれ名前の異なる' : ''}${filterJa(c.trashExile.filter)}${([] as string[]).concat(c.trashExile.filter?.cardType ?? []).join('か') || 'カード'}${c.trashExile.count ?? 1}枚をゲームから除外する`);
   }
   if (c.exileLrigFromLrigDeck) parts.push(`ルリグデッキにある${c.exileLrigFromLrigDeck.story ? `＜${c.exileLrigFromLrigDeck.story}＞の` : ''}ルリグ${c.exileLrigFromLrigDeck.count}枚をゲームから除外する`);
   if (c.selfPowerDown != null) parts.push(`このシグニのパワーを${c.selfPowerDown}減らす`);
@@ -896,7 +909,19 @@ function condJa(c?: any): string {
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン${c.owner === 'opponent' ? '対戦相手が' : ''}手札を${numJa(c.value)}枚以上捨てている`;
     case 'SIGNI_BANISHED_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}シグニが${numJa(c.minCount ?? 1)}体以上バニッシュされていた`;
-    case 'SELF_DECK_TO_TRASH_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}デッキからカードが${numJa(c.minCount ?? 1)}枚以上トラッシュに置かれていた`;
+    // 🆕`filter` を描かないと「＜ブルアカ＞の」限定が逆翻訳から消える（2026-08-31 続き748）。
+    case 'SELF_DECK_TO_TRASH_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手の' : 'あなたの'}デッキから${c.filter ? filterJa(c.filter) : ''}カードが${numJa(c.minCount ?? 1)}枚以上トラッシュに置かれていた`;
+    // 🆕2026-08-31 続き748＝公開領域／由来ゾーン。JSON にあるのに逆翻訳へ出ないと「条件が落ちた」ように読める。
+    case 'PUBLIC_ZONE_MATCH': {
+      // ⚠`filterJa` は cardType を描かないので名詞はここで足す（「シグニであるカード」が原文の言い方）。
+      const nounPZ = (f?: any) => ([] as string[]).concat(f?.cardType ?? []).join('か') || 'カード';
+      return c.mode === 'all'
+        ? `あなたの公開領域にある${filterJa(c.subjectFilter)}${nounPZ(c.subjectFilter)}がすべて${filterJa(c.filter)}${nounPZ(c.filter)}である`
+        : `${c.owner === 'opponent' ? '対戦相手' : 'あなた'}の公開領域に${filterJa(c.subjectFilter)}${filterJa(c.filter)}${nounPZ(c.subjectFilter)}が${numJa(c.minCount ?? 1)}枚以上ある`;
+    }
+    case 'THIS_CARD_FROM_ZONE_THIS_TURN': return `このターンにこのシグニが${(c.zones ?? []).map((z: string) => ({ hand: '手札', deck: 'デッキ', trash: 'トラッシュ', energy: 'エナゾーン' } as Record<string, string>)[z] ?? z).join('か')}から場に出ていた`;
+    case 'TRIGGER_SOURCE_MATCHES': return `それが${filterJa(c.filter)}カードである`;
+    case 'HAND_DISCARDED_THIS_TURN': return `このターン${c.owner === 'opponent' ? '対戦相手が' : 'あなたが'}手札から${c.filter ? filterJa(c.filter) : ''}カードを${numJa(c.minCount ?? 1)}枚以上捨てていた`;
     // ── §3 タスク6「代わりに」B1残
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN': return 'このターンにこのシグニが効果によってダウン状態からアップしていた';
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN': return `このターンに対戦相手のカードがあなたの効果によって${numJa((c as { value: number }).value)}枚以上デッキに移動していた`;
@@ -1478,7 +1503,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const chooser = a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
       return a.shuffle
         ? `${targetJa(a.source)}をデッキに加えてシャッフルする${chooser}${opt}`
-        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : '上'}に置く${chooser}${opt}`;
+        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : a.position === 'third' ? '上から三番目' : '上'}に置く${chooser}${opt}`;
     }
     case 'ADD_CRAFT_TO_LRIG_DECK':
       return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;
@@ -1573,6 +1598,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.fieldCondition?.type === 'FRONT_SIGNI_HAS_CHARM') {
         return `${targetJa(a.target)}は、その正面のシグニに【チャーム】が付いているかぎり【${kw}】を得る${durJa}`;
       }
+      // 🆕2026-08-31 続き749＝「その正面のシグニのパワーがN以上であるかぎり」（`WD15-007-E1`）。
+      if (a.fieldCondition?.type === 'FRONT_SIGNI_POWER_GTE') {
+        return `${targetJa(a.target)}は、その正面のシグニのパワーが${a.fieldCondition.value}以上であるかぎり【${kw}】を得る${durJa}`;
+      }
       return `${targetJa(a.target)}に【${kw}】を与える${durJa}`;
     }
     case 'GRANT_EFFECT': {
@@ -1607,21 +1636,43 @@ function actionJa(a?: Action, effectType?: string): string {
         const whoIDT = a.trigger.leftOwner === 'opponent' ? '対戦相手の'
           : a.trigger.leftOwner === 'any' ? 'いずれかのプレイヤーの' : 'あなたの';
         const triggerFilterJa = filterJa(a.trigger.triggerFilter ?? {});
-        const durationIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
+        const durationIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
         return `${durationIDT}、${whoIDT}${triggerFilterJa}シグニ1体が場を離れたとき、${actionJa(a.effect)}`;
       }
       // ON_ATTACK_SIGNI（タスク12(lxi) 第8波・WXK05-009-E2）：設置者は防御側＝主語は「対戦相手のシグニ」。
       if (a.trigger?.timing === 'ON_ATTACK_SIGNI') {
-        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
+        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
         const whoIDT = a.trigger.attackerOwner === 'self' ? 'あなたの' : '対戦相手の';
-        return `${durIDT}、${whoIDT}シグニがアタックしたとき、${actionJa(a.effect)}`;
+        // 🆕アタッカーのカード条件（2026-08-31 続き747・`WX25-CP1-085-E1`「あなたの**黒の＜ブルアカ＞の**シグニ
+        //   1体がアタックしたとき」）。JSON に載っているのに逆翻訳へ出ないと「主語の限定が落ちた」ように読める。
+        const attackerFilterJa = filterJa(a.trigger.attackerFilter ?? {});
+        const onceIDT = a.once ? '次に' : '';
+        return `${durIDT}、${onceIDT}${whoIDT}${attackerFilterJa}シグニがアタックしたとき、${actionJa(a.effect)}`;
       }
       // ON_SIGNI_BANISH_BATTLE（タスク12(lxi) 第7波・WX24-P4-011-E3）：遅延トリガーは**プレイヤー**に
       // 設置されるので主語は「あなたのシグニ」＝timingJa の「このシグニが…」（シグニ自身の【自】用）は使えない。
       if (a.trigger?.timing === 'ON_SIGNI_BANISH_BATTLE') {
-        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
+        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
         const nextIDT = a.once ? '次に' : '';
-        return `${durIDT}、${nextIDT}あなたのシグニがバトルによってシグニ1体をバニッシュしたとき、${actionJa(a.effect)}`;
+        return `${durIDT}、${nextIDT}あなたの${filterJa(a.trigger.banisherFilter ?? {})}シグニがバトルによってシグニ1体をバニッシュしたとき、${actionJa(a.effect)}`;
+      }
+      // 🆕2026-08-31 続き749＝汎用 timing の遅延（ドロー／手札を捨てた／手札から公開した）。
+      //   `timingJa` のフォールバックだと「このシグニが…」になり主語が効果元へすり替わるので専用文にする。
+      if (a.trigger?.timing === 'ON_DRAW' || a.trigger?.timing === 'ON_HAND_DISCARDED'
+        || a.trigger?.timing === 'ON_REVEALED_FROM_HAND') {
+        const durG = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
+        const filG = a.trigger.triggerFilter ? filterJa(a.trigger.triggerFilter) : '';
+        const evG = a.trigger.timing === 'ON_DRAW' ? 'あなたがカードを1枚引いたとき'
+          : a.trigger.timing === 'ON_HAND_DISCARDED' ? `対戦相手が${filG}手札を1枚捨てたとき`
+          : `あなたが手札から${filG}カードを1枚以上公開したとき`;
+        return `${durG}、${evG}、${actionJa(a.effect)}`;
+      }
+      // 🆕ON_PLAY 遅延（2026-08-31 続き748・`WXDi-P09-010-E3`）。`timingJa` のフォールバックだと
+      //   「このシグニが場に出たとき」になり、**主語が効果元自身にすり替わる**ので専用文にする。
+      if (a.trigger?.timing === 'ON_PLAY') {
+        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
+        const byEff = a.trigger.placedByEffect ? '効果によって' : '';
+        return `${durIDT}、あなたの${filterJa(a.trigger.triggerFilter ?? {})}シグニ1体が${byEff}場に出たとき、${actionJa(a.effect)}`;
       }
       // 🆕§5.3 `O-73`（2026-08-26）＝`WX24-P3-030-E2`。`timingJa` のフォールバックだと
       //   「あなたか対戦相手のデッキから…」になり、**原文の「あなたの効果１つによって」が消える**ので専用文にする。
@@ -2260,7 +2311,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const when = a.duration === 'NEXT_OPP_TURN' ? '次の対戦相手のターンの間、'
         : a.duration === 'UNTIL_END_OF_TURN' ? 'このターン、' : '';
       const whoCI = a.targetOwner === 'opponent' ? '対戦相手' : 'あなた';
-      return `${when}${whoCI}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
+      // 🆕2026-08-31 続き749＝比例（「〈ゾーン〉の〈filter〉1体につき」）。載せないと逆翻訳が固定値に見える。
+      // ⚠`countFromZonePerJa` は「…1体につき1」まで出すので、後ろに《無×1》が続くと数が重複する。
+      //   ここでは**単位量の「1」を落として**「…1体につき《無×1》増える」と読ませる。
+      const perCI = a.amountFromZone ? countFromZonePerJa(a.amountFromZone, '', false).replace(/1$/, '') : '';
+      return `${when}${whoCI}が使用する${a.targetCardType ?? 'カード'}のコストは${perCI}${inc}増える`;
     }
     case 'PREVENT_DAMAGE': {
       // 期間（このターン／次のターンの間／次のあなたのメインフェイズまで）と
@@ -4256,6 +4311,8 @@ function effJa(e: Eff): string {
     // ON_MAIN_PHASE_START の triggerScope:any_opp（「対戦相手のメインフェイズ開始時」WXDi-P00-034）
     if (t === 'ON_MAIN_PHASE_START' && e.triggerScope === 'any_opp') s = '対戦相手のメインフェイズ開始時';
     if (t === 'ON_GUARD' && e.triggerCondition?.lrigAttackGuarded) s = 'このルリグのアタックが【ガード】されたとき';
+    // 🆕2026-08-31 続き749＝「そのアタック終了時、ダメージを与えていなかった場合」（`WX24-P3-055-E2`）。
+    if (t === 'ON_GUARD' && e.triggerCondition?.lrigAttackNoDamage) s = 'ルリグ１体がアタックし、そのアタックがダメージを与えなかったとき';
     // ON_TURN_END/ON_TURN_START の triggerScope:any_opp（「対戦相手のターン終了/開始時」WX11-032/WX20-073 等）
     if ((t === 'ON_TURN_END' || t === 'ON_TURN_START') && e.triggerScope === 'any_opp') s = `対戦相手の${s}`;
     // ON_LRIG_GROW の主語（triggerScope/excludeSelf）を反映（any_opp＝対戦相手／excludeSelf＝他の）
@@ -4411,6 +4468,11 @@ function effJa(e: Eff): string {
     }
     if (t === 'ON_PLAY' && e.triggerCondition?.placedOnGateZone) {
       s = '対戦相手のシグニ１体が【ゲート】があるシグニゾーンに出たとき';
+    }
+    // 🆕2026-08-31 続き749＝「正面以外のシグニゾーンにアタックしたとき」（`WXEX2-71-E1`）。
+    if (t === 'ON_ATTACK_SIGNI' && e.triggerCondition?.attackedNotFront) {
+      const subjNF = e.triggerScope === 'any_ally' ? 'あなたのシグニ１体' : 'このシグニ';
+      s = `${subjNF}が正面以外のシグニゾーンにアタックしたとき`;
     }
     // ON_SIGNI_BANISH_OPPONENT の banishedFilter/banishedNotFront（被バニッシュシグニの状態/位置限定・
     //   WX16-079/WXK02-054/WXEX2-76/WX17-032 等）。主語は triggerScope（self=このシグニ／any_ally=あなたのシグニ）。

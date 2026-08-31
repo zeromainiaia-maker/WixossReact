@@ -185,6 +185,24 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   if (n.$ref === 'cards_drawn_this_attack_phase') {
     return Math.max(0, ctx.ownerState.cards_drawn_this_attack_phase ?? 0);
   }
+  // 🆕「このターンに**あなたの〈filter〉のシグニが**クラッシュした対戦相手のライフクロス1枚につき」
+  //   （2026-08-31 続き748・`WX25-CP1-042-E2`）。実体は `life_crashed_by_signi_this_turn`
+  //   （**クラッシュした側＝攻撃側の state** に「どのシグニが何枚」で載る既存フィールド）。
+  //   ⚠`filter` 省略時は全シグニぶんの合計＝`life_crashed_this_turn`（被クラッシュ側）とは**別の軸**。
+  if (n.$ref === 'life_crashed_by_signi_this_turn') {
+    const ledger = ctx.ownerState.life_crashed_by_signi_this_turn ?? {};
+    return Object.entries(ledger).reduce((sum, [cardNum, cnt]) =>
+      (!n.filter || matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)) ? sum + (cnt ?? 0) : sum, 0);
+  }
+  // 🆕「**このシグニの下にあったカード**1枚につき」（2026-08-31 続き748・`WXDi-P11-042-E2`）。
+  //   実体は `ctx.leftFieldUnderCards`＝collector が**離場/バニッシュ直前**に撮ったスナップショット
+  //   （場を離れたあとの盤面には下カードが残っていないので、これ以外に数える術が無い）。
+  if (n.$ref === 'left_field_under_count') {
+    const under = ctx.leftFieldUnderCards ?? [];
+    return n.filter
+      ? under.filter(cardNum => matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length
+      : under.length;
+  }
   if (n.$ref === 'last_processed_level') return maxCardLevel(ctx.lastProcessedCards, ctx);
   if (n.$ref === 'stored_target_level') return maxCardLevel(ctx.storedTargetCards, ctx);
   if (n.$ref === 'center_lrig_level') {
@@ -234,6 +252,10 @@ export function countFromZone(
     : fromZone.distinctBy === 'level'
     ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.Level ?? '')
       .filter(level => level !== '')).size
+    // 🆕`'name'`＝**カード名の種類数**（「＜X＞のシグニが合計N種類ある場合」`WXDi-CP01-031-E1`）。
+    : fromZone.distinctBy === 'name'
+    ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.CardName ?? '')
+      .filter(name => name !== '')).size
     : matchedCards.length;
   const matched = fromZone.maxCount === undefined ? rawMatched : Math.min(rawMatched, Math.max(0, fromZone.maxCount));
   // unitSize<=0 は無制限・既定1へ倒さず fail-closed。既存 per は乗数のまま維持する。
@@ -1463,6 +1485,10 @@ export function fieldCandidates(
       const hasCharm = (state.field.signi_charms?.[zoneIdx] ?? null) !== null;
       if (filter.hasCharm !== hasCharm) return [];
     }
+    if (filter?.hasSoul !== undefined) {
+      const soulExists = (state.field.signi_soul?.[zoneIdx] ?? null) !== null;
+      if (filter.hasSoul !== soulExists) return [];
+    }
     if (filter?.isDown !== undefined) {
       const isDown = state.field.signi_down?.[zoneIdx] ?? false;
       if (filter.isDown !== isDown) return [];
@@ -1973,6 +1999,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
+      // 🆕`colorNotMatchesSource`（2026-08-31 続き748・`WX21-032-E1`「このシグニと共通する色を持たない他の
+      //   ＜天使＞のシグニ」）は**動的フィルタ**なので `matchesFilter` は解けない＝ここで `colorExclude` へ潰す。
+      //   🔴潰さないと未知キーとして**黙って素通り＝無条件成立**する（PLAN §4.2 の穴）。
+      //   ⚠効果元が特定できないときは**到達不能名**で空ヒットへ倒す（過剰実行を作らない）。
+      let hcifFilter = cond.filter;
+      if (hcifFilter?.colorNotMatchesSource) {
+        const { colorNotMatchesSource: _cnms, ...restCNMS } = hcifFilter;
+        const srcColorStr = srcNum ? (ctx.cardMap.get(getCardNum(srcNum))?.Color ?? '') : '';
+        hcifFilter = [...srcColorStr].some(c => '白赤青緑黒'.includes(c))
+          ? { ...restCNMS, colorExclude: srcColorStr }
+          : { ...restCNMS, cardNames: ['__NO_SUCH_CARD__'] };
+      }
       const fieldStates = cond.owner === 'any' ? [ctx.ownerState, ctx.otherState] : [st(cond.owner)];
       // distinctNames:true は「N種類以上」＝カード名の異なる数を数える（「＜ブルアカ＞のシグニが３種類以上
       // ある場合」WX25-CP1-041/045・「それぞれ名前の異なる＜原子＞のシグニが３体あるかぎり」WX12-Re01）。
@@ -2005,7 +2043,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
             if (cond.filter.hasCharm !== hasCharm) return false;
           }
           // 「場にパワーN以上のシグニ」＝印字値ではなく CONTINUOUS/一時修整込みの実効パワーで判定する。
-          return matchesFilter(ctx.cardMap.get(top), cond.filter, ctx.effectivePowers?.get(top));
+          return matchesFilter(ctx.cardMap.get(top), hcifFilter, ctx.effectivePowers?.get(top));
         }).map(stack => stack![stack!.length - 1]));
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
@@ -2013,13 +2051,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
         for (const fst of fieldStates) {
           for (const ln of lrigZoneTops(fst.field)) {
-            if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matchedNums.push(ln);
+            if (ln && matchesFilter(ctx.cardMap.get(ln), hcifFilter)) matchedNums.push(ln);
           }
           // キーゾーン走査：「対戦相手の場にキーがある場合」。cardType:'キー' を
           // matchesFilter で照合するため、既存のシグニ／ルリグ条件には影響しない。
           const key = fst.field.key_piece;
           if (key && !(cond.excludeSelf && srcNum && key === srcNum)
-              && matchesFilter(ctx.cardMap.get(key), cond.filter)) matchedNums.push(key);
+              && matchesFilter(ctx.cardMap.get(key), hcifFilter)) matchedNums.push(key);
         }
       }
       const matched = cond.distinctClasses
@@ -2276,9 +2314,25 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ⚠`signi_banished_this_turn` は **バニッシュされた側**の state に積まれる（BattleScreen の中央 diff）
       //   ＝「対戦相手のシグニがバニッシュされていた」は otherState を見る。
       return ((cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
-    case 'SELF_DECK_TO_TRASH_THIS_TURN':
+    case 'SELF_DECK_TO_TRASH_THIS_TURN': {
       // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（WXDi-P03-065）。
-      return ((cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
+      // 🆕`filter` 指定時は実体（`deck_to_trash_cards_this_turn`）を絞って数える（2026-08-31 続き748）。
+      const stDT = cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+      const nDT = cond.filter
+        ? (stDT.deck_to_trash_cards_this_turn ?? []).filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.filter)).length
+        : (stDT.deck_to_trash_count_this_turn ?? 0);
+      return nDT >= (cond.minCount ?? 1);
+    }
+      case 'HAND_DISCARDED_THIS_TURN': {
+      // 🆕「このターンに owner が手札から〈filter〉のカードをN枚以上捨てていた場合」（2026-08-31 続き748）。
+      //   ⚠実体（`turn_hand_discarded_cards`）を絞って数える＝**枚数カウンタでは filter を表せない**。
+      //   filter 省略時も実体側だけを見て一本化する（両者は同じ地点で更新される）。
+        const discardedHD = (cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState).turn_hand_discarded_cards ?? [];
+        const nHD = cond.filter
+          ? discardedHD.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.filter)).length
+          : discardedHD.length;
+        return nHD >= (cond.minCount ?? 1);
+      }
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': {
       // このターンにシグニがN体以上場から手札に戻っていた場合（WXK02-040/042/065）。
       // ⚠原文が「シグニが」と持ち主を言わない形は owner:'any'＝**両者の合算**で数える。
@@ -2411,6 +2465,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         let n = 0;
         for (let zi = 0; zi < 3; zi++) {
           if (kind === 'soul') { n += f.signi_soul?.[zi] ? 1 : 0; continue; }
+          // 🆕'acce'＝【アクセ】だけ（2026-08-31 続き747・`WX18-075-E1`「【アクセ】が合計2枚以上ある場合」）。
+          if (kind === 'acce') { n += acceCardsAt(f, zi).length; continue; }
           if (kind !== 'under') {
             n += (f.signi_charms?.[zi] ? 1 : 0)
               + acceCardsAt(f, zi).length
@@ -2464,6 +2520,36 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_trash?.includes(ctx.sourceCardNum) ?? false);
     case 'THIS_CARD_FROM_NON_HAND_THIS_TURN':
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_non_hand_this_turn?.includes(ctx.sourceCardNum) ?? false);
+    // 🆕「このターンにこのシグニが〈zone〉から場に出ていた場合」（2026-08-31 続き748・`WXDi-P06-070-E1`）。
+    case 'THIS_CARD_FROM_ZONE_THIS_TURN': {
+      if (!ctx.sourceCardNum) return false;
+      const origins = ctx.ownerState.signi_placed_origin_this_turn ?? [];
+      return cond.zones.some(z => origins.includes(`${ctx.sourceCardNum}:${z}`));
+    }
+    // 🆕トリガー元カードの属性で分岐する（2026-08-31 続き748・`WXK05-065-E1`）。
+    case 'TRIGGER_SOURCE_MATCHES': {
+      const trg = ctx.triggeringCardNum;
+      if (!trg) return false;                      // 参照不能は不成立（fail-closed）
+      return matchesFilter(ctx.cardMap.get(getCardNum(trg)), cond.filter);
+    }
+    // 🆕**公開領域**の集合条件（2026-08-31 続き748）。場（シグニ頂点＋ルリグ）／エナ／トラッシュ／
+    //   ルリグトラッシュ／チェックゾーン。⚠デッキ・手札・ライフクロス（裏向き）は数えない。
+    case 'PUBLIC_ZONE_MATCH': {
+      const stPZ = cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+      const cardsPZ = [
+        ...stPZ.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n),
+        ...[stPZ.field.lrig?.at(-1), stPZ.field.assist_lrig_l?.at(-1), stPZ.field.assist_lrig_r?.at(-1)]
+          .filter((n): n is string => !!n),
+        ...stPZ.energy, ...stPZ.trash, ...stPZ.lrig_trash, ...checkZoneCards(stPZ),
+      ];
+      const subjectsPZ = cardsPZ.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.subjectFilter));
+      if (cond.mode === 'all') {
+        // ⚠subject が0枚なら**不成立**（空集合を真にすると「盤面が空なら常に発動」へ裏返る）。
+        return subjectsPZ.length >= (cond.minCount ?? 1)
+          && subjectsPZ.every(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.filter));
+      }
+      return subjectsPZ.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.filter)).length >= (cond.minCount ?? 1);
+    }
     case 'THIS_CARD_FROM_DECK':
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_deck?.includes(ctx.sourceCardNum) ?? false);
     case 'THIS_CARD_PLACED_BY_CLASS': {
@@ -2757,7 +2843,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ゾーン状態フィルタ（hasCharm/isFrozen/infected 等）が指定された場合は、直前に処理したカードを
       // 場から探してゾーン状態も照合する（「それに【チャーム】が付いている場合」WX25-P2-102/107/109。
       // matchesFilter は CardData のみで hasCharm 等を黙って無視するため、この補助照合が要る）。
-      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities'] as const;
+      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities'] as const;
       const needsZoneState = !!cond.filter && ZONE_STATE_KEYS.some(k => (cond.filter as Record<string, unknown>)[k] !== undefined);
       const matchedCards = procM.filter(cn => {
         const card = ctx.cardMap.get(getCardNum(cn));
@@ -3052,14 +3138,24 @@ export function selectOrInteract(
   // どの選択経路でも UI・CPU・resume が同じ SelectionConstraint を検証する。
   const rawConstraint = extra?.selectionConstraint;
   let resolvedExtra = extra;
-  if (rawConstraint?.totalLevelExactRef !== undefined || rawConstraint?.totalLevelMaxRef !== undefined) {
-    const { totalLevelExactRef, totalLevelMaxRef, ...staticConstraint } = rawConstraint;
+  // 🆕`levelMultisetFromLastProcessed`＝「この方法で捨てたシグニ1枚につき**そのシグニと同じレベルの**〜」。
+  //   pending を作る前に**具体的なレベルの並び**へ焼き込む（UI・CPU・resume が同じ制約を検証できる）。
+  if (rawConstraint?.levelMultisetFromLastProcessed) {
+    const { levelMultisetFromLastProcessed: _lm, ...staticLM } = rawConstraint;
+    const levels = (ctx.lastProcessedCards ?? [])
+      .map(cn => parseInt(ctx.cardMap.get(getCardNum(cn))?.Level ?? '', 10))
+      .filter(n => Number.isFinite(n));
+    resolvedExtra = { ...extra, selectionConstraint: { ...staticLM, levelMultiset: levels } };
+  }
+  const rawConstraint2 = resolvedExtra?.selectionConstraint;
+  if (rawConstraint2?.totalLevelExactRef !== undefined || rawConstraint2?.totalLevelMaxRef !== undefined) {
+    const { totalLevelExactRef, totalLevelMaxRef, ...staticConstraint } = rawConstraint2;
     const selectionConstraint: SelectionConstraint = {
       ...staticConstraint,
       ...(totalLevelExactRef !== undefined ? { totalLevelExact: resolveCountRef(totalLevelExactRef, ctx) } : {}),
       ...(totalLevelMaxRef !== undefined ? { totalLevelMax: resolveCountRef(totalLevelMaxRef, ctx) } : {}),
     };
-    resolvedExtra = { ...extra, selectionConstraint };
+    resolvedExtra = { ...resolvedExtra, selectionConstraint };
   }
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   // both_field（owner:'any'）でも相手側の候補にはシャドウを適用する（自分側候補は対象外）
@@ -3191,6 +3287,19 @@ export function satisfiesSelectionConstraint(
   if (constraint.totalLevelExact !== undefined && levelSum() !== constraint.totalLevelExact) return false;
   if (constraint.totalLevelMax !== undefined && levelSum() > constraint.totalLevelMax) return false;
   if (constraint.groups && !canAssignSelectionGroups(nums, constraint.groups, cardMap)) return false;
+  // 🆕`levelMultiset`＝選んだ集合のレベルを**1対1で**参照リストへ割り当てられること（2026-08-31 続き749）。
+  //   ⚠「どれかに一致」ではない＝同じレベルを重複して取れないので、まとめてN体の過剰実行にならない。
+  //   ⚠レベル不明は不成立（fail-closed）。空選択は常に成立（0体は原文どおり許す形がある）。
+  if (constraint.levelMultiset !== undefined) {
+    const pool = [...constraint.levelMultiset];
+    for (const card of cards) {
+      const lv = parseInt(card?.Level ?? '', 10);
+      if (!Number.isFinite(lv)) return false;
+      const at = pool.indexOf(lv);
+      if (at < 0) return false;
+      pool.splice(at, 1);
+    }
+  }
   if (nums.length < 2) return true;
   if (constraint.same === 'name') {
     const values = cards.map(c => `${c?.CardName ?? ''}`);

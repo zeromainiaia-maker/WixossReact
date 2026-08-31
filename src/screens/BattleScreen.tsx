@@ -3337,8 +3337,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // SELF_DECK_TO_TRASH_THIS_TURN（「このターンにあなたのデッキからカードがN枚以上トラッシュに置かれていた場合」
       // WXDi-P03-065）用のターン累計。⚠**持ち主基準**＝自分のデッキから落ちた枚数を自分の state へ積む
       // （相手効果で落とされた場合も自分のデッキが減っているので数える＝原文に原因限定が無い）。
-      if (milledHost > 0)  h = { ...h, deck_to_trash_count_this_turn: (h.deck_to_trash_count_this_turn ?? 0) + milledHost };
-      if (milledGuest > 0) g = { ...g, deck_to_trash_count_this_turn: (g.deck_to_trash_count_this_turn ?? 0) + milledGuest };
+      // 🆕**実体側も同じ地点で積む**（絞り込み付きの履歴参照＝`SELF_DECK_TO_TRASH_THIS_TURN{filter}` 用）。
+      if (milledHost > 0)  h = { ...h, deck_to_trash_count_this_turn: (h.deck_to_trash_count_this_turn ?? 0) + milledHost, deck_to_trash_cards_this_turn: [...(h.deck_to_trash_cards_this_turn ?? []), ...milledHostCards] };
+      if (milledGuest > 0) g = { ...g, deck_to_trash_count_this_turn: (g.deck_to_trash_count_this_turn ?? 0) + milledGuest, deck_to_trash_cards_this_turn: [...(g.deck_to_trash_cards_this_turn ?? []), ...milledGuestCards] };
     }
 
     // ON_CHARM_TO_TRASH: 【チャーム】が場→トラッシュに置かれた場合
@@ -5894,7 +5895,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     myState: PlayerState,
     opState: PlayerState,
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
-    opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromZone?: TriggerOriginZone; placedFromTrash?: boolean },
+    opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromZone?: TriggerOriginZone; placedFromTrash?: boolean; sideAttack?: boolean },
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectFieldTriggers(mkTrigCtx(), event, triggeringCardNum, myState, opState, ownerId, opts);
 
@@ -7104,6 +7105,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: keySub ? { ...my.field, key_piece: null } : my.field,
         turn_hand_discarded_count: discardNums.length > 0
           ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
+        turn_hand_discarded_cards: discardNums.length > 0
+          ? [...(my.turn_hand_discarded_cards ?? []), ...discardNums] : my.turn_hand_discarded_cards,
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
         // 【チェイン】の「次に使用するアーツ」軽減を消費（タスク12(xciii)。スペル版と同型）。
         // ⚠このアーツ自身が新しい【チェイン】を宣言する場合は効果解決（COST_REDUCTION）が
@@ -7688,6 +7691,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           trash: [...my.trash, ...paidNums, ...discardNums],
           turn_hand_discarded_count: discardNums.length > 0
             ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
+          turn_hand_discarded_cards: discardNums.length > 0
+            ? [...(my.turn_hand_discarded_cards ?? []), ...discardNums] : my.turn_hand_discarded_cards,
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
@@ -8922,7 +8927,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // condition を持つ AUTO は発動条件を満たす場合のみ収集（「〜であるかぎり『【自】アタック時…』を得る」系）
       const atkSelfPowers = calcFieldPowers(newMyState, newOpState, true, effectsMap, battleCardMap, bs.turn_phase);
       const attackEntries = pureCollectAttackerSelfTriggers(
-        mkTrigCtx(), newMyState, newOpState, myTopNum, attackerId, atkSelfPowers,
+        // 🆕最後の引数＝「正面以外のシグニゾーンにアタックしたか」（2026-08-31 続き749・`WXEX2-71-E1`）。
+        //   `isSideAttack` は上（:8826）で `p.targetOpZone !== undefined`＝【側面アタック】として既に立っている。
+        mkTrigCtx(), newMyState, newOpState, myTopNum, attackerId, atkSelfPowers, isSideAttack,
       );
 
       // 🆕INSTALL_DELAYED_TRIGGER（§5.3 2026-08-27 Sheet1 B11）＝**攻撃側**に設置された
@@ -8932,7 +8939,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       attackEntries.push(...pureCollectAttackerSelfDelayedTriggers(mkTrigCtx(), attackerId, newMyState, myTopNum));
 
       // any_ally scope: 味方フィールドの他シグニが持つON_ATTACK_SIGNIへの応答（例: WX01-029）
-      const allyAttackRes = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId);
+      const allyAttackRes = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId, { sideAttack: isSideAttack });
       const allyAttackEntries = allyAttackRes.entries;
       // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（attacker=myState / defender=opState）
       const atkUsedMine = attackerIsHost ? allyAttackRes.usedHostIds : allyAttackRes.usedGuestIds;
@@ -12501,7 +12508,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...pendingCauses.filter((_, i) => i !== targetIdx)];
       }
       // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
-      const crashToTrash = op.crash_to_trash_instead === true;
+      // 🆕自分のクラッシュ置換（2026-08-31 続き749・`WD06-009-E2` / `WX20-043-E1`）＝
+      //   「チェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにトラッシュへ置き
+      //   デッキの一番上をライフクロスに加える」。**回数制**なので1クラッシュにつき1消費する。
+      const selfCrashRefill = (my.self_crash_to_trash_and_refill ?? 0) > 0;
+      const crashToTrash = op.crash_to_trash_instead === true || selfCrashRefill;
       // ON_LIFE_CRASHED: 自フィールドシグニの「ライフクロスがクラッシュされたとき」トリガーを収集
       // （アタック・効果問わず全クラッシュ経路がチェックゾーン経由でここに集約される）
       const { entries: crashTriggers, usedOncePerTurnIds: crashTriggerUsedIds } =
@@ -12629,8 +12640,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         myCounterAfter = remaining > 0 ? { ...my.life_crash_counter, remaining } : undefined;
       }
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
+      // 🆕置換が乗った回は**デッキの一番上をライフクロスへ**足し、残り回数を1つ消費する。
+      const refillTop = selfCrashRefill ? my.deck[0] : undefined;
       const baseState: PlayerState = {
         ...my,
+        deck: refillTop ? my.deck.slice(1) : my.deck,
+        life_cloth: refillTop ? [...my.life_cloth, refillTop] : my.life_cloth,
+        self_crash_to_trash_and_refill: selfCrashRefill
+          ? Math.max(0, (my.self_crash_to_trash_and_refill ?? 0) - 1) || undefined
+          : my.self_crash_to_trash_and_refill,
         energy: crashToTrash ? my.energy : [...my.energy, cardNum],
         trash: crashToTrash ? [...my.trash, cardNum] : my.trash,
         field: { ...my.field, check: null },
@@ -12645,7 +12663,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]
           : my.actions_done,
       };
-      if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（CRASH_TO_TRASH_INSTEAD）`]);
+      if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（${selfCrashRefill ? 'SELF_CRASH_TO_TRASH_AND_REFILL' : 'CRASH_TO_TRASH_INSTEAD'}）`]);
+      if (refillTop) appendBattleLogs([`デッキの一番上のカードをライフクロスに加えた`]);
       if (!activate) {
         const stateKey = p.ownerKey;
         const combinedTriggers = [...crashTriggers, ...oppCrashTriggers, ...counterCrashTriggers];
@@ -13330,6 +13349,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   //   【アクセ】が付いたとき」（WXK04-051/WXK05-064）は従来どおり自フィールド全体が反応する。
   const checkAndFireOnAcceTriggersForOwner = async (state: PlayerState, acceHostCardNum: string) => {
     const triggerEntries: StackEntry[] = [];
+    // 🆕2026-08-31 続き748＝**いま付いた【アクセ】カード**（スタック末尾）。原文「**それが**レベル２以下の
+    //   【アクセ】の場合」（`WXK05-065-E1`）を `TRIGGER_SOURCE_MATCHES` が読むためにトリガー元として運ぶ。
+    const acceHostZoneIdx = state.field.signi.findIndex(sg => sg?.at(-1) === acceHostCardNum);
+    const acceCardNum = acceHostZoneIdx >= 0 ? acceCardsAt(state.field, acceHostZoneIdx).at(-1) : undefined;
     const usedOncePerTurnIdsAcce: string[] = [];
     // 《ターン1回》《ターン2回》の使用制限（actions_done ＋ 本収集内で積んだ分の両方を数える）。
     const acceLimitOk = (eff: import('../types/effects').CardEffect): boolean => {
@@ -13359,6 +13382,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           effectId: eff.effectId,
           label: `${card?.CardName ?? topNum}【自】${eff.timing?.[0] ?? 'ON_ACCE'}`,
           effect: eff,
+          // 🆕2026-08-31 続き748＝**付いた【アクセ】そのもの**をトリガー元として運ぶ。
+          //   原文「**それが**レベル２以下の【アクセ】の場合」（`WXK05-065-E1`）は `TRIGGER_SOURCE_MATCHES` が読む。
+          triggeringCardNum: acceCardNum,
         });
       }
     }

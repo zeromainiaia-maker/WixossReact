@@ -130,7 +130,7 @@ const exceedPoolCountOf = (state: PlayerState): number =>
 // 分岐に渡すと支払い後に候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）。
 // SEND_TO_ENERGY / TRANSFER_TO_DECK はタスク12(liii) の族（エナ送り・デッキの一番下）で必要になり追加。
 function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
-  const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK'];
+  const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY'];
   if (FREEZABLE.includes(action.type) && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
@@ -1896,6 +1896,12 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     return selectOrInteract(cands, maxSp, true, scopeSp, { ...a, delta }, undefined, ctx, false);
   }
 
+  // 🆕遅延トリガー設置時／任意コスト分岐で焼き込まれた対象（`freezeStoredTargets`）。
+  if (a.fixedCardNums) {
+    const fixedPM = new Set(a.fixedCardNums);
+    return done(applyPowerMod(cands.filter(n => fixedPM.has(n)), ctx));
+  }
+
   // targetsStored:「それのパワーを…」＝対象は先行の SELECT_TARGET_ONLY / 対象宣言ステップで**すでに確定**している。
   // 再び選択UIを出すのは冗長で、しかも同じ対象へ ON_TARGETED が二度立つ（対象宣言は1回）。ここで自動適用する
   // （autoTargetedCards には積まない＝対象化はその宣言ステップで済んでいる。タスク12(lx)②）。
@@ -2129,6 +2135,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         hand_discarded_just_by_opp: tgt.owner === 'opponent' && picked.length > 0 ? true : state.hand_discarded_just_by_opp,
         turn_hand_discarded_count: tgt.owner === 'self' && picked.length > 0
           ? (state.turn_hand_discarded_count ?? 0) + picked.length : state.turn_hand_discarded_count,
+        turn_hand_discarded_cards: tgt.owner === 'self' && picked.length > 0
+          ? [...(state.turn_hand_discarded_cards ?? []), ...picked] : state.turn_hand_discarded_cards,
         // 「見ないで選ぶ」経路でも相手効果による手札喪失としてカウントする（HAND_TRASHED_BY_OPP）。
         hand_trashed_by_opp_this_turn: tgt.owner === 'opponent' && picked.length > 0
           ? (state.hand_trashed_by_opp_this_turn ?? 0) + picked.length : state.hand_trashed_by_opp_this_turn,
@@ -2157,6 +2165,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         hand_discarded_just_by_opp: tgt.owner === 'opponent' && toTrash.length > 0 ? true : s.hand_discarded_just_by_opp,
         turn_hand_discarded_count: tgt.owner === 'self' && toTrash.length > 0
           ? (s.turn_hand_discarded_count ?? 0) + toTrash.length : s.turn_hand_discarded_count,
+        turn_hand_discarded_cards: tgt.owner === 'self' && toTrash.length > 0
+          ? [...(s.turn_hand_discarded_cards ?? []), ...toTrash] : s.turn_hand_discarded_cards,
         // 「このターンに**対戦相手の効果によって**あなたの手札からカードがトラッシュに移動していた場合」条件用
         // （HAND_TRASHED_BY_OPP・WXDi-P02-005）。tgt.owner==='opponent' ＝ **実行者から見た相手**の手札を捨てさせた
         // ＝その相手から見れば「対戦相手の効果で捨てられた」。ターン境界で 0 にリセットされる。
@@ -2815,6 +2825,56 @@ function resolveDynamicFilter(
     result = !isNaN(lvl)
       ? { ...rest, level: { min: lvl, max: lvl } }
       : { ...rest, level: { min: 99, max: -1 } };
+  }
+  // 🆕`levelEqLastProcessedPlus`（2026-08-31 続き748）＝「よりレベルが N つ大きい」＝ちょうど lvl+N。
+  if (result.levelEqLastProcessedPlus !== undefined) {
+    const { levelEqLastProcessedPlus: plusN, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const lvl = ref ? parseInt(cardMap.get(getCardNum(ref))?.Level ?? '', 10) : NaN;
+    result = !isNaN(lvl)
+      ? { ...rest, level: { min: lvl + (plusN ?? 1), max: lvl + (plusN ?? 1) } }
+      : { ...rest, level: { min: 99, max: -1 } };
+  }
+  // 🆕`powerLtAcceHost`（2026-08-31 続き748）＝**効果元がアクセとして付いているホストシグニ**より低いパワー。
+  //   ⚠ホストが見つからなければ空ヒット（アクセされていない状態で撃っても全体に当たらないようにする）。
+  if (result.powerLtAcceHost) {
+    const { powerLtAcceHost: _pah, ...rest } = result;
+    let hostNum: string | undefined;
+    if (sourceCardNum) {
+      for (let zi = 0; zi < 3; zi++) {
+        if (acceCardsAt(ownerSt.field, zi).includes(sourceCardNum)) { hostNum = ownerSt.field.signi[zi]?.at(-1); break; }
+      }
+    }
+    const hp = hostNum ? (effectivePowers?.get(hostNum) ?? parseInt(cardMap.get(getCardNum(hostNum))?.Power ?? '0', 10)) : undefined;
+    result = (hp !== undefined && !isNaN(hp))
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: hp - 1 } }
+      : { ...rest, powerRange: { min: 1, max: 0 } };
+  }
+  // 🆕`levelLtTriggerSource`（2026-08-31 続き748）＝トリガー元カードのレベル未満。参照不能なら空ヒット。
+  if (result.levelLtTriggerSource) {
+    const { levelLtTriggerSource: _lts, ...rest } = result;
+    const lvl = triggeringCardNum ? parseInt(cardMap.get(getCardNum(triggeringCardNum))?.Level ?? '', 10) : NaN;
+    result = !isNaN(lvl)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl - 1 } }
+      : { ...rest, level: { min: 99, max: -1 } };
+  }
+  // 🆕`nameEqTriggerSource`（2026-08-31 続き748）＝トリガー元カードと**同じカード名**。参照不能なら空ヒット。
+  if (result.nameEqTriggerSource) {
+    const { nameEqTriggerSource: _nts, ...rest } = result;
+    const nm = triggeringCardNum ? cardMap.get(getCardNum(triggeringCardNum))?.CardName : undefined;
+    result = nm ? { ...rest, cardNames: [nm] } : { ...rest, cardNames: ['__NO_SUCH_CARD__'] };
+  }
+  // 🆕`colorNotMatchesSource`（2026-08-31 続き748）＝**効果元シグニと共通する色を持たない**。
+  //   ⚠効果元が特定できないときは空ヒットへ倒す（「共通色なし」を無条件成立にすると過剰実行）。
+  if (result.colorNotMatchesSource) {
+    const { colorNotMatchesSource: _cns, ...rest } = result;
+    const srcColors = sourceCardNum
+      ? [...(cardMap.get(getCardNum(sourceCardNum))?.Color ?? '')].filter(c => '白赤青緑黒'.includes(c))
+      : [];
+    const srcColorStr = sourceCardNum ? (cardMap.get(getCardNum(sourceCardNum))?.Color ?? '') : '';
+    result = srcColors.length
+      ? { ...rest, colorExclude: srcColorStr }   // `colorNotMatchesLrig` と同じ受け皿（matchesFilter が解決）
+      : { ...rest, cardNames: ['__NO_SUCH_CARD__'] };
   }
   if (result.colorMatchesLrig || result.colorNotMatchesLrig) {
     const lrigTop = ownerSt.field.lrig.at(-1);
@@ -3811,7 +3871,10 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (count <= 0) return done({ ...addLog(ctx, 'ダウン数0（処理なし）'), lastProcessedCards: [] });
   // optional:「ダウンしてもよい」（スキップ可。スキップ時は resumeSelectTarget が後続の「そうした場合」を除去）
   const downOptional = a.optional || (a.target.upToCount ?? false);
-  return selectOrInteract(cands, count, downOptional, scope, a, undefined, ctx);
+  // 🆕`selectionConstraint` を渡す（2026-08-31 続き749）＝`levelMultiset`（捨てたシグニとのペア付け）が
+  //   DOWN の対象選択でも効くようにする。⚠渡さないと UI・CPU・resume が制約を知らず素通りする。
+  return selectOrInteract(cands, count, downOptional, scope, a, undefined, ctx, false,
+    { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
@@ -4156,6 +4219,18 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       ctx = addLog(reservation.ctx,
         `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニが【${a.keyword}】を得る`);
       if (!a.appliesThisTurn) return done(ctx);
+    }
+  }
+  // 🆕「このターン、あなたのシグニは、**〈per-signi 条件〉であるかぎり**【K】を得る」（2026-08-31 続き749・
+  //   `WD15-007-E1`）＝**場レベル grant**で持つ。per-signi 付与に落とすと ①条件が解決時点で焼き込まれ
+  //   ②原文の括弧書き「このアーツの後に場に出たシグニもこの効果の影響を受ける」が死ぬ。
+  // ⚠**`fieldCondition` があるときだけ**この経路に入れる＝条件なしの `count:'ALL'` 付与は挙動不変。
+  if (a.fieldCondition && a.duration === 'UNTIL_END_OF_TURN' && tgt.count === 'ALL') {
+    const activeGK = applyActiveFieldGrant(tgt, {
+      kind: 'keyword', keyword: a.keyword, filter: tgt.filter, condition: a.fieldCondition,
+    }, ctx);
+    if (activeGK.applied) {
+      return done(addLog(activeGK.ctx, `このターン、条件を満たす場のシグニが【${a.keyword}】を得る`));
     }
   }
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
@@ -5897,9 +5972,14 @@ function transferSpecificDeckCard(a: TransferToDeckAction, cardNum: string, ctx:
     const newS = { ...state, deck: shuffle(deck) };
     return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキに加えてシャッフル`), lastProcessedCards: [cardNum] });
   }
-  const insertAt = a.position === 'bottom' ? deck.length : a.position === 'second' ? Math.min(1, deck.length) : 0;
+  // 🆕`'third'`＝「デッキの**上から三番目**に置く」（2026-08-31 続き747・`WDK09-011-E2`）。
+  const insertAt = a.position === 'bottom' ? deck.length
+    : a.position === 'second' ? Math.min(1, deck.length)
+    : a.position === 'third' ? Math.min(2, deck.length) : 0;
   deck.splice(insertAt, 0, cardNum);
-  const posJa = a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : '一番上';
+  const posJa = a.position === 'bottom' ? '一番下'
+    : a.position === 'second' ? '上から二番目'
+    : a.position === 'third' ? '上から三番目' : '一番上';
   const newS = { ...state, deck };
   return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキの${posJa}に置く`), lastProcessedCards: [cardNum] });
 }
@@ -8166,6 +8246,27 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
       optional: false,
       targetScope: 'self_hand',
       thenAction: pickAcceAction as import('../types/effects').EffectAction,
+    });
+  }
+
+  // 🆕エナゾーンから**選んで**アクセにする（2026-08-31 続き748）。既定のエナ経路はアクセ札を
+  //   `ctx.sourceCardNum` に固定するので「エナから1枚を対象とし」が書けなかった。`fromHand` と同じ2段選択
+  //   （段1＝アクセ札を選ぶ／段2＝ホストを選ぶ）に載せる＝resume 側の `_selectingAcceFromHand` 分岐と
+  //   除去処理（energy/hand の両方を見る）はそのまま使える。
+  if (a.fromEnergy) {
+    const enaCands = srcState.energy.filter(cn => {
+      const card = ctx.cardMap.get(cn);
+      return card && card.Type === 'シグニ' && (!a.signiFilter || matchesFilter(card, a.signiFilter));
+    });
+    if (enaCands.length === 0) return done(addLog(ctx, 'アクセ可能なエナのシグニなし'));
+    const pickFromEna: AttachAcceAction = { ...a, fromEnergy: false, _selectingAcceFromHand: true };
+    return needsInteraction(addLog(ctx, 'エナゾーンからアクセするシグニを選択'), {
+      type: 'SELECT_TARGET',
+      candidates: enaCands,
+      count: 1,
+      optional: false,
+      targetScope: 'self_energy',
+      thenAction: pickFromEna as import('../types/effects').EffectAction,
     });
   }
 
@@ -10582,6 +10683,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
             hand_discarded_just_by_opp: owner === 'opponent' ? true : s.hand_discarded_just_by_opp,
             turn_hand_discarded_count: owner === 'self'
               ? (s.turn_hand_discarded_count ?? 0) + 1 : s.turn_hand_discarded_count,
+            turn_hand_discarded_cards: owner === 'self'
+              ? [...(s.turn_hand_discarded_cards ?? []), cardNum] : s.turn_hand_discarded_cards,
             // owner==='opponent' ＝ 実行者から見た相手の手札を捨てさせた＝その相手から見れば「対戦相手の効果で捨てられた」
             hand_trashed_by_opp_this_turn: owner === 'opponent'
               ? (s.hand_trashed_by_opp_this_turn ?? 0) + 1 : s.hand_trashed_by_opp_this_turn,

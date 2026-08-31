@@ -105,6 +105,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   signi_returned_to_hand_count_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'signi returned to hand total for the current turn' },
   // 自デッキ→トラッシュの累計枚数は、ターン単位の条件カウンタ（WXDi-P03-065）。
   deck_to_trash_count_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'own deck-to-trash total for the current turn' },
+  // 🆕同じ地点で積む「実体」側（絞り込み付きの履歴参照用）。枚数と寿命を必ず揃える。
+  deck_to_trash_cards_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'own deck-to-trash card list for the current turn' },
   // 自分のデッキからエナへ置いた累計は、ターン単位の条件カウンタ。
   self_deck_to_energy_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'own deck-to-energy total for the current turn' },
   // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」は、課されたターンだけ有効。
@@ -120,6 +122,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
 const IRREGULAR_TURN_SCOPED_STATE = {
+  // 🆕`turn_hand_discarded_count` の「実体」側（2026-08-31 続き748）。⚠`turn_*` 始まりで `*_this_turn` 命名では
+  //   ないのでこちら。**枚数カウンタと同じ地点・同じ寿命**（片方だけ残ると絞り込み条件が食い違う）。
+  turn_hand_discarded_cards: { boundaries: ['turn-end'], reset: undefined, reason: 'cards this player discarded from hand during the current turn (entity side of turn_hand_discarded_count)' },
   // §5.3 O-122: 直近のレゾナ出現条件の支払い内容（`*_this_turn` 命名ではないのでこちらへ登録）。
   //   ⚠ターンをまたいで残ると「前のターンの支払い」で条件が誤成立するので turn-end で捨てる。
   last_appearance_cost_cards: { boundaries: ['turn-end'], reset: undefined, reason: 'cards paid for the most recent resona appearance condition' },

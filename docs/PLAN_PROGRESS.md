@@ -1,5 +1,109 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-08-31・続き748・Opus 5 単独）＝census 高シグナルを 61 → 30（-31）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 61→30**
+  gates 全緑（**golden 3069→3071 / 0 FAIL**・smoke 全0・fuzz 全0・census 30/30・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 -28／較正 -3（live 不変）**。live 変更は **27カード**。
+  ⑤実機は**新規シナリオ2本 PASS**（`censusAcceTriggerSourceLevel` / `…Lv3`）＋既存1本の回帰 PASS。
+
+  🔑🏁**最大の教訓＝「engine には実装済みなのに JSON がそれを指していない」死角が4件あった。**
+  `LRIG_RIDE_SIGNI`（乗機に乗る）／`LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`（**ハンドラのコメントに
+  `WXEX2-84` とカード番号が書いてある**）／`filter.isTriggerSource` は**最初から動いていた**。
+  engine を1行も足さずに4効果が直った。⇒ **新しい型を書く前に既存ハンドラを grep する。**
+  🔴**同じ轍をもう一度踏みかけた**＝`ChooseAction.chooseCountFromZone` を新設したあと、
+  **逆翻訳のコードを読んだら `countChoose.countFromZone` が既にあった**ので差し戻した。
+  ⇒ **`decompileEffects.ts` は「受け皿カタログ」として読める**＝新設の前にここを引くのが一番安い。
+
+  🔴**据置契約は「理由がまだ生きているか」で判定する**＝golden `(xxix)(2)`（明示保留4効果は `costUnparsed` のまま）に
+  引っかかった2件を調べたら**理由が生きていた**＝**【出】の任意コストは `optionalOnPlayCostStub` が写せるキーで
+  ないと、その【自】が丸ごと積まれない（＝発火しない）**。⇒ cost は差し戻し、新設した `trashToDeckBottom` も撤去。
+
+  🔴**「枚数しか覚えていない」履歴カウンタが4効果を無条件発動にしていた**＝`turn_hand_discarded_count` /
+  `deck_to_trash_count_this_turn` に**実体（cardNum 配列）を同じ地点で並べて積む**ようにして
+  `HAND_DISCARDED_THIS_TURN{filter}` / `SELF_DECK_TO_TRASH_THIS_TURN{filter}` を通した。
+
+  🆕**新設した受け皿**＝条件型4（`PUBLIC_ZONE_MATCH` / `THIS_CARD_FROM_ZONE_THIS_TURN` /
+  `TRIGGER_SOURCE_MATCHES` / `HAND_DISCARDED_THIS_TURN`）・動的フィルタ4（`levelEqLastProcessedPlus` /
+  `powerLtAcceHost` / `nameEqTriggerSource` / `colorNotMatchesSource`）・`ATTACH_ACCE.fromEnergy` /
+  `hasOnPlayAbility` / 遅延の `banisherFilter`・`placedByEffect` ＋ **`collectFieldTriggers` での遅延収集**
+  （**ON_PLAY・ON_BLOOM の遅延はそれまで設置しても永久に発火しなかった**）／`$ref` 2つ。
+
+**▶ 次の一手**＝**§5.1 の実機返済（`V-93`／`V-95`〜`V-101`）**。環境は生きている（2セッション連続で実走できた）ので
+**シナリオを書くだけ**。そのあと §5.2（台帳 残 OPEN 306）。
+census 30 の残りは**機構待ちが本体**（アンコールのテキスト形コスト／キーの配置／正面参照／置換（チェックゾーン・
+場を離れる・ダメージ）／`O-104` のソフトロック／ペア付け／1回消費耐性）。
+
+- 🏁**セッション（2026-08-31・続き747・Opus 5 単独）＝census 高シグナルを 91 → 61（-30）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 91→61**
+  gates 全緑（**golden 3068→3069 / 0 FAIL**・smoke 全0・fuzz 全0・census 61/61・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 -18／較正 -12（live 不変）**。live 変更は **20カード**。
+
+  🏁🔑**最大の発見＝ブラウザ実行環境のブロッカーが消えていた。**
+  `node scripts/verifyBattleDrive.mjs censusHasTrapInField` が普通に PASS した。
+  ⇒ **§5.1 の `V-93` / `V-95`〜`V-99` の6件は「環境」ではなく「まだシナリオを書いていない」だけ**になった。
+  **次にこの節を見る人はまず1本回してみること**（「環境ブロッカー」と書いてある説明はもう古い）。
+  本巡ぶんは新規シナリオ **`censusAcceSelfPlayGate`** を書いて**その場で返済**した。
+
+  🔴🔑**全ゲート緑のまま意味が壊れる穴を2件見つけた**（census にもどの計器にも出ない型）：
+  ①**`triggerFilter` のゾーン状態キーは黙って素通りしていた**＝トリガー主語の絞り込みは `matchesFilter`
+  （**CardData 単体**）でしか評価されておらず、`hasSoul` / `hasAcce` / `isDown` … を書いても**無条件成立＝過剰発火**。
+  ⇒ `triggerStateFilterOk()` を新設（場に見つからなければ **false へ fail-closed**）。
+  ②**`SELF_PLAY_RESTRICT` の条件は3つ目の評価器 `evalConditionForContinuous` を通る**＝あの `default` は
+  **true（permissive）**なので、条件型を足し忘れると**出撃制限が丸ごと無い**。⇒ `FIELD_ATTACHED_COUNT` を追加し、
+  **その case を消すと新設 golden が赤になる**ことを実測して確かめた。
+
+  🔑**較正が -12 と大きく戻った**＝残りは機構待ちばかりだと思っていたが、**受け皿の綴りを計器が知らない**型が
+  まだ11種あった（`fieldExileSelf` / `discardUpTo`（大文字U）/ `EXILE.blind` / `LOOK_PICK_CHAIN` の stage 合計 /
+  `colorMatchesLrigIndex` / `nameMatchesAnyFieldSigni` / `REVEAL_BOTH_DECK_TOPS` / デッキ以外の `SEARCH` /
+  予約型2つ / 「次に」の任意化）。**PLAN §4.3 の「較正は実装より安いので先に取る」は今も生きている。**
+
+  🔴**原文とまるで違うカードになっていた効果が5件**＝`WDK09-011-E2`（相手シグニをデッキ3番目→**自分に【ゲート】付与**）／
+  `WXEX2-52-E3`（トラッシュから＜毒牙＞2枚→**自分自身1枚**）／`WXDi-P08-048-E1`（2段の「かぎり」が消えて**即時発動**）／
+  `WXDi-D01-011-E1`（**8枚見て全部デッキ下に戻すだけ**）／`WX25-P3-053-E1`（ダメージ置換→**その場で自傷ミル**）。
+
+  🆕**新設した受け皿は9つ**＝`hasSoul` / `distinctBy:'name'` / `FIELD_ATTACHED_COUNT.include:'acce'`（§5.3 `O-105` の兄弟軸。`O-105` 本体＝`filter` はまだ）/
+  `INSTALL_DELAYED_TRIGGER.trigger.attackerFilter` / `TransferToDeckAction.position:'third'` /
+  `ActiveCondition` 側の `ZONE_SUM_COUNT` / `PowerModifyAction.fixedCardNums` / 上の①② の2本。
+
+**▶ 次の一手**＝**§5.1 の実機返済（`V-93`／`V-95`〜`V-100`）を先に片づける**。環境が復活したので
+**7件まとめて取れる**（1件ずつシナリオを書く作業だけが残っている）。そのあと §5.2（台帳 残 OPEN 306）へ戻る。
+census は 61 まで落ち、**残りは機構待ちが本体**（公開領域の参照／ターン履歴の絞り込み付き参照／
+アンコールのテキスト形コスト／「乗る」／ペア付け／1回消費耐性／`O-104` のソフトロック）。
+
+- 🏁**セッション（2026-08-31・続き746・Opus 5 単独）＝census 高シグナルを 122 → 91（-31）。**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 122→91**
+  gates 全緑（**golden 3067→3068 / 0 FAIL**・smoke 全0・fuzz 全0・census 91/91・lint 0 errors）＋ `regen`。
+  🔴**内訳を混ぜない**＝**実装 -26／較正 -5（live 不変）**。live 変更は **26カード**。
+
+  🔴🔑**最大の教訓＝「effectId の割り当てを直すと parser が勝手に正しくなる」ことがある。**
+  `WX24-P4-058` / `WX25-CP1-040` / `WX25-P1-054` は**手書きの `-E1b` が原文ブロックの割り当てを歪めて**おり、
+  `-E1b`→`-E2` へ改名しただけで **parser が E1 に正しい JSON を出すようになった**
+  （＝先に書いた手書き E1 が `O-42` tripwire に「影武者コピー」として検出され、**削除する**のが正解だった）。
+  ⇒ **手で書く前に「id 集合が原文ブロックと合っているか」を疑う。**
+
+  🔴**`fireCondition` に続いて、`INSTALL_DELAYED_TRIGGER` の「それ」も設置時に焼かないと消える。**
+  `targetsStored` は**設置と発火で ExecCtx が別物**なので、そのまま設置すると発火時に候補が空＝**黙って空振り**。
+  `execInstallDelayedTrigger` に既存の `freezeStoredTargets` を通して解決（`WXDi-CP02-043-E2` ほか3効果）。
+
+  🆕**新設した受け皿は3つだけ**＝①`ZONE_SUM_COUNT`（**2ゾーン合算**＝`AND` では同値にならない軸。§5.4(ii) の
+  登録項目をクローズ）②`PREVENT_NEXT_DAMAGE.sourcePowerLte|sourceLevelLte`（既存 `damageSource` と同じ**逆翻訳の
+  忠実化用**規約）③上の設置時焼き込み。あとは全部既存語彙で書いた。
+
+  🔑**逆翻訳の目視で表示バグを4件見つけた**（前回に続き2回連続で有効）＝①`unlessPay` の支払い節が `costColors`
+  しか見ておらず `fieldTrash` だと**空文字**＝「を支払わないかぎり」という主語なしの文になっていた
+  ②`FIELD_ATTACHED_COUNT` の語尾が無く「…が1枚以上場合」③`LRIG_GROW_RESTRICT` の説明が
+  「対戦相手の no_grow フラグをセット」という**実装と無関係な文言**のまま出ていた ④`ZONE_SUM_COUNT` の新規表示。
+
+  🔴**原文とまるで違うカードになっていた効果が3件**＝`WX25-CP1-040-E1`（【常】【シュート】が「相手の＜ブルアカ＞を
+  常時トラッシュ＋エナチャージ」に）／`WXK09-001-E2`（3択のアップキープが**毎ターン強制ライフクラッシュ**に）／
+  `WXDi-P05-072-E2`（「**対戦相手は**〜してもよい」が「**自分が必ず**」に）。
+
+**▶ 次の一手**＝**§5.2（台帳 残 OPEN 306）を続ける**。census は 91 まで落ち、**残りは機構待ちが本体**
+（公開領域の参照／数量比例の履歴参照／【アクセ】カード自身のレベル／「N度目のアタック」以外の遅延トリガー収集／
+`O-104` のソフトロック／ペア付け／1回消費耐性）。
+census から取るなら §5.3 の `O-105`（今回の `FIELD_ATTACHED_COUNT` に **`filter` を1つ足すだけ**で届く）が最短。
+⚠ §5.1 の実機返済は**7件**（`V-93`〜`V-99`）＝うち6件は同じブラウザ実行環境のブロッカー。
+
 - 🏁**セッション（2026-08-31・続き745・Opus 5 単独）＝census 高シグナルを 153 → 122（-31）。**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 306（据置）｜census 高シグナル 153→122**
   gates 全緑（**golden 3066→3067 / 0 FAIL**・smoke 全0・fuzz 全0・census 122/122・lint 0 errors）＋ `regen`。

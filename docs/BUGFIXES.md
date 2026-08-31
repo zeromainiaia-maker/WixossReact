@@ -1,5 +1,276 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-31（続き749）：census 高シグナルを 30 → 12（**-18**）＝実装 -15／較正 -3
+
+ユーザー指示「census を0にして」の1巡。**0 には到達していない**（残 12＝下に全数と理由を書く）。
+gates 全緑（golden **3071→3070 / 0 FAIL**・smoke 全0・fuzz 全0・census **12 / BASELINE 12**・lint 0 errors）＋ `regen`。
+
+### ■ 🔑 この巡の主題＝**据置契約を3つ卒業させた**
+
+PLAN §4.3 の「契約は毎回『理由がまだ生きているか』を読み直す」を全数でやった結果、**3件とも理由が死んでいた**。
+
+1. 🏁**`O-104`（N体の中間動作はソフトロックするから据置）＝理由は 2026-08-30 続き732 で既に消えていた。**
+   `fixedSelectionPickLimit` が**候補数へクランプ**するようになっており（golden ＋ 実機 `softlockshortpick` が
+   回帰ガード）、「候補が足りないと確定ボタンが押せない」はもう起きない。
+   ⇒ `WX07-039-E2`（自分の＜原子＞3体）／`WXEX1-14-E2`（自分のエナの＜植物＞3枚）を原文どおりに直した。
+   🔴**契約が死んでいることに誰も気づかないまま2セッション残っていた**＝契約を書いたら
+   「どの実装が入ったら卒業か」を本文に書いておくべき（今回は書いてあったので追えた）。
+2. 🏁**「同じレベル」のペア付け機構**＝`SelectionConstraint.levelMultiset`（＋実行時に焼き込む
+   `levelMultisetFromLastProcessed`）を新設。**選んだ集合のレベルを1対1で「捨てたシグニのレベル」へ
+   割り当てられること**を要求する。⚠`levelEqLastProcessed`（「どれかに一致」）だと**同じレベルを
+   まとめてN体**取れる＝旧契約が守っていたのはそこ。⇒ `WDA-F02-07-E1` / `WX24-P2-036-E1`。
+3. 🏁**「次に」＝1回消費の耐性**＝**新機構は要らなかった**。既存の `BATTLE_BANISH_PREVENT_LOSE_ABILITY`
+   （防いだら `abilities_removed` へ入る＝二度は防げない）が**まさに1回消費**。
+   `collectBanishPreventLoseAbility` が印刷カードの `effectsMap` しか見ておらず**付与形が恒久 no-op**
+   だったので、`granted_effects` も見るように1箇所広げた。⇒ `WX15-010-E1`。
+
+### ■ 🔑「受け皿はあるのに JSON が指していない」死角が今回も出た
+
+`TRAP_OPERATION{trapOp:'under_signi', trapHostNames}` は `WXDi-P10-063-E1`
+（「このスペルをチェックゾーンからあなたの《…》1体の下に置いてもよい」）**そのものの受け皿**で、
+「スキップ（トラッシュへ）」の枝まで実装済みだった。engine を1行も足さずに直った。
+⇒ 前巡（続き748）で4件、今回1件。**新しい型を書く前に既存ハンドラを grep する**は毎回効いている。
+
+### ■ 較正（-3）＝live 不変
+
+1. **`ON_GUARD` ＋ `lrigAttackGuarded` / `lrigAttackNoDamage`** は「ルリグ1体がアタックしたとき、
+   そのアタック終了時、」を **timing そのものが内包**する正表現（ガードはルリグアタックの中でしか起きない）。
+   `NEGATE_ATTACK` と同じ「事前登録型」の族。
+2. **公開N枚から k 枚をピックする形の「残り」側の枚数（N−k）**も「載っている」と数える
+   （`SPK01-08-E1`「4枚見る。その中から**3枚**を…、残りをトラッシュ」＝`revealCount:4`＋`pickCount:1` が同値）。
+   続き747 で入れた「stage の合計」と**対称**の較正。
+
+### ■ 実装（-15）＝新設した受け皿
+
+- **正面参照3件**＝`FieldGrantCondition.FRONT_SIGNI_POWER_GTE`（`WD15-007-E1`。🔑**場レベル grant** で持つので
+  原文の括弧書き「このアーツの後に場に出たシグニも影響を受ける」が効く）／`TargetFilter.frontOfAllyWithSoul`
+  （`WXDi-P04-013-E1`。`calcFieldPowers` の per-zone 解決）／`triggerCondition.attackedNotFront`（`WXEX2-71-E1`）。
+- **自分のライフクロスのクラッシュ置換**＝`self_crash_to_trash_and_refill`（**回数制**）＋ STUB ハンドラ1本。
+  消費は `performLifeBurstResponse` の1点。⚠既存 `crash_to_trash_instead` とは**向きが逆**。→ `WD06-009-E2` / `WX20-043-E1`。
+- **遅延トリガーの残りの timing**＝`collectGenericDelayedTriggers`（任意 timing を1本で収集）を新設し、
+  ドロー／手札を捨てた／手札から公開した の3地点へ配線。＋`duration:'NEXT_TURN'`（ターン終了時に
+  `'THIS_TURN'` へ**降格**して次ターンだけ効く）。→ `WX24-P4-017-E3` / `WXK04-004-E3` / `WX14-018-E4`。
+  🔴**足し忘れた timing は「設置しても永久に発火しない」無言 no-op**＝手書きで増やす構造をやめた。
+- **ルリグアタック終了時**＝`collectLrigAttackGuardedTriggers` の走査を**センタールリグだけ→キー／アシスト／
+  場のシグニ**へ広げ、`triggerCondition.lrigAttackNoDamage` を追加。→ `WXK11-006-E4`（キー）/ `WX24-P3-055-E2`（シグニ）。
+- **`COST_INCREASE.amountFromZone`**（0枚なら増加なし）→ `WXEX2-02-E1`。
+
+**原文とまるで違うカードになっていた効果**＝`WD15-007-E1`（**無条件に全シグニが【アサシン】**）／
+`WXEX1-14-E2`（相手の場の＜植物＞を1体トラッシュ）／`WX07-039-E2`（相手の＜原子＞を1体バニッシュ）／
+`WXK11-006-E4`・`WX24-P3-055-E2`（シグニのアタックのたび無条件発動）／`WX14-018-E4`（メインで確定除去）。
+
+### ■ 🔴 差し戻し（据置契約が**生きていた**側）
+
+golden `(xxix)(2)` が `WXDi-CP02-100-E1` / `WXDi-P12-031-E2` の cost 構造化を止めた。理由は生きていた＝
+**【出】の任意コストは `optionalOnPlayCostStub` が写せるキーでないと、その【自】が丸ごと積まれない（＝発火しない）**。
+⇒ cost は `costUnparsed` のまま／新設しかけた `trashToDeckBottom` は撤去。⚠**契約は全部が古いわけではない。**
+
+### ■ 残り12件（0 に到達していない理由）＝どれも**新しい機構の縦切り**が要る
+
+| 効果 | 要るもの |
+|---|---|
+| `WDA-F02-08-E1` / `WX14-016-E1` | **アンコールの「テキスト形」コスト**（`parseEncoreCost` はアイコンしか読まない）＝アーツ支払い UI の縦切り |
+| `WXK02-004-E3` / `WXK03-014-E3` | **ルリグデッキからキーを場に出す**経路が engine に無い（`field.key_piece` を置く手段がゼロ） |
+| `WXDi-CP02-100-E1` | 【出】任意コストの**新しい支払い種別**（トラッシュ→デッキの一番下）＝`OptionalCostSpec`＋UI |
+| `WX24-P3-043-E1` / `WXEX2-28-E1` | **コスト付きの置換**（ダメージを受ける代わりにアシスト2体ダウン／場を離れる代わりに自身をダウン） |
+| `WX25-P2-052-E2` | 「**レゾナとしても扱う**」＝カード同一性の上書きを参照側で読む機構 |
+| `WX15-006-E1` | ベット＋「**あなたの効果以外によって**バニッシュされたとき」の遅延（発生源の否定限定） |
+| `WX19-061-E1` | 相手のデッキの一番上と**ライフクロスの入れ替え** |
+| `WX21-028-E2` / `WXDi-P10-007-E3` | 構造混線（3ゾーン同時対象／公開→チェックゾーン→スペル使用）＝1件ずつ木を作り直す |
+
+⚠**「census 0」は「全カードが正しい」ではない**（PLAN §5.4 の死角4つ）。残り12は**すべて §5.4(ii) へ登録**した。
+
+### ■ ④ゲート
+
+`npm run gates` 全緑＋`regen`。**逆翻訳を17件とも目視**して表示バグを3件その場で直した
+（新設 STUB の説明文が途中で切れて読めない／`COST_INCREASE` の比例で数が重複「1体につき1《無×1》」／
+遅延 `duration:'NEXT_TURN'` の語が出ない）。
+⚠**⑤実機は未実施**＝`src/screens/BattleScreen.tsx`（クラッシュ置換の消費・側面アタックの受け渡し）を
+触ったので PLAN §2.2 では必須。**§5.1 に `V-102` として登録した。**
+
+
+## 2026-08-31（続き748）：census 高シグナルを 61 → 30（**-31**）＝実装 -28／較正 -3
+
+ユーザー指示「さらに30減らす」の1巡。**live 変更 27カード**。gates 全緑
+（golden **3069→3071 / 0 FAIL**・smoke 全0・fuzz 全0・census **30 / BASELINE 30**・lint 0 errors）＋ `regen`。
+高シグナル id 集合を**7回**機械差分＝**消えた31／増えた0**。
+⑤実機＝**新規シナリオ2本 PASS**（`censusAcceTriggerSourceLevel` / `censusAcceTriggerSourceLv3`）＋既存 `censusAcceSelfPlayGate` 回帰 PASS。
+
+### ■ 内訳（🔴混ぜない）
+
+| 種別 | 減 | 性質 |
+|---|---|---|
+| **較正** | **-3** | live 不変 |
+| **実装** | **-28** | `manualEffects.ts` へ**原文から書き直し** → `syncManualLive.ts` で live へ配達 |
+
+### ■ 🔑 この巡の最大の教訓
+
+1. **「engine には実装済みなのに JSON がそれを指していない」死角が4件あった。**
+   `LRIG_RIDE_SIGNI`（乗機に乗る）／`LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS`（**ハンドラのコメントに
+   `WXEX2-84` と書いてある**）／`filter.isTriggerSource`（`execTrash` の `triggerRestrict`）は
+   **どれも最初から動いていた**。engine を1行も足さずに `WXEX2-11-E4`／`WXK01-038-E1`／`WXEX2-84-E1`／
+   `WXEX2-35-E1` が直った。⇒ **新しい型を書く前に、まず既存ハンドラを grep する**（PLAN §5.3 の「受け皿を疑う」）。
+2. **同じ轍をもう一度踏みかけた**＝`ChooseAction.chooseCountFromZone` を新設したあと、逆翻訳のコードを読んで
+   **`countChoose.countFromZone` が既にあった**ことに気づいて差し戻した。**逆翻訳（`decompileEffects.ts`）は
+   受け皿カタログとして読める**＝新設の前にここを引くのが安い。
+3. 🔴**`triggerFilter` のゾーン状態キーは engine で黙って素通りしていた**（前巡で発見した穴の続き）＝
+   今回さらに `hasOnPlayAbility`（`effectsMap` が要る軸）を `triggerStateFilterOk` へ足した。
+   ⚠**評価器を持たない経路では素通りする**ので、この語彙は対象フィルタに使わないと型に明記した。
+4. 🔴**据置契約は「理由がまだ生きているか」で判定する**＝golden `(xxix)(2)`「明示保留4効果は costUnparsed のまま」に
+   引っかかった2件（`WXDi-CP02-100-E1` / `WXDi-P12-031-E2`）を調べたら、**理由が生きていた**：
+   【出】の任意コストは `optionalOnPlayCostStub` が写せるキーでないと**その【自】が丸ごと積まれない（＝発火しない）**。
+   ⇒ **cost は差し戻し**、`WXDi-P12-031-E2` は条件側だけ復元、`WXDi-CP02-100-E1` は manual 定義ごと削除
+   （parser 出力と実体同一になり `O-42` の影武者コピーになるため）。**新設した `trashToDeckBottom` も撤去**した。
+
+### ■ 較正（-3）＝`scripts/vocabCensus.ts`。live は1バイトも変わっていない
+
+1. **自分自身への引用付与**（「**このシグニは**〈条件〉かぎり、「【自】…」を得る」＝`WXK10-075-E1`）は
+   「その条件を持つ【自】能力」へコンパイルするのが正表現＝**付与の器を挟む必要がない**。
+   ⚠narrow に取る（引用の直前が「このシグニは」で、かつ JSON が条件を持つ場合だけ）。他者への付与は従来どおり検出する。
+2. **「対戦相手は〈X〉してもよい。〈X〉した場合／しなかった場合」の対**（`PR-Di007-E1`）は
+   `CHOOSE{opponentResponds}` の2分岐が条件を内包する正表現。⚠**対で現れるときだけ**落とす。
+3. **`trashExile` のコスト節の一般形**（枚数＋種別。`WXK09-029-E2`）＝既存の較正はカード名指定形しか落としていなかった。
+
+### ■ 実装（-28）＝新設した受け皿
+
+**ターン履歴の絞り込み**＝`turn_hand_discarded_cards` / `deck_to_trash_cards_this_turn`（**枚数カウンタと同じ地点**で実体を積む）
+＋ `HAND_DISCARDED_THIS_TURN{filter}` / `SELF_DECK_TO_TRASH_THIS_TURN{filter}`。
+🔴**枚数しか覚えていなかったので「＜ブルアカ＞のカードを捨てていた場合」が書けず、4効果とも条件が丸ごと落ちて
+無条件発動**していた（`WXDi-CP02-055-E2`／`WXDi-CP02-081-E1`／`WXDi-CP02-094-E1`）。
+`WXDi-P04-058-E1` は**既存の `ENERGY_TRASHED_BY_OPP{owner:'opponent'}`** で足りた（新設不要だった）。
+
+**新しい条件型4つ**＝`PUBLIC_ZONE_MATCH`（公開領域＝場/エナ/トラッシュ/ルリグトラッシュ/チェックゾーン。
+`mode:'all'` は**空集合を真にしない**）／`THIS_CARD_FROM_ZONE_THIS_TURN`（由来ゾーン。既存の
+`THIS_CARD_FROM_NON_HAND_THIS_TURN` は「手札以外」の一括でエナ限定を表せなかった）／`TRIGGER_SOURCE_MATCHES`
+（トリガー元の属性で分岐）／`ActiveCondition` 側の `HAND_DISCARDED_THIS_TURN`。
+
+**新しい動的フィルタ4つ**（`resolveDynamicFilter`）＝`levelEqLastProcessedPlus`（「よりレベルが1つ大きい」＝
+**ちょうど+1**。`levelGtLastProcessed` では上が全部通る過剰実行）／`powerLtAcceHost`／`nameEqTriggerSource`／
+`colorNotMatchesSource`。**どれも参照不能なら空ヒット**へ倒し、golden で反証まで固定した。
+⚠`colorNotMatchesSource` は `HAS_CARD_IN_FIELD` の中でも `colorExclude` へ潰す（潰さないと
+**未知キーとして素通り＝無条件成立**する）。
+
+**遅延トリガー**＝`trigger.banisherFilter` ／ `trigger.placedByEffect` ／ **`collectFieldTriggers` での遅延収集**。
+🔴後者が本命＝それまで `delayed_triggers` を読んでいたのはバトルバニッシュ／アタック／離場／ミル／リフレッシュ／
+ダウン／フェイズ系だけで、**ON_PLAY・ON_BLOOM の遅延は設置しても永久に発火しなかった**（`WXDi-P09-010-E3`）。
+
+**その他**＝`ATTACH_ACCE.fromEnergy`（エナから選んでアクセ）／`TargetFilter.hasOnPlayAbility`／
+`$ref` 2つ（`life_crashed_by_signi_this_turn`＝既存台帳を filter で数える／`left_field_under_count`＝
+`ctx.leftFieldUnderCards`＝離場**直前**のスナップショット）／`EffectCost.trashExile.selectionConstraint`。
+
+**原文とまるで違うカードになっていた効果が7件**：
+`WD15-023-E1`（遅延が落ち「相手の＜龍獣＞を1体バニッシュ」に）／`WX17-033-E1`（0枚見て何もしない）／
+`WX22-Re02-E2`（自分のシグニに「アクセ」という語を恒久付与するだけ）／`SP07-011-E2`（**自分の**＜美巧＞を
+バニッシュするはずが**相手の**＜美巧＞除去に）／`WXEX2-35-E1`（エナの追撃が「相手の場の＜龍獣＞を1体トラッシュ」に）／
+`WXEX2-11-E4`・`WXK01-038-E1`（「乗る」が丸ごと消滅）。
+
+### ■ ④ゲート／⑤実機
+
+- `npm run gates` 全緑（golden 3071＝新設条件型4つと動的フィルタ4つの**両方向 golden を2本追加**）＋ `regen`。
+  **逆翻訳を27件とも目視**して表示バグを7件その場で直した（`TRIGGER_SOURCE_MATCHES` が生 ID のまま／
+  遅延の `banisherFilter`・`placedByEffect` が出ない／`levelLtTriggerSource` の語が無い／公開領域と `trashExile` の
+  名詞が落ちる／枚数 ref の語尾が「〜の枚」と重複）。
+- **⑤実機**＝`censusAcceTriggerSourceLevel`（Lv1 のアクセ→エナ+1）と `censusAcceTriggerSourceLv3`（Lv3 → エナ+0）を
+  新規作成して両方 PASS。🔑**観測点をエナだけに絞った**のがコツ＝手札はホスト側ルリグの3択でも動くので
+  「どちらの効果か」を切り分けられない（最初の版はそれで2回偽 FAIL を出した）。
+  ⚠**同じ枝を両試行で選ぶ**（`選択肢1` 固定）／**アクセ札は自分の ON_ACCE_ATTACH を持たないものを選ぶ**。
+  既存 `censusAcceSelfPlayGate` も回帰 PASS。
+
+
+## 2026-08-31（続き747）：census 高シグナルを 91 → 61（**-30**）＝実装 -18／較正 -12
+
+ユーザー指示「PLAN を読み、census を30減らす」の1巡。**live 変更 20カード**。gates 全緑
+（golden **3068→3069 / 0 FAIL**・smoke 全0・fuzz 全0・census **61 / BASELINE 61**・lint 0 errors）＋ `regen`。
+高シグナル id 集合を前後で**4回**機械差分＝**消えた30／増えた0**（較正8 → 較正2 → 実装8 → 実装12 の各段で確認）。
+
+🏁🔑**⑤実機を実走できた**＝**ブラウザ実行環境のブロッカーが消えていた**。`node scripts/verifyBattleDrive.mjs
+censusHasTrapInField` が普通に PASS したので、**`V-93` / `V-95`〜`V-99` の6件は「環境」ではなく「まだ書いていない」
+だけになった**（次にこの節を見る人はまず回してみること）。本巡ぶんは新規シナリオ
+**`censusAcceSelfPlayGate` を追加して返済**（下記④）。残りの新設受け皿は `V-100` として §5.1 に登録した。
+
+### ■ 内訳（🔴混ぜない）
+
+| 種別 | 減 | 性質 |
+|---|---|---|
+| **較正** | **-12** | live 不変。**受け皿の綴りを計器が知らない**（PLAN §4.3 の「最大の穴」）だけ |
+| **実装** | **-18** | `manualEffects.ts` へ**原文から書き直し** → `syncManualLive.ts` で live へ配達 |
+
+### ■ 🔴 この巡で見つけた「全ゲート緑のまま意味が壊れる」穴 2件（census とは別軸）
+
+1. **`triggerFilter` のゾーン状態キーは黙って素通りしていた**（`triggerCollect.ts`）。
+   トリガー主語の絞り込みは `matchesFilter`（**CardData 単体**）だけで評価しており、
+   `hasSoul` / `hasAcce` / `hasCharm` / `isDown` … を書いても**無条件成立＝過剰発火**になる。
+   ⇒ `triggerStateFilterOk()` を新設して2箇所（any_ally / any_opp）へ配線。**場に見つからなければ false へ fail-closed**。
+2. **`SELF_PLAY_RESTRICT` の条件は3つ目の評価器 `evalConditionForContinuous` を通る**（`effectEngine.ts:1246`）。
+   あの switch の `default` は **true（permissive）**なので、条件型を足し忘れると**出撃制限が丸ごと無い**。
+   ⇒ `FIELD_ATTACHED_COUNT` を追加。**反転確認**＝この case を消すと新設 golden が赤になることを実測して確認した。
+   ⚠**このファイル自身が冒頭コメントで警告していた穴**＝新しい条件型を出撃制限に使うときは必ず3評価器を揃える。
+
+### ■ 較正（-12）＝すべて `scripts/vocabCensus.ts`。live は1バイトも変わっていない
+
+1. **`cost.fieldExileSelf`**（`WXK06-031-E2`「場にあるこのシグニをゲームから除外する：」）＝
+   既に較正済みの `trashExile` / `handExileSelf` の兄弟。**大文字 E** で `'exile'` に当たらない。
+2. **`cost.discardUpTo`**（`WX24-P4-072-E1`「手札を３枚まで捨てる：」）＝**大文字 U** でキー表の `'upTo'` に当たらない。
+3. **`EXILE.blind`**（`WX14-011-E1`「対戦相手はあなたの手札を２枚**見ないで選び**」）＝
+   型定義に「見ないで選び＝相手が選ぶ。WX14-011①」と**名指しで書いてある**のに対応表に無かった。
+4. **`LOOK_PICK_CHAIN` の stage 合計**（`WXK08-025-E3`「共通するクラスを持つシグニ**２枚**を手札に加え」）＝
+   2段の chain（各 `pickCount:1`）が正表現で、合計の 2 は JSON のどこにも独立数値として出ない。
+5. **`colorMatchesLrigIndex`**（`WXDi-P15-005-E1`「場にいるルリグ**１体につき**」）＝比例を stage 数で内包する形。
+6. **`nameMatchesAnyFieldSigni`**（`WX26-CP1-061-SONG`「場にあるシグニと同じカード名の**場合**」）。
+7. **`REVEAL_BOTH_DECK_TOPS`**（`WXDi-P09-036-E1`）＝「公開し**デッキの一番下に置く**」まで1アクションに畳んだ型
+   （`effectExecutor.ts:8838` が両者の deck を実際に rotate している）。
+8. **デッキ以外からの `SEARCH`**（`WXEX2-07-E3`「トラッシュから…対象とし、それらを手札に加える」）＝
+   「探す」は**非公開領域＝デッキ**の語彙。`from.location` にデッキが1つも無ければ幻覚ではない。
+9-10. **予約型が条件節を内包する族**に `BANISH_REDIRECT`（`WX24-P4-050-E2`）と `GROW_COST_REDUCTION`（`WX24-P2-043-E1`）
+   を追加＝既に較正済みの `PREVENT_NEXT_DAMAGE` / `RESERVE_DRAW_PHASE_REPLACEMENT` と**同じ族**。
+11. **`NEGATE_ATTACK` の除外文型で「次に」を任意化**（`WXDi-P05-003-E1`）＝
+    同型の「遅延トリガー」側 extraOk は最初から任意だったのに、こちらだけ必須のままだった。
+
+⚠**1〜3・9〜11 は `extraOk`＋残渣チェック**にした（キー表に足すと、同じ効果の**別の**脱落まで隠す）。
+
+### ■ 実装（-18）＝新設した受け皿は9つだけ。あとは全部既存語彙
+
+**新設**＝`TargetFilter.hasSoul` ／ `CountFromZone.distinctBy:'name'` ／ `FIELD_ATTACHED_COUNT.include:'acce'`（§5.3 `O-105`）
+／ `INSTALL_DELAYED_TRIGGER.trigger.attackerFilter` ／ `TransferToDeckAction.position:'third'`
+／ `ActiveCondition` 側の `ZONE_SUM_COUNT`（両評価器を揃えた）／ `PowerModifyAction.fixedCardNums`
+／ `triggerStateFilterOk`（上記①）／ `evalConditionForContinuous` の `FIELD_ATTACHED_COUNT`（上記②）。
+
+**原文とまるで違うカードになっていた効果が5件**：
+- `WDK09-011-E2`＝「【ゲート】があるシグニゾーンの相手シグニをデッキの上から三番目へ」が
+  **自分のシグニに【ゲート】キーワードを恒久付与するだけ**になっていた。
+- `WXEX2-52-E3`＝「トラッシュから＜毒牙＞2枚まで場に出す」が **`thisCardOnly`＝このカード自身を1枚出す**に。
+- `WXDi-P08-048-E1`＝2段の「かぎり」条件が両方消えて、**場に出た瞬間に相手へ－12000＋誰かに【アサシン】**。
+- `WXDi-D01-011-E1`＝**8枚見て全部デッキ下に戻すだけ**（配置3枚も能力付与3種も丸ごと消滅）。
+- `WX25-P3-053-E1`＝ダメージ置換が落ちて**その場で自分のデッキを3枚削るだけ**（原文と逆向きの自傷）。
+
+**遅延（「このターン、〜したとき」）の脱落が4件**＝`WX24-P4-012-E3`／`WX25-CP1-085-E1`／`WX25-CP1-008-E1`（③④）
+／`WX25-P3-053-E1`。⚠`WX25-CP1-085-E1` は **`POWER_MODIFY` が `freezeStoredTargets` の FREEZABLE に無かった**ため、
+設置しただけでは**発火時に候補が空＝黙って空振り**になる（前回セッションが `BANISH` ほかで踏んだのと同じ罠）。
+
+**条件の脱落が6件**＝`WXDi-CP01-002-E1`（使用条件＋ルリグLv3以上）／`WXDi-CP01-031-E1`（場＋エナで5種類）
+／`WXEX1-31-E1`（エナ＋トラッシュに赤青緑が0枚）／`WX21-023-E1`（多段閾値2/3/4のうち**2段が丸ごと無かった**）
+／`WX18-075-E1`（出撃制限）／`WXDi-P04-016-E1`（トリガー主語）。
+
+**その他**＝`WX25-P2-TK05-E2`（`ON_BANISH`→`ON_LEAVE_FIELD`。手札戻し・エナ送りの離脱で黙って落ちていた）
+／`WD19-007-E1`（【ウィルス】除去ステップの消失＋`duration` 欠落で**恒久**マイナス）
+／`WX17-075-BURST`（比較基準の対象宣言ごと消えて**相手のどのシグニでもバニッシュ**）
+／`WXK09-023-E1`（合計パワー制約の消失）／`WX24-P4-050-E2`（`bySource` が無く**あらゆるバニッシュを置換**）。
+
+⚠**`PARTIAL` を刻んだのは5件**＝別軸がまだ忠実でないもの（リレーピース使用条件／「N種類」の集合ではなくゾーン別合計
+／「ちょうど12000」を上限で近似／「このシグニのパワー以下」の参照／「次に**それが**アタックしたとき」の個体指定）。
+それぞれ §5.4(ii) に機構ギャップとして登録した。
+
+### ■ ④ゲート／⑤実機
+
+- `npm run gates` 全緑（golden 3069）＋ `npm run regen`。**逆翻訳を20件とも目視**して表示バグを2件見つけ、その場で直した＝
+  ①`INSTALL_DELAYED_TRIGGER` の `attackerFilter` が逆翻訳に出ず「主語の限定が落ちた」ように読めていた
+  ②`TargetFilter.hasSoul` が `filterJa` に無く「あなたのシグニが」と描かれていた。
+- **⑤実機＝`censusAcceSelfPlayGate` を新規作成して PASS**（`scripts/verifyBattleDrive.mjs`）。
+  【アクセ】2枚 → `summon-zone-0` で場に出る／同じ操作で **acce を0枚に patch すると出ない**の**反転確認**。
+  🔑**肯定側を先に取る**のがコツ＝弾かれた回は UI が「召喚ゾーン選択中」のまま止まり、
+  次の試行で手札モーダルが開かなくなる（＝順序を逆にすると「操作が届かないだけ」の偽 FAIL になる）。
+
+
 ## 2026-08-31（続き746）：census 高シグナルを 122 → 91（**-31**）＝実装 -26／較正 -5
 
 ユーザー指示「さらに30減らす」の1巡。**live 変更 26カード**。gates 全緑

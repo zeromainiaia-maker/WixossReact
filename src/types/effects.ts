@@ -183,8 +183,11 @@ export interface CountFromZone {
   per?: number;
   /** 「この効果はN枚までしか適用されない」: filter 後のカウントをこの値で上限固定する。 */
   maxCount?: number;
-  /** 「それぞれレベルの異なる」: filter 後のカードをレベルの異なる種類数として数える。 */
-  distinctBy?: 'level';
+  /**
+   * 「それぞれレベルの異なる」: filter 後のカードをレベルの異なる種類数として数える。
+   * 🆕`'name'`＝**カード名の種類数**（「＜X＞のシグニが合計N**種類**ある場合」`WXDi-CP01-031-E1`）。
+   */
+  distinctBy?: 'level' | 'name';
 }
 
 // ===== 発動条件 =====
@@ -224,6 +227,9 @@ export type ActiveCondition =
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp; value?: number } // 自分のライフクロス−相手のライフクロスの符号付き差。value省略＝0（Condition側と同型）
   | { type: 'ENA_DIFF'; operator: CompareOp; value: number }   // 自分のエナと相手のエナの差
   | { type: 'ENERGY_COLOR_TYPES'; owner: Owner; operator: CompareOp; value: number } // エナゾーンのカードが持つ色の種類数（WX05-006「エナゾーンのカードの色が3種類以上」）
+  // 🆕`Condition` 側と同形の**2ゾーン合算**（2026-08-31 続き747・`WXEX1-31-E1`「あなたのエナゾーンと
+  //   トラッシュに赤/青/緑のカードが１枚もない**かぎり**」）。⚠**両評価器を揃える**（PLAN §4.2 の3点セット）。
+  | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number }
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: number; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // Condition 側と同形。CONTINUOUS のエナ種類数ゲート
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number } // センタールリグのレベル条件
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
@@ -248,8 +254,15 @@ export type ActiveCondition =
   // ⚠Condition 側にも同型あり＝両方揃えて更新すること（`HAND_DIFF` と同じ運用）。
   | { type: 'IS_SELF_IN_SIDE_ZONE'; side: 'left' | 'right' | 'either' }
   | { type: 'TURN_HAND_DISCARD_GTE'; owner?: Owner; value: number }  // このターンに owner（省略=self）が手札をN枚以上捨てている場合。⚠Condition 側にも同型あり＝両方揃えて更新すること
+  // 🆕「このターンに owner が手札から〈filter〉のカードをN枚以上捨てていた場合」（2026-08-31 続き748・
+  //   `WXDi-CP02-055-E2` / `WXDi-CP02-081-E1`）。実体は `turn_hand_discarded_cards`。
+  //   ⚠既存 `TURN_HAND_DISCARD_GTE` は**枚数だけ**の兄弟（絞り込みが要らない札はそちらのまま）。
+  | { type: 'HAND_DISCARDED_THIS_TURN'; owner: Owner; filter?: TargetFilter; minCount?: number }
   | { type: 'SIGNI_BANISHED_THIS_TURN'; owner: Owner; minCount?: number }  // このターンに owner のシグニがN体以上バニッシュされていた場合（signi_banished_this_turn。省略=1）
-  | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（deck_to_trash_count_this_turn。省略=1）
+  // 🆕`filter` 指定時は **`deck_to_trash_cards_this_turn`（実体）を絞って数える**（2026-08-31 続き748・
+  //   `WXDi-CP02-094-E1`「このターンにあなたのデッキから**＜ブルアカ＞の**カードが1枚以上トラッシュに置かれていた場合」）。
+  //   省略時は従来どおり枚数カウンタ `deck_to_trash_count_this_turn` を見る。
+  | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number; filter?: TargetFilter }
   | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; minCount?: number; subject?: 'signi' | 'lrig' } // このシグニの下にカードがN枚以上あるかぎり（省略=1。filter指定時は一致カードを数える）。subject:'lrig'＝**このルリグの下**（グロウで積んだ `field.lrig` スタック）
   | { type: 'SELF_HAS_KEYWORD'; keyword: string; subject?: 'self' | 'center_lrig' } // 自身またはセンタールリグが【keyword】を持っているかぎり
   | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
@@ -429,8 +442,15 @@ export type Condition =
   | { type: 'ATTACK_ORDINAL_THIS_TURN'; owner: Owner; operator: CompareOp; value: number; signiOnly?: boolean }
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; owner?: Owner; value: number }  // このターンに owner（省略=self）が手札をN枚以上捨てている場合。⚠ActiveCondition 側にも同型あり＝両方揃えて更新すること
+  // 🆕「このターンに owner が手札から〈filter〉のカードをN枚以上捨てていた場合」（2026-08-31 続き748・
+  //   `WXDi-CP02-055-E2` / `WXDi-CP02-081-E1`）。実体は `turn_hand_discarded_cards`。
+  //   ⚠既存 `TURN_HAND_DISCARD_GTE` は**枚数だけ**の兄弟（絞り込みが要らない札はそちらのまま）。
+  | { type: 'HAND_DISCARDED_THIS_TURN'; owner: Owner; filter?: TargetFilter; minCount?: number }
   | { type: 'SIGNI_BANISHED_THIS_TURN'; owner: Owner; minCount?: number }  // このターンに owner のシグニがN体以上バニッシュされていた場合（signi_banished_this_turn。省略=1）
-  | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner のデッキからカードがN枚以上トラッシュに置かれていた場合（deck_to_trash_count_this_turn。省略=1）
+  // 🆕`filter` 指定時は **`deck_to_trash_cards_this_turn`（実体）を絞って数える**（2026-08-31 続き748・
+  //   `WXDi-CP02-094-E1`「このターンにあなたのデッキから**＜ブルアカ＞の**カードが1枚以上トラッシュに置かれていた場合」）。
+  //   省略時は従来どおり枚数カウンタ `deck_to_trash_count_this_turn` を見る。
+  | { type: 'SELF_DECK_TO_TRASH_THIS_TURN'; owner: Owner; minCount?: number; filter?: TargetFilter }
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner; minCount?: number } // このターンにシグニがN体以上場から手札に戻っていた場合（signi_returned_to_hand_count_this_turn。省略=1）。⚠ActiveCondition 側にも同型あり
   // このシグニの下にカードがある場合。negate=true は「無い場合」。
   // minCount は「下にカードがN枚以上ある場合」（省略=1）＝`WXK08-030-E1` の２枚/５枚の多段閾値。
@@ -471,7 +491,9 @@ export type Condition =
    * 🔴`THIS_CARD_HAS_UNDER` / `THIS_CARD_HAS_ATTACHED` は**効果元自身**しか見ないので流用できない
    *   （`WXDi-P04-081-E1`／`WXDi-P06-084-E1`／`WXK09-036-E1`／`WXK11-069-E1` は条件ごと落ちて無条件実行だった）。
    */
-  | { type: 'FIELD_ATTACHED_COUNT'; owner: Owner; include?: 'attached' | 'under' | 'both' | 'soul' | 'zone'; operator: CompareOp; value: number }
+  // 🆕`'acce'`＝**【アクセ】だけ**を数える（2026-08-31 続き747・§5.3 `O-105`）。`'attached'` は
+  //   チャーム/アクセ/ソウル/裏向きの合計なので「【アクセ】が合計N枚以上」（`WX18-075-E1`）を表せなかった。
+  | { type: 'FIELD_ATTACHED_COUNT'; owner: Owner; include?: 'attached' | 'acce' | 'under' | 'both' | 'soul' | 'zone'; operator: CompareOp; value: number }
   /**
    * 「〈ゾーンA〉**と**〈ゾーンB〉に〈filter〉のカードが**合計**N枚以上ある場合」（§5.4(ii) の登録済み機構ギャップ）。
    * 🔴`AND` では同値にならない＝「合計7枚」は 3+4 でも成立するので、`ENERGY_HAS_CARD`＋`TRASH_HAS_CARD` の
@@ -504,6 +526,30 @@ export type Condition =
   | { type: 'SELF_LEVEL_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
   | { type: 'THIS_CARD_FROM_NON_HAND_THIS_TURN' } // このターンにこのシグニが手札以外の領域から場に出ていた場合
+  /**
+   * 🆕**公開領域**（2026-08-31 続き748・§5.4(ii) の登録済みギャップ）。
+   * 原文「あなたの**公開領域**に〈X〉がある場合」（`WXDi-P07-049-E2`）／
+   * 「あなたの公開領域にある表向きのシグニであるカードのレベルが**すべて**奇数の場合」（`WXK05-028-E2`）。
+   * 数える範囲＝**場（シグニ頂点＋ルリグ）／エナ／トラッシュ／ルリグトラッシュ／チェックゾーン**。
+   * ⚠デッキ・手札・ライフクロス（裏向き）は含めない。
+   * - `subjectFilter`＝「何を見るか」（省略＝全カード）／`filter`＝「その述語」。
+   * - `mode:'all'`＝subject の**すべて**が filter を満たす。⚠**subject が0枚なら不成立**へ倒す（fail-closed）。
+   * - `mode:'any'`（省略時）＝両方を満たすカードが `minCount`（省略1）枚以上ある。
+   */
+  | { type: 'PUBLIC_ZONE_MATCH'; owner: Owner; subjectFilter?: TargetFilter; filter?: TargetFilter; mode?: 'any' | 'all'; minCount?: number }
+  /**
+   * 🆕「このターンにこのシグニが〈zone〉から場に出ていた場合」（2026-08-31 続き748・`WXDi-P06-070-E1`）。
+   * 実体は `signi_placed_origin_this_turn`（`"<instanceId>:<zone>"`）。
+   * ⚠既存 `THIS_CARD_FROM_NON_HAND_THIS_TURN` は「手札以外」の一括なので**エナ限定**を表せなかった。
+   */
+  | { type: 'THIS_CARD_FROM_ZONE_THIS_TURN'; zones: Array<'hand' | 'deck' | 'trash' | 'energy'> }
+  /**
+   * 🆕**トリガー元カードが〈filter〉に一致する場合**（2026-08-31 続き748・`WXK05-065-E1`
+   * 「このシグニに【アクセ】が付いたとき、**それがレベル２以下の【アクセ】の場合**」）。
+   * ⚠`triggerFilter`（発火するかどうか）とは別軸＝**発火したうえで分岐**するために要る。
+   * ⚠`ctx.triggeringCardNum` が無い経路では**不成立**へ倒す（fail-closed）。
+   */
+  | { type: 'TRIGGER_SOURCE_MATCHES'; filter: TargetFilter }
   | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass?: string; sourceCardTypes?: string[] } // class省略・sourceCardTypes省略時は効果起因の配置全般。cardClass 指定時は従来どおりシグニ限定
   | { type: 'THIS_CARD_FROM_DECK' } // このシグニがデッキから場に出た場合
   | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）
@@ -607,9 +653,10 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
   LRIG_COLOR: true, LRIG_NAME_CONTAINS: true, SAME_ZONE_HAS_GATE: true, SAME_ZONE_HAS_SEED: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
   TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
-  SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true,
+  SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true, HAND_DISCARDED_THIS_TURN: true,
   OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true, PAID_COLORS_INCLUDE_ALL: true,
   DURING_ATTACK_PHASE: true, DURING_MAIN_PHASE: true, AND: true,
+  ZONE_SUM_COUNT: true,
 };
 
 export const CONDITION_TYPES: Record<Condition['type'], true> = {
@@ -637,6 +684,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   FACEDOWN_REVEALED_JUST: true,
   SELF_LEVEL_THRESHOLD: true,
   THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
+  PUBLIC_ZONE_MATCH: true, THIS_CARD_FROM_ZONE_THIS_TURN: true, TRIGGER_SOURCE_MATCHES: true,
   THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,
   LIFE_COMPARE_OPP: true, HAND_COMPARE_OPP: true, ENERGY_COMPARE_OPP: true, ZONE_COUNT_COMPARE: true, EFFECTIVE_LRIG_LIMIT_GTE: true,
   DURING_PHASE: true, OPP_SIGNI_ATTACKING: true, AND: true, IS_MY_TURN: true, IS_OPPONENT_TURN: true,
@@ -650,7 +698,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   FIELD_SIGNI_ALL_DISTINCT_CLASS: true, FIELD_SIGNI_SHARE_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
   LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
   LAST_LOOK_TRASHED_MATCHES: true, LAST_PROCESSED_ALL_MATCH: true,
-  SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true,
+  SIGNI_BANISHED_THIS_TURN: true, SELF_DECK_TO_TRASH_THIS_TURN: true, HAND_DISCARDED_THIS_TURN: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true,
 };
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
@@ -783,6 +831,8 @@ export interface EffectCost {
     self?: boolean;        // トラッシュにあるこのカード自身をゲームから除外
     count?: number;        // 何枚（selfでない場合）
     filter?: TargetFilter; // フィルター（cardName等）
+    /** 🆕「**それぞれ名前の異なる**スペル3枚を除外する」の集合制約（2026-08-31 続き748・`WXK09-029-E2`）。 */
+    selectionConstraint?: SelectionConstraint;
   };
   // ─ v0.312 追加: 追加コストタイプ群 ─
   fieldDown?: { count: number; filter?: TargetFilter }; // 場のシグニN体をダウン（コスト）
@@ -1045,6 +1095,25 @@ export interface TargetFilter {
   colorMatchesCostTrashed?: boolean; // 直前の能力コストでトラッシュに置いたカード群のいずれかと共通色。記録無しは空ヒット
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
+  // 🆕【ソウル】が付いている（2026-08-31 続き747・§5.4(ii) の登録済みギャップ）。
+  //   `IS_SELF_SOUL_ATTACHED` は**効果元自身**の自己条件なので他シグニには使えず、
+  //   「【ソウル】が付いているあなたのシグニ1体がアタックしたとき」（`WXDi-P04-016-E1`）が表せなかった。
+  //   判定は `signi_soul[zoneIdx] !== null`＝`hasAcce` と同じゾーン状態フィルタ（両評価器に配線済み）。
+  hasSoul?:   boolean;
+  /**
+   * 🆕**【出】能力を持つ**（2026-08-31 続き748・`WXDi-P07-058-E1`「**【出】能力を持つ**あなたのシグニ1体が
+   * 場に出たとき」）。判定には `effectsMap` が要るので `matchesFilter`（CardData 単体）では解けない＝
+   * `triggerCollect` の `triggerStateFilterOk` が `ctx.effectsMap` を見て評価する。
+   * ⚠**評価器を持たない経路では素通り（＝無条件成立）になる**ので、対象フィルタには使わないこと。
+   */
+  hasOnPlayAbility?: boolean;
+  /**
+   * 🆕**【ソウル】が付いている自分のシグニの正面にいる**（2026-08-31 続き749・`WXDi-P04-013-E1`
+   * 「あなたのターンの間、**【ソウル】が付いているあなたのシグニの正面のシグニ**のパワーを－2000する」）。
+   * ⚠対象は**相手のシグニ**（`owner:'opponent'`／`count:'ALL'` と併用）。判定は CONTINUOUS の
+   *   `calcFieldPowers` が行う＝**他の経路では素通りする**（対象選択フィルタには使わない）。
+   */
+  frontOfAllyWithSoul?: boolean;
   acceHost?:  boolean; // 「これにアクセされているシグニ」＝このカードがアクセとして装着されているホストシグニ。CONTINUOUS POWER_MODIFY のホスト宛バフ（calcFieldPowers の signi_acce ループが適用）。主体が場のシグニのときは自己適用しない
   // 「このカードの上にあるシグニ」＝このカードが**下に置かれている**スタックの最前面シグニ（＝ホスト）。
   // acceHost の兄弟で、装着経路が【アクセ】ではなくスタック下（下に置く）である点だけが違う。
@@ -1079,6 +1148,36 @@ export interface TargetFilter {
   levelLtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル未満 → level.max:N-1 に解決（「その後、そのシグニより低いレベルを持つ」＝公開シグニ基準。参照不能なら空ヒット。WXK10-031）
   levelGtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベルより高い → level.min:N+1 に解決（「その後、…それよりレベルの高い」＝直前配置シグニ基準。参照不能なら空ヒット。WXEX2-28）
   levelEqLastProcessed?: boolean;  // レベルが直前に処理したシグニと同じ → level.min/max に解決（「この方法で【ビート】にしたシグニと同じレベル」WDK14-008）
+  /**
+   * 🆕直前に処理したシグニの**レベル＋N**（2026-08-31 続き748・`SP07-011-E2`
+   * 「この方法でバニッシュしたシグニより**レベルが１つ大きい**シグニ」）。
+   * ⚠`levelGtLastProcessed`（より高い＝以上）では**上が全部通る過剰実行**になるので別キーにする。
+   */
+  levelEqLastProcessedPlus?: number;
+  /**
+   * 🆕**このシグニにアクセされているシグニ**（＝`acceHost`）よりパワーが低い（2026-08-31 続き748・
+   * `WX17-033-E4`「このシグニにアクセされているシグニよりパワーの低い対戦相手のシグニ１体」）。
+   * ⚠ホストが特定できない（アクセされていない）ときは**空ヒット**へ倒す（fail-closed）。
+   */
+  powerLtAcceHost?: boolean;
+  /**
+   * 🆕**トリガー元カードと同じカード名**（2026-08-31 続き748・`WXEX2-31-E1`
+   * 「対戦相手の効果によって場を離れた**そのシグニと同じ名前の**シグニ」）。
+   * ⚠`nameEqLastProcessed` は「直前に処理した札」基準＝トリガー元とは別軸。参照不能なら空ヒット。
+   */
+  nameEqTriggerSource?: boolean;
+  /**
+   * 🆕**効果元シグニと共通する色を持たない**（2026-08-31 続き748・`WX21-032-E1`
+   * 「あなたの場に**このシグニと共通する色を持たない**他の＜天使＞のシグニがある場合」）。
+   * ⚠`colorNotMatchesLrig`（ルリグ基準）の効果元版。効果元が特定できないときは制限なしへ倒さず**空ヒット**。
+   */
+  colorNotMatchesSource?: boolean;
+  /**
+   * 🆕**トリガー元カードよりレベルが低い**（2026-08-31 続き748・`WD15-023-E1`
+   * 「その＜龍獣＞のシグニより低いレベルを持つ対戦相手のシグニ1体」）。
+   * ⚠`levelLtLastProcessed` は「直前に処理した札」基準＝遅延トリガーの発火源とは別軸。参照不能なら空ヒット。
+   */
+  levelLtTriggerSource?: boolean;
   /**
    * レベルが**直前の離脱で公開された裏向き付けカード**（`facedown_revealed_just`）と同じ
    * → `level` に解決（§5.3 `O-81`・`WX16-003-E3`「そのカードと同じレベルの対戦相手のシグニ１体」）。
@@ -1207,6 +1306,17 @@ export interface SelectionConstraint {
   totalLevelMax?: number;
   /** 実行時に解決するレベル合計の上限（「この方法で処理した枚数以下」）。 */
   totalLevelMaxRef?: NumberOrRef;
+  /**
+   * 🆕**レベルの多重集合が一致する**（2026-08-31 続き749・`WX24-P2-036-E1` / `WDA-F02-07-E1`
+   * 「この方法で捨てたシグニ**1枚につきそのシグニと同じレベルの**対戦相手のシグニ1体を対象とし」）。
+   * 選んだ集合のレベルを**1対1で**このリストへ割り当てられることを要求する（順不同・重複を区別する）。
+   * 🔴`levelEqLastProcessed`（「捨てたレベルのどれかに一致」）では**同じレベルをまとめてN体**取れてしまい
+   *   過剰実行になる（旧「見送り契約」がそこを守っていた）。⇒ ペア付けは多重集合で表す。
+   * ⚠**レベル不明（`Level` が数値でない）は不成立**へ倒す（fail-closed）。
+   */
+  levelMultiset?: number[];
+  /** 実行時に `lastProcessedCards` のレベル多重集合を `levelMultiset` へ焼き込む（`selectOrInteract` が解決）。 */
+  levelMultisetFromLastProcessed?: boolean;
 }
 
 // ===== アクション =====
@@ -1498,6 +1608,10 @@ export interface PowerModifyAction {
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニを自動対象（ctx.triggeringCardNum → ctx.sourceCardNum の順で解決）
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ適用（WXDi-P07-079「それが＜毒牙＞なら代わりに＋10000」。選択UIを出さず同一対象に適用）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象
+  // 🆕インタラクション／**遅延トリガー設置時**に固定済みの対象instanceId（2026-08-31 続き747）。
+  //   🔴これが無いと `INSTALL_DELAYED_TRIGGER` の中の `targetsStored` は**発火時に候補が空＝黙って空振り**する
+  //   （`storedTargetCards` は設置と発火で ExecCtx が別物。`BANISH` ほかで既に解決済みだった族に POWER_MODIFY を追加）。
+  fixedCardNums?: string[];
   // 「この方法で捨てた手札１枚につき－6000」（WX12-020-E3・タスク12(lx)②）＝倍率元が**現在の手札枚数ではなく
   // 直前ステップで実際に処理した枚数**（lastProcessedCards.length）。delta は1枚あたりの値として扱う。
   // ⚠ 現在の手札枚数比例は別型 POWER_MODIFY_PER_HAND_COUNT（handOwner の手札を数える）。混同しないこと。
@@ -1964,7 +2078,13 @@ export interface GrantEffectAction {
 // 特定シグニへの能力付与（GRANT_EFFECT）と異なり、設置後に出たシグニ・プレイヤーレベルの誘発を捕捉できる。
 export interface InstallDelayedTriggerAction {
   type: 'INSTALL_DELAYED_TRIGGER';
-  duration: 'THIS_TURN' | 'THIS_ATTACK_PHASE';
+  /**
+   * 🆕`'NEXT_TURN'`＝**次のターンの間**（2026-08-31 続き749・`WX14-018-E4`
+   * 「次のターンの間、対戦相手のシグニ1体がアタックしたとき、そのアタック終了時にそのシグニをバニッシュする」）。
+   * 🔑設置した**このターンは発火しない**＝ターン終了時に `'THIS_TURN'` へ**降格**して次ターンだけ効く
+   *   （`clearEndOfTurnDelayedTriggers` が破棄せず1回だけ持ち越す）。⚠**2ターン残さない**。
+   */
+  duration: 'THIS_TURN' | 'THIS_ATTACK_PHASE' | 'NEXT_TURN';
   once?: boolean;                 // 「次に」＝最初の発火時だけ収集し、設置を消費する。省略時は期間中毎回発火
   sourceCardNum?: string;         // 設置元カード番号。executor が設置時の ExecCtx から焼き込み、発火時の sourceCardNum を復元する
   trigger: {
@@ -1974,6 +2094,22 @@ export interface InstallDelayedTriggerAction {
     leftOwner?: 'self' | 'opponent' | 'any';       // ON_LEAVE_FIELD の離脱カード所有者（設置者から見て）。省略=any
     triggerFilter?: TargetFilter;                  // ON_LEAVE_FIELD の離脱カード条件
     attackerOwner?: 'self' | 'opponent' | 'any';   // ON_ATTACK_SIGNI のアタッカー所有者（設置者から見て）。省略=any。WXK05-009-E2=opponent（タスク12(lxi) 第8波）
+    /**
+     * 🆕ON_ATTACK_SIGNI のアタッカー**カード条件**（2026-08-31 続き747）。
+     * 「このターン、あなたの**黒の＜ブルアカ＞の**シグニ1体がアタックしたとき」（`WX25-CP1-085-E1`）＝
+     * `attackerOwner` だけでは色/クラスの限定が落ちて**どのシグニのアタックでも発火**していた。
+     */
+    attackerFilter?: TargetFilter;
+    /**
+     * 🆕ON_SIGNI_BANISH_BATTLE の**バニッシュした側**のカード条件（2026-08-31 続き748・`WD15-023-E1`
+     * 「このターン、あなたの**＜龍獣＞の**シグニが対戦相手のシグニ1体をバニッシュしたとき」）。
+     */
+    banisherFilter?: TargetFilter;
+    /**
+     * 🆕ON_PLAY 遅延の「**効果によって**場に出たとき」限定（2026-08-31 続き748・`WXDi-P09-010-E3`）。
+     * 通常召喚では発火しない。省略＝配置経路を問わない。
+     */
+    placedByEffect?: boolean;
     /** ON_SIGNI_DOWN のダウンしたシグニの所有者（設置者から見て）。省略=any。`WX05-042`＝self（§6.4 O-11） */
     downedOwner?: 'self' | 'opponent' | 'any';
     /**
@@ -2150,7 +2286,7 @@ export interface TransferToDeckAction {
   source: EffectTarget;
   shuffle: boolean;
   destination?: 'deck' | 'lrig_deck'; // 省略時は 'deck'
-  position?: 'top' | 'second' | 'bottom'; // デッキの挿入位置（省略時は top）
+  position?: 'top' | 'second' | 'third' | 'bottom'; // デッキの挿入位置（省略時は top）。🆕'third'＝「デッキの上から三番目に置く」（`WDK09-011-E2`）
   optional?: boolean;                 // 「…してもよい」＝TRASH_CARD 経路で選択/スキップ可（WX17-028-E1・続き137）
   opponentSelects?: boolean;          // 「対戦相手は自分のシグニ1体を選びデッキに置く」
   targetsStored?: boolean;            // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象（SIGNI 経路）
@@ -2346,6 +2482,13 @@ export interface CostIncreaseAction {
   targetCardType: 'スペル' | 'アーツ' | 'ルリグ';
   targetOwner: Owner;
   amount: EnergyCost[];
+  /**
+   * 🆕**増加量がゾーンの枚数に比例する**（2026-08-31 続き749・`WXEX2-02-E1`
+   * 「対戦相手のルリグの【起】能力の使用コストは、**対戦相手の場にある凍結状態のシグニ１体につき**《無×1》増える」）。
+   * 指定時は `amount` の各 `count` を**解決値の倍**にする（0枚なら増加なし）。
+   * ⚠`owner` は**効果オーナーから見た所有者**（`countFromZone` の規約と同じ）。
+   */
+  amountFromZone?: CountFromZone;
   // NEXT_OPP_TURN: 「次の対戦相手のターンの間、対戦相手のコストが増える」（遅延・期間型。
   //   power_mods_until_opp_turn と同様にキャスター側へ保持し相手ターンを通過、自分の次ターン開始時にクリア）
   duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT' | 'NEXT_OPP_TURN';
@@ -3213,6 +3356,13 @@ export interface AttachAcceAction {
   targetSigniOwner: Owner;      // アクセを付けるシグニのオーナー
   sourceOwner: Owner;           // アクセカードのオーナー（エナゾーン）
   fromHand?: boolean;           // trueなら手札からアクセ（デコレ能力）
+  /**
+   * 🆕trueなら**エナゾーンから選んで**アクセにする（2026-08-31 続き748・`WX22-Re02-E2`
+   * 「あなたのエナゾーンにある《アクセアイコン》を持つ＜調理＞のシグニ1枚を対象とし、それをこのシグニの【アクセ】にする」）。
+   * 🔴既定のエナ経路は**アクセ札を `ctx.sourceCardNum` に固定**していた（＝効果元カード自身をアクセにする形専用）ので、
+   *   「エナから選ぶ」が書けなかった（§5.4(ii) の登録済みギャップ）。`fromHand` と同じ2段選択に載せる。
+   */
+  fromEnergy?: boolean;
   signiFilter?: TargetFilter;   // アクセカードのフィルター（手札から選ぶ場合に使用）
   targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
   _selectingAcceFromHand?: boolean; // 内部: fromHand step1（手札からアクセカード選択中）のthenActionマーカー
@@ -4423,6 +4573,20 @@ export interface CardEffect {
      */
     movedToDeckFromField?: boolean;
     banishedFilter?: TargetFilter;                    // ON_SIGNI_BANISH_OPPONENT/_BATTLE の被バニッシュシグニ限定（「感染状態の/凍結状態の/【チャーム】が付いている…シグニをバニッシュしたとき」WX16-079/WXK02-054/WXEX2-76 等）。バニッシュ**直前**の盤面状態（matchesStateFilter＝infected/isFrozen/hasCharm）＋カードデータ（matchesFilter）で判定。triggerFilter は any_ally scope で**バニッシュした側**に使われるため別軸
+    /**
+     * 🆕**正面以外のシグニゾーンへアタックした**とき限定（2026-08-31 続き749・`WXEX2-71-E1`
+     * 「あなたのシグニ１体が**正面以外のシグニゾーンに**アタックしたとき」）。
+     * 判定は「攻撃先ゾーン ≠ 2 − アタッカーのゾーン」＝**側面アタック**（`sideAttack`）。
+     * ⚠被バニッシュ側を見る `banishedNotFront` とは別軸（あちらはバニッシュの位置）。
+     */
+    attackedNotFront?: boolean;
+    /**
+     * 🆕**そのルリグアタックがダメージを与えなかった**とき限定（2026-08-31 続き749・`WX24-P3-055-E2`
+     * 「そのアタック終了時、そのアタックによってそのルリグがダメージを与えていなかった場合」）。
+     * ⚠現状の発火地点は**【ガード】された経路だけ**＝バリア等でダメージが消えた場合は発火しない
+     *   （過小側へ fail-closed）。`lrigAttackGuarded` の兄弟で、あちらは「ガードされた」ことそのものが条件。
+     */
+    lrigAttackNoDamage?: boolean;
     banishedNotFront?: boolean;                        // ON_SIGNI_BANISH_BATTLE/_OPPONENT の被バニッシュシグニ限定「正面**以外**の」（WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」）。banishedFilter（カード属性/ゾーン状態）とは別軸＝アタッカーの正面ゾーン（対戦相手視点のミラーゾーン）と被バニッシュゾーンの一致判定。犠牲/リダイレクトで実際の被バニッシュ位置が変わった場合も対応
     banishedFrontOfSelf?: boolean;                     // ON_BANISH watcher の正面ゾーンにいたシグニだけに反応（WX15-055/056）
     banishedHadCharm?: boolean;                        // ON_BANISH watcher の被バニッシュシグニに【チャーム】が付いていた場合のみ（WXDi-P11-TK05）。除去直前の signi_charms で判定し、prevOwnerState 不明時は保守的に非発火

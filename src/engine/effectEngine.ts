@@ -687,6 +687,34 @@ export function checkActiveCondition(
       }).length >= cond.minEach);
     }
 
+    // 🆕`Condition` 側（`execUtils.ts` の `ZONE_SUM_COUNT`）と**同型・同判定**（2026-08-31 続き747）。
+    //   ⚠effectEngine は execUtils を import できない（循環）ので数え方をここに写している。
+    //   対応ゾーンは `energy` / `trash` / `hand` / `deck` / `lrig_trash` / `field`（シグニ頂点）＝
+    //   **知らないゾーンは 0 へ fail-closed**（`under` などは効果元が要るので `Condition` 側だけで使う）。
+    case 'ZONE_SUM_COUNT': {
+      const zoneCards = (z: { zone: string; owner: 'self' | 'opponent' | 'any' }): string[] => {
+        const st2 = z.owner === 'self' ? ownerState : otherState;
+        switch (z.zone) {
+          case 'energy': return st2.energy;
+          case 'trash': return st2.trash;
+          case 'hand': return st2.hand;
+          case 'deck': return st2.deck;
+          case 'lrig_trash': return st2.lrig_trash;
+          case 'field': return st2.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n);
+          default: return [];
+        }
+      };
+      const total = cond.zones.reduce((n, z) => {
+        const cards = zoneCards(z)
+          .map(cn => cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]))
+          .filter((c): c is CardData => !!c && matchesFilter(c, z.filter));
+        if (z.distinctBy === 'name') return n + new Set(cards.map(c => c.CardName)).size;
+        if (z.distinctBy === 'level') return n + new Set(cards.map(c => c.Level ?? '').filter(l => l !== '')).size;
+        return n + cards.length;
+      }, 0);
+      return compare(total, cond.operator, cond.value);
+    }
+
     case 'ENERGY_COUNT_FILTER': {
       const states = cond.owner === 'any'
         ? [ownerState, otherState]
@@ -815,9 +843,24 @@ export function checkActiveCondition(
       for (let ei = 0; ei < sets.length; ei++) tryAssign(ei, new Set());
       return need.every(c => matchByColor[c] !== undefined);
     }
-    case 'SELF_DECK_TO_TRASH_THIS_TURN':
-      // `Condition` 側と同じ式。
-      return ((cond.owner === 'opponent' ? otherState : ownerState).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
+    case 'SELF_DECK_TO_TRASH_THIS_TURN': {
+      // `Condition` 側と同じ式。🆕`filter` 指定時は実体（`deck_to_trash_cards_this_turn`）を絞って数える。
+      const stDT = cond.owner === 'opponent' ? otherState : ownerState;
+      const nDT = cond.filter
+        ? (stDT.deck_to_trash_cards_this_turn ?? []).filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), cond.filter)).length
+        : (stDT.deck_to_trash_count_this_turn ?? 0);
+      return nDT >= (cond.minCount ?? 1);
+    }
+    case 'HAND_DISCARDED_THIS_TURN': {
+      // 🆕「このターンに owner が手札から〈filter〉のカードをN枚以上捨てていた場合」（2026-08-31 続き748）。
+      //   ⚠実体（`turn_hand_discarded_cards`）を絞って数える＝**枚数カウンタでは filter を表せない**。
+      //   ⚠`getCardNum` はこのファイルに import が無いのでインスタンス ID の `#N` はここで落とす。
+      const discardedHD = (cond.owner === 'opponent' ? otherState : ownerState).turn_hand_discarded_cards ?? [];
+      const nHD = cond.filter
+        ? discardedHD.filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), cond.filter)).length
+        : discardedHD.length;
+      return nHD >= (cond.minCount ?? 1);
+    }
 
     case 'ARTS_USED_THIS_TURN': {
       const artsState = cond.owner === 'self' ? ownerState : otherState;
@@ -1010,6 +1053,11 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     const v = hasAcceAt(state.field, zoneIdx);
     if (filter.hasAcce !== v) return false;
   }
+  // 🆕【ソウル】の有無（2026-08-31 続き747）。`hasAcce` と同じゾーン状態フィルタ。
+  if (filter.hasSoul !== undefined) {
+    const v = (state.field.signi_soul?.[zoneIdx] ?? null) !== null;
+    if (filter.hasSoul !== v) return false;
+  }
   if (filter.infected !== undefined) {
     const v = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
     if (filter.infected !== v) return false;
@@ -1075,6 +1123,16 @@ export function activeFieldGrantsForSigni(
         const frontZone = 2 - zoneIdx;
         if (!otherState.field.signi[frontZone]?.at(-1)) return false;
         if ((otherState.field.signi_charms?.[frontZone] ?? null) === null) return false;
+      }
+      // 🆕「その正面のシグニのパワーがN以上であるかぎり」（2026-08-31 続き749・`WD15-007-E1`）。
+      // ⚠正面が空なら**不成立**（「正面のシグニのパワー」が存在しない）。実効パワーは持ち回れないので
+      //   印刷値で判定する（`FRONT_SIGNI_POWER`（ActiveCondition）と同じ近似）。
+      if (grant.condition?.type === 'FRONT_SIGNI_POWER_GTE') {
+        const frontNumFP = otherState.field.signi[2 - zoneIdx]?.at(-1);
+        if (!frontNumFP) return false;
+        const fpBase = frontNumFP.includes('#') ? frontNumFP.slice(0, frontNumFP.indexOf('#')) : frontNumFP;
+        const fp = cardMap.get(fpBase)?.Power === '∞' ? Infinity : parseInt(cardMap.get(fpBase)?.Power ?? '', 10);
+        if (!(Number.isFinite(fp) || fp === Infinity) || fp < grant.condition.value) return false;
       }
       return true;
     });
@@ -1235,6 +1293,33 @@ function evalConditionForContinuous(
       return (st(cond.owner ?? 'self').turn_hand_discarded_count ?? 0) >= cond.value;
     case 'VIRUS_COUNT':
       return cmp((st(cond.owner).field.signi_virus ?? []).reduce((sum, count) => sum + count, 0), cond.operator, cond.value);
+    // 🆕`FIELD_ATTACHED_COUNT`（2026-08-31 続き747・`WX18-075-E1`「このシグニはあなたのシグニに付いている
+    //   **【アクセ】が合計２枚以上ある場合にしか**新たに場に出すことができない」）。
+    // 🔴この評価器へ足し忘れると `default: true`＝**出撃制限が丸ごと無い**（型も golden も緑のまま）＝
+    //   この switch 冒頭のコメントが警告している穴そのもの。`execUtils` 側と**同じ式**を並べる。
+    case 'FIELD_ATTACHED_COUNT': {
+      const kindFAC = cond.include ?? 'both';
+      const countInFAC = (ps: PlayerState): number => {
+        const f = ps.field;
+        let n = 0;
+        for (let zi = 0; zi < 3; zi++) {
+          if (kindFAC === 'soul') { n += f.signi_soul?.[zi] ? 1 : 0; continue; }
+          if (kindFAC === 'acce') { n += acceCardsAt(f, zi).length; continue; }
+          if (kindFAC !== 'under') {
+            n += (f.signi_charms?.[zi] ? 1 : 0)
+              + acceCardsAt(f, zi).length
+              + (f.signi_soul?.[zi] ? 1 : 0)
+              + (f.signi_facedown_attached?.[zi]?.length ?? 0);
+          }
+          if (kindFAC !== 'attached') n += Math.max(0, (f.signi[zi]?.length ?? 0) - (kindFAC === 'zone' ? 0 : 1));
+        }
+        return n;
+      };
+      const totalFAC = cond.owner === 'any'
+        ? countInFAC(ownerState) + countInFAC(otherState)
+        : countInFAC(st(cond.owner));
+      return cmp(totalFAC, cond.operator, cond.value);
+    }
     case 'SIGNI_BANISHED_THIS_TURN':
       return (st(cond.owner).signi_banished_this_turn ?? 0) >= (cond.minCount ?? 1);
     // §5.3 O-121: Condition 側（`execUtils`）と**同じ式**を並べる。
@@ -1251,8 +1336,23 @@ function evalConditionForContinuous(
       }).length;
       return cmp(obN, cond.operator, cond.value);
     }
-    case 'SELF_DECK_TO_TRASH_THIS_TURN':
-      return (st(cond.owner).deck_to_trash_count_this_turn ?? 0) >= (cond.minCount ?? 1);
+    case 'SELF_DECK_TO_TRASH_THIS_TURN': {
+      const stDT = st(cond.owner);
+      const nDT = cond.filter
+        ? (stDT.deck_to_trash_cards_this_turn ?? []).filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), cond.filter)).length
+        : (stDT.deck_to_trash_count_this_turn ?? 0);
+      return nDT >= (cond.minCount ?? 1);
+    }
+    case 'HAND_DISCARDED_THIS_TURN': {
+      // 🆕「このターンに owner が手札から〈filter〉のカードをN枚以上捨てていた場合」（2026-08-31 続き748）。
+      //   ⚠実体（`turn_hand_discarded_cards`）を絞って数える＝**枚数カウンタでは filter を表せない**。
+      //   ⚠`getCardNum` はこのファイルに import が無いのでインスタンス ID の `#N` はここで落とす。
+      const discardedHD = st(cond.owner).turn_hand_discarded_cards ?? [];
+      const nHD = cond.filter
+        ? discardedHD.filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), cond.filter)).length
+        : discardedHD.length;
+      return nHD >= (cond.minCount ?? 1);
+    }
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': {
       const rthStates = cond.owner === 'any' ? [ownerState, otherState] : [st(cond.owner)];
       const rthMin = cond.minCount ?? 1;
@@ -2261,6 +2361,23 @@ export function calcFieldPowers(
             continue;
           }
 
+          // 🆕`frontOfAllyWithSoul`（2026-08-31 続き749・`WXDi-P04-013-E1`）＝**【ソウル】が付いている
+          //   自分のシグニの正面**にいる相手シグニ。⚠ゾーン対応（my zi ↔ opp 2-zi）なので
+          //   `matchesFilter`（CardData 単体）では表せず、ここで per-zone に解く。
+          if (target.filter?.frontOfAllyWithSoul) {
+            const { frontOfAllyWithSoul: _fs, ...restSoul } = target.filter;
+            for (let zi = 0; zi < 3; zi++) {
+              if (!(ownerState.field.signi_soul?.[zi] ?? null)) continue;
+              if (!ownerState.field.signi[zi]?.at(-1)) continue;      // ソウルだけ残る盤面は対象外
+              const frontNum = otherState.field.signi[2 - zi]?.at(-1);
+              if (!frontNum || !powers.has(frontNum)) continue;
+              const fBase = frontNum.includes('#') ? frontNum.slice(0, frontNum.indexOf('#')) : frontNum;
+              if (!matchesFilter(cardMap.get(fBase), restSoul)) continue;
+              applyDeltaToCard(frontNum, delta, powers, otherPowerProtection);
+            }
+            continue;
+          }
+
           // count === 'ALL': 対象オーナーのシグニ全体に適用
           const targetIsOwner = target.owner === 'self' || target.owner === 'any';
           const targetIsOther  = target.owner === 'opponent' || target.owner === 'any';
@@ -2957,6 +3074,37 @@ export interface ActiveCostMod {
  * - self側の修正 = 自分のフィールドカードによるもの（自分のコストへ影響する場合と相手へ影響する場合）
  * - BattleScreen でスペル/アーツ使用コスト計算時に呼び出す
  */
+/**
+ * 🆕`COST_INCREASE.amountFromZone` の単位量を数える（2026-08-31 続き749）。
+ * ⚠effectEngine は `execUtils` を import できない（循環）ので、`countFromZone` の**必要な部分だけ**を写している。
+ *   対応ゾーンは `field` / `energy` / `trash` / `hand`＝**知らないゾーンは 0 へ fail-closed**。
+ * ⚠`field` は**シグニ頂点**を見る（ゾーン状態フィルタ＝凍結/ダウン等も評価する）。
+ */
+function countCostIncreaseUnits(
+  spec: import('../types/effects').CountFromZone,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+): number {
+  const st = spec.owner === 'opponent' ? otherState : ownerState;
+  let n = 0;
+  if (spec.zone === 'field') {
+    for (let zi = 0; zi < 3; zi++) {
+      const top = st.field.signi[zi]?.at(-1);
+      if (!top) continue;
+      const base = top.includes('#') ? top.slice(0, top.indexOf('#')) : top;
+      if (!matchesFilter(cardMap.get(base), spec.filter)) continue;
+      if (!matchesStateFilter(st, zi, spec.filter)) continue;
+      n += 1;
+    }
+  } else {
+    const zoneCards = spec.zone === 'energy' ? st.energy : spec.zone === 'trash' ? st.trash : spec.zone === 'hand' ? st.hand : [];
+    n = zoneCards.filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), spec.filter)).length;
+  }
+  const unit = spec.unitSize ?? 1;
+  return unit > 0 ? Math.floor(n / unit) * (spec.per ?? 1) : 0;
+}
+
 export function calcActiveCostMods(
   myState: PlayerState,
   opState: PlayerState,
@@ -2984,7 +3132,15 @@ export function calcActiveCostMods(
         const increases = extractCostIncreases(effect.action);
         for (const inc of increases) {
           const target = inc.targetOwner === 'opponent' ? forOp : forMy;
-          target.push({ direction: 'increase', targetCardType: inc.targetCardType, amount: inc.amount });
+          // 🆕比例（2026-08-31 続き749）＝「〈ゾーン〉の〈filter〉1体につき《無×1》増える」。
+          //   ⚠0枚なら**増加なし**（`amount` をそのまま積むと固定値の増加に化ける）。
+          let amount = inc.amount;
+          if (inc.amountFromZone) {
+            const units = countCostIncreaseUnits(inc.amountFromZone, ownerState, otherState, _cardMap);
+            if (units <= 0) continue;
+            amount = inc.amount.map(e => ({ ...e, count: e.count * units }));
+          }
+          target.push({ direction: 'increase', targetCardType: inc.targetCardType, amount });
         }
         // CostReduction: 「あなたが使用する〜のコストは…減る」（常に効果オーナー自身のコストを減らす）
         const ownBucket = ownerState === myState ? forMy : forOp;
@@ -5328,7 +5484,14 @@ export function collectBanishPreventLoseAbility(
   for (const stack of state.field.signi) {
     const src = stack?.at(-1);
     if (!src || removed.has(src)) continue; // 能力喪失済みは再発動不可
-    for (const eff of (effectsMap.get(baseNum(src)) ?? [])) {
+    // 🆕**付与された能力も見る**（2026-08-31 続き749・`WX15-010-E1`「あなたのすべての＜武勇＞のシグニは
+    //   『【常】：このシグニが**次に**バニッシュされる場合、バニッシュされない。』を得る」）。
+    //   🔴印刷カードの `effectsMap` しか見ていなかったので、付与形は**恒久 no-op** だった。
+    const grantedBP = [
+      ...(state.granted_effects?.[src] ?? []),
+      ...(state.granted_effects_until_opp_turn?.[src] ?? []),
+    ];
+    for (const eff of [...(effectsMap.get(baseNum(src)) ?? []), ...grantedBP]) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'BATTLE_BANISH_PREVENT_LOSE_ABILITY' || !act.banishPrevent) continue;

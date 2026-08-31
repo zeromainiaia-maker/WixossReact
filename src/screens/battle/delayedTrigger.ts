@@ -35,8 +35,17 @@ export function consumeOnceDelayedTriggers(state: PlayerState, timing: string): 
   return { ...state, delayed_triggers: remaining.length ? remaining : undefined };
 }
 
-/** ターン終了時に、設置者を問わずそのターン限りの遅延 watcher を破棄する。 */
+/**
+ * ターン終了時に、設置者を問わずそのターン限りの遅延 watcher を破棄する。
+ *
+ * 🆕**`duration:'NEXT_TURN'` だけは1回だけ持ち越す**（2026-08-31 続き749・`WX14-018-E4`
+ * 「**次のターンの間**、対戦相手のシグニ1体がアタックしたとき…」）＝ここで `'THIS_TURN'` へ**降格**する。
+ * ⚠降格させることで**次のターン終了時には確実に消える**（2ターン残さない）。
+ */
 export function clearEndOfTurnDelayedTriggers(state: PlayerState): PlayerState {
   if (state.delayed_triggers === undefined) return state;
-  return { ...state, delayed_triggers: undefined };
+  const carried = state.delayed_triggers
+    .filter(dt => dt.duration === 'NEXT_TURN')
+    .map(dt => ({ ...dt, duration: 'THIS_TURN' as const }));
+  return { ...state, delayed_triggers: carried.length ? carried : undefined };
 }

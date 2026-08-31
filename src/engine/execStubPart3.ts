@@ -983,6 +983,18 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerBBSGTT },
       `${ctx.cardMap.get(srcBBSGTT)?.CardName ?? srcBBSGTT}のバニッシュ→トラッシュへ誘導`));
   }
+  // SELF_CRASH_TO_TRASH_AND_REFILL: この方法でチェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにそれをトラッシュへ置きデッキの一番上のカードをライフクロスに加える
+  //   （`WD06-009-E2` / `WX20-043-E1`）。
+  // ⚠**回数制**（`stub.value` 省略＝1回）＝1クラッシュにつき1消費する。`performLifeBurstResponse` が読む。
+  if (stub.id === 'SELF_CRASH_TO_TRASH_AND_REFILL') {
+    const addSC = typeof stub.value === 'number' ? stub.value : 1;
+    const newOwnerSC = {
+      ...ctx.ownerState,
+      self_crash_to_trash_and_refill: (ctx.ownerState.self_crash_to_trash_and_refill ?? 0) + addSC,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerSC },
+      `この方法でチェックゾーンに置かれたカードは、エナゾーンではなくトラッシュへ置かれる（残り${addSC}回）`));
+  }
   // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスクラッシュ時、エナではなくトラッシュへ
   if (stub.id === 'CRASH_TO_TRASH_INSTEAD') {
     const newOwner = { ...ctx.ownerState, crash_to_trash_instead: true };

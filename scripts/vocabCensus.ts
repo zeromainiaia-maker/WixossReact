@@ -112,7 +112,60 @@ import { fileURLToPath } from 'url';
 //      親は上位帯の文まで、子は**カード全文**を背負っていた（7カード14効果）。
 //      ⇒ `WX09-019-E4/E5`・`WX20-Re18-E4`・`WXEX1-33-E2`・`WXDi-P05-076-E1`・`WXK10-035-E1`・`WXK10-036-E1` が解消。
 //      ⚠残る「代わりに(置換)」＋「数値不一致」は**加算分解の表現そのもの**が原因＝別軸（§5.3 `O-134`）。
-const BASELINE_HIGH = 91; // 2026-08-31 census -31（122→91）。🔴**内訳を混ぜない**：
+const BASELINE_HIGH = 12; // 2026-08-31 続き749 census -18（30→12）。🔴**内訳を混ぜない**：
+//   ■**較正 -3**＝①`ON_GUARD`＋`lrigAttackGuarded`/`lrigAttackNoDamage` は「ルリグ1体がアタックしたとき、
+//     そのアタック終了時、」を timing が内包する正表現（`NEGATE_ATTACK` と同じ事前登録型の族）
+//     ②公開N枚から k 枚をピックする形の**「残り」側の枚数**（N−k）も「載っている」と数える
+//     （⑤の合計と対称。`SPK01-08-E1`「4枚見る。その中から**3枚**を…、残りをトラッシュ」）。
+//   ■**実装 -15**＝**据置契約を3つ卒業させた**のが本体：
+//     ①`O-104`（N体の中間動作でソフトロック）＝**理由は 2026-08-30 続き732 で既に消えていた**
+//       （`fixedSelectionPickLimit` が候補数へクランプ）→ `WX07-039-E2` / `WXEX1-14-E2`
+//     ②「同じレベル」のペア付け＝`SelectionConstraint.levelMultiset`（多重集合の1対1割り当て）を新設
+//       → `WDA-F02-07-E1` / `WX24-P2-036-E1`。⚠`levelEqLastProcessed`（どれかに一致）だと同レベルを
+//       まとめてN体取れる＝契約が守っていたのはそこ
+//     ③「次に1回だけ」の耐性＝**新機構は不要**で、既存 `BATTLE_BANISH_PREVENT_LOSE_ABILITY`
+//       （防いだら能力を失う＝実質1回）へ載せた（付与形も読むよう collector を1箇所広げた）→ `WX15-010-E1`
+//     ほか＝正面参照3件（`FRONT_SIGNI_POWER_GTE` / `frontOfAllyWithSoul` / `attackedNotFront`）／
+//     自分のライフクロスのクラッシュ置換（`self_crash_to_trash_and_refill`）2件／
+//     `collectGenericDelayedTriggers`（任意 timing の遅延を1本で収集）＋ `duration:'NEXT_TURN'` 3件／
+//     `COST_INCREASE.amountFromZone` 1件／ルリグアタック終了時の条件2件。
+//   🔑**engine を1行も足していない修正が続いている**＝`TRAP_OPERATION{trapOp:'under_signi'}` は
+//     `WXDi-P10-063-E1` そのものの受け皿だった（**受け皿はあったのに JSON が指していない**型・第9弾から連続）。
+//   （旧: 2026-08-31 続き748 census -31（61→30）の内訳は直下）
+//   ■**較正 -3**（live 不変）＝①**自分自身への引用付与**（「**このシグニは**〈条件〉かぎり、「【自】…」を得る」）は
+//     「その条件を持つ【自】能力」へコンパイルするのが正表現（`WXK10-075-E1`）②「対戦相手は〈X〉してもよい。
+//     **〈X〉した場合**／**しなかった場合**」の対は `CHOOSE{opponentResponds}` の2分岐が内包する（`PR-Di007-E1`）
+//     ③`trashExile` のコスト節の一般形（枚数＋種別。`WXK09-029-E2`）。
+//   ■**実装 -28**（live 27カード）＝**ターン履歴の絞り込み付き参照**（`turn_hand_discarded_cards` /
+//     `deck_to_trash_cards_this_turn` の実体側を枚数と同じ地点で積む）／**公開領域**（`PUBLIC_ZONE_MATCH`）／
+//     **由来ゾーン**（`THIS_CARD_FROM_ZONE_THIS_TURN`）／**トリガー元の属性で分岐**（`TRIGGER_SOURCE_MATCHES`）／
+//     比較基準4語彙（`levelEqLastProcessedPlus` / `powerLtAcceHost` / `nameEqTriggerSource` / `colorNotMatchesSource`）／
+//     `hasOnPlayAbility`（`triggerStateFilterOk` が `effectsMap` を見る）／`ATTACH_ACCE.fromEnergy`／
+//     遅延トリガーの `banisherFilter` `placedByEffect` と **`collectFieldTriggers` での遅延収集**（ON_PLAY/ON_BLOOM の
+//     遅延はそれまで**設置しても永久に発火しなかった**）／`ChooseAction.chooseCountFromZone`／
+//     `$ref` 2つ（`life_crashed_by_signi_this_turn` / `left_field_under_count`）。
+//   🔑**engine を1行も足していない修正が4件**＝`LRIG_RIDE_SIGNI` / `LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS` /
+//     `filter.isTriggerSource` は**既に動いていたのに JSON が指していなかった**（どの計器にも映らない死角）。
+//   （旧: 2026-08-31 続き747 census -30（91→61）の内訳は直下）
+//   ■**較正 -12**（live は1バイトも変わっていない＝どれも「受け皿の綴りを計器が知らない」取りこぼし）
+//     ①`cost.fieldExileSelf`（「場にあるこのシグニをゲームから除外する：」＝`trashExile`/`handExileSelf` の兄弟）
+//     ②`cost.discardUpTo`（「手札をN枚**まで**捨てる：」＝**大文字 U** で `'upTo'` に当たらない）
+//     ③`EXILE.blind`（「対戦相手はあなたの手札をN枚**見ないで選び**」＝型定義に「相手が選ぶ」と明記されている）
+//     ④`LOOK_PICK_CHAIN` の stage 合計（「シグニ**２枚**を手札に加え」を2段の chain で表す＝合計値は JSON に出ない）
+//     ⑤`colorMatchesLrigIndex`（「場にいるルリグ**1体につき**」を stage 数で内包）
+//     ⑥`nameMatchesAnyFieldSigni`（「場にあるシグニと同じカード名の**場合**」を pick の filter で内包）
+//     ⑦`REVEAL_BOTH_DECK_TOPS`（「公開し、そのカードを**デッキの一番下に置く**」まで畳んだ型）
+//     ⑧デッキ**以外**からの `SEARCH`（トラッシュ/エナの「対象とし」＝「探す」は非公開領域の語彙）
+//     ⑨⑩予約型が条件節を内包する族に `BANISH_REDIRECT` / `GROW_COST_REDUCTION` を追加
+//       （既に較正済みの `PREVENT_NEXT_DAMAGE` / `RESERVE_DRAW_PHASE_REPLACEMENT` と同型）
+//     ⑪`NEGATE_ATTACK` の除外文型で「次に」を任意化（原文に無い個体があった＝`WXDi-P05-003-E1`）
+//   ■**実装 -18**（live が変わった＝どれも原文を読み直して手で書いた。移設ではない）
+//     新設した受け皿は9つだけ＝`TargetFilter.hasSoul` / `CountFromZone.distinctBy:'name'` /
+//     `FIELD_ATTACHED_COUNT.include:'acce'`（§5.3 `O-105`）/ `INSTALL_DELAYED_TRIGGER.trigger.attackerFilter` /
+//     `TransferToDeckAction.position:'third'` / `ActiveCondition` 側の `ZONE_SUM_COUNT` /
+//     `PowerModifyAction.fixedCardNums`（遅延設置時の対象焼き込み）/ `triggerStateFilterOk`（`triggerFilter` の
+//     ゾーン状態評価＝**それまで状態キーは黙って素通り＝無条件成立**だった）。あとは全部既存語彙。
+//   （旧: 2026-08-31 census -31（122→91）の内訳は直下）
 //   ■**較正 -5**（live は1バイトも変わっていない＝どれも対応表／除外句の**取りこぼし**）
 //     ①`ARTS_LIMIT_1`（「対戦相手は**各ターンに一度しか**アーツを使用できない」＝回数制限を actionId が内包する正表現）
 //     ②`TRASHED_DISTINCT_LEVELS_GTE`（「それぞれレベルの異なる」の型名。対応表は複数形 `distinctLevels` しか持っていなかった）
@@ -992,6 +1045,8 @@ const PATTERNS: Pattern[] = [
       'powerLtTrigger', 'powerLteTrigger', 'levelLtTrigger', 'levelGtTrigger', 'powerLtAnyAlly', 'powerLtPrinted', 'powerGtPrinted',
       'powerBelowLeftCard', 'levelBelowLeftCard',
       'powerLteLastProcessed', 'powerLtLastProcessed', 'levelLteLastProcessed', 'levelLtLastProcessed', 'levelLteDiscardSigni',
+      // 🆕2026-08-31 続き748＝比較の基準が「直前に処理した札＋N」「アクセのホスト」の綴り。
+      'levelEqLastProcessedPlus', 'powerLtAcceHost',
       'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER',
       // 🆕2026-08-30 較正＝**基準が「自分」以外の比較キー**が対応表から漏れていた（実測5効果を全数目視）。
       //   `levelLtOppLrig`（対戦相手のセンタールリグより低いレベル）／`levelGtLastProcessed`（それよりレベルの高い）／
@@ -1139,7 +1194,12 @@ const PATTERNS: Pattern[] = [
       'countFromZone', 'deltaFromZone', 'perAllSigni',
       // 🆕2026-08-30 較正＝`countPerLastProcessed`（「この方法で〜したカード1枚につき」）は
       //   `'lastProcessed'`（小文字 l）にも `'PerCard'` にも当たらない綴りだった（実測2効果）。
-      'countPerLastProcessed'],
+      'countPerLastProcessed',
+      // 🆕2026-08-31 較正＝`colorMatchesLrigIndex`（`LOOK_PICK_CHAIN` の stage を**場のルリグ1体につき1段**
+      //   展開する正表現。`WXDi-P15-005-E1`「あなたの場にいるルリグ**１体につき**そのルリグと共通する色を
+      //   持つカードをそれぞれ１枚まで公開し」）＝比例そのものを stage 数で内包するので `$ref` にも
+      //   `countFromZone` にも当たらない。
+      'colorMatchesLrigIndex'],
   },
   {
     name: '合計制約(合計がN以上/以下)',
@@ -1177,7 +1237,13 @@ const PATTERNS: Pattern[] = [
     // 「そうした/そうしなかった場合」は直前の任意行動の帰結（then連鎖で表現）なので状態条件から除外
     name: '条件節(〜の場合)',
     re: /場合[、,]/,
-    pre: t => t.replace(/そう(しなかった|した|でない|である)場合/g, ''),
+    pre: t => t
+      .replace(/そう(しなかった|した|でない|である)場合/g, '')
+      // 🆕2026-08-31 較正＝「対戦相手は〈X〉してもよい。**〈X〉した場合**、…**〈X〉しなかった場合**、…」は
+      //   `CHOOSE{opponentResponds}` の2分岐そのものが条件を内包する正表現（`PR-Di007-E1`）。
+      //   ⚠**対で現れるときだけ**落とす（片方だけの「〜した場合」は従来どおり条件節として数える）。
+      .replace(/([^、。]{1,8})をした場合(?=[^。]*。[^。]*\1をしなかった場合)/g, '')
+      .replace(/([^、。]{1,8})をしなかった場合/g, ''),
     keys: ['condition', 'Condition', 'CONDITIONAL', 'HAS_CARD_IN_FIELD', 'COUNT_THRESHOLD',
       'DECK_TOP', 'TRASH_HAS', 'ENERGY_HAS', 'HAND_COUNT', 'untilHandCount', 'LIFE_COUNT', 'TRASH_COUNT',
       'FIELD_COUNT', 'ENERGY_COUNT', 'LRIG_LEVEL', 'LRIG_STORY', 'LRIG_TEAM', 'LRIG_NAME',
@@ -1194,7 +1260,15 @@ const PATTERNS: Pattern[] = [
       //   リフレッシュ**である場合**」（`WX09-Re06-E1`）。**回数条件を設置側のフラグで内包する正表現**で、
       //   `CONDITIONAL` にはならない。⚠narrow に取る＝`usageLimit:"once_per_turn"` は
       //   `"once_per_turn"` なのでこのキー（閉じ引用符つき）には当たらない。
-      '"once":true'],
+      '"once":true',
+      // 🆕2026-08-31 較正＝`nameMatchesAnyFieldSigni`（「それらのシグニがそれぞれあなたの場にある
+      //   シグニと**同じカード名の場合**」を pick の filter で内包する正表現。`WX26-CP1-061-SONG`）。
+      'nameMatchesAnyFieldSigni',
+      // 🆕2026-08-31 較正＝**置換/予約アクションは「〜する場合」の条件節を型そのものに内包する**
+      //   （既に較正済みの `PREVENT_NEXT_DAMAGE` / `RESERVE_DRAW_PHASE_REPLACEMENT` と同じ族）。
+      //   `BANISH_REDIRECT`＝「〈X〉がバニッシュされる**場合**、〜代わりに〜」（`WX24-P4-050-E2`）／
+      //   `GROW_COST_REDUCTION`＝「次にアシストルリグにグロウする**場合**、コストは減る」（`WX24-P2-043-E1`）。
+      'BANISH_REDIRECT', 'GROW_COST_REDUCTION'],
     // 「（公開して）それが＜X＞のシグニの場合、それを手札/エナ/場へ」は REVEAL_AND_PICK{filter:story}
     // の pick 表現で条件が JSON に載る（続き24・70枚較正＝WX02-030/WXK01-050 系サイクル）。
     // 各節の＜X＞が JSON の story 値に居ることを個別確認し、他に条件節が残らないときだけ合格。
@@ -1301,8 +1375,19 @@ const PATTERNS: Pattern[] = [
     //   🔴**`NEGATE_ATTACK` をキー表へ足してはいけない**（続き489 の判断＝当時それをやると高シグナル11件を
     //   丸ごと隠した）。**この1文型だけを落として残渣を見る**形にすること。
     extraOk: (js, t) => {
+      // 🆕2026-08-31 続き749 較正＝`ON_GUARD` ＋ `lrigAttackGuarded` / `lrigAttackNoDamage` は
+      //   **「ルリグ1体がアタックしたとき、そのアタック終了時、…」を timing そのものが内包する正表現**
+      //   （ガードはルリグアタックの中でしか起きない）。`NEGATE_ATTACK` と同じ「事前登録型」の族。
+      //   ⚠narrow に取る＝その主語句だけを落として残渣を見る。
+      if (/"lrigAttack(Guarded|NoDamage)":true/.test(js)) {
+        const sG = t.replace(/(センター)?ルリグ[０-９\d]体がアタックしたとき[、,]そのアタック終了時[、,]/g, '');
+        if (sG !== t && !/がアタックしたとき/.test(sG)) return true;
+      }
       if (!js.includes('"NEGATE_ATTACK"')) return false;
-      const s = t.replace(/このターン[、,]次に(?:それ|そのシグニ|そのルリグ)がアタックしたとき[、,]そのアタックを無効にする/g, '');
+      // 🆕2026-08-31 較正＝「次に」は原文にあるとは限らない（`WXDi-P05-003-E1`＝「このターン、それが
+      //   アタックしたとき、そのアタックを無効にする」）。同じ文型なので任意化する（下の「遅延トリガー」側の
+      //   同型 extraOk は最初から「次に」を任意にしており、こちらだけ必須のままだった）。
+      const s = t.replace(/このターン[、,](?:次に)?(?:それ|そのシグニ|そのルリグ)がアタックしたとき[、,]そのアタックを無効にする/g, '');
       return s !== t && !/がアタックしたとき/.test(s);
     },
   },
@@ -1395,7 +1480,10 @@ const PATTERNS: Pattern[] = [
     extraOk: (js, t) => js.includes('BANISH_REDIRECT')
       && !/エナゾーンに置/.test(t.replace(/エナゾーンに置かれる代わりに[^。]*?トラッシュに置[くか]/g, '')),
   },
-  { name: 'ゾーン:デッキの一番下', re: /デッキの一番下/, keys: ['BOTTOM', 'bottom', 'Bottom'] },
+  // 🆕2026-08-31 較正＝`REVEAL_BOTH_DECK_TOPS` は「公開し、そのカードを**デッキの一番下に置く**」まで
+  //   1アクションに畳んだ型（`effectExecutor.ts:8838` が両者の deck を実際に rotate する）＝
+  //   移動先キーが JSON に出ない。`WXDi-P09-036-E1`。
+  { name: 'ゾーン:デッキの一番下', re: /デッキの一番下/, keys: ['BOTTOM', 'bottom', 'Bottom', 'REVEAL_BOTH_DECK_TOPS'] },
   { name: 'ゾーン:ルリグデッキに戻す', re: /ルリグデッキに戻/,
     // 🆕2026-08-30 較正＝正表現は `RETURN_ASSIST_LRIG_TO_DECK`（`effectExecutor.ts:8343` が消費）。
     //   キーの `'LRIG_DECK'` は **`LRIG_TO_DECK` と綴りが違う**ので一度も当たらなかった（実測4効果）。
@@ -1424,6 +1512,13 @@ const PATTERNS: Pattern[] = [
     name: '「Nまで」上限選択', re: /[０-９\d](枚|体)まで/,
     keys: ['"upToCount":true', 'maxCount', 'upTo', 'pickUpTo', 'transferGroups'],
     extraOk: (js, t) => {
+      // 🆕2026-08-31 較正＝コスト側の「手札をN枚**まで**捨てる：」の正表現は `cost.discardUpTo`
+      //   （**大文字 U** なのでキー表の `'upTo'` に一度も当たらない＝`maxCost` / `Under` と同じ罠）。
+      //   ⚠narrow に取る＝そのコスト節を落として、残りに「N枚まで」が残るならフラグを維持する。
+      if (js.includes('"discardUpTo"')) {
+        const s2 = t.replace(/手札を[０-９\d]+枚まで捨てる/g, '');
+        if (s2 !== t && !/[０-９\d](枚|体)まで/.test(s2)) return true;
+      }
       if (!js.includes('LOOK_PICK_CHAIN')) return false;
       const text = t.replace(/（[^（）]*）/g, ''); // リマインダー文は数えない
       const need = (text.match(/[０-９\d](枚|体)まで/g) ?? []).length + (text.match(/好きな枚数/g) ?? []).length;
@@ -1466,7 +1561,19 @@ const PATTERNS: Pattern[] = [
   // ⚠`opponentResponds` は「対戦相手が選択する」の**既存フィールド**（`effects.ts:1767` の `CHOOSE` ほか）。
   //   対応表から漏れており、§5.3 `O-60` 第14バッチで `STUB{OPP_CHOOSE_EFFECT}` を
   //   `CHOOSE{opponentResponds}` へ移した2効果が高シグナルへ回った（＝計器側の穴・前進ではない）。
-  { name: '相手が選ぶ', re: /対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/, keys: ['opponentSelects', 'actingPlayerSelects', 'OPPONENT_SELECT', 'opponentResponds'] },
+  {
+    name: '相手が選ぶ', re: /対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/,
+    keys: ['opponentSelects', 'actingPlayerSelects', 'OPPONENT_SELECT', 'opponentResponds'],
+    // 🆕2026-08-31 較正＝「対戦相手はあなたの手札をN枚**見ないで選び**」の正表現は `EXILE.blind` /
+    //   `TRASH.blind`（型定義に「見ないで選び＝相手が選ぶ。WX14-011①」と明記）。
+    //   ⚠**キー表に足さず extraOk ＋ 残渣チェック**にする＝同じ効果に別の「対戦相手は…選ぶ」節が
+    //     あるときは、その脱落まで隠さないため。
+    extraOk: (js, t) => {
+      if (!/"blind":true/.test(js)) return false;
+      const s2 = t.replace(/対戦相手[はが](?:あなたの)?[^。]{0,25}見ないで選[びぶ]/g, '');
+      return s2 !== t && !/対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/.test(s2);
+    },
+  },
   { name: '出現条件(レゾナ/クラフト)', re: /【出現条件】/, keys: ['forResonaCondition', 'playCondition', 'appearCondition', '出現条件'] },
   { name: 'ダメージを受けない', re: /ダメージを受けない/, keys: ['PREVENT', 'DAMAGE', 'damage'] },
   { name: '付着(チャーム/トラップ/アクセとして)', re: /(チャーム|トラップ|アクセ)として/, keys: ['CHARM', 'TRAP', 'ACCE', 'charm', 'trap', 'acce'] },
@@ -1489,10 +1596,22 @@ const PATTERNS: Pattern[] = [
     extraOk: (js, t) => {
       const quoted = t.match(/「[^」]*【(?:自|起|常|出)】[^」]*」を(?:得る|与え)/g) ?? [];
       if (quoted.length === 0) return false;
+      // 🆕2026-08-31 較正＝**自分自身への付与**（「**このシグニは**〈条件〉かぎり、「【自】…」を得る」）は
+      //   「その条件を持つ【自】能力」へコンパイルするのが正表現＝**付与の器を挟む必要がない**
+      //   （`WXK10-075-E1`＝`AUTO[ON_ATTACK_SIGNI]` ＋ `condition:{THIS_CARD_IS_ACCED}`）。
+      //   ⚠narrow に取る＝**引用の直前が「このシグニは」**で、かつ JSON が条件を持つ場合だけ。
+      //   他者への付与（「あなたの＜X＞のシグニは…を得る」）はここに落ちない＝従来どおり検出する。
+      const selfGrantCompiled = (q: string): boolean => {
+        const at = t.indexOf(q);
+        if (at < 0) return false;
+        const before = t.slice(Math.max(0, at - 40), at);
+        return /このシグニは[^。]*$/.test(before) && /"(activeCondition|condition)":/.test(js);
+      };
       return quoted.every(q =>
         (/アタックできない/.test(q) && /SIGNI_ATTACK_BAN/.test(js)) ||
         (/アタックしなければならない/.test(q) && /FORCE_SIGNI_ATTACK/.test(js)) ||
-        (/バニッシュされる場合[^」]*代わりに/.test(q) && /BANISH_REDIRECT/.test(js)));
+        (/バニッシュされる場合[^」]*代わりに/.test(q) && /BANISH_REDIRECT/.test(js)) ||
+        selfGrantCompiled(q));
     } },
   // PREVENT_NEXT_DAMAGE は「代わりにダメージを受けない」の正当な置換表現（続き25較正）
   // BANISH_REDIRECT は「エナゾーンに置かれる代わりにトラッシュに置かれる」の正当な置換表現（続き28較正・
@@ -1550,9 +1669,18 @@ const PATTERNS: Pattern[] = [
       let s = t;
       if (js.includes('"trashExile"')) {
         s = s.replace(/(?:あなたの)?トラッシュにある(?:このカード|《[^》]+》[０-９\d]*枚)をゲームから除外する/g, '');
+        // 🆕2026-08-31 続き748 較正＝**枚数＋種別**を書く一般形（`WXK09-029-E2`「トラッシュにあるそれぞれ
+        //   名前の異なるスペル３枚をゲームから除外する」）。コスト節を1つ落として残渣を見る形は同じ。
+        s = s.replace(/(?:あなたの)?トラッシュにある[^、。：]{0,30}をゲームから除外する/g, '');
       }
       if (js.includes('"handExileSelf"')) {
         s = s.replace(/手札にあるこのカードをゲームから除外する/g, '');
+      }
+      // 🆕2026-08-31 較正＝**場からの自己除外コストは `cost.fieldExileSelf`**（`trashExile` / `handExileSelf` と
+      //   同じ綴り違いの罠＝大文字 E で `'exile'` に当たらない）。`WXK06-031-E2`
+      //   「【起】《黒》**場にあるこのシグニをゲームから除外する**：…」。
+      if (js.includes('"fieldExileSelf"')) {
+        s = s.replace(/場にあるこのシグニをゲームから除外する/g, '');
       }
       return s !== t && !/ゲームから除外/.test(s);
     },
@@ -1880,8 +2008,32 @@ function main(): void {
           .map(m => m[1])
           .filter(n => new RegExp('[:\\[,]' + (Number(n) - 1) + '[,}\\]]').test(u.js)),
       );
+      // 🆕⑤**`LOOK_PICK_CHAIN` は「シグニN枚を手札に加え」を stage N段（各 pickCount:1）で表す**＝
+      //   合計の N は JSON のどこにも独立数値として現れない（`WXK08-025-E3`「その中から共通するクラスを持つ
+      //   シグニ**２枚**を手札に加え」＝2段の chain が正表現）。stage の pickCount 合計を「載っている」と数える。
+      //   ⚠`LOOK_PICK_CHAIN` を持つ効果に限る narrow 較正（他型の脱落は従来どおり検出する）。
+      const chainSums = new Set<string>();
+      if (u.js.includes('"LOOK_PICK_CHAIN"')) {
+        const counts = [...u.js.matchAll(/"pickCount":(\d+)/g)].map(x => Number(x[1]));
+        for (let k = 2; k <= counts.length; k++) {
+          chainSums.add(String(counts.slice(0, k).reduce((a, b) => a + b, 0)));
+        }
+      }
+      // 🆕⑥**「残り」側の枚数も載っている**（2026-08-31 続き749）＝公開N枚から k 枚をピックする形は
+      //   「その中から**N−k枚**を〈行き先〉に置き、残りを〜」とも書ける（`SPK01-08-E1`「4枚見る。その中から
+      //   **3枚**をデッキの一番下に置き、残りをトラッシュに置く」＝`revealCount:4` ＋ `pickCount:1`（トラッシュ側）が
+      //   意味的に同値）。⑤の合計と対称なので、**公開枚数 − ピック合計**も「載っている」と数える。
+      //   ⚠`revealCount` を持つ型（`LOOK_PICK_CHAIN` / `REVEAL_AND_PICK`）に限る narrow 較正。
+      for (const m of u.js.matchAll(/"revealCount":(\d+)/g)) {
+        const total = Number(m[1]);
+        const picks = [...u.js.matchAll(/"pickCount":(\d+)/g)].map(x => Number(x[1]));
+        for (let k = 1; k <= picks.length; k++) {
+          const rest = total - picks.slice(0, k).reduce((a, b) => a + b, 0);
+          if (rest > 0) chainSums.add(String(rest));
+        }
+      }
       const missing = nums.filter(n => !new RegExp('[:\\[,]-?' + n + '[,}\\]]').test(u.js)
-        && !beatNums.has(n) && !negBoundary.has(n));
+        && !beatNums.has(n) && !negBoundary.has(n) && !chainSums.has(n));
       if (!missing.length) continue;
       if (isStub(u.js)) missStub.push(u.effectId);
       else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
@@ -1966,6 +2118,10 @@ function main(): void {
       for (const u of units) {
         const s = u.js;
         if (!s.includes('"' + act + '"') || isStub(s) || s.includes('rawText')) continue;
+        // 🆕2026-08-31 較正＝`SEARCH` は**デッキ以外**（トラッシュ／エナ）からの「〜を対象とし、それらを〜」の
+        //   受け皿でもある（`WXEX2-07-E3`「あなたのトラッシュから…対象とし、それらを手札に加える」）。
+        //   「探す」は**非公開領域＝デッキ**の語彙なので、from にデッキが1つも無ければ幻覚ではない。
+        if (act === 'SEARCH' && !/"from":\{"location":"deck"/.test(s)) continue;
         const crashAllNoBurst = !/"type":"LIFE_CRASH"(?![^}]*"triggerBurst":false)/.test(s);
         hits++;
         const raw = corpus.rawAll.get(u.cardNum) ?? '';

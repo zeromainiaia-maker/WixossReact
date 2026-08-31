@@ -4,7 +4,14 @@ export * from './effects';
 
 /** 次のターンに有効化される、場のシグニへ動的に適用する継続効果。 */
 export type FieldGrantCondition =
-  | { type: 'FRONT_SIGNI_HAS_CHARM' };
+  | { type: 'FRONT_SIGNI_HAS_CHARM' }
+  /**
+   * 🆕**その正面のシグニのパワーがN以上であるかぎり**（2026-08-31 続き749・`WD15-007-E1`
+   * 「このターン、あなたのシグニは、**その正面のシグニのパワーが12000以上であるかぎり**、【アサシン】を得る」）。
+   * 🔑**per-signi の付与ではなく場レベル grant で持つ**＝原文の括弧書き「このアーツの後に場に出たシグニも
+   *   この効果の影響を受ける」がそのまま効き、正面のパワーが変われば毎回評価し直される。
+   */
+  | { type: 'FRONT_SIGNI_POWER_GTE'; value: number };
 
 export type FieldGrant =
   | {
@@ -836,6 +843,14 @@ export interface PlayerState {
   suppress_center_on_play?: boolean;
   // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスがクラッシュされた場合エナではなくトラッシュへ
   crash_to_trash_instead?: boolean;
+  /**
+   * 🆕**自分のライフクロスのクラッシュ置換**（2026-08-31 続き749・`WD06-009-E2` / `WX20-043-E1`）＝
+   * 「この方法でチェックゾーンに置かれたカードが**エナゾーンに置かれる場合、代わりにそれをトラッシュへ置き**
+   * あなたのデッキの一番上のカードをライフクロスに加える」。**残り回数**を持つ（1クラッシュにつき1消費）。
+   * ⚠`crash_to_trash_instead` とは**向きが逆**＝あちらは「攻撃側が相手のクラッシュ先を変える」ターン継続フラグ。
+   *   こちらは**自分自身のクラッシュ**に、しかも**回数制**でかかる。
+   */
+  self_crash_to_trash_and_refill?: number;
   // SET_NEXT_LIFE_CRASH_COUNTER: 自分のライフがクラッシュされたとき、相手のライフを perTrigger 枚クラッシュし返す（remaining回まで）。
   // 防御用カウンタークラッシュ（WX25-P1-004 アーツ / WXDi-P12-030 アシストルリグ）。ターン終了時にクリア。
   life_crash_counter?: { remaining: number; perTrigger: number };
@@ -1127,6 +1142,14 @@ export interface PlayerState {
   own_effects_cannot_negate_signi_attack_this_turn?: boolean;
   // このターンに手札を捨てた枚数の累計（BANISH_IF_DISCARDED_3_THIS_TURN等で参照）
   turn_hand_discarded_count?: number;
+  /**
+   * 🆕このターンに**自分が**手札から捨てたカードの実体（2026-08-31 続き748）。
+   * 🔴`turn_hand_discarded_count` は**枚数しか覚えていない**ので、原文
+   *   「このターンにあなたが手札から**＜ブルアカ＞の**カードを1枚以上捨てていた場合」（`WXDi-CP02-055-E2`）の
+   *   ような**絞り込み付きの履歴参照**が書けなかった（§5.4(ii) に登録していた機構ギャップ）。
+   * ⚠**枚数カウンタと必ず同じ地点で更新する**（片方だけ増やすと条件が食い違う）。
+   */
+  turn_hand_discarded_cards?: string[];
   // このターンにシグニが場から手札に戻ったか（G087「このターンにシグニが場から手札に戻っていた場合」）。ターン境界でリセット
   turn_signi_returned_to_hand?: boolean;
   // このターンにシグニが場から手札に戻った**体数**（「シグニが2体以上場から手札に戻っていた場合」WXK02-040/065）。
@@ -1135,6 +1158,12 @@ export interface PlayerState {
   // このターンに自分のデッキからトラッシュへ置かれた累計枚数（「このターンにあなたのデッキからカードがN枚以上
   // トラッシュに置かれていた場合」WXDi-P03-065）。中央盤面diffの detectMilledFromDeck と同じ地点で積む。
   deck_to_trash_count_this_turn?: number;
+  /**
+   * 🆕このターンに自分のデッキからトラッシュへ置かれた**カードの実体**（2026-08-31 続き748）。
+   * 原文「このターンにあなたのデッキから**＜ブルアカ＞の**カードが1枚以上トラッシュに置かれていた場合」
+   * （`WXDi-CP02-094-E1`）。⚠`deck_to_trash_count_this_turn` と**同じ地点**で更新する。
+   */
+  deck_to_trash_cards_this_turn?: string[];
   // このターンにアーツを使用したか（「このターンにあなたがアーツを使用していた場合」WX25-P1-106）。ターン境界でリセット
   turn_arts_used?: boolean;
   turn_arts_used_names?: string[];

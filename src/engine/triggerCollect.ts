@@ -129,6 +129,9 @@ export function collectBattleBanishDelayedTriggers(
   const entries: StackEntry[] = [];
   for (const dt of delayedTriggers) {
     if (dt.trigger?.timing !== 'ON_SIGNI_BANISH_BATTLE') continue;
+    // 🆕バニッシュした側のカード条件（2026-08-31 続き748・「あなたの**＜龍獣＞の**シグニが〜」）。
+    if (dt.trigger.banisherFilter
+      && !matchesFilter(ctx.cardMap.get(getCardNum(banisherCardNum ?? '')), dt.trigger.banisherFilter)) continue;
     entries.push({
       id: ctx.genId(), playerId: banisherId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（バトルバニッシュ時）`,
@@ -160,6 +163,9 @@ export function collectSigniAttackDelayedTriggers(
     if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
     if ((dt.trigger.attackerOwner ?? 'any') === 'self') continue;
     if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    // 🆕アタッカーのカード条件（2026-08-31 続き747）＝「**黒の＜ブルアカ＞の**シグニがアタックしたとき」。
+    if (dt.trigger.attackerFilter
+      && !matchesFilter(ctx.cardMap.get(getCardNum(attackerCardNum)), dt.trigger.attackerFilter)) continue;
     entries.push({
       id: ctx.genId(), playerId: defenderId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（相手シグニアタック時）`,
@@ -194,6 +200,9 @@ export function collectAttackerSelfDelayedTriggers(
     if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
     if ((dt.trigger.attackerOwner ?? 'any') === 'opponent') continue;
     if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    // 🆕アタッカーのカード条件（2026-08-31 続き747）＝「**黒の＜ブルアカ＞の**シグニがアタックしたとき」。
+    if (dt.trigger.attackerFilter
+      && !matchesFilter(ctx.cardMap.get(getCardNum(attackerCardNum)), dt.trigger.attackerFilter)) continue;
     entries.push({
       id: ctx.genId(), playerId: attackerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（自分シグニアタック時）`,
@@ -1037,6 +1046,42 @@ export function collectDeckTrashSelfTriggers(
   return entries;
 }
 
+/**
+ * 🆕**任意の timing の遅延トリガー**を1本で収集する（2026-08-31 続き749）。
+ *
+ * 🔴`delayed_triggers` を読む地点はイベントごとに手書きで増えてきた（バトルバニッシュ／アタック／離場／
+ *   ミル／リフレッシュ／ダウン／フェイズ系／続き748 で ON_PLAY・ON_BLOOM）。**足し忘れた timing は
+ *   「設置しても永久に発火しない」無言 no-op**になるので、残りは この汎用 collector を各イベント地点から
+ *   呼ぶ形にする（`timing` を渡すだけ）。
+ * ⚠`triggerFilter` は**イベントの発生源カード**に当てる（渡されない地点では素通り＝filter を書かない）。
+ */
+export function collectGenericDelayedTriggers(
+  ctx: TrigCtx,
+  holderId: string,
+  holderState: PlayerState,
+  timing: string,
+  triggeringCardNums: string[] = [],
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const dt of holderState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== timing) continue;
+    if (dt.trigger.triggerFilter) {
+      const hit = triggeringCardNums.some(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), dt.trigger.triggerFilter));
+      if (!hit) continue;
+    }
+    entries.push({
+      id: ctx.genId(), playerId: holderId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `このターンの遅延トリガー（${timing}）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: [timing as import('../types/effects').EffectTiming],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+      ...(triggeringCardNums[0] ? { triggeringCardNum: triggeringCardNums[0] } : {}),
+    });
+  }
+  return entries;
+}
+
 /** 手札から公開されたカード自身の ON_REVEALED_FROM_HAND を収集する。 */
 export function collectRevealedFromHandTriggers(
   ctx: TrigCtx,
@@ -1046,6 +1091,8 @@ export function collectRevealedFromHandTriggers(
   causeSourceCardNum?: string,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
+  // 🆕このターンの遅延トリガー（`WXK04-004-E3`「このターン、…手札から＜水獣＞のシグニを1枚以上公開したとき」）。
+  entries.push(...collectGenericDelayedTriggers(ctx, ownerId, ownerState, 'ON_REVEALED_FROM_HAND', revealedCardNums));
   for (const cardNum of revealedCardNums) {
     if (!ownerState.hand.includes(cardNum)) continue;
     for (const eff of effsOf(ctx, cardNum)) {
@@ -1848,6 +1895,8 @@ export function collectDrawTriggers(
   const limitOk = mkLimitOk(drawerState.actions_done, usedOncePerTurnIds);
   const removed = collectContinuousAbilitiesRemovedSigni(drawerState, otherState, isDrawerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = drawerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+  // 🆕このターンの遅延トリガー（`WX24-P4-017-E3`「このターン、あなたがカードを1枚引くか…したとき」）。
+  entries.push(...collectGenericDelayedTriggers(ctx, drawerId, drawerState, 'ON_DRAW'));
   for (const topNum of ownFieldSources(drawerState)) {
     if (ownAutoBlocked) continue;
     if (removed.has(topNum)) continue;
@@ -3611,18 +3660,32 @@ export function collectLrigAttackGuardedTriggers(
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
   const limitOk = mkLimitOk(attackerState.actions_done, usedOncePerTurnIds);
-  const lrigNum = attackerState.field.lrig.at(-1);
-  if (!lrigNum) return { entries, usedOncePerTurnIds };
-  for (const eff of effsOf(ctx, lrigNum)) {
-    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_GUARD') || !eff.triggerCondition?.lrigAttackGuarded) continue;
-    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, attackerId === ctx.activeUserId, ctx.cardMap, lrigNum)) continue;
-    if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, lrigNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-    if (!limitOk(eff)) continue;
-    const cardName = ctx.cardMap.get(getCardNum(lrigNum))?.CardName ?? lrigNum;
-    entries.push({
-      id: ctx.genId(), playerId: attackerId, cardNum: lrigNum, effectId: eff.effectId,
-      label: `${cardName} の【自】効果（ルリグアタックがガードされたとき）`, effect: eff,
-    });
+  // 🆕**発生源はセンタールリグだけではない**（2026-08-31 続き749）＝キー（`WXK11-006-E4`）や場のシグニ
+  //   （`WX24-P3-055-E2`）も「そのアタック終了時、…だった場合」を持つ。⚠キーは `activeKeyAbilitySources`
+  //   を通す（「すべてのキーは能力を失う」を1点で効かせる funnel）。
+  const sourcesLAG = [
+    attackerState.field.lrig.at(-1),
+    attackerState.field.assist_lrig_l?.at(-1),
+    attackerState.field.assist_lrig_r?.at(-1),
+    ...activeKeyAbilitySources(attackerState),
+    ...attackerState.field.signi.map(stack => stack?.at(-1)),
+  ].filter((n): n is string => !!n);
+  if (sourcesLAG.length === 0) return { entries, usedOncePerTurnIds };
+  for (const srcNum of sourcesLAG) {
+    for (const eff of effsOf(ctx, srcNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_GUARD')) continue;
+      // 🆕`lrigAttackNoDamage`＝「ダメージを与えていなかった場合」。**ガードされた経路でだけ**発火する
+      //   （バリア等でダメージが消えた場合は未配線＝過小側へ fail-closed。§5.4(ii) に登録）。
+      if (!eff.triggerCondition?.lrigAttackGuarded && !eff.triggerCondition?.lrigAttackNoDamage) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, attackerId === ctx.activeUserId, ctx.cardMap, srcNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, srcNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(srcNum))?.CardName ?? srcNum;
+      entries.push({
+        id: ctx.genId(), playerId: attackerId, cardNum: srcNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（ルリグアタックがガードされたとき）`, effect: eff,
+      });
+    }
   }
   return { entries, usedOncePerTurnIds };
 }
@@ -3814,6 +3877,11 @@ export function collectHandDiscardTriggers(
   const usedLimitIds: string[] = [];
   if (discardedNums.length === 0) return { entries, usedLimitIds };
   const limitOk = mkLimitOk(myState.actions_done, usedLimitIds);
+  // 🆕このターンの遅延トリガー（`WX24-P4-017-E3` の「対戦相手が手札を1枚捨てたとき」側）。
+  //   ⚠設置者は**捨てた側の対戦相手**なので `opState`/`opId` があるときだけそちらへ積む。
+  if (opState && opId) {
+    entries.push(...collectGenericDelayedTriggers(ctx, opId, opState, 'ON_HAND_DISCARDED', discardedNums));
+  }
   const matchesTrigFilter = (eff: CardEffect): boolean =>
     !eff.triggerFilter || discardedNums.some(cn => matchesFilter(ctx.cardMap.get(cn), eff.triggerFilter));
   // 「**その**カードをトラッシュからエナゾーンに置く」（WX24-P2-051-E1）等の「そのカード」参照用に、
@@ -4127,11 +4195,18 @@ export function collectAttackerSelfTriggers(
   attackerNum: string,
   ownerId: string,
   effectivePowers?: Map<string, number>,
+  /**
+   * 🆕**正面以外のシグニゾーンへアタックしたか**（2026-08-31 続き749・`triggerCondition.attackedNotFront`）。
+   * 呼び出し側（`BattleScreen`）が `targetOpZone !== 2 - zoneIndex` で判定して渡す。
+   * ⚠**渡されない呼び出しでは `undefined`＝限定つきの効果は発火しない**（fail-closed）。
+   */
+  sideAttack?: boolean,
 ): StackEntry[] {
   const attackerCard = ctx.cardMap.get(getCardNum(attackerNum));
   const crossOk = isCrossZoneActive(myState, attackerNum, ctx.cardMap);
   return (ctx.effectsMap.get(attackerNum) ?? [])
     .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
+    .filter(e => !e.triggerCondition?.attackedNotFront || sideAttack === true)
     .filter(e => !e.crossOnly || crossOk)
     .filter(e => !e.kizunaIcon || isKizunaActive(myState, attackerNum, ctx.cardMap))
     .filter(e => attackerSelfTriggerFilterOk(e, attackerCard, effectivePowers?.get(attackerNum)))
@@ -4141,6 +4216,32 @@ export function collectAttackerSelfTriggers(
       label: `${attackerCard?.CardName ?? attackerNum} の【自】効果（シグニアタック時）`,
       effect: e, triggeringCardNum: attackerNum,
     }));
+}
+
+/**
+ * 🆕`triggerFilter` の**ゾーン状態**（`hasSoul` / `hasAcce` / `hasCharm` / `isDown` …）をトリガー元カードに当てる
+ * （2026-08-31 続き747）。
+ *
+ * 🔴`matchesFilter` は `CardData` 単体しか見ないので、状態キーを書いても**黙って素通り＝無条件成立**していた
+ *   （PLAN §4.2 の「型だけ足すと無条件成立に落ちる」そのもの）。`WXDi-P04-016-E1`
+ *   「**【ソウル】が付いている**あなたのシグニ1体がアタックしたとき」を表すのに要る。
+ * ⚠場に見つからない（既に離れた等）ときは **false へ fail-closed**＝状態限定つきの効果を過剰発火させない。
+ */
+function triggerStateFilterOk(state: PlayerState, cardNum: string, filter: TargetFilter | undefined, ctx?: TrigCtx): boolean {
+  if (!filter) return true;
+  // 🆕`hasOnPlayAbility`＝「**【出】能力を持つ**シグニ」（2026-08-31 続き748）。`effectsMap` が要る軸なので
+  //   `matchesStateFilter` ではなくここで解く。⚠`effectsMap` が無い呼び出しでは **false へ fail-closed**。
+  if (filter.hasOnPlayAbility !== undefined) {
+    const effs = ctx?.effectsMap?.get(getCardNum(cardNum)) ?? [];
+    const has = effs.some(e => e.effectType === 'AUTO' && (e.timing ?? []).includes('ON_PLAY'));
+    if (filter.hasOnPlayAbility !== has) return false;
+  }
+  const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'hasSoul', 'infected', 'isDown', 'isUp', 'isFrozen',
+    'isAwakened', 'isArmored', 'isPuppet', 'crossState', 'inGateZone', 'centerZoneOnly', 'zoneSide'] as const;
+  if (!ZONE_STATE_KEYS.some(k => (filter as Record<string, unknown>)[k] !== undefined)) return true;
+  const zi = state.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+  if (zi < 0) return false;
+  return matchesStateFilter(state, zi, filter);
 }
 
 /**
@@ -4162,8 +4263,35 @@ export function collectFieldTriggers(
     placedFromZone?: TriggerOriginZone;
     /** @deprecated placedFromZone:'trash' と同義。既存呼び出し・golden の互換用。 */
     placedFromTrash?: boolean;
+    /** 🆕ON_ATTACK_SIGNI：正面以外のシグニゾーンへのアタック（`triggerCondition.attackedNotFront` 用）。 */
+    sideAttack?: boolean;
   },
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  // 🆕**同じイベントの遅延トリガー**も1箇所で収集する（2026-08-31 続き748・`WXDi-P09-010-E3`
+  //   「このターン、あなたのシグニ1体が**効果によって**場に出たとき、…」）。
+  // 🔴従来 `delayed_triggers` を読んでいたのはバトルバニッシュ／アタック／離場／ミル／リフレッシュ／
+  //   ダウン／フェイズ系だけで、**ON_PLAY・ON_BLOOM の遅延は設置しても永久に発火しなかった**。
+  // ⚠`trigger.placedByEffect` は「効果によって場に出た」限定（通常召喚では発火しない）。
+  // 🆕`attackedNotFront`（2026-08-31 続き749）＝「あなたのシグニ1体が**正面以外の**シグニゾーンに
+  //   アタックしたとき」。⚠`opts.sideAttack` が渡らない呼び出しでは**発火しない**（fail-closed）。
+  const sideAttackGateOk = (eff: CardEffect): boolean =>
+    !eff.triggerCondition?.attackedNotFront || opts?.sideAttack === true;
+  const delayedFieldEntries: StackEntry[] = [];
+  for (const dt of myState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== event) continue;
+    if (dt.trigger.placedByEffect && !opts?.placedByEffect) continue;
+    if (dt.trigger.triggerFilter
+      && !matchesFilter(ctx.cardMap.get(getCardNum(triggeringCardNum)), dt.trigger.triggerFilter)) continue;
+    delayedFieldEntries.push({
+      id: ctx.genId(), playerId: ownerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `このターンの遅延トリガー（${event}）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: [event],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+      triggeringCardNum,
+    });
+  }
   const entries: StackEntry[] = [];
   const opId = ownerId === ctx.hostId ? ctx.guestId : ctx.hostId;
   // usageLimit（《ターン1回/2回》）を watcher 側で判定し、消費 effectId を返す（呼び出し元が actions_done へ
@@ -4264,7 +4392,10 @@ export function collectFieldTriggers(
         const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
         if (Object.keys(restFilter).length > 0
           && !matchesFilter(ctx.cardMap.get(triggeringCardNum), restFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
+        // 🆕ゾーン状態（【ソウル】が付いている 等）はカード単体では判定できない＝上の説明を参照。
+        if (!triggerStateFilterOk(myState, triggeringCardNum, restFilter, ctx)) continue;
       }
+      if (!sideAttackGateOk(eff)) continue;
       if (!limitOkAlly(eff)) continue; // 《ターン1回/2回》＝全ゲート通過後に消費する（最後に置く）
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
@@ -4314,7 +4445,10 @@ export function collectFieldTriggers(
         const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
         if (Object.keys(restFilter).length > 0
           && !matchesFilter(ctx.cardMap.get(triggeringCardNum), restFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
+        // 🆕ゾーン状態（【ソウル】が付いている 等）はカード単体では判定できない＝上の説明を参照。
+        if (!triggerStateFilterOk(myState, triggeringCardNum, restFilter, ctx)) continue;
       }
+      if (!sideAttackGateOk(eff)) continue;
       // frontLowerLevelThanSource（WX17-075）: このシグニの正面に、これよりレベルの低いシグニが出たときのみ。
       if (eff.triggerCondition?.frontLowerLevelThanSource) {
         if (event !== 'ON_PLAY') continue;
@@ -4369,6 +4503,7 @@ export function collectFieldTriggers(
     }
   }
 
+  entries.push(...delayedFieldEntries);   // 🆕同じイベントの遅延トリガー（上のコメント参照）
   return { entries, usedHostIds, usedGuestIds };
 }
 

@@ -1,6 +1,6 @@
 # effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）
 
-解決 7 / 棄却カード 0 / 未解決 41
+解決 7 / 棄却カード 0 / 未解決 42
 
 ALIGN WDK06-R09: WDK06-R09-E2b ← WDK06-R09-E3「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：シグニ１体を対象とし」
 ALIGN WX25-CP1-061: WX25-CP1-061-E3 ← WX25-CP1-061-E2「【絆常】：このシグニのパワーは＋4000される。」
@@ -34,6 +34,7 @@ SKIP(件数不一致) WX21-015: curated 4 vs parser 3
 SKIP(件数不一致) WX25-P2-009: curated 3 vs parser 1
 SKIP(件数不一致) WXDi-CP02-103: curated 2 vs parser 1
 SKIP(件数不一致) WXDi-P07-060: curated 3 vs parser 2
+SKIP(件数不一致) WXDi-P08-048: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P15-003: curated 2 vs parser 1
 SKIP(件数不一致) WXDi-P15-057: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P16-054: curated 3 vs parser 2

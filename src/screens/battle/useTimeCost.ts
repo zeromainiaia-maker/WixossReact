@@ -277,6 +277,7 @@ export function payUseTimeCost(
           hand: my.hand.filter((_, i) => !idx.has(i)),
           trash: [...my.trash, ...moved],
           turn_hand_discarded_count: (my.turn_hand_discarded_count ?? 0) + moved.length,
+          turn_hand_discarded_cards: [...(my.turn_hand_discarded_cards ?? []), ...moved],
         },
         paidCount: moved.length,
         label: `手札から${moved.map(nameOf).join('・')}を捨てて使用コストを軽減`,

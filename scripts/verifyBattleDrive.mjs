@@ -37344,6 +37344,273 @@ scenarios.censusHasTrapInField = {
 };
 order.push('censusHasTrapInField');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第8弾（2026-08-31 続き747）＝`FIELD_ATTACHED_COUNT{include:'acce'}` を
+// 出撃制限（`SELF_PLAY_RESTRICT.condition`）へ配線した回の実機返済（PLAN §2.2＝新しい機構を足した回は実機必須）。
+//
+// 🔴**この機構は3つ目の評価器 `evalConditionForContinuous` を通る**（`canSelfPlay` 専用）。
+//   あそこの `default` は **true（permissive）**なので、条件型を足し忘れると「制限が丸ごと無い」に落ちる。
+//   golden はその評価器を直接呼んで両方向を固定したが、**実際に召喚がブロックされるのは UI の
+//   `handleSummonSigni`（`BattleScreen.tsx:6166`）**なので、そこを通る経路を1本張る。
+//
+// ⚠観測点は「クリックしても場に出ない」という**否定の観測**なので、必ず**反転**（アクセ2枚に patch して
+//   同じ操作で出る）まで見る。出ないままなら「そもそも召喚操作が届いていない」と区別できない。
+scenarios.censusAcceSelfPlayGate = {
+  title: 'census 第8弾 WX18-075：【アクセ】2枚で召喚できる／0枚では召喚できない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX22-009#9200'],                      // Lv4・Limit12（Lv2シグニを置ける）
+      'field.signi': [null, ['WD01-013#9201'], null],       // zone1＝アクセのホスト。zone0/zone2 は召喚先
+      'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, ['WD01-014#9221', 'WD01-016#9222'], null], // 🔑【アクセ】合計2枚＝出せる側
+      'field.signi_charms': [null, null, null],
+      'field.check': null,
+      'hand': ['WX18-075#9210', 'WX18-075#9211'],
+      'energy': ['WD03-009#9231', 'WD03-009#9232', 'WD03-009#9233'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9290'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+
+    // 手札先頭の WX18-075 を指定ゾーンへ召喚しにいく（操作は毎回同じ）。
+    const trySummon = async (tag, zone, instId, steps) => {
+      await H.closeModals();
+      await page.waitForTimeout(400);
+      let summonClicked = false;
+      let last = await H.queryState();
+      for (let s = 0; s < steps; s++) {
+        await page.waitForTimeout(450);
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        const summonVisible = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+        if (summonVisible && !summonClicked) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summonClicked = true;
+        }
+        if (!did && summonClicked) did = await H.clickTestId(`summon-zone-${zone}`);
+        if (!did && !summonVisible) did = await H.clickTestId('my-hand-card-0');
+        if (!did) did = await H.stdStep(['発動する', '発動', '確定', '決定', 'OK', 'はい']);
+        last = await H.queryState();
+        const placed = (last?.host?.fieldSigni?.[zone] ?? []).includes?.(instId);
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | placed=${placed} hand=${last?.host?.hand} acce=${JSON.stringify(last?.host?.fieldAcce)} field=${JSON.stringify(last?.host?.fieldSigni)}`);
+        if (placed) return { last, placed: true };
+      }
+      return { last, placed: false };
+    };
+
+    const start = await H.queryState();
+    if (start?.host?.hand !== 2 || (start?.host?.fieldAcce?.[1] ?? []).length !== 2) {
+      return { pass: false, detail: `前提崩れ（hand=${start?.host?.hand} acce=${JSON.stringify(start?.host?.fieldAcce)}）` };
+    }
+
+    // ① 【アクセ】合計2枚＝出せる（**先に肯定側**を取る＝弾かれた回は UI が
+    //    「召喚ゾーン選択中」のまま止まり、次の試行で手札モーダルが開かなくなるため）。
+    const okNow = await trySummon('acce2', 0, 'WX18-075#9210', 16);
+    if (!okNow.placed) {
+      return { pass: false, detail: `🔴【アクセ】2枚でも召喚できない（field=${JSON.stringify(okNow.last?.host?.fieldSigni)} hand=${okNow.last?.host?.hand}）` };
+    }
+
+    // ② 【アクセ】0枚＝出せない（同じ操作・同じ札で反転）。
+    const patch = await H.patchPlayerState('host', { 'field.signi_acce': [null, null, null] });
+    if (patch?.error) return { pass: false, detail: `patchPlayerState失敗: ${patch.error}` };
+    await page.waitForTimeout(800);
+    const blocked = await trySummon('acce0', 2, 'WX18-075#9211', 14);
+    if (blocked.placed) {
+      return { pass: false, detail: '🔴【アクセ】0枚なのに召喚できた（出撃制限が評価されていない＝evalConditionForContinuous の default:true へ落ちている）' };
+    }
+
+    return { pass: true, detail: '【アクセ】2枚→召喚成立／0枚→同じ操作で場に出ない の反転確認' };
+  },
+};
+order.push('censusAcceSelfPlayGate');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// census 高シグナル 第9弾（2026-08-31 続き748）の実機返済＝**ON_ACCE のトリガー元**（`src/screens/` 経路）。
+//
+// 🔴この回の `src/screens/` 変更の本命＝**ON_ACCE のスタックエントリに「いま付いた【アクセ】カード」を
+//   `triggeringCardNum` として載せた**こと。載せる前は空だったので、新設した `TRIGGER_SOURCE_MATCHES`
+//   （「**それが**レベル２以下の【アクセ】の場合」`WXK05-065-E1`）は**必ず fail-closed の false**に落ちて
+//   「どちらの分岐も走らない」無言 no-op になる。golden は `evalCondition` を直接叩くのでこの配線は見えない。
+//
+// ⚠**両方向**＝レベル1のアクセ（エナチャージだけ／ドローしない）とレベル3のアクセ（ドローだけ／エナは増えない）。
+scenarios.censusAcceTriggerSourceLevel = {
+  title: 'census 第9弾 WXK05-065：付いた【アクセ】のレベルで分岐（Lv1→エナチャージ／Lv3→ドロー）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK04-003#9300'],                    // エルドラ オーバークロック（デコレ＝手札からアクセ）
+      'field.signi': [['WXK05-065#9301'], null, null],     // コードイート ティラミス（＜調理＞Lv3・ON_ACCE 持ち）
+      'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, null, null],              // ⚠前シナリオの装着残骸を必ず消す
+      'field.check': null,
+      // ⚠アクセ札は**自分の ON_ACCE_ATTACH を持たないもの**を選ぶ（持っていると手札増減が混ざって
+      //   「どちらの分岐が走ったか」を切り分けられない）。`WDK07-E16` は効果0件の＜調理＞Lv1。
+      'hand': ['WDK07-E16#9310'],
+      'deck': ['WD01-013#9320', 'WD01-014#9321', 'WD05-013#9322', 'WD01-016#9323'],
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9390'],
+      'field.signi': [['WD01-013#9391'], null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+
+    // ルリグの【起】（デコレ）を撃って手札のアクセ札を付ける。acceAttach シナリオと同じ操作列。
+    const decore = async (tag) => {
+      await H.closeModals();
+      const before = await H.queryState();
+      const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
+      if (await lrigImg.count()) await lrigImg.click({ force: true }).catch(() => {});
+      let last = before;
+      let settled = 0;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const actBtns = page.getByRole('button', { name: '【起】コストなし', exact: true });
+        const actCnt = await actBtns.count();
+        if (actCnt > 0) {
+          const b = actCnt > 1 ? actBtns.nth(actCnt - 1) : actBtns.first();
+          if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:【起】'; }
+        }
+        // ⚠アクセ札自身の ON_ACCE_ATTACH（`WXK05-041` の3択）が後から積まれるので選択肢も踏む。
+        // ⚠ホスト側ルリグ（`WXK04-003`）自身の ON_ACCE_ATTACH 3択が先に積まれる＝**両方の試行で同じ枝を選ぶ**
+        //   （選ぶ枝が違うと手札/エナの差が混ざり、どちらの効果か切り分けられない）。
+        if (!did) did = await H.stdStep(['発動', '確定', '決定', 'OK', 'はい', '選択肢1']);
+        if (!did) did = await H.clickTestId('my-hand-card-0');
+        if (!did) did = await H.clickTestId('summon-zone-0');
+        last = await H.queryState();
+        const acce = (last?.host?.fieldAcce?.[0] ?? []).length;
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | acce=${JSON.stringify(last?.host?.fieldAcce)} hand=${last?.host?.hand} ena=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'}`);
+        // ⚠アクセが付いた**あと**に ON_ACCE がスタックへ積まれるので、装着直後に返してはいけない
+        //   （数ステップ回して盤面が落ち着くのを待つ）。
+        if (acce > 0 && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) {
+          settled += 1;
+          if (settled >= 5) return last;
+        } else settled = 0;
+      }
+      return last;
+    };
+
+    const start = await H.queryState();
+    if ((start?.host?.fieldAcce ?? []).some(a => (a ?? []).length)) {
+      return { pass: false, detail: `前提崩れ（開始時にアクセが付いている: ${JSON.stringify(start?.host?.fieldAcce)}）` };
+    }
+    const ena0 = start?.host?.energy ?? 0;
+
+    // ① Lv1 のアクセ＝エナチャージだけ（ドローしない）
+    const afterLv1 = await decore('acceLv1');
+    if ((afterLv1?.host?.fieldAcce?.[0] ?? []).length === 0) {
+      return { pass: false, detail: `Lv1 のアクセが付かなかった（acce=${JSON.stringify(afterLv1?.host?.fieldAcce)}）` };
+    }
+    // 🔑観測点は**エナだけ**にする＝手札はルリグ側3択の枝でも動くので切り分けられない。
+    //   `WXK05-065-E1` の Lv≤2 枝は【エナチャージ１】＝エナ +1、Lv≥3 枝はドロー＝エナ +0。
+    const enaGain = (afterLv1?.host?.energy ?? 0) - ena0;
+    if (enaGain !== 1) {
+      return { pass: false, detail: `🔴Lv1 のアクセでエナチャージが走っていない（ena ${ena0}→${afterLv1?.host?.energy}）＝TRIGGER_SOURCE_MATCHES が fail-closed のまま` };
+    }
+
+    return { pass: true, detail: 'Lv1 のアクセ→エナ+1（ON_ACCE のトリガー元が届いている）。反転は censusAcceTriggerSourceLv3 が見る' };
+  },
+};
+order.push('censusAcceTriggerSourceLevel');
+scenarios.censusAcceTriggerSourceLv3 = {
+  title: 'census 第9弾 WXK05-065（反転）：Lv3 の【アクセ】ではエナチャージが走らない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK04-003#9300'],                    // エルドラ オーバークロック（デコレ＝手札からアクセ）
+      'field.signi': [['WXK05-065#9301'], null, null],     // コードイート ティラミス（＜調理＞Lv3・ON_ACCE 持ち）
+      'field.signi_down': [false, false, false],
+      'field.signi_acce': [null, null, null],              // ⚠前シナリオの装着残骸を必ず消す
+      'field.check': null,
+      // ⚠アクセ札は**自分の ON_ACCE_ATTACH を持たないもの**を選ぶ（持っていると手札増減が混ざって
+      //   「どちらの分岐が走ったか」を切り分けられない）。`WDK07-E13` は効果1件の＜調理＞Lv3。
+      'hand': ['WDK07-E13#9310'],   // ＜調理＞Lv3（効果1件・アクセ反応なし）
+      'deck': ['WD01-013#9320', 'WD01-014#9321', 'WD05-013#9322', 'WD01-016#9323'],
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9390'],
+      'field.signi': [['WD01-013#9391'], null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+
+    // ルリグの【起】（デコレ）を撃って手札のアクセ札を付ける。acceAttach シナリオと同じ操作列。
+    const decore = async (tag) => {
+      await H.closeModals();
+      const before = await H.queryState();
+      const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
+      if (await lrigImg.count()) await lrigImg.click({ force: true }).catch(() => {});
+      let last = before;
+      let settled = 0;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const actBtns = page.getByRole('button', { name: '【起】コストなし', exact: true });
+        const actCnt = await actBtns.count();
+        if (actCnt > 0) {
+          const b = actCnt > 1 ? actBtns.nth(actCnt - 1) : actBtns.first();
+          if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:【起】'; }
+        }
+        // ⚠アクセ札自身の ON_ACCE_ATTACH（`WXK05-041` の3択）が後から積まれるので選択肢も踏む。
+        // ⚠ホスト側ルリグ（`WXK04-003`）自身の ON_ACCE_ATTACH 3択が先に積まれる＝**両方の試行で同じ枝を選ぶ**
+        //   （選ぶ枝が違うと手札/エナの差が混ざり、どちらの効果か切り分けられない）。
+        if (!did) did = await H.stdStep(['発動', '確定', '決定', 'OK', 'はい', '選択肢1']);
+        if (!did) did = await H.clickTestId('my-hand-card-0');
+        if (!did) did = await H.clickTestId('summon-zone-0');
+        last = await H.queryState();
+        const acce = (last?.host?.fieldAcce?.[0] ?? []).length;
+        H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | acce=${JSON.stringify(last?.host?.fieldAcce)} hand=${last?.host?.hand} ena=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'}`);
+        // ⚠アクセが付いた**あと**に ON_ACCE がスタックへ積まれるので、装着直後に返してはいけない
+        //   （数ステップ回して盤面が落ち着くのを待つ）。
+        if (acce > 0 && !last?.pendingEffect && (last?.stackLen ?? 0) === 0) {
+          settled += 1;
+          if (settled >= 5) return last;
+        } else settled = 0;
+      }
+      return last;
+    };
+
+    const start = await H.queryState();
+    if ((start?.host?.fieldAcce ?? []).some(a => (a ?? []).length)) {
+      return { pass: false, detail: `前提崩れ（開始時にアクセが付いている: ${JSON.stringify(start?.host?.fieldAcce)}）` };
+    }
+    const ena0 = start?.host?.energy ?? 0;
+
+    // ① Lv1 のアクセ＝エナチャージだけ（ドローしない）
+    const afterLv1 = await decore('acceLv3');
+    if ((afterLv1?.host?.fieldAcce?.[0] ?? []).length === 0) {
+      return { pass: false, detail: `Lv3 のアクセが付かなかった（acce=${JSON.stringify(afterLv1?.host?.fieldAcce)}）` };
+    }
+    // 🔑観測点は**エナだけ**にする＝手札はルリグ側3択の枝でも動くので切り分けられない。
+    //   `WXK05-065-E1` の Lv≤2 枝は【エナチャージ１】＝エナ +1、Lv≥3 枝はドロー＝エナ +0。
+    const enaGain = (afterLv1?.host?.energy ?? 0) - ena0;
+    if (enaGain !== 0) {
+      return { pass: false, detail: `🔴Lv3 のアクセでエナチャージが走った（ena ${ena0}→${afterLv1?.host?.energy}）＝レベル分岐が効いていない（条件が無条件成立に落ちている）` };
+    }
+
+    return { pass: true, detail: 'Lv3 のアクセ→エナ+0（Lv1 版と同じ操作でエナが増えない＝レベル分岐が効いている）' };
+  },
+};
+order.push('censusAcceTriggerSourceLv3');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
