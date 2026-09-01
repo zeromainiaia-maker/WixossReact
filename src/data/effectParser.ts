@@ -8589,17 +8589,6 @@ function applyExceedBodyFixes(cardNum: string, effects: CardEffect[]): void {
       }],
     };
   }
-  if (cardNum === 'WX24-P4-017') {
-    const e = effect('WX24-P4-017-E2');
-    if (e) e.action = {
-      type: 'TRANSFER_TO_HAND',
-      source: { type: 'TRASH_CARD', owner: 'self', count: 1 },
-      transferGroups: [
-        { count: 1, filter: { cardType: 'スペル' } },
-        { count: 1, filter: { cardType: 'シグニ', color: '青' } },
-      ],
-    };
-  }
 }
 
 // ── §5d-0(i) 第4バッチ（続き376d）：「**あなたの**〈filter〉シグニN体を対象とし、（…まで、）それのパワーを±N」──
@@ -9145,6 +9134,116 @@ function applyDroppedRecoveryDesignation(text: string, action: EffectAction): Ef
   };
   steps[gateIdx] = { ...gate, then: { ...then, source } } as EffectAction;
   return { ...action, steps } as EffectAction;
+}
+
+// ── §5.3 `O-188` 第4バッチ（2026-09-01）：トラッシュ回収の「それぞれ」を群へ戻す ──
+// 「あなたのトラッシュから〈名詞句A〉と〈名詞句B〉（と〈名詞句C〉）をそれぞれN枚まで
+//   対象とし、それらを手札に加える」は、群ごとにN枚まで選ぶ文型。
+// 🔴旧形は1つの `source.filter` へ片群だけを残す／複数群をORへ潰す／限定を全部落とすため、
+//   合計枚数の過小実行と候補集合の過剰実行が同時に起きていた。
+// 🔑名詞句の意味解釈は既存 `parsePickNounPhraseFilter` へ一任し、ここでは列挙の分割だけを担う。
+// ⚠効果単位の最終 root で適用する。早い段階では CHOOSE の枝が一時 root に見えるほか、
+//   後段の `applyExceedBodyFixes` が生成した正しい `transferGroups` を判別できない。
+const RECOVERY_TRANSFER_GROUPS_RE =
+  /あなたのトラッシュから([^。]{1,120}?)をそれぞれ([０-９\d]+)枚まで対象とし、それらを手札に加える/;
+
+function recoveryGroupFilter(rawSpan: string, inheritedNoun?: 'シグニ' | 'スペル'): TargetFilter | null {
+  let span = rawSpan.trim().replace(/(?:を)?[０-９\d]+枚$/, '').replace(/^、|、$/g, '');
+  if (!/(?:シグニ|スペル)$/.test(span)) {
+    if (!inheritedNoun) return null;
+    span = `${span}の${inheritedNoun}`;
+  }
+  const nounM = span.match(/(シグニ|スペル)$/);
+  if (!nounM) return null;
+  const noun = nounM[1] as 'シグニ' | 'スペル';
+  // 既存ヘルパが読む正準表記へ寄せるだけで、ここで属性語彙を再実装しない。
+  const normalized = span
+    .replace(/《([^》]+)》の(?=シグニ$)/, '＜$1＞の')
+    .replace(/宣言したクラスを持ち/, '宣言したクラスを持つ');
+  const parsed = parsePickNounPhraseFilter(normalized.slice(0, -noun.length), noun);
+  if (!parsed?.cardType) return null;
+  // 新規生成は旧名 `story` ではなく正準名 `cardClass` を使う。
+  const { cardType, color, level, story, hasRiseIcon, hasIcon, noGuard, classEqDeclaredClass, ...rest } = parsed;
+  return {
+    cardType,
+    ...(color !== undefined ? { color } : {}),
+    ...(level !== undefined ? { level } : {}),
+    ...(story !== undefined ? { cardClass: story } : {}),
+    ...(hasRiseIcon !== undefined ? { hasRiseIcon } : {}),
+    ...(hasIcon !== undefined ? { hasIcon } : {}),
+    ...(noGuard !== undefined ? { noGuard } : {}),
+    ...(classEqDeclaredClass !== undefined ? { classEqDeclaredClass } : {}),
+    ...rest,
+  };
+}
+
+function recoveryTransferGroups(designation: string, count: number): TransferToHandAction['transferGroups'] | null {
+  // 「共通修飾、レベル1、レベル2、レベル3のシグニ」の省略列挙。
+  const levelList = designation.match(/^(.*?)(レベル[０-９\d]+(?:、レベル[０-９\d]+){1,2})のシグニ$/);
+  let spans: string[];
+  if (levelList) {
+    const prefix = levelList[1].replace(/、$/, '');
+    spans = [...levelList[2].matchAll(/レベル([０-９\d]+)/g)]
+      .map(m => `${prefix}レベル${m[1]}のシグニ`);
+  } else {
+    spans = designation.split('と').map(span => span.trim());
+  }
+  if (spans.length < 2 || spans.length > 3) return null;
+  const inherited = designation.match(/(シグニ|スペル)$/)?.[1] as 'シグニ' | 'スペル' | undefined;
+  const filters = spans.map(span => recoveryGroupFilter(span, inherited));
+  if (filters.some(filter => !filter)) return null;
+  return filters.map(filter => ({ count, filter: filter! }));
+}
+
+function normalizedRecoveryFilter(filter: TargetFilter | undefined): TargetFilter {
+  if (!filter) return {};
+  const { story, ...rest } = filter;
+  return story === undefined ? rest : { ...rest, cardClass: story };
+}
+
+function recoveryJsonEqual(a: unknown, b: unknown): boolean {
+  const normalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(normalize);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .sort(([ka], [kb]) => ka.localeCompare(kb)).map(([key, child]) => [key, normalize(child)]));
+  };
+  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+}
+
+function applyRecoveryTransferGroups(text: string, action: EffectAction): EffectAction {
+  const match = text.match(RECOVERY_TRANSFER_GROUPS_RE);
+  if (!match) return action;
+  const groups = recoveryTransferGroups(match[1], parseNum(match[2]));
+  if (!groups) return action;
+
+  const candidates: Array<Record<string, unknown> & { source: EffectTarget }> = [];
+  visitActionObjects(action, value => {
+    const source = value.source as EffectTarget | undefined;
+    if (value.type === 'TRANSFER_TO_HAND' && source?.type === 'TRASH_CARD' && source.owner === 'self'
+        && !(value.transferGroups as unknown[] | undefined)?.length) {
+      candidates.push(value as Record<string, unknown> & { source: EffectTarget });
+    }
+  });
+
+  // 既に群ごとの連続アクションで正しい形は構造変更しない（`WXDi-P00-001-E1`）。
+  if (candidates.length === groups.length && candidates.every((candidate, index) =>
+    recoveryJsonEqual(normalizedRecoveryFilter(candidate.source.filter), groups[index].filter))) return action;
+
+  const compatible = candidates.filter(candidate => {
+    const current = normalizedRecoveryFilter(candidate.source.filter);
+    return Object.entries(current).every(([key, value]) => {
+      const groupValues = groups.map(group => group.filter?.[key as keyof TargetFilter]).filter(v => v !== undefined);
+      if (Array.isArray(value)) return recoveryJsonEqual(value, groupValues);
+      return groupValues.some(groupValue => recoveryJsonEqual(value, groupValue));
+    });
+  });
+  // 候補を一意に特定できない形は部分採用せず据え置く。
+  if (compatible.length !== 1) return action;
+  const target = compatible[0];
+  target.source = { type: 'TRASH_CARD', owner: 'self', count: parseNum(match[2]) };
+  target.transferGroups = groups;
+  return action;
 }
 
 // ── §6.4 「〈任意コスト〉てもよい。そうした場合、〈本体〉」の**任意性脱落**（続き416）──
@@ -23496,6 +23595,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に
     // root SEQUENCE に見えるため、そこで適用すると据置対象のネスト器まで書き換わる。
     if (effect.parseStatus === 'AUTO') {
+      effect.action = applyRecoveryTransferGroups(sourceText, effect.action);
       effect.action = applyO96OptionalCostTargetFirst(sourceText, effect.action);
       effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);
     }

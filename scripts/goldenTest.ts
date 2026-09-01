@@ -11734,8 +11734,18 @@ test('続き377c トリップワイヤ: 別ピック2本の span にアイコン
     ['WX16-026', 'WX16-026-BURST'], ['WX16-031', 'WX16-031-BURST'], ['WXK02-002', 'WXK02-002-E1'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
-    eq(/"hasIcon"/.test(JSON.stringify(e?.action ?? {})), false,
-      `${effId}: 2本の別ピックを1つの filter に AND しない（過小実行を作らない）`);
+    if (card === 'WXK02-002') {
+      eq(/"hasIcon"/.test(JSON.stringify(e?.action ?? {})), false,
+        `${effId}: 未分離の2本を1つの filter に AND しない（過小実行を作らない）`);
+      continue;
+    }
+    // O-188 第4バッチで群を分離した2効果は、アイコン自体が無いことではなく
+    // 「アイコン群とクラス群が同じ filter に AND されないこと」が元の契約。
+    const filters = o188GroupedTransfers(e?.action).flatMap(action =>
+      (action.transferGroups ?? []).map(group => group.filter ?? {}));
+    ok(filters.length === 2 && filters.every(filter =>
+      !((filter.hasIcon || filter.hasRiseIcon) && (filter.cardClass || filter.story))),
+    `${effId}: 2本の別ピックを1つの filter に AND しない（過小実行を作らない）`);
   }
 }));
 
@@ -57745,6 +57755,94 @@ test('O-188 第3バッチ: 回収の対象宣言が原文どおりのゾーン�
   const held = (effectsMap.get('WX24-P2-054') ?? []).find(e => e.effectId === 'WX24-P2-054-E2')!;
   ok(JSON.stringify(held.action).includes('ENERGY_CHARGE'),
     'WX24-P2-054-E2: 対象レベル依存コスト＋SEND_TO_ENERGY は未実装のまま（§5.3 に登録済み）');
+});
+
+// ── §5.3 `O-188` 第4バッチ（2026-09-01）＝「AとBをそれぞれN枚まで」の群が1枚へ潰れる ──
+// 🔴旧 live は①片群だけ残る ②複数クラスが1つのOR filterへ潰れる ③限定が全部落ちる、の3形。
+// `TRANSFER_TO_HAND.transferGroups` は既存機構なので、群ごとの枚数と候補集合を fresh/live の両方で固定する。
+const o188Batch4Expected = [
+  ['WX16-026', 'WX16-026-BURST', [
+    { count: 1, filter: { cardType: 'シグニ', hasRiseIcon: true } },
+    { count: 1, filter: { cardType: 'シグニ', cardClass: '武勇' } },
+  ]],
+  ['WX16-031', 'WX16-031-BURST', [
+    { count: 1, filter: { cardType: 'シグニ', cardClass: '調理' } },
+    { count: 1, filter: { cardType: 'シグニ', hasIcon: 'アクセ' } },
+  ]],
+  ['WXDi-D04-016', 'WXDi-D04-016-BURST', [
+    { count: 1, filter: { cardType: 'シグニ' } },
+    { count: 1, filter: { cardType: 'スペル' } },
+  ]],
+  ['WXDi-P04-022', 'WXDi-P04-022-E1', [
+    { count: 1, filter: { cardType: 'シグニ', color: '赤' } },
+    { count: 1, filter: { cardType: 'シグニ', color: '黒' } },
+  ]],
+  ['WXDi-P08-002', 'WXDi-P08-002-E1', [
+    { count: 1, filter: { cardType: 'シグニ', level: 2 } },
+    { count: 1, filter: { cardType: 'シグニ', level: 3 } },
+  ]],
+  ['WXDi-P09-004', 'WXDi-P09-004-E1', [
+    { count: 1, filter: { cardType: 'シグニ', level: 1, noGuard: true, classEqDeclaredClass: true } },
+    { count: 1, filter: { cardType: 'シグニ', level: 2, noGuard: true, classEqDeclaredClass: true } },
+    { count: 1, filter: { cardType: 'シグニ', level: 3, noGuard: true, classEqDeclaredClass: true } },
+  ]],
+  ['WXDi-P11-056', 'WXDi-P11-056-E1', [
+    { count: 1, filter: { cardType: 'シグニ', level: { max: 2 }, cardClass: '天使' } },
+    { count: 1, filter: { cardType: 'シグニ', level: { max: 2 }, cardClass: '古代兵器' } },
+  ]],
+] as const;
+
+function o188GroupedTransfers(node: unknown): Array<import('../src/types/effects').TransferToHandAction> {
+  const found: Array<import('../src/types/effects').TransferToHandAction> = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (!value || typeof value !== 'object') return;
+    const action = value as Record<string, unknown>;
+    if (action.type === 'TRANSFER_TO_HAND' && Array.isArray(action.transferGroups)) {
+      found.push(action as unknown as import('../src/types/effects').TransferToHandAction);
+    }
+    Object.values(action).forEach(visit);
+  };
+  visit(node);
+  return found;
+}
+
+test('O-188 第4バッチ: 7効果の各回収群が live と fresh の両方へ分離される', () => {
+  for (const [cardNum, effectId, expectedGroups] of o188Batch4Expected) {
+    for (const [label, effect] of [
+      ['live', (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)],
+      // §5-29＝収穫マージ後の live だけで閉じず、規則を外せば赤くなる fresh を必ず見る。
+      ['fresh', parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)],
+    ] as const) {
+      ok(!!effect, `${effectId}(${label}): 効果が存在する`);
+      const grouped = o188GroupedTransfers(effect?.action);
+      eq(grouped.length, 1, `${effectId}(${label}): 群回収は該当節の1箇所だけ`);
+      eq(JSON.stringify(grouped[0]?.source), JSON.stringify({ type: 'TRASH_CARD', owner: 'self', count: 1 }),
+        `${effectId}(${label}): 回収元は自分のトラッシュ`);
+      eq(JSON.stringify(grouped[0]?.transferGroups), JSON.stringify(expectedGroups),
+        `🔴${effectId}(${label}): 群ごとに1枚まで＋限定を保持する`);
+    }
+  }
+});
+
+test('O-188 第4バッチ 対照: 「と」が無い単一群と既に正しい3連続回収は書き換えない', () => {
+  const single = parseCardEffects(cardMap.get('WXK09-047')!).find(e => e.effectId === 'WXK09-047-BURST')!;
+  ok(!JSON.stringify(single.action).includes('transferGroups'),
+    'WXK09-047-BURST: 単一の＜電機＞2枚まで回収を群へ化けさせない');
+
+  const p00Live = (effectsMap.get('WXDi-P00-001') ?? []).find(e => e.effectId === 'WXDi-P00-001-E1')!;
+  const p00Fresh = parseCardEffects(cardMap.get('WXDi-P00-001')!).find(e => e.effectId === 'WXDi-P00-001-E1')!;
+  eq(JSON.stringify(p00Fresh.action), JSON.stringify(p00Live.action),
+    'WXDi-P00-001-E1: 白・黒・無色の3連続TRANSFER_TO_HANDを完全据置');
+  ok(!JSON.stringify(p00Fresh.action).includes('transferGroups'),
+    'WXDi-P00-001-E1: 等価な既存構造をtransferGroupsへ移設しない');
+});
+
+test('O-188 第4バッチ: WX24-P4-017-E2 は一般規則だけで旧専用JSONと完全一致する', () => {
+  const live = (effectsMap.get('WX24-P4-017') ?? []).find(e => e.effectId === 'WX24-P4-017-E2')!;
+  const fresh = parseCardEffects(cardMap.get('WX24-P4-017')!).find(e => e.effectId === 'WX24-P4-017-E2')!;
+  eq(JSON.stringify(fresh.action), JSON.stringify(live.action),
+    'WX24-P4-017-E2: 専用ハードコード削除後も生成JSONは1バイトも変わらない');
 });
 
 if (listMode) {

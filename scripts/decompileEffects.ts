@@ -1524,11 +1524,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュ${a.optional ? 'してもよい' : 'する'}${a.conditional ? '（そうした場合）' : ''}`;
+    // ⚠群の filter は `filterJa` に描かせる（`O-188` 第4バッチ・2026-09-01）。
+    //   自前の noun 組み立てでは cardType と color しか出ず、クラス・レベル・アイコン・
+    //   《ガードアイコン》を持たない・宣言クラスが**逆翻訳から丸ごと消えて原文照合が効かなくなる**。
     case 'TRANSFER_TO_HAND': return a.transferGroups?.length
       ? `${transferGroupZoneJa(a.source)}${a.transferGroups.map((g: any) => {
           const noun = g.filter?.cardType === 'スペル' ? 'スペル'
-            : `${g.filter?.color ? `${g.filter.color}の` : ''}${g.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
-          return `${noun}${g.count}枚まで`;
+            : g.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード';
+          return `${filterJa(g.filter)}${noun}${g.count}枚まで`;
         }).join('と')}対象とし、それらを手札に加える`
       : a.source?.fromLeftFieldUnder
       ? 'トラッシュにある、このシグニの下にあったシグニ1枚を手札に加える'
