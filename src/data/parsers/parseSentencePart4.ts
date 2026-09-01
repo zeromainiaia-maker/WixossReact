@@ -2530,9 +2530,27 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/＜遊具＞のシグニを.*枚まで.*エナゾーンに置く/))
     return { type: 'STUB', id: 'CLASS_SIGNI_TO_ENERGY' } as StubAction;
 
-  // ---- 5色シグニをそれぞれ1体トラッシュ ----
-  if (t.match(/白.*赤.*青.*緑.*黒.*それぞれ.*トラッシュに置く/))
-    return { type: 'STUB', id: 'BANISH_MULTI_COLOR_SIGNI' } as StubAction;
+  // ---- 「白、赤、青、緑、黒のシグニをそれぞれ1体対象とし、それらをトラッシュに置く」----
+  // 🔴§5.3 `O-188` 第6バッチ（2026-09-01）＝ここは `STUB{BANISH_MULTI_COLOR_SIGNI}` を出していたが、
+  //   engine 側のハンドラは**「2色以上を持つ相手シグニを全部バニッシュ」という別物**を実装していた
+  //   （色ごとに1体でもなく、対象選択も無く、バニッシュ置換まで走る）。⇒ 既存の
+  //   `SelectionConstraint.groups`（色ごと1体の配分）で typed に書き直し、ハンドラは削除した。
+  // ⚠`upToCount:true`＝候補の色構成によっては「N体ちょうど」を満たす選び方が存在しない
+  //   （同じ色が2体で別の色が0体など）ため、確定できない選択UIにしないための fail-open。
+  if (t.match(/白.*赤.*青.*緑.*黒.*のシグニをそれぞれ[０-９\d]+体対象とし.*トラッシュに置く/)) {
+    return {
+      type: 'TRASH',
+      target: {
+        type: 'SIGNI', owner: 'opponent', count: 5, upToCount: true,
+        filter: { cardType: 'シグニ', color: ['白', '赤', '青', '緑', '黒'] },
+        selectionConstraint: {
+          // ⚠群にも `cardType` を持たせる＝逆翻訳が「カード1体」ではなく「シグニ1体」と描けるようにする
+          //   （逆翻訳は群ごとの filter しか読まないので、ここを省くと原文照合が効かない）。
+          groups: ['白', '赤', '青', '緑', '黒'].map(color => ({ filter: { cardType: 'シグニ' as const, color }, count: 1 })),
+        },
+      },
+    } as EffectAction;
+  }
 
   // ---- 開花/シード操作 ----
   if (t.match(/開花し/) || t.match(/【シード】として/))

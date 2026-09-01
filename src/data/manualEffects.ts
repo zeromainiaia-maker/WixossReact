@@ -8,6 +8,34 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-188` 第6バッチ（2026-09-01）＝「AとBをそれぞれ1枚まで」が**手札以外の帰結**で潰れていた
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔑同じ族の手札版（第4バッチ）は `TRANSFER_TO_HAND.transferGroups` で直したが、帰結が別のアクションだと
+  //   群ごと潰れたままだった。**受け皿は `SelectionConstraint.groups`**（「＜A＞1枚と＜B＞1枚」の配分を表す既存機構）
+  //   ＝`execAddToField`（`:3582`）・`execPlaceUnderSigni`（`:7551`）・`execSearch`（`:4586`）の3つとも
+  //   `selectionConstraint` を `selectOrInteract` へ渡しており、`canAssignSelectionGroups` が
+  //   **どの群にも割り当てられないカードを含む選択を却下**する（＝群外の札は取れない）。
+  // ⚠同型が2枚以下なので PLAN §2.0 の「速いレーン」で手書きする（parser 規則は書かない）。
+
+  // ── WXDi-P06-083 ／ 原文「【出】：あなたのトラッシュから**レベル１、レベル２、レベル３のシグニをそれぞれ１枚まで**
+  //   対象とし、それらをこのシグニの下に置く。」
+  // 🔴旧 live＝`PLACE_UNDER_SIGNI{count:3, filter:{cardType:'シグニ'}}`＝**レベル限定が丸ごと消え、
+  //   トラッシュの任意のシグニを3枚まで置けた**（過剰実行）。レベル1が3枚あれば3枚とも置けてしまう。
+  'WXDi-P06-083': [
+    {"effectId":"WXDi-P06-083-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PLACE_UNDER_SIGNI","source":"trash","count":3,"upToCount":true,"filter":{"cardType":"シグニ","level":{"min":1,"max":3}},"selectionConstraint":{"groups":[{"filter":{"cardType":"シグニ","level":1},"count":1},{"filter":{"cardType":"シグニ","level":2},"count":1},{"filter":{"cardType":"シグニ","level":3},"count":1}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ── WXDi-P07-095 ／ 原文「以下の２つから１つを選ぶ。①あなたのトラッシュからレベル２以下のシグニを２枚まで
+  //   対象とし、それらを場に出す。②あなたのトラッシュから**《惨之遊姫　グズ子//メモリア》とレベル２以下のシグニを
+  //   それぞれ１枚まで**対象とし、それらを場に出す。」
+  // 🔴旧 live＝②が `ADD_TO_FIELD{count:1, filter:{level:{max:2}}}`＝**カード名の群が丸ごと消え、
+  //   ①の劣化版（1枚だけ）になっていた**（枚数の過小＋候補の過剰）。①は原文どおりなので触らない。
+  // ⚠`filter` は2群の和（`anyOf`）にする＝候補一覧に群外の札を出さない。配分は `groups` が担う。
+  'WXDi-P07-095': [
+    {"effectId":"WXDi-P07-095-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","level":{"max":2}}}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"anyOf":[{"cardName":"惨之遊姫　グズ子//メモリア"},{"cardType":"シグニ","level":{"max":2}}]},"selectionConstraint":{"groups":[{"filter":{"cardName":"惨之遊姫　グズ子//メモリア"},"count":1},{"filter":{"cardType":"シグニ","level":{"max":2}},"count":1}]}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // 意味照合 段2（2026-09-01 続き760）
   // ══════════════════════════════════════════════════════════════════════════════
 
@@ -4298,8 +4326,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   （撤去すると live からマルチエナが消える）。実測で確認済み。
   // ⚠`censusManualDrift.ts` の「削除候補」はこの形を出せない＝**effectId で突き合わせる**ので、
   //   `-MULTIENA` と `-E2` のように**id が改名された影武者**は別バケツに落ちる（計器の死角）。
+  // 🆕**§5.3 `O-188` 第6バッチ（2026-09-01）＝`WXK05-030-E1` の後段サーチが「黒1枚」に潰れていた。**
+  //   原文「あなたのデッキから**白、赤、青、緑、黒のカードをそれぞれ１枚まで**探して公開し手札に加え、
+  //   デッキをシャッフルする」に対し、旧 live は `SEARCH{filter:{color:'黒'}, maxCount:1}`
+  //   ＝**最大5枚が1枚になる過小実行**うえ、**色の対応が黒に化けていた**（他4色は1枚も取れない）。
+  //   受け皿は既存の `SearchAction.selectionConstraint`（`execSearch:4586` が群を解決）。
+  // 🔴**前段の `STUB{BANISH_MULTI_COLOR_SIGNI}` も別物を実装していた**＝原文「対戦相手の白、赤、青、緑、黒の
+  //   シグニを**それぞれ１体**対象とし、それらを**トラッシュに置く**」に対し、engine のハンドラは
+  //   **「2色以上を持つ相手シグニを（選択させずに）全部バニッシュ」**だった。⇒ typed な
+  //   `TRASH{SIGNI, selectionConstraint.groups}` へ置き換え、engine のハンドラは削除した。
   "WXK05-030": [{"effectId":"WXK05-030-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WXK05-030-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"BANISH_MULTI_COLOR_SIGNI"},{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"color":"黒"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"STUB","id":"RULE_REMINDER_TEXT"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK05-030-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":5,"upToCount":true,"filter":{"cardType":"シグニ","color":["白","赤","青","緑","黒"]},"selectionConstraint":{"groups":[{"filter":{"cardType":"シグニ","color":"白"},"count":1},{"filter":{"cardType":"シグニ","color":"赤"},"count":1},{"filter":{"cardType":"シグニ","color":"青"},"count":1},{"filter":{"cardType":"シグニ","color":"緑"},"count":1},{"filter":{"cardType":"シグニ","color":"黒"},"count":1}]}}},{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"color":["白","赤","青","緑","黒"]},"maxCount":5,"upToTarget":true,"revealPicked":true,"selectionConstraint":{"groups":[{"filter":{"color":"白"},"count":1},{"filter":{"color":"赤"},"count":1},{"filter":{"color":"青"},"count":1},{"filter":{"color":"緑"},"count":1},{"filter":{"color":"黒"},"count":1}]},"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"STUB","id":"RULE_REMINDER_TEXT"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
 

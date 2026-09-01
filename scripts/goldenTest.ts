@@ -57960,6 +57960,96 @@ test('O-188 第5バッチ 群C: WXK10-053-BURST は一般規則だけで既存JS
     'WXK10-053-BURST: 専用addFilter削除後も生成JSONは1バイトも変わらない');
 });
 
+// ── §5.3 `O-188` 第6バッチ（2026-09-01）＝「AとBをそれぞれ1枚まで」が**手札以外の帰結**で潰れていた ──
+// 🔴旧 live は①レベル限定が丸ごと消えて任意のシグニを3枚（`WXDi-P06-083-E2`）②カード名の群が消えて
+//   1枚だけ（`WXDi-P07-095-E1`②）③5色それぞれ1枚が「黒1枚」（`WXK05-030-E1`）＝過剰と過小が同居していた。
+// 受け皿は既存の `SelectionConstraint.groups`＝`canAssignSelectionGroups` が
+// **どの群にも割り当てられない選択を却下する**（＝群外の札は取れない／同じ群を二重取りできない）。
+test('O-188 第6バッチ: 3効果が selectionConstraint.groups で群ごと1枚に配分される', () => {
+  const nodesOf = (action: unknown): Array<Record<string, unknown>> => {
+    const out: Array<Record<string, unknown>> = [];
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      out.push(obj);
+      Object.values(obj).forEach(visit);
+    };
+    visit(action);
+    return out;
+  };
+
+  // 🔴**live だけを読まない**（§5-29 の逆向き）＝この3件は `manualEffects.ts` が正で、
+  //   live へは `syncManualLive.ts` が届ける。**両方を突き合わせる**ことで
+  //   「manual を直したのに live へ同期し忘れた」も「live だけ手で書いた」も赤くなる。
+  const mergedOf = (cardNum: string, effectId: string) => {
+    const merged = (cardMap.get(cardNum) as { effects?: CardEffect[] }).effects ?? [];
+    const fromManual = merged.find(e => e.effectId === effectId)!;
+    const fromLive = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    ok(!!fromManual && !!fromLive, `${effectId}: manual 由来と live の両方に存在する`);
+    eq(JSON.stringify(fromLive), JSON.stringify(fromManual),
+      `${effectId}: live が manualEffects.ts と一致する（syncManualLive 済み）`);
+    eq(fromManual.parseStatus, 'MANUAL', `${effectId}: parseStatus は MANUAL（manual-fields ゲート）`);
+    return fromManual;
+  };
+
+  const place = mergedOf('WXDi-P06-083', 'WXDi-P06-083-E2');
+  const placeAction = nodesOf(place.action).find(n => n.type === 'PLACE_UNDER_SIGNI')!;
+  eq(placeAction.count, 3, 'WXDi-P06-083-E2: レベル1・2・3で合計3枚まで');
+  eq(JSON.stringify((placeAction.selectionConstraint as { groups?: unknown })?.groups),
+    JSON.stringify([
+      { filter: { cardType: 'シグニ', level: 1 }, count: 1 },
+      { filter: { cardType: 'シグニ', level: 2 }, count: 1 },
+      { filter: { cardType: 'シグニ', level: 3 }, count: 1 },
+    ]), '🔴WXDi-P06-083-E2: レベルごとに1枚ずつへ配分する');
+
+  const field = mergedOf('WXDi-P07-095', 'WXDi-P07-095-E1');
+  const choices = (field.action as { choices: Array<{ choiceId: string; action: unknown }> }).choices;
+  const first = nodesOf(choices[0].action).find(n => n.type === 'ADD_TO_FIELD')!;
+  eq((first.source as { count?: number }).count, 2, '①レベル2以下2枚までは原文どおり（据置）');
+  ok(!(first.source as { selectionConstraint?: unknown }).selectionConstraint,
+    '①は群ではないので selectionConstraint を付けない');
+  const second = nodesOf(choices[1].action).find(n => n.type === 'ADD_TO_FIELD')!;
+  const secondSrc = second.source as { count?: number; selectionConstraint?: { groups?: Array<{ filter?: TargetFilter }> } };
+  eq(secondSrc.count, 2, '🔴②は《グズ子//メモリア》とレベル2以下で合計2枚');
+  eq(secondSrc.selectionConstraint?.groups?.[0].filter?.cardName, '惨之遊姫　グズ子//メモリア',
+    '🔴②の第1群はカード名指定');
+
+  // 🔴同じ効果の**前段**も別物だった＝`STUB{BANISH_MULTI_COLOR_SIGNI}`（engine は「2色以上の相手シグニを
+  //   選択させずに全部バニッシュ」）を、原文どおり「色ごとに1体をトラッシュへ」の typed アクションへ置き換えた。
+  const wxk = mergedOf('WXK05-030', 'WXK05-030-E1');
+  ok(!JSON.stringify(wxk.action).includes('BANISH_MULTI_COLOR_SIGNI'),
+    '🔴WXK05-030-E1: 別物を実装していた STUB は残っていない');
+  const trash = nodesOf(wxk.action).find(n => n.type === 'TRASH')!;
+  eq(JSON.stringify(((trash.target as { selectionConstraint?: { groups?: Array<{ filter?: TargetFilter }> } })
+    .selectionConstraint?.groups ?? []).map(g => g.filter?.color)),
+    JSON.stringify(['白', '赤', '青', '緑', '黒']), '🔴WXK05-030-E1: 相手シグニも色ごとに1体ずつ');
+  eq((trash.target as { owner?: string }).owner, 'opponent', 'WXK05-030-E1: トラッシュするのは対戦相手のシグニ');
+
+  const search = nodesOf(wxk.action).find(n => n.type === 'SEARCH')!;
+  eq(search.maxCount, 5, '🔴WXK05-030-E1: 5色ぶんで最大5枚（旧 live は黒1枚だけだった）');
+  eq(JSON.stringify((search.selectionConstraint as { groups?: Array<{ filter?: TargetFilter }> })?.groups?.map(g => g.filter?.color)),
+    JSON.stringify(['白', '赤', '青', '緑', '黒']), '🔴WXK05-030-E1: 白赤青緑黒をそれぞれ1枚まで');
+});
+
+test('O-188 第6バッチ 実行: 群制約が「同じ群の二重取り」と「群外の札」を却下する', () => {
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv1b = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== lv1);
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2');
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  const place = ((cardMap.get('WXDi-P06-083') as { effects?: CardEffect[] }).effects ?? [])
+    .find(e => e.effectId === 'WXDi-P06-083-E2')!;
+  const constraint = ((place.action as { selectionConstraint?: SelectionConstraint }).selectionConstraint)!;
+  ok(satisfiesSelectionConstraint([lv1, lv2], constraint, cardMap), 'レベル1とレベル2は同時に取れる');
+  ok(!satisfiesSelectionConstraint([lv1, lv1b], constraint, cardMap),
+    '🔴レベル1を2枚は取れない（旧 live の過剰実行）');
+  ok(!satisfiesSelectionConstraint([lv1, lv4], constraint, cardMap),
+    '🔴どの群にも入らないレベル4は取れない');
+  // 対照＝制約が無ければ両方とも通る（＝この assert は制約が効いていることを見ている）
+  ok(satisfiesSelectionConstraint([lv1, lv1b], undefined, cardMap), '対照: 制約なしなら同レベル2枚も通る');
+  ok(satisfiesSelectionConstraint([lv1, lv4], undefined, cardMap), '対照: 制約なしならレベル4も通る');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

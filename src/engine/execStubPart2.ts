@@ -1022,30 +1022,20 @@ export function execStubPart2(
     };
     return done(addLog({ ...ctx, ownerState: newOwnerDBCC }, `${drawCountDBCC}枚ドロー（チャーム${charmCountDBCC}個）`));
   }
-  // 複数色（2色以上）の相手シグニをバニッシュ
-  if (stub.id === 'BANISH_MULTI_COLOR_SIGNI') {
-    let curBMCS = ctx;
-    let banishedBMCS = 0;
-    for (let zi = 0; zi < 3; zi++) {
-      const top = curBMCS.otherState.field.signi[zi]?.at(-1);
-      if (!top) continue;
-      const colorsBMCS = splitColors(curBMCS.cardMap.get(top)?.Color);
-      if (colorsBMCS.length < 2) continue;
-      const removedBMCS = removeFromField(top, curBMCS.otherState);
-      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
-      const { state: destBMCS } = banishDestination(removedBMCS, curBMCS.ownerState, top, banishRedirectOpts(curBMCS, curBMCS.otherState, top));
-      curBMCS = { ...curBMCS, otherState: destBMCS };
-      banishedBMCS++;
-    }
-    return done(addLog(curBMCS, banishedBMCS > 0
-      ? `複数色シグニ${banishedBMCS}体をバニッシュ`
-      : '複数色シグニなし（BANISH_MULTI_COLOR_SIGNI）'));
-  }
+  // 🗑§5.3 `O-188` 第6バッチ（2026-09-01）＝`BANISH_MULTI_COLOR_SIGNI` のハンドラを削除した。
+  //   唯一の利用元 `WXK05-030-E1` の原文は「対戦相手の白、赤、青、緑、黒のシグニを**それぞれ１体**対象とし、
+  //   それらを**トラッシュに置く**」で、ここの実装（**2色以上を持つ相手シグニを選択させずに全部バニッシュ**）は
+  //   選択・配分・destination のどれも原文と違っていた。⇒ parser と `manualEffects.ts` の両方を
+  //   `TRASH{SIGNI, selectionConstraint.groups}`（色ごと1体）へ typed 化した。
   // §6.4 O-24：`OPP_TRASH_FIELD_SIGNI_AND_ENERGY` は**削除した**（相手の場のシグニ全部＋エナ全部を流す
   // 過剰実行だった）。原文どおり「シグニ1体＋エナ1枚を**対戦相手が**選ぶ」は parser が
   // `SEQUENCE[TRASH{SIGNI opponent,opponentSelects}, TRASH{ENERGY_CARD opponent,opponentSelects}]` を組む
   // （`parseSentencePart2.ts` の「対戦相手がシグニとエナゾーンのカードをトラッシュ」規則）。
-  // 自シグニをフィールドから退場させてデッキ下へ
+
+  // LEAVE_FIELD_TO_DECK_BOTTOM: このシグニが場を離れる場合、代わりにこれをデッキの一番下に置く
+  // ⚠**直前に空行を置くこと**＝`genStubsMd.mjs` は `if` の直上の連続コメント行を説明として拾うので、
+  //   上の「削除した id の記録」まで巻き込むと、**逆翻訳の `[STUB:…]` に他 id の削除メモが出る**
+  //   （2026-09-01 に実際そうなっていた＝`WXDi-P08-046-E1` の逆翻訳）。
   if (stub.id === 'LEAVE_FIELD_TO_DECK_BOTTOM') {
     const srcCnLFDB = ctx.sourceCardNum;
     if (!srcCnLFDB || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcCnLFDB))
