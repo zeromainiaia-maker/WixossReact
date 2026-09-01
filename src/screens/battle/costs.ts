@@ -1442,9 +1442,43 @@ export function parseBetOptions(effectText: string): { options: number[]; variab
 }
 
 // アンコールコストをパース（エナコスト＋コイン枚数）
-export function parseEncoreCost(effectText: string): { energy: { color: string; count: number }[]; coins: number } | null {
+/**
+ * アンコールコスト。
+ *
+ * 🆕**2026-09-02（§5.3 `O-199`）＝アイコン形だけでなく「テキスト形」も読む**（実測5枚）。
+ * 🔴従来は `《…》` しか読まず `null`（＝コスト無し）へ落ちていたため、**アンコールの選択肢そのものが
+ *   出ない**（`canEncore` が false）＝5枚が永久にアンコールできなかった（過小の側）。
+ * ⚠**テキスト形と判定するのは「－の直後が `《` でない」ときだけ**＝
+ *   `アンコール－《黒》このターン、…` のようにアイコンの後ろへ**アーツ本文**が続く形を
+ *   コストと読み違えない（読み違えると払わされる側＝過剰になる）。
+ * 対応する3形＝①センタールリグの下からN枚をルリグトラッシュ（＝既存 `exceed` の受け皿）
+ *   ②キー1枚を場からルリグトラッシュ（＝既存 `trash_key`）③手札から＜X＞のシグニをN枚捨てる。
+ */
+export function parseEncoreCost(effectText: string): {
+  energy: { color: string; count: number }[];
+  coins: number;
+  /** ルリグの下からN枚をルリグトラッシュ（エクシードと同じ支払い＝`paySelectedExceed`）。 */
+  exceed?: number;
+  /** 場のキー1枚をルリグトラッシュ。 */
+  trashOwnKey?: boolean;
+  /** 手札から条件一致シグニをN枚捨てる。 */
+  handDiscardSigni?: { count: number; story?: string };
+} | null {
   if (!effectText.startsWith('アンコール－')) return null;
   const afterDash = effectText.slice('アンコール－'.length);
+  // ── テキスト形（－の直後が `《` でない）＝アイコンを1つも持たない5枚（§5.3 `O-199`）──
+  if (!afterDash.startsWith('《')) {
+    const toHalfEC = (t: string) => t.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+    const num = (t: string) => parseInt(toHalfEC(t), 10) || 0;
+    const exM = afterDash.match(/^あなたの(?:センター)?ルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/);
+    if (exM) return { energy: [], coins: 0, exceed: num(exM[1]) };
+    if (/^キー([０-９\d]+)枚を場から(?:ルリグ)?トラッシュに置く/.test(afterDash)) {
+      return { energy: [], coins: 0, trashOwnKey: true };
+    }
+    const hdM = afterDash.match(/^手札から(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/);
+    if (hdM) return { energy: [], coins: 0, handDiscardSigni: { count: num(hdM[2]), ...(hdM[1] ? { story: hdM[1] } : {}) } };
+    return null;
+  }
   // 「（」か漢字テキストの直前まで（アイコン部分のみ）
   const beforeContent = afterDash.split(/[（。【]/)[0];
   const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);

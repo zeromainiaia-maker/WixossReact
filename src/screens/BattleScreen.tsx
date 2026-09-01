@@ -49,7 +49,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -292,6 +292,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed,
     selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat,
     selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash,
+    selectedSigniOnPlayTrashToDeck, setSelectedSigniOnPlayTrashToDeck,
     selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash,
     signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar,
     selectedOptCost, setSelectedOptCost, closeSigniOnPlayCost,
@@ -7163,6 +7164,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paidWithUseCost = actorIsHost ? bdAr.hostState : bdAr.guestState;
         useCostLeaveEntries = bdAr.entries;
       }
+      // 🆕§5.3 `O-199`（2026-09-02）＝アンコールの**テキスト形コスト**（アイコンではない支払い）。
+      // 🔴これが無いあいだ `parseEncoreCost` は null を返し、5枚は**アンコールの選択肢すら出なかった**。
+      // ⚠手札捨て（`handDiscardSigni`）は上の `discardIndices` 経路で既に払われている＝ここでは扱わない。
+      if (encore) {
+        const encSpec = parseEncoreCost(card.EffectText ?? '');
+        if (encSpec?.exceed) {
+          // ルリグの下から N 枚。⚠**選択UIは出さない近似**＝プールの先頭（グロウ順の古い側）から取る
+          //   （`TRASH_UNDER_LRIG_CARD` と同じ規約。下は非公開領域で盤面上の区別が無い）。
+          const poolEnc = exceedPoolOf(paidWithUseCost);
+          const idxEnc = new Set(Array.from({ length: Math.min(encSpec.exceed, poolEnc.length) }, (_, i) => i));
+          const afterEnc = paySelectedExceed(paidWithUseCost, encSpec.exceed, idxEnc);
+          if (!afterEnc) return;   // 支払い不能（UI 側でも無効化済み・`finally` が loading を戻す）
+          paidWithUseCost = afterEnc;
+          appendBattleLogs([`アンコール：ルリグの下から${encSpec.exceed}枚をルリグトラッシュに置いた`]);
+        }
+        if (encSpec?.trashOwnKey) {
+          const keyEnc = paidWithUseCost.field.key_piece;
+          if (!keyEnc) return;     // 場にキーが無い（UI 側でも無効化済み）
+          paidWithUseCost = {
+            ...paidWithUseCost,
+            lrig_trash: [...paidWithUseCost.lrig_trash, keyEnc],
+            field: { ...paidWithUseCost.field, key_piece: null },
+          };
+          appendBattleLogs(['アンコール：キー1枚を場からルリグトラッシュに置いた']);
+        }
+      }
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // ON_COIN_PAID（C1 配線・アーツのベット/アンコールのコイン支払）: extraEntries 経由で反応【自】を積む。
       const artsCoin = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(p.actorId, paidWithUseCost, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
@@ -7318,9 +7345,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   KEY スロットの【起】から起動して**同額をもう一度**払う羽目になっていた（＝二重請求）。
       //   ⚠**分岐は `card.Type === 'ピース'` だけ**＝キー側は1行も変えない（共通経路の事故を構造的に避ける）。
       const isPiece = card.Type === 'ピース';
+      // 🆕枠に余りがあれば `key_piece_extra` へ積む＝`hasUnlimitedKeys`（無制限）に加えて
+      //   `key_place_limit`（「N枚まで」＝§5.3 `O-200`）も同じ地点で読む。
+      const keyCapEKP = hasUnlimitedKeysEKP ? Infinity : Math.max(1, my.key_place_limit ?? 1);
+      const keysOnFieldEKP = (my.field.key_piece ? 1 : 0) + (my.field.key_piece_extra?.length ?? 0);
       const newField = isPiece
         ? my.field                                     // ピースはキーゾーンを占有しない
-        : (hasUnlimitedKeysEKP && my.field.key_piece)
+        : (my.field.key_piece && keysOnFieldEKP < keyCapEKP)
           ? { ...my.field, key_piece_extra: [...(my.field.key_piece_extra ?? []), instanceId] }
           : { ...my.field, key_piece: instanceId };
       // 「このゲームの間、あなたのセンタールリグは『…』を得る」型（`WXDi-P15-003-E2`＝CONTINUOUS
@@ -8530,8 +8561,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 🔴**ピースはキーゾーンを占有しない**（§3 (cxxiii)・続き475g）＝`!my.field.key_piece` ゲートを掛けない。
     //   従来はここで一緒に絞っていたため、**キーを1枚出しているだけで全ピースが使えなくなって**いた。
     const isPieceCard = cardData.Type === 'ピース';
-    if ((cardData.Type === 'キー' || isPieceCard) && (isPieceCard || !my.field.key_piece || hasUnlimitedKeys)) {
-      const timing = cardData.Timing ?? '';
+    // 🆕`key_place_limit`＝「このゲームの間、あなたはキーをN枚まで場に出すことができる」（§5.3 `O-200`・
+    //   `WXK02-004-E3`）。`hasUnlimitedKeys`（枚数無制限の【常】）とは別軸の**回数指定**。
+    const keyCapacity = hasUnlimitedKeys ? Infinity : Math.max(1, my.key_place_limit ?? 1);
+    const keysOnField = (my.field.key_piece ? 1 : 0) + (my.field.key_piece_extra?.length ?? 0);
+    if ((cardData.Type === 'キー' || isPieceCard) && (isPieceCard || keysOnField < keyCapacity)) {
+      // 🔴**CSV の空欄は `'-'`**（空文字ではない）＝2026-09-02（§5.3 `O-200` の実機で発覚）。
+      //   旧実装は `!timing` で「タイミング指定なし＝メインで使える」を判定していたが `'-'` は truthy なので
+      //   **全80枚のキー（Timing 列が全部 `-`）が1枚も場に出せなかった**（ルリグデッキを開いても行動が0件）。
+      //   ⚠ピースは Timing に文言が入るので影響なし＝壊れていたのはキーだけ。
+      const timingRaw = cardData.Timing ?? '';
+      const timing = timingRaw === '-' ? '' : timingRaw;
       const canUse =
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ')) ||
@@ -13824,6 +13864,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // trashArtsFromLrigDeck: ルリグデッキからアーツをトラッシュ
+      // 🆕trashToDeckBottom: トラッシュから条件一致カードをデッキの一番下へ（§5.3 `O-201`・`WXDi-CP02-100-E1`）。
+      // ⚠**除外（`trashExile`）ではない**＝デッキへ戻るので後で引ける。行き先を間違えると別のカードになる。
+      const t2dCostPay = cost?.trashToDeckBottom;
+      if (t2dCostPay) {
+        if (selectedSigniOnPlayTrashToDeck.size !== t2dCostPay.count) return;
+        const movedT2D = [...selectedSigniOnPlayTrashToDeck].map(i => placedState.trash[i]).filter(Boolean);
+        if (movedT2D.length !== t2dCostPay.count) return;
+        paid = {
+          ...paid,
+          trash: paid.trash.filter(n => !movedT2D.includes(n)),
+          deck: [...paid.deck, ...movedT2D],
+        };
+        payLogs.push(`トラッシュから${movedT2D.length}枚をデッキの一番下に置いた`);
+      }
       const artsTrashOPCost = cost?.trashArtsFromLrigDeck;
       if (artsTrashOPCost) {
         if (!selectedSigniOnPlayArtsTrash) return;
@@ -15017,7 +15071,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <EnergyActivatedModal ctx={modalCtx} pendingEnergyActivated={pendingEnergyActivated} setPendingEnergyActivated={setPendingEnergyActivated} selectedEnergyActivatedCost={selectedEnergyActivatedCost} setSelectedEnergyActivatedCost={setSelectedEnergyActivatedCost} executeEnergyActivated={executeEnergyActivated} />
 
       {/* ===== シグニ出現時コスト付き【出】効果 モーダル ===== */}
-      <SigniOnPlayCostModal ctx={modalCtx} pendingSigniOnPlayCost={pendingSigniOnPlayCost} selectedSigniOnPlayCost={selectedSigniOnPlayCost} setSelectedSigniOnPlayCost={setSelectedSigniOnPlayCost} selectedSigniOnPlayDiscard={selectedSigniOnPlayDiscard} setSelectedSigniOnPlayDiscard={setSelectedSigniOnPlayDiscard} selectedSigniOnPlayEnergyTrash={selectedSigniOnPlayEnergyTrash} setSelectedSigniOnPlayEnergyTrash={setSelectedSigniOnPlayEnergyTrash} selectedSigniOnPlayFieldTrash={selectedSigniOnPlayFieldTrash} setSelectedSigniOnPlayFieldTrash={setSelectedSigniOnPlayFieldTrash} selectedSigniOnPlayExceed={selectedSigniOnPlayExceed} setSelectedSigniOnPlayExceed={setSelectedSigniOnPlayExceed} selectedSigniOnPlayBeat={selectedSigniOnPlayBeat} setSelectedSigniOnPlayBeat={setSelectedSigniOnPlayBeat} selectedSigniOnPlayArtsTrash={selectedSigniOnPlayArtsTrash} setSelectedSigniOnPlayArtsTrash={setSelectedSigniOnPlayArtsTrash} selectedSigniOnPlayUnderTrash={selectedSigniOnPlayUnderTrash} setSelectedSigniOnPlayUnderTrash={setSelectedSigniOnPlayUnderTrash} signiOnPlayCharmTrashVar={signiOnPlayCharmTrashVar} setSigniOnPlayCharmTrashVar={setSigniOnPlayCharmTrashVar} executeSigniOnPlayCost={executeSigniOnPlayCost} skipSigniOnPlayCost={skipSigniOnPlayCost} />
+      <SigniOnPlayCostModal ctx={modalCtx} pendingSigniOnPlayCost={pendingSigniOnPlayCost} selectedSigniOnPlayCost={selectedSigniOnPlayCost} setSelectedSigniOnPlayCost={setSelectedSigniOnPlayCost} selectedSigniOnPlayDiscard={selectedSigniOnPlayDiscard} setSelectedSigniOnPlayDiscard={setSelectedSigniOnPlayDiscard} selectedSigniOnPlayEnergyTrash={selectedSigniOnPlayEnergyTrash} setSelectedSigniOnPlayEnergyTrash={setSelectedSigniOnPlayEnergyTrash} selectedSigniOnPlayFieldTrash={selectedSigniOnPlayFieldTrash} setSelectedSigniOnPlayFieldTrash={setSelectedSigniOnPlayFieldTrash} selectedSigniOnPlayExceed={selectedSigniOnPlayExceed} setSelectedSigniOnPlayExceed={setSelectedSigniOnPlayExceed} selectedSigniOnPlayBeat={selectedSigniOnPlayBeat} setSelectedSigniOnPlayBeat={setSelectedSigniOnPlayBeat} selectedSigniOnPlayArtsTrash={selectedSigniOnPlayArtsTrash} setSelectedSigniOnPlayArtsTrash={setSelectedSigniOnPlayArtsTrash} selectedSigniOnPlayUnderTrash={selectedSigniOnPlayUnderTrash} setSelectedSigniOnPlayUnderTrash={setSelectedSigniOnPlayUnderTrash} selectedSigniOnPlayTrashToDeck={selectedSigniOnPlayTrashToDeck} setSelectedSigniOnPlayTrashToDeck={setSelectedSigniOnPlayTrashToDeck} signiOnPlayCharmTrashVar={signiOnPlayCharmTrashVar} setSigniOnPlayCharmTrashVar={setSigniOnPlayCharmTrashVar} executeSigniOnPlayCost={executeSigniOnPlayCost} skipSigniOnPlayCost={skipSigniOnPlayCost} />
 
       {/* ===== ルリグ付与能力（GRANT_LRIG_ABILITY）発動モーダル ===== */}
       <LrigGrantedModal ctx={modalCtx} pendingLrigGranted={pendingLrigGranted} setPendingLrigGranted={setPendingLrigGranted} selectedLrigGrantedCost={selectedLrigGrantedCost} setSelectedLrigGrantedCost={setSelectedLrigGrantedCost} selectedLrigGrantedHandDiscard={selectedLrigGrantedHandDiscard} setSelectedLrigGrantedHandDiscard={setSelectedLrigGrantedHandDiscard} selectedLrigGrantedEnergyTrash={selectedLrigGrantedEnergyTrash} setSelectedLrigGrantedEnergyTrash={setSelectedLrigGrantedEnergyTrash} selectedLrigGrantedTrashExile={selectedLrigGrantedTrashExile} setSelectedLrigGrantedTrashExile={setSelectedLrigGrantedTrashExile} selectedLrigGrantedFieldBanish={selectedLrigGrantedFieldBanish} setSelectedLrigGrantedFieldBanish={setSelectedLrigGrantedFieldBanish} executeLrigGranted={executeLrigGranted} />

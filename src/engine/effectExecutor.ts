@@ -275,7 +275,10 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
     : a.perLastProcessedLevel
     ? resolveCountRef(a.count, ctx, a.countFromZone) * perLevelSum
     : resolveCountRef(a.count, ctx, a.countFromZone) + (a.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
-  const canDraw = Math.min(count, state.deck.length);
+  // 🆕`maxCount`＝原文が書いているドロー上限（§5.3 `O-162`・「各プレイヤーは最大５枚までしかカードを引くことができない」）。
+  // ⚠デッキ残量による切り詰め（下の `canDraw`）とは別軸なので、先にここで上限を掛ける。
+  const cappedCount = a.maxCount !== undefined ? Math.min(count, a.maxCount) : count;
+  const canDraw = Math.min(cappedCount, state.deck.length);
   const s: PlayerState = {
     ...state,
     hand: [...state.hand, ...state.deck.slice(0, canDraw)],
@@ -292,7 +295,7 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   };
   // リフレッシュはここでは行わず、効果解決後（result.done）の applyRefreshOnDone に集約する
   // （ルール：効果解決中はデッキ0のまま可能な限り解決し、その後リフレッシュ）。
-  return done(addLog(setOwnerState(a.owner, s, ctx), `${count}枚ドロー`));
+  return done(addLog(setOwnerState(a.owner, s, ctx), `${cappedCount}枚ドロー`));
 }
 
 /**
@@ -846,7 +849,8 @@ export function applyEffectBanishSubstitute(
  * - `powerReduction`（`WX06-019`）／`banishSubstitute`（F-3 8枚）／`replaceBanish`（`WX25-P1-056`）＝**任意**
  */
 export type LeaveSubstituteAxisId =
-  | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
+  | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'downProtector'
+  | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
@@ -870,6 +874,58 @@ export interface LeaveSubstituteOption {
    * 不変なので、採用しなかった候補の ctx は捨てるだけで副作用は残らない（ログも漏れない）。
    */
   resultCtx: ExecCtx;
+}
+
+/**
+ * 🆕`downProtector`（§5.3 `O-202`・2026-09-02・`WXEX2-28-E1`）＝
+ * 「あなたの＜X＞のシグニ1体が**対戦相手の効果によって**場を離れる場合、
+ *  代わりに**アップ状態のこのシグニをダウンして**もよい」＝**宣言者が自分をダウンして身代わりになる**置換。
+ *
+ * 🔴旧 live は素の `CONTINUOUS DOWN{thisCardOnly, optional}`＝**CONTINUOUS は `executeAction` を通らない**ので
+ *   恒久 no-op（`LIFE_CRASH_REPLACE` 系と同じ壊れ方）。守りが1回も働いていなかった＝過小の側。
+ * ⚠**宣言者がアップでないと成立しない**（原文「アップ状態のこのシグニを」）＝ダウン済みでは払えない。
+ * ⚠**無料の軸より後ろ**に置く（`selfAbilityPay` と同じ規約）＝タダで済む置換があるのに資源を払わない。
+ */
+export function applyEffectLeaveDownProtectorSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const victimZone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (victimZone < 0) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  const victimCard = ctx.cardMap.get(getCardNum(victimNum));
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const declarer = state.field.signi[zi]?.at(-1);
+    if (!declarer) continue;
+    // 🔴**宣言者自身がアップ**でなければ払えない（原文「アップ状態のこのシグニを」）。
+    if (state.field.signi_down?.[zi] === true) continue;
+    for (const eff of declaredContinuousEffects(declarer, state, ctx.cardMap)) {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.id !== 'EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF') continue;
+      const spec = act.leaveDownProtector;
+      if (!spec) continue;
+      if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, declarer)) continue;
+      // ⚠victim 条件は**盤面状態込み**で見る（他軸と同じ規約）。
+      if (spec.victimFilter
+        && (!matchesFilter(victimCard, spec.victimFilter) || !matchesStateFilter(state, victimZone, spec.victimFilter))) continue;
+      const newDown = [...(state.field.signi_down ?? [false, false, false])];
+      newDown[zi] = true;
+      const nextState: PlayerState = { ...state, field: { ...state.field, signi_down: newDown } };
+      const vName = victimCard?.CardName ?? victimNum;
+      const dName = ctx.cardMap.get(getCardNum(declarer))?.CardName ?? declarer;
+      return {
+        ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
+          `${dName}をダウンし、${vName}の場離れを置換`),
+        replaced: true,
+      };
+    }
+  }
+  return { ctx, replaced: false };
 }
 
 /**
@@ -908,6 +964,9 @@ export function collectLeaveSubstituteOptions(
   //   （自動 policy は先頭から採るので、先に置くとタダで済む置換があるのに資源を払ってしまう）。
   push('selfAbilityPay', 'optional', '〈コスト〉を払って代わりにこの能力を失う',
     applyEffectLeavePayLoseSelfAbilitySubstitute(victimNum, victimOwner, ctx));
+  // §5.3 `O-202`（2026-09-02）＝宣言者が自分をダウンして身代わりになる。⚠無料の軸より後ろに置く。
+  push('downProtector', 'optional', '代わりに宣言者のシグニをダウンする',
+    applyEffectLeaveDownProtectorSubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
     // ⚠**engine が徴収できないコストは列挙しない**（§3 (cxxix)＝落とすと apply 側の末尾へ流れて
     //   「0枚トラッシュ」で成立し、コスト0でバニッシュを回避できてしまう）。
@@ -6152,10 +6211,30 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
 }
 
 /**
- * PLACE_KEY_FROM_LRIG_DECK: 「あなたのルリグデッキから《カード名》1枚を場に出す」（`WDK03-001-E1`）。
+ * キーの印刷コスト（`Cost` 列）を「コイン枚数」と「エナのコストスロット列」に割る。
+ * ⚠**読むのは `Cost` 列であって `EffectText` ではない**（`census:enginetext` A群＝効果元の全文 regex とは別軸）。
+ * 例＝`《コイン》×２《赤》×１《緑》×１《無》×１` → `{ coins: 2, colors: ['赤','緑','無'] }`。
+ */
+function printedKeyCost(cost: string | undefined): { coins: number; colors: string[] } {
+  const toHalf = (t: string) => t.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+  let coins = 0;
+  const colors: string[] = [];
+  for (const m of (cost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+    const n = parseInt(toHalf(m[2]), 10) || 0;
+    if (m[1] === 'コイン' || m[1] === 'コインアイコン') { coins += n; continue; }
+    for (let i = 0; i < n; i++) colors.push(m[1]);
+  }
+  return { coins, colors };
+}
+
+/**
+ * PLACE_KEY_FROM_LRIG_DECK: 「あなたのルリグデッキから（《カード名》／キー）1枚を場に出す」。
  *
- * 🔑行き先は**キー枠**（`field.key_piece`）。既にキーが在るならそれをルリグトラッシュへ送って差し替える
- *   （キーは1枚しか場に置けないルール。`UNLIMITED_KEYS` を持つ盤面は `key_piece_extra` へ積む既存規約に乗る）。
+ * 🔑行き先は**キー枠**（`field.key_piece`）。枠が埋まっていて `key_place_limit` に余りがあれば
+ *   `key_piece_extra` へ積み、余りが無ければ既存キーをルリグトラッシュへ送って差し替える。
+ * 🆕**カード名を書かない形**（§5.3 `O-200`・`WXK02-004-E3` / `WXK03-014-E3`）＝ルリグデッキのキーから選ばせる。
+ * 🆕**`payPrintedCost`**（`WXK03-014-E3`「**コストを支払って**キー1枚を場に出す」）＝
+ *   選んだキーの印刷コスト（コイン＋エナ）を徴収し、**払えないキーは候補に出さない**（踏み倒しを作らない）。
  * ⚠**キーの【出】能力は発動させない**＝この経路は BattleScreen のキー使用フローを通らないので、
  *   発動させると「誰も支払っていないコストで【出】が走る」ことになる。過剰実行を作らない側へ倒した近似。
  */
@@ -6164,20 +6243,69 @@ function execPlaceKeyFromLrigDeck(
 ): ExecResult {
   const state = ownerState(a.owner, ctx);
   const want = a.cardName;
-  const found = (state.lrig_deck ?? []).find(n => {
+  const inDeck = (state.lrig_deck ?? []).filter(n => {
     const c = ctx.cardMap.get(getCardNum(n));
-    return !!c && c.Type === 'キー' && c.CardName === want;
+    return !!c && c.Type === 'キー' && (want === undefined || c.CardName === want);
   });
-  if (!found) return done(addLog(ctx, `ルリグデッキに《${want}》がない`));
-  const replaced = state.field.key_piece ?? null;
-  const newS: PlayerState = {
-    ...state,
-    lrig_deck: (state.lrig_deck ?? []).filter(n => n !== found),
-    lrig_trash: replaced ? [...state.lrig_trash, replaced] : state.lrig_trash,
-    field: { ...state.field, key_piece: found },
+  // 支払える札だけを候補にする（`payPrintedCost` のとき）。
+  const affordable = (inst: string): boolean => {
+    if (!a.payPrintedCost) return true;
+    const c = ctx.cardMap.get(getCardNum(inst));
+    const { coins, colors } = printedKeyCost(c?.Cost);
+    const need = Math.max(0, coins - (a.coinReduction ?? 0));
+    if ((state.coins ?? 0) < need) return false;
+    return colors.length === 0 || selectOptionalCostEnergy(colors, state, ctx.cardMap) !== null;
   };
+  const cands = (a._instanceId ? inDeck.filter(n => n === a._instanceId) : inDeck).filter(affordable);
+  if (cands.length === 0) {
+    return done(addLog(ctx, want !== undefined
+      ? `ルリグデッキに《${want}》がない`
+      : a.payPrintedCost ? 'コストを支払えるキーがルリグデッキにない' : 'ルリグデッキにキーがない'));
+  }
+  // 名前指定が無く候補が複数あるなら選ばせる（原文「キー１枚を場に出す」＝どれを出すかは出す側が決める）。
+  if (cands.length > 1 && !a._instanceId) {
+    return needsInteraction(ctx, {
+      type: 'CHOOSE', count: 1,
+      options: cands.map(n => ({
+        id: n,
+        label: ctx.cardMap.get(getCardNum(n))?.CardName ?? n,
+        action: { ...a, _instanceId: n } as unknown as EffectAction,
+        available: true,
+      })),
+    } as PendingInteractionDef & { type: 'CHOOSE' });
+  }
+  const found = cands[0];
+  const foundCard = ctx.cardMap.get(getCardNum(found));
+  // 印刷コストの徴収（コイン＋エナ）。候補は上の `affordable` で絞ってあるので払えるはず。
+  let paidState = state;
+  if (a.payPrintedCost) {
+    const { coins, colors } = printedKeyCost(foundCard?.Cost);
+    const needCoins = Math.max(0, coins - (a.coinReduction ?? 0));
+    const payEnergy = colors.length > 0 ? (selectOptionalCostEnergy(colors, state, ctx.cardMap) ?? []) : [];
+    paidState = {
+      ...state,
+      coins: Math.max(0, (state.coins ?? 0) - needCoins),
+      coins_paid_this_turn: (state.coins_paid_this_turn ?? 0) + needCoins,
+      energy: state.energy.filter(n => !payEnergy.includes(n)),
+      trash: [...state.trash, ...payEnergy],
+    };
+  }
+  // 枠の空き＝`key_place_limit`（既定1）。空きがあれば `key_piece_extra` へ積む。
+  const limit = Math.max(1, paidState.key_place_limit ?? 1);
+  const onField = (paidState.field.key_piece ? 1 : 0) + (paidState.field.key_piece_extra?.length ?? 0);
+  const stack = paidState.field.key_piece !== null && paidState.field.key_piece !== undefined && onField < limit;
+  const replaced = stack ? null : (paidState.field.key_piece ?? null);
+  const newS: PlayerState = {
+    ...paidState,
+    lrig_deck: (paidState.lrig_deck ?? []).filter(n => n !== found),
+    lrig_trash: replaced ? [...paidState.lrig_trash, replaced] : paidState.lrig_trash,
+    field: stack
+      ? { ...paidState.field, key_piece_extra: [...(paidState.field.key_piece_extra ?? []), found] }
+      : { ...paidState.field, key_piece: found },
+  };
+  const label = foundCard?.CardName ?? found;
   return done(addLog(setOwnerState(a.owner, newS, ctx),
-    `《${want}》を場に出す${replaced ? `（${ctx.cardMap.get(getCardNum(replaced))?.CardName ?? replaced}をルリグトラッシュへ）` : ''}`));
+    `《${label}》を場に出す${replaced ? `（${ctx.cardMap.get(getCardNum(replaced))?.CardName ?? replaced}をルリグトラッシュへ）` : ''}`));
 }
 
 // PLACE_LRIGS_UNDER_CENTER: ルリグトラッシュのすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001）。
@@ -9536,6 +9664,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const lcr = action as import('../types/effects').LifeCrashReplaceAction;
       const declared: import('../types').LifeCrashReplacement = {
         kind: lcr.replaceKind, count: lcr.count,
+        // 🆕`pay_cost`（§5.3 `O-202`）＝支払い方を宣言と一緒に運ぶ。
+        // ⚠**空配列では積まない**＝`payOptions` の無い `pay_cost` は funnel が「タダで置換」してしまう。
+        ...(lcr.replaceKind === 'pay_cost' ? { payOptions: lcr.payOptions ?? [] } : {}),
         ...(lcr.damageSource ? { damageSource: lcr.damageSource } : {}),
         ...(lcr.byAttack ? { byAttack: true } : {}),
         ...(lcr.once ? { once: true } : {}),
@@ -9547,7 +9678,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           ...ctx.ownerState,
           life_crash_replacements: [...(ctx.ownerState.life_crash_replacements ?? []), declared],
         },
-      }, `このターン、あなたのライフクロスのクラッシュを置換（${declared.kind === 'mill' ? `デッキ上${declared.count}枚トラッシュ` : `対戦相手のライフクロス${declared.count}枚クラッシュ`}）`));
+      }, `このターン、あなたのライフクロスのクラッシュを置換（${
+        declared.kind === 'mill' ? `デッキ上${declared.count}枚トラッシュ`
+        : declared.kind === 'pay_cost' ? 'コストを支払う'
+        : `対戦相手のライフクロス${declared.count}枚クラッシュ`}）`));
     }
     case 'ENERGY_CHARGE_BY_FIELD_COUNT':   return execEnergyChargeByFieldCount(action as import('../types/effects').EnergyChargeByFieldCountAction, ctx);
     case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);

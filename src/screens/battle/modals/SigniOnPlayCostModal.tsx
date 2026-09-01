@@ -37,6 +37,8 @@ interface SigniOnPlayCostModalProps {
   selectedSigniOnPlayBeat: Set<number>;
   setSelectedSigniOnPlayBeat: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniOnPlayArtsTrash: string | null;
+  selectedSigniOnPlayTrashToDeck: Set<number>;
+  setSelectedSigniOnPlayTrashToDeck: (v: Set<number> | ((p: Set<number>) => Set<number>)) => void;
   setSelectedSigniOnPlayArtsTrash: Dispatch<SetStateAction<string | null>>;
   selectedSigniOnPlayUnderTrash: Set<string>;
   setSelectedSigniOnPlayUnderTrash: Dispatch<SetStateAction<Set<string>>>;
@@ -48,7 +50,7 @@ interface SigniOnPlayCostModalProps {
 
 export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
   const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
+  const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, selectedSigniOnPlayTrashToDeck, setSelectedSigniOnPlayTrashToDeck, selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
   return (
     <>
       {pendingSigniOnPlayCost && createPortal(
@@ -70,7 +72,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               // 手札コスト（discard/handDiscardSigni=トラッシュ / handToEnergy=エナへ / handToUnderSelf=シグニの下へ。同時指定はない前提で選択UIを共用）
               const discardGroups = eff.cost?.discardGroups;
-              const discardNeeded = discardGroups?.reduce((sum, group) => sum + group.count, 0) ?? eff.cost?.discard ?? 0;
+              // 🆕`discardAll`＝「手札をすべて捨てる」（§5.3 `O-201`・`WXDi-P12-031-E2`）＝枚数は手札の実数。
+              const discardNeeded = eff.cost?.discardAll
+                ? pState.hand.length
+                : (discardGroups?.reduce((sum, group) => sum + group.count, 0) ?? eff.cost?.discard ?? 0);
               const handDiscardSigni = eff.cost?.handDiscardSigni;
               const handToEnergyNeeded = eff.cost?.handToEnergy?.count ?? 0;
               const handToUnderNeeded  = eff.cost?.handToUnderSelf?.count ?? 0;
@@ -92,7 +97,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               // 🔑選択集合は `energyTrash` と同じ「エナ index の集合」なので**支払い側（`executeSigniOnPlayCost`）は共通**＝
               //   ここで分かれるのは**可否判定と選択ガードだけ**。
               const enaTrashGroups = eff.cost?.energyTrashGroups;
-              const enaTrashNeeded = enaTrashGroups?.length
+              // 🆕`energyTrashAll`＝「エナゾーンにあるすべてのカードをトラッシュに置く」（§5.3 `O-201`）。
+              const enaTrashNeeded = eff.cost?.energyTrashAll
+                ? pcEnergy.length
+                : enaTrashGroups?.length
                 ? enaTrashGroups.reduce((n, g) => n + g.count, 0)
                 : (eff.cost?.energyTrash?.count ?? 0);
               const enaTrashFilter = enaTrashGroups?.length ? undefined : eff.cost?.energyTrash?.filter;
@@ -147,6 +155,13 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(cn)), artsTrashOPCostM))
                 : [];
               const artsOkM = !artsTrashOPCostM || (artsFilteredCardsM.length >= artsTrashOPCostM.count && selectedSigniOnPlayArtsTrash !== null);
+              // 🆕`trashToDeckBottom`＝「トラッシュから＜X＞のカードN枚をデッキの一番下に置く」（§5.3 `O-201`）。
+              const t2dCost = eff.cost?.trashToDeckBottom;
+              const t2dCandidates = t2dCost
+                ? pState.trash.map((cn, i) => ({ cn, i }))
+                  .filter(({ cn }) => matchesFilter(battleCardMap.get(getCardNum(cn)), t2dCost.filter))
+                : [];
+              const t2dOk = !t2dCost || selectedSigniOnPlayTrashToDeck.size === t2dCost.count;
               const underTrashNeeded = eff.cost?.underAnySigniTrash?.count ?? 0;
               const underTrashCandidates = underAnySigniCostCandidates(pState);
               const underTrashOk = underTrashNeeded === 0 || selectedSigniOnPlayUnderTrash.size === underTrashNeeded;
@@ -174,13 +189,15 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
               }).length >= beatTrashCostM.count;
-              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk
+              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk && t2dOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && handDiscardSigniOk
                 // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
                 && energyTrashCostSatisfied(pcEnergy, selectedSigniOnPlayEnergyTrash, eff.cost?.energyTrash, battleCardMap)
                 && energyTrashGroupsSatisfied(pcEnergy, selectedSigniOnPlayEnergyTrash, enaTrashGroups, battleCardMap)
+                // 🆕`energyTrashAll` は `energyTrash` を持たないので上の共有判定が素通りする＝枚数はここで見る。
+                && (!eff.cost?.energyTrashAll || selectedSigniOnPlayEnergyTrash.size === pcEnergy.length)
                 && fieldTrashSelectionSatisfied(
                   ftCost, ftGroups, [...selectedSigniOnPlayFieldTrash],
                   pState, battleCardMap, selfZoneFT,
@@ -601,6 +618,59 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                       ) : (
                         <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>
                           ルリグデッキに{artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツがありません
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {/* 🆕trashToDeckBottom: トラッシュから条件一致カードをデッキの一番下へ（§5.3 `O-201`・WXDi-CP02-100-E1） */}
+                  {t2dCost && (
+                    <>
+                      <p style={{ color: t2dOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        トラッシュから{filterLabel(t2dCost.filter) || 'カード'}をデッキの一番下へ:
+                        {' '}{selectedSigniOnPlayTrashToDeck.size} / {t2dCost.count}枚（候補{t2dCandidates.length}枚）
+                      </p>
+                      {t2dCandidates.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                          {t2dCandidates.map(({ cn, i }) => {
+                            const c = battleCardMap.get(getCardNum(cn));
+                            const isSel = selectedSigniOnPlayTrashToDeck.has(i);
+                            return (
+                              <div key={i}
+                                onClick={() => setSelectedSigniOnPlayTrashToDeck(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(i)) next.delete(i);
+                                  else if (next.size < t2dCost.count) next.add(i);
+                                  return next;
+                                })}
+                                onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                                onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                                onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                                onContextMenu={e => e.preventDefault()}
+                                style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                  border: isSel ? '2px solid #4caf50' : C.borderCard,
+                                  cursor: 'pointer', overflow: 'hidden' }}>
+                                {c ? (
+                                  <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, color: C.textFaint }}>{cn}</span>
+                                  </div>
+                                )}
+                                {isSel && (
+                                  <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(76,175,80,0.4)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>
+                          トラッシュに{filterLabel(t2dCost.filter) || 'カード'}がありません
                         </p>
                       )}
                     </>

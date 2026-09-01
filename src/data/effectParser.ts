@@ -885,6 +885,20 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
     cost.energyTrashAll = true;
     cost.discardAll = true;
   }
+  // 🆕トラッシュから[フィルター]カードN枚をデッキの一番下に置く → trashToDeckBottom（§5.3 `O-201`・
+  //   `WXDi-CP02-100-E1`「トラッシュから＜ブルアカ＞のカード１枚をデッキの一番下に置く：」）。
+  // ⚠**行き先がデッキ**＝`trashExile`（ゲームから除外）へ寄せない。
+  if (!cost.trashToDeckBottom) {
+    const t2dM = costStr.match(/トラッシュから(?:(?:あなたの)?＜([^＞]+)＞の)?(?:(白|赤|青|緑|黒)の)?(カード|シグニ|スペル)([０-９\d]+)枚をデッキの一番下に置く/);
+    if (t2dM) {
+      const f: TargetFilter = {};
+      if (t2dM[1]) f.story = t2dM[1];
+      if (t2dM[2]) f.color = t2dM[2];
+      if (t2dM[3] === 'シグニ') f.cardType = 'シグニ';
+      else if (t2dM[3] === 'スペル') f.cardType = 'スペル';
+      cost.trashToDeckBottom = { count: parseNum(t2dM[4]), ...(Object.keys(f).length ? { filter: f } : {}) };
+    }
+  }
   // ルリグデッキから[色]のアーツN枚をルリグトラッシュ → trashArtsFromLrigDeck（色指定は任意）
   if (!cost.trashArtsFromLrigDeck) {
     const tArtM = costStr.match(/ルリグデッキから(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);

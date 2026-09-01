@@ -27,6 +27,8 @@ export interface SigniOnPlayCostState {
   selectedSigniOnPlayArtsTrash: string | null;
   // 自分の全シグニの下からトラッシュするカード（"zone:index"）
   selectedSigniOnPlayUnderTrash: Set<string>;
+  // 🆕トラッシュからデッキの一番下へ置くコスト（cost.trashToDeckBottom）の選択（トラッシュの index）＝§5.3 `O-201`
+  selectedSigniOnPlayTrashToDeck: Set<number>;
   // 可変チャームトラッシュコスト - ON_PLAY効果用
   signiOnPlayCharmTrashVar: number;
   // 任意コスト支払い（OPTIONAL_COST）のエナ選択
@@ -43,6 +45,7 @@ const initialState: SigniOnPlayCostState = {
   selectedSigniOnPlayBeat: new Set(),
   selectedSigniOnPlayArtsTrash: null,
   selectedSigniOnPlayUnderTrash: new Set(),
+  selectedSigniOnPlayTrashToDeck: new Set(),
   signiOnPlayCharmTrashVar: 0,
   selectedOptCost: new Set(),
 };
@@ -63,6 +66,7 @@ export function useSigniOnPlayCost() {
         selectedSigniOnPlayBeat: new Set(),
         selectedSigniOnPlayArtsTrash: null,
         selectedSigniOnPlayUnderTrash: new Set(),
+        selectedSigniOnPlayTrashToDeck: new Set(),
         signiOnPlayCharmTrashVar: 0,
       }),
     setPendingSigniOnPlayCost: set.pendingSigniOnPlayCost,
@@ -74,6 +78,7 @@ export function useSigniOnPlayCost() {
     setSelectedSigniOnPlayBeat: set.selectedSigniOnPlayBeat,
     setSelectedSigniOnPlayArtsTrash: set.selectedSigniOnPlayArtsTrash,
     setSelectedSigniOnPlayUnderTrash: set.selectedSigniOnPlayUnderTrash,
+    setSelectedSigniOnPlayTrashToDeck: set.selectedSigniOnPlayTrashToDeck,
     setSigniOnPlayCharmTrashVar: set.signiOnPlayCharmTrashVar,
     setSelectedOptCost: set.selectedOptCost,
   };

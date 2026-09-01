@@ -2,9 +2,9 @@
 import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
-import { splitColors } from '../../../engine/execUtils';
+import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
+import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -108,9 +108,26 @@ export function ArtsModal(p: ArtsModalProps) {
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
+              // 🆕§5.3 `O-199`＝アンコールの**テキスト形コスト**（アイコンではない支払い）。
+              const encoreExceed = encoreCostForCard?.exceed ?? 0;
+              const encoreTrashKey = encoreCostForCard?.trashOwnKey === true;
+              const encoreHandDiscard = encoreCostForCard?.handDiscardSigni;
+              const encoreDiscardNeed = isEncore ? (encoreHandDiscard?.count ?? 0) : 0;
+              const encoreHandOk = (n: string) => {
+                if (!encoreHandDiscard) return true;
+                const c = battleCardMap.get(getCardNum(n));
+                return !!c && c.Type === 'シグニ'
+                  && (!encoreHandDiscard.story || matchesFilter(c, { story: encoreHandDiscard.story }));
+              };
+              const encoreHandCandCount = encoreHandDiscard ? my.hand.filter(encoreHandOk).length : 0;
+              // 支払える形かどうか（払えない札でアンコールを選ばせない＝踏み倒しも空振りも作らない）
+              const encoreTextPayable = (encoreExceed === 0 || canPayExceed(my, encoreExceed))
+                && (!encoreTrashKey || !!my.field.key_piece)
+                && (!encoreHandDiscard || encoreHandCandCount >= encoreHandDiscard.count);
               const artsDiscardCost = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
                 .filter(e => e.effectType === 'ACTIVATED')
-                .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
+                .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0)
+                + encoreDiscardNeed;
               const energyValid = selectedArtsCost.size === totalReq &&
                 canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount, my.cannot_pay_colorless_this_attack_phase) &&
                 (!isEncore || encoreExtraEna.every(req =>
@@ -119,7 +136,10 @@ export function ArtsModal(p: ArtsModalProps) {
                     return c?.Color?.includes(req.color) || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                   }).length >= req.count
                 ));
-              const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
+              // 🆕アンコールのテキスト形手札捨ては**条件つき**＝選んだ札が条件を満たすことまで見る。
+              const encoreDiscardOk = encoreDiscardNeed === 0
+                || [...selectedArtsDiscard].filter(i => encoreHandOk(my.hand[i])).length >= encoreDiscardNeed;
+              const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost && encoreDiscardOk;
               const betSpec = parseBetOptions(pendingArtsCard.EffectText ?? '');
               // ベット宣言でコストが変わる札は、宣言を切り替えたら選択済みエナを白紙に戻す（枚数要件が変わるため）
               const betReplacesCost = computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true }) !== null;
@@ -131,7 +151,8 @@ export function ArtsModal(p: ArtsModalProps) {
                 : betSpec.options;
               const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
               const canBet = !betBlocked && betOptions.some(n => n > 0 && n + betReservedForEncore <= my.coins);
-              const canEncore = !!encoreCostForCard && (encoreCoins === 0 || my.coins >= encoreCoins + betAmount) && !isActionBlocked('ENCORE');
+              const canEncore = !!encoreCostForCard && (encoreCoins === 0 || my.coins >= encoreCoins + betAmount)
+                && encoreTextPayable && !isActionBlocked('ENCORE');
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -222,6 +243,9 @@ export function ArtsModal(p: ArtsModalProps) {
                       <span style={{ fontSize: 11 }}>
                         {isEncore ? 'ON' : 'OFF'}
                         {encoreCostForCard.coins > 0 && ` / コイン${encoreCostForCard.coins}枚`}
+                        {encoreExceed > 0 && ` / ルリグの下から${encoreExceed}枚`}
+                        {encoreTrashKey && ' / キー1枚をルリグTへ'}
+                        {encoreHandDiscard && ` / 手札から${encoreHandDiscard.story ? `＜${encoreHandDiscard.story}＞の` : ''}シグニ${encoreHandDiscard.count}枚`}
                       </span>
                     </button>
                   )}

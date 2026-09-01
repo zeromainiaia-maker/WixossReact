@@ -71,6 +71,28 @@ export function lifeCrashReplacements(state: PlayerState): LifeCrashReplacement[
   return [...(state.life_crash_replacements ?? []), ...legacy, ...grantedPayCostReplacements(state)];
 }
 
+/**
+ * 🆕アップ状態のアシストルリグのうち、`minLevel` を満たすゾーンを列挙する（§5.3 `O-202`）。
+ * ⚠**センタールリグは含めない**（原文は「アシストルリグ」）＝含めると別のカードになる。
+ */
+export function upAssistLrigZones(
+  state: PlayerState, cardMap: Map<string, CardData> | undefined, minLevel?: number,
+): ('l' | 'r')[] {
+  const out: ('l' | 'r')[] = [];
+  const check = (stack: string[] | undefined, down: boolean | undefined, side: 'l' | 'r') => {
+    const top = stack?.at(-1);
+    if (!top || down === true) return;
+    if (minLevel !== undefined) {
+      const lv = parseInt(cardMap?.get(top.replace(/#.*$/, ''))?.Level ?? '', 10);
+      if (!Number.isFinite(lv) || lv < minLevel) return;
+    }
+    out.push(side);
+  };
+  check(state.field.assist_lrig_l, state.field.assist_lrig_l_down, 'l');
+  check(state.field.assist_lrig_r, state.field.assist_lrig_r_down, 'r');
+  return out;
+}
+
 /** `pay_cost` の支払い方を1つ選ぶ（**原文の並び順**で最初に払えるもの）。払えなければ null。 */
 function pickPayOption(
   repl: LifeCrashReplacement, state: PlayerState, cardMap: Map<string, CardData>,
@@ -83,6 +105,11 @@ function pickPayOption(
     }
     if (option.handDiscard && state.hand.length >= option.handDiscard) return { option, energyPicked: [] };
     if (option.energyTrash && state.energy.length >= option.energyTrash) return { option, energyPicked: [] };
+    // 🆕アシストルリグのダウン払い（§5.3 `O-202`）。⚠アップの枠が足りなければ**成立しない**。
+    if (option.assistLrigDown
+      && upAssistLrigZones(state, cardMap, option.assistLrigDown.minLevel).length >= option.assistLrigDown.count) {
+      return { option, energyPicked: [] };
+    }
   }
   return null;
 }
@@ -185,6 +212,21 @@ export function applyPayCostReplacement(
     const spent = paid.energy.slice(-option.energyTrash);
     paid = { ...paid, energy: paid.energy.slice(0, paid.energy.length - spent.length), trash: [...paid.trash, ...spent] };
     paidJa = `エナゾーンから${spent.length}枚をトラッシュに置く`;
+  } else if (option.assistLrigDown) {
+    // 🆕アップ状態のアシストルリグを N 体ダウンする（§5.3 `O-202`）。
+    // ⚠**左→右の決定論**（ファズ再現性）。本来は払う側が選ぶ＝funnel 冒頭の `optional` と同じ近似。
+    const zones = upAssistLrigZones(paid, cardMap, option.assistLrigDown.minLevel)
+      .slice(0, option.assistLrigDown.count);
+    if (zones.length < option.assistLrigDown.count) return null;
+    paid = {
+      ...paid,
+      field: {
+        ...paid.field,
+        ...(zones.includes('l') ? { assist_lrig_l_down: true } : {}),
+        ...(zones.includes('r') ? { assist_lrig_r_down: true } : {}),
+      },
+    };
+    paidJa = `アシストルリグ${zones.length}体をダウンする`;
   }
   return { state: consumeLifeCrashReplacement(paid, index), paidJa };
 }

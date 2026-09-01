@@ -872,6 +872,14 @@ export interface EffectCost {
   handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
   fieldExileSelf?: boolean;    // 場にあるこのシグニをゲームから除外する
   selfToDeckBottom?: boolean;  // このシグニをデッキの一番下に置く（コスト）
+  /**
+   * 🆕**トラッシュから条件一致カードN枚をデッキの一番下に置く**（2026-09-02・§5.3 `O-201`・
+   * `WXDi-CP02-100-E1`「トラッシュから＜ブルアカ＞のカード１枚をデッキの一番下に置く：」）。
+   * ⚠**`trashExile`（ゲームから除外）を流用しない**＝行き先が違う（除外はどこにも戻らない）。
+   * ⚠支払いは3地点で honor する＝`optionalOnPlayCostStub`（効果で場に出た経路）／
+   *   `SigniOnPlayCostModal`＋`executeSigniOnPlayCost`（通常召喚の経路）／`canAffordOptionalCostSpec`。
+   */
+  trashToDeckBottom?: { count: number; filter?: TargetFilter };
   selfPowerDown?: number;      // このシグニのパワーをN減らす（コスト）
   fieldToLrigTrash?: { count: number; filter?: TargetFilter }; // 場のカードをルリグトラッシュに置く
   energyTrashColorAll?: string; // エナゾーンからすべての[色]のカードをトラッシュ
@@ -1619,6 +1627,12 @@ export interface DrawAction {
   countFromZone?: CountFromZone;
   untilHandCount?: number; // 指定時、手札が N 枚になるまで（差の分だけ）引く。手札が N 枚以上なら引かない（WX05-003「手札が6枚より少ない場合、その差の分だけ引く」）
   addLastProcessedCount?: boolean; // 指定時、count に加えて直前の選択枚数（lastProcessedCards.length）分を引く（VARIABLE_DISCARD_AND_DRAW の「捨てた枚数＋bonus」用）
+  /**
+   * 🆕「この効果によって各プレイヤーは最大N枚までしかカードを引くことができない」（§5.3 `O-162`・`WXK06-028-E2`）。
+   * 解決した枚数（`count` ＋ `addLastProcessedCount` 等の加算後）をこの値で上限固定する。
+   * ⚠**デッキ残量による切り詰め（`canDraw`）とは別軸**＝こちらは原文が書いている上限で、デッキ切れは別に効く。
+   */
+  maxCount?: number;
   perLastProcessedLevel?: boolean; // 指定時、count に加えて直前に公開/処理したカード（lastProcessedCards）のレベル合計 × count 分を引く（「公開したシグニのレベル１につきカードを１枚引く」WD21-001-E2）
 }
 
@@ -2497,8 +2511,21 @@ export interface RevealUntilToFieldAction {
 export interface PlaceKeyFromLrigDeckAction {
   type: 'PLACE_KEY_FROM_LRIG_DECK';
   owner: Owner;
-  /** 出すキーのカード名（部分一致ではなく完全一致）。 */
-  cardName: string;
+  /**
+   * 出すキーのカード名（部分一致ではなく完全一致）。
+   * 🆕**省略可**（§5.3 `O-200`・2026-09-02）＝原文が「あなたのルリグデッキから**キー１枚**を場に出す」と
+   * 名前を指定しない形（`WXK02-004-E3` / `WXK03-014-E3`）。省略時はルリグデッキのキーから選ばせる。
+   */
+  cardName?: string;
+  /**
+   * 🆕**そのキーの印刷コストを支払う**（§5.3 `O-200`・`WXK03-014-E3`「**コストを支払って**キー1枚を場に出す」）。
+   * 支払えないキーは選択候補から外す（＝踏み倒しを作らない）。省略＝無償（`WXK02-004-E3` の原文どおり）。
+   */
+  payPrintedCost?: boolean;
+  /** `payPrintedCost` のときのコイン軽減（原文「そのキーを場に出すためのコストは《コイン×1》減る」）。 */
+  coinReduction?: number;
+  /** 内部用＝選択後に確定したインスタンスID。parser/manual からは書かない。 */
+  _instanceId?: string;
 }
 
 // ルリグトラッシュにあるすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001「創世の巫女 マユ」の【出】）。
@@ -4184,6 +4211,17 @@ export interface StubAction {
     handDiscard?: number;
   };
   /**
+   * 🆕`EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF`（§5.3 `O-202`・2026-09-02・`WXEX2-28-E1`）＝
+   * 「あなたの＜X＞のシグニ1体が**対戦相手の効果によって**場を離れる場合、代わりに
+   *  **アップ状態のこのシグニをダウンして**もよい」＝宣言者が自分をダウンして身代わりになる置換。
+   * 消費＝`effectExecutor.ts` の `applyEffectLeaveDownProtectorSubstitute`（離場置換 funnel の1軸）。
+   * ⚠**素の `DOWN{thisCardOnly}` へ倒さない**＝CONTINUOUS は `executeAction` を通らないので恒久 no-op になる。
+   */
+  leaveDownProtector?: {
+    /** 守れる victim の条件（＜ウェポン＞等。省略＝自分のシグニなら誰でも）。 */
+    victimFilter?: TargetFilter;
+  };
+  /**
    * `DAMAGE_REPLACE_BY_COST`（§6.4 O-37(a)・続き543）＝
    * 「あなたがダメージを受ける場合、代わりに〈コスト〉を支払ってもよい。
    *  （そうした場合、このルリグはこの能力を失う。）」＝**ダメージの置換**。
@@ -4205,6 +4243,8 @@ export interface StubAction {
       handDiscard?: number;
       /** エナゾーンからトラッシュに置いて払う枚数。 */
       energyTrash?: number;
+      /** 🆕アップ状態のアシストルリグN体をダウンして払う（§5.3 `O-202`）。 */
+      assistLrigDown?: { count: number; minLevel?: number };
     }[];
     /** 「そうした場合、このルリグはこの能力を失う」＝払ったらこの付与能力を1つ捨てる。 */
     loseAbility?: boolean;
@@ -4246,6 +4286,8 @@ export interface StubAction {
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
   /** OPTIONAL_COST: トラッシュから条件一致カードをゲームから除外する任意コスト。`owner:'any'` は両プレイヤーのトラッシュ。 */
   trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
+  /** 🆕OPTIONAL_COST: トラッシュから条件一致カードをデッキの一番下に置く任意コスト（§5.3 `O-201`）。 */
+  trashToDeckBottom?: { count: number; filter?: TargetFilter };
   /**
    * UNDER_CARD_AS_ENERGY_COST: 「このシグニの下にあるカードをエナゾーンにあるかのように
    * トラッシュに置いて（エナコストを）支払える」（`WXDi-P10-041`）。CONTINUOUS の宣言型で、
@@ -4723,9 +4765,15 @@ export interface PreventNextDamageAction {
  */
 export interface LifeCrashReplaceAction {
   type: 'LIFE_CRASH_REPLACE';
-  /** `mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ。 */
-  replaceKind: 'mill' | 'crash_opponent';
+  /**
+   * `mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ／
+   * 🆕`pay_cost`＝「代わりに〈コスト〉を支払ってもよい」（§5.3 `O-202`・`WX24-P3-043-E1`）。
+   * ⚠`pay_cost` は `payOptions` を必ず伴う（空だとタダで置換できてしまう）。
+   */
+  replaceKind: 'mill' | 'crash_opponent' | 'pay_cost';
   count: number;
+  /** 🆕`replaceKind:'pay_cost'` の支払い方（**原文の並び順**）。 */
+  payOptions?: import('../types').LifeCrashReplacement['payOptions'];
   /** 「対戦相手の**シグニ**によって」等の限定。 */
   damageSource?: 'lrig' | 'signi';
   /** 「シグニの**アタック**によって」限定（効果によるクラッシュには乗らない）。 */

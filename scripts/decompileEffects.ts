@@ -585,6 +585,8 @@ function costJa(c?: any): string {
   if (c.lrigDownVariable) parts.push('アップ状態のルリグを好きな数ダウンする');
   if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
   if (c.deckTrash != null) parts.push(`デッキの上からカードを${c.deckTrash}枚トラッシュに置く`);
+  // 🆕§5.3 `O-201`＝出さないと `コスト:{...}` と生JSONが漏れる（`census:stubs` C群と同じ「表示の穴」）。
+  if (c.trashToDeckBottom) parts.push(`トラッシュから${filterJa(c.trashToDeckBottom.filter)}カード${c.trashToDeckBottom.count}枚をデッキの一番下に置く`);
   if (c.underSelfTrash != null) {
     const kind = c.underSelfTrash.filter?.cardType === 'スペル'
       ? 'スペル'
@@ -1120,7 +1122,8 @@ function rearrangeSigniJa(a: any): string {
 function actionJa(a?: Action, effectType?: string): string {
   if (!a) return '';
   switch (a.type) {
-    case 'DRAW': return a.untilHandCount !== undefined
+    // 🆕`maxCount`＝原文のドロー上限（§5.3 `O-162`）。出さないと「最大N枚まで」が逆翻訳から消える。
+    case 'DRAW': return (a.maxCount !== undefined ? `（最大${a.maxCount}枚まで）` : '') + (a.untilHandCount !== undefined
       ? `${ownerJa(a.owner)}手札が${a.untilHandCount}枚より少ない場合、その差の分だけカードを引く`
       // ⚠`unitSize` の有無で分岐しない＝「〈X〉のシグニ**１体につき**1枚引く」は `unitSize` を持たない
       //   （既定1）ので、旧実装では `countFromZone` ごと描かれず**固定1枚**に見えていた（`WXEX2-34-E1`）。
@@ -1134,7 +1137,7 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `${ownerJa(a.owner)}この方法で処理したカード1枚につきカードを1枚引く${(a.count ?? 0) > 0 ? `（さらに${numJa(a.count)}枚）` : ''}`
       : a.count?.$ref === 'last_processed_count'
       ? 'この方法で処理したカードの枚数と同じ数だけカードを引く'
-      : `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
+      : `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`);
     case 'GAIN_COIN': return `${ownerJa(a.owner)}コインを${numJa(a.count ?? 1)}枚得る`;
     case 'DRAW_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきカードを${a.drawPerUnit}枚引く`;
     case 'DRAW_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につきカードを${a.drawPerLevel}枚引く`;
@@ -1316,10 +1319,23 @@ function actionJa(a?: Action, effectType?: string): string {
       const src = a.damageSource ? `対戦相手の${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}${a.byAttack ? 'のアタック' : ''}によって` : '';
       // ⚠語尾は活用が変わる（「置く」/「置いてもよい」・「クラッシュする」/「クラッシュしてもよい」）＝
       //   `${…}てもよい` と素朴に繋ぐと「置くてもよい」になる。
+      // 🆕`pay_cost`（§5.3 `O-202`）＝支払い方を全部出す（出さないと「代わりに」だけの空文になる）。
+      const payJa = (a.payOptions ?? []).map(o =>
+        o.assistLrigDown
+          ? `あなたの${o.assistLrigDown.minLevel !== undefined ? `レベル${o.assistLrigDown.minLevel}以上の` : ''}アップ状態のアシストルリグ${o.assistLrigDown.count}体をダウンする`
+          : o.handDiscard ? `手札を${o.handDiscard}枚捨てる`
+          : o.energyTrash ? `エナゾーンからカードを${o.energyTrash}枚トラッシュに置く`
+          : `${(o.costColors ?? []).map(c => `《${c}》`).join('')}を支払う`,
+      ).join('か');
       const what = a.replaceKind === 'mill'
         ? `あなたのデッキの上からカードを${a.count}枚トラッシュに${a.optional ? '置いてもよい' : '置く'}`
+        : a.replaceKind === 'pay_cost'
+        ? `${payJa}${a.optional ? '（してもよい）' : ''}`
         : `対戦相手のライフクロス${a.count}枚を${a.optional ? 'クラッシュしてもよい' : 'クラッシュする'}`;
-      return `このターン、${a.once ? '次に' : ''}あなたのライフクロスが${src}クラッシュされる場合、代わりに${what}`;
+      // 🔴`pay_cost` の原文は「ライフクロスがクラッシュされる場合」ではなく「**ダメージを受ける**場合」。
+      const trigger = a.replaceKind === 'pay_cost'
+        ? `あなたが${src}ダメージを受ける場合` : `あなたのライフクロスが${src}クラッシュされる場合`;
+      return `このターン、${a.once ? '次に' : ''}${trigger}、代わりに${what}`;
     }
     case 'EXILE':
       if (a.target?.type === 'HAND_CARD' && a.target?.count !== 'ALL') {
@@ -2540,7 +2556,9 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキの一番上と${ownerJa(a.owner)}ライフクロス1枚を入れ替える${a.optional ? '（してもよい）' : ''}`;
     // 🆕ルリグデッキからキーを場に出す（`WDK03-001-E1`）。
     case 'PLACE_KEY_FROM_LRIG_DECK':
-      return `${ownerJa(a.owner)}ルリグデッキから《${a.cardName}》1枚を場に出す`;
+      // 🆕カード名なし＝「キー1枚を場に出す」（選ばせる）／`payPrintedCost`＝そのキーの印刷コストを払う（§5.3 `O-200`）。
+      return `${ownerJa(a.owner)}ルリグデッキから${a.payPrintedCost ? 'コストを支払って' : ''}${a.cardName ? `《${a.cardName}》` : 'キー'}1枚を場に出す`
+        + (a.coinReduction ? `（そのコストは《コイン×${a.coinReduction}》減る）` : '');
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
     case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;
@@ -4114,6 +4132,15 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.id === 'CHARM_POWER_MINUS_MULTIPLIER') {
         return `それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワーが－される場合、代わりに${typeof a.value === 'number' ? a.value : 3}倍－される`;
+      }
+      // 🆕守る対象がペイロードにある（§5.3 `O-202`）＝宣言型 STUB（ハンドラ無し・消費は離場置換 funnel）。
+      if (a.id === 'EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF') {
+        const vf = a.leaveDownProtector?.victimFilter;
+        return `あなたの${filterJa(vf)}シグニ1体が対戦相手の効果によって場を離れる場合、代わりにアップ状態のこのシグニをダウンしてもよい`;
+      }
+      // 🆕枚数がペイロードにある（§5.3 `O-200`）＝固定文にすると「2枚まで」が逆翻訳から消える。
+      if (a.id === 'SET_KEY_PLACE_LIMIT') {
+        return `このゲームの間、あなたはキーを${typeof a.value === 'number' ? a.value : 1}枚まで場に出すことができる`;
       }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）

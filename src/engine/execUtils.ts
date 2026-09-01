@@ -378,6 +378,11 @@ export interface OptionalCostSpec {
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
   /** トラッシュから条件一致カードを除外する。owner:'any' は両プレイヤーを単一候補プールにする。 */
   trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
+  /**
+   * 🆕トラッシュから条件一致カードN枚を**デッキの一番下**へ置く（§5.3 `O-201`・`WXDi-CP02-100-E1`）。
+   * ⚠`trashExile`（ゲームから除外）とは**行き先が違う**＝デッキへ戻るので後で引ける。流用禁止。
+   */
+  trashToDeckBottom?: { count: number; filter?: TargetFilter };
   energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** 異なるフィルタの組でエナから置く（「《A》1枚と《B》1枚と…」）。支払いはグループごとに1ステップへ分解する。 */
   energyTrashGroups?: { count: number; filter?: TargetFilter }[];
@@ -449,7 +454,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
-    underAnySigniTrash: a.underAnySigniTrash, trashExile: a.trashExile,
+    underAnySigniTrash: a.underAnySigniTrash, trashExile: a.trashExile, trashToDeckBottom: a.trashToDeckBottom,
     energyTrash, energyTrashGroups: a.energyTrashGroups,
     fieldTrash: a.fieldTrash, fieldTrapTrash: a.fieldTrapTrash,
     fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
@@ -577,6 +582,11 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     ));
     if (matching.length < spec.trashExile.count) return false;
   }
+  if (spec.trashToDeckBottom) {
+    const matching = movableTrashCandidates(
+      'self', ctx.ownerState, spec.trashToDeckBottom.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    if (matching.length < spec.trashToDeckBottom.count) return false;
+  }
   if (spec.fieldTrash) {
     const filter = {
       ...(spec.fieldTrash.filter ?? {}),
@@ -675,6 +685,7 @@ export function optionalCostExtraLabels(spec: OptionalCostSpec): string[] {
     ...(spec.selfEnergyToDeckBottom ? ['このシグニをエナゾーンからデッキの一番下へ'] : []),
     ...(spec.trashExile ? [`${spec.trashExile.owner === 'any' ? 'いずれかの' : '自分の'}トラッシュから${spec.trashExile.count}枚を除外`] : []),
     ...(spec.fieldTrapTrash ? [`${spec.fieldTrapTrash.excludeSource ? '他の' : ''}【トラップ】${spec.fieldTrapTrash.count}枚をトラッシュ`] : []),
+    ...(spec.trashToDeckBottom ? [`トラッシュから${spec.trashToDeckBottom.count}枚をデッキの一番下へ`] : []),
   ];
 }
 
@@ -731,6 +742,14 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       target: {
         type: 'TRASH_CARD', owner: spec.trashExile.owner, count: spec.trashExile.count,
         filter: spec.trashExile.filter,
+      },
+    } as EffectAction] : []),
+    // 🆕トラッシュ → デッキの一番下（§5.3 `O-201`）。既存 `TRANSFER_TO_DECK{TRASH_CARD, position:'bottom'}` に載る。
+    ...(spec.trashToDeckBottom ? [{
+      type: 'TRANSFER_TO_DECK', position: 'bottom', shuffle: false,
+      source: {
+        type: 'TRASH_CARD', owner: 'self', count: spec.trashToDeckBottom.count,
+        filter: spec.trashToDeckBottom.filter,
       },
     } as EffectAction] : []),
     ...(spec.fieldTrash ? [{

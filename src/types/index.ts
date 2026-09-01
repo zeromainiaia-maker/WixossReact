@@ -749,6 +749,14 @@ export interface PlayerState {
    * 🔑消費は `triggerCollect` の `KEYWORD_TOKEN_MAP` ループ（シグニ側と同じトークンカードを引く）。
    */
   player_keywords?: string[];
+  /**
+   * 🆕**このゲームの間に場へ出せるキーの枚数**（2026-09-02・§5.3 `O-200`・`WXK02-004-E3`
+   * 「このゲームの間、あなたはキーを**２枚まで**場に出すことができる」）。既定＝1（ルールどおり1枚）。
+   * 🔑消費は2地点＝①engine `execPlaceKeyFromLrigDeck`（枠が空いていれば `key_piece_extra` へ積む）
+   *   ②`BattleScreen` のキーセット可否ゲートと配置先（`hasUnlimitedKeys` と同じ2箇所）。
+   * ⚠`UNLIMITED_KEYS`（枚数無制限）とは別軸＝あちらはルリグの【常】、こちらは**回数指定の永続フラグ**。
+   */
+  key_place_limit?: number;
   // このターン、自分のシグニは合計1回しかアタックできない（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL）
   signi_attack_once_limit?: boolean;
   // 相手効果による自シグニのダウンを防ぐ（PREVENT_SIGNI_DOWN_BY_OPP_ALL）
@@ -1299,7 +1307,17 @@ export interface LifeCrashReplacement {
    * `kind:'pay_cost'` の支払い方（**原文の並び順**＝funnel は先に払えるものを使う）。
    * ⚠この配列が空／未指定の `pay_cost` は「タダで置換できる」＝**必ず1つ以上入れる**。
    */
-  payOptions?: { costColors?: string[]; handDiscard?: number; energyTrash?: number }[];
+  payOptions?: {
+    costColors?: string[];
+    handDiscard?: number;
+    energyTrash?: number;
+    /**
+     * 🆕**アップ状態のアシストルリグN体をダウンして払う**（2026-09-02・§5.3 `O-202`・
+     * `WX24-P3-043-E1`「代わりにあなたのレベル1以上のアップ状態のアシストルリグ2体をダウンしてもよい」）。
+     * ⚠**アップの枠が足りなければ払えない**＝置換は成立せずダメージがそのまま通る（過剰にしない側）。
+     */
+    assistLrigDown?: { count: number; minLevel?: number };
+  }[];
   /**
    * 「そうした場合、このルリグはこの能力を失う」＝払ったら**ルリグ付与ストアからこの effectId を1つ**消す。
    * ⚠この項目が付いた置換は `life_crash_replacements` には積まれない（付与ストアが唯一の在庫）＝

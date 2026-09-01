@@ -11,65 +11,52 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-09-02・続き773・Opus 5＋Codex 2アカウント・索引 B を上から4件）＝索引 B を 14 → 12件、うち2件は縮小。**
-  📊**進捗3計器＝Sheet1 要対応 20 → 22 / 863（🔴増えたが退化ではない＝計器の較正）｜台帳 残 OPEN 44（据置）｜
-  census 高シグナル 11 / BASELINE 12（据置）**。
-  📦**在庫2本＝④機構 worklist 65 → 63項目**（§5.3 の `| \`O-` 行数で実測。索引 A 17／**B 14 → 12**／C 34／E 4）
-  ｜🏁**⑤実機 残 0件**（この巡の6本は同巡で実行・全 PASS）。
-  gates 全緑（golden **3233 / 3233**＝3215 から +18本・smoke 10,721 全異常0・fuzz 全0・census 11・
+- 🏁**セッション（2026-09-02・続き774・Opus 5 単独）＝§5.3 索引 C を上から5件（`O-162`／`O-199`／`O-200`／`O-201`／`O-202`）クローズ。**
+  📊**進捗3計器＝Sheet1 要対応 22 / 863（据置）｜台帳 残 OPEN 44（据置＝この巡は §5.2 から取っていない）｜
+  census 高シグナル 12 → 6（BASELINE も 6 へ更新）**。
+  📦**在庫2本＝④機構 worklist 63 → 58項目**（§5.3 の `| \`O-` 行数の実測。索引 A 17／B 12／**C 27 → 22**／E 4／F 3）
+  ｜🏁**⑤実機 残 0件**（この巡の9本は同巡で実行・全 PASS）。
+  gates 全緑（golden **3243 / 3243**＝3233 から **+10本**・smoke 10,721 全異常0・fuzz 全0・census **6 / BASELINE 6**・
   census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors/250 warnings）。
 
-  🔑**この巡の主題＝「登録票の『受け皿が無い』は5件連続で誤りだった」。新しい型を1つも作らずに済んだ回が3つある。**
-  ① `O-97`（🏁クローズ）＝複数の印刷済み【使用条件】。**新条件型を作らず既存 `LRIG_TRASH_COUNT.filter` で足りた**（4効果）。
-  ② `O-58` 段1（6 → 残2）＝アタッカー側の必須バニッシュ置換4効果。**「対戦相手のターンの間」の除外は
-     既存 `bp.oppTurnOnly && isOwnerTurn` がそのまま持っていた**＝新条件ゼロ。
-  ③ `O-181` 軸(a)（6 → 残4）＝ルリグのアタック終了収集地点を `performGuardResponse` に新設。
-  ④ `O-52`（🏁クローズ）＝「めくれるまで公開」4効果。**登録票は「色除外 filter が無い・先に受け皿を作れ」と
-     書いていたが、`colorExclude`・`levelLtLastProcessed`・`handOrField` は全部既存**＝**新設した型は0**。
+  🔑**この巡の主題＝「登録票の『受け皿が無い』は5件中4件で失効していた」。新しい型は1つも作っていない。**
+  ① `O-162`（プレイヤーをN人まで選ぶ）＝**既存 `CHOOSE{upTo}`** で足りた。選べるのは「あなた」「対戦相手」の
+     2つだけなので、登録票が要求していた「**選ばれたプレイヤーを後続へ運ぶ口**」は母集団2効果では不要だった。
+  ② `O-200`（ルリグデッキからキーを場に出す）＝**`PLACE_KEY_FROM_LRIG_DECK` は既にあった**（続き760 に新設済み）。
+     足したのは「カード名を書かない形（選ばせる）」「`payPrintedCost`」「`key_place_limit`」の3点だけ。
+  ③ `O-201`（【出】任意コストの新種別）＝**`OptionalCostSpec` も支払いUIも既存**。欠けていたのは
+     `optionalOnPlayCostStub` の `SUPPORTED` に `discardAll` / `energyTrashAll` / `trashToDeckBottom` が無いことだけ。
+     🔴**SUPPORTED に無いキーが1つでもあると `wrapOptionalOnPlay` が null を返し、その任意【出】が丸ごと積まれない。**
+  ④ `O-202`（コスト付きの置換）＝**窓は2本とも既存**（ダメージ置換＝`lifeCrashReplace.ts` の `kind:'pay_cost'`／
+     離場置換＝`collectLeaveSubstituteOptions` の `selfAbilityPay` 軸）。足したのは**支払い種別**2つだけ。
+  ⑤ `O-199`（アンコールのテキスト形コスト）だけが本当に新規。**母集団は登録票の2効果ではなく5枚**
+     （`WDA-F02-08`／`SP27-010`／`SP27-016`／`SPK01-13`／`WX14-016`）。
 
-  🔴🔑**主産物1＝Codex の未検証部分に欠陥が2件あり、Claude の引き継ぎ検証で捕まえた**（`O-181`）。
-  ①**parser 規則が到達不能だった**＝先行する `ON_ATTACK_LRIG` 分岐が「このルリグがアタックしたとき」を先に食うため、
-    `ON_ATTACK_END` 側へ `ルリグ` を足しても**一度も通らない**。**`build:effects` しても live が1バイトも変わらないことで発覚。**
-  ②**`attackDealtNoDamage` の抽出 regex が「いない場合」だけ**で、「**いなかった**場合」を取りこぼしていた
-    ＝timing を直すと**条件なし発火**という別の過剰実行を生むところだった。
-  ⇒ 🔑**「codex がゲート緑で完走した」と「正しい」は別。live の全数 diff と原文照合まで必ず自分でやる。**
+  🔴🔑**主産物＝作業中に別のバグを1件見つけて直した＝「キーが1枚も場に出せない」。**
+  `BattleScreen` のキー使用ゲートが **CSV の空欄 `'-'` を `!timing` で「タイミング指定なし」と判定**していた
+  （`'-'` は truthy）＝**Timing 列が全部 `-` の全80枚のキーがルリグデッキから永久に使用不可**だった。
+  ⇒ 🔑**CSV の空欄は空文字ではなく `'-'`。** `Story` 列も同じ罠で、`TargetFilter.story`（＜ブルアカ＞等）が
+  実際に読むのは **`CardClass` の「：」より後ろ**（`Story` 列は `-` / `Dissona` の2値）＝golden を書くときに2回踏んだ。
 
-  🔴🔑**主産物2＝Claude の投入前実測も2件外れ、Codex が実コードで訂正した。**
-  ①`WXK01-045-E2` を「parser だけ」と見立てたが、`REVEAL_UNTIL{owner:'opponent'}` は**公開元だけ相手デッキになり、
-    SEARCH pending に `deckOwner` が無く残り札の復帰先が self に既定**されていた（engine の配線漏れ）。
-  ②`SP27-005-E1` の「手札に加えるか場に出す」を**新UIが要る本物の穴**と見立てたが、
-    **既存 SEARCH の `handOrField` を `RevealUntilHitSpec` から再利用するだけ**で足りた。
+  🖥**実機＝9本すべて Claude が実行して PASS**（`o162ChoosePlayer`／`o199EncoreTextCostPay`＋`Short`／
+  `o200KeyFromLrigDeck`／`o200KeyGateOn`＋`Off`／`o201TrashToDeckBottomPay`＋`NoPay`／`o202DamageReplaceDeclare`）。
+  **反転確認4本**＝`o199EncoreTextCostShort`（下が2枚では払えない）／`o200KeyGateOff`（枠1なら2枚目を置けない）／
+  `o201TrashToDeckBottomNoPay`（＜ブルアカ＞が無ければ発動できない＝踏み倒さない）／
+  `o162ChoosePlayer` は1本の中で反転（対戦相手を選んだので**自分の手札は動かない**・7枚でも**5枚で止まる**）。
+  ⚠**`UNTIL_OPP_TURN_END` のパワー修整は別ストア**（`power_mods_until_opp_turn`）＝`temp_power_mods` だけ見て
+  「効果が走っていない」と誤読した（`queryState` に観測点を足して解消）。
 
-  🔄**golden の据置契約を2本「反転」した**（削除ではなく正方向 assert へ差し替え・PLAN §5.2 の規約）＝
-  第40バッチ「`WXDi-D04-004-sub-E1` は発動タイミングが主因なので据置」／第20バッチ「`SP27-005` は非採用」。
+  📉**census 12 → 6 の内訳を混ぜない**＝**前進は1件だけ**（`WXDi-CP02-100-E1` は **`AUTO` のまま**コストが
+  JSON に載ったので免除ではない）。**残り -4 は MANUAL 免除＝較正**（`WXK02-004-E3`／`WXK03-014-E3`／
+  `WX24-P3-043-E1`／`WXEX2-28-E1`）。⚠**中身は原文から書き直しており「移設だけ」ではない**が、
+  **census の -4 を前進として数えない**。**`O-199` の2枚は高シグナルに残した**＝アンコールのコストは
+  `screens/battle/costs.ts` が読むので **effects JSON には載らないのが正しい**（計器に嘘をつかせない）。
 
-  🖥**実機＝6本すべて Claude が実行して PASS**（`o58` 3本＝Codex 記述／`o181` 3本＝Claude 記述）。
-  **反転確認あり**＝`o58OpponentTurnOnlyDoesNotProtectAttacker`（対戦相手ターン限定の能力が自分のアタックでは守らない）／
-  `o181LrigAttackEndSkippedWhenDamaged`（ダメージが通ると発火しない）。
-  ⚠`o181` は**実カードではなく合成の付与能力を注入**している（実カードの任意コスト支払いが「発火したか」と混ざるため）。
-
-  📉**計器の較正について**＝Sheet1 要対応が **20 → 22** に増えたのは、
-  **§5.3 の索引と登録票にカード番号を明記したぶん `mech` フラグが増えたから**（`cardProgressCensus.mjs` は
-  PLAN §5.3 の本文からカード番号を拾う）。**セッション開始時の PLAN で測り直して 20 を確認済み＝退化ではない。**
-  ⚠**CLAUDE.md の「18枚」は stale**（実測は開始時点で 20）。**即着手可能 0 は不変。**
-
-  🛑**2アカウントとも利用上限で終了**＝`.codex-work` は `O-181` の実装中に（再開 6:21）、
-  既定 `~/.codex` は `O-59` の**投入直後に1トークンも使わず**（再開 5:33）。`O-59` は作業ツリー clean＝**着手ゼロ**。
-
-**▶ 次の一手**＝**§5.3 の索引 B を上から続ける**（索引がそのまま取る順）。**指示書は2本すでに書いてある。**
-① 🔥**`O-59`（トラップ）と `O-71`（遅延の「それ」照応）は指示書が scratchpad に用意済み**だが、
-   **2アカウントとも上限**のため未投入。**再開時刻＝既定 `~/.codex` 5:33／`.codex-work` 6:21。**
-   🔑**どちらも投入前実測で登録票を訂正済み**＝`O-59` は**②が既に実装済み**（`INTERNAL_OPP_SIGNI_TO_TRAP` が
-   居たゾーンの添字を保つ＝`WX21-003-E3` は正しく動く）／`O-71` は**受け皿が既にあり live に3実例**
-   （`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `INSTALL_DELAYED_TRIGGER{targetsStored}`）。
-② 🔴**`O-71` で見つけた無言の誤動作**＝`WXK10-045-E2` の2段目が
-   「チェックゾーンに置いたカードを手札に戻す」ではなく**「相手シグニ1体をバウンス」**になっている（別物）。
-③ 🔴🆕**新しく見つけた系統バグ＝「〜してもよい。そうした場合、〜」が `CONDITIONAL{IS_MY_TURN}` に化ける。**
-   **少なくとも5効果**で確認（`SPDi43-03-sub-E1`／`WXDi-D04-004-sub-E1`／`WXDi-CP02-002/003/004-E1`）＝
-   **任意コストを払わなくても後段が走る過剰実行**。正は did-it ゲート（`LAST_PROCESSED_*` 系）。
-   ⚠**母集団の実測から始める**（未登録＝§5.3 へ入れるかどうかも実測後に決める）。
-④ **`O-58` 段2／`O-181` 軸(b) は障害を登録票へ書いてある**ので、再開はそこから読む。
-⚠**新機構を足したら、その回のうちに実機観測点を踏む**（この巡も6本すべて同巡で返済した）。
+**▶ 次の一手**＝**§5.3 の索引 C を上から続ける**（索引がそのまま取る順）。次は **`O-84`（2効果）→ `O-114`（2効果）
+→ `O-180`（残1効果）→ `O-151` → `O-164`**。⚠**着手前に PLAN_DETAIL の同じ ID の登録票を読む**が、
+🔴**この巡でも「受け皿が無い」は4/5で失効していた**＝**登録票の見立てより先に実コードを grep する**
+（提案キー名ではなく**原文の言い回し**と **golden のテスト名**で引く）。
+⚠**`O-114` / `O-94` / `O-150` は `src/screens/` を触るので遅いレーン＋実機必須**。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -687,6 +674,18 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > 🔑**ルリグ【起】も手札スペルも UI は2段**（「【起】…」→「発動」／「発動」→「発動する」）＝
 > 1段目だけ押して止まると**前提崩れの FAIL** になる。**押せなかったら開き直して自己回復する**ループにする。
 
+> 🏁🆕**2026-09-02 続き774＝索引 C バッチの分もその巡のうちに返済した（この節に残さない）。**
+> **`V-114`**（`O-200`＝ルリグデッキからキーを場に出す＋枠2の積み上げ）・**`V-115`**（`O-200` の `BattleScreen` 側ゲート）・
+> **`V-116`**（`O-201`＝`trashToDeckBottom` の支払いUI）・**`V-117`**（`O-199`＝テキスト形アンコール）・
+> **`V-118`**（`O-202`＝ダメージ置換の宣言）・**`V-119`**（`O-162`＝プレイヤー選択と `maxCount`）を
+> **新規シナリオ9本**で踏み、**単体でも9本一括でも全 PASS**。
+> 🔴**この巡で見つけた実バグ＝「キーが1枚も場に出せない」**（`V-115` が最初 FAIL したので調べて発覚）＝
+> `getMyLrigDeckCardActions` が **CSV の空欄 `'-'` を `!timing`（＝タイミング指定なし）と判定**していた。
+> ⇒ 🔑**実機シナリオの FAIL は「シナリオの腐り」より先に「本当に壊れている」を疑う**（§5.1 の3分類の (b)）。
+> 🔴**踏み直した罠2つ**＝(a)**「召喚」→ゾーン選択は別ティック**（同じ tick で両方押すループを書くと永久に置けない）
+> (b)**`UNTIL_OPP_TURN_END` のパワー修整は `power_mods_until_opp_turn`**（`temp_power_mods` を見て「走っていない」と誤読）。
+> 🔑**同じ testid を押し続けない**＝`keycost-energy-0` はトグルなので、複数枚コストは index を進めて1枚ずつ選ぶ。
+
 **■ この節の運用で効いた教訓（クローズ済みエントリの全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) と BUGFIXES.md へ退避）**
 - 🔴**盤面 spec は「CORE フィールド」を明示クリアする**（2026-09-01 続き769 実測）＝`field.key_piece` / `key_piece_extra` /
   `hand` / `deck` / `energy` などは `injectScenario` の**除外方式が消さない**ので、**前の巡の1枚が残ったまま**次のシナリオが回る。
@@ -995,13 +994,23 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > 落ちているのは**基準側**（`colorMatchesSourceCard` が印字色しか読まない）＝**別物だった。着手前に「どちら側か」を必ず読む。**
 
 
+> 🏁**2026-09-02（索引 C 第8巡）に5件クローズ＝`O-162` / `O-199` / `O-200` / `O-201` / `O-202`。**
+> 🔑**この巡の主題＝「登録票の『受け皿が無い』が5件中4件で失効していた」。新設した型はゼロ。**
+> ①`O-162`＝**既存 `CHOOSE{upTo}`** で足りた（選べるプレイヤーは2人しかないので「選ばれた側を運ぶ口」は不要）。
+> ②`O-200`＝**`PLACE_KEY_FROM_LRIG_DECK` は既にあった**（`WDK03-001-E1` 用に続き760 で新設済み）。
+> ③`O-201`＝**支払いUI（`OptionalCostSpec`）も窓も既存**。欠けていたのは `optionalOnPlayCostStub` の `SUPPORTED` 3語。
+> ④`O-202`＝**窓は2本とも既存**（ダメージ置換＝`lifeCrashReplace.ts` の `pay_cost`／離場置換＝`selfAbilityPay` の軸列）。
+> 欠けていたのは**支払い種別**（アシストルリグのダウン／宣言者自身のダウン）だけ。
+> ⑤`O-199` だけが本当に新規（`parseEncoreCost` のテキスト形）。**しかも母集団は登録票の2効果ではなく5枚だった。**
+> 🔴🔑**作業中に別のバグを1件見つけて直した＝「キーが1枚も場に出せない」**（`BattleScreen` のキー使用ゲートが
+> **CSV の空欄 `'-'` を `!timing` で判定していた**＝`'-'` は truthy なので **全80枚のキーが永久に使用不可**だった）。
+> ⇒ **CSV の空欄は空文字ではなく `'-'`**。`Story` 列も同じ（`TargetFilter.story` が読むのは `CardClass` の「：」より後ろ）。
+> 🔴**census 高シグナル 12→6 のうち -4 は MANUAL 免除＝較正**（前進は `WXDi-CP02-100-E1` の1件だけ）。
+> **`O-199` の2枚は高シグナルに残した**＝アンコールのコストは `screens/battle/costs.ts` が読むので JSON には載らない。
+> 全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-02。
+
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-162` | **2効果** | 「プレイヤーをN人まで選ぶ」＝プレイヤーを対象に取る機構が無い |
-| `O-199` | **2効果** | アンコールの「テキスト形」コストが未実装＝`parseEncoreCost` が `《…》` アイコンしか読まない（null＝コスト無しに落ちる） |
-| `O-200` | **2効果** | ルリグデッキからキーを場に出す経路が engine に無い＝`field.key_piece` を**置く**手段がゼロ |
-| `O-201` | **2効果** | 【出】任意コストの新しい支払い種別＝`resolveOptionalCostSpec` から支払いUIまでの縦切り<br>⚠中途半端に構造化すると【自】が丸ごと積まれなくなる |
-| `O-202` | **2効果** | コスト付きの置換＝置換の**発生時に支払いを問う**窓が無い |
 | `O-84` | **2効果** | 「条件を満たす場合、このアーツは追加で《アタックフェイズアイコン》を持つ」＝条件つき追加使用タイミングの口が無い<br>🆕2026-09-01 実測（`WX16-Re20`／`WX20-052`） |
 | `O-114` | **2効果** | スペル／アーツの「別能力としての【起】」が UI から使えない<br>🆕2026-09-01 実測（`WX10-096-E2`／`WXDi-P06-077-E2`）。⚠**過剰実行を過小実行へ替えた**状態＝分割自体は正 |
 | `O-180` | **1効果** | 🆕**残りは `WX24-P2-043` だけ**＝「**次に**アシストルリグにグロウする場合」＝①1回限りの一過性 ②アシストグロウ経路（`getAssistGrowCandidates` が別。`listGrowCandidates` 側は続き772 で消化） |
@@ -1207,27 +1216,34 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-02（続き773）＝§5.3 索引 B バッチ（Codex 2アカウント実装／Claude 検証・引き継ぎ・実機／本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 20 → 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・
-  🔴**増加は計器の較正であって退化ではない**＝§5.3 の索引と登録票にカード番号を明記したぶん `mech` が拾えるようになった。
-  **セッション開始時の PLAN で測り直して 20 を確認済み**。⚠CLAUDE.md の「18枚」は stale）｜
-  **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜**census 高シグナル 11 / BASELINE 12**（据置）
-  📦**在庫2本**＝**機構 worklist 65 → 63項目**（§5.3 の `| \`O-` 行数の実測＝索引 A **17**／
-  **B 14 → 12**／C **34**／D 0／E **4**）｜🏁**実機 残 0件**（§5.1＝この巡の6本は同巡で実行・全 PASS）
-  🔧**ゲート（Claude が独立実行・全緑 ✅）**＝golden **3233 / 3233**（3215 → **+18本**）／
-  smoke 10,721効果 全異常0／fuzz 全0／census **11 / BASELINE 12**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+- **2026-09-02（続き774）＝§5.3 索引 C を上から5件（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・据置）｜
+  **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜
+  **census 高シグナル 12 → 6 / BASELINE 6**（🔴**内訳を混ぜない**＝**実装 -1**（`WXDi-CP02-100-E1` は
+  `AUTO` のままコストが載った＝真の前進）／**較正 -4**（`WXK02-004-E3`／`WXK03-014-E3`／`WX24-P3-043-E1`／
+  `WXEX2-28-E1` は MANUAL 化による免除）。**`O-199` の2枚は意図的に高シグナルへ残した**）
+  📦**在庫2本**＝**機構 worklist 63 → 58項目**（`| \`O-` 行数の実測＝索引 A **17**／B **12**／**C 27 → 22**／E **4**／F **3**）
+  ｜🏁**実機 残 0件**（§5.1＝この巡の9本は同巡で実行・全 PASS）
+  🔧**ゲート（全緑 ✅）**＝golden **3243 / 3243**（3233 → **+10本**）／smoke 10,721効果 全異常0／fuzz 全0／
+  census **6 / BASELINE 6**／`census:stubs` A群🔴0・C群0／manual-fields 0／
   **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 250 warnings。
-  🖥**実機（`verifyBattleDrive.mjs`）＝新規6本すべて PASS**＝`o58ArtemisAttackerBanish`／
-  `o58GustavAttackerBanishOnce`／`o58OpponentTurnOnlyDoesNotProtectAttacker`（🔴反転確認）／
-  `o181LrigAttackEndFiresWhenGuarded`／`o181LrigAttackEndSkippedWhenDamaged`（🔴反転確認）／
-  `o181LegacyGuardShapeAlsoFires`。**`o58` 3本は Codex が記述・`o181` 3本は Claude が記述／実行は全部 Claude。**
-  🆕**足した機構**＝`CardTypeFilter` に `リレーピース`／`AttackEndTriggerOptions{attackerKind, wasGuarded}`＋
-  ルリグアタック終了の収集地点（`performGuardResponse`）／`selectMandatoryAttackerBanishSubstitute`（`src/screens/battle/`）／
-  `RevealUntilHitSpec.handOrField` と SEARCH pending の `deckOwner` 配線。
-  🔑**新しい Condition 型・TargetFilter キーは1つも足していない**（`O-97`／`O-58`／`O-52` は全部既存機構で足りた）。
-  🔄**据置契約を2本反転**（削除禁止の規約どおり）＝第40バッチ `WXDi-D04-004-sub-E1`／第20バッチ `SP27-005`。
-  🔎**live の per-effect diff＝合計9効果**（`O-97` 4／`O-181` 1／`O-52` 4。`O-58` は engine のみで live 不変）。
-  **既存 `REVEAL_UNTIL` 17効果は全件オブジェクト一致**で不変であることを個別に確認済み。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規9本すべて PASS**（単体でも9本一括でも）＝
+  `o162ChoosePlayer`／`o199EncoreTextCostPay`／`o199EncoreTextCostShort`（🔴反転）／`o200KeyFromLrigDeck`／
+  `o200KeyGateOn`／`o200KeyGateOff`（🔴反転）／`o201TrashToDeckBottomPay`／`o201TrashToDeckBottomNoPay`（🔴反転）／
+  `o202DamageReplaceDeclare`。
+  🆕**足した機構**＝`DrawAction.maxCount`（原文のドロー上限）／`PlaceKeyFromLrigDeckAction` の
+  `cardName` 省略・`payPrintedCost`・`coinReduction` ＋ `PlayerState.key_place_limit`（`STUB{SET_KEY_PLACE_LIMIT}`）／
+  `EffectCost.trashToDeckBottom` ＋ `OptionalCostSpec.trashToDeckBottom` ＋ 支払いUI（`SigniOnPlayCostModal`）／
+  `parseEncoreCost` のテキスト形3種（`exceed`／`trashOwnKey`／`handDiscardSigni`）＋ ArtsModal のゲートと支払い／
+  `LifeCrashReplaceAction.replaceKind:'pay_cost'` ＋ `payOptions[].assistLrigDown`／
+  離場置換の新軸 `downProtector`（`STUB{EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF}`）。
+  🔴**新しい `Condition` 型は1つも足していない**（§4.2 の「条件側には STUB の道が無い」に触れずに済んだ）。
+  🐛**副産物の実バグ修正1件**＝`BattleScreen` のキー使用ゲートが CSV の空欄 `'-'` を `!timing` で判定しており、
+  **Timing 列が全部 `-` の全80枚のキーがルリグデッキから使用不可**だった（`o200KeyGateOn` で発覚）。
+  🔄**据置契約を1本反転**＝`(xxix)(2) 第15波後の明示保留3効果は costUnparsed のまま保持する` を
+  **3効果 → 1効果**（残るのは `WXDi-P03-019-E1`＝`O-68` の領分）。
+  🔎**live の per-effect diff＝合計8効果**（`O-162` 2／`O-200` 2／`O-201` 2／`O-202` 2）。
+  **HEAD との全数 diff を per-effect で取り、意図した8効果以外が動いていないことを確認済み。**
 
 ## 付録A. 全体像と Definition of Done
 

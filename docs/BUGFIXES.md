@@ -1,5 +1,173 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（続き774）：§5.3 索引 C を上から5件 — `O-162` / `O-199` / `O-200` / `O-201` / `O-202`
+
+**ベースライン**＝`a4f666a2c`。**新しい `Condition` 型もアクション型も1つも足していない**（足したのは既存型のフィールドと
+STUB 2本だけ）。**5件のうち4件で登録票の「受け皿が無い／窓が無い」が失効していた。**
+
+**ゲート**＝全緑。golden **3233 → 3243**（+10本）／smoke 10,721 全異常0／fuzz 全0／
+census 高シグナル **12 → 6**（`BASELINE_HIGH` も 6 へ）／`census:stubs` A群🔴0・C群0／manual-fields 0／
+`census:enginetext` A🔴130行（据置）／lint 0 errors・250 warnings。
+**live の per-effect diff は 8効果ちょうど**（HEAD との全数 diff で意図外の変化が無いことを確認）。
+
+---
+
+### 1. `O-162` — 「プレイヤーをN人まで選ぶ」（2効果）
+
+**真因**＝parser が `STUB{CHOOSE_N_FROM_LIST}` へ落とし、engine の `([１-４1-4])つ(?:まで)?選ぶ` は
+原文「N**人**まで」に**1本も当たらない**＝**選択が無言 no-op**。後続だけが焼き込んだ owner で走っていた。
+
+- `WXEX2-44-E2`「プレイヤーを1人まで選ぶ。**そのプレイヤーは**自分のトラッシュを全部デッキへ」
+  → 旧 live は `TRANSFER_TO_DECK{owner:'self'}` 固定＝**対戦相手を選んでも自分のトラッシュが戻る**真逆の実行。
+- `WXK06-028-E2`「プレイヤーを2人まで選ぶ。選ばれた各プレイヤーは手札を全部デッキへ加えてシャッフルし、
+  加えた枚数と同じ枚数を引く。**最大5枚まで**」
+  → 旧 live は `STUB{MASS_TRASH}`（**トラッシュへ置く別物**）＋**ドローが丸ごと無い**。
+
+**直し方**＝🔑**新しい型を作らなかった**。選べるプレイヤーは「あなた」「対戦相手」の2つしか無いので、
+**選択肢そのものを owner 違いの同じアクションにする**と「選ばれたプレイヤーを後続へ運ぶ口」（登録票の②）が要らない。
+`CHOOSE{choose_count, upTo:true, choices:[self, opponent]}` を `manualEffects.ts` に手書き（`MANUAL`）。
+引く枚数は `DRAW{count:0, addLastProcessedCount:true}`＝`TRANSFER_TO_DECK{HAND_CARD,'ALL'}` の
+`lastProcessedCards` に追従（枚数を焼き込まない）。**上限5枚だけ新設**＝`DrawAction.maxCount`
+（engine で `Math.min` を1回・デッキ残量のクランプとは別軸・逆翻訳に `（最大N枚まで）`）。
+
+**検証**＝golden `索引C 2026-09-02: O-162 …` 2本（0人／1人／2人・上限5枚・`maxCount` 無しなら9枚引く反転）。
+実機 `o162ChoosePlayer`＝「対戦相手」だけを選ぶと **相手の手札 7 → 5（上限で止まる）／自分は 3 のまま**。
+
+---
+
+### 2. `O-199` — アンコールの「テキスト形」コスト（**登録票 2効果 → 実測5枚**）
+
+**真因**＝`screens/battle/costs.ts` の `parseEncoreCost` が `《…》` アイコンしか読まず **null（＝コスト無し）**に落ちる。
+null だと `canEncore` が false になるので、**アンコールの選択肢そのものが出ない**（実害は過小の側）。
+
+**母集団**＝`WDA-F02-08`（下から3枚）／`SP27-010`・`SP27-016`（下から2枚）／`SPK01-13`（キー1枚）／
+`WX14-016`（手札から＜美巧＞1枚）。**32枚のアンコール札のうち5枚**。
+
+**直し方**＝`parseEncoreCost` を `{energy, coins, exceed?, trashOwnKey?, handDiscardSigni?}` へ拡張。
+- ①「ルリグの下からN枚をルリグトラッシュ」→ **既存 `exceed`**（`paySelectedExceed` がそのまま使える）
+- ②「キー1枚を場からルリグトラッシュ」→ `trashOwnKey`
+- ③「手札から＜X＞のシグニをN枚捨てる」→ `handDiscardSigni`（既存の `selectedArtsDiscard` UI を再利用）
+- ⚠🔴**テキスト形と判定するのは「－の直後が `《` でない」ときだけ**＝
+  `アンコール－《黒》このターン、あなたのシグニの【出】能力は発動しない` のような
+  **アイコンの後ろに続くアーツ本文**をコストと読み違えると**払わされる側＝過剰**になる。
+  32枚全部に当てて、アイコン形27枚の解釈が1件も変わっていないことを確認した。
+- `ArtsModal`＝`canEncore` に支払い可否（`canPayExceed` / キーの有無 / 手札の該当枚数）を足し、
+  ボタンのラベルに支払い内容を出す。`performArts`＝`exceed`（プール先頭から N 枚の近似）と `trashOwnKey` を徴収。
+
+**検証**＝golden `索引C 2026-09-02: O-199 …` 2本（5枚の解釈＋アイコン形の非退行＋本文誤読の反転）。
+実機 `o199EncoreTextCostPay`（下3枚を払ってアーツがルリグデッキへ戻る）／
+`o199EncoreTextCostShort`（🔴**下が2枚ならアンコールが押せない**）。
+
+---
+
+### 3. `O-200` — ルリグデッキからキーを場に出す（2効果）
+
+**登録票の「`field.key_piece` を置く手段がゼロ」は失効していた**＝`PLACE_KEY_FROM_LRIG_DECK` は
+`WDK03-001-E1` 用に続き760 で新設済み（engine ハンドラ・逆翻訳・golden つき）。
+
+**真因**＝2効果とも live が `SEQUENCE[ADD_TO_FIELD{source なし} × 2]`＝キーと無関係な別物。
+
+**直し方**＝既存受け皿を3点だけ拡張した。
+- `cardName` を**省略可**にし、省略時は**ルリグデッキのキーから選ばせる**（候補1枚なら対話を出さない）。
+- `payPrintedCost` ＋ `coinReduction`＝**選んだキーの `Cost` 列**（コイン＋エナ）を徴収し、
+  **払えないキーは候補に出さない**（踏み倒しを作らない）。エナは `selectOptionalCostEnergy` で自動選択。
+  ⚠読むのは `Cost` 列であって `EffectText` ではない（`census:enginetext` A群とは別軸）。
+- `PlayerState.key_place_limit`（`STUB{SET_KEY_PLACE_LIMIT}`）＝「このゲームの間、キーをN枚まで場に出せる」。
+  消費は2地点＝engine の `execPlaceKeyFromLrigDeck`（枠が空いていれば `key_piece_extra` へ積む）と
+  `BattleScreen` のキーセット可否ゲート／配置先。
+
+🐛🔴**副産物＝「キーが1枚も場に出せない」実バグを発見して修正**（`o200KeyGateOn` が最初 FAIL したので調査）。
+`getMyLrigDeckCardActions` が `const timing = cardData.Timing ?? ''` として `!timing` で
+「タイミング指定なし＝メインで使える」を判定していたが、**CSV の空欄は `'-'`（空文字ではない）**＝truthy。
+**Timing 列が全部 `-` の全80枚のキーが、ルリグデッキから永久に使用不可**だった。⇒ `'-'` を `''` へ正規化。
+⚠ピースは Timing に文言が入るので影響なし＝壊れていたのはキーだけ。
+
+**検証**＝golden `索引C 2026-09-02: O-200 …` 2本（選択・枠の積み上げ・差し替えの反転・印刷コストの徴収と不足時の非成立）。
+実機 `o200KeyFromLrigDeck`（【起】でキーが出て枠が2になり既存キーが残る）／
+`o200KeyGateOn`（枠2なら手で2枚目を置ける）／`o200KeyGateOff`（🔴**枠1なら置けない**）。
+
+---
+
+### 4. `O-201` — 【出】任意コストの新しい支払い種別（2効果）
+
+**登録票の「`resolveOptionalCostSpec` から支払いUIまでの縦切り」は半分失効**＝`OptionalCostSpec` も
+支払いUIも既にある。🔴**本当の真因は `optionalOnPlayCostStub` の `SUPPORTED` 集合**＝
+**未対応キーが1つでもあると `wrapOptionalOnPlay` が null を返し、その任意【出】が丸ごと積まれない**
+（＝`costUnparsed` と同じ「取りこぼす側」）。だから登録票は「cost を書くと発火しなくなる」と読めていた。
+
+- `WXDi-P12-031-E2`「**手札とエナゾーンにあるすべてのカードをトラッシュに置く**：この方法で6枚以上…バニッシュ」
+  → parser は既に `discardAll` + `energyTrashAll` を出せるのに `SUPPORTED` に無いので**差し戻されていた**
+  （`manualEffects.ts` に `costUnparsed:true` を手書きして温存）。`SUPPORTED` へ通し、
+  `discardAll → handDiscard{count:'ALL'}` / `energyTrashAll → energyTrash{count:'ALL'}` を写す。
+  🔑**「この方法で6枚以上」は `activeCondition` 側へ移した**＝`action` の中に置くと**支払い後**に評価され、
+  手札もエナも空なので**必ず偽**になる（過小）。支払い前の「手札＋エナが6枚以上」は「全部捨てる」形なので枚数として同値。
+- `WXDi-CP02-100-E1`「**トラッシュから＜ブルアカ＞のカード1枚をデッキの一番下に置く**：」
+  → 新しい `EffectCost.trashToDeckBottom` ＋ `OptionalCostSpec.trashToDeckBottom`。
+  ⚠**`trashExile`（ゲームから除外）を流用しない**＝行き先が違う（除外は戻ってこない）。
+  支払いは既存 `TRANSFER_TO_DECK{TRASH_CARD, position:'bottom'}` に載る。
+  通常召喚経路（`SigniOnPlayCostModal` ＋ `executeSigniOnPlayCost`）にも選択UIと徴収を足した。
+
+**据置契約を反転**＝golden `(xxix)(2) 第15波後の明示保留3効果は costUnparsed のまま保持する` を
+**3効果 → 1効果**（残るのは `WXDi-P03-019-E1`＝`O-68` の領分）。連動して4本のカウント assert を実数へ更新
+（`optionalCost` 962→964／`optionalNoCost` 20→18／`deferred` 3→1／通常アシスト収集 158→159・据置 2→1）。
+
+**検証**＝golden `索引C 2026-09-02: O-201 …` 2本。
+実機 `o201TrashToDeckBottomPay`（トラッシュの＜ブルアカ＞が**デッキの一番下**へ行き、＋2000 が乗る）／
+`o201TrashToDeckBottomNoPay`（🔴**候補が無ければ「発動」が押せず、本体も走らない**）。
+
+---
+
+### 5. `O-202` — コスト付きの置換（2効果）
+
+**登録票の「置換の発生時に支払いを問う窓が無い」は失効していた**＝窓は2本とも既存。
+①ダメージ置換＝`screens/battle/lifeCrashReplace.ts` の `kind:'pay_cost'`（続き543）
+②離場置換＝`collectLeaveSubstituteOptions` の `selfAbilityPay` 軸（続き511）。
+**足りなかったのは支払い種別だけ。**
+
+- `WX24-P3-043-E1`（ピース）「このターン、あなたがダメージを受ける場合、代わりに**レベル1以上のアップ状態の
+  アシストルリグ2体をダウンして**もよい」
+  → 旧 live は `ACTIVATED{DOWN{SIGNI, level>=1, isUp}}`＝**使った瞬間にシグニを1体ダウンするだけ**の別物
+  （置換の宣言でも、アシストルリグでも、2体でもない）。
+  → `LifeCrashReplaceAction.replaceKind:'pay_cost'` ＋ `payOptions[].assistLrigDown{count,minLevel}` を新設し、
+  funnel の `pickPayOption` / `applyPayCostReplacement` に通した。⚠**アップの枠が足りなければ成立しない**
+  ＝ダメージがそのまま通る（過剰にしない側）。⚠`once` を付けない（原文に「次に」が無い）。
+- `WXEX2-28-E1`（【常】）「あなたの＜ウェポン＞のシグニ1体が**対戦相手の効果によって**場を離れる場合、
+  代わりにアップ状態のこのシグニをダウンしてもよい」
+  → 旧 live は素の `CONTINUOUS DOWN{thisCardOnly, optional}`＝**CONTINUOUS は `executeAction` を通らない**ので
+  **恒久 no-op**（`LIFE_CRASH_REPLACE` 系と同じ壊れ方）。守りが1回も働いていなかった。
+  → 離場置換の新軸 `downProtector`（`STUB{EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF}`）。
+  ⚠**無料の軸より後ろ**に置く（`selfAbilityPay` と同じ規約＝タダで済む置換があるのに資源を払わない）。
+  ⚠**`BATTLE_LEAVE_REPLACE_WITH_DOWN`（`WXDi-CP02-TK01A-E2`）とは別物**＝あちらは「**このシグニ自身が**
+  バトルか相手効果で離れる場合」で BattleScreen のバトル経路だけが読む。こちらは**他の味方を守る**＋**効果離場**。
+  → golden `段2-10 A/B4`（`thisCardOnly` DOWN の母集団）から `WXEX2-28-E1` を外した。
+
+**検証**＝golden `索引C 2026-09-02: O-202 …` 2本（アシストのダウン払いの成立／アップ1体・レベル不足・
+`cardMap` 無しの3反転／`downProtector` の宣言者ダウン＋victim 残存と、ダウン済み・非＜ウェポン＞・自分の効果の3反転）。
+実機 `o202DamageReplaceDeclare`（**置換が宣言として積まれ、その場では誰もダウンしない**）。
+
+---
+
+### 実機（`verifyBattleDrive.mjs`）＝新規9本すべて PASS（単体でも9本一括でも）
+
+`o162ChoosePlayer`／`o199EncoreTextCostPay`／`o199EncoreTextCostShort`🔴／`o200KeyFromLrigDeck`／
+`o200KeyGateOn`／`o200KeyGateOff`🔴／`o201TrashToDeckBottomPay`／`o201TrashToDeckBottomNoPay`🔴／
+`o202DamageReplaceDeclare`。`queryState` に `keyPieceExtra` / `keyPlaceLimit` / `powerModsUntilOppTurn` を追加。
+
+**この巡で踏んだ罠（次に同じ作業をする人へ）**
+- 🔴**CSV の空欄は `'-'` であって空文字ではない**＝`!timing` 判定でキー80枚が使用不可になっていた（上記）。
+- 🔴**`TargetFilter.story`（＜ブルアカ＞等）が読むのは `CardClass` の「：」より後ろ**＝
+  CSV の `Story` 列は `-` / `Dissona` の2値しか無い。golden の候補選びで2回外した。
+- 🔴**`UNTIL_OPP_TURN_END` のパワー修整は別ストア**（`power_mods_until_opp_turn`）＝
+  `temp_power_mods` だけ見て「効果が走っていない」と誤読した。
+- 🔴**「召喚」→ゾーン選択は別ティック**＝同じ tick で両方押すループを書くと永久に場に出ない。
+- 🔴**同じ testid を押し続けない**＝`keycost-energy-0` はトグル。複数枚コストは index を進めて1枚ずつ選ぶ。
+- 🔴**`manualEffects.ts` を機械編集したらキー集合の差分を取る**＝重複キー（`WXK02-004` / `WXK03-014` が既存）を
+  作ってしまい、`syncManualLive.ts` が**既存の手書き定義を落とした live** を書いた（HEAD の per-effect diff で発見して復旧）。
+- 🔴**`syncManualLive.ts` は live を直接書く**＝AUTO 効果の held な parser 差分まで一緒に焼き込む。
+  `WXK03-014-E1` が巻き込まれたので **HEAD の値へ戻した**（採用は `heldReview --adopt` の仕事）。
+- 🔑**golden のカウント assert が落ちると、そのテストは途中で止まって POOL カーソルの消費量が変わる**＝
+  **無関係なテストが道連れで落ちる**。カウントを実数へ直したら道連れも消えた（先に赤の原因を1つずつ潰す）。
+
 ## 2026-09-02：§5.3 `O-52` — 「めくれるまで公開」4効果を `REVEAL_UNTIL` へ復元
 
 **ベースライン**＝`824910248`。登録票の「色除外 filter が無い」は誤りで、既存の

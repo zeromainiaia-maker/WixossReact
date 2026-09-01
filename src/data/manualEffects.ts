@@ -1011,10 +1011,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   ６枚以上トラッシュに置かれた場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。
   // 🔴旧 live＝`costUnparsed:true`＝**手札とエナを全部捨てるという最大級のコストが JSON に無い**まま
   //   無条件バニッシュだった。受け皿は既存の `discardAll` ＋ `energyTrashAll`。
-  // 🔴**cost は差し戻した**（同上＝据置契約が生きていた）。条件側（この方法で6枚以上）は
-  //   `ZONE_SUM_COUNT`（支払い前の手札＋エナが6枚以上＝全部捨てる形なので同値）で復元した。
+  // 🆕**2026-09-02（§5.3 `O-201`）＝コストを差し戻した**＝`optionalOnPlayCostStub` の `SUPPORTED` に
+  //   `discardAll` / `energyTrashAll` が無かったため、cost を書いた瞬間に**任意【出】が丸ごと積まれなくなる**
+  //   （＝`costUnparsed` と同じ「取りこぼす側」）のが差し戻しの理由だった。その穴を塞いだので載せられる。
+  // 🔑条件（「この方法でカードが6枚以上トラッシュに置かれた場合」）は **`activeCondition` へ移した**＝
+  //   `action` の中に置くと**支払い後**に評価され、手札とエナが空になった後なので**必ず偽**になる（過小）。
+  //   支払い前の「手札＋エナが6枚以上」は「全部捨てる」形なので**枚数として同値**。
+  // ⚠残る近似＝5枚以下でも「払って何も起きない」を選ぶ余地が原文にはあるが、こちらは発動自体をしない。
+  //   任意【出】（`mandatory:false`）なので実害方向は過小の側だけ。
   'WXDi-P12-031': [
-    {"effectId":"WXDi-P12-031-E2","effectType":"AUTO","timing":["ON_PLAY"],"costUnparsed":true,"action":{"type":"CONDITIONAL","condition":{"type":"ZONE_SUM_COUNT","zones":[{"zone":"hand","owner":"self"},{"zone":"energy","owner":"self"}],"operator":"gte","value":6},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P12-031-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energyTrashAll":true,"discardAll":true},"activeCondition":{"type":"ZONE_SUM_COUNT","zones":[{"zone":"hand","owner":"self"},{"zone":"energy","owner":"self"}],"operator":"gte","value":6},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -1395,6 +1401,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live＝3つの損失のうち**シグニ1体だけ**（しかも選ぶのが自分側）＝原文の1/3。
   'WXK02-004': [
     {"effectId":"WXK02-004-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CONDITIONAL","condition":{"type":"TRASH_COUNT","owner":"self","operator":"gte","value":25},"then":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"opponentSelects":true},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1},"opponentSelects":true}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK02-004-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"coin":2},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SET_KEY_PLACE_LIMIT","value":2},{"type":"PLACE_KEY_FROM_LRIG_DECK","owner":"self"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
 
   // WXEX1-38 ／ 原文の帰結＝「**対戦相手の手札を１枚見ないで選び**、対戦相手はそれを**デッキの一番上に置く**」。
@@ -3650,6 +3657,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   "WXK03-014": [
     {"effectId":"WXK03-014-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"life_cloth","owner":"self"},"count":3,"private":true,"reorder":true,"canTrash":true,"destination":{"location":"life_cloth","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK03-014-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"trash_key":true},"action":{"type":"PLACE_KEY_FROM_LRIG_DECK","owner":"self","payPrintedCost":true,"coinReduction":1},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // WXK03-070 幻怪　モモタロ E1【出】＝「エナゾーンから《幻怪　モモイヌ》1枚と《幻怪　モモザル》1枚と
   //   《幻怪　モモキジ》1枚をトラッシュに置く：…」。🔴旧 live は `costUnparsed:true` で**発動コストが無料**だった
@@ -9423,6 +9431,88 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-D08-004": [
     {"effectId":"WXDi-D08-004-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","fieldDown":{"count":2,"filter":{"cardType":"シグニ"}},"costColors":["白","無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}},{"type":"STUB","id":"SELF_LRIG_LOSE_ABILITY"}]}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-202`（索引 C・2026-09-02）＝コスト付きの置換＝置換の発生時に支払いを問う窓
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔑**登録票の「窓が無い」は失効していた**＝窓は2本とも既にある。
+  //   ①ダメージ置換＝`screens/battle/lifeCrashReplace.ts` の funnel（`kind:'pay_cost'`・続き543）
+  //   ②離場置換＝`collectLeaveSubstituteOptions` の軸列（`selfAbilityPay` が既にコストを払っている）
+  //   足りなかったのは**支払い種別**（アシストルリグのダウン／宣言者自身のダウン）だけだった。
+  //
+  // WX24-P3-043 ／ 原文（アーツ）＝**このターン、あなたがダメージを受ける場合、代わりにあなたの
+  //   レベル１以上のアップ状態のアシストルリグ２体をダウンしてもよい。**
+  // 🔴旧 live＝`ACTIVATED{DOWN{SIGNI, level>=1, isUp}}`＝**使った瞬間にシグニを1体ダウンするだけ**の別物
+  //   （置換の宣言でも、アシストルリグでも、2体でもない）。
+  // 🔑受け皿は既存 `LIFE_CRASH_REPLACE`（`life_crash_replacements` へ積む宣言）＋今回足した
+  //   `payOptions[].assistLrigDown`。⚠`once` を付けない＝原文に「次に」が無いのでターン中は何度でも。
+  "WX24-P3-043": [
+    {"effectId":"WX24-P3-043-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"無","count":2}]},"action":{"type":"LIFE_CRASH_REPLACE","replaceKind":"pay_cost","count":1,"optional":true,"payOptions":[{"assistLrigDown":{"count":2,"minLevel":1}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WXEX2-28 ／ 原文【常】：**あなたの＜ウェポン＞のシグニ１体が対戦相手の効果によって場を離れる場合、
+  //   代わりにアップ状態のこのシグニをダウンしてもよい。**
+  // 🔴旧 live＝`CONTINUOUS DOWN{thisCardOnly, optional}`＝**CONTINUOUS は `executeAction` を通らない**ので
+  //   恒久 no-op（`LIFE_CRASH_REPLACE` 系と同じ壊れ方）＝守りが1回も働いていなかった。
+  // 🔑受け皿は離場置換 funnel の新しい軸 `downProtector`（`EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF`）。
+  // ⚠`BATTLE_LEAVE_REPLACE_WITH_DOWN`（`WXDi-CP02-TK01A-E2`）とは**別物**＝あちらは
+  //   「**このシグニ自身が**バトルか相手効果で離れる場合」で、BattleScreen のバトル経路だけが読む。
+  //   こちらは**他の味方＜ウェポン＞を守る**＋**効果による離場**（engine の離場 funnel）。
+  "WXEX2-28": [
+    {"effectId":"WXEX2-28-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF","leaveDownProtector":{"victimFilter":{"cardType":"シグニ","story":"ウェポン"}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-200`（索引 C・2026-09-02）＝ルリグデッキからキーを場に出す経路
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔑**受け皿は既に在った**＝`PLACE_KEY_FROM_LRIG_DECK`（`WDK03-001-E1` 用に続き760 で新設済み）。
+  //   登録票の「`field.key_piece` を**置く**手段がゼロ」は失効していた。今回足したのは
+  //   ①**カード名を書かない形**（キーを選ばせる）②`payPrintedCost`（印刷コストの徴収）
+  //   ③`key_place_limit`（「N枚まで場に出せる」＝`STUB{SET_KEY_PLACE_LIMIT}`）の3点だけ。
+  //
+  // WXK02-004 ／ 原文【起】《ゲーム１回》ジョーカー《コインアイコン》《コインアイコン》：
+  //   **このゲームの間、あなたはキーを２枚まで場に出すことができる。あなたのルリグデッキからキー１枚を場に出す。**
+  // 🔴旧 live＝`SEQUENCE[ADD_TO_FIELD{owner:'self'}, ADD_TO_FIELD{owner:'self'}]`＝
+  //   **source の無い `ADD_TO_FIELD` が2つ**＝キーとは無関係にシグニを場へ出そうとする別物だった
+  //   （枠の引き上げも、ルリグデッキからの取り出しも、1バイトも無い）。
+  // ⚠原文にコストの記載が無い＝**無償**（`payPrintedCost` を付けない）。
+
+  // WXK03-014 ／ 原文【起】このキーを場からルリグトラッシュに置く：**あなたのルリグデッキからコストを支払って
+  //   キー１枚を場に出す。そのキーを場に出すためのコストは《コイン×1》減る。**
+  // 🔴旧 live＝`SEQUENCE[ADD_TO_FIELD{owner:'self'}, ADD_TO_FIELD{owner:'self'}]`（同上）。
+  // 🔑コストは `payPrintedCost`＝engine が**選んだキーの `Cost` 列**（コイン＋エナ）を徴収し、
+  //   払えないキーは候補に出さない。⚠軽減を先に引くので《コイン》×1 のキーは実質無償になる（原文どおり）。
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 `O-162`（索引 C・2026-09-02）＝「プレイヤーをN人まで選ぶ」＝プレイヤーを対象に取る機構が無い
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔑**新しい型は作らなかった**＝原文の「プレイヤーを1人（2人）まで選ぶ。そのプレイヤーは〜」は
+  //   **選択肢が「あなた」と「対戦相手」の2つしかない**ので、既存 `CHOOSE{upTo:true}` の
+  //   選択肢そのものを owner 違いの同じアクションにすれば、選ばれた側へ owner を運ぶ器がいらない。
+  //   （登録票は「選ばれたプレイヤーを後続へ運ぶ口が要る」と書いていたが、母集団2効果ではその口は不要。）
+  // ⚠**`upTo:true` を落とさない**＝原文は「N人**まで**」＝0人（何も起こさない）を選べる。
+  //
+  // WXEX2-44 ／ 原文【自】：あなたのアタックフェイズ開始時、**プレイヤーを１人まで選ぶ**。そのプレイヤーは、
+  //   自分のトラッシュにあるすべてのカードをデッキに加えてシャッフルする。
+  // 🔴旧 live＝`SEQUENCE[STUB{CHOOSE_N_FROM_LIST}, TRANSFER_TO_DECK{owner:'self'}]`＝
+  //   **選択が無言 no-op**（engine の `([１-４1-4])つ(?:まで)?選ぶ` は「N**人**まで」に1本も当たらない）で、
+  //   後続が `owner:'self'` に焼き込まれていた＝**対戦相手を選んでも自分のトラッシュが戻る**真逆の実行。
+  "WXEX2-44": [
+    {"effectId":"WXEX2-44-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"upTo":true,"choices":[{"choiceId":"self","label":"あなた","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true}},{"choiceId":"opponent","label":"対戦相手","action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"opponent","count":"ALL"},"shuffle":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
+  // WXK06-028 ／ 原文【起】《ターン１回》《青×0》：**プレイヤーを２人まで選ぶ**。選ばれた各プレイヤーは手札を
+  //   すべてデッキに加えてシャッフルし、この方法で自分のデッキに加えたカードの枚数と同じ枚数のカードを引く。
+  //   **この効果によって各プレイヤーは最大５枚までしかカードを引くことができない。**
+  // 🔴旧 live＝`SEQUENCE[STUB{CHOOSE_N_FROM_LIST}, STUB{MASS_TRASH}, STUB{RULE_REMINDER_TEXT}]`＝
+  //   ①選択が無言 no-op ②`MASS_TRASH`＝**トラッシュへ置く別物**（原文はデッキへ加えてシャッフル）
+  //   ③**ドローが丸ごと無い**（引く側が消えて捨てさせるだけの効果になっていた）。
+  // 🔑引く枚数は `DRAW{count:0, addLastProcessedCount:true}`＝`TRANSFER_TO_DECK{HAND_CARD,count:'ALL'}` が
+  //   返す `lastProcessedCards`（実際に動いた札）に追従させる＝枚数を焼き込まない。
+  // 🆕上限5枚は今回足した `DrawAction.maxCount`（デッキ残量の切り詰めとは別軸）。
+  "WXK06-028": [
+    {"effectId":"WXK06-028-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"choices":[{"choiceId":"self","label":"あなた","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"HAND_CARD","owner":"self","count":"ALL"},"shuffle":true},{"type":"DRAW","owner":"self","count":0,"addLastProcessedCount":true,"maxCount":5}]}},{"choiceId":"opponent","label":"対戦相手","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"HAND_CARD","owner":"opponent","count":"ALL"},"shuffle":true},{"type":"DRAW","owner":"opponent","count":0,"addLastProcessedCount":true,"maxCount":5}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
   "WXDi-D09-H07": [
     {"effectId":"WXDi-D09-H07-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"GRANT_EFFECT","target":{"type":"LRIG","owner":"self","count":1},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-D09-H07-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}},{"type":"STUB","id":"SELF_LRIG_LOSE_ABILITY"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],

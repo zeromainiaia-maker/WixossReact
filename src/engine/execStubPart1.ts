@@ -522,6 +522,16 @@ export function execStubPart1(
       ],
     });
   }
+  // SET_KEY_PLACE_LIMIT: このゲームの間に場へ出せるキーの枚数を N まで引き上げる
+  // （`WXK02-004-E3`「このゲームの間、あなたはキーを**２枚まで**場に出すことができる」＝§5.3 `O-200`）。
+  // 🔑消費は2地点＝engine の `execPlaceKeyFromLrigDeck`（枠が空いていれば `key_piece_extra` へ積む）と
+  //   BattleScreen のキーセット可否ゲート／配置先。
+  // ⚠**引き下げない**（`Math.max`）＝重ねて撃っても枠が減らない。
+  if (stub.id === 'SET_KEY_PLACE_LIMIT') {
+    const limit = typeof stub.value === 'number' ? stub.value : 1;
+    const newOwner = { ...ctx.ownerState, key_place_limit: Math.max(ctx.ownerState.key_place_limit ?? 1, limit) };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `このゲームの間、キーを${limit}枚まで場に出せる`));
+  }
   // TRASH_UNDER_LRIG_CARD: センタールリグの下にあるカード1枚をルリグトラッシュに置く
   // （`WXK09-001-E2` のアップキープ3択の1枝。原文＝「センタールリグの下から対象のカード１枚をルリグトラッシュに置く」）。
   // 🔑移動そのものは `INTERNAL_PAY_EXCEED` と同じ操作（`field.lrig` の最上面より下 → `lrig_trash`）。

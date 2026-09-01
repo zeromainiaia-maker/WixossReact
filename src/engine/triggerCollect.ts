@@ -345,6 +345,9 @@ export function optionalOnPlayCostStub(
     'lrigDown', 'lrigDownVariable', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
     'beat_signi', 'beat_signi_from_trash',
     'deckTrash', 'charmTrash', 'charmTrashVariable', 'trashArtsFromLrigDeck', 'removeOppVirus',
+    // 🆕§5.3 `O-201`（2026-09-02）＝これが SUPPORTED に無いあいだ、原文に大きなコスト句を持つ
+    //   任意【出】が**丸ごと積まれなかった**（`costUnparsed` と同じ「取りこぼす側」に落ちていた）。
+    'discardAll', 'energyTrashAll', 'trashToDeckBottom',
     // 支払いキーではなく**コストの修飾**（§6.4 O-35・続き530）。呼び出し側が
     // `applyAbilityCostReduction` で `energy` へ焼き込み済みなので、ここでは無視して通す
     // （SUPPORTED に無いと「未対応キーあり」で包めず、任意【出】が丸ごと積まれなくなる）。
@@ -354,7 +357,7 @@ export function optionalOnPlayCostStub(
   if (keys.length === 0) return null;
   if (keys.some(k => !SUPPORTED.has(k))) return null;
   const costColors = (cost.energy ?? []).flatMap(e => Array.from({ length: e.count }, () => e.color as string));
-  let handDiscard: { count: number; filter?: TargetFilter } | undefined;
+  let handDiscard: { count: number | 'ALL'; filter?: TargetFilter } | undefined;
   if (cost.discard !== undefined) {
     handDiscard = { count: cost.discard, ...(cost.discardFilter ? { filter: cost.discardFilter } : {}) };
   } else if (cost.handDiscardSigni) {
@@ -371,6 +374,9 @@ export function optionalOnPlayCostStub(
   } else if (cost.discardFilter) {
     // discardFilter だけがあり枚数が無い形は解釈できない（枚数不明のまま捨てさせない）
     return null;
+  } else if (cost.discardAll) {
+    // 🆕「手札をすべて捨てる」（§5.3 `O-201`）＝枚数ではなく 'ALL'。
+    handDiscard = { count: 'ALL' };
   }
   // 「何も払わない」形（energy:[{count:0}] のみ等）は OPTIONAL_COST を挟む意味が無い＝発動可否の確認だけになるが、
   // 原文が「〜してもよい」である以上その確認自体が正しい挙動なので通す。
@@ -402,6 +408,9 @@ export function optionalOnPlayCostStub(
     ...(cost.charmTrashVariable ? { charmTrashVariable: cost.charmTrashVariable } : {}),
     ...(cost.trashArtsFromLrigDeck ? { trashArtsFromLrigDeck: cost.trashArtsFromLrigDeck } : {}),
     ...(cost.removeOppVirus ? { removeOppVirus: cost.removeOppVirus } : {}),
+    // 🆕§5.3 `O-201`＝「すべて」形は枚数ではなく `'ALL'` で運ぶ（`OptionalCostSpec` 側が対応済み）。
+    ...(cost.energyTrashAll ? { energyTrash: { count: 'ALL' as const } } : {}),
+    ...(cost.trashToDeckBottom ? { trashToDeckBottom: cost.trashToDeckBottom } : {}),
   } as StubAction;
 }
 

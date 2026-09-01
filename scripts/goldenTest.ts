@@ -95,7 +95,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, parseEncoreCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -20795,10 +20795,16 @@ test('choice ビルダー: 選択肢本文が top-level へ漏れていない（
   // 見出し側の宣言（コスト増減）は残す＝`WX13-003-E1` の「選んだ数から2を引いた数だけコストが増える」。
   const wx13 = (effectsMap.get('WX13-003') ?? []).find(e => e.effectId === 'WX13-003-E1')!;
   ok(JSON.stringify(wx13.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'), 'WX13-003-E1: 見出しのコスト宣言まで落とさない');
-  // ⚠`①` を持たない `CHOOSE_N_FROM_LIST`（「プレイヤーを1人まで選ぶ」）の後続は**本体**＝落とさない。
+  // ⚠`①` を持たない「プレイヤーをN人まで選ぶ」（旧 `CHOOSE_N_FROM_LIST`）の後続は**本体**＝落とさない。
+  // 🆕2026-09-02（§5.3 `O-162`）＝2効果とも `CHOOSE`（選択肢＝あなた／対戦相手）へ移した。
+  //   本体は `choices[].action` の中にあるので「落としていない」の検査はそちらを見る。
   for (const [cardNum, effectId] of [['WXEX2-44', 'WXEX2-44-E2'], ['WXK06-028', 'WXK06-028-E2']] as [string, string][]) {
     const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
-    eq(eff.action.type, 'SEQUENCE', `${effectId}: 本体を落としていない`);
+    eq(eff.action.type, 'CHOOSE', `${effectId}: プレイヤー選択そのものを表す`);
+    const ch = eff.action as unknown as { choices: { choiceId: string; action: unknown }[] };
+    eq(ch.choices.length, 2, `${effectId}: あなた／対戦相手の2択`);
+    ok(ch.choices.every(c => /"type":"(?:TRANSFER_TO_DECK|SEQUENCE)"/.test(JSON.stringify(c.action))),
+      `${effectId}: 本体を落としていない（選択肢の中にある）`);
   }
 });
 // ── §6.4 O-32：「以下をN回行う。「〈本文〉」」＝`REPEAT` の正準形 ──
@@ -31110,10 +31116,14 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length - conditional.length, 1395, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 60, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
-    eq(optionalCost.length, 962, '任意costあり（+WXK03-070-E1＝energyTrashGroups 語彙化）');
+    // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
+    //   `WXDi-CP02-100-E1`（`trashToDeckBottom`）の costUnparsed を解いた分。
+    eq(optionalCost.length, 964, '任意costあり（+O-201 の2効果＝discardAll/energyTrashAll・trashToDeckBottom）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
-    eq(optionalNoCost.length, 20, '任意costなし（-WXK03-070-E1＝costUnparsed を解いて cost あり側へ移動）');
+    // 🆕20→18＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
+    //   costUnparsed を解いた分（cost あり側へ移動）。
+    eq(optionalNoCost.length, 18, '任意costなし（-O-201 の2効果＝costUnparsed を解いて cost あり側へ移動）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -31148,14 +31158,16 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       // 支払いキーではなく**コストの修飾**（§6.4 O-35・続き530）＝`wrapOptionalOnPlay` が
       // `applyAbilityCostReduction` で `energy` へ焼き込んでから包む。表の同期漏れをここで検出する。
       'conditionalEnergyReduction',
+      // 🆕2026-09-02（§5.3 `O-201`）＝「すべて」形とトラッシュ→デッキ下。
+      'discardAll', 'energyTrashAll', 'trashToDeckBottom',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
-    eq(optionalCost.length, 962, '母集団（+WXK03-070-E1＝energyTrashGroups 語彙化）');
-    eq(mapped.length, 962, 'OPTIONAL_COST へ写せる（energyTrashGroups もグループごとの TRASH へ分解して写せる）');
+    eq(optionalCost.length, 964, '母集団（+O-201 の2効果）');
+    eq(mapped.length, 964, 'OPTIONAL_COST へ写せる（energyTrashGroups もグループごとの TRASH へ分解して写せる）');
     eq(optionalCost.length - mapped.length, 0, '未対応の外側 cost は0件');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -31293,7 +31305,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 17, '包む＝真に任意6効果＋action自身が選択・徴収する可変捨て11効果');
-    eq(deferred, 3, '据え置き＝明示保留した cost 未表現の3効果（WXK03-070-E1 は続き767 で語彙化して解消）');
+    // 🆕3→1＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
+    //   costUnparsed を解いた分（残るのは `WXDi-P03-019-E1` の1件＝§5.3 `O-68` の領分）。
+    eq(deferred, 1, '据え置き＝明示保留した cost 未表現の1効果（O-201 の2件は 2026-09-02 に解消）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -32110,9 +32124,14 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   //   保留の理由は「**既存語彙が不完全**だから載せない」であって「永久に据え置く」ではない。
   //   `cost.energyTrashGroups` を **支払いの2経路**（通常召喚＝`SigniOnPlayCostModal` ／
   //   効果配置＝`optionalOnPlayCostStub`→`optionalCostPaySteps`）へ通したので保留の前提が消えた。
-  test('(xxix)(2) 第15波後の明示保留3効果は costUnparsed のまま保持する', () => {
+  // 🆕2026-09-02（§5.3 `O-201`）＝`WXDi-P12-031-E2` と `WXDi-CP02-100-E1` をこのリストから外した。
+  //   保留の理由は「載せると任意【出】が丸ごと積まれなくなる」だったが、`optionalOnPlayCostStub` の
+  //   `SUPPORTED` に `discardAll` / `energyTrashAll` / `trashToDeckBottom` を通し、支払いUI
+  //   （`SigniOnPlayCostModal` ＋ `executeSigniOnPlayCost`）も対応させたので前提が消えた。
+  //   ⚠**据置契約は削除ではなく正方向 assert へ反転**する（下の O-201 テスト）。
+  test('(xxix)(2) 第15波後の明示保留1効果は costUnparsed のまま保持する', () => {
     const deferredIds = [
-      'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
+      'WXDi-P03-019-E1',
     ];
     for (const effectId of deferredIds) {
       const cardNum = effectId.replace(/-E\d+$/, '');
@@ -32710,8 +32729,11 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
       if (result.entries.some(e => e.effectId === effect.effectId)) collectedCount++;
       else deferred.push(effect.effectId);
     }
-    eq(collectedCount, 158, '相互制約コスト対応を含む158件を通常アシスト経路で収集');
-    eq(deferred.length, 2, '表現不能コスト2件は不発のまま据え置く');
+    // 🆕158→159 / 2→1＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（「手札とエナゾーンにあるすべての
+    //   カードをトラッシュに置く：」）の cost を `discardAll`＋`energyTrashAll` で表せるようにした分。
+    //   🔴それまでは **`optionalOnPlayCostStub` の SUPPORTED に無い**ため包めず、この【出】は不発だった。
+    eq(collectedCount, 159, '相互制約コスト対応を含む159件を通常アシスト経路で収集');
+    eq(deferred.length, 1, '表現不能コスト1件は不発のまま据え置く');
   } finally {
     cursor = savedCursor;
   }
@@ -47747,9 +47769,13 @@ test('段2-10 A/B4: （アップ状態の）このシグニのDOWNは効果元�
     'WX11-025-E2', 'WXDi-P06-049-E1', 'WXDi-P09-054-E1', 'WXDi-P15-092-E1',
     'WXDi-P16-078-E1', 'WXDi-CP02-073-E2', 'WXDi-CP02-075-E2', 'WXDi-CP02-081-E2',
     'WX24-P1-069-E1', 'WX24-P3-077-E1', 'WX25-P2-085-E1', 'WX25-CP1-066-E3',
-    'WX25-CP1-070-E2', 'WXEX2-28-E1', 'WX25-P1-093-E1', 'WX24-P2-093-E1',
+    'WX25-CP1-070-E2', 'WX25-P1-093-E1', 'WX24-P2-093-E1',
     'WXDi-CP01-029-E3',
   ];
+  // 🆕2026-09-02（§5.3 `O-202`）＝`WXEX2-28-E1` をこの母集団から外した。
+  //   あれは素の `DOWN{thisCardOnly}` ではなく**離場置換の宣言**（「＜ウェポン＞が相手の効果で場を離れる場合、
+  //   代わりにアップ状態のこのシグニをダウンしてもよい」）＝CONTINUOUS の素 DOWN は恒久 no-op だった。
+  //   受け皿は `EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF`（専用テストで両方向を固定済み）。
   const findDown = (node: unknown): Extract<EffectAction, { type: 'DOWN' }> | undefined => {
     if (!node || typeof node !== 'object') return undefined;
     const a = node as EffectAction;
@@ -59339,6 +59365,376 @@ test('O-97 fail-closed: 2本目が未対応なら1本目も採らない', () => 
   const effect = parseCardEffects(card).find(e => e.effectId === '__O97_UNSUPPORTED_SECOND__-E1')!;
   eq(effect.condition, undefined, '🔴未対応条件が残れば、解釈できた白条件も部分採用しない');
 });
+
+test('索引C 2026-09-02: O-162 「プレイヤーをN人まで選ぶ」＝選択肢2つの CHOOSE で表す', () => withSavedCursor(() => {
+  // §5.3 `O-162`（母集団2効果・実測 2026-09-02＝原文「プレイヤーを」は全 CSV でこの2文だけ）。
+  // 🔑**`SELECT_PLAYER` 型は作らなかった**＝選べるプレイヤーは「あなた」「対戦相手」の2つしかないので、
+  //   選択肢そのものを owner 違いの同じアクションにすれば「選ばれた側を後続へ運ぶ口」がいらない
+  //   （登録票はその口が要ると書いていたが、母集団2効果では不要だった）。
+  // 🔴旧 live は2効果とも `STUB{CHOOSE_N_FROM_LIST}`＝engine の `([１-４1-4])つ(?:まで)?選ぶ` が
+  //   「N**人**まで」に1本も当たらず**無言 no-op**で、後続だけが焼き込んだ owner で走っていた。
+  const pickChoose = (act: EffectAction, ids: string[], ctx: ExecCtx): ExecResult => {
+    const first = executeEffect(
+      { effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!first.done && first.pending.type === 'CHOOSE', 'プレイヤー選択が対話として提示される');
+    if (first.done || first.pending.type !== 'CHOOSE') throw new Error('choose pending missing');
+    const c: ExecCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs };
+    return finish(resumeChoose(ids, first.pending, c), c);
+  };
+
+  // ── ① WXEX2-44-E2 ＝「プレイヤーを1人まで選ぶ。そのプレイヤーは自分のトラッシュを全部デッキへ」
+  const e1 = manualEffect('WXEX2-44', 'WXEX2-44-E2');
+  const ch1 = e1.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(ch1.type, 'CHOOSE', '選択そのものを表す（STUB の無言 no-op ではない）');
+  eq(ch1.upTo, true, '🔴「1人まで」＝0人も選べる');
+  eq(ch1.choose_count, 1, '選べるのは1人まで');
+  eq(ch1.choices.length, 2, '選択肢はあなた／対戦相手の2つ');
+
+  // 「対戦相手」を選ぶ＝**対戦相手の**トラッシュが戻る（旧 live は owner:'self' 固定＝真逆だった）
+  const rOpp = pickChoose(ch1 as EffectAction, ['opponent'], mkCtx({ trash: 4 }, { trash: 6 }));
+  eq(rOpp.otherState.trash.length, 0, '🔑対戦相手を選べば対戦相手のトラッシュが空になる');
+  eq(rOpp.ownerState.trash.length, 4, '🔴自分のトラッシュは動かない（旧実装はここが動いていた）');
+  // 「あなた」を選ぶ＝自分側だけが動く（反転確認）
+  const rSelf = pickChoose(ch1 as EffectAction, ['self'], mkCtx({ trash: 4 }, { trash: 6 }));
+  eq(rSelf.ownerState.trash.length, 0, 'あなたを選べば自分のトラッシュが空になる');
+  eq(rSelf.otherState.trash.length, 6, '対戦相手のトラッシュは動かない');
+  // 0人（「1人まで」）＝どちらも動かない
+  const rNone = pickChoose(ch1 as EffectAction, [], mkCtx({ trash: 4 }, { trash: 6 }));
+  eq(rNone.ownerState.trash.length, 4, '🔴0人を選べば自分は動かない');
+  eq(rNone.otherState.trash.length, 6, '🔴0人を選べば対戦相手も動かない');
+
+  // ── ② WXK06-028-E2 ＝「プレイヤーを2人まで選ぶ。選ばれた各プレイヤーは手札を全部デッキへ加えて
+  //     シャッフルし、加えた枚数と同じ枚数を引く。**最大5枚まで**」
+  const e2 = manualEffect('WXK06-028', 'WXK06-028-E2');
+  const ch2 = e2.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(ch2.choose_count, 2, '2人まで＝両方を選べる');
+  eq(ch2.upTo, true, '「2人まで」＝0人・1人も選べる');
+
+  // 手札3枚→3枚引き直す（枚数が焼き込まれず lastProcessedCards に追従している）
+  const r3 = pickChoose(ch2 as EffectAction, ['self'], mkCtx({ hand: 3 }, { hand: 4 }));
+  eq(r3.ownerState.hand.length, 3, '手札3枚なら3枚引き直す');
+  eq(r3.otherState.hand.length, 4, '選ばれていない側の手札は動かない');
+
+  // 🔴反転確認＝手札8枚でも**5枚まで**（`DrawAction.maxCount`。無ければ8枚引いて過剰実行になる）
+  const r8 = pickChoose(ch2 as EffectAction, ['self'], mkCtx({ hand: 8 }, { hand: 4 }));
+  eq(r8.ownerState.hand.length, 5, '🔑最大5枚までしか引けない');
+
+  // 両方選ぶ＝両プレイヤーが引き直す
+  const rBoth = pickChoose(ch2 as EffectAction, ['self', 'opponent'], mkCtx({ hand: 2 }, { hand: 7 }));
+  eq(rBoth.ownerState.hand.length, 2, 'あなたは2枚引き直す');
+  eq(rBoth.otherState.hand.length, 5, '🔑対戦相手も上限5枚で引き直す');
+}));
+
+test('索引C 2026-09-02: O-162 DrawAction.maxCount はデッキ残量の切り詰めと別軸', () => withSavedCursor(() => {
+  // `maxCount` は原文が書いている上限、`canDraw` はデッキ残量。両方が独立に効く。
+  const base = mkCtx({ hand: 0 }, {});
+  const r = run({ type: 'DRAW', owner: 'self', count: 9, maxCount: 4 } as EffectAction, base);
+  eq(r.ownerState.hand.length, 4, 'count 9 でも maxCount 4 で止まる');
+  const noCap = run({ type: 'DRAW', owner: 'self', count: 9 } as EffectAction, mkCtx({ hand: 0 }, {}));
+  eq(noCap.ownerState.hand.length, 9, '🔴maxCount が無ければ9枚引く（上限は既定で掛からない）');
+  const small = run({ type: 'DRAW', owner: 'self', count: 2, maxCount: 5 } as EffectAction, mkCtx({ hand: 0 }, {}));
+  eq(small.ownerState.hand.length, 2, '上限より少ない要求はそのまま');
+}));
+
+test('索引C 2026-09-02: O-200 ルリグデッキからキーを場に出す（選択・枠・印刷コスト）', () => withSavedCursor(() => {
+  // §5.3 `O-200`（母集団2効果＝`WXK02-004-E3` / `WXK03-014-E3`）。
+  // 🔑**登録票の「`field.key_piece` を置く手段がゼロ」は失効していた**＝`PLACE_KEY_FROM_LRIG_DECK` は
+  //   `WDK03-001-E1` 用に既にあった。足りなかったのは「カード名を書かない形」「印刷コストの徴収」
+  //   「N枚まで置ける枠」の3点だけ。
+  // 🔴旧 live は2効果とも `SEQUENCE[ADD_TO_FIELD{source なし} ×2]`＝キーと無関係な別物だった。
+  const KEY1 = 'WXK01-014';   // 《コイン》×１
+  const KEY2 = 'WX22-006';    // 《コイン》×２
+  eq(cardMap.get(KEY1)?.Type, 'キー', '前提: KEY1 はキー');
+  eq(cardMap.get(KEY2)?.Type, 'キー', '前提: KEY2 はキー');
+
+  const withDeck = (keys: string[], opts: Partial<PlayerState> = {}): ExecCtx => {
+    const ctx = mkCtx({}, {});
+    return { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: keys, ...opts } } as ExecCtx;
+  };
+
+  // ① 名前を書かない形＝ルリグデッキのキー1枚がそのまま場へ（選ぶ余地が無いので対話は出ない）
+  const r1 = run({ type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self' } as EffectAction, withDeck([KEY1]));
+  eq(r1.ownerState.field.key_piece, KEY1, 'キー枠に置かれる');
+  eq(r1.ownerState.lrig_deck?.length ?? 0, 0, 'ルリグデッキから抜ける');
+
+  // ② 候補が複数なら選ばせる＝2枚目を選べば2枚目が場に出る（先頭固定ではない）
+  const ctx2 = withDeck([KEY1, KEY2]);
+  const start2 = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: { type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self' } as EffectAction,
+      duration: 'INSTANT', mandatory: true } as CardEffect, ctx2);
+  ok(!start2.done && start2.pending.type === 'CHOOSE', '🔑どのキーを出すかを選ばせる');
+  if (start2.done || start2.pending.type !== 'CHOOSE') throw new Error('key choose pending missing');
+  eq(start2.pending.options.length, 2, '候補2枚が並ぶ');
+  const r2 = finish(resumeChoose(KEY2, start2.pending,
+    { ...ctx2, ownerState: start2.ownerState, otherState: start2.otherState, logs: start2.logs } as ExecCtx), ctx2);
+  eq(r2.ownerState.field.key_piece, KEY2, '選んだ方が場に出る');
+  eq(r2.ownerState.lrig_deck?.[0], KEY1, '選ばなかった方はルリグデッキに残る');
+
+  // ③ 枠が1（既定）で既にキーが在る＝差し替え（既存キーはルリグトラッシュへ）＝従来どおり
+  const occupied = withDeck([KEY2]);
+  const ctx3 = { ...occupied,
+    ownerState: { ...occupied.ownerState, field: { ...occupied.ownerState.field, key_piece: KEY1 } } } as ExecCtx;
+  const r3 = run({ type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self' } as EffectAction, ctx3);
+  eq(r3.ownerState.field.key_piece, KEY2, '新しいキーが枠に入る');
+  ok(r3.ownerState.lrig_trash.includes(KEY1), '🔴枠が1なら既存キーはルリグトラッシュへ');
+
+  // ④ 🔑反転確認＝`key_place_limit:2` なら差し替えずに2枚目として積む（`WXK02-004-E3` の1文目が効く）
+  const ctx4 = { ...occupied, ownerState: { ...occupied.ownerState,
+    key_place_limit: 2, field: { ...occupied.ownerState.field, key_piece: KEY1 } } } as ExecCtx;
+  const r4 = run({ type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self' } as EffectAction, ctx4);
+  eq(r4.ownerState.field.key_piece, KEY1, '既存キーは場に残る');
+  eq(r4.ownerState.field.key_piece_extra?.[0], KEY2, '🔑2枚目は key_piece_extra へ積む');
+  ok(!r4.ownerState.lrig_trash.includes(KEY1), '🔴枠に余りがあればルリグトラッシュへ送らない');
+
+  // ⑤ `SET_KEY_PLACE_LIMIT` が枠を上げる／下げない
+  const r5 = run({ type: 'STUB', id: 'SET_KEY_PLACE_LIMIT', value: 2 } as EffectAction, withDeck([]));
+  eq(r5.ownerState.key_place_limit, 2, '枠が2になる');
+  const alreadyThree = withDeck([], { key_place_limit: 3 } as Partial<PlayerState>);
+  const r5b = run({ type: 'STUB', id: 'SET_KEY_PLACE_LIMIT', value: 2 } as EffectAction, alreadyThree);
+  eq(r5b.ownerState.key_place_limit, 3, '🔴既に大きい枠は下げない');
+}));
+
+test('索引C 2026-09-02: O-200 payPrintedCost は選んだキーの印刷コストを徴収する', () => withSavedCursor(() => {
+  const KEY_C2 = 'WX22-006';   // 《コイン》×２
+  const KEY_C1 = 'WXK01-014';  // 《コイン》×１
+  const withDeck = (keys: string[], coins: number): ExecCtx => {
+    const ctx = mkCtx({ coins }, {});
+    return { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: keys } } as ExecCtx;
+  };
+  const act = { type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self', payPrintedCost: true, coinReduction: 1 } as EffectAction;
+
+  // 《コイン》×２ − 軽減1 ＝ 1枚。コイン1枚あれば出せて、支払い後は0枚。
+  const r1 = run(act, withDeck([KEY_C2], 1));
+  eq(r1.ownerState.field.key_piece, KEY_C2, '払えるので場に出る');
+  eq(r1.ownerState.coins, 0, '🔑軽減後のコイン1枚を実際に払う');
+
+  // 🔴反転確認＝コインが0なら候補に出ない＝場に出ない（踏み倒さない）
+  const r2 = run(act, withDeck([KEY_C2], 0));
+  eq(r2.ownerState.field.key_piece, null, '🔴支払えないキーは場に出ない');
+  eq(r2.ownerState.lrig_deck?.length, 1, 'ルリグデッキに残る');
+
+  // 《コイン》×１ − 軽減1 ＝ 0枚＝コイン0でも出せる（原文どおり実質無償）
+  const r3 = run(act, withDeck([KEY_C1], 0));
+  eq(r3.ownerState.field.key_piece, KEY_C1, '軽減で0になれば無償で出せる');
+
+  // 🔴反転確認＝`payPrintedCost` を付けなければコインは減らない（`WXK02-004-E3` は無償）
+  const r4 = run({ type: 'PLACE_KEY_FROM_LRIG_DECK', owner: 'self' } as EffectAction, withDeck([KEY_C2], 3));
+  eq(r4.ownerState.coins, 3, '🔴無償形はコインを取らない');
+
+  // live 側の宣言も固定する（parser 出力へ戻ったら落ちる）
+  const e200a = manualEffect('WXK02-004', 'WXK02-004-E3');
+  const steps = (e200a.action as SequenceAction).steps;
+  eq((steps[0] as StubAction).id, 'SET_KEY_PLACE_LIMIT', '1文目＝キーを2枚まで置ける');
+  eq((steps[0] as StubAction).value, 2, '2枚まで');
+  eq(steps[1].type, 'PLACE_KEY_FROM_LRIG_DECK', '2文目＝ルリグデッキからキー1枚');
+  ok(!(steps[1] as { payPrintedCost?: boolean }).payPrintedCost, '🔴原文にコストの記載が無い＝無償');
+  const e200b = manualEffect('WXK03-014', 'WXK03-014-E3');
+  const a200b = e200b.action as { type: string; payPrintedCost?: boolean; coinReduction?: number };
+  eq(a200b.type, 'PLACE_KEY_FROM_LRIG_DECK', 'キーを場に出す');
+  eq(a200b.payPrintedCost, true, '🔑「コストを支払って」');
+  eq(a200b.coinReduction, 1, '「《コイン×1》減る」');
+}));
+
+test('索引C 2026-09-02: O-201 【出】任意コストの新しい支払い種別（据置契約の反転）', () => withSavedCursor(() => {
+  // §5.3 `O-201`（母集団2効果）。旧 golden 『(xxix)(2) 第15波後の明示保留3効果は costUnparsed のまま保持する』
+  // が `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` を据え置いていた契約を、**正方向の assert へ反転**する。
+  // 🔴据置の理由は「`SUPPORTED` に無いキーが1つでもあると `wrapOptionalOnPlay` が null を返し、
+  //   任意【出】が丸ごと積まれなくなる」＝**過小の側**だった。SUPPORTED を通したので前提が消えた。
+
+  // ── ① `WXDi-P12-031-E2`＝「手札とエナゾーンにあるすべてのカードをトラッシュに置く：」
+  const eA = manualEffect('WXDi-P12-031', 'WXDi-P12-031-E2');
+  ok(!eA.costUnparsed, '🔑コストが JSON に載った（踏み倒しでも取りこぼしでもない）');
+  eq(eA.cost?.discardAll, true, '手札をすべて捨てる');
+  eq(eA.cost?.energyTrashAll, true, 'エナゾーンをすべてトラッシュ');
+  // 🔑条件は activeCondition 側＝action に置くと支払い後（手札もエナも空）に評価されて必ず偽になる。
+  eq(eA.activeCondition?.type, 'ZONE_SUM_COUNT', '「この方法で6枚以上」は支払い前の手札＋エナで見る');
+  const stubA = optionalOnPlayCostStub(eA.cost!, eA.effectId);
+  ok(!!stubA, '🔑OPTIONAL_COST へ包める（null＝丸ごと積まれない、ではない）');
+  eq((stubA as StubAction).handDiscard?.count, 'ALL', '手札は全枚数');
+  eq((stubA as StubAction).energyTrash?.count, 'ALL', 'エナは全枚数');
+  const wrappedA = wrapOptionalOnPlay(eA);
+  ok(!!wrappedA, '🔴反転確認＝以前は null（＝この【自】が積まれなかった）');
+
+  // 支払いステップが実際に手札とエナを空にする
+  const specA = resolveOptionalCostSpec(stubA as StubAction, mkCtx({}, {}));
+  const ctxA = mkCtx({ hand: 4, energy: 3 }, {});
+  ok(canAffordOptionalCostSpec(specA, ctxA), '手札もエナもあるので払える');
+  const payA = run({ type: 'SEQUENCE', steps: optionalCostPaySteps(specA) } as EffectAction, ctxA);
+  eq(payA.ownerState.hand.length, 0, '🔑手札を全部捨てる');
+  eq(payA.ownerState.energy.length, 0, '🔑エナを全部トラッシュへ');
+
+  // ── ② `WXDi-CP02-100-E1`＝「トラッシュから＜ブルアカ＞のカード1枚をデッキの一番下に置く：」
+  const eB = manualEffect('WXDi-CP02-100', 'WXDi-CP02-100-E1');
+  ok(!eB.costUnparsed, 'コストが JSON に載った');
+  eq(eB.cost?.trashToDeckBottom?.count, 1, '1枚');
+  eq(eB.cost?.trashToDeckBottom?.filter?.story, 'ブルアカ', '＜ブルアカ＞限定');
+  const stubB = optionalOnPlayCostStub(eB.cost!, eB.effectId);
+  ok(!!stubB, 'OPTIONAL_COST へ包める');
+  ok(!!wrapOptionalOnPlay(eB), '🔴反転確認＝以前は null');
+}));
+
+test('索引C 2026-09-02: O-201 trashToDeckBottom は「除外」ではなくデッキの一番下へ戻す', () => withSavedCursor(() => {
+  // 🔴`trashExile`（ゲームから除外）を流用すると**戻ってこない別のカード**になる。行き先を両方向で固定する。
+  // ⚠`TargetFilter.story`（＜ブルアカ＞等）が読むのは **`CardClass` の「：」より後ろ**であって
+  //   CSV の `Story` 列ではない（あちらは `'-'` / `'Dissona'` の2値）。ここを取り違えると
+  //   「一致カードなし」で永遠に払えず、テストが空振りする。
+  const storyOf = (c: CardData) => (c.CardClass ?? '').split('：')[1] ?? '';
+  const target = findCard(c => isSigni(c) && !!storyOf(c) && matchesFilter(c, { story: storyOf(c) }));
+  const story = storyOf(cardMap.get(target)!);
+  const spec = resolveOptionalCostSpec(
+    { type: 'STUB', id: 'OPTIONAL_COST', trashToDeckBottom: { count: 1, filter: { story } } } as StubAction,
+    mkCtx({}, {}));
+  eq(spec.trashToDeckBottom?.count, 1, 'spec へ解決される（runtime 型に足し忘れると黙って落ちる）');
+
+  const base = mkCtx({ trash: 0 }, {});
+  const withHit = { ...base, ownerState: { ...base.ownerState, trash: [target] } } as ExecCtx;
+  ok(canAffordOptionalCostSpec(spec, withHit), '一致カードがトラッシュにあれば払える');
+  const paid = run({ type: 'SEQUENCE', steps: optionalCostPaySteps(spec) } as EffectAction, withHit);
+  eq(paid.ownerState.trash.length, 0, 'トラッシュから抜ける');
+  eq(paid.ownerState.deck.at(-1), target, '🔑デッキの**一番下**へ入る（除外ではない）');
+
+  // 🔴反転確認＝一致カードが無ければ払えない（踏み倒さない）
+  const other = findCard(c => isSigni(c) && !matchesFilter(c, { story }));
+  const noHit = { ...base, ownerState: { ...base.ownerState, trash: [other] } } as ExecCtx;
+  ok(!canAffordOptionalCostSpec(spec, noHit), '🔴＜X＞以外しか無ければ払えない');
+}));
+
+test('索引C 2026-09-02: O-199 アンコールの「テキスト形」コストを読む（5枚）', () => withSavedCursor(() => {
+  // §5.3 `O-199`。🔴**登録票の「2効果」は過小**＝2026-09-02 の実測で**5枚**
+  //   （`WDA-F02-08` / `SP27-010` / `SP27-016` / `SPK01-13` / `WX14-016`）。
+  // 🔴旧 `parseEncoreCost` は `《…》` アイコンしか読まず **null＝コスト無し**へ落ちていた。
+  //   null だと `canEncore` が false になるので、実害は「アンコールの選択肢すら出ない」＝**過小の側**。
+  const enc = (cardNum: string) => parseEncoreCost(cardMap.get(cardNum)?.EffectText ?? '');
+
+  // ① ルリグの下から N 枚＝既存 `exceed` の支払いに載せる（新しい支払い機構は作らない）
+  eq(enc('WDA-F02-08')?.exceed, 3, 'センタールリグの下から3枚');
+  eq(enc('SP27-010')?.exceed, 2, '同・2枚');
+  eq(enc('SP27-016')?.exceed, 2, '同・2枚');
+  // ② キー1枚を場からルリグトラッシュ
+  eq(enc('SPK01-13')?.trashOwnKey, true, 'キー1枚を場からルリグトラッシュへ');
+  // ③ 手札から＜X＞のシグニをN枚捨てる
+  eq(enc('WX14-016')?.handDiscardSigni?.count, 1, '手札から1枚');
+  eq(enc('WX14-016')?.handDiscardSigni?.story, '美巧', '＜美巧＞限定');
+
+  // 🔴反転確認＝アイコン形は1件も壊れていない（32枚のアンコール札の残り27枚）
+  eq(enc('WX18-010')?.coins, 2, 'コイン2枚（アイコン形）');
+  eq(enc('WX13-015')?.energy.map(e => e.color).join(''), '青無', 'エナ色（アイコン形）');
+  // 🔴**アイコンの後ろに続くアーツ本文をコストと読まない**＝ここを外すと払わされる側＝過剰になる。
+  const afterIcon = enc('WD14-010');   // 「アンコール－《黒》このターン、あなたのシグニの【出】能力は発動しない。」
+  eq(afterIcon?.energy.map(e => e.color).join(''), '黒', '黒1つだけがコスト');
+  eq(afterIcon?.exceed, undefined, '🔴本文はコストに混ざらない');
+  const afterIcon2 = enc('WX19-017'); // 「…《コイン》《コイン》あなたの手札から＜水獣＞のシグニ１枚を場に出す…」
+  eq(afterIcon2?.coins, 2, 'コイン2枚だけがコスト');
+  eq(afterIcon2?.handDiscardSigni, undefined, '🔴本文の「手札から＜水獣＞の…」を捨てコストと読まない');
+
+  // アンコールを持たない札は従来どおり null
+  eq(parseEncoreCost('【常】：何もしない。'), null, 'アンコール句が無ければ null');
+}));
+
+test('索引C 2026-09-02: O-199 テキスト形アンコールは支払える盤面でだけ成立する', () => withSavedCursor(() => {
+  // 🔑UI ゲート（`canEncore`）が見る述語をここで固定する＝払えない盤面でアンコールを選ばせない。
+  const under = fill(3);
+  const center = fill(1);
+  const stWith = { ...mkState({}), field: { ...mkState({}).field, lrig: [...under, ...center] } } as PlayerState;
+  ok(canPayExceed(stWith, 3), 'ルリグの下に3枚あれば「下から3枚」を払える');
+  ok(!canPayExceed(stWith, 4), '🔴4枚は払えない');
+  const stNone = { ...mkState({}), field: { ...mkState({}).field, lrig: center } } as PlayerState;
+  ok(!canPayExceed(stNone, 1), '🔴下が空なら払えない');
+
+  // 実際の支払い＝プール先頭から N 枚がルリグトラッシュへ（performArts と同じ選び方）
+  const idx = new Set([0, 1, 2]);
+  const paid = paySelectedExceed(stWith, 3, idx);
+  ok(!!paid, '支払いが成立する');
+  eq(paid!.field.lrig.join(','), center.join(','), 'センタールリグ本体だけが残る');
+  eq(paid!.lrig_trash.length, 3, '3枚がルリグトラッシュへ');
+}));
+
+test('索引C 2026-09-02: O-202 ダメージ置換の支払いに「アシストルリグ2体をダウン」を足す', () => withSavedCursor(() => {
+  // §5.3 `O-202`（`WX24-P3-043-E1`）。🔑**登録票の「置換の発生時に支払いを問う窓が無い」は失効**＝
+  //   窓は `screens/battle/lifeCrashReplace.ts` の `kind:'pay_cost'`（続き543）で既にあった。
+  //   足りなかったのは**支払い種別**（アシストルリグのダウン）だけ。
+  // 🔴旧 live＝`ACTIVATED{DOWN{SIGNI, level>=1, isUp}}`＝**使った瞬間にシグニを1体ダウンする**だけの別物
+  //   （置換の宣言でもアシストルリグでも2体でもない）。
+  const e = manualEffect('WX24-P3-043', 'WX24-P3-043-E1');
+  const a = e.action as Extract<EffectAction, { type: 'LIFE_CRASH_REPLACE' }>;
+  eq(a.type, 'LIFE_CRASH_REPLACE', '宣言であって即時実行ではない');
+  eq(a.replaceKind, 'pay_cost', 'コストを払う置換');
+  eq(a.optional, true, '「してもよい」');
+  eq(a.once, undefined, '🔴原文に「次に」が無い＝ターン中は何度でも');
+  eq(a.payOptions?.[0]?.assistLrigDown?.count, 2, 'アシストルリグ2体');
+  eq(a.payOptions?.[0]?.assistLrigDown?.minLevel, 1, 'レベル1以上');
+
+  // 宣言を engine で実行して `life_crash_replacements` に積まれることを見る
+  const declared = run(a as EffectAction, mkCtx({}, {}));
+  eq(declared.ownerState.life_crash_replacements?.length, 1, '置換が1件だけ積まれる');
+
+  // ── funnel 側 ──
+  const lrigOf = (level: string) => findCard(c => c.Type === 'アシストルリグ' && c.Level === level);
+  const a1 = lrigOf('1'); const a2 = lrigOf('1');
+  const withAssist = (opts: { l?: string; r?: string; lDown?: boolean; rDown?: boolean }): PlayerState => {
+    const st = declared.ownerState;
+    return { ...st, field: { ...st.field,
+      assist_lrig_l: opts.l ? [opts.l] : [], assist_lrig_r: opts.r ? [opts.r] : [],
+      assist_lrig_l_down: opts.lDown === true, assist_lrig_r_down: opts.rDown === true } } as PlayerState;
+  };
+  const both = withAssist({ l: a1, r: a2 });
+  const hit = pickLifeCrashReplacement(both, { damageSource: 'signi', cardMap: cardMap as Map<string, CardData> });
+  ok(!!hit, '🔑アップのアシストルリグが2体あれば置換が成立する');
+  const applied = applyPayCostReplacement(both, hit!.index, hit!.repl, cardMap as Map<string, CardData>);
+  ok(!!applied, '支払いが成立する');
+  eq(applied!.state.field.assist_lrig_l_down, true, '左をダウン');
+  eq(applied!.state.field.assist_lrig_r_down, true, '右をダウン');
+  eq(applied!.state.life_crash_replacements?.length, 1, '🔴`once` が無いので宣言は残る');
+
+  // 🔴反転確認①＝アップが1体しかなければ置換は成立しない（ダメージがそのまま通る）
+  ok(!pickLifeCrashReplacement(withAssist({ l: a1, r: a2, rDown: true }),
+    { damageSource: 'signi', cardMap: cardMap as Map<string, CardData> }), '🔴アップ1体では払えない');
+  // 🔴反転確認②＝レベル条件は実際に効いている（全アシストルリグはレベル1か2なので、
+  //   同じ盤面に `minLevel:3` を課すと成立しなくなる＝レベルを見ずに数だけ数えていれば通ってしまう）。
+  const lv3 = { ...both, life_crash_replacements: [
+    { kind: 'pay_cost', count: 1, optional: true, payOptions: [{ assistLrigDown: { count: 2, minLevel: 3 } }] },
+  ] } as PlayerState;
+  ok(!pickLifeCrashReplacement(lv3, { damageSource: 'signi', cardMap: cardMap as Map<string, CardData> }),
+    '🔴レベル条件を満たさなければ払えない');
+  // 🔴反転確認③＝`cardMap` を渡さない経路では選ばない（既存規約＝ダメージがそのまま通る側）
+  ok(!pickLifeCrashReplacement(both, { damageSource: 'signi' }), '🔴cardMap 無しでは成立させない');
+}));
+
+test('索引C 2026-09-02: O-202 離場置換に「宣言者が自分をダウンする」軸を足す', () => withSavedCursor(() => {
+  // §5.3 `O-202`（`WXEX2-28-E1`）。🔴旧 live＝`CONTINUOUS DOWN{thisCardOnly, optional}`＝
+  //   **CONTINUOUS は `executeAction` を通らない**ので恒久 no-op だった（守りが1回も働いていない＝過小）。
+  const e = manualEffect('WXEX2-28', 'WXEX2-28-E1');
+  const st = e.action as StubAction;
+  eq(st.id, 'EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF', '離場置換の宣言型 STUB');
+  eq(st.leaveDownProtector?.victimFilter?.story, 'ウェポン', '守れるのは＜ウェポン＞だけ');
+
+  // 宣言者＝WXEX2-28 自身／victim＝別の＜ウェポン＞シグニ。victim は **効果を撃った側から見て opponent**。
+  const weapon = findCard(c => isSigni(c) && c.CardNum !== 'WXEX2-28' && (c.CardClass ?? '').includes('ウェポン'));
+  const nonWeapon = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('ウェポン'));
+  const mk = (victim: string, declarerDown: boolean): ExecCtx => {
+    const ctx = mkCtx({}, { signi: ['WXEX2-28', victim, null], down: [declarerDown, false, false] });
+    return ctx;
+  };
+
+  const okCtx = mk(weapon, false);
+  const opts = collectLeaveSubstituteOptions(weapon, 'opponent', okCtx);
+  const down = opts.find(o => o.axis === 'downProtector');
+  ok(!!down, '🔑アップの宣言者が居れば置換候補に出る');
+  eq(down!.kind, 'optional', '原文「してもよい」＝任意');
+  eq(down!.resultCtx.otherState.field.signi_down?.[0], true, '宣言者がダウンする');
+  eq(down!.resultCtx.otherState.field.signi[1]?.at(-1), weapon, '🔑victim は場に残る');
+
+  // 🔴反転確認①＝宣言者が既にダウンしていれば成立しない
+  ok(!collectLeaveSubstituteOptions(weapon, 'opponent', mk(weapon, true))
+    .some(o => o.axis === 'downProtector'), '🔴ダウン済みの宣言者では払えない');
+  // 🔴反転確認②＝＜ウェポン＞でない victim は守れない
+  ok(!collectLeaveSubstituteOptions(nonWeapon, 'opponent', mk(nonWeapon, false))
+    .some(o => o.axis === 'downProtector'), '🔴＜ウェポン＞以外は守らない');
+  // 🔴反転確認③＝自分の効果で自分のシグニが離れる場合は対象外（原文「対戦相手の効果によって」）
+  const selfSide = mkCtx({ signi: ['WXEX2-28', weapon, null] }, {});
+  ok(!collectLeaveSubstituteOptions(weapon, 'self', selfSide)
+    .some(o => o.axis === 'downProtector'), '🔴自分の効果による離場には乗らない');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

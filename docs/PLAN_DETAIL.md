@@ -914,6 +914,12 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-162` — 「プレイヤーをN人まで選ぶ」＝プレイヤーを対象に取る機構が無い
 
+🏁**2026-09-02 クローズ**＝**新しい型は作らなかった**。選べるプレイヤーは「あなた」「対戦相手」の2つしか無いので、
+選択肢そのものを owner 違いの同じアクションにすれば `CHOOSE{upTo:true}` で表せる（登録票の②「選ばれた
+プレイヤーを後続へ運ぶ口」は母集団2効果では不要だった）。上限5枚は `DrawAction.maxCount` を新設。
+実機＝`o162ChoosePlayer`。全文は BUGFIXES.md 2026-09-02。
+
+
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（`WXEX2-44-E2` / `WXK06-028-E2`）
 
 **2026-08-30（`O-60` 第15バッチの選定中）に分離。** ■**型が無い**＝`SELECT_PLAYER` 相当は `src/types/effects.ts` に**存在しない**（grep で0件）。いまは `STUB{CHOOSE_N_FROM_LIST}` の catch-all に落ち、engine が `([１-４1-4])つ(?:まで)?選ぶ` を当てるが**原文は「N**人**まで」なので1本も当たらない**。 ■🔴**結果として2効果とも壊れている**＝`WXEX2-44-E2`「プレイヤーを1人まで選ぶ。**そのプレイヤーは**自分のトラッシュを全部デッキへ」は後続が `TRANSFER_TO_DECK{owner:'self'}` に固定＝**相手を選んでも自分のトラッシュが戻る**／`WXK06-028-E2`「プレイヤーを2人まで選ぶ。**選ばれた各プレイヤーは**手札を全部デッキへ加えてシャッフルし同じ枚数引く」は `STUB{MASS_TRASH}`（**トラッシュへ置く別物**）＋ドロー無し。 ■**要るもの**＝①「プレイヤーをN人まで選ぶ」typed アクション ②**選ばれたプレイヤーを後続へ運ぶ口**（`lastProcessedCards` はカード用なので別軸＝`O-142` と同じ設計問題）③後続アクションの owner を「選ばれた側」に解決する仕組み。 ⚠**着手前に母集団を実測する**（「プレイヤーを」を含む効果の全数）。
@@ -1176,6 +1182,14 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-199` — アンコールの「テキスト形」コストが未実装（`parseEncoreCost` が `《…》` アイコンしか読まない）
 
+🏁**2026-09-02 クローズ**＝`parseEncoreCost` にテキスト形3種（`exceed`／`trashOwnKey`／`handDiscardSigni`）を追加し、
+`ArtsModal` のアンコール可否ゲートと `performArts` の支払いまで通した。🔴**母集団は登録票の2効果ではなく5枚**
+（`WDA-F02-08`／`SP27-010`／`SP27-016`／`SPK01-13`／`WX14-016`）。⚠**「－の直後が `《` でない」ときだけ**
+テキスト形と判定する（`アンコール－《黒》このターン…` の本文をコストと読み違えない）。
+⚠**census 高シグナルには残す**＝アンコールのコストは `screens/battle/costs.ts` が読むので JSON には載らない。
+実機＝`o199EncoreTextCostPay` / `o199EncoreTextCostShort`（反転）。
+
+
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（2026-08-31 続き747 実測）
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1195,6 +1209,13 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-200` — ルリグデッキからキーを場に出す経路が engine に無い（`field.key_piece` を置く手段がゼロ）
 
+🏁**2026-09-02 クローズ**＝🔴**登録票の「手段がゼロ」は失効していた**（`PLACE_KEY_FROM_LRIG_DECK` は続き760 に新設済み）。
+足したのは ①`cardName` 省略時の選択 ②`payPrintedCost`＋`coinReduction`（選んだキーの `Cost` 列を徴収・払えない札は
+候補に出さない）③`PlayerState.key_place_limit`（`STUB{SET_KEY_PLACE_LIMIT}`）＋ `BattleScreen` の2地点。
+🐛**副産物＝「キーが1枚も場に出せない」実バグ**（CSV の空欄 `-` を `!timing` で判定＝全80枚が使用不可）を同時に修正。
+実機＝`o200KeyFromLrigDeck` / `o200KeyGateOn` / `o200KeyGateOff`（反転）。
+
+
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（2026-08-31 続き749）
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1204,6 +1225,15 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
    `field.key_piece` を**置く**手段がゼロ（`UNLIMITED_KEYS` は宣言だけの no-op）。
 
 ### `O-201` — 【出】任意コストの新しい支払い種別＝`resolveOptionalCostSpec` から支払いUIまでの縦切り
+
+🏁**2026-09-02 クローズ**＝🔴**登録票の「縦切りが要る」は半分失効**＝`OptionalCostSpec` も支払いUIも既存で、
+欠けていたのは `optionalOnPlayCostStub` の `SUPPORTED` に `discardAll` / `energyTrashAll` / `trashToDeckBottom`
+が無いことだけだった（**1つでも未対応キーがあると `wrapOptionalOnPlay` が null＝その任意【出】が丸ごと積まれない**）。
+新設は `EffectCost.trashToDeckBottom` と `OptionalCostSpec.trashToDeckBottom`（+ parser 規則・`SigniOnPlayCostModal`
+の選択UI・`executeSigniOnPlayCost` の支払い）。⚠`WXDi-P12-031-E2` の「この方法で6枚以上」は **`activeCondition` 側**
+へ移した（`action` に置くと**支払い後**に評価され、手札もエナも空なので必ず偽になる）。
+実機＝`o201TrashToDeckBottomPay` / `o201TrashToDeckBottomNoPay`（反転）。
+
 
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（2026-08-31 続き748／続き749）
 
@@ -1223,6 +1253,15 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
   ⚠`SUPPORTED` に無いキーを1つでも持つと `null` になる＝**部分対応では通らない**。
 
 ### `O-202` — コスト付きの置換＝置換の発生時に支払いを問う窓が無い
+
+🏁**2026-09-02 クローズ**＝🔴**登録票の「窓が無い」は失効していた**＝窓は2本とも既存。
+①ダメージ置換＝`screens/battle/lifeCrashReplace.ts` の `kind:'pay_cost'`（続き543）
+②離場置換＝`collectLeaveSubstituteOptions` の `selfAbilityPay` 軸（続き511）。
+足したのは**支払い種別**2つだけ＝`payOptions[].assistLrigDown`（`WX24-P3-043-E1`）と、
+離場置換の新軸 `downProtector`＝`STUB{EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF}`（`WXEX2-28-E1`）。
+🔴旧 `WXEX2-28-E1` は素の `CONTINUOUS DOWN{thisCardOnly}`＝**CONTINUOUS は `executeAction` を通らない**ので恒久 no-op。
+実機＝`o202DamageReplaceDeclare`。
+
 
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（2026-08-31 続き749）
 
@@ -1519,6 +1558,30 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-02 続き773 後）
+
+- **2026-09-02（続き773）＝§5.3 索引 B バッチ（Codex 2アカウント実装／Claude 検証・引き継ぎ・実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 20 → 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・
+  🔴**増加は計器の較正であって退化ではない**＝§5.3 の索引と登録票にカード番号を明記したぶん `mech` が拾えるようになった。
+  **セッション開始時の PLAN で測り直して 20 を確認済み**。⚠CLAUDE.md の「18枚」は stale）｜
+  **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜**census 高シグナル 11 / BASELINE 12**（据置）
+  📦**在庫2本**＝**機構 worklist 65 → 63項目**（§5.3 の `| \`O-` 行数の実測＝索引 A **17**／
+  **B 14 → 12**／C **34**／D 0／E **4**）｜🏁**実機 残 0件**（§5.1＝この巡の6本は同巡で実行・全 PASS）
+  🔧**ゲート（Claude が独立実行・全緑 ✅）**＝golden **3233 / 3233**（3215 → **+18本**）／
+  smoke 10,721効果 全異常0／fuzz 全0／census **11 / BASELINE 12**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 250 warnings。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規6本すべて PASS**＝`o58ArtemisAttackerBanish`／
+  `o58GustavAttackerBanishOnce`／`o58OpponentTurnOnlyDoesNotProtectAttacker`（🔴反転確認）／
+  `o181LrigAttackEndFiresWhenGuarded`／`o181LrigAttackEndSkippedWhenDamaged`（🔴反転確認）／
+  `o181LegacyGuardShapeAlsoFires`。**`o58` 3本は Codex が記述・`o181` 3本は Claude が記述／実行は全部 Claude。**
+  🆕**足した機構**＝`CardTypeFilter` に `リレーピース`／`AttackEndTriggerOptions{attackerKind, wasGuarded}`＋
+  ルリグアタック終了の収集地点（`performGuardResponse`）／`selectMandatoryAttackerBanishSubstitute`（`src/screens/battle/`）／
+  `RevealUntilHitSpec.handOrField` と SEARCH pending の `deckOwner` 配線。
+  🔑**新しい Condition 型・TargetFilter キーは1つも足していない**（`O-97`／`O-58`／`O-52` は全部既存機構で足りた）。
+  🔄**据置契約を2本反転**（削除禁止の規約どおり）＝第40バッチ `WXDi-D04-004-sub-E1`／第20バッチ `SP27-005`。
+  🔎**live の per-effect diff＝合計9効果**（`O-97` 4／`O-181` 1／`O-52` 4。`O-58` は engine のみで live 不変）。
+  **既存 `REVEAL_UNTIL` 17効果は全件オブジェクト一致**で不変であることを個別に確認済み。
 
 ### 恒久指標アーカイブ（2026-08-30 続き743 後）
 

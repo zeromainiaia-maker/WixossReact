@@ -41660,6 +41660,546 @@ scenarios.o148VirusAnyCount = {
 };
 order.push('o148VirusAnyCount');
 
+// ════════════════════════════════════════════════════════════════════════════════
+// 2026-09-02 索引C 5件（O-162 / O-199 / O-200 / O-201 / O-202）の実機観測点
+// ⚠この回は `src/screens/` を触った（BattleScreen のキー枠ゲート／SigniOnPlayCostModal ／ArtsModal）
+//   ので PLAN §2.2 により実機まで必須。
+// ════════════════════════════════════════════════════════════════════════════════
+
+/** `V-114`＝`O-200`「ルリグデッキからキーを場に出す」＋「このゲームの間、キーを2枚まで場に出せる」。 */
+scenarios.o200KeyFromLrigDeck = {
+  title: 'O-200 WXK02-004-E3：ルリグデッキのキーを場に出し、枠が2になるので既存キーを差し替えない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK02-004#9700'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      // 既にキーが1枚場にある＝旧枠(1)ならルリグトラッシュへ送って差し替わる盤面。
+      'field.key_piece': 'WX22-006#9701',
+      'field.key_piece_extra': [],
+      'lrig_deck': ['WXK01-014#9702'],
+      'coins': 3,
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'lrig_trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 key=${st0?.host?.keyPiece} extra=${JSON.stringify(st0?.host?.keyPieceExtra)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} limit=${st0?.host?.keyPlaceLimit} coins=${st0?.host?.coins}`);
+    let opened = false, actClicked = false, fired = false, settled = 0, last = st0;
+    for (let i = 0; i < 24; i++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o200key-${i}.png`, fullPage: true });
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      else if (!actClicked) { did = await H.clickBtn(/^【起】/); if (did) actClicked = true; }
+      else if (!fired) {
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) fired = true;
+        else if (i % 4 === 3) { opened = false; actClicked = false; await H.closeModals(); }
+      }
+      if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o200key[${i}] -> ${did ?? 'なし'} | key=${last?.host?.keyPiece} extra=${JSON.stringify(last?.host?.keyPieceExtra)} limit=${last?.host?.keyPlaceLimit} lrigDeck=${JSON.stringify(last?.host?.lrigDeckCards)} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      settled = fired && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    const h = last?.host ?? {};
+    const detail = `key=${h.keyPiece} extra=${JSON.stringify(h.keyPieceExtra)} limit=${h.keyPlaceLimit} lrigDeck=${JSON.stringify(h.lrigDeckCards)} lrigTrash=${JSON.stringify(h.lrigTrashCards)} coins=${h.coins}`;
+    if (!fired) return { pass: false, detail: `前提崩れ＝【起】を発動できていない。${detail}` };
+    // 🔴旧挙動＝`SEQUENCE[ADD_TO_FIELD ×2]`＝キーはルリグデッキから1枚も出ない。
+    if ((h.lrigDeckCards ?? []).includes('WXK01-014#9702')) {
+      return { pass: false, detail: `🔴ルリグデッキのキーが場に出ていない（旧＝ADD_TO_FIELD の別物）。${detail}` };
+    }
+    if (h.keyPlaceLimit !== 2) return { pass: false, detail: `🔴「キーを2枚まで場に出せる」が state に載っていない。${detail}` };
+    if (h.keyPiece !== 'WX22-006#9701') return { pass: false, detail: `🔴既存キーが枠から消えた（枠2なのに差し替えている）。${detail}` };
+    if (!(h.keyPieceExtra ?? []).includes('WXK01-014#9702')) {
+      return { pass: false, detail: `🔴2枚目が key_piece_extra へ積まれていない。${detail}` };
+    }
+    if ((h.lrigTrashCards ?? []).includes('WX22-006#9701')) {
+      return { pass: false, detail: `🔴枠に余りがあるのに既存キーをルリグトラッシュへ送っている。${detail}` };
+    }
+    return { pass: true, detail: `ルリグデッキのキーが場に出て、枠が2になったので既存キーは残り2枚目が extra へ積まれた。${detail}` };
+  },
+};
+order.push('o200KeyFromLrigDeck');
+
+/**
+ * `V-115`＝`O-200` の **BattleScreen 側ゲート**（`key_place_limit` を見てキーをセットできるか）。
+ * 🔴engine だけでは閉じない＝「2枚目のキーを手で置けるか」は `getMyLrigDeckCardActions` の1行が決める。
+ * 対照（`limit` なし）とペアで回す。
+ */
+function o200GateSpec(limit) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#9710'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.key_piece': 'WX22-006#9711',
+      'field.key_piece_extra': [],
+      'lrig_deck': ['WXK01-014#9712'],
+      'coins': 3,
+      ...(limit === null ? {} : { 'key_place_limit': limit }),
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'lrig_trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO200Gate(page, H, limit) {
+  const tag = limit === null ? 'o200gate-off' : 'o200gate-on';
+  await H.ensureMain();
+  const openDk = await H.clickTestId('my-lrig-dk');
+  H.log(`ルリグDK: ${openDk ?? '見つからず'}`);
+  await page.waitForTimeout(800);
+  const openKey = await H.clickTestId('zone-card-0');
+  H.log(`キー(zone-card-0): ${openKey ?? '見つからず'}`);
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+  const setBtn = page.getByRole('button', { name: 'キーにセット', exact: false }).first();
+  const visible = (await setBtn.count()) > 0 && await setBtn.isVisible().catch(() => false);
+  const st00 = await H.queryState();
+  const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+    .filter(b => b.offsetParent !== null).map(b => (b.textContent || '').trim().slice(0, 24)));
+  H.log(`  「キーにセット」ボタン: ${visible ? 'あり' : 'なし'} | limit=${st00?.host?.keyPlaceLimit} key=${st00?.host?.keyPiece} coins=${st00?.host?.coins} energy=${st00?.host?.energy} 可視ボタン=${JSON.stringify(btns)}`);
+  if (limit === null) {
+    // 🔴対照＝枠が1（既定）なら、キーが場にある間は2枚目をセットできない（従来どおり）。
+    const st = await H.queryState();
+    return visible
+      ? { pass: false, detail: `🔴枠1なのに2枚目のキーをセットできてしまう（key=${st?.host?.keyPiece}）` }
+      : { pass: true, detail: '対照＝`key_place_limit` が無ければ2枚目のキーはセットできない（従来どおり）' };
+  }
+  if (!visible) return { pass: false, detail: '🔴`key_place_limit:2` なのに「キーにセット」が出ない（BattleScreen のゲートが枠を見ていない）' };
+  await setBtn.click().catch(() => {});
+  let last = null;
+  for (let i = 0; i < 14; i++) {
+    await page.waitForTimeout(700);
+    // KeyUseModal の確定ボタンは「セット」（ピースは「使用」）。⚠`stdStep` の汎用ラベルには無い。
+    const did = await H.clickBtn('セット', { exact: true }) ?? await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    const btns2 = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .filter(b => b.offsetParent !== null).map(b => (b.textContent || '').trim().slice(0, 20)));
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | key=${last?.host?.keyPiece} extra=${JSON.stringify(last?.host?.keyPieceExtra)} lrigDeck=${JSON.stringify(last?.host?.lrigDeckCards)} coins=${last?.host?.coins} btns=${JSON.stringify(btns2)}`);
+    if ((last?.host?.keyPieceExtra ?? []).length > 0) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `key=${h.keyPiece} extra=${JSON.stringify(h.keyPieceExtra)} lrigDeck=${JSON.stringify(h.lrigDeckCards)} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+  if (!(h.keyPieceExtra ?? []).includes('WXK01-014#9712')) {
+    return { pass: false, detail: `🔴2枚目が key_piece_extra へ入っていない。${detail}` };
+  }
+  if (h.keyPiece !== 'WX22-006#9711') return { pass: false, detail: `🔴既存キーが差し替えられた。${detail}` };
+  return { pass: true, detail: `枠2なので2枚目のキーを手でセットでき、既存キーは場に残った。${detail}` };
+}
+scenarios.o200KeyGateOn = {
+  title: 'O-200 key_place_limit:2 なら2枚目のキーを手でセットできる（extra へ積む）',
+  spec: o200GateSpec(2), drive: (page, H) => driveO200Gate(page, H, 2),
+};
+order.push('o200KeyGateOn');
+scenarios.o200KeyGateOff = {
+  title: 'O-200 対照：枠が既定(1)なら2枚目のキーはセットできない',
+  spec: o200GateSpec(null), drive: (page, H) => driveO200Gate(page, H, null),
+};
+order.push('o200KeyGateOff');
+
+/**
+ * `V-116`＝`O-201`「【出】任意コストの新しい支払い種別」の**通常召喚経路**
+ * （`SigniOnPlayCostModal` ＋ `executeSigniOnPlayCost`）。
+ * 原文＝`WXDi-CP02-100`【出】**トラッシュから＜ブルアカ＞のカード1枚をデッキの一番下に置く**：
+ *   あなたの＜ブルアカ＞のシグニ1体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋2000する。
+ * 🔴旧 live＝`costUnparsed:true`＝**この【出】が丸ごと積まれなかった**（コストを表現できず取りこぼす側）。
+ */
+function o201Spec(withBlueArchiveInTrash) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#9720'],
+      'field.lrig_down': false,
+      'field.signi': [['WXDi-CP02-051#9721'], null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      // 支払い候補＝トラッシュの＜ブルアカ＞。対照はブルアカ以外だけを置く。
+      'trash': withBlueArchiveInTrash ? ['WXDi-CP02-052#9722'] : ['WD03-009#9723'],
+      'energy': ['WD05-013#9724'],
+      'temp_power_mods': [],
+      'lrig_deck': [], 'hand': [], 'actions_done': [],
+    },
+    handPrepend: ['WXDi-CP02-100#9725'],
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO201(page, H, withBlueArchiveInTrash) {
+  const tag = withBlueArchiveInTrash ? 'o201pay' : 'o201nopay';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 hand=${JSON.stringify(st0?.host?.handCards)} trash=${JSON.stringify(st0?.host?.trashCards)} deckBottom=${st0?.host?.deckBottom} mods=${JSON.stringify(st0?.host?.powerMods)}`);
+  const opened = await H.clickTestId('my-hand-card-0');
+  H.log(`手札クリック: ${opened ?? '見つからず'}`);
+  let summonClicked = false, sawCostModal = false, picked = false, decided = null, last = st0, settled = 0;
+  for (let i = 0; i < 26; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${i}.png`, fullPage: true });
+    let did = null;
+    // ⚠「召喚」→（次の tick で）ゾーン選択 の**2段**（同じ tick では両方押せない＝wxk09050 と同じ形）。
+    if (!summonClicked) {
+      did = await H.clickBtn('召喚', { exact: true });
+      if (did) summonClicked = true;
+    } else if (!decided) {
+      did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+      const body = await H.fullBody();
+      if (/【出】効果を発動しますか/.test(body)) sawCostModal = true;
+      if (did) { /* この tick はゾーン選択で消費した */ }
+      // 支払い候補（トラッシュの＜ブルアカ＞）をモーダル内の img でクリックしてから「発動」。
+      if (sawCostModal && !picked && withBlueArchiveInTrash) {
+        const img = page.locator('img[alt="聖園ミカ"]').last();
+        if ((await img.count()) > 0 && await img.isVisible().catch(() => false)) {
+          await img.click().catch(() => {}); picked = true; did = 'pick:聖園ミカ';
+        }
+      }
+      if (!did && sawCostModal) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        const fireUp = (await fire.count()) > 0 && await fire.isVisible().catch(() => false);
+        const fireOk = fireUp && await fire.isEnabled().catch(() => false);
+        if (withBlueArchiveInTrash && fireOk) { await fire.click().catch(() => {}); decided = 'fire'; did = 'btn:発動'; }
+        else if (!withBlueArchiveInTrash && fireUp && !fireOk) {
+          // 🔴対照＝払えない盤面では「発動」が押せない（＝踏み倒しが起きない）。スキップで閉じる。
+          const skip = page.getByRole('button', { name: 'スキップ', exact: true }).first();
+          if ((await skip.count()) > 0) { await skip.click().catch(() => {}); decided = 'skip'; did = 'btn:スキップ'; }
+        }
+      }
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | 召喚=${summonClicked} costModal=${sawCostModal} picked=${picked} decided=${decided} field=${JSON.stringify(last?.host?.fieldSigni)} trash=${JSON.stringify(last?.host?.trashCards)} deckBottom=${last?.host?.deckBottom} mods=${JSON.stringify(last?.host?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = decided && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `costModal=${sawCostModal} decided=${decided} trash=${JSON.stringify(h.trashCards)} deckBottom=${h.deckBottom} mods=${JSON.stringify(h.powerMods)}/${JSON.stringify(h.powerModsUntilOppTurn)}`;
+  if (!sawCostModal) return { pass: false, detail: `🔴【出】のコストモーダルが出ない＝この【自】が積まれていない（旧 costUnparsed の挙動）。${detail}` };
+  if (withBlueArchiveInTrash) {
+    if (decided !== 'fire') return { pass: false, detail: `🔴支払える盤面なのに「発動」が押せない。${detail}` };
+    if ((h.trashCards ?? []).includes('WXDi-CP02-052#9722')) {
+      return { pass: false, detail: `🔴コストのカードがトラッシュに残っている（払っていない＝踏み倒し）。${detail}` };
+    }
+    if (h.deckBottom !== 'WXDi-CP02-052#9722') {
+      return { pass: false, detail: `🔴デッキの**一番下**へ行っていない（除外や別の行き先になっている）。${detail}` };
+    }
+    // ⚠原文は「**次の対戦相手のターン終了時まで**」＝`power_mods_until_opp_turn` に載る（別ストア）。
+    if (!(h.powerModsUntilOppTurn ?? []).some(m => String(m).includes(':2000'))) {
+      return { pass: false, detail: `🔴コストは払ったのに本体（＋2000）が走っていない。${detail}` };
+    }
+    return { pass: true, detail: `トラッシュの＜ブルアカ＞をデッキの一番下へ置いて【出】を発動できた。${detail}` };
+  }
+  if (decided !== 'skip') return { pass: false, detail: `🔴＜ブルアカ＞がトラッシュに無いのに「発動」が押せてしまう（踏み倒し）。${detail}` };
+  if ((h.powerModsUntilOppTurn ?? []).some(m => String(m).includes(':2000'))) {
+    return { pass: false, detail: `🔴払っていないのに本体（＋2000）が走った。${detail}` };
+  }
+  return { pass: true, detail: `対照＝支払い候補が無ければ「発動」は押せず、本体も走らない。${detail}` };
+}
+scenarios.o201TrashToDeckBottomPay = {
+  title: 'O-201 WXDi-CP02-100-E1：トラッシュの＜ブルアカ＞をデッキの一番下へ置いて【出】を払う',
+  spec: o201Spec(true), drive: (page, H) => driveO201(page, H, true),
+};
+order.push('o201TrashToDeckBottomPay');
+scenarios.o201TrashToDeckBottomNoPay = {
+  title: 'O-201 対照：トラッシュに＜ブルアカ＞が無ければ【出】は発動できない（踏み倒さない）',
+  spec: o201Spec(false), drive: (page, H) => driveO201(page, H, false),
+};
+order.push('o201TrashToDeckBottomNoPay');
+
+/**
+ * `V-117`＝`O-199`「アンコールのテキスト形コスト」（`ArtsModal` ＋ `performArts`）。
+ * 原文＝`WDA-F02-08`「**アンコール－あなたのセンタールリグの下からカード３枚をルリグトラッシュに置く**」。
+ * 🔴旧 `parseEncoreCost` は `《…》` アイコンしか読まず null＝**アンコールの選択肢すら出なかった**。
+ */
+function o199Spec(underCount) {
+  const under = ['WD03-001#9730', 'WD03-002#9731', 'WD03-003#9732'].slice(0, underCount);
+  return {
+    hostSet: {
+      // センタールリグの下に `underCount` 枚（配列の末尾がセンター本体）。
+      'field.lrig': [...under, 'WD03-004#9733'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': ['WDA-F02-08#9734'],
+      'energy': ['WD05-013#9735', 'WD05-014#9736'],
+      'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO199(page, H, underCount) {
+  const tag = underCount >= 3 ? 'o199enc-ok' : 'o199enc-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 lrigUnder=${st0?.host?.lrigUnder} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)}`);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(800);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(800);
+  // CardModal「使用」→ ArtsModal Phase2
+  await H.clickTextOrBtn(['使用']);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+  const encBtn = page.getByRole('button', { name: 'アンコール', exact: false }).first();
+  const encVisible = (await encBtn.count()) > 0 && await encBtn.isVisible().catch(() => false);
+  const encEnabled = encVisible && await encBtn.isEnabled().catch(() => false);
+  const encLabel = encVisible ? (await encBtn.textContent().catch(() => '')) : '';
+  H.log(`  アンコール: visible=${encVisible} enabled=${encEnabled} label=${JSON.stringify((encLabel ?? '').trim())}`);
+  if (underCount < 3) {
+    // 🔴対照＝ルリグの下が2枚しかない＝「下から3枚」を払えない＝アンコールを選ばせない。
+    if (!encVisible) return { pass: false, detail: '前提崩れ＝アンコールのボタン自体が描かれていない（テキスト形が読めていない）' };
+    return encEnabled
+      ? { pass: false, detail: `🔴払えない（ルリグの下が${underCount}枚）のにアンコールを選べる＝踏み倒し` }
+      : { pass: true, detail: `対照＝ルリグの下が${underCount}枚では「下から3枚」を払えないのでアンコールが押せない` };
+  }
+  if (!encEnabled) return { pass: false, detail: '🔴ルリグの下が3枚あるのにアンコールが押せない（テキスト形コストを読めていない）' };
+  await encBtn.click().catch(() => {});
+  let used = false, last = st0, settled = 0;
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${i}.png`, fullPage: true });
+    let did = null;
+    if (!used) {
+      // エナを必要数選んでから「アーツ使用（アンコール）」を押す。
+      const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+      if ((await submit.count()) > 0 && await submit.isEnabled().catch(() => false)) {
+        await submit.click().catch(() => {}); used = true; did = 'btn:アーツ使用';
+      } else {
+        did = await H.clickTestId('artscost-energy-0', 'artscost-energy-1');
+      }
+    }
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | used=${used} lrigUnder=${last?.host?.lrigUnder} lrigDeck=${JSON.stringify(last?.host?.lrigDeckCards)} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = used && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `lrigUnder=${h.lrigUnder} lrigDeck=${JSON.stringify(h.lrigDeckCards)} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+  if (!used) return { pass: false, detail: `前提崩れ＝アーツを使用できていない。${detail}` };
+  if (h.lrigUnder !== 0) return { pass: false, detail: `🔴ルリグの下の3枚が支払われていない（踏み倒し）。${detail}` };
+  if ((h.lrigTrashCards ?? []).filter(c => ['WD03-001#9730', 'WD03-002#9731', 'WD03-003#9732'].includes(c)).length !== 3) {
+    return { pass: false, detail: `🔴下の3枚がルリグトラッシュへ行っていない。${detail}` };
+  }
+  if (!(h.lrigDeckCards ?? []).includes('WDA-F02-08#9734')) {
+    return { pass: false, detail: `🔴アンコールなのにアーツがルリグデッキへ戻っていない。${detail}` };
+  }
+  return { pass: true, detail: `テキスト形アンコール（ルリグの下から3枚）を払い、アーツがルリグデッキへ戻った。${detail}` };
+}
+scenarios.o199EncoreTextCostPay = {
+  title: 'O-199 WDA-F02-08：アンコール－ルリグの下から3枚をルリグトラッシュへ払って使用できる',
+  spec: o199Spec(3), drive: (page, H) => driveO199(page, H, 3),
+};
+order.push('o199EncoreTextCostPay');
+scenarios.o199EncoreTextCostShort = {
+  title: 'O-199 対照：ルリグの下が2枚しかなければアンコールを選べない',
+  spec: o199Spec(2), drive: (page, H) => driveO199(page, H, 2),
+};
+order.push('o199EncoreTextCostShort');
+
+/**
+ * `V-118`＝`O-202`「コスト付きの置換」の**宣言側**（`WX24-P3-043` はピース）。
+ * 原文＝「このターン、あなたがダメージを受ける場合、代わりにあなたのレベル1以上のアップ状態の
+ *   アシストルリグ2体をダウンしてもよい。」
+ * 🔴旧 live＝`DOWN{SIGNI, level>=1, isUp}`＝**使った瞬間にシグニを1体ダウンするだけ**の別物だった。
+ *   ⇒ 観測点は「置換が宣言として積まれたか」＋「シグニもアシストも**その場では**ダウンしないか」。
+ */
+scenarios.o202DamageReplaceDeclare = {
+  title: 'O-202 WX24-P3-043：ダメージ置換を宣言として積み、その場では何もダウンしない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#9740'],
+      'field.lrig_down': false,
+      // 🔑アップ状態のアシストルリグ2体（レベル1以上）＝置換の支払い原資。
+      'field.assist_lrig_l': ['WXDi-D01-006#9741'],
+      'field.assist_lrig_r': ['WXDi-D01-009#9742'],
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
+      // 🔴旧挙動の観測点＝場のアップ状態シグニ（旧実装はこれを即ダウンしていた）。
+      'field.signi': [['WD03-009#9743'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': ['WX24-P3-043#9744'],
+      'energy': ['WD05-013#9745', 'WD05-014#9746'],
+      'coins': 3, 'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+      'life_crash_replacements': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 phase=${st0?.turnPhase} assistDown=${JSON.stringify(st0?.host?.assistDown)} signiDown=${JSON.stringify(st0?.host?.signiDown)} repl=${JSON.stringify(st0?.host?.lifeCrashReplacements)}`);
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(800);
+    await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(800);
+    // CardModal の行動ボタン→ KeyUseModal（ピースは「ピースを使用」→ 支払い → 「使用」）。
+    const opened = await H.clickTextOrBtn(['ピースを使用']);
+    H.log(`ピースを使用: ${opened ?? '見つからず'}`);
+    await page.waitForTimeout(800);
+    let used = false, last = st0, settled = 0, enaPicked = 0;
+    for (let i = 0; i < 22; i++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o202decl-${i}.png`, fullPage: true });
+      let did = null;
+      if (!used) {
+        const submit = page.getByRole('button', { name: '使用', exact: true }).first();
+        if ((await submit.count()) > 0 && await submit.isEnabled().catch(() => false)) {
+          await submit.click().catch(() => {}); used = true; did = 'btn:使用';
+        } else if (enaPicked < 2) {
+          // ⚠**同じ testid を押し続けない**＝`keycost-energy-0` はトグルなので2回目で外れる。
+          //   コストは《無》×2＝別々の index を1枚ずつ選ぶ。
+          did = await H.clickTestId(`keycost-energy-${enaPicked}`);
+          if (did) enaPicked++;
+        }
+      }
+      if (!did && !used && i % 5 === 4) {
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .filter(b => b.offsetParent !== null).map(b => (b.textContent || '').trim().slice(0, 20)));
+        H.log(`    可視ボタン=${JSON.stringify(btns)}`);
+      }
+      if (!did) did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+      last = await H.queryState();
+      H.log(`  o202decl[${i}] -> ${did ?? 'なし'} | used=${used} ena=${enaPicked} assistDown=${JSON.stringify(last?.host?.assistDown)} signiDown=${JSON.stringify(last?.host?.signiDown)} repl=${JSON.stringify(last?.host?.lifeCrashReplacements)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      settled = used && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    const h = last?.host ?? {};
+    const repl = h.lifeCrashReplacements ?? [];
+    const detail = `assistDown=${JSON.stringify(h.assistDown)} signiDown=${JSON.stringify(h.signiDown)} repl=${JSON.stringify(repl)}`;
+    if (!used) return { pass: false, detail: `前提崩れ＝ピースを使用できていない。${detail}` };
+    // 🔴旧挙動＝その場でシグニを1体ダウンする（置換の宣言ではない）。
+    if ((h.signiDown ?? []).some(Boolean)) {
+      return { pass: false, detail: `🔴使った瞬間にシグニをダウンしている（旧＝置換ではなく即時 DOWN）。${detail}` };
+    }
+    if ((h.assistDown ?? []).some(Boolean)) {
+      return { pass: false, detail: `🔴宣言しただけでアシストルリグがダウンしている（支払いは置換の発生時のはず）。${detail}` };
+    }
+    const payCost = repl.find(r => r && r.kind === 'pay_cost');
+    if (!payCost) return { pass: false, detail: `🔴ダメージ置換が宣言として積まれていない。${detail}` };
+    const opt = (payCost.payOptions ?? [])[0] ?? {};
+    if (!opt.assistLrigDown || opt.assistLrigDown.count !== 2 || opt.assistLrigDown.minLevel !== 1) {
+      return { pass: false, detail: `🔴支払い方が「レベル1以上のアシストルリグ2体をダウン」になっていない。${detail}` };
+    }
+    if (payCost.once) return { pass: false, detail: `🔴原文に「次に」が無いのに1回限りになっている。${detail}` };
+    return { pass: true, detail: `ダメージ置換が宣言として積まれ、その場では誰もダウンしなかった。${detail}` };
+  },
+};
+order.push('o202DamageReplaceDeclare');
+
+/**
+ * `V-119`＝`O-162`「プレイヤーをN人まで選ぶ」。
+ * 原文＝`WXK06-028`【起】《ターン１回》《青×0》：**プレイヤーを２人まで選ぶ**。選ばれた各プレイヤーは
+ *   手札をすべてデッキに加えてシャッフルし、この方法で加えた枚数と同じ枚数を引く。
+ *   **この効果によって各プレイヤーは最大５枚までしかカードを引くことができない。**
+ * 🔴旧 live＝`SEQUENCE[STUB{CHOOSE_N_FROM_LIST}, STUB{MASS_TRASH}, STUB{RULE_REMINDER_TEXT}]`＝
+ *   ①選択が無言 no-op ②トラッシュへ置く別物 ③ドローが丸ごと無い。
+ * 🔑観測点＝**対戦相手を選ぶと相手だけが引き直す**（＝選択が効いている）＋**7枚でも5枚まで**（`maxCount`）。
+ */
+scenarios.o162ChoosePlayer = {
+  title: 'O-162 WXK06-028-E2：プレイヤー選択が効き、引き直しは最大5枚で止まる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#9750'],
+      'field.lrig_down': false,
+      'field.signi': [['WXK06-028#9751'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': ['WD03-009#9752', 'WD03-010#9753', 'WD03-011#9754'],
+      'energy': ['WD05-013#9755'],
+      'lrig_deck': [], 'trash': [], 'lrig_trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      // 🔑7枚＝上限5枚を超える手札（`maxCount` が無ければ7枚引き直して枚数が変わらない）。
+      'hand': ['WD01-012#9760', 'WD01-013#9761', 'WD01-014#9762', 'WD01-015#9763',
+               'WD01-016#9764', 'WD01-017#9765', 'WD01-018#9766'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 myHand=${st0?.host?.hand} oppHand=${st0?.guest?.hand} oppDeck=${st0?.guest?.deck}`);
+    let opened = false, actClicked = false, fired = false, chose = false, last = st0, settled = 0;
+    for (let i = 0; i < 26; i++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o162choose-${i}.png`, fullPage: true });
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-signi-zone-0'); if (did) opened = true; }
+      else if (!actClicked) { did = await H.clickBtn(/^【起】/); if (did) actClicked = true; }
+      else if (!fired) {
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) fired = true;
+        else if (i % 5 === 4) { opened = false; actClicked = false; await H.closeModals(); }
+      } else if (!chose) {
+        // 🔑「対戦相手」だけを選ぶ＝選択が効いていれば**自分の手札は動かない**。
+        did = await H.clickBtn('対戦相手', { exact: true });
+        if (did) chose = true;
+      }
+      if (!did && i % 5 === 4) {
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .filter(b => b.offsetParent !== null).map(b => (b.textContent || '').trim().slice(0, 20)));
+        H.log(`    可視ボタン=${JSON.stringify(btns)}`);
+      }
+      if (!did && chose) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o162[${i}] -> ${did ?? 'なし'} | fired=${fired} chose=${chose} myHand=${last?.host?.hand} oppHand=${last?.guest?.hand} oppDeck=${last?.guest?.deck} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      settled = chose && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    const detail = `myHand=${last?.host?.hand} oppHand=${last?.guest?.hand} oppDeck=${last?.guest?.deck}`;
+    if (!fired) return { pass: false, detail: `前提崩れ＝【起】を発動できていない。${detail}` };
+    if (!chose) return { pass: false, detail: `🔴プレイヤー選択の選択肢が出ない（旧＝STUB の無言 no-op）。${detail}` };
+    if (last?.host?.hand !== 3) {
+      return { pass: false, detail: `🔴「対戦相手」だけを選んだのに自分の手札が動いた（選択が効いていない）。${detail}` };
+    }
+    if (last?.guest?.hand === 7) {
+      return { pass: false, detail: `🔴対戦相手の手札が7枚のまま＝引き直しが起きていない。${detail}` };
+    }
+    if (last?.guest?.hand !== 5) {
+      return { pass: false, detail: `🔴引き直しが最大5枚で止まっていない（maxCount が効いていない）。${detail}` };
+    }
+    return { pass: true, detail: `「対戦相手」だけが7枚をデッキへ戻して5枚まで引き直し、自分の手札は動かなかった。${detail}` };
+  },
+};
+order.push('o162ChoosePlayer');
+
+
+
+
 
 
 
@@ -41893,6 +42433,9 @@ try {
         life: (s.life_cloth ?? []).length,
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
+        // 🆕`UNTIL_OPP_TURN_END` のパワー修整は**別ストア**（`power_mods_until_opp_turn`）＝
+        //   `temp_power_mods` だけ見ると「効果が走っていない」と誤読する（§5.3 `O-201` の実機で踏んだ）。
+        powerModsUntilOppTurn: (s.power_mods_until_opp_turn ?? []).map(m => `${m.cardNum}:${m.delta}`),
         // 🆕§5.3 `O-143`（2026-08-29）＝チェックゾーンの中身。`check`（バースト確認中の1枚）と
         //   `check_rest`（効果で置かれてターン終了まで留まる分）を**別々に**出す＝
         //   「留めるつもりのカードが確認スロットへ入って盤面が固まる」旧挙動をここで見分ける。
@@ -42001,6 +42544,11 @@ try {
         pendingSigniBattle: s.pending_signi_battle ?? null,
         fieldCheck: s.field?.check ?? null,
         keyPiece: s.field?.key_piece ?? null,
+        // 🆕§5.3 `O-200`（2026-09-02）＝2枚目以降のキー枠と、その上限。
+        //   「このゲームの間、キーを2枚まで場に出せる」は**この2つを見ないと差し替えと区別が付かない**
+        //   （差し替えなら旧キーが lrig_trash へ行き、枠が空いていれば extra へ積まれる）。
+        keyPieceExtra: s.field?.key_piece_extra ?? [],
+        keyPlaceLimit: s.key_place_limit ?? null,
         identityOverrides: s.card_identity_overrides ?? {},
         energyCards: s.energy ?? [],
         zoneBlocks: s.signi_zone_blocks ?? [],
