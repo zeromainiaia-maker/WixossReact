@@ -2639,6 +2639,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         const f = ps.field;
         let n = 0;
         for (let zi = 0; zi < 3; zi++) {
+          // 🆕§5.3 `O-105`（2026-09-02）＝`filter` があるゾーンだけ数える（ホスト側の絞り）。
+          //   ⚠**親シグニ（スタック最上段）で判定する**＝下に敷かれたカードの属性ではない。
+          //   ⚠空ゾーンは filter の有無にかかわらず0なので、判定前に弾いても結果は変わらない。
+          if (cond.filter) {
+            const hostNum = f.signi[zi]?.[f.signi[zi]!.length - 1];
+            if (!hostNum || !matchesFilter(ctx.cardMap.get(getCardNum(hostNum)), cond.filter)) continue;
+          }
           if (kind === 'soul') { n += f.signi_soul?.[zi] ? 1 : 0; continue; }
           // 🆕'acce'＝【アクセ】だけ（2026-08-31 続き747・`WX18-075-E1`「【アクセ】が合計2枚以上ある場合」）。
           if (kind === 'acce') { n += acceCardsAt(f, zi).length; continue; }

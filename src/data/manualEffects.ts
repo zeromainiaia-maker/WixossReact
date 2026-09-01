@@ -1313,6 +1313,26 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WXDi-P16-069 ／ 引用付与の中身＝「【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、
   //   **ターン終了時、それをデッキの一番下に置く**。」
   // 🔴旧 live＝遅延が落ちて**アタックフェイズ開始時に即デッキ下**。
+  // ── §5.3 `O-105`（2026-09-02）＝**場全体の「シグニの下にあるカードの合計枚数」条件**。
+  //   受け皿 `FIELD_ATTACHED_COUNT` は既にあったが、**どのシグニの分を数えるかの `filter` が無かった**。
+  //   同日に `Condition.FIELD_ATTACHED_COUNT.filter`（ホスト側の絞り）を新設して2効果を載せた。
+  // WXDi-P16-056 ／ 原文「対戦相手のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、
+  //   ターン終了時まで、それのパワーを－5000する。あなたの場にある＜解放派＞のシグニの下にカードが
+  //   合計４枚以上ある場合、代わりに－8000する。」
+  // 🔴旧 live は3つ同時に壊れていた＝①対象が `owner:'self'`＋`targetsTriggerSource`（アタックフェイズ開始時に
+  //   トリガー元は無い）②「代わりに」が畳めておらず **-5000 と -8000 が両方走る** ③＜解放派＞の条件が丸ごと無い。
+  //   ⇒ 部分採用が禁止されていたのはこのため（登録票）。**3つ同時に直して初めて原文になる。**
+  'WXDi-P16-056': [
+    {"effectId":"WXDi-P16-056-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"CONDITIONAL","condition":{"type":"FIELD_ATTACHED_COUNT","owner":"self","include":"under","filter":{"cardType":"シグニ","story":"解放派"},"operator":"gte","value":4},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-8000,"duration":"UNTIL_END_OF_TURN"},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-5000,"duration":"UNTIL_END_OF_TURN"}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WXDi-P15-007 ／ 原文「この能力はあなたの場にあるシグニの下にカードが合計２枚以上ある場合にしか使用できない。」
+  // 🔴旧 live は `COND_STUB`＝`execUtils.ts` の `COND_STUB` は **`return true`（無条件成立）**なので、
+  //   **使用条件が無い＝いつでも撃てる**過剰実行だった。こちらは filter 不要（場の全シグニが対象）。
+  'WXDi-P15-007': [
+    {"effectId":"WXDi-P15-007-E2","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"FIELD_ATTACHED_COUNT","owner":"self","include":"under","operator":"gte","value":2},"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
   'WXDi-P16-069': [
     {"effectId":"WXDi-P16-069-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_SIGNI_ABOVE_ABILITY","filter":{"cardType":"シグニ","story":"解放派"},"abilities":[{"effectId":"WXDi-P16-069-E2-G","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom","targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],

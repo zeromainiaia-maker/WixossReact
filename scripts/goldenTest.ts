@@ -25203,12 +25203,67 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     }
   });
 
-  test('(B7) 据置契約: 場の＜解放派＞全体の下カード合計を表せない効果は部分採用しない', () => {
-    const eff = effectsMap.get('WXDi-P16-056')!.find(e => e.effectId === 'WXDi-P16-056-E1')!;
-    const j = JSON.stringify(eff.action);
-    ok(!j.includes('targetsStored'), 'WXDi-P16-056-E1: 条件なしで target だけ直す部分採用は禁止');
-    ok(j.includes('"targetsTriggerSource":true') && j.includes('"owner":"any"'),
-      'WXDi-P16-056-E1: 受け皿ができるまで旧構造を丸ごと据置する契約');
+  // 🔄🔴**2026-09-02（索引 C 第6巡）＝(B7) の据置契約を解除した。**
+  //   `Condition.FIELD_ATTACHED_COUNT.filter`（**どのシグニの分を数えるか**＝ホスト側の絞り）を新設し、
+  //   登録票が「部分採用は禁止」と書いていた**3つの欠陥を同時に**直した。
+  //   ⚠**1つでも残すと過小から過剰へ裏返る**＝旧 live は「-5000 と -8000 が両方走る」うえ
+  //   対象が `owner:'self'` だったので、**自分のシグニを2回下げていた**。
+  test('(B7) 解除: WXDi-P16-056-E1 は対象・置換・＜解放派＞条件の3つが同時に直っている', () => {
+    const eff = manualEffect('WXDi-P16-056', 'WXDi-P16-056-E1');
+    const steps = (eff.action as SequenceAction).steps;
+    // ① 対象＝「対戦相手のシグニ1体」を先に固定する（旧＝自分のシグニへ triggerSource 照応）
+    const sel = steps[0] as StubAction;
+    eq(sel.id, 'SELECT_TARGET_ONLY', '対象を先に選ぶ');
+    eq((sel as unknown as { selectTarget?: { owner?: string } }).selectTarget?.owner, 'opponent',
+      '🔴対象は対戦相手（旧 live は owner:self ＝自分のシグニを下げていた）');
+    eq((steps[1] as StubAction).id, 'STORE_LAST_PROCESSED_TARGETS', '任意コストを跨ぐので対象を保存する');
+    ok(!JSON.stringify(eff.action).includes('targetsTriggerSource'),
+      '🔴アタックフェイズ開始時にトリガー元は無い＝triggerSource 照応を使わない');
+    // ② 「代わりに」＝置換＝then/else で**片方しか走らない**（旧＝2連で両方走った）
+    const gate = steps[3] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    const repl = gate.then as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(repl.type, 'CONDITIONAL', '置換は CONDITIONAL の then/else');
+    const cond = repl.condition as Extract<Condition, { type: 'FIELD_ATTACHED_COUNT' }>;
+    eq(cond.type, 'FIELD_ATTACHED_COUNT', '場全体の下カード合計で判定する');
+    eq(cond.include, 'under', '「下にあるカード」だけ（付いているカードは数えない）');
+    eq(cond.value, 4, '合計4枚以上');
+    // ③ ＜解放派＞のシグニの分だけ数える（新設 filter）
+    eq(cond.filter?.story, '解放派', '🔑どのシグニの下を数えるかの絞り（新設 filter）');
+    eq((repl.then as Extract<EffectAction, { type: 'POWER_MODIFY' }>).delta, -8000, '成立側は-8000');
+    eq((repl.else as Extract<EffectAction, { type: 'POWER_MODIFY' }>).delta, -5000, '不成立側は-5000');
+
+    // 🔴engine を実走させて filter の両方向を固定する（型だけ足して評価器が無い＝無条件成立、を炙る）。
+    const kaihou = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('解放派'));
+    const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('解放派'));
+    const under = findCard(c => isSigni(c) && c.CardNum !== kaihou && c.CardNum !== other);
+    const stack = (host: string, n: number) => {
+      const ctx = mkCtx({ signi: [host, null, null] }, {}, 'WXDi-P16-056');
+      ctx.ownerState.field.signi[0] = [...Array.from({ length: n }, () => under), host];
+      return evalCondition(cond, ctx);
+    };
+    ok(stack(kaihou, 4), '＜解放派＞の下に4枚あれば成立');
+    ok(!stack(kaihou, 3), '3枚では不成立（閾値が効いている）');
+    ok(!stack(other, 4), '🔑＜解放派＞以外の下は数えない（filter が無条件成立に落ちていない）');
+  });
+
+  // §5.3 `O-105` の2件目＝`COND_STUB` は `execUtils.ts` で **`return true`（無条件成立）**なので、
+  //   使用条件が丸ごと消えて「いつでも撃てる」過剰実行になっていた。
+  test('(B7) 解除2: WXDi-P15-007-E2 の【使用条件】が COND_STUB から実条件になった', () => {
+    const eff = manualEffect('WXDi-P15-007', 'WXDi-P15-007-E2');
+    const cond = eff.condition as Extract<Condition, { type: 'FIELD_ATTACHED_COUNT' }>;
+    eq(cond.type, 'FIELD_ATTACHED_COUNT', '🔴COND_STUB（無条件成立）へ戻さない');
+    eq(cond.include, 'under', '「下にあるカード」だけ');
+    eq(cond.value, 2, '合計2枚以上');
+    eq(cond.filter, undefined, 'この効果は場の全シグニが対象＝filter は付けない');
+    const host = findCard(c => isSigni(c));
+    const under = findCard(c => isSigni(c) && c.CardNum !== host);
+    const stack = (n: number) => {
+      const ctx = mkCtx({ signi: [host, null, null] }, {}, 'WXDi-P15-007');
+      ctx.ownerState.field.signi[0] = [...Array.from({ length: n }, () => under), host];
+      return evalCondition(cond, ctx);
+    };
+    ok(stack(2), '下に2枚あれば使える');
+    ok(!stack(1), '🔴1枚では使えない（旧＝COND_STUB でいつでも使えた）');
   });
   // 2026-08-27 Sheet1 B5：**「AかBの〜」＝色のOR**。`parseColorFilter` が単色しか返さず、
   // 🔴「白か黒のシグニ」が **黒しか選べない過小効果**になっていた（`WX09-016-BURST` ほか実測7効果）。

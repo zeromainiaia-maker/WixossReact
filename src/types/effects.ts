@@ -499,7 +499,10 @@ export type Condition =
    */
   // 🆕`'acce'`＝**【アクセ】だけ**を数える（2026-08-31 続き747・§5.3 `O-105`）。`'attached'` は
   //   チャーム/アクセ/ソウル/裏向きの合計なので「【アクセ】が合計N枚以上」（`WX18-075-E1`）を表せなかった。
-  | { type: 'FIELD_ATTACHED_COUNT'; owner: Owner; include?: 'attached' | 'acce' | 'under' | 'both' | 'soul' | 'zone'; operator: CompareOp; value: number }
+  // `filter`＝**どのシグニの分を数えるか**（ホスト側の絞り。§5.3 `O-105`＝「あなたの場にある
+  //   ＜解放派＞のシグニの下にカードが合計4枚以上ある場合」）。省略＝場の全シグニ。
+  //   ⚠数える対象（下／付随のカード）ではなく**下に敷かれている側の親シグニ**にかかる。
+  | { type: 'FIELD_ATTACHED_COUNT'; owner: Owner; include?: 'attached' | 'acce' | 'under' | 'both' | 'soul' | 'zone'; operator: CompareOp; value: number; filter?: TargetFilter }
   /**
    * 「〈ゾーンA〉**と**〈ゾーンB〉に〈filter〉のカードが**合計**N枚以上ある場合」（§5.4(ii) の登録済み機構ギャップ）。
    * 🔴`AND` では同値にならない＝「合計7枚」は 3+4 でも成立するので、`ENERGY_HAS_CARD`＋`TRASH_HAS_CARD` の
