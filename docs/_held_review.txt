@@ -265,6 +265,39 @@ WXDi-P08-062
   - [0].action.steps[1].destination.position = "bottom"
   ~ [0].action.steps[0].destination.position : "top" → "split_top_bottom"
 
+## +AND +FIELD_LRIGS_HAVE_COLORS +LOOK_AND_REORDER +LRIG_TRASH_COUNT +SEQUENCE ［1枚］
+WXDi-CP02-003
+--- WXDi-CP02-003
+  原文: 【使用条件】【ドリームチーム】緑のルリグを１体以上含む【使用条件】このゲームの間にあなたが《連邦生徒会》か《クロノス報道部》を使用しているあなたのトラッシュにあるすべてのカードをデッキに加えてシャッフルし、あなたのデッキの上からカードを５枚見る。その中からカードを好きな枚数手札に加え、残りをエナゾーンに置く。その後、あなたのルリグの下からカードを合計４枚ルリ
+  - [0].action.steps[0].source.type = "TRASH_CARD"
+  - [0].action.steps[0].source.owner = "self"
+  - [0].action.steps[0].source.count = "ALL"
+  - [0].action.steps[0].shuffle = true
+  + [0].condition.type = "AND"
+  + [0].condition.conditions[0].type = "FIELD_LRIGS_HAVE_COLORS"
+  + [0].condition.conditions[0].owner = "self"
+  + [0].condition.conditions[0].colors[0] = "緑"
+  + [0].condition.conditions[1].type = "LRIG_TRASH_COUNT"
+  + [0].condition.conditions[1].filter.cardNames[0] = "連邦生徒会"
+  + [0].condition.conditions[1].filter.cardNames[1] = "クロノス報道部"
+  + [0].condition.conditions[1].operator = "gte"
+  …（他 17 行）
+
+## +AND +FIELD_LRIGS_HAVE_COLORS +LRIG_TRASH_COUNT ［1枚］
+WXDi-CP02-004
+--- WXDi-CP02-004
+  原文: 【使用条件】【ドリームチーム】黒のルリグを１体以上含む【使用条件】このゲームの間にあなたが《連邦生徒会》か《クロノス報道部》を使用している対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、それらを手札に加える。対戦相手のデッキの上からカードを８枚トラッシ
+  - [0].action.steps[0].target.filter.color = "黒"
+  + [0].condition.type = "AND"
+  + [0].condition.conditions[0].type = "FIELD_LRIGS_HAVE_COLORS"
+  + [0].condition.conditions[0].owner = "self"
+  + [0].condition.conditions[0].colors[0] = "黒"
+  + [0].condition.conditions[1].type = "LRIG_TRASH_COUNT"
+  + [0].condition.conditions[1].filter.cardNames[0] = "連邦生徒会"
+  + [0].condition.conditions[1].filter.cardNames[1] = "クロノス報道部"
+  + [0].condition.conditions[1].operator = "gte"
+  + [0].condition.conditions[1].value = 1
+
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
 --- WX24-P2-055

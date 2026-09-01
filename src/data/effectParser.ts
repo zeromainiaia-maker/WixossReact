@@ -21086,6 +21086,28 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       }),
     },
     {
+      pattern: /^【使用条件】【ドリームチーム】(白|赤|青|緑|黒)のルリグを１体以上含む/,
+      build: match => ({
+        type: 'FIELD_LRIGS_HAVE_COLORS', owner: 'self', colors: [match[1]],
+      }),
+    },
+    {
+      pattern: /^【使用条件】このゲームの間にあなたが《([^》]+)》か《([^》]+)》を使用している/,
+      build: match => ({
+        type: 'LRIG_TRASH_COUNT',
+        filter: { cardNames: [match[1], match[2]] },
+        operator: 'gte', value: 1,
+      }),
+    },
+    {
+      pattern: /^【使用条件】このゲームの間にあなたが(リレーピース|ピース)を使用している/,
+      build: () => ({
+        type: 'LRIG_TRASH_COUNT',
+        filter: { cardType: 'リレーピース' },
+        operator: 'gte', value: 1,
+      }),
+    },
+    {
       pattern: /^【使用条件】あなたの場に(白|赤|青|緑|黒)のルリグがいる/,
       build: match => ({
         type: 'HAS_CARD_IN_FIELD', owner: 'self',
@@ -21093,13 +21115,25 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       }),
     },
   ];
-  const printedUseConditionMatch = printedUseConditionPatterns
-    .map(entry => ({ entry, match: stripped.match(entry.pattern) }))
-    .find(found => found.match !== null);
-  const printedUseCondition = printedUseConditionMatch?.entry.build(printedUseConditionMatch.match!);
-  const withoutPrintedUseCondition = printedUseConditionMatch
-    ? stripped.slice(printedUseConditionMatch.match![0].length)
-    : stripped;
+  const printedUseConditions: Condition[] = [];
+  let printedUseRemainder = stripped;
+  while (printedUseRemainder.startsWith('【使用条件】')) {
+    const found = printedUseConditionPatterns
+      .map(entry => ({ entry, match: printedUseRemainder.match(entry.pattern) }))
+      .find(candidate => candidate.match !== null);
+    if (!found?.match) break;
+    printedUseConditions.push(found.entry.build(found.match));
+    printedUseRemainder = printedUseRemainder.slice(found.match[0].length);
+  }
+  // 🔴複数本のうち未対応の【使用条件】が1本でも残ったら、部分採用せず全条件と剥離を捨てる。
+  // 元文を本文 parser へ渡す従来の fail-closed を維持し、「1本だけ満たせば使用可」への過小反転を防ぐ。
+  const parsedAllPrintedUseConditions = !printedUseRemainder.startsWith('【使用条件】');
+  const printedUseCondition: Condition | undefined = parsedAllPrintedUseConditions && printedUseConditions.length > 0
+    ? (printedUseConditions.length === 1
+        ? printedUseConditions[0]
+        : { type: 'AND', conditions: printedUseConditions })
+    : undefined;
+  const withoutPrintedUseCondition = parsedAllPrintedUseConditions ? printedUseRemainder : stripped;
   // 印刷済み【使用条件】の直後に続くライフ枚数条件（WXDi-P01-004）。通常の
   // 「このカードは…場合にしか使用できない」接尾辞ではないため、先頭節として availability へ持ち上げる。
   // ⚠バッチ1カードに限定（続き249検証）：無ゲートだと WX16-Re20「ライフ2枚以下の場合、このアーツは追加で

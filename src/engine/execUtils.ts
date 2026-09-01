@@ -2575,6 +2575,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'LRIG_DECK_COUNT':
       return cmp(st(cond.owner).lrig_deck.length, cond.operator, cond.value);
     case 'LRIG_TRASH_COUNT': {
+      // 【使用条件】「このゲームの間に〈ピース〉を使用している」にも流用する。
+      // 使用済みピースは通常 lrig_trash に入る近似であり、ゲームから除外されたピースはここに残らず偽陰性になりうる。
       const types = cond.cardType
         ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
         : null;

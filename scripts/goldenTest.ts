@@ -59045,6 +59045,89 @@ test('O-161 fresh/engine: WXDi-P16-058-E3 は効果元と共通色のない相�
   ok(!offered.done && offered.pending.type === 'CHOOSE', '共通色のない相手がいれば支払い選択を提示する');
 }));
 
+// ── §5.3 `O-97`＝印刷済み【使用条件】が複数あるピース ────────────────────
+const o97Expected = [
+  ['WXDi-CP01-004', '白', { cardType: 'リレーピース' }],
+  ['WXDi-CP02-002', '青', { cardNames: ['連邦生徒会', 'クロノス報道部'] }],
+  ['WXDi-CP02-003', '緑', { cardNames: ['連邦生徒会', 'クロノス報道部'] }],
+  ['WXDi-CP02-004', '黒', { cardNames: ['連邦生徒会', 'クロノス報道部'] }],
+] as const;
+
+test('O-97 parser/live: 複数の印刷済み【使用条件】を4効果ともANDで保持する', () => {
+  for (const [cardNum, color, historyFilter] of o97Expected) {
+    const effectId = `${cardNum}-E1`;
+    for (const [label, effect] of [
+      ['live', (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)],
+      ['fresh', parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)],
+    ] as const) {
+      ok(!!effect, `${effectId}(${label}): 効果が存在する`);
+      eq(JSON.stringify(effect?.condition), JSON.stringify({
+        type: 'AND',
+        conditions: [
+          { type: 'FIELD_LRIGS_HAVE_COLORS', owner: 'self', colors: [color] },
+          { type: 'LRIG_TRASH_COUNT', filter: historyFilter, operator: 'gte', value: 1 },
+        ],
+      }), `🔴${effectId}(${label}): 色条件と使用歴条件の両方が必要`);
+    }
+  }
+
+  // PARTIAL は live を解凍しないが、fresh parser では2条件を剥がした後の本文先頭ゲートまで届く。
+  const partialFresh = parseCardEffects(cardMap.get('WXDi-CP01-002')!)
+    .find(e => e.effectId === 'WXDi-CP01-002-E1')!;
+  eq(JSON.stringify(partialFresh.condition), JSON.stringify({
+    type: 'AND', conditions: [
+      { type: 'FIELD_LRIGS_HAVE_COLORS', owner: 'self', colors: ['黒'] },
+      { type: 'LRIG_TRASH_COUNT', filter: { cardType: 'リレーピース' }, operator: 'gte', value: 1 },
+    ],
+  }), 'WXDi-CP01-002-E1(fresh): 2本の使用条件を保持');
+  eq(partialFresh.action.type, 'CONDITIONAL', 'WXDi-CP01-002-E1(fresh): 本文先頭のレベル3ゲートへ到達');
+  if (partialFresh.action.type === 'CONDITIONAL') {
+    eq(JSON.stringify(partialFresh.action.condition), JSON.stringify({
+      type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 3,
+    }), 'WXDi-CP01-002-E1(fresh): レベル3以上の場合をホイスト');
+  }
+});
+
+test('O-97 evalUseCondition: 使用歴ありは使用可、なしはlive/freshとも使用不可', () => {
+  const relay = findCard(c => c.Type === 'リレーピース');
+  const named = cardMap.get('WXDi-CP02-005')?.CardNum;
+  const unrelatedPiece = findCard(c => c.Type === 'ピース'
+    && c.CardName !== '連邦生徒会' && c.CardName !== 'クロノス報道部');
+  ok(!!relay && !!named && !!unrelatedPiece, 'O-97: 使用歴の正負に使うカードが存在する');
+
+  for (const [cardNum, color] of o97Expected.map(([num, c]) => [num, c] as const)) {
+    const lrig = findCard(c => (c.Type === 'ルリグ' || c.Type === 'アシストルリグ') && c.Color.includes(color));
+    const usedCard = cardNum === 'WXDi-CP01-004' ? relay : named!;
+    const wrongUsedCard = cardNum === 'WXDi-CP01-004' ? unrelatedPiece : relay;
+    const positive = mkState({ lrig: [lrig] }); positive.lrig_trash = [usedCard];
+    const noHistory = mkState({ lrig: [lrig] }); noHistory.lrig_trash = [];
+    const wrongHistory = mkState({ lrig: [lrig] }); wrongHistory.lrig_trash = [wrongUsedCard];
+    for (const [label, effect] of [
+      ['live', (effectsMap.get(cardNum) ?? []).find(e => e.effectId === `${cardNum}-E1`)],
+      ['fresh', parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === `${cardNum}-E1`)],
+    ] as const) {
+      ok(!!effect?.condition, `${cardNum}(${label}): condition が存在する`);
+      ok(evalUseCondition(effect!.condition!, positive, mkState({}), cardMap, cardNum, 'MAIN'),
+        `${cardNum}(${label}): 指定された使用済みピースがあれば使用可`);
+      ok(!evalUseCondition(effect!.condition!, noHistory, mkState({}), cardMap, cardNum, 'MAIN'),
+        `🔴${cardNum}(${label}): 使用歴が無ければ使用不可`);
+      ok(!evalUseCondition(effect!.condition!, wrongHistory, mkState({}), cardMap, cardNum, 'MAIN'),
+        `🔴${cardNum}(${label}): 別種・別名のピースでは使用不可`);
+    }
+  }
+});
+
+test('O-97 fail-closed: 2本目が未対応なら1本目も採らない', () => {
+  const base = cardMap.get('WXDi-CP01-004')!;
+  const card = {
+    ...base,
+    CardNum: '__O97_UNSUPPORTED_SECOND__',
+    EffectText: '【使用条件】【ドリームチーム】白のルリグを１体以上含む【使用条件】未対応の条件カードを１枚引く。',
+  } as CardData;
+  const effect = parseCardEffects(card).find(e => e.effectId === '__O97_UNSUPPORTED_SECOND__-E1')!;
+  eq(effect.condition, undefined, '🔴未対応条件が残れば、解釈できた白条件も部分採用しない');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

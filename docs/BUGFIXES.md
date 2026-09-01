@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02：§5.3 `O-97` — 複数の印刷済み【使用条件】を4ピースへ復元
+
+**真因（1行）**＝`parseArtsEffect` が先頭の印刷済み【使用条件】を `.find()` で1本だけ消費していたため、
+2本目が本文 parser へ残り、AUTO 4効果では `condition` が丸ごと消えて無条件使用できた。
+
+**既存受け皿を再利用**＝新しい Condition 型は足さず、既存 `LRIG_TRASH_COUNT.filter` を使用歴の近似へ流用した。
+`TargetFilter.cardNames` で《連邦生徒会》《クロノス報道部》を完全一致OR、`cardType:'リレーピース'` で種別を厳密一致する。
+実データには在るのに `CardTypeFilter` union から漏れていた `リレーピース` だけを型語彙へ追加した。
+⚠使用済みピースは通常 `lrig_trash` に入る近似であり、ゲームから除外された場合は偽陰性になりうる。
+
+**parser**＝先頭から【使用条件】が続く限りループして全条件を `AND` 化。未対応の【使用条件】が1本でも先頭に
+残れば、採った条件と剥離をすべて捨てる（部分採用禁止）。単色ドリームチーム、カード名2択、リレーピース使用歴を追加した。
+対象＝`WXDi-CP01-004-E1` / `WXDi-CP02-002-E1` / `WXDi-CP02-003-E1` / `WXDi-CP02-004-E1`。
+`WXDi-CP01-002` / `WXDi-CP02-001` は PARTIAL のため live 不変。前者の fresh は2条件を剥がした後、
+本文先頭の `LRIG_LEVEL{gte:3}` まで正しくホイストする。
+
+**live 配送**＝`build:effects` は `001-004` / `002-002` を純改善として自動採用。`002-003/004` は action 側の
+別差分も held に含むため、fresh 全採用を避けて effectId 指定で `condition` だけ外科反映した。4件とも action は HEAD と同一。
+
+**golden（+3本）**＝①4効果の live/fresh が2条件AND ②指定使用歴あり=true／履歴なし・別種別/別名=falseを
+live/fresh 双方 ③未対応2本目があれば1本目も不採用。`WXDi-CP01-002` fresh の本文ゲート到達も①で固定。
+
+**検証**＝`npm run build:effects`、逆翻訳4枚目視、`npm run census:goldentypes`（未カバー0）、
+`npm run gates`（全緑・golden 3226/3226・smoke/fuzz 全0・census 11・STUB A群0・
+enginetext 130行/127ハンドラ・manual-fields 0/0・lint 0 errors/250 warnings）。
+**実機不要**＝`src/screens/` は未変更。二次項目の `IS_MY_TURN` 誤ゲートは別機構なので据置。
+
 ## 2026-09-02（続き778）：§5.3 索引 C を 30→27件＝`O-211` / `O-148` を実装、`O-179` は stale でクローズ
 
 ### ① `O-211`＝遅延トリガーの発火源を「カード個体」で縛れなかった（過剰実行）
