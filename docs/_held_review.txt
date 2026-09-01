@@ -21,54 +21,6 @@ PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-0
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
 
-## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［10枚］
-PR-K021 WDA-F02-17 WX15-053 WXDi-P04-007 WXDi-P05-073 WXDi-P06-083 WXDi-P11-049 WXDi-P16-050 WXK06-074 WXK08-070
---- PR-K021
-  原文: 【自】：各アタックフェイズ開始時、ターン終了時まで、このシグニの基本パワーは正面のシグニのパワーと同じ値になる。【自】：このシグニがアタックしたとき、このシグニのパワーが8000の場合、【エナチャージ１】する。【自】：このシグニがアタックしたとき、シグニ１体を対象とし、このシグニのパワーが12000の場合、《白》《白》《無》《無》を支払ってもよい。そうした場
-  - [2].action.steps[0].costColors[0] = "白"
-  - [2].action.steps[0].costColors[1] = "白"
-  - [2].action.steps[0].costColors[2] = "無"
-  - [2].action.steps[0].costColors[3] = "無"
-  - [2].action.steps[1].condition.type = "IS_MY_TURN"
-  - [2].action.steps[1].then.type = "BOUNCE"
-  - [2].action.steps[1].then.target.type = "SIGNI"
-  - [2].action.steps[1].then.target.owner = "self"
-  - [2].action.steps[1].then.target.count = 1
-  - [2].action.steps[1].then.target.upToCount = false
-  - [2].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [2].action.steps[1].then.optional = false
-  …（他 25 行）
---- WDA-F02-17
-  原文: 【常】：このシグニはすべての領域で黒でもある。【自】：あなたの手札からカード１枚がトラッシュに置かれたとき、このシグニの正面のシグニ１体を対象とし、それをダウンする。【自】：このカードが手札からトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、《青》か《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－5000する。,：あなたのト
-  - [2].action.steps[0].costColors[0] = "青"
-  - [2].action.steps[0].costColors[1] = "黒"
-  - [2].action.steps[1].condition.type = "IS_MY_TURN"
-  - [2].action.steps[1].then.type = "POWER_MODIFY"
-  - [2].action.steps[1].then.target.type = "SIGNI"
-  - [2].action.steps[1].then.target.owner = "opponent"
-  - [2].action.steps[1].then.target.count = 1
-  - [2].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [2].action.steps[1].then.delta = -5000
-  ~ [2].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [2].action.steps[0].selectTarget.type = "SIGNI"
-  + [2].action.steps[0].selectTarget.owner = "opponent"
-  …（他 18 行）
---- WX15-053
-  原文: カードを３枚引き、手札を１枚捨てる。【トラップアイコン】：対戦相手のシグニ１体を対象とし、あなたの場にある他の【トラップ】１枚をトラッシュに置き、《青》を支払ってもよい。そうした場合、それをバニッシュする。,：どちらか１つを選ぶ。①カードを１枚引く。②あなたのデッキの上からカードを２枚見て好きな枚数を【トラップ】として設置し、残りをトラッシュに置く。
-  - [2].action.steps[0].costColors[0] = "青"
-  - [2].action.steps[1].condition.type = "IS_MY_TURN"
-  - [2].action.steps[1].then.type = "BANISH"
-  - [2].action.steps[1].then.target.type = "SIGNI"
-  - [2].action.steps[1].then.target.owner = "opponent"
-  - [2].action.steps[1].then.target.count = 1
-  - [2].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [2].action.steps[1].then.target.upToCount = false
-  ~ [2].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [2].action.steps[0].selectTarget.type = "SIGNI"
-  + [2].action.steps[0].selectTarget.owner = "opponent"
-  + [2].action.steps[0].selectTarget.count = 1
-  …（他 17 行）
-
 ## +PAID_ADDITIONAL_COST +SEQUENCE +SIGNI +STUB×2 -IS_MY_TURN ［4枚］
 WXDi-CP02-076 WXDi-P01-059 WXEX1-15 WXK03-029
 --- WXDi-CP02-076

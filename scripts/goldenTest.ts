@@ -17392,6 +17392,179 @@ test('O-96 第3バッチ: 効果レベルの前置条件を落とさない', () 
     'PR-K021: 自パワー12000の条件を維持');
 });
 
+// PLAN §5.3 O-190 第1バッチ＝「〈別コスト〉し《色》を支払ってもよい」の前半が
+// bare OPTIONAL_COST{costColors} から消えていた8効果。live だけでなく fresh を同時に固定する。
+const o190OptionalCost = (effect: CardEffect): import('../src/types/effects').StubAction => {
+  const found: import('../src/types/effects').StubAction[] = [];
+  const visit = (node: EffectAction): void => {
+    if (node.type === 'STUB' && node.id === 'OPTIONAL_COST') found.push(node);
+    else if (node.type === 'SEQUENCE') node.steps.forEach(visit);
+    else if (node.type === 'CONDITIONAL') { visit(node.then); if (node.else) visit(node.else); }
+  };
+  visit(effect.action);
+  eq(found.length, 1, `${effect.effectId}: OPTIONAL_COST は1本`);
+  return found[0];
+};
+
+test('O-190 第1バッチ fresh/live: 複合任意コスト8効果の前半payloadを保持する', () => {
+  const expected = [
+    ['WXDi-P16-050', 'WXDi-P16-050-E1', 'handDiscard', { count: 1, filter: { cardType: 'スペル' } }],
+    ['WX24-P1-011', 'WX24-P1-011-E1', 'handDiscard', { count: 1 }],
+    ['WX25-P2-022', 'WX25-P2-022-E1', 'handDiscard', { count: 1 }],
+    ['WX25-CP1-041', 'WX25-CP1-041-E1', 'handDiscard', { count: 2, filter: { story: 'ブルアカ' } }],
+    ['WX26-CP1-046', 'WX26-CP1-046-E1', 'handDiscard', { count: 2, filter: { story: 'プリオケ' } }],
+    ['WXDi-P04-007', 'WXDi-P04-007-E1', 'fieldTrash', { count: 1, filter: { cardType: 'シグニ', color: '白' } }],
+    ['WXDi-P06-055', 'WXDi-P06-055-E1', 'handReveal', { count: 6, filter: { cardType: 'シグニ', story: '天使' } }],
+    ['WXDi-P06-083', 'WXDi-P06-083-E1', 'underAnySigniTrash', { count: 3, fromThis: true }],
+  ] as const;
+  for (const [cardNum, effectId, key, payload] of expected) {
+    const freshEffect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const liveEffect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    for (const [label, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
+      const cost = o190OptionalCost(effect) as unknown as Record<string, unknown>;
+      eq(JSON.stringify(cost[key]), JSON.stringify(payload), `${effectId} ${label}: ${key}`);
+    }
+  }
+});
+
+test('O-190 第1バッチ fresh/live: 直列4効果だけ did-it ゲートを実支払い条件へ直す', () => {
+  for (const [cardNum, effectId] of [
+    ['WX25-P2-022', 'WX25-P2-022-E1'], ['WX25-CP1-041', 'WX25-CP1-041-E1'],
+    ['WX26-CP1-046', 'WX26-CP1-046-E1'], ['WXDi-P06-055', 'WXDi-P06-055-E1'],
+  ] as const) {
+    const freshEffect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const liveEffect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    for (const [label, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
+      const json = JSON.stringify(effect.action);
+      ok(json.includes('PAID_ADDITIONAL_COST'), `${effectId} ${label}: 支払いゲートが無い`);
+      ok(!json.includes('IS_MY_TURN'), `${effectId} ${label}: 誤ったターン条件が残る`);
+    }
+  }
+  // 前置場条件の内側にコストだけがある別構造。payload は直すが本体ゲートは本バッチで一般化しない。
+  const wx24 = parseCardEffects(cardMap.get('WX24-P1-011')!).find(e => e.effectId === 'WX24-P1-011-E1')!;
+  ok(JSON.stringify(wx24.action).includes('IS_MY_TURN'), 'WX24-P1-011 の別構造を無理に一般化しない');
+});
+
+test('O-190 第1バッチ runtime: 4受け皿は前半を払えない盤面で fail-closed', () => withSavedCursor(() => {
+  const spell = findCard(c => c.Type === 'スペル');
+  const handCost = o190OptionalCost(parseCardEffects(cardMap.get('WXDi-P16-050')!).find(e => e.effectId === 'WXDi-P16-050-E1')!);
+  const handOk = mkCtx({}, {}); handOk.ownerState.hand = [spell];
+  const handNg = mkCtx({}, {}); handNg.ownerState.hand = [];
+  const handSpec = { ...handCost, costColors: [] } as unknown as Parameters<typeof resolveOptionalCostSpec>[0];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(handSpec, handOk), handOk), 'スペル1枚なら手札コストを払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(handSpec, handNg), handNg), '手札0枚では払えない');
+
+  const white = findCard(c => isSigni(c) && (c.Color ?? '').includes('白'));
+  const fieldCost = o190OptionalCost(parseCardEffects(cardMap.get('WXDi-P04-007')!).find(e => e.effectId === 'WXDi-P04-007-E1')!);
+  const fieldOk = mkCtx({ signi: [white, null, null] }, {});
+  const fieldNg = mkCtx({ signi: [null, null, null] }, {});
+  const fieldSpec = { ...fieldCost, costColors: [] } as unknown as Parameters<typeof resolveOptionalCostSpec>[0];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(fieldSpec, fieldOk), fieldOk), '白シグニ1体なら場コストを払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(fieldSpec, fieldNg), fieldNg), '白シグニ0体では払えない');
+
+  const angels = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('天使')).slice(0, 6).map(c => c.CardNum);
+  eq(angels.length, 6, '＜天使＞シグニを6枚用意');
+  const revealCost = o190OptionalCost(parseCardEffects(cardMap.get('WXDi-P06-055')!).find(e => e.effectId === 'WXDi-P06-055-E1')!);
+  const revealOk = mkCtx({}, {}); revealOk.ownerState.hand = [...angels];
+  const revealNg = mkCtx({}, {}); revealNg.ownerState.hand = angels.slice(0, 5);
+  const revealSpec = { ...revealCost, costColors: [] } as unknown as Parameters<typeof resolveOptionalCostSpec>[0];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(revealSpec, revealOk), revealOk), '天使6枚なら公開コストを払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(revealSpec, revealNg), revealNg), '天使5枚では払えない');
+
+  const underCost = o190OptionalCost(parseCardEffects(cardMap.get('WXDi-P06-083')!).find(e => e.effectId === 'WXDi-P06-083-E1')!);
+  const underCards = fill(3);
+  const underOk = mkCtx({}, {}, 'WXDi-P06-083'); underOk.ownerState.field.signi = [[...underCards, 'WXDi-P06-083'], null, null];
+  const underNg = mkCtx({}, {}, 'WXDi-P06-083'); underNg.ownerState.field.signi = [[...underCards.slice(0, 2), 'WXDi-P06-083'], null, null];
+  const underSpec = { ...underCost, costColors: [] } as unknown as Parameters<typeof resolveOptionalCostSpec>[0];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(underSpec, underOk), underOk), 'このシグニの下3枚なら払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(underSpec, underNg), underNg), 'このシグニの下2枚では払えない');
+}));
+
+const o190Offer = (effect: CardEffect, base: ExecCtx): { result: ExecResult; ctx: ExecCtx } => {
+  let result = executeEffect(effect, base);
+  let current = base;
+  while (!result.done && result.pending.type === 'SELECT_TARGET') {
+    current = ctxAfter(result, current);
+    result = resumeSelectTarget(result.pending.candidates.slice(0, result.pending.count), result.pending, current);
+  }
+  return { result, ctx: result.done ? current : ctxAfter(result, current) };
+};
+
+test('O-190 第1バッチ live E2E: 4コスト群は pay時だけ前半を消費して本体実行、skip/不足時は不発', () => withSavedCursor(() => {
+  const energyOf = (color: string) => findCard(c => (c.Color ?? '').includes(color));
+  const blueArchive = [...cardMap.values()].filter(c => (c.CardClass ?? '').includes('ブルアカ')).slice(0, 2).map(c => c.CardNum);
+  const angels = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('天使')).slice(0, 6).map(c => c.CardNum);
+  eq(blueArchive.length, 2, '＜ブルアカ＞2枚を用意'); eq(angels.length, 6, '＜天使＞6枚を用意');
+
+  const cases = [
+    (() => {
+      const effect = effectsMap.get('WX25-CP1-041')!.find(e => e.effectId === 'WX25-CP1-041-E1')!;
+      const victim = SIGNI_L1;
+      const ctx = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WX25-CP1-041');
+      ctx.ownerState.hand = [...blueArchive]; ctx.ownerState.energy = [energyOf('青')];
+      const blocked = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WX25-CP1-041');
+      blocked.ownerState.hand = blueArchive.slice(0, 1); blocked.ownerState.energy = [energyOf('青')];
+      return { name: 'handDiscard', effect, ctx, blocked,
+        body: (r: ExecResult) => !tops(r.otherState).includes(victim),
+        paid: (r: ExecResult) => r.ownerState.hand.length === 0 };
+    })(),
+    (() => {
+      const effect = effectsMap.get('WXDi-P04-007')!.find(e => e.effectId === 'WXDi-P04-007-E1')!;
+      const victim = SIGNI_L2; const white = findCard(c => isSigni(c) && (c.Color ?? '').includes('白'));
+      const ctx = mkCtx({ signi: [white, null, null], energy: 0 }, { signi: [victim, null, null] }, 'WXDi-P04-007');
+      ctx.ownerState.energy = [energyOf('白')];
+      const blocked = mkCtx({ signi: [null, null, null], energy: 0 }, { signi: [victim, null, null] }, 'WXDi-P04-007');
+      blocked.ownerState.energy = [energyOf('白')];
+      return { name: 'fieldTrash', effect, ctx, blocked,
+        body: (r: ExecResult) => r.otherState.hand.includes(victim),
+        paid: (r: ExecResult) => r.ownerState.trash.includes(white) };
+    })(),
+    (() => {
+      const effect = effectsMap.get('WXDi-P06-055')!.find(e => e.effectId === 'WXDi-P06-055-E1')!;
+      const victim = SIGNI_P12000;
+      const ctx = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WXDi-P06-055');
+      ctx.ownerState.hand = [...angels]; ctx.ownerState.energy = [energyOf('赤'), energyOf('無')];
+      const blocked = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WXDi-P06-055');
+      blocked.ownerState.hand = angels.slice(0, 5); blocked.ownerState.energy = [energyOf('赤'), energyOf('無')];
+      return { name: 'handReveal', effect, ctx, blocked,
+        body: (r: ExecResult) => !tops(r.otherState).includes(victim),
+        paid: (r: ExecResult) => r.ownerState.hand.length === 6 };
+    })(),
+    (() => {
+      const effect = effectsMap.get('WXDi-P06-083')!.find(e => e.effectId === 'WXDi-P06-083-E1')!;
+      const victim = SIGNI_L3; const under = fill(3);
+      const ctx = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WXDi-P06-083');
+      ctx.ownerState.field.signi = [[...under, 'WXDi-P06-083'], null, null];
+      ctx.ownerState.energy = [energyOf('黒'), energyOf('無')];
+      const blocked = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WXDi-P06-083');
+      blocked.ownerState.field.signi = [[...under.slice(0, 2), 'WXDi-P06-083'], null, null];
+      blocked.ownerState.energy = [energyOf('黒'), energyOf('無')];
+      return { name: 'underAnySigniTrash', effect, ctx, blocked,
+        body: (r: ExecResult) => (r.otherState.temp_power_mods ?? []).some(m => m.cardNum === victim && m.delta === -8000),
+        paid: (r: ExecResult) => under.every(n => r.ownerState.trash.includes(n)) };
+    })(),
+  ];
+
+  for (const c of cases) {
+    const paid = finishPayingCosts(executeEffect(c.effect, c.ctx), c.ctx);
+    ok(c.body(paid), `${c.name}: pay で本体が起きない`);
+    ok(c.paid(paid), `${c.name}: pay で前半コストを消費しない`);
+
+    const skipBase = structuredClone(c.ctx) as ExecCtx;
+    const skippedOffer = o190Offer(c.effect, skipBase);
+    ok(!skippedOffer.result.done && skippedOffer.result.pending.type === 'CHOOSE', `${c.name}: skip用提示が無い`);
+    if (skippedOffer.result.done || skippedOffer.result.pending.type !== 'CHOOSE') continue;
+    const skipped = finish(resumeOptionalCost('skip', [], skippedOffer.result.pending, skippedOffer.ctx), skippedOffer.ctx);
+    ok(!c.body(skipped), `${c.name}: skip で本体が起きた`);
+
+    const blockedOffer = o190Offer(c.effect, c.blocked);
+    ok(!blockedOffer.result.done && blockedOffer.result.pending.type === 'CHOOSE', `${c.name}: 不足時のskip提示が無い`);
+    if (blockedOffer.result.done || blockedOffer.result.pending.type !== 'CHOOSE') continue;
+    eq(blockedOffer.result.pending.options.find(o => o.id === 'pay')?.available, false,
+      `${c.name}: 前半コスト不足なのに pay できる`);
+  }
+}));
+
 // 意味照合 段2（2026-09-01 続き767）＝`cost.energyTrashGroups` の支払いUI（`SigniOnPlayCostModal`）を新設した。
 // 🔴旧 live は `costUnparsed:true` ＝**発動コストが無料**だった（エナを1枚も払わずに相手シグニ2体を触れた）。
 // ⚠**型はもとから在った**が、消費が `resonaSummon.ts`（レゾナ召喚）1箇所だけで、

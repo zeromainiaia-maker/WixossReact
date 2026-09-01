@@ -12893,6 +12893,9 @@ function fullyExpressibleCostFilter(spec: string): TargetFilter | null {
   if (cls) { filter.story = cls[1]; rest = rest.replace(cls[0], ''); }
   const col = rest.match(/^([白赤青緑黒])の/);
   if (col) { filter.color = col[1]; rest = rest.replace(col[0], ''); }
+  // 「手札からスペルをN枚」＝種別そのものが修飾。ここで消費しないと未表現文字として
+  // null になり、複合任意コストの前半が丸ごと落ちる。exact 語だけを受け、曖昧な名詞へ広げない。
+  if (rest === 'スペル') { filter.cardType = 'スペル'; rest = ''; }
   if (rest.replace(/^(?:あなたの)?/, '').trim() !== '') return null;   // 未消費の修飾が残る＝表せていない
   return filter;
 }
@@ -12906,7 +12909,7 @@ function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | nu
   //   ⇒ 呼び出し側で id を差し替えるための目印だけ返す。
   if (/^このシグニを(?:場から)?トラッシュに置い$/.test(c)) return { id: 'OPTIONAL_TRASH_SELF' } as Partial<StubAction>;
   // ②「あなたの（他の）〈クラス等〉シグニN体を場からトラッシュに置い」
-  const fieldM = c.match(/^あなたの(他の)?(.*?)シグニ([０-９\d]*)体を場からトラッシュに置い$/);
+  const fieldM = c.match(/^あなたの(他の)?(.*?)シグニ([０-９\d]*)体を場からトラッシュに置[いき]$/);
   if (fieldM) {
     const base = fullyExpressibleCostFilter(fieldM[2] ?? '');
     if (!base) return null;
@@ -12945,7 +12948,82 @@ function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | nu
     };
     return { handDiscard: { count: parseNum(handM[2]), ...(Object.keys(filter).length ? { filter } : {}) } };
   }
+  // ⑤b「手札をN枚捨て」＝「から」を伴わない無修飾形。
+  const plainHandM = c.match(/^手札を([０-９\d]+)枚捨て$/);
+  if (plainHandM) return { handDiscard: { count: parseNum(plainHandM[1]) } };
+  // ⑥「あなたの手札から〈修飾〉カード／シグニをN枚公開し」＝色支払いと束ねた公開コスト。
+  const revealM = c.match(/^(?:あなたの)?手札から(.*?)(カード|シグニ|スペル)を?([０-９\d]+)枚公開し$/);
+  if (revealM) {
+    const baseR = fullyExpressibleCostFilter(revealM[1] ?? '');
+    if (!baseR) return null;
+    const filter: TargetFilter = {
+      ...(revealM[2] !== 'カード' ? { cardType: revealM[2] as 'シグニ' | 'スペル' } : {}),
+      ...baseR,
+    };
+    return { handReveal: { count: parseNum(revealM[3]), ...(Object.keys(filter).length ? { filter } : {}) } };
+  }
+  // ⑦「このシグニの下から〈修飾〉カードN枚をトラッシュに置き」。fromThis を落とすと
+  // 他のシグニの下でも払えるため、既存 runtime 契約どおり必ず true を明示する。
+  const underM = c.match(/^このシグニの下から(.*?)(カード|シグニ|スペル)(?:を([０-９\d]+)枚|([０-９\d]+)枚を)トラッシュに置き$/);
+  if (underM) {
+    const baseU = fullyExpressibleCostFilter(underM[1] ?? '');
+    if (!baseU) return null;
+    const filter: TargetFilter = {
+      ...(underM[2] !== 'カード' ? { cardType: underM[2] as 'シグニ' | 'スペル' } : {}),
+      ...baseU,
+    };
+    return {
+      underAnySigniTrash: {
+        count: parseNum(underM[3] ?? underM[4]), fromThis: true,
+        ...(Object.keys(filter).length ? { filter } : {}),
+      },
+    };
+  }
   return null;
+}
+
+// ── PLAN §5.3 `O-190` 第1バッチ（2026-09-01）──
+// 「〈別のコスト動作〉し《色》を支払ってもよい」の bare OPTIONAL_COST{costColors} へ、
+// 前半を既存 parseOptionalCostClauseFields で合成する。既に別 payload を持つ正解10効果は触らない。
+// 適用地点は効果単位の最終 root。O-96 が先に対象固定した効果の木を壊さず、CHOOSE/GRANT の
+// 組み立て途中にも当てない。表せない前半は null＝従来どおり据置する。
+function applyCompositeOptionalCostFields(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const scan = text.replace(/（[^（）]*）/g, '').replace(/「[^」]*」/g, '「Q」');
+  const m = scan.match(/(?:^|[、,])([^、。]*?(?:トラッシュに置き|捨て|公開し))[、,]?((?:《[^》]+》|か)+)を支払ってもよい。そうした場合[、,]/);
+  if (!m) return action;
+  const fields = parseOptionalCostClauseFields(m[1]);
+  // OPTIONAL_TRASH_SELF は既存の専用経路の領分。ここで別 id へ差し替えない。
+  if (!fields || fields.id) return action;
+
+  const steps = [...action.steps];
+  const carriers = steps.map((step, index) => {
+    if (step.type === 'STUB' && step.id === 'OPTIONAL_COST') return { index, cost: step as StubAction, wrapped: false };
+    if (step.type === 'CONDITIONAL' && !step.else && step.then.type === 'STUB' && step.then.id === 'OPTIONAL_COST') {
+      return { index, cost: step.then as StubAction, wrapped: true };
+    }
+    return null;
+  }).filter((x): x is { index: number; cost: StubAction; wrapped: boolean } => !!x);
+  if (carriers.length !== 1) return action;
+  const carrier = carriers[0];
+  if (!carrier.cost.costColors?.length) return action;
+  // 既に fieldDown/selfTrash/fieldTrash 等を持つ正解群は無変更。今回の欠陥署名は bare costColors のみ。
+  if (Object.keys(carrier.cost).some(k => !['type', 'id', 'costColors'].includes(k))) return action;
+
+  const merged: StubAction = { ...carrier.cost, ...fields } as StubAction;
+  if (carrier.wrapped) {
+    const wrapper = steps[carrier.index] as ConditionalAction;
+    steps[carrier.index] = { ...wrapper, then: merged };
+  } else {
+    steps[carrier.index] = merged;
+    // 同じ効果で実在する「そうした場合」の直後ゲートだけを実支払い条件へ直す。
+    // 前置条件の内側にコストだけがある WX24-P1-011 は構造が別なので、この枝には入らず据置。
+    const next = steps[carrier.index + 1];
+    if (next?.type === 'CONDITIONAL' && next.condition.type === 'IS_MY_TURN') {
+      steps[carrier.index + 1] = { ...next, condition: { type: 'PAID_ADDITIONAL_COST' } };
+    }
+  }
+  return { ...action, steps };
 }
 
 function applyLegacyTradeStubCost(text: string, action: EffectAction): EffectAction {
@@ -23334,6 +23412,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // root SEQUENCE に見えるため、そこで適用すると据置対象のネスト器まで書き換わる。
     if (effect.parseStatus === 'AUTO') {
       effect.action = applyO96OptionalCostTargetFirst(sourceText, effect.action);
+      effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);
     }
     // LOOK_AND_REORDER 専用分岐が単文条件ラッパより先に本文を消費する形の補完。
     // 「5枚見て1枚をトラッシュ、残りをデッキ上へ戻す」形だけに限定し、他の LOOK 群へ波及させない。
