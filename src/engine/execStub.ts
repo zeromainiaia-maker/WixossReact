@@ -1,4 +1,4 @@
-import type { EffectAction, StubAction } from '../types/effects';
+import type { EffectAction, EffectTarget, StubAction } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import { done, addLog } from './execUtils';
 import { execStubPart1 } from './execStubPart1';
@@ -9,9 +9,10 @@ export function execStub(
   stub: StubAction,
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
+  transferToHandTrashCandidates: (target: EffectTarget, ctx: ExecCtx) => string[],
 ): ExecResult {
   return (
-    execStubPart1(stub, ctx, exec) ??
+    execStubPart1(stub, ctx, exec, transferToHandTrashCandidates) ??
     execStubPart2(stub, ctx, exec) ??
     execStubPart3(stub, ctx, exec) ??
     done(addLog(ctx, `[STUB: ${stub.id}]`))

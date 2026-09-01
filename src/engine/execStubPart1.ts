@@ -4,7 +4,7 @@ import { parseEnergyCosts } from '../data/parserUtils';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource } from './deployLimit';
 import { signiAutoPayGateMarkers } from './blockAction';
 import type {
-  EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
+  EffectAction, EffectTarget, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import { textHasKeyword } from '../utils/keywords';
 import {
@@ -50,6 +50,7 @@ export function execStubPart1(
   stub: StubAction,
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
+  transferToHandTrashCandidates: (target: EffectTarget, ctx: ExecCtx) => string[],
 ): ExecResult | null {
   // WXDi-P11-010A 夢限 -Q-: reset and flip in one indivisible state write.
   // Field SIGNI leave triggers are collected later by BattleScreen's board diff.
@@ -167,7 +168,23 @@ export function execStubPart1(
   //   ルリグ対象／「ルリグかシグニ1体」（§6.4 O-28 のアタック税5効果）は候補の作り方だけが違う。
   if (stub.id === 'SELECT_TARGET_ONLY') {
     const tgt = stub.selectTarget;
-    if (!tgt || (tgt.type !== 'SIGNI' && tgt.type !== 'LRIG' && tgt.type !== 'CENTER_LRIG_OR_SIGNI')) {
+    if (!tgt) {
+      return done({ ...ctx, lastProcessedCards: [] });
+    }
+    if (tgt.type === 'TRASH_CARD') {
+      // §5.3 `O-188`：候補集めは `execTransferToHand` の TRASH_CARD 分岐と**同一の関数**を共有する。
+      // ⚠宣言時と実行時で候補がズレると「選んだのに動かない」になるので、自前で書き直さない。
+      // ⚠相手トラッシュは今回のスコープ外＝fail-closed のまま（候補0で降りる）。
+      if (tgt.owner !== 'self') return done({ ...ctx, lastProcessedCards: [] });
+      const cands = transferToHandTrashCandidates(tgt, ctx);
+      const count = typeof tgt.count === 'number' ? tgt.count
+        : tgt.count === 'ALL' ? cands.length
+        : 1;
+      return selectOrInteract(cands, count, tgt.upToCount ?? false, 'self_trash',
+        { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
+        false);
+    }
+    if (tgt.type !== 'SIGNI' && tgt.type !== 'LRIG' && tgt.type !== 'CENTER_LRIG_OR_SIGNI') {
       return done({ ...ctx, lastProcessedCards: [] });
     }
     const state = ownerState(tgt.owner, ctx);

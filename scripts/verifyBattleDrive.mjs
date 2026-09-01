@@ -19655,6 +19655,115 @@ scenarios.o141UnderCountOne = {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// §5.3 `O-188` 第1バッチ（2026-09-01）＝「トラッシュから1枚を対象とし、《色》を支払ってもよい。
+//   そうした場合、それを手札に加える」の**対象固定**。観測点は §5.1 の `V` エントリ。
+// 🔴**実害＝対象宣言が engine に無かったため、コストを払ったあとで別のトラッシュ札を選び直せた**
+//   （原文の「それ」が別のカードになる＝過剰実行）。
+// ⚠**golden では踏めない部分がここにある**＝`SELECT_TARGET_ONLY` が `TRASH_CARD` を受けるようになった結果、
+//   `self_trash` スコープの選択モーダルが**実 UI で開くか**は BattleScreen 側の話で、engine テストでは分からない
+//   （型を1つ足しただけで「候補0で黙って降りる」に倒れるのがこの機構の既知の罠）。
+// 対象カード＝`WX24-P4-044`（【自】あなたのターン終了時、あなたのトラッシュから《ガードアイコン》を持つ
+//   シグニ1枚を対象とし、《無》《無》を支払ってもよい。そうした場合、それを手札に加える）。
+// ─────────────────────────────────────────────────────────────────────────────
+const o188Spec = (energy) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [['WX24-P4-044#1'], null, null],
+    'field.signi_down': [false, false, false],
+    // ガード持ち2枚（候補）＋非ガード1枚（フィルタが効いていることの対照）。
+    'trash': ['WD01-016#901', 'WD01-017#902', 'WD01-009#903'],
+    'hand': [],
+    'energy': energy,
+    'actions_done': [],
+  },
+  guestSet: { 'field.signi': [null, null, null] },
+  top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+});
+
+// pay/skip 共通のドライバ。`mode==='pay'` なら支払い、`'skip'` なら辞退する。
+const o188Drive = (tag, mode) => async (page, H) => {
+  const before = await H.queryState();
+  let picked = false; let energyPicked = 0; let decided = false;
+  let sawTrashScope = false; let candidatesAtPick = null; let candidatesAfterPay = null;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(750);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const st0 = await H.queryState();
+    // ① ターンを終わらせて【自】を撃たせる。
+    if (!did && !st0?.pendingEffect) did = await H.clickTextOrBtn(['ターン終了']);
+    // ② トラッシュからの対象宣言（この機構の本体）。候補はガード持ち2枚だけのはず。
+    if (!did && !picked && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+      candidatesAtPick = [...st0.pendingCandidates];
+      if (/トラッシュから/.test(await H.fullBody())) sawTrashScope = true;
+      const pick = await H.clickTestId('pick-0');
+      if (pick) { picked = true; did = `${pick}:${st0.pendingCandidates[0]}`; }
+    }
+    if (!did && picked && !decided) { const d = await H.clickBtn('決定'); if (d) { decided = true; did = d; } }
+    // ③ 任意コスト。pay ならエナを2枚選んでから pay、skip なら即 skip。
+    if (!did && mode === 'skip') did = await H.clickTestId('optcost-skip');
+    if (!did && mode === 'pay' && energyPicked < 2) {
+      const e = await H.clickTestId(`optcost-energy-${energyPicked}`);
+      if (e) { energyPicked++; did = e; }
+    }
+    if (!did && mode === 'pay' && energyPicked >= 2) {
+      const pay = await H.clickTestId('optcost-pay');
+      if (pay) {
+        did = pay;
+        // 🔴**ここが本命の観測点**＝支払い直後に残っている候補。
+        //   修正前は「宣言した1枚」ではなく**条件に合うトラッシュ札が全部**出ていた（＝選び直せた）。
+        const after = await H.queryState();
+        if (Array.isArray(after?.pendingCandidates)) candidatesAfterPay = [...after.pendingCandidates];
+      }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)} ena=${st?.host?.energy} cand=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'}`);
+
+    const hand = st?.host?.handCards ?? [];
+    const trash = st?.host?.trashCards ?? [];
+    if (mode === 'pay' && hand.includes('WD01-016#901')) {
+      // 🔴合格条件＝**宣言した1枚だけ**が手札へ行き、もう1枚のガード持ちはトラッシュに残る。
+      const otherStays = trash.includes('WD01-017#902');
+      const filterOk = !hand.includes('WD01-009#903');
+      const candOk = !!candidatesAtPick && candidatesAtPick.length === 2
+        && candidatesAtPick.every(n => /^WD01-01[67]#/.test(n));
+      const paid = (before?.host?.energy ?? 0) - (st?.host?.energy ?? 0) === 2;
+      // 🔴支払い後の候補が**1枚に絞られている**こと。ここが緩むと「払ってから選び直せる」旧挙動に戻る。
+      const frozen = !!candidatesAfterPay && candidatesAfterPay.length === 1
+        && candidatesAfterPay[0] === 'WD01-016#901';
+      return {
+        pass: otherStays && filterOk && candOk && paid && sawTrashScope && frozen,
+        detail: `宣言した1枚だけが手札へ（hand=${JSON.stringify(hand)}）／他のガード持ちは残留=${otherStays}`
+          + `／非ガードは候補外=${filterOk}／候補=${JSON.stringify(candidatesAtPick)}（2枚=${candOk}）`
+          + `／エナ ${before?.host?.energy}→${st?.host?.energy}（-2=${paid}）／「トラッシュから」表示=${sawTrashScope}`
+          + `／🔴支払い後の候補=${JSON.stringify(candidatesAfterPay)}（1枚に凍結=${frozen}）`,
+      };
+    }
+    if (mode === 'skip' && picked && !st?.pendingEffect && s >= 6) {
+      const ok = hand.length === 0 && ['WD01-016#901', 'WD01-017#902'].every(n => trash.includes(n))
+        && (st?.host?.energy ?? 0) === (before?.host?.energy ?? 0);
+      return { pass: ok, detail: `対照＝辞退すれば1枚も動かない（hand=${JSON.stringify(hand)} trash=${JSON.stringify(trash)} ena=${before?.host?.energy}→${st?.host?.energy}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（hand=${JSON.stringify(fin?.host?.handCards)} trash=${JSON.stringify(fin?.host?.trashCards)} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+};
+
+scenarios.o188TrashRecoverPay = {
+  title: 'WX24-P4-044-E3（§5.3 O-188＝トラッシュの対象を先に固定→支払い→その1枚だけが手札へ）',
+  spec: o188Spec(['WD01-013#911', 'WD01-013#912']),
+  drive: o188Drive('o188TrashRecoverPay', 'pay'),
+};
+
+// 対照（§4.4）＝**盤面は1文字も変えず、支払いを辞退するだけ**。単独では何も検証していない。
+scenarios.o188TrashRecoverSkip = {
+  title: 'WX24-P4-044-E3 対照（§5.3 O-188＝辞退すればトラッシュも手札もエナも動かない）',
+  spec: o188Spec(['WD01-013#911', 'WD01-013#912']),
+  drive: o188Drive('o188TrashRecoverSkip', 'skip'),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));

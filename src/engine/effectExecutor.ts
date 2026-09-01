@@ -130,7 +130,7 @@ const exceedPoolCountOf = (state: PlayerState): number =>
 // 分岐に渡すと支払い後に候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）。
 // SEND_TO_ENERGY / TRANSFER_TO_DECK はタスク12(liii) の族（エナ送り・デッキの一番下）で必要になり追加。
 function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
-  const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY'];
+  const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY'];
   if (FREEZABLE.includes(action.type) && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
@@ -3132,8 +3132,32 @@ function resolveDynamicFilter(
   return result;
 }
 
+function transferToHandTrashCandidates(src: EffectTarget, ctx: ExecCtx): string[] {
+  if (src.type !== 'TRASH_CARD') return [];
+  const state = ownerState(src.owner, ctx);
+  const ownerSt = src.owner === 'self' ? ctx.ownerState : ctx.otherState;
+  const otherSt = src.owner === 'self' ? ctx.otherState : ctx.ownerState;
+  let cands: string[];
+  if (src.filter?.thisCardOnly) {
+    cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+  } else {
+    const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+    cands = movableTrashCandidates(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+  }
+  if (src.fromLeftFieldUnder) {
+    const allowed = new Set(ctx.leftFieldUnderCards ?? []);
+    cands = cands.filter(n => allowed.has(n));
+  }
+  return cands;
+}
+
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   if (a.transferGroups?.length) {
+    // 🔴`transferGroups` は「同じ移動元から別条件の組をそれぞれ選ぶ」形＝固定対象との1対1対応が付かない。
+    //   黙って束縛を捨てると**無言 no-op** になるので、非対応の組み合わせだと**ログに残して**降りる。
+    if (a.targetsStored || a.fixedCardNums) {
+      return done(addLog(ctx, 'TRANSFER_TO_HAND: transferGroups と対象固定の併用は未対応'));
+    }
     return executeAction({
       type: 'SEQUENCE',
       steps: a.transferGroups.map(group => ({
@@ -3188,16 +3212,9 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     });
   } else if (src.type === 'TRASH_CARD') {
     // thisCardOnly: 効果元カード自身のみ（「このシグニを手札に加える」。トラッシュに置かれた自身を回収。WX04-035-E2）
-    if (src.filter?.thisCardOnly) {
-      cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
-    } else {
-      const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-      cands = movableTrashCandidates(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
-    }
-    if (src.fromLeftFieldUnder) {
-      const allowed = new Set(ctx.leftFieldUnderCards ?? []);
-      cands = cands.filter(n => allowed.has(n));
-    }
+    cands = transferToHandTrashCandidates(src, ctx);
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'CHECK_CARD') {
     // 🆕**チェックゾーンから手札へ**（§5.3 `O-143`・`WXDi-P11-006-E2`）。
@@ -9471,7 +9488,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const r = (stub as unknown as { leaveSubResume?: { selected: string[]; pending: PendingInteractionDef & { type: 'SELECT_TARGET' } } }).leaveSubResume;
         return r ? resumeSelectTarget(r.selected, r.pending, ctx) : done(ctx);
       }
-      return execStub(stub, ctx, executeAction);
+      return execStub(stub, ctx, executeAction, transferToHandTrashCandidates);
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);

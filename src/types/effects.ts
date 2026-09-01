@@ -1910,6 +1910,10 @@ export interface PlaceSigniOnFieldAction {
 export interface TransferToHandAction {
   type: 'TRANSFER_TO_HAND';
   source: EffectTarget; // どこから何を（TRASH_CARD, ENERGY_CARD など）
+  /** STORE_LAST_PROCESSED_TARGETS で先に固定した対象だけを手札へ移す（§5.3 `O-188`） */
+  targetsStored?: boolean;
+  /** 任意コストのインタラクションを跨いで凍結済みの対象（`freezeStoredTargets` が書く） */
+  fixedCardNums?: string[];
   /** 同じ移動元から異なる条件の組をそれぞれ選ぶ。source と併用せず、source の owner/type を共有する。 */
   transferGroups?: { count: number; filter?: TargetFilter }[];
 }

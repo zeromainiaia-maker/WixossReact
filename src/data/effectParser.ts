@@ -10034,8 +10034,12 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
 //   **範囲は下の構造ガードが担保する**＝原文は「その順序で書かれているか」の確認にしか使わない。
 // 🔴**適用地点は効果単位の最終 root**（`parseActionText` の中でやると `CHOOSE` 組み立て前の枝が
 //   一時的に root SEQUENCE に見えてスコープ外へ当たる。第2バッチで実測。**ゲートでは出ない**）。
-// 🔴`TRANSFER_TO_HAND` は `targetsStored` を型にも executor にも `freezeStoredTargets` にも持たないため
-//   対象外（付けても無視される＝無言 no-op になる。§5.3 `O-188`）。
+// 🆕`TRANSFER_TO_HAND` は §5.3 `O-188` 第1バッチで4箇所を配線した（型／`execTransferToHand`／
+//   `freezeStoredTargets`／`SELECT_TARGET_ONLY` の `TRASH_CARD` 対応）＝もう無言 no-op にはならない。
+// ⚠**`hasGuard`/`noGuard` への限定は「意味的な根拠のある絞り込みではなく、初回のサンプリング」**。
+//   候補集合は engine 側で `execTransferToHand` と同一関数を共有しているので、広げても契約は壊れない。
+//   ⇒ **第2バッチでこの限定を外し、`TRASH_CARD`/`owner:'self'`/`transferGroups` 無しの全体へ広げる**
+//   （一度に20効果を載せないための暫定ガードであることを、外す人が分かるように明記しておく）。
 // 🔴既に固定済みの効果へ二重適用しない（O-96 欠陥署名③④をそのままガードにする）。
 const O96_TARGET_BEFORE_OPTIONAL_COST_RE = /を対象とし[、,][^。]*?てもよい。そうした場合[、,]/;
 
@@ -10044,7 +10048,7 @@ const O96_TARGET_BEFORE_OPTIONAL_COST_RE = /を対象とし[、,][^。]*?ても�
 // ⚠**この2条件のどちらかが欠けると「フィールドは付いたが engine が無視する」＝無言 no-op** になる。
 //   型だけ見て足さないこと（`TRANSFER_TO_HAND` がまさにその形）。
 const O96_STORABLE_OUTCOMES = [
-  'BOUNCE', 'POWER_MODIFY', 'BANISH', 'TRASH', 'TRANSFER_TO_DECK', 'SEND_TO_ENERGY', 'EXILE',
+  'BOUNCE', 'POWER_MODIFY', 'BANISH', 'TRASH', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'SEND_TO_ENERGY', 'EXILE',
 ];
 
 function hasStoredTargetBinding(node: unknown): boolean {
@@ -10080,12 +10084,23 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   if (Object.keys(cost).some(k => !allowedCostKeys.includes(k))) return action;
 
   const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
-  const outcome = gate.then as EffectAction & { target?: EffectTarget };
-  if (!O96_STORABLE_OUTCOMES.includes(outcome.type)
-      || outcome.target?.type !== 'SIGNI') return action;
+  const outcome = gate.then as EffectAction & {
+    target?: EffectTarget;
+    source?: EffectTarget;
+    transferGroups?: unknown[];
+  };
+  if (!O96_STORABLE_OUTCOMES.includes(outcome.type)) return action;
+  const transferTarget = outcome.type === 'TRANSFER_TO_HAND'
+      && outcome.source?.type === 'TRASH_CARD'
+      && outcome.source.owner === 'self'
+      && !outcome.transferGroups?.length
+      && (outcome.source.filter?.hasGuard === true || outcome.source.filter?.noGuard === true)
+    ? outcome.source : undefined;
+  const declaredTarget = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget : outcome.target;
+  if (!declaredTarget || (outcome.type !== 'TRANSFER_TO_HAND' && declaredTarget.type !== 'SIGNI')) return action;
 
   const selectTargetStep: EffectAction = {
-    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: outcome.target, abortIfNoCandidate: true,
+    type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: declaredTarget, abortIfNoCandidate: true,
   } as StubAction;
   const storeTargetStep: EffectAction = { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction;
   const paidGate: EffectAction = {

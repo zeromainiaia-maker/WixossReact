@@ -17299,12 +17299,12 @@ test('O-96 第1バッチ 実行: 候補0なら任意コストを提示せず、�
   ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも任意コストを提示してしまう');
 }));
 
-test('O-96 第1バッチ 据置契約: TRANSFER_TO_HAND は targetsStored 非対応なので固定形へ変えない', () => {
+test('O-188 第1バッチ 据置契約: ガード軸以外の TRANSFER_TO_HAND はまだ固定形へ変えない', () => {
   const effect = o96Live('SPK01-12', 'SPK01-12-E1');
   const json = JSON.stringify(effect.action);
-  ok(!json.includes('SELECT_TARGET_ONLY'), 'TRANSFER_TO_HAND へ対象宣言を足さない');
-  ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), 'TRANSFER_TO_HAND へ保存を足さない');
-  ok(!json.includes('targetsStored'), '未対応フィールドを足さない');
+  ok(!json.includes('SELECT_TARGET_ONLY'), '第1バッチ外へ対象宣言を足さない');
+  ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), '第1バッチ外へ保存を足さない');
+  ok(!json.includes('targetsStored'), '第1バッチ外へ targetsStored を足さない');
 });
 
 test('O-96 第2バッチ JSON順序: handDiscard の4帰結型と payload／期間／delta を保存する', () => {
@@ -57521,6 +57521,127 @@ test('天使の非共通色: else 枝にも条件が付いた（SP27-012 / WX21-
       filter: { cardType: 'シグニ', story: '天使', colorNotMatchesSource: true }, excludeSelf: true, minCount: 1,
     }), `${id}: else は「共通する色を持たない他の＜天使＞がある場合」`);
   }
+});
+
+// ── §5.3 `O-188` 第1バッチ（2026-09-01）──
+// 「あなたのトラッシュから〈X〉1枚を対象とし、《色》を支払ってもよい。そうした場合、それを手札に加える」。
+// 🔴実害＝対象宣言が落ちていたため、**コストを払ったあとで別の札を選び直せた**（過剰実行側）。
+// engine 側は `SELECT_TARGET_ONLY{TRASH_CARD}` ＋ `TRANSFER_TO_HAND{targetsStored}` で固定する。
+const o188GuardCards = [...cardMap.values()].filter(c => c.Guard === '1').slice(0, 2).map(c => c.CardNum);
+const o188WhiteEnergy = findCard(c => c.Color.includes('白') && c.Guard === '0');
+
+test('O-188 第1バッチ fresh: ガード軸のトラッシュ回収は支払い前に対象を固定する', () => {
+  for (const [cardNum, effectId] of [
+    ['WX24-P4-044', 'WX24-P4-044-E3'],
+    ['WXDi-P02-035', 'WXDi-P02-035-E2'],
+    ['WXDi-P05-042', 'WXDi-P05-042-E2'],
+  ] as const) {
+    const freshEffect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    ok(!!freshEffect, `${effectId}: fresh パースが存在する`);
+    if (!freshEffect) continue;
+    const steps = o96FixedSteps(freshEffect) as (EffectAction & {
+      id?: string; abortIfNoCandidate?: boolean; selectTarget?: EffectTarget; then?: EffectAction;
+    })[];
+    eq(steps[0].id, 'SELECT_TARGET_ONLY', `${effectId}: コストより先に対象を宣言する`);
+    eq(steps[0].selectTarget?.type, 'TRASH_CARD', `${effectId}: 宣言先はトラッシュ`);
+    eq(steps[0].selectTarget?.owner, 'self', `${effectId}: 自分のトラッシュに限る`);
+    eq(steps[0].abortIfNoCandidate, true, `${effectId}: 候補0なら降りる`);
+    eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 宣言した対象を保存する`);
+    eq(((steps[3] as ConditionalAction).then as EffectAction & { targetsStored?: boolean }).targetsStored, true,
+      `${effectId}: 帰結が保存対象へ束縛されている`);
+    assertO96FixedOrder(cardNum, effectId);
+  }
+  const heldBack = parseCardEffects(cardMap.get('SPK01-12')!).find(e => e.effectId === 'SPK01-12-E1');
+  ok(!!heldBack, 'SPK01-12-E1: fresh パースが存在する');
+  ok(!JSON.stringify(heldBack?.action).includes('SELECT_TARGET_ONLY'),
+    'SPK01-12-E1: 動的条件つき（このターンに手札から捨てた）は第1バッチ外＝据置');
+});
+const o188TargetFirstAction: EffectAction = {
+  type: 'SEQUENCE',
+  steps: [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+      selectTarget: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { hasGuard: true } } },
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+    { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] },
+    { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+      then: { type: 'TRANSFER_TO_HAND',
+        source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { hasGuard: true } },
+        targetsStored: true } },
+  ],
+} as EffectAction;
+
+function o188AfterTarget(affordable: boolean, trash = o188GuardCards): { result: ExecResult; ctx: ExecCtx } {
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState,
+    energy: affordable ? [o188WhiteEnergy] : [], trash: [...trash], hand: [] } } as ExecCtx;
+  const first = executeEffect({ effectId: 'O-188-engine', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: o188TargetFirstAction } as CardEffect, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'O-188: トラッシュの対象宣言が選択UIになる');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return { result: first, ctx };
+  eq(first.pending.targetScope, 'self_trash', 'O-188: 選択スコープは self_trash');
+  const result = resumeSelectTarget([o188GuardCards[1]], first.pending, ctxAfter(first, ctx));
+  return { result, ctx: ctxAfter(result, ctx) };
+}
+
+test('O-188 第1バッチ 実行: 支払うと「先に選んだ1枚だけ」が手札へ行く', () => {
+  eq(o188GuardCards.length, 2, 'O-188: 対照用にガード持ちが2枚ある');
+  const selected = o188AfterTarget(true);
+  ok(!selected.result.done && selected.result.pending.type === 'CHOOSE', 'O-188: 任意コストが提示される');
+  if (selected.result.done || selected.result.pending.type !== 'CHOOSE') return;
+  const paid = resumeOptionalCost('pay', [o188WhiteEnergy], selected.result.pending, selected.ctx);
+  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', 'O-188: 凍結された回収対象が解決される');
+  if (paid.done || paid.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(paid.pending.candidates), JSON.stringify([o188GuardCards[1]]),
+    '🔴O-188: 支払い後に別のトラッシュ札へ選び直せない（これが実害そのもの）');
+  const resolved = resumeSelectTarget([o188GuardCards[1]], paid.pending, ctxAfter(paid, selected.ctx));
+  ok(resolved.ownerState.hand.includes(o188GuardCards[1]), 'O-188: 宣言したカードが手札へ行く');
+  ok(resolved.ownerState.trash.includes(o188GuardCards[0]), 'O-188: 対照のカードはトラッシュに残る');
+  ok(!resolved.ownerState.hand.includes(o188GuardCards[0]), 'O-188: 対照のカードは動かない');
+  ok(!resolved.ownerState.energy.includes(o188WhiteEnergy), 'O-188: 任意コストのエナが実際に払われた');
+});
+
+test('O-188 第1バッチ 実行 対照: 支払わなければ1枚も手札へ行かない', () => {
+  const selected = o188AfterTarget(true);
+  ok(!selected.result.done && selected.result.pending.type === 'CHOOSE');
+  if (selected.result.done || selected.result.pending.type !== 'CHOOSE') return;
+  const skipped = resumeOptionalCost('skip', [], selected.result.pending, selected.ctx);
+  eq(skipped.ownerState.hand.length, 0, 'O-188: skip では回収されない');
+  ok(o188GuardCards.every(n => skipped.ownerState.trash.includes(n)), 'O-188: skip 後も2枚ともトラッシュに残る');
+});
+
+test('O-188 第1バッチ 実行 fail-closed: 払えない盤面では pay を選べない', () => {
+  const selected = o188AfterTarget(false);
+  ok(!selected.result.done && selected.result.pending.type === 'CHOOSE');
+  if (selected.result.done || selected.result.pending.type !== 'CHOOSE') return;
+  eq(selected.result.pending.options.find(o => o.id === 'pay')?.available, false,
+    'O-188: エナが無ければ pay は選択不能');
+  const forced = resumeOptionalCost('pay', [], selected.result.pending, selected.ctx);
+  eq(forced.ownerState.hand.length, 0, 'O-188: 不正な支払いを強制しても回収されない');
+  ok(o188GuardCards.every(n => forced.ownerState.trash.includes(n)), 'O-188: 不正な支払いではトラッシュが変わらない');
+});
+
+test('O-188 第1バッチ 実行: 候補0なら任意コストを提示せず降りる（無言 no-op の再発防止）', () => {
+  const nonGuard = findCard(c => c.Guard === '0');
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState,
+    energy: [o188WhiteEnergy], trash: [nonGuard], hand: [] } } as ExecCtx;
+  const result = executeEffect({ effectId: 'O-188-empty', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: o188TargetFirstAction } as CardEffect, ctx);
+  ok(result.done, 'O-188: 候補0でも宙吊りにならず解決する');
+  eq(result.ownerState.hand.length, 0, 'O-188: 候補0では回収されない');
+  ok(result.ownerState.energy.includes(o188WhiteEnergy), 'O-188: 候補0ではコストを提示も徴収もしない');
+});
+
+test('O-188 第1バッチ 退化検出: targetsStored 省略時は従来どおり全候補が出る', () => {
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: [...o188GuardCards], hand: [] } } as ExecCtx;
+  const result = executeEffect({ effectId: 'O-188-omitted', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'TRANSFER_TO_HAND',
+      source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { hasGuard: true } } } } as CardEffect, ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', 'O-188: 通常のトラッシュ回収は従来どおり選択UI');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(result.pending.candidates), JSON.stringify(o188GuardCards),
+    '🔴O-188: 省略＝全候補（省略をスキップに倒すと既存23効果が全滅する）');
 });
 
 if (listMode) {

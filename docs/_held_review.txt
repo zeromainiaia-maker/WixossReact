@@ -69,6 +69,54 @@ WXDi-CP02-076 WXDi-P01-059 WXEX1-15 WXK03-029
   - [0].action.steps[1].then.optional = false
   …（他 25 行）
 
+## +PAID_ADDITIONAL_COST +STUB×2 +TRASH_CARD -IS_MY_TURN ［3枚］
+WX24-P4-044 WXDi-P02-035 WXDi-P05-042
+--- WX24-P4-044
+  原文: 【常】《相手ターン》：【シャドウ】【常】《相手ターン》：あなたのシグニのパワーをあなたのルリグトラッシュにあるアーツ１枚につき＋1000する。【自】：あなたのターン終了時、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、《無》《無》を支払ってもよい。そうした場合、それを手札に加える。,-
+  - [2].action.steps[0].costColors[0] = "無"
+  - [2].action.steps[0].costColors[1] = "無"
+  - [2].action.steps[1].condition.type = "IS_MY_TURN"
+  - [2].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [2].action.steps[1].then.source.type = "TRASH_CARD"
+  - [2].action.steps[1].then.source.owner = "self"
+  - [2].action.steps[1].then.source.count = 1
+  - [2].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [2].action.steps[1].then.source.filter.hasGuard = true
+  ~ [2].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [2].action.steps[0].selectTarget.type = "TRASH_CARD"
+  + [2].action.steps[0].selectTarget.owner = "self"
+  …（他 19 行）
+--- WXDi-P02-035
+  原文: 【ハーモニー】赤のルリグ１体【自】《ターン１回》：あなたが【ガード】したとき、カードを１枚引く。【自】：このシグニがアタックしたとき、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、《白》《無》を支払ってもよい。そうした場合、それを手札に加える。,-
+  - [1].action.steps[0].costColors[0] = "白"
+  - [1].action.steps[0].costColors[1] = "無"
+  - [1].action.steps[1].condition.type = "IS_MY_TURN"
+  - [1].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [1].action.steps[1].then.source.type = "TRASH_CARD"
+  - [1].action.steps[1].then.source.owner = "self"
+  - [1].action.steps[1].then.source.count = 1
+  - [1].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [1].action.steps[1].then.source.filter.hasGuard = true
+  ~ [1].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [1].action.steps[0].selectTarget.type = "TRASH_CARD"
+  + [1].action.steps[0].selectTarget.owner = "self"
+  …（他 19 行）
+--- WXDi-P05-042
+  原文: 【出】：あなたのデッキの上からカードを３枚トラッシュに置く。その後、この方法でトラッシュに置かれたすべてのカードがレベル１のシグニの場合、対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－10000する。【自】：このカードがデッキからトラッシュに置かれたとき、あなたのトラッシュから《ガードアイコン》を持た
+  - [1].action.steps[0].costColors[0] = "無"
+  - [1].action.steps[1].condition.type = "IS_MY_TURN"
+  - [1].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [1].action.steps[1].then.source.type = "TRASH_CARD"
+  - [1].action.steps[1].then.source.owner = "self"
+  - [1].action.steps[1].then.source.count = 1
+  - [1].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [1].action.steps[1].then.source.filter.level = 1
+  - [1].action.steps[1].then.source.filter.noGuard = true
+  ~ [1].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [1].action.steps[0].selectTarget.type = "TRASH_CARD"
+  + [1].action.steps[0].selectTarget.owner = "self"
+  …（他 20 行）
+
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
 --- WDK05-R11
