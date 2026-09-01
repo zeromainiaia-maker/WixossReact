@@ -1346,6 +1346,8 @@ export type TargetScope =
   | 'self_field' | 'opp_field' | 'both_field'  // both_field: 自分・対戦相手の両シグニゾーン（「対象のシグニ」owner:'any'）
   | 'self_hand'  | 'opp_hand'
   | 'self_trash' | 'opp_trash'
+  | 'both_trash' // 自分・対戦相手の両トラッシュ（「いずれかのトラッシュから」）
+  | 'self_trap'  // 自分の field.signi_traps（裏向き【トラップ】）
   | 'self_energy'| 'opp_energy'
   // 手札＋エナゾーンを跨いだ単一プール（「エナゾーンのカードと手札を合計N枚」＝タスク12(lxi) 第11波）
   | 'self_hand_energy' | 'opp_hand_energy'

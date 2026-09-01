@@ -17588,6 +17588,117 @@ test('O-190 第1バッチ live E2E: 4コスト群は pay時だけ前半を消費
   }
 }));
 
+// PLAN §5.3 O-190 第2バッチ＝任意コストから消えていた「トラッシュ除外」と
+// 「他の【トラップ】をトラッシュ」を、JSON型→runtime転送→可否→実支払いまで固定する。
+test('O-190 第2バッチ fresh/live: 3効果の複合任意コストpayloadを保持する', () => {
+  const expected = [
+    ['WXDi-P11-049', 'WXDi-P11-049-E1', 'trashExile', {
+      count: 3, owner: 'self', filter: { cardType: 'シグニ', story: '毒牙' },
+    }],
+    ['WX22-018', 'WX22-018-E2', 'trashExile', {
+      count: 1, owner: 'any', filter: { cardType: 'スペル', costMin: 0, costMax: 0 },
+    }],
+    ['WX15-053', 'WX15-053-TRAP', 'fieldTrapTrash', { count: 1, excludeSource: true }],
+  ] as const;
+  for (const [cardNum, effectId, key, payload] of expected) {
+    const freshEffect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const liveEffect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    for (const [label, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
+      const cost = o190OptionalCost(effect) as unknown as Record<string, unknown>;
+      eq(JSON.stringify(cost[key]), JSON.stringify(payload), `${effectId} ${label}: ${key}`);
+    }
+  }
+});
+
+test('O-190 第2バッチ WX22-018-E2: 今回はdid-itゲートと帰結対象を変更しない', () => {
+  for (const [label, effect] of [
+    ['fresh', parseCardEffects(cardMap.get('WX22-018')!).find(e => e.effectId === 'WX22-018-E2')!],
+    ['live', effectsMap.get('WX22-018')!.find(e => e.effectId === 'WX22-018-E2')!],
+  ] as const) {
+    const json = JSON.stringify(effect.action);
+    ok(json.includes('IS_MY_TURN'), `${label}: 既存 IS_MY_TURN ゲートを維持する`);
+    ok(!json.includes('PAID_ADDITIONAL_COST'), `${label}: did-it ゲートを部分修正しない`);
+    ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), `${label}: 帰結対象固定を本バッチへ混ぜない`);
+  }
+});
+
+test('O-190 第2バッチ runtime: ちょうど払える／1枚足りないを両新キーでfail-closedにする', () => withSavedCursor(() => {
+  const poison = [...cardMap.values()]
+    .filter(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙')).slice(0, 3).map(c => c.CardNum);
+  eq(poison.length, 3, '＜毒牙＞シグニを3枚用意');
+  const poisonCost = o190OptionalCost(parseCardEffects(cardMap.get('WXDi-P11-049')!).find(e => e.effectId === 'WXDi-P11-049-E1')!);
+  const poisonOk = mkCtx({}, {}, 'WXDi-P11-049'); poisonOk.ownerState.trash = [...poison];
+  const poisonNg = mkCtx({}, {}, 'WXDi-P11-049'); poisonNg.ownerState.trash = poison.slice(0, 2);
+  const poisonSpec = resolveOptionalCostSpec({ ...poisonCost, costColors: [] }, poisonOk);
+  ok(canAffordOptionalCostSpec(poisonSpec, poisonOk), '＜毒牙＞3枚なら除外コストを払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec({ ...poisonCost, costColors: [] }, poisonNg), poisonNg),
+    '＜毒牙＞2枚ではpay択を出さない');
+  const poisonStep = optionalCostPaySteps(poisonSpec)[0] as Extract<EffectAction, { type: 'EXILE' }>;
+  eq(poisonStep.target.owner, 'self', '自分のトラッシュだけを除外候補にする');
+
+  const zeroSpell = findCard(c => matchesFilter(c, { cardType: 'スペル', costMin: 0, costMax: 0 }));
+  const anyCost = o190OptionalCost(parseCardEffects(cardMap.get('WX22-018')!).find(e => e.effectId === 'WX22-018-E2')!);
+  const anyOk = mkCtx({}, {}); anyOk.ownerState.trash = []; anyOk.otherState.trash = [zeroSpell];
+  const anyNg = mkCtx({}, {}); anyNg.ownerState.trash = []; anyNg.otherState.trash = [];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec({ ...anyCost, costColors: [] }, anyOk), anyOk),
+    '相手のトラッシュだけにコスト0スペルがあっても払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec({ ...anyCost, costColors: [] }, anyNg), anyNg),
+    '両トラッシュに候補がなければpay択を出さない');
+  const anyStep = optionalCostPaySteps(resolveOptionalCostSpec({ ...anyCost, costColors: [] }, anyOk))[0] as Extract<EffectAction, { type: 'EXILE' }>;
+  eq(anyStep.target.owner, 'any', 'EXILEへowner:anyを転送する');
+
+  const trapCost = o190OptionalCost(parseCardEffects(cardMap.get('WX15-053')!).find(e => e.effectId === 'WX15-053-TRAP')!);
+  const trapOk = mkCtx({}, {}, 'WX15-053'); trapOk.ownerState.field.signi_traps = ['WX15-053', 'WX15-052', null];
+  const trapNg = mkCtx({}, {}, 'WX15-053'); trapNg.ownerState.field.signi_traps = ['WX15-053', null, null];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec({ ...trapCost, costColors: [] }, trapOk), trapOk),
+    '効果元以外の【トラップ】が1枚あれば払える');
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec({ ...trapCost, costColors: [] }, trapNg), trapNg),
+    '効果元自身しかなければpay択を出さない');
+  const trapStep = optionalCostPaySteps(resolveOptionalCostSpec({ ...trapCost, costColors: [] }, trapOk))[0] as import('../src/types/effects').StubAction;
+  eq(trapStep.id, 'INTERNAL_TRASH_FIELD_TRAP_COST', 'トラップ専用支払いへ転送する');
+}));
+
+test('O-190 第2バッチ live E2E: pay時だけ除外／トラップ支払いと本体を実行し、skipでは何も起こさない', () => withSavedCursor(() => {
+  const energyOf = (color: string) => findCard(c => (c.Color ?? '').includes(color));
+  const poison = [...cardMap.values()]
+    .filter(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙')).slice(0, 3).map(c => c.CardNum);
+  const victimA = SIGNI_L3;
+  const poisonEffect = effectsMap.get('WXDi-P11-049')!.find(e => e.effectId === 'WXDi-P11-049-E1')!;
+  const poisonCtx = mkCtx({ energy: 0 }, { signi: [victimA, null, null] }, 'WXDi-P11-049');
+  poisonCtx.ownerState.trash = [...poison]; poisonCtx.ownerState.energy = [energyOf('黒')];
+  const poisonPaid = finishPayingCosts(executeEffect(poisonEffect, poisonCtx), poisonCtx);
+  ok(poison.every(n => poisonPaid.ownerState.excluded?.includes(n)), 'payで＜毒牙＞3枚を除外する');
+  ok((poisonPaid.otherState.temp_power_mods ?? []).some(m => m.cardNum === victimA && m.delta === -10000),
+    'payで対象のパワーを－10000する');
+  const poisonSkipBase = structuredClone(poisonCtx) as ExecCtx;
+  const poisonOffer = o190Offer(poisonEffect, poisonSkipBase);
+  ok(!poisonOffer.result.done && poisonOffer.result.pending.type === 'CHOOSE', '除外コストのskip提示がある');
+  if (!poisonOffer.result.done && poisonOffer.result.pending.type === 'CHOOSE') {
+    const skipped = finish(resumeOptionalCost('skip', [], poisonOffer.result.pending, poisonOffer.ctx), poisonOffer.ctx);
+    ok(poison.every(n => skipped.ownerState.trash.includes(n)), 'skipならトラッシュを除外しない');
+    ok(!(skipped.otherState.temp_power_mods ?? []).some(m => m.cardNum === victimA && m.delta === -10000),
+      'skipなら－10000本体を起こさない');
+  }
+
+  const victimB = SIGNI_L2;
+  const trapEffect = effectsMap.get('WX15-053')!.find(e => e.effectId === 'WX15-053-TRAP')!;
+  const trapCtx = mkCtx({ energy: 0 }, { signi: [victimB, null, null] }, 'WX15-053');
+  trapCtx.ownerState.energy = [energyOf('青')];
+  trapCtx.ownerState.field.signi_traps = ['WX15-053', 'WX15-052', null];
+  const trapPaid = finishPayingCosts(executeEffect(trapEffect, trapCtx), trapCtx);
+  ok(trapPaid.ownerState.field.signi_traps?.[0] === 'WX15-053', '効果元の【トラップ】自身は支払いに使わない');
+  ok(trapPaid.ownerState.trash.includes('WX15-052'), 'payで他の【トラップ】1枚をトラッシュに置く');
+  ok(!tops(trapPaid.otherState).includes(victimB), 'payで固定済み対象をバニッシュする');
+  const trapSkipBase = structuredClone(trapCtx) as ExecCtx;
+  const trapOffer = o190Offer(trapEffect, trapSkipBase);
+  ok(!trapOffer.result.done && trapOffer.result.pending.type === 'CHOOSE', 'トラップコストのskip提示がある');
+  if (!trapOffer.result.done && trapOffer.result.pending.type === 'CHOOSE') {
+    const skipped = finish(resumeOptionalCost('skip', [], trapOffer.result.pending, trapOffer.ctx), trapOffer.ctx);
+    ok(skipped.ownerState.field.signi_traps?.[1] === 'WX15-052', 'skipなら他の【トラップ】を残す');
+    ok(tops(skipped.otherState).includes(victimB), 'skipならバニッシュ本体を起こさない');
+  }
+}));
+
 // 意味照合 段2（2026-09-01 続き767）＝`cost.energyTrashGroups` の支払いUI（`SigniOnPlayCostModal`）を新設した。
 // 🔴旧 live は `costUnparsed:true` ＝**発動コストが無料**だった（エナを1枚も払わずに相手シグニ2体を触れた）。
 // ⚠**型はもとから在った**が、消費が `resonaSummon.ts`（レゾナ召喚）1箇所だけで、

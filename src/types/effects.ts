@@ -4181,6 +4181,8 @@ export interface StubAction {
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること
   //   （片方だけだと「払えない盤面で支払うボタンが出る」か「どの下カードでも払える」になる）。
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  /** OPTIONAL_COST: トラッシュから条件一致カードをゲームから除外する任意コスト。`owner:'any'` は両プレイヤーのトラッシュ。 */
+  trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
   /**
    * UNDER_CARD_AS_ENERGY_COST: 「このシグニの下にあるカードをエナゾーンにあるかのように
    * トラッシュに置いて（エナコストを）支払える」（`WXDi-P10-041`）。CONTINUOUS の宣言型で、
@@ -4207,6 +4209,8 @@ export interface StubAction {
   };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** OPTIONAL_COST: 自分のトラップゾーンから【トラップ】をトラッシュへ置く任意コスト。 */
+  fieldTrapTrash?: { count: number; excludeSource?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 異なる条件の場シグニを組でトラッシュへ置く任意コスト。 */

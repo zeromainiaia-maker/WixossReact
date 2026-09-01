@@ -13163,6 +13163,44 @@ function fullyExpressibleCostFilter(spec: string): TargetFilter | null {
 /** 任意コスト句（「〜てもよい」の直前）を OPTIONAL_COST の payload へ写す。表せない句は null＝据置。 */
 function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | null {
   const c = clause.replace(/^[、,]/, '').trim();
+  // O-190 第2バッチ①「トラッシュから〈修飾〉カードN枚をゲームから除外し」。
+  // 「コストの合計がN」は既存 TargetFilter.costMin/costMax の同値で exact を表し、新キーを作らない。
+  const trashExileM = c.match(/^(あなたのトラッシュにある|(?:あなたは)?いずれかのトラッシュから対象の)(.*?)(カード|シグニ|スペル)([０-９\d]+)枚をゲームから除外し$/);
+  if (trashExileM) {
+    const desc = trashExileM[2] ?? '';
+    const noun = trashExileM[3];
+    let filter = parsePickNounPhraseFilter(desc, noun);
+    // parsePickNounPhraseFilter は修飾語から先に組み立てるため story→cardType 順になる。
+    // 生成 JSON は payload 仕様の cardType→story 順で安定させる（意味は同じだが per-effect diff を読みやすくする）。
+    if (filter?.cardType && filter.story) filter = { cardType: filter.cardType, ...filter };
+    const exactCost = desc.match(/^コストの合計が([０-９\d]+)の$/);
+    if (!filter && exactCost) {
+      const value = parseNum(exactCost[1]);
+      filter = {
+        ...(noun !== 'カード' ? { cardType: noun as 'シグニ' | 'スペル' } : {}),
+        costMin: value, costMax: value,
+      };
+    }
+    if (!filter) return null;
+    return {
+      trashExile: {
+        count: parseNum(trashExileM[4]),
+        owner: trashExileM[1].includes('いずれか') ? 'any' : 'self',
+        filter,
+      },
+    };
+  }
+  // O-190 第2バッチ②「あなたの場にある他の【トラップ】N枚をトラッシュに置き」。
+  // 【トラップ】は field.signi_traps の別ゾーン。「他の」は効果元自身を候補から外す。
+  const fieldTrapM = c.match(/^あなたの場にある(他の)?【トラップ】([０-９\d]+)枚をトラッシュに置き$/);
+  if (fieldTrapM) {
+    return {
+      fieldTrapTrash: {
+        count: parseNum(fieldTrapM[2]),
+        ...(fieldTrapM[1] ? { excludeSource: true } : {}),
+      },
+    };
+  }
   // ①「このシグニを場からトラッシュに置い」＝効果元自身。
   // 🔴**`OPTIONAL_COST{selfTrash}` を新設しない**＝この意味の受け皿は既に `OPTIONAL_TRASH_SELF`（`applySelfTrashOptionalCost`）で、
   //   golden「§6.4 幻の手札コスト」がそれを固定している。並行新設すると**既存の正しい実装を上書きする退化**になる（§5-5e／§5-8）。
@@ -13250,7 +13288,7 @@ function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | nu
 function applyCompositeOptionalCostFields(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   const scan = text.replace(/（[^（）]*）/g, '').replace(/「[^」]*」/g, '「Q」');
-  const m = scan.match(/(?:^|[、,])([^、。]*?(?:トラッシュに置き|捨て|公開し))[、,]?((?:《[^》]+》|か)+)を支払ってもよい。そうした場合[、,]/);
+  const m = scan.match(/(?:^|[、,])([^、。]*?(?:トラッシュに置き|ゲームから除外し|捨て|公開し))[、,]?((?:《[^》]+》|か)+)を支払ってもよい。そうした場合[、,]/);
   if (!m) return action;
   const fields = parseOptionalCostClauseFields(m[1]);
   // OPTIONAL_TRASH_SELF は既存の専用経路の領分。ここで別 id へ差し替えない。
@@ -13279,7 +13317,10 @@ function applyCompositeOptionalCostFields(text: string, action: EffectAction): E
     // 同じ効果で実在する「そうした場合」の直後ゲートだけを実支払い条件へ直す。
     // 前置条件の内側にコストだけがある WX24-P1-011 は構造が別なので、この枝には入らず据置。
     const next = steps[carrier.index + 1];
-    if (next?.type === 'CONDITIONAL' && next.condition.type === 'IS_MY_TURN') {
+    // WX22-018-E2 は帰結対象の固定と did-it 木が未整備。本バッチはコストpayloadだけを採り、
+    // 既存 IS_MY_TURN ゲートを PAID_ADDITIONAL_COST へ片側だけ変えない（対象固定と同時に直す領分）。
+    if (next?.type === 'CONDITIONAL' && next.condition.type === 'IS_MY_TURN'
+        && !/いずれかのトラッシュから対象の/.test(scan)) {
       steps[carrier.index + 1] = { ...next, condition: { type: 'PAID_ADDITIONAL_COST' } };
     }
   }

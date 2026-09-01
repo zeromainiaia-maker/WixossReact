@@ -5074,6 +5074,38 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(key)?.CardName ?? key}をルリグトラッシュへ`));
   }
+  // 複合任意コスト：【トラップ】は field.signi_traps の別ゾーンなので、SIGNI の TRASH では払わない。
+  // INTERNAL_TRASH_FIELD_TRAP_COST: 候補提示／INTERNAL_TRASH_SELECTED_FIELD_TRAP_COST: 選択済み1枚の移動。
+  if (stub.id === 'INTERNAL_TRASH_FIELD_TRAP_COST') {
+    const spec = stub.fieldTrapTrash;
+    if (!spec) return done(addLog(ctx, '【トラップ】支払い仕様なし'));
+    const candidates = (ctx.ownerState.field.signi_traps ?? [])
+      .filter((n): n is string => !!n)
+      .filter(n => !spec.excludeSource || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
+    if (candidates.length < spec.count) return done(addLog(ctx, '支払える【トラップ】が足りない'));
+    return selectOrInteract(candidates, spec.count, false, 'self_trap', {
+      type: 'STUB', id: 'INTERNAL_TRASH_SELECTED_FIELD_TRAP_COST', fieldTrapTrash: spec,
+    } as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_TRASH_SELECTED_FIELD_TRAP_COST') {
+    const selected = ctx.lastProcessedCards?.[0];
+    const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+    const zone = selected ? traps.indexOf(selected) : -1;
+    if (zone < 0 || !selected) return done(addLog(ctx, '選択した【トラップ】が場にない'));
+    if (stub.fieldTrapTrash?.excludeSource && ctx.sourceCardNum && selected === ctx.sourceCardNum) {
+      return done(addLog(ctx, '効果元の【トラップ】は支払えない'));
+    }
+    traps[zone] = null;
+    const ownerState2: PlayerState = {
+      ...ctx.ownerState,
+      trash: [...ctx.ownerState.trash, selected],
+      field: { ...ctx.ownerState.field, signi_traps: traps },
+    };
+    return done({
+      ...addLog({ ...ctx, ownerState: ownerState2 }, `${ctx.cardMap.get(getCardNum(selected))?.CardName ?? selected}を【トラップ】からトラッシュへ`),
+      lastProcessedCards: [selected],
+    });
+  }
   // 手札からクラスシグニを任意枚数捨てる
   if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
     const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

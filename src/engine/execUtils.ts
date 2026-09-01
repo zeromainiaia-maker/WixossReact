@@ -340,10 +340,14 @@ export interface OptionalCostSpec {
   // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
   //   片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される（続き422 で実際に踏んだ）。
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  /** トラッシュから条件一致カードを除外する。owner:'any' は両プレイヤーを単一候補プールにする。 */
+  trashExile?: { count: number; owner: Owner; filter?: TargetFilter };
   energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** 異なるフィルタの組でエナから置く（「《A》1枚と《B》1枚と…」）。支払いはグループごとに1ステップへ分解する。 */
   energyTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** field.signi_traps はシグニゾーンと別領域なので fieldTrash と分ける。 */
+  fieldTrapTrash?: { count: number; excludeSource?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
@@ -405,9 +409,10 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
-    underAnySigniTrash: a.underAnySigniTrash,
+    underAnySigniTrash: a.underAnySigniTrash, trashExile: a.trashExile,
     energyTrash, energyTrashGroups: a.energyTrashGroups,
-    fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
+    fieldTrash: a.fieldTrash, fieldTrapTrash: a.fieldTrapTrash,
+    fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy, selfTrash: a.selfTrash,
     selfEnergyToDeckBottom: a.selfEnergyToDeckBottom,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
@@ -524,6 +529,14 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).length;
     if (underCount < spec.underAnySigniTrash.count) return false;
   }
+  if (spec.trashExile) {
+    const owners: Owner[] = spec.trashExile.owner === 'any'
+      ? ['self', 'opponent'] : [spec.trashExile.owner];
+    const matching = owners.flatMap(owner => movableTrashCandidates(
+      owner, ownerState(owner, ctx), spec.trashExile!.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
+    ));
+    if (matching.length < spec.trashExile.count) return false;
+  }
   if (spec.fieldTrash) {
     const filter = {
       ...(spec.fieldTrash.filter ?? {}),
@@ -532,6 +545,12 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = fieldCandidates(ctx.ownerState, filter, ctx.cardMap)
       .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldTrash.count) return false;
+  }
+  if (spec.fieldTrapTrash) {
+    const matching = (ctx.ownerState.field.signi_traps ?? [])
+      .filter((n): n is string => !!n)
+      .filter(n => !spec.fieldTrapTrash!.excludeSource || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
+    if (matching.length < spec.fieldTrapTrash.count) return false;
   }
   if (spec.fieldToDeckBottom) {
     const matching = fieldCandidates(ctx.ownerState, spec.fieldToDeckBottom.filter, ctx.cardMap)
@@ -614,6 +633,8 @@ export function optionalCostExtraLabels(spec: OptionalCostSpec): string[] {
     ...(spec.selfTrash ? ['このシグニをトラッシュ'] : []),
     ...(spec.selfToEnergy ? ['このシグニをエナゾーンへ'] : []),
     ...(spec.selfEnergyToDeckBottom ? ['このシグニをエナゾーンからデッキの一番下へ'] : []),
+    ...(spec.trashExile ? [`${spec.trashExile.owner === 'any' ? 'いずれかの' : '自分の'}トラッシュから${spec.trashExile.count}枚を除外`] : []),
+    ...(spec.fieldTrapTrash ? [`${spec.fieldTrapTrash.excludeSource ? '他の' : ''}【トラップ】${spec.fieldTrapTrash.count}枚をトラッシュ`] : []),
   ];
 }
 
@@ -665,6 +686,13 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       //   続き421 で「赤のシグニ1枚」等の絞り込みを parser が載せ始めたので、ここで受ける（続き422）。
       ...(spec.underAnySigniTrash.filter ? { filter: spec.underAnySigniTrash.filter } : {}),
     } as EffectAction] : []),
+    ...(spec.trashExile ? [{
+      type: 'EXILE',
+      target: {
+        type: 'TRASH_CARD', owner: spec.trashExile.owner, count: spec.trashExile.count,
+        filter: spec.trashExile.filter,
+      },
+    } as EffectAction] : []),
     ...(spec.fieldTrash ? [{
       type: 'TRASH', asCost: true,
       target: {
@@ -674,6 +702,9 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
           ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
         },
       },
+    } as EffectAction] : []),
+    ...(spec.fieldTrapTrash ? [{
+      type: 'STUB', id: 'INTERNAL_TRASH_FIELD_TRAP_COST', fieldTrapTrash: spec.fieldTrapTrash,
     } as EffectAction] : []),
     ...(spec.fieldToDeckBottom ? [{
       type: 'TRANSFER_TO_DECK', shuffle: false, position: 'bottom',

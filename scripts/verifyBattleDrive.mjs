@@ -19764,6 +19764,162 @@ scenarios.o188TrashRecoverSkip = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// §5.3 `O-190` 第2バッチ（2026-09-01）＝複合任意コストから消えていた
+// 「トラッシュの＜毒牙＞3枚を除外」「他の【トラップ】1枚をトラッシュ」を実 UI で払う。
+// payload は手書きせず生成済み live JSON を読む。これにより payload を外す反転確認で必ず赤になる。
+// ─────────────────────────────────────────────────────────────────────────────
+function o190LiveEffect(cardNum, effectId) {
+  for (const name of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json']) {
+    const effects = JSON.parse(readFileSync(join('public', 'data', name), 'utf8'))[cardNum] ?? [];
+    const effect = effects.find(e => e.effectId === effectId);
+    if (effect) return effect;
+  }
+  throw new Error(`O-190 live effect が見つからない: ${effectId}`);
+}
+
+function o190EffectStack(cardNum, sourceInstance, effectId) {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: `o190-${effectId}`, playerId: null, cardNum: sourceInstance, effectId,
+      label: `${cardNum}（O-190 注入）`, effect: structuredClone(o190LiveEffect(cardNum, effectId)),
+    }],
+  };
+}
+
+const O190_POISONS = ['WX04-037#1901', 'WX04-053#1902', 'WX04-099#1903'];
+const O190_POWER_SOURCE = 'WXDi-P11-049#1900';
+const O190_POWER_TARGET = 'WD01-013#1904';
+const O190_TRAP_SOURCE = 'WX15-053#1910';
+const O190_TRAP_OTHER = 'WX15-052#1911';
+const O190_TRAP_TARGET = 'WD01-013#1912';
+
+const o190TrashExileSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD05-001#1900'], 'field.signi': [[O190_POWER_SOURCE], null, null],
+    'field.signi_down': [false, false, false], 'field.signi_traps': [null, null, null],
+    'field.check': null, trash: [...O190_POISONS], hand: [], energy: ['WD05-010#1905'],
+    excluded: [], temp_power_mods: [], actions_done: [],
+  },
+  guestSet: {
+    'field.signi': [[O190_POWER_TARGET], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, temp_power_mods: [],
+  },
+  top: {
+    active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2,
+    effectStack: o190EffectStack('WXDi-P11-049', O190_POWER_SOURCE, 'WXDi-P11-049-E1'),
+  },
+});
+
+const o190FieldTrapSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1910'], 'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.signi_traps': [O190_TRAP_SOURCE, O190_TRAP_OTHER, null],
+    'field.check': null, trash: [], hand: [], energy: ['WD03-010#1913'], actions_done: [],
+  },
+  guestSet: {
+    'field.signi': [[O190_TRAP_TARGET], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+  },
+  top: {
+    active: 'host', turn_phase: 'MAIN', turn_count: 2,
+    effectStack: o190EffectStack('WX15-053', O190_TRAP_SOURCE, 'WX15-053-TRAP'),
+  },
+});
+
+async function o190ClickEnabledDecision(page) {
+  const button = page.getByRole('button', { name: /^決定/ }).first();
+  if (!(await button.count()) || !(await button.isVisible().catch(() => false))) return null;
+  // 🔴H.clickTextOrBtn/H.clickBtn は disabled を見ない。候補選択後に enabled を確認して初めて押す。
+  if (!(await button.isEnabled().catch(() => false))) return null;
+  await button.click({ timeout: 2000 });
+  return 'btn:決定(enabled)';
+}
+
+const o190CostDrive = (tag, mode, kind) => async (page, H) => {
+  const target = kind === 'trashExile' ? O190_POWER_TARGET : O190_TRAP_TARGET;
+  const costCards = kind === 'trashExile' ? O190_POISONS : [O190_TRAP_OTHER];
+  let targetNeedsPick = true; let energyPicked = false; let payClicked = false; let skipClicked = false;
+  const pickedCosts = new Set(); let costCandidates = null; let sourceWasCandidate = false;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const before = await H.queryState();
+    const candidates = Array.isArray(before?.pendingCandidates) ? before.pendingCandidates : [];
+    let did = null;
+
+    if (candidates.includes(target) && targetNeedsPick) {
+      did = await clickPendingInstance(page, H, target);
+      if (did) targetNeedsPick = false;
+    }
+    if (!did && mode === 'pay' && candidates.some(n => costCards.includes(n))) {
+      costCandidates ??= [...candidates];
+      sourceWasCandidate ||= candidates.includes(kind === 'trashExile' ? O190_POWER_SOURCE : O190_TRAP_SOURCE);
+      const next = costCards.find(n => candidates.includes(n) && !pickedCosts.has(n));
+      if (next) {
+        did = await clickPendingInstance(page, H, next);
+        if (did) pickedCosts.add(next);
+      }
+    }
+    const selectedEnough = (!targetNeedsPick && candidates.includes(target))
+      || (costCandidates && costCards.every(n => pickedCosts.has(n)));
+    if (!did && selectedEnough) {
+      did = await o190ClickEnabledDecision(page);
+      if (did && candidates.includes(target)) targetNeedsPick = true;
+    }
+    if (!did && mode === 'skip' && !skipClicked) {
+      const skip = page.getByTestId('optcost-skip').first();
+      if (await skip.count() && await skip.isVisible().catch(() => false) && await skip.isEnabled().catch(() => false)) {
+        await skip.click(); did = 'tid:optcost-skip'; skipClicked = true;
+      }
+    }
+    if (!did && mode === 'pay' && !energyPicked) {
+      const energy = page.getByTestId('optcost-energy-0').first();
+      if (await energy.count() && await energy.isVisible().catch(() => false)) {
+        await energy.click(); did = 'tid:optcost-energy-0'; energyPicked = true;
+      }
+    }
+    if (!did && mode === 'pay' && energyPicked && !payClicked) {
+      const pay = page.getByTestId('optcost-pay').first();
+      if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
+        await pay.click(); did = 'tid:optcost-pay(enabled)'; payClicked = true;
+      }
+    }
+    // 候補モーダル中は stdStep に決定を押させない。候補を選び enabled を確認する順序を守る。
+    if (!did && candidates.length === 0) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | ena=${st?.host?.energy} trash=${JSON.stringify(st?.host?.trashCards)} excluded=${JSON.stringify(st?.host?.excludedCards)} traps=${JSON.stringify(st?.host?.signiTraps)} cand=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+
+    if (!st?.pendingEffect && !(st?.stackLen > 0) && (payClicked || skipClicked)) {
+      if (kind === 'trashExile') {
+        const moved = O190_POISONS.every(n => st?.host?.excludedCards?.includes(n));
+        const stayed = O190_POISONS.every(n => st?.host?.trashCards?.includes(n));
+        const body = (st?.guest?.powerMods ?? []).includes(`${O190_POWER_TARGET}:-10000`);
+        const ok = mode === 'pay'
+          ? moved && body && st?.host?.energy === 0 && costCandidates?.length === 3 && !sourceWasCandidate
+          : stayed && !body && st?.host?.energy === 1;
+        return { pass: ok, detail: `${mode}＝除外=${JSON.stringify(st?.host?.excludedCards)}／trash=${JSON.stringify(st?.host?.trashCards)}／-10000=${body}／energy=${st?.host?.energy}／コスト候補=${JSON.stringify(costCandidates)}` };
+      }
+      const sourceStays = st?.host?.signiTraps?.[0] === O190_TRAP_SOURCE;
+      const otherPaid = st?.host?.signiTraps?.[1] === null && st?.host?.trashCards?.includes(O190_TRAP_OTHER);
+      const body = st?.guest?.fieldSigni?.[0] === null;
+      const ok = mode === 'pay'
+        ? sourceStays && otherPaid && body && st?.host?.energy === 0 && costCandidates?.length === 1 && !sourceWasCandidate
+        : sourceStays && st?.host?.signiTraps?.[1] === O190_TRAP_OTHER && !body && st?.host?.energy === 1;
+      return { pass: ok, detail: `${mode}＝traps=${JSON.stringify(st?.host?.signiTraps)}／trash=${JSON.stringify(st?.host?.trashCards)}／対象バニッシュ=${body}／energy=${st?.host?.energy}／コスト候補=${JSON.stringify(costCandidates)}` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'} cand=${JSON.stringify(fin?.pendingCandidates)}）` };
+};
+
+scenarios.o190TrashExilePay = { title: 'WXDi-P11-049-E1（O-190＝＜毒牙＞3枚を除外して本体）', spec: o190TrashExileSpec(), drive: o190CostDrive('o190TrashExilePay', 'pay', 'trashExile') };
+scenarios.o190TrashExileSkip = { title: 'WXDi-P11-049-E1 対照（O-190＝辞退なら除外も本体もなし）', spec: o190TrashExileSpec(), drive: o190CostDrive('o190TrashExileSkip', 'skip', 'trashExile') };
+scenarios.o190FieldTrapTrashPay = { title: 'WX15-053-TRAP（O-190＝他の【トラップ】をトラッシュして本体）', spec: o190FieldTrapSpec(), drive: o190CostDrive('o190FieldTrapTrashPay', 'pay', 'fieldTrapTrash') };
+scenarios.o190FieldTrapTrashSkip = { title: 'WX15-053-TRAP 対照（O-190＝辞退なら他の【トラップ】も本体もなし）', spec: o190FieldTrapSpec(), drive: o190CostDrive('o190FieldTrapTrashSkip', 'skip', 'fieldTrapTrash') };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));

@@ -1,5 +1,97 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-01：PLAN §5.3 `O-190` 第2バッチ — 任意コストのトラッシュ除外／他の【トラップ】支払いを復元
+
+第1バッチで受け皿がなく据え置いた4効果のうち、通常の複合任意コストとして扱える3効果を修正した。
+原文は「別のコスト動作をし、《色》を支払ってもよい」だが、旧 live は
+`OPTIONAL_COST{costColors}` だけだったため、色エナだけで本体を撃てる過剰実行だった。
+
+### 実装と7点配線
+
+- `src/types/effects.ts` の JSON payload 型 `StubAction` と、`src/engine/execUtils.ts` の runtime 型
+  `OptionalCostSpec` の両方へ `trashExile` / `fieldTrapTrash` を追加した。
+- `resolveOptionalCostSpec` で両キーを転送し、`canAffordOptionalCostSpec` で候補数を fail-closed に判定した。
+  `trashExile.owner:'any'` は自分・相手の両トラッシュを単一候補プールとして数える。
+  `fieldTrapTrash.excludeSource` は `field.signi_traps` から効果元自身を除いて数える。
+- `optionalCostPaySteps` は `trashExile` を既存 `EXILE{TRASH_CARD}` に、`fieldTrapTrash` を
+  専用 `INTERNAL_TRASH_FIELD_TRAP_COST` に展開する。後者は `execStubPart1` で選択後に
+  `field.signi_traps` から除き、通常トラッシュへ移す。`fieldTrash` は借用していない。
+- `execExile` の `owner:'any'` 候補収集を両トラッシュへ広げ、`TargetScope` に `both_trash` / `self_trap` を追加した。
+- 3効果はすべて action 内の `OPTIONAL_COST` なので、支払い入口は効果起動側の
+  `EffectInteractionModal`。同モーダルへ2 scope の表示を追加した。通常召喚の
+  `SigniOnPlayCostModal` と、その共通判定を置く `costs.ts` は通らないため変更していない。
+  色エナ選択と pay/skip は既存 `optionalCostUi`、追加コストの表示は
+  `optionalCostExtraLabels`、追加支払い選択は pay 後の `EffectInteractionModal` が担う。
+- `effectParser.ts` の複合任意コスト規則へ「ゲームから除外し」を追加し、3句だけを payload 化した。
+  「コストの合計が0」は新キーを作らず、既存 `TargetFilter.costMin:0/costMax:0` を使った。
+- `decompileEffects.ts` へ両 payload の描画を追加した。第1バッチの `fieldTrash` /
+  `underAnySigniTrash` と同じ「live は直ったが逆翻訳からコストが消える」穴を残していない。
+
+### 採用3効果
+
+| effectId | 原文のコスト節 | 生成した `OPTIONAL_COST` | 逆翻訳でのコスト節 |
+|---|---|---|---|
+| `WXDi-P11-049-E1` | あなたのトラッシュにある＜毒牙＞のシグニ3枚をゲームから除外し《黒》 | `trashExile:{count:3,owner:'self',filter:{cardType:'シグニ',story:'毒牙'}}` | あなたのトラッシュにある＜毒牙＞のシグニ3枚をゲームから除外し《黒》を支払ってもよい |
+| `WX22-018-E2` | いずれかのトラッシュから対象のコストの合計が0のスペル1枚をゲームから除外し《無》 | `trashExile:{count:1,owner:'any',filter:{cardType:'スペル',costMin:0,costMax:0}}` | いずれかのトラッシュから対象のコストの合計が0のスペル1枚をゲームから除外し《無》を支払ってもよい |
+| `WX15-053-TRAP` | あなたの場にある他の【トラップ】1枚をトラッシュに置き、《青》 | `fieldTrapTrash:{count:1,excludeSource:true}` | あなたの場にある他の【トラップ】1枚をトラッシュに置き、《青》を支払ってもよい |
+
+`WX22-018-E2` は指示どおりコスト payload だけを変更し、既存の
+`CONDITIONAL{IS_MY_TURN}` と未固定 `BOUNCE` 対象には触れていない。
+`resumeOptionalCost('skip')` は continuation を実行するため、自分ターンなら skip 後もこの既存ゲートが成立し得る。
+したがってコスト節は改善したが、did-it gate／先行対象固定の原文不一致は残る。今回の変更による新規退化ではなく、別バッチの領分。
+
+`WXK06-029-E1` はデッキ探索中に効果元自身を公開する特殊形であり、通常の任意コストではないため第1バッチどおり据置。
+今回の条件以外で新しく見つけた原文差は0件。
+
+### fail-closed・実機・反転確認
+
+- golden を日本語名で4本追加。fresh/live の3 payload、`WX22-018-E2` の既存木据置、
+  ＜毒牙＞3枚／2枚、相手トラッシュだけにあるコスト0スペル／両方0枚、
+  他の【トラップ】あり／効果元だけ、pay/skip の本体分離を固定した。
+- parser 規則から「ゲームから除外し」を一時的に外すと、fresh assert が
+  `WXDi-P11-049-E1 ... got=undefined` で FAIL。復帰後4/4 PASS。
+- 実機4本を `verifyBattleDrive.mjs` に追加し、`SKIP_BUILD=0` で
+  `o190TrashExilePay` / `o190TrashExileSkip` / `o190FieldTrapTrashPay` /
+  `o190FieldTrapTrashSkip` が **4/4 ALL PASS**。候補選択後に `決定` の enabled を検査してから押している。
+- live JSON から両 payload を一時的に外す反転では pay 2本がともに FAIL。
+  色エナだけが減り、＜毒牙＞は除外されず／他の【トラップ】は残ったまま本体だけが起きる旧挙動を再現した。
+  退避から復元後、`SKIP_BUILD=0` で再度4/4 ALL PASS。
+
+### ゲート・帳票・ブラスト半径
+
+- `npm run gates` 全緑＝golden **3189 → 3193 PASS / FAIL 0**、smoke **10721/10721**・
+  CRASH/HANG/INVARIANT 0、fuzz CRASH/HANG/INVARIANT/EXPLOSION 0、census 高シグナル **11**
+  （BASELINE 12以下）、census:stubs A0/C0、manual-fields 0、census:enginetext A🔴130行据置、
+  lint **0 errors / 249 warnings**（増減0）。
+- ベースライン `597ed93bd` との effectId 単位比較は
+  `WXDi-P11-049-E1` / `WX22-018-E2` / `WX15-053-TRAP` の**変更3件だけ**。追加0・削除0・予定外0。
+- 報告直前の `build:effects` → `heldReview` は `_held_fresh` **75** /
+  `_partial_fresh` **10** / `_idset_fresh` **7**（すべてベースライン据置）。
+- 変更ファイルのベースライン比較で U+FFFD、3文字以上連続 `?`、先頭BOMの新規増は0。
+- `docs/PLAN.md` / `docs/PLAN_PROGRESS.md` は編集せず、commit / push もしていない。
+
+### Claude 側の独立検証（Codex の報告を鵜呑みにしない＝CODEX_GUIDE §7）
+
+- **per-effect diff を自前で取り直した**（キー順を正規化しない生文字列比較）＝**変更3・追加0・削除0**で報告と一致。
+- **`npm run gates` を回し直して全緑**（golden **3193**・census 11・lint 0 errors / 249 warnings）。
+- 🔴**実機4本を Claude が `SKIP_BUILD=0` で再実行して 4/4 ALL PASS**（Codex の申告と独立）。**ログで挙動まで確認した**＝
+  `o190FieldTrapTrashPay` は**コスト候補が `["WX15-052#1911"]` の1枚だけ**＝**効果元の `WX15-053#1910` が候補から除かれている**
+  （＝`excludeSource` が実 UI で効いている）。pay 後は `traps=["WX15-053#1910",null,null]` / `trash=[…,"WX15-052#1911"]` /
+  対象バニッシュ=true / energy=0。skip は3ゾーンとも不変で energy=1（＝色エナも払っていない）。
+  `o190TrashExilePay` も除外3枚・energy=0・-10000=true、skip は除外0・energy=1。
+- **`execExile` の `owner:'any'` 拡張のブラスト半径を実測**＝live に `EXILE{target.owner:'any'}` を持つ効果は
+  **今回の `WX22-018-E2` 以外に0件**（全 effects JSON を走査）。**適用側は元から両者を探索していた**
+  （`effectExecutor.ts:11000` 付近＝`owner` が self/opponent 以外なら `['self','opponent']`）ので、
+  今回の変更は**候補集めと scope 表示だけ**を揃えたことになる。
+- **`both_trash` / `self_trap` の UI 配線を実コードで確認**＝`EffectInteractionModal` は候補を
+  `inter.candidates`（カード id の配列）から描き、**scope はラベルと「場のゾーン番号表示」にしか使わない**
+  （`opp_field` / `self_field` / `both_field` の分岐のみ）。⇒ 追加した2 scope は**ラベルの追加だけで足りる**。
+
+🔴**唯一の未検証＝`WX22-018-E2`（`owner:'any'`＝`both_trash`）は実機シナリオが無い。**
+runtime（`canAffordOptionalCostSpec` が**相手トラッシュだけに候補がある盤面で true**）と
+支払いステップ（`EXILE{owner:'any'}` への転送）は golden で固定したが、**実 UI で相手トラッシュの札を選べるか**は
+まだ踏んでいない。⇒ **PLAN §5.1 に `V-107` として登録**した。
+
 ## 2026-09-01：PLAN §5.3 `O-188` 第7バッチ — 「〈A〉1枚と〈B〉1枚を対象とし」の**片方の群だけが live に残っていた**4効果 ＋ 恒久 no-op 1件
 
 **Codex は2アカウントとも利用上限**（`.codex-work` 13:55／`~/.codex` 16:27 まで）のため **Claude が実装**した。

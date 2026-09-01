@@ -1598,10 +1598,13 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     return selectOrInteract(ecands, ecount, tgt.upToCount ?? false, escope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
   }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
-  const state = ownerState(tgt.owner, ctx);
-  const cands = movableTrashCandidates(tgt.owner, state, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+  const trashOwners: Owner[] = tgt.owner === 'any' ? ['self', 'opponent'] : [tgt.owner];
+  const cands = trashOwners.flatMap(owner => movableTrashCandidates(
+    owner, ownerState(owner, ctx), tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones,
+  ));
   if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
-  const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+  const scope: TargetScope = tgt.owner === 'any' ? 'both_trash'
+    : tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
   return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
 }

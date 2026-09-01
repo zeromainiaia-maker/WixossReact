@@ -3024,6 +3024,19 @@ function actionJa(a?: Action, effectType?: string): string {
             ? `${headOC}このシグニを場からトラッシュに置き${costJaOC}を支払ってもよい`
             : `${headOC}このシグニを場からトラッシュに置いてもよい`;
         }
+        // O-190 第2バッチ：トラッシュ除外＋色支払いを1つの複合任意コストとして描く。
+        // payload から描き、原文全文を regex で再利用しない（逆翻訳が実装の検査になるようにする）。
+        if (a.trashExile) {
+          const fTX = a.trashExile.filter ? filterJa(a.trashExile.filter) : '';
+          const nounTX = ([] as string[]).concat(a.trashExile.filter?.cardType ?? 'カード').join('か');
+          const whereTX = a.trashExile.owner === 'any' ? 'いずれかのトラッシュから対象の' : 'あなたのトラッシュにある';
+          return `${headOC}${whereTX}${fTX}${nounTX}${a.trashExile.count}枚をゲームから除外し${costJaOC ? `${costJaOC}を支払っ` : ''}てもよい`;
+        }
+        // O-190 第2バッチ：【トラップ】ゾーンの支払い。excludeSource が原文の「他の」を担う。
+        if (a.fieldTrapTrash) {
+          const otherFT = a.fieldTrapTrash.excludeSource ? '他の' : '';
+          return `${headOC}あなたの場にある${otherFT}【トラップ】${a.fieldTrapTrash.count}枚をトラッシュに置き${costJaOC ? `、${costJaOC}を支払っ` : ''}てもよい`;
+        }
         if (a.underAnySigniTrash) {
           const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）

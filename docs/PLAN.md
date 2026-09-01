@@ -9,12 +9,12 @@
 ## 1. 現在地（直近1セッション）
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
-- 🏁**セッション（2026-09-01・続き768・Opus 5 ＋ Codex／§5.3 機構 worklist を4バッチ）＝`O-188` 第4〜第7。**
+- 🏁**セッション（2026-09-01・続き768・Opus 5 ＋ Codex／§5.3 機構 worklist を5バッチ）＝`O-188` 第4〜第7 ＋ `O-190` 第2。**
   📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
-  🔴**3計器が動かない理由＝この巡で直した19効果は「型は正しく値だけが違う」欠陥ばかりで、どの計器も見ていない**
+  🔴**3計器が動かない理由＝この巡で直した22効果は「型は正しく値だけが違う」欠陥ばかりで、どの計器も見ていない**
   （Sheet1 外のカード／台帳の残 OPEN は機構待ちが主成分／census は型名とキー名しか見ない）。
-  gates 全緑（**golden 3177 → 3189（+12本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
-  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**修正した効果＝計19**。
+  gates 全緑（**golden 3177 → 3193（+16本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・**census-enginetext A🔴130行 据置**・lint 0 errors/249 warnings）。**修正した効果＝計22**。
 
   🔑**この巡の主題＝「〈A〉と〈B〉をそれぞれ1枚（まで）」の群が live で1つに潰れている族を、器を4つ横断して潰した。**
   ① **第4（7効果）**＝帰結が「手札に加える」＝`TRANSFER_TO_HAND.transferGroups`。**受け皿は全部既存**で、
@@ -45,12 +45,21 @@
   ⚠**実機は4バッチとも不要と判定**（§2.2）＝`src/screens/` 不変更・新型ゼロ。engine を触ったのは第5（既存
   `resolveDynamicFilter` を union 経路へ配線）と第6（別物 STUB ハンドラの削除）だけで、どちらも E2E golden で固定した。
 
-**▶ 次の一手**＝**同じ族の残り**を測ってから取る。候補：
-① **`O-190` 第2バッチ**＝据置4件（【トラップ】トラッシュ／ゲームから除外×2／デッキ探索中の自己公開）。
-`OptionalCostSpec` に新キーが要る＝engine と支払い UI まで届くので**実機必須**。
+  🆕**第5バッチ＝`O-190` 第2（3効果・実機 4/4 PASS）**＝任意コストから「トラッシュ除外」「他の【トラップ】をトラッシュ」が
+  丸ごと消えていた過剰実行。**新キー2本**（`trashExile` / `fieldTrapTrash`）を**7箇所すべてへ配線**した
+  （JSON payload 型／runtime `OptionalCostSpec`／`resolveOptionalCostSpec` の転送／`canAffordOptionalCostSpec`／
+  `optionalCostPaySteps`／支払い UI／逆翻訳）。**Codex（`.codex-work`）が実装し、Claude が per-effect diff・gates・
+  実機4本を独立に再実行して検証**（`excludeSource` が実 UI で効いていることを候補リストで確認）。
+  ⚠**「コストの合計が0」は新キーを作らず既存 `costMin:0/costMax:0`**。⚠**【トラップ】は `field.signi_traps` の
+  別ゾーン**なので `fieldTrash` では払えない（名前が近いキーを借りない＝§5-5e）。
+
+**▶ 次の一手**＝
+① 🔴**`V-107`（実機・§5.1）**＝`WX22-018-E2` の `both_trash`（いずれかのトラッシュ）が実 UI で選べるか。
+**runtime と支払いステップは golden 済みで、残っているのは UI 経路だけ**。
 ② **`WX24-P4-051-E2`**（コスト「エナから**それと同じレベルの**シグニ1枚」）／**`WX24-P2-054-E2`**
 （相手シグニ3体まで＋レベル合計1につき《緑》＋`SEND_TO_ENERGY`）＝どちらも**コスト側の動的値**が本体。
 ③ **`O-96` の残り**＝「MANUAL・PARTIAL 22」「帰結の対象が SIGNI でない 13」「ネスト器 11」。
+④ **`O-190` の最後の据置＝`WXK06-029-E1`**（デッキ探索中の自己公開＝通常の任意コストではない別機構）。
 ⚠**どれも着手前に engine の消費地点まで読む**（続き766 で434件の空振りを1回避けた前例）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -617,6 +626,17 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > 🏁**2026-08-24＝この節は残0クローズ**。`V-nn` エントリ14件（V-04/16/19/30/35/44/45/58/63/83/84/85/86/87）に加え、**続き616〜634 の21バッチのうち「実機経路へ直接触った4本」**（第34/43「0枚選択可の UI」・第37「クラッシュ主体の限定」・第38「群割当の決定可否」・第40「`END_OF_ATTACK`」）も実機で返済した。📋**残り17バッチは parser 側の構造是正が主で golden と census が母集団を押さえている**ぶん＝実機で踏むべきものは残っていない。
 > ⚠**着手前に §4.4 の29項を読む。** ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
+
+> 🆕🔴**2026-09-01 続き768＝`V-107`（未実施・§5.3 `O-190` 第2バッチで新設）。**
+> **対象**＝`WX22-018-E2`「**いずれかのトラッシュから**対象のコストの合計が０のスペル１枚をゲームから除外し《無》を支払ってもよい」。
+> **新しい `TargetScope` `both_trash` が実 UI で開くか**＝**相手のトラッシュにある札を選べるか**をまだ踏んでいない
+> （同バッチの実機4本は `owner:'self'` の `trashExile` と `fieldTrapTrash` だけ）。
+> **見るもの**＝①自分のトラッシュが空・相手のトラッシュにだけコスト0スペルがある盤面で**pay 択が出る**
+> ②選択モーダルの見出しが「いずれかのトラッシュから」になる ③選んだ札が**相手のトラッシュから**消えて除外に入る。
+> ⚠**runtime と支払いステップは golden で固定済み**（`canAffordOptionalCostSpec` は相手トラッシュだけでも true・
+> `EXILE{owner:'any'}` へ転送）＝**残っているのは UI 経路だけ**。
+> ⚠**この効果は did-it ゲートが `IS_MY_TURN` のままで帰結の対象も未固定**（§5.3 の別項目）なので、
+> **シナリオは「コストが正しく払われるか」だけを見る**こと。
 
 > 🆕🏁**2026-09-01 続き766＝`V-106` を追加して同じ巡でクローズ**（`o188TrashRecoverPay` / `o188TrashRecoverSkip`）。
 > §5.3 `O-188` 第1バッチ＝**`SELECT_TARGET_ONLY` をトラッシュゾーンへ広げた新機構**なので §2.2 で実機必須。
@@ -1336,14 +1356,17 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
   名詞句の限定が落ちる）で、**Sheet1 外のカードが大半**・**台帳の残 OPEN は機構待ちが主成分**・
   **census は型名とキー名しか見ない**＝**どの計器も最初からこの族を見ていない**。
   ⚠**`BASELINE_HIGH` は 12 のまま据え置き**（11 に落ちた原因は未特定のまま）。
-  **golden 3177 → 3189（+12本）**、smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、
+  **golden 3177 → 3193（+16本）**、smoke 全異常0、fuzz 全0、census **11 / BASELINE 12**、
   lint 0 errors / 249 warnings、`census:stubs` A群🔴0／C群0、manual-fields 0、
   **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**、3帳票＝`_held_fresh` **75**／`_partial_fresh` **10**／`_idset_fresh` **7**。
-  🆕**新設した型・キー 0本**（`transferGroups`／`SelectionConstraint.groups`／`discardedFromHandThisTurn`／
-  `thisCardOnly`／`levelEqLrig`／`hasIcon` はすべて既存）。**削除**＝カード固有ハードコード2本
+  🆕**新設した型・キー は第5バッチの2本だけ**（`OptionalCostSpec.trashExile` / `fieldTrapTrash` ＋ `TargetScope` の
+  `both_trash` / `self_trap`）。第4〜第7バッチは**既存語彙のみ**（`transferGroups`／`SelectionConstraint.groups`／
+  `discardedFromHandThisTurn`／`thisCardOnly`／`levelEqLrig`／`hasIcon`）。**削除**＝カード固有ハードコード2本
   （`WX24-P4-017` の `transferGroups`／`WXK10-053-BURST` の `levelEqLrig`）と**別物を実装していた STUB ハンドラ1本**。
-  🔑**ブラスト半径＝4バッチとも effectId 単位の機械 diff で予定どおり・予定外0**（7／4／3／5）。
-  ⚠**実機は4バッチとも不要と判定**（`src/screens/` 不変更・新型なし）。**反転確認は4バッチとも取得**。
+  🔑**ブラスト半径＝5バッチとも effectId 単位の機械 diff で予定どおり・予定外0**（7／4／3／5／3）。
+  ⚠**実機は第5バッチだけ実施**（`src/screens/`＋新機構＝§2.2 で必須）＝`o190TrashExilePay`/`Skip`・
+  `o190FieldTrapTrashPay`/`Skip` の **4/4 ALL PASS**（Claude が独立に再実行）。**反転確認は5バッチとも取得**。
+  🔴**残る実機の宿題＝`V-107`**（`WX22-018-E2` の `both_trash` を実 UI で選べるか）。
 
 ## 付録A. 全体像と Definition of Done
 
