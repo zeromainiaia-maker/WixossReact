@@ -1219,6 +1219,69 @@ export function resolveAboveSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'sourc
   return null;
 }
 
+/**
+ * 🆕**`UNTIL_NEXT_OWN_TURN_END`（次のあなたのターン終了時まで）が跨ぐグローバルターン終了の回数**
+ * （2026-09-02・§5.3 `O-186`）。
+ *
+ * 自分のターン中に置いたら **3**（自ターン終了 → 相手ターン終了 → **次の自ターン終了で消える**）、
+ * 相手のターン中（【ライフバースト】等）に置いたら **2**（相手ターン終了 → **次の自ターン終了で消える**）。
+ * ⚠**「あなた」は効果の持ち主**＝`ctx.isOwnerTurn` で判定する（対象の持ち主ではない）。
+ * ⚠**`_next_turn` の2スロット式では表せない**（あれは常に1回ぶんしか跨げない）＝
+ *   `UNTIL_OPP_TURN_END` の実装を写経すると1ターン短くなる。
+ */
+function nextOwnTurnEndSpan(ctx: ExecCtx): number {
+  return (ctx.isOwnerTurn ?? true) ? 3 : 2;
+}
+
+/**
+ * 🆕**「次に1回だけ」のバニッシュ先変更を消費する**（§5.3 `O-210`）。
+ * `banishDestination` が返す `consumedOnceSource` を、**置換元の持ち主**（＝被バニッシュ側の対戦相手）の
+ * 2つの配列から外す。⚠**呼び出し側がこれを忘れると一回性が消えて「このターン何体でも」に化ける。**
+ */
+function consumeBanishRedirectOnce(redirectOwner: PlayerState, sourceNum: string | undefined): PlayerState {
+  if (!sourceNum) return redirectOwner;
+  return {
+    ...redirectOwner,
+    banish_redirect_by_source_effect_nums:
+      (redirectOwner.banish_redirect_by_source_effect_nums ?? []).filter(n => n !== sourceNum),
+    banish_redirect_once_source_nums:
+      (redirectOwner.banish_redirect_once_source_nums ?? []).filter(n => n !== sourceNum),
+  };
+}
+
+/**
+ * 🆕**「このシグニが次にバニッシュされる場合、バニッシュされない」＝1回だけ吸収して消える盾**
+ * （§5.3 `O-164`・`WX15-010-E1`）を**効果によるバニッシュ**へ適用する。
+ *
+ * 🔴**バトルバニッシュ経路（`BattleScreen` / `attackerBanishSubstitute`）とは別に、
+ *   効果経路にも同じ collector を通す必要がある**＝原文「バニッシュされる場合」は発生源を限定していない。
+ * 🔴**効果経路の入口は2つある**＝`execBanish` の `applyBanish`（選択して撃つ本線）と
+ *   `applyDirectAction` の `BANISH`（`targetsLastProcessed` 等で1枚ずつ撃つ側）。
+ *   ⚠**片方だけに書くと「対象を選んで撃つと防げないのに、それ経由なら防げる」無言のズレになる**
+ *   （2026-09-02 に実測＝まさに `applyBanish` 側だけ抜けていた）。⇒ **判定はこの関数1本に集約する。**
+ *
+ * 防いだ回は肩代わりした側の `effectId` を `abilities_removed` へ積む＝**同ターン中は再発動しない**
+ * （＝原文の「次に」の一回性。`collectBanishPreventLoseAbility` 自身が `abilities_removed` を見る）。
+ * ⚠**候補から外すのではなく適用地点で止める**＝対象には取れる（原文どおり）。
+ *
+ * @returns 防いだら更新後 ctx、防がなければ null
+ */
+function applyBanishPreventShield(cardNum: string, own: Owner, ctx: ExecCtx): ExecCtx | null {
+  if (!ctx.effectsMap) return null;
+  const victimSt = ownerState(own, ctx);
+  const otherSt = ownerState(own === 'self' ? 'opponent' : 'self', ctx);
+  const isVictimTurn = own === 'self' ? (ctx.isOwnerTurn ?? true) : !(ctx.isOwnerTurn ?? true);
+  const shieldSrc = collectBanishPreventLoseAbility(
+    victimSt, otherSt, isVictimTurn, ctx.cardMap, ctx.effectsMap, cardNum);
+  if (!shieldSrc) return null;
+  const withLoss: PlayerState = {
+    ...victimSt,
+    abilities_removed: [...new Set([...(victimSt.abilities_removed ?? []), shieldSrc])],
+  };
+  return addLog(setOwnerState(own, withLoss, ctx),
+    `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}はバニッシュされず、${ctx.cardMap.get(getCardNum(shieldSrc))?.CardName ?? shieldSrc}がこの能力を失った`);
+}
+
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   // conditional: true = 前ステップ（STUB等）がlastProcessedCardsを設定した場合のみ実行
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
@@ -1350,6 +1413,10 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
           continue;
         }
       }
+      // 🆕**「次にバニッシュされる場合、バニッシュされない」の1回消費盾**（§5.3 `O-164`）＝
+      //   身代わり（`BANISH_SUBSTITUTE`）より**先**に見る（原文は「バニッシュされない」＝離場自体が起きない）。
+      const shielded = applyBanishPreventShield(num, own, cur);
+      if (shielded) { cur = shielded; continue; }
       // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
       const sub = applyEffectLeaveSubstitutes(num, own, cur, { isBanish: true });
       cur = sub.ctx;              // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
@@ -1359,9 +1426,14 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       const removed = removeFromField(num, s2);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
       const opp = ownerState(own === 'self' ? 'opponent' : 'self', cur);
-      const { state: dest, log } = banishDestination(removed, opp, num, banishRedirectOpts(cur, s2, num));
+      const { state: dest, log, consumedOnceSource } = banishDestination(removed, opp, num, banishRedirectOpts(cur, s2, num));
       cur = addLog(setOwnerState(own, dest, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}${log}`);
+      // ⚠**「次に1回だけ」の消費はここでしか起きない**（§5.3 `O-210`）。落とすと回数無制限に化ける。
+      if (consumedOnceSource) {
+        const redirOwn: Owner = own === 'self' ? 'opponent' : 'self';
+        cur = setOwnerState(redirOwn, consumeBanishRedirectOnce(ownerState(redirOwn, cur), consumedOnceSource), cur);
+      }
     }
     return cur;
   }
@@ -1827,6 +1899,46 @@ function lastProcessedUnits(spec: PowerModifyAction['perLastProcessed'], ctx: Ex
   return Math.floor(raw / Math.max(1, spec?.divisor ?? 1));
 }
 
+/**
+ * 🆕**`splitTotal`（「それらのパワーを合わせて－N する」）の割り振りを、対象が確定済みの集合へ適用する**
+ * （§5.3 `O-151`・2026-09-02）。
+ *
+ * 🔴**選択経路（`resumeSelectTarget` の splitTotal 分岐）と必ず同じ関数を通すこと。**
+ *   写経すると「1体のときは対話を挟まない」という §`O-51` の規約を片方だけ失い、
+ *   1体しか対象がいないのに配分モーダルが出る／出ないの不整合になる。
+ *
+ * @param selected 割り振り先（**もう対象化は済んでいる**＝ここで ON_TARGETED は立てない）
+ */
+function applySplitTotalToTargets(
+  pm: PowerModifyAction, total: number, selected: string[],
+  continuation: EffectAction | undefined, cur: ExecCtx,
+): ExecResult {
+  if (selected.length === 0) {
+    // 「N体**まで**」は0体を許す＝割り振り先が無ければ何もしない（原文どおり）。
+    if (continuation) return executeAction(continuation, cur);
+    return done(addLog(cur, '割り振り先を選ばなかった'));
+  }
+  const unit = pm.splitTotal?.unit ?? 1000;
+  const owner: Owner | 'any' = pm.target.owner === 'any' ? 'any' : (pm.target.owner === 'opponent' ? 'opponent' : 'self');
+  // 1体だけなら配分の余地が無いので対話を挟まず全部そこへ（§`O-51` と同じ「2つ以上のときだけ問う」規約）。
+  if (selected.length === 1) {
+    const applied = applyAllocatedPower({ [selected[0]]: total }, owner,
+      pm.duration === 'UNTIL_OPP_TURN_END', cur);
+    const withTgt = { ...applied, lastProcessedCards: selected };
+    if (continuation) return executeAction(continuation, withTgt);
+    return done(withTgt);
+  }
+  return needsInteraction({ ...cur, lastProcessedCards: selected }, {
+    type: 'ALLOCATE_POWER',
+    targets: selected,
+    total,
+    unit,
+    owner,
+    ...(pm.duration === 'UNTIL_OPP_TURN_END' ? { untilOppTurnEnd: true } : {}),
+    ...(continuation ? { continuation } : {}),
+  });
+}
+
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   // deltaPerLastProcessedCount: 「この方法で捨てた手札1枚につき－N」＝直前ステップで実際に処理した枚数が倍率
   // （WX12-020-E3・タスク12(lx)②）。現在の手札枚数を数える POWER_MODIFY_PER_HAND_COUNT とは別物。
@@ -1936,14 +2048,19 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   if (cands.length === 0) return done(ctx);
 
   // UNTIL_OPP_TURN_END は長期ストア power_mods_until_opp_turn へ（次の相手ターン終了時までクリアされない）
-  const powerModKey = a.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+  // 🆕UNTIL_NEXT_OWN_TURN_END は**さらに1ターン長い**専用ストアへ（§5.3 `O-186`）＝
+  //   `power_mods_until_opp_turn` へ寄せると相手ターン終了で切れて**1ターン短くなる**（過小）。
+  const nextOwnSpan = nextOwnTurnEndSpan(ctx);
+  const powerModKey = a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? 'power_mods_until_next_own_turn'
+    : a.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+  const powerModExtra = a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? { turnEnds: nextOwnSpan } : {};
 
   // targetsTriggerSource: 「それ」= triggeringCardNum（なければ sourceCardNum）を自動対象
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && cands.includes(autoNum)) {
       const s = ownerState(tgtOwner, ctx);
-      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta, srcType, srcCardNum: ctx.sourceCardNum }];
+      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta, srcType, srcCardNum: ctx.sourceCardNum, ...powerModExtra }];
       const newS: PlayerState = { ...s, [powerModKey]: mods };
       // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。
       // 自動対象化したシグニを surface し、BattleScreen の done 分岐で ON_TARGETED を収集させる（続き137・タスク12(xx)）。
@@ -1968,7 +2085,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
         ? (cur.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
         : tgtOwner;
       const s = ownerState(own, cur);
-      const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcType, srcCardNum: cur.sourceCardNum }];
+      const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcType, srcCardNum: cur.sourceCardNum, ...powerModExtra }];
       cur = addLog(setOwnerState(own, { ...s, [powerModKey]: mods }, cur),
         `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワー${delta > 0 ? '+' : ''}${delta}`);
     }
@@ -1995,6 +2112,11 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   // ⚠**総量0なら何もしない**（`deltaFromZone` が0枚を数えた場合＝原文どおり）。
   if (a.splitTotal) {
     if (delta === 0) return done(addLog(ctx, '割り振る総量が0'));
+    // 🆕**対象宣言が前の文にある形**（§5.3 `O-151`・`PR-K026-E1-G2`）＝
+    //   「シグニを２体**まで**対象とし、…（別の文で）**それら**のパワーを合わせて－18000する」。
+    //   `cands` は上の `targetsStored` 分岐で宣言済みの集合まで絞られているので、
+    //   🔴**ここで再び選択UIを出してはいけない**（同じ対象へ ON_TARGETED が二度立つ＝対象宣言は1回）。
+    if (a.targetsStored) return applySplitTotalToTargets(a, delta, cands, undefined, ctx);
     const scopeSp: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
     // 「好きな数」＝候補全部が上限・0体も選べる。原文が「N体まで」と書く場合は target.count が入る。
     const maxSp = a.target.count === 'ALL' ? cands.length : Math.min(resolveNum(a.target.count), cands.length);
@@ -8043,6 +8165,8 @@ function applyAbilitiesRemoval(
   action: RemoveAbilitiesAction,
   state: PlayerState,
   cardNums: string[],
+  /** 🆕`UNTIL_NEXT_OWN_TURN_END` が跨ぐグローバルターン終了の回数（§5.3 `O-186`）。 */
+  nextOwnSpan = 3,
 ): PlayerState {
   if (action.keywords?.length) {
     // キーワード限定の喪失は現状「このターン」語彙しか live に無い＝期間分岐は持たせない。
@@ -8055,6 +8179,14 @@ function applyAbilitiesRemoval(
   // NEXT_TURN＝「次のターンの間」だけ＝現ターンには効かせない（予約のみ）。
   const reservesNextTurn = action.until === 'NEXT_TURN' || action.until === 'UNTIL_OPP_TURN_END';
   const appliesThisTurn = action.until !== 'NEXT_TURN';
+  // 🆕**「次のあなたのターン終了時まで」**（§5.3 `O-186`）＝跨ぐターン終了の回数を別表に積む。
+  // 🔴**`abilities_removed_next_turn`（2スロット式）で代用すると1ターン短くなる**（過小）＝
+  //   あれは常に1回ぶんしか跨げない。読み手は従来どおり `abilities_removed` 1本のまま。
+  const untilNextOwn = action.until === 'UNTIL_NEXT_OWN_TURN_END';
+  const spanMap = untilNextOwn
+    ? { ...(state.abilities_removed_until_next_own_turn ?? {}),
+        ...Object.fromEntries(cardNums.map(n => [n, nextOwnSpan])) }
+    : null;
   return {
     ...state,
     ...(appliesThisTurn
@@ -8063,6 +8195,7 @@ function applyAbilitiesRemoval(
     ...(reservesNextTurn
       ? { abilities_removed_next_turn: [...new Set([...(state.abilities_removed_next_turn ?? []), ...cardNums])] }
       : {}),
+    ...(spanMap ? { abilities_removed_until_next_own_turn: spanMap } : {}),
   };
 }
 
@@ -8121,7 +8254,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
-      const newS = applyAbilitiesRemoval(a, state, [autoNum]);
+      const newS = applyAbilitiesRemoval(a, state, [autoNum], nextOwnTurnEndSpan(ctx));
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `1`));
     }
     return done(ctx);
@@ -8182,7 +8315,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     const previous = new Set(ctx.lastProcessedCards ?? []);
     const selected = cands.filter(n => previous.has(n));
     if (selected.length === 0) return done(ctx);
-    const newS = applyAbilitiesRemoval(a, state, selected);
+    const newS = applyAbilitiesRemoval(a, state, selected, nextOwnTurnEndSpan(ctx));
     return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: selected }, `${selected.length}`));
   }
   if (cands.length === 0) return done(ctx);
@@ -8195,7 +8328,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
       : tgtOwner === 'self' ? 'self_field' : 'opp_field';
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
   }
-  const newS = applyAbilitiesRemoval(a, state, cands);
+  const newS = applyAbilitiesRemoval(a, state, cands, nextOwnTurnEndSpan(ctx));
   // 非対話経路（ALL / thisCardOnly / frontOfSelf で対象確定）も lastProcessedCards を残す（§3タスク6 E）。
   return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, `${cands.length}`));
 }
@@ -9077,6 +9210,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     case 'SET_CARD_COST_REPLACEMENT':    return execSetCardCostReplacement(action as import('../types/effects').SetCardCostReplacementAction, ctx);
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
+    // 🆕**`GROW_COST_REDUCTION` の実行形**（2026-09-02・§5.3 `O-180`・`WX24-P2-043`）。
+    // 🔴**この型には実行ハンドラが1つも無かった**＝`collectGrowCostReductions` は**場の CONTINUOUS**しか
+    //   走査しないので、ピース／アーツが解決時に宣言する形は**丸ごと無言 no-op**（カードが何もしない）だった。
+    // ⚠**ここで扱うのは `nextAssistGrowOnly`（一過性）だけ**＝場に居続ける【常】版は従来どおり
+    //   `collectGrowCostReductions` が毎回計算する（state に焼くと二重に効く）。
+    case 'GROW_COST_REDUCTION': {
+      const gcrAct = action as import('../types/effects').GrowCostReductionAction;
+      if (!gcrAct.nextAssistGrowOnly) {
+        return done(addLog(ctx, 'グロウコスト軽減（【常】宣言・判定は collectGrowCostReductions）'));
+      }
+      const modsGcr = {
+        ...(gcrAct.ignoreLrigType ? { ignoreLrigType: true } : {}),
+        ...(gcrAct.reduction?.length ? { reduction: gcrAct.reduction.map(r => ({ color: r.color, count: r.count })) } : {}),
+      };
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, next_assist_grow_mods: modsGcr } },
+        `このターン、次のアシストグロウ${gcrAct.ignoreLrigType ? 'はルリグタイプを無視' : ''}${gcrAct.reduction?.length ? `／コスト${gcrAct.reduction.map(r => `《${r.color}×${r.count}》`).join('')}減` : ''}`));
+    }
     case 'BANISH_REDIRECT': {
       const brAction = action as BanishRedirectAction;
       // targetsLastProcessed: 「それ」= 直前ステップで選択/処理したシグニへ選択UIなしで適用。
@@ -9121,13 +9271,26 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const brSrc = (action as BanishRedirectAction).bySource;
       if (brSrc !== undefined) {
         if (!ctx.sourceCardNum) return done(addLog(ctx, 'バニッシュ先変更（限定付き・発生源不明のため適用なし）'));
-        const prevNums = ctx.ownerState.banish_redirect_by_source_nums ?? [];
+        // 🆕**「効果によって」と「バトルによって」は別の配列**（§5.3 `O-210`）＝
+        //   🔴旧はどちらも `banish_redirect_by_source_nums`（**バトル経路だけが読む**）へ載せていたので、
+        //   原文が「このシグニの**効果**によって」と書く札は**効果バニッシュで一度も置換されなかった**。
+        const brOnce = (action as BanishRedirectAction).consumeOnce === true;
+        const brEffectOnly = (action as BanishRedirectAction).byEffectOnly === true;
+        const listKey = brEffectOnly ? 'banish_redirect_by_source_effect_nums' : 'banish_redirect_by_source_nums';
+        const prevNums = ctx.ownerState[listKey] ?? [];
         const newOwnerBs: PlayerState = {
           ...ctx.ownerState,
-          banish_redirect_by_source_nums: prevNums.includes(ctx.sourceCardNum) ? prevNums : [...prevNums, ctx.sourceCardNum],
+          [listKey]: prevNums.includes(ctx.sourceCardNum) ? prevNums : [...prevNums, ctx.sourceCardNum],
+          // 🆕「**次に**1回だけ」＝置換した時点で外す（消費地点は `banishDestination` の戻り値を読む呼び出し側）。
+          ...(brOnce
+            ? { banish_redirect_once_source_nums: [...new Set([...(ctx.ownerState.banish_redirect_once_source_nums ?? []), ctx.sourceCardNum])] }
+            : {}),
         };
+        const srcNameBs = ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.CardName ?? ctx.sourceCardNum;
         return done(addLog({ ...ctx, ownerState: newOwnerBs },
-          `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}とのバトルでのバニッシュ先をトラッシュへ変更`));
+          brEffectOnly
+            ? `${srcNameBs}の効果によるバニッシュ先を${brOnce ? '次の1回だけ' : ''}トラッシュへ変更`
+            : `${srcNameBs}とのバトルでのバニッシュ先をトラッシュへ変更`));
       }
       const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
       return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手のシグニのバニッシュ先をトラッシュへ変更'));
@@ -9855,31 +10018,9 @@ export function resumeSelectTarget(
   //   ⚠下の per-card ループへ落とすと**1体ごとに満額**が乗る（＝旧 `POWER_MOD_PER_COUNT` と同じ過剰実行）。
   if (pending.thenAction.type === 'POWER_MODIFY' && (pending.thenAction as PowerModifyAction).splitTotal) {
     const pmSp = pending.thenAction as PowerModifyAction;
-    if (selected.length === 0) {
-      // 0体を選んだ＝割り振り先が無い（原文「好きな数」は0体を許す）。
-      if (pending.continuation) return executeAction(pending.continuation, cur);
-      return done(addLog(cur, '割り振り先を選ばなかった'));
-    }
-    const totalSp = resolveNum(pmSp.delta);
-    const unitSp = pmSp.splitTotal!.unit ?? 1000;
-    const ownerSp: Owner | 'any' = pmSp.target.owner === 'any' ? 'any' : (pmSp.target.owner === 'opponent' ? 'opponent' : 'self');
-    // 1体だけなら配分の余地が無いので対話を挟まず全部そこへ（§O-51 と同じ「2つ以上のときだけ問う」規約）。
-    if (selected.length === 1) {
-      const applied = applyAllocatedPower({ [selected[0]]: totalSp }, ownerSp,
-        pmSp.duration === 'UNTIL_OPP_TURN_END', cur);
-      const withTgt = { ...applied, lastProcessedCards: selected };
-      if (pending.continuation) return executeAction(pending.continuation, withTgt);
-      return done(withTgt);
-    }
-    return needsInteraction({ ...cur, lastProcessedCards: selected }, {
-      type: 'ALLOCATE_POWER',
-      targets: selected,
-      total: totalSp,
-      unit: unitSp,
-      owner: ownerSp,
-      ...(pmSp.duration === 'UNTIL_OPP_TURN_END' ? { untilOppTurnEnd: true } : {}),
-      ...(pending.continuation ? { continuation: pending.continuation } : {}),
-    });
+    // ⚠**割り振りの本体は `applySplitTotalToTargets` 1本**（§5.3 `O-151` で共有化）＝
+    //   対象宣言が前の文にある形（`targetsStored`）は選択UIを経ずに同じ関数へ入る。
+    return applySplitTotalToTargets(pmSp, resolveNum(pmSp.delta), selected, pending.continuation, cur);
   }
 
   // §6.4 O-5: レゾナの複数枚配置＝**選んだ全枚数をまとめて渡す**。
@@ -11027,21 +11168,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       //   ここで同じ collector を呼び、防いだ回は肩代わりした側の能力を `abilities_removed` へ積む
       //   （＝同ターン中は再発動不可＝原文の「次に」の一回性）。
       //   ⚠**候補から外すのではなく適用地点で止める**＝対象には取れる（原文どおり）。
-      if (ctx.effectsMap) {
-        const victimSt = ownerState(found, ctx);
-        const otherSt = ownerState(found === 'self' ? 'opponent' : 'self', ctx);
-        const isVictimTurn = found === 'self' ? (ctx.isOwnerTurn ?? true) : !(ctx.isOwnerTurn ?? true);
-        const shieldSrc = collectBanishPreventLoseAbility(
-          victimSt, otherSt, isVictimTurn, ctx.cardMap, ctx.effectsMap, cardNum);
-        if (shieldSrc) {
-          const withLoss: PlayerState = {
-            ...victimSt,
-            abilities_removed: [...new Set([...(victimSt.abilities_removed ?? []), shieldSrc])],
-          };
-          return done(addLog(setOwnerState(found, withLoss, ctx),
-            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}はバニッシュされず、${ctx.cardMap.get(getCardNum(shieldSrc))?.CardName ?? shieldSrc}がこの能力を失った`));
-        }
-      }
+      // ⚠**判定は `applyBanishPreventShield` 1本**（`execBanish` の選択経路と共有）。
+      const shieldedDirect = applyBanishPreventShield(cardNum, found, ctx);
+      if (shieldedDirect) return done(shieldedDirect);
       // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx, { isBanish: true });
       if (sub.replaced) return done(sub.ctx);
@@ -11050,9 +11179,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const removed = removeFromField(cardNum, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
       const opp = ownerState(found === 'self' ? 'opponent' : 'self', c);
-      const { state: withEnergy, log } = banishDestination(removed, opp, cardNum, banishRedirectOpts(c, s, cardNum));
-      return done(addLog(setOwnerState(found, withEnergy, c),
-        `${c.cardMap.get(cardNum)?.CardName ?? cardNum}${log}`));
+      const { state: withEnergy, log, consumedOnceSource } = banishDestination(removed, opp, cardNum, banishRedirectOpts(c, s, cardNum));
+      let afterBanish = addLog(setOwnerState(found, withEnergy, c),
+        `${c.cardMap.get(cardNum)?.CardName ?? cardNum}${log}`);
+      // ⚠消費は `applyBanish` と**同じ規約**（§5.3 `O-210`）＝片方に書かないと経路差ができる。
+      if (consumedOnceSource) {
+        const redirOwn: Owner = found === 'self' ? 'opponent' : 'self';
+        afterBanish = setOwnerState(redirOwn,
+          consumeBanishRedirectOnce(ownerState(redirOwn, afterBanish), consumedOnceSource), afterBanish);
+      }
+      return done(afterBanish);
     }
     case 'BOUNCE': {
       let found: Owner | null = null;
@@ -11883,7 +12019,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         || keySlotCardNums(ctx.otherState).includes(cardNum)) raOwner = 'opponent';
       if (!raOwner) return done(ctx);
       const raS = ownerState(raOwner, ctx);
-      const raNew = applyAbilitiesRemoval(action as RemoveAbilitiesAction, raS, [cardNum]);
+      const raNew = applyAbilitiesRemoval(action as RemoveAbilitiesAction, raS, [cardNum], nextOwnTurnEndSpan(ctx));
       // §3タスク6 E: 選んだ対象を lastProcessedCards に記録＝後続の「それのパワーを－Nする」
       //（POWER_MODIFY targetsLastProcessed）が**同じ対象**に載る（WX26-CP1-009-E1）。
       const label = (action as RemoveAbilitiesAction).keywords?.length

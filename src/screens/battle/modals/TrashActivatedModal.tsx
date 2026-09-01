@@ -8,7 +8,7 @@ import { C } from '../../../components/BoardComponents';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { energyCostToString, canAffordGrowCost, isMultiEna } from '../costs';
 import {
-  trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal,
+  trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal, trashActivateVerbLabel,
   trashActivateExceedPool, trashActivateHandDiscard, trashActivateSelectionsSatisfied,
 } from '../trashActivateCost';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -259,7 +259,14 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                       backgroundColor: isValid ? '#ff6b35' : C.disabled,
                       color: C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
-                    発動する（トラッシュから場に出す）
+                    {/* 🆕**文言は本体アクションと入口から決める**（§5.3 `O-114`・実機で発見）＝
+                        旧はここが「トラッシュから場に出す」固定だったので、自己回収【起】や
+                        エナゾーン起動【起】で**嘘のラベル**を出していた（アクション出し側だけ直しても片肺）。 */}
+                    発動する（{taEffect.energyActivated
+                      ? 'エナゾーンから手札に加える'
+                      : trashActivateVerbLabel(taEffect) === '手札に加える'
+                        ? 'トラッシュから手札に加える'
+                        : 'トラッシュから場に出す'}）
                   </button>
                 </>
               );

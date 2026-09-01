@@ -1,5 +1,52 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-09-02・続き774・Opus 5 単独）＝§5.3 索引 C を上から5件（`O-162`／`O-199`／`O-200`／`O-201`／`O-202`）クローズ。**
+  📊**進捗3計器＝Sheet1 要対応 22 / 863（据置）｜台帳 残 OPEN 44（据置＝この巡は §5.2 から取っていない）｜
+  census 高シグナル 12 → 6（BASELINE も 6 へ更新）**。
+  📦**在庫2本＝④機構 worklist 63 → 58項目**（§5.3 の `| \`O-` 行数の実測。索引 A 17／B 12／**C 27 → 22**／E 4／F 3）
+  ｜🏁**⑤実機 残 0件**（この巡の9本は同巡で実行・全 PASS）。
+  gates 全緑（golden **3243 / 3243**＝3233 から **+10本**・smoke 10,721 全異常0・fuzz 全0・census **6 / BASELINE 6**・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors/250 warnings）。
+
+  🔑**この巡の主題＝「登録票の『受け皿が無い』は5件中4件で失効していた」。新しい型は1つも作っていない。**
+  ① `O-162`（プレイヤーをN人まで選ぶ）＝**既存 `CHOOSE{upTo}`** で足りた。選べるのは「あなた」「対戦相手」の
+     2つだけなので、登録票が要求していた「**選ばれたプレイヤーを後続へ運ぶ口**」は母集団2効果では不要だった。
+  ② `O-200`（ルリグデッキからキーを場に出す）＝**`PLACE_KEY_FROM_LRIG_DECK` は既にあった**（続き760 に新設済み）。
+     足したのは「カード名を書かない形（選ばせる）」「`payPrintedCost`」「`key_place_limit`」の3点だけ。
+  ③ `O-201`（【出】任意コストの新種別）＝**`OptionalCostSpec` も支払いUIも既存**。欠けていたのは
+     `optionalOnPlayCostStub` の `SUPPORTED` に `discardAll` / `energyTrashAll` / `trashToDeckBottom` が無いことだけ。
+     🔴**SUPPORTED に無いキーが1つでもあると `wrapOptionalOnPlay` が null を返し、その任意【出】が丸ごと積まれない。**
+  ④ `O-202`（コスト付きの置換）＝**窓は2本とも既存**（ダメージ置換＝`lifeCrashReplace.ts` の `kind:'pay_cost'`／
+     離場置換＝`collectLeaveSubstituteOptions` の `selfAbilityPay` 軸）。足したのは**支払い種別**2つだけ。
+  ⑤ `O-199`（アンコールのテキスト形コスト）だけが本当に新規。**母集団は登録票の2効果ではなく5枚**
+     （`WDA-F02-08`／`SP27-010`／`SP27-016`／`SPK01-13`／`WX14-016`）。
+
+  🔴🔑**主産物＝作業中に別のバグを1件見つけて直した＝「キーが1枚も場に出せない」。**
+  `BattleScreen` のキー使用ゲートが **CSV の空欄 `'-'` を `!timing` で「タイミング指定なし」と判定**していた
+  （`'-'` は truthy）＝**Timing 列が全部 `-` の全80枚のキーがルリグデッキから永久に使用不可**だった。
+  ⇒ 🔑**CSV の空欄は空文字ではなく `'-'`。** `Story` 列も同じ罠で、`TargetFilter.story`（＜ブルアカ＞等）が
+  実際に読むのは **`CardClass` の「：」より後ろ**（`Story` 列は `-` / `Dissona` の2値）＝golden を書くときに2回踏んだ。
+
+  🖥**実機＝9本すべて Claude が実行して PASS**（`o162ChoosePlayer`／`o199EncoreTextCostPay`＋`Short`／
+  `o200KeyFromLrigDeck`／`o200KeyGateOn`＋`Off`／`o201TrashToDeckBottomPay`＋`NoPay`／`o202DamageReplaceDeclare`）。
+  **反転確認4本**＝`o199EncoreTextCostShort`（下が2枚では払えない）／`o200KeyGateOff`（枠1なら2枚目を置けない）／
+  `o201TrashToDeckBottomNoPay`（＜ブルアカ＞が無ければ発動できない＝踏み倒さない）／
+  `o162ChoosePlayer` は1本の中で反転（対戦相手を選んだので**自分の手札は動かない**・7枚でも**5枚で止まる**）。
+  ⚠**`UNTIL_OPP_TURN_END` のパワー修整は別ストア**（`power_mods_until_opp_turn`）＝`temp_power_mods` だけ見て
+  「効果が走っていない」と誤読した（`queryState` に観測点を足して解消）。
+
+  📉**census 12 → 6 の内訳を混ぜない**＝**前進は1件だけ**（`WXDi-CP02-100-E1` は **`AUTO` のまま**コストが
+  JSON に載ったので免除ではない）。**残り -4 は MANUAL 免除＝較正**（`WXK02-004-E3`／`WXK03-014-E3`／
+  `WX24-P3-043-E1`／`WXEX2-28-E1`）。⚠**中身は原文から書き直しており「移設だけ」ではない**が、
+  **census の -4 を前進として数えない**。**`O-199` の2枚は高シグナルに残した**＝アンコールのコストは
+  `screens/battle/costs.ts` が読むので **effects JSON には載らないのが正しい**（計器に嘘をつかせない）。
+
+**▶ 次の一手**＝**§5.3 の索引 C を上から続ける**（索引がそのまま取る順）。次は **`O-84`（2効果）→ `O-114`（2効果）
+→ `O-180`（残1効果）→ `O-151` → `O-164`**。⚠**着手前に PLAN_DETAIL の同じ ID の登録票を読む**が、
+🔴**この巡でも「受け皿が無い」は4/5で失効していた**＝**登録票の見立てより先に実コードを grep する**
+（提案キー名ではなく**原文の言い回し**と **golden のテスト名**で引く）。
+⚠**`O-114` / `O-94` / `O-150` は `src/screens/` を触るので遅いレーン＋実機必須**。
+
 - 🏁**セッション（2026-09-02・続き773・Opus 5＋Codex 2アカウント・索引 B を上から4件）＝索引 B を 14 → 12件、うち2件は縮小。**
   📊**進捗3計器＝Sheet1 要対応 20 → 22 / 863（🔴増えたが退化ではない＝計器の較正）｜台帳 残 OPEN 44（据置）｜
   census 高シグナル 11 / BASELINE 12（据置）**。

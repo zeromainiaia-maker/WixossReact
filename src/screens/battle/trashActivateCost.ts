@@ -122,6 +122,28 @@ export function canOfferTrashActivate(
 }
 
 /** モーダルのコスト行（「なし」は呼び出し側で補う）。 */
+/**
+ * 🆕**自己起動【起】の動詞ラベル**（2026-09-02・§5.3 `O-114`）。
+ *
+ * 🔴**旧は「トラッシュから出す」固定**だったので、`WX10-096-E2` のような
+ *   「トラッシュにあるこのカードを**手札に加える**」自己回収【起】が**嘘のラベル**を出していた
+ *   （そもそも `trashActivated` が立たず提示すらされていなかったが、立てると今度は表示が嘘になる）。
+ * ⚠**アクション出しとスタックのラベルで同じ関数を使う**（写経すると片方だけ古い文言に残る）。
+ */
+export function trashActivateVerbLabel(effect: CardEffect): string {
+  const walk = (a: unknown): string | null => {
+    if (!a || typeof a !== 'object') return null;
+    const r = a as Record<string, unknown>;
+    if (r.type === 'TRANSFER_TO_HAND') return '手札に加える';
+    if (r.type === 'ADD_TO_FIELD' || r.type === 'PLACE_SIGNI_ON_FIELD') return 'トラッシュから出す';
+    if (Array.isArray(r.steps)) {
+      for (const st of r.steps) { const v = walk(st); if (v) return v; }
+    }
+    return null;
+  };
+  return walk(effect.action) ?? 'トラッシュから出す';
+}
+
 export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op: PlayerState): string[] {
   const cost = effect.cost;
   if (!cost) return [];

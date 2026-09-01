@@ -637,9 +637,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   「【常】：このシグニが**次に**バニッシュされる場合、バニッシュされない。」を得る。
   // 🔴旧 live＝`GRANT_PROTECTION{target:{count:1}}`＝**1体だけに、しかも回数無制限の**耐性
   //   （＜武勇＞限定も「次に1回」も落ちていた）。
-  // ⚠受け皿は**バトルバニッシュ経路限定**＝効果によるバニッシュは防げない（過小側）＝`PARTIAL`。§5.4(ii) 登録。
+  // 🏁**2026-09-02（§5.3 `O-164`）に「効果によるバニッシュ」経路まで届いた**＝原文は
+  //   「バニッシュされる場合」で**発生源を限定していない**のに、受け皿はバトル経路しか読んでいなかった。
+  // 🔴**効果経路の入口は2つある**＝`execBanish` の `applyBanish`（選択して撃つ本線）と
+  //   `applyDirectAction` の `BANISH`（`targetsLastProcessed` 等）。続き760 は**後者にしか書いておらず**、
+  //   「対象を選んで撃つと防げないのに、それ経由なら防げる」無言のズレが残っていた。
+  //   ⇒ `applyBanishPreventShield` 1本へ集約して両方から通した。⇒ `PARTIAL` → `MANUAL`。
+  // ⚠**1回消費は instance 単位**＝`abilities_removed` に積むのは肩代わりした `src`（＝`thisCardOnly` なら
+  //   victim 自身）なので、＜武勇＞が複数いても**各自が1回ずつ**吸収する（原文どおり）。
   'WX15-010': [
-    {"effectId":"WX15-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"武勇"},"abilities":[{"effectId":"WX15-010-E1-G","effectType":"CONTINUOUS","action":{"type":"STUB","id":"BATTLE_BANISH_PREVENT_LOSE_ABILITY","banishPrevent":{"thisCardOnly":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX15-010-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"武勇"},"abilities":[{"effectId":"WX15-010-E1-G","effectType":"CONTINUOUS","action":{"type":"STUB","id":"BATTLE_BANISH_PREVENT_LOSE_ABILITY","banishPrevent":{"thisCardOnly":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -872,10 +879,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   カードを**合計４枚**ルリグトラッシュに置いてもよい。そうした場合、好きな生徒１人との絆を獲得する。
   // 🔴旧 live＝使用条件も【シグニバリア】も丸ごと落ちて**デッキを掘るだけのピース**だった。
   // 🔑【シグニバリア】は既存 `STUB{GAIN_SIGNI_BARRIER}`（フリーゾーンにトークン設置）。
-  // ⚠**未表現**＝①使用条件②（《連邦生徒会》/《クロノス報道部》の使用歴）②「ルリグの下から合計4枚→絆獲得」
-  //   （絆を得るアクションの受け皿が無い）＝`PARTIAL`。§5.4(ii) に登録。
+  // 🏁**2026-09-02（§5.3 `O-209`）に残り2軸を解消**＝**「絆を獲得するアクションの受け皿が無い」は失効していた。**
+  //   `GAIN_BOND{source:'declared'}`（デッキから1枚選んでその名前を `bonds` へ積む）は型・parser 規則・
+  //   `effectExecutor.ts:9695` の消費まで実装済みで、【絆】アイコン能力のゲート（`effectEngine.ts:4687`）が読む。
+  // 🔑**「ルリグの下からカードを合計4枚ルリグトラッシュに置く」＝エクシード4**＝受け皿は
+  //   `OptionalCostSpec.exceed`（`execUtils.ts:511` が可否・`:725` が支払いステップ `INTERNAL_PAY_EXCEED`）。
+  //   任意性は既存の `STUB{OPTIONAL_COST}` → `CONDITIONAL{PAID_ADDITIONAL_COST}` の定型。
+  // 🔑**使用条件②も既存**＝`LRIG_TRASH_COUNT{filter:{cardNames:[…]}}`（使用済みピースは lrig_trash へ入る近似。
+  //   `effectParser.ts:21223` に同じ規則がある）。**両方の【使用条件】は AND**（原文が明記）。
+  // ⚠**engine は0行**（新しい型を1つも足していない）。
   'WXDi-CP02-001': [
-    {"effectId":"WXDi-CP02-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["白"]},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"pickCount":1,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"STUB","id":"GAIN_SIGNI_BARRIER","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WXDi-CP02-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"AND","conditions":[{"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["白"]},{"type":"LRIG_TRASH_COUNT","filter":{"cardNames":["連邦生徒会","クロノス報道部"]},"operator":"gte","value":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"pickCount":1,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"STUB","id":"GAIN_SIGNI_BARRIER","count":1},{"type":"STUB","id":"OPTIONAL_COST","exceed":4},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"GAIN_BOND","source":"declared"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -1115,11 +1129,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WXDi-CP01-002 ／ 原文【使用条件】【ドリームチーム】**黒のルリグを１体以上含む**【使用条件】このゲームの間にあなたが
   //   リレーピースを使用している（両方の【使用条件】を満たさなければならない）**あなたのセンタールリグがレベル３以上の場合**、
   //   対戦相手のデッキの上からカードを２４３４枚トラッシュに置く。
-  // 🔴旧 live＝**使用条件もレベル条件も丸ごと無い**＝いつでも撃てて必ず相手のデッキを削り切る。
-  // ⚠「リレーピースを使用している」は受け皿が無い（`src/` に「リレー」の語彙ゼロ）＝§5.4(ii) 登録＝`PARTIAL`。
-  'WXDi-CP01-002': [
-    {"effectId":"WXDi-CP01-002-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["黒"]},"action":{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":3},"then":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":2434}}},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
-  ],
+  // 🏁**2026-09-02（§5.3 `O-213`）に解消し、manual 定義を削除した。**
+  //   🔴**「リレーピースを使用している」の受け皿が無い**という登録は**失効していた**＝
+  //   `effectParser.ts:21231` に `LRIG_TRASH_COUNT{filter:{cardType:'リレーピース'}}` の規則が既にあり、
+  //   **この manual の `PARTIAL` が上書きして届いていなかった**だけ（第4の死角＝出所のあるスタンプ版）。
+  //   ⇒ 定義を消して parser に任せると **2つの【使用条件】が AND で載る**（原文が「両方の…」と明記）。
+  // ⚠**「使用している」の近似はルリグトラッシュ**＝使用済みピースは lrig_trash へ入る（`execUtils.ts:2597`）。
+  //   ゲームから除外されたピースは残らないので**偽陰性側**＝fail-closed。
 
   // WXDi-CP01-031 ／ 原文【自】：あなたのアタックフェイズ開始時、**あなたの場とエナゾーンに＜世怜音女学院＞のシグニが
   //   合計５種類ある場合**、次の対戦相手のターン終了時まで、このシグニの基本パワーは35000になる。
@@ -1252,12 +1268,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WX24-P4-050 ／ 原文【起】《ダウン》：このターン、次に**このシグニの効果によって**対戦相手のシグニ１体が
   //   バニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる。
-  // 🔴旧 live＝`bySource` が無く**発生源を問わない**＝場に居るだけで相手のあらゆるバニッシュがトラッシュ送りになる
-  //   過剰実行（型定義自身が「この限定が無いと常時過剰発火」と警告している形）。
-  // ⚠「次に」（1回だけ）は `BANISH_REDIRECT` に消費フラグが無い＝§5.4(ii) に機構ギャップとして登録＝`PARTIAL`。
-  'WX24-P4-050': [
-    {"effectId":"WX24-P4-050-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN","bySource":"by_this"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
-  ],
+  // 🏁**2026-09-02（§5.3 `O-210`）に parser へ移して manual 定義を削除した。**
+  //   ①`byEffectOnly`（「このシグニ**の効果**によって」）②`consumeOnce`（「**次に**」＝1回だけ）の2語を
+  //   `parseSentencePart1.ts` の `BANISH_REDIRECT` 規則へ足したので、**parser 出力と実体同一**になった。
+  //   ⚠実体同一の manual を残すと `§6.4 O-42 tripwire`（影武者コピー）が赤くなり、
+  //     以後の parser 改善もこの効果へ永久に届かなくなる（収穫マージが MANUAL を不可侵にするため）。
+  // 🔴**旧 live は経路が真逆だった**＝`bySource` は `banish_redirect_by_source_nums`
+  //   （**バトル経路だけが読む**配列）に載るので、効果バニッシュでは一度も置換されなかった。
 
   // WXK09-023 ／ 原文：あなたのエナゾーンから＜電機＞のシグニを、**パワーの合計が12000になるように**３枚まで対象とし、
   //   それらを場に出す。それらの【出】能力は発動しない。
@@ -2248,9 +2265,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
     // WXK09-029-E2 ／ 原文【起】《ターン１回》《無》**トラッシュにあるそれぞれ名前の異なるスペル３枚を
     //   ゲームから除外する**：対戦相手のシグニ１体を対象とし、それをデッキの一番上に置く。
-    // 🔴旧 live＝**除外コストが丸ごと無く《無×1》だけで撃てた**。⚠`selectionConstraint`（それぞれ名前の
-    //   異なる）は支払いモーダルがまだ enforce しない＝`PARTIAL`（§5.4(ii) に登録）。
-    {"effectId":"WXK09-029-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}],"trashExile":{"count":3,"filter":{"cardType":"スペル"},"selectionConstraint":{"distinct":"name"}}},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_turn"},
+    // 🔴旧 live＝**除外コストが丸ごと無く《無×1》だけで撃てた**。
+    // 🏁**2026-09-02（§5.3 `O-206`）に `selectionConstraint` の enforce まで届いた**＝
+    //   `costs.ts` に `trashExileCostSatisfied` / `canAddTrashExileIndex` / `trashExileAffordable` を新設し、
+    //   **支払いモーダル2本（`SigniActivatedModal` / `LrigGrantedModal`）と可否ゲート**を同じ関数へ通した。
+    //   旧は `size >= count` しか見ておらず**同名のスペル3枚でも払えた**（`energyTrash` とまったく同じ穴）。
+    //   ⇒ `PARTIAL` → `MANUAL`。
+    {"effectId":"WXK09-029-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}],"trashExile":{"count":3,"filter":{"cardType":"スペル"},"selectionConstraint":{"distinct":"name"}}},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
 
 
@@ -9511,6 +9532,67 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🆕上限5枚は今回足した `DrawAction.maxCount`（デッキ残量の切り詰めとは別軸）。
   "WXK06-028": [
     {"effectId":"WXK06-028-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":2,"upTo":true,"choices":[{"choiceId":"self","label":"あなた","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"HAND_CARD","owner":"self","count":"ALL"},"shuffle":true},{"type":"DRAW","owner":"self","count":0,"addLastProcessedCount":true,"maxCount":5}]}},{"choiceId":"opponent","label":"対戦相手","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"HAND_CARD","owner":"opponent","count":"ALL"},"shuffle":true},{"type":"DRAW","owner":"opponent","count":0,"addLastProcessedCount":true,"maxCount":5}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // §5.3 索引 C 第9巡（2026-09-02）
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // WX25-P2-052 ／ §5.3 `O-203`＝「レゾナとしても扱う」（カード同一性の上書きを**参照側**で読む機構）。
+  //   原文 E2「【起】《ターン１回》エナゾーンから＜宇宙＞のシグニ２枚をトラッシュに置く：
+  //   次の対戦相手のターン終了時まで、このシグニのパワーは＋10000され、このシグニは
+  //   「【常】：あなたの効果１つによってこのシグニを参照する場合、**レゾナとしても扱う**。」を得る。」
+  // 🔴旧 live＝`POWER_MODIFY` だけ＝**引用【常】が丸ごと落ちて**いた（＜宇宙＞レゾナ参照の札が拾えない）。
+  // 🆕受け皿＝`STUB{TREAT_SELF_AS_RESONA}`（`treated_as_resona_until_opp_turn` へ積む）＋
+  //   `fieldCandidates` が参照時に `Type` を `'レゾナ'` へ差し替える。
+  // 🔑**「としても」＝シグニでもある**は無料で成立する＝`matchesFilter` は `Type==='レゾナ'` を
+  //   `cardType:'シグニ'` フィルタにも一致させる（非対称の緩和が以前から入っている）。
+  // ⚠**近似を明記**＝`fieldCandidates` は「誰の効果が参照しているか」を知らないので、
+  //   原文の「**あなたの**効果1つによって」は絞れない（相手の「レゾナ1体を対象とし」にも当たり、
+  //   `excludeResona` では逆に外れる）。**1効果のための意図的な近似**。
+  // ⚠付与の器（`GRANT_EFFECT`）は使わない＝引用【常】の中身が「参照のされ方」の宣言だけなので、
+  //   効果元自身へ直接印を付けるのが最短かつ収集契約に縛られない。
+  "WX25-P2-052": [
+    {"effectId":"WX25-P2-052-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energyTrash":{"count":2,"filter":{"cardType":"シグニ","story":"宇宙"}}},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":10000,"duration":"UNTIL_OPP_TURN_END"},{"type":"STUB","id":"TREAT_SELF_AS_RESONA"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // WX16-Re20（グレイブ・ラッシュ）／ §5.3 `O-84`＝「条件つき追加使用タイミング」。
+  //   原文「**あなたのライフクロスが２枚以下の場合、このアーツは追加で《アタックフェイズアイコン》を持つ。**
+  //   あなたのトラッシュからシグニ３枚を対象とし、あなたの場にシグニがない場合、それらを能力を持たない
+  //   シグニとして場に出す。ターン終了時、それらを場からトラッシュに置く。」
+  // 🔴旧 live＝1文目が `STUB{DEFERRED_CONDITIONAL_EXTRA_USE_TIMING}`（engine に消費なし＝恒久 no-op）で、
+  //   **ライフ2枚以下でもアタックフェイズに撃てなかった**（`CardData.Timing` 列は「メインフェイズ」だけ）。
+  // 🆕受け皿＝`STUB{EXTRA_USE_TIMING, extraUseTiming:{timing:'ATTACK_ARTS'}}` を**別の CONTINUOUS 効果**
+  //   （E2）として置き、条件は `activeCondition` に載せる。消費は `artsUseGate.ts` の `collectExtraUseTimings`。
+  // ⚠**E1 の `timing` は印字どおり `["MAIN"]` のまま**＝追加タイミングは `artsUseGate` が動的に足す。
+  //   ここへ `ATTACK_ARTS` を書くと「条件と無関係にアタックフェイズで使える」という別の嘘になる
+  //   （実行側 `queueCardEffects` は timing で絞らないので、書いても得は無い）。
+  // ⚠**宣言は本体の SEQUENCE から外す**＝あれは「使用可否の静的な性質」であって解決ステップではない
+  //   （SEQUENCE のステップに残すと、撃った後に宣言する＝永久に間に合わない）。
+  // ⚠**向きに注意**＝`condition`（使用条件）ではなく **追加**。条件を使用条件へ載せると
+  //   「ライフ2枚以下でしか使えないアーツ」に化ける（`effectParser.ts` の `STATE_HOIST_BATCH1_CARDS`
+  //   ガードはその誤変換を封じているので**外さない**）。
+  "WX16-Re20": [
+    {"effectId":"WX16-Re20-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"FIELD_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"type":"STUB","id":"TRASH_AT_TURN_END"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX16-Re20-E2","effectType":"CONTINUOUS","activeCondition":{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2},"action":{"type":"STUB","id":"EXTRA_USE_TIMING","extraUseTiming":{"timing":"ATTACK_ARTS"}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // PR-K026 ／ §5.3 `O-151`(a)＝「合わせて±N」で**対象宣言が別の文にある**（照応が文をまたぐ）形。
+  //   原文（キーが与える2本目の【起】）＝「対戦相手のシグニを**２体まで対象とし**、あなたのデッキの上から
+  //   カードを９枚トラッシュに置く。この方法でカードが９枚トラッシュに置かれた場合、ターン終了時まで、
+  //   **それら**のパワーを合わせて－18000する。この効果では1000単位でしか数字を割り振ることができない。」
+  // 🔴旧 live＝**対象宣言が丸ごと落ちて** `CONDITIONAL{LAST_PROCESSED_COUNT_GTE 9} → STUB{POWER_MOD_PER_COUNT}`
+  //   だけ＝相手のパワーは1ミリも下がらない（真 no-op）。
+  // 🔑**受け皿は既存の3点**＝`STUB{SELECT_TARGET_ONLY}`（盤面を変えない対象宣言）＋
+  //   `STUB{STORE_LAST_PROCESSED_TARGETS}`（`storedTargetCards` へ固定）＋
+  //   `POWER_MODIFY{targetsStored, splitTotal}`。**間にミル9枚を挟んでも対象が生き残る**のがこの組の要点
+  //   （`lastProcessedCards` はミルで上書きされるので `targetsStored` でないと届かない）。
+  // 🆕engine 側は1点だけ足した＝`execPowerModify` の `splitTotal` が `targetsStored` を honor する
+  //   （旧実装は必ず選択UIを出したので、**同じ対象へ ON_TARGETED が二度立つ**）。
+  // ⚠`RULE_REMINDER_TEXT`（1000単位の但し書き）は `splitTotal.unit:1000` が表すので落とす。
+  // ⚠**E1 の1本目【起】（エクシード1・－7000）は旧のまま**＝あちらは同じ文に対象宣言があり正しい。
+  "PR-K026": [
+    {"effectId":"PR-K026-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-K026-E1-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":1},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"},{"effectId":"PR-K026-E1-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":9}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":9},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-18000,"splitTotal":{"unit":1000},"duration":"UNTIL_END_OF_TURN"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],"rawText":"【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグニを２体まで対象とし、あなたのデッキの上からカードを９枚トラッシュに置く。この方法でカードが９枚トラッシュに置かれた場合、ターン終了時まで、それらのパワーを合わせて－18000する。この効果では1000単位でしか数字を割り振ることができない。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   "WXDi-D09-H07": [

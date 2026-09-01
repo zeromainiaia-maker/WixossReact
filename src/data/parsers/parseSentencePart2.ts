@@ -110,6 +110,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
         if (subj.includes('シグニ')) filter.cardType = 'シグニ';
         return { type: 'GROW_COST_REDUCTION', reduction, perCount: { filter, count: parseNum(perCountM[2]) } } as GrowCostReductionAction;
       }
+      // 🆕**「このターン、あなたのルリグが次にアシストルリグにグロウする場合、グロウするための
+      //   ルリグタイプは無視され、グロウするためのコストは《無×1》減る」**（§5.3 `O-180`・`WX24-P2-043`）。
+      // 🔴この形は**一過性（次の1回だけ）かつアシストグロウ限定**なので、場の【常】軽減とは別扱いにする。
+      //   落とすと「このターン中は何度でも」＋「センターグロウにも効く」の二重の過剰になる。
+      if (/次にアシストルリグにグロウする場合/.test(t)) {
+        return {
+          type: 'GROW_COST_REDUCTION', reduction,
+          nextAssistGrowOnly: true,
+          ...( /ルリグタイプは無視/.test(t) ? { ignoreLrigType: true } : {}),
+        } as GrowCostReductionAction;
+      }
       return { type: 'GROW_COST_REDUCTION', reduction } as GrowCostReductionAction;
     }
   }

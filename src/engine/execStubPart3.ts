@@ -4928,6 +4928,24 @@ export function execStubPart3(
       `【シグニバリア】+${countGSB}（フリーゾーンに設置）`));
   }
 
+  // 🆕TREAT_SELF_AS_RESONA: 「あなたの効果１つによってこのシグニを参照する場合、レゾナとしても扱う」
+  //   （§5.3 `O-203`・`WX25-P2-052-E2`）。参照側（`fieldCandidates`）が `Type` を差し替えて読む。
+  // 🔑**「としても」＝シグニでもある**＝`matchesFilter` は `Type==='レゾナ'` を `cardType:'シグニ'` にも
+  //   一致させる（非対称の緩和が既存）ので、差し替えるだけで両方に当たる。
+  // ⚠**期間は「次の対戦相手のターン終了時まで」**＝ストア名の `_until_opp_turn` が
+  //   `clearUntilOppTurnEffects` の解除契約（名前を変えると永続する）。
+  if (stub.id === 'TREAT_SELF_AS_RESONA') {
+    if (!ctx.sourceCardNum) return done(addLog(ctx, 'レゾナとしても扱う（効果元不明のため適用なし）'));
+    const prevTAR = ctx.ownerState.treated_as_resona_until_opp_turn ?? [];
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        treated_as_resona_until_opp_turn: prevTAR.includes(ctx.sourceCardNum) ? prevTAR : [...prevTAR, ctx.sourceCardNum],
+      },
+    }, `${ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.CardName ?? ctx.sourceCardNum}はレゾナとしても扱われる`));
+  }
+
   // LOSE_SIGNI_BARRIER / LOSE_LRIG_BARRIER: 対戦相手は【○バリア】Nつを失う
   // （相手フリーゾーンのバリアトークンを取り除く。WX24-P1-043 の引用付与内側【自】）
   if (stub.id === 'LOSE_SIGNI_BARRIER' || stub.id === 'LOSE_LRIG_BARRIER') {

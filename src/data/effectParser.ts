@@ -570,6 +570,10 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   //   終止形しか見ておらず落ちていた＝`cost` がエナ側だけになり**自己トラッシュを踏み倒して撃てた**
   //   （`WX25-P3-100-E1`／`WXDi-CP02-099-E1`）。直下の `trash_key` は最初から両形を受けている（同じ軸）。
   if (/このシグニを(?:場から)?トラッシュに置[くき]/.test(costStr) || /このシグニと《[^》]+》[０-９\d]*体を場からトラッシュに置く/.test(costStr)) cost.trash_self = true;
+  // 🆕**このシグニを場から手札に戻す**（2026-09-02・§5.3 `O-167`・`WX21-031-CB-E2`）。
+  // 🔴**`trash_self` へ寄せない＝行き先が違う**（手札なら同じ札を再利用できる／トラッシュなら資源を失う）。
+  //   旧はこの句がどのコスト規則にも当たらず**丸ごと踏み倒されて**いた（エナ《白》だけで撃てた）。
+  if (/このシグニを場から手札に戻[すし]/.test(costStr)) cost.bounceSelf = true;
   // 🆕**「このシグニ**と**《カード名》N体を場からトラッシュに置く」の後半**（2026-08-31 §5.2・
   //   `WXDi-P11-051-E2`／`WXDi-P11-078-E2`）。上の行は `trash_self` だけを立てて**《…》側を黙って捨てて**おり、
   //   **相方が場に無くても撃てる**（原文より軽い踏み倒し）状態だった。
@@ -3879,6 +3883,24 @@ function dropDanglingDeckTopPlacement(steps: EffectAction[]): EffectAction[] {
 // SEQUENCE へ合流する他文の正当な PERMANENT（別文の【常】付与等）は潰さない。付与能力の内側（abilities/rawText）
 // には潜らない（内側 duration は別スコープ）。
 const OPP_TURN_END_RE = /次の(?:対戦相手|相手)の?ターン(?:終了時まで|の間)/;
+// 🆕**「次のあなたのターン終了時まで」**（2026-09-02・§5.3 `O-186`）。
+// 🔴旧は `ターン終了時まで` の部分一致で `UNTIL_END_OF_TURN` へ潰れており、**相手ターンを跨がずに切れる**
+//   （＝過小実行）。`UNTIL_OPP_TURN_END` へ寄せても**1ターン短い**ので専用の期間が要る。
+// ⚠**「次のあなたのターン終了時、〈何かをする〉」（読点）はトリガー**であって期間ではない＝
+//   `parseSentencePart1.ts:266` が別に扱うので、ここは「まで／の間」だけを見る。
+const NEXT_OWN_TURN_END_RE = /次のあなたのターン(?:終了時まで|の間)/;
+/** 🆕「次のあなたのターン終了時まで」への昇格（§5.3 `O-186`）。⚠`upgradeToOppTurnEnd` と同型・値だけ違う。 */
+function upgradeToNextOwnTurnEnd(a: EffectAction | undefined): void {
+  if (!a || typeof a !== 'object') return;
+  const ra = a as { type: string; until?: string; duration?: string; steps?: EffectAction[]; then?: EffectAction; else?: EffectAction; choices?: { action?: EffectAction }[] };
+  if (ra.until === 'UNTIL_END_OF_TURN') ra.until = 'UNTIL_NEXT_OWN_TURN_END';
+  if (ra.duration === 'UNTIL_END_OF_TURN' || ra.duration === 'PERMANENT') ra.duration = 'UNTIL_NEXT_OWN_TURN_END';
+  if ((ra.type === 'POWER_MODIFY' || ra.type === 'POWER_SET') && ra.duration === undefined) ra.duration = 'UNTIL_NEXT_OWN_TURN_END';
+  if (ra.type === 'SEQUENCE') ra.steps?.forEach(upgradeToNextOwnTurnEnd);
+  else if (ra.type === 'CONDITIONAL') { upgradeToNextOwnTurnEnd(ra.then); upgradeToNextOwnTurnEnd(ra.else); }
+  else if (ra.type === 'CHOOSE') ra.choices?.forEach(c => upgradeToNextOwnTurnEnd(c.action));
+}
+
 function upgradeToOppTurnEnd(a: EffectAction | undefined): void {
   if (!a || typeof a !== 'object') return;
   const ra = a as { type: string; until?: string; duration?: string; steps?: EffectAction[]; then?: EffectAction; else?: EffectAction; choices?: { action?: EffectAction }[] };
@@ -5136,7 +5158,10 @@ function parseSingleSentence(text: string): EffectAction {
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
-  if (OPP_TURN_END_RE.test(trimmed)) upgradeToOppTurnEnd(action);
+  // ⚠**「次のあなたの」を先に見る**＝`OPP_TURN_END_RE` は当たらないが、`ターン終了時まで` の
+  //   部分一致フォールバック（`restoreLeadUntilEndOfTurn`）に食われないよう順序を固定する（§5.3 `O-186`）。
+  if (NEXT_OWN_TURN_END_RE.test(trimmed)) upgradeToNextOwnTurnEnd(action);
+  else if (OPP_TURN_END_RE.test(trimmed)) upgradeToOppTurnEnd(action);
   else if (/^ターン終了時まで[、,]/.test(trimmed)) restoreLeadUntilEndOfTurn(action);
   return action;
 }
@@ -20094,9 +20119,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // 「手札からこのカードを捨てる」起動能力は手札カードアクションUI（getMyHandCardActions）の対象。
   const handActivated = cost?.discardSelfFromHand === true;
   // 「このシグニ/カードをトラッシュから場に出す」等のトラッシュ自己起動【起】はトラッシュゾーンUIの対象。
+  // 🆕**「トラッシュにあるこのカードを**手札に加える**」も同じ入口**（2026-09-02・§5.3 `O-114`）。
+  // 🔴旧は本体が「場に出す／シグニゾーンに出す」のときしか立たず、`WX10-096-E2`
+  //   （スペルの自己回収【起】）は**どこからも提示されない**＝過小実行だった
+  //   （本文とトップレベル【起】を別効果へ割った B12 の副作用で、旧は唱えた瞬間に無料で走っていた）。
   const trashActivated = effectType === 'ACTIVATED'
     && /(?:この(?:シグニ|カード)|トラッシュからこの(?:シグニ|カード))/.test(actionText)
-    && actionText.includes('トラッシュ') && /(?:場に出す|シグニゾーンに出す)/.test(actionText);
+    && actionText.includes('トラッシュ') && /(?:場に出す|シグニゾーンに出す|手札に加える)/.test(actionText);
+  // 🆕**エナゾーンにあるこのカードを手札に加える【起】**（§5.3 `O-114`・`WXDi-P06-077-E2`）。
+  // ⚠**`trashActivated` と排他**＝入口（どのゾーンのカードをタップするか）が違うだけで、
+  //   支払い・実行は同じ `trashActivateCost` / `executeTrashActivated` を通す。
+  const energyActivated = effectType === 'ACTIVATED'
+    && !trashActivated
+    && /エナゾーンからこの(?:シグニ|カード)を手札に加える/.test(actionText);
   let activeCondition: ActiveCondition | undefined;
   let resolvedAction: EffectAction;
   let parseStatus: CardEffect['parseStatus'] = 'AUTO';
@@ -20826,6 +20861,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     ...(isHolograph ? { holograph: true } : {}),
     ...(handActivated ? { handActivated: true } : {}),
     ...(trashActivated ? { trashActivated: true } : {}),
+    ...(energyActivated ? { energyActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
     ...(extractedTriggerFilter !== undefined ? { triggerFilter: extractedTriggerFilter } : {}),
     ...(extractedTriggerCondObj !== undefined ? { triggerCondition: extractedTriggerCondObj } : {}),

@@ -36,6 +36,35 @@
 
 ### 恒久指標（退避）2026-09-01 続き772 前（＝続き771 の索引 C バッチ直後の値）
 
+- **2026-09-02（続き774）＝§5.3 索引 C を上から5件（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・据置）｜
+  **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜
+  **census 高シグナル 12 → 6 / BASELINE 6**（🔴**内訳を混ぜない**＝**実装 -1**（`WXDi-CP02-100-E1` は
+  `AUTO` のままコストが載った＝真の前進）／**較正 -4**（`WXK02-004-E3`／`WXK03-014-E3`／`WX24-P3-043-E1`／
+  `WXEX2-28-E1` は MANUAL 化による免除）。**`O-199` の2枚は意図的に高シグナルへ残した**）
+  📦**在庫2本**＝**機構 worklist 63 → 58項目**（`| \`O-` 行数の実測＝索引 A **17**／B **12**／**C 27 → 22**／E **4**／F **3**）
+  ｜🏁**実機 残 0件**（§5.1＝この巡の9本は同巡で実行・全 PASS）
+  🔧**ゲート（全緑 ✅）**＝golden **3243 / 3243**（3233 → **+10本**）／smoke 10,721効果 全異常0／fuzz 全0／
+  census **6 / BASELINE 6**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 250 warnings。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規9本すべて PASS**（単体でも9本一括でも）＝
+  `o162ChoosePlayer`／`o199EncoreTextCostPay`／`o199EncoreTextCostShort`（🔴反転）／`o200KeyFromLrigDeck`／
+  `o200KeyGateOn`／`o200KeyGateOff`（🔴反転）／`o201TrashToDeckBottomPay`／`o201TrashToDeckBottomNoPay`（🔴反転）／
+  `o202DamageReplaceDeclare`。
+  🆕**足した機構**＝`DrawAction.maxCount`（原文のドロー上限）／`PlaceKeyFromLrigDeckAction` の
+  `cardName` 省略・`payPrintedCost`・`coinReduction` ＋ `PlayerState.key_place_limit`（`STUB{SET_KEY_PLACE_LIMIT}`）／
+  `EffectCost.trashToDeckBottom` ＋ `OptionalCostSpec.trashToDeckBottom` ＋ 支払いUI（`SigniOnPlayCostModal`）／
+  `parseEncoreCost` のテキスト形3種（`exceed`／`trashOwnKey`／`handDiscardSigni`）＋ ArtsModal のゲートと支払い／
+  `LifeCrashReplaceAction.replaceKind:'pay_cost'` ＋ `payOptions[].assistLrigDown`／
+  離場置換の新軸 `downProtector`（`STUB{EFFECT_LEAVE_REPLACE_WITH_DOWN_SELF}`）。
+  🔴**新しい `Condition` 型は1つも足していない**（§4.2 の「条件側には STUB の道が無い」に触れずに済んだ）。
+  🐛**副産物の実バグ修正1件**＝`BattleScreen` のキー使用ゲートが CSV の空欄 `'-'` を `!timing` で判定しており、
+  **Timing 列が全部 `-` の全80枚のキーがルリグデッキから使用不可**だった（`o200KeyGateOn` で発覚）。
+  🔄**据置契約を1本反転**＝`(xxix)(2) 第15波後の明示保留3効果は costUnparsed のまま保持する` を
+  **3効果 → 1効果**（残るのは `WXDi-P03-019-E1`＝`O-68` の領分）。
+  🔎**live の per-effect diff＝合計8効果**（`O-162` 2／`O-200` 2／`O-201` 2／`O-202` 2）。
+  **HEAD との全数 diff を per-effect で取り、意図した8効果以外が動いていないことを確認済み。**
+
 - **2026-09-01（続き771）＝§5.3 索引 C バッチ（本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 20 / 863 (2.3%)**（うち `mech` 20・**即着手可能 0**・**据置**）｜
   **台帳 残 OPEN 44**（据置）｜**census 高シグナル 11 / BASELINE 12**（据置）
@@ -604,6 +633,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-72` — `ON_ATTACK_PHASE_START` の収集が「フェイズ限定つき【常】で付与された【自】」を拾えない
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 登録票の「当て」（augmented effectsMap が遷移**前**の `turn_phase` で組まれる）が正しかった。`mkTrigCtxForPhase` を新設し、開始時トリガーの収集に**遷移先フェイズ**を渡して下カード付与だけを組み直す（effectId で重複を弾く）。⚠**CPU 版（`collectCpuTurnTriggers`）にも同じ引数を通した**＝片方だけだと「人間ターンでは発火するのに CPU では発火しない」無言のズレになる。
+
 **規模／母集団（登録票の記載そのまま）**＝S
 
 **2026-08-25 続き660（`O-66`③ の実機検証）で発見**。`WXK08-048-E1`「【常】：**あなたのアタックフェイズの間**、このシグニはこのカードの下にある…シグニの**【自】能力**を得る」で得た `ON_ATTACK_PHASE_START` の【自】が**アタックフェイズへ進めても発火しない**（実機で確認）。🔑**当て**＝augmented effectsMap は `bs.turn_phase`（＝**遷移前**の MAIN）で組まれるので、`DURING_ATTACK_PHASE` の付与が**まだ有効でない**まま `ON_ATTACK_PHASE_START` を収集している疑い（`checkActiveCondition` の評価タイミングと収集タイミングのズレ）。⚠**`O-66`③ の payload 化とは無関係の既存穴**＝移設前から同じ挙動。⚠着手前に**遷移時にどの `turn_phase` で effectsMap が組まれるか**を実測すること。
@@ -633,6 +664,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-26 続き666（`O-60` 第8バッチ）で分離**＝`SP38-001-E1`（クロス・テンスグロウ！）。旧 id は `CONDITIONAL_ARTS_COST` で**コストの話に化けていた**ので `DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL` へ改名（`miscStubMap` に日本語説明あり）。■**要るもの**＝①「自センターのレベル < 相手センターのレベル」条件（既存の条件型に無い）②**効果によるグロウ**（原文は「コストを支払わずに」と書いていないので**通常のグロウコストを払う**）③「この方法でグロウしたルリグの【出】能力は発動しない」＝`suppressOnPlay` 相当の伝播。⚠**`GROW_FREE`（`GrowFreeAction`）は「コストを支払わずに」の口なので流用しない**（過少コストになる）。⚠**着手前に母集団を実測する**（「グロウしてもよい」を含む効果の全数）。
 
 ### `O-84` — 「条件を満たす場合、このアーツは追加で《アタックフェイズアイコン》を持つ」＝条件つき追加使用タイミングの口が無い
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** `StubAction.extraUseTiming` ＋ `ActiveCondition.LIFE_COUNT`（`Condition` 側には元から在り**片側だけ育っていた**）。消費は `artsUseGate.ts` の `collectExtraUseTimings` 1本。🔴**足す側**（`timingOk` へ `||` で合流）＝必須項に混ぜると「ライフ2枚以下でしか使えない」に化ける。**`STATE_HOIST_BATCH1_CARDS` ガードは外していない**（あれがその誤変換を封じている）。⚠**母集団2効果のうち `WX20-052-E1`（レゾナの出現条件に追加）は別機構**（`STUB{ADD_RESONANCE_CONDITION}`）＝この項目では扱っていない。
 
 **規模／母集団（登録票の記載そのまま）**＝S
 
@@ -740,6 +773,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-114` — スペル／アーツの「別能力としての【起】」が UI から使えない
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** ①`trashActivated` の条件へ「トラッシュにあるこのカードを手札に加える」を追加 ②`CardEffect.energyActivated` を新設して `PlayerField` にエナゾーンのカードアクション（`getEnergyCardActions`）を配線 ③ラベルは `trashActivateVerbLabel` で本体アクションから決める。🔴**実機で `TrashActivatedModal` の実行ボタンも「トラッシュから場に出す」固定だと判明**（2箇所目）＝**同じ文言を2箇所で組み立てているものは両方直す**。
+
 **規模／母集団（登録票の記載そのまま）**＝S
 
 **2026-08-27 Sheet1 B12 で分離**＝本文とトップレベル【起】を別効果へ割った結果、`WX10-096-E2`（コスト＝場の【チャーム】1枚トラッシュ／トラッシュから**このカード**を手札へ）と `WXDi-P06-077-E2`（エナゾーンから**このカード**を手札へ）が**どこからも提示されない**。■`trashActivated` の判定（`effectParser.ts`）は本体が **`場に出す`／`シグニゾーンに出す`** のときしか立たず、**「手札に加える」自己回収**を知らない。エナゾーン起動にいたっては受け皿そのものが無い。■⚠**分割自体は正**（旧＝唱えた瞬間に無料で走っていた）＝ここは**過剰実行を過小実行へ替えた**状態。■**取り方**＝①`trashActivated` の条件へ「トラッシュにあるこのカードを手札に加える」を足す ②`openTrashActivated` のラベル（「【起】トラッシュから出す」）を本体アクションから決める ③エナゾーン起動は `energyActivated` を新設（`WX17-044` の defer 項目 (a) と同じ棚）。
@@ -840,6 +875,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-151` — 「合わせて±N」で対象宣言が同じ文に無い形（照応が文をまたぐ）が割り振り機構に乗っていない
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 受け皿は既存の `STUB{SELECT_TARGET_ONLY}`＋`STUB{STORE_LAST_PROCESSED_TARGETS}`＋`POWER_MODIFY{targetsStored, splitTotal}` で足りた（**ミル9枚を挟んでも対象が生き残る**のが要点）。engine 側は `execPowerModify` の `splitTotal` が `targetsStored` を honor する1点だけ（旧は選択UIを再掲＝ON_TARGETED が二度立つ）。**割り振り本体は `applySplitTotalToTargets` へ共有化。** 予告どおり `parseSentencePart4` の catch-all も撤去した。
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`PR-K026-E1` の付与【起】）
 
 **2026-08-29 続き719（`O-140`）で分離。** 🏁**2026-08-29 続き725 に (b)`WX24-P2-009-E1` をクローズ**＝`POWER_MODIFY{deltaFromZone{zone:trash, per:-1000}, splitTotal{unit:1000}}` を `manualEffects.ts` へ手書き（**engine は0行**＝`effectExecutor.ts:1727` で `deltaFromZone` を解決してから `:1878` の `splitTotal` が総量として使う順序が既に正しかった。全文は PLAN_DETAIL.md 2026-08-29）。■**残る (a) `PR-K026`**＝「対戦相手のシグニを**２体まで**対象とし、…（別の文で）**それら**のパワーを合わせて－18000する」＝**照応が文をまたぐ**。⚠`O-80` の教訓どおり**確定できない照応は fail-closed**にしてある。受け皿は `targetsStored` ＋ `splitTotal` の組み合わせ（engine 側は数行）だが、**前の文が対象を stored に積む形に parse されているかの確認が先**。■⚠**`parseSentencePart4` の narrow catch-all（`それらのパワーを(合わせて|合計で)`）はこの1件のために残してある**＝(a) を閉じたら撤去すること（残すと死んだ枝＝catch-all の温床）。
@@ -934,6 +971,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-164` — 「次にバニッシュされる場合、バニッシュされない」＝1回だけ吸収して消える盾（＋バトル起因も含む）
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 🔴**続き760 の「効果経路も配線した」は片肺だった**＝盾は `applyDirectAction` の `BANISH` にしか無く、**`execBanish` の `applyBanish`（対象を選んで撃つ本線）は素通り**していた。`applyBanishPreventShield` を新設して両方から通した（身代わりより**先**に見る＝原文は離場自体が起きない）。⚠1回消費は instance 単位なので＜武勇＞が複数いても各自が1回ずつ吸収する。
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`WX15-010-E1`。原文実測1枚）
 
 **2026-08-30（§5.2 Sheet2 バッチ6）で分離＝golden の見送り契約が発火して撤退した項目。** ■**経緯**＝原文は「ターン終了時まで、あなたの**すべての＜武勇＞**のシグニは『【常】：このシグニが**次に**バニッシュされる場合、バニッシュされない。』を得る」。live は `GRANT_PROTECTION{target:{SIGNI,self,count:1}}` ＝**任意の自シグニ1体・クラス限定なし**。`subjectFilter:{story:'武勇'}` へ移せば集合化はできる（`execGrantProtection` が `applyActiveFieldGrant` で全一致シグニへ載せる）が、🔴**それをやると過剰実行が拡大する**＝1回消費が無いので「ターン中ずっと＜武勇＞全員がバニッシュ耐性」になる。**golden『段2 第23バッチ 見送り契約: WX15-010-E1 は1回消費語彙が無いため集合耐性へ広げない』が正にこれを止めた**（2026-08-30 に実際に発火・据置の理由が生きていることを確認して撤退）。 ■**要るもの2つ**＝(a)**1回消費**＝`GrantProtectionAction` に `consumeOnce?: boolean` 相当＋消費地点（`keyword_grants` から1回で剥がす経路）。⚠現在の耐性は**キーワード文字列のストア**なので「消費」を表せる場所が無い (b)**バトル起因も防ぐ**＝`sourceOwner:'any'` は型コメントどおり**ルール／バトルを含めない**ので、原文の無限定「バニッシュされない」に届かない。 ■⚠**(a) を入れずに scope だけ広げてはいけない**（上記の理由）。golden の契約は**受け皿ができた時に期待値を反転**する。
@@ -952,6 +991,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-30（§5.2 Sheet2 バッチ6）で分離。** ■**実測**＝原文「あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000し、それは『【常】：**対戦相手のターンの間**、このシグニは対戦相手の効果を受けない。』を得る」。live は `SEQUENCE[POWER_MODIFY+3000, GRANT_PROTECTION{from:['any'],sourceOwner:'opponent',targetsLastProcessed}]` ＝**パワー＋3000は正しく入っている**が、**ターン限定が丸ごと無い**＝自分のターンにも相手の効果を受けない過剰実行。 ■**受け皿の非対称**＝**CONTINUOUS 宣言側には在る**（`WX19-048-E1` が `activeCondition:{type:'TURN_OWNER',owner:'opponent'}` ＋ `GRANT_PROTECTION` で書けている＝`collectEffectImmuneSigni` が `checkActiveCondition` を回す）。**期間付与側だけ無い**＝`execGrantProtection` は `protectionKeyword(a)` の文字列を `keyword_grants` へ積むだけで、条件を持ち回れない。 ■**取り方**＝`protectionKeyword` の `PROTECTION_FILTERED:` 系に**ターン条件を1キー足す**（`sourceCostMin`/`sourceFilter` と同じ道）か、`execGrantProtection` の CONTINUOUS 迂回（`granted_effects` へ CONTINUOUS を積む既存枝）へ倒す。⚠**後者は既に `subjectFilter.excludeSelf` 用に存在する**ので、そちらの一般化が最短の見込み。
 
 ### `O-167` — 【起】コストに「このシグニを場から手札に戻す」が無い
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** `EffectCost.bounceSelf` を新設（🔴`trash_self` へ寄せない＝行き先が違う）。parser 規則＋`BattleScreen` の【起】コスト funnel（離場は `removeFromField` を共有）＋モーダルのラベル＋`CPU_AUTO_PAYABLE_COST_KEYS`＋逆翻訳。**census 高シグナル -1（真の前進）。**
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`WX21-031-CB-E2`。原文実測1枚）
 
@@ -1015,6 +1056,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-177` — ライフバースト無効に「カードの条件」を載せられない（`suppress_life_burst` が boolean）
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** `PlayerState.suppress_life_burst` を `boolean | TargetFilter` へ広げ、判定を `lifeBurstSuppress.ts` の `lifeBurstSuppressedByTurnFlag` 1本に集約（`LifeBurstCheckModal` は**カードごと**に呼ぶ）。⚠基準ルリグは**フラグの持ち主**／色は**配列**で渡す（§5.3 `O-183` の実測）／ルリグ色が引けなければ**抑制しない側**へ倒す。⚠登録票の「残り14枚は『この効果でクラッシュされたカードの』限定なのに同じ boolean」という**別の疑いは未着手**（そちらは `SUPPRESS_LIFE_BURST_ON_CRASH` の射程＝別軸）。
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`WX25-P3-003-E1`。**原文15枚を全数分類して条件つきはこれだけと確定**）
 
 **2026-08-30 続き736 で分離**（`census:wiring` の最大セルを潰した副産物）。■**原文**＝「このターン、**対戦相手のセンタールリグと共通する色を持たない**対戦相手のカードのライフバーストは発動しない」。■**受け皿は boolean**＝`STUB{SUPPRESS_LIFE_BURST_ON_CRASH|ON_CARD}` が `otherState.suppress_life_burst = true` を立てるだけ（`execStubPart1.ts:1973`）＝**このターンの全バーストを止める**ので**条件を載せられない**。**要る形＝フラグを `boolean | TargetFilter` へ広げる**（色条件は `colorNotMatchesLrig` が既存で、エナ以外の対象でも相手基準に解決できるかは要確認）。■⚠**同時に見つけた別の疑い（要調査）**＝残り14枚は原文が「**この効果でクラッシュされたカードの**」＝**そのクラッシュ限定**なのに、受け皿は同じ boolean（**このターン全部**）＝**過剰の疑い**。実害は「直後のクラッシュにしか適用されないか」次第なので**着手時に1枚 engine を追う**。■⚠**`execStubPart1.ts:3628` は `ライフバーストは発動しない` をカード全文 regex で読んでいる**（`census:enginetext` A群の系統）＝**payload 化のついでに撤去できる**。
@@ -1032,6 +1075,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-30（§5.2 カード単位バッチ第2回）で分離。** ■**原文**＝ライフをクラッシュ**してもよい**（任意）＋「**この方法でチェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにそれをトラッシュへ置き**あなたのデッキの一番上をライフクロスに加える」。■🔴**live は2つとも落ちている**＝①任意性が強制になっている ②**置換が無く、クラッシュの成否と無関係にデッキ上をライフへ加えている**。■⚠**置換の受け皿は `WX25-P3-032` が近い**（「チェックゾーンに置かれる代わりにトラッシュに置かれる」）＝**着手時にまずそれを読む**。
 
 ### `O-180` — グロウの「ルリグタイプは無視される」を engine が誰も読んでいない
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 🔴**真因は「一過性が無い」ではなく `GROW_COST_REDUCTION` に実行ハンドラが1つも無かったこと**（`collectGrowCostReductions` は場の CONTINUOUS しか走査しない）＝ピースが丸ごと無言 no-op だった。`nextAssistGrowOnly`／`ignoreLrigType` ＋ `PlayerState.next_assist_grow_mods`（1回きり・ターン終了でも消える）を新設し、`getAssistGrowCandidates` と `AssistGrowModal` が読む。
 
 🔻**2026-09-01 続き772 に3効果を消化＝残1**（`WX14-003` / `WXK09-001` / `WX25-P3-037`）。`growLogic.ts` に `ignoresLrigTypeForGrow()` を新設し `listGrowCandidates` のクラス互換チェックへ OR で挿した（**候補ルリグ自身の宣言**を読む）。逆翻訳の誤文（「レベル５のシグニの限定条件を無視」）も訂正。**残るのは `WX24-P2-043` だけ**＝(a)「次に1回」の一過性 (b)アシストグロウ経路（`BattleScreen.tsx` の別の候補リストが `lrigClassesCompatible` を直接呼ぶ＝`getAssistGrowCandidates` 相当が要る）。⇒ **索引 C（母集団1効果）へ移した。**
 
@@ -1074,6 +1119,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-30 の census 消化3巡（460→245）で残った分。** 🔴🔑**着手前に必ず読む＝較正で取れる分はもう尽きている。** 3巡で**較正 -173／実装 -42** を払い出し、「同じキー名が縦に並ぶ」クラスタは全部消えた。**残り245はほぼ実装**。 ⚠**それでも最初に §1 の4手順（全数 dump →型名・キー名を縦に並べる→目視→id 集合の機械差分）は通すこと**（`re` 側の誤検出＝カード名の一部に当たる、が最後に1件出た＝㉑`機構:ゲート`）。 ■**内訳（排他・2026-08-30 実測）**＝**条件節 27**／**小さい数 13**／**クラス指定 10**／**機構:アンコール 9**／**引用能力付与の平坦化 8**／**数量比例 6**／**ゾーン:デッキの一番下 6**／**「Nまで」上限選択 6**／シグニの下に置く 4／キーワード能力語 4／色フィルタ 3／トリガー:ターン終了時に 3／コスト:エナからトラッシュ 3／他（2件以下）約42。 ■🔑**取る順の見立て**＝(a)**機構:アンコール 9**＝`WD14-010-E1` ほか**アーツの「アンコール－《X》」が丸ごと未実装**（＝任意の追加コストを払うと「このカードをルリグデッキに戻す」を得る）。**9効果が同一機構**なので**ここが唯一の"まとまった塊"**。⚠engine＋`ArtsModal` の使用フローに触るので**実機まで必須**。 (b)**条件節 27**＝群分けは下の通り。**うち6件は別項目で登録済み**（`WX18-056-E1`=`O-178`／`WX24-P3-055-E2`=`O-181`／`WX24-P2-043-E1`=`O-180`／`WXDi-P12-056-E1`=§5.4(ii) 2ゾーン合算／`WXK11-006-E4`／`WX24-P4-050-E2`）＝**重複して取らない**。 (c)**引用能力付与の平坦化 8**＝「このルリグは「【常】：〜」を得る」を**typed アクションへ平坦化している**もの。⚠**平坦化が常に誤りとは限らない**（能力喪失・期間の扱いが変わる場合だけが実害）＝**8件を1件ずつ「付与の器が要るか」で仕分けてから**着手する。 ■**条件節27の群**＝群3 このターンの履歴条件4（`WXDi-CP02-094-E1`／`WXDi-P04-058-E1`／`WXDi-P06-070-E1`／`WXK03-060-E1`）／群4 ゾーン枚数・合算8（🔑**`WXK07-006-E3`=`COUNT_THRESHOLD{lrig_deck,lte,2}`／`WXDi-D09-H15-E1`=`ENERGY_COUNT{eq,0}` は既存型で書ける**。⚠**`WXDi-P12-031-E2`／`WXK11-068-E2` は罠**＝「この方法で置かれた枚数」は**コスト支払いの ExecCtx が別**なので`LAST_PROCESSED_COUNT_GTE` では届かない。`TRASH{asCost:true}` を action 先頭へ移すのが正解）／群5 レベル集合条件2（`WXK05-035-E2`＝**対象の filter も誤って `level:3`**／`WXK07-087-E2`）／群8 構造混線4（`WXDi-P07-049-E2`／`WXDi-P09-055-E1`／`WXK06-024-E2`／`WX13-032-BURST`＝**後回し**）。 ■**小さい数13の本命**＝🔴**コストが対象に化けている族**（`WX07-039-E2`「＜原子＞のシグニ3体をバニッシュ**する**」・`WXEX1-14-E2`「エナから＜植物＞3枚をトラッシュ」＝どちらも**支払いが相手シグニへの攻撃に化けている**＝過剰実行として重い）／多段閾値が無条件化（`WX21-023-E1` の2/3/4枚・`WXDi-P06-035-E2` の3枚以上）／`WXDi-P15-052-E1`（「コイン3枚以上支払っていた場合」が `GAIN_COIN` に化けている）。 ■**クラス指定10の一番安い順**＝`WX22-023-E2`・`WXEX2-06-E2`（トリガー元のクラス限定＝`triggerFilter` が無い）→`WX18-001-E1`（`REVEAL_AND_PICK` に filter と `pickCount:ALL` が無い＝「好きな数の＜悪魔＞」）→`WX25-P2-079-E1`（`AWAKEN_SIGNI` に target が無い）→`WX22-Re02-E2`／`WX24-P2-093-E1`（構造混線）。⚠`WXEX2-11-E4`・`WXK01-038-E1` は「＜乗機＞のシグニに**乗る**」＝**機構未実装**なので別枠。
 
 ### `O-186` — 「次のあなたのターン終了時まで」を表す `EffectDuration` が無い
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** `EffectDuration.UNTIL_NEXT_OWN_TURN_END` ＋ `power_mods_until_next_own_turn` / `abilities_removed_until_next_own_turn`。🔑**寿命はグローバルターン終了の回数**＝自ターン中なら3・相手ターン中なら2。🔴**`_next_turn` の2スロット式では表せない**（常に1回ぶんしか跨げない）。`calcFieldPowers` にも新ストアを足した。実測母集団は2効果（`WXDi-P13-043-E1` / `WXK10-022-BURST`）。
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`WXDi-P13-043-E1`。母集団は「次のあなたのターン終了時まで」の全文検索で要計測）
 
@@ -1274,6 +1321,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-203` — 「レゾナとしても扱う」＝カード同一性の上書きを参照側（`matchesFilter` の cardType）で読む機構
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** `STUB{TREAT_SELF_AS_RESONA}` ＋ `treated_as_resona_until_opp_turn`。参照側は `fieldCandidates` が `Type` を `レゾナ` へ差し替える。🔑**「としても」＝シグニでもある は無料**（`matchesFilter` の非対称緩和が既存）。⚠**近似**＝`fieldCandidates` は「誰の効果が参照しているか」を知らないので原文の「**あなたの**効果1つによって」は絞れない（1効果のための意図的な近似・golden に明記）。
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（2026-08-31 続き749）
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1293,6 +1342,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-205` — `lrigAttackNoDamage` の発火地点が【ガード】された経路だけ（バリア等でダメージが消えた場合は発火しない）
 
+🏁**2026-09-02（索引 C 第9巡）に stale としてクローズ。** 登録票は**続き772 の `O-181` で失効していた**＝`collectAttackEndTriggers` が非ガードのダメージ無効を補完しており、golden `O-181 ON_ATTACK_END: …`（`:13728`）が既に両方向を assert 済み。契約の在処だけを golden 1本で固定した。
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（2026-08-31 続き749）
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1301,6 +1352,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
   バリア等でダメージが消えた場合は発火しない（過小側へ fail-closed）。
 
 ### `O-206` — `trashExile` の `selectionConstraint` を支払いモーダルが enforce しない（過剰に緩い側）
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** `costs.ts` に `trashExileCostSatisfied` / `canAddTrashExileIndex` / `trashExileAffordable` を新設し、**支払いモーダル2本（`SigniActivatedModal` / `LrigGrantedModal`）と可否ゲート（`signiActivateGate`）**を同じ関数へ通した（`energyTrash` とまったく同じ穴＝旧は `size >= count` だけ）。`WXK09-029-E2` は `PARTIAL` → `MANUAL`。
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 
@@ -1332,6 +1385,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-209` — 絆を獲得するアクションが無い（`HAS_BOND` は条件側だけ在る）
 
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 🔴**「絆を獲得するアクションが無い」は失効していた**＝`GAIN_BOND{source:'declared'}` は型・parser 規則・`effectExecutor.ts:9695` の消費・`PlayerState.bonds` まで完成済みだった。落ちていたのは `WXDi-CP02-001-E1` の**末尾2文**（エクシード4＝`OptionalCostSpec.exceed` の任意コスト＋絆獲得）。使用条件②も `LRIG_TRASH_COUNT{cardNames}` で同時に載せた。**engine は0行。**
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1342,6 +1397,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 ⚠**本文後半の「ピース種別の使用歴」は `O-213` へ分けた**（軸が別＝アクションではなく履歴条件）。
 
 ### `O-210` — `BANISH_REDIRECT` に「次に1回だけ」の消費フラグが無い
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 🔴**「1回消費が無い」より先に向きが真逆だった**＝`bySource` は `banish_redirect_by_source_nums`（**バトル解決3箇所だけが読む配列**）に載るので、原文「このシグニの**効果**によって」の札は効果バニッシュで一度も置換されなかった。`byEffectOnly`／`consumeOnce` と効果経路の2配列を新設し、`banishDestination` が `consumedOnceSource` を返して呼び出し側（`consumeBanishRedirectOnce`）が消費する。⚠**バトル経路の消費地点は未配線**＝`byEffectOnly` を伴わない `consumeOnce` は書かない。
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 
@@ -1375,6 +1432,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
   ⚠`WXK09-023-E1`「合計が12000に**なるように**」は**ちょうど**なので、上限（`totalPowerMax`）とも別軸。
 
 ### `O-213` — ピース種別の使用歴（「このゲームの間にリレーピースを使用している」）の受け皿が無い
+
+🏁**2026-09-02（索引 C 第9巡）にクローズ。** 🔴**「`src/` に「リレー」の語彙が1つも無い」は失効していた**＝`effectParser.ts:21231` に `LRIG_TRASH_COUNT{filter:{cardType:'リレーピース'}}` の規則が既にあり、`manualEffects.ts` の `PARTIAL` が上書きして届いていなかっただけ。manual 定義を削除して parser に任せた（2つの【使用条件】が AND で載る）。⚠近似はルリグトラッシュ＝除外されたピースは残らない（偽陰性側）。
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 

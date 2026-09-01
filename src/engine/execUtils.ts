@@ -861,7 +861,21 @@ export function banishDestination(
     effectivePowers?: Map<string, number>;
     effectSourceNum?: string;
   },
-): { state: PlayerState; log: string } {
+): { state: PlayerState; log: string; consumedOnceSource?: string } {
+  // 🆕**「このシグニの効果によって〜バニッシュされる場合」**（§5.3 `O-210`・`WX24-P4-050-E2`）＝
+  //   置換元は**いま解決中の効果の発生源**（`opts.effectSourceNum`）。
+  // 🔴`banish_redirect_by_source_nums`（従来）は**バトル経路だけが読む**配列なので、
+  //   効果経路をここへ足さないと「効果によって」の札は一度も置換されない（向きが真逆だった）。
+  // ⚠**`consumedOnceSource` を返すだけ**＝置換元の state を書き換えるのは呼び出し側
+  //   （この関数は被バニッシュ側の state しか返せないため）。**呼び出し側が無視すると一回性が消える。**
+  if (opts?.effectSourceNum && opponent.banish_redirect_by_source_effect_nums?.includes(opts.effectSourceNum)) {
+    const once = opponent.banish_redirect_once_source_nums?.includes(opts.effectSourceNum);
+    return {
+      state: { ...removed, trash: [...removed.trash, num] },
+      log: 'をバニッシュ（トラッシュへ）',
+      ...(once ? { consumedOnceSource: opts.effectSourceNum } : {}),
+    };
+  }
   if (opponent.banish_redirect_target_nums?.includes(num)) {
     return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
   }
@@ -1710,6 +1724,16 @@ export function fieldCandidates(
     }
     // card_class_overridesによるクラス上書きを考慮してフィルター適用
     const classOverride = state.card_class_overrides?.[cardNum];
+    // 🆕**「レゾナとしても扱う」**（§5.3 `O-203`・`WX25-P2-052-E2`）＝参照側で `Type` を差し替える。
+    // 🔑**`matchesFilter` は `Type==='レゾナ'` を `cardType:'シグニ'` にも一致させる**（非対称の緩和が既存）
+    //   ので、差し替えるだけで原文の「**としても**」＝シグニかつレゾナ、が成立する。
+    // ⚠**近似**＝ここは「誰の効果が参照しているか」を知らないので、原文の「あなたの効果1つによって」は
+    //   絞れない（相手の「レゾナ1体を対象とし」にも当たる）。1効果のための意図的な近似。
+    const asResona = state.treated_as_resona_until_opp_turn?.includes(cardNum);
+    const viewCard = (n: string): CardData | undefined => {
+      const c = cardMap.get(n);
+      return (c && asResona && n === cardNum) ? { ...c, Type: 'レゾナ' } : c;
+    };
     // ACCE_SIGNI_ALL_COLOR / ALL_COLOR / ALL_ZONE_BLACK: 全色を持つシグニは色フィルターをバイパス
     const isAllColor = state.story_overrides?.[cardNum] === 'ALL_COLOR' || allColorSigniNums?.has(cardNum);
     const extraColors = fieldSigniExtraColors?.get(cardNum);
@@ -1718,19 +1742,19 @@ export function fieldCandidates(
     const effLevel = lvMods && lvMods.length
       ? Math.max(0, parseInt(cardMap.get(cardNum)?.Level ?? '', 10) + lvMods.filter(m => m.cardNum === cardNum).reduce((s, m) => s + m.delta, 0))
       : undefined;
-    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filterForCard, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) {
+    if (!isAllColor && !matchesFilter(viewCard(cardNum), filterForCard, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) {
       // 追加色がある場合: 色フィルターだけ追加色でも再チェック
       if (!extraColors || !filter?.color) return [];
       const filterColors = Array.isArray(filter.color) ? filter.color : [filter.color];
       if (!filterColors.some(c => extraColors.includes(c))) return [];
       // 色フィルター以外のフィルターを通常チェック
       const filterNoColor = { ...filterForCard, color: undefined };
-      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
+      if (!matchesFilter(viewCard(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
     }
     if (isAllColor) {
       // 色フィルター以外のフィルターは通常通りチェック
       const filterNoColor = filter ? { ...filter, color: undefined } : undefined;
-      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
+      if (!matchesFilter(viewCard(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
     }
     return [cardNum];
   });

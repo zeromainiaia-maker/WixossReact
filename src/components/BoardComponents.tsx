@@ -998,7 +998,7 @@ export function ZoneCardModal({ title, cardNums, cards, onClose, getCardActions 
 }
 
 // ─── プレイヤー盤面 ──────────────────────────────────────────────────
-export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, getFreeZoneActions, getTrashCardActions, closeZoneSignal, effectivePowers, dynamicKeywords }: {
+export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, getFreeZoneActions, getTrashCardActions, getEnergyCardActions, closeZoneSignal, effectivePowers, dynamicKeywords }: {
   state: PlayerState; cards: CardData[]; isMe: boolean;
   getSigniZoneActions?: (rawZoneIdx: number) => CardAction[];
   getLrigDeckCardActions?: (cardNum: string) => CardAction[];
@@ -1008,12 +1008,14 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   getAssistRActions?: () => CardAction[];
   getFreeZoneActions?: (cardNum: string) => CardAction[];
   getTrashCardActions?: (cardNum: string) => CardAction[];
+  /** 🆕エナゾーンのカードから起動する【起】（§5.3 `O-114`・`WXDi-P06-077-E2`）。トラッシュ側と同型。 */
+  getEnergyCardActions?: (cardNum: string) => CardAction[];
   closeZoneSignal?: number;
   effectivePowers?: Map<string, number>;
   dynamicKeywords?: Record<string, string[]>;
 }) {
   const [zoneModal, setZoneModal] = useState<{
-    title: string; cardNums: string[]; isLrigDeck?: boolean; isFreeZone?: boolean; isTrash?: boolean;
+    title: string; cardNums: string[]; isLrigDeck?: boolean; isFreeZone?: boolean; isTrash?: boolean; isEnergy?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -1035,7 +1037,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
         : <Stat label="ルリグDK" value={state.lrig_deck.length} />
       }
       <Stat label="ライフ"      value={state.life_cloth.length} color="#bb3333" />
-      <Stat label="エナ"        value={state.energy.length}     onClick={() => showZone('エナゾーン', state.energy)} />
+      <Stat label="エナ"        value={state.energy.length}     testId={isMe ? 'my-energy' : undefined} onClick={() => setZoneModal({ title: 'エナゾーン', cardNums: state.energy, isEnergy: isMe })} />
       <Stat label="トラッシュ"  value={state.trash.length}      testId={isMe ? 'my-trash' : undefined} onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: isMe })} />
       <Stat label="Lトラッシュ" value={state.lrig_trash.length} onClick={() => showZone('ルリグトラッシュ', state.lrig_trash)} />
       <Stat label="コイン"      value={state.coins} color="#cc8800" />
@@ -1239,6 +1241,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             zoneModal.isLrigDeck ? getLrigDeckCardActions :
             zoneModal.isFreeZone  ? getFreeZoneActions :
             zoneModal.isTrash     ? getTrashCardActions :
+            zoneModal.isEnergy    ? getEnergyCardActions :
             undefined
           }
         />

@@ -125,6 +125,17 @@ export type EffectDuration =
   | 'INSTANT'            // 即時解決して終わり
   | 'UNTIL_END_OF_TURN'  // ターン終了時まで
   | 'UNTIL_OPP_TURN_END' // 次の対戦相手のターン終了時まで
+  /**
+   * 🆕**次の「あなた」（＝効果の持ち主）のターン終了時まで**（2026-09-02・§5.3 `O-186`）。
+   * 🔴`UNTIL_OPP_TURN_END` を当てると**短すぎる**（相手ターンを跨がずに切れる）＝過小実行だった
+   *   （`WXK10-022-BURST` / `WXDi-P13-043-E1` の2枚）。
+   * ⚠**寿命はグローバルターン終了の回数で数える**＝`turnEnds` を積み、`clearTurnEndScopedState` が毎回1減らす。
+   *   自分のターン中に置いたら **3**（自ターン終了→相手ターン終了→**次の自ターン終了で消える**）、
+   *   相手ターン中に置いたら **2**（相手ターン終了→**次の自ターン終了で消える**）。
+   *   🔴**`_next_turn` の2スロット式では表せない**（あれは常に1回ぶんしか跨げない）。
+   */
+  | 'UNTIL_NEXT_OWN_TURN_END'
+
   | 'NEXT_TURN'          // 次のターンの間
   | 'PERMANENT';         // フィールドにいる間ずっと
 
@@ -229,6 +240,11 @@ export type ActiveCondition =
   | { type: 'FRONT_SIGNI_POWER'; operator: CompareOp; value: number } // このシグニの正面（相手ゾーン 2-zi）のシグニの実効パワーが条件を満たすかぎり（正面が空なら不成立。SP27-002-E3）
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp; value?: number } // 自分のライフクロス−相手のライフクロスの符号付き差。value省略＝0（Condition側と同型）
+  // 🆕**ライフクロス枚数の【常】版**（2026-09-02・§5.3 `O-84`・`WX16-Re20-E2`
+  //   「あなたのライフクロスが２枚以下の場合、このアーツは追加で《アタックフェイズアイコン》を持つ」）。
+  // ⚠`Condition` 側（`:335`）と**同型**＝片方だけ足すと「条件を書けるのに評価されない」になる。
+  //   両評価器（`checkActiveCondition` / `evalConditionForContinuous`）を必ず揃える（PLAN §4.2 の3点セット）。
+  | { type: 'LIFE_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ENA_DIFF'; operator: CompareOp; value: number }   // 自分のエナと相手のエナの差
   | { type: 'ENERGY_COLOR_TYPES'; owner: Owner; operator: CompareOp; value: number } // エナゾーンのカードが持つ色の種類数（WX05-006「エナゾーンのカードの色が3種類以上」）
   // 🆕`Condition` 側と同形の**2ゾーン合算**（2026-08-31 続き747・`WXEX1-31-E1`「あなたのエナゾーンと
@@ -670,7 +686,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true,
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
-  HAND_DIFF: true, LIFE_COMPARE_OPP: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, ENERGY_COUNT_FILTER: true, LRIG_LEVEL: true,
+  HAND_DIFF: true, LIFE_COMPARE_OPP: true, LIFE_COUNT: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, ENERGY_COUNT_FILTER: true, LRIG_LEVEL: true,
   EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_SOUL_ATTACHED: true, IS_SELF_CHARMED: true,
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
@@ -871,6 +887,15 @@ export interface EffectCost {
   costSubstitute?: { originalCost: EnergyCost; discardFromHand?: { count: number; filter?: TargetFilter } };
   handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
   fieldExileSelf?: boolean;    // 場にあるこのシグニをゲームから除外する
+  /**
+   * 🆕**このシグニを場から手札に戻す**（2026-09-02・§5.3 `O-167`・`WX21-031-CB-E2`
+   * 「【起】《アタックフェイズアイコン》《白》**このシグニを場から手札に戻す**：…」）。
+   * 🔴**`trash_self` を流用してはいけない＝行き先が違う**（手札に戻れば同じ札をもう一度使えるが、
+   *   トラッシュだと資源を失う＝コストの重さが別物。§5.3 `O-67` の `fieldBanish` と同じ取り違え）。
+   * ⚠支払いは `BattleScreen` の【起】コスト funnel 1本（`trash_self` の直後）＝
+   *   離場処理は `removeFromField` を通す（下敷き・【チャーム】・【アクセ】の後始末を共有するため）。
+   */
+  bounceSelf?: boolean;
   selfToDeckBottom?: boolean;  // このシグニをデッキの一番下に置く（コスト）
   /**
    * 🆕**トラッシュから条件一致カードN枚をデッキの一番下に置く**（2026-09-02・§5.3 `O-201`・
@@ -2878,6 +2903,22 @@ export interface BanishRedirectAction {
    */
   bySource?: 'battle_with_this' | 'by_this';
   /**
+   * 🆕**「このシグニの効果によって」＝効果経路だけ**（2026-09-02・§5.3 `O-210`・`WX24-P4-050-E2`）。
+   * 🔴`bySource` 単独は **`banish_redirect_by_source_nums`（バトル経路だけが読む）**に載るので、
+   *   原文が「効果によって」と書いている札は**バトルでしか置換されず、効果バニッシュでは素通り**していた
+   *   （＝向きが真逆）。`byEffectOnly` は `banish_redirect_by_source_effect_nums` へ載り、
+   *   `banishDestination` が `opts.effectSourceNum` と突き合わせて置換する。
+   */
+  byEffectOnly?: boolean;
+  /**
+   * 🆕**「このターン、次に〜される場合」＝1回だけ消費して消える**（2026-09-02・§5.3 `O-210`）。
+   * 立てると `banish_redirect_once_source_nums` にも載り、**1回置換した時点で両方の配列から外れる**。
+   * 🔴無いと「このターン中は何体でも置換」＝原文より強い（`WX24-P4-050-E2` は1体だけ）。
+   * ⚠**いまは効果経路（`byEffectOnly`）でだけ消費する**＝バトル経路の消費地点（`BattleScreen` の
+   *   バトル解決3箇所）は未配線なので、`byEffectOnly` を伴わない `consumeOnce` は書かないこと。
+   */
+  consumeOnce?: boolean;
+  /**
    * true＝「それがバトルによってバニッシュされる場合」。
    * 選択した被バニッシュ側だけをバトル経路で置換する。
    * 能力保持者を発生源限定する bySource:'battle_with_this' とは別概念。
@@ -3178,6 +3219,25 @@ export interface GrowCostReductionAction {
   // 指定時、reduction の各 count は floor(トラッシュ内 filter 一致枚数 / perCount.count) 倍される
   // （一致が perCount.count 未満なら 0＝減額なし）。zone は現状トラッシュのみ。
   perCount?: { filter: TargetFilter; count: number };
+  /**
+   * 🆕**「このターン、あなたのルリグが**次に**アシストルリグにグロウする場合」**
+   * （2026-09-02・§5.3 `O-180`・`WX24-P2-043`＝ピース《カレイドスコープ》）。
+   *
+   * 🔴**この形は `CONTINUOUS` ではなく `ACTIVATED`（ピースの解決）**なのに、engine には
+   *   `GROW_COST_REDUCTION` の**実行ハンドラが1つも無かった**（`collectGrowCostReductions` は
+   *   場の CONTINUOUS しか走査しない）＝**カードが丸ごと無言 no-op** だった。
+   * ⚠**1回きり**＝`PlayerState.next_assist_grow_mods` に積み、**アシストグロウを1回実行した時点で消す**。
+   *   ターン終了時にも消える（`clearTurnEndScopedState` の登録）。
+   * ⚠**センターグロウには効かない**（原文が「アシストルリグにグロウする場合」）＝
+   *   `listGrowCandidates`（センター用）ではなく `getAssistGrowCandidates` 側だけが読む。
+   */
+  nextAssistGrowOnly?: boolean;
+  /**
+   * 🆕**「グロウするためのルリグタイプは無視され」**（§5.3 `O-180`）。
+   * ⚠`BLOCK_ACTION{IGNORE_LRIG_TYPE}` は**グロウ先ルリグ自身の宣言**（`ignoresLrigTypeForGrow`）で軸が別。
+   *   こちらは**グロウする側に一時的にかかる**ので流用できない。
+   */
+  ignoreLrigType?: boolean;
 }
 
 /**
@@ -4675,6 +4735,21 @@ export interface StubAction {
     victimTarget?: EffectTarget;              // protect_other_sacrifice_self: 守られる側の対象条件
     oppTurnOnly?: boolean;                     // 対戦相手のターンの間のみ有効（CP01-032/P10-052）
   };
+  /**
+   * 🆕**`EXTRA_USE_TIMING`＝「条件を満たす場合、このアーツは追加で《X アイコン》を持つ」**
+   * （2026-09-02・§5.3 `O-84`・`WX16-Re20-E1`「あなたのライフクロスが２枚以下の場合、
+   * このアーツは追加で《アタックフェイズアイコン》を持つ」）。
+   *
+   * 🔴**使用可否の Timing は `CardData.Timing` 列を読む静的判定**（`artsUseGate.ts` の `timingOk`）なので、
+   *   **盤面条件で timing を1つ足す動的な口**が無かった＝この文は `DEFERRED_…` で明示保留されていた。
+   * ⚠**条件は effect の `activeCondition` に載せる**（ここには持たせない）＝
+   *   `checkActiveCondition` を通す唯一の道にして、条件評価を写経しないため。
+   * ⚠**向きに注意**＝これは「**追加で**持つ」＝**足す**側。条件を使用可否そのものへ載せると
+   *   「ライフ2枚以下でしか使えないアーツ」に化ける（`effectParser.ts` の `STATE_HOIST_BATCH1_CARDS`
+   *   ガードはまさにこの誤変換を封じるためのもの＝**外さない**）。
+   * 消費＝`screens/battle/artsUseGate.ts` の `extraUseTimings`（人間UIと CPU が同じ funnel を通る）。
+   */
+  extraUseTiming?: { timing: 'MAIN' | 'ATTACK_ARTS' };
   // BATTLE_BANISH_PREVENT_LOSE_ABILITY（§3タスク6 D・置換ルール）: 「（このシグニ/あなたの＜C＞のシグニ1体）が
   // バニッシュされる場合、代わりにバニッシュされず、ターン終了時まで、この能力を失う」。バトルバニッシュ経路で
   // 自動適用＝victim を場に残し source を abilities_removed へ（同ターン中は再発動不可）。WX13-031/WX16-001/WXK04-068。
@@ -5102,7 +5177,16 @@ export interface CardEffect {
   // v0.277: 手札から発動できる【起】（手札から自身を捨てることでフィールドなしで発動）
   handActivated?: boolean;
   // トラッシュから発動できる【起】（「このシグニをトラッシュから場に出す」等の自己蘇生。トラッシュゾーンUIから発動）
+  // 🆕「トラッシュにあるこのカードを**手札に加える**」自己回収も含む（2026-09-02・§5.3 `O-114`）。
   trashActivated?: boolean;
+  /**
+   * 🆕**エナゾーンから発動できる【起】**（2026-09-02・§5.3 `O-114`・`WXDi-P06-077-E2`
+   * 「【起】《緑×0》：あなたのエナゾーンからこのカードを手札に加える。」）。
+   * ⚠`trashActivated` と**入口だけが違う**（エナゾーンのカードをタップする）＝
+   *   支払い・実行は同じ `trashActivateCost.ts` / `executeTrashActivated` を通す。
+   *   写経すると「提示は出るのに払えない」片肺になる。
+   */
+  energyActivated?: boolean;
   // GRANT_LRIG_ABILITY permanent:true で付与された能力（lrig_granted_auto_effects 内で「このゲームの間」持続＝ターン境界リセットで残す）
   permanentGrant?: boolean;
 }

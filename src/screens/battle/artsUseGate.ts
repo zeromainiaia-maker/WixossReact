@@ -23,6 +23,30 @@ import { effectiveLrigClass, meetsRestriction } from './growLogic';
 import { applyUseTimeCostReduction, parseUseTimeCostReduction, useTimeCostCandidates as getTimeCostCandidates } from './useTimeCost';
 
 /**
+ * 🆕**「条件を満たす場合、このアーツは追加で《X アイコン》を持つ」で足される使用タイミング**
+ * （2026-09-02・§5.3 `O-84`）。
+ *
+ * 🔴**使用可否の Timing は `CardData.Timing` 列を読む静的判定**なので、盤面条件で1つ足す口が無かった。
+ * ⚠**条件は effect の `activeCondition`**（`checkActiveCondition` 1本で評価する）。
+ * ⚠**足す側であって絞る側ではない**＝返り値は `timingOk` へ `||` で合流させること。
+ * ⚠人間UI／CPU はどちらも `checkArtsUse` を通るので、消費地点はここ1本でよい。
+ */
+export function collectExtraUseTimings(
+  effs: CardEffect[], my: PlayerState, op: PlayerState,
+  cardMap: Map<string, CardData>, cardNum: string, isMyTurn: boolean,
+): Set<'MAIN' | 'ATTACK_ARTS'> {
+  const out = new Set<'MAIN' | 'ATTACK_ARTS'>();
+  for (const eff of effs) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as StubAction;
+    if (act?.type !== 'STUB' || act.id !== 'EXTRA_USE_TIMING' || !act.extraUseTiming) continue;
+    if (!checkActiveCondition(eff.activeCondition, my, op, isMyTurn, cardMap, cardNum)) continue;
+    out.add(act.extraUseTiming.timing);
+  }
+  return out;
+}
+
+/**
  * アーツが**いま使えるか**（提示の可否＋請求される実効コスト）を1か所で判定する純関数群（§8／§6.4 `O-1`）。
  *
  * ⚠**必ず人間のボタン生成と CPU の候補フィルタの両方から同じ関数を呼ぶこと**
@@ -276,10 +300,16 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
   const affordableWithUseTimePay =
     !affordable && useTimeBestCost !== reducedCost && affordWith(useTimeBestCost);
 
+  // 🆕**盤面条件で使用タイミングを1つ足す**（§5.3 `O-84`・`WX16-Re20-E1`
+  //   「あなたのライフクロスが２枚以下の場合、このアーツは追加で《アタックフェイズアイコン》を持つ」）。
+  // 🔴旧は `card.Timing` 列だけの静的判定＝**動的に足す口が無く、この文は恒久 no-op** だった。
+  // ⚠**足すだけ**（`||` で合流）＝条件を `timingOk` の必須項に混ぜると
+  //   「ライフ2枚以下でしか使えないアーツ」という真逆の制限に化ける。
+  const extraTimings = collectExtraUseTimings(effectsMap.get(cardNum) ?? [], my, op, cardMap, cardNum, isMyTurn);
   const timingOk =
-    (turnPhase === 'MAIN' && isMyTurn && card.Timing.includes('メインフェイズ')) ||
-    (turnPhase === 'ATTACK_ARTS' && isMyTurn && card.Timing.includes('アタックフェイズ')) ||
-    (turnPhase === 'ATTACK_ARTS_OP' && !isMyTurn && card.Timing.includes('アタックフェイズ'));
+    (turnPhase === 'MAIN' && isMyTurn && (card.Timing.includes('メインフェイズ') || extraTimings.has('MAIN'))) ||
+    (turnPhase === 'ATTACK_ARTS' && isMyTurn && (card.Timing.includes('アタックフェイズ') || extraTimings.has('ATTACK_ARTS'))) ||
+    (turnPhase === 'ATTACK_ARTS_OP' && !isMyTurn && (card.Timing.includes('アタックフェイズ') || extraTimings.has('ATTACK_ARTS')));
   const usable =
     meetsRestriction(card.Restriction, payer.lrigClass, payer.ignoreRestriction) &&
     // カード名指定の使用封じ（ターン内 blacklist ／ゲーム内 NAME_BAN ／アーツ名 whitelist）（§6.4 O-3）

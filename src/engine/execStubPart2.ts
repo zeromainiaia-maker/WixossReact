@@ -1056,10 +1056,15 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_lrig_damage: true } },
       'このターンルリグダメージ無効'));
   }
-  // 色条件によるライフバースト抑制（相手に suppress_life_burst フラグ）
+  // 色条件によるライフバースト抑制（相手に suppress_life_burst フラグ）。
+  // 🆕**boolean ではなく条件（`TargetFilter`）を載せる**（2026-09-02・§5.3 `O-177`）＝
+  //   原文は「**対戦相手のセンタールリグと共通する色を持たない**対戦相手のカードの」なので、
+  //   旧の `true` は**そのターンの相手のバーストを全部止める**過剰実行だった。
+  // ⚠フラグは**クラッシュされる側（`otherState`）**に立つので、`colorNotMatchesLrig` の基準ルリグも
+  //   その側のセンタールリグ＝`lifeBurstSuppressedByTurnFlag` がフラグの持ち主基準で解決する。
   if (stub.id === 'SUPPRESS_LIFEBURST_COLOR_CONDITION') {
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, suppress_life_burst: true } },
-      'ライフバースト発動抑制（色条件）'));
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, suppress_life_burst: { colorNotMatchesLrig: true } } },
+      'ライフバースト発動抑制（センタールリグと共通する色を持たないカードのみ）'));
   }
   // 相手エナが指定数以上のとき超過分をトラッシュ
   if (stub.id === 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL') {

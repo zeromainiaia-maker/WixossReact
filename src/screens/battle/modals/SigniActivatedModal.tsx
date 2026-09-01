@@ -6,7 +6,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } f
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
@@ -124,9 +124,9 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const actEnergyTrashOk = energyTrashCostSatisfied(my.energy, selectedSigniActivatedEnergyTrash, actEnergyTrashCost, battleCardMap);
               // trashExile: トラッシュからカードをゲーム除外コスト
               const actTrashExileCost = eff.cost?.trashExile;
-              const actTrashExileOk = !actTrashExileCost || actTrashExileCost.self
-                ? true
-                : selectedSigniActivatedTrashExile.size >= (actTrashExileCost?.count ?? 0);
+              // ⚠枚数だけでなく**集合制約**（「それぞれ名前の異なるスペル3枚」）も見る（§5.3 `O-206`）＝
+              //   共有判定は `costs.ts` の1本（`LrigGrantedModal` と写経しない）。
+              const actTrashExileOk = trashExileCostSatisfied(my.trash, selectedSigniActivatedTrashExile, actTrashExileCost, battleCardMap);
               // fieldTrash: 場のシグニをコストでトラッシュ（excludeSelf=効果元自身を除く。WX03-035等）
               // 🆕fieldBanish（§5.3 `O-67`・`WX05-044-E1`）は**同じゾーン選択UI**を使う（parser が片方しか
               // 立てないので state を共用できる）。⚠**行き先だけが違う**（エナゾーン）＝支払いは
@@ -197,6 +197,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                             virusNeededAct > 0 ? `相手の【ウィルス】${virusNeededAct}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
                             eff.cost?.trash_self ? 'このシグニをトラッシュ' : null,
+                            eff.cost?.bounceSelf ? 'このシグニを手札に戻す' : null,
                             eff.cost?.fieldExileSelf ? '場にあるこのシグニをゲームから除外' : null,
                             eff.cost?.trash_key ? 'このキーをルリグトラッシュ' : null,
                             charmTrashNActM > 0 ? `チャーム${charmTrashNActM}枚トラッシュ（現在${totalActCharmsM}枚）` : null,
@@ -549,13 +550,14 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                           const c = battleCardMap.get(num);
                           const matches = !actTrashExileCost.filter || matchesFilter(c, actTrashExileCost.filter);
                           const isSel = selectedSigniActivatedTrashExile.has(i);
-                          const needed = actTrashExileCost.count ?? 1;
                           return (
-                            <div key={i}
+                            // 🆕`data-testid` は実機ドライバの操作点（§5.1・`signiact-energytrash-*` と同型）。
+                            <div key={i} data-testid={`signiact-trashexile-${i}`} data-card-num={getCardNum(num)}
                               onClick={() => matches && setSelectedSigniActivatedTrashExile(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= needed) return prev;
+                                // ⚠制約を壊す組み合わせは**選ばせない**（選んでから赤くするのではなく弾く）。
+                                if (!canAddTrashExileIndex(my.trash, prev, i, actTrashExileCost, battleCardMap)) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
@@ -700,6 +702,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                       キャンセル
                     </button>
                     <button
+                      data-testid="signiact-fire"
                       onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat, selectedSigniActivatedUnderTrash)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',

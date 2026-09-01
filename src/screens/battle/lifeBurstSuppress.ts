@@ -1,6 +1,46 @@
 import type { CardData, PlayerState } from '../../types';
-import type { CardEffect, StubAction } from '../../types/effects';
+import type { CardEffect, StubAction, TargetFilter } from '../../types/effects';
 import { checkActiveCondition, collectGrantedFromLayer } from '../../engine/effectEngine';
+import { getCardNum } from '../../engine/effectExecutor';
+import { matchesFilter } from '../../engine/execUtils';
+
+/**
+ * §5.3 `O-177`：**このターンのライフバースト抑制が、いま公開された1枚に効くか。**
+ *
+ * `PlayerState.suppress_life_burst` は **`true`（このターンの全バースト）**か
+ * **`TargetFilter`（条件つき）**。
+ * 🔴**素の truthy 判定に戻さないこと**＝`WX25-P3-003-E1` の原文は
+ *   「**対戦相手のセンタールリグと共通する色を持たない**対戦相手のカードのライフバーストは発動しない」で、
+ *   旧実装（boolean）は**そのターンの相手のバーストを全部止めて**いた（過剰実行）。
+ *
+ * ⚠**基準ルリグはフラグの持ち主**＝抑制フラグはクラッシュ**される側**の state に立つので、
+ *   `colorNotMatchesLrig` はその側のセンタールリグで解決する（原文の「対戦相手の」＝抑制される側から見て自分）。
+ * ⚠**色は配列で渡す**（文字列だと `colorExclude` が1要素扱いになり1色も除外されない＝§5.3 `O-183` の実測）。
+ *
+ * @param crashedCardNum クラッシュされて公開された1枚
+ * @param crashedState   その持ち主（＝抑制フラグが立っている側）の状態
+ */
+export function lifeBurstSuppressedByTurnFlag(
+  crashedCardNum: string,
+  crashedState: PlayerState,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const flag = crashedState.suppress_life_burst;
+  if (!flag) return false;
+  if (flag === true) return true;
+  let filter: TargetFilter = flag;
+  if (filter.colorMatchesLrig || filter.colorNotMatchesLrig) {
+    const lrigTop = crashedState.field.lrig.at(-1);
+    const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
+    const wantsMatch = !!filter.colorMatchesLrig;
+    const { colorMatchesLrig: _m, colorNotMatchesLrig: _n, ...rest } = filter;
+    const colors = lrigColor ? [...lrigColor].filter(c => '白赤青緑黒'.includes(c)) : [];
+    // ルリグ色が引けない＝絞れない。抑制は**広げない側**（＝抑制しない）へ倒す。
+    if (colors.length === 0) return false;
+    filter = wantsMatch ? { ...rest, color: colors } : { ...rest, colorExclude: colors };
+  }
+  return matchesFilter(cardMap.get(getCardNum(crashedCardNum)), filter);
+}
 
 /**
  * 「**このシグニによって**クラッシュされた（対戦相手の）カードのライフバーストは発動しない」

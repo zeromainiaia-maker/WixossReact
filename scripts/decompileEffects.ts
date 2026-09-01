@@ -620,6 +620,7 @@ function costJa(c?: any): string {
   if (c.handBottomDeck != null) parts.push(`手札を${c.handBottomDeck}枚デッキの一番下に置く`);
   if (c.handExileSelf) parts.push('手札にあるこのカードをゲームから除外する');
   if (c.fieldExileSelf) parts.push('場にあるこのシグニをゲームから除外する');
+  if (c.bounceSelf) parts.push('このシグニを場から手札に戻す');
   if (c.energyTrashAll) parts.push('エナゾーンにあるすべてのカードをトラッシュに置く');
   if (c.energyTrashColorAll) parts.push(`エナゾーンからすべての${c.energyTrashColorAll}のカードをトラッシュに置く`);
   if (c.energyTrashSelf) parts.push('エナゾーンからこのカードをトラッシュに置く');
@@ -1239,6 +1240,7 @@ function actionJa(a?: Action, effectType?: string): string {
           : a.nextTurnOwner === 'opponent'
             ? '（次の対戦相手のターンの間）'
             : '（次のターンの間）'
+        : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         : a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : '';
       // deltaPerLastProcessedCount: 倍率は「この方法で（直前ステップで）処理した枚数」（タスク12(lx)②）。
@@ -1647,6 +1649,7 @@ function actionJa(a?: Action, effectType?: string): string {
             : a.nextTurnOwner === 'opponent'
               ? '（次の対戦相手のターンの間）'
               : '（次のターンの間）'
+        : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         : a.duration === 'PERMANENT' ? ''
         // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）。
@@ -1679,6 +1682,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_EFFECT': {
       const durJaGE = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
+        : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
+        : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
       const subjGE = a.targetsLastProcessed ? 'それ'
         // thisCardOnly の主語はホストの種別で変わる（§6.4 O-25 で LRIG 自己付与が parser から出るようになった）
@@ -1778,6 +1783,7 @@ function actionJa(a?: Action, effectType?: string): string {
       //   期間が違う3つの JSON を逆翻訳が区別できない（＝engine を直しても計器に映らない偽陰性）。
       const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.until === 'NEXT_TURN' ? '（次のターンの間）'
+        : a.until === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.until === 'UNTIL_OPP_TURN_END' ? '（次の対戦相手のターン終了時まで）'
         : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
       if (a.keywords?.length) {
@@ -1841,7 +1847,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + subjNoun;
       const protectionDurationJa = effectType !== 'CONTINUOUS'
         ? a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、'
-          : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、' : ''
+          : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
+          : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、' : ''
         : '';
       // 🆕`duringOppTurn`＝「対戦相手のターンの間」だけ有効（落とすと永続耐性に読める）。
       const oppTurnJa = a.duringOppTurn ? '対戦相手のターンの間、' : '';
@@ -2322,7 +2330,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const cf = filterJa(a.countFilter);
       const countTypes = ([] as string[]).concat(a.countFilter?.cardType ?? []);
       const countUnit = countTypes.some(t => t === 'ルリグ' || t === 'アシストルリグ') ? 'ルリグ' : 'シグニ';
-      const durationPMF = a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+      const durationPMF = a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
+        : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
         : a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、' : '';
       return `${durationPMF}${targetJa(a.target, 'シグニ')}のパワーを${ownerJa(a.countOwner)}場の${a.excludeSelf ? '他の' : ''}${cf}${countUnit}1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
@@ -2396,7 +2406,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'BANISH_REDIRECT': {
       // bySource＝バニッシュ元の限定（続き217）。無いと「常時・全バニッシュ」に読めてしまう。
       const src = a.bySource === 'battle_with_this' ? 'このシグニとのバトルによって'
-        : a.bySource === 'by_this' ? 'このシグニによって' : '';
+        : a.bySource === 'by_this' ? (a.byEffectOnly ? 'このシグニの効果によって' : 'このシグニによって') : '';
+      // 🆕consumeOnce＝「次に1回だけ」（§5.3 `O-210`）。無いと「このターン中は何体でも」に読めてしまう。
+      const once = a.consumeOnce ? '次に' : '';
       // whenPowerZero＝バニッシュされる側の限定（続き218）。無いと「全バニッシュ」に読めてしまう。
       const p0 = a.whenPowerZero ? 'パワーが0以下の' : '';
       // 属性限定（タスク12(xliv)(a)）＝被バニッシュシグニの絞り込み。無いと「全バニッシュ」に読めてしまう。
@@ -2411,7 +2423,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return a.redirectTo === 'exile'
         ? `このターン、${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
         : src || p0 || attr
-          ? `${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
+          ? `${once}${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
           : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
     }
     case 'COST_INCREASE': {
@@ -2626,6 +2638,7 @@ function actionJa(a?: Action, effectType?: string): string {
       //   付与を `lrig_granted_auto_effects`（ターン終了で落ちるストア）へ積むので、無表記だと
       //   **恒久付与に見えて**原文照合で期間のズレを見つけられない（続き536 の targetedCenter 枝と同じ軸）。
       const glaDuration = a.permanent ? 'このゲームの間、'
+        : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで、'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
         : 'ターン終了時まで、';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
@@ -2635,6 +2648,7 @@ function actionJa(a?: Action, effectType?: string): string {
       //   ＝原文照合で期間のズレを見つけられない（engine と逆翻訳の乖離）。
       if (a.targetedCenter) {
         const glaSpan = a.permanent ? 'このゲームの間'
+          : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '次のあなたのターン終了時まで'
           : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで'
           : 'ターン終了時まで';
         return `${glaOwner}センタールリグ１体を対象とし、${glaSpan}、それは以下の能力を得る。『${glaInner}』`;
@@ -2657,6 +2671,11 @@ function actionJa(a?: Action, effectType?: string): string {
           ? `カード名に《${f.cardName}》を含むカード`
           : `${f.story ? `＜${f.story}＞の` : ''}${f.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
         return `あなたのトラッシュにある${subj}${a.perCount.count}枚につき、あなたの次の${redJa}`;
+      }
+      // 🆕§5.3 `O-180`＝一過性のアシストグロウ限定（次の1回だけ）。
+      if (a.nextAssistGrowOnly) {
+        const ign = a.ignoreLrigType ? 'グロウするためのルリグタイプは無視され、' : '';
+        return `このターン、あなたのルリグが次にアシストルリグにグロウする場合、${ign}${redJa}`;
       }
       return `あなたの次の${redJa}`;
     }
@@ -3925,6 +3944,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-84`（2026-09-02）＝「条件を満たす場合、このアーツは追加で《X アイコン》を持つ」。
+        //   条件は effect の `activeCondition` 側に載る（この文は「何を足すか」だけを言う）。
+        //   消費＝`screens/battle/artsUseGate.ts` の `collectExtraUseTimings`。
+        EXTRA_USE_TIMING: 'このカードは追加で使用タイミングを持つ',
+        // 🆕§5.3 `O-203`（2026-09-02）＝参照側（`fieldCandidates`）が Type を差し替えて読む。
+        TREAT_SELF_AS_RESONA: 'このシグニをレゾナとしても扱う',
         // §5.3 `O-76`／`O-77` 第2バッチ（2026-08-29）＝2つの catch-all から分離した15文型。
         //   ⚠**原文の帰結まで書く**＝保留と同時に「そうした場合」のゲートごと落としているので、
         //     ここに書かないと何が未実装なのか逆翻訳から読めない。

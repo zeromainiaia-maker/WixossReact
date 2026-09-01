@@ -1,5 +1,241 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 C 第9巡）：§5.3 索引 C を上から15件 — `O-84` / `O-114` / `O-180` / `O-151` / `O-164` / `O-167` / `O-177` / `O-186` / `O-203` / `O-205` / `O-206` / `O-209` / `O-210` / `O-213` / `O-72`
+
+**ベースライン**＝`981a504df`。**15件のうち5件で登録票の「受け皿が無い」が失効していた**（`O-205` は丸ごと stale）。
+新設した型は**5組＋STUB 2本**だけ。
+
+**ゲート**＝全緑。golden **3243 → 3259**（+16本・全件実行）／smoke 10,721 全異常0／fuzz 全0／
+census 高シグナル **6 → 5**（`BASELINE_HIGH` も 5 へ）／`census:stubs` A群🔴0・C群0／manual-fields 0／
+`census:enginetext` A🔴130行（据置）／lint 0 errors。
+**実機 10本／10本 PASS**（うち**反転確認5本**）。**在庫**＝機構 worklist **58 → 43項目**（索引 C 22 → 7）。
+
+---
+
+### 🔴 この巡の主題① — 「実装済み」と書かれた項目が2件とも**経路単位で穴**だった
+
+**完了報告は「型があるか」ではなく「入口が何本あるか」で確かめる。**
+
+- **`O-210`（`WX24-P4-050-E2`）＝向きが真逆だった。** `bySource:'by_this'` は
+  `banish_redirect_by_source_nums` に載るが、**この配列を読むのは `BattleScreen` のバトル解決3箇所だけ**。
+  原文は「このシグニ**の効果によって**対戦相手のシグニ1体がバニッシュされる場合」＝**効果経路**なので、
+  **効果バニッシュでは一度も置換されず、逆にバトルでだけ置換されていた**。
+- **`O-164`（`WX15-010-E1`）＝入口が2本あるうち1本だけ塞いでいた。**
+  効果バニッシュの1回消費盾は `applyDirectAction` の `BANISH`（`targetsLastProcessed` 等）にしか無く、
+  **`execBanish` の `applyBanish`（対象を選んで撃つ本線）は素通り**していた
+  ＝「対象を選んで撃つと防げないのに、それ経由なら防げる」無言のズレ。
+
+⇒ この巡は**4本を funnel 化**した＝`applyBanishPreventShield` ／ `consumeBanishRedirectOnce` ／
+`applySplitTotalToTargets` ／ `trashExileCostSatisfied`+`canAddTrashExileIndex`+`trashExileAffordable`。
+
+### 🔴 この巡の主題② — 実機が机上では出ない嘘を2件捕まえた
+
+- **`TrashActivatedModal` の実行ボタンが「発動する（トラッシュから場に出す）」固定**だった。
+  アクション出し側（`getMyTrashCardActions`）のラベルだけ直しても**モーダルは嘘のまま**。
+  ⇒ **同じ文言を2箇所で組み立てているものは必ず両方直す**（`trashActivateVerbLabel` へ集約）。
+- **`WXDi-P13-043` はシグニではなくアシストルリグ**＝【出】は手札召喚ではなく**アシストグロウ**で発火する。
+  ⇒ **シナリオを書く前に `CardData` の `Type` 列を読む**（「【出】＝召喚」と決めつけない）。
+
+---
+
+### 1. `O-213` — 「このゲームの間にリレーピースを使用している」（1効果・**受け皿は在った**）
+
+**真因**＝`effectParser.ts:21231` に `LRIG_TRASH_COUNT{filter:{cardType:'リレーピース'}}` の規則が**既にあった**のに、
+`manualEffects.ts` の `WXDi-CP01-002` が **`PARTIAL` で上書き**して届いていなかった（第4の死角の"出所あり"版）。
+
+- **直し方**＝manual 定義を**削除**して parser に任せた（`§6.4 O-42 tripwire` の指示どおり＝実体同一の影武者は残さない）。
+  2つの【使用条件】は原文が「両方の…」と明記しているので **AND** で載る。
+- ⚠**「使用している」の近似はルリグトラッシュ**＝使用済みピースは `lrig_trash` へ入る（`execUtils.ts:2597` に明記）。
+  ゲームから除外されたピースは残らない＝**偽陰性側（fail-closed）**。
+- **影響**＝1枚（`WXDi-CP01-002`）。旧はデッキ2434枚ミルが**使用条件なしでいつでも撃てた**。
+- **検証**＝golden `索引C 2026-09-02: O-213 …`（成立／不成立の両方向）。
+
+### 2. `O-209` — 「好きな生徒1人との絆を獲得する」（1効果・**受け皿は在った**）
+
+**真因**＝`GAIN_BOND{source:'declared'}` は型・parser 規則・`effectExecutor.ts:9695` の消費・
+`PlayerState.bonds`（【絆】アイコンのゲート）まで**完成済み**だった。`WXDi-CP02-001-E1` が原文の**末尾2文**を
+落としていただけ。「ルリグの下からカードを合計4枚ルリグトラッシュに置く」＝**エクシード4**＝`OptionalCostSpec.exceed`。
+
+- **直し方**＝`STUB{OPTIONAL_COST, exceed:4}` → `CONDITIONAL{PAID_ADDITIONAL_COST}` → `GAIN_BOND{declared}`。
+  使用条件②（《連邦生徒会》か《クロノス報道部》の使用歴）も `LRIG_TRASH_COUNT{cardNames}` で同時に載せた。
+- **engine は0行**。**影響**＝1枚。
+- **検証**＝golden `索引C 2026-09-02: O-209 …`（任意コストが絆獲得より前にあることまで固定）。
+
+### 3. `O-151` — 「それらのパワーを合わせて－18000」で対象宣言が別の文にある（1効果）
+
+**真因**＝`PR-K026-E1-G2` は**対象宣言が丸ごと落ちて** `CONDITIONAL{LAST_PROCESSED_COUNT_GTE 9} → STUB{POWER_MOD_PER_COUNT}`
+だけ＝**相手のパワーは1ミリも下がらない**（真 no-op）。
+
+- **受け皿は既存の3点**＝`STUB{SELECT_TARGET_ONLY}`（盤面を変えない対象宣言）＋
+  `STUB{STORE_LAST_PROCESSED_TARGETS}`（`storedTargetCards` へ固定）＋`POWER_MODIFY{targetsStored, splitTotal}`。
+  🔑**間にミル9枚を挟んでも対象が生き残る**のがこの組の要点（`lastProcessedCards` はミルで上書きされる）。
+- **engine 1点**＝`execPowerModify` の `splitTotal` が `targetsStored` を honor するようにした。
+  旧は必ず選択UIを出したので**同じ対象へ ON_TARGETED が二度立つ**（対象宣言は1回）。
+  割り振り本体は `applySplitTotalToTargets` 1本へ集約（選択経路と共有＝1体なら対話を挟まない規約も共有）。
+- **死枝を撤去**＝`parseSentencePart4.ts` の catch-all `それらのパワーを(合わせて|合計で)` は
+  母集団が0になったので削除（登録票の指示どおり）。
+- **検証**＝golden 2本（`splitTotal は targetsStored なら…` ／ `PR-K026-E1-G2 は対象宣言→ミル9→割り振りの順に…`）。
+  `BASELINE_SPLIT_TOTAL` 5 → 6。
+
+### 4. `O-167` — 【起】コスト「このシグニを場から手札に戻す」（1効果）
+
+**真因**＝この句が**どのコスト規則にも当たらず丸ごと踏み倒されて**いた（`WX21-031-CB-E2` はエナ《白》だけで撃てた）。
+
+- **新設**＝`EffectCost.bounceSelf`。🔴**`trash_self` へ寄せない＝行き先が違う**
+  （手札なら同じ札を再利用できる／トラッシュなら資源を失う＝コストの重さが別物。§5.3 `O-67` の `fieldBanish` と同じ取り違え）。
+- **配線**＝parser 規則1本＋`BattleScreen` の【起】コスト funnel（離場は `removeFromField` を共有）＋
+  `SigniActivatedModal` のラベル＋`CPU_AUTO_PAYABLE_COST_KEYS`＋逆翻訳。
+- **影響**＝1枚。**census 高シグナル -1**（`AUTO` のまま JSON に載った＝**真の前進**）。
+
+### 5. `O-206` — `trashExile` の集合制約が支払いモーダルで enforce されない（1効果）
+
+**真因**＝型（`selectionConstraint`）は 2026-08-31 から在ったのに、支払いUIは **`size >= count` しか見ておらず**
+`WXK09-029-E2` は**同名のスペル3枚でも払えた**（`energyTrash` とまったく同じ穴）。
+
+- **直し方**＝`costs.ts` に `trashExileCostSatisfied` / `canAddTrashExileIndex` / `trashExileAffordable` を新設し、
+  **支払いモーダル2本（`SigniActivatedModal` / `LrigGrantedModal`）と可否ゲート（`signiActivateGate`）**を
+  同じ関数へ通した。⚠**判定はここ1本に集約**（写経すると「その入口からだけ制約なしで払える」になる）。
+- `WXK09-029-E2` は `PARTIAL` → `MANUAL`。
+- **検証**＝golden（異名3枚は払える／同名3枚は払えない・提示もされない／タップ時ガード）＋
+  **実機2本**（`o206TrashExileDistinct` / `o206TrashExileSameName`）。
+
+### 6. `O-177` — ライフバースト無効に「カードの条件」を載せられない（1効果）
+
+**真因**＝`PlayerState.suppress_life_burst` が **boolean** で、`WX25-P3-003-E1` の
+「**対戦相手のセンタールリグと共通する色を持たない**対戦相手のカードのライフバーストは発動しない」が
+**そのターンの相手のバーストを全部止めて**いた（過剰実行）。
+
+- **直し方**＝`boolean | TargetFilter` へ広げ、判定を `lifeBurstSuppress.ts` の
+  `lifeBurstSuppressedByTurnFlag` 1本に集約（`LifeBurstCheckModal` は**カードごと**に呼ぶ）。
+  ⚠**基準ルリグはフラグの持ち主**（抑制フラグはクラッシュ**される側**に立つ）。
+  ⚠**色は配列で渡す**（文字列だと `colorExclude` が1要素扱いで1色も除外されない＝§5.3 `O-183` の実測）。
+- ⚠ルリグ色が引けないときは**抑制しない側**へ倒す（fail-closed）。
+- **検証**＝golden（共通色なし＝抑制／共通色あり＝抑制しない／boolean は全部止める）。
+
+### 7. `O-164` — 「次にバニッシュされる場合、バニッシュされない」が**効果経路の本線**で効かない（1効果）
+
+**真因**＝上の「主題①」。`applyBanishPreventShield` を新設して `execBanish` の `applyBanish` と
+`applyDirectAction` の `BANISH` の**両方**から通した。身代わり（`BANISH_SUBSTITUTE`）より**先**に見る
+（原文は「バニッシュされない」＝離場自体が起きない）。
+
+- ⚠**1回消費は instance 単位**＝`abilities_removed` に積むのは肩代わりした `src`（`thisCardOnly` なら victim 自身）
+  なので、＜武勇＞が複数いても**各自が1回ずつ**吸収する（原文どおり）。
+- `WX15-010-E1` は `PARTIAL` → `MANUAL`。**検証**＝golden（1回目は吸収／2回目はバニッシュされる）。
+
+### 8. `O-210` — `BANISH_REDIRECT` の「次に1回だけ」＋効果経路（1効果）
+
+**真因**＝上の「主題①」（向きが真逆）＋回数無制限。
+
+- **新設**＝`BanishRedirectAction.byEffectOnly` / `consumeOnce`、
+  `PlayerState.banish_redirect_by_source_effect_nums` / `banish_redirect_once_source_nums`。
+- `banishDestination` が `opts.effectSourceNum` と突き合わせて置換し、**`consumedOnceSource` を返すだけ**にした
+  （置換元の state を書き換えるのは呼び出し側＝この関数は被バニッシュ側の state しか返せない）。
+  消費は `consumeBanishRedirectOnce` 1本で `applyBanish` / `applyDirectAction` の両方から呼ぶ。
+- ⚠**バトル経路の消費地点は未配線**なので、`byEffectOnly` を伴わない `consumeOnce` は書かない（型コメントに明記）。
+- parser 規則も足したので `manualEffects` の影武者を削除（`§6.4 O-42 tripwire`）。**検証**＝golden（両方向）。
+
+### 9. `O-114` — スペル／アーツの「別能力としての【起】」が UI から使えない（2効果）
+
+**真因**＝①`trashActivated` は本体が「場に出す／シグニゾーンに出す」のときしか立たず、
+**「トラッシュにあるこのカードを手札に加える」自己回収**（`WX10-096-E2`）を知らなかった
+②**エナゾーン起動の入口そのものが無かった**（`WXDi-P06-077-E2`）。どちらも**どこからも提示されない**過小実行。
+
+- **新設**＝`CardEffect.energyActivated`（`trashActivated` と**入口だけが違う**＝支払い・実行は
+  `trashActivateCost.ts` / `executeTrashActivated` を共有）＋`PlayerField` の `getEnergyCardActions`
+  （エナゾーンの `Stat` に `my-energy` testid とゾーンモーダルの action を配線）。
+- **ラベルを本体アクションから決める**＝`trashActivateVerbLabel`。
+  🔴**実機で発見**＝`TrashActivatedModal` の実行ボタンも「トラッシュから場に出す」固定だった（**2箇所目**）。
+- **検証**＝**実機4本**（`o114EnergyActivated` / `o114EnergyActivatedGated`＝＜美巧＞の使用条件で反転／
+  `o114TrashSelfToHand` / `o114TrashSelfNoCharm`＝【チャーム】コストで反転）＋golden 1本。
+
+### 10. `O-84` — 「条件を満たす場合、このアーツは追加で《アタックフェイズアイコン》を持つ」（1効果）
+
+**真因**＝使用可否の Timing は `CardData.Timing` 列を読む**静的判定**なので、
+**盤面条件で timing を1つ足す動的な口が無く**、`WX16-Re20-E1` は `DEFERRED_…` で恒久 no-op だった。
+
+- **新設**＝`StubAction.extraUseTiming` ＋ `ActiveCondition.LIFE_COUNT`（`Condition` 側には元から在り、
+  **片側だけ育っていた**＝§5-2‴ の再発）。消費は `artsUseGate.ts` の `collectExtraUseTimings` 1本
+  （人間UIと CPU はどちらも `checkArtsUse` を通る）。
+- 🔴**向きに注意**＝**足す側**（`timingOk` へ `||` で合流）。条件を使用可否の必須項に混ぜると
+  「ライフ2枚以下でしか使えないアーツ」に化ける。`effectParser.ts` の `STATE_HOIST_BATCH1_CARDS`
+  ガードはその誤変換を封じているので**外していない**。
+- 宣言は本体の `SEQUENCE` から外して**別の CONTINUOUS 効果（E2）**にした（撃った後に宣言しても間に合わない）。
+- **検証**＝**実機2本**（ライフ2枚＝アタックフェイズで使える／ライフ5枚＝使えない）＋golden（両方向＋
+  「本体の使用条件へライフ条件を載せていない」）。`ACTIVE_CONDITION_TYPES` 66 → 67。
+
+### 11. `O-180` — 「次にアシストルリグにグロウする場合、ルリグタイプは無視され、コストは《無×1》減る」（1効果）
+
+**真因**＝`GROW_COST_REDUCTION` に**実行ハンドラが1つも無かった**（`collectGrowCostReductions` は
+**場の CONTINUOUS** しか走査しない）＝ピース `WX24-P2-043` が**丸ごと無言 no-op**。
+
+- **新設**＝`GrowCostReductionAction.nextAssistGrowOnly` / `ignoreLrigType` ＋
+  `PlayerState.next_assist_grow_mods`（**1回きり**＝`executeAssistGrow` が消す・ターン終了時も消える）。
+- ⚠**アシストグロウ専用**（原文が「アシストルリグにグロウする場合」）＝`listGrowCandidates`（センター用）ではなく
+  `getAssistGrowCandidates` 側だけが読む。⚠`BLOCK_ACTION{IGNORE_LRIG_TYPE}` は**グロウ先ルリグ自身の宣言**で軸が別。
+- コスト軽減は `AssistGrowModal` で `collectGrowCostReductions` の結果へ合流する。
+- **検証**＝**実機1本**（`o180NextAssistGrowMods`）＋golden（【常】版は state へ焼かないことまで固定）。
+
+### 12. `O-203` — 「あなたの効果1つによってこのシグニを参照する場合、レゾナとしても扱う」（1効果）
+
+**新設**＝`STUB{TREAT_SELF_AS_RESONA}` ＋ `PlayerState.treated_as_resona_until_opp_turn`。
+参照側は `fieldCandidates` が `Type` を `'レゾナ'` へ差し替えて読む。
+
+- 🔑**「としても」＝シグニでもある は無料で成立する**＝`matchesFilter` は `Type==='レゾナ'` を
+  `cardType:'シグニ'` フィルタにも一致させる（非対称の緩和が以前から入っている）。
+- ⚠**近似を明記**＝`fieldCandidates` は「誰の効果が参照しているか」を知らないので、原文の
+  「**あなたの**効果1つによって」は絞れない（相手の「レゾナ1体を対象とし」にも当たり、`excludeResona` では逆に外れる）。
+  **1効果のための意図的な近似**。**検証**＝golden 4方向（レゾナに当たる／シグニにも当たる／印が無ければ当たらない／`excludeResona` に掛かる）。
+
+### 13. `O-186` — 「次のあなたのターン終了時まで」の `EffectDuration` が無い（2効果）
+
+**真因**＝`UNTIL_END_OF_TURN` に潰れており**相手ターンを跨がずに切れて**いた（過小）。
+`UNTIL_OPP_TURN_END` へ寄せても**1ターン短い**。
+
+- **新設**＝`EffectDuration.UNTIL_NEXT_OWN_TURN_END` ＋
+  `PlayerState.power_mods_until_next_own_turn` / `abilities_removed_until_next_own_turn`。
+- 🔑**寿命はグローバルターン終了の回数で数える**＝自分のターン中に置いたら **3**
+  （自T終了→相手T終了→**次の自T終了で消える**）、相手のターン中（ライフバースト等）なら **2**。
+  🔴**`_next_turn` の2スロット式では表せない**（あれは常に1回ぶんしか跨げない）。
+- `clearTurnEndScopedState` が毎ターン終了時に1減らし、生き残った分を `abilities_removed` へ書き戻す。
+  `calcFieldPowers` にも新ストアを足した（足さないと JSON に載るだけの死フラグ）。
+- **影響**＝`WXDi-P13-043-E1` / `WXK10-022-BURST`。
+- **検証**＝**実機1本**（`o186UntilNextOwnTurnEnd`＝寿命3で載ることまで観測）＋
+  golden（3回のターン終了で切れる／従来の2スロットは2回で切れる、の対照つき）。
+
+### 14. `O-72` — `ON_ATTACK_PHASE_START` がフェイズ限定【常】の配る【自】を拾えない（1効果）
+
+**真因**（登録票の「当て」どおり）＝`effectsMap`（memo）は **`bs.turn_phase`＝遷移「前」**（MAIN）で組まれるので、
+`collectGrantedFromUnderSigni` の `activeCondition:{DURING_ATTACK_PHASE}` がまだ false ＝
+**付与された【自】が augmented map に載る前に `ON_ATTACK_PHASE_START` を収集していた**。
+
+- **直し方**＝`mkTrigCtxForPhase(phase, …)` を新設し、**遷移先フェイズで下カード付与だけを組み直す**
+  （フェイズ以外の条件は遷移で変わらないので memo を捨てない）。⚠**effectId で重複を弾く**（二重発火防止）。
+- 開始時トリガーの4呼び出し（`ON_ATTACK_PHASE_START` / `ON_GROW_PHASE_START` / `ON_MAIN_PHASE_START`）に
+  遷移先を渡し、**CPU 版（`collectCpuTurnTriggers`）にも同じ引数**を通した
+  （写経して片方だけ落とすと「人間ターンでは発火するのに CPU ターンでは発火しない」無言のズレになる）。
+- **影響**＝`WXK08-048-E1`。**検証**＝golden（ATTACK_ARTS 基準なら載る／MAIN 基準では載らない＝真因そのもの）。
+
+### 15. `O-205` — **stale**（1効果）
+
+登録票「`lrigAttackNoDamage` の発火地点は【ガード】された経路だけ」は **続き772 の `O-181` で失効していた**＝
+`collectAttackEndTriggers` が非ガードのダメージ無効を補完しており、golden
+`O-181 ON_ATTACK_END: ルリグ付与・全場 watcher を…`（`:13728`）が既に assert 済み。
+契約の在処だけを golden 1本で固定してクローズ。
+
+---
+
+### 計器の更新（**内訳を混ぜない**）
+
+- **census 高シグナル 6 → 5**＝**前進1件だけ**（`WX21-031-CB-E2` が `AUTO` のまま `bounceSelf` を載せた）。
+  🔴**この巡で MANUAL 免除に入った分は 0**（新しく `MANUAL` にした効果はもともと高シグナルに出ていない）。
+- **`ACTIVE_CONDITION_TYPES` 66 → 67**（`LIFE_COUNT`）／**`BASELINE_SPLIT_TOTAL` 5 → 6**。
+- **`§6.4 O-42 tripwire` が2件を検出**＝parser に規則を足した結果 `WX24-P4-050-E2` / `WXDi-CP01-002-E1` が
+  **実体同一の影武者**になったので manual 定義を削除し、`census:orphanmanual --unfreeze A` で live の
+  スタンプも `AUTO` へ戻した（残さないと parser 改善が永久に届かない）。
+- **在庫**＝機構 worklist **58 → 43項目**（索引 A 17／B 12／**C 22 → 7**／E 4／F 3）。
+  Sheet1 要対応 **22 / 863**（据置＝`mech` 22・即着手可能 0）。台帳 残 OPEN **44**（据置＝この巡は §5.2 から取っていない）。
+
+
 ## 2026-09-02（続き774）：§5.3 索引 C を上から5件 — `O-162` / `O-199` / `O-200` / `O-201` / `O-202`
 
 **ベースライン**＝`a4f666a2c`。**新しい `Condition` 型もアクション型も1つも足していない**（足したのは既存型のフィールドと

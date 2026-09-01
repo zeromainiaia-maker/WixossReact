@@ -48,7 +48,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                     const canAfford = canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
                     const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
-                      <button key={card.CardNum}
+                      <button key={card.CardNum} data-testid={`assistgrow-cand-${card.CardNum}`}
                         onClick={() => {
                           if (!canAfford) return;
                           if (energyTotal === 0) { executeAssistGrow(card, pendingAssistSide, new Set()); }
@@ -83,7 +83,13 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 const card = pendingAssistGrowCard;
                 const side = pendingAssistSide;
                 // GROW_COST_REDUCTION 軽減後コストで支払い必要枚数を算出（フェーズ1候補と一致させる。減額しないと全額要求のままになる）
-                const growCost = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
+                // 🆕**一過性のアシストグロウ軽減**（§5.3 `O-180`・`WX24-P2-043`「グロウするためのコストは
+                //   《無×1》減る」）も合流する。⚠`collectGrowCostReductions` は**場の CONTINUOUS**しか見ないので、
+                //   ピースが解決時に積んだ `next_assist_grow_mods` はここで足さないと届かない。
+                const growCost = applyGrowCostReduction(card.GrowCost, [
+                  ...collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap),
+                  ...(my.next_assist_grow_mods?.reduction ?? []),
+                ]);
                 const energyTotal = parseGrowCost(growCost).reduce((s, c) => s + c.count, 0);
                 const selectedNums = [...selectedAssistGrowCost].map(i => myEnergyPayPool[i].cardNum);
                 const canAfford = energyTotal === 0
@@ -111,7 +117,9 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                             const isSel = selectedAssistGrowCost.has(i);
                             const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                             return (
-                              <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => setSelectedAssistGrowCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
+                              // 🆕`data-testid` は実機ドライバの操作点（§5.1）＝画像 alt だけだと
+                              //   常設の手札ストリップと衝突して誤クリックになる（`clickModalImage` の教訓）。
+                              <div key={i} data-testid={`assistgrow-ena-${i}`} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => setSelectedAssistGrowCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
                                 onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
                                 onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                                 onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
@@ -133,7 +141,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                         style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                         戻る
                       </button>
-                      <button onClick={() => executeAssistGrow(card, side, selectedAssistGrowCost)} disabled={loading || !canAfford}
+                      <button data-testid="assistgrow-submit" onClick={() => executeAssistGrow(card, side, selectedAssistGrowCost)} disabled={loading || !canAfford}
                         style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                           backgroundColor: (loading || !canAfford) ? C.disabled : '#6644aa',
                           color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>

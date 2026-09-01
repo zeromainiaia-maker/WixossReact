@@ -28,7 +28,7 @@ import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { payFieldBanishCost } from './battle/fieldBanishCost';
-import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
+import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateVerbLabel } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from './battle/pieceCutin';
@@ -2715,6 +2715,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     hostId: bs.host_id, guestId: bs.guest_id, meId: user.id, activeUserId: bs.active_user_id ?? null,
     turnPhase: bs.turn_phase, effectsMap, cardMap: battleCardMap, effectivePowers, genId: generateUUID,
   });
+
+  /**
+   * 🆕**フェイズ遷移先を基準にした `TrigCtx`**（2026-09-02・§5.3 `O-72`）。
+   *
+   * 🔴**症状**＝`WXK08-048-E1`「【常】：**あなたのアタックフェイズの間**、このシグニはこのカードの下にある
+   *   …シグニの**【自】能力**を得る」で得た `ON_ATTACK_PHASE_START` の【自】が**永久に発火しない**。
+   * 🔑**真因**＝`effectsMap`（memo）は **`bs.turn_phase`＝遷移「前」**（MAIN）で組まれるので、
+   *   `collectGrantedFromUnderSigni` の `activeCondition:{DURING_ATTACK_PHASE}` がまだ false ＝
+   *   **付与された【自】が augmented map に載る前に `ON_ATTACK_PHASE_START` を収集していた**。
+   *   `checkActiveCondition` の評価タイミングと収集タイミングのズレ（登録票の「当て」どおり）。
+   * ⚠**遷移先フェイズで組み直すのは下カード付与だけ**＝ここは `DURING_*` 限定の付与が実在する唯一の経路。
+   *   全部を組み直すと memo を捨てることになるうえ、**フェイズ以外の条件は遷移で変わらない**。
+   * ⚠**effectId で重複を弾く**（遷移前から載っていた分を二度足さない＝同じ【自】が2回発火する）。
+   */
+  const mkTrigCtxForPhase = (phase: TurnPhase, myS: PlayerState, opS: PlayerState, myIsActive: boolean): TrigCtx => {
+    const base = mkTrigCtx();
+    if (phase === bs.turn_phase) return base;
+    const augMap = new InstanceMap<import('../types/effects').CardEffect[]>(effectsMap);
+    const merged = [
+      ...collectGrantedFromUnderSigni(myS, opS, myIsActive, augMap, battleCardMap, phase),
+      ...collectGrantedFromUnderSigni(opS, myS, !myIsActive, augMap, battleCardMap, phase),
+    ];
+    for (const [num, extra] of merged) {
+      const cur = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
+      const seen = new Set(cur.map(e => e.effectId));
+      const add = extra.filter(e => !seen.has(e.effectId));
+      if (add.length > 0) augMap.set(num, [...cur, ...add]);
+    }
+    return { ...base, turnPhase: phase, effectsMap: augMap };
+  };
+
   const collectTargetedTriggers = (targetedNums: string[], targetedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState, origin?: TargetedOrigin, beforeHostState: PlayerState = afterHostState, beforeGuestState: PlayerState = afterGuestState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectTargetedTriggers(mkTrigCtx(), targetedNums, targetedOwnerId, afterHostState, afterGuestState, origin, beforeHostState, beforeGuestState);
   const collectLrigGrowTriggers = (grownOwnerId: string, afterGrowerState: PlayerState, afterOpState: PlayerState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
@@ -2749,8 +2780,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_ATTACK_PHASE_END' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     myState: PlayerState,
     opState: PlayerState,
+    /** 🆕**遷移「先」**のフェイズ（§5.3 `O-72`）。開始時トリガーはここを渡さないと
+     *  `DURING_*` 限定の【常】が配る【自】を1件も拾えない（遷移前の phase で組んだ map を見るため）。 */
+    enteringPhase?: TurnPhase,
   ): { entries: StackEntry[]; usedMyIds: string[]; usedOpIds: string[] } => {
-    const r = pureCollectTurnTriggers(mkTrigCtx(), timing, myState, opState);
+    const ctxTT = enteringPhase ? mkTrigCtxForPhase(enteringPhase, myState, opState, true) : mkTrigCtx();
+    const r = pureCollectTurnTriggers(ctxTT, timing, myState, opState);
     return { entries: r.entries, usedMyIds: isHost ? r.usedHostIds : r.usedGuestIds, usedOpIds: isHost ? r.usedGuestIds : r.usedHostIds };
   };
 
@@ -2770,8 +2805,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_ATTACK_PHASE_END' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     cpuState: PlayerState,
     humanState: PlayerState,
+    /** 🆕遷移「先」のフェイズ（§5.3 `O-72`）。⚠**人間側と同じ引数を渡す**＝写経して片方だけ落とすと
+     *  「人間ターンでは発火するのに CPU ターンでは発火しない」無言のズレになる。 */
+    enteringPhase?: TurnPhase,
   ): { entries: StackEntry[]; cpuState: PlayerState; humanState?: PlayerState } => {
-    const r = pureCollectTurnTriggers({ ...mkTrigCtx(), meId: CPU_PLAYER_ID }, timing, cpuState, humanState);
+    const baseCtxCT = enteringPhase
+      ? mkTrigCtxForPhase(enteringPhase, cpuState, humanState, true)
+      : mkTrigCtx();
+    const r = pureCollectTurnTriggers({ ...baseCtxCT, meId: CPU_PLAYER_ID }, timing, cpuState, humanState);
     return {
       entries: r.entries,
       cpuState: r.usedGuestIds.length > 0
@@ -4096,6 +4137,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           banish_redirect_battle_target_nums: undefined, // 選択対象＋バトル限定のバニッシュ先変更をクリア
           banish_redirect_power0_target_nums: undefined, // 選択対象＋パワー0限定のバニッシュ先変更をクリア
           banish_redirect_by_source_nums: undefined, // 限定付きバニッシュ先変更（このシグニとのバトル）をクリア
+          next_assist_grow_mods: undefined,     // 次のアシストグロウ修整（§5.3 `O-180`）をクリア
+          banish_redirect_by_source_effect_nums: undefined, // 同・効果経路（§5.3 `O-210`）をクリア
+          banish_redirect_once_source_nums: undefined,      // 同・「次に1回だけ」の印をクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
           banish_redirect_to_exile: undefined,  // バニッシュ先→ゲーム除外フラグをクリア
           power0_banish_to_trash: undefined,    // パワー0以下→トラッシュ（このターン）フラグをクリア
@@ -4328,7 +4372,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         // ON_GROW_PHASE_START: →GROW移行時（グロウフェイズ開始時）トリガー。
         if (nextPhase === 'GROW') {
-          const gpsRes = collectTurnTriggers('ON_GROW_PHASE_START', newMyState, op);
+          const gpsRes = collectTurnTriggers('ON_GROW_PHASE_START', newMyState, op, 'GROW');
           foldTurnUsed(gpsRes);
           if (gpsRes.entries.length > 0) {
             const baseStackGPS = phaseStack ?? bs.effect_stack ?? null;
@@ -4343,7 +4387,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (nextPhase === 'ATTACK_ARTS') {
           // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
           newMyState = clearAttackPhaseScopedState(newMyState);
-          const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
+          // ⚠**遷移先の `ATTACK_ARTS` を渡す**（§5.3 `O-72`）＝`bs.turn_phase` はまだ MAIN なので、
+          //   これを渡さないと「あなたのアタックフェイズの間…【自】能力を得る」が発火しない。
+          const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op, 'ATTACK_ARTS');
           foldTurnUsed(apsRes);
           const apsEntries = apsRes.entries;
           if (apsEntries.length > 0) {
@@ -4373,7 +4419,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (nextPhase === 'MAIN') {
           // §6.4 O-3: 「次のあなたのメインフェイズまで」の予約はここで失効させる（唯一の失効地点）。
           newMyState = clearMainPhaseScopedState(newMyState);
-          const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op);
+          const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op, 'MAIN');
           foldTurnUsed(mpsRes);
           const mpsEntries = mpsRes.entries;
           if (mpsEntries.length > 0) {
@@ -4573,6 +4619,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined,
         banish_redirect_by_source_nums: undefined,
+        next_assist_grow_mods: undefined,                 // §5.3 `O-180`
+        banish_redirect_by_source_effect_nums: undefined, // §5.3 `O-210`
+        banish_redirect_once_source_nums: undefined,      // §5.3 `O-210`
         double_power_minus_sources: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
         prevent_defeat: undefined,
@@ -6489,7 +6538,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const level = parseInt(c.Level) || 0;
         if (level !== topLevel + 1) return false;
         if (level > currentLrigLevel) return false;
-        if (topClass && !lrigClassesCompatible(topClass, c.CardClass)) return false;
+        // 🆕**「このターン、次にアシストルリグにグロウする場合、ルリグタイプは無視され」**
+        //   （§5.3 `O-180`・`WX24-P2-043`）。⚠グロウ先ルリグ自身の宣言（`ignoresLrigTypeForGrow`）とは軸が別＝
+        //   こちらは**グロウする側にかかる一過性**なので `my.next_assist_grow_mods` を見る。
+        if (topClass && !my.next_assist_grow_mods?.ignoreLrigType
+            && !lrigClassesCompatible(topClass, c.CardClass)) return false;
         const timingOk =
           (phase === 'MAIN' && c.Timing.includes('メインフェイズ')) ||
           ((phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP') && c.Timing.includes('アタックフェイズ'));
@@ -7523,6 +7576,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: { ...my.field, [sideKey]: [...currentStack, instanceId] },
         trash: [...my.trash, ...paidNums],
         coins: Math.min(5, my.coins + assistCoinGain),
+        // 🆕**「次に」＝1回きり**（§5.3 `O-180`）＝アシストグロウを1回行ったらここで消す。
+        //   ⚠落とすと「このターン中は何度でもルリグタイプ無視＋コスト減」に化ける。
+        next_assist_grow_mods: undefined,
       });
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // 通常手順で配置したアシストルリグの【出】を共通 collector へ載せる。
@@ -8446,9 +8502,46 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
       if (!canOfferTrashActivate(eff, my, op, battleCardMap, myEnergyPayPool)) continue;
       const costLabel = trashActivateCostLabels(eff, my, op).join('・');
+      // 🆕**ラベルは本体アクションから決める**（§5.3 `O-114`）＝「トラッシュから出す」固定だと
+      //   自己回収（`TRANSFER_TO_HAND`）の【起】が「場に出す」と嘘をつく。
+      const verb = trashActivateVerbLabel(eff);
       actions.push({
-        label: costLabel ? `【起】トラッシュから出す（${costLabel}）` : '【起】トラッシュから出す',
+        label: costLabel ? `【起】${verb}（${costLabel}）` : `【起】${verb}`,
         color: '#ff6b35',
+        onClick: () => { openTrashActivated({ cardNum, effect: eff }); },
+      });
+    }
+    return actions;
+  };
+
+  /**
+   * 🆕**エナゾーン自己起動【起】**（§5.3 `O-114`・`WXDi-P06-077-E2`
+   * 「【起】《緑×0》：あなたのエナゾーンからこのカードを手札に加える。」）。
+   * ⚠**トラッシュ側と同じ関数を通す**（`canOfferTrashActivate` / `trashActivateCostLabels` /
+   *   `executeTrashActivated`）＝入口だけが違う。写経すると片方だけ穴が空く。
+   * ⚠**カード自身をエナから抜くのは resolver の役目**（`TRANSFER_TO_HAND{ENERGY_CARD, thisCardOnly}`）＝
+   *   ここでは他のコストしか払わない（トラッシュ側の規約と同じ）。
+   */
+  const getMyEnergyCardActions = (cardNum: string): CardAction[] => {
+    if (loading) return [];
+    const actions: CardAction[] = [];
+    const phase = bs.turn_phase;
+    const energyTiming: import('../types/effects').EffectTiming | null =
+      phase === 'MAIN' ? 'MAIN' : phase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null;
+    if (!isMyTurn || !energyTiming) return actions;
+    if (my.abilities_removed?.includes(cardNum)) return actions;
+    for (const eff of (effectsMap.get(cardNum) ?? [])) {
+      if (!eff.energyActivated || eff.effectType !== 'ACTIVATED') continue;
+      if (eff.costUnparsed) continue;
+      if (!eff.timing?.includes(energyTiming)) continue;
+      if (my.actions_done?.includes(eff.effectId)) continue;
+      if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
+      if (!canOfferTrashActivate(eff, my, op, battleCardMap, myEnergyPayPool)) continue;
+      const costLabel = trashActivateCostLabels(eff, my, op).join('・');
+      actions.push({
+        label: costLabel ? `【起】エナゾーンから手札に加える（${costLabel}）` : '【起】エナゾーンから手札に加える',
+        color: '#4caf50',
         onClick: () => { openTrashActivated({ cardNum, effect: eff }); },
       });
     }
@@ -11920,7 +12013,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ③人間側の場のシグニを一切見ない、という3点で人間ターンと挙動が食い違っていた。
       const apsCpu = cpuAttackPhaseSkipped
         ? { cpuState: newCpuSt, humanState: undefined as PlayerState | undefined, entries: [] as StackEntry[] }
-        : collectCpuTurnTriggers('ON_ATTACK_PHASE_START', newCpuSt, huSt);
+        : collectCpuTurnTriggers('ON_ATTACK_PHASE_START', newCpuSt, huSt, 'ATTACK_ARTS');
       apsStackEntries.push(...apsCpu.entries);
       newCpuSt = apsCpu.cpuState;
       // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
@@ -12110,7 +12203,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs(['[CPU] 追加のアタックフェイズを開始する']);
           // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセット（人間経路と同じ順＝クリア→収集）。
           nextCpuState = clearAttackPhaseScopedState(nextCpuState);
-          const aps2 = collectCpuTurnTriggers('ON_ATTACK_PHASE_START', nextCpuState, nextHuState);
+          const aps2 = collectCpuTurnTriggers('ON_ATTACK_PHASE_START', nextCpuState, nextHuState, 'ATTACK_ARTS');
           nextCpuState = aps2.cpuState;
           if (aps2.humanState) nextHuState = aps2.humanState;
           apeEntries.push(...aps2.entries);
@@ -13084,6 +13177,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), cardNum],
         };
       }
+      // 🆕bounceSelf: このシグニを場から手札に戻す起動コスト（§5.3 `O-167`）。
+      // ⚠**`trash_self` と行き先だけが違う**＝離場処理は同じ `removeFromField` を通し、
+      //   行き先だけ `hand` にする（写経すると下敷き・チャームの後始末が片方だけ落ちる）。
+      if (effect.cost?.bounceSelf) {
+        const afterRemoveB = removeFromField(cardNum, paid);
+        paid = { ...afterRemoveB, hand: [...afterRemoveB.hand, cardNum] };
+      }
       // fieldExileSelf: このシグニ自身を場からゲームから除外する起動コスト。
       // removeFromField で下敷き・チャーム・アクセの離場処理を共通化し、効果元本体だけ excluded へ置く。
       if (effect.cost?.fieldExileSelf) {
@@ -13428,7 +13528,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         playerId: user.id,
         cardNum,
         effectId: effect.effectId,
-        label: `${cardName}【起】（トラッシュから場に出す）`,
+        label: `${cardName}【起】（${trashActivateVerbLabel(effect)}）`,
         effect,
       };
       const stackEntries: StackEntry[] = [entry];
@@ -14317,6 +14417,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.underSelfTrash ? `このシグニの下${eff.cost.underSelfTrash.count}枚トラッシュ` : null,
               eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
               eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
+              eff.cost.bounceSelf ? 'このシグニを手札に戻す' : null,
               eff.cost.fieldExileSelf ? 'このシグニをゲームから除外' : null,
               eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
@@ -15047,7 +15148,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         {/* 自分の盤面 */}
         <div style={{ border: C.borderSelf, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgSelf }}>
-          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} getKeyPieceActions={getKeyPieceActions} getAssistLActions={() => getAssistActions('l')} getAssistRActions={() => getAssistActions('r')} getFreeZoneActions={getMyFreeZoneActions} getTrashCardActions={getMyTrashCardActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.my} />
+          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} getKeyPieceActions={getKeyPieceActions} getAssistLActions={() => getAssistActions('l')} getAssistRActions={() => getAssistActions('r')} getFreeZoneActions={getMyFreeZoneActions} getTrashCardActions={getMyTrashCardActions} getEnergyCardActions={getMyEnergyCardActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.my} />
           <HandCards cardNums={my.hand} cards={battleCards} getCardActions={getMyHandCardActions} />
         </div>
       </div>

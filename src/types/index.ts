@@ -363,6 +363,19 @@ export interface PlayerState {
   temp_level_mods?: Array<{ cardNum: string; delta: number }>;
   // 次の対戦相手のターン終了時までの一時パワー修正（temp_power_modsの長期版。UNTIL_OPP_TURN_END）
   power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcType?: string }>;
+  /**
+   * 🆕**「次のあなたのターン終了時まで」のパワー修整**（2026-09-02・§5.3 `O-186`）。
+   * ⚠**寿命はグローバルターン終了の残り回数（`turnEnds`）**＝`clearTurnEndScopedState` が毎回1減らし、
+   *   0 になったエントリを落とす。`power_mods_until_opp_turn` の2スロット式では跨ぐ回数が足りない。
+   * ⚠**`calcFieldPowers` に足すのを忘れない**（足さないと JSON に載るだけの死フラグになる）。
+   */
+  power_mods_until_next_own_turn?: Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string; turnEnds: number }>;
+  /**
+   * 🆕**「次のあなたのターン終了時まで」の能力喪失**（§5.3 `O-186`）＝cardNum → 残りターン終了回数。
+   * ⚠**適用そのものは `abilities_removed` に載せる**（読み手はそこ1本）。この表は「延命」だけを担い、
+   *   ターン終了時に生き残った分を `abilities_removed` へ書き戻す。
+   */
+  abilities_removed_until_next_own_turn?: Record<string, number>;
   // COST_INCREASE(NEXT_OPP_TURN): 「次の対戦相手のターン、対戦相手のアーツ/スペルのコストが《無×N》増える」。
   //   キャスター側へ保持し、相手ターンのコスト計算で「相手(=キャスター)のこのストア」を参照して加算する。
   //   power_mods_until_opp_turn と同じライフサイクルで自分の次ターン開始時にクリア。
@@ -596,6 +609,14 @@ export interface PlayerState {
   // 置換が効くのはここに載っているシグニ自身がバトル当事者のときだけ＝無条件の banish_redirect とは別枠。
   // ⚠ここを無条件フラグに合流させると「場に1体いるだけで相手の全バニッシュがトラッシュ送り」に過剰発火する。
   banish_redirect_by_source_nums?: string[];
+  /**
+   * 🆕**「このシグニの効果によって〜バニッシュされる場合」の置換元**（§5.3 `O-210`）。
+   * ⚠上の `banish_redirect_by_source_nums` は**バトル経路だけ**が読む（`BattleScreen` のバトル解決3箇所）。
+   *   こちらは `banishDestination` が `opts.effectSourceNum` と突き合わせる**効果経路専用**。
+   */
+  banish_redirect_by_source_effect_nums?: string[];
+  /** 🆕「**次に**1回だけ」の置換元（§5.3 `O-210`）＝1回置換したら上の配列からも外す。 */
+  banish_redirect_once_source_nums?: string[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る（BANISH_REDIRECT_TO_HAND）
   banish_redirect_to_hand?: boolean;
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンに置かれる代わりにゲームから除外される
@@ -648,10 +669,37 @@ export interface PlayerState {
   negated_attacks?: string[];
   // negated_attacks のうち「アタック側が手札をN枚捨てれば回避できる」もの（CardNum→必要捨て枚数。G154 BURST）
   negated_attacks_escape?: Record<string, number>;
+  /**
+   * 🆕**「このターン、あなたのルリグが次にアシストルリグにグロウする場合」の一時修整**
+   * （2026-09-02・§5.3 `O-180`・`WX24-P2-043`）。
+   * ⚠**1回きり**＝`executeAssistGrow` が消す。ターン終了時も `clearTurnEndScopedState` が消す。
+   * ⚠**アシストグロウ専用**（センターグロウは読まない＝原文どおり）。
+   */
+  next_assist_grow_mods?: { ignoreLrigType?: boolean; reduction?: { color: string; count: number }[] };
+  /**
+   * 🆕**「あなたの効果１つによってこのシグニを参照する場合、レゾナとしても扱う」**
+   * （2026-09-02・§5.3 `O-203`・`WX25-P2-052-E2`）。
+   *
+   * 🔑**「としても」＝シグニでもある**＝`matchesFilter` は `Type==='レゾナ'` を
+   *   `cardType:'シグニ'` フィルタにも一致させる（非対称の緩和が既に入っている）ので、
+   *   **参照時に `Type` を `'レゾナ'` へ差し替えるだけで「シグニかつレゾナ」になる。**
+   * ⚠**近似**＝`fieldCandidates` は「誰の効果が参照しているか」を知らないので、
+   *   原文の「**あなたの**効果1つによって」を絞れない（対戦相手の「レゾナを対象とし」も当たる／
+   *   `excludeResona` では逆に外れる）。**1効果のための近似**として受け入れ、golden に両方向を張る。
+   * ⚠**次の対戦相手のターン終了時まで**＝`clearUntilOppTurnEffects` が消す（キー名の `_until_opp_turn` が契約）。
+   */
+  treated_as_resona_until_opp_turn?: string[];
   // このターンまたは次のターン、グロウできない
   no_grow?: boolean;
-  // このターン、ライフバースト発動を抑制（クラッシュされた側）
-  suppress_life_burst?: boolean;
+  /**
+   * このターン、ライフバースト発動を抑制（**クラッシュされた側**の state に立つ）。
+   * 🆕**`true`＝このターンの全バースト／`TargetFilter`＝条件つき**（2026-09-02・§5.3 `O-177`・
+   * `WX25-P3-003-E1`「**対戦相手のセンタールリグと共通する色を持たない**対戦相手のカードの
+   * ライフバーストは発動しない」）。旧は boolean だけで、条件を載せられず**全部止めていた**。
+   * ⚠**判定は `lifeBurstSuppress.ts` の `lifeBurstSuppressedByTurnFlag` 1本**を通す
+   *   （`flag === true` を素で書くと条件つきが truthy で全部止まる側へ戻る）。
+   */
+  suppress_life_burst?: boolean | import('./effects').TargetFilter;
   // このターン、ルリグダメージを受けない
   prevent_lrig_damage?: boolean;
   // このターン（または次のターンまで）、敗北しない

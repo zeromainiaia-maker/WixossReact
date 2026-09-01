@@ -24,7 +24,13 @@ import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engin
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
-import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit } from '../src/engine/effectEngine';
+import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
+// 🆕§5.3 索引C 第9巡（2026-09-02）＝O-206 / O-177 / O-84 / O-114 / O-186 の消費地点を直接叩く。
+import { trashExileCostSatisfied, trashExileAffordable, canAddTrashExileIndex } from '../src/screens/battle/costs';
+import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSuppress';
+import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
+import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
+import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -23287,7 +23293,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 66, 'ActiveCondition の型数（66＝続き752 で FIELD_SIGNI_ALL_DISTINCT_CLASS を ActiveCondition 側へ追加＝「場のすべてのシグニがそれぞれ共通するクラスを持たないかぎり」。Condition 側には元から在り、片側だけ育っていた＝§5-2‴ の実例）');
+  eq(Object.keys(AC_TYPES).length, 67, 'ActiveCondition の型数（67＝2026-09-02 §5.3 `O-84` で LIFE_COUNT を ActiveCondition 側へ追加＝「あなたのライフクロスが2枚以下の場合」。Condition 側には元から在り、片側だけ育っていた＝§5-2‴ の再発）');
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
@@ -56079,7 +56085,7 @@ test('O-140: splitTotal は「総量」＝1体なら全部・複数なら ALLOCA
   ok(oddMods.every(m => Math.abs(m.delta) % 1000 === 0), '1000単位に丸めていない');
 
   // 母集団のラチェット＝live で splitTotal を持つ効果数（減ったら退化）。
-  const BASELINE_SPLIT_TOTAL = 5; // 旧4。manual1 で WX24-P2-009-E1 を既存機構へ載せた。
+  const BASELINE_SPLIT_TOTAL = 6; // 旧5。§5.3 `O-151` で PR-K026-E1-G2（照応が文をまたぐ形）を載せた。
   let nSplit = 0;
   const walkSp = (o: unknown): void => {
     if (!o || typeof o !== 'object') return;
@@ -57279,7 +57285,10 @@ test('census 2026-08-30 B群: 能力消去と同じ対象へのパワー後半�
   if (modify?.type === 'POWER_MODIFY') {
     eq(modify.delta, -5000, 'P13: delta=-5000');
     eq(modify.targetsLastProcessed, true, 'P13: 「それら」は直前に選んだ2体を再利用');
-    eq(modify.duration, 'UNTIL_END_OF_TURN', 'P13: 現行語彙で表せる期間は維持');
+    // 🔄**据置を解除**（2026-09-02・§5.3 `O-186`）＝原文は「**次のあなたの**ターン終了時まで」で、
+    //   `UNTIL_END_OF_TURN` は**相手ターンを跨がずに切れる過小実行**だった。専用期間を新設して直した。
+    //   ⚠`UNTIL_OPP_TURN_END` へ寄せるのも誤り（1ターン短い）＝この assert が逆流を止める。
+    eq(modify.duration, 'UNTIL_NEXT_OWN_TURN_END', 'P13: 次のあなたのターン終了時まで（§5.3 O-186）');
   }
 
   const p04 = find('WXDi-P04-079', 'WXDi-P04-079-E1');
@@ -59735,6 +59744,311 @@ test('索引C 2026-09-02: O-202 離場置換に「宣言者が自分をダウン
   ok(!collectLeaveSubstituteOptions(weapon, 'self', selfSide)
     .some(o => o.axis === 'downProtector'), '🔴自分の効果による離場には乗らない');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 索引 C 第9巡（2026-09-02）＝15件（O-84 / O-114 / O-180 / O-151 / O-164 / O-167 /
+//   O-177 / O-186 / O-203 / O-205 / O-206 / O-209 / O-210 / O-213 / O-72）
+// 🔴**新しい機構は必ず「成立／不成立」の両方向を張る**（§4.2）＝片方だけだと
+//   「型を足したのに常時 false（または常時 true）」が全ゲート緑のまま素通りする。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('索引C 2026-09-02: O-213 WXDi-CP01-002-E1 はリレーピース使用歴を【使用条件】に持つ', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-CP01-002') ?? []).find(e => e.effectId === 'WXDi-CP01-002-E1')!;
+  const cond = eff.condition as Condition;
+  eq(cond.type, 'AND', '2つの【使用条件】は AND（原文が「両方の…」と明記）');
+  const subs = (cond as { conditions: Condition[] }).conditions;
+  ok(subs.some(c => c.type === 'FIELD_LRIGS_HAVE_COLORS'), '【ドリームチーム】黒');
+  const relay = subs.find(c => c.type === 'LRIG_TRASH_COUNT');
+  ok(!!relay, 'リレーピース使用歴（ルリグトラッシュ枚数で近似）');
+  // 🔵成立側＝ルリグトラッシュにリレーピースがあれば通る
+  const relayNum = findCard(c => c.Type === 'リレーピース');
+  const ctx213 = mkCtx({}, {});
+  const withRelay = { ...ctx213, ownerState: { ...ctx213.ownerState, lrig_trash: [relayNum] } } as ExecCtx;
+  ok(evalCondition(relay!, withRelay), '🔵リレーピースがあれば成立');
+  // 🔴反転確認＝ルリグトラッシュが空なら成立しない（＝いつでも撃てる旧挙動へ戻らない）
+  ok(!evalCondition(relay!, ctx213), '🔴使用歴が無ければ不成立');
+}));
+
+test('索引C 2026-09-02: O-209 WXDi-CP02-001-E1 はエクシード4の任意コストで絆を獲得する', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-CP02-001') ?? []).find(e => e.effectId === 'WXDi-CP02-001-E1')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('"GAIN_BOND"') && json.includes('"declared"'), '絆獲得（好きな生徒1人＝declared）');
+  ok(json.includes('"OPTIONAL_COST"') && json.includes('"exceed":4'), 'エクシード4の任意コスト');
+  ok(json.includes('PAID_ADDITIONAL_COST'), '「そうした場合」のゲート');
+  // 🔴反転確認＝ゲートが無い（＝踏み倒して必ず絆を得る）形へ戻っていない
+  ok(json.indexOf('OPTIONAL_COST') < json.indexOf('GAIN_BOND'), '任意コストは絆獲得より前');
+}));
+
+test('索引C 2026-09-02: O-151 splitTotal は targetsStored なら選択UIを再掲せず割り振りへ直行', () => withSavedCursor(() => {
+  // ⚠**`SIGNI` / `SIGNI_P12000` は同じカードのことがある**（どちらも先頭一致で引くため）＝
+  //   `fresh()` で distinct な3枚を払い出す（同一 instanceId が並ぶと候補の絞り込みが検証にならない）。
+  const a = fresh(), b = fresh(), c = fresh();
+  const ctx = mkCtx({}, { signi: [a, b, c] }, fresh());
+  const stored = { ...ctx, storedTargetCards: [a, b] } as ExecCtx;
+  const pm: EffectAction = { type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 2, upToCount: true, filter: { cardType: 'シグニ' } },
+    targetsStored: true, delta: -18000, splitTotal: { unit: 1000 }, duration: 'UNTIL_END_OF_TURN' } as unknown as EffectAction;
+  const res = executeEffect({ effectId: 't', effectType: 'AUTO', action: pm, duration: 'INSTANT', mandatory: true } as CardEffect, stored);
+  eq(res.done, false, '割り振り対話で中断する');
+  const pend = (res as { pending: { type: string; targets?: string[]; total?: number } }).pending;
+  eq(pend.type, 'ALLOCATE_POWER', '🔵SELECT_TARGET を再掲せず ALLOCATE_POWER へ直行');
+  eq(pend.targets?.length, 2, '宣言済みの2体だけが割り振り先');
+  eq(pend.total, -18000, '総量が渡る');
+  // 🔴反転確認＝宣言が1体なら対話を挟まずその1体へ総量まるごと（§O-51 の規約）
+  const one = { ...ctx, storedTargetCards: [a] } as ExecCtx;
+  const resOne = finish(executeEffect({ effectId: 't', effectType: 'AUTO', action: pm, duration: 'INSTANT', mandatory: true } as CardEffect, one), one);
+  const mods = (resOne.otherState.temp_power_mods ?? []).filter(m => m.cardNum === a);
+  eq(mods.length, 1, '🔴1体なら対話なしで直接適用');
+  eq(mods[0].delta, -18000, '1体なら総量まるごと');
+}));
+
+test('索引C 2026-09-02: O-151 PR-K026-E1-G2 は対象宣言→ミル9→割り振りの順に組まれる', () => withSavedCursor(() => {
+  const grant = (effectsMap.get('PR-K026') ?? []).find(e => e.effectId === 'PR-K026-E1')!;
+  const g2 = (grant.action as unknown as { abilities: CardEffect[] }).abilities.find(x => x.effectId === 'PR-K026-E1-G2')!;
+  const steps = (g2.action as SequenceAction).steps.map(x => JSON.stringify(x));
+  ok(steps[0].includes('SELECT_TARGET_ONLY') && steps[0].includes('"upToCount":true'), '2体まで対象宣言');
+  ok(steps[1].includes('STORE_LAST_PROCESSED_TARGETS'), 'ミルで上書きされないよう stored へ固定');
+  ok(steps[2].includes('"DECK_CARD"') && steps[2].includes('"count":9'), 'デッキ上9枚をトラッシュ');
+  ok(steps[3].includes('LAST_PROCESSED_COUNT_GTE') && steps[3].includes('"splitTotal"'), '9枚置けた場合のみ割り振り');
+  ok(steps[3].includes('"targetsStored":true'), '割り振り先は宣言済みの対象');
+  // 🔴反転確認＝catch-all の裸 STUB へ戻っていない
+  ok(!JSON.stringify(g2.action).includes('POWER_MOD_PER_COUNT'), '🔴旧 catch-all が残っている');
+}));
+
+test('索引C 2026-09-02: O-167 WX21-031-CB-E2 は自己バウンスをコストに持つ', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX21-031-CB') ?? []).find(e => e.effectId === 'WX21-031-CB-E2')!;
+  eq(eff.cost?.bounceSelf, true, '🔵「このシグニを場から手札に戻す」がコストに載る');
+  // 🔴反転確認＝行き先を取り違えていない（トラッシュではない）
+  ok(!eff.cost?.trash_self, '🔴trash_self へ寄せていない（行き先が違う）');
+}));
+
+test('索引C 2026-09-02: O-206 trashExile コストは集合制約（それぞれ名前の異なる）を enforce する', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXK09-029') ?? []).find(e => e.effectId === 'WXK09-029-E2')!;
+  eq(eff.cost?.trashExile?.selectionConstraint?.distinct, 'name', '制約が JSON に載る');
+  const cm = cardMap as Map<string, CardData>;
+  const s1 = findCard(c => c.Type === 'スペル');
+  const s2 = findCard(c => c.Type === 'スペル' && c.CardName !== cm.get(s1)!.CardName);
+  const s3 = findCard(c => c.Type === 'スペル' && ![cm.get(s1)!.CardName, cm.get(s2)!.CardName].includes(c.CardName));
+  const distinct = [s1, s2, s3];
+  const same = [s1, s1, s1];
+  const spec = eff.cost!.trashExile;
+  // 🔵成立側＝名前が3つとも違えば払える
+  ok(trashExileCostSatisfied(distinct, new Set([0, 1, 2]), spec, cm), '🔵異なる名前3枚なら払える');
+  ok(trashExileAffordable(distinct, spec, cm), '🔵候補があれば提示される');
+  // 🔴反転確認＝同名3枚では払えない／提示もされない（旧＝size>=count だけ見て通っていた）
+  ok(!trashExileCostSatisfied(same, new Set([0, 1, 2]), spec, cm), '🔴同名3枚では払えない');
+  ok(!trashExileAffordable(same, spec, cm), '🔴同名しか無ければ提示しない');
+  // 🔴タップ時ガード＝1枚目と同名の2枚目は選べない
+  ok(!canAddTrashExileIndex(same, new Set([0]), 1, spec, cm), '🔴同名は追加できない');
+  ok(canAddTrashExileIndex(distinct, new Set([0]), 1, spec, cm), '🔵別名は追加できる');
+}));
+
+test('索引C 2026-09-02: O-177 ライフバースト抑制は条件（TargetFilter）を載せられる', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX25-P3-003') ?? []).find(e => e.effectId === 'WX25-P3-003-E1')!;
+  ok(JSON.stringify(eff.action).includes('SUPPRESS_LIFEBURST_COLOR_CONDITION'), '色条件つき抑制の宣言');
+  const cm = cardMap as Map<string, CardData>;
+  // 白ルリグを立てて、白のカード（共通色あり）と黒のカード（共通色なし）で挙動を分ける。
+  const whiteLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '') === '白');
+  const whiteCard = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const blackCard = findCard(c => isSigni(c) && (c.Color ?? '') === '黒');
+  const st = mkState({});
+  const crashed: PlayerState = {
+    ...st,
+    field: { ...st.field, lrig: [whiteLrig] },
+    suppress_life_burst: { colorNotMatchesLrig: true },
+  } as PlayerState;
+  // 🔵抑制側＝センタールリグ（白）と共通色を持たない黒のカードはバーストしない
+  ok(lifeBurstSuppressedByTurnFlag(blackCard, crashed, cm), '🔵共通色なしは抑制される');
+  // 🔴反転確認＝共通色を持つ白のカードは**抑制されない**（旧 boolean は全部止めていた）
+  ok(!lifeBurstSuppressedByTurnFlag(whiteCard, crashed, cm), '🔴共通色ありは抑制しない');
+  // 🔵従来の boolean（このターン全部）も従来どおり効く
+  ok(lifeBurstSuppressedByTurnFlag(whiteCard, { ...crashed, suppress_life_burst: true } as PlayerState, cm), '🔵boolean は全部止める');
+}));
+
+test('索引C 2026-09-02: O-164 効果バニッシュの1回消費盾は選択経路でも効く', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX15-010') ?? []).find(e => e.effectId === 'WX15-010-E1')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('GRANT_FIELD_SIGNI_ABILITY') && json.includes('"story":"武勇"'), '＜武勇＞全員へ付与');
+  ok(json.includes('BATTLE_BANISH_PREVENT_LOSE_ABILITY'), '1回消費の器を使う');
+  // 盾を持つシグニ（付与済み state を直接組む）を相手が効果でバニッシュしようとする。
+  const victim = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('武勇'));
+  const shieldEff = {
+    effectId: 'WX15-010-E1-G', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'BATTLE_BANISH_PREVENT_LOSE_ABILITY', banishPrevent: { thisCardOnly: true } },
+    duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+  } as unknown as CardEffect;
+  const mk = (removed: string[] = []): ExecCtx => {
+    const c = mkCtx({}, { signi: [victim, null, null] }, SIGNI);
+    return { ...c, effectsMap, isOwnerTurn: true,
+      otherState: { ...c.otherState, granted_effects: { [victim]: [shieldEff] }, abilities_removed: removed },
+    } as unknown as ExecCtx;
+  };
+  const banish = { type: 'BANISH',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as unknown as EffectAction;
+  const c1 = mk();
+  const first = finish(executeEffect({ effectId: 't', effectType: 'AUTO', action: banish, duration: 'INSTANT', mandatory: true } as CardEffect, c1), c1);
+  ok(first.otherState.field.signi.some(z => z?.at(-1) === victim), '🔵1回目は効果バニッシュを吸収して場に残る');
+  ok((first.otherState.abilities_removed ?? []).includes(victim), '🔵吸収した側は能力を失う（＝二度は防げない）');
+  // 🔴反転確認＝能力を失った状態では2回目は防げない
+  const c2 = mk([victim]);
+  const second = finish(executeEffect({ effectId: 't', effectType: 'AUTO', action: banish, duration: 'INSTANT', mandatory: true } as CardEffect, c2), c2);
+  ok(!second.otherState.field.signi.some(z => z?.at(-1) === victim), '🔴2回目はバニッシュされる');
+}));
+
+test('索引C 2026-09-02: O-210 BANISH_REDIRECT は効果経路で1回だけ置換して消える', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX24-P4-050') ?? []).find(e => e.effectId === 'WX24-P4-050-E2')!;
+  const act = eff.action as unknown as { byEffectOnly?: boolean; consumeOnce?: boolean };
+  eq(act.byEffectOnly, true, '「このシグニの効果によって」＝効果経路限定');
+  eq(act.consumeOnce, true, '「次に」＝1回だけ');
+  // 宣言を state へ焼く（executor 経路）
+  const src = 'WX24-P4-050';
+  const declCtx = { ...mkCtx({ signi: [src, null, null] }, {}, src), effectsMap } as unknown as ExecCtx;
+  const declared = finish(executeEffect(eff, declCtx), declCtx);
+  ok((declared.ownerState.banish_redirect_by_source_effect_nums ?? []).includes(src), '🔵効果経路の配列へ載る');
+  ok(!(declared.ownerState.banish_redirect_by_source_nums ?? []).includes(src), '🔴バトル経路の配列へは載せない（旧＝向きが逆）');
+  ok((declared.ownerState.banish_redirect_once_source_nums ?? []).includes(src), '🔵1回消費の印');
+  // 置換＝1回だけ（`banishDestination` が消費対象を返す）
+  const victim = fresh();
+  const vs = mkState({ signi: [victim, null, null] });
+  const opp: PlayerState = { ...mkState({}),
+    banish_redirect_by_source_effect_nums: [src], banish_redirect_once_source_nums: [src] } as PlayerState;
+  const hit = banishDestination(removeFromField(victim, vs), opp, victim, { cardMap: cardMap as Map<string, CardData>, effectSourceNum: src });
+  ok(hit.state.trash.includes(victim), '🔵効果元が一致すればトラッシュへ');
+  eq(hit.consumedOnceSource, src, '🔵1回消費として通知される');
+  // 🔴反転確認＝別のカードの効果によるバニッシュは置換しない（エナへ）
+  const miss = banishDestination(removeFromField(victim, vs), opp, victim, { cardMap: cardMap as Map<string, CardData>, effectSourceNum: 'OTHER-001' });
+  ok(miss.state.energy.includes(victim), '🔴発生源が違えば従来どおりエナゾーンへ');
+}));
+
+test('索引C 2026-09-02: O-114 自己回収【起】は入口フラグとラベルが本体に追随する', () => withSavedCursor(() => {
+  const trashSelf = (effectsMap.get('WX10-096') ?? []).find(e => e.effectId === 'WX10-096-E2')!;
+  eq(trashSelf.trashActivated, true, '🔵「トラッシュにあるこのカードを手札に加える」もトラッシュ起動');
+  eq(trashActivateVerbLabel(trashSelf), '手札に加える', '🔵ラベルは本体アクションから決める');
+  const energySelf = (effectsMap.get('WXDi-P06-077') ?? []).find(e => e.effectId === 'WXDi-P06-077-E2')!;
+  eq(energySelf.energyActivated, true, '🔵エナゾーン起動の入口');
+  eq(energySelf.trashActivated, undefined, '🔴トラッシュ起動と排他（入口が違う）');
+  // 🔴反転確認＝本文側（スペル本体）には入口フラグが付かない
+  const body = (effectsMap.get('WX10-096') ?? []).find(e => e.effectId === 'WX10-096-E1')!;
+  eq(body.trashActivated, undefined, '🔴本体はトラッシュ起動ではない');
+}));
+
+test('索引C 2026-09-02: O-84 条件つき追加使用タイミングは足す側にだけ効く', () => withSavedCursor(() => {
+  const effs = effectsMap.get('WX16-Re20') ?? [];
+  const decl = effs.find(e => e.effectId === 'WX16-Re20-E2')!;
+  eq(decl.effectType, 'CONTINUOUS', '宣言は【常】（解決ステップではない）');
+  eq((decl.action as StubAction).id, 'EXTRA_USE_TIMING', '追加タイミングの宣言');
+  eq((decl.action as StubAction).extraUseTiming?.timing, 'ATTACK_ARTS', '足すのはアタックフェイズ');
+  const cm = cardMap as Map<string, CardData>;
+  const opSt = mkState({});
+  // 🔵ライフ2枚以下なら足される
+  ok(collectExtraUseTimings(effs, mkState({ life: 2 }), opSt, cm, 'WX16-Re20', true).has('ATTACK_ARTS'),
+    '🔵ライフ2枚以下でアタックフェイズが足される');
+  // 🔴反転確認①＝ライフが多ければ足されない
+  ok(!collectExtraUseTimings(effs, mkState({ life: 7 }), opSt, cm, 'WX16-Re20', true).has('ATTACK_ARTS'),
+    '🔴ライフ3枚以上では足さない');
+  // 🔴反転確認②＝**印字のメインフェイズは条件と無関係に残る**（＝使用条件へ化けていない）
+  eq(cm.get('WX16-Re20')!.Timing.includes('メインフェイズ'), true, '印字タイミングは元のまま');
+  ok(!JSON.stringify(effs.find(e => e.effectId === 'WX16-Re20-E1')!).includes('LIFE_COUNT'),
+    '🔴本体の使用条件へライフ条件を載せていない（載せると「ライフ2枚以下でしか使えない」に化ける）');
+}));
+
+test('索引C 2026-09-02: O-180 WX24-P2-043 は次のアシストグロウ1回だけ型無視＋コスト減', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX24-P2-043') ?? []).find(e => e.effectId === 'WX24-P2-043-E1')!;
+  const act = eff.action as unknown as { type: string; nextAssistGrowOnly?: boolean; ignoreLrigType?: boolean; reduction?: { color: string; count: number }[] };
+  eq(act.type, 'GROW_COST_REDUCTION', 'グロウコスト軽減の型');
+  eq(act.nextAssistGrowOnly, true, '「次に」＝一過性・アシスト限定');
+  eq(act.ignoreLrigType, true, 'ルリグタイプ無視');
+  eq(act.reduction?.[0].color, '無', 'コスト《無×1》減');
+  // 🔵実行すると state に積まれる（旧＝実行ハンドラが無く無言 no-op だった）
+  const ctx = mkCtx({}, {}, 'WX24-P2-043');
+  const res = finish(executeEffect(eff, ctx), ctx);
+  eq(res.ownerState.next_assist_grow_mods?.ignoreLrigType, true, '🔵ルリグタイプ無視が積まれる');
+  eq(res.ownerState.next_assist_grow_mods?.reduction?.[0].count, 1, '🔵軽減量が積まれる');
+  // 🔴反転確認＝`nextAssistGrowOnly` の無い【常】版は state を書かない（二重適用になる）
+  const cont = { type: 'GROW_COST_REDUCTION', reduction: [{ color: '白', count: 1 }] } as unknown as EffectAction;
+  const contRes = finish(executeEffect({ effectId: 't', effectType: 'CONTINUOUS', action: cont, duration: 'PERMANENT', mandatory: true } as CardEffect, ctx), ctx);
+  eq(contRes.ownerState.next_assist_grow_mods, undefined, '🔴【常】版は state へ焼かない');
+}));
+
+test('索引C 2026-09-02: O-203 「レゾナとしても扱う」は参照側で シグニ かつ レゾナ になる', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX25-P2-052') ?? []).find(e => e.effectId === 'WX25-P2-052-E2')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('TREAT_SELF_AS_RESONA'), 'レゾナ扱いの宣言');
+  ok(json.includes('UNTIL_OPP_TURN_END'), 'パワー+10000 は次の相手ターン終了時まで');
+  const self = findCard(c => isSigni(c));
+  const base = mkState({ signi: [self, null, null] });
+  const marked: PlayerState = { ...base, treated_as_resona_until_opp_turn: [self] } as PlayerState;
+  const cm = cardMap as Map<string, CardData>;
+  // 🔵レゾナ指定のフィルタに当たる
+  eq(fieldCandidates(marked, { cardType: 'レゾナ' }, cm).length, 1, '🔵レゾナとして参照できる');
+  // 🔵「としても」＝シグニでもある（`matchesFilter` の非対称緩和で成立する）
+  eq(fieldCandidates(marked, { cardType: 'シグニ' }, cm).length, 1, '🔵シグニとしても参照できる');
+  // 🔴反転確認①＝印が無ければレゾナには当たらない
+  eq(fieldCandidates(base, { cardType: 'レゾナ' }, cm).length, 0, '🔴印が無ければレゾナ扱いしない');
+  // 🔴反転確認②＝`excludeResona` からは外れる（レゾナ扱いの帰結）
+  eq(fieldCandidates(marked, { cardType: 'シグニ', excludeResona: true }, cm).length, 0, '🔴レゾナ除外には掛かる');
+  eq(fieldCandidates(base, { cardType: 'シグニ', excludeResona: true }, cm).length, 1, '🔴対照：印が無ければ除外されない');
+}));
+
+test('索引C 2026-09-02: O-186 UNTIL_NEXT_OWN_TURN_END は相手ターンを跨いで次の自ターン終了で切れる', () => withSavedCursor(() => {
+  const p13 = (effectsMap.get('WXDi-P13-043') ?? []).find(e => e.effectId === 'WXDi-P13-043-E1')!;
+  const steps = (p13.action as SequenceAction).steps.map(x => JSON.stringify(x));
+  ok(steps.every(x => x.includes('UNTIL_NEXT_OWN_TURN_END')), '2ステップとも新しい期間');
+  const burst = (effectsMap.get('WXK10-022') ?? []).find(e => e.effectId === 'WXK10-022-BURST')!;
+  ok(JSON.stringify(burst.action).includes('UNTIL_NEXT_OWN_TURN_END'), 'バースト側も新しい期間');
+  // 自ターン中に置いた＝ターン終了を2回跨いで3回目で消える（自T終了→相手T終了→次の自T終了）
+  const victim = fresh();
+  let st: PlayerState = { ...mkState({ signi: [victim, null, null] }),
+    abilities_removed: [victim], abilities_removed_until_next_own_turn: { [victim]: 3 },
+    power_mods_until_next_own_turn: [{ cardNum: victim, delta: -5000, turnEnds: 3 }] } as PlayerState;
+  st = clearTurnEndScopedState(st);
+  ok((st.abilities_removed ?? []).includes(victim), '🔵1回目のターン終了では残る');
+  ok((st.power_mods_until_next_own_turn ?? []).some(m => m.cardNum === victim), '🔵パワー修整も残る');
+  st = clearTurnEndScopedState(st);
+  ok((st.abilities_removed ?? []).includes(victim), '🔵2回目のターン終了でも残る（相手ターンを跨ぐ）');
+  st = clearTurnEndScopedState(st);
+  ok(!(st.abilities_removed ?? []).includes(victim), '🔴3回目（次の自ターン終了）で切れる');
+  eq(st.power_mods_until_next_own_turn, undefined, '🔴パワー修整も同時に切れる');
+  // 🔴反転確認＝`UNTIL_OPP_TURN_END` の2スロット式（1回しか跨げない）へ戻っていない
+  let short: PlayerState = { ...mkState({}), abilities_removed: [victim], abilities_removed_next_turn: [victim] } as PlayerState;
+  short = clearTurnEndScopedState(short);
+  ok((short.abilities_removed ?? []).includes(victim), '対照: 従来の2スロットは1回だけ跨ぐ');
+  short = clearTurnEndScopedState(short);
+  ok(!(short.abilities_removed ?? []).includes(victim), '🔴対照: 2回目で切れる（＝新期間より1ターン短い）');
+}));
+
+test('索引C 2026-09-02: O-72 ON_ATTACK_PHASE_START はフェイズ限定【常】が配る【自】を拾う', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXK08-048') ?? []).find(e => e.effectId === 'WXK08-048-E1')!;
+  eq(eff.activeCondition?.type, 'DURING_ATTACK_PHASE', '付与はアタックフェイズ限定');
+  const grant = (eff.action as StubAction).underAbilityGrant;
+  ok(!!grant && grant.kinds.includes('AUTO'), '下のカードの【自】を得る');
+  // 下に「アタックフェイズ開始時」の【自】を持つ黒の＜ウェポン＞（レベル3以下）を敷いた盤面。
+  const under = findCard(c => isSigni(c)
+    && (c.Color ?? '').includes('黒') && (c.CardClass ?? '').includes('ウェポン')
+    && (parseInt(c.Level || '9', 10) || 9) <= 3
+    && (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_PHASE_START')));
+  const st = mkState({});
+  st.field.signi = [[under, 'WXK08-048'], null, null];
+  const opSt = mkState({});
+  const cm = cardMap as Map<string, CardData>;
+  // 🔵遷移「先」（ATTACK_ARTS）で組めば付与が載る
+  const atAttack = collectGrantedFromUnderSigni(st, opSt, true, effectsMap, cm, 'ATTACK_ARTS');
+  ok((atAttack.get('WXK08-048') ?? []).some(e => e.timing?.includes('ON_ATTACK_PHASE_START')),
+    '🔵アタックフェイズ基準なら ON_ATTACK_PHASE_START の【自】が載る');
+  // 🔴反転確認＝遷移「前」（MAIN）では載らない＝これが O-72 の真因（収集は遷移前の phase で走っていた）
+  const atMain = collectGrantedFromUnderSigni(st, opSt, true, effectsMap, cm, 'MAIN');
+  ok(!(atMain.get('WXK08-048') ?? []).some(e => e.timing?.includes('ON_ATTACK_PHASE_START')),
+    '🔴メインフェイズ基準では載らない（＝収集時に遷移先を渡さないと永久に発火しない）');
+}));
+
+test('索引C 2026-09-02: O-205 は stale＝lrigAttackNoDamage は非ガード経路で既に配線済み', () => {
+  // 登録票「発火地点は【ガード】された経路だけ」は 続き772 の `O-181` で失効していた＝
+  // `collectAttackEndTriggers` が非ガードのダメージ無効を補完する（挙動は `O-181 ON_ATTACK_END …` が assert 済み）。
+  // ここは**契約の在処**だけを固定する。
+  const eff = (effectsMap.get('WX24-P3-055') ?? []).find(e => e.effectId === 'WX24-P3-055-E2')!;
+  eq(eff.triggerCondition?.lrigAttackNoDamage, true, 'ダメージ無しの条件が載っている');
+  ok(eff.timing?.includes('ON_GUARD'), 'legacy timing は ON_GUARD のまま（collector が両経路を面倒みる）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

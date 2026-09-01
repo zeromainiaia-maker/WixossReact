@@ -464,8 +464,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const until = t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
     const bySource: BanishRedirectAction['bySource'] | undefined =
       /このシグニとのバトルによって/.test(t) ? 'battle_with_this'
-        : /このシグニによって/.test(t) ? 'by_this'
+        : /このシグニ(?:の効果)?によって/.test(t) ? 'by_this'
           : undefined;
+    // 🆕**「このシグニの効果によって」＝効果経路だけ**（§5.3 `O-210`・`WX24-P4-050-E2`）。
+    // 🔴`bySource` だけだと**バトル経路の配列**へ載るので、効果バニッシュでは一度も置換されなかった（向きが逆）。
+    const byEffectOnly = /このシグニの効果によって/.test(t);
+    // 🆕**「このターン、次に〜される場合」＝1回だけ**（§5.3 `O-210`）。
+    // 🔴無いと「このターン中は何体でも」に化ける（原文は1体だけ）。
+    // ⚠消費地点は効果経路にしか無いので、`byEffectOnly` と揃ったときだけ立てる（fail-closed）。
+    const consumeOnce = byEffectOnly && /次に/.test(t);
     // バニッシュされる側の限定「パワーが０以下の(対戦相手の)?シグニがバニッシュされる場合」（続き218）。
     // 落とすと相手の全バニッシュが常時トラッシュ送りになる（WXDi-P10-009-E3／WXDi-CP02-102-E2）。
     const whenPowerZero = /パワーが０以下の[^。]*?シグニが[^。]*?バニッシュされる場合/.test(t);
@@ -493,6 +500,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       until,
       ...(targetsLastProcessed ? { targetsLastProcessed: true } : {}),
       ...(bySource ? { bySource } : {}),
+      ...(byEffectOnly ? { byEffectOnly: true } : {}),
+      ...(consumeOnce ? { consumeOnce: true } : {}),
       ...(battleOnly ? { battleOnly: true } : {}),
       ...(whenPowerZero ? { whenPowerZero: true } : {}),
       ...(frontOnly ? { frontOnly: true } : {}),

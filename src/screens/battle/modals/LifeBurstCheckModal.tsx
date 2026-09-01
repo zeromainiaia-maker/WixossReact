@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import type { PlayerState } from '../../../types';
 import { C } from '../../../components/BoardComponents';
 import type { BattleModalCtx } from './types';
+import { lifeBurstSuppressedByTurnFlag } from '../lifeBurstSuppress';
 
 interface LifeBurstCheckModalProps {
   ctx: BattleModalCtx;
@@ -51,7 +52,11 @@ export function LifeBurstCheckModal(p: LifeBurstCheckModalProps) {
                     const hasBurst = card?.LifeBurst === '1'
                       || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST')
                       || matchesAllZoneBurstGrant(cardNum, my);
-                    const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || crashSourceSuppressActive || my.game_suppress_lb);
+                    // ⚠**カードごとに判定する**（§5.3 `O-177`）＝`suppress_life_burst` は
+                    //   `true`（このターン全部）だけでなく **`TargetFilter`（条件つき）**を取りうる。
+                    //   素の truthy 判定に戻すと条件つきが全部止める側へ化ける。
+                    const burstSuppressed = !!(lifeBurstSuppressedByTurnFlag(cardNum, my, battleCardMap)
+                      || eichiSuppressActive || crashSourceSuppressActive || my.game_suppress_lb);
                     return (
                       <div key={cardNum + idx} style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,

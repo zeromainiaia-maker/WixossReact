@@ -6,7 +6,7 @@ import { countAcce } from '../../utils/acce';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
-import { handDiscardSigniAffordable } from './costs';
+import { handDiscardSigniAffordable, trashExileAffordable } from './costs';
 
 /**
  * 場のシグニ【起】が**いま撃てるか**（提示の可否）を1か所で判定する純関数。
@@ -126,6 +126,10 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     // 🆕§5.3 `O-108`＝「それぞれ名前の異なる」まで見る判定へ寄せた（`handDiscardSigniAffordable` の1本）。
     //   旧＝素の枚数比較だったので**同名4枚しか無くても提示**され、支払いも通っていた。
     !(e.cost?.handDiscardSigni && !handDiscardSigniAffordable(my.hand, e.cost.handDiscardSigni, cardMap)) &&
+    // 🆕§5.3 `O-206`＝`trashExile` も**集合制約**（「それぞれ名前の異なるスペル3枚」）まで見る。
+    //   旧＝トラッシュ枚数すら見ておらず、**同名3枚しか無くても提示され支払いも通っていた**。
+    //   ⚠支払いUI（`SigniActivatedModal` / `LrigGrantedModal`）と**同じ判定関数群**を通す。
+    !(e.cost?.trashExile && !trashExileAffordable(my.trash, e.cost.trashExile, cardMap)) &&
     !(e.cost?.underSelfTrash && !canPayUnderSelfTrash(
       my, zoneIndex, e.cost.underSelfTrash.count, cardMap,
       e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,

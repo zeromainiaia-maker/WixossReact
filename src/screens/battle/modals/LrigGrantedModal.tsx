@@ -6,7 +6,7 @@ import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { getCardNum } from '../../../engine/effectExecutor';
@@ -85,9 +85,8 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
               const lgEnergyTrashOk = energyTrashCostSatisfied(my.energy, selectedLrigGrantedEnergyTrash, lgEnergyTrashCost, battleCardMap);
               const lgTrashExileCost = eff.cost?.trashExile;
-              const lgTrashExileOk = !lgTrashExileCost || lgTrashExileCost.self
-                ? true
-                : selectedLrigGrantedTrashExile.size >= (lgTrashExileCost?.count ?? 0);
+              // ⚠集合制約まで見る（§5.3 `O-206`）＝共有判定は `costs.ts` の1本（写経しない）。
+              const lgTrashExileOk = trashExileCostSatisfied(my.trash, selectedLrigGrantedTrashExile, lgTrashExileCost, battleCardMap);
               // lrigDown: アップ状態のルリグN体をダウンするコスト（自動支払い）。ルリグ本来の【起】も
               // この経路を通る（WXDi-P02-009-E3／WXDi-P03-009-E3）。判定は支払い関数に委ねる。タスク12(cviii)
               const lgLrigDownCost = eff.cost?.lrigDown;
@@ -327,13 +326,13 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                           const c = battleCardMap.get(num);
                           const matches = !lgTrashExileCost.filter || matchesFilter(c, lgTrashExileCost.filter);
                           const isSel = selectedLrigGrantedTrashExile.has(i);
-                          const needed = lgTrashExileCost.count ?? 1;
                           return (
                             <div key={i}
                               onClick={() => matches && setSelectedLrigGrantedTrashExile(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= needed) return prev;
+                                // ⚠制約を壊す組み合わせは**選ばせない**（§5.3 `O-206`）。
+                                if (!canAddTrashExileIndex(my.trash, prev, i, lgTrashExileCost, battleCardMap)) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}

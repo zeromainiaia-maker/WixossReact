@@ -42197,6 +42197,506 @@ scenarios.o162ChoosePlayer = {
 };
 order.push('o162ChoosePlayer');
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 実機（2026-09-02・§5.3 索引 C 第9巡）＝`src/screens/` を触った項目だけを回す。
+// 対象＝`O-114`（エナ/トラッシュ自己起動の入口）／`O-180`（アシストグロウの一過性修整）／
+//       `O-206`（trashExile の集合制約）／`O-186`（次の自ターン終了までの寿命）／`O-84`（追加使用タイミング）。
+// 🔴**各シナリオに反転確認を必ず1本持たせる**（成立側だけだと「常に true」に落ちても緑になる）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * `V-118`＝`O-114`「エナゾーンにあるこのカードを手札に加える【起】」（`WXDi-P06-077-E2`）。
+ * 🔴旧＝`energyActivated` の入口そのものが無く、**どこからも提示されない**（過小実行）。
+ * ⚠**使用条件つき**＝「あなたの場に＜美巧＞のシグニがある場合にしか使用できない」＝
+ *   これが反転確認になる（＜美巧＞がいなければ【起】を出してはいけない）。
+ */
+function o114EnergySpec(hasBikou) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-004#9740'],
+      'field.lrig_down': false,
+      // ＜美巧＞のシグニを置くか置かないかで提示可否が分かれる。
+      'field.signi': hasBikou ? [['WX24-P3-055#9741'], null, null] : [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      // エナゾーンに当のスペルを置く（コストは《緑×0》＝他に払うものは無い）。
+      'energy': ['WXDi-P06-077#9742'],
+      'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO114Energy(page, H, hasBikou) {
+  const tag = hasBikou ? 'o114ena-ok' : 'o114ena-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 energy=${JSON.stringify(st0?.host?.energy)} hand=${st0?.host?.hand} field=${JSON.stringify(st0?.host?.fieldSigni)}`);
+  // エナゾーンを開く → 中のカードをタップ → 【起】が出るか
+  await H.clickTestId('my-energy');
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-zone.png`, fullPage: true });
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-card.png`, fullPage: true });
+  const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+  const actVisible = (await actBtn.count()) > 0 && await actBtn.isVisible().catch(() => false);
+  const actLabel = actVisible ? ((await actBtn.textContent().catch(() => '')) ?? '').trim() : '';
+  H.log(`  【起】提示: visible=${actVisible} label=${JSON.stringify(actLabel)}`);
+  if (!hasBikou) {
+    // 🔴反転確認＝＜美巧＞がいなければ提示してはいけない（使用条件）。
+    return actVisible
+      ? { pass: false, detail: `🔴＜美巧＞がいないのに【起】が提示された（使用条件が効いていない）。label=${actLabel}` }
+      : { pass: true, detail: '対照＝＜美巧＞がいなければエナゾーン【起】は提示されない' };
+  }
+  if (!actVisible) {
+    return { pass: false, detail: '🔴エナゾーンのカードに【起】が提示されない（`energyActivated` の入口が届いていない）' };
+  }
+  if (!actLabel.includes('エナゾーンから手札に加える')) {
+    return { pass: false, detail: `🔴ラベルが本体と食い違う（label=${actLabel}）` };
+  }
+  await actBtn.click().catch(() => {});
+  let last = st0, settled = 0, fired = false;
+  for (let i = 0; i < 16; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${i}.png`, fullPage: true });
+    let did = null;
+    // ⚠支払いモーダルの実行ボタンは `data-testid="trashact-pay"`（文言は入口で変わるので testid で押す）。
+    if (!fired) { did = await H.clickTestId('trashact-pay'); if (did) fired = true; }
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | hand=${last?.host?.hand} energy=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = fired && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const detail = `hand=${last?.host?.hand} energy=${last?.host?.energy} handCards=${JSON.stringify(last?.host?.handCards)}`;
+  if (!fired) return { pass: false, detail: `前提崩れ＝【起】を発動できていない。${detail}` };
+  if ((last?.host?.hand ?? 0) < 1) return { pass: false, detail: `🔴手札に加わっていない。${detail}` };
+  if (!(last?.host?.handCards ?? []).some(n => String(n).startsWith('WXDi-P06-077'))) {
+    return { pass: false, detail: `🔴手札に入ったのが当のカードではない。${detail}` };
+  }
+  if ((last?.host?.energy ?? 0) !== 0) return { pass: false, detail: `🔴エナゾーンから抜けていない。${detail}` };
+  return { pass: true, detail: `エナゾーンの自分自身を手札に加えられた。${detail}` };
+}
+scenarios.o114EnergyActivated = {
+  title: 'O-114 WXDi-P06-077-E2：エナゾーンから自分自身を手札に加える【起】が使える',
+  spec: o114EnergySpec(true), drive: (page, H) => driveO114Energy(page, H, true),
+};
+order.push('o114EnergyActivated');
+scenarios.o114EnergyActivatedGated = {
+  title: 'O-114 対照：＜美巧＞がいなければエナゾーン【起】は提示されない',
+  spec: o114EnergySpec(false), drive: (page, H) => driveO114Energy(page, H, false),
+};
+order.push('o114EnergyActivatedGated');
+
+/**
+ * `V-119`＝`O-114`（トラッシュ側）「トラッシュにあるこのカードを手札に加える【起】」（`WX10-096-E2`）。
+ * 🔴旧＝`trashActivated` が「場に出す」形しか立たず**提示されない**。
+ * ⚠コストは「あなたの場にある【チャーム】1枚をトラッシュに置く」＝**チャームが無ければ提示しない**が反転確認。
+ */
+function o114TrashSpec(hasCharm) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-004#9750'],
+      'field.lrig_down': false,
+      'field.signi': [['WD01-009#9751'], null, null],
+      'field.signi_charms': hasCharm ? ['WD01-013#9752', null, null] : [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'trash': ['WX10-096#9753'],
+      'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO114Trash(page, H, hasCharm) {
+  const tag = hasCharm ? 'o114trash-ok' : 'o114trash-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 trash=${JSON.stringify(st0?.host?.trashCards)} charms=${JSON.stringify(st0?.host?.fieldCharms)} hand=${st0?.host?.hand}`);
+  await H.clickTestId('my-trash');
+  await page.waitForTimeout(900);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-card.png`, fullPage: true });
+  const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+  const actVisible = (await actBtn.count()) > 0 && await actBtn.isVisible().catch(() => false);
+  const actLabel = actVisible ? ((await actBtn.textContent().catch(() => '')) ?? '').trim() : '';
+  H.log(`  【起】提示: visible=${actVisible} label=${JSON.stringify(actLabel)}`);
+  if (!hasCharm) {
+    // 🔴反転確認＝【チャーム】が無ければコストを払えない＝提示しない（踏み倒さない）。
+    return actVisible
+      ? { pass: false, detail: `🔴【チャーム】が無いのに【起】が提示された（コスト踏み倒し）。label=${actLabel}` }
+      : { pass: true, detail: '対照＝【チャーム】が無ければトラッシュ【起】は提示されない' };
+  }
+  if (!actVisible) return { pass: false, detail: '🔴トラッシュのスペルに自己回収【起】が提示されない' };
+  // 🔑ラベルは本体アクションから決まる＝「トラッシュから出す」ではなく「手札に加える」。
+  if (actLabel.includes('トラッシュから出す')) {
+    return { pass: false, detail: `🔴ラベルが「場に出す」のまま（本体は手札に加える）。label=${actLabel}` };
+  }
+  await actBtn.click().catch(() => {});
+  let last = st0, settled = 0, fired = false;
+  for (let i = 0; i < 16; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${i}.png`, fullPage: true });
+    let did = null;
+    if (!fired) { did = await H.clickTestId('trashact-pay'); if (did) fired = true; }
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | hand=${last?.host?.hand} trash=${last?.host?.trash} charms=${JSON.stringify(last?.host?.fieldCharms)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = fired && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const detail = `hand=${JSON.stringify(last?.host?.handCards)} trash=${JSON.stringify(last?.host?.trashCards)} charms=${JSON.stringify(last?.host?.fieldCharms)}`;
+  if (!fired) return { pass: false, detail: `前提崩れ＝【起】を発動できていない。${detail}` };
+  if (!(last?.host?.handCards ?? []).some(n => String(n).startsWith('WX10-096'))) {
+    return { pass: false, detail: `🔴自分自身が手札に戻っていない。${detail}` };
+  }
+  if ((last?.host?.fieldCharms ?? []).some(c => c)) {
+    return { pass: false, detail: `🔴【チャーム】コストを払っていない（踏み倒し）。${detail}` };
+  }
+  return { pass: true, detail: `【チャーム】1枚を払ってトラッシュの自分自身を手札に戻せた。${detail}` };
+}
+scenarios.o114TrashSelfToHand = {
+  title: 'O-114 WX10-096-E2：トラッシュから自分自身を手札に加える【起】が使える',
+  spec: o114TrashSpec(true), drive: (page, H) => driveO114Trash(page, H, true),
+};
+order.push('o114TrashSelfToHand');
+scenarios.o114TrashSelfNoCharm = {
+  title: 'O-114 対照：【チャーム】が無ければトラッシュ【起】は提示されない',
+  spec: o114TrashSpec(false), drive: (page, H) => driveO114Trash(page, H, false),
+};
+order.push('o114TrashSelfNoCharm');
+
+/**
+ * `V-120`＝`O-180`「このターン、あなたのルリグが**次に**アシストルリグにグロウする場合、
+ * グロウするためのルリグタイプは無視され、グロウするためのコストは《無×1》減る」（`WX24-P2-043`＝ピース）。
+ * 🔴旧＝`GROW_COST_REDUCTION` に**実行ハンドラが1つも無く**、ピースが丸ごと無言 no-op だった。
+ * ⚠観測点は `next_assist_grow_mods`（積まれたか）＋**アシストグロウ候補にクラス不一致の札が出るか**。
+ */
+const o180Spec = {
+  hostSet: {
+    'field.lrig': ['WD03-004#9760'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+    'lrig_deck': ['WX24-P2-043#9761'],
+    'energy': ['WD05-013#9762', 'WD05-014#9763', 'WD05-015#9764'],
+    'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9790'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+async function driveO180(page, H) {
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} mods=${JSON.stringify(st0?.host?.nextAssistGrowMods)}`);
+  if (st0?.host?.nextAssistGrowMods) {
+    return { pass: false, detail: `前提崩れ＝開始時点で next_assist_grow_mods が既に立っている` };
+  }
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(800);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOT}/o180-modal.png`, fullPage: true });
+  let used = false, last = st0, settled = 0;
+  for (let i = 0; i < 18; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/o180-${i}.png`, fullPage: true });
+    let did = null;
+    if (!used) {
+      did = await H.clickTextOrBtn(['使用']);
+      if (!did) did = await H.clickBtn('ピース使用', { exact: false });
+      if (did && did.includes('ピース使用')) used = true;
+    }
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    H.log(`  o180[${i}] -> ${did ?? 'なし'} | mods=${JSON.stringify(last?.host?.nextAssistGrowMods)} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (last?.host?.nextAssistGrowMods) { settled++; if (settled >= 2) break; }
+  }
+  const mods = last?.host?.nextAssistGrowMods;
+  const detail = `mods=${JSON.stringify(mods)} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)}`;
+  if (!mods) {
+    return { pass: false, detail: `🔴ピースを使ったのに next_assist_grow_mods が積まれない（旧＝実行ハンドラが無く無言 no-op）。${detail}` };
+  }
+  if (mods.ignoreLrigType !== true) return { pass: false, detail: `🔴ルリグタイプ無視が積まれていない。${detail}` };
+  if (!(mods.reduction ?? []).some(r => r.color === '無' && r.count === 1)) {
+    return { pass: false, detail: `🔴コスト軽減《無×1》が積まれていない。${detail}` };
+  }
+  return { pass: true, detail: `ピース解決で「次のアシストグロウはルリグタイプ無視＋《無×1》減」が積まれた。${detail}` };
+}
+scenarios.o180NextAssistGrowMods = {
+  title: 'O-180 WX24-P2-043：ピース解決で次のアシストグロウ修整が積まれる（旧＝無言 no-op）',
+  spec: o180Spec, drive: driveO180,
+};
+order.push('o180NextAssistGrowMods');
+
+/**
+ * `V-121`＝`O-206`「トラッシュにある**それぞれ名前の異なる**スペル３枚をゲームから除外する」
+ * （`WXK09-029-E2`）。🔴旧＝支払いUIが `size >= count` しか見ず**同名3枚でも払えた**（過剰に緩い）。
+ * ⚠**成立側／反転側でトラッシュの中身だけを変える**（同名3枚 vs 異名3枚）。
+ */
+function o206Spec(distinct) {
+  // ⚠**「スペル」でなければならない**（`WX05-016`／`WX04-008` は**アーツ**＝filter に当たらない。初版で踏んだ）。
+  const spells = distinct
+    ? ['WD01-015#9770', 'WD01-018#9771', 'WD02-015#9772']
+    : ['WD01-015#9770', 'WD01-015#9771', 'WD01-015#9772'];
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-004#9773'],
+      'field.lrig_down': false,
+      'field.signi': [['WXK09-029#9774'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'trash': spells,
+      'energy': ['WD05-013#9775', 'WD05-014#9776'],
+      'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [['WD01-009#9791'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO206(page, H, distinct) {
+  const tag = distinct ? 'o206-ok' : 'o206-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 trash=${JSON.stringify(st0?.host?.trashCards)} lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)}`);
+  await H.clickTestId('my-signi-zone-0');
+  await page.waitForTimeout(800);
+  const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+  const actVisible = (await actBtn.count()) > 0 && await actBtn.isVisible().catch(() => false);
+  H.log(`  【起】提示: visible=${actVisible}`);
+  if (!distinct) {
+    // 🔴反転確認＝同名しか無ければ**そもそも提示されない**（可否ゲートが集合制約を見る）。
+    await page.screenshot({ path: `${SHOT}/${tag}-gate.png`, fullPage: true });
+    return actVisible
+      ? { pass: false, detail: '🔴同名のスペル3枚しか無いのに【起】が提示された（集合制約が効いていない）' }
+      : { pass: true, detail: '対照＝同名3枚では「それぞれ名前の異なる」を満たせず提示されない' };
+  }
+  if (!actVisible) return { pass: false, detail: '🔴異なる名前のスペル3枚があるのに【起】が提示されない（過剰に厳しい側へ倒れている）' };
+  await actBtn.click().catch(() => {});
+  let last = st0, settled = 0, picked = 0, fired = false, enaPicked = false;
+  for (let i = 0; i < 22; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${i}.png`, fullPage: true });
+    let did = null;
+    if (picked < 3) {
+      // 支払いモーダルのトラッシュ札を順に選ぶ（名前が全部違うので3枚とも選べるはず）。
+      // ⚠**testid で狙う**＝`img` を数えると常設の手札ストリップを掴んで背景キャンセルを誘発する。
+      const cell = page.getByTestId(`signiact-trashexile-${picked}`).first();
+      if (await cell.count() && await cell.isVisible().catch(() => false)) {
+        await cell.click({ timeout: 1500 }).catch(() => {}); did = `pick:${picked}`; picked++;
+      } else { picked = 3; }   // 描画されていなければ支払いフェーズを抜ける
+    } else if (!enaPicked) {
+      // エナ《無×1》を1枚選ぶ（⚠**1回だけ**＝毎ループ押すとトグルで外れ続ける）。
+      const ena = page.getByTestId('signiactcost-energy-0').first();
+      if (await ena.count() && await ena.isVisible().catch(() => false)) { await ena.click().catch(() => {}); did = 'ena:0'; }
+      enaPicked = true;
+    } else if (!fired) {
+      did = await H.clickTestId('signiact-fire');
+      if (did) fired = true;
+    }
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | picked=${picked} fired=${fired} trash=${last?.host?.trash} lrigTrash=${last?.host?.lrigTrash} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = fired && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const detail = `trash=${JSON.stringify(last?.host?.trashCards)} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} oppField=${JSON.stringify(last?.guest?.fieldSigni)}`;
+  if (!fired) return { pass: false, detail: `前提崩れ＝支払いを完了できていない（picked=${picked}）。${detail}` };
+  if ((last?.host?.lrigTrash ?? 0) < 3) {
+    return { pass: false, detail: `🔴3枚を除外していない（ルリグトラッシュ ${last?.host?.lrigTrash} 枚）。${detail}` };
+  }
+  return { pass: true, detail: `異なる名前のスペル3枚を除外して【起】を撃てた。${detail}` };
+}
+scenarios.o206TrashExileDistinct = {
+  title: 'O-206 WXK09-029-E2：それぞれ名前の異なるスペル3枚なら払える',
+  spec: o206Spec(true), drive: (page, H) => driveO206(page, H, true),
+};
+order.push('o206TrashExileDistinct');
+scenarios.o206TrashExileSameName = {
+  title: 'O-206 対照：同名のスペル3枚では払えない（旧＝枚数だけ見て通っていた）',
+  spec: o206Spec(false), drive: (page, H) => driveO206(page, H, false),
+};
+order.push('o206TrashExileSameName');
+
+/**
+ * `V-122`＝`O-186`「次の**あなたの**ターン終了時まで、それらは能力を失い、それらのパワーを－5000する」
+ * （`WXDi-P13-043-E1`＝【出】）。
+ * 🔴旧＝`UNTIL_END_OF_TURN` に潰れており、**自分のターン終了で切れて**いた（相手ターンを跨げない＝過小）。
+ * ⚠観測点は `abilities_removed_until_next_own_turn` の**残り回数**＝
+ *   ターン終了を跨いでも 0 にならないこと（`abilities_removed` だけ見ると2スロット式と区別できない）。
+ */
+// 🔑`WXDi-P13-043` は**シグニではなくアシストルリグ**＝【出】はアシストグロウで発火する
+//   （手札からの召喚ではない。初版の実機で踏んだ）。土台に Lv1 ミュウ、センターに Lv2 ミュウを置く。
+const O186_CENTER = 'WX13-023#9780';        // ミュウ＝モルト（Lv2＝アシスト Lv2 を許可するのに必要）
+const O186_ASSIST_L1 = 'WXDi-P13-039#9781'; // ミュウ － ジャコウ（Lv1 ミュウ・土台）
+const O186_ASSIST_L2 = 'WXDi-P13-043#9782'; // ミュウ － ルリタテハ（Lv2・観測対象。GrowCost《無》×3）
+const o186Spec = {
+  hostSet: {
+    'field.lrig': [O186_CENTER],
+    'field.lrig_down': false,
+    'field.assist_lrig_l': [O186_ASSIST_L1], 'field.assist_lrig_r': [],
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': [O186_ASSIST_L2],
+    'energy': ['WD05-013#9783', 'WD05-014#9784', 'WD05-015#9785', 'WD05-016#9786'],
+    'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9790'],
+    'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+    'field.signi': [['WD01-009#9791'], ['WD01-013#9792'], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+async function driveO186(page, H) {
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 assistL=${JSON.stringify(st0?.host?.assistL)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} oppField=${JSON.stringify(st0?.guest?.fieldSigni)}`);
+  const flow = { slotOpened: false, growOpened: false, grown: false, paid: false };
+  let last = st0, settled = 0, picked = 0;
+  for (let i = 0; i < 34; i++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/o186-${i}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!flow.slotOpened) { did = await H.clickTestId('my-lrig-slot-assist-l'); if (did) flow.slotOpened = true; }
+    else if (!flow.growOpened) {
+      const grow = page.locator('[data-testid^="card-action-"][data-action-label="グロウ"]').first();
+      if (await grow.count() && await grow.isVisible().catch(() => false)) {
+        await grow.click({ timeout: 2000 }).catch(() => {}); flow.growOpened = true; did = 'act:グロウ';
+      }
+    } else if (!flow.grown) {
+      // 候補（ルリタテハ）→ エナ選択（《無》×3）→ グロウ実行
+      did = await H.clickTestId('assistgrow-cand-WXDi-P13-043');
+      if (!did && picked < 3) {
+        const ena = page.getByTestId(`assistgrow-ena-${picked}`).first();
+        if (await ena.count() && await ena.isVisible().catch(() => false)) { await ena.click().catch(() => {}); picked++; did = `ena:${picked}`; }
+      }
+      if (!did) { did = await H.clickTestId('assistgrow-submit'); if (did) flow.grown = true; }
+    }
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    const grownNow = (last?.host?.assistL ?? []).some(n => String(n).startsWith('WXDi-P13-043'));
+    if (grownNow) flow.grown = true;
+    H.log(`  o186[${i}] -> ${did ?? 'なし'} | grown=${flow.grown} assistL=${JSON.stringify(last?.host?.assistL)} gAbilRem=${JSON.stringify(last?.guest?.abilitiesRemoved)} gSpan=${JSON.stringify(last?.guest?.abilitiesRemovedUntilNextOwnTurn)} gPmods=${JSON.stringify(last?.guest?.powerModsUntilNextOwnTurn)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = flow.grown && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 4) break;
+  }
+  const span = last?.guest?.abilitiesRemovedUntilNextOwnTurn;
+  const pmods = last?.guest?.powerModsUntilNextOwnTurn ?? [];
+  const detail = `assistL=${JSON.stringify(last?.host?.assistL)} gAbilRem=${JSON.stringify(last?.guest?.abilitiesRemoved)} gSpan=${JSON.stringify(span)} gPmods=${JSON.stringify(pmods)}`;
+  if (!flow.grown) return { pass: false, detail: `前提崩れ＝アシストグロウできていない。${detail}` };
+  if ((last?.guest?.abilitiesRemoved ?? []).length === 0) {
+    return { pass: false, detail: `🔴能力喪失が適用されていない（【出】が走っていない）。${detail}` };
+  }
+  if (!span || Object.keys(span).length === 0) {
+    return { pass: false, detail: `🔴「次のあなたのターン終了時まで」の寿命が積まれていない（＝UNTIL_END_OF_TURN のまま＝1ターンで切れる）。${detail}` };
+  }
+  // 自分のターン中に置いた＝3回のターン終了を跨ぐ（自T終了→相手T終了→次の自T終了で切れる）。
+  if (!Object.values(span).every(n => n === 3)) {
+    return { pass: false, detail: `🔴寿命が3ではない（自ターン中の宣言なので3が正）。${detail}` };
+  }
+  if (!pmods.some(m => String(m).includes(':-5000'))) {
+    return { pass: false, detail: `🔴パワー－5000 が長期ストアに載っていない。${detail}` };
+  }
+  return { pass: true, detail: `能力喪失とパワー－5000 が「次の自ターン終了まで」の寿命（残3）で載った。${detail}` };
+}
+scenarios.o186UntilNextOwnTurnEnd = {
+  title: 'O-186 WXDi-P13-043-E1：次のあなたのターン終了時までの寿命が積まれる（旧＝1ターンで切れた）',
+  spec: o186Spec, drive: driveO186,
+};
+order.push('o186UntilNextOwnTurnEnd');
+
+/**
+ * `V-123`＝`O-84`「あなたのライフクロスが２枚以下の場合、このアーツは追加で
+ * 《アタックフェイズアイコン》を持つ」（`WX16-Re20`）。
+ * 🔴旧＝`DEFERRED_CONDITIONAL_EXTRA_USE_TIMING`（engine に消費なし）＝
+ *   **ライフが減ってもアタックフェイズで撃てなかった**（印字 Timing はメインフェイズだけ）。
+ * ⚠**反転確認はライフ枚数を変えるだけ**（7枚なら足されない）＝
+ *   「常に足す」へ倒れても、「使用条件に化ける（＝メインでも撃てない）」へ倒れても落ちる。
+ */
+function o84Spec(life) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-004#9800'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'life_cloth': life === 2 ? ['WD01-009#9801', 'WD01-013#9802'] : ['WD01-009#9801', 'WD01-013#9802', 'WD01-014#9803', 'WD01-015#9804', 'WD01-016#9805'],
+      'lrig_deck': ['WX16-Re20#9806'],
+      'energy': ['WD05-013#9807', 'WD05-014#9808'],
+      'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    // 🔑**アタックフェイズ（アーツステップ）**で開く＝印字 Timing に無い窓。
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  };
+}
+async function driveO84(page, H, life) {
+  const tag = life === 2 ? 'o84-low' : 'o84-high';
+  const st0 = await H.queryState();
+  H.log(`開始 life=${st0?.host?.life} phase=${st0?.turnPhase} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(900);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-card.png`, fullPage: true });
+  const useBtn = page.getByRole('button', { name: '使用', exact: false }).first();
+  const visible = (await useBtn.count()) > 0 && await useBtn.isVisible().catch(() => false);
+  const enabled = visible && await useBtn.isEnabled().catch(() => false);
+  H.log(`  「使用」: visible=${visible} enabled=${enabled} life=${st0?.host?.life}`);
+  const detail = `life=${st0?.host?.life} useVisible=${visible} useEnabled=${enabled}`;
+  if (life === 2) {
+    return enabled
+      ? { pass: true, detail: `ライフ2枚以下なのでアタックフェイズにも使える（追加タイミングが足された）。${detail}` }
+      : { pass: false, detail: `🔴ライフ2枚以下なのにアタックフェイズで使えない（追加タイミングが届いていない）。${detail}` };
+  }
+  // 🔴反転確認＝ライフが多ければアタックフェイズでは使えない（＝「常に足す」へ倒れていない）。
+  return enabled
+    ? { pass: false, detail: `🔴ライフ5枚なのにアタックフェイズで使える（条件を見ずに常に足している）。${detail}` }
+    : { pass: true, detail: `対照＝ライフが3枚以上ならアタックフェイズでは使えない。${detail}` };
+}
+scenarios.o84ExtraTimingLowLife = {
+  title: 'O-84 WX16-Re20：ライフ2枚以下ならアタックフェイズでも使える（追加タイミング）',
+  spec: o84Spec(2), drive: (page, H) => driveO84(page, H, 2),
+};
+order.push('o84ExtraTimingLowLife');
+scenarios.o84ExtraTimingHighLife = {
+  title: 'O-84 対照：ライフが3枚以上ならアタックフェイズでは使えない',
+  spec: o84Spec(5), drive: (page, H) => driveO84(page, H, 5),
+};
+order.push('o84ExtraTimingHighLife');
+
+
 
 
 
@@ -42495,6 +42995,25 @@ try {
         // V-30（2026-08-24）＝「次のターンの間」の予約スロット。`clearTurnEndScopedState` が
         // ターン終了時に `abilities_removed` へ**昇格**させ、次のターン終了時に空へ戻す＝2スロット式の寿命。
         abilitiesRemovedNextTurn: s.abilities_removed_next_turn ?? [],
+        // 🆕§5.3 `O-186`（2026-09-02）＝「次の**あなたの**ターン終了時まで」の残り寿命
+        //   （グローバルターン終了の残回数）。⚠`abilities_removed` だけ見ると
+        //   「切れたのか、まだ残っているのか」が区別できない（2スロット式との違いが見えない）。
+        abilitiesRemovedUntilNextOwnTurn: s.abilities_removed_until_next_own_turn ?? null,
+        powerModsUntilNextOwnTurn: (s.power_mods_until_next_own_turn ?? []).map(m => `${m.cardNum}:${m.delta}@${m.turnEnds}`),
+        // 🆕§5.3 `O-180`（2026-09-02）＝「このターン、次にアシストルリグにグロウする場合」の一過性修整。
+        //   ⚠**1回きり**なので「積まれたこと」と「グロウ後に消えたこと」の両方を見る。
+        nextAssistGrowMods: s.next_assist_grow_mods ?? null,
+        // 🆕§5.3 `O-203`（2026-09-02）＝「レゾナとしても扱う」印。
+        treatedAsResonaUntilOppTurn: s.treated_as_resona_until_opp_turn ?? [],
+        // 🆕§5.3 `O-210`（2026-09-02）＝バニッシュ先変更の**効果経路**配列と「次に1回だけ」の印。
+        //   ⚠従来の `banish_redirect_by_source_nums`（バトル経路）と**別の配列**＝混ぜると向きを見誤る。
+        banishRedirectByEffect: s.banish_redirect_by_source_effect_nums ?? [],
+        banishRedirectOnce: s.banish_redirect_once_source_nums ?? [],
+        // 🆕§5.3 `O-177`（2026-09-02）＝ライフバースト抑制。**boolean か TargetFilter か**を見分ける。
+        suppressLifeBurst: s.suppress_life_burst ?? null,
+        // 🆕アシストルリグの中身（`O-180` のアシストグロウ観測）。
+        assistL: s.field?.assist_lrig_l ?? [],
+        assistR: s.field?.assist_lrig_r ?? [],
         keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
         // 続き475g：ピース解決時に載せ替える「このゲームの間」付与（`WXDi-P15-003-E2`）の観測用
         grantedLrigAutoIds: (s.lrig_granted_auto_effects ?? []).map(e => e.effectId),

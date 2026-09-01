@@ -1,11 +1,11 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-刻印効果 43件
+刻印効果 44件
 
 ## カテゴリ別件数
 
 - IS_MY_TURN化: 39
-- リコレクト分割: 3
+- リコレクト分割: 4
 - multi-group look-pick分割: 2
 - この方法で選択したクラスを後段の回収filterへ渡す機構が未実装: 1
 
@@ -32,6 +32,7 @@ WX16-Re02-E1	IS_MY_TURN化:その後、この方法でトラッシュに置か�
 WX20-053-E2	IS_MY_TURN化:その後、この方法でデッキからカードを探していた場合、
 WX22-021-E2	IS_MY_TURN化:この方法でカードが７枚以上公開された場合、
 WX22-043-E1	IS_MY_TURN化:この方法でカードを２枚エナゾーンに置いた場合、
+WX24-P2-009-E1	リコレクト分割:UNKNOWNステップ除去
 WX24-P4-016-E3	リコレクト分割:UNKNOWNステップ除去
 WX24-P4-045-E1	IS_MY_TURN化:この方法でカードをライフクロスに加えた場合、
 WX26-CP1-019-E1	multi-group look-pick分割:UNKNOWNアクション除去 / multi-group look-pick分割:UNKNOWNアクション除去

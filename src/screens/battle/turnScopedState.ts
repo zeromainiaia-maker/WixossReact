@@ -297,6 +297,41 @@ function advanceCostModifiers(mods: PlayerState['cost_modifiers']): PlayerState[
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * 🆕**`UNTIL_NEXT_OWN_TURN_END` の寿命を1つ進める**（2026-09-02・§5.3 `O-186`）。
+ * ⚠**グローバルターン終了の回数**で数える（誰のターンかは見ない）＝`clearTurnEndScopedState` は
+ *   毎ターン終了時に**両プレイヤーの state**へ適用されるので、置いた側／置かれた側のどちらに
+ *   載っていても同じ回数だけ減る。
+ * @returns 生き残ったエントリ（`turnEnds` を1減らしたもの）と、その cardNum 一覧
+ */
+function advanceUntilNextOwnTurn(
+  map: PlayerState['abilities_removed_until_next_own_turn'],
+): { next: PlayerState['abilities_removed_until_next_own_turn']; survivors: string[] } {
+  // ⚠T3 トリップワイヤは全 turn-end フィールドへ番兵値を入れるので、object 以外が来る前提で守る。
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return { next: undefined, survivors: [] };
+  const next: Record<string, number> = {};
+  const survivors: string[] = [];
+  for (const [cardNum, n] of Object.entries(map)) {
+    if (typeof n !== 'number') continue;
+    const left = n - 1;
+    if (left <= 0) continue;          // このターン終了で失効
+    next[cardNum] = left;
+    survivors.push(cardNum);
+  }
+  return { next: Object.keys(next).length > 0 ? next : undefined, survivors };
+}
+
+/** 🆕`UNTIL_NEXT_OWN_TURN_END` のパワー修整を1ターン進める（§5.3 `O-186`）。 */
+function advancePowerModsUntilNextOwnTurn(
+  mods: PlayerState['power_mods_until_next_own_turn'],
+): PlayerState['power_mods_until_next_own_turn'] {
+  if (!Array.isArray(mods)) return undefined;
+  const next = mods
+    .map(m => ({ ...m, turnEnds: (m.turnEnds ?? 0) - 1 }))
+    .filter(m => m.turnEnds > 0);
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
@@ -324,7 +359,14 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     //   literal で消していたのにこの2つだけ抜けていた）。登録したので T2 トリップワイヤが再発を止める。
     // ⚠`abilities_removed_next_turn`（「次のターンの間」の予約）はここで **`abilities_removed` へ昇格**する。
     //   予約は次のターン中だけ生き、そのターンの終了時に上の登録が空へ戻す＝2スロット式の寿命になる。
-    abilities_removed: state.abilities_removed_next_turn ?? [],
+    // 🆕**`UNTIL_NEXT_OWN_TURN_END` は「まだ寿命が残っている分」を書き戻す**（§5.3 `O-186`）＝
+    //   `abilities_removed` は毎ターン終了時に予約から作り直されるので、ここへ合流しないと1ターンで消える。
+    abilities_removed: [...new Set([
+      ...(state.abilities_removed_next_turn ?? []),
+      ...advanceUntilNextOwnTurn(state.abilities_removed_until_next_own_turn).survivors,
+    ])],
+    abilities_removed_until_next_own_turn: advanceUntilNextOwnTurn(state.abilities_removed_until_next_own_turn).next,
+    power_mods_until_next_own_turn: advancePowerModsUntilNextOwnTurn(state.power_mods_until_next_own_turn),
     abilities_removed_next_turn: undefined,
     // ⚠ルリグ側の能力喪失も同じ2スロット式（段2 第45バッチ・`RemoveAbilitiesAction.alsoCenterLrig`）。
     //   `lrig_abilities_disabled` 自身の失効は上の turn-end 登録が行う＝ここは予約の昇格だけ。

@@ -393,6 +393,21 @@ export function checkActiveCondition(
       return false;
     }
 
+    // 🆕**ライフクロス枚数の【常】版**（§5.3 `O-84`）。⚠`Condition` 側（`evalCondition`）と**同じ意味**にする。
+    case 'LIFE_COUNT': {
+      const lcState = cond.owner === 'opponent' ? otherState : ownerState;
+      const lcCount = lcState.life_cloth.length;
+      switch (cond.operator) {
+        case 'gte': return lcCount >= cond.value;
+        case 'lte': return lcCount <= cond.value;
+        case 'gt':  return lcCount >  cond.value;
+        case 'lt':  return lcCount <  cond.value;
+        case 'eq':  return lcCount === cond.value;
+        case 'neq': return lcCount !== cond.value;
+      }
+      return false;
+    }
+
     case 'LIFE_COMPARE_OPP': {
       const diff = ownerState.life_cloth.length - otherState.life_cloth.length;
       const value = cond.value ?? 0;
@@ -2968,7 +2983,12 @@ export function calcFieldPowers(
   const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false, sourceDoublers: string[] = []) => {
     const doublers = state.double_power_minus_targets ?? [];
     const multipliers = state.power_minus_multipliers_this_turn ?? {};
-    for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])] as Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string }>) {
+    // 🆕**`UNTIL_NEXT_OWN_TURN_END` の分も足す**（§5.3 `O-186`）＝ここへ足さないと JSON に載るだけの死フラグ。
+    for (const mod of [
+      ...(state.temp_power_mods ?? []),
+      ...(state.power_mods_until_opp_turn ?? []),
+      ...(state.power_mods_until_next_own_turn ?? []),
+    ] as Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string }>) {
       if (powers.has(mod.cardNum)) {
         // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ。シグニ発生元のみ）: 負デルタを2倍に
         // srcType 未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数）。レゾナもシグニ。

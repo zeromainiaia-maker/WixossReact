@@ -270,6 +270,69 @@ export function handDiscardSigniAffordable(
   return cands.length >= spec.count;
 }
 
+/**
+ * §5.3 `O-206`：`cost.trashExile` の選択が**集合制約**（「それぞれ名前の異なるスペル3枚」）まで満たすか。
+ *
+ * 🔴**型（`EffectCost.trashExile.selectionConstraint`）は 2026-08-31 続き748 から在ったのに、
+ *   支払いUIは `size >= count` しか見ておらず完全な死フラグだった**＝`WXK09-029-E2` は
+ *   **同名のスペル3枚でも払えた**（原文より軽い踏み倒し）。`energyTrash` 側とまったく同じ穴。
+ * ⚠**支払いモーダルは2つある**（`SigniActivatedModal`／`LrigGrantedModal`）＝
+ *   1つ落とすと「その入口からだけ制約なしで払える」ことになる。**判定はここ1本に集約する。**
+ */
+export function trashExileSelectedNums(trash: string[], selected: Set<number>): string[] {
+  return [...selected].filter(i => i >= 0 && i < trash.length).map(i => trash[i]);
+}
+
+/** `cost.trashExile` の選択が**枚数と集合制約の両方**を満たすか（支払いボタンの可否）。 */
+export function trashExileCostSatisfied(
+  trash: string[],
+  selected: Set<number>,
+  spec: import('../../types/effects').EffectCost['trashExile'] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec || spec.self) return true;
+  if (selected.size < (spec.count ?? 1)) return false;
+  return satisfiesSelectionConstraint(trashExileSelectedNums(trash, selected), spec.selectionConstraint, cardMap);
+}
+
+/**
+ * トラッシュの index を1枚**追加できるか**（カードをタップした瞬間のガード）。
+ * ⚠枚数上限だけでなく集合制約も見る＝**制約を壊す組み合わせは選べない**（`energyTrash` 側と同じ作法）。
+ */
+export function canAddTrashExileIndex(
+  trash: string[],
+  selected: Set<number>,
+  index: number,
+  spec: import('../../types/effects').EffectCost['trashExile'] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec || spec.self) return false;
+  if (selected.has(index)) return true;                       // 解除は常に可
+  if (selected.size >= (spec.count ?? 1)) return false;
+  const num = trash[index];
+  if (num === undefined) return false;
+  if (spec.filter && !matchesFilter(cardMap.get(getCardNum(num)), spec.filter)) return false;
+  return canAddToSelection(trashExileSelectedNums(trash, selected), num, spec.selectionConstraint, cardMap);
+}
+
+/**
+ * 可否ゲート用＝トラッシュに**制約を満たす組み合わせ**が存在するか。
+ * 「それぞれ名前の異なる」は**異なる名前の枚数**で数える（`handDiscardSigniAffordable` と同じ規約）。
+ */
+export function trashExileAffordable(
+  trash: string[],
+  spec: import('../../types/effects').EffectCost['trashExile'] | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec || spec.self) return true;
+  const cands = trash.filter(n => !spec.filter || matchesFilter(cardMap.get(getCardNum(n)), spec.filter));
+  if (spec.selectionConstraint?.distinct === 'name') {
+    const names = new Set(cands.map(n => cardMap.get(getCardNum(n))?.CardName).filter(Boolean));
+    return names.size >= (spec.count ?? 1);
+  }
+  return cands.length >= (spec.count ?? 1);
+}
+
 /** エクシードで選べる「各ルリグの一番上を除いたカード」。placedState 基準で呼ぶ。 */
 export function exceedPoolOf(state: PlayerState): string[] {
   return [

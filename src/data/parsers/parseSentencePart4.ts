@@ -1853,15 +1853,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^残りを好きな順番でデッキの一番上に置く$/))
     return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
 
-  // ---- それらのパワーを合わせて／合計で±N する（**割り振り機構が受けられない残り**）----
-  // 🔴**ここへ来るのは「対象宣言が同じ文に無い」形だけ**（§5.3 `O-140`・2026-08-29）＝
-  //   同じ文に「〈owner〉のシグニを好きな数対象とし」がある形は `parseSentencePart3` が
-  //   `POWER_MODIFY{splitTotal}` を返すので**この枝には来ない**。
-  // ⚠**残しているのは「消すと逆翻訳からノードごと消える」から**＝挙動は旧のまま（＝まだ正しくない）で、
-  //   `PR-K026`（「それら」が前文の《２体まで》を指す）と `WX24-P2-009`（総量が可変）の2効果が該当する。
-  //   **§5.3 `O-151` に登録済み。** 直すときはこの枝ごと撤去すること。
-  if (t.match(/それらのパワーを(?:合わせて|合計で)/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+  // 🏁**2026-09-02（§5.3 `O-151`）に catch-all `それらのパワーを(合わせて|合計で)` を撤去した。**
+  //   この枝は「対象宣言が同じ文に無い」2効果のためだけに残していた保留枝で、
+  //   `WX24-P2-009-E1`（続き725）と `PR-K026-E1-G2`（今回）が **`manualEffects.ts` で
+  //   `POWER_MODIFY{targetsStored, splitTotal}` へ移った**ので母集団が0になった。
+  //   ⚠**死んだ枝は catch-all の温床**（§5.3 第5バッチの教訓）＝残さない。
+  //   同じ文に「〈owner〉のシグニを好きな数／N体まで対象とし」がある形は `parseSentencePart3` が
+  //   `POWER_MODIFY{splitTotal}` を返す＝そちらが本線。
 
   // ---- センタールリグと共通する色を持つすべてのカードをエナゾーンに置き ----
   if (t.match(/センタールリグと共通する色を持つすべてのカードをエナゾーンに置き/))
