@@ -171,6 +171,10 @@ export function collectSigniAttackDelayedTriggers(
     // 🆕アタッカーのカード条件（2026-08-31 続き747）＝「**黒の＜ブルアカ＞の**シグニがアタックしたとき」。
     if (dt.trigger.attackerFilter
       && !matchesFilter(ctx.cardMap.get(getCardNum(attackerCardNum)), dt.trigger.attackerFilter)) continue;
+    // 🆕§5.3 `O-211`（2026-09-02）＝設置時に焼き込んだ**カード個体**でアタッカーを縛る
+    //   （「このターン、次に**それが**アタックしたとき」＝`WX25-CP1-008-E1`③）。
+    //   ⚠**空配列は「誰でも発火しない」**＝焼き込みに失敗した設置で過剰実行を作らない側へ倒す。
+    if (dt.trigger.attackerFixedCardNums && !dt.trigger.attackerFixedCardNums.includes(attackerCardNum)) continue;
     entries.push({
       id: ctx.genId(), playerId: defenderId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（相手シグニアタック時）`,
@@ -208,6 +212,10 @@ export function collectAttackerSelfDelayedTriggers(
     // 🆕アタッカーのカード条件（2026-08-31 続き747）＝「**黒の＜ブルアカ＞の**シグニがアタックしたとき」。
     if (dt.trigger.attackerFilter
       && !matchesFilter(ctx.cardMap.get(getCardNum(attackerCardNum)), dt.trigger.attackerFilter)) continue;
+    // 🆕§5.3 `O-211`（2026-09-02）＝設置時に焼き込んだ**カード個体**でアタッカーを縛る
+    //   （「このターン、次に**それが**アタックしたとき」＝`WX25-CP1-008-E1`③）。
+    //   ⚠**空配列は「誰でも発火しない」**＝焼き込みに失敗した設置で過剰実行を作らない側へ倒す。
+    if (dt.trigger.attackerFixedCardNums && !dt.trigger.attackerFixedCardNums.includes(attackerCardNum)) continue;
     entries.push({
       id: ctx.genId(), playerId: attackerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（自分シグニアタック時）`,

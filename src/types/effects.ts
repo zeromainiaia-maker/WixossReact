@@ -2273,6 +2273,17 @@ export interface InstallDelayedTriggerAction {
      */
     attackerFilter?: TargetFilter;
     /**
+     * 🆕§5.3 `O-211`（2026-09-02）＝アタッカーを**カード個体**で縛る（`WX25-CP1-008-E1`③
+     * 「対戦相手のシグニ1体を対象とし、このターン、**次にそれが**アタックしたとき」）。
+     * `attackerFilter` は**カード属性**の絞りなので「対象に取ったその1体」は指せない。
+     * ⚠**設置時に焼き込む**＝`attackerFixedFromStored:true` を書いておくと
+     * `execInstallDelayedTrigger` が `storedTargetCards` をここへ複写する
+     * （設置と発火で ExecCtx が別物なので `targetsStored` のままでは発火時に引けない）。
+     */
+    attackerFixedCardNums?: string[];
+    /** 設置時に `storedTargetCards`（無ければ `lastProcessedCards`）を `attackerFixedCardNums` へ焼き込む。 */
+    attackerFixedFromStored?: boolean;
+    /**
      * 🆕ON_SIGNI_BANISH_BATTLE の**バニッシュした側**のカード条件（2026-08-31 続き748・`WD15-023-E1`
      * 「このターン、あなたの**＜龍獣＞の**シグニが対戦相手のシグニ1体をバニッシュしたとき」）。
      */

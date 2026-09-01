@@ -118,7 +118,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   （`triggerCollect` の `KEYWORD_TOKEN_MAP` ループがシグニ側と同じトークンカードを引く）。
   // ⚠取り除き（`REMOVE_MIKO_KEYWORD`）も**同じ地点で**プレイヤー側を消す＝片方だけ残すと毎ターン発火する。
   'WXDi-P12-050': [
-    {"effectId":"WXDi-P12-050-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"みこみこ☆さんさんまぜまぜ"}},"then":{"type":"GRANT_KEYWORD","target":{"type":"PLAYER","owner":"opponent","count":1},"keyword":"みこみこ親衛隊","duration":"PERMANENT"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P12-050-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"みこみこ☆さんさんまぜまぜ"}},"then":{"type":"STUB","id":"GAIN_MIKOMIKO_GUARD","value":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // ── WX15-006 ／ 原文「このアーツは**対戦相手のターンにしか使用できない**。ベット―《コインアイコン》
@@ -1187,8 +1187,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live＝③④とも遅延が落ちて**その場で －2000 ／ その場でバニッシュ**（アタック前に消えるので原文より強い）。
   // ⚠③の「**それが**アタックしたとき」は発火源をカード個体で縛る語彙が無い（`attackerFilter` はカード属性）＝
   //   `attackerOwner:'opponent'` ＋ `once:true` の近似＝`PARTIAL`。§5.4(ii) に登録。
+  // 🆕§5.3 `O-211`（2026-09-02）＝③の遅延トリガーを**カード個体**で縛った。
+  //   原文「対戦相手のシグニ１体を対象とし、このターン、**次にそれが**アタックしたとき」。
+  //   🔴旧は `attackerOwner` だけ＝**対象に取っていない相手シグニのアタックでも発火**した。
+  //   `once:true` があるので、狙ったシグニより先に別のシグニがアタックすると**そちらで消費されて**しまう。
+  //   ⚠`attackerFilter` はカード属性の絞りなので「その1体」は指せない＝新設 `attackerFixedFromStored` で
+  //   **設置時に `storedTargetCards` を焼き込む**（設置と発火で ExecCtx が別物＝`freezeStoredTargets` と同じ理由）。
   'WX25-CP1-008': [
-    {"effectId":"WX25-CP1-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":2}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":5}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"ブルアカ"},"minCount":1},"then":{"type":"PREVENT_NEXT_DAMAGE","count":1}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","once":true,"trigger":{"timing":"ON_ATTACK_SIGNI","attackerOwner":"opponent"},"effect":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true,"delta":0,"deltaFromZone":{"zone":"trash","owner":"self","filter":{"story":"ブルアカ"},"per":-2000},"duration":"UNTIL_END_OF_TURN"}}]}},{"choiceId":"c3","label":"選択肢4","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}],"upTo":true,"recollectArts":{"minArts":4,"thenChooseCount":3,"thenUpTo":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX25-CP1-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":2}]},"action":{"type":"CHOOSE","choose_count":2,"from_count":4,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":5}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"ブルアカ"},"minCount":1},"then":{"type":"PREVENT_NEXT_DAMAGE","count":1}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","once":true,"trigger":{"timing":"ON_ATTACK_SIGNI","attackerOwner":"opponent","attackerFixedFromStored":true},"effect":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true,"delta":0,"deltaFromZone":{"zone":"trash","owner":"self","filter":{"story":"ブルアカ"},"per":-2000},"duration":"UNTIL_END_OF_TURN"}}]}},{"choiceId":"c3","label":"選択肢4","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]}}],"upTo":true,"recollectArts":{"minArts":4,"thenChooseCount":3,"thenUpTo":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -1313,6 +1319,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WXDi-P16-069 ／ 引用付与の中身＝「【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、
   //   **ターン終了時、それをデッキの一番下に置く**。」
   // 🔴旧 live＝遅延が落ちて**アタックフェイズ開始時に即デッキ下**。
+  'WXDi-P16-069': [
+    {"effectId":"WXDi-P16-069-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_SIGNI_ABOVE_ABILITY","filter":{"cardType":"シグニ","story":"解放派"},"abilities":[{"effectId":"WXDi-P16-069-E2-G","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom","targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   // ── §5.3 `O-105`（2026-09-02）＝**場全体の「シグニの下にあるカードの合計枚数」条件**。
   //   受け皿 `FIELD_ATTACHED_COUNT` は既にあったが、**どのシグニの分を数えるかの `filter` が無かった**。
   //   同日に `Condition.FIELD_ATTACHED_COUNT.filter`（ホスト側の絞り）を新設して2効果を載せた。
@@ -1322,6 +1331,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live は3つ同時に壊れていた＝①対象が `owner:'self'`＋`targetsTriggerSource`（アタックフェイズ開始時に
   //   トリガー元は無い）②「代わりに」が畳めておらず **-5000 と -8000 が両方走る** ③＜解放派＞の条件が丸ごと無い。
   //   ⇒ 部分採用が禁止されていたのはこのため（登録票）。**3つ同時に直して初めて原文になる。**
+  // ── §5.3 `O-148`（2026-09-02）＝【みこみこ親衛隊】を**専用のプレイヤーカウンタ**にした（3枚4効果）。
+  // 🔴旧 live は2方向に壊れていた＝
+  //   ①得る側が `GRANT_KEYWORD`（シグニへのキーワード付与）＝**engine に消費が無い真 no-op**
+  //   ②取り除く側が `STUB{REMOVE_VIRUS}` の**誤流用**＝【ウィルス】は `field.signi_virus`
+  //     （シグニゾーン単位）なので、**相手のウィルス state を壊しながら**別カウンタのつもりで動いていた。
+  // 🔑新設 `PlayerState.mikomiko_guards`（プレイヤー単位）＋ STUB 3本
+  //   （`GAIN_MIKOMIKO_GUARD` / `REMOVE_MIKOMIKO_GUARD` / `INTERNAL_REMOVE_MIKOMIKO_GUARD_N`）。
+  // ⚠取り除いた**個数**は `lastProcessedCount` へ載せる（カードではないので `lastProcessedCards` ではない）
+  //   ＝後段の「1つにつき－8000」がこれを読む。0個のときは対話を出さず 0 を明示する
+  //   （前段の値を引き継いで過剰に効くのを防ぐ）。
+
+  'WX25-P3-058': [
+    {"effectId":"WX25-P3-058-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"REMOVE_MIKOMIKO_GUARD"},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-8000,"deltaPerLastProcessedCount":true,"perLastProcessed":{},"duration":"UNTIL_END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+    {"effectId":"WX25-P3-058-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"handDiscardSigni":{"count":1,"story":"微菌"}},"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"みこみこ☆さんさんおせおせ"}},"then":{"type":"STUB","id":"GAIN_MIKOMIKO_GUARD","value":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"twice_per_turn"},
+  ],
+
   'WXDi-P16-056': [
     {"effectId":"WXDi-P16-056-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"CONDITIONAL","condition":{"type":"FIELD_ATTACHED_COUNT","owner":"self","include":"under","filter":{"cardType":"シグニ","story":"解放派"},"operator":"gte","value":4},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-8000,"duration":"UNTIL_END_OF_TURN"},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"targetsStored":true,"delta":-5000,"duration":"UNTIL_END_OF_TURN"}}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],
@@ -1331,10 +1356,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   **使用条件が無い＝いつでも撃てる**過剰実行だった。こちらは filter 不要（場の全シグニが対象）。
   'WXDi-P15-007': [
     {"effectId":"WXDi-P15-007-E2","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"FIELD_ATTACHED_COUNT","owner":"self","include":"under","operator":"gte","value":2},"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
-  ],
-
-  'WXDi-P16-069': [
-    {"effectId":"WXDi-P16-069-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_SIGNI_ABOVE_ABILITY","filter":{"cardType":"シグニ","story":"解放派"},"abilities":[{"effectId":"WXDi-P16-069-E2-G","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom","targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WXDi-P12-006 ／ 選択肢②＝「対戦相手のシグニ１体を対象とし、**このターン終了時**、それをデッキの一番下に置く」。
@@ -8839,6 +8860,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // §6.3 E-2 第1波：起動時の即時手札破壊ではなく、現在ターン＋次の相手ターンを監視する付与AUTO。
   "WX25-P3-023": [
+    // 🆕§5.3 `O-148`（2026-09-02）＝選択肢②「対戦相手は【みこみこ親衛隊】1つを得る」。
+    //   旧は `GRANT_KEYWORD`（シグニへのキーワード付与）＝engine に消費が無い真 no-op だった。
+    {"effectId":"WX25-P3-023-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"微菌"}},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"対戦相手は手札を1枚捨てる","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"対戦相手は【みこみこ親衛隊】1つを得る","action":{"type":"STUB","id":"GAIN_MIKOMIKO_GUARD","value":1}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","usageLimit":"twice_per_turn"},
     {"effectId":"WX25-P3-023-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_OPP_TURN_END","rawText":"グロウフェイズ以外で対戦相手の効果１つによってカードが合計１枚以上対戦相手の手札に移動したとき、対戦相手の手札を１枚見ないで選び、捨てさせる。","abilities":[{"effectId":"WX25-P3-023-E2-GRANT","effectType":"AUTO","timing":["ON_HAND_ADDED"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"handOwner":"opponent","byOpponentEffect":true,"excludeGrowPhase":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"}
   ],
   // §6.4 続き444: 公開停止を「レベル4の＜宇宙＞4枚」に限定し、任意公開と既存の4枚成立ゲートを共存させる。

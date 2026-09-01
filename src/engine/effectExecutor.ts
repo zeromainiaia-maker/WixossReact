@@ -2556,8 +2556,19 @@ function execInstallDelayedTrigger(
   //   発火時に候補が空になって**黙って空振り**する（「このターン終了時、それをバニッシュする」＝
   //   `WXDi-CP02-043-E2`／`WXDi-P12-006-E1`②／`WXDi-P16-069-E2`）。
   //   任意コストの pay/skip 分岐で使っている `freezeStoredTargets` と同じ焼き込みをここでも通す。
+  // 🆕§5.3 `O-211`（2026-09-02）＝**トリガー側**の「それ」も設置時に焼き込む。
+  //   `freezeStoredTargets` は effect（本文）だけを固定するので、
+  //   「次に**それが**アタックしたとき」の発火源は別途ここで確定させる必要がある。
+  //   ⚠焼き込めなかった（対象が空）ときは `attackerFixedCardNums: []` になり**誰でも発火しない**＝
+  //   fail-closed（過剰実行を作らない側へ倒す）。
+  const fixedAttackers = a.trigger?.attackerFixedFromStored
+    ? (ctx.storedTargetCards ?? ctx.lastProcessedCards ?? [])
+    : undefined;
   const installed = {
     ...a,
+    ...(fixedAttackers
+      ? { trigger: { ...a.trigger, attackerFixedFromStored: undefined, attackerFixedCardNums: fixedAttackers } }
+      : {}),
     effect: freezeStoredTargets(a.effect, ctx),
     sourceCardNum: ctx.sourceCardNum,
   };

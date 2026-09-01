@@ -853,6 +853,42 @@ export function execStubPart1(
     return done(ctx); // コストは支払い時点で計算済み、ここでは何もしない
   }
   // 数字宣言：CHOOSE UI で 1〜5 を選択し declared_number に保存する（ガード制限は伴わない・§6.4 O-41）
+  // GAIN_MIKOMIKO_GUARD: 【みこみこ親衛隊】を1つ得る（§5.3 `O-148`・2026-09-02）
+  // 🔴**【ウィルス】とは別のカウンタ**＝ウィルスは `field.signi_virus`（シグニゾーン単位）だが、
+  //   【みこみこ親衛隊】は「**対戦相手が**得る」＝**プレイヤー単位**。
+  //   旧 live は `GRANT_KEYWORD`（シグニへのキーワード付与）に化けており engine のどこにも消費が無かった。
+  if (stub.id === 'GAIN_MIKOMIKO_GUARD') {
+    const nGMG = typeof stub.value === 'number' ? stub.value : 1;
+    // 効果の主語は「対戦相手は〜を得る」＝効果オーナーから見た other 側が得る。
+    const newOtherGMG = { ...ctx.otherState, mikomiko_guards: (ctx.otherState.mikomiko_guards ?? 0) + nGMG };
+    return done(addLog({ ...ctx, otherState: newOtherGMG },
+      `対戦相手は【みこみこ親衛隊】を${nGMG}つ得た（計${newOtherGMG.mikomiko_guards}）`));
+  }
+  // REMOVE_MIKOMIKO_GUARD: 対戦相手の【みこみこ親衛隊】を好きな数取り除く（§5.3 `O-148`・2026-09-02）
+  // ⚠**取り除いた数を `lastProcessedCount` へ載せる**＝後段の「1つにつき－8000」が読む。
+  //   カードではなく個数なので `lastProcessedCards` ではなくこちらを使う（`O-148` の先行バッチと同じ規約）。
+  if (stub.id === 'REMOVE_MIKOMIKO_GUARD') {
+    const haveRMG = ctx.otherState.mikomiko_guards ?? 0;
+    if (haveRMG === 0) {
+      // 🔴0個のときは対話を出さず、**取り除いた数0**を明示して抜ける
+      //   （後段の「1つにつき」が前段の値を引き継いで過剰に効くのを防ぐ）。
+      return done(addLog({ ...ctx, lastProcessedCount: 0 }, '対戦相手に【みこみこ親衛隊】が無い'));
+    }
+    const setRMG = (n: number): StubAction => ({ type: 'STUB', id: 'INTERNAL_REMOVE_MIKOMIKO_GUARD_N', value: n });
+    // 「好きな数〜してもよい」＝0個も選べる（0..N）。
+    const optsRMG = Array.from({ length: haveRMG + 1 }, (_, n) => ({
+      id: String(n), label: `${n}つ取り除く`, action: setRMG(n) as EffectAction, available: true,
+    }));
+    return needsInteraction(addLog(ctx, `【みこみこ親衛隊】をいくつ取り除きますか？（0〜${haveRMG}）`), {
+      type: 'CHOOSE', options: optsRMG, count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_REMOVE_MIKOMIKO_GUARD_N') {
+    const nIRM = Math.max(0, Math.min(typeof stub.value === 'number' ? stub.value : 0, ctx.otherState.mikomiko_guards ?? 0));
+    const newOtherIRM = { ...ctx.otherState, mikomiko_guards: (ctx.otherState.mikomiko_guards ?? 0) - nIRM };
+    return done(addLog({ ...ctx, otherState: newOtherIRM, lastProcessedCount: nIRM },
+      `【みこみこ親衛隊】を${nIRM}つ取り除いた（残り${newOtherIRM.mikomiko_guards}）`));
+  }
   if (stub.id === 'DECLARE_NUMBER') {
     // 宣言した数字をPlayerStateに保存するSETアクションを各選択肢に
     const setAction = (n: number): StubAction => ({

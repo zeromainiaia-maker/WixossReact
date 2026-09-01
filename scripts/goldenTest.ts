@@ -2658,7 +2658,10 @@ test('GAIN_EXTRA_TURN / REMOVE_VIRUS: 誰が得るか・何個取り除くかは
     Object.values(r).forEach(walkRV);
   };
   for (const effs of effectsMap.values()) walkRV(effs);
-  eq(rvNodes.length, 9, 'live の REMOVE_VIRUS ノード数');
+  // 🔽**9→8**（2026-09-02・§5.3 `O-148`）＝`WX25-P3-058-E1` は【ウィルス】ではなく
+  //   **【みこみこ親衛隊】という別カウンタ**だったので、`REMOVE_MIKOMIKO_GUARD` へ移した。
+  //   ⚠**退化ではなく誤流用の解消**＝旧実装は相手の `field.signi_virus` を壊していた。
+  eq(rvNodes.length, 8, 'live の REMOVE_VIRUS ノード数');
   eq(rvNodes.filter(n => n.virusCount === undefined).length, 1, 'payload 無しは「これを取り除く」（WX25-P3-TK03）の1件だけ');
 }));
 test('GAIN_EXTRA_TURN: 同じ能力の「対戦相手は…追加ターン」で相手側へ付与する（成立方向）', () => withSavedCursor(() => {
@@ -56686,6 +56689,89 @@ test('索引C 2026-09-01(3巡目): O-95 基本文側の「このシグニと共�
   ok(holds(diff), '共通色を持たない他のシグニがいれば成立');
   ok(!holds(same), '🔴同じ色しかいなければ不成立（無条件成立に落ちていない）');
 });
+
+// ── §5.3 `O-148`（2026-09-02）＝【みこみこ親衛隊】を専用のプレイヤーカウンタにした（3枚4効果）──
+// 🔴旧 live は2方向に壊れていた＝①得る側が `GRANT_KEYWORD`（シグニへのキーワード付与）＝engine に消費が無い
+//   真 no-op ②取り除く側が `STUB{REMOVE_VIRUS}` の**誤流用**＝【ウィルス】は `field.signi_virus`
+//   （シグニゾーン単位）なので、**相手のウィルス state を壊しながら**別カウンタのつもりで動いていた。
+test('索引C 2026-09-02: O-148 【みこみこ親衛隊】は専用カウンタで増減し、ウィルスを壊さない', () => withSavedCursor(() => {
+  // ① 得る＝**対戦相手**のカウンタが増える（原文「対戦相手は【みこみこ親衛隊】1つを得る」）
+  const g = mkCtx({}, {}, 'WXDi-P12-050');
+  g.otherState.field.signi_virus = [1, 0, 1];
+  const got = run({ type: 'STUB', id: 'GAIN_MIKOMIKO_GUARD', value: 1 } as EffectAction, g);
+  eq(got.otherState.mikomiko_guards, 1, '対戦相手のカウンタが1つ増える');
+  eq(got.ownerState.mikomiko_guards, undefined, '🔴自分側は増えない（主語は対戦相手）');
+  eq(JSON.stringify(got.otherState.field.signi_virus), '[1,0,1]',
+    '🔴【ウィルス】の state を1バイトも触らない（旧＝REMOVE_VIRUS 誤流用で壊していた）');
+
+  // ② 取り除く＝選んだ個数だけ減り、その個数が lastProcessedCount へ載る
+  const r = mkCtx({}, {}, 'WX25-P3-058');
+  r.otherState.mikomiko_guards = 3;
+  r.otherState.field.signi_virus = [1, 1, 0];
+  const removed = run({ type: 'STUB', id: 'INTERNAL_REMOVE_MIKOMIKO_GUARD_N', value: 2 } as EffectAction, r);
+  eq(removed.otherState.mikomiko_guards, 1, '2つ取り除いて残り1');
+  eq(removed.lastProcessedCount, 2, '🔑取り除いた個数が lastProcessedCount へ載る（後段の「1つにつき－8000」が読む）');
+  eq(JSON.stringify(removed.otherState.field.signi_virus), '[1,1,0]', 'ウィルスは無傷');
+
+  // ③ 所持数を超えて取り除かない（負の値を作らない）
+  const over = mkCtx({}, {}, 'WX25-P3-058');
+  over.otherState.mikomiko_guards = 1;
+  const clamped = run({ type: 'STUB', id: 'INTERNAL_REMOVE_MIKOMIKO_GUARD_N', value: 5 } as EffectAction, over);
+  eq(clamped.otherState.mikomiko_guards, 0, '所持数でクランプする');
+  eq(clamped.lastProcessedCount, 1, '実際に取り除いた数だけを報告する');
+
+  // ④ 0個のときは対話を出さず「取り除いた数0」を明示する
+  //    🔴ここで前段の lastProcessedCount を残すと「1つにつき－8000」が過剰に効く。
+  const zero = mkCtx({}, {}, 'WX25-P3-058');
+  zero.lastProcessedCount = 99;
+  const none = run({ type: 'STUB', id: 'REMOVE_MIKOMIKO_GUARD' } as EffectAction, zero);
+  eq(none.lastProcessedCount, 0, '🔴0個なら0を明示（前段の値を引き継がない）');
+
+  // ⑤ live 側＝4効果とも新しい受け皿を使い、誤流用が残っていない
+  const j = (n: string) => JSON.stringify(effectsMap.get(n) ?? []);
+  for (const n of ['WXDi-P12-050', 'WX25-P3-023', 'WX25-P3-058']) {
+    ok(j(n).includes('GAIN_MIKOMIKO_GUARD'), `${n}: 得る側が専用カウンタ`);
+    ok(!j(n).includes('"keyword":"みこみこ親衛隊"'), `🔴${n}: GRANT_KEYWORD へ戻さない（engine に消費が無い）`);
+  }
+  ok(j('WX25-P3-058').includes('REMOVE_MIKOMIKO_GUARD'), 'WX25-P3-058: 取り除く側も専用カウンタ');
+  ok(!j('WX25-P3-058').includes('REMOVE_VIRUS'), '🔴WX25-P3-058: REMOVE_VIRUS の誤流用へ戻さない');
+}));
+
+// ── §5.3 `O-211`（2026-09-02）＝遅延トリガーの発火源を**カード個体**で縛る ──
+// 原文「対戦相手のシグニ１体を対象とし、このターン、**次にそれが**アタックしたとき」（`WX25-CP1-008-E1`③）。
+// 🔴旧 live は `attackerOwner:'opponent'` だけ＝**対象に取っていない相手シグニのアタックでも発火**した。
+//   `once:true` があるので、狙ったシグニより先に別のシグニがアタックすると**そちらで消費されて**しまう。
+test('索引C 2026-09-02: O-211 遅延トリガーの発火源をカード個体で縛る', () => withSavedCursor(() => {
+  const eff = manualEffect('WX25-CP1-008', 'WX25-CP1-008-E1');
+  const c2 = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices.find(c => c.choiceId === 'c2')!;
+  const steps = (c2.action as SequenceAction).steps;
+  const inst = steps.find(x => x.type === 'INSTALL_DELAYED_TRIGGER') as Extract<EffectAction, { type: 'INSTALL_DELAYED_TRIGGER' }>;
+  eq(inst.trigger.attackerFixedFromStored, true, '設置時に対象個体を焼き込むと宣言している');
+  ok(steps.some(x => x.type === 'STUB' && (x as StubAction).id === 'STORE_LAST_PROCESSED_TARGETS'),
+    '焼き込む元（storedTargetCards）を先に固定している');
+
+  // 🔴engine を実走させて「設置で焼き込まれる／別のシグニでは発火しない」を両方向で固定する。
+  const target = findCard(c => isSigni(c));
+  const bystander = findCard(c => isSigni(c) && c.CardNum !== target);
+  const ctx = mkCtx({}, { signi: [target, bystander, null] }, 'WX25-CP1-008');
+  ctx.storedTargetCards = [target];
+  const installed = run(inst as EffectAction, ctx);
+  const dt = (installed.ownerState.delayed_triggers ?? [])[0] as { trigger?: { attackerFixedCardNums?: string[]; attackerFixedFromStored?: boolean } };
+  eq(JSON.stringify(dt?.trigger?.attackerFixedCardNums), JSON.stringify([target]),
+    '🔑設置時に storedTargetCards が焼き込まれる（設置と発火で ExecCtx が別物なので targetsStored では届かない）');
+  eq(dt?.trigger?.attackerFixedFromStored, undefined, '焼き込み後は指示フラグを残さない');
+
+  // 収集側＝対象のシグニがアタックしたときだけ拾う。
+  const trigCtx = (): TrigCtx => ({
+    cardMap: cardMap as Map<string, CardData>, hostId: HOST, guestId: GUEST,
+    genId: () => 'id', turnPhase: 'ATTACK',
+  } as unknown as TrigCtx);
+  const host = installed.ownerState;
+  const fire = (attacker: string) =>
+    collectSigniAttackDelayedTriggers(trigCtx(), GUEST, host, attacker).length;
+  eq(fire(target), 1, '対象に取ったシグニのアタックでは発火する');
+  eq(fire(bystander), 0, '🔴対象でないシグニのアタックでは発火しない（旧＝ここで once を食い潰していた）');
+}));
 
 test('索引C 2026-09-01(2巡目): O-110 「このターンで最初のリフレッシュ」を回数条件で読む', () => {
   // 原文＝「それがこのターンであなたの**最初の**リフレッシュである場合」（PR-205-E1）。

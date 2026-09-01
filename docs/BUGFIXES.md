@@ -1,5 +1,64 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（続き778）：§5.3 索引 C を 30→27件＝`O-211` / `O-148` を実装、`O-179` は stale でクローズ
+
+### ① `O-211`＝遅延トリガーの発火源を「カード個体」で縛れなかった（過剰実行）
+
+**真因（1行）**＝`WX25-CP1-008-E1`③「対戦相手のシグニ1体を対象とし、このターン、**次にそれが**アタックしたとき」が
+`attackerOwner:'opponent'` だけで設置されており、**対象に取っていない相手シグニのアタックでも発火**していた。
+`once:true` があるため、狙ったシグニより先に別のシグニがアタックすると**そちらで消費されて**しまう。
+
+**新設**＝`trigger.attackerFixedFromStored`（設置指示）→ `execInstallDelayedTrigger` が `storedTargetCards` を
+`trigger.attackerFixedCardNums` へ**焼き込む**（設置と発火で ExecCtx が別物なので `targetsStored` では届かない
+＝既存 `freezeStoredTargets` と同じ理由）。収集側は `collectSigniAttackDelayedTriggers` /
+`collectAttackerSelfDelayedTriggers` の**2箇所**でゲートする。⚠**空配列は「誰でも発火しない」**（fail-closed）。
+
+### ② `O-148`＝【みこみこ親衛隊】が【ウィルス】の受け皿を誤流用していた（3枚4効果）
+
+**真因（1行）**＝**登録票の「1効果」は過小**で、実測は**3枚4効果**。旧 live は2方向に壊れていた。
+
+| 向き | 旧 | 問題 |
+|---|---|---|
+| 得る | `GRANT_KEYWORD{keyword:"みこみこ親衛隊"}` | **engine のどこにも消費が無い真 no-op** |
+| 取り除く | `STUB{REMOVE_VIRUS}` | 🔴**誤流用**＝【ウィルス】は `field.signi_virus`（シグニゾーン単位）なので**相手のウィルス state を壊す** |
+
+**新設**＝`PlayerState.mikomiko_guards`（**プレイヤー単位**のカウンタ）＋ STUB 3本
+（`GAIN_MIKOMIKO_GUARD` / `REMOVE_MIKOMIKO_GUARD` / `INTERNAL_REMOVE_MIKOMIKO_GUARD_N`）。
+⚠取り除いた**個数**は `lastProcessedCount` へ載せる（カードではないので `lastProcessedCards` ではない）。
+⚠**0個のときは対話を出さず 0 を明示**する＝前段の値を引き継ぐと「1つにつき－8000」が過剰に効く。
+対象カード＝`WXDi-P12-050-E1` / `WX25-P3-023-E1`② / `WX25-P3-058-E1` / `WX25-P3-058-E2`。
+
+🔽**golden のラチェットを 9→8 へ下げた**（`live の REMOVE_VIRUS ノード数`）＝**退化ではなく誤流用の解消**。
+
+### ③ `O-179` は stale でクローズ
+
+`SELF_CRASH_TO_TRASH_AND_REFILL`（回数制の予約）が `execStubPart3.ts:989` に実装済みで、
+`BattleScreen.tsx:12644` が1クラッシュにつき1消費している。任意性も live に `optional:true` で入っていた。
+登録票が挙げた2つの欠陥（①任意性が強制 ②置換が無い）は**両方とも解消済み**だった。
+
+### 着手前実測が3件とも登録票を訂正した
+
+`O-148` 1効果→**3枚4効果**／`O-186` 未計測→**2枚**（`WXK10-022`・`WXDi-P13-043`）／`O-179` 真→**stale**。
+
+### 🔴 この巡で出した自分の編集ミス（記録として残す）
+
+重複キーを解消するスクリプトの削除範囲が広すぎ、**無関係の `WXDi-P16-069` の manual 定義を巻き込んで削除**していた
+（`endMark` の探索が自分のブロックを越えて次のエントリの終端に当たった）。HEAD から復元済み。
+⇒ **`manualEffects.ts` を機械編集したら「HEAD とのキー集合差分」を必ず両方向で取る**（失われたキー／追加したキー）。
+この巡はそれで気づけた。**typecheck だけでは検出できない**（キーが消えても構文は通る）。
+
+### 見送った項目
+
+**`O-74`**＝`canSelfPlay` の呼び出しは `BattleScreen` の通常召喚1箇所だけで、効果配置経路にゲートが無い。
+`ctx.effectsMap` は一部経路でしか代入されず、型のコメントが「**dead flag になる**」と明記している。⇒ **実機必須の側へ回した。**
+**`O-186`**＝解除地点が `src/screens/battle/untilOppTurn.ts` にあるので engine だけでは閉じられない（母集団2枚だけ記録）。
+
+**検証コマンド**＝`npm run gates`（全緑・**golden 3223/3223 PASS**）。
+**反転確認**＝あり（`O-211` は「対象のシグニで発火／対象でないシグニでは発火しない」を collector 実走で。
+`O-148` は「相手だけ増える／自分は増えない」「ウィルス state が無傷」「所持数でクランプ」「0個なら0を明示」の4方向）。
+**⑤実機＝不要と判定**（§2.2）＝変更は `src/types/` `src/engine/` `src/data/` `public/data/` のみ。**`src/screens/` は未変更**。
+
+
 ## 2026-09-02（続き777）：§5.3 索引 C を 31→30件＝`O-105` を実装（`FIELD_ATTACHED_COUNT.filter` を新設し2効果を実働化）
 
 **真因（1行）**＝場全体の「シグニの下にあるカードの合計枚数」条件の受け皿 `FIELD_ATTACHED_COUNT` は在ったが、

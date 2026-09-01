@@ -823,6 +823,11 @@ export interface PlayerState {
   // このプレイヤーから見て対戦相手の場に【ウィルス】が置かれた/取り除かれた直後にセット
   // （BattleScreenでON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGEDトリガー検出用。複数個の同時増減でも1回扱い）
   opp_virus_placed_just?: boolean | null;
+  // 🆕§5.3 `O-148`（2026-09-02）＝【みこみこ親衛隊】の所持数。
+  // 🔴**【ウィルス】とは別軸**＝ウィルスは `field.signi_virus`（シグニゾーン単位）だが、
+  //   こちらは「**対戦相手が**【みこみこ親衛隊】1つを得る」＝**プレイヤー単位のカウンタ**。
+  //   ⚠ウィルスの受け皿を流用すると相手のシグニゾーン state を壊す（旧 live がその誤流用だった）。
+  mikomiko_guards?: number;
   opp_virus_removed_just?: boolean | null;
   // このプレイヤーのシグニが効果によって他のシグニゾーンに移動した直後にセット: 移動したシグニのCardNum
   // （BattleScreenでON_ZONE_MOVEDトリガー検出用。所有者の state に積む。両プレイヤーが各自フィルタで処理）
