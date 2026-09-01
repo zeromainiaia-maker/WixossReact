@@ -11,41 +11,65 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-09-01・続き772・Codex 実装／Claude 検証＋実機）＝索引 B を 11件 → 2件（9件クローズ）。**
-  📊**進捗3計器＝Sheet1 要対応 20 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
-  📦**在庫2本＝④機構 worklist 97 → 90項目（索引 B が 11 → 2・索引 C が 33 → 35）／⑤実機 `V-nn` は 0件（この巡の分は同巡で返済）。**
-  gates 全緑（golden **3215 / 3215**・0 FAIL・smoke 10,721 全異常0・fuzz 全0・census 11・census-stubs A🔴0/C0・
-  manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors/250 warnings・同型★0）。
-  **実機＝新規3本＋既存回帰1本すべて PASS（単体でも4本一括でも）。**
+- 🏁**セッション（2026-09-02・続き773・Opus 5＋Codex 2アカウント・索引 B を上から4件）＝索引 B を 14 → 12件、うち2件は縮小。**
+  📊**進捗3計器＝Sheet1 要対応 20 → 22 / 863（🔴増えたが退化ではない＝計器の較正）｜台帳 残 OPEN 44（据置）｜
+  census 高シグナル 11 / BASELINE 12（据置）**。
+  📦**在庫2本＝④機構 worklist 65 → 63項目**（§5.3 の `| \`O-` 行数で実測。索引 A 17／**B 14 → 12**／C 34／E 4）
+  ｜🏁**⑤実機 残 0件**（この巡の6本は同巡で実行・全 PASS）。
+  gates 全緑（golden **3233 / 3233**＝3215 から +18本・smoke 10,721 全異常0・fuzz 全0・census 11・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors/250 warnings）。
 
-  🔑**この巡の主題＝索引 B（母集団3〜8効果）の11項目を実測し直したら、「登録票どおりに残っていた」項目が1つも無かった。**
-  ① **丸ごと消化済み3件**＝`O-155`（`same:'power'` / `distinct:'costSum'`）／`O-196`（集合制約のコスト節3種）／
-  `O-216`（`BANISH{ALL}` の4軸）。**コード変更ゼロでクローズ。**
-  ② **大半が閉じていた4件**＝`O-156`（6→1）／`O-184`（8→1）／`O-161`（4→1）／`O-191`（3→1）。残り1件ずつを消化した。
-  ③ **engine を新しく足したのは2件だけ**＝`O-148`（`virusCount:'any'` の枚数選択ループ＋**カードでない処理個数**を運ぶ
-  `ExecCtx.lastProcessedCount` 新設）／`O-180`（`growLogic.ignoresLrigTypeForGrow`）。
-  ④ **`O-180` / `O-148` は残1効果になったので索引 C へ移し、`O-163` / `O-181` は設計調査だけして索引 B に残した。**
+  🔑**この巡の主題＝「登録票の『受け皿が無い』は5件連続で誤りだった」。新しい型を1つも作らずに済んだ回が3つある。**
+  ① `O-97`（🏁クローズ）＝複数の印刷済み【使用条件】。**新条件型を作らず既存 `LRIG_TRASH_COUNT.filter` で足りた**（4効果）。
+  ② `O-58` 段1（6 → 残2）＝アタッカー側の必須バニッシュ置換4効果。**「対戦相手のターンの間」の除外は
+     既存 `bp.oppTurnOnly && isOwnerTurn` がそのまま持っていた**＝新条件ゼロ。
+  ③ `O-181` 軸(a)（6 → 残4）＝ルリグのアタック終了収集地点を `performGuardResponse` に新設。
+  ④ `O-52`（🏁クローズ）＝「めくれるまで公開」4効果。**登録票は「色除外 filter が無い・先に受け皿を作れ」と
+     書いていたが、`colorExclude`・`levelLtLastProcessed`・`handOrField` は全部既存**＝**新設した型は0**。
 
-  🔑🔴**主産物＝「Claude の投入前実測」が4件外れ、Codex が実コードで訂正した。**
-  ①【シュート】は `src/engine/` ではなく **`src/screens/battle/signiAttackKeywords.ts` に実装済み**
-  （**engine だけ grep して「0 hit＝未実装」と書いた**）
-  ②`O-161` は登録票の**提案キー名** `noCommonColorWithSelf` で grep して「無い」としたが、**同義の `colorNotMatchesSource` が既存**
-  ③`WXDi-P16-058` の対象は `-E1` ではなく **`-E3`**
-  ④`WX25-P3-058-E1` は【ウィルス】ではなく**【みこみこ親衛隊】という別カウンタ**（`REMOVE_VIRUS` の誤流用）。
-  ⇒ 🔑**「提案キー名で grep して無い」は受け皿が無いことの証明にならない。同義の既存語彙と、engine 以外の層（`src/screens/`）を先に探す。**
+  🔴🔑**主産物1＝Codex の未検証部分に欠陥が2件あり、Claude の引き継ぎ検証で捕まえた**（`O-181`）。
+  ①**parser 規則が到達不能だった**＝先行する `ON_ATTACK_LRIG` 分岐が「このルリグがアタックしたとき」を先に食うため、
+    `ON_ATTACK_END` 側へ `ルリグ` を足しても**一度も通らない**。**`build:effects` しても live が1バイトも変わらないことで発覚。**
+  ②**`attackDealtNoDamage` の抽出 regex が「いない場合」だけ**で、「**いなかった**場合」を取りこぼしていた
+    ＝timing を直すと**条件なし発火**という別の過剰実行を生むところだった。
+  ⇒ 🔑**「codex がゲート緑で完走した」と「正しい」は別。live の全数 diff と原文照合まで必ず自分でやる。**
 
-  ⚠**実機は必須と判定**（§2.2）＝`src/screens/BattleScreen.tsx`（ON_SPELL_USE ゲートの1本化）と
-  `src/screens/battle/growLogic.ts` を触った。**新規3本＝`o191SpellUseNonDisona`（負方向）・`o180GrowIgnoreLrigType`・
-  `o148VirusAnyCount`**、＋既存 `v12GrantedSpellUseMinus4000` を正方向の回帰として再実行。
-  ⚠**Codex は利用上限で最終レポートだけ書けずに exit 1**（実装とゲートは完走済み）＝作業ツリーの成果をそのまま検証して引き取った。
+  🔴🔑**主産物2＝Claude の投入前実測も2件外れ、Codex が実コードで訂正した。**
+  ①`WXK01-045-E2` を「parser だけ」と見立てたが、`REVEAL_UNTIL{owner:'opponent'}` は**公開元だけ相手デッキになり、
+    SEARCH pending に `deckOwner` が無く残り札の復帰先が self に既定**されていた（engine の配線漏れ）。
+  ②`SP27-005-E1` の「手札に加えるか場に出す」を**新UIが要る本物の穴**と見立てたが、
+    **既存 SEARCH の `handOrField` を `RevealUntilHitSpec` から再利用するだけ**で足りた。
 
-**▶ 次の一手**＝**§5.3 の索引を上から取る**（索引がそのまま取る順）。**§5.1 は残0なので本線は §5.3 だけ。**
-① **索引 A の先頭＝`O-96`（122効果）**。⚠**単純な一般化で取れる在庫は尽きている**（第1〜3で 161→122）＝
-残りは「MANUAL・PARTIAL 22」「帰結の対象が SIGNI でない 13」「ネスト器 11」。
-② 🔴🆕**索引 A も着手前に必ず数え直す**＝**続き771（索引 C）と続き772（索引 B）で、登録票の母集団が当たっていた項目は
-ほぼ無かった**（B は 11件中0件）。**索引 A は数字が大きいぶん、外れたときの損も大きい。**
-③ **索引 B の残2件（`O-163` / `O-181`）は続き772 の設計調査つき**＝入口の関数名まで特定済みなので着手コストは下がっている。
-⚠**新機構を足したら、その回のうちに実機観測点を踏む**（続き771・772 とも同巡で返済した）。
+  🔄**golden の据置契約を2本「反転」した**（削除ではなく正方向 assert へ差し替え・PLAN §5.2 の規約）＝
+  第40バッチ「`WXDi-D04-004-sub-E1` は発動タイミングが主因なので据置」／第20バッチ「`SP27-005` は非採用」。
+
+  🖥**実機＝6本すべて Claude が実行して PASS**（`o58` 3本＝Codex 記述／`o181` 3本＝Claude 記述）。
+  **反転確認あり**＝`o58OpponentTurnOnlyDoesNotProtectAttacker`（対戦相手ターン限定の能力が自分のアタックでは守らない）／
+  `o181LrigAttackEndSkippedWhenDamaged`（ダメージが通ると発火しない）。
+  ⚠`o181` は**実カードではなく合成の付与能力を注入**している（実カードの任意コスト支払いが「発火したか」と混ざるため）。
+
+  📉**計器の較正について**＝Sheet1 要対応が **20 → 22** に増えたのは、
+  **§5.3 の索引と登録票にカード番号を明記したぶん `mech` フラグが増えたから**（`cardProgressCensus.mjs` は
+  PLAN §5.3 の本文からカード番号を拾う）。**セッション開始時の PLAN で測り直して 20 を確認済み＝退化ではない。**
+  ⚠**CLAUDE.md の「18枚」は stale**（実測は開始時点で 20）。**即着手可能 0 は不変。**
+
+  🛑**2アカウントとも利用上限で終了**＝`.codex-work` は `O-181` の実装中に（再開 6:21）、
+  既定 `~/.codex` は `O-59` の**投入直後に1トークンも使わず**（再開 5:33）。`O-59` は作業ツリー clean＝**着手ゼロ**。
+
+**▶ 次の一手**＝**§5.3 の索引 B を上から続ける**（索引がそのまま取る順）。**指示書は2本すでに書いてある。**
+① 🔥**`O-59`（トラップ）と `O-71`（遅延の「それ」照応）は指示書が scratchpad に用意済み**だが、
+   **2アカウントとも上限**のため未投入。**再開時刻＝既定 `~/.codex` 5:33／`.codex-work` 6:21。**
+   🔑**どちらも投入前実測で登録票を訂正済み**＝`O-59` は**②が既に実装済み**（`INTERNAL_OPP_SIGNI_TO_TRAP` が
+   居たゾーンの添字を保つ＝`WX21-003-E3` は正しく動く）／`O-71` は**受け皿が既にあり live に3実例**
+   （`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `INSTALL_DELAYED_TRIGGER{targetsStored}`）。
+② 🔴**`O-71` で見つけた無言の誤動作**＝`WXK10-045-E2` の2段目が
+   「チェックゾーンに置いたカードを手札に戻す」ではなく**「相手シグニ1体をバウンス」**になっている（別物）。
+③ 🔴🆕**新しく見つけた系統バグ＝「〜してもよい。そうした場合、〜」が `CONDITIONAL{IS_MY_TURN}` に化ける。**
+   **少なくとも5効果**で確認（`SPDi43-03-sub-E1`／`WXDi-D04-004-sub-E1`／`WXDi-CP02-002/003/004-E1`）＝
+   **任意コストを払わなくても後段が走る過剰実行**。正は did-it ゲート（`LAST_PROCESSED_*` 系）。
+   ⚠**母集団の実測から始める**（未登録＝§5.3 へ入れるかどうかも実測後に決める）。
+④ **`O-58` 段2／`O-181` 軸(b) は障害を登録票へ書いてある**ので、再開はそこから読む。
+⚠**新機構を足したら、その回のうちに実機観測点を踏む**（この巡も6本すべて同巡で返済した）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -1183,21 +1207,27 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-01（続き772）＝§5.3 索引 B バッチ（Codex 実装／Claude 検証・本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 20 / 863 (2.3%)**（うち `mech` 20・**即着手可能 0**・据置）｜
-  **台帳 残 OPEN 44**（据置）｜**census 高シグナル 11 / BASELINE 12**（据置）
-  📦**在庫2本**＝**機構 worklist 97 → 90項目**（§5.3＝母集団2桁 **14**／**3〜8効果 11 → 2**／**1〜2効果 33 → 35**／
-  母集団未計測 34／計器較正 4／事実上クローズ 1）｜🏁**実機 残 0件**（§5.1＝この巡の `V-111`〜`V-113` は同巡で返済）
-  🔧**ゲート（2026-09-01 続き772 に Claude が独立実行・全緑 ✅）**＝golden **3215 / 3215**（3209 → +6本）／
+- **2026-09-02（続き773）＝§5.3 索引 B バッチ（Codex 2アカウント実装／Claude 検証・引き継ぎ・実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 20 → 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・
+  🔴**増加は計器の較正であって退化ではない**＝§5.3 の索引と登録票にカード番号を明記したぶん `mech` が拾えるようになった。
+  **セッション開始時の PLAN で測り直して 20 を確認済み**。⚠CLAUDE.md の「18枚」は stale）｜
+  **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜**census 高シグナル 11 / BASELINE 12**（据置）
+  📦**在庫2本**＝**機構 worklist 65 → 63項目**（§5.3 の `| \`O-` 行数の実測＝索引 A **17**／
+  **B 14 → 12**／C **34**／D 0／E **4**）｜🏁**実機 残 0件**（§5.1＝この巡の6本は同巡で実行・全 PASS）
+  🔧**ゲート（Claude が独立実行・全緑 ✅）**＝golden **3233 / 3233**（3215 → **+18本**）／
   smoke 10,721効果 全異常0／fuzz 全0／census **11 / BASELINE 12**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 250 warnings／**同型★ 0**。
-  🖥**実機（`verifyBattleDrive.mjs`）＝新規3本＋既存回帰1本すべて PASS**（`o191SpellUseNonDisona`・
-  `o180GrowIgnoreLrigType`・`o148VirusAnyCount`・`v12GrantedSpellUseMinus4000`）。**単体でも4本一括でも全 PASS。**
-  🆕**足した機構2本**＝`ExecCtx.lastProcessedCount`（カードでない処理個数の運搬）／`growLogic.ignoresLrigTypeForGrow`。
-  🔎**live の per-effect diff は5効果ちょうど**（`WX15-028-E1` / `WX20-040-E1` / `WX25-CP1-079-E1` /
-  `WXDi-P13-008-E3` / `WXDi-P16-058-E3`）＝Codex の申告と完全一致。held **76 → 75**（消えたのは
-  続き771 で完了済みの `WXDi-P12-034` の stale 項目のみ・新規増0）。
-  ⚠**実機は必須と判定**（§2.2）＝`src/screens/BattleScreen.tsx` と `src/screens/battle/growLogic.ts` を触った。
+  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 250 warnings。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規6本すべて PASS**＝`o58ArtemisAttackerBanish`／
+  `o58GustavAttackerBanishOnce`／`o58OpponentTurnOnlyDoesNotProtectAttacker`（🔴反転確認）／
+  `o181LrigAttackEndFiresWhenGuarded`／`o181LrigAttackEndSkippedWhenDamaged`（🔴反転確認）／
+  `o181LegacyGuardShapeAlsoFires`。**`o58` 3本は Codex が記述・`o181` 3本は Claude が記述／実行は全部 Claude。**
+  🆕**足した機構**＝`CardTypeFilter` に `リレーピース`／`AttackEndTriggerOptions{attackerKind, wasGuarded}`＋
+  ルリグアタック終了の収集地点（`performGuardResponse`）／`selectMandatoryAttackerBanishSubstitute`（`src/screens/battle/`）／
+  `RevealUntilHitSpec.handOrField` と SEARCH pending の `deckOwner` 配線。
+  🔑**新しい Condition 型・TargetFilter キーは1つも足していない**（`O-97`／`O-58`／`O-52` は全部既存機構で足りた）。
+  🔄**据置契約を2本反転**（削除禁止の規約どおり）＝第40バッチ `WXDi-D04-004-sub-E1`／第20バッチ `SP27-005`。
+  🔎**live の per-effect diff＝合計9効果**（`O-97` 4／`O-181` 1／`O-52` 4。`O-58` は engine のみで live 不変）。
+  **既存 `REVEAL_UNTIL` 17効果は全件オブジェクト一致**で不変であることを個別に確認済み。
 
 ## 付録A. 全体像と Definition of Done
 

@@ -1,5 +1,33 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-09-01・続き772・Codex 実装／Claude 検証＋実機）＝索引 B を 11件 → 2件（9件クローズ）。**
+  📊**進捗3計器＝Sheet1 要対応 20 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
+  📦**在庫2本＝④機構 worklist 97 → 90項目（索引 B が 11 → 2・索引 C が 33 → 35）／⑤実機 `V-nn` は 0件（この巡の分は同巡で返済）。**
+  gates 全緑（golden **3215 / 3215**・0 FAIL・smoke 10,721 全異常0・fuzz 全0・census 11・census-stubs A🔴0/C0・
+  manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors/250 warnings・同型★0）。
+  **実機＝新規3本＋既存回帰1本すべて PASS（単体でも4本一括でも）。**
+
+  🔑**この巡の主題＝索引 B（母集団3〜8効果）の11項目を実測し直したら、「登録票どおりに残っていた」項目が1つも無かった。**
+  ① **丸ごと消化済み3件**＝`O-155`（`same:'power'` / `distinct:'costSum'`）／`O-196`（集合制約のコスト節3種）／
+  `O-216`（`BANISH{ALL}` の4軸）。**コード変更ゼロでクローズ。**
+  ② **大半が閉じていた4件**＝`O-156`（6→1）／`O-184`（8→1）／`O-161`（4→1）／`O-191`（3→1）。残り1件ずつを消化した。
+  ③ **engine を新しく足したのは2件だけ**＝`O-148`（`virusCount:'any'` の枚数選択ループ＋**カードでない処理個数**を運ぶ
+  `ExecCtx.lastProcessedCount` 新設）／`O-180`（`growLogic.ignoresLrigTypeForGrow`）。
+  ④ **`O-180` / `O-148` は残1効果になったので索引 C へ移し、`O-163` / `O-181` は設計調査だけして索引 B に残した。**
+
+  🔑🔴**主産物＝「Claude の投入前実測」が4件外れ、Codex が実コードで訂正した。**
+  ①【シュート】は `src/engine/` ではなく **`src/screens/battle/signiAttackKeywords.ts` に実装済み**
+  （**engine だけ grep して「0 hit＝未実装」と書いた**）
+  ②`O-161` は登録票の**提案キー名** `noCommonColorWithSelf` で grep して「無い」としたが、**同義の `colorNotMatchesSource` が既存**
+  ③`WXDi-P16-058` の対象は `-E1` ではなく **`-E3`**
+  ④`WX25-P3-058-E1` は【ウィルス】ではなく**【みこみこ親衛隊】という別カウンタ**（`REMOVE_VIRUS` の誤流用）。
+  ⇒ 🔑**「提案キー名で grep して無い」は受け皿が無いことの証明にならない。同義の既存語彙と、engine 以外の層（`src/screens/`）を先に探す。**
+
+  ⚠**実機は必須と判定**（§2.2）＝`src/screens/BattleScreen.tsx`（ON_SPELL_USE ゲートの1本化）と
+  `src/screens/battle/growLogic.ts` を触った。**新規3本＝`o191SpellUseNonDisona`（負方向）・`o180GrowIgnoreLrigType`・
+  `o148VirusAnyCount`**、＋既存 `v12GrantedSpellUseMinus4000` を正方向の回帰として再実行。
+  ⚠**Codex は利用上限で最終レポートだけ書けずに exit 1**（実装とゲートは完走済み）＝作業ツリーの成果をそのまま検証して引き取った。
+
 - 🏁**セッション（2026-09-01・続き771・Opus 5 単独／§5.3 索引 C バッチ）＝索引 C を 45件 → 33件（12件クローズ）。**
   📊**進捗3計器＝Sheet1 要対応 20 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
   🔴**12件クローズしても Sheet1 が動かないのは正常**＝残 20 枚は**別の（まだ開いている）登録票**から `mech` が立っている。

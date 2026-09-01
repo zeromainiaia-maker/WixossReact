@@ -15,6 +15,23 @@
 > | §5.4 (i) 配線ギャップの一覧・(iv) 計器較正 | 「旧・§5.4 (i) 配線ギャップ一覧」 |
 > | §5.4 (ii) のクローズ済み6件 | 「旧・§5.4 (ii) クローズ済み」 |
 > | §6 恒久指標（続き769＝PLAN 再編第2回の直後） | 「恒久指標（退避）2026-09-01 続き769 前」 |
+
+- **2026-09-01（続き772）＝§5.3 索引 B バッチ（Codex 実装／Claude 検証・本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 20 / 863 (2.3%)**（うち `mech` 20・**即着手可能 0**・据置）｜
+  **台帳 残 OPEN 44**（据置）｜**census 高シグナル 11 / BASELINE 12**（据置）
+  📦**在庫2本**＝**機構 worklist 97 → 90項目**（§5.3＝母集団2桁 **14**／**3〜8効果 11 → 2**／**1〜2効果 33 → 35**／
+  母集団未計測 34／計器較正 4／事実上クローズ 1）｜🏁**実機 残 0件**（§5.1＝この巡の `V-111`〜`V-113` は同巡で返済）
+  🔧**ゲート（2026-09-01 続き772 に Claude が独立実行・全緑 ✅）**＝golden **3215 / 3215**（3209 → +6本）／
+  smoke 10,721効果 全異常0／fuzz 全0／census **11 / BASELINE 12**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 250 warnings／**同型★ 0**。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規3本＋既存回帰1本すべて PASS**（`o191SpellUseNonDisona`・
+  `o180GrowIgnoreLrigType`・`o148VirusAnyCount`・`v12GrantedSpellUseMinus4000`）。**単体でも4本一括でも全 PASS。**
+  🆕**足した機構2本**＝`ExecCtx.lastProcessedCount`（カードでない処理個数の運搬）／`growLogic.ignoresLrigTypeForGrow`。
+  🔎**live の per-effect diff は5効果ちょうど**（`WX15-028-E1` / `WX20-040-E1` / `WX25-CP1-079-E1` /
+  `WXDi-P13-008-E3` / `WXDi-P16-058-E3`）＝Codex の申告と完全一致。held **76 → 75**（消えたのは
+  続き771 で完了済みの `WXDi-P12-034` の stale 項目のみ・新規増0）。
+  ⚠**実機は必須と判定**（§2.2）＝`src/screens/BattleScreen.tsx` と `src/screens/battle/growLogic.ts` を触った。
+
 > | §6 恒久指標（続き768） | 「恒久指標（退避）2026-09-01 続き768 後」 |
 
 ### 恒久指標（退避）2026-09-01 続き772 前（＝続き771 の索引 C バッチ直後の値）
