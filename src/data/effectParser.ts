@@ -9096,6 +9096,57 @@ function applyDroppedEnergyDesignation(text: string, action: EffectAction): Effe
   return { ...action, steps } as EffectAction;
 }
 
+
+// ── §5.3 `O-188` 第3バッチ（2026-09-01）：**回収の対象宣言がゾーンごと落ちて無言 no-op になる** ──
+// 「あなたの〈トラッシュ／エナゾーン〉から〈修飾〉N枚(まで)を**対象とし**、〈任意コスト〉**てもよい**。
+//   **そうした場合、それを手札に加える**」で、**対象宣言のゾーン・所有者・修飾が丸ごと落ち**、
+//   帰結が既定の `TRANSFER_TO_HAND{source:{DECK_CARD, owner:'self', count:1}}` に化けていた。
+// 🔴**これは「別のカードを拾う」ではなく丸ごと no-op**＝`execTransferToHand` は `DECK_CARD` を
+//   **`fromTop:true` のときしか扱わず**、それ以外は最後の `else` で `done(ctx)` に落ちる。
+//   ⇒ **コストを払っても何も起きない**（＝過小実行。逆翻訳・census・golden では気付けない）。
+// ⚠**先行例と同じ作法**＝`applyDroppedEnergyDesignation`（続き375）に倣い、
+//   **壊れている形（`DECK_CARD` 既定）に当たったときだけ**書き換える。既に正しい形は据置する。
+// ⚠`applyDroppedTargetDesignation`（`SELECT_TARGET_ONLY` 方式）は持ち込まない＝あちらは
+//   **コスト量が対象に依存する**形のための機構で、ここは固定コスト。対象固定が要る効果は
+//   後段の `applyO96OptionalCostTargetFirst` が**正しい source を得たあとで**引き上げる。
+const RECOVER_DESIG_BEFORE_COST_RE =
+  /(?:(対戦相手|あなた)の)?(トラッシュ|エナゾーン)から([^。]{0,60}?(?:カード|シグニ|スペル|アーツ))(?:を)?([０-９\d]+)枚(まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?を手札に加える/;
+
+function applyDroppedRecoveryDesignation(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const m = text.match(RECOVER_DESIG_BEFORE_COST_RE);
+  if (!m) return action;
+  const steps = [...(action as SequenceAction).steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 0) return action;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  const then = gate.then as EffectAction & { source?: EffectTarget };
+  // 🔴**壊れている形だけ**＝`DECK_CARD`（`fromTop` 無し）へ落ちた `TRANSFER_TO_HAND`。
+  //   既に正しいゾーンを持つ形・`transferGroups` を持つ形には触らない。
+  if (then?.type !== 'TRANSFER_TO_HAND') return action;
+  if (then.source?.type !== 'DECK_CARD' || (then.source as { fromTop?: boolean }).fromTop) return action;
+  if ((then as { transferGroups?: unknown[] }).transferGroups?.length) return action;
+  const desc = m[3];
+  const filter: TargetFilter = {
+    ...(/シグニ$/.test(desc) ? { cardType: 'シグニ' as const }
+      : /スペル$/.test(desc) ? { cardType: 'スペル' as const }
+      : /アーツ$/.test(desc) ? { cardType: 'アーツ' as const } : {}),
+    ...parseStoryFilter(desc), ...parseColorFilter(desc), ...parseLevelFilter(desc),
+  };
+  // ⚠**「このターンに（手札から）捨てた」はここでは扱わない**＝受け皿（`TargetFilter.discardedFromHandThisTurn`）は
+  //   在るが、該当する `SPK01-12-E1` は**ゾーンが既に正しい**のでこの規則には入ってこない（＝ここに書いても
+  //   1件も通らない死んだ枝になる）。あれは名詞句フィルタ側の穴なので別項目として登録した。
+  const source: EffectTarget = {
+    type: m[2] === 'トラッシュ' ? 'TRASH_CARD' : 'ENERGY_CARD',
+    owner: m[1] === '対戦相手' ? 'opponent' : 'self',
+    count: parseNum(m[4]),
+    upToCount: !!m[5],
+    ...(Object.keys(filter).length > 0 ? { filter } : {}),
+  };
+  steps[gateIdx] = { ...gate, then: { ...then, source } } as EffectAction;
+  return { ...action, steps } as EffectAction;
+}
+
 // ── §6.4 「〈任意コスト〉てもよい。そうした場合、〈本体〉」の**任意性脱落**（続き416）──
 // 原文の「てもよい」が parser で落ち、コスト（手札を捨てる等）が **強制** になっていた系統
 // （`node scripts/_checkAllEffects.mjs` の `MANDATORY_SUSPICIOUS` 実測35カード。手札捨てが最大クラスタ）。
@@ -12148,14 +12199,14 @@ function parseActionTextBody(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, fixMiddleClauseTargetOwner(source,
+    applyThisWayTrashOutcomeGuards(source, applyLegacyTradeStubCost(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedRecoveryDesignation(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source, fixMiddleClauseTargetOwner(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignationToPowerModify(source,
-      applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))))))));
+      applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applyPlaceUnderOtherwiseGate(source,

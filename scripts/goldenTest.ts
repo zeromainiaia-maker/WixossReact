@@ -57709,6 +57709,44 @@ test('O-188 第2バッチ 群B 据置: WXDi-P09-043-E2 は「このシグニを�
     'WXDi-P09-043-E2: まだ自己回収になっていない（直したらこのテストを書き換える＝§5.3 に登録済み）');
 });
 
+// ── §5.3 `O-188` 第3バッチ（2026-09-01）＝回収の対象宣言がゾーンごと落ちて**無言 no-op** ──
+// 🔴実害＝**過小実行**。原文は「あなたの〈トラッシュ／エナゾーン〉から〈X〉N枚(まで)を対象とし、
+//   〈任意コスト〉てもよい。そうした場合、それを手札に加える」なのに、live の帰結が
+//   `TRANSFER_TO_HAND{source:{DECK_CARD, owner:'self', count:1}}` に化けていた。
+// 🔑**`execTransferToHand` は `DECK_CARD` を `fromTop:true` のときしか扱わない**＝それ以外は
+//   最後の `else` で `done(ctx)` に落ちる ⇒ **コストを払っても何も起きない**。
+//   逆翻訳・census・golden の型カバレッジでは気付けない（型は正しく、値だけが別ゾーン）。
+test('O-188 第3バッチ: 回収の対象宣言が原文どおりのゾーンとフィルタになる', () => {
+  for (const [num, eid, zone, filt] of [
+    ['WXDi-P01-070', 'WXDi-P01-070-E1', 'ENERGY_CARD', { cardType: 'シグニ', story: '武勇' }],
+    ['WXDi-P05-059', 'WXDi-P05-059-E2', 'TRASH_CARD', { cardType: 'スペル', color: '赤' }],
+    ['WDK08-Y14', 'WDK08-Y14-E1', 'ENERGY_CARD', { cardType: 'シグニ', story: '水獣' }],
+  ] as const) {
+    for (const [label, effect] of [
+      ['live', (effectsMap.get(num) ?? []).find(e => e.effectId === eid)],
+      // §5-29＝fresh 側でも成立すること（規則を外すと赤くなる。live 読みだけで閉じない）。
+      ['fresh', parseCardEffects(cardMap.get(num)!).find(e => e.effectId === eid)],
+    ] as const) {
+      ok(!!effect, `${eid}: ${label} が存在する`);
+      const json = JSON.stringify(effect?.action ?? {});
+      ok(json.includes(`"type":"${zone}"`), `${eid}(${label}): 回収元が ${zone}`);
+      for (const [k, v] of Object.entries(filt)) {
+        ok(json.includes(`"${k}":"${v}"`), `${eid}(${label}): フィルタ ${k}=${v} が残っている`);
+      }
+      // 🔴対照＝**旧挙動（DECK_CARD 既定）に戻っていないこと**。これが残ると帰結が丸ごと no-op になる。
+      ok(!/"TRANSFER_TO_HAND","source":\{"type":"DECK_CARD"/.test(json),
+        `🔴${eid}(${label}): DECK_CARD 既定（＝無言 no-op）へ戻っていない`);
+    }
+  }
+  // 🔴**据置の記録**＝`WX24-P2-054-E2` は同じ「宣言が落ちる」系だが**帰結の型ごと別物**
+  //   （原文は「対戦相手のシグニを3体まで対象とし、それらのレベルの合計1につき《緑》を支払ってもよい。
+  //   そうした場合、それらをエナゾーンに置く」＝`SEND_TO_ENERGY` ＋ 対象レベル依存コスト）。
+  //   live は `ENERGY_CHARGE{DECK_CARD}`＝**自分のデッキからエナチャージする別の動作**。直したら書き換える。
+  const held = (effectsMap.get('WX24-P2-054') ?? []).find(e => e.effectId === 'WX24-P2-054-E2')!;
+  ok(JSON.stringify(held.action).includes('ENERGY_CHARGE'),
+    'WX24-P2-054-E2: 対象レベル依存コスト＋SEND_TO_ENERGY は未実装のまま（§5.3 に登録済み）');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
