@@ -145,14 +145,26 @@ if (fs.existsSync('docs/_idset_fresh.json')) {
 //     **`mech` が立たない ≠ 機構待ちでない。** 開いた先で機構待ちと分かるカードは依然として出る。
 // ⚠**部分一致の罠**＝`WX24-P2` は `WX24-P2-009` の部分文字列なので、直後が英数字なら別カードとして弾く
 //     （`-E1` / `-BURST` のような接尾辞つき表記は同じカードなので拾う）。
+// 🔴**2026-09-01 に読む範囲を2ファイルへ広げた。** §5.3 は同日の再編で「索引表（PLAN.md）＋登録票の全文
+//     （PLAN_DETAIL.md）」に分割されており、**カード番号はほぼ全部が登録票の側にある**。PLAN.md だけを読むと
+//     「§5.3 から本文が消えた」＝「機構待ちが解消した」に見える（実測＝旧「未採番の機構在庫」30件を採番して
+//     登録票へ移しただけで Sheet1 の要対応が 18 → 1 に化けた）。**登録票は §5.3 の一部**なので両方読む。
 {
   const planText = fs.readFileSync('docs/PLAN.md', 'utf-8');
   const from = planText.indexOf('### 5.3'), to = planText.indexOf('### 5.4');
   const sec53 = from >= 0 && to > from ? planText.slice(from, to) : '';
-  if (!sec53) console.error('⚠ PLAN.md の §5.3 節を切り出せなかった＝mech フラグは0件になる（節見出しが変わった可能性）');
+  if (!sec53) console.error('⚠ PLAN.md の §5.3 節を切り出せなかった＝mech フラグは索引ぶんが0件になる（節見出しが変わった可能性）');
+
+  const detailText = fs.readFileSync('docs/PLAN_DETAIL.md', 'utf-8');
+  const dFrom = detailText.indexOf('## 2026-09-01 整理：PLAN §5.3 機構 worklist 登録票の全文');
+  const dTo = dFrom >= 0 ? detailText.indexOf('\n### 恒久指標（退避）', dFrom) : -1;
+  const tickets = dFrom >= 0 ? detailText.slice(dFrom, dTo > dFrom ? dTo : detailText.length) : '';
+  if (!tickets) console.error('⚠ PLAN_DETAIL.md の §5.3 登録票節を切り出せなかった＝mech フラグが大幅に過少になる（節見出しが変わった可能性）');
+
+  const haystack = sec53 + '\n' + tickets;
   for (const c of rows.keys()) {
-    for (let i = sec53.indexOf(c); i >= 0; i = sec53.indexOf(c, i + 1)) {
-      const next = sec53[i + c.length];
+    for (let i = haystack.indexOf(c); i >= 0; i = haystack.indexOf(c, i + 1)) {
+      const next = haystack[i + c.length];
       if (!next || !/[0-9A-Za-z]/.test(next)) { mark(c, 'mech'); break; }
     }
   }
