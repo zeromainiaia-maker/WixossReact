@@ -31780,6 +31780,102 @@ order.push('o49AttackerBanishRedirectToTrash', 'o49AttackerNoRedirectGoesToEnerg
   'o49AttackerSelfExileReplacesLeave');
 // ── O-49 END ──
 
+// ── O-58（§5.3）アタッカー側の必須バニッシュ置換 ────────────────────────────
+// ⚠Codex はシナリオコードだけを追加し、この3本は実行していない。Claude 側で実機実行する。
+const O58_ARTEMIS = 'WX22-034#5801';
+const O58_ARTEMIS_UNDER = 'WD01-013#5802';
+const O58_GUSTAV = 'WX13-031#5803';
+const O58_BAGUETTE = 'WX17-048#5804';
+const O58_BAGUETTE_ACCE = 'WD01-013#5805';
+const O58_WALL = 'WX01-053#5899'; // P15000。3件ともアタッカーが明確に負ける。
+
+scenarios.o58ArtemisAttackerBanish = {
+  title: 'O-58 WX22-034が自分から攻撃して負けても場に残り、下のカード1枚だけをトラッシュ',
+  spec: o47Spec([O58_ARTEMIS_UNDER, O58_ARTEMIS], [O58_WALL]),
+  drive: (page, H) => driveO47(page, H, 'o58Artemis', (st) => {
+    const stays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O58_ARTEMIS));
+    const underInTrash = (st.host.trashCards ?? []).includes(O58_ARTEMIS_UNDER);
+    const victimNotMoved = !(st.host.energyCards ?? []).includes(O58_ARTEMIS) &&
+      !(st.host.trashCards ?? []).includes(O58_ARTEMIS);
+    return {
+      pass: stays && underInTrash && victimNotMoved,
+      detail: `アルテミス残存=${stays}／下1枚→トラッシュ=${underInTrash}／victimは移動しない=${victimNotMoved}`,
+    };
+  }),
+};
+
+// 1回目のバトル後に、abilities_removed を保ったままアタッカーだけアップして同ターンの2回目を作る。
+// injectScenario は一時stateを全消去するため使わず、現在の host_state を外科的に更新する。
+async function o58RearmGustavSameTurn(page) {
+  const result = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const token = sess.access_token, uid = sess.user?.id;
+    const headers = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const rooms = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers });
+    const roomId = (await rooms.json())?.[0]?.id;
+    if (!roomId) return { ok: false, error: 'PLAYINGルームなし' };
+    const states = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers });
+    const hostState = (await states.json())?.[0]?.host_state;
+    if (!hostState) return { ok: false, error: 'battle_stateなし' };
+    hostState.field.signi_down = [...(hostState.field.signi_down ?? [false, false, false])];
+    hostState.field.signi_down[1] = false;
+    delete hostState.pending_signi_battle;
+    const patched = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
+      method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' },
+      body: JSON.stringify({ host_state: hostState, turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null }),
+    });
+    return { ok: patched.ok, status: patched.status };
+  }, { SUPA_URL, ANON });
+  if (!result?.ok) return result;
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(900);
+  return result;
+}
+
+scenarios.o58GustavAttackerBanishOnce = {
+  title: 'O-58 WX13-031が自分から攻撃して負けた1回目だけ回避し、同ターン2回目はバニッシュ',
+  spec: o47Spec([O58_GUSTAV], [O58_WALL]),
+  async drive(page, H) {
+    const first = await driveO47(page, H, 'o58GustavFirst', (st) => {
+      const stays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O58_GUSTAV));
+      const removed = (st.host.abilitiesRemoved ?? []).includes(O58_GUSTAV);
+      return { pass: stays && removed, detail: `1回目は場に残存=${stays}／abilities_removedへ記録=${removed}` };
+    });
+    if (!first.pass) return first;
+    const rearmed = await o58RearmGustavSameTurn(page);
+    if (!rearmed?.ok) return { pass: false, detail: `2回目の準備失敗=${JSON.stringify(rearmed)}` };
+    const second = await driveO47(page, H, 'o58GustavSecond', (st) => {
+      const gone = v86HasLeftField(st?.host, O58_GUSTAV);
+      const inEnergy = (st.host.energyCards ?? []).includes(O58_GUSTAV);
+      return { pass: gone && inEnergy, detail: `2回目は回避せず離場=${gone}／エナへ=${inEnergy}` };
+    });
+    return second.pass
+      ? { pass: true, detail: `${first.detail}／${second.detail}` }
+      : second;
+  },
+};
+
+const o58BaguetteSpec = o47Spec([O58_BAGUETTE], [O58_WALL]);
+o58BaguetteSpec.hostSet['field.signi_acce'] = [null, [O58_BAGUETTE_ACCE], null];
+scenarios.o58OpponentTurnOnlyDoesNotProtectAttacker = {
+  title: 'O-58負方向 WX17-048は対戦相手ターン限定なので自分から攻撃して負けたバゲットを守らない',
+  spec: o58BaguetteSpec,
+  drive: (page, H) => driveO47(page, H, 'o58BaguetteNegative', (st) => {
+    const gone = v86HasLeftField(st?.host, O58_BAGUETTE);
+    const inEnergy = (st.host.energyCards ?? []).includes(O58_BAGUETTE);
+    const acceInTrash = (st.host.trashCards ?? []).includes(O58_BAGUETTE_ACCE);
+    return {
+      pass: gone && inEnergy && acceInTrash,
+      detail: `バゲットは回避せず離場=${gone}／エナへ=${inEnergy}／付属アクセは通常処理でトラッシュ=${acceInTrash}`,
+    };
+  }),
+};
+
+order.push('o58ArtemisAttackerBanish', 'o58GustavAttackerBanishOnce',
+  'o58OpponentTurnOnlyDoesNotProtectAttacker');
+// ── O-58 END ──
+
 // ── V-30 境界越え（§5.1 🅳）＝`abilities_removed_next_turn` → `abilities_removed` の昇格と失効 ──────
 // **READ 側（積まれている間 UI から【起】が消える）は続き585 で残0クローズ済み。**
 // 残っていたのは**ターン境界を実際に跨がせる**ぶん＝続き566 が「設計限界」としていた

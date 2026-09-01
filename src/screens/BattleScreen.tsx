@@ -33,6 +33,7 @@ import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from './battle/pieceCutin';
 import { completePieceCutinResponseAfterEffects } from './battle/pieceCutinCommit';
+import { selectMandatoryAttackerBanishSubstitute } from './battle/attackerBanishSubstitute';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './battle/energyPaySource';
 
@@ -9198,6 +9199,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let banishedMyUnderCards: string[] = [];
       // O-49: 実際の行き先計算で一度だけ決め、ON_TRASH も同じ値を読む。
       let banishedMyWentToTrash = false;
+      // O-58: アタッカー自身のバニッシュを置換してトラッシュへ移ったカード。
+      // victim の ON_BANISH / ON_LEAVE_FIELD funnel とは分離し、代替カード側のトリガーだけを後段で収集する。
+      const attackerSubstituteTrashedAcce: string[] = [];
+      const attackerSubstituteTrashedUnder: string[] = [];
 
       // タスク12(xliv)(a)：BANISH_REDIRECT の target.filter（レベル/凍結/感染/チャーム限定）を評価するため、
       // 被バニッシュシグニの属性を除去前の opS 盤面から取る（凍結/チャーム/感染はゾーン添字状態＝バニッシュ後は消える）。
@@ -9756,6 +9761,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ⚠**行き先変更はトップ1枚にだけ適用**。下にあったカードは O-48 どおり常にトラッシュへ。
         if (myPower <= opPower && (newMyState.field.signi[zoneIndex] ?? []).at(-1) === myTopNum) {
           const myStackAB = newMyState.field.signi[zoneIndex] ?? [];
+          // O-58 段1: アタッカー側の必須バニッシュ置換。
+          // 判定はバトル前の myS（アタッカー＝victim オーナーのターン）で行い、
+          // 「対戦相手のターンの間」限定の防御能力を自分のアタックへ広げない。
+          const mandatoryMySubstitute = selectMandatoryAttackerBanishSubstitute({
+            state: myS,
+            otherState: opS,
+            victimNum: myTopNum,
+            zoneIndex,
+            cardMap: battleCardMap,
+            effectsMap,
+          });
+          if (mandatoryMySubstitute?.kind === 'prevent_lose_ability') {
+            // WX13-031 / WX15-010: victim は場に残し、同じ abilities_removed で同ターンの再適用を止める。
+            newMyState = {
+              ...newMyState,
+              abilities_removed: [...new Set([
+                ...(newMyState.abilities_removed ?? []), mandatoryMySubstitute.sourceNum,
+              ])],
+            };
+            appendBattleLogs([`${myCardName}（バニッシュ置換）バニッシュされず、${battleCardMap.get(mandatoryMySubstitute.sourceNum)?.CardName ?? mandatoryMySubstitute.sourceNum}はターン終了時までこの能力を失う`]);
+          } else if (mandatoryMySubstitute?.kind === 'trash_acce') {
+            // WXK04-031: アタッカーにアクセされているメレドールだけをトラッシュへ。
+            const newMyAcceSub = cloneAcceSlots(newMyState.field);
+            const slot = newMyAcceSub[zoneIndex] ?? [];
+            const removeIndex = slot.indexOf(mandatoryMySubstitute.cardNum);
+            const remaining = removeIndex >= 0
+              ? [...slot.slice(0, removeIndex), ...slot.slice(removeIndex + 1)]
+              : slot;
+            newMyAcceSub[zoneIndex] = remaining.length > 0 ? remaining : null;
+            attackerSubstituteTrashedAcce.push(mandatoryMySubstitute.cardNum);
+            newMyState = {
+              ...newMyState,
+              trash: [...newMyState.trash, mandatoryMySubstitute.cardNum],
+              field: { ...newMyState.field, signi_acce: newMyAcceSub },
+            };
+            appendBattleLogs([`${myCardName}（アクセ代替バニッシュ）${battleCardMap.get(mandatoryMySubstitute.cardNum)?.CardName ?? mandatoryMySubstitute.cardNum}をトラッシュしてバニッシュ回避`]);
+          } else if (mandatoryMySubstitute?.kind === 'trash_rise_under') {
+            // WX22-034: 原文どおり下からカード1枚だけをトラッシュへ（トップは場に残る）。
+            const newMySigniRiseSub = [...newMyState.field.signi] as (string[] | null)[];
+            const underIndex = myStackAB.indexOf(mandatoryMySubstitute.cardNum);
+            newMySigniRiseSub[zoneIndex] = underIndex >= 0
+              ? [...myStackAB.slice(0, underIndex), ...myStackAB.slice(underIndex + 1)]
+              : myStackAB;
+            attackerSubstituteTrashedUnder.push(mandatoryMySubstitute.cardNum);
+            newMyState = {
+              ...newMyState,
+              trash: [...newMyState.trash, mandatoryMySubstitute.cardNum],
+              field: { ...newMyState.field, signi: newMySigniRiseSub },
+            };
+            appendBattleLogs([`${myCardName}（ライズ代替）下のカード1枚をトラッシュしてバニッシュ回避`]);
+          } else {
           banishedMyCardNum = myTopNum;
           banishedMyUnderCards = myStackAB.slice(0, -1);
           const newMySigniAB = [...newMyState.field.signi] as (string[] | null)[];
@@ -9839,6 +9895,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             },
           };
           appendBattleLogs([`${myCardName}がバニッシュされた（バトル${myPower === opPower ? '相打ち' : '敗北'}）${redirectMyBanish ? '（トラッシュへ）' : redirectMyBanishToHand ? '（手札へ）' : redirectMyBanishToExile ? '（ゲームから除外）' : frozenMyToDeckBottom ? '（凍結→デッキ下）' : frozenMyToTrash ? '（凍結→トラッシュ）' : banishMyToLrigTrash ? '（ルリグトラッシュへ）' : attackerLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
+          }
         }
       } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
         // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
@@ -10241,6 +10298,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const ttmUsedOpp  = attackerIsHost ? ttMine.usedGuestIds : ttMine.usedHostIds;
         if (ttmUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...ttmUsedMine];
         if (ttmUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...ttmUsedOpp] };
+      }
+      // O-58: victim のバニッシュを回避した場合は victim funnel へ入れず、代わりにトラッシュへ
+      // 移ったアクセ／下のカード側だけを、それぞれの正しい origin で収集する。
+      for (const trashedAcce of attackerSubstituteTrashedAcce) {
+        const ttAcce = collectTrashTriggers(trashedAcce, attackerId, newHostState, newGuestState, false, true, true);
+        trashEntriesSA.push(...ttAcce.entries);
+        const usedMineAcce = attackerIsHost ? ttAcce.usedHostIds : ttAcce.usedGuestIds;
+        const usedOppAcce = attackerIsHost ? ttAcce.usedGuestIds : ttAcce.usedHostIds;
+        if (usedMineAcce.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...usedMineAcce];
+        if (usedOppAcce.length > 0) newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...usedOppAcce] };
+      }
+      if (attackerSubstituteTrashedAcce.length > 0) {
+        const mineAcceTriggers = collectAcceToTrashTriggers(
+          attackerId, newMyState, newOpState, attackerSubstituteTrashedAcce.length, 0,
+        );
+        const oppAcceTriggers = collectAcceToTrashTriggers(
+          defenderId, newOpState, newMyState, 0, attackerSubstituteTrashedAcce.length,
+        );
+        trashEntriesSA.push(...mineAcceTriggers.entries, ...oppAcceTriggers.entries);
+        if (mineAcceTriggers.usedOncePerTurnIds.length > 0) {
+          newMyState.actions_done = [...(newMyState.actions_done ?? []), ...mineAcceTriggers.usedOncePerTurnIds];
+        }
+        if (oppAcceTriggers.usedOncePerTurnIds.length > 0) {
+          newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...oppAcceTriggers.usedOncePerTurnIds] };
+        }
+      }
+      for (const trashedUnder of attackerSubstituteTrashedUnder) {
+        trashEntriesSA.push(...collectAnyZoneTrashSelfTriggers(
+          trashedUnder, attackerId, false, 'under_signi', undefined, true, newMyState, newOpState,
+        ));
       }
 
       // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている（バトル起因＝causeOwnerId なし）

@@ -81,6 +81,7 @@ import { buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, offZonePayL
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown } from '../src/screens/battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttackDamage';
+import { selectMandatoryAttackerBanishSubstitute } from '../src/screens/battle/attackerBanishSubstitute';
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
@@ -1072,6 +1073,58 @@ test('§3 タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY の parse とバト�
   eq(collectBanishPreventLoseAbility(cStory, cOpp, true, cardMap as Map<string, CardData>, effectsMap, kaii), null, 'oppTurnOnly: 自ターンは無効');
   cursor = savedCursor;
 });
+
+test('O-58 段1: アタッカー側の必須バニッシュ置換は4効果だけを選び、対戦相手ターン限定を除外する', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const other = mkState({});
+
+  // WX13-031: 自分から攻撃したターンでも自身を1回だけ守る。
+  const gustav = mkState({ signi: ['WX13-031', null, null] });
+  eq(JSON.stringify(selectMandatoryAttackerBanishSubstitute({
+    state: gustav, otherState: other, victimNum: 'WX13-031', zoneIndex: 0, cardMap: cm, effectsMap,
+  })), JSON.stringify({ kind: 'prevent_lose_ability', sourceNum: 'WX13-031' }), 'WX13-031 は能力喪失置換');
+  eq(selectMandatoryAttackerBanishSubstitute({
+    state: { ...gustav, abilities_removed: ['WX13-031'] }, otherState: other,
+    victimNum: 'WX13-031', zoneIndex: 0, cardMap: cm, effectsMap,
+  }), null, 'WX13-031 は同ターン2回目を防がない');
+
+  // WX15-010: ＜武勇＞へ付与された「次に」1回防止も同じ abilities_removed を使う。
+  const grant = effectsMap.get('WX15-010')!.find(e => e.effectId === 'WX15-010-E1')!.action as
+    { type: string; abilities?: CardEffect[] };
+  const buyu = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('武勇'));
+  const granted = mkState({ signi: [buyu, null, null] });
+  granted.granted_effects = { [buyu]: grant.abilities ?? [] };
+  eq(JSON.stringify(selectMandatoryAttackerBanishSubstitute({
+    state: granted, otherState: other, victimNum: buyu, zoneIndex: 0, cardMap: cm, effectsMap,
+  })), JSON.stringify({ kind: 'prevent_lose_ability', sourceNum: buyu }), 'WX15-010 の付与能力も1回防止');
+
+  // WXK04-031: アクセ自身だけをトラッシュへ送る。
+  const acceHost = mkState({ signi: ['WD01-013', null, null] });
+  acceHost.field.signi_acce = [['WXK04-031'], null, null];
+  eq(JSON.stringify(selectMandatoryAttackerBanishSubstitute({
+    state: acceHost, otherState: other, victimNum: 'WD01-013', zoneIndex: 0, cardMap: cm, effectsMap,
+  })), JSON.stringify({ kind: 'trash_acce', cardNum: 'WXK04-031' }), 'WXK04-031 を代わりにトラッシュ');
+
+  // WX22-034: 下のカードは原文どおり1枚だけ。兄弟の WX16-002 は自ターンには無効。
+  const artemis = mkState({});
+  artemis.field.signi[0] = ['WD01-013', 'WD01-014', 'WX22-034'];
+  eq(JSON.stringify(selectMandatoryAttackerBanishSubstitute({
+    state: artemis, otherState: other, victimNum: 'WX22-034', zoneIndex: 0, cardMap: cm, effectsMap,
+  })), JSON.stringify({ kind: 'trash_rise_under', cardNum: 'WD01-013' }), 'WX22-034 は下から1枚だけを選ぶ');
+  const oppTurnRise = mkState({});
+  oppTurnRise.field.signi[0] = ['WD01-013', 'WD01-014', 'WX16-002'];
+  eq(selectMandatoryAttackerBanishSubstitute({
+    state: oppTurnRise, otherState: other, victimNum: 'WX16-002', zoneIndex: 0, cardMap: cm, effectsMap,
+  }), null, 'WX16-002 は対戦相手ターン限定なのでアタッカー側では不成立');
+
+  // 同じ理由で WX16-001 / WXK04-068 もアタッカーを守らない。
+  for (const victim of ['WX16-001', 'WXK04-068']) {
+    const state = mkState({ signi: [victim, null, null] });
+    eq(selectMandatoryAttackerBanishSubstitute({
+      state, otherState: other, victimNum: victim, zoneIndex: 0, cardMap: cm, effectsMap,
+    }), null, `${victim} は対戦相手ターン限定`);
+  }
+}));
 
 test('§3 タスク8 §6.3「正面」サブ機構(b)(d)(e): FRONT_SIGNI 条件・正面能力喪失・正面【出】ブロック', () => {
   const savedCursor = cursor;

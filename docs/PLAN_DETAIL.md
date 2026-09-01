@@ -511,6 +511,14 @@
 
 **2026-08-24 `O-49` の実測で分離**＝`O-49` は**行き先変更**（どこへ置くか）だけをミラーした。残るのは**バニッシュ自体の置換**（アタッカーが**場に残る**）＝`COOKING_BANISH_SUBSTITUTE`／`CHARM_PROTECTION`／`ACCE_BANISH_SUBSTITUTE`／`ACCE_BANISH_SELF_TRASH`／`RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE`／`RISE_BANISH_SUBSTITUTE`／`BANISH_SUBSTITUTE_RISE_STACK`／`BATTLE_BANISH_PREVENT_LOSE_ABILITY`／`banish_substitute_choice` の**長い else-if ladder（防御側 ≈200行）**。⚠**S ではなく L**＝①「〜してもよい」の**任意分岐にモーダルが要る**（人間／CPU の両経路）②回避成立時は **`ON_BANISH`／`ON_LEAVE_FIELD` を発火させない**別 funnel が要る（`O-47` が張った収集をそのまま通すと誤発火）③代替被害者（別のシグニ／アクセ／チャーム）側のトリガー処理が要る。⚠**着手前に9語彙の live 件数・必須/任意・支払い先・代替被害者・選択フローを全数実測する**（`RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE` は「あなたのターンの間」＝**防御側パスでは恒久 no-op**で、アタッカー側に配線して初めて生きる可能性がある）。⚠**唯一 `BANISH_SUBSTITUTE_RISE_STACK`（`WX22-034` 月光の狩猟　アルテミス）だけは必須（「してもよい」なし）＝モーダル不要**なので、分割するならここが最小の1歩。
 
+🏁**2026-09-02（Codex 実装／Claude 検証＋実機3/3 PASS）に段1を消化＝必須4効果をミラー済み。**
+全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-02。■**入れた場所**＝`src/screens/battle/attackerBanishSubstitute.ts`（純関数）＋ `BattleScreen.tsx:9764` の分岐。**防御側 ladder は1バイトも変えていない**（ミラーは追加であって書き換えではない）。■🔑**`activeCondition` をアタッカー＝オーナーターン（`isOwnerTurn=true`）で評価するだけで、「対戦相手のターンの間」限定の5効果は自動的に除外される**＝`collectBanishPreventLoseAbility` の `bp.oppTurnOnly && isOwnerTurn` が既にその判定を持っていた（新しい条件を足していない）。■能力喪失は防御側と同じ `abilities_removed` を再利用＝同ターン2回目は不成立。■置換成立時は `banishedMyCardNum` を立てず victim を `ON_BANISH`/`ON_LEAVE_FIELD`/`ON_TRASH` funnel へ流さない。代替カード側だけを別途収集する。
+
+🔴**残は任意2効果（`WX04-052-E1` チャーム／`WXDi-P09-TK03A-E1` アクセ除外）＝モーダルが要る。着手前に読む障害3点**（2026-09-02 の設計調査）：
+①**`BanishSubstituteOptionState` とモーダルが `sacrifice` / `pay_cost` の2種専用**で、チャーム廃棄・アクセ除外を表現できない（型と UI の同時拡張が要る）。
+②人間／CPU 双方の選択・pause/resume・代替カード側トリガーを**まとめて**拡張する必要がある。
+③🔴**既存の防御側 `ACCE_BANISH_SUBSTITUTE` はログでは「ゲームから除外」だが実装は `trash` へ置いている**＝**防御側を変更しない制約のまま共通化すると、この不整合をアタッカー側へ複製する**。⇒ 共通化する前にこの1点を決着させること。
+
 ### `O-59` — 固定シグニゾーンへの【トラップ】設置／再配置対話
 
 **規模／母集団（登録票の記載そのまま）**＝**L**

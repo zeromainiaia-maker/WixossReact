@@ -1,5 +1,43 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02：§5.3 `O-58` 段1 — 攻撃側にも必須バニッシュ置換4効果をミラー
+
+**ベースライン**＝`f148aa317`。防御側の約370行ある既存 ladder は変更せず、アタッカー自身が
+バトルでバニッシュされる直前に、必須置換だけを選ぶ `selectMandatoryAttackerBanishSubstitute` を
+`src/screens/battle/` へ追加した。
+
+**対象**＝`WX22-034-E2`（下から1枚をトラッシュ）、`WXK04-031-E2`（アクセ自身をトラッシュ）、
+`WX13-031-E1` / `WX15-010-E1`（バニッシュされず能力喪失）の4効果。
+`activeCondition` はアタッカー＝オーナーターンとして評価し、`WX16-001` / `WX16-002` /
+`WXK04-068` など「対戦相手のターンの間」限定の能力を自ターンへ広げない。
+能力喪失は防御側と同じ `abilities_removed` を使い、同ターン2回目を不成立にした。
+
+**トリガー境界**＝置換成立時は `banishedMyCardNum` / `banishedMyUnderCards` を立てず、victim を
+`ON_BANISH` / `ON_LEAVE_FIELD` / `ON_TRASH` funnel へ流さない。代わりにトラッシュへ移ったアクセは
+通常の trash trigger と ACCE_TO_TRASH、下のカードは `origin:'under_signi'` の trash trigger だけを収集する。
+
+**golden（+1本）**＝4効果の正方向、`abilities_removed` 後の2回目、`WX16-001` / `WX16-002` /
+`WXK04-068` の負方向を固定した。
+
+**実機（🔴必須＝`src/screens/` を触ったので CLAUDE.md ⑤ の判定規則どおり）**＝
+`scripts/verifyBattleDrive.mjs` へ3本追加し、**Claude 側で実行して 3/3 PASS**。
+- `o58ArtemisAttackerBanish`＝アルテミス残存=true／下1枚→トラッシュ=true／victim は移動しない=true
+- `o58GustavAttackerBanishOnce`＝1回目は場に残存=true／`abilities_removed` へ記録=true／**2回目は回避せず離場**=true
+- `o58OpponentTurnOnlyDoesNotProtectAttacker`（🔴反転確認）＝バゲット（対戦相手ターン限定）は
+  **自分から攻撃して負けたときは守られない**=true／エナへ=true／付属アクセは通常処理でトラッシュ=true
+
+**Claude 側の独立検証**＝`npm run gates` 全緑（golden 3227/3227・smoke 10721 全0・fuzz 全0・
+census 高シグナル11・STUB A群0・enginetext 130行/127ハンドラ・manual-fields 0/0・lint 0 errors）。
+
+**段2据置**＝任意置換の `WX04-052-E1` / `WXDi-P09-TK03A-E1` は未実装。既存永続型とモーダルが
+`sacrifice` / `pay_cost` の2種専用で、チャーム／アクセ除外の選択肢、CPU判断、pause/resume 後の
+代替カード trigger を同時に拡張する必要がある。また既存防御側 `ACCE_BANISH_SUBSTITUTE` はログ上は
+「ゲームから除外」だが実装は `trash` へ置いており、既存 ladder を変更しない制約下では安全に共通化できない。
+
+**検証**＝`npm run gates` 全緑（golden **3227/3227**、smoke 10721/10721・全0、fuzz 全0、
+census 高シグナル11、STUB A群0、enginetext 130行/127ハンドラ、manual-fields 0/0、
+lint 0 errors/250 warnings）。ベースラインからの差分は golden +1のみ。
+
 ## 2026-09-02：§5.3 `O-97` — 複数の印刷済み【使用条件】を4ピースへ復元
 
 **真因（1行）**＝`parseArtsEffect` が先頭の印刷済み【使用条件】を `.find()` で1本だけ消費していたため、
