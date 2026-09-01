@@ -273,7 +273,11 @@ export function parseIconFilter(span: string): Partial<TargetFilter> {
   if (/それぞれ[０-９\d]+枚/.test(span) && span.includes('と')) return {};
   if (/シグニ(?:を)?[０-９\d]+枚と/.test(span)) return {};
   if (/《ライズアイコン》を持たない/.test(span)) return { noRiseIcon: true };
-  const m = span.match(/《(ライズ|クロス|アクセ)アイコン》を持つ/);
+  // 🆕**色つきアイコンの綴り**（2026-09-01・§5.3 `O-188` 第7バッチ）＝CSV には
+  //   `《ライズアイコン_黒》_black` という**画像由来の綴り**が実在する（`WDK15-001/009/017` の3枚）。
+  //   ⚠色サフィックスは**表示上の色**であってフィルタ条件ではない（`WDK15-009-E1` の MANUAL 実装も
+  //   `hasRiseIcon:true` だけを書いている）＝**色を filter に足さない**。
+  const m = span.match(/《(ライズ|クロス|アクセ)アイコン(?:_[白赤青緑黒])?》(?:_[a-z]+)?を持つ/);
   return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};
 }
 
@@ -1188,7 +1192,10 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: Re
   { re: /^《アクセアイコン》を持つ/, apply: (_m, a) => { a.filter.hasIcon = 'アクセ'; return true; } },
   { re: /^《クロスアイコン》を持つ/, apply: (_m, a) => { a.filter.hasCrossIcon = true; return true; } },
   { re: /^《ライズアイコン》を持たない/, apply: (_m, a) => { a.filter.noRiseIcon = true; return true; } },
-  { re: /^《ライズアイコン》を持つ/, apply: (_m, a) => { a.filter.hasRiseIcon = true; return true; } },
+  // ⚠**色つきアイコンの綴り**＝CSV には `《ライズアイコン_黒》_black` という画像由来の綴りが実在する
+  //   （`WDK15-001/009/017`）。色サフィックスは表示上の色であってフィルタ条件ではない（`WDK15-009-E1`
+  //   の MANUAL 実装も `hasRiseIcon:true` だけ）＝**色は足さない**。2026-09-01・§5.3 `O-188` 第7バッチ。
+  { re: /^《ライズアイコン(?:_[白赤青緑黒])?》(?:_[a-z]+)?を持つ/, apply: (_m, a) => { a.filter.hasRiseIcon = true; return true; } },
   { re: /^《ガードアイコン》を持たない/, apply: (_m, a) => { a.filter.noGuard = true; return true; } },
   { re: /^《ディソナアイコン》(?:を持つ|の)?/, apply: (_m, a) => { a.filter.isDisona = true; return true; } },
   { re: /^【ライフバースト】を持つ/, apply: (_m, a) => { a.filter.hasLifeBurst = true; return true; } },

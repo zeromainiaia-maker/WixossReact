@@ -2380,7 +2380,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     } else if (nameM) {
       // 《Xアイコン》を持つカード＝アイコン保持フィルタ（hasIcon）。カード名フィルタにすると
       // どのカード名にも含まれず無言no-matchになる（WX08-072-BURST の旧バグ）
-      const iconM = nameM[1].match(/^(クロス|ライズ|トラップ|アクセ)アイコン$/);
+      // ⚠**色つきの綴りも受ける**（2026-09-01・§5.3 `O-188` 第7バッチ）＝CSV には
+      //   `《ライズアイコン_黒》` という画像由来の綴りが実在し（`WDK15-017-E1`）、
+      //   ここで弾かれて `cardName:'ライズアイコン_黒'` に落ちていた＝**どのカード名にも一致しない
+      //   恒久 no-op**（このコメントが警告している旧バグと同型が、綴り違いで再発していた）。
+      const iconM = nameM[1].match(/^(クロス|ライズ|トラップ|アクセ)アイコン(?:_[白赤青緑黒])?$/);
       if (iconM) filter.hasIcon = iconM[1] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ';
       else filter.cardName = nameM[1];
     }

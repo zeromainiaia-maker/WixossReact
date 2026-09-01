@@ -11722,6 +11722,24 @@ function parseExplicitSelectionGroups(text: string): SelectionGroupSpec[] | null
     { filter: { cardType: 'ルリグ' }, count: parseNum(m[1]) },
     { filter: { cardType: 'シグニ' }, count: parseNum(m[2]) },
   ];
+  // 🆕**一般形の受け皿**（2026-09-01・§5.3 `O-188` 第7バッチ）＝上の綴り別テーブルは
+  //   「クラス＋クラス」「クラス＋スペル」等の**列挙**なので、レベル修飾・アイコン修飾・
+  //   「色のスペル」が付いた瞬間に取りこぼし、**片方の群だけが live に残る過剰＋過小実行**になっていた
+  //   （実測4効果＝`WX19-027-BURST`／`WXK02-002-E1`／`WXK07-034-BURST`／`WDK15-001-E2`）。
+  // 🔑名詞句の意味解釈は**第4バッチと同じ `recoveryGroupFilter`**（＝既存 `parsePickNounPhraseFilter`）へ一任し、
+  //   ここは「〈名詞句A〉N枚と〈名詞句B〉M枚」の**分割だけ**を担う。
+  // ⚠**fail-closed**＝どちらかの名詞句が解けない綴りなら `null` を返して従来どおり（推測で群を作らない）。
+  // ⚠**ゾーン句で左端を固定する**＝固定しないと group1 が「【出】：あなたのトラッシュから…」まで飲み込み、
+  //   名詞句として解けなくなる（最初の実装で実際にそうなった）。
+  const pairM = text.match(/(?:あなた|対戦相手)の(?:トラッシュ|エナゾーン)から([^、。]{1,40}?)(?:を)?([０-９\d]+)枚と([^、。]{1,40}?)(?:を)?([０-９\d]+)枚(?:まで)?を?対象とし/);
+  if (pairM) {
+    const left = recoveryGroupFilter(pairM[1]);
+    const right = recoveryGroupFilter(pairM[3]);
+    if (left && right) return [
+      { filter: left, count: parseNum(pairM[2]) },
+      { filter: right, count: parseNum(pairM[4]) },
+    ];
+  }
   return null;
 }
 
@@ -11949,6 +11967,14 @@ function applyExplicitSelectionGroups(text: string, parsed: EffectAction): Effec
     return null;
   };
   const withGroups = (current: SelectionConstraint | undefined, local: SelectionGroupSpec[]): SelectionConstraint => ({ ...current, groups: local });
+  // 効果全体に `TRANSFER_TO_HAND` がいくつあるかを先に数える（下の「既に割れている形」ガード用）。
+  const countTransferToHand = (node: EffectAction): number => {
+    let n = node.type === 'TRANSFER_TO_HAND' ? 1 : 0;
+    if (node.type === 'SEQUENCE') n += node.steps.reduce((sum, step) => sum + countTransferToHand(step), 0);
+    if (node.type === 'CONDITIONAL') n += countTransferToHand(node.then) + (node.else ? countTransferToHand(node.else) : 0);
+    return n;
+  };
+  const transferToHandNodeCount = countTransferToHand(parsed);
   const rewrite = (node: EffectAction): EffectAction => {
     const searchGroups = groupsFor(/(?:デッキ|トラッシュ)から.*探して/);
     if (node.type === 'SEARCH' && searchGroups) {
@@ -11960,7 +11986,11 @@ function applyExplicitSelectionGroups(text: string, parsed: EffectAction): Effec
       };
     }
     const handGroups = groupsFor(/(?:トラッシュ|エナゾーン)から.*手札に加える/);
-    if (node.type === 'TRANSFER_TO_HAND' && handGroups) {
+    // 🔴**既に群ごとの回収ステップへ割れている効果には載せない**（2026-09-01・§5.3 `O-188` 第7バッチ）＝
+    //   `WXEX1-30-BURST`「白のシグニ１枚と青のシグニ１枚」は **`TRANSFER_TO_HAND` 2ステップ**で既に正しく、
+    //   そこへ群を足すと**2ステップとも「合計2枚」になって合計4枚**の過剰実行になる（実際に一度そうなった）。
+    //   ⇒ **回収ノードが1つのときだけ**群へ畳む（別構造で正しい群は §5-3-4″ どおり触らない）。
+    if (node.type === 'TRANSFER_TO_HAND' && handGroups && transferToHandNodeCount === 1) {
       return {
         ...node,
         source: {

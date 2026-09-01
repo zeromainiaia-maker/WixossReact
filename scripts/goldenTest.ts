@@ -11734,15 +11734,14 @@ test('続き377c トリップワイヤ: 別ピック2本の span にアイコン
     ['WX16-026', 'WX16-026-BURST'], ['WX16-031', 'WX16-031-BURST'], ['WXK02-002', 'WXK02-002-E1'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
-    if (card === 'WXK02-002') {
-      eq(/"hasIcon"/.test(JSON.stringify(e?.action ?? {})), false,
-        `${effId}: 未分離の2本を1つの filter に AND しない（過小実行を作らない）`);
-      continue;
-    }
-    // O-188 第4バッチで群を分離した2効果は、アイコン自体が無いことではなく
-    // 「アイコン群とクラス群が同じ filter に AND されないこと」が元の契約。
-    const filters = o188GroupedTransfers(e?.action).flatMap(action =>
+    // O-188 第4・第7バッチで**3件とも群へ分離できた**ので、契約は「アイコン自体が無いこと」ではなく
+    // 「アイコン群とクラス群が**同じ filter に AND されない**こと」＝群の中身で直接見る。
+    // ⚠器は2通りある＝`transferGroups`（第4）と `source.selectionConstraint.groups`（第7）。
+    const groupedFilters = o188GroupedTransfers(e?.action).flatMap(action =>
       (action.transferGroups ?? []).map(group => group.filter ?? {}));
+    const constraintFilters = ((e?.action as { source?: { selectionConstraint?: { groups?: Array<{ filter?: TargetFilter }> } } })
+      ?.source?.selectionConstraint?.groups ?? []).map(group => group.filter ?? {});
+    const filters = groupedFilters.length ? groupedFilters : constraintFilters;
     ok(filters.length === 2 && filters.every(filter =>
       !((filter.hasIcon || filter.hasRiseIcon) && (filter.cardClass || filter.story))),
     `${effId}: 2本の別ピックを1つの filter に AND しない（過小実行を作らない）`);
@@ -58048,6 +58047,76 @@ test('O-188 第6バッチ 実行: 群制約が「同じ群の二重取り」と�
   // 対照＝制約が無ければ両方とも通る（＝この assert は制約が効いていることを見ている）
   ok(satisfiesSelectionConstraint([lv1, lv1b], undefined, cardMap), '対照: 制約なしなら同レベル2枚も通る');
   ok(satisfiesSelectionConstraint([lv1, lv4], undefined, cardMap), '対照: 制約なしならレベル4も通る');
+});
+
+// ── §5.3 `O-188` 第7バッチ（2026-09-01）＝「〈A〉1枚と〈B〉1枚を対象とし、それらを手札に加える」──
+// 🔴旧 live は**片方の群だけ**が残っていた（枚数が2→1に減る過小実行＋残った側の候補が広い過剰実行）。
+//   既存の綴り別テーブル（`parseExplicitSelectionGroups`）は「クラス＋クラス」等の列挙なので、
+//   レベル修飾・アイコン修飾・「色のスペル」が付くと取りこぼしていた。⇒ 名詞句の解釈を
+//   第4バッチと同じ `recoveryGroupFilter` へ委ねる一般形を最後の受け皿として足した。
+const o188Batch7Expected = [
+  ['WX19-027', 'WX19-027-BURST', [
+    { cardType: 'シグニ', level: 1, cardClass: '英知' },
+    { cardType: 'シグニ', level: 4, cardClass: '英知' },
+  ]],
+  ['WXK02-002', 'WXK02-002-E1', [
+    { cardType: 'シグニ', hasRiseIcon: true },
+    { cardType: 'シグニ', cardClass: 'アーム' },
+  ]],
+  ['WXK07-034', 'WXK07-034-BURST', [
+    { cardType: 'シグニ', color: '黒' },
+    { cardType: 'スペル', color: '黒' },
+  ]],
+  ['WDK15-001', 'WDK15-001-E2', [
+    { cardType: 'シグニ', hasRiseIcon: true },
+    { cardType: 'シグニ', cardClass: 'ウェポン' },
+  ]],
+] as const;
+
+test('O-188 第7バッチ: 対の回収が live と fresh の両方で群へ分かれる', () => {
+  for (const [cardNum, effectId, expected] of o188Batch7Expected) {
+    for (const [label, effect] of [
+      ['live', (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)],
+      // §5-29＝収穫マージ後の live だけで閉じない（規則を外すと fresh 側が赤くなる）。
+      ['fresh', parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)],
+    ] as const) {
+      ok(!!effect, `${effectId}(${label}): 効果が存在する`);
+      const src = (effect?.action as { source?: { count?: number; selectionConstraint?: { groups?: Array<{ filter?: TargetFilter; count: number }> } } }).source;
+      eq(src?.count, 2, `${effectId}(${label}): 2群ぶんで合計2枚（旧 live は1枚だった）`);
+      eq(JSON.stringify((src?.selectionConstraint?.groups ?? []).map(g => g.filter)), JSON.stringify(expected),
+        `🔴${effectId}(${label}): 群ごとの限定を保持する`);
+    }
+  }
+});
+
+test('O-188 第7バッチ 対照: 既に2ステップへ割れている回収と単一群は書き換えない', () => {
+  // 🔴`WXEX1-30-BURST`（白のシグニ1枚と青のシグニ1枚）は**2ステップで既に正しい**。
+  //   ここへ群を足すと**2ステップとも合計2枚**＝4枚回収の過剰実行になる（実装中に一度そうなった）。
+  const live = (effectsMap.get('WXEX1-30') ?? []).find(e => e.effectId === 'WXEX1-30-BURST')!;
+  const fresh = parseCardEffects(cardMap.get('WXEX1-30')!).find(e => e.effectId === 'WXEX1-30-BURST')!;
+  eq(JSON.stringify(fresh.action), JSON.stringify(live.action),
+    'WXEX1-30-BURST: 別構造で正しい2ステップ回収は据置（合計2枚のまま）');
+  ok(!JSON.stringify(fresh.action).includes('selectionConstraint'),
+    '🔴WXEX1-30-BURST: 2ステップの各段へ群を載せない（載せると合計4枚になる）');
+
+  // 単一群（「と」が無い）は従来どおり1枚のまま。
+  const single = parseCardEffects(cardMap.get('WXK09-047')!).find(e => e.effectId === 'WXK09-047-BURST')!;
+  ok(!JSON.stringify(single.action).includes('selectionConstraint'),
+    'WXK09-047-BURST: 単一の回収を群へ化けさせない');
+});
+
+test('O-188 第7バッチ: 色つきアイコンの綴りが「存在しないカード名」に落ちていた恒久 no-op を直す', () => {
+  // 🔴`《ライズアイコン_黒》_black` は CSV の画像由来の綴り。SEARCH のアイコン判定が完全一致だったため
+  //   `cardName:'ライズアイコン_黒'` に落ち、**どのカード名にも一致しない＝1枚も探せない**状態だった。
+  for (const [label, effect] of [
+    ['live', (effectsMap.get('WDK15-017') ?? []).find(e => e.effectId === 'WDK15-017-E1')],
+    ['fresh', parseCardEffects(cardMap.get('WDK15-017')!).find(e => e.effectId === 'WDK15-017-E1')],
+  ] as const) {
+    const action = effect?.action as { filter?: TargetFilter } | undefined;
+    eq(action?.filter?.hasIcon, 'ライズ', `🔴WDK15-017-E1(${label}): 《ライズアイコン_黒》はアイコン条件として読む`);
+    ok(!JSON.stringify(action ?? {}).includes('ライズアイコン_黒'),
+      `WDK15-017-E1(${label}): 存在しないカード名フィルタは残っていない`);
+  }
 });
 
 if (listMode) {
