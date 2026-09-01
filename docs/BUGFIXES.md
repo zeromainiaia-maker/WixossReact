@@ -1,5 +1,43 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02：§5.3 `O-52` — 「めくれるまで公開」4効果を `REVEAL_UNTIL` へ復元
+
+**ベースライン**＝`824910248`。登録票の「色除外 filter が無い」は誤りで、既存の
+`TargetFilter.colorExclude` と全 `RevealUntilStopCondition.filter` がそのまま使えた。
+`levelLteLastProcessed` / `suppressOnPlay` も型・resolve・live 実績まで確認して再利用した。
+さらに「兄弟を新設」とされた `levelLtLastProcessed` も、型・resolve・parser・逆翻訳・golden まで既に実装済みだった。
+
+**parser / live**＝次の AUTO 4効果だけを fresh から `heldReview --adopt` で採用した。
+- `WX20-041-CB-E1`＝`colorExclude:'青'`＋`story:'遊具'` で停止し、停止札だけを手札へ。
+- `WXK01-045-E2`＝相手シグニを `TRASH` 後、相手デッキからそのレベル以下まで公開して場へ出す（【出】抑止）。
+- `WXDi-CP01-015-E1`＝相手のレベル2以上を `TRASH` 後、相手デッキからそのレベル未満まで公開して場へ出す（【出】抑止）。
+- `SP27-005-E1`＝＜水獣＞まで公開し、停止札を手札／場の2択、残りをシャッフルしてデッキ下へ。
+
+停止条件だけに filter を置くと公開した不一致札も pick 候補になるため、4件とも `hit.filter` に同じ filter を明記した。
+全5枚の effects JSON を baseline とオブジェクト比較し、変化は上記4カード・4 effectId だけ。
+既存 `REVEAL_UNTIL` 17効果（MANUAL 8／PARTIAL 1を含む）は全件一致し、`WX04-015` は触っていない。
+
+**engine の追加検算で見つけた穴**＝`REVEAL_UNTIL{owner:'opponent'}` は公開元だけ相手デッキになる一方、
+SEARCH pending に `deckOwner` が無く、残り札の復帰先が self に既定されていた。
+`deckOwner` と相手 responder を pending へ渡して修正した。
+`SP27-005` の2択は新UIを作らず、既存 SEARCH pending の `handOrField` と画面側の選択経路を
+`RevealUntilHitSpec.handOrField` から再利用したため、`src/screens/` は未変更・実機不要。
+
+**`lastProcessedCards` 境界**＝`TRASH` の選択 resume が実選択カードを `lastProcessedCards` に設定してから
+SEQUENCE の `REVEAL_UNTIL` へ進むことを実装で確認。golden では前々段値としてレベル3以上を注入したうえで
+レベル2 victim をトラッシュし、`lte` はレベル2、`lt` はレベル1で2枚目停止することを固定した。
+
+**golden（+4本、計3233）**＝parser の live/fresh 構造、色／クラス不一致を越えて3枚目だけで止まる境界、
+`lte` / `lt` の2枚目停止と相手デッキ owner、＜水獣＞の手札／場両枝を追加。
+旧「SP27-005は非採用」契約も削除せず採用契約へ反転した。
+
+**据置**＝`WX04-015` は依頼どおりスコープ外。現 HEAD では既に MANUAL の
+`OPP_REVEAL_SPELL_USE_FREE` 経路に載っているため、今回の `REVEAL_UNTIL` バッチからは独立して扱う。
+
+**検証**＝`npm run census:goldentypes` 未カバー0、フィルタなし `npm run golden` 3233/3233 PASS、
+`npm run gates` 全緑（golden 3233/3233・smoke 10721 全0・fuzz 全0・census 高シグナル11・
+STUB A群0・enginetext 130行/127ハンドラ・manual-fields 0/0・lint 0 errors/250 warnings）。
+
 ## 2026-09-02：§5.3 `O-181` 軸(a) — ルリグのアタック終了時（`ON_ATTACK_END`）の収集地点を新設
 
 **ベースライン**＝`fc669c349`。**Codex が実装途中で使用上限に当たり（`.codex-work`）、Claude が引き継いで完成・検証した。**

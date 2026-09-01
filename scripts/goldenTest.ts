@@ -4910,6 +4910,114 @@ for (const [cardNum, effectId, declared] of [
   }));
 }
 
+test('O-52 parser: 色除外／直前トラッシュのレベル以下・未満をREVEAL_UNTILへ構造化', () => {
+  const cases = [
+    ['WX20-041-CB', 'WX20-041-CB-E1', 'self', { cardType: 'シグニ', story: '遊具', colorExclude: '青' }, 'hand'],
+    ['WXK01-045', 'WXK01-045-E2', 'opponent', { cardType: 'シグニ', levelLteLastProcessed: true }, 'field'],
+    ['WXDi-CP01-015', 'WXDi-CP01-015-E1', 'opponent', { cardType: 'シグニ', levelLtLastProcessed: true }, 'field'],
+  ] as const;
+  for (const [cardNum, effectId, owner, filter, destination] of cases) {
+    for (const effect of [
+      manualEffect(cardNum, effectId),
+      parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!,
+    ]) {
+      const reveal = findRevealUntilAction(effect.action)!;
+      ok(!!reveal, `${effectId}: REVEAL_UNTIL`);
+      eq(reveal.owner, owner, `${effectId}: 公開するデッキのowner`);
+      eq(JSON.stringify(reveal.stopCondition), JSON.stringify({ kind: 'signiCount', count: 1, filter }), `${effectId}: 停止条件`);
+      eq(JSON.stringify(reveal.hit), JSON.stringify({ filter, count: 1, destination, ...(destination === 'field' ? { suppressOnPlay: true } : {}) }), `${effectId}: 停止札の行き先`);
+      eq(reveal.restDestination, 'deck_bottom_shuffled', `${effectId}: 残りはシャッフルしてデッキ下`);
+    }
+  }
+  const k = manualEffect('WXK01-045', 'WXK01-045-E2').action as SequenceAction;
+  const d = manualEffect('WXDi-CP01-015', 'WXDi-CP01-015-E1').action as SequenceAction;
+  eq(k.steps[0].type, 'TRASH', 'WXK01-045-E2: 前段は対象シグニをトラッシュ');
+  eq(d.steps[0].type, 'TRASH', 'WXDi-CP01-015-E1: BANISH幻覚ではなくトラッシュ');
+  eq(JSON.stringify((d.steps[0] as import('../src/types/effects').TrashAction).target.filter), JSON.stringify({ cardType: 'シグニ', level: { min: 2 } }), 'WXDi-CP01-015-E1: 前段対象はレベル2以上');
+
+  for (const effect of [
+    manualEffect('SP27-005', 'SP27-005-E1'),
+    parseCardEffects(cardMap.get('SP27-005')!).find(e => e.effectId === 'SP27-005-E1')!,
+  ]) {
+    const reveal = findRevealUntilAction(effect.action)!;
+    ok(!!reveal, 'SP27-005-E1: REVEAL_UNTIL');
+    const filter = { cardType: 'シグニ', story: '水獣' };
+    eq(JSON.stringify(reveal.stopCondition), JSON.stringify({ kind: 'signiCount', count: 1, filter }), 'SP27-005-E1: ＜水獣＞で停止');
+    eq(JSON.stringify(reveal.hit), JSON.stringify({ filter, count: 1, destination: 'hand', handOrField: true }), 'SP27-005-E1: 手札／場の2択');
+    eq(reveal.restDestination, 'deck_bottom_shuffled', 'SP27-005-E1: 残りはシャッフルしてデッキ下');
+  }
+  const sp = manualEffect('SP27-005', 'SP27-005-E1').action as SequenceAction;
+  eq(sp.steps[0].type, 'STUB', 'SP27-005-E1: 任意の青コストを維持');
+  eq(sp.steps[1].type, 'CONDITIONAL', 'SP27-005-E1: 支払った場合だけ公開');
+});
+
+test('O-52 engine WX20-041-CB-E1: 青または非＜遊具＞では止まらず、青ではない＜遊具＞でだけ停止', () => withSavedCursor(() => {
+  const blueYugu = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具') && (c.Color ?? '').includes('青'));
+  const nonBlueYugu = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具') && !(c.Color ?? '').includes('青') && c.CardNum !== blueYugu);
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具') && c.CardNum !== nonBlueYugu);
+  const untouched = findCard(c => ![blueYugu, nonBlueYugu, other].includes(c.CardNum));
+  const action = revealEffect('WX20-041-CB', 'WX20-041-CB-E1');
+  const ctx = mkCtx({}, {}, 'WX20-041-CB');
+  ctx.ownerState.deck = [blueYugu, other, nonBlueYugu, untouched];
+  const result = run(action, ctx);
+  eq(result.lastProcessedCards?.length, 3, '3枚目の青ではない＜遊具＞まで公開（緩すぎる停止を防ぐ）');
+  ok(result.ownerState.hand.includes(nonBlueYugu), '停止札だけを手札へ');
+  ok(!result.ownerState.hand.includes(blueYugu) && !result.ownerState.hand.includes(other), '不一致札を手札へ加えない');
+  eq(result.ownerState.deck[0], untouched, '停止札を飛び越えて掘らない（厳しすぎる停止を防ぐ）');
+}));
+
+test('O-52 engine SP27-005-E1: ＜水獣＞まで公開し、停止札を手札／場の両方へ送れる', () => withSavedCursor(() => {
+  const aquatic = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('水獣'));
+  const filler = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('水獣'));
+  const untouched = findCard(c => ![aquatic, filler].includes(c.CardNum));
+  const action = revealEffect('SP27-005', 'SP27-005-E1');
+
+  const handCtx = mkCtx({}, {}, 'SP27-005');
+  handCtx.ownerState.deck = [filler, aquatic, untouched];
+  const hand = run(action, handCtx);
+  ok(hand.logs.some(log => log.includes('デッキ上2枚を公開')), '手札枝も2枚目の＜水獣＞で停止');
+  ok(hand.ownerState.hand.includes(aquatic), '手札枝で停止札を手札へ');
+  eq(hand.ownerState.deck[0], untouched, '手札枝で未公開札をトップに維持');
+
+  const fieldCtx = mkCtx({}, {}, 'SP27-005');
+  fieldCtx.ownerState.deck = [filler, aquatic, untouched];
+  const selecting = executeAction(action, fieldCtx);
+  ok(!selecting.done && selecting.pending.type === 'SEARCH', '停止札のSEARCH pending');
+  if (selecting.done || selecting.pending.type !== 'SEARCH') return;
+  const afterSearch = resumeSearch([aquatic], selecting.pending, {
+    ...fieldCtx, ownerState: selecting.ownerState, otherState: selecting.otherState, logs: selecting.logs,
+    lastProcessedCards: selecting.lastProcessedCards,
+  });
+  ok(!afterSearch.done && afterSearch.pending.type === 'CHOOSE', '手札／場のCHOOSE pending');
+  if (afterSearch.done || afterSearch.pending.type !== 'CHOOSE') return;
+  const field = finish(resumeChoose('field', afterSearch.pending, {
+    ...fieldCtx, ownerState: afterSearch.ownerState, otherState: afterSearch.otherState, logs: afterSearch.logs,
+    lastProcessedCards: afterSearch.lastProcessedCards,
+  }), fieldCtx);
+  ok(tops(field.ownerState).includes(aquatic), '場枝で停止札を場へ');
+  eq(field.ownerState.deck[0], untouched, '場枝でも未公開札をトップに維持');
+}));
+
+test('O-52 engine WXK01-045-E2 / WXDi-CP01-015-E1: 前段TRASHのレベルを境界に相手デッキを公開', () => withSavedCursor(() => {
+  const runCase = (cardNum: string, effectId: string, strict: boolean): void => {
+    const victim = findCard(c => isSigni(c) && Number(c.Level) === 2);
+    const equal = findCard(c => isSigni(c) && Number(c.Level) === 2 && c.CardNum !== victim);
+    const lower = findCard(c => isSigni(c) && Number(c.Level) === 1);
+    const higher = findCard(c => isSigni(c) && Number(c.Level) >= 3);
+    const untouched = findCard(c => ![victim, equal, lower, higher].includes(c.CardNum));
+    const ctx = mkCtx({}, { signi: [victim, null, null] }, cardNum);
+    ctx.lastProcessedCards = [higher]; // 前々段の残留値を使わないことも同時に固定する。
+    ctx.otherState.deck = strict ? [equal, lower, untouched] : [higher, equal, untouched];
+    const result = run(manualEffect(cardNum, effectId).action, ctx);
+    ok(result.otherState.trash.includes(victim), `${effectId}: 対象をトラッシュへ置く`);
+    eq(result.lastProcessedCards?.length, 2, `${effectId}: 2枚目の境界札で停止`);
+    ok(tops(result.otherState).includes(strict ? lower : equal), `${effectId}: 停止札を相手の場へ出す`);
+    eq(result.otherState.deck[0], untouched, `${effectId}: 停止札の次は未公開のまま`);
+  };
+  runCase('WXK01-045', 'WXK01-045-E2', false);
+  runCase('WXDi-CP01-015', 'WXDi-CP01-015-E1', true);
+}));
+
 test('§6.4 E2E WX18-046-E1: 中央ルリグレベル枚数だけ公開し＜宝石＞1枚を手札、残りをトラッシュ', () => withSavedCursor(() => {
   const lrig = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 3);
   const jewel = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('宝石'));
@@ -7079,12 +7187,12 @@ test('第20バッチ SEARCH handOrField: 採用11効果ごとに手札枝・場�
     ok(fullDone.ownerState.hand.includes(picked), `${effectId}: 満杯時も手札へ入る`);
   }
 }));
-test('第20バッチ非採用: SP27-005はreveal-until未構造化のまま／WXEX2-49は既存hand_or_field経路を維持', () => {
+test('第20バッチ契約反転: SP27-005をREVEAL_UNTILへ採用／WXEX2-49は既存hand_or_field経路を維持', () => {
   const sp = effectsMap.get('SP27-005')!.find(e => e.effectId === 'SP27-005-E1')!;
   const ex = effectsMap.get('WXEX2-49')!.find(e => e.effectId === 'WXEX2-49-E2')!;
   const spJson = JSON.stringify(sp.action);
   const exJson = JSON.stringify(ex.action);
-  ok(!spJson.includes('handOrField') && !spJson.includes('REVEAL_UNTIL'), 'SP27-005-E1: 今回は誤ってSEARCH用経路へ載せない');
+  ok(spJson.includes('REVEAL_UNTIL') && spJson.includes('handOrField'), 'SP27-005-E1: 停止公開＋手札／場の2択を構造化');
   ok(exJson.includes('PICK_FROM_TRASHED_CARDS') && exJson.includes('"dest":"hand_or_field"'), 'WXEX2-49-E2: 既存の専用二択経路を維持');
 });
 test('LOOK_PICK_CHAIN dual-pick: hand+field ステージで手札1・場1・消失なし（続き36）', () => {

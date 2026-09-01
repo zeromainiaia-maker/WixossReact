@@ -58,7 +58,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER | execStubPart3.ts:2727 | 4 | 4 | 3 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE | execStubPart1.ts:3125 | 4 | 4 | 4 | 0 |
 | PLACE_TRAP_FROM_REVEALED | execStubPart2.ts:3203 | 4 | 4 | 1 | 0 |
-| REVEAL_PICK_HAND_SHUFFLE_BOTTOM | execStubPart1.ts:4165 | 4 | 4 | 0 | 0 |
 | CONDITIONAL_COST_REDUCTION_BY_FIELD | execStubPart2.ts:4565 | 3 | 3 | 0 | 0 |
 | DISCARD_OR_PENALTY | execStubPart3.ts:3643 | 3 | 3 | 3 | 0 |
 | DRAW_DISCARD_COUNT_PLUS_N | execStubPart2.ts:1709 | 3 | 3 | 1 | 0 |
@@ -67,6 +66,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | OPP_DECLARE_CHOICE | execStubPart3.ts:2529 | 3 | 3 | 1 | 0 |
 | POWER_MOD_BY_LRIG_TRASH_ARTS | execStubPart2.ts:223 | 3 | 3 | 1 | 0 |
 | REVEAL_CLASS_SIGNI_FROM_HAND | execStubPart1.ts:4899 | 3 | 3 | 1 | 0 |
+| REVEAL_PICK_HAND_SHUFFLE_BOTTOM | execStubPart1.ts:4165 | 3 | 3 | 0 | 0 |
 | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY | execStubPart2.ts:4705 | 3 | 3 | 5 | 0 |
 | CRASH_LIFE_TO_HAND | execStubPart1.ts:3901 | 2 | 2 | 1 | 0 |
 | EXTRA_COST_REMOVE_VIRUS | execStubPart1.ts:2318 | 2 | 2 | 1 | 0 |
@@ -419,9 +419,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:3203  const txtPTFR = srcPTFR ? (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '') : '';
     lit re:カードを([０-９\d]+)枚見(?:る|て)
 
-### REVEAL_PICK_HAND_SHUFFLE_BOTTOM  (live 4効果 / 4カード / miss 0)
-  execStubPart1.ts:4165  ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
-
 ### CONDITIONAL_COST_REDUCTION_BY_FIELD  (live 3効果 / 3カード / miss 0)
   execStubPart2.ts:4565  const txtCCRF = srcCCRF ? (srcCCRF.EffectText ?? '') + ' ' + (srcCCRF.BurstText ?? '') : '';
 
@@ -454,6 +451,9 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 ### REVEAL_CLASS_SIGNI_FROM_HAND  (live 3効果 / 3カード / miss 0)
   execStubPart1.ts:4899  const txtRev = srcRev ? (srcRev.EffectText ?? '') + ' ' + (srcRev.BurstText ?? '') : '';
     lit re:手札から(?:それぞれ名前の異なる)?[<＜]([^>＞]+)[>＞]のシグニ
+
+### REVEAL_PICK_HAND_SHUFFLE_BOTTOM  (live 3効果 / 3カード / miss 0)
+  execStubPart1.ts:4165  ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
 
 ### SIGNI_GRANT_QUOTED_CONSTANT_ABILITY  (live 3効果 / 3カード / miss 0)
   execStubPart2.ts:4705  const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';

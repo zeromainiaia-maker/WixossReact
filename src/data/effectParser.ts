@@ -11248,6 +11248,109 @@ function foldStructuredRevealUntil(text: string, parsed: EffectAction): EffectAc
 }
 
 /**
+ * §5.3 `O-52`＝停止札に色除外／直前にトラッシュしたシグニのレベル比較を持つ公開。
+ *
+ * 受け皿はすべて既存：`TargetFilter.colorExclude`、`levelLteLastProcessed`、
+ * `levelLtLastProcessed` と `REVEAL_UNTIL` の owner/filter/suppressOnPlay をそのまま使う。
+ *
+ * 🔴前段 parser の誤出力もガードにする。原文だけで丸ごと置換すると、将来別の規則が正しく
+ * 構造化した後に二重適用しうるため、現在の誤形（検索STUB＋SHUFFLE／自分の場出し＋count:0 の
+ * LOOK_AND_REORDER）がちょうど在る場合だけ畳む。
+ */
+function foldQualifiedRevealUntil(text: string, parsed: EffectAction): EffectAction {
+  const selfMatch = text.match(/あなたのデッキの上から([白赤青緑黒])ではない＜([^＞]+)＞のシグニがめくれるまで公開し、そのシグニを手札に加える。残りをシャッフルしてデッキの一番下に置く/);
+  if (selfMatch) {
+    const malformedSelf = parsed.type === 'SEQUENCE'
+      && parsed.steps.length === 2
+      && parsed.steps[0].type === 'STUB'
+      && parsed.steps[0].id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM'
+      && parsed.steps[1].type === 'SHUFFLE_DECK'
+      && parsed.steps[1].owner === 'self';
+    if (!malformedSelf) return parsed;
+    const filter: TargetFilter = { cardType: 'シグニ', story: selfMatch[2], colorExclude: selfMatch[1] };
+    return {
+      type: 'REVEAL_UNTIL', owner: 'self',
+      stopCondition: { kind: 'signiCount', count: 1, filter },
+      // `hit.filter` を省くと公開した不一致札まで選択候補になるため、停止条件と同じ限定を明記する。
+      hit: { filter, count: 1, destination: 'hand' },
+      restDestination: 'deck_bottom_shuffled',
+    };
+  }
+
+  const handOrFieldMatch = text.match(/あなたのデッキの上から＜([^＞]+)＞のシグニがめくれるまで公開し、そのシグニを手札に加えるか場に出す。残りをシャッフルしてデッキの一番下に置く/);
+  if (handOrFieldMatch) {
+    const steps = parsed.type === 'SEQUENCE' ? parsed.steps : [];
+    const paid = steps[0];
+    const gated = steps[1];
+    const shuffled = steps[2];
+    const malformedChoice = steps.length === 3
+      && paid?.type === 'STUB' && paid.id === 'OPTIONAL_COST'
+      && gated?.type === 'CONDITIONAL' && gated.condition.type === 'IS_MY_TURN'
+      && gated.then.type === 'ADD_TO_FIELD' && gated.then.owner === 'self'
+      && shuffled?.type === 'SHUFFLE_DECK' && shuffled.owner === 'self';
+    if (!malformedChoice || gated?.type !== 'CONDITIONAL') return parsed;
+    const filter: TargetFilter = { cardType: 'シグニ', story: handOrFieldMatch[1] };
+    const reveal: RevealUntilAction = {
+      type: 'REVEAL_UNTIL', owner: 'self',
+      stopCondition: { kind: 'signiCount', count: 1, filter },
+      // `destination:'hand'` は既存 pending の基準先。handOrField が実際の2択を提示する。
+      hit: { filter, count: 1, destination: 'hand', handOrField: true },
+      restDestination: 'deck_bottom_shuffled',
+    };
+    return {
+      type: 'SEQUENCE',
+      steps: [paid, { ...gated, then: reveal }],
+    } as SequenceAction;
+  }
+
+  const lte = /対戦相手のシグニ[１1]体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキを上から、それ以下のレベルを持つシグニがめくれるまで公開し、そのシグニを場に出す。そのシグニの【出】能力は発動しない。この方法で公開されたカードをシャッフルしてデッキの一番下に置く/.test(text);
+  const lt = text.match(/対戦相手のレベル([０-９\d]+)以上のシグニ[１1]体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキの上からそれよりレベルの低いシグニがめくれるまで公開し、そのシグニを場に出す。そのシグニの【出】能力は発動しない。この方法で公開されたカードをシャッフルしてデッキの一番下に置く/);
+  if (!lte && !lt) return parsed;
+
+  const opponentSteps = parsed.type === 'SEQUENCE' ? parsed.steps : [];
+  const misplacedField = opponentSteps[1];
+  // この後段の共通 funnel (`foldSuppressOnPlay`) より前は BLOCK_ACTION が独立した4要素、
+  // funnel 後は suppressOnPlay へ畳まれた3要素になる。両方を同じ誤形として認識する。
+  const preSuppressShape = opponentSteps.length === 4 && isOnPlayAbilityBlock(opponentSteps[2]);
+  const postSuppressShape = opponentSteps.length === 3
+    && misplacedField?.type === 'ADD_TO_FIELD' && misplacedField.suppressOnPlay === true;
+  const misplacedRemainder = opponentSteps[preSuppressShape ? 3 : 2];
+  const malformedOpponent = (preSuppressShape || postSuppressShape)
+    && misplacedField?.type === 'ADD_TO_FIELD'
+    && misplacedField.owner === 'self'
+    && misplacedRemainder?.type === 'LOOK_AND_REORDER'
+    && misplacedRemainder.source.location === 'deck'
+    && misplacedRemainder.source.owner === 'self'
+    && misplacedRemainder.count === 0
+    && misplacedRemainder.destination?.location === 'deck'
+    && misplacedRemainder.destination.position === 'bottom';
+  if (!malformedOpponent) return parsed;
+
+  const targetFilter: TargetFilter = {
+    cardType: 'シグニ',
+    ...(lt ? { level: { min: parseNum(lt[1]) } } : {}),
+  };
+  const revealFilter: TargetFilter = {
+    cardType: 'シグニ',
+    ...(lt ? { levelLtLastProcessed: true } : { levelLteLastProcessed: true }),
+  };
+  return {
+    type: 'SEQUENCE', steps: [
+      {
+        type: 'TRASH',
+        target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: targetFilter, upToCount: false },
+      },
+      {
+        type: 'REVEAL_UNTIL', owner: 'opponent',
+        stopCondition: { kind: 'signiCount', count: 1, filter: revealFilter },
+        hit: { filter: revealFilter, count: 1, destination: 'field', suppressOnPlay: true },
+        restDestination: 'deck_bottom_shuffled',
+      },
+    ],
+  };
+}
+
+/**
  * 🆕§5.3 `O-90`（2026-08-26）＝「デッキの上からカードをN枚公開する。〈…〉。**公開したカードを
  * シャッフルしてデッキの一番下に置く。**」が2つの `LOOK_AND_REORDER` に割れ、**後半が `count:0` の
  * 無言 no-op** になる形を畳む。
@@ -12544,6 +12647,7 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = prependShuffleBeforeTopDeckAction(text, parsed);
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
+  parsed = foldQualifiedRevealUntil(text, parsed);
   parsed = foldRevealShuffleToDeckBottom(text, parsed);
   parsed = alignRevealedTrashCount(text, parsed);
   parsed = foldLookThenOptionalBottom(parsed);

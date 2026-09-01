@@ -7337,6 +7337,11 @@ function execRevealUntil(a: import('../types/effects').RevealUntilAction, ctx: E
     type: 'SEARCH', visibleCards: candidates, maxPick: cappedPick,
     optional: a.hit.upToCount ?? false,
     thenAction,
+    ...(a.hit.handOrField ? { handOrField: true } : {}),
+    // `resumeSearch` の既定は self。相手デッキを公開する形で省くと、未pick札だけが
+    // 自分側デッキを探しに行き、相手デッキの公開札が残留する（O-52 WXK01-045 系）。
+    deckOwner: a.owner === 'opponent' ? 'opponent' : 'self',
+    ...(a.owner === 'opponent' ? { opponentResponds: true } : {}),
     revealRemainder: { cards: revealed, ...remainder },
     lastProcessedCardsAfter: revealed,
   });

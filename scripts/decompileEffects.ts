@@ -2225,7 +2225,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : hitFilter?.levelEqDeclaredNumber ? 'それ'
         : a.hit.count === 'ALL' ? (stop?.kind === 'signiCount' && stop.count === 1 ? 'そのシグニ' : 'それら')
         : `${filterJa(hitFilter)}シグニを${a.hit.count}枚${a.hit.upToCount ? 'まで' : ''}`;
-      const hitVerb = a.hit.destination === 'hand' ? '手札に加え'
+      const hitVerb = a.hit.handOrField ? '手札に加えるか場に出し'
+        : a.hit.destination === 'hand' ? '手札に加え'
         : a.hit.destination === 'field' ? '場に出し'
         : a.hit.destination === 'trash' ? 'トラッシュに置き'
         : a.hit.destination === 'deck_bottom_shuffled' ? 'シャッフルしてデッキの一番下に置き'

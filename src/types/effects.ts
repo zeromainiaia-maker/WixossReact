@@ -2442,6 +2442,8 @@ export interface RevealUntilHitSpec {
   count: number | 'ALL';
   upToCount?: boolean;
   destination: RevealUntilDestination;
+  /** 停止札を「手札に加える／場に出す」から選ぶ。既存 SEARCH pending の同名経路へ渡す。 */
+  handOrField?: boolean;
   /** destination:'field' 限定。この方法で場に出たシグニ自身の【出】を抑止する。 */
   suppressOnPlay?: boolean;
 }

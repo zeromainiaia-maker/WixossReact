@@ -505,6 +505,22 @@
 
 **2026-08-24 O-50 で分離した2効果**＝`SP27-005-E1`／`WX20-041-CB-E1`。`REVEAL_UNTIL` の `restDestination` に `deck_bottom_shuffled` はあるが、**①`WX20-041-CB-E1` の停止条件「**青ではない**＜遊具＞」に必要な色の除外 filter が `TargetFilter` に無い**、**②`SP27-005-E1` の「手札に加える**か**場に出す」の選択を `REVEAL_UNTIL` の hit destination が保持できない**（hand か field の固定値しか持てない）。⚠**どちらも filter/継続の機構が先**＝先に受け皿を作ってから parser を直す。
 
+🏁**2026-09-02（Codex 実装／Claude 検証）にクローズ。** 全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-02。
+■🔴🔑**登録票の①「色の除外 filter が `TargetFilter` に無い」は誤りだった**＝`TargetFilter.colorExclude` は既存で、
+`RevealUntilStopCondition` の各 kind も最初から `filter?: TargetFilter` を持っていた。
+**「先に受け皿を作ってから parser を直す」という登録票の指示に従っていたら、既にある機構を作り直していた。**
+■同様に `levelLteLastProcessed`／`levelLtLastProcessed`／`suppressOnPlay` も**すべて既存**
+（登録票の②が求めた「hit 行き先の2択」も、既存 SEARCH の `handOrField` を `RevealUntilHitSpec` から
+再利用するだけで足り、**新UIは不要だった**）。⇒ **この項目で新設した型は1つも無い。**
+■**消化＝4効果**（`WX20-041-CB-E1`／`WXK01-045-E2`／`WXDi-CP01-015-E1`／`SP27-005-E1`）。
+既存 `REVEAL_UNTIL` 17効果は全件オブジェクト一致で不変。
+■**`WX04-015` は `REVEAL_UNTIL` の穴ではなかった**＝MANUAL の専用ハンドラ `OPP_REVEAL_SPELL_USE_FREE`
+（`execStubPart1.ts:3577`）で実装済み。⚠**この巡では正誤を再監査していない**＝
+チェックゾーン配置と相手スペルの無償使用が原文どおりかは**別途確かめること**。
+■🔑**Claude の投入前実測が1点外れた**＝`WXK01-045-E2` を「parser だけ」と見立てたが、
+`REVEAL_UNTIL{owner:'opponent'}` は**公開元だけ相手デッキになり、SEARCH pending に `deckOwner` が無く
+残り札の復帰先が self に既定されていた**（Codex が実コードで発見・修正）。
+
 ### `O-58` — バトルでアタッカーがバニッシュされる場合の「身代わり／バニッシュ回避」ladder がミラーされていない
 
 **規模／母集団（登録票の記載そのまま）**＝**L**
