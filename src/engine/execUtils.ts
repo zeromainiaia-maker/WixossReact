@@ -230,24 +230,34 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
     const center = ctx.ownerState.field.lrig.at(-1);
     return center ? (Number.parseInt(ctx.cardMap.get(getCardNum(center))?.Level ?? '0', 10) || 0) : 0;
   }
+  // 🆕`source_effective_power`＝**効果元シグニの実効パワー**（§5.3 `O-212`・2026-09-01
+  //   `WXEX2-52-E3`「パワーの合計が**このシグニのパワー**以下になるように」）。
+  // ⚠効果元が特定できない／盤面に居ない経路は**印刷パワー**へ落ち、それも読めなければ 0（fail-closed
+  //   ＝1体も選べない）。旧 live は制約ごと落ちていた（どの2体でも蘇生できた）ので退化はしない。
+  if (n.$ref === 'source_effective_power') {
+    const src = ctx.sourceCardNum;
+    if (!src) return 0;
+    const effective = ctx.effectivePowers?.get(src);
+    if (effective !== undefined) return effective;
+    return parseInt(ctx.cardMap.get(getCardNum(src))?.Power ?? '', 10) || 0;
+  }
   console.warn(`[effectExecutor] unknown numeric ref: ${n.$ref}`);
   return 0;
 }
 
-/** CountFromZone の唯一の解決器。動的対象上限と動的 action 枚数の双方が同じ盤面定義を使う。 */
-export function countFromZone(
+/**
+ * `CountFromZone` が指すゾーンのカード（filter 適用前）。
+ * 🆕§5.3 `O-214` で `countFromZone` から切り出した＝**複数ゾーンを合流させてから distinct する**
+ * `ZONE_SUM_COUNT{distinctAcrossZones}` が同じゾーン定義を再利用するため。
+ */
+export function zoneCardsOf(
   fromZone: CountFromZone,
   ownerSt: PlayerState,
   otherSt: PlayerState,
-  cardMap: Map<string, CardData>,
   sourceCardNum?: string,
-): number {
+): string[] {
   const state = fromZone.owner === 'self' ? ownerSt : otherSt;
-  // 🆕`under`＝効果元シグニのスタックのうち**その位置より下**（§5.3 `O-141`）。
-  // ⚠`owner` は見ない（効果元は常にその効果を出したプレイヤーの場にいる）＝`ownerSt` を使う。
-  // ⚠効果元が特定できない／場にいない経路は **0**（fail-closed）。旧 `STUB{POWER_MOD_PER_COUNT}` も
-  //   `ctx.sourceCardNum` が無ければ何もしなかったので退化しない。
-  const cards = fromZone.zone === 'under'
+  return fromZone.zone === 'under'
     ? underCardsOfSource(ownerSt, sourceCardNum)
     : fromZone.zone === 'field'
     ? [
@@ -261,9 +271,25 @@ export function countFromZone(
     : fromZone.zone === 'deck' ? state.deck
     : fromZone.zone === 'acce' ? (state.field.signi_acce ?? []).flatMap(slot => slot ?? [])
     : fromZone.zone === 'charm' ? (state.field.signi_charms ?? []).filter((n): n is string => !!n)
-    // 🆕`check`＝チェックゾーン（§5.3 `O-143`）＝`check` ＋ `check_rest` の合計。
     : fromZone.zone === 'check' ? checkZoneCards(state)
     : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
+}
+
+/** CountFromZone の唯一の解決器。動的対象上限と動的 action 枚数の双方が同じ盤面定義を使う。 */
+export function countFromZone(
+  fromZone: CountFromZone,
+  ownerSt: PlayerState,
+  otherSt: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceCardNum?: string,
+): number {
+  const state = fromZone.owner === 'self' ? ownerSt : otherSt;
+  void state;
+  // 🆕`under`＝効果元シグニのスタックのうち**その位置より下**（§5.3 `O-141`）。
+  // ⚠`owner` は見ない（効果元は常にその効果を出したプレイヤーの場にいる）＝`ownerSt` を使う。
+  // ⚠効果元が特定できない／場にいない経路は **0**（fail-closed）。旧 `STUB{POWER_MOD_PER_COUNT}` も
+  //   `ctx.sourceCardNum` が無ければ何もしなかったので退化しない。
+  const cards = zoneCardsOf(fromZone, ownerSt, otherSt, sourceCardNum);
   const matchedCards = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
   const rawMatched = fromZone.sumBy === 'power'
     // 「パワーの合計と同じだけ」＝枚数ではなく Power の総和を単位量にする（§5.3 `O-141`）。
@@ -2567,6 +2593,22 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'ZONE_SUM_COUNT': {
       // 「〈ゾーンA〉と〈ゾーンB〉に〈filter〉のカードが合計N枚以上ある場合」。
       // ⚠数え方は `countFromZone` に一本化（filter/unitSize/per/distinctBy を共有）＝AND 近似では表せない軸。
+      // 🆕§5.3 `O-214`＝`distinctAcrossZones` は**全ゾーンを合流させてから1度だけ distinct する**。
+      //   🔴既定（ゾーンごとの `distinctBy` を足す形）は**同名が場とエナに1枚ずつあると 2 と数える**＝
+      //   原文「場とエナに合計N**種類**」に対して過剰成立だった（`WXDi-CP01-031-E1`）。
+      if (cond.distinctAcrossZones) {
+        const key = cond.distinctAcrossZones;
+        const keys = new Set<string>();
+        for (const z of cond.zones) {
+          for (const cardNum of zoneCardsOf(z, s, o, ctx.sourceCardNum)) {
+            const card = ctx.cardMap.get(getCardNum(cardNum));
+            if (!card || (z.filter && !matchesFilter(card, z.filter))) continue;
+            const value = key === 'name' ? (card.CardName ?? '') : (card.Level ?? '');
+            if (value !== '') keys.add(value);
+          }
+        }
+        return cmp(keys.size, cond.operator, cond.value);
+      }
       const total = cond.zones.reduce(
         (n, z) => n + countFromZone(z, s, o, ctx.cardMap, ctx.sourceCardNum), 0);
       return cmp(total, cond.operator, cond.value);
@@ -3280,12 +3322,15 @@ export function selectOrInteract(
     resolvedExtra = { ...extra, selectionConstraint: { ...staticLM, levelMultiset: levels } };
   }
   const rawConstraint2 = resolvedExtra?.selectionConstraint;
-  if (rawConstraint2?.totalLevelExactRef !== undefined || rawConstraint2?.totalLevelMaxRef !== undefined) {
-    const { totalLevelExactRef, totalLevelMaxRef, ...staticConstraint } = rawConstraint2;
+  if (rawConstraint2?.totalLevelExactRef !== undefined || rawConstraint2?.totalLevelMaxRef !== undefined
+      || rawConstraint2?.totalPowerMaxRef !== undefined) {
+    const { totalLevelExactRef, totalLevelMaxRef, totalPowerMaxRef, ...staticConstraint } = rawConstraint2;
     const selectionConstraint: SelectionConstraint = {
       ...staticConstraint,
       ...(totalLevelExactRef !== undefined ? { totalLevelExact: resolveCountRef(totalLevelExactRef, ctx) } : {}),
       ...(totalLevelMaxRef !== undefined ? { totalLevelMax: resolveCountRef(totalLevelMaxRef, ctx) } : {}),
+      // 🆕§5.3 `O-212`＝「パワーの合計が**このシグニのパワー**以下になるように」。
+      ...(totalPowerMaxRef !== undefined ? { totalPowerMax: resolveCountRef(totalPowerMaxRef, ctx) } : {}),
     };
     resolvedExtra = { ...resolvedExtra, selectionConstraint };
   }
@@ -3435,6 +3480,17 @@ export function satisfiesSelectionConstraint(
   }, 0);
   if (constraint.totalLevelExact !== undefined && levelSum() !== constraint.totalLevelExact) return false;
   if (constraint.totalLevelMax !== undefined && levelSum() > constraint.totalLevelMax) return false;
+  // 🆕§5.3 `O-212`＝パワー合計の上限／一致。⚠印刷パワーで数え、**パワー不明は不成立**（fail-closed）。
+  if (constraint.totalPowerMax !== undefined || constraint.totalPowerExact !== undefined) {
+    let powerSum = 0;
+    for (const card of cards) {
+      const power = parseInt(card?.Power ?? '', 10);
+      if (!Number.isFinite(power)) return false;
+      powerSum += power;
+    }
+    if (constraint.totalPowerMax !== undefined && powerSum > constraint.totalPowerMax) return false;
+    if (constraint.totalPowerExact !== undefined && powerSum !== constraint.totalPowerExact) return false;
+  }
   if (constraint.groups && !canAssignSelectionGroups(nums, constraint.groups, cardMap)) return false;
   // 🆕`levelMultiset`＝選んだ集合のレベルを**1対1で**参照リストへ割り当てられること（2026-08-31 続き749）。
   //   ⚠「どれかに一致」ではない＝同じレベルを重複して取れないので、まとめてN体の過剰実行にならない。
@@ -3530,7 +3586,9 @@ export function canAddToSelection(
 ): boolean {
   if (!constraint) return true;
   const next = [...selected, candidate];
-  const { totalLevelExact, totalLevelMax, ...setConstraint } = constraint;
+  // 🆕`totalPowerExact` も「積み上げの途中」は超過だけを弾く（一致は確定時に
+  //    `satisfiesSelectionConstraint` が要求する）＝`totalLevelExact` と同じ規約（§5.3 `O-212`）。
+  const { totalLevelExact, totalLevelMax, totalPowerExact, totalPowerMax, ...setConstraint } = constraint;
   if (!satisfiesSelectionConstraint(next, setConstraint, cardMap)) return false;
   const sum = next.reduce((total, n) => {
     const level = parseInt(cardMap.get(getCardNum(n))?.Level ?? '', 10);
@@ -3538,6 +3596,16 @@ export function canAddToSelection(
   }, 0);
   if (totalLevelExact !== undefined && sum > totalLevelExact) return false;
   if (totalLevelMax !== undefined && sum > totalLevelMax) return false;
+  if (totalPowerExact !== undefined || totalPowerMax !== undefined) {
+    let powerSum = 0;
+    for (const n of next) {
+      const power = parseInt(cardMap.get(getCardNum(n))?.Power ?? '', 10);
+      if (!Number.isFinite(power)) return false;
+      powerSum += power;
+    }
+    if (totalPowerExact !== undefined && powerSum > totalPowerExact) return false;
+    if (totalPowerMax !== undefined && powerSum > totalPowerMax) return false;
+  }
   return true;
 }
 

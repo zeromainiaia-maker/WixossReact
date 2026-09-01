@@ -201,6 +201,11 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               const constraintJa = c.groups?.length ? '指定された各条件の枚数に収まるように'
                 : c.totalLevelExact !== undefined ? `レベルの合計が${c.totalLevelExact}になるように`
                 : c.totalLevelMax !== undefined ? `レベルの合計が${c.totalLevelMax}以下になるように`
+                // 🆕§5.3 `O-212`（2026-09-01）＝パワー合計の制約。`canConfirm` は
+                //   `satisfiesSelectionConstraint` 経由で既に効いているが、**見出しに出ないと
+                //   プレイヤーには「決定が押せない理由」が分からない**ので文言も足す。
+                : c.totalPowerExact !== undefined ? `パワーの合計が${c.totalPowerExact}になるように`
+                : c.totalPowerMax !== undefined ? `パワーの合計が${c.totalPowerMax}以下になるように`
                 : c.distinct === 'level' ? 'それぞれレベルの異なる'
                 : c.distinct === 'name' ? 'それぞれ名前の異なる'
                 : c.distinct === 'class' ? 'それぞれクラスの異なる'

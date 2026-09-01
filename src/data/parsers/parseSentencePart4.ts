@@ -858,9 +858,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- エナゾーンから白/色のシグニをデッキ上に置いてもよい ----
   // §5.3 `O-60` 第2バッチ＝操作の種類と絞り込みを `underCardOp` に刻む（engine の全文 regex を撤去）。
   // 🔴**旧 engine は「白の」を1文字も見ずエナのシグニを先頭から機械的に取っていた**（filter 脱落）。
-  if (t.match(/エナゾーンから.+のシグニ[１-９\d０-９]*枚をデッキの一番上に置いてもよい/)) {
+  // 🆕**2026-09-01（§5.3 `O-146`）＝受け皿 STUB をやめて型付きの `TRANSFER_TO_DECK` にした。**
+  //   🔴旧 STUB は原文「置いて**もよい**」なのに**強制**で、しかも候補が複数あっても `candUC[0]` を
+  //   **自動で選んでいた**（プレイヤーが選べない）。⇒ `ENERGY_CARD` 経路は `upToCount` で
+  //   「1枚まで＝0枚でもよい」の選択対話を既に持っている（`effectExecutor.ts` の ENERGY_CARD 分岐）。
+  //   ⚠**「そうした場合」のゲートも同時に直す**＝旧 live は `CONDITIONAL{IS_MY_TURN}`＝
+  //   **1枚も置かなくても自分のターンなら後続が走る**（`applyDidItGate` 後段が枚数ゲートへ置き換える）。
+  const energyTopM = t.match(/エナゾーンから.+のシグニ([１-９\d０-９]*)枚をデッキの一番上に置いてもよい/);
+  if (energyTopM) {
     const fEUC = { ...parseColorFilter(t), ...parseStoryFilter(t), cardType: 'シグニ' } as TargetFilter;
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP', underCardOp: { op: 'energy_signi_to_deck_top', filter: fEUC } } as StubAction;
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'ENERGY_CARD', owner: 'self', count: energyTopM[1] ? parseNum(energyTopM[1]) : 1, upToCount: true, filter: fEUC },
+      shuffle: false, position: 'top', optional: true,
+    } as EffectAction;
   }
 
   // ---- その中から色のカードをN枚まで選び手札に加えるかエナゾーンに置き残りをトラッシュ ----

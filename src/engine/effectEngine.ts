@@ -721,6 +721,21 @@ export function checkActiveCondition(
           default: return [];
         }
       };
+      // 🆕§5.3 `O-214`＝`distinctAcrossZones` は**全ゾーンを合流させてから1度だけ distinct する**
+      //   （ゾーンごとに数えて足すと、同名が場とエナに1枚ずつで 2 種類に化ける）。
+      if (cond.distinctAcrossZones) {
+        const key = cond.distinctAcrossZones;
+        const keys = new Set<string>();
+        for (const z of cond.zones) {
+          for (const cn of zoneCards(z)) {
+            const card = cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]);
+            if (!card || !matchesFilter(card, z.filter)) continue;
+            const value = key === 'name' ? (card.CardName ?? '') : (card.Level ?? '');
+            if (value !== '') keys.add(value);
+          }
+        }
+        return compare(keys.size, cond.operator, cond.value);
+      }
       const total = cond.zones.reduce((n, z) => {
         const cards = zoneCards(z)
           .map(cn => cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]))

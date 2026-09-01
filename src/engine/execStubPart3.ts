@@ -4800,12 +4800,15 @@ export function execStubPart3(
   if (stub.id === 'LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS') {
     const lrigTrash = ctx.ownerState.lrig_trash ?? [];
     const lrigNums = lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'ルリグ');
-    const artsNums = lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+    // 🆕§5.3 `O-208`＝`skipArtsReturn` を立てた形はアーツに触らない（後続の
+    //   `TRASH{LRIG_TRASH_CARD → lrig_deck}` が「対象の2枚まで」を選択つきで処理する）。
+    //   🔴既定はアーツを**全部**戻すので、原文が枚数を切っているカードでは過剰実行になる。
+    const artsNums = stub.skipArtsReturn ? [] : lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
     if (lrigNums.length === 0 && artsNums.length === 0) {
       return done(addLog(ctx, 'ルリグトラッシュにルリグ/アーツなし'));
     }
     const newLrigTrash = lrigTrash.filter(cn =>
-      ctx.cardMap.get(cn)?.Type !== 'ルリグ' && ctx.cardMap.get(cn)?.Type !== 'アーツ',
+      cn !== undefined && !lrigNums.includes(cn) && !artsNums.includes(cn),
     );
     const newLrig = [...lrigNums, ...ctx.ownerState.field.lrig];
     const newLrigDeck = [...artsNums, ...(ctx.ownerState.lrig_deck ?? [])];

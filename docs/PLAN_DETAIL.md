@@ -17,6 +17,27 @@
 > | §6 恒久指標（続き769＝PLAN 再編第2回の直後） | 「恒久指標（退避）2026-09-01 続き769 前」 |
 > | §6 恒久指標（続き768） | 「恒久指標（退避）2026-09-01 続き768 後」 |
 
+### 恒久指標（退避）2026-09-01 続き771 前（＝続き769 の実機返済直後の値）
+
+- **2026-09-01（続き769）＝実機返済のみ（本ブロックが直近の正）**
+  📊**進捗3計器（3本とも底・据置）**＝**Sheet1 要対応 20 / 863 (2.3%)**（うち `mech` 20・**即着手可能 0**）｜
+  **台帳 残 OPEN 44**（影響カード 41／効果 32・HIGH 37／MED 7／LOW 0）｜**census 高シグナル 11 / BASELINE 12**
+  🔴**Sheet1 の 18 → 20 は前進でも退化でもなく計器の較正**＝`census:cards` の `mech` は **PLAN.md §5.3 だけ**を読んでいたが、
+  §5.3 は 2026-09-01 の再編で「索引（PLAN.md）＋登録票の全文（PLAN_DETAIL.md）」に分かれており、
+  **カード番号はほぼ全部が登録票の側**にある。⇒ **両方を読むように直した**（`scripts/cardProgressCensus.mjs`）。
+  ⚠**直さないと 18 → 1 に化けていた**（採番のために本文を PLAN.md から移しただけで「機構待ちが解消した」に見える）。
+  📦**在庫2本**＝**機構 worklist 109項目**（🆕2026-09-01 に旧「未採番の機構在庫」30件を採番＝82 → 109。**新規在庫ではなく、置き場が2つあったのを1つに畳んだ結果**）（§5.3＝母集団2桁 **14**／3〜8効果 **11**／1〜2効果 **45**／**母集団未計測 34**／計器較正 4／事実上クローズ 1）｜
+  🏁**実機 残 0件**（§5.1＝`V-103`／`V-104`／`V-105`／`V-107` を**続き769 で全部返済**）
+  🔧**ゲート（2026-09-01 続き769 に実測・全緑 ✅）**＝golden **3199 / 3199**（0 FAIL）／smoke 全異常0／fuzz 全0／census **11 / BASELINE 12**／
+  `census:stubs` A群🔴0・C群0／manual-fields 0／**`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors / 249 warnings。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規13本すべて PASS**（`v107BothTrashPay/Skip`・`v105OnPlayGroupsPay/SameName/ByEffect`・
+  `v104LimitNoKey/KeySelf/KeyOpp`・`v103RideOn/NoTarget/AlreadyDriving`・`v103SplitKeepTop/ToBottom`）。**単体でも13本一括でも全 PASS。**
+  ⚠**engine/parser/live JSON は1バイトも変えていない**＝ゲートの数字が続き768 と同値なのは正常（`golden 3199` は同日Aバッチの値）。
+  ⚠**実機は必須と判定**（§2.2）＝`src/screens/battle/modals/SigniOnPlayCostModal.tsx` に `data-testid="onplaycost-enatrash-${i}"` を1行追加。
+  🔴**この巡で確定したドライバの罠3つ**＝(a)`field.key_piece` 等の CORE フィールドはシナリオ間で引き継がれる
+  (b)反転確認を `mv` で戻すと mtime が古く `distIsFresh()` が build をスキップ（**stale dist で回る**）
+  (c)`manualEffects.ts` は実行時にも勝つ（live JSON を削っても復活する）。全文は §5.1 の教訓と BUGFIXES。
+
 ### 恒久指標（退避）2026-09-01 続き769 前（＝PLAN 再編第2回の直後の値）
 
 - **2026-09-01 整理後（本ブロックが直近の正）**
@@ -710,11 +731,15 @@
 
 ### `O-145` — `execTransferToDeck` の `LIFE_CLOTH_CARD` 経路が `optional` を見ない
 
+🏁**2026-09-01 続き771 にクローズ。** `execTransferToDeck` の `LIFE_CLOTH_CARD` 経路へ `optional` を入れた（ライフは裏向きで対象選択にできないので**実行/しないの2択**）。`DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE` を返済し、did-it ゲートを `IS_MY_TURN` → `LAST_PROCESSED_COUNT_GTE{1}` へ。実機 `o145LifeTopTake/Skip` で両方向 PASS。
+
 **規模／母集団（登録票の記載そのまま）**＝**S（1効果＝`WXDi-P12-034-E2`）**
 
 **2026-08-29 続き713（`O-77` 第1バッチ）で分離。** ■**実測**＝当該分岐は「ライフの一番上から N 枚を無条件で移す」だけで、`a.optional` を一切参照しない（`effectExecutor.ts` の `if (src.type === 'LIFE_CLOTH_CARD')`）。原文（`WXDi-P12-034-E2`）は「そのカードをデッキに加えてシャッフルして**もよい**」なので、そのまま流すと**強制**になる。⇒ 今回は `DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE` として明示保留した。 ■**要るもの**＝SIGNI 経路と同じく `optional` のとき `selectOrInteract` を通す（0体選択で `stripDidItConditional` が「そうした場合」を止める）。⚠**ライフクロスは裏向きで選択の余地が無い**ので、対象選択ではなく**実行/しないの二択**が要る＝`INTERNAL_SKIP_OPTIONAL_ACTION` を使うなら**did-it ゲートを落とす仕掛けを別途足す**（あれは `lastProcessedCards` を空にするだけ）。 ■⚠**着手前に母集団を実測する**（`LIFE_CLOTH_CARD` × `optional` の全数）。
 
 ### `O-146` — `underCardOp{energy_signi_to_deck_top}` が「置いてもよい」を強制で実行し、対象も自動で1枚目を選ぶ
+
+🏁**2026-09-01 続き771 にクローズ。** 受け皿 STUB をやめて `TRANSFER_TO_DECK{ENERGY_CARD, upToCount, position:top, optional}` へ移した（既存の ENERGY_CARD 経路が選択対話を持っていた＝engine の新規実装ゼロ）。did-it ゲートも枚数ゲートへ。実機 `o146EnergyTopTake/Skip` で両方向 PASS。
 
 **規模／母集団（登録票の記載そのまま）**＝**S（1効果＝`SPDi43-26-E1`）**
 
@@ -752,11 +777,15 @@
 
 ### `O-153` — 🔴 `LOOK_PICK_CHAIN` が「手札行き」と「場行き」のピックを区別せず `lastProcessedCards` へ混ぜる
 
+🏁**2026-09-01 続き771 にクローズ。** `LookPickChainAction.lastProcessedFrom:'field'` を新設（行き先は継続へ持ち回さず「公開札のうちいま場に居るもの」で判定）。parser 後段パス `applyLookPickFieldScope` が「この方法／効果で場に出た」を含む効果の chain へ立てる。⚠**母集団は登録票の2効果ではなく、多段 `LOOK_PICK_CHAIN` 16効果のうち実害3効果**（`WX24-P3-039-E1` / `WX25-P1-039-E1` / `WX24-P2-035-E1`）。
+
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（`WX24-P2-035-E1`＝新規／`WX24-P3-039-E1`＝**live で既に過剰**）
 
 **2026-08-29（`O-80` 第3バッチ）で分離。** ■**実測**＝`effectExecutor.ts` の `cur = { ...cur, lastProcessedCards: completedPicks }` が**全ステージのピックの合計**を入れる（コメントも「1度の公開から選んだ全 stage の合計を見る」と明記＝意図的な既定）。原文はどちらも「この効果で**場に出た**シグニのレベル1につき」なので、**手札に加えた札のレベルまで数える**。 ■🔴**`perLastProcessed.filter` では分離できない**＝2ステージの `filter` が同一（`{cardType:'シグニ', story:'遊具'}`／`{…, story:'悪魔'}`）で、しかも `lastProcessedUnits` は `matchesFilter(cardMap.get(...))`＝**カードデータしか見ない**（盤面を引かない）。 ■**要るもの**＝`LOOK_PICK_CHAIN` が**行き先別にピックを記録する**（例＝`last_picked_to_field`）か、`perLastProcessed` に「直前ステップで**場に出た**分だけ」の軸を足すか。⚠`signi_placed_by_source` / `signi_played_from_deck` は**ターン単位**で、`WX24-P2-035` の【起】は `usageLimit` が無く同一ターンに複数回撃てるため**代用にならない**（検討済み）。 ■**現在地**＝`WX24-P2-035-E1` は catch-all `STUB{POWER_MOD_PER_COUNT}` に**据え置き**（引き取ると手札の札まで数えるので fail-closed）。golden が両方向を固定してある（`O-80①`）。`WX24-P3-039-E1` は `MILL{countIsLastProcessedLevelSum:true}` で**今も過剰にミルしている**＝こちらは新規ではなく既存バグ。 ■⚠**着手前に `LOOK_PICK_CHAIN` の live 母集団を数える**（`then:'field'` を含むステージを持つ効果の全数）。
 
 ### `O-154` — 「その中に〈クラス〉のシグニが N枚以上ある場合、それを〜」＝この方法で置いた枚数の条件と、冒頭で対象化したカードへの照応が両方落ちる
+
+🏁**2026-09-01 続き771 にクローズ。** `manualEffects.ts` に手書き（`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` → `TRASH{DECK_CARD}` → `LAST_PROCESSED_MATCHES{minCount:1/2}` の2段ゲート）。**engine は0行**。⚠**母集団の再実測は2効果**で、もう1件（`WXDi-P02-036-E1`）は既に正しかった。
 
 **規模／母集団（登録票の記載そのまま）**＝**S（実測1効果＝`WD15-001-E2`）**
 
@@ -853,11 +882,15 @@
 
 ### `O-170` — 「表記されているパワーと異なるパワーの」＝印刷パワーと実効パワーの差を見るフィルタが無い
 
+🏁**2026-09-01 続き771 にクローズ。** 🔴**「受け皿が無い」は誤りだった**＝`powerDiffersFromPrinted` / `powerGtPrinted` / `powerLtPrinted` は型・`fieldCandidates`・golden まで実装済みで、`parseSigniTarget` を通らない builder にだけ届いていなかった。後段パス `applyPrintedPowerScope`（fail-closed 3条件つき）で3効果へ配線。⚠**母集団は登録票1効果ではなく原文12カード。**
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`WX22-047-E1`。母集団未計測）
 
 **2026-08-30（§5.2 Sheet3 バッチ1）で Codex が実測して据置。** ■**原文**＝「**表記されているパワーと異なるパワーの**対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。」／live は `filter:{cardType:'シグニ'}` だけ＝**相手のどのシグニでも選べる過剰実行**。■**受け皿が無い理由**＝`matchesFilter`（`execUtils.ts:896-903, 971-979`）は **`effectivePower` か印刷 `card.Power` のどちらを閾値比較に使うかは選べる**が、**両者が異なること自体**を述語にするキーが無い。■**要るもの**＝`TargetFilter` に `powerDiffersFromPrinted?: boolean` を足し、**候補解決の両経路**（`fieldCandidates` と汎用対象解決）へ「実効値 !== 印刷値」を配線する。⚠**`effectivePowers` を渡していない呼び出し口では常に「差なし」に見える**＝**fail の向きを決めて golden で固定する**（§5-3′′）。⚠**母集団は「表記されているパワー」で全数実測してから**着手する。
 
 ### `O-171` — 両プレイヤーのエナ合計を見る条件が無い
+
+🏁**2026-09-01 続き771 に「既に消化済み」と確認してクローズ（コード変更ゼロ）。** `ZONE_SUM_COUNT`（両評価器＋golden）が 2026-08-31 続き747 で実装済みで、`WDA-F03-13-E3` は `MANUAL` で書き換え済み・対象 owner も `any` に是正済みだった。**登録票が stale だった。**
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**（`WDA-F03-13-E3`。母集団未計測）
 
@@ -964,6 +997,8 @@
 **2026-09-01 続き763（`O-96` 第1バッチ）で分離。** ■**症状**＝`O-96` の規則は `BOUNCE` には当たるが、帰結が `TRANSFER_TO_HAND`（トラッシュ/エナ→手札）の効果には当てられない。■**実測した不足箇所は3つ**＝①`TransferToHandAction`（`src/types/effects.ts:1909`）に `targetsStored` フィールドが無い ②`execTransferToHand`（`src/engine/effectExecutor.ts:3135` 付近）に保存対象での絞り込みが無い ③`freezeStoredTargets`（同 `132`）の `FREEZABLE` 配列に `TRANSFER_TO_HAND` が入っていない。■🔴**フィールドだけ足しても無視される＝無言 no-op**（`O-128` 第4バッチの「収集契約」と同じ罠）。**3箇所を揃えること。**■**先行例が7つある**＝`FREEZABLE` の `BANISH`/`BOUNCE`/`TRASH`/`EXILE`/`SEND_TO_ENERGY`/`TRANSFER_TO_DECK`/`POWER_MODIFY`。**`BOUNCE` の実装（`execBounce` の絞り込み）をそのまま写すのが最短。**■⚠**`source` は `EffectTarget` で `TRASH_CARD`/`ENERGY_CARD` を指す**＝`BOUNCE`（場のシグニ）と**ゾーンが違う**。`storedTargetCards` に入るのが「場のカード」前提の実装になっていないかを確かめてから写す。■🔴🔴**2026-09-01 続き764 に実測して訂正＝「3箇所」は誤り。4箇所目が本体で、しかも一番大きい。**④**`SELECT_TARGET_ONLY`（`execStubPart1.ts:168`）が `SIGNI` / `LRIG` / `CENTER_LRIG_OR_SIGNI` しか受けない**＝それ以外の `selectTarget` は **`lastProcessedCards: []` を返して黙って終わる**。候補集めも `fieldCandidates`＝**場のみ**。⇒ `TRANSFER_TO_HAND` の `source`（`TRASH_CARD` / `ENERGY_CARD`）は**そもそも選択できない**。🔴**このまま `abortIfNoCandidate` を付けると「候補0」と判定されて効果ごと発火しなくなる＝いまより悪化する。**■**先行例が無い**＝live で「`SELECT_TARGET_ONLY` でトラッシュ/エナから選んで保存する」形は**0件**（実測）。`TRANSFER_TO_HAND × OPTIONAL_COST × 対象固定` の2件も、固定しているのは別枝の `SIGNI` であってこの形ではない。■⇒ **これは「フィールドを足すだけ」ではなく、選択機構をゾーンへ広げる作業**。`fieldCandidates` に対応する trash/energy 版の候補集めと `TargetScope` の追加が要る。■⚠**`src/types/` と `src/engine/` を触る**＝§2.2 の実機要否判定を必ず書くこと（**新機構なので実機必須の見込み**）。■🔑**先に安い道を使い切る**＝`O-96` の残りは **`handDiscard` 軸（24効果・AUTO かつ root が21）**が**engine 変更ゼロ**で取れる ■🆕🏁**2026-09-01 続き766＝第1〜第3バッチを消化（計24効果）。**■**第1（3効果・engine 機構・実機PASS）**＝4箇所すべてを配線した。🔴**「3箇所」の記録は誤りで、④`SELECT_TARGET_ONLY` が `SIGNI`/`LRIG`/`CENTER_LRIG_OR_SIGNI` 以外を黙って落とす件が本体**。🔑**設計の要点＝候補集めを `execTransferToHand` と同一関数（`transferToHandTrashCandidates`）へ切り出して共有した**＝宣言時と実行時で候補がズレる事故を構造的に防ぐ。⚠**相手トラッシュ（`owner:'opponent'`）と `transferGroups` 併用は非対応のまま**（後者はログを残して降りる）。■**第2（18効果）**＝第1の暫定ガード2つ（ガード軸限定／コスト軸の排他 XOR）を外した。🔴**本命は XOR のほう**＝`O-190` 第1バッチで payload に `fieldTrash`/`selfTrash`/`handReveal`/`underAnySigniTrash` が入った結果、**複合任意コストの効果が全部弾かれていた**。許可リスト方式へ広げ **fail-closed は維持**（知らないキーが混ざれば通さない）。⚠**対象レベル依存キー（`costColorsPerTargetLevel` 等）は許可リストに入れていない**。併せて「**このカードを**トラッシュから手札に加える」の**語順漏れ6効果**（トラッシュのどのカードでも回収できる過剰実行）を修正。■**第3（3効果）**＝回収の対象宣言がゾーンごと落ちて `DECK_CARD` 既定に化け、**`execTransferToHand` の分岐に当たらず帰結が丸ごと no-op**（過小実行）。`applyDroppedRecoveryDesignation` を新設（先行例 `applyDroppedEnergyDesignation` と同じく**壊れている形だけ**を書き換える）。■**残り（据置）**＝`WXDi-P13-046-E1`/`WXDi-P16-055-E1`（`CHOOSE` のネスト器）／`WXDi-P15-057-E2`/`WXDi-CP02-072-E1`（MANUAL）／`WXDi-P04-033-E1`/`WXDi-CP02-065-E1`/`WX25-CP1-058-E1`（`OPTIONAL_TRASH_SELF`・`OPTIONAL_TRASH_ENERGY_CLASS` の専用 STUB id）／`WX24-P2-054-E2`（`SEND_TO_ENERGY`＋対象レベル依存コスト）。**据置契約は golden で固定済み。**（帰結の `POWER_MODIFY`/`BANISH`/`BOUNCE`/`TRASH` はすべて `targetsStored` 対応済み）。**`O-188` はその後。**
 
 ### `O-189` — `handDiscard.filter` から色指定が脱落している＝任意コストが原文より緩い（過剰実行側）
+
+🏁**2026-09-01 続き771 にクローズ。** `convertSelfHandDiscardStep` が素の `TRASH{HAND_CARD}` の filter を流用していたので、名詞句から `handDiscardSpecFilter` で取り直すようにした。**母集団は実測2効果**（原文43カードのうち、コスト側の `handDiscardSigni` は最初から色を持っていた）。
 
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（`WXK10-029-E1`＝原文「手札から**黒の**シグニを1枚捨てて」／`WXK10-040-E2`＝同「**赤の**シグニ」）。⚠**母集団は未計測**＝「手札から〈色〉の〜を捨て」の全数を数え直すこと
 
@@ -1144,6 +1179,8 @@
 
 ### `O-207` — `LOOK_PICK_CHAIN` に「配置ゾーンの限定」が無い（【ゲート】があるシグニゾーンに出し）
 
+🏁**2026-09-01 続き771 に「既に消化済み」と確認してクローズ（コード変更ゼロ）。** `LookPickChainStage.gateZoneOnly` → `AddToFieldAction.gateZoneOnly` が実装済みで、`WXDi-P15-079-E1` は `MANUAL` で刻み済みだった。**登録票が stale だった。**
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1152,6 +1189,8 @@
   シグニゾーンに**出し」）＝必要条件の `FIELD_HAS_GATE` でゲートしただけ＝`PARTIAL`。
 
 ### `O-208` — `LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS` がアーツを「全部」戻す（原文は「2枚まで」）
+
+🏁**2026-09-01 続き771 にクローズ。** `StubAction.skipArtsReturn` を足して STUB はルリグの移動だけにし、アーツは後続の `TRANSFER_TO_DECK{LRIG_TRASH_CARD, count:2, upToCount, destination:'lrig_deck'}` が枚数と選択つきで処理する形へ。golden に engine 実行（アーツ4枚→2枚だけ戻る）を張った。
 
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 
@@ -1193,6 +1232,8 @@
 
 ### `O-212` — 選択集合のパワー合計を「実行時の値」と比べられない（`totalPowerMax` が数値固定）
 
+🏁**2026-09-01 続き771 にクローズ。** `SelectionConstraint` に `totalPowerMax` / `totalPowerMaxRef` / `totalPowerExact` を新設し、`$ref:'source_effective_power'` を `resolveCountRef` へ追加。🔴**旧 `EffectTarget.totalPowerMax` は場のシグニ経路だけが読み、`execAddToField` の trash/energy 経路は渡していなかった＝死にキー**だった。実機 `o212PowerSumExact` で「決定が押せるのはちょうど12000のときだけ」を確認。
+
 **規模／母集団（登録票の記載そのまま）**＝**2効果**
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1214,6 +1255,8 @@
 
 ### `O-214` — `ZONE_SUM_COUNT` の `distinctBy` がゾーンごとに数えて足す（合流させてから distinct する版が要る）
 
+🏁**2026-09-01 続き771 にクローズ。** `ZONE_SUM_COUNT.distinctAcrossZones` を両評価器（`execUtils` / `effectEngine`）へ新設し、`zoneCardsOf` を `countFromZone` から切り出して共有。`WXDi-CP01-031-E1` は `PARTIAL` → `MANUAL` へ。
+
 **規模／母集団（登録票の記載そのまま）**＝**1効果**
 
 > 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
@@ -1222,6 +1265,8 @@
   同名が両ゾーンにあると **2 と数える**。原文は集合の種類数なので、`zones` を合流させてから distinct する版が要る。
 
 ### `O-215` — 【ソウル】が付いているシグニを指すフィルタが無い（triggerFilter 側・対象フィルタ側の両方）
+
+🏁**2026-09-01 続き771 に「既に消化済み」と確認してクローズ（コード変更ゼロ）。** `TargetFilter.hasSoul`（triggerFilter 側・`WXDi-P04-016-E1`）と `frontOfAllyWithSoul`（対象フィルタ側・`WXDi-P04-013-E1`）が 2026-08-31 続き749 で実装済みだった。**登録票が stale だった。**
 
 **規模／母集団（登録票の記載そのまま）**＝**2効果**（2026-08-30 続き743 実測）
 

@@ -187,7 +187,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase,
+  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -6059,7 +6059,14 @@ function parseSingleSentenceInner(text: string): EffectAction {
     //   シグニ）なので **`perLastProcessed.filter` では分離できない**（あれはカードデータしか見ない）。
     //   ⇒ 行き先別の記録は engine 側の仕事＝**確定できない倍率は差し戻す**（`O-80` の fail-closed 則）。
     //   ⚠同型は2枚（`WX24-P2-035-E1` と、別の受け皿で**既に同じ穴に落ちている** `WX24-P3-039-E1`）。
-    const perLpUnresolvable = !!perLpM && /場に出た/.test(perLpM[1]);
+    // 🆕**2026-09-01（`O-153` 消化）＝「場に出た」も引き取れるようになった。**
+    //   engine 側に行き先別の記録（`LookPickChainAction.lastProcessedFrom:'field'`）を入れ、
+    //   後段パス `applyLookPickFieldScope` が「この方法／効果で場に出た」を含む効果の chain へ
+    //   その旗を立てる＝**倍率元の `lastProcessedCards` が場行きのピックだけに絞られる**。
+    //   ⚠引き取ってよいのは**同じカードに「その中から〜場に出し」のピック節がある**ときだけ
+    //     （＝旗が立つ形）。無ければ従来どおり差し戻す（`O-80` の fail-closed 則）。
+    const perLpFieldScoped = /その中から[^。]*場に出/.test(_parsingCardText);
+    const perLpUnresolvable = !!perLpM && /場に出た/.test(perLpM[1]) && !perLpFieldScoped;
     if (perLpM && !perLpUnresolvable && /パワーを/.test(t)) {
       // ⚠修飾句を外すと**読点が余る**（`WXK07-054-CB`「それのパワーを、この方法で…につき－1000する」→
       //   「それのパワーを、－1000する」）＝そのままでは通常経路も解けない。読点を畳んでから解かせる。
@@ -9715,9 +9722,17 @@ function convertSelfHandDiscardStep(sent: string, seq: SequenceAction): EffectAc
   });
   if (hit < 0) return null;
   const trash = selfHandDiscardStep(steps[hit])!;
+  // 🆕§5.3 `O-189`（2026-09-01）＝**名詞句の色を原文から取り直す。**
+  //   🔴旧実装は素の `TRASH{HAND_CARD}` ステップの filter をそのまま流用しており、そこには
+  //   `cardType:'シグニ'` しか入っていなかった＝原文「手札から**黒の**シグニを1枚捨てて」の**色が脱落**し、
+  //   **手札のどのシグニでも払える過剰実行**になっていた（実測2効果＝`WXK10-029-E1` / `WXK10-040-E2`。
+  //   コスト側の `handDiscardSigni` は最初から `color` を持っており、任意コスト側だけの穴だった）。
+  //   ⚠`handDiscardSpecFilter` は**表現できない修飾が残ったら null**（無変換）＝その場合は従来どおり。
+  const specFilter = handDiscardSpecFilter(m[1] ?? '');
+  const discardFilter = { ...(trash.target!.filter ?? {}), ...(specFilter ?? {}) };
   const stub: StubAction = {
     type: 'STUB', id: 'OPTIONAL_COST',
-    handDiscard: { count, ...(trash.target!.filter ? { filter: trash.target!.filter } : {}) },
+    handDiscard: { count, ...(Object.keys(discardFilter).length ? { filter: discardFilter } : {}) },
     ...(costColors.length ? { costColors } : {}),
   } as StubAction;
   // 包み形（CONDITIONAL{ゲート, then: コスト}）は executor が解いて Pattern ④/⑤ へ委譲するので保つ。
@@ -11940,6 +11955,124 @@ function applyUpToClause(clause: string, stages: LookPickStage[]): void {
   }
 }
 
+/**
+ * §5.3 `O-146`＝「〈任意の移動〉して**もよい**。**そうした場合**、〜」の did-it ゲートを
+ * 仮ゲート `IS_MY_TURN` から**実際に動かした枚数**（`LAST_PROCESSED_COUNT_GTE`）へ差し替える。
+ *
+ * 🔴`IS_MY_TURN` は**自分のターンなら常に成立する**＝1枚も置かなくても後段の帰結が走る（過剰実行）。
+ * ⚠**任意の移動ステップ（`TRANSFER_TO_DECK` で `optional` かつ `source.upToCount`）の直後だけ**を差し替える
+ *   （強制の移動は「そうした場合」が常に成立するのが正しいので触らない）。
+ */
+function applyOptionalTransferDidItGate(text: string, parsed: EffectAction): EffectAction {
+  if (!/してもよい。\s*そうした場合/.test(text) && !/置いてもよい。\s*そうした場合/.test(text)) return parsed;
+  const rewrite = (node: EffectAction): EffectAction => {
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(rewrite);
+      for (let i = 1; i < steps.length; i++) {
+        const prev = steps[i - 1];
+        const cur = steps[i];
+        // ⚠`LIFE_CLOTH_CARD` は裏向きで対象選択にできず CHOOSE の2択になる＝`upToCount` を持たないので
+        //   `stripDidItConditional`（選択0体で帰結を落とす仕掛け）が効かない。ここで枚数ゲートへ替える。
+        const optionalMove = prev.type === 'TRANSFER_TO_DECK' && prev.optional === true
+          && (prev.source.upToCount === true || prev.source.type === 'LIFE_CLOTH_CARD')
+          && typeof prev.source.count === 'number';
+        if (optionalMove && cur.type === 'CONDITIONAL' && cur.condition.type === 'IS_MY_TURN') {
+          steps[i] = { ...cur, condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 } };
+        }
+      }
+      return { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') return { ...node, then: rewrite(node.then), ...(node.else ? { else: rewrite(node.else) } : {}) };
+    return node;
+  };
+  return rewrite(parsed);
+}
+
+/**
+ * §5.3 `O-170`＝「**表記されているパワー**と異なる／よりパワーの高い（低い）」の対象フィルタを、
+ * 対象句が別文・別ステップに分かれた形へも届ける後段パス（2026-09-01）。
+ *
+ * 🔴**受け皿は最初から在った**（`TargetFilter.powerDiffersFromPrinted` / `powerGtPrinted` / `powerLtPrinted`
+ *   ＝`fieldCandidates` が候補ごとに実効パワーと印刷パワーを比べる）。落ちていたのは配線で、
+ *   `parseSigniTarget` を通らない builder（`STUB{SELECT_TARGET_ONLY}` の `selectTarget`／
+ *   任意コスト前置きの `CONDITIONAL.then` 側）だけが**修飾を丸ごと捨てて相手のどのシグニでも選べた**。
+ *   実測＝原文12カードのうち3効果がこの穴（`WXK10-029-E1`／`WXDi-P06-042-E2`／`WX25-P3-063-E1`）。
+ *
+ * ⚠**fail-closed**＝①原文の修飾が1つだけ ②既にどこかに刻まれていたら何もしない（冪等）
+ *   ③`targetsStored`（宣言済み対象への束縛）を除いた SIGNI 対象ホルダーが**ちょうど1つ**のときだけ刻む。
+ *   ホルダーが複数ある形（どの対象に掛かるか決まらない）は据置＝過剰実行を別の過剰実行へ付け替えない。
+ * ⚠残る2効果（`WXK09-050-E2` の `STUB{SIGNI_GRANT_CHOSEN_ABILITY}`／`WX24-P4-054-E1` の
+ *   `STUB{POWER_MOD_DOUBLE_DIFF}`）は**対象ノードそのものが無い**＝別機構待ちでここでは触らない。
+ */
+function applyPrintedPowerScope(text: string, parsed: EffectAction): EffectAction {
+  const flags = parsePrintedComparison(text);
+  if (Object.keys(flags).length === 0) return parsed;
+  // 修飾が2つ以上ある効果は掛かり先が決まらない＝触らない。
+  if ((text.match(/表記されているパワー(?:と異なる|より)パワーの(?:高い|低い)?/g) ?? []).length !== 1) return parsed;
+  // ⚠**「既に刻まれている」は対象フィルタ以外も見る**＝`SIGNI_ATTACK_BAN.powerDiffersFromPrinted`
+  //   のように**アクション直下**に持つ型があり、そこを見落とすと**同じ文の別の対象**へ二重に刻む
+  //   （実測＝`WX25-P2-010-E1` の「シグニ2体まで－5000」へ誤って付いた）。
+  if (Object.keys(flags).some(k => JSON.stringify(parsed).includes(`"${k}"`))) return parsed;
+  const holders: Record<string, unknown>[] = [];
+  let already = false;
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const obj = node as Record<string, unknown>;
+    for (const key of ['target', 'selectTarget', 'optionalCostTarget'] as const) {
+      const t = obj[key] as Record<string, unknown> | undefined;
+      if (!t || typeof t !== 'object' || t.type !== 'SIGNI') continue;
+      const f = (t.filter ?? {}) as TargetFilter;
+      if (f.powerDiffersFromPrinted || f.powerGtPrinted || f.powerLtPrinted) { already = true; continue; }
+      // 「それ（ら）」＝宣言済み対象への束縛は掛かり先ではない（宣言側に刻めば足りる）。
+      if (obj.targetsStored || obj.targetsLastProcessed || obj.targetsTriggerSource) continue;
+      holders.push(t);
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(parsed);
+  if (already || holders.length !== 1) return parsed;
+  holders[0].filter = { ...((holders[0].filter as TargetFilter | undefined) ?? {}), ...flags };
+  // 任意コスト前置きの形は**候補判定側にも**刻む＝engine（`effectExecutor` の
+  // `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 分岐）は `optionalCostTarget.filter` で「対象なし」を判定するので、
+  // ここが無いと**修飾を満たすシグニが1体も居なくても支払いを問われ、払った後に候補ゼロ**になる。
+  if (parsed.type === 'SEQUENCE') {
+    const head = parsed.steps[0] as StubAction | undefined;
+    if (head?.type === 'STUB' && head.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' && !head.optionalCostTarget) {
+      head.optionalCostTarget = { ...(holders[0] as unknown as EffectTarget) };
+    }
+  }
+  return parsed;
+}
+
+/**
+ * §5.3 `O-153`＝原文が「この方法／この効果で**場に出た**シグニ」と**行き先を名指し**しているとき、
+ * `LOOK_PICK_CHAIN` に `lastProcessedFrom:'field'` を立てて後続へ渡すピックを場行きだけに絞る。
+ *
+ * 🔴**これが無かった間、手札に加えた札のレベルまで数えていた**＝`WX24-P3-039-E1`（相手デッキを
+ *   `countIsLastProcessedLevelSum` でミル）と `WX25-P1-039-E1`（`levelLteLastProcessed` でバニッシュ）は
+ *   **カードデータだけを見る**帰結なので、手札行きの札が混ざると過剰実行になる。
+ *
+ * ⚠**`then:'field'` のステージを持つ chain にだけ立てる**（場行きが無い chain で立てると
+ *   後続の「この方法で1枚も〜していない場合」が常に成立してしまう）。
+ * ⚠**「場に出す」だけの単段 chain にも立ててよい**（絞っても全件が場行きなので冪等）。
+ */
+function applyLookPickFieldScope(text: string, parsed: EffectAction): EffectAction {
+  if (!/この(?:方法|効果)で場に出た/.test(text)) return parsed;
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'LOOK_PICK_CHAIN' && Array.isArray(obj.stages)
+        && (obj.stages as LookPickStage[]).some(st => st.then === 'field')) {
+      obj.lastProcessedFrom = 'field';
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(parsed);
+  return parsed;
+}
+
 function applyExplicitSelectionGroups(text: string, parsed: EffectAction): EffectAction {
   const groups = parseExplicitSelectionGroups(text);
   if (!groups) {
@@ -12415,6 +12548,9 @@ function parseActionTextBody(text: string): EffectAction {
   parsed = rewriteNoSharedColorSelectionShape(text, parsed);
   parsed = applyMutualDistinctSelection(text, parsed);
   parsed = applyLookPickUpTo(text, parsed);
+  parsed = applyLookPickFieldScope(text, parsed);
+  parsed = applyPrintedPowerScope(text, parsed);
+  parsed = applyOptionalTransferDidItGate(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {
@@ -13683,7 +13819,19 @@ function rewriteUnderCardOpToTransfer(text: string, action: EffectAction): Effec
     }
   }
 
-  // ③ 受け皿が無いものは **honest な `DEFERRED_*` へ改名**する（`census:stubs` C群の作法）。
+  // ③🆕「あなたのライフクロスの一番上を見る。**そのカードをデッキに加えてシャッフルしてもよい**」
+  //    （§5.3 `O-145`・2026-09-01）＝受け皿は `TRANSFER_TO_DECK{LIFE_CLOTH_CARD}` に最初から在り、
+  //    欠けていたのは `optional`（engine 側）だけだった。⚠位置は書かない（原文は「デッキに加えて
+  //    シャッフル」で一番上/下を指定していない）。
+  if (!replacement && /そのカードをデッキに加えてシャッフルしてもよい/.test(t)) {
+    replacement = {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 1 },
+      shuffle: true, optional: true,
+    } as EffectAction;
+  }
+
+  // ④ 受け皿が無いものは **honest な `DEFERRED_*` へ改名**する（`census:stubs` C群の作法）。
   //    🔴**改名と同時に、直後の「そうした場合」（`CONDITIONAL{IS_MY_TURN}`）を落とす。**
   //      理由＝この綴りは「直前の任意アクションがスキップされたら後段も走らない」ことに依存しており、
   //      その任意アクションを**実装していない**のに残すと、**自分のターンなら常に `then` が走る**
@@ -23782,6 +23930,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     effect.action = rewriteUnderCardOpToTransfer(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
     // §5.3 `O-76`／`O-77` 第2バッチ＝残った catch-all を typed / honest defer へ振り分ける。
     effect.action = rewriteCatchAllStubs(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
+    // 🆕§5.3 `O-145`／`O-146`＝上の書き換えで**新しく生えた任意の移動**にも did-it ゲートを配る
+    //   （`parseActionText` の後段パスはこの時点より前に済んでいるので、ここでもう一度回す＝冪等）。
+    effect.action = applyOptionalTransferDidItGate(currentSourceTexts.get(effect.effectId) ?? '', effect.action);
   }
   // 🆕「以下のNつから1つを選ぶ。この効果を〈誰か〉のセンタールリグのレベルと同じ回数行う。」
   //   （`WXK10-104-E1` / `WXDi-D05-011-sub-E1`・2026-08-31 §5.2）。

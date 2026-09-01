@@ -161,7 +161,21 @@ if (fs.existsSync('docs/_idset_fresh.json')) {
   const tickets = dFrom >= 0 ? detailText.slice(dFrom, dTo > dFrom ? dTo : detailText.length) : '';
   if (!tickets) console.error('⚠ PLAN_DETAIL.md の §5.3 登録票節を切り出せなかった＝mech フラグが大幅に過少になる（節見出しが変わった可能性）');
 
-  const haystack = sec53 + '\n' + tickets;
+  // 🆕**クローズ済みの登録票は数えない**（2026-09-01 続き771）＝PLAN の運用では
+  //   「クローズした項目は §5.3 の索引から消すが、登録票の全文は PLAN_DETAIL に残す」ので、
+  //   登録票をそのまま読むと**消化しても mech が減らない**（この計器の目的＝1シートを分母にした
+  //   **単調減少するカウンタ**が成り立たなくなる）。
+  //   ⚠**判定は「見出しの直後に 🏁 がある」ことだけ**＝本文中の 🏁（「主群4効果を消化」等の部分消化）は
+  //     項目自体のクローズではないので数え続ける（fail-open 側＝過少に出さない）。
+  const openTickets = tickets
+    .split(/\n(?=### `O-\d+`)/)
+    .filter(block => {
+      if (!block.startsWith('### `O-')) return true;
+      const body = block.slice(block.indexOf('\n') + 1).trimStart();
+      return !body.startsWith('🏁');
+    })
+    .join('\n');
+  const haystack = sec53 + '\n' + openTickets;
   for (const c of rows.keys()) {
     for (let i = haystack.indexOf(c); i >= 0; i = haystack.indexOf(c, i + 1)) {
       const next = haystack[i + c.length];

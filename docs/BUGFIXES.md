@@ -1,5 +1,76 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-01（続き771）：§5.3 索引 C（母集団1〜2効果）を 45件 → 33件（12件クローズ＝実装9件＋登録票 stale 3件）
+
+**真因（総論）**＝索引 C の登録票は「受け皿が無い」と書いているものが多いが、**実際には受け皿が既にあり、
+落ちていたのは配線か、そもそも既に消化済みという事実**だった（12件中7件）。⇒ **索引 C は「型を足す作業」ではなく
+「配線を探す作業」**として取る。⚠**「規模＝1効果」の登録は母集団ではない**（`O-170` は原文12カード、`O-153` は
+多段 `LOOK_PICK_CHAIN` 16効果が母数）＝**索引 C でも②「数える」を飛ばさない。**
+
+### 実装した9件
+
+| ID | 真因（1行） | 影響 | 直した層 |
+|---|---|---|---|
+| `O-153` | `LOOK_PICK_CHAIN` が全ステージのピックを合算して後続へ渡す＝原文が「この方法／効果で**場に出た**シグニ」と行き先を名指ししても**手札行きの札のレベルまで数える** | **3効果**（`WX24-P3-039-E1` 過剰ミル／`WX25-P1-039-E1` 過剰バニッシュ／`WX24-P2-035-E1` は STUB 据置だった） | 型＋engine＋parser 後段パス＋golden |
+| `O-170` | 「表記されているパワーと異なる／より高い（低い）」が `parseSigniTarget` を通らない builder（`SELECT_TARGET_ONLY.selectTarget`・任意コスト前置きの `CONDITIONAL.then`）で丸ごと落ちる | **3効果**（相手のどのシグニでも選べた） | parser 後段パス＋golden（**受け皿は既存**） |
+| `O-212` | `EffectTarget.totalPowerMax` は**場のシグニ経路だけ**が読み、`execAddToField` の trash/energy 経路は `selectOrInteract` へ渡していない＝**誰も見ない死にキー** | **2効果**（`WXK09-023-E1` はエナから＜電機＞3体を無制限に／`WXEX2-52-E3` は制約ごと欠落） | 型3キー＋`$ref`1本＋両評価器＋UI 文言＋golden＋実機 |
+| `O-145` | `execTransferToDeck` の `LIFE_CLOTH_CARD` 経路が `optional` を見ない＝「してもよい」が**強制**（受け皿が無いと判断して `DEFERRED_*` にしてあった） | **1効果** | engine＋parser＋golden＋実機 |
+| `O-146` | `underCardOp{energy_signi_to_deck_top}` が「置いて**もよい**」を強制で実行し、候補が複数でも `candUC[0]` を自動で選ぶ | **1効果** | parser（typed 化・engine 新規実装ゼロ）＋golden＋実機 |
+| `O-154` | 「その中に〈クラス〉が N枚以上ある場合」の閾値と、冒頭で対象化したカードへの照応が両方落ちる | **1効果**（自分の＜龍獣＞を条件なしで割り、【ダブルクラッシュ】が無条件で乗る） | `manualEffects.ts` 手書き（**engine 0行**）＋golden |
+| `O-189` | `convertSelfHandDiscardStep` が素の `TRASH{HAND_CARD}` の filter を流用し、名詞句の**色が脱落** | **2効果**（任意コストが原文より緩い） | parser＋golden |
+| `O-208` | `STUB{LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS}` がアーツを**全部**ルリグデッキへ戻す（原文は「対象のアーツを2枚まで」） | **1効果** | 型1キー＋engine＋`manualEffects.ts`＋golden |
+| `O-214` | `ZONE_SUM_COUNT` がゾーンごとに distinct して足す＝**同名が場とエナに1枚ずつあると2種類**と数える | **1効果**（基本パワー35000が早く乗る） | 型1キー＋両評価器＋`manualEffects.ts`＋golden |
+
+### 「登録票が stale」だった3件（**コード変更ゼロ**）
+
+- **`O-171`**＝`ZONE_SUM_COUNT`（両評価器＋golden）は 2026-08-31 続き747 で実装済み・`WDA-F03-13-E3` も是正済み。
+- **`O-207`**＝`LookPickChainStage.gateZoneOnly` → `AddToFieldAction.gateZoneOnly` は実装済み・`WXDi-P15-079-E1` に刻み済み。
+- **`O-215`**＝`TargetFilter.hasSoul` と `frontOfAllyWithSoul` は 2026-08-31 続き749 で実装済み（2効果とも）。
+
+⇒ 🔑**索引の項目に着手したら、最初にやるのは実装ではなく「その受け皿を grep する」こと。**
+
+### 検証
+
+- `npm run gates` **全緑**（golden **3209 / 3209**＝3199 → +10本・0 FAIL／smoke 10,721効果 全異常0／fuzz 全0／
+  census **11 / BASELINE 12**／`census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴130行 据置／
+  lint 0 errors・250 warnings）。`npm run regen` 済み。
+- **live の A/B 差分は毎回「意図した件数だけ」を機械確認**した（`O-153`＝6枚／`O-170`＝3枚／`O-189`＝2枚／
+  `O-146`＝1枚／`O-145`＝1枚）。⚠**AUTO でも `_held_fresh` に落ちるので `heldReview --adopt` まで回さないと live に届かない**
+  （この巡で4回踏んだ）。MANUAL/PARTIAL は `syncManualLive.ts`。
+- **実機（`verifyBattleDrive.mjs`）＝新規5本すべて PASS**（単体でも5本一括でも）
+  ＝`o146EnergyTopTake`／`o146EnergyTopSkip`／`o145LifeTopTake`／`o145LifeTopSkip`／`o212PowerSumExact`。
+  **反転確認あり**＝(a)`O-146` は「置く／置かない」で【ルリグバリア】の有無が1ビット反転
+  (b)`O-145` は「加える／加えない」でライフの一番上が入れ替わるか否かが反転
+  (c)`O-212` は 10000 / 11000 / 13000（超過＝選択自体を拒否）では**決定が押せず**、ちょうど12000でだけ押せる。
+- **実機は必須と判定**（§2.2）＝新しい機構を4本足した（`lastProcessedFrom` ／ パワー合計制約3キー ／
+  `$ref:'source_effective_power'` ／ `distinctAcrossZones`）ことと、`src/screens/battle/modals/EffectInteractionModal.tsx`
+  の見出し文言に2行足したこと。
+
+### 同時に直した計器の較正（1件）
+
+**`census:cards` の `mech` フラグが PLAN_DETAIL の登録票を「クローズ済みも含めて」読んでいた。**
+PLAN の運用は「クローズした項目は §5.3 の索引から消すが、登録票の全文は PLAN_DETAIL に残す」なので、
+**消化しても `mech` は永久に減らない**＝この計器の目的（1シートを分母にした**単調減少するカウンタ**）が
+成り立っていなかった。⇒ **見出しの直後が 🏁 の登録票は数えない**（本文中の部分消化 🏁 は数え続ける＝fail-open）。
+⚠**今回の12件クローズで Sheet1 の 20 は動かなかった**＝残 20 枚は**別の（まだ開いている）登録票**から立っている。
+**これは前進ではなく較正。**
+
+### この巡で踏んだ罠（次の人向け）
+
+1. 🔴**`applyPrintedPowerScope` の「既に刻まれている」判定は対象フィルタ以外も見る**＝`SIGNI_ATTACK_BAN.powerDiffersFromPrinted`
+   のように**アクション直下**に持つ型があり、見落とすと**同じ文の別の対象へ二重に刻む**（`WX25-P2-010-E1` で実測）。
+2. 🔴**golden の新規テストで `mkCtx`/`fresh` を使うなら `withSavedCursor` で包む**＝POOL カーソルがずれて
+   **無関係な2本が FAIL する**（この巡で `task12(cx)` と `Stage2 power B44` が巻き添えになった）。
+3. 🔴**実機ドライバ：注入したスタックは最初のクエリ時点で既に `pending_effect` へ移っている**＝
+   `stackLen > 0` を前提条件にすると即 FAIL する。**基準値は最初のクエリではなくスペックの固定値**にする
+   （`LOOK_AND_REORDER` が1枚抱えている間は **life が2枚に見える**のも同根）。
+4. 🔴**実機ドライバ：確定直後の1回読みはコミット前の盤面を掴む**＝**単体では PASS するのに一括実行だけ FAIL** する。
+   ⇒ `settled` ストリーク（3ティック連続で pending も stack も無い）を進行条件にする。
+5. 🔑**候補モーダルの札は1度だけ押す**（毎ティック押すとトグルして「決定」に永久に進まない）。
+6. 🔑**`deck_shuffled_count` は判定に使えない**＝明示的なシャッフルアクションが積むカウンタで、
+   `insertToDeck` の `shuffle:true` では増えない（実機で実測）。**カード番号で見る。**
+
+
 ## 2026-09-01（続き770）：旧「未採番の機構在庫」30件を採番（`O-191`〜`O-217`）／`census:cards` の `mech` が PLAN 再編で嘘をつく穴を1件修正
 
 **真因（採番側）**＝旧 §5.4 (ii) は「機構ギャップは §5.3 へ送る」と書きながら送らずに溜め続けており、**機構の置き場が2つ**あった。

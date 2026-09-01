@@ -4074,10 +4074,13 @@ test('前文designationの照応: 接続節が「そうした場合、」以外�
   // 🔴 fail-open ガードの固定＝照応節が**最終文でない**カードは触らない。
   //   `WD15-001-E2` の末尾は「このルリグは【ダブルクラッシュ】を得る」＝相手シグニへの付与に化けてはならない。
   {
+    // 🆕**2026-09-01（§5.3 `O-154`）で末尾が `CONDITIONAL{LAST_PROCESSED_MATCHES, then:GRANT_KEYWORD}` になった**
+    //   （原文「２枚以上ある場合、」の閾値を復元したため）。見張る中身（付与先が相手に化けないこと）は同じ。
     const st = steps(act('WD15-001', 'WD15-001-E2'));
-    const gk = st[st.length - 1] as { type?: string; target?: { owner?: string } };
-    eq(gk.type, 'GRANT_KEYWORD', 'WD15-001-E2 末尾は GRANT_KEYWORD');
-    ok(gk.target?.owner !== 'opponent', 'WD15-001-E2 照応節が最終文でない＝末尾へ owner を塗らない');
+    const tail = st[st.length - 1] as { type?: string; then?: { type?: string; target?: { owner?: string } } };
+    eq(tail.type, 'CONDITIONAL', 'WD15-001-E2 末尾は枚数ゲート');
+    eq(tail.then?.type, 'GRANT_KEYWORD', 'その帰結は GRANT_KEYWORD');
+    ok(tail.then?.target?.owner !== 'opponent', 'WD15-001-E2 照応節が最終文でない＝末尾へ owner を塗らない');
   }
   // 同一文内の照応（`parseSentencePart1` の領分）へは踏み込まない＝「…それを凍結し、ターン終了時まで、
   // **このシグニ**のパワーを＋4000する」の後半は効果元のまま（相手への付与に化けない）。
@@ -7034,6 +7037,25 @@ test('LOOK_PICK_CHAIN dual-pick: hand+field ステージで手札1・場1・消�
   eq(r.ownerState.field.signi.filter(Boolean).length, 1, '1枚が場へ');
   eq(r.ownerState.deck.length + r.ownerState.hand.length + r.ownerState.field.signi.filter(Boolean).length, before, '公開カード消失なし（deck+hand+field 保存）');
 });
+
+test('O-153 engine: lastProcessedFrom:field は後続へ「場に出た分」だけを渡す（手札行きを混ぜない）', () => withSavedCursor(() => {
+  const stages = [
+    { filter: { cardType: 'シグニ' }, pickCount: 1, then: 'hand' },
+    { filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field' },
+  ];
+  // 対照①＝旗なし＝従来どおり全ステージのピックの合計（「この方法で1枚も〜していない場合」用）。
+  const plain = run({ type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3, stages,
+    remainder: { location: 'deck', position: 'bottom' } } as unknown as EffectAction,
+    mkCtx({ deckTop: [SIGNI, SIGNI_L2, SIGNI_P3000] }, {}));
+  eq(plain.lastProcessedCards?.length, 2, '対照：旗なしなら手札行き＋場行きの2枚');
+  // 対照②＝旗あり＝場に居る1枚だけ。
+  const scoped = run({ type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3, stages,
+    remainder: { location: 'deck', position: 'bottom' }, lastProcessedFrom: 'field' } as unknown as EffectAction,
+    mkCtx({ deckTop: [SIGNI, SIGNI_L2, SIGNI_P3000] }, {}));
+  eq(scoped.lastProcessedCards?.length, 1, '🔴旗ありなら場に出た1枚だけ');
+  const onField = new Set(scoped.ownerState.field.signi.flatMap(z => z ?? []));
+  ok((scoped.lastProcessedCards ?? []).every(n => onField.has(n)), '渡すのは場に居るカードだけ');
+}));
 // ── §6.2 段2 第43バッチ：`LOOK_PICK_CHAIN` の「N枚**まで**」（上限＝0枚でもよい）────────────────
 // 原文の「まで」が `stage.pickUpTo` に届いておらず、engine が**ちょうどN枚を必ず選ばせる**過剰実行だった
 // 22効果。⚠**この壊れ方は逆翻訳にも live の型にも異常として出ない**（構造は正しく、任意性だけが消える）
@@ -8479,11 +8501,13 @@ test('O-60② parser: LRIG_UNDER_CARD_OP は underCardOp で操作と絞り込�
   //   ⚠**「>= 15」のまま残すと、引き剥がすたびに赤くなる**＝この assert は「live から数え直しているか」を
   //     見るためのもので、件数そのものを固定したいわけではない。下限を実測に合わせて下げる。
   // §5.3 `O-77` 第2バッチ（2026-08-29）＝裸の catch-all 8件を引き剥がし、残りは payload つきの正当な用法だけ（10→2）。
-  ok(found.length >= 2, `母集団は live から再導出（実測 ${found.length} ノード）`);
-
-  const energyUp = found.find(x => x.effectId === 'SPDi43-26-E1' && x.uc);
-  eq(energyUp?.uc?.op, 'energy_signi_to_deck_top', 'エナ→デッキ上の操作を刻む');
-  eq(energyUp?.uc?.filter?.color, '白', '🔴原文の「**白の**シグニ」を保持（旧 engine は色を1文字も見なかった）');
+  // 🆕**2026-09-01（§5.3 `O-146`）＝`SPDi43-26-E1`（`energy_signi_to_deck_top`）を typed へ移した（2→1）。**
+  //   旧版はここで「白の絞り込みを保持」を assert していたが、その効果は原文が「置いて**もよい**」
+  //   なのに強制で、しかも候補を自動で1枚目に決めていた＝**payload が正しくても壊れていた**。
+  //   絞り込みの固定は `O-146` のテストが `TRANSFER_TO_DECK.source.filter.color` で引き継ぐ。
+  ok(found.length >= 1, `母集団は live から再導出（実測 ${found.length} ノード）`);
+  ok(!found.some(x => x.uc?.op === 'energy_signi_to_deck_top'),
+    'エナ→デッキ上は catch-all に残っていない（O-146 で typed 化）');
   eq(found.find(x => x.effectId === 'WXDi-CP02-054-E1' && x.uc)?.uc?.op, 'trash_all_under_self',
     '「下にあるすべてのカードをトラッシュ」だけがトラッシュ操作を刻む');
   // 🔑「下をトラッシュ」の文が無い効果は payload を持たない＝engine は下に触れない（旧バグの母集団）。
@@ -8924,13 +8948,29 @@ test('O-80① parser: この方法で〜1枚につきのパワー修整は POWER
     '🔴数えるのは＜悪魔＞のシグニだけ（旧実装はミルした4枚を全部数えていた）');
   eq(one('WX25-P3-102-E1')?.delta, -2000, '1枚あたりの単価');
 
-  // 🔴**「場に出た」は引き取らない**（§5.3 `O-153`）＝倍率元の `lastProcessedCards` に
-  //   `LOOK_PICK_CHAIN` の**手札行きも混ざる**ので、`level_sum` にすると手札の札まで数える。
-  //   ⚠`perLastProcessed.filter` はカードデータしか見ないので2ステージ（同一 filter）を分離できない。
-  eq(one('WX24-P2-035-E1'), undefined,
-    '🔴「この効果で場に出たシグニのレベル1につき」を引き取っている＝手札に加えた札まで数える');
-  ok(JSON.stringify(effectsMap.get('WX24-P2-035')?.find(e => e.effectId === 'WX24-P2-035-E1')?.action ?? {})
-    .includes('POWER_MOD_PER_COUNT'), 'WX24-P2-035-E1 は catch-all に据え置き（O-153 で扱う）');
+  // 🆕**2026-09-01（§5.3 `O-153` 消化）＝「場に出た」を引き取れるようになった。**
+  //   旧版はここで「catch-all に据え置き」を assert していた＝倍率元の `lastProcessedCards` に
+  //   `LOOK_PICK_CHAIN` の**手札行きも混ざる**ので `level_sum` にすると手札の札まで数えたため。
+  //   ⇒ engine に行き先別の記録（`lastProcessedFrom:'field'`）を入れて解決した。
+  eq(tgt('WX24-P2-035-E1')?.owner, 'opponent', 'WX24-P2-035-E1: 対象は対戦相手のシグニ1体');
+  eq(tgt('WX24-P2-035-E1')?.count, 1, 'WX24-P2-035-E1: 1体だけ');
+  eq(plp('WX24-P2-035-E1')?.unit, 'level_sum', '🔴「レベル1につき」はレベルの合計が倍率');
+  eq(one('WX24-P2-035-E1')?.delta, -5000, 'WX24-P2-035-E1: レベル1あたりの単価');
+  ok(!JSON.stringify(effectsMap.get('WX24-P2-035')?.find(e => e.effectId === 'WX24-P2-035-E1')?.action ?? {})
+    .includes('POWER_MOD_PER_COUNT'), 'WX24-P2-035-E1: catch-all の STUB は消えている');
+});
+
+test('O-153 parser: 「この方法/効果で場に出た」は LOOK_PICK_CHAIN へ lastProcessedFrom:field を立てる', () => {
+  // 🔴これが無いと `countIsLastProcessedLevelSum`／`levelLteLastProcessed` が**手札に加えた札の
+  //   レベルまで数える**（両方ともカードデータしか見ないため）。
+  for (const [cardNum, effectId] of [['WX24-P3-039', 'WX24-P3-039-E1'], ['WX25-P1-039', 'WX25-P1-039-E1'],
+    ['WX24-P2-035', 'WX24-P2-035-E1']] as const) {
+    const s = JSON.stringify(effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action ?? {});
+    ok(s.includes('"lastProcessedFrom":"field"'), `${effectId}: lastProcessedFrom:'field' が立つ`);
+  }
+  // 対照＝行き先を名指ししない chain には立たない（「この方法で1枚も〜していない場合」が壊れる）。
+  const plain = JSON.stringify(effectsMap.get('WXDi-P02-020')?.find(e => e.effectId === 'WXDi-P02-020-E1')?.action ?? {});
+  ok(!plain.includes('lastProcessedFrom'), 'WXDi-P02-020-E1: 行き先を名指ししない chain には立たない');
 });
 
 test('O-80① engine: 倍率は絞り込み・レベル合計・N枚単位で決まり、対象選択を跨いでも保たれる', () => withSavedCursor(() => {
@@ -13191,6 +13231,191 @@ test('§6.4 fieldDown: アップ状態の該当シグニが足りなければ支
 // **なぜ計器が要るか**＝この形は engine が普通に動くので smoke/fuzz は緑のまま。
 // `mandatory` も `TRASH{optional:true}` も代用にならない（前者は ON_PLAY 以外で読まれず、
 // 後者は「0枚選択」でも直後の「そうした場合」ゲートが通り**払わずに本体が撃てる**）。
+test('O-146: SPDi43-26-E1「エナから白のシグニ1枚をデッキの上に置いてもよい」は任意＋選択＋枚数ゲート', () => withSavedCursor(() => {
+  // 🔴旧 live は `STUB{LRIG_UNDER_CARD_OP, underCardOp:{op:'energy_signi_to_deck_top'}}`＝
+  //   ①原文「置いて**もよい**」なのに**強制** ②候補が複数でも `candUC[0]` を**自動で選ぶ**
+  //   ③「そうした場合」が `IS_MY_TURN`＝**1枚も置かなくても【ルリグバリア】が乗る**（三重の過剰実行）。
+  const eff = effectsMap.get('SPDi43-26')?.find(e => e.effectId === 'SPDi43-26-E1');
+  const seq = eff?.action as SeqA;
+  const move = seq.steps[0] as { type: string; optional?: boolean; position?: string;
+    source: { type: string; count: number; upToCount?: boolean; filter?: { color?: string } } };
+  eq(move.type, 'TRANSFER_TO_DECK', '受け皿 STUB ではなく型付きの移動');
+  eq(move.source.type, 'ENERGY_CARD', 'エナゾーンから');
+  eq(move.source.filter?.color, '白', '🔴「白の」の絞り込みを保つ');
+  eq(move.source.count, 1, '1枚');
+  eq(move.source.upToCount, true, '🔴「まで」＝0枚でもよい（選択対話が出る）');
+  eq(move.optional, true, '🔴「置いてもよい」＝任意');
+  eq(move.position, 'top', 'デッキの一番上');
+  const gate = seq.steps[1] as { condition: { type: string; value?: number } };
+  eq(gate.condition.type, 'LAST_PROCESSED_COUNT_GTE', '🔴「そうした場合」は実際に置いた枚数で判定');
+  eq(gate.condition.value, 1, '1枚以上置いたときだけ');
+  ok(!JSON.stringify(eff?.action).includes('LRIG_UNDER_CARD_OP'), '旧 STUB は残っていない');
+}));
+
+test('O-214: ZONE_SUM_COUNT の distinctAcrossZones は合流させてから1度だけ数える', () => withSavedCursor(() => {
+  // 🔴既定（ゾーンごとの `distinctBy` を足す形）は**同名が場とエナに1枚ずつあると 2 種類**と数える＝
+  //   原文「場とエナに合計N種類」に対して過剰成立だった（`WXDi-CP01-031-E1` は基本パワー35000が早く乗る）。
+  const a = findCard(c => c.Type === 'シグニ');
+  const b = findCard(c => c.Type === 'シグニ' && c.CardName !== cardMap.get(a)?.CardName);
+  const zones = [{ zone: 'field', owner: 'self' }, { zone: 'energy', owner: 'self' }];
+  const ctx = mkCtx({ signi: [a, null, null], energy: 0 }, {});
+  (ctx.ownerState as { energy: string[] }).energy = [a];
+  const merged = { type: 'ZONE_SUM_COUNT', zones, operator: 'gte', value: 2, distinctAcrossZones: 'name' };
+  const summed = { type: 'ZONE_SUM_COUNT', zones: zones.map(z => ({ ...z, distinctBy: 'name' })), operator: 'gte', value: 2 };
+  eq(evalCondition(summed as never, ctx), true, '対照：ゾーンごとに数えて足すと同名2枚が「2種類」になる');
+  eq(evalCondition(merged as never, ctx), false, '🔴合流版は同名2枚を「1種類」と数える');
+  // 別名なら 2 種類＝成立する（不成立側へ倒しただけではないことの確認）。
+  const ctx2 = mkCtx({ signi: [a, null, null] }, {});
+  (ctx2.ownerState as { energy: string[] }).energy = [b];
+  eq(evalCondition(merged as never, ctx2), true, '別名2枚なら2種類＝成立');
+  // live 契約
+  const cond = (manualEffect('WXDi-CP01-031', 'WXDi-CP01-031-E1').action as { condition: Record<string, unknown> }).condition;
+  eq(cond.distinctAcrossZones, 'name', 'WXDi-CP01-031-E1 は合流版を使う');
+  ok(!JSON.stringify(cond).includes('distinctBy'), 'ゾーンごとの distinctBy は残っていない');
+}));
+
+test('O-208: WXEX2-84-E1 はアーツを「2枚まで」しか戻さない（旧実装は全部）', () => withSavedCursor(() => {
+  // 🔴`STUB{LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS}` はルリグトラッシュのアーツを**全部**ルリグデッキへ戻す。
+  //   原文は「**対象の**アーツを**２枚まで**」＝過剰実行だった。
+  const seq = manualEffect('WXEX2-84', 'WXEX2-84-E1').action as SeqA;
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE 化');
+  eq((seq.steps[0] as { skipArtsReturn?: boolean }).skipArtsReturn, true, 'STUB 側はアーツに触らない');
+  const back = seq.steps[1] as { type: string; source: { count: number; upToCount?: boolean }; destination?: string };
+  eq(back.type, 'TRANSFER_TO_DECK', 'アーツの回収は型付きの移動で表す');
+  eq(back.source.count, 2, '🔴2枚まで');
+  eq(back.source.upToCount, true, '「まで」＝0枚でもよい');
+  eq(back.destination, 'lrig_deck', '戻す先はルリグデッキ');
+  // ── engine：アーツ4枚・ルリグ2枚のルリグトラッシュで、戻るのは2枚だけ・ルリグは全部下へ ──
+  // ⚠`findCard` は同じカードを返しうる（POOL カーソルはシグニ用）＝**別カード番号で4枚**集める。
+  const allArts = [...cardMap.values()].filter(c => c.Type === 'アーツ').map(c => c.CardNum);
+  const allLrigs = [...cardMap.values()].filter(c => c.Type === 'ルリグ').map(c => c.CardNum);
+  const arts = allArts.slice(0, 4);
+  const lrigs = allLrigs.slice(0, 2);
+  eq(new Set(arts).size, 4, '前提：別カードのアーツ4枚');
+  const ctx = mkCtx({}, {});
+  (ctx.ownerState as { lrig_trash: string[] }).lrig_trash = [...lrigs, ...arts];
+  (ctx.ownerState as { lrig_deck: string[] }).lrig_deck = [];
+  const r = run(manualEffect('WXEX2-84', 'WXEX2-84-E1').action, ctx);
+  eq(r.ownerState.lrig_deck?.length, 2, '🔴ルリグデッキへ戻るのは2枚（旧実装は4枚全部）');
+  eq((r.ownerState.lrig_trash ?? []).filter(n => arts.includes(n)).length, 2, '残り2枚はルリグトラッシュに残る');
+  ok(lrigs.every(n => r.ownerState.field.lrig.includes(n)), 'ルリグは全部センタールリグの下へ');
+}));
+
+test('O-212: 選択集合のパワー合計制約（上限／ちょうど／実行時の参照値）', () => withSavedCursor(() => {
+  // 🔴`EffectTarget.totalPowerMax` は**場のシグニ経路だけ**が読む＝`execAddToField` の trash/energy 経路は
+  //   渡しておらず、`WXK09-023-E1` の `source.totalPowerMax:12000` は**誰も見ない死にキー**だった
+  //   （エナから＜電機＞3体を無制限に並べられた）。⇒ `SelectionConstraint` 側へ移して両評価器に載せる。
+  const p1000 = findCard(c => c.Type === 'シグニ' && c.Power === '1000');
+  const p3000 = findCard(c => c.Type === 'シグニ' && c.Power === '3000');
+  const p12000 = findCard(c => c.Type === 'シグニ' && c.Power === '12000');
+  const cm = cardMap;
+  // ── 上限 ──
+  const maxC = { totalPowerMax: 5000 };
+  ok(satisfiesSelectionConstraint([p1000, p3000], maxC, cm), '1000+3000=4000 は上限5000以下＝選べる');
+  ok(!satisfiesSelectionConstraint([p3000, p3000], maxC, cm), '🔴3000+3000=6000 は上限超過＝選べない');
+  ok(!canAddToSelection([p3000], p3000, maxC, cm), '積み上げの途中でも超過は弾く');
+  // ── ちょうど ──
+  const exactC = { totalPowerExact: 4000 };
+  ok(satisfiesSelectionConstraint([p1000, p3000], exactC, cm), '1000+3000=4000 はちょうど＝確定できる');
+  ok(!satisfiesSelectionConstraint([p3000], exactC, cm), '🔴3000 だけでは「ちょうど」にならない＝確定できない');
+  ok(canAddToSelection([p1000], p3000, exactC, cm), '途中経過（超過でない）は積み上げられる');
+  ok(!canAddToSelection([p3000], p3000, exactC, cm), '超過する足し方は弾く');
+  // ── パワー不明（「-」等）は fail-closed ──
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  ok(!satisfiesSelectionConstraint([lrig], maxC, cm), 'パワー不明は不成立へ倒す');
+  // ── 実行時参照＝効果元シグニの実効パワー ──
+  const ctxSP = mkCtx({ signi: [p12000, null, null] }, {}, p12000);
+  eq(resolveCountRef({ $ref: 'source_effective_power' }, ctxSP), 12000, '効果元の印刷パワーを解決');
+  const buffed = { ...ctxSP, effectivePowers: new Map([[p12000, 20000]]) };
+  eq(resolveCountRef({ $ref: 'source_effective_power' }, buffed), 20000, '🔴実効パワー（強化後）を優先');
+  eq(resolveCountRef({ $ref: 'source_effective_power' }, { ...ctxSP, sourceCardNum: undefined }), 0,
+    '効果元が特定できなければ 0（fail-closed＝1体も選べない）');
+  // ── live 契約 ──
+  const k09 = JSON.stringify(manualEffect('WXK09-023', 'WXK09-023-E1').action);
+  ok(k09.includes('"totalPowerExact":12000') && !k09.includes('"totalPowerMax":12000'),
+    'WXK09-023-E1「合計が12000になるように」＝ちょうど（上限ではない）');
+  const ex52 = JSON.stringify(manualEffect('WXEX2-52', 'WXEX2-52-E3').action);
+  ok(ex52.includes('"totalPowerMaxRef":{"$ref":"source_effective_power"}'),
+    'WXEX2-52-E3「このシグニのパワー以下になるように」＝実行時参照');
+}));
+
+test('O-170: 「表記されているパワーと異なる」が対象句の別文・別ステップにも届く', () => {
+  // 🔴受け皿（`powerDiffersFromPrinted` ほか）は最初から在り、落ちていたのは配線だけ＝
+  //   `parseSigniTarget` を通らない builder（`SELECT_TARGET_ONLY.selectTarget`／任意コスト前置きの
+  //   `CONDITIONAL.then`）が修飾を丸ごと捨てて**相手のどのシグニでも選べた**（実測3効果）。
+  const json = (cardNum: string, effectId: string) =>
+    JSON.stringify(effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action ?? {});
+  for (const [cardNum, effectId] of [['WXK10-029', 'WXK10-029-E1'], ['WXDi-P06-042', 'WXDi-P06-042-E2'],
+    ['WX25-P3-063', 'WX25-P3-063-E1']] as const) {
+    ok(json(cardNum, effectId).includes('"powerDiffersFromPrinted":true'),
+      `${effectId}: 対象フィルタに powerDiffersFromPrinted`);
+  }
+  // 任意コスト前置きは候補判定側（`optionalCostTarget`）にも刻む＝修飾を満たすシグニが0体なら支払いを問わない。
+  for (const [cardNum, effectId] of [['WXDi-P06-042', 'WXDi-P06-042-E2'], ['WX25-P3-063', 'WX25-P3-063-E1']] as const) {
+    const head = (effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action as SeqA).steps[0] as
+      { optionalCostTarget?: { filter?: { powerDiffersFromPrinted?: boolean } } };
+    ok(head.optionalCostTarget?.filter?.powerDiffersFromPrinted, `${effectId}: 候補判定側にも刻む`);
+  }
+  // 🔴対照＝**同じ文に修飾を持つ別のアクション型**（`SIGNI_ATTACK_BAN`）がある効果へ二重に刻まない。
+  //   `WX25-P2-010-E1` の「シグニ2体まで－5000」は無修飾（修飾はアタック禁止の側だけ）。
+  const p2010 = effectsMap.get('WX25-P2-010')?.find(e => e.effectId === 'WX25-P2-010-E1')?.action as SeqA;
+  const pm = p2010.steps.find(st => st.type === 'POWER_MODIFY') as { target?: { filter?: Record<string, unknown> } };
+  eq(pm.target?.filter?.powerDiffersFromPrinted, undefined,
+    '🔴WX25-P2-010-E1: 修飾はアタック禁止の側だけ＝パワー修整の対象へ付けない');
+  ok(JSON.stringify(p2010).includes('"SIGNI_ATTACK_BAN"'), '対照：アタック禁止側には残る');
+});
+
+test('O-154: WD15-001-E2 は「その中にN枚以上ある場合」の2段閾値＋宣言済み対象への照応を持つ', () => {
+  // 🔴旧 live は2つとも壊れていた＝①第2ステップが `BANISH{SIGNI, owner:'self', story:'龍獣'}`＝
+  //   **条件なしで自分の＜龍獣＞を割る**（原文は「対象にした**相手**のシグニ」）
+  //   ②【ダブルクラッシュ】付与に「2枚以上ある場合」の条件が無く**無条件で乗る**。
+  type CondA2 = import('../src/types/effects').ConditionalAction;
+  type StubA2 = import('../src/types/effects').StubAction;
+  const seq = manualEffect('WD15-001', 'WD15-001-E2').action as SeqA;
+  eq(seq.type, 'SEQUENCE', 'WD15-001-E2 SEQUENCE');
+  eq((seq.steps[0] as StubA2).id, 'SELECT_TARGET_ONLY', '先頭は対象宣言（対戦相手のシグニ1体）');
+  eq((seq.steps[0] as { selectTarget?: { owner?: string } }).selectTarget?.owner, 'opponent', '宣言するのは相手のシグニ');
+  eq((seq.steps[1] as StubA2).id, 'STORE_LAST_PROCESSED_TARGETS',
+    '対象を固定（間の TRASH{DECK_CARD} が lastProcessedCards を置き換えるため）');
+  eq((seq.steps[2] as { target: { type: string; count: number } }).target.type, 'DECK_CARD', 'デッキトップを2枚トラッシュへ');
+  eq((seq.steps[2] as { target: { count: number } }).target.count, 2, '枚数は2');
+  const g1 = seq.steps[3] as CondA2;
+  eq(g1.condition.type, 'LAST_PROCESSED_MATCHES', '①「その中に＜龍獣＞のシグニが1枚以上ある場合」');
+  eq((g1.condition as { minCount: number }).minCount, 1, '閾値1');
+  eq((g1.condition as { filter: { story: string } }).filter.story, '龍獣', '数えるのは＜龍獣＞');
+  eq(g1.then.type, 'BANISH', '帰結はバニッシュ');
+  eq((g1.then as { target: { owner: string } }).target.owner, 'opponent', '🔴割るのは相手（旧 live は自分の＜龍獣＞）');
+  ok((g1.then as { targetsStored?: boolean }).targetsStored, '🔴冒頭で宣言した対象へ束縛');
+  const g2 = seq.steps[4] as CondA2;
+  eq(g2.condition.type, 'LAST_PROCESSED_MATCHES', '②「2枚以上ある場合」');
+  eq((g2.condition as { minCount: number }).minCount, 2, '🔴閾値2（旧 live は無条件）');
+  eq(g2.then.type, 'GRANT_KEYWORD', '帰結は【ダブルクラッシュ】付与');
+  eq((g2.then as { target: { type: string } }).target.type, 'LRIG', '付与先はルリグ');
+});
+
+test('O-189: 任意コストの手札捨てが原文の色を保つ（`handDiscard.filter.color`）', () => {
+  // 🔴旧実装は素の `TRASH{HAND_CARD}` ステップの filter を流用しており、そこには `cardType:'シグニ'`
+  //   しか入っていなかった＝原文「手札から**黒の**シグニを1枚捨てて」の色が脱落し、
+  //   **手札のどのシグニでも払える過剰実行**だった（実測2効果）。
+  const handDiscardOf = (cardNum: string, effectId: string) => {
+    let hit: { count?: number; filter?: { color?: string; cardType?: string } } | undefined;
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (!node || typeof node !== 'object') return;
+      const o = node as Record<string, any>;
+      if (o.id === 'OPTIONAL_COST' && o.handDiscard) hit = o.handDiscard;
+      Object.values(o).forEach(walk);
+    };
+    walk(effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action);
+    return hit;
+  };
+  eq(handDiscardOf('WXK10-029', 'WXK10-029-E1')?.filter?.color, '黒', 'WXK10-029-E1「手札から黒のシグニを1枚捨てて」');
+  eq(handDiscardOf('WXK10-040', 'WXK10-040-E2')?.filter?.color, '赤', 'WXK10-040-E2「手札から赤のシグニを1枚捨てて」');
+  // 対照＝色の指定が無い原文には色を足さない（「手札を1枚捨ててもよい」）。
+  eq(handDiscardOf('WX24-P4-050', 'WX24-P4-050-E1')?.filter?.color, undefined,
+    '対照：無修飾の手札捨てに色は付かない');
+});
+
 // 正準形は `STUB{OPTIONAL_COST, handDiscard}`（effectExecutor Pattern ③/④/⑤ の pay/skip 分岐）。
 //
 // **運用**＝下は worklist であって許可リストではない。**リストに無いカードがこの形になったら即FAIL**。
@@ -43896,6 +44121,10 @@ test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が�
     // 消費側は `execRepeat` の先頭で `resolveCountRef(a.countRef, ctx)` し、**解決値を `count` へ焼き込んでから**回す
     // （周回中に `lastProcessedCards` が変わっても回数がぶれない）。0 なら1周も回さない。
     'REPEAT.countRef',
+    // 🆕§5.3 `O-212`（2026-09-01）＝`SelectionConstraint.totalPowerMaxRef`（「パワーの合計が
+    // **このシグニのパワー**以下になるように」）。消費側は `selectOrInteract` が pending/CPU 選択の**前に**
+    // `resolveCountRef` して静的な `totalPowerMax` へ焼き込む（`totalLevelMaxRef` と同じ道）。
+    'TRASH_CARD.totalPowerMaxRef',
   ]);
   const found = new Map<string, string[]>();
   const walk = (node: unknown, types: string[], key: string, who: string): void => {
@@ -55212,9 +55441,9 @@ test('O-77 parser契約: 4効果を TRANSFER_TO_DECK へ・3効果を honest def
   }
   // ■不成立方向①＝受け皿が無い3文型は honest な DEFERRED_* へ改名し、**did-it ゲートごと落とす**
   //   （実装していない任意アクションの「そうした場合」を残すと自分のターンに常時成立する）。
+  // 🆕`WXDi-P12-034-E2` は **2026-09-01（§5.3 `O-145`）に defer を返済**した（下の O-145 テストが正）。
   for (const [cardNum, effectId, id] of [
     ['WX24-P4-046', 'WX24-P4-046-E2', 'DEFERRED_TRASH_UNDER_DISTINCT_LEVELS'],
-    ['WXDi-P12-034', 'WXDi-P12-034-E2', 'DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE'],
     ['WDK09-015', 'WDK09-015-E1', 'DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE'],
   ] as const) {
     const json = JSON.stringify(o77Fresh(cardNum, effectId));
@@ -55222,10 +55451,38 @@ test('O-77 parser契約: 4効果を TRANSFER_TO_DECK へ・3効果を honest def
     ok(!json.includes('LRIG_UNDER_CARD_OP'), `${effectId}: 旧 catch-all が残る`);
     ok(!json.includes('"IS_MY_TURN"'), `${effectId}: 未実装なのに「そうした場合」が残っている（無条件成立に化ける）`);
   }
-  // ■不成立方向②＝payload を持つ正当な用法（`SPDi43-26-E1` のエナ→デッキ上）は**触らない**。
+  // ■不成立方向②＝🆕**2026-09-01（§5.3 `O-146`）に `SPDi43-26-E1` も typed へ移した**＝
+  //   payload つきでも「置いて**もよい**」を強制で実行し、候補を自動で1枚目に決めていた（下の O-146 テストが正）。
   const keep = JSON.stringify(o77Fresh('SPDi43-26', 'SPDi43-26-E1'));
-  ok(keep.includes('LRIG_UNDER_CARD_OP') && keep.includes('energy_signi_to_deck_top'),
-    'SPDi43-26-E1: payload つきの正当な用法は据え置く');
+  ok(!keep.includes('LRIG_UNDER_CARD_OP') && !keep.includes('energy_signi_to_deck_top'),
+    'SPDi43-26-E1: 旧 catch-all は残っていない（O-146 で typed 化）');
+}));
+
+test('O-145: WXDi-P12-034-E2「デッキに加えてシャッフルしてもよい」は任意＋実行した場合だけライフ補充', () => withSavedCursor(() => {
+  // 🔴旧 live は `STUB{DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE}`＝**何も起きない**（did-it ゲートごと落としてあった）。
+  //   受け皿（`TRANSFER_TO_DECK{LIFE_CLOTH_CARD}`）は在り、欠けていたのは `optional` だけだった。
+  const seq = effectsMap.get('WXDi-P12-034')?.find(e => e.effectId === 'WXDi-P12-034-E2')?.action as SeqA;
+  const move = seq.steps[1] as { type: string; optional?: boolean; shuffle?: boolean; source: { type: string; count: number } };
+  eq(move.type, 'TRANSFER_TO_DECK', '受け皿 STUB ではなく型付きの移動');
+  eq(move.source.type, 'LIFE_CLOTH_CARD', 'ライフクロスから');
+  eq(move.optional, true, '🔴「してもよい」＝任意');
+  eq(move.shuffle, true, 'シャッフルする');
+  const gate = seq.steps[2] as { condition: { type: string; value?: number }; then: { type: string } };
+  eq(gate.condition.type, 'LAST_PROCESSED_COUNT_GTE', '🔴「そうした場合」は実際に加えたかで判定');
+  eq(gate.then.type, 'ADD_TO_LIFE', '帰結＝デッキの一番上をライフクロスへ');
+  // ── engine：実行枝はライフが減らずデッキが1枚減る（1枚出して1枚入る）／不実行枝は何も起きない ──
+  const base = () => mkCtx({ life: 3 }, {});
+  const act = { type: 'TRANSFER_TO_DECK', source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 1 },
+    shuffle: false, optional: true } as unknown as EffectAction;
+  const asked = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, base());
+  ok(!asked.done && asked.pending.type === 'CHOOSE', '🔴任意＝実行/しないの二択を出す（旧実装は強制）');
+  const ctxDo = base();
+  const doRes = resumeChoose('move', asked.pending as never, ctxDo);
+  eq(doRes.ownerState.life_cloth.length, 2, '実行枝＝ライフが1枚減る');
+  eq(doRes.lastProcessedCards?.length, 1, '🔴実行枝は「そうした場合」を成立させる');
+  const skipRes = resumeChoose('skip', asked.pending as never, base());
+  eq(skipRes.ownerState.life_cloth.length, 3, '不実行枝＝ライフは減らない');
+  eq(skipRes.lastProcessedCards?.length, 0, '🔴不実行枝は「そうした場合」を成立させない');
 }));
 
 test('O-77 engine両方向: 任意の場→デッキ下はスキップで「そうした場合」を止める', () => withSavedCursor(() => {
@@ -55332,8 +55589,10 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
   const keepLook = JSON.stringify(o76Fresh('WD06-006', 'WD06-006-E1'));
   ok(keepLook.includes('LOOK_OPP_LIFE_TOP') && !keepLook.includes('DEFERRED_'),
     'payload つきの LOOK_OPP_LIFE_TOP は据え置く');
-  const keepUnder = JSON.stringify(o76Fresh('SPDi43-26', 'SPDi43-26-E1'));
-  ok(keepUnder.includes('LRIG_UNDER_CARD_OP') && keepUnder.includes('energy_signi_to_deck_top'),
+  // 🆕**2026-09-01（§5.3 `O-146`）で `SPDi43-26-E1`（`energy_signi_to_deck_top`）は typed 化した**ので、
+  //   不成立方向の見張りは live に残る唯一の payload 用法（`trash_all_under_self`）で取る。
+  const keepUnder = JSON.stringify(o76Fresh('WXDi-CP02-054', 'WXDi-CP02-054-E1'));
+  ok(keepUnder.includes('LRIG_UNDER_CARD_OP') && keepUnder.includes('trash_all_under_self'),
     'payload つきの LRIG_UNDER_CARD_OP は据え置く');
 }));
 
@@ -55666,14 +55925,15 @@ test('manual2 A1 WX17-001-E2: 選択肢③はルリグだけにダブルクラ�
     '対照: シグニにはダブルクラッシュが付かない');
 }));
 
-test('manual2 A2 WD15-001-E2: 第3ステップはルリグだけにダブルクラッシュを付与', () => {
+test('manual2 A2 WD15-001-E2: ダブルクラッシュ付与はルリグだけ（付与の宛先の見張り）', () => {
+  // 🆕**2026-09-01（§5.3 `O-154`）で構造が変わった**＝旧版は「第1ステップは `TRASH{DECK_CARD}` のまま不変」
+  //   「第2ステップは既存 live のまま不変（自分の＜龍獣＞をバニッシュ）」を assert していたが、
+  //   **その2つこそが壊れていた**（対象宣言が無く、相手ではなく自分の＜龍獣＞を条件なしで割っていた）。
+  //   ⇒ ここは「付与の宛先」だけを見る見張りに戻し、構造の正は `O-154` のテストが持つ。
   const effect = manualFreshEffect('WD15-001', 'WD15-001-E2');
   const steps = (effect.action as SequenceAction).steps;
-  const grant = steps[2] as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
-  eq(JSON.stringify(steps[0]), JSON.stringify({ type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 2 } }),
-    '第1ステップは不変');
-  ok(steps[1].type === 'BANISH' && steps[1].target.owner === 'self'
-    && steps[1].target.filter?.story === '龍獣', '第2ステップは既存liveのまま不変');
+  const tail = steps[steps.length - 1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const grant = tail.then as Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
   eq(grant.target.type, 'LRIG', '「このルリグ」の対象型');
   ok(grant.target.type !== 'SIGNI', '旧誤動作のシグニ対象へ戻っていない');
   eq(grant.duration, 'UNTIL_END_OF_TURN', 'ターン終了時までを保持');

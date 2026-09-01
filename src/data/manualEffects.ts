@@ -957,7 +957,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   書いてある**＝ハンドラは最初からこのカードのために在ったのに、JSON がそれを指していなかった。
   // ⚠ハンドラはアーツを**全部**ルリグデッキへ戻す（原文は「２枚まで」）＝`PARTIAL`。§5.4(ii) に登録。
   'WXEX2-84': [
-    {"effectId":"WXEX2-84-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS"},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL"},
+    {"effectId":"WXEX2-84-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS","skipArtsReturn":true},{"type":"TRANSFER_TO_DECK","source":{"type":"LRIG_TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"アーツ"}},"shuffle":false,"destination":"lrig_deck"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WXEX2-35 ／ 原文【自】《ターン１回》：あなたのターンの間、あなたの＜龍獣＞のシグニが対戦相手のシグニ１体を
@@ -1118,9 +1118,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WXDi-CP01-031 ／ 原文【自】：あなたのアタックフェイズ開始時、**あなたの場とエナゾーンに＜世怜音女学院＞のシグニが
   //   合計５種類ある場合**、次の対戦相手のターン終了時まで、このシグニの基本パワーは35000になる。
   // 🔴旧 live＝条件が丸ごと落ちて**毎ターン無条件で基本パワー35000**。
-  // ⚠`ZONE_SUM_COUNT` は**ゾーンごとの種類数を足す**＝同名が両ゾーンにあると2と数える（原文は集合の種類数）＝`PARTIAL`。
+  // 🏁**2026-09-01（§5.3 `O-214`）に解消**＝旧 `ZONE_SUM_COUNT` は**ゾーンごとの種類数を足す**ので、
+  //   同名が場とエナに1枚ずつあると **2 種類**と数えていた（原文は集合の種類数＝過剰成立）。
+  //   ⇒ `distinctAcrossZones:'name'`（全ゾーンを合流させてから1度だけ distinct）へ移して `MANUAL` へ。
   'WXDi-CP01-031': [
-    {"effectId":"WXDi-CP01-031-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ZONE_SUM_COUNT","zones":[{"zone":"field","owner":"self","filter":{"cardType":"シグニ","story":"世怜音女学院"},"distinctBy":"name"},{"zone":"energy","owner":"self","filter":{"cardType":"シグニ","story":"世怜音女学院"},"distinctBy":"name"}],"operator":"gte","value":5},"then":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"value":35000,"duration":"UNTIL_OPP_TURN_END"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"PARTIAL"},
+    {"effectId":"WXDi-CP01-031-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ZONE_SUM_COUNT","zones":[{"zone":"field","owner":"self","filter":{"cardType":"シグニ","story":"世怜音女学院"}},{"zone":"energy","owner":"self","filter":{"cardType":"シグニ","story":"世怜音女学院"}}],"operator":"gte","value":5,"distinctAcrossZones":"name"},"then":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"value":35000,"duration":"UNTIL_OPP_TURN_END"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // WX25-CP1-085 ／ 原文【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、**このターン、あなたの
@@ -1250,7 +1252,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live＝合計パワーの制約が丸ごと落ちて**パワー無制限で3枚出せた**。受け皿は `EffectTarget.totalPowerMax`。
   // ⚠「12000に**なるように**」は厳密には ちょうど＝上限表現は保守側（超過を許さない）の近似＝`PARTIAL`。
   'WXK09-023': [
-    {"effectId":"WXK09-023-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":3,"upToCount":true,"totalPowerMax":12000,"filter":{"cardType":"シグニ","story":"電機"}},"suppressOnPlay":true},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WXK09-023-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","story":"電機"},"selectionConstraint":{"totalPowerExact":12000}},"suppressOnPlay":true},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
 
 
@@ -3377,7 +3379,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     // 🔴旧 live＝`source` が `{thisCardOnly:true}`＝**このカード自身をトラッシュから1枚出す**という別のカードに
     //   なっていた（クラス・枚数・上限のすべてが脱落）。⚠「パワーの合計が**このシグニのパワー**以下」は
     //   `totalPowerMax` が数値固定で参照を持てない＝§5.4(ii) 登録＝`PARTIAL`。
-    {"effectId":"WXEX2-52-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","story":"毒牙"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","trashActivated":true,"usageLimit":"once_per_turn"},
+    {"effectId":"WXEX2-52-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","story":"毒牙"},"selectionConstraint":{"totalPowerMaxRef":{"$ref":"source_effective_power"}}}},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","trashActivated":true,"usageLimit":"once_per_turn"},
   ],
   "WXEX2-68": [
     {"effectId":"WXEX2-68-E1","effectType":"AUTO","timing":["ON_REVEALED_FROM_HAND"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":3000},{"type":"STUB","id":"OPTIONAL_COST","costText":"手札から《幻竜　アルゼンチノ》を１枚捨ててもよい"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"Sランサー","duration":"UNTIL_END_OF_TURN"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","triggerCondition":{"revealSourceStory":"龍獣"}},
@@ -3525,7 +3527,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-P1-037-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","story":"ウェポン"},"pickCount":2,"remainder":{"location":"deck","position":"bottom","reorder":true},"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX25-P1-039": [
-    {"effectId":"WX25-P1-039-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","cardClass":"原子"},"pickCount":1,"then":"hand","pickUpTo":true},{"filter":{"cardType":"シグニ","cardClass":"原子"},"pickCount":1,"then":"field","pickUpTo":true}],"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLteLastProcessed":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX25-P1-039-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","cardClass":"原子"},"pickCount":1,"then":"hand","pickUpTo":true},{"filter":{"cardType":"シグニ","cardClass":"原子"},"pickCount":1,"then":"field","pickUpTo":true}],"remainder":{"location":"deck","position":"bottom","reorder":true},"lastProcessedFrom":"field"},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLteLastProcessed":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX25-P2-005": [
     {"effectId":"WX25-P2-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"},{"type":"STUB","id":"HAND_SIZE_INCREASE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
@@ -8997,7 +8999,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // ── §5.3 1〜3枚の機構項目・manual第2バッチ（2026-08-29・速いレーン）──────
   "WD15-001": [
-    {"effectId":"WD15-001-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":2}},{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"龍獣"},"upToCount":false}},{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WD15-001-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":false},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":2}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"龍獣"},"minCount":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"龍獣"},"minCount":2},"then":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // 「そのアタックの間」は既存の一時付与慣例 `UNTIL_END_OF_TURN` で表す（新しい duration は作らない）。
   "WX19-023": [

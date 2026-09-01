@@ -233,7 +233,7 @@ export type ActiveCondition =
   | { type: 'ENERGY_COLOR_TYPES'; owner: Owner; operator: CompareOp; value: number } // エナゾーンのカードが持つ色の種類数（WX05-006「エナゾーンのカードの色が3種類以上」）
   // 🆕`Condition` 側と同形の**2ゾーン合算**（2026-08-31 続き747・`WXEX1-31-E1`「あなたのエナゾーンと
   //   トラッシュに赤/青/緑のカードが１枚もない**かぎり**」）。⚠**両評価器を揃える**（PLAN §4.2 の3点セット）。
-  | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number }
+  | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number; distinctAcrossZones?: 'name' | 'level' }
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: number; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // Condition 側と同形。CONTINUOUS のエナ種類数ゲート
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number } // センタールリグのレベル条件
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
@@ -508,7 +508,7 @@ export type Condition =
    * ⚠`zones` の各要素は `owner` を持つので「あなた**と対戦相手の**エナゾーンの合計」も同じ形で書ける
    *   （`WDA-F03-13-E3`）。
    */
-  | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number }
+  | { type: 'ZONE_SUM_COUNT'; zones: CountFromZone[]; operator: CompareOp; value: number; distinctAcrossZones?: 'name' | 'level' }
   /**
    * 「このターンに〈owner〉の**センタールリグがアタックしていた／いなかった**場合」（`WXK03-060-E1`）。
    * 実体は `PlayerState.lrig_has_attacked`（ターン開始時にリセット）＝アシストルリグのアタックは含まない。
@@ -1419,6 +1419,25 @@ export interface SelectionConstraint {
   totalLevelMax?: number;
   /** 実行時に解決するレベル合計の上限（「この方法で処理した枚数以下」）。 */
   totalLevelMaxRef?: NumberOrRef;
+  /**
+   * 🆕**選択集合のパワー合計の上限**（§5.3 `O-212`・2026-09-01）＝
+   * 「パワーの合計が **N以下** になるように〜N枚まで対象とし」。
+   * 🔴**`EffectTarget.totalPowerMax` とは別物**＝あちらは**場のシグニを対象に取る経路だけ**が読む
+   *   （`execAddToField` の trash/energy 経路は**渡していなかった**＝`WXK09-023-E1` の
+   *   `source.totalPowerMax:12000` は**誰も見ない死にキー**で、エナから＜電機＞3体を無制限に並べられた）。
+   * ⚠**印刷パワーで比較する**（`same:'power'` と同じ層＝`satisfiesSelectionConstraint` は `cardMap`
+   *   しか受け取らない）。強化中のシグニでは卓と食い違いうる近似だが、**制約ゼロよりは厳密に狭い**。
+   * ⚠**パワー不明（`Power` が「-」等）は不成立**へ倒す（fail-closed）。
+   */
+  totalPowerMax?: number;
+  /** 実行時に解決するパワー合計の上限（「**このシグニのパワー**以下になるように」＝`{$ref:'source_effective_power'}`）。 */
+  totalPowerMaxRef?: NumberOrRef;
+  /**
+   * 🆕**選択集合のパワー合計がちょうどこの値**（§5.3 `O-212`）＝「パワーの合計が12000に**なるように**」。
+   * ⚠**上限（`totalPowerMax`）とは別軸**＝ちょうどにできない組み合わせは選べない。
+   *   途中経過（選択の積み上げ）は `canAddToSelection` が**超過だけ**を弾き、確定時に一致を要求する。
+   */
+  totalPowerExact?: number;
   /**
    * 🆕**レベルの多重集合が一致する**（2026-08-31 続き749・`WX24-P2-036-E1` / `WDA-F02-07-E1`
    * 「この方法で捨てたシグニ**1枚につきそのシグニと同じレベルの**対戦相手のシグニ1体を対象とし」）。
@@ -2491,6 +2510,12 @@ export interface TransferToDeckAction {
    * ⚠候補が1体以下なら順番の余地が無いので従来どおり一括で処理する（無意味なモーダルを出さない）。
    */
   orderChosenBy?: 'opponent';
+  /**
+   * 内部用（JSON には書かない）＝`optional` の二択で**実行を選んだ**枝であることの印（§5.3 `O-145`）。
+   * `LIFE_CLOTH_CARD` 経路はライフが裏向きで対象選択にできないため CHOOSE の2択にしており、
+   * 実行枝だけが `lastProcessedCards` を記録して後続の「そうした場合」を成立させる。
+   */
+  _optionalTaken?: boolean;
 }
 
 // スペル/アーツの効果を打ち消す
@@ -2642,6 +2667,18 @@ export interface LookPickChainAction {
    * 応答者だけにモーダルが出る本経路がそのまま原文の情報公開範囲になる。
    */
   opponentResponds?: boolean;
+  /**
+   * 🆕**後続へ渡す `lastProcessedCards` を「その行き先へ行ったピック」だけに絞る**（§5.3 `O-153`・2026-09-01）。
+   * 省略＝従来どおり**全ステージのピックの合計**（「この方法で1枚も〜していない／N枚〜した場合」用）。
+   *
+   * 🔴**これが無かった間、原文が「この方法／この効果で**場に出た**シグニ」と行き先を名指ししていても
+   *   engine は手札に加えた札まで一緒に数えていた**＝`countIsLastProcessedLevelSum`（`WX24-P3-039-E1`）と
+   *   `levelLteLastProcessed`（`WX25-P1-039-E1`）が**カードデータだけを見る**ため、
+   *   手札行きの札のレベルまで足して**過剰にミル／過剰にバニッシュ**していた。
+   * ⚠`targetsLastProcessed` 系（`GRANT_KEYWORD` 等）は帰結が場のシグニなので**この旗が無くても偶然正しい**。
+   *   絞りたいのは「カードデータを直接読む」帰結。
+   */
+  lastProcessedFrom?: 'field';
 }
 
 export interface RevealAndPickAction {
@@ -3713,6 +3750,14 @@ export interface StubAction {
    *   parser が payload を落としたら「効かない」で済み、「相手のダメージを全部無効化する」にはならない。
    */
   lifeCrashPrevention?: import('./index').LifeCrashPreventionSpec;
+  /**
+   * 🆕`LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS` で**アーツの回収を後段へ委ねる**（§5.3 `O-208`・2026-09-01）。
+   * 🔴既定（このキーが無い形）は**ルリグトラッシュのアーツを全部**ルリグデッキへ戻す＝
+   *   `WXEX2-84-E1` の原文「**対象の**アーツを**２枚まで**ルリグデッキに加える」に対して過剰実行だった。
+   * ⇒ `true` を立てるとルリグの移動だけを行い、アーツは後続の
+   *   `TRASH{LRIG_TRASH_CARD, upToCount, destination:'lrig_deck'}` が枚数と選択つきで処理する。
+   */
+  skipArtsReturn?: boolean;
   /**
    * 「このシグニは**このカードの下にある**〈条件〉のシグニの〈種別〉能力を得る」の中身
    * （§5.3 `O-66`③・2026-08-25）。`GRANT_UNDER_SIGNI_ALL_ABILITIES` /

@@ -6244,9 +6244,29 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     const moved: string[] = [];
     for (let i = 0; i < n && life.length > 0; i++) moved.push(life.pop()!);
     if (moved.length === 0) return done(addLog(ctx, 'ライフクロスがない'));
+    // 🆕§5.3 `O-145`＝「デッキに加えてシャッフルして**もよい**」（`WXDi-P12-034-E2`）。
+    // 🔴旧実装は `a.optional` を一切見ず**強制**だった。
+    // ⚠**ライフクロスは裏向きで選択の余地が無い**（原文も「一番上」と位置で指す）＝対象選択ではなく
+    //   **実行/しないの二択**にする。しない側は `INTERNAL_SKIP_OPTIONAL_ACTION` で
+    //   `lastProcessedCards` を空にし、後続の「そうした場合」を止める。
+    if (a.optional) {
+      const doMove = { ...a, optional: false, _optionalTaken: true } as TransferToDeckAction;
+      const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as StubAction;
+      return needsInteraction(addLog(ctx, `ライフクロス${moved.length}枚をデッキに加えますか？`), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'move', label: `デッキに加える${a.shuffle ? '（シャッフル）' : ''}`, action: doMove as EffectAction, available: true },
+          { id: 'skip', label: '加えない', action: skip as EffectAction, available: true },
+        ],
+      });
+    }
     const newS = insertToDeck({ ...state, life_cloth: life }, moved);
-    return done(addLog(setOwnerState(src.owner, newS, ctx),
-      `${src.owner === 'opponent' ? '対戦相手の' : ''}ライフクロス${moved.length}枚をデッキ${toBottom ? '下' : '上'}に置く`));
+    const movedLog = addLog(setOwnerState(src.owner, newS, ctx),
+      `${src.owner === 'opponent' ? '対戦相手の' : ''}ライフクロス${moved.length}枚をデッキ${toBottom ? '下' : '上'}に置く`);
+    // ⚠**既定では `lastProcessedCards` を上書きしない**＝この分岐は「この方法で手札をN枚捨てた場合」等の
+    //   直前記録を後続 CONDITIONAL が参照する連鎖の途中に置かれる（`SPDi47-03` の2段閾値）。
+    //   任意版（`_optionalTaken`）だけは「実行した」を後続の did-it ゲートへ伝えるために記録する。
+    return done(a._optionalTaken ? { ...movedLog, lastProcessedCards: moved } : movedLog);
   }
 
   if (src.type === 'TRASH_CARD') {
@@ -7007,6 +7027,8 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       ...(completedPicks.length > 0 ? { _picked: completedPicks } : {}),
       ...(topReserved.length > 0 ? { _topReserved: topReserved } : {}),
       ...(a.opponentResponds ? { opponentResponds: true } : {}),
+      // §5.3 `O-153`: 行き先の絞り込みは**継続へ持ち回す**（落とすと最終段だけ旗が消えて元の合計に戻る）。
+      ...(a.lastProcessedFrom ? { lastProcessedFrom: a.lastProcessedFrom } : {}),
       ...(stage.then === 'deck_top' ? { _pendingTop: true } : {}) } as import('../types/effects').LookPickChainAction;
     return needsInteraction(cur, {
       type: 'SEARCH',
@@ -7021,12 +7043,16 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       ...(a.opponentResponds ? { opponentResponds: true } : {}),
     });
   }
-  // 後続の「この方法で1枚も〜していない／N枚〜した場合」は最後の stage だけでなく、
-  // 1度の公開から選んだ全 stage の合計を見る。
-  cur = { ...cur, lastProcessedCards: completedPicks };
   // 残り（公開してまだデッキにあるカード）を remainder へ。
   // then:'deck_top' の予約分は「残り」から外し、remainder を動かしたあとのデッキの一番上に置く。
   const state = ownerState(owner, cur);
+  // 後続の「この方法で1枚も〜していない／N枚〜した場合」は最後の stage だけでなく、
+  // 1度の公開から選んだ全 stage の合計を見る。
+  // §5.3 `O-153`: ただし原文が「この方法／この効果で**場に出た**シグニ」と行き先を名指しする形は
+  //   `lastProcessedFrom:'field'` で**場に出た分だけ**へ絞る。⚠行き先は継続へ持ち回さず
+  //   「公開札のうち、いま自分の場に居るもの」で判定する（手札行きは場に居ないので自然に落ちる）。
+  const fieldNow = new Set(state.field.signi.flatMap(z => z ?? []));
+  cur = { ...cur, lastProcessedCards: a.lastProcessedFrom === 'field' ? completedPicks.filter(n => fieldNow.has(n)) : completedPicks };
   const stillInDeck = revealed.filter(n => state.deck.includes(n));
   const reservedTop = topReserved.filter(n => stillInDeck.includes(n));
   const rest = stillInDeck.filter(n => !reservedTop.includes(n));

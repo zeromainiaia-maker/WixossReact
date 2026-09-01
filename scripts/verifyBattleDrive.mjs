@@ -40897,6 +40897,347 @@ scenarios.censusSuppressGainAbilityControl = {
 };
 order.push('censusSuppressGainAbility', 'censusSuppressGainAbilityControl');
 
+// -----------------------------------------------------------------------------
+// §5.1 `V-108`／`V-109`（2026-09-01・索引 C バッチ）＝**任意の移動を「実行/しない」で分岐させる回**の実機返済。
+// PLAN §2.2＝新しい機構を足した回は実機まで必須。ここで見るのは engine ではなく **UI 経路**：
+//   (1)候補モーダル／二択が**出る**こと（旧実装は対話ゼロで自動実行 or 無言 no-op）
+//   (2)候補が**原文の絞り込みどおり**であること
+//   (3)**やらない側で後段（「そうした場合」）が走らない**こと（did-it ゲート）
+// ⚠**どちらも `effect_stack` 注入で解決させる**＝`SPDi43-26-E1` はルリグアタック時、
+//   `WXDi-P12-034-E2` はアシストルリグの【出】で、カードを実際に出す経路は観測に無関係な固定費が高い。
+// ⚠**payload は live と一致させる**（手で書き換えると観測の意味が消える）。
+// -----------------------------------------------------------------------------
+
+/** §5.3 `O-146`＝`SPDi43-26-E1`（エナから白のシグニ1枚をデッキの上へ置いてもよい → そうした場合【ルリグバリア】）。 */
+function o146Stack() {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o146-entry-1', playerId: null,
+      cardNum: 'SPDi43-26', effectId: 'SPDi43-26-E1', label: '粛命 ノヴァ（注入）',
+      effect: {
+        effectId: 'SPDi43-26-E1', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+        action: { type: 'SEQUENCE', steps: [
+          { type: 'TRANSFER_TO_DECK',
+            source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { color: '白', cardType: 'シグニ' } },
+            shuffle: false, position: 'top', optional: true },
+          { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+            then: { type: 'STUB', id: 'GAIN_LRIG_BARRIER' } },
+        ] },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+      },
+    }],
+  };
+}
+const o146Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9600'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 白1枚＋黒1枚＝**候補が白だけに絞られること**が観測点（旧 engine は色を1文字も見なかった）。
+    'energy': ['WD01-013#9601', 'WD05-013#9602'],
+    'deck': ['WD01-014#9611', 'WD01-012#9612', 'WD05-009#9613'],
+    'hand': [], 'trash': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9690'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o146Stack() },
+});
+
+async function driveO146(page, H, take) {
+  const tag = take ? 'o146take' : 'o146skip';
+  const st0 = await H.queryState();
+  // ⚠**注入したスタックは最初のクエリ時点で既に解決／pending へ移っていることがある**（b22 の教訓）＝
+  //   `stackLen` を前提条件にしない。判定は「候補UIが出たか」と盤面差分で行う。
+  H.log(`開始 energy=${st0?.host?.energy} deck=${JSON.stringify(st0?.host?.deckCards)} free=${JSON.stringify(st0?.host?.freeZone)} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+  let sawPick = false, candLabels = null, pickedOnce = false, decided = false, settled = 0, last = st0;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const pick0 = page.getByTestId('pick-0').first();
+    if ((await pick0.count()) > 0 && await pick0.isVisible().catch(() => false)) {
+      if (!sawPick) {
+        sawPick = true;
+        // 候補の枚数と中身をここで記録する（絞り込みが効いているかの唯一の証拠）。
+        candLabels = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="pick-"]'))
+          .map(el => (el.getAttribute('data-testid') || '') + ':' + (el.querySelector('img')?.getAttribute('alt') || el.textContent || '').trim().slice(0, 20)));
+        H.log(`  候補=${JSON.stringify(candLabels)}`);
+      }
+      // 🔑**選んだ札は1度だけ押す**（毎ティック押すと選択がトグルして「決定」に永久に進まない＝§5.1 の教訓）。
+      if (take && !pickedOnce && !decided) { await pick0.click().catch(() => {}); pickedOnce = true; did = 'pick-0'; }
+    }
+    if (!did && sawPick && !decided && (pickedOnce || !take)) {
+      // 「まで」＝0枚でもよいので「決定」は最初から押せる（＝やらない側もここで抜ける）。
+      const b = await H.clickBtn('決定');
+      if (b) { decided = true; did = b; }
+    }
+    if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい', 'スキップ', '選ばない']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | pickUI=${sawPick} picked=${pickedOnce} decided=${decided} energy=${last?.host?.energy} deckTop=${(last?.host?.deckCards ?? [])[0]} free=${JSON.stringify(last?.host?.freeZone)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    // 🔴同上＝確定直後の1回読みはコミット前を掴みうる。3ティック同じ状態で落ち着いてから抜ける。
+    settled = decided && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+    if (!sawPick && !last?.pendingEffect && !(last?.stackLen > 0) && s >= 6) break;
+  }
+  const free = last?.host?.freeZone ?? [];
+  const deckTop = (last?.host?.deckCards ?? [])[0] ?? null;
+  const detail = `候補UI=${sawPick} 候補=${JSON.stringify(candLabels)} energy=${last?.host?.energy} deckTop=${deckTop} free=${JSON.stringify(free)}`;
+  // **本題を先に判定**＝旧実装は対話ゼロで自動的に1枚目を置いていた。
+  if (!sawPick) return { pass: false, detail: `🔴候補モーダルが出ないまま解決した＝任意性と選択が落ちている（旧挙動）。${detail}` };
+  const nCand = (candLabels ?? []).length;
+  if (nCand !== 1) return { pass: false, detail: `🔴候補が白の1枚に絞られていない（${nCand}件）。${detail}` };
+  if (take) {
+    if (last?.host?.energy !== 1) return { pass: false, detail: `選んだのにエナが減っていない（${last?.host?.energy}）。${detail}` };
+    if (deckTop !== 'WD01-013#9601') return { pass: false, detail: `デッキの一番上が選んだ札でない（${deckTop}）。${detail}` };
+    if (free.length < 1) return { pass: false, detail: `🔴置いたのに【ルリグバリア】が乗らない（did-it ゲートが厳しすぎる）。${detail}` };
+    return { pass: true, detail: `白1枚だけを候補に出し、選ぶとエナ2→1・デッキ上が選んだ札・【ルリグバリア】が乗る。${detail}` };
+  }
+  if (last?.host?.energy !== 2) return { pass: false, detail: `選ばなかったのにエナが減った（${last?.host?.energy}）。${detail}` };
+  if (free.length !== 0) return { pass: false, detail: `🔴1枚も置いていないのに【ルリグバリア】が乗った＝「そうした場合」が無条件成立（旧 IS_MY_TURN ゲートの壊れ方）。${detail}` };
+  return { pass: true, detail: `選ばない側＝エナは2枚のまま・【ルリグバリア】も乗らない（did-it ゲートが効く）。${detail}` };
+}
+scenarios.o146EnergyTopTake = {
+  title: 'O-146 SPDi43-26-E1：エナの白だけを候補に出し、置くとデッキ上＋【ルリグバリア】',
+  spec: o146Spec(), drive: (page, H) => driveO146(page, H, true),
+};
+scenarios.o146EnergyTopSkip = {
+  title: 'O-146 対照：置かない選択では【ルリグバリア】が乗らない（旧実装は強制＋無条件成立）',
+  spec: o146Spec(), drive: (page, H) => driveO146(page, H, false),
+};
+order.push('o146EnergyTopTake', 'o146EnergyTopSkip');
+
+/** §5.3 `O-145`＝`WXDi-P12-034-E2`（ライフの一番上を見て、デッキに加えてシャッフルしてもよい → そうした場合デッキ上をライフへ）。 */
+function o145Stack() {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o145-entry-1', playerId: null,
+      cardNum: 'WXDi-P12-034', effectId: 'WXDi-P12-034-E2', label: 'エルドラ！サーチャー！（注入）',
+      effect: {
+        effectId: 'WXDi-P12-034-E2', effectType: 'AUTO', timing: ['ON_PLAY'],
+        action: { type: 'SEQUENCE', steps: [
+          { type: 'LOOK_AND_REORDER',
+            source: { location: 'life_cloth', owner: 'self' }, count: 1, private: true, reorder: false, canTrash: false,
+            destination: { location: 'life_cloth', owner: 'self', position: 'top' } },
+          { type: 'TRANSFER_TO_DECK', source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 1 }, shuffle: true, optional: true },
+          { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+            then: { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true } },
+        ] },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+      },
+    }],
+  };
+}
+const o145Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9700'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // ライフの**末尾が一番上**（`execTransferToDeck` の `life.pop()` 規約）＝観測対象は `#9703`。
+    'life_cloth': ['WD01-013#9701', 'WD01-013#9702', 'WD05-009#9703'],
+    'deck': ['WD01-014#9711', 'WD01-012#9712', 'WD01-012#9713', 'WD01-012#9714'],
+    'hand': [], 'energy': [], 'trash': [], 'deck_shuffled_count': 0, 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9790'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o145Stack() },
+});
+
+async function driveO145(page, H, take) {
+  const tag = take ? 'o145take' : 'o145skip';
+  const st0 = await H.queryState();
+  H.log(`開始 life=${JSON.stringify(st0?.host?.lifeCards)} deck=${JSON.stringify(st0?.host?.deckCards)} shuffled=${st0?.host?.deck_shuffled_count} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+  // 🔴**基準値は「最初のクエリ」ではなくスペックの固定値**（b22 の教訓）＝注入直後は
+  //   `LOOK_AND_REORDER` が一番上の1枚を抱えていて **life は2枚に見える**（初版でこれを踏んだ）。
+  const LIFE_BASE = ['WD01-013#9701', 'WD01-013#9702', 'WD05-009#9703'];
+  let sawChoice = false, chose = false, settled = 0, last = st0;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // 二択（デッキに加える／加えない）＝この2つのボタンが出ること自体が観測点。
+    const yes = page.getByRole('button', { name: /デッキに加える/ }).first();
+    const no = page.getByRole('button', { name: /加えない/ }).first();
+    const yesUp = (await yes.count()) > 0 && await yes.isVisible().catch(() => false);
+    const noUp = (await no.count()) > 0 && await no.isVisible().catch(() => false);
+    if ((yesUp || noUp) && !sawChoice) { sawChoice = true; H.log(`  二択UI yes=${yesUp} no=${noUp}`); }
+    if (!chose && (yesUp || noUp)) {
+      const btn = take ? yes : no;
+      if ((await btn.count()) > 0 && await btn.isVisible().catch(() => false)) {
+        await btn.click({ timeout: 2000 }).catch(() => {});
+        chose = true; did = take ? 'btn:デッキに加える' : 'btn:加えない';
+      }
+    }
+    if (!did) did = await H.stdStep(['確認', '確定', '決定', 'OK', 'はい', '閉じる']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | choiceUI=${sawChoice} chose=${chose} life=${JSON.stringify(last?.host?.lifeCards)} deck=${last?.host?.deck} shuffled=${last?.host?.deck_shuffled_count} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    // 🔴**「押した」ではなく「盤面が落ち着いた」を進行条件にする**（§5.1 の教訓）＝
+    //   クリック直後の1回だけ読むと**コミット前の盤面**を掴む（一括実行だけ FAIL する形で実測）。
+    settled = chose && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+    if (!sawChoice && !last?.pendingEffect && !(last?.stackLen > 0) && s >= 6) break;
+  }
+  const lifeNow = last?.host?.lifeCards ?? [];
+  const detail = `二択UI=${sawChoice} 選択=${chose} life=${JSON.stringify(lifeNow)} deck=${last?.host?.deck} shuffled=${last?.host?.deck_shuffled_count}`;
+  // **本題を先に判定**＝旧 live は `STUB{DEFERRED_LIFE_TOP_TO_DECK_SHUFFLE}`＝**何も起きない**だった。
+  if (!sawChoice) return { pass: false, detail: `🔴二択が出ないまま解決した＝任意の移動そのものが実装されていない（旧挙動）。${detail}` };
+  if (lifeNow.length !== 3) return { pass: false, detail: `ライフ枚数が変わった（3→${lifeNow.length}）。${detail}` };
+  const deckNow = last?.host?.deckCards ?? [];
+  // ⚠**`deck_shuffled_count` は判定に使わない**＝あれは明示的なシャッフルアクションが積むカウンタで、
+  //   `insertToDeck` の `shuffle:true`（デッキへ戻すときの混ぜ込み）では増えない（実機で実測）。
+  //   ⇒ 「ライフ上の札がデッキへ入ったか」を**カード番号で**見る。
+  if (take) {
+    if (lifeNow.includes('WD05-009#9703')) return { pass: false, detail: `🔴加えるを選んだのにライフの一番上が残っている。${detail} deckCards=${JSON.stringify(deckNow)}` };
+    if (!deckNow.includes('WD05-009#9703')) return { pass: false, detail: `🔴ライフの札がデッキに入っていない。${detail} deckCards=${JSON.stringify(deckNow)}` };
+    if (deckNow.length !== 4) return { pass: false, detail: `デッキ枚数が合わない（4→${deckNow.length}）。${detail}` };
+    return { pass: true, detail: `加える側＝ライフ上(#9703)がデッキへ入り、代わりにデッキの札がライフへ入った（life=${JSON.stringify(lifeNow)}）。${detail}` };
+  }
+  if (!lifeNow.includes('WD05-009#9703')) return { pass: false, detail: `🔴加えないを選んだのにライフの一番上が消えた（任意が強制になっている）。${detail}` };
+  if (JSON.stringify(lifeNow) !== JSON.stringify(LIFE_BASE)) return { pass: false, detail: `🔴加えないのにライフが動いた＝「そうした場合」が無条件成立。${detail}` };
+  if (deckNow.length !== 4) return { pass: false, detail: `🔴加えないのにデッキ枚数が動いた（4→${deckNow.length}）。${detail}` };
+  return { pass: true, detail: `加えない側＝ライフもデッキも1枚も動かない（did-it ゲートが効く）。${detail}` };
+}
+scenarios.o145LifeTopTake = {
+  title: 'O-145 WXDi-P12-034-E2：ライフ上をデッキへ加える二択が出て、加えるとライフが入れ替わる',
+  spec: o145Spec(), drive: (page, H) => driveO145(page, H, true),
+};
+scenarios.o145LifeTopSkip = {
+  title: 'O-145 対照：加えないを選ぶとライフもデッキも動かない（旧実装は DEFERRED＝何も起きない）',
+  spec: o145Spec(), drive: (page, H) => driveO145(page, H, false),
+};
+order.push('o145LifeTopTake', 'o145LifeTopSkip');
+
+/**
+ * §5.1 `V-110`＝§5.3 `O-212`（選択集合の**パワー合計**制約）の実機返済。
+ * `WXK09-023-E1`「あなたのエナゾーンから＜電機＞のシグニを、**パワーの合計が12000になるように**3枚まで
+ * 対象とし、それらを場に出す」。
+ * 🔴**旧 live は `source.totalPowerMax:12000` を持っていたが、`execAddToField` のエナ経路は
+ *   それを `selectOrInteract` へ**渡していなかった**＝**誰も見ない死にキー**で、
+ *   ＜電機＞なら何を3枚並べてもよかった（過剰実行）。⇒ `SelectionConstraint.totalPowerExact` へ移した。
+ * 🔑**観測点は「決定ボタンが押せるかどうか」**＝ちょうど12000でなければ確定できない。
+ *   ⚠合計が超える札は `canAddToSelection` が**選択自体を拒む**（クリックしても選択数が増えない）。
+ */
+function o212Stack() {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o212-entry-1', playerId: null,
+      cardNum: 'WXK09-023', effectId: 'WXK09-023-E1', label: '空走経路（注入）',
+      effect: {
+        effectId: 'WXK09-023-E1', effectType: 'ACTIVATED', timing: ['ATTACK'],
+        action: {
+          type: 'ADD_TO_FIELD', owner: 'self', suppressOnPlay: true,
+          source: {
+            type: 'ENERGY_CARD', owner: 'self', count: 3, upToCount: true,
+            filter: { cardType: 'シグニ', story: '電機' },
+            selectionConstraint: { totalPowerExact: 12000 },
+          },
+        },
+        duration: 'INSTANT', mandatory: false, parseStatus: 'PARTIAL',
+      },
+    }],
+  };
+}
+scenarios.o212PowerSumExact = {
+  title: 'O-212 WXK09-023-E1：エナの＜電機＞はパワー合計がちょうど12000のときだけ確定できる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#9800'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      // 候補は4枚＝10000 / 1000 / 1000 / 3000。ちょうど12000は **10000+1000+1000** の1通りだけ。
+      // （10000+3000=13000 は超過＝選択自体が拒まれる／10000 単独・10000+1000 は確定できない）
+      'energy': ['WD03-010#9801', 'WD03-014#9802', 'WD03-014#9803', 'WD03-013#9804'],
+      'deck': ['WD01-013#9811', 'WD01-013#9812'],
+      'hand': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9890'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o212Stack() },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 energy=${st0?.host?.energy} field=${JSON.stringify(st0?.host?.fieldSigni)} pEff=${st0?.pendingEffect ?? '-'}`);
+    // 決定ボタンの「押せるか」を読むヘルパ（名前に (n/N) が入る）。
+    const confirmState = async () => page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll('button')).find(x => /^決定/.test((x.textContent || '').trim()));
+      return b ? { label: (b.textContent || '').trim(), enabled: !b.disabled } : null;
+    });
+    let sawPick = false, headline = null, settled212 = 0, last = st0;
+    const steps = [];
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o212-${s}.png`, fullPage: true });
+      const pick0 = page.getByTestId('pick-0').first();
+      if (!sawPick && (await pick0.count()) > 0 && await pick0.isVisible().catch(() => false)) {
+        sawPick = true;
+        headline = await page.evaluate(() => {
+          const el = Array.from(document.querySelectorAll('div')).find(d => /選んでください/.test(d.textContent || '') && (d.children.length === 0 || (d.textContent || '').length < 80));
+          return el ? (el.textContent || '').trim() : null;
+        });
+        H.log(`  見出し=${JSON.stringify(headline)}`);
+        // ① 10000 だけ＝合計10000 → 確定できないはず
+        await page.getByTestId('pick-0').first().click().catch(() => {});
+        await page.waitForTimeout(400);
+        steps.push({ tag: '10000', ...(await confirmState()) });
+        // ② +3000＝13000 は超過 → `canAddToSelection` が選択自体を拒むはず
+        await page.getByTestId('pick-3').first().click().catch(() => {});
+        await page.waitForTimeout(400);
+        steps.push({ tag: '10000+3000(超過)', ...(await confirmState()) });
+        // ③ +1000＝11000 → まだ確定できない
+        await page.getByTestId('pick-1').first().click().catch(() => {});
+        await page.waitForTimeout(400);
+        steps.push({ tag: '10000+1000', ...(await confirmState()) });
+        // ④ +1000＝ちょうど12000 → 確定できる
+        await page.getByTestId('pick-2').first().click().catch(() => {});
+        await page.waitForTimeout(400);
+        steps.push({ tag: '10000+1000+1000(=12000)', ...(await confirmState()) });
+        H.log(`  段階=${JSON.stringify(steps)}`);
+        const okBtn = page.getByRole('button', { name: /^決定/ }).first();
+        if ((await okBtn.count()) > 0 && await okBtn.isEnabled().catch(() => false)) await okBtn.click().catch(() => {});
+      }
+      let did = await H.clickZone();
+      if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o212[${s}] -> ${did ?? 'なし'} | pickUI=${sawPick} energy=${last?.host?.energy} field=${JSON.stringify(last?.host?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      settled212 = sawPick && !last?.pendingEffect && !(last?.stackLen > 0) ? settled212 + 1 : 0;
+      if (settled212 >= 3) break;
+      if (!sawPick && !last?.pendingEffect && !(last?.stackLen > 0) && s >= 6) break;
+    }
+    const detail = `候補UI=${sawPick} 見出し=${JSON.stringify(headline)} 段階=${JSON.stringify(steps)} energy=${last?.host?.energy} field=${JSON.stringify(last?.host?.fieldSigni)}`;
+    if (!sawPick) return { pass: false, detail: `🔴候補モーダルが出ないまま解決した。${detail}` };
+    const at = (t) => steps.find(x => x.tag === t);
+    if (at('10000')?.enabled !== false) return { pass: false, detail: `🔴合計10000（≠12000）なのに確定できる＝制約が効いていない（旧＝死にキー）。${detail}` };
+    if (!/\(1\/3\)/.test(at('10000+3000(超過)')?.label ?? '')) {
+      return { pass: false, detail: `🔴超過する札が選べてしまった（選択数が1のままでない）。${detail}` };
+    }
+    if (at('10000+1000')?.enabled !== false) return { pass: false, detail: `🔴合計11000でも確定できる。${detail}` };
+    if (at('10000+1000+1000(=12000)')?.enabled !== true) return { pass: false, detail: `🔴ちょうど12000でも確定できない（制約が厳しすぎる）。${detail}` };
+    const placed = (last?.host?.fieldSigni ?? []).filter(z => z && z.length).length;
+    if (placed !== 3) return { pass: false, detail: `確定したのに3体並んでいない（${placed}体）。${detail}` };
+    return { pass: true, detail: `10000のみ／+3000（超過＝選べない）／11000は確定不可、ちょうど12000だけ確定でき3体が並んだ。${detail}` };
+  },
+};
+order.push('o212PowerSumExact');
+
 
 
 
@@ -41217,6 +41558,9 @@ try {
         coins: s.coins ?? 0,
         life: (s.life_cloth ?? []).length,
         lifeCards: s.life_cloth ?? [],
+        // 🆕§5.1 `V-108`（2026-09-01）＝フリーゾーン（【ルリグバリア】/【シグニバリア】のトークン置き場）。
+        //   `STUB{GAIN_LRIG_BARRIER}` はここへ積むだけなので、did-it ゲートの観測はここでしか取れない。
+        freeZone: s.field?.free_zone ?? [],
         deck: (s.deck ?? []).length,
         // ⚠V-103②（`split_top_bottom`＝上に残す／一番下へ）も **`deckCards` の順序**で見る。
         //   `deck[0]` が一番上・末尾が一番下（`effectExecutor` の `deck.slice(0, count)` / `slice(-count)` 規約）。
