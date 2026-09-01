@@ -187,7 +187,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase,
+  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -3794,6 +3794,21 @@ function bindCharmedSigniActionTarget(action: EffectAction, text: string): Effec
   return rebound;
 }
 
+// 「〈自分／相手〉のセンタールリグと同じレベルの〈owner〉のルリグかシグニN体を対象とし」＝
+// union 対象にも共通の動的レベル filter を戻す。シグニ単独は parseSigniTarget の既存経路へ任せる。
+function bindCenterLrigLevelUnionTarget(action: EffectAction, text: string): EffectAction {
+  const current = (action as EffectAction & { target?: EffectTarget }).target;
+  if (current?.type !== 'CENTER_LRIG_OR_SIGNI') return action;
+  const noun = text.match(/((?:あなた|対戦相手)のセンタールリグと同じレベルの)(?:(?:あなた|対戦相手)の)?ルリグかシグニ(?:を)?[０-９\d]+体(?:まで)?を?対象とし/);
+  if (!noun) return action;
+  const levelFilter = parseLevelFilter(noun[1]);
+  if (!levelFilter.levelEqLrig) return action;
+  return {
+    ...action,
+    target: { ...current, filter: { ...(current.filter ?? {}), ...levelFilter } },
+  } as EffectAction;
+}
+
 // 先頭「ターン終了時まで、」で始まる文の action 内 duration/until を復元する。
 // Inner の共通プレフィックス除去（`^ターン終了時まで、`）で期間句が消え、GRANT_KEYWORD 等の
 // action 内 duration が PERMANENT に化けるため（WX25-P2-062 の内側 duration＝続き77 Sonnet観測(d)）、
@@ -5096,6 +5111,7 @@ function parseSingleSentence(text: string): EffectAction {
   action = rewriteThisTurnEndBody(action, text);
   action = rewritePerOwnLrigColorScale(action, text);
   action = bindCharmedSigniActionTarget(action, text);
+  action = bindCenterLrigLevelUnionTarget(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
@@ -7782,7 +7798,6 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   // `WXK09-032-E2` は兄弟 E1 と**同じコスト経路**（`energyTrash`）なので同じ変数を参照する。
   //   「この方法でトラッシュに置いたシグニのレベルの合計と同じレベルを持つ」＝`last_cost_energy_trash_level_sum`。
   'WXK09-032-E2': { type: 'SEARCH', flag: 'levelEqualsVar', value: 'cost_energy_trash_level_sum' },
-  'WXK10-053-BURST': { type: 'TRASH', flag: 'levelEqLrig', value: 'self' },
   // §6.4 O-17: `WX24-P4-013-E3` の後段「その後、**そのシグニと同じレベルの**対戦相手のシグニ１体を対象とし、
   //   それを手札に戻す」。「そのシグニ」＝直前に公開したデッキトップ＝`lastProcessedCards`。
   // ⚠前段の `REMOVE_ABILITIES` は自分の候補で `lastProcessedCards` を上書きするが、**その候補は同じレベルで
@@ -9100,6 +9115,37 @@ function applyDroppedEnergyDesignation(text: string, action: EffectAction): Effe
 //   後段の `applyO96OptionalCostTargetFirst` が**正しい source を得たあとで**引き上げる。
 const RECOVER_DESIG_BEFORE_COST_RE =
   /(?:(対戦相手|あなた)の)?(トラッシュ|エナゾーン)から([^。]{0,60}?(?:カード|シグニ|スペル|アーツ))(?:を)?([０-９\d]+)枚(まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?を手札に加える/;
+
+// 正しい TRASH_CARD source まで生成済みなのに、対象名詞句の動的限定だけが落ちた形を補う。
+// ゾーン復元を担う applyDroppedRecoveryDesignation とは別経路で、既存 source の filter だけを合成する。
+function applyRecoveryNounPhraseModifiers(text: string, action: EffectAction): EffectAction {
+  const phrases = [...text.matchAll(
+    /あなたのトラッシュから([^。]{0,80}?(?:カード|シグニ|スペル|アーツ))(?:を)?[０-９\d]+枚(?:まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?を手札に加える/g,
+  )].map(m => ({
+    ...parseLevelFilter(m[1]),
+    ...parseDiscardedFromHandThisTurnFilter(m[1]),
+  })).filter(filter => Object.keys(filter).length > 0);
+  if (phrases.length === 0) return action;
+
+  const sources: EffectTarget[] = [];
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'TRANSFER_TO_HAND') {
+      const source = obj.source as EffectTarget | undefined;
+      if (source?.type === 'TRASH_CARD' && source.owner === 'self' && !source.filter?.thisCardOnly) sources.push(source);
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(action);
+  // 対象句と回収 source を一意に対応できない効果は推測で書き換えない。
+  if (sources.length !== phrases.length) return action;
+  sources.forEach((source, i) => {
+    source.filter = { ...(source.filter ?? {}), ...phrases[i] };
+  });
+  return action;
+}
 
 function applyDroppedRecoveryDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
@@ -23595,6 +23641,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に
     // root SEQUENCE に見えるため、そこで適用すると据置対象のネスト器まで書き換わる。
     if (effect.parseStatus === 'AUTO') {
+      effect.action = applyRecoveryNounPhraseModifiers(sourceText, effect.action);
       effect.action = applyRecoveryTransferGroups(sourceText, effect.action);
       effect.action = applyO96OptionalCostTargetFirst(sourceText, effect.action);
       effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);

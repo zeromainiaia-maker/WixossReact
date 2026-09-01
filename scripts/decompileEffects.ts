@@ -315,7 +315,7 @@ function filterJa(f?: any): string {
   if (f.restrictionMatchesCenterLrig) parts.push('限定条件にあなたのセンタールリグのルリグタイプを持つ');
   else if (f.restrictionContains) parts.push(`限定条件に「${f.restrictionContains}」を持つ`);
   // 🆕インスタンス履歴フィルタ（このターンに手札から捨てた札だけ）。落とすと逆翻訳から限定が消える。
-  if (f.discardedFromHandThisTurn) parts.push('このターンに捨てた');
+  if (f.discardedFromHandThisTurn) parts.push('このターンに手札から捨てた');
   if (f.nameEqDeclaredName) parts.push('宣言したカード名の');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
   // 🆕2026-08-30 §5.2 カード単位バッチ第3回＝**逆翻訳が黙って落としていた3語彙**を追加した。

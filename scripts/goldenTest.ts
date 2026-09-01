@@ -57579,16 +57579,15 @@ test('O-188 第1バッチ fresh: ガード軸のトラッシュ回収は支払�
       `${effectId}: 帰結が保存対象へ束縛されている`);
     assertO96FixedOrder(cardNum, effectId);
   }
-  // 🆕**第2バッチで `SPK01-12-E1` も対象固定になった**（ガード軸の暫定ガードを外したため）。
-  // ⚠**ただしこの効果は別軸の欠陥が残っている**＝原文「**このターンに手札から捨てた**＜水獣＞の
-  //   シグニ」という限定が live の filter に無く、**トラッシュのどの＜水獣＞でも回収できる過剰実行**。
-  //   対象固定は正しくなったが、**候補集合そのものが広すぎる**＝ここで固定して忘れないようにする。
+  // 第2バッチで固定した「支払い前の対象宣言」に、第5バッチで対象名詞句の履歴限定も合成する。
+  // 旧負方向 assert の意図（候補集合が広い欠陥を忘れない）を、修正後の正方向契約へ反転したもの。
   const spk = parseCardEffects(cardMap.get('SPK01-12')!).find(e => e.effectId === 'SPK01-12-E1');
   ok(!!spk, 'SPK01-12-E1: fresh パースが存在する');
   ok(JSON.stringify(spk?.action).includes('SELECT_TARGET_ONLY'),
     'SPK01-12-E1: 第2バッチで対象固定になった');
-  ok(!JSON.stringify(spk?.action).includes('discardedFromHandThisTurn'),
-    '🔴SPK01-12-E1: 「このターンに手札から捨てた」の限定は**まだ無い**（受け皿が無く据置＝§5.3 へ登録済み）');
+  const spkJson = JSON.stringify(spk?.action);
+  eq((spkJson.match(/"discardedFromHandThisTurn":true/g) ?? []).length, 2,
+    '🔴SPK01-12-E1: 対象宣言と回収元の両方を「このターンに手札から捨てた」札へ限定する');
 });
 const o188TargetFirstAction: EffectAction = {
   type: 'SEQUENCE',
@@ -57707,16 +57706,19 @@ test('O-188 第2バッチ 群B: 「このカードをトラッシュから手札
   }
 });
 
-// 🔴**据置の記録**＝同じ「自己回収」でも `WXDi-P09-043-E2` だけは直っていない。
-// 原文は「この**シグニ**をトラッシュから手札に加える」で、**上流の別規則が先に食って**
-// `filter:{cardType:'シグニ'}` へ落ちる＝**トラッシュのどの＜シグニ＞でも回収できる過剰実行が残る**。
-// ⚠**「直っている」と誤解しないための負方向テスト**。直したらこのテストが赤くなるので、そのとき書き換える。
-test('O-188 第2バッチ 群B 据置: WXDi-P09-043-E2 は「このシグニを」語形が上流規則に食われて未修正', () => {
+// 旧負方向 assert は「このシグニ」が任意のシグニ回収へ広がる欠陥を記録していた。
+// 第5バッチでは live と fresh の両方で、既存の自己回収規則が実際に効くことを保証する。
+test('O-188 第5バッチ 群B: WXDi-P09-043-E2 の「このシグニを」は効果元自身だけを回収する', () => {
   const live = (effectsMap.get('WXDi-P09-043') ?? []).find(e => e.effectId === 'WXDi-P09-043-E2')!;
-  const json = JSON.stringify(live.action);
-  ok(json.includes('TRANSFER_TO_HAND'), 'WXDi-P09-043-E2: トラッシュ回収の形は保たれている');
-  ok(!json.includes('"thisCardOnly":true'),
-    'WXDi-P09-043-E2: まだ自己回収になっていない（直したらこのテストを書き換える＝§5.3 に登録済み）');
+  const fresh = parseCardEffects(cardMap.get('WXDi-P09-043')!).find(e => e.effectId === 'WXDi-P09-043-E2')!;
+  for (const [label, effect] of [['live', live], ['fresh', fresh]] as const) {
+    const json = JSON.stringify(effect.action);
+    ok(json.includes('TRANSFER_TO_HAND'), `WXDi-P09-043-E2(${label}): トラッシュ回収の形を保つ`);
+    ok(json.includes('"thisCardOnly":true'),
+      `🔴WXDi-P09-043-E2(${label}): 効果元自身だけを回収する`);
+    ok(!json.includes('"cardType":"シグニ"'),
+      `WXDi-P09-043-E2(${label}): 任意のシグニ回収へ広げない`);
+  }
 });
 
 // ── §5.3 `O-188` 第3バッチ（2026-09-01）＝回収の対象宣言がゾーンごと落ちて**無言 no-op** ──
@@ -57843,6 +57845,119 @@ test('O-188 第4バッチ: WX24-P4-017-E2 は一般規則だけで旧専用JSON�
   const fresh = parseCardEffects(cardMap.get('WX24-P4-017')!).find(e => e.effectId === 'WX24-P4-017-E2')!;
   eq(JSON.stringify(fresh.action), JSON.stringify(live.action),
     'WX24-P4-017-E2: 専用ハードコード削除後も生成JSONは1バイトも変わらない');
+});
+
+// ── §5.3 `O-188` 第5バッチ（2026-09-01）＝対象名詞句の限定が丸ごと落ちる過剰実行 ──
+function o188Batch5Nodes(action: EffectAction): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    out.push(obj);
+    Object.values(obj).forEach(visit);
+  };
+  visit(action);
+  return out;
+}
+
+test('O-188 第5バッチ fresh/live: 4効果の対象名詞句限定を既存filterへ保持する', () => {
+  const pairs = [
+    ['SPK01-12', 'SPK01-12-E1'],
+    ['WXDi-P09-043', 'WXDi-P09-043-E2'],
+    ['WXK02-028', 'WXK02-028-E1'],
+    ['SP38-001', 'SP38-001-E1'],
+  ] as const;
+  for (const [cardNum, effectId] of pairs) {
+    const live = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    ok(!!live && !!fresh, `${effectId}: live/fresh の両方に存在する`);
+    for (const [label, effect] of [['live', live], ['fresh', fresh]] as const) {
+      const nodes = o188Batch5Nodes(effect.action);
+      if (effectId === 'SPK01-12-E1') {
+        const filters = nodes.filter(n => n.type === 'TRASH_CARD').map(n => n.filter as TargetFilter | undefined);
+        eq(filters.length, 2, `${effectId}(${label}): 対象宣言と回収元の2箇所`);
+        ok(filters.every(f => f?.discardedFromHandThisTurn === true),
+          `🔴${effectId}(${label}): 両方とも当ターンの手札捨て履歴へ限定`);
+      } else if (effectId === 'WXDi-P09-043-E2') {
+        const source = nodes.find(n => n.type === 'TRASH_CARD');
+        eq(JSON.stringify(source?.filter), JSON.stringify({ thisCardOnly: true }),
+          `🔴${effectId}(${label}): このシグニ自身だけを回収`);
+      } else if (effectId === 'WXK02-028-E1') {
+        const source = nodes.find(n => n.type === 'TRASH_CARD');
+        eq((source?.filter as TargetFilter | undefined)?.levelEqLrig, 'self',
+          `🔴${effectId}(${label}): 自センタールリグと同レベルだけを回収`);
+      } else {
+        const target = nodes.find(n => n.type === 'CENTER_LRIG_OR_SIGNI');
+        eq((target?.filter as TargetFilter | undefined)?.levelEqLrig, 'self',
+          `🔴${effectId}(${label}): 自センタールリグと同レベルだけを対象化`);
+      }
+    }
+  }
+});
+
+test('O-188 第5バッチ 群A 実行: 当ターンに手札から捨てていない＜水獣＞は候補に出ない', () => {
+  const waterBeasts = [...cardMap.values()]
+    .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('水獣'))
+    .slice(0, 2).map(c => c.CardNum);
+  eq(waterBeasts.length, 2, '対照用の＜水獣＞を2枚用意');
+  const fresh = parseCardEffects(cardMap.get('SPK01-12')!).find(e => e.effectId === 'SPK01-12-E1')!;
+  const base = mkCtx({}, {}, 'SPK01-12');
+  base.ownerState = {
+    ...base.ownerState,
+    trash: [...waterBeasts],
+    turn_hand_discarded_cards: [waterBeasts[0]],
+  };
+  const limited = executeEffect(fresh, base);
+  ok(!limited.done && limited.pending.type === 'SELECT_TARGET', '履歴限定つき対象宣言が選択UIになる');
+  if (limited.done || limited.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(limited.pending.candidates), JSON.stringify([waterBeasts[0]]),
+    '🔴当ターンに手札から捨てた1枚だけが候補');
+
+  const unrestricted = JSON.parse(JSON.stringify(fresh.action)) as EffectAction;
+  for (const node of o188Batch5Nodes(unrestricted)) {
+    const filter = node.filter as TargetFilter | undefined;
+    if (filter) delete filter.discardedFromHandThisTurn;
+  }
+  const contrast = executeEffect({ ...fresh, action: unrestricted }, base);
+  ok(!contrast.done && contrast.pending.type === 'SELECT_TARGET', '限定省略の対照も選択UIになる');
+  if (contrast.done || contrast.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(contrast.pending.candidates), JSON.stringify(waterBeasts),
+    '対照: 限定を省略すると従来どおりトラッシュの＜水獣＞2枚が候補');
+});
+
+test('O-188 第5バッチ 群C 実行: ルリグかシグニ対象でも動的レベルを解決し、参照不能は空ヒット', () => {
+  const level2Lrigs = [...cardMap.values()].filter(c => c.Type === 'ルリグ' && c.Level === '2').slice(0, 2).map(c => c.CardNum);
+  eq(level2Lrigs.length, 2, '自他のレベル2ルリグを用意');
+  const level2Signi = findCard(c => c.Type === 'シグニ' && c.Level === '2');
+  const level3Signi = findCard(c => c.Type === 'シグニ' && c.Level === '3');
+  const fresh = parseCardEffects(cardMap.get('SP38-001')!).find(e => e.effectId === 'SP38-001-E1')!;
+  const grant = o188Batch5Nodes(fresh.action).find(n => n.type === 'GRANT_KEYWORD') as unknown as EffectAction;
+  const ctx = mkCtx({}, {}, 'SP38-001');
+  ctx.ownerState.field.lrig = [level2Lrigs[0]];
+  ctx.otherState.field.lrig = [level2Lrigs[1]];
+  ctx.otherState.field.signi = [[level2Signi], [level3Signi], null];
+  const resolved = executeAction(grant, ctx);
+  ok(!resolved.done && resolved.pending.type === 'SELECT_TARGET', '同レベル候補が選択UIになる');
+  if (resolved.done || resolved.pending.type !== 'SELECT_TARGET') return;
+  ok(resolved.pending.candidates.includes(level2Lrigs[1]), '同レベルの相手センタールリグは候補');
+  ok(resolved.pending.candidates.includes(level2Signi), '同レベルの相手シグニは候補');
+  ok(!resolved.pending.candidates.includes(level3Signi), '異なるレベルの相手シグニは候補外');
+
+  const missingRef = mkCtx({}, {}, 'SP38-001');
+  missingRef.otherState.field.lrig = [level2Lrigs[1]];
+  missingRef.otherState.field.signi = [[level2Signi], [level3Signi], null];
+  const failedClosed = executeAction(grant, missingRef);
+  ok(failedClosed.done, '自センタールリグ参照不能なら選択UIを出さず解決する');
+  eq(Object.keys(failedClosed.otherState.keyword_grants ?? {}).length, 0,
+    '🔴参照不能時は任意対象へ広げず空ヒット');
+});
+
+test('O-188 第5バッチ 群C: WXK10-053-BURST は一般規則だけで既存JSONと完全一致する', () => {
+  const live = (effectsMap.get('WXK10-053') ?? []).find(e => e.effectId === 'WXK10-053-BURST')!;
+  const fresh = parseCardEffects(cardMap.get('WXK10-053')!).find(e => e.effectId === 'WXK10-053-BURST')!;
+  eq(JSON.stringify(fresh), JSON.stringify(live),
+    'WXK10-053-BURST: 専用addFilter削除後も生成JSONは1バイトも変わらない');
 });
 
 if (listMode) {

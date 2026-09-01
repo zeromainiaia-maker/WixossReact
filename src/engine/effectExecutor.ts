@@ -4371,6 +4371,11 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const abilityGainBlocked = tgtOwner === 'opponent' ? new Set(ctx.otherAbilityGainProtectedNums ?? []) : new Set<string>();
 
   let cands: string[];
+  // union 対象も SIGNI 単独と同じ動的 filter 解決を通す。参照不能は noMatch filter になり空ヒット。
+  const gkResolvedFilter = resolveDynamicFilter(
+    tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState,
+    ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+  );
   if (tgt.type === 'LRIG') {
     // 🆕**ルリグ側のカード属性フィルタを消費する**（続き742・§4.2「書き込み先を誰が読むか」）＝
     //   parser が `{type:'LRIG', filter:{story:'さんばか'}}` を出せるようになったのに、ここは
@@ -4379,16 +4384,15 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     //   ⚠盤面ステート（isUp 等）はここでは見ない＝`matchesFilter` はカード属性だけを判定する
     //   （live で LRIG+filter を持つ効果は7件で、isUp 系は別 executor の管轄）。
     const lrigTop = state.field.lrig.at(-1);
-    cands = lrigTop && lrigLikeFilterOk(lrigTop, tgt.filter, ctx) ? [lrigTop] : [];
+    cands = lrigTop && lrigLikeFilterOk(lrigTop, gkResolvedFilter, ctx) ? [lrigTop] : [];
   } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
     // センタールリグとシグニ両方を候補に追加
     const lrigTop = state.field.lrig.at(-1);
-    const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
+    const signiCands = fieldCandidates(state, gkResolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => !abilityGainBlocked.has(n));
-    cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
+    cands = lrigTop && lrigLikeFilterOk(lrigTop, gkResolvedFilter, ctx) ? [lrigTop, ...signiCands] : signiCands;
   } else {
     // 動的フィルタ（levelLtOppLrig/levelLtSelf 等）を具体値へ解決してから候補を絞る（付与も除去系と同じ resolve 経路に乗せる）
-    const gkResolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     cands = fieldCandidates(state, gkResolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => !abilityGainBlocked.has(n));
     cands = filterCandidatesToTargetZone(cands, tgt, state);

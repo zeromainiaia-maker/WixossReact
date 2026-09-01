@@ -147,6 +147,12 @@ export function signiZoneIndexJa(word: string): number {
 }
 
 export function parseLevelFilter(text: string): Partial<TargetFilter> {
+  // 「〈誰か〉のセンタールリグと同じレベルの」＝実行時の盤面を参照するため静的 level へ潰さない。
+  // 参照不能時は resolveDynamicFilter が空ヒットへ倒す。
+  const sameAsCenterLrig = text.match(/(あなた|対戦相手)のセンタールリグと同じレベルの/);
+  if (sameAsCenterLrig) {
+    return { levelEqLrig: sameAsCenterLrig[1] === '対戦相手' ? 'opponent' : 'self' };
+  }
   const above = text.match(/レベル([０-９\d]+)以上/);
   const below = text.match(/レベル([０-９\d]+)以下/);
   const exact = text.match(/レベル([０-９\d]+)の/);
@@ -155,6 +161,12 @@ export function parseLevelFilter(text: string): Partial<TargetFilter> {
   }
   if (exact) return { level: parseNum(exact[1]) };
   return {};
+}
+
+/** 「このターンに（手札から）捨てた」＝手札由来の当ターン捨札履歴だけに絞る。 */
+export function parseDiscardedFromHandThisTurnFilter(text: string): Partial<TargetFilter> {
+  // カード用語の「捨てる」は手札からトラッシュへ置く処理。単なる「トラッシュに置く」は一致させない。
+  return /このターンに(?:手札から)?捨てた/.test(text) ? { discardedFromHandThisTurn: true } : {};
 }
 
 export function parseColorFilter(text: string): Partial<TargetFilter> {
@@ -297,6 +309,7 @@ export function extractNounPhraseFilter(
     ...parseStoryFilter(span),
     ...parseColorMatchesLrig(span),
     ...parseGuardFilter(span),
+    ...parseDiscardedFromHandThisTurnFilter(span),
   };
 
   const excludeName = span.match(/《([^》]+)》以外の/);
@@ -922,6 +935,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     // 「〈owner〉のトラッシュにあるいずれかのカードと同じ名前の〈…〉シグニN体を対象とし」（engine が動的解決）
     ...signiClauseTrashNameFilter(text),
     ...parseStoryFilter(text),
+    ...parseDiscardedFromHandThisTurnFilter(text),
     // 《ライズ／クロス／アクセアイコン》＝**対象名詞句に隣接**するときだけ（続き377c）。全文スキャンだと
     // 「あなたの場に《ライズアイコン》を持つシグニが２体ある場合、…対戦相手のシグニ１体を対象とし」の
     // **条件節**を対象へ引き込み、原文と逆の過小実行になる。
