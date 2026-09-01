@@ -5206,13 +5206,22 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   （§5.3 2026-08-27 Sheet1 B11・実測2効果＝`WX10-096`／`WXDi-P06-077` の【起】本体）。
   //   汎用規則は「このカード」を読まず **filter 無しの TRASH_CARD／ENERGY_CARD 1枚**へ落とすため、
   //   **トラッシュ（エナ）から好きなカードを1枚回収できる**過剰実行になっていた。
+  // 🆕**2026-09-01（`O-188` 第2バッチ）＝語順が逆の形が丸ごと漏れていた**。
+  //   上の規則は「あなたのトラッシュから**このカードを**手札に加える」しか読まないが、原文には
+  //   「**このカードを**トラッシュから手札に加える」という語順が実在し（実測6効果）、
+  //   そちらは汎用規則が **filter 無しの `TRASH_CARD` 1枚**へ落として
+  //   **トラッシュのどのカードでも回収できる過剰実行**になっていた。
+  //   ⚠**指示語は「このカード／このシグニ／このスペル」の3通り**（`WXDi-P09-043-E2` は「このシグニ」）。
   {
-    const selfPick = text.trim().match(/^あなたの(トラッシュ|エナゾーン)からこのカードを手札に加える[。.]?$/);
+    const selfPick = text.trim().match(
+      /^(?:あなたの(トラッシュ|エナゾーン)からこの(?:カード|シグニ|スペル)を手札に加える|この(?:カード|シグニ|スペル)を(?:あなたの)?(トラッシュ|エナゾーン)から手札に加える)[。.]?$/,
+    );
     if (selfPick) {
+      const zone = selfPick[1] ?? selfPick[2];
       return {
         type: 'TRANSFER_TO_HAND',
         source: {
-          type: selfPick[1] === 'トラッシュ' ? 'TRASH_CARD' : 'ENERGY_CARD',
+          type: zone === 'トラッシュ' ? 'TRASH_CARD' : 'ENERGY_CARD',
           owner: 'self', count: 1, upToCount: false, filter: { thisCardOnly: true },
         },
       } as unknown as EffectAction;
@@ -10073,15 +10082,22 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     ? carrier as import('../types/effects').ConditionalAction : undefined;
   const cost = (wrapped?.then ?? carrier) as StubAction;
   if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST') return action;
-  const hasEnergyCost = !!cost.costColors?.length;
-  const hasHandDiscardCost = !!cost.handDiscard;
-  // 第1バッチの exact なエナ軸か、第2バッチの handDiscard 軸のどちらか一方だけ。
-  // payload 全体を運ぶため、count/filter/selectionConstraint はこの場で作り直さない。
-  if (hasEnergyCost === hasHandDiscardCost) return action;
-  const allowedCostKeys = hasEnergyCost
-    ? ['type', 'id', 'costColors']
-    : ['type', 'id', 'handDiscard'];
+  // 🆕**第4バッチ（`O-188` 第2・2026-09-01）で許可リスト方式へ広げた。**
+  //   旧＝「エナ軸 か handDiscard 軸の**どちらか一方だけ**」の排他 XOR。`O-190` 第1バッチで
+  //   `OPTIONAL_COST` の payload に `fieldTrash` / `selfTrash` / `handReveal` / `underAnySigniTrash` が
+  //   入るようになった結果、**複合任意コストの効果が全部この XOR で弾かれていた**。
+  // 🔴**fail-closed の性質は維持する**＝許可リストを広げるのであって、チェックを外すのではない。
+  //   **知らないキーが1つでも混ざっていたら通さない。**
+  // ⚠**対象のレベルで額が決まる系（`costColorsPerTargetLevel` 等）は入れない**＝倍率の意味が変わるので
+  //   別軸として据置する（許可リストに書いていない＝自動的に弾かれる）。
+  const allowedCostKeys = [
+    'type', 'id',
+    'costColors', 'handDiscard', 'handReveal',
+    'fieldTrash', 'fieldDown', 'selfTrash', 'energyTrash', 'underAnySigniTrash', 'charmTrash',
+  ];
   if (Object.keys(cost).some(k => !allowedCostKeys.includes(k))) return action;
+  // コスト軸が1つも無い payload（＝実質からのコスト）は対象外。
+  if (!Object.keys(cost).some(k => k !== 'type' && k !== 'id')) return action;
 
   const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
   const outcome = gate.then as EffectAction & {
@@ -10090,11 +10106,14 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     transferGroups?: unknown[];
   };
   if (!O96_STORABLE_OUTCOMES.includes(outcome.type)) return action;
+  // 🆕**第4バッチで「ガード軸だけ」の暫定ガードを外した**（第1バッチの絞り込みには意味的な根拠が無く、
+  //   一度に20効果を載せないためのサンプリングだった）。engine 側は `SELECT_TARGET_ONLY` と
+  //   `execTransferToHand` が**同一の候補集め関数**を共有しているので、フィルタ軸を広げても契約は壊れない。
+  // ⚠**`transferGroups` との併用だけは今も除外する**＝固定対象と1対1で対応しない（executor 側も非対応）。
   const transferTarget = outcome.type === 'TRANSFER_TO_HAND'
       && outcome.source?.type === 'TRASH_CARD'
       && outcome.source.owner === 'self'
       && !outcome.transferGroups?.length
-      && (outcome.source.filter?.hasGuard === true || outcome.source.filter?.noGuard === true)
     ? outcome.source : undefined;
   const declaredTarget = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget : outcome.target;
   if (!declaredTarget || (outcome.type !== 'TRANSFER_TO_HAND' && declaredTarget.type !== 'SIGNI')) return action;

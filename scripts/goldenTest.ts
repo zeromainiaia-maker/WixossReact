@@ -17299,12 +17299,26 @@ test('O-96 第1バッチ 実行: 候補0なら任意コストを提示せず、�
   ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも任意コストを提示してしまう');
 }));
 
-test('O-188 第1バッチ 据置契約: ガード軸以外の TRANSFER_TO_HAND はまだ固定形へ変えない', () => {
-  const effect = o96Live('SPK01-12', 'SPK01-12-E1');
-  const json = JSON.stringify(effect.action);
-  ok(!json.includes('SELECT_TARGET_ONLY'), '第1バッチ外へ対象宣言を足さない');
-  ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), '第1バッチ外へ保存を足さない');
-  ok(!json.includes('targetsStored'), '第1バッチ外へ targetsStored を足さない');
+// 🆕**第2バッチ（2026-09-01）で契約の中身を差し替えた。**
+// 旧＝「ガード軸以外は固定形へ変えない」。第2バッチでガード軸の暫定ガードを外したので、
+// **いま据置なのは「`OPTIONAL_COST` 以外の専用 STUB id を使う形」と「`CHOOSE` のネスト器」**。
+// ⚠**契約テストは削除せず、いま何を据置しているかへ書き換える**（消すと次に無審査で広がる＝§5-4）。
+test('O-188 第2バッチ 据置契約: CHOOSE のネスト器と専用 STUB id は固定形へ変えない', () => {
+  // ①「以下の２つから１つを選ぶ。①…②…」のネスト器（木の形が別）。
+  for (const [num, eid] of [['WXDi-P13-046', 'WXDi-P13-046-E1'], ['WXDi-P16-055', 'WXDi-P16-055-E1']] as const) {
+    const json = JSON.stringify(o96Live(num, eid).action);
+    ok(!json.includes('SELECT_TARGET_ONLY'), `${eid}: CHOOSE のネスト器へ対象宣言を足さない`);
+    ok(!json.includes('targetsStored'), `${eid}: CHOOSE のネスト器へ targetsStored を足さない`);
+  }
+  // ②`OPTIONAL_COST` ではない専用 STUB id（engine 側に別経路がある）。
+  for (const [num, eid, stub] of [
+    ['WXDi-P04-033', 'WXDi-P04-033-E1', 'OPTIONAL_TRASH_SELF'],
+    ['WXDi-CP02-065', 'WXDi-CP02-065-E1', 'OPTIONAL_TRASH_ENERGY_CLASS'],
+  ] as const) {
+    const json = JSON.stringify(o96Live(num, eid).action);
+    ok(json.includes(stub), `${eid}: 専用 STUB id（${stub}）のまま据え置く`);
+    ok(!json.includes('SELECT_TARGET_ONLY'), `${eid}: 専用 STUB id の形へ対象宣言を足さない`);
+  }
 });
 
 test('O-96 第2バッチ JSON順序: handDiscard の4帰結型と payload／期間／delta を保存する', () => {
@@ -44823,7 +44837,11 @@ test('§6.4 O-26: 束ねた任意コスト「〜置き《色》を支払って�
     ['WX24-P4-059', 'WX24-P4-059-E1'], ['WXDi-P13-044', 'WXDi-P13-044-E1'],
   ] as const) {
     const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
-    const cost = (e.action as SequenceAction).steps[0] as StubAction;
+    // ⚠**位置で取らない**＝`O-188` 第2バッチ（2026-09-01）で対象宣言が先頭へ入り、
+    //   `OPTIONAL_COST` は steps[0] ではなくなった。**この assert の意図は「位置」ではなく
+    //   「1つの任意コストにエナと自己トラッシュが束ねられていること」**なので、id で引く。
+    const cost = ((e.action as SequenceAction).steps
+      .find(st => st.type === 'STUB' && (st as StubAction).id === 'OPTIONAL_COST') ?? {}) as StubAction;
     eq(cost.id, 'OPTIONAL_COST', `${eid}: 正準形の任意コスト`);
     ok(cost.selfTrash, `🔴${eid}: 自己トラッシュが踏み倒されている（場を離れずに効果だけ得る）`);
     ok((cost.costColors ?? []).length > 0, `${eid}: エナ側も同じ1つの任意コストに束ねる`);
@@ -57551,10 +57569,16 @@ test('O-188 第1バッチ fresh: ガード軸のトラッシュ回収は支払�
       `${effectId}: 帰結が保存対象へ束縛されている`);
     assertO96FixedOrder(cardNum, effectId);
   }
-  const heldBack = parseCardEffects(cardMap.get('SPK01-12')!).find(e => e.effectId === 'SPK01-12-E1');
-  ok(!!heldBack, 'SPK01-12-E1: fresh パースが存在する');
-  ok(!JSON.stringify(heldBack?.action).includes('SELECT_TARGET_ONLY'),
-    'SPK01-12-E1: 動的条件つき（このターンに手札から捨てた）は第1バッチ外＝据置');
+  // 🆕**第2バッチで `SPK01-12-E1` も対象固定になった**（ガード軸の暫定ガードを外したため）。
+  // ⚠**ただしこの効果は別軸の欠陥が残っている**＝原文「**このターンに手札から捨てた**＜水獣＞の
+  //   シグニ」という限定が live の filter に無く、**トラッシュのどの＜水獣＞でも回収できる過剰実行**。
+  //   対象固定は正しくなったが、**候補集合そのものが広すぎる**＝ここで固定して忘れないようにする。
+  const spk = parseCardEffects(cardMap.get('SPK01-12')!).find(e => e.effectId === 'SPK01-12-E1');
+  ok(!!spk, 'SPK01-12-E1: fresh パースが存在する');
+  ok(JSON.stringify(spk?.action).includes('SELECT_TARGET_ONLY'),
+    'SPK01-12-E1: 第2バッチで対象固定になった');
+  ok(!JSON.stringify(spk?.action).includes('discardedFromHandThisTurn'),
+    '🔴SPK01-12-E1: 「このターンに手札から捨てた」の限定は**まだ無い**（受け皿が無く据置＝§5.3 へ登録済み）');
 });
 const o188TargetFirstAction: EffectAction = {
   type: 'SEQUENCE',
@@ -57642,6 +57666,47 @@ test('O-188 第1バッチ 退化検出: targetsStored 省略時は従来どお�
   if (result.done || result.pending.type !== 'SELECT_TARGET') return;
   eq(JSON.stringify(result.pending.candidates), JSON.stringify(o188GuardCards),
     '🔴O-188: 省略＝全候補（省略をスキップに倒すと既存23効果が全滅する）');
+});
+
+// ── §5.3 `O-188` 第2バッチ 群B（2026-09-01）＝「**このカードを**トラッシュから手札に加える」──
+// 🔴実害＝自己回収の指示語を parser が読まず、`TRANSFER_TO_HAND{TRASH_CARD, filter:{}}` へ落ちていた
+//   ＝**トラッシュのどのカードでも1枚回収できる過剰実行**。
+// 受け皿は既存（`filter.thisCardOnly`／`execTransferToHand` の TRASH_CARD 分岐が消費）。
+// ⚠**漏れていたのは語順だけ**＝既存規則は「あなたのトラッシュから**このカードを**手札に加える」しか
+//   読まず、「**このカードを**トラッシュから手札に加える」という逆順が丸ごと落ちていた。
+test('O-188 第2バッチ 群B: 「このカードをトラッシュから手札に加える」は自己回収に固定される', () => {
+  for (const [num, eid] of [
+    ['WXDi-P03-081', 'WXDi-P03-081-E1'], ['WXDi-P08-075', 'WXDi-P08-075-E1'],
+    ['WXK01-041', 'WXK01-041-E2'], ['WXK10-030', 'WXK10-030-E2'],
+    ['WX24-P3-093', 'WX24-P3-093-E2'], ['WX16-028', 'WX16-028-E3'],
+  ] as const) {
+    // ① live（収穫マージ後）が自己回収になっていること。
+    const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
+    ok(!!live, `${eid}: live に存在する`);
+    const liveJson = JSON.stringify(live.action);
+    ok(liveJson.includes('"thisCardOnly":true'), `🔴${eid}: 効果元自身だけを回収する`);
+    // ② 🔴**対照＝「トラッシュの好きなカード」に化けていないこと**（旧挙動の再発検出）。
+    //    `filter:{}` の素の TRASH_CARD が残っていたら過剰実行に戻っている。
+    ok(!/"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":\{\}/.test(liveJson),
+      `🔴${eid}: 無条件の TRASH_CARD 回収（＝どのカードでも拾える）が残っていない`);
+    // ③ §5-29＝fresh パース側でも成立すること（規則を外すと赤くなる）。
+    const fresh = parseCardEffects(cardMap.get(num)!).find(e => e.effectId === eid);
+    ok(!!fresh, `${eid}: fresh パースが存在する`);
+    ok(JSON.stringify(fresh?.action).includes('"thisCardOnly":true'),
+      `${eid}: fresh パースでも自己回収になる（live 読みだけで閉じない）`);
+  }
+});
+
+// 🔴**据置の記録**＝同じ「自己回収」でも `WXDi-P09-043-E2` だけは直っていない。
+// 原文は「この**シグニ**をトラッシュから手札に加える」で、**上流の別規則が先に食って**
+// `filter:{cardType:'シグニ'}` へ落ちる＝**トラッシュのどの＜シグニ＞でも回収できる過剰実行が残る**。
+// ⚠**「直っている」と誤解しないための負方向テスト**。直したらこのテストが赤くなるので、そのとき書き換える。
+test('O-188 第2バッチ 群B 据置: WXDi-P09-043-E2 は「このシグニを」語形が上流規則に食われて未修正', () => {
+  const live = (effectsMap.get('WXDi-P09-043') ?? []).find(e => e.effectId === 'WXDi-P09-043-E2')!;
+  const json = JSON.stringify(live.action);
+  ok(json.includes('TRANSFER_TO_HAND'), 'WXDi-P09-043-E2: トラッシュ回収の形は保たれている');
+  ok(!json.includes('"thisCardOnly":true'),
+    'WXDi-P09-043-E2: まだ自己回収になっていない（直したらこのテストを書き換える＝§5.3 に登録済み）');
 });
 
 if (listMode) {

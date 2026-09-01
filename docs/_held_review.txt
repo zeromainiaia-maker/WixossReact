@@ -21,6 +21,102 @@ PR-Di017B SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-0
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
 
+## +PAID_ADDITIONAL_COST +STUB×2 +TRASH_CARD -IS_MY_TURN ［5枚］
+SPK01-12 WX24-P1-079 WX24-P4-059 WXDi-P04-022 WXDi-P14-041
+--- SPK01-12
+  原文: 【自】：このシグニがアタックしたとき、あなたのトラッシュからこのターンに手札から捨てた＜水獣＞のシグニ１枚を対象とし、《緑》を支払ってもよい。そうした場合、それを手札に加える。,-
+  - [0].action.steps[0].costColors[0] = "緑"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [0].action.steps[1].then.source.type = "TRASH_CARD"
+  - [0].action.steps[1].then.source.owner = "self"
+  - [0].action.steps[1].then.source.count = 1
+  - [0].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.source.filter.story = "水獣"
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "TRASH_CARD"
+  + [0].action.steps[0].selectTarget.owner = "self"
+  + [0].action.steps[0].selectTarget.count = 1
+  …（他 17 行）
+--- WX24-P1-079
+  原文: 【自】：このシグニがコストか効果によって場からトラッシュに置かれたとき、あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、《黒》を支払ってもよい。そうした場合、それを手札に加える。【起】《ダウン》：あなたのデッキの上からカードを３枚トラッシュに置く。,-
+  - [0].action.steps[0].costColors[0] = "黒"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [0].action.steps[1].then.source.type = "TRASH_CARD"
+  - [0].action.steps[1].then.source.owner = "self"
+  - [0].action.steps[1].then.source.count = 1
+  - [0].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.source.filter.story = "悪魔"
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "TRASH_CARD"
+  + [0].action.steps[0].selectTarget.owner = "self"
+  + [0].action.steps[0].selectTarget.count = 1
+  …（他 17 行）
+--- WX24-P4-059
+  原文: 【自】：あなたのメインフェイズ開始時、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、このシグニを場からトラッシュに置き《無》を支払ってもよい。そうした場合、それを手札に加える。【起】《ダウン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋4000する。,：対戦相手のルリグ１体を対象とし、ターン終了時まで、それは「【常】：アタッ
+  - [0].action.steps[0].costColors[0] = "無"
+  - [0].action.steps[0].selfTrash = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [0].action.steps[1].then.source.type = "TRASH_CARD"
+  - [0].action.steps[1].then.source.owner = "self"
+  - [0].action.steps[1].then.source.count = 1
+  - [0].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.source.filter.hasGuard = true
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "TRASH_CARD"
+  + [0].action.steps[0].selectTarget.owner = "self"
+  …（他 19 行）
+
+## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［5枚］
+WDK11-011 WX24-P2-063 WXDi-P13-044 WXK05-022 WXK08-052
+--- WDK11-011
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの他のシグニ１体を場からトラッシュに置いてもよい。そうした場合、それをバニッシュする。【出】《白》《白》：あなたのデッキから《ＧＦ　イザベラ》以外の＜英知＞のシグニ１枚を探して場に出し、デッキをシャッフルする。,：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  - [0].action.steps[0].fieldTrash.count = 1
+  - [0].action.steps[0].fieldTrash.filter.cardType = "シグニ"
+  - [0].action.steps[0].fieldTrash.excludeSelf = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BANISH"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.target.upToCount = false
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  …（他 21 行）
+--- WX24-P2-063
+  原文: 【自】：あなたのメインフェイズ開始時、対戦相手のパワー10000以下のシグニ１体を対象とし、このシグニを場からトラッシュに置き《無》を支払ってもよい。そうした場合、それを手札に戻す。【起】《ダウン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋4000する。,-
+  - [0].action.steps[0].costColors[0] = "無"
+  - [0].action.steps[0].selfTrash = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BOUNCE"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.upToCount = false
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.target.filter.powerRange.max = 10000
+  - [0].action.steps[1].then.optional = false
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  …（他 24 行）
+--- WXDi-P13-044
+  原文: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、このシグニを場からトラッシュに置き《白》《無》《無》を支払ってもよい。そうした場合、それをトラッシュに置く。【起】《ダウン》：次の対戦相手のターン終了時まで、このシグニは「【常】：対戦相手のターンの間、【シャドウ】を得る。」を得る。,：カードを２枚引く。このターン、あなたの手札にあるシ
+  - [0].action.steps[0].costColors[0] = "白"
+  - [0].action.steps[0].costColors[1] = "無"
+  - [0].action.steps[0].costColors[2] = "無"
+  - [0].action.steps[0].selfTrash = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "TRASH"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  …（他 20 行）
+
 ## +PAID_ADDITIONAL_COST +SEQUENCE +SIGNI +STUB×2 -IS_MY_TURN ［4枚］
 WXDi-CP02-076 WXDi-P01-059 WXEX1-15 WXK03-029
 --- WXDi-CP02-076
@@ -68,54 +164,6 @@ WXDi-CP02-076 WXDi-P01-059 WXEX1-15 WXK03-029
   - [0].action.steps[1].then.target.filter.cardType = "シグニ"
   - [0].action.steps[1].then.optional = false
   …（他 25 行）
-
-## +PAID_ADDITIONAL_COST +STUB×2 +TRASH_CARD -IS_MY_TURN ［3枚］
-WX24-P4-044 WXDi-P02-035 WXDi-P05-042
---- WX24-P4-044
-  原文: 【常】《相手ターン》：【シャドウ】【常】《相手ターン》：あなたのシグニのパワーをあなたのルリグトラッシュにあるアーツ１枚につき＋1000する。【自】：あなたのターン終了時、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、《無》《無》を支払ってもよい。そうした場合、それを手札に加える。,-
-  - [2].action.steps[0].costColors[0] = "無"
-  - [2].action.steps[0].costColors[1] = "無"
-  - [2].action.steps[1].condition.type = "IS_MY_TURN"
-  - [2].action.steps[1].then.type = "TRANSFER_TO_HAND"
-  - [2].action.steps[1].then.source.type = "TRASH_CARD"
-  - [2].action.steps[1].then.source.owner = "self"
-  - [2].action.steps[1].then.source.count = 1
-  - [2].action.steps[1].then.source.filter.cardType = "シグニ"
-  - [2].action.steps[1].then.source.filter.hasGuard = true
-  ~ [2].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [2].action.steps[0].selectTarget.type = "TRASH_CARD"
-  + [2].action.steps[0].selectTarget.owner = "self"
-  …（他 19 行）
---- WXDi-P02-035
-  原文: 【ハーモニー】赤のルリグ１体【自】《ターン１回》：あなたが【ガード】したとき、カードを１枚引く。【自】：このシグニがアタックしたとき、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、《白》《無》を支払ってもよい。そうした場合、それを手札に加える。,-
-  - [1].action.steps[0].costColors[0] = "白"
-  - [1].action.steps[0].costColors[1] = "無"
-  - [1].action.steps[1].condition.type = "IS_MY_TURN"
-  - [1].action.steps[1].then.type = "TRANSFER_TO_HAND"
-  - [1].action.steps[1].then.source.type = "TRASH_CARD"
-  - [1].action.steps[1].then.source.owner = "self"
-  - [1].action.steps[1].then.source.count = 1
-  - [1].action.steps[1].then.source.filter.cardType = "シグニ"
-  - [1].action.steps[1].then.source.filter.hasGuard = true
-  ~ [1].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [1].action.steps[0].selectTarget.type = "TRASH_CARD"
-  + [1].action.steps[0].selectTarget.owner = "self"
-  …（他 19 行）
---- WXDi-P05-042
-  原文: 【出】：あなたのデッキの上からカードを３枚トラッシュに置く。その後、この方法でトラッシュに置かれたすべてのカードがレベル１のシグニの場合、対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－10000する。【自】：このカードがデッキからトラッシュに置かれたとき、あなたのトラッシュから《ガードアイコン》を持た
-  - [1].action.steps[0].costColors[0] = "無"
-  - [1].action.steps[1].condition.type = "IS_MY_TURN"
-  - [1].action.steps[1].then.type = "TRANSFER_TO_HAND"
-  - [1].action.steps[1].then.source.type = "TRASH_CARD"
-  - [1].action.steps[1].then.source.owner = "self"
-  - [1].action.steps[1].then.source.count = 1
-  - [1].action.steps[1].then.source.filter.cardType = "シグニ"
-  - [1].action.steps[1].then.source.filter.level = 1
-  - [1].action.steps[1].then.source.filter.noGuard = true
-  ~ [1].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [1].action.steps[0].selectTarget.type = "TRASH_CARD"
-  + [1].action.steps[0].selectTarget.owner = "self"
-  …（他 20 行）
 
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
@@ -297,6 +345,24 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+
+## +PAID_ADDITIONAL_COST×2 +STUB×4 +TRASH_CARD×2 -IS_MY_TURN×2 ［1枚］
+WXDi-P04-041
+--- WXDi-P04-041
+  原文: 【自】：このシグニがアタックしたとき、あなたのトラッシュからシグニ１枚を対象とし、あなたの他のシグニ１体を場からトラッシュに置き《黒》を支払ってもよい。そうした場合、それを手札に加える。【自】：対戦相手のアタックフェイズ開始時、あなたのトラッシュから黒のシグニ１枚を対象とし、《黒》を支払ってもよい。そうした場合、それを手札に加える。,：あなたのトラッシュから
+  - [0].action.steps[0].fieldTrash.count = 1
+  - [0].action.steps[0].fieldTrash.filter.cardType = "シグニ"
+  - [0].action.steps[0].fieldTrash.excludeSelf = true
+  - [0].action.steps[0].costColors[0] = "黒"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "TRANSFER_TO_HAND"
+  - [0].action.steps[1].then.source.type = "TRASH_CARD"
+  - [0].action.steps[1].then.source.owner = "self"
+  - [0].action.steps[1].then.source.count = 1
+  - [0].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [1].action.steps[0].costColors[0] = "黒"
+  - [1].action.steps[1].condition.type = "IS_MY_TURN"
+  …（他 49 行）
 
 ## -LOOK_AND_REORDER ［1枚］
 WXDi-P08-062
