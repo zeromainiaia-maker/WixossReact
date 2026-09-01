@@ -1,5 +1,88 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-01（続き769）：§5.1 実機未検証キューを 4件 → **0件** に返済（`V-107`／`V-105`／`V-104`／`V-103`）
+
+**この巡は「新しい実装」ではなく「返済」**＝続き756/757/767/768 が `src/screens/` と新機構に触れたまま残していた
+**実機観測点4件**を全部踏んだ。**新規シナリオ13本・すべて PASS（単体でも13本一括でも）**。engine/parser は1バイトも触っていない。
+触ったのは **`scripts/verifyBattleDrive.mjs`（+736行）** と **`SigniOnPlayCostModal.tsx` の `data-testid` 1行**だけ。
+
+### A. `V-107`＝`WX22-018-E2`「**いずれかのトラッシュから**対象のコストの合計が０のスペル１枚を除外し《無》を支払ってもよい」
+
+**残っていたのは UI 経路だけ**（runtime `canAffordOptionalCostSpec` と支払いステップ `EXILE{TRASH_CARD owner:'any'}` は golden 済み）。
+`execExile` が `owner:'any'` を `TargetScope 'both_trash'` に落とすので、**`EffectInteractionModal` の `scopeDesc` に行が無ければ見出しが空になる**。
+
+- **盤面**＝自分のトラッシュには**スペルでないバニラ1枚**だけ、相手のトラッシュにコスト0スペル1枚。
+- **観測3点とも PASS**＝①自分側に候補が無くても**支払い択が出る** ②見出しが「**いずれかのトラッシュから**」
+  ③選んだ札が**相手のトラッシュから消えて相手の除外へ**（自分のバニラは候補にすら出ない＝filter が効いている）。
+- **反転確認**＝live の `trashExile.owner` を `any`→`self` にすると**支払い択自体が出ず** FAIL（`canAfford` が false で丸ごとスキップ）。
+- 新シナリオ＝`v107BothTrashPay` / `v107BothTrashSkip`（辞退なら除外も本体も起きない）。
+
+### B. `V-105`＝`WXK03-070`（幻怪　モモタロ）の `cost.energyTrashGroups`（続き767 で新設・旧 live は `costUnparsed`＝**無料**）
+
+🔑**支払い経路は2つあり、両方を別々に踏んだ**＝①通常召喚（`SigniOnPlayCostModal`）②効果で場に出た（`optionalCostPaySteps`）。
+
+- **観測4点とも PASS**＝(a) 3種そろっているときだけ **発動が enabled**（`エナゾーンからトラッシュするカードを選択: 3/3`）
+  (b) **同名3枚では 1/3 で止まり 発動は disabled**（グループごとに別カードが要る）
+  (c) 支払った札が**3枚ともトラッシュへ**・**無関係な1枚はエナに残る**（1枚だけ／4枚は誤り）
+  (d) **②効果で場に出た経路**でも同じコストを取られ、**グループごとに1つずつ TRASH ステップへ分解**される（実測で3ステップ）。
+- 🔑**選択ガードの観測は「押してカウンタが動かないこと」で測った**＝無関係な札を先に押して `0/3` のままを読む
+  （`canAddEnergyTrashGroupIndex` が効いていなければここで 1/3 になる）。
+- **反転確認**＝`manualEffects.ts` から `cost.energyTrashGroups` を外すと、選択UIが消えて**無料の「発動しますか？」**に戻り FAIL。
+- **`SigniOnPlayCostModal.tsx` に `data-testid="onplaycost-enatrash-${i}"` を追加**（エナ**支払い**の `onplaycost-energy-${i}` とは別枠。
+  この面には testid が無く、盤面の同名 `img[alt]` と区別して狙えなかった）。
+- 新シナリオ＝`v105OnPlayGroupsPay` / `v105OnPlayGroupsSameName` / `v105OnPlayGroupsByEffect`。
+
+### C. `V-104`＝`WXK11-013`（キー）の `LRIG_LIMIT_MODIFY{owner:'any'}`「（お互いのセンタールリグに影響する）」
+
+**3本セット（キー無し11／自分側にキー10／相手側にキー10）で、表示と配置ゲートが同じ値を見ていることを確かめた。**
+**対照が「キーの有無だけの1ビット反転」なので、これ自体が反転確認になっている。**
+
+- **PASS**＝表示「`Lv.2　リミット: 8/11`」→ キーありで「`8/10`」／空きゾーンの内訳が `10/11`→`10/10`。
+- 🔑**配置ゲートは2段ある**＝①手札カードの【召喚】ボタンを出すか（`BattleScreen.tsx:8327`）②ゾーンボタンの `disabled`。
+  **リミットを1超える札では①で既に止まる**ので、**ちょうど収まる Lv2 と 1超える Lv3 の2枚**を手札に置いて両方を見た
+  （リミット10のとき Lv3 は**【召喚】自体が出ない**＝ゲートが表示と同じ値を見ている）。
+- 新シナリオ＝`v104LimitNoKey` / `v104LimitKeySelf` / `v104LimitKeyOpp`。
+
+### D. `V-103`①＝**【ライド】の【起】**（続き756 が `<CardNum>-RIDE` をルリグ9枚に新規生成）
+
+- **PASS**＝(a) ルリグの【起】一覧に **`【起】コストなし`** が出る（本来の `【起】コイン1` と並ぶ）
+  (b) ＜乗機＞シグニを選んで**乗る**（`lrig_riding_signi` に入る）／(c) ＜乗機＞が居なければ「**乗機シグニなし（RIDE_ON）**」で止まる
+  (d) 撃ったあと**同じターンには一覧から消える**（`once_per_turn`）／既にドライブ状態なら「**ルリグ既にドライブ状態**」で乗り直さない。
+- 新シナリオ＝`v103RideOn` / `v103RideNoTarget` / `v103RideAlreadyDriving`。
+- **`queryState` に `lrigRidingSigni` を追加**（`RIDE_ON` はここが空でなければ即スキップするので、両方向の観測点）。
+
+### E. `V-103`②＝`split_top_bottom` の振り分けUI（`WDK04-014` 大罠　ジャバウォック）
+
+**PLAN が「この枝は golden で固定できていない」と明記していた「置かない」枝**を実機で踏んだ。
+
+- **PASS**＝**上に残しても**（デッキトップのまま）**下へ置いても**、後続の
+  「この方法で公開したカードがレベルが奇数のシグニの場合」が**両方とも成立**（`+5000` と【ランサー】が付く）＝`lastProcessedCards` が残る。
+- **同じ盤面・同じ札で「上/下」1ビットだけ反転**した2本＝`v103SplitKeepTop` / `v103SplitToBottom`。
+
+### 🔑 この巡で得た「ドライバの書き方」の教訓（次の人が同じ穴に落ちないために）
+
+1. 🔴**`field.key_piece` は `CORE_FIELD_KEYS`＝シナリオ間で引き継がれる。**
+   明示的に `null` を書かないと**前の巡のキーが残ったまま**回り、対照が別のリミットで走る。
+   症状は「**【召喚】ボタンが出ない**」だけなので、カードやルリグ限定や待ち時間を疑って時間を溶かす。
+   ⇒ **効果が「盤面に1枚あるかどうか」で決まる観測をするときは、その枠を spec で必ず両サイド明示クリアする。**
+2. 🔴**反転確認の後始末を `mv`（mtime 保存）で戻すと、`distIsFresh()` が build をスキップして次の実行が反転版の dist で回る。**
+   実際にこれで「一括実行だけ2本 FAIL」を踏み、シナリオ間汚染を疑って調査した（**真因は stale dist**）。
+   ⇒ **復元は `git checkout` か、復元後に `touch`。疑わしいときは `SKIP_BUILD=0` で強制ビルド。**
+3. 🔴**`manualEffects.ts` は実行時にも勝つ。** `BattleScreen` が `buildEffectsMap` → `mergeManualEffects` を毎回呼ぶので、
+   **`public/data/effects_*.json` を削っても manual 側が復活させる**。⇒ **MANUAL 効果の反転確認は `manualEffects.ts` を触る。**
+4. 🔑**候補モーダルは「このモーダルで選んだ札」を覚える。** 毎ティック同じ札を押すと選択がトグルして `決定` に永久に進まない
+   （`o190CostDrive` が既にこの型を持っていたのに写し損ねて2回踏んだ）。
+5. 🔑**「出ないこと」を主張する観測は、出る側と同じ時間だけ待ってから結論する**（`getMyHandCardActions` は `loading` 中 `[]` を返す）。
+   出なかったときは**そのとき何が出ていたか**（`data-action-label` の一覧）を必ずログに残す。
+6. 🔑**観測だけの巡では押し切らない**＝`V-104` はモーダルを開いて読んでキャンセルし、`盤面は不変` を判定に含めた
+   （配置してしまうと次の観測ができない）。
+
+**検証**＝`npm run gates` **全緑**（typecheck／golden 3199・0 FAIL／smoke 全0／fuzz 全0／census 11 / BASELINE 12／
+census-stubs A🔴0・C0／manual-fields 0／census-enginetext A🔴130行 据置／lint 0 errors・249 warnings）。
+**実機**＝`node scripts/verifyBattleDrive.mjs` で**新規13本すべて PASS**（単体・13本一括の両方）。
+⚠**実機は必須と判定**（§2.2）＝`src/screens/` を触った（`data-testid` 1行）＋そもそもこの巡が実機返済。
+
+
 ## 2026-09-01：PLAN 再編（第2回）＋ 対象レベル依存コスト2効果を live へ届けた
 
 ### A. 対象レベル依存の任意コスト2効果（前セッションの未完了分を完走）

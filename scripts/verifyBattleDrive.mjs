@@ -19920,6 +19920,737 @@ scenarios.o190FieldTrapTrashPay = { title: 'WX15-053-TRAP（O-190＝他の【ト
 scenarios.o190FieldTrapTrashSkip = { title: 'WX15-053-TRAP 対照（O-190＝辞退なら他の【トラップ】も本体もなし）', spec: o190FieldTrapSpec(), drive: o190CostDrive('o190FieldTrapTrashSkip', 'skip', 'fieldTrapTrash') };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// §5.1 `V-107`（2026-09-01）＝`WX22-018-E2`「あなたは**いずれかのトラッシュから**対象のコストの合計が
+// ０のスペル１枚をゲームから除外し《無》を支払ってもよい。そうした場合、対象の対戦相手のシグニ１体を手札に戻す」。
+// 🔴**観測点は「相手のトラッシュの札を実 UI で選べるか」**＝`trashExile.owner:'any'` は runtime（`canAfford…`）と
+//   支払いステップ（`EXILE{TRASH_CARD owner:'any'}`）が golden 済みで、**残っていたのは UI 経路だけ**だった。
+//   `execExile` は `owner:'any'` を `TargetScope 'both_trash'` に落とすので、
+//   **`EffectInteractionModal` の `scopeDesc` に `both_trash` の行が無ければ見出しが空になる**（表示の穴）。
+// ⚠**自分のトラッシュにはわざと「スペルでないバニラ」を1枚置く**＝候補に出たら filter が効いていない証拠になる。
+// ⚠この効果は did-it ゲートが `IS_MY_TURN` のままで帰結の対象も未固定（§5.3 の別項目）なので、
+//   **シナリオは「コストが正しく払われるか」だけを見る**。
+// ⚠payload は手書きせず生成済み live JSON を読む（`o190LiveEffect` を共用）＝payload を外す反転確認で必ず赤になる。
+// ─────────────────────────────────────────────────────────────────────────────
+const V107_SOURCE = 'WX22-018#1920';       // 幻怪姫 ネコマター（効果元・自分のシグニゾーン）
+const V107_OPP_SPELL = 'WD01-018#1921';    // 噴流する知識《無》×０＝**相手のトラッシュにだけ**置く
+const V107_SELF_DECOY = 'WD01-013#1922';   // 小剣ククリ（バニラ シグニ）＝自分のトラッシュ。候補に出てはいけない
+const V107_TARGET = 'WD01-013#1923';       // 帰結の対象（相手シグニ）
+const V107_ENERGY = 'WD05-010#1924';       // 《無》×１の支払い元
+
+const v107Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD05-001#1925'], 'field.signi': [[V107_SOURCE], null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    trash: [V107_SELF_DECOY], hand: [], energy: [V107_ENERGY],
+    excluded: [], temp_power_mods: [], actions_done: [],
+  },
+  guestSet: {
+    'field.signi': [[V107_TARGET], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, trash: [V107_OPP_SPELL], excluded: [], temp_power_mods: [],
+  },
+  top: {
+    active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2,
+    effectStack: o190EffectStack('WX22-018', V107_SOURCE, 'WX22-018-E2'),
+  },
+});
+
+const v107Drive = (tag, mode) => async (page, H) => {
+  let costPicked = false, targetPicked = false;
+  let energyPicked = false, payClicked = false, skipClicked = false;
+  let costCandidates = null, sawBothTrashHeading = null, selfDecoyOffered = false;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const before = await H.queryState();
+    const candidates = Array.isArray(before?.pendingCandidates) ? before.pendingCandidates : [];
+    let did = null;
+
+    // ① コスト＝**相手のトラッシュ**のコスト0スペル（V-107 の本体）。
+    if (mode === 'pay' && !costPicked && candidates.includes(V107_OPP_SPELL)) {
+      costCandidates ??= [...candidates];
+      // 🔴filter が効いていなければ**自分のトラッシュのバニラ**もここに並ぶ＝その場で記録して最後に落とす。
+      selfDecoyOffered ||= candidates.includes(V107_SELF_DECOY);
+      if (sawBothTrashHeading === null) {
+        sawBothTrashHeading = await page.getByText('いずれかのトラッシュから', { exact: false })
+          .first().count().then(c => c > 0).catch(() => false);
+      }
+      did = await clickPendingInstance(page, H, V107_OPP_SPELL);
+      if (did) costPicked = true;
+    }
+    // ② 帰結の対象（相手シグニ）。skip 側でも窓が開いたら拾えるようにしておく（開かないのが正）。
+    if (!did && !targetPicked && candidates.includes(V107_TARGET)) {
+      did = await clickPendingInstance(page, H, V107_TARGET);
+      if (did) targetPicked = true;
+    }
+    // 🔴H.clickBtn は disabled を見ない＝候補を選んで enabled になってから押す（§5-nn・o190 と同じ）。
+    if (!did && candidates.length > 0 && (costPicked || targetPicked)) {
+      did = await o190ClickEnabledDecision(page);
+    }
+    if (!did && mode === 'skip' && !skipClicked) {
+      const skip = page.getByTestId('optcost-skip').first();
+      if (await skip.count() && await skip.isVisible().catch(() => false) && await skip.isEnabled().catch(() => false)) {
+        await skip.click(); did = 'tid:optcost-skip'; skipClicked = true;
+      }
+    }
+    if (!did && mode === 'pay' && !energyPicked) {
+      const energy = page.getByTestId('optcost-energy-0').first();
+      if (await energy.count() && await energy.isVisible().catch(() => false)) {
+        await energy.click(); did = 'tid:optcost-energy-0'; energyPicked = true;
+      }
+    }
+    if (!did && mode === 'pay' && energyPicked && !payClicked) {
+      const pay = page.getByTestId('optcost-pay').first();
+      if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
+        await pay.click(); did = 'tid:optcost-pay(enabled)'; payClicked = true;
+      }
+    }
+    // 候補モーダル中は stdStep に決定を押させない（候補を選び enabled を確認する順序を守る）。
+    if (!did && candidates.length === 0) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | ena=${st?.host?.energy} hTrash=${JSON.stringify(st?.host?.trashCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} gExcluded=${JSON.stringify(st?.guest?.excludedCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} cand=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+
+    if (!st?.pendingEffect && !(st?.stackLen > 0) && (payClicked || skipClicked)) {
+      const gTrash = st?.guest?.trashCards ?? [];
+      const gExcluded = st?.guest?.excludedCards ?? [];
+      const hTrash = st?.host?.trashCards ?? [];
+      const bounced = st?.guest?.fieldSigni?.[0] === null;
+      const detail = `${mode}＝相手trash=${JSON.stringify(gTrash)}／相手除外=${JSON.stringify(gExcluded)}`
+        + `／自分trash=${JSON.stringify(hTrash)}／energy=${st?.host?.energy}／本体(手札に戻した)=${bounced}`
+        + `／コスト候補=${JSON.stringify(costCandidates)}／見出し「いずれかのトラッシュから」=${sawBothTrashHeading}`;
+      const ok = mode === 'pay'
+        ? gExcluded.includes(V107_OPP_SPELL)      // 相手のトラッシュの札が除外された
+          && !gTrash.includes(V107_OPP_SPELL)
+          && hTrash.includes(V107_SELF_DECOY)     // 自分のトラッシュのバニラは動かない
+          && !selfDecoyOffered                    // 🔴スペル以外が候補に出ていたら filter の穴
+          && sawBothTrashHeading === true         // 見出しが `both_trash` の文言になっている
+          && costCandidates?.length === 1
+          && st?.host?.energy === 0
+          && bounced
+        : gTrash.includes(V107_OPP_SPELL)
+          && !gExcluded.includes(V107_OPP_SPELL)
+          && !bounced
+          && st?.host?.energy === 1;
+      return { pass: ok, detail };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'} cand=${JSON.stringify(fin?.pendingCandidates)}）` };
+};
+
+scenarios.v107BothTrashPay = { title: 'WX22-018-E2（V-107＝いずれかのトラッシュ＝相手のトラッシュのコスト0スペルを除外して払う）', spec: v107Spec(), drive: v107Drive('v107BothTrashPay', 'pay') };
+scenarios.v107BothTrashSkip = { title: 'WX22-018-E2 対照（V-107＝辞退なら除外も本体も起きない）', spec: v107Spec(), drive: v107Drive('v107BothTrashSkip', 'skip') };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.1 `V-105`（2026-09-01）＝`WXK03-070`（幻怪　モモタロ）の【出】
+// 「エナゾーンから《幻怪　モモイヌ》１枚と《幻怪　モモザル》１枚と《幻怪　モモキジ》１枚をトラッシュに置く：
+//   対象の対戦相手のシグニ１体をエナゾーンに置き、対象の対戦相手のシグニ１体を手札に戻す」。
+// 🔴**旧 live は `costUnparsed:true`＝発動コストが無料**だった（続き767 で `cost.energyTrashGroups` を新設）。
+// 🔑**支払い経路は2つある**（片方だけ直すと片肺になる）＝
+//   ①**通常召喚** → `SigniOnPlayCostModal`（可否 `energyTrashGroupsSatisfied`／タップ可否 `canAddEnergyTrashGroupIndex`）
+//   ②**効果で場に出た** → `wrapOptionalOnPlay` → `optionalCostPaySteps`（**グループごとに1 TRASH ステップへ分解**）
+// ⚠golden は純関数と JSON 形しか見ていない＝**選択UIの見た目と②の実挙動は実機でしか確かめられない。**
+// ⚠**エナには必ず「無関係な1枚」を混ぜる**＝グループ外の札が選べてしまう穴をその場で落とす。
+// ─────────────────────────────────────────────────────────────────────────────
+const V105_LRIG = 'WDK03-001#2000';        // 四型絆娘 翠子（CardClass=緑子・Limit11）＝「緑子限定」を満たす
+const V105_MOMOTARO = 'WXK03-070#2001';    // 幻怪 モモタロ（Lv4・召喚するカード）
+const V105_INU = 'WXK03-073#2002';         // 幻怪 モモイヌ
+const V105_SARU = 'WXK03-072#2003';        // 幻怪 モモザル
+const V105_KIJI = 'WXK03-071#2004';        // 幻怪 モモキジ
+const V105_DECOY = 'WD01-013#2005';        // 小剣ククリ（バニラ）＝どのグループにも当たらないエナ札
+const V105_INU_B = 'WXK03-073#2006';       // 同名3枚の対照用
+const V105_INU_C = 'WXK03-073#2007';
+const V105_OPP_A = 'WD05-009#2008';        // 帰結の対象①（エナゾーンに置く）
+const V105_OPP_B = 'WX01-053#2009';        // 帰結の対象②（手札に戻す）
+const V105_ON_FIELD = 'WXK03-070#2010';    // ②経路＝既に場に出ている効果元
+
+const V105_COST_CARDS = [V105_INU, V105_SARU, V105_KIJI];
+
+const v105Spec = (energy, extra = {}) => ({
+  hostSet: {
+    'field.lrig': [V105_LRIG], 'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    trash: [], energy, actions_done: [], excluded: [], temp_power_mods: [],
+    ...(extra.hostSet ?? {}),
+  },
+  guestSet: {
+    'field.signi': [[V105_OPP_A], [V105_OPP_B], null], 'field.signi_down': [false, false, false],
+    'field.check': null, energy: [], hand: [],
+  },
+  ...(extra.handPrepend ? { handPrepend: extra.handPrepend } : {}),
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, ...(extra.top ?? {}) },
+});
+
+/** 選択カウンタ「エナゾーンからトラッシュするカードを選択: n / 3枚」の n を読む（選択ガードの観測点）。 */
+async function v105ReadEnaTrashCounter(page) {
+  const t = await page.getByText(/エナゾーンからトラッシュするカードを選択/).first()
+    .textContent({ timeout: 1500 }).catch(() => null);
+  const m = t ? t.match(/選択:\s*(\d+)\s*\/\s*(\d+)/) : null;
+  return m ? { picked: Number(m[1]), need: Number(m[2]) } : null;
+}
+
+/**
+ * ①通常召喚の経路。`mode`＝`'pay'`（3種そろい・払える）／`'samename'`（同名3枚・払えない対照）。
+ * ⚠**「押した」ではなく「盤面/DOM が変わった」を進行条件にする**（§5.1 の教訓）＝
+ *   `発動` は enabled を確かめてから押す。対照側で押せてしまったら判定が赤くなる。
+ */
+const v105SummonDrive = (tag, mode) => async (page, H) => {
+  await H.ensureMain();
+  H.log('手札クリック: ' + (await H.clickTestId('my-hand-card-0') ?? '見つからず'));
+  let summoned = false, placed = false, decoyTried = false, allTried = false;
+  let counterAfterDecoy = null, counterAfterAll = null, fireWasDisabled = null;
+  let fired = false, skipped = false;
+  // 🔴**このモーダルで既に選んだ札**を持たないと、毎ティック同じ札を押し直して選択がトグルし、
+  //   決定に永久に進まない（初回実装でこれを踏んだ）。決定を押したら null に戻して次のモーダルへ。
+  let pickedNum = null;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (!summoned && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+      await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+    }
+    if (!did && summoned && !placed) {
+      did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (did) placed = true;
+    }
+    // 【出】コストモーダル＝エナから「トラッシュに置く」札を選ぶ
+    if (!did && placed && !fired && !skipped) {
+      const t0 = page.getByTestId('onplaycost-enatrash-0').first();
+      if (await t0.count() && await t0.isVisible().catch(() => false)) {
+        if (!decoyTried) {
+          // 🔴まず**無関係な1枚**（index 3＝小剣ククリ）を押す＝選択ガードが効いていれば枚数は 0 のまま。
+          await page.getByTestId('onplaycost-enatrash-3').first().click().catch(() => {});
+          await page.waitForTimeout(200);
+          counterAfterDecoy = await v105ReadEnaTrashCounter(page);
+          decoyTried = true; did = 'tid:onplaycost-enatrash-3(無関係な札＝弾かれるはず)';
+        } else if (!allTried) {
+          for (const i of [0, 1, 2]) {
+            await page.getByTestId(`onplaycost-enatrash-${i}`).first().click().catch(() => {});
+            await page.waitForTimeout(150);
+          }
+          counterAfterAll = await v105ReadEnaTrashCounter(page);
+          allTried = true; did = 'tid:onplaycost-enatrash-0/1/2';
+        } else {
+          const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+          const enabled = await fire.isEnabled().catch(() => false);
+          fireWasDisabled = !enabled;
+          if (mode === 'pay') {
+            if (enabled) { await fire.click().catch(() => {}); did = 'btn:発動(enabled)'; fired = true; }
+          } else {
+            // 対照＝押せないことを確かめてからスキップする。
+            const skip = page.getByRole('button', { name: 'スキップ', exact: true }).first();
+            if (await skip.count() && await skip.isVisible().catch(() => false)) {
+              await skip.click().catch(() => {}); did = 'btn:スキップ'; skipped = true;
+            }
+          }
+        }
+      }
+    }
+    // 帰結の対象（相手シグニ2体）
+    const st1 = await H.queryState();
+    const cands = Array.isArray(st1?.pendingCandidates) ? st1.pendingCandidates : [];
+    if (!did && cands.length > 0) {
+      if (!pickedNum) {
+        const next = [V105_OPP_A, V105_OPP_B].find(n => cands.includes(n));
+        if (next) { did = await clickPendingInstance(page, H, next); if (did) pickedNum = next; }
+      }
+      if (!did && pickedNum) { did = await o190ClickEnabledDecision(page); if (did) pickedNum = null; }
+    }
+    if (!did && cands.length === 0) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hEna=${st?.host?.energy} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEna=${st?.guest?.energy} gHand=${st?.guest?.hand} cand=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+
+    const modalGone = !(await page.getByTestId('onplaycost-enatrash-0').first().count());
+    if ((fired || skipped) && modalGone && !st?.pendingEffect && !(st?.stackLen > 0)) {
+      const hTrash = st?.host?.trashCards ?? [];
+      const onField = (st?.host?.fieldSigni ?? []).some(z => z?.includes(V105_MOMOTARO));
+      const detail = `${mode}＝自分trash=${JSON.stringify(hTrash)}／自分エナ残=${st?.host?.energy}`
+        + `／モモタロ召喚=${onField}／相手場=${JSON.stringify(st?.guest?.fieldSigni)}／相手エナ=${st?.guest?.energy}／相手手札=${st?.guest?.hand}`
+        + `／無関係な札を押した直後=${JSON.stringify(counterAfterDecoy)}／3種を押した直後=${JSON.stringify(counterAfterAll)}／発動はdisabled=${fireWasDisabled}`;
+      const ok = mode === 'pay'
+        ? onField
+          && V105_COST_CARDS.every(n => hTrash.includes(n))     // 3枚とも**トラッシュへ**（1枚だけ／4枚は誤り）
+          && !hTrash.includes(V105_DECOY)                        // 無関係な札は動かない
+          && st?.host?.energy === 1                              // エナに残るのは無関係な札1枚だけ
+          && counterAfterDecoy?.picked === 0                     // 🔴グループ外は選べない
+          && counterAfterAll?.picked === 3
+          && fireWasDisabled === false
+          && (st?.guest?.fieldSigni ?? []).every(z => z === null)  // 本体＝2体とも場から居なくなる
+          && st?.guest?.energy === 1 && st?.guest?.hand === 1
+        : onField
+          && hTrash.length === 0                                 // 払えないので1枚も動かない
+          && st?.host?.energy === 4
+          && counterAfterAll?.picked === 1                       // 🔴同名は1枚しか埋まらない
+          && fireWasDisabled === true
+          && (st?.guest?.fieldSigni ?? []).filter(Boolean).length === 2;
+      return { pass: ok, detail };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'} 無関係=${JSON.stringify(counterAfterDecoy)} 3種=${JSON.stringify(counterAfterAll)}）` };
+};
+
+/**
+ * ②「効果で場に出た」経路＝`wrapOptionalOnPlay` が作る `SEQUENCE[OPTIONAL_COST, 本体]` を注入して
+ * `optionalCostPaySteps` の**グループごとの1 TRASH ステップ**が実 UI で回るかを見る。
+ * ⚠**cost は live JSON から読む**（手書きしない）＝`cost.energyTrashGroups` を外す反転確認で必ず赤くなる。
+ */
+function v105ByEffectStack(sourceInstance) {
+  const live = o190LiveEffect('WXK03-070', 'WXK03-070-E1');
+  const groups = live.cost?.energyTrashGroups;
+  if (!groups) throw new Error('V-105: live の WXK03-070-E1 に cost.energyTrashGroups が無い');
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'v105-byeffect', playerId: null, cardNum: sourceInstance, effectId: 'WXK03-070-E1',
+      label: 'WXK03-070（V-105 注入＝効果で場に出た経路）',
+      effect: {
+        ...structuredClone(live), cost: undefined,
+        action: {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', energyTrashGroups: structuredClone(groups) },
+            structuredClone(live.action),
+          ],
+        },
+      },
+    }],
+  };
+}
+
+const v105ByEffectDrive = (tag) => async (page, H) => {
+  let payClicked = false;
+  const paid = new Set();
+  // 🔴帰結の対象は**このモーダルで選んだ札**を覚えないとトグルし続ける（①側と同じ罠）。
+  let pickedNum = null;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const before = await H.queryState();
+    const cands = Array.isArray(before?.pendingCandidates) ? before.pendingCandidates : [];
+    let did = null;
+    if (cands.length > 0) {
+      const nextCost = V105_COST_CARDS.find(n => cands.includes(n) && !paid.has(n));
+      if (nextCost) { did = await clickPendingInstance(page, H, nextCost); if (did) { paid.add(nextCost); pickedNum = nextCost; } }
+      if (!did && !pickedNum) {
+        const nextTgt = [V105_OPP_A, V105_OPP_B].find(n => cands.includes(n));
+        if (nextTgt) { did = await clickPendingInstance(page, H, nextTgt); if (did) pickedNum = nextTgt; }
+      }
+      if (!did && pickedNum) { did = await o190ClickEnabledDecision(page); if (did) pickedNum = null; }
+    }
+    if (!did && !payClicked) {
+      const pay = page.getByTestId('optcost-pay').first();
+      if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
+        await pay.click(); did = 'tid:optcost-pay(enabled)'; payClicked = true;
+      }
+    }
+    if (!did && cands.length === 0) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hEna=${st?.host?.energy} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEna=${st?.guest?.energy} gHand=${st?.guest?.hand} cand=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+
+    if (payClicked && !st?.pendingEffect && !(st?.stackLen > 0)) {
+      const hTrash = st?.host?.trashCards ?? [];
+      const detail = `②効果で場に出た経路＝自分trash=${JSON.stringify(hTrash)}／自分エナ残=${st?.host?.energy}`
+        + `／相手場=${JSON.stringify(st?.guest?.fieldSigni)}／相手エナ=${st?.guest?.energy}／相手手札=${st?.guest?.hand}`
+        + `／支払った札=${JSON.stringify([...paid])}`;
+      const ok = V105_COST_CARDS.every(n => hTrash.includes(n))
+        && !hTrash.includes(V105_DECOY)
+        && st?.host?.energy === 1
+        && (st?.guest?.fieldSigni ?? []).every(z => z === null)
+        && st?.guest?.energy === 1 && st?.guest?.hand === 1;
+      return { pass: ok, detail };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（hEna=${fin?.host?.energy} hTrash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'}）` };
+};
+
+scenarios.v105OnPlayGroupsPay = {
+  title: 'WXK03-070-E1（V-105①＝通常召喚でモモイヌ／モモザル／モモキジを1枚ずつエナからトラッシュして払う）',
+  spec: v105Spec([V105_INU, V105_SARU, V105_KIJI, V105_DECOY], { handPrepend: [V105_MOMOTARO] }),
+  drive: v105SummonDrive('v105OnPlayGroupsPay', 'pay'),
+};
+scenarios.v105OnPlayGroupsSameName = {
+  title: 'WXK03-070-E1 対照（V-105①＝同名3枚では払えない＝グループごとに別カードが要る）',
+  spec: v105Spec([V105_INU, V105_INU_B, V105_INU_C, V105_DECOY], { handPrepend: [V105_MOMOTARO] }),
+  drive: v105SummonDrive('v105OnPlayGroupsSameName', 'samename'),
+};
+scenarios.v105OnPlayGroupsByEffect = {
+  title: 'WXK03-070-E1（V-105②＝効果で場に出た場合も同じコストを取られる）',
+  // ⚠**getter で遅延構築する**＝`v105ByEffectStack` は live に `cost.energyTrashGroups` が無いと throw する。
+  //   モジュール読み込み時に評価すると（＝反転確認で cost を外したとき）**ドライバ全体が import で死ぬ**ので、
+  //   このシナリオを実行したときだけ落ちるようにする。
+  get spec() {
+    return v105Spec([V105_INU, V105_SARU, V105_KIJI, V105_DECOY], {
+      hostSet: { 'field.signi': [[V105_ON_FIELD], null, null] },
+      top: { effectStack: v105ByEffectStack(V105_ON_FIELD) },
+    });
+  },
+  drive: v105ByEffectDrive('v105OnPlayGroupsByEffect'),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.1 `V-104`（2026-09-01）＝`WXK11-013`（因果の均衡　ウルトゥムＶＳリワト・キー）の
+// 【常】「センタールリグのリミットは１減る。**（お互いのセンタールリグに影響する）**」＝`LRIG_LIMIT_MODIFY{owner:'any'}`。
+// 続き757 で `collectOppDeclaredLrigLimitDelta` の述語を1行広げた（`'opponent'` だけ → `'opponent'|'any'`）。
+// 🔴**見るのは「表示」と「配置ゲート」が同じ値を見ているか**＝片方だけ直って
+//   「表示は 10 なのに 11 まで置ける（逆も）」になっていないことを実 UI で確かめる。
+// 🔑**3本セットでしか意味を成さない**＝①キー無し（11）②自分側にキー（10）③**相手側にキー**（10）。
+//   ③だけが広げた述語を通る経路で、①が対照（1ビットだけ反転＝キーの有無）。
+// 🔑**配置ゲートは2段ある**（初回実装で②③が「モーダルが開かない」で落ちて分かった）＝
+//   ①手札カードの【召喚】ボタンを出すかどうか（`BattleScreen.tsx:8327`）
+//   ②召喚先ゾーンモーダルの各ゾーンボタンの `disabled`（`SigniSummonZoneModal.tsx`）。
+//   **リミットを1超える札では①で既に止まる**ので、**ちょうど収まる Lv2 と 1超える Lv3 の2枚**を手札に置いて両方を見る。
+// ─────────────────────────────────────────────────────────────────────────────
+const V104_LRIG = 'WD01-001#2100';       // 満月の巫女 タマヨリヒメ（Lv4・Limit11）
+const V104_FIELD_A = 'WX01-053#2101';    // 極剣 ゴッドイーター（Lv4・バニラ）
+const V104_FIELD_B = 'WX01-053#2102';    // 同（場の合計レベル＝8）
+const V104_HAND_LV2 = 'WD01-012#2103';   // 中剣 フランベル（Lv2・効果なし・限定なし）＝合計10（リミット10でも収まる）
+const V104_HAND_LV3 = 'WD05-010#2104';   // 廃悪の象徴 ベルゼ（Lv3・効果なし・限定なし）＝合計11（リミット10なら超過）
+const V104_KEY = 'WXK11-013#2105';
+
+const v104Spec = (keySide) => ({
+  hostSet: {
+    'field.lrig': [V104_LRIG],
+    'field.signi': [[V104_FIELD_A], [V104_FIELD_B], null],   // 合計レベル8・ゾーン3が空き
+    'field.signi_down': [false, false, false], 'field.check': null,
+    // 🔴**キー枠は `CORE_FIELD_KEYS`＝シナリオ間で引き継がれる**（`injectScenario` の除外方式が消さない）。
+    //   明示的に null を書かないと**前の巡のキーが残ったまま**になり、対照（キー無し）がリミット10や9で回って
+    //   「【召喚】が出ない」だけが観測される（初回実装でこれを踏んだ＝原因はカードでも待ち時間でもなかった）。
+    'field.key_piece': keySide === 'self' ? V104_KEY : null,
+    'field.key_piece_extra': [],
+    trash: [], energy: [], actions_done: [],
+  },
+  guestSet: {
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+    'field.key_piece': keySide === 'opp' ? V104_KEY : null,
+    'field.key_piece_extra': [],
+  },
+  handPrepend: [V104_HAND_LV2, V104_HAND_LV3],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** 手札の1枚を選んで【召喚】ボタンが出るかを見る。出れば押してゾーンモーダルまで開く。 */
+async function v104OpenSummon(page, H, handTestId, tag, s) {
+  const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+  // 🔴**「1回見て無かった」を「出ない」と読まない**＝`getMyHandCardActions` は `loading` 中に **[] を返す**ので、
+  //   フェイズ送り直後に押すとアクションが1つも出ない（初回実装でこれを踏んだ＝カード画像だけのモーダルが開く）。
+  //   出ないことを主張する側（リミット超過）の判定でもあるので、**開き直しを含めて3回**試してから結論する。
+  let clicked = null, offered = false;
+  for (let attempt = 0; attempt < 3 && !offered; attempt++) {
+    await page.waitForTimeout(900);
+    clicked = await H.clickTestId(handTestId) ?? clicked;
+    for (let w = 0; w < 15; w++) {
+      await page.waitForTimeout(200);
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { offered = true; break; }
+    }
+    if (!offered) {
+      // カード拡大モーダルを閉じて開き直す（開いたままだと手札の testid を掴めない）。
+      await page.locator('text=タップして閉じる').first().click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+  // 出なかったときに「何が出ていたか」を必ず残す（アクション皆無なのか別ラベルなのかで原因が分かれる）。
+  H.log(`  ${tag}/${s}: 召喚=${offered} アクション一覧=${JSON.stringify(await page.locator('[data-action-label]').allTextContents().catch(() => []))}`);
+  if (!offered) return { clicked, offered: false };
+  await summonBtn.click().catch(() => {});
+  for (let w = 0; w < 20; w++) {
+    if (await page.getByTestId('summon-zone-2').first().count()) break;
+    await page.waitForTimeout(150);
+  }
+  return { clicked, offered: true };
+}
+
+/**
+ * ⚠**押して確かめない**（配置してしまうと次の観測ができない）＝**開いて読むだけ**でキャンセルする。
+ */
+const v104Drive = (tag, expectLimit) => async (page, H) => {
+  await H.ensureMain();
+  // ① ちょうど収まる Lv2 ＝ 表示（合計8／リミットN）と空きゾーンの内訳（10/N）を読む
+  const lv2 = await v104OpenSummon(page, H, 'my-hand-card-0', tag, 'lv2');
+  const header = !lv2.offered ? null
+    : await page.getByText(/リミット:\s*\d+\s*\//).first().textContent().catch(() => null);
+  const m = header ? header.match(/リミット:\s*(\d+)\s*\/\s*(\d+)/) : null;
+  const shownTotal = m ? Number(m[1]) : null;
+  const shownLimit = m ? Number(m[2]) : null;
+  const zone2 = page.getByTestId('summon-zone-2').first();
+  const lv2ZoneText = lv2.offered ? ((await zone2.textContent().catch(() => '')) ?? '').replace(/\s+/g, '') : null;
+  const lv2ZoneEnabled = lv2.offered ? await zone2.isEnabled().catch(() => false) : null;
+  await page.getByRole('button', { name: 'キャンセル', exact: true }).first().click().catch(() => {});
+  await page.waitForTimeout(400);
+
+  // ② 1超える Lv3 ＝ 配置ゲート。リミット11なら通る／10なら**そもそも【召喚】が出ない**のが正。
+  const lv3 = await v104OpenSummon(page, H, 'my-hand-card-1', tag, 'lv3');
+  let lv3ZoneText = null, lv3ZoneEnabled = null;
+  if (lv3.offered) {
+    const z = page.getByTestId('summon-zone-2').first();
+    if (await z.count()) {
+      lv3ZoneText = ((await z.textContent().catch(() => '')) ?? '').replace(/\s+/g, '');
+      lv3ZoneEnabled = await z.isEnabled().catch(() => false);
+    }
+    await page.getByRole('button', { name: 'キャンセル', exact: true }).first().click().catch(() => {});
+  }
+
+  const st = await H.queryState();
+  const detail = `表示=「${(header ?? '').trim()}」（合計${shownTotal}/リミット${shownLimit}・期待${expectLimit}）`
+    + `／Lv2のゾーン3=「${lv2ZoneText}」enabled=${lv2ZoneEnabled}`
+    + `／Lv3の召喚ボタン=${lv3.offered}${lv3.offered ? `・ゾーン3=「${lv3ZoneText}」enabled=${lv3ZoneEnabled}` : ''}`
+    + `／盤面は不変=${JSON.stringify(st?.host?.fieldSigni)}`;
+  const ok = shownTotal === 8 && shownLimit === expectLimit
+    && lv2ZoneEnabled === true && lv2ZoneText.includes(`10/${expectLimit}`)
+    && (expectLimit === 11
+      // リミット11＝合計11でちょうど収まる＝召喚ボタンも出るしゾーンも押せる
+      ? (lv3.offered && lv3ZoneEnabled === true && (lv3ZoneText ?? '').includes('11/11'))
+      // リミット10＝合計11で超過＝**手札の【召喚】が出ない**（＝配置ゲートが表示と同じ値を見ている）
+      : lv3.offered === false)
+    // 観測だけで盤面を変えていないこと（キャンセルで閉じている）
+    && (st?.host?.fieldSigni ?? [])[2] === null;
+  return { pass: ok, detail };
+};
+
+scenarios.v104LimitNoKey = {
+  title: 'V-104 対照（キー無し＝センタールリグのリミットは印字どおり11）',
+  spec: v104Spec(null),
+  drive: v104Drive('v104LimitNoKey', 11),
+};
+scenarios.v104LimitKeySelf = {
+  title: 'V-104（WXK11-013 が自分の場＝自分のリミットが1減る）',
+  spec: v104Spec('self'),
+  drive: v104Drive('v104LimitKeySelf', 10),
+};
+scenarios.v104LimitKeyOpp = {
+  title: 'V-104（WXK11-013 が相手の場＝「お互いのセンタールリグに影響する」＝自分のリミットも1減る）',
+  spec: v104Spec('opp'),
+  drive: v104Drive('v104LimitKeyOpp', 10),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.1 `V-103` ①（2026-09-01）＝**【ライド】の【起】ボタン**。
+// 続き756 で `effectParser.ts` が `<CardNum>-RIDE`（`ACTIVATED{MAIN}`・`cost.energy 赤×0`・
+// `once_per_turn`・`STUB{RIDE_ON}`）を**ルリグ9枚に新規生成**した。
+// 🔴**それまで `stripKeywordPrefixes` が `【ライド】` を無言で捨てていた**＝9枚とも撃てなかった。
+// **受け皿（`RIDE_ON` → `INTERNAL_RIDE_ON_APPLY`）は元からあった**ので、実機で見るのは
+// **「UI に面が出たか」と「出た面が原文どおりに閉じるか」**の2点だけ。
+// 見るもの＝(a)ルリグの【起】一覧にライドが出る (b)乗機シグニが居ないと撃てない／居れば選べる
+//          (c)既にドライブ状態なら空振りログで止まる (d)1ターンに一度。
+// ⚠**ラベルは `【起】コストなし`**（`赤×0` は `energyTotal 0` なのでコスト表記が付かない）。
+//   同じルリグの本来の【起】は `【起】コイン1` なので取り違えない。
+// ─────────────────────────────────────────────────────────────────────────────
+const V103_LRIG = 'WDK01-001#2200';      // レイラ＝フルスロットル（Lv4・Limit11・原文が【ライド】で始まる）
+const V103_RIDE_SIGNI = 'WXK01-037#2201'; // コードアクセル ロドローラ（精械：乗機・Lv4・限定なし）
+const V103_PLAIN_SIGNI = 'WX01-053#2202'; // 極剣 ゴッドイーター（＜乗機＞ではないバニラ）
+const V103_RIDE_LABEL = '【起】コストなし';
+
+const v103RideSpec = (mode) => ({
+  hostSet: {
+    'field.lrig': [V103_LRIG],
+    // `noRide`＝＜乗機＞でないシグニだけを置く（＝「乗機シグニなし」で空振りするのが正）。
+    'field.signi': [[mode === 'noRide' ? V103_PLAIN_SIGNI : V103_RIDE_SIGNI], null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    trash: [], energy: [], coins: 3, actions_done: [],
+    // `already`＝**既にドライブ状態**（`RIDE_ON` はここが空でなければ即スキップする）。
+    ...(mode === 'already' ? { lrig_riding_signi: [V103_RIDE_SIGNI] } : {}),
+  },
+  guestSet: {
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** ルリグを開いて【起】の一覧（`data-action-label`）を読む。閉じずにそのまま返す。 */
+async function v103OpenLrigActions(page, H) {
+  let labels = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.waitForTimeout(900);
+    // ⚠センタールリグには testid が無い＝**カード名の alt で掴む**（既存シナリオと同じ流儀）。
+    const lrigImg = page.getByAltText('レイラ＝フルスロットル', { exact: false }).first();
+    if (await lrigImg.count()) await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {});
+    for (let w = 0; w < 12; w++) {
+      await page.waitForTimeout(200);
+      labels = await page.locator('[data-action-label]').evaluateAll(
+        els => els.map(e => e.getAttribute('data-action-label')),
+      ).catch(() => []);
+      if (labels.length) return labels;
+    }
+    await page.locator('text=タップして閉じる').first().click().catch(() => {});
+  }
+  return labels;
+}
+
+const v103RideDrive = (tag, mode) => async (page, H) => {
+  await H.ensureMain();
+  const before = await H.queryState();
+  const labels = await v103OpenLrigActions(page, H);
+  await page.screenshot({ path: `${SHOT}/${tag}-actions.png`, fullPage: true });
+  H.log(`  ${tag}: ルリグの【起】一覧=${JSON.stringify(labels)} riding=${JSON.stringify(before?.host?.lrigRidingSigni)}`);
+  const offered = labels.includes(V103_RIDE_LABEL);
+  if (!offered) {
+    return { pass: false, detail: `(a) ライドの【起】が一覧に出ない＝${JSON.stringify(labels)}` };
+  }
+  await page.locator(`[data-action-label="${V103_RIDE_LABEL}"]`).first().click().catch(() => {});
+
+  let chose = null, pickedNum = null;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    const cur = await H.queryState();
+    const cands = Array.isArray(cur?.pendingCandidates) ? cur.pendingCandidates : [];
+    if (!chose) {
+      // 【起】の発動確認（LrigGrantedModal）→ そのあと RIDE_ON の CHOOSE「乗る／しない」
+      const ride = page.getByRole('button', { name: '乗る', exact: true }).first();
+      if (await ride.count() && await ride.isVisible().catch(() => false)) {
+        await ride.click().catch(() => {}); did = 'btn:乗る'; chose = 'ride';
+      }
+    }
+    // 🔴「乗る」のあとに**乗せる先の SELECT_TARGET が出る**（自分のシグニゾーンから1体）＝
+    //   候補を選んでから `決定` を押す。ここを飛ばすと `決定 (0/1)` を押し続けて永久に進まない。
+    if (!did && cands.length > 0) {
+      if (!pickedNum) {
+        const next = cands.find(n => n === V103_RIDE_SIGNI) ?? cands[0];
+        if (next) { did = await clickPendingInstance(page, H, next); if (did) pickedNum = next; }
+      }
+      if (!did && pickedNum) { did = await o190ClickEnabledDecision(page); if (did) pickedNum = null; }
+    }
+    if (!did && cands.length === 0) did = await H.clickTextOrBtn(['発動', '発動する', '確定', '決定', 'OK', 'はい']);
+    if (!did && cands.length === 0) did = await H.stdStep();
+    const st = await H.queryState();
+    const riding = st?.host?.lrigRidingSigni ?? [];
+    const logs = (st?.logTail ?? []).join(' / ');
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | riding=${JSON.stringify(riding)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} logs=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
+
+    const settled = !st?.pendingEffect && !(st?.stackLen > 0);
+    if (settled && (chose || s >= 6)) {
+      // 撃ったあとの【起】一覧を読み直す＝(d)「1ターンに一度」の観測。
+      await page.locator('text=タップして閉じる').first().click().catch(() => {});
+      const after = await v103OpenLrigActions(page, H);
+      const stillOffered = after.includes(V103_RIDE_LABEL);
+      const detail = `${mode}＝乗ったシグニ=${JSON.stringify(riding)}／再表示の【起】一覧=${JSON.stringify(after)}`
+        + `／ログ末尾=${JSON.stringify((st?.logTail ?? []).slice(-4))}`;
+      const ok = mode === 'ride'
+        // (b) 居れば選べる＝乗る。(d) 撃ったあとは同じターンに出ない。
+        ? riding.includes(V103_RIDE_SIGNI) && !stillOffered
+        : mode === 'noRide'
+          // (b) 乗機シグニが居ない＝空振りログで止まる（乗らない）
+          ? riding.length === 0 && logs.includes('乗機シグニなし')
+          // (c) 既にドライブ状態＝スキップログで止まる（乗り直さない）
+          : riding.length === 1 && riding[0] === V103_RIDE_SIGNI && logs.includes('既にドライブ状態');
+      return { pass: ok, detail };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（riding=${JSON.stringify(fin?.host?.lrigRidingSigni)} pEff=${fin?.pendingEffect ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-4))}）` };
+};
+
+scenarios.v103RideOn = {
+  title: 'V-103①（WDK01-001＝【ライド】の【起】が出て、＜乗機＞シグニに乗る／同ターンに二度は出ない）',
+  spec: v103RideSpec('ride'),
+  drive: v103RideDrive('v103RideOn', 'ride'),
+};
+scenarios.v103RideNoTarget = {
+  title: 'V-103① 対照（＜乗機＞シグニが居ない＝空振りログで止まる）',
+  spec: v103RideSpec('noRide'),
+  drive: v103RideDrive('v103RideNoTarget', 'noRide'),
+};
+scenarios.v103RideAlreadyDriving = {
+  title: 'V-103① 対照（既にドライブ状態＝乗り直さない）',
+  spec: v103RideSpec('already'),
+  drive: v103RideDrive('v103RideAlreadyDriving', 'already'),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.1 `V-103` ②（2026-09-01）＝**`split_top_bottom` の振り分けUI**。
+// 続き756 で `WDK04-014` ほか5枚を `position:'bottom'`（＝**強制で一番下**）から**振り分けUI**へ移した。
+// 原文（`WDK04-014` 大罠　ジャバウォック）＝「デッキの一番上を公開する。**それをデッキの一番下に置いてもよい。**
+// この方法で公開したカードがレベルが奇数のシグニの場合、…パワー＋5000／【ランサー】」。
+// 🔴**見るのは「置かない」枝**＝1枚のとき二択になり、**置かないを選んでも後続の
+//   「この方法で公開したカードが〜の場合」が成立する**（`lastProcessedCards` が残る）こと。
+// ⚠**この枝は golden では固定できていない**（`resumeLookAndReorder` に空配列を渡す経路しか通していない）＝
+//   実機だけが見ている。⇒ 2本セットで、**同じ盤面・同じ札で1ビット（上/下）だけ反転**して測る。
+// ⚠UI の既定は「上」＝トグルボタンの文字が `上`。押すと `下` になる。
+// ─────────────────────────────────────────────────────────────────────────────
+const V103B_SOURCE = 'WDK04-014#2300';   // 大罠 ジャバウォック（**中央のシグニゾーン**＝index 1 でないと条件が立たない）
+const V103B_ODD = 'WD05-010#2301';       // 廃悪の象徴 ベルゼ（Lv3＝奇数シグニ）＝公開される1枚
+const V103B_NEXT = 'WD01-012#2302';      // 中剣 フランベル（Lv2）＝「下に置く」を選んだときの新しいデッキトップ
+
+const v103SplitSpec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#2303'],
+    'field.signi': [null, [V103B_SOURCE], null],   // 🔑index 1 ＝中央（`THIS_CARD_IN_CENTER_ZONE`）
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    // deck[0] が一番上。以降はフィラー（`injectScenario` が張る 40枚は上書きされるので自前で積む）。
+    deck: [V103B_ODD, V103B_NEXT, ...Array.from({ length: 20 }, (_, i) => `WD01-013#${2400 + i}`)],
+    trash: [], hand: [], energy: [], temp_power_mods: [], keyword_grants: {}, actions_done: [],
+  },
+  guestSet: {
+    'field.signi': [null, null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [],
+  },
+  top: {
+    active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2,
+    effectStack: o190EffectStack('WDK04-014', V103B_SOURCE, 'WDK04-014-E1'),
+  },
+});
+
+const v103SplitDrive = (tag, mode) => async (page, H) => {
+  let toggled = false, decided = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // 振り分けUI＝「上」ボタンが1つだけ出る（既定は上＝置かない）。`bottom` のときだけ押して「下」にする。
+    const toTop = page.getByRole('button', { name: '上', exact: true }).first();
+    const isSplitOpen = !!(await toTop.count()) && await toTop.isVisible().catch(() => false);
+    if (mode === 'bottom' && isSplitOpen && !toggled) {
+      await toTop.click().catch(() => {}); toggled = true; did = 'btn:上→下';
+    }
+    if (!did && !decided && (isSplitOpen || await page.getByRole('button', { name: '下', exact: true }).first().count())) {
+      const ok = page.getByRole('button', { name: '決定', exact: true }).first();
+      if (await ok.count() && await ok.isEnabled().catch(() => false)) {
+        await ok.click().catch(() => {}); decided = true; did = 'btn:決定(振り分け確定)';
+      }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    const deck = st?.host?.deckCards ?? [];
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | deckTop=${JSON.stringify(deck.slice(0, 2))} deckBottom=${JSON.stringify(deck.slice(-2))} power=${JSON.stringify(st?.host?.powerMods)} grants=${JSON.stringify(st?.host?.keywordGrants)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+
+    if (decided && !st?.pendingEffect && !(st?.stackLen > 0)) {
+      const deckNow = st?.host?.deckCards ?? [];
+      const powerOk = (st?.host?.powerMods ?? []).includes(`${V103B_SOURCE}:5000`);
+      const lancerOk = (st?.host?.keywordGrants ?? []).some(g => g.startsWith(`${V103B_SOURCE}:`) && g.includes('ランサー'));
+      const detail = `${mode}＝デッキ上2=${JSON.stringify(deckNow.slice(0, 2))}／下2=${JSON.stringify(deckNow.slice(-2))}`
+        + `／+5000=${powerOk}／【ランサー】=${lancerOk}／枚数=${deckNow.length}`;
+      // 🔑**どちらの枝でも本体（＋5000／【ランサー】）は成立する**のが原文＝ここが V-103② の主眼。
+      const placementOk = mode === 'bottom'
+        ? deckNow[0] === V103B_NEXT && deckNow.at(-1) === V103B_ODD
+        : deckNow[0] === V103B_ODD && deckNow.at(-1) !== V103B_ODD;
+      return { pass: placementOk && powerOk && lancerOk, detail };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（deck上2=${JSON.stringify((fin?.host?.deckCards ?? []).slice(0, 2))} pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'}）` };
+};
+
+scenarios.v103SplitKeepTop = {
+  title: 'V-103②（WDK04-014＝「一番下に置いてもよい」で**置かない**＝上に残しても本体が成立する）',
+  spec: v103SplitSpec(),
+  drive: v103SplitDrive('v103SplitKeepTop', 'top'),
+};
+scenarios.v103SplitToBottom = {
+  title: 'V-103② 対照（同じ盤面・同じ札で「下」だけ反転＝一番下へ行き、本体はやはり成立する）',
+  spec: v103SplitSpec(),
+  drive: v103SplitDrive('v103SplitToBottom', 'bottom'),
+};
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
@@ -40466,6 +41197,9 @@ try {
         designatedZones: s.designated_zones ?? [],
         fieldGrantsActive: (s.field_grants_active ?? []).map(g => `${g.kind}:${g.delta ?? ''}${g.perTargetLevel ? '/perLv' : ''}`),
         lrigFrozen: s.field?.lrig_frozen ?? false,
+        // 🆕V-103①（2026-09-01）＝【ライド】の観測点。ルリグが乗っている＜乗機＞シグニ（ドライブ状態）。
+        //   `STUB{RIDE_ON}` は**これが空でないと即スキップ**するので、「乗ったか」も「二重に乗らないか」もここで見る。
+        lrigRidingSigni: s.lrig_riding_signi ?? [],
         negatedAttacks: s.negated_attacks ?? [],
         blockedActions: s.blocked_actions ?? [],
         // V-85（§5.1・2026-08-24）＝数字宣言の計器。`declared_number` は宣言値そのもの、
@@ -40484,6 +41218,8 @@ try {
         life: (s.life_cloth ?? []).length,
         lifeCards: s.life_cloth ?? [],
         deck: (s.deck ?? []).length,
+        // ⚠V-103②（`split_top_bottom`＝上に残す／一番下へ）も **`deckCards` の順序**で見る。
+        //   `deck[0]` が一番上・末尾が一番下（`effectExecutor` の `deck.slice(0, count)` / `slice(-count)` 規約）。
         deckCards: s.deck ?? [],            // O-53：デッキ「下」へ入ったかは順序でしか見えない
 
         lrigAttacked: s.field?.lrig_attacked ?? false,

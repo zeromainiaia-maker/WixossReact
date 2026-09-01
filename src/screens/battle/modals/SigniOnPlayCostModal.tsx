@@ -391,6 +391,9 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                               && canAddEnergyTrashIndex(pcEnergy, selectedSigniOnPlayEnergyTrash, i, eff.cost?.energyTrash, battleCardMap));
                           return (
                             <div key={i}
+                              // 実機ドライバ（V-105）が「どのエナ札をコストに選んだか」を狙って押すための口。
+                              // ⚠エナ**支払い**の `onplaycost-energy-${i}` とは別枠（こちらはトラッシュに置く側の選択）。
+                              data-testid={`onplaycost-enatrash-${i}`}
                               onClick={() => matchesEna && setSelectedSigniOnPlayEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
