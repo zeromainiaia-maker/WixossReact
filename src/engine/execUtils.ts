@@ -322,6 +322,13 @@ export function maxCardLevel(cardNums: string[] | undefined, ctx: ExecCtx): numb
     Number.parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0));
 }
 
+/** 「それらのレベルの合計」族。0／欠損レベルは呼び出し側の levelUnavailable で fail-closed にする。 */
+export function sumCardLevels(cardNums: string[] | undefined, ctx: ExecCtx): { sum: number; unavailable: boolean } {
+  if (!cardNums || cardNums.length === 0) return { sum: 0, unavailable: true };
+  const levels = cardNums.map(n => Number.parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0);
+  return { sum: levels.reduce((total, level) => total + level, 0), unavailable: levels.some(level => level <= 0) };
+}
+
 // ===== OPTIONAL_COST の支払い仕様 =====
 
 // OPTIONAL_COST の「何をいくつ払うか」を1本にまとめて解決する。Pattern ③/④/⑤ の3サイトで
@@ -391,9 +398,13 @@ export interface OptionalCostSpec {
 
 export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCostSpec {
   const level = maxCardLevel(ctx.storedTargetCards, ctx);
-  const perLevel = !!(a.costColorsPerTargetLevel || a.handDiscardCountFromTargetLevel || a.energyTrashCountFromTargetLevel);
-  const costColors = a.costColorsPerTargetLevel
-    ? Array.from({ length: level }, () => a.costColorsPerTargetLevel!).flat()
+  const levelSum = sumCardLevels(ctx.storedTargetCards, ctx);
+  const perLevel = !!(a.costColorsPerTargetLevel || a.costColorsPerTargetLevelSum
+    || a.handDiscardCountFromTargetLevel || a.energyTrashCountFromTargetLevel);
+  const costColors = a.costColorsPerTargetLevelSum
+    ? Array.from({ length: levelSum.sum }, () => a.costColorsPerTargetLevelSum!).flat()
+    : a.costColorsPerTargetLevel
+      ? Array.from({ length: level }, () => a.costColorsPerTargetLevel!).flat()
     : (a.costColors ?? []);
   const handDiscard = a.handDiscardCountFromTargetLevel
     ? { count: level, filter: a.handDiscardFilter }
@@ -419,7 +430,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     deckTrash: a.deckTrash, charmTrash: a.charmTrash, exceed: a.exceed,
     trashArtsFromLrigDeck: a.trashArtsFromLrigDeck, removeOppVirus: a.removeOppVirus,
-    levelUnavailable: perLevel && level <= 0,
+    levelUnavailable: perLevel && (a.costColorsPerTargetLevelSum ? levelSum.unavailable : level <= 0),
   };
 }
 

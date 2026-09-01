@@ -4280,6 +4280,8 @@ export interface StubAction {
   // ③エナゾーンから置く：energyTrash（+energyTrashCountFromTargetLevel）
   /** OPTIONAL_COST: 対象のレベル1につき繰り返す単位エナコスト（例 ['無']）。 */
   costColorsPerTargetLevel?: string[];
+  /** OPTIONAL_COST: 対象**すべてのレベル合計**1につき繰り返す単位エナコスト（例 ['緑']）。 */
+  costColorsPerTargetLevelSum?: string[];
   /** OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。 */
   energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /**

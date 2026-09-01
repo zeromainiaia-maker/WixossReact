@@ -28969,6 +28969,113 @@ test('OPTIONAL_COST: 対象レベルが0（対象なし）なら支払い不可�
   const pay = (res as { pending: { options: { id: string; available?: boolean }[] } }).pending.options.find(o => o.id === 'pay');
   eq(pay?.available, false, '対象なしでも支払い可能になっている');
 });
+test('PLAN §5.3 レベル合計コスト: レベル1＋2なら《緑》3つ、2つしかなければ支払い不可', () => {
+  const greenEnergy = ['WD04-014', 'WD04-012', 'WD04-015'];
+  const base = mkCtx({ energy: 0 }, { signi: [SIGNI_L1, SIGNI_L2, null] });
+  const exactCtx = { ...base, ownerState: { ...base.ownerState, energy: greenEnergy },
+    storedTargetCards: [SIGNI_L1, SIGNI_L2] } as ExecCtx;
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST', costColorsPerTargetLevelSum: ['緑'] } as StubAction;
+  const exact = resolveOptionalCostSpec(stub, exactCtx);
+  eq(exact.costColors.length, 3, 'レベル合計1+2ぶんの《緑》3つになっていない');
+  ok(canAffordOptionalCostSpec(exact, exactCtx), '《緑》3つがあれば支払える');
+  // 色エナは paySteps へ複製せず、pending の costColors が唯一の支払い元になる既存契約。
+  eq(optionalCostPaySteps(exact).length, 0, '色エナを追加支払いステップへ二重計上してはいけない');
+
+  const shortCtx = { ...exactCtx, ownerState: { ...exactCtx.ownerState, energy: greenEnergy.slice(0, 2) } } as ExecCtx;
+  const short = resolveOptionalCostSpec(stub, shortCtx);
+  eq(short.costColors.length, exact.costColors.length, '可否判定と支払いで合計値がずれた');
+  ok(!canAffordOptionalCostSpec(short, shortCtx), '《緑》が1つ足りないのに支払えている');
+});
+test('PLAN §5.3 レベル合計コスト fail-closed: 対象0体／レベル参照不能なら支払い不可', () => {
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST', costColorsPerTargetLevelSum: ['緑'] } as StubAction;
+  const noTarget = mkCtx({ energy: 5 }, {});
+  const empty = resolveOptionalCostSpec(stub, noTarget);
+  ok(empty.levelUnavailable, '対象0体を levelUnavailable にしていない');
+  ok(!canAffordOptionalCostSpec(empty, noTarget), '対象0体なのにコスト0で支払えている');
+
+  const unknownCtx = { ...noTarget, storedTargetCards: ['UNKNOWN-LEVEL#1'] } as ExecCtx;
+  const unknown = resolveOptionalCostSpec(stub, unknownCtx);
+  ok(unknown.levelUnavailable, 'レベル参照不能を levelUnavailable にしていない');
+  ok(!canAffordOptionalCostSpec(unknown, unknownCtx), 'レベル参照不能なのに支払えている');
+});
+test('PLAN §5.3 既存3件の最大レベル経路: 合計版を足してもレベル1＋2は2コストのまま', () => {
+  const ctx = { ...mkCtx({ energy: 5 }, {}), storedTargetCards: [SIGNI_L1, SIGNI_L2] } as ExecCtx;
+  const spec = resolveOptionalCostSpec(
+    { type: 'STUB', id: 'OPTIONAL_COST', costColorsPerTargetLevel: ['無'] } as StubAction, ctx);
+  eq(spec.costColors.length, 2, '既存 costColorsPerTargetLevel を合計3へ変えてはいけない');
+  for (const [cardNum, effectId] of [
+    ['WX24-P2-007', 'WX24-P2-007-E1'],
+    ['WX25-P1-092', 'WX25-P1-092-E1'],
+    ['WXDi-P04-020', 'WXDi-P04-020-E1'],
+  ] as const) {
+    const json = JSON.stringify(manualEffect(cardNum, effectId).action);
+    ok(json.includes('costColorsPerTargetLevel'), `${effectId}: 既存の最大レベルキーが消えた`);
+    ok(!json.includes('costColorsPerTargetLevelSum'), `${effectId}: 合計版へ予定外に移行した`);
+  }
+});
+test('PLAN §5.3 WX24-P4-051-E2: 同レベルのエナだけを払い、先に選んだトラッシュ札だけを回収する', () => {
+  const target = SIGNI_L2;
+  const sameLevelCost = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== target);
+  const wrongLevelCost = SIGNI_L1;
+  const effect = manualEffect('WX24-P4-051', 'WX24-P4-051-E2');
+  const base = mkCtx({ energy: 0 }, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState,
+    trash: [target], hand: [], energy: [sameLevelCost, wrongLevelCost] } } as ExecCtx;
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'トラッシュの対象宣言が出ていない');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  eq(first.pending.targetScope, 'self_trash', '対象宣言が自分のトラッシュでない');
+  const selected = resumeSelectTarget([target], first.pending, ctxAfter(first, ctx));
+  ok(!selected.done && selected.pending.type === 'CHOOSE', '任意コストの pay/skip が出ていない');
+  if (selected.done || selected.pending.type !== 'CHOOSE') return;
+  const paid = resumeOptionalCost('pay', [], selected.pending, ctxAfter(selected, ctx));
+  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', '同レベルのエナ支払い選択が出ていない');
+  if (paid.done || paid.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(paid.pending.candidates), JSON.stringify([sameLevelCost]),
+    '🔴同レベルでないエナシグニが支払い候補に混ざった');
+  const costPaid = resumeSelectTarget([sameLevelCost], paid.pending, ctxAfter(paid, ctx));
+  ok(!costPaid.done && costPaid.pending.type === 'SELECT_TARGET', '固定した回収対象の解決に進んでいない');
+  if (costPaid.done || costPaid.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(costPaid.pending.candidates), JSON.stringify([target]), '支払い後に回収対象を選び直せる');
+  const resolved = resumeSelectTarget([target], costPaid.pending, ctxAfter(costPaid, ctx));
+  ok(resolved.ownerState.hand.includes(target), '先に対象とした札を回収していない');
+  ok(resolved.ownerState.trash.includes(sameLevelCost), '同レベルのエナシグニがトラッシュへ行っていない');
+  ok(resolved.ownerState.energy.includes(wrongLevelCost), 'レベル違いのエナシグニを誤って支払った');
+});
+test('PLAN §5.3 WX24-P4-051-E2 fail-closed: 同レベルのエナがなければ pay 不可', () => {
+  const effect = manualEffect('WX24-P4-051', 'WX24-P4-051-E2');
+  const steps = (effect.action as SequenceAction).steps as StubAction[];
+  const ctx = { ...mkCtx({ energy: 0 }, {}), storedTargetCards: [SIGNI_L2] } as ExecCtx;
+  ctx.ownerState.energy = [SIGNI_L1];
+  const spec = resolveOptionalCostSpec(steps[2], ctx);
+  ok(!canAffordOptionalCostSpec(spec, ctx), '同レベルのエナが無いのに pay 可能になっている');
+});
+test('PLAN §5.3 WX24-P2-054-E2: 対象レベル合計ぶんを実際に払い、固定した2体をエナへ置く', () => {
+  const greenEnergy = ['WD04-014', 'WD04-012', 'WD04-015'];
+  const effect = manualEffect('WX24-P2-054', 'WX24-P2-054-E2');
+  const base = mkCtx({ energy: 0, lrig: ['WX24-P2-026'] }, { signi: [SIGNI_L1, SIGNI_L2, null] });
+  const ctx = { ...base, ownerState: { ...base.ownerState, energy: greenEnergy } } as ExecCtx;
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '相手シグニ3体までの対象宣言が出ていない');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  ok(first.pending.optional === true && first.pending.count === 3,
+    `3体までになっていない (${JSON.stringify(first.pending)})`);
+  const selected = resumeSelectTarget([SIGNI_L1, SIGNI_L2], first.pending, ctxAfter(first, ctx));
+  ok(!selected.done && selected.pending.type === 'CHOOSE', '任意コストの pay/skip が出ていない');
+  if (selected.done || selected.pending.type !== 'CHOOSE') return;
+  const pay = selected.pending.options.find(o => o.id === 'pay');
+  eq(pay?.costColors?.length, 3, 'レベル1＋2なのに《緑》3つを要求していない');
+  eq(pay?.available, true, 'ちょうど《緑》3つで pay できない');
+  const paid = resumeOptionalCost('pay', greenEnergy, selected.pending, ctxAfter(selected, ctx));
+  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', '固定対象のエナ送り解決に進んでいない');
+  if (paid.done || paid.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(new Set(paid.pending.candidates)), JSON.stringify(new Set([SIGNI_L1, SIGNI_L2])),
+    '支払い後の候補が先に対象とした2体へ固定されていない');
+  const resolved = resumeSelectTarget([SIGNI_L1, SIGNI_L2], paid.pending, ctxAfter(paid, ctx));
+  eq(resolved.ownerState.energy.length, 0, '《緑》3つが実際に支払われていない');
+  ok([SIGNI_L1, SIGNI_L2].every(n => resolved.otherState.energy.includes(n)), '対象2体が相手のエナへ行っていない');
+  ok(resolved.otherState.field.signi.every(zone => zone === null), '対象2体が場に残っている');
+});
 test('OPTIONAL_COST energyTrash: 対象レベル分だけエナゾーンからトラッシュして本体が通る（WX25-CP1-045）', () => {
   const ctx = { ...mkCtx({ energy: 6 }, { signi: [SIGNI_L3, null, null] }), storedTargetCards: [SIGNI_L3] } as ExecCtx;
   const initial = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
@@ -57860,13 +57967,13 @@ test('O-188 第3バッチ: 回収の対象宣言が原文どおりのゾーン�
         `🔴${eid}(${label}): DECK_CARD 既定（＝無言 no-op）へ戻っていない`);
     }
   }
-  // 🔴**据置の記録**＝`WX24-P2-054-E2` は同じ「宣言が落ちる」系だが**帰結の型ごと別物**
-  //   （原文は「対戦相手のシグニを3体まで対象とし、それらのレベルの合計1につき《緑》を支払ってもよい。
-  //   そうした場合、それらをエナゾーンに置く」＝`SEND_TO_ENERGY` ＋ 対象レベル依存コスト）。
-  //   live は `ENERGY_CHARGE{DECK_CARD}`＝**自分のデッキからエナチャージする別の動作**。直したら書き換える。
-  const held = (effectsMap.get('WX24-P2-054') ?? []).find(e => e.effectId === 'WX24-P2-054-E2')!;
-  ok(JSON.stringify(held.action).includes('ENERGY_CHARGE'),
-    'WX24-P2-054-E2: 対象レベル依存コスト＋SEND_TO_ENERGY は未実装のまま（§5.3 に登録済み）');
+  // PLAN §5.3 で実装済み＝対象宣言→合計レベルコスト→固定対象のエナ送り。
+  const fixed = manualEffect('WX24-P2-054', 'WX24-P2-054-E2');
+  const fixedJson = JSON.stringify(fixed.action);
+  ok(fixedJson.includes('costColorsPerTargetLevelSum') && fixedJson.includes('SEND_TO_ENERGY')
+    && fixedJson.includes('targetsStored'),
+  'WX24-P2-054-E2: 対象レベル合計コスト＋固定対象のエナ送りが届いていない');
+  ok(!fixedJson.includes('ENERGY_CHARGE'), 'WX24-P2-054-E2: 自分のデッキからエナチャージする旧動作が残っている');
 });
 
 // ── §5.3 `O-188` 第4バッチ（2026-09-01）＝「AとBをそれぞれN枚まで」の群が1枚へ潰れる ──

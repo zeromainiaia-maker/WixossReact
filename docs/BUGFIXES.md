@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-01：PLAN 再編（第2回）＋ 対象レベル依存コスト2効果を live へ届けた
+
+### A. 対象レベル依存の任意コスト2効果（前セッションの未完了分を完走）
+
+**真因**＝支払う量が「先に固定した対象のレベル」で決まる形の受け皿が片方しか無かった（`costColorsPerTargetLevel`＝**最大**レベルのみ）。
+**影響**＝2効果。`WX24-P4-051-E2`（旧 live は `STUB{OPTIONAL_TRASH_ENERGY_CLASS}`＝レベル限定を失い、支払い後に回収対象を選び直せた）／
+`WX24-P2-054-E2`（旧 live は `ENERGY_CHARGE{DECK_CARD}`＝**自分のデッキからエナチャージする別の動作**）。
+
+- **新キー1本**＝`StubAction.costColorsPerTargetLevelSum`（対象**すべてのレベル合計**1につき単位コスト）。
+  **4箇所へ配線**＝`src/types/effects.ts`（型）／`src/engine/execUtils.ts`（`sumCardLevels` 新設＋`resolveOptionalCostSpec`）／
+  同（`levelUnavailable` を合計版でも fail-closed に）／`scripts/decompileEffects.ts`（逆翻訳）。
+- **2効果は `manualEffects.ts` に手書き**（§2.0 の速いレーン＝同型2枚以下）。`WX24-P4-051-E2` は既存の `energyTrashSameLevelAsTarget` が受け皿だった。
+- **`WX24-P2-054-E2` の負方向 golden（`ENERGY_CHARGE` のままを固定していたもの）を削除し、正方向へ差し替え。**
+
+🔴🔑**真の発見＝`manualEffects.ts` に書いただけでは live に届いていなかった。**
+`build:effects` の収穫マージは**既存 id の書き直しを温存する**ので、live は旧出力（`parseStatus:AUTO`）のまま残っていた。
+**新しい golden は `manualEffect()` ヘルパで MANUAL_EFFECTS を直接読むため全部緑**になり、逆翻訳・census・smoke・fuzz も何も言わなかった。
+**捕まえたのは `§6.3 K トリップワイヤ`（「manualEffects.ts の定義が live JSON に届いている」）1本だけ**＝
+`新しい乖離（manualEffects.ts を直したが live に届いていない）: WX24-P4-051-E2, WX24-P2-054-E2`。
+⇒ **既存 id を書き直したら `npx tsx scripts/syncManualLive.ts <CardNum>` まで回して初めて1巡が閉じる**（CLAUDE.md の同項目を実地で再確認した）。
+
+**検証**＝`npx tsx scripts/syncManualLive.ts WX24-P4-051 WX24-P2-054` → **live の変更が この2効果だけ**であることを
+`git show HEAD:public/data/effects_WX24_26.json` との**効果単位の機械比較**で確認 → `npm run regen` → `npm run gates` **全緑**
+（golden **3199 / 3199**・0 FAIL／smoke 全0／fuzz 全0／census 11 / BASELINE 12／lint 0 errors）。
+**反転確認**＝golden に fail-closed 2本（対象0体・レベル参照不能／同レベルのエナが無い）を含む＝**払えない側でも赤くなる。**
+⚠**実機は不要と判定**（§2.2）＝`src/screens/` 不変更・新キーは engine の純関数経路のみ。
+📋**残した粗**＝`energyTrashSameLevelAsTarget` の「それと同じレベルの」が**逆翻訳に出ない**（挙動は正しい）＝PLAN §5.3 の「監視だけしている項目」へ登録。
+
+### B. PLAN 再編（第2回）＝計器主導から機構主導へ
+
+**真因**＝**3つの進捗計器が同時に底を打った**のに、PLAN が「計器の在庫を消化する」前提のままだった
+（census 高シグナル **11 / BASELINE 12**＝旧ベースライン 1872／`census:cards --sheet 1` の要対応 **18枚が全部 `mech`＝即着手可能 0**／
+意味照合台帳の残 OPEN **44 は続き766 の全数 triage で全件が `src/screens/` か新 engine 機構待ち**）。
+
+- **§5.3 を「登録順の巨大テーブル」から「母集団順の索引 A〜F」へ**作り替え、登録票82項目の履歴 **68,401字**を PLAN_DETAIL へ**無改変で退避**。
+  **旧「取る順」表は廃止**（索引の並びがそのまま取る順）。索引で判明した実態＝**`O-96` は登録票「M」で実測122効果**、
+  逆に**取る順1位だった `O-106` は1効果**、**母集団未計測が33項目（4割）**。
+- **§5.2（意味照合）を本線から降格**、**§5.4 の (i) 配線ギャップ・(ii) 機構ギャップ（未採番30件）を §5.3 へ統合**（機構の置き場が2つあった）。
+- **§5.1 のクローズ済み `V-nn` を教訓7本へ圧縮**（宙に浮いていた断片行も解消）。**進捗指標に「在庫2本」を追加**（§3・§6）。
+- **PLAN.md 195,282字 → 100,385字（-49%）／1423行 → 1203行。**
+
+**検証**＝旧 PLAN の **O-id 124種・V-id 26種・カード番号 355種**がすべて PLAN.md か PLAN_DETAIL.md に残存することを機械確認（欠落0）。
+索引82行はすべてテーブル記法として妥当（パイプ4本）。**併せて `CLAUDE.md`（廃止した取る順表への誘導と消化済みの次の一手を差し替え）と
+`baton`／`census-batch` スキルを更新。**
+
+
 ## 2026-09-01：PLAN §5.3 `O-190` 第2バッチ — 任意コストのトラッシュ除外／他の【トラップ】支払いを復元
 
 第1バッチで受け皿がなく据え置いた4効果のうち、通常の複合任意コストとして扱える3効果を修正した。

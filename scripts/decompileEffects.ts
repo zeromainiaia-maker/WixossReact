@@ -2990,6 +2990,10 @@ function actionJa(a?: Action, effectType?: string): string {
           const unit = a.costColorsPerTargetLevel.map((c: string) => `《${c}》`).join('');
           return `それのレベル1につき${unit}を支払ってもよい`;
         }
+        if (a.costColorsPerTargetLevelSum) {
+          const unit = a.costColorsPerTargetLevelSum.map((c: string) => `《${c}》`).join('');
+          return `それらのレベルの合計1につき${unit}を支払ってもよい`;
+        }
         if (a.handDiscardCountFromTargetLevel) {
           const f = a.handDiscardFilter ? filterJa(a.handDiscardFilter) : '';
           return `それのレベル1につき手札から${f}カードを1枚捨ててもよい`;

@@ -8,6 +8,24 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ══════════════════════════════════════════════════════════════════════════════
+  // PLAN §5.3（2026-09-01）＝支払う量が先に固定した対象のレベルで決まる2効果
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🔑2効果だけのため PLAN §2.0 の速いレーンで原文から手書きする。群Bの「レベル合計」だけは
+  //   runtime の共通受け皿 `costColorsPerTargetLevelSum` を追加し、既存の最大レベル3効果は変更しない。
+
+  // ── WX24-P4-051 ／ トラッシュの対象を先に固定し、同レベルのエナシグニだけを任意コストにする。
+  // 🔴旧 live は別物の STUB でレベル限定を失い、支払い後に回収対象も選び直せた。
+  'WX24-P4-051': [
+    {"effectId":"WX24-P4-051-E2","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","energyTrash":{"count":1,"filter":{"cardType":"シグニ"}},"energyTrashSameLevelAsTarget":true},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerCondition":{"outsideMainPhase":true}},
+  ],
+
+  // ── WX24-P2-054 ／ 最大レベルではなく、選んだ相手シグニすべてのレベル合計ぶん《緑》を払う。
+  // 🔴旧 live は《緑》1つ固定のうえ、自分のデッキ上をエナチャージする別動作だった。
+  'WX24-P2-054': [
+    {"effectId":"WX24-P2-054-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"参式　一衣"}},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColorsPerTargetLevelSum":["緑"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":true},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // §5.3 `O-188` 第6バッチ（2026-09-01）＝「AとBをそれぞれ1枚まで」が**手札以外の帰結**で潰れていた
   // ══════════════════════════════════════════════════════════════════════════════
   // 🔑同じ族の手札版（第4バッチ）は `TRANSFER_TO_HAND.transferGroups` で直したが、帰結が別のアクションだと

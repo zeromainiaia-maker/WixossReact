@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 611（総ノード 3075 件）
+live JSON の STUB id 種類 : 611（総ノード 3079 件）
 逆翻訳シートの [STUB:…] 総数: 559  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -176,7 +176,7 @@ live JSON の STUB id 種類 : 611（総ノード 3075 件）
         消費: src\screens\battle\costs.ts:1282
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1750
+        消費: src\engine\execUtils.ts:1761
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:7766
