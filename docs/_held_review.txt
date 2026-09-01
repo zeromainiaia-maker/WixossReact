@@ -265,23 +265,6 @@ WXDi-P08-062
   - [0].action.steps[1].destination.position = "bottom"
   ~ [0].action.steps[0].destination.position : "top" → "split_top_bottom"
 
-## +POWER_MODIFY +SIGNI -STUB ［1枚］
-WX24-P2-035
---- WX24-P2-035
-  原文: あなたのデッキの上からカードを５枚見る。その中から＜遊具＞のシグニを１枚まで公開し手札に加え、＜遊具＞のシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。その後、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこの効果で場に出たシグニのレベル１につき－5000する。,-
-  - [0].action.steps[1].id = "POWER_MOD_PER_COUNT"
-  + [0].action.steps[0].lastProcessedFrom = "field"
-  ~ [0].action.steps[1].type : "STUB" → "POWER_MODIFY"
-  + [0].action.steps[1].target.type = "SIGNI"
-  + [0].action.steps[1].target.owner = "opponent"
-  + [0].action.steps[1].target.count = 1
-  + [0].action.steps[1].target.filter.cardType = "シグニ"
-  + [0].action.steps[1].target.upToCount = false
-  + [0].action.steps[1].delta = -5000
-  + [0].action.steps[1].deltaPerLastProcessedCount = true
-  + [0].action.steps[1].perLastProcessed.filter.cardType = "シグニ"
-  + [0].action.steps[1].perLastProcessed.unit = "level_sum"
-
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
 --- WX24-P2-055

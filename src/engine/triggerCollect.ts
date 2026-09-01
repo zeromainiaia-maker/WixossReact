@@ -21,6 +21,11 @@ export interface TargetedOrigin {
   effect: CardEffect;
 }
 
+/** ON_SPELL_USE の属性限定を、使用スペルそのものへ適用する共通ゲート。 */
+export function spellUseTriggerMatches(effect: CardEffect, usedSpell: CardData | undefined): boolean {
+  return !effect.triggerFilter || matchesFilter(usedSpell, effect.triggerFilter);
+}
+
 const TARGET_ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide'] as const;
 
 /** トリガー収集の依存（BattleScreen の bs/effectsMap/battleCardMap 等を注入）。 */

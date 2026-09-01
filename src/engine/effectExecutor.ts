@@ -1182,7 +1182,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   const colorUsesTargetLrig = !!(preResolvedFilter?.colorMatchesLrig || preResolvedFilter?.colorNotMatchesLrig);
   const filterOwnerSt = colorUsesTargetLrig && tgt.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const filterOtherSt = colorUsesTargetLrig && tgt.owner === 'opponent' ? ctx.ownerState : ctx.otherState;
-  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, filterOwnerSt, ctx.cardMap, filterOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, filterOwnerSt, ctx.cardMap, filterOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, ctx.fieldSigniExtraColors);
   // WX09-027(羅石オリハルティア): 自場にオリハルティアがあるとき、《オリハルティア》以外のシグニの
   // 「対戦相手のパワー7000以下を1体バニッシュ」→「15000以下」に書き換える
   if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
@@ -1745,6 +1745,9 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
  * ⚠`spec` 省略＝従来どおり素の枚数（既存の `deltaPerLastProcessedCount` 利用箇所の挙動を変えない）。
  */
 function lastProcessedUnits(spec: PowerModifyAction['perLastProcessed'], ctx: ExecCtx): number {
+  if (!spec?.filter && !spec?.unit && ctx.lastProcessedCount !== undefined) {
+    return Math.floor(ctx.lastProcessedCount / Math.max(1, spec?.divisor ?? 1));
+  }
   const cards = ctx.lastProcessedCards ?? [];
   const matched = spec?.filter
     ? cards.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), spec.filter))
@@ -2608,6 +2611,7 @@ function resolveDynamicFilter(
   sourceCardNum?: string,
   triggeringCardNum?: string,
   declaredRefSt?: import('../types').PlayerState,
+  fieldSigniExtraColors?: Map<string, string[]>,
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
@@ -2616,7 +2620,7 @@ function resolveDynamicFilter(
     result = {
       ...result,
       anyOf: result.anyOf.map(sub =>
-        resolveDynamicFilter(sub, ownerSt, cardMap, otherSt, lastProcessedCards, effectivePowers, sourceCardNum, triggeringCardNum, declaredRefSt) ?? sub),
+        resolveDynamicFilter(sub, ownerSt, cardMap, otherSt, lastProcessedCards, effectivePowers, sourceCardNum, triggeringCardNum, declaredRefSt, fieldSigniExtraColors) ?? sub),
     };
   }
   // 公開・探索対象の owner と宣言者は一致しないことがある（O-57 B群＝相手デッキを、効果所有者が宣言した
@@ -2967,10 +2971,12 @@ function resolveDynamicFilter(
   //   ⚠効果元が特定できないときは空ヒットへ倒す（「共通色なし」を無条件成立にすると過剰実行）。
   if (result.colorNotMatchesSource) {
     const { colorNotMatchesSource: _cns, ...rest } = result;
+    const printedSourceColor = sourceCardNum ? (cardMap.get(getCardNum(sourceCardNum))?.Color ?? '') : '';
+    const extraSourceColors = sourceCardNum ? (fieldSigniExtraColors?.get(sourceCardNum) ?? []) : [];
+    const srcColorStr = [...new Set([...printedSourceColor].filter(c => '白赤青緑黒'.includes(c)).concat(extraSourceColors))].join('');
     const srcColors = sourceCardNum
-      ? [...(cardMap.get(getCardNum(sourceCardNum))?.Color ?? '')].filter(c => '白赤青緑黒'.includes(c))
+      ? [...srcColorStr].filter(c => '白赤青緑黒'.includes(c))
       : [];
-    const srcColorStr = sourceCardNum ? (cardMap.get(getCardNum(sourceCardNum))?.Color ?? '') : '';
     result = srcColors.length
       ? { ...rest, colorExclude: srcColorStr }   // `colorNotMatchesLrig` と同じ受け皿（matchesFilter が解決）
       : { ...rest, cardNames: ['__NO_SUCH_CARD__'] };
@@ -5030,11 +5036,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
           const toHWTOSOC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const declaredTargetTOSOC = stub.optionalCostTarget;
+          const declaredFilterTOSOC = declaredTargetTOSOC?.filter
+            ? resolveDynamicFilter(declaredTargetTOSOC.filter, cur.otherState, cur.cardMap, cur.ownerState,
+                cur.lastProcessedCards, cur.effectivePowers, cur.sourceCardNum, cur.triggeringCardNum, undefined, cur.fieldSigniExtraColors)
+            : undefined;
           const targetAvailableTOSOC = declaredTargetTOSOC?.type === 'LRIG'
             ? cur.otherState.field.lrig.length > 0
             : declaredTargetTOSOC?.type === 'TRASH_CARD'
               ? cur.ownerState.trash.some(cn => matchesFilter(cur.cardMap.get(getCardNum(cn)), declaredTargetTOSOC.filter ?? {}))
-              : fieldCandidates(cur.otherState, declaredTargetTOSOC?.filter ?? { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors).length > 0;
+              : fieldCandidates(cur.otherState, declaredFilterTOSOC ?? { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors).length > 0;
           if (!targetAvailableTOSOC) {
             if (cont) return executeAction(cont, cur);
             return done(addLog(cur, '任意コストの対象なし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）'));
@@ -5179,13 +5189,20 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 
         // REMOVE_VIRUS: ウイルスをN個取り除いてからconditional.thenを実行
       if (stub.id === 'REMOVE_VIRUS') {
+          if (stub.virusCount === 'any') {
+            // Keep the interactive one-token-at-a-time loop in execStubPart1, then
+            // continue with the action that consumes lastProcessedCount.
+            const anySteps: EffectAction[] = [stub as EffectAction, conditional.then];
+            if (cont) anySteps.push(cont);
+            return executeAction({ type: 'SEQUENCE', steps: anySteps } as SequenceAction, cur);
+          }
           const virusArrRV = cur.otherState.field.signi_virus ?? [0, 0, 0];
           const totalVirusRV = virusArrRV.reduce((s, v) => s + v, 0);
           // 🆕**個数と任意性は payload**（§5.3 `O-60` 第11バッチ・2026-08-29）。
           // 🔴旧実装はここでも `execStubPart1` でも**カード全文**を3本の regex で読み直しており、
           //   しかも**既定値が2地点で食い違っていた**（ここは1・向こうは全部）。
-          // ⚠`'any'`（好きな数）は最大数＝旧挙動の維持（枚数を選ばせる UI は §5.3 `O-148`）。
-          const removeCountRV = stub.virusCount === 'all' || stub.virusCount === 'any'
+          // `'any'` は上の分岐で対話ループへ渡す。ここは固定数／全部だけを処理する。
+          const removeCountRV = stub.virusCount === 'all'
             ? totalVirusRV
             : (typeof stub.virusCount === 'number' ? stub.virusCount : 1);
           const isOptionalRV = !!stub.virusOptional;
@@ -5706,7 +5723,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : result.pending;
       return { ...result, pending };
     }
-      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastLookTrashedCards: result.lastLookTrashedCards ?? cur.lastLookTrashedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
+      const lastProcessedCount = result.lastProcessedCards !== cur.lastProcessedCards
+        ? undefined
+        : result.lastProcessedCount;
+      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastProcessedCount, lastLookTrashedCards: result.lastLookTrashedCards ?? cur.lastLookTrashedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
     // did-it ゲートは「条件で包まれた前段」も対象にする（タスク12(lxiii)＝`WXK11-031-E1`
     // 「〈ライフ比較〉の場合、手札を1枚捨ててもよい。そうした場合、それをバニッシュする」）。
     // 包む前は TRASH が直下ステップだったので下のゲートが効いていたが、条件を付与した途端に外れて
@@ -10231,7 +10251,10 @@ export function resumeSearch(
   }
   if (pending.continuation) {
     // 選択したアクションが処理したシグニ（公開/場出し等）を continuation の「その後、そのシグニより…」が参照できるよう lastProcessedCards を継承
-    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
+    const lastProcessedCount = result.lastProcessedCards !== ctx.lastProcessedCards
+      ? undefined
+      : result.lastProcessedCount;
+    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastProcessedCount, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
   }
   return result;
 }

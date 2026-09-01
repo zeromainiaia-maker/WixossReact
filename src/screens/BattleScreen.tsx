@@ -47,7 +47,7 @@ interface Props {
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
-import { crashCauseMatches } from '../engine/triggerCollect';
+import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
 import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
@@ -7930,7 +7930,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (result.done) casterAfter = finalizeUsedCardPlacement(casterAfter, card_num, spellPlacement);
       const spellUseEntries: StackEntry[] = [];
       if (spellIsOwnerTurn) {
-        const usedSpellColor = battleCardMap.get(card_num)?.Color ?? '';
+        const usedSpell = battleCardMap.get(card_num);
         // 収集元: センタールリグ + 場のシグニ各ゾーンのトップ
         const spellUseSources = [
           casterAfter.field.lrig.at(-1),
@@ -7946,11 +7946,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : (effectsMap.get(srcNum) ?? []);
           for (const eff of srcEffsSU) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
-            // スペル色フィルタ（「緑のスペルを使用したとき」等。color は単色 or 配列）
-            if (eff.triggerFilter?.color) {
-              const wantColors = Array.isArray(eff.triggerFilter.color) ? eff.triggerFilter.color : [eff.triggerFilter.color];
-              if (!wantColors.some(c => usedSpellColor.includes(c))) continue;
-            }
+            if (!spellUseTriggerMatches(eff, usedSpell)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
                 ((casterAfter.actions_done?.includes(eff.effectId)) || usedIdsSU.includes(eff.effectId))) continue;
             if (eff.condition && !evalUseCondition(eff.condition, casterAfter, result.otherState, battleCardMap, srcNum, bs.turn_phase, spellPowers)) continue;
@@ -7960,6 +7956,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               playerId: caster_id,
               cardNum: srcNum,
               effectId: eff.effectId,
+              triggeringCardNum: card_num,
               label: `${battleCardMap.get(srcNum)?.CardName ?? srcNum}【自】スペル使用時`,
               effect: eff,
             });
@@ -7972,7 +7969,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // **使用者の対戦相手の場にある watcher が一度も発火しなかった**（続き75で parser が語彙を出すのに合わせて配線）。
       {
         const oppOfCasterId = caster_id === bs.host_id ? bs.guest_id : bs.host_id;
-        const usedSpellColorOpp = battleCardMap.get(card_num)?.Color ?? '';
+        const usedSpellOpp = battleCardMap.get(card_num);
         const oppWatchSources = [
           result.otherState.field.lrig.at(-1),
           ...result.otherState.field.signi.map(stack => stack?.at(-1)),
@@ -7988,10 +7985,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
             const scopeSU = eff.triggerScope ?? 'self';
             if (scopeSU !== 'any_opp' && scopeSU !== 'any') continue; // self は使用者側でのみ発火（上のブロック）
-            if (eff.triggerFilter?.color) {
-              const wantColors = Array.isArray(eff.triggerFilter.color) ? eff.triggerFilter.color : [eff.triggerFilter.color];
-              if (!wantColors.some(c => usedSpellColorOpp.includes(c))) continue;
-            }
+            if (!spellUseTriggerMatches(eff, usedSpellOpp)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
                 ((result.otherState.actions_done?.includes(eff.effectId)) || usedIdsSUOpp.includes(eff.effectId))) continue;
             if (eff.condition && !evalUseCondition(eff.condition, result.otherState, casterAfter, battleCardMap, srcNum, bs.turn_phase, spellPowers)) continue;
@@ -8001,6 +7995,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               playerId: oppOfCasterId,
               cardNum: srcNum,
               effectId: eff.effectId,
+              triggeringCardNum: card_num,
               label: `${battleCardMap.get(srcNum)?.CardName ?? srcNum}【自】スペル使用時（対戦相手の使用）`,
               effect: eff,
             });

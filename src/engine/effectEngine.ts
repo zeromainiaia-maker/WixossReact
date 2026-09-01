@@ -5618,7 +5618,16 @@ export function collectBanishEffectProtectedSigni(
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
   ];
   for (const sourceNum of sourceNums) {
-    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+    // 印刷能力に加え、GRANT_EFFECT でそのシグニへ付与された CONTINUOUS 能力も同じ層で評価する。
+    // activeCondition の source は付与元ではなく holder（sourceNum）なので、SELF_POWER_THRESHOLD は
+    // 「付与されたこのシグニ」の実効パワーを見る。
+    const baseSourceNum = sourceNum.includes('#') ? sourceNum.slice(0, sourceNum.indexOf('#')) : sourceNum;
+    const sourceEffects = [
+      ...(effectsMap.get(sourceNum) ?? effectsMap.get(baseSourceNum) ?? []),
+      ...(state.granted_effects?.[sourceNum] ?? []),
+      ...(state.granted_effects_until_opp_turn?.[sourceNum] ?? []),
+    ];
+    for (const eff of sourceEffects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf(), undefined, turnPhase)) continue;
       // 「基本パワーはNになり、このシグニはバニッシュされない」は

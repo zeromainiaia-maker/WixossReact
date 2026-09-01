@@ -1546,6 +1546,13 @@ function parseActiveCondition(text: string): ConditionParseResult {
     condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldCharmM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', hasCharm: true } },
     rest: text.slice(fieldCharmM[0].length), conditionFound: true,
   };
+  // 【常】「場に【トラップ】があるかぎり」＝裏向きトラップの存在を activeCondition で評価する。
+  // 「ある場合」は STATE_CONDITION_CLAUSES_V2 の Condition 経路に残し、両者を混同しない。
+  const fieldTrapM = text.match(/^(あなた|対戦相手)の場に【トラップ】があるかぎり、/);
+  if (fieldTrapM) return {
+    condition: { type: 'HAS_TRAP_IN_FIELD', owner: fieldTrapM[1] === '対戦相手' ? 'opponent' : 'self' },
+    rest: text.slice(fieldTrapM[0].length), conditionFound: true,
+  };
   const fieldDriveM = text.match(/^(あなた|対戦相手)の場にドライブ状態のシグニがあるかぎり、/);
   if (fieldDriveM) return {
     condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldDriveM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isDrive: true } },
@@ -18840,6 +18847,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         else if (/いずれかのプレイヤーが(?:[^。]{0,8}の)?スペルを使用したとき/.test(actionText)) extractedTriggerScope = 'any';
         const colM = actionText.match(/([白赤青緑黒])のスペルを使用したとき/);
         if (colM) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), color: colM[1] };
+        if (/《ディソナアイコン》のスペルを使用したとき/.test(actionText)) {
+          extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), cardType: 'スペル', isDisona: true };
+        }
       }
       // ON_ATTACK_SIGNI / ON_ATTACK_LRIG: トリガー元（このシグニ/あなたのシグニ/対戦相手の…）のスコープを抽出。
       // 「対戦相手のシグニかルリグが〜」は timing が ['ON_ATTACK_SIGNI','ON_ATTACK_LRIG'] の2要素になるため
@@ -22773,17 +22783,65 @@ ${card.BurstText ?? ''}`;
  *   **引用側もキーワードとして** 拾えるので通っていたが、「バニッシュされない」は
  *   `GRANT_KEYWORD` では表せない（正表現は `GRANT_PROTECTION{from:['BANISH']}`）ため、
  *   引用ブロックが丸ごと消えて**ダブルクラッシュだけ**になっていた（＝耐性が恒久的に無い過小実行）。
- * ⚠**無条件形だけ**を扱う＝`WX25-CP1-079-E1` の「パワーが1000以下であるかぎり、バニッシュされない」は
- *   付与される能力の側に条件が要る（`GRANT_EFFECT` が要る）ので触らない（§5.3 へは登録済みの機構待ち）。
+ * 条件つき形は `GRANT_EFFECT` で CONTINUOUS 能力そのものを付与する。内側の
+ * `SELF_POWER_THRESHOLD` は付与先シグニを source として評価される。
  */
 function applyQuotedBanishImmunityGrantBatch2026Aug30(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}
 ${card.BurstText ?? ''}`;
-  if (!/】と「【常】：バニッシュされない。?」を得る/.test(allText)) return;
+  if (!/】と「【常】：(?:このシグニはパワーが[０-９\d,]+以下であるかぎり、)?バニッシュされない。?」を得る/.test(allText)) return;
   for (const effect of effects) {
     const source = _collectSourceText
       ? (_sourceTextLog.get(effect.effectId) ?? allText)
       : abilityBlockTextOf(card, effect.effectId);
+    const conditionalM = source.match(/【([^】（]+)(?:（[^】]*）)?】と「【常】：このシグニはパワーが([０-９\d,]+)以下であるかぎり、バニッシュされない。?」を得る/);
+    if (conditionalM) {
+      let replaced = false;
+      const appendConditionalProtection = (action: EffectAction): EffectAction => {
+        if (replaced) return action;
+        if (action.type === 'GRANT_KEYWORD'
+            && (action.keyword === conditionalM[1] || action.keyword.startsWith(`${conditionalM[1]}:`))) {
+          replaced = true;
+          const target: EffectTarget = {
+            ...JSON.parse(JSON.stringify(action.target)) as EffectTarget,
+            filter: { ...(action.target.filter ?? {}), thisCardOnly: true },
+          };
+          const grant = { ...action, target } as GrantKeywordAction;
+          return {
+            type: 'SEQUENCE',
+            steps: [grant, {
+              type: 'GRANT_EFFECT',
+              target: JSON.parse(JSON.stringify(target)) as EffectTarget,
+              duration: action.duration,
+              effect: {
+                effectId: `${effect.effectId}-G1`,
+                effectType: 'CONTINUOUS',
+                activeCondition: {
+                  type: 'SELF_POWER_THRESHOLD', operator: 'lte',
+                  value: parseNum(conditionalM[2].replace(/,/g, '')),
+                },
+                action: {
+                  type: 'GRANT_PROTECTION',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                  from: ['BANISH'], sourceOwner: 'any', duration: 'PERMANENT',
+                } as GrantProtectionAction,
+                duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
+              },
+            } as import('../types/effects').GrantEffectAction],
+          } as SequenceAction;
+        }
+        if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(appendConditionalProtection) };
+        if (action.type === 'CONDITIONAL') return {
+          ...action,
+          then: appendConditionalProtection(action.then),
+          ...(action.else ? { else: appendConditionalProtection(action.else) } : {}),
+        };
+        return action;
+      };
+      effect.action = appendConditionalProtection(effect.action);
+      if (replaced) clearSilentFallback(effect.effectId);
+      continue;
+    }
     const m = source.match(/【([^】]+)】と「【常】：バニッシュされない。?」を得る/);
     if (!m) continue;
     const grant = effect.action as GrantKeywordAction;
@@ -22801,6 +22859,52 @@ ${card.BurstText ?? ''}`;
         } as GrantProtectionAction,
       ],
     } as SequenceAction;
+    clearSilentFallback(effect.effectId);
+  }
+}
+
+/** 「取り除いた【ウィルス】1つにつき」後段へ、カードでない除去個数の参照を刻む。 */
+function applyVirusRemovedCountTail(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  if (!/この方法で取り除いた【ウィルス】[１1]つにつき/.test(allText)) return;
+  for (const effect of effects) {
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    if (!/この方法で取り除いた【ウィルス】[１1]つにつき/.test(source)) continue;
+    if (effect.action.type !== 'SEQUENCE' || effect.action.steps[0]?.type !== 'STUB'
+        || effect.action.steps[0].id !== 'REMOVE_VIRUS' || effect.action.steps[0].virusCount !== 'any') continue;
+    const tail = effect.action.steps[1];
+    if (tail?.type === 'TRANSFER_TO_HAND' && tail.source.count === 1) {
+      tail.source.count = { $ref: 'last_processed_count' };
+      clearSilentFallback(effect.effectId);
+    }
+  }
+}
+
+/** 効果元と共通色を持たない相手シグニ、という対象修飾を任意コストの前後へ同時に刻む。 */
+function applySourceColorMismatchOptionalTarget(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  if (!/このシグニと共通する色を持たない対戦相手のシグニ[０-９\d]*体を対象とし/.test(allText)) return;
+  for (const effect of effects) {
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    if (!/このシグニと共通する色を持たない対戦相手のシグニ[０-９\d]*体を対象とし/.test(source)) continue;
+    if (effect.action.type !== 'SEQUENCE') continue;
+    const head = effect.action.steps[0];
+    const body = effect.action.steps[1];
+    const thenTarget = body?.type === 'CONDITIONAL' && 'target' in body.then
+      ? (body.then as EffectAction & { target?: EffectTarget }).target : undefined;
+    if (head?.type !== 'STUB' || head.id !== 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'
+        || body?.type !== 'CONDITIONAL' || thenTarget?.type !== 'SIGNI') continue;
+    const target: EffectTarget = {
+      ...thenTarget,
+      owner: 'opponent',
+      filter: { ...(thenTarget.filter ?? {}), cardType: 'シグニ', colorNotMatchesSource: true },
+    };
+    head.optionalCostTarget = JSON.parse(JSON.stringify(target)) as EffectTarget;
+    body.then = { ...body.then, target } as EffectAction;
     clearSilentFallback(effect.effectId);
   }
 }
@@ -23855,6 +23959,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyIdentityCostTriggerBatch2026Aug30(card, effects);
   applyKeywordChoiceGrantBatch2026Aug30(card, effects);
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
+  applyVirusRemovedCountTail(card, effects);
+  applySourceColorMismatchOptionalTarget(card, effects);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
     // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に

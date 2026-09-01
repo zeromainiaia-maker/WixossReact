@@ -3832,12 +3832,14 @@ export interface StubAction {
    *   **既定値が2地点で食い違っていた**（`execThe…executor` 側は 1、`execStubPart1` 側は **全部**）。
    * 🔴**実害**＝`WX15-040-E1`「【ウィルス】**２つ**を取り除いてもよい」は、
    *   個数 regex が終止形 `取り除く` しか見ないため**当たらず、既定の1個しか取り除いていなかった**。
-   * ⚠`'any'`（「好きな数」）は**今は最大数を取り除く**（旧挙動の維持）＝枚数を選ばせる UI は §5.3 `O-148`。
+   * `'any'`（「好きな数」）は、0個で終了できる1個ずつの対話ループで処理する。
    * 省略＝**1個**（fail-closed 側。`execStubPart1` の旧既定「全部」の逆）。
    */
   virusCount?: number | 'all' | 'any';
   /** `REMOVE_VIRUS`：「取り除いて**もよい**」＝任意（省略＝強制）。 */
   virusOptional?: boolean;
+  /** `virusCount:'any'` の対話ループ内で、ここまでに取り除いた数を運ぶ。 */
+  virusRemovedSoFar?: number;
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
   /**

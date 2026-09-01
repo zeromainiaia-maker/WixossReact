@@ -1407,7 +1407,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.until === 'END_OF_ATTACK' ? 'そのアタックの間、' : '';
       // 完成文型（主語/肯定否定が特殊＝テンプレートを使わず直接返す）。許可系（〜できる）含む。
       const fullMap: Record<string, string> = {
-        IGNORE_LRIG_TYPE: `${ownerWord}はレベル５のシグニの限定条件を無視して場に出すことができる`,
+        IGNORE_LRIG_TYPE: 'このルリグにグロウするためのルリグタイプは無視される',
         ACCE_LIMIT_2: 'このシグニには２枚まで【アクセ】を付けることができる',
         ACCE_LIMIT_99: 'このシグニには好きな枚数の【アクセ】を付けることができる',
         ENERGY_PHASE: `${ownerWord}は自分のエナフェイズをスキップする`,

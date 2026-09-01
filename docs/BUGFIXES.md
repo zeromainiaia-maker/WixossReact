@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-01（続き772）：§5.3 索引 B を再計測し、9効果を実働化（stale 6件／据置3件／G・Hは設計調査のみ）
+
+**真因（総論）**＝登録票どおりの「残16効果」ではなかった。`O-155`／`O-196`／`O-216` は既に完了、
+`O-184` の【シュート】2件も `hasKeyword` → `getSigniAttackKeywordState` → `BattleScreen` のバニッシュ行き先変更で実働済み、
+`O-161` の先行3件も既存 `TargetFilter.colorNotMatchesSource` で条件・対象・置換まで実装済みだった。
+さらに登録票の `WXDi-P16-058-E1` は採番違いで、対象効果は **E3**。`WX25-P3-058-E1` は【ウィルス】ではなく
+**【みこみこ親衛隊】という別の player counter** だった。⇒ **新型を足す前に live・collector・実行 choke point を再探索する。**
+
+### 実装した9効果
+
+| ID | 効果 | 修正 |
+|---|---|---|
+| `O-156` | `WX20-040-E1` | 「場に【トラップ】があるかぎり」を既存 `HAS_TRAP_IN_FIELD` の `activeCondition` へ配線 |
+| `O-184` | `WX25-CP1-079-E1` | 条件つき引用【常】を `GRANT_EFFECT` 内の `SELF_POWER_THRESHOLD{lte:1000}`＋`GRANT_PROTECTION{BANISH}` として付与先へ載せた |
+| `O-191` | `WXDi-P13-008-E3` | 付与 `ON_SPELL_USE` に `triggerFilter{cardType:'スペル',isDisona:true}` を刻み、使用スペルを collector へ渡した |
+| `O-180` | `WX14-003-E1`／`WXK09-001-E1`／`WX25-P3-037-E1` | 候補自身の `IGNORE_LRIG_TYPE` 宣言を `listGrowCandidates` が読むようにした。逆翻訳の誤文も訂正 |
+| `O-148` | `WD19-001-E2`／`WX15-028-E1` | `virusCount:'any'` を0〜N個の対話ループにし、カードでない処理数を `lastProcessedCount` で直後の倍率／枚数へ運搬 |
+| `O-161` | `WXDi-P16-058-E3` | 任意コストの候補判定と支払い後対象の両方へ既存 `colorNotMatchesSource` を刻み、場で得たルリグ色も動的解決へ渡した |
+
+### 触らなかった／据え置いたもの
+
+- `O-155`／`O-196`／`O-216` は live・型・両評価器を再確認して消化済み。1バイトも変更していない。
+- 【シュート】2件と `O-161` の `SP27-012-E1`／`WX21-032-E1`／`WX21-039-E1` は既存実装が正しく、
+  `_idset_fresh` にも対象カードは無かったため変更ゼロ。
+- `WX24-P2-043` は「次に1回」＋アシストグロウ専用経路 `getAssistGrowCandidates` が必要なので据置。
+- `WX25-P3-058-E1` は【みこみこ親衛隊】の任意数除去＋除去数倍率という別機構。ウィルス state を壊すため据置。
+- `O-163`／`O-181` は依頼どおりコード変更ゼロ。前者はアイコン判定の小ヘルパだけ抽出可能、後者は
+  `collectAttackEndTriggers` の watcher 全場走査化と `performGuardResponse` からのルリグ終了時収集が必要。
+
+### 検証
+
+- fresh parser 規則5本を一時無効化すると狙った5本が **0 PASS / 1 FAIL**、復元後は各 **1 PASS / 0 FAIL**。
+- BOM除去込み全 **6,712カード / 10,679 fresh効果**を HEAD と比較し、変化は
+  `WX15-028-E1`／`WX20-040-E1`／`WX25-CP1-079-E1`／`WXDi-P13-008-E3`／`WXDi-P16-058-E3` の5件、outlier 0。
+- `npm run gates` 全緑（golden **3215 / 3215**、smoke **10,721** 全異常0、fuzz 全0、census **11 / BASELINE 12**、
+  STUB A群0/C群0、engine-text **130行/127ハンドラ**、manual field loss 0、lint **0 errors / 250 warnings**）。
+  `npm run regen` 済み、同型★0。ブラウザ実機は依頼どおり未実施。
+- bucket は held **76→75**、partial **10→10**、idset **7→7**。held の−1は直前巡で完了した
+  `WXDi-P12-034` の stale 項目が再生成で消えたもの（同カードの live は不変）。
+
+### 🔎Claude 側の検証（CODEX_GUIDE §7・ベースライン `0d277d22c`）
+
+⚠**Codex は実装とゲートまで完走してから利用上限に当たり、最終レポートファイルだけ書けずに exit 1**した
+（`ERROR: You've hit your usage limit ... try again at Sep 2nd 00:48`／`tokens used 787,881`）。
+[[codex-fallback-order]] の落ち方②＝**破棄せず作業ツリーの成果を引き取った。**
+
+- **独立ゲート＝全緑**（golden **3215 / 3215**・smoke 10,721 全異常0・fuzz 全0・census 11 / 12・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors / 250 warnings・**同型★ 0**）。
+- **per-effect JSON diff（ベースライン比）＝ちょうど5効果**＝`WX15-028-E1` / `WX20-040-E1` / `WX25-CP1-079-E1` /
+  `WXDi-P13-008-E3` / `WXDi-P16-058-E3`。**Codex の申告と完全一致・outlier 0。**
+- **held の集合 diff**＝76 → 75 で、消えたのは `WXDi-P12-034`（続き771 で完了済みの stale 項目）**のみ・新規増0**。
+  ⚠`_held_fresh.json` は報告時点で stale だったので `build:effects` → `heldReview` を回し直してから測った。
+- **エンコーディング検査**（§5-19）＝変更ファイル全件で BOM / `U+FFFD` / 3連 `?` の新規増**0**。
+- **原文照合**＝5効果とも原文と一致することを1件ずつ確認した。⚠`WX25-CP1-079-E1` は
+  ランサー付与にも `thisCardOnly` が入った（原文「**このシグニは**」＝旧 live は自分のどのシグニでも対象にできた）＝**改善**。
+- 🔴**`src/screens/` の変更2件は「新規追加行だけか」を目で見た**（§5-22）＝
+  `BattleScreen.tsx` は**インラインの色フィルタ2箇所を `spellUseTriggerMatches` へ抜き出し、`triggeringCardNum` を積むだけ**
+  （使用者側／相手 watcher 側の**両方**を対称に変更）。`matchesFilter` の色判定は `card.Color?.includes(c)` で
+  **旧インライン実装と同一セマンティクス**、かつ**多色スペルは live に0枚**なので既存8効果に影響なし（実測）。
+  `growLogic.ts` は `ignoresLrigTypeForGrow` の追加と1行の OR だけ。
+- 🔑**`BattleScreen.tsx:6490` にもう1つ `lrigClassesCompatible` がある**（アシストルリグ候補）が、
+  そこは Codex が据置と宣言した `WX24-P2-043` の担当なので**穴ではない**（§5-20 の確認）。
+
+### 🖥実機（Claude が実行・新規3本＋既存回帰1本／単体でも4本一括でも全 PASS）
+
+| シナリオ | 見たもの |
+|---|---|
+| `v12GrantedSpellUseMinus4000`（既存・**正方向**） | ディソナのスペル（`WXDi-P12-089`）を使うと付与【自】が発火して −4000 |
+| `o191SpellUseNonDisona`（新規・**負方向**） | 🔴**同じ黒・《黒》×0 の非ディソナスペル**（`WX02-075`）では**発火しない**（`powerMods` が空のまま） |
+| `o180GrowIgnoreLrigType`（新規） | クラス不一致（ピルルク Lv3 → `?` Lv4）でも**宣言があれば候補に出て実際にグロウできる**／**宣言の無い同レベル**（`WD01-001` タマ・コストは払える状態）**は候補に出ない** |
+| `o148VirusAnyCount`（新規） | 【ウィルス】3つのうち**2つだけ選んで取り除き**、パワー修整が **－20000**（＝2×10000）。**－30000 なら最大数除去＝旧挙動** |
+
+🔑**共通化リファクタは「正方向の既存シナリオ」＋「負方向の新規シナリオ」の2本で挟む**＝
+片方だけでは「全部発火」も「全部不発」も緑に見える（§5-3′ の実機版）。
+🔑**ルリグ【起】も手札スペルも UI は2段**（「【起】…」→「発動」／「発動」→「発動する」）＝
+1段目で止まると**前提崩れの FAIL** になる。押せなかったら開き直して自己回復するループにする。
+
+### 索引の更新
+
+- **クローズ8件**＝`O-155` / `O-156` / `O-161` / `O-180` / `O-184` / `O-191` / `O-196` / `O-216`。
+- **`O-180`（残1＝`WX24-P2-043`）と `O-148`（残1＝`WX25-P3-058-E1`）は索引 C（母集団1効果）へ移した。**
+- **`O-163` / `O-181` は索引 B に残す**（設計調査の結果を登録票へ追記済み＝入口の関数名まで特定）。
+- ⇒ **索引 B は 11件 → 2件。機構 worklist 全体は 97 → 90項目。**
+
 ## 2026-09-01（続き771）：§5.3 索引 C（母集団1〜2効果）を 45件 → 33件（12件クローズ＝実装9件＋登録票 stale 3件）
 
 **真因（総論）**＝索引 C の登録票は「受け皿が無い」と書いているものが多いが、**実際には受け皿が既にあり、

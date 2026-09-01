@@ -42,6 +42,8 @@ export interface ExecCtx {
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   isOwnerTurn?: boolean;     // 効果オーナーのターンか。未設定なら TURN_OWNER は後方互換で成立扱い
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
+  /** カードでない処理個数（ウィルス等）。lastProcessedCards を偽カードで水増しせず後段へ渡す。 */
+  lastProcessedCount?: number;
   lastLookTrashedCards?: string[]; // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
   storedTargetCards?: string[]; // 任意コスト支払い前に固定した対象（支払いTRASHでlastProcessedCardsが上書きされても保持）
   leftFieldUnderCards?: string[]; // ON_LEAVE_FIELD 発火元の離場直前の下カード
@@ -113,8 +115,8 @@ export interface ExecCtx {
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
-  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; lastProcessedCards?: string[]; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] };
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
+  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; lastProcessedCards?: string[]; lastProcessedCount?: number; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] };
 
 // ===== ユーティリティ =====
 
@@ -193,6 +195,7 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   }
   if (n.$ref === 'last_processed_count') {
     const cards = ctx.lastProcessedCards ?? [];
+    if (!n.filter && ctx.lastProcessedCount !== undefined) return ctx.lastProcessedCount;
     return n.filter
       ? cards.filter(cardNum => matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length
       : cards.length;
@@ -1026,11 +1029,11 @@ export function canPayOptionalCost(costColors: string[], state: PlayerState, car
 }
 
 export function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 
 export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
-  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, lastProcessedCards: ctx.lastProcessedCards, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
+  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, lastProcessedCards: ctx.lastProcessedCards, lastProcessedCount: ctx.lastProcessedCount, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 
 export function matchesFilter(

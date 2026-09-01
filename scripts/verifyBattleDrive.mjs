@@ -41238,6 +41238,227 @@ scenarios.o212PowerSumExact = {
 };
 order.push('o212PowerSumExact');
 
+// -----------------------------------------------------------------------------
+// §5.1 `V-111`〜`V-113`（2026-09-01・索引 B バッチ）＝Codex の実装のうち **`src/screens/` を通る3本**の実機返済。
+// PLAN §2.2＝`src/screens/` を触った回は実機必須。ここで見るのは：
+//   `V-111`＝`BattleScreen` の ON_SPELL_USE ゲートを共通関数へ抜き出した回の**負方向**
+//            （既存8効果の色フィルタは `v12GrantedSpellUseMinus4000` が正方向の回帰を担当）
+//   `V-112`＝`growLogic.listGrowCandidates` の「ルリグタイプ無視」宣言（`O-180`）
+//   `V-113`＝`REMOVE_VIRUS{virusCount:'any'}` の枚数選択ループと、取り除いた数の後段への運搬（`O-148`）
+// -----------------------------------------------------------------------------
+
+/** `V-111`＝`WXDi-P13-008-E3` の付与【自】は**《ディソナ》のスペルでしか**発火しない（`O-191`）。 */
+scenarios.o191SpellUseNonDisona = {
+  title: 'O-191 対照：付与 ON_SPELL_USE は非ディソナのスペルでは発火しない（旧実装はどのスペルでも－4000）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-004#6340', 'WD03-003#6341', 'WD03-002#6342', 'WD03-001#6343', 'WXDi-P13-008#6344'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      // 🔑ディソナ側（`v12GrantedSpellUseMinus4000`）と**同じ黒・《黒》×0 のスペル**にして、
+      //   違いを「《ディソナアイコン》かどうか」の1ビットだけにする。
+      'hand': ['WX02-075#6345'],
+      'energy': [], 'actions_done': [], 'lrig_granted_auto_effects': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#6348'],
+      'field.signi': [['WD01-012#6346'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'temp_power_mods': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let lrigOpened = false, grantClicked = false, spellOpened = false, useClicked = false, castClicked = false;
+    let grantReady = false, settled = 0, last = await H.queryState();
+    H.log(`開始 lrigUnder=${last?.host?.lrigUnder} hand=${JSON.stringify(last?.host?.handCards)} gMods=${JSON.stringify(last?.guest?.powerMods)}`);
+    for (let i = 0; i < 26; i++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o191nondisona-${i}.png`, fullPage: true });
+      let did = null;
+      if (!grantReady) {
+        if (!lrigOpened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) lrigOpened = true; }
+        else if (!grantClicked) { did = await H.clickBtn(/^【起】エクシード4/); if (did) grantClicked = true; }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+      } else {
+        // ⚠手札スペルは **「発動」→「発動する」の2段**（既存 `v12GrantedSpellUseMinus4000` と同じ流儀）。
+        //   モーダルが閉じてしまったら開き直して自己回復する。
+        if (!spellOpened) { did = await H.clickTestId('my-hand-card-0'); if (did) spellOpened = true; }
+        else if (!useClicked) {
+          did = await H.clickBtn('発動', { exact: true });
+          if (did) useClicked = true;
+          else if (i % 4 === 3) { spellOpened = false; await H.closeModals(); }
+        } else if (!castClicked) { did = await H.clickBtn('発動する', { exact: true }); if (did) castClicked = true; }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      if (!grantReady && (last?.host?.grantedLrigAutoIds ?? []).length > 0) { grantReady = true; H.log('  付与完了'); }
+      H.log(`  o191nd[${i}] -> ${did ?? 'なし'} | grant=${grantReady} cast=${castClicked} hand=${JSON.stringify(last?.host?.handCards)} gMods=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      // 🔴「出ないこと」の主張は、出る側と同じだけ待ってから結論する（§5.1 の教訓）。
+      settled = grantReady && castClicked && (last?.host?.handCards ?? []).length === 0
+        && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+      if (settled >= 5) break;
+    }
+    const mods = last?.guest?.powerMods ?? [];
+    const detail = `付与=${(last?.host?.grantedLrigAutoIds ?? []).length > 0} スペル使用=${(last?.host?.handCards ?? []).length === 0} gMods=${JSON.stringify(mods)}`;
+    if ((last?.host?.grantedLrigAutoIds ?? []).length === 0) return { pass: false, detail: `前提崩れ＝付与が起きていない。${detail}` };
+    if ((last?.host?.handCards ?? []).length !== 0) return { pass: false, detail: `前提崩れ＝スペルを使用できていない。${detail}` };
+    if (mods.length > 0) return { pass: false, detail: `🔴非ディソナのスペルで付与【自】が発火した（旧挙動＝どのスペルでも－4000）。${detail}` };
+    return { pass: true, detail: `非ディソナのスペルを使用しても付与【自】は発火しない（powerMods は空のまま）。${detail}` };
+  },
+};
+order.push('o191SpellUseNonDisona');
+
+/** `V-112`＝`O-180`「このルリグにグロウするためのルリグタイプは無視される」。 */
+scenarios.o180GrowIgnoreLrigType = {
+  title: 'O-180 WX25-P3-037：ルリグタイプ不一致でもグロウ候補に出る／宣言の無い同レベルは出ない',
+  spec: {
+    hostSet: {
+      // 現在センター＝ピルルク Lv3。グロウ先候補は Lv4 の2枚。
+      'field.lrig': ['WD03-002#9900'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      // ① `WX25-P3-037`＝クラス「?」（ピルルク不一致）＋**宣言あり**・GrowCost《無》×0
+      // ② `WD01-001`＝クラス「タマ」（ピルルク不一致）＋**宣言なし**・GrowCost《白》×3
+      //    🔑エナを白5枚にして**コストは両方払える**状態にする＝差が「宣言の有無」の1ビットだけになる。
+      'lrig_deck': ['WX25-P3-037#9901', 'WD01-001#9902'],
+      'energy': ['WD01-013#9911', 'WD01-013#9912', 'WD01-013#9913', 'WD01-013#9914', 'WD01-013#9915'],
+      'hand': [], 'deck': ['WD01-013#9921', 'WD01-013#9922'], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9990'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 lrigTop=${st0?.host?.lrigTop} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} energy=${st0?.host?.energy}`);
+    // グロウ窓を開いて**候補ボタンの一覧**を読む（押す前に読むのが本題）。
+    let names = null;
+    for (let k = 0; k < 5 && !names; k++) {
+      await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(700);
+      const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+      if ((await gb.count()) > 0 && await gb.isVisible().catch(() => false)) await gb.click().catch(() => {});
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${SHOT}/o180grow-${k}.png`, fullPage: true });
+      const list = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+        .map(b => (b.textContent || '').trim()).filter(t => /紡ぎし者|満月の巫女/.test(t)));
+      if (list.length > 0) names = list;
+      H.log(`  o180[${k}] 候補ボタン=${JSON.stringify(list)}`);
+    }
+    const detail = `候補=${JSON.stringify(names)}`;
+    if (!names) return { pass: false, detail: `🔴グロウ候補が1つも出ない＝宣言が読まれていない（旧挙動＝クラス不一致で全部弾かれる）。${detail}` };
+    const hasIgnore = names.some(t => /紡ぎし者/.test(t));
+    const hasControl = names.some(t => /満月の巫女/.test(t));
+    if (!hasIgnore) return { pass: false, detail: `🔴宣言を持つ WX25-P3-037 が候補に出ない。${detail}` };
+    if (hasControl) return { pass: false, detail: `🔴対照が崩れた＝宣言の無い WD01-001（タマ）まで候補に出ている＝クラス判定が丸ごと無効化されている。${detail}` };
+    // 実際にグロウできることまで見る。
+    const cand = page.getByRole('button', { name: /紡ぎし者/ }).first();
+    if ((await cand.count()) > 0) await cand.click().catch(() => {});
+    let last = st0;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(700);
+      const did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ']);
+      last = await H.queryState();
+      H.log(`  o180grow[${s}] -> ${did ?? 'なし'} | lrigTop=${last?.host?.lrigTop} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      if ((last?.host?.lrigTop ?? '').startsWith('WX25-P3-037')) break;
+    }
+    return (last?.host?.lrigTop ?? '').startsWith('WX25-P3-037')
+      ? { pass: true, detail: `クラス不一致でも宣言があれば候補に出て実際にグロウできる／宣言の無い同レベルは出ない。${detail} lrigTop=${last?.host?.lrigTop}` }
+      : { pass: false, detail: `候補には出たがグロウが成立しない（lrigTop=${last?.host?.lrigTop}）。${detail}` };
+  },
+};
+order.push('o180GrowIgnoreLrigType');
+
+/** `V-113`＝`O-148`「【ウィルス】を好きな数取り除く」＝枚数選択と、取り除いた数の後段への運搬。 */
+scenarios.o148VirusAnyCount = {
+  title: 'O-148 WD19-001-E2：ウィルスを好きな数（2つ）取り除き、パワー修整が取り除いた数に比例する',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD19-001#9800'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'energy': ['WD05-013#9811'],
+      'hand': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9890'],
+      // 🔑ウィルスは**相手のシグニゾーン**にある。3ゾーンに1つずつ置き、そのうち2つだけ取り除く。
+      'field.signi': [['WD01-012#9881'], ['WD01-013#9882'], ['WD01-014#9883']],
+      'field.signi_virus': [1, 1, 1],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'temp_power_mods': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 virus=${JSON.stringify(st0?.guest?.signiVirus ?? st0?.guest?.fieldSigni)} gMods=${JSON.stringify(st0?.guest?.powerMods)}`);
+    let opened = false, actClicked = false, fired = false, removed = 0, stopped = false, picked = false, settled = 0;
+    let sawChoose = false, last = st0;
+    for (let i = 0; i < 30; i++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o148virus-${i}.png`, fullPage: true });
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      else if (!actClicked) { did = await H.clickBtn(/^【起】/); if (did) actClicked = true; }
+      else if (!fired) {
+        // ⚠ルリグ【起】は **「【起】…」→「発動」の2段**（カードモーダル）。押せなければ開き直す。
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) fired = true;
+        else if (i % 4 === 3) { opened = false; actClicked = false; await H.closeModals(); }
+      }
+      if (i === 3 || i === 9) {
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .filter(b => b.offsetParent !== null).map(b => (b.textContent || '').trim().slice(0, 28)));
+        H.log(`  可視ボタン=${JSON.stringify(btns)}`);
+      }
+      if (!did && actClicked) {
+        // 🔑「好きな数」＝1つずつ取り除く CHOOSE。2つ取り除いてから「終える」を押す。
+        const stop = page.getByRole('button', { name: /これで取り除くのを終える/ }).first();
+        const one = page.getByRole('button', { name: /【ウィルス】を1つ取り除く/ }).first();
+        const stopUp = (await stop.count()) > 0 && await stop.isVisible().catch(() => false);
+        const oneUp = (await one.count()) > 0 && await one.isVisible().catch(() => false);
+        if (stopUp || oneUp) sawChoose = true;
+        if (!stopped && removed < 2 && oneUp) { await one.click().catch(() => {}); removed++; did = `virus-remove-${removed}`; }
+        else if (!stopped && removed >= 2 && stopUp) { await stop.click().catch(() => {}); stopped = true; did = 'virus-stop'; }
+      }
+      if (!did && stopped && !picked) {
+        const pk = page.getByTestId('pick-0').first();
+        if ((await pk.count()) > 0 && await pk.isVisible().catch(() => false)) { await pk.click().catch(() => {}); picked = true; did = 'pick-0'; }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o148[${i}] -> ${did ?? 'なし'} | choose=${sawChoose} removed=${removed} stopped=${stopped} virus=${JSON.stringify(last?.guest?.signiVirus)} gMods=${JSON.stringify(last?.guest?.powerMods)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      settled = stopped && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    const mods = last?.guest?.powerMods ?? [];
+    const sum = mods.reduce((a, m) => a + (parseInt(String(m).split(':')[1] || '0', 10) || 0), 0);
+    const detail = `選択UI=${sawChoose} 取り除いた=${removed} 終了=${stopped} virus=${JSON.stringify(last?.guest?.signiVirus)} gMods=${JSON.stringify(mods)} 合計=${sum}`;
+    // ⚠**本題を先に判定**＝旧実装は対話ゼロで**最大数（3つ）**を取り除いていた。
+    if (!sawChoose) return { pass: false, detail: `🔴選択UIが出ないまま解決した＝「好きな数」が最大数の即時除去のまま（旧挙動）。${detail}` };
+    if (removed !== 2 || !stopped) return { pass: false, detail: `前提崩れ＝2つ取り除いて終了できていない。${detail}` };
+    // 🔴倍率の観測＝原文「取り除いた【ウィルス】1つにつき－10000」＝2つなら －20000。
+    if (sum === -30000) return { pass: false, detail: `🔴3つぶん（－30000）＝最大数を取り除いている。${detail}` };
+    if (sum !== -20000) return { pass: false, detail: `🔴倍率が取り除いた数（2つ＝－20000）と一致しない。${detail}` };
+    return { pass: true, detail: `ウィルスを2つだけ選んで取り除き、パワー修整が－20000（＝取り除いた数×10000）になった。${detail}` };
+  },
+};
+order.push('o148VirusAnyCount');
+
 
 
 
@@ -41499,6 +41720,9 @@ try {
         signiFrozen: s.field?.signi_frozen ?? null,
         // §5.3 O-55：【トラップ】設置の観測点（どのカードがどのゾーンに裏向きで置かれたか）。
         signiTraps: s.field?.signi_traps ?? [null, null, null],
+        // 🆕§5.1 `V-113`（2026-09-01）＝各シグニゾーンの【ウィルス】個数。
+        //   `REMOVE_VIRUS{virusCount:'any'}` が「最大数を即時除去」でないことはここでしか見えない。
+        signiVirus: s.field?.signi_virus ?? [0, 0, 0],
         // 🆕§5.3 `O-60` 第9バッチ（2026-08-29）＝【シード】ゾーンの中身。「開花しなかったシードが
         //   **シードのまま残る**」（＝旧全開花ならトラッシュへ行っていた）の観測に要る。
         fieldSeeds: s.field?.signi_seeds ?? [null, null, null],

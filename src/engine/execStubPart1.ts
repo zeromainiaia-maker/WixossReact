@@ -2155,13 +2155,37 @@ export function execStubPart1(
   // ウイルス除去：**個数は payload で決まる**（§5.3 `O-60` 第11バッチ・2026-08-29）。
   // 🔴旧実装は**カード全文**を3本の regex で読み直しており、しかも**既定値が「全部」**だった
   //   （もう1つの消費地点 `effectExecutor` の既定は「1」＝2地点で食い違っていた）。
-  // ⚠`'any'`（好きな数）は最大数＝旧挙動の維持（枚数を選ばせる UI は §5.3 `O-148`）。
+  // `'any'`（好きな数）は、0個で終了できる1個ずつの対話ループで処理する。
   // ⚠**payload 省略時は1個**（fail-closed＝旧既定「全部」の逆）。
   if (stub.id === 'REMOVE_VIRUS') {
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const totalVirus = virusArr.reduce((s, v) => s + v, 0);
-    if (totalVirus === 0) return done(addLog(ctx, 'ウイルスなし'));
-    const removeCount = stub.virusCount === 'all' || stub.virusCount === 'any'
+    if (stub.virusCount === 'any') {
+      const removedSoFar = stub.virusRemovedSoFar ?? 0;
+      const availableZones = [0, 1, 2].filter(zone => (virusArr[zone] ?? 0) > 0);
+      if (availableZones.length === 0) {
+        return done(addLog({ ...ctx, lastProcessedCount: removedSoFar }, `ウイルス除去完了（${removedSoFar}つ）`));
+      }
+      const options = availableZones.map(zone => ({
+        id: `remove_virus_any_${zone}`,
+        label: `ゾーン${zone + 1}の【ウィルス】を1つ取り除く`,
+        action: ({ type: 'SEQUENCE', steps: [
+          ({ type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_AT_ZONE', value: zone } as StubAction) as EffectAction,
+          ({ ...stub, virusRemovedSoFar: removedSoFar + 1 } as StubAction) as EffectAction,
+        ] } as SequenceAction) as EffectAction,
+        available: true,
+      }));
+      options.push({
+        id: 'remove_virus_any_stop', label: 'これで取り除くのを終える',
+        action: ({ type: 'STUB', id: 'INTERNAL_SET_LAST_PROCESSED_COUNT', value: removedSoFar } as StubAction) as EffectAction,
+        available: true,
+      });
+      return needsInteraction(addLog(ctx, '取り除く【ウィルス】を選択（好きな数）'), {
+        type: 'CHOOSE', options, count: 1,
+      });
+    }
+    if (totalVirus === 0) return done(addLog({ ...ctx, lastProcessedCount: 0 }, 'ウイルスなし'));
+    const removeCount = stub.virusCount === 'all'
       ? totalVirus
       : Math.min(typeof stub.virusCount === 'number' ? stub.virusCount : 1, totalVirus);
     const newVirus = [...virusArr];
@@ -2174,12 +2198,24 @@ export function execStubPart1(
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
     // ON_OPP_VIRUS_REMOVED/CHANGED検出用フラグ（取り除いた側=効果オーナーが監視者）
     const newOwnerRV = removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState;
-    return done(addLog({ ...ctx, ownerState: newOwnerRV, otherState: newOther }, `ウイルス${removed}つを取り除く`));
+    return done(addLog({ ...ctx, ownerState: newOwnerRV, otherState: newOther, lastProcessedCount: removed }, `ウイルス${removed}つを取り除く`));
+  }
+  if (stub.id === 'INTERNAL_SET_LAST_PROCESSED_COUNT') {
+    const count = typeof stub.value === 'number' ? stub.value : 0;
+    return done({ ...ctx, lastProcessedCount: count });
+  }
+  if (stub.id === 'INTERNAL_REMOVE_VIRUS_AT_ZONE') {
+    const zone = typeof stub.value === 'number' ? stub.value : -1;
+    const virusArr = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
+    if (zone < 0 || zone > 2 || (virusArr[zone] ?? 0) <= 0) return done(ctx);
+    virusArr[zone] -= 1;
+    const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: virusArr } };
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, opp_virus_removed_just: true }, otherState: newOther }, `ゾーン${zone + 1}のウイルス1つを取り除く`));
   }
   // INTERNAL_REMOVE_VIRUS_N: N個ウイルスを除去（effectExecutorのREMOVE_VIRUS+IS_MY_TURNハンドラから使用）
   if (stub.id === 'INTERNAL_REMOVE_VIRUS_N') {
     const n = typeof stub.value === 'number' ? stub.value : 0;
-    if (n === 0) return done(ctx);
+    if (n === 0) return done({ ...ctx, lastProcessedCount: 0 });
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const newVirus = [...virusArr];
     let removed = 0;
@@ -2190,7 +2226,7 @@ export function execStubPart1(
     }
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
     const newOwnerIRVN = removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState;
-    return done(addLog({ ...ctx, ownerState: newOwnerIRVN, otherState: newOther }, `ウイルス${removed}つを取り除く`));
+    return done(addLog({ ...ctx, ownerState: newOwnerIRVN, otherState: newOther, lastProcessedCount: removed }, `ウイルス${removed}つを取り除く`));
   }
   // REMOVE_VIRUS_TARGET_ZONE: lastProcessedCards[0]と同じゾーンのウィルスを1個除去（WX15-064型）
   if (stub.id === 'REMOVE_VIRUS_TARGET_ZONE') {

@@ -38,7 +38,7 @@ import {
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
@@ -88,7 +88,7 @@ import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/e
 import { getRiseFilter } from '../src/engine/execUtils';
 import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
-import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
+import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction, ignoresLrigTypeForGrow } from '../src/screens/battle/growLogic';
 import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
 interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onExistingStack: boolean; fieldCountAdjust: number }
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
@@ -2635,7 +2635,12 @@ test('GAIN_EXTRA_TURN / REMOVE_VIRUS: 誰が得るか・何個取り除くかは
   eq(left({}), 3, 'payload 省略は1個（fail-closed＝旧 execStubPart1 の既定「全部」の逆）');
   eq(left({ virusCount: 2 }), 2, '個数指定が効いていない');
   eq(left({ virusCount: 'all' }), 0, 'すべて取り除けていない');
-  eq(left({ virusCount: 'any' }), 0, '「好きな数」は現状は最大数（O-148 で選択UIにする）');
+  const any = executeAction({ type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'any' } as EffectAction, vctx);
+  ok(!any.done && any.pending.type === 'CHOOSE', '「好きな数」は最大数の即時除去でなく選択UIを出す');
+  if (!any.done && any.pending.type === 'CHOOSE') {
+    ok(any.pending.options.some(o => o.id === 'remove_virus_any_stop'), '0個で終える選択肢を持つ');
+    eq(any.otherState.field.signi_virus?.reduce((a, b) => a + b, 0), 4, '選択前に勝手に除去しない');
+  }
   // 🔴実害の再現＝`WX15-040-E1`「【ウィルス】**２つ**を取り除いてもよい」。
   //   旧個数 regex は終止形 `取り除く` しか見ないので当たらず、**1個しか取り除いていなかった**。
   const wx15040 = effectsMap.get('WX15-040')!.find(e => e.effectId === 'WX15-040-E1')!;
@@ -58596,6 +58601,156 @@ test('O-188 第7バッチ: 色つきアイコンの綴りが「存在しない�
       `WDK15-017-E1(${label}): 存在しないカード名フィルタは残っていない`);
   }
 });
+
+// ── §5.3 索引B（2026-09-01）──────────────────────────────────────────────
+test('O-156 fresh/engine: WX20-040-E1 は【トラップ】がある間だけ+2000', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WX20-040')!).find(e => e.effectId === 'WX20-040-E1')!;
+  eq(JSON.stringify(effect.activeCondition), JSON.stringify({ type: 'HAS_TRAP_IN_FIELD', owner: 'self' }),
+    'fresh parser が「あるかぎり」を activeCondition へ載せる');
+  const em = new Map<string, CardEffect[]>([['WX20-040', [effect]]]);
+  const state = mkState({ signi: ['WX20-040'] });
+  const noTrap = { ...state, field: { ...state.field, signi_traps: [null, null, null] } } as PlayerState;
+  const hasTrap = { ...state, field: { ...state.field, signi_traps: ['WD23-032-A', null, null] } } as PlayerState;
+  const opp = mkState({});
+  eq(calcFieldPowers(noTrap, opp, true, em, cardMap as Map<string, CardData>).get('WX20-040'), 5000,
+    '🔴トラップなしでは+2000しない');
+  eq(calcFieldPowers(hasTrap, opp, true, em, cardMap as Map<string, CardData>).get('WX20-040'), 7000,
+    'トラップありで+2000する');
+}));
+
+test('O-184 B-2 fresh/engine: 条件つき引用バニッシュ耐性は付与先の実効パワーを見る', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WX25-CP1-079')!).find(e => e.effectId === 'WX25-CP1-079-E1')!;
+  const actions: EffectAction[] = [];
+  const walk = (a: EffectAction): void => {
+    actions.push(a);
+    if (a.type === 'SEQUENCE') a.steps.forEach(walk);
+    else if (a.type === 'CONDITIONAL') { walk(a.then); if (a.else) walk(a.else); }
+  };
+  walk(effect.action);
+  const grant = actions.find(a => a.type === 'GRANT_EFFECT') as Extract<EffectAction, { type: 'GRANT_EFFECT' }> | undefined;
+  ok(!!grant?.effect, 'fresh parser が引用【常】を GRANT_EFFECT にする');
+  eq(JSON.stringify(grant?.effect?.activeCondition),
+    JSON.stringify({ type: 'SELF_POWER_THRESHOLD', operator: 'lte', value: 1000 }),
+    '内側の1000以下条件を保持する');
+  const ctx = mkCtx({ signi: ['WX25-CP1-079'] }, {}, 'WX25-CP1-079');
+  const applied = executeAction(grant!, ctx);
+  ok(applied.done, 'GRANT_EFFECT は選択UIなしで自身へ付与される');
+  if (!applied.done) return;
+  const low = collectBanishEffectProtectedSigni(applied.ownerState, applied.otherState, true, effectsMap,
+    cardMap as Map<string, CardData>, new Map([['WX25-CP1-079', 1000]]));
+  const high = collectBanishEffectProtectedSigni(applied.ownerState, applied.otherState, true, effectsMap,
+    cardMap as Map<string, CardData>, new Map([['WX25-CP1-079', 1001]]));
+  ok(low.has('WX25-CP1-079'), 'パワー1000ならバニッシュ耐性が成立');
+  ok(!high.has('WX25-CP1-079'), '🔴パワー1001ならバニッシュ耐性が不成立');
+}));
+
+test('O-191 fresh/collector: ディソナのスペルだけが付与ON_SPELL_USEを発火する', () => withSavedCursor(() => {
+  const outer = parseCardEffects(cardMap.get('WXDi-P13-008')!).find(e => e.effectId === 'WXDi-P13-008-E3')!;
+  const grant = outer.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>;
+  const inner = grant.abilities[0]!;
+  eq(JSON.stringify(inner.triggerFilter), JSON.stringify({ cardType: 'スペル', isDisona: true }),
+    'fresh parser が引用内のディソナ限定を保持する');
+  const disona = findCard(c => c.Type === 'スペル' && (c.EffectText ?? '').includes('《ディソナアイコン》'));
+  const normal = findCard(c => c.Type === 'スペル' && !(c.EffectText ?? '').includes('《ディソナアイコン》'));
+  ok(spellUseTriggerMatches(inner, cardMap.get(disona)), 'ディソナのスペルで発火する');
+  ok(!spellUseTriggerMatches(inner, cardMap.get(normal)), '🔴通常スペルでは発火しない');
+}));
+
+test('O-180 fresh/growLogic: 宣言を持つ候補ルリグだけタイプ不一致を無視する', () => withSavedCursor(() => {
+  for (const cardNum of ['WX14-003', 'WXK09-001', 'WX25-P3-037'] as const) {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === `${cardNum}-E1`)!;
+    eq(effect.action.type, 'BLOCK_ACTION', `${cardNum}: fresh parser が宣言を保持する`);
+    if (effect.action.type === 'BLOCK_ACTION') {
+      eq(effect.action.actionId, 'IGNORE_LRIG_TYPE', `${cardNum}: ルリグタイプ無視の宣言`);
+      eq(effect.action.target.owner, 'self', `${cardNum}: 候補自身の宣言`);
+    }
+  }
+  const candidateNum = 'WX25-P3-037';
+  const currentNum = '__O180_CURRENT__';
+  const candidate = { ...cardMap.get(candidateNum)!, CardClass: 'DEST', Level: '1' };
+  const current = { ...cardMap.get(candidateNum)!, CardNum: currentNum, CardClass: 'SOURCE', Level: '0' };
+  const cm = new Map(cardMap as Map<string, CardData>); cm.set(candidateNum, candidate); cm.set(currentNum, current);
+  const my = mkState({ lrig: [currentNum] }); my.lrig_deck = [candidateNum];
+  const freshEffect = parseCardEffects(cardMap.get(candidateNum)!).find(e => e.effectId === `${candidateNum}-E1`)!;
+  const withDeclaration = new Map<string, CardEffect[]>([[candidateNum, [freshEffect]]]);
+  ok(ignoresLrigTypeForGrow(candidateNum, withDeclaration), '候補自身の宣言を検出する');
+  eq(listGrowCandidates({ my, cardMap: cm, effectsMap: withDeclaration }).map(c => c.CardNum).join(','), candidateNum,
+    '宣言があればタイプ不一致でも候補になる');
+  eq(listGrowCandidates({ my, cardMap: cm, effectsMap: new Map() }).length, 0,
+    '🔴宣言のない通常候補はタイプ不一致を無視しない');
+}));
+
+test('O-148 fresh/engine: 好きな数のウィルスを0..N個選び、数値を後段へ渡す', () => withSavedCursor(() => {
+  const wd = parseCardEffects(cardMap.get('WD19-001')!).find(e => e.effectId === 'WD19-001-E2')!;
+  const wx = parseCardEffects(cardMap.get('WX15-028')!).find(e => e.effectId === 'WX15-028-E1')!;
+  eq(JSON.stringify((wd.action as SequenceAction).steps[0]), JSON.stringify({ type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'any' }),
+    'WD19-001-E2 fresh: any を保持');
+  eq(JSON.stringify(((wx.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'TRANSFER_TO_HAND' }>).source.count),
+    JSON.stringify({ $ref: 'last_processed_count' }), 'WX15-028-E1 fresh: 除去数を回収枚数へ接続');
+
+  const source = SIGNI;
+  const action: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'any' },
+    { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { thisCardOnly: true } },
+      delta: -10000, deltaPerLastProcessedCount: true, perLastProcessed: {} },
+  ] };
+  const base = mkCtx({ signi: [source] }, { signi: [fresh(), fresh(), fresh()] }, source);
+  base.otherState.field.signi_virus = [1, 1, 1];
+  const resume = (result: ExecResult, choice: string, prior: ExecCtx): { result: ExecResult; ctx: ExecCtx } => {
+    if (result.done || result.pending.type !== 'CHOOSE') throw new Error('CHOOSE expected');
+    const nextCtx = { ...prior, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+    const next = resumeChoose(choice, result.pending, nextCtx);
+    return { result: next, ctx: nextCtx };
+  };
+  const initial = executeAction(action, base);
+  const wrapped = executeAction({ type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'REMOVE_VIRUS', virusCount: 'any' },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+      type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { thisCardOnly: true } }, delta: -10000,
+    } },
+  ] }, base);
+  ok(!wrapped.done && wrapped.pending.type === 'CHOOSE', 'CONDITIONAL 隣接の別消費地点も最大数を即時除去せず選択へ入る');
+  eq(wrapped.otherState.field.signi_virus?.join(','), '1,1,1', 'CONDITIONAL 隣接でも選択前はウィルス不変');
+  const zero = resume(initial, 'remove_virus_any_stop', base).result;
+  ok(zero.done, '0個を選ぶと完了する');
+  if (zero.done) {
+    eq(zero.otherState.field.signi_virus?.reduce((a, b) => a + b, 0), 3, '0個ならウィルスを残す');
+    eq((zero.ownerState.temp_power_mods ?? []).length, 0, '🔴0個なら後段倍率も0');
+  }
+
+  const first = resume(initial, 'remove_virus_any_0', base);
+  const second = resume(first.result, 'remove_virus_any_1', first.ctx);
+  const stopped = resume(second.result, 'remove_virus_any_stop', second.ctx).result;
+  ok(stopped.done, '2個選んで終了できる');
+  if (stopped.done) {
+    eq(stopped.otherState.field.signi_virus?.join(','), '0,0,1', '選んだ2ゾーンだけから取り除く');
+    eq(stopped.ownerState.temp_power_mods?.find(m => m.cardNum === source)?.delta, -20000,
+      '取り除いた2個を後段倍率へ渡す');
+  }
+}));
+
+test('O-161 fresh/engine: WXDi-P16-058-E3 は効果元と共通色のない相手だけを任意コスト対象にする', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P16-058')!).find(e => e.effectId === 'WXDi-P16-058-E3')!;
+  const steps = (effect.action as SequenceAction).steps;
+  const head = steps[0] as StubAction;
+  const body = steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(head.optionalCostTarget?.filter?.colorNotMatchesSource, true,
+    'fresh parser が支払い前の候補判定へ色不一致を載せる');
+  eq(('target' in body.then ? body.then.target.filter?.colorNotMatchesSource : undefined), true,
+    'fresh parser が支払い後の実対象へも色不一致を載せる');
+
+  const sourceColor = '白'; // この無色シグニが GAIN_LRIG_COLOR で得た場の実効色
+  const same = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WXDi-P16-058' && c.Color.includes(sourceColor));
+  const different = findCard(c => c.Type === 'シグニ' && !c.Color.includes(sourceColor));
+  const sameCtx = mkCtx({ signi: ['WXDi-P16-058'], energy: 2 }, { signi: [same] }, 'WXDi-P16-058');
+  const differentCtx = mkCtx({ signi: ['WXDi-P16-058'], energy: 2 }, { signi: [different] }, 'WXDi-P16-058');
+  sameCtx.fieldSigniExtraColors = new Map([['WXDi-P16-058', [sourceColor]]]);
+  differentCtx.fieldSigniExtraColors = new Map([['WXDi-P16-058', [sourceColor]]]);
+  const blocked = executeAction(effect.action, sameCtx);
+  const offered = executeAction(effect.action, differentCtx);
+  ok(blocked.done, '🔴共通色しかいなければ支払い選択を提示しない');
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '共通色のない相手がいれば支払い選択を提示する');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

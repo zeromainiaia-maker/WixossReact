@@ -244,6 +244,15 @@ export function lrigClassesCompatible(fromClass: string, toClass: string): boole
   return toClass.split(/[/／]/).map(s => s.trim()).some(c => fromSet.has(c));
 }
 
+/** 候補ルリグ自身が宣言する「このルリグへのグロウ時はルリグタイプを無視」を読む。 */
+export function ignoresLrigTypeForGrow(cardNum: string, effectsMap: Map<string, CardEffect[]>): boolean {
+  return (effectsMap.get(getCardNum(cardNum)) ?? []).some(effect => {
+    if (effect.effectType !== 'CONTINUOUS') return false;
+    const action = effect.action as unknown as { type?: string; actionId?: string };
+    return action.type === 'BLOCK_ACTION' && action.actionId === 'IGNORE_LRIG_TYPE';
+  });
+}
+
 // カードの Restriction チェック: "-" または空なら常に使用可。
 // それ以外は「〇〇限定」形式で、現在ルリグの CardClass（"/"区切り）に含まれる名前が
 // Restriction 文字列中に存在すれば使用可。
@@ -295,7 +304,8 @@ export function listGrowCandidates(p: {
             (e.action as StubAction).id === 'GROW_FROM_LEVEL0',
           ))) &&
       // CardClass 互換チェック。⚠実効クラス＝印刷クラス＋**追加で得たルリグタイプ**（§6.4 O-3）。
-      (!currentLrig || lrigClassesCompatible(effectiveLrigClass(my, currentLrig.CardClass), c.CardClass)) &&
+      (!currentLrig || ignoresLrigTypeForGrow(c.CardNum, effectsMap)
+        || lrigClassesCompatible(effectiveLrigClass(my, currentLrig.CardClass), c.CardClass)) &&
       // 【グロウ】条件（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
       checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, cardMap) &&
       // グロウ色制限（「青かつ黒のルリグにしかグロウできない」等）
