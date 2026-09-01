@@ -268,6 +268,7 @@ export function execStubPart1(
         cardNum: pickPFSP, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
         contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
         placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
+      placementSourceCardNum: ctx.sourceCardNum,
       });
       if (blockedPFSP) return done(addLog(ctx, deployLimitLogMessage(blockedPFSP, namePFSP)));
       const signiPFSP = ctx.ownerState.field.signi.map(s => (s ? [...s] : null)) as (string[] | null)[];
@@ -423,6 +424,7 @@ export function execStubPart1(
       contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
       fieldCountAdjust: 1,
       placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
+      placementSourceCardNum: ctx.sourceCardNum,
     }) : null;
     if (fetched && !deployBlocked) {
       const idx = nextLrigDeck.indexOf(fetched);
@@ -2948,6 +2950,7 @@ export function execStubPart1(
       placingState: ctx.ownerState, opponentState: ctx.otherState,
       cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCapSelf,
       placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
+      placementSourceCardNum: ctx.sourceCardNum,
     });
     if (blockedPM) return done(addLog({ ...ctx, lastProcessedCards: [] }, deployLimitLogMessage(blockedPM, namePM)));
     signiPM[zonePM] = [milledPM];

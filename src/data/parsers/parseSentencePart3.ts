@@ -419,8 +419,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手はシグニゾーンにレベルN以上を配置できない ----
-  if (t.match(/対戦相手は中央のシグニゾーンにレベル.*以上のシグニを.*配置できない/)) {
-    return { type: 'STUB', id: 'OPP_ZONE_PLACEMENT_RESTRICT' } as StubAction;
+  // 🆕§5.3 `O-94`②＝**レベルとゾーンをペイロードに刻む**（旧は payload 無しで engine 側が `return 3` と
+  //   ゾーン1を**ハードコード**していた＝JSON を見ても何が起きるか分からない形）。
+  {
+    const zoneLvM = t.match(/対戦相手は中央のシグニゾーンにレベル([０-９\d]+)以上のシグニを.*配置できない/);
+    if (zoneLvM) {
+      return { type: 'STUB', id: 'OPP_ZONE_PLACEMENT_RESTRICT',
+        zonePlacementRestrict: { zones: [1], minLevel: parseNum(zoneLvM[1]) } } as StubAction;
+    }
   }
 
   // ---- このターン対戦相手はシグニで合計一度しかアタックできない ----
@@ -618,10 +624,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 特定カードによってしか場に出せない ----
-  // ⚠**機構は未実装**（engine はログだけ）＝`only_by_effect` と明示して、payload 欠落と区別できるようにする。
-  if (t.match(/の効果によってしか新たに場に出せない/)) {
-    return { type: 'STUB', id: 'DEPLOY_RESTRICT', deployRestrict: { kind: 'only_by_effect' } } as StubAction;
-  }
+  // 🏁§5.3 `O-79` で `SELF_PLAY_RESTRICT{never, exceptSourceCardNames}` へ移した（`parseSelfPlayRestrict`）。
+  //   旧 `STUB{DEPLOY_RESTRICT{only_by_effect}}` は engine にログしか無い死枝だったので撤去した。
 
   // ---- スペル使用コスト増加（各ターン最初） ----
   if (t.match(/最初に使用するスペルの使用コストは/)) {
@@ -2065,7 +2069,19 @@ export function parseSentencePart3(t: string): EffectAction | null {
         },
       } as StubAction;
     }
-    // 「対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい」＝条件つきグロウ（§5.3 `O-83`）。
+    // 🏁§5.3 `O-83`＝「あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグを
+    //   グロウしてもよい」（`SP38-001-E1`）を実装した。条件は既存の `LRIG_LEVEL_CMP_OPP{lt}`、
+    //   グロウ本体は `STUB{GROW_BY_EFFECT}`＝**engine は予約だけ**（実グロウは BattleScreen の `executeGrow`）。
+    // 🔴**`GROW_FREE` を流用しない**＝あれは「コストを支払わずに」＝原文にない踏み倒しになる。
+    if (/センタールリグをグロウしてもよい/.test(t)) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LRIG_LEVEL_CMP_OPP', operator: 'lt' },
+        // ⚠「この方法でグロウしたルリグの【出】能力は発動しない」は**次の文**なので、この関数には見えない。
+        //   `suppressOnPlay` はそちらの文が `STUB{GROW_BY_EFFECT_SUPPRESS_ON_PLAY}` として運ぶ（下の規則）。
+        then: { type: 'STUB', id: 'GROW_BY_EFFECT' } as StubAction,
+      } as EffectAction;
+    }
     if (/グロウ/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL' } as StubAction;
     }

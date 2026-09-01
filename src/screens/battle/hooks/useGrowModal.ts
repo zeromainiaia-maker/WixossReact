@@ -6,7 +6,10 @@ import { useDomainState } from './useDomainState';
 export interface GrowModalState {
   showGrowModal: boolean;
   // GROW_FREE（ゲット・グロウ等）の発動中。'same'=現センターと同レベルへ、'plus1'=通常の+1。null=通常グロウ。
-  freeGrowFilter: 'same' | 'plus1' | null;
+  // 🆕`'plus1_paid'`＝**効果によるグロウだがコストは払う**（§5.3 `O-83`／`SP38-001-E1`
+  //   「あなたのセンタールリグをグロウしてもよい」＝原文に「支払わずに」が無い）。
+  //   🔴他の3値と違い `freeCost` は **false**＝ここを混ぜるとコスト踏み倒しになる。
+  freeGrowFilter: 'same' | 'plus1' | 'plus1_paid' | null;
   pendingGrowCard: CardData | null;
   selectedGrowCost: Set<number>;
 }
@@ -27,7 +30,7 @@ export function useGrowModal() {
     setPendingGrowCard: set.pendingGrowCard,
     setSelectedGrowCost: set.selectedGrowCost,
     /** GROW_FREE（ゲット・グロウ等）でモーダルを開く（選択状態は白紙化） */
-    openFreeGrow: (filter: 'same' | 'plus1') =>
+    openFreeGrow: (filter: 'same' | 'plus1' | 'plus1_paid') =>
       patch({ freeGrowFilter: filter, pendingGrowCard: null, selectedGrowCost: new Set(), showGrowModal: true }),
     /** モーダルを閉じて選択状態・フリーグロウを全リセット */
     closeGrowModal: () =>

@@ -279,8 +279,8 @@ export function listGrowCandidates(p: {
   my: PlayerState;
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
-  /** `'same'`＝ゲット・グロウ等の横グロウ（現センターと同レベル）。`'plus1'`／`null`＝通常のレベル+1。 */
-  freeGrowFilter?: 'same' | 'plus1' | null;
+  /** `'same'`＝ゲット・グロウ等の横グロウ（現センターと同レベル）。`'plus1'`／`'plus1_paid'`／`null`＝通常のレベル+1。 */
+  freeGrowFilter?: 'same' | 'plus1' | 'plus1_paid' | null;
 }): CardData[] {
   const { my, cardMap, effectsMap } = p;
   const currentLrigNum = my.field.lrig.at(-1) ?? null;

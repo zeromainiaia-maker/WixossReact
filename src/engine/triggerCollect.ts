@@ -4243,10 +4243,14 @@ export function collectOppArtsUseTriggers(
       // §5.3 O-113: 「あなたの〈フィルタ〉のシグニ1体が対戦相手のアーツの**効果を受けたとき**」。
       // ⚠**usageLimit の消化より前**に弾く（受けていない回で《ターン1回》を使い切らせない）。
       const affFilter = eff.triggerCondition?.affectedByOppArtsFilter;
+      // 🆕§5.3 `O-130`＝帰結の「**その**シグニ」＝**効果を受けたシグニ**。受け皿は新設せず
+      //   既存の `triggeringCardNum`（→ `targetsTriggerSource`）へ載せる（`WXK11-019-E2`）。
+      //   🔴載せないと帰結が「相手のシグニ1体を選ぶ」に落ちて**向きが逆**になる（旧 live がそうだった）。
+      let affectedHit: string | undefined;
       if (affFilter) {
         if (!affectedOwnSigni) continue;                    // 判定材料が無い＝発火させない（fail-closed）
-        const hit = affectedOwnSigni.some(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), affFilter));
-        if (!hit) continue;
+        affectedHit = affectedOwnSigni.find(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), affFilter));
+        if (!affectedHit) continue;
       }
       if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
         const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
@@ -4260,6 +4264,7 @@ export function collectOppArtsUseTriggers(
       entries.push({
         id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
         label: `${cardName} の【自】効果（相手アーツ使用時）`, effect: eff,
+        ...(affectedHit ? { triggeringCardNum: affectedHit } : {}),
       });
     }
   }

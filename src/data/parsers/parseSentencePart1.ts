@@ -70,8 +70,19 @@ import {
  * マッチしなければ null。
  */
 export function parseSelfPlayRestrict(t: string): SelfPlayRestrictAction | null {
-  if (!/^この(?:シグニ|カード|キー)は/.test(t) || !/(?:新たに)?場に出すことができない/.test(t)) return null;
+  if (!/^この(?:シグニ|カード|キー)は/.test(t)) return null;
+  // ⚠**2つの言い回しが同じ機構**＝「（新たに）場に出すことができない」と「の効果によってしか新たに場に出せない」
+  //   （`WXDi-P11-050`＝§5.3 `O-79`。旧は後者だけ `STUB{DEPLOY_RESTRICT{only_by_effect}}` へ落ちて engine はログのみ）。
+  //   後者は**名前限定の形にだけ**広げる（bare「場に出せない」まで拾うと別系統の配置禁止を飲み込む）。
+  const onlyByEffect = /の効果によってしか新たに場に出せない/.test(t);
+  if (!/(?:新たに)?場に出すことができない/.test(t) && !onlyByEffect) return null;
   const base: SelfPlayRestrictAction = { type: 'SELF_PLAY_RESTRICT', rawText: t };
+  // 「《X》（か《Y》）の効果以外によっては／によってしか」＝**配置元の効果をカード名で限定する**（§5.3 `O-74`/`O-79`）。
+  // 🔴これを落とすと `never:true` 単独＝「通常召喚だけ不可・**どの効果でも**配置可」に化ける（過剰実行）。
+  if (/効果(?:以外によっては|によってしか)/.test(t)) {
+    const names = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    if (names.length > 0) return { ...base, never: true, exceptSourceCardNames: names };
+  }
   // never＝無条件で通常召喚不可（効果でのみ配置可）：「効果以外によっては」／条件節（場合・かぎり・限り）を含まない
   if (/効果以外によっては/.test(t) || !/(?:場合|かぎり|限り)/.test(t)) {
     return { ...base, never: true };
@@ -948,6 +959,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       until: dur,
       ...(keysAndSigni ? { alsoKeys: true } : {}),
       ...(centerLrigAndSigni ? { alsoCenterLrig: true } : {}),
+      // 🆕§5.3 `O-130`＝「**効果によって得ている**能力を失う」は印刷能力を残す（live 2効果）。
+      // 🔴省略すると `abilities_removed` へ落ちて印刷【常】【自】【起】まで消える過剰実行になる。
+      ...(/効果によって得(?:ている|た)能力を失/.test(t) ? { grantedOnly: true } : {}),
     } as RemoveAbilitiesAction;
     // 🆕対象名詞句の修飾語を戻す（2026-08-22 段2 第3バッチ）。この汎用枝は target を owner/count だけで
     // 手組みするため、**「対戦相手の〈レベル／パワー／状態〉のシグニ」の修飾語が丸ごと落ちて**

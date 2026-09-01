@@ -1912,6 +1912,26 @@ export function execStubPart3(
       targetScope: 'self_field', thenAction: contTOSEA as EffectAction,
     });
   }
+  // GROW_BY_EFFECT（§5.3 `O-83`・`SP38-001-E1`）＝「あなたのセンタールリグをグロウしてもよい」。
+  // 🔑**engine は予約だけ**＝実際のグロウは BattleScreen が `executeGrow`（正規経路）で行う
+  //   （`CHECK_ZONE_FLIP_FREE_GROW` と同じ理由＝ここで `field.lrig` へ push すると【出】・リミット
+  //    再計算・コイン獲得が丸ごと落ちる）。
+  // 🔴**`GROW_FREE` を流用しない**＝あちらは「コストを支払わずに」＝原文に無い踏み倒しになる。
+  //   予約を受けた UI は `freeGrowFilter:'plus1_paid'`＝**通常のグロウコストを払う**。
+  if (stub.id === 'GROW_BY_EFFECT') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, pending_effect_grow: {} } },
+      'あなたのセンタールリグをグロウしてもよい（グロウコストを支払う）'));
+  }
+  // GROW_BY_EFFECT_SUPPRESS_ON_PLAY（§5.3 `O-83`）＝「この方法でグロウしたルリグの【出】能力は発動しない」。
+  // ⚠**直前の `GROW_BY_EFFECT` の予約へ載せる**＝ターン全体のフラグ（`suppress_center_on_play`）へ倒すと、
+  //   同じターンの別のグロウまで黙って抑制する（原文は「この方法で」＝そのグロウ1回だけ）。
+  // ⚠予約が無い（条件を満たさずグロウが起きない）回は**何もしない**。
+  if (stub.id === 'GROW_BY_EFFECT_SUPPRESS_ON_PLAY') {
+    if (!ctx.ownerState.pending_effect_grow) return done(ctx);
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState, pending_effect_grow: { ...ctx.ownerState.pending_effect_grow, suppressOnPlay: true },
+    } }, 'この方法でグロウしたルリグの【出】能力は発動しない'));
+  }
   // SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果を抑制
   if (stub.id === 'SUPPRESS_CENTER_ON_PLAY') {
     const newOwner = { ...ctx.ownerState, suppress_center_on_play: true };

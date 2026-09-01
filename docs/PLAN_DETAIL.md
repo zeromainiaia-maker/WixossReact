@@ -36,6 +36,37 @@
 
 ### 恒久指標（退避）2026-09-01 続き772 前（＝続き771 の索引 C バッチ直後の値）
 
+- **2026-09-02（索引 C 第9巡）＝§5.3 索引 C を上から15件（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・据置）｜
+  **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜
+  **census 高シグナル 6 → 5 / BASELINE 5**（🔴**内訳を混ぜない**＝**実装 -1 のみ**＝`WX21-031-CB-E2` が
+  **`AUTO` のまま** `cost.bounceSelf` を載せた＝真の前進。**この巡の MANUAL 免除は 0**）
+  📦**在庫2本**＝**機構 worklist 58 → 43項目**（`| \`O-` 行数の実測＝索引 A **17**／B **12**／**C 22 → 7**／E **4**／F **3**）
+  ｜🏁**実機 残 0件**（§5.1＝この巡の10本は同巡で実行・全 PASS）
+  🔧**ゲート（全緑 ✅）**＝golden **3259 / 3259**（3243 → **+16本**）／smoke 10,721効果 全異常0／fuzz 全0／
+  census **5 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors。
+  🖥**実機（`verifyBattleDrive.mjs`）＝新規10本すべて PASS**（単体でも10本一括でも。**うち反転確認5本**）＝
+  `o114EnergyActivated`／`o114EnergyActivatedGated`（🔴反転）／`o114TrashSelfToHand`／`o114TrashSelfNoCharm`（🔴反転）／
+  `o180NextAssistGrowMods`／`o206TrashExileDistinct`／`o206TrashExileSameName`（🔴反転）／
+  `o186UntilNextOwnTurnEnd`／`o84ExtraTimingLowLife`／`o84ExtraTimingHighLife`（🔴反転）。
+  🆕**足した機構（5組＋STUB 2本）**＝`EffectCost.bounceSelf`（`O-167`）／
+  `StubAction.extraUseTiming`＋`ActiveCondition.LIFE_COUNT`（`O-84`）／
+  `GrowCostReductionAction.nextAssistGrowOnly`＋`ignoreLrigType`＋`PlayerState.next_assist_grow_mods`（`O-180`）／
+  `BanishRedirectAction.byEffectOnly`＋`consumeOnce`＋効果経路の2配列（`O-210`）／
+  `EffectDuration.UNTIL_NEXT_OWN_TURN_END`＋寿命カウント2ストア（`O-186`）／
+  `STUB{EXTRA_USE_TIMING}`・`STUB{TREAT_SELF_AS_RESONA}`。
+  🔴**この巡の最大の発見＝「実装済み」と書かれた項目が2件とも経路単位で穴だった**
+  （`O-210` は**バトル経路の配列にしか載らず向きが真逆**／`O-164` は**`execBanish` の選択経路が素通り**）。
+  ⇒ **funnel を4本作った**＝`applyBanishPreventShield`／`consumeBanishRedirectOnce`／
+  `applySplitTotalToTargets`／`trashExileCostSatisfied` 群。
+  🐛**実機が捕まえた嘘2件**＝(a)`TrashActivatedModal` の実行ボタンが「トラッシュから場に出す」固定
+  （アクション出し側だけ直しても片肺）(b)`WXDi-P13-043` は**アシストルリグ**＝【出】はアシストグロウで発火。
+  🧹**影武者コピー2件を削除**＝parser に規則を足した結果 `WX24-P4-050-E2` / `WXDi-CP01-002-E1` が実体同一になり
+  `§6.4 O-42 tripwire` が検出。`census:orphanmanual --unfreeze A` で live のスタンプも `AUTO` へ戻した。
+  🔄**ラチェット更新**＝`ACTIVE_CONDITION_TYPES` 66 → 67（`LIFE_COUNT`）／`BASELINE_SPLIT_TOTAL` 5 → 6。
+
+
 - **2026-09-02（続き774）＝§5.3 索引 C を上から5件（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・据置）｜
   **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜
@@ -641,6 +672,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-74` — 「《X》の効果以外によっては場に出せない」＝例外つき出撃制限が例外ごと潰れる
 
+🏁**2026-09-02（索引C 第10巡）にクローズ。** `SelfPlayRestrictAction.exceptSourceCardNames` を新設し、判定は **`deployLimit.ts` の `deployLimitBlockReason` funnel**（呼び出し元10箇所＝通常召喚UI／召喚ゾーンモーダル／CPU召喚／engine の効果配置4本）へ入れた。🔑**`canSelfPlay` は触っていない**＝あれは通常召喚1箇所からしか呼ばれず、`O-79` と同じ機構なので funnel 側に置いた（`placementSourceCardNum` を新設して効果元カード名を運ぶ）。⚠**`placementSource` 省略＝出自不明では掛けない**（この funnel の既存規約どおり過少側）。
+
 **規模／母集団（登録票の記載そのまま）**＝S
 
 **2026-08-26 続き661（`O-62` の否定形を実装中）で分離＝1効果**。`PR-470B-E1`「【常】：このシグニは《現実からの逃避　タマ》の効果以外によっては新たに場に出すことができない。」＝live は `SELF_PLAY_RESTRICT {never:true}`＝**例外が消えて永久に場に出せない**（原文はタマの効果でなら出せる）。🔑**当て**＝`SELF_PLAY_RESTRICT` に `exceptSourceCardName`（発生源カード名の例外）を足し、`canSelfPlay` が**いま解決中の効果の発生源**と突き合わせる形。⚠`O-62` で作った `banishedNotByOwnEffect` とは**別軸**（あちらはトリガー条件・こちらは常在制限）＝流用しない。
@@ -653,11 +686,15 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-79` — `WXDi-P11-050-E1`「《X》か《Y》の効果によってしか新たに場に出せない」＝配置元の効果を限定する機構が無い
 
+🏁**2026-09-02（索引C 第10巡）に `O-74` と同じ機構でクローズ。** 旧 `STUB{DEPLOY_RESTRICT{only_by_effect}}`（engine はログのみ＝no-op）を撤去し、`parseSelfPlayRestrict` を「場に出せない」の名前限定形まで広げた。🔴**`deployRestrict.kind` の union から `only_by_effect` を消した**（死枝＝catch-all の温床）。⚠**逆翻訳に「（配置元限定: …）」を併記した**＝`rawText` をそのまま出す実装だったので**ペイロードが落ちていても正しく見えていた**（この項目自身の前例）。
+
 **規模／母集団（登録票の記載そのまま）**＝S
 
 **2026-08-26 続き664（`O-60` 第4バッチ）で分離**＝`deployRestrict{kind:'only_by_effect'}` と明示保留した1効果。engine は `[未実装]` をログするだけ。■**受け皿の見立て**＝`deployLimit.ts` の `effectPlacementSource`（配置の出所を運ぶ既存の口）が使えるはず＝**新機構ではなく配線**の可能性が高い。⚠**着手前に `effectPlacementSource` の呼び出し元を全部読む**（出所が「どのカードの効果か」まで運べているかを確認する）。
 
 ### `O-83` — 「あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい」＝条件つきグロウの口が無い
+
+🏁**2026-09-02（索引C 第10巡）にクローズ。** ①条件は**既存の `LRIG_LEVEL_CMP_OPP{lt}`**（登録票の「既存の条件型に無い」は誤り）②グロウ本体は `STUB{GROW_BY_EFFECT}`＝**engine は予約（`PlayerState.pending_effect_grow`）だけ**・実グロウは BattleScreen の `executeGrow`（`pending_flip_grow_card` と同じ形）③`freeGrowFilter` に **`'plus1_paid'`** を足して**グロウコストを払う**モードにした（予告どおり `GROW_FREE` は流用していない）。🔴**「この方法でグロウしたルリグの【出】能力は発動しない」は `STUB{RULE_REMINDER_TEXT}`＝完全な no-op だった**＝実効ルールとして `GROW_BY_EFFECT_SUPPRESS_ON_PLAY` へ移し、`performGrow` の `suppressOnPlayOnce`（**そのグロウ1回だけ**）で効かせる。⚠ターン全体の `suppress_center_on_play` へ焼き付けない。
 
 **規模／母集団（登録票の記載そのまま）**＝S
 
@@ -697,6 +734,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-94` — 配置制限 collector が通常召喚 UI の1箇所からしか呼ばれない（残1枚）
 
+🏁**2026-09-02（索引C 第10巡）に②もクローズ＝項目全体を閉じた。** 判定を `effectEngine.collectCenterZoneDeployRestrict` から **`deployLimit.ts` の `deployLimitBlockReason` funnel**（`zoneIndex` を渡した呼び出し元が受ける）へ移し、旧 collector は撤去した。配線先＝通常召喚UI／召喚ゾーンモーダル（**ボタン単位で落とす**＝旧は押せてしまってから黙って弾かれていた）／CPU 召喚／`execAddToField`（**制限に掛からない空きゾーンを選ぶ**＝旧は無条件に最初の空き）。🔴**レベル3とゾーン1のハードコードも撤去**＝`StubAction.zonePlacementRestrict{zones,minLevel}` を parser が刻む。🔴**作業中に別バグを1件発見**＝`WXDi-P11-TK01` が同じ STUB を誤流用しており（原文は「シグニを2体までしか場に出せない」＝**体数制限**）、体数制限が1件も効かず代わりに中央ゾーンだけ封じていた。正しい形は parser が既に出していたので manual 定義ごと撤去した（§6.4 `O-42` の規約）。
+
 **規模／母集団（登録票の記載そのまま）**＝S
 
 **2026-08-26 続き675（段2 第43バッチ 群D）で実測**＝原文に「〜のシグニゾーン」を含む **76枚中 74枚は正しく配線済み**（`centerZoneOnly`／`zoneSide`／`IS_SELF_IN_CENTER_ZONE`／`THIS_CARD_IN_CENTER_ZONE`／`SIGNI_ATTACK_BAN{zones:[1]}`／`PLACE_VIRUS_CENTER`）。🏁**2026-08-29 続き725 に ①`WXDi-P03-087` をクローズ**（`manualEffects.ts` に `STUB{FROM_TRASH_TO_CENTER_ZONE}` を手書き＝§2.0 速いレーン。全文は PLAN_DETAIL.md 2026-08-29）。⚠**parser の優先順位（Part1 の汎用「トラッシュ→場」が Part3 の中央専用規則より先に返す＝`effectParser.ts:5271-5273` / `parseSentencePart1.ts:3226`）は未修正**＝同じ文型がもう1枚出たら遅いレーンで直す。■**残るのは②`WXDi-P14-068`＝配置制限 collector の部分配線**＝parser は `OPP_ZONE_PLACEMENT_RESTRICT`（`parseSentencePart3.ts:409-411`）、collector は `effectEngine.ts:6610-6633`。**呼び出しは通常召喚 UI の1箇所だけ**（`BattleScreen.tsx:5942-5946`）＝**CPU 配置・効果配置は素通りする**。🔴**`src/screens/` を触るので遅いレーン**（実機まで必須）。
@@ -732,6 +771,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-27 Sheet1 B5 で実測**＝`SP27-012-E1`／`WX21-039-E1`（＜天使＞の同型サイクル）。■B5 で**置換（「代わりに」）側は畳めた**が、**基本文の条件が別語彙で未表現**のまま残った＝いまは `CONDITIONAL{強化条件, then:強化, else:基本}` で、条件が両方とも偽のときに**基本が無条件で走る**（旧＝基本と強化が両方走って合計3枚だったので**改善ではあるが完全ではない**）。■🔑**`O-95`（`WX21-032-E1`）とまったく同じ受け皿が要る**＝`NO_COMMON_COLOR_WITH_SELF_IN_FIELD{owner,filter,excludeSelf}` 相当を1本新設し、**`Condition` と `ActiveCondition` の両評価器＋golden の3点セット**（§4.2）。⇒ **`O-95` と同時に取ると母集団が3効果になる**（別々に取らない）。■⚠**既存 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は「それぞれ（＝相互に）共通する色を持たない」**で意味が違う＝B5 で使ったのはこちら（強化側の条件）で、基本文側の「**このシグニと**共通しない」には流用できない。
 
 ### `O-103` — 「探して公開し手札に加えるかエナゾーンに置くか場に出し」＝3択の行き先が2択の受け皿に収まらない（実測1効果）
+
+🏁**2026-09-02（索引C 第10巡）に stale としてクローズ。** 着手前の実測で **`manualEffects.ts` が既に `CHOOSE`（3枝＝hand/energy/field）で表しており live にも届いていた**。`handOrField` は1バイトも触っていない（B5 の依存も無傷）。golden を張って閉じた。
 
 **規模／母集団（登録票の記載そのまま）**＝S
 
@@ -792,6 +833,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-27 続き692 で分離／2026-08-28 続き700 で第1バッチ（8効果）を消化。** ■母集団は live **34カード → 27カード**。■🆕**第1バッチで取った同型**＝「〈対象〉１体を対象とし、〈期間〉、（それのパワーを±Nし、）それ／そのシグニは「【自】…」を得る」＝`restoreQuotedTargetGrant`（`effectParser.ts`・引用漏出安全網の後段で STUB を `GRANT_EFFECT` へ戻す）。**受け皿は既存の `GRANT_EFFECT` だけで engine 変更なし**（STUB 単独→`target` つき／`SEQUENCE[POWER_MODIFY, STUB]`→`targetsLastProcessed`）。⚠**`prependOuterPowerBeforeQuotedGrant` の後に置く**＝先に付与へ差し替えると外側のパワー修正が丸ごと落ちる（実測5効果）。⚠**引用の timing がフォールバックする形は据置**＝`parseStatus` は AUTO のままなので `getTimingFallbackLog()` を見ないと**原文に無い能力**を配る（`WD17-001-E2`＝「正面をバニッシュしたとき」が `ON_PLAY` に化ける）。 ■**残り27カードの分類（未消化）**＝(a)【常】の場全体／自己付与＝🆕**2026-08-28 続き708 の実測で残りは `WD16-014` の1枚だけ**（「このシグニの基本パワーはNになり、…「Q」を得る」の連用中止形。`parseContinuousQuotedGrant` に基本パワー版の連用中止分岐が無い）。⚠**`WX09-Re07` と `WX11-053` は既に `POWER_SET`＋`GRANT_FIELD_SIGNI_ABILITY` へ構造化済み**＝live の STUB 保持カードは**25枚**（27ではない）で、この2枚は入っていない (b)【ライフバースト】付与4枚（`WXEX1-11`／`WXDi-P08-008`／`WXDi-P12-036`／`WX24-P3-022`） (c)ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`） (d)「このゲームの間、あなたは以下の能力を得る『…』」2枚（`WXDi-P03-002`／`WXDi-P10-002`） (e)【ソウル】/下カード/レイヤー4枚（`WXDi-D07-002`／`WXDi-P05-060`／`WXDi-P05-069`／`WXEX1-32`） (f)《トラップアイコン》付与1枚（`WXEX2-66`） (g)残り＝相手全体付与ほか。**同型ごとにバッチを切る**（1カードだけ直さない）。 | ■🆕**2026-08-28 続き708＝第2バッチ（5効果）を消化**＝(a) の `WD16-014` と `WX25-CP1-064`（自己付与）／全体付与 `WX07-065`・`WX09-053`（**Sheet1 の2枚はこれで消化**）／別文照応 `WX25-P2-110`。**受け皿は既存の `GRANT_EFFECT{count:'ALL'}`／`targetsLastProcessed`／`thisCardOnly` だけで engine 変更なし。** ⚠**据置3件は非採用契約を golden 化**＝`WX25-CP1-003`／`WXDi-P05-068`（引用が UNKNOWN）／**`WD17-001`（引用の timing が `ON_PLAY` へフォールバック＝配ると原文に無い能力になる）**。■**live の残り STUB は 25 → 20 カード。** ■🆕🔑**2026-09-01 続き761＝第3バッチ（3効果）を Codex へ委譲して消化＝【ライフバースト】付与群。**🔴**登録票の「受け皿が無い」は誤りだった**＝`GRANT_ALL_ZONE_LIFEBURST` は**型（`burstFilter`/`burstAction`/`burstAdditive`）・`screens/battle/allZoneBurst.ts`・`BattleScreen.tsx:12707` の消費・逆翻訳・golden まで完成済み**で、**生成側が `manualEffects.ts` の4件しか繋いでいなかった**だけ（parser は1件も生成しない）。⇒ **engine 0行・`src/screens/` 0行**で3効果が実挙動になった＝§4.1「まず受け皿を疑う」の再現。■**採用**＝`WXEX1-11-E1`（`burstFilter:{cardClass:"水獣"}`＋`CHOOSE`＋`burstAdditive:true`・**フィルタ該当158枚**）／`WXDi-P08-008-E1`（フィルタ無し・`burstAdditive` 無し）／`WX24-P3-022-E2`（起動一時版 `SET_DISPAIR_BURST_GRANT`）。■🔑**`burstAdditive` の判定ルールを実測で確定**＝原文が「**【ライフバースト】を持たない**カードは」と明示 → 書かない（`WD14-001`）／**修飾なし**「すべての領域にあるカードは…を得る/持つ」 → **`true`**（`WX02-002`）。⚠**既存 `WX17-036` はこのルールに反して `burstAdditive` 無し**（修飾なしなのに非追加）＝**未検証の不整合1件**として残す。■**据置1件**＝`WXDi-P12-036-E1`「このターン、**1枚目と2枚目に**チェックゾーンに置かれたライフクロス」＝**序数を表す受け皿が無い**（`burstFilter` は `TargetFilter` でカード属性しか見ない）。必要なのは「ターン中のチェックゾーン投入枚数カウンタ＋序数範囲ペイロード＋BattleScreen の消費」。■⚠**既知の近似（`WX24-P3-022`）**＝原文「このターンと次のターンの間」に対し受け皿 `allzone_burst_grant_until_opp_turn` は**自ターン中は読まれず次の相手ターンだけ有効**（`goldenTest.ts:26936` が assert 済み）＝**自分のターン中に自分のライフがクラッシュされた場合だけ原文より弱い**（`WX25-P3-027` と同じ近似）。■⚠**触っていないのに壊れて見えるもの**＝ルリグへの【常】付与4枚（`WXDi-P15-033`／`WXDi-P16-044`／`WX24-P2-030`／`SPDi43-01`）は**`execStubPart1.ts:1449-1490` の `quotedText` リテラル分岐で既に動いている**＝**バグではなく `O-60`（engine 全文 regex）の在庫**。■**live の残り STUB は 20 → 17 カード。** ■🏁🔴**2026-09-01 続き762＝第4バッチ（3効果）を Codex へ委譲して消化し、`O-128` は事実上クローズ。****採用**＝`WXDi-D07-002-E1`（→`GRANT_SOUL_HOST_ABILITY`。双子 `WXDi-D07-003` が既に配線済みだった）／`WXDi-P05-060-E1`＋**新設 `E2`**（→`GRANT_SIGNI_ABOVE_ABILITY{filter:{color:"赤"}}`）／`WXDi-P10-002-E1`（→`GRANT_PLAYER_ABILITY{permanent:true}`＋既存 `colorMatchesLrig`）。**engine/parser 変更なし。**■🔑🔴**この巡の最大の教訓＝受け皿には「収集契約」がある。**`GRANT_SIGNI_ABOVE_ABILITY`（`effectEngine.ts:7094`）と`GRANT_SOUL_HOST_ABILITY`（同 `7007`）は **`effectType:"CONTINUOUS"` の `action` 直下しか走査しない**＝`SEQUENCE` のステップに置くと**逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**。`WXDi-P05-060` はまさにその形だったので、**効果を E1（設置）と E2（付与宣言）へ分割**して配線した。⇒ **型名を合わせるだけでは足りない。収集側の走査条件まで読む。**（golden も「JSON の形」ではなく**`collectGrantedFromUnderSigni` が能力を返すこと＋赤でなければ返らないこと**を assert してある。）■**据置2件**＝`WXDi-P03-002-E1`（`ON_LRIG_GROW` は実在するが「**そのターン最初のグロウ**」を表す条件型が無い。⚠`COND_STUB` は `return true` なので入れてはいけない）／`WXDi-P05-069-E2`（後述のとおり**既に動いている**）。■🔴**「壊れて見えるが動いている」在庫は 4枚 → 5枚**＝`WXDi-P05-069` も `collectAltAttackFlipSigni`（`effectEngine.ts:7577` が `EffectText` を regex で読む）→`BattleScreen.tsx:14233` で消費されていた＝`O-60` の在庫。■**live の残り STUB は 17 → 14 カード。内訳＝既に動作5／据置契約 golden 済み3／新機構待ち6**（レイヤー `WXEX1-32`／トラップアイコン付与 `WXEX2-66`／序数 `WXDi-P12-036`／最初のグロウ `WXDi-P03-002`／`WX25-P2-004`／`WXDi-P07-085`）。🔑**既存受け皿だけで取れる在庫は尽きた＝次はこの項目から取らない。**
 
 ### `O-130` — ON_OPP_ARTS_USE の帰結が「そのシグニ」＝効果を受けたシグニを指せない
+
+🏁**2026-09-02（索引C 第10巡）にクローズ。** 🔑**新しい受け皿は要らなかった**＝`collectOppArtsUseTriggers` は `affectedByOppArtsFilter` で**効果を受けたシグニを特定していたのに entry へ載せていなかった**だけ。既存の `triggeringCardNum`（→ `targetsTriggerSource`）に載せて解決した。🔴**帰結は3つ同時に壊れていた**＝①「アップし」が丸ごと欠落 ②能力を失わせる相手が**逆**（原文＝自分の受けたシグニ／旧＝相手のシグニ）③「**効果によって得ている**能力」なのに印刷能力ごと消していた。③は別軸なので `RemoveAbilitiesAction.grantedOnly` ＋ `PlayerState.granted_abilities_removed` を新設し、**付与ストアの読みを `grantedStore.grantedEffectsOf` 1本へ funnel 化**した（同じ語彙の `SPK01-13`⑤ も同時に是正）。
 
 **規模／母集団（登録票の記載そのまま）**＝M
 
@@ -868,6 +911,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-29 続き717（`O-60` 第11バッチ）で分離。** ■**現在地**＝`virusCount:'any'` は payload としては刻まれたが、engine は**最大数を取り除く**（旧挙動の維持）。原文は「好きな数」なので**プレイヤーが枚数を選べる**のが正しい。⚠**全部取り除くのは不利になりうる**＝感染状態を参照する自分の効果（`WX15-040-E2` ほか）が同時に死ぬ。 ■🔴**もう1つ穴がある**＝3効果とも後続が「**この方法で取り除いた【ウィルス】１つにつき**－N／1枚手札へ」だが、`REMOVE_VIRUS`／`INTERNAL_REMOVE_VIRUS_N` は **`lastProcessedCards` を1件も返さない**（ウィルスはカードではない）。⇒ `deltaPerLastProcessedCount` の倍率が**取り除いた数になっていない**（`O-80` の族）。**枚数の選択と一緒に直す。** ■**受け皿の見立て**＝枚数選択は `INTERNAL_REMOVE_VIRUS_N{value:n}` が既にあるので **CHOOSE を1つ足すだけ**（`SEED_BLOOM{seedCount:'any'}` で同型のループを実装済み＝流用できる）。倍率の運搬は `lastProcessedCards` ではなく**数値を運ぶ口**が要る（`O-142` と同じ設計問題）。 ■⚠**着手前に3効果を数え直す**（golden の `rvNodes.length` ラチェットが件数を押さえている）。
 
 ### `O-150` — `remainder.reorder` は並べ替え対話の唯一のスイッチではない（`O-144` の見立てが実機で確認できなかった）
+
+🏁**2026-09-02（索引C 第10巡）に真因ごとクローズ。** 🔴**真因は UI ではなく pending の境界**＝`LookAndReorderAction.reorder` が **`PendingInteractionDef` へ1バイトも運ばれていなかった**。だから `EffectInteractionModal` は ↑↓ を常時描き、`resumeLookAndReorder` はクライアントが返した並びを**無条件で信じて**いた。実測＝**live の `LOOK_AND_REORDER` 151効果中 105効果が `reorder:false`**＝全部が並べ替え可能な過剰実行だった。⇒ ①pending へ `reorder` を運ぶ ②UI は `reorder !== false` のときだけ ↑↓ を描き、案内文も「元の順番のまま戻ります」へ ③**engine を並びの権威にする**（`reorder:false` なら `pending.cards` の順を使う＝UI だけ直すと片肺）。⚠**トラッシュ選択／上下振り分け／`first_top_rest_bottom` は別軸なので封じていない**（どれも「どれを」であって「どの順に」ではない）。
 
 **規模／母集団（登録票の記載そのまま）**＝**要調査**（`O-144` で 41効果へフラグを届けたが挙動は不変）
 

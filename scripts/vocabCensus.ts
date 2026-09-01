@@ -1662,7 +1662,12 @@ const PATTERNS: Pattern[] = [
     // `effectExecutor.ts` の `NAME_BAN` → `blocked_card_names_game` → `artsUseGate` / `cardNameUseBlock` /
     // `deployLimit` まで完全に実装済みなのに、**ここへキーを足し忘れていた**（2026-08-28・`O-133` の解凍で
     // MANUAL 免除が外れて露出した＝上のコメントが予告していた較正漏れそのもの）。
-    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN', 'CARD_NAME_LOCK', 'NAME_BAN'],
+    // `SELF_PLAY_RESTRICT`＝「このシグニは〜（新たに）場に出すことができない／〜の効果によってしか
+    // 新たに場に出せない」（§5.3 `O-74`/`O-79`・2026-09-02）。engine は `deployLimit.ts` の
+    // `deployLimitBlockReason` funnel まで実装済み。**`WXDi-P11-050-E1` は `STUB{DEPLOY_RESTRICT}` から
+    // この型へ移った瞬間に STUB 免除が外れて高シグナルへ出た**＝上のコメントが予告していた較正漏れ
+    // （実装は前進・計器は較正で追随する）。
+    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN', 'CARD_NAME_LOCK', 'NAME_BAN', 'SELF_PLAY_RESTRICT'],
     // 「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition・eff.condition で表現）は
     // BLOCK/PREVENT ではなく condition で正しく表現される（extractUseCondition→parseUseCondition が LRIG_STORY／
     // SELF_POWER_GTE／HAS_CARD_IN_FIELD 等へ解析済み）。使用制限のみ（アタック/ガード/場に出せない等の効果制限を

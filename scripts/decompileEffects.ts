@@ -1798,6 +1798,11 @@ function actionJa(a?: Action, effectType?: string): string {
           : `このシグニの正面のシグニは能力を失い、新たに得られない${durRA}`;
       }
       const subjRA = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
+      // 🆕§5.3 `O-130`＝「**効果によって得ている**能力を失う」。落とすと全能力喪失と同じ文になり、
+      //   **印刷能力まで消していた旧実装と区別できない**（＝直しても計器に映らない）。
+      if (a.grantedOnly) {
+        return `${subjRA}は効果によって得ている能力を失う${durRA}`;
+      }
       // 🆕**2026-08-31 続き752**＝`abilityTypes`（【常】能力だけを失う 等）を**汎用枝でも**描く。
       //   🔴従来は `filter.frontOfSelf` 枝にしか描画が無く、そこを通らない効果では
       //   「全能力を失う」と同じ文になっていた＝**過剰実行と正しい実装が逆翻訳で区別できない**
@@ -3924,9 +3929,16 @@ function actionJa(a?: Action, effectType?: string): string {
             return `${who}はシグニを${numJa(dr.cap ?? 0)}体までしか場に出せない${when}`;
           }
           if (dr.kind === 'power_gte') return `対戦相手はパワー${dr.powerGte ?? 0}以上のシグニを新たに場に出せない`;
-          return '【未実装】このシグニは特定のカードの効果によってしか新たに場に出せない';
         }
         return '【※ペイロード欠落】配置制限の形が未指定（engine は何もしない）';
+      }
+      // 🆕§5.3 `O-94`②（2026-09-02）＝ゾーン＋レベルの配置禁止も**構造から復元する**
+      //   （旧はペイロードが無く、engine 側の `return 3` とゾーン1のハードコードが逆翻訳に1文字も出なかった）。
+      if (a.id === 'OPP_ZONE_PLACEMENT_RESTRICT') {
+        const zp = (a as { zonePlacementRestrict?: { zones: number[]; minLevel: number } }).zonePlacementRestrict;
+        if (!zp) return '【※ペイロード欠落】ゾーン配置制限の対象ゾーン／レベルが未指定（engine は何もしない）';
+        const zoneJa = zp.zones.map(z => (z === 0 ? '左' : z === 1 ? '中央' : '右')).join('と');
+        return `対戦相手は${zoneJa}のシグニゾーンにレベル${numJa(zp.minLevel)}以上のシグニを新たに配置できない`;
       }
       // 🆕§5.3 `O-60` 第6バッチ（2026-08-26）＝「シグニの下に置く」も**構造から復元する**
       //   （旧表示の固定文「シグニの下にカードを置く」は**何を置くのかを1文字も伝えない**うえ、
@@ -3998,6 +4010,9 @@ function actionJa(a?: Action, effectType?: string): string {
         // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝旧 `CONDITIONAL_ARTS_COST` の catch-all から分離した4文型。
         //   **どれもコストの話を1文字もしていない**ので、id を意味に合わせて honest にした（§5.3 `O-82`）。
         DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL: '【未実装】あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい',
+        // 🆕§5.3 `O-83`＝実装済み（engine は予約・実グロウは BattleScreen の `executeGrow`＝コストを払う）。
+        GROW_BY_EFFECT: 'あなたのセンタールリグをグロウしてもよい（グロウコストを支払う）',
+        GROW_BY_EFFECT_SUPPRESS_ON_PLAY: 'この方法でグロウしたルリグの【出】能力は発動しない',
         DEFERRED_UNPARSED_CENTER_LRIG_LEVEL_CLAUSE: '【未実装】「あなたのセンタールリグのレベルが〜の場合」の条件節',
         DEFERRED_CONDITIONAL_EXTRA_USE_TIMING: '【未実装】条件を満たす場合、このアーツは追加で《アタックフェイズアイコン》を持つ（使用できるタイミングが増える）',
         DEFERRED_UNPARSED_LIFE_CLOTH_CLAUSE: '【未実装】「あなたのライフクロスが〜の場合」「あなたのライフクロスの一番上〜」の未解析節',
@@ -4175,7 +4190,13 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'SELF_PLAY_RESTRICT': {
       // 自身出撃制限（Opusタスク12(xlix)）。原文（rawText）をそのまま描画するのが最も忠実。
-      if (a.rawText) return a.rawText;
+      // ⚠**ただし `rawText` だけだと機械側のペイロードが落ちていても逆翻訳が正しく見える**
+      //   （§5.3 `O-74`/`O-79` の前例＝`exceptSourceCardNames` が無いまま原文が出ていた）。
+      //   配置元をカード名で限定する形は**捕捉できた名前を併記**して目視で分かるようにする。
+      const exceptNames = a.exceptSourceCardNames?.length
+        ? `（配置元限定: ${a.exceptSourceCardNames.map(n => `《${n}》`).join('か')}の効果のみ）` : '';
+      if (a.rawText) return a.rawText + exceptNames;
+      if (exceptNames) return `このシグニは新たに場に出すことができない${exceptNames}`;
       if (a.never) return 'このシグニは新たに場に出すことができない';
       if (a.condition) return `${condJa(a.condition)}場合にしかこのシグニは新たに場に出すことができない`;
       return 'このシグニは新たに場に出すことができない';

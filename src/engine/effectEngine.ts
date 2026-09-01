@@ -41,6 +41,8 @@ import { normalizeFieldGrants } from '../utils/fieldGrants';
 import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 // ルリグタイプの「印刷＋追加で得た分」は growLogic 側に funnel がある（グロウ互換／使用制限と同じ1本）。
 import { activeGainedLrigTypes } from '../screens/battle/growLogic';
+// 付与ストアの読みは1本に集約する（`granted_abilities_removed`＝「効果によって得ている能力を失う」の消費地点・§5.3 `O-130`）。
+import { grantedEffectsOf } from './grantedStore';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
 const splitFieldClasses = (cardClass: string | undefined): string[] =>
@@ -4778,8 +4780,7 @@ export function collectContinuousGrantedKeywords(
     // ストアを落とすと、JSON に能力を積んでも activeCondition を評価する経路がなく恒久 no-op になる。
     const sourceEffects = [
       ...(effectsMap.get(srcNum) ?? []),
-      ...(ownerState.granted_effects?.[srcNum] ?? []),
-      ...(ownerState.granted_effects_until_opp_turn?.[srcNum] ?? []),
+      ...grantedEffectsOf(ownerState, srcNum),
     ];
     for (const eff of sourceEffects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -5589,8 +5590,7 @@ export function collectBanishPreventLoseAbility(
     //   『【常】：このシグニが**次に**バニッシュされる場合、バニッシュされない。』を得る」）。
     //   🔴印刷カードの `effectsMap` しか見ていなかったので、付与形は**恒久 no-op** だった。
     const grantedBP = [
-      ...(state.granted_effects?.[src] ?? []),
-      ...(state.granted_effects_until_opp_turn?.[src] ?? []),
+      ...grantedEffectsOf(state, src),
     ];
     for (const eff of [...(effectsMap.get(baseNum(src)) ?? []), ...grantedBP]) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -5644,8 +5644,7 @@ export function collectBanishEffectProtectedSigni(
     const baseSourceNum = sourceNum.includes('#') ? sourceNum.slice(0, sourceNum.indexOf('#')) : sourceNum;
     const sourceEffects = [
       ...(effectsMap.get(sourceNum) ?? effectsMap.get(baseSourceNum) ?? []),
-      ...(state.granted_effects?.[sourceNum] ?? []),
-      ...(state.granted_effects_until_opp_turn?.[sourceNum] ?? []),
+      ...grantedEffectsOf(state, sourceNum),
     ];
     for (const eff of sourceEffects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -5953,8 +5952,7 @@ export function resolveForcedSigniAttack(
       if (!top) continue;
       consider(top, [
         ...(effectsMap.get(top) ?? []),
-        ...(holder.granted_effects?.[top] ?? []),
-        ...(holder.granted_effects_until_opp_turn?.[top] ?? []),
+        ...grantedEffectsOf(holder, top),
       ]);
     }
     // ルリグ側（この文型の印字は大半がルリグ＝WX14-018／WX20-Re07〜09／WD07-004）。
@@ -5964,8 +5962,7 @@ export function resolveForcedSigniAttack(
         if (!top) continue;
         consider(top, [
           ...(effectsMap.get(top) ?? []),
-          ...(holder.granted_effects?.[top] ?? []),
-          ...(holder.granted_effects_until_opp_turn?.[top] ?? []),
+          ...grantedEffectsOf(holder, top),
         ]);
       }
     }
@@ -6002,10 +5999,7 @@ export function isSigniOnPlaySuppressedByContinuous(
       if (!top) continue;
       const base = baseCardNum(top);
       const printed = effectsMap.get(top) ?? effectsMap.get(base) ?? [];
-      const granted = holder.granted_effects?.[top] ?? holder.granted_effects?.[base] ?? [];
-      const grantedLong = holder.granted_effects_until_opp_turn?.[top]
-        ?? holder.granted_effects_until_opp_turn?.[base] ?? [];
-      for (const eff of [...printed, ...granted, ...grantedLong]) {
+      for (const eff of [...printed, ...grantedEffectsOf(holder, top)]) {
         if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'BLOCK_ACTION') continue;
         const block = eff.action as import('../types/effects').BlockActionAction;
         if (block.actionId !== 'ON_PLAY_ABILITY' || block.target.type !== 'SIGNI') continue;
@@ -6568,7 +6562,7 @@ export function collectAbilityGainProtectedSigni(
   for (const stack of otherState.field.signi) { if (stack?.length) otherCands.push(stack[stack.length - 1]); }
   if (otherState.field.lrig.length) otherCands.push(otherState.field.lrig[otherState.field.lrig.length - 1]);
   for (const cn of otherCands) {
-    const effects = [...(effectsMap.get(cn) ?? []), ...(otherState.granted_effects?.[cn] ?? []), ...(otherState.granted_effects_until_opp_turn?.[cn] ?? [])];
+    const effects = [...(effectsMap.get(cn) ?? []), ...grantedEffectsOf(otherState, cn)];
     for (const eff of effects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, cn)) continue;
@@ -6592,7 +6586,7 @@ export function collectAbilityGainProtectedSigni(
   const selfCands: string[] = [];
   for (const stack of ownerState.field.signi) { if (stack?.length) selfCands.push(stack[stack.length - 1]); }
   for (const cn of selfCands) {
-    const effects = [...(effectsMap.get(cn) ?? []), ...(ownerState.granted_effects?.[cn] ?? []), ...(ownerState.granted_effects_until_opp_turn?.[cn] ?? [])];
+    const effects = [...(effectsMap.get(cn) ?? []), ...grantedEffectsOf(ownerState, cn)];
     for (const eff of effects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
@@ -7173,33 +7167,9 @@ export function hasAllCardsColorBlack(
   return false;
 }
 
-/**
- * OPP_ZONE_PLACEMENT_RESTRICT (CONTINUOUS): 相手が中央ゾーンに配置できないシグニの最低レベルを返す。
- * opponentState = このCONTINUOUSを持つプレイヤーの状態（制限を受ける側の「相手」）
- * 戻り値: 制限レベル下限（このレベル以上を中央ゾーンに配置不可）または undefined
- */
-export function collectCenterZoneDeployRestrict(
-  opponentState: PlayerState,
-  myState: PlayerState,
-  cardMap: Map<string, CardData>,
-  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-  isOpponentTurn: boolean,
-): number | undefined {
-  const candidates: string[] = [
-    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
-    ...(opponentState.field.lrig?.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
-  ];
-  for (const cn of candidates) {
-    for (const eff of (effectsMap.get(cn) ?? [])) {
-      if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
-      const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'OPP_ZONE_PLACEMENT_RESTRICT') continue;
-      return 3;
-    }
-  }
-  return undefined;
-}
+// 🏁§5.3 `O-94`②＝`OPP_ZONE_PLACEMENT_RESTRICT` の判定は `deployLimit.ts` の `deployLimitBlockReason` へ移した
+//   （旧 `collectCenterZoneDeployRestrict` は呼び出しが通常召喚UIの1箇所だけで、CPU 配置・効果配置が素通りしていた。
+//    レベル3とゾーン1のハードコードも `StubAction.zonePlacementRestrict` のペイロードへ移した）。
 
 /**
  * DEPLOY_RESTRICT（配置数制限・CONTINUOUS）: 「対戦相手はシグニをN体までしか場に出せない」を

@@ -16,8 +16,8 @@ interface GrowModalProps {
   setPendingGrowCard: Dispatch<SetStateAction<CardData | null>>;
   selectedGrowCost: Set<number>;
   setSelectedGrowCost: Dispatch<SetStateAction<Set<number>>>;
-  freeGrowFilter: 'same' | 'plus1' | null;
-  setFreeGrowFilter: Dispatch<SetStateAction<'same' | 'plus1' | null>>;
+  freeGrowFilter: 'same' | 'plus1' | 'plus1_paid' | null;
+  setFreeGrowFilter: Dispatch<SetStateAction<'same' | 'plus1' | 'plus1_paid' | null>>;
   growCandidates: CardData[];
   currentLrigLevel: number;
   executeGrow: (card: CardData, costIndices: Set<number>) => void;
@@ -49,6 +49,8 @@ export function GrowModal(p: GrowModalProps) {
                 <p style={{ color: C.textDim, fontSize: 11, margin: 0, textAlign: 'center' }}>
                   {freeGrowFilter === 'same'
                     ? `同レベルへグロウ（Lv.${currentLrigLevel}・コスト不要）`
+                    : freeGrowFilter === 'plus1_paid'
+                    ? `効果によるグロウ（Lv.${currentLrigLevel} → Lv.${currentLrigLevel + 1}・グロウコストを支払う）`
                     : `現在 Lv.${currentLrigLevel} → Lv.${currentLrigLevel + 1}`}
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -58,7 +60,9 @@ export function GrowModal(p: GrowModalProps) {
                     // GROW_COST_REDUCTION: 場のCONTINUOUS軽減をグロウコストへ適用（エナ部分のみ・コインは据置）。⚠要実機検証
                     const growCostR = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
-                    const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
+                    // 🆕§5.3 `O-83`＝`'plus1_paid'` は**効果によるグロウだがコストは払う**＝free 扱いにしない。
+                    const isFreeGrow = my.free_grow_this_turn === true
+                      || (freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid');
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
                       canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);

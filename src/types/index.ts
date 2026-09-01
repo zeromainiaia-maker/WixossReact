@@ -468,6 +468,15 @@ export interface PlayerState {
   // 能力消去されたシグニのCardNum一覧（**現在のターンだけ**有効。ターン終了時にクリア）
   abilities_removed?: string[];
   /**
+   * 「ターン終了時まで、〜は**効果によって得ている能力**を失う」（§5.3 `O-130`／`WXK11-019-E2`・`SPK01-13` 選択肢⑤）。
+   *
+   * 🔴**`abilities_removed` とは別軸**＝あちらは**印刷能力ごと**すべて失わせる。この2効果を `abilities_removed` で
+   *   表すと、原文が触れていない**印刷済みの【常】【自】【起】まで消える過剰実行**になる（実測＝旧 live は両方そう書いていた）。
+   * 読みは `grantedStore.ts` の `grantedEffectsOf` 1本に集約する（付与ストアを読む地点が engine に散っているため）。
+   * 寿命は `abilities_removed` と同じ turn-end（`turnScopedState.ts` に登録済み）。
+   */
+  granted_abilities_removed?: string[];
+  /**
    * 「次のターンの間」能力を失うシグニの**予約**（§6.4 O-3）。
    *
    * ⚠`RemoveAbilitiesAction.until` は長らく engine から**一切読まれない死フィールド**で、
@@ -995,6 +1004,18 @@ export interface PlayerState {
    * ⚠**engine で直接 `field.lrig` へ push しないこと**＝グロウ時トリガーが丸ごと落ちる。
    */
   pending_flip_grow_card?: string;
+  /**
+   * 「〈条件〉の場合、あなたのセンタールリグをグロウしてもよい」（§5.3 `O-83`／`SP38-001-E1`）＝
+   * **効果によるグロウの予約**。engine は条件判定と予約だけを行い、実際のグロウは BattleScreen が
+   * `executeGrow`（正規経路）で行う（`pending_flip_grow_card` と同じ理由＝engine で `field.lrig` へ
+   * 直接 push すると【出】・リミット再計算・コイン獲得が丸ごと落ちる）。
+   *
+   * 🔴**`GROW_FREE` を流用してはいけない**＝あちらは「グロウコストを支払わずに」＝**過少コスト**になる。
+   *   原文が「支払わずに」と書いていないグロウは**通常のグロウコストを払う**（`freeCost:false`）。
+   * ⚠`suppressOnPlay`＝「この方法でグロウしたルリグの【出】能力は発動しない」＝**そのグロウ1回だけ**。
+   *   ターン全体のフラグ（`suppress_center_on_play`）へ倒すと、同じターンの別のグロウまで黙って抑制する。
+   */
+  pending_effect_grow?: { suppressOnPlay?: boolean };
   // THIS_CARD_FROM_TRASH: トラッシュから場に出したシグニのインスタンスID。直後の【出】効果で
   // 「このシグニがトラッシュから場に出た場合」条件の判定に使う（WX03-034）。ターン開始時にクリア。
   signi_played_from_trash?: string[];
@@ -1524,6 +1545,17 @@ export type PendingInteractionDef =
       destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom' | 'split_top_bottom';
       private: boolean;       // true=自分だけ見る（見る）/ false=両者公開（公開する）
       revealTopAfterReorder?: boolean; // WX16-004: 非公開で戻した後、トップ1枚だけを公開
+      /**
+       * 🆕§5.3 `O-150`＝`LookAndReorderAction.reorder`（「順番を自由に決められる」か）**をここへ運ぶ**。
+       *
+       * 🔴**旧はこの口が無く、フラグが pending の境界で丸ごと落ちていた**＝UI（`EffectInteractionModal`）は
+       *   ↑↓ を**常時**描き、engine（`resumeLookAndReorder`）はクライアントが返した並びを**無条件で信じて**いた。
+       *   実測＝live の `LOOK_AND_REORDER` 151件のうち **105件が `reorder:false`**（「デッキの一番上を見る」等）＝
+       *   **全部が並べ替え可能な過剰実行**だった。`O-144` で `remainder.reorder` を41効果へ届けても
+       *   実機の挙動が変わらなかったのはこれが理由（分岐すべきは remainder ではなくこの1本）。
+       * ⚠**省略＝並べ替え可**（既存の STUB 経路は自前で pending を組んでおり、意味は「見て並べ替える」で正しい）。
+       */
+      reorder?: boolean;
       shuffle?: boolean;
       /**
        * true = この並べ替えで `lastProcessedCards` を**上書きしない**（§5.3 `O-51`・2026-08-29）。

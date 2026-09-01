@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -884,8 +884,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const [k, v] of Object.entries(b)) out[k] = [...(out[k] ?? []), ...v];
       return out;
     };
-    const myGranted = mergeGranted(myS.granted_effects ?? {}, myS.granted_effects_until_opp_turn ?? {});
-    const opGranted = mergeGranted(opS.granted_effects ?? {}, opS.granted_effects_until_opp_turn ?? {});
+    // 🔴「ターン終了時まで、〜は**効果によって得ている能力**を失う」（§5.3 `O-130`）＝
+    //   `granted_abilities_removed` に載ったカードは付与ぶんを**この合成の時点で**空にする
+    //   （augmented effectsMap が engine 全体の読み口なので、ここを通せば消費地点が1つで済む）。
+    //   ⚠印刷能力は消さない＝`abilities_removed`（全能力喪失）とは別軸。
+    const dropLost = (
+      m: Record<string, import('../types/effects').CardEffect[]>, st: typeof myS,
+    ): Record<string, import('../types/effects').CardEffect[]> => {
+      const lost = st.granted_abilities_removed;
+      if (!lost?.length) return m;
+      const out: Record<string, import('../types/effects').CardEffect[]> = {};
+      for (const [k, v] of Object.entries(m)) {
+        if (lost.includes(k) || lost.includes(getCardNum(k))) continue;
+        out[k] = v;
+      }
+      return out;
+    };
+    const myGranted = dropLost(mergeGranted(myS.granted_effects ?? {}, myS.granted_effects_until_opp_turn ?? {}), myS);
+    const opGranted = dropLost(mergeGranted(opS.granted_effects ?? {}, opS.granted_effects_until_opp_turn ?? {}), opS);
     const hasGranted = Object.keys(myGranted).length > 0 || Object.keys(opGranted).length > 0;
 
     // スタックあり（ライズ）ゾーンの有無チェック
@@ -2048,6 +2064,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.host_state?.pending_flip_grow_card, bs?.guest_state?.pending_flip_grow_card,
+      bs?.active_user_id, loading, bs?.global_phase]);
+
+  /**
+   * §5.3 `O-83`（`SP38-001-E1`）＝`STUB{GROW_BY_EFFECT}` の予約（`pending_effect_grow`）を消費して
+   * **グロウ先選択モーダル**を開く。実際のグロウは `executeGrow`（正規経路）が行う。
+   *
+   * 🔴**`GROW_FREE` と違い `freeCost` は false**＝原文が「コストを支払わずに」と書いていないので
+   *   通常のグロウコストを払う（`freeGrowFilter:'plus1_paid'`）。ここを `'plus1'` にするとコスト踏み倒し。
+   * ⚠原文は「グロウしても**よい**」＝任意なので、モーダルを閉じれば何も起きない（予約はここで消す）。
+   * ⚠`suppressOnPlay`＝「この方法でグロウしたルリグの【出】能力は発動しない」を**そのグロウ1回だけ**へ効かせる。
+   * ⚠🔴**この hook も `if (!bs) return` より前**（上の `flipGrowRef` と同じ理由＝後ろに置くと React #310）。
+   */
+  const effectGrowRef = useRef(false);
+  /** 直後の1回のグロウだけ【出】を抑制するか（`pending_effect_grow.suppressOnPlay` の持ち越し）。 */
+  const effectGrowSuppressRef = useRef(false);
+  useEffect(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return;
+    const localIsHost = user.id === bs.host_id;
+    const localMy = localIsHost ? bs.host_state : bs.guest_state;
+    const req = localMy?.pending_effect_grow;
+    if (!req) { effectGrowRef.current = false; return; }
+    if (bs.active_user_id !== user.id || loading) return;
+    if (effectGrowRef.current) return;
+    effectGrowRef.current = true;
+    // 予約は「開いた時点で」消す＝モーダルを閉じた（＝グロウしない）場合に再度開き直さないため。
+    // ⚠【出】抑制は state ではなく ref で1回だけ持ち越す（`executeGrow` の `suppressOnPlayOnce`）。
+    const cleared: PlayerState = { ...localMy, pending_effect_grow: undefined };
+    void persist.commit(reduceBattle(bs, {
+      type: 'WRITE_STATE', myKey: localIsHost ? 'host_state' : 'guest_state', myState: cleared,
+    }));
+    effectGrowSuppressRef.current = req.suppressOnPlay === true;
+    openFreeGrow('plus1_paid');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.host_state?.pending_effect_grow, bs?.guest_state?.pending_effect_grow,
       bs?.active_user_id, loading, bs?.global_phase]);
 
   if (!bs) return (
@@ -6181,12 +6231,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (existingZoneStack.length > 0 && !paidDestination) return;
     }
     if (isActionBlocked('PLAY_COLORLESS') && summonCardData?.Color === '無') return;
-    // OPP_ZONE_PLACEMENT_RESTRICT: 相手が中央ゾーン(index=1)にLv3+配置不可
-    const czRestrict = collectCenterZoneDeployRestrict(op, my, battleCardMap, effectsMap, !isMyTurn);
-    if (czRestrict !== undefined && zoneIndex === 1) {
-      const cardLvCZ = parseInt(summonCardData?.Level ?? '0') || 0;
-      if (cardLvCZ >= czRestrict) return;
-    }
+    // 🏁§5.3 `O-94`② で `OPP_ZONE_PLACEMENT_RESTRICT` は `deployLimitBlockReason` の funnel へ移した
+    //   （旧はここだけの手書き判定＝CPU 配置と engine の効果配置が素通りしていた）。下の `zoneIndex` 付き呼び出しが受ける。
     // DEPLOY_RESTRICT（配置パワー制限／配置数制限）は `engine/deployLimit.ts` に一本化する
     // （通常召喚UI・召喚ゾーンモーダル・CPU召喚・engine の効果配置が同じ関数を呼ぶ。
     //  旧実装は engine 側だけ判定が無く、効果配置がすべてすり抜けていた＝続き405）。
@@ -6201,6 +6247,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         onExistingStack: !!riseFilter || existingZoneStack.length > 0,
         fieldCountAdjust: paidFieldCount,
         placementSource: 'normal_summon',
+        zoneIndex,
       });
       if (blockedDeploy) return;
     }
@@ -6720,6 +6767,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       consumeGrowAction?: boolean;
       extraEntries?: StackEntry[];
       opponentState?: PlayerState;
+      /**
+       * 🆕§5.3 `O-83`＝**このグロウ1回だけ**、グロウ先ルリグの【出】能力を発動させない
+       * （`SP38-001-E1`「この方法でグロウしたルリグの【出】能力は発動しない」）。
+       * ⚠`PlayerState.suppress_center_on_play`（ターン全体）とは別軸＝state に焼き付けない。
+       */
+      suppressOnPlayOnce?: boolean;
     } = {},
     p: {
       actor: PlayerState; opponent: PlayerState;
@@ -6832,7 +6885,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ルリグの ON_PLAY 効果を確認（COPY_LRIG_NAME_ABILITYコピー効果も含む）
       const ownEffects = effectsMap.get(cardNum) ?? [];
       // SUPPRESS_CENTER_ON_PLAY: このターンセンタールリグの【出】能力を抑制
-      const suppressLrigPlay = newMyState.suppress_center_on_play === true;
+      const suppressLrigPlay = newMyState.suppress_center_on_play === true || options.suppressOnPlayOnce === true;
       const copiedOnPlayEffects = suppressLrigPlay ? [] : collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, growOp, p.isActorTurn)
         .filter(e => e.timing?.includes('ON_PLAY'));
       const allOnPlayEffects = suppressLrigPlay ? [] : [...ownEffects, ...copiedOnPlayEffects];
@@ -6985,6 +7038,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       consumeGrowAction?: boolean;
       extraEntries?: StackEntry[];
       opponentState?: PlayerState;
+      /**
+       * 🆕§5.3 `O-83`＝**このグロウ1回だけ**、グロウ先ルリグの【出】能力を発動させない
+       * （`SP38-001-E1`「この方法でグロウしたルリグの【出】能力は発動しない」）。
+       * ⚠`PlayerState.suppress_center_on_play`（ターン全体）とは別軸＝state に焼き付けない。
+       */
+      suppressOnPlayOnce?: boolean;
     } = {},
   ) => {
     if (loading) return;
@@ -6996,7 +7055,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       isActorTurn: isMyTurn,
       energyPayPool: myEnergyPayPool,
       onCostOnPlay: 'prompt',
-      defaultFreeCost: freeGrowFilter !== null,
+      // 🆕§5.3 `O-83`＝`'plus1_paid'`（効果によるグロウ）は**通常のグロウコストを払う**。
+      defaultFreeCost: freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid',
     });
   };
 
@@ -11806,6 +11866,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             placingState: newCpuSt, opponentState: bs.host_state, cardNum: id,
             cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
             placementSource: 'normal_summon',
+            // 🆕§5.3 `O-94`②＝CPU 召喚もゾーン制限を見る（旧は人間の通常召喚UIだけが見ていた）。
+            zoneIndex: zone,
           }) === null;
         });
         // §8 `O-1` (g)＝盤面評価で1枚選ぶ。**残ゾーン数**は「この先まだ空いていて置けるゾーンの数」＝

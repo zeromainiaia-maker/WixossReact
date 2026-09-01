@@ -1493,8 +1493,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- この方法でグロウしたルリグの【出】能力は発動しない ----
+  // 🆕§5.3 `O-83`＝**ルール注記ではなく実効ルール**（旧 `RULE_REMINDER_TEXT` は engine で完全な no-op ＝
+  //   効果でグロウしたルリグの【出】が普通に発動する過剰実行だった）。直前の `GROW_BY_EFFECT` の予約へ載せる。
   if (t.match(/この方法でグロウしたルリグの【出】能力は発動しない/))
-    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'GROW_BY_EFFECT_SUPPRESS_ON_PLAY' } as StubAction;
 
   // ---- 対戦相手のルリグのレベルを－１する ----
   if (t.match(/対戦相手のルリグ[１-９\d０-９]*体?を対象とし.*それのレベルを[＋－][０-９\d０-９]+する/))

@@ -74,15 +74,20 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                   cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
                   onExistingStack: !!pendingRiseFilter,
                   placementSource: 'normal_summon',
+                  // 🆕§5.3 `O-94`②＝ゾーン＋レベルの配置禁止もこの funnel で受ける。
+                  zoneIndex: zi,
                 });
                 const overPowerLimit = deployBlock === 'POWER_LIMIT';
                 const overCountLimit = deployBlock === 'COUNT_LIMIT';
+                // 🆕`ZONE_LEVEL_RESTRICT`＝そのゾーンだけ置けない（他ゾーンは置ける）＝ボタン単位で落とす。
+                //   ⚠旧はこのモーダルに判定が無く、押せてしまってから `handleSummonSigni` が黙って弾いていた。
+                const zoneLevelBlocked = deployBlock === 'ZONE_LEVEL_RESTRICT';
                 // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）:
                 // 「新たに配置できない」ゾーン。《無》×N の支払い回避つきはエナが足りれば選べる（払って配置）。
                 const zoneBlock = pendingRiseFilter ? undefined : findSigniZoneBlock(my, zi);
                 const zoneBlockCost = zoneBlock?.colorless ?? 0;
                 const zoneBlocked = !!zoneBlock && !resolveSigniZonePlacement(my, zi).allowed;
-                const isDisabled = loading || overLimit || overPowerLimit || overCountLimit || forcedBlocked || zoneBlocked ||
+                const isDisabled = loading || overLimit || overPowerLimit || overCountLimit || forcedBlocked || zoneBlocked || zoneLevelBlocked ||
                   (pendingRiseFilter ? !riseConditionMet : isOccupied);
                 return (
                   <button key={zi} data-testid={`summon-zone-${zi}`}
@@ -90,7 +95,7 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                     disabled={isDisabled}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 8,
-                      border: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit || overCountLimit || zoneBlocked) ? `1px solid ${C.danger}` : C.borderUI,
+                      border: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit || overCountLimit || zoneBlocked || zoneLevelBlocked) ? `1px solid ${C.danger}` : C.borderUI,
                       backgroundColor: isDisabled ? C.disabled : C.bgButton,
                       color: isDisabled ? C.textFaint : C.text,
                       fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',

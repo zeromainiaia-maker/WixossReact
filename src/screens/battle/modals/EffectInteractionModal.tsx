@@ -761,6 +761,12 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             });
           };
           const isSplit = inter.destPosition === 'split_top_bottom';
+          // 🆕§5.3 `O-150`＝**並べ替えを許すかは pending の `reorder` で決める**。
+          // 🔴旧はこの判定が1つも無く ↑↓ を常時描いていた＝live 105効果（`reorder:false`）が
+          //   「見るだけ」なのにデッキトップを自由に組み替えられる過剰実行だった。
+          // ⚠`canTrash` / `split_top_bottom` / `first_top_rest_bottom` は**別の選択**なので封じない
+          //   （どれも「どれを」を選ぶ話で、「どの順に」ではない）。
+          const canReorder = inter.reorder !== false;
           const trashCount = lookReorderOrder.filter(n => lookReorderTrash.has(n)).length;
           const topCount = isSplit ? lookReorderOrder.filter(n => !lookReorderBottom.has(n)).length : 0;
           return createPortal(
@@ -777,6 +783,12 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
                   {isSplit
                     ? `好きな枚数を「上」（デッキトップ）に、残りを「下」（デッキ下）に置いてください ／ 上:${topCount}枚`
+                    // 🆕§5.3 `O-150`＝並べ替えできない効果に「並べ替えてください」と書くのは嘘
+                    //   （`canTrash` はまだ選べるので、その場合はトラッシュだけを案内する）。
+                    : !canReorder
+                    ? (inter.canTrash
+                      ? `トラッシュに置くカードを選んでください（残りは元の順番のまま戻ります）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
+                      : `カードを確認してください（${inter.destPosition === 'bottom' ? 'デッキの一番下' : 'デッキトップ'}へ元の順番のまま戻ります）`)
                     : inter.canTrash
                     ? `トラッシュに置くカードを選び、残りを並べ替えてください（上がデッキトップ）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
                     : inter.destPosition === 'first_top_rest_bottom'
@@ -822,6 +834,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                             {isTrashed ? '戻す' : 'トラッシュ'}
                           </button>
                         )}
+                        {canReorder && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <button onClick={() => moveCard(i, -1)} disabled={i === 0 || isTrashed}
                             style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4,
@@ -833,6 +846,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                               color: (i === lookReorderOrder.length - 1 || isTrashed) ? C.textDim : C.text,
                               cursor: (i === lookReorderOrder.length - 1 || isTrashed) ? 'default' : 'pointer' }}>↓</button>
                         </div>
+                        )}
                       </div>
                     );
                   })}

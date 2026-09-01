@@ -1740,6 +1740,16 @@ export interface SelfPlayRestrictAction {
   // condition：通常召喚を**許可**する条件。満たさないとき配置不可。省略時（未対応語彙＝ウィルス総数/アクセ総数/クロス状態/相手ディスカード等）は
   //   評価しない＝保守的に配置許可（＝従来の inert no-op と同値・退化なし）。
   condition?: Condition;
+  /**
+   * 「《X》（か《Y》）の効果**以外によっては／によってしか**（新たに）場に出せない」＝**配置元の効果を限定する**。
+   * `never` と併用する（通常召喚は不可・効果配置はこの名前のカードの効果のときだけ可）。
+   * 🔴**`never` 単独とは意味が違う**＝あちらは「通常召喚だけ不可・**どの効果でも**配置可」。
+   *   ここを付けないと `PR-470B`（タマの効果でのみ）・`WXDi-P11-050`（タウィル//メモリア か ウムル//メモリア の効果でのみ）が
+   *   **どの効果からでも出せる過剰実行**になる。
+   * 消費地点＝`deployLimit.ts` の `deployLimitBlockReason`（通常召喚UI／召喚ゾーンモーダル／CPU召喚／engine の効果配置が共有する funnel）。
+   * ⚠出自不明（`placementSource` 省略）の呼び出し元では**掛けない**＝この funnel の既存規約どおり過少側へ倒す。
+   */
+  exceptSourceCardNames?: string[];
   rawText?: string; // 逆翻訳・原文照合用
 }
 
@@ -3016,6 +3026,15 @@ export interface RemoveAbilitiesAction {
    */
   alsoCenterLrig?: boolean;
   until: EffectDuration;
+  /**
+   * 「〜は**効果によって得ている能力**を失う」（§5.3 `O-130`・live 2効果＝`WXK11-019-E2`／`SPK01-13` 選択肢⑤）。
+   *
+   * 🔴**省略時（＝従来）は印刷能力ごとすべて失わせる**＝この2効果を素の `REMOVE_ABILITIES` で書くと、
+   *   原文が触れていない印刷済みの【常】【自】【起】まで消える**過剰実行**になる（旧 live は両方そうだった）。
+   * 書き込み先は `PlayerState.granted_abilities_removed`、読みは `grantedStore.grantedEffectsOf` ＋
+   * BattleScreen の augmented effectsMap 合成。⚠`abilities_removed`（全能力喪失）とは**別の器**。
+   */
+  grantedOnly?: boolean;
   targetsLastProcessed?: boolean; // 「それ」= 直前の POWER_MODIFY 等で選んだ同一シグニへ無選択で適用
   targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
@@ -3999,13 +4018,30 @@ export interface StubAction {
    *
    * ⚠**ペイロードが無い宣言では何もしない**（fail-closed）。
    */
+  /**
+   * `OPP_ZONE_PLACEMENT_RESTRICT`：「対戦相手は**中央の**シグニゾーンに**レベルN以上**のシグニを新たに配置できない」
+   * （§5.3 `O-94`②・`WXDi-P14-068-E1`）。
+   *
+   * 🔴**旧はペイロードが無く**、engine 側（`collectCenterZoneDeployRestrict`）が **`return 3`** と
+   *   ゾーン index 1 を**ハードコード**していた＝JSON を見ても何が起きるか分からず、レベル違いの同型が
+   *   出たら黙って 3 として動く形だった。
+   * 判定は `deployLimit.ts` の `deployLimitBlockReason`（`zoneIndex` を渡した呼び出し元だけが受ける）。
+   * ⚠**指定ゾーン型の配置禁止（`BLOCK_OPP_ZONE_PLACEMENT`＝`signi_zone_blocks`）とは別軸**＝
+   *   あちらは「そのとき指定した1ゾーン」を state に積む一過性、こちらは【常】でゾーンとレベルが固定。
+   */
+  zonePlacementRestrict?: {
+    /** 配置を禁じるシグニゾーンの index（0=左 1=中央 2=右）。 */
+    zones: number[];
+    /** このレベル以上のシグニが置けない。 */
+    minLevel: number;
+  };
   deployRestrict?: {
     /**
      * `count`＝「シグニをN体までしか場に出すことができない」／
-     * `power_gte`＝「パワーN以上のシグニを新たに場に出せない」／
-     * `only_by_effect`＝「〜の効果によってしか新たに場に出せない」（機構未実装＝明示保留）。
+     * `power_gte`＝「パワーN以上のシグニを新たに場に出せない」。
+     * （旧 `only_by_effect` は §5.3 `O-79` で `SELF_PLAY_RESTRICT{exceptSourceCardNames}` へ移して撤去した。）
      */
-    kind: 'count' | 'power_gte' | 'only_by_effect';
+    kind: 'count' | 'power_gte';
     /** `count`＝上限体数。 */
     cap?: number;
     /** `count`＝誰に掛かるか（原文「すべてのプレイヤーは」「あなたは」「対戦相手は」）。 */

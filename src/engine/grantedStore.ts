@@ -21,6 +21,29 @@ import type { CardEffect, TriggerScope, EffectTiming } from '../types/effects';
  * - `game_granted_effects` — `GRANT_PLAYER_ABILITY`（プレイヤー自身がゲーム中得た能力）。
  *   場のカードを host に持たないため cardNum は空になりうる。
  */
+/**
+ * シグニ1枚に**効果で付与されている能力**（`granted_effects` ＋ `granted_effects_until_opp_turn`）を返す funnel。
+ *
+ * 🔑**存在理由**＝「ターン終了時まで、〜は**効果によって得ている能力**を失う」（§5.3 `O-130`）は
+ *   `abilities_removed`（印刷能力ごと消す）では表せない。**付与ストアを読む地点をここへ通す**ことで、
+ *   `granted_abilities_removed` に載ったカードだけ付与ぶんを空にする。
+ *
+ * ⚠**`instanceId` と素の `cardNum` の両方で引く**（付与は instanceId 単位で積まれるが、
+ *   engine 側には base num で照会する地点がある）。喪失判定も両方で見る。
+ * ⚠これは**付与ぶんだけ**を返す＝印刷能力（`effectsMap` / `cardMap.effects`）は呼び出し側の担当。
+ */
+export function grantedEffectsOf(
+  state: Pick<PlayerState, 'granted_effects' | 'granted_effects_until_opp_turn' | 'granted_abilities_removed'> | undefined,
+  num: string,
+): CardEffect[] {
+  if (!state) return [];
+  const base = num.split('#')[0];
+  const lost = state.granted_abilities_removed;
+  if (lost && (lost.includes(num) || lost.includes(base))) return [];
+  const pick = (map: Record<string, CardEffect[]> | undefined) => map?.[num] ?? (num === base ? undefined : map?.[base]) ?? [];
+  return [...pick(state.granted_effects), ...pick(state.granted_effects_until_opp_turn)];
+}
+
 export interface GrantedStoreWatcher {
   /** 能力の host（センタールリグの CardNum。プレイヤー付与でルリグ不在なら空文字）。 */
   cardNum: string;

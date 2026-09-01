@@ -21,6 +21,7 @@ import { activeKeyAbilitySources, activeOppMoveImmunityZones, checkActiveConditi
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { allowedLifeCrashCount } from './lifeCrashGate';
+import { grantedEffectsOf } from './grantedStore';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
@@ -191,8 +192,7 @@ function hasContinuousBlockOnOpponent(
     const base = getCardNum(num);
     return [
       ...(ctx.effectsMap?.get(num) ?? ctx.effectsMap?.get(base) ?? ctx.cardMap.get(base)?.effects ?? []),
-      ...(blockerState.granted_effects?.[base] ?? []),
-      ...(blockerState.granted_effects_until_opp_turn?.[base] ?? []),
+      ...grantedEffectsOf(blockerState, base),
     ];
   };
   const candidates: string[] = [];
@@ -3559,6 +3559,8 @@ function clearNonHandPlacement(state: PlayerState, placedInstanceId: string): Pl
  */
 function deployLimitBlockedFor(
   tgtOwner: Owner, cardNum: string, ctx: ExecCtx, fieldCountAdjust = 0,
+  /** 置くゾーン index（分かっている経路だけ渡す）。`OPP_ZONE_PLACEMENT_RESTRICT` の判定に使う（§5.3 `O-94`②）。 */
+  zoneIndex?: number,
 ): DeployBlockReason | null {
   const placingIsSelf = tgtOwner === 'self';
   return deployLimitBlockReason({
@@ -3572,8 +3574,10 @@ function deployLimitBlockedFor(
       ? undefined
       : (placingIsSelf ? ctx.isOwnerTurn : !ctx.isOwnerTurn),
     fieldCountAdjust,
+    zoneIndex,
     // engine 経路＝**効果による配置**。出自は効果元カードの Type で決める（§6.4 O-3 続き487）。
     placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
+      placementSourceCardNum: ctx.sourceCardNum,
   });
 }
 
@@ -3742,14 +3746,18 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     for (const n of selected) {
       const s = ownerState(tgtOwner, cur);
       // 空きゾーンがない場合は移動させずスキップ（カード消失防止）
-      const emptyIdxCheck = s.field.signi.findIndex(z => !z || z.length === 0);
-      if (emptyIdxCheck < 0) {
+      // 🆕§5.3 `O-94`②＝**そのゾーンに置けない**制限（「中央にレベルN以上は置けない」）を避けて空きを選ぶ。
+      //   🔴旧は無条件に「最初の空き」へ置いていたので、効果配置だけがゾーン制限を素通りしていた。
+      const emptyZones = s.field.signi
+        .map((z, zi) => ((!z || z.length === 0) ? zi : -1)).filter(zi => zi >= 0);
+      const placeZone = emptyZones.find(zi => !deployLimitBlockedFor(tgtOwner, n, cur, 0, zi));
+      if (emptyZones.length === 0) {
         cur = addLog(cur, '空きシグニゾーンがないため場に出せない');
         continue;
       }
       // 配置制限は**1枚ごとに**評価する（複数枚配置は場のシグニ数が増えながら進むため、
       // まとめて1回だけ見ると上限を跨いで置けてしまう）。
-      const blockedDL = deployLimitBlockedFor(tgtOwner, n, cur);
+      const blockedDL = deployLimitBlockedFor(tgtOwner, n, cur, 0, placeZone);
       if (blockedDL) {
         cur = addLog(cur, deployLimitLogMessage(blockedDL, ctx.cardMap.get(getCardNum(n))?.CardName ?? n));
         continue;
@@ -3774,9 +3782,9 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
           signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
         newS = clearNonHandPlacement(newS, n);
       }
-      // 空きゾーンに配置
+      // 空きゾーンに配置（ゾーン制限に掛からない空きを上で選んである）
       const signi = [...newS.field.signi] as (string[] | null)[];
-      const emptyIdx = signi.findIndex(z => !z || z.length === 0);
+      const emptyIdx = placeZone ?? signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
       newS = { ...newS, field: { ...newS.field, signi } };
       // 出自記録: この配置が効果起因（sourceCardNum あり・自身の再配置でない）なら発生源を記録（WX26-CP1-048）。
@@ -6327,6 +6335,8 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
     private: a.private,
+    // 🆕§5.3 `O-150`＝並べ替え可否を pending へ運ぶ（旧はここで落ちて UI が常に ↑↓ を出していた）。
+    ...(a.reorder === false ? { reorder: false } : {}),
     ...(a.revealTopAfterReorder ? { revealTopAfterReorder: true } : {}),
     ...(a.shuffle ? { shuffle: true } : {}),
   });
@@ -8168,6 +8178,16 @@ function applyAbilitiesRemoval(
   /** 🆕`UNTIL_NEXT_OWN_TURN_END` が跨ぐグローバルターン終了の回数（§5.3 `O-186`）。 */
   nextOwnSpan = 3,
 ): PlayerState {
+  // 🆕「〜は**効果によって得ている能力**を失う」（§5.3 `O-130`）＝**印刷能力は残す**。
+  // 🔴`abilities_removed` へ載せると原文が触れていない印刷【常】【自】【起】まで消える過剰実行になる。
+  // 読みは `grantedStore.grantedEffectsOf`（＋ BattleScreen の augmented effectsMap 合成）1本。
+  // ⚠期間語彙は live 2効果とも「ターン終了時まで」だけ＝2スロット式は持たせない（出たら足す）。
+  if (action.grantedOnly) {
+    return {
+      ...state,
+      granted_abilities_removed: [...new Set([...(state.granted_abilities_removed ?? []), ...cardNums])],
+    };
+  }
   if (action.keywords?.length) {
     // キーワード限定の喪失は現状「このターン」語彙しか live に無い＝期間分岐は持たせない。
     const removedKeywords = { ...(state.keyword_abilities_removed ?? {}) };
@@ -8255,7 +8275,9 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
       const newS = applyAbilitiesRemoval(a, state, [autoNum], nextOwnTurnEndSpan(ctx));
-      return done(addLog(setOwnerState(tgtOwner, newS, ctx), `1`));
+      const nameRA = ctx.cardMap.get(getCardNum(autoNum))?.CardName ?? autoNum;
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+        `${nameRA} は${a.grantedOnly ? '効果によって得ている能力' : '能力'}を失う`));
     }
     return done(ctx);
   }
@@ -10717,7 +10739,12 @@ export function resumeLookAndReorder(
   ctx: ExecCtx,
   bottomCards: string[] = [],
 ): ExecResult {
-  const keepRaw = reordered.filter(n => !trashed.includes(n));
+  // 🆕§5.3 `O-150`＝`reorder:false` の効果ではクライアントが返した並びを**採らない**（fail-closed）。
+  // 🔴UI を直すだけでは足りない＝ここが無条件に `reordered` を信じていたので、
+  //   細工されたリクエストや別クライアントの実装差でそのまま並べ替えが通っていた。
+  //   ⚠**トラッシュ／上下の振り分けはプレイヤーの選択として残す**（reorder とは別の可否）。
+  const orderSource = pending.reorder === false ? pending.cards : reordered;
+  const keepRaw = orderSource.filter(n => !trashed.includes(n));
   const keep = pending.shuffle ? shuffle(keepRaw) : keepRaw;
   const destOwner = pending.destOwner;
   const state = ownerState(destOwner, ctx);

@@ -1,5 +1,164 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 C 第10巡）：§5.3 索引 C の残り7件を全消化して**索引 C を空にした** — `O-74` / `O-79` / `O-83` / `O-94` / `O-103` / `O-130` / `O-150`
+
+**ベースライン**＝`c9f4cff6b`。**7件のうち1件（`O-103`）は丸ごと stale**、**3件は「実装済みの機構が pending／funnel の境界でフラグを落としていた」型**だった。
+**作業中に別のバグを2件見つけて直した**（器の誤流用1件・過剰実行1件）。
+
+**ゲート**＝全緑。golden **3259 → 3265**（+6本・全件実行）／smoke 全異常0／fuzz 全0／
+census 高シグナル **5**（据置・`SELF_PLAY_RESTRICT` を較正キーに追加＝下記）／`census:stubs` A群🔴0・C群0／
+manual-fields 0／`census:enginetext` A🔴130行（据置）／lint 0 errors。
+**実機 6シナリオ・28アサート すべて PASS**（うち**反転確認5本**）。
+**在庫**＝機構 worklist **43 → 33項目**（索引 A 17／索引 B 12／索引 E 4）。**索引 C は 0**。
+
+---
+
+### 🔑 この巡の主題 — 「1効果の項目」でも受け皿は engine の **funnel 側に既にあった**
+
+**§5.3 冒頭「1〜3枚の項目の取り方」の第1項（まず受け皿を疑う）が 7件中 5件で当たった。**
+
+| ID | 登録票の見立て | 実際 |
+|---|---|---|
+| `O-74`/`O-79` | 「例外つき出撃制限の機構が無い」 | **`deployLimit.ts` の `deployLimitBlockReason`（呼び出し元10箇所の既存 funnel）へ1本足すだけ**だった |
+| `O-83` | 「条件が既存の条件型に無い」 | **`LRIG_LEVEL_CMP_OPP{lt}` が既存**。グロウ予約も `pending_flip_grow_card` と同じ形が既にあった |
+| `O-103` | 「受け皿が2択専用でエナの枝が落ちる」 | **丸ごと stale**＝`manualEffects.ts` が3択 `CHOOSE` で表しており live にも届いていた |
+| `O-130` | 「帰結が『効果を受けたシグニ』を参照する受け皿が無い」 | **`triggeringCardNum` → `targetsTriggerSource` で足りた**（collector は特定済みで、entry へ載せていなかっただけ） |
+
+⇒ **1効果の項目でも「新しい型」から入らない。まず funnel と既存フラグの通り道を読む。**
+
+---
+
+### 🔴 この巡の最大の発見 — 「実装済みの機構が **pending／funnel の境界** でフラグを落としていた」型が3件
+
+**型が在ることと、その型がプレイヤーの操作地点まで届いていることは別。**
+
+#### ① `O-150` — `LOOK_AND_REORDER` の `reorder` が pending へ1バイトも運ばれていなかった（**live 105効果が過剰実行**）
+
+- **真因**＝`execLookAndReorder` が `needsInteraction` へ渡す `PendingInteractionDef` に **`reorder` を含めていなかった**。
+  だから `EffectInteractionModal` は ↑↓ を**常時**描き、`resumeLookAndReorder` はクライアントが返した並びを**無条件で信じて**いた。
+- **母集団**＝live の `LOOK_AND_REORDER` **151効果のうち 105効果が `reorder:false`**（「デッキの一番上を見る」等）＝
+  **全部が並べ替え可能**になっていた（＝デッキトップを自由に組み替えられる過剰実行）。
+- 🔑**`O-144`（続き718）でフラグを41効果へ届けても実機の挙動が変わらなかったのはこれが理由。**
+  分岐すべきは `remainder.reorder` ではなく**この1本**だった（登録票の見立てが当たっていた）。
+- **直し方は3点セット**＝①pending へ `reorder` を運ぶ ②UI は `inter.reorder !== false` のときだけ ↑↓ を描き、
+  案内文も「元の順番のまま戻ります」へ ③**engine を並びの権威にする**（`reorder:false` なら `pending.cards` の順を使う）。
+  🔴**③が要る**＝UI だけ直すのは片肺（細工されたリクエストや別クライアントの実装差でそのまま通る）。
+- ⚠**トラッシュ選択／上下振り分け／`first_top_rest_bottom` は封じていない**＝どれも「**どれを**」の選択であって「**どの順に**」ではない。
+
+#### ② `O-94`② — ゾーン配置制限の判定が funnel の**外**にあり、通常召喚UIの1箇所からしか呼ばれていなかった
+
+- 旧＝`effectEngine.collectCenterZoneDeployRestrict`（呼び出しは `BattleScreen` の通常召喚1箇所）＝
+  **CPU 配置も engine の効果配置も素通り**。しかも **`return 3` とゾーン index 1 がハードコード**で、
+  JSON を見ても何が起きるか分からなかった（`census:enginetext` A群と同じ形）。
+- 新＝判定を **`deployLimitBlockReason`（`zoneIndex` を渡した呼び出し元が受ける）** へ移し、旧 collector は撤去。
+  配線先は**通常召喚UI／召喚ゾーンモーダル／CPU 召喚／`execAddToField`** の4本。
+  - 召喚ゾーンモーダルは**ボタン単位で落とす**（旧は押せてしまってから `handleSummonSigni` が黙って弾いていた）。
+  - `execAddToField` は**制限に掛からない空きゾーンを選ぶ**（旧は無条件に「最初の空き」）。
+- レベルとゾーンは `StubAction.zonePlacementRestrict{zones,minLevel}` として parser が刻む（逆翻訳にも出る）。
+
+#### ③ `O-130` — collector は「効果を受けたシグニ」を特定していたのに entry へ載せていなかった
+
+- `collectOppArtsUseTriggers` は `affectedByOppArtsFilter`（`O-113` で新設）に**マッチしたシグニを持っていた**のに、
+  `StackEntry` へ載せずに捨てていた＝帰結の「そのシグニ」が解決できず、live は
+  `REMOVE_ABILITIES{owner:'opponent'}` 単独に落ちていた。
+- ⇒ `triggeringCardNum` に載せるだけで既存の `targetsTriggerSource` が働く（**新機構ゼロ**）。
+
+---
+
+### `WXK11-019-E2` は3つ同時に壊れていた（部分修正では過小↔過剰に裏返る）
+
+原文＝「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、ターン終了時まで、
+**そのシグニ**は**効果によって得ている**能力を失う。」
+
+1. **「アップし」が丸ごと欠落**（過小）
+2. **能力を失わせる相手が逆**＝原文は「効果を受けた**自分の**シグニ」／旧 live は `owner:'opponent'`（向きが真逆）
+3. **「効果によって得ている能力」なのに印刷能力ごと消していた**（過剰）
+
+3が別軸だったので受け皿を新設した（下記）。**1つでも残すと原文にならない**（第6巡 `WXDi-P16-056-E1` と同型）。
+
+---
+
+### 🔴 別バグ① — 「効果によって得ている能力を失う」が**印刷能力ごと**消していた（2効果）
+
+- **`abilities_removed` は全能力喪失**なので、この語彙をそこへ倒すと**原文が触れていない印刷【常】【自】【起】まで消える**。
+  live で該当したのは `WXK11-019-E2` と **`SPK01-13` の選択肢⑤**（「対戦相手のすべてのシグニは効果によって得ている能力を失う」）の2効果。
+- **新設**＝`RemoveAbilitiesAction.grantedOnly` ＋ `PlayerState.granted_abilities_removed`（turn-end 寿命・`turnScopedState` に登録）。
+- 🔑**読み側を funnel 化した**＝`grantedStore.grantedEffectsOf(state, num)` 1本に集約し、
+  **`granted_effects` / `granted_effects_until_opp_turn` を直読みしていた 8箇所（`effectEngine`）＋1箇所（`effectExecutor`）**を通した。
+  さらに engine 全体の読み口である **`BattleScreen` の augmented effectsMap 合成**でも落とす。
+- ⚠**逆翻訳にも描いた**（`〜は効果によって得ている能力を失う`）＝落とすと全能力喪失と同じ文になり、
+  **直した実装と壊れた実装を計器が区別できない**。
+
+### 🔴 別バグ② — `WXDi-P11-TK01` が**器ごと違う STUB** で書かれていた
+
+- 原文＝「【常】：あなたのターンの間、対戦相手はシグニを**２体まで**しか場に出すことができない。」＝**体数制限**。
+- 旧 manual＝`STUB{OPP_ZONE_PLACEMENT_RESTRICT}`＝engine では「**中央のシグニゾーンにレベル3以上を置けない**」
+  （`WXDi-P14-068` 用の別機構）として読まれていた ⇒ **体数制限は1件も効かず、代わりに中央ゾーンだけ封じていた。**
+- 正しい形（`STUB{DEPLOY_RESTRICT{kind:'count',cap:2,subject:'opponent'}}`）は **parser が既に出していた**ので、
+  §6.4 `O-42` の規約どおり **manual 定義ごと撤去**した（影武者コピーを残すとこのカードだけ parser 改善が永久に届かない）。
+  live 側の MANUAL スタンプは `census:orphanmanual --unfreeze A` で解凍（実体は1バイトも変わらないことを A/B で確認）。
+
+### 🔴 「ルール注記」に見えて実効ルールだった1件
+
+`SP38-001` の「この方法でグロウしたルリグの【出】能力は発動しない」は **`STUB{RULE_REMINDER_TEXT}`＝完全な no-op**
+だった（＝効果でグロウしたルリグの【出】が普通に発動する過剰実行）。
+`GROW_BY_EFFECT_SUPPRESS_ON_PLAY` へ移し、`performGrow` の **`suppressOnPlayOnce`**（そのグロウ**1回だけ**）で効かせる。
+⚠ターン全体のフラグ `suppress_center_on_play` へ焼き付けない（同じターンの別のグロウを巻き込む）。
+
+---
+
+### `O-83` のグロウは「コストを払う」— `GROW_FREE` を流用しない
+
+- 原文に「コストを支払わずに」が**無い**ので、`GROW_FREE`（＝踏み倒し）は使えない。
+- **engine は予約だけ**（`STUB{GROW_BY_EFFECT}` → `PlayerState.pending_effect_grow`）、
+  実グロウは `BattleScreen` の `executeGrow`（正規経路）＝`pending_flip_grow_card`（`O-10` 続き515）と同じ形。
+  🔑engine で `field.lrig` へ直接 push すると**【出】・リミット再計算・コイン獲得が丸ごと落ちる**。
+- グロウモーダルの `freeGrowFilter` に **`'plus1_paid'`** を足した（`defaultFreeCost` は false ＝通常のグロウコストを払う）。
+
+---
+
+### 新設した型・状態（この巡で本当に新規なのは5つ）
+
+| 追加 | 用途 |
+|---|---|
+| `SelfPlayRestrictAction.exceptSourceCardNames` ＋ `DeployLimitInput.placementSourceCardNum` | 配置元の効果を**カード名**で限定（`O-74`/`O-79`） |
+| `DeployLimitInput.zoneIndex` ＋ `StubAction.zonePlacementRestrict` | ゾーン＋レベルの配置禁止（`O-94`②） |
+| `RemoveAbilitiesAction.grantedOnly` ＋ `PlayerState.granted_abilities_removed` ＋ `grantedStore.grantedEffectsOf` | 「効果によって得ている能力」だけの喪失（`O-130`） |
+| `PendingInteractionDef.LOOK_AND_REORDER.reorder` | 並べ替え可否を pending まで運ぶ（`O-150`） |
+| `PlayerState.pending_effect_grow` ＋ `STUB{GROW_BY_EFFECT}` / `{GROW_BY_EFFECT_SUPPRESS_ON_PLAY}` ＋ `freeGrowFilter:'plus1_paid'` | 条件つきグロウ（コストは払う）＋【出】抑制（`O-83`） |
+
+**撤去**＝`deployRestrict.kind` の `only_by_effect`（死枝）／`effectEngine.collectCenterZoneDeployRestrict`／
+`manualEffects` の `WXDi-P11-TK01`／`RULE_REMINDER_TEXT` への誤誘導1本。
+
+---
+
+### 計器（較正であって前進ではない）
+
+- **census 高シグナル**＝`WXDi-P11-050-E1` が `STUB{DEPLOY_RESTRICT}` から `SELF_PLAY_RESTRICT` へ移った瞬間に
+  **STUB 免除が外れて +1** した（6）。`vocabCensus.ts` の「制限「できない」」へ **`SELF_PLAY_RESTRICT`** を追加して 5 へ戻した。
+  🔴**較正の唯一の危険＝キーが免罪符になる**ので、`O-132` のトリップワイヤ（較正キーが live に実在する）へ1行足してある。
+- **golden の負方向契約を1本畳んだ**＝`O-60④ parser` の「『効果によってしか』は機構未実装として明示」は
+  **実装が入った瞬間に嘘になる assert** だった（第2巡の教訓＝負方向契約が項目を眠らせる）。
+- `WXK11-019-E1` の逆翻訳から `〈※コスト未表現〉` が消えたのは**この巡の変更ではない**＝
+  そのカードは `_held_fresh` に居て parser の改善が凍っていた。`syncManualLive` で E2 を届けた際に一緒に解凍された。
+
+---
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt WXDi-P11-050,SP38-001
+npx tsx scripts/syncManualLive.ts WXK11-019 SPK01-13
+npx tsx scripts/censusOrphanManual.ts --unfreeze A
+npm run regen && npm run gates          # 全緑（golden 3265／census 高シグナル 5）
+npm run verify:browser                  # 実機6シナリオ・28アサート 全 PASS
+```
+
+**⑤実機の要否判定**＝`src/screens/`（`BattleScreen.tsx` / `EffectInteractionModal.tsx` / `SigniSummonZoneModal.tsx` /
+`GrowModal.tsx` / `useGrowModal.ts` / `growLogic.ts`）を触り、**新しい型・機構を5組足した**ので **PLAN §2.2 により実機まで必須**。
+
+---
+
 ## 2026-09-02（索引 C 第9巡）：§5.3 索引 C を上から15件 — `O-84` / `O-114` / `O-180` / `O-151` / `O-164` / `O-167` / `O-177` / `O-186` / `O-203` / `O-205` / `O-206` / `O-209` / `O-210` / `O-213` / `O-72`
 
 **ベースライン**＝`981a504df`。**15件のうち5件で登録票の「受け皿が無い」が失効していた**（`O-205` は丸ごと stale）。

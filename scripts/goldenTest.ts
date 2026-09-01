@@ -90,6 +90,7 @@ import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttack
 import { selectMandatoryAttackerBanishSubstitute } from '../src/screens/battle/attackerBanishSubstitute';
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
+import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/execUtils';
 import { getRiseFilter } from '../src/engine/execUtils';
@@ -5453,10 +5454,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 26, '命名規約外のターン限定フィールド数（26＝続き748 で turn_hand_discarded_cards＝絞り込み付き履歴参照の実体側を追加）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 27, '命名規約外のターン限定フィールド数（27＝2026-09-02 索引C 第10巡で granted_abilities_removed＝「効果によって得ている能力」だけの喪失を追加・§5.3 `O-130`）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 69, '型由来38件＋命名規約外25件の母集団（69＝続き748 で deck_to_trash_cards_this_turn／turn_hand_discarded_cards を追加）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 70, '型由来38件＋命名規約外26件の母集団（70＝2026-09-02 索引C 第10巡で granted_abilities_removed を追加・§5.3 `O-130`）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -8823,7 +8824,10 @@ test('O-60④ parser: DEPLOY_RESTRICT は deployRestrict で形・上限・主�
   eq(one('WXK06-004-E1')?.subject, 'both', '🔴「すべてのプレイヤーは」は both（付与された【起】の中でも取れる）');
   eq(one('WXDi-P15-039-E1')?.kind, 'power_gte', 'パワー下限型');
   eq(one('WXDi-P15-039-E1')?.powerGte, 12000, '🔴12000（旧実装は同じ値をカード全文から読み直していた）');
-  eq(one('WXDi-P11-050-E1')?.kind, 'only_by_effect', '「効果によってしか」は機構未実装として明示');
+  // 🏁§5.3 `O-79`（2026-09-02）＝「《X》か《Y》の効果によってしか」は `DEPLOY_RESTRICT` を離れて
+  //   `SELF_PLAY_RESTRICT{never, exceptSourceCardNames}` になった（`only_by_effect` は死枝なので撤去）。
+  //   ⚠ここに残すと「機構未実装」を assert し続けて実装を眠らせる（第2巡の教訓＝負方向契約）。
+  eq(one('WXDi-P11-050-E1'), undefined, '「効果によってしか」はもう DEPLOY_RESTRICT ではない');
   eq(one('WXDi-P13-003B-E2')?.subject, 'self', '🔴追加ターンの自分側制限（PARTIAL 凍結で永久に届いていなかった）');
   eq(one('WXDi-P13-003B-E2')?.extraTurnReservation, true, '同・即時ではなく予約');
 });
@@ -14204,7 +14208,14 @@ test('V-83 ミルの発生源記録: MILL と TRASH{DECK_CARD} の両経路が l
 
 test('Stage2 ON_OPP_ARTS_USE/ON_ARTS_USE: 自シグニが発火（WXK11-019-E2 / WXK01-059-E2）', () => {
   const host1 = mkState({ signi: ['WXK11-019', null, null] }); const guest1 = mkState({});
-  eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true).entries, 'WXK11-019-E2'), true, '相手アーツ使用で発火');
+  // 🆕§5.3 `O-130`（2026-09-02）＝`WXK11-019-E2` に `affectedByOppArtsFilter` を入れたので、
+  //   **「効果を受けたシグニ」を渡した回だけ**発火する（`O-113` の fail-closed）。
+  //   ⚠渡さない回で発火しないのは**退化ではなく原文どおり**＝相手がアーツを使っただけでは発火しない。
+  eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true, ['WXK11-019']).entries, 'WXK11-019-E2'), true, '効果を受けたシグニがあれば発火');
+  eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true).entries, 'WXK11-019-E2'), false, '判定材料が無ければ発火しない（fail-closed）');
+  // 帰結の「そのシグニ」＝効果を受けたシグニが `triggeringCardNum` に載る（`targetsTriggerSource` の入力）。
+  eq(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true, ['WXK11-019']).entries
+    .find(x => x.effectId === 'WXK11-019-E2')?.triggeringCardNum, 'WXK11-019', 'トリガー元＝効果を受けたシグニ');
   const host2 = mkState({ signi: ['WXK01-059', null, null] }); const guest2 = mkState({});
   eq(has(collectArtsUseTriggers(trigCtx(HOST), HOST, host2, guest2, true).entries, 'WXK01-059-E2'), true, '自アーツ使用で発火');
 });
@@ -20293,6 +20304,220 @@ test('deployLimitBlockReason: 名前／出自／パワーの配置禁止（§6.4
   eq(reason(srcBan, SIGNI), null, '出自不明なら掛けない（過少側に倒す）');
   // 期限切れ（turnsRemaining 0）は掛からない
   eq(reason([{ turnsRemaining: 0, cardNames: [name3000] }], SIGNI_P3000), null, '失効した ban は掛からない');
+}));
+test('索引C 2026-09-02: O-83 条件つきグロウ（コストは払う）＋この方法でグロウしたルリグの【出】抑制', () => withSavedCursor(() => {
+  // 原文＝`SP38-001-E1`「あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグを
+  //   グロウしてもよい。この方法でグロウしたルリグの【出】能力は発動しない。その後、…」。
+  // 🔴旧＝①`STUB{DEFERRED_CONDITIONAL_GROW_BY_LRIG_LEVEL}`（engine に消費なし＝グロウが起きない）
+  //        ②【出】抑制は `STUB{RULE_REMINDER_TEXT}`＝**完全な no-op**（効果グロウ先の【出】が普通に出る）。
+  const e1 = (effectsMap.get('SP38-001') ?? []).find(x => x.effectId === 'SP38-001-E1');
+  const steps = (e1?.action as { steps?: Record<string, unknown>[] })?.steps ?? [];
+  eq(steps.length, 3, '3ステップ（条件つきグロウ／【出】抑制／アタックできない付与）');
+  eq(steps[0]?.type, 'CONDITIONAL', '第1文は条件つき');
+  eq(JSON.stringify((steps[0] as { condition?: unknown }).condition),
+    JSON.stringify({ type: 'LRIG_LEVEL_CMP_OPP', operator: 'lt' }),
+    '「対戦相手より低い場合」＝既存の LRIG_LEVEL_CMP_OPP{lt}');
+  const grow = (steps[0] as { then?: { type?: string; id?: string } }).then;
+  eq(grow?.id, 'GROW_BY_EFFECT', 'グロウ本体は GROW_BY_EFFECT（予約）');
+  // 🔴反転確認＝`GROW_FREE` にしてはいけない（原文に「支払わずに」が無い＝コスト踏み倒しになる）。
+  eq(grow?.type === 'GROW_FREE', false, 'GROW_FREE ではない（コストを払うグロウ）');
+  eq(steps[1]?.id, 'GROW_BY_EFFECT_SUPPRESS_ON_PLAY', '【出】抑制が実効ルールとして載る（旧は RULE_REMINDER_TEXT）');
+  // engine＝予約を積む／【出】抑制はその予約へ載る。
+  const base = mkCtx({}, {});
+  const r1 = run({ type: 'STUB', id: 'GROW_BY_EFFECT' } as unknown as EffectAction, base);
+  eq(JSON.stringify(r1.ownerState.pending_effect_grow), '{}', 'グロウ予約が積まれる');
+  const r2 = run({ type: 'STUB', id: 'GROW_BY_EFFECT_SUPPRESS_ON_PLAY' } as unknown as EffectAction,
+    { ...base, ownerState: r1.ownerState });
+  eq(r2.ownerState.pending_effect_grow?.suppressOnPlay, true, '【出】抑制が予約へ載る');
+  // 🔴反転確認＝予約が無い回（条件を満たさずグロウしない）は抑制だけが独り歩きしない。
+  const r3 = run({ type: 'STUB', id: 'GROW_BY_EFFECT_SUPPRESS_ON_PLAY' } as unknown as EffectAction, base);
+  eq(r3.ownerState.pending_effect_grow, undefined, '予約が無ければ何も起きない');
+  // 条件側＝自分のセンターが相手より低いときだけ成立する。
+  const cond = { type: 'LRIG_LEVEL_CMP_OPP', operator: 'lt' } as unknown as Condition;
+  const lrigLv = (lv: number) => {
+    for (const [num, cd] of cardMap) {
+      const c = cd as CardData;
+      if (c.Type === 'ルリグ' && (parseInt(c.Level ?? '', 10) || 0) === lv) return num;
+    }
+    return '';
+  };
+  const l2 = lrigLv(2), l4 = lrigLv(4);
+  eq(l2 !== '' && l4 !== '', true, 'レベル2と4のルリグが live に居る');
+  eq(evalCondition(cond, mkCtx({ lrig: [l2] }, { lrig: [l4] })), true, '自分が低いときだけ成立');
+  eq(evalCondition(cond, mkCtx({ lrig: [l4] }, { lrig: [l2] })), false, '自分が高ければ不成立');
+  eq(evalCondition(cond, mkCtx({ lrig: [l2] }, { lrig: [l2] })), false, '同レベルでも不成立（lt であって lte ではない）');
+}));
+test('索引C 2026-09-02: O-94② ゾーン＋レベルの配置禁止が deployLimit funnel に載る', () => withSavedCursor(() => {
+  // 原文＝`WXDi-P14-068-E1`「対戦相手は**中央の**シグニゾーンに**レベル３以上**のシグニを新たに配置できない」。
+  // 🔴旧＝判定は `collectCenterZoneDeployRestrict` にあり、呼び出しは **BattleScreen の通常召喚1箇所だけ**＝
+  //   CPU 配置も engine の効果配置も素通り。しかも**レベル3とゾーン1がハードコード**（payload 0）だった。
+  const e1 = (effectsMap.get('WXDi-P14-068') ?? []).find(x => x.effectId === 'WXDi-P14-068-E1');
+  const spec = (e1?.action as { id?: string; zonePlacementRestrict?: { zones: number[]; minLevel: number } });
+  eq(spec?.id, 'OPP_ZONE_PLACEMENT_RESTRICT', 'ゾーン配置制限の宣言');
+  eq(JSON.stringify(spec?.zonePlacementRestrict), JSON.stringify({ zones: [1], minLevel: 3 }),
+    'ゾーンとレベルが payload に載る（旧は engine のハードコード）');
+  // 🔴同じ STUB を誤流用していた `WXDi-P11-TK01`（原文は「シグニを2体までしか場に出せない」＝**体数制限**）を
+  //   正しい器へ移した。放置すると体数制限が1件も効かず、代わりに中央ゾーンだけ封じていた。
+  const tk = (effectsMap.get('WXDi-P11-TK01') ?? []).find(x => x.effectId === 'WXDi-P11-TK01-E1');
+  const tkAct = (tk?.action as { id?: string; deployRestrict?: { kind?: string; cap?: number; subject?: string } });
+  eq(tkAct?.id, 'DEPLOY_RESTRICT', 'WXDi-P11-TK01 は体数制限（ゾーン制限ではない）');
+  eq(JSON.stringify(tkAct?.deployRestrict), JSON.stringify({ kind: 'count', cap: 2, subject: 'opponent' }),
+    '2体までの体数制限として載る');
+  // funnel＝ゾーンを渡した呼び出し元だけが受ける（渡さない経路は過少側で素通り＝既存規約）。
+  const holder = mkState({ signi: ['WXDi-P14-068', null, null] });
+  const reason = (cardNum: string, zoneIndex?: number) => deployLimitBlockReason({
+    placingState: mkState({ signi: [null, null, null] }), opponentState: holder,
+    cardNum, cardMap: cardMap as Map<string, CardData>,
+    effectsMap: effectsMap as Map<string, CardEffect[]>,
+    placementSource: 'normal_summon', zoneIndex,
+  });
+  const lvOf = (n: string) => parseInt(cardMap.get(n)?.Level ?? '', 10) || 0;
+  // live からレベル3以上／レベル2以下のシグニを1枚ずつ引く（POOL に依存しない選び方）。
+  let hi = '', lo = '';
+  for (const [num, cd] of cardMap) {
+    const c = cd as CardData;
+    if ((c.Type ?? '') !== 'シグニ') continue;
+    if (!hi && lvOf(num) >= 3) hi = num;
+    if (!lo && lvOf(num) > 0 && lvOf(num) <= 2) lo = num;
+    if (hi && lo) break;
+  }
+  eq(hi !== '' && lo !== '', true, 'レベル3以上とレベル2以下のシグニが live に居る');
+  eq(reason(hi, 1), 'ZONE_LEVEL_RESTRICT', '中央にレベル3以上は置けない');
+  eq(reason(hi, 0), null, '左のゾーンには置ける');
+  eq(reason(hi, 2), null, '右のゾーンには置ける');
+  eq(reason(lo, 1), null, 'レベル2以下なら中央にも置ける');
+  eq(reason(hi), null, 'ゾーン未確定なら掛けない（funnel の既存規約＝過少側）');
+  // 反転確認＝制限を持つカードが場から居なくなれば掛からない。
+  eq(deployLimitBlockReason({
+    placingState: mkState({ signi: [null, null, null] }), opponentState: mkState({ signi: [null, null, null] }),
+    cardNum: hi, cardMap: cardMap as Map<string, CardData>,
+    effectsMap: effectsMap as Map<string, CardEffect[]>,
+    placementSource: 'normal_summon', zoneIndex: 1,
+  }), null, '宣言元が場に無ければ制限は掛からない');
+}));
+test('索引C 2026-09-02: O-150 LOOK_AND_REORDER の reorder が pending まで届き、engine が並びの権威になる', () => withSavedCursor(() => {
+  // 🔴真因＝`reorder` が **pending の境界で落ちていた**。UI は ↑↓ を常時描き、`resumeLookAndReorder` は
+  //   クライアントが返した並びを無条件で信じていた＝`reorder:false` の効果まで自由に組み替えられた。
+  //   （`O-144` で `remainder.reorder` を41効果へ届けても実機が変わらなかった理由＝分岐すべきはここ1本。）
+  const mk = (reorder: boolean) => ({
+    type: 'LOOK_AND_REORDER' as const,
+    source: { location: 'deck' as const, owner: 'self' as const },
+    count: 3, private: true, reorder,
+    destination: { location: 'deck' as const, owner: 'self' as const, position: 'top' as const },
+  });
+  const base = mkCtx({ deckTop: ['D1', 'D2', 'D3', 'D4'] }, {});
+  const pendOf = (reorder: boolean) => {
+    const r = executeAction(mk(reorder), base);
+    eq(r.done, false, 'pending が立つ');
+    const pd = (r as Extract<ExecResult, { done: false }>).pending;
+    eq(pd.type, 'LOOK_AND_REORDER', 'LOOK_AND_REORDER の対話');
+    return { pending: pd as PendingInteractionDef & { type: 'LOOK_AND_REORDER' }, res: r };
+  };
+  const no = pendOf(false);
+  eq((no.pending as { reorder?: boolean }).reorder, false, 'reorder:false が pending まで届く');
+  const yes = pendOf(true);
+  eq((yes.pending as { reorder?: boolean }).reorder, undefined, 'reorder:true は既定（省略）＝並べ替え可');
+  const ctxOf = (r: ExecResult): ExecCtx => ({ ...base, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+  // engine の権威＝`reorder:false` ならクライアントが返した並びを採らない。
+  const resNo = resumeLookAndReorder(['D3', 'D2', 'D1'], [], no.pending, ctxOf(no.res));
+  eq(resNo.ownerState.deck.slice(0, 3).join(','), 'D1,D2,D3', 'reorder:false は元の順で戻る（並べ替え要求を無視）');
+  const resYes = resumeLookAndReorder(['D3', 'D2', 'D1'], [], yes.pending, ctxOf(yes.res));
+  eq(resYes.ownerState.deck.slice(0, 3).join(','), 'D3,D2,D1', 'reorder:true は返された並びで戻る');
+  // 反転確認＝`reorder:false` でもトラッシュの選択（別軸）は通る。
+  const resTrash = resumeLookAndReorder(['D3', 'D2', 'D1'], ['D2'], no.pending, ctxOf(no.res));
+  eq(resTrash.ownerState.deck.slice(0, 2).join(','), 'D1,D3', 'トラッシュ分を除いた元の順で戻る');
+  eq(resTrash.ownerState.trash.includes('D2'), true, 'トラッシュ選択は残る');
+}));
+test('索引C 2026-09-02: O-130 相手アーツの効果を受けた「そのシグニ」をアップ＋効果で得た能力だけ喪失', () => withSavedCursor(() => {
+  // 原文＝`WXK11-019-E2`「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、**そのシグニをアップし**、
+  //   ターン終了時まで、**そのシグニ**は**効果によって得ている**能力を失う」。
+  // 🔴旧 live＝`REMOVE_ABILITIES{owner:'opponent'}` 単独＝①アップ欠落 ②相手が逆 ③印刷能力ごと消す、の3重。
+  const e2 = (effectsMap.get('WXK11-019') ?? []).find(x => x.effectId === 'WXK11-019-E2');
+  eq(e2?.triggerCondition?.affectedByOppArtsFilter?.cardType, 'シグニ', '「効果を受けたとき」の判定材料が載る');
+  const steps = (e2?.action as { type?: string; steps?: Record<string, unknown>[] })?.steps ?? [];
+  eq(JSON.stringify(steps.map(x => x.type)), JSON.stringify(['UP', 'REMOVE_ABILITIES']), 'アップ→能力喪失の2段');
+  eq(steps[0]?.targetsTriggerSource, true, 'アップするのは効果を受けたそのシグニ');
+  eq((steps[0] as { target?: { owner?: string } })?.target?.owner, 'self', 'アップの対象は自分側');
+  eq(steps[1]?.targetsTriggerSource, true, '能力を失うのも同じそのシグニ');
+  eq((steps[1] as { target?: { owner?: string } })?.target?.owner, 'self', '能力喪失の向きが自分側（旧は opponent＝逆）');
+  eq(steps[1]?.grantedOnly, true, '失うのは効果によって得ている能力だけ');
+  eq(steps[1]?.until, 'UNTIL_END_OF_TURN', 'ターン終了時まで');
+  // 同じ語彙のもう1枚（`SPK01-13` 選択肢⑤）も印刷能力を消さない。
+  const spk = (effectsMap.get('SPK01-13') ?? []).find(x => x.effectId === 'SPK01-13-E1');
+  const c4 = (spk?.action as { choices?: { action?: Record<string, unknown> }[] })?.choices?.[4]?.action;
+  eq(c4?.type, 'REMOVE_ABILITIES', 'SPK01-13⑤ は能力喪失');
+  eq(c4?.grantedOnly, true, 'SPK01-13⑤ も効果で得た能力だけ');
+  // engine＝`granted_abilities_removed` に載ったカードは付与ぶんだけ空になる（印刷能力は funnel の担当外）。
+  const granted: CardEffect[] = [{ effectId: 'X-G', effectType: 'CONTINUOUS', action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 1000 }, duration: 'PERMANENT', mandatory: true }];
+  const st = { granted_effects: { A: granted }, granted_effects_until_opp_turn: { A: granted } };
+  eq(grantedEffectsOf(st, 'A').length, 2, '喪失していなければ両ストアぶん返る');
+  eq(grantedEffectsOf({ ...st, granted_abilities_removed: ['A'] }, 'A').length, 0, '喪失していれば付与ぶんは空');
+  eq(grantedEffectsOf({ ...st, granted_abilities_removed: ['B'] }, 'A').length, 2, '別カードの喪失では消えない');
+  // instanceId（`A#1`）でも base（`A`）の喪失で効く
+  eq(grantedEffectsOf({ granted_effects: { 'A#1': granted }, granted_abilities_removed: ['A'] }, 'A#1').length, 0,
+    'instanceId でも base の喪失を見る');
+}));
+test('索引C 2026-09-02: O-103 「手札に加えるかエナゾーンに置くか場に出し」の3択（WX14-024-BURST）', () => withSavedCursor(() => {
+  // 🔴登録票は「受け皿 `SearchAction.handOrField` が2択専用＝エナの枝が丸ごと落ちている」だったが、
+  //   実測すると `manualEffects.ts` 側で **CHOOSE の3枝**として既に表せており live にも届いていた（stale）。
+  //   ⇒ 行き先が3つとも在ることを固定して閉じる（`handOrField` は触っていない＝B5 の依存も無傷）。
+  const e = (effectsMap.get('WX14-024') ?? []).find(x => x.effectId === 'WX14-024-BURST');
+  const a = e?.action as { type?: string; choose_count?: number; from_count?: number;
+    choices?: { choiceId?: string; action?: { type?: string; filter?: Record<string, unknown>;
+      revealPicked?: boolean; then?: { type?: string } } }[] } | undefined;
+  eq(a?.type, 'CHOOSE', 'CHOOSE で3択を表す');
+  eq(a?.choose_count, 1, '選ぶのは1つ');
+  eq(a?.from_count, 3, '選択肢は3つ');
+  eq(JSON.stringify((a?.choices ?? []).map(c => c.choiceId)),
+    JSON.stringify(['hand', 'energy', 'field']), '手札／エナゾーン／場の3択');
+  eq(JSON.stringify((a?.choices ?? []).map(c => c.action?.then?.type)),
+    JSON.stringify(['ADD_TO_HAND', 'ADD_TO_ENERGY', 'ADD_TO_FIELD']), '3つとも行き先が違う');
+  for (const c of a?.choices ?? []) {
+    eq(c.action?.type, 'SEARCH', `${c.choiceId}: デッキから探す`);
+    eq(c.action?.revealPicked, true, `${c.choiceId}: 「公開し」が落ちていない`);
+    eq(JSON.stringify(c.action?.filter), JSON.stringify({ cardType: 'シグニ', story: '美巧' }),
+      `${c.choiceId}: ＜美巧＞のシグニに絞る`);
+  }
+}));
+test('索引C 2026-09-02: O-74/O-79 配置元をカード名で限定する自身出撃制限（SELF_PLAY_RESTRICT.exceptSourceCardNames）', () => withSavedCursor(() => {
+  // 原文＝`PR-470B-E1`「このシグニは《現実からの逃避　タマ》の効果**以外によっては**新たに場に出すことができない」／
+  //       `WXDi-P11-050-E1`「《融合の儀　タウィル//メモリア》か《融合の儀　ウムル//メモリア》の効果**によってしか**新たに場に出せない」。
+  // 🔴旧＝前者は `never:true` 単独（＝**どの効果からでも出せる**過剰実行）／後者は `STUB{DEPLOY_RESTRICT{only_by_effect}}`（engine はログのみ＝no-op）。
+  for (const [num, names] of [
+    ['PR-470B', ['現実からの逃避　タマ']],
+    ['WXDi-P11-050', ['融合の儀　タウィル//メモリア', '融合の儀　ウムル//メモリア']],
+  ] as [string, string[]][]) {
+    const e1 = (effectsMap.get(num) ?? []).find(x => x.effectId === `${num}-E1`);
+    const a = e1?.action as { type?: string; never?: boolean; exceptSourceCardNames?: string[] } | undefined;
+    eq(a?.type, 'SELF_PLAY_RESTRICT', `${num}: 自身出撃制限として表せている`);
+    eq(a?.never, true, `${num}: 通常召喚は不可`);
+    eq(JSON.stringify(a?.exceptSourceCardNames), JSON.stringify(names), `${num}: 配置元のカード名が載る`);
+  }
+  // funnel（`deployLimitBlockReason`）が名前で分岐する。effectsMap 非依存＝cardMap の live 効果から読む。
+  const restricted = 'PR-470B';
+  const reason = (src?: 'normal_summon' | 'signi_or_spell_effect' | 'other_effect', srcNum?: string) =>
+    deployLimitBlockReason({
+      placingState: mkState({ signi: [null, null, null] }), opponentState: mkState({}),
+      cardNum: restricted, cardMap: cardMap as Map<string, CardData>,
+      effectsMap: effectsMap as Map<string, CardEffect[]>,
+      placementSource: src, placementSourceCardNum: srcNum,
+    });
+  // 許可される唯一の出所＝《現実からの逃避　タマ》の効果。live からその CardNum を引く。
+  let tama = '';
+  for (const [num, cd] of cardMap) if ((cd as CardData).CardName === '現実からの逃避　タマ') { tama = num; break; }
+  eq(tama !== '', true, '《現実からの逃避　タマ》が cardMap に居る');
+  eq(reason('other_effect', tama), null, 'タマの効果でなら場に出せる');
+  eq(reason('other_effect', 'PR-470B'), 'ONLY_BY_NAMED_EFFECT', '別のカードの効果では出せない');
+  eq(reason('signi_or_spell_effect', 'PR-470B'), 'ONLY_BY_NAMED_EFFECT', '出自種別が違っても名前で弾く');
+  eq(reason('normal_summon'), 'ONLY_BY_NAMED_EFFECT', '通常召喚は「効果によって」ではないので出せない');
+  eq(reason(undefined, tama), null, '出自不明なら掛けない（funnel の既存規約＝過少側）');
+  // 反転確認＝制限を持たないシグニは同じ経路で素通りする
+  eq(deployLimitBlockReason({
+    placingState: mkState({ signi: [null, null, null] }), opponentState: mkState({}),
+    cardNum: SIGNI, cardMap: cardMap as Map<string, CardData>,
+    effectsMap: effectsMap as Map<string, CardEffect[]>,
+    placementSource: 'normal_summon',
+  }), null, '制限の無いシグニは通常召喚できる');
 }));
 test('SIGNI_DEPLOY_BAN: ターン終了ごとに1減り、2ターン目の終了で失効する', () => withSavedCursor(() => {
   // ⚠旧 `signi_deploy_power_limit` は**どこでもクリアされておらず永続していた**（続き487 で統合して解消）。
@@ -55317,6 +55542,9 @@ test('2026-08-28 O-132: census 較正キーが live に実在する（較正が�
     ['WX07-027-E2', 'costSubstitute'],
     // シグニの下に置く ← STACK_SPELL（型名に under が入らない）
     ['WX11-029-E1', 'STACK_SPELL'],
+    // 🆕制限「できない」 ← SELF_PLAY_RESTRICT（§5.3 `O-74`/`O-79`・2026-09-02）。
+    //   `STUB{DEPLOY_RESTRICT}` から実装型へ移った瞬間に STUB 免除が外れて高シグナルへ出たので較正した。
+    ['WXDi-P11-050-E1', 'SELF_PLAY_RESTRICT'],
   ];
   for (const [effectId, key] of CALIBRATED) {
     const cardNum = effectId.replace(/-(E\d+\w*|BURST\w*|SONG\w*|CB-E\d+.*)$/, '');

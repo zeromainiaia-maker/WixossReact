@@ -187,24 +187,6 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 21 行）
 
-## +REVEAL_UNTIL -SEQUENCE -SHUFFLE_DECK -STUB ［1枚］
-WX20-041-CB
---- WX20-041-CB
-  原文: 【出】：あなたのデッキの上から青ではない＜遊具＞のシグニがめくれるまで公開し、そのシグニを手札に加える。残りをシャッフルしてデッキの一番下に置く。,-
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "REVEAL_PICK_HAND_SHUFFLE_BOTTOM"
-  - [0].action.steps[0].revealPickParams.pickCount = 1
-  - [0].action.steps[0].revealPickParams.restDest = "deck_bottom"
-  - [0].action.steps[0].revealPickParams.then = "hand"
-  - [0].action.steps[1].type = "SHUFFLE_DECK"
-  - [0].action.steps[1].owner = "self"
-  ~ [0].action.type : "SEQUENCE" → "REVEAL_UNTIL"
-  + [0].action.owner = "self"
-  + [0].action.stopCondition.kind = "signiCount"
-  + [0].action.stopCondition.count = 1
-  + [0].action.stopCondition.filter.cardType = "シグニ"
-  …（他 8 行）
-
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［1枚］
 WXEX2-09
 --- WXEX2-09
@@ -283,23 +265,17 @@ WXDi-P08-062
   - [0].action.steps[1].destination.position = "bottom"
   ~ [0].action.steps[0].destination.position : "top" → "split_top_bottom"
 
-## +REVEAL_UNTIL +SIGNI +TRASH -ADD_TO_FIELD -LOOK_AND_REORDER -STUB ［1枚］
-WXDi-CP01-015
---- WXDi-CP01-015
-  原文: 【出】：対戦相手のレベル２以上のシグニ１体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキの上からそれよりレベルの低いシグニがめくれるまで公開し、そのシグニを場に出す。そのシグニの【出】能力は発動しない。この方法で公開されたカードをシャッフルしてデッキの一番下に置く。【出】《白》《無》：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象
-  - [0].action.steps[0].id = "BANISH"
-  - [0].action.steps[1].suppressOnPlay = true
-  - [0].action.steps[2].type = "LOOK_AND_REORDER"
-  - [0].action.steps[2].source.location = "deck"
-  - [0].action.steps[2].source.owner = "self"
-  - [0].action.steps[2].count = 0
-  - [0].action.steps[2].private = false
-  - [0].action.steps[2].reorder = false
-  - [0].action.steps[2].destination.location = "deck"
-  - [0].action.steps[2].destination.owner = "self"
-  - [0].action.steps[2].destination.position = "bottom"
-  ~ [0].action.steps[0].type : "STUB" → "TRASH"
-  …（他 18 行）
+## +SELF_PLAY_RESTRICT -STUB ［1枚］
+WXDi-P11-050
+--- WXDi-P11-050
+  原文: 【常】：このシグニは《融合の儀　タウィル//メモリア》か《融合の儀　ウムル//メモリア》の効果によってしか新たに場に出せない。【出】：あなたのトラッシュから《融合の儀　タウィル//メモリア》か《融合の儀　ウムル//メモリア》１枚を対象とし、それをこのシグニの下に置く。【出】：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。,：あなたのトラ
+  - [0].action.id = "DEPLOY_RESTRICT"
+  - [0].action.deployRestrict.kind = "only_by_effect"
+  ~ [0].action.type : "STUB" → "SELF_PLAY_RESTRICT"
+  + [0].action.rawText = "このシグニは《融合の儀　タウィル//メモリア》か《融合の儀　ウムル//メモリア》の効果によってしか新たに場に出せない。"
+  + [0].action.never = true
+  + [0].action.exceptSourceCardNames[0] = "融合の儀　タウィル//メモリア"
+  + [0].action.exceptSourceCardNames[1] = "融合の儀　ウムル//メモリア"
 
 ## +LOOK_AND_REORDER +SEQUENCE ［1枚］
 WXDi-CP02-003
@@ -345,24 +321,6 @@ WX25-P2-001
   ~ [0].action.type : "STUB" → "SEQUENCE"
   + [0].action.steps[0].type = "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
-
-## +REVEAL_UNTIL -ADD_TO_FIELD -LOOK_AND_REORDER ［1枚］
-WXK01-045
---- WXK01-045
-  原文: 【自】：このシグニがアタックしたとき、このターンに場に出た対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。そうした場合、それをバニッシュする。【出】《黒》：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキを上から、それ以下のレベルを持つシグニがめくれるまで公開し、そのシグニを場に出す。そのシグニの【出】能力は発動しない。
-  - [1].action.steps[1].suppressOnPlay = true
-  - [1].action.steps[2].type = "LOOK_AND_REORDER"
-  - [1].action.steps[2].source.location = "deck"
-  - [1].action.steps[2].source.owner = "self"
-  - [1].action.steps[2].count = 0
-  - [1].action.steps[2].private = false
-  - [1].action.steps[2].reorder = false
-  - [1].action.steps[2].destination.location = "deck"
-  - [1].action.steps[2].destination.owner = "self"
-  - [1].action.steps[2].destination.position = "bottom"
-  ~ [1].action.steps[1].type : "ADD_TO_FIELD" → "REVEAL_UNTIL"
-  ~ [1].action.steps[1].owner : "self" → "opponent"
-  …（他 10 行）
 
 ## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +PREVENT_DAMAGE +SEQUENCE ［1枚］
 WXK04-014

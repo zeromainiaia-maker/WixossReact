@@ -2852,6 +2852,51 @@ live は `REMOVE_ABILITIES{owner:'opponent'}` のみ（アップが落ち、対�
 
 ## 過去セッション要約（新しい順）
 
+
+- 🏁**セッション（2026-09-02・索引 C 第9巡・Opus 5 単独）＝§5.3 索引 C を上から15件クローズ**
+  （`O-84` / `O-114` / `O-180` / `O-151` / `O-164` / `O-167` / `O-177` / `O-186` / `O-203` / `O-205` /
+  `O-206` / `O-209` / `O-210` / `O-213` / `O-72`）。
+  📊**進捗3計器＝Sheet1 要対応 22 / 863（据置＝`mech` 22・即着手可能 0）｜台帳 残 OPEN 44（据置＝§5.2 から取っていない）｜
+  census 高シグナル 6 → 5（BASELINE も 5 へ）**。
+  📦**在庫2本＝④機構 worklist 58 → 43項目**（§5.3 の `| \`O-` 行数の実測。索引 A 17／B 12／**C 22 → 7**／E 4／F 3）
+  ｜🏁**⑤実機 残 0件**（この巡の10本は同巡で実行・全 PASS）。
+  gates 全緑（golden **3259 / 3259**＝3243 から **+16本**・smoke 10,721 全異常0・fuzz 全0・census **5 / BASELINE 5**・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴130行 据置・lint 0 errors）。
+
+  🔑**この巡の主題①＝「実装済み」と書かれた項目が2件とも経路単位で穴だった。**
+  ① `O-210`（`WX24-P4-050-E2`）＝**向きが真逆**。`bySource` は `banish_redirect_by_source_nums`
+     （**バトル解決3箇所だけが読む配列**）に載るので、原文「このシグニの**効果**によって」の札は
+     **効果バニッシュで一度も置換されず、逆にバトルでだけ置換されていた**。
+  ② `O-164`（`WX15-010-E1`）＝**入口が2本あるうち1本だけ**。効果バニッシュの1回消費盾は
+     `applyDirectAction` 側にしかなく、**`execBanish` の選択経路（本線）は素通り**していた。
+  ⇒ 🔑**完了報告は「型があるか」ではなく「入口が何本あるか」で確かめる。**
+  この巡は funnel を4本作った（`applyBanishPreventShield` / `consumeBanishRedirectOnce` /
+  `applySplitTotalToTargets` / `trashExileCostSatisfied` 群）。
+
+  🔑**主題②＝登録票の「受け皿が無い」は 15件中 5件で失効していた**（`O-209` の `GAIN_BOND{declared}`／
+  `O-213` の parser 規則＋`LRIG_TRASH_COUNT`／`O-164` の効果経路／`O-205` は丸ごと stale／
+  `O-151` の `SELECT_TARGET_ONLY`＋`targetsStored`）。**新設した型は5組＋STUB 2本だけ**＝
+  `bounceSelf`（`O-167`）／`extraUseTiming`＋`ActiveCondition.LIFE_COUNT`（`O-84`）／
+  `nextAssistGrowOnly`＋`ignoreLrigType`（`O-180`）／`byEffectOnly`＋`consumeOnce`（`O-210`）／
+  `UNTIL_NEXT_OWN_TURN_END`（`O-186`）。
+
+  🖥**実機＝10本すべて Claude が実行して PASS**（反転確認5本）。🔴**実機が机上では出ない嘘を2件捕まえた**＝
+  (a) `TrashActivatedModal` の実行ボタンが「発動する（トラッシュから場に出す）」**固定**で、
+      自己回収／エナゾーン起動では嘘のラベルだった＝**同じ文言を2箇所で組み立てているものは両方直す**
+  (b) `WXDi-P13-043` は**シグニではなくアシストルリグ**＝【出】はアシストグロウで発火する
+      （**シナリオを書く前に `CardData` の `Type` 列を読む**）。
+
+  📉**census 6 → 5 の内訳を混ぜない**＝**前進1件だけ**（`WX21-031-CB-E2` が **`AUTO` のまま** `bounceSelf` を載せた）。
+  🔴**この巡で MANUAL 免除に入った分は 0**（新しく `MANUAL` にした効果はもともと高シグナルに出ていない）。
+
+**▶ 次の一手**＝**§5.3 の索引 C を上から続ける**（残7件）。次は **`O-74` → `O-79` → `O-83` → `O-94` →
+`O-103` → `O-130` → `O-150`**。⚠**着手前に PLAN_DETAIL の同じ ID の登録票を読む**が、
+🔴**「受け皿が無い」も「実装済み」もどちらも疑う**＝この巡は前者が 5/15 で失効し、後者が 2件とも
+**経路単位で穴**だった。**提案キー名ではなく原文の言い回しと golden のテスト名で grep し、
+消費地点が何本あるかまで数える。**
+⚠**`O-94` / `O-150` は `src/screens/` を触るので遅いレーン＋実機必須。**
+🏁**索引 C を閉じたら索引 B（12件）へ移る。**
+
 - 🏁**セッション（2026-09-01・続き764・Opus 5 ＋ Codex 委譲）＝§5.3 `O-96` 第2バッチ（21効果）。規則を2方向へ一般化。**
   📊**進捗3計器＝Sheet1 要対応 18 / 863（据置）｜台帳 残 OPEN 46（据置）｜census 高シグナル 11 / BASELINE 12（据置）**。
   gates 全緑（**golden 3154 → 3157（+3本）**・0 FAIL・smoke 全0・fuzz 全0・census 11・census-stubs A🔴0/C0・

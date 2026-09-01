@@ -3901,7 +3901,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WDK16-22-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","cardClass":"電機"}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"opponentSelects":true}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "SPK01-13": [
-    {"effectId":"SPK01-13-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":5,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"EXILE","target":{"type":"TRASH_CARD","owner":"opponent","count":2,"upToCount":true}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"PREVENT_NEXT_DAMAGE","count":1}},{"choiceId":"c3","label":"選択肢4","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c4","label":"対戦相手のすべてのシグニは効果で得ている能力を失う（ターン終了時まで）","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"SPK01-13-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":5,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"EXILE","target":{"type":"TRASH_CARD","owner":"opponent","count":2,"upToCount":true}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"PREVENT_NEXT_DAMAGE","count":1}},{"choiceId":"c3","label":"選択肢4","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c4","label":"対戦相手のすべてのシグニは効果で得ている能力を失う（ターン終了時まで）","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"grantedOnly":true,"until":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // 2026-08-28 §5.3 `O-133` B群 第12バッチ＝**parser が原理的に出せない専用 STUB を持つ効果**を
   // live から逐語移設した（孤児 MANUAL スタンプの解消）。**engine には実装があり live の形が正**で、
@@ -6347,6 +6347,44 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXK11-019 羅祝石　ダイヤブライド（§5.3 `O-130`・2026-09-02 索引C 第10巡）
+  // 原文【自】《ターン１回》：あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、
+  //   **そのシグニをアップし**、ターン終了時まで、**そのシグニ**は**効果によって得ている**能力を失う。
+  // 🔴旧 live＝`REMOVE_ABILITIES{target:{owner:'opponent',count:1}}` 単独＝3つ同時に壊れていた：
+  //   ①「アップし」が丸ごと落ちている（過小）
+  //   ②能力を失わせる相手が**逆**（原文＝効果を受けた**自分の**シグニ／旧＝相手のシグニを選ぶ）
+  //   ③「効果によって得ている能力」なのに印刷能力ごと消す（過剰）
+  // 🔑受け皿は新設していない＝「そのシグニ」は既存の `triggeringCardNum`（→`targetsTriggerSource`）へ載せた。
+  //   `collectOppArtsUseTriggers` が `affectedByOppArtsFilter` に当たったシグニを entry へ焼き込む。
+  // ⚠`affectedByOppArtsFilter` が無いと「受けたとき」自体が判定されず（`O-113` の fail-closed で不発火）、
+  //   同時に `triggeringCardNum` も載らないので**この2ステップは対象を失う**＝必ず対で書く。
+  'WXK11-019': [
+    {
+      effectId: 'WXK11-019-E2',
+      effectType: 'AUTO',
+      timing: ['ON_OPP_ARTS_USE'],
+      triggerScope: 'self',
+      triggerCondition: { affectedByOppArtsFilter: { cardType: 'シグニ' } },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsTriggerSource: true },
+          {
+            type: 'REMOVE_ABILITIES',
+            target: { type: 'SIGNI', owner: 'self', count: 1 },
+            targetsTriggerSource: true,
+            grantedOnly: true,
+            until: 'UNTIL_END_OF_TURN',
+          },
+        ],
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+      usageLimit: 'once_per_turn',
+    },
+  ],
+
   // WX06-019 幻水　シロナクジ（F-3 効果離場型 身代わり）
   // 【常】あなたの他の＜水獣＞のシグニ1体が対戦相手の効果によって場を離れる場合、
   //   代わりにターン終了時まで、このシグニのパワーを－6000してもよい。
@@ -6595,19 +6633,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WXDi-P11-TK01 白羅星姫　サタン（レゾナクラフト）
-  // 【常】あなたのターンの間、対戦相手はシグニを２体までしか場に出すことができない
-  'WXDi-P11-TK01': [
-    {
-      effectId: 'WXDi-P11-TK01-E1',
-      effectType: 'CONTINUOUS',
-      appearanceCondition: {"rawText":"《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","energy"],"count":2,"filter":{"cardType":"シグニ"}},"paymentShape":"REQUIRES_NEW_FLOW"},
-      activeCondition: { type: 'TURN_OWNER', owner: 'self' },
-      action: { type: 'STUB', id: 'OPP_ZONE_PLACEMENT_RESTRICT' } as import('../types/effects').StubAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-  ],
+  // 🏁**2026-09-02（索引C 第10巡）に manual 定義ごと撤去した。**
+  //   旧 manual は `STUB{OPP_ZONE_PLACEMENT_RESTRICT}`＝engine では「中央のシグニゾーンにレベル3以上を
+  //   置けない」（`WXDi-P14-068` 用の**別機構**）として読まれ、**原文の体数制限（2体まで）は1件も効いて
+  //   いなかった**（`O-94`② の作業中に発見）。
+  //   正しい形＝`STUB{DEPLOY_RESTRICT{kind:'count',cap:2,subject:'opponent'}}` は**parser が既に出している**
+  //   ので、§6.4 `O-42` の規約どおり影武者コピーを残さず parser に任せる
+  //   （残すとこのカードだけ以後の parser 改善が永久に届かない）。
 
   // PR-Di017A 白熱する黒白（スペル）
   // カードを2枚引く。ライフクロスが1枚以下の場合、チェックゾーンのカードを裏返して場に出す（REV）

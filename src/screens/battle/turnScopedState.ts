@@ -173,6 +173,8 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   abilities_removed: { boundaries: ['turn-end'], reset: [], reason: 'active ability loss for the current turn; next-turn value is reserved separately' },
   // 指定キーワードの喪失／再取得禁止も abilities_removed と同じ期限。
   keyword_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'keyword-scoped ability loss; same lifetime as abilities_removed' },
+  // 「効果によって得ている能力」だけの喪失（§5.3 `O-130`）も同じ期限。
+  granted_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'loss of effect-granted abilities only; same lifetime as abilities_removed' },
   // 🔴「このターン次にアタックしたとき無効にされる」＝型コメントに期間が書いてあるのに**失効地点が1つも
   //   無く永続していた**（§6.4 O-3 続き489 で発見。`signi_deploy_power_limit` と同じクラス）。
   //   消費は「そのカードがアタックしたとき」だけなので、**アタックしなければゲーム終了まで残る**＝
