@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02：§5.3 `O-181` 軸(a) — ルリグのアタック終了時（`ON_ATTACK_END`）の収集地点を新設
+
+**ベースライン**＝`fc669c349`。**Codex が実装途中で使用上限に当たり（`.codex-work`）、Claude が引き継いで完成・検証した。**
+
+**真因（1行）**＝`collectAttackEndTriggers` の唯一の呼び出し地点がシグニのバトル解決 Phase2 末尾だけで、
+**ルリグのアタックは `performGuardResponse` を通る**ため、ルリグ側のアタック終了が誰にも収集されていなかった。
+
+**engine（Codex 実装）**＝`collectAttackEndTriggers` に `AttackEndTriggerOptions{attackerKind, wasGuarded}` を足し、
+①ルリグアタックでは付与ストア（`grantedStoreWatchers`＝`GRANT_LRIG_ABILITY` の結果は `effectsMap` に載らない）を走査
+②watcher≠アタッカーは `triggerScope:'any_ally'|'any'` か `lrigAttack*` 条件で**明示的に opt-in したものだけ**を拾う
+（無条件の全場走査にすると既存の「このシグニが」7効果が他者のアタックで誤発火する）。
+呼び出しは `BattleScreen.performGuardResponse` のガード／ダメージ確定後＝**シグニ側と同じ境界**（LB 解決の前）。
+
+**🔴Claude が引き継いで直した2点（Codex の未検証部分に欠陥があった）**＝
+① **parser 規則が到達不能だった**＝`trigText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']` の分岐が
+   **先に**あるため、Codex が `ON_ATTACK_END` 側の regex に `ルリグ` を足しても**一度も通らなかった**
+   （`build:effects` しても live も fresh も1バイトも変わらないことで発覚）。先行分岐に「そのアタック終了時」の除外を入れた。
+② **`attackDealtNoDamage` の抽出 regex が語形を取りこぼしていた**＝旧 regex は
+   「ダメージが与えられて**いない**場合」だけを見ており、`SPDi43-03` / `WXDi-D04-004` の「**いなかった**場合」と
+   `WX24-P3-055` の「ダメージを与えて**いなかった**場合」に当たらず、**条件なしで発火**する形になっていた。
+   受身/能動 × 現在/過去の4語形へ広げた。
+
+**影響**＝live は `SPDi43-03-E2`（付与される `sub-E1`）が
+`ON_ATTACK_LRIG`（＝**アタック宣言時**）→ `ON_ATTACK_END` + `triggerCondition{attackDealtNoDamage}` + `triggerScope:'self'` へ。
+**全 CSV 全数差分で変化したカードはこの1枚だけ**（`heldReview --adopt SPDi43-03` で採用）。
+`WXDi-D04-004-sub-E1` は旧形（`ON_GUARD` + `lrigAttackNoDamage`）で live に入っており、
+**新しい収集地点の legacy 分岐が同じ地点へ合流させる**（live JSON は不変・PARTIAL のまま）。
+
+**golden**＝**据置契約を1本反転**した＝第40バッチの
+`「WXDi-D04-004-sub-E1 は発動タイミングが主因なので据置」`（`ON_ATTACK_END` が**無い**ことを assert していた）を、
+`ON_ATTACK_END` と `attackDealtNoDamage` が**在る**ことの assert へ差し替え
+（**落ちたテストを消して通すのは禁止**・PLAN §5.2 の規約どおり反転させた）。全件 3229/3229 PASS。
+
+**実機（🔴必須＝`src/screens/` を触った）＝Claude が追記して実行・3/3 PASS。**
+⚠**実カードではなく合成の付与能力を注入している**＝実カードの本体は《赤》の**任意**支払いを含み、
+CPU の選択が入ると「発火したか」と「支払ったか」が分離できないため。付与ストア経由なので新経路はそのまま通る。
+- `o181LrigAttackEndFiresWhenGuarded`＝ガード成立（hostLife 減少0）→ アタック終了時に発火（guestEnergy 0→1）
+- `o181LrigAttackEndSkippedWhenDamaged`（🔴反転確認）＝ダメージが通ると `attackDealtNoDamage` で**発火しない**（0→0）
+- `o181LegacyGuardShapeAlsoFires`＝旧形（`ON_GUARD`+`lrigAttackNoDamage`）も**engine の別分岐**を通って同じ地点で発火する
+
+**検証**＝`npm run gates` 全緑（golden 3229/3229・smoke 10721 全0・fuzz 全0・census 高シグナル11・
+STUB A群0・enginetext 130行/127ハンドラ・manual-fields 0/0・lint 0 errors/250 warnings）。
+
+**残（軸(b)＝watcher≠アタッカー）**＝`WXK11-006-E4`／`WX24-P3-055-E2`（「ルリグ１体が」を場の別カードが監視）と
+`WX14-018-E4`（次ターンの遅延設置）／`WX25-CP1-012-E1`（ライフクラッシュ連動）の**4効果**。
+**engine 側の受け口は入った**（opt-in scope）が、**parser がその scope/triggerCondition を出していない**。
+⚠4件とも MANUAL/PARTIAL なので、parser を直しても `syncManualLive.ts` を回すまで live へ届かない。
+
+**別途見つけた系統バグ（未修正・O-181 とは別軸）**＝「〜してもよい。**そうした場合**、〜」が
+`CONDITIONAL{IS_MY_TURN}`（＝自分のターンなら）に化ける。`SPDi43-03-sub-E1` と `WXDi-D04-004-sub-E1` の両方、
+および `WXDi-CP02-002/003/004`（`O-97` の道中で観測）に出ている＝**任意コストを払わなくても後段が走る**過剰実行。
+did-it ゲート（`LAST_PROCESSED_*` 系）が正。**母集団の実測から始めること。**
+
 ## 2026-09-02：§5.3 `O-58` 段1 — 攻撃側にも必須バニッシュ置換4効果をミラー
 
 **ベースライン**＝`f148aa317`。防御側の約370行ある既存 ladder は変更せず、アタッカー自身が

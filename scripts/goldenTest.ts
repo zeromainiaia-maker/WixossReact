@@ -13603,6 +13603,36 @@ test('J-4 ON_ATTACK_END: ダメージを与えていないときだけ発火（W
     eq(fire(true), false, 'ダメージあり→非発火（attackDealtNoDamage）');
   });
 });
+test('O-181 ON_ATTACK_END: ルリグ付与・全場 watcher を収集し、self シグニを巻き込まず二重発火しない', () => withSavedCursor(() => {
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const grant = MANUAL_EFFECTS['WXDi-D04-004']?.find(e => e.effectId === 'WXDi-D04-004-E2');
+  const granted = (grant?.action as { abilities?: CardEffect[] })?.abilities?.[0];
+  ok(!!granted, 'WXDi-D04-004 の付与AUTOが存在');
+  const host = mkState({ lrig: [lrig], signi: ['WX24-P3-055', 'WXK11-018', null] });
+  host.lrig_granted_auto_effects = [granted!];
+  const guest = mkState({});
+  const runEnd = (dealtDamage: boolean, wasGuarded: boolean) => collectAttackEndTriggers(
+    trigCtx(HOST), HOST, lrig, host, guest, dealtDamage, { attackerKind: 'lrig', wasGuarded },
+  );
+
+  const prevented = runEnd(false, false);
+  ok(has(prevented.entries, 'WXDi-D04-004-sub-E1'), '付与ストアの「このルリグ」能力を終了時に収集');
+  ok(has(prevented.entries, 'WX24-P3-055-E2'), '場の lrigAttackNoDamage watcher を非ガードのダメージ無効でも収集');
+  ok(!has(prevented.entries, 'WXK11-018-E2'), '他のシグニの self ON_ATTACK_END を巻き込まない');
+
+  const damaged = runEnd(true, false);
+  ok(!has(damaged.entries, 'WXDi-D04-004-sub-E1'), 'ダメージが通れば付与能力は非発火');
+  ok(!has(damaged.entries, 'WX24-P3-055-E2'), 'ダメージが通れば場 watcher も非発火');
+
+  const guardedAtEnd = runEnd(false, true);
+  const guardedLegacy = collectLrigAttackGuardedTriggers(trigCtx(HOST), HOST, host, guest);
+  eq(guardedAtEnd.entries.filter(e => e.effectId === 'WX24-P3-055-E2').length, 0,
+    '場の legacy ON_GUARD は終了 collector で二重収集しない');
+  eq(guardedLegacy.entries.filter(e => e.effectId === 'WX24-P3-055-E2').length, 1,
+    '場の legacy ON_GUARD は既存 collector が1回だけ担当');
+  eq(guardedAtEnd.entries.filter(e => e.effectId === 'WXDi-D04-004-sub-E1').length, 1,
+    '付与ストアは既存 ON_GUARD collector の射程外なので終了 collector が1回担当');
+}));
 test('J-4 WXK11-018-E2 の対象は「このシグニより低いレベル」の他シグニ（自分自身ではない）', () => {
   const eff = (effectsMap.get('WXK11-018') ?? []).find(e => e.effectId === 'WXK11-018-E2');
   const tgt = (eff?.action as { target?: { filter?: Record<string, unknown> } })?.target;
@@ -18211,7 +18241,7 @@ test('parse timing 語彙: このカードが【アクセ】として…シグ�
   eq(maxStory.triggerCondition?.accedHostStory, '調理', '＜X＞→accedHostStory');
 });
 test('parse timing 語彙: §6.3 J-4 フェイズ／アタック終了（ON_ATTACK_PHASE_END / ON_ATTACK_END）', () => {
-  const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-J4', Type: 'シグニ', EffectText: `【自】：${t}` } as unknown as CardData)[0];
+  const mk = (t: string, type = 'シグニ') => parseCardEffects({ CardNum: 'TEST-J4', Type: type, EffectText: `【自】：${t}` } as unknown as CardData)[0];
   const ape = mk('あなたのアタックフェイズ終了時、そのアタックフェイズの間にあなたの＜遊具＞のシグニが場を離れていた場合、カードを１枚引く。');
   eq(ape.timing?.[0], 'ON_ATTACK_PHASE_END', '「アタックフェイズ終了時」→ON_ATTACK_PHASE_END');
   eq(ape.condition?.type, 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', '離場条件が effect.condition へ持ち上がる（旧＝丸ごと脱落）');
@@ -18221,9 +18251,20 @@ test('parse timing 語彙: §6.3 J-4 フェイズ／アタック終了（ON_ATTA
   eq(ae.timing?.[0], 'ON_ATTACK_END', '「アタックしたアタック終了時」→ON_ATTACK_END');
   eq(ae.triggerCondition?.attackDealtNoDamage, true, 'ダメージ無し限定');
   eq(ae.triggerScope, 'self', 'アタッカー自身が watcher');
+  const lrigEnd = mk('このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、カードを１枚引く。', 'ルリグ');
+  eq(lrigEnd.timing?.[0], 'ON_ATTACK_END', '「このルリグ」の終了時も ON_ATTACK_END');
+  eq(lrigEnd.triggerCondition?.attackDealtNoDamage, true, 'ルリグ版もダメージ無し限定');
+  eq(JSON.stringify(lrigEnd.action), '{"type":"DRAW","owner":"self","count":1}', '二重トリガー句を剥がして本体だけを解析');
   // 回帰ガード＝「アタックフェイズ開始時」「このシグニがアタックしたとき」を奪わない
   eq(mk('あなたのアタックフェイズ開始時、カードを１枚引く。').timing?.[0], 'ON_ATTACK_PHASE_START', '開始時は従来どおり');
   eq(mk('このシグニがアタックしたとき、カードを１枚引く。').timing?.[0], 'ON_ATTACK_SIGNI', 'アタック時は従来どおり');
+});
+test('O-181 SPDi43-03: 付与される「このルリグ」の能力が ON_ATTACK_END へ届く', () => {
+  const top = parseCardEffects(cardMap.get('SPDi43-03')!).find(e => e.effectId === 'SPDi43-03-E2');
+  const inner = (top?.action as { abilities?: CardEffect[] })?.abilities?.find(e => e.effectId === 'SPDi43-03-sub-E1');
+  eq(inner?.timing?.[0], 'ON_ATTACK_END', '付与AUTOの timing');
+  eq(inner?.triggerScope, 'self', '付与先ルリグ自身のアタック限定');
+  eq(inner?.triggerCondition?.attackDealtNoDamage, true, 'ダメージ無し限定');
 });
 test('parse timing 語彙: §6.3 J-1 他能力の発動監視（ON_ABILITY_ACTIVATED）', () => {
   const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-J1', Type: 'シグニ', EffectText: `【自】：${t}` } as unknown as CardData)[0];
@@ -22164,9 +22205,9 @@ test('§6.4 O-7: WX25-P2-058-E1 は据置ブロッカー3軸をすべて表現�
 // §6.4 O-7 の母集団＝「このシグニがアタックしたとき、**そのアタック終了時**、〜」。
 // 🔴従来は `trigText` が「〜したとき、」で非貪欲に切れるため直後の限定句を見ず ON_ATTACK_SIGNI へ落ちていた
 //   ＝**アタック解決前**に本体が走る（自分を退避したり対象をバニッシュしたりしてアタックを取り消す）過剰実行。
-// ⚠**ルリグのアタック終了時は engine 未配線**（`collectAttackEndTriggers` はアタックしたシグニ自身しか見ない）
-//   ＝ここへ混ぜると収集地点が無い無言 no-op になる。負方向を同じテストで固定する。
-test('§6.4 O-7: 「このシグニがアタックしたとき、そのアタック終了時、」= ON_ATTACK_END（ルリグ版は巻き込まない）', () => {
+// O-181 でルリグ終了 collector は配線済み。ただし既存 MANUAL/PARTIAL 2効果は内容を書き換えず、
+// legacy `ON_GUARD`＋明示条件を collector が互換収集する。
+test('§6.4 O-7: 「このシグニがアタックしたとき、そのアタック終了時、」= ON_ATTACK_END（legacy ルリグ2効果は不変）', () => {
   for (const [num, eid] of [
     ['WX25-P2-058', 'WX25-P2-058-E1'], ['WX24-P4-052', 'WX24-P4-052-E2'],
     ['WX25-P1-053', 'WX25-P1-053-E1'], ['WX25-P2-090', 'WX25-P2-090-E1'],
@@ -22176,10 +22217,14 @@ test('§6.4 O-7: 「このシグニがアタックしたとき、そのアタッ
     ok(live.timing?.includes('ON_ATTACK_END'), `${eid}: ON_ATTACK_END`);
     ok(!live.timing?.includes('ON_ATTACK_SIGNI'), `${eid}: アタック宣言時へ戻っていない`);
   }
-  // 負方向＝主語がルリグ／相手シグニの「そのアタック終了時」は engine に収集地点が無いので昇格させない
-  for (const [num, eid] of [['WX24-P3-055', 'WX24-P3-055-E2'], ['WXK11-006', 'WXK11-006-E4']] as const) {
+  // MANUAL/PARTIAL の live JSON を書き換えない契約。明示条件を終了 collector が互換解釈する。
+  for (const [num, eid, cond] of [
+    ['WX24-P3-055', 'WX24-P3-055-E2', 'lrigAttackNoDamage'],
+    ['WXK11-006', 'WXK11-006-E4', 'lrigAttackGuarded'],
+  ] as const) {
     const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
-    ok(!live.timing?.includes('ON_ATTACK_END'), `${eid}: ルリグのアタック終了時は未配線なので昇格しない`);
+    ok(live.timing?.includes('ON_GUARD') && !live.timing?.includes('ON_ATTACK_END'), `${eid}: legacy timing を不変維持`);
+    ok(live.triggerCondition?.[cond] === true, `${eid}: 全場走査への明示 opt-in 条件`);
   }
 });
 
@@ -51385,8 +51430,14 @@ test('段2 第40バッチ 偽陽性／据置契約: 常時グロウスキップ�
   //   **契約は「据置」から「実装済み」へ反転させる**（落ちたテストを消して通すのは禁止・PLAN §5.2）。
   const lastProcessed = freshBatch40('WX24-P3-086', 'WX24-P3-086-E1');
   ok(JSON.stringify(lastProcessed).includes('targetsLastProcessed'), 'WX24-P3-086-E1 は「それ」が直前に場へ出した札へ束縛される');
+  // 🔄**据置を解除**（2026-09-02 §5.3 `O-181`）＝第40バッチが「発動タイミングが主因」と据え置いた当のものを実装した。
+  //   `このルリグがアタックしたとき、そのアタック終了時` は先行する ON_ATTACK_LRIG 分岐に食われて
+  //   **アタック宣言時**に落ちていた（ダメージ有無が確定する前に本体が走る過剰実行）。
+  //   **契約は「据置」から「実装済み」へ反転させる**（落ちたテストを消して通すのは禁止・PLAN §5.2）。
   const attackEnd = freshBatch40('WXDi-D04-004', 'WXDi-D04-004-E2');
-  ok(JSON.stringify(attackEnd).includes('WXDi-D04-004-sub-E1') && !JSON.stringify(attackEnd).includes('ON_ATTACK_END'), 'WXDi-D04-004-sub-E1 は発動タイミングが主因なので据置');
+  ok(JSON.stringify(attackEnd).includes('WXDi-D04-004-sub-E1'), 'WXDi-D04-004-sub-E1 が生成される');
+  ok(JSON.stringify(attackEnd).includes('ON_ATTACK_END'), 'WXDi-D04-004-sub-E1 はアタック終了時に発火する（宣言時ではない）');
+  ok(JSON.stringify(attackEnd).includes('"attackDealtNoDamage":true'), 'WXDi-D04-004-sub-E1 はダメージが通らなかった場合だけに限定される');
 });
 
 // 段2 第33バッチ／O-50: 「残りをシャッフルしてデッキの一番下に置く」の shuffle 配線。

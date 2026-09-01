@@ -2291,31 +2291,99 @@ export function collectMagicBoxFlippedTriggers(
  * 相手ライフをクラッシュしたか）が確定しているので `triggerCondition.attackDealtNoDamage` を判定できる。
  * ⚠**近似**＝この後に走る【ライフバースト】の解決は「アタック終了」に含めない（バーストで盤面が変わっても
  *   判定はクラッシュ有無で確定済み＝この効果の意味では差が出ない）。
- * ⚠アタックしたシグニ自身の【自】だけを見る（`triggerScope:'self'` 相当）＝原文が「このシグニがアタックした
- *   アタック終了時」なので watcher＝アタッカー。
+ * シグニアタックは従来どおりアタッカー自身だけを見る。ルリグアタックでは、実行時付与されたルリグ能力と、
+ * `triggerScope:'any_ally'|'any'` または `lrigAttack*` 条件で明示的に opt-in した場の watcher も見る。
+ * ⚠無条件に全場を走査すると、既存の「このシグニが」7効果が他者のアタックでも発火するため、
+ *   self 経路と watcher 経路は分離する。
  */
+export interface AttackEndTriggerOptions {
+  attackerKind?: 'signi' | 'lrig';
+  wasGuarded?: boolean;
+}
+
 export function collectAttackEndTriggers(
   ctx: TrigCtx, attackerId: string, attackerNum: string,
   attackerState: PlayerState, defenderState: PlayerState, dealtDamage: boolean,
+  options: AttackEndTriggerOptions = {},
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
+  const seen = new Set<string>();
   const isAttackerTurn = attackerId === ctx.activeUserId;
   const limitOk = mkLimitOk(attackerState.actions_done, usedOncePerTurnIds);
   const removed = collectContinuousAbilitiesRemovedSigni(attackerState, defenderState, isAttackerTurn, ctx.effectsMap, ctx.cardMap, '自');
-  if (attackerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
-  if (removed.has(attackerNum)) return { entries, usedOncePerTurnIds };
-  for (const eff of (ctx.effectsMap.get(attackerNum) ?? [])) {
-    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_END')) continue;
-    if (eff.triggerCondition?.attackDealtNoDamage && dealtDamage) continue;
-    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, isAttackerTurn, ctx.cardMap, attackerNum)) continue;
-    if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, attackerNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-    if (!limitOk(eff)) continue;
-    const cardName = ctx.cardMap.get(getCardNum(attackerNum))?.CardName ?? attackerNum;
+  const isLrigAttack = options.attackerKind === 'lrig';
+  const ownSigniAutoBlocked = attackerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO') === true;
+  const attackerCard = ctx.cardMap.get(getCardNum(attackerNum));
+
+  const add = (sourceNum: string, eff: CardEffect, suffix = 'アタック終了時'): void => {
+    const key = `${sourceNum}\u0000${eff.effectId}`;
+    if (seen.has(key)) return;
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_END')) return;
+    if (eff.triggerCondition?.attackDealtNoDamage && dealtDamage) return;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, isAttackerTurn, ctx.cardMap, sourceNum)) return;
+    if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, sourceNum, ctx.turnPhase, ctx.effectivePowers)) return;
+    if (!limitOk(eff)) return;
+    seen.add(key);
+    const cardName = ctx.cardMap.get(getCardNum(sourceNum))?.CardName ?? sourceNum;
     entries.push({
-      id: ctx.genId(), playerId: attackerId, cardNum: attackerNum, effectId: eff.effectId,
-      label: `${cardName} の【自】効果（アタック終了時）`, effect: eff, triggeringCardNum: attackerNum,
+      id: ctx.genId(), playerId: attackerId, cardNum: sourceNum, effectId: eff.effectId,
+      label: `${cardName} の【自】効果（${suffix}）`, effect: eff, triggeringCardNum: attackerNum,
     });
+  };
+
+  // 既存経路＝アタックしたカード自身。シグニの BLOCK/能力喪失ゲートも従来どおり維持する。
+  if ((!ownSigniAutoBlocked || isLrigAttack) && (!removed.has(attackerNum) || isLrigAttack)) {
+    for (const eff of effsOf(ctx, attackerNum)) add(attackerNum, eff);
+  }
+  if (!isLrigAttack) return { entries, usedOncePerTurnIds };
+
+  const legacyLrigAttackEndOk = (eff: CardEffect): boolean => {
+    if (!eff.timing?.includes('ON_GUARD')) return false;
+    if (eff.triggerCondition?.lrigAttackGuarded) return options.wasGuarded === true;
+    if (eff.triggerCondition?.lrigAttackNoDamage) return !dealtDamage;
+    return false;
+  };
+  const addLrigEffect = (sourceNum: string, eff: CardEffect, fromGrantedStore: boolean): void => {
+    if (eff.timing?.includes('ON_ATTACK_END')) {
+      add(sourceNum, eff, 'ルリグアタック終了時');
+      return;
+    }
+    if (!legacyLrigAttackEndOk(eff)) return;
+    // 場の legacy ON_GUARD は従来 collector がガード時に既に収集する。ここでは非ガードの
+    // ダメージ無効だけを補完し、実行時付与ストア（従来 collector の射程外）は常に担当する。
+    if (!fromGrantedStore && options.wasGuarded) return;
+    add(sourceNum, { ...eff, timing: ['ON_ATTACK_END'] }, 'ルリグアタック終了時');
+  };
+
+  // GRANT_LRIG_ABILITY 等の実行時付与は effectsMap に載らないため、3ストア共通走査を合流する。
+  for (const timing of ['ON_ATTACK_END', 'ON_GUARD'] as const) {
+    for (const w of grantedStoreWatchers(attackerState, timing, ['self', 'any_ally', 'any'])) {
+      addLrigEffect(attackerNum, w.effect, true);
+    }
+  }
+
+  // watcher≠アタッカー。ルリグアタックであることを明示する既存条件、または既存 scope のみを許可する。
+  const watcherSources = [
+    ...attackerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...(attackerState.field.lrig.at(-1) ? [attackerState.field.lrig.at(-1)!] : []),
+    ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
+    ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
+    ...activeKeyAbilitySources(attackerState),
+  ].filter(n => n !== attackerNum);
+  for (const sourceNum of watcherSources) {
+    const isSigni = attackerState.field.signi.some(s => s?.at(-1) === sourceNum);
+    if (isSigni && (ownSigniAutoBlocked || removed.has(sourceNum))) continue;
+    for (const eff of effsOf(ctx, sourceNum)) {
+      const scope = eff.triggerScope ?? 'self';
+      const explicitWatcher = scope === 'any_ally' || scope === 'any'
+        || eff.triggerCondition?.lrigAttackGuarded === true
+        || eff.triggerCondition?.lrigAttackNoDamage === true;
+      if (!explicitWatcher) continue;
+      if (eff.triggerFilter && !matchesFilter(attackerCard, eff.triggerFilter)) continue;
+      if (eff.triggerCondition?.centerLrigOnly && attackerNum !== attackerState.field.lrig.at(-1)) continue;
+      addLrigEffect(sourceNum, eff, false);
+    }
   }
   return { entries, usedOncePerTurnIds };
 }

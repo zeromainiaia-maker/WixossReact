@@ -5693,7 +5693,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^(?:あなた|対戦相手)のアタックフェイズ終了時、/, '')
     .replace(/^このシグニがアタックしたアタック終了時、/, '')
     .replace(/^対戦相手の効果によってこのカードが(?:手札から)?捨てられたとき、/, '')
-    .replace(/^このシグニがアタックしたとき、/, '')
+    .replace(/^この(?:シグニ|ルリグ)がアタックしたとき、/, '')
     // §6.4 O-7：「このシグニがアタックしたとき、**そのアタック終了時**、〜」の2つ目の時点限定句。
     // 直前の strip でトリガー句が落ちると t 先頭へ残り、続く状態条件節（「あなたの場に《X》がいる場合、」）が
     // `tryWrapLeadingStateCond` に届かず**条件ごと脱落**していた（＝無条件発火）。timing 側は ON_ATTACK_END で既処理。
@@ -17840,7 +17840,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       timing = trigText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
              // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
              : trigText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
-             : trigText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
+             // 🔴O-181：「このルリグがアタックしたとき、**そのアタック終了時**、〜」はこの分岐より先に
+             //   ここで ON_ATTACK_LRIG へ落ちていた（下の ON_ATTACK_END 規則へ到達しない＝発火が
+             //   アタック**宣言時**になり、ダメージ有無の判定が確定する前に本体が走る過剰実行）。
+             //   シグニ側は先行する分岐が無いので同じ穴が出ていなかった。
+             : (trigText.includes('このルリグがアタックしたとき')
+                && !/^この(?:シグニ|カード|ルリグ)がアタックしたとき[、,]\s*そのアタック終了時[、,]/.test(actionText)) ? ['ON_ATTACK_LRIG']
              // 🔴「**あなたの**（センター）ルリグ（N体）がアタックしたとき」＝**ルリグアタック**（§3 (cxxviii)・続き475d）。
              //   従来は下の総称フォールバックで `ON_ATTACK_SIGNI` になり、**シグニのアタックで誤発火**していた
              //   （実測18効果＝17枚がシグニ・1枚がアシストルリグ）。`WXDi-P04-051-E1` はそのせいで
@@ -17863,10 +17868,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   非貪欲に「このシグニがアタックしたとき、」で切れるため、直後の限定句を見ずに ON_ATTACK_SIGNI へ
              //   落ちていた＝**アタック解決前に本体が走る**（対象バニッシュ／自分を手札やエナへ退避が
              //   アタックを取り消してしまう）過剰実行。判定だけ `actionText` を見る。
-             // ⚠**「このシグニ／このカード」＝アタッカー自身に限る**。`collectAttackEndTriggers` は
-             //   アタックしたシグニ自身の【自】しか見ないので、ルリグのアタック（`WX24-P3-055-E2`／
-             //   `WXK11-006-E4`）や相手シグニ監視（`WX14-018-E4`）をここへ入れると**収集地点が無く無言 no-op** になる。
-             : /^この(?:シグニ|カード)がアタックしたとき[、,]\s*そのアタック終了時[、,]/.test(actionText) ? ['ON_ATTACK_END']
+             // ⚠「このシグニ／このカード／このルリグ」＝アタッカー自身に限る。O-181 でルリグ側の
+             //   終了収集地点と付与ストア経路が加わったため、「このルリグ」も同じ timing へ載せられる。
+             //   watcher≠アタッカー（`WX24-P3-055-E2`／`WXK11-006-E4`）と遅延形（`WX14-018-E4`）は
+             //   scope/設置の別軸が必要なので、この self 規則には混ぜない。
+             : /^この(?:シグニ|カード|ルリグ)がアタックしたとき[、,]\s*そのアタック終了時[、,]/.test(actionText) ? ['ON_ATTACK_END']
              : trigText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : trigText.includes('バニッシュされたとき') ? ['ON_BANISH']
              // 「あなたの＜X＞のシグニが効果によって対戦相手のシグニをバニッシュしたとき」（WX07-036）。既存 ON_SIGNI_BANISH_OPPONENT（バトル経路のみ配線）と別＝効果バニッシュ経路。⚠engine未配線。トリガー文非除去・scope/filter は下で抽出
@@ -18599,7 +18605,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   scope は self（「このシグニがアタックした」＝アタッカー自身）。
       if (timing[0] === 'ON_ATTACK_END') {
         extractedTriggerScope = 'self';
-        if (/そのアタックによって[^。]*ダメージが与えられていない場合/.test(actionText)) {
+        // 🔴O-181：語形は4通りある（受身/能動 × 現在/過去）。
+        //   旧 regex は「ダメージが与えられて**いない**場合」だけを見ており、
+        //   `SPDi43-03` / `WXDi-D04-004` の「いなかった場合」と `WX24-P3-055` の
+        //   「ダメージを与えていなかった場合」を取りこぼして**条件なしで発火**していた。
+        if (/そのアタックによって[^。]*ダメージ(?:が与えられて|を与えて)いな(?:い|かった)場合/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), attackDealtNoDamage: true };
         }
       }

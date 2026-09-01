@@ -31876,6 +31876,111 @@ order.push('o58ArtemisAttackerBanish', 'o58GustavAttackerBanishOnce',
   'o58OpponentTurnOnlyDoesNotProtectAttacker');
 // ── O-58 END ──
 
+// ── O-181 ─────────────────────────────────────────────────────────────
+// §5.3 `O-181`＝**ルリグのアタック終了時（ON_ATTACK_END）の収集地点**を `performGuardResponse` に新設したことの確認。
+// 🔴**ここで見るのは engine の収集地点だけ**＝parser 側（「このルリグがアタックしたとき、そのアタック終了時」→
+//   `ON_ATTACK_END` + `attackDealtNoDamage`）は golden で固定済み。
+// ⚠**実カード（`SPDi43-03`）ではなく合成の付与能力を注入する**＝実カードの本体は
+//   《赤》の**任意**支払いを含むので、CPU の選択が入ると「発火したか」と「支払ったか」が分離できない。
+//   付与ストア（`lrig_granted_auto_effects`）経由なので、**新しい収集経路をそのまま通る**。
+const O181_GRANT = (effectId) => ({
+  effectId, effectType: 'AUTO', timing: ['ON_ATTACK_END'], triggerScope: 'self',
+  triggerCondition: { attackDealtNoDamage: true },
+  action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+  duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+});
+
+const o181Spec = (grantId) => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#1'],
+    'hand': ['WD01-016#1'],                 // サーバント＝ガード候補
+    'energy': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'],
+    'trash': [],
+    'field.signi': [null, null, null],
+    'field.check': null,                    // ⚠前シナリオの確認モーダルが残るとガード応答が抑止される（V-84）
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.lrig_down': false,               // ルーム再利用で down が残ると CPU がアタックしない
+    'field.check': null,
+    'field.signi': [null, null, null],
+    'energy': [],                           // ※観測点の基準値を 0 に固定する
+    'lrig_granted_auto_effects': [O181_GRANT(grantId)],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+
+async function driveO181(page, H, tag, wantGuard) {
+  const before = await H.queryState();
+  H.log(`開始 guestEnergy=${before?.guest?.energy} hostLife=${before?.host?.life} hostHand=${before?.host?.hand}`);
+  let settled = 0;
+  for (let s = 0; s < 22; s++) {
+    await page.waitForTimeout(850);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    // ガードする側／しない側を明示的に選ぶ（stdStep 任せにしない＝この分岐が実験の軸）
+    const guardBtn = page.getByRole('button', { name: /ガードに使う/ }).first();
+    const noGuardBtn = page.getByRole('button', { name: /ガードしない/ }).first();
+    if (wantGuard && await guardBtn.count() && await guardBtn.isVisible().catch(() => false)) {
+      await guardBtn.click().catch(() => {}); did = 'btn:ガードに使う';
+    } else if (!wantGuard && await noGuardBtn.count() && await noGuardBtn.isVisible().catch(() => false)) {
+      await noGuardBtn.click().catch(() => {}); did = 'btn:ガードしない';
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | guestEnergy=${st?.guest?.energy} hostLife=${st?.host?.life} lrigAttacked=${st?.host?.lrigAttacked} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    settled = (!(st?.stackLen > 0) && !st?.pendingEffect) ? settled + 1 : 0;
+    if (settled >= 4 && s >= 6) {
+      const charged = (st?.guest?.energy ?? 0) - (before?.guest?.energy ?? 0);
+      const lifeLost = (before?.host?.life ?? 0) - (st?.host?.life ?? 0);
+      if (wantGuard) {
+        return {
+          pass: lifeLost === 0 && charged >= 1,
+          detail: `ガード成立（hostLife減少=${lifeLost}）→アタック終了時に発火=${charged >= 1}（guestEnergy ${before?.guest?.energy}→${st?.guest?.energy}）`,
+        };
+      }
+      return {
+        pass: lifeLost >= 1 && charged === 0,
+        detail: `ガードせずダメージが通った（hostLife減少=${lifeLost}）→attackDealtNoDamage で発火しない=${charged === 0}（guestEnergy ${before?.guest?.energy}→${st?.guest?.energy}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未決着（guestEnergy=${fin?.guest?.energy} hostLife=${fin?.host?.life}）` };
+}
+
+scenarios.o181LrigAttackEndFiresWhenGuarded = {
+  title: 'O-181 ルリグアタックがガードされたとき、アタック終了時の付与【自】が発火する',
+  spec: o181Spec('O181-TEST-GUARDED-E1'),
+  drive: (page, H) => driveO181(page, H, 'o181Guarded', true),
+};
+
+scenarios.o181LrigAttackEndSkippedWhenDamaged = {
+  title: 'O-181負方向 ダメージが通ったアタックでは attackDealtNoDamage の付与【自】が発火しない',
+  spec: o181Spec('O181-TEST-DAMAGED-E1'),
+  drive: (page, H) => driveO181(page, H, 'o181Damaged', false),
+};
+
+// 🔑**旧形（`ON_GUARD` + `lrigAttackNoDamage`）も同じ収集地点へ合流することの確認。**
+// `WXDi-D04-004-sub-E1`（live・PARTIAL）はこの形で書かれており、新形（`ON_ATTACK_END`）とは
+// **engine の別分岐**（`legacyLrigAttackEndOk` / `fromGrantedStore`）を通る＝上2本では踏めない。
+const o181LegacySpec = o181Spec('O181-TEST-LEGACY-E1');
+o181LegacySpec.guestSet['lrig_granted_auto_effects'] = [{
+  effectId: 'O181-TEST-LEGACY-E1', effectType: 'AUTO', timing: ['ON_GUARD'], triggerScope: 'self',
+  triggerCondition: { lrigAttackNoDamage: true },
+  action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+  duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+}];
+scenarios.o181LegacyGuardShapeAlsoFires = {
+  title: 'O-181 旧形（ON_GUARD+lrigAttackNoDamage）の付与【自】も同じアタック終了地点で発火する',
+  spec: o181LegacySpec,
+  drive: (page, H) => driveO181(page, H, 'o181Legacy', true),
+};
+
+order.push('o181LrigAttackEndFiresWhenGuarded', 'o181LrigAttackEndSkippedWhenDamaged',
+  'o181LegacyGuardShapeAlsoFires');
+// ── O-181 END ──
+
 // ── V-30 境界越え（§5.1 🅳）＝`abilities_removed_next_turn` → `abilities_removed` の昇格と失効 ──────
 // **READ 側（積まれている間 UI から【起】が消える）は続き585 で残0クローズ済み。**
 // 残っていたのは**ターン境界を実際に跨がせる**ぶん＝続き566 が「設計限界」としていた

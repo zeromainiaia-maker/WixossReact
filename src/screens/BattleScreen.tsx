@@ -12288,6 +12288,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newMyState: PlayerState;
       let guardTriggers: StackEntry[] = [];
       let attackGuardUsedIds: string[] = [];
+      const attackingLrigNum = my.lrig_attacked_by_num ?? op.field.lrig.at(-1);
       if (handIndex !== null) {
         // ガードカードをトラッシュへ
         const cardNum = my.hand[handIndex];
@@ -12359,7 +12360,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 攻撃側ルリグのダブルクラッシュ確認
         // ⚠**攻撃したルリグ**を見る（アシストがアタックしたのにセンターのキーワードで判定すると
         //   ダブルクラッシュが誤って乗る／乗らない。続き427）。未設定＝従来どおりセンター。
-        const opLrigNum = my.lrig_attacked_by_num ?? op.field.lrig.at(-1);
+        const opLrigNum = attackingLrigNum;
         const opDynamicKeywords = collectContinuousGrantedKeywords(op, my, true, effectsMap, battleCardMap);
         const opLrigHasDoubleCrush = !!(opLrigNum && (
           (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ')
@@ -12472,11 +12473,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return;
         }
       }
+      // ON_ATTACK_END（O-181）＝ルリグアタックのガード／ダメージ解決が終わった地点。
+      // `check` の【ライフバースト】はこの commit より後に解決されるため、シグニ側と同じ境界になる。
+      // 場の legacy ON_GUARD watcher はガード時に上で収集済み。collector はそれを二重に拾わず、
+      // 実行時付与ストアと非ガードのダメージ無効だけを補完する。
+      let newOpState: PlayerState = op;
+      if (attackingLrigNum) {
+        const dealtLrigDamage = my.life_cloth.length > newMyState.life_cloth.length;
+        const attackEnd = pureCollectAttackEndTriggers(
+          mkTrigCtx(), attackerId, attackingLrigNum, newOpState, newMyState, dealtLrigDamage,
+          { attackerKind: 'lrig', wasGuarded: handIndex !== null },
+        );
+        guardTriggers.push(...attackEnd.entries);
+        if (attackEnd.usedOncePerTurnIds.length > 0) {
+          newOpState = {
+            ...newOpState,
+            actions_done: [...(newOpState.actions_done ?? []), ...attackEnd.usedOncePerTurnIds],
+          };
+        }
+      }
+
       // 防御側の「そのアタックで」ダメージ無効も、ガード有無／ダメージ成否を問わずここで失効する。
       newMyState = clearEndOfAttackEffects(newMyState);
       // MULTI_DAMAGE_ON_LRIG_ATTACK: 攻撃側に残りアタック回数があれば再トリガー
       const oppStateKey = stateKey === 'host_state' ? 'guest_state' : 'host_state';
-      let newOpState: PlayerState = clearEndOfAttackEffects(op);
+      newOpState = clearEndOfAttackEffects(newOpState);
       if (op.lrig_attack_remaining && op.lrig_attack_remaining > 0) {
         const rem = op.lrig_attack_remaining - 1;
         newOpState = { ...newOpState, lrig_attack_remaining: rem > 0 ? rem : undefined };
