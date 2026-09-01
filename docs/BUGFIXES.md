@@ -1,5 +1,152 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-01（続き776）：§5.3 索引 C を 34→31件＝`O-183` を実装（**この巡で唯一の実装**）＋ `colorExclude` の実バグを1件発見・修正
+
+### ① `O-183`＝「すべての色を得る」が共通色判定の**基準側**に効いていなかった（過小実行）
+
+**真因（1行）**＝`allColorSigniNums` は `fieldCandidates`（＝**候補側**）には以前から渡っていたが、
+`resolveDynamicFilter` の**基準側（効果元）**は `cardMap.get(source).Color`＝**印字色しか読んでいなかった**。
+
+**症状**＝`WXK05-029`（サーバント G）は E1 の `STUB{ALL_COLOR}` で全色を得ても、
+E2「このシグニと**共通する色を持つ**対戦相手のシグニ1体をトラッシュ」の対象が広がらない。
+
+**直したもの**（`src/engine/` のみ）＝
+- `resolveDynamicFilter` に `allColorSigniNums?: Set<string>` を足し、**全26呼び出し地点**へ `ctx`/`cur` から配線した。
+- `colorMatchesSourceCard`＝効果元が全色なら**色による絞りを外す**（他の軸は残す）。
+- `colorNotMatchesSource`＝効果元が全色なら**誰も満たさない**（全5色を `colorExclude` に入れる）。
+  ⚠**この2つは必ず対で直す**＝片方だけだと同じ盤面で「共通色を持つ」と「持たない」が同時に成立する。
+- 条件側 `execUtils.evalCondition` の `HAS_CARD_IN_FIELD` 分岐にも同じ判定を入れた（評価器が別なので executor だけでは届かない）。
+
+### ② 🔴 作業中に見つけた実バグ＝`colorExclude` に文字列を渡していて **1色も除外されていなかった**
+
+`matchesFilter` は `colorExclude` を配列化して `card.Color.includes(c)` で判定するので、
+**文字列を渡すと `[「白赤青緑黒」]` の1要素配列**になり、`includes` が常に false ＝**除外が丸ごと無効**だった。
+`execUtils.ts` と `effectExecutor.ts` の2箇所。**単色の効果元では偶然当たっていた**（1文字＝1要素なので一致した）が、
+**複数色の効果元（`白/黒` など）では既に壊れていた**。両方とも「色1文字ずつの配列」へ直した。
+
+### ③ stale クローズ2件（掃除はここで枯れた）
+
+| ID | 実際の受け皿 | 既存 golden |
+|---|---|---|
+| `O-106` | `TargetFilter.hasOnPlayAbility` ＋ `triggerStateFilterOk`（`triggerCollect.ts:4306`） | ✅ `EMPTY_TIMING_ALLOWED` ratchet が0 |
+| `O-109` | `collectAttackerSelfDelayedTriggers`（`triggerCollect.ts:197`・`BattleScreen.tsx:8934` から呼出） | ✅ `WX10-035` で両方向 assert 済み |
+
+**`O-151` は母集団を訂正**＝`WX24-P2-009-E1` は消化済み（golden あり）で、**残るのは `PR-K026` だけ**。
+
+### 4巡ぶんの総括
+
+索引 C は **53 → 31項目**。**21件クローズのうち実装は `O-183` の1件だけ**で、残り20件は「実装済みなのに行が残っていた」。
+🔑**見落としの主因は「受け皿の名前が登録票の提案と違う」**（`O-101`→`TRASH_HAS_CARD` ほか計4例）。
+🔑**`O-183` は「向き」の取り違え**＝同じキー名が engine にあっても、**候補側か基準側か**で別物。
+
+**検証コマンド**＝`npm run gates`（全緑・**golden 3220/3220 PASS**）。
+**反転確認**＝あり（`O-183` は engine 実走で「全色でなければ対象外／全色なら対象」と、条件側の反転も同一盤面で assert。
+`colorNotMatchesSource` 側を直さないと同じ盤面で両方成立するため、片側だけの実装では落ちる）。
+**⑤実機＝不要と判定**（§2.2）＝変更は `src/engine/effectExecutor.ts` と `src/engine/execUtils.ts` のみ。
+**`src/screens/` は触っておらず、新しいアクション型・条件型も足していない**（既存 `ExecCtx` フィールドを1つ多くの地点へ配線しただけ）。
+
+
+## 2026-09-01（続き775）：§5.3 索引 C を 40→34件（6件クローズ）＝**3巡で計18件**が「実装済みなのに索引行が残っていた」
+
+**真因（1行）**＝**受け皿の名前が登録票の提案キー名と違う**ため、着手前の grep が「無い」と誤答し、
+**すでに実装され golden まで張られている項目が worklist に残り続けていた**。
+
+**影響枚数**＝**6効果／7カード**（実装ゼロ）。索引 C は **40 → 34項目**（第2巡6件・第3巡6件と合わせて **53 → 34**）。
+
+| ID | カード | 実際の受け皿（登録票の提案とは別名） | 既存 golden |
+|---|---|---|---|
+| `O-95` | `WX21-032-E1` | `HAS_CARD_IN_FIELD{filter.colorNotMatchesSource, excludeSelf}` | 🆕**今回追加**（`powerLteSelf` 側だけ固定されていた） |
+| `O-102` | `SP27-012-E1` / `WX21-039-E1` | 同上（else 枝） | ✅ `天使の非共通色: else 枝にも条件が付いた` |
+| `O-136` | `SP36-001` | `costScaling` ＋ `actions_done`／`turn_arts_used` | ✅ `task12(xc)`（3方向 assert 済み） |
+| `O-139` | `WX21-044-E2/E3` | `THIS_CARD_PLACED_BY_CLASS`（`execUtils.ts:2722`） | ✅ |
+| `O-159` | `WX13-029-E1`③ | `ability_gain_blocked_this_turn` ＋ `collectAbilityGainProtectedSigni` | ✅ **テスト名が `O-159: …` そのもの** |
+| `O-178` | `WX18-056-E1` | `SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` | ✅ |
+
+🔑**提案キー名と実装名の食い違い一覧**（3巡ぶん）＝
+`O-101`→`TRASH_HAS_CARD` ／ `O-139`→`THIS_CARD_PLACED_BY_CLASS` ／ `O-178`→`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` ／
+`O-95`・`O-102`→`colorNotMatchesSource`（登録票は `NO_COMMON_COLOR_WITH_SELF_IN_FIELD` を提案していた）。
+⇒ **§4.2 のとおり「提案キー名で grep して無いと言わない」。原文の言い回しと golden のテスト名でも引く。**
+
+### 🔴 部分完了を「未着手」と書いていた1件＝`O-164`（行は残す・内容を訂正）
+
+「次にバニッシュされる場合、バニッシュされない」の**1回消費の器は完成済み**
+（`BATTLE_BANISH_PREVENT_LOSE_ABILITY`＝防いだら `abilities_removed` へ入るので二度は防げない。続き749 で
+`collectBanishPreventLoseAbility` が `granted_effects` も見るよう配線され、golden `段2 第23バッチ』で両方向固定済み）。
+**残るのは経路だけ**＝バトルバニッシュ限定で、**効果によるバニッシュは防げない**（過小側）。索引の記述をこれに合わせた。
+⇒ **登録票の見出しが残作業を表していないことがある。着手前に golden のテスト名を grep する。**
+
+**検証コマンド**＝`npm run gates`（全緑・**golden 3219/3219 PASS**）。
+**反転確認**＝あり（`O-95` は `evalCondition` を実走させ「共通色を持たない他のシグニがいれば成立／同色しかいなければ不成立」の両方向。
+`NO_COMMON_COLOR_AMONG_FIELD_SIGNI`（場のシグニ**同士**の相互比較）へ流用すると落ちる）。
+**⑤実機＝不要と判定**（§2.2）＝触ったのは `docs/` と `scripts/goldenTest.ts` だけで、**`src/` は1バイトも変更していない**。
+
+
+## 2026-09-01（続き774）：§5.3 索引 C を 47→40件（6件クローズ＋`O-152` を索引 A へ移設）＝「実装したのに索引の行を消し忘れる」運用穴
+
+**真因（1行）**＝受け皿を実装した巡に **BUGFIXES だけ書いて §5.3 の索引行を消していなかった**ため、
+**すでに動いている6件が「機構待ち」として worklist に残り続けていた**（前巡の6件と合わせて **2巡で12件**が同じ理由）。
+
+**影響枚数**＝**6効果／6カード**（実装ゼロ）。索引 C は **47 → 40項目**。
+
+| ID | カード | 受け皿 | 既存 golden |
+|---|---|---|---|
+| `O-101` | `WX05-023-E3` | `CONDITIONAL{TRASH_HAS_CARD{minCount:3}, else:TRASH}` | ✅ `B12 「そうしない場合」は else 側…` |
+| `O-110` | `PR-205-E1` | `REFRESH_COUNT_THIS_TURN`（`execUtils.ts:2806`） | 🆕**今回追加**（唯一の未固定） |
+| `O-158` | `WX20-002-E2` ほか | `ATTACH_ACCE.fromEnergy` の2段選択（`effectExecutor.ts:8557`） | ✅ `続き760 ATTACH_ACCE.repeatWhilePossible` |
+| `O-165` | `WX16-Re09-E1` | `GRANT_PROTECTION.duringOppTurn`（`effectEngine.ts:6189`） | ✅ 続き759 |
+| `O-173` | `WDA-F02-07-E1` | `selectionConstraint.levelMultisetFromLastProcessed`（`execUtils.ts:3320`） | ✅ |
+| `O-182` | `WX24-P4-040-E2` | `PLAY_FREE{targetsLastProcessed}` ＋ `STUB{USE_SPELL_FROM_TRASH}` | ✅ |
+
+🔑**`O-101` は受け皿の形が登録票の提案と違った**＝登録票は `LAST_PROCESSED_COUNT_GTE{negate}` を当てにしていたが、
+実際は `TRASH_HAS_CARD{minCount:3}` の前提条件として実装されていた（`execPlaceUnderSigni` が候補0で
+`lastProcessedCards` を触らずに返す罠を**構造的に回避**している）。⇒ **提案キー名で grep して「無い」と言わない**（§4.2）。
+
+### 🔴 母集団が桁で増えた1件＝`O-152` を索引 C → 索引 A へ移した
+
+`ON_HAND_DISCARDED` の watcher が効果による手札捨てで発火しない件。**登録票の「1カード」は分離のきっかけになった標本1枚**で、
+live を全走査すると **34効果／33カード**。受け皿（`execTrash` の `hand_discarded_just`／`collectHandDiscardTriggers`）は在り、
+**壊れているのは配送**。⚠**再現は実機のみ**（`verifyBattleDrive.mjs o143CheckPlace`）なのでこの巡では着手していない。
+⇒ **索引 C の「1カード」表記は母集団ではないことがある。「1効果」と「1カード」を読み分ける。**
+
+**検証コマンド**＝`npm run gates`（全緑・**golden 3218/3218 PASS**）。
+**反転確認**＝あり（`O-110` は `evalCondition` を実走させて 1回目=成立 / 2回目=不成立 の両方向を assert。
+境界を `lte 0` と書くと落ちる＝`refresh.ts` が収集前に加算する規約を固定した）。
+**⑤実機＝不要と判定**（§2.2）＝触ったのは `docs/` と `scripts/goldenTest.ts` だけで、**`src/` は1バイトも変更していない**。
+
+
+## 2026-09-01（続き773）：§5.3 索引 C を 53→47件（6件クローズ）＋ golden の「見送り契約」が項目を眠らせていた穴を塞いだ
+
+**真因（1行）**＝`O-168` / `O-169` の据置契約 golden が **`sheet3b1Fresh`（＝parser 出力）だけ**を assert していたため、
+**`manualEffects.ts` 経由で live には既に実装が届いていたのに、契約が緑のまま索引 C に「機構待ち」として残り続けていた**
+（続き768 の `WXDi-P09-043-E2`＝「live だけの負方向 assert」の**鏡像**）。
+
+**影響枚数**＝**6効果／6カード**（実装ゼロ・全件が既に動いていた）。索引 C は **53 → 47項目**。
+
+| ID | カード | 受け皿（全部すでに在った） | 消費地点 |
+|---|---|---|---|
+| `O-168` | `WXEX2-03-E1` | `RemoveAbilitiesAction.target.extraZones` | `effectExecutor.ts:8011`（`allZones` と違い手札・エナを巻き込まない） |
+| `O-169` | `WXK07-048-E1` | `triggerCondition.banishedHadCharm` | `triggerCollect.ts:1503/1534/1592`（除去直前の `signi_charms` で判定） |
+| `O-172` | `WD15-007-E1` | `GRANT_KEYWORD.fieldCondition{FRONT_SIGNI_POWER_GTE}` | `effectEngine.ts:1181`（**既存 golden が per-signi 挙動まで固定済み**） |
+| `O-174` | `WD19-007-E1` | `STUB{REMOVE_VIRUS_TARGET_ZONE}` | `execStubPart1.ts:2232`（`lastProcessedCards[0]` のゾーンを引く） |
+| `O-176` | `WD15-023-E1` | `trigger.banisherFilter` ＋ `levelLtTriggerSource` | `triggerCollect.ts:138` / `effectExecutor.ts:2957` |
+| `O-204` | `WX15-006-E1` | `trigger.notByOwnEffect` ＋ `IS_BETTING` | `triggerCollect.ts:1433`（自分で落として得をする抜け道を塞ぐ） |
+
+**やったこと**＝実装は1バイトも足していない。**退化検出のトリップワイヤとして golden を3本に整理した**：
+- `段2 Sheet3① 契約: A5/C2/C3 は実装済み（据置解除・過剰側へ倒さない）`＝据置契約を反転。
+  A5 は **engine を実走**させて「場とトラッシュは能力を失う／手札は巻き込まない」を両方向で固定（`extraZones` が `allZones` に化けたら落ちる）。
+- `索引C 2026-09-01: O-174 …` / `索引C 2026-09-01: O-176/O-204 …`＝ゾーン連動・発生源の絞りが消えたら落ちる。
+
+🔴**逆向きに外しかけた1件＝`O-183`。** `allColorSigniNums` が engine に3箇所あるので「受け皿あり」と読みかけたが、
+繋がっているのは **`fieldCandidates` の候補側**で、落ちているのは**参照の基準側**＝`colorMatchesSourceCard`
+（`effectExecutor.ts:3041`）が **`cardMap.get(source).Color`＝印字色しか読まない**。
+⇒ `WXK05-029` は E1 で自分が全色を得ても E2 の対象が広がらない（過小）。**索引 C に残し、登録票の向きを訂正した。**
+⚠**教訓＝「同じキーが engine にある」は受け皿の証明にならない。「どちら側に効くキーか」まで読む。**
+
+**検証コマンド**＝`npm run gates`（全緑・**golden 3217/3217 PASS**）。
+**反転確認**＝あり（A5 は手札を巻き込まないことを engine 実走で negative assert。`O-174` は汎用 `STUB{REMOVE_VIRUS}` へ戻したら落ちる assert）。
+**⑤実機＝不要と判定**（§2.2）＝触ったのは `docs/` と `scripts/goldenTest.ts` だけで、**`src/` は1バイトも変更していない**。
+
+
 ## 2026-09-01（続き772）：§5.3 索引 B を再計測し、9効果を実働化（stale 6件／据置3件／G・Hは設計調査のみ）
 
 **真因（総論）**＝登録票どおりの「残16効果」ではなかった。`O-155`／`O-196`／`O-216` は既に完了、

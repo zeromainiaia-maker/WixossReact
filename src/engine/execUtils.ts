@@ -2157,9 +2157,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       let hcifFilter = cond.filter;
       if (hcifFilter?.colorNotMatchesSource) {
         const { colorNotMatchesSource: _cnms, ...restCNMS } = hcifFilter;
-        const srcColorStr = srcNum ? (ctx.cardMap.get(getCardNum(srcNum))?.Color ?? '') : '';
+        // 🆕§5.3 `O-183`（2026-09-01）＝効果元が「すべての色を得る」を受けていたら
+        //   **どの有色カードとも共通色を持つ**＝この条件は誰も満たさない。
+        //   ⚠`effectExecutor.resolveDynamicFilter` 側と**必ず対で直す**（片方だけだと
+        //   同じ盤面で「共通色を持つ」と「共通色を持たない」が同時に成立する矛盾が出る）。
+        const srcColorStr = srcNum && ctx.allColorSigniNums?.has(getCardNum(srcNum))
+          ? '白赤青緑黒'
+          : (srcNum ? (ctx.cardMap.get(getCardNum(srcNum))?.Color ?? '') : '');
+        // 🔴`colorExclude` は**配列で渡す**＝文字列のままだと `[「白赤青緑黒」]` の1要素になり
+        //   `card.Color.includes(...)` が常に false ＝**1色も除外されない**（複数色の効果元でも同じ穴）。
         hcifFilter = [...srcColorStr].some(c => '白赤青緑黒'.includes(c))
-          ? { ...restCNMS, colorExclude: srcColorStr }
+          ? { ...restCNMS, colorExclude: [...srcColorStr].filter(c => '白赤青緑黒'.includes(c)) }
           : { ...restCNMS, cardNames: ['__NO_SUCH_CARD__'] };
       }
       const fieldStates = cond.owner === 'any' ? [ctx.ownerState, ctx.otherState] : [st(cond.owner)];

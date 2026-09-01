@@ -56521,21 +56521,173 @@ test('段2 Sheet3① C1: ATTACK_ORDINAL signiOnly はルリグアタックを数
   ok(holds(4, true), 'シグニ4回ならルリグの有無にかかわらず成立');
 }));
 
-test('段2 Sheet3① 見送り契約: A5/C2/C3 は表せない軸を見せかけ実装しない', () => {
-  const a5 = sheet3b1Fresh('WXEX2-03', 'WXEX2-03-E1');
-  const granted = (a5.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).abilities;
-  eq(granted.length, 1, 'A5: 場＋トラッシュだけを表す target が無いため第2引用能力は据置');
-  ok((a5.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).rawText?.includes('場とトラッシュ'),
-    'A5: 未実装原文を rawText から消さない');
-  const c2 = sheet3b1Fresh('WXK07-048', 'WXK07-048-E1');
-  eq(c2.triggerCondition?.banishedHadCharm, undefined,
-    'C2: self ON_BANISH 枝が banishedHadCharm を読まない間は死フラグを載せない');
+// 🔄🔴**2026-09-01（索引 C バッチ）＝A5 と C2 の据置契約を解除した。**
+//   この2本は **`sheet3b1Fresh`（＝parser 出力）だけ**を見て「まだ表せない」を assert していたが、
+//   実装は **`manualEffects.ts` 側で先に入っており live には届いていた**（`extraZones` / `banishedHadCharm`）。
+//   ⇒ **fresh だけの負方向 assert は、直っている項目を「据置」のまま眠らせる**（続き768 の
+//   `WXDi-P09-043-E2`＝「live だけの負方向 assert」の**鏡像**）。**負方向契約は live と fresh の両方を見る。**
+test('段2 Sheet3① 契約: A5/C2/C3 は実装済み（据置解除・過剰側へ倒さない）', () => {
+  // A5（§5.3 `O-168`）＝「対戦相手の**場とトラッシュにある**シグニは能力を失う」。
+  //   受け皿は `RemoveAbilitiesAction.target.extraZones`（`effectExecutor.ts` の候補プール拡張）。
+  //   🔴**`allZones` へ流用しない**＝あれは手札・エナまで巻き込む過剰実行。
+  const a5 = manualEffect('WXEX2-03', 'WXEX2-03-E1');
+  const a5g = (a5.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).abilities;
+  eq(a5g.length, 2, 'A5: 引用能力2本が両方とも載る（旧＝1本目だけで2本目が丸ごと不発）');
+  const a5second = a5g[1]!.action as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }>;
+  eq(a5second.target.allZones, undefined, '🔴A5: allZones へ流用しない（手札・エナまで能力を失う過剰実行になる）');
+  eq(JSON.stringify(a5second.target.extraZones), '["trash"]', 'A5: 追加領域はトラッシュだけ');
+  // 🔴engine を実走させて「場とトラッシュだけ」を両方向で固定する（型だけ足して消費が無い、を炙る）。
+  {
+    const inField = findCard(c => isSigni(c));
+    const inTrash = findCard(c => isSigni(c) && c.CardNum !== inField);
+    const inHand = findCard(c => isSigni(c) && c.CardNum !== inField && c.CardNum !== inTrash);
+    const ctx = mkCtx({}, { signi: [inField, null, null] }, 'WXEX2-03');
+    ctx.otherState.trash = [inTrash];
+    ctx.otherState.hand = [inHand];
+    const res = run(a5second, ctx);
+    const removed = res.otherState.abilities_removed ?? [];
+    ok(removed.includes(inField), 'A5: 場のシグニは能力を失う');
+    ok(removed.includes(inTrash), 'A5: トラッシュのシグニも能力を失う');
+    ok(!removed.includes(inHand), '🔴A5: 手札のシグニは巻き込まない（extraZones が allZones に化けていない）');
+  }
+  // C2（§5.3 `O-169`）＝「このシグニがバニッシュされたとき、**【チャーム】が付いていた場合**」。
+  //   受け皿は `triggerCondition.banishedHadCharm`（`triggerCollect.ts` が除去直前の `signi_charms` で判定）。
+  const c2 = manualEffect('WXK07-048', 'WXK07-048-E1');
+  eq(c2.triggerCondition?.banishedHadCharm, true, 'C2: 被バニッシュ直前の【チャーム】有無を読む');
+  eq(c2.triggerCondition?.turnOwner, 'opponent', 'C2: 「対戦相手のターンの間」も落とさない');
   // 🔄**据置を解除**（2026-08-30 §5.2 再照合後バッチ）＝`TargetFilter.powerDiffersFromPrinted` を新設し、
   //   `fieldCandidates` の per-candidate 判定（`powerLtPrinted`/`powerGtPrinted` の兄弟）へ配線した。
   //   **契約は「据置」から「実装済み」へ反転させる**（挙動は別テストで固定＝`§5.2 再照合後バッチ powerDiffersFromPrinted`）。
   const c3 = sheet3b1Fresh('WX22-047', 'WX22-047-E1');
   ok(JSON.stringify(c3).includes('powerDiffersFromPrinted'),
     'C3: 印刷パワー≠実効パワーの受け皿ができたので載る');
+});
+
+// ── §5.3 `O-183`（2026-09-01・索引 C 第5巡）＝**この巡で唯一の実装**。──
+// 🔴**向きに注意**＝`allColorSigniNums` は `fieldCandidates`（＝**候補側**）には以前から渡っていた。
+//   落ちていたのは **`resolveDynamicFilter` の基準側（効果元）**で、`colorMatchesSourceCard` /
+//   `colorNotMatchesSource` が `cardMap.get(source).Color`＝**印字色しか読まなかった**。
+//   ⇒ `WXK05-029` は E1（`STUB{ALL_COLOR}`）で全色を得ても E2 の対象が広がらなかった（過小実行）。
+test('索引C 2026-09-01: O-183 効果元が全色を得たら共通色判定の基準側にも効く', () => {
+  const e1 = manualEffect('WXK05-029', 'WXK05-029-E1');
+  eq((e1.action as StubAction).id, 'ALL_COLOR', '全色付与は STUB{ALL_COLOR}');
+  const e2 = manualEffect('WXK05-029', 'WXK05-029-E2');
+  ok(JSON.stringify(e2).includes('colorMatchesSourceCard'), '参照側は効果元との共通色で絞る');
+
+  // 効果元と**共通色を持たない**相手シグニを1体だけ置く。
+  const src = findCard(c => isSigni(c) && (c.Color ?? '').trim().length === 1);
+  const srcColor = (cardMap.get(src)!.Color ?? '').trim();
+  // 🔴無色（「無」）を選ばない＝全色を得ても「共通する色」は生まれないので反転しない。
+  const foe = findCard(c => isSigni(c) && c.CardNum !== src && '白赤青緑黒'.includes((c.Color ?? '').trim())
+    && !!(c.Color ?? '').trim() && !(c.Color ?? '').includes(srcColor));
+  const act = (e2.action as Extract<EffectAction, { type: 'TRASH' }>);
+
+  // ① 全色を得ていない＝印字色で絞る＝共通色が無いので**対象にならない**（＝何も動かない）。
+  const plain = mkCtx({}, { signi: [foe, null, null] }, src);
+  const r1 = run(act, plain);
+  eq(tops(r1.otherState)[0], foe, '前提: 共通色が無ければトラッシュされない');
+
+  // ② 全色を得た＝`allColorSigniNums` に効果元が入る＝**対象になる**（＝トラッシュされる）。
+  const allc = mkCtx({}, { signi: [foe, null, null] }, src);
+  (allc as unknown as { allColorSigniNums?: Set<string> }).allColorSigniNums = new Set([src]);
+  const r2 = run(act, allc);
+  eq(tops(r2.otherState)[0], null, '🔑全色を得ていれば共通色ありとして対象になる');
+
+  // ③ 反対側（`colorNotMatchesSource`）も同じ盤面で反転する＝全色なら「共通色を持たない」は誰も満たさない。
+  //    🔴片方だけ直すと、同じ盤面で「共通色を持つ」と「共通色を持たない」が同時に成立する矛盾が出る。
+  const notCond = { type: 'HAS_CARD_IN_FIELD', owner: 'opponent',
+    filter: { cardType: 'シグニ', colorNotMatchesSource: true }, minCount: 1 } as Condition;
+  const cPlain = mkCtx({}, { signi: [foe, null, null] }, src);
+  ok(evalCondition(notCond, cPlain), '前提: 印字色なら「共通色を持たない」が成立する');
+  const cAll = mkCtx({}, { signi: [foe, null, null] }, src);
+  (cAll as unknown as { allColorSigniNums?: Set<string> }).allColorSigniNums = new Set([src]);
+  ok(!evalCondition(notCond, cAll), '🔴全色を得たら「共通色を持たない」は誰も満たさない');
+});
+
+test('索引C 2026-09-01(3巡目): O-95 基本文側の「このシグニと共通する色を持たない他の＜天使＞」', () => {
+  // 原文＝「あなたの場に**このシグニと共通する色を持たない**他の＜天使＞のシグニがある場合、それをバニッシュする」
+  //   （WX21-032-E1）。受け皿＝`HAS_CARD_IN_FIELD{filter.colorNotMatchesSource, excludeSelf}`。
+  // 🔴**`NO_COMMON_COLOR_AMONG_FIELD_SIGNI` を流用しない**＝あれは「場のシグニ**同士**が互いに共通色を持たない」で
+  //   意味が違う（効果元1体との比較ではない）。流用すると条件が別物になる。
+  // ⚠`O-102`（SP27-012 / WX21-039 の else 枝）は別テストで固定済み＝こちらは**基本文側**。
+  const e = manualEffect('WX21-032', 'WX21-032-E1');
+  const a = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(a.type, 'CONDITIONAL', '条件つきで包む（無条件バニッシュへ戻さない）');
+  const c = a.condition as Extract<Condition, { type: 'HAS_CARD_IN_FIELD' }>;
+  eq(c.type, 'HAS_CARD_IN_FIELD', '場に該当シグニがあるかを見る');
+  eq(c.filter?.colorNotMatchesSource, true, '🔑効果元と共通色を持たない（＝場のシグニ同士の相互比較ではない）');
+  eq(c.filter?.story, '天使', '＜天使＞限定');
+  eq(c.excludeSelf, true, '🔴「他の」＝効果元自身を数えない');
+  // 🔴engine を実走させて両方向を固定する。
+  const src = findCard(c2 => isSigni(c2) && (c2.Color ?? '').trim().length === 1);
+  const srcColor = (cardMap.get(src)!.Color ?? '').trim();
+  const same = findCard(c2 => isSigni(c2) && c2.CardNum !== src && (c2.Color ?? '').trim() === srcColor);
+  const diff = findCard(c2 => isSigni(c2) && c2.CardNum !== src
+    && !!(c2.Color ?? '').trim() && !(c2.Color ?? '').includes(srcColor));
+  const holds = (ally: string) => {
+    const ctx = mkCtx({ signi: [src, ally, null] }, {}, src);
+    return evalCondition({ ...c, filter: { ...c.filter, story: undefined } } as Condition, ctx);
+  };
+  ok(holds(diff), '共通色を持たない他のシグニがいれば成立');
+  ok(!holds(same), '🔴同じ色しかいなければ不成立（無条件成立に落ちていない）');
+});
+
+test('索引C 2026-09-01(2巡目): O-110 「このターンで最初のリフレッシュ」を回数条件で読む', () => {
+  // 原文＝「それがこのターンであなたの**最初の**リフレッシュである場合」（PR-205-E1）。
+  // 受け皿＝`REFRESH_COUNT_THIS_TURN`（`execUtils.ts:2806`）。
+  // ⚠`refresh.ts` がリフレッシュ処理の中で**先に加算**するので、ON_REFRESH 収集時点で 1回目＝1。
+  //   ⇒ 「最初」は `lte 1` であって `lte 0` ではない（境界を間違えると永久に不成立／常に成立へ倒れる）。
+  const e = manualEffect('PR-205', 'PR-205-E1');
+  const cond = e.condition as Extract<Condition, { type: 'REFRESH_COUNT_THIS_TURN' }>;
+  eq(cond.type, 'REFRESH_COUNT_THIS_TURN', 'リフレッシュ回数の条件で読む');
+  eq(cond.operator, 'lte', '「最初」＝以下で比較');
+  eq(cond.value, 1, '境界は1（収集時点で加算済み）');
+  eq(e.triggerCondition?.refreshedOwner, 'self', '🔴リフレッシュした側が自分のときだけ（相手のリフレッシュで撃たない）');
+  // 🔴engine を実走させて両方向を固定する（型だけ足って評価器が無い＝無条件成立、を炙る）。
+  const at = (n: number) => {
+    const ctx = mkCtx({}, {}, 'PR-205');
+    ctx.ownerState.refresh_count_this_turn = n;
+    return evalCondition(cond, ctx);
+  };
+  ok(at(1), '1回目のリフレッシュでは成立');
+  ok(!at(2), '🔴2回目以降は不成立（「最初の」が効いている）');
+  // 同じ「最初の1回だけ」を遅延トリガー側で表す形（WX09-Re06-E1）＝`once` で1回だけ発火する。
+  const d = manualEffect('WX09-Re06', 'WX09-Re06-E1').action as Extract<EffectAction, { type: 'INSTALL_DELAYED_TRIGGER' }>;
+  eq(d.once, true, '遅延側は once:true で「最初の1回」を表す');
+  eq(d.trigger.refreshedOwner, 'self', '遅延側もリフレッシュした側を絞る');
+});
+
+// ── §5.3 索引 C バッチ（2026-09-01）＝「登録票は据置だが live は実装済み」を固定する ──
+//   🔑**この4件は1バイトも実装していない。** 受け皿を実コードで確かめたら**全部すでに在った**ので、
+//   **二度と「機構待ち」に戻らないよう golden を張っただけ**（索引 C の登録票はここで閉じる）。
+//   ⚠だから **PASS することが「今回直した」意味にはならない**＝退化検出用のトリップワイヤ。
+test('索引C 2026-09-01: O-174 対象と同じシグニゾーンの【ウィルス】を取り除く', () => {
+  // 原文＝「それと**同じシグニゾーンにある**【ウィルス】１つを取り除き」（WD19-007-E1）。
+  // 受け皿＝`STUB{REMOVE_VIRUS_TARGET_ZONE}`（`execStubPart1.ts`＝`lastProcessedCards[0]` のゾーンを引く）。
+  // 🔴汎用の `STUB{REMOVE_VIRUS}`（ゾーン非依存）へ戻すと、原文の対象連動が静かに消える。
+  const steps = (manualEffect('WD19-007', 'WD19-007-E1').action as SequenceAction).steps;
+  const ids = steps.filter(x => x.type === 'STUB').map(x => (x as StubAction).id);
+  ok(ids.includes('REMOVE_VIRUS_TARGET_ZONE'), 'ゾーン連動つきの除去を使う');
+  ok(!ids.includes('REMOVE_VIRUS'), '🔴ゾーン非依存の汎用除去へ戻さない');
+  ok(ids.indexOf('STORE_LAST_PROCESSED_TARGETS') < ids.indexOf('REMOVE_VIRUS_TARGET_ZONE'),
+    '対象の確定が除去より前にある（ゾーンを引く元が無いと no-op になる）');
+});
+
+test('索引C 2026-09-01: O-176/O-204 遅延トリガーが発生源の絞りを保持する', () => {
+  // O-176＝「あなたの＜龍獣＞のシグニが…バニッシュしたとき」（WD15-023-E1）＝**バニッシュした側**の絞り。
+  const d = (manualEffect('WD15-023', 'WD15-023-E1').action as Extract<EffectAction, { type: 'INSTALL_DELAYED_TRIGGER' }>);
+  eq(d.trigger.timing, 'ON_SIGNI_BANISH_BATTLE', 'バトルでのバニッシュを拾う timing');
+  eq((d.trigger.banisherFilter as { story?: string } | undefined)?.story, '龍獣', 'バニッシュした側のクラスで絞る');
+  ok(JSON.stringify(d.effect).includes('levelLtTriggerSource'),
+    '「その＜龍獣＞のシグニより低いレベル」＝トリガー元基準の比較を保持する');
+  // O-204＝「あなたの効果**以外**によってバニッシュされたとき」＋ベット宣言（WX15-006-E1）。
+  const w = (manualEffect('WX15-006', 'WX15-006-E1').action as SequenceAction).steps;
+  const first = w[0] as Extract<EffectAction, { type: 'INSTALL_DELAYED_TRIGGER' }>;
+  eq(first.trigger.notByOwnEffect, true, '🔴発生源の否定限定＝自分の効果で落ちた分では発火しない');
+  const bet = w[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(bet.condition.type, 'IS_BETTING', 'ベット宣言でだけ追加の遅延を設置する');
+  eq((bet.then as Extract<EffectAction, { type: 'INSTALL_DELAYED_TRIGGER' }>).trigger.notByOwnEffect, true,
+    'ベット側の遅延も同じ否定限定を持つ（片方だけ緩いと過剰になる）');
 });
 
 test('census較正バッチ 2026-08-30: 「【A】か【B】を得る」は2択の CHOOSE になる', () => withSavedCursor(() => {
