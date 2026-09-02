@@ -11,51 +11,52 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-09-02・索引 A `O-86` 第2〜6バッチ・Opus 5 単独）＝UI コスト層の原文 regex を5系統ぶん payload へ移した**
+- 🏁**セッション（2026-09-02・索引 A `O-86` 第2〜8バッチ・Opus 5 単独）＝UI コスト層の原文 regex を7系統ぶん payload へ移した**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（19→17）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（5→3）**。
-  ⚠**台帳が動かないのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、意味照合の findings は live JSON の効果本文しか見ていない。
-  📦**在庫2本＝④機構 worklist 25項目（据置）**（`O-86` は残 45カードでまだ開いている）
-  ｜🏁**⑤実機 残 0件**（新規2本＋回帰4本を同巡で実行・**6/6 PASS**）。
+  ⚠**台帳が動かないのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、意味照合の findings は
+  live JSON の効果本文しか見ていない（残44 は全件が `src/screens/` か新 engine 機構待ち）。
+  📦**在庫2本＝④機構 worklist 25項目（据置）**（`O-86` は残 **18カード**でまだ開いている）
+  ｜🏁**⑤実機 残 0件**（新規6本＋回帰を同巡で実行・**8/8 PASS**）。
   gates 全緑（golden 3275 / 3275 据置・smoke 全異常0・fuzz 全0・census 3 / BASELINE 5・
   census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴129 据置・
-  **census-costtext A🔴 45→26規則**・lint 0 errors）。
+  **census-costtext A🔴 45→14規則**・lint 0 errors）／`npm run regen` 完走・同型★0。
 
-  🔑**この巡でやったこと＝登録票の「③payload 化」を、上から5系統ぶん。**
-  **A🔴 COST 規則 45→26本・当たり 261→77カード・真の worklist 229→45カード。**
+  🔑**この巡でやったこと＝登録票の「③payload 化」を上から7系統ぶん。**
+  **A🔴 COST 規則 45→14本・当たり 261→23カード・真の worklist 229→18カード。**
   読み取りを **`src/data/keywordCosts.ts` 1箇所**へ集約し、`EffectCost` の payload として build 時に刻む。
-  UI は `〜Of(cardNum, effectsMap)` で JSON を読むだけになった。
-  ①【アンコール】32枚（`encoreCost`・2入口）②【ベット】68枚（`betOptions`・4入口）
-  ③【ブースト】5枚（`boostCost`）④使用時の任意支払い軽減33枚（`useTimeCost`・5入口＋逆翻訳）
-  ⑤条件つきコスト置換／任意支払い置換48枚（`costReplacement` / `optionalDiscardCost`・regex 8本）。
+  UI は `〜Of(cardNum, effectsMap)` で JSON を読むだけ。
+  ①【アンコール】32枚 ②【ベット】68枚 ③【ブースト】5枚 ④使用時の任意支払い軽減33枚
+  ⑤条件つき置換／任意支払い置換48枚 ⑥`costScaling` に取って代わられた到達不能 regex **13本**の撤去
+  ⑦センタールリグ条件28枚（`selfCenterLrigName` / `oppCenterLrigColor` / `selfCenterLrigLevelGte`）。
 
-  🔴🔑**最大の設計点＝収穫マージの死角を最初から塞いだ。**
-  マージは live の MANUAL/PARTIAL を効果単位で不可侵にするので、`manualEffects.ts` が本文を手書きした
-  カードでは parser の刻印が**永久に live へ届かない**（実測＝アンコール9枚・ベット21枚）。
-  ⇒ **`buildEffectsJson.ts` が【出現条件】と同じくマージの後から重ねる**（fresh 側と同じ関数を呼ぶので値は必ず一致）。
-  これが無ければ「**手書きした札だけ静かにコストを踏み倒す／印刷コストで請求される**」＝どの計器にも出ない壊れ方だった。
+  🔴🔑**設計点2つ。**
+  ①**収穫マージの死角**＝マージは live の MANUAL/PARTIAL を効果単位で不可侵にするので、
+  `manualEffects.ts` が本文を手書きしたカードでは parser の刻印が**永久に届かない**（実測 アンコール9枚・
+  ベット21枚）。⇒ `buildEffectsJson.ts` が【出現条件】と同じく**マージの後から重ねる**。
+  ②**「payload無 0」だけで regex を消さない**＝payload の解決が null に落ちると regex へ落ちる作りなので、
+  **撤去前後の全カード×盤面マトリクスのダンプ突き合わせ**（第7バッチ 323,298 通り／第8バッチ
+  1,293,192 通り＝ベット宣言・任意支払い済みの軸も含む）で**不一致0**を実証してから消した。
 
-  📐**検証の型（この項目で確立した）**＝
-  ①**旧 UI 実装を `tmp_*.mjs` へ写経して A/B**（アンコール32/32・ベット68/68・ブースト5/5・使用時軽減33/33・
-  任意支払い置換2/2・**条件つき置換は全カード×ctx16通り×盤面3通り＝445,584 通りで不一致0**）
-  ②**ブラスト半径をベースライン commit との機械 diff で確認**（変化カードは payload 追加のみ・予定外0）
-  ③**golden の読み取り元を live payload へ差し替える**（原文パーサを直接呼ぶままだと
-  「parser は読めているが build が live へ届いていない」を見逃す）
-  ④**⑤実機は「請求額そのもの」を観測点にする**（`V-124` `V-125`＝払える／払えないの境界へ盤面を置く）。
+  🆕**計器の較正2件**＝①原文追跡 regex の `\s` が**改行をまたいで貪欲に伸び**、改行コード（LF/CRLF）の
+  違いだけで規則が現れたり消えたりしていた ②**原文から派生した変数**（`const costSentence = text.split(…)`）
+  への regex を追跡しておらず、**5規則が丸ごと計器から消えていた**（26→31＝較正であって退化ではない）。
 
-  🔴**踏んだ罠（全文は BUGFIXES.md）**＝①**`JSON.stringify(Infinity)` は `null`**（「好きな数」は `'ANY'` で持つ）
-  ②**`stopIfUnmet` を落とすと置換が別物になる**（旧実装の早期 return）
-  ③**テンプレ文字列の `\d` は二重に書く**＝落とすと `d` に潰れるが**現データは全角しか無いので A/B も golden も緑のまま通る**
-  ④**関数名を `use…` で始めない**（eslint が React Hook と誤認）
-  ⑤**`ATTACK_SIGNI` ではアーツ窓が開かない**（`ATTACK_ARTS` だけが timing `ATTACK` へ写像）。
+  🔴🔑**golden を payload 経路へ揃えたら旧 regex 側の穴が1件出た**＝`WX05-034`（使用コストが
+  ライフクロス1枚につき《無×1》**増える**）は**旧 regex に規則が無く**、`O-119` の golden が
+  `legacyBugIds` として明示的に除外していた。**退化ではなく可視化**なので増加札として固定し、
+  `O-119` は legacy 突き合わせを**独立オラクル**へ置き換えて除外2枚も全 assert を通した。
 
-  🆕**計器の較正1件**＝`censusCostText.ts` の原文追跡 regex が `\s` で**改行をまたいで貪欲に伸び**、
-  **改行コード（LF/CRLF）の違いだけで規則が現れたり消えたり**していた（`isMultiEna` で実測）。行内空白のみへ限定。
+  🔴**踏んだ罠（全文は BUGFIXES.md）**＝`JSON.stringify(Infinity)` は `null`／`stopIfUnmet` を落とすと
+  置換が別物／テンプレ文字列の `\d` は二重に書く（**現データは全角しか無いので A/B も golden も緑のまま通る**）／
+  関数名を `use…` で始めない（eslint が React Hook と誤認）／`ATTACK_SIGNI` ではアーツ窓が開かない／
+  実機のエナは**色を確かめて置く**。
 
-**▶ 次の一手**＝**`O-86` を続けて閉じる**＝残るのは `computeArtsEffectiveCost` の**条件つき軽減群**
-（`@957` センタールリグ＜X＞14カード／`@854` 相手センタールリグ色12／`@986` 場のシグニN体につき11／
-`@961` レベル比例5／`@1101` ルリグ体数5／`@1112` ゾーン枚数差5 ほか＝計45カード）。
-**受け皿は `CostReplacementTerm.when` の語彙を増やす形で足りる見込み**（比例増減は既存 `costScaling`）。
-🔴**規則1本ずつ剥がす＋旧実装の写経との A/B を必ず張る**（母集団を見ずに剥がすと静かに印刷コスト請求へ落ちる＝`costs.ts:262` の前例＝8枚）。
+**▶ 次の一手**＝**`O-86` を閉じる**＝残 **18カード**＝β ゾーン枚数差5／相手のアーツ・スペル使用の累積5／
+場のシグニ存在条件3／トラッシュ比例1／ライフ比較1／γ-1 ルリグトラッシュの色アーツ1／γ-2 場の色×クラス1／
+δ-6 バニッシュ履歴1。**どれも `CostReplacementWhen` の語彙を1〜2種足せば載る見込み**
+（比例形は既存 `costScaling`、条件形は `costReplacement`）。
+🔴**規則1本ずつ剥がす＋撤去前後のダンプ突き合わせを必ず張る**（母集団を見ずに剥がすと静かに
+印刷コスト請求へ落ちる＝`costs.ts:262` の前例＝8枚）。
 ⚠**剥がしたら `BASELINE_COST_RULES` を実測値へ下げる**（下げ忘れも exit 1）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
@@ -716,6 +717,15 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > `ATTACK_ARTS_OP` だけが timing `ATTACK` へ写像される）＝ルリグデッキのカードを押しても画像拡大になるだけ。
 > (b)**エナの色を確かめずに置くと「payload は読めているのに成立しない」に見える**（《緑》要求に黒3枚を置いた）。
 
+> 🏁🆕**2026-09-02（索引 A `O-86` 第7・8バッチ）＝この巡の分もその巡のうちに返済した（この節に残さない）。**
+> **`V-126`**（`O-86`＝比例軽減が payload だけで効く＝`WX12-Re04` のルリグトラッシュのアーツ2枚で
+> 印刷7枚→3枚）・**`V-127`**（`O-86`＝センタールリグ＜花代＞で《赤×1》軽減＝`WX11-015` が
+> エナ1枚で使える）を**新規シナリオ4本**（うち**反転確認2本**）で踏み、
+> **`O-86` の実機8本を一括再実行して 8/8 PASS**。
+> 🔑**payload 化の観測点は「請求額そのもの」＋「条件を外した対照」で書く**＝
+> 条件を満たさない側で**提示すらされない**ことまで見ると、「条件を見ずに一律で安くしている」型の
+> 壊れ方も同時に捕まる。
+
 **■ この節の運用で効いた教訓（クローズ済みエントリの全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) と BUGFIXES.md へ退避）**
 - 🔴**盤面 spec は「CORE フィールド」を明示クリアする**（2026-09-01 続き769 実測）＝`field.key_piece` / `key_piece_extra` /
   `hand` / `deck` / `energy` などは `injectScenario` の**除外方式が消さない**ので、**前の巡の1枚が残ったまま**次のシナリオが回る。
@@ -884,7 +894,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-86` | **45カード**<br>🆕2026-09-02 第6バッチ後 | アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている<br>🏁**①計器 ②母集団実測 ③payload 化（第2〜6バッチ）まで完了**＝`npm run census:costtext`（`runGates` 同梱・ratchet つき）。**A🔴 COST 規則 50→26本・当たり 261→77カード・真の worklist 229→45カード。**<br>🏁**払い戻し済み**＝①死に規則5本 ②【アンコール】32枚 ③【ベット】68枚 ④【ブースト】5枚 ⑤使用時の任意支払い軽減33枚 ⑥条件つきコスト置換／任意支払い置換48枚。受け皿は `EffectCost` の `encoreCost`/`betOptions`/`boostCost`/`useTimeCost`/`costReplacement`/`optionalDiscardCost`（`src/data/keywordCosts.ts` が唯一の読み取り元）。<br>🔑**`buildEffectsJson.ts` が収穫マージの後から重ねる**＝`manualEffects.ts` が本文を手書きしたカードでも落ちない（実測でアンコール9枚・ベット21枚が該当）。<br>▶**残り＝`computeArtsEffectiveCost` の条件つき軽減群**（`@957` センタールリグ＜X＞14／`@854` 相手センタールリグ色12／`@986` 場のシグニN体につき11／ほか）。⚠**規則1本ずつ剥がす**＋**旧実装の写経との A/B を必ず張る**（第6バッチは 445,584 通り照合で不一致0）
+| `O-86` | **18カード**<br>🆕2026-09-02 第8バッチ後 | アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている<br>🏁**①計器 ②母集団実測 ③payload 化（第2〜8バッチ）まで完了**＝`npm run census:costtext`（`runGates` 同梱・ratchet つき）。**A🔴 COST 規則 50→14本・当たり 261→23カード・真の worklist 229→18カード。**<br>🏁**払い戻し済み**＝①死に規則5本 ②【アンコール】32枚 ③【ベット】68枚 ④【ブースト】5枚 ⑤使用時の任意支払い軽減33枚 ⑥条件つき置換／任意支払い置換48枚 ⑦`costScaling` に取って代わられた到達不能 regex 13本 ⑧センタールリグ条件28枚。受け皿は `EffectCost` の `encoreCost`/`betOptions`/`boostCost`/`useTimeCost`/`costReplacement`/`optionalDiscardCost`（`src/data/keywordCosts.ts` が唯一の読み取り元）。<br>🔑**`buildEffectsJson.ts` が収穫マージの後から重ねる**＝`manualEffects.ts` が本文を手書きしたカードでも落ちない。<br>🔴**撤去は必ず「撤去前後の全カード×盤面マトリクスのダンプ突き合わせ」で不一致0を実証してから**（第7バッチ 323,298 通り／第8バッチ 1,293,192 通り）。「payload無 0」だけを根拠にしない。<br>▶**残り18カード**＝β ゾーン枚数差5／相手のアーツ・スペル使用の累積5／場のシグニ存在条件3／トラッシュ比例1／ライフ比較1／γ-1 ルリグトラッシュの色アーツ1／γ-2 場の色×クラス1／δ-6 バニッシュ履歴1。**どれも `CostReplacementWhen` の語彙を1〜2種足せば載る見込み**
 | `O-195` | **145効果**<br>🔴要再計測 | 「〜場合、」側の条件節テール＝原文に条件節があるのに live に条件ゼロ（`STATE_CONDITION_CLAUSES_V2` 側）<br>⚠続き549 の 247−102 の引き算値。着手前に数え直す |
 | `O-96` | **122効果** | 「〜を対象とし、（別のカードを）〜してもよい。そうした場合、それを〜する」＝先に対象化したカードと後段の操作対象の照応<br>2026-09-01 続き763 に欠陥署名で実測（161→122） |
 | `O-194` | **68効果** | 【常】の「〜であるかぎり」の条件型テール（レベル合計比較／N種類以上／否定形／【チャーム】数 ほか）<br>続き549 実測 |
@@ -1267,25 +1277,30 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-02（索引 A `O-86` 第2〜6バッチ）＝UI コスト層の原文 regex を5系統ぶん payload へ（Opus 5 単独／本ブロックが直近の正）**
+- **2026-09-02（索引 A `O-86` 第2〜8バッチ）＝UI コスト層の原文 regex を7系統ぶん payload へ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（19→17）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 5**（5→3）
   ⚠**台帳が据置なのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、意味照合の findings は
   live JSON の効果本文しか見ていない（残44 は全件が `src/screens/` か新 engine 機構待ち）。
-  📦**在庫2本**＝**機構 worklist 25項目（据置）**（`O-86` は残 **45カード**でまだ開いている）
-  ｜🏁**実機 残 0件**（新規2本＋回帰4本を同巡で実行・**6/6 PASS**）
+  📦**在庫2本**＝**機構 worklist 25項目（据置）**（`O-86` は残 **18カード**でまだ開いている）
+  ｜🏁**実機 残 0件**（新規6本＋回帰を同巡で実行・**8/8 PASS**）
   🔧**ゲート（全緑 ✅）**＝golden **3275 / 3275**（据置）／smoke 全異常0／fuzz 全0／
   census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
   `census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／
-  **`census:costtext` A🔴 26規則 / 当たり 77カード**（45規則 / 261カードから／`BASELINE_COST_RULES=26`）／lint 0 errors。
-  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝6/6 PASS**＝新規 `o86BoostExtraCost`（`V-124`）・
-  `o86BetCostReplace`（`V-125`）＋回帰 `o199EncoreTextCostPay` / `craftArtsBetK07105` /
-  `o123usetimepay` / `o123usetimenopay`。**両新規とも反転確認つき**（払えない側・宣言しない側を同シナリオ内で観測）。
+  **`census:costtext` A🔴 14規則 / 当たり 23カード**（45規則 / 261カードから／`BASELINE_COST_RULES=14`）／
+  lint 0 errors。`npm run regen` 完走・**同型★0**（据置）。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝8/8 PASS**＝新規 `o86BoostExtraCost`（`V-124`）・
+  `o86BetCostReplace`（`V-125`）・`o86ScalingPayloadPay`/`None`（`V-126`）・
+  `o86LrigCondPay`/`None`（`V-127`）＋回帰 `o199EncoreTextCostPay` / `o123usetimepay`。
+  **新規はすべて反転確認つき**（払えない側・宣言しない側を同シナリオ内で観測）。
   🆕**足した受け皿（`EffectCost` に6キー）**＝`encoreCost` / `betOptions` / `boostCost` / `useTimeCost` /
   `costReplacement` / `optionalDiscardCost`。**原文を読むのは `src/data/keywordCosts.ts` の1箇所だけ**。
   🧹**撤去**＝`parseEncoreCost` / `parseBetOptions` / `parseBoostCost` / `parseUseTimeCostReduction` /
-  `computeCostReplacement` の原文 regex 7本 / `parseOptionalDiscardForCost`（計 **UI 入口 13箇所**）。
-  📐**`O-86` の真の worklist ＝ 229 → 45カード**（残るのは `computeArtsEffectiveCost` の条件つき軽減群）。
+  `computeCostReplacement` の原文 regex 7本 / `parseOptionalDiscardForCost` /
+  `costScaling` に取って代わられた比例軽減 **13本** / センタールリグ条件 **4本**。
+  🆕**計器の較正2件**＝①`\s` が改行をまたぐため**改行コードだけで規則が現れ消えて**いた
+  ②**原文から派生した変数**への regex を追跡しておらず**5規則が丸ごと見えていなかった**（26→31＝較正）。
+  📐**`O-86` の真の worklist ＝ 229 → 18カード。**
 
 ## 付録A. 全体像と Definition of Done
 

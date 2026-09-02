@@ -879,10 +879,45 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 貪欲に伸び**、手前の行から始まった1マッチが後続の規則を飲み込んでいた。**改行コード（LF/CRLF）の
 違いだけで規則が現れたり消えたり**していた（`isMultiEna` の `'：【マルチエナ】'` で実測）＝行内空白のみへ限定。
 
-▶**残り＝`computeArtsEffectiveCost` の条件つき軽減群**（`@957` センタールリグ＜X＞14カード／
-`@854` 相手センタールリグ色12／`@986` 場のシグニN体につき11／`@961` レベル比例5／`@1101` ルリグ体数5／
-`@1112` ゾーン枚数差5 ほか）。**受け皿は `costReplacement` の `when` 語彙を増やす形で足りる見込み**
-（既存の `CostScalingTerm` は比例増減、`CostReplacementTerm` は条件つき置換／固定軽減）。
+🏁🆕**2026-09-02（索引 A 第7・8バッチ）＝さらに2系統を払い戻した。A群 26→14規則・当たり 77→23カード・真の worklist 45→18カード。**
+
+**第7バッチ＝計器の較正 ＋ `costScaling` payload に取って代わられた regex 13本の撤去**
+🔴**①計器が過小に出ていた**＝`censusCostText.ts` は**直接の**代入（`const text = card.EffectText ?? ''`）
+しか原文変数と見なしておらず、`const costSentence = text.split('。').find(...)` のように
+**1段ワンクッション置かれた**変数へ当てている regex が**丸ごと消えていた**（I-1〜I-5＝5規則）。
+⇒ **右辺に追跡済みの変数が出たら左辺も追跡へ足す**（行内・不動点）。26→31規則＝**較正であって退化ではない**。
+**②撤去した13本**＝場の＜クラス＞比例／ルリグトラッシュのアーツ比例／場の〔色・カード名〕シグニ比例／
+I-1〜I-4／ピースのルリグ体数比例／場＋エナ二重比例／トラッシュのカード名比例／アクセ済みシグニ比例／
+ライフ増＋クラス減／手札枚数差比例。
+🔴🔑**「payload無 0」だけを根拠に消してはいけない**＝`applyCostScalingTerms` は owner/state を読めないと
+`null` を返して regex へ落ちる作りなので、**撤去前後で `computeArtsEffectiveCost` の出力を
+全カード × 盤面マトリクスでダンプして突き合わせる**（**323,298 通りで不一致0**）。
+**この手順がこの項目の標準**＝`tmp_caec_dump.ts` を書いて before/after の JSON を差分するだけ。
+
+**第8バッチ＝センタールリグ条件28枚を `costReplacement` へ**
+`selfCenterLrigName`（14枚）／`oppCenterLrigColor`（12枚）／`selfCenterLrigLevelGte`（1枚）を
+`CostReplacementWhen` に追加。参照元は **`CostReplaceCtx.lrig`**（`computeArtsEffectiveCost` が
+自分の引数から束ねて渡す＝呼び出し4経路は無改修）。
+- 🆕**`accumulate`**＝原文「〜減り、〜減る」の2条件の重ね（`PR-460`）。全項を見終わって印刷コストから
+  動いていなければ `null`＝旧実装の `if (out !== base) return out;` と同契約。
+- 🔴**`keepZeroAmounts`**＝旧実装は「対戦相手のセンタールリグ〜になる」**だけ** `normalizeCostText` の
+  生出力を返しており **`《赤》×0` が `なし` に畳まれていなかった**。表示に出る差なので忠実に保存した。
+- 🔑**ガードの外に置く**＝4形のうち3つは「〜**減る**」なので `使用コストは…になる` ガードの内側に
+  置くと1枚も項が作られない。
+- 🔑**項の並び＝旧 `computeArtsEffectiveCost` の評価順**（置換系 → ルリグ条件）。ベット形／任意支払い形の
+  早期 return もルリグ条件の項を**後ろに残す**（旧実装では宣言しなかったとき後段のルリグ規則へ落ちた）。
+**検証＝1,293,192 通り**（ベット宣言・任意支払い済みの軸も追加）で**不一致0**。
+
+🔴🔑**golden を payload 経路へ揃えたら旧 regex 側の穴が1件出た**＝`task12(xcii)` の全カード掃引に
+`costScalingOf` を渡したところ **`WX05-034`**（使用コストがライフクロス1枚につき《無×1》**増える**）が
+新たに現れた。旧 regex には**この札の規則が無く**、`O-119` の golden が `legacyBugIds` として
+明示的に除外していた。**退化ではなく可視化。** `O-119` 自体は legacy 突き合わせが無意味になったので
+**独立オラクル**（`CostScalingTerm` の定義から10行で組み立てる）へ置き換え、除外2枚も全 assert を通した。
+
+▶**残り18カード**＝β ゾーン枚数差5／相手のアーツ・スペル使用の累積5／場のシグニ存在条件3／
+トラッシュ比例1／ライフ比較1／γ-1 ルリグトラッシュの色アーツ1／γ-2 場の色×クラス1／δ-6 バニッシュ履歴1。
+**どれも `CostReplacementWhen` の語彙を1〜2種足せば載る見込み**（比例形は既存 `costScaling`）。
+
 
 
 🏁**2026-09-02（索引 A 第1巡）＝登録票の①②を完了した。**
@@ -1866,6 +1901,26 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
 ### 恒久指標アーカイブ（2026-09-02 続き773 後）
+
+- **2026-09-02（索引 A `O-86` 第2〜6バッチ）＝UI コスト層の原文 regex を5系統ぶん payload へ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（19→17）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（5→3）
+  ⚠**台帳が据置なのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、意味照合の findings は
+  live JSON の効果本文しか見ていない（残44 は全件が `src/screens/` か新 engine 機構待ち）。
+  📦**在庫2本**＝**機構 worklist 25項目（据置）**（`O-86` は残 **45カード**でまだ開いている）
+  ｜🏁**実機 残 0件**（新規2本＋回帰4本を同巡で実行・**6/6 PASS**）
+  🔧**ゲート（全緑 ✅）**＝golden **3275 / 3275**（据置）／smoke 全異常0／fuzz 全0／
+  census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／
+  **`census:costtext` A🔴 26規則 / 当たり 77カード**（45規則 / 261カードから／`BASELINE_COST_RULES=26`）／lint 0 errors。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝6/6 PASS**＝新規 `o86BoostExtraCost`（`V-124`）・
+  `o86BetCostReplace`（`V-125`）＋回帰 `o199EncoreTextCostPay` / `craftArtsBetK07105` /
+  `o123usetimepay` / `o123usetimenopay`。**両新規とも反転確認つき**（払えない側・宣言しない側を同シナリオ内で観測）。
+  🆕**足した受け皿（`EffectCost` に6キー）**＝`encoreCost` / `betOptions` / `boostCost` / `useTimeCost` /
+  `costReplacement` / `optionalDiscardCost`。**原文を読むのは `src/data/keywordCosts.ts` の1箇所だけ**。
+  🧹**撤去**＝`parseEncoreCost` / `parseBetOptions` / `parseBoostCost` / `parseUseTimeCostReduction` /
+  `computeCostReplacement` の原文 regex 7本 / `parseOptionalDiscardForCost`（計 **UI 入口 13箇所**）。
+  📐**`O-86` の真の worklist ＝ 229 → 45カード**（残るのは `computeArtsEffectiveCost` の条件つき軽減群）。
 
 
 - **2026-09-02（索引 A 第1巡）＝§5.3 `O-86` の①計器・②母集団実測・③第1バッチ（Opus 5 単独／本ブロックが直近の正）**
