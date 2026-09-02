@@ -180,6 +180,16 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
     };
     return lvOf(ctx.ownerState.field.assist_lrig_l) + lvOf(ctx.ownerState.field.assist_lrig_r);
   }
+  // 🆕`self_energy_count`／`opp_energy_count`＝**エナゾーンにある `filter` 一致カードの枚数**
+  //   （§5.3 `O-60` 第40バッチ・`WXK11-040-E1`「レベルの合計が**あなたのエナゾーンにあるカード名に
+  //   《トレット》を含むシグニの枚数**以下になるように好きな数対象とし」）。
+  // ⚠`filter` 省略＝ゾーン全体の枚数。`CountFromZone` と重複して見えるが、こちらは
+  //   `NumberOrRef`（`selectionConstraint.totalLevelMaxRef` 等の**動的しきい値**）用の口。
+  if (n.$ref === 'self_energy_count' || n.$ref === 'opp_energy_count') {
+    const st = n.$ref === 'self_energy_count' ? ctx.ownerState : ctx.otherState;
+    return st.energy.filter(cardNum =>
+      !n.filter || matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length;
+  }
   if (n.$ref === 'opp_lrig_level') {
     const oppCenter = ctx.otherState.field.lrig.at(-1);
     if (!oppCenter) return 0;
@@ -262,6 +272,10 @@ export function zoneCardsOf(
   const state = fromZone.owner === 'self' ? ownerSt : otherSt;
   return fromZone.zone === 'under'
     ? underCardsOfSource(ownerSt, sourceCardNum)
+    // 🆕`appearance_cost`＝直近のレゾナ出現条件で支払ったカード（§5.3 `O-60` 第38バッチ）。
+    //   ⚠`owner` は見ない（出現条件を払うのは常にそのレゾナを出した側）。記録が無ければ空＝0 へ fail-closed。
+    : fromZone.zone === 'appearance_cost'
+    ? (ownerSt.last_appearance_cost_cards ?? [])
     : fromZone.zone === 'field'
     ? [
         ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
@@ -299,6 +313,11 @@ export function countFromZone(
     // スタック下段のカードは場に出ていない＝実効パワー（`effectivePowers`）を持たないので印刷値で数える。
     ? matchedCards.reduce((sum, cardNum) =>
         sum + (Number.parseInt(cardMap.get(getCardNum(cardNum))?.Power ?? '', 10) || 0), 0)
+    // 🆕`sumBy:'level'`＝「レベルを合計した数だけ」（§5.3 `O-60` 第38バッチ）。
+    //   ⚠`distinctBy:'level'`（レベルの種類数）と取り違えない。Level が数値でないカードは 0 として足す。
+    : fromZone.sumBy === 'level'
+    ? matchedCards.reduce((sum, cardNum) =>
+        sum + (Number.parseInt(cardMap.get(getCardNum(cardNum))?.Level ?? '', 10) || 0), 0)
     : fromZone.distinctBy === 'level'
     ? new Set(matchedCards.map(cardNum => cardMap.get(getCardNum(cardNum))?.Level ?? '')
       .filter(level => level !== '')).size

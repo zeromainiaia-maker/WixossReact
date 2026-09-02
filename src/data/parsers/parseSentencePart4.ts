@@ -1673,10 +1673,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/.*の場合、対戦相手のライフクロス.*エナゾーンに置く/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- エナゾーンにレベルXシグニがそれぞれN枚以上ある場合、シグニをエナゾーンに置く ----
-  if (t.match(/エナゾーンに.*のシグニがそれぞれ.*以上ある場合.*シグニ.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'ENERGY_LEVEL_CONDITION_CHOOSE' } as StubAction;
-
   // ---- 対戦相手のシグニのパワーが効果によって+される場合、代わりに-される ----
   if (t.match(/対戦相手のシグニのパワーが効果によって.*される場合、代わりに.*される/))
     return { type: 'STUB', id: 'REPLACE_PLUS_N' } as StubAction;
@@ -2081,10 +2077,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/デッキの一番上を見て.*裏向きでルリグゾーンに置く/))
     return { type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'deck_top', count: 1 } as EffectAction;
 
-  // ---- 場に〈X〉のシグニがある場合、カードを引き、対戦相手のデッキの一番上を公開する ----
-  if (t.match(/場に.*のシグニがある場合.*カードを.*引き.*対戦相手のデッキの一番上を公開する/))
-    return { type: 'STUB', id: 'FIELD_COND_DRAW_REVEAL' } as StubAction;
-
   // ---- デッキの一番上のカードをトラッシュに置いてもよい ----
   if (t.match(/^あなたのデッキの一番上のカードをトラッシュに置いてもよい$/))
     return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
@@ -2220,8 +2212,35 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DECLARE_COLOR' } as StubAction;
 
   // ---- N体まで対象とする / シグニ１体を対象とする（単独） ----
-  if (t.match(/^シグニ[１-９\d０-９]*体?を対象とする$/) || t.match(/^対戦相手のルリグかシグニ[１-９\d０-９]*体?を対象とする$/))
-    return { type: 'STUB', id: 'TARGET_ONLY' } as StubAction;
+  // 🆕§5.3 `O-60` 第42バッチ（2026-09-03）＝**対象を payload で運ぶ**（`SELECT_TARGET_ONLY`）。
+  // 🔴旧 `STUB{TARGET_ONLY}` は engine が**カード全文**に `あなたのシグニ`／`自分のシグニ`／
+  //   `対戦相手.{0,5}シグニ` を当てて所有者を推測しており、原文が**修飾語なしの「シグニ１体」**
+  //   （＝どちらの場でもよい・`WXDi-P07-086`）だと**1本も当たらず対戦相手の場だけ**に潰れていた。
+  // ⚠受け皿は既存＝`SELECT_TARGET_ONLY` は `owner:'any'` を両フィールド走査で解決する。
+  {
+    const mSigniTargetOnly = t.match(/^シグニ([１-９\d０-９]*)体?を対象とする$/);
+    if (mSigniTargetOnly) {
+      return {
+        type: 'STUB', id: 'SELECT_TARGET_ONLY',
+        selectTarget: {
+          type: 'SIGNI', owner: 'any',
+          count: mSigniTargetOnly[1] ? parseNum(mSigniTargetOnly[1]) : 1,
+          filter: { cardType: 'シグニ' }, upToCount: false,
+        },
+      } as unknown as StubAction;
+    }
+    const mLrigOrSigniTargetOnly = t.match(/^対戦相手のルリグかシグニ([１-９\d０-９]*)体?を対象とする$/);
+    if (mLrigOrSigniTargetOnly) {
+      return {
+        type: 'STUB', id: 'SELECT_TARGET_ONLY',
+        selectTarget: {
+          type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent',
+          count: mLrigOrSigniTargetOnly[1] ? parseNum(mLrigOrSigniTargetOnly[1]) : 1,
+          upToCount: false,
+        },
+      } as unknown as StubAction;
+    }
+  }
 
   // ---- それを裏向きにする ----
   if (t.match(/^それ(?:ら)?を裏向きにする(?:もよい)?$/))
@@ -2270,10 +2289,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- この効果をN回繰り返す ----
   if (t.match(/(?:この効果|このアーツの効果)を(?:あと)?[０-９\d一]*[回度](?:まで)?繰り返[すし](?:て)?(?:もよい)?/))
     return { type: 'STUB', id: 'REPEAT_EFFECT' } as StubAction;
-
-  // ---- クラスレベル合計によるパワー変更 ----
-  if (t.match(/シグニのレベルを合計した数だけ[－＋]/))
-    return { type: 'STUB', id: 'POWER_MOD_BY_FIELD_CLASS_LEVEL' } as StubAction;
 
   // ---- 手札からクラスシグニを公開 ----
   if (t.match(/手札から(?:好きな枚数の)?[＜《].*[＞》].*シグニ.*を公開する/) ||
@@ -2488,10 +2503,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/レゾナがある場合.*探して.*手札に加える/))
     return { type: 'STUB', id: 'CONDITIONAL_SEARCH_IF_RESONA' } as StubAction;
 
-  // ---- ビートゾーン操作 ----
-  if (t.match(/【ビート】にする/) || t.match(/【ビート】が.*枚以下の場合/))
-    return { type: 'STUB', id: 'BEAT_ZONE_OP' } as StubAction;
-
   // ---- ルリグレベルにつきパワー変更 ----
   if (t.match(/センタールリグのレベル[０-９\d]+につき[－＋][０-９\d]+する/))
     return { type: 'STUB', id: 'POWER_MOD_BY_LRIG_LEVEL' } as StubAction;
@@ -2554,10 +2565,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- ルリグがシグニに乗る ----
   if (t.match(/のシグニに乗る$/))
     return { type: 'STUB', id: 'LRIG_RIDE_SIGNI' } as StubAction;
-
-  // ---- 遊具のシグニをエナゾーンへ ----
-  if (t.match(/＜遊具＞のシグニを.*枚まで.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'CLASS_SIGNI_TO_ENERGY' } as StubAction;
 
   // ---- 「白、赤、青、緑、黒のシグニをそれぞれ1体対象とし、それらをトラッシュに置く」----
   // 🔴§5.3 `O-188` 第6バッチ（2026-09-01）＝ここは `STUB{BANISH_MULTI_COLOR_SIGNI}` を出していたが、
@@ -2701,10 +2708,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- このシグニはレベル以外で同じカードになる ----
   if (t.match(/このシグニはレベル.*を除き.*同じカードになる/))
     return { type: 'STUB', id: 'COPY_CARD' } as StubAction;
-
-  // ---- デッキ上から龍獣などN枚トラッシュまで続ける ----
-  if (t.match(/のシグニが[０-９\d]+枚トラッシュに置かれるまでカードをトラッシュに置く/))
-    return { type: 'STUB', id: 'DECK_MILL_UNTIL_CLASS' } as StubAction;
 
   // ---- デッキ最上位と最下位を見る ----
   if (t.match(/デッキの一番上と一番下を見る/))

@@ -843,10 +843,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
       ...(until ? { until } : {}),
     };
   }
-  if (t.match(/手札[１-９\d]+枚につき[－＋][０-９\d]+/)) {
-    return { type: 'STUB', id: 'POWER_MOD_BY_HAND_COUNT' } as StubAction;
-  }
-
   // ---- このターン対戦相手はパワーNのシグニでアタックできない ----
   // 🆕§5.3 `O-60` 第17バッチ（2026-09-03）＝**上限値を payload で運ぶ**。
   //   旧実装は engine が `EffectText` に regex を当てて上限を決めていたが、助詞違い（「シグニは」）の
@@ -936,11 +932,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- このシグニのパワー以下の対戦相手シグニ１体とともにエナゾーンに置く ----
   if (t.match(/このシグニのパワー以下.*シグニ.*このシグニをエナゾーンに置いてもよい/)) {
     return { type: 'STUB', id: 'TRADE_SELF_AND_OPP_TO_ENERGY' } as StubAction;
-  }
-
-  // ---- 以下の3つを行う ----
-  if (t.match(/^以下の[３-９]つを行う$/)) {
-    return { type: 'STUB', id: 'DO_THREE_THINGS' } as StubAction;
   }
 
   // ---- 次の対戦相手のメイン/アタックフェイズの間、相手のトラッシュは相手の効果で動かない ----
@@ -1038,14 +1029,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- 対戦相手が自分のパワーN以上のシグニを選びエナゾーンに置く ----
   if (t.match(/対戦相手は自分の.+シグニ.+エナゾーンに置く/)) {
     return { type: 'STUB', id: 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY' } as StubAction;
-  }
-
-  // ---- そのシグニとこのシグニのパワーをそれぞれ±Nする ----
-  if (t.match(/そのシグニとこのシグニのパワーをそれぞれ[－＋][０-９\d]+する/)) {
-    const mPlus  = t.match(/＋([０-９\d]+)/);
-    const mMinus = t.match(/－([０-９\d]+)/);
-    const delta = mPlus ? parseNum(mPlus[1]) : -(mMinus ? parseNum(mMinus[1]) : 0);
-    return { type: 'STUB', id: 'POWER_MOD_TARGET_AND_SELF', delta } as unknown as StubAction;
   }
 
   // ---- 手札からレベルNのシグニをエナゾーンに置く ----
@@ -2301,11 +2284,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- あなたのデッキを上から特定カードがめくれるまで公開する ----
   if (t.match(/あなたのデッキを上から.+がめくれるまで公開する/)) {
     return { type: 'STUB', id: 'DECK_REVEAL_UNTIL_CLASS' } as StubAction;
-  }
-
-  // ---- その中のそれぞれ名前の異なる〜の枚数を数える ----
-  if (t.match(/その中のそれぞれ名前の異なる.*の枚数を数える/)) {
-    return { type: 'STUB', id: 'COUNT_DISTINCT_NAMES' } as StubAction;
   }
 
   // ---- 手札から捨てなければ手札をN枚捨てる（コスト選択）----

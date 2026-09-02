@@ -13752,27 +13752,9 @@ function applyUpperBoundSelectionWiring(text: string, action: EffectAction): Eff
       target.count = count;
       target.upToCount = true;
       target.totalLevelMax = max;
-    } else if (supported.length === 0) {
-      // 旧専用 STUB は「自分のエナ全体のレベル合計超過を捨てる」別機能だった。
-      // 本文と対象句が一意なときだけ、正しい場シグニ選択 action へ置換する。
-      const stubs = nodesOfType(action, 'STUB').filter(node => node.id === 'ENERGY_BY_LEVEL_SUM_LIMIT');
-      if (stubs.length === 1 && count !== 'ALL') {
-        const replacement: EffectAction = {
-          type: 'SEND_TO_ENERGY',
-          target: {
-            type: 'SIGNI', owner: 'opponent', count, upToCount: true,
-            filter: { cardType: 'シグニ' }, totalLevelMax: max,
-          },
-        };
-        const replace = (node: EffectAction): EffectAction => {
-          if (node.type === 'STUB' && node.id === 'ENERGY_BY_LEVEL_SUM_LIMIT') return replacement;
-          if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(replace) };
-          if (node.type === 'CONDITIONAL') return { ...node, then: replace(node.then), ...(node.else ? { else: replace(node.else) } : {}) };
-          return node;
-        };
-        action = replace(action);
-      }
     }
+    // 🆕§5.3 `O-60` 第40バッチ（2026-09-03）＝旧「`STUB{ENERGY_BY_LEVEL_SUM_LIMIT}` を見つけたら置換する」
+    //   フォールバックは撤去した（parser が最初から typed `SEND_TO_ENERGY` を出すので `supported` に載る）。
   }
 
   // 「ライフクロスの上からカードをN枚まで見て」：見る前に枚数を決める LOOK_AND_REORDER だけへ配線。
@@ -18769,7 +18751,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : /あなたがエクシードのコストを支払ったとき/.test(trigText) ? ['ON_EXCEED_COST']
              // 「このシグニが（カード名に《X》を含むシグニ／《X》に）ライズされたとき」（§3 Opusタスク16）。engine 配線済み＝ライズ配置時に
              // **ライズされたシグニ自身**（self）の AUTO を収集。主語は常に「ライズした側（このシグニ）」で、
-             //   「《X》に」は**下敷きになった元シグニの名前**を指す＝engine の risedOntoNameContains（下敷き名 includes 判定）。名前は下で抽出。
+             //   「《X》に」は**上に置かれた【ライズ】シグニの名前**を指す＝engine の risenByNameContains（置かれた側の名前で includes 判定）。名前は下で抽出。
              : /このシグニが(?:カード名に《[^》]+》を含むシグニ|《[^》]+》)?にライズされたとき|このシグニがライズされたとき/.test(trigText) ? ['ON_RISE']
              // 「（この/あなたの）シグニがドライブ状態になったとき」（15件・§3 Opusタスク16）。engine 配線済み
              // （collectSigniBecomesDriveTriggers＝triggerScope self/any_ally/any を評価）。scope は下で抽出。
@@ -19405,11 +19387,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const nm = trigText.match(/カード([０-９\d]+)枚が付いたとき/);
         if (nm && parseNum(nm[1]) > 1) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), minCount: parseNum(nm[1]) };
       }
-      // ON_RISE: 「（カード名に）《X》（を含むシグニ）にライズされたとき」→ 下敷きシグニ名で限定（risedOntoNameContains）。
-      //   engine は下敷き元シグニの CardName に対する includes 判定（WX20-056=オダノブ部分一致／WXDi-P06-054=フルネーム）。
+      // ON_RISE: 「（カード名に）《X》（を含むシグニ）にライズされたとき」→ **上に置かれた【ライズ】シグニ**の
+      //   名前で限定（`risenByNameContains`）。engine は置かれた側の CardName に対する includes 判定
+      //   （WX20-056=オダノブ部分一致／WXDi-P06-054=フルネーム）。
+      // 🔴**2026-09-03（§5.3 `O-60` 第39バッチ）に向きを反転した**＝旧 `risedOntoNameContains` は
+      //   「下敷きになった元シグニ」の名前を見ており、原文と逆だった（登録票の詳細は types 側のコメント）。
       if (timing[0] === 'ON_RISE') {
         const rm = actionText.match(/カード名に《([^》]+)》を含むシグニにライズされたとき/) || actionText.match(/《([^》]+)》にライズされたとき/);
-        if (rm) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), risedOntoNameContains: rm[1] };
+        if (rm) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), risenByNameContains: rm[1] };
       }
       // ON_REFRESH: リフレッシュした側を triggerCondition.refreshedOwner に抽出（省略時 engine 既定 = any）。
       if (timing[0] === 'ON_REFRESH') {
@@ -20865,21 +20850,28 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         resolvedAction = bindThisCardAnaphora(tailM[1].trim(), resolvedAction);
       }
     }
-    // 🆕**ON_RISE の「そのシグニ」＝ライズされたこのシグニ**（§5.3 `O-133` B群 第4バッチ・実測4効果＝
-    //   `WX16-037-E1`／`WX16-039-E1`／`WX20-056-E1`／`WD17-011-E1`）。
+    // 🆕**ON_RISE の「そのシグニ」＝このシグニの上に置かれた【ライズ】シグニ**（§5.3 `O-60` 第39バッチ・
+    //   実測4効果＝`WX16-037-E1`／`WX16-039-E1`／`WX20-056-E1`／`WD17-011-E1`）。
     // 🔴旧＝トリガー句が actionText に残るため帰結が独立に解かれ、**`owner:'any'` の自由選択**に落ちていた
     //   （＝「そのシグニ」のはずが**対戦相手のシグニまで**強化・保護の対象にできた）。さらに先頭の
     //   「ターン終了時まで、」も `^` アンカーが外れて効かず、付与が **`PERMANENT`（永続）へ化けて**いた。
-    // ⚠ライズは「このシグニの上に重ねる」＝ライズされた側は**このカード自身**なので `thisCardOnly`。
+    // 🔴**2026-09-03 に指す先を反転した**（旧＝`thisCardOnly`＝このカード自身）。`ON_RISE` を持つ11枚は
+    //   **1枚も【ライズ】を印字していない**＝自分がライズする側ではなく**ライズされる側（下敷き）**なので、
+    //   「そのシグニ」は**上に置かれた側**。旧実装は「【ダブルクラッシュ】を得る」「バニッシュされない」を
+    //   **カードの下に埋まった自分自身**へ配っており、盤面上まったく意味を持たなかった。
+    // ⚠受け皿は `targetsTriggerSource`（`ctx.triggeringCardNum`＝BattleScreen が置かれたシグニを渡す）。
     if (timing?.[0] === 'ON_RISE') {
-      const riseTail = actionText.match(/^このシグニがライズされたとき[、,](.+)$/s)?.[1]?.trim();
+      const riseTail = actionText.match(/^このシグニが(?:[^、,]*に)?ライズされたとき[、,](.+)$/s)?.[1]?.trim();
       if (riseTail && /^(?:ターン終了時まで[、,])?そのシグニ/.test(riseTail)) {
         if (/^ターン終了時まで[、,]/.test(riseTail)) restoreLeadUntilEndOfTurn(resolvedAction);
         const rt = (resolvedAction as EffectAction & { target?: EffectTarget }).target;
-        if (rt?.type === 'SIGNI' && !rt.filter?.thisCardOnly) {
+        if (rt?.type === 'SIGNI') {
+          const { thisCardOnly: _dropThisCardOnly, ...restFilter } = rt.filter ?? {};
+          void _dropThisCardOnly;
           resolvedAction = {
             ...resolvedAction,
-            target: { ...rt, owner: 'self', filter: { ...(rt.filter ?? {}), thisCardOnly: true } },
+            targetsTriggerSource: true,
+            target: { ...rt, owner: 'self', ...(Object.keys(restFilter).length ? { filter: restFilter } : {}) },
           } as EffectAction;
         }
       }

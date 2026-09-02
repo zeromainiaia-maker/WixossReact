@@ -189,7 +189,15 @@ export interface CountFromZone {
    *   できない経路（付与展開・`effect_stack` 注入）では **0 へ fail-closed** する（旧 STUB も
    *   カード全文 regex が読めず no-op だったので退化しない）。
    */
-  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check';
+  /**
+   * 🆕`appearance_cost`＝**直近のレゾナ出現条件で支払ったカード**（`PlayerState.last_appearance_cost_cards`・
+   * §5.3 `O-60` 第38バッチ）。原文「この**レゾナの出現条件でトラッシュに置いた**シグニ」。
+   * ⚠`owner` は見ない（出現条件を払うのは常にそのレゾナを出したプレイヤー）＝`ownerSt` を使う。
+   * ⚠支払い記録が無い経路（付与展開・`effect_stack` 注入・ターンをまたいだ再解決）は **0**（fail-closed）。
+   *   旧 `STUB{POWER_MOD_BY_FIELD_CLASS_LEVEL}` は「**場に残っている**同クラスのシグニ」を数えており、
+   *   支払いで場から消えた2体を数えられず**常に 0〜過小**だったので、fail-closed でも退化しない。
+   */
+  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check' | 'appearance_cost';
   owner: Owner;
   filter?: TargetFilter;
   /**
@@ -197,8 +205,10 @@ export interface CountFromZone {
    * 指定時は「枚数」ではなく filter 一致カードの **Power の総和**を単位量にする
    * （`unitSize`／`maxCount`／`per` は総和に対して同じ意味で掛かる）。
    * ⚠パワーは**印刷値**で数える＝場に出ていないカード（スタック下段）は実効パワーを持たない。
+   * 🆕`'level'`＝「〜の**レベルを合計した数**だけ」（§5.3 `O-60` 第38バッチ）＝`Level` の総和。
+   *   ⚠`distinctBy:'level'`（レベルの**種類数**）とは別物。
    */
-  sumBy?: 'power';
+  sumBy?: 'power' | 'level';
   /** 「N枚につき」の単位。該当枚数をこの値で割り、端数を切り捨てる。 */
   unitSize?: number;
   /** 既存の「1枚につきN」用乗数。unitSize とは意味が逆なので互換性のため分離する。 */
@@ -2573,6 +2583,13 @@ export interface GrantEffectAction {
   targetsStored?: boolean;
   /** 🆕支払いインタラクションを跨いで焼き込まれた同一対象（`freezeStoredTargets` が設定）。 */
   fixedCardNums?: string[];
+  /**
+   * 🆕「そのシグニ」＝**トリガー元シグニ**（`ctx.triggeringCardNum` → `ctx.sourceCardNum` の順で解決）へ
+   * 無選択で付与する（§5.3 `O-60` 第39バッチ・`WX20-056-E2`＝ライズで**上に置かれたシグニ**）。
+   * ⚠`GrantKeywordAction` / `GrantProtectionAction` には前からある軸で、`GRANT_EFFECT` にだけ無かった
+   *   （§4.2「2つの union は別物・片側だけ育つのが常習」の実例）。
+   */
+  targetsTriggerSource?: boolean;
 }
 
 // 「このターン、…したとき、…」＝1ターン限りのプレイヤーレベル遅延条件トリガーを設置する（B3・WX25-CP1-069）。
@@ -5719,7 +5736,18 @@ export interface CardEffect {
     drawPhaseRestriction?: 'main_attack' | 'opp_attack'; // ON_DRAW triggerScope:any_opp（対戦相手ドロー）の位相限定。main_attack=メイン/アタックフェイズの間（WXDi-P04-038/PR-423）／opp_attack=対戦相手のアタックフェイズの間（WD22-029-G・対戦相手ターン＋アタック系サブフェイズ）
     drawByEffect?: boolean; // ON_DRAW triggerScope:any_opp の逆翻訳で「効果によって」を付す（WXDi-P15-091/PR-423）。engine 評価では効果ドロー経路でのみ呼ばれるため暗黙＝表示専用。発生源プレイヤー限定は drawByDrawerOwnEffect で判定する
     drawByDrawerOwnEffect?: boolean; // ON_DRAW triggerScope:any_opp で「対戦相手が【自分の効果で】引いたとき」限定（PR-423）。drawer（対戦相手）の last_draw_by_own_effect が true のときのみ発火＝reactor 自身の効果で相手を引かせた場合は誤発火しない（続き162・Opusタスク12(xxi)）
-    risedOntoNameContains?: string; // このシグニが、カード名に指定文字列を含むシグニの上にライズされた場合のみ発火（WX20-056-E2「《オダノブ》を含むシグニにライズされたとき」。ON_RISE と併用。ライズで下に置かれた元シグニの名前で判定）
+    /**
+     * 🆕**このシグニの上に置かれた【ライズ】シグニの名前**で限定する（`ON_RISE` と併用）。
+     * `WX20-056-E2`「このシグニが**カード名に《オダノブ》を含むシグニに**ライズされたとき」／
+     * `WXDi-P06-054-E1`「このシグニが**《コードアート　ララ・ルー//メモリア》に**ライズされたとき」。
+     *
+     * 🔴**2026-09-03（§5.3 `O-60` 第39バッチ）に意味を反転した**（旧名 `risedOntoNameContains`）＝
+     *   旧実装は「**下敷きになった元シグニ**の名前」で判定していたが、`ON_RISE` を持つ11枚は
+     *   **1枚も【ライズ】を印字していない**（＝自分がライズする側ではなく**ライズされる側＝下**）。
+     *   原文「AがBにライズされたとき」の B は**上に置かれた【ライズ】シグニ**なので、
+     *   判定対象は**置かれた側の CardName**が正しい。
+     */
+    risenByNameContains?: string;
     // ON_OPP_POWER_DECREASED の発生源限定「あなたの（他の）＜X＞のシグニの効果によって」（discardCostSourceStory と同型）。
     // engine は temp_power_mods.srcCardNum（未記録なら中央 diff の causeSourceCardNum）の CardClass で判定する。
     // 🆕**発生源不明のときは発火しない＝fail-closed**（§6.4 O-44・2026-08-25）＝原文「効果によって」は

@@ -23,7 +23,7 @@ import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
-import { collectOppLrigAttackExtraCost, matchesStateFilter } from '../src/engine/effectEngine';
+import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
 // 🆕§5.3 索引C 第9巡（2026-09-02）＝O-206 / O-177 / O-84 / O-114 / O-186 の消費地点を直接叩く。
@@ -19257,10 +19257,10 @@ test('parse timing 語彙: バトル/ダメージ/ライズ/チャーム/デッ�
   //   「対戦相手がダメージを受けたとき」は**発生源を絞りすぎ**てルリグアタックでは発火しなかった。
   //   ⚠**両方向を固定する**＝片方だけ書くと「全部 ON_PLAYER_DAMAGED に化ける」退化も素通りする。
   eq(mk('対戦相手がダメージを受けたとき、カードを１枚引く。').timing?.[0], 'ON_PLAYER_DAMAGED', 'ダメージを受けた→ON_PLAYER_DAMAGED（誰の攻撃でも）');
-  // ON_RISE risedOntoNameContains
+  // ON_RISE risenByNameContains（§5.3 `O-60` 第39バッチ＝**上に置かれた【ライズ】シグニ**の名前で判定）
   const rise = mk('このシグニがカード名に《オダノブ》を含むシグニにライズされたとき、カードを１枚引く。');
   eq(rise.timing?.[0], 'ON_RISE', '《X》にライズ→ON_RISE');
-  eq(rise.triggerCondition?.risedOntoNameContains, 'オダノブ', '下敷き名 risedOntoNameContains');
+  eq(rise.triggerCondition?.risenByNameContains, 'オダノブ', '置かれた側の名前 risenByNameContains');
   // ON_CHARM_TO_TRASH（scope）
   eq(mk('【チャーム】１枚が場からいずれかのトラッシュに置かれたとき、カードを１枚引く。').timing?.[0], 'ON_CHARM_TO_TRASH', 'チャーム→ON_CHARM_TO_TRASH');
   eq(mk('対戦相手の場にある【チャーム】１枚がトラッシュに置かれたとき、カードを１枚引く。').triggerScope, 'any_opp', '対戦相手の場→any_opp');
@@ -22010,6 +22010,123 @@ test('POWER_MODIFY deltaFromZone zone:under + sumBy:power＝下段シグニの�
   eq(((r.ownerState as PlayerState).temp_power_mods ?? [])[0]?.delta, 3000,
     '下段のシグニ（3000）だけを足す＝スペルは数えない');
 }));
+test('§5.3 O-60 第42バッチ: 「シグニ１体を対象とする」は所有者を限定しない（owner:any の payload）', () => {
+  const t = JSON.stringify((effectsMap.get('WXDi-P07-086') ?? []).find(e => e.effectId === 'WXDi-P07-086-E1')?.action ?? {});
+  ok(t.includes('"id":"SELECT_TARGET_ONLY"'), '対象宣言が payload 化されていない');
+  ok(t.includes('"owner":"any"'), '修飾語なしの「シグニ１体」が片側の場に潰れている');
+  ok(!/"id":"TARGET_ONLY"/.test(t), '撤去済み STUB へ戻っている');
+});
+test('§5.3 O-60 第40バッチ: WXK11-040-E1＝レベル合計の上限が「エナの《トレット》枚数」（動的しきい値）', () => {
+  const t = JSON.stringify((effectsMap.get('WXK11-040') ?? []).find(e => e.effectId === 'WXK11-040-E1')?.action ?? {});
+  ok(t.includes('"type":"SEND_TO_ENERGY"'), 'WXK11-040-E1 がエナ送りになっていない');
+  ok(t.includes('"$ref":"self_energy_count"'), '上限がエナ枚数参照になっていない');
+  ok(t.includes('"cardName":"トレット"'), '《トレット》の絞り込みが落ちている');
+  ok(!t.includes('ENERGY_BY_LEVEL_SUM_LIMIT'), '撤去済み STUB へ戻っている');
+});
+test('§5.3 O-60 第40バッチ: $ref self_energy_count＝エナの filter 一致枚数（レベル合計の上限に効く）', () => withSavedCursor(() => {
+  const base = mkCtx({}, {}, SIGNI);
+  const ctx = { ...base, ownerState: { ...base.ownerState, energy: [] } } as ExecCtx;
+  const withEnergy = { ...ctx.ownerState, energy: [SIGNI_L1, SIGNI_L2, SIGNI_L3] } as unknown as PlayerState;
+  const all = resolveCountRef({ $ref: 'self_energy_count' }, { ...ctx, ownerState: withEnergy } as ExecCtx);
+  eq(all, 3, 'filter 無しはエナ全体の枚数');
+  const lv1Name = cardMap.get(SIGNI_L1)?.CardName ?? '';
+  const named = resolveCountRef({ $ref: 'self_energy_count', filter: { cardName: lv1Name } },
+    { ...ctx, ownerState: withEnergy } as ExecCtx);
+  ok(named >= 1 && named < 3, `filter が効いていない（全 ${all} 枚中 ${named} 枚）`);
+  // 反転確認＝エナが空なら 0（＝1体も対象に取れない）。
+  eq(resolveCountRef({ $ref: 'self_energy_count' }, ctx), 0, 'エナが空なのに 0 にならない');
+}));
+test('§5.3 O-60 第41バッチ: 相手エナの色制限は「宣言された色」から読む（カード全文 regex を撤去）', () => withSavedCursor(() => {
+  ok(!!(effectsMap.get('WXK09-037') ?? []).find(e => e.effectId === 'WXK09-037-E3'), 'WXK09-037-E3 が消えている');
+  const base = mkCtx({ signi: ['WXK09-037', null, null] }, {}, 'WXK09-037');
+  const restrictSide = base.ownerState;
+  const plain = base.otherState;
+  // 宣言前は制限なし（fail-closed）。
+  eq(collectOppEnergyColorRestriction(restrictSide, plain, effectsMap), null,
+    '色を宣言していないのに制限が張られた');
+  // 宣言後はその色を返す（カード原文には色名が1文字も無い＝旧 regex では常に null だった）。
+  const declared = { ...plain, declared_color: '青' } as unknown as PlayerState;
+  eq(collectOppEnergyColorRestriction(restrictSide, declared, effectsMap), '青',
+    '宣言された色が読めていない');
+  // 反転確認＝制限効果を持つカードが場に居なければ null。
+  eq(collectOppEnergyColorRestriction(plain, declared, effectsMap), null,
+    '制限効果が場に無いのに制限が張られた');
+}));
+test('§5.3 O-60 第39バッチ: ON_RISE の「そのシグニ」＝上に置かれた【ライズ】シグニ（下敷き自身ではない）', () => {
+  const tree = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  // 4効果とも「そのシグニ」＝トリガー元（＝ライズして上に置かれたシグニ）。
+  for (const [num, id] of [['WX20-056', 'WX20-056-E1'], ['WD17-011', 'WD17-011-E1'],
+    ['WX16-037', 'WX16-037-E1'], ['WX16-039', 'WX16-039-E1']] as const) {
+    const t = tree(num, id);
+    ok(t.includes('"targetsTriggerSource":true'), `${id}: 「そのシグニ」がトリガー元を指していない`);
+    // 反転確認＝旧実装の `thisCardOnly`（＝下に埋まった自分自身）へ戻っていないこと。
+    ok(!t.includes('"thisCardOnly"'), `${id}: 下敷き自身（thisCardOnly）へ戻っている`);
+  }
+  // 名前限定は「上に置かれた側」の名前で判定する（キー名ごと反転済み）。
+  const e2 = (effectsMap.get('WX20-056') ?? []).find(e => e.effectId === 'WX20-056-E2');
+  eq(e2?.triggerCondition?.risenByNameContains, 'オダノブ', 'WX20-056-E2 の名前限定が落ちている');
+  const t2 = JSON.stringify(e2?.action ?? {});
+  ok(!t2.includes('RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY'), 'WX20-056-E2 が撤去済み STUB へ戻っている');
+  ok(t2.includes('"from":["BOUNCE","DOWN"]'), 'WX20-056-E2 の「手札に戻らずダウンせず」が落ちている');
+  ok(t2.includes('PREVENT_ABILITY_GAIN_BY_OPP'), 'WX20-056-E2 の「新たに能力を得られない」が落ちている');
+});
+test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガー元へ無選択付与（場に居なければ何もしない）', () => withSavedCursor(() => {
+  const host = SIGNI, risen = SIGNI_L3;
+  const ctx = mkCtx({ signi: [risen, null, null] }, {}, host);
+  const grant = {
+    type: 'GRANT_EFFECT',
+    targetsTriggerSource: true,
+    target: { type: 'SIGNI', owner: 'self', count: 1 },
+    duration: 'UNTIL_END_OF_TURN',
+    effect: {
+      effectId: 'T-G', effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'PREVENT_ABILITY_GAIN_BY_OPP' },
+      duration: 'UNTIL_END_OF_TURN', mandatory: true, parseStatus: 'MANUAL',
+    },
+  } as unknown as EffectAction;
+  const r = run(grant, { ...ctx, triggeringCardNum: risen } as ExecCtx);
+  eq(((r.ownerState as PlayerState).granted_effects ?? {})[risen]?.length, 1,
+    'トリガー元シグニへ付与できていない');
+  // 反転確認＝トリガー元が場に居ないときは付与しない（自由選択に落ちない）。
+  const r2 = run(grant, { ...ctx, triggeringCardNum: 'NOT-ON-FIELD' } as ExecCtx);
+  eq(Object.keys((r2.ownerState as PlayerState).granted_effects ?? {}).length, 0,
+    '場に居ないトリガー元なのに誰かへ付与した（fail-closed でない）');
+}));
+test('§5.3 O-60 第38バッチ: deltaFromZone zone:appearance_cost + sumBy:level＝出現条件で払ったカードのレベル合計', () => withSavedCursor(() => {
+  const src = SIGNI;
+  const ctx = mkCtx({ signi: [src, null, null] }, { signi: [SIGNI_P3000, null, null] }, src);
+  // 出現条件で払った2体（場にはもう居ない）を last_appearance_cost_cards から数える。
+  const paid = {
+    ...ctx.ownerState,
+    last_appearance_cost_cards: [SIGNI_L2, SIGNI_L3],
+  } as unknown as PlayerState;
+  const act = {
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+    delta: -2000,
+    deltaFromZone: { zone: 'appearance_cost', owner: 'self', filter: { cardType: 'シグニ' }, sumBy: 'level', per: -2000 },
+  } as unknown as EffectAction;
+  const lvSum = (Number.parseInt(cardMap.get(SIGNI_L2)?.Level ?? '0', 10) || 0)
+    + (Number.parseInt(cardMap.get(SIGNI_L3)?.Level ?? '0', 10) || 0);
+  const r = run(act, { ...ctx, ownerState: paid } as ExecCtx);
+  eq(((r.otherState as PlayerState).temp_power_mods ?? [])[0]?.delta, -2000 * lvSum,
+    'レベル合計 × -2000 になっていない（枚数で数えている／支払いを読めていない）');
+  // 反転確認＝支払い記録が無ければ 0（fail-closed）。旧実装は「場に残っている同クラス」を数えていた。
+  const r0 = run(act, ctx);
+  eq(((r0.otherState as PlayerState).temp_power_mods ?? [])[0]?.delta, 0,
+    '支払い記録が無いのにパワーが動いた（fail-closed でない）');
+}));
+test('§5.3 O-60 第38バッチ: WD11-007-E1 が「出現条件で払ったレベル合計」payload になっている', () => {
+  const t = JSON.stringify((effectsMap.get('WD11-007') ?? []).find(e => e.effectId === 'WD11-007-E1')?.action ?? {});
+  ok(t.includes('"zone":"appearance_cost"'), 'WD11-007-E1 の出現条件参照が落ちている');
+  ok(t.includes('"sumBy":"level"'), 'WD11-007-E1 のレベル合計参照が落ちている');
+  ok(t.includes('"per":-2000'), 'WD11-007-E1 のレベル1あたりの単価が落ちている');
+  ok(!t.includes('POWER_MOD_BY_FIELD_CLASS_LEVEL'), 'WD11-007-E1 が撤去済み STUB へ戻っている');
+  // 出現条件そのもの（レゾナを出せるかどうか）を manual 化で落としていないこと。
+  ok(!!(effectsMap.get('WD11-007') ?? []).find(e => e.effectId === 'WD11-007-E1')?.appearanceCondition,
+    'WD11-007-E1 の appearanceCondition が落ちている（レゾナが出せなくなる）');
+});
 test('§5.3 O-141: 「下にあるカード」参照の3効果が payload になっている（カード全文 regex を撤去）', () => {
   const tree = (num: string, effectId: string) =>
     JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});

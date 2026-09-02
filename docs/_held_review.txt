@@ -201,18 +201,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
-## +SEND_TO_ENERGY +SIGNI -STUB ［1枚］
-WXDi-P04-077
---- WXDi-P04-077
-  原文: 【出】《白》《赤》《青》《緑》《黒》：対戦相手のシグニを２体まで対象とし、それらをエナゾーンに置く。,-
-  - [0].action.id = "MULTI_SIGNI_TO_ENERGY"
-  ~ [0].action.type : "STUB" → "SEND_TO_ENERGY"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "opponent"
-  + [0].action.target.count = 2
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.upToCount = true
-
 ## -LOOK_AND_REORDER ［1枚］
 WXDi-P08-062
 --- WXDi-P08-062
@@ -298,6 +286,24 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
+
+## +POWER_MODIFY +SIGNI -STUB ［1枚］
+WD11-007
+--- WD11-007
+  原文: 【出現条件】《メインフェイズアイコン》レゾナではない＜凶蟲＞のシグニ２体をあなたの場からトラッシュに置く【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを、このレゾナの出現条件でトラッシュに置いたシグニのレベルを合計した数だけ－2000する。,-
+  - [0].action.id = "POWER_MOD_BY_FIELD_CLASS_LEVEL"
+  ~ [0].action.type : "STUB" → "POWER_MODIFY"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "opponent"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.upToCount = false
+  + [0].action.delta = -2000
+  + [0].action.deltaFromZone.zone = "appearance_cost"
+  + [0].action.deltaFromZone.owner = "self"
+  + [0].action.deltaFromZone.filter.cardType = "シグニ"
+  + [0].action.deltaFromZone.sumBy = "level"
+  …（他 2 行）
 
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009

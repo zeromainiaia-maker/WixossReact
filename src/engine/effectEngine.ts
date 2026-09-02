@@ -4358,31 +4358,36 @@ export function collectOppGuardExtraColorlessCost(
 }
 
 /**
- * OPP_ENERGY_COLOR_CONDITION_TRASH: ownerState のフィールドに
- * 「対戦相手のエナゾーンに[色]を持たず置かれる場合トラッシュ」CONTINUOUS効果があれば
- * その必要色を返す（その色を持たないカードを相手がエナチャージしようとした場合トラッシュへ）。
+ * OPP_ENERGY_COLOR_CONDITION_TRASH: `restrictOwnerState` の場に
+ * 「対戦相手のエナゾーンに**この能力で宣言された色を持たず無色ではない**カードが置かれる場合、
+ * 代わりにトラッシュに置かれる」CONTINUOUS 効果があれば、その**宣言された色**を返す。
+ *
+ * 🔴**2026-09-03（§5.3 `O-60` 第41バッチ）にカード全文 regex を撤去した。**
+ *   旧実装は効果元カードの `EffectText`＋`BurstText` に `/(赤|青|緑|白|黒)/` を当てて色を決めていたが、
+ *   原文（`WXK09-037`）は「**対戦相手が宣言した色**」であって**カードに色名は1文字も書かれていない**＝
+ *   常に `null`＝**この【常】は丸ごと無効**だった（同じカードの別の能力に色名があれば逆に嘘の色で効く形）。
+ * ⇒ 宣言の結果が入る `PlayerState.declared_color`（`OPP_DECLARE_COLOR` が刻む）から読む。
+ * ⚠**宣言前は `null`**＝制限を張らない（fail-closed。旧挙動も無効だったので退化しない）。
+ * ⚠**無色のカードは対象外**（原文「無色ではない」）＝判定は呼び出し側（`Color` が空／「無」のカードは通す）。
  */
 export function collectOppEnergyColorRestriction(
-  ownerState: PlayerState,
-  cardMap: Map<string, CardData>,
+  restrictOwnerState: PlayerState,
+  chargingPlayerState: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): string | null {
+  const declared = chargingPlayerState.declared_color;
+  if (!declared) return null;
   const candidates: string[] = [];
-  for (const stack of ownerState.field.signi) {
+  for (const stack of restrictOwnerState.field.signi) {
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+  if (restrictOwnerState.field.lrig.length > 0) candidates.push(restrictOwnerState.field.lrig.at(-1)!);
   for (const cn of candidates) {
-    const effs = effectsMap.get(cn) ?? [];
-    for (const eff of effs) {
+    for (const eff of effectsMap.get(cn) ?? effectsMap.get(cn.split('#')[0]) ?? []) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'OPP_ENERGY_COLOR_CONDITION_TRASH') continue;
-      const card = cardMap.get(cn);
-      const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-      const m = txt.match(/(赤|青|緑|白|黒)/);
-      if (m) return m[1];
+      if (act.type === 'STUB' && act.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') return declared;
     }
   }
   return null;

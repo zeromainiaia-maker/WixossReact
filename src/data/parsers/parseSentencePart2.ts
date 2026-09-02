@@ -742,11 +742,6 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE' } as StubAction;
   }
 
-  // ---- そのシグニは引用符付き能力を得る（ライズ時等）----
-  if (t.match(/そのシグニは「【常】.*」を得る/s)) {
-    return { type: 'STUB', id: 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY' } as StubAction;
-  }
-
   // ---- ルリグアタックで特定カード名をすべてトラッシュ ----
   // 🆕§5.3 `O-60` 第34バッチ（2026-09-03）＝**カード名とゾーンを payload で運ぶ**。
   //   旧実装は engine が `/「([^」]+)」/`（**かぎ括弧**）で名前を取ろうとしており、原文の綴りは《》なので
@@ -1261,13 +1256,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手シグニをレベル合計制限でエナに置く ----
+  // 🆕§5.3 `O-60` 第40バッチ（2026-09-03）＝**typed `SEND_TO_ENERGY` を出す**（STUB は撤去）。
+  // 🔴旧 `STUB{ENERGY_BY_LEVEL_SUM_LIMIT}` は engine が**カード全文**に `/レベルの合計が(\d*)を超え/` を
+  //   当てて「**自分のエナ**のレベル合計が上限を超えたぶんを末尾からトラッシュ」する**まったく別の効果**だった。
+  // ⚠上限そのものは後段の「レベルの合計がN以下になるように」句が `totalLevelMax` として載せる
+  //   （静的な数のときだけ。動的しきい値は `selectionConstraint.totalLevelMaxRef` ＝ manual 側で書く）。
   if (t.match(/対戦相手のシグニを.*レベルの合計が.*以下になるように.*対象.*エナゾーンに置く/)) {
     return {
-      type: 'SEQUENCE',
-      steps: [{
-        type: 'STUB', id: 'ENERGY_BY_LEVEL_SUM_LIMIT',
-      } as StubAction],
-    } as SequenceAction;
+      type: 'SEND_TO_ENERGY',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true, filter: { cardType: 'シグニ' } },
+    } as EffectAction;
   }
 
   // ---- 《ライズアイコン》を持つシグニのパワーに比例 ----

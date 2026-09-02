@@ -4909,6 +4909,21 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   // rawText 未展開（パース失敗の PARTIAL 温存）＝付与内容が無いので no-op
   if (!a.effect) return done(ctx);
   const grantEff: CardEffect = a.effect;
+  // 🆕targetsTriggerSource:「そのシグニ」= トリガー元シグニへ無選択付与（§5.3 `O-60` 第39バッチ）。
+  //   ⚠**候補が場にいなければ何もしない**（fail-closed）＝選択UIへ落とすと原文に無い自由選択になる。
+  if (a.targetsTriggerSource) {
+    const src = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+    const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';
+    if (!src) return done(addLog(ctx, '付与対象（トリガー元シグニ）が特定できないため何もしない'));
+    const owner: Owner | null = ctx.ownerState.field.signi.some(s => s?.at(-1) === src) ? 'self'
+      : ctx.otherState.field.signi.some(s => s?.at(-1) === src) ? 'opponent' : null;
+    if (!owner) return done(addLog(ctx, '付与対象（トリガー元シグニ）が場にいないため何もしない'));
+    const s = ownerState(owner, ctx);
+    const granted = { ...(s[key] ?? {}) };
+    granted[src] = [...(granted[src] ?? []), grantEff];
+    return done(addLog(setOwnerState(owner, { ...s, [key]: granted }, ctx),
+      `${ctx.cardMap.get(src)?.CardName ?? src}に${(grantEff as { effectType?: string })?.effectType ?? '効果'}を付与`));
+  }
   // targetsLastProcessed:「それ」= 直前に選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
   if (a.targetsLastProcessed) {
     const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';

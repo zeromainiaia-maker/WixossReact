@@ -4867,10 +4867,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const cardNum = my.hand[handIndex];
       const name = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const colorRestrict = collectOppEnergyColorRestriction(op, battleCardMap, effectsMap);
+      const colorRestrict = collectOppEnergyColorRestriction(op, my, effectsMap);
       const handWithout = my.hand.filter((_, i) => i !== handIndex);
       let newMyState: PlayerState;
-      if (colorRestrict && !(battleCardMap.get(cardNum)?.Color ?? '').includes(colorRestrict)) {
+      // 原文「宣言された色を持た**ず無色ではない**カード」＝無色（データ上は「無」／空）は素通しする。
+      const chargeColor = battleCardMap.get(cardNum)?.Color ?? '';
+      const chargeIsColorless = chargeColor === '' || chargeColor === '無' || chargeColor === '無色';
+      if (colorRestrict && !chargeIsColorless && !chargeColor.includes(colorRestrict)) {
         newMyState = { ...my, hand: handWithout, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
         appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
       } else {
@@ -4896,9 +4899,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newStack = signiStack.slice(0, -1);
       const newSigni = [...my.field.signi] as (string[] | null)[];
       newSigni[zoneIndex] = newStack.length > 0 ? newStack : null;
-      const colorRestrict = collectOppEnergyColorRestriction(op, battleCardMap, effectsMap);
+      const colorRestrict = collectOppEnergyColorRestriction(op, my, effectsMap);
       let newMyState: PlayerState;
-      if (colorRestrict && !(battleCardMap.get(cardNum)?.Color ?? '').includes(colorRestrict)) {
+      // 原文「宣言された色を持た**ず無色ではない**カード」＝無色（データ上は「無」／空）は素通しする。
+      const chargeColor = battleCardMap.get(cardNum)?.Color ?? '';
+      const chargeIsColorless = chargeColor === '' || chargeColor === '無' || chargeColor === '無色';
+      if (colorRestrict && !chargeIsColorless && !chargeColor.includes(colorRestrict)) {
         newMyState = { ...my, field: { ...my.field, signi: newSigni }, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
         appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
       } else {
@@ -6471,28 +6477,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
       }
 
-      // ON_RISE: ライズ配置時、ライズされたシグニ自身の「このシグニがライズされたとき」を収集（self）。
-      // risedOntoNameContains: ライズで下に置かれた元シグニ（existingTopNum）の名前で限定（WX20-056-E2《オダノブ》）。
+      // ON_RISE: ライズ配置時、**下敷きになったシグニ**の「このシグニがライズされたとき」を収集（self）。
+      // 🔴**2026-09-03（§5.3 `O-60` 第39バッチ）に収集元を反転した**＝旧実装は「置かれた側（`ownEffects`）」から
+      //   集めていたが、`ON_RISE` を持つ11枚は**1枚も【ライズ】を印字していない**（＝ライズする側ではなく
+      //   **ライズされる側＝下敷き**）ので、旧実装ではこの11枚が**1度も発火しない死に効果**だった。
+      // `risenByNameContains`: 上に置かれた【ライズ】シグニ（`cardNum`）の名前で限定（WX20-056-E2《オダノブ》）。
+      // `triggeringCardNum`: 帰結の「そのシグニ」＝**上に置かれたシグニ**（`targetsTriggerSource` で解決）。
       if (isRise) {
-        // ライズで下に置かれた元トップシグニ（risedOntoNameContains 判定用）
         const underTop = existingZoneStack.at(-1);
         const underNum = underTop ? getCardNum(underTop) : undefined;
-        for (const eff of ownEffects) {
+        const underEffects = underNum ? (effectsMap.get(underNum) ?? []) : [];
+        const risenName = battleCardMap.get(cardNum)?.CardName ?? '';
+        for (const eff of underEffects) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_RISE')) continue;
           if ((eff.triggerScope ?? 'self') !== 'self') continue;
-          const needName = eff.triggerCondition?.risedOntoNameContains;
-          if (needName) {
-            const underName = underNum ? (battleCardMap.get(underNum)?.CardName ?? '') : '';
-            if (!underName.includes(needName)) continue;
-          }
-          if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, placed, op, true, battleCardMap, cardNum)) continue;
+          const needName = eff.triggerCondition?.risenByNameContains;
+          if (needName && !risenName.includes(needName)) continue;
+          if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, placed, op, true, battleCardMap, underNum)) continue;
           ownEntries.push({
             id: generateUUID(),
             playerId: user.id,
-            cardNum,
+            cardNum: underNum!,
             effectId: eff.effectId,
-            label: `${cardName} の【自】効果（ライズ時）`,
+            label: `${battleCardMap.get(underNum!)?.CardName ?? underNum} の【自】効果（ライズされたとき）`,
             effect: eff,
+            triggeringCardNum: cardNum,
           });
         }
       }

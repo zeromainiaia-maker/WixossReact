@@ -425,11 +425,6 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
-  // ---- 条件かぎり、代わりに＋Nされる/する（条件付き代替パワー修正）----
-  if (t.match(/^[^。]+かぎり、代わりに[＋+][０-９\d]+(?:される|する)/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_ALT_POWER_BOOST' } as StubAction;
-  }
-
   // ---- このシグニは＜X＞を持つ（クラス/ストーリー付与）----
   if (t.match(/^このシグニは＜[^＞]+＞を持つ/)) {
     return { type: 'STUB', id: 'GRANT_SIGNI_CLASS' } as StubAction;

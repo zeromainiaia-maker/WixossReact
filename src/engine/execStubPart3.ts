@@ -1,7 +1,7 @@
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, PowerModifyAction, AttachAcceAction, } from '../types/effects';
+  EffectAction, StubAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, PowerModifyAction, AttachAcceAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -543,31 +543,7 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: newOtherBBLB },
       `バトルバニッシュLB: ${dataBBLB.CardName}`));
   }
-  // BEAT_ZONE_OP: ビートゾーン操作（「【ビート】にする」または「【ビート】がN枚以下」条件チェック）
-  if (stub.id === 'BEAT_ZONE_OP') {
-    const srcBZO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtBZO = srcBZO ? (srcBZO.EffectText ?? '') + ' ' + (srcBZO.BurstText ?? '') : '';
-    const toHWBZO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 条件チェックパターン: 「【ビート】がN枚以下の場合」
-    const condMBZO = txtBZO.match(/【ビート】が([０-９\d]+)枚以下/);
-    if (condMBZO) {
-      const threshBZO = parseInt(toHWBZO(condMBZO[1]));
-      const beatCountBZO = (ctx.ownerState.field.beat_zone ?? []).length;
-      if (beatCountBZO > threshBZO) {
-        return done(addLog(ctx, `ビート条件不成立（現在${beatCountBZO}枚 > ${threshBZO}）→スキップ`));
-      }
-      return done(addLog(ctx, `ビート条件成立（現在${beatCountBZO}枚 ≤ ${threshBZO}）`));
-    }
-    // 「【ビート】にする」: フィールドシグニを選択してビートゾーンへ
-    const fieldCandsBZO = ctx.ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-    if (fieldCandsBZO.length === 0) return done(addLog(ctx, 'ビートにするシグニなし'));
-    return needsInteraction(addLog(ctx, 'ビートにするシグニを選択'), {
-      type: 'SELECT_TARGET', candidates: fieldCandsBZO, count: 1, optional: false,
-      targetScope: 'self_field',
-      thenAction: ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_BEAT' } as StubAction) as EffectAction,
-    });
-  }
-  // INTERNAL_MOVE_TO_BEAT: 選択シグニをビートゾーンへ移動
+  // INTERNAL_MOVE_TO_BEAT: 選択シグニをビートゾーンへ移動（TRASH_SIGNI_TO_BEAT の後段）
   if (stub.id === 'INTERNAL_MOVE_TO_BEAT') {
     const cardIMTB = ctx.lastProcessedCards?.[0];
     if (!cardIMTB) return done(addLog(ctx, 'INTERNAL_MOVE_TO_BEAT: カードなし'));
@@ -1208,20 +1184,6 @@ export function execStubPart3(
       type: 'SELECT_TARGET', candidates: candsSOS, count: 1, optional: true,
       targetScope: 'self_field', thenAction: noopSOS as EffectAction,
     });
-  }
-  // ENERGY_LEVEL_CONDITION_CHOOSE: エナにレベルN以上があればCHOOSE提示
-  if (stub.id === 'ENERGY_LEVEL_CONDITION_CHOOSE') {
-    const toHWELCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcELCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtELCC = srcELCC ? (srcELCC.EffectText ?? '') + ' ' + (srcELCC.BurstText ?? '') : '';
-    const mLvELCC = txtELCC.match(/レベル([０-９\d]+)以上/);
-    const threshELCC = mLvELCC ? parseInt(toHWELCC(mLvELCC[1])) : 4;
-    const hasLevelELCC = ctx.ownerState.energy.some(cn => {
-      const lv = parseInt(toHWELCC(ctx.cardMap.get(cn)?.Level ?? '0')) || 0;
-      return lv >= threshELCC;
-    });
-    if (!hasLevelELCC) return done(addLog(ctx, `エナにLv${threshELCC}以上なし（条件不達成）`));
-    return done(addLog(ctx, `エナにLv${threshELCC}以上あり（条件達成）→選択効果`));
   }
   // LEVEL_BASED_CONDITIONAL: 公開したシグニのレベルN枚だけ手札を捨てる
   if (stub.id === 'LEVEL_BASED_CONDITIONAL') {
@@ -2624,153 +2586,6 @@ export function execStubPart3(
       lrig_trash: [...ctx.otherState.lrig_trash, ...under],
     } }, `対戦相手のセンタールリグの下から${count}枚をルリグトラッシュへ`));
   }
-  if (stub.id === 'DO_THREE_THINGS') {
-    const srcDTT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDTT = srcDTT ? (srcDTT.EffectText ?? '') + ' ' + (srcDTT.BurstText ?? '') : '';
-    let ctxDTT = ctx;
-    const logsDTT: string[] = [];
-    // ①「対戦相手のシグニ1体をトラッシュに置く」
-    if (txtDTT.match(/①.*対戦相手のシグニ[１1]体を対象とし.*トラッシュに置く/)) {
-      const oppTopSigni = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).find(cn => !!cn);
-      if (oppTopSigni) {
-        const removedDTT = removeFromField(oppTopSigni, ctxDTT.otherState);
-        ctxDTT = { ...ctxDTT, otherState: { ...removedDTT, trash: [...removedDTT.trash, oppTopSigni] } };
-        logsDTT.push(`①${ctx.cardMap.get(oppTopSigni)?.CardName ?? oppTopSigni}をトラッシュへ`);
-      }
-    }
-    // ②「対戦相手のライフクロス1枚をトラッシュに置く」
-    if (txtDTT.match(/②.*ライフクロス[１1]枚をトラッシュに置く/)) {
-      const life = ctxDTT.otherState.life_cloth;
-      if (life.length > 0) {
-        const top = life[life.length - 1];
-        ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
-          life_cloth: life.slice(0,-1),
-          trash: [...ctxDTT.otherState.trash, top],
-        }};
-        logsDTT.push(`②ライフクロス(${ctx.cardMap.get(top)?.CardName ?? top})をトラッシュへ`);
-      }
-    }
-    // ③「対戦相手のエナゾーンからカード1枚をトラッシュに置く」
-    if (txtDTT.match(/③.*エナゾーンからカード[１1]枚を対象とし.*トラッシュに置く/)) {
-      const oppEna = ctxDTT.otherState.energy;
-      if (oppEna.length > 0) {
-        const picked = oppEna[0];
-        ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
-          energy: oppEna.slice(1),
-          trash: [...ctxDTT.otherState.trash, picked],
-        }};
-        logsDTT.push(`③エナ(${ctx.cardMap.get(picked)?.CardName ?? picked})をトラッシュへ`);
-      }
-    }
-    // ④「対戦相手のセンタールリグの下のカード1枚をルリグトラッシュに置く」
-    if (txtDTT.match(/④.*センタールリグの下にあるカード[１1]枚を対象とし.*ルリグトラッシュに置く/)) {
-      const oppLrigStack = ctxDTT.otherState.field.lrig;
-      if (oppLrigStack.length > 1) {
-        const under = oppLrigStack[oppLrigStack.length - 2];
-        const newLrigDTT = [...oppLrigStack.slice(0,-1).slice(0,-1), oppLrigStack[oppLrigStack.length - 1]];
-        ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
-          field: { ...ctxDTT.otherState.field, lrig: newLrigDTT },
-          lrig_trash: [...ctxDTT.otherState.lrig_trash, under],
-        }};
-        logsDTT.push(`④${ctx.cardMap.get(under)?.CardName ?? under}をルリグトラッシュへ`);
-      }
-    }
-    // 「対戦相手の全ルリグとシグニをダウンし凍結する」
-    if (txtDTT.match(/①.*(?:すべてのルリグとシグニ|全.*ルリグ.*シグニ)をダウンし凍結する/)) {
-      ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
-        field: { ...ctxDTT.otherState.field,
-          signi_down: [true, true, true],
-          signi_frozen: [true, true, true],
-          lrig_down: true,
-          lrig_frozen: true,
-        },
-      }};
-      logsDTT.push('①全シグニ・ルリグをダウン+凍結');
-    }
-    // 「全相手シグニが能力を失う（次ターン終了まで）」
-    if (txtDTT.match(/②.*すべてのシグニは能力を失う/)) {
-      const oppAllSigniDTT = [0,1,2].map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
-      const abRemovedDTT = [...new Set([...(ctxDTT.otherState.abilities_removed ?? []), ...oppAllSigniDTT])];
-      ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState, abilities_removed: abRemovedDTT } };
-      logsDTT.push(`②全${oppAllSigniDTT.length}体の能力を消去`);
-    }
-    // 「①カードをN枚引く」
-    if (!logsDTT.length) {
-      const drawDTT = txtDTT.match(/①.*カードを([０-９\d]+)枚引く/);
-      if (drawDTT) {
-        const toHWD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const n = parseInt(toHWD(drawDTT[1]));
-        const canDraw = Math.min(n, ctxDTT.ownerState.deck.length);
-        const newOwnerDraw = { ...ctxDTT.ownerState,
-          hand: [...ctxDTT.ownerState.hand, ...ctxDTT.ownerState.deck.slice(0, canDraw)],
-          deck: ctxDTT.ownerState.deck.slice(canDraw),
-        };
-        ctxDTT = { ...ctxDTT, ownerState: newOwnerDraw };
-        logsDTT.push(`①${n}枚ドロー`);
-      }
-    }
-    // 「①相手センタールリグをダウンする」
-    if (!logsDTT.length && txtDTT.match(/①.*(?:センタールリグ|対戦相手のルリグ)[１1]体を対象とし.*ダウン/)) {
-      ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
-        field: { ...ctxDTT.otherState.field, lrig_down: true },
-      }};
-      logsDTT.push('①相手ルリグをダウン');
-    }
-    // 「①対戦相手のシグニ1体にアタック禁止」→ SELECT_TARGET が必要なためインタラクション
-    if (!logsDTT.length && txtDTT.match(/①.*対戦相手のシグニ[１1]体を対象.*アタックできない/)) {
-      const oppSigniDTT = [0,1,2]
-        .map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1))
-        .filter((cn): cn is string => !!cn);
-      if (oppSigniDTT.length > 0) {
-        const blockStub: StubAction = { type: 'STUB', id: 'INTERNAL_BLOCK_ATTACK_THIS_TURN' };
-        return needsInteraction(addLog(ctxDTT, 'ターン終了時まで「アタックできない」シグニを選択'), {
-          type: 'SELECT_TARGET', candidates: oppSigniDTT, count: 1, optional: false,
-          targetScope: 'opp_field', thenAction: blockStub as EffectAction,
-        });
-      }
-    }
-    // 「①パワーN以下の相手シグニをバニッシュ」
-    if (!logsDTT.length) {
-      const banishPwrM = txtDTT.match(/①.*パワー([０-９\d万]+)以下.*バニッシュ/);
-      if (banishPwrM) {
-        const toHWB = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace('万','0000');
-        const maxPwr = parseInt(toHWB(banishPwrM[1]));
-        const bCands = [0,1,2]
-          .map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1))
-          .filter((cn): cn is string => {
-            if (!cn) return false;
-            // 実効パワー優先・Power「∞」はInfinity扱い（「パワーN以下」の対象にしない）
-            const ep = ctx.effectivePowers;
-            const raw = ctx.cardMap.get(cn)?.Power;
-            const pw = (ep instanceof Map ? ep.get(cn) : (ep as Record<string, number> | undefined)?.[cn])
-              ?? (raw === '∞' ? Infinity : parseInt(raw ?? '99999'));
-            return pw <= maxPwr;
-          });
-        if (bCands.length > 0) {
-          const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
-          return selectOrInteract(bCands, 1, false, 'opp_field', banishAct as EffectAction, undefined, ctxDTT);
-        }
-        return done(addLog(ctxDTT, `①バニッシュ対象なし（パワー${maxPwr}以下の相手シグニ不在）`));
-      }
-    }
-    if (logsDTT.length > 0) return done(addLog(ctxDTT, logsDTT.join(' / ')));
-    return done(addLog(ctx, '3つの処理（個別解析不可）'));
-  }
-  // DRAW_IF_CHARGED_CLASS: 直前のエナチャージで＜クラス＞のシグニが置かれた場合1ドロー（WDK07-E01）
-  if (stub.id === 'DRAW_IF_CHARGED_CLASS') {
-    const srcDICC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const clsDICC = (srcDICC?.EffectText ?? '').match(/この方法で＜([^＞]+)＞のシグニ/)?.[1];
-    const lastEnaDICC = ctx.ownerState.energy.at(-1);
-    const cardDICC = lastEnaDICC ? ctx.cardMap.get(getCardNum(lastEnaDICC)) : undefined;
-    const hitDICC = !!cardDICC && cardDICC.Type === 'シグニ'
-      && (!clsDICC || (cardDICC.CardClass ?? '').includes(clsDICC));
-    if (!hitDICC) return done(addLog(ctx, `エナに置かれたのは＜${clsDICC ?? '?'}＞のシグニではない→ドローなし`));
-    const deckDICC = ctx.ownerState.deck;
-    if (deckDICC.length === 0) return done(ctx);
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState,
-      hand: [...ctx.ownerState.hand, deckDICC[0]], deck: deckDICC.slice(1) } },
-      `＜${clsDICC}＞のシグニをチャージ→1枚ドロー`));
-  }
   // HAND_EXCESS_TO_ENERGY: 手札がN枚（value、既定5）より多い場合、差分を手札からエナゾーンへ（WDK08-Y08）
   if (stub.id === 'HAND_EXCESS_TO_ENERGY') {
     const limitHETE = typeof stub.value === 'number' ? stub.value : 5;
@@ -2859,34 +2674,6 @@ export function execStubPart3(
     if (candsBOPG.length === 0) return done(addLog(ctx, `パワー${minPwr}以上の相手シグニなし`));
     const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { min: minPwr } } } };
     return exec(banishAct as EffectAction, ctx);
-  }
-  // REVEAL_TOP_BANISH_BY_LEVEL_SUM: デッキ上N枚公開→公開シグニのレベル合計×1000以下の相手シグニをバニッシュ→公開カードをトラッシュ（WX17-028）
-  if (stub.id === 'REVEAL_TOP_BANISH_BY_LEVEL_SUM') {
-    const srcRTBLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRTBLS = srcRTBLS ? (srcRTBLS.EffectText ?? '') : '';
-    const cntMRTBLS = txtRTBLS.match(/デッキの上からカードを([１-９1-9])枚公開/);
-    const nRTBLS = cntMRTBLS ? parseInt(cntMRTBLS[1].replace(/[１-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : 4;
-    const revealedRTBLS = ctx.ownerState.deck.slice(0, nRTBLS);
-    if (revealedRTBLS.length === 0) return done(addLog(ctx, 'デッキが空（公開不可）'));
-    const levelSumRTBLS = revealedRTBLS.reduce((s, cn) => {
-      const c = ctx.cardMap.get(cn);
-      return s + (c?.Type === 'シグニ' ? (parseInt(c.Level ?? '0') || 0) : 0);
-    }, 0);
-    const maxPwrRTBLS = levelSumRTBLS * 1000;
-    const namesRTBLS = revealedRTBLS.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
-    const newOwnerRTBLS: PlayerState = {
-      ...ctx.ownerState,
-      deck: ctx.ownerState.deck.slice(revealedRTBLS.length),
-      trash: [...ctx.ownerState.trash, ...revealedRTBLS],
-    };
-    const curRTBLS = addLog({ ...ctx, ownerState: newOwnerRTBLS },
-      `デッキ上${revealedRTBLS.length}枚公開: ${namesRTBLS}（シグニレベル合計${levelSumRTBLS}）→トラッシュ`);
-    if (maxPwrRTBLS <= 0) return done(curRTBLS);
-    const banishRTBLS: BanishAction = {
-      type: 'BANISH',
-      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { max: maxPwrRTBLS } }, upToCount: true },
-    };
-    return exec(banishRTBLS as EffectAction, curRTBLS);
   }
   // INTERNAL_BANISH_ALL_POWER_GTE: パワーN以上のすべてのシグニ（両プレイヤー）をバニッシュ
   if (stub.id === 'INTERNAL_BANISH_ALL_POWER_GTE') {
@@ -3424,30 +3211,6 @@ export function execStubPart3(
       type: 'CHOOSE', options: optsCSO, count: 1, continuation: contCSO as EffectAction,
     });
   }
-  // === バッチ15: 公開・アクセ応用・条件ドロー系 ===
-  // FIELD_COND_DRAW_REVEAL: フィールド条件達成時にデッキ上を公開し同クラスなら手札へ
-  if (stub.id === 'FIELD_COND_DRAW_REVEAL') {
-    const srcFCDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtFCDR = srcFCDR ? (srcFCDR.EffectText ?? '') + ' ' + (srcFCDR.BurstText ?? '') : '';
-    const mClassFCDR = txtFCDR.match(/＜([^＞]+)＞/);
-    const classNameFCDR = mClassFCDR ? mClassFCDR[1] : '';
-    const hasClassFCDR = !classNameFCDR || ctx.ownerState.field.signi.some(s => {
-      if (!s || s.length === 0) return false;
-      return ctx.cardMap.get(s[s.length - 1])?.CardClass?.includes(classNameFCDR);
-    });
-    if (!hasClassFCDR) return done(addLog(ctx, `フィールドに＜${classNameFCDR}＞なし（条件未達成）`));
-    const sFCDR = ctx.ownerState;
-    if (sFCDR.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
-    const topFCDR = sFCDR.deck[0];
-    const topCardFCDR = ctx.cardMap.get(topFCDR);
-    const topClassFCDR = topCardFCDR?.CardClass ?? '';
-    if (classNameFCDR && topClassFCDR.includes(classNameFCDR)) {
-      const newSFCDR: PlayerState = { ...sFCDR, deck: sFCDR.deck.slice(1), hand: [...sFCDR.hand, topFCDR] };
-      return done(addLog({ ...ctx, ownerState: newSFCDR }, `公開${topCardFCDR?.CardName ?? topFCDR}(＜${classNameFCDR}＞一致)→手札へ`));
-    }
-    const newSFCDR2: PlayerState = { ...sFCDR, deck: sFCDR.deck.slice(1), trash: [...sFCDR.trash, topFCDR] };
-    return done(addLog({ ...ctx, ownerState: newSFCDR2 }, `公開${topCardFCDR?.CardName ?? topFCDR}(不一致)→トラッシュ`));
-  }
   // REVEAL: デッキ上を公開（名前ログ）
   if (stub.id === 'REVEAL') {
     const sREV = ctx.ownerState;
@@ -3684,29 +3447,6 @@ export function execStubPart3(
       hand: [...sETHOD.hand, lastEnaETHOD],
     };
     return done(addLog({ ...ctx, ownerState: newSETHOD }, `${ctx.cardMap.get(lastEnaETHOD)?.CardName ?? lastEnaETHOD}をエナ→手札`));
-  }
-  // COUNT_DISTINCT_NAMES: フィールドの異なる名称数を数えてパワー修正
-  if (stub.id === 'COUNT_DISTINCT_NAMES') {
-    const toHWCDN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcCDN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCDN = srcCDN ? (srcCDN.EffectText ?? '') + ' ' + (srcCDN.BurstText ?? '') : '';
-    const mCDN = txtCDN.match(/([＋+－-][０-９\d]+)/);
-    const deltaCDN = mCDN ? parseInt(toHWCDN(mCDN[1]).replace('＋', '+').replace('－', '-')) : 1000;
-    const ownSigniNames = new Set<string>();
-    (ctx.ownerState.field.signi ?? []).forEach(s => {
-      if (s && s.length > 0) {
-        const name = ctx.cardMap.get(s[s.length - 1])?.CardName;
-        if (name) ownSigniNames.add(name);
-      }
-    });
-    const countCDN = ownSigniNames.size;
-    const totalCDN = deltaCDN * countCDN;
-    if (ctx.sourceCardNum) {
-      const modsOwnCDN = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalCDN }];
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsOwnCDN } },
-        `異なる名称${countCDN}種×${deltaCDN}→パワー${totalCDN}`));
-    }
-    return done(addLog(ctx, `異なる名称${countCDN}種`));
   }
   // DISCARD_OR_PENALTY: 特定カード1枚捨てるかペナルティ（N枚捨て）を選ぶ
   if (stub.id === 'DISCARD_OR_PENALTY') {
@@ -4932,18 +4672,6 @@ export function execStubPart3(
       `ルリグ${lrigNums.length}体(${lrigNames})を下に、アーツ${artsNums.length}枚をルリグデッキへ`));
   }
 
-  // DRAW_IF_CHARGED_CLASS: 直前のENERGY_CHARGE_FROM_DECKで＜調理＞がチャージされた場合1ドロー（WDK07-E01）
-  if (stub.id === 'DRAW_IF_CHARGED_CLASS') {
-    const lastCharged = ctx.ownerState.energy.at(-1);
-    if (!lastCharged) return done(addLog(ctx, 'エナにカードなし（DRAW_IF_CHARGED_CLASS）'));
-    const card = ctx.cardMap.get(lastCharged);
-    const cls = ctx.ownerState.card_class_overrides?.[lastCharged] ?? card?.CardClass ?? '';
-    if (!cls.includes('調理')) {
-      return done(addLog(ctx, `${card?.CardName ?? lastCharged}は＜調理＞でないためドローしない`));
-    }
-    const drawAct: DrawAction = { type: 'DRAW', owner: 'self', count: 1 };
-    return exec(drawAct as EffectAction, addLog(ctx, `${card?.CardName ?? lastCharged}は＜調理＞→1ドロー`));
-  }
 
   // TRASH_UNDER_SPELLS_POWER_MINUS: このシグニの下スペルを任意枚数トラッシュ→相手シグニに-5000×枚数（WXDi-P10-040）
   if (stub.id === 'TRASH_UNDER_SPELLS_POWER_MINUS') {

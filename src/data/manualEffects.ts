@@ -1486,7 +1486,34 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXK11-040 ／ 原文＝「あなたのデッキから**この方法でトラッシュに置いたシグニと同じ名前の**シグニ１枚を探して〜」。
   // 🔴旧 live＝名前一致が落ちて**デッキのどのシグニでもサーチできる**過剰効果だった。
+  // 🆕WXK11-040-E1（§5.3 `O-60` 第40バッチ・2026-09-03）／原文＝「【自】：このシグニがアタックしたとき、
+  //   対戦相手のシグニを、**レベルの合計があなたのエナゾーンにあるカード名に《トレット》を含むシグニの枚数以下**に
+  //   なるように好きな数対象とし、それらをエナゾーンに置く。」
+  // 🔴旧 live＝`STUB{ENERGY_BY_LEVEL_SUM_LIMIT}`＝engine が**カード全文**に
+  //   `/レベルの合計が([０-９\d]*)を超え/` を当てて「**自分のエナ**のレベル合計が上限を超えたぶんを
+  //   末尾からトラッシュ」していた＝**原文と何の関係も無い別の効果**（regex は当たらないので上限10 固定）。
+  // ⚠受け皿は既存の `selectionConstraint.totalLevelMaxRef`（`WXDi-P00-012-E1` が同型で稼働中）。
+  //   足したのは `$ref:'self_energy_count'`（filter 付きエナ枚数）だけ。
   'WXK11-040': [
+    {
+      effectId: 'WXK11-040-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      action: {
+        type: 'SEND_TO_ENERGY',
+        target: {
+          type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true,
+          filter: { cardType: 'シグニ' },
+          selectionConstraint: {
+            totalLevelMaxRef: { $ref: 'self_energy_count', filter: { cardType: 'シグニ', cardName: 'トレット' } },
+          },
+        },
+      } as import('../types/effects').EffectAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
     {"effectId":"WXK11-040-E2","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_turn","cost":{"energyTrash":{"count":1,"filter":{"cardType":"シグニ"}}},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","nameEqLastProcessed":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
@@ -6836,6 +6863,81 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       appearanceCondition: {"rawText":"《メインフェイズアイコン》レゾナ１体をあなたの場からルリグトラッシュに置き、レゾナではないレベル３以上のシグニ１体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldToLrigTrash":{"count":1,"filter":{"cardType":"レゾナ"}},"fieldTrash":{"count":1,"filter":{"cardType":"シグニ","level":{"min":3},"excludeResona":true}}},"paymentShape":"REQUIRES_NEW_FLOW"},
       action: { type: 'STUB', id: 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX20-056-E2（戦乱の一輪　オイチ）【自】：このシグニがカード名に《オダノブ》を含むシグニにライズされたとき、
+  //   ターン終了時まで、**そのシグニ**（＝上に置かれた【ライズ】シグニ）は
+  //   「【常】：対戦相手の効果によって、手札に戻らずダウンせず新たに能力を得られない。」を得る。
+  // 🆕§5.3 `O-60` 第39バッチ（2026-09-03）＝旧 live は `STUB{RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY}` で、
+  //   engine が**カード全文**に `アサシン`／`ランサー`／`ダブルクラッシュ`／`シャドウ` を includes して
+  //   キーワードを推測していた（原文は耐性文なので**1本も当たらず**「キーワード解析不可」で no-op）。
+  // ⚠原文は同型1枚（全10シート実測）＝速いレーンで手書きする。
+  // ⚠**引用の3軸を3つの受け皿へ分ける**＝手札に戻らない/ダウンしない＝`GRANT_PROTECTION{from:['BOUNCE','DOWN']}`、
+  //   新たに能力を得られない＝`PREVENT_ABILITY_GAIN_BY_OPP`（`collectAbilityGainProtectedSigni` が読む）。
+  'WX20-056': [
+    {
+      effectId: 'WX20-056-E2',
+      effectType: 'AUTO',
+      timing: ['ON_RISE'],
+      triggerCondition: { risenByNameContains: 'オダノブ' },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'GRANT_PROTECTION',
+            targetsTriggerSource: true,
+            from: ['BOUNCE', 'DOWN'],
+            sourceOwner: 'opponent',
+            duration: 'UNTIL_END_OF_TURN',
+          },
+          {
+            type: 'GRANT_EFFECT',
+            targetsTriggerSource: true,
+            target: { type: 'SIGNI', owner: 'self', count: 1 },
+            duration: 'UNTIL_END_OF_TURN',
+            effect: {
+              effectId: 'WX20-056-E2-G',
+              effectType: 'CONTINUOUS',
+              action: { type: 'STUB', id: 'PREVENT_ABILITY_GAIN_BY_OPP' },
+              duration: 'UNTIL_END_OF_TURN',
+              mandatory: true,
+              parseStatus: 'MANUAL',
+            },
+          },
+        ],
+      } as import('../types/effects').EffectAction,
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WD11-007（幻蟲 スカラベ）【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを、
+  //   **このレゾナの出現条件でトラッシュに置いたシグニのレベルを合計した数だけ**－2000する。
+  // 🆕§5.3 `O-60` 第38バッチ（2026-09-03）＝旧 live は `STUB{POWER_MOD_BY_FIELD_CLASS_LEVEL}` で、
+  //   engine が**カード全文 regex**（`＜X＞のシグニのレベルを合計した数だけ－N`）を当てていたが、
+  //   原文は「出現条件でトラッシュに置いた」＝**場に残っていないカード**を数えるので **1本も当たらず**、
+  //   フォールバックで**何もしない**（ログだけ）だった。⇒ `CountFromZone.zone:'appearance_cost'`
+  //   ＋ `sumBy:'level'` を新設し、支払いの唯一の funnel（`resonaSummon.ts` が刻む
+  //   `PlayerState.last_appearance_cost_cards`）から数える。
+  // ⚠原文は同型1枚だけ（全10シート実測）＝速いレーンで手書きする（parser 規則は足さない）。
+  'WD11-007': [
+    {
+      effectId: 'WD11-007-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》レゾナではない＜凶蟲＞のシグニ２体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"凶蟲","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"},
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+        // per に単価を入れる＝`resolveCountRef` が「レベル合計 × per」を返し delta は無視される。
+        delta: -2000,
+        deltaFromZone: { zone: 'appearance_cost', owner: 'self', filter: { cardType: 'シグニ' }, sumBy: 'level', per: -2000 },
+      } as import('../types/effects').EffectAction,
+      duration: 'UNTIL_END_OF_TURN',
       mandatory: true,
       parseStatus: 'MANUAL',
     },

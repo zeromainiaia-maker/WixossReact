@@ -422,6 +422,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     //   同じ文になり、上限が入ったことが原文照合に映らない（`WXDi-P00-012-E1`）。
     : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'opp_lrig_level' ? 'レベルの合計が対戦相手のセンタールリグのレベル以下になるように'
     : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'last_processed_count' ? 'レベルの合計がこの方法で処理した枚数以下になるように'
+    // 🆕§5.3 `O-60` 第40バッチ＝エナの filter 一致枚数を上限にする（`WXK11-040-E1`）。
+    : t.selectionConstraint?.totalLevelMaxRef?.$ref === 'self_energy_count'
+      ? `レベルの合計があなたのエナゾーンにある${filterJa(t.selectionConstraint.totalLevelMaxRef.filter)}${t.selectionConstraint.totalLevelMaxRef.filter?.cardType ?? 'カード'}の枚数以下になるように`
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct === 'costSum' ? 'それぞれコストの合計が異なる'
@@ -481,6 +484,10 @@ function constraintJa(c?: import('../src/types/effects').SelectionConstraint): s
   //   落とすと「無制限に好きな数」と同じ文になり、上限が入ったことが原文照合に映らない（`WXDi-P00-012-E1`）。
   if (c?.totalLevelMaxRef?.$ref === 'opp_lrig_level') return 'レベルの合計が対戦相手のセンタールリグのレベル以下になるように';
   if (c?.totalLevelMaxRef?.$ref === 'last_processed_count') return 'レベルの合計がこの方法で処理した枚数以下になるように';
+  // 🆕§5.3 `O-60` 第40バッチ＝エナの filter 一致枚数を上限にする（`WXK11-040-E1`）。
+  if (c?.totalLevelMaxRef?.$ref === 'self_energy_count') {
+    return `レベルの合計があなたのエナゾーンにある${filterJa(c.totalLevelMaxRef.filter)}${c.totalLevelMaxRef.filter?.cardType ?? 'カード'}の枚数以下になるように`;
+  }
   if (c?.sharedColor === 'all') return '共通する色を持つ';
   if (c?.sharedColor === 'none') return '共通する色を持たない';
   if (c?.distinct === 'class') return '共通するクラスを持たない';
@@ -1287,12 +1294,19 @@ function actionJa(a?: Action, effectType?: string): string {
           : z.zone === 'under' ? 'このシグニの下にある'
           // 🆕§5.3 `O-143`＝チェックゾーン。ここを既定に落とすと逆翻訳に生の英語 `check` が出る。
           : z.zone === 'check' ? 'チェックゾーンにある'
+          // 🆕§5.3 `O-60` 第38バッチ＝レゾナの出現条件で支払ったカード。所有者は払った側で決まるので owner を出さない。
+          : z.zone === 'appearance_cost' ? 'このレゾナの出現条件でトラッシュに置いた'
           : `${z.zone}にある`;
-        const ownerPrefix = z.zone === 'under' ? '' : ownerJa(z.owner);
+        const ownerPrefix = (z.zone === 'under' || z.zone === 'appearance_cost') ? '' : ownerJa(z.owner);
         const cap = z.maxCount === undefined ? '' : `（この効果は${z.maxCount}枚までしか適用されない）`;
         // 🆕`sumBy:'power'`＝枚数比例ではなく**下段のパワー総和**と同じだけ増減する（§5.3 `O-141`）。
         if (z.sumBy === 'power') {
           return `${pmSubj}のパワーを${ownerPrefix}${location}すべての${noun}のパワーの合計と同じだけ${d >= 0 ? '＋' : '－'}する${pmDuration}${cap}`;
+        }
+        // 🆕`sumBy:'level'`＝「〜のレベルを合計した数だけ±N」（§5.3 `O-60` 第38バッチ）。
+        //   ⚠「1枚につき」ではない＝レベル合計が倍率、`per` が単価。
+        if (z.sumBy === 'level') {
+          return `${pmSubj}のパワーを${ownerPrefix}${location}${noun}のレベルを合計した数だけ${d >= 0 ? '＋' : '－'}${Math.abs(d)}する${pmDuration}${cap}`;
         }
         return `${pmSubj}のパワーを${ownerPrefix}${location}${noun}${z.unitSize ?? 1}枚につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する${pmDuration}${cap}`;
       }
@@ -1707,6 +1721,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
       const subjGE = a.targetsLastProcessed ? 'それ'
+        // 🆕§5.3 `O-60` 第39バッチ＝トリガー元へ無選択付与（落とすと「あなたのシグニ1体」＝自由選択に読める）。
+        : a.targetsTriggerSource ? 'それ（トリガー元シグニ）'
         // thisCardOnly の主語はホストの種別で変わる（§6.4 O-25 で LRIG 自己付与が parser から出るようになった）
         : a.target?.filter?.thisCardOnly ? (a.target?.type === 'LRIG' ? 'このルリグ' : 'このシグニ')
         : targetJa(a.target);
@@ -2004,11 +2020,6 @@ function actionJa(a?: Action, effectType?: string): string {
           && a.steps[1].faceDownTarget?.upToCount
           && a.steps[2]?.type === 'STUB' && a.steps[2].id === 'FLIP_FACE_DOWN_SIGNI') {
         return `${actionJa(a.steps[1]).replace(/にする$/, 'にしてもよい')}。${actionJa(a.steps[2])}`;
-      }
-      // DO_THREE_THINGS が先頭のSEQUENCEは、その1STUBが原文「N つを行う。①②③」全体を表現し、
-      // 後続 step は parser の冗長な再パース（②③の consequence を重複描画）なので先頭のみ描画する。
-      if (a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'DO_THREE_THINGS') {
-        return actionJa(a.steps[0]);
       }
       // 空文字ステップ（engine が no-op スキップする説明テキスト系STUB等）は結合から除外する。
       const pairs = a.steps.map((s: any) => ({ step: s, part: actionJa(s, effectType) as string })).filter((p: any) => p.part !== '');
@@ -3564,13 +3575,6 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/[^。]*?の【アクセ】にする/);
         if (m) return m[0].replace(/^【[^】]*】[^：。]*：/, '');
       }
-      // 複数処理をまとめて行う（DO_THREE_THINGS・engine実装済み＝原文の①②③④を動的パースして実行）＝
-      // 「（以下の）N つを行う。①…②…③…（④…）」全体を currentCardText から抽出（。を跨ぐので末尾まで）。
-      // BurstText の "-" 連結は末尾 replace で除去。SEQUENCE 先頭に来る場合は SEQUENCE 側で本STUBのみ描画。
-      if (a.id === 'DO_THREE_THINGS') {
-        const m = currentCardText.match(/以下の[０-９\d一二三四]+つを行う[\s\S]*/);
-        if (m) return m[0].replace(/\s*-\s*$/, '').trim();
-      }
       // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii) で実働化）＝相手の次ターンのメイン／アタックフェイズの間、
       // 相手は自分のトラッシュのカードを自分の効果で動かせない。第9波では宣言 STUB（no-op）だったので
       // 「（未実装）」を前置していたが、engine 実装済みになったので外した。
@@ -4831,8 +4835,8 @@ function effJa(e: Eff): string {
       s = `${phasePrefix}対戦相手が${byEffect}カードを１枚引いたとき`;
     }
     // ON_RISE の「カード名に〜を含むシグニにライズされたとき」限定（WX20-056-E2）
-    if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
-      s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;
+    if (t === 'ON_RISE' && e.triggerCondition?.risenByNameContains) {
+      s = `このシグニがカード名に《${e.triggerCondition.risenByNameContains}》を含むシグニにライズされたとき`;
     }
     // ON_PLAY placedFront（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」／
     //   レベル filter 付き＝WX17-075-E1/WXDi-P02-083「このシグニの正面にレベルN以下のシグニ１体が出たとき」）
