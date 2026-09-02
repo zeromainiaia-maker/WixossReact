@@ -42280,6 +42280,98 @@ async function driveO86Scaling(page, H, artsInLrigTrash) {
   }
   return { pass: true, detail: `ルリグトラッシュのアーツ2枚で《無×4》軽減され、印刷7枚→3枚で使用できた。${detail}` };
 }
+/**
+ * `V-127`＝`O-86` 第8バッチ「センタールリグ条件の軽減が payload（`EffectCost.costReplacement`）で効く」
+ * （`artsUseGate` ＋ `ArtsModal`）。
+ * 原文＝`WX11-015` 絶体絶滅「**あなたのセンタールリグが＜花代＞の場合、このアーツの使用コストは
+ *   《赤×1》減る。**あなたは手札をすべて捨てる。その後、対戦相手のシグニ１体を対象とし、それをバニッシュする。」
+ * 🔑観測点＝**印刷コスト《赤》×２ をエナ1枚では払えないが、センタールリグが花代なら1枚で使える**。
+ *   ⚠**ルリグ名の判定は `CostReplaceCtx.lrig` 経由**＝`computeArtsEffectiveCost` が自分の引数から詰める。
+ *   ここが切れると「ルリグを花代にしても安くならない」＝実機でしか見えない（JSON は正しいまま）。
+ * 🔴対照＝センタールリグをタマヨリヒメにすると軽減0＝エナ1枚では使えない。
+ */
+function o86LrigCondSpec(isHanayo) {
+  return {
+    hostSet: {
+      'field.lrig': [isHanayo ? 'WD02-001#9770' : 'WD01-001#9771'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': ['WX11-015#9772'],
+      // ⚠**《赤》のシグニを1枚**＝軽減後の《赤》×１ ちょうど（印刷コスト《赤》×２ には足りない）。
+      //   色を確かめずに置くと「payload は読めているのに成立しない」に見える（第4バッチで踏んだ罠）。
+      'energy': ['WD02-009#9773'],
+      'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [], 'coins': 0,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9794'],
+      'field.signi': [['WD01-013#9774'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO86LrigCond(page, H, isHanayo) {
+  const tag = isHanayo ? 'o86lrig-ok' : 'o86lrig-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 lrigTop=${st0?.host?.lrigTop} energy=${st0?.host?.energy} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(800);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(800);
+  await H.clickTextOrBtn(['使用']);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+  const useBtn = () => page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+  if (!(await useBtn().count())) {
+    const names = await page.getByRole('button').allTextContents().catch(() => []);
+    H.log(`  見えているボタン: ${JSON.stringify(names.map(t => t.trim()).filter(Boolean).slice(0, 40))}`);
+    return isHanayo
+      ? { pass: false, detail: '🔴センタールリグが花代なのに使用モーダルへ辿り着けない（軽減が請求へ届いていない）' }
+      : { pass: true, detail: '対照＝花代でなければ印刷コスト《赤》×２ を払えないので提示されない' };
+  }
+  await H.clickTestId('artscost-energy-0');
+  await page.waitForTimeout(400);
+  const enabled = await useBtn().isEnabled().catch(() => false);
+  H.log(`  エナ1枚選択: アーツ使用 enabled=${enabled}`);
+  if (!isHanayo) {
+    return enabled
+      ? { pass: false, detail: '🔴花代でないのにエナ1枚で使える＝ルリグ条件を見ずに軽減している' }
+      : { pass: true, detail: '対照＝花代でなければエナ1枚では使えない（印刷コストは《赤》×２）' };
+  }
+  if (!enabled) return { pass: false, detail: '🔴センタールリグが花代なのに《赤×1》軽減が効いていない' };
+  await useBtn().click().catch(() => {});
+  let last = st0, settled = 0;
+  for (let i = 0; i < 18; i++) {
+    await page.waitForTimeout(700);
+    let did = await H.clickTestId('pick-0');
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | energy=${last?.host?.energy} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} oppSigni=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `energy=${st0?.host?.energy}→${h.energy} lrigTrash=${JSON.stringify(h.lrigTrashCards)} oppSigni=${JSON.stringify(last?.guest?.fieldSigni)}`;
+  if (h.energy !== 0) return { pass: false, detail: `🔴軽減後コスト1枚ぶんのエナが支払われていない。${detail}` };
+  if (!(h.lrigTrashCards ?? []).includes('WX11-015#9772')) {
+    return { pass: false, detail: `🔴アーツがルリグトラッシュへ行っていない（使用が成立していない）。${detail}` };
+  }
+  return { pass: true, detail: `センタールリグ＜花代＞で《赤×1》軽減され、印刷2枚→1枚で使用できた。${detail}` };
+}
+scenarios.o86LrigCondPay = {
+  title: 'O-86 WX11-015：センタールリグが＜花代＞なら《赤×1》軽減（payload 経由・エナ1枚で成立）',
+  spec: o86LrigCondSpec(true), drive: (page, H) => driveO86LrigCond(page, H, true),
+};
+order.push('o86LrigCondPay');
+scenarios.o86LrigCondNone = {
+  title: 'O-86 対照：センタールリグが花代でなければ軽減0＝エナ1枚では使えない',
+  spec: o86LrigCondSpec(false), drive: (page, H) => driveO86LrigCond(page, H, false),
+};
+order.push('o86LrigCondNone');
+
 scenarios.o86ScalingPayloadPay = {
   title: 'O-86 WX12-Re04：比例軽減が payload だけで効く（ルリグトラッシュのアーツ2枚→印刷7枚が3枚に）',
   spec: o86ScalingSpec(2), drive: (page, H) => driveO86Scaling(page, H, 2),

@@ -846,7 +846,17 @@ export type CostReplacementWhen =
   /** このターンに対戦相手がアーツ／スペルを使用していたか。`mode:'all'`＝原文「両方を使用していた場合」。 */
   | { kind: 'oppUsedThisTurn'; arts: boolean; spell: boolean; mode: 'all' | 'any' }
   | { kind: 'selfFieldHasCardName'; cardName: string }
-  | { kind: 'selfTrashCountGte'; value: number };
+  | { kind: 'selfTrashCountGte'; value: number }
+  /**
+   * 🆕**あなたのセンタールリグが＜keyword＞**（§5.3 `O-86` 第8バッチ・14枚）。
+   * ⚠判定は**ルリグ名の部分一致＋エイリアス**（`CostReplaceCtx.lrig.selfNameAliases`）＝
+   *   `LRIG_ALL_NAMES_SENTINEL` があればどの keyword にも一致する（既存 `lrigNameMatches` と同じ契約）。
+   */
+  | { kind: 'selfCenterLrigName'; keyword: string }
+  /** 🆕**対戦相手のセンタールリグの色**（12枚）。原文「＜赤＞か＜青＞の場合」＝いずれかを含めば成立。 */
+  | { kind: 'oppCenterLrigColor'; colors: string[] }
+  /** 🆕**あなたのセンタールリグがレベルN以上**（1枚）。 */
+  | { kind: 'selfCenterLrigLevelGte'; value: number };
 
 export interface CostReplacementTerm {
   when: CostReplacementWhen;
@@ -855,6 +865,19 @@ export interface CostReplacementTerm {
   cost: { color: string; count: number }[];
   /** true＝条件が偽なら**以降の項を見ずに「置換なし」で確定**（旧実装の早期 return を保存する）。 */
   stopIfUnmet?: boolean;
+  /**
+   * 🆕true＝成立しても**そこで確定せず、以降の項へ結果を持ち越す**（原文が「〜減り、〜減る」と
+   * **2条件を重ねて**書く形＝§5.3 `O-86` 第8バッチ）。全項を見終わって印刷コストから動いていなければ
+   * 「置換なし」（＝`null`）で返す＝旧実装の `if (out !== base) return out;` と同じ契約。
+   */
+  accumulate?: boolean;
+  /**
+   * 🔴true＝**数量0の色も落とさずに文字列化する**（`《赤×0》` を `なし` へ畳まず `《赤》×0` と出す）。
+   * 旧 `computeArtsEffectiveCost` の「対戦相手のセンタールリグが〜の場合、基本コストは〜になる」だけが
+   * `normalizeCostText` の生出力を返しており、他の置換（`parseGrowCost` 経由）と表示が違った。
+   * ⚠**この差を消すのは挙動変更**（表示だけとはいえユーザーに見える）なので、移設では忠実に保存する。
+   */
+  keepZeroAmounts?: boolean;
 }
 
 /**

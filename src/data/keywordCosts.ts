@@ -121,6 +121,21 @@ function parseCostIcons(raw: string): { color: string; count: number }[] {
   return out;
 }
 
+/**
+ * 🔴**数量0の色も落とさない版**（`《赤×0》` → `[{赤,0}]`）。
+ * 旧 `computeArtsEffectiveCost` の「対戦相手のセンタールリグが〜の場合、基本コストは〜になる」だけが
+ * `normalizeCostText` の生出力を返しており、`《赤》×0` と表示されていた。移設で畳むと表示が変わるので分ける。
+ */
+function parseCostIconsKeepZero(raw: string): { color: string; count: number }[] {
+  const out: { color: string; count: number }[] = [];
+  for (const m of raw.matchAll(/《([^×》]+?)(?:×([０-９\d]+))?》/g)) {
+    const color = m[1].trim();
+    if (['コイン', 'ターン1回', 'アタックフェイズ', 'ダウン'].includes(color)) continue;
+    out.push({ color, count: m[2] ? utNum(m[2]) : 1 });
+  }
+  return out;
+}
+
 /** 「好きな数」「２枚まで」「１枚」→ 上限枚数。`'ANY'`＝候補数が上限。 */
 function parseUseCostAmount(raw: string): number | 'ANY' {
   if (/^好きな/.test(raw)) return 'ANY';
@@ -281,18 +296,60 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
   if (betReduce) {
     return [{ when: { kind: 'betting' }, mode: 'reduce', cost: parseReduceIcons(betReduce[1]), stopIfUnmet: true }];
   }
-  // 🔴**ガード**＝「使用コストは…になる」を含まない原文には置換の項を1つも作らない（旧実装と同じ）。
-  if (!/使用コストは[^。]*になる/.test(effectText)) return null;
+  // 🆕**センタールリグ条件（§5.3 `O-86` 第8バッチ・計28枚）を先に組み立てる。**
+  //   ⚠**「使用コストは…になる」ガードの外**＝この4形のうち3つは「〜**減る**」なので、
+  //     ガードの内側に置くと1枚も作られない（旧実装ではガードの**後段**にある別の regex 群だった）。
+  //   🔑**並び順は旧 `computeArtsEffectiveCost` の評価順**＝対戦相手の色 → あなたの＜X＞ →
+  //     ＜X＞と＜Y＞の累積 → レベルN以上。ここを入れ替えると2条件を持つ札で勝つ項が変わる。
+  const lrigTerms: CostReplacementTerm[] = [];
+  {
+    // ⓐ「対戦相手のセンタールリグが〔色〕の場合、この{アーツ|カード}の{使用|基本}コストは《X》に**なる**」（12枚）
+    //    ⚠`s` フラグつき＝原文が改行を挟む札がある。「か」「と」で割った**いずれか**を含めば成立。
+    const oppColor = effectText.match(
+      /対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの|このカードの)?(?:使用|基本)コストは(.+?)になる/s);
+    if (oppColor) {
+      lrigTerms.push({
+        when: { kind: 'oppCenterLrigColor', colors: oppColor[1].split(/か|と/).map(c => c.trim()).filter(Boolean) },
+        mode: 'replace',
+        // 🔴**0 の色を落とさない**＝旧実装は `normalizeCostText` の生出力（`《赤》×0`）を返していた。
+        cost: parseCostIconsKeepZero(oppColor[2]),
+        keepZeroAmounts: true,
+      });
+    }
+    // ⓑ「あなたのセンタールリグが＜X＞の場合、この{アーツ|スペル}の使用コストは《色×N》**減る**」（14枚）
+    const selfName = effectText.match(new RegExp(`あなたのセンタールリグが＜([^＞]+)＞の場合[、,][^。]*?使用コストは${COST}減る`));
+    if (selfName) {
+      lrigTerms.push({ when: { kind: 'selfCenterLrigName', keyword: selfName[1] }, mode: 'reduce', cost: parseCostIcons(selfName[2]) });
+    }
+    // ⓒ「使用コストはあなたのセンタールリグが＜X＞の場合《色×1》減り、＜Y＞の場合《色×1》減る」（`PR-460`）
+    //    ＝**式としては累積**（実際はどちらか片方しか成立しない）。
+    const twoNames = effectText.match(new RegExp(
+      `使用コストはあなたのセンタールリグが＜([^＞]+)＞の場合[、,]${COST}減り[、,]あなたのセンタールリグが＜([^＞]+)＞の場合[、,]${COST}減る`));
+    if (twoNames) {
+      lrigTerms.push({ when: { kind: 'selfCenterLrigName', keyword: twoNames[1] }, mode: 'reduce', cost: parseCostIcons(twoNames[2]), accumulate: true });
+      lrigTerms.push({ when: { kind: 'selfCenterLrigName', keyword: twoNames[3] }, mode: 'reduce', cost: parseCostIcons(twoNames[4]), accumulate: true });
+    }
+    // ⓓ「あなたのセンタールリグがレベルN以上の場合、…使用コストは《色×N》減る」（`WX09-037`）
+    const lvGte = effectText.match(new RegExp(`あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは${COST}減る`));
+    if (lvGte) {
+      lrigTerms.push({ when: { kind: 'selfCenterLrigLevelGte', value: utNum(lvGte[1]) }, mode: 'reduce', cost: parseCostIcons(lvGte[2]) });
+    }
+  }
+
+  // 🔴**ガード**＝「使用コストは…になる」を含まない原文には**置換**の項を1つも作らない（旧実装と同じ）。
+  //   ⚠ここで返すのは**ルリグ条件の項だけ**（上で組んだぶん）＝ガードは置換系だけに掛かる。
+  if (!/使用コストは[^。]*になる/.test(effectText)) return lrigTerms.length > 0 ? lrigTerms : null;
 
   // ① ベット形の置換（`WD17-006` / `WDK01-007` ほか計9枚）
   const betReplace = effectText.match(new RegExp(`あなたがベットする場合[、,][^。]*?使用コストは${COST}になる`));
   if (betReplace) {
-    return [{ when: { kind: 'betting' }, mode: 'replace', cost: parseCostIcons(betReplace[1]), stopIfUnmet: true }];
+    // ⚠ルリグ条件の項は**後ろに残す**（旧実装ではベットを宣言しなかったとき後段のルリグ規則へ落ちた）。
+    return [{ when: { kind: 'betting' }, mode: 'replace', cost: parseCostIcons(betReplace[1]), stopIfUnmet: true }, ...lrigTerms];
   }
   // ①' 使用時の任意支払い形（`WX21-035` / `WX21-071`）＝ベット形と同じく**宣言してはじめて成立する**。
   const optDiscard = parseOptionalDiscardCostText(effectText);
   if (optDiscard) {
-    return [{ when: { kind: 'paidOptionalDiscard' }, mode: 'replace', cost: optDiscard.cost, stopIfUnmet: true }];
+    return [{ when: { kind: 'paidOptionalDiscard' }, mode: 'replace', cost: optDiscard.cost, stopIfUnmet: true }, ...lrigTerms];
   }
 
   // ② 対戦相手のこのターンのアーツ／スペル使用（`WX09-Re02`）。
@@ -319,7 +376,10 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
   if (trashCount) {
     terms.push({ when: { kind: 'selfTrashCountGte', value: utNum(trashCount[1]) }, mode: 'replace', cost: parseCostIcons(trashCount[2]) });
   }
-  return terms.length > 0 ? terms : null;
+  // 🔑**置換系（旧 `computeCostReplacement`）が先・ルリグ条件が後**＝旧 `computeArtsEffectiveCost` の
+  //   評価順（①置換 → ②比例 payload → ③ルリグ条件…）をそのまま項の並びで表している。
+  const all = [...terms, ...lrigTerms];
+  return all.length > 0 ? all : null;
 }
 
 /**

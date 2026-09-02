@@ -2,35 +2,31 @@
 
 ⚠**「当たっているカード数」であって「壊れている件数」ではない**。live 0 の規則は死に規則（先に撤去できる）。
 
-## A🔴 COST  18規則 / 当たり 51カード
+## A🔴 COST  14規則 / 当たり 23カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 14 | 14 | battle/costs.ts:951 | computeArtsEffectiveCost | `/あなたのセンタールリグが＜([^＞]+)＞の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 12 | 12 | battle/costs.ts:854 | computeArtsEffectiveCost | `/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの\|このカードの)?(?:使用\|基本)コストは(.+?)になる/` |
-| 5 | 1 | battle/costs.ts:955 | computeArtsEffectiveCost | `/あなたのセンタールリグのレベル[１1]につき((?:《[^》]+》)+)減る/` |
-| 5 | 5 | battle/costs.ts:1005 | computeArtsEffectiveCost | `/あなたの(ライフクロス\|ルリグトラッシュにあるアーツ\|手札\|エナゾーンにあるカード\|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 3 | 3 | battle/costs.ts:972 | computeArtsEffectiveCost | `/このターンに対戦相手がスペルを使用していた場合/` |
-| 2 | 2 | battle/costs.ts:894 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 2 | 1 | battle/costs.ts:912 | computeArtsEffectiveCost | `/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/` |
-| 1 | 1 | battle/costs.ts:877 | computeArtsEffectiveCost | `/あなたの場にパワー([０-９\d]+)以上のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:972 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合/` |
-| 1 | 1 | battle/costs.ts:961 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:976 | computeArtsEffectiveCost | `/使用されたスペル[１1]枚につき((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:978 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:992 | computeArtsEffectiveCost | `/あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1026 | computeArtsEffectiveCost | `/ルリグトラッシュに([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減り[、,]?([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1039 | computeArtsEffectiveCost | `/あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減り[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1055 | computeArtsEffectiveCost | `/使用コストはあなたのセンタールリグが＜([^＞]+)＞の場合[、,]((?:《[^》]+》)+)減り[、,]あなたのセンタールリグが＜([^＞]+)＞の場合[、,]((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1065 | computeArtsEffectiveCost | `/あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1072 | computeArtsEffectiveCost | `/このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 5 | 1 | battle/costs.ts:989 | computeArtsEffectiveCost | `/あなたのセンタールリグのレベル[１1]につき((?:《[^》]+》)+)減る/` |
+| 5 | 5 | battle/costs.ts:1039 | computeArtsEffectiveCost | `/あなたの(ライフクロス\|ルリグトラッシュにあるアーツ\|手札\|エナゾーンにあるカード\|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 3 | 3 | battle/costs.ts:1006 | computeArtsEffectiveCost | `/このターンに対戦相手がスペルを使用していた場合/` |
+| 2 | 2 | battle/costs.ts:933 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 2 | 1 | battle/costs.ts:951 | computeArtsEffectiveCost | `/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/` |
+| 1 | 1 | battle/costs.ts:916 | computeArtsEffectiveCost | `/あなたの場にパワー([０-９\d]+)以上のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1006 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合/` |
+| 1 | 1 | battle/costs.ts:995 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1010 | computeArtsEffectiveCost | `/使用されたスペル[１1]枚につき((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1012 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1026 | computeArtsEffectiveCost | `/あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1060 | computeArtsEffectiveCost | `/ルリグトラッシュに([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減り[、,]?([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1073 | computeArtsEffectiveCost | `/あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減り[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1090 | computeArtsEffectiveCost | `/このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
 
 ## B GATE  5規則 / 当たり 4441カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
 | 4433 | 4405 | battle/growLogic.ts:316 | listGrowCandidates | `/かつ\|と/` |
-| 29 | 29 | battle/costs.ts:1189 | isMultiEna | `'：【マルチエナ】'` |
+| 29 | 29 | battle/costs.ts:1207 | isMultiEna | `'：【マルチエナ】'` |
 | 26 | 26 | battle/lrigActivateGate.ts:110 | canActivateLrigEffect | `'【歌のカケラ】'` |
 | 11 | 11 | battle/pieceCutin.ts:20 | isTeamConditionPiece | `'【使用条件】【チーム】'` |
 | 4 | 4 | battle/growLogic.ts:290 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |

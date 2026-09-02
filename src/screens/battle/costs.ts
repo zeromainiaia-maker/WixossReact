@@ -637,6 +637,16 @@ export function normalizeCostText(s: string): string {
   return result.map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
 }
 
+/**
+ * 🔴**数量0の色を落とさずに文字列化する**（`《赤×0》` → `《赤》×0`）。
+ * 旧 `computeArtsEffectiveCost` の「対戦相手のセンタールリグが〜の場合、基本コストは〜になる」だけが
+ * `normalizeCostText` の生出力を返しており、他の置換（`parseGrowCost` 経由＝0を落とす）と**表示が違った**。
+ * ⚠移設で勝手に `なし` へ畳むと**ユーザーに見える文字列が変わる**ので、その差を保存するために分けてある。
+ */
+function costPartsToStrKeepZero(parts: { color: string; count: number }[]): string {
+  return parts.map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
+}
+
 /** コストの色別数量を表示・計算用の文字列へ。⚠**count 0 は落とす**（《X×0》＝「コストなし」＝'なし'）。 */
 function costPartsToStr(parts: { color: string; count: number }[]): string {
   return parts.filter(p => p.count > 0).map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
@@ -676,6 +686,20 @@ export interface CostReplaceCtx {
   // 「使用する際、…捨ててもよい。そうした場合、使用コストは《X》になる」の任意支払いを済ませたか
   // （`WX21-035`／`WX21-071`＝支払いUIは `SpellCastModal`）。
   paidOptionalDiscard?: boolean;
+  /**
+   * 🆕**センタールリグ条件（§5.3 `O-86` 第8バッチ）の参照元**＝
+   * 「あなたのセンタールリグが＜X＞の場合」（14枚）／「対戦相手のセンタールリグが〔色〕の場合」（12枚）／
+   * 「あなたのセンタールリグがレベルN以上の場合」（1枚）。
+   * ⚠**`computeArtsEffectiveCost` が自分の引数から詰めて渡す**ので、あちら経由の呼び出し4経路は
+   *   何も変えなくてよい。`computeCostReplacement` を**直接**呼ぶベット判定3経路は渡さない＝
+   *   ベット形の札はルリグ条件を持たないので影響しない（渡さなければ「成立しない」に倒れる＝安全側）。
+   */
+  lrig?: {
+    selfName?: string;
+    selfNameAliases?: string[];
+    selfLevel?: number;
+    oppColor?: string;
+  };
 }
 
 /** 使用時の任意支払いで要求される手札の組（色×クラス×枚数）。全グループを満たしてはじめて置換が成立する。 */
@@ -767,10 +791,27 @@ export function computeCostReplacement(
   if (!terms?.length) return null;
   const oppArts = ctx?.oppState?.turn_arts_used === true;
   const oppSpell = (ctx?.oppState?.actions_done ?? []).includes('USE_SPELL');
+  // 「あなたのセンタールリグが＜X＞」＝名前の部分一致＋エイリアス（`LRIG_ALL_NAMES_SENTINEL` は全一致）。
+  const lrigNameMatches = (keyword: string): boolean => {
+    const l = ctx?.lrig;
+    return !!l && (l.selfNameAliases?.includes(LRIG_ALL_NAMES_SENTINEL)
+      || l.selfName?.includes(keyword) === true
+      || l.selfNameAliases?.some(a => a.includes(keyword)) === true);
+  };
   const met = (when: CostReplacementWhen): boolean => {
     switch (when.kind) {
       case 'betting': return ctx?.isBetting === true;
       case 'paidOptionalDiscard': return ctx?.paidOptionalDiscard === true;
+      case 'selfCenterLrigName': return lrigNameMatches(when.keyword);
+      // ⚠**相手のセンタールリグ色が未知なら成立させない**（安いほうへ倒さない）＝旧実装と同じ扱い。
+      case 'oppCenterLrigColor': {
+        const c = ctx?.lrig?.oppColor;
+        return !!c && when.colors.some(x => c.includes(x));
+      }
+      case 'selfCenterLrigLevelGte': {
+        const lv = ctx?.lrig?.selfLevel;
+        return lv !== undefined && lv >= when.value;
+      }
       case 'oppUsedThisTurn': {
         const flags = [when.arts && oppArts, when.spell && oppSpell];
         const wanted = [when.arts, when.spell];
@@ -789,17 +830,22 @@ export function computeCostReplacement(
       case 'selfTrashCountGte': return (myState.trash?.length ?? 0) >= when.value;
     }
   };
+  // 🆕`accumulate` の項だけは**確定せずに結果を持ち越す**（原文「〜減り、〜減る」＝2条件の重ね）。
+  let acc: string | null = null;
   for (const term of terms) {
     if (met(term.when)) {
-      if (term.mode === 'replace') return costPartsToStr(term.cost);
-      let reduced = card.Cost;
-      for (const r of term.cost) reduced = removeNColorFromCost(reduced, r.color, r.count);
-      return reduced;
+      const applied: string = term.mode === 'replace'
+        ? (term.keepZeroAmounts ? costPartsToStrKeepZero(term.cost) : costPartsToStr(term.cost))
+        : term.cost.reduce((out: string, r) => removeNColorFromCost(out, r.color, r.count), acc ?? card.Cost);
+      if (!term.accumulate) return applied;
+      acc = applied;
+      continue;
     }
     // 🔴**宣言しなければ「置換なし」で確定**（ベット形／任意支払い形）＝後段の項へ落とさない。
     if (term.stopIfUnmet) return null;
   }
-  return null;
+  // 重ねた結果が印刷コストから動いていなければ「置換なし」＝呼び出し側の後続規則へ落とす。
+  return acc !== null && acc !== card.Cost ? acc : null;
 }
 
 /** カードの条件つきコスト置換 payload を1本で取り出す（`costScalingOf` と同じ形）。 */
@@ -833,14 +879,16 @@ export function computeArtsEffectiveCost(
   const base = card.Cost;
   let m: RegExpMatchArray | null;
 
-  // lrigName判定：エイリアスも含めた名前一致チェック
-  // LRIG_ALL_NAMES_SENTINEL がある場合はどのキーワードにも一致
-  const lrigNameMatches = (keyword: string) =>
-    lrigNameAliases?.includes(LRIG_ALL_NAMES_SENTINEL) ||
-    lrigName?.includes(keyword) || lrigNameAliases?.some(a => a.includes(keyword));
-
-  // 条件つきコスト置換（「〜の場合、使用コストは《X》になる」）＝軽減より先に見る＝印刷コストを丸ごと差し替える
-  const replaced = computeCostReplacement(card, myState, cardMap, replaceCtx, costReplacement);
+  // 条件つきコスト置換／軽減（`EffectCost.costReplacement`）＝比例増減より先に見る。
+  // 🆕**センタールリグ条件（§5.3 `O-86` 第8バッチ）の参照元をここで詰める**＝
+  //   `computeCostReplacement` は `CostReplaceCtx.lrig` しか見ないので、この関数の引数
+  //   （`lrigName` / `lrigNameAliases` / `myLrigLevel` / `oppLrigColor`）を1箇所で束ねて渡す。
+  //   ⚠**呼び出し4経路（`artsUseGate`／`CutinModal`／`KeyUseModal`／`BattleScreen`）は何も変えなくてよい。**
+  const replaceCtxWithLrig: CostReplaceCtx = {
+    ...(replaceCtx ?? {}),
+    lrig: { selfName: lrigName, selfNameAliases: lrigNameAliases, selfLevel: myLrigLevel, oppColor: oppLrigColor },
+  };
+  const replaced = computeCostReplacement(card, myState, cardMap, replaceCtxWithLrig, costReplacement);
   if (replaced !== null) return replaced;
 
   // カード自身の比例増減は JSON payload が正。必要な owner/state が揃わない場合だけ従来 regex へ落ちる。
@@ -848,15 +896,6 @@ export function computeArtsEffectiveCost(
   if (costScaling?.length) {
     const scaled = applyCostScalingTerms(base, costScaling, myState, replaceCtx?.oppState, cardMap);
     if (scaled !== null) return scaled;
-  }
-
-  // 対戦相手のルリグ色条件：コスト上書き
-  m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの|このカードの)?(?:使用|基本)コストは(.+?)になる/s);
-  if (m && oppLrigColor) {
-    const colors = m[1].split(/か|と/).map(c => c.trim()).filter(Boolean);
-    if (colors.some(c => oppLrigColor.includes(c))) {
-      return normalizeCostText(m[2]);
-    }
   }
 
   // 🗑**2026-09-02（§5.3 `O-86` 第1バッチ）＝「《X》を〈N〉つ少なくする」形の規則5本を撤去した。**
@@ -945,11 +984,6 @@ export function computeArtsEffectiveCost(
     return out;
   };
   const RED = '((?:《[^》]+》)+)';
-
-  // A. 「あなたのセンタールリグが＜X＞の場合、この{アーツ|スペル}の使用コストは《色×N》減る」（14枚）。
-  //    既存の lrigName 規則は「カード名に《X》を含む」＋「《色》1つ少なく」形しか読まない。
-  m = text.match(new RegExp(`あなたのセンタールリグが＜([^＞]+)＞の場合[、,][^。]*?使用コストは${RED}減る`));
-  if (m && lrigNameMatches(m[1])) return applyReduce(base, parseReduceList(m[2]));
 
   // D. 「あなたのセンタールリグのレベル１につき《色×N》減る」（5枚）＝レベル比例。
   m = text.match(new RegExp(`あなたのセンタールリグのレベル[１1]につき${RED}減る`));
@@ -1049,22 +1083,6 @@ export function computeArtsEffectiveCost(
       if (hasSigni(m[1], m[2])) out = applyReduce(out, parseReduceList(m[3]));
       if (hasSigni(m[4], m[5] || m[2])) out = applyReduce(out, parseReduceList(m[6]));
       if (out !== base) return out;
-    }
-    // γ-3. `PR-460`＝「センタールリグが＜X＞の場合、《色×1》減り、センタールリグが＜Y＞の場合、《色×1》減る」
-    //       ＝実際はどちらか片方しか成立しないが、**式としては累積**で書く（原文どおり）。
-    m = text.match(new RegExp(
-      `使用コストはあなたのセンタールリグが＜([^＞]+)＞の場合[、,]${RED}減り[、,]あなたのセンタールリグが＜([^＞]+)＞の場合[、,]${RED}減る`));
-    if (m) {
-      let out = base;
-      if (lrigNameMatches(m[1])) out = applyReduce(out, parseReduceList(m[2]));
-      if (lrigNameMatches(m[3])) out = applyReduce(out, parseReduceList(m[4]));
-      if (out !== base) return out;
-    }
-    // δ-1. `WX09-037`＝「あなたのセンタールリグがレベルN以上の場合、…《無×2》減る」
-    //       ⚠既存の D（レベル比例）／「レベルN以上…《色》1つ少なく」形とは別文型。
-    m = text.match(new RegExp(`あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは${RED}減る`));
-    if (m && myLrigLevel !== undefined && myLrigLevel >= (parseInt(toHalfWidth(m[1])) || 99)) {
-      return applyReduce(base, parseReduceList(m[2]));
     }
     // δ-6. `WX13-026`＝「このターンに対戦相手のシグニがバニッシュされている場合、《黒×3》減る」。
     //       ⚠ターン履歴なので盤面からは判定できない＝`collectBoardDiffTriggers`（バニッシュ認識の
