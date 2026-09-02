@@ -4909,10 +4909,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E2【常】あなたが使用するアーツとスペルの限定条件は無視される（IGNORE_LRIG_RESTRICTION_ARTS）。
   //    旧: BLOCK_ACTION/IGNORE_RESTRICTIONS はエンジン未認識で無効だった。meetsRestriction が STUB IGNORE_LRIG_RESTRICTION_ARTS を認識。
   //  E3【起】エクシード5：手札1枚を選ぶ→相手が色を宣言→公開し宣言色を持たない場合のみ相手の全シグニをトラッシュ。
-  //    旧: SEQUENCE末尾に無条件 TRASH があり常に全シグニ消失＝誤。条件判定は OPP_DECLARE_CHOICE→INTERNAL_ODC_COLOR_CHECK が担う（送り先をエナ→トラッシュに是正）。
+  //    旧: SEQUENCE末尾に無条件 TRASH があり常に全シグニ消失＝誤。条件判定は OPP_DECLARE_CHOICE→INTERNAL_ODC_COLOR_CHECK が担っていた。
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-163`）＝`DECLARE_ICON_REVEAL_CHECK` へ移した。**
+  //   旧形は「宣言→判定→ペナルティ」が **engine のカード全文 regex** に閉じていて（`census:enginetext` A群）、
+  //   JSON を読んでも何が起きるか分からず、ペナルティの種類も1つに焼き込まれていた。
+  //   ⇒ **宣言する軸と一致軸数ごとの帰結を JSON に出す**（下の `WX16-Re17` が3分岐の実例）。
   "WX05-006": [
     {"effectId":"WX05-006-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"IGNORE_LRIG_RESTRICTION_ARTS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-006-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CHOOSE_HAND_CARD"},{"type":"STUB","id":"OPP_DECLARE_CHOICE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX05-006-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"DECLARE_ICON_REVEAL_CHECK","declare":["icon"],"outcomes":[{"matched":0,"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX05-007 ラスト・セレクト（アーツ・コスト《白×1》《黒×1》・タマ/イオナ限定）
@@ -9717,6 +9721,50 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   `clearTurnEndScopedState` がターン終了時にトラッシュへ送る。戻す遅延トリガーはその前に解決される。
   // ⚠戻すのは「**それ**」＝設置時に固定した1枚だけ（`targetsStored`）。無いとチェックゾーンの
   //   任意の1枚を戻せる（相手が自分で置いた別のカードを回収できてしまう）。
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 2026-09-02（索引 B 第2巡）§5.3 `O-163`＝**色/アイコン宣言→手札公開→照合の3段**
+  // 🔴旧＝engine が `EffectText` **全文**を regex で読んでいた（`OPP_DECLARE_CHOICE` →
+  //   `INTERNAL_ODC_COLOR_CHECK`。`census:enginetext` A群）。ペナルティが「相手の全シグニをトラッシュ」
+  //   1種類に焼き込まれており、`WX16-Re17-E1` の**3分岐**を表せなかった。
+  // 🔴さらに悪いのは JSON 側で、**3分岐が素の3ステップとして並んでいた**＝
+  //   `WX16-Re17-E1` は起動するたび**全シグニトラッシュ＋1体バニッシュ＋自分の手札全捨て**が
+  //   まとめて起きていた（逆翻訳・census・golden・smoke は全部緑のまま＝A群の典型的な壊れ方）。
+  // 🔑新設 `DECLARE_ICON_REVEAL_CHECK`＝**宣言する軸**（1〜2）と**一致軸数ごとの帰結**を JSON で持つ。
+  // ⚠「宣言されたアイコン」はカードの色で近似する（既存 `DECLARED_ICON_HAND_DISCARD_BANISH` と同じ判定）。
+  // ⚠選んだ手札は**捨てない**（公開するだけ）＝あちらとの違い。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // PR-K060 ／ 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード４：…
+  // ⚠付与される側（`abilities[]`）は parser も生成する層なので `parseStatus:'AUTO'` のまま（§6.4 `O-40`）。
+  "PR-K060": [
+    {"effectId":"PR-K060-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-K060-E2-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":4},"action":{"type":"DECLARE_ICON_REVEAL_CHECK","declare":["icon"],"outcomes":[{"matched":0,"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}],"rawText":"【起】《アタックフェイズアイコン》エクシード４：あなたの手札を１枚選ぶ。対戦相手は《白2》2《赤2》2《青2》2《緑2》2《黒2》2《無2》2から１つを宣言する。そのカードを公開し、それが宣言されたアイコンを持つカードではない場合、対戦相手のすべてのシグニをトラッシュに置く。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // WX16-Re17 ／ 【起】《無×3》：…アイコンと**カードの種類**の2軸を宣言し、**3分岐**する。
+  //   どちらも持たない＝相手の全シグニをトラッシュ／どちらか＝相手のシグニ1体をバニッシュ／
+  //   どちらも＝**あなたが**手札をすべて捨てる。
+  "WX16-Re17": [
+    {"effectId":"WX16-Re17-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":3}]},"action":{"type":"DECLARE_ICON_REVEAL_CHECK","declare":["icon","cardType"],"outcomes":[{"matched":0,"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}}},{"matched":1,"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},{"matched":2,"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 2026-09-02（索引 B 第2巡）§5.3 `O-160`＝**「このターン、対戦相手がダメージを受けたとき」の遅延トリガー**
+  // 🔴旧 live＝遅延句が丸ごと落ちて**起動した瞬間に無条件で実行**していた
+  //   （`WX18-002-E3` は相手ライフを即クラッシュ／`WXEX2-27-E3` は即20枚ミル）＝原文より圧倒的に強い。
+  // 🔑新設 `ON_PLAYER_DAMAGED`＝**誰の攻撃でも**反応する（既存 `ON_SIGNI_DAMAGE` は
+  //   「**このシグニが**与えたとき」で主語が違い、ルリグアタックのダメージを取りこぼす）。
+  //   発生印は `PlayerState.damaged_just`（アタックの2経路だけが立て、クラッシュ解決 funnel が読んで消す）。
+  // ⚠**`ON_OPP_LIFE_CRASHED` を流用してはいけない**＝あちらは**効果によるクラッシュでも発火**する。
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  "WX18-002": [
+    {"effectId":"WX18-002-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"coin":2},"action":{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_PLAYER_DAMAGED"},"effect":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  "WXEX2-27": [
+    {"effectId":"WXEX2-27-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"coin":1},"action":{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_PLAYER_DAMAGED"},"effect":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":20}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
   "WXK10-045": [
     {"effectId":"WXK10-045-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"HAND_TO_CHECK_ZONE","owner":"opponent","count":1},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_TURN_END"},"effect":{"type":"TRANSFER_TO_HAND","source":{"type":"CHECK_CARD","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],

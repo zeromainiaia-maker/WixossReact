@@ -1,12 +1,13 @@
 // ルリグ付与能力（GRANT_LRIG_ABILITY）発動モーダル（エナ/エクシード/手札捨て/チャーム等のコスト支払い）。BattleScreen.tsx から Stage 1 で抽出。
 import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { getCardNum } from '../../../engine/effectExecutor';
@@ -28,17 +29,23 @@ interface LrigGrantedModalProps {
   /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
   selectedLrigGrantedFieldBanish: Set<number>;
   setSelectedLrigGrantedFieldBanish: Dispatch<SetStateAction<Set<number>>>;
-  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>) => void;
+  executeLrigGranted: (effect: CardEffect, costIndices: Set<number>, handDiscardIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldBanishZones?: Set<number>, exceedIndices?: Set<number>) => void;
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, setSelectedLrigGrantedFieldBanish, executeLrigGranted } = p;
+  // 🆕§5.3 `O-118`（2026-09-02）＝エクシードで「どのカードを置くか」の選択。
+  //   🔴旧＝この経路には選択UIが無く**下から機械的に**払っていた（色指定は貪欲に満たすだけ）＝
+  //   原文（「エクシード２（白と赤のカード）」）は満たす組が複数あるとき**プレイヤーが選べる**。
+  //   ⚠選択 state はここに閉じる（他のコストと違って BattleScreen 側で使わない）。
+  //   ⚠閉じる3経路すべてでリセットする（effect 内 setState は使わない）。
+  const [selectedExceed, setSelectedExceed] = useState<number[]>([]);
   return (
     <>
       {pendingLrigGranted && createPortal(
         <div
-          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); }}
+          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedExceed([]); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -69,7 +76,14 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const totalExceedAvail = (my.field.lrig.length - 1)
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
-              const canAffordExceed = exceedCost === 0 || totalExceedAvail >= exceedCost;
+              // 🆕§5.3 `O-118`＝色指定つきは**プレイヤーが選んだ組**で判定する（選ばせるのが原文）。
+              const exceedPool = exceedPoolOf(my);
+              const exceedColors = eff.cost?.exceedColors;
+              const exceedPicked = selectedExceed.map(i => exceedPool[i]).filter((cn): cn is string => !!cn);
+              const canAffordExceed = exceedCost === 0
+                || (totalExceedAvail >= exceedCost
+                    && exceedPicked.length === exceedCost
+                    && exceedColorsSatisfied(exceedPicked, exceedColors, battleCardMap));
               const canAffordHandDiscard = eff.cost?.discardAll
                 ? true // 手札をすべて捨てる：常に支払い可能
                 : lgGroups
@@ -421,16 +435,47 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                     </>
                   )}
 
+                  {exceedCost > 0 && totalExceedAvail >= exceedCost && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        ルリグの下から置くカードを選択: {selectedExceed.length} / {exceedCost}枚
+                        {exceedColors?.length ? `（${exceedColors.join('と')}のカードが要る）` : ''}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {exceedPool.map((num, i) => {
+                          const c = battleCardMap.get(getCardNum(num));
+                          const isSel = selectedExceed.includes(i);
+                          return (
+                            <div key={`${num}-${i}`}
+                              onClick={() => setSelectedExceed(prev => prev.includes(i)
+                                ? prev.filter(x => x !== i)
+                                : (prev.length >= exceedCost ? prev : [...prev, i]))}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #00bcd4' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,188,212,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); }}
+                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); setSelectedLrigGrantedEnergyTrash(new Set()); setSelectedLrigGrantedTrashExile(new Set()); setSelectedLrigGrantedFieldBanish(new Set()); setSelectedExceed([]); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish)}
+                      onClick={() => { executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, selectedLrigGrantedFieldBanish, new Set(selectedExceed)); setSelectedExceed([]); }}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

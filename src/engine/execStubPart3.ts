@@ -2447,6 +2447,10 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: newOtherIODTN }, `相手デッキ上から${trashedIODTN.length}枚トラッシュ`));
   }
   // INTERNAL_ODC_COLOR_CHECK: 色宣言後、lastProcessedCards[0]の色を確認してペナルティ適用
+  // 🗑**2026-09-02（索引 B 第2巡・§5.3 `O-163`）＝到達不能になった**＝唯一の呼び出し元だった
+  //   `OPP_DECLARE_CHOICE` のカード全文 regex 枝を撤去したため。**残してあるのは互換のためではない**＝
+  //   `execStubPart*` の id は保存済みの `pending_effect` から復帰しうるので、
+  //   進行中の対戦を壊さないよう1バージョンだけ残す（次に触るとき消してよい）。
   if (stub.id === 'INTERNAL_ODC_COLOR_CHECK') {
     const declaredColor = typeof stub.value === 'string' ? stub.value : '';
     const targetInstIOCC = ctx.lastProcessedCards?.[0];
@@ -2538,6 +2542,67 @@ export function execStubPart3(
       fixedCardNums: [targetDIR],
     } as unknown as EffectAction, cDIR);
   }
+  // ═══ DECLARE_ICON_REVEAL_CHECK（§5.3 `O-163`・2026-09-02 索引 B 第2巡）═══
+  // 「あなたの手札を１枚選ぶ。対戦相手は《白》〜《無》から１つ（と、シグニかスペルから１つ）を宣言する。
+  //  そのカードを公開し、〈一致した軸の数〉に応じた帰結を行う」＝**手札選択→宣言（1〜2軸）→公開→分岐**。
+  // 🔴旧実装＝`OPP_DECLARE_CHOICE`＋`INTERNAL_ODC_COLOR_CHECK` が**カード全文 regex**でペナルティを
+  //   「相手の全シグニをトラッシュ」1種類に焼き込んでおり（`census:enginetext` A群）、
+  //   `WX16-Re17-E1` の3分岐は JSON 側に**素の3ステップ**として並んでいた＝毎回まとめて起きていた。
+  // 🔑段を跨ぐ状態は `stub.declareIconReveal` と `carriedCardNum` に焼き込む
+  //   （`lastProcessedCards` は resume を跨いで生存しない＝`DECLARED_ICON_HAND_DISCARD_BANISH` と同じ規約）。
+  if (stub.id === 'INTERNAL_DIRC_DECLARE_ICON') {
+    const specDI = stub.declareIconReveal;
+    const handDI = ctx.lastProcessedCards?.[0];
+    if (!specDI || !handDI) return done(addLog(ctx, 'アイコン宣言の前提が揃っていない'));
+    // ⚠《無》を含む6択（原文の候補は《白》《赤》《青》《緑》《黒》《無》）。
+    const colorsDI = ['白', '赤', '青', '緑', '黒', '無'];
+    return needsInteraction(addLog(ctx, '対戦相手がアイコンを宣言する（白/赤/青/緑/黒/無）'), {
+      type: 'CHOOSE', count: 1, opponentResponds: true,
+      options: colorsDI.map(c => ({
+        id: `dirc_icon_${c}`, label: `《${c}》を宣言`, available: true,
+        action: { type: 'STUB', id: 'INTERNAL_DIRC_DECLARE_TYPE', carriedCardNum: handDI,
+          declareIconReveal: { ...specDI, icon: c } } as StubAction as EffectAction,
+      })),
+    });
+  }
+  if (stub.id === 'INTERNAL_DIRC_DECLARE_TYPE') {
+    const specDT = stub.declareIconReveal;
+    const handDT = stub.carriedCardNum;
+    if (!specDT || !handDT) return done(addLog(ctx, 'カード種類宣言の前提が揃っていない'));
+    // 種類を宣言しない形（`WX05-006-E3` / `PR-K060-E2-G`）はそのまま判定へ。
+    if (!specDT.declare.includes('cardType')) {
+      return exec(({ type: 'STUB', id: 'INTERNAL_DIRC_RESOLVE', carriedCardNum: handDT,
+        declareIconReveal: specDT } as StubAction) as EffectAction, ctx);
+    }
+    const typesDT = ['シグニ', 'スペル'];
+    return needsInteraction(addLog(ctx, '対戦相手がカードの種類を宣言する（シグニ/スペル）'), {
+      type: 'CHOOSE', count: 1, opponentResponds: true,
+      options: typesDT.map(tp => ({
+        id: `dirc_type_${tp}`, label: `${tp}を宣言`, available: true,
+        action: { type: 'STUB', id: 'INTERNAL_DIRC_RESOLVE', carriedCardNum: handDT,
+          declareIconReveal: { ...specDT, cardType: tp } } as StubAction as EffectAction,
+      })),
+    });
+  }
+  if (stub.id === 'INTERNAL_DIRC_RESOLVE') {
+    const specRS = stub.declareIconReveal;
+    const handRS = stub.carriedCardNum;
+    if (!specRS || !handRS) return done(addLog(ctx, 'アイコン判定の前提が揃っていない'));
+    const cardRS = ctx.cardMap.get(getCardNum(handRS));
+    const nameRS = cardRS?.CardName ?? handRS;
+    // ⚠「宣言されたアイコン」は**カードの色**で近似する（`DECLARED_ICON_HAND_DISCARD_BANISH` と同じ判定）。
+    const iconHit = specRS.declare.includes('icon')
+      && !!specRS.icon && (cardRS?.Color ?? '').includes(specRS.icon);
+    const typeHit = specRS.declare.includes('cardType')
+      && !!specRS.cardType && cardRS?.Type === specRS.cardType;
+    const matched = (iconHit ? 1 : 0) + (typeHit ? 1 : 0);
+    const declaredLabel = [specRS.icon ? `《${specRS.icon}》` : null, specRS.cardType].filter(Boolean).join('・');
+    // 「そのカードを公開し」＝公開するだけ（捨てない）。
+    const cRS = addLog(ctx, `${nameRS}を公開（宣言: ${declaredLabel} / 一致 ${matched}軸）`);
+    const hitRS = specRS.outcomes.find(o => o.matched === matched);
+    if (!hitRS) return done(addLog(cRS, '一致数に対応する帰結なし（何も起きない）'));
+    return exec(hitRS.action, cRS);
+  }
   // OPP_DECLARE_CHOICE: 対戦相手が《色》を宣言する（ウリス系のエクシード）。
   // ⚠①②パターン（「対戦相手は以下のNつから1つを選び、〇〇はそれを行う」）は
   //   §5.3 `O-60` 第14バッチで **parser の `CHOOSE{opponentResponds, costlessOpponentChoice}`** へ移した。
@@ -2545,21 +2610,12 @@ export function execStubPart3(
   //   **当たらない選択肢は静かに消え、0個なら no-op**、さらに**実行者を `stub.id` で決めていた**。
   //   ここに戻さないこと（JSON を見ても何が起きるか分からなくなる）。
   if (stub.id === 'OPP_DECLARE_CHOICE') {
-    const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
-    // 色宣言パターン（ウリス系）: 「対戦相手は《白》《赤》...から１つを宣言する」
-    if (txtODC.match(/対戦相手は.*から１つを宣言する/) && txtODC.match(/《白[^》]*》.*《赤[^》]*》/)) {
-      const colorList = ['白', '赤', '青', '緑', '黒', '無'];
-      const colorOpts = colorList.map(color => ({
-        id: `odc_color_${color}`,
-        label: `《${color}》を宣言`,
-        action: ({ type: 'STUB', id: 'INTERNAL_ODC_COLOR_CHECK', value: color } as StubAction) as EffectAction,
-        available: true,
-      }));
-      return needsInteraction(addLog(ctx, `対戦相手が色を宣言（対象カード: ${ctx.lastProcessedCards?.[0] ? ctx.cardMap.get(getCardNum(ctx.lastProcessedCards[0]))?.CardName ?? '?' : '未選択'}）`), {
-        type: 'CHOOSE', options: colorOpts, count: 1, opponentResponds: true,
-      });
-    }
+    // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-163`）＝カード全文 regex の枝を撤去した。**
+    //   旧＝ここで `EffectText` 全文を読んで「ウリス系の色宣言」と判定し、
+    //   `INTERNAL_ODC_COLOR_CHECK`（ペナルティが「相手の全シグニをトラッシュ」1種類に焼き込み）へ流していた。
+    //   ⇒ 該当3効果は `DECLARE_ICON_REVEAL_CHECK`（宣言する軸と一致軸数ごとの帰結を JSON に持つ）へ移した＝
+    //   **live にこの STUB を出す効果は0件**。parser 側の綴り（`parseSentencePart3`）は残してあるので、
+    //   新しいカードがここへ落ちたら**ログだけ**が出る＝`census:stubs` A群🔴 が拾って気づける。
     return done(addLog(ctx, `相手選択（解析不可: ${stub.id}）`));
   }
   // DO_THREE_THINGS: 3〜4つの処理を動的解析して実行

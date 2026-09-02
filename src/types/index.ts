@@ -996,6 +996,18 @@ export interface PlayerState {
    */
   spell_in_check_zone?: string;
   /**
+   * 🆕**このプレイヤーが直前に（アタックによる）ダメージを受けた**（§5.3 `O-160`・2026-09-02）。
+   * `TriggerTiming.ON_PLAYER_DAMAGED` の唯一の発生地点。
+   *
+   * 🔴**「ライフクロスがクラッシュされた」とは別物**＝効果によるクラッシュはダメージではない。
+   *   立てるのは**アタックの2経路だけ**＝`crashOneLife`（シグニアタック／ランサー）と
+   *   ルリグアタックのライフクラッシュ。効果側（`execLifeCrash`）では立てない。
+   * ⚠読み手は**クラッシュ解決 funnel**（`field.check` を捌く1箇所）＝読んだら必ず消す
+   *   （残すと以後のクラッシュのたびに「ダメージを受けた」が誤発火する）。
+   *   保険で turn-scoped レジストリにも登録してある。
+   */
+  damaged_just?: boolean;
+  /**
    * 使用中のピースが**打ち消された**（§6.4 O-10・続き518）。
    * `COUNTER_TEAM_PIECE_AND_EXILE` が**ピースを使った側**に立て、窓を閉じる
    * `resolvePendingPiece` が読んで「解決せずゲームから除外」に倒す。⚠読んだら必ず落とす。

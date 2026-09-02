@@ -49,10 +49,11 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
+import { collectPlayerDamagedTriggers } from '../engine/triggerCollect';
 import { matchesTrashArtsFromLrigDeckCost } from './battle/artsTrashCost';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
@@ -145,7 +146,7 @@ import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 // 「このターン手札から捨てた」台帳の唯一の入口（`V-101`②）。支払い地点ごとに書くと必ずどれかが落ちる。
 import { handDiscardHistoryRecord } from './battle/costs';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
-import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
+import { activateTurnStartScopedState, applyForcedTurnEnd, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeDamagedJust, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../engine/lifeCrashGate';
@@ -8874,6 +8875,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         crash_source_card_num: crashSourceCardNum,
         // §5.3 O-120: 原因は**発生源と必ず同じ地点で**書く（片方だけだと前のクラッシュの原因が残る）。
         crash_cause: crashCause,
+        // 🆕§5.3 `O-160`（2026-09-02）＝**ここはアタックのダメージ経路**なので発生印を立てる。
+        //   🔴効果によるライフクラッシュ（`execLifeCrash`）では立てない＝あれはダメージではない。
+        //   読み手はクラッシュ解決 funnel 1箇所（読んだら消す）。
+        damaged_just: true,
       },
       crashed,
     };
@@ -12760,6 +12765,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             crash_source_card_num: op.field.lrig.at(-1),
             pending_crash_source_card_nums: pendingAfterCrash.map(() => op.field.lrig.at(-1) ?? null),
             field: { ...my.field, lrig_attacked: false, check: crashed },
+            // 🆕§5.3 `O-160`（2026-09-02）＝ルリグアタックも**ダメージ**（`crashOneLife` と同じ印を立てる）。
+            //   ⚠この経路は `crashOneLife` を通らないので、書き忘れると
+            //   「対戦相手がダメージを受けたとき」がルリグアタックだけ発火しない片肺になる
+            //   （`life_crashed_this_turn` を同じ理由で取りこぼしていた前例が上のコメント）。
+            damaged_just: true,
           };
         } else if (my.prevent_defeat) {
           appendBattleLogs([`ルリグアタック：ライフなし → 敗北無効`]);
@@ -13016,10 +13026,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           },
         });
       }
-      const opStateForUsed: PlayerState | null = oppUsedIds.length > 0 || oppGameUsedIds.length > 0
+      // 🆕§5.3 `O-160`（2026-09-02）＝「対戦相手がダメージを受けたとき」＝**アタックのダメージだけ**。
+      //   🔴上の `ON_OPP_LIFE_CRASHED` は**効果によるクラッシュでも発火する**ので流用できない。
+      //   発生印（`my.damaged_just`）はアタックの2経路（`crashOneLife`／ルリグアタック）だけが立てる。
+      //   反応するのは**与えた側**＝`op`（クラッシュされた `my` の対戦相手）。⚠読んだら必ず消す（下の `baseState`）。
+      const damagedJust = my.damaged_just === true;
+      let opDamagedUsedIds: string[] = [];
+      if (damagedJust) {
+        const dmg = collectPlayerDamagedTriggers(mkTrigCtx(), crasherId, op);
+        oppCrashTriggers.push(...dmg.entries);
+        opDamagedUsedIds = dmg.usedLimitIds;
+      }
+      const opStateForUsed: PlayerState | null = oppUsedIds.length > 0 || oppGameUsedIds.length > 0 || opDamagedUsedIds.length > 0
         ? {
             ...op,
-            actions_done: [...(op.actions_done ?? []), ...oppUsedIds],
+            actions_done: [...(op.actions_done ?? []), ...oppUsedIds, ...opDamagedUsedIds],
             game_actions_done: [...(op.game_actions_done ?? []), ...oppGameUsedIds],
           }
         : null;
@@ -13047,7 +13068,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       // 🆕置換が乗った回は**デッキの一番上をライフクロスへ**足し、残り回数を1つ消費する。
       const refillTop = selfCrashRefill ? my.deck[0] : undefined;
-      const baseState: PlayerState = {
+      // 🆕§5.3 `O-160`＝ダメージの発生印は**funnel 1本で消す**（T2 が手書きクリアを検出する）。
+      const baseState: PlayerState = consumeDamagedJust({
         ...my,
         deck: refillTop ? my.deck.slice(1) : my.deck,
         life_cloth: refillTop ? [...my.life_cloth, refillTop] : my.life_cloth,
@@ -13067,7 +13089,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: crashTriggerUsedIds.length > 0
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]
           : my.actions_done,
-      };
+      });
       if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（${selfCrashRefill ? 'SELF_CRASH_TO_TRASH_AND_REFILL' : 'CRASH_TO_TRASH_INSTEAD'}）`]);
       if (refillTop) appendBattleLogs([`デッキの一番上のカードをライフクロスに加えた`]);
       if (!activate) {
@@ -14242,6 +14264,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       trashExileIndices?: Set<number>;
       /** `fieldBanish`（コストで自分の場のシグニをバニッシュ）で選んだシグニゾーン（§5.3 `O-67`）。 */
       fieldBanishZones?: Set<number>;
+      /**
+       * 🆕エクシードで置くカード（`exceedPoolOf(my)` の添字・§5.3 `O-118`）。
+       * ⚠**省略＝従来どおり自動**（色指定を貪欲に満たしてから下から補う）＝CPU 経路はこちら。
+       */
+      exceedIndices?: Set<number>;
     },
     p: {
       actor: PlayerState; opponent: PlayerState;
@@ -14272,7 +14299,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   「その色を満たすカード」を先に選ぶ。⚠満たせないときは従来どおり下から払う
       //   （ここに来る前に `canActivateLrigEffect` が提示を止めているので通常は到達しない）。
       const exceedColorsLA = effect.cost?.exceedColors;
-      if (exceedCost > 0 && exceedColorsLA?.length) {
+      // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-118`）＝プレイヤーが「どのカードを置くか」を選べるようにした。**
+      //   🔴旧＝この経路には選択UIが無く、色指定があるときだけ**貪欲に**満たして残りは下から払っていた＝
+      //   原文（「エクシード２（白と赤のカード）」）は**満たす組が複数あるとき選べる**のに選択権が無かった。
+      //   ⚠選択は `LrigGrantedModal` から `exceedIndices`（`exceedPoolOf` の添字）で届く。
+      //   ⚠**不正な選択は採用しない**（枚数不足・色不成立）＝下の従来経路へ落ちる＝踏み倒しにはならない。
+      //   ⚠CPU（`performLrigActivated` を `exceedIndices` 無しで呼ぶ）は従来どおり貪欲＋下から。
+      const exceedIndicesLA = sel.exceedIndices;
+      if (exceedCost > 0 && exceedIndicesLA && exceedIndicesLA.size === exceedCost) {
+        const poolSel = exceedPoolOf(my);
+        const pickedSel = [...exceedIndicesLA].map(i => poolSel[i]).filter((cn): cn is string => !!cn);
+        if (pickedSel.length === exceedCost && exceedColorsSatisfied(pickedSel, exceedColorsLA, battleCardMap)) {
+          const pickedSetSel = new Set(pickedSel);
+          exceedPaidCards.push(...pickedSel);
+          newLrigTrash = [...newLrigTrash, ...pickedSel];
+          for (const arr of [newLrig, newAssistL, newAssistR]) {
+            for (let i = arr.length - 1; i >= 0; i--) if (pickedSetSel.has(arr[i])) arr.splice(i, 1);
+          }
+        }
+      }
+      if (exceedCost > 0 && exceedPaidCards.length === 0 && exceedColorsLA?.length) {
         const poolLA = [...newLrig.slice(0, -1), ...newAssistL.slice(0, -1), ...newAssistR.slice(0, -1)];
         const pickedLA: string[] = [];
         const usedLA = new Set<number>();
@@ -14534,10 +14580,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /** 人間UI（`LrigGrantedModal`）から呼ぶ薄いラッパー。本体は `performLrigActivated`。 */
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set()) => {
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldBanishZones: Set<number> = new Set(), exceedIndices: Set<number> = new Set()) => {
     if (loading) return;
     closeLrigGranted();
-    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones }, {
+    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices, fieldBanishZones, exceedIndices }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       energyPayPool: myEnergyPayPool,

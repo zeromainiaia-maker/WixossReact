@@ -78,6 +78,17 @@ export type EffectTiming =
   | 'ON_SIGNI_CRASHED_LIFE_TOTAL' // このシグニが1ターンに対戦相手のライフクロスを合計N枚以上クラッシュしたとき（クラッシュした側が反応。閾値は triggerCondition.crashedTotalThisTurn）
   | 'ON_HAND_OR_ENERGY_LOST_BY_OPP' // 対戦相手の効果1つによって、あなたの手札が捨てられるか あなたのエナゾーンからカードがトラッシュに置かれたとき（2経路の OR。1解決につき1度だけ発火＝中央 diff で両方をまとめて見るため構造的に重複しない）
   | 'ON_OPP_LIFE_CRASHED'       // 対戦相手のライフクロスがクラッシュされたとき（クラッシュした側＝ターンプレイヤーのフィールドで反応）
+  /**
+   * 🆕**対戦相手が（プレイヤーとして）ダメージを受けたとき**（§5.3 `O-160`・2026-09-02）。
+   * 🔴**`ON_SIGNI_DAMAGE` とは主語が違う**＝あちらは「**このシグニが**与えたとき」で発生源を絞りすぎる。
+   *   `WXDi-P07-047-E1` は `ON_SIGNI_DAMAGE` で近似されていたが、原文は
+   *   「対戦相手がダメージを受けたとき」＝**誰の攻撃でも**（ルリグアタックでも）反応する。
+   * 🔴**`ON_OPP_LIFE_CRASHED` とも違う**＝あちらは**効果によるクラッシュ**でも発火する。
+   *   ダメージ＝アタックによるライフクラッシュだけ（`crashOneLife` とルリグアタックの2経路）。
+   * ⚠反応するのは**ダメージを与えた側**（＝クラッシュされた側の対戦相手）のフィールド。
+   *   発生地点は `PlayerState.damaged_just`（被害側に立ち、クラッシュ解決 funnel が読んで消す）。
+   */
+  | 'ON_PLAYER_DAMAGED'
   | 'ON_GUARD'                  // あなたが【ガード】したとき
   | 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' // あなたが対戦相手のシグニのアタックを効果によって無効にしたとき
   | 'ON_ATTACK_PHASE_START'     // あなたのアタックフェイズ開始時
@@ -1588,6 +1599,7 @@ export type EffectAction =
   | ReturnFacedownLrigZoneToHandAction
   | FieldSigniToCheckZoneAction
   | HandToCheckZoneAction
+  | DeclareIconRevealCheckAction
   | GainLrigTypeAction
   | DeclareCardNameLockAction
   | RevealBothDeckTopsAction
@@ -3505,6 +3517,29 @@ export interface HandToCheckZoneAction {
 }
 
 /**
+ * 「あなたの手札を１枚選ぶ。対戦相手は《白》〜《無》から１つ（と、シグニかスペルから１つ）を宣言する。
+ *  そのカードを公開し、〈宣言と一致した軸の数〉に応じた帰結を行う」（§5.3 `O-163`・ウリス系3効果）。
+ *
+ * 🔴**旧実装は engine が `EffectText` 全文を regex で読んでいた**（`OPP_DECLARE_CHOICE`＋
+ *   `INTERNAL_ODC_COLOR_CHECK`）＝ペナルティが「相手の全シグニをトラッシュ」1種類に焼き込まれており、
+ *   `WX16-Re17-E1` の**3分岐**（どちらも持たない／どちらか／どちらも）を表せなかった。
+ *   しかも JSON 側には**3分岐が素の3ステップとして並んでいた**＝
+ *   **全シグニトラッシュ＋1体バニッシュ＋自分の手札全捨てが毎回まとめて起きる**過剰実行だった。
+ *
+ * ⚠**「宣言されたアイコン」＝カードの色**（`Color` の部分一致）で近似する＝既存の
+ *   `DECLARED_ICON_HAND_DISCARD_BANISH`（§6.4 `O-34(e)`）と同じ判定に揃える。
+ * ⚠選んだ手札は**捨てない**（公開するだけ）＝`DECLARED_ICON_HAND_DISCARD_BANISH` との違い。
+ * ⚠`outcomes` に無い `matched` 値は**何も起きない**（`WX05-006-E3` は matched:0 の1本だけ）。
+ */
+export interface DeclareIconRevealCheckAction {
+  type: 'DECLARE_ICON_REVEAL_CHECK';
+  /** 対戦相手に宣言させる軸（この順に問う）。 */
+  declare: ('icon' | 'cardType')[];
+  /** 一致した軸の数（0〜`declare.length`）ごとの帰結。 */
+  outcomes: { matched: number; action: EffectAction }[];
+}
+
+/**
  * 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを**追加で**得る」
  * （`WDK17-008-E1` 選択肢①・§6.4 O-3）。
  *
@@ -4456,6 +4491,17 @@ export interface StubAction {
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   /** `count:'ALL'`＝「すべてのシグニを場からトラッシュに置く」（§5.3 `O-68`①・`EffectCost.fieldTrashAll` の写し）。 */
   fieldTrash?: { count: number | 'ALL'; filter?: TargetFilter; excludeSelf?: boolean };
+  /**
+   * `DECLARE_ICON_REVEAL_CHECK` の内部段（§5.3 `O-163`）が**対話を跨いで**運ぶ状態。
+   * ⚠`lastProcessedCards` は resume を跨いで生存しないので、宣言内容も帰結表もここへ焼き込む
+   *   （`DECLARED_ICON_HAND_DISCARD_BANISH` の `carried*` と同じ規約）。
+   */
+  declareIconReveal?: {
+    declare: ('icon' | 'cardType')[];
+    outcomes: { matched: number; action: EffectAction }[];
+    icon?: string;
+    cardType?: string;
+  };
   /** OPTIONAL_COST: 自分のトラップゾーンから【トラップ】をトラッシュへ置く任意コスト。 */
   fieldTrapTrash?: { count: number; excludeSource?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */

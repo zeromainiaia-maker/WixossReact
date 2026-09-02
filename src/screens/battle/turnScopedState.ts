@@ -137,6 +137,9 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // 解決待ちスペルのチェックゾーン在席（§5.3 O-138）＝閉じる側（FINISH_SPELL / FINISH_CUTIN）で落とすのが正。
   //   残るとチェックゾーンに幽霊のスペルが居続ける＝「相手のチェックゾーンにスペルがある場合」が常時成立に化ける。
   spell_in_check_zone: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'spell sitting in the check zone while it resolves; consumed when the spell finishes, expired here as a safety net' },
+  // ダメージ（アタックによるライフクラッシュ）の発生印（§5.3 O-160）＝クラッシュ解決 funnel が読んで消す。
+  //   残すと以後のクラッシュのたびに「対戦相手がダメージを受けたとき」が誤発火する。
+  damaged_just: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'attack damage marker read by the crash-resolution funnel; expired here as a safety net' },
   // 強制アタック active は現在ターンだけ。次ターン分は must_attack_signi_next_turn に予約する。
   must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'active forced-signi-attack flag; next-turn value is reserved separately' },
   // 「このターン使用禁止のカード名」は課されたグローバルターンだけ有効（§6.4 O-3 続き498 で登録）。
@@ -548,4 +551,13 @@ export function openSpellCheckZone(state: PlayerState, instanceId: string): Play
  */
 export function closeSpellCheckZone(state: PlayerState): PlayerState {
   return consumeField(state, 'spell_in_check_zone');
+}
+
+/**
+ * ダメージの発生印を**消す**（§5.3 `O-160`）。クラッシュ解決 funnel が読んだ直後に呼ぶ。
+ * ⚠**funnel の外で `damaged_just: undefined` を書かないこと**（T2 が検出する）。
+ *   残すと以後のクラッシュのたびに「対戦相手がダメージを受けたとき」が誤発火する。
+ */
+export function consumeDamagedJust(state: PlayerState): PlayerState {
+  return consumeField(state, 'damaged_just');
 }

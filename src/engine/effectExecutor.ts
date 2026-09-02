@@ -9772,6 +9772,18 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         lastProcessedCards: [...(ctx.lastProcessedCards ?? []), ...topsFSC],
       });
     }
+    case 'DECLARE_ICON_REVEAL_CHECK': {
+      // 「あなたの手札を１枚選ぶ。対戦相手は〜から１つを宣言する。そのカードを公開し、…」（§5.3 `O-163`）。
+      // ⚠段を跨ぐ状態は `stub.declareIconReveal` へ焼き込む（型コメント参照）＝ここは手札選択だけ。
+      const dirc = action as import('../types/effects').DeclareIconRevealCheckAction;
+      if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '公開できる手札が無い'));
+      return needsInteraction(addLog(ctx, '公開する手札を1枚選ぶ'), {
+        type: 'SELECT_TARGET', candidates: [...ctx.ownerState.hand], count: 1, optional: false,
+        targetScope: 'self_hand',
+        thenAction: { type: 'STUB', id: 'INTERNAL_DIRC_DECLARE_ICON',
+          declareIconReveal: { declare: dirc.declare, outcomes: dirc.outcomes } } as import('../types/effects').StubAction as EffectAction,
+      });
+    }
     case 'HAND_TO_CHECK_ZONE': {
       // 「〈owner〉は手札を N枚チェックゾーンに置く」（§5.3 `O-71`・`WXK10-045-E2`）。
       // 🔴置き先は `field.check_rest`＝`check` は【ライフバースト】確認中の1枚のスロットで、

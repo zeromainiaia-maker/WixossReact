@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 614（総ノード 3085 件）
+live JSON の STUB id 種類 : 611（総ノード 3078 件）
 逆翻訳シートの [STUB:…] 総数: 555  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -10,8 +10,8 @@ live JSON の STUB id 種類 : 614（総ノード 3085 件）
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 30 種 / 93 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 593 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 353 種
+  D 健全（実装あり＋日本語表示）                          : 590 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 359 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 614（総ノード 3085 件）
         生成: src\data\parsers\parseSentencePart2.ts:457
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:21158
+        生成: src\data\effectParser.ts:21164
      1件   1枚  DEFERRED_EACH_PLAYER_REVEAL_HAND
         カード: WXEX2-80
         生成: src\data\effectParser.ts:13831

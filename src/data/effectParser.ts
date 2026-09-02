@@ -18067,9 +18067,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // engine 配線済み＝BattleScreen の collectBattleTrig（参加した両シグニ自身の ON_SIGNI_BATTLE を scope self で収集・
              //   バトル相手の level/power は triggerFilter で評価＝続き178）。filter は下で抽出。
              : /このシグニが(?:対戦相手の)?(?:レベル[０-９\d]+以下の|レベル[０-９\d]+の|パワー[０-９\d]+以上の)?シグニとバトルしたとき|このシグニがバトルしたとき/.test(trigText) ? ['ON_SIGNI_BATTLE']
-             // 「このシグニが対戦相手にダメージを与えたとき」「対戦相手がダメージを受けたとき」（§3 Opusタスク16）。engine 配線済み
+             // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-160`）＝主語で2つに割った。**
+             //   🔴旧はどちらも `ON_SIGNI_DAMAGE`（＝**このシグニが**与えたとき）へ倒しており、
+             //   「対戦相手がダメージを受けたとき」（`WXDi-P07-047-E1`）は**発生源を絞りすぎ**て
+             //   ルリグアタックや他のシグニのダメージでは発火しなかった。
+             //   ⚠`ON_PLAYER_DAMAGED` は**誰の攻撃でも**反応する（発生印は `PlayerState.damaged_just`）。
+             : /対戦相手がダメージを受けたとき/.test(trigText) ? ['ON_PLAYER_DAMAGED']
+             // 「このシグニが対戦相手にダメージを与えたとき」（§3 Opusタスク16）。engine 配線済み
              // ＝BattleScreen の damageEntries（アタックで相手ライフをクラッシュした攻撃側シグニ自身を scope self で収集）。
-             : /このシグニが対戦相手にダメージを与えたとき|対戦相手がダメージを受けたとき/.test(trigText) ? ['ON_SIGNI_DAMAGE']
+             : /このシグニが対戦相手にダメージを与えたとき/.test(trigText) ? ['ON_SIGNI_DAMAGE']
              // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
              : trigText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。

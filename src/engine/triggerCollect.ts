@@ -4111,6 +4111,45 @@ export function collectOppLifeCrashedTriggers(
   return { entries, usedLimitIds };
 }
 
+/**
+ * 🆕**「対戦相手がダメージを受けたとき」**（§5.3 `O-160`・2026-09-02）。
+ *
+ * 反応するのは**ダメージを与えた側**（`watcherState`）＝クラッシュされた側の対戦相手。
+ * 🔴発生地点は**アタックの2経路だけ**（`crashOneLife` とルリグアタック）＝
+ *   効果によるライフクラッシュはダメージではない（`ON_OPP_LIFE_CRASHED` との違い）。
+ * 🔴`ON_SIGNI_DAMAGE`（このシグニが与えたとき）とも別＝**誰の攻撃でも**反応する。
+ *
+ * 集めるのは2種類＝①このターン設置した遅延トリガー（`INSTALL_DELAYED_TRIGGER`）
+ * ②盤面の【自】watcher。⚠**呼び出し側は `damaged_just` を読んだら必ず消す**。
+ */
+export function collectPlayerDamagedTriggers(
+  ctx: TrigCtx, watcherId: string, watcherState: PlayerState,
+): { entries: StackEntry[]; usedLimitIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedLimitIds: string[] = [];
+  const limitOk = mkLimitOk(watcherState.actions_done, usedLimitIds);
+  entries.push(...collectGenericDelayedTriggers(ctx, watcherId, watcherState, 'ON_PLAYER_DAMAGED'));
+  const sources = [
+    ...watcherState.field.signi.map(s => s?.at(-1)),
+    watcherState.field.lrig.at(-1),
+    watcherState.field.assist_lrig_l?.at(-1),
+    watcherState.field.assist_lrig_r?.at(-1),
+    ...activeKeyAbilitySources(watcherState),
+  ].filter((n): n is string => !!n);
+  for (const watcher of sources) {
+    for (const eff of ctx.effectsMap.get(watcher) ?? []) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAYER_DAMAGED')) continue;
+      if (!limitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: watcherId, cardNum: watcher, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(watcher)?.CardName ?? watcher}【自】対戦相手がダメージを受けたとき`,
+        effect: eff,
+      });
+    }
+  }
+  return { entries, usedLimitIds };
+}
+
 export function collectHandDiscardTriggers(
   ctx: TrigCtx, discardedNums: string[], myState: PlayerState, discarderId: string, asCost: boolean,
   opState?: PlayerState, opId?: string, costSourceNum?: string,

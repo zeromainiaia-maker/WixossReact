@@ -2553,6 +2553,14 @@ function actionJa(a?: Action, effectType?: string): string {
         : 'ターン終了時まで、';
       return `${spanGL}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る`;
     }
+    case 'DECLARE_ICON_REVEAL_CHECK': {
+      // ⚠**分岐まで出す**（片方だけだと3分岐の脱落が逆翻訳に映らない＝§5.3 `O-163` の旧バグ）。
+      const axesDI = a.declare.map((d: string) => (d === 'icon' ? 'アイコン' : 'カードの種類')).join('と');
+      const brDI = a.outcomes
+        .map((o: { matched: number; action: EffectAction }) => `一致${o.matched}軸→${describeAction(o.action)}`)
+        .join(' / ');
+      return `あなたの手札を1枚選ぶ。対戦相手は${axesDI}を宣言する。そのカードを公開し、${brDI}`;
+    }
     case 'HAND_TO_CHECK_ZONE':
       // ⚠戻す側は畳んでいない（別の文＝`INSTALL_DELAYED_TRIGGER` が出す）＝ここは置く側だけ。
       return `${a.owner === 'opponent' ? '対戦相手' : 'あなた'}は手札を${a.count}枚チェックゾーンに置く`;

@@ -45,7 +45,7 @@ import {
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
@@ -5458,10 +5458,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 29, '命名規約外のターン限定フィールド数（29＝2026-09-02 索引B 第2巡で spell_in_check_zone＝解決待ちスペルのチェックゾーン在席を追加・§5.3 `O-138`）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 72, '型由来38件＋命名規約外27件の母集団（72＝2026-09-02 索引B 第2巡で spell_in_check_zone を追加・§5.3 `O-138`）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 73, '型由来38件＋命名規約外27件の母集団（73＝2026-09-02 索引B 第2巡で spell_in_check_zone〔`O-138`〕と damaged_just〔`O-160`〕を追加）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -9304,6 +9304,102 @@ test('O-142/付随: 「デッキの一番下のカードをトラッシュに置
   ok(tree('WXK10-026', 'WXK10-026-E1').includes('OPTIONAL_ACTIVATE'),
     'WXK10-026-E1 の「置いてもよい」（任意）が落ちている');
 });
+
+// 🆕§5.3 `O-160`（2026-09-02 索引 B 第2巡）＝「（このターン、）対戦相手がダメージを受けたとき」。
+//   🔴旧＝遅延句が丸ごと落ちて**起動した瞬間に無条件で実行**していた（相手ライフを即クラッシュ／即20枚ミル）。
+//   🔴`WXDi-P07-047-E1` は `ON_SIGNI_DAMAGE`（＝**このシグニが**与えたとき）で近似され、発生源を絞りすぎていた。
+test('O-160: ダメージ遅延トリガー＝設置形と直接形の両方が ON_PLAYER_DAMAGED に載る', () => withSavedCursor(() => {
+  // ① 設置形2件＝【起】は**設置するだけ**（起動した瞬間に帰結が走らない）。
+  for (const [cardNum, effectId, innerType] of [
+    ['WX18-002', 'WX18-002-E3', 'LIFE_CRASH'],
+    ['WXEX2-27', 'WXEX2-27-E3', 'TRASH'],
+  ] as const) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const a = eff.action as unknown as { type: string; duration: string; trigger: { timing: string }; effect: { type: string } };
+    eq(a.type, 'INSTALL_DELAYED_TRIGGER', `${effectId}: 🔴遅延設置が落ちて即時実行に戻っている`);
+    eq(a.trigger.timing, 'ON_PLAYER_DAMAGED', `${effectId}: timing`);
+    eq(a.duration, 'THIS_TURN', `${effectId}: このターン限り`);
+    eq(a.effect.type, innerType, `${effectId}: 帰結`);
+  }
+  // ② 直接形＝主語が「対戦相手が」なので `ON_SIGNI_DAMAGE`（このシグニが与えたとき）ではない。
+  const direct = (effectsMap.get('WXDi-P07-047') ?? []).find(e => e.effectId === 'WXDi-P07-047-E1')!;
+  eq(JSON.stringify(direct.timing), JSON.stringify(['ON_PLAYER_DAMAGED']),
+    '🔴WXDi-P07-047-E1 が ON_SIGNI_DAMAGE（発生源を絞りすぎ）に戻っている');
+  // 対照＝「このシグニが対戦相手にダメージを与えたとき」側は据置（主語で割った両方向を固定する）。
+  const bySelf = [...effectsMap.values()].flat()
+    .filter(e => e.timing?.includes('ON_SIGNI_DAMAGE'));
+  ok(bySelf.length > 0, '🔴ON_SIGNI_DAMAGE が全滅している（主語の割り方を広げすぎ）');
+
+  // ③ collector＝**与えた側**（watcher）に積む。設置形も盤面の【自】も同じ1本で拾う。
+  const install = (effectsMap.get('WX18-002') ?? []).find(e => e.effectId === 'WX18-002-E3')!
+    .action as unknown as { trigger: { timing: string }; effect: EffectAction };
+  const watcher: PlayerState = {
+    ...mkState({}),
+    delayed_triggers: [{ type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN',
+      trigger: install.trigger, effect: install.effect } as never],
+  };
+  const dmgCtx = { hostId: 'H', guestId: 'G', activeUserId: 'H', turnPhase: 'ATTACK_SIGNI',
+    effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'tid' } as unknown as TrigCtx;
+  const got = collectPlayerDamagedTriggers(dmgCtx, 'H', watcher);
+  eq(got.entries.length, 1, '設置した遅延トリガーを拾う');
+  eq(got.entries[0].playerId, 'H', '積むのは与えた側');
+  // 設置していない側では1件も出ない（fail-closed）。
+  eq(collectPlayerDamagedTriggers(dmgCtx, 'H', mkState({})).entries.length, 0,
+    '設置も watcher も無ければ0件');
+  // 盤面の【自】watcher（`WXDi-P07-047`）＝そのカードが場にあるときだけ拾う。
+  const boardWatcher = mkState({ signi: ['WXDi-P07-047', null, null] });
+  eq(collectPlayerDamagedTriggers(dmgCtx, 'H', boardWatcher).entries.length, 1,
+    '盤面の【自】watcher も同じ1本で拾う');
+}));
+
+// 🆕§5.3 `O-163`（2026-09-02 索引 B 第2巡）＝色/アイコン宣言→手札公開→照合の3段。
+//   🔴旧＝engine が `EffectText` **全文**を regex で読み（`census:enginetext` A群）、ペナルティが
+//   「相手の全シグニをトラッシュ」1種類に焼き込まれていた。しかも JSON 側は**3分岐が素の3ステップ**で、
+//   `WX16-Re17-E1` は起動するたび**全シグニトラッシュ＋1体バニッシュ＋自分の手札全捨て**が一度に起きた。
+test('O-163: 宣言→公開→一致軸数で分岐する（3分岐が同時に起きない）', () => withSavedCursor(() => {
+  // ① live の形＝宣言軸と帰結が JSON に出ている（engine 全文 regex へ戻っていない）。
+  for (const [cardNum, effectId, axes, branches] of [
+    ['WX05-006', 'WX05-006-E3', 1, 1],
+    ['WX16-Re17', 'WX16-Re17-E1', 2, 3],
+  ] as const) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const a = eff.action as unknown as { type: string; declare: string[]; outcomes: { matched: number }[] };
+    eq(a.type, 'DECLARE_ICON_REVEAL_CHECK', `${effectId}: 宣言判定が JSON に出ていない`);
+    eq(a.declare.length, axes, `${effectId}: 宣言する軸の数`);
+    eq(a.outcomes.length, branches, `${effectId}: 一致軸数ごとの帰結の数`);
+  }
+  // 付与された【起】側（`PR-K060-E2-G`）も同じ形（旧は末尾に**無条件** TRASH が並んでいた）。
+  const grant = (effectsMap.get('PR-K060') ?? []).find(e => e.effectId === 'PR-K060-E2')!;
+  const inner = (grant.action as unknown as { abilities: { action: { type: string } }[] }).abilities[0];
+  eq(inner.action.type, 'DECLARE_ICON_REVEAL_CHECK', 'PR-K060-E2-G も宣言判定へ');
+  eq(JSON.stringify(grant.action).includes('"CHOOSE_HAND_CARD"'), false, '🔴旧 STUB 列に戻っている');
+
+  // ② engine＝一致軸数で**1本だけ**実行する。`WX16-Re17-E1` の3分岐で確かめる。
+  const re17 = (effectsMap.get('WX16-Re17') ?? []).find(e => e.effectId === 'WX16-Re17-E1')!;
+  const spec = (re17.action as unknown as { declare: ('icon' | 'cardType')[]; outcomes: { matched: number; action: EffectAction }[] });
+  const resolve = (hand: string, icon: string, cardType: string, opp: (string | null)[]) => run(
+    { type: 'STUB', id: 'INTERNAL_DIRC_RESOLVE', carriedCardNum: hand,
+      declareIconReveal: { declare: spec.declare, outcomes: spec.outcomes, icon, cardType } } as unknown as EffectAction,
+    mkCtx({ hand: 0 }, { signi: opp }));
+  const whiteSigni = findCard(c => c.Type === 'シグニ' && (c.Color ?? '') === '白');
+  const oppA = findCard(c => c.Type === 'シグニ' && c.CardNum !== whiteSigni);
+  const oppB = findCard(c => c.Type === 'シグニ' && c.CardNum !== whiteSigni && c.CardNum !== oppA);
+
+  // 一致0＝相手の全シグニをトラッシュ。
+  const m0 = resolve(whiteSigni, '赤', 'スペル', [oppA, oppB, null]);
+  eq(m0.otherState.field.signi.filter(s => s?.length).length, 0, '一致0＝相手の全シグニがトラッシュへ');
+  // 一致1（アイコンだけ）＝相手のシグニ1体をバニッシュ。全トラッシュにならないこと。
+  const m1 = resolve(whiteSigni, '白', 'スペル', [oppA, oppB, null]);
+  eq(m1.otherState.field.signi.filter(s => s?.length).length, 1, '🔴一致1で全シグニが消えている（3分岐が同時に起きる旧バグ）');
+  // 一致2＝自分の手札をすべて捨てる。相手の場は無事。
+  const ctx2 = mkCtx({ hand: 3 }, { signi: [oppA, oppB, null] });
+  const hand2 = [...ctx2.ownerState.hand];
+  const m2 = run({ type: 'STUB', id: 'INTERNAL_DIRC_RESOLVE', carriedCardNum: whiteSigni,
+    declareIconReveal: { declare: spec.declare, outcomes: spec.outcomes, icon: '白', cardType: 'シグニ' } } as unknown as EffectAction, ctx2);
+  eq(m2.ownerState.hand.length, 0, '一致2＝自分の手札をすべて捨てる');
+  eq(m2.otherState.field.signi.filter(s => s?.length).length, 2, '🔴一致2で相手の場に手を出している');
+  ok(hand2.every(n => m2.ownerState.trash.includes(n)), '捨てた手札はトラッシュへ');
+}));
 
 // 🆕§5.3 `O-68`（2026-09-02 索引 B 第2巡）＝複合コストの残り。
 //   ①「すべてのシグニを場からトラッシュに置き、手札とエナゾーンにあるすべてのカードをトラッシュに置く」
@@ -18709,7 +18805,11 @@ test('parse timing 語彙: バトル/ダメージ/ライズ/チャーム/デッ�
   eq(mk('このシグニが対戦相手のレベル２以下のシグニとバトルしたとき、カードを１枚引く。').timing?.[0], 'ON_SIGNI_BATTLE', 'レベル filter 付きも [B]（続き178）で ON_SIGNI_BATTLE＋triggerFilter に');
   // ON_SIGNI_DAMAGE
   eq(mk('このシグニが対戦相手にダメージを与えたとき、カードを１枚引く。').timing?.[0], 'ON_SIGNI_DAMAGE', 'ダメージを与えた→ON_SIGNI_DAMAGE');
-  eq(mk('対戦相手がダメージを受けたとき、カードを１枚引く。').timing?.[0], 'ON_SIGNI_DAMAGE', 'ダメージを受けた→ON_SIGNI_DAMAGE');
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-160`）＝主語で2つに割った。**
+  //   🔴旧はどちらも `ON_SIGNI_DAMAGE`（＝**このシグニが**与えたとき）で、
+  //   「対戦相手がダメージを受けたとき」は**発生源を絞りすぎ**てルリグアタックでは発火しなかった。
+  //   ⚠**両方向を固定する**＝片方だけ書くと「全部 ON_PLAYER_DAMAGED に化ける」退化も素通りする。
+  eq(mk('対戦相手がダメージを受けたとき、カードを１枚引く。').timing?.[0], 'ON_PLAYER_DAMAGED', 'ダメージを受けた→ON_PLAYER_DAMAGED（誰の攻撃でも）');
   // ON_RISE risedOntoNameContains
   const rise = mk('このシグニがカード名に《オダノブ》を含むシグニにライズされたとき、カードを１枚引く。');
   eq(rise.timing?.[0], 'ON_RISE', '《X》にライズ→ON_RISE');
@@ -49543,6 +49643,23 @@ test('段2 第24バッチ: 3体犠牲・エナ3枚は自分側を払い、対象
     const bodyRaw = (steps[3] as { then?: Record<string, unknown> }).then ?? steps[3];
     eq((bodyRaw as { targetsStored?: boolean }).targetsStored, true, `${effectId}: 本体は宣言した「それ」へ適用する`);
   }
+
+  // 🆕**実行してゲートが効くことまで見る**（静的な形だけだと `IS_MY_TURN` へ戻しても気づけない）。
+  //   `WX07-039-E2`＝自分の＜原子＞が3体そろっていれば本体が通り、2体しかなければ通らない。
+  //   ⚠`fixedSelectionPickLimit` が候補数へクランプするので、**払える分だけ払って本体だけ通る**のが旧挙動。
+  withSavedCursor(() => {
+    const genshi = batch23ClassSigni('原子', 3, ['WX07-039']);
+    ok(genshi.length === 3, '＜原子＞のシグニが3枚取れる');
+    const victim = batch23OtherSigni('原子', [...genshi, 'WX07-039']);
+    const eff = effectsMap.get('WX07-039')!.find(e => e.effectId === 'WX07-039-E2')!;
+    const runWith = (mine: (string | null)[]) => run(eff.action, mkCtx(
+      { signi: mine }, { signi: [victim, null, null] }, 'WX07-039'));
+    const paid = runWith([genshi[0], genshi[1], genshi[2]]);
+    ok(!paid.otherState.field.signi.some(s => s?.at(-1) === victim), '3体払えたので対象がバニッシュされる');
+    const short = runWith([genshi[0], genshi[1], null]);
+    ok(short.otherState.field.signi.some(s => s?.at(-1) === victim),
+      '🔴2体しか払えていないのに本体が通っている（「そうした場合」ゲートが効いていない）');
+  });
 });
 
 // 段2 第26バッチ：枚数で動く対象上限。
