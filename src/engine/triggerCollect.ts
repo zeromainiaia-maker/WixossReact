@@ -397,6 +397,8 @@ export function optionalOnPlayCostStub(
     // 🆕§5.3 `O-201`（2026-09-02）＝これが SUPPORTED に無いあいだ、原文に大きなコスト句を持つ
     //   任意【出】が**丸ごと積まれなかった**（`costUnparsed` と同じ「取りこぼす側」に落ちていた）。
     'discardAll', 'energyTrashAll', 'trashToDeckBottom',
+    // 🆕§5.3 `O-68`①（2026-09-02）＝「すべてのシグニを場からトラッシュに置く」。
+    'fieldTrashAll',
     // 支払いキーではなく**コストの修飾**（§6.4 O-35・続き530）。呼び出し側が
     // `applyAbilityCostReduction` で `energy` へ焼き込み済みなので、ここでは無視して通す
     // （SUPPORTED に無いと「未対応キーあり」で包めず、任意【出】が丸ごと積まれなくなる）。
@@ -459,6 +461,8 @@ export function optionalOnPlayCostStub(
     ...(cost.removeOppVirus ? { removeOppVirus: cost.removeOppVirus } : {}),
     // 🆕§5.3 `O-201`＝「すべて」形は枚数ではなく `'ALL'` で運ぶ（`OptionalCostSpec` 側が対応済み）。
     ...(cost.energyTrashAll ? { energyTrash: { count: 'ALL' as const } } : {}),
+    // 🆕§5.3 `O-68`①＝場のシグニも同じ 'ALL' 規約で運ぶ（新しい支払い経路は作らない）。
+    ...(cost.fieldTrashAll ? { fieldTrash: { count: 'ALL' as const } } : {}),
     ...(cost.trashToDeckBottom ? { trashToDeckBottom: cost.trashToDeckBottom } : {}),
   } as StubAction;
 }

@@ -1,10 +1,13 @@
 // キーピース 起動効果モーダル（【起】コスト＝エナ＋手札捨て支払い）。BattleScreen.tsx から Stage 1 で抽出。
 import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
+import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
+import { getCardNum } from '../../../engine/execUtils';
 import type { BattleModalCtx } from './types';
 
 interface KeyActivatedModalProps {
@@ -15,16 +18,21 @@ interface KeyActivatedModalProps {
   setSelectedKeyActivatedCost: Dispatch<SetStateAction<Set<number>>>;
   selectedKeyActivatedDiscard: Set<number>;
   setSelectedKeyActivatedDiscard: Dispatch<SetStateAction<Set<number>>>;
-  executeKeyActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardIndices?: Set<number>) => void;
+  executeKeyActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardIndices?: Set<number>, artsNums?: string[]) => void;
 }
 
 export function KeyActivatedModal(p: KeyActivatedModalProps) {
   const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingKeyActivated, setPendingKeyActivated, selectedKeyActivatedCost, setSelectedKeyActivatedCost, selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard, executeKeyActivated } = p;
+  // 🆕§5.3 `O-68`②（2026-09-02）＝「ルリグデッキからクラフトではないアーツN枚をルリグトラッシュに置く」の選択。
+  //   ⚠選択 state はここに閉じる（他のキー【起】コストと違って BattleScreen 側で使わないため）。
+  //   開き直しで前回の選択が残らないよう**閉じる3経路すべて**でリセットする
+  //   （effect 内の setState はカスケード再描画になるので使わない＝`react-hooks/set-state-in-effect`）。
+  const [selectedKeyArts, setSelectedKeyArts] = useState<string[]>([]);
   return (
     <>
       {pendingKeyActivated && createPortal(
-        <div onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); }}
+        <div onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); setSelectedKeyArts([]); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()}
@@ -39,7 +47,15 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedKeyActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
-              const canAfford = energyOk && selectedKeyActivatedDiscard.size >= discardNeeded;
+              // 🆕§5.3 `O-68`②＝ルリグデッキのアーツ徴収。候補は `matchesTrashArtsFromLrigDeckCost` 1本
+              //   （engine の支払い可否と同じ関数＝UI と engine で候補がズレない）。
+              const artsCost = eff.cost?.trashArtsFromLrigDeck;
+              const artsCands = artsCost
+                ? my.lrig_deck.filter(num => matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(num)), artsCost))
+                : [];
+              const artsNeeded = artsCost?.count ?? 0;
+              const canAfford = energyOk && selectedKeyActivatedDiscard.size >= discardNeeded
+                && selectedKeyArts.length === artsNeeded;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>キー【起】効果を発動</p>
@@ -56,6 +72,7 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                           discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
                           eff.cost?.energyTrashAll ? `エナをすべてトラッシュ（${my.energy.length}枚）` : null,
                           eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` : null,
+                          artsCost ? `ルリグデッキからアーツ${artsCost.count}枚をルリグトラッシュ` : null,
                         ].filter(Boolean).join('・') || 'なし'}</p>
                       </div>
                     </div>
@@ -119,12 +136,41 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                       </div>
                     </>
                   )}
+                  {artsNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        ルリグデッキからアーツを選択: {selectedKeyArts.length} / {artsNeeded}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {artsCands.map(num => {
+                          const c = battleCardMap.get(getCardNum(num));
+                          const isSel = selectedKeyArts.includes(num);
+                          return (
+                            <div key={num}
+                              onClick={() => setSelectedKeyArts(prev => prev.includes(num)
+                                ? prev.filter(n => n !== num)
+                                : (prev.length >= artsNeeded ? prev : [...prev, num]))}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); }} disabled={loading}
+                    <button onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); setSelectedKeyActivatedDiscard(new Set()); setSelectedKeyArts([]); }} disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
-                    <button onClick={() => executeKeyActivated(pendingKeyActivated.cardNum, eff, selectedKeyActivatedCost, selectedKeyActivatedDiscard)} disabled={loading || !canAfford}
+                    <button onClick={() => { executeKeyActivated(pendingKeyActivated.cardNum, eff, selectedKeyActivatedCost, selectedKeyActivatedDiscard, selectedKeyArts); setSelectedKeyArts([]); }} disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
                         color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>

@@ -381,6 +381,18 @@ function parseUseCondition(text: string): Condition {
     };
   }
 
+  // 🆕§5.3 `O-138`（2026-09-02）＝「〈誰か〉のチェックゾーンに〈種類〉がある場合」（上の表と同じ規則）。
+  m = text.match(/^(あなた|対戦相手)のチェックゾーンに(スペル|シグニ|アーツ)がある場合$/);
+  if (m) {
+    return {
+      type: 'CHECK_ZONE_COUNT',
+      owner: m[1] === '対戦相手' ? 'opponent' : 'self',
+      operator: 'gte',
+      value: 1,
+      filter: { cardType: m[2] as 'スペル' | 'シグニ' | 'アーツ' },
+    };
+  }
+
   // あなたのトラッシュにカード名に《X》を含むカードがある
   m = text.match(/あなたのトラッシュにカード名に《([^》]+)》を含むカードがある/);
   if (m) return { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] } };
@@ -904,8 +916,13 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
     }
   }
   // ルリグデッキから[色]のアーツN枚をルリグトラッシュ → trashArtsFromLrigDeck（色指定は任意）
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-68`②）＝「クラフトではない」を通す**（`WXK10-006-E3`）。
+  //   🔴この修飾語があるだけで regex に当たらず、**アーツ1枚というコストが丸ごと落ちていた**（踏み倒し）。
+  //   ⚠**除外そのものは追加実装が要らない**＝クラフトのアーツは `Type` が `'アーツ/クラフト'` で、
+  //     `matchesTrashArtsFromLrigDeckCost` が `Type === 'アーツ'` の完全一致を見るので既に弾かれている
+  //     （`excludeCraft` キーを足すのは**存在しない仕事**＝実データを見てから決める）。
   if (!cost.trashArtsFromLrigDeck) {
-    const tArtM = costStr.match(/ルリグデッキから(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);
+    const tArtM = costStr.match(/ルリグデッキから(?:クラフトではない)?(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);
     if (tArtM) cost.trashArtsFromLrigDeck = { count: parseNum(tArtM[2]), ...(tArtM[1] ? { color: tArtM[1] } : {}) };
   }
   // ルリグデッキにある＜X＞のルリグN枚をゲームから除外する → exileLrigFromLrigDeck（`PR-469`・§6.4 O-11）
@@ -1042,14 +1059,15 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   if (/【トラップ】であるこのカードを公開する/.test(costStr)) cost.none = true;
   // コラボコスト → none（ゲーム実装外コスト）
   if (/コラボライバー/.test(costStr)) cost.none = true;
-  // 🔴**「受け皿がまだ無いコスト要素」を1つでも含むなら、部分的な cost を返さない**（§5.3 `O-46`）。
-  //   ⚠部分採用は**踏み倒し**になる＝`WXDi-P03-019-E1`「すべてのシグニを場からトラッシュに置き、
-  //   手札とエナゾーンにあるすべてのカードをトラッシュに置く：対戦相手のすべてのシグニをバニッシュする」で
-  //   `energyTrashAll`＋`discardAll` だけを採ると、**自分の場のシグニを1体も失わずに相手の場を全滅**できる。
-  //   `undefined` を返すと呼び出し元が `costUnparsed` を立てて**提示そのものを止める**（＝安全側）。
-  //   ⚠`fieldTrash` は `count:number` しか持てず「すべて」を表せないので、受け皿ができるまでは印のまま。
-  //   受け皿を作ったら**この行を消す前に母集団を実測し直す**（§4.1）。
-  if (/すべてのシグニを場からトラッシュに置[くき]/.test(costStr)) return undefined;
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝受け皿を作ったのでガードを解いた。**
+  //   旧＝`fieldTrash` が `count:number` しか持てず「すべて」を表せないため、この綴りを含むコストは
+  //   **意図的に `undefined` を返して `costUnparsed` に倒していた**（部分採用＝
+  //   `energyTrashAll`＋`discardAll` だけを採ると**自分の場を1体も失わずに相手の場を全滅**できる踏み倒し）。
+  //   ⇒ `fieldTrashAll` を新設し、`optionalOnPlayCostStub` → `OptionalCostSpec.fieldTrash{count:'ALL'}`
+  //   という**既存の 'ALL' 規約**（`discardAll` / `energyTrashAll` と同じ）へ載せた。
+  //   ⚠所有者＝**自分の場**（原文に主語が無いコスト句は支払う側の盤面を指す）。
+  //   母集団は実測1効果（`WXDi-P03-019-E1`）＝「すべてのシグニを場からトラッシュに置き」の全数。
+  if (/すべてのシグニを場からトラッシュに置[くき]/.test(costStr)) cost.fieldTrashAll = true;
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
@@ -2873,6 +2891,14 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   [/(あなた|対戦相手)のチェックゾーンにあるカードが([０-９\d]+)枚(以下|以上)の場合/,
     g => ({ type: 'CHECK_ZONE_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
       operator: g[2] === '以下' ? 'lte' : 'gte', value: parseNum(g[1]) })],
+  // 🆕§5.3 `O-138`（2026-09-02 索引 B 第2巡）＝「〈誰か〉のチェックゾーンに〈種類〉がある場合」。
+  //   スペルカットインで出るレゾナ3枚（`WX13-005B` / `WX13-006B` / `WX14-006B`）の【出】ゲート。
+  //   🔴従来はこの条件節が落ちて**無条件成立**＝チェックゾーンが空でも【出】を撃てた
+  //   （＝カットインしていないのに「割り込んだ」帰結だけ通る）。
+  //   ⚠受け皿は `O-143` で入れた `CHECK_ZONE_COUNT` がそのまま使える（`filter` を足すだけ）。
+  [/(あなた|対戦相手)のチェックゾーンに(スペル|シグニ|アーツ)がある場合/,
+    g => ({ type: 'CHECK_ZONE_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      operator: 'gte', value: 1, filter: { cardType: g[1] } })],
   // 自分−相手の符号付きライフ差。両条件表へ同じ規則を供給し、AUTO/ACTIVATEDの枝条件を落とさない。
   [/あなたのライフクロス(?:の枚数)?が対戦相手より([０-９\d]+)枚以上(多い|少ない)場合/,
     g => ({ type: 'LIFE_COMPARE_OPP', operator: g[1] === '多い' ? 'gte' : 'lte', value: (g[1] === '多い' ? 1 : -1) * parseNum(g[0]) })],

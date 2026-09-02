@@ -321,7 +321,14 @@ export function countFromZone(
  * 🔴**片方だけを見ない**＝原文「チェックゾーンにあるカード１枚につき」「４枚以下の場合」はゾーン全体を数える。
  */
 export function checkZoneCards(state: PlayerState): string[] {
-  return [...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? [])];
+  // 🆕§5.3 `O-138`（2026-09-02）＝**解決待ちのスペル**もチェックゾーンに居る（`spell_in_check_zone`）。
+  //   解決待ちのスペルは `pending_spell` が保持していて `field` のどこにも属さない実装なので、
+  //   ここで足さないと「対戦相手のチェックゾーンにスペルがある場合」が永久に偽になる。
+  return [
+    ...(state.field.check ? [state.field.check] : []),
+    ...(state.field.check_rest ?? []),
+    ...(state.spell_in_check_zone ? [state.spell_in_check_zone] : []),
+  ];
 }
 
 /**
@@ -386,7 +393,8 @@ export interface OptionalCostSpec {
   energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** 異なるフィルタの組でエナから置く（「《A》1枚と《B》1枚と…」）。支払いはグループごとに1ステップへ分解する。 */
   energyTrashGroups?: { count: number; filter?: TargetFilter }[];
-  fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** `count:'ALL'`＝「すべてのシグニを場からトラッシュに置く」（§5.3 `O-68`①・`EffectCost.fieldTrashAll`）。 */
+  fieldTrash?: { count: number | 'ALL'; filter?: TargetFilter; excludeSelf?: boolean };
   /** field.signi_traps はシグニゾーンと別領域なので fieldTrash と分ける。 */
   fieldTrapTrash?: { count: number; excludeSource?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
@@ -594,7 +602,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     };
     const matching = fieldCandidates(ctx.ownerState, filter, ctx.cardMap)
       .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
-    if (matching.length < spec.fieldTrash.count) return false;
+    // 'ALL'＝「すべて」＝在庫が何枚でも払える（`handDiscard`／`energyTrash` の 'ALL' と同じ規約）。
+    if (spec.fieldTrash.count !== 'ALL' && matching.length < spec.fieldTrash.count) return false;
   }
   if (spec.fieldTrapTrash) {
     const matching = (ctx.ownerState.field.signi_traps ?? [])

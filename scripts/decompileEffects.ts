@@ -2553,6 +2553,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : 'ターン終了時まで、';
       return `${spanGL}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る`;
     }
+    case 'HAND_TO_CHECK_ZONE':
+      // ⚠戻す側は畳んでいない（別の文＝`INSTALL_DELAYED_TRIGGER` が出す）＝ここは置く側だけ。
+      return `${a.owner === 'opponent' ? '対戦相手' : 'あなた'}は手札を${a.count}枚チェックゾーンに置く`;
     case 'FIELD_SIGNI_TO_CHECK_ZONE':
       // ⚠往復を1アクションに畳んであるので**戻す側まで出す**（片方だけだと脱落が逆翻訳に映らない）。
       return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを場に出す`;

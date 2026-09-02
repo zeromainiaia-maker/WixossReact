@@ -31,6 +31,7 @@ import { lifeBurstSuppressedByTurnFlag } from '../src/screens/battle/lifeBurstSu
 import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
+import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -116,7 +117,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
@@ -4397,9 +4398,12 @@ test('デッキトラッシュ時の遅延設置（O-73）', () => {
       walk(root); return f;
     };
     // `WXK10-045-E2`「…対戦相手は**それ**を手札に戻す」＝先行文の照応（tail に「を対象とし」が無い）。
-    const e = (effectsMap.get('WXK10-045') ?? []) as unknown as { effectId: string; action: unknown }[];
-    const e2 = e.find(x => x.effectId === 'WXK10-045-E2');
-    if (e2) ok(!hasInstall(e2.action), 'WXK10-045-E2: 対象宣言の無い「それ」照応は設置へ畳まない（O-71 据置）');
+    // 🆕**2026-09-02（索引 B 第2巡・`O-71`）＝live は `manualEffects.ts` で正しい形へ直した**ので、
+    //   このガードは**parser（fresh）側**に張り替える＝「照応を勝手に設置へ畳む」退化だけを止める契約に戻す。
+    //   ⚠live を見たままだと「手で正しく直した」ことが FAIL に見える（契約の対象を取り違えない）。
+    const freshK10 = parseCardEffects(cardMap.get('WXK10-045')!) as unknown as { effectId: string; action: unknown }[];
+    const e2 = freshK10.find(x => x.effectId === 'WXK10-045-E2');
+    if (e2) ok(!hasInstall(e2.action), 'WXK10-045-E2(fresh): 対象宣言の無い「それ」照応を parser が設置へ畳んでいる');
   }
 });
 // ── 続き219: CHOOSE ヘッダ（「以下の…から…を選ぶ」）直前の状態条件を効果全体の発動条件へ持ち上げる（タスク12(xxxix)）。
@@ -5454,10 +5458,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 28, '命名規約外のターン限定フィールド数（28＝2026-09-02 索引B 第1巡で trap_removed_zones＝「それがあったシグニゾーン」の記憶を追加・§5.3 `O-59`）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 29, '命名規約外のターン限定フィールド数（29＝2026-09-02 索引B 第2巡で spell_in_check_zone＝解決待ちスペルのチェックゾーン在席を追加・§5.3 `O-138`）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 71, '型由来38件＋命名規約外27件の母集団（71＝2026-09-02 索引B 第1巡で trap_removed_zones を追加・§5.3 `O-59`）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 72, '型由来38件＋命名規約外27件の母集団（72＝2026-09-02 索引B 第2巡で spell_in_check_zone を追加・§5.3 `O-138`）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -9300,6 +9304,73 @@ test('O-142/付随: 「デッキの一番下のカードをトラッシュに置
   ok(tree('WXK10-026', 'WXK10-026-E1').includes('OPTIONAL_ACTIVATE'),
     'WXK10-026-E1 の「置いてもよい」（任意）が落ちている');
 });
+
+// 🆕§5.3 `O-68`（2026-09-02 索引 B 第2巡）＝複合コストの残り。
+//   ①「すべてのシグニを場からトラッシュに置き、手札とエナゾーンにあるすべてのカードをトラッシュに置く」
+//     ＝`fieldTrashAll` が無いあいだ `parseCost` が**意図的に undefined を返して** `costUnparsed` に倒していた。
+//   ②「ルリグデッキから**クラフトではない**アーツ１枚をルリグトラッシュに置く」
+//     ＝修飾語1つで regex に当たらず、アーツ1枚のコストが**丸ごと落ちていた**（踏み倒し）。
+test('O-68: 複合コストが JSON に載る（踏み倒し禁止）', () => withSavedCursor(() => {
+  const eff1 = (effectsMap.get('WXDi-P03-019') ?? []).find(e => e.effectId === 'WXDi-P03-019-E1');
+  ok(!!eff1, 'WXDi-P03-019-E1 が live に無い');
+  eq(eff1!.costUnparsed, undefined, '🔴コスト未表現の印が残っている（提示そのものが止まる）');
+  eq(eff1!.cost?.fieldTrashAll, true, '自分の場のシグニ全損が落ちている（相手の場だけ全滅する踏み倒し）');
+  eq(eff1!.cost?.discardAll, true, '手札全損が落ちている');
+  eq(eff1!.cost?.energyTrashAll, true, 'エナ全損が落ちている');
+  // 任意【出】として**積める**こと＝SUPPORTED に入っていないと丸ごと積まれない（`O-201` で踏んだ穴）。
+  const stub1 = optionalOnPlayCostStub(eff1!.cost!, eff1!.effectId);
+  ok(!!stub1, '🔴任意【出】に包めない＝トリガーが丸ごと積まれない（costUnparsed と同じ取りこぼし）');
+  eq((stub1 as { fieldTrash?: { count?: number | string } }).fieldTrash?.count, 'ALL', "場シグニ全損が 'ALL' で運ばれていない");
+
+  const eff2 = (effectsMap.get('WXK10-006') ?? []).find(e => e.effectId === 'WXK10-006-E3');
+  ok(!!eff2, 'WXK10-006-E3 が live に無い');
+  eq(eff2!.cost?.trash_key, true, 'このキーをルリグトラッシュへ置くコスト');
+  eq(eff2!.cost?.trashArtsFromLrigDeck?.count, 1, '🔴アーツ1枚のコストが落ちている（「クラフトではない」で regex を外していた）');
+  // クラフトのアーツは `Type:'アーツ/クラフト'` なので候補判定が既に弾く（`excludeCraft` は不要）。
+  const artsPlain = findCard(c => c.Type === 'アーツ');
+  const artsCraft = findCard(c => c.Type === 'アーツ/クラフト');
+  eq(matchesTrashArtsFromLrigDeckCost(cardMap.get(artsPlain), eff2!.cost!.trashArtsFromLrigDeck!), true, '素のアーツは候補');
+  eq(matchesTrashArtsFromLrigDeckCost(cardMap.get(artsCraft), eff2!.cost!.trashArtsFromLrigDeck!), false, 'クラフトのアーツは候補にしない');
+}));
+
+// 🆕§5.3 `O-138`（2026-09-02 索引 B 第2巡）＝「対戦相手のチェックゾーンにスペルがある場合」の【出】ゲート。
+//   スペルカットインで出るレゾナ3枚。🔴旧 live は3枚とも条件が丸ごと落ちて**無条件成立**＝
+//   カットインしていない（チェックゾーンが空の）盤面でも帰結だけ撃てた。
+//   ⚠**「そのスペルの効果より先に発動する」処理順序は別機構**（カットインの解決順）＝ここでは扱わない。
+test('O-138: レゾナ3枚の【出】が「相手チェックゾーンにスペルがある場合」でゲートされる', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [
+    ['WX13-005B', 'WX13-005B-E1'],
+    ['WX13-006B', 'WX13-006B-E1'],
+    ['WX14-006B', 'WX14-006B-E1'],
+  ] as const) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId}: live に無い`);
+    const json = JSON.stringify({ condition: e!.condition, action: e!.action });
+    ok(json.includes('"CHECK_ZONE_COUNT"'), `${effectId}: 🔴チェックゾーン条件が落ちている（空でも撃てる旧挙動）`);
+    ok(json.includes('"owner":"opponent"'), `${effectId}: 見るのは対戦相手のチェックゾーン`);
+    ok(json.includes('"cardType":"スペル"'), `${effectId}: スペル限定が落ちている`);
+  }
+  // 評価器＝`check` と `check_rest` の両方を数え、種類で絞る（空／シグニだけ／スペルありの3盤面）。
+  const spell = findCard(c => c.Type === 'スペル');
+  const signi = findCard(c => c.Type === 'シグニ');
+  const cond = { type: 'CHECK_ZONE_COUNT', owner: 'opponent', operator: 'gte', value: 1, filter: { cardType: 'スペル' } } as EffectCondition;
+  const withCheck = (cards: string[]): ExecCtx => {
+    const base = mkCtx({}, {});
+    return { ...base, otherState: { ...base.otherState, field: { ...base.otherState.field, check_rest: cards } } } as ExecCtx;
+  };
+  eq(evalCondition(cond, withCheck([])), false, 'チェックゾーンが空なら不成立');
+  eq(evalCondition(cond, withCheck([signi])), false, 'シグニだけなら不成立（種類で絞る）');
+  eq(evalCondition(cond, withCheck([signi, spell])), true, 'スペルが1枚でもあれば成立');
+
+  // 🔴**本命＝解決待ちのスペル**。`pending_spell` が保持していて `field` のどこにも属さない実装なので、
+  //   `spell_in_check_zone` を数えないと**この3枚は永久に不発**（条件を落とした旧挙動の逆側の事故）。
+  const base = mkCtx({}, {});
+  const resolving = { ...base, otherState: { ...base.otherState, spell_in_check_zone: spell } } as ExecCtx;
+  eq(evalCondition(cond, resolving), true, '🔴解決待ちのスペルをチェックゾーンとして数えないと常に不発になる');
+  // 窓を閉じたら消える（幽霊のスペルで条件が常時成立しない）。
+  const closed = { ...base, otherState: closeSpellCheckZone({ ...base.otherState, spell_in_check_zone: spell }) } as ExecCtx;
+  eq(evalCondition(cond, closed), false, '窓を閉じたらチェックゾーンから降りる');
+}));
 
 // 🔴§5.3 `O-143`（2026-08-29）＝チェックゾーンを**複数枚のゾーン**として扱う（`WXDi-P11-006`）。
 //    🔴`field.check` は**ライフバースト確認中の1枚**専用のスロット（`LifeBurstCheckModal` の表示条件・
@@ -20724,6 +20795,11 @@ test('SIGNI_DEPLOY_BAN / BLOCK_ACTION: 5カードの live 形（§6.4 O-3 続き
   eq(step('WXK10-019', 'WXK10-019-E3', ['steps', 1]).namesFromTargets, true, 'WXK10-019 の同名配置禁止');
   eq(step('WX25-P3-001', 'WX25-P3-001-E1', ['steps', 4]).namesFromTargets, true, 'WX25-P3-001 の同名配置禁止');
   eq(step('WX25-P3-009', 'WX25-P3-009-E1', ['steps', 4]).bySource, 'signi_or_spell_effect', 'WX25-P3-009 の出自限定配置禁止');
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-78`）**＝期間の書き方が `次の対戦相手のターン終了時まで` の同型。
+  //   旧 live は `STUB{DEPLOY_RESTRICT}`（payload 無し）＝engine には**ログしか無い真 no-op** だった。
+  eq(step('WXK09-015', 'WXK09-015-E3', ['steps', 1]).type, 'SIGNI_DEPLOY_BAN', 'WXK09-015 の同名配置禁止が STUB へ戻っている');
+  eq(step('WXK09-015', 'WXK09-015-E3', ['steps', 1]).namesFromTargets, true, 'WXK09-015 は除外したシグニと同名だけを禁止する');
+  eq(step('WXK09-015', 'WXK09-015-E3', ['steps', 1]).turns, 2, 'このターン＋次の対戦相手のターン＝2');
   // ⚠MANUAL 不可侵で live に届いていなかった2枚（§6.4 O-6 同型）＝エクシード任意コストを parser 化して AUTO 化した。
   eq(step('WX25-P3-001', 'WX25-P3-001-E1', ['steps', 2]).exceed, 3, 'WX25-P3-001 のエクシード任意コストが落ちている');
   eq(step('WX25-P3-009', 'WX25-P3-009-E1', ['steps', 2]).exceed, 3, 'WX25-P3-009 のエクシード任意コストが落ちている');
@@ -26457,7 +26533,10 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     const spell = { caster_id: 'u1', card_num: 'SP1', paid_energy_colors: [['白']] };
     const patch = reduceBattle(stub, { type: 'QUEUE_SPELL', casterKey: 'host_state', casterState: state, spell });
     eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_spell']), 'キー集合');
-    eq(patch.host_state, state, 'caster状態');
+    // 🆕§5.3 `O-138`（2026-09-02）＝**解決待ちのスペルは使用者のチェックゾーンに置く**ので、
+    //   caster 状態は「渡した state ＋ `spell_in_check_zone`」になる（同一参照ではなくなった）。
+    //   🔴これが無いと「対戦相手のチェックゾーンにスペルがある場合」が永久に偽＝レゾナ3枚が無言 no-op。
+    eq(JSON.stringify(patch.host_state), JSON.stringify({ ...state, spell_in_check_zone: 'SP1' }), 'caster状態＋チェックゾーン在席');
     eq(patch.pending_spell, spell, 'pending spell');
   });
   // タスク12(lxxxix): 使用時の支払いで自分のシグニが場を離れた場合の離場/トラッシュのトリガーを
@@ -26478,7 +26557,8 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
       other: { key: 'guest_state', state: other },
     });
     eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_spell', 'pending_effect', 'guest_state']), 'キー集合');
-    eq(patch.host_state, caster, 'caster');
+    // 🆕§5.3 `O-138`＝スペルがチェックゾーンを離れる（残すと幽霊のスペルで条件が常時成立する）。
+    eq(JSON.stringify(patch.host_state), JSON.stringify({ ...caster, spell_in_check_zone: undefined }), 'caster（チェックゾーンから降ろす）');
     eq(patch.guest_state, other, 'other');
     eq(patch.pending_spell, null, 'spellクリア');
     eq(patch.pending_effect, null, 'effectクリア');
@@ -26487,7 +26567,7 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     const caster = { trash: ['SP2'] } as unknown as PlayerState;
     const patch = reduceBattle(stub, { type: 'FINISH_SPELL', casterKey: 'guest_state', casterState: caster });
     eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'pending_spell', 'pending_effect']), 'キー集合');
-    eq(patch.guest_state, caster, 'caster');
+    eq(JSON.stringify(patch.guest_state), JSON.stringify({ ...caster, spell_in_check_zone: undefined }), 'caster（チェックゾーンから降ろす）');
     ok(!('host_state' in patch), '相手状態は省略');
   });
   test('Stage3 reduceBattle FINISH_CUTIN: caster同一時は1状態＋pending_spellのみクリア', () => {
@@ -26505,7 +26585,7 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
       caster: { key: 'host_state', state: caster },
     });
     eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'pending_spell', 'host_state']), 'キー集合');
-    eq(patch.host_state, caster, 'caster');
+    eq(JSON.stringify(patch.host_state), JSON.stringify({ ...caster, spell_in_check_zone: undefined }), 'caster（チェックゾーンから降ろす）');
     ok(!('pending_effect' in patch), 'pending_effectは不干渉');
   });
   // タスク12(lxxxiv): カットインのベットで積んだ ON_COIN_PAID をこの action で書けること。
@@ -31532,17 +31612,22 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // **集合の総数（`eligible.length`=1454）は動かない**＝条件なし側から条件あり側へ1件移っただけ。
     // 🆕1395→1396＝上と同じ `WX17-002-E1b`（条件なし側）。`conditional` は動かない。
     // 🆕1396→1395＝2026-08-31 続き748 で `WXDi-P07-049-E2`（「公開領域に〈X〉がある場合」）に条件が付いた。
-    eq(eligible.length - conditional.length, 1395, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
-    eq(conditional.length, 60, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
+    // 🆕1395→1393 / 60→62＝2026-09-02（索引 B 第2巡・§5.3 `O-138`）＝`WX13-006B-E1` / `WX14-006B-E1` に
+    //   「対戦相手のチェックゾーンにスペルがある場合」の条件が付いた分（**集合の総数は動かない**＝
+    //   条件なし側から条件あり側へ2件移っただけ。旧は条件が落ちていて**空でも撃てた**）。
+    eq(eligible.length - conditional.length, 1393, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    eq(conditional.length, 62, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
     //   `WXDi-CP02-100-E1`（`trashToDeckBottom`）の costUnparsed を解いた分。
-    eq(optionalCost.length, 964, '任意costあり（+O-201 の2効果＝discardAll/energyTrashAll・trashToDeckBottom）');
+    // 🆕964→965＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝`WXDi-P03-019-E1` の costUnparsed を解いた分。
+    eq(optionalCost.length, 965, '任意costあり（+O-68① の1効果＝fieldTrashAll）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
     // 🆕20→18＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
     //   costUnparsed を解いた分（cost あり側へ移動）。
-    eq(optionalNoCost.length, 18, '任意costなし（-O-201 の2効果＝costUnparsed を解いて cost あり側へ移動）');
+    // 🆕18→17＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）で `WXDi-P03-019-E1` も cost あり側へ移動。
+    eq(optionalNoCost.length, 17, '任意costなし（-O-68① の1効果＝costUnparsed を解いて cost あり側へ移動）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -31579,14 +31664,17 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       'conditionalEnergyReduction',
       // 🆕2026-09-02（§5.3 `O-201`）＝「すべて」形とトラッシュ→デッキ下。
       'discardAll', 'energyTrashAll', 'trashToDeckBottom',
+      // 🆕2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝場のシグニ全損。
+      'fieldTrashAll',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
-    eq(optionalCost.length, 964, '母集団（+O-201 の2効果）');
-    eq(mapped.length, 964, 'OPTIONAL_COST へ写せる（energyTrashGroups もグループごとの TRASH へ分解して写せる）');
+    // 🆕964→965＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）で `WXDi-P03-019-E1` の costUnparsed を解いた分。
+    eq(optionalCost.length, 965, '母集団（+O-68① の1効果）');
+    eq(mapped.length, 965, "OPTIONAL_COST へ写せる（fieldTrashAll も 'ALL' 規約で写せる）");
     eq(optionalCost.length - mapped.length, 0, '未対応の外側 cost は0件');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -31724,9 +31812,10 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 17, '包む＝真に任意6効果＋action自身が選択・徴収する可変捨て11効果');
-    // 🆕3→1＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の
-    //   costUnparsed を解いた分（残るのは `WXDi-P03-019-E1` の1件＝§5.3 `O-68` の領分）。
-    eq(deferred, 1, '据え置き＝明示保留した cost 未表現の1効果（O-201 の2件は 2026-09-02 に解消）');
+    // 🆕3→1＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2` / `WXDi-CP02-100-E1` の costUnparsed を解いた分。
+    // 🆕1→0＝同日（索引 B 第2巡・§5.3 `O-68`①）で最後の1件 `WXDi-P03-019-E1` も解いた
+    //   （`fieldTrashAll` を新設）＝**任意【出】で明示保留している cost 未表現はゼロになった**。
+    eq(deferred, 0, '据え置き＝明示保留した cost 未表現は0件（O-68① で最後の1件を解消）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -32548,17 +32637,17 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   //   `SUPPORTED` に `discardAll` / `energyTrashAll` / `trashToDeckBottom` を通し、支払いUI
   //   （`SigniOnPlayCostModal` ＋ `executeSigniOnPlayCost`）も対応させたので前提が消えた。
   //   ⚠**据置契約は削除ではなく正方向 assert へ反転**する（下の O-201 テスト）。
-  test('(xxix)(2) 第15波後の明示保留1効果は costUnparsed のまま保持する', () => {
-    const deferredIds = [
-      'WXDi-P03-019-E1',
-    ];
-    for (const effectId of deferredIds) {
-      const cardNum = effectId.replace(/-E\d+$/, '');
-      const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
-      ok(!!effect, `${effectId}: live 効果が存在`);
-      ok(effect!.costUnparsed === true, `${effectId}: 不完全な既存語彙へ載せず costUnparsed を維持`);
-      eq(effect!.cost, undefined, `${effectId}: 不完全な cost を生成しない`);
-    }
+  // 🆕2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝**最後の1件 `WXDi-P03-019-E1` も外した**＝
+  //   `fieldTrashAll` を新設して「すべてのシグニを場からトラッシュに置く」を表せるようにした。
+  //   ⇒ **明示保留リストは空になった**ので、契約を「1件だけ残る」から
+  //   **「1件も残っていない」＋その1件が正しく構造化されている**へ反転する（上の O-68 テストが中身を見る）。
+  test('(xxix)(2) 明示保留（costUnparsed のまま据え置く）任意【出】はもう無い', () => {
+    const deferredIds: string[] = [];
+    eq(deferredIds.length, 0, '明示保留リストは空（O-68① で最後の1件を解消）');
+    const wasDeferred = effectsMap.get('WXDi-P03-019')?.find(e => e.effectId === 'WXDi-P03-019-E1');
+    ok(!!wasDeferred, 'WXDi-P03-019-E1: live 効果が存在');
+    eq(wasDeferred!.costUnparsed, undefined, '🔴costUnparsed へ戻っている（提示そのものが止まる）');
+    ok(!!wasDeferred!.cost?.fieldTrashAll, '場シグニ全損が cost に載っている');
   });
 
   test('(xxix)(2) filter付き手札捨てコストは払える時だけ完走し、対象外カードを捨てない', () => {
@@ -33151,8 +33240,11 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
     // 🆕158→159 / 2→1＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（「手札とエナゾーンにあるすべての
     //   カードをトラッシュに置く：」）の cost を `discardAll`＋`energyTrashAll` で表せるようにした分。
     //   🔴それまでは **`optionalOnPlayCostStub` の SUPPORTED に無い**ため包めず、この【出】は不発だった。
-    eq(collectedCount, 159, '相互制約コスト対応を含む159件を通常アシスト経路で収集');
-    eq(deferred.length, 1, '表現不能コスト1件は不発のまま据え置く');
+    // 🆕159→160＝2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝`WXDi-P03-019-E1`（アシストルリグの任意【出】）の
+    //   costUnparsed を解いたので、据え置き7件のうち1件が収集側へ移った。
+    eq(collectedCount, 160, '相互制約コスト対応を含む160件を通常アシスト経路で収集');
+    // 🆕1→0＝同上（`WXDi-P03-019-E1` が最後の1件だった）＝**通常アシスト経路の据え置きはゼロ**。
+    eq(deferred.length, 0, '表現不能コストによる据え置きは0件（O-68① で最後の1件を解消）');
   } finally {
     cursor = savedCursor;
   }
@@ -49309,6 +49401,64 @@ test('段2 第25バッチ E2E: WX25-CP1-005-E1 は＜ブルアカ＞2体だけ�
   ok(!shadowed.ownerState.keyword_grants_until_opp_turn?.[mismatch]?.includes(shadow.keyword), '非ブルアカはシャドウを得ない');
 }));
 
+// ══════════════ §5.3 `O-71`（2026-09-02 索引 B 第2巡）＝遅延本文が「それ」で先行文を照応する ══════════════
+// 🔑受け皿は**新設ではなく既存の3点組**＝`SELECT_TARGET_ONLY` → `STORE_LAST_PROCESSED_TARGETS` →
+//   `INSTALL_DELAYED_TRIGGER{effect:…targetsStored}`（設置時に `freezeStoredTargets` が `fixedCardNums` へ焼く）。
+test('O-71 WX25-CP1-038-E1: パワー5000以下だけ手札へ戻し、遅延側は「それ」を焼き込んで設置する', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WX25-CP1-038')!.find(e => e.effectId === 'WX25-CP1-038-E1')!;
+  const own = batch23ClassSigni('ブルアカ', 1, ['WX25-CP1-038']);
+  ok(own.length === 1, 'ブルアカのシグニが取れる');
+
+  // ① パワー5000以下＝手札へ戻る。遅延側は同じカードを焼き込んで設置される（場に居ないので発火しても空振り）。
+  const small = run(effect.action, mkCtx(
+    { signi: [own[0], null, null] }, { signi: [SIGNI_P3000, null, null] }, 'WX25-CP1-038'));
+  ok(small.otherState.hand.includes(SIGNI_P3000), 'パワー3000は手札へ戻る');
+  const dtSmall = small.ownerState.delayed_triggers ?? [];
+  eq(dtSmall.length, 1, '遅延トリガーが設置される（旧＝2文目が RULE_REMINDER_TEXT に化けて消えていた）');
+  eq((dtSmall[0].effect as { fixedCardNums?: string[] }).fixedCardNums?.[0], SIGNI_P3000,
+    '🔴遅延本文の「それ」は設置時に焼き込む（targetsStored のままだと発火時に空振りする）');
+
+  // ② パワー5000超＝手札へ戻らない（旧 live は無条件 BOUNCE＝どんな大型でも戻せた）。
+  const big = run(effect.action, mkCtx(
+    { signi: [own[0], null, null] }, { signi: [SIGNI_P12000, null, null] }, 'WX25-CP1-038'));
+  ok(!big.otherState.hand.includes(SIGNI_P12000), '🔴パワー12000は手札へ戻らない（5000以下ゲート）');
+  ok(big.otherState.field.signi.some(stack => stack?.at(-1) === SIGNI_P12000), '場に残る');
+  eq((big.ownerState.delayed_triggers ?? []).length, 1, '戻せなくても遅延トリガーは設置する（2文は排他ではない）');
+
+  // ③ 場に非ブルアカが1体でもあれば何も起きない。
+  const mismatch = batch23OtherSigni('ブルアカ', [...own, 'WX25-CP1-038']);
+  const blocked = run(effect.action, mkCtx(
+    { signi: [own[0], mismatch, null] }, { signi: [SIGNI_P3000, null, null] }, 'WX25-CP1-038'));
+  ok(!blocked.otherState.hand.includes(SIGNI_P3000), '非ブルアカが混ざると発動しない');
+  eq((blocked.ownerState.delayed_triggers ?? []).length, 0, '遅延トリガーも設置しない');
+}));
+
+test('O-71 WXK10-045-E2: 相手の手札1枚をチェックゾーンへ置き、戻す側は「それ」を焼き込んだ遅延で表す', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WXK10-045')!.find(e => e.effectId === 'WXK10-045-E2')!;
+  const ctx = mkCtx({ hand: 0 }, { hand: 2 }, 'WXK10-045');
+  const oppHand0 = [...ctx.otherState.hand];
+  const r = run(effect.action, ctx);
+  const moved = (r.otherState.field.check_rest ?? []);
+  eq(moved.length, 1, '相手の手札1枚がチェックゾーンへ移る（旧＝STUB の真 no-op）');
+  eq(r.otherState.hand.length, oppHand0.length - 1, '相手の手札が1枚減る');
+  ok(!r.otherState.hand.includes(moved[0]), '置いたカードは手札に残らない');
+
+  const dt = r.ownerState.delayed_triggers ?? [];
+  eq(dt.length, 1, '戻す側の遅延トリガーが設置される（旧＝BOUNCE で相手シグニを除去していた）');
+  eq(dt[0].trigger?.timing, 'ON_TURN_END', 'このターン終了時に戻す');
+  const back = dt[0].effect as { type?: string; fixedCardNums?: string[]; source?: { type?: string; owner?: string } };
+  eq(back.type, 'TRANSFER_TO_HAND', '戻す側は手札へ');
+  eq(back.source?.type, 'CHECK_CARD', 'チェックゾーンから戻す');
+  eq(back.source?.owner, 'opponent', '戻す先は置いた側（対戦相手）の手札');
+  eq(back.fixedCardNums?.[0], moved[0], '🔴「それ」＝置いた1枚を設置時に焼き込む（任意の1枚を戻せてはいけない）');
+
+  // 発火させると手札へ帰る（`check_rest` はこの後 clearTurnEndScopedState がトラッシュへ送るので順序が要）。
+  const fireCtx = { ...ctx, ownerState: r.ownerState, otherState: r.otherState } as ExecCtx;
+  const fired = run(dt[0].effect as EffectAction, fireCtx);
+  ok(fired.otherState.hand.includes(moved[0]), 'ターン終了時に同じカードが手札へ戻る');
+  eq((fired.otherState.field.check_rest ?? []).length, 0, 'チェックゾーンから抜ける');
+}));
+
 test('段2 第25バッチ E2E: WXEX2-70-E1 は任意で他の自分の＜遊具＞を犠牲にし、相手対象をエナへ送る', () => withSavedCursor(() => {
   const effect = effectsMap.get('WXEX2-70')!.find(e => e.effectId === 'WXEX2-70-E1')!;
   ok(effect.action.type === 'SEQUENCE', 'WXEX2-70-E1: SEQUENCE');
@@ -49382,6 +49532,14 @@ test('段2 第24バッチ: 3体犠牲・エナ3枚は自分側を払い、対象
     eq(mid.target?.type, midType, `${effectId}: 中間動作のゾーン`);
     eq(mid.target?.owner, midOwner, `${effectId}: 🔴中間動作は**自分側**を払う`);
     eq(mid.target?.count, 3, `${effectId}: 3体／3枚`);
+    // 🆕**2026-09-02（索引 B 第2巡・`O-104`）＝「そうした場合」ゲートの実装**。
+    //   旧 live は `CONDITIONAL{IS_MY_TURN}`＝**自分のターンなら常に真**の偽ゲートで、
+    //   中間動作（3体／3枚）を1つも払えなくても本体が通っていた（原文より強い）。
+    //   直前ステップの処理枚数を見る `LAST_PROCESSED_COUNT_GTE{3}` が正しい受け皿。
+    const gate = steps[3] as { type?: string; condition?: { type?: string; value?: number } };
+    eq(gate.type, 'CONDITIONAL', `${effectId}: 本体は「そうした場合」ゲートの中`);
+    eq(gate.condition?.type, 'LAST_PROCESSED_COUNT_GTE', `${effectId}: 🔴ゲートは中間動作の実処理枚数を見る（IS_MY_TURN の偽ゲートに戻さない）`);
+    eq(gate.condition?.value, 3, `${effectId}: 3体／3枚を実際に払えたときだけ本体が通る`);
     const bodyRaw = (steps[3] as { then?: Record<string, unknown> }).then ?? steps[3];
     eq((bodyRaw as { targetsStored?: boolean }).targetsStored, true, `${effectId}: 本体は宣言した「それ」へ適用する`);
   }
@@ -53876,10 +54034,17 @@ test('O-46 live: コスト句の連用形（「〜し、」）で2要素目以�
   eq(JSON.stringify(costOf('WXK08-027-E2').energyTrash), '{"count":1}', 'WXK08-027-E2＝3つ目（エナ1枚）');
   ok(!!costOf('WXK04-025-CB-E2').energyTrashAll, 'WXK04-025-CB-E2＝「エナゾーンにあるすべてのカードを」綴りも energyTrashAll に載る');
   ok(!!costOf('WXK04-025-CB-E2').trash_key, 'WXK04-025-CB-E2＝1要素目（キーをルリグトラッシュ）も残る');
-  // 🔴**受け皿が無い要素を含む効果は、他の要素を解釈できても `costUnparsed` のまま**＝提示しない。
-  //   これを外すと `WXDi-P03-019-E1` が**自分の場のシグニを1体も失わずに相手の場を全滅**させる。
-  ok(b43Live('WXDi-P03-019-E1').costUnparsed === true && b43Live('WXDi-P03-019-E1').cost === undefined,
-    '🔴「すべてのシグニを場からトラッシュに置き」は受け皿が無い＝部分的な cost を作らず costUnparsed のまま');
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝受け皿（`fieldTrashAll`）を作ったので据置を解いた。**
+  //   旧契約＝「受け皿が無い要素を含む効果は `costUnparsed` のまま」＝**部分採用を禁じる安全弁**だった。
+  //   🔴解いた以上、**3要素すべてが載っていること**を固定する（1つでも欠けたら踏み倒しに戻る）。
+  ok(!b43Live('WXDi-P03-019-E1').costUnparsed, 'WXDi-P03-019-E1＝costUnparsed へ戻っている');
+  ok(!!costOf('WXDi-P03-019-E1').fieldTrashAll, '🔴WXDi-P03-019-E1＝自分の場のシグニ全損（これが無いと相手の場だけ全滅）');
+  ok(!!costOf('WXDi-P03-019-E1').discardAll, 'WXDi-P03-019-E1＝手札全損');
+  ok(!!costOf('WXDi-P03-019-E1').energyTrashAll, 'WXDi-P03-019-E1＝エナ全損');
+  // 🆕`WXK10-006-E3`（§5.3 `O-68`②）＝「クラフトではない」修飾語で regex を外していた分。
+  ok(!!costOf('WXK10-006-E3').trash_key, 'WXK10-006-E3＝1要素目（キーをルリグトラッシュ）');
+  eq(JSON.stringify(costOf('WXK10-006-E3').trashArtsFromLrigDeck), '{"count":1}',
+    '🔴WXK10-006-E3＝2要素目（ルリグデッキのアーツ1枚）が落ちている');
   // 対照＝もともと両要素が載っていた効果は1文字も変わっていない（正規化が既存を壊していない）。
   eq(JSON.stringify(costOf('WXK06-084-E1')), '{"discard":1,"deckTrash":1}', '対照＝既に両方載っていた効果は不変');
   eq(JSON.stringify(costOf('WX25-P3-019-E2')), '{"discardAll":true,"energyTrashAll":true}', '対照＝複合形の専用規則も不変');

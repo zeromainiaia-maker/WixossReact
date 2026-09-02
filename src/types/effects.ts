@@ -862,6 +862,17 @@ export interface EffectCost {
   // ─ v0.276 追加: 全捨て型コスト ─
   discardAll?: true;      // 手札をすべて捨てる（自動・選択不要）
   energyTrashAll?: true;  // エナゾーンのカードをすべてトラッシュ（自動・選択不要）
+  /**
+   * 🆕**あなたの場のシグニをすべてトラッシュに置く**（2026-09-02・§5.3 `O-68`①・`WXDi-P03-019-E1`
+   * 「すべてのシグニを場からトラッシュに置き、手札とエナゾーンにあるすべてのカードをトラッシュに置く：
+   *  対戦相手のすべてのシグニをバニッシュする」）。
+   * 🔴**`fieldTrash{count:number}` では「すべて」を表せない**＝この1キーが無いあいだ `parseCost` は
+   *   **意図的に `undefined` を返して `costUnparsed` に倒していた**（部分採用すると
+   *   「自分の場を1体も失わずに相手の場を全滅」できる踏み倒しになるため）。
+   * ⚠`discardAll` / `energyTrashAll` と同じ「自動・選択不要」の形＝支払いは
+   *   `OptionalCostSpec.fieldTrash.count:'ALL'` へ写す（新しい支払い経路は作らない）。
+   */
+  fieldTrashAll?: true;
   // ─ v0.277 追加: 手札から自身を捨てる（手発動用コスト）─
   discardSelfFromHand?: true; // このカードを手札から捨てる（handActivatedな【起】のコスト）
   // ─ v0.278 追加: 可変枚数手札捨て（１枚以上）─
@@ -1576,6 +1587,7 @@ export type EffectAction =
   | RevealFacedownLrigZoneAction
   | ReturnFacedownLrigZoneToHandAction
   | FieldSigniToCheckZoneAction
+  | HandToCheckZoneAction
   | GainLrigTypeAction
   | DeclareCardNameLockAction
   | RevealBothDeckTopsAction
@@ -3471,6 +3483,28 @@ export interface FieldSigniToCheckZoneAction {
 }
 
 /**
+ * 「〈owner〉は手札を N枚チェックゾーンに置く」（§5.3 `O-71`・`WXK10-045-E2`）。
+ *
+ * 🔑**戻す側はここに畳まない**＝原文が「**このターン終了時**、対戦相手はそれを手札に戻す」と
+ *   別の文で遅延させているので、`INSTALL_DELAYED_TRIGGER{ON_TURN_END, TRANSFER_TO_HAND{CHECK_CARD, targetsStored}}`
+ *   と組んで表す（`FIELD_SIGNI_TO_CHECK_ZONE` は即座の往復なので1アクションに畳んである＝別物）。
+ *   ⇒ このアクションは `lastProcessedCards` に置いたカードを載せる責務まで持つ
+ *   （直後の `STUB{STORE_LAST_PROCESSED_TARGETS}` が「それ」を固定する）。
+ *
+ * 🔴**置き先は `field.check` ではなく `field.check_rest`**＝`check` は
+ *   【ライフバースト】確認中の1枚のスロットで、そこへ置くと確認モーダルが開いて盤面が固まる（§5.3 `O-143`）。
+ * ⚠`check_rest` は `clearTurnEndScopedState` が**ターン終了時にトラッシュへ**送る。
+ *   戻す側の遅延トリガーは**その前に**解決される（ENDフェイズ①→クリアの順）ので手札へ帰るが、
+ *   遅延側を書き忘れると**手札が1枚減ったまま失われる**＝必ず組で使う。
+ */
+export interface HandToCheckZoneAction {
+  type: 'HAND_TO_CHECK_ZONE';
+  /** 手札を置く側（原文の主語）。 */
+  owner: Owner;
+  count: number;
+}
+
+/**
  * 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを**追加で**得る」
  * （`WDK17-008-E1` 選択肢①・§6.4 O-3）。
  *
@@ -4420,7 +4454,8 @@ export interface StubAction {
     isBanish?: boolean;
   };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
-  fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** `count:'ALL'`＝「すべてのシグニを場からトラッシュに置く」（§5.3 `O-68`①・`EffectCost.fieldTrashAll` の写し）。 */
+  fieldTrash?: { count: number | 'ALL'; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 自分のトラップゾーンから【トラップ】をトラッシュへ置く任意コスト。 */
   fieldTrapTrash?: { count: number; excludeSource?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */

@@ -53,6 +53,7 @@ import { exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activated
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
+import { matchesTrashArtsFromLrigDeckCost } from './battle/artsTrashCost';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
@@ -2653,6 +2654,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return (card.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(c.story);
     }).length;
     return n >= c.count;
+  };
+  /**
+   * 🆕§5.3 `O-68`②（2026-09-02）＝「ルリグデッキからアーツN枚をルリグトラッシュに置く」を払えるか。
+   * ⚠これが無いと**在庫が無くても【起】が提示され**、支払いをすり抜けて撃てる（`canPayExileLrigFromLrigDeck` と同型）。
+   */
+  const canPayTrashArtsFromLrigDeck = (eff: CardEffect): boolean => {
+    const c = eff.cost?.trashArtsFromLrigDeck;
+    if (!c) return true;
+    return my.lrig_deck.filter(num => matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(num)), c)).length >= c.count;
   };
   const isLrigActBlocked = () => isActionBlocked('USE_ACT') || isActionBlocked('USE_LRIG_ACT');
 
@@ -7548,7 +7558,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ⚠**実体は上の「Rules of Hooks 対策」ブロック**（`if (!bs) return` より前）へ移した（2026-08-18 続き554）。
 
   // ── キーピース起動効果 ──
-  const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set()) => {
+  const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set(), artsNums: string[] = []) => {
     if (loading) return;
     setLoading(true);
     closeKeyActivated();
@@ -7582,11 +7592,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newLrigTrashKey = [...my.lrig_trash, extraKeys[extraIdx]];
         }
       }
+      // 🆕**キー【起】の「ルリグデッキからアーツN枚をルリグトラッシュに置く」**（§5.3 `O-68`②・`WXK10-006-E3`）。
+      //   🔴ここが無いあいだ、キー経路の支払いは**エナ／手札捨て／`trash_key`／全捨て**しか無く、
+      //   アーツ1枚というコストを**提示だけして踏み倒せた**（`O-46` の `energyTrashAll` と同型の穴）。
+      //   ⚠クラフトのアーツは `Type:'アーツ/クラフト'` なので `matchesTrashArtsFromLrigDeckCost` が
+      //   既に弾いている（原文「クラフトではないアーツ」＝追加の除外実装は不要）。
+      const keyArtsNums = effect.cost?.trashArtsFromLrigDeck ? artsNums : [];
+      const newLrigDeckKey = keyArtsNums.length > 0
+        ? my.lrig_deck.filter(n => !keyArtsNums.includes(n))
+        : my.lrig_deck;
       let paid: PlayerState = keyActPay.applyTo({
         ...my,
         hand: newHand,
         field: newField,
-        lrig_trash: newLrigTrashKey,
+        lrig_deck: newLrigDeckKey,
+        lrig_trash: [...newLrigTrashKey, ...keyArtsNums],
         trash: [...my.trash, ...paidNums, ...discardNums, ...keyDiscardAllCards, ...keyEnergyTrashAllCards],
         // ⚠`keyEnergyTrashAllCards` は**エナ**なので台帳に載せない（手札から捨てた分だけ）。
         ...handDiscardHistoryRecord(my, [...discardNums, ...keyDiscardAllCards]),
@@ -14859,6 +14879,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
         !e.costUnparsed &&
         canPayExileLrigFromLrigDeck(e) &&
+        canPayTrashArtsFromLrigDeck(e) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
@@ -14879,6 +14900,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               // 🆕全捨てコスト（§5.3 `O-46`＝`WXK04-025-CB-E2`）。支払いは `executeKeyActivated`。
               eff.cost.energyTrashAll ? 'エナすべてトラッシュ' : null,
               eff.cost.discardAll ? '手札すべて捨て' : null,
+              // 🆕§5.3 `O-68`②＝ルリグデッキのアーツ徴収（支払いは `executeKeyActivated`＋`KeyActivatedModal`）。
+              eff.cost.trashArtsFromLrigDeck ? `アーツ${eff.cost.trashArtsFromLrigDeck.count}枚をルリグトラッシュ` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         const cardName = battleCardMap.get(keyNum)?.CardName ?? keyNum;

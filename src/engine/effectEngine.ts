@@ -943,7 +943,8 @@ function getLocationCount(state: PlayerState, location: string): number {
     case 'lrig_deck': return (state.lrig_deck ?? []).length;
     case 'lrig_trash': return (state.lrig_trash ?? []).length;
     // 🆕チェックゾーン（§5.3 `O-143`）＝`getLocationCards` と同じ定義で数える。
-    case 'check':    return (state.field.check ? 1 : 0) + (state.field.check_rest ?? []).length;
+    case 'check':    return (state.field.check ? 1 : 0) + (state.field.check_rest ?? []).length
+      + (state.spell_in_check_zone ? 1 : 0);
     default:         return 0;
   }
 }
@@ -959,7 +960,9 @@ function getLocationCards(state: PlayerState, location: string): string[] {
     case 'lrig_deck':  return state.lrig_deck ?? [];
     case 'lrig_trash': return state.lrig_trash ?? [];
     // 🆕チェックゾーン（§5.3 `O-143`）＝バースト確認中の1枚（`check`）＋留まっている分（`check_rest`）。
-    case 'check':      return [...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? [])];
+    // 🆕§5.3 `O-138`＝解決待ちのスペル（`spell_in_check_zone`）も含める（`checkZoneCards` と同じ定義）。
+    case 'check':      return [...(state.field.check ? [state.field.check] : []), ...(state.field.check_rest ?? []),
+      ...(state.spell_in_check_zone ? [state.spell_in_check_zone] : [])];
     default:           return [];
   }
 }

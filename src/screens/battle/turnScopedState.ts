@@ -134,6 +134,9 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // ピース応答窓のフラグ（§6.4 O-10 続き518）＝窓を閉じる側で落とすのが正だが、
   // **万一の閉じ忘れでターンを跨いで「常時カットイン可」にならない**よう保険で登録する。
   team_piece_cutin_window: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'piece cut-in response window; consumed when the window closes, expired here as a safety net' },
+  // 解決待ちスペルのチェックゾーン在席（§5.3 O-138）＝閉じる側（FINISH_SPELL / FINISH_CUTIN）で落とすのが正。
+  //   残るとチェックゾーンに幽霊のスペルが居続ける＝「相手のチェックゾーンにスペルがある場合」が常時成立に化ける。
+  spell_in_check_zone: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'spell sitting in the check zone while it resolves; consumed when the spell finishes, expired here as a safety net' },
   // 強制アタック active は現在ターンだけ。次ターン分は must_attack_signi_next_turn に予約する。
   must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'active forced-signi-attack flag; next-turn value is reserved separately' },
   // 「このターン使用禁止のカード名」は課されたグローバルターンだけ有効（§6.4 O-3 続き498 で登録）。
@@ -528,4 +531,21 @@ export function consumeDeclaredGuardRestrictLevel(state: PlayerState): PlayerSta
  */
 export function closeTeamPieceCutinWindow(state: PlayerState): PlayerState {
   return consumeField(state, 'team_piece_cutin_window');
+}
+
+/**
+ * 使用したスペルを**チェックゾーンへ置く**（§5.3 `O-138`・解決待ちのあいだだけ）。
+ * ⚠`field.check` へは入れない＝あれは【ライフバースト】確認中の1枚のスロットで、
+ *   置くと確認モーダルが開いて盤面が固まる（§5.3 `O-143` で踏んだ罠）。
+ */
+export function openSpellCheckZone(state: PlayerState, instanceId: string): PlayerState {
+  return { ...state, spell_in_check_zone: instanceId };
+}
+
+/**
+ * 解決待ちスペルのチェックゾーン在席を**閉じる**（§5.3 `O-138`）。
+ * ⚠**funnel の外で `spell_in_check_zone: undefined` を書かないこと**（T2 が検出する）。
+ */
+export function closeSpellCheckZone(state: PlayerState): PlayerState {
+  return consumeField(state, 'spell_in_check_zone');
 }

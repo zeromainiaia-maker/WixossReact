@@ -2427,9 +2427,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 次の対戦相手のターン〜場に出せない（配置制限）----
-  // ⚠**パワー下限を持つ形だけ payload を刻む**＝「除外したシグニと**同じ名前**のシグニ」（`WXK09-015-E3`）は
-  //   受け皿が無く、旧 engine では「配置制限（パターン解析不可）」の**無言 no-op** だった（§5.3 `O-78`）。
+  // ⚠**パワー下限を持つ形だけ payload を刻む**＝それ以外は engine 側で原文を読む。
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-78`）＝同名限定をここでも拾う。**
+  //   「この方法でゲームから除外したシグニと**同じ名前の**シグニを新たに場に出せない」（`WXK09-015-E3`）は
+  //   受け皿が無いと思われていたが、実測すると `SIGNI_DEPLOY_BAN{namesFromTargets}` が既存で
+  //   `WXK10-019-E3` / `WX25-P3-001-E1` の2枚は既に載っていた（＝欠けていたのは**この文型の配線だけ**）。
+  //   🔑分岐していた理由は**期間の書き方**＝上のバケツは `このターンと次のターンの間` しか見ておらず、
+  //   `次の対戦相手のターン終了時まで` を通していなかった。どちらも `turns:2`（このターン＋次のターン）。
   if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/) && t.includes('場に出せない')) {
+    if (/と同じ名前のシグニを新たに場に出せない/.test(t)) {
+      return { type: 'SIGNI_DEPLOY_BAN', owner: 'opponent', turns: 2, namesFromTargets: true } as SigniDeployBanAction;
+    }
     const pwDR = t.match(/パワー([０-９\d万]+)以上/);
     return pwDR
       ? { type: 'STUB', id: 'DEPLOY_RESTRICT', deployRestrict: { kind: 'power_gte', powerGte: parseNum(pwDR[1].replace('万', '0000')) } } as StubAction

@@ -14,6 +14,7 @@
 // docs/BATTLE_CONTROLLER.md。
 import type { BattleStateRow, PlayerState, EffectStack, PendingSpell, PendingEffect } from '../../../types';
 import { isStackDone } from '../../../engine/effectStack';
+import { closeSpellCheckZone, openSpellCheckZone } from '../turnScopedState';
 
 /** プレイヤー状態を書き込む先のカラム。 */
 export type PlayerStateKey = 'host_state' | 'guest_state';
@@ -243,8 +244,14 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
       return patch;
     }
     case 'QUEUE_SPELL': {
+      // 🆕§5.3 `O-138`（2026-09-02）＝解決待ちのスペルは**使用者のチェックゾーンに置かれている**。
+      //   これを書かないと「対戦相手のチェックゾーンにスペルがある場合」が永久に偽になり、
+      //   スペルカットインで出るレゾナ3枚の【出】が無言 no-op に化ける（型コメント参照）。
+      //   ⚠ピース（`kind:'piece'`）はスペルではないので置かない。
       const patch: Partial<BattleStateRow> = {
-        [action.casterKey]: action.casterState,
+        [action.casterKey]: action.spell && action.spell.kind !== 'piece'
+          ? openSpellCheckZone(action.casterState, action.spell.card_num)
+          : action.casterState,
         ...(action.other ? { [action.other.key]: action.other.state } : {}),
         pending_spell: action.spell,
       };
@@ -253,7 +260,8 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
     }
     case 'FINISH_SPELL': {
       const patch: Partial<BattleStateRow> = {
-        [action.casterKey]: action.casterState,
+        // 🆕§5.3 `O-138`＝スペルがチェックゾーンを離れる（残すと幽霊のスペルで条件が常時成立する）。
+        [action.casterKey]: closeSpellCheckZone(action.casterState),
         pending_spell: null,
         pending_effect: null,
       };
@@ -262,10 +270,11 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
     }
     case 'FINISH_CUTIN': {
       const patch: Partial<BattleStateRow> = {
-        [action.playerKey]: action.playerState,
+        [action.playerKey]: closeSpellCheckZone(action.playerState),
         pending_spell: null,
       };
-      if (action.caster) patch[action.caster.key] = action.caster.state;
+      // 🆕§5.3 `O-138`＝窓が閉じたらチェックゾーンからも降ろす（使用者側／応答者側のどちらに載っていても）。
+      if (action.caster) patch[action.caster.key] = closeSpellCheckZone(action.caster.state);
       if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
       return patch;
     }

@@ -3479,6 +3479,11 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     //   候補は `checkZoneCards()`＝`field.check`（バースト確認中の1枚）＋`field.check_rest`（留まっている分）。
     const resolvedCheckFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
     cands = checkZoneCards(state).filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedCheckFilter));
+    // 🆕§5.3 `O-71`（2026-09-02）＝「このターン終了時、対戦相手は**それ**を手札に戻す」＝
+    //   設置時に確定した1枚だけを戻す。TRASH_CARD 分岐にしか無かった2本の絞り込みをここにも入れる。
+    //   🔴無いと**チェックゾーンの任意の1枚**を戻せる（相手が自分で置いた別のカードを回収できる）。
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンから手札に加える」＝バニッシュで
@@ -9767,6 +9772,25 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         lastProcessedCards: [...(ctx.lastProcessedCards ?? []), ...topsFSC],
       });
     }
+    case 'HAND_TO_CHECK_ZONE': {
+      // 「〈owner〉は手札を N枚チェックゾーンに置く」（§5.3 `O-71`・`WXK10-045-E2`）。
+      // 🔴置き先は `field.check_rest`＝`check` は【ライフバースト】確認中の1枚のスロットで、
+      //   そこへ置くと確認モーダルが開いて盤面が固まる（§5.3 `O-143` で踏んだ罠）。
+      // ⚠**戻す側はここに畳まない**＝原文が別の文で「このターン終了時」に遅延させているので、
+      //   直後の `STUB{STORE_LAST_PROCESSED_TARGETS}` ＋
+      //   `INSTALL_DELAYED_TRIGGER{ON_TURN_END, TRANSFER_TO_HAND{CHECK_CARD, targetsStored}}` と組で使う。
+      //   ⇒ ここは `lastProcessedCards` に置いたカードを載せる責務まで持つ。
+      const htc = action as import('../types/effects').HandToCheckZoneAction;
+      const htcOwner: Owner = htc.owner === 'opponent' ? 'opponent' : 'self';
+      const htcState = ownerState(htcOwner, ctx);
+      if (htcState.hand.length === 0) return done({ ...addLog(ctx, 'チェックゾーンに置く手札がない'), lastProcessedCards: [] });
+      // ⚠**どれを置くかは手札の持ち主が選ぶ**（原文の主語＝「対戦相手は」）。
+      //   相手の手札は非公開なので `opp_hand` スコープ＋相手応答で出す（`execTrash` の HAND_CARD と同じ規約）。
+      // ⚠適用は `applyDirectAction` の同名 case（1枚ずつ）＝`resumeSelectTarget` の汎用ループに乗る。
+      const htcCount = Math.min(htc.count, htcState.hand.length);
+      const htcScope: TargetScope = htcOwner === 'self' ? 'self_hand' : 'opp_hand';
+      return selectOrInteract(htcState.hand, htcCount, false, htcScope, action, undefined, ctx, htcOwner === 'opponent');
+    }
     case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND': {
       // 「そのカードを手札に加える」＝裏向きでルリグゾーンに置いたカードを手札へ（§6.4 O-3）。
       // ⚠遅延（`DELAY_TO_NEXT_OPP_TURN_END` / `INSTALL_DELAYED_TRIGGER`）を跨いで発火するので、
@@ -11226,6 +11250,26 @@ export function resumeRearrangeSigni(
 
 function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
   switch (action.type) {
+    case 'HAND_TO_CHECK_ZONE': {
+      // 選ばれた手札1枚をチェックゾーン（`check_rest`）へ（§5.3 `O-71`・型コメント参照）。
+      const htcA = action as import('../types/effects').HandToCheckZoneAction;
+      const htcO: Owner = htcA.owner === 'opponent' ? 'opponent' : 'self';
+      const sHTC = ownerState(htcO, ctx);
+      if (!sHTC.hand.includes(cardNum)) return done(ctx);
+      const idxHTC = sHTC.hand.indexOf(cardNum);
+      const handHTC = [...sHTC.hand];
+      handHTC.splice(idxHTC, 1);
+      const newHTC: PlayerState = {
+        ...sHTC,
+        hand: handHTC,
+        field: { ...sHTC.field, check_rest: [...(sHTC.field.check_rest ?? []), cardNum] },
+      };
+      return done({
+        ...addLog(setOwnerState(htcO, newHTC, ctx),
+          `${htcO === 'self' ? 'あなた' : '対戦相手'}は手札から${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をチェックゾーンへ`),
+        lastProcessedCards: [cardNum],
+      });
+    }
     case 'BANISH_REDIRECT': {
       const br = action as BanishRedirectAction;
       if (!br.bySource && br.redirectTo === 'trash' && br.target.owner === 'opponent' && br.target.count === 1) {

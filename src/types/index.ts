@@ -983,6 +983,19 @@ export interface PlayerState {
    */
   team_piece_cutin_window?: boolean;
   /**
+   * 使用中（解決待ち）のスペルが**このプレイヤーのチェックゾーンに置かれている**あいだ、その instanceId
+   * （§5.3 `O-138`・2026-09-02）。`Condition.CHECK_ZONE_COUNT` が読む唯一の追加ソース。
+   *
+   * 🔴**これが無いと「対戦相手のチェックゾーンにスペルがある場合」が永久に偽になる**＝
+   *   スペルカットインで出るレゾナ3枚（`WX13-005B` / `WX13-006B` / `WX14-006B`）の【出】が
+   *   **常に不発**の無言 no-op になる（条件を落とした旧挙動＝常に成立、の逆側の事故）。
+   *   解決待ちのスペルは `pending_spell` が保持していて**どのゾーンにも属さない**実装なので、
+   *   「チェックゾーンに置かれている」という規則上の事実をここで表す。
+   * ⚠開閉は `openSpellCheckZone` / `closeSpellCheckZone` の2関数だけ（`battleController` の
+   *   `QUEUE_SPELL` / `FINISH_SPELL` / `FINISH_CUTIN` から呼ぶ）。保険で turn-scoped レジストリにも登録。
+   */
+  spell_in_check_zone?: string;
+  /**
    * 使用中のピースが**打ち消された**（§6.4 O-10・続き518）。
    * `COUNTER_TEAM_PIECE_AND_EXILE` が**ピースを使った側**に立て、窓を閉じる
    * `resolvePendingPiece` が読んで「解決せずゲームから除外」に倒す。⚠読んだら必ず落とす。
