@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 609 |
-| 　└ ハンドラ実装あり | 557 |
+| JSON で使用中の STUB id 種類 | 607 |
+| 　└ ハンドラ実装あり | 555 |
 | 　└ フォールバック（execStub 未処理） | 52 |
-| 総 STUB ノード件数 | 3246 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 359 |
+| 総 STUB ノード件数 | 3244 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 358 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -86,7 +86,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ## 実装済み STUB（ハンドラ別）
 
-### execStubPart1.ts（121 種）
+### execStubPart1.ts（120 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -174,7 +174,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARE_PARITY_OPPONENT` | 1 | 1 | WDK04-006 | WDK04-006: 対戦相手が偶数/奇数を宣言する。値は汎用 declared_number に偶=0/奇=1で保存し、 ガード制限用 declared_guard_restrict_level は立てない。 |
 | `DECLARE_TWO_GUARD_LEVELS` | 1 | 1 | WD21-009 | 異なるレベルを2つ宣言する（対戦相手はそのレベルのシグニで【ガード】できない） |
 | `DISCARD_IF_NO_CLASS_SIGNI` | 1 | 1 | WXDi-P07-062 | フィールドに他のクラスシグニがない場合、手札を捨てる |
-| `EACH_PLAYER_DRAW_DISCARD` | 1 | 1 | WXDi-P04-010 | 各プレイヤーがカードを1枚引き、1枚捨てる |
+| `EACH_PLAYER_DRAW_DISCARD` | 1 | 1 | WXDi-P04-010 | 各プレイヤーがカードをN枚引き、M枚捨てる 🆕**§5.3 `O-60` 第23バッチ（2026-09-03）＝枚数は payload（`eachPlayerDrawDiscard`）で受け取る。** 🔴旧実装は `EffectTex… |
 | `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` | 1 | 1 | WXK11-001 | WXK11-001 ②「あなたのルリグデッキにあるコストの合計が２以上のアーツ１枚をゲームから除外してもよい。   そうした場合、このターン、シグニアタックステップをスキップする。」 ⚠**スキップ機構は既に完備**（同カード①のルリグ側… |
 | `GRANT_QUOTED_ACTIVATE_ABILITY` | 1 | 1 | WXDi-P09-066 | 「【起】...」付与（effectEngineのCONTINUOUS処理で対応） |
 | `HAND_NONCOLORLESS_TO_ENERGY` | 1 | 1 | WXK10-083 | 手札から無色でないカードをエナに置く |
@@ -183,7 +183,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `LRIG_UNDER_CARD_OP` | 1 | 1 | WXDi-CP02-054 | `underCardOp` が指す操作を1つだけ行う。 |
 | `MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC` | 1 | 1 | WX24-P4-016 | 「このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きに     なったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か     【ダブルクラッシュ】を得る。」 ⚠**印字能力で… |
 | `MUGEN_Q_RESET_AND_FLIP` | 1 | 1 | WXDi-P11-010A | WXDi-P11-010A 夢限 -Q-: reset and flip in one indivisible state write. Field SIGNI leave triggers are collected later by … |
-| `MULTI_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P04-077 | 相手シグニ複数をエナに置く |
 | `NON_GUARD_DISCARD_TO_ENERGY` | 1 | 1 | WX24-P2-051 | ガードアイコンなしカードを捨てたとき、そのカードをエナへ |
 | `OPP_ENERGY_COLORLESS_ABILITY_LOSS` | 1 | 1 | WXK10-008 | トラッシュから黒シグニを手札へ |
 | `OPP_ENERGY_EXCESS_TRASH` | 1 | 1 | WXEX1-07 | 対戦相手のエナゾーンが閾値以上の場合、1枚トラッシュに |
@@ -212,7 +211,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SEARCHED_SPELL_OR_TRASH` | 1 | 1 | WX20-077 | USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)・`WX20-077-E2`）: 「その後、デッキをシャッフルし、**それをコストを支払わずに使用するかトラッシュに置く**」＝ 直前のサーチで見つけたカード… |
 | `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE` | 1 | 1 | WX25-CP1-040 | エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と同じレベルの対戦相手のシグニ1体を手札に戻す |
 
-### execStubPart2.ts（196 種）
+### execStubPart2.ts（195 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -263,7 +262,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GROW_COST_ZERO` | 2 | 2 | WX21-017, WX21-018 | グロウコスト変更（engine: グロウコスト処理未実装） |
 | `INTERNAL_ASK_TRAP_ZONE` | 2 | 2 | WD23-008-A, WD23-033-A | INTERNAL_ASK_TRAP_ZONE / INTERNAL_PICK_TO_TRAP（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）。 ⚠既存の INTERNAL_SET_TRAP は … |
 | `INTERNAL_SEED_FROM_DECK_TOP_PLACE` | 2 | 2 | WXK04-060, WXK10-059 | デッキ上1枚をシードとして設置 |
-| `LAYER_ABILITY_COPY` | 2 | 2 | WX20-023, WXEX2-59 | ＜怪異＞シグニのレイヤー能力を自シグニにコピー |
+| `LAYER_ABILITY_COPY` | 2 | 2 | WX20-023, WXEX2-59 | 対象シグニの《レイヤーアイコン》能力を自シグニにコピー |
 | `LOCK_OPP_TRASH_MOVE` | 2 | 2 | WX24-P4-007, WXDi-P14-005 | LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 「**次の**対戦相手のメインフェイズとアタックフェイズの間、 対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」（`WX24-P4-00… |
 | `LOOK_OPP_HAND_DISCARD_SIGNI` | 2 | 2 | WX08-067, WX16-066 | 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ） |
 | `OPP_SIGNI_ATTACK_POWER_RESTRICT` | 2 | 2 | WXDi-P05-031, WXDi-CP01-017 | 相手シグニアタック時パワー制限 |
@@ -323,12 +322,11 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GROW_COST_SUBSTITUTE_TRASH_SIGNI` | 1 | 1 | SP07-001 |  |
 | `HAND_SIGNI_HAS_GUARD_ICON` | 1 | 1 | WD13-014 | ガードアイコン付与（手札のシグニに付与: フラグ設定） |
 | `HAND_SIGNI_UNDER_SIGNI` | 1 | 1 | WXDi-P15-067 | 手札のシグニをこのシグニの下に置く |
-| `INFECTED_SIGNI_POWER_DOWN_BY_LEVEL` | 1 | 1 | WXEX2-26 | 相手フィールドのウイルスシグニのレベル合計に基づくパワー修正 |
 | `LEAVE_FIELD_TO_DECK_BOTTOM` | 1 | 1 | WXDi-P08-046 | このシグニが場を離れる場合、代わりにこれをデッキの一番下に置く |
 | `LEVEL_MOD_PER_COUNT` | 1 | 1 | WX10-036 | レベル修正（engine: ベースレベル変更システム未実装） |
 | `LIFE_TO_HAND_OPTIONAL` | 1 | 1 | WXDi-P11-040 | ライフクロス1枚を手札に加える |
 | `LOOK_PLACE_FACEDOWN_DELAYED` | 1 | 1 | WXDi-P10-034 | デッキ上 count 枚を見て、1枚を裏向きでシグニゾーンに置き（PLACE_FACEDOWN_SIGNI）、 |
-| `LOOK_TOP_ONE_RETURN_REST_BOTTOM` | 1 | 1 | WXDi-CP01-036 | デッキ上N枚を確認し1枚をトップ・残りをデッキ下に |
+| `LOOK_TOP_ONE_RETURN_REST_BOTTOM` | 1 | 1 | WXDi-CP01-036 | デッキ上N枚を確認し1枚をトップ・残りをデッキ下に デッキ上N枚を見て1枚をトップへ・残りを好きな順番でデッキ下へ |
 | `LOOK_TOP_SIGNI_TO_FIELD` | 1 | 1 | WXDi-P08-046 | デッキ上のシグニをフィールドへ（最初のシグニを配置） |
 | `LRIG_LIMIT_MODIFY` | 1 | 1 | WXDi-P16-047 | ルリグリミット修正 |
 | `LRIG_LIMIT_UP_AND_COLOR_GAIN` | 1 | 1 | WX22-014 | ルリグリミット増加（+1）と色獲得（log） |
@@ -503,7 +501,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ALL_CARDS_COLOR_CHANGE_BLACK` | 1 | 1 | WXK07-005 | CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み |
 | `ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` | 1 | 1 | PR-471 | ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照） |
 | `ALL_CLASS` | 1 | 1 | WX21-021 | CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み |
-| `ALL_PLAYER_MILL` | 1 | 1 | WX22-017 | 各プレイヤーがデッキ上N枚をトラッシュ |
+| `ALL_PLAYER_MILL` | 1 | 1 | WX22-017 | 各プレイヤーが自分のデッキ上N枚をトラッシュ |
 | `ALL_ZONE_BLACK` | 1 | 1 | WDA-F02-17 | CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み |
 | `ALLOW_ATTACK_WHILE_DRIVE` | 1 | 1 | WXEX2-11 |  |
 | `ARTS_COLORLESS_MUST_PAY_CENTER_COLOR` | 1 | 1 | WX16-006 |  |
@@ -556,7 +554,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARED_ICON_HAND_DISCARD_BANISH` | 1 | 1 | WXDi-P12-055 | ═══ DECLARED_ICON_HAND_DISCARD_BANISH（§6.4 O-34(e)・`WXDi-P12-055-E1`）═══ 「対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手は … |
 | `DEFEAT` | 1 | 1 | PR-422 | 敗北処理 - ライフクロスを0にしてゲーム終了を誘発 |
 | `DOUBLE_POWER_MINUS_THIS_TURN` | 1 | 1 | WX04-038 | このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1） |
-| `DOWN_UP_SIGNI_AND_CHOOSE` | 1 | 1 | SPDi43-23 | シグニをダウン/アップして選択 アップ状態の特定クラスシグニを好きな数ダウン（コスト軽減素材） |
+| `DOWN_UP_SIGNI_AND_CHOOSE` | 1 | 1 | SPDi43-23 | アップ状態の〈条件〉シグニをN体（まで）ダウンする（コスト軽減素材） |
 | `DRIVE_SIGNI_PREVENT_DOWN` | 1 | 1 | WXK03-035 | ドライブ状態のシグニに対戦相手の効果によるダウン防止を付与 |
 | `DYNAMIC_LEVEL_BY_ENERGY` | 1 | 1 | WX20-Re18 |  |
 | `END_ATTACK_IF_EXTRA_TURN` | 1 | 1 | WX10-026 | 追加ターンならアタックフェイズを終了（ATTACK_SIGNI/LRIG封じ） |
@@ -588,7 +586,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `LIMIT_OPP_SIGNI_ATTACKS_ONCE` | 1 | 1 | WX13-005A | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
 | `LOOK_DECK_BOTTOM` | 1 | 1 | WXDi-P13-049 | デッキ下を1枚確認 |
 | `LOOK_TOP_BOTTOM` | 1 | 1 | WXDi-P08-046 | デッキ上1枚とデッキ下1枚を確認 |
-| `LOOK_TOP_OPP_CHOOSE_TRASH` | 1 | 1 | WXK11-064 | デッキ上N枚を公開し相手が1枚選んでトラッシュ |
+| `LOOK_TOP_OPP_CHOOSE_TRASH` | 1 | 1 | WXK11-064 | 公開したカードから相手がN枚選んでトラッシュ、残りは手札へ |
 | `LOSE_SIGNI_BARRIER` | 1 | 1 | WX24-P1-043 | 対戦相手は【○バリア】Nつを失う |
 | `LRIG_ALL_NAMES` | 1 | 1 | WX25-P3-037 | ルリグシステム（未実装残） |
 | `LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS` | 1 | 1 | WXEX2-84 | ルリグトラッシュの全ルリグをこのカードの下に、アーツをルリグデッキへ（WX05-001, WXEX2-84） |
@@ -661,7 +659,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 359 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 358 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -786,7 +784,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_DISRUPT_LRIG_UNDER_EXEC` | 0 | 0 |  | DISRUPT_OPP_LRIG_UNDER_BY_TYPE の実行部（コスト支払い＋除去） |
 | `INTERNAL_DO_COLLAB` | 0 | 0 |  | コラボ実行（アシストルリグ1人を配置） |
 | `INTERNAL_DOWN_AND_FREEZE_OPP` | 0 | 0 |  | 相手シグニ1体をダウン+全シグニを凍結 |
-| `INTERNAL_DOWN_SIGNI_BY_ZONE` | 0 | 0 |  |  |
+| `INTERNAL_DOWN_SELECTED_SIGNI` | 0 | 0 |  | 選ばれたシグニをまとめてダウンする（ダウンした分を lastProcessedCards に残す） |
 | `INTERNAL_DPE_DO_DISCARD` | 0 | 0 |  |  |
 | `INTERNAL_DPE_PAY` | 0 | 0 |  |  |
 | `INTERNAL_DPE_SELECT_DISCARD` | 0 | 0 |  |  |
@@ -819,6 +817,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_LEAVE_TO_TRASH` | 0 | 0 |  | 選択シグニをトラッシュに置く |
 | `INTERNAL_LIFE_TO_HAND_DO` | 0 | 0 |  |  |
 | `INTERNAL_LRIG_UNDER_TRASH_SELECTED` | 0 | 0 |  |  |
+| `INTERNAL_LTOCT_APPLY` | 0 | 0 |  | 公開カードのうち相手が選んだ分をトラッシュへ、残りを手札へ |
 | `INTERNAL_MARK_CHOICE_TAKEN` | 0 | 0 |  | `CHOOSE{noRepeat}`（「まだ選んでいないもの１つを選ぶ」）で |
 | `INTERNAL_MARK_REVEALED_FROM_HAND` | 0 | 0 |  | 手札公開の記録（applyDirectAction経由で選択カードごとに呼ばれる） |
 | `INTERNAL_MARK_REVEALED_NAMED` | 0 | 0 |  | 手札公開の記録（applyDirectAction経由で選択カードごとに呼ばれる） BattleScreenが hand_revealed_just を検出してON_REVEALED_FROM_HANDトリガーを発火しクリアする |
@@ -835,7 +834,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY` | 0 | 0 |  |  |
 | `INTERNAL_OPP_PAY_COST` | 0 | 0 |  |  |
 | `INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE` | 0 | 0 |  |  |
-| `INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC` | 0 | 0 |  |  |
 | `INTERNAL_OPP_SIGNI_TO_TRAP` | 0 | 0 |  | 選択した相手シグニをトラップゾーンへ |
 | `INTERNAL_OPP_SKIP_COST` | 0 | 0 |  |  |
 | `INTERNAL_OPP_SPELL_TO_TRASH` | 0 | 0 |  | 使用しなかった公開スペルを対戦相手のトラッシュへ（WX04-015） |
@@ -946,7 +944,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `LOOK_TOP_COLOR_SORT` | 0 | 0 |  | デッキ上N枚を確認して並べ替え |
 | `LOOK_TOP_N` | 0 | 0 |  | デッキ上N枚を確認して並べ替え |
 | `LOOK_TOP_SORT` | 0 | 0 |  | デッキ上N枚を確認して並べ替え |
-| `LOOK_TOP_SPELLS_TO_HAND` | 0 | 0 |  | デッキ上N枚を確認してスペルを手札へ・残りをデッキへ |
 | `LOSE_LRIG_BARRIER` | 0 | 0 |  | 対戦相手は【○バリア】Nつを失う |
 | `LRIG_GAIN_ABILITY` | 0 | 0 |  | ルリグシステム（未実装残） |
 | `LRIG_LEVEL_RESTRICT` | 0 | 0 |  | その他ゾーン/レベル/フェイズ制限 |

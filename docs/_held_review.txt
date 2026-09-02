@@ -201,6 +201,18 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +SEND_TO_ENERGY +SIGNI -STUB ［1枚］
+WXDi-P04-077
+--- WXDi-P04-077
+  原文: 【出】《白》《赤》《青》《緑》《黒》：対戦相手のシグニを２体まで対象とし、それらをエナゾーンに置く。,-
+  - [0].action.id = "MULTI_SIGNI_TO_ENERGY"
+  ~ [0].action.type : "STUB" → "SEND_TO_ENERGY"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "opponent"
+  + [0].action.target.count = 2
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.upToCount = true
+
 ## -LOOK_AND_REORDER ［1枚］
 WXDi-P08-062
 --- WXDi-P08-062
@@ -232,24 +244,6 @@ WXDi-CP02-003
   + [0].action.steps[0].steps[0].shuffle = true
   + [0].action.steps[0].steps[1].type = "LOOK_AND_REORDER"
   + [0].action.steps[0].steps[1].source.location = "deck"
-  …（他 8 行）
-
-## +LRIG +PAID_ADDITIONAL_COST +SIGNI_ATTACK_BAN +STUB -IS_MY_TURN ［1枚］
-WX24-P3-049
---- WX24-P3-049
-  原文: 【自】：このシグニが場を離れたとき、対戦相手のルリグ１体を対象とし、《白》を支払ってもよい。そうした場合、ターン終了時まで、それは「【常】：あなたのシグニ１体を場からトラッシュに置かないかぎりアタックできない。」を得る。【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、このシグニを場からトラッシュに置いてもよい。そうした場合、ターン終
-  - [0].action.steps[0].costColors[0] = "白"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "STUB"
-  - [0].action.steps[1].then.id = "DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH"
-  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].selectTarget.type = "LRIG"
-  + [0].action.steps[0].selectTarget.owner = "opponent"
-  + [0].action.steps[0].selectTarget.count = 1
-  + [0].action.steps[0].abortIfNoCandidate = true
-  ~ [0].action.steps[1].type : "CONDITIONAL" → "STUB"
-  + [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
-  + [0].action.steps[2].type = "STUB"
   …（他 8 行）
 
 ## +SEQUENCE ［1枚］

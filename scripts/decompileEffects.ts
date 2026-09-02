@@ -3750,10 +3750,17 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/対戦相手の手札を[０-９\d一]*枚見ないで選び、(?:対戦相手はそのカードを公開する|公開させる)/);
         if (m) return m[0];
       }
-      // レイヤー能力付与（LAYER_ABILITY_COPY・engine実装済み）＝「【レイヤー】あなたの＜X＞のシグニは《レイヤーアイコン》の能力を得る」。
+      // レイヤー能力コピー（LAYER_ABILITY_COPY・engine実装済み）。
+      // 🆕§5.3 `O-60` 第22バッチ（2026-09-03）＝**payload から描く**。
+      // 🔴旧実装は「【レイヤー】あなたの＜X＞のシグニは《レイヤーアイコン》の能力を得る」＝
+      //   **【レイヤー】の宣言文**を抜き出していた＝この効果（コピー本体）とは別の文で、
+      //   逆翻訳を読んでも「どこから何を選ぶか」が分からない死角だった。
       if (a.id === 'LAYER_ABILITY_COPY') {
-        const m = currentCardText.match(/【レイヤー】あなたの[^。]*?シグニは《レイヤーアイコン》の能力を得る/);
-        if (m) return m[0];
+        const lc = (a as { layerCopy?: { source: string } }).layerCopy;
+        const lcTgt = (a as { selectTarget?: unknown }).selectTarget as { filter?: unknown } | undefined;
+        if (!lc || !lcTgt?.filter) return '《レイヤーアイコン》能力をコピーする（対象の指定なし＝適用しない）';
+        const lcZone = lc.source === 'trash' ? 'あなたのトラッシュから' : 'あなたの場の';
+        return `${lcZone}${filterJa(lcTgt.filter)}シグニ1体を対象とし、このシグニはそれの《レイヤーアイコン》能力1つを得る`;
       }
       // ルリグがシグニから降りる（CENTER_LRIG_DISMOUNT・engine実装済み）＝「あなたのセンタールリグN体を対象とし、それはすべてのシグニから降りてもよい」。
       if (a.id === 'CENTER_LRIG_DISMOUNT') {
@@ -4253,6 +4260,34 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕枚数がペイロードにある（§5.3 `O-200`）＝固定文にすると「2枚まで」が逆翻訳から消える。
       if (a.id === 'SET_KEY_PLACE_LIMIT') {
         return `このゲームの間、あなたはキーを${typeof a.value === 'number' ? a.value : 1}枚まで場に出すことができる`;
+      }
+      // 🆕§5.3 `O-60` 第23バッチ（2026-09-03）＝各プレイヤーのドロー／捨ては **payload から描く**。
+      //   旧実装は engine が `/([０-９\d]+)枚引く/`（原文は「１枚引**き**」で外れる）を当て、
+      //   捨てる枚数は regex すら無く 1 に焼き込まれていた＝逆翻訳を読んでも枚数が分からなかった。
+      if (a.id === 'EACH_PLAYER_DRAW_DISCARD') {
+        const dd = (a as { eachPlayerDrawDiscard?: { draw: number; discard: number } }).eachPlayerDrawDiscard;
+        if (!dd) return '各プレイヤーはカードを引き手札を捨てる（枚数なし＝適用しない）';
+        return `各プレイヤーは、カードを${dd.draw}枚引き手札を${dd.discard}枚捨てる`;
+      }
+      // 🆕§5.3 `O-60` 第24バッチ（2026-09-03）＝公開カードの相手選択トラッシュは **payload から描く**。
+      if (a.id === 'LOOK_TOP_OPP_CHOOSE_TRASH') {
+        const lt = (a as { lookTopOppChooseTrash?: { trashCount: number; restTo: string } }).lookTopOppChooseTrash;
+        if (!lt) return 'その中から対戦相手の選んだカードをトラッシュに置き、残りを手札に加える（枚数なし＝適用しない）';
+        return `公開したカードの中から対戦相手の選んだカード${lt.trashCount}枚をトラッシュに置き、残りを手札に加える`;
+      }
+      // 🆕§5.3 `O-60` 第27／28バッチ（2026-09-03）＝デッキ確認枚数・各プレイヤーのミル枚数を **payload から描く**。
+      if (a.id === 'LOOK_TOP_ONE_RETURN_REST_BOTTOM') {
+        const lr = (a as { lookTopReturnRestBottom?: { lookCount: number } }).lookTopReturnRestBottom;
+        if (!lr) return 'デッキの上を見て1枚をデッキの一番上に戻し、残りをデッキの一番下に置く（枚数なし＝適用しない）';
+        return `あなたのデッキの上からカードを${lr.lookCount}枚見て、その中から1枚をデッキの一番上に戻し、残りを好きな順番でデッキの一番下に置く`;
+      }
+      if (a.id === 'ALL_PLAYER_MILL') {
+        const am = (a as { allPlayerMill?: { count?: number; perOwnLrigLevel?: number } }).allPlayerMill;
+        if (!am) return '各プレイヤーは自分のデッキの上からカードをトラッシュに置く（枚数なし＝適用しない）';
+        if (am.perOwnLrigLevel !== undefined) {
+          return `各プレイヤーは自分のデッキの上から、自分のセンタールリグのレベル1につきカードを${am.perOwnLrigLevel}枚トラッシュに置く`;
+        }
+        return `各プレイヤーは自分のデッキの上からカードを${am.count}枚トラッシュに置く`;
       }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）

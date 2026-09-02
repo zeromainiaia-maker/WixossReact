@@ -769,33 +769,13 @@ export function execStubPart2(
     }
     return done(addLog(ctx, `パワー修正（前シグニLv${frontLvFLL}）`));
   }
-  // 相手フィールドのウイルスシグニのレベル合計に基づくパワー修正
-  if (stub.id === 'INFECTED_SIGNI_POWER_DOWN_BY_LEVEL') {
-    const srcISPDL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtISPDL = srcISPDL ? (srcISPDL.EffectText ?? '') + ' ' + (srcISPDL.BurstText ?? '') : '';
-    const toHWISPDL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const virusLvSumISPDL = [0, 1, 2].reduce((acc, zi) => {
-      if ((ctx.otherState.field.signi_virus?.[zi] ?? 0) === 0) return acc;
-      const top = ctx.otherState.field.signi[zi]?.at(-1);
-      return acc + (parseInt(ctx.cardMap.get(top ?? '')?.Level ?? '0') || 0);
-    }, 0);
-    const perMISPDL = txtISPDL.match(/ウイルス.*?シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
-    if (perMISPDL && virusLvSumISPDL > 0) {
-      const divisorISPDL = parseInt(toHWISPDL(perMISPDL[1] || '1')) || 1;
-      const deltaISPDL = parseInt(toHWISPDL(perMISPDL[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaISPDL = Math.floor(virusLvSumISPDL / divisorISPDL) * deltaISPDL;
-      if (totalDeltaISPDL !== 0) {
-        const modsISPDL = [...(ctx.otherState.temp_power_mods ?? [])];
-        for (let zi = 0; zi < 3; zi++) {
-          const top = ctx.otherState.field.signi[zi]?.at(-1);
-          if (top) modsISPDL.push({ cardNum: top, delta: totalDeltaISPDL });
-        }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsISPDL } },
-          `パワー${totalDeltaISPDL > 0 ? '+' : ''}${totalDeltaISPDL}（ウイルスLv合計${virusLvSumISPDL}）`));
-      }
-    }
-    return done(addLog(ctx, `パワー修正（ウイルスシグニLv合計${virusLvSumISPDL}）`));
-  }
+  // 🏁**`INFECTED_SIGNI_POWER_DOWN_BY_LEVEL` は撤去した**（2026-09-03 §5.3 `O-60` 第25バッチ）。
+  //   旧実装は `EffectText + BurstText` に `/ウイルス.*?シグニのレベル(\d*)につき([－＋]\d+)/` を当てていたが、
+  //   原文は「**感染状態**のシグニ」なので**1本も当たらず**、当たった場合でも
+  //   **感染シグニのレベルの合計**を**相手の全シグニ**（非感染も含む）へ掛ける別物だった。
+  //   いまは parser が `POWER_MODIFY{filter:{infected:true}, deltaPerTargetLevel:true}` を出し、
+  //   `calcFieldPowers` の CONTINUOUS 経路が**各シグニ自身のレベル**を掛ける。
+
   // 自シグニパワーの2倍を全相手シグニにマイナス
   // DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置）
   if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
@@ -1714,13 +1694,16 @@ export function execStubPart2(
     );
   }
   // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認し1枚をトップ・残りをデッキ下に
+  // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を見て1枚をトップへ・残りを好きな順番でデッキ下へ
+  // 🆕**§5.3 `O-60` 第27バッチ（2026-09-03）＝見る枚数は payload で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/` を当てていたが、
+  //   原文は「デッキの上から**カードを**２枚見る」なので当たらず**既定 2** に落ちていた。
+  //   しかもこの効果は `CHOOSE` の片方の枝なので、**カード全文には別の枝の数字も並ぶ**（先頭一致で拾う）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'LOOK_TOP_ONE_RETURN_REST_BOTTOM') {
-    const srcLTORB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLTORB = srcLTORB ? (srcLTORB.EffectText ?? '') + ' ' + (srcLTORB.BurstText ?? '') : '';
-    const toHWLTORB = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mLTORB = txtLTORB.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
-    const countLTORB = mLTORB ? parseInt(toHWLTORB(mLTORB[1])) : 2;
-    const visLTORB = ctx.ownerState.deck.slice(0, Math.min(countLTORB, ctx.ownerState.deck.length));
+    const specLTORB = stub.lookTopReturnRestBottom;
+    if (!specLTORB) return done(addLog(ctx, 'デッキ上の確認：枚数が無いため何もしない'));
+    const visLTORB = ctx.ownerState.deck.slice(0, Math.min(specLTORB.lookCount, ctx.ownerState.deck.length));
     if (visLTORB.length === 0) return done(addLog(ctx, 'デッキなし'));
     const newSLTORB: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTORB.length) };
     return needsInteraction(
@@ -1728,25 +1711,10 @@ export function execStubPart2(
       { type: 'LOOK_AND_REORDER', cards: visLTORB, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'first_top_rest_bottom', private: true },
     );
   }
-  // LOOK_TOP_SPELLS_TO_HAND: デッキ上N枚を確認してスペルを手札へ・残りをデッキへ
-  if (stub.id === 'LOOK_TOP_SPELLS_TO_HAND') {
-    const srcLTSH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLTSH = srcLTSH ? (srcLTSH.EffectText ?? '') + ' ' + (srcLTSH.BurstText ?? '') : '';
-    const toHWLTSH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mLTSH = txtLTSH.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
-    const countLTSH = mLTSH ? parseInt(toHWLTSH(mLTSH[1])) : 3;
-    const sLTSH = ctx.ownerState;
-    const revealedLTSH = sLTSH.deck.slice(0, Math.min(countLTSH, sLTSH.deck.length));
-    const spellsLTSH = revealedLTSH.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
-    const restLTSH = revealedLTSH.filter(cn => ctx.cardMap.get(cn)?.Type !== 'スペル');
-    const newSLTSH: PlayerState = {
-      ...sLTSH,
-      deck: [...restLTSH, ...sLTSH.deck.slice(revealedLTSH.length)],
-      hand: [...sLTSH.hand, ...spellsLTSH],
-    };
-    return done(addLog({ ...ctx, ownerState: newSLTSH },
-      `デッキ上${revealedLTSH.length}枚確認、スペル${spellsLTSH.length}枚を手札に`));
-  }
+  // 🏁**`LOOK_TOP_SPELLS_TO_HAND` は撤去した**（2026-09-03 §5.3 `O-60` 第27バッチ）＝**live 0件の死んだ枝**。
+  //   唯一の該当カード（`WX10-033-BURST`）は parser の手前で typed な `REVEAL_AND_PICK{filter:{cardType:'スペル'},
+  //   pickCount:'ALL'}` に解けており、この STUB へは1件も来ていなかった。
+  //   （第5バッチの教訓＝**死んだ枝は catch-all の温床**。同じ壊れた regex を抱えたまま残さない。）
   // LIFE_TO_HAND_OPTIONAL: ライフクロス1枚を手札に加える
   if (stub.id === 'LIFE_TO_HAND_OPTIONAL') {
     const sLTH = ctx.ownerState;
@@ -4925,31 +4893,29 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: overridesGSC } },
       `${ctx.cardMap.get(srcGSC)?.CardName ?? srcGSC}が＜${classNameGSC}＞を得る`));
   }
-  // LAYER_ABILITY_COPY: ＜怪異＞シグニのレイヤー能力を自シグニにコピー
+  // LAYER_ABILITY_COPY: 対象シグニの《レイヤーアイコン》能力を自シグニにコピー
+  // 🆕**§5.3 `O-60` 第22バッチ（2026-09-03）＝候補の場所は payload（`layerCopy.source`）で受け取る。**
+  // 🔴旧実装は `card.EffectText.includes('トラッシュから')` を**カード全文**に当てており、
+  //   同じカードの別の能力に「トラッシュから」があると**場所が裏返る**形だった。
+  // 🔴さらに絞り込みが **`'怪異'` のハードコード**で、`selectTarget.filter`（parser は既に
+  //   `story:'怪異'` / `excludeSelf:true` まで出している）を**トラッシュ分岐では丸ごと無視**していた。
+  // ⚠**payload と `selectTarget` が揃わなければ何もしない**（fail-closed）。
   if (stub.id === 'LAYER_ABILITY_COPY') {
+    const specLAC = stub.layerCopy;
+    const filterLAC = stub.selectTarget?.filter;
+    if (!specLAC || !filterLAC) return done(addLog(ctx, 'レイヤー能力コピー：対象の指定が無いため何もしない'));
     const srcLAC = ctx.sourceCardNum;
-    const srcCardLAC = srcLAC ? ctx.cardMap.get(srcLAC) : undefined;
-    const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';
-    const fromTrash = txtLAC.includes('トラッシュから');
-    const kaiClass = '怪異';
-    let candsLAC: string[];
-    let scopeLAC: TargetScope;
-    if (fromTrash) {
-      candsLAC = ctx.ownerState.trash.filter(cn => {
-        const c = ctx.cardMap.get(cn);
-        return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(kaiClass);
-      });
-      scopeLAC = 'self_trash';
-    } else {
-      const targetFilterLAC = stub.selectTarget?.filter ?? { cardType: 'シグニ', story: kaiClass, excludeSelf: true };
-      candsLAC = [0, 1, 2]
-        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
-        .filter((cn): cn is string => !!cn
-          && (!targetFilterLAC.excludeSelf || cn !== srcLAC)
-          && matchesFilter(ctx.cardMap.get(cn), targetFilterLAC));
-      scopeLAC = 'self_field';
+    const candsLAC = specLAC.source === 'trash'
+      ? ctx.ownerState.trash.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filterLAC))
+      : [0, 1, 2]
+          .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+          .filter((cn): cn is string => !!cn
+            && (!filterLAC.excludeSelf || cn !== srcLAC)
+            && matchesFilter(ctx.cardMap.get(cn), filterLAC));
+    const scopeLAC: TargetScope = specLAC.source === 'trash' ? 'self_trash' : 'self_field';
+    if (candsLAC.length === 0) {
+      return done(addLog(ctx, `レイヤー能力コピー：対象なし（${specLAC.source === 'trash' ? 'トラッシュ' : 'フィールド'}）`));
     }
-    if (candsLAC.length === 0) return done(addLog(ctx, `＜${kaiClass}＞シグニなし（${fromTrash ? 'トラッシュ' : 'フィールド'}）`));
     const noopLAC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contLAC: StubAction = { type: 'STUB', id: 'INTERNAL_LAYER_COPY_APPLY' };
     return needsInteraction(addLog(ctx, 'レイヤー能力をコピーするシグニを選択'), {

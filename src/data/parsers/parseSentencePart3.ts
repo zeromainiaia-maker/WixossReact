@@ -328,6 +328,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 各プレイヤーがドローして捨てる ----
+  // 🆕§5.3 `O-60` 第23バッチ（2026-09-03）＝**引く枚数と捨てる枚数を payload で運ぶ**。
+  //   旧実装は engine が `/([０-９\d]+)枚引く/` を当てていたが原文は「１枚引**き**」で当たらず既定1、
+  //   **捨てる枚数は regex すら無く 1 に焼き込まれていた**。
+  const eachDrawDiscM = t.match(/各プレイヤーは.*カードを([０-９\d]+)枚引き.*手札を([０-９\d]+)枚捨てる/);
+  if (eachDrawDiscM) {
+    return {
+      type: 'STUB', id: 'EACH_PLAYER_DRAW_DISCARD',
+      eachPlayerDrawDiscard: { draw: parseNum(eachDrawDiscM[1]), discard: parseNum(eachDrawDiscM[2]) },
+    } as StubAction;
+  }
   if (t.match(/各プレイヤーは.*カードを.*引き.*手札を.*捨てる/)) {
     return { type: 'STUB', id: 'EACH_PLAYER_DRAW_DISCARD' } as StubAction;
   }
@@ -435,8 +445,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- アップ状態のシグニをダウンして選択 ----
+  // 🆕§5.3 `O-60` 第26バッチ（2026-09-03）＝**絞り込み・枚数・任意を payload で運ぶ**。
+  //   旧実装は engine が `/アップ状態の＜([^＞]+)＞のシグニ/`（＜クラス＞限定）を当てており、
+  //   原文が色指定だと絞り込みが消え、枚数は読まれず常に1体だった。
+  //   `parseSigniTarget` はこの文から `count` / `upToCount` / `filter{color|story, isUp}` を既に出せる。
+  // ⚠**STUB id は変えない**＝`USE_TIME_COST_PAY_STUBS`（`effectParser.ts`）がこの id で
+  //   使用時コストの支払いステップを剥がしている。typed 化すると**支払いが二重**になる。
   if (t.match(/アップ状態の.*シグニ.*ダウン/)) {
-    return { type: 'STUB', id: 'DOWN_UP_SIGNI_AND_CHOOSE' } as StubAction;
+    return {
+      type: 'STUB', id: 'DOWN_UP_SIGNI_AND_CHOOSE',
+      selectTarget: parseSigniTarget(t, 'self'),
+      downUpSigniChoose: { optional: /ダウンしてもよい/.test(t) },
+    } as StubAction;
   }
 
   // ---- デッキ一番下を見る ----
@@ -581,11 +601,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'BLOCK_FRONT_SIGNI_ATTACK', ...(nFSA > 0 ? { value: nFSA } : {}) } as StubAction;
   }
 
-  // ---- 対戦相手のシグニを複数エナゾーンに置く（セレクト） ----
-  if (t.match(/対戦相手のシグニ.*体まで.*エナゾーンに置く/)) {
-    return { type: 'STUB', id: 'MULTI_SIGNI_TO_ENERGY' } as StubAction;
-  }
-
   // ---- 毒牙/微菌系複合トリガー ----
   if (t.match(/毒牙|微菌/) && t.match(/以下の[２-９]つから/)) {
     return { type: 'STUB', id: 'CLASS_TRIGGER_CHOOSE' } as StubAction;
@@ -654,7 +669,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   バニッシュなら `isDown:true` が載るのに、エナ送りでは **UNKNOWN** に落ちていた（`WXEX2-20-E3`）。
   //   修飾つきの「〜を対象とし、（それを）エナゾーンに置く」は共通の対象パーサへ寄せる。
   {
-    const tgtM = t.match(/対戦相手の[^。]*シグニ(?:[０-９\d]+体|１体)?を対象とし、?(?:それを)?エナゾーンに置く$/);
+    // 🆕§5.3 `O-60` 第21バッチ（2026-09-03）＝**「〜を N体まで対象とし、それらを」の綴りも受ける**。
+    //   旧実装はこの綴りだけ `STUB{MULTI_SIGNI_TO_ENERGY}` へ落ち、engine が `EffectText` に
+    //   `/シグニ([０-９\d]+)体まで/` を当てて枚数を決めていた（当たらなければ既定 2）。
+    //   `parseSigniTarget` は**この文から `count:2, upToCount:true` を既に出せる**＝受け皿は在った。
+    const tgtM = t.match(/対戦相手の[^。]*シグニ(?:を)?(?:[０-９\d]+体(?:まで)?|１体)?を?対象とし、?(?:それら?を)?エナゾーンに置く$/);
     if (tgtM) {
       const tgt = parseSigniTarget(t, 'opponent');
       // ⚠「この方法で捨てたシグニと**同じレベル**の」＝同一性参照。`parseSigniTarget` は持たないので

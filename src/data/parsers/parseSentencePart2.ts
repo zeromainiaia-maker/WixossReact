@@ -1,6 +1,7 @@
 import type {
   EffectAction,
   EffectTarget,
+  PowerModifyAction,
   TargetFilter,
   Owner,
   SequenceAction,
@@ -42,7 +43,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
+  parseNum, parseSignedNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
   parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter, parsePlaceUnderSourceSigni,
 } from '../parserUtils';
@@ -678,9 +679,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 《レイヤーアイコン》能力コピー ----
+  // 🆕§5.3 `O-60` 第22バッチ（2026-09-03）＝**候補の場所を payload で運ぶ**。
+  //   旧実装は engine が**カード全文**に `includes('トラッシュから')` を当てており、
+  //   同じカードの別の能力に「トラッシュから」があると場所が裏返る形だった。
+  //   ⚠絞り込みは `selectTarget.filter`（すぐ下で `parseSigniTarget` が出す）が正＝
+  //   engine 側の `'怪異'` ハードコードはこのバッチで撤去した。
   if (t.match(/《レイヤーアイコン》能力.*を得る/)) {
     return {
       type: 'STUB', id: 'LAYER_ABILITY_COPY',
+      layerCopy: { source: /トラッシュから/.test(t) ? 'trash' as const : 'field' as const },
       ...(/対象とし/.test(t) ? { selectTarget: parseSigniTarget(t, 'self') } : {}),
     } as StubAction;
   }
@@ -993,9 +1000,21 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'PREVENT_NON_FIELD_MOVE_BY_OPP' } as StubAction;
   }
 
-  // ---- 感染シグニのパワーを減少 ----
-  if (t.match(/対戦相手の感染状態のシグニのパワーをそのシグニのレベル.*－/)) {
-    return { type: 'STUB', id: 'INFECTED_SIGNI_POWER_DOWN_BY_LEVEL' } as StubAction;
+  // ---- 感染シグニのパワーを「そのシグニのレベル1につき」減少 ----
+  // 🆕§5.3 `O-60` 第25バッチ（2026-09-03）＝**typed `POWER_MODIFY` へ寄せた**（STUB は撤去）。
+  // 🔴旧 `STUB{INFECTED_SIGNI_POWER_DOWN_BY_LEVEL}` は engine が原文 regex（「**ウイルス**」表記＝
+  //   原文の「**感染状態**」と綴りが違い**1本も当たらない**）で単価を読み、さらに
+  //   **感染シグニのレベルの合計**を**相手の全シグニ**へ掛けていた＝原文（各シグニに自分のレベル分）と別物。
+  // 🔑同型の平坦版4枚（`WX15-004` ほか）は既に `POWER_MODIFY{filter:{infected:true}}` で動いており、
+  //   足りないのは `deltaPerTargetLevel`（＝「そのシグニのレベル1につき」）の CONTINUOUS 経路だけだった。
+  const infectedPerLvM = t.match(/対戦相手の感染状態のシグニのパワーをそのシグニのレベル([０-９\d]+)につき([－＋][０-９\d]+)する/);
+  if (infectedPerLvM && parseNum(infectedPerLvM[1]) === 1) {
+    return {
+      type: 'POWER_MODIFY',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', infected: true } },
+      delta: parseSignedNum(infectedPerLvM[2]),
+      deltaPerTargetLevel: true,
+    } as PowerModifyAction;
   }
 
   // ---- 能力なしシグニがデッキ行き ----

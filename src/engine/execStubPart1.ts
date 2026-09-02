@@ -2600,13 +2600,17 @@ export function execStubPart1(
     }
     return done(addLog({ ...ctx, ownerState: newOwnerHDB }, `手札${selectedHDB.length}枚をデッキ下へ`));
   }
-  // 各プレイヤーがカードを1枚引き、1枚捨てる
+  // 各プレイヤーがカードをN枚引き、M枚捨てる
+  // 🆕**§5.3 `O-60` 第23バッチ（2026-09-03）＝枚数は payload（`eachPlayerDrawDiscard`）で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/([０-９\d]+)枚引く/` を当てていたが、原文の綴りは
+  //   「１枚引**き**」（連用中止形）なので**当たらず既定 1** へ落ちていた。
+  //   **捨てる枚数に至っては regex すら無く 1 に焼き込まれていた**（原文を1文字も読んでいない）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'EACH_PLAYER_DRAW_DISCARD') {
-    const toHWEPDD0 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcEPDD0 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtEPDD0 = srcEPDD0 ? (srcEPDD0.EffectText ?? '') + ' ' + (srcEPDD0.BurstText ?? '') : '';
-    const mDN = txtEPDD0.match(/([０-９\d]+)枚引く/);
-    const drawN = mDN ? parseInt(toHWEPDD0(mDN[1])) : 1;
+    const specEPDD0 = stub.eachPlayerDrawDiscard;
+    if (!specEPDD0) return done(addLog(ctx, '各プレイヤーのドロー／捨て：枚数が無いため何もしない'));
+    const drawN = specEPDD0.draw;
+    const discardN = specEPDD0.discard;
     // 両者ドロー
     let newOwner = { ...ctx.ownerState };
     let newOther = { ...ctx.otherState };
@@ -2619,11 +2623,11 @@ export function execStubPart1(
     // （TRASH owner:'opponent' は execTrash が opponentResponds 付きインタラクションに変換する。
     //   以前は PendingInteractionDef を EffectAction として渡しており、executeAction の default で
     //   無言スキップされ相手の捨てが発生しなかった）
-    if (newOwner.hand.length === 0) return done(ctxDrawnEPDD0);
-    const oppDiscardEPDD0: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
+    if (discardN <= 0 || newOwner.hand.length === 0) return done(ctxDrawnEPDD0);
+    const oppDiscardEPDD0: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: discardN } };
     return selectOrInteract(
-      newOwner.hand, 1, false, 'self_hand',
-      ({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as TrashAction) as EffectAction,
+      newOwner.hand, discardN, false, 'self_hand',
+      ({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: discardN } } as TrashAction) as EffectAction,
       newOther.hand.length > 0 ? (oppDiscardEPDD0 as EffectAction) : undefined,
       ctxDrawnEPDD0,
     );
@@ -4884,33 +4888,13 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, trash: newTrash, energy: [...ctx.ownerState.energy, target] };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(target)?.CardName ?? target}をエナゾーンに`));
   }
-  // 相手シグニ複数をエナに置く
-  if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
-    const srcMSE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtMSE = srcMSE ? (srcMSE.EffectText ?? '') + ' ' + (srcMSE.BurstText ?? '') : '';
-    const toHWMSE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const maxMMSE = txtMSE.match(/シグニ([０-９\d]+)体まで/);
-    const maxMSE = maxMMSE ? parseInt(toHWMSE(maxMMSE[1])) : 2;
-    const oppCandsMSE = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
-    if (oppCandsMSE.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
-    const toEnergyMSE: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC' };
-    return selectOrInteract(oppCandsMSE, maxMSE, false, 'opp_field', toEnergyMSE as EffectAction, undefined, ctx);
-  }
-  if (stub.id === 'INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC') {
-    const selectedIOSE = ctx.lastProcessedCards ?? [];
-    if (selectedIOSE.length === 0) return done(addLog(ctx, 'エナへ（対象なし）'));
-    let newOtherIOSE = ctx.otherState;
-    let countIOSE = 0;
-    for (const cn of selectedIOSE) {
-      if (!newOtherIOSE.field.signi.some(s => s?.at(-1) === cn)) continue;
-      const removedIOSE = removeFromField(cn, newOtherIOSE);
-      newOtherIOSE = { ...removedIOSE, energy: [...removedIOSE.energy, cn] };
-      countIOSE++;
-    }
-    const namesIOSE = selectedIOSE.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
-    return done(addLog({ ...ctx, otherState: newOtherIOSE },
-      countIOSE > 0 ? `${namesIOSE}→相手エナゾーン` : 'エナへ（対象なし）'));
-  }
+  // 🏁**`MULTI_SIGNI_TO_ENERGY` / `INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC` は撤去した**
+  //   （2026-09-03 §5.3 `O-60` 第21バッチ）。旧実装は `card.EffectText` に
+  //   `/シグニ([０-９\d]+)体まで/` を当てて枚数を決めており、当たらなければ**既定 2**へ落ちていた
+  //   （原文の綴りは「シグニ**を**２体まで」で助詞が違い、実際に外れていた）。
+  //   いまは parser が `SEND_TO_ENERGY{target:{count, upToCount}}` を出し、`execSendToEnergy` が解く
+  //   （`parseSigniTarget` は最初からこの文型から `count:2, upToCount:true` を出せていた＝受け皿は在った）。
+
   // 相手シグニをデッキに加えてシャッフル
   if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE') {
     const oppCandsSDS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);

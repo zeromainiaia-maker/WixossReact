@@ -3211,50 +3211,48 @@ export function execStubPart3(
     return done({ ...ctx, ownerState: { ...ctx.ownerState,
       material_used_targets: [...(ctx.ownerState.material_used_targets ?? []), ...marks] } });
   }
-  // DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択
-  // DOWN_UP_SIGNI_AND_CHOOSE: アップ状態の特定クラスシグニを好きな数ダウン（コスト軽減素材）
+  // DOWN_UP_SIGNI_AND_CHOOSE: アップ状態の〈条件〉シグニをN体（まで）ダウンする（コスト軽減素材）
+  // 🆕**§5.3 `O-60` 第26バッチ（2026-09-03）＝絞り込み・枚数・任意は payload で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/アップ状態の＜([^＞]+)＞のシグニ/` を当てていたが、
+  //   原文が**色**指定（`SPDi43-23`＝「アップ状態の**白の**シグニ」）だと1本も当たらず
+  //   **絞り込みが丸ごと消えて場のアップシグニ全部が候補**になっていた（過剰実行）。
+  // 🔴さらに**枚数を一切読んでいなかった**＝`CHOOSE` の1択で必ず1体しかダウンできず、
+  //   原文「２体まで」が表現できていなかった（過少実行）。
+  // ⚠**`selectTarget` が無い宣言は何もしない**（fail-closed）。
   if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
-    const srcDUSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDUSC = srcDUSC ? (srcDUSC.EffectText ?? '') + ' ' + (srcDUSC.BurstText ?? '') : '';
-    // 対象クラスを抽出（「アップ状態の＜クラス＞のシグニ」）
-    const classM = txtDUSC.match(/アップ状態の＜([^＞]+)＞のシグニ/);
-    const targetClass = classM ? classM[1] : null;
-    // UP状態の対象クラスシグニを収集
-    const upSigniDUSC = [0, 1, 2].flatMap(zi => {
-      const top = ctx.ownerState.field.signi[zi]?.at(-1);
-      const isDown = ctx.ownerState.field.signi_down?.[zi] ?? false;
-      if (!top || isDown) return [];
-      const card = ctx.cardMap.get(top);
-      if (targetClass && !card?.CardClass?.includes(targetClass)) return [];
-      return [{ cn: top, zi }];
-    });
-    if (upSigniDUSC.length === 0) {
-      return done(addLog(ctx, `アップ状態の${targetClass ?? 'シグニ'}なし（DOWN_UP_SIGNI_AND_CHOOSE）`));
+    const tgtDUSC = stub.selectTarget;
+    if (!tgtDUSC) return done(addLog(ctx, 'アップシグニのダウン：対象の指定が無いため何もしない'));
+    // `filter.isUp` は `fieldCandidates` が `matchesStateFilter` で見る（アップ判定はここで写経しない）。
+    const candsDUSC = fieldCandidates(ctx.ownerState, tgtDUSC.filter, ctx.cardMap, ctx.effectivePowers);
+    if (candsDUSC.length === 0) {
+      return done(addLog(ctx, 'アップ状態の対象シグニなし（DOWN_UP_SIGNI_AND_CHOOSE）'));
     }
-    // 選択肢：「N体ダウン」オプション（0 to upSigniDUSC.length）
-    const optsDUSC = [
-      { id: 'dusc_none', label: 'ダウンしない', action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction, available: true },
-      ...upSigniDUSC.map((s, i) => ({
-        id: `dusc_${i}`,
-        label: `${ctx.cardMap.get(s.cn)?.CardName ?? s.cn}をダウン`,
-        action: ({ type: 'STUB', id: 'INTERNAL_DOWN_SIGNI_BY_ZONE', value: s.zi } as StubAction) as EffectAction,
-        available: true,
-      })),
-    ];
-    return needsInteraction(
-      addLog(ctx, `アップ${targetClass ?? ''}シグニを選択してダウン（コスト軽減素材）`),
-      { type: 'CHOOSE', options: optsDUSC, count: 1 }
-    );
+    const maxDUSC = typeof tgtDUSC.count === 'number' ? tgtDUSC.count : candsDUSC.length;
+    const optionalDUSC = stub.downUpSigniChoose?.optional === true || tgtDUSC.upToCount === true;
+    const downDUSC: StubAction = { type: 'STUB', id: 'INTERNAL_DOWN_SELECTED_SIGNI' };
+    return selectOrInteract(candsDUSC, Math.min(maxDUSC, candsDUSC.length), optionalDUSC, 'self_field',
+      downDUSC as EffectAction, undefined, ctx);
   }
-  if (stub.id === 'INTERNAL_DOWN_SIGNI_BY_ZONE') {
-    const ziIDSBZ = typeof stub.value === 'number' ? stub.value : 0;
-    const downArrIDSBZ = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
-    downArrIDSBZ[ziIDSBZ] = true;
-    const newOwnerIDSBZ = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: downArrIDSBZ } };
-    const topIDSBZ = ctx.ownerState.field.signi[ziIDSBZ]?.at(-1);
-    return done(addLog({ ...ctx, ownerState: newOwnerIDSBZ, lastProcessedCards: topIDSBZ ? [topIDSBZ] : [] },
-      `${topIDSBZ ? ctx.cardMap.get(topIDSBZ)?.CardName : 'シグニ'}をダウン（コスト軽減）`));
+  // INTERNAL_DOWN_SELECTED_SIGNI: 選ばれたシグニをまとめてダウンする（ダウンした分を lastProcessedCards に残す）
+  if (stub.id === 'INTERNAL_DOWN_SELECTED_SIGNI') {
+    const picked = (ctx.lastProcessedCards ?? []);
+    const downArr = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
+    const downed: string[] = [];
+    for (const cn of picked) {
+      const zi = ctx.ownerState.field.signi.findIndex(st => st?.at(-1) === cn);
+      if (zi < 0 || downArr[zi]) continue;
+      downArr[zi] = true;
+      downed.push(cn);
+    }
+    if (downed.length === 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, 'ダウンしたシグニなし'));
+    const newOwnerIDSS = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: downArr } };
+    return done(addLog({ ...ctx, ownerState: newOwnerIDSS, lastProcessedCards: downed },
+      `${downed.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}をダウン`));
   }
+  // 🏁**`INTERNAL_DOWN_SIGNI_BY_ZONE` は撤去した**（2026-09-03 §5.3 `O-60` 第26バッチ）＝
+  //   1体ずつ `CHOOSE` させる旧実装の受け皿で、枚数指定（「２体まで」）を表せなかった。
+  //   いまは `INTERNAL_DOWN_SELECTED_SIGNI` が選ばれた分をまとめてダウンする。
+
   // CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
   if (stub.id === 'CHOOSE_N_FROM_LIST') {
     const srcCNFL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
@@ -4095,41 +4093,79 @@ export function execStubPart3(
       private: true,
     });
   }
-  // LOOK_TOP_OPP_CHOOSE_TRASH: デッキ上N枚を公開し相手が1枚選んでトラッシュ
+  // LOOK_TOP_OPP_CHOOSE_TRASH: 公開したカードから相手がN枚選んでトラッシュ、残りは手札へ
+  // 🆕**§5.3 `O-60` 第24バッチ（2026-09-03）＝枚数は payload、候補は直前の公開結果から取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/上から([０-９\d]+)枚/` を当てて**公開枚数を決め直し**、
+  //   デッキ上を切り直していた（原文は「上から**カードを**３枚」なので外れて既定 3 に落ちていた）。
+  // 🔴さらに**帰結そのものが壊れていた**＝選ばれた1枚を `INTERNAL_TRASH_CARD` に渡していたが、
+  //   あれは**手札から**取り除く実装なのでデッキは減らず**トラッシュへ複製**されていた。
+  //   「残りを手札に加える」も 1行も実装が無かった。
+  // 🔑候補は前段 `LOOK_AND_REORDER` が残した `lastProcessedCards`（＝公開したカード）＝
+  //   原文の「**その中から**」がそのまま成立する。
+  // ⚠**payload が無い／公開結果が無ければ何もしない**（fail-closed）。
   if (stub.id === 'LOOK_TOP_OPP_CHOOSE_TRASH') {
-    const toHWLTOCT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcLTOCT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLTOCT = srcLTOCT ? (srcLTOCT.EffectText ?? '') + ' ' + (srcLTOCT.BurstText ?? '') : '';
-    const mLTOCT = txtLTOCT.match(/上から([０-９\d]+)枚/);
-    const nLTOCT = mLTOCT ? parseInt(toHWLTOCT(mLTOCT[1])) : 3;
-    const sLTOCT = ctx.ownerState;
-    if (sLTOCT.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
-    const visLTOCT = sLTOCT.deck.slice(0, Math.min(nLTOCT, sLTOCT.deck.length));
-    const thenLTOCT: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
-    return needsInteraction(addLog(ctx, `デッキ上${visLTOCT.length}枚公開`), {
+    const specLTOCT = stub.lookTopOppChooseTrash;
+    if (!specLTOCT) return done(addLog(ctx, '公開カードの選択：枚数が無いため何もしない'));
+    const revealedLTOCT = (ctx.lastProcessedCards ?? []).filter(cn => ctx.ownerState.deck.includes(cn));
+    if (revealedLTOCT.length === 0) return done(addLog(ctx, '公開されたカードがない（LOOK_TOP_OPP_CHOOSE_TRASH）'));
+    const pickLTOCT = Math.min(specLTOCT.trashCount, revealedLTOCT.length);
+    const thenLTOCT: StubAction = { type: 'STUB', id: 'INTERNAL_LTOCT_APPLY', value: revealedLTOCT.join(',') };
+    return needsInteraction(addLog(ctx, `公開した${revealedLTOCT.length}枚から対戦相手が${pickLTOCT}枚選ぶ`), {
       type: 'SELECT_TARGET',
-      candidates: visLTOCT,
-      count: 1,
+      candidates: revealedLTOCT,
+      count: pickLTOCT,
       optional: false,
+      // ⚠デッキ用の `TargetScope` が無いので、公開カードのプール表示は従来どおり `self_hand` を借りる。
       targetScope: 'self_hand' as TargetScope,
       thenAction: thenLTOCT as EffectAction,
       opponentResponds: true,
     });
   }
-  // ALL_PLAYER_MILL: 各プレイヤーがデッキ上N枚をトラッシュ
+  // INTERNAL_LTOCT_APPLY: 公開カードのうち相手が選んだ分をトラッシュへ、残りを手札へ
+  // ⚠`value` に公開カード全部（カンマ区切り）を運ぶ＝選択を跨ぐと `lastProcessedCards` が
+  //   「選ばれた分」に上書きされ、**残りが誰にも拾われず山に置き去りになる**。
+  if (stub.id === 'INTERNAL_LTOCT_APPLY') {
+    const chosenILA = ctx.lastProcessedCards ?? [];
+    const poolILA = typeof stub.value === 'string' ? stub.value.split(',').filter(Boolean) : [];
+    if (poolILA.length === 0) return done(addLog(ctx, '公開カードの記録なし（INTERNAL_LTOCT_APPLY）'));
+    const restILA = poolILA.filter(cn => !chosenILA.includes(cn));
+    const sILA = ctx.ownerState;
+    const newSILA: PlayerState = {
+      ...sILA,
+      deck: sILA.deck.filter(cn => !poolILA.includes(cn)),
+      trash: [...sILA.trash, ...chosenILA.filter(cn => poolILA.includes(cn))],
+      hand: [...sILA.hand, ...restILA],
+    };
+    const nameILA = (cn: string) => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn;
+    return done(addLog({ ...ctx, ownerState: newSILA, lastProcessedCards: chosenILA },
+      `${chosenILA.map(nameILA).join('・') || 'なし'}をトラッシュへ／残り${restILA.length}枚を手札へ`));
+  }
+  // ALL_PLAYER_MILL: 各プレイヤーが自分のデッキ上N枚をトラッシュ
+  // 🆕**§5.3 `O-60` 第28バッチ（2026-09-03）＝枚数は payload（`allPlayerMill`）で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に2本の regex を当てていたが、原文（`WX22-017` の選択肢③）は
+  //   「自分のセンタールリグのレベル１に**つき**カードを３枚」なのでどちらも当たらず**既定 1枚**へ
+  //   落ちていた（Lv4 なら12枚＝桁違いの過少実行）。しかも `CHOOSE` の4つの枝の1つなので、
+  //   **カード全文には他の枝の数字も並ぶ**。
+  // 🔑`perOwnLrigLevel` は**プレイヤーごとに自分のセンタールリグのレベル**を掛ける
+  //   （原文「**自分の**センタールリグのレベル」＝両者で枚数が違いうる）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'ALL_PLAYER_MILL') {
-    const srcAPM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtAPM = srcAPM ? (srcAPM.EffectText ?? '') + ' ' + (srcAPM.BurstText ?? '') : '';
-    const toHWAPM = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mAPM = txtAPM.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/) ||
-                 txtAPM.match(/デッキの上から([０-９\d]+)枚.*トラッシュ/);
-    const cntAPM = mAPM ? parseInt(toHWAPM(mAPM[1])) : 1;
-    const selfMillAPM = ctx.ownerState.deck.slice(0, Math.min(cntAPM, ctx.ownerState.deck.length));
-    const oppMillAPM  = ctx.otherState.deck.slice(0, Math.min(cntAPM, ctx.otherState.deck.length));
+    const specAPM = stub.allPlayerMill;
+    if (!specAPM) return done(addLog(ctx, '各プレイヤーのデッキトラッシュ：枚数が無いため何もしない'));
+    const lrigLvAPM = (st: PlayerState): number => {
+      const top = st.field.lrig.at(-1);
+      return top ? (parseInt(ctx.cardMap.get(getCardNum(top))?.Level ?? '0', 10) || 0) : 0;
+    };
+    const countFor = (st: PlayerState): number => specAPM.count
+      ?? (specAPM.perOwnLrigLevel !== undefined ? specAPM.perOwnLrigLevel * lrigLvAPM(st) : 0);
+    const nSelfAPM = countFor(ctx.ownerState);
+    const nOppAPM = countFor(ctx.otherState);
+    const selfMillAPM = ctx.ownerState.deck.slice(0, Math.min(nSelfAPM, ctx.ownerState.deck.length));
+    const oppMillAPM = ctx.otherState.deck.slice(0, Math.min(nOppAPM, ctx.otherState.deck.length));
     const newOwnerAPM: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(selfMillAPM.length), trash: [...ctx.ownerState.trash, ...selfMillAPM] };
-    const newOtherAPM: PlayerState = { ...ctx.otherState, deck: ctx.otherState.deck.slice(oppMillAPM.length),  trash: [...ctx.otherState.trash,  ...oppMillAPM]  };
+    const newOtherAPM: PlayerState = { ...ctx.otherState, deck: ctx.otherState.deck.slice(oppMillAPM.length), trash: [...ctx.otherState.trash, ...oppMillAPM] };
     return done(addLog({ ...ctx, ownerState: newOwnerAPM, otherState: newOtherAPM },
-      `各プレイヤーデッキ上${cntAPM}枚トラッシュ`));
+      `各プレイヤーがデッキ上をトラッシュ（あなた${selfMillAPM.length}枚／対戦相手${oppMillAPM.length}枚）`));
   }
   // SUPPRESS_OPP_SIGNI_ABILITIES: 相手フィールドの全シグニの能力を消去
   if (stub.id === 'SUPPRESS_OPP_SIGNI_ABILITIES') {

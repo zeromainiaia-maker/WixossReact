@@ -20952,6 +20952,255 @@ test('signiAttackGate: 場トラッシュコストは支払い済み再入で再
   };
   eq(signiAttackBlockReason({ ...common, attacker: payable }), null, '他のシグニ2体を払えるならアタック可能');
 }));
+// 🆕§5.3 `O-60` 第28バッチ（2026-09-03）＝各プレイヤーのデッキトラッシュ枚数を payload で運ぶ。
+// 🔴旧実装は**カード全文**に2本の regex を当てていたが、原文（`WX22-017` の選択肢③）は
+//   「自分のセンタールリグのレベル１に**つき**カードを３枚」なのでどちらも当たらず**既定 1枚**だった。
+test('ALL_PLAYER_MILL: 枚数は payload／レベル倍率は各自のセンタールリグ（O-60 第28バッチ）', () => withSavedCursor(() => {
+  const LRIG_L4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const LRIG_L2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
+  const runAPM = (act: Record<string, unknown>, myLrig: string[], oppLrig: string[]) => executeEffect({
+    effectId: 't', effectType: 'AUTO',
+    action: { type: 'STUB', id: 'ALL_PLAYER_MILL', ...act } as unknown as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, mkCtx({ lrig: myLrig }, { lrig: oppLrig }, SIGNI));
+  // 🔴レベル倍率は**プレイヤーごとに自分の**センタールリグ（Lv4→12枚 / Lv2→6枚）
+  const perLv = runAPM({ allPlayerMill: { perOwnLrigLevel: 3 } }, [LRIG_L4], [LRIG_L2]);
+  eq((perLv.ownerState as PlayerState).trash.length, 3 + 3 * 4, 'あなたはLv4×3＝12枚（元トラッシュ3枚に加算）');
+  eq((perLv.otherState as PlayerState).trash.length, 3 + 3 * 2, '対戦相手はLv2×3＝6枚（自分のレベルで数える）');
+  // 固定枚数
+  const flat = runAPM({ allPlayerMill: { count: 5 } }, [LRIG_L4], [LRIG_L2]);
+  eq((flat.ownerState as PlayerState).trash.length, 3 + 5, '固定5枚');
+  eq((flat.otherState as PlayerState).trash.length, 3 + 5, '相手も固定5枚');
+  // 🔴fail-closed＝payload が無ければ1枚も落とさない（旧既定の1枚へ倒さない）
+  const none = runAPM({}, [LRIG_L4], [LRIG_L2]);
+  eq((none.ownerState as PlayerState).trash.length, 3, 'payload が無ければ何も落ちない');
+  eq((none.otherState as PlayerState).trash.length, 3, '相手も落ちない');
+}));
+// 🆕§5.3 `O-60` 第27バッチ（2026-09-03）＝デッキ上を見る枚数を payload で運び、死んだ枝を1本落とす。
+// 🔴旧実装は `/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/`（原文は「上から**カードを**２枚見る」で外れる）を
+//   **カード全文**に当てていた＝この効果は `CHOOSE` の片方の枝なので別の枝の数字も並ぶ。
+test('LOOK_TOP_ONE_RETURN_REST_BOTTOM: 見る枚数を payload から読む／死んだ枝は撤去（O-60 第27バッチ）', () => withSavedCursor(() => {
+  const D = [fresh(), fresh(), fresh(), fresh()];
+  const runLT = (act: Record<string, unknown>) => executeEffect({
+    effectId: 't', effectType: 'AUTO',
+    action: { type: 'STUB', id: 'LOOK_TOP_ONE_RETURN_REST_BOTTOM', ...act } as unknown as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, mkCtx({ deckTop: D }, {}, SIGNI));
+  const two = runLT({ lookTopReturnRestBottom: { lookCount: 2 } });
+  ok(!two.done && two.pending.type === 'LOOK_AND_REORDER', '並べ替えの提示が出る');
+  eq(JSON.stringify((two as { pending: { cards: string[] } }).pending.cards), JSON.stringify(D.slice(0, 2)),
+    '見るのは payload の2枚');
+  const three = runLT({ lookTopReturnRestBottom: { lookCount: 3 } });
+  eq(JSON.stringify((three as { pending: { cards: string[] } }).pending.cards), JSON.stringify(D.slice(0, 3)),
+    '3枚指定なら3枚（既定2に落ちない）');
+  // 🔴fail-closed＝payload が無ければ何もしない
+  ok(runLT({}).done, 'payload が無ければ確認を出さない');
+  // 撤去した死んだ枝（live 0件）が live にも parser にも残っていない
+  for (const [cardNum, effs] of effectsMap) {
+    ok(!JSON.stringify(effs).includes('LOOK_TOP_SPELLS_TO_HAND'), `${cardNum}: 撤去済み STUB が残っていない`);
+  }
+}));
+// 🆕§5.3 `O-60` 第26バッチ（2026-09-03）＝アップシグニのダウンの絞り込み・枚数を payload で運ぶ。
+// 🔴旧実装は `/アップ状態の＜([^＞]+)＞のシグニ/`（＜クラス＞限定）を当てており、原文が**色**指定だと
+//   絞り込みが丸ごと消えて場のアップシグニ全部が候補になり、枚数は読まず常に1体だった。
+test('DOWN_UP_SIGNI_AND_CHOOSE: 絞り込みと枚数を payload から読む（O-60 第26バッチ）', () => withSavedCursor(() => {
+  const W1 = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const W2 = findCard(c => isSigni(c) && (c.Color ?? '') === '白' && c.CardNum !== W1);
+  const R1 = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const firstDUSC = (act: Record<string, unknown>, down?: boolean[]) => {
+    const base = mkCtx({ signi: [W1, W2, R1], down }, {}, SIGNI);
+    return executeEffect({
+      effectId: 't', effectType: 'AUTO',
+      action: { type: 'STUB', id: 'DOWN_UP_SIGNI_AND_CHOOSE', ...act } as unknown as EffectAction,
+      duration: 'INSTANT', mandatory: true,
+    } as CardEffect, base);
+  };
+  const whiteUpTo2 = {
+    selectTarget: { type: 'SIGNI', owner: 'self', count: 2, upToCount: true,
+      filter: { cardType: 'シグニ', color: '白', isUp: true } },
+    downUpSigniChoose: { optional: true },
+  };
+  const r = firstDUSC(whiteUpTo2);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '対象選択が提示される');
+  const p = (r as { pending: { candidates: string[]; count?: number; optional?: boolean } }).pending;
+  eq(JSON.stringify(p.candidates), JSON.stringify([W1, W2]), '🔴白のシグニだけが候補（旧実装は全アップシグニ）');
+  eq(p.count, 2, '🔴枚数は payload どおり2（旧実装は常に1体）');
+  eq(p.optional, true, '「してもよい」は任意');
+  // ダウン済みは候補から外れる（filter.isUp が効く）
+  const oneDown = firstDUSC(whiteUpTo2, [true, false, false]);
+  eq(JSON.stringify(((oneDown as { pending: { candidates: string[] } }).pending).candidates), JSON.stringify([W2]),
+    'ダウン済みは候補に出ない');
+  // 実際にダウンして lastProcessedCards に残る
+  const after = finish(r, mkCtx({ signi: [W1, W2, R1] }, {}, SIGNI));
+  const own = after.ownerState as PlayerState;
+  eq(own.field.signi_down?.[0], true, '選ばれたシグニがダウンする');
+  eq(own.field.signi_down?.[2], false, '選ばれていないシグニはダウンしない');
+  ok((after.lastProcessedCards ?? []).includes(W1), 'ダウンした分が lastProcessedCards に残る');
+  // 🔴fail-closed＝selectTarget が無ければ何もしない
+  ok(firstDUSC({}).done, 'selectTarget が無ければ選択を出さない');
+}));
+// 🆕§5.3 `O-60` 第25バッチ（2026-09-03）＝「そのシグニのレベル1につき」を CONTINUOUS の POWER_MODIFY で解く。
+// 🔴旧 STUB は原文の「**感染状態**」を「**ウイルス**」表記の regex で読もうとして1本も当たらず、
+//   当たった場合でも**感染シグニのレベル合計**を**相手の全シグニ**へ掛ける別物だった。
+test('POWER_MODIFY(deltaPerTargetLevel): 感染シグニに自分のレベル分だけ掛かる（O-60 第25バッチ）', () => withSavedCursor(() => {
+  const L1 = SIGNI_L1, L3 = SIGNI_L3;
+  const contPM: CardEffect = {
+    effectId: 'GOLDEN-INFECT-PERLV', effectType: 'CONTINUOUS',
+    action: {
+      type: 'POWER_MODIFY',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', infected: true } },
+      delta: -2000, deltaPerTargetLevel: true,
+    },
+    duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+  } as unknown as CardEffect;
+  const src = SIGNI;
+  const em = new Map(effectsMap); em.set(src, [contPM]);
+  const mine = mkState({ signi: [src, null, null] });
+  const oppBase = mkState({ signi: [L1, L3, null] });
+  const printed = (n: string) => parseInt(cardMap.get(n)?.Power ?? '0', 10) || 0;
+  // 感染していなければ 0（フィルタが効く）
+  const noVirus = calcFieldPowers(oppBase, mine, false, em, cardMap as Map<string, CardData>);
+  eq(noVirus.get(L1), printed(L1), '非感染は変わらない');
+  // 左だけ感染＝そのシグニのレベル分だけ下がる（合計ではない・全体でもない）
+  const infected: PlayerState = { ...oppBase, field: { ...oppBase.field, signi_virus: [1, 0, 0] } };
+  const withVirus = calcFieldPowers(infected, mine, false, em, cardMap as Map<string, CardData>);
+  eq(withVirus.get(L1), printed(L1) - 2000 * 1, '感染したLv1は -2000×1');
+  eq(withVirus.get(L3), printed(L3), '🔴感染していないシグニには掛からない（旧実装は全体に掛けていた）');
+  // 両方感染＝それぞれ自分のレベル分（合計を掛けない）
+  const bothInf: PlayerState = { ...oppBase, field: { ...oppBase.field, signi_virus: [1, 1, 0] } };
+  const both = calcFieldPowers(bothInf, mine, false, em, cardMap as Map<string, CardData>);
+  eq(both.get(L1), printed(L1) - 2000 * 1, 'Lv1は -2000×1');
+  eq(both.get(L3), printed(L3) - 2000 * 3, '🔴Lv3は -2000×3（合計レベル4を掛けない）');
+  // 撤去した STUB が live に1件も残っていない
+  for (const [cardNum, effs] of effectsMap) {
+    ok(!JSON.stringify(effs).includes('INFECTED_SIGNI_POWER_DOWN_BY_LEVEL'), `${cardNum}: 撤去済み STUB が残っていない`);
+  }
+}));
+// 🆕§5.3 `O-60` 第24バッチ（2026-09-03）＝公開カードの相手選択トラッシュを payload＋公開結果で解く。
+// 🔴旧実装は `/上から([０-９\d]+)枚/`（原文は「上から**カードを**３枚」で外れる）でデッキを切り直し、
+//   選ばれた1枚を `INTERNAL_TRASH_CARD`（**手札から**取り除く実装）へ渡していた＝
+//   デッキは減らずトラッシュへ**複製**され、「残りを手札に加える」は1行も実装が無かった。
+test('LOOK_TOP_OPP_CHOOSE_TRASH: 選んだ分はトラッシュ・残りは手札（複製しない）（O-60 第24バッチ）', () => withSavedCursor(() => {
+  const A = fresh(), B = fresh(), C = fresh();
+  const base = mkCtx({ deckTop: [A, B, C] }, {}, SIGNI);
+  const ctx = { ...base, lastProcessedCards: [A, B, C] } as ExecCtx;
+  const first = executeEffect({
+    effectId: 't', effectType: 'ACTIVATED',
+    action: { type: 'STUB', id: 'LOOK_TOP_OPP_CHOOSE_TRASH',
+      lookTopOppChooseTrash: { trashCount: 1, restTo: 'hand' } } as unknown as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '公開カードから選ばせる');
+  const pend = (first as { pending: { candidates: string[]; count?: number; opponentResponds?: boolean } }).pending;
+  eq(JSON.stringify(pend.candidates), JSON.stringify([A, B, C]), '候補は公開した3枚（デッキを切り直さない）');
+  eq(pend.count, 1, 'トラッシュ枚数は payload どおり1');
+  eq(pend.opponentResponds, true, '選ぶのは対戦相手');
+  const after = finish(first, ctx);
+  const own = after.ownerState as PlayerState;
+  eq(own.trash.filter(c => c === A).length, 1, '選ばれた1枚はトラッシュに1枚だけ');
+  eq(own.deck.includes(A), false, '🔴選ばれたカードがデッキに残らない（旧実装は複製していた）');
+  eq(own.deck.includes(B) || own.deck.includes(C), false, '残りもデッキから抜ける');
+  ok(own.hand.includes(B) && own.hand.includes(C), '残り2枚は手札に加わる');
+  // 🔴fail-closed＝payload が無い／公開結果が無ければ何もしない
+  ok(executeEffect({
+    effectId: 't', effectType: 'ACTIVATED',
+    action: { type: 'STUB', id: 'LOOK_TOP_OPP_CHOOSE_TRASH' } as unknown as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, ctx).done, 'payload が無ければ選択を出さない');
+  ok(executeEffect({
+    effectId: 't', effectType: 'ACTIVATED',
+    action: { type: 'STUB', id: 'LOOK_TOP_OPP_CHOOSE_TRASH',
+      lookTopOppChooseTrash: { trashCount: 1, restTo: 'hand' } } as unknown as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, base).done, '公開結果が無ければ選択を出さない');
+}));
+// 🆕§5.3 `O-60` 第23バッチ（2026-09-03）＝各プレイヤーのドロー／捨て枚数を payload で運ぶ。
+// 🔴旧実装は `/([０-９\d]+)枚引く/`（原文は「１枚引**き**」で外れる）＋**捨て枚数は 1 に焼き込み**。
+test('EACH_PLAYER_DRAW_DISCARD: 引く／捨てる枚数を payload から読む（O-60 第23バッチ）', () => withSavedCursor(() => {
+  const runEPDD = (act: Record<string, unknown>) => executeEffect({
+    effectId: 't', effectType: 'AUTO',
+    action: { type: 'STUB', id: 'EACH_PLAYER_DRAW_DISCARD', ...act } as unknown as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect, mkCtx({ hand: 3 }, { hand: 3 }, SIGNI));
+  const d2 = runEPDD({ eachPlayerDrawDiscard: { draw: 2, discard: 1 } });
+  eq((d2.ownerState as PlayerState).hand.length, 5, '自分は2枚引いて手札5枚（捨てはこの後の選択）');
+  eq((d2.otherState as PlayerState).hand.length, 5, '相手も2枚引く');
+  ok(!d2.done && d2.pending.type === 'SELECT_TARGET', '捨てる選択が提示される');
+  eq((d2 as { pending: { count?: number } }).pending.count, 1, '捨てる枚数は payload どおり1');
+  const d1x2 = runEPDD({ eachPlayerDrawDiscard: { draw: 1, discard: 2 } });
+  eq((d1x2.ownerState as PlayerState).hand.length, 4, '1枚引く');
+  eq((d1x2 as { pending: { count?: number } }).pending.count, 2, '捨てる枚数2も payload どおり');
+  // 🔴fail-closed＝payload が無ければ1枚も引かない（旧既定の「1枚ドロー」へ倒さない）
+  const none = runEPDD({});
+  ok(none.done, 'payload が無ければ選択も出ない');
+  eq((none.ownerState as PlayerState).hand.length, 3, 'payload が無ければドローもしない');
+}));
+// 🆕§5.3 `O-60` 第22バッチ（2026-09-03）＝LAYER_ABILITY_COPY の候補の場所を payload で運ぶ。
+// 🔴旧実装は**カード全文**に `includes('トラッシュから')` を当てて場所を決め、絞り込みは `'怪異'` の
+//   ハードコードで `selectTarget.filter` をトラッシュ分岐では丸ごと無視していた。
+test('LAYER_ABILITY_COPY: 候補の場所とフィルタを payload から読む（O-60 第22バッチ）', () => withSavedCursor(() => {
+  const KAI = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('怪異'));
+  const KAI2 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('怪異') && c.CardNum !== KAI);
+  const NOT_KAI = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('怪異'));
+  const filt = { cardType: 'シグニ', story: '怪異' };
+  const firstLAC = (act: Record<string, unknown>, owner: Partial<PlayerState>) => {
+    const base = mkCtx({}, {}, KAI);
+    const ctx = { ...base, ownerState: { ...(base.ownerState as PlayerState), ...owner } } as ExecCtx;
+    return executeEffect({
+      effectId: 't', effectType: 'ACTIVATED',
+      action: { type: 'STUB', id: 'LAYER_ABILITY_COPY', ...act } as unknown as EffectAction,
+      duration: 'INSTANT', mandatory: true,
+    } as CardEffect, ctx);
+  };
+  const board = { field: { ...mkState({ signi: [KAI, KAI2, NOT_KAI] }).field } } as Partial<PlayerState>;
+  // トラッシュ指定＝場は見ない・フィルタも効く
+  const fromTrash = firstLAC(
+    { layerCopy: { source: 'trash' }, selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: filt } },
+    { ...board, trash: [KAI2, NOT_KAI] });
+  const tp = (fromTrash as { pending: { candidates: string[]; targetScope?: string } }).pending;
+  eq(JSON.stringify(tp.candidates), JSON.stringify([KAI2]), 'トラッシュの＜怪異＞だけが候補（フィルタが効く）');
+  eq(tp.targetScope, 'self_trash', 'targetScope はトラッシュ');
+  // 場指定＝トラッシュは見ない／excludeSelf も効く
+  const fromField = firstLAC(
+    { layerCopy: { source: 'field' }, selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { ...filt, excludeSelf: true } } },
+    { ...board, trash: [KAI2] });
+  const fp = (fromField as { pending: { candidates: string[]; targetScope?: string } }).pending;
+  eq(JSON.stringify(fp.candidates), JSON.stringify([KAI2]), '場の＜怪異＞から効果元自身を除いた1体');
+  eq(fp.targetScope, 'self_field', 'targetScope は場');
+  // 🔴クラスがハードコードされていない＝別クラスの filter でもそのまま効く
+  //   （旧実装はトラッシュ分岐で `'怪異'` を焼き込み、`selectTarget.filter` を丸ごと無視していた）
+  const otherClass = (cardMap.get(NOT_KAI)?.CardClass ?? '').split(':').pop() ?? '';
+  const byOtherClass = firstLAC(
+    { layerCopy: { source: 'trash' }, selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: otherClass } } },
+    { ...board, trash: [KAI2, NOT_KAI] });
+  eq(JSON.stringify(((byOtherClass as { pending: { candidates: string[] } }).pending).candidates), JSON.stringify([NOT_KAI]),
+    '🔴＜怪異＞以外の filter でも payload どおりに絞られる');
+  // 🔴fail-closed＝payload / selectTarget が欠けたら何もしない
+  ok(firstLAC({ selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: filt } }, { ...board, trash: [KAI2] }).done,
+    'layerCopy が無ければ選択を提示しない');
+  ok(firstLAC({ layerCopy: { source: 'trash' } }, { ...board, trash: [KAI2] }).done,
+    'selectTarget が無ければ選択を提示しない');
+}));
+// 🆕§5.3 `O-60` 第21バッチ（2026-09-03）＝`MULTI_SIGNI_TO_ENERGY` を撤去して typed `SEND_TO_ENERGY` へ。
+// 🔴旧実装は engine が `EffectText` に `/シグニ([０-９\d]+)体まで/` を当てて枚数を決めており、
+//   原文の綴り「シグニ**を**２体まで」（助詞違い）で外れて**既定 2**へ落ちていた。
+// 🔑`parseSigniTarget` は最初からこの文型から `count:2, upToCount:true` を出せていた＝受け皿は在った。
+test('SEND_TO_ENERGY: 「シグニをN体まで対象とし、それらを」が typed で出る／撤去 STUB は live に残っていない（O-60 第21バッチ）', () => withSavedCursor(() => {
+  // 原文＝`WXDi-P04-077-E1`「【出】《白》《赤》《青》《緑》《黒》：対戦相手のシグニを２体まで対象とし、それらをエナゾーンに置く。」
+  const eff = parseCardEffects(cardMap.get('WXDi-P04-077') as CardData).find(e => e.effectId === 'WXDi-P04-077-E1');
+  const act = eff?.action as { type?: string; target?: { count?: unknown; upToCount?: unknown; owner?: string } } | undefined;
+  eq(act?.type, 'SEND_TO_ENERGY', 'typed な SEND_TO_ENERGY が出る');
+  const tgt = act?.target ?? {};
+  eq(tgt.count, 2, '枚数は原文どおり2');
+  eq(tgt.upToCount, true, '「まで」＝上限');
+  eq(tgt.owner, 'opponent', '対象は対戦相手のシグニ');
+  // 🔴撤去した STUB が live に1件も残っていない（第16バッチの教訓＝撤去と採用は同じコミットで閉じる）
+  for (const [cardNum, effs] of effectsMap) {
+    const json = JSON.stringify(effs);
+    ok(!json.includes('MULTI_SIGNI_TO_ENERGY'), `${cardNum}: 撤去済み STUB が残っていない`);
+    ok(!json.includes('INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC'), `${cardNum}: 撤去済み内部 STUB が残っていない`);
+  }
+}));
 // 🆕§5.3 `O-60` 第20バッチ（2026-09-03）＝スペル無償使用の「場所」と「コスト上限」を payload で運ぶ。
 // 🔴旧実装は候補ゾーンを持たず**常に自分の手札**から選び、コスト上限の合計計算が
 //   `parseInt('《青》×２')`＝NaN→0 だったので**上限フィルタが常に素通り**していた。

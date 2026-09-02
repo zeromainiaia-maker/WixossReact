@@ -2327,10 +2327,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/このターン.*シグニは新たに能力を得られない/))
     return { type: 'STUB', id: 'SUPPRESS_GAIN_ABILITY' } as StubAction;
 
-  // ---- その中からすべてのスペルを手札に加え ----
-  if (t.match(/その中からすべてのスペルを手札に加え/))
-    return { type: 'STUB', id: 'LOOK_TOP_SPELLS_TO_HAND' } as StubAction;
-
   // ---- その中からシグニを場に出し残りを手札 ----
   if (t.match(/その中から.*シグニを.*場に出し.*残り.*手札に加える/))
     return { type: 'STUB', id: 'LOOK_TOP_SIGNI_TO_FIELD' } as StubAction;
@@ -2340,6 +2336,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_TOP_SORT' } as StubAction;
 
   // ---- その中から対戦相手の選んだカードをトラッシュ、残りを手札 ----
+  // 🆕§5.3 `O-60` 第24バッチ（2026-09-03）＝**トラッシュ枚数を payload で運ぶ**。
+  //   公開枚数は前段 `LOOK_AND_REORDER` の結果（engine は `lastProcessedCards` を読む）＝
+  //   旧実装のように engine がカード全文から公開枚数を読み直さない。
+  const lookOppTrashM = t.match(/対戦相手の選んだカード([０-９\d]+)枚をトラッシュに置き、?残り.*手札に加える/);
+  if (lookOppTrashM)
+    return {
+      type: 'STUB', id: 'LOOK_TOP_OPP_CHOOSE_TRASH',
+      lookTopOppChooseTrash: { trashCount: parseNum(lookOppTrashM[1]), restTo: 'hand' },
+    } as StubAction;
   if (t.match(/対戦相手の選んだカード.*トラッシュに置き.*残り.*手札に加える/))
     return { type: 'STUB', id: 'LOOK_TOP_OPP_CHOOSE_TRASH' } as StubAction;
 
@@ -2572,6 +2577,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SEED_FLOWER_OP' } as StubAction;
 
   // ---- 各プレイヤーがデッキをルリグレベル分トラッシュ ----
+  // 🆕§5.3 `O-60` 第28バッチ（2026-09-03）＝**枚数を payload で運ぶ**。
+  //   旧実装は engine が**カード全文**に regex を当てており、原文（`WX22-017` の選択肢③）は
+  //   「レベル１に**つき**カードを３枚」なので1本も当たらず**既定 1枚**へ落ちていた。
+  const allMillPerLvM = t.match(/各プレイヤーは.*センタールリグのレベル[０-９\d]*につきカードを([０-９\d]+)枚[^。]*トラッシュに置く/);
+  if (allMillPerLvM)
+    return {
+      type: 'STUB', id: 'ALL_PLAYER_MILL',
+      allPlayerMill: { perOwnLrigLevel: parseNum(allMillPerLvM[1]) },
+    } as StubAction;
   if (t.match(/各プレイヤーは.*センタールリグのレベル.*につき.*トラッシュに置く/))
     return { type: 'STUB', id: 'ALL_PLAYER_MILL' } as StubAction;
 
@@ -2692,6 +2706,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_TOP_BY_LIFE_COUNT' } as StubAction;
 
   // ---- 各プレイヤーデッキをトラッシュ ----
+  // 🆕§5.3 `O-60` 第28バッチ（2026-09-03）＝固定枚数も payload で運ぶ（engine は原文を読まない）。
+  const allMillFlatM = t.match(/各プレイヤー.*デッキの上からカードを([０-９\d]+)枚[^。]*トラッシュに置く/);
+  if (allMillFlatM)
+    return {
+      type: 'STUB', id: 'ALL_PLAYER_MILL',
+      allPlayerMill: { count: parseNum(allMillFlatM[1]) },
+    } as StubAction;
   if (t.match(/各プレイヤー.*デッキの上から.*トラッシュに置く/))
     return { type: 'STUB', id: 'ALL_PLAYER_MILL' } as StubAction;
 

@@ -2522,15 +2522,18 @@ export function calcFieldPowers(
           const contFilter = resolveContSelfLevel(target.filter, topNum, cardMap);
           if (effectiveDelta === 0 && delta !== 0) { /* ブロックされた正デルタ */ }
           else {
+            // 🆕「そのシグニのレベル１につき±N」（§5.3 `O-60` 第25バッチ）＝倍率は適用地点で掛ける。
+            const perLvlMod = mod.deltaPerTargetLevel === true;
             if (targetIsOwner) {
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
               applyDeltaToState(ownerState, ownerDelta, contFilter, cardMap, powers,
                 ownerPowerProtection, undefined, (mod.excludeSelf || target.filter?.excludeSelf) ? topNum : undefined,
-                adjacentZones);
+                adjacentZones, perLvlMod);
             }
             if (targetIsOther && !adjacentZones) {
-              applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtection, dblOtherMult);
+              applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtection, dblOtherMult,
+                undefined, undefined, perLvlMod);
             }
           }
         }
@@ -3165,6 +3168,13 @@ function applyDeltaToState(
    * ⚠**ゾーン集合はここでしか作れない**（`matchesStateFilter` は効果元のゾーンを知らない）。
    */
   onlyZones?: ReadonlySet<number>,
+  /**
+   * 🆕「**そのシグニのレベル１につき**±N」＝`delta` を**対象シグニ自身の実効レベル**倍する
+   * （§5.3 `O-60` 第25バッチ・2026-09-03＝`PowerModifyAction.deltaPerTargetLevel` の CONTINUOUS 経路）。
+   * ⚠倍率は**適用のたびに**掛ける（レベルは `temp_level_mods` で動く）＝
+   *   `activeFieldGrantsForSigni` 側の `perTargetLevel` と同じ規約・同じ `effectiveSigniLevel` を使う。
+   */
+  perTargetLevel?: boolean,
 ) {
   const effectiveDelta = (negMultiplier !== undefined && delta < 0) ? delta * negMultiplier : delta;
   // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
@@ -3185,7 +3195,9 @@ function applyDeltaToState(
     if (!matchesStateFilter(state, zoneIdx, filter)) continue;
     const card = cardMap.get(topNum);
     if (!matchesFilter(card, filter)) continue;
-    powers.set(topNum, (powers.get(topNum) ?? 0) + effectiveDelta);
+    const scaled = perTargetLevel ? effectiveDelta * effectiveSigniLevel(state, topNum, cardMap) : effectiveDelta;
+    if (scaled === 0) continue;
+    powers.set(topNum, (powers.get(topNum) ?? 0) + scaled);
   }
 }
 

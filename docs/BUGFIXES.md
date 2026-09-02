@@ -1,5 +1,102 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第6巡）：§5.3 `O-60` 第21〜28バッチ — engine の「カード全文 regex」を8ハンドラぶん撤去／payload 化
+
+**ベースライン**＝`49529c27b`（第17〜20バッチの直後）。**A🔴 SELF_TEXT 124行 → 115行 / 121→112ハンドラ**、
+**miss 28ハンドラ・34カード → 20ハンドラ・26カード**。`BASELINE_SELF_TEXT` も 115 へ払い戻し済み。
+**新しいアクション型・条件型は0**（payload 追加・既存 typed への寄せ・死んだ枝の撤去のみ）。
+🔑**8バッチ中3バッチは「STUB ごと撤去」**＝`MULTI_SIGNI_TO_ENERGY`（→typed `SEND_TO_ENERGY`）／
+`INFECTED_SIGNI_POWER_DOWN_BY_LEVEL`（→typed `POWER_MODIFY`）／`LOOK_TOP_SPELLS_TO_HAND`（live 0 の死んだ枝）。
+
+### 第21バッチ `MULTI_SIGNI_TO_ENERGY`（1効果）— 🔑受け皿は既に在った（5回目）
+
+- **真因**＝engine が `EffectText` に `/シグニ([０-９\d]+)体まで/` を当てて枚数を決めていたが、
+  原文は「シグニ**を**２体まで」（助詞違い）で外れ、**既定 2** に落ちていた。
+- 🔑**`parseSigniTarget` はこの文から `count:2, upToCount:true` を最初から出せていた**＝
+  共有の対象パーサへ寄せる regex を1本広げるだけで typed `SEND_TO_ENERGY` になった。
+  ⚠**枝を消すだけでは駄目だった**＝先に削除して試すと `TARGET_AND_DISCARD_HAND`（**全く別の catch-all**）へ落ちた。
+- **STUB と `INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC` を撤去**し、`verifyEffects.ts` の別名表からも外した。
+
+### 第22バッチ `LAYER_ABILITY_COPY`（2効果）
+
+- **真因（2つ）**＝①候補ゾーンを `card.EffectText.includes('トラッシュから')` で決めていた＝
+  **同じカードの別の能力**に「トラッシュから」があると**場所が裏返る** ②絞り込みが **`'怪異'` のハードコード**で、
+  `selectTarget.filter`（parser は `story:'怪異'`／`excludeSelf:true` まで出していた）を**トラッシュ分岐では無視**。
+- **修正**＝`layerCopy{source:'trash'|'field'}` を parser が刻み、絞り込みは両分岐とも `selectTarget.filter`。
+- 🔴**逆翻訳の死角も1つ潰した**＝この STUB は「**【レイヤー】の宣言文**」を抜き出して描いており、
+  **コピー本体とは別の文**が出ていた（読んでも「どこから何を選ぶか」が分からない）。
+
+### 第23バッチ `EACH_PLAYER_DRAW_DISCARD`（1効果）
+
+- **真因**＝`/([０-９\d]+)枚引く/` が原文「１枚引**き**」（連用中止形）に当たらず既定1、
+  **捨てる枚数に至っては regex すら無く 1 に焼き込まれていた**（原文を1文字も読んでいない）。
+- **修正**＝`eachPlayerDrawDiscard{draw, discard}`。
+
+### 第24バッチ `LOOK_TOP_OPP_CHOOSE_TRASH`（1効果）— 🔴カード複製バグを修正
+
+- **真因（3つ）**＝①`/上から([０-９\d]+)枚/` が原文「上から**カードを**３枚」に当たらず既定3でデッキを切り直していた
+  ②**帰結が壊れていた**＝選ばれた1枚を `INTERNAL_TRASH_CARD`（**手札から**取り除く実装）へ渡していたので
+  **デッキは減らずトラッシュへ複製**されていた ③「**残りを手札に加える**」は**1行も実装が無かった**。
+- **修正**＝候補は前段 `LOOK_AND_REORDER` が残した `lastProcessedCards`（＝公開したカード）から取る
+  ＝原文の「**その中から**」がそのまま成立し、engine はデッキを切り直さない。
+  新設 `INTERNAL_LTOCT_APPLY` が「選ばれた分→トラッシュ／残り→手札」をまとめて行う
+  （⚠公開カード全部を `value` に運ぶ＝選択を跨ぐと `lastProcessedCards` が選択分に上書きされ、**残りが山に置き去り**になる）。
+
+### 第25バッチ `INFECTED_SIGNI_POWER_DOWN_BY_LEVEL`（1効果）— 🔑受け皿は既に在った（6回目）
+
+- **真因**＝regex が「**ウイルス**」表記なのに原文は「**感染状態**」＝1本も当たらず、
+  当たった場合でも**感染シグニのレベルの合計**を**相手の全シグニ（非感染も含む）**へ掛ける別物だった。
+- 🔑**同型の平坦版4枚**（`WX15-004` ほか）は既に `POWER_MODIFY{filter:{infected:true}}` で動いており、
+  足りなかったのは **`deltaPerTargetLevel` の CONTINUOUS 経路**だけ（型は 2026-08 に既に在った）。
+  `applyDeltaToState` に `perTargetLevel` を1つ足して `effectiveSigniLevel` を掛けるだけで済んだ。**STUB は撤去。**
+
+### 第26バッチ `DOWN_UP_SIGNI_AND_CHOOSE`（1効果）
+
+- **真因（2つ）**＝①`/アップ状態の＜([^＞]+)＞のシグニ/`（＜クラス＞限定）が原文の**色**指定
+  （`SPDi43-23`＝「アップ状態の**白の**シグニ」）に当たらず、**絞り込みが丸ごと消えて場のアップシグニ全部が候補**
+  ②**枚数を一切読んでいなかった**＝`CHOOSE` の1択で必ず1体しかダウンできず、原文「２体まで」を表せなかった。
+- **修正**＝`selectTarget`（`parseSigniTarget` が `count`/`upToCount`/`filter{color|story, isUp}` を出す）＋
+  `downUpSigniChoose{optional}`。1体ずつ選ばせる `INTERNAL_DOWN_SIGNI_BY_ZONE` は撤去し、
+  `INTERNAL_DOWN_SELECTED_SIGNI` が選択分をまとめてダウンして `lastProcessedCards` に残す。
+- ⚠🔴**STUB id は変えられない**＝`USE_TIME_COST_PAY_STUBS`（`effectParser.ts`）がこの id で
+  使用時コストの支払いステップを剥がしている（`WX06-024` ほか6枚）。typed 化すると**支払いが二重**になる。
+
+### 第27バッチ `LOOK_TOP_ONE_RETURN_REST_BOTTOM` ＋ 死んだ枝1本（1効果）
+
+- **真因**＝`/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/` が原文「上から**カードを**２枚見る」に当たらず既定2。
+  しかもこの効果は `CHOOSE` の片方の枝なので、**カード全文には別の枝の数字も並ぶ**。
+- **修正**＝`lookTopReturnRestBottom{lookCount}`（MANUAL 効果なので `syncManualLive.ts` で live へ）。
+- 🧹**同じ壊れた regex を持つ `LOOK_TOP_SPELLS_TO_HAND` は live 0 の死んだ枝**だったので parser 枝ごと撤去
+  （唯一の該当カード `WX10-033-BURST` は手前で typed `REVEAL_AND_PICK` に解けていた）。
+
+### 第28バッチ `ALL_PLAYER_MILL`（1効果）
+
+- **真因**＝2本の regex がどちらも原文（`WX22-017` 選択肢③「自分のセンタールリグのレベル１に**つき**カードを３枚」）に
+  当たらず**既定 1枚**へ落ちていた（Lv4 なら12枚＝**桁違いの過少実行**）。ここも `CHOOSE` の4枝の1つ。
+- **修正**＝`allPlayerMill{count | perOwnLrigLevel}`。🔑**`perOwnLrigLevel` はプレイヤーごとに
+  自分のセンタールリグのレベル**を掛ける（原文「**自分の**センタールリグ」＝両者で枚数が違いうる）。
+
+### 作業中に見つけて登録したもの（§2.4）
+
+- 🆕**`O-224` を新規登録**＝`SPDi43-23-E1` の後段「**レベルがこの方法でダウンしたシグニの数以下の**
+  対戦相手のシグニ１体」の**レベル条件が丸ごと落ちている**（どのシグニでも手札に戻せる過剰実行）。
+  第26バッチで**数を運ぶ足場（`lastProcessedCards`）はできた**が、`TargetFilter` に動的しきい値が無い
+  ＝`O-80` 族の設計問題なので新機構として登録した。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **3321/3321**＝+8本・smoke 0・fuzz 0・census 3/3・
+  census:stubs A群🔴 0／C群 0・census:enginetext **115/115**・census:costtext A群 0）。
+- **反転確認を8本とも取った**（payload 無視／旧既定へ復帰／フィルタのハードコード復帰／
+  デッキから抜かない旧挙動へ復帰 など）⇒ **8つとも新 golden が落ちる**ことを確認してから元に戻した。
+- ⚠**第22バッチの反転は1回目が素通りした**＝テストが＜怪異＞のカードだけを使っていたため
+  「ハードコード」と「filter 参照」を区別できなかった。**別クラスの filter で絞る assert を足して**取り直した。
+  🔑**反転確認は「その1行を壊したら落ちるか」で書く**（同じ値になる標本だと反転しない）。
+- **逆翻訳を全10シート再生成して目視**＝該当8行すべてが原文に近づいた
+  （`WXEX2-26-E1` は `[STUB:…]` → 「対戦相手のすべての感染状態のシグニのパワーをそのシグニのレベル1につき－2000する」）。
+- 🔑**⑤実機は不要と判定**（PLAN §2.2）＝触ったのは `src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` だけで
+  **`src/screens/` は1行も触っていない**。**新しいアクション型・条件型・機構も0**。
+
 ## 2026-09-03（索引 A 第5巡）：§5.3 `O-60` 第17〜20バッチ — engine の「カード全文 regex」を4ハンドラぶん payload 化
 
 **ベースライン**＝`c5584dd3b`（`O-222` クローズの直後）。**A🔴 SELF_TEXT 128行 → 124行 / 125→121ハンドラ**、
