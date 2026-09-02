@@ -3571,15 +3571,14 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'LOCK_OPP_TRASH_MOVE') {
         return '次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない';
       }
-      // 手札上限増加（HAND_SIZE_INCREASE・engine実装済み）＝「あなたの手札の枚数の上限はN増える。（X枚からY枚になる）」。
-      if (a.id === 'HAND_SIZE_INCREASE') {
-        const m = currentCardText.match(/あなたの手札の枚数の上限は[０-９\d]*増える(?:。（[０-９\d]+枚から[０-９\d]+枚になる）)?/);
-        if (m) return m[0];
-      }
-      // 相手手札上限減少（REDUCE_OPP_HAND_LIMIT・engine実装済み）＝「対戦相手の手札の上限はN減る」。
-      if (a.id === 'REDUCE_OPP_HAND_LIMIT') {
-        const m = currentCardText.match(/対戦相手の手札の上限は[０-９\d]*減る/);
-        if (m) return m[0];
+      // 手札上限の増減（HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT・engine実装済み）。
+      // 🆕§5.3 `O-60` 第19バッチ（2026-09-03）＝**payload（符号つき delta）から描く**。
+      //   payload が無い宣言は `collectHandLimits` が上限を動かさない（fail-closed）ので、その旨を出す。
+      if (a.id === 'HAND_SIZE_INCREASE' || a.id === 'REDUCE_OPP_HAND_LIMIT') {
+        const dHL = (a as { handLimitDelta?: number }).handLimitDelta;
+        const whoHL = a.id === 'HAND_SIZE_INCREASE' ? 'あなた' : '対戦相手';
+        if (dHL === undefined) return `${whoHL}の手札の枚数の上限が変わる（増減量なし＝適用しない）`;
+        return `${whoHL}の手札の枚数の上限は${Math.abs(dHL)}${dHL < 0 ? '減る' : '増える'}`;
       }
       // ウィルス除去（REMOVE_VIRUS・engine実装済み）。
       // 🆕**payload から描く**（§5.3 `O-60` 第11バッチ）＝それまでは `[STUB:ウイルス除去：テキストを解析して…]`
@@ -3633,12 +3632,18 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:対戦相手のシグニ[０-９\d]*体を対象とし、)?このターン、あなたの効果によってそれのパワーが－（マイナス）される場合、代わりに２倍－（マイナス）される/);
         if (m) return m[0];
       }
-      // クラス変更（CLASS_CHANGE・engine実装済み）＝「シグニN体を対象とし、ターン終了時まで、それはクラスを失い、＜X＞を得る」。
-      // fallback＝「ターン終了時まで、…（すべての…シグニ／それ）はクラスを失い、（＜X＞／宣言されたクラス）を得る」。
+      // クラス変更（CLASS_CHANGE・engine実装済み）。
+      // 🆕§5.3 `O-60` 第18バッチ（2026-09-03）＝**payload から描く**（原文抽出はしない）。
+      //   payload が無い宣言は engine が何もしない（fail-closed）ので、逆翻訳もその旨を出す
+      //   ＝原文だけ描くと「効いているように見える」死角になる。
       if (a.id === 'CLASS_CHANGE') {
-        const m = currentCardText.match(/シグニ[０-９\d]*体を対象とし、ターン終了時まで、それはクラスを失い、＜[^＞]+＞を得る/)
-          ?? currentCardText.match(/ターン終了時まで、[^。]*?クラスを失い、(?:＜[^＞]+＞|宣言されたクラス)を得る/);
-        if (m) return m[0];
+        const ccSpec = (a as { classChange?: { newClass?: string; fromDeclared?: boolean; all?: { owner: string; colors?: string[] } } }).classChange;
+        if (!ccSpec) return 'クラスを失い別のクラスを得る（内容なし＝適用しない）';
+        const ccGain = ccSpec.fromDeclared ? '宣言されたクラス' : `＜${ccSpec.newClass}＞`;
+        const ccScope = ccSpec.all
+          ? `${ccSpec.all.owner === 'opponent' ? '対戦相手' : 'あなた'}のすべての${(ccSpec.all.colors ?? []).join('と')}${ccSpec.all.colors?.length ? 'の' : ''}シグニ`
+          : '対象のシグニ１体';
+        return `${ccScope}はクラスを失い、${ccGain}を得る`;
       }
       // 場依存の使用コスト減（CONDITIONAL_COST_REDUCTION_BY_FIELD・engine実装済み）＝「あなたの場に…がある場合、このスペルの使用コストは…減る」。
       if (a.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD') {
@@ -3665,11 +3670,17 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/コラボライバー[０-９\d一二三四]*人を呼ぶ/);
         if (m) return m[0];
       }
-      // スペルを無償・限定無視で使用（PLAY_SPELL_FREE_IGNORE_RESTRICTION・engine実装済み）＝
-      // 「（あなたの手札/対戦相手のトラッシュ/いずれかのプレイヤーのトラッシュ）から…スペル…コストを支払わずに限定条件を無視して使用する」。
+      // スペルを無償・限定無視で使用（PLAY_SPELL_FREE_IGNORE_RESTRICTION・engine実装済み）。
+      // 🆕§5.3 `O-60` 第20バッチ（2026-09-03）＝**payload から描く**。
+      //   payload が無い宣言は engine が何もしない（fail-closed）ので、その旨を出す
+      //   ＝原文だけ描くと「効いているように見える」死角になる。
       if (a.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION') {
-        const m = currentCardText.match(/(?:あなたの手札|対戦相手のトラッシュ|いずれかのプレイヤーのトラッシュ)から[^。]*?スペル[^。]*?限定条件を無視して使用する/);
-        if (m) return m[0];
+        const psf = (a as { playSpellFree?: { source: string; maxCostTotal?: number } }).playSpellFree;
+        if (!psf) return 'スペル１枚をコストを支払わずに限定条件を無視して使用する（場所なし＝適用しない）';
+        const psfZone = psf.source === 'self_hand' ? 'あなたの手札'
+          : psf.source === 'opp_trash' ? '対戦相手のトラッシュ' : 'いずれかのプレイヤーのトラッシュ';
+        const psfCost = psf.maxCostTotal !== undefined ? `コストの合計が${psf.maxCostTotal}以下の` : '';
+        return `${psfZone}から${psfCost}スペル１枚をコストを支払わずに限定条件を無視して使用する`;
       }
       // 相手が選んで実行（OPP_*・standalone型・engine実装済み）＝「対戦相手は以下のN つから１つを選び、（あなた/対戦相手）はそれを行う。①…②…」。
       // 次の効果マーカー【 の手前まで抽出。宣言当てゲーム型（別構造）は非マッチでフォールスルー。
@@ -3802,10 +3813,14 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/[^。：]*新たに[^。]*出せない(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
-      // 相手シグニのアタックパワー制限（OPP_SIGNI_ATTACK_POWER_RESTRICT）＝「このターン、対戦相手はパワーがN以下のシグニでアタックできない」を原文抽出。
+      // 相手シグニのアタックパワー制限（OPP_SIGNI_ATTACK_POWER_RESTRICT）。
+      // 🆕§5.3 `O-60` 第17バッチ（2026-09-03）＝**payload から描く**（原文抽出は控えのフォールバック）。
+      //   ⚠payload を持たない宣言は engine が ban を張らない（fail-closed）ので、
+      //   逆翻訳もその旨を出す＝原文だけ描くと「効いているように見える」死角になる。
       if (a.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
-        const m = currentCardText.match(/このターン、対戦相手はパワーが[０-９\d]+以下のシグニでアタックできない/);
-        if (m) return m[0];
+        const capOSAPR = (a as { oppSigniAttackPowerCap?: number }).oppSigniAttackPowerCap;
+        if (capOSAPR !== undefined) return `このターン、対戦相手はパワーが${capOSAPR}以下のシグニでアタックできない`;
+        return 'このターン、対戦相手はパワーが〈上限不明〉以下のシグニでアタックできない（上限値なし＝適用しない）';
       }
       // コイン使用先制限（COIN_USE_RESTRICTION）＝「このゲームの間、あなたは《コインアイコン》をスペルとシグニにしか支払えない」を原文抽出。
       if (a.id === 'COIN_USE_RESTRICTION') {

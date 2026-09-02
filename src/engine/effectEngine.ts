@@ -4402,6 +4402,13 @@ export function collectOppExtraGuardFromHand(
  * ownerState のターン終了時に適用される実効手札上限を返す。
  * - ownerState のフィールドにある HAND_SIZE_INCREASE 効果で上限を増加
  * - opponentState のフィールドにある REDUCE_OPP_HAND_LIMIT 効果で上限を減少
+ *
+ * 🆕**§5.3 `O-60` 第19バッチ（2026-09-03）＝増減量は payload（`handLimitDelta`・符号つき）で受け取る。**
+ * 🔴旧実装は候補カードの `EffectText + BurstText` を regex で読んでおり、
+ *   ①「（６枚から８枚になる）」という**リマインダ文**を最優先で読んで上限を**絶対値へ代入**していた
+ *     ＝同種の効果が2枚並ぶと**後から読んだ1枚の値に潰れる**（加算にならない）
+ *   ②`REDUCE_OPP_HAND_LIMIT` 側は regex が外れても **-1 を掛けていた**（原文を読まずに減らす過剰実行）。
+ * ⚠**payload が無い宣言は上限を動かさない**（fail-closed）。
  */
 export function collectHandLimits(
   ownerState: PlayerState,
@@ -4409,10 +4416,10 @@ export function collectHandLimits(
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): number {
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  void cardMap;
   let limit = 6;
 
-  const scanForStub = (state: PlayerState, stubId: string, callback: (txt: string) => void) => {
+  const scanForStub = (state: PlayerState, stubId: string) => {
     const candidates: string[] = [];
     for (const stack of state.field.signi) {
       const top = stack?.at(-1);
@@ -4424,26 +4431,13 @@ export function collectHandLimits(
         if (eff.effectType !== 'CONTINUOUS') continue;
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type !== 'STUB' || act.id !== stubId) continue;
-        const card = cardMap.get(cn);
-        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-        callback(txt);
+        if (typeof act.handLimitDelta === 'number') limit += act.handLimitDelta;
       }
     }
   };
 
-  scanForStub(ownerState, 'HAND_SIZE_INCREASE', (txt) => {
-    const becomeM   = txt.match(/[（(].*から([０-９\d]+)枚になる[）)]/);
-    const increaseM = txt.match(/手札の枚数の上限は([０-９\d]+)増える/);
-    const directM   = txt.match(/手札を([０-９\d]+)枚まで/);
-    if (becomeM)    limit = parseInt(toHW(becomeM[1]));
-    else if (increaseM) limit += parseInt(toHW(increaseM[1]));
-    else if (directM)   limit = parseInt(toHW(directM[1]));
-  });
-
-  scanForStub(opponentState, 'REDUCE_OPP_HAND_LIMIT', (txt) => {
-    const reduceM = txt.match(/手札の上限は([０-９\d]+)減る/);
-    limit -= reduceM ? parseInt(toHW(reduceM[1])) : 1;
-  });
+  scanForStub(ownerState, 'HAND_SIZE_INCREASE');
+  scanForStub(opponentState, 'REDUCE_OPP_HAND_LIMIT');
 
   // game_hand_size_bonus: GAIN_ABILITY_THIS_GAME で付与された手札上限増加
   limit += ownerState.game_hand_size_bonus ?? 0;

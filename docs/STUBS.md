@@ -246,7 +246,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECK_TOP_CHECK_LEVEL_ENERGY` | 3 | 2 | WXK04-062, WXK10-031 | デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ |
 | `DRAW_DISCARD_COUNT_PLUS_N` | 3 | 3 | PR-427, WXEX2-39, WXDi-P00-018 | 捨てた枚数+Nドロー |
 | `FLIP_FACE_DOWN_SIGNI` | 3 | 3 | WXDi-P01-040, WXDi-P05-037, WXDi-P09-034 | この方法で裏向きにした対象だけをターン終了時の表向き復帰へ予約 |
-| `PLAY_SPELL_FREE_IGNORE_RESTRICTION` | 3 | 2 | WX14-014, WXEX2-14 | 手札のスペルをコストなし・限定条件無視で使用 |
+| `PLAY_SPELL_FREE_IGNORE_RESTRICTION` | 3 | 2 | WX14-014, WXEX2-14 | 〈場所〉のスペルをコストなし・限定条件無視で使用 |
 | `POWER_MOD_BY_LRIG_TRASH_ARTS` | 3 | 3 | WX24-P1-049, WX24-P4-044, WX25-P2-062 | ルリグトラッシュのアーツ枚数に基づくパワー修正（対象1体を先にSELECT_TARGETで選ぶ） |
 | `PREVENT_DAMAGE_FROM_OPP_EFFECTS` | 3 | 3 | SPDi44-04, WX25-P1-026, WXK03-011 | ルリグダメージ無効フラグ |
 | `PREVENT_LRIG_DAMAGE` | 3 | 3 | WX24-P3-003, WXK01-002, WXK03-001 | 「あなたはルリグによってダメージを受けない」の**宣言型**（§6.4 O-3 続き492）。 ⚠🔴これは【常】＝場にあるかぎり有効なので、**state に1回きりのフラグを書いてはいけない**   （書くと1回防いだ時点で消え、以後… |
@@ -408,7 +408,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TRASH_CLASS_TO_HAND_OR_ENERGY` | 1 | 1 | WX26-CP1-022 | トラッシュからクラスシグニを手札かエナへ選択 |
 | `TRASH_FROM_DECK_PER_SIGNI_LEVEL` | 1 | 1 | WXK02-004 | 自場シグニのレベル合計枚数をデッキ上からトラッシュ |
 | `TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH` | 1 | 1 | WXEX1-19 | トラッシュから3枚選んでエナ/手札/デッキ下に分配 |
-| `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | 🏁**`HAND_CARDS_UNDER_SIGNI` / `PLACE_SIGNI_UNDER_SELF_OPT` は撤去した**（2026-09-02 §5.3 `O-60` 第16バッチ）。   旧実装は `card.Effect… |
+| `UNDER_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P07-080 | シグニの下のカードをエナゾーンに置く |
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 | `USE_SPELL_FROM_TRASH` | 1 | 1 | WXDi-P06-066 |  |
 | `USE_SPELL_FROM_TRASH_PAYING_COST` | 1 | 1 | WXDi-P13-008 | ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）── 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」（`WXDi-P13-008-E1`）。 �… |
@@ -623,7 +623,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `PREVENT_OPP_UPKEEP` | 1 | 1 | WXK10-012 | 相手のアップキープ（アップ）を防ぐ |
 | `PREVENT_SELF_MOVE_BY_OPP` | 1 | 1 | WXDi-P07-050 |  |
 | `REDIRECT_ATTACK_TO_SELF_ZONE` | 1 | 1 | WXDi-CP02-TK01A | 相手シグニの直接アタックをこのシグニゾーンにリダイレクト（BattleScreen側処理） |
-| `REDUCE_OPP_HAND_LIMIT` | 1 | 1 | WDK09-009 | 手札上限増加（CONTINUOUS：シグニがフィールドにある間） 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす |
+| `REDUCE_OPP_HAND_LIMIT` | 1 | 1 | WDK09-009 | 手札上限増加（CONTINUOUS：シグニがフィールドにある間） 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす 🆕**§5.3 `O-60` 第19バッチ（2026-09-03）＝ここは【常… |
 | `REMOVE_SELF_SIGNI_FROM_GAME` | 1 | 1 | WXDi-CP02-TK01A | このシグニをゲームから除外する（クラフトルール適用） |
 | `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER` | 1 | 1 | WXDi-P05-038 |  |
 | `REPLACE_PLUS_N` | 1 | 1 | WXK10-005 | このターン、相手シグニへの正パワー修正を負に置換 |

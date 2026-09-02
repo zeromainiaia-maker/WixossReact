@@ -793,8 +793,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- このターン対戦相手はパワーNのシグニでアタックできない ----
-  if (t.match(/対戦相手はパワーが\d+以下のシグニでアタックできない/)) {
-    return { type: 'STUB', id: 'OPP_SIGNI_ATTACK_POWER_RESTRICT' } as StubAction;
+  // 🆕§5.3 `O-60` 第17バッチ（2026-09-03）＝**上限値を payload で運ぶ**。
+  //   旧実装は engine が `EffectText` に regex を当てて上限を決めていたが、助詞違い（「シグニは」）の
+  //   regex だったので live 2効果とも外れて既定 12000 に落ちていた（原文 10000 より過剰禁止）。
+  const oppAtkPowerCapM = t.match(/対戦相手はパワーが([０-９\d]+)以下のシグニでアタックできない/);
+  if (oppAtkPowerCapM) {
+    return {
+      type: 'STUB', id: 'OPP_SIGNI_ATTACK_POWER_RESTRICT',
+      oppSigniAttackPowerCap: parseNum(oppAtkPowerCapM[1]),
+    } as StubAction;
   }
 
   // ---- 対戦相手は自分のセンタールリグより低いレベルを持つシグニでアタックできない（WXK11-003②）----

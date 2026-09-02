@@ -11,37 +11,43 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-09-02・🏁`O-222` クローズ回・索引 B 第4巡・Opus 5 単独）＝ルリグの「シグニN体トラッシュ」解除コスト**
-  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（据置）**
-  ⚠**据置は想定どおり**＝直したのは**明示 defer の1効果**（`WX24-P3-049-E1`）で、
-  語彙は欠けていないし Sheet1 スコープでもない。**この項目の計器は `census:stubs` A群**（defer が1件減った）。
-  📦**在庫2本＝④機構 worklist 23項目**（`O-222` を閉じた＝24→23）
-  ｜**⑤実機 残 2件**（`V-131`／`V-132`）。
-  gates 全緑（golden **3309 / 3309**・smoke 10723 全異常0・fuzz 全0・census 3 / BASELINE 5・
-  census-stubs A🔴0・C0・manual-fields 0・census-enginetext A🔴128 据置・census-costtext A🔴0 据置・
-  lint 0 errors・同型★0）。**ブラスト半径＝効果 変更1・追加0・削除0、予定外0。**
-  🖥**実機＝必須（`src/screens/` を5ファイル触った）**＝`o222LrigFieldTrashPays` /
-  `…UnpayableBlocks` / `…CancelBlocks` の **3/3 PASS**。
+- **セッション（2026-09-03・`O-60` 第17〜20バッチ・索引 A 第5巡・Opus 5 単独）＝engine の「カード全文 regex」を4ハンドラぶん payload 化**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（較正で 5→3）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**128行 / 125ハンドラ → 124行 / 121ハンドラ**、
+  **miss 32ハンドラ・39カード → 28ハンドラ・34カード**（`BASELINE_SELF_TEXT` も 124 へ払い戻し）。
+  ⚠**`BASELINE_HIGH` 5→3 は較正（前巡の下げ忘れ）で前進ではない**＝明細の高シグナル節を HEAD と A/B して同一を確認。
+  📦**在庫2本＝④機構 worklist 23項目**（`O-60` は継続＝閉じていない）
+  ｜**⑤実機 残 2件**（`V-131`／`V-132`・今回の追加は0）。
+  gates 全緑（golden **3313 / 3313**＝+4本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴124**・census-costtext A🔴0 据置・
+  lint 0 errors）。**ブラスト半径＝効果 変更13・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定（PLAN §2.2）**＝触ったのは `src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` だけで
+  **`src/screens/` は1行も触っていない**。**新しいアクション型・条件型・機構も0**（既存 `StubAction` への payload 追加のみ）。
 
-  🔑**登録票の4手はそのまま当たったが、書かれていない欠陥がもう1つあった。**
-  受け皿（`SigniAttackBan.unlessPayFieldTrash`）を作るのは登録票どおりで足りたが、
-  **「対戦相手のルリグ１体を対象とし」も丸ごと落ちていた**（`SELECT_TARGET_ONLY`/`STORE` が無い）＝
-  受け皿だけでは ban の掛け先が無い。⇒ **`O-96` の3点契約もこの巡で通した。**
-  ⚠**「壊れているのは登録票が言う1点だけ」と決めてかからない**（`O-194` の6巡連続と同じ教訓の別の顔）。
+  🔑**この巡の一番の学び＝「読み出し地点は1つ」と決めてかからない。**
+  `HAND_SIZE_INCREASE` は計器が `execStubPart3.ts` の1行しか指さなかったが、
+  **実際に効いていたのは `effectEngine.collectHandLimits`**（計器では B群に落ちていた）で、
+  **ハンドラが書いていた `PlayerState.hand_limit` は読み手が1人もいない死んだ枝**だった。
+  ⇒ **手口①の grep は id だけでなく「書き込んでいる state キー」でも掛ける。**
 
-  🔴**この巡の一番の学び＝「宣言」と「配線」を同じフラグで見ない。**
-  `targetsStored` は「照応で受ける」という**宣言**であって、3点契約が組まれた**証拠ではない**。
-  `target` を持たない型（`SIGNI_ATTACK_BAN`）を `O-96` の枠組みに載せるときは、
-  **配線の有無を `SELECT_TARGET_ONLY`/`STORE` の実在で判定する**必要がある
-  （ここを混同していたので、parser が正しい宣言を出しているのに引き上げが諦められて対象が落ちていた）。
+  🔴**miss 数は「壊れている効果数」ではない（4巡連続で確認）**＝第19は miss1/live4 で
+  **壊れていたのは miss ではない側**（リマインダ文「（６枚から８枚になる）」を絶対値として読む形）、
+  第20は miss1/live3 なのに **3効果中2効果が違う場所のカードを使っていた**
+  （engine が候補ゾーンを持たず**常に自分の手札**から選んでいた）。
 
-  🔑**支払い軸は実機で3本組にする**＝①払える ②払えない ③**払わずには通らない**（キャンセル）。
-  ③が無いと「モーダルは出たが実は払わなくても通る」を見逃す。
-  ⚠**踏んだ罠**＝モーダルの候補を `page.locator('img[alt]')` で素に引くと**裏の盤面カード**を掴んで
-  選択が永久に進まない（**確定ボタンの親から辿ってモーダル内だけを探す**）。
+  🔑**数値の payload 化では「合計の計算式」まで一緒に見る**＝第20 は上限値の regex より
+  `parseInt('《青》×２')`＝**NaN→0** の方が実害が大きく、**コスト上限フィルタが常に素通り**していた。
+  正しい式は `utils/keywords.ts` の `artsCostLte` に既にあった＝**式も「受け皿は既に在った」**。
 
-**▶ 次の一手**＝**`O-60` の続き（第17バッチ）**＝`OPP_SIGNI_ATTACK_POWER_RESTRICT`（miss2/live2）／
-`CLASS_CHANGE`（miss1/live4）。⚠**`LOOK_AND_REORDER`（miss4）と `GRANT_QUOTED_AUTO_ABILITY`（miss3）は
+  ⚠**`npm run regen` は1巡の最後に必ず回す**＝逆翻訳の死角はシート再生成で初めて表に出る
+  （第16バッチの撤去メモが `UNDER_SIGNI_TO_ENERGY` の説明欄へ漏れていたのをここで発見・その場で修正）。
+
+**▶ 次の一手**＝**`O-60` の続き（第21バッチ）**＝`LAYER_ABILITY_COPY`（miss1/live2）／
+`ALL_PLAYER_MILL`（miss1/live1）／`EACH_PLAYER_DRAW_DISCARD`（miss1/live1）。
+⚠**`NEGATE_NTH_ATTACK`（miss1/live3）は消費が `src/screens/battle/attackNegation.ts` にもある**＝
+取るなら**遅いレーン（実機必須）**になるので、先に grep して決める。
+⚠**`LOOK_AND_REORDER`（miss4）と `GRANT_QUOTED_AUTO_ABILITY`（miss3）と `DECK_TOP_TO_LIFE`（miss2）は
 catch-all なので取らない**。**候補は miss 数ではなく「受け皿が既にあるか」で選ぶ。**
 🆕**索引 B は `O-223` 1件だけになった**（【シード】の `TargetScope` ＝`src/screens/` を触る遅いレーン）。
 ⚠**`O-195` / `O-190` / `O-188` は「登録時の値」で 🔴要再計測**。
@@ -928,7 +934,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-60` | **39カード**<br>🆕2026-09-02 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>miss 32ハンドラ・A🔴 128行。**第16バッチまで消化済み**（1バッチ平均1.3カード） |
+| `O-60` | **34カード**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>miss 28ハンドラ・A🔴 124行。**第20バッチまで消化済み**（1バッチ平均1.3カード） |
 | `O-193` | **25効果** | `census:wiring` の has=0 語彙が未配線＝`isDrive` 14／`powerLteSelf` 9／`levelLtSelf` 2 |
 | `O-198` | **23効果** | `LOOK_PICK_CHAIN` が「ちょうどN枚」を表現できない＝`pickCount` が上限としてしか渡らず0枚を選べる（過小実行）<br>⚠census では原理的に検出できない |
 | `O-192` | **19効果** | `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` がアシストルリグを数え落とす（`matchesFilter` の cardType が厳密一致）<br>続き385 実測 |
@@ -1311,25 +1317,33 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- 🏁**2026-09-02（🏁`O-222` クローズ回・索引 B 第4巡）＝ルリグの「シグニN体トラッシュ」解除コスト（Opus 5 単独／本ブロックが直近の正）**
+- **2026-09-03（`O-60` 第17〜20バッチ・索引 A 第5巡）＝engine の「カード全文 regex」を4ハンドラぶん payload 化（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
-  **census 高シグナル 3 / BASELINE 5**（据置）
-  ⚠**据置の理由**＝直したのは**明示 defer の1効果**で、語彙は欠けていないし Sheet1 スコープでもない。
-  この項目の計器は **`census:stubs` A群**（`DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH` が1件減った）。
-  📦**在庫2本**＝**機構 worklist 23項目**（`O-222` を閉じた＝24→23。**索引 B は `O-223` 1件だけ**）
-  ｜**実機 残 2件**（`V-131`／`V-132`）
-  🔧**ゲート（全緑 ✅）**＝golden **3309 / 3309**（3305→3309＝`O-222` の契約4本）／
-  smoke **10723** 全異常0／fuzz 全0／census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／
-  manual-fields 0／`census:enginetext` A🔴 **128行**（据置）／`census:costtext` A🔴 **0規則**（据置）／
-  lint 0 errors／`npm run regen` 完走・**同型★0**。
-  🖥**実機＝必須**（`src/screens/` を5ファイル）＝`o222LrigFieldTrashPays` / `…UnpayableBlocks` /
-  `…CancelBlocks` の **3/3 PASS**。🔑**支払い軸は「払える／払えない／払わずには通らない」の3本組**。
-  🆕**engine の一般則**＝**`appliesTo:'LRIG'` は parser が付けない**＝`execSigniAttackBan` が
-  **確定した対象の Type** でシグニ ban／ルリグ ban に仕分ける（`O-220` 第4バッチの規約）。
-  🔴**「宣言」と「配線」を同じフラグで見ない**＝`targetsStored` は照応の**宣言**であって
-  3点契約が組まれた証拠ではない。`target` を持たない型を `O-96` の枠組みに載せるときは、
-  **配線の有無を `SELECT_TARGET_ONLY`/`STORE` の実在で判定する**。
-  ✅**ブラスト半径＝効果 変更1・追加0・削除0、予定外0**（`WX24-P3-049` の no-op 解消）。
+  **census 高シグナル 3 / BASELINE 3**（5→3 は**較正**）
+  ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  この項目の計器は **`census:enginetext` の A群**＝**128行 / 125ハンドラ → 124行 / 121ハンドラ**、
+  **miss 32ハンドラ・39カード → 28ハンドラ・34カード**。
+  ⚠**`BASELINE_HIGH` 5→3 は前巡の下げ忘れの回収＝前進ではない**（明細の高シグナル節を HEAD と A/B して同一を確認）。
+  📦**在庫2本**＝**機構 worklist 23項目**（`O-60` は継続＝閉じていない）
+  ｜**実機 残 2件**（`V-131`／`V-132`・今回の追加0）
+  🔧**ゲート（全緑 ✅）**＝golden **3313 / 3313**（3309→3313＝4バッチの契約4本）／
+  smoke 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／
+  manual-fields 0／`census:enginetext` A🔴 **124行**（`BASELINE_SELF_TEXT` も 124）／
+  `census:costtext` A🔴 **0規則**（据置）／lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝不要と判定（§2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0**（既存 `StubAction` への payload 追加のみ）。
+  🔑**engine の一般則（この巡で足したもの）**＝**「読み出し地点は1つ」と決めてかからない**＝
+  `HAND_SIZE_INCREASE` は計器が1行しか指さなかったが、**実際に効くのは
+  `effectEngine.collectHandLimits`**（計器では B群に落ちる）で、ハンドラの書き込み先
+  `PlayerState.hand_limit` は**読み手が1人もいない死んだ枝**だった。
+  ⇒ **手口①の grep は id だけでなく「書き込んでいる state キー」でも掛ける。**
+  🔴**miss 数は「壊れている効果数」ではない（4巡連続）**＝第19の実害は miss ではない側
+  （リマインダ文を絶対値として読む）、第20は miss1/live3 なのに**3効果中2効果が違う場所のカードを使っていた**。
+  🔑**数値の payload 化では「合計の計算式」まで見る**＝第20は上限 regex より
+  `parseInt('《青》×２')`＝NaN→0 の方が実害が大きく**コスト上限が常に素通り**していた
+  （正しい式は `utils/keywords.ts` の `artsCostLte` に既在＝**式も「受け皿は既に在った」**）。
+  ✅**ブラスト半径＝効果 変更13・追加0・削除0、予定外0**（`opp_signi_attack_power_cap` 2／`classChange` 4／
+  `handLimitDelta` 4／`playSpellFree` 3）。
 
 ## 付録A. 全体像と Definition of Done
 

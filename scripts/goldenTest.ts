@@ -17,7 +17,7 @@ import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/typ
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
@@ -20951,6 +20951,137 @@ test('signiAttackGate: 場トラッシュコストは支払い済み再入で再
     signi_attack_field_trash_costs: { [SIGNI]: 2 },
   };
   eq(signiAttackBlockReason({ ...common, attacker: payable }), null, '他のシグニ2体を払えるならアタック可能');
+}));
+// 🆕§5.3 `O-60` 第20バッチ（2026-09-03）＝スペル無償使用の「場所」と「コスト上限」を payload で運ぶ。
+// 🔴旧実装は候補ゾーンを持たず**常に自分の手札**から選び、コスト上限の合計計算が
+//   `parseInt('《青》×２')`＝NaN→0 だったので**上限フィルタが常に素通り**していた。
+test('PLAY_SPELL_FREE_IGNORE_RESTRICTION: 場所とコスト上限を payload から読む（O-60 第20バッチ）', () => withSavedCursor(() => {
+  const costTotalOf = (c: CardData): number =>
+    (c.Cost ?? '').match(/×([０-９\d]+)/g)
+      ?.reduce((sum, mm) => sum + (parseInt(mm.replace(/[×０-９]/g,
+        ch => (ch === '×' ? '' : String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))), 10) || 0), 0) ?? 0;
+  const SPELL_CHEAP = findCard(c => c.Type === 'スペル' && costTotalOf(c) > 0 && costTotalOf(c) <= 4);
+  const SPELL_PRICEY = findCard(c => c.Type === 'スペル' && costTotalOf(c) >= 5);
+  const first = (act: Record<string, unknown>, owner: Partial<PlayerState>, other: Partial<PlayerState>) => {
+    const base = mkCtx({}, {}, SIGNI);
+    const ctx = {
+      ...base,
+      ownerState: { ...(base.ownerState as PlayerState), ...owner },
+      otherState: { ...(base.otherState as PlayerState), ...other },
+    } as ExecCtx;
+    return executeEffect({
+      effectId: 't', effectType: 'ACTIVATED',
+      action: { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION', ...act } as unknown as EffectAction,
+      duration: 'INSTANT', mandatory: true,
+    } as CardEffect, ctx);
+  };
+  // 自分の手札＋コスト上限4＝高コストのスペルは候補に出ない
+  const hand = first({ playSpellFree: { source: 'self_hand', maxCostTotal: 4 } },
+    { hand: [SPELL_CHEAP, SPELL_PRICEY] }, { trash: [SPELL_CHEAP] });
+  ok(!hand.done && hand.pending.type === 'SELECT_TARGET', '手札からスペルを選ばせる');
+  const handCands = (hand as { pending: { candidates: string[]; targetScope?: string } }).pending;
+  eq(JSON.stringify(handCands.candidates), JSON.stringify([SPELL_CHEAP]), 'コスト上限を超えるスペルは候補に出ない');
+  eq(handCands.targetScope, 'self_hand', '候補は自分の手札');
+  // 上限なしなら高コストも候補
+  const noCap = first({ playSpellFree: { source: 'self_hand' } }, { hand: [SPELL_CHEAP, SPELL_PRICEY] }, {});
+  eq(JSON.stringify(((noCap as { pending: { candidates: string[] } }).pending).candidates),
+    JSON.stringify([SPELL_CHEAP, SPELL_PRICEY]), '上限なしなら両方が候補');
+  // 🔴対戦相手のトラッシュ＝自分の手札は見ない（旧実装はここで自分の手札を出していた）
+  const oppTrash = first({ playSpellFree: { source: 'opp_trash' } },
+    { hand: [SPELL_PRICEY] }, { trash: [SPELL_CHEAP] });
+  const oppPend = (oppTrash as { pending: { candidates: string[]; targetScope?: string } }).pending;
+  eq(JSON.stringify(oppPend.candidates), JSON.stringify([SPELL_CHEAP]), '対戦相手のトラッシュだけが候補');
+  eq(oppPend.targetScope, 'opp_trash', 'targetScope も相手トラッシュ');
+  // いずれかのプレイヤーのトラッシュ＝両方
+  const anyTrash = first({ playSpellFree: { source: 'any_trash' } },
+    { hand: [SPELL_PRICEY], trash: [SPELL_CHEAP] }, { trash: [SPELL_PRICEY] });
+  eq(JSON.stringify(((anyTrash as { pending: { candidates: string[] } }).pending).candidates),
+    JSON.stringify([SPELL_CHEAP, SPELL_PRICEY]), '両者のトラッシュが候補（手札は入らない）');
+  // fail-closed＝payload が無ければ何もしない（旧既定＝自分の手札へ倒さない）
+  const noSpec = first({}, { hand: [SPELL_CHEAP] }, { trash: [SPELL_CHEAP] });
+  ok(noSpec.done, 'payload が無ければ選択を提示せず終わる');
+}));
+// 🆕§5.3 `O-60` 第19バッチ（2026-09-03）＝手札上限の増減量を payload（符号つき）で運ぶ。
+// 🔴旧実装は `collectHandLimits` が「（６枚から８枚になる）」のリマインダ文を最優先で読んで
+//   上限を**絶対値へ代入**していた（同種2枚で潰れる）／`REDUCE_OPP_HAND_LIMIT` は regex が外れても -1 していた。
+test('collectHandLimits: 手札上限は payload の delta を加算する（O-60 第19バッチ）', () => withSavedCursor(() => {
+  const contHL = (id: string, delta?: number): CardEffect => ({
+    effectId: `GOLDEN-HL-${id}-${delta ?? 'none'}`, effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id, ...(delta === undefined ? {} : { handLimitDelta: delta }) } as StubAction,
+    duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+  } as CardEffect);
+  const S1 = SIGNI, S2 = SIGNI_P3000, S3 = SIGNI_P12000;
+  const limitOf = (mine: (string | null)[], opp: (string | null)[], em: Map<string, CardEffect[]>) =>
+    collectHandLimits(mkState({ signi: mine }), mkState({ signi: opp }), cardMap as Map<string, CardData>, em);
+  eq(limitOf([S1, null, null], [null, null, null], effectsMap), 6, '何も無ければ既定の6枚');
+  const up2 = new Map(effectsMap); up2.set(S1, [contHL('HAND_SIZE_INCREASE', 2)]);
+  eq(limitOf([S1, null, null], [null, null, null], up2), 8, '＋2で8枚');
+  // 🔴同種が2枚並んだら**加算**される（旧実装はリマインダ文の絶対値で潰れていた）
+  const up2and1 = new Map(up2); up2and1.set(S2, [contHL('HAND_SIZE_INCREASE', 1)]);
+  eq(limitOf([S1, S2, null], [null, null, null], up2and1), 9, '＋2と＋1で9枚（加算される）');
+  // 相手の場の REDUCE_OPP_HAND_LIMIT が自分の上限を下げる
+  const down1 = new Map(effectsMap); down1.set(S3, [contHL('REDUCE_OPP_HAND_LIMIT', -1)]);
+  eq(limitOf([S1, null, null], [S3, null, null], down1), 5, '相手の -1 で5枚');
+  eq(limitOf([S1, null, null], [null, null, null], down1), 6, '相手の場に無ければ効かない');
+  // 🔴fail-closed＝payload が無い宣言は上限を動かさない（旧実装は -1 を掛けていた）
+  const noPayload = new Map(effectsMap); noPayload.set(S3, [contHL('REDUCE_OPP_HAND_LIMIT')]);
+  eq(limitOf([S1, null, null], [S3, null, null], noPayload), 6, 'payload なしの減少宣言は効かない');
+  const noPayloadUp = new Map(effectsMap); noPayloadUp.set(S1, [contHL('HAND_SIZE_INCREASE')]);
+  eq(limitOf([S1, null, null], [null, null, null], noPayloadUp), 6, 'payload なしの増加宣言も効かない');
+  // game_hand_size_bonus（GAIN_ABILITY_THIS_GAME 由来）は従来どおり加算される
+  eq(collectHandLimits({ ...mkState({ signi: [S1, null, null] }), game_hand_size_bonus: 2 } as PlayerState,
+    mkState({}), cardMap as Map<string, CardData>, effectsMap), 8, 'game_hand_size_bonus は別軸で加算');
+}));
+// 🆕§5.3 `O-60` 第18バッチ（2026-09-03）＝CLASS_CHANGE の中身を payload で運ぶ。
+// 🔴旧実装は engine が**カード全文**に4本の regex を当てて「得るクラス／全体か／色の限定」を決め、
+//   さらに `declared_class` を payload の有無に関係なく最優先で読んでいた（＝別効果の宣言に化ける）。
+test('CLASS_CHANGE: 得るクラス／全体＋色／宣言参照を payload から読む（O-60 第18バッチ）', () => withSavedCursor(() => {
+  const SIGNI_R = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const SIGNI_W = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const runCC = (act: Record<string, unknown>, ctxOpts: Partial<ExecCtx> = {}, signi?: (string | null)[]) => {
+    const base = mkCtx({ signi: signi ?? [SIGNI_R, SIGNI_W, null] }, { signi: [SIGNI_P3000, null, null] }, SIGNI);
+    return run({ type: 'STUB', id: 'CLASS_CHANGE', ...act } as unknown as EffectAction,
+      { ...base, ...ctxOpts } as ExecCtx);
+  };
+  const ovOwn = (r: ExecResult) => (r.ownerState as PlayerState).card_class_overrides ?? {};
+  // 全体＋色限定＝色が一致するシグニだけ（赤は変わり白は変わらない）
+  const all = ovOwn(runCC({ classChange: { newClass: '天使', all: { owner: 'self', colors: ['赤', '青', '緑'] } } }));
+  eq(all[SIGNI_R], '天使', '色が一致する自分のシグニのクラスが変わる');
+  eq(all[SIGNI_W], undefined, '色が一致しないシグニは変わらない');
+  // 色の限定が無ければ場の全シグニ
+  const allNoColor = ovOwn(runCC({ classChange: { newClass: '怪異', all: { owner: 'self' } } }));
+  eq(allNoColor[SIGNI_R], '怪異', '色限定なしなら全員');
+  eq(allNoColor[SIGNI_W], '怪異', '色限定なしなら全員（2体目）');
+  // 1体版＝直前に対象化したシグニへ当たる
+  const one = ovOwn(runCC({ classChange: { newClass: '怪異' } }, { lastProcessedCards: [SIGNI_R] }));
+  eq(one[SIGNI_R], '怪異', '直前に処理したシグニのクラスが変わる');
+  eq(one[SIGNI_W], undefined, '他のシグニは変わらない');
+  // 🔴反転＝payload に newClass があれば declared_class は読まない（旧実装は宣言を最優先していた）
+  const notDeclared = ovOwn(runCC({ classChange: { newClass: '怪異' } },
+    { lastProcessedCards: [SIGNI_R], ownerState: { ...mkState({ signi: [SIGNI_R, SIGNI_W, null] }), declared_class: '天使' } as PlayerState }));
+  eq(notDeclared[SIGNI_R], '怪異', '宣言済みでも payload の＜X＞が勝つ');
+  // fromDeclared＝宣言クラスを読む／未宣言なら何もしない
+  const declared = ovOwn(runCC({ classChange: { fromDeclared: true } },
+    { lastProcessedCards: [SIGNI_R], ownerState: { ...mkState({ signi: [SIGNI_R, SIGNI_W, null] }), declared_class: '天使' } as PlayerState }));
+  eq(declared[SIGNI_R], '天使', 'fromDeclared は宣言クラスを使う');
+  eq(Object.keys(ovOwn(runCC({ classChange: { fromDeclared: true } }, { lastProcessedCards: [SIGNI_R] }))).length, 0,
+    '未宣言なら何もしない');
+  // fail-closed＝payload が無ければ何もしない（カード全文へフォールバックしない）
+  eq(Object.keys(ovOwn(runCC({}, { lastProcessedCards: [SIGNI_R] }))).length, 0, 'payload が無ければ何もしない');
+}));
+// 🆕§5.3 `O-60` 第17バッチ（2026-09-03）＝OPP_SIGNI_ATTACK_POWER_RESTRICT の上限値を payload で運ぶ。
+// 🔴旧実装は engine が `EffectText` に `/パワーが(\d+)以下のシグニは/`（助詞違い）を当てており、
+//   live 2効果とも外れて既定 12000 に落ちていた＝原文 10000 より広く禁止する過剰実行だった。
+test('OPP_SIGNI_ATTACK_POWER_RESTRICT: 上限は payload から読む／無ければ張らない（O-60 第17バッチ）', () => withSavedCursor(() => {
+  const capOf = (act: Record<string, unknown>) => {
+    const r = run({ type: 'STUB', id: 'OPP_SIGNI_ATTACK_POWER_RESTRICT', ...act } as unknown as EffectAction,
+      mkCtx({}, {}, SIGNI));
+    return (r.ownerState as PlayerState).opp_signi_attack_power_cap;
+  };
+  eq(capOf({ oppSigniAttackPowerCap: 10000 }), 10000, 'payload の上限がそのまま載る');
+  eq(capOf({ oppSigniAttackPowerCap: 5000 }), 5000, '別の値でも payload どおり（カード全文は読まない）');
+  // fail-closed＝payload が無ければ ban を張らない（旧既定 12000 へ倒さない）
+  eq(capOf({}), undefined, 'payload が無ければ上限を立てない');
 }));
 // ── SIGNI_ATTACK_BAN（§6.4 O-3「このターン、対戦相手は〈条件〉のシグニでアタックできない」）──
 test('SIGNI_ATTACK_BAN: 宣言数字レベル／表記外パワー／対象限定＋支払いの3形が ban ストアに載る', () => withSavedCursor(() => {

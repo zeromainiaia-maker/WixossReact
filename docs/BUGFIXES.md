@@ -1,5 +1,80 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第5巡）：§5.3 `O-60` 第17〜20バッチ — engine の「カード全文 regex」を4ハンドラぶん payload 化
+
+**ベースライン**＝`c5584dd3b`（`O-222` クローズの直後）。**A🔴 SELF_TEXT 128行 → 124行 / 125→121ハンドラ**、
+**miss 32ハンドラ・39カード → 28ハンドラ・34カード**。`BASELINE_SELF_TEXT` も 124 へ払い戻し済み。
+**新しいアクション型・条件型は0**（すべて既存 `StubAction` への payload 追加）。
+
+### 第17バッチ `OPP_SIGNI_ATTACK_POWER_RESTRICT`（2効果／2カード）
+
+- **真因**＝engine が `EffectText + BurstText` に `/パワーが(\d+)以下のシグニ**は**/` を当てていたが、
+  原文は「パワーが10000以下のシグニ**で**アタックできない」（**助詞が違う**）＝**live 2効果とも1本も当たらず**
+  既定値 **12000** へ落ちていた ⇒ 原文 10000 より**広く禁止する過剰実行**。
+- **修正**＝parser が `oppSigniAttackPowerCap` を刻み、engine は payload だけを読む。**payload が無ければ
+  ban を張らない**（fail-closed＝旧既定の逆向き）。逆翻訳も payload から描く。
+- **影響**＝`WXDi-CP01-017` / `WXDi-P05-031`。母集団は CSV 全数検索で**この2枚だけ**と確認
+  （他の「〜でアタックできない」15形はすべて `signi_attack_bans_this_turn` 側で処理済み）。
+
+### 第18バッチ `CLASS_CHANGE`（4効果／4カード）
+
+- **真因（2つ）**＝①**カード全文**に4本の regex を当てて「得るクラス／全体か／色の限定」を決めていた
+  （`＜([^＞]+)＞を得る` は**別の能力**の＜＞を拾いうる＝`WXEX2-06` は同じカードに
+  「＜怪異＞のシグニ１体がアタックしたとき」が並ぶ）②**`declared_class` を payload の有無に関係なく
+  最優先**で読んでいたので、同じターンに別の効果がクラスを宣言していると
+  **「＜怪異＞を得る」が宣言クラスへ化ける**。
+- **修正**＝`classChange{newClass|fromDeclared, all{owner,colors}}` を parser が**その文だけ**から組む。
+  engine は payload で分岐し、**payload が無ければ何もしない**（カード全文へフォールバックしない）。
+- **影響**＝`WX21-049` / `WXEX2-06` / `WX25-P1-058`（宣言参照）/ `WXK04-006`（あなたのすべての赤と青と緑）。
+
+### 第19バッチ `HAND_SIZE_INCREASE` / `REDUCE_OPP_HAND_LIMIT`（4効果／4カード）
+
+- 🔑**消費地点は2つあった**（手口①＝先に grep する）＝**実際に効くのは `effectEngine.collectHandLimits`**、
+  `execStubPart3` のハンドラは `PlayerState.hand_limit` へ書いていたが**読む地点が engine にも UI にも
+  1つも無かった**（真no-op の死んだ枝）。
+- **真因**＝`collectHandLimits` が「（６枚から８枚になる）」という**リマインダ文**を最優先で読んで
+  上限を**絶対値へ代入**していた＝**同種の効果が2枚並ぶと後から読んだ1枚の値に潰れる**（加算にならない）。
+  さらに `REDUCE_OPP_HAND_LIMIT` 側は regex が外れても **-1 を掛けていた**（原文を読まずに減らす）。
+- **修正**＝`handLimitDelta`（**符号つき**）を parser が刻み、`collectHandLimits` は加算するだけ。
+  ハンドラは**【常】の宣言型**へ倒し（state を書かない）、死んだ `PlayerState.hand_limit` は削除。
+  ⚠`WX25-P2-005-E1`（ACTIVATED）は `GAIN_ABILITY_THIS_GAME` が `game_hand_size_bonus` を積むので、
+  ここで足すと**二重に増える**＝書かないのが正しい。
+- **影響**＝`WD23-001-E` / `WX19-003` / `WDK09-009` / `WX25-P2-005`（manual・`syncManualLive` で live へ）。
+
+### 第20バッチ `PLAY_SPELL_FREE_IGNORE_RESTRICTION`（3効果／2カード）
+
+- 🔴**この巡で一番実害が大きかった**＝engine は**候補ゾーンを持たず常に自分の手札**から選んでいた
+  ＝`WX14-014-E1`（**対戦相手のトラッシュ**から）と `WXEX2-14-E3`（**いずれかのプレイヤーのトラッシュ**から）は
+  **原文と違う場所のカードを使っていた**。
+- 🔴**もう1つ**＝コスト上限の合計計算が `parseInt('《青》×２')`＝**NaN→0** だったので
+  **上限フィルタが常に素通り**していた（`WXEX2-14` は5コスト以上のスペルも使えた）。
+  上限値自体もカード全文から拾っており、同じカードの別能力の数字を掴みうる形だった。
+- **修正**＝`playSpellFree{source:'self_hand'|'opp_trash'|'any_trash', maxCostTotal}` を parser が刻む。
+  合計は `Cost` 文字列の `×N` を足す（`utils/keywords.ts` の `artsCostLte` と同じ式）。
+  **知っている3形以外は payload を付けず、engine は何もしない**（fail-closed＝旧既定の「自分の手札」へ倒さない）。
+  ⚠**トラッシュから使う形ではカードを移動させない**（既に持ち主のトラッシュに在る＝移すと持ち主が入れ替わる）。
+
+### 作業中に見つけて直したもの（§2.4「その場で直す」）
+
+- 🔴**第16バッチの撤去メモが別 STUB の説明欄に漏れていた**＝`genStubsMd.mjs` は
+  **ハンドラ直前の連続コメントを全部つなぐ**ので、`UNDER_SIGNI_TO_ENERGY` の逆翻訳が
+  `[STUB:🏁**HAND_CARDS_UNDER_SIGNI` … ]` になっていた（`npm run regen` を回して初めて表に出る）。
+  ⇒ 慣例どおり **`// UNDER_SIGNI_TO_ENERGY: 〜` の id ラベルを付けて**規則①で拾わせた。
+- **`BASELINE_HIGH` 5→3 は較正**（前巡の下げ忘れ）＝明細の高シグナル節を HEAD と A/B して**同一**を確認。
+  **この巡の実装は census を1件も動かしていない**（`O-60` は census の網に載らない形を潰す項目）。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **3313/3313**＝+4本・smoke 0・fuzz 0・census 3/3・
+  census:stubs A群🔴 0／C群 0・census:enginetext **124/124**・census:costtext A群 0）。
+- **反転確認を4本とも取った**＝①payload 無視で 12000 へ倒す ②`declared_class` 最優先へ戻す
+  ③`REDUCE_OPP_HAND_LIMIT` の既定 -1 を復活 ④候補ゾーンを `ownerState.hand` 固定へ戻す
+  ⇒ **4つとも新 golden が落ちる**ことを確認してから元に戻した。
+- **逆翻訳を全10シート再生成して目視**＝該当14行すべてが原文に近づいた
+  （`WXEX2-14-E3` は「あなたの手札から」→「いずれかのプレイヤーのトラッシュから」へ是正）。
+- 🔑**⑤実機は不要と判定**（PLAN §2.2）＝触ったのは `src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` だけで
+  **`src/screens/` は1行も触っていない**。**新しいアクション型・条件型・機構も0**（既存 STUB への payload 追加のみ）。
+
 ## 🏁2026-09-02（索引 B 第4巡）：§5.3 `O-222` クローズ — ルリグの「シグニN体を場からトラッシュに置かないかぎりアタックできない」
 
 **ベースライン**＝`0b55afabe`（`O-60` 第16バッチの直後）。**母集団は登録票どおり 1効果**

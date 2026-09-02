@@ -288,8 +288,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
 
   // ---- 手札の枚数の上限がN増える ----
-  if (t.match(/あなたの手札の枚数の上限は[１-９\d０-９]+増える/))
-    return { type: 'STUB', id: 'HAND_SIZE_INCREASE' } as StubAction;
+  // 🆕§5.3 `O-60` 第19バッチ（2026-09-03）＝増加量を payload（符号つき）で運ぶ。
+  //   ⚠「（６枚から８枚になる）」は**リマインダ**なので読まない（旧 engine はこちらを最優先で読み、
+  //   上限を絶対値へ代入していた＝同種2枚で潰れる）。
+  const handLimitUpM = t.match(/あなたの手札の枚数の上限は([１-９\d０-９]+)増える/);
+  if (handLimitUpM)
+    return { type: 'STUB', id: 'HAND_SIZE_INCREASE', handLimitDelta: parseNum(handLimitUpM[1]) } as StubAction;
 
   // ---- ウィルスをシグニゾーンに置く（合計N個になるように） ----
   const fillVirusM = t.match(/【ウィルス】の合計が([１-９\d０-９]+)つになるように.*シグニゾーンに【ウィルス】を置く/);

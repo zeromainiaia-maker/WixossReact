@@ -126,24 +126,25 @@ export function execStubPart3(
     return done(addLog(ctx, `[エナ代替: ${stub.id}（UIで処理済み）]`));
   }
   // CLASS_CHANGE: シグニのクラスを一時変更
+  // 🆕**§5.3 `O-60` 第18バッチ（2026-09-03）＝中身は payload（`classChange`）で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に**4本の regex**を当てて「得るクラス」「全体か」
+  //   「色の限定」を決めていた＝**カード全文**なので、`＜([^＞]+)＞を得る` は**別の能力**の
+  //   ＜＞を拾いうるし、色の regex は文をまたいで当たる（`WXEX2-06` は同じカードに
+  //   「＜怪異＞のシグニ１体がアタックしたとき」が別の【自】として並ぶ）。
+  // 🔴さらに旧実装は `declared_class` を**payload の有無に関係なく最優先**で読んでいたので、
+  //   同じターンに別の効果がクラスを宣言していると「＜怪異＞を得る」が宣言クラスへ化けた。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝カード全文へフォールバックしない。
   if (stub.id === 'CLASS_CHANGE') {
-    const srcCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCC = srcCC ? (srcCC.EffectText ?? '') + ' ' + (srcCC.BurstText ?? '') : '';
-    // 変更先クラスを抽出: declared_class → lastProcessedCards → テキスト解析の優先順
-    const declaredClassCC = ctx.ownerState.declared_class
-      ?? (ctx.lastProcessedCards ?? []).find(s => !s.match(/^WX|^WD|^WXD|^WXK|^SPDi/));
-    const newClassMCC = txtCC.match(/＜([^＞]+)＞を得る/);
-    const newClass = declaredClassCC ?? (newClassMCC ? newClassMCC[1] : null);
+    const specCC = stub.classChange;
+    if (!specCC) return done(addLog(ctx, 'クラス変更：内容が無いため何もしない'));
+    const newClass = specCC.fromDeclared ? ctx.ownerState.declared_class : specCC.newClass;
     if (!newClass) return done(addLog(ctx, 'クラス変更先不明'));
-    // 「すべての...シグニ」→ 対象選択なし（全員適用）
-    if (txtCC.match(/すべて.*シグニ.*クラスを失い|すべての.*シグニは.*クラスを失い/)) {
-      const colorPatCC = txtCC.match(/(赤|青|緑|白|黒).*(?:と|か|または).*(赤|青|緑|白|黒)/);
-      const colorSingleCC = !colorPatCC && txtCC.match(/(赤|青|緑|白|黒).*シグニ.*クラスを失い/);
-      const reqColors: string[] = [];
-      if (colorPatCC) { colorPatCC.slice(1).forEach(c => { if (c) reqColors.push(c); }); }
-      else if (colorSingleCC) reqColors.push(colorSingleCC[1]);
+    // 「〈所有者〉のすべての〈色〉のシグニは」→ 対象選択なし（全員適用）
+    if (specCC.all) {
+      const allOwnerCC = specCC.all.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+      const reqColors = specCC.all.colors ?? [];
       const targets = [0, 1, 2]
-        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+        .map(zi => allOwnerCC.field.signi[zi]?.at(-1))
         .filter((cn): cn is string => {
           if (!cn) return false;
           if (reqColors.length === 0) return true;
@@ -151,10 +152,13 @@ export function execStubPart3(
           return reqColors.some(col => (c?.Color ?? '').includes(col));
         });
       if (targets.length === 0) return done(addLog(ctx, 'クラス変更対象なし'));
-      const overridesCC = { ...(ctx.ownerState.card_class_overrides ?? {}) };
+      const overridesCC = { ...(allOwnerCC.card_class_overrides ?? {}) };
       for (const cn of targets) overridesCC[cn] = newClass;
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: overridesCC } },
-        `${targets.length}体のシグニのクラスを＜${newClass}＞に変更`));
+      const nextOwnerCC: PlayerState = { ...allOwnerCC, card_class_overrides: overridesCC };
+      const ctxAllCC = specCC.all.owner === 'opponent'
+        ? { ...ctx, otherState: nextOwnerCC }
+        : { ...ctx, ownerState: nextOwnerCC };
+      return done(addLog(ctxAllCC, `${targets.length}体のシグニのクラスを＜${newClass}＞に変更`));
     }
     // lastProcessedCards に対象シグニがある場合（SEQUENCE内のターゲット選択後）
     const targetFromContext = (ctx.lastProcessedCards ?? []).find(cn =>
@@ -504,30 +508,14 @@ export function execStubPart3(
   }
   // 手札上限増加（CONTINUOUS：シグニがフィールドにある間）
   // HAND_SIZE_INCREASE: 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす
+  // 🆕**§5.3 `O-60` 第19バッチ（2026-09-03）＝ここは【常】の宣言型。state を書かない。**
+  // 🔴旧実装は `EffectText + BurstText` を3本の regex で読んで `PlayerState.hand_limit` へ
+  //   絶対値を書いていたが、**`hand_limit` を読む地点は engine にも UI にも1つも無かった**（真no-op）。
+  //   実際に効くのは `effectEngine.collectHandLimits`（CONTINUOUS 走査・payload を読む）だけ。
+  // ⚠**ACTIVATED 経路の `WX25-P2-005-E1`（このゲームの間〜）は `GAIN_ABILITY_THIS_GAME` が
+  //   `game_hand_size_bonus` を積む**ので、ここで足すと**二重に増える**。書かないのが正しい。
   if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT') {
-    const srcHSI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtHSI = srcHSI ? (srcHSI.EffectText ?? '') + ' ' + (srcHSI.BurstText ?? '') : '';
-    const toHWHSI = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「手札をN枚まで」パターン（直接指定）
-    const limitM = txtHSI.match(/手札を([０-９\d]+)枚まで/);
-    // 「手札の枚数の上限はN増える（6枚からM枚になる）」パターン
-    const increaseM = txtHSI.match(/手札の枚数の上限は([０-９\d]+)増える/);
-    // 「6枚からN枚になる」パターン（括弧内の上限値）
-    const becomeM = txtHSI.match(/[（(].*から([０-９\d]+)枚になる[）)]/);
-    const DEFAULT_HAND = 6;
-    let newLimit: number | null = null;
-    if (limitM) newLimit = parseInt(toHWHSI(limitM[1]));
-    else if (becomeM) newLimit = parseInt(toHWHSI(becomeM[1]));
-    else if (increaseM) newLimit = DEFAULT_HAND + parseInt(toHWHSI(increaseM[1]));
-    if (stub.id === 'HAND_SIZE_INCREASE' && newLimit !== null) {
-      const newOwnerHSI = { ...ctx.ownerState, hand_limit: newLimit };
-      return done(addLog({ ...ctx, ownerState: newOwnerHSI }, `手札上限を${newLimit}枚に設定`));
-    }
-    if (stub.id === 'REDUCE_OPP_HAND_LIMIT' && newLimit !== null) {
-      const newOtherHSI = { ...ctx.otherState, hand_limit: newLimit };
-      return done(addLog({ ...ctx, otherState: newOtherHSI }, `相手手札上限を${newLimit}枚に設定`));
-    }
-    return done(addLog(ctx, `[手札制限: ${stub.id}]`));
+    return done(addLog(ctx, `手札上限の宣言（判定は collectHandLimits）: ${stub.id}`));
   }
   // ライフバースト特殊（engine: 発動システム改修必要）
   // LIFE_BURST_DOUBLE: このターン、次のライフバーストは2回発動する

@@ -692,8 +692,6 @@ export interface PlayerState {
    *   （入れると立てた次の瞬間に消える）。消費は上記1点だけ。
    */
   skip_next_turn?: boolean;
-  // HAND_SIZE_INCREASE: 手札上限数（未設定 = デフォルト∞）
-  hand_limit?: number;
   // このターン、手札のすべてのシグニが【ガード】を得る（GRANT_GUARD_ICON_HAND_SIGNI）
   hand_signi_guard_enabled?: boolean;
   // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）

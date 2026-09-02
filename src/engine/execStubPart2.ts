@@ -1,4 +1,4 @@
-import type { PlayerState, TargetScope, SigniZoneBlock } from '../types';
+import type { PlayerState, TargetScope, SigniZoneBlock, CardData } from '../types';
 import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -92,7 +92,9 @@ export function execStubPart2(
   //   効果元が `cardMap` から引けない経路では4軸とも既定値へ崩れる形だった。
   //   いまは parser が `PLACE_UNDER_SIGNI{source:'hand'|'field', count, upToCount, filter}` を出し、
   //   `execPlaceUnderSigni`（`effectExecutor.ts`）が payload だけで解く。
-  // シグニの下のカードをエナゾーンに置く
+  // UNDER_SIGNI_TO_ENERGY: シグニの下のカードをエナゾーンに置く
+  // ⚠（id ラベルを付けているのは、直前に第16バッチの撤去メモが並んでいるため＝
+  //   `genStubsMd.mjs` は直前の連続コメントを全部つなぐので、ラベルが無いと**撤去メモが説明欄に出る**）。
   if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
     // SELECT_TARGET後の処理：lastProcessedCardsにカードがある場合
     if (ctx.lastProcessedCards?.length) {
@@ -4067,48 +4069,65 @@ export function execStubPart2(
     const discardAction: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
     return selectOrInteract(candsAUDCH, maxAUDCH, true, 'self_hand', discardAction as EffectAction, undefined, ctx);
   }
-  // PLAY_SPELL_FREE_IGNORE_RESTRICTION: 手札のスペルをコストなし・限定条件無視で使用
+  // PLAY_SPELL_FREE_IGNORE_RESTRICTION: 〈場所〉のスペルをコストなし・限定条件無視で使用
+  // 🆕**§5.3 `O-60` 第20バッチ（2026-09-03）＝候補の場所とコスト上限は payload（`playSpellFree`）で受け取る。**
+  // 🔴旧実装は**候補ゾーンを持たず常に自分の手札**から選んでいた＝live 3効果のうち
+  //   `WX14-014-E1`（対戦相手のトラッシュから）と `WXEX2-14-E3`（いずれかのプレイヤーの
+  //   トラッシュから）は**原文と違う場所のカードを使っていた**。
+  // 🔴コスト上限も `EffectText + BurstText` の `/コストの合計が(\d+)以下/` を**カード全文**から
+  //   拾っており、さらに合計の計算が `parseInt('《青》×２')`＝NaN→0 だったので
+  //   **上限フィルタが常に素通り**していた（＝`WXEX2-14` は5コストのスペルも使えた）。
+  // ⚠**payload が無ければ使わせない**（fail-closed）＝旧既定へ倒すと過剰実行に戻る。
   if (stub.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION') {
+    const specPSFIR = stub.playSpellFree;
+    if (!specPSFIR) return done(addLog(ctx, '[スペル無償使用: 場所が無いため何もしない]'));
     const cnPSFIR = ctx.lastProcessedCards?.[0];
     if (!cnPSFIR) {
-      // 未選択：手札のスペルを SELECT_TARGET で選ぶ
-      const srcPSFIR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-      const txtPSFIR = srcPSFIR ? (srcPSFIR.EffectText ?? '') + ' ' + (srcPSFIR.BurstText ?? '') : '';
-      const toHWPSFIR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const costLimitMPSFIR = txtPSFIR.match(/コストの合計が([０-９\d]+)以下/);
-      const costLimitPSFIR = costLimitMPSFIR ? parseInt(toHWPSFIR(costLimitMPSFIR[1])) : Infinity;
-      const spellCandsPSFIR = ctx.ownerState.hand.filter(cn => {
-        const c = ctx.cardMap.get(cn);
+      // 印刷コストの合計（`Cost` は「《青》×２《無》×１」形式の文字列）。
+      const costTotalOf = (c?: CardData): number =>
+        (c?.Cost ?? '').match(/×([０-９\d]+)/g)
+          ?.reduce((sum, mm) => sum + (parseInt(mm.replace(/[×０-９]/g,
+            ch => (ch === '×' ? '' : String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))), 10) || 0), 0) ?? 0;
+      const zonePSFIR = specPSFIR.source === 'self_hand' ? ctx.ownerState.hand
+        : specPSFIR.source === 'opp_trash' ? ctx.otherState.trash
+        : [...ctx.ownerState.trash, ...ctx.otherState.trash];
+      const scopePSFIR: TargetScope = specPSFIR.source === 'self_hand' ? 'self_hand'
+        : specPSFIR.source === 'opp_trash' ? 'opp_trash' : 'self_trash';
+      const spellCandsPSFIR = zonePSFIR.filter(cn => {
+        const c = ctx.cardMap.get(getCardNum(cn));
         if (!c || c.Type !== 'スペル') return false;
-        if (costLimitPSFIR < Infinity) {
-          const costArr = Array.isArray(c.Cost) ? c.Cost : [];
-          const totalCost = typeof c.Cost === 'string' ? parseInt(c.Cost) || 0 : costArr.length;
-          if (totalCost > costLimitPSFIR) return false;
-        }
+        if (specPSFIR.maxCostTotal !== undefined && costTotalOf(c) > specPSFIR.maxCostTotal) return false;
         return true;
       });
-      if (spellCandsPSFIR.length === 0) return done(addLog(ctx, '[PLAY_SPELL_FREE_IGNORE_RESTRICTION: 手札に対象スペルなし]'));
-      const contPSFIR: StubAction = { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' };
-      return needsInteraction(addLog(ctx, '手札のスペルを選択（コストなし・限定条件無視）'), {
+      if (spellCandsPSFIR.length === 0) return done(addLog(ctx, '[PLAY_SPELL_FREE_IGNORE_RESTRICTION: 対象スペルなし]'));
+      const contPSFIR: StubAction = { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION', playSpellFree: specPSFIR };
+      return needsInteraction(addLog(ctx, 'スペルを選択（コストなし・限定条件無視）'), {
         type: 'SELECT_TARGET', candidates: spellCandsPSFIR, count: 1, optional: false,
-        targetScope: 'self_hand', thenAction: contPSFIR as EffectAction,
+        targetScope: scopePSFIR, thenAction: contPSFIR as EffectAction,
       });
     }
-    // 選択済み：選んだスペルをトラッシュへ移動して効果実行
-    const cardPSFIR = ctx.cardMap.get(cnPSFIR);
+    // 選択済み：選んだスペルの効果を実行する。
+    // ⚠**手札から使ったときだけ自分のトラッシュへ移す**＝トラッシュから使う形（`opp_trash`/`any_trash`）は
+    //   カードが既に持ち主のトラッシュに在るので、移動させると**持ち主が入れ替わる**。
+    const cardPSFIR = ctx.cardMap.get(getCardNum(cnPSFIR));
     if (!cardPSFIR) return done(addLog(ctx, '[PLAY_SPELL_FREE_IGNORE_RESTRICTION: カードデータなし]'));
     const effectsPSFIR = parseCardEffects(cardPSFIR);
     const mainEffPSFIR = effectsPSFIR.find(e =>
       e.effectType === 'ACTIVATED' || (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))
     );
     if (!mainEffPSFIR) return done(addLog(ctx, `[PLAY_SPELL_FREE_IGNORE_RESTRICTION: ${cardPSFIR.CardName}効果なし]`));
-    const statePSFIR = {
-      ...ctx.ownerState,
-      trash: [...ctx.ownerState.trash, cnPSFIR],
-      hand: ctx.ownerState.hand.filter(c => c !== cnPSFIR),
-    };
+    const ctxPSFIR = specPSFIR.source === 'self_hand'
+      ? {
+          ...ctx,
+          ownerState: {
+            ...ctx.ownerState,
+            trash: [...ctx.ownerState.trash, cnPSFIR],
+            hand: ctx.ownerState.hand.filter(c => c !== cnPSFIR),
+          },
+        }
+      : ctx;
     return exec(mainEffPSFIR.action,
-      addLog({ ...ctx, ownerState: statePSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
+      addLog({ ...ctxPSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
         `${cardPSFIR.CardName}をコストなし・限定条件無視で使用`));
   }
   // ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）──
@@ -4355,14 +4374,17 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerPSD }, '相手は自シグニをダウンできない'));
   }
   // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手シグニアタック時パワー制限
+  // 🆕**§5.3 `O-60` 第17バッチ（2026-09-03）＝上限値は payload（`oppSigniAttackPowerCap`）で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/パワーが(\d+)以下のシグニは/` を当てていたが、
+  //   原文は「シグニ**で**アタックできない」（助詞違い）なので live 2効果とも 1本も当たらず、
+  //   既定値 12000 へ落ちていた＝原文 10000 より**広く禁止する過剰実行**だった。
+  // ⚠**payload が無ければ ban を張らない**（fail-closed）＝旧既定のように任意の数字へ倒すと
+  //   「全シグニアタック不可」に化ける。
   if (stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
-    const srcOSAPR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOSAPR = srcOSAPR ? (srcOSAPR.EffectText ?? '') + ' ' + (srcOSAPR.BurstText ?? '') : '';
-    const toHWOSAPR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const capM = txtOSAPR.match(/パワーが([０-９\d]+)以下のシグニは/);
-    const cap = capM ? parseInt(toHWOSAPR(capM[1])) : 12000;
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, opp_signi_attack_power_cap: cap } },
-      `相手シグニアタック時パワー上限: ${cap}`));
+    const capOSAPR = stub.oppSigniAttackPowerCap;
+    if (capOSAPR === undefined) return done(addLog(ctx, '相手シグニアタックパワー制限：上限値が無いため何もしない'));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, opp_signi_attack_power_cap: capOSAPR } },
+      `相手シグニアタック時パワー上限: ${capOSAPR}`));
   }
   // SIGNI_FLIP_FACEDOWN: 自シグニ（または相手lastProcessed）を裏向きにする
   if (stub.id === 'SIGNI_FLIP_FACEDOWN') {

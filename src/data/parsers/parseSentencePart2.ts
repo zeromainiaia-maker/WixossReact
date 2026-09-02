@@ -744,8 +744,29 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- スペルを制限なし・コスト0で使用 ----
+  // 🆕§5.3 `O-60` 第20バッチ（2026-09-03）＝**候補の場所とコスト上限を payload で運ぶ**。
+  //   旧実装は engine が候補ゾーンを持たず**常に自分の手札**から選んでおり、
+  //   「対戦相手のトラッシュから」「いずれかのプレイヤーのトラッシュから」の2効果が
+  //   **原文と違う場所のカードを使っていた**。
   if (t.match(/スペル.*コストを支払わずに限定条件を無視して使用/)) {
-    return { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' } as StubAction;
+    // 🔴**知っている3形だけを payload にする**＝当てはまらない文は payload を付けずに返し、
+    //   engine 側で fail-closed（何もしない）にする。旧既定（自分の手札）へ倒すと、
+    //   原文にない場所のカードを使える過剰実行が別の文型で再発する。
+    const psfSource = /いずれかのプレイヤーのトラッシュから/.test(t) ? 'any_trash' as const
+      : /対戦相手のトラッシュから/.test(t) ? 'opp_trash' as const
+      : /あなたの手札から/.test(t) ? 'self_hand' as const
+      : undefined;
+    if (!psfSource) return { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' } as StubAction;
+    // ⚠**コスト上限はこの文からだけ読む**（旧 engine はカード全文から拾っており、
+    //   同じカードの別の能力の数字を掴みうる形だった）。
+    const psfCostM = t.match(/コストの合計が([０-９\d]+)以下/);
+    return {
+      type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION',
+      playSpellFree: {
+        source: psfSource,
+        ...(psfCostM ? { maxCostTotal: parseNum(psfCostM[1]) } : {}),
+      },
+    } as StubAction;
   }
 
   // ---- シグニ1体かセンタールリグのアタックを無効 ----
@@ -1462,8 +1483,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手の手札の上限を減らす ----
-  if (t.match(/対戦相手の手札の上限は[０-９\d]+減る/)) {
-    return { type: 'STUB', id: 'REDUCE_OPP_HAND_LIMIT' } as StubAction;
+  // 🆕§5.3 `O-60` 第19バッチ（2026-09-03）＝減少量を payload（符号つき）で運ぶ。
+  const oppHandLimitM = t.match(/対戦相手の手札の上限は([０-９\d]+)減る/);
+  if (oppHandLimitM) {
+    return { type: 'STUB', id: 'REDUCE_OPP_HAND_LIMIT', handLimitDelta: -parseNum(oppHandLimitM[1]) } as StubAction;
   }
 
   // ---- 各ターン終了時にビートにする ----
@@ -1627,8 +1650,27 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- シグニがクラスを失い別クラスを得る ----
+  // 🆕§5.3 `O-60` 第18バッチ（2026-09-03）＝**得るクラス／全体か／色の限定を payload で運ぶ**。
+  //   旧実装は engine が**カード全文**（`EffectText + BurstText`）に4本の regex を当てており、
+  //   別の能力の＜＞や色表記を拾いうる形だった。ここは**この文だけ**を読むので取り違えない。
   if (t.match(/(?:シグニ|それ).*クラスを失い.*を得る/)) {
-    return { type: 'STUB', id: 'CLASS_CHANGE' } as StubAction;
+    const ccNewClassM = t.match(/クラスを失い、?(?:.*?)＜([^＞]+)＞を得る/);
+    const ccFromDeclared = /クラスを失い、?(?:.*?)宣言されたクラスを得る/.test(t);
+    // 「あなたの／対戦相手の **すべての**〈色〉のシグニは」＝対象選択をしない全体適用。
+    // ⚠**「すべての」より前に置かれた所有者**だけを読む（文末の別句に引っ張られない）。
+    const ccAllM = t.match(/(あなた|対戦相手)の(?:他の)?すべての([^。]*?)シグニ(?:は|が)/);
+    const ccColors = ccAllM ? (ccAllM[2].match(/[赤青緑白黒](?=[とかや、]|の)/g) ?? []) : [];
+    const ccAll = ccAllM
+      ? { owner: (ccAllM[1] === 'あなた' ? 'self' : 'opponent') as Owner, ...(ccColors.length ? { colors: ccColors } : {}) }
+      : undefined;
+    if (!ccNewClassM && !ccFromDeclared) return { type: 'STUB', id: 'CLASS_CHANGE' } as StubAction;
+    return {
+      type: 'STUB', id: 'CLASS_CHANGE',
+      classChange: {
+        ...(ccFromDeclared ? { fromDeclared: true } : { newClass: ccNewClassM![1] }),
+        ...(ccAll ? { all: ccAll } : {}),
+      },
+    } as StubAction;
   }
 
   // ---- 【起】能力コストを《黒×0》にする ----
