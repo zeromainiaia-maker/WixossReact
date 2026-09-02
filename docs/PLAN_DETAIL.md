@@ -926,11 +926,11 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🆕**miss 0ハンドラ / 0カード・A🔴 77行 / 75ハンドラ（2026-09-03 第48バッチ後 実測）**。⚠「miss 9 / 15カード・A🔴 103行」（第36バッチ後）以前の記載はすべて失効。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🆕**miss 0ハンドラ / 0カード・A🔴 76行 / 74ハンドラ・live 134効果（2026-09-03 第49バッチ後 実測）**。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
-**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第48バッチ後）**＝**A🔴 SELF_TEXT 77行／75ハンドラ**（B 58／C 57）・**regex が1本も当たらないハンドラ 0・miss カード 0**。⚠旧記載（第36バッチ後 103行／101ハンドラ・miss 9／15）は失効。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 75ハンドラ・live 179効果**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第48バッチ後 実測）**＝**live の多い順**が母集団順＝`GAIN_ABILITY_THIS_GAME`（live19・**リテラル24本の最大の catch-all**）／`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族）／`SONG_FRAGMENT`（live11・lit0）／`BET_MECHANIC`（live8）／`ADD_CARD_TO_LRIG_DECK`（live6）／`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）／`CHOOSE_HAND_OR_ENERGY`（live4・**枚数が前の文にあるので payload の運び方を先に決める**）／以下 live1〜3 が **49ハンドラ**。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
+**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第49バッチ後）**＝**A🔴 SELF_TEXT 76行／74ハンドラ**（B 58／C 58）・**regex が1本も当たらないハンドラ 0・miss カード 0**。⚠旧記載（第48バッチ後 77行／75ハンドラ）は失効。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 75ハンドラ・live 179効果**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第49バッチ後 実測）**＝**live の多い順**が母集団順＝`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族）／`SONG_FRAGMENT`（live11・lit0）／`BET_MECHANIC`（live8）／`ADD_CARD_TO_LRIG_DECK`（live6）／`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）／`CHOOSE_HAND_OR_ENERGY`（live4・**枚数が前の文にあるので payload の運び方を先に決める**）／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`（live4）／以下 live1〜3。⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
 
-■✅**消化済み 48バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
+■✅**消化済み 49バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
 第17〜20（`OPP_SIGNI_ATTACK_POWER_RESTRICT` / `CLASS_CHANGE` / `HAND_SIZE_INCREASE`＋`REDUCE_OPP_HAND_LIMIT` /
 `PLAY_SPELL_FREE_IGNORE_RESTRICTION`）／第21〜28（`MULTI_SIGNI_TO_ENERGY` / `LAYER_ABILITY_COPY` /
 `EACH_PLAYER_DRAW_DISCARD` / `LOOK_TOP_OPP_CHOOSE_TRASH` / `INFECTED_SIGNI_POWER_DOWN_BY_LEVEL` /
@@ -942,7 +942,34 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 第39 ON_RISE 一族の向き反転（11枚）／第40 `ENERGY_BY_LEVEL_SUM_LIMIT`／第41 `OPP_ENERGY_COLOR_CONDITION_TRASH`／
 第42 `TARGET_ONLY`／第43 `DECK_TOP_TO_LIFE`（4文型へ分割）／第44 `NEGATE_NTH_ATTACK`／
 第45 `LOOK_AND_REORDER`（15文型へ分割）／第46 `GRANT_QUOTED_AUTO_ABILITY`（WD21-007 を専用 id へ）／
-第47 `GAIN_SUBSCRIBER_COUNT`／第48 `CONDITIONAL_CARD_COST_BY_OPP_LRIG`**。全文は BUGFIXES.md 2026-09-03。
+第47 `GAIN_SUBSCRIBER_COUNT`／第48 `CONDITIONAL_CARD_COST_BY_OPP_LRIG`**／
+🆕**第49（2026-09-03・索引 A 第9巡）＝`GAIN_ABILITY_THIS_GAME`**（live19 / 18カード・**リテラル24本の最大の catch-all**）。
+全文は BUGFIXES.md 2026-09-03。
+
+■🆕🔑**第49バッチの教訓（2026-09-03・索引 A 第9巡）**
+🔴**①`miss=0` は「壊れていない」ではない、の実例が出た。** `GAIN_ABILITY_THIS_GAME` は
+**24本のリテラルのうち1本でも当たれば miss に出ない**ので、`メインフェイズ開始時.*手札.*5枚以下`（**半角5**）が
+原文の全角「５枚以下」に**1枚も当たらない**まま `WXDi-P11-004` が**丸ごと無言 no-op**だった。
+⇒ **リテラルが複数あるハンドラは、miss ではなく「リテラル1本ずつの当たり枚数」で見る**
+（`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` の「カード別 当たり外れ」が全部出す）。
+🔑**②payload 化の刻み場所は「文の受け皿サイト」ではなく「効果単位の後処理」だった。**
+受け皿サイト12箇所が見ている文は**「このゲームの間、あなたは以下の能力を得る」だけ**で、
+宣言の中身が書いてある**『…』は別の文**（12サイト全部を実測）。⇒ **文単位で payload を作れるかは実測してから決める**
+（`docs/_effect_srctext.json` ＝効果単位の原文が既にあるので、後処理なら中身まで読める）。
+🔴**③1効果に同じ STUB が複数並ぶ形は「全文を読む実装」だと必ず多重適用になる。**
+`WXK03-003A-E2` は2ノードで `lrig_activation_count` が **+2**（5回目の裏返しが3回目に来ていた）。
+⇒ 後処理は**先頭ノードにだけ全宣言を載せ、残りは空配列**にする。
+🔴🔑**④payload 生成側（parser）を壊す反転確認は素通りする。**
+収穫マージは**fresh が痩せた効果を live へ届けない**（`_held_fresh.json` に回る）ので、
+regex を狭めても live は前のまま＝**golden が緑になる**。⇒ **反転は必ず消費側（engine）を壊して取る。**
+⚠**⑤payload の並べ替えだけでも live には届かない**（fresh が richer でないので held）＝
+`--adopt-effect` が要る。**この巡は配送先が3系統に割れた**＝AUTO 6件は `--adopt-effect`／
+MANUAL・PARTIAL 4件は `manualEffects.ts` へ手書き＋`syncManualLive.ts`／残りは build で自動。
+🔑**⑥配送漏れは「live 全ノードが payload を持つ」を golden のラチェットにして初めて押さえられる**
+（`_held_fresh` / `_partial_fresh` / `_idset_fresh` のどれにも「payload が欠けたまま live に残った」は出ない）。
+🧹**⑦payload 化すると死んだ state キーが見える**＝`game_declared_signi_level_zero` ほか3本に読み手が0だった
+（→ `O-226` で登録）。**旧実装は「ハンドラがある＝実装済み」に見え、`census:stubs` A群にも出なかった。**
+全文は BUGFIXES.md 2026-09-03（索引 A 第9巡）。
 
 ■🆕🔑**第37〜48の教訓（2026-09-03・索引 A 第8巡）**
 **①`live 0` は「死んだ枝」の十分条件ではない。** 第37 は live 0 の 27ハンドラのうち **18本だけ**を消した
@@ -2832,6 +2859,32 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-03・`O-60` 第29〜36バッチ後・PLAN §6 から退避）
+
+- **2026-09-03（`O-60` 第29〜36バッチ・索引 A 第7巡）＝残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 3**（据置）
+  ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  この項目の計器は **`census:enginetext` の A群**＝**115行 / 112ハンドラ → 103行 / 101ハンドラ**、
+  🔑**miss 20ハンドラ・26カード → 9ハンドラ・15カード**。
+  📦**在庫2本**＝**機構 worklist 24項目**（`O-60` は継続・新規登録0）｜**実機 残 2件**（`V-131`／`V-132`）
+  🔧**ゲート（全緑 ✅）**＝golden **3323 / 3323**（3321→3323＝8バッチの契約2本にまとめた）／
+  smoke 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **103行**（`BASELINE_SELF_TEXT` も 103）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝不要と判定（§2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
+  🔑**engine の一般則（この巡で足したもの）**＝**「単価の regex が外れる」より「修正先か数え方が裏返っている」
+  方が実害だった（4/4）**＝第29・第31 は修正先が**対戦相手のシグニ**（原文は「この**シグニ**のパワーは」＝真逆）、
+  第32 は正面ゾーンを `signi[zi]`（正面は `2 - zi`）で引いたうえ**効果元自身**に積んでいた。
+  🔴**typed へ寄せるときは `extract*` 系の収集関数の選別条件を読む**＝`POWER_MODIFY_PER_CHARM` に
+  型どおり `until:'PERMANENT'` を書いたら**恒久 no-op**（`until` があると ACTIVATED 扱いで CONTINUOUS 走査から外れる）。
+  **逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**形＝型の `until` を必須→任意へ緩めた。
+  🧹**手書きが parser に追い越されている例は「どの計器にも出ない」**＝`WXDi-P14-TK04` の手書きは
+  原文「１枚**まで**」に対し必ず1枚出させる過剰実行で、`O-60` の miss を追っていて偶然見つかった。
+  ⚠**ハンドラ撤去は `genStubsMd` の説明も消す**＝`POWER_CAP` が一度 `[STUB:POWER_CAP]`（生の英語 ID）になりかけた。
+  ✅**ブラスト半径＝効果 変更10・追加0・削除0、予定外0**。
 
 ### 恒久指標アーカイブ（2026-09-02 続き773 後）
 

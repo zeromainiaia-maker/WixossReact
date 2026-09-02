@@ -62632,6 +62632,123 @@ test('索引B 2026-09-02: O-222 支払い＝ルリグ版は自己除外せず、
   eq(payLrigAttackFieldTrashCost(st, 2, [0], cm), null, '選択数が足りなければ支払い不成立');
 }));
 
+// ── §5.3 `O-60` 第49バッチ（2026-09-03）＝`GAIN_ABILITY_THIS_GAME` を payload 化した ──
+// 🔴この STUB は **engine が `EffectText + BurstText` を24本のリテラル regex で読む**最大の catch-all だった。
+//   payload（`gameGrants`）へ移した以上、**「live の全ノードが payload を持っている」ことを走査で押さえる**
+//   （持たないノードは engine が fail-closed で無視する＝**無言 no-op へ落ちる**）。
+test('§5.3 O-60 第49: GAIN_ABILITY_THIS_GAME は live 全ノードが gameGrants を持つ（fail-closed の穴が無い）', () => {
+  let nodes = 0;
+  const missing: string[] = [];
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && rec.id === 'GAIN_ABILITY_THIS_GAME') {
+      nodes++;
+      if (!Array.isArray(rec.gameGrants)) missing.push(effectId);
+    }
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+  eq(missing.length, 0, `gameGrants を持たないノード: ${missing.join(', ')}`);
+  ok(nodes >= 19, `走査対象が消えていない（実測 ${nodes} ノード）`);
+});
+
+test('§5.3 O-60 第49: WXDi-P11-004-E1 メインフェイズ開始時ドローが payload に載る（旧 regex は全角「５枚以下」に当たらず no-op）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXDi-P11-004') ?? []).find(e => e.effectId === 'WXDi-P11-004-E1');
+    ok(!!eff, 'WXDi-P11-004-E1 が live にある'); if (!eff) return;
+    const ctx = mkCtx({}, {}, 'WXDi-P11-004');
+    const r = run(eff.action, ctx);
+    ok(r.done); if (!r.done) return;
+    // 🔑ここが第49バッチで直った本体＝旧 engine は `手札.*5枚以下`（半角）で1枚も当たらなかった。
+    eq(r.ownerState.game_main_draw, true, 'メインフェイズ開始時ドローが立つ');
+    // 反転＝payload を落とすと engine は何も宣言しない（fail-closed）。
+    const stripped = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    (stripped as unknown as { gameGrants?: unknown }).gameGrants = undefined;
+    const r2 = run(stripped, mkCtx({}, {}, 'WXDi-P11-004'));
+    ok(r2.done); if (!r2.done) return;
+    ok(!r2.ownerState.game_main_draw, 'payload なしでは宣言が立たない（fail-closed）');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第49: WX10-011-E1 は1文から2宣言（グロウ不可＋センタールリグへダブルクラッシュ）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WX10-011') ?? []).find(e => e.effectId === 'WX10-011-E1');
+    ok(!!eff, 'WX10-011-E1 が live にある'); if (!eff) return;
+    const ctx = mkCtx({}, {}, 'WX10-011');
+    ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, lrig: ['WX10-011'] } };
+    const r = run(eff.action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.no_grow, true, 'あなたはグロウできない');
+    ok((r.ownerState.keyword_grants?.['WX10-011'] ?? []).includes('ダブルクラッシュ'),
+      'センタールリグへ【ダブルクラッシュ】');
+    // 反転＝キーワードはハードコードではなく payload から読む。
+    const swapped = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    const node = swapped as unknown as { gameGrants: { kind: string; keyword?: string }[] };
+    node.gameGrants = [{ kind: 'centerLrigKeyword', keyword: 'ランサー' }];
+    const ctx2 = mkCtx({}, {}, 'WX10-011');
+    ctx2.ownerState = { ...ctx2.ownerState, field: { ...ctx2.ownerState.field, lrig: ['WX10-011'] } };
+    const r2 = run(swapped, ctx2);
+    ok(r2.done); if (!r2.done) return;
+    ok((r2.ownerState.keyword_grants?.['WX10-011'] ?? []).includes('ランサー'),
+      'payload のキーワードがそのまま付く');
+    ok(!r2.ownerState.no_grow, 'payload に無い宣言は立たない');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第49: WXK03-003A-E2 は STUB が2つ並ぶが使用回数は1回の起動で1しか進まない', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXK03-003A') ?? []).find(e => e.effectId === 'WXK03-003A-E2');
+    ok(!!eff, 'WXK03-003A-E2 が live にある'); if (!eff) return;
+    // 🔴旧 engine は STUB ごとにカード全文を読み直していたので、この2ノードで counter が **2進んで**
+    //   「5回目に裏返す」が3回目に来ていた。2つ目のノードの payload は空配列にしてある。
+    const seq = eff.action as { type: string; steps?: { type: string; id?: string; gameGrants?: unknown[] }[] };
+    eq(seq.type, 'SEQUENCE');
+    const gaNodes = (seq.steps ?? []).filter(s => s.type === 'STUB' && s.id === 'GAIN_ABILITY_THIS_GAME');
+    eq(gaNodes.length, 2, 'STUB は2つある');
+    eq(gaNodes[1]?.gameGrants?.length, 0, '2つ目は空配列＝二重適用しない');
+    const r = run(eff.action, mkCtx({}, {}, 'WXK03-003A'));
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.lrig_activation_count?.['WXK03-003A'], 1, '1回の起動で+1');
+    eq(r.ownerState.lrig_copy_opp_level_limit, true, 'レベル・リミットのコピー宣言も立つ');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第49: 対戦相手ガードの追加コストは「手札N枚か《無》」と「《無》だけ」を取り違えない', () => {
+  const savedCursor = cursor;
+  try {
+    // `WXDi-P05-005`＝「追加で手札を1枚捨てるか《無》を支払わないかぎり」
+    const a = (effectsMap.get('WXDi-P05-005') ?? []).find(e => e.effectId === 'WXDi-P05-005-E1');
+    ok(!!a, 'WXDi-P05-005-E1 が live にある'); if (!a) return;
+    const ra = run(a.action, mkCtx({}, {}, 'WXDi-P05-005'));
+    ok(ra.done); if (!ra.done) return;
+    eq(ra.ownerState.game_opp_extra_guard_hand_or_colorless, 1, '手札1枚か《無》');
+    ok(!ra.ownerState.game_opp_guard_extra_colorless,
+      '《無》だけの宣言は立たない（部分文字列で両方立つと相手のガードコストが二重になる）');
+    // `WX25-P2-001`＝「追加で《無》を支払わないかぎり」だけ
+    const b = (effectsMap.get('WX25-P2-001') ?? []).find(e => e.effectId === 'WX25-P2-001-E1');
+    ok(!!b, 'WX25-P2-001-E1 が live にある'); if (!b) return;
+    const rb = run(b.action, mkCtx({}, {}, 'WX25-P2-001'));
+    ok(rb.done); if (!rb.done) return;
+    eq(rb.ownerState.game_opp_guard_extra_colorless, true, '《無》だけ');
+    ok(!rb.ownerState.game_opp_extra_guard_hand_or_colorless, '手札版は立たない');
+    eq(rb.ownerState.game_guard_barrier_act, true, '【起】ルリグバリアの能力も同じ文から立つ');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第49: WXDi-P07-006-E1 のコイン獲得は条件節のアイコンを数えない（6→5）', () => {
+  const eff = (effectsMap.get('WXDi-P07-006') ?? []).find(e => e.effectId === 'WXDi-P07-006-E1');
+  ok(!!eff, 'WXDi-P07-006-E1 が live にある'); if (!eff) return;
+  const seq = eff.action as { steps?: { type: string; count?: number }[] };
+  const coin = (seq.steps ?? []).find(s => s.type === 'GAIN_COIN');
+  eq(coin?.count, 5, '原文「《コイン》×5を得る」＝条件節の1つを数えない');
+});
+
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

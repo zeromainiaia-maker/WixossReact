@@ -4259,9 +4259,78 @@ export interface SetCardCostReplacementAction {
   cost: EnergyCost[];
 }
 
+/**
+ * 🆕**§5.3 `O-60` 第49バッチ（2026-09-03）＝`GAIN_ABILITY_THIS_GAME` の payload。**
+ * 「このゲームの間、〜」で立つ恒久宣言を**1つずつ typed にした**もの。
+ *
+ * 🔴**旧実装は engine が `EffectText + BurstText` を 24本のリテラル regex で読み分けていた**
+ *   （`census:enginetext` A🔴 の最大の catch-all＝24行）。カード全文を読むので
+ *   **どの宣言が立つかが他の効果やライフバースト文に釣られうる**うえ、
+ *   `メインフェイズ開始時.*手札.*5枚以下` のように**半角数字で書かれた regex が
+ *   原文の全角と一致せず1枚も当たらない**（＝`WXDi-P11-004` は丸ごと無言 no-op だった）。
+ * ⇒ **原文を読むのは parser（効果単位の原文＝`_sourceTextLog`）だけ**にし、
+ *   engine はこの payload だけを見る（payload が無い＝何も宣言しない＝fail-closed）。
+ */
+export type GameGrantSpec =
+  /** 「このゲームの間、あなた（／対戦相手）はグロウできない」 */
+  | { kind: 'noGrow'; player: 'self' | 'opponent' }
+  /** 「あなたのセンタールリグは【X】を得る」＝センタールリグへのキーワード付与 */
+  | { kind: 'centerLrigKeyword'; keyword: string }
+  /** 「このゲームの間、あなたは《X》を使用できない」 */
+  | { kind: 'blockCardName'; cardName: string }
+  /** 「このゲームの間、あなたのライフバーストは発動しない」 */
+  | { kind: 'suppressLifeBurst' }
+  /** 「あなたのメインフェイズ開始時、あなたの手札がN枚以下の場合、カードを1枚引く」 */
+  | { kind: 'mainPhaseDrawIfHandLte'; handLte: number }
+  /** 「あなたのセンタールリグがグロウしたとき、カードを1枚引く」 */
+  | { kind: 'growDraw' }
+  /** 「あなたの手札の枚数の上限はN増える」 */
+  | { kind: 'handSizeBonus'; value: number }
+  /** 「あなたのエナフェイズ開始時、カードを1枚引く」 */
+  | { kind: 'energyPhaseDraw' }
+  /** 「あなたのデッキにある＜X＞のシグニのレベルはNになる」（`cardClass:'*'`＝クラス指定なし） */
+  | { kind: 'deckSigniLevelOverride'; cardClass: string; level: number }
+  /** 「このゲームの間、あなたは《コインアイコン》を得られない」 */
+  | { kind: 'noCoinGain' }
+  /** 「宣言したシグニの基本レベルは０になり」 */
+  | { kind: 'declaredSigniLevelZero' }
+  /** 「あなたは宣言したシグニを限定条件を無視して場に出せる」 */
+  | { kind: 'declaredSigniIgnoreRestriction' }
+  /** 「対戦相手は追加で手札をN枚捨てるか《無》を支払わないかぎり【ガード】ができない」 */
+  | { kind: 'oppGuardExtraHandOrColorless'; handCount: number }
+  /** 「あなたが【ガード】する際、…代わりに手札をN枚捨ててもよい」 */
+  | { kind: 'guardAltHand'; handCount: number }
+  /** 「あなたのターン終了時、あなたのトラッシュから＜X＞のシグニN枚を手札に加える」 */
+  | { kind: 'turnEndTrashToHand'; cardClass: string; count: number }
+  /** 「あなたのグロウフェイズ開始時、…のリミットを＋Nする」（累積） */
+  | { kind: 'growPhaseLimitPlus'; value: number }
+  /** 「対戦相手は追加で《無》を支払わないかぎり【ガード】ができない」 */
+  | { kind: 'oppGuardExtraColorless' }
+  /** 「【起】手札から《ガードアイコン》を持つシグニ1枚を捨てる：【ルリグバリア】1つを得る」 */
+  | { kind: 'guardBarrierAct' }
+  /** 「あなたの場にある《X》の基本レベルと基本リミットは、対象の対戦相手のセンタールリグと同じ値になる」 */
+  | { kind: 'lrigCopyOppLevelLimit' }
+  /** 「このゲームの間にあなたがこの【起】を使用したのがN回目である場合、このルリグを裏返す」 */
+  | { kind: 'nthActivationFlip'; count: number }
+  /**
+   * 「このゲームの間、あなたは以下の能力を得る。『…』」の**見出し文だけ**。
+   * ⚠これ自体は盤面を変えない＝中身は他の grant／後続ステップが担う。
+   * 逆翻訳で見出しを描くためだけに残す（消すと原文の1文が逆翻訳から消える）。
+   */
+  | { kind: 'abilityBlockHeader' };
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /**
+   * `GAIN_ABILITY_THIS_GAME` の中身（§5.3 `O-60` 第49バッチ・2026-09-03）。
+   * 🔴**このペイロードが無い `GAIN_ABILITY_THIS_GAME` は「何も宣言しない」**（fail-closed）＝
+   *   parser が payload を落としても「効かない」で済み、原文に無い宣言が立つことはない。
+   * ⚠**1効果に `GAIN_ABILITY_THIS_GAME` が2つ出る形（`WXK03-003A-E2`）では
+   *   先頭のノードにだけ全宣言を載せ、残りは空配列**にする（engine は一度に全部適用するので
+   *   同じ配列を両方へ載せると `nthActivationFlip` の使用回数が**1回の起動で2進む**）。
+   */
+  gameGrants?: GameGrantSpec[];
   /** 宣言後の処理が別の型付き action にある場合、逆翻訳では宣言文だけを描く。engine は読まない。 */
   decompileDeclarationOnly?: boolean;
   /**

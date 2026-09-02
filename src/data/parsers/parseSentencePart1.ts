@@ -4063,7 +4063,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- コイン獲得（《コインアイコン》を得る）----
   if (t.match(/《コインアイコン》/) && t.includes('を得る')) {
-    const count = (t.match(/《コインアイコン》/g) ?? []).length;
+    // ⚠**条件節の《コインアイコン》を数えない**（§5.3 `O-60` 第49バッチ・2026-09-03 に発見）＝
+    //   `WXDi-P07-006-E1`「このゲームの間にあなたが**《コインアイコン》を得ていない場合**、
+    //   《コインアイコン》×5を得る」が **6枚**になっていた（原文は5枚）。
+    //   ⚠条件節を落とすと本文にアイコンが1つも無くなる形（別の文型）もあるので、そのときは元に戻す。
+    const bodyGC = t.replace(/^.*?場合、/, '');
+    const countSrcGC = bodyGC.includes('《コインアイコン》') ? bodyGC : t;
+    const count = (countSrcGC.match(/《コインアイコン》/g) ?? []).length;
     return { type: 'GAIN_COIN', owner: 'self', count };
   }
 

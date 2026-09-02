@@ -1,5 +1,35 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第37〜48バッチ・索引 A 第8巡・Opus 5 単独）＝miss を 0 にした（12バッチ）**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**103行 / 101ハンドラ → 77行 / 75ハンドラ**、
+  🔑**miss 9ハンドラ・15カード → 0ハンドラ・0カード**（miss の在庫は空になった）。
+  📦**在庫2本＝④機構 worklist 24項目**（`O-60` は継続・新規登録0）
+  ｜**⑤実機 残 2件**（`V-131`／`V-132`）＋🆕**今回の分**（下記）。
+  gates 全緑（golden **3334 / 3334**＝+11本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴77**・census-costtext A🔴0 据置・lint 0 errors）。
+
+  🔴**この巡の一番の発見＝`ON_RISE` 一族11枚の「向きが逆」**。`ON_RISE` を持つカードは**1枚も【ライズ】を
+  印字していない**＝ライズする側ではなく**ライズされる側（下敷き）**なのに、①収集元が「置かれた側」
+  ②「そのシグニ」が `thisCardOnly`（＝下に埋まった自分自身）③名前限定が「下敷きの名前」だった。
+  ⇒ **この11枚は1度も発火しない死に効果**だった。3点とも反転し `risedOntoNameContains`→`risenByNameContains` へ改名。
+
+  🔑**catch-all は「割ってから」でないと直せない**＝`DECK_TOP_TO_LIFE`（4文型）と `LOOK_AND_REORDER`（15文型）は
+  live の 2枚／6枚が**全部違う効果**で、engine の1ハンドラが原文で枝分かれしていた。
+  `WXK02-035-E2` は「デッキの一番下→チェックゾーン」が「デッキの一番上→**自分のライフ**」に化けており、
+  `WX13-035` / `WXDi-CP02-033` は直前の公開に加えて**もう一度めくる**二重処理だった。
+
+  🧹**`live 0` は「死んだ枝」の十分条件ではない**＝第37 は live 0 の27ハンドラのうち**18本だけ**を消した
+  （残りは `fn:` 関数・`INTERNAL_*`・live の別 id と関数を共有するもの）。
+  **判定は `build:effects` 後の live がバイト同一であること**で取る。
+
+  🖥🔴**実機が必要（PLAN §2.2）＝`src/screens/BattleScreen.tsx` を触った**（`ON_RISE` の収集元反転と
+  相手エナ色制限の引数変更）。**新しい型・機構も足した**（`CountFromZone.zone:'appearance_cost'`＋`sumBy:'level'`／
+  `$ref:'self_energy_count'`／`GrantEffectAction.targetsTriggerSource`／
+  `TransferToDeckAction.position:'top_or_bottom'`／`ADD_TO_FIELD.source:'CHECK_CARD'`／`trapSource:'deck_bottom'`）。
+  ⇒ **§5.1 へ `V-133`〜`V-135` を登録した**（未実施）。
+
 - **セッション（2026-09-03・`O-60` 第29〜36バッチ・索引 A 第7巡・Opus 5 単独）＝残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

@@ -1,5 +1,99 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第9巡）：§5.3 `O-60` 第49バッチ — 最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化
+
+**ベースライン**＝`a5679359a`（第47〜48バッチの直後）。**A🔴 SELF_TEXT 77行 → 76行 / 75→74ハンドラ**、
+`BASELINE_SELF_TEXT` も 76 へ払い戻し済み。**gates 全緑**（golden 3334 → **3340**＝+6本）。
+✅**実機不要**＝触ったのは `src/types/` `src/data/` `src/engine/` `public/data/` ＋ `scripts/`（計器・逆翻訳・golden）だけで、
+**`src/screens/` は1行も触っていない**（PLAN §2.2 の機械判定）。⚠新しい payload 型（`GameGrantSpec`）は足したが、
+**消費地点は既存の state キー20本そのまま**＝新しい engine 機構は0。
+
+### 何を取ったか
+
+`GAIN_ABILITY_THIS_GAME`＝`O-60` の**live 最大**（19効果 / 18カード）かつ**リテラル24本の最大の catch-all**。
+`execStubPart1.ts:3624` が実行時に `card.EffectText + card.BurstText`（＝**カード全文**）を
+24本の regex で読み分け、当たったぶんだけ `PlayerState` の恒久フラグを立てていた。
+
+**直し方**＝原文を読むのを**parser 1箇所**（新設 `src/data/parsers/gameGrants.ts`・**効果単位の原文**）へ寄せ、
+engine は payload（`StubAction.gameGrants: GameGrantSpec[]`）だけを見る。
+逆翻訳（`decompileEffects.ts`）も payload から描く。**payload が無い／空なら engine は何も宣言しない（fail-closed）**。
+
+🔑**なぜ「文の受け皿サイト」ではなく効果単位の後処理か**＝受け皿サイト（`parseSentencePart3/4` の12箇所）が
+見ている文は**「このゲームの間、あなたは以下の能力を得る」だけ**で、実際の宣言が書いてある
+**『…』の引用ブロックは別の文**だった（12サイト全部を実測して確認）。⇒ 文単位では中身が1つも取れない。
+`applyGameGrantsBatch49`（`effectParser.ts`・`currentSourceTexts` を読む後処理）で刻む。
+
+### 真因3件（payload 化で初めて見えた）
+
+**①`WXDi-P11-004-E1` は丸ごと無言 no-op だった。** regex が `メインフェイズ開始時.*手札.*5枚以下`（**半角5**）で、
+原文は「あなたの手札が**５枚以下**の場合」（全角）＝**1枚も当たらず** `game_main_draw` が一度も立たなかった。
+🔑**miss=0 でも壊れている**（`census:enginetext` は「1本も当たらないハンドラ」を miss と数えるが、
+このハンドラは**他の23本のどれかが当たる**ので miss に出ない）＝登録票の警告どおり。
+⇒ `gameGrants.ts` には「**規則を足すときは必ず全角数字を許す**（`[０-９\d]`）」を明記した。
+
+**②`WXK03-003A-E2` は1回の起動で使用回数が2進んでいた。** 原文2文がそれぞれ STUB を作るので
+`SEQUENCE` にノードが2つ並び、旧 engine は**ノードごとにカード全文を読み直して**いた
+＝`lrig_activation_count` が **+2**（「5回目に裏返す」が**3回目**に来る）。
+⇒ 後処理は**先頭ノードにだけ全宣言を載せ、残りは空配列**にする（型コメントに理由を書いた）。
+
+**③「手札N枚捨てるか《無》」と「《無》だけ」が同時に立ちうる形だった。**
+`対戦相手は追加で《無》を支払わないかぎり【ガード】ができない` は
+`対戦相手は追加で手札を1枚捨てるか《無》を支払わないかぎり…` の**部分文字列ではない**が、
+両者を独立の `if` で並べていたため文型が近い将来のカードで二重に立つ。⇒ 排他（`else if`）にして golden で固定。
+
+### ついでに直した parser バグ（`O-60` の実装中に発見）
+
+`WXDi-P07-006-E1`（発進！WIXOSSロボ）の **`GAIN_COIN{count:6}`**。
+`parseSentencePart1.ts` のコイン規則が**文中の《コインアイコン》を全部数える**ので、
+条件節「このゲームの間にあなたが**《コインアイコン》を得ていない場合**」の1つまで数えていた（原文は5枚）。
+⇒ 条件節（`〜場合、`）を落としてから数える（落とすと本文にアイコンが無くなる文型は元へ戻す）。
+**live 全数を走査して、`GAIN_COIN{count>1}` 43効果のうち誤っていたのはこの1件だけ**を確認済み。
+
+### 影響枚数
+
+**18カード / 19効果**（`WX08-015` `WX10-011` `WX24-P4-036` `WX25-P2-001` `WX25-P2-003` `WX25-P2-005`
+`WX25-P2-007` `WXDi-P04-006` `WXDi-P05-004` `WXDi-P05-005` `WXDi-P06-006` `WXDi-P07-006` `WXDi-P11-004`
+`WXDi-P11-010A` `WXK03-003A` `WXK07-056` `WXK08-028` `WXK09-001`）。
+**挙動が変わったのは3件**（①②＋コイン枚数）。残りは payload へ移しただけで実挙動は同一。
+
+### 検証コマンド
+
+- `npm run golden -- --only "O-60 第49"`（**6本**＝live 全ノードの payload 走査ラチェット／`WXDi-P11-004` の
+  ドロー宣言／`WX10-011` の2宣言＋キーワードが payload 由来／`WXK03-003A` の使用回数+1／
+  ガード追加コストの排他／コイン5枚）
+- `npm run gates`（全緑）＝golden **3340/3340**・smoke **10725/10725**・fuzz 0・census **高シグナル 3 / BASELINE 3**・
+  `census:stubs` A群🔴 0・C群 0・`census:enginetext` **A🔴 76 / BASELINE 76**・`census:costtext` A群 0
+- `npm run regen`（逆翻訳を再生成して payload 描画を目視）
+
+### 反転確認（あり）
+
+engine 側を3箇所壊して golden が落ちることを確認した（**6本中3本 FAIL**）＝
+①`mainPhaseDrawIfHandLte` で state を書かない ②`oppGuardExtraHandOrColorless` で `game_opp_guard_extra_colorless`
+も一緒に立てる ③`centerLrigKeyword` のキーワードを `'ダブルクラッシュ'` にハードコードする。
+🔴🔑**最初に parser 側を壊す反転を試したが素通りした**＝収穫マージが
+**fresh が痩せた効果を live へ届けない**（`_held_fresh.json` に回る）ため。
+⇒ **payload 生成側の反転確認は live に届かない。壊すなら消費側（engine）を壊す。**
+
+### 罠（次に同じ形を取る人へ）
+
+- ⚠**`abilityBlockHeader` は配列の先頭に置く**＝逆翻訳が「このゲームの間、あなたは以下の能力を得る。〈中身〉」
+  の語順で読める。末尾だと「〜引く。あなたは以下の能力を得る」と倒置して読めない。
+  **並べ替えただけでも live には届かない**（fresh が richer でないので held）＝`--adopt-effect` が要る。
+- ⚠**収穫マージ待ちの効果が6件あった**＝`WX25-P2-001` `WXDi-P04-006` `WXDi-P05-005` `WXDi-P06-006`
+  `WXDi-P11-004` `WXDi-P07-006` は `_held_fresh.json` 行き（`--adopt-effect` で効果単位に採用）、
+  `WX24-P4-036` `WX25-P2-005` `WX25-P2-007` `WXDi-P11-010A` は MANUAL/PARTIAL 不可侵なので
+  `manualEffects.ts` へ手書き ＋ `syncManualLive.ts`。
+  🔑**「live 全19ノードが payload を持つ」を golden のラチェットにした**＝この配送漏れは他のどの計器にも出ない。
+
+### 新規登録
+
+**`O-226`（3効果 / 2カード）**＝`GAIN_ABILITY_THIS_GAME` が書く state キーのうち
+`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`（`WXK09-001-E3`）と
+`lrig_activation_count`（`WXK03-003A-E2` の「このルリグを裏返す」）に**読み手が1人もいない**（真no-op）。
+🔑**payload 化で初めて見えた**＝旧実装は「ハンドラがある＝実装済み」に見え、`census:stubs` A群にも出なかった。
+
+---
+
 ## 2026-09-03（索引 A 第8巡）：§5.3 `O-60` 第37〜48バッチ — miss を 0 にした（12バッチ）
 
 **ベースライン**＝`5c09cf33d`（第29〜36バッチの直後）。**A🔴 SELF_TEXT 103行 → 77行 / 101→75ハンドラ**、

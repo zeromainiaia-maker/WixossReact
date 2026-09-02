@@ -3673,7 +3673,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX24-P4-014-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"RECOLLECT_GATE","minArts":4},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"opponent","operator":"eq","value":0},"then":{"type":"STUB","id":"OPP_LRIG_DECK_TO_LRIG_TRASH","raw":"対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く"}}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
   ],
   "WX24-P4-036": [
-    {"effectId":"WX24-P4-036-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"PLACE_LIMIT_UPPER"},{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX24-P4-036-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"PLACE_LIMIT_UPPER"},{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME","gameGrants":[{"kind":"abilityBlockHeader"},{"kind":"growDraw"}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
   "WX24-P4-061": [
     {"effectId":"WX24-P4-061-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ"},"pickCount":2,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}},"else":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","level":{"max":2}},"pickCount":2,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom","reorder":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -3691,10 +3691,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-P1-039-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","cardClass":"原子"},"pickCount":1,"then":"hand","pickUpTo":true},{"filter":{"cardType":"シグニ","cardClass":"原子"},"pickCount":1,"then":"field","pickUpTo":true}],"remainder":{"location":"deck","position":"bottom","reorder":true},"lastProcessedFrom":"field"},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLteLastProcessed":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
   "WX25-P2-005": [
-    {"effectId":"WX25-P2-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"},{"type":"STUB","id":"HAND_SIZE_INCREASE","handLimitDelta":2}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX25-P2-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME","gameGrants":[{"kind":"abilityBlockHeader"},{"kind":"energyPhaseDraw"},{"kind":"handSizeBonus","value":2}]},{"type":"STUB","id":"HAND_SIZE_INCREASE","handLimitDelta":2}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
   "WX25-P2-007": [
-    {"effectId":"WX25-P2-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"},{"type":"STUB","id":"GUARD_ALTERNATIVE_COST"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
+    {"effectId":"WX25-P2-007-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"GAIN_ABILITY_THIS_GAME","gameGrants":[{"kind":"abilityBlockHeader"}]},{"type":"STUB","id":"GUARD_ALTERNATIVE_COST"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"},
   ],
   "WX25-P2-034": [
     {"effectId":"WX25-P2-034-E1","effectType":"AUTO","timing":["ON_SPELL_USE"],"triggerCondition":{"turnOwner":"self"},"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"story":"電機"}},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
@@ -9068,7 +9068,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // §3 task12(xxii) B2: the effective-limit gate is implemented; the all-zone reset/exile/face-down body is atomic defer.
   "WXDi-P11-010A": [
     {"effectId":"WXDi-P11-010A-E1","effectType":"AUTO","timing":["ON_GROW_PHASE_START"],"action":{"type":"SEQUENCE","steps":[
-      {"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"},
+      {"type":"STUB","id":"GAIN_ABILITY_THIS_GAME","gameGrants":[{"kind":"growPhaseLimitPlus","value":1}]},
       {"type":"CONDITIONAL","condition":{"type":"EFFECTIVE_LRIG_LIMIT_GTE","value":9},"then":{"type":"STUB","id":"MUGEN_Q_RESET_AND_FLIP"}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],

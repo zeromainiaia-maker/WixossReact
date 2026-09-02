@@ -11,47 +11,58 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-03・`O-60` 第37〜48バッチ・索引 A 第8巡・Opus 5 単独）＝miss を 0 にした（12バッチ）**
-  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+- **セッション（2026-09-03・`O-60` 第49バッチ・索引 A 第9巡・Opus 5 単独）＝最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（`WX08-015` `WX10-011` が `mech` から降りた）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  **この項目の計器は `census:enginetext` の A群**＝**103行 / 101ハンドラ → 77行 / 75ハンドラ**、
-  🔑**miss 9ハンドラ・15カード → 0ハンドラ・0カード**（miss の在庫は空になった）。
-  📦**在庫2本＝④機構 worklist 24項目**（`O-60` は継続・新規登録0）
-  ｜**⑤実機 残 2件**（`V-131`／`V-132`）＋🆕**今回の分**（下記）。
-  gates 全緑（golden **3334 / 3334**＝+11本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
-  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴77**・census-costtext A🔴0 据置・lint 0 errors）。
+  **この項目の計器は `census:enginetext` の A群**＝**77行 / 75ハンドラ → 76行 / 74ハンドラ**（miss は 0 のまま／
+  `BASELINE_SELF_TEXT` も 76 へ払い戻し）。🔑**live 効果を測り直した＝179 → 134**（旧値は複合 id の重複を数えていた）。
+  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続／🆕`O-226` を1件登録＝24→25）
+  ｜**⑤実機 残 5件**（`V-131`／`V-132`／`V-133`〜`V-135`・今回の追加は0）。
+  gates 全緑（golden **3340 / 3340**＝+6本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴76**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更19・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定（PLAN §2.2）**＝`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない**。新設したのは payload 型（`GameGrantSpec`）だけで**engine 機構は0**
+  （消費先は既存の `PlayerState` 恒久フラグ20本そのまま）。
 
-  🔴**この巡の一番の発見＝`ON_RISE` 一族11枚の「向きが逆」**。`ON_RISE` を持つカードは**1枚も【ライズ】を
-  印字していない**＝ライズする側ではなく**ライズされる側（下敷き）**なのに、①収集元が「置かれた側」
-  ②「そのシグニ」が `thisCardOnly`（＝下に埋まった自分自身）③名前限定が「下敷きの名前」だった。
-  ⇒ **この11枚は1度も発火しない死に効果**だった。3点とも反転し `risedOntoNameContains`→`risenByNameContains` へ改名。
+  🔴**この巡の一番の発見＝`miss=0` は「壊れていない」ではない、の実例。**
+  `GAIN_ABILITY_THIS_GAME` は**24本のリテラルのうち1本でも当たれば miss に出ない**ので、
+  `メインフェイズ開始時.*手札.*5枚以下`（**半角5**）が原文の全角「５枚以下」に**1枚も当たらない**まま
+  `WXDi-P11-004` が**丸ごと無言 no-op**だった。⇒ **リテラルが複数あるハンドラは
+  `censusEngineText.ts --id <ハンドラ>` の「カード別 当たり外れ」で1本ずつ見る。**
 
-  🔑**catch-all は「割ってから」でないと直せない**＝`DECK_TOP_TO_LIFE`（4文型）と `LOOK_AND_REORDER`（15文型）は
-  live の 2枚／6枚が**全部違う効果**で、engine の1ハンドラが原文で枝分かれしていた。
-  `WXK02-035-E2` は「デッキの一番下→チェックゾーン」が「デッキの一番上→**自分のライフ**」に化けており、
-  `WX13-035` / `WXDi-CP02-033` は直前の公開に加えて**もう一度めくる**二重処理だった。
+  🔴**もう1件＝`WXK03-003A-E2` は1回の起動で使用回数が2進んでいた**（原文2文がそれぞれ STUB を作り、
+  旧 engine が**ノードごとにカード全文を読み直して**いた）＝「5回目に裏返す」が**3回目**に来ていた。
+  ⇒ 後処理は**先頭ノードにだけ全宣言を載せ、残りは空配列**にする。
 
-  🧹**`live 0` は「死んだ枝」の十分条件ではない**＝第37 は live 0 の27ハンドラのうち**18本だけ**を消した
-  （残りは `fn:` 関数・`INTERNAL_*`・live の別 id と関数を共有するもの）。
-  **判定は `build:effects` 後の live がバイト同一であること**で取る。
+  🔑**payload 化の刻み場所は「文の受け皿サイト」ではなく「効果単位の後処理」だった**＝受け皿サイト12箇所が
+  見ている文は「このゲームの間、あなたは以下の能力を得る」**だけ**で、宣言の中身が書いてある『…』は別の文
+  （12サイト全部を実測）。`docs/_effect_srctext.json`（効果単位の原文）を読む後処理なら中身まで取れる。
 
-  🖥🔴**実機が必要（PLAN §2.2）＝`src/screens/BattleScreen.tsx` を触った**（`ON_RISE` の収集元反転と
-  相手エナ色制限の引数変更）。**新しい型・機構も足した**（`CountFromZone.zone:'appearance_cost'`＋`sumBy:'level'`／
-  `$ref:'self_energy_count'`／`GrantEffectAction.targetsTriggerSource`／
-  `TransferToDeckAction.position:'top_or_bottom'`／`ADD_TO_FIELD.source:'CHECK_CARD'`／`trapSource:'deck_bottom'`）。
-  ⇒ **§5.1 へ `V-133`〜`V-135` を登録した**（未実施）。
+  🔴🔑**反転確認の教訓＝payload 生成側（parser）を壊す反転は素通りする。**
+  収穫マージが**fresh が痩せた効果を live へ届けない**（`_held_fresh` に回る）ので golden は緑のまま。
+  ⇒ **壊すなら消費側（engine）**。3箇所壊して 6本中3本 FAIL を確認した。
 
-**▶ 次の一手**＝**`O-60` の続き（第49バッチ〜）＝miss の在庫は尽きたので、ここからは「live の多い順」に取る。**
-🔑**残 75ハンドラ・live 179効果**（A🔴 77行）。⚠**miss=0 は「正しい」ではない**＝たまたま当たっているだけで、
-原文の言い回しが1つ違えば既定値へ落ちる（登録票の警告）。
-**取る順**＝`GAIN_ABILITY_THIS_GAME`（live19・**リテラル24本の最大の catch-all**＝先に文型を割る）→
-`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族と同じ設計問題）→
-`SONG_FRAGMENT`（live11）→ `BET_MECHANIC`（live8）→ `ADD_CARD_TO_LRIG_DECK`（live6）→
-`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）→ 以下 live1〜3 が **49ハンドラ**。
+  ⚠**配送が3系統に割れた**＝AUTO 6件は `--adopt-effect`／MANUAL・PARTIAL 4件は `manualEffects.ts` 手書き＋
+  `syncManualLive.ts`／残りは build で自動。**payload の並べ替えだけでも live には届かない**（held）。
+  🔑**「live 全19ノードが payload を持つ」を golden のラチェットにした**＝この配送漏れは他のどの計器にも出ない。
+
+  🧹**payload 化すると死んだ state キーが見える**＝`game_declared_signi_level_zero` /
+  `game_declared_signi_ignore_restriction` / `lrig_activation_count` に読み手が0だった（→ 🆕`O-226`）。
+  **旧実装は「ハンドラがある＝実装済み」に見え、`census:stubs` A群にも出なかった。**
+
+**▶ 次の一手**＝**`O-60` の続き（第50バッチ〜）＝引き続き「live の多い順」に取る。**
+🔑**残 74ハンドラ・live 134効果**（A🔴 76行）。⚠**miss=0 は「正しい」ではない**（第49バッチで実証済み）。
+**取る順**＝`GRANT_ABILITY_INNER_TEXT`（live14・**lit0**）→ `SONG_FRAGMENT`（live11・**lit0**）→
+`BET_MECHANIC`（live8）→ `ADD_CARD_TO_LRIG_DECK`（live6）→ `HAND_REVEAL_CLASS_SIGNI`・
+`POWER_MOD_PER_REVEALED`（live5）→ `CHOOSE_HAND_OR_ENERGY`・`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`（live4）→ 以下 live1〜3。
+🔴**上位2件は `lit0`（リテラル0本）＝引用文を実行時に再パースする形**で、payload 化には
+**「引用能力を parser 側で構造化する」（`O-128` の家系）**が要る＝**リテラルを置き換えるだけの回とは質が違う**。
+着手前に `npx tsx scripts/censusEngineText.ts --id GRANT_ABILITY_INNER_TEXT` で14効果の文型を割る。
 🔑**着手前に live の payload 充足率を数える**＝全効果が payload を持っていれば engine 側は
 **1行の fail-closed に置き換えるだけ**で終わる（第44・第47 がこの形だった）。
-⚠**`live 0` の12ハンドラを「死んだ枝」と読まない**（`fn:` / `INTERNAL_*` / 別 id と関数共有）。
-🖥**先に `V-133`〜`V-135` の実機を消化する**（`ON_RISE` の収集元反転は `src/screens/` を触っている）。
+⚠**`live 0` のハンドラを「死んだ枝」と読まない**（`fn:` / `INTERNAL_*` / 別 id と関数共有）。
+🖥**実機の残は5件**（`V-131`／`V-132`／`V-133`〜`V-135`）＝`src/screens/` を触った回の分が溜まっている。
 
 ---
 
@@ -782,7 +793,7 @@
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-60` | **75ハンドラ / live 179効果**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>**A🔴 77行 / 75ハンドラ・miss 0**。**第48バッチまで消化済み**<br>🔑**miss は 0 になったが閉じていない**＝登録票どおり **miss=0 は「正しい」ではない**（たまたま当たっているだけ）<br>🔑**取る順は live の多い順**＝`GAIN_ABILITY_THIS_GAME`(19・リテラル24本) → `GRANT_ABILITY_INNER_TEXT`(14) → `SONG_FRAGMENT`(11) → `BET_MECHANIC`(8) → …live1〜3 が49ハンドラ |
+| `O-60` | **74ハンドラ / live 134効果**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>**A🔴 76行 / 74ハンドラ・miss 0**。**第49バッチまで消化済み**<br>🔑**miss は 0 になったが閉じていない**＝登録票どおり **miss=0 は「正しい」ではない**（第49バッチで実証＝24本のリテラルのうち1本が全角数字に当たらず1枚が丸ごと no-op だったが miss には出なかった）<br>🔑**取る順は live の多い順**＝`GRANT_ABILITY_INNER_TEXT`(14) → `SONG_FRAGMENT`(11) → `BET_MECHANIC`(8) → `ADD_CARD_TO_LRIG_DECK`(6) → …live1〜3<br>⚠**上位2件は `lit0`（リテラル0本＝引用文の実行時再パース）**＝payload 化には `O-128` 家系の「引用能力の構造化」が要る |
 | `O-193` | **25効果** | `census:wiring` の has=0 語彙が未配線＝`isDrive` 14／`powerLteSelf` 9／`levelLtSelf` 2 |
 | `O-198` | **23効果** | `LOOK_PICK_CHAIN` が「ちょうどN枚」を表現できない＝`pickCount` が上限としてしか渡らず0枚を選べる（過小実行）<br>⚠census では原理的に検出できない |
 | `O-192` | **19効果** | `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` がアシストルリグを数え落とす（`matchesFilter` の cardType が厳密一致）<br>続き385 実測 |
@@ -983,6 +994,7 @@
 |---|---|---|
 | `O-219` | **7効果**<br>🆕2026-09-02 実測 | 🔴**グロウ先カード自身が持つグロウコスト修正が1件も読まれない（恒久 no-op）**＝原文「**この**カードにグロウするためのコストは〜」。`collectGrowCostReductions` は**自分の場のシグニ＋センタールリグ**しか走査せず、**いまグロウしようとしている先のカード（ルリグデッキの中）**は候補に入らない。`GROW_COST_ZERO` / `GROW_FREE` も同じ（`freeGrowFilter` は別効果が立てる）。<br>**母集団＝7カード7効果**（`WX14-009` `WD13-002` `WD13-003` `WD14-001` ＝`GROW_COST_REDUCTION`／`WX21-017` `WX21-018` ＝`STUB{GROW_COST_ZERO}`／`WX13-001` ＝`GROW_FREE`）。<br>🔑**受け皿は在る**＝直すのは**収集の軸**（`collectGrowCostReductions` に「グロウ先カード」を渡す口を足す）。⚠**場に居るときに読んではいけない**（既にセンターなら原文の意味が消えており、そのまま拾うと**次のグロウが不当に安くなる**）。<br>⚠**4効果は条件つき**＝`WD13-002`/`WD13-003` は「グロウする際に手札から公開した場合」・`WX21-017`/`WX21-018` は「手札から捨ててもよい」＝**グロウ時の支払い／公開 UI** が要る（`WD13-002` はいま**白×1と黒×1を無条件で両方**持っており、収集軸だけ直すと**過小コストになる**＝条件を先に付ける）。<br>▶**2026-09-02（`O-195` 再計測）で分離**。全文は PLAN_DETAIL.md |
 | `O-224` | **1効果** | 🆕**2026-09-03（`O-60` 第26バッチの実装中に発見）**＝「**レベルがこの方法でダウンしたシグニの数以下の**対戦相手のシグニ１体」（`SPDi43-23-E1`）の**レベル条件が丸ごと落ちている**。live は `BOUNCE{target:{SIGNI, opponent, count:1, filter:{cardType:'シグニ'}}}`＝**どのシグニでも手札に戻せる過剰実行**。🔑**前段は直った**＝`DOWN_UP_SIGNI_AND_CHOOSE` は第26バッチで payload 化し、ダウンした分を `lastProcessedCards` に残すようになった（＝**数を運ぶ足場はできている**）。■**要るもの**＝`TargetFilter` に「レベル ≤ 直前に処理した枚数」の動的しきい値（`levelLteLastProcessedCount` 等）＝`O-80` 族（動的カウントを filter へ運ぶ）と同じ設計問題。⚠**着手前に母集団を実測する**（「この方法で〜した数以下」を含む効果の全数）。 |
+| `O-226` | **3効果 / 2カード** | 🆕**2026-09-03（`O-60` 第49バッチの実装中に発見）**＝**`GAIN_ABILITY_THIS_GAME` が書く state キーのうち3本に読み手が1人もいない**（真no-op）。🔑**payload 化で初めて見えた**＝旧実装は engine がカード全文 regex で state を立てていたので「ハンドラがある＝実装済み」に見えていた（`census:stubs` A群にも出ない）。■**内訳**＝(a)`game_declared_signi_level_zero` ＋ (b)`game_declared_signi_ignore_restriction`（`WXK09-001-E3`「無色ではないシグニのカード名１つを宣言する。このゲームの間、あなたのメインデッキと手札と場にある**宣言したシグニの基本レベルは０になり**、あなたは**宣言したシグニを限定条件を無視して場に出せる**」）＝**setter だけで getter が0**（`src/types/index.ts` の宣言 ＋ `execStubPart1.ts` の代入のみ）／(c)`lrig_activation_count`（`WXK03-003A-E2`「この【起】を使用したのが５回目である場合、**このルリグを裏返す**」）＝**カウンタは正しく進むが裏返しが未実装**（ログのみ）。🔑**受け皿の見立て**＝(a) は `execUtils.ts:1592` の `deck_signi_level_override` と**同じ読み出し関数の家系**（あちらは §6.4 `O-34(c)` で getter を足して生き返った前例がある）＝**カード名軸に一般化するだけ**。(b) は `deployLimit.ts` の限定条件チェックに例外を1本。(c) は `card_identity_overrides`（`WXDi-P11-010A` の B面反転で実績あり）を使えば `A→B` の裏返しは書ける。⚠**着手前に母集団を実測する**（「宣言したシグニ」「このルリグを裏返す」を含む効果の全数＝**この3効果だけとは限らない**）。 |
 | `O-218` | **1効果** | 🆕**2026-09-02（索引 B 第2巡・`O-68`④ から分離）**＝**【シード】として置いたカードの【起】が UI から一度も提示されない**（`WXK04-060-E2`「【シード】であるこのカードを公開し、エナゾーンから＜植物＞のシグニ２枚をトラッシュに置く：この【シード】を開花する」）。🔑**コストの問題ではない**＝`energyTrash{2,植物}` は既に載っており、「【シード】である」ゲートも `SEED_BLOOM{seedTargetSelf}` が実行時に見ている（シードゾーンに居なければ何もしない）。🔴欠けているのは**入口**＝`field.signi_seeds` を読むのは `BattleScreen.tsx:744`（cardMap のロード）**1箇所だけ**で、シードの能力を surface するコードが無い。⇒ `O-114`（スペル／アーツの【起】が UI から不可）と同じ層。**`src/screens/` を触るので遅いレーン＋実機必須。** |
 
 #### 🏁 旧「索引 D. 母集団未計測」（34件）＝**2026-09-01 に全数実測して索引 A〜C・F へ解消した**
@@ -1166,29 +1178,33 @@
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-03（`O-60` 第29〜36バッチ・索引 A 第7巡）＝残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化（Opus 5 単独／本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+- **2026-09-03（`O-60` 第49バッチ・索引 A 第9巡）＝最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（前ブロックの記載 17 から -1）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
   ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  この項目の計器は **`census:enginetext` の A群**＝**115行 / 112ハンドラ → 103行 / 101ハンドラ**、
-  🔑**miss 20ハンドラ・26カード → 9ハンドラ・15カード**。
-  📦**在庫2本**＝**機構 worklist 24項目**（`O-60` は継続・新規登録0）｜**実機 残 2件**（`V-131`／`V-132`）
-  🔧**ゲート（全緑 ✅）**＝golden **3323 / 3323**（3321→3323＝8バッチの契約2本にまとめた）／
-  smoke 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 **103行**（`BASELINE_SELF_TEXT` も 103）／`census:costtext` A🔴 **0規則**（据置）／
+  Sheet1 が1枚減ったのは `WX08-015` `WX10-011` が `mech`（`O-60`）から降りたため（実挙動の前進）。
+  この項目の計器は **`census:enginetext` の A群**＝**77行 / 75ハンドラ → 76行 / 74ハンドラ**（miss は 0 のまま）。
+  🔑**A群の live 効果数を測り直した＝179 → 134**（旧値は複合 id 行の重複を数えていた。
+  測り方＝`docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計）。
+  📦**在庫2本**＝**機構 worklist 25項目**（`O-60` は継続／🆕`O-226` を1件登録＝24→25）
+  ｜**実機 残 5件**（`V-131`／`V-132`／`V-133`〜`V-135`）
+  🔧**ゲート（全緑 ✅）**＝golden **3340 / 3340**（3334→3340＝第49バッチの契約6本）／
+  smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **76行**（`BASELINE_SELF_TEXT` も 76）／`census:costtext` A🔴 **0規則**（据置）／
   lint 0 errors／`npm run regen` 完走。
-  🖥**実機＝不要と判定（§2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
-  **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
-  🔑**engine の一般則（この巡で足したもの）**＝**「単価の regex が外れる」より「修正先か数え方が裏返っている」
-  方が実害だった（4/4）**＝第29・第31 は修正先が**対戦相手のシグニ**（原文は「この**シグニ**のパワーは」＝真逆）、
-  第32 は正面ゾーンを `signi[zi]`（正面は `2 - zi`）で引いたうえ**効果元自身**に積んでいた。
-  🔴**typed へ寄せるときは `extract*` 系の収集関数の選別条件を読む**＝`POWER_MODIFY_PER_CHARM` に
-  型どおり `until:'PERMANENT'` を書いたら**恒久 no-op**（`until` があると ACTIVATED 扱いで CONTINUOUS 走査から外れる）。
-  **逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**形＝型の `until` を必須→任意へ緩めた。
-  🧹**手書きが parser に追い越されている例は「どの計器にも出ない」**＝`WXDi-P14-TK04` の手書きは
-  原文「１枚**まで**」に対し必ず1枚出させる過剰実行で、`O-60` の miss を追っていて偶然見つかった。
-  ⚠**ハンドラ撤去は `genStubsMd` の説明も消す**＝`POWER_CAP` が一度 `[STUB:POWER_CAP]`（生の英語 ID）になりかけた。
-  ✅**ブラスト半径＝効果 変更10・追加0・削除0、予定外0**。
+  🖥**実機＝不要と判定（§2.2）**＝`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない。** 新設は payload 型（`GameGrantSpec`）だけで**engine 機構は0**
+  （消費先は既存の `PlayerState` 恒久フラグ20本そのまま）。
+  🔑**engine の一般則（この巡で足したもの）**＝**`miss=0` は「壊れていない」ではない**＝
+  リテラルが複数あるハンドラは**1本でも当たれば miss に出ない**ので、
+  `メインフェイズ開始時.*手札.*5枚以下`（半角5）が原文の全角「５枚以下」に**1枚も当たらない**まま
+  `WXDi-P11-004` が丸ごと無言 no-op だった。**リテラル複数のハンドラは `--id` の「カード別 当たり外れ」で1本ずつ見る。**
+  🔴**同じ STUB が1効果に複数並ぶ形は「全文を読む実装」だと必ず多重適用になる**＝`WXK03-003A-E2` は
+  使用回数が1起動で+2（「5回目に裏返す」が3回目に来ていた）。**先頭ノードにだけ payload を載せる。**
+  🔴**payload 生成側（parser）を壊す反転確認は素通りする**＝収穫マージが fresh の痩せを live へ届けないため。
+  **反転は消費側（engine）を壊して取る。**
+  🧹**payload 化すると死んだ state キーが見える**＝`game_declared_signi_level_zero` ほか3本に読み手が0（→ `O-226`）。
+  ✅**ブラスト半径＝効果 変更19・追加0・削除0、予定外0**。
 
 ## 付録A. 全体像と Definition of Done
 

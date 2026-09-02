@@ -194,6 +194,7 @@ import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4, parseTrapSetSentence } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
+import { buildGameGrants } from './parsers/gameGrants';
 import { PRINTED_KEYWORD_COST_KEYS, printedKeywordCosts } from './keywordCosts';
 import { encodeAssassinScopesInText, encodeLancerScopesInText, encodeShadowScopesInText, normalizeKeywordName } from '../utils/keywords';
 
@@ -22929,6 +22930,38 @@ function applyDynamicActionCountBatch35(card: CardData, effects: CardEffect[]): 
  * 段2 第39バッチ：対象の静的レベルと、盤面／直前処理を参照するレベル条件を配線する。
  * 原文の文型と既存 action 木の両方をゲートにし、カード番号や固定閾値には依存しない。
  */
+/**
+ * 🆕**§5.3 `O-60` 第49バッチ（2026-09-03）＝`GAIN_ABILITY_THIS_GAME` に `gameGrants` を刻む。**
+ *
+ * 🔑**なぜ「文の受け皿サイト」ではなく効果単位の後処理なのか**＝
+ *   受け皿サイト（`parseSentencePart3/4`）が見ている文は
+ *   **「このゲームの間、あなたは以下の能力を得る」だけ**で、実際の宣言が書いてある
+ *   **『…』の引用ブロックは別の文**になっている（実測＝12サイト全部）。
+ *   ⇒ 文単位では中身が1つも取れない。効果単位の原文（`currentSourceTexts`）で読む。
+ *
+ * 🔴**同一効果に `GAIN_ABILITY_THIS_GAME` が複数出る形（`WXK03-003A-E2`＝2つ）では
+ *   先頭にだけ全宣言を載せ、残りは空配列にする。**
+ *   旧 engine は**ノードごとにカード全文を読み直していた**ので、
+ *   1回の起動で `lrig_activation_count` が**2進んでいた**（＝5回目の裏返しが3回目に来ていた）。
+ */
+function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, string>): void {
+  for (const effect of effects) {
+    const nodes: StubAction[] = [];
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as { type?: string; id?: string };
+      if (obj.type === 'STUB' && obj.id === 'GAIN_ABILITY_THIS_GAME') nodes.push(node as StubAction);
+      for (const v of Object.values(node as Record<string, unknown>)) {
+        if (Array.isArray(v)) v.forEach(visit); else visit(v);
+      }
+    };
+    visit(effect.action);
+    if (nodes.length === 0) continue;
+    const grants = buildGameGrants(sourceTexts.get(effect.effectId) ?? '');
+    nodes.forEach((n, i) => { n.gameGrants = i === 0 ? grants : []; });
+  }
+}
+
 function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): void {
   const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
   if (!/(?:レベル[０-９\d]+以下の＜[^＞]+＞のシグニ[^。]*下に置く|対戦相手のレベル[０-９\d]+以下のシグニ[^。]*基本パワー|センタールリグのレベル以下の対戦相手のシグニ|センタールリグのレベル以下の[^。]{0,20}シグニ[０-９\d]*枚を探して|手札の枚数以下の場合|ダウンしたシグニの数以下|このシグニの下にあるカードの枚数以下|同じレベルの対象の対戦相手のシグニ|レベルの合計がこの方法で(?:デッキの一番下に置いたシグニの数以下|トラッシュに置いたシグニのレベルの合計と等しく|捨てられたシグニのレベルの合計と等しく)|レベルの合計が[０-９\d]+(?:以上|以下)?の場合|。[０-９\d]+(?:以上|以下)?の場合|シグニの効果を受けない|このルリグと同じレベル)/.test(allText)) return;
@@ -24789,6 +24822,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   applyVirusRemovedCountTail(card, effects);
   applySourceColorMismatchOptionalTarget(card, effects);
+  applyGameGrantsBatch49(effects, currentSourceTexts);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
     // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に

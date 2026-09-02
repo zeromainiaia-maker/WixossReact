@@ -3620,172 +3620,134 @@ export function execStubPart1(
     }, '対戦相手の次のリフレッシュを置換'));
   }
   // GAIN_ABILITY_THIS_GAME: このゲームの間、グロウ不可・キーワード付与・特定カード名の使用禁止などの常在効果を得る
-  // ⚠原文を実行時に読み分ける受け皿＝どの宣言が立つかはカードごとに違う。
+  // 🆕**§5.3 `O-60` 第49バッチ（2026-09-03）＝`stub.gameGrants`（payload）だけを読む。**
+  // 🔴旧実装は `EffectText + BurstText`（＝カード全文）を**24本のリテラル regex** で読み分けていた
+  //   （`census:enginetext` A🔴 の最大の catch-all）。読み替えの理由は3つ：
+  //   ①カード全文なので**同じカードの別効果やライフバースト文の語句で宣言が立ちうる**
+  //   ②regex が外れても盤面が動かないだけで**誰も気づけない**（`メインフェイズ開始時.*手札.*5枚以下` は
+  //     原文が全角「５枚以下」なので1枚も当たらず、`WXDi-P11-004` は丸ごと無言 no-op だった）
+  //   ③同じ効果に本 STUB が2つ並ぶ形（`WXK03-003A-E2`）で**1回の起動なのに全文を2回読んでいた**＝
+  //     `lrig_activation_count` が2進み、5回目の裏返しが3回目に来ていた。
+  // 🔑**原文を読むのは parser（`src/data/parsers/gameGrants.ts`・効果単位の原文）だけ**。
+  // ⚠**payload が無い／空なら何も宣言しない**（fail-closed）＝旧既定の「全文を読んで拾えたものを全部立てる」の逆。
   if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
-    const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';
+    const grantsGA = stub.gameGrants;
+    if (!grantsGA) return done(addLog(ctx, '[未実装] このゲームの間の宣言（gameGrants なし）'));
     let ctxGA = ctx;
     const logsGA: string[] = [];
-    // 「あなたはグロウできない」（「このゲームの間」句を含む複合文も含む）
-    if (txtGA.match(/あなたはグロウできない/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, no_grow: true } };
-      logsGA.push('グロウ不可（このゲーム）');
-    }
-    // 「対戦相手はグロウできない」
-    if (txtGA.match(/対戦相手はグロウできない/)) {
-      ctxGA = { ...ctxGA, otherState: { ...ctxGA.otherState, no_grow: true } };
-      logsGA.push('相手グロウ不可（このゲーム）');
-    }
-    // 「あなたのセンタールリグは【ダブルクラッシュ】を得る」→ keyword_grantsに追加
-    if (txtGA.match(/センタールリグは【ダブルクラッシュ】を得/)) {
-      const centerGAcn = ctxGA.ownerState.field.lrig.at(-1);
-      if (centerGAcn) {
-        const grantsGA = { ...(ctxGA.ownerState.keyword_grants ?? {}) };
-        grantsGA[centerGAcn] = [...new Set([...(grantsGA[centerGAcn] ?? []), 'ダブルクラッシュ'])];
-        ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, keyword_grants: grantsGA } };
-        logsGA.push('センタールリグにダブルクラッシュ付与（このゲーム）');
+    for (const g of grantsGA) {
+      switch (g.kind) {
+        case 'noGrow': {
+          ctxGA = g.player === 'opponent'
+            ? { ...ctxGA, otherState: { ...ctxGA.otherState, no_grow: true } }
+            : { ...ctxGA, ownerState: { ...ctxGA.ownerState, no_grow: true } };
+          logsGA.push(g.player === 'opponent' ? '相手グロウ不可（このゲーム）' : 'グロウ不可（このゲーム）');
+          break;
+        }
+        case 'centerLrigKeyword': {
+          const centerGA = ctxGA.ownerState.field.lrig.at(-1);
+          if (!centerGA) break;
+          const grantsMapGA = { ...(ctxGA.ownerState.keyword_grants ?? {}) };
+          grantsMapGA[centerGA] = [...new Set([...(grantsMapGA[centerGA] ?? []), g.keyword])];
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, keyword_grants: grantsMapGA } };
+          logsGA.push(`センタールリグに${g.keyword}付与（このゲーム）`);
+          break;
+        }
+        case 'blockCardName':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            blocked_card_names: [...(ctxGA.ownerState.blocked_card_names ?? []), g.cardName] } };
+          logsGA.push(`《${g.cardName}》の使用をブロック`);
+          break;
+        case 'suppressLifeBurst':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_suppress_lb: true } };
+          logsGA.push('ライフバースト全無効（このゲーム）');
+          break;
+        case 'mainPhaseDrawIfHandLte':
+          // ⚠消費地点（`BattleScreen`）の閾値は 5 固定＝payload の `handLte` が5以外なら近似になる。
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_main_draw: true } };
+          logsGA.push(`メインフェイズ開始時ドロー（手札${g.handLte}枚以下・このゲーム）`);
+          break;
+        case 'growDraw':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_draw: true } };
+          logsGA.push('グロウ時ドロー（このゲーム）');
+          break;
+        case 'handSizeBonus':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            game_hand_size_bonus: (ctxGA.ownerState.game_hand_size_bonus ?? 0) + g.value } };
+          logsGA.push(`手札上限+${g.value}（このゲーム）`);
+          break;
+        case 'energyPhaseDraw':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_energy_phase_draw: true } };
+          logsGA.push('エナフェイズ開始時ドロー（このゲーム）');
+          break;
+        case 'deckSigniLevelOverride':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            deck_signi_level_override: { class: g.cardClass, level: g.level } } };
+          logsGA.push(`デッキ内＜${g.cardClass}＞シグニのレベルをLv${g.level}扱い（このゲーム）`);
+          break;
+        case 'noCoinGain':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_no_coin_gain: true } };
+          logsGA.push('コイン獲得禁止（このゲーム）');
+          break;
+        case 'declaredSigniLevelZero':
+          // ⚠🔴**書き込み先 `game_declared_signi_level_zero` に読み手が1人もいない**（§5.3 `O-226`）＝
+          //   宣言は立つが盤面は動かない。payload 化で穴が可視になっただけで、旧実装と挙動は同じ。
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_declared_signi_level_zero: true } };
+          logsGA.push('宣言シグニのレベル0（このゲーム）');
+          break;
+        case 'declaredSigniIgnoreRestriction':
+          // ⚠🔴同上＝`game_declared_signi_ignore_restriction` も読み手0（§5.3 `O-226`）。
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_declared_signi_ignore_restriction: true } };
+          logsGA.push('宣言シグニの限定条件無視（このゲーム）');
+          break;
+        case 'oppGuardExtraHandOrColorless':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            game_opp_extra_guard_hand_or_colorless: g.handCount } };
+          logsGA.push(`相手ガード追加コスト（手札${g.handCount}枚か《無》・このゲーム）`);
+          break;
+        case 'oppGuardExtraColorless':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_opp_guard_extra_colorless: true } };
+          logsGA.push('相手ガード追加《無》コスト（このゲーム）');
+          break;
+        case 'guardAltHand':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_alt_hand: g.handCount } };
+          logsGA.push(`ガード代替：手札${g.handCount}枚捨て（このゲーム）`);
+          break;
+        case 'guardBarrierAct':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_barrier_act: true } };
+          logsGA.push('ガードシグニ捨て→ルリグバリア能力付与（このゲーム）');
+          break;
+        case 'turnEndTrashToHand':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            game_turn_end_trash_to_hand: { class: g.cardClass, count: g.count } } };
+          logsGA.push(`ターン終了時トラッシュ＜${g.cardClass}＞シグニ→手札（このゲーム）`);
+          break;
+        case 'growPhaseLimitPlus':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_phase_limit_plus: g.value } };
+          logsGA.push(`グロウフェイズ開始時リミット+${g.value}（このゲーム・累積）`);
+          break;
+        case 'lrigCopyOppLevelLimit':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_copy_opp_level_limit: true } };
+          logsGA.push('ルリグのレベル・リミットを相手センタールリグからコピー（このゲーム）');
+          break;
+        case 'nthActivationFlip': {
+          // ⚠🔴**裏返しそのものは未実装**（ログだけ）＝`lrig_activation_count` にも読み手が無い（§5.3 `O-226`）。
+          const srcNumGA = ctx.sourceCardNum ?? '';
+          const countMapGA = { ...(ctxGA.ownerState.lrig_activation_count ?? {}) };
+          countMapGA[srcNumGA] = (countMapGA[srcNumGA] ?? 0) + 1;
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_activation_count: countMapGA } };
+          logsGA.push(countMapGA[srcNumGA] >= g.count
+            ? `このルリグを裏返す（${countMapGA[srcNumGA]}/${g.count}回目：裏返し実行ログのみ）`
+            : `このゲームN回目起動（${countMapGA[srcNumGA]}/${g.count}回）`);
+          break;
+        }
+        case 'abilityBlockHeader':
+          logsGA.push('ゲーム能力ブロック付与');
+          break;
       }
-    }
-    // 「あなたのセンタールリグは【ランサー】を得る」
-    if (txtGA.match(/センタールリグは【ランサー】を得/)) {
-      const centerGAL = ctxGA.ownerState.field.lrig.at(-1);
-      if (centerGAL) {
-        const grantsGAL = { ...(ctxGA.ownerState.keyword_grants ?? {}) };
-        grantsGAL[centerGAL] = [...new Set([...(grantsGAL[centerGAL] ?? []), 'ランサー'])];
-        ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, keyword_grants: grantsGAL } };
-        logsGA.push('センタールリグにランサー付与（このゲーム）');
-      }
-    }
-    // 「このゲームの間、あなたは～を使用できない」
-    const blockMGA = txtGA.match(/このゲームの間、あなたは《([^》]+)》を使用できない/);
-    if (blockMGA) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, blocked_card_names: [...(ctxGA.ownerState.blocked_card_names ?? []), blockMGA[1]] } };
-      logsGA.push(`《${blockMGA[1]}》の使用をブロック`);
-    }
-    // WXK08-028: ライフバーストは発動しない（このゲーム）
-    if (txtGA.match(/ライフバーストは発動しない/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_suppress_lb: true } };
-      logsGA.push('ライフバースト全無効（このゲーム）');
-    }
-    // WXDi-P11-004: メインフェイズ開始時、手札5枚以下ならドロー
-    if (txtGA.match(/メインフェイズ開始時.*手札.*5枚以下.*カードを.*引く/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_main_draw: true } };
-      logsGA.push('メインフェイズ開始時ドロー（手札5枚以下・このゲーム）');
-    }
-    // WX24-P4-036: グロウしたとき1枚ドロー
-    if (txtGA.match(/グロウしたとき.*カードを.*引く/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_draw: true } };
-      logsGA.push('グロウ時ドロー（このゲーム）');
-    }
-    // WX25-P2-005: 手札上限増加
-    const handBonusM = txtGA.match(/手札の枚数の上限は([０-９\d]+)増える/);
-    if (handBonusM) {
-      const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const bonus = parseInt(toHW(handBonusM[1])) || 2;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_hand_size_bonus: (ctxGA.ownerState.game_hand_size_bonus ?? 0) + bonus } };
-      logsGA.push(`手札上限+${bonus}（このゲーム）`);
-    }
-    // WX25-P2-005: エナフェイズ開始時1枚ドロー
-    if (txtGA.match(/エナフェイズ開始時.*カードを.*引く/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_energy_phase_draw: true } };
-      logsGA.push('エナフェイズ開始時ドロー（このゲーム）');
-    }
-    // WXK07-056: このターン、デッキ内指定クラスのシグニのレベルをN扱い
-    const deckLvMGA = txtGA.match(/デッキにある＜([^＞]+)＞のシグニのレベルは([０-９\d]+)になる/);
-    if (deckLvMGA) {
-      const toHWGA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const lvGA = parseInt(toHWGA(deckLvMGA[2])) || 4;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, deck_signi_level_override: { class: deckLvMGA[1], level: lvGA } } };
-      logsGA.push(`デッキ内＜${deckLvMGA[1]}＞シグニのレベルをLv${lvGA}扱い（このゲーム）`);
-    }
-    // WXDi-P07-006: このゲームの間コイン獲得禁止
-    if (txtGA.match(/《コインアイコン》を得られない/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_no_coin_gain: true } };
-      logsGA.push('コイン獲得禁止（このゲーム）');
-    }
-    // WXK09-001: 宣言したシグニのレベルを0に
-    if (txtGA.match(/宣言したシグニの基本レベルは０になり/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_declared_signi_level_zero: true } };
-      logsGA.push('宣言シグニのレベル0（このゲーム）');
-    }
-    // WXK09-001: 宣言したシグニの限定条件無視
-    if (txtGA.match(/限定条件を無視して場に出せる/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_declared_signi_ignore_restriction: true } };
-      logsGA.push('宣言シグニの限定条件無視（このゲーム）');
-    }
-    // WXDi-P05-005: 相手ガード時に追加で手札N枚捨てるか《無》支払い
-    const oppGuardExtraM = txtGA.match(/対戦相手は追加で手札を([０-９\d]+)枚捨てるか《無》を支払わないかぎり【ガード】ができない/);
-    if (oppGuardExtraM) {
-      const toHWGA2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const nGA = parseInt(toHWGA2(oppGuardExtraM[1])) || 1;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_opp_extra_guard_hand_or_colorless: nGA } };
-      logsGA.push(`相手ガード追加コスト（手札${nGA}枚か《無》・このゲーム）`);
-    }
-    // WXDi-P06-006: ガード代替（手札N枚捨て）
-    const guardAltM = txtGA.match(/【ガード】する際.*代わりに手札を([０-９\d]+)枚捨ててもよい/);
-    if (guardAltM) {
-      const toHWGA3 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const nGA3 = parseInt(toHWGA3(guardAltM[1])) || 3;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_alt_hand: nGA3 } };
-      logsGA.push(`ガード代替：手札${nGA3}枚捨て（このゲーム）`);
-    }
-    // WXDi-P04-006: ターン終了時、トラッシュから指定クラスのシグニを手札へ
-    const turnEndTTHM = txtGA.match(/ターン終了時、.*トラッシュから＜([^＞]+)＞のシグニ([０-９\d]*)枚.*を手札に加える/);
-    if (turnEndTTHM) {
-      const toHWGA4 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const cntGA4 = turnEndTTHM[2] ? (parseInt(toHWGA4(turnEndTTHM[2])) || 1) : 1;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_turn_end_trash_to_hand: { class: turnEndTTHM[1], count: cntGA4 } } };
-      logsGA.push(`ターン終了時トラッシュ＜${turnEndTTHM[1]}＞シグニ→手札（このゲーム）`);
-    }
-    // WXDi-P11-010A: グロウフェイズ開始時リミット+N（累積）
-    const growLimitM = txtGA.match(/このゲームの間.*リミットを＋([０-９\d]+)する/);
-    if (growLimitM) {
-      const toHWGA5 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const nGA5 = parseInt(toHWGA5(growLimitM[1])) || 1;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_phase_limit_plus: nGA5 } };
-      logsGA.push(`グロウフェイズ開始時リミット+${nGA5}（このゲーム・累積）`);
-    }
-    // WX25-P2-001: 対戦相手は追加で《無》を支払わないかぎり【ガード】ができない（このゲーム）
-    if (txtGA.match(/対戦相手は追加で《無》を支払わないかぎり【ガード】ができない/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_opp_guard_extra_colorless: true } };
-      logsGA.push('相手ガード追加《無》コスト（このゲーム）');
-    }
-    // WX25-P2-001: 手札から《ガードアイコン》を持つシグニを捨て→【ルリグバリア】付与能力（このゲーム）
-    if (txtGA.match(/手札から《ガードアイコン》を持つシグニを.*捨てる.*【ルリグバリア】/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_barrier_act: true } };
-      logsGA.push('ガードシグニ捨て→ルリグバリア能力付与（このゲーム）');
-    }
-    // 以下のパターンは意図通り動作するため特定ログのみ
-    // このゲームの間、あなたは以下の能力を得る（能力ブロック：後続スタブで処理）
-    if (txtGA.match(/このゲームの間、あなたは以下の能力を得る/)) {
-      logsGA.push('ゲーム能力ブロック付与');
-    }
-    // WXK03-003A: この【起】をN回目使用である場合、このルリグを裏返す
-    const nthUseM = txtGA.match(/この【起】を使用したのが([０-９\d]+)回目である場合/);
-    if (nthUseM) {
-      const toHWGA6 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const targetCount = parseInt(toHWGA6(nthUseM[1])) || 5;
-      const srcCardNumGA6 = ctx.sourceCardNum ?? '';
-      const countMap = { ...(ctxGA.ownerState.lrig_activation_count ?? {}) };
-      countMap[srcCardNumGA6] = (countMap[srcCardNumGA6] ?? 0) + 1;
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_activation_count: countMap } };
-      if (countMap[srcCardNumGA6] >= targetCount) {
-        logsGA.push(`このルリグを裏返す（${countMap[srcCardNumGA6]}/${targetCount}回目：裏返し実行ログのみ）`);
-      } else {
-        logsGA.push(`このゲームN回目起動（${countMap[srcCardNumGA6]}/${targetCount}回）`);
-      }
-    }
-    // WXK03-003A: 基本レベルとリミットをセンタールリグと同じ値にコピー
-    if (txtGA.match(/基本レベルと基本リミットは.*対象の対戦相手のセンタールリグ.*と同じ値になる/)) {
-      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_copy_opp_level_limit: true } };
-      logsGA.push('ルリグのレベル・リミットを相手センタールリグからコピー（このゲーム）');
-    }
-    // WXDi-P07-006: このゲームにコインを得ていない場合
-    if (txtGA.match(/このゲームの間にあなたが《コインアイコン》を得ていない場合/)) {
-      logsGA.push('ゲームコイン未取得条件（ログのみ）');
     }
     if (logsGA.length > 0) return done(addLog(ctxGA, logsGA.join('・')));
-    return done(addLog(ctx, 'このゲームの間：能力付与'));
+    return done(addLog(ctx, '[未実装] このゲームの間の宣言（gameGrants が空）'));
   }
   // 「このメインフェイズを終了する」（`WXK06-078-E1`・§6.4 O-3 続き491）。
   // ⚠🔴従来は**ログを1行出すだけ**で state を一切書いていなかった＝`census:stubs` は「ハンドラがある」

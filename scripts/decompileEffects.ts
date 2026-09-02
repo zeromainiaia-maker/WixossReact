@@ -4369,6 +4369,50 @@ function actionJa(a?: Action, effectType?: string): string {
         const hr = (a as { optionalHandRevealNamed?: { cardName: string } }).optionalHandRevealNamed;
         return hr ? `手札から《${hr.cardName}》1枚を公開してもよい` : '手札から指定のカードを公開してもよい（カード名なし＝適用しない）';
       }
+      // 🆕§5.3 `O-60` 第49バッチ（2026-09-03）＝`GAIN_ABILITY_THIS_GAME` は**ペイロードから描く**。
+      // 🔴固定文（旧 `stubDescMap` の「グロウ不可・キーワード付与…などの常在効果を得る」）だと
+      //   **18枚が全部同じ1文**になり、engine が何を宣言したのかが逆翻訳に1文字も出なかった
+      //   ＝原文照合が効かない死角（`O-194` の `SELF_PLAY_RESTRICT{rawText}` と同じ家系）。
+      // ⚠**ペイロードが無い／空なら「（宣言なし＝適用しない）」と書く**＝engine の fail-closed と同じ向き。
+      if (a.id === 'GAIN_ABILITY_THIS_GAME') {
+        const gg = (a as { gameGrants?: import('../src/types/effects').GameGrantSpec[] }).gameGrants;
+        if (!gg) return 'このゲームの間の宣言（gameGrants なし＝適用しない）';
+        if (gg.length === 0) return 'このゲームの間の宣言（宣言なし＝適用しない）';
+        const one = (g: import('../src/types/effects').GameGrantSpec): string => {
+          switch (g.kind) {
+            case 'noGrow': return g.player === 'opponent' ? '対戦相手はグロウできない' : 'あなたはグロウできない';
+            case 'centerLrigKeyword': return `あなたのセンタールリグは【${g.keyword}】を得る`;
+            case 'blockCardName': return `あなたは《${g.cardName}》を使用できない`;
+            case 'suppressLifeBurst': return 'あなたのライフバーストは発動しない';
+            case 'mainPhaseDrawIfHandLte':
+              return `あなたのメインフェイズ開始時、あなたの手札が${g.handLte}枚以下の場合、カードを１枚引く`;
+            case 'growDraw': return 'あなたのセンタールリグがグロウしたとき、カードを１枚引く';
+            case 'handSizeBonus': return `あなたの手札の枚数の上限は${g.value}増える`;
+            case 'energyPhaseDraw': return 'あなたのエナフェイズ開始時、カードを１枚引く';
+            case 'deckSigniLevelOverride':
+              return `あなたのデッキにある＜${g.cardClass}＞のシグニのレベルは${g.level}になる`;
+            case 'noCoinGain': return 'あなたは《コインアイコン》を得られない';
+            case 'declaredSigniLevelZero': return '宣言したシグニの基本レベルは０になる';
+            case 'declaredSigniIgnoreRestriction': return 'あなたは宣言したシグニを限定条件を無視して場に出せる';
+            case 'oppGuardExtraHandOrColorless':
+              return `対戦相手は追加で手札を${g.handCount}枚捨てるか《無》を支払わないかぎり【ガード】ができない`;
+            case 'oppGuardExtraColorless': return '対戦相手は追加で《無》を支払わないかぎり【ガード】ができない';
+            case 'guardAltHand':
+              return `あなたが【ガード】する際、《ガードアイコン》を持つカードを１枚捨てる代わりに手札を${g.handCount}枚捨ててもよい`;
+            case 'guardBarrierAct':
+              return '【起】手札から《ガードアイコン》を持つシグニ１枚を捨てる：【ルリグバリア】１つを得る';
+            case 'turnEndTrashToHand':
+              return `あなたのターン終了時、あなたのトラッシュから＜${g.cardClass}＞のシグニ${g.count}枚を手札に加える`;
+            case 'growPhaseLimitPlus': return `あなたのグロウフェイズ開始時、リミットを＋${g.value}する`;
+            case 'lrigCopyOppLevelLimit':
+              return 'あなたの場にあるルリグの基本レベルと基本リミットは、対象の対戦相手のセンタールリグと同じ値になる';
+            case 'nthActivationFlip':
+              return `この【起】を使用したのが${g.count}回目である場合、このルリグを裏返す`;
+            case 'abilityBlockHeader': return 'あなたは以下の能力を得る';
+          }
+        };
+        return `このゲームの間、${gg.map(one).join('。')}`;
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。
