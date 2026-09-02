@@ -216,6 +216,15 @@ export interface SigniAttackBan {
    */
   unlessPayHandDiscard?: number;
   /**
+   * 🆕**場のシグニをN体トラッシュに置けばアタックできる**（§5.3 `O-222`・`WX24-P3-049-E1`）。
+   * ⚠**アタックするたびに払う**（`unlessPayHandDiscard` と同じ＝ban は消費しない）。
+   * ⚠**支払いUI があるのはルリグアタック経路だけ**（`appliesTo:'LRIG'`）＝
+   *   シグニ側は `signi_attack_field_trash_costs`（`BLOCK_ACTION.attackCost.fieldTrash`）という
+   *   別の store を通る。**シグニ ban にこの軸が載ったら支払いようが無いので過少側（アタック不可）へ倒す**
+   *   （`signiAttackBanCost` が `null` を返す＝無言で無視しない）。
+   */
+  unlessPayFieldTrash?: number;
+  /**
    * 残りグローバルターン数（§6.4 O-4／O-33）。省略＝**そのターンだけ**（従来どおり turn-end で消える）。
    * 2＝「次の対戦相手のターン（終了時まで）」＝`SigniDeployBan` と同じカウントダウン規約で、
    * 減算は `clearTurnEndScopedState` の1点だけ。

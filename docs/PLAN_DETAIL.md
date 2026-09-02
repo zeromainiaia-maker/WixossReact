@@ -1406,6 +1406,22 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 
 ### `O-222` — ルリグへの「〈解除コスト〉を支払わないかぎりアタックできない」＝場トラッシュ軸の受け皿が無い（`O-220` 第4バッチで分割・実測1効果）
 
+🏁**2026-09-02（索引 B 第4巡）にクローズ。** 登録票の4手（`unlessPayFieldTrash` の新設／
+`lrigAttackBanCost` への合算／`lrigAttackCostInfo`＋`performLrigAttack` への配線／
+`AttackFieldTrashCostModal` の再利用）はそのまま当たった。
+🔴**登録票に書かれていなかった欠陥がもう1つあった**＝**「対戦相手のルリグ１体を対象とし」も丸ごと
+落ちていた**（`SELECT_TARGET_ONLY`/`STORE` が1つも無い）。受け皿だけ作っても ban の掛け先が無いので、
+**`O-96` の3点契約もこの巡で通した**（`O96_STORABLE_OUTCOMES` へ `SIGNI_ATTACK_BAN` を追加）。
+🔑**踏んだ罠＝`hasStoredTargetBinding` が「宣言」と「配線」を区別していなかった**＝
+`SIGNI_ATTACK_BAN` は `target` を持たない型なので parser は必ず `targetsStored` を刻むが、
+入口ガードがそれを「配線済み」と読んで引き上げを諦めていた。⇒ **配線の有無は
+`SELECT_TARGET_ONLY`/`STORE` の実在で見る**（`isUnwiredAttackBanAnaphora`・例外は極力狭く）。
+🔑**シグニ側は過少へ倒すガードを入れた**＝`signiAttackBanCost` はこの軸を見つけたら `null`
+（アタック不可）を返す。シグニ経路にこの軸の支払いUI は無い（別 store）ので**無言で無視しない**。
+実機 **3/3 PASS**（`o222LrigFieldTrashPays` / `…UnpayableBlocks` / `…CancelBlocks`）＝
+**支払い軸は「払える／払えない／払わずには通らない」の3本組で撃つ**。
+全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-02（索引 B 第4巡）。
+
 **規模／母集団**＝**1効果**（`WX24-P3-049-E1`。2026-09-02 に `census`／原文の全数走査で確認）
 
 **2026-09-02（`O-220` 第4バッチ）で分割。** 原文＝「【自】：このシグニが場を離れたとき、
@@ -2636,6 +2652,26 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
 ### 恒久指標アーカイブ（2026-09-02 続き773 後）
+
+- 🏁**2026-09-02（`O-60` 第16バッチ・索引 A 第4巡）＝「このシグニの下に置く」を payload 化（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（据置）
+  ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  🔧**この項目の専用計器**＝`census:enginetext` **A🔴 129→128行 / 126→125ハンドラ**・
+  **miss 33→32ハンドラ / 41→39カード**（`BASELINE_SELF_TEXT` 129→**128**へ実数更新）。
+  📦**在庫2本**＝**機構 worklist 24項目**（`O-60` は継続＝閉じていない）
+  ｜**実機 残 2件**（`V-131`／`V-132`）
+  🔧**ゲート（全緑 ✅）**＝golden **3305 / 3305**（3301→3305＝第16バッチの assert 4本）／
+  smoke **10723** 全異常0／fuzz 全0／census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／
+  manual-fields 0／`census:costtext` A🔴 **0規則**（据置）／lint 0 errors／`npm run regen` 完走・**同型★0**。
+  🖥**実機＝必須**（`src/engine/` を触り `source:'field'` という新しい機構の軸を足した）＝
+  `o60placeHand` / `o60placeField` の **2/2 PASS**。🔑**わざと `effect_stack` 注入経路で撃つ**
+  （この項目の実害は「当たる/外れる」ではなく**実行経路によって読めたり読めなかったりする**こと）。
+  🆕**engine の一般則**＝**`PLACE_UNDER_SIGNI` の行き先は常に「効果元シグニの下」**で、
+  `source` は置き元だけを表す（`'field'` は各ゾーンの頂点のみ・**効果元自身は候補外**）。
+  🔴**「逆翻訳が payload を見ずに文字列を返す」箇所は、そこだけ原文照合（§5-6）が効かない死角**
+  （`O-194` の `SELF_PLAY_RESTRICT{rawText}` と `fromLeftFieldUnder` の定型文は同じ家系）。
+  ✅**ブラスト半径＝効果 変更3・追加1・削除0、予定外0**（挙動が変わったカード4枚＋逆翻訳だけ直った5枚）。
 
 - 🏁**2026-09-02（🏁`O-194` クローズ回・索引 A 第3巡）＝【常】の「〜であるかぎり」の真の穴6効果（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜

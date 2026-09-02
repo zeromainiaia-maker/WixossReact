@@ -2353,8 +2353,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
       //   ⇒ 指定が**ルリグ**（または引用の外に指定が無い＝別文で宣言されている）ときは
       //   **受け皿が無いので `DEFERRED_` へ倒す**（従来は粗い近似で**自分のシグニ**を無条件に
       //   止めていた＝`WX24-P3-049-E1`）。⚠no-op は過少だが、無関係な自軍シグニを止めるよりは忠実。
+      // 🏁**§5.3 `O-222`（2026-09-02）で受け皿を作ってクローズ**＝`SigniAttackBan.unlessPayFieldTrash`
+      //   （engine の ban／`lrigAttackBanCost`／`AttackFieldTrashCostModal` のルリグ経路まで配線済み）。
+      // 🔴**シグニ対象は据置**＝あちらは `BLOCK_ACTION{attackCost.fieldTrash}`（下の分岐）で既に動いており、
+      //   store も判定地点も別（`signi_attack_field_trash_costs`）。**同じ文型でも軸が違うので寄せない。**
+      // ⚠**対象の宣言は別の文にあることがある**（`WX24-P3-049-E1`＝「対戦相手のルリグ１体を対象とし、
+      //   《白》を支払ってもよい。そうした場合、**それは**…を得る」）＝`targetsStored` で受け、
+      //   `applyO96OptionalCostTargetFirst`（`O-96` の3点契約）が `SELECT_TARGET_ONLY` を前に積む。
       if (attackFieldTrashM && !outerSigniCA) {
-        return { type: 'STUB', id: 'DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH' } as StubAction;
+        const banOwnerFT: Owner = outerOwnerCA !== 'any' ? outerOwnerCA : 'opponent';
+        const ftTurns = /次の対戦相手のターン(?:の間|終了時まで)/.test(outerCA) ? 2 : undefined;
+        return { type: 'SIGNI_ATTACK_BAN', owner: banOwnerFT, targetsStored: true,
+          unlessPayFieldTrash: parseNum(attackFieldTrashM[2]),
+          ...(ftTurns ? { turns: ftTurns } : {}),
+        } as unknown as EffectAction;
       }
       if (attackFieldTrashM) {
         const kwOwnerCA: Owner = t.includes('対戦相手') ? 'opponent' : t.includes('あなた') ? 'self' : 'any';

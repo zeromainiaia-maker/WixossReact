@@ -128,7 +128,7 @@ import { pendingEffectCardNums } from './battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
-import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
+import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost, canPayLrigAttackFieldTrashCost, deterministicLrigAttackFieldTrashZones, payLrigAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard } from './battle/cpuBoardEval';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
@@ -10889,6 +10889,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const pending = attackFieldTrashPayment;
     const zones = [...selectedAttackFieldTrashZones].sort((a, b) => a - b);
     closeAttackFieldTrashPayment();
+    // 🆕**ルリグアタックの解除コスト**（§5.3 `O-222`）＝同じモーダルを共有し、行き先だけ分ける。
+    if (pending.forLrig) {
+      await performLrigAttack({
+        attacker: my,
+        defender: op,
+        attackerId: user.id,
+        attackerKey: isHost ? 'host_state' : 'guest_state',
+        slot: pending.lrigSlot ?? 'center',
+        attackFieldTrashZones: zones,
+      });
+      return;
+    }
     await performSigniAttack(pending.zoneIndex, {
       attacker: my,
       defender: op,
@@ -10980,15 +10992,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    */
   const lrigAttackCostInfo = (
     my: PlayerState, op: PlayerState, lrigNum: string | null | undefined,
-  ): { blocked: boolean; colorless: number } => {
+  ): { blocked: boolean; colorless: number; fieldTrash: number } => {
     const banCost = lrigAttackBanCost(my, lrigNum, battleCardMap);
     // 解除できない ban（「アタックできない」だけ）が掛かっている＝どれだけ払っても不可。
-    if (banCost === null) return { blocked: true, colorless: 0 };
+    if (banCost === null) return { blocked: true, colorless: 0, fieldTrash: 0 };
     const colorless = collectOppLrigAttackExtraCost(op, my, battleCardMap, effectsMap, false) + banCost.colorless;
+    // 🆕**「あなたのシグニN体を場からトラッシュに置かないかぎり」**（§5.3 `O-222`・`WX24-P3-049-E1`）。
+    // ⚠**払えるかどうかも同じ関数で見る**＝盤面にシグニが足りなければアタック不可
+    //   （押せるのに無反応＝§6.4 `O-18` にしない）。
+    const fieldTrash = banCost.fieldTrash;
     // 「手札をN枚捨てないかぎり」のルリグ版は**母集団0**（原文はいずれもシグニ）。
     // 万一生えたら支払いUIが無いので過少側（アタック不可）に倒す＝無言で無視しない。
-    const blocked = banCost.handDiscard > 0 || my.energy.length < colorless;
-    return { blocked, colorless };
+    const blocked = banCost.handDiscard > 0
+      || my.energy.length < colorless
+      || !canPayLrigAttackFieldTrashCost(my, fieldTrash, battleCardMap);
+    return { blocked, colorless, fieldTrash };
   };
 
   // ルリグアタックの実行（人間・CPU共通）: アタッカーのルリグをダウンし防御側にガード応答を要求。
@@ -11005,6 +11023,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
      *   ここを共有すると「アシストがアタックしたらセンターも撃てなくなる」等の別バグになる。
      */
     slot?: LrigAttackSlot;
+    /**
+     * 🆕**「シグニN体を場からトラッシュに置かないかぎりアタックできない」の支払い**（§5.3 `O-222`）。
+     * 人間はモーダルで選んだゾーン、CPU は `deterministicLrigAttackFieldTrashZones` が決める。
+     * ⚠**未指定なら CPU 規約（盤面左から）で自動選択する**＝ここを素通りさせると
+     *   「払わずにアタックできる」無言の過少コストになる。
+     */
+    attackFieldTrashZones?: number[];
   }): Promise<boolean> => {
     const { attacker: my, defender: op, attackerId } = p;
     const slot: LrigAttackSlot = p.slot ?? 'center';
@@ -11065,11 +11090,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -lrigAttackExtraCost);
         appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
       }
+      // 🆕**場のシグニN体を場からトラッシュに置く解除コスト**（§5.3 `O-222`・`WX24-P3-049-E1`）。
+      // ⚠**引き落としだけ**＝可否は上の `lrigAttackCostInfo` が判定済み（判定と引き落としを別軸にしない）。
+      // ⚠**払えなければアタックを成立させない**（`null` は fail-closed）。
+      let myAfterFieldTrash = my;
+      if (lrigCostLA.fieldTrash > 0) {
+        const zonesLA = p.attackFieldTrashZones
+          ?? deterministicLrigAttackFieldTrashZones(my, lrigCostLA.fieldTrash, battleCardMap);
+        const paid = payLrigAttackFieldTrashCost(my, lrigCostLA.fieldTrash, zonesLA, battleCardMap);
+        if (!paid) return false;
+        myAfterFieldTrash = paid.state;
+        appendBattleLogs([`ルリグアタック解除コスト（シグニ${lrigCostLA.fieldTrash}体）トラッシュ：${paid.trashedSigniNums.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
+      }
       appendBattleLogs([`${lrigName}がアタック`]);
       const attackedMyState: PlayerState = {
-        ...my, energy: myEnergyAfterAttack,
+        ...myAfterFieldTrash, energy: myEnergyAfterAttack,
         ...(isCenterAttack ? { lrig_has_attacked: true } : {}),
-        field: markLrigSlotDown(my, slot),
+        field: markLrigSlotDown(myAfterFieldTrash, slot),
       };
       // NEGATE_NTH_ATTACK は「アタックしたとき」に無効化するため、追加コスト支払い・ダウン・攻撃済み化は行う。
       // ただし pending_lrig_attack を立てず、ON_ATTACK_LRIG収集とガード/ダメージ応答へは進めない。
@@ -11159,13 +11196,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ルリグアタック（人間プレイヤー用エントリポイント）
-  const handleLrigAttack = async () => {
+  const handleLrigAttack = async (slot: LrigAttackSlot = 'center') => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return;
+    // 🆕**「シグニN体を場からトラッシュに置かないかぎりアタックできない」はどれを置くか選ばせる**
+    //   （§5.3 `O-222`）＝シグニ側の `handleSigniAttack` と同じ作法で、支払いUI を先に開く。
+    const lrigNumHL = lrigSlotTop(my, slot);
+    const costHL = lrigAttackCostInfo(my, op, lrigNumHL);
+    if (!costHL.blocked && costHL.fieldTrash > 0) {
+      openAttackFieldTrashPayment({
+        zoneIndex: -1, cardNum: lrigNumHL ?? '', count: costHL.fieldTrash, forLrig: true, lrigSlot: slot,
+      });
+      return;
+    }
     await performLrigAttack({
       attacker: my,
       defender: op,
       attackerId: user.id,
       attackerKey: isHost ? 'host_state' : 'guest_state',
+      slot,
     });
   };
 
@@ -14900,12 +14948,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 《無》の前払い（§6.4 O-28）＝`performLrigAttack` と**同じ関数**で判定する。
       // ⚠押せるのに無反応（O-18）にしない＝払えないことをボタンに出す。
       const lrigCostALK = lrigAttackCostInfo(my, op, lrigTopALK);
+      // 🆕解除コストの表示は軸ごとに出す（§5.3 `O-222` で「シグニN体」を追加）。
+      const lrigCostLabelALK = [
+        lrigCostALK.colorless > 0 ? `《無》×${lrigCostALK.colorless}` : '',
+        lrigCostALK.fieldTrash > 0 ? `シグニ${lrigCostALK.fieldTrash}体` : '',
+      ].filter(Boolean).join('＋');
       if (lrigCostALK.blocked) {
-        return [{ label: lrigCostALK.colorless > 0 ? `アタック不可（《無》×${lrigCostALK.colorless}）` : 'アタック不可', color: C.textDim, onClick: () => {} }];
+        return [{ label: lrigCostLabelALK ? `アタック不可（${lrigCostLabelALK}）` : 'アタック不可', color: C.textDim, onClick: () => {} }];
       }
       return [{
-        label: lrigCostALK.colorless > 0 ? `アタック（《無》×${lrigCostALK.colorless}）` : 'アタック',
-        color: C.danger, onClick: handleLrigAttack,
+        label: lrigCostLabelALK ? `アタック（${lrigCostLabelALK}）` : 'アタック',
+        color: C.danger, onClick: () => { void handleLrigAttack('center'); },
       }];
     }
 
@@ -14989,13 +15042,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       actions.push({
         label: 'アタック',
         color: C.danger,
-        onClick: () => {
-          void performLrigAttack({
-            attacker: my, defender: op, attackerId: user.id,
-            attackerKey: isHost ? 'host_state' : 'guest_state',
-            slot: side === 'l' ? 'assist_l' : 'assist_r',
-          });
-        },
+        // 🆕**解除コストの支払いUI を通す**（§5.3 `O-222`）＝センターと同じ入口へ寄せる
+        //   （直接 `performLrigAttack` を呼ぶと、どのシグニを置くか選べないまま自動選択になる）。
+        onClick: () => { void handleLrigAttack(side === 'l' ? 'assist_l' : 'assist_r'); },
       });
     }
 

@@ -2500,16 +2500,23 @@ function actionJa(a?: Action, effectType?: string): string {
         // 🆕**回避コストが1つも無いときは支払い節そのものを描かない**＝旧実装は `?? 0` に落ちて
         //   「《無》×0を支払わないかぎり」＝**タダで回避できる**という嘘の逆翻訳になっていた（`WXK05-052-E1`）。
         // 🆕期間（`turns:2`＝次のターンの間）も出す（下の一般枝と同じ規約）。
+        // 🆕**`unlessPayFieldTrash`（§5.3 `O-222`）も出す**＝軸を1つでも落とすと
+        //   「無条件でアタックできない」という**原文より重い**逆翻訳になる（この枝の既往と同じ罠）。
         const payAB = a.unlessPayHandDiscard ? `${whoAB}が手札を${a.unlessPayHandDiscard}枚捨てないかぎり`
           : a.unlessPayColorless ? `${whoAB}が《無》×${a.unlessPayColorless}を支払わないかぎり`
-            : '';
+            : a.unlessPayFieldTrash ? `${whoAB}がシグニを${a.unlessPayFieldTrash}体場からトラッシュに置かないかぎり`
+              : '';
         return `${a.turns === 2 ? '次のターンの間、' : 'このターン、'}${payAB}それはアタックできない`
-          + (a.unlessPayHandDiscard ? '（アタックするごとに捨てる）' : '');
+          + (a.unlessPayHandDiscard ? '（アタックするごとに捨てる）' : '')
+          + (a.unlessPayFieldTrash ? '（アタックするごとに置く）' : '');
       }
       // 「選んだシグニ以外のシグニでアタックできない」（§6.4 O-3）＝`targetsStored` の逆向き。
       if (a.exceptTargetsStored) return `このターン、${whoAB}は選んだシグニ以外のシグニでアタックできない`;
       if (a.unlessPayHandDiscard) {
         return `このターン、${whoAB}は手札を${a.unlessPayHandDiscard}枚捨てないかぎり${scopeAB}シグニでアタックできない（アタックするごとに捨てる）`;
+      }
+      if (a.unlessPayFieldTrash) {
+        return `このターン、${whoAB}はシグニを${a.unlessPayFieldTrash}体場からトラッシュに置かないかぎり${scopeAB}シグニでアタックできない（アタックするごとに置く）`;
       }
       // ⚠期間（`turns:2`＝次の対戦相手のターン）まで出す（§6.4 O-4）。
       return `${a.turns === 2 ? '次の対戦相手のターンの間、' : 'このターン、'}${whoAB}は${scopeAB}シグニでアタックできない`
@@ -4021,12 +4028,6 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】対戦相手は手札を公開する。対戦相手はあなたのルリグデッキからカード1枚を見ないで選び、あなたはそれを公開する',
         DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL:
           '【未実装】対戦相手はあなたの手札を1枚見ないで選び、あなたはそれを公開する（それが＜悪魔＞かレベル3以上のシグニの場合、ターン終了時まで【ランサー】を得る）',
-        // 🆕§5.3 `O-222`（2026-09-02・`O-220` 第4バッチで登録）＝ルリグへ「シグニN体を場から
-        //   トラッシュに置かないかぎりアタックできない」を付与する形。解除コストの軸が
-        //   `lrigAttackBanCost`（《無》×N／手札N枚）に無く、`attackCost.fieldTrash` は
-        //   `execBlockAction` の**シグニ分岐だけ**が消費する＝ルリグ版の受け皿が無い。
-        DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH:
-          '【未実装】それは「【常】：あなたのシグニN体を場からトラッシュに置かないかぎりアタックできない。」を得る（ルリグ対象）',
         DEFERRED_SELF_TRASH_TO_DECK_BOTTOM:
           '【未実装】このカードをトラッシュからデッキの一番下に置く',
         DEFERRED_EACH_PLAYER_REVEAL_HAND:

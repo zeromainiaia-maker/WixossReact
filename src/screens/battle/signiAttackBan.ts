@@ -66,7 +66,18 @@ export interface SigniAttackBanCost {
   colorless: number;
   /** 手札を捨てる枚数（「手札をN枚捨てないかぎり」＝**アタックするごとに**払う）。 */
   handDiscard: number;
+  /**
+   * 🆕**場のシグニを場からトラッシュに置く体数**（§5.3 `O-222`・`WX24-P3-049-E1`）。
+   * ⚠**支払いUI があるのはルリグアタック経路だけ**＝シグニ側は
+   *   `signi_attack_field_trash_costs`（`BLOCK_ACTION.attackCost.fieldTrash`）という別 store を通る。
+   *   シグニ ban にこの軸が載ったら `signiAttackBanCost` は `null`（アタック不可）へ倒す。
+   */
+  fieldTrash: number;
 }
+
+/** 支払いで解除できる軸を1つでも持っているか（持たない ban＝「アタックできない」だけ）。 */
+const hasUnlockAxis = (ban: { unlessPayColorless?: number; unlessPayHandDiscard?: number; unlessPayFieldTrash?: number }): boolean =>
+  !!ban.unlessPayColorless || !!ban.unlessPayHandDiscard || !!ban.unlessPayFieldTrash;
 
 /**
  * 掛かっている ban の解除コスト。
@@ -82,11 +93,16 @@ export function signiAttackBanCost(
   effectivePower?: number,
 ): SigniAttackBanCost | null {
   const bans = matchedSigniAttackBans(attacker, attackerNum, cardMap, effectivePower);
-  if (bans.length === 0) return { colorless: 0, handDiscard: 0 };
-  if (bans.some(ban => !ban.unlessPayColorless && !ban.unlessPayHandDiscard)) return null;
+  if (bans.length === 0) return { colorless: 0, handDiscard: 0, fieldTrash: 0 };
+  if (bans.some(ban => !hasUnlockAxis(ban))) return null;
+  // 🔴**シグニ側に `unlessPayFieldTrash` の支払いUI は無い**（あちらは `signi_attack_field_trash_costs`
+  //   という別 store を `handleSigniAttack` が読む）＝**過少側（アタック不可）へ倒す**。
+  //   ⚠live 母集団は0（parser はルリグ対象のときだけこの軸を出す）＝**無言で無視しない**ためのガード。
+  if (bans.some(ban => ban.unlessPayFieldTrash)) return null;
   return {
     colorless: bans.reduce((sum, ban) => sum + (ban.unlessPayColorless ?? 0), 0),
     handDiscard: bans.reduce((sum, ban) => sum + (ban.unlessPayHandDiscard ?? 0), 0),
+    fieldTrash: 0,
   };
 }
 
@@ -125,14 +141,16 @@ export function lrigAttackBanCost(
   lrigNum: string | null | undefined,
   cardMap: Map<string, CardData>,
 ): SigniAttackBanCost | null {
-  if (!lrigNum) return { colorless: 0, handDiscard: 0 };
+  if (!lrigNum) return { colorless: 0, handDiscard: 0, fieldTrash: 0 };
   const bans = (attacker.signi_attack_bans_this_turn ?? [])
     .filter(ban => ban.appliesTo === 'LRIG' && banMatches(ban, attacker, lrigNum, cardMap, undefined));
-  if (bans.length === 0) return { colorless: 0, handDiscard: 0 };
-  if (bans.some(ban => !ban.unlessPayColorless && !ban.unlessPayHandDiscard)) return null;
+  if (bans.length === 0) return { colorless: 0, handDiscard: 0, fieldTrash: 0 };
+  if (bans.some(ban => !hasUnlockAxis(ban))) return null;
   return {
     colorless: bans.reduce((sum, ban) => sum + (ban.unlessPayColorless ?? 0), 0),
     handDiscard: bans.reduce((sum, ban) => sum + (ban.unlessPayHandDiscard ?? 0), 0),
+    // 🆕§5.3 `O-222`（2026-09-02）＝「あなたのシグニN体を場からトラッシュに置かないかぎり」。
+    fieldTrash: bans.reduce((sum, ban) => sum + (ban.unlessPayFieldTrash ?? 0), 0),
   };
 }
 

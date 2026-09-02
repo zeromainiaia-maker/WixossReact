@@ -82,6 +82,7 @@ import { payFieldBanishCost } from '../src/screens/battle/fieldBanishCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason, signiAttackColorlessCost, collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { lrigAttackBanCost, signiAttackBanCost } from '../src/screens/battle/signiAttackBan';
+import { lrigAttackFieldTrashSelectableZones, canPayLrigAttackFieldTrashCost, payLrigAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement } from '../src/screens/battle/lifeCrashReplace';
 import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
 import { resolveTurnEndEnergyTrash } from '../src/screens/battle/turnEndEnergyTrash';
@@ -18427,12 +18428,17 @@ test('O-220 第4バッチ: 引用「〈解除コスト〉を支払わないか�
   eq(ban.unlessPayColorless, 2, '②: 《無》《無》を払えばアタックできる（解除コストを落とさない）');
   eq(ban.turns, 2, '②: 「次の対戦相手のターン終了時まで」＝2ターン');
 
-  // (b) 場トラッシュ版のルリグ対象＝**受け皿が無いので明示 defer**（§5.3 `O-222`）。
-  //     ⚠no-op は過少だが、無関係な自軍シグニを無条件で止める従来形よりは忠実。
-  const blocked = (o96Live('WX24-P3-049', 'WX24-P3-049-E1').action as SequenceAction).steps[1] as ConditionalAction;
-  eq((blocked.then as EffectAction & { id?: string }).id, 'DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH',
-    'WX24-P3-049-E1: ルリグ版の解除コストは機構不在を宣言する');
-  ok(!JSON.stringify(blocked).includes('"BLOCK_ACTION"'),
+  // (b) 🏁**場トラッシュ版のルリグ対象は §5.3 `O-222`（2026-09-02）で実装した**＝
+  //     `SigniAttackBan.unlessPayFieldTrash` を新設し、`lrigAttackBanCost` と
+  //     `AttackFieldTrashCostModal` のルリグ経路まで配線した（旧 `DEFERRED_` は撤去）。
+  //     詳細な契約は「索引B 2026-09-02: O-222 …」の4本が持つ。ここは**近似へ戻さないこと**だけ固定する。
+  const blockedSteps = (o96Live('WX24-P3-049', 'WX24-P3-049-E1').action as SequenceAction).steps;
+  const blocked = blockedSteps[3] as ConditionalAction;
+  eq((blocked.then as EffectAction).type, 'SIGNI_ATTACK_BAN',
+    'WX24-P3-049-E1: ルリグ版の解除コストは typed の ban へ載る');
+  ok(!JSON.stringify(blockedSteps).includes('DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH'),
+    'WX24-P3-049-E1: defer へ戻さない');
+  ok(!JSON.stringify(blockedSteps).includes('"BLOCK_ACTION"'),
     'WX24-P3-049-E1: 粗い近似（無関係なシグニを無条件で止める）へ戻さない');
 
   // (c) 対照＝**引用の中に O-96 の署名がある**だけの形は固定しない（`WX24-P2-055-E1`）。
@@ -21734,8 +21740,8 @@ test('SigniAttackBan.zones: 指定ゾーンのシグニだけが止まる（中�
   const attacker = mkState({ signi: [a, b, c] });
   const banned: PlayerState = { ...attacker, signi_attack_bans_this_turn: [{ zones: [1] }] };
   eq(signiAttackBanCost(banned, b, cardMap as Map<string, CardData>), null, '中央（zone1）は解除不能で止まる');
-  eq(JSON.stringify(signiAttackBanCost(banned, a, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0}', '左（zone0）は止まらない');
-  eq(JSON.stringify(signiAttackBanCost(banned, c, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0}', '右（zone2）は止まらない');
+  eq(JSON.stringify(signiAttackBanCost(banned, a, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0,"fieldTrash":0}', '左（zone0）は止まらない');
+  eq(JSON.stringify(signiAttackBanCost(banned, c, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0,"fieldTrash":0}', '右（zone2）は止まらない');
   // 支払い回避つき（`WX25-CP1-050-E1`）＝中央だけ《無》×1、左右は0。
   const paid: PlayerState = { ...attacker, signi_attack_bans_this_turn: [{ zones: [1], unlessPayColorless: 1 }] };
   eq(signiAttackBanCost(paid, b, cardMap as Map<string, CardData>)?.colorless ?? -1, 1, '中央は《無》×1で通る');
@@ -21743,7 +21749,7 @@ test('SigniAttackBan.zones: 指定ゾーンのシグニだけが止まる（中�
   // 🔑ゾーン添字は**判定地点で引く**＝掛けたあとに入れ替わっても「いま中央にいるシグニ」に掛かる。
   const swapped: PlayerState = { ...banned, field: { ...banned.field, signi: [[b], [a], [c]] } };
   eq(signiAttackBanCost(swapped, a, cardMap as Map<string, CardData>), null, '入れ替え後は a が中央なので止まる');
-  eq(JSON.stringify(signiAttackBanCost(swapped, b, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0}', '入れ替え後の b は左なので止まらない');
+  eq(JSON.stringify(signiAttackBanCost(swapped, b, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0,"fieldTrash":0}', '入れ替え後の b は左なので止まらない');
 }));
 test('§6.4 O-33 live: ゾーン限定アタック禁止3効果が SIGNI_ATTACK_BAN{zones} になっている', () => {
   const cases: [string, string, number | undefined][] = [
@@ -21769,15 +21775,15 @@ test('SigniAttackBan.zoneSource=gate: 【ゲート】のあるゾーンだけ止
   const cm = cardMap as Map<string, CardData>;
   const banned: PlayerState = { ...base, signi_attack_bans_this_turn: [{ zoneSource: 'gate' }], signi_gate_zones: [1] };
   eq(signiAttackBanCost(banned, b, cm), null, '【ゲート】があるゾーン1のシグニは止まる');
-  eq(JSON.stringify(signiAttackBanCost(banned, a, cm)), '{"colorless":0,"handDiscard":0}', '負方向＝ゲートの無いゾーン0は止まらない');
-  eq(JSON.stringify(signiAttackBanCost(banned, c, cm)), '{"colorless":0,"handDiscard":0}', '同上（ゾーン2）');
+  eq(JSON.stringify(signiAttackBanCost(banned, a, cm)), '{"colorless":0,"handDiscard":0,"fieldTrash":0}', '負方向＝ゲートの無いゾーン0は止まらない');
+  eq(JSON.stringify(signiAttackBanCost(banned, c, cm)), '{"colorless":0,"handDiscard":0,"fieldTrash":0}', '同上（ゾーン2）');
   // 🔑ゾーン集合も**判定地点で引く**＝ban を張ったあとに【ゲート】が増えれば新しいゾーンにも掛かる。
   const moreGates: PlayerState = { ...banned, signi_gate_zones: [0, 1] };
   eq(signiAttackBanCost(moreGates, a, cm), null, 'あとから置かれた【ゲート】にも追随する');
   // 対照＝【ゲート】が1つも無ければ誰も止まらない（ban だけ残っても全禁止に化けない）。
   const noGate: PlayerState = { ...banned, signi_gate_zones: [] };
   for (const n of [a, b, c]) {
-    eq(JSON.stringify(signiAttackBanCost(noGate, n, cm)), '{"colorless":0,"handDiscard":0}', 'ゲート0個なら全員アタックできる');
+    eq(JSON.stringify(signiAttackBanCost(noGate, n, cm)), '{"colorless":0,"handDiscard":0,"fieldTrash":0}', 'ゲート0個なら全員アタックできる');
   }
 }));
 test('§6.4 O-33 据置分 live: WDK09-001-E2 が「公開→【ライフバースト】なし→ゲートゾーン禁止」になっている', () => {
@@ -61815,6 +61821,109 @@ test('索引A 2026-09-02: O-60 第16バッチ＝WXDi-P05-034 の「パワーは�
   const e1 = effs.find(e => e.effectId === 'WXDi-P05-034-E1')!;
   eq(e1.condition?.type, 'THIS_CARD_HAS_UNDER', 'E1 の条件は据置');
 });
+
+test('索引B 2026-09-02: O-222 ルリグへの「シグニN体を場からトラッシュに置かないかぎりアタックできない」', () => {
+  // 母集団は原文の全数走査で **1効果**（`WX24-P3-049-E1`）。同じ文型の《無》×N 版・手札N枚版は
+  // `O-220` 第4バッチでクローズ済み（`unlessPayColorless` / `unlessPayHandDiscard`）。
+  // 🔴旧 live は `STUB{DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH}`（明示 defer＝no-op）で、
+  //   **「対戦相手のルリグ１体を対象とし」も丸ごと落ちて**いた。
+  const eff = (effectsMap.get('WX24-P3-049') ?? []).find(e => e.effectId === 'WX24-P3-049-E1')!;
+  const steps = (eff.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  // 3点契約＝宣言（SELECT_TARGET_ONLY）→ 固定（STORE）→ コスト → did-it ゲート{targetsStored}
+  const sel = steps[0] as Extract<EffectAction, { type: 'STUB' }>;
+  eq(sel.id, 'SELECT_TARGET_ONLY', '①対象宣言が先頭にある');
+  eq(sel.selectTarget?.type, 'LRIG', '②対象は**ルリグ**（原文「対戦相手のルリグ１体を対象とし」）');
+  eq(sel.selectTarget?.owner, 'opponent', '③対戦相手のルリグ');
+  eq((steps[1] as Extract<EffectAction, { type: 'STUB' }>).id, 'STORE_LAST_PROCESSED_TARGETS', '④対象を固定する');
+  eq((steps[2] as Extract<EffectAction, { type: 'STUB' }>).id, 'OPTIONAL_COST', '⑤任意コスト《白》');
+  const gate = steps[3] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(gate.condition.type, 'PAID_ADDITIONAL_COST', '⑥払ったときだけ帰結（did-it ゲート）');
+  const ban = gate.then as Extract<EffectAction, { type: 'SIGNI_ATTACK_BAN' }>;
+  eq(ban.type, 'SIGNI_ATTACK_BAN', '⑦帰結は typed の ban（defer ではない）');
+  eq(ban.targetsStored, true, '⑧「それは」＝固定した対象へ照応する');
+  eq(ban.unlessPayFieldTrash, 1, '⑨解除コストはシグニ1体を場からトラッシュ');
+  eq(ban.unlessPayColorless, undefined, '⑩《無》の軸は持たない（原文にない）');
+
+  // 🔴撤去した defer が live に1件も残っていないこと（残ると逆翻訳に生の英語 ID が出る＝census:stubs C群）。
+  for (const [cardNum, effs] of effectsMap) {
+    ok(!JSON.stringify(effs).includes('DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH'),
+      `${cardNum}: 撤去済み defer が残っていない`);
+  }
+});
+
+test('索引B 2026-09-02: O-222 engine＝ban が張られ、ルリグ側だけに掛かる', () => withSavedCursor(() => {
+  // 🔑`SIGNI_ATTACK_BAN` は対象の **Type** でシグニ ban／ルリグ ban を仕分ける
+  //   （`appliesTo:'LRIG'` は parser ではなく executor が付ける）。
+  const oppLrig = findCard(c => c.Type === 'ルリグ');
+  const mySigni = SIGNI_L2;
+  const ban: EffectAction = { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', targetsStored: true, unlessPayFieldTrash: 1 };
+  const ctx = { ...mkCtx({ signi: [mySigni, null, null] }, { lrig: [oppLrig] }, mySigni),
+    storedTargetCards: [oppLrig] } as ExecCtx;
+  const r = run(ban, ctx);
+  const bans = r.otherState.signi_attack_bans_this_turn ?? [];
+  eq(bans.length, 1, 'ban が1件だけ積まれる');
+  eq(bans[0].appliesTo, 'LRIG', '対象がルリグなので LRIG 側の ban になる');
+  eq(bans[0].unlessPayFieldTrash, 1, '解除コストが載っている');
+  eq(JSON.stringify(bans[0].cardNums), JSON.stringify([oppLrig]), '対象のルリグだけに掛かる');
+
+  // 🔴**対象が確定していなければ ban を張らない**（fail-closed）＝
+  //   支払いプロンプトで `storedTargetCards` が消えたときに全シグニを止めない。
+  const r2 = run(ban, mkCtx({ signi: [mySigni, null, null] }, { lrig: [oppLrig] }, mySigni));
+  eq((r2.otherState.signi_attack_bans_this_turn ?? []).length, 0, '対象未確定なら ban は張られない');
+
+  // 🆕`fixedCardNums`（`freezeStoredTargets` の焼き込み結果）でも同じ ban になる＝
+  //   **これが無いと任意コストの resume を跨いだ時点で対象が空になる**（無言の過少実行）。
+  const frozen: EffectAction = { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', unlessPayFieldTrash: 1,
+    fixedCardNums: [oppLrig] } as EffectAction;
+  const r3 = run(frozen, mkCtx({ signi: [mySigni, null, null] }, { lrig: [oppLrig] }, mySigni));
+  const bans3 = r3.otherState.signi_attack_bans_this_turn ?? [];
+  eq(bans3.length, 1, 'fixedCardNums 経路でも ban が張られる');
+  eq(bans3[0].appliesTo, 'LRIG', 'fixedCardNums 経路でも LRIG 側');
+}));
+
+test('索引B 2026-09-02: O-222 UI＝lrigAttackBanCost が fieldTrash を返し、シグニ側は過少へ倒す', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const oppLrig = findCard(c => c.Type === 'ルリグ');
+  const sig = SIGNI_L2;
+  const withBan = (ban: Record<string, unknown>) => ({
+    ...mkState({ signi: [sig, null, null], lrig: [oppLrig] }),
+    signi_attack_bans_this_turn: [ban],
+  } as unknown as PlayerState);
+
+  // ルリグ側＝軸が戻り値に出る。
+  const lrigCost = lrigAttackBanCost(
+    withBan({ appliesTo: 'LRIG', cardNums: [oppLrig], unlessPayFieldTrash: 1 }), oppLrig, cm);
+  eq(lrigCost?.fieldTrash, 1, 'ルリグ ban の fieldTrash が出る');
+  eq(lrigCost?.colorless, 0, '《無》は0');
+
+  // 🔴シグニ側＝**支払いUI が無い軸なので `null`（アタック不可）へ倒す**（無言で無視しない）。
+  //   ⚠live 母集団は0（parser はルリグ対象のときだけこの軸を出す）＝再発防止のガード。
+  eq(signiAttackBanCost(withBan({ cardNums: [sig], unlessPayFieldTrash: 1 }), sig, cm), null,
+    'シグニ ban にこの軸が載ったら過少側（アタック不可）へ倒す');
+
+  // ban が無ければ全軸0（形は同じ＝呼び出し元は戻り値の形だけを見る規約）。
+  const none = lrigAttackBanCost(mkState({ lrig: [oppLrig] }), oppLrig, cm);
+  eq(JSON.stringify(none), JSON.stringify({ colorless: 0, handDiscard: 0, fieldTrash: 0 }), 'ban 無しは全軸0');
+}));
+
+test('索引B 2026-09-02: O-222 支払い＝ルリグ版は自己除外せず、体数ぶん場から落とす', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const a = fresh(), b = fresh();
+  const st = mkState({ signi: [a, b, null], lrig: [findCard(c => c.Type === 'ルリグ')] });
+
+  // 候補＝場のシグニ全部（ルリグにシグニゾーンは無いので「他の」の除外が要らない）。
+  eq(JSON.stringify(lrigAttackFieldTrashSelectableZones(st, 1, cm)), JSON.stringify([0, 1]),
+    'ルリグ版は自己除外しない＝場のシグニ全部が候補');
+  ok(canPayLrigAttackFieldTrashCost(st, 2, cm), '2体なら払える');
+  ok(!canPayLrigAttackFieldTrashCost(st, 3, cm), '3体は払えない＝アタック不可へ倒す材料');
+
+  const paid = payLrigAttackFieldTrashCost(st, 1, [0], cm)!;
+  eq(paid.state.field.signi[0], null, '選んだゾーンが空になる');
+  ok(paid.state.trash.includes(a), 'トラッシュへ移る');
+  eq(paid.trashedSigniNums.length, 1, '1体だけ落ちる');
+  // 体数と選択数が食い違えば null＝fail-closed（払わずにアタックさせない）。
+  eq(payLrigAttackFieldTrashCost(st, 2, [0], cm), null, '選択数が足りなければ支払い不成立');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

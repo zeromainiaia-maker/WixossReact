@@ -164,6 +164,12 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   if ((ctx.storedTargetCards ?? []).length === 0) return action;
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
     'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT', 'REARRANGE_SIGNI',
+    // 🆕**§5.3 `O-222`（2026-09-02）で `SIGNI_ATTACK_BAN` を追加**＝「〈対象〉を対象とし、
+    //   〈任意コスト〉してもよい。そうした場合、それは『【常】：…かぎりアタックできない』を得る」。
+    //   🔴`storedTargetCards` は支払いプロンプトの resume を跨がないので、焼き込まないと
+    //   **支払いのあとで対象が空になり ban が張られない**（無言の過少実行）。
+    //   同じ巡で `execSigniAttackBan` 側に `fixedCardNums` の消費を足してある。
+    'SIGNI_ATTACK_BAN',
     // 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）**＝`execPowerModifyBySource` が2キーを
     //   `POWER_MODIFY` へ引き継ぐので、`POWER_MODIFY` と同じ契約が成り立つ。
     'POWER_MODIFY_BY_SOURCE'];
@@ -9644,8 +9650,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // 「対戦相手のルリグかシグニ1体」（`CENTER_LRIG_OR_SIGNI`）は選ばれた側で決まるので、
       // 静的な type ではなく**実際に確定した対象の Type**で仕分ける。
       let lrigBan: import('../types').SigniAttackBan | undefined;
-      if (sab.targetsStored) {
-        const stored = ctx.storedTargetCards ?? [];
+      if (sab.targetsStored || sab.fixedCardNums?.length) {
+        // 🆕**§5.3 `O-222`（2026-09-02）＝`fixedCardNums` を先に読む**。
+        //   `freezeStoredTargets` が焼き込んだ結果で、任意コストの支払いプロンプトを跨いでも生き残る
+        //   （`storedTargetCards` は resume を跨がない＝焼き込み前の木でだけ有効）。
+        const stored = sab.fixedCardNums?.length ? sab.fixedCardNums : (ctx.storedTargetCards ?? []);
         if (stored.length === 0) return done(addLog(ctx, 'アタック制限: 対象が確定していない'));
         const isLrigNum = (n: string) => (ctx.cardMap.get(getCardNum(n))?.Type ?? '').includes('ルリグ');
         const lrigNums = stored.filter(isLrigNum);
@@ -9670,10 +9679,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (!b) continue;
         if (sab.unlessPayColorless) b.unlessPayColorless = sab.unlessPayColorless;
         if (sab.unlessPayHandDiscard) b.unlessPayHandDiscard = sab.unlessPayHandDiscard;
+        // 🆕**§5.3 `O-222`（2026-09-02）＝場のシグニN体トラッシュの解除コスト**（`WX24-P3-049-E1`）。
+        if (sab.unlessPayFieldTrash) b.unlessPayFieldTrash = sab.unlessPayFieldTrash;
         // 「次の対戦相手のターン（終了時まで）」＝ターン数カウントダウン（§6.4 O-4）。
         if (sab.turns && sab.turns > 1) b.turnsRemaining = sab.turns;
         b.label = b.unlessPayColorless ? `《無》×${b.unlessPayColorless}`
           : b.unlessPayHandDiscard ? `手札${b.unlessPayHandDiscard}枚`
+          : b.unlessPayFieldTrash ? `シグニ${b.unlessPayFieldTrash}体トラッシュ`
           : 'アタック不可';
       }
       const zoneLabelJa = (zi: number) => (zi === 0 ? '左' : zi === 1 ? '中央' : '右');
@@ -9701,6 +9713,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       };
       const costLabel = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}を支払わないかぎりアタックできない`
         : ban.unlessPayHandDiscard ? `手札を${ban.unlessPayHandDiscard}枚捨てないかぎりアタックできない（アタックするごとに捨てる）`
+        : ban.unlessPayFieldTrash ? `シグニを${ban.unlessPayFieldTrash}体場からトラッシュに置かないかぎりアタックできない（アタックするごとに置く）`
         : 'アタックできない';
       return done(addLog(setOwnerState(banOwner, newBanState, ctx),
         `このターン、${banOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeLabel}${costLabel}`));

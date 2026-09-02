@@ -1,12 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { C } from '../../../components/BoardComponents';
-import { attackFieldTrashSelectableZones } from '../attackFieldTrashCost';
+import { attackFieldTrashSelectableZones, lrigAttackFieldTrashSelectableZones } from '../attackFieldTrashCost';
 import type { BattleModalCtx } from './types';
 
 interface AttackFieldTrashCostModalProps {
   ctx: BattleModalCtx;
-  payment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;
+  payment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number;
+    forLrig?: boolean; lrigSlot?: 'center' | 'assist_l' | 'assist_r' } | null;
   selectedZones: Set<number>;
   setSelectedZones: Dispatch<SetStateAction<Set<number>>>;
   onPay: () => void;
@@ -15,9 +16,14 @@ interface AttackFieldTrashCostModalProps {
 
 export function AttackFieldTrashCostModal(p: AttackFieldTrashCostModalProps) {
   const { my, loading, battleCardMap } = p.ctx;
-  const candidates = p.payment
-    ? attackFieldTrashSelectableZones(my, p.payment.cardNum, battleCardMap)
-    : [];
+  // 🆕**ルリグ版は体数から候補を出す**（2026-09-02 §5.3 `O-222`）＝シグニ版は
+  //   `signi_attack_field_trash_costs[cardNum]` を読むが、ルリグの解除コストは
+  //   `signi_attack_bans_this_turn.unlessPayFieldTrash` に載るので store が違う。
+  // ⚠**ルリグ版は自己除外しない**＝原文は「あなたのシグニ１体」で「他の」が無い。
+  const candidates = !p.payment ? []
+    : p.payment.forLrig
+      ? lrigAttackFieldTrashSelectableZones(my, p.payment.count, battleCardMap)
+      : attackFieldTrashSelectableZones(my, p.payment.cardNum, battleCardMap);
   return p.payment ? createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 3600, backgroundColor: 'rgba(0,0,0,0.92)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -27,7 +33,7 @@ export function AttackFieldTrashCostModal(p: AttackFieldTrashCostModalProps) {
           {battleCardMap.get(p.payment.cardNum)?.CardName ?? p.payment.cardNum} のアタック解除コスト
         </p>
         <p style={{ color: C.textMuted, fontSize: 12, margin: 0 }}>
-          他のシグニを{p.payment.count}体、場からトラッシュに置きます（{p.selectedZones.size}/{p.payment.count}体選択中）
+          {p.payment.forLrig ? '' : '他の'}シグニを{p.payment.count}体、場からトラッシュに置きます（{p.selectedZones.size}/{p.payment.count}体選択中）
         </p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           {candidates.map(zone => {

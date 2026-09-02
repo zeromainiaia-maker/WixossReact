@@ -62,6 +62,15 @@ export function payAttackFieldTrashCost(
     { count, excludeSelf: true }, undefined, selectedZones, state, cardMap, sourceZone,
   )) return null;
 
+  return trashSelectedZones(state, selectedZones);
+}
+
+/**
+ * 選んだゾーンのシグニをスタックごとトラッシュへ移す（シグニ版／ルリグ版で共有）。
+ * ⚠**チャーム／アクセも一緒に落とす**＝ゾーンを空にする以上、付随カードが宙に浮くと
+ *   「場に無いのに付いている」状態が残る。
+ */
+function trashSelectedZones(state: PlayerState, selectedZones: number[]): AttackFieldTrashPayment | null {
   const signi = [...state.field.signi] as (string[] | null)[];
   const down = [...(state.field.signi_down ?? [false, false, false])];
   const frozen = [...(state.field.signi_frozen ?? [false, false, false])];
@@ -102,6 +111,61 @@ export function payAttackFieldTrashCost(
     trashedSigniNums,
     movedCards,
   };
+}
+
+/**
+ * 🆕**ルリグアタックの「シグニN体を場からトラッシュに置く」解除コスト**（§5.3 `O-222`・`WX24-P3-049-E1`）。
+ *
+ * 🔴**シグニ版と store が違う**＝シグニ側は `signi_attack_field_trash_costs[attackerNum]`（`BLOCK_ACTION` の
+ *   `attackCost.fieldTrash` が積む）だが、ルリグ側は `signi_attack_bans_this_turn` の
+ *   `unlessPayFieldTrash`（`SIGNI_ATTACK_BAN`）に載る。⇒ **体数は呼び出し側が渡す**。
+ * ⚠**自己除外はしない**＝原文は「あなたのシグニ１体」で「他の」が無く、ルリグにはシグニゾーンも無い
+ *   （シグニ版の `excludeSelf` はアタッカー自身のゾーンを外すためのもの）。
+ * ⚠**支払いは `payLrigAttackFieldTrashCost` の1本**＝シグニ版と同じ移動処理を共有する
+ *   （スタック全体＋チャーム／アクセをトラッシュへ、状態フラグも空にする）。
+ */
+export function lrigAttackFieldTrashSelectableZones(
+  state: PlayerState,
+  count: number,
+  cardMap: Map<string, CardData>,
+): number[] {
+  if (count <= 0) return [];
+  return fieldTrashSelectableZones({ count, excludeSelf: false }, state, cardMap, undefined);
+}
+
+export function canPayLrigAttackFieldTrashCost(
+  state: PlayerState,
+  count: number,
+  cardMap: Map<string, CardData>,
+): boolean {
+  return count <= 0 || lrigAttackFieldTrashSelectableZones(state, count, cardMap).length >= count;
+}
+
+/** CPU用の決定論的支払い。盤面左から必要数を選ぶ（シグニ版と同じ規約）。 */
+export function deterministicLrigAttackFieldTrashZones(
+  state: PlayerState,
+  count: number,
+  cardMap: Map<string, CardData>,
+): number[] {
+  return lrigAttackFieldTrashSelectableZones(state, count, cardMap).slice(0, count);
+}
+
+/**
+ * ルリグアタックの解除コストを支払う。`payAttackFieldTrashCost` と**同じ移動処理**を通す。
+ * ⚠体数が足りない／ゾーンが空なら `null`（呼び出し側はアタックを成立させない＝fail-closed）。
+ */
+export function payLrigAttackFieldTrashCost(
+  state: PlayerState,
+  count: number,
+  selectedZones: number[],
+  cardMap: Map<string, CardData>,
+): AttackFieldTrashPayment | null {
+  if (count <= 0) return { state, trashedSigniNums: [], movedCards: [] };
+  if (selectedZones.length !== count) return null;
+  if (!fieldTrashSelectionSatisfied(
+    { count, excludeSelf: false }, undefined, selectedZones, state, cardMap, undefined,
+  )) return null;
+  return trashSelectedZones(state, selectedZones);
 }
 
 export function clearAttackFieldTrashCosts(state: PlayerState): PlayerState {

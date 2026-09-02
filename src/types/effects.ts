@@ -3607,6 +3607,22 @@ export interface SigniAttackBanAction {
    */
   unlessPayHandDiscard?: number;
   /**
+   * 🆕**場のシグニをN体トラッシュに置けばアタックできる**（§5.3 `O-222`・`WX24-P3-049-E1`
+   * 「【常】：あなたのシグニ１体を場からトラッシュに置かないかぎりアタックできない。」）。
+   * ⚠**`BlockActionAction.attackCost.fieldTrash` とは別軸**＝あちらは
+   *   `execBlockAction` の**シグニ分岐だけ**が消費する（`signi_attack_field_trash_costs`）。
+   *   こちらは ban 側に載るので `appliesTo:'LRIG'`（ルリグのアタック）でも効く。
+   * ⚠**アタックするごとに払う**（`unlessPayHandDiscard` と同じ＝ban は消費しない）。
+   */
+  unlessPayFieldTrash?: number;
+  /**
+   * 🆕**固定済みの対象**（§5.3 `O-222`）＝`freezeStoredTargets` が `targetsStored` を焼き込んだ結果。
+   * 🔴**`storedTargetCards` は支払いプロンプトの resume を跨いで生存しない**ので、
+   *   任意コストを挟む形（「〈対象〉を対象とし、《白》を支払ってもよい。そうした場合、それは…を得る」）では
+   *   これが無いと**支払いのあとで対象が空になり ban が張られない**（無言の過少実行）。
+   */
+  fixedCardNums?: string[];
+  /**
    * 有効なグローバルターン数（2＝「次の対戦相手のターン（終了時まで）」＝§6.4 O-4）。
    * 省略＝そのターンだけ。`SigniDeployBan` と同じカウントダウン規約で
    * `clearTurnEndScopedState` の1点だけが減らす。

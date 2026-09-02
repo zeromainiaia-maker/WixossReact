@@ -1,5 +1,110 @@
 # バグ修正記録 (BUGFIXES)
 
+## 🏁2026-09-02（索引 B 第4巡）：§5.3 `O-222` クローズ — ルリグの「シグニN体を場からトラッシュに置かないかぎりアタックできない」
+
+**ベースライン**＝`0b55afabe`（`O-60` 第16バッチの直後）。**母集団は登録票どおり 1効果**
+（`WX24-P3-049-E1`。原文「〜しないかぎり〜アタックできない」の全数24効果を当て直して確認＝
+`fieldTrash` 軸は2効果あるが、もう1つ（`WX24-P2-010-E1`）は**シグニ対象**で既存の
+`BLOCK_ACTION{attackCost.fieldTrash}` が動いている）。
+
+### ① 何が壊れていたか（2つ）
+
+原文＝「【自】：このシグニが場を離れたとき、**対戦相手のルリグ１体を対象とし**、《白》を支払ってもよい。
+そうした場合、ターン終了時まで、**それは**「【常】：あなたのシグニ１体を場からトラッシュに置かないかぎり
+アタックできない。」を得る。」
+
+- 🔴**帰結が `STUB{DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH}`（明示 defer＝no-op）**＝
+  `attackCost.fieldTrash` を消費するのは `execBlockAction` の**シグニ分岐だけ**で、
+  ルリグのアタック解除コストは `lrigAttackBanCost` の《無》×N／手札N枚の2軸しか無かった。
+- 🔴**登録票に書かれていなかった2つ目**＝**「対戦相手のルリグ１体を対象とし」も丸ごと落ちて**いた
+  （`SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` が1つも無い）。
+  ⇒ 受け皿だけ作っても ban の掛け先が無いので、**`O-96` の3点契約もこの巡で通した**。
+
+### ② 実装（登録票の4手＋照応の復元）
+
+| # | 場所 | 変更 |
+|---|---|---|
+| ① | `src/types/effects.ts` / `src/types/index.ts` | `SigniAttackBan(Action)` に **`unlessPayFieldTrash?: number`**（＋ action 側に `fixedCardNums`） |
+| ② | `src/engine/effectExecutor.ts` | `execSigniAttackBan` が軸とラベルを載せる／**`fixedCardNums` を消費**／`FREEZABLE` へ `SIGNI_ATTACK_BAN` を追加 |
+| ③ | `src/screens/battle/signiAttackBan.ts` | `SigniAttackBanCost` に **`fieldTrash`**（`lrigAttackBanCost` が合算） |
+| ④ | `src/screens/battle/attackFieldTrashCost.ts` | ルリグ版の候補／可否／CPU 決定論／支払いを4本新設（移動処理は `trashSelectedZones` で**シグニ版と共有**） |
+| ⑤ | `src/screens/BattleScreen.tsx` | `lrigAttackCostInfo` が `fieldTrash` を返し**払えるかも見る**／`handleLrigAttack` が支払いUI を開く／`performLrigAttack` が引き落とす／ボタン表示を軸ごとに |
+| ⑥ | `AttackFieldTrashCostModal` | `forLrig` で候補関数と文言を切り替え（**「他の」を出さない**＝原文に無い） |
+| ⑦ | `src/data/parsers/parseSentencePart2.ts` | defer を撤去して typed の `SIGNI_ATTACK_BAN{targetsStored, unlessPayFieldTrash}` を出す |
+| ⑧ | `src/data/effectParser.ts` | `O96_STORABLE_OUTCOMES` へ `SIGNI_ATTACK_BAN`／`target` を持たない型なので**宣言を原文から組み直す** |
+| ⑨ | `scripts/decompileEffects.ts` | 逆翻訳に軸を追加（2枝）／失効した `DEFERRED_` ラベルを削除 |
+
+🔑**`appliesTo:'LRIG'` は parser が付けない**＝`execSigniAttackBan` が**確定した対象の Type** で
+シグニ ban／ルリグ ban に仕分ける（`O-220` 第4バッチで確立済みの規約）。だから parser は
+`targetsStored` を刻むだけでよい。
+
+🔴**踏んだ罠＝`hasStoredTargetBinding` が「宣言」と「配線」を区別していなかった。**
+`SIGNI_ATTACK_BAN` は `target` を持たない型なので parser は**必ず** `targetsStored: true` を刻む
+（engine は store が空なら ban を張らない＝これが唯一の fail-closed な出し方）。ところが
+`applyO96OptionalCostTargetFirst` の入口ガードは **`targetsStored` を見つけただけで「配線済み」と判断**して
+引き上げを諦めていた。⇒ **配線の有無は「`SELECT_TARGET_ONLY`/`STORE` ステップが木にあるか」で見る**
+（`isUnwiredAttackBanAnaphora`）。⚠**例外は極力狭く**＝`targetsStored` を持つノードが
+`SIGNI_ATTACK_BAN` **だけ**のときに限る（`thisCardOnly` 等を持つ他の型まで巻き込むと既に正しい木を壊す）。
+
+🔑**シグニ側は「無言で無視しない」ガードを入れた**＝`signiAttackBanCost` はこの軸を見つけたら
+**`null`（アタック不可）へ倒す**。シグニのアタック経路にこの軸の支払いUI は無い
+（あちらは `signi_attack_field_trash_costs` という別 store）ので、載ったら過少側に倒すのが正しい。
+live 母集団は0（parser はルリグ対象のときだけ出す）＝**再発防止のガード**。
+
+### ③ ゲート
+
+- `npm run gates` **全緑**（typecheck／golden **3305 → 3309**＝`O-222` の契約4本を新設／
+  smoke 10723 全異常0／fuzz 全0／census 3 / BASELINE 5 据置／`census:stubs` A🔴0・C0／
+  manual-fields 0／`census:enginetext` A🔴128 据置／`census:costtext` A🔴0 据置／lint 0 errors）。
+- `npm run regen` 完走・**同型★0**。`node scripts/genStubsMd.mjs`（defer を1件撤去したため）。
+- ⚠**既存 golden を3本更新した**＝①`O-220` 第4バッチ (b) は「defer であること」を assert していたので
+  「typed の ban であること」へ差し替え ②`SigniAttackBanCost` の**形**を JSON 文字列で assert している
+  2本に `fieldTrash: 0` を追加（**軸を足したら形の assert が動く**のは設計どおり）。
+- ⚠**live へ届けるのに `--adopt-effect` が要った**＝`WX24-P3-049` は `_held_fresh` に落ちる
+  （`O-60` 第16バッチと同じ）。**defer の撤去と採用は同じコミットで閉じる**（採用漏れ＝逆翻訳に
+  生の英語 ID が出て `census:stubs` C群が止まる）。
+
+### ④ 実機の要否（§2.2 の判定）
+
+**必須**＝`src/screens/`（`BattleScreen.tsx` / `AttackFieldTrashCostModal.tsx` / `attackFieldTrashCost.ts` /
+`signiAttackBan.ts` / `useMiscBattleUI.ts`）を触ったため。
+`node scripts/verifyBattleDrive.mjs o222LrigFieldTrashPays o222LrigFieldTrashUnpayableBlocks
+o222LrigFieldTrashCancelBlocks` で **3/3 PASS**。
+
+🔑**支払い軸は3本組で撃つ**＝①払える ②払えない ③**払わずには通らない**。
+③（キャンセル）が無いと「モーダルは出たが実は払わなくても通る」を見逃す。
+- `o222LrigFieldTrashPays`＝ボタン「アタック（シグニ1体）」→ モーダルで1体選ぶ →
+  **lrigDown=true・場のシグニ 2→1・trash +1**
+- `o222LrigFieldTrashUnpayableBlocks`＝場にシグニ0 → 「アタック不可（シグニ1体）」・**lrigDown=false**
+- `o222LrigFieldTrashCancelBlocks`＝キャンセル → **lrigDown=false・場のシグニ 2→2**（何も落ちない）
+
+⚠**踏んだ罠（ドライバ側）**＝モーダルの候補を `page.locator('img[alt]')` で素に引くと
+**モーダルの裏の盤面カード**を掴んで選択が永久に進まない。**確定ボタンの親から辿って
+モーダル内だけを探す**（`payBtn.locator('xpath=..')`）。
+
+### 影響枚数
+
+挙動が変わったカード **1枚**（`WX24-P3-049`）＝**no-op（過少）の解消**。
+効果 変更1・追加0・削除0、予定外0。
+
+### 検証コマンド
+
+```
+npm run gates
+npm run regen && node scripts/groupSimilar.mjs --all      # 同型★0
+node scripts/verifyBattleDrive.mjs o222LrigFieldTrashPays o222LrigFieldTrashUnpayableBlocks o222LrigFieldTrashCancelBlocks
+```
+
+### 🔑 この巡から残す教訓
+
+**「宣言」と「配線」を同じフラグで見ない。** `targetsStored` は *「照応で受ける」という宣言* であって
+*3点契約が組まれた証拠* ではない。`target` を持たない型（`SIGNI_ATTACK_BAN`）を `O-96` の枠組みに
+載せるときは、**配線の有無を `SELECT_TARGET_ONLY`/`STORE` の実在で判定する**必要がある。
+⚠ここを混同すると、**parser が正しい宣言を出しているのに引き上げが諦められて対象が落ちる**
+（今回まさにそれで、登録票に書かれていなかった2つ目の欠陥が隠れていた）。
+
+---
+
 ## 2026-09-02（索引 A 第4巡）：§5.3 `O-60` 第16バッチ — 「このシグニの下に置く」を payload 化（A🔴 129→128行）
 
 **ベースライン**＝`3e57a0840`（`O-194` クローズの直後）。**`O-60` は継続項目（クローズしていない）。**

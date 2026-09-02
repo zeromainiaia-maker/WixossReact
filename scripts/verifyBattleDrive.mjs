@@ -26610,6 +26610,111 @@ scenarios.v38LrigAttackBanUnpayableBlocks = {
 order.push('v38LrigAttackBanPayableFires', 'v38LrigAttackBanUnpayableBlocks');
 // ── V-38 END ──
 
+// ── §5.3 `O-222`（2026-09-02）＝ルリグの「シグニN体を場からトラッシュに置かないかぎりアタックできない」──
+// `WX24-P3-049-E1` の帰結を、grant 元カードの詠唱を省略して `signi_attack_bans_this_turn` へ直接注入する
+// （V-38 と同じ作法）。⚠**この軸は `unlessPayColorless` と store が同じで支払いUI だけが別**＝
+//   `AttackFieldTrashCostModal` をルリグ経路から開き、選んだシグニを落としてからアタックが成立する。
+// 🔑**3本組で撃つ**＝①払える（モーダルで選んで落ちる）②払えない（盤面にシグニが無い＝ボタンが不可）
+//   ③**払わずには通らない**（キャンセルしたらアタックが成立しない）。
+const o222LrigFieldTrashSpec = (hostSigni) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9970'], 'field.signi': hostSigni, 'field.lrig_down': false, 'field.check': null,
+    'field.signi_down': [false, false, false], 'field.signi_traps': [null, null, null],
+    'signi_attack_bans_this_turn': [{ appliesTo: 'LRIG', cardNums: ['WD01-001#9970'], unlessPayFieldTrash: 1 }],
+    'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9971'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9975', 'WD01-013#9976'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+scenarios.o222LrigFieldTrashPays = {
+  title: 'O-222(a) シグニ1体を場からトラッシュに置けばルリグアタックできる＝モーダルで選んで落ちる',
+  spec: o222LrigFieldTrashSpec([['WD01-013#9972'], ['WD01-013#9973'], null]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック（"]').first();
+    const label = await atk.count() ? await atk.getAttribute('data-action-label') : null;
+    if (await atk.count() && await atk.isVisible().catch(() => false)) await atk.click().catch(() => {});
+    // 支払いモーダル＝候補のシグニを1体選んで確定する。
+    let picked = false;
+    let fin = before;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${SHOT}/o222pays-${s}.png`, fullPage: true });
+      if (!picked) {
+        const payBtn = page.getByRole('button', { name: /体をトラッシュに置いてアタックする/ }).first();
+        if (await payBtn.count()) {
+          if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); picked = true; }
+          else {
+            // ⚠**候補ボタンはモーダルの中だけを探す**＝`img[alt]` を素で引くと**モーダルの裏の盤面カード**を
+            //   掴んで永久に選択が進まない（初回実装でこれを踏んだ）。確定ボタンの親から辿る。
+            const modal = payBtn.locator('xpath=..');
+            await modal.locator('button:has(img)').first().click().catch(() => {});
+          }
+          continue;
+        }
+      }
+      fin = await H.queryState();
+      if (fin?.host?.lrigDown) break;
+      const did = await H.stdStep() || await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']);
+      if (!did) { fin = await H.queryState(); if (fin?.host?.lrigDown) break; }
+    }
+    const fieldBefore = (before?.host?.fieldSigni ?? []).filter(Boolean).length;
+    const fieldAfter = (fin?.host?.fieldSigni ?? []).filter(Boolean).length;
+    const trashed = (fin?.host?.trash ?? 0) - (before?.host?.trash ?? 0);
+    const pass = label === 'アタック（シグニ1体）' && !!fin?.host?.lrigDown && fieldBefore - fieldAfter === 1 && trashed >= 1;
+    const detail = `label=${label}（期待"アタック（シグニ1体）"） / lrigDown=${fin?.host?.lrigDown}（期待true） / 場のシグニ ${fieldBefore}→${fieldAfter}（1体減が期待） / trash +${trashed}`;
+    H.log(`  o222 ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.o222LrigFieldTrashUnpayableBlocks = {
+  title: 'O-222(b) 対照＝場にシグニが無いと「アタック不可（シグニ1体）」でアタックできない',
+  spec: o222LrigFieldTrashSpec([null, null, null]),
+  async drive(page, H) {
+    await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック不可（"]').first();
+    const label = await atk.count() ? await atk.getAttribute('data-action-label') : null;
+    if (await atk.count() && await atk.isVisible().catch(() => false)) await atk.click().catch(() => {});
+    await page.waitForTimeout(600);
+    const fin = await H.queryState();
+    const pass = label === 'アタック不可（シグニ1体）' && !fin?.host?.lrigDown;
+    const detail = `label=${label}（期待"アタック不可（シグニ1体）"） / lrigDown=${fin?.host?.lrigDown}（期待false＝攻撃不成立）`;
+    H.log(`  o222 ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.o222LrigFieldTrashCancelBlocks = {
+  title: 'O-222(c) 対照＝支払いをキャンセルしたらアタックは成立しない（払わずに通らない）',
+  spec: o222LrigFieldTrashSpec([['WD01-013#9972'], ['WD01-013#9973'], null]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック（"]').first();
+    if (await atk.count() && await atk.isVisible().catch(() => false)) await atk.click().catch(() => {});
+    await page.waitForTimeout(700);
+    const cancel = page.getByRole('button', { name: 'キャンセル', exact: true }).first();
+    const sawModal = await cancel.count() > 0;
+    if (sawModal) await cancel.click().catch(() => {});
+    await page.waitForTimeout(700);
+    const fin = await H.queryState();
+    const fieldBefore = (before?.host?.fieldSigni ?? []).filter(Boolean).length;
+    const fieldAfter = (fin?.host?.fieldSigni ?? []).filter(Boolean).length;
+    const pass = sawModal && !fin?.host?.lrigDown && fieldBefore === fieldAfter;
+    const detail = `支払いモーダル=${sawModal}（期待true） / lrigDown=${fin?.host?.lrigDown}（期待false） / 場のシグニ ${fieldBefore}→${fieldAfter}（変化なしが期待）`;
+    H.log(`  o222 ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('o222LrigFieldTrashPays', 'o222LrigFieldTrashUnpayableBlocks', 'o222LrigFieldTrashCancelBlocks');
+// ── O-222 END ──
+
 // ── §7 V-36（O-10・続き566）(c)のみ ──
 // `WXDi-P16-047`【常】：対戦相手は《無》を支払わないかぎり、このシグニの正面にあるシグニでアタックできない
 // ＝STUB{BLOCK_FRONT_SIGNI_ATTACK, value:1}（`effectEngine.ts` の `calcContinuousBlockedActions` が

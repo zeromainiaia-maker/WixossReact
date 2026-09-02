@@ -28,7 +28,10 @@ export interface GuardResponsesState {
   negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number; attackFieldTrashAlreadyPaid?: boolean; attackHandDiscardAlreadyPaid?: boolean } | null;
   selectedNegateEscape: Set<number>;
   // 解除コストつきアタック制限：アタック宣言前に「他のシグニ」を選んでトラッシュする
-  attackFieldTrashPayment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;
+  // 🆕`forLrig`／`lrigSlot`（2026-09-02 §5.3 `O-222`）＝**ルリグアタックの解除コスト**でも同じ
+  //   モーダルを使う。⚠ルリグには `zoneIndex` が無いので `-1` を入れる規約（`openNegateEscape` と同じ）。
+  attackFieldTrashPayment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number;
+    forLrig?: boolean; lrigSlot?: 'center' | 'assist_l' | 'assist_r' } | null;
   selectedAttackFieldTrashZones: Set<number>;
   // 解除コストつきアタック制限（手札版・§6.4 O-3）：「手札をN枚捨てないかぎりアタックできない」。
   // ⚠`negateEscape`（1回きりの無効化回避）とは**別機構**＝こちらはアタックするごとに払う。

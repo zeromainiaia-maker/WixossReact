@@ -10453,6 +10453,11 @@ const O96_STORABLE_OUTCOMES = [
   // 🆕**第12バッチ（2026-09-02）で追加**＝「そうした場合、それは『…』を得る」（引用能力の付与）。
   //   ⚠`targetsLastProcessed`（直前ステップの結果）とは別のフィールドを足してある。
   'GRANT_EFFECT',
+  // 🆕**§5.3 `O-222`（2026-09-02）で追加**＝「そうした場合、**それは**『【常】：…かぎりアタックできない』を得る」。
+  //   ⚠**`target` を持たない型**なので、宣言は下の `declaredTarget` で原文から組み直す
+  //   （`o96StubDeclaredTarget` と同じ考え方）。engine 側は `fixedCardNums` を消費するようにし、
+  //   `FREEZABLE` にも登録済み（3点契約）。
+  'SIGNI_ATTACK_BAN',
   // 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）で追加**＝「それとこのシグニの場所を入れ替える」。
   //   ⚠`execRearrangeSigni` の**場×場の `swap` 分岐だけ**が消費する（`swapSourceLocation` 付きの
   //   場外交換／`swapBetweenTargets`／count が ALL の並べ替えは対象固定を読まない）。
@@ -10504,9 +10509,41 @@ function o96StubDeclaredTarget(text: string, stub: StubAction): EffectTarget | n
   return null;
 }
 
+/**
+ * 🆕**§5.3 `O-222`（2026-09-02）＝「照応で受ける宣言」と「3点契約の配線」を区別する。**
+ *
+ * `SIGNI_ATTACK_BAN` は `target` を持たない型なので、parser は**必ず** `targetsStored: true` を刻む
+ * （engine は store が空なら ban を張らない＝これが唯一の fail-closed な出し方）。
+ * ところが `hasStoredTargetBinding` は `targetsStored` を見つけただけで「もう配線済み」と判断するため、
+ * **`SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` がまだ無いのに引き上げを諦めて**いた。
+ *
+ * ⇒ **配線の有無は「store ステップが木にあるか」で見る**。ここが true のときだけ例外的に先へ進む。
+ * ⚠**判定は極力狭く**＝`targetsStored` を持つノードが `SIGNI_ATTACK_BAN` **だけ**のときに限る
+ *   （`thisCardOnly` 等を持つ他の型まで巻き込むと、既に正しい木を作り直して壊す）。
+ */
+function isUnwiredAttackBanAnaphora(action: EffectAction): boolean {
+  let hasStoreStep = false;
+  let banBindings = 0;
+  let otherBindings = 0;
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'STUB' && (obj.id === 'SELECT_TARGET_ONLY' || obj.id === 'STORE_LAST_PROCESSED_TARGETS')) hasStoreStep = true;
+    if (obj.targetsStored || obj.targetsLastProcessed || obj.targetsTriggerSource || obj.thisCardOnly) {
+      if (obj.type === 'SIGNI_ATTACK_BAN') banBindings++; else otherBindings++;
+    }
+    Object.values(obj).forEach(walk);
+  };
+  walk(action);
+  return !hasStoreStep && banBindings > 0 && otherBindings === 0;
+}
+
 function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): EffectAction {
   if (!O96_TARGET_BEFORE_OPTIONAL_COST_RE.test(text) || action.type !== 'SEQUENCE') return action;
-  if (hasStoredTargetBinding(action)) return action;
+  // ⚠**既に3点契約が配線されている木は触らない**（二重配線の防止）。
+  //   🆕例外＝`SIGNI_ATTACK_BAN` の「宣言だけの `targetsStored`」（`isUnwiredAttackBanAnaphora` の説明）。
+  if (hasStoredTargetBinding(action) && !isUnwiredAttackBanAnaphora(action)) return action;
 
   const steps = [...action.steps];
   // 🆕**§5.3 `O-221` 第3バッチ（2026-09-02）＝did-it ゲートが「コストの直後のネストした
@@ -10678,10 +10715,27 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   const placeTarget = outcome.type === 'ADD_TO_FIELD'
       && (outcome.source?.type === 'TRASH_CARD' || outcome.source?.type === 'ENERGY_CARD')
     ? outcome.source : undefined;
+  // 🆕**§5.3 `O-222`（2026-09-02）＝`SIGNI_ATTACK_BAN` は `target` を持たない**（対象は `targetsStored`）。
+  //   宣言は原文から組み直す＝「〈あなた|対戦相手〉の〈ルリグ|シグニ〉N体を対象とし」。
+  // ⚠**引用の中は見ない**（引用内の「あなたのシグニ」は解除コストの話であって対象宣言ではない）。
+  // ⚠読めなければ `null` で据置（fail-closed）＝別の対象宣言を拾って誤照応させない。
+  const banTarget = outcome.type === 'SIGNI_ATTACK_BAN'
+    ? (() => {
+        const scanBT = text.replace(/「[\s\S]*?」/g, '「」');
+        const mBT = scanBT.match(/(あなた|対戦相手)の(ルリグ|シグニ)([０-９\d]+)体を対象とし/);
+        if (!mBT) return undefined;
+        return {
+          type: mBT[2] === 'ルリグ' ? 'LRIG' : 'SIGNI',
+          owner: mBT[1] === '対戦相手' ? 'opponent' : 'self',
+          count: parseNum(mBT[3]),
+        } as EffectTarget;
+      })()
+    : undefined;
   const declaredTarget = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget
     : outcome.type === 'TRANSFER_TO_DECK' ? deckTarget
       : outcome.type === 'ADD_TO_FIELD' ? placeTarget
-        : outcome.target;
+        : outcome.type === 'SIGNI_ATTACK_BAN' ? banTarget
+          : outcome.target;
   if (!declaredTarget) return action;
   // 🆕**第9バッチ（2026-09-02）＝`TRASH` の対象が相手エナのカードである形を解禁**
   //   （「対戦相手のエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
@@ -10692,7 +10746,10 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   const zoneOutcomeOk = (outcome.type === 'TRASH' && declaredTarget.type === 'ENERGY_CARD')
     || (outcome.type === 'TRANSFER_TO_DECK' && declaredTarget.type === 'LRIG_TRASH_CARD');
   // 場のシグニを指す型だけ `SIGNI` を要求する（ゾーンから選ぶ型は上で出処を検証済み）。
+  // 🆕`SIGNI_ATTACK_BAN` は **`LRIG` 対象**を取りうる（`O-222`）＝engine が確定した対象の Type で
+  //   シグニ ban／ルリグ ban を仕分けるので、ここで `SIGNI` を強制しない。
   if (outcome.type !== 'TRANSFER_TO_HAND' && outcome.type !== 'ADD_TO_FIELD' && !zoneOutcomeOk
+      && outcome.type !== 'SIGNI_ATTACK_BAN'
       && declaredTarget.type !== 'SIGNI') return action;
 
   const selectTargetStep: EffectAction = {
