@@ -141,7 +141,7 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   //   ⚠**場のカードを固定する他の型と意味が違う**（固定するのはトラッシュ／エナの札）ので、
   //   `execAddToField` 側では `TRASH_CARD` / `ENERGY_CARD` の候補集めの後でだけ絞る。
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
-    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD'];
+    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT'];
   if (FREEZABLE.includes(action.type) && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
@@ -2547,6 +2547,13 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     // 「そのカード」は既にトリガーで一意に決まっており、対象を取らないため選択UIを出さず直接処理する。
     if (triggerRestrict !== null) return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
+    // 🆕**焼き込み済みの対象も同じ**（§5.3 `O-96` 第9バッチ・実機 `V-130` と同型）＝
+    //   支払いより前に確定した1枚なので、支払い後に選び直させない。
+    if (a.fixedCardNums?.length) {
+      return cands.length > 0
+        ? done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands })
+        : done({ ...ctx, lastProcessedCards: [] });
+    }
     if (tgt.count === 'ALL') {
       if (tgt.upToCount) {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
@@ -3510,6 +3517,12 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
       const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
       cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     }
+    // 🆕**任意コストの前に宣言した対象だけを手札へ**（§5.3 `O-96` 第12バッチ・2026-09-02）＝
+    //   「あなたのエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+    //    **そうした場合、それを**手札に加える」（`WXDi-P01-070-E1`）。
+    //   ⚠`TRASH_CARD` / `CHECK_CARD` 分岐にしか無かった2本の絞り込みをここにも入れる。
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else {
     return done(ctx);
@@ -3901,6 +3914,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     return { ...cur, lastProcessedCards: placed };
   }
 
+  // 🆕**焼き込み済みの対象は選択UIを開かずに即適用する**（§5.3 `O-96` 第8バッチ・実機 `V-130`）。
+  // 🔴これが無いと**払ったのに対象をもう一度選ばされる**＝原文では支払いより前に対象が確定しているのに
+  //   支払い後にもう一度同じ札を選ばせる画面が出る（`execGrantKeyword` が第6バッチで踏んだのと同じ形）。
+  //   ⚠**golden は全緑のまま通る**（構造だけ見ていて UI の再プロンプトを観測できない）＝実機だけが捕まえる。
+  if (a.fixedCardNums?.length) {
+    return cands.length > 0 ? done(applyToField(cands, ctx)) : done({ ...ctx, lastProcessedCards: [] });
+  }
   const count = src.count === 'ALL' ? cands.length : resolveCountRef(src.count, ctx, src.countFromZone);
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
   // a.optional:「場に出してもよい」→ 出す/出さないを選択可能にする（src.upToCount と同様に任意化）
@@ -4864,6 +4884,10 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     );
     cands = inSelfZone ? [src!] : [];
   }
+  // 🆕**任意コストの前に宣言した対象だけへ付与**（§5.3 `O-96` 第12バッチ・2026-09-02）＝
+  //   「あなたの他のシグニ１体を**対象とし**、《白》を支払って**もよい**。**そうした場合、それは**〜を得る」。
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
 
   const untilOppTurn = a.duration === 'UNTIL_OPP_TURN_END';
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
@@ -4879,6 +4903,8 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
       `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に${effectLabel}を付与`);
   }
 
+  // 🆕**焼き込み済みの対象は選択UIを開かずに即付与する**（§5.3 `O-96` 第12バッチ・実機 `V-130` と同型）。
+  if (a.fixedCardNums?.length) return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   // LRIG は選択UIを出さず自動付与（execGrantKeyword と同様）
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -6901,6 +6927,17 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     //     `stripDidItConditional` を呼ぶ（`:9231`）ので、0体選択で帰結ごと止まる。
     if (deckThisCardOnly && !a.optional) return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
     if (deckThisCardOnly) return selectOrInteract(cands, 1, true, scope, a, undefined, ctx);
+    // 🆕**焼き込み済みの対象は選択UIを開かずに即適用する**（§5.3 `O-96` 第7バッチ・実機 `V-130` と同型）＝
+    //   支払いより前に確定した対象なので、支払い後に選び直させない
+    //   （`execTransferToHand` の同型分岐＝`O-71` と同じ規約）。
+    if (a.fixedCardNums?.length) {
+      if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+      // 🔴**離場置換の問いかけは飛ばさない**（`count:'ALL'` 経路と同じ規約・§6.4 続き430）＝
+      //   選択UIを省いても「エナゾーンに置かれる代わりに〜」の可否は被害側に問う必要がある。
+      { const ask = leaveSubstituteAskQueue('TRANSFER_TO_DECK', cands, ctx);
+        if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
+      return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
+    }
 
     if (src.count === 'ALL') {
       // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する

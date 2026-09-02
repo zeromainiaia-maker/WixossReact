@@ -10412,6 +10412,9 @@ const O96_STORABLE_OUTCOMES = [
   //   ⚠**固定するのは「場のカード」ではなくトラッシュ／エナの札**＝他の型と `targetsStored` の意味が違う。
   //   `execAddToField` の `TRASH_CARD`/`ENERGY_CARD` 候補集めの後でだけ絞る形で3点契約を揃えた。
   'ADD_TO_FIELD',
+  // 🆕**第12バッチ（2026-09-02）で追加**＝「そうした場合、それは『…』を得る」（引用能力の付与）。
+  //   ⚠`targetsLastProcessed`（直前ステップの結果）とは別のフィールドを足してある。
+  'GRANT_EFFECT',
 ];
 
 function hasStoredTargetBinding(node: unknown): boolean {
@@ -10457,6 +10460,11 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     // 🆕**第8バッチ**＝`selfToEnergy`（「場にあるこのシグニをエナゾーンに置いてもよい」）も
     //   `OptionalCostSpec` の正規の軸（`execUtils.ts:412`＝可否640・支払い809）。
     'selfToEnergy',
+    // 🆕**第12バッチ（2026-09-02）**＝`coinCost`（《コインアイコン》）。
+    //   `OPTIONAL_COST` の pay/skip 分岐（`effectExecutor.ts:5939`）が可否（`coins >= coinCost`）も
+    //   支払い（`:10777`）も持つ**正規の軸**なのに許可リストから漏れていた（`WXDi-P07-055/072/094` の
+    //   ライフバースト3効果＝どれも `CHOOSE` の②枝）。
+    'coinCost',
   ];
   if (Object.keys(cost).some(k => !allowedCostKeys.includes(k))) return action;
   // コスト軸が1つも無い payload（＝実質からのコスト）は対象外。
@@ -10476,8 +10484,10 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   //   一度に20効果を載せないためのサンプリングだった）。engine 側は `SELECT_TARGET_ONLY` と
   //   `execTransferToHand` が**同一の候補集め関数**を共有しているので、フィルタ軸を広げても契約は壊れない。
   // ⚠**`transferGroups` との併用だけは今も除外する**＝固定対象と1対1で対応しない（executor 側も非対応）。
+  // 🆕**第12バッチ（2026-09-02）で `ENERGY_CARD` を追加**＝`execTransferToHand` の `ENERGY_CARD` 分岐にも
+  //   `targetsStored`/`fixedCardNums` の絞り込みを入れ、`SELECT_TARGET_ONLY` も自エナへ対応済み。
   const transferTarget = outcome.type === 'TRANSFER_TO_HAND'
-      && outcome.source?.type === 'TRASH_CARD'
+      && (outcome.source?.type === 'TRASH_CARD' || outcome.source?.type === 'ENERGY_CARD')
       && outcome.source.owner === 'self'
       && !outcome.transferGroups?.length
     ? outcome.source : undefined;
@@ -10540,6 +10550,32 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
 // ⚠**`SEQUENCE` の中へは降りない**＝root `SEQUENCE` は本体の規則がそのまま扱う。ここで潜ると
 //   「支払いより前に別の動作がある」形まで巻き込む。
 // 🔑**枝ごとに独立して判定される**（二重適用ガードも枝単位）＝片方の枝が既に固定済みでも他方は直る。
+// ── §5.3 `O-96` 第13バッチ（2026-09-02）：`costText` しか無い任意コストへ payload を合成する ──
+// 🔴**`costText` は表示専用**（`src/types/effects.ts:4920`）＝これだけの `OPTIONAL_COST` は
+//   **構造化された支払いが無い**＝engine が支払いを提示できず、`O-96` の対象固定も当てられない。
+// 🔑既に `parseOptionalCostClauseFields`（受け皿の全量は `resolveOptionalCostSpec`）が在るのに、
+//   呼び出し地点が2つ（`applyCompositeOptionalCostFields`／`applyLegacyTradeStubCost`）しか無く、
+//   どちらも文型が限定的だった（前者は「〜し《色》を支払ってもよい」・後者は**対戦相手**の対象宣言のみ）。
+//   ⇒ **bare な `OPTIONAL_COST` の `costText` そのものを句として渡す**第3の入口を置く。
+// ⚠**fail-closed のまま**＝表せない句は `null` で据置（誤変換より無変換）。
+// ⚠**`id` を返す句（`OPTIONAL_TRASH_SELF`）は触らない**＝engine 側に専用経路がある。
+function fillBareOptionalCostPayload(action: EffectAction): EffectAction {
+  const walk = (n: unknown): void => {
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'OPTIONAL_COST' && typeof o.costText === 'string'
+        && Object.keys(o).every(k => k === 'type' || k === 'id' || k === 'costText')) {
+      const clause = (o.costText as string).replace(/てもよい$/, '');
+      const fields = parseOptionalCostClauseFields(clause);
+      if (fields && !fields.id) Object.assign(o, fields);
+    }
+    for (const k of Object.keys(o)) walk(o[k]);
+  };
+  walk(action);
+  return action;
+}
+
 function applyO96Nested(text: string, action: EffectAction, depth = 0): EffectAction {
   if (depth > 3) return action;
   const fixed = applyO96OptionalCostTargetFirst(text, action);
@@ -10558,6 +10594,19 @@ function applyO96Nested(text: string, action: EffectAction, depth = 0): EffectAc
     const abilities = action.abilities.map(ab => ({ ...ab, action: applyO96Nested(text, ab.action, depth + 1) }));
     return abilities.some((ab, i) => ab.action !== action.abilities[i].action)
       ? { ...action, abilities } : action;
+  }
+  // 🆕**第12バッチ（2026-09-02）＝`SEQUENCE` の要素にぶら下がるネスト器へも降りる。**
+  //   「〈前置きの STUB〉。以下の３つから２つまで選ぶ。①…②〈対象〉を対象とし〈任意コスト〉…」
+  //   （`WXDi-P16-TK01-E1` の `RULE_REMINDER_TEXT`／`WXK08-001-E1` の `ARTS_COST_REDUCTION_BY_CENTER_LRIG`）は
+  //   root が `SEQUENCE[STUB, CHOOSE]` なので、上の `CHOOSE` 分岐に一度も入れなかった。
+  // 🔴**降りるのはネスト器（`CHOOSE`/`CONDITIONAL`/`GRANT_LRIG_ABILITY`）の要素だけ**＝
+  //   `SEQUENCE` の中の `SEQUENCE` へは降りない（「支払いより前に別の動作がある」形まで巻き込む）。
+  //   root `SEQUENCE` 自身は上の `applyO96OptionalCostTargetFirst` が既に試して降りている。
+  if (action.type === 'SEQUENCE') {
+    const steps = action.steps.map(st => (
+      st.type === 'CHOOSE' || st.type === 'CONDITIONAL' || st.type === 'GRANT_LRIG_ABILITY'
+        ? applyO96Nested(text, st, depth + 1) : st));
+    return steps.some((st, i) => st !== action.steps[i]) ? { ...action, steps } : action;
   }
   return action;
 }
@@ -13649,13 +13698,26 @@ function fullyExpressibleCostFilter(spec: string): TargetFilter | null {
   // 「手札からスペルをN枚」＝種別そのものが修飾。ここで消費しないと未表現文字として
   // null になり、複合任意コストの前半が丸ごと落ちる。exact 語だけを受け、曖昧な名詞へ広げない。
   if (rest === 'スペル') { filter.cardType = 'スペル'; rest = ''; }
+  // 🆕**《カード名》指定**（§5.3 `O-96` 第13バッチ・2026-09-02）＝「手札から《幻水　セベク》を１枚捨て」。
+  //   `TargetFilter.cardName` は**部分一致**（`execUtils.ts:1154`）なので原文の表記ゆれ（全角スペースの
+  //   有無）を跨いで当たる。
+  // ⚠**色（《赤》）とアイコン（《ガードアイコン》等）は除く**＝同じ記号を使う別語彙。
+  const nameM = rest.match(/^《([^》]+)》$/);
+  if (nameM && !/^[白赤青緑黒無]$/.test(nameM[1]) && !/アイコン$/.test(nameM[1])) {
+    filter.cardName = nameM[1];
+    rest = '';
+  }
   if (rest.replace(/^(?:あなたの)?/, '').trim() !== '') return null;   // 未消費の修飾が残る＝表せていない
   return filter;
 }
 
 /** 任意コスト句（「〜てもよい」の直前）を OPTIONAL_COST の payload へ写す。表せない句は null＝据置。 */
 function parseOptionalCostClauseFields(clause: string): Partial<StubAction> | null {
-  const c = clause.replace(/^[、,]/, '').trim();
+  // 🆕**先頭の対象宣言を剥がす**（§5.3 `O-96` 第13バッチ・2026-09-02）＝
+  //   呼び出し地点によっては clause に「〈対象〉を対象とし、」が付いたまま渡る（`WXK10-080-E2` の
+  //   `costText` が「あなたの＜水獣＞のシグニ１体を対象とし、手札から《幻水　セベク》を１枚捨ててもよい」）。
+  //   ⚠**コスト句そのものに「対象とし」は現れない**（コストは「〜を支払い」「〜を捨て」）＝剥がして安全。
+  const c = clause.replace(/^[、,]/, '').replace(/^[^。]*?を対象とし[、,]\s*/, '').trim();
   // O-190 第2バッチ①「トラッシュから〈修飾〉カードN枚をゲームから除外し」。
   // 「コストの合計がN」は既存 TargetFilter.costMin/costMax の同値で exact を表し、新キーを作らない。
   const trashExileM = c.match(/^(あなたのトラッシュにある|(?:あなたは)?いずれかのトラッシュから対象の)(.*?)(カード|シグニ|スペル)([０-９\d]+)枚をゲームから除外し$/);
@@ -24383,6 +24445,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     if (effect.parseStatus === 'AUTO') {
       effect.action = applyRecoveryNounPhraseModifiers(sourceText, effect.action);
       effect.action = applyRecoveryTransferGroups(sourceText, effect.action);
+      effect.action = fillBareOptionalCostPayload(effect.action);
       effect.action = applyDroppedFieldPlacementDesignation(sourceText, effect.action);
       effect.action = applyO96Nested(sourceText, effect.action);
       effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);

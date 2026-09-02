@@ -13855,7 +13855,9 @@ const MANUAL_DRIFT_KNOWN = new Set([
   'WX13-040-E1', 'WX14-064-E1',                      // UNDATED（manual 側の日付が取れない）
   // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
-  'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
+  // ✅2026-09-02（`O-96` 第11バッチ）＝`WXDi-P02-039-E1` は `syncManualLive` で解消（同カードの E2 を
+  //   固定形へ直したついでにカード単位で同期された）＝リストから外した。
+  'WXEX1-66-E2',                                                     // SAME_TIME＝同一 commit で分岐（要原文照合）
   // ✅2026-08-29（§5.3 `O-149`）＝WX24-P2-049 / WXDi-P13-050 の shadow id は正規化して解消。
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
@@ -18160,6 +18162,25 @@ test('O-188 第2バッチ 据置契約: 専用 STUB id は固定形へ変えな�
   }
 });
 
+// ── §5.3 `O-96` 第13バッチ（2026-09-02）＝**ルリグ対象は据置が正しい**という契約 ──
+// 「対戦相手のルリグ１体を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それを**凍結する／
+//  ダウンする」は、対象が**センタールリグ1体で一意**＝支払いの後に選び直しても同じ1体になる。
+// ⇒ `O-96` の実害（(a) 対象が0体でも支払いを提示する (b) 宣言後に対象が変わりうる）が**どちらも起きない**。
+// 🔴`execFreeze`/`execDown` の `LRIG` 分岐は `targetsStored`/`fixedCardNums` を**読まず**
+//   `lrig.at(-1)` へ即適用する＝固定形へ変えても**挙動は1ビットも変わらない**（意味のない差分になる）。
+// ⚠この契約は「対象が一意」を根拠にしている＝アシストルリグを対象に取る文型が現れたら見直す。
+test('O-96 据置契約: ルリグ対象は固定形へ変えない（対象が一意＝照応の欠陥が生じない）', () => {
+  for (const [cardNum, effectId, outcome] of [
+    ['WXDi-P02-040', 'WXDi-P02-040-E2', 'FREEZE'],
+    ['WX26-CP1-006', 'WX26-CP1-006-E1', 'DOWN'],
+  ] as const) {
+    const json = JSON.stringify(o96Live(cardNum, effectId).action);
+    ok(json.includes(`"type":"${outcome}"`), `${effectId}: 帰結は ${outcome}`);
+    ok(json.includes('"type":"LRIG"'), `${effectId}: 対象はルリグ（＝センター1体で一意）`);
+    ok(!json.includes('"targetsStored"'), `${effectId}: ルリグ対象へ照応キーを足さない（engine が読まない）`);
+  }
+});
+
 test('O-96 第2バッチ JSON順序: handDiscard の4帰結型と payload／期間／delta を保存する', () => {
   const powerEffect = o96Live('WDK10-014', 'WDK10-014-E1');
   const power = assertO96FixedOrder('WDK10-014', 'WDK10-014-E1');
@@ -22316,7 +22337,8 @@ test('BANISH_REDIRECT whenPowerZero: 無条件フラグを立てず対戦相手�
 });
 // 続き217: BANISH_REDIRECT の bySource（バニッシュ元の限定）。
 // これが無いと「能力持ちが場に1体いるだけで相手の全バニッシュが常時トラッシュ送り」に過剰発火する
-// （WXDi-CP02-072-E3「【絆常】：対戦相手のシグニがこのシグニとのバトルによってバニッシュされる場合…」等10効果）。
+// （WXDi-CP02-072-E2「【絆常】：対戦相手のシグニがこのシグニとのバトルによってバニッシュされる場合…」等10効果）。
+// ⚠2026-09-02（`O-96` 第13バッチ）に id 集合ズレ（O-39 系）を解消し `-E3` → `-E2` へ改名した。
 test('BANISH_REDIRECT bySource: 限定なしは常に適用／battle_with_this は当事者のみ・非バトル経路は不適用', () => {
   const plain = { type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, redirectTo: 'trash', until: 'PERMANENT' } as EffectAction;
   const byBattle = { ...plain, bySource: 'battle_with_this' } as EffectAction;
@@ -41636,7 +41658,7 @@ test('§5d-0(iv) 条件節較正: actionが内包する19効果は高シグナ�
   const byVocabulary: Record<string, string[]> = {
     BANISH_REDIRECT: [
       'WX01-027-E3', 'WX18-038-E2', 'WX19-078-E1', 'WX21-005-E1', 'WX24-P4-042-E1',
-      'WX26-CP1-044-E2', 'WXDi-CP02-072-E3', 'WXDi-CP02-102-E2', 'WXDi-P10-009-E3',
+      'WX26-CP1-044-E2', 'WXDi-CP02-072-E2', 'WXDi-CP02-102-E2', 'WXDi-P10-009-E3',
       'WXDi-P12-073-E1', 'WXDi-P15-044-E1', 'WXK06-048-E1', 'WXK10-053-E1', 'WXK11-032-E1',
     ],
     BANISH_SUBSTITUTE: ['WX10-033-E1', 'WX11-029-E2'],
@@ -43969,24 +43991,25 @@ test('§6.4 選択肢内の任意コスト: CHOOSE が残り・両枝とも対�
     eq(c0.type, t0, `${effectId}: ①はコスト無しの弱い方`);
     // ①の対象は相手（🔴旧実装は owner:'self'＝自分のシグニに撃っていた）
     eq((c0.target ?? c0.source)?.owner, 'opponent', `${effectId}: ①は対戦相手のシグニ`);
-    // ②は「コストステップ → そうした場合ゲート」の2段
+    // ②は「コストステップ → そうした場合ゲート」。
+    // ⚠**ステップ位置で読まない**＝`O-96` 第12バッチで②枝が固定形（宣言→保存→コスト→ゲート）になった。
     eq(c1.type, 'SEQUENCE', `${effectId}: ②は任意コスト付き`);
-    const cost = c1.steps![0];
-    eq(cost.id, 'OPTIONAL_COST', `${effectId}: ②の先頭は任意コスト`);
+    const cost = c1.steps!.find(st => st.id === 'OPTIONAL_COST')!;
+    ok(!!cost, `${effectId}: ②に任意コストがある`);
     if (costKind === 'coin') eq(cost.coinCost, 1, `${effectId}: 🔴《コイン》1枚のコストが付いている（無料で撃てない）`);
-    const gate = c1.steps![1];
-    eq(gate.condition?.type, 'IS_MY_TURN', `${effectId}: 「そうした場合」ゲート`);
+    const gate = c1.steps!.find(st => st.condition && st.then)!;
+    eq(gate.condition?.type, 'PAID_ADDITIONAL_COST', `${effectId}: 「そうした場合」＝実支払いゲート`);
     eq(gate.then!.type, t1, `${effectId}: ②の本体`);
     eq((gate.then!.target ?? gate.then!.source)?.owner, 'opponent', `${effectId}: ②も対戦相手のシグニ`);
   }
   // パワー制限も選択肢ごとに違う（①5000以下 / ②12000以下）＝旧実装はフィルタごと落ちて無差別だった
   const p55 = pick('WXDi-P07-055', 'WXDi-P07-055-BURST');
   eq(p55.choices![0].action.target?.filter?.powerRange?.max, 5000, '①はパワー5000以下');
-  eq(p55.choices![1].action.steps![1].then!.target?.filter?.powerRange?.max, 12000, '②はパワー12000以下');
+  eq(p55.choices![1].action.steps!.find(st => st.then)!.then!.target?.filter?.powerRange?.max, 12000, '②はパワー12000以下');
   // 値も選択肢ごと（①−5000 / ②−12000）
   const p94 = pick('WXDi-P07-094', 'WXDi-P07-094-BURST');
   eq(p94.choices![0].action.delta, -5000, '①は−5000');
-  eq(p94.choices![1].action.steps![1].then!.delta, -12000, '②は−12000');
+  eq(p94.choices![1].action.steps!.find(st => st.then)!.then!.delta, -12000, '②は−12000');
   // 手札コスト版（①にコストがあり②が無コスト＝順序が逆の形）
   const p17 = pick('WXDi-D09-P17', 'WXDi-D09-P17-BURST');
   eq(p17.type, 'CHOOSE', 'WXDi-D09-P17-BURST: CHOOSE が残っている');
@@ -57055,7 +57078,9 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   ＋ **parser 自身が同じ印を出す3件**（この test は parser を回さないので母集団から外せない）。
   //   （O-149 で WX24-P2-049-E1b を manual E2 へ正規化して D群を9→8。）
   //   ⇒ **以後この数が増えたら「また出所の無いスタンプを押した」** の合図。
-  const BASELINE_ORPHAN_MANUAL = 9; // 旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
+  const BASELINE_ORPHAN_MANUAL = 8; // 🆕旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
+  //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
   const declared = new Set<string>();
   for (const effs of Object.values(MANUAL_EFFECTS)) for (const e of effs) declared.add(e.effectId);

@@ -1,5 +1,23 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**2026-09-02（索引 A `O-96` 第5・6バッチ）＝対象の照応を19効果ぶん通した（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（据置）
+  ⚠**据置なのは想定どおり**＝直したのは**対象の照応**（誰に当たるか）で語彙は欠けていない＝
+  census にも意味照合台帳にも出ない型。**測るのは `O-96` の欠陥署名だけ**（91→72）。
+  📦**在庫2本**＝**機構 worklist 24項目（据置）**（`O-96` は残 72効果で開いている）
+  ｜🏁**実機 残 0件**（新規2本＋回帰5本・**7/7 PASS**）
+  🔧**ゲート（全緑 ✅）**＝golden **3282 / 3282**（3280→3282＝`O-96` 第6バッチの恒久 assert 2本）／
+  smoke 全異常0／fuzz 全0／census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors。`npm run regen` 完走・**同型★0**（据置）。三帳票＝held **76→73**／partial **10→9**／idset 7（据置）。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝7/7 PASS**＝新規 `o96TargetFirstPay`/`None`（`V-129`）
+  ＋回帰 `o86FieldClassPay`・`o86LrigCondPay`・`o86ScalingPayloadPay`・`o86BetCostReplace`・`o86BoostExtraCost`。
+  🆕**engine の契約を1つ追加**＝`FREEZE`/`DOWN`/`UP`/`GRANT_KEYWORD` に `fixedCardNums` を足し、
+  `FREEZABLE` と `O96_STORABLE_OUTCOMES` へ登録（**3点契約**）。
+  ✅**ブラスト半径＝19件・予定外0**（ベースライン commit との effectId 単位 機械 diff）。
+  📐**`O-96` の欠陥署名 ＝ 91 → 72効果。**
+
 - 🏁**セッション（2026-09-02・索引 A `O-195`・Opus 5 単独）＝再計測して 145効果→真の穴2件・項目クローズ**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（据置）**。
   ⚠**3計器が据置なのは想定どおり**＝直した2枚は Sheet1 の外（`WXK11-033` / `PR-Di035`）で、

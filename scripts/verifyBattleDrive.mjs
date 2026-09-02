@@ -42574,6 +42574,103 @@ async function driveO96TargetFirst(page, H, withEnergy) {
   }
   return { pass: true, detail: `支払いの前に選んだ1体だけに【アサシン】が付いた（他の2体には付かない）。${detail}` };
 }
+/**
+ * §5.3 `O-96` 第8バッチの実機（`V-130`）＝
+ * **トラッシュから「場に出す」形でも、支払いの前に選んだ1枚だけが出る。**
+ *
+ * `WXDi-P05-040-E3`「【自】：あなたのターン終了時、あなたのトラッシュから＜天使＞のシグニ１枚を
+ *   **対象とし**、《無》《無》を支払って**もよい**。**そうした場合、それを**場に出す。
+ *   それの【出】能力は発動しない。」
+ *
+ * 🔑**この巡で足した engine 契約を踏む観測点**＝`ADD_TO_FIELD` を `FREEZABLE` へ入れ、
+ *   `execAddToField` の `TRASH_CARD`/`ENERGY_CARD` 候補集めの後で `fixedCardNums` を消費するようにした。
+ *   ⚠**他の型と `targetsStored` の意味が違う**（固定するのは「場のカード」ではなくトラッシュの札）。
+ * 🔑**観測点はトラッシュ2枚のうちどちらが場に出たか**＝枚数だけ見ると
+ *   「選んでいないほうが出た」型の壊れ方を緑と誤読する。
+ * ⚠**トリガーは「ターン終了時」なので `effect_stack` を注入して窓を作る**（`O-190` の driver と同じ手）。
+ */
+const V130_SOURCE = 'WXDi-P05-040#5000';
+const V130_PICKED = 'WX02-049#5001';   // ＜天使＞Lv1（トラッシュ先頭＝pick-0）
+const V130_OTHER = 'WX01-061#5002';    // ＜天使＞Lv1（選ばないほう）
+function o96AddToFieldSpec(withEnergy) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#5010'],
+      'field.lrig_down': false,
+      // 空きゾーンを2つ残す（出す先が無いと「出せない」で緑を偽装してしまう）。
+      'field.signi': [[V130_SOURCE], null, null],
+      'field.signi_down': [false, false, false],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      // ⚠**エナに＜天使＞を置かない**＝同じ「ターン終了時」に走る E2（エナの＜天使＞を手札へ）が
+      //   先に窓を出して観測がぶれる。無色2枚で支払う。
+      'energy': withEnergy ? ['WD05-010#5003', 'WD05-010#5004'] : [],
+      'trash': [V130_PICKED, V130_OTHER],
+      'hand': [], 'lrig_trash': [], 'actions_done': [], 'coins': 0, 'keyword_grants': {},
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#5011'],
+      'field.signi': [['WD01-013#5012'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: {
+      active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WXDi-P05-040', V130_SOURCE, 'WXDi-P05-040-E3'),
+    },
+  };
+}
+async function driveO96AddToField(page, H, withEnergy) {
+  const tag = withEnergy ? 'o96addfield-ok' : 'o96addfield-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 field=${JSON.stringify(st0?.host?.fieldSigni)} trash=${JSON.stringify(st0?.host?.trashCards ?? st0?.host?.trash)} energy=${st0?.host?.energy}`);
+  let last = st0, picked = false, paid = 0;
+  for (let s = 0; s < 16; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    if (!picked) { did = await H.clickTestId('pick-0'); if (did) picked = true; }
+    if (!did) did = await H.clickTextOrBtn(['決定', '確定']);
+    // 🔴**任意コストは「払うエナを選んでから `optcost-pay`」**（`V-129` と同じ罠）。
+    if (!did && paid < 2) { did = await H.clickTestId(`optcost-energy-${paid}`); if (did) paid++; }
+    if (!did) did = await H.clickTestId('optcost-pay');
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    const field = JSON.stringify(last?.host?.fieldSigni);
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | field=${field} energy=${last?.host?.energy} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    if (field.includes('WX02-049') || field.includes('WX01-061')) break;
+  }
+  const field = JSON.stringify(last?.host?.fieldSigni ?? []);
+  const onPicked = field.includes(V130_PICKED);
+  const onOther = field.includes(V130_OTHER);
+  const detail = `field=${field} energy=${st0?.host?.energy}→${last?.host?.energy}`;
+  if (!withEnergy) {
+    return (onPicked || onOther)
+      ? { pass: false, detail: `🔴《無》×2 を払えないのに場へ出た＝支払いゲートが効いていない。${detail}` }
+      : { pass: true, detail: `対照＝エナ0枚では支払えず、トラッシュから何も出ない。${detail}` };
+  }
+  if (!onPicked) {
+    return { pass: false, detail: `🔴支払ったのに選んだ札が場に出ていない（＝支払いプロンプトを跨いで対象が消える旧挙動）。${detail}` };
+  }
+  if (onOther) {
+    return { pass: false, detail: `🔴選んでいない札まで場に出た＝対象が固定されていない。${detail}` };
+  }
+  if (last?.host?.energy !== 0) {
+    return { pass: false, detail: `🔴コスト《無》×2 が支払われていない。${detail}` };
+  }
+  return { pass: true, detail: `支払いの前に選んだ1枚だけがトラッシュから場に出た（もう1枚は出ない）。${detail}` };
+}
+scenarios.o96AddToFieldPay = {
+  title: 'O-96 WXDi-P05-040：支払いの前に選んだトラッシュの1枚だけが場に出る（ADD_TO_FIELD の fixedCardNums 契約）',
+  spec: o96AddToFieldSpec(true), drive: (page, H) => driveO96AddToField(page, H, true),
+};
+order.push('o96AddToFieldPay');
+scenarios.o96AddToFieldNone = {
+  title: 'O-96 対照：《無》×2 を払えなければトラッシュから何も出ない',
+  spec: o96AddToFieldSpec(false), drive: (page, H) => driveO96AddToField(page, H, false),
+};
+order.push('o96AddToFieldNone');
+
 scenarios.o96TargetFirstPay = {
   title: 'O-96 WX25-P3-059：支払いの前に選んだシグニだけが【アサシン】を得る（fixedCardNums 契約）',
   spec: o96TargetFirstSpec(true), drive: (page, H) => driveO96TargetFirst(page, H, true),

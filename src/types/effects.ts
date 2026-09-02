@@ -2541,6 +2541,14 @@ export interface GrantEffectAction {
   rawText?: string;        // 引用「…」の原文（パース中の一時フィールド。expandGrantEffectRawTexts が effect へ展開後に削除）
   duration: EffectDuration;
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
+  /**
+   * 🆕**任意コストの前に宣言した対象だけへ付与**（§5.3 `O-96` 第12バッチ・2026-09-02）。
+   * ⚠`targetsLastProcessed` とは**参照先が違う**＝あちらは直前ステップの `lastProcessedCards`、
+   *   こちらは `STORE_LAST_PROCESSED_TARGETS` で退避した `storedTargetCards`（支払いを跨いで保持する）。
+   */
+  targetsStored?: boolean;
+  /** 🆕支払いインタラクションを跨いで焼き込まれた同一対象（`freezeStoredTargets` が設定）。 */
+  fixedCardNums?: string[];
 }
 
 // 「このターン、…したとき、…」＝1ターン限りのプレイヤーレベル遅延条件トリガーを設置する（B3・WX25-CP1-069）。

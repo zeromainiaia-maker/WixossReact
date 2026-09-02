@@ -1,5 +1,96 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 A 第4巡）：🏁§5.3 `O-96` クローズ — 対象の照応を50効果ぶん通した（欠陥署名 73→23）
+
+**ベースライン**＝`d35122400` の1つ前（`8ebfa3c19`）。この巡で第7〜13バッチを消化し、`O-96` を**クローズ**した。
+
+### 📐 まず計器を精密化した（この巡の前提）
+
+欠陥署名の仕分け器（`applyO96OptionalCostTargetFirst` のガードを1本ずつ写したもの）の
+**原文を効果単位で取るようにした**（`enableSourceTextLog`）。
+🔴**カードの `EffectText` 全文で regex を当てると、同じカードの別効果が母集団に混ざる**
+（実測＝46 → 36 に落ちた＝10件はノイズだった）。
+⇒ **この巡の 73 → 23 は精密計器での前後比較**（旧記録「91→72」とは母集団が違う）。
+
+### 真因（1行）
+
+原文は「〈対象〉を対象とし、〈任意コスト〉してもよい。**そうした場合、それを**〜」＝**対象宣言が支払いより前**なのに、
+live は支払いの**後**で対象を選び直していた（＝対象が1体も無くても支払いを提示する／宣言後に対象が変わりうる）。
+
+### 第7バッチ（parser のみ・9効果）— 対象宣言が載るキーは型ごとに違う
+
+🔴**`TRANSFER_TO_DECK` は対象宣言を `source` に持つ**（`target` が無い型）のに `target` を読んでいた＝
+**キーの読み違いだけ**で9効果が落ちていた（`execTransferToDeck` の `SIGNI` 分岐は
+`targetsStored`/`fixedCardNums` を**既に両方消費**しており `FREEZABLE` にも入っていた＝3点契約は揃っていた）。
+
+### 第8バッチ（engine の契約を1つ追加・6効果）— `ADD_TO_FIELD`
+
+- 🔴**`source` がゾーンごと落ちる形があった**＝`source` の無い `ADD_TO_FIELD` は
+  `execAddToField` の既定経路（**デッキの一番上を出す**）へ落ちる＝**原文と別のカードが出る**過剰実行。
+  `applyDroppedFieldPlacementDesignation` で復元（先行例＝`applyDroppedRecoveryDesignation`）。
+- **3点契約**＝型に `targetsStored`＋`fixedCardNums` ／ `FREEZABLE` へ登録 ／ `execAddToField` が消費。
+- `SELECT_TARGET_ONLY` に **`ENERGY_CARD` 分岐**を追加（候補集めは `zoneTargetCandidates` で実行時と共有）。
+
+### 第9バッチ（engine・3効果）— `TRASH{ENERGY_CARD}`
+
+`execTrash` の `ENERGY_CARD` 分岐に対象固定の消費を足し、`SELECT_TARGET_ONLY` の ENERGY を相手エナへ広げた
+（「対戦相手のエナゾーンから〈名詞句〉１枚を対象とし、〈任意コスト〉してもよい。そうした場合、それをトラッシュに置く」）。
+
+### 第10バッチ（parser のみ・8効果）— ネスト器の内側へ降りる
+
+`applyO96Nested` を新設＝`CHOOSE` の枝／`CONDITIONAL` の then・else／`GRANT_LRIG_ABILITY` の abilities、
+および **`SEQUENCE` の要素にぶら下がるネスト器**へ降りる。
+⚠**`SEQUENCE` の中の `SEQUENCE` へは降りない**（支払いより前に別の動作がある形まで巻き込む）。
+🔑**枝ごとに独立して判定される**＝片方の枝が既に固定済みでも他方が直る（`WXDi-P09-062-E1` で実測）。
+🧹**据置契約2本を正方向の assert へ置き換えた**（`O-188` 第2バッチ①／`O-96` 第2バッチ）。
+
+### 第11バッチ（manual・9効果）＋ 道具を1つ
+
+`manualEffects.ts` の該当効果を固定形へ書き換えた（1行 JSON はスクリプトで機械変換・TS リテラルは手で）。
+🆕**`heldReview.mjs --adopt-effect`**＝**held からも効果単位で採用**できるようにした（AUTO→AUTO 限定）。
+これで「同じカードの別効果にこの巡と無関係な差分がある」だけで直った効果ごと見送る必要がなくなった
+（`WXDi-P08-072` は E1 だけ採用し、E2 の `duration` 退化＝`UNTIL_OPP_TURN_END`→`UNTIL_END_OF_TURN` は温存）。
+
+### 第12・13バッチ（engine＋parser・6効果）— コスト軸と `costText`
+
+- **許可リストに正規の軸を足した**＝`selfToEnergy` / `coinCost` / `fieldToDeckBottom`
+  （どれも `resolveOptionalCostSpec` が受け取る＝可否判定も支払いUIも通っている軸）。
+- `GRANT_EFFECT` に3点契約を追加、`execTransferToHand` の `ENERGY_CARD` にも絞り込みを追加。
+- 🔴**`costText` は表示専用**なのでこれだけの payload は「構造化された支払いが無い」＝
+  **`fillBareOptionalCostPayload`** で `costText` そのものを句として `parseOptionalCostClauseFields` へ渡す
+  **第3の入口**を置いた（従来の呼び出しは2つとも文型が限定的だった）。
+  ⇒ `handReveal` / `handDiscard{cardName}` が自動で載るようになり、**予定外だが正しい3効果**も直った
+  （`WXDi-P07-053-E1` / `WXK04-056-E1` / `WDK08-Y13-E1`）。
+- `fullyExpressibleCostFilter` に **《カード名》** の語彙を追加（`cardName` は部分一致なので表記ゆれを跨ぐ）。
+
+### 🔴 実機だけが捕まえたバグが1件（前回とまったく同じ形＝2度目）
+
+`ADD_TO_FIELD` に `fixedCardNums` の**絞り込みだけ**を足して「選択UIを開かずに即適用する」分岐を書かなかったため、
+実機で**「払ったのに対象をもう一度選ばされ、確定できずに止まる」**になっていた（**golden 3282 は全緑のまま**）。
+⇒ 🔴**3点契約の③は「絞り込み」と「即適用分岐」の2つで1つ。**
+同じ分岐を `GRANT_EFFECT` / `TRASH{ENERGY_CARD}` / `TRANSFER_TO_DECK` にも入れた。
+⚠**その即適用分岐で `leaveSubstituteAskQueue`（離場置換の問いかけ）を飛ばさない**
+（`execTransferToDeck` で踏んだ＝golden「task12(lxxxiii) 第15波」が落ちて発覚）。
+
+### 🏁 クローズの判断と分割
+
+残 23 は**`O-96` の規則では取れないもの**だけになった：
+- **`O-220`（16効果）**＝帰結型ごとの3点契約が未整備（`STUB{SOUL_OP}` 2・`NEGATE_ATTACK`・`LIFE_CRASH` ほか。1型1〜2効果）
+- **`O-221`（5効果）**＝「そうした場合」の did-it ゲートが生成されない／専用 STUB id
+- **ルリグ対象2件は「据置が正しい」**＝対象がセンター1体で一意＝`O-96` の実害がどちらも起きない
+  （`execFreeze`/`execDown` の LRIG 分岐は `fixedCardNums` を読まず即適用する）。**golden の契約テストで固定した。**
+
+### 影響枚数
+
+**50効果**（欠陥署名 73 → 23）。ブラスト半径＝ベースライン commit との effectId 単位 機械 diff で**予定外0**
+（`WXDi-CP02-072` の `-E3`→`-E2` は id 集合ズレ（`O-39` 系）の解消）。
+
+### 検証
+
+`npm run gates` 全緑（typecheck / golden **3283/3283** / smoke / fuzz / census 各種 / lint 0 error）。
+🖥**実機＝`V-130` 新規2本＋`V-129` 2本＋`O-86` 5本＋`O-71` 1本＝全 PASS**
+（§2.2 の判定＝`src/engine/` を触り新しい型契約を足したので実機必須）。
+
 ## 2026-09-02（索引 A 第3巡）：§5.3 `O-96` 第5・6バッチ — 対象の照応を19効果ぶん通した（欠陥署名 91→72）
 
 **ベースライン**＝`5c94b5ec4`（`O-195` クローズの直後）。
