@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
+import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -12,9 +12,12 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 
 // ベット宣言（タスク12(lxxxiv)）＝カットイン窓でもアーツ経路（ArtsModal）と同じベット枝を出す。
 // 対象は lrig_deck 由来＝アーツ本体のみ（場のルリグ/シグニの【起】は原文にベットを持たない）。
-function cutinBetSpec(candidate: EffectCutinCandidate): { options: number[]; variable: boolean } {
+function cutinBetSpec(
+  candidate: EffectCutinCandidate,
+  effectsMap: Map<string, import('../../../types/effects').CardEffect[]>,
+): { options: number[]; variable: boolean } {
   if (candidate.source !== 'lrig_deck') return { options: [], variable: false };
-  return parseBetOptions(candidate.card.EffectText ?? '');
+  return betOptionsOf(candidate.card.CardNum, effectsMap);
 }
 
 // 実際に選べるコイン枚数（可変ベットは 1..min(5,所持)、固定/段階は原文の段階そのまま）。
@@ -160,7 +163,7 @@ export function CutinModal(p: CutinModalProps) {
                             // ベット宣言（タスク12(lxxxiv)）: 宣言できる札は、置換後コストでも支払い可否を見る。
                             // 印刷コストだけで判定すると WX17-019（《青》×2 → ベットで《青×0》）が
                             // エナ不足で候補から消え、ベットを宣言する画面へ辿り着けない。
-                            const betSpecCand = cutinBetSpec(candidate);
+                            const betSpecCand = cutinBetSpec(candidate, effectsMap);
                             const betOptionsCand = cutinBetOptions(betSpecCand, my.coins);
                             const canBetCand = !betBlocked && betOptionsCand.some(n => n > 0 && n <= my.coins);
                             const betCostCand = canBetCand ? betReplacedCostOf(candidate.card) : null;
@@ -221,7 +224,7 @@ export function CutinModal(p: CutinModalProps) {
                 ...(my.field.assist_lrig_l?.slice(0, -1) ?? []),
                 ...(my.field.assist_lrig_r?.slice(0, -1) ?? []),
               ];
-              const betSpecModal = cutinBetSpec(pendingCutinCard);
+              const betSpecModal = cutinBetSpec(pendingCutinCard, effectsMap);
               const betOptionsModal = cutinBetOptions(betSpecModal, my.coins);
               const canBetModal = !betBlocked && betOptionsModal.some(n => n > 0 && n <= my.coins);
               // ベット宣言中はコスト置換を反映する（宣言を切り替えたら選択済みエナは白紙に戻す）。

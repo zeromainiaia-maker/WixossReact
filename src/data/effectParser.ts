@@ -194,6 +194,7 @@ import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4, parseTrapSetSentence } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
+import { PRINTED_KEYWORD_COST_KEYS, printedKeywordCosts } from './keywordCosts';
 import { encodeAssassinScopesInText, encodeLancerScopesInText, encodeShadowScopesInText, normalizeKeywordName } from '../utils/keywords';
 
 // ---- 「その中から…」の pick 節を **複数群**（LOOK_PICK_CHAIN の stages）へ分解する（タスク12(xlvi)(h)(a)）----
@@ -24309,6 +24310,20 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。
   if (appearanceCondition && effects.length > 0) {
     effects[0] = { ...effects[0], appearanceCondition };
+  }
+  // 🆕**印字キーワードコスト（【アンコール】【ベット】）＝§5.3 `O-86`。**
+  //   【出現条件】とまったく同じ扱い＝**効果本文の解釈ではなくカードの印字**なので、
+  //   文レベルの parser ではなくここ（カード全文が読める後段）で先頭効果へ刻む。
+  //   🔴**UI 層はもう原文を読まない**＝`costs.ts` の `encoreCostOf` / `betOptionsOf` がこれを引く。
+  //   ⚠`manualEffects.ts` が本文を手書きしたカードでは収穫マージが live を温存するので、
+  //     `buildEffectsJson.ts` が**マージの後から**同じものを重ねる（そちらが最終的な正）。
+  if (effects.length > 0) {
+    const printed = printedKeywordCosts(card.EffectText);
+    const first = effects[0];
+    const restCost = { ...(first.cost ?? {}) };
+    for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
+    const cost = { ...restCost, ...printed };
+    if (Object.keys(cost).length > 0) effects[0] = { ...first, cost };
   }
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;

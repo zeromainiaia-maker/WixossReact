@@ -796,10 +796,50 @@ export interface CostScalingTerm {
  */
 export type BeatSigniCost = number | { count: number; excludeSelf?: boolean };
 
+/**
+ * 【アンコール】の支払い（`アンコール－…` の印字）＝**カードに印刷されたキーワードコスト**。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第2バッチ）＝UI 層の原文 regex から payload へ移した。**
+ * 従来は `costs.ts` の `parseEncoreCost(card.EffectText)` が**支払いのたびに原文を読み直して**
+ * 決めていた（`ArtsModal` と `BattleScreen` の2入口）。印字は parser が1度読めば十分な
+ * **カード単位の事実**なので、build 時に刻んで UI は JSON だけを見る。
+ * ⚠**印字は効果本文ではない**ので、`manualEffects.ts` が本文を手書きしたカードでも失われないよう
+ *   `buildEffectsJson.ts` が【出現条件】と同じく**マージの後から重ねる**。
+ */
+/**
+ * 【ベット】で支払えるコイン枚数の選択肢（`ベット―…` の印字）＝**カードに印刷されたキーワードコスト**。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第3バッチ）＝UI 層の原文 regex から payload へ移した**（68カード）。
+ * 従来は `costs.ts` の `parseBetOptions(card.EffectText)` を **4入口**（`artsUseGate` / `ArtsModal` /
+ * `CutinModal` / `SpellCastModal`）が別々に呼び直していた。
+ * - 固定（「ベット―《コイン》《コイン》」）→ `{ options:[2], variable:false }`
+ * - 段階（「ベット―《コイン》or《コイン》《コイン》」）→ `{ options:[1,2], variable:false }`
+ * - 可変（「ベット―好きな枚数の《コイン》」）→ `{ options:[], variable:true }`（UI が1..所持枚数を提示）
+ */
+export interface BetCostSpec {
+  options: number[];
+  variable: boolean;
+}
+
+export interface EncoreCostSpec {
+  energy: EnergyCost[];
+  coins: number;
+  /** ルリグの下からN枚をルリグトラッシュ（エクシードと同じ支払い＝`paySelectedExceed`）。 */
+  exceed?: number;
+  /** 場のキー1枚をルリグトラッシュ。 */
+  trashOwnKey?: boolean;
+  /** 手札から条件一致シグニをN枚捨てる。 */
+  handDiscardSigni?: { count: number; story?: string };
+}
+
 export interface EffectCost {
   energy?: EnergyCost[];
   /** カード自身の使用コストを、盤面の枚数／レベル等に比例して増減する項（各項は順に累積）。 */
   costScaling?: CostScalingTerm[];
+  /** 【アンコール】の印字コスト（§5.3 `O-86`）。UI はこれを読む＝原文 regex を持たない。 */
+  encoreCost?: EncoreCostSpec;
+  /** 【ベット】の印字コイン選択肢（§5.3 `O-86`）。UI はこれを読む＝原文 regex を持たない。 */
+  betOptions?: BetCostSpec;
   discard?: number;       // 手札を任意のカードN枚トラッシュ
   discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可

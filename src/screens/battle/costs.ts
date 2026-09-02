@@ -1,6 +1,6 @@
 // コスト文字列の解析・軽減適用・支払可否判定（グロウ/アーツ/スペル共通）。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState, CardData } from '../../types';
-import type { CardEffect, CostScalingCount, CostScalingTerm, TargetFilter } from '../../types/effects';
+import type { BetCostSpec, CardEffect, CostScalingCount, CostScalingTerm, EncoreCostSpec, TargetFilter } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
 import { fieldCandidates, hasNoAbility, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
@@ -1466,77 +1466,45 @@ export function parseCoinCost(costStr: string): number {
   return 0;
 }
 
-// ベットで支払えるコイン枚数の選択肢を返す。
-//  - 固定（「ベット―《コイン》《コイン》」）→ { options:[2], variable:false }
-//  - 段階（「ベット―《コイン》or《コイン》《コイン》」）→ { options:[1,2], variable:false }
-//  - 可変（「ベット―好きな枚数の《コイン》」）→ { options:[], variable:true }（UIで1..所持枚数を提示）
-export function parseBetOptions(effectText: string): { options: number[]; variable: boolean } {
-  if (!effectText) return { options: [], variable: false };
-  const m = effectText.match(/ベット[―─]\s*([\s\S]*)/);
-  if (!m) return { options: [], variable: false };
-  const seg = m[1];
-  if (/^好きな枚数/.test(seg)) return { options: [], variable: true };
-  // 先頭の《コインアイコン》/or の連続部分だけを取り出して段階を数える
-  const prefix = (seg.match(/^(?:《コインアイコン》|or)+/) ?? [''])[0];
-  const tiers = prefix.split('or').map(s => (s.match(/《コインアイコン》/g) ?? []).length).filter(n => n > 0);
-  return { options: tiers, variable: false };
+/**
+ * 【ベット】で支払えるコイン枚数の選択肢＝**JSON payload だけを読む**（`EffectCost.betOptions`）。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第3バッチ）＝ここに在った `parseBetOptions(effectText)` を撤去した**（68カード）。
+ * 🔴従来は **4入口**（`artsUseGate` / `ArtsModal` / `CutinModal` / `SpellCastModal`）が
+ *   それぞれ `card.EffectText` を `ベット―…` から読み直していた＝規則を1本直すと4箇所ぶん挙動が動く形。
+ * 読み取りは `src/data/keywordCosts.ts` の `parseBetOptionsText` へ移し、
+ * `buildEffectsJson.ts` が**マージの後から**カードの先頭効果へ重ねる（先頭効果が MANUAL/PARTIAL の21枚でも届く）。
+ * ⚠**ベットではないカードは従来どおり `{ options: [], variable: false }`**（呼び出し側の分岐を変えない）。
+ */
+export function betOptionsOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): BetCostSpec {
+  for (const effect of effectsMap.get(getCardNum(cardNum)) ?? []) {
+    if (effect.cost?.betOptions) return effect.cost.betOptions;
+  }
+  return { options: [], variable: false };
 }
 
-// アンコールコストをパース（エナコスト＋コイン枚数）
 /**
- * アンコールコスト。
+ * 【アンコール】の支払い＝**JSON payload だけを読む**（`EffectCost.encoreCost`）。
  *
- * 🆕**2026-09-02（§5.3 `O-199`）＝アイコン形だけでなく「テキスト形」も読む**（実測5枚）。
- * 🔴従来は `《…》` しか読まず `null`（＝コスト無し）へ落ちていたため、**アンコールの選択肢そのものが
- *   出ない**（`canEncore` が false）＝5枚が永久にアンコールできなかった（過小の側）。
- * ⚠**テキスト形と判定するのは「－の直後が `《` でない」ときだけ**＝
- *   `アンコール－《黒》このターン、…` のようにアイコンの後ろへ**アーツ本文**が続く形を
- *   コストと読み違えない（読み違えると払わされる側＝過剰になる）。
- * 対応する3形＝①センタールリグの下からN枚をルリグトラッシュ（＝既存 `exceed` の受け皿）
- *   ②キー1枚を場からルリグトラッシュ（＝既存 `trash_key`）③手札から＜X＞のシグニをN枚捨てる。
+ * 🆕**2026-09-02（§5.3 `O-86` 第2バッチ）＝ここに在った `parseEncoreCost(effectText)` を撤去した。**
+ * 🔴従来は `ArtsModal` と `BattleScreen` の2入口が**支払いのたびに `card.EffectText` を
+ *   `アンコール－…` から読み直して**いた（`census:costtext` A群の32カード）。読み取りは
+ *   `src/data/keywordCosts.ts` の `parseEncoreCostText` へ移し、`buildEffectsJson.ts` が
+ *   **マージの後から**カードの先頭効果へ重ねる（＝`manualEffects.ts` が本文を手書きした9枚でも失われない）。
+ * ⚠**カードの全効果を走査する**＝重ねる先は先頭効果1つだが、`manualEffects.ts` が先頭に
+ *   手書き効果を差し込む形（`adopted_manual_add`）でも拾えるようにしておく。
  */
-export function parseEncoreCost(effectText: string): {
-  energy: { color: string; count: number }[];
-  coins: number;
-  /** ルリグの下からN枚をルリグトラッシュ（エクシードと同じ支払い＝`paySelectedExceed`）。 */
-  exceed?: number;
-  /** 場のキー1枚をルリグトラッシュ。 */
-  trashOwnKey?: boolean;
-  /** 手札から条件一致シグニをN枚捨てる。 */
-  handDiscardSigni?: { count: number; story?: string };
-} | null {
-  if (!effectText.startsWith('アンコール－')) return null;
-  const afterDash = effectText.slice('アンコール－'.length);
-  // ── テキスト形（－の直後が `《` でない）＝アイコンを1つも持たない5枚（§5.3 `O-199`）──
-  if (!afterDash.startsWith('《')) {
-    const toHalfEC = (t: string) => t.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
-    const num = (t: string) => parseInt(toHalfEC(t), 10) || 0;
-    const exM = afterDash.match(/^あなたの(?:センター)?ルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/);
-    if (exM) return { energy: [], coins: 0, exceed: num(exM[1]) };
-    if (/^キー([０-９\d]+)枚を場から(?:ルリグ)?トラッシュに置く/.test(afterDash)) {
-      return { energy: [], coins: 0, trashOwnKey: true };
-    }
-    const hdM = afterDash.match(/^手札から(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/);
-    if (hdM) return { energy: [], coins: 0, handDiscardSigni: { count: num(hdM[2]), ...(hdM[1] ? { story: hdM[1] } : {}) } };
-    return null;
+export function encoreCostOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): EncoreCostSpec | null {
+  for (const effect of effectsMap.get(getCardNum(cardNum)) ?? []) {
+    if (effect.cost?.encoreCost) return effect.cost.encoreCost;
   }
-  // 「（」か漢字テキストの直前まで（アイコン部分のみ）
-  const beforeContent = afterDash.split(/[（。【]/)[0];
-  const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
-  const energy: { color: string; count: number }[] = [];
-  let coins = 0;
-  const re = /《([^》]+)》/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(beforeContent)) !== null) {
-    if (m[1] === 'コインアイコン') { coins++; continue; }
-    if (ENERGY_COLORS.has(m[1])) { energy.push({ color: m[1], count: 1 }); continue; }
-    const inner = m[1].match(/^([白赤青緑黒無])×([０-９0-9]+)$/);
-    if (inner) {
-      const cnt = parseInt(inner[2].replace(/[０-９]/g, c => String(c.charCodeAt(0) - 0x30 - 0xFEE0)));
-      energy.push({ color: inner[1], count: isNaN(cnt) ? parseInt(inner[2]) : cnt });
-    }
-  }
-  return (energy.length > 0 || coins > 0) ? { energy, coins } : null;
+  return null;
 }
 
 // コスト増加修正を考慮してエナを追加消費できるか確認

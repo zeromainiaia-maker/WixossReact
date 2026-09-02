@@ -63,7 +63,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
+import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -103,7 +103,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, parseEncoreCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, encoreCostOf, paySelectedExceed } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -13857,6 +13857,13 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
       if (Array.isArray(o)) o.forEach((v, i) => walk(v, `${pre}[${i}]`));
       else if (o && typeof o === 'object') for (const k of Object.keys(o)) {
         if (k === 'parseStatus') continue;
+        // 🆕**build がマージの後から重ねるカード単位メタは乖離ではない**（§5.3 `O-86` 第2バッチ）＝
+        //   印字キーワードコスト（`encoreCost` / `betOptions`）と【出現条件】は `manualEffects.ts` に書かない
+        //   （書く場所が「効果本文」ではない）。live にだけ在るのが正しい姿。
+        //   ⚠**届いていること自体は別の golden が assert する**（`O-199` のアンコール／ベット段階の
+        //     各テストが live payload 経由で見ている）＝
+        //     ここで除外しても「重ねが切れたら誰も気づかない」にはならない。
+        if (k === 'encoreCost' || k === 'betOptions' || k === 'appearanceCondition') continue;
         walk((o as Record<string, unknown>)[k], `${pre}.${k}`);
       }
       else out.push(`${pre}=${JSON.stringify(o)}`);
@@ -36608,7 +36615,9 @@ test('task12(lxxxvi): ベット持ちスペル7枚＝スペル本体のベット
     'WXDi-P09-083', 'WXDi-P15-071', 'WXDi-P15-075',
   ]), 'ベット持ちスペルは7枚');
   for (const num of bets) {
-    const spec = parseBetOptions(cardMap.get(num)!.EffectText ?? '');
+    // 🆕§5.3 `O-86` 第3バッチ＝読み取り元は live payload（`EffectCost.betOptions`）。
+    //   原文パーサを直接呼ぶと「parser は読めているが build が live へ届けていない」を見逃す。
+    const spec = betOptionsOf(num, effectsMap);
     ok(spec.variable || spec.options.length > 0, `${num}: ベット段階が読める（＝UIで宣言できる）`);
   }
 });
@@ -36877,7 +36886,7 @@ test('cost replacement: 「使用コストは《X》になる」 replaces the pr
     ['WX17-019', [1]], ['WX17-023', [2]], ['WX19-006', [2]], ['WD18-008', [1]],
     ['WD20-007', [2]], ['WD21-007', [2]], ['WDK10-008', [2]], ['WDK12-007', [2]],
   ] as [string, number[]][]) {
-    const spec = parseBetOptions(cardOf(num).EffectText ?? '');
+    const spec = betOptionsOf(num, effectsMap);
     eq(JSON.stringify(spec.options), JSON.stringify(opts), `${num}: ベット段階`);
     ok(cardOf(num).Timing.includes('スペルカットイン'), `${num}: カットイン窓に出る`);
   }
@@ -60318,7 +60327,11 @@ test('索引C 2026-09-02: O-199 アンコールの「テキスト形」コスト
   //   （`WDA-F02-08` / `SP27-010` / `SP27-016` / `SPK01-13` / `WX14-016`）。
   // 🔴旧 `parseEncoreCost` は `《…》` アイコンしか読まず **null＝コスト無し**へ落ちていた。
   //   null だと `canEncore` が false になるので、実害は「アンコールの選択肢すら出ない」＝**過小の側**。
-  const enc = (cardNum: string) => parseEncoreCost(cardMap.get(cardNum)?.EffectText ?? '');
+  // 🆕**2026-09-02（§5.3 `O-86` 第2バッチ）＝読み取り元を live payload へ差し替えた。**
+  //   `costs.ts` はもう原文を読まない（`EffectCost.encoreCost` を `encoreCostOf` が引く）ので、
+  //   ここも UI と同じ経路を assert する＝**parser の刻印 → build のマージ後重ね → live → UI** が
+  //   1本でも切れたらこのテストが落ちる（原文パーサを直接呼ぶと build 側の断線を見逃す）。
+  const enc = (cardNum: string) => encoreCostOf(cardNum, effectsMap);
 
   // ① ルリグの下から N 枚＝既存 `exceed` の支払いに載せる（新しい支払い機構は作らない）
   eq(enc('WDA-F02-08')?.exceed, 3, 'センタールリグの下から3枚');
@@ -60342,7 +60355,12 @@ test('索引C 2026-09-02: O-199 アンコールの「テキスト形」コスト
   eq(afterIcon2?.handDiscardSigni, undefined, '🔴本文の「手札から＜水獣＞の…」を捨てコストと読まない');
 
   // アンコールを持たない札は従来どおり null
-  eq(parseEncoreCost('【常】：何もしない。'), null, 'アンコール句が無ければ null');
+  eq(enc('WX01-001'), null, 'アンコール句が無ければ null');
+  // 🔴**payload は MANUAL 効果のカードでも届く**＝`manualEffects.ts` が本文を手書きした9枚は
+  //   収穫マージが live を温存するので、`buildEffectsJson.ts` が**マージの後から**重ねている。
+  //   ここが切れると「手書きした札だけ静かにアンコールできない」（§5.3 `O-86`）。
+  eq(enc('SP27-010')?.exceed, 2, '🔴MANUAL 効果のカードにも payload が届く');
+  eq(enc('WXK10-007')?.coins, 2, '🔴同・アイコン形（MANUAL）');
 }));
 
 test('索引C 2026-09-02: O-199 テキスト形アンコールは支払える盤面でだけ成立する', () => withSavedCursor(() => {

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
+import { parseGrowCost, canAffordWithExtraCost, isMultiEna, betOptionsOf, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates as getTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid as isTimeCostSelectionValid } from '../useTimeCost';
 import { computeSpellEffectiveCost, spellExtraCosts } from '../spellUseGate';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
@@ -260,7 +260,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                     </>
                   )}
                   {(() => {
-                    const betSpecSp = parseBetOptions(spellCard.EffectText ?? '');
+                    const betSpecSp = betOptionsOf(spellCard.CardNum, effectsMap);
                     if (!betSpecSp.variable && betSpecSp.options.length === 0) return null;
                     const betBlockedSp = isActionBlocked('BET') || !!my.negate_coin_abilities;
                     const betOptionsSp = betSpecSp.variable

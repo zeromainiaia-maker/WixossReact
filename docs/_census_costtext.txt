@@ -2,14 +2,12 @@
 
 ⚠**「当たっているカード数」であって「壊れている件数」ではない**。live 0 の規則は死に規則（先に撤去できる）。
 
-## A🔴 COST  45規則 / 当たり 261カード
+## A🔴 COST  43規則 / 当たり 182カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
 | 81 | 81 | battle/useTimeCost.ts:104 | parseUseTimeCostReduction | `/使用する際/` |
-| 68 | 68 | battle/costs.ts:1475 | parseBetOptions | `/ベット[―─]\s*([\s\S]*)/` |
 | 33 | 33 | battle/costs.ts:789 | computeCostReplacement | `/使用コストは[^。]*になる/` |
-| 32 | 32 | battle/costs.ts:1508 | parseEncoreCost | `'アンコール－'` |
 | 14 | 14 | battle/costs.ts:968 | computeArtsEffectiveCost | `/あなたのセンタールリグが＜([^＞]+)＞の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
 | 14 | 14 | battle/useTimeCost.ts:110 | parseUseTimeCostReduction | `/この(?:スペル\|アーツ\|カード)を使用する際[、,]手札から(.+?)を(好きな枚数\|[０-９\\d]+枚(?:まで)?)(?:捨ててもよい\|捨てる)。/` |
 | 12 | 12 | battle/costs.ts:865 | computeArtsEffectiveCost | `/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの\|このカードの)?(?:使用\|基本)コストは(.+?)になる/` |
@@ -17,7 +15,7 @@
 | 10 | 10 | battle/useTimeCost.ts:143 | parseUseTimeCostReduction | `/この(?:スペル\|アーツ\|カード)を使用する際[、,]あなたのルリグデッキから(?:([白赤青緑黒])の)?アーツ[１1]枚をルリグトラッシュに置いてもよい。/` |
 | 9 | 9 | battle/costs.ts:795 | computeCostReplacement | `/あなたがベットする場合[、,][^。]*?使用コストは((?:《[^》]+》)+)になる/` |
 | 6 | 6 | battle/useTimeCost.ts:119 | parseUseTimeCostReduction | `/この(?:スペル\|アーツ\|カード)を使用する際[、,]あなたのアップ状態の(.+?)を(好きな数\|[０-９\\d]+体(?:まで)?)ダウンしてもよい。/` |
-| 5 | 5 | battle/costs.ts:1593 | parseBoostCost | `/^ブースト[―─]((?:《[白赤青緑黒無]》)+)/` |
+| 5 | 5 | battle/costs.ts:1561 | parseBoostCost | `/^ブースト[―─]((?:《[白赤青緑黒無]》)+)/` |
 | 5 | 1 | battle/costs.ts:972 | computeArtsEffectiveCost | `/あなたのセンタールリグのレベル[１1]につき((?:《[^》]+》)+)減る/` |
 | 5 | 0 | battle/costs.ts:1112 | computeArtsEffectiveCost | `/あなたの場に([白赤青緑黒])のルリグが([０-９\\d]+)体以上いるかぎり[、,]?[^。]*?使用コストはあなたの場にいる[白赤青緑黒]のルリグ[１1]体につき((?:《[^》]+》)+)減る/` |
 | 5 | 5 | battle/costs.ts:1123 | computeArtsEffectiveCost | `/あなたの(ライフクロス\|ルリグトラッシュにあるアーツ\|手札\|エナゾーンにあるカード\|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
@@ -52,13 +50,14 @@
 | 1 | 1 | battle/useTimeCost.ts:155 | parseUseTimeCostReduction | `/この(?:スペル\|アーツ\|カード)を使用する際[、,]あなたのライフクロス[１1]枚をトラッシュに置いてもよい。/` |
 | 1 | 1 | battle/useTimeCost.ts:160 | parseUseTimeCostReduction | `/この(?:スペル\|アーツ\|カード)を使用する際[、,]あなたのキー[１1]枚を場からルリグトラッシュに置いてもよい。/` |
 
-## B GATE  4規則 / 当たり 4437カード
+## B GATE  5規則 / 当たり 4441カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
 | 4433 | 4405 | battle/growLogic.ts:316 | listGrowCandidates | `/かつ\|と/` |
+| 29 | 29 | battle/costs.ts:1364 | isMultiEna | `'：【マルチエナ】'` |
 | 26 | 26 | battle/lrigActivateGate.ts:110 | canActivateLrigEffect | `'【歌のカケラ】'` |
-| 11 | 11 | battle/pieceCutin.ts:19 | isTeamConditionPiece | `'【使用条件】【チーム】'` |
+| 11 | 11 | battle/pieceCutin.ts:20 | isTeamConditionPiece | `'【使用条件】【チーム】'` |
 | 4 | 4 | battle/growLogic.ts:290 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |
 
 ## C OTHER  3規則 / 当たり 14カード

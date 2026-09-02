@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
+import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, betOptionsOf, parseBoostCost, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -95,7 +95,7 @@ export function ArtsModal(p: ArtsModalProps) {
               const effectiveCostAfterPay = useCostSpec
                 ? applyUseTimeCostReduction(effectiveCost, useCostSpec, selectedArtsUseCostPay.size) : effectiveCost;
               const costItems = parseGrowCost(effectiveCostAfterPay);
-              const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
+              const encoreCostForCard = encoreCostOf(pendingArtsCard.CardNum, effectsMap);
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
               const boostCostForCard = parseBoostCost(pendingArtsCard.EffectText ?? '');
               const boostExtraEna = isBoosting ? boostCostForCard : [];
@@ -140,7 +140,7 @@ export function ArtsModal(p: ArtsModalProps) {
               const encoreDiscardOk = encoreDiscardNeed === 0
                 || [...selectedArtsDiscard].filter(i => encoreHandOk(my.hand[i])).length >= encoreDiscardNeed;
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost && encoreDiscardOk;
-              const betSpec = parseBetOptions(pendingArtsCard.EffectText ?? '');
+              const betSpec = betOptionsOf(pendingArtsCard.CardNum, effectsMap);
               // ベット宣言でコストが変わる札は、宣言を切り替えたら選択済みエナを白紙に戻す（枚数要件が変わるため）
               const betReplacesCost = computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true }) !== null;
               const encoreCoins = encoreCostForCard?.coins ?? 0;

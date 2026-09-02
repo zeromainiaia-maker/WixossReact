@@ -12,6 +12,7 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import { parseCardEffects, getSilentFallbackLog, enableSourceTextLog, getSourceTextLog } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
+import { PRINTED_KEYWORD_COST_KEYS, printedKeywordCosts } from '../src/data/keywordCosts';
 import type { CardData } from '../src/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -94,6 +95,10 @@ console.log(`カード数: ${rows.length}`);
 enableSourceTextLog();
 const result: Record<string, ReturnType<typeof parseCardEffects>> = {};
 const appearanceByCard = new Map<string, NonNullable<ReturnType<typeof parseCardEffects>[number]['appearanceCondition']>>();
+// 印字キーワードコスト（【アンコール】【ベット】＝§5.3 `O-86`）＝**効果本文ではなくカードの印字**なので、
+// richness ガードが `manualEffects.ts` 側を温存したカードでも失われないよう fresh から独立して重ねる
+// （実測＝アンコール32枚中9枚・ベット68枚中21枚が先頭効果 MANUAL/PARTIAL＝重ねなければ静かに落ちる）。
+const printedCostByCard = new Map<string, ReturnType<typeof printedKeywordCosts>>();
 let parsed = 0, unknown = 0;
 
 for (const r of rows) {
@@ -124,6 +129,9 @@ for (const r of rows) {
   const parsedEffects = parseCardEffects(card);
   const appearance = parsedEffects.find(e => e.appearanceCondition)?.appearanceCondition;
   if (appearance) appearanceByCard.set(card.CardNum, appearance);
+  // 印字キーワードコストは**カード単位の事実**＝【出現条件】と同じく最後に重ねる（§5.3 `O-86`）。
+  const printedCosts = printedKeywordCosts(card.EffectText);
+  if (Object.keys(printedCosts).length > 0) printedCostByCard.set(card.CardNum, printedCosts);
   const effects = mergeManualEffects(card.CardNum, parsedEffects);
   if (effects.length === 0) continue;
 
@@ -295,6 +303,19 @@ for (const id of allIds) {
   heldFresh[id] = fresh;
   result[id] = existing as ReturnType<typeof parseCardEffects>;          // 損失リスク→温存
   report.preserved_held.push(id);
+}
+// 印字キーワードコストの重ね（§5.3 `O-86`）。刻む先は先頭効果1つだけ＝UI 側の `encoreCostOf` /
+// `betOptionsOf` はカードの全効果を走査して最初の1つを読む（複数効果カードでも重複しない）。
+// ⚠**先頭以外からは必ず剥がす**＝以前の build が別の効果へ刻んでいた残骸を残さない。
+for (const [id, printed] of printedCostByCard) {
+  const effects = result[id];
+  if (!effects?.length) continue;
+  result[id] = effects.map((effect, index) => {
+    const restCost = { ...(effect.cost ?? {}) } as Record<string, unknown>;
+    for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
+    if (index !== 0) return effect.cost ? { ...effect, cost: restCost } : effect;
+    return { ...effect, cost: { ...restCost, ...printed } };
+  }) as ReturnType<typeof parseCardEffects>;
 }
 for (const [id, appearance] of appearanceByCard) {
   const effects = result[id];

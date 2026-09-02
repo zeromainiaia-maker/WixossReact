@@ -37,7 +37,11 @@ const onlyId = (() => {
 // 2026-09-02 の実測値。**増やしてはいけない**（減らしたらこの数値を下げる）。
 // 50 → 45 ＝ 新設と同じ巡（`O-86` 第1バッチ）で**死に規則5本**（`《X》を〈N〉つ少なくする` 形）を撤去した分。
 //   実データの言い回しは「減る」だけで、`つ少` を含むカードは全 CSV で 0枚だった＝**挙動は不変**。
-const BASELINE_COST_RULES = 45;
+// 45 → 44 ＝ 第2バッチで**【アンコール】の印字コストを payload へ移した**分
+//   （`parseEncoreCost` を撤去し、`EffectCost.encoreCost` を `costs.ts` の `encoreCostOf` が読む）。32カード。
+// 44 → 43 ＝ 第3バッチで**【ベット】の印字コイン選択肢を payload へ移した**分
+//   （`parseBetOptions` を撤去し、`EffectCost.betOptions` を `costs.ts` の `betOptionsOf` が読む）。68カード。
+const BASELINE_COST_RULES = 43;
 
 /**
  * 走査対象＝**カードを使うときのコストと可否を決める UI 層**。
@@ -117,7 +121,12 @@ for (const { file, cls } of TARGETS) {
   for (const m of src.matchAll(/\(\s*(effectText|rawText)\s*:\s*string/g)) vars.add(m[1]);
   const varAlt = [...vars].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   // 「原文を指す式」＝追跡した変数、または `…EffectText …` を含む短い式
-  const TEXT = varAlt ? `(?:${varAlt}|[\\w.?\\s()'??]*EffectText[\\w.?\\s()'??]*)` : `[\\w.?\\s()'??]*EffectText[\\w.?\\s()'??]*`;
+  // ⚠**`\s` を入れると改行をまたいで貪欲に伸びる**＝手前の行から始まった1マッチが後続の規則を
+  //   丸ごと飲み込み、**規則が黙って消える**。2026-09-02 に実測＝`isMultiEna` の
+  //   `'：【マルチエナ】'` が **改行コードの違い（LF/CRLF）だけで現れたり消えたり**した。
+  //   行内空白だけを許す。
+  const INTEXT = String.raw`[\w.?()'?? \t]`;
+  const TEXT = varAlt ? `(?:${varAlt}|${INTEXT}*EffectText${INTEXT}*)` : `${INTEXT}*EffectText${INTEXT}*`;
 
   const push = (idx: number, kind: 're' | 'includes', body: string): void => {
     if (!body) return;

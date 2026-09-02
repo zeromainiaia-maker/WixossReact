@@ -49,7 +49,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -7216,7 +7216,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newHand = my.hand.filter((_, i) => !discardIdxAll.has(i));
       // ベット消費コインは UI で選んだ枚数（betCoins）。アンコールとの合算可否は UI でガード済み
       const betCost = Math.max(0, betCoins);
-      const encoreCoinCost = encore ? (parseEncoreCost(card.EffectText ?? '')?.coins ?? 0) : 0;
+      const encoreCoinCost = encore ? (encoreCostOf(card.CardNum, effectsMap)?.coins ?? 0) : 0;
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）
       const keySub = useKeySub && p.energyTrashSubInfo.keySubInstId;
       const lrigTrashBase = encore ? my.lrig_trash : [...my.lrig_trash, instanceId];
@@ -7289,10 +7289,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         useCostLeaveEntries = bdAr.entries;
       }
       // 🆕§5.3 `O-199`（2026-09-02）＝アンコールの**テキスト形コスト**（アイコンではない支払い）。
-      // 🔴これが無いあいだ `parseEncoreCost` は null を返し、5枚は**アンコールの選択肢すら出なかった**。
+      // 🔴これが無いあいだ payload は null になり、5枚は**アンコールの選択肢すら出なかった**。
       // ⚠手札捨て（`handDiscardSigni`）は上の `discardIndices` 経路で既に払われている＝ここでは扱わない。
       if (encore) {
-        const encSpec = parseEncoreCost(card.EffectText ?? '');
+        const encSpec = encoreCostOf(card.CardNum, effectsMap);
         if (encSpec?.exceed) {
           // ルリグの下から N 枚。⚠**選択UIは出さない近似**＝プールの先頭（グロウ順の古い側）から取る
           //   （`TRASH_UNDER_LRIG_CARD` と同じ規約。下は非公開領域で盤面上の区別が無い）。
