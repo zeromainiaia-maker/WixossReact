@@ -33997,8 +33997,11 @@ test('B13 トラッシュ枚数比例のコスト軽減が《黒×1》表記で�
   eq(dragons.length, 5, '＜龍獣＞のシグニを5枚用意');
   const empty = { ...mkState({}), trash: [] } as PlayerState;
   const filled = { ...mkState({}), trash: dragons } as PlayerState;
-  const base = computeArtsEffectiveCost(card!, empty, undefined, undefined, undefined, cm);
-  const red = computeArtsEffectiveCost(card!, filled, undefined, undefined, undefined, cm);
+  // 🆕§5.3 `O-86` 第9バッチ＝**トラッシュ比例の原文 regex は撤去した**ので、UI と同じく
+  //   `costScalingOf` の payload を渡す（渡さないと印刷コストのまま返る）。
+  const scaling = costScalingOf('WXK06-055', effectsMap);
+  const base = computeArtsEffectiveCost(card!, empty, undefined, undefined, undefined, cm, undefined, undefined, {}, scaling);
+  const red = computeArtsEffectiveCost(card!, filled, undefined, undefined, undefined, cm, undefined, undefined, {}, scaling);
   ok(base !== red, '🔴トラッシュに＜龍獣＞5枚で軽減される（旧＝色名が「黒×1」になり一度も当たらなかった）');
   eq(red, '《黒》×2《無》×1', '黒×3→黒×2');
 });
@@ -36692,9 +36695,17 @@ test('task12(xc): 新規のコスト軽減規則が条件成立時だけ効く',
   eq(eff('WXK05-004', mk([]), 'エルドラ', 4), '《青》×1《無》×1', 'WXK05-004: ＜エルドラ＞で《青×2》減る');
   eq(eff('WXK09-004', mk([]), 'アルフォウ', 4), '《黒》×1《無》×1', 'WXK09-004: ＜アルフォウ＞で《黒×2》減る');
   // D. 「センタールリグのレベル１につき」（5枚）＝レベル比例
-  eq(eff('WXK05-048', mk([]), undefined, 4), '《無》×2', 'WXK05-048: Lv4で《無×4》減る');
-  eq(eff('WXK05-048', mk([]), undefined, 0), cardMap.get('WXK05-048')!.Cost, 'Lv0なら減らない');
-  eq(eff('WD15-006', mk([]), undefined, 3), '《赤》×3《無》×2', 'WD15-006: Lv3で《赤×3》減る');
+  // 🆕§5.3 `O-86` 第9バッチ＝**原文 regex（`myLrigLevel` 引数を読む形）は撤去した**ので、
+  //   レベルの参照元は `costScaling` の `{kind:'lrigLevel'}`＝**場のセンタールリグの `Level`**。
+  //   ⚠盤面にルリグを置かないと payload は null を返す（＝印刷コストのまま）。実機では常に居る。
+  const lrigOfLevel = (lv: number) => pick(c => c.Type === 'ルリグ' && (c.Level ?? '') === String(lv)).CardNum;
+  const mkLrig = (lv: number) => ({
+    field: { signi: [[], [], []], lrig: [lrigOfLevel(lv)] },
+    life_cloth: [], hand: [], trash: [], lrig_trash: [],
+  } as unknown as PlayerState);
+  eq(eff('WXK05-048', mkLrig(4), undefined, 4), '《無》×2', 'WXK05-048: Lv4で《無×4》減る');
+  eq(eff('WXK05-048', mk([]), undefined, 0), cardMap.get('WXK05-048')!.Cost, 'センタールリグ不在なら減らない');
+  eq(eff('WD15-006', mkLrig(3), undefined, 3), '《赤》×3《無》×2', 'WD15-006: Lv3で《赤×3》減る');
   // C. 「ルリグトラッシュにあるアーツ１枚につき」（2枚）＝枚数比例
   eq(eff('WX12-Re04', mk([], { lrig_trash: [arts.CardNum, arts.CardNum] })), '《黒》×1《無》×2', 'WX12-Re04: アーツ2枚で《無×4》減る');
   eq(eff('WX22-004', mk([], { lrig_trash: [arts.CardNum, arts.CardNum, arts.CardNum] })), '《赤》×4《無》×4', 'WX22-004: アーツ3枚で各色×3減る');
@@ -36731,8 +36742,11 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
   for (const c of cardMap.values()) {
     if (!['アーツ', 'スペル', 'ピース', 'アーツ/クラフト'].includes(c.Type) || !c.Cost) continue;
     scanned++;
+    // 🆕§5.3 `O-86` 第9バッチ＝**原文 regex は1本も残っていない**ので、payload を渡さないと
+    //   この掃引は「必ず印刷コスト」を確認するだけの空テストになる。UI と同じ経路で回す。
     const got = computeArtsEffectiveCost(c, empty, undefined, '', 0, cardMap, undefined, undefined,
-      { oppState: { turn_arts_used: false, actions_done: [] } });
+      { oppState: { turn_arts_used: false, actions_done: [] } },
+      costScalingOf(c.CardNum, effectsMap), costReplacementOf(c.CardNum, effectsMap));
     if (got !== c.Cost) moved.push(`${c.CardNum}(${c.Cost}→${got})`);
   }
   ok(scanned > 1000, `走査枚数（実測1236）: ${scanned}`);
@@ -41209,6 +41223,105 @@ test('task12(xciv) tail: increase+decrease in one sentence, and the banish-histo
   eq(run2('WX13-026', mkMy2({}), { signi_banished_this_turn: 0 }), '《黒》×３', '実績なしなら印刷どおり');
   eq(run2('WX13-026', mkMy2({}), undefined), '《黒》×３', '相手 state が未知なら成立させない（安いほうへ倒さない）');
 }));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.3 `O-86` 第9バッチ：条件つきコスト軽減の**最後の8系統**が payload（`EffectCost.costReplacement`）
+// になり、`computeArtsEffectiveCost` から原文 regex が1本残らず消えた（`census:costtext` A群 0規則）。
+// 🔑**ここは「payload が刻まれている」だけでなく「UI と同じ経路で実際に請求額が動く」ことを assert する**
+//   ＝parser だけ直って build が live へ届けていない形を見逃さない（第6バッチで確立した契約）。
+// ─────────────────────────────────────────────────────────────────────────────
+test('O-86 第9バッチ: 残テール8系統が payload 経由で効く（原文 regex なし）', () => {
+  const pick = (pred: (c: CardData) => boolean) => [...cardMap.values()].find(pred)!;
+  const mk = (o: { signi?: string[]; life?: number; hand?: number; energy?: number; trash?: number; lrigTrash?: string[] }) => ({
+    field: { signi: [...(o.signi ?? []).map(x => [x]), null, null, null].slice(0, 3), lrig: [] },
+    life_cloth: Array.from({ length: o.life ?? 0 }, (_, i) => 'L' + i),
+    hand: Array.from({ length: o.hand ?? 0 }, (_, i) => 'H' + i),
+    energy: Array.from({ length: o.energy ?? 0 }, (_, i) => 'E' + i),
+    trash: Array.from({ length: o.trash ?? 0 }, (_, i) => 'T' + i),
+    lrig_trash: o.lrigTrash ?? [],
+  } as unknown as PlayerState);
+  const eff = (num: string, my: PlayerState, opp?: object) =>
+    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, '', 0, cardMap, undefined, undefined,
+      { oppState: opp as never }, costScalingOf(num, effectsMap), costReplacementOf(num, effectsMap));
+  const base = (num: string) => cardMap.get(num)!.Cost;
+
+  const p15000 = pick(c => c.Type === 'シグニ' && parseInt(c.Power || '0') >= 15000).CardNum;
+  const weak = pick(c => c.Type === 'シグニ' && parseInt(c.Power || '0') > 0 && parseInt(c.Power || '0') < 10000).CardNum;
+  const seira = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('精羅')).CardNum;
+  const arm = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('アーム') && !(c.CardClass ?? '').includes('ウェポン')).CardNum;
+  const weapon = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('ウェポン') && !(c.CardClass ?? '').includes('アーム')).CardNum;
+  const blueDenki = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('電機') && (c.Color ?? '') === '青').CardNum;
+  const blackDenki = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('電機') && (c.Color ?? '') === '黒').CardNum;
+  const blueArts = pick(c => c.Type === 'アーツ' && (c.Color ?? '') === '青').CardNum;
+  const blackArts = pick(c => c.Type === 'アーツ' && (c.Color ?? '') === '黒').CardNum;
+
+  // ① 場のパワーN以上（`WX15-034`）。⚠パワーは**場のシグニの実カード**から読む。
+  eq(eff('WX15-034', mk({ signi: [p15000] })), 'なし', '①: パワー15000以上がいれば《赤×2》まるごと落ちる');
+  eq(eff('WX15-034', mk({ signi: [weak] })), base('WX15-034'), '①: パワーが足りなければ減らない');
+  // ② 場の＜クラス＞（`WX20-006`）
+  eq(eff('WX20-006', mk({ signi: [seira] })), '《無》×1', '②: ＜精羅＞がいれば《緑×2》減る');
+  eq(eff('WX20-006', mk({ signi: [arm] })), base('WX20-006'), '②: 別クラスでは減らない');
+  // ③ 場の＜X＞と＜Y＞＝**別々の1体でよいが両方要る**（`WX10-031`）
+  eq(eff('WX10-031', mk({ signi: [arm, weapon] })), '《赤》×1《白》×1《無》×1', '③: 両クラス揃えば減る');
+  eq(eff('WX10-031', mk({ signi: [arm] })), base('WX10-031'), '③: 片方だけでは減らない');
+  // ④ ライフ枚数比較（`SP38-002`）＝`selfZoneCountGtOpp{life_cloth, by:1}`
+  eq(eff('SP38-002', mk({ life: 3 }), { life_cloth: ['x'] }), '《赤》×2', '④: 自分のライフが多ければ《無×3》減る');
+  eq(eff('SP38-002', mk({ life: 1 }), { life_cloth: ['x'] }), base('SP38-002'), '④: 同数では減らない');
+  eq(eff('SP38-002', mk({ life: 3 }), undefined), base('SP38-002'), '④: 相手未知なら成立させない（安いほうへ倒さない）');
+  // ⑤ ゾーン枚数差（5枚）＝ゾーンごとに `by` が違う。ルリグトラッシュだけ**アーツだけ**を数える。
+  eq(eff('WX25-P3-008', mk({ energy: 3 }), { energy: ['x'] }), '《緑》×2', '⑤: エナが2枚以上多い');
+  eq(eff('WX25-P3-008', mk({ energy: 2 }), { energy: ['x'] }), base('WX25-P3-008'), '⑤: 差1では足りない');
+  eq(eff('WX25-P3-010', mk({ trash: 4 }), { trash: ['x'] }), '《黒》×2', '⑤: トラッシュが3枚以上多い');
+  eq(eff('WX25-P3-004', mk({ lrigTrash: [blueArts, blackArts] }), { lrig_trash: [] }), '《赤》×2',
+    '⑤: ルリグトラッシュのアーツが多い');
+  eq(eff('WX25-P3-004', mk({ lrigTrash: [blueArts, blackArts] }), { lrig_trash: [blueArts, blackArts] }),
+    base('WX25-P3-004'), '⑤: 同数なら減らない');
+  eq(eff('WX25-P3-004', mk({ lrigTrash: [weak, weak, weak] }), { lrig_trash: [] }), base('WX25-P3-004'),
+    '⑤🔴 アーツでないカードは数えない（原文「あるアーツの枚数」）');
+  // ⑥ ルリグトラッシュの色アーツ2条件＝**累積**（`WX12-013`）
+  eq(eff('WX12-013', mk({ lrigTrash: [blueArts, blackArts] })), '《青》×2《黒》×2', '⑥: 青と黒の両方で《無×2》落ちる');
+  eq(eff('WX12-013', mk({ lrigTrash: [blueArts] })), '《青》×2《黒》×2《無》×1', '⑥: 片方だけなら半分');
+  eq(eff('WX12-013', mk({})), base('WX12-013'), '⑥: 空なら印刷どおり');
+  // ⑦ 場の〔色〕＜クラス＞2条件＝**累積**。2つめの＜…＞は省略され1つめのクラスを継ぐ（`WX12-049`）
+  eq(eff('WX12-049', mk({ signi: [blueDenki, blackDenki] })), 'なし', '⑦: 青と黒の＜電機＞で両方落ちる');
+  eq(eff('WX12-049', mk({ signi: [blueDenki] })), '《黒》×1', '⑦: 青だけなら《青×1》だけ落ちる');
+  eq(eff('WX12-049', mk({ signi: [seira] })), base('WX12-049'), '⑦: ＜電機＞でなければ減らない');
+  // ⑧ 相手シグニのバニッシュ履歴（`WX13-026`）
+  eq(eff('WX13-026', mk({}), { signi_banished_this_turn: 1 }), 'なし', '⑧: バニッシュ実績ありで《黒×3》落ちる');
+  eq(eff('WX13-026', mk({}), { signi_banished_this_turn: 0 }), base('WX13-026'), '⑧: 実績なしなら印刷どおり');
+});
+
+test('O-86 第9バッチ: SP36-001 の2文は costScaling で累積する（早期 return で片方が消えない）', () => {
+  const my = { field: { signi: [null, null, null], lrig: [] }, life_cloth: [], hand: [], trash: [], lrig_trash: [], energy: [] } as unknown as PlayerState;
+  const eff = (opp?: object) =>
+    computeArtsEffectiveCost(cardMap.get('SP36-001')!, my, undefined, '', 0, cardMap, undefined, undefined,
+      { oppState: opp as never }, costScalingOf('SP36-001', effectsMap), costReplacementOf('SP36-001', effectsMap));
+  const terms = costScalingOf('SP36-001', effectsMap) ?? [];
+  eq(terms.length, 2, '2文＝2項（比例＋真偽）');
+  eq(JSON.stringify(terms.map(t => t.counts[0].kind)), JSON.stringify(['spellsUsedThisTurn', 'artsUsedThisTurn']),
+    '🔑並びは原文の適用順（スペル枚数比例 → アーツ使用の固定減）');
+  eq(eff({ turn_arts_used: false, actions_done: [] }), cardMap.get('SP36-001')!.Cost, '相手未行動なら印刷どおり');
+  eq(eff({ turn_arts_used: false, actions_done: ['USE_SPELL', 'USE_SPELL'] }), '《赤》×1《無》×1', 'スペル2枚で各色×2');
+  eq(eff({ turn_arts_used: true, actions_done: [] }), 'なし', 'アーツ使用で《赤×3》《無×3》');
+  eq(eff({ turn_arts_used: true, actions_done: ['USE_SPELL'] }), 'なし', '両方＝累積して0以下（クランプ）');
+  // ⚠`actions_done` / `turn_arts_used` の欄が無い相手 state は **0 に倒す**（null にすると項ごと消える）。
+  eq(eff({}), cardMap.get('SP36-001')!.Cost, '欄が無くても null に倒さず「使っていない」と読む');
+});
+
+test('O-86 第9バッチ: costScaling が1項も動かないときは盤面由来の閾値軽減へ落ちる', () => {
+  // 🔴旧実装は `applyCostScalingTerms` が非 null を返した時点で return しており、**盤面の CONTINUOUS
+  //   由来の軽減（`artsThresholdReductions`）をカード自身の payload が黙って殺していた**。
+  //   下に原文 regex が並んでいた頃の「二重適用を防ぐ」早期 return が、regex 撤去後も残っていたもの。
+  const my = { field: { signi: [null, null, null], lrig: [] }, life_cloth: [], hand: [], trash: [], lrig_trash: [], energy: [] } as unknown as PlayerState;
+  const thr = [{ minTotalCost: 0, color: '無', reduction: 1 }];
+  const run = (num: string) =>
+    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, '', 0, cardMap, undefined, thr,
+      { oppState: {} as never }, costScalingOf(num, effectsMap), costReplacementOf(num, effectsMap));
+  eq(cardMap.get('WX10-053')!.Cost, '《無》×７', 'WX10-053 の印刷コスト');
+  eq(run('WX10-053'), '《無》×6', '比例が空振りしても盤面の《無×1》軽減は効く');
+  eq(cardMap.get('SP36-001')!.Cost, '《赤》×３《無》×３', 'SP36-001 の印刷コスト');
+  eq(run('SP36-001'), '《赤》×3《無》×2', 'payload 化しても盤面由来の軽減を失わない');
+});
 
 // ── タスク12(cx)：対戦相手のシグニのアタックに応答する【起】（WX05-013-E2）──
 // 旧実装は `condition:{DURING_PHASE, phases:['ATTACK_SIGNI_OP']}` だったが `ATTACK_SIGNI_OP` は
@@ -55938,10 +56051,13 @@ test('O-119: proportional self-use cost payload covers G1-G18（独立オラク�
   eq(applyCostScalingTerms('《白》×3', increasePerTwo, perTwoState(3), emptyState(), instanceCards), '《白》×3《無》×1', 'increase per2 floor(3/2)');
 
   // ⚠**`WD16-006` は O-123 で払い戻した**（手札の**差**＝`handDiff`）＝ここに残すと「STUB のままが正」を assert してしまう。
-  //   残る16枚は「この方法で…枚数につき」＝**支払いの最中に数が決まる**形で、`costScaling` ではなく
-  //   `useTimeCost.ts`（支払いUI）が担当する＝**payload 化しないのが正**。`SP36-001` だけは別軸（このターンの使用実績・§5.3 `O-136`）。
-  const deferred = 'WX06-024 WX07-024 WX07-026 WX07-028 WX07-030 WX07-032 WX13-025 WX20-004 WX20-007 WD10-006 SP38-003 WX24-P3-002 WX24-P3-006 WX24-P3-008 WX24-P3-010 SP36-001'.split(' ');
-  eq(deferred.length, 16, 'O-119 deferred size');
+  //   残る15枚は「この方法で…枚数につき」＝**支払いの最中に数が決まる**形で、`costScaling` ではなく
+  //   `useTimeCost.ts`（支払いUI）が担当する＝**payload 化しないのが正**。
+  // 🆕**`SP36-001` はこのリストから外した**（§5.3 `O-86` 第9バッチ）＝あれは支払い時ではなく
+  //   **このターンの相手の使用実績**で決まる形で、新 count 種（`spellsUsedThisTurn` / `artsUsedThisTurn`）で
+  //   payload 化した。恒久 assert は `O-86 第9バッチ: SP36-001 の2文は costScaling で累積する` にある。
+  const deferred = 'WX06-024 WX07-024 WX07-026 WX07-028 WX07-030 WX07-032 WX13-025 WX20-004 WX20-007 WD10-006 SP38-003 WX24-P3-002 WX24-P3-006 WX24-P3-008 WX24-P3-010'.split(' ');
+  eq(deferred.length, 15, 'O-119 deferred size');
   for (const cardNum of deferred) {
     const parsed = parseCardEffects(cardMap.get(cardNum)!);
     ok(!parsed.some(e => e.cost?.costScaling?.length), `${cardNum}: deferred proportional payment-time form was adopted`);

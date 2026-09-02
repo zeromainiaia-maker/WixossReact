@@ -1,5 +1,115 @@
 # バグ修正記録 (BUGFIXES)
 
+## 🏁2026-09-02（索引 A 第9バッチ）：§5.3 `O-86` クローズ＝UI コスト層の原文 regex が全滅（A群 14→0規則）
+
+**ベースライン**＝`2f27fe7cf`（第7・8バッチの直後）。
+**A🔴 COST 14→0規則・当たり 23→0カード・真の worklist 18→0カード。**
+🏁**`computeArtsEffectiveCost` は `card.EffectText` を1度も読まなくなった**（引数からも `text` が消えた）。
+
+### 真因（1行）
+
+「〜の場合、この{アーツ|スペル}の使用コストは《X》減る」の**条件つき軽減**が、支払いのたびに
+UI 層（`screens/battle/costs.ts`）で**カード原文を regex 再パース**して決まっていた。
+JSON を見ても何が起きるか分からず、逆翻訳・census・golden・smoke・fuzz が全部緑のまま意味が壊れる層。
+
+### 何をしたか
+
+**① 8系統を `EffectCost.costReplacement` へ**（`CostReplacementWhen` に4種を追加）
+
+| 系統 | 枚数 | `when` |
+|---|---:|---|
+| 場のパワーN以上（`WX15-034`） | 1 | `selfFieldHasSigni{each:[{minPower}]}` |
+| 場の＜クラス＞（`WX20-005` `WX20-006`） | 2 | `selfFieldHasSigni{each:[{story}]}` |
+| 場の＜X＞と＜Y＞（`WX10-031`） | 1 | `selfFieldHasSigni` の `each` 2要素（**別々の1体でよいが両方要る**） |
+| ライフ枚数比較（`SP38-002`） | 1 | `selfZoneCountGtOpp{life_cloth, by:1}` |
+| ゾーン枚数差（`WX25-P3-002`〜`010`） | 5 | `selfZoneCountGtOpp{zone, by}` |
+| ルリグトラッシュの色アーツ2条件（`WX12-013`） | 1 | `selfLrigTrashHasArtsColor` × 2項（`accumulate`） |
+| 場の〔色〕＜クラス＞2条件（`WX12-049`） | 1 | `selfFieldHasSigni` × 2項（`accumulate`） |
+| 相手シグニのバニッシュ履歴（`WX13-026`） | 1 | `oppSigniBanishedThisTurn` |
+
+原文を読むのは **`src/data/keywordCosts.ts` の `parseCostReplacementTerms` 1箇所**（第6バッチの規約どおり）。
+`computeCostReplacement` の受け口 `myState` を**自分の全ゾーン**へ広げた（ゾーン枚数比較に要る）＝
+直接の呼び出し3経路はいずれも `my`（`PlayerState`）を丸ごと渡していたので**呼び出し側は無改修**。
+⚠`lrig_trash_arts` だけは**アーツだけ**を数える（原文「ルリグトラッシュにある**アーツ**の枚数」）。
+⚠相手側の欄が無ければ**成立させない**（安いほうへ倒さない）＝旧実装と同契約。
+
+**② `SP36-001`（炎のタマ）を `EffectCost.costScaling` へ**（`CostScalingCount` に2種を追加）
+
+原文が「使用されたスペル1枚につき《赤×1》《無×1》減る」＋「アーツを使用していた場合《赤×3》《無×3》減る」の
+**2文で累積**する唯一の形。🔑**`costReplacement` は「最初に成立した項で確定」する契約**なので、片方を
+そちらへ置くと**もう片方が永久に効かない**。`costScaling`（全項を順に累積）側へ両方置いた。
+真偽条件は **0/1 の count（`artsUsedThisTurn`）× `per:1`** で表す。
+⚠**`spellsUsedThisTurn` / `artsUsedThisTurn` は state が在れば `null` を返さない**＝旧実装の
+`actions_done ?? []` / `turn_arts_used === true` と同契約。`null` に倒すと `applyCostScalingTerms` が
+**項ごと null を返して同じ札のもう一方の軽減項まで丸ごと消える**。
+
+**③ そのまま撤去した2規則**（payload を作る必要が無かった＝到達しても出力が動かない）
+
+- 「センタールリグのレベル1につき減る」＝当たる5枚のうち4枚は `costScaling` 済みで上の分岐が先に返す。
+  残る `WD16-010` は**別カード（《ピーピング・アナライズ》）のコストを下げる文**への誤爆で、
+  印刷コストが `《青》×０`＝`parseGrowCost` が 0 の色を捨てるため**当たっても出力不変**。
+- 「トラッシュの＜クラス＞シグニN枚につき減る」＝当たる2枚のうち `WXK06-055` は `costScaling` 済み。
+  残る `WD14-001` は**ルリグ**で、この関数はアーツ／スペル／キー／ピースからしか呼ばれない
+  （グロウコストは `GROW_COST_REDUCTION` が別経路で持つ）。印刷コスト `-` なので当てても不変。
+
+🔑**「撤去してよい」の判定は3段**＝①計器の「payload無」列 ②**当たっているカードを1枚ずつ原文で読む**
+（誤爆が実在する） ③**印刷コストに当てて文字列が動くか**。①だけで消してはいけない。
+
+### 🔴 副産物＝本物のバグを1件直した（比例 payload が盤面由来の軽減を殺していた）
+
+`computeArtsEffectiveCost` は `applyCostScalingTerms` が**非 null を返した時点で return** していた。
+これは**下に原文 regex が並んでいた頃の「二重適用を構造的に防ぐ」ガード**で、regex を撤去した後に
+下へ残るのは `artsThresholdReductions`（**場の CONTINUOUS 由来**＝カード自身の比例増減とは別の出所）だけ。
+⇒ **比例が1項も動かない盤面で、場が与えた軽減が黙って消えていた**（＝原文より高く請求）。
+`scaled !== base` のときだけ確定するよう直した。**16カード・18,216セル**で回復し、差分が全件
+「盤面の《無×1》が効くようになった」だけであることを機械確認した。
+
+### 🔴 踏んだ罠
+
+- **A/B ダンプに `mergeManualEffects` を掛けてはいけない**（1回誤読した）。アプリ（`App.tsx`）は
+  live JSON をそのまま読む。ダンプ側で manual を重ねると、`buildEffectsJson` が**収穫マージの後から
+  重ねている**印字コスト payload が manual の古い `cost` で上書きされ、**新しい payload が1枚も
+  効かない状態を「挙動不変」と誤って報告する**。⇒ 直した harness を `scripts/archive/o86CaecDump.ts` に残した。
+- **`buildEffectsJson` の `costScaling` 継承も `mergeManualEffects` 後の fresh から取る**＝
+  `manualEffects.ts` が本文を手書きしたカード（`SP36-001`）には**永久に届かない**。
+  そこだけは **manual 側に `cost.costScaling` を直接書く**（build が marker STUB を剥がして live へ届く）。
+- **テンプレ文字列の `\d` は二重に書く**（第5バッチの再演）。`` new RegExp(`…[０-９\d]…`) `` は
+  `\d` が `d` に潰れて半角数字が読めなくなる。**現データは全角しか無いので A/B も golden も緑のまま通る。**
+- **golden が原文 regex に依存していた2本が落ちた**＝`B13 トラッシュ枚数比例…`（payload を渡していなかった）と
+  `O-119`（`SP36-001` を「payload 化しないのが正」として `deferred` に列挙していた）。
+  どちらも**テストの前提が変わっただけ**なので、前者は UI と同じ経路（`costScalingOf`）へ、
+  後者は `deferred` 16→15枚へ更新した。
+
+### 影響枚数
+
+payload を得たカード **13枚**（`SP38-002` `WX10-031` `WX12-013` `WX12-049` `WX13-026` `WX15-034`
+`WX20-005` `WX20-006` `WX25-P3-002/004/006/008/010`）＋ manual に payload を書いた **1枚**（`SP36-001`）。
+early return 修正で挙動が回復した **16枚**（`WX04-030` `WX10-045` `WX10-053` `WX12-056` `WX12-Re04`
+`WX22-004` `WXK06-055` `WXDi-P16-003/004/005/006` `WX25-P3-039/041/043/044/046`）。
+
+### 検証コマンド
+
+- **A/B ダンプ**＝全6,712カード × 60盤面 × 48文脈＝**1,706,432 通り**（文脈軸＝ベット宣言 × 任意支払い済み ×
+  相手アーツ使用 × 相手スペル0/1/2枚 × **盤面由来の閾値軽減 0/1**）。上記のバグ修正ぶん以外は**不一致0**。
+- `npm run gates` **全緑**（golden **3278/3278**＝新規3本／smoke 全異常0／fuzz 全0／census 3 / BASELINE 5／
+  `census:stubs` A🔴0・C0／manual-fields 0／`census:enginetext` A🔴129 据置／
+  🏁**`census:costtext` A🔴 0規則**（`BASELINE_COST_RULES` 14→0）／lint 0 errors）。
+- `npm run regen` 完走・**同型★0**。
+
+### 反転確認
+
+- **golden**＝8系統すべてを**成立盤面と反転盤面の両方**で assert（`O-86 第9バッチ: 残テール8系統が…`）。
+  `SP36-001` の累積は4通り、early return の修正は2カードで固定。
+- 🖥**実機**＝`V-128`＝`o86FieldClassPay` / `o86FieldClassNone`（`WX20-005`）。
+  🔑**観測点は「青を1枚も持たないエナ2枚で使えるか」**＝枚数だけを見ると
+  「軽減が効いていないのにたまたま払えた」を緑と誤読する。**色の要求ごと消える**ことまで見る。
+  `O-86` の実機8本を一括再実行して **8/8 PASS**。
+
+### ⑤実機の要否（§2.2 の判定）
+
+**必須**＝`src/screens/battle/costs.ts` を触り、**新しい条件型（`CostReplacementWhen` 4種）と
+新しい count 種（`CostScalingCount` 2種）を足した**ため。実施済み（上記 8/8 PASS）。
+
 ## 2026-09-02（索引 A 第7・8バッチ）：§5.3 `O-86` ③payload 化の続き＝A群 26→14規則
 
 **ベースライン**＝`dd4b320a6`（第2〜6バッチの直後）。

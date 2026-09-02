@@ -34,6 +34,33 @@
 
 > | §6 恒久指標（続き768） | 「恒久指標（退避）2026-09-01 続き768 後」 |
 
+### 恒久指標（退避）2026-09-02 索引 A `O-86` 第9バッチ 前（＝第2〜8バッチ直後の値）
+
+- **2026-09-02（索引 A `O-86` 第2〜8バッチ）＝UI コスト層の原文 regex を7系統ぶん payload へ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（19→17）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（5→3）
+  ⚠**台帳が据置なのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、意味照合の findings は
+  live JSON の効果本文しか見ていない（残44 は全件が `src/screens/` か新 engine 機構待ち）。
+  📦**在庫2本**＝**機構 worklist 25項目（据置）**（`O-86` は残 **18カード**でまだ開いている）
+  ｜🏁**実機 残 0件**（新規6本＋回帰を同巡で実行・**8/8 PASS**）
+  🔧**ゲート（全緑 ✅）**＝golden **3275 / 3275**（据置）／smoke 全異常0／fuzz 全0／
+  census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／
+  **`census:costtext` A🔴 14規則 / 当たり 23カード**（45規則 / 261カードから／`BASELINE_COST_RULES=14`）／
+  lint 0 errors。`npm run regen` 完走・**同型★0**（据置）。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝8/8 PASS**＝新規 `o86BoostExtraCost`（`V-124`）・
+  `o86BetCostReplace`（`V-125`）・`o86ScalingPayloadPay`/`None`（`V-126`）・
+  `o86LrigCondPay`/`None`（`V-127`）＋回帰 `o199EncoreTextCostPay` / `o123usetimepay`。
+  **新規はすべて反転確認つき**（払えない側・宣言しない側を同シナリオ内で観測）。
+  🆕**足した受け皿（`EffectCost` に6キー）**＝`encoreCost` / `betOptions` / `boostCost` / `useTimeCost` /
+  `costReplacement` / `optionalDiscardCost`。**原文を読むのは `src/data/keywordCosts.ts` の1箇所だけ**。
+  🧹**撤去**＝`parseEncoreCost` / `parseBetOptions` / `parseBoostCost` / `parseUseTimeCostReduction` /
+  `computeCostReplacement` の原文 regex 7本 / `parseOptionalDiscardForCost` /
+  `costScaling` に取って代わられた比例軽減 **13本** / センタールリグ条件 **4本**。
+  🆕**計器の較正2件**＝①`\s` が改行をまたぐため**改行コードだけで規則が現れ消えて**いた
+  ②**原文から派生した変数**への regex を追跡しておらず**5規則が丸ごと見えていなかった**（26→31＝較正）。
+  📐**`O-86` の真の worklist ＝ 229 → 18カード。**
+
 ### 恒久指標（退避）2026-09-02 索引 A 第1巡 前（＝索引 B 第2巡 直後の値）
 
 - **2026-09-02（索引 B 第2巡）＝§5.3 索引 B の残り9件を全消化（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
@@ -826,7 +853,65 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 **2026-08-26 続き666（`O-60` 第8バッチ）で分離**＝旧 id は `CONDITIONAL_ARTS_COST` だったが**コストの話ではない**。**live 0 件の死んだ枝**なので `DEFERRED_FIELD_COUNT_ALT_TRASH` へ改名しただけ（第5バッチの教訓＝**死んだ枝は catch-all の温床**）。⚠**着手前に母集団を実測する**＝live 0 のまま増えないなら parser 側の枝ごと落としてよい。
 
-### `O-86` — アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている
+### 🏁`O-86` — アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている（**2026-09-02 第9バッチでクローズ**）
+
+🏁🆕**2026-09-02（索引 A 第9バッチ）＝項目クローズ。`computeArtsEffectiveCost` は `card.EffectText` を
+1度も読まなくなった。A🔴 COST 14→0規則・当たり 23→0カード・真の worklist 18→0カード。**
+
+**残っていた14規則の行き先**
+| 系統 | 枚数 | 行き先 |
+|---|---:|---|
+| 場のパワーN以上（`WX15-034`） | 1 | `costReplacement` / `selfFieldHasSigni{each:[{minPower}]}` |
+| 場の＜クラス＞（`WX20-005` `WX20-006`） | 2 | 同 `selfFieldHasSigni{each:[{story}]}` |
+| 場の＜X＞と＜Y＞（`WX10-031`） | 1 | 同 `each` を2要素（**別々の1体でよいが両方要る**） |
+| ライフ枚数比較（`SP38-002`） | 1 | `selfZoneCountGtOpp{life_cloth, by:1}` |
+| ゾーン枚数差（`WX25-P3-002`〜`010`） | 5 | 同 `{zone, by}`（`lrig_trash_arts` だけ**アーツだけ**数える） |
+| ルリグトラッシュの色アーツ2条件（`WX12-013`） | 1 | `selfLrigTrashHasArtsColor` × 2項（`accumulate`） |
+| 場の〔色〕＜クラス＞2条件（`WX12-049`） | 1 | `selfFieldHasSigni` × 2項（`accumulate`） |
+| 相手シグニのバニッシュ履歴（`WX13-026`） | 1 | `oppSigniBanishedThisTurn` |
+| 相手の使用実績で2文が累積（`SP36-001`） | 1 | **`costScaling`** の新 count 種 `spellsUsedThisTurn` / `artsUsedThisTurn` |
+| センタールリグのレベル比例／トラッシュの＜クラス＞比例 | – | **そのまま撤去**（到達しても出力が動かない・下記） |
+
+🔑**なぜ `SP36-001` だけ `costScaling` なのか**＝原文が「スペル1枚につき減る」＋「アーツを使用していた
+場合減る」の**2文で累積**する。`costReplacement` は**最初に成立した項で確定**する契約なので、片方をそちらへ
+置くと**もう片方が永久に効かない**。`costScaling` は全項を順に累積するので2文をそのまま写せる。
+真偽条件（アーツ使用）は **0/1 の count × `per:1`** で表す。
+⚠**`spellsUsedThisTurn` / `artsUsedThisTurn` は state が在れば `null` を返さない**＝旧実装の
+`actions_done ?? []` と同契約。`null` にすると `applyCostScalingTerms` が項ごと null を返して
+**同じ札のもう一方の軽減項まで丸ごと消える**。
+
+🔑**「撤去してよい規則」の判定は3段**（この項目で確立）＝①`census:costtext` の「payload無」列
+②当たっているカードを**1枚ずつ原文で読む**（誤爆＝別カードのコストを下げる文への当たりが実在する）
+③**印刷コストに当てたときに文字列が動くか**。`WD16-010` は②で誤爆と分かり、③で
+`parseGrowCost` が `《青》×０` の 0 を捨てるため**当たっても出力不変**と確定した。`WD14-001` は
+②で**ルリグ**（この関数はアーツ／スペル／キー／ピースからしか呼ばれない・グロウコストは
+`GROW_COST_REDUCTION` が別経路）と分かった。
+
+🔴🔑**この巡で見つけた本物のバグ1件＝比例 payload の early return が盤面由来の軽減を殺していた。**
+`computeArtsEffectiveCost` は `applyCostScalingTerms` が**非 null を返した時点で return** していた。
+これは**下に原文 regex が並んでいた頃の「二重適用を構造的に防ぐ」ガード**で、regex を撤去した後は
+`artsThresholdReductions`（**場の CONTINUOUS 由来**＝カード自身の比例増減とは別の出所）だけが下に残る。
+⇒ **比例が1項も動かない盤面で、盤面が与えた軽減が黙って消えていた**（原文より高く請求）。
+`scaled !== base` のときだけ確定するよう直し、**16カード・18,216セル**で回復（差分は全件
+「盤面の《無×1》が効くようになった」だけであることを機械確認）。
+
+🔴🔑**A/B ダンプに `mergeManualEffects` を掛けてはいけない（この巡で1回誤読した）。**
+アプリ（`App.tsx`）は live JSON をそのまま読む。ダンプ側で manual を重ねると、`buildEffectsJson` が
+**収穫マージの後から重ねている**印字コスト payload（`costReplacement` ほか）が manual の古い `cost` で
+上書きされ、**新しい payload が1枚も効かない状態を「挙動不変」と誤って報告する**。
+⇒ 直した harness を `scripts/archive/o86CaecDump.ts` に残した。
+⚠**同じ死角がもう1つ**＝`buildEffectsJson` の `costScaling` 継承は **`mergeManualEffects` 後の fresh**
+から取るので、`manualEffects.ts` が本文を手書きしたカード（`SP36-001`）には**永久に届かない**。
+そこだけは **manual 側に `cost.costScaling` を直接書く**（build が marker STUB を剥がして live へ届く）。
+
+✅**検証＝全6,712カード × 60盤面 × 48文脈＝1,706,432 通り**の撤去前後ダンプ突き合わせ。
+文脈軸は bet宣言 × 任意支払い済み × 相手アーツ使用 × 相手スペル0/1/2枚 × **盤面由来の閾値軽減 0/1**。
+上記のバグ修正ぶん（16カード）以外は**不一致0**。
+🖥**実機**＝`V-128`（`o86FieldClassPay` / `o86FieldClassNone`）を新設し、`O-86` の実機8本を
+一括再実行して **8/8 PASS**。🔑**観測点は「青を1枚も持たないエナ2枚で `WX20-005` が使えるか」**＝
+枚数だけを見ると「軽減が効いていないのにたまたま払えた」を緑と誤読する。**色の要求ごと消える**ことまで見る。
+🧪**恒久 assert**＝golden 3本（`O-86 第9バッチ: …`）。8系統すべてを**成立盤面と反転盤面**で、
+`SP36-001` の累積を4通りで、early return の修正を2カードで固定した。
 
 🏁🆕**2026-09-02（索引 A 第2〜6バッチ）＝③payload 化を5バッチ進めた。**
 **A🔴 COST 規則 45→26本・当たり 261→77カード・真の worklist 229→45カード。**

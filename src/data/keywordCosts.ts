@@ -336,20 +336,85 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
     }
   }
 
+  // 🆕**条件つき軽減の残テール（§5.3 `O-86` 第9バッチ・計11枚）を組み立てる。**
+  //   ⚠**ここもガードの外**＝全部「〜**減る**」なので、`使用コストは…になる` の内側に置くと1本も作られない。
+  //   🔑**並びは旧 `computeArtsEffectiveCost` の評価順そのまま**（場のパワー → 場の＜クラス＞ →
+  //     ＜X＞と＜Y＞ → ライフ比較 → ゾーン枚数差 → ルリグトラッシュの色アーツ → 場の〔色〕＜クラス＞ →
+  //     バニッシュ履歴）。入れ替えると2条件を持つ札で勝つ項が変わる。
+  const tailTerms: CostReplacementTerm[] = [];
+  {
+    // ① 「あなたの場にパワーN以上のシグニがある場合、…使用コストは《色×N》減る」（`WX15-034`）
+    const power = effectText.match(new RegExp(`あなたの場にパワー([０-９\\d]+)以上のシグニがある場合[^。]*?使用コストは${COST}減る`));
+    if (power) {
+      tailTerms.push({ when: { kind: 'selfFieldHasSigni', each: [{ minPower: utNum(power[1]) }] }, mode: 'reduce', cost: parseCostIcons(power[2]) });
+    }
+    // ② 「あなたの場に＜X＞のシグニがある場合、…使用コストは《色×N》減る」（`WX20-005`／`WX20-006`）
+    const cls = effectText.match(new RegExp(`あなたの場に＜([^＞]+)＞のシグニがある場合[^。]*?使用コストは${COST}減る`));
+    if (cls) {
+      tailTerms.push({ when: { kind: 'selfFieldHasSigni', each: [{ story: cls[1] }] }, mode: 'reduce', cost: parseCostIcons(cls[2]) });
+    }
+    // ③ 「あなたの場に＜X＞と＜Y＞のシグニがある場合、…減る」（`WX10-031`）＝両方が同時に要る。
+    const twoCls = effectText.match(new RegExp(`あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは${COST}減る`));
+    if (twoCls) {
+      tailTerms.push({ when: { kind: 'selfFieldHasSigni', each: [{ story: twoCls[1] }, { story: twoCls[2] }] }, mode: 'reduce', cost: parseCostIcons(twoCls[3]) });
+    }
+    // ④ 「あなたのライフクロスが対戦相手より多い場合、…減る」（`SP38-002`）＝枚数比較の `by:1`。
+    const lifeCmp = effectText.match(new RegExp(`あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは${COST}減る`));
+    if (lifeCmp) {
+      tailTerms.push({ when: { kind: 'selfZoneCountGtOpp', zone: 'life_cloth', by: 1 }, mode: 'reduce', cost: parseCostIcons(lifeCmp[1]) });
+    }
+    // ⑤ 「あなたの〔ゾーン〕の枚数が対戦相手より〔N枚以上〕多いかぎり、…減る」（`WX25-P3-002`〜`010` の5枚）
+    const zoneDiff = effectText.match(new RegExp(
+      `あなたの(ライフクロス|ルリグトラッシュにあるアーツ|手札|エナゾーンにあるカード|トラッシュにあるカード)`
+      + `の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは${COST}減る`));
+    if (zoneDiff) {
+      const zone = ({
+        'ライフクロス': 'life_cloth', '手札': 'hand', 'エナゾーンにあるカード': 'energy',
+        'トラッシュにあるカード': 'trash', 'ルリグトラッシュにあるアーツ': 'lrig_trash_arts',
+      } as const)[zoneDiff[1] as 'ライフクロス'];
+      tailTerms.push({
+        when: { kind: 'selfZoneCountGtOpp', zone, by: zoneDiff[2] ? (utNum(zoneDiff[2]) || 1) : 1 },
+        mode: 'reduce', cost: parseCostIcons(zoneDiff[3]),
+      });
+    }
+    // ⑥ 「ルリグトラッシュに〔色〕のアーツがある場合《無×1》減り、〔色〕のアーツがある場合《無×1》減る」（`WX12-013`）
+    const lrigTrashArts = effectText.match(new RegExp(
+      `ルリグトラッシュに([白赤青緑黒])のアーツがある場合${COST}減り[、,]?([白赤青緑黒])のアーツがある場合${COST}減る`));
+    if (lrigTrashArts) {
+      tailTerms.push({ when: { kind: 'selfLrigTrashHasArtsColor', color: lrigTrashArts[1] }, mode: 'reduce', cost: parseCostIcons(lrigTrashArts[2]), accumulate: true });
+      tailTerms.push({ when: { kind: 'selfLrigTrashHasArtsColor', color: lrigTrashArts[3] }, mode: 'reduce', cost: parseCostIcons(lrigTrashArts[4]), accumulate: true });
+    }
+    // ⑦ 「場に〔色〕の＜X＞のシグニがある場合、…減り、〔色〕の（＜X＞の）シグニがある場合、…減る」（`WX12-049`）
+    //    ⚠2つめの＜…＞は省略されうる＝**省略時は1つめのクラスを引き継ぐ**（旧実装と同じ）。
+    const colorCls = effectText.match(new RegExp(
+      `あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは${COST}減り`
+      + `[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]${COST}減る`));
+    if (colorCls) {
+      tailTerms.push({ when: { kind: 'selfFieldHasSigni', each: [{ color: colorCls[1], story: colorCls[2] }] }, mode: 'reduce', cost: parseCostIcons(colorCls[3]), accumulate: true });
+      tailTerms.push({ when: { kind: 'selfFieldHasSigni', each: [{ color: colorCls[4], story: colorCls[5] || colorCls[2] }] }, mode: 'reduce', cost: parseCostIcons(colorCls[6]), accumulate: true });
+    }
+    // ⑧ 「このターンに対戦相手のシグニがバニッシュされている場合、…減る」（`WX13-026`）
+    const banished = effectText.match(new RegExp(`このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは${COST}減る`));
+    if (banished) {
+      tailTerms.push({ when: { kind: 'oppSigniBanishedThisTurn' }, mode: 'reduce', cost: parseCostIcons(banished[1]) });
+    }
+  }
+
   // 🔴**ガード**＝「使用コストは…になる」を含まない原文には**置換**の項を1つも作らない（旧実装と同じ）。
-  //   ⚠ここで返すのは**ルリグ条件の項だけ**（上で組んだぶん）＝ガードは置換系だけに掛かる。
-  if (!/使用コストは[^。]*になる/.test(effectText)) return lrigTerms.length > 0 ? lrigTerms : null;
+  //   ⚠ここで返すのは**条件つき軽減の項だけ**（ルリグ条件＋残テール）＝ガードは置換系だけに掛かる。
+  const condTerms = [...lrigTerms, ...tailTerms];
+  if (!/使用コストは[^。]*になる/.test(effectText)) return condTerms.length > 0 ? condTerms : null;
 
   // ① ベット形の置換（`WD17-006` / `WDK01-007` ほか計9枚）
   const betReplace = effectText.match(new RegExp(`あなたがベットする場合[、,][^。]*?使用コストは${COST}になる`));
   if (betReplace) {
     // ⚠ルリグ条件の項は**後ろに残す**（旧実装ではベットを宣言しなかったとき後段のルリグ規則へ落ちた）。
-    return [{ when: { kind: 'betting' }, mode: 'replace', cost: parseCostIcons(betReplace[1]), stopIfUnmet: true }, ...lrigTerms];
+    return [{ when: { kind: 'betting' }, mode: 'replace', cost: parseCostIcons(betReplace[1]), stopIfUnmet: true }, ...condTerms];
   }
   // ①' 使用時の任意支払い形（`WX21-035` / `WX21-071`）＝ベット形と同じく**宣言してはじめて成立する**。
   const optDiscard = parseOptionalDiscardCostText(effectText);
   if (optDiscard) {
-    return [{ when: { kind: 'paidOptionalDiscard' }, mode: 'replace', cost: optDiscard.cost, stopIfUnmet: true }, ...lrigTerms];
+    return [{ when: { kind: 'paidOptionalDiscard' }, mode: 'replace', cost: optDiscard.cost, stopIfUnmet: true }, ...condTerms];
   }
 
   // ② 対戦相手のこのターンのアーツ／スペル使用（`WX09-Re02`）。
@@ -376,9 +441,12 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
   if (trashCount) {
     terms.push({ when: { kind: 'selfTrashCountGte', value: utNum(trashCount[1]) }, mode: 'replace', cost: parseCostIcons(trashCount[2]) });
   }
-  // 🔑**置換系（旧 `computeCostReplacement`）が先・ルリグ条件が後**＝旧 `computeArtsEffectiveCost` の
-  //   評価順（①置換 → ②比例 payload → ③ルリグ条件…）をそのまま項の並びで表している。
-  const all = [...terms, ...lrigTerms];
+  // 🔑**置換系（旧 `computeCostReplacement`）が先・条件つき軽減が後**＝旧 `computeArtsEffectiveCost` の
+  //   評価順（①置換 → ②比例 payload → ③ルリグ条件 → ④場／ゾーン条件の軽減）をそのまま項の並びで表している。
+  // 🔴**②比例 payload（`costScaling`）だけは順序が入れ替わった**＝いまは `costReplacement` の全項が先に見られる。
+  //   現データでは**両方を持つカードが1枚も無い**ので出力は不変（865,472通りのダンプ突き合わせで実証）。
+  //   ⚠**両方を持つカードを新しく作らない**（作るときは `costScaling` 側へ寄せる＝第9バッチの `SP36-001` と同じ）。
+  const all = [...terms, ...condTerms];
   return all.length > 0 ? all : null;
 }
 

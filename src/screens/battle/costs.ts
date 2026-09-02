@@ -495,6 +495,9 @@ type CostScalingState = {
   lrig_trash?: string[];
   energy?: string[];
   coins?: number;
+  // 🆕`spellsUsedThisTurn` / `artsUsedThisTurn`（§5.3 `O-86` 第9バッチ・`SP36-001`）の参照元。
+  actions_done?: string[];
+  turn_arts_used?: boolean;
 };
 
 function scalingOwnerState(
@@ -525,6 +528,13 @@ function resolveCostScalingCount(
 
   const state = scalingOwnerState(count.owner, myState, oppState);
   if (!state) return null;
+
+  // 🆕**このターンの使用履歴**（`SP36-001`）＝**state が在れば null を返さない**。
+  //   旧 `computeArtsEffectiveCost` は `actions_done ?? []` / `turn_arts_used === true` と読んでおり、
+  //   欄が無いことを「使っていない」に倒していた。ここで null にすると `applyCostScalingTerms` が
+  //   項ごと null を返し、**同じ札のもう一方の軽減項まで丸ごと消える**。
+  if (count.kind === 'spellsUsedThisTurn') return (state.actions_done ?? []).filter(a => a === 'USE_SPELL').length;
+  if (count.kind === 'artsUsedThisTurn') return state.turn_arts_used === true ? 1 : 0;
 
   if (count.kind === 'lrigLevel') {
     const center = state.field?.lrig?.at(-1);
@@ -773,9 +783,32 @@ export function optionalDiscardSatisfied(
  * ⚠ベット形は**宣言がモーダル内**なので、一覧表示（宣言前）では `isBetting` を渡さず null を受け取り、
  *   「ベットすれば払えるか」の使用可否判定だけ `isBetting:true` で別途問い合わせる。
  */
+/**
+ * `selfZoneCountGtOpp` の枚数解決（§5.3 `O-86` 第9バッチ）。
+ * ⚠**欄が無ければ `null`**＝「0枚」と読まない（相手側が未知のときに軽減を成立させないため）。
+ * ⚠`lrig_trash_arts` は**アーツだけ**を数える（原文「ルリグトラッシュにある**アーツ**の枚数」）＝
+ *   カード種別を見るので `cardMap` が要る。
+ */
+function zoneCount(
+  st: { life_cloth?: string[]; hand?: string[]; energy?: string[]; trash?: string[]; lrig_trash?: string[] },
+  zone: 'life_cloth' | 'hand' | 'energy' | 'trash' | 'lrig_trash_arts',
+  cardMap?: Map<string, CardData>,
+): number | null {
+  if (zone === 'lrig_trash_arts') {
+    if (!cardMap || !Array.isArray(st.lrig_trash)) return null;
+    return st.lrig_trash.filter(cn => cardMap.get(getCardNum(cn))?.Type === 'アーツ').length;
+  }
+  return Array.isArray(st[zone]) ? st[zone]!.length : null;
+}
+
 export function computeCostReplacement(
   card: { CardName?: string; Cost: string },
-  myState: { field?: PlayerState['field']; trash?: string[] },
+  // 🆕**ゾーン枚数の比較（`selfZoneCountGtOpp`）で自分側の全ゾーンが要る**（§5.3 `O-86` 第9バッチ）。
+  //   直接の呼び出し3経路はいずれも `my`（`PlayerState`）を丸ごと渡しているので、受け口を広げるだけで届く。
+  myState: {
+    field?: PlayerState['field']; trash?: string[];
+    life_cloth?: string[]; hand?: string[]; energy?: string[]; lrig_trash?: string[];
+  },
   cardMap?: Map<string, CardData>,
   ctx?: CostReplaceCtx,
   /** カードの `EffectCost.costReplacement`（`costReplacementOf` で引く）。無ければ原文由来の置換は無い。 */
@@ -828,6 +861,31 @@ export function computeCostReplacement(
         ].some(n => !!n && cardMap.get(n)?.CardName === when.cardName);
       }
       case 'selfTrashCountGte': return (myState.trash?.length ?? 0) >= when.value;
+      // 🆕**ゾーン枚数の比較**＝⚠**どちらかの欄が無ければ成立させない**（安いほうへ倒さない）。
+      case 'selfZoneCountGtOpp': {
+        const mine = zoneCount(myState, when.zone, cardMap);
+        const theirs = ctx?.oppState ? zoneCount(ctx.oppState, when.zone, cardMap) : null;
+        return mine !== null && theirs !== null && mine - theirs >= when.by;
+      }
+      // 🆕**場のシグニ条件**＝`each` の各条件を（別々の1体でよいので）それぞれ満たすか。
+      case 'selfFieldHasSigni': {
+        if (!myState.field || !cardMap) return false;
+        const tops = (myState.field.signi ?? [])
+          .map(stack => stack?.at(-1)).filter((n): n is string => !!n)
+          .map(n => cardMap.get(getCardNum(n)));
+        return when.each.every(req => tops.some(c => !!c
+          && (req.color === undefined || (c.Color ?? '').includes(req.color))
+          && (req.story === undefined || (c.CardClass ?? '').includes(req.story))
+          && (req.minPower === undefined || parseInt(c.Power ?? '0') >= req.minPower)));
+      }
+      case 'selfLrigTrashHasArtsColor': {
+        if (!myState.lrig_trash || !cardMap) return false;
+        return myState.lrig_trash.some(cn => {
+          const c = cardMap.get(getCardNum(cn));
+          return c?.Type === 'アーツ' && (c.Color ?? '').includes(when.color);
+        });
+      }
+      case 'oppSigniBanishedThisTurn': return (ctx?.oppState?.signi_banished_this_turn ?? 0) >= 1;
     }
   };
   // 🆕`accumulate` の項だけは**確定せずに結果を持ち越す**（原文「〜減り、〜減る」＝2条件の重ね）。
@@ -875,9 +933,7 @@ export function computeArtsEffectiveCost(
   /** カードの `EffectCost.costReplacement`（§5.3 `O-86`）。`costReplacementOf` で引いて渡す。 */
   costReplacement?: CostReplacementTerm[],
 ): string {
-  const text = card.EffectText ?? '';
   const base = card.Cost;
-  let m: RegExpMatchArray | null;
 
   // 条件つきコスト置換／軽減（`EffectCost.costReplacement`）＝比例増減より先に見る。
   // 🆕**センタールリグ条件（§5.3 `O-86` 第8バッチ）の参照元をここで詰める**＝
@@ -891,11 +947,16 @@ export function computeArtsEffectiveCost(
   const replaced = computeCostReplacement(card, myState, cardMap, replaceCtxWithLrig, costReplacement);
   if (replaced !== null) return replaced;
 
-  // カード自身の比例増減は JSON payload が正。必要な owner/state が揃わない場合だけ従来 regex へ落ちる。
-  // payload が評価できたときは、下の全文 regex 群を通さない（二重適用を構造的に防ぐ）。
+  // カード自身の比例増減（`EffectCost.costScaling`）。必要な owner/state を読めないときだけ null で素通りする。
+  // 🆕**2026-09-02（第9バッチ）以降、素通りした先に原文 regex はもう無い**＝残るのは
+  //   `artsThresholdReductions`（**盤面の CONTINUOUS 由来**＝カード自身の比例増減とは別の出所）だけ。
+  // 🔴**「1項も動かなかった」ときは早期 return しない**＝旧実装は比例軽減が空振りしたとき
+  //   `if (out !== base)` で**下へ落として** `artsThresholdReductions` を受けていた。
+  //   `scaled !== null` だけで返すと、**盤面が与えた軽減をカード自身の payload が黙って殺す**
+  //   （`SP36-001` を payload 化したときに 240 セルの差として現れた）。
   if (costScaling?.length) {
     const scaled = applyCostScalingTerms(base, costScaling, myState, replaceCtx?.oppState, cardMap);
-    if (scaled !== null) return scaled;
+    if (scaled !== null && scaled !== base) return scaled;
   }
 
   // 🗑**2026-09-02（§5.3 `O-86` 第1バッチ）＝「《X》を〈N〉つ少なくする」形の規則5本を撤去した。**
@@ -907,189 +968,29 @@ export function computeArtsEffectiveCost(
   //   「当たらない規則が増えた」ではなく **A群の本数が増えない**まま静かに素通りするので、
   //   その時は `census:costtext` の上位に出ない＝**原文側から探す**こと（§5.3 `O-86`）。
 
-  // フィールドにパワーN以上のシグニがある場合コスト減（CONDITIONAL_COST_REDUCTION_BY_FIELD）
-  if (myState.field && cardMap) {
-    // ⚠従来 `[^、]*` ＋ `《色》×N`（括弧外表記）限定で**二重に取りこぼしていた**（タスク12(xc)）：
-    //   ①「がある場合**、この**スペルの使用コストは」の読点を跨げない
-    //   ②実データの多数派は `《赤×2》`（括弧**内**表記）＝この regex に当たらない
-    //   ⇒ `[^。]*?` ＋ 減少量は括弧内外を吸収する `parseGrowCost(normalizeCostText())` へ寄せる。
-    m = text.match(/あなたの場にパワー([０-９\d]+)以上のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/);
-    if (m) {
-      const reqPower = parseInt(toHalfWidth(m[1]));
-      const redList = parseGrowCost(normalizeCostText(m[2]));
-      const hasStrongSigni = (myState.field.signi ?? []).some(stack => {
-        const top = stack?.at(-1);
-        if (!top) return false;
-        const pow = parseInt(cardMap.get(top)?.Power ?? '0');
-        return pow >= reqPower;
-      });
-      if (hasStrongSigni) {
-        let out = base;
-        for (const r of redList) out = removeNColorFromCost(out, r.color, r.count);
-        return out;
-      }
-    }
-    // フィールドに特定クラスのシグニがある場合コスト減
-    m = text.match(/あなたの場に＜([^＞]+)＞のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/);
-    if (m) {
-      const reqClass = m[1];
-      const redListC = parseGrowCost(normalizeCostText(m[2]));
-      const hasClassSigni = (myState.field.signi ?? []).some(stack => {
-        const top = stack?.at(-1);
-        return top && (cardMap.get(top)?.CardClass ?? '').includes(reqClass);
-      });
-      if (hasClassSigni) {
-        let out = base;
-        for (const r of redListC) out = removeNColorFromCost(out, r.color, r.count);
-        return out;
-      }
-    }
-  }
-
-  // SPELL_COST_REDUCTION_BY_TRASH_COUNT: トラッシュのクラスシグニN枚につき色コスト×1軽減
-  if (myState.trash && cardMap) {
-    m = text.match(/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/);
-    if (m) {
-      const cls = m[1]; const perN = parseInt(toHalfWidth(m[2]));
-      // 🔴色指定は《黒×1》（括弧**内**表記）と《黒》×1（括弧外）の両方がある。
-      //   内側を割らないと色名が `黒×1` になり `removeNColorFromCost` が**一度も当たらない**
-      //   ＝軽減が永久に不発（`WXK06-055` は黒×3+無×1 のまま／2026-08-27 Sheet1 B13 で実測）。
-      //   ⚠**すぐ上の「場の＜クラス＞シグニN体につき」分岐は最初から割っていた**＝
-      //     同じファイル内で同じ表記ゆれの扱いが2つに割れていたのが根因（§5-8′ の再実証）。
-      const innerT = m[3].match(/([^×x]+)[×x]?([０-９\d]*)/);
-      const col = (innerT?.[1] ?? m[3]).trim();
-      const perRed = parseInt(toHalfWidth(innerT?.[2] || m[4] || '1')) || 1;
-      const cnt = myState.trash.filter(cn => (cardMap.get(cn)?.CardClass ?? '').includes(cls) && cardMap.get(cn)?.Type === 'シグニ').length;
-      const reduction = Math.floor(cnt / perN) * perRed;
-      if (reduction > 0) return removeNColorFromCost(base, col, reduction);
-    }
-  }
-
-  // 🗑**2026-09-02（§5.3 `O-86` 第7バッチ）＝`costScaling` payload に取って代わられた比例軽減 regex 13本を撤去した。**
-  //   撤去したのは①場の＜クラス＞シグニN体につき ②ルリグトラッシュのアーツ1枚につき
-  //   ③場の〔色/カード名〕シグニN体につき ④〜⑦相手盤面参照の I-1〜I-4（凍結/能力なし/チャーム/ウィルス/コイン）
-  //   ⑧場のルリグN体以上のピース比例 ⑨場＋エナの二重比例 ⑩トラッシュのカード名比例
-  //   ⑪アクセ済みシグニ比例 ⑫ライフ増＋クラス減 ⑬手札枚数差比例。
-  //   🔑**どれも parser が `EffectCost.costScaling` を刻んでおり、上の payload 分岐が先に return する**＝
-  //     `census:costtext` の「payload無」列が **13本とも 0** だった（＝当たるカードは全部 payload 済み）。
-  //   ⚠**「payload無 0」だけを根拠に消さない**＝payload の解決が null に落ちたときは regex へ落ちる作りなので、
-  //     **撤去の前後で `computeArtsEffectiveCost` の出力を全カード × 盤面マトリクスでダンプして突き合わせた**
-  //     （**323,298 通りで不一致 0**＝到達不能を実測で証明した。手順は PLAN_DETAIL.md の `O-86`）。
-  // ===== タスク12(xc)：既存規則集に無かった条件つきコスト軽減（全数計測で 37枚ぶん） =====
-  // 「《色×N》…減る」の並びを {color,count}[] へ（複数色を同時に減らす形がある）。
-  const parseReduceList = (raw: string) => parseGrowCost(normalizeCostText(raw));
-  const applyReduce = (cost: string, list: { color: string; count: number }[], times = 1): string => {
-    let out = cost;
-    for (const r of list) out = removeNColorFromCost(out, r.color, r.count * times);
-    return out;
-  };
-  const RED = '((?:《[^》]+》)+)';
-
-  // D. 「あなたのセンタールリグのレベル１につき《色×N》減る」（5枚）＝レベル比例。
-  m = text.match(new RegExp(`あなたのセンタールリグのレベル[１1]につき${RED}減る`));
-  if (m && myLrigLevel !== undefined && myLrigLevel > 0) {
-    return applyReduce(base, parseReduceList(m[1]), myLrigLevel);
-  }
-
-  // E. 「あなたの場に＜X＞と＜Y＞のシグニがある場合、…《色×N》減る」（1枚）＝両クラスが同時に要る。
-  m = text.match(new RegExp(`あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは${RED}減る`));
-  if (m && myState.field && cardMap) {
-    const has = (cls: string) => (myState.field!.signi ?? []).some(stack => {
-      const top = stack?.at(-1);
-      return top && (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(cls);
-    });
-    if (has(m[1]) && has(m[2])) return applyReduce(base, parseReduceList(m[3]));
-  }
-
-  // SP36-001（炎のタマ）＝相手のこのターンの使用実績で**2文が累積**する唯一の形。
-  // 他の規則と違い早期 return できない（スペル枚数比例＋アーツ使用の固定減が重なる）。
-  if (/このターンに対戦相手がスペルを使用していた場合/.test(text) || /このターンに対戦相手がアーツを使用していた場合/.test(text)) {
-    const done = replaceCtx?.oppState?.actions_done ?? [];
-    const spellCount = done.filter(a => a === 'USE_SPELL').length;
-    let out = base;
-    const perSpell = text.match(new RegExp(`使用されたスペル[１1]枚につき${RED}減る`));
-    if (perSpell && spellCount > 0) out = applyReduce(out, parseReduceList(perSpell[1]), spellCount);
-    const byArts = text.match(new RegExp(`このターンに対戦相手がアーツを使用していた場合[、,][^。]*?使用コストは${RED}減る`));
-    if (byArts && replaceCtx?.oppState?.turn_arts_used) out = applyReduce(out, parseReduceList(byArts[1]));
-    if (out !== base) return out;
-  }
-
-  // ===== タスク12(xcii)：**相手の盤面**を参照する条件つきコスト軽減（8枚） =====
-  // ⚠**必ず「この{スペル|アーツ}の使用コストは…」の文だけを見る**＝カード全文に regex を当てると、
-  //   他カードのコストを下げる文（`WXDi-CP01-027`「《フレン・スラッシュ》の使用コストは…」）や
-  //   無関係の「1体につき」文まで巻き込む。文単位で切ってから当てる。
-  const oppSt = replaceCtx?.oppState;
-  const costSentence = text.split('。').find(s => /この(?:スペル|アーツ|カード)の使用コストは/.test(s)) ?? '';
-  if (costSentence) {
-    // I-5. 「あなたのライフクロスが対戦相手より多い場合、…《無×3》減る」（`SP38-002`）＝枚数比較。
-    //      ⚠相手ライフが未知（`life_cloth` 未指定）のときは**成立させない**＝安いほうへ倒さない。
-    m = costSentence.match(new RegExp(`あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは${RED}減る`));
-    if (m && oppSt?.life_cloth && myState.life_cloth.length > oppSt.life_cloth.length) {
-      return applyReduce(base, parseReduceList(m[1]));
-    }
-  }
-
-  // ===== タスク12(xciv)：コスト軽減の残テール（未カバー23枚を全数分類して実装）=====
-  // ⚠在庫の見立ては「1枚ずつ形が違う＝クラスタ化できない」だったが、**規則 regex に原文が当たるか**で
-  //   数え直すと **α ピース5枚／β 相手比較5枚／γ 2条件の重ね4枚** の明確なクラスタがあった。
-  {
-    const oppSt2 = replaceCtx?.oppState;
-    // β. アーツ5枚（`WX25-P3-002`/`004`/`006`/`008`/`010`）＝「〔ゾーン〕の枚数が対戦相手より〔N枚以上〕
-    //    多いかぎり、このアーツの使用コストは《色×2》減る」。⚠相手側が未知なら**成立させない**（I-5 と同じ安全側）。
-    m = text.match(new RegExp(
-      `あなたの(ライフクロス|ルリグトラッシュにあるアーツ|手札|エナゾーンにあるカード|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは${RED}減る`));
-    if (m && oppSt2) {
-      const need = m[2] ? (parseInt(toHalfWidth(m[2])) || 1) : 1;
-      const zone = m[1];
-      const countZone = (st: { life_cloth?: string[]; hand?: string[]; energy?: string[]; trash?: string[]; lrig_trash?: string[] } | undefined): number | null => {
-        if (!st) return null;
-        if (zone === 'ライフクロス') return st.life_cloth?.length ?? null;
-        if (zone === '手札') return st.hand?.length ?? null;
-        if (zone === 'エナゾーンにあるカード') return st.energy?.length ?? null;
-        if (zone === 'トラッシュにあるカード') return st.trash?.length ?? null;
-        // ルリグトラッシュは**アーツだけ**を数える（原文「あるアーツの枚数」）
-        if (!cardMap) return null;
-        return (st.lrig_trash ?? []).filter(cn => cardMap.get(getCardNum(cn))?.Type === 'アーツ').length;
-      };
-      const mine = countZone(myState);
-      const theirs = countZone(oppSt2);
-      if (mine !== null && theirs !== null && mine - theirs >= need) return applyReduce(base, parseReduceList(m[3]), 1);
-    }
-    // γ-1. `WX12-013`＝「ルリグトラッシュに〔色〕のアーツがある場合《無×1》減り、〔色〕のアーツがある場合《無×1》減る」
-    //       ＝2条件が**重なる**（早期 return できない）。
-    m = text.match(new RegExp(
-      `ルリグトラッシュに([白赤青緑黒])のアーツがある場合${RED}減り[、,]?([白赤青緑黒])のアーツがある場合${RED}減る`));
-    if (m && myState.lrig_trash && cardMap) {
-      const hasArts = (col: string) => myState.lrig_trash!.some(cn => {
-        const c = cardMap.get(getCardNum(cn));
-        return c?.Type === 'アーツ' && (c.Color ?? '').includes(col);
-      });
-      let out = base;
-      if (hasArts(m[1])) out = applyReduce(out, parseReduceList(m[2]));
-      if (hasArts(m[3])) out = applyReduce(out, parseReduceList(m[4]));
-      if (out !== base) return out;
-    }
-    // γ-2. `WX12-049`＝「場に〔色〕の＜X＞のシグニがある場合、…《色×1》減り、〔色〕の＜X＞のシグニがある場合、《色×1》減る」
-    m = text.match(new RegExp(
-      `あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは${RED}減り[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]${RED}減る`));
-    if (m && myState.field && cardMap) {
-      const hasSigni = (col: string, cls: string) => (myState.field!.signi ?? []).some(stack => {
-        const top = stack?.at(-1);
-        if (!top) return false;
-        const c = cardMap.get(getCardNum(top));
-        return !!c && (c.Color ?? '').includes(col) && (!cls || (c.CardClass ?? '').includes(cls));
-      });
-      let out = base;
-      if (hasSigni(m[1], m[2])) out = applyReduce(out, parseReduceList(m[3]));
-      if (hasSigni(m[4], m[5] || m[2])) out = applyReduce(out, parseReduceList(m[6]));
-      if (out !== base) return out;
-    }
-    // δ-6. `WX13-026`＝「このターンに対戦相手のシグニがバニッシュされている場合、《黒×3》減る」。
-    //       ⚠ターン履歴なので盤面からは判定できない＝`collectBoardDiffTriggers`（バニッシュ認識の
-    //       唯一の funnel）が積む `signi_banished_this_turn` を読む。相手側が未知なら成立させない。
-    m = text.match(new RegExp(`このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは${RED}減る`));
-    if (m && (oppSt2?.signi_banished_this_turn ?? 0) >= 1) return applyReduce(base, parseReduceList(m[1]));
-  }
+  // 🗑**2026-09-02（§5.3 `O-86` 第9バッチ）＝残っていた条件つきコスト軽減の regex 14本を全部撤去した。**
+  //   これで `computeArtsEffectiveCost` は**原文（`EffectText`）を1本も読まない**＝`census:costtext` の
+  //   A🔴 COST が **0規則**になり、`O-86` が閉じる。
+  //
+  //   ■**payload へ移した8系統**（受け皿＝`EffectCost.costReplacement` の `CostReplacementWhen`。
+  //     読み取りは `src/data/keywordCosts.ts` の `parseCostReplacementTerms` 1箇所）
+  //     ①場のパワーN以上（`WX15-034`） ②場の＜クラス＞（`WX20-005`/`WX20-006`）
+  //     ③場の＜X＞と＜Y＞（`WX10-031`） ④ライフ枚数比較（`SP38-002`）
+  //     ⑤ゾーン枚数差（`WX25-P3-002`〜`010` の5枚） ⑥ルリグトラッシュの色アーツ2条件（`WX12-013`）
+  //     ⑦場の〔色〕＜クラス＞2条件（`WX12-049`） ⑧相手シグニのバニッシュ履歴（`WX13-026`）。
+  //   ■**`costScaling` へ移した1系統**＝`SP36-001`（炎のタマ）の「使用されたスペル1枚につき減る」＋
+  //     「アーツを使用していた場合減る」。🔑**2文が累積する**ので `costReplacement`（最初に成立した項で確定）
+  //     ではなく `costScaling`（全項が順に累積）側へ置く＝新 count 種 `spellsUsedThisTurn` / `artsUsedThisTurn`。
+  //   ■**そのまま撤去した2本**（payload を作る必要が無かった＝到達しても出力が動かない）
+  //     ・「センタールリグのレベル1につき減る」＝当たる5枚のうち4枚は `costScaling` 済みで上の分岐が先に返し、
+  //       残る `WD16-010` は**別カード（《ピーピング・アナライズ》）のコストを下げる文**への誤爆。
+  //       印刷コストが `《青》×０` で `parseGrowCost` が 0 の色を捨てるため、**当たっても出力は不変**。
+  //     ・「トラッシュの＜クラス＞シグニN枚につき減る」＝当たる2枚のうち `WXK06-055` は `costScaling` 済み、
+  //       残る `WD14-001` は**ルリグ**で、この関数はアーツ／スペル／キー／ピースからしか呼ばれない
+  //       （グロウコストは `GROW_COST_REDUCTION` が別経路で持つ）。印刷コスト `-` なので当てても不変。
+  //   🔴**撤去の根拠は「payload無 0」ではなくダンプ突き合わせ**＝撤去前後で本関数の出力を
+  //     **全6,712カード × 60盤面 × 24文脈＝865,472通り**書き出して差分し、**不一致 0** を確認している
+  //     （手順は PLAN_DETAIL.md の `O-86`）。
 
   // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減。
   // §6.4 O-10（続き510）で「対戦相手のターンにアーツを使用する場合の軽減」（`minTotalCost:0`）も

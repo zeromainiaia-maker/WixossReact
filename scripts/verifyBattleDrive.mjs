@@ -42395,6 +42395,99 @@ scenarios.o86BoostExtraCost = {
 };
 order.push('o86BoostExtraCost');
 
+/**
+ * §5.3 `O-86` 第9バッチの実機（`V-128`）＝**場のシグニのクラス条件によるコスト軽減が payload だけで効く**。
+ * `WX20-005`（レース・トルネード／印刷 《青》×１《無》×２）＝
+ * 「あなたの場に＜精生＞のシグニがある場合、このアーツの使用コストは《青×1》減る」。
+ * 🔑**観測点は請求額そのもの**＝エナは**青でない2枚**しか置かない。
+ *   ・＜精生＞が居る → 実効《無》×２ ＝ **その2枚で払える**
+ *   ・居ない       → 印刷《青》×１《無》×２ ＝ **枚数も色も足りず提示すらされない**
+ * ⚠エナの**色**を確かめずに置くと「payload は読めているのに成立しない」に見える（第4バッチで踏んだ罠）。
+ */
+function o86FieldClassSpec(hasSeisei) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9781'],
+      'field.lrig_down': false,
+      // WD04-009＝幻獣　セイリュ（緑・精生：地獣）／WD01-009＝甲冑　ローメイル（白・精武：アーム）
+      'field.signi': [[hasSeisei ? 'WD04-009#9782' : 'WD01-009#9783'], null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': ['WX20-005#9784'],
+      // 🔴**青を1枚も置かない**＝軽減が効かないかぎり《青》×１ を払えない（反転確認の要）。
+      'energy': ['WD02-009#9785', 'WD02-010#9786'],
+      'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [], 'coins': 0,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9795'],
+      'field.signi': [['WD01-013#9787'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO86FieldClass(page, H, hasSeisei) {
+  const tag = hasSeisei ? 'o86field-ok' : 'o86field-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 hostField=${JSON.stringify(st0?.host?.fieldSigni)} energy=${st0?.host?.energy} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(800);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(800);
+  await H.clickTextOrBtn(['使用']);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+  const useBtn = () => page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+  if (!(await useBtn().count())) {
+    const names = await page.getByRole('button').allTextContents().catch(() => []);
+    H.log(`  見えているボタン: ${JSON.stringify(names.map(t => t.trim()).filter(Boolean).slice(0, 40))}`);
+    return hasSeisei
+      ? { pass: false, detail: '🔴場に＜精生＞が居るのに使用モーダルへ辿り着けない（軽減が請求へ届いていない）' }
+      : { pass: true, detail: '対照＝＜精生＞が居なければ印刷《青》×１《無》×２ を青なしエナ2枚では払えず提示されない' };
+  }
+  await H.clickTestId('artscost-energy-0');
+  await page.waitForTimeout(300);
+  await H.clickTestId('artscost-energy-1');
+  await page.waitForTimeout(400);
+  const enabled = await useBtn().isEnabled().catch(() => false);
+  H.log(`  エナ2枚選択: アーツ使用 enabled=${enabled}`);
+  if (!hasSeisei) {
+    return enabled
+      ? { pass: false, detail: '🔴＜精生＞が居ないのに青なしエナ2枚で使える＝場の条件を見ずに軽減している' }
+      : { pass: true, detail: '対照＝＜精生＞が居なければエナ2枚では使えない（印刷は《青》×１《無》×２）' };
+  }
+  if (!enabled) return { pass: false, detail: '🔴場に＜精生＞が居るのに《青×1》軽減が効いていない（青なしエナ2枚で払えるはず）' };
+  await useBtn().click().catch(() => {});
+  let last = st0, settled = 0;
+  for (let i = 0; i < 18; i++) {
+    await page.waitForTimeout(700);
+    let did = await H.clickTestId('pick-0');
+    if (!did) did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | energy=${last?.host?.energy} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} hand=${last?.host?.hand} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `energy=${st0?.host?.energy}→${h.energy} lrigTrash=${JSON.stringify(h.lrigTrashCards)} hand=${h.hand}`;
+  if (h.energy !== 0) return { pass: false, detail: `🔴軽減後コスト2枚ぶんのエナが支払われていない。${detail}` };
+  if (!(h.lrigTrashCards ?? []).includes('WX20-005#9784')) {
+    return { pass: false, detail: `🔴アーツがルリグトラッシュへ行っていない（使用が成立していない）。${detail}` };
+  }
+  return { pass: true, detail: `場の＜精生＞で《青×1》軽減され、青を持たないエナ2枚で使用できた。${detail}` };
+}
+scenarios.o86FieldClassPay = {
+  title: 'O-86 WX20-005：場に＜精生＞がいれば《青×1》軽減（payload 経由・青なしエナ2枚で成立）',
+  spec: o86FieldClassSpec(true), drive: (page, H) => driveO86FieldClass(page, H, true),
+};
+order.push('o86FieldClassPay');
+scenarios.o86FieldClassNone = {
+  title: 'O-86 対照：場に＜精生＞が居なければ軽減0＝青なしエナ2枚では使えない',
+  spec: o86FieldClassSpec(false), drive: (page, H) => driveO86FieldClass(page, H, false),
+};
+order.push('o86FieldClassNone');
+
 scenarios.o199EncoreTextCostPay = {
   title: 'O-199 WDA-F02-08：アンコール－ルリグの下から3枚をルリグトラッシュへ払って使用できる',
   spec: o199Spec(3), drive: (page, H) => driveO199(page, H, 3),

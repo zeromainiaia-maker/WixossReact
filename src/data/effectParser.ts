@@ -1194,6 +1194,10 @@ function parseCostScalingSentence(sentence: string): CostScalingTerm[] | null {
       x => opponentScalingCount(x[1]), 2, 3, 4)
     ?? single(new RegExp(`^対戦相手のコイン${num}枚につき${amount}(減る|増える)$`),
       () => ({ kind: 'coins', owner: 'opponent' }), 1, 2, 3)
+    // O-86 第9バッチ: 「使用されたスペル1枚につき」（`SP36-001`）＝**このターンに対戦相手が使用したスペルの枚数**。
+    //   文頭の条件「このターンに対戦相手がスペルを使用していた場合」は枚数>0 と同値なので項に落とさない。
+    ?? single(new RegExp(`^使用されたスペル${num}枚につき${amount}(減る|増える)$`),
+      () => ({ kind: 'spellsUsedThisTurn', owner: 'opponent' }), 1, 2, 3)
     ?? single(new RegExp(`^あなたのライフクロス${num}枚につき${amount}(減る|増える)$`),
       () => ({ kind: 'zone', zone: 'life_cloth', owner: 'self' }), 1, 2, 3)
     ?? single(new RegExp(`^対戦相手の手札${num}枚につき${amount}(減る|増える)$`),
@@ -1203,18 +1207,35 @@ function parseCostScalingSentence(sentence: string): CostScalingTerm[] | null {
       () => ({ kind: 'handDiff', owner: 'self' }), 1, 2, 3);
 }
 
+/**
+ * O-86 第9バッチ: 「このターンに対戦相手がアーツを使用していた場合、この…の使用コストは《X》減る」（`SP36-001`）。
+ *
+ * 🔑**比例ではなく真偽なのに `costScaling` へ置く**＝同じ札の比例項（使用されたスペル1枚につき）と
+ *   **累積**する形だから。`costReplacement`（最初に成立した項で確定）へ分けるとそちらが先に return して
+ *   比例項が永久に効かなくなる。真偽は `artsUsedThisTurn`（0/1）× `per:1` で表す。
+ */
+function parseOppArtsUsedCostReduction(sentence: string): CostScalingTerm | null {
+  const m = sentence.match(new RegExp(
+    `^このターンに対戦相手がアーツを使用していた場合[、,](?:この(?:スペル|アーツ|カード|ピース)の)?使用コストは${COST_SCALING_AMOUNT_SOURCE}減る$`));
+  if (!m) return null;
+  return costScalingTerm('reduce', [{ kind: 'artsUsedThisTurn', owner: 'opponent' }], '1', m[1]);
+}
+
 function parseCostScaling(text: string): CostScalingTerm[] | undefined {
-  const sentences = text.split('。').filter(sentence =>
-    /この(?:スペル|アーツ|カード|ピース)の使用コストは/.test(sentence) && /につき/.test(sentence));
-  if (sentences.length === 0) return undefined;
   const terms: CostScalingTerm[] = [];
-  for (const sentence of sentences) {
+  let matched = false;
+  // ⚠**文の順に見る**＝`applyCostScalingTerms` は項を順に累積するので、並びが原文の適用順になる。
+  for (const sentence of text.split('。')) {
+    const oppArts = parseOppArtsUsedCostReduction(sentence);
+    if (oppArts) { matched = true; terms.push(oppArts); continue; }
+    if (!(/この(?:スペル|アーツ|カード|ピース)の使用コストは/.test(sentence) && /につき/.test(sentence))) continue;
+    matched = true;
     const parsed = parseCostScalingSentence(sentence);
-    // increase はもちろん、reduce も本バッチでは文全体を読めたものだけ採る。未対応の使用時支払い17枚等を温存する。
+    // increase はもちろん、reduce も文全体を読めたものだけ採る。未対応の使用時支払い17枚等を温存する。
     if (!parsed) return undefined;
     terms.push(...parsed);
   }
-  return terms.length > 0 ? terms : undefined;
+  return matched && terms.length > 0 ? terms : undefined;
 }
 
 function withCostScaling(cost: EffectCost | undefined, terms: CostScalingTerm[] | undefined): EffectCost | undefined {

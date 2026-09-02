@@ -773,6 +773,20 @@ export type CostScalingCount =
    * 手札が少ないほうが高くつく（＝増額）という読みにしない。
    */
   | { kind: 'handDiff'; owner: Owner }
+  /**
+   * 🆕**このターンに `owner` が使用したスペルの枚数**（`SP36-001`＝§ 5.3 `O-86` 第9バッチ・`actions_done` の `USE_SPELL` 回数）。
+   * ⚠**`actions_done` が無い state は `null` ではなく 0**（旧 `computeArtsEffectiveCost` の
+   *   `const done = replaceCtx?.oppState?.actions_done ?? []` と同契約）。null に倒すと
+   *   `applyCostScalingTerms` が項ごと null を返して**同じ札の別の軽減項まで消える**。
+   */
+  | { kind: 'spellsUsedThisTurn'; owner: Owner }
+  /**
+   * 🆕**このターンに `owner` がアーツを使用していたら 1、していなければ 0**（同上）。
+   * 🔑**比例ではなく真偽だが `costScaling` へ置く**＝同じ札の比例項（使用されたスペル1枚につき）と
+   *   **累積**する形だから。`costReplacement`（最初に成立した項で確定）側へ分けると
+   *   そちらが先に return して**比例項が永久に効かなくなる**。
+   */
+  | { kind: 'artsUsedThisTurn'; owner: Owner }
   | { kind: 'charm' | 'virus'; owner: Owner };
 
 /** 「〜N体／枚につき《色×M》減る／増える」＝使用コストの比例増減1項。 */
@@ -856,7 +870,28 @@ export type CostReplacementWhen =
   /** 🆕**対戦相手のセンタールリグの色**（12枚）。原文「＜赤＞か＜青＞の場合」＝いずれかを含めば成立。 */
   | { kind: 'oppCenterLrigColor'; colors: string[] }
   /** 🆕**あなたのセンタールリグがレベルN以上**（1枚）。 */
-  | { kind: 'selfCenterLrigLevelGte'; value: number };
+  | { kind: 'selfCenterLrigLevelGte'; value: number }
+  /**
+   * 🆕**あなたの〔ゾーン〕の枚数が対戦相手より `by` 枚以上多い**（§5.3 `O-86` 第9バッチ・6枚）。
+   * 原文「〜の枚数が対戦相手より（N枚以上）多いかぎり」「あなたのライフクロスが対戦相手より多い場合」。
+   * ⚠**相手側が未知なら成立させない**（安いほうへ倒さない）＝旧実装と同じ扱い。
+   * ⚠`lrig_trash_arts` だけは**アーツだけを数える**（原文「ルリグトラッシュにある**アーツ**の枚数」）。
+   */
+  | { kind: 'selfZoneCountGtOpp'; zone: 'life_cloth' | 'hand' | 'energy' | 'trash' | 'lrig_trash_arts'; by: number }
+  /**
+   * 🆕**あなたの場に `each` の条件をそれぞれ満たすシグニがいる**（§5.3 `O-86` 第9バッチ・5枚）。
+   * `each` は **AND**（「＜アーム＞と＜ウェポン＞のシグニがある場合」＝別々の1体で満たしてよい）。
+   * 各条件の中は AND（「青の＜電機＞」＝色とクラスの両方）。
+   */
+  | { kind: 'selfFieldHasSigni'; each: { color?: string; story?: string; minPower?: number }[] }
+  /** 🆕**あなたのルリグトラッシュに〔色〕のアーツがある**（`WX12-013`）。 */
+  | { kind: 'selfLrigTrashHasArtsColor'; color: string }
+  /**
+   * 🆕**このターンに対戦相手のシグニがバニッシュされている**（`WX13-026`）。
+   * ⚠盤面からは判定できないターン履歴＝`collectBoardDiffTriggers`（バニッシュ認識の
+   *   唯一の funnel）が積む `signi_banished_this_turn` を読む。
+   */
+  | { kind: 'oppSigniBanishedThisTurn' };
 
 export interface CostReplacementTerm {
   when: CostReplacementWhen;
