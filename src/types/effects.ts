@@ -1225,6 +1225,15 @@ export interface TargetFilter {
    * ⚠判定は state を持つ層（`fieldCandidates` / `matchesStateFilter`）＝`matchesFilter` では見えない。
    */
   isAttacking?: boolean;
+  /**
+   * 🆕**【トラップ】能力（`TRAP_ICON` 効果）を持つカード**（§5.3 `O-220` 第6バッチ・2026-09-02）。
+   * 「あなたのトラッシュからカード１枚を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、
+   *  このカードは**それの**トラップ能力を得て**、その能力を発動する」（`WX17-029-TRAP`）の対象宣言。
+   * ⚠**判定に `parseCardEffects` が要る**（`Type`/`Class` では読めない）ので、`matchesFilter`（ホットパス・
+   *   カード1枚しか見ない）ではなく**候補集めの層**（`movableTrashCandidates` の呼び出し元）で絞る。
+   *   ここを守らないと「宣言では全トラッシュを選べるのに実行が受け付けない」二重プロンプトになる。
+   */
+  hasTrapAbility?: boolean;
   crossState?: boolean; // クロス状態のシグニ（field.cross_state[zone]）。イノセンス等（G159）
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
@@ -3235,6 +3244,15 @@ export interface RearrangeSigniAction {
   swapIfSameLevel?: boolean;
   suppressOnPlay?: boolean; // swapWithLastProcessed で場に出たシグニの【出】を発火させない
   optional?: boolean; // true=「配置し直してもよい」（プレイヤーがスキップ可能）
+  /**
+   * 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）＝任意コストの前に宣言した対象へ固定する。**
+   * 「あなたの他のレベル２以上のシグニ１体を**対象とし**、〈任意コスト〉して**もよい**。
+   *  **そうした場合、それと**このシグニの場所を入れ替える」（`SPDi43-20-E1`）。
+   * 🔴**3点契約**＝①この2キー ②`freezeStoredTargets` の `FREEZABLE` ③`execRearrangeSigni` の
+   *   `swap` 分岐が**候補の絞り込み**と**「選択UIを開かずに即入れ替える」分岐の両方**で消費する。
+   */
+  targetsStored?: boolean;
+  fixedCardNums?: string[];
 }
 
 // シグニの基本レベルをNにする（CONTINUOUS。「このシグニの基本レベルは2になる」WX04-049-E1）。
@@ -3341,6 +3359,15 @@ export interface PowerModifyBySourceAction {
   basis: 'level' | 'power';
   multiplier: number;
   until?: EffectDuration;
+  /**
+   * 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）＝任意コストの前に宣言した対象へ固定する。**
+   * 「対戦相手のシグニ１体を**対象とし**、《青》を支払って**もよい**。**そうした場合**、ターン終了時まで、
+   *  **それの**パワーをこのシグニのパワーと同じだけ－する」（`WXK10-075-E2` のアクセ付与能力）。
+   * ⚠実体は `execPowerModify` へ委譲するだけなので、**この2キーを `mod` へ引き継ぐ**のを忘れない
+   *   （引き継がないとフィールドは付いたのに engine が無視する＝無言 no-op）。
+   */
+  targetsStored?: boolean;
+  fixedCardNums?: string[];
 }
 
 // パワーをN倍にする
@@ -4178,6 +4205,17 @@ export interface StubAction {
    */
   raw?: string;
   /**
+   * 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝任意コストの前に宣言した対象への照応。**
+   * 「〈対象〉を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それを**〜」の帰結が
+   * 型付き action ではなく STUB のときに使う（`COPY_CARD` / `TRAP_OPERATION`）。
+   *
+   * 🔴**消費するのは `O220_FREEZABLE_STUB_IDS`（`effectExecutor.ts`）に載せた id だけ**＝
+   *   載せずにフィールドだけ付けると `targetsStored:false` に落とされて限定が消え、
+   *   **全候補へ当たる**（過剰実行）。型に生えているからといって他の STUB へ付けない。
+   */
+  targetsStored?: boolean;
+  fixedCardNums?: string[];
+  /**
    * `LIFE_CRASH_PREVENTION`（§5.3 `O-66`・2026-08-25）＝「ライフクロスは〜クラッシュされない／
    * N枚までしかクラッシュされない」の中身。
    * ⚠**このペイロードが無い `LIFE_CRASH_PREVENTION` は「全面防止」に化ける**ので、
@@ -4560,8 +4598,14 @@ export interface StubAction {
      * 🆕`field`＝**必ず場に出す**（2026-08-31 続き759・`WXK07-106-E1`「その後、この方法でトラッシュに
      * 置かれたカードがレベルが奇数のシグニの場合、**それを**トラッシュから場に出す」）。
      * ⚠`hand_or_field` を流用してはいけない＝あちらは**手札に加える択が増える**（原文にない選択肢）。
+     * 🆕`declare`＝**対象宣言だけ**（カードは動かさない・§5.3 `O-220` 第7バッチ・2026-09-02）＝
+     * 「この方法でトラッシュに置かれたカードの中から〈修飾〉１枚を**対象とし**、〈任意コスト〉して
+     * **もよい**。**そうした場合、それを**場に出す」（`WX25-P1-061-E2`）。`SELECT_TARGET_ONLY` の
+     * トラッシュ版に相当し、直後の `STORE_LAST_PROCESSED_TARGETS` が選択を固定する。
+     * 🔴**候補は `lastProcessedCards`（＝この方法で置いた札）に限る**＝これが `TargetFilter` に
+     *   無い語彙なので、`SELECT_TARGET_ONLY` ではなくこの STUB を宣言に使う。
      */
-    dest: 'hand' | 'energy' | 'hand_or_field' | 'field';
+    dest: 'hand' | 'energy' | 'hand_or_field' | 'field' | 'declare';
   };
   /**
    * この STUB が**シグニを場に出す**ことの宣言（§6.4 O-32）。

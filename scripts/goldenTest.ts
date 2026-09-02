@@ -18181,6 +18181,245 @@ test('O-96 据置契約: ルリグ対象は固定形へ変えない（対象が�
   }
 });
 
+// ── §5.3 `O-220` 第1バッチ（2026-09-02）＝**「アタックしているシグニ」も据置が正しい** ──
+// 「**アタックしている**シグニ１体を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それは**
+//  このアタックでダメージを与えない」は、対象が**いま宣言中のアタッカー1体で一意**＝
+//  支払いの後に選び直しても同じ1体になる（`O-96` の実害がどちらも起きない）。
+// 🔴**そのために `attackingOnly` が要る**＝無いと候補が**相手の場の全シグニ**に広がり、
+//   支払いのあとで**アタックしていないシグニ**を選べてしまう（選んでも進行中のアタックは止まらない
+//   ＝`negated_attacks` へ入るだけ＝**払ったのに何も起きない**）。
+// ⚠`WX17-044-TRAP` は `PREVENT_NEXT_DAMAGE`（`target` を持たない型）だったので、
+//   「それ」の照応先が JSON のどこにも残っていなかった。兄弟形の `WX16-029-E1` と型を揃えた。
+test('O-220 据置契約: 「アタックしているシグニ」対象は attackingOnly で一意にする', () => {
+  for (const [cardNum, effectId] of [
+    ['WX16-029', 'WX16-029-E1'],
+    ['WX17-044', 'WX17-044-TRAP'],
+    ['WX12-001', 'WX12-001-E2'],
+    ['WX14-003', 'WX14-003-E3'],
+    ['PR-K077', 'PR-K077-E1'],
+  ] as const) {
+    const json = JSON.stringify(o96Live(cardNum, effectId).action);
+    ok(json.includes('"type":"NEGATE_ATTACK"'), `${effectId}: 帰結は NEGATE_ATTACK`);
+    ok(json.includes('"attackingOnly":true'), `${effectId}: 候補をいま宣言中のアタッカーへ限定する`);
+    ok(!json.includes('"PREVENT_NEXT_DAMAGE"'), `${effectId}: target を持たない型へ落とさない`);
+  }
+});
+
+// ── §5.3 `O-220`（2026-09-02）＝**「このシグニの正面のシグニ」も据置が正しい** ──
+// 「このシグニの**正面の**シグニ１体を**対象とし**、《青》《青》を支払って**もよい**。**そうした場合、それを**
+//  裏向きにする」（`WXDi-P05-037-E2`）＝正面は**ゾーンで一意**に決まる。
+// 🔴engine は `faceDownTarget.frontOfSelf` で**選択UIを出さず即適用**する（`autoSFD`）＝
+//   `targetsStored` を足しても挙動は1ビットも変わらない（ルリグ対象と同じ根拠）。
+// ⚠**`faceDownTarget` が無い形へ戻さない**＝その場合 `lastProcessedCards ?? sourceCardNum` へ落ち、
+//   支払い後は空なので**効果元のシグニが自分を裏向きにする**（原文と正反対）。
+test('O-220 据置契約: 「正面のシグニ」対象は frontOfSelf で一意にする', () => {
+  const json = JSON.stringify(o96Live('WXDi-P05-037', 'WXDi-P05-037-E2').action);
+  ok(json.includes('"frontOfSelf":true'), 'WXDi-P05-037-E2: 正面のシグニへ自動適用する');
+  ok(json.includes('"owner":"opponent"'), 'WXDi-P05-037-E2: 対象は相手のシグニ');
+  ok(!json.includes('"targetsStored"'), 'WXDi-P05-037-E2: 一意なので照応キーを足さない');
+});
+
+// ── §5.3 `O-220` 第2バッチ（2026-09-02）＝`REARRANGE_SIGNI` の3点契約 ──
+// 「あなたの他のレベル２以上のシグニ１体を**対象とし**、《黒》《無》を支払って**もよい**。
+//  **そうした場合、それと**このシグニの場所を入れ替える」（`SPDi43-20-E1`）。
+// 🔴3点契約＝①型の `targetsStored`/`fixedCardNums` ②`FREEZABLE` 登録
+//   ③`execRearrangeSigni` の `swap` 分岐が**絞り込み**と**即入れ替え**の両方で消費する。
+test('O-220 第2バッチ: REARRANGE_SIGNI の対象固定（宣言→保存→任意コスト→支払いゲート）', () => {
+  const steps = assertO96FixedOrder('SPDi43-20', 'SPDi43-20-E1');
+  const outcome = (steps[3] as ConditionalAction).then as import('../src/types/effects').RearrangeSigniAction;
+  eq(outcome.type, 'REARRANGE_SIGNI', 'SPDi43-20-E1: 帰結は REARRANGE_SIGNI');
+  eq(outcome.swap, true, 'SPDi43-20-E1: 「場所を入れ替える」＝swap');
+  eq(outcome.target.filter?.level?.min, 2, 'SPDi43-20-E1: レベル2以上の限定を維持');
+  eq(outcome.target.filter?.excludeSelf, true, 'SPDi43-20-E1: 「他の」＝自身を除く');
+  // 前置条件（《VOGUE3-EXTREMEムジカ》がいる場合）は固定形ごと CONDITIONAL の中に残す
+  // ＝条件不成立なら対象宣言も支払いも提示しない。
+  const root = (o96Live('SPDi43-20', 'SPDi43-20-E1').action as SequenceAction).steps[0] as ConditionalAction;
+  eq(root.condition.type, 'HAS_CARD_IN_FIELD', 'SPDi43-20-E1: 前置条件を外へ出したままにする');
+});
+
+// ── §5.3 `O-220` 第3バッチ（2026-09-02）＝帰結が `CHOOSE`（二択）の形 ──
+// 「あなたのシグニ１体を**対象とし**、《赤》《無》を支払って**もよい**。**そうした場合**、ターン終了時まで、
+//  **それは**【アサシン】か【ダブルクラッシュ】を得る」（`WXDi-P12-007-E1`）。
+// 🔑「それ」は**枝を選ぶ前に確定している**＝対象宣言は `CHOOSE` の外へ引き上げ、**全枝**に照応を刻む。
+// 🔴engine 側は `freezeStoredTargets` が `CHOOSE` の枝へ降りることで初めて焼き込みが届く
+//   （降りないと支払いプロンプトを跨いだ時点で候補が空になり**黙って空振り**する）。
+test('O-220 第3バッチ: CHOOSE の全枝へ対象照応を配る（枝ごとに選び直させない）', () => {
+  // ⚠`assertO96FixedOrder` は使えない＝あれは**帰結自身**の `targetsStored` を見るが、
+  //   `CHOOSE` では照応が**枝の中**に載る（器には載らない）。順序だけ同じ形で検証する。
+  const steps = o96FixedSteps(o96Live('WXDi-P12-007', 'WXDi-P12-007-E1')) as
+    (EffectAction & { id?: string; abortIfNoCandidate?: boolean })[];
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', 'WXDi-P12-007-E1: 対象宣言が任意コストより前');
+  eq(steps[0].abortIfNoCandidate, true, 'WXDi-P12-007-E1: 候補0なら支払い前に打ち切る');
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', 'WXDi-P12-007-E1: 宣言対象を保存');
+  eq(steps[2].id, 'OPTIONAL_COST', 'WXDi-P12-007-E1: 保存後に任意コスト');
+  eq((steps[3] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST',
+    'WXDi-P12-007-E1: 実支払いだけで帰結');
+  const choose = (steps[3] as ConditionalAction).then as unknown as
+    { type: string; choices: { action: { type: string; keyword?: string; targetsStored?: boolean } }[] };
+  eq(choose.type, 'CHOOSE', 'WXDi-P12-007-E1: 帰結は CHOOSE');
+  eq(choose.choices.length, 2, 'WXDi-P12-007-E1: 二択のまま');
+  for (const c of choose.choices) {
+    eq(c.action.type, 'GRANT_KEYWORD', 'WXDi-P12-007-E1: 各枝はキーワード付与');
+    eq(c.action.targetsStored, true, 'WXDi-P12-007-E1: 枝ごとに宣言済み対象へ照応する');
+  }
+  eq(choose.choices.map(c => c.action.keyword).join('/'), 'アサシン/ダブルクラッシュ',
+    'WXDi-P12-007-E1: 二択の中身を維持');
+  // 前置条件（場のシグニが全て《ディソナ》）は固定形ごと CONDITIONAL の中に残る。
+  const root = (o96Live('WXDi-P12-007', 'WXDi-P12-007-E1').action as SequenceAction).steps[0] as ConditionalAction;
+  eq(root.condition.type, 'ALL_FIELD_SIGNI_MATCH', 'WXDi-P12-007-E1: 前置条件を外へ出したままにする');
+});
+
+// ── §5.3 `O-220` 第4バッチ（2026-09-02）＝引用能力「〈解除コスト〉を支払わないかぎりアタックできない」 ──
+// 🔴**対象の指定は「引用を伏せた本文」から読む**＝`t` を丸ごと見ると**引用の中の**「あなたの」「シグニ」を
+//   付与先だと読み違える。3効果とも末尾の粗い近似 `BLOCK_ACTION{SIGNI, owner:'any'}` に落ちており、
+//   **解除コストが丸ごと消えたうえ、無関係なシグニ1体が無条件でアタック不可**になっていた。
+test('O-220 第4バッチ: 引用「〈解除コスト〉を支払わないかぎりアタックできない」の対象と解除コスト', () => {
+  // (a) 《無》×N 版＝既存の `SIGNI_ATTACK_BAN` へ乗る（engine が対象の Type でルリグ／シグニを仕分ける）。
+  const choose = ((o96Live('WX24-P2-047', 'WX24-P2-047-E1').action as SequenceAction).steps[1]) as unknown as
+    { type: string; choices: { action: EffectAction }[] };
+  eq(choose.type, 'CHOOSE', 'WX24-P2-047-E1: ①②の二択のまま');
+  const branch = choose.choices[1].action as SequenceAction;
+  eq(branch.type, 'SEQUENCE', 'WX24-P2-047-E1②: 対象宣言つきの正準形');
+  eq((branch.steps[0] as EffectAction & { id?: string }).id, 'SELECT_TARGET_ONLY', '②: 対象宣言');
+  eq(JSON.stringify((branch.steps[0] as unknown as { selectTarget: EffectTarget }).selectTarget),
+    '{"type":"LRIG","owner":"opponent","count":1}', '②: 指定は「対戦相手のルリグ１体」（引用内の語で上書きしない）');
+  eq((branch.steps[1] as EffectAction & { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS', '②: 宣言対象を保存');
+  const ban = branch.steps[2] as unknown as
+    { type: string; owner: string; targetsStored?: boolean; unlessPayColorless?: number; turns?: number };
+  eq(ban.type, 'SIGNI_ATTACK_BAN', '②: アタック禁止は SIGNI_ATTACK_BAN へ（BLOCK_ACTION の粗い近似ではない）');
+  eq(ban.owner, 'opponent', '②: 禁止はアタックする側（相手）の state に載る');
+  eq(ban.targetsStored, true, '②: 宣言した1体だけに掛かる');
+  eq(ban.unlessPayColorless, 2, '②: 《無》《無》を払えばアタックできる（解除コストを落とさない）');
+  eq(ban.turns, 2, '②: 「次の対戦相手のターン終了時まで」＝2ターン');
+
+  // (b) 場トラッシュ版のルリグ対象＝**受け皿が無いので明示 defer**（§5.3 `O-222`）。
+  //     ⚠no-op は過少だが、無関係な自軍シグニを無条件で止める従来形よりは忠実。
+  const blocked = (o96Live('WX24-P3-049', 'WX24-P3-049-E1').action as SequenceAction).steps[1] as ConditionalAction;
+  eq((blocked.then as EffectAction & { id?: string }).id, 'DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH',
+    'WX24-P3-049-E1: ルリグ版の解除コストは機構不在を宣言する');
+  ok(!JSON.stringify(blocked).includes('"BLOCK_ACTION"'),
+    'WX24-P3-049-E1: 粗い近似（無関係なシグニを無条件で止める）へ戻さない');
+
+  // (c) 対照＝**引用の中に O-96 の署名がある**だけの形は固定しない（`WX24-P2-055-E1`）。
+  //     外側は「あなたのシグニ１体を対象とし、それは「【自】…支払ってもよい。そうした場合…」を得る」＝
+  //     支払いも帰結も**付与された能力の中**の話で、外側の対象宣言とは無関係。
+  const grant = o96Live('WX24-P2-055', 'WX24-P2-055-E1').action as EffectAction & { effect?: { action: EffectAction } };
+  eq(grant.type, 'GRANT_EFFECT', 'WX24-P2-055-E1: 引用能力の付与（帰結を外へ平坦化しない）');
+  ok(JSON.stringify(grant.effect?.action).includes('"LIFE_CRASH"'),
+    'WX24-P2-055-E1: 引用の中身（任意コスト→ライフクラッシュ）を保つ');
+});
+
+// ── §5.3 `O-220` 第5バッチ（2026-09-02）＝ルリグトラッシュの対象照応 ──
+// 「あなたのルリグトラッシュから〈色〉のアーツ１枚を**対象とし**、〈任意コスト〉して**もよい**。
+//  **そうした場合、それを**ルリグデッキに加える」（`WX11-037-E2` / `WXK01-043-E2`）。
+// 🔴従来は帰結の文が「それをルリグデッキに加える」だけになり catch-all `STUB{SOUL_OP}` へ落ちていた。
+//   `SOUL_OP` のその枝は**効果元カード自身をルリグデッキへ移す**＝シグニが盤外へ消える盤面破壊だった。
+// ⇒ 受け皿は既存の `TRANSFER_TO_DECK{LRIG_TRASH_CARD, destination:'lrig_deck'}`（`WX04-001-E1` と同形）。
+test('O-220 第5バッチ: ルリグトラッシュ→ルリグデッキの対象固定（SOUL_OP の盤面破壊を止める）', () => {
+  for (const [cardNum, effectId, color] of [
+    ['WX11-037', 'WX11-037-E2', '白'],
+    ['WXK01-043', 'WXK01-043-E2', '緑'],
+  ] as const) {
+    const steps = assertO96FixedOrder(cardNum, effectId);
+    const decl = (steps[0] as unknown as { selectTarget: EffectTarget }).selectTarget;
+    eq(decl.type, 'LRIG_TRASH_CARD', `${effectId}: 宣言はルリグトラッシュのカード`);
+    eq(decl.filter?.cardType, 'アーツ', `${effectId}: アーツ限定を維持`);
+    eq(decl.filter?.color, color, `${effectId}: 色限定を維持`);
+    const outcome = (steps[3] as ConditionalAction).then as import('../src/types/effects').TransferToDeckAction;
+    eq(outcome.type, 'TRANSFER_TO_DECK', `${effectId}: 帰結はルリグデッキへ戻す`);
+    eq(outcome.destination, 'lrig_deck', `${effectId}: 行き先はルリグデッキ`);
+    eq(outcome.source.type, 'LRIG_TRASH_CARD', `${effectId}: 出処はルリグトラッシュ`);
+    ok(!JSON.stringify(o96Live(cardNum, effectId).action).includes('SOUL_OP'),
+      `${effectId}: 効果元自身をルリグデッキへ入れる catch-all へ戻さない`);
+  }
+});
+
+// ── §5.3 `O-220` 第6バッチ（2026-09-02）＝帰結が STUB の形の3点契約 ──
+// 🔴STUB は `target` を持たないので**原文から宣言を組み直す**（`o96StubDeclaredTarget`）。
+//   許可リストは parser（`O96_STORABLE_STUB_IDS`）と engine（`O220_FREEZABLE_STUB_IDS`）で**1対1**。
+test('O-220 第6バッチ: STUB 帰結（COPY_CARD / TRAP_OPERATION）の対象固定', () => {
+  // (a) `COPY_CARD`＝従来は対象宣言ごと落ちており `lastProcessedCards` が常に空＝**無言 no-op** だった。
+  const copySteps = assertO96FixedOrder('WX21-034', 'WX21-034-E1');
+  const copyDecl = (copySteps[0] as unknown as { selectTarget: EffectTarget }).selectTarget;
+  eq(copyDecl.type, 'SIGNI', 'WX21-034-E1: 宣言は場のシグニ');
+  eq(copyDecl.filter?.story, '龍獣', 'WX21-034-E1: ＜龍獣＞限定を維持');
+  eq(copyDecl.filter?.excludeResona, true, 'WX21-034-E1: 「レゾナではない」限定を維持');
+  eq((copySteps[3] as ConditionalAction).then.type, 'STUB', 'WX21-034-E1: 帰結は COPY_CARD');
+  eq(((copySteps[3] as ConditionalAction).then as import('../src/types/effects').StubAction).id, 'COPY_CARD',
+    'WX21-034-E1: コピー機構はそのまま');
+
+  // (b) `TRAP_OPERATION{gain_trap_ability}`＝支払いのあとで**もう一度選ばされて**いた。
+  //     ⚠宣言側にも `hasTrapAbility` を掛ける（掛けないと実行側の候補と食い違って二重プロンプト）。
+  const trapSteps = assertO96FixedOrder('WX17-029', 'WX17-029-TRAP');
+  const trapDecl = (trapSteps[0] as unknown as { selectTarget: EffectTarget }).selectTarget;
+  eq(trapDecl.type, 'TRASH_CARD', 'WX17-029-TRAP: 宣言はトラッシュのカード');
+  eq(trapDecl.filter?.hasTrapAbility, true, 'WX17-029-TRAP: 実行側と同じ「トラップ能力を持つ」限定');
+  const trapOut = (trapSteps[3] as ConditionalAction).then as import('../src/types/effects').StubAction;
+  eq(trapOut.id, 'TRAP_OPERATION', 'WX17-029-TRAP: トラップ能力の獲得はそのまま');
+  eq(trapOut.trapOp, 'gain_trap_ability', 'WX17-029-TRAP: trapOp を維持');
+});
+
+// ── §5.3 `O-220` 第7バッチ（2026-09-02）＝「この方法でトラッシュに置かれたカードの中から」 ──
+// 🔴候補を `lastProcessedCards` に限る語彙は `TargetFilter` に無い＝受け皿は既存の
+//   `STUB{PICK_FROM_TRASHED_CARDS}` に `dest:'declare'`（宣言だけ・カードは動かさない）を足したもの。
+// 🔴従来は宣言が丸ごと落ち、帰結が `ADD_TO_FIELD{owner:'self'}`（source 無し）＝
+//   **「デッキの一番上を場に出す」既定**へ落ちていた＝原文とまったく別のカードが出ていた。
+test('O-220 第7バッチ: 「この方法でトラッシュに置かれたカードの中から」の対象宣言', () => {
+  const steps = (o96Live('WX25-P1-061', 'WX25-P1-061-E2').action as SequenceAction).steps as
+    (EffectAction & { id?: string })[];
+  eq(steps[0].type, 'TRASH', 'WX25-P1-061-E2: まずデッキの上から3枚トラッシュ');
+  const pick = steps[1] as unknown as
+    { id: string; trashedPick: { count: number; dest: string; filter?: TargetFilter } };
+  eq(pick.id, 'PICK_FROM_TRASHED_CARDS', 'WX25-P1-061-E2: 宣言はこの方法で置いた札から');
+  eq(pick.trashedPick.dest, 'declare', 'WX25-P1-061-E2: 宣言だけ（この時点では動かさない）');
+  eq(pick.trashedPick.filter?.story, '古代兵器', 'WX25-P1-061-E2: ＜古代兵器＞限定を維持');
+  eq(steps[2].id, 'STORE_LAST_PROCESSED_TARGETS', 'WX25-P1-061-E2: 宣言対象を保存');
+  eq(steps[3].id, 'OPTIONAL_COST', 'WX25-P1-061-E2: 保存後に任意コスト');
+  const gate = steps[4] as ConditionalAction;
+  eq(gate.condition.type, 'PAID_ADDITIONAL_COST', 'WX25-P1-061-E2: 実支払いだけで帰結');
+  const place = gate.then as import('../src/types/effects').AddToFieldAction;
+  eq(place.type, 'ADD_TO_FIELD', 'WX25-P1-061-E2: 帰結は場に出す');
+  eq(place.source?.type, 'TRASH_CARD', 'WX25-P1-061-E2: 出処はトラッシュ（source 無し＝デッキ既定へ落とさない）');
+  eq((place as unknown as { targetsStored?: boolean }).targetsStored, true,
+    'WX25-P1-061-E2: 宣言済み対象だけを場に出す');
+});
+
+// ── §5.3 `O-220` 第8バッチ（2026-09-02）＝ネスト器の中の3効果（manual） ──
+// 🔑**器（OR コスト／引用ライフバースト／アクセ付与）の中にも O-96 の欠陥署名がある**＝
+//   `applyO96Nested` は parser の木しか降りないので、manual で書いた器の中は手で揃える。
+test('O-220 第8バッチ: ネスト器の中の対象照応（OR コスト／引用バースト／アクセ付与）', () => {
+  // (a) OR コスト＝どちらの支払い枝からも**同じ1体**を【トラップ】化する（`WX21-025-TRAP`）。
+  const trapSteps = (o96Live('WX21-025', 'WX21-025-TRAP').action as SequenceAction).steps as
+    (EffectAction & { id?: string })[];
+  eq(trapSteps[0].id, 'SELECT_TARGET_ONLY', 'WX21-025-TRAP: 対象宣言が OR コストより前');
+  eq(trapSteps[1].id, 'STORE_LAST_PROCESSED_TARGETS', 'WX21-025-TRAP: 宣言対象を保存');
+  const orCost = trapSteps[2] as unknown as
+    { id: string; additionalCostChoices: { action: EffectAction }[] };
+  eq(orCost.id, 'OPTIONAL_COST', 'WX21-025-TRAP: OR 形の任意コスト');
+  eq(orCost.additionalCostChoices.length, 2, 'WX21-025-TRAP: 二択のまま');
+  ok(JSON.stringify(orCost.additionalCostChoices).split('"targetsStored":true').length - 1 === 2,
+    'WX21-025-TRAP: 両方の支払い枝が宣言済み対象へ照応する');
+
+  // (b) 引用【ライフバースト】の中（`WX25-P3-027-E2`）。
+  const burst = (o96Live('WX25-P3-027', 'WX25-P3-027-E2').action as unknown as
+    { burstAction: SequenceAction }).burstAction;
+  eq((burst.steps[0] as EffectAction & { id?: string }).id, 'SELECT_TARGET_ONLY',
+    'WX25-P3-027-E2: 付与するバーストの中でも対象宣言が先');
+  eq(((burst.steps[3] as ConditionalAction).then as EffectAction & { targetsStored?: boolean }).targetsStored, true,
+    'WX25-P3-027-E2: バニッシュは宣言済み対象だけ');
+
+  // (c) アクセ付与能力の中（`WXK10-075-E2`）＝`POWER_MODIFY_BY_SOURCE` は
+  //     `execPowerModify` へ委譲するので、2キーを引き継げば `POWER_MODIFY` と同じ契約になる。
+  const acce = (o96Live('WXK10-075', 'WXK10-075-E2').action as unknown as
+    { abilities: { action: SequenceAction }[] }).abilities[0].action;
+  eq((acce.steps[0] as EffectAction & { id?: string }).id, 'SELECT_TARGET_ONLY',
+    'WXK10-075-E2: アクセ付与能力の中でも対象宣言が先');
+  const pow = (acce.steps[3] as ConditionalAction).then as
+    import('../src/types/effects').PowerModifyBySourceAction;
+  eq(pow.type, 'POWER_MODIFY_BY_SOURCE', 'WXK10-075-E2: パワー参照の帰結を維持');
+  eq(pow.targetsStored, true, 'WXK10-075-E2: 宣言済み対象だけへ－する');
+});
+
 test('O-96 第2バッチ JSON順序: handDiscard の4帰結型と payload／期間／delta を保存する', () => {
   const powerEffect = o96Live('WDK10-014', 'WDK10-014-E1');
   const power = assertO96FixedOrder('WDK10-014', 'WDK10-014-E1');
@@ -22948,6 +23187,10 @@ for (const [cardNum, effectId] of [
     && matchesFilter(c, action.target.filter));
   const third = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== target);
   const ctx = mkCtx({ signi: [source, target, third] }, {}, source);
+  // 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）**＝`SPDi43-20-E1` は「対象とし、〈任意コスト〉してもよい」形
+  //   だったので対象宣言を支払いより前へ引き上げた（`targetsStored`）。**単体実行のこの E2E では
+  //   宣言済み対象を先に敷く**（敷かないと候補0でスキップ＝契約が緩む）。
+  if ((action as { targetsStored?: boolean }).targetsStored) ctx.storedTargetCards = [target];
   const p = executeAction(action, ctx);
   ok(!p.done && p.pending.type === 'REARRANGE_SIGNI' && p.pending.mode === 'swap', `${effectId}: 従来swap pending`);
   const swapped = resumeRearrangeSigni([target], p.pending as never, { ...ctx, ownerState: p.ownerState, otherState: p.otherState, logs: p.logs });
@@ -28767,8 +29010,14 @@ test('PLAN §6.3 WX25-P3-027-E2 ディスペア：次の相手ターン限定・
   eq(paid.otherState.field.signi[0], null, '《無》を払った場合は対象の相手シグニ1体をバニッシュ');
   const skipCtx = mkCtx({ energy: 1 }, { signi: [target, null, null] }, noBurst);
   const offered = executeEffect({ effectId: 'granted-burst', effectType: 'LIFE_BURST', action: burstAction, duration: 'INSTANT', mandatory: false } as CardEffect, skipCtx);
-  ok(!offered.done && offered.pending.type === 'CHOOSE', '《無》を支払うか任意選択を提示');
-  const skipped = resumeChoose('skip', offered.pending as never, { ...skipCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  // 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）＝対象宣言が支払いより前に来た**（`O-96` の一般規則）＝
+  //   引用【ライフバースト】の中身も「対戦相手のシグニ１体を**対象とし**、《無》を支払って**もよい**。
+  //   **そうした場合、それを**バニッシュする」なので、**支払いを提示する前に対象を確定する**。
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '先に対象を宣言する（支払いより前）');
+  const declared = resumeSelectTarget([target], offered.pending as never,
+    { ...skipCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  ok(!declared.done && declared.pending.type === 'CHOOSE', '《無》を支払うか任意選択を提示');
+  const skipped = resumeChoose('skip', declared.pending as never, { ...skipCtx, ownerState: declared.ownerState, otherState: declared.otherState, logs: declared.logs });
   ok(!!skipped.otherState.field.signi[0], '《無》を払わない場合はバニッシュしない');
 
   const cleared = clearAllZoneBurstGrantUntilOppTurn(activated.ownerState);
@@ -41582,12 +41831,16 @@ test('task12(cx) attackingOnly: 候補は宣言中のアタッカーだけ・進
   const action = { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true } as EffectAction;
 
   const start = executeEffect({ effectId: 'cx', effectType: 'ACTIVATED', timing: ['ON_OPP_SIGNI_ATTACK'], action, duration: 'INSTANT', mandatory: false }, ctx);
-  if (start.done || start.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
-  eq(JSON.stringify(start.pending.candidates), JSON.stringify([a1]), '3体並んでいてもアタック中の1体だけが候補');
-
-  const r = finish(start, ctx);
+  // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）で契約を1段強めた**＝候補は「いま宣言中のアタッカー」
+  //   1体で一意なので**選択UIを開かずに即適用する**（旧契約は候補1件の `SELECT_TARGET` を出していた＝
+  //   支払いのあとに「1枚しかない札を選べ」という無意味なモーダルが挟まっていた）。
+  if (!start.done) throw new Error('選択UIを開かずに即適用するはず');
+  const r = start;
   ok(!!r.otherState.cancel_current_signi_attack, '進行中のアタックはキャンセルフラグで落とす');
+  // 🔑**「3体並んでいてもアタック中の1体だけ」はここで担保される**＝別のシグニを選んでいたら
+  //   `negated_attacks` へ積まれる側（事前登録）に落ちる。
   eq((r.otherState.negated_attacks ?? []).length, 0, '事前登録（negated_attacks）には積まない＝将来のアタックまで封じない');
+  void a1;
 
   // 宣言中のアタッカーが居なければ空振り（応答窓の外で撃たれても何も起きない）
   const idleCtx = { ...mkCtx({}, {}), otherState: mkState({ signi: [a0, a1, a2] }) } as ExecCtx;

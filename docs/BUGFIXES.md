@@ -1,5 +1,103 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 A 第5巡）：🏁§5.3 `O-220` クローズ — 帰結型ごとの「対象固定 3点契約」を8バッチで通した（欠陥署名 23→13）
+
+**ベースライン**＝`f266910e8`（`O-96` クローズ時点）。**16件の内訳＝実装12／据置契約3／新 ID へ分割2**（重複あり）。
+**検証**＝`npm run gates` 全緑（**golden 3292 / 3292**・smoke 10723 全異常0・fuzz 全0・
+census 3 / BASELINE 5・census-stubs A🔴0 / C0・manual-fields 0・census-enginetext A🔴129 据置・
+census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径**＝ベースラインとの effectId 単位 機械 diff で **18効果・予定外0**。
+**⑤実機の要否**＝`src/screens/` は**触っていない**（`src/data/` `src/engine/` `scripts/` `public/data/` のみ）
+＝PLAN §2.2 の機械判定で**実機不要**。⚠ただし新設した型・語彙（`hasTrapAbility`／`trashedPick.dest:'declare'`／
+`POWER_MODIFY_BY_SOURCE.targetsStored`）は**選択UIの見え方を変える**ので、次に実機を回す巡で
+`V-nn` として観測する（PLAN §5.1 へ登録済み）。
+
+### 🔑 この巡の最大の学び
+
+**「3点契約が足りない」と登録した16件のうち、型の契約が本当に足りなかったのは4件だけだった。**
+残りは **①受け皿が既に在った**（`TRANSFER_TO_DECK{LRIG_TRASH_CARD}`／`SIGNI_ATTACK_BAN{appliesTo:'LRIG'}`／
+`PICK_FROM_TRASHED_CARDS`）**②対象が一意で直す必要が無かった**（`attackingOnly`／`frontOfSelf`／ルリグ）
+**③そもそも別の欠陥だった**（引用能力の平坦化／catch-all の誤爆）。
+⇒ **登録票の「型に○○が無い」を鵜呑みにせず、着手時に原文と実コードで数え直す**（4巡連続で当たった）。
+
+### 🔴 盤面破壊バグ2件（どちらもゲートは全部緑だった）
+
+1. **`STUB{SOUL_OP}` が効果元のシグニをルリグデッキへ入れていた**（`WX11-037-E2`／`WXK01-043-E2`）。
+   「それをルリグデッキに加える」枝が `sourceCardNum` を動かす実装で、原文は
+   「あなたの**ルリグトラッシュから**〈色〉のアーツ１枚を**対象とし**…**それを**ルリグデッキに加える」。
+   ⇒ シグニが盤外へ消える。
+2. **`STUB{SIGNI_FLIP_FACEDOWN}` が効果元に自分自身を裏向きにさせていた**（`WXDi-P05-037-E2`）。
+   `faceDownTarget` が無いと `lastProcessedCards ?? sourceCardNum` へ落ち、支払い後は空になる。
+   原文は「このシグニの**正面の**シグニ１体」。
+
+🔑**共通の真因＝catch-all STUB は「対象を書かなくても動く」ので、対象宣言が落ちた瞬間に別のカードを撃つ。**
+`census:enginetext` A群（engine がカード全文 regex で意味を決める箇所）の典型的な壊れ方。
+
+### バッチ別
+
+| # | 何を直したか | 効果数 | 触った層 |
+|---|---|---|---|
+| 1 | `NEGATE_ATTACK` に `attackingOnly`（「**この**アタックで…ダメージを与えない」）＋即適用分岐 | 5 | parser / engine |
+| 2 | `REARRANGE_SIGNI` の3点契約 | 1 | 型 / engine / parser |
+| 3 | 帰結が `CHOOSE`（二択）＝全枝へ照応を配る／`freezeStoredTargets` が枝へ降りる | 1 | engine / parser |
+| 4 | 引用「〈解除コスト〉を支払わないかぎりアタックできない」＝**指定は引用を伏せた本文から読む** | 3 | parser |
+| 5 | ルリグトラッシュ→ルリグデッキの照応（`SOUL_OP` の盤面破壊を止める） | 2 | parser / engine |
+| 6 | 帰結が STUB の形（`COPY_CARD` / `TRAP_OPERATION`）＋`TargetFilter.hasTrapAbility` 新設 | 2 | 型 / engine / parser |
+| 7 | 「この方法でトラッシュに置かれたカードの中から」＝`trashedPick.dest:'declare'` 新設 | 1 | 型 / engine / parser |
+| 8 | ネスト器の中3件（OR コスト／引用ライフバースト／アクセ付与） | 3 | 型 / engine / manual |
+
+### 🔴 第1バッチの真因（実測4カード）
+
+「**この**アタックで…ダメージを与えない」の主語は「**その**アタックしているシグニ」＝一意なのに、
+無指定の `NEGATE_ATTACK` は候補が**相手の場の全シグニ**に広がっていた。
+アタックしていないシグニを選ぶと `negated_attacks`（将来のアタックの事前登録）へ入るだけで
+進行中のアタックは止まらない＝**払ったのに何も起きない**。
+⚠`WX17-044-TRAP` は `PREVENT_NEXT_DAMAGE`（`target` を持たない型）で「それ」の照応先が
+JSON のどこにも残っていなかった＝兄弟形（`WX16-029-E1`）と型を揃えた。
+
+### 🔴 第4バッチの真因（実測3効果）
+
+**対象の指定は「引用を伏せた本文」から読む。** `t` を丸ごと見ると**引用の中の**「あなたの」「シグニ」を
+付与先だと読み違える（`WX24-P3-049-E1` は指定が「対戦相手のルリグ」なのに**自分のシグニ**を止めていた）。
+3効果とも末尾の粗い近似 `BLOCK_ACTION{SIGNI, owner:'any'}` に落ち、
+**解除コストが丸ごと消えたうえ無関係なシグニ1体が無条件でアタック不可**になっていた。
+
+### 🆕 道具を1つ足した＝`syncManualLive.ts --effect <CardNum>:<EffectId>`
+
+`build:effects` の収穫マージは MANUAL/PARTIAL を不可侵にするので manual の書き直しは live へ届かないが、
+既存の `syncManualLive` は**カード単位で丸ごと書く**ため、**同じカードの別効果を巻き戻す**ことがある
+（`WXK10-075-E1` は live のほうが新しく、parser の現在の出力は粗い STUB）。
+⇒ **1効果だけ届ける口**を足した（id 集合は変わらないので `--allow-idset-change` は不要）。
+
+### ⚠ 踏んだ罠
+
+- **golden の3点契約テストは `O96_STORABLE_OUTCOMES` の中身を regex で読む**＝
+  **コメントに大文字の識別子を引用符で書くと**型名として拾われ「FREEZABLE に無い型」で FAIL する。
+- **`census:cards` の「クローズ済み登録票」判定は見出しが `### \`O-nn\`` であることを要求する**＝
+  見出しに 🏁 を付けると分割に失敗して**閉じた項目が mech に残り続ける**（17→19 に化けた）。
+  ⇒ **🏁 は見出しではなく本文の先頭に置く。**
+- `npx tsc --noEmit` は**プロジェクト参照を辿らない**＝未 import のシンボルを見逃す。
+  **`npm run typecheck`（`tsc -b --noEmit`）が正**。
+
+### 🆕 計器を `scripts/archive/` へ保存した
+
+`scripts/archive/o96TargetAnaphoraTriage.ts`（旧 `scripts/tmp_o96_triage.ts`＝gitignore 圏内で消えるところだった）。
+**`O-221` の消化にもそのまま使う**ので残した。
+🔴**parser のガードの写しなので、`applyO96OptionalCostTargetFirst` を直したら必ずここも同期する**
+（`O96_STORABLE_OUTCOMES` / `allowedCostKeys` / `declaredTarget` の3箇所）。ズレたまま測ると
+「直したのに減らない／直していないのに減った」の両方が起きる。
+**推移**＝登録時 91 → `O-96` クローズ時 23 → `O-220` クローズ時 **13**
+（残＝`O-221` 5／据置契約 5／偽陽性 1／`O-222` 1／`O-223` 1）。
+
+### 分割した2項目（PLAN §5.3 索引 B へ登録）
+
+- **`O-222`（1効果）**＝ルリグへの「シグニN体を場からトラッシュに置かないかぎりアタックできない」。
+  《無》×N／手札N枚の軸は `lrigAttackBanCost` に在って同日にクローズしたが、**場トラッシュ軸だけ
+  ルリグ側の受け皿が無い**（`attackCost.fieldTrash` は `execBlockAction` のシグニ分岐だけが消費）。
+  いまは `STUB{DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH}`（明示 defer）。
+- **`O-223`（1効果）**＝【シード】を対象に取る `TargetScope` が無い（`WXK05-050-E2`）。
+
+
 ## 2026-09-02（索引 A 第4巡）：🏁§5.3 `O-96` クローズ — 対象の照応を50効果ぶん通した（欠陥署名 73→23）
 
 **ベースライン**＝`d35122400` の1つ前（`8ebfa3c19`）。この巡で第7〜13バッチを消化し、`O-96` を**クローズ**した。

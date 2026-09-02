@@ -2943,8 +2943,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
 
   // ---- アタックを一度無効にする ----
-  if (t.match(/のアタックを一度無効にする/) ||
-      t.match(/アタックであなたにダメージを与えない/))
+  // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）＝「**この**アタックで…ダメージを与えない」は `attackingOnly`**。
+  //   原文の主語は「**その**アタックしているシグニ」＝**いま宣言中のアタッカー1体**で一意なのに、
+  //   無指定の `NEGATE_ATTACK` は候補が**相手の場の全シグニ**になり、支払いのあとで
+  //   **アタックしていないシグニを選べてしまう**（選ぶと `negated_attacks` へ入るだけで
+  //   進行中のアタックは止まらない＝**払ったのに何も起きない**）。実測4カード
+  //   （`WX12-001` / `WX14-003` / `WX16-029` / `PR-K077`）。
+  // ⚠「のアタックを一度無効にする」側（次のアタックを事前登録する形）は据置＝あちらは進行中ではない。
+  if (t.match(/アタックであなたにダメージを与えない/))
+    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true } as NegateAttackAction;
+  if (t.match(/のアタックを一度無効にする/))
     return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
 
   // ---- 対戦相手はデッキの一番上を公開する ----

@@ -361,7 +361,13 @@ export function execStubPart3(
   // COPY_CARD: このシグニはlastProcessed[0]のカードとレベル以外同じになる（card_identity_overrides）
   if (stub.id === 'COPY_CARD') {
     const srcCC = ctx.sourceCardNum;
-    const targetCC = ctx.lastProcessedCards?.[0];
+    // 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝任意コストの前に宣言した対象を先に読む。**
+    // 🔴`lastProcessedCards` は**支払いで上書きされる**ので、
+    //   「〈シグニ〉１体を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合**〜**それと**同じカードに
+    //   なる」（`WX21-034-E1`）はここまで来ても常に空＝**無言 no-op** だった（対象宣言ごと落ちていた）。
+    const targetCC = stub.fixedCardNums?.[0]
+      ?? (stub.targetsStored ? ctx.storedTargetCards?.[0] : undefined)
+      ?? ctx.lastProcessedCards?.[0];
     if (!srcCC || !targetCC) return done(addLog(ctx, 'COPY_CARD: ソースまたはコピー元なし'));
     const overridesCC2 = { ...(ctx.ownerState.card_identity_overrides ?? {}), [srcCC]: targetCC };
     const newOwnerCC2: PlayerState = { ...ctx.ownerState, card_identity_overrides: overridesCC2 };

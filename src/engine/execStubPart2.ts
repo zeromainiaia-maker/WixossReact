@@ -2512,7 +2512,11 @@ export function execStubPart2(
     if (candsPFTC.length === 0) return done(addLog(ctx, 'この方法でトラッシュに置いたカードに該当なし'));
     // 🆕`dest:'field'`＝選んだ札を**必ず場に出す**（`applyDirectAction` の ADD_TO_FIELD が
     //   選択された1枚を所在を問わず除去して配置する＝`hand_or_field` の場側と同じ受け皿）。
-    const thenByDest: EffectAction = pkPFTC.dest === 'energy'
+    // 🆕`dest:'declare'`＝**対象宣言だけ**（§5.3 `O-220` 第7バッチ）＝カードは動かさず選択結果だけを
+    //   `lastProcessedCards` に残す（`SELECT_TARGET_ONLY` と同じ規約＝`INTERNAL_NOOP` を then に置く）。
+    const thenByDest: EffectAction = pkPFTC.dest === 'declare'
+      ? ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction as EffectAction)
+      : pkPFTC.dest === 'energy'
       ? ({ type: 'ENERGY_CHARGE', target: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as EffectAction)
       : pkPFTC.dest === 'field'
         ? ({ type: 'ADD_TO_FIELD', owner: 'self' } as EffectAction)
@@ -3157,8 +3161,18 @@ export function execStubPart2(
   }
   // SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置
   if (stub.id === 'SET_OPP_SIGNI_AS_TRAP') {
-    const oppSigniCandsSSOSAT = (ctx.otherState.field.signi.map((s, zi) => s?.at(-1) ? { instId: s.at(-1)!, zi } : null).filter(Boolean)) as Array<{ instId: string; zi: number }>;
+    let oppSigniCandsSSOSAT = (ctx.otherState.field.signi.map((s, zi) => s?.at(-1) ? { instId: s.at(-1)!, zi } : null).filter(Boolean)) as Array<{ instId: string; zi: number }>;
+    // 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）＝任意コストの前に宣言した対象だけへ絞る。**
+    //   「対戦相手のシグニ１体を**対象とし**、〈OR 任意コスト〉を払って**もよい**。**そうした場合、それを**
+    //   【トラップ】として設置する」（`WX21-025-TRAP`）＝従来は支払いのあとで**もう一度選ばされて**いた。
+    const fixedSSOSAT = stub.fixedCardNums ?? (stub.targetsStored ? ctx.storedTargetCards : undefined);
+    if (fixedSSOSAT) oppSigniCandsSSOSAT = oppSigniCandsSSOSAT.filter(x => fixedSSOSAT.includes(x.instId));
     if (oppSigniCandsSSOSAT.length === 0) return done(addLog(ctx, 'SET_OPP_SIGNI_AS_TRAP: 相手シグニなし'));
+    // 🔴**3点契約の③後半＝選択UIを開かずに即設置する**（実機 `V-130` と同型の罠）。
+    if (fixedSSOSAT && oppSigniCandsSSOSAT.length === 1) {
+      return exec({ type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_TRAP' } as StubAction as EffectAction,
+        { ...ctx, lastProcessedCards: [oppSigniCandsSSOSAT[0].instId] });
+    }
     return needsInteraction(addLog(ctx, '相手のシグニを選択（トラップ化）'), {
       type: 'SELECT_TARGET',
       candidates: oppSigniCandsSSOSAT.map(x => x.instId),
@@ -3479,7 +3493,12 @@ export function execStubPart2(
       // ⚠**トラップ能力を持つカードだけを候補にする**（持たないカードを選ばせると必ず空振りになる）。
       const candsGTA = poolGTA.filter(hasTrapIcon);
       if (candsGTA.length === 0) return done(addLog(ctx, 'トラップ能力を持つカードが対象領域にない'));
-      const pickedGTA = ctx.lastProcessedCards?.find(cn => candsGTA.includes(cn));
+      // 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝任意コストの前に宣言した対象を先に読む。**
+      // 🔴`lastProcessedCards` は**支払いで上書きされる**ので、
+      //   「あなたのトラッシュからカード１枚を**対象とし**、《無》を支払って**もよい**」（`WX17-029-TRAP`）は
+      //   支払いのあとで**もう一度選ばされて**いた（対象宣言が支払いより後ろに落ちていた）。
+      const storedGTA = stub.fixedCardNums ?? (stub.targetsStored ? ctx.storedTargetCards : undefined);
+      const pickedGTA = (storedGTA ?? ctx.lastProcessedCards)?.find(cn => candsGTA.includes(cn));
       if (!pickedGTA) {
         return needsInteraction(addLog(ctx, 'トラップ能力を得るカードを選択'), {
           type: 'SELECT_TARGET', candidates: candsGTA, count: 1, optional: false,

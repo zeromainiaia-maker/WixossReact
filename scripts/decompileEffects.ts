@@ -4007,6 +4007,12 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】対戦相手は手札を公開する。対戦相手はあなたのルリグデッキからカード1枚を見ないで選び、あなたはそれを公開する',
         DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL:
           '【未実装】対戦相手はあなたの手札を1枚見ないで選び、あなたはそれを公開する（それが＜悪魔＞かレベル3以上のシグニの場合、ターン終了時まで【ランサー】を得る）',
+        // 🆕§5.3 `O-222`（2026-09-02・`O-220` 第4バッチで登録）＝ルリグへ「シグニN体を場から
+        //   トラッシュに置かないかぎりアタックできない」を付与する形。解除コストの軸が
+        //   `lrigAttackBanCost`（《無》×N／手札N枚）に無く、`attackCost.fieldTrash` は
+        //   `execBlockAction` の**シグニ分岐だけ**が消費する＝ルリグ版の受け皿が無い。
+        DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH:
+          '【未実装】それは「【常】：あなたのシグニN体を場からトラッシュに置かないかぎりアタックできない。」を得る（ルリグ対象）',
         DEFERRED_SELF_TRASH_TO_DECK_BOTTOM:
           '【未実装】このカードをトラッシュからデッキの一番下に置く',
         DEFERRED_EACH_PLAYER_REVEAL_HAND:

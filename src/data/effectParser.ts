@@ -187,7 +187,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
+  parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -10415,7 +10415,19 @@ const O96_STORABLE_OUTCOMES = [
   // 🆕**第12バッチ（2026-09-02）で追加**＝「そうした場合、それは『…』を得る」（引用能力の付与）。
   //   ⚠`targetsLastProcessed`（直前ステップの結果）とは別のフィールドを足してある。
   'GRANT_EFFECT',
+  // 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）で追加**＝「それとこのシグニの場所を入れ替える」。
+  //   ⚠`execRearrangeSigni` の**場×場の `swap` 分岐だけ**が消費する（`swapSourceLocation` 付きの
+  //   場外交換／`swapBetweenTargets`／count が ALL の並べ替えは対象固定を読まない）。
+  //   ⚠**この配列のコメントに大文字の識別子を引用符で書かない**＝golden の3点契約テストが
+  //     `'…'` を型名として拾うので、コメントの語が「FREEZABLE に無い型」として FAIL する。
+  'REARRANGE_SIGNI',
 ];
+
+// 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝帰結が STUB のときに引き上げてよい id。**
+// 🔴**engine 側の `O220_FREEZABLE_STUB_IDS`（`effectExecutor.ts`）と1対1で保つ**＝
+//   片方だけに足すと「フィールドは付いたが engine が無視する」＝無言 no-op になる
+//   （`O96_STORABLE_OUTCOMES` の2条件ルールと同じ）。
+const O96_STORABLE_STUB_IDS = ['COPY_CARD', 'TRAP_OPERATION'];
 
 function hasStoredTargetBinding(node: unknown): boolean {
   if (!node || typeof node !== 'object') return false;
@@ -10424,6 +10436,34 @@ function hasStoredTargetBinding(node: unknown): boolean {
   if (obj.type === 'STUB' && (obj.id === 'SELECT_TARGET_ONLY' || obj.id === 'STORE_LAST_PROCESSED_TARGETS')) return true;
   if (obj.targetsStored || obj.targetsLastProcessed || obj.targetsTriggerSource || obj.thisCardOnly) return true;
   return Object.values(obj).some(hasStoredTargetBinding);
+}
+
+/**
+ * §5.3 `O-220` 第6バッチ（2026-09-02）＝**帰結が STUB のときの対象宣言**。
+ *
+ * 型付き action と違って STUB は `target` を持たないので、**原文から宣言を組み直す**。
+ * ⚠**id ごとに専用の読み方を書く**＝汎用の「〈名詞句〉を対象とし」抽出に任せると、
+ *   同じ効果の別の対象宣言（コスト側など）を拾って**別のカードへ照応**する。
+ * ⚠**読めなければ `null`**＝引き上げをやめて据置する（fail-closed）。
+ */
+function o96StubDeclaredTarget(text: string, stub: StubAction): EffectTarget | null {
+  if (stub.id === 'COPY_CARD') {
+    // 「〈シグニの指定〉を対象とし、〈任意コスト〉してもよい。そうした場合、…それと同じカードになる」
+    //   （`WX21-034-E1`＝「レゾナではないあなたの＜龍獣＞のシグニ１体を対象とし」）。
+    const m = text.match(/(?:^|。|、|：)([^。、：]*?シグニ[^。、：]*?)を対象とし/);
+    if (!m) return null;
+    const owner: Owner = /対戦相手の/.test(m[1]) ? 'opponent' : 'self';
+    return parseSigniTarget(m[1] + 'を対象とし、', owner) ?? null;
+  }
+  if (stub.id === 'TRAP_OPERATION' && stub.trapOp === 'gain_trap_ability' && stub.trapSource === 'trash') {
+    // 「あなたのトラッシュからカード１枚を対象とし」（`WX17-029-TRAP`）。
+    // ⚠**候補は「トラップ能力を持つカード」に engine 側で絞られる**ので、ここでは領域と枚数だけを刻む。
+    if (!/あなたのトラッシュからカード[１1]枚を対象とし/.test(text)) return null;
+    // ⚠**候補は engine 側でも「トラップ能力を持つカード」に絞られる**ので、宣言でも同じ限定を掛ける
+    //   （掛けないと宣言で全トラッシュを選べてしまい、実行が受け付けず二重プロンプトになる）。
+    return { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { hasTrapAbility: true } };
+  }
+  return null;
 }
 
 function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): EffectAction {
@@ -10479,6 +10519,56 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     source?: EffectTarget;
     transferGroups?: unknown[];
   };
+  // 🆕**§5.3 `O-220` 第3バッチ（2026-09-02）＝帰結が `CHOOSE`（二択）の形。**
+  //   「あなたのシグニ１体を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それは**
+  //   【アサシン】か【ダブルクラッシュ】を得る」（`WXDi-P12-007-E1`）。
+  // 🔑**「それ」は枝を選ぶ前に確定している**＝対象宣言は `CHOOSE` の外へ引き上げ、
+  //   **すべての枝**に `targetsStored` を刻む（`freezeStoredTargets` が枝の中へ降りる）。
+  // 🔴**全枝が同一の対象**でなければ通さない（fail-closed）＝枝ごとに対象が違う形は
+  //   「それ」1つでは表せない（`upToCount`/`count` の差も含めて JSON 完全一致を要求する）。
+  if (outcome.type === 'CHOOSE') {
+    const choices = outcome.choices as { action: EffectAction & { target?: EffectTarget } }[];
+    if (choices.length === 0) return action;
+    const branchTargets = choices.map(c => c.action.target);
+    const head = branchTargets[0];
+    if (!head || head.type !== 'SIGNI') return action;
+    if (!choices.every(c => O96_STORABLE_OUTCOMES.includes(c.action.type))) return action;
+    if (!branchTargets.every(t => JSON.stringify(t) === JSON.stringify(head))) return action;
+    const storedChoices = choices.map(c => ({ ...c, action: { ...c.action, targetsStored: true } as EffectAction }));
+    const fixedChoiceSteps: EffectAction[] = [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: head, abortIfNoCandidate: true } as StubAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      cost,
+      { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' }, then: { ...outcome, choices: storedChoices } as EffectAction },
+    ];
+    const nextSteps = [...steps];
+    if (wrapped) {
+      nextSteps.splice(costIdx, 2, { ...wrapped, then: { type: 'SEQUENCE', steps: fixedChoiceSteps } as SequenceAction });
+    } else {
+      nextSteps.splice(costIdx, 2, ...fixedChoiceSteps);
+    }
+    return { ...action, steps: nextSteps } as SequenceAction;
+  }
+  // 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝帰結が STUB の形。**
+  //   `O220_FREEZABLE_STUB_IDS`（engine 側）に載っている id だけを引き上げる。
+  if (outcome.type === 'STUB' && O96_STORABLE_STUB_IDS.includes((outcome as StubAction).id)) {
+    const stubTarget = o96StubDeclaredTarget(text, outcome as StubAction);
+    if (!stubTarget) return action;
+    const fixedStubSteps: EffectAction[] = [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: stubTarget, abortIfNoCandidate: true } as StubAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      cost,
+      { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { ...(outcome as StubAction), targetsStored: true } as EffectAction },
+    ];
+    const nextStubSteps = [...steps];
+    if (wrapped) {
+      nextStubSteps.splice(costIdx, 2, { ...wrapped, then: { type: 'SEQUENCE', steps: fixedStubSteps } as SequenceAction });
+    } else {
+      nextStubSteps.splice(costIdx, 2, ...fixedStubSteps);
+    }
+    return { ...action, steps: nextStubSteps } as SequenceAction;
+  }
   if (!O96_STORABLE_OUTCOMES.includes(outcome.type)) return action;
   // 🆕**第4バッチで「ガード軸だけ」の暫定ガードを外した**（第1バッチの絞り込みには意味的な根拠が無く、
   //   一度に20効果を載せないためのサンプリングだった）。engine 側は `SELECT_TARGET_ONLY` と
@@ -10497,7 +10587,13 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   //   ⇒ 「`target` を読んで undefined だから降りる」という**キーの読み違いだけ**が原因だった（9効果）。
   // ⚠**`SIGNI` 以外の source（`TRASH_CARD`/`ENERGY_CARD` 等）は載せない**＝あちらの分岐は
   //   `targetsStored`/`fixedCardNums` を見ない（＝フィールドを付けても無視される＝無言 no-op）。
-  const deckTarget = outcome.type === 'TRANSFER_TO_DECK' && outcome.source?.type === 'SIGNI'
+  // 🆕**§5.3 `O-220` 第5バッチ（2026-09-02）で `LRIG_TRASH_CARD` を追加**＝
+  //   「あなたのルリグトラッシュから〈修飾〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+  //    **そうした場合、それを**ルリグデッキに加える」（`WX11-037-E2` / `WXK01-043-E2`）。
+  //   `SELECT_TARGET_ONLY` と `execTransferToDeck` の `LRIG_TRASH_CARD` 分岐が
+  //   **同一の候補関数**を共有し、絞り込みと即適用の両方を消費する（3点契約）。
+  const deckTarget = outcome.type === 'TRANSFER_TO_DECK'
+      && (outcome.source?.type === 'SIGNI' || outcome.source?.type === 'LRIG_TRASH_CARD')
     ? outcome.source : undefined;
   // 🆕**第8バッチ＝`ADD_TO_FIELD` も対象宣言を `source` に持つ**（トラッシュ／エナの札を場へ出す）。
   // ⚠**`TRASH_CARD` / `ENERGY_CARD` だけ**＝`execAddToField` の他の経路（`DECK_CARD`／トークン生成）は
@@ -10516,7 +10612,8 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   //   `execTrash` の `ENERGY_CARD` 分岐に `targetsStored`/`fixedCardNums` の消費を足し、
   //   `SELECT_TARGET_ONLY` を相手エナへ広げて3点契約を揃えてある。
   // ⚠**`HAND_CARD` は解禁しない**＝`execTrash` の `HAND_CARD` 分岐は対象固定を消費しない。
-  const zoneOutcomeOk = outcome.type === 'TRASH' && declaredTarget.type === 'ENERGY_CARD';
+  const zoneOutcomeOk = (outcome.type === 'TRASH' && declaredTarget.type === 'ENERGY_CARD')
+    || (outcome.type === 'TRANSFER_TO_DECK' && declaredTarget.type === 'LRIG_TRASH_CARD');
   // 場のシグニを指す型だけ `SIGNI` を要求する（ゾーンから選ぶ型は上で出処を検証済み）。
   if (outcome.type !== 'TRANSFER_TO_HAND' && outcome.type !== 'ADD_TO_FIELD' && !zoneOutcomeOk
       && declaredTarget.type !== 'SIGNI') return action;
@@ -10538,6 +10635,114 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   } else {
     steps.splice(costIdx, 2, ...fixedSteps);
   }
+  return { ...action, steps } as SequenceAction;
+}
+
+/**
+ * §5.3 `O-220` 第5バッチ（2026-09-02）＝**「あなたのルリグトラッシュから〈修飾〉１枚を対象とし、
+ * 〈任意コスト〉してもよい。そうした場合、それをルリグデッキに加える」の照応を戻す。**
+ *
+ * 🔴帰結の文が「**それを**ルリグデッキに加える」だけになるため（対象宣言が別の文にある）、
+ *   `parseSentencePart1` の「ルリグトラッシュから…ルリグデッキに加える」規則（同一文を要求）に当たらず、
+ *   `parseSentencePart4` の catch-all `STUB{SOUL_OP}` へ落ちていた。
+ * 🔴**`SOUL_OP` はカード全文 regex で分岐する別機構**で、この文型に当たる枝は
+ *   「`sourceCardNum` をルリグトラッシュからルリグデッキへ移す」＝**効果元のシグニ自身を
+ *   ルリグデッキへ入れる**（盤面破壊）。⇒ 正しい受け皿は既存の
+ *   `TRANSFER_TO_DECK{source:{LRIG_TRASH_CARD}, destination:'lrig_deck'}`（`WX04-001-E1` ほか9効果と同形）。
+ *
+ * ⚠ガードは3枚＝①`STUB{SOUL_OP}` が木にちょうど1つ ②宣言が本文にちょうど1つ
+ *   ③宣言と帰結が**同じ効果の原文**に揃っている（`。` を跨いでよいが引用は跨がない）。
+ */
+function restoreLrigTrashToDeckAnaphora(text: string, action: EffectAction): EffectAction {
+  if (!/それをルリグデッキに加える/.test(text)) return action;
+  const scan = text.replace(/「[\s\S]*?」/g, '「」');
+  const decl = scan.match(/あなたのルリグトラッシュから([^。、]*?)[１1]枚を対象とし/);
+  if (!decl) return action;
+  if ((scan.match(/あなたのルリグトラッシュから[^。、]*?[１1]枚を対象とし/g)?.length ?? 0) !== 1) return action;
+  const stubs = collectActionNodesByType(action, 'STUB').filter(n => (n as StubAction).id === 'SOUL_OP');
+  if (stubs.length !== 1) return action;
+  const phrase = decl[1];
+  const filter: TargetFilter = {
+    ...parseCardTypeFilter(phrase), ...parseColorFilter(phrase), ...parseLevelFilter(phrase),
+    ...parseCostTotalFilter(phrase), ...parseExcludeCardNameFilter(phrase),
+    ...(/《リコレクトアイコン》を持たない/.test(phrase) ? { noRecollectIcon: true } : {}),
+  };
+  // ⚠**カード種別が読めない宣言は据置**＝フィルタ無しで通すと「ルリグトラッシュのどのカードでも戻せる」
+  //   過剰実行になる（`parseCardTypeFilter` はアーツ／ルリグ／レゾナ等を読む）。
+  if (!filter.cardType) return action;
+  const replacement: EffectAction = {
+    type: 'TRANSFER_TO_DECK',
+    source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 1, filter },
+    shuffle: false,
+    destination: 'lrig_deck',
+  } as EffectAction;
+  const swap = (node: EffectAction): EffectAction => {
+    if (node.type === 'STUB' && (node as StubAction).id === 'SOUL_OP') return replacement;
+    if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(swap) } as EffectAction;
+    if (node.type === 'CONDITIONAL') {
+      const c = node as import('../types/effects').ConditionalAction;
+      return { ...c, then: swap(c.then), ...(c.else ? { else: swap(c.else) } : {}) } as EffectAction;
+    }
+    if (node.type === 'CHOOSE') {
+      const ch = node as ChooseAction;
+      return { ...ch, choices: (ch.choices ?? []).map(o => ({ ...o, action: swap(o.action) })) } as EffectAction;
+    }
+    return node;
+  };
+  return swap(action);
+}
+
+/**
+ * §5.3 `O-220` 第7バッチ（2026-09-02）＝**「この方法でトラッシュに置かれたカードの中から〈修飾〉１枚を
+ * 対象とし、〈任意コスト〉してもよい。そうした場合、それを場に出す」の対象宣言を戻す。**
+ *
+ * 🔴宣言の候補は「**この方法で**トラッシュに置いた札」＝`TargetFilter` には表せない
+ *   （候補を `lastProcessedCards` に限る語彙が無い）。⇒ 受け皿は既存の
+ *   `STUB{PICK_FROM_TRASHED_CARDS}`（`WXEX2-49-E2` ほか）に `dest:'declare'` を足したもの。
+ * 🔴従来は宣言が丸ごと落ち、帰結が `ADD_TO_FIELD{owner:'self'}`（source 無し）＝
+ *   **「デッキの一番上を場に出す」既定**へ落ちていた＝原文とまったく別のカードが出ていた。
+ *
+ * ⚠ガードは4枚＝①原文に「この方法で…トラッシュに置(いた|かれた)カードの中から…を対象とし」が1つ
+ *   ②既に照応が刻まれていない ③`[…, OPTIONAL_COST, did-it ゲート]` の並び ④帰結が `ADD_TO_FIELD`。
+ */
+function applyTrashedPickOptionalCostPlacement(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const declM = text.match(
+    /この方法で(?:デッキから)?トラッシュに置(?:いた|かれた)カードの中から([^。、]*?)([０-９\d]+)枚(まで)?を?対象とし/);
+  if (!declM) return action;
+  if (hasStoredTargetBinding(action)) return action;
+  const steps = [...action.steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 1) return action;
+  const cost = steps[gateIdx - 1] as StubAction;
+  if (cost.type !== 'STUB' || cost.id !== 'OPTIONAL_COST') return action;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  const outcome = gate.then as EffectAction & { source?: EffectTarget };
+  if (outcome.type !== 'ADD_TO_FIELD' || outcome.source) return action;
+  const phrase = declM[1];
+  const filter: TargetFilter = {
+    ...(/シグニ/.test(phrase) ? { cardType: 'シグニ' as const } : {}),
+    ...parseStoryFilter(phrase), ...parseColorFilter(phrase), ...parseLevelFilter(phrase),
+  };
+  const pickStep: EffectAction = {
+    type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS',
+    trashedPick: {
+      count: parseNum(declM[2]),
+      ...(declM[3] ? { upTo: true } : {}),
+      ...(Object.keys(filter).length > 0 ? { filter } : {}),
+      dest: 'declare',
+    },
+  } as StubAction;
+  const placed: EffectAction = {
+    ...outcome,
+    source: { type: 'TRASH_CARD', owner: 'self', count: 1, ...(Object.keys(filter).length > 0 ? { filter } : {}) },
+    targetsStored: true,
+  } as EffectAction;
+  steps.splice(gateIdx - 1, 2,
+    pickStep,
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+    cost,
+    { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' }, then: placed });
   return { ...action, steps } as SequenceAction;
 }
 
@@ -24447,6 +24652,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       effect.action = applyRecoveryTransferGroups(sourceText, effect.action);
       effect.action = fillBareOptionalCostPayload(effect.action);
       effect.action = applyDroppedFieldPlacementDesignation(sourceText, effect.action);
+      effect.action = restoreLrigTrashToDeckAnaphora(sourceText, effect.action);
+      effect.action = applyTrashedPickOptionalCostPlacement(sourceText, effect.action);
       effect.action = applyO96Nested(sourceText, effect.action);
       effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);
     }

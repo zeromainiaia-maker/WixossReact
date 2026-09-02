@@ -33,6 +33,7 @@ import type {
   AwakenSigniAction,
   PlaceUnderSigniAction,
   PreventNextDamageAction,
+  NegateAttackAction,
   TakeFromUnderSigniAction,
   StubAction,
   CardLocation,
@@ -1170,9 +1171,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- このターン次にダメージを受ける場合代わりに受けない（シグニ/ルリグ/効果指定含む）----
+  // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）＝「**それは**このアタックでダメージを与えない」を
+  //   `NEGATE_ATTACK{attackingOnly}` へ移した**（`WX17-044-TRAP` の1効果）。
+  // 🔴**「それ」＝直前に対象とした「アタックしているシグニ」なのに `PREVENT_NEXT_DAMAGE` には
+  //   `target` が無く、照応先が JSON のどこにも残らなかった**（`O-96` の欠陥署名に残っていた形）。
+  //   同カードの兄弟形（`WX16-029-E1`「それはこのアタックで**あなたに**ダメージを与えない」）は
+  //   既に `NEGATE_ATTACK` だったので、**同じ文型を2つの型へ割っていた**ことにもなる。
+  if (t.match(/それはこのアタックでダメージを与えない/)) {
+    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true } as NegateAttackAction;
+  }
   if (t.match(/このターン.*次にあなたが(?:シグニ|ルリグ|[^から]*)?(?:から|によって|で)?ダメージを受ける場合.*代わりにダメージを受けない/) ||
       t.match(/このターン.*あなたは.*(?:シグニ|ルリグ|対戦相手の効果)によってダメージを受けない/) ||
-      t.match(/それはこのアタックでダメージを与えない/) ||
       t.match(/このターン、あなたは対戦相手の効果によってダメージを受けない/)) {
     // 「シグニ/ルリグによって」のダメージ源限定を damageSource に保持（逆翻訳の原文一致用。
     // engine は現状ダメージ源を区別しない文書化済み近似＝型コメント参照。§5c 続き25・27枚）
@@ -2293,10 +2302,57 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.endsWith('」を得る') || t.endsWith('」を得る。')) {
     const quoted = (t.match(/「([^」]+)」を得る/) ?? [])[1] ?? '';
     if (quoted.includes('アタックできない')) {
+      // 🆕**§5.3 `O-220` 第4バッチ（2026-09-02）＝対象の指定は「引用を伏せた本文」から読む。**
+      // 🔴下の `kwOwnerCA` / `lrigOnlyCA` は `t` を丸ごと見るので、**引用の中の「あなたの」「シグニ」**を
+      //   付与先の指定と読み違える（`WX24-P3-049-E1`＝指定は「対戦相手のルリグ」なのに引用内の
+      //   「あなたのシグニ」を拾って**自分のシグニ**を止めていた）。
+      const outerCA = t.replace(/「[\s\S]*?」/g, '「」');
+      const outerBothCA = /ルリグ(?:[０-９\d]+体)?(?:か|または|と)[^。]{0,12}シグニ/.test(outerCA);
+      const outerLrigOnlyCA = !outerBothCA && /ルリグ/.test(outerCA) && !/シグニ/.test(outerCA);
+      const outerSigniCA = !outerBothCA && /シグニ/.test(outerCA);
+      const outerOwnerCA: Owner = /対戦相手/.test(outerCA) ? 'opponent' : /あなた/.test(outerCA) ? 'self' : 'any';
+      // 「〈対象〉は「【常】：《無》×Nを支払わない／手札をN枚捨てないかぎりアタックできない。」を得る」
+      // ＝**解除コストつきアタック禁止**。受け皿は既存の `SIGNI_ATTACK_BAN`（§6.4 `O-28`／`O-3`）で、
+      //   ルリグ／シグニの仕分けは engine が**確定した対象の Type** で行う（`effectExecutor.ts` の
+      //   `SIGNI_ATTACK_BAN` ＝`appliesTo:'LRIG'` を別 ban として積む）＝engine 変更なしで通る。
+      // 🔴従来はここを素通りして末尾の粗い近似 `BLOCK_ACTION{SIGNI, owner:'any'}` に落ちており、
+      //   **解除コストが丸ごと消えたうえ、どちらのシグニでも1体が無条件でアタック不可**になっていた
+      //   （`WX24-P2-047-E1` の②枝＝指定は「対戦相手のルリグ」）。
+      const quotedTaxM = quoted.trim().match(
+        /^【常】：(?:あなたが)?(?:((?:《無》)+)を支払わない|手札を([０-９\d]+)枚捨てない)かぎりアタックできない。?$/);
+      if (quotedTaxM && (outerLrigOnlyCA || outerSigniCA || outerBothCA) && outerOwnerCA !== 'any') {
+        const taxTargetType = outerBothCA ? 'CENTER_LRIG_OR_SIGNI' : outerLrigOnlyCA ? 'LRIG' : 'SIGNI';
+        const taxCountM = outerCA.match(/([０-９\d]+)体/);
+        const taxTarget: EffectTarget = {
+          type: taxTargetType, owner: outerOwnerCA,
+          count: taxCountM ? parseNum(taxCountM[1]) : 1,
+          ...(taxTargetType === 'SIGNI' ? kwTargetFilter : {}),
+        };
+        // 「次の対戦相手のターン終了時まで」＝ターン数カウントダウン（`turns:2`・§6.4 `O-4`）。
+        const taxTurns = /次の対戦相手のターン(?:の間|終了時まで)/.test(outerCA) ? 2 : undefined;
+        return { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: taxTarget } as StubAction,
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+          { type: 'SIGNI_ATTACK_BAN', owner: outerOwnerCA, targetsStored: true,
+            ...(quotedTaxM[1] ? { unlessPayColorless: (quotedTaxM[1].match(/《無》/g) ?? []).length } : {}),
+            ...(quotedTaxM[2] ? { unlessPayHandDiscard: parseNum(quotedTaxM[2]) } : {}),
+            ...(taxTurns ? { turns: taxTurns } : {}),
+          } as unknown as EffectAction,
+        ] } as SequenceAction;
+      }
       // 「<対象>は『【常】：あなたの他のシグニN体を場からトラッシュに置かないかぎり
       // アタックできない。』を得る」＝対象シグニ別の解除コストつきアタック制限。
       // 引用能力の「あなた」は付与先シグニの持ち主なので、支払い側で攻撃シグニ自身を除外する。
-      const attackFieldTrashM = quoted.trim().match(/^【常】：あなたの他のシグニ([０-９\d]+)体を場からトラッシュに置かないかぎりアタックできない。?$/);
+      const attackFieldTrashM = quoted.trim().match(/^【常】：あなたの(他の)?シグニ([０-９\d]+)体を場からトラッシュに置かないかぎりアタックできない。?$/);
+      // 🔴**§5.3 `O-222`（2026-09-02 に `O-220` 第4バッチで登録）＝ルリグ版の受け皿が無い。**
+      //   `attackCost.fieldTrash` を消費するのは `execBlockAction` の**シグニ分岐だけ**で、
+      //   ルリグのアタック解除コストは `lrigAttackBanCost`（`《無》×N`／`手札N枚`）しか軸を持たない。
+      //   ⇒ 指定が**ルリグ**（または引用の外に指定が無い＝別文で宣言されている）ときは
+      //   **受け皿が無いので `DEFERRED_` へ倒す**（従来は粗い近似で**自分のシグニ**を無条件に
+      //   止めていた＝`WX24-P3-049-E1`）。⚠no-op は過少だが、無関係な自軍シグニを止めるよりは忠実。
+      if (attackFieldTrashM && !outerSigniCA) {
+        return { type: 'STUB', id: 'DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH' } as StubAction;
+      }
       if (attackFieldTrashM) {
         const kwOwnerCA: Owner = t.includes('対戦相手') ? 'opponent' : t.includes('あなた') ? 'self' : 'any';
         const targetCountM = t.match(/シグニを([０-９\d]+)体まで対象とし/);
@@ -2310,7 +2366,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
           },
           actionId: 'ATTACK',
           until: 'END_OF_TURN',
-          attackCost: { fieldTrash: { count: parseNum(attackFieldTrashM[1]), excludeSelf: true } },
+          // 「**他の**シグニ」だけ `excludeSelf`＝アタッカー自身を支払いに使えない（原文どおり）。
+          attackCost: { fieldTrash: { count: parseNum(attackFieldTrashM[2]), excludeSelf: !!attackFieldTrashM[1] } },
         } as BlockActionAction;
       }
       // 「<対象>は「【常】：アタックできない。」を得る」。

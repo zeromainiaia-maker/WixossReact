@@ -203,6 +203,21 @@ export function execStubPart1(
         { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
         false);
     }
+    // 🆕**§5.3 `O-220` 第5バッチ（2026-09-02）＝ルリグトラッシュの対象宣言**
+    //   （「あなたのルリグトラッシュから〈修飾〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+    //     **そうした場合、それを**ルリグデッキに加える」）。
+    // ⚠候補集めは `execTransferToDeck` の `LRIG_TRASH_CARD` 分岐と**同一関数**を共有する。
+    if (tgt.type === 'LRIG_TRASH_CARD') {
+      const ownerLT: Owner = tgt.owner === 'opponent' ? 'opponent' : 'self';
+      const cands = zoneTargetCandidates(tgt, ownerLT, ctx);
+      const count = typeof tgt.count === 'number' ? tgt.count
+        : tgt.count === 'ALL' ? cands.length
+        : 1;
+      return selectOrInteract(cands, count, tgt.upToCount ?? false,
+        ownerLT === 'self' ? 'self_lrig_trash' : 'opp_lrig_trash',
+        { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
+        false);
+    }
     if (tgt.type !== 'SIGNI' && tgt.type !== 'LRIG' && tgt.type !== 'CENTER_LRIG_OR_SIGNI') {
       return done({ ...ctx, lastProcessedCards: [] });
     }

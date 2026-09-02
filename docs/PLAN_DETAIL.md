@@ -34,7 +34,27 @@
 
 > | §6 恒久指標（続き768） | 「恒久指標（退避）2026-09-01 続き768 後」 |
 
-### 恒久指標（退避）2026-09-02 索引 A `O-96` 前（＝`O-195` 直後の値）
+### 恒久指標（退避）
+
+- 🏁**2026-09-02（🏁`O-96` クローズ回・第7〜13バッチ）＝対象の照応を50効果ぶん通した（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（据置）
+  ⚠**据置なのは想定どおり**＝直したのは**対象の照応**（誰に当たるか）で語彙は欠けていない＝
+  census にも意味照合台帳にも出ない型。**測るのは `O-96` の欠陥署名だけ**（**精密計器で 73→23**）。
+  📦**在庫2本**＝**機構 worklist 25項目**（`O-96` を閉じ `O-220`／`O-221` へ分割＝24→25）
+  ｜🏁**実機 残 0件**（新規2本＋回帰8本・**全 PASS**）
+  🔧**ゲート（全緑 ✅）**＝golden **3283 / 3283**（3282→3283＝ルリグ対象の据置契約1本）／
+  smoke 全異常0／fuzz 全0／census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors。`BASELINE_ORPHAN_MANUAL` **9→8**（`WXDi-P15-034-E1` を `manualEffects.ts` へ移した）。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝全 PASS**＝新規 `o96AddToFieldPay`/`None`（`V-130`）
+  ＋回帰 `o96TargetFirstPay`/`None`・`o86LrigCondPay`・`o86ScalingPayloadPay`・`o86BetCostReplace`・`o71HandToCheckZone`。
+  🆕**engine の契約を3型ぶん追加**＝`ADD_TO_FIELD` / `GRANT_EFFECT` に `targetsStored`＋`fixedCardNums`、
+  `TRASH{ENERGY_CARD}` / `TRANSFER_TO_HAND{ENERGY_CARD}` / `TRANSFER_TO_DECK{SIGNI}` に**即適用分岐**。
+  🔴**3点契約の③は「絞り込み」と「即適用分岐」の2つで1つ**（実機だけが捕まえた＝2度目）。
+  ✅**ブラスト半径＝予定外0**（ベースライン commit との effectId 単位 機械 diff）。
+  📐**`O-96` の欠陥署名 ＝ 73 → 23効果**（精密計器＝原文を効果単位で取る版）。
+2026-09-02 索引 A `O-96` 前（＝`O-195` 直後の値）
 
 - 🏁**2026-09-02（索引 A `O-195`＝再計測してクローズ）＝145効果の登録票が失効し、真の穴は2件だった（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
@@ -1209,6 +1229,109 @@ effectId 単位 機械 diff で**予定外0**。🖥**実機＝`V-129` 2本＋�
 
 ### `O-220` — 帰結型ごとの「対象固定 3点契約」が未整備（`O-96` から分割・実測16効果）
 
+🏁🏁**2026-09-02（第1〜8バッチ）でクローズした。欠陥署名 23 → 13 効果（-10）。**
+**16件の内訳＝実装12／据置契約3（対象が一意＝直す必要が無いと golden で固定）／新 ID へ分割2**
+（重複あり＝`WX24-P3-049-E1` は「実装（明示 defer へ倒す）」と「`O-222` へ分割」の両方）。
+
+**残 13 の内訳**＝`O-221`（5）／ルリグ対象の据置契約（2）／`NEGATE_ATTACK` の据置契約（2）／
+`GRANT_EFFECT`（`WX24-P2-055-E1`＝**計器の偽陽性**＝O-96 の署名が**引用能力の中**にあるだけ）／
+`SIGNI_FLIP_FACEDOWN`（据置契約）／`O-222`（1）／`O-223`（1）。
+⇒ **`O-220` の規則で取れるものは尽きた。**
+
+■🔑**この巡の最大の学び＝「3点契約が足りない」と登録した16件のうち、
+  型の契約が本当に足りなかったのは4件だけだった**（`REARRANGE_SIGNI`／`POWER_MODIFY_BY_SOURCE`／
+  STUB 帰結2種）。残りは **①受け皿が既に在った**（`TRANSFER_TO_DECK{LRIG_TRASH_CARD}`／
+  `SIGNI_ATTACK_BAN{appliesTo:'LRIG'}`／`PICK_FROM_TRASHED_CARDS`）**②対象が一意で直す必要が無かった**
+  （`attackingOnly`／`frontOfSelf`／ルリグ）**③そもそも別の欠陥だった**（引用能力の平坦化／catch-all の誤爆）。
+  ⇒ **登録票の「型に○○が無い」を鵜呑みにせず、着手時に原文と実コードで数え直す**（3巡連続で当たった教訓）。
+
+■🔴**この巡で見つけた盤面破壊バグ2件**（どちらもゲートは全部緑だった）＝
+  ①`STUB{SOUL_OP}` の「それをルリグデッキに加える」枝が **`sourceCardNum`（＝効果元のシグニ）を
+    ルリグデッキへ入れて**いた（`WX11-037-E2`／`WXK01-043-E2`）＝シグニが盤外へ消える。
+  ②`STUB{SIGNI_FLIP_FACEDOWN}` は `faceDownTarget` が無いと `lastProcessedCards ?? sourceCardNum` へ落ち、
+    支払い後は空なので**効果元が自分自身を裏向きにする**（原文は正面の相手シグニ）。
+  ⇒ **catch-all STUB は「対象を書かなくても動く」ので、対象宣言が落ちた瞬間に別のカードを撃つ。**
+
+■**バッチ別の記録**
+
+**第1バッチ（parser＋engine・5効果）＝`NEGATE_ATTACK` の `attackingOnly`。**
+「**この**アタックで…ダメージを与えない」の主語は「**その**アタックしているシグニ」＝一意なのに、
+無指定の `NEGATE_ATTACK` は候補が**相手の場の全シグニ**に広がり、支払いのあとで
+**アタックしていないシグニを選べてしまう**（選んでも進行中のアタックは止まらない＝`negated_attacks` へ
+入るだけ＝**払ったのに何も起きない**）。`WX12-001` / `WX14-003` / `WX16-029` / `PR-K077` の4カード。
+⚠**`WX17-044-TRAP` は `PREVENT_NEXT_DAMAGE`（`target` を持たない型）**で「それ」の照応先が
+JSON のどこにも残っていなかった＝兄弟形（`WX16-029-E1`）と型を揃えた。
+🔴**engine 側に即適用分岐も足した**＝候補1体で一意なのに `selectOrInteract` が必ず問いを出していた
+（【トラップ】窓＝相手のアタック中に「1枚しかない札を選べ」というモーダルが挟まる）。
+⇒ **据置が正しい**（対象が一意）ことを golden の契約テストで固定。
+
+**第2バッチ（型＋engine＋parser・1効果）＝`REARRANGE_SIGNI` の3点契約**（`SPDi43-20-E1`）。
+型に `targetsStored`/`fixedCardNums` ／ `FREEZABLE` 登録 ／ `execRearrangeSigni` の `swap` 分岐が
+**絞り込みと即入れ替えの両方**で消費 ／ `O96_STORABLE_OUTCOMES` へ追加、の4箇所を1巡で揃えた。
+
+**第3バッチ（engine＋parser・1効果）＝帰結が `CHOOSE`（二択）の形**（`WXDi-P12-007-E1`）。
+「それは【アサシン】か【ダブルクラッシュ】を得る」＝**「それ」は枝を選ぶ前に確定している**ので、
+対象宣言を `CHOOSE` の外へ引き上げ**全枝**に照応を刻む。engine 側は `freezeStoredTargets` が
+**`CHOOSE` の枝へ降りる**ようにして初めて焼き込みが届く（降りないと支払いを跨いだ時点で候補が空＝黙って空振り）。
+🔴**全枝が JSON 完全一致の対象**でなければ通さない（fail-closed）。
+
+**第4バッチ（parser・3効果）＝引用能力「〈解除コスト〉を支払わないかぎりアタックできない」。**
+🔴**対象の指定は「引用を伏せた本文」から読む**＝`t` を丸ごと見ると**引用の中の**「あなたの」「シグニ」を
+付与先だと読み違える（`WX24-P3-049-E1` は指定が「対戦相手のルリグ」なのに**自分のシグニ**を止めていた）。
+3効果とも末尾の粗い近似 `BLOCK_ACTION{SIGNI, owner:'any'}` に落ち、**解除コストが丸ごと消えたうえ
+無関係なシグニ1体が無条件でアタック不可**になっていた。
+・《無》×N 版（`WX24-P2-047-E1`②）＝**受け皿は既存の `SIGNI_ATTACK_BAN`**（§6.4 `O-28`）。
+  ルリグ／シグニの仕分けは engine が**確定した対象の Type**で行う＝engine 変更なしで通った。
+・場トラッシュ版のルリグ対象（`WX24-P3-049-E1`）＝**受け皿が無いので明示 defer**（→ `O-222`）。
+・`WX24-P2-055-E1` は**計器の偽陽性**＝O-96 の署名が**付与する引用能力の中**にあるだけで、
+  外側の `GRANT_EFFECT` は正しかった（live が held で古かった）。
+
+**第5バッチ（parser＋engine・2効果）＝ルリグトラッシュ→ルリグデッキの照応**（`WX11-037-E2`／`WXK01-043-E2`）。
+帰結の文が「**それを**ルリグデッキに加える」だけになるため `parseSentencePart1` の同一文規則に当たらず、
+catch-all `STUB{SOUL_OP}` へ落ちていた（上記の盤面破壊バグ①）。**受け皿は既存の
+`TRANSFER_TO_DECK{LRIG_TRASH_CARD, destination:'lrig_deck'}`**（`WX04-001-E1` ほか9効果と同形）。
+engine 側は `SELECT_TARGET_ONLY` と `execTransferToDeck` の `LRIG_TRASH_CARD` 分岐が
+**同一の候補関数**（`zoneTargetCandidates`）を共有するようにしてから絞り込み＋即適用を足した。
+
+**第6バッチ（型＋engine＋parser・2効果）＝帰結が STUB の形**（`WX21-034-E1` の `COPY_CARD`／
+`WX17-029-TRAP` の `TRAP_OPERATION`）。
+STUB は `target` を持たないので**原文から宣言を組み直す**（`o96StubDeclaredTarget`＝id ごとに専用の読み方）。
+🔴**許可リストは parser（`O96_STORABLE_STUB_IDS`）と engine（`O220_FREEZABLE_STUB_IDS`）で1対1に保つ**
+（片方だけに足すと `targetsStored` が消えて「宣言したのに全候補へ当たる」過剰実行）。
+・`COPY_CARD` は対象宣言ごと落ちて `lastProcessedCards` が常に空＝**無言 no-op** だった。
+・`TRAP_OPERATION` は支払いのあとで**もう一度選ばされて**いた。宣言側にも同じ限定を掛けるため
+  **`TargetFilter.hasTrapAbility` を新設**（判定に `parseCardEffects` が要るので `matchesFilter` ではなく
+  候補集めの層で絞る）。掛けないと宣言と実行の候補が食い違って**二重プロンプト**になる。
+
+**第7バッチ（型＋engine＋parser・1効果）＝「この方法でトラッシュに置かれたカードの中から」**
+（`WX25-P1-061-E2`）。候補を `lastProcessedCards` に限る語彙は `TargetFilter` に無いので、
+**受け皿は既存の `STUB{PICK_FROM_TRASHED_CARDS}` に `dest:'declare'`（宣言だけ）を足したもの**。
+従来は宣言が丸ごと落ち、帰結が `ADD_TO_FIELD{owner:'self'}`（source 無し）＝
+**「デッキの一番上を場に出す」既定**へ落ちていた＝原文とまったく別のカードが出ていた。
+
+**第8バッチ（型＋engine＋manual・3効果）＝ネスト器の中**
+（`WX21-025-TRAP` の OR コスト／`WX25-P3-027-E2` の引用【ライフバースト】／`WXK10-075-E2` のアクセ付与）。
+`applyO96Nested` は parser の木しか降りないので、manual で書いた器の中は手で揃える。
+engine 側は `POWER_MODIFY_BY_SOURCE` に2キーを足して `execPowerModify` へ引き継ぎ（`FREEZABLE` 登録）、
+`SET_OPP_SIGNI_AS_TRAP` に絞り込み＋即設置を足した。
+🔴**`build:effects` では live に届かない**（収穫マージが MANUAL/PARTIAL を不可侵にする）ので
+`syncManualLive` を使うが、**カード単位で丸ごと書くと同じカードの別効果を巻き戻す**
+（`WXK10-075-E1` は live のほうが新しく、parser の現在の出力は粗い STUB）。
+⇒ **`--effect <CardNum>:<EffectId>` を新設**して1効果だけ届けた。
+
+■🔴**据置が正しい3件（golden の契約テストで固定した）**＝対象が一意で `O-96` の実害
+（対象0でも支払いを提示する／宣言後に対象が変わる）がどちらも起きない：
+`WX16-029-E1` / `WX17-044-TRAP`（アタックしているシグニ＝`attackingOnly`）／
+`WXDi-P05-037-E2`（正面のシグニ＝`faceDownTarget.frontOfSelf`）。
+
+■⚠**golden の3点契約テストの罠**＝`O96_STORABLE_OUTCOMES` の**コメントに大文字の識別子を
+引用符で書くと**、テストが `'…'` を型名として拾って「FREEZABLE に無い型」で FAIL する（実際に踏んだ）。
+
+■**未着手として残した項目**＝`O-222`（ルリグの「シグニN体トラッシュ」解除コスト＝`src/screens/` の
+支払いUIが要る）／`O-223`（【シード】を対象に取る `TargetScope` が無い）。
+
+#### （旧登録票・クローズ前の記載）
+
 **規模／母集団**＝**16効果**（2026-09-02 に `O-96` の欠陥署名の仕分け器で実測）
 
 **2026-09-02（`O-96` 第7〜13バッチ）で分割。** ■**`O-96` の一般規則（対象宣言を支払いより前へ引き上げる）は
@@ -1239,6 +1362,52 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 ■**計器**＝`O-96` の欠陥署名の仕分け器（`applyO96OptionalCostTargetFirst` のガードを1本ずつ写す）。
 ⚠**原文は効果単位で取る**（`enableSourceTextLog`）＝カードの `EffectText` 全文で regex を当てると
 **同じカードの別効果**が母集団に混ざる（2026-09-02 実測＝46 → 36 へ落ちた）。
+
+### `O-222` — ルリグへの「〈解除コスト〉を支払わないかぎりアタックできない」＝場トラッシュ軸の受け皿が無い（`O-220` 第4バッチで分割・実測1効果）
+
+**規模／母集団**＝**1効果**（`WX24-P3-049-E1`。2026-09-02 に `census`／原文の全数走査で確認）
+
+**2026-09-02（`O-220` 第4バッチ）で分割。** 原文＝「【自】：このシグニが場を離れたとき、
+**対戦相手のルリグ１体を対象とし**、《白》を支払ってもよい。そうした場合、ターン終了時まで、
+**それは**「【常】：あなたのシグニ１体を場からトラッシュに置かないかぎりアタックできない。」を得る。」
+
+■**同じ文型の《無》×N 版・手札N枚版は同日にクローズ済み**＝受け皿（`SigniAttackBan.unlessPayColorless` /
+`unlessPayHandDiscard` ＋ `appliesTo:'LRIG'` ＋ `lrigAttackBanCost`）が engine と `src/screens/` の両方に
+既に在り、parser 規則1本で載った（`WX24-P2-047-E1`②）。
+■🔴**残るのは「場のシグニN体をトラッシュに置かないかぎり」だけ**＝この軸は
+`BlockActionAction.attackCost.fieldTrash` にあるが、**消費するのは `execBlockAction` の
+`target.type === 'SIGNI'` 分岐だけ**（`effectExecutor.ts:4484`）で、支払いUI も
+`src/screens/battle/attackFieldTrashCost.ts` ＋ `signiAttackGate.ts` ＋ `AttackFieldTrashCostModal.tsx` の
+**シグニアタック経路にしか無い**。ルリグアタック（`performLrigAttack` / `lrigAttackCostInfo`）は
+《無》と手札の2軸しか見ない。
+■**取り方**＝①`SigniAttackBan` に `unlessPayFieldTrash?: number` を1本足す
+②`lrigAttackBanCost` の戻り値へ加える（呼び出し元は形だけを見る規約＝`signiAttackBan.ts` の型コメント）
+③`lrigAttackCostInfo` の `blocked` 判定と `performLrigAttack` の引き落としへ配線
+④支払いUI は `AttackFieldTrashCostModal` を再利用する。
+🔴**`src/screens/` を触るので遅いレーン**＝**実機まで必須**（PLAN §2.2）。
+■**いまの状態**＝`STUB{DEFERRED_LRIG_ATTACK_BAN_FIELD_TRASH}`（明示 defer）。
+逆翻訳の日本語は `scripts/decompileEffects.ts` の `miscStubMap` に登録済み。
+⚠**no-op は過少**だが、従来の粗い近似（**無関係な自軍シグニを無条件で止める**）よりは忠実。
+
+### `O-223` — 【シード】を対象に取る宣言の受け皿が無い（`O-220` 第8バッチで分割・実測1効果）
+
+**規模／母集団**＝**1効果**（`WXK05-050-E2`）
+
+原文＝「【自】：このシグニが開花したとき、**あなたの【シード】１枚を対象とし**、《白》を支払ってもよい。
+**そうした場合、それを**開花し、あなたのデッキの一番上を見て、それを【シード】としてあなたのシグニゾーンに出す。」
+
+■**いまの挙動**＝`SEQUENCE[OPTIONAL_COST{白}, CONDITIONAL{did-it} → STUB{SEED_FLOWER_OP}]`。
+`SEED_FLOWER_OP`（`execStubPart2.ts:3780`）は**支払いのあとで**開花するシードを `CHOOSE` させる。
+⇒ (a) シードが0枚でも**先に支払いを提示する** (b) 宣言と実行の順序が原文と逆。
+■🔴**根＝`SELECT_TARGET_ONLY` に「シード」の `TargetScope` が無い**（シードは `field.signi_seeds[zi]`＝
+シグニでもトラッシュでもエナでもない別ゾーン）。`O-220` の他の帰結は既存スコープ
+（`self_field`／`self_trash`／`self_energy`／`self_lrig_trash`）に載ったが、これだけ載らない。
+■**取り方**＝①`TargetScope` に `self_seed` を1つ足す ②`SELECT_TARGET_ONLY` と `SEED_FLOWER_OP` が
+**同一の候補関数**（`signi_seeds` の非 null ゾーン）を共有する ③`SEED_FLOWER_OP` に
+`targetsStored`/`fixedCardNums` を消費させ、`O220_FREEZABLE_STUB_IDS` と `O96_STORABLE_STUB_IDS` の
+**両方**へ id を足す ④選択UI（`src/screens/`）でシードを選べるようにする。
+🔴**`src/screens/` を触るので遅いレーン**＝実機まで必須。
+■⚠**1効果なので優先度は低い**（索引 C 相当）。ただし**「シードを対象に取る」文型が増えたら再評価する**。
 
 ### `O-221` — 「そうした場合」の did-it ゲートが生成されない／専用 STUB id（`O-96` から分割・実測5効果）
 

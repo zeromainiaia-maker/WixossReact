@@ -24,6 +24,8 @@ import { allowedLifeCrashCount } from './lifeCrashGate';
 import { grantedEffectsOf } from './grantedStore';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
+// ⚠`gain_trap_ability` の候補判定（`hasTrapAbilityCard`）用＝`execStubPart2` と同じ経路。
+import { parseCardEffects } from '../data/effectParser';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
@@ -126,6 +128,15 @@ const exceedPoolCountOf = (state: PlayerState): number =>
   + (state.field.assist_lrig_l?.slice(0, -1).length ?? 0)
   + (state.field.assist_lrig_r?.slice(0, -1).length ?? 0);
 
+/**
+ * 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝`fixedCardNums` を実際に消費する STUB の id。**
+ * ⚠**ハンドラ側で読む実装を書いてからここへ足す**（載せるだけだと `targetsStored` が消えて
+ *   「対象を宣言したのに全候補へ当たる」過剰実行になる）。
+ * - `COPY_CARD`＝`execStubPart3` の `card_identity_overrides`（`WX21-034-E1`）
+ * - `TRAP_OPERATION`＝`execStubPart2` の `gain_trap_ability`（`WX17-029-TRAP`）
+ */
+const O220_FREEZABLE_STUB_IDS = ['COPY_CARD', 'TRAP_OPERATION', 'SET_OPP_SIGNI_AS_TRAP'];
+
 // 任意コストの pay/skip 分岐に埋め込む本体アクションの対象を、いま固定されている storedTargetCards へ
 // 焼き込む。storedTargetCards はインタラクションの resume を跨いで生存しないため、targetsStored のまま
 // 分岐に渡すと支払い後に候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）。
@@ -140,12 +151,33 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   // 🆕**第8バッチ（2026-09-02）で `ADD_TO_FIELD` を追加**＝トラッシュ／エナから「それを場に出す」形。
   //   ⚠**場のカードを固定する他の型と意味が違う**（固定するのはトラッシュ／エナの札）ので、
   //   `execAddToField` 側では `TRASH_CARD` / `ENERGY_CARD` の候補集めの後でだけ絞る。
+  // 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）で `REARRANGE_SIGNI` を追加**＝「それとこのシグニの
+  //   場所を入れ替える」（`SPDi43-20-E1`）。`execRearrangeSigni` の `swap` 分岐に絞り込みと
+  //   即適用を同じ巡で足してある。
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
-    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT'];
+    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT', 'REARRANGE_SIGNI',
+    // 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）**＝`execPowerModifyBySource` が2キーを
+    //   `POWER_MODIFY` へ引き継ぐので、`POWER_MODIFY` と同じ契約が成り立つ。
+    'POWER_MODIFY_BY_SOURCE'];
   if (FREEZABLE.includes(action.type) && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
+  // 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝帰結が STUB の形。**
+  // 🔴**id の許可リストで絞る**＝`StubAction` は何でも入る袋なので、型で判定すると
+  //   `fixedCardNums` を読まない STUB まで `targetsStored:false` に落とされて限定が消える。
+  if (action.type === 'STUB' && O220_FREEZABLE_STUB_IDS.includes(action.id)
+      && (action as { targetsStored?: boolean }).targetsStored) {
+    return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
+  }
   if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(s => freezeStoredTargets(s, ctx)) };
+  // 🆕**§5.3 `O-220` 第3バッチ（2026-09-02）＝`CHOOSE` の枝の中へも降りる。**
+  //   「あなたのシグニ１体を**対象とし**、〈任意コスト〉して**もよい**。**そうした場合、それは**
+  //   【アサシン】か【ダブルクラッシュ】を得る」（`WXDi-P12-007-E1`）＝**帰結が二択**の形。
+  // 🔴**降りないと `targetsStored` が枝の中に残ったまま支払いプロンプトを跨ぐ**＝
+  //   `storedTargetCards` は resume を跨いで生存しないので候補が空になり**黙って空振り**する。
+  if (action.type === 'CHOOSE') {
+    return { ...action, choices: action.choices.map(c => ({ ...c, action: freezeStoredTargets(c.action, ctx) })) };
+  }
   return action;
 }
 
@@ -3429,7 +3461,17 @@ function transferToHandTrashCandidates(src: EffectTarget, ctx: ExecCtx): string[
     const allowed = new Set(ctx.leftFieldUnderCards ?? []);
     cands = cands.filter(n => allowed.has(n));
   }
+  // 🆕**§5.3 `O-220` 第6バッチ（2026-09-02）＝【トラップ】能力を持つカードだけ。**
+  //   `matchesFilter` は `parseCardEffects` を呼べない（ホットパス）ので候補集めの層で絞る。
+  if (src.filter?.hasTrapAbility) cands = cands.filter(n => hasTrapAbilityCard(n, ctx));
   return cands;
+}
+
+/** カードが【トラップ】能力（`TRAP_ICON` 効果）を持つか。`execStubPart2` の `gain_trap_ability` と同じ判定。 */
+export function hasTrapAbilityCard(cardNum: string, ctx: ExecCtx): boolean {
+  const cd = ctx.cardMap.get(getCardNum(cardNum));
+  const effs = cd?.effects?.length ? cd.effects : cd ? parseCardEffects(cd) : [];
+  return effs.some(e => e.effectType === 'TRAP_ICON');
 }
 
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
@@ -3700,6 +3742,14 @@ function zoneTargetCandidates(src: EffectTarget, tgtOwner: Owner, ctx: ExecCtx):
       return (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     }
     return energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+  }
+  // 🆕**§5.3 `O-220` 第5バッチ（2026-09-02）＝ルリグトラッシュ**
+  //   （「あなたのルリグトラッシュから〈修飾〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+  //     **そうした場合、それを**ルリグデッキに加える」＝`WX11-037-E2` / `WXK01-043-E2`）。
+  // ⚠**`execTransferToDeck` の `LRIG_TRASH_CARD` 分岐と同一の候補式**（宣言時と実行時で
+  //   候補がズレると「選んだのに動かない」になる＝`TRASH_CARD`／`ENERGY_CARD` と同じ規約）。
+  if (src.type === 'LRIG_TRASH_CARD') {
+    return (state.lrig_trash ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
   }
   return [];
 }
@@ -6660,11 +6710,18 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
   // LRIG_TRASH_CARD: ルリグトラッシュから（アーツ等を）ルリグデッキ/デッキへ戻す（WX05-001「白と黒のアーツをルリグデッキに戻す」）
   if (src.type === 'LRIG_TRASH_CARD') {
-    const cands = (state.lrig_trash ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), src.filter));
+    // ⚠候補式は `zoneTargetCandidates` の `LRIG_TRASH_CARD` 分岐と共有する（宣言側と揃える）。
+    let cands = zoneTargetCandidates(src, src.owner === 'opponent' ? 'opponent' : 'self', ctx);
+    // 🆕**§5.3 `O-220` 第5バッチ（2026-09-02）＝任意コストの前に宣言した対象だけへ絞る。**
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     if (src.upToCount && src.count !== 'ALL') {
       const count = resolveNum(src.count);
       const scope: TargetScope = src.owner === 'opponent' ? 'opp_lrig_trash' : 'self_lrig_trash';
-      return selectOrInteract(cands, count, true, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+      // 🔴**焼き込み済みなら選択UIを開かずに即適用する**（3点契約の③後半・実機 `V-130` と同型）。
+      if (!a.fixedCardNums) {
+        return selectOrInteract(cands, count, true, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+      }
     }
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     if (cards.length === 0) return done(addLog(ctx, '対象のカードがルリグトラッシュにない'));
@@ -8101,6 +8158,20 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
     cands = cands.filter(n => n === attackingSigniOf(state));
   }
   if (cands.length === 0) return done(ctx);
+  // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）＝`attackingOnly` は選択UIを開かずに即適用する。**
+  // 🔴**3点契約の③後半（即適用分岐）と同じ形**＝候補は「いま宣言中のアタッカー」1体で一意なのに
+  //   `selectOrInteract` は候補1件でも必ず問いを出す＝**支払いのあとに「1枚しかない札を選べ」という
+  //   無意味なモーダルが挟まる**（【トラップ】窓＝相手のアタック中に開くので実機で特に目立つ）。
+  // ⚠`count:'ALL'` は下の一括登録へ落とす（複数体を一度に無効化する形は別軸）。
+  if (a.attackingOnly && a.target.count !== 'ALL') {
+    let curNA = ctx;
+    for (const n of cands) {
+      const r = applyDirectAction(a, n, curNA);
+      if (!r.done) return r;
+      curNA = { ...curNA, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+    }
+    return done(curNA);
+  }
 
   if (a.target.count === 'ALL') {
     const s = ownerState(tgtOwner, ctx);
@@ -8569,7 +8640,12 @@ function execPowerModifyBySource(a: import('../types/effects').PowerModifyBySour
   if (isNaN(base)) base = 0;
   const delta = base * a.multiplier;
   if (delta === 0) return done(ctx);
-  const mod: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta, ...(a.until ? { duration: a.until } : {}) };
+  // 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）＝対象固定をそのまま `POWER_MODIFY` へ引き継ぐ。**
+  //   `execPowerModify` 側が `targetsStored`／`fixedCardNums` を消費する（絞り込み＋即適用）。
+  const mod: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta,
+    ...(a.until ? { duration: a.until } : {}),
+    ...(a.targetsStored ? { targetsStored: true } : {}),
+    ...(a.fixedCardNums ? { fixedCardNums: a.fixedCardNums } : {}) };
   return execPowerModify(mod, ctx);
 }
 
@@ -11120,15 +11196,18 @@ function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, 
     const fixedFieldNum = a.targetsBattleAttacker
       ? ctx.battleAttackerCardNum
       : resolvedTargetFilter?.thisCardOnly ? ctx.sourceCardNum : undefined;
-    const candidates = state.field.signi
+    let candidates = state.field.signi
       .map((s, zi) => ({ n: s?.at(-1), zi }))
       .filter(({ n, zi }) => !!n && n !== source
         && (!fixedFieldNum || n === fixedFieldNum)
         && (!resolvedTargetFilter?.isUp || !state.field.signi_down?.[zi])
         && matchesFilter(ctx.cardMap.get(getCardNum(n!)), resolvedTargetFilter))
       .map(({ n }) => n!);
+    // 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）＝任意コストの前に宣言した対象だけへ絞る。**
+    if (a.targetsStored) candidates = candidates.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) candidates = candidates.filter(n => a.fixedCardNums!.includes(n));
     if (!source || candidates.length === 0) return done(addLog(ctx, '入れ替え対象がないためスキップ'));
-    return needsInteraction(ctx, {
+    const swapPending = {
       type: 'REARRANGE_SIGNI',
       owner: tgtOwner,
       signiNums: candidates,
@@ -11138,7 +11217,14 @@ function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, 
       swapSourceLocation: a.swapSourceLocation ?? (external ? 'deck' : 'field'),
       swapIfSameLevel: a.swapIfSameLevel,
       suppressOnPlay: a.suppressOnPlay,
-    } as PendingInteractionDef);
+    } as PendingInteractionDef & { type: 'REARRANGE_SIGNI' };
+    // 🔴**3点契約の③後半＝選択UIを開かずに即入れ替える**（§5.3 `O-220`／実機 `V-130` と同型の罠）。
+    //   焼き込み済みの対象が1体しか残っていないのに問いを出すと、実機は
+    //   「払ったのに対象をもう一度選ばされる」で止まる。golden は全緑のままなので気付けない。
+    if (a.fixedCardNums && candidates.length === 1) {
+      return resumeRearrangeSigni([candidates[0]], swapPending, ctx);
+    }
+    return needsInteraction(ctx, swapPending as PendingInteractionDef);
   }
   if (a.target.count !== 'ALL') {
     return done(addLog(ctx, 'シグニ並び替え（未対応の形式）'));
