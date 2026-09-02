@@ -698,6 +698,22 @@ export function checkActiveCondition(
       return (ownerState.field.signi_seeds?.[zi] ?? null) !== null;
     }
 
+    case 'SAME_ZONE_HAS_TRAP': {
+      // 🆕§5.3 `O-194`＝このシグニ（sourceCardNum）と同じシグニゾーンに【トラップ】があるかぎり（`WD23-039-A-E1`）。
+      // ⚠**場全体を見る `HAS_TRAP_IN_FIELD` とは別軸**＝あちらで代用すると隣のゾーンのトラップでも成立する。
+      if (!sourceCardNum) return false;
+      const ziTrap = ownerState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum);
+      if (ziTrap < 0) return false;
+      return (ownerState.field.signi_traps?.[ziTrap] ?? null) != null;
+    }
+
+    case 'LRIG_TYPE_COUNT': {
+      // 🆕§5.3 `O-194`＝センタールリグのルリグタイプ数（`CardClass` の `/` 区切り）。
+      // ⚠**fail-closed**＝ルリグ不在／`CardClass` 空は 0（＝閾値 gte は成立しない）。
+      const lrigTypeState = cond.owner === 'self' ? ownerState : otherState;
+      return compare(countCenterLrigTypes(lrigTypeState, cardMap), cond.operator, cond.value);
+    }
+
     case 'FIELD_HAS_GATE': {
       const gateState = cond.owner === 'self' ? ownerState : otherState;
       return (gateState.own_gate_zones ?? []).length > 0;
@@ -1079,6 +1095,15 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
 // センタールリグ＋左右アシストルリグの各グロウスタック頂点（execUtils.lrigZoneTops と同義）
 function lrigZoneTops(field: PlayerState['field']): (string | undefined)[] {
   return [field.lrig?.at(-1), field.assist_lrig_l?.at(-1), field.assist_lrig_r?.at(-1)];
+}
+
+// 🆕§5.3 `O-194`＝センタールリグのルリグタイプ数（`execUtils.countCenterLrigTypes` と**同じ式**）。
+// このファイルは循環参照を避けて `execUtils` を import しないので、`lrigZoneTops` と同じく双子で置く。
+// ⚠**片方だけ直すと `LRIG_TYPE_COUNT` が評価器ごとに違う答えを返す**（§4.2 の両評価器規約）。
+function countCenterLrigTypes(state: PlayerState, cardMap: Map<string, CardData>): number {
+  const top = state.field.lrig?.at(-1);
+  const cls = top ? cardMap.get(top.replace(/#\d+$/, ''))?.CardClass : undefined;
+  return cls ? cls.split(/[/／]/).map(v => v.trim()).filter(Boolean).length : 0;
 }
 
 // ===== ゾーン状態フィルタ判定（zoneIdx ベース） =====
@@ -3478,7 +3503,11 @@ export function calcContinuousBlockedActions(
       const effects = effectsMap.get(topNum) ?? [];
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
-        if (!checkActiveCondition(effect.activeCondition, fieldOwner, fieldOther, isFieldOwnerTurn, cardMap)) continue;
+        // 🆕§5.3 `O-194`＝**`sourceCardNum` を渡す**（従来は未指定）。渡さないと `IS_SELF_*` /
+        // `SAME_ZONE_HAS_*` / `THIS_CARD_HAS_UNDER` など**効果元自身を見る条件が常に false** に落ち、
+        // その BLOCK_ACTION が恒久 no-op になる（＝過小実行）。⚠実測では live 母集団0（`WXEX2-11-E2` の
+        // `LRIG_IS_DRIVE_STATE` はルリグ札で `scanLrigBlocks` 側を通る）なので**この時点の挙動差は0**。
+        if (!checkActiveCondition(effect.activeCondition, fieldOwner, fieldOther, isFieldOwnerTurn, cardMap, topNum)) continue;
         for (const b of extractBlockActions(effect.action)) {
           // 「このシグニはアタックできない」＝自己アタック封じ。parser が2形（ATTACK_SIGNI_SELF(PLAYER) と
           // ATTACK(SIGNI,owner:self)）を出し、実データは後者だが従来ここで拾われず無効化されていた（続き106・

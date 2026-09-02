@@ -9548,6 +9548,18 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-P01-049-E1","effectType":"CONTINUOUS","activeCondition":{"type":"COUNT_THRESHOLD","location":"life_cloth","owner":"self","operator":"lte","value":2},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXDi-P01-049-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"COUNT_THRESHOLD","location":"life_cloth","owner":"self","operator":"lte","value":2},{"type":"TURN_OWNER","owner":"opponent"}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"cardType\":\"シグニ\"}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+  // 🆕§5.3 `O-194`（2026-09-02）＝【チーム常】の**2文目の「かぎり」節が丸ごと落ちて**いた（過剰実行）。
+  // 原文「…このシグニのパワーは…レベルの合計１につき＋1000される。**あなたの場にいるルリグのレベルの
+  //   合計が７であるかぎり**、このシグニは【シャドウ:{"levelLte":2}】を得る。」
+  // 🔴旧 live は1本の `SEQUENCE` に両帰結を並べ、**シャドウが常時付いて**いた（チーム条件しか掛かっていない）。
+  // 🔑受け皿は `FIELD_LEVEL_SUM{target:'lrig'}`（`WXDi-P13-076` と同形）＋**`-E1b` へ切り出す**規約
+  //   （`WX26-CP1-059` / `WXDi-P01-049` / `WXDi-P08-048` / `WX21-015` と同じ＝2文目は別効果にする）。
+  // ⚠外側の【チーム常】＝`LRIG_TEAM_COUNT` は**両方に掛かる**ので `AND` で並べる。
+  // ⚠既存 id `-E1` の書き直しなので `npx tsx scripts/syncManualLive.ts WXDi-P16-090` まで回さないと live に届かない。
+  "WXDi-P16-090": [
+    {"effectId":"WXDi-P16-090-E1","effectType":"CONTINUOUS","activeCondition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"うちゅうのはじまり","operator":"gte","value":3},"action":{"type":"POWER_MODIFY_PER_LRIG_LEVEL","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"deltaPerLevel":1000,"lrigOwner":"self","sumFieldLrigLevels":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P16-090-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"うちゅうのはじまり","operator":"gte","value":3},{"type":"FIELD_LEVEL_SUM","owner":"self","target":"lrig","operator":"eq","value":7}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"levelLte\":2}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   "WXDi-P16-051": [
     {"effectId":"WXDi-P16-051-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}]},"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"収斂せし扉　アト＝トレ"}},"then":{"type":"CONDITIONAL","condition":{"type":"ENERGY_COUNT","owner":"self","operator":"lte","value":0},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"Sランサー","duration":"UNTIL_END_OF_TURN"},"else":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"}}},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
   ],

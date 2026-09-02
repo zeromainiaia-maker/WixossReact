@@ -1002,6 +1002,22 @@ export function splitClasses(col: string | undefined): string[] {
   return col.split('：').map(s => s.trim()).filter(Boolean);
 }
 
+/**
+ * 🆕§5.3 `O-194`＝**センタールリグのルリグタイプ数**（`CardClass` の `/`／`／` 区切り。例＝`タマ/イオナ` は2）。
+ * `LRIG_TYPE_COUNT`（`ActiveCondition` / `Condition` の両方）が使う唯一の式。
+ * ⚠**fail-closed**＝ルリグ不在／`CardClass` 空は **0**（閾値 `gte` は成立しない）。
+ * ⚠STUB `POWER_BY_CENTER_LRIG_TYPE_COUNT` も同じ数え方をする（両者で式がズレると同じカードの
+ *   パワー修正と条件が食い違う）。
+ */
+export function countCenterLrigTypes(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+): number {
+  const top = state.field.lrig.at(-1);
+  const cls = top ? cardMap.get(getCardNum(top))?.CardClass : undefined;
+  return cls ? cls.split(/[/／]/).map(v => v.trim()).filter(Boolean).length : 0;
+}
+
 // センタールリグ＋左右アシストルリグの各グロウスタック頂点（現在のルリグ）を返す。
 // HAS_CARD_IN_FIELD の「場に《X》がいる」でルリグ名を照合するために使う。
 export function lrigZoneTops(field: PlayerState['field']): (string | undefined)[] {
@@ -2572,6 +2588,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zi < 0) return false;
       return (s.field.signi_seeds?.[zi] ?? null) !== null;
     }
+    case 'SAME_ZONE_HAS_TRAP': {
+      // 🆕§5.3 `O-194`＝このシグニ（sourceCardNum）と同じシグニゾーンに【トラップ】がある場合。
+      // ⚠場全体を見る `HAS_TRAP_IN_FIELD` とは別軸（`checkActiveCondition` 側と同じ式）。
+      const srcTrap = ctx.sourceCardNum;
+      if (!srcTrap) return false;
+      const ziTrap = s.field.signi.findIndex(z => z?.at(-1) === srcTrap);
+      if (ziTrap < 0) return false;
+      return (s.field.signi_traps?.[ziTrap] ?? null) != null;
+    }
+    case 'LRIG_TYPE_COUNT':
+      // 🆕§5.3 `O-194`＝センタールリグのルリグタイプ数（`checkActiveCondition` 側と同じ式）。
+      return cmp(countCenterLrigTypes(st(cond.owner), ctx.cardMap), cond.operator, cond.value);
     case 'FIELD_HAS_GATE':
       return (st(cond.owner).own_gate_zones ?? []).length > 0;
     case 'THIS_CARD_HAS_UNDER': {

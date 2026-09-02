@@ -673,6 +673,8 @@ function condJa(c?: any): string {
     }
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
     case 'SAME_ZONE_HAS_SEED': return '同じシグニゾーンに【シード】がある';
+    case 'SAME_ZONE_HAS_TRAP': return '同じシグニゾーンに【トラップ】がある';
+    case 'LRIG_TYPE_COUNT': return `${ownerJa(c.owner)}センタールリグのルリグタイプが${numJa(c.value)}つ${opJa(c.operator)}`;
     // ⚠**「アタックした」を落とさない**（2026-08-30 Claude 検証）＝
     //   「このターンにシグニが4回以上」だけだと**何が4回なのか**が読めず、原文照合で差が見えない。
     case 'ATTACK_ORDINAL_THIS_TURN':
@@ -4237,7 +4239,11 @@ function actionJa(a?: Action, effectType?: string): string {
       //   配置元をカード名で限定する形は**捕捉できた名前を併記**して目視で分かるようにする。
       const exceptNames = a.exceptSourceCardNames?.length
         ? `（配置元限定: ${a.exceptSourceCardNames.map(n => `《${n}》`).join('か')}の効果のみ）` : '';
-      if (a.rawText) return a.rawText + exceptNames;
+      // 🆕§5.3 `O-194`＝**`condition` も併記する**。同じ理由（原文をそのまま出すと機械側の穴が見えない）で、
+      //   条件が付いていない＝`evalConditionForContinuous` の `default: true` で **permissive＝恒久 no-op**
+      //   なのに逆翻訳だけ正しく見えていた（`WX08-025-E1` が実例）。付いているときだけ印を出す。
+      const machineCond = a.condition ? `（機械条件: ${condJa(a.condition)}）` : '';
+      if (a.rawText) return a.rawText + exceptNames + machineCond;
       if (exceptNames) return `このシグニは新たに場に出すことができない${exceptNames}`;
       if (a.never) return 'このシグニは新たに場に出すことができない';
       if (a.condition) return `${condJa(a.condition)}場合にしかこのシグニは新たに場に出すことができない`;

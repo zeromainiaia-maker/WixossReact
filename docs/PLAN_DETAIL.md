@@ -2006,11 +2006,99 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 
 ### `O-194` — 【常】の「〜であるかぎり」の条件型テール（レベル合計比較／N種類以上／否定形 ほか）
 
-**規模／母集団（登録票の記載そのまま）**＝**68効果**（続き549 実測）
+🏁**2026-09-02（索引 A 第3巡）＝再計測してクローズ。登録票の「68効果」は失効し、実測の真の穴は 6効果だった。**
 
-> 🆕**2026-09-01 に §5.3「未採番の機構在庫」（旧 §5.4 (ii)）から採番して登録票化。本文は移設時のまま（無改変）。**
+**②母集団の測り直し（2段）**
 
-🆕**続き549 の残①＝【常】の「かぎり」68件は本物の機構ギャップ**＝(a) **レベル合計の比較**「あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計以下であるかぎり」3／「あなたの場にいるルリグのレベルの合計がNであるかぎり」2 (b) **「N種類以上」**「あなたのトラッシュに＜C＞のシグニがN種類以上あるかぎり」2／「エナゾーンにあるシグニが持つクラスが合計N種類以上あるかぎり」2 (c) **否定形**「あなたのトラッシュにカードがN枚以上**ない**かぎり」2＝条件型に否定が無い (d) **相手の場の【チャーム】数**2 (e) **相手の手札枚数がちょうどN**2 (f) 【ソウル】が付いているかぎり2 ほか単発。
+**第1段＝下位分類 (a)〜(f) を1つずつ当て直した**（登録票が名指ししていた6分類・原文 regex × live JSON）。
+🔑**6分類すべて実装済みだった**＝
+
+| 分類 | 登録票 | 実測（受け皿） |
+|---|---:|---|
+| (a) レベル合計の比較 | 3＋2 | **0**＝`FIELD_LEVEL_SUM{target:'signi'/'lrig', compareTo:'opponent'}` が全件に載っていた |
+| (b) N種類以上 | 2＋2 | **0**＝`TRASH_HAS_CARD{distinctName}`／`ENERGY_COLOR_TYPES`／`ENERGY_COUNT_FILTER{distinctClasses}`／`HAS_CARD_IN_FIELD{distinctColors}` |
+| (c) 否定形「N枚以上ない」 | 2 | **0**＝否定型は要らなかった＝`COUNT_THRESHOLD{operator:'lt'}`／`HAS_KEY_IN_FIELD{lte}` で**不等号を裏返して**表せている |
+| (d) 相手の場の【チャーム】数 | 2 | **0**＝`IS_SELF_CHARMED`／`HAS_CARD_IN_FIELD{filter:{hasCharm}}` |
+| (e) 相手の手札枚数がちょうどN | 2 | **0**＝`COUNT_THRESHOLD{location:'hand', operator:'eq'}` |
+| (f) 【ソウル】が付いているかぎり | 2 | **0**＝`IS_SELF_SOUL_ATTACHED` |
+
+**第2段＝分類を捨てて総ざらいした**＝「原文ブロックに『かぎり／限り』がある ∧ live の効果 JSON に
+`condition` / `activeCondition` / `CONDITIONAL` / `triggerCondition` が1つも無い」（`O-195` と同じ計器・
+突き合わせは `docs/_effect_srctext.json`）。
+
+| 段 | 件数 | 中身 |
+|---|---:|---|
+| 第1段（素の計器） | **92効果 / 91カード** | 🔴**上限**（§5.3 の鉄則＝受け皿の別名を知らないと必ず過大） |
+| B: `NEGATE_ATTACK.escapeDiscard` | 15 | 「対戦相手が手札を３枚捨てないかぎり、そのアタックを無効にする」＝LB の定型 |
+| B: `SIGNI_ATTACK_BAN.unlessPayColorless` | 8 | 「《無》を支払わないかぎりアタックできない」 |
+| B: `cost.costReplacement` / `useTimeCost` | 7 | 「〜より多いかぎり、使用コストは《色×N》減る」（`O-86` の受け皿） |
+| B: `fieldCondition` / キーワード引数 / `COST_SUBSTITUTE` | 6 | `FRONT_SIGNI_POWER`／`アサシン:{"selfHandLte":2}`／エナ支払いの代替 |
+| **C: STUB に条件が畳まれている** | **50** | `GUARD_LOSS_UNLESS_LRIG{lrigClass}`／`LEVEL_REFERENCE_OVERRIDE`／`LOSE_COLOR_ALL_ZONES`／`GRANT_QUOTED_ABILITY` ほか |
+| **A: 真の穴** | **6** | ← ここだけが worklist |
+
+⚠**A から2件を外した**＝①`WXK05-029-E1`（トラッシュに《サーバント》10種類以上）は
+`collectAllColorSigni` が**engine 側で原文 regex から条件を読んで**いる＝`census:enginetext` A群
+（`O-60`）の母集団であってここではない ②`WXK10-039-E2` は `_effect_srctext.json` の id 割り付けが
+manual 定義と入れ替わっているだけ（挙動は正しい）＝**計器の偽陽性**。
+
+**③実装＝真の穴6効果（5件は過剰実行・1件は過小実行）**
+
+**受け皿が既にあった4件（parser 規則／manual で閉じた）**
+- 🔴`WX13-034-E1`「あなたのルリグデッキが０枚であるかぎり」→ 条件が落ち、**常に**相手アーツの効果を受けなかった。
+  受け皿 `LRIG_DECK_COUNT` は両 union に既存＝`parseActiveCondition` に規則1本。
+- 🔴`WXDi-P15-060-E1`「あなたの場にあるシグニの下にカードがあるかぎり」→ **常に**＋4000。
+  受け皿 `TargetFilter.hasUnderCards`（2026-08-31 §5.2 で新設済み・両評価器に配線済み）＝規則1本。
+  ⚠**「このシグニの下に」と混同しない**（あちらは効果元自身＝`THIS_CARD_HAS_UNDER`）。
+- 🔴`WX08-025-E1`「あなたの場にクロス状態のシグニがないかぎり、新たに場に出すことができない」→
+  `parseSelfPlayRestrict` が**未対応語彙として `condition` を付けずに返し**、
+  `evalConditionForContinuous` の `default: true`（permissive）で**出撃制限が恒久 no-op**だった（過小実行）。
+  受け皿 `TargetFilter.crossState` は既存＝`HAS_CARD_IN_FIELD{filter:{crossState:true}}` を付けた。
+  ⚠**live で唯一の inert な `SELF_PLAY_RESTRICT`**（`never`／`condition`／`exceptSourceCardNames` が全部無い）。
+- 🔴`WXDi-P16-090-E1`＝【チーム常】の**2文目**「ルリグのレベルの合計が７であるかぎり」が落ち、
+  **シャドウが常時付いて**いた。同型（2文目を `-E1b` へ切り出す）は `WX26-CP1-059`／`WXDi-P01-049`／
+  `WXDi-P08-048`／`WX21-015` で**既に確立済みの規約**だったので、そこへ揃えた（`manualEffects.ts`＋
+  `syncManualLive.ts`）。⚠`GRANT_KEYWORD` の CONTINUOUS 収集器は `SEQUENCE` しか展開しない＝
+  **`CONDITIONAL` で包むと逆に恒久 no-op になる**ので、効果を分けるのが唯一の正解。
+
+**新条件型を2つ足した2件**（どちらも `SAME_ZONE_HAS_SEED`／`SAME_ZONE_HAS_GATE` を型紙にした）
+- 🔴`PR-472-E2`「センタールリグのルリグタイプが２つ以上であるかぎり、対戦相手はスペルを使用できない」→
+  条件が落ち、**このシグニが場に居るだけで相手はゲーム中ずっとスペルを使えなかった**（この巡で最も重い）。
+  → **`LRIG_TYPE_COUNT{owner, operator, value}`**（`CardClass` の `/`／`／` 区切り数・ルリグ不在は 0＝fail-closed）。
+- 🔴`WD23-039-A-E1`「このシグニと**同じシグニゾーン**に【トラップ】があるかぎり、基本パワーは5000になる」→
+  条件が落ち、**常に**5000（印刷2000）。→ **`SAME_ZONE_HAS_TRAP`**。
+  ⚠**場全体を見る `HAS_TRAP_IN_FIELD` で代用してはいけない**（隣ゾーンのトラップでも成立する）。
+
+**🧹 ついでに engine の穴を1つ塞いだ（母集団0＝再発防止）**
+`calcContinuousBlockedActions` の `scanField` が `checkActiveCondition` へ **`sourceCardNum` を渡して
+いなかった**＝`IS_SELF_*` / `SAME_ZONE_HAS_*` / `THIS_CARD_HAS_UNDER` のように効果元自身を見る条件が
+**常に false** に落ち、その `BLOCK_ACTION` が恒久 no-op になる。発見時の live 母集団は 0
+（唯一の該当 `WXEX2-11-E2` はルリグ札で `scanLrigBlocks` 側を通る）＝**挙動差 0 のまま塞いだ**。
+`PR-472-E2` はシグニ札の CONTINUOUS `BLOCK_ACTION` なので、この経路が条件を見ることを実機で確かめてある。
+
+**🧹 逆翻訳の死角も1つ塞いだ**
+`SELF_PLAY_RESTRICT` は `rawText` をそのまま描画する（最も忠実だから）が、**機械側の `condition` が
+無くても逆翻訳は正しく見える**＝`WX08-025-E1` の恒久 no-op がそれで隠れていた。
+`exceptSourceCardNames` と同じ扱いで**（機械条件: …）を併記**するようにした。
+
+**④ゲート**＝`npm run gates` 全緑（golden **3301 / 3301**＝O-194 の恒久 assert 3本を新設）。
+`npm run regen` 完走。⚠**`ACTIVE_CONDITION_TYPES` / `CONDITION_TYPES` の型数ラチェット**（golden の
+`(cxv)`）は 67→**69** / 145→**147** へ実数更新した（型を足すと必ずここで止まる設計）。
+
+**⑤実機**＝**必須**（§2.2＝新しい型を足した回）。`node scripts/verifyBattleDrive.mjs
+o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
+🔑**新条件型は「成立する腕」と「成立しない腕」を必ず対で撃つ**＝片腕だけだと
+「条件が落ちて常に成立する」旧挙動と区別がつかない。実際 `o194trapOther`（別ゾーン）が
+`HAS_TRAP_IN_FIELD` 代用との差を見ている唯一のテストになっている。
+⚠**踏んだ罠2つ（どちらも観測点の設計ミス＝engine は初回から正しかった）**
+①パワーは DOM に **`5,000` とカンマ区切りで描画**される＝`\d{3,6}` が「5」と「000」に割れて
+`0` を拾い、正しい 5000 を FAIL と報告した。②スペル使用の可否を**手札枚数**で測ろうとしたが、
+`WD01-018`（噴流する知識）は「1枚引く」ので **−1（使用）＋1（ドロー）＝差0** になり、
+通っても封じても同じ数字になる＝**トラッシュ枚数＋使用ログ**へ替えた。
+
+🔑**この項目から残す教訓**＝**登録票の「下位分類」は在庫ではなく"当時の標本"**。
+6分類ぜんぶ名指しで書かれていたのに、当たり直したら **6分類とも 0**（他バッチの副産物で全部埋まっていた）。
+⇒ **分類を信じて着手せず、分類を捨てた総ざらいの計器で測り直す**（今回はそれで初めて
+「登録票に1行も書かれていない6効果」が出た）。§5.3 の「母集団は着手時に実測」の**6巡連続**の実証。
 
 ### `O-195` — 「〜場合、」側の条件節テール（`STATE_CONDITION_CLAUSES_V2` 側）
 
@@ -2529,6 +2617,23 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
 ### 恒久指標アーカイブ（2026-09-02 続き773 後）
+
+- 🏁**2026-09-02（🏁`O-221` クローズ回・第1〜5バッチ）＝「そうした場合」の did-it ゲート5効果（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（据置）
+  📦**在庫2本**＝**機構 worklist 25項目**（`O-221` を閉じた＝26→25）
+  ｜**実機 残 2件**（`V-131`／`V-132`）
+  🔧**ゲート（全緑 ✅）**＝golden **3298 / 3298**（3292→3298＝`O-221` の契約・トリップワイヤ6本）／
+  smoke **10723** 全異常0／fuzz 全0／census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／
+  manual-fields 0／`census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／
+  `census:costtext` A🔴 **0規則**（据置）／lint 0 errors。
+  `BASELINE_ORPHAN_MANUAL` **8→9**（`WX20-067-E1`＝**新しい凍結ではなく** live が fresh へ追いついた分）。
+  🖥**実機＝この巡も不要**（`src/screens/` を触っていない）。観測点は前巡の `V-131`／`V-132` のまま。
+  🆕**engine の一般則**＝`freezeStoredTargets` は **store が空なら1バイトも焼かない**（`fixedCardNums: []` は
+  確実な no-op＝宣言前に焼くと生きた照応を殺す）＋**`CONDITIONAL` の内側へも降りる**（入れ子ゲートの経路）。
+  🔴**別系統の欠陥2件**＝`PR-Di017B-E1` は「parser が追い越した手書き」に凍らされた過小実行／
+  `WXDi-CP02-052-E1` は前置条件が丸ごと落ちた過剰実行。
+  ✅**ブラスト半径＝5効果・予定外0**（ベースライン commit との effectId 単位 機械 diff）。
 
 - **2026-09-02（索引 A `O-86` 第2〜6バッチ）＝UI コスト層の原文 regex を5系統ぶん payload へ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（19→17）｜**台帳 残 OPEN 44**（据置）｜

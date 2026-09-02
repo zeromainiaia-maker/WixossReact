@@ -106,7 +106,14 @@ export function parseSelfPlayRestrict(t: string): SelfPlayRestrictAction | null 
   // `signi_virus` のゾーン別個数を合計する VIRUS_COUNT は ActiveCondition と collector の双方で実装済み。
   const virusM = t.match(/対戦相手の場に【ウィルス】が([０-９\d]+)つ以上ある場合にしか/);
   if (virusM) return { ...base, condition: { type: 'VIRUS_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(virusM[1]) } };
-  // それ以外（アクセ総数/クロス状態等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
+  // あなたの場にクロス状態のシグニがないかぎり（`WX08-025`・§5.3 `O-194`）。
+  // 🔴従来はここが未対応語彙で **permissive（＝出撃制限が恒久 no-op）** に落ちており、
+  //   クロス状態のシグニが1体も無くても普通に召喚できた（live 唯一の inert な SELF_PLAY_RESTRICT）。
+  //   `TargetFilter.crossState` は `matchesStateFilter` 側の語彙で、`evalConditionForContinuous` の
+  //   `HAS_CARD_IN_FIELD` はゾーンindex付きで走査するので配線済み。
+  const crossM = t.match(/あなたの場にクロス状態のシグニが(?:ないかぎり|ある場合にしか)/);
+  if (crossM) return { ...base, condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } } };
+  // それ以外（アクセ総数等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
   return base;
 }
 

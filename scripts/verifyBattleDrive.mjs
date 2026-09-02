@@ -910,7 +910,179 @@ async function driveO123(page, H, hasDokuga) {
     : { pass: false, detail: `対照が判定に到達しなかった（lrigDeck=${JSON.stringify(fin?.host?.lrigDeckCards)}）` };
 }
 
+/**
+ * §5.3 `O-194` の実機ドライバ①（同ゾーン／別ゾーンで共有）＝**新条件型 `SAME_ZONE_HAS_TRAP`**。
+ * `WD23-039-A`（小罠 テイチアミ・印刷パワー2000）【常】「このシグニと**同じシグニゾーン**に【トラップ】が
+ * あるかぎり、このシグニの基本パワーは5000になる」。
+ * 🔴旧 live は条件節が丸ごと落ちて `POWER_SET 5000` が**無条件**だった（過剰実行）。
+ * ⚠**観測点は場に描画される実効パワー**＝`POWER_SET` は state に残らず `calcFieldPowers` が毎回計算するので、
+ *   `queryState` の `powerMods` では見えない（`temp_power_mods` は別軸）。DOM のゾーン表示を読む。
+ * ⚠**対照（別ゾーンにトラップ）が要る**＝場全体を見る `HAS_TRAP_IN_FIELD` で代用しても
+ *   「同ゾーン」の腕だけなら通ってしまう。隣ゾーンで 2000 に戻ることがこの型の存在意義。
+ */
+async function driveO194Trap(page, H, sameZone) {
+  const tag = sameZone ? 'o194trapsame' : 'o194trapother';
+  const PRINTED = 2000, BOOSTED = 5000;
+  // ゾーン0のDOMテキストから数字だけを拾う（パワーは `my-signi-zone-0` の中に描かれる）。
+  const readPower = async () => page.evaluate(() => {
+    const el = document.querySelector('[data-testid="my-signi-zone-0"]');
+    if (!el) return null;
+    const txt = el.innerText ?? '';
+    // ⚠**カンマ区切りで描画される**（`5,000`）＝素朴な `\d{3,6}` は「5」と「000」に割れて 0 を拾う。
+    return { txt, nums: (txt.replace(/,/g, '').match(/\d{3,6}/g) ?? []).map(Number) };
+  });
+  await H.ensureMain();
+  for (let s = 0; s < 8; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    const st = await H.queryState();
+    const read = await readPower();
+    const nums = read?.nums ?? null;
+    H.log(`  ${tag}[${s}] zoneText=${JSON.stringify(read?.txt)} power候補=${JSON.stringify(nums)} traps=${JSON.stringify(st?.host?.signiTraps)} field=${JSON.stringify(st?.host?.fieldSigni)}`);
+    if (!read) { await H.stdStep(); continue; }
+    // 前提＝ゾーン0に対象シグニが居て、トラップが意図した位置にある。
+    const traps = st?.host?.signiTraps ?? [];
+    const zone0 = JSON.stringify(st?.host?.fieldSigni?.[0] ?? []);
+    if (!zone0.includes('WD23-039-A')) return { pass: false, detail: `前提崩れ＝ゾーン0に WD23-039-A が居ない（${zone0}）` };
+    if (sameZone && !traps[0]) return { pass: false, detail: `前提崩れ＝同ゾーンにトラップが無い（${JSON.stringify(traps)}）` };
+    if (!sameZone && (traps[0] || !traps[2])) return { pass: false, detail: `前提崩れ＝トラップの位置が対照になっていない（${JSON.stringify(traps)}）` };
+    if (sameZone) {
+      return nums.includes(BOOSTED)
+        ? { pass: true, detail: `同ゾーンに【トラップ】＝基本パワーが${BOOSTED}になった（表示=${JSON.stringify(nums)}）` }
+        : { pass: false, detail: `同ゾーンなのに${BOOSTED}にならない（表示=${JSON.stringify(nums)}）` };
+    }
+    if (nums.includes(BOOSTED)) {
+      return { pass: false, detail: `🔴別ゾーンのトラップで成立した＝SAME_ZONE ではなく場全体を見ている（表示=${JSON.stringify(nums)}）` };
+    }
+    return nums.includes(PRINTED)
+      ? { pass: true, detail: `対照＝別ゾーンのトラップでは印刷パワー${PRINTED}のまま（表示=${JSON.stringify(nums)}）` }
+      : { pass: false, detail: `印刷パワー${PRINTED}が読めない（表示=${JSON.stringify(nums)}）` };
+  }
+  return { pass: false, detail: 'パワー表示を読めなかった' };
+}
+
+/**
+ * §5.3 `O-194` の実機ドライバ②（2タイプ／1タイプで共有）＝**新条件型 `LRIG_TYPE_COUNT`**。
+ * `PR-472`（１日シグニ タマヨリヒメ）【常】「あなたのセンタールリグのルリグタイプが**２つ以上**で
+ * あるかぎり、対戦相手はスペルを使用できない」。
+ * 🔴旧 live は条件が落ち、**このシグニが場に居るだけで相手はゲーム中ずっとスペルを使えなかった**。
+ * ⚠**`PR-472` は相手（guest）の場に置く**＝`owner:'self'` はカードの持ち主から見た自分＝
+ *   guest のセンタールリグを数え、禁止は host（自分）へ掛かる。これで自分の手札からスペルを撃って観測できる。
+ * 観測点は `driveB24` と同じ＝スペルは手札から出るので、**通れば手札 N→N-1、封じられていれば N→N**。
+ */
+async function driveO194LrigType(page, H, expectBlocked) {
+  const tag = expectBlocked ? 'o194lrigtype2' : 'o194lrigtype1';
+  const st0 = await H.queryState();
+  const hand0 = st0?.host?.hand ?? 0;
+  const trash0 = st0?.host?.trash ?? 0;
+  H.log(`開始 ${tag} hostHand=${hand0} hostTrash=${trash0} guestField=${JSON.stringify(st0?.guest?.fieldSigni)}`);
+  if (!JSON.stringify(st0?.guest?.fieldSigni ?? []).includes('PR-472')) {
+    return { pass: false, detail: `前提崩れ＝相手の場に PR-472 が居ない（${JSON.stringify(st0?.guest?.fieldSigni)}）` };
+  }
+  await H.ensureMain();
+  H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  const clickExact = async (name) => {
+    const b = page.getByRole('button', { name, exact: true }).first();
+    if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+      await b.click().catch(() => {}); return 'btn:' + name;
+    }
+    return null;
+  };
+  let used = false;
+  for (let s = 0; s < 18; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = await clickExact('発動');
+    if (!did) did = await clickExact('発動する');
+    if (!did) did = await clickExact('使用');
+    if (!did) did = await H.stdStep();
+    if (did) used = true;
+    const st = await H.queryState();
+    const hand = st?.host?.hand ?? 0;
+    const trash = st?.host?.trash ?? 0;
+    const usedLog = (st?.logTail ?? []).some(l => /噴流する知識を使用/.test(l));
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hostHand=${hand0}→${hand} trash=${trash0}→${trash} usedLog=${usedLog} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'}`);
+    if (s === 3) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-6))}`);
+    // 🔴**観測点は手札枚数ではなくトラッシュ＋使用ログ**＝このスペルは「1枚引く」ので
+    //   手札は −1（使用）＋1（ドロー）で**元に戻る**＝通っても封じても同じ数字になり判定できない
+    //   （初回実装でこれを踏み、対照が偽陰性で FAIL した）。
+    if (usedLog || trash > trash0) {
+      return expectBlocked
+        ? { pass: false, detail: `🔴封じられるはずがスペルが通った（trash ${trash0}→${trash} hand ${hand0}→${hand}）` }
+        : { pass: true, detail: `対照＝ルリグタイプ1つなら封じられない（スペルが解決・trash ${trash0}→${trash}）` };
+    }
+    const settled = !st?.pendingSpell && !st?.pendingEffect && !(st?.stackLen > 0);
+    if (settled && s >= 8) {
+      return expectBlocked
+        ? { pass: true, detail: `ルリグタイプ2つ＝スペルが使用できない（trash ${trash0}→${trash} 使用ログ無し・${used ? 'クリックは通した' : 'クリック対象も出ない'}）` }
+        : { pass: false, detail: `対照なのにスペルが使えない（trash ${trash0}→${trash}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（trash ${trash0}→${fin?.host?.trash ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
+}
+
 const scenarios = {
+  // §5.3 `O-194`（2026-09-02）＝新条件型2つの実機観測点。**型を足した回は実機まで必須**（PLAN §2.2）。
+  //   どちらも「条件が丸ごと落ちて無条件に効いていた」過剰実行の是正なので、
+  //   **成立する腕と成立しない腕の2本**を必ず並べる（片腕だけだと旧挙動と区別できない）。
+  o194trapSame: {
+    title: 'O-194 WD23-039-A: 同じシグニゾーンの【トラップ】で基本パワー5000（SAME_ZONE_HAS_TRAP）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [['WD23-039-A#1'], null, null],
+        'field.signi_traps': ['WD23-039-A#2', null, null],   // 効果元と同じ zi=0
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    drive: (page, H) => driveO194Trap(page, H, true),
+  },
+  o194trapOther: {
+    title: 'O-194 対照: 別ゾーンの【トラップ】では印刷パワー2000のまま',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [['WD23-039-A#1'], null, null],
+        'field.signi_traps': [null, null, 'WD23-039-A#2'],   // 隣の zi=2
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    drive: (page, H) => driveO194Trap(page, H, false),
+  },
+  o194lrigType2: {
+    title: 'O-194 PR-472: 相手センタールリグのルリグタイプ2つ＝スペル使用不可（LRIG_TYPE_COUNT）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [null, null, null],
+      },
+      guestSet: {
+        'field.lrig': ['WX02-009#1'],                 // 花代/ユヅキ＝ルリグタイプ2つ
+        'field.signi': [['PR-472#1'], null, null],    // 禁止は host（自分）へ掛かる
+      },
+      handPrepend: ['WD01-018#1'],                    // 噴流する知識《無×0》「カードを1枚引く」
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    drive: (page, H) => driveO194LrigType(page, H, true),
+  },
+  o194lrigType1: {
+    title: 'O-194 対照: 相手センタールリグのルリグタイプ1つならスペルは使える',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [null, null, null],
+      },
+      guestSet: {
+        'field.lrig': ['WD02-004#1'],                 // 花代＝ルリグタイプ1つ
+        'field.signi': [['PR-472#1'], null, null],
+      },
+      handPrepend: ['WD01-018#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    drive: (page, H) => driveO194LrigType(page, H, false),
+  },
+
   // ① WXK09-050: 【出】CHOOSE①でバフ済み＜電機＞シグニに「ダウンしない」付与（既存・実証済み）。
   wxk09050: {
     title: 'WXK09-050 コードアート Ｒ・Ｌ・Ｃ（SIGNI_GRANT_CHOSEN_ABILITY）',

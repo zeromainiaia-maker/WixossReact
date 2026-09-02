@@ -1611,6 +1611,44 @@ function parseActiveCondition(text: string): ConditionParseResult {
     condition: { type: 'HAS_TRAP_IN_FIELD', owner: fieldTrapM[1] === '対戦相手' ? 'opponent' : 'self' },
     rest: text.slice(fieldTrapM[0].length), conditionFound: true,
   };
+  // 🆕§5.3 `O-194`＝「あなたの場にあるシグニの下にカードがあるかぎり、」（`WXDi-P15-060-E1`）。
+  // 受け皿は `TargetFilter.hasUnderCards`（両評価器＝`matchesStateFilter`／`fieldCandidates` に配線済み）。
+  // ⚠**「このシグニの下に」は別規則**（`THIS_CARD_HAS_UNDER`＝効果元自身）＝ここは**場のどれか**のシグニ。
+  const fieldUnderCardsM = text.match(/^(あなた|対戦相手)の場にあるシグニの下にカードがあるかぎり、/);
+  if (fieldUnderCardsM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldUnderCardsM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', hasUnderCards: true } },
+    rest: text.slice(fieldUnderCardsM[0].length), conditionFound: true,
+  };
+  // 🆕§5.3 `O-194`＝「あなたのルリグデッキがN枚(以下|以上)?であるかぎり、」（`WX13-034-E1`＝０枚）。
+  // 受け皿は `LRIG_DECK_COUNT`（ActiveCondition・Condition の両方に既存）。
+  const lrigDeckCountM = text.match(/^(あなた|対戦相手)のルリグデッキが([０-９\d]+)枚(以下|以上)?であるかぎり、/);
+  if (lrigDeckCountM) return {
+    condition: {
+      type: 'LRIG_DECK_COUNT',
+      owner: lrigDeckCountM[1] === '対戦相手' ? 'opponent' : 'self',
+      operator: lrigDeckCountM[3] === '以下' ? 'lte' : lrigDeckCountM[3] === '以上' ? 'gte' : 'eq',
+      value: parseNum(lrigDeckCountM[2]),
+    },
+    rest: text.slice(lrigDeckCountM[0].length), conditionFound: true,
+  };
+  // 🆕§5.3 `O-194`＝「このシグニと同じシグニゾーンに【トラップ】があるかぎり、」（`WD23-039-A-E1`）。
+  // ⚠**直上の `fieldTrapM`（場全体）より後ろに置かない**＝主語が違うので前方一致は競合しないが、
+  //   場全体の受け皿で代用すると隣ゾーンのトラップでも成立する（過剰実行）。
+  if (text.startsWith('このシグニと同じシグニゾーンに【トラップ】があるかぎり、')) return {
+    condition: { type: 'SAME_ZONE_HAS_TRAP' },
+    rest: text.slice('このシグニと同じシグニゾーンに【トラップ】があるかぎり、'.length), conditionFound: true,
+  };
+  // 🆕§5.3 `O-194`＝「あなたのセンタールリグのルリグタイプがN(つ|種類)以上であるかぎり、」（`PR-472-E2`）。
+  const lrigTypeCountM = text.match(/^(あなた|対戦相手)のセンタールリグのルリグタイプが([０-９\d]+)(?:つ|種類)(以上|以下)?であるかぎり、/);
+  if (lrigTypeCountM) return {
+    condition: {
+      type: 'LRIG_TYPE_COUNT',
+      owner: lrigTypeCountM[1] === '対戦相手' ? 'opponent' : 'self',
+      operator: lrigTypeCountM[3] === '以下' ? 'lte' : lrigTypeCountM[3] === '以上' ? 'gte' : 'eq',
+      value: parseNum(lrigTypeCountM[2]),
+    },
+    rest: text.slice(lrigTypeCountM[0].length), conditionFound: true,
+  };
   const fieldDriveM = text.match(/^(あなた|対戦相手)の場にドライブ状態のシグニがあるかぎり、/);
   if (fieldDriveM) return {
     condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldDriveM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isDrive: true } },

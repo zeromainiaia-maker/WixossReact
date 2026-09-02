@@ -24328,11 +24328,11 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 67, 'ActiveCondition の型数（67＝2026-09-02 §5.3 `O-84` で LIFE_COUNT を ActiveCondition 側へ追加＝「あなたのライフクロスが2枚以下の場合」。Condition 側には元から在り、片側だけ育っていた＝§5-2‴ の再発）');
+  eq(Object.keys(AC_TYPES).length, 69, 'ActiveCondition の型数（69＝2026-09-02 §5.3 `O-194` で `SAME_ZONE_HAS_TRAP`（このシグニと同じシグニゾーンに【トラップ】があるかぎり）と `LRIG_TYPE_COUNT`（センタールリグのルリグタイプ数）を**両 union へ同時に**追加。67＝同日 `O-84` の LIFE_COUNT）');
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
-  eq(Object.keys(C_TYPES).length, 145, 'Condition の型数（145＝続き759 で REFRESH_COUNT_THIS_TURN を追加）');
+  eq(Object.keys(C_TYPES).length, 147, 'Condition の型数（147＝2026-09-02 §5.3 `O-194` で `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT` を追加。145＝続き759 の REFRESH_COUNT_THIS_TURN）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -61594,6 +61594,121 @@ test('索引C 2026-09-02: O-205 は stale＝lrigAttackNoDamage は非ガード�
   eq(eff.triggerCondition?.lrigAttackNoDamage, true, 'ダメージ無しの条件が載っている');
   ok(eff.timing?.includes('ON_GUARD'), 'legacy timing は ON_GUARD のまま（collector が両経路を面倒みる）');
 });
+
+test('索引A 2026-09-02: O-194 【常】の「〜であるかぎり」＝条件が丸ごと落ちていた6効果', () => {
+  // 🔑登録票の「68効果」は失効＝下位分類 (a)〜(f)（レベル合計比較／N種類以上／否定形／【チャーム】数／
+  //   相手手札ちょうどN／【ソウル】）は**全部すでに実装済み**だった（`FIELD_LEVEL_SUM` / `TRASH_HAS_CARD`
+  //   の `distinctName` / `ENERGY_COLOR_TYPES` / `COUNT_THRESHOLD` の `lt` / `IS_SELF_CHARMED` /
+  //   `IS_SELF_SOUL_ATTACHED`）。実測で残っていた真の穴だけをここで固定する。
+  // ⚠**5件は「条件が無い＝過剰実行」**（`WX08-025` だけは出撃制限が効かない＝過小実行）。
+  const cond = (cardNum: string, effectId: string) =>
+    mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+
+  // (1) `WX13-034-E1`＝「あなたのルリグデッキが０枚であるかぎり」が落ち、**常に**相手アーツの効果を受けなかった。
+  const e34 = cond('WX13-034', 'WX13-034-E1');
+  eq(e34.activeCondition?.type, 'LRIG_DECK_COUNT', 'WX13-034-E1 ルリグデッキ枚数条件');
+  eq((e34.activeCondition as { operator: string; value: number }).operator, 'eq', 'WX13-034-E1 eq');
+  eq((e34.activeCondition as { operator: string; value: number }).value, 0, 'WX13-034-E1 0枚');
+
+  // (2) `WXDi-P15-060-E1`＝「あなたの場にあるシグニの下にカードがあるかぎり」が落ち、**常に**＋4000。
+  //   ⚠受け皿は `TargetFilter.hasUnderCards`（**場のどれか**）＝効果元自身を見る `THIS_CARD_HAS_UNDER` ではない。
+  const e60 = cond('WXDi-P15-060', 'WXDi-P15-060-E1');
+  eq(e60.activeCondition?.type, 'HAS_CARD_IN_FIELD', 'WXDi-P15-060-E1 場の存在条件');
+  eq((e60.activeCondition as { filter?: { hasUnderCards?: boolean } }).filter?.hasUnderCards, true,
+    'WXDi-P15-060-E1 下にカードがある');
+
+  // (3) `PR-472-E2`＝「センタールリグのルリグタイプが２つ以上であるかぎり」が落ち、
+  //   **対戦相手がゲーム中ずっとスペルを使えなかった**（この巡で最も重い過剰実行）。
+  const e472 = cond('PR-472', 'PR-472-E2');
+  eq(e472.activeCondition?.type, 'LRIG_TYPE_COUNT', 'PR-472-E2 ルリグタイプ数条件');
+  eq((e472.activeCondition as { operator: string; value: number }).operator, 'gte', 'PR-472-E2 gte');
+  eq((e472.activeCondition as { operator: string; value: number }).value, 2, 'PR-472-E2 2つ');
+
+  // (4) `WD23-039-A-E1`＝「このシグニと同じシグニゾーンに【トラップ】があるかぎり」が落ち、**常に**基本パワー5000。
+  //   ⚠場全体を見る `HAS_TRAP_IN_FIELD` で代用してはいけない（隣ゾーンのトラップでも成立してしまう）。
+  const e039 = cond('WD23-039-A', 'WD23-039-A-E1');
+  eq(e039.activeCondition?.type, 'SAME_ZONE_HAS_TRAP', 'WD23-039-A-E1 同ゾーン【トラップ】条件');
+
+  // (5) `WX08-025-E1`＝出撃制限の条件が未対応語彙で **permissive（恒久 no-op）** に落ちており、
+  //   クロス状態のシグニが1体も無くても普通に召喚できた（live 唯一の inert な `SELF_PLAY_RESTRICT`）。
+  const e025 = cond('WX08-025', 'WX08-025-E1');
+  const spr = e025.action as { type: string; condition?: { type: string; filter?: { crossState?: boolean } } };
+  eq(spr.type, 'SELF_PLAY_RESTRICT', 'WX08-025-E1 出撃制限');
+  eq(spr.condition?.type, 'HAS_CARD_IN_FIELD', 'WX08-025-E1 machine 条件が付いている');
+  eq(spr.condition?.filter?.crossState, true, 'WX08-025-E1 クロス状態のシグニ');
+
+  // (6) `WXDi-P16-090-E1`＝【チーム常】の**2文目**の「かぎり」節が落ち、シャドウが常時付いていた。
+  //   同型（2文目を `-E1b` へ切り出す）は `WX26-CP1-059` / `WXDi-P01-049` / `WXDi-P08-048` / `WX21-015`
+  //   で既に確立済みの規約＝ここも同じ形へ揃える。
+  const e090 = cond('WXDi-P16-090', 'WXDi-P16-090-E1');
+  eq(e090.action.type, 'POWER_MODIFY_PER_LRIG_LEVEL', 'WXDi-P16-090-E1 は1文目だけを持つ');
+  const e090b = cond('WXDi-P16-090', 'WXDi-P16-090-E1b');
+  eq(e090b.action.type, 'GRANT_KEYWORD', 'WXDi-P16-090-E1b は2文目の帰結');
+  const and090 = e090b.activeCondition as { type: string; conditions: { type: string; value?: number }[] };
+  eq(and090.type, 'AND', 'WXDi-P16-090-E1b はチーム条件と合計条件の AND');
+  ok(and090.conditions.some(c => c.type === 'LRIG_TEAM_COUNT'), 'WXDi-P16-090-E1b 【チーム常】が両方に掛かる');
+  ok(and090.conditions.some(c => c.type === 'FIELD_LEVEL_SUM' && c.value === 7),
+    'WXDi-P16-090-E1b ルリグレベル合計が7');
+});
+
+test('索引A 2026-09-02: O-194 新条件型 SAME_ZONE_HAS_TRAP / LRIG_TYPE_COUNT は両評価器で同じ答えを返す', () => withSavedCursor(() => {
+  // 🔴条件型には `STUB` の道が無い（`execUtils` の `COND_STUB` は `return true`＝無条件成立）ので、
+  //   **`checkActiveCondition`（ActiveCondition）と `evalCondition`（Condition）の両方**に同じ式を置く。
+  //   片方だけだと同じカードが文脈によって違う答えを返す（§4.2 の両評価器規約）。
+  const cm = cardMap as Map<string, CardData>;
+  const self = SIGNI_L2;
+
+  // ── SAME_ZONE_HAS_TRAP ──
+  const trapCond = { type: 'SAME_ZONE_HAS_TRAP' } as const;
+  const sameZone = mkState({ signi: [self, null, null] });
+  sameZone.field.signi_traps = [fresh(), null, null];          // 効果元と同じ zi=0 にトラップ
+  const otherZone = mkState({ signi: [self, null, null] });
+  otherZone.field.signi_traps = [null, null, fresh()];         // 隣の zi=2 にトラップ
+  const noTrap = mkState({ signi: [self, null, null] });
+  ok(checkActiveCondition(trapCond, sameZone, mkState({}), true, cm, self), '同じゾーンのトラップ → true');
+  ok(!checkActiveCondition(trapCond, otherZone, mkState({}), true, cm, self),
+    '別ゾーンのトラップでは成立しない（HAS_TRAP_IN_FIELD で代用してはいけない証拠）');
+  ok(!checkActiveCondition(trapCond, noTrap, mkState({}), true, cm, self), 'トラップ無し → false');
+  ok(!checkActiveCondition(trapCond, sameZone, mkState({}), true, cm, undefined),
+    '効果元が特定できないときは fail-closed');
+  // Condition 側（execUtils.evalCondition）も同じ3点
+  ok(evalCondition(trapCond, { ...mkCtx({}, {}, self), ownerState: sameZone }), '[Condition] 同じゾーン → true');
+  ok(!evalCondition(trapCond, { ...mkCtx({}, {}, self), ownerState: otherZone }), '[Condition] 別ゾーン → false');
+  ok(!evalCondition(trapCond, { ...mkCtx({}, {}, self), ownerState: noTrap }), '[Condition] トラップ無し → false');
+
+  // ── LRIG_TYPE_COUNT ──
+  // ルリグタイプは `CardClass` の `/`／`／` 区切り（例＝`タマ/イオナ` は2種）。
+  const lrig2 = findCard(c => c.Type === 'ルリグ' && /[/／]/.test(c.CardClass ?? ''));
+  const lrig1 = findCard(c => c.Type === 'ルリグ' && !!c.CardClass && !/[/／]/.test(c.CardClass));
+  const gte2 = { type: 'LRIG_TYPE_COUNT', owner: 'self', operator: 'gte', value: 2 } as const;
+  ok(checkActiveCondition(gte2, mkState({ lrig: [lrig2] }), mkState({}), true, cm, self), '2タイプのルリグ → true');
+  ok(!checkActiveCondition(gte2, mkState({ lrig: [lrig1] }), mkState({}), true, cm, self), '1タイプのルリグ → false');
+  ok(!checkActiveCondition(gte2, mkState({ lrig: [] }), mkState({}), true, cm, self),
+    'ルリグ不在は 0＝fail-closed（gte が成立しない側へ倒す）');
+  // owner:'opponent' は相手のセンタールリグを見る
+  const gte2Opp = { type: 'LRIG_TYPE_COUNT', owner: 'opponent', operator: 'gte', value: 2 } as const;
+  ok(checkActiveCondition(gte2Opp, mkState({ lrig: [lrig1] }), mkState({ lrig: [lrig2] }), true, cm, self),
+    'owner:opponent は相手側を見る');
+  // Condition 側も同じ
+  ok(evalCondition(gte2, mkCtx({ lrig: [lrig2] }, {}, self)), '[Condition] 2タイプ → true');
+  ok(!evalCondition(gte2, mkCtx({ lrig: [lrig1] }, {}, self)), '[Condition] 1タイプ → false');
+  ok(!evalCondition(gte2, mkCtx({ lrig: [] }, {}, self)), '[Condition] ルリグ不在 → false');
+}));
+
+test('索引A 2026-09-02: O-194 CONTINUOUS BLOCK_ACTION の条件評価に効果元が渡っている', () => withSavedCursor(() => {
+  // 🔴`calcContinuousBlockedActions` の `scanField` は `checkActiveCondition` に `sourceCardNum` を
+  //   渡していなかった＝`IS_SELF_*` / `SAME_ZONE_HAS_*` / `THIS_CARD_HAS_UNDER` のように**効果元自身を
+  //   見る条件が常に false** に落ち、その BLOCK_ACTION が恒久 no-op になる（過小実行）。
+  //   ⚠発見時の live 母集団は0（`WXEX2-11-E2` はルリグ札で `scanLrigBlocks` 側を通る）＝これは**再発防止**。
+  //   `PR-472-E2` はシグニ札の CONTINUOUS BLOCK_ACTION なので、この経路が条件を見ることを実挙動で確かめる。
+  const cm = cardMap as Map<string, CardData>;
+  const lrig2 = findCard(c => c.Type === 'ルリグ' && /[/／]/.test(c.CardClass ?? ''));
+  const lrig1 = findCard(c => c.Type === 'ルリグ' && !!c.CardClass && !/[/／]/.test(c.CardClass));
+  const withPR = (lrigNum: string) => calcContinuousBlockedActions(
+    mkState({ signi: ['PR-472', null, null], lrig: [lrigNum] }), mkState({}), true, effectsMap, cm);
+  ok(withPR(lrig2).forOther.has('USE_SPELL'), 'ルリグタイプ2つ → 相手はスペルを使えない');
+  ok(!withPR(lrig1).forOther.has('USE_SPELL'), 'ルリグタイプ1つ → 制限は掛からない（旧 live は常に掛かっていた）');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
