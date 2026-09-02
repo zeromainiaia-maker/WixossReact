@@ -657,118 +657,32 @@ export function execStubPart2(
     }
     return done(addLog(ctx, `パワー修正（公開${revealedCountPMPR}枚）`));
   }
-  // 自場チャーム数に基づくパワー修正
-  if (stub.id === 'POWER_BY_CHARM_COUNT') {
-    const srcPBCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPBCC = srcPBCC ? (srcPBCC.EffectText ?? '') + ' ' + (srcPBCC.BurstText ?? '') : '';
-    const toHWPBCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const charmCountPBCC = (ctx.ownerState.field.signi_charms ?? []).filter(c => c !== null && c !== undefined).length;
-    const perMPBCC = txtPBCC.match(/チャーム([０-９\d]*)(?:個|枚)?につき([－＋][０-９\d]+)/);
-    if (perMPBCC && charmCountPBCC > 0) {
-      const divisorPBCC = parseInt(toHWPBCC(perMPBCC[1] || '1')) || 1;
-      const deltaPBCC = parseInt(toHWPBCC(perMPBCC[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPBCC = Math.floor(charmCountPBCC / divisorPBCC) * deltaPBCC;
-      if (totalDeltaPBCC !== 0) {
-        const targetsPBCC = ctx.lastProcessedCards ?? [];
-        const modsPBCC = [...(ctx.otherState.temp_power_mods ?? [])];
-        if (targetsPBCC.length > 0) {
-          for (const cn of targetsPBCC) modsPBCC.push({ cardNum: cn, delta: totalDeltaPBCC });
-        } else {
-          for (let zi = 0; zi < 3; zi++) {
-            const top = ctx.otherState.field.signi[zi]?.at(-1);
-            if (top) modsPBCC.push({ cardNum: top, delta: totalDeltaPBCC });
-          }
-        }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBCC } },
-          `パワー${totalDeltaPBCC > 0 ? '+' : ''}${totalDeltaPBCC}（チャーム${charmCountPBCC}個）`));
-      }
-    }
-    return done(addLog(ctx, `パワー修正（チャーム${charmCountPBCC}個）`));
-  }
-  // エナゾーンの色の種類数に基づくパワー修正
-  if (stub.id === 'POWER_BY_ENERGY_COLOR_VARIETY') {
-    const srcPBECV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPBECV = srcPBECV ? (srcPBECV.EffectText ?? '') + ' ' + (srcPBECV.BurstText ?? '') : '';
-    const toHWPBECV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const energyColorSetPBECV = new Set<string>();
-    for (const cn of ctx.ownerState.energy) {
-      const colors = splitColors(ctx.cardMap.get(cn)?.Color);
-      for (const col of colors) energyColorSetPBECV.add(col);
-    }
-    const varietyPBECV = energyColorSetPBECV.size;
-    const perMPBECV = txtPBECV.match(/エナゾーン.*?色の種類([０-９\d]*)(?:色|つ)?につき([－＋][０-９\d]+)/);
-    if (perMPBECV && varietyPBECV > 0) {
-      const divisorPBECV = parseInt(toHWPBECV(perMPBECV[1] || '1')) || 1;
-      const deltaPBECV = parseInt(toHWPBECV(perMPBECV[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPBECV = Math.floor(varietyPBECV / divisorPBECV) * deltaPBECV;
-      if (totalDeltaPBECV !== 0) {
-        const targetsPBECV = ctx.lastProcessedCards ?? [];
-        const modsPBECV = [...(ctx.otherState.temp_power_mods ?? [])];
-        if (targetsPBECV.length > 0) {
-          for (const cn of targetsPBECV) modsPBECV.push({ cardNum: cn, delta: totalDeltaPBECV });
-        } else {
-          for (let zi = 0; zi < 3; zi++) {
-            const top = ctx.otherState.field.signi[zi]?.at(-1);
-            if (top) modsPBECV.push({ cardNum: top, delta: totalDeltaPBECV });
-          }
-        }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBECV } },
-          `パワー${totalDeltaPBECV > 0 ? '+' : ''}${totalDeltaPBECV}（エナ色種類${varietyPBECV}）`));
-      }
-    }
-    return done(addLog(ctx, `パワー修正（エナ色種類${varietyPBECV}）`));
-  }
-  // 自場ライズシグニ数に基づくパワー修正（スタック2枚以上のシグニ）
-  if (stub.id === 'POWER_BY_RISE_SIGNI_COUNT') {
-    const srcPBRSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPBRSC = srcPBRSC ? (srcPBRSC.EffectText ?? '') + ' ' + (srcPBRSC.BurstText ?? '') : '';
-    const toHWPBRSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const riseCountPBRSC = ctx.ownerState.field.signi.filter(s => (s?.length ?? 0) >= 2).length;
-    const perMPBRSC = txtPBRSC.match(/ライズシグニ([０-９\d]*)体?につき([－＋][０-９\d]+)/);
-    if (perMPBRSC && riseCountPBRSC > 0) {
-      const divisorPBRSC = parseInt(toHWPBRSC(perMPBRSC[1] || '1')) || 1;
-      const deltaPBRSC = parseInt(toHWPBRSC(perMPBRSC[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPBRSC = Math.floor(riseCountPBRSC / divisorPBRSC) * deltaPBRSC;
-      if (totalDeltaPBRSC !== 0) {
-        const targetsPBRSC = ctx.lastProcessedCards ?? [];
-        const modsPBRSC = [...(ctx.otherState.temp_power_mods ?? [])];
-        if (targetsPBRSC.length > 0) {
-          for (const cn of targetsPBRSC) modsPBRSC.push({ cardNum: cn, delta: totalDeltaPBRSC });
-        } else {
-          for (let zi = 0; zi < 3; zi++) {
-            const top = ctx.otherState.field.signi[zi]?.at(-1);
-            if (top) modsPBRSC.push({ cardNum: top, delta: totalDeltaPBRSC });
-          }
-        }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBRSC } },
-          `パワー${totalDeltaPBRSC > 0 ? '+' : ''}${totalDeltaPBRSC}（ライズシグニ${riseCountPBRSC}体）`));
-      }
-    }
-    return done(addLog(ctx, `パワー修正（ライズシグニ${riseCountPBRSC}体）`));
-  }
-  // 相手同ゾーン（前）シグニのレベルに基づくパワー修正
-  if (stub.id === 'POWER_MOD_BY_FRONT_LEVEL') {
-    const srcPMFLL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMFLL = srcPMFLL ? (srcPMFLL.EffectText ?? '') + ' ' + (srcPMFLL.BurstText ?? '') : '';
-    const toHWPMFLL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcZoneFLL = ctx.sourceCardNum
-      ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
-      : -1;
-    const frontCnFLL = srcZoneFLL >= 0 ? ctx.otherState.field.signi[srcZoneFLL]?.at(-1) : undefined;
-    const frontLvFLL = parseInt(ctx.cardMap.get(frontCnFLL ?? '')?.Level ?? '0') || 0;
-    const perMPMFLL = txtPMFLL.match(/前.*?シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
-    if (perMPMFLL && frontLvFLL > 0) {
-      const divisorPMFLL = parseInt(toHWPMFLL(perMPMFLL[1] || '1')) || 1;
-      const deltaPMFLL = parseInt(toHWPMFLL(perMPMFLL[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPMFLL = Math.floor(frontLvFLL / divisorPMFLL) * deltaPMFLL;
-      if (totalDeltaPMFLL !== 0 && ctx.sourceCardNum) {
-        const modsFLL = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalDeltaPMFLL }];
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsFLL } },
-          `パワー${totalDeltaPMFLL > 0 ? '+' : ''}${totalDeltaPMFLL}（前シグニLv${frontLvFLL}）`));
-      }
-    }
-    return done(addLog(ctx, `パワー修正（前シグニLv${frontLvFLL}）`));
-  }
+  // 🏁**`POWER_BY_CHARM_COUNT` は撤去した**（2026-09-03 §5.3 `O-60` 第29バッチ）。
+  //   旧実装は `EffectText + BurstText` に `/チャーム(\d*)(?:個|枚)?につき([－＋]\d+)/` を当てて単価を読み、
+  //   🔴**自分の場のチャームしか数えず**（原文「**場にある**」＝両者）、しかも修正先を
+  //   **対戦相手のシグニ**へ積んでいた（原文は「**この**シグニのパワーは」＝真逆）。
+  //   いまは parser が typed `POWER_MODIFY_PER_CHARM{sourceOwner:'any', sourceLocation:'field'}` を出し、
+  //   `calcFieldPowers` の CONTINUOUS 経路が解く（受け皿は live 3効果で先に稼働していた）。
+
+  // 🏁**`POWER_BY_ENERGY_COLOR_VARIETY` は撤去した**（2026-09-03 §5.3 `O-60` 第30バッチ）。
+  //   旧実装は `EffectText + BurstText` の regex で単価を読み、**色の限定は一切見ずに5色すべて**を数えていた
+  //   （`WXK11-063` の原文は「**白、赤、緑、黒**の色１種類につき」＝**青を数えない**＝1色ぶん過剰）。
+  //   いまは parser が typed `POWER_MODIFY_PER_ENERGY_COLOR{colors:[…]}` を出し、
+  //   `calcFieldPowers` の CONTINUOUS 経路が解く（受け皿は同型5効果で先に稼働していた）。
+
+  // 🏁**`POWER_BY_RISE_SIGNI_COUNT` は撤去した**（2026-09-03 §5.3 `O-60` 第31バッチ）。
+  //   旧実装は ①`EffectText` に「ライズシグニ…体につき」（**実在しない綴り**）を当てて単価を読み
+  //   ②数える対象を「**スタックが2枚以上のゾーン**」で近似（《ライズアイコン》の有無を見ていない）
+  //   ③修正先を**対戦相手のシグニ**に積んでいた（原文は「**この**シグニのパワーは」＝真逆）。
+  //   いまは parser が typed `POWER_MODIFY_PER_FIELD{countFilter:{hasRiseIcon:true}}` を出す。
+
+  // 🏁**`POWER_MOD_BY_FRONT_LEVEL` は撤去した**（2026-09-03 §5.3 `O-60` 第32バッチ）。
+  //   旧実装は `EffectText` の regex で単価を読むだけでなく、**2つとも裏返して**いた＝
+  //   ①正面ゾーンを `otherState.field.signi[zi]`（**同じ添字**）で引いていた（正面は `2 - zi`）
+  //   ②修正先を**効果元自身**に積んでいた（原文は「この**シグニの正面のシグニ**のパワーを」）。
+  //   いまは parser が `POWER_MODIFY{filter:{frontOfSelf:true}, deltaPerTargetLevel:true}` を出し、
+  //   `calcFieldPowers` の `frontOfSelf` 分岐が**正面シグニ自身のレベル**を掛ける。
+
   // 🏁**`INFECTED_SIGNI_POWER_DOWN_BY_LEVEL` は撤去した**（2026-09-03 §5.3 `O-60` 第25バッチ）。
   //   旧実装は `EffectText + BurstText` に `/ウイルス.*?シグニのレベル(\d*)につき([－＋]\d+)/` を当てていたが、
   //   原文は「**感染状態**のシグニ」なので**1本も当たらず**、当たった場合でも
@@ -1246,11 +1160,14 @@ export function execStubPart2(
   if (stub.id === 'OPP_SIGNI_TO_DECK_NTH') {
     const targetOSTDN = (ctx.lastProcessedCards ?? [])[0];
     if (!targetOSTDN) return done(addLog(ctx, '対象なし（OPP_SIGNI_TO_DECK_NTH）'));
-    const srcOSTDN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOSTDN = srcOSTDN ? (srcOSTDN.EffectText ?? '') + ' ' + (srcOSTDN.BurstText ?? '') : '';
-    const toHWOSTDN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const nthMOSTDN = txtOSTDN.match(/デッキの上から([０-９\d]*)番目/);
-    const nthOSTDN = nthMOSTDN ? (parseInt(toHWOSTDN(nthMOSTDN[1])) - 1) : 0;
+    // 🆕**§5.3 `O-60` 第36バッチ（2026-09-03）＝位置は payload（`oppSigniToDeckNth.position`）で受け取る。**
+    // 🔴旧実装は `EffectText + BurstText` に `/デッキの上から([０-９\d]*)番目/` を当てていたが、
+    //   原文は「**三**番目」＝**漢数字**なので当たらず、`nth` が **0（＝一番上）** に落ちていた
+    //   （＝「デッキの奥へ送る」意図と真逆に、次のドローで戻ってくる位置に置いていた）。
+    // ⚠**payload が無ければ何もしない**（fail-closed）。
+    const posOSTDN = stub.oppSigniToDeckNth?.position;
+    if (posOSTDN === undefined) return done(addLog(ctx, 'デッキN番目に置く：位置が無いため何もしない'));
+    const nthOSTDN = posOSTDN - 1;
     const removedOSTDN = removeFromField(targetOSTDN, ctx.otherState);
     const newOtherDeckOSTDN = [...removedOSTDN.deck];
     newOtherDeckOSTDN.splice(Math.max(0, nthOSTDN), 0, targetOSTDN);
@@ -1621,30 +1538,37 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerNLTLT },
       `${ctx.cardMap.get(target)?.CardName ?? target}→ルリグトラッシュ`));
   }
-  // フィールドの全シグニの名前が一致するカードをエナ・フィールドからトラッシュ
+  // TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY: 対戦相手の場／エナから「カード名に《X》を含む」カードを一掃
+  // 🆕**§5.3 `O-60` 第34バッチ（2026-09-03）＝カード名とゾーンは payload で受け取る。**
+  // 🔴旧実装は `/「([^」]+)」/`（**かぎ括弧**）で名前を取ろうとしていたが、原文の綴りは《》なので
+  //   **1本も当たらず恒久 no-op** だった。さらに照合が**完全一致**で、原文の「**含む**」（部分一致）と別物。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY') {
-    const srcTABN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTABN = srcTABN ? (srcTABN.EffectText ?? '') + ' ' + (srcTABN.BurstText ?? '') : '';
-    const nameMTABN = txtTABN.match(/「([^」]+)」/);
-    const targetNameTABN = nameMTABN?.[1];
-    if (!targetNameTABN) return done(addLog(ctx, '対象名称なし（TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY）'));
+    const specTABN = stub.trashAllByName;
+    if (!specTABN) return done(addLog(ctx, '名前一致の一掃：対象の指定が無いため何もしない'));
+    const hitTABN = (cn: string) => (ctx.cardMap.get(getCardNum(cn))?.CardName ?? '').includes(specTABN.nameContains);
     let newOtherTABN = ctx.otherState;
-    // 相手フィールドから
-    for (let zi = 0; zi < 3; zi++) {
-      const top = newOtherTABN.field.signi[zi]?.at(-1);
-      if (!top || (ctx.cardMap.get(top)?.CardName ?? '') !== targetNameTABN) continue;
-      const removedTABN = removeFromField(top, newOtherTABN);
-      newOtherTABN = { ...removedTABN, trash: [...removedTABN.trash, top] };
+    let countTABN = 0;
+    if (specTABN.zones.includes('field')) {
+      for (let zi = 0; zi < 3; zi++) {
+        const top = newOtherTABN.field.signi[zi]?.at(-1);
+        if (!top || !hitTABN(top)) continue;
+        const removedTABN = removeFromField(top, newOtherTABN);
+        newOtherTABN = { ...removedTABN, trash: [...removedTABN.trash, top] };
+        countTABN++;
+      }
     }
-    // 相手エナから
-    const enaToTrashTABN = newOtherTABN.energy.filter(cn => (ctx.cardMap.get(cn)?.CardName ?? '') === targetNameTABN);
-    newOtherTABN = {
-      ...newOtherTABN,
-      energy: newOtherTABN.energy.filter(cn => (ctx.cardMap.get(cn)?.CardName ?? '') !== targetNameTABN),
-      trash: [...newOtherTABN.trash, ...enaToTrashTABN],
-    };
+    if (specTABN.zones.includes('energy')) {
+      const enaToTrashTABN = newOtherTABN.energy.filter(hitTABN);
+      countTABN += enaToTrashTABN.length;
+      newOtherTABN = {
+        ...newOtherTABN,
+        energy: newOtherTABN.energy.filter(cn => !hitTABN(cn)),
+        trash: [...newOtherTABN.trash, ...enaToTrashTABN],
+      };
+    }
     return done(addLog({ ...ctx, otherState: newOtherTABN },
-      `「${targetNameTABN}」を相手フィールド・エナからトラッシュ`));
+      `カード名に《${specTABN.nameContains}》を含むカード${countTABN}枚を対戦相手の${specTABN.zones.join('・')}からトラッシュ`));
   }
   // === バッチ4: デッキ/手札/エナ操作 ===
   // DRAW: N枚ドロー
@@ -2056,21 +1980,12 @@ export function execStubPart2(
       `${ctx.cardMap.get(keyCardLTKCU)?.CardName ?? keyCardLTKCU}をセンタールリグの下に`));
   }
   // === バッチ6: パワー補足・ウィルス・条件移動 ===
-  // POWER_CAP: シグニのパワーをN以下に制限
-  if (stub.id === 'POWER_CAP') {
-    const srcPC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPC = srcPC ? (srcPC.EffectText ?? '') + ' ' + (srcPC.BurstText ?? '') : '';
-    const toHWPC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mPC = txtPC.match(/パワーが?([０-９\d,，]+)以下/);
-    if (!mPC || !ctx.sourceCardNum) return done(addLog(ctx, 'パワー上限解析失敗'));
-    const capPC = parseInt(toHWPC(mPC[1]).replace(/[,，]/g, ''));
-    const currentPowerPC = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? 0;
-    if (currentPowerPC <= capPC) return done(addLog(ctx, `パワー上限${capPC}以下のため修正なし`));
-    const deltaPC = capPC - currentPowerPC;
-    const modsPC = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPC }];
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPC } },
-      `パワー上限${capPC}に制限（${deltaPC}）`));
-  }
+  // 🏁**`POWER_CAP` のここのハンドラは撤去した**（2026-09-03 §5.3 `O-60` 第33バッチ）。
+  //   これは**【常】の宣言型**で、実際に効くのは `effectEngine.calcFieldPowers` の `applyCaps`（payload を読む）。
+  // 🔴旧実装は `EffectText + BurstText` に `/パワーが?(\d+)以下/` を当てていたが、原文は
+  //   「パワーは30000**より大きくならない**」なので**1本も当たらず**、当たった場合でも
+  //   `temp_power_mods` に差分を焼き込む＝**【常】の上限が一度きりの補正に化ける**形だった。
+
   // POWER_COPY_FROM_DOWNED: ダウンしたシグニのパワーを自シグニに加算
   if (stub.id === 'POWER_COPY_FROM_DOWNED') {
     if (!ctx.sourceCardNum) return done(ctx);
@@ -2357,35 +2272,29 @@ export function execStubPart2(
     const newSBFG: PlayerState = { ...removedBFG, lrig_trash: [...removedBFG.lrig_trash, cnBFG] };
     return done(addLog(setOwnerState(ownerBFG, newSBFG, ctx), `${ctx.cardMap.get(cnBFG)?.CardName ?? cnBFG}をゲームから除外`));
   }
-  // TRASH_ALL_OPP_CARDS: 相手エナから名前一致カードをすべてトラッシュへ
+  // TRASH_ALL_OPP_CARDS: 対戦相手の指定ゾーンにあるカードをすべてトラッシュへ
+  // 🆕**§5.3 `O-60` 第34バッチ（2026-09-03）＝対象ゾーンは payload（`trashAllOppZones`）で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/《X》を含むすべてのカードをトラッシュに置く/` を当てて
+  //   **カード名一致のエナ限定トラッシュ**へ分岐し、外れると「場＋手札」だけの fallback へ落ちていた
+  //   ＝原文（`WXK11-047`）にある**エナゾーンが丸ごと落ちる**過少実行だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'TRASH_ALL_OPP_CARDS') {
-    const srcTAOC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTAOC = srcTAOC ? (srcTAOC.EffectText ?? '') + ' ' + (srcTAOC.BurstText ?? '') : '';
-    const nameMatchTAOC = txtTAOC.match(/《([^》]+)》を含むすべてのカードをトラッシュに置く/);
-    const targetNameTAOC = nameMatchTAOC?.[1];
-    if (targetNameTAOC) {
-      const toTrashTAOC = ctx.otherState.energy.filter(cn =>
-        (ctx.cardMap.get(cn)?.CardName ?? '').includes(targetNameTAOC),
-      );
-      if (toTrashTAOC.length === 0) return done(addLog(ctx, `相手エナに「${targetNameTAOC}」なし`));
-      const newOtherTAOC: PlayerState = {
-        ...ctx.otherState,
-        energy: ctx.otherState.energy.filter(cn => !(ctx.cardMap.get(cn)?.CardName ?? '').includes(targetNameTAOC)),
-        trash: [...ctx.otherState.trash, ...toTrashTAOC],
-      };
-      return done(addLog({ ...ctx, otherState: newOtherTAOC },
-        `相手エナから「${targetNameTAOC}」${toTrashTAOC.length}枚→トラッシュ`));
-    }
-    // フォールバック: 相手の全フィールド+手札をトラッシュへ
+    const zonesTAOC = stub.trashAllOppZones;
+    if (!zonesTAOC?.length) return done(addLog(ctx, '相手カードの一掃：対象ゾーンが無いため何もしない'));
     let sOppTAOC = ctx.otherState;
-    const toTrashFbTAOC: string[] = [];
-    const newSigniTAOC = sOppTAOC.field.signi.map(stack => {
-      if (stack && stack.length > 0) { toTrashFbTAOC.push(...stack); return null; }
-      return stack;
-    }) as (string[] | null)[];
-    toTrashFbTAOC.push(...sOppTAOC.hand);
-    sOppTAOC = { ...sOppTAOC, field: { ...sOppTAOC.field, signi: newSigniTAOC }, hand: [], trash: [...sOppTAOC.trash, ...toTrashFbTAOC] };
-    return done(addLog({ ...ctx, otherState: sOppTAOC }, `相手の${toTrashFbTAOC.length}枚をトラッシュへ`));
+    const toTrashTAOC: string[] = [];
+    if (zonesTAOC.includes('field')) {
+      const newSigniTAOC = sOppTAOC.field.signi.map(stack => {
+        if (stack && stack.length > 0) { toTrashTAOC.push(...stack); return null; }
+        return stack;
+      }) as (string[] | null)[];
+      sOppTAOC = { ...sOppTAOC, field: { ...sOppTAOC.field, signi: newSigniTAOC } };
+    }
+    if (zonesTAOC.includes('hand')) { toTrashTAOC.push(...sOppTAOC.hand); sOppTAOC = { ...sOppTAOC, hand: [] }; }
+    if (zonesTAOC.includes('energy')) { toTrashTAOC.push(...sOppTAOC.energy); sOppTAOC = { ...sOppTAOC, energy: [] }; }
+    sOppTAOC = { ...sOppTAOC, trash: [...sOppTAOC.trash, ...toTrashTAOC] };
+    return done(addLog({ ...ctx, otherState: sOppTAOC },
+      `対戦相手の${zonesTAOC.join('・')}から${toTrashTAOC.length}枚をトラッシュへ`));
   }
   // ABILITY_CHECK_ELSE_TRASH: 「それを手札に戻す。**それ**が能力を持たない場合、代わりにそれをトラッシュに置く」
   // （`WX25-P3-038`／`WX25-P3-069`／`WX25-P3-072`／`WX25-P3-073` の4カード＝いずれも直前ステップが BOUNCE）。

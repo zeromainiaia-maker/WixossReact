@@ -1204,6 +1204,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- エナ色種類比例パワー修正（CONTINUOUS: エナの色の種類N種につき±M）----
   {
+    // 🆕§5.3 `O-60` 第30バッチ（2026-09-03）＝**数える色を列挙する形**もここで解く。
+    //   `WXK11-063`「…が持つ**白、赤、緑、黒**の色１種類につき＋1000される」＝**青を数えない**。
+    //   旧 `STUB{POWER_BY_ENERGY_COLOR_VARIETY}` は engine が原文 regex で単価を読み、
+    //   **色の限定は一切見ずに5色すべて**を数えていた（1色ぶん過剰）。
+    const perColorListM = t.match(/このシグニのパワーはあなたのエナゾーンにあるカードが持つ([白赤青緑黒](?:[、と][白赤青緑黒])+)の色([０-９\d]+)種類につき([＋－])([０-９\d]+)される/);
+    if (perColorListM) {
+      const signL = perColorListM[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_ENERGY_COLOR',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerColor: signL * parseNum(perColorListM[4]),
+        energyOwner: 'self',
+        colors: perColorListM[1].split(/[、と]/).filter(Boolean),
+      } as PowerModifyPerEnergyColorAction;
+    }
     const perColorM = t.match(/このシグニのパワーはあなたのエナゾーンにあるカードが持つ色の種類([０-９\d]+)つにつき([＋－])([０-９\d]+)される/);
     if (perColorM) {
       const sign = perColorM[2] === '＋' ? 1 : -1;

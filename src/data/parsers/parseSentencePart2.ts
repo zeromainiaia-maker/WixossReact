@@ -2,6 +2,8 @@ import type {
   EffectAction,
   EffectTarget,
   PowerModifyAction,
+  PowerModifyPerCharmAction,
+  PowerModifyPerFieldAction,
   TargetFilter,
   Owner,
   SequenceAction,
@@ -746,8 +748,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- ルリグアタックで特定カード名をすべてトラッシュ ----
-  if (t.match(/対戦相手の場とエナゾーンからカード名に.*を含むすべてのカードをトラッシュに置く/)) {
-    return { type: 'STUB', id: 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY' } as StubAction;
+  // 🆕§5.3 `O-60` 第34バッチ（2026-09-03）＝**カード名とゾーンを payload で運ぶ**。
+  //   旧実装は engine が `/「([^」]+)」/`（**かぎ括弧**）で名前を取ろうとしており、原文の綴りは《》なので
+  //   **1本も当たらず恒久 no-op** だった（照合も完全一致で「含む」と別物）。
+  const trashByNameM = t.match(/対戦相手の場とエナゾーンからカード名に《([^》]+)》を含むすべてのカードをトラッシュに置く/);
+  if (trashByNameM) {
+    return {
+      type: 'STUB', id: 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY',
+      trashAllByName: { nameContains: trashByNameM[1], zones: ['field', 'energy'] },
+    } as StubAction;
   }
 
   // ---- スペルを制限なし・コスト0で使用 ----
@@ -928,8 +937,25 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- チャーム枚数でパワーアップ ----
-  if (t.match(/このシグニのパワーは.*【チャーム】.*枚につき[＋+]/)) {
-    return { type: 'STUB', id: 'POWER_BY_CHARM_COUNT' } as StubAction;
+  // 🆕§5.3 `O-60` 第29バッチ（2026-09-03）＝**typed `POWER_MODIFY_PER_CHARM` へ寄せた**（STUB は撤去）。
+  // 🔴旧 `STUB{POWER_BY_CHARM_COUNT}` は engine が原文 regex で単価を読み、さらに
+  //   **自分の場のチャームしか数えず**（原文「**場にある**」＝両者）、修正先も
+  //   **対戦相手のシグニ**に積んでいた（原文は「**この**シグニのパワーは」＝真逆）。
+  // 🔑同型の受け皿は live に3効果（`WX08-031` ほか）で稼働中＝新設ゼロ。
+  const selfPowerPerCharmM = t.match(/このシグニのパワーは(あなたの場|対戦相手の場|場)にある【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)される/);
+  if (selfPowerPerCharmM) {
+    const sign = selfPowerPerCharmM[3] === '＋' ? 1 : -1;
+    const scope = selfPowerPerCharmM[1];
+    return {
+      type: 'POWER_MODIFY_PER_CHARM',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      deltaPerCharm: sign * parseNum(selfPowerPerCharmM[4]),
+      // 「場にある」＝所有者を問わない（両者の場のチャームを数える）。
+      sourceOwner: (scope === 'あなたの場' ? 'self' : scope === '対戦相手の場' ? 'opponent' : 'any') as Owner,
+      sourceLocation: 'field',
+      // ⚠**`until` を書かない**＝`extractPowerModifiesPerCharm` は `until` があると ACTIVATED 扱いにして
+      //   CONTINUOUS 経路から外す（書くと恒久 no-op になる）。
+    } as PowerModifyPerCharmAction;
   }
 
   // ---- 《ライズアイコン_黒》を持つシグニが場に出たとき ----
@@ -1245,8 +1271,23 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 《ライズアイコン》を持つシグニのパワーに比例 ----
-  if (t.match(/このシグニのパワーはあなたの場にある《ライズアイコン》を持つシグニ.*につき[＋+]/)) {
-    return { type: 'STUB', id: 'POWER_BY_RISE_SIGNI_COUNT' } as StubAction;
+  // 🆕§5.3 `O-60` 第31バッチ（2026-09-03）＝**typed `POWER_MODIFY_PER_FIELD` へ寄せた**（STUB は撤去）。
+  // 🔴旧 `STUB{POWER_BY_RISE_SIGNI_COUNT}` は engine が
+  //   ①原文 regex（「ライズシグニ…体につき」＝**実在しない綴り**）で単価を読み
+  //   ②数える対象を「**スタックが2枚以上のゾーン**」で近似（《ライズアイコン》の有無を見ていない）
+  //   ③修正先を**対戦相手のシグニ**に積んでいた（原文は「**この**シグニのパワーは」＝真逆）。
+  // 🔑`hasRiseIcon` は `matchesFilter` に実装済み・`POWER_MODIFY_PER_FIELD` は live 多数で稼働中。
+  const risePowerM = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある《ライズアイコン》を持つシグニ([０-９\d]+)体につき([＋－])([０-９\d]+)される/);
+  if (risePowerM) {
+    const signR = risePowerM[3] === '＋' ? 1 : -1;
+    return {
+      type: 'POWER_MODIFY_PER_FIELD',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      deltaPerUnit: signR * parseNum(risePowerM[4]),
+      countFilter: { cardType: 'シグニ', hasRiseIcon: true },
+      countOwner: (risePowerM[1] === 'あなた' ? 'self' : 'opponent') as Owner,
+      duration: 'PERMANENT',
+    } as PowerModifyPerFieldAction;
   }
 
   // ---- 引用符付き起動能力を得る（【起】...）----
@@ -1407,6 +1448,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のシグニをデッキの上から3番目に置く ----
+  // 🆕§5.3 `O-60` 第36バッチ（2026-09-03）＝**位置を payload で運ぶ**（漢数字も読む）。
+  //   旧実装は engine が `/デッキの上から([０-９\d]+)番目/` を当てていたが、原文は「**三**番目」＝
+  //   **漢数字**なので当たらず `nth` が **0（一番上）** に落ちていた。
+  const KANJI_NTH: Record<string, number> = { 一: 1, 二: 2, ニ: 2, 三: 3, 四: 4, 五: 5 };
+  const deckNthM = t.match(/対戦相手のシグニ.*をデッキの上から([０-９\d]+|[一二ニ三四五])番目に置く/);
+  if (deckNthM) {
+    const pos = KANJI_NTH[deckNthM[1]] ?? parseNum(deckNthM[1]);
+    return { type: 'STUB', id: 'OPP_SIGNI_TO_DECK_NTH', oppSigniToDeckNth: { position: pos } } as StubAction;
+  }
   if (t.match(/対戦相手のシグニ.*をデッキの上から.*番目に置く/)) {
     return { type: 'STUB', id: 'OPP_SIGNI_TO_DECK_NTH' } as StubAction;
   }
@@ -1437,13 +1487,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のすべてのシグニと手札とエナゾーンをトラッシュ ----
+  // 🆕§5.3 `O-60` 第34バッチ（2026-09-03）＝**対象ゾーンを payload で運ぶ**。
+  //   旧実装は engine が「カード名一致のエナ限定トラッシュ」へ先に分岐しようとし、外れると
+  //   「場＋手札」だけの fallback へ落ちていた＝原文にある**エナゾーンが丸ごと落ちる**過少実行。
   if (t.match(/対戦相手のすべてのシグニと.*手札と.*エナゾーン.*トラッシュに置く/)) {
-    return { type: 'STUB', id: 'TRASH_ALL_OPP_CARDS' } as StubAction;
-  }
-
-  // ---- エナゾーンの色種類でパワーアップ ----
-  if (t.match(/このシグニのパワーはあなたのエナゾーンにあるカードが持つ.*色.*種類につき[＋+]/)) {
-    return { type: 'STUB', id: 'POWER_BY_ENERGY_COLOR_VARIETY' } as StubAction;
+    return {
+      type: 'STUB', id: 'TRASH_ALL_OPP_CARDS',
+      trashAllOppZones: ['field', 'hand', 'energy'],
+    } as StubAction;
   }
 
   // ---- 対戦相手はエナゾーンからカードをデッキに移動できない ----
@@ -2247,8 +2298,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- パワー上限設定 ----
-  if (t.match(/このシグニのパワーは[０-９\d]+より大きくならない/)) {
-    return { type: 'STUB', id: 'POWER_CAP' } as StubAction;
+  // 🆕§5.3 `O-60` 第33バッチ（2026-09-03）＝**上限値を payload で運ぶ**（engine は原文を読まない）。
+  const powerCapM = t.match(/このシグニのパワーは([０-９\d]+)より大きくならない/);
+  if (powerCapM) {
+    return { type: 'STUB', id: 'POWER_CAP', powerCap: { max: parseNum(powerCapM[1]) } } as StubAction;
   }
 
   // ---- 対戦相手のシグニのパワーが－される場合、代わりに２倍 ----

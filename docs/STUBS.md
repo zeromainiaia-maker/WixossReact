@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 607 |
-| 　└ ハンドラ実装あり | 555 |
-| 　└ フォールバック（execStub 未処理） | 52 |
-| 総 STUB ノード件数 | 3244 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 358 |
+| JSON で使用中の STUB id 種類 | 602 |
+| 　└ ハンドラ実装あり | 549 |
+| 　└ フォールバック（execStub 未処理） | 53 |
+| 総 STUB ノード件数 | 3239 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 359 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -76,6 +76,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `MAYU_ENCOUNTER_FLIP_AND_GROW` | 1 | 1 | WXDi-P13-003A |  |
 | `OPP_TURN_ARTS_COST_REDUCTION_ONCE` | 1 | 1 | WXK03-071 |  |
 | `OPTIONAL_LRIG_UNDER_COST` | 1 | 1 | WXDi-P05-009 |  |
+| `POWER_CAP` | 1 | 1 | WX22-022 |  |
 | `REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY` | 1 | 1 | WX24-P3-009 |  |
 | `STRIP_OPP_ENA_MULTI_ENA` | 1 | 1 | WXK11-020 |  |
 | `TRASH_ABILITY_LOSS_AND_IMMUNITY` | 1 | 1 | WX12-023 |  |
@@ -199,7 +200,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `REMOVE_MIKOMIKO_GUARD` | 1 | 1 | WX25-P3-058 | 対戦相手の【みこみこ親衛隊】を好きな数取り除く（§5.3 `O-148`・2026-09-02） |
 | `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG` | 1 | 1 | WX25-P2-009 |  |
 | `REVEAL_EACH_PLAYER_DECK_TOP` | 1 | 1 | SPDi43-25 | 対戦相手のライフクロス上を見る（複数枚パターン対応） REVEAL_EACH_PLAYER_DECK_TOP（§6.4 O-35・続き530）＝「各プレイヤーは自分のデッキの一番上のカードを公開する」。 🔴従来は parser がこの文… |
-| `REVEAL_PICK_CLASS_TO_ENERGY` | 1 | 1 | WX18-034 | デッキ上2枚を見てクラスシグニをエナへ、残りをデッキ上へ |
+| `REVEAL_PICK_CLASS_TO_ENERGY` | 1 | 1 | WX18-034 | デッキ上N枚を公開し、条件に合うカードをエナへ、残りを指定の行き先へ |
 | `SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME` | 1 | 1 | PR-470A | 自身を場→ルリグデッキへ戻し、ルリグデッキから fetchCardName（省略時は同名）のカードを同じゾーンへ出す。 PR-470A《現実からの逃避 タマ》→《進化する筋肉 紗倉ひびき》（PR-470B）＝**別名カード**なので fe… |
 | `SET_KEY_PLACE_LIMIT` | 1 | 1 | WXK02-004 | このゲームの間に場へ出せるキーの枚数を N まで引き上げる |
 | `SIGNI_GRANT_CHOSEN_ABILITY` | 1 | 1 | WXK09-050 | WXK09-050 コードアート Ｒ・Ｌ・Ｃ【出】。 |
@@ -211,7 +212,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SEARCHED_SPELL_OR_TRASH` | 1 | 1 | WX20-077 | USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)・`WX20-077-E2`）: 「その後、デッキをシャッフルし、**それをコストを支払わずに使用するかトラッシュに置く**」＝ 直前のサーチで見つけたカード… |
 | `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE` | 1 | 1 | WX25-CP1-040 | エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と同じレベルの対戦相手のシグニ1体を手札に戻す |
 
-### execStubPart2.ts（195 種）
+### execStubPart2.ts（190 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -349,18 +350,13 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `POWER_BOOST_PER_SIGNI_WITH_ICON` | 1 | 1 | WX17-053 | キーワード持ちシグニ1体につきパワー修正 |
 | `POWER_BY_ACCE_COUNT` | 1 | 1 | WX21-062 | アクセ数×deltaをパワー修正 |
 | `POWER_BY_CENTER_LRIG_TYPE_COUNT` | 1 | 1 | PR-472 | センタールリグのタイプ数×deltaをパワー修正 |
-| `POWER_BY_CHARM_COUNT` | 1 | 1 | WXK11-041 | 自場チャーム数に基づくパワー修正 |
-| `POWER_BY_ENERGY_COLOR_VARIETY` | 1 | 1 | WXK11-063 | エナゾーンの色の種類数に基づくパワー修正 |
 | `POWER_BY_LEVEL_SUM_COMPARE` | 1 | 1 | WXK10-089 | 自・相手のシグニレベル合計比較（自≦相手の場合）× levelSum → 1体相手シグニパワー修正 |
-| `POWER_BY_RISE_SIGNI_COUNT` | 1 | 1 | WXK10-064 | 自場ライズシグニ数に基づくパワー修正（スタック2枚以上のシグニ） |
-| `POWER_CAP` | 1 | 1 | WX22-022 | シグニのパワーをN以下に制限 |
 | `POWER_COPY_FROM_DOWNED` | 1 | 1 | WXDi-P16-052 | ダウンしたシグニのパワーを自シグニに加算 |
 | `POWER_DOWN_BY_ZONE_CARD_COUNT` | 1 | 1 | WXK08-032 | シグニゾーンのカード総数×delta → 1体相手シグニパワー修正（SELECT_TARGET→自己再帰） |
 | `POWER_EQUAL_TO_SELF_POWER` | 1 | 1 | WXK02-038 | 自シグニのパワーに等しく相手シグニのパワーを設定 |
 | `POWER_EQUALS_FRONT_SIGNI` | 1 | 1 | PR-K021 | 前のシグニのパワーと等しく設定（自シグニを前シグニのパワーに） |
 | `POWER_MOD_BY_COLOR_VARIETY` | 1 | 1 | WXDi-D06-016 | 自場シグニの色の種類数×delta → 1体相手シグニパワー修正（SELECT_TARGET→自己再帰） |
 | `POWER_MOD_BY_FIELD_CLASS_LEVEL` | 1 | 1 | WD11-007 | 自場の特定クラスシグニのレベル合計に基づくパワー修正 |
-| `POWER_MOD_BY_FRONT_LEVEL` | 1 | 1 | WXDi-P04-083 | 相手同ゾーン（前）シグニのレベルに基づくパワー修正 |
 | `POWER_MOD_BY_LRIG_LEVEL` | 1 | 1 | WXK09-035 | ルリグレベルに基づくパワー修正（相手センタールリグのレベルを参照） |
 | `POWER_MOD_BY_LRIG_LEVEL_SUM` | 1 | 1 | WXDi-P05-055 | ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照） |
 | `POWER_MOD_BY_TRASHED_SIGNI_LEVEL` | 1 | 1 | WXDi-P10-009 | トラッシュしたシグニのレベル×-2000 → 1体相手シグニパワー修正（SELECT→INTERNAL） |
@@ -401,8 +397,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TRADE_SELF_AND_OPP_TO_ENERGY` | 1 | 1 | WXDi-P14-064 | 自・相手を両方エナへ（ゾーン交換系） |
 | `TRAP_TO_SIGNI_IF_ZONE_EMPTY` | 1 | 1 | WXEX1-67 | このカードのゾーンにシグニがない場合、signi_traps[zone]→signi[zone] |
 | `TRASH` | 1 | 1 | WDK07-E09 | lastProcessedCards[0] か sourceCardNum をトラッシュへ |
-| `TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY` | 1 | 1 | WXEX2-10 | フィールドの全シグニの名前が一致するカードをエナ・フィールドからトラッシュ |
-| `TRASH_ALL_OPP_CARDS` | 1 | 1 | WXK11-047 | 相手エナから名前一致カードをすべてトラッシュへ |
+| `TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY` | 1 | 1 | WXEX2-10 | 対戦相手の場／エナから「カード名に《X》を含む」カードを一掃 |
+| `TRASH_ALL_OPP_CARDS` | 1 | 1 | WXK11-047 | 対戦相手の指定ゾーンにあるカードをすべてトラッシュへ |
 | `TRASH_CLASS_TO_HAND_OR_ENERGY` | 1 | 1 | WX26-CP1-022 | トラッシュからクラスシグニを手札かエナへ選択 |
 | `TRASH_FROM_DECK_PER_SIGNI_LEVEL` | 1 | 1 | WXK02-004 | 自場シグニのレベル合計枚数をデッキ上からトラッシュ |
 | `TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH` | 1 | 1 | WXEX1-19 | トラッシュから3枚選んでエナ/手札/デッキ下に分配 |
@@ -411,7 +407,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SPELL_FROM_TRASH` | 1 | 1 | WXDi-P06-066 |  |
 | `USE_SPELL_FROM_TRASH_PAYING_COST` | 1 | 1 | WXDi-P13-008 | ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）── 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」（`WXDi-P13-008-E1`）。 �… |
 
-### execStubPart3.ts（240 種）
+### execStubPart3.ts（239 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -643,7 +639,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SIGNI_UNDER_WEAPON_SIGNI` | 1 | 1 | WDK15-013 | 自シグニ1体を自＜ウェポン＞シグニの下に置く |
 | `STACK_ALL_LRIG_UNDER` | 1 | 1 | WX14-001 | ルリグトラッシュ全ルリグをこのカードの下に置く |
 | `SUBSTITUTE_DAMAGE_WITH_SELF_TRASH` | 1 | 1 | WXDi-P08-054 | このシグニをトラッシュに置く代わりにダメージ無効（任意） |
-| `SUMMON_FROM_ENERGY` | 1 | 1 | WXDi-P14-TK04 |  |
 | `SUPPRESS_CENTER_ON_PLAY` | 1 | 1 | WX12-011 | このターン自分のセンタールリグの【出】効果を抑制 |
 | `SUPPRESS_OPP_SIGNI_ABILITIES` | 1 | 1 | SP27-016 | 相手フィールドの全シグニの能力を消去 |
 | `TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE` | 1 | 1 | WXDi-P10-033 | 相手シグニ1体を対象とし、バウンスかトラッシュを選ぶ |
@@ -659,7 +654,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 358 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 359 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -1011,6 +1006,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SET_DECLARED_NUMBER_PLAIN` | 0 | 0 |  |  |
 | `SET_DECLARED_PARITY` | 0 | 0 |  |  |
 | `SPELL_COST_REDUCTION_BY_TRASH_COUNT` | 0 | 0 |  |  |
+| `SUMMON_FROM_ENERGY` | 0 | 0 |  | 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝レベル制限は payload（`summonFromEnergy.maxLevel`）で受け取る。** 🔴旧実装は `card.EffectText` に `/レベル… |
 | `SUMMON_FROM_TRASH` | 0 | 0 |  | トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用） |
 | `SUMMON_FROM_TRASH_TO_HAND_BLACK` | 0 | 0 |  |  |
 | `TK3_DISCARD_BY_LEVEL` | 0 | 0 |  | REVEAL_CARDS 確認後、宣言レベルのシグニを相手手札からすべて捨てさせる |

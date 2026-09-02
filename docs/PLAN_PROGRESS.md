@@ -1,5 +1,40 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第21〜28バッチ・索引 A 第6巡・Opus 5 単独）＝engine の「カード全文 regex」を8ハンドラぶん撤去／payload 化**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**124行 / 121ハンドラ → 115行 / 112ハンドラ**、
+  **miss 28ハンドラ・34カード → 20ハンドラ・26カード**（`BASELINE_SELF_TEXT` も 115 へ払い戻し）。
+  📦**在庫2本＝④機構 worklist 24項目**（`O-60` は継続／🆕`O-224` を1件登録＝23→24）
+  ｜**⑤実機 残 2件**（`V-131`／`V-132`・今回の追加は0）。
+  gates 全緑（golden **3321 / 3321**＝+8本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴115**・census-costtext A🔴0 据置・
+  lint 0 errors）。**ブラスト半径＝効果 変更8・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定（PLAN §2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
+  🔑**8バッチ中3バッチは「STUB ごと撤去」**＝`MULTI_SIGNI_TO_ENERGY`（→typed `SEND_TO_ENERGY`）／
+  `INFECTED_SIGNI_POWER_DOWN_BY_LEVEL`（→typed `POWER_MODIFY{deltaPerTargetLevel}`）／
+  `LOOK_TOP_SPELLS_TO_HAND`（live 0 の死んだ枝）。
+
+  🔑**この巡の一番の学び＝「受け皿は既に在った」が5回目・6回目。**
+  第21は `parseSigniTarget` が最初から `count:2, upToCount:true` を出せており、
+  共有の対象パーサへ寄せる regex を**1本広げるだけ**で typed になった。
+  第25は同型の平坦版4枚が既に `POWER_MODIFY{filter:{infected:true}}` で動いており、
+  足りないのは **`deltaPerTargetLevel` の CONTINUOUS 経路**だけだった。
+  ⇒ **payload 化に着手する前に「同じ意味を typed で解けている兄弟カード」を1枚探す。**
+
+  🔴**miss1/live1 の小さい項目でも「別のものを触っている」ことがある**＝第24（`LOOK_TOP_OPP_CHOOSE_TRASH`）は
+  選ばれたカードを `INTERNAL_TRASH_CARD`（**手札から**取り除く実装）へ渡していたので
+  **デッキが減らずトラッシュへ複製**され、「残りを手札に加える」は**1行も実装が無かった**。
+
+  🔴**STUB id は「意味」だけでなく「配線の鍵」でもある**＝第26 の `DOWN_UP_SIGNI_AND_CHOOSE` は
+  `USE_TIME_COST_PAY_STUBS`（`effectParser.ts`）がこの id で**使用時コストの支払いステップを剥がして**おり、
+  typed 化すると**支払いが二重**になる。**id を消す前に `grep <ID> src/data/` も掛ける。**
+
+  🔑**反転確認は「その1行を壊したら落ちるか」で書く**＝第22 の反転は1回目が素通りした
+  （テストが＜怪異＞のカードだけで「ハードコード」と「filter 参照」を区別できなかった）。
+  **別クラスの filter で絞る assert を足して**取り直した。
+
 - **セッション（2026-09-03・`O-60` 第17〜20バッチ・索引 A 第5巡・Opus 5 単独）＝engine の「カード全文 regex」を4ハンドラぶん payload 化**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（較正で 5→3）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

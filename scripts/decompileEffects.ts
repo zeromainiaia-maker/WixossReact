@@ -2393,7 +2393,13 @@ function actionJa(a?: Action, effectType?: string): string {
         POWER_MODIFY_PER_VIRUS_COUNT: '【ウィルス】の数',
       };
       // POWER_MODIFY_PER_CHARM で「この方法でトラッシュに置いた」変種は原文どおりに描く
-      const per = (a.type === 'POWER_MODIFY_PER_CHARM' && a.sourceLocation === 'trashed_this_effect')
+      // 🆕§5.3 `O-60` 第29／30バッチ（2026-09-03）＝**数える範囲を payload から描く**
+      //   （`PER_CHARM.sourceOwner`＝「場にある」／「あなたの場」・`PER_ENERGY_COLOR.colors`＝数える色の限定）。
+      const per = (a.type === 'POWER_MODIFY_PER_ENERGY_COLOR' && Array.isArray(a.colors) && a.colors.length > 0)
+        ? `エナゾーンにあるカードが持つ${a.colors.join('、')}の色の種類数`
+        : (a.type === 'POWER_MODIFY_PER_CHARM' && a.sourceLocation === 'field' && a.sourceOwner === 'any')
+        ? '場にある【チャーム】の枚数'
+        : (a.type === 'POWER_MODIFY_PER_CHARM' && a.sourceLocation === 'trashed_this_effect')
         ? 'この方法でトラッシュに置いた【チャーム】の枚数'
         : (a.type === 'POWER_MODIFY_PER_LRIG_LEVEL' && a.useLastDownedLrigLevelSum)
           ? 'この方法でダウンしたルリグのレベルの合計'
@@ -4288,6 +4294,39 @@ function actionJa(a?: Action, effectType?: string): string {
           return `各プレイヤーは自分のデッキの上から、自分のセンタールリグのレベル1につきカードを${am.perOwnLrigLevel}枚トラッシュに置く`;
         }
         return `各プレイヤーは自分のデッキの上からカードを${am.count}枚トラッシュに置く`;
+      }
+      // 🆕§5.3 `O-60` 第33〜36バッチ（2026-09-03）＝残り5ハンドラも **payload から描く**。
+      //   ⚠`POWER_CAP` はハンドラを撤去したので `genStubsMd` の説明が消え、放置すると
+      //   逆翻訳に**生の英語 ID**（`[STUB:POWER_CAP]`）が出て `census:stubs` C群ゲートが止まる。
+      if (a.id === 'POWER_CAP') {
+        const pc = (a as { powerCap?: { max: number } }).powerCap;
+        return pc ? `このシグニのパワーは${pc.max}より大きくならない` : 'このシグニのパワーに上限がある（上限値なし＝適用しない）';
+      }
+      if (a.id === 'TRASH_ALL_OPP_CARDS') {
+        const zs = (a as { trashAllOppZones?: string[] }).trashAllOppZones;
+        if (!zs?.length) return '対戦相手のカードをすべてトラッシュに置く（対象ゾーンなし＝適用しない）';
+        const ja: Record<string, string> = { field: 'すべてのシグニ', hand: '手札', energy: 'エナゾーン' };
+        return `対戦相手の${zs.map(z => ja[z] ?? z).join('と')}にあるすべてのカードをトラッシュに置く`;
+      }
+      if (a.id === 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY') {
+        const tb = (a as { trashAllByName?: { nameContains: string; zones: string[] } }).trashAllByName;
+        if (!tb) return 'カード名で対戦相手のカードをトラッシュに置く（対象なし＝適用しない）';
+        const jaZ: Record<string, string> = { field: '場', energy: 'エナゾーン' };
+        return `対戦相手の${tb.zones.map(z => jaZ[z] ?? z).join('と')}からカード名に《${tb.nameContains}》を含むすべてのカードをトラッシュに置く`;
+      }
+      if (a.id === 'REVEAL_PICK_CLASS_TO_ENERGY') {
+        const rp = (a as { revealPickToEnergy?: { revealCount?: number; pickFilter: unknown; remainderTo: string } }).revealPickToEnergy;
+        if (!rp) return 'デッキの上を公開して条件に合うカードをエナゾーンに置く（内容なし＝適用しない）';
+        const head = rp.revealCount !== undefined ? `あなたのデッキの上からカードを${rp.revealCount}枚公開し、その中から` : '公開したカードの中から';
+        return `${head}${filterJa(rp.pickFilter)}カードをすべてエナゾーンに置き、残りを${rp.remainderTo === 'trash' ? 'トラッシュ' : 'デッキの一番上'}に置く`;
+      }
+      if (a.id === 'OPP_SIGNI_TO_DECK_NTH') {
+        const nd = (a as { oppSigniToDeckNth?: { position: number } }).oppSigniToDeckNth;
+        return nd ? `それをデッキの上から${nd.position}番目に置く` : 'それをデッキの指定の位置に置く（位置なし＝適用しない）';
+      }
+      if (a.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
+        const hr = (a as { optionalHandRevealNamed?: { cardName: string } }).optionalHandRevealNamed;
+        return hr ? `手札から《${hr.cardName}》1枚を公開してもよい` : '手札から指定のカードを公開してもよい（カード名なし＝適用しない）';
       }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）

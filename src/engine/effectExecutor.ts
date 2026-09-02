@@ -5435,10 +5435,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 
         // OPTIONAL_HAND_REVEAL_NAMED: 名前指定カードを手札から任意公開 → そうした場合 conditional.then
         if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
-          const srcOHRN = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
-          const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
-          const nameM = txtOHRN.match(/《([^《》]+)》を公開/);
-          const targetName = nameM ? nameM[1] : '';
+          // 🆕**§5.3 `O-60` 第36バッチ（2026-09-03）＝カード名は payload で受け取る。**
+          // 🔴旧実装は `EffectText + BurstText` に `/《([^《》]+)》を公開/` を当てていたが、原文は
+          //   「《X》**１枚を**公開してもよい」＝間に枚数が入るので**当たらず空文字**になり、
+          //   公開の選択肢が常に `available:false`（＝「そうした場合」が永久に成立しない）だった。
+          const targetName = stub.optionalHandRevealNamed?.cardName ?? '';
           const hasCard = targetName
             ? cur.ownerState.hand.some(cn => cur.cardMap.get(cn)?.CardName === targetName)
             : false;

@@ -30,11 +30,34 @@ import type {
   LookAndReorderAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa, parsePlaceUnderSourceSigni,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseIconFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa, parsePlaceUnderSourceSigni,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
 
+
+/**
+ * 🆕「その中から〈条件〉のカードをエナゾーンに置き、残りを〜」の payload を組む
+ * （§5.3 `O-60` 第35バッチ・2026-09-03）。公開枚数は**同じ文**の「デッキの上からカードをN枚公開/見る」から取る。
+ * ⚠取れないときは `undefined` を返し、呼び出し側は payload 無しの STUB を返す（engine は fail-closed）。
+ */
+function parseRevealPickToEnergy(t: string): { revealCount?: number; pickFilter: TargetFilter; remainderTo: 'deck_top' | 'trash' } | undefined {
+  // 公開枚数は**前の文**にあることが多い（この文だけ渡されるケース）＝取れなくても payload は返す。
+  // engine は前段 `LOOK_AND_REORDER` の結果（`lastProcessedCards`）を優先して使う。
+  const nM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開する|見る)/);
+  const remainderTo = /残りを[^。]*トラッシュに置く/.test(t) ? 'trash' as const
+    : /残りを[^。]*デッキの一番上に置く/.test(t) ? 'deck_top' as const
+    : undefined;
+  if (!remainderTo) return undefined;
+  // 絞り込み＝＜クラス＞／《アイコン》／カード種別。どれも取れないときは「シグニ」だけ。
+  const pickSpan = t.match(/その中から([^。]*?)(?:を)?エナゾーンに置き/)?.[1] ?? '';
+  const pickFilter: TargetFilter = {
+    ...parseCardTypeFilter(pickSpan),
+    ...parseStoryFilter(pickSpan),
+    ...parseIconFilter(pickSpan),
+  };
+  return { ...(nM ? { revealCount: parseNum(nM[1]) } : {}), pickFilter, remainderTo };
+}
 
 export function parseSentencePart3(t: string): EffectAction | null {
   // ---- エナゾーンからN枚このシグニの下に置く ----
@@ -726,8 +749,21 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 正面シグニのレベルにつきパワー修正 ----
-  if (t.match(/正面のシグニのパワーをそのシグニのレベル.*につき/)) {
-    return { type: 'STUB', id: 'POWER_MOD_BY_FRONT_LEVEL' } as StubAction;
+  // 🆕§5.3 `O-60` 第32バッチ（2026-09-03）＝**typed `POWER_MODIFY{frontOfSelf, deltaPerTargetLevel}` へ寄せた**。
+  // 🔴旧 `STUB{POWER_MOD_BY_FRONT_LEVEL}` は engine が**2つとも裏返して**いた＝
+  //   ①正面ゾーンを `signi[zi]`（**同じ添字**）で引いていた（正面は `2 - zi`）
+  //   ②修正先を**効果元自身**に積んでいた（原文は「この**シグニの正面のシグニ**のパワーを」）。
+  // 🔑平坦版の兄弟3枚（`WX24-P1-050` ほか）は既に `POWER_MODIFY{filter:{frontOfSelf:true}}` で動いており、
+  //   足りないのは `deltaPerTargetLevel` を `frontOfSelf` 分岐で読むことだけだった。
+  const frontPerLvM = t.match(/このシグニの正面のシグニのパワーをそのシグニのレベル([０-９\d]+)につき([＋－])([０-９\d]+)する/);
+  if (frontPerLvM && parseNum(frontPerLvM[1]) === 1) {
+    const signF = frontPerLvM[2] === '＋' ? 1 : -1;
+    return {
+      type: 'POWER_MODIFY',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } },
+      delta: signF * parseNum(frontPerLvM[3]),
+      deltaPerTargetLevel: true,
+    } as PowerModifyAction;
   }
 
   // ---- 起動能力コスト増加（センタールリグ・シグニ） ----
@@ -1743,8 +1779,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- その中から特定条件のシグニをエナゾーンに置き残りをデッキ上に ----
+    // 🆕§5.3 `O-60` 第35バッチ（2026-09-03）＝**公開枚数・絞り込み・残りの行き先を payload で運ぶ**。
+    //   旧実装は engine が `/＜クラス＞のシグニ.*エナゾーンに置く/` を当てており、《アイコン》指定には
+    //   1本も当たらず**絞り込みが消え**、**残りの行き先はデッキ上に固定**（原文がトラッシュでも）だった。
   if (t.match(/その中から.*のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く/)) {
-    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
+    const specRPE = parseRevealPickToEnergy(t);
+    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY', ...(specRPE ? { revealPickToEnergy: specRPE } : {}) } as StubAction;
   }
 
   // ---- 〈対象宣言〉を対象とし、手札から〈限定〉をN枚捨ててもよい（対象宣言つきの任意コスト）----
@@ -2151,7 +2191,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- その中から〜アイコンを持つカードをエナゾーンに置き残りを〜 ----
   if (t.match(/その中から.+アイコン》を持つ.+エナゾーンに置き、残り/)) {
-    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
+    const specRPE2 = parseRevealPickToEnergy(t);
+    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY', ...(specRPE2 ? { revealPickToEnergy: specRPE2 } : {}) } as StubAction;
   }
 
   // ---- この方法でトラッシュに置いたカードの中に〜がある場合 ----
@@ -2161,7 +2202,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- その中から《アクセアイコン》を持つカードをエナゾーンに ----
   if (t.match(/その中から《アクセアイコン》を持つ.+エナゾーンに置き/)) {
-    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
+    const specRPE3 = parseRevealPickToEnergy(t);
+    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY', ...(specRPE3 ? { revealPickToEnergy: specRPE3 } : {}) } as StubAction;
   }
 
   // ---- 数値範囲で数字を宣言する ----

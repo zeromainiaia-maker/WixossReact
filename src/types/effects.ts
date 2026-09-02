@@ -3417,7 +3417,13 @@ export interface PowerModifyPerCharmAction {
   deltaPerCharm: number;
   sourceOwner: Owner;
   sourceLocation: 'field' | 'trashed_this_effect';
-  until: EffectDuration;
+  /**
+   * 期間。**省略＝【常】（CONTINUOUS）**＝`calcFieldPowers` が盤面更新のたびに数え直す。
+   * 🔴**`extractPowerModifiesPerCharm` は `until` があると ACTIVATED 扱いにして CONTINUOUS 経路から外す**
+   *   （`effectEngine.ts`）＝【常】の効果に `until:'PERMANENT'` と書くと**恒久 no-op** になる。
+   *   §5.3 `O-60` 第29バッチ（2026-09-03）で実際に踏んだので必須→任意へ緩めた。
+   */
+  until?: EffectDuration;
 }
 
 // エナゾーンのカード枚数比例パワー変更（常時効果）
@@ -3983,6 +3989,13 @@ export interface PowerModifyPerEnergyColorAction {
   target: EffectTarget;
   deltaPerColor: number;
   energyOwner: Owner;
+  /**
+   * 🆕**数える色を限定する**（§5.3 `O-60` 第30バッチ・2026-09-03）＝
+   * `WXK11-063`「あなたのエナゾーンにあるカードが持つ**白、赤、緑、黒**の色１種類につき＋1000」。
+   * 省略＝5色すべて（既存5効果の「色の種類１つにつき」がこの形）。
+   * ⚠**青を数えない**のが原文なので、省略と同じ扱いにすると**1色ぶん過剰**になる。
+   */
+  colors?: string[];
 }
 
 /**
@@ -4411,6 +4424,98 @@ export interface StubAction {
    *   （原文「**自分の**センタールリグのレベル」＝両者で枚数が違いうる）。
    * ⚠**payload が無い宣言は何もしない**（fail-closed）。
    */
+  /**
+   * 🆕`POWER_CAP`＝「このシグニのパワーはNより大きくならない」の上限値
+   * （§5.3 `O-60` 第33バッチ・2026-09-03）。
+   *
+   * 🔴消費地点が**2つ**あり、どちらも `EffectText` を読んでいた＝
+   *   ①`effectEngine.applyCaps`（**実際に効く方**・`/パワーは(\d+)より大きくならない/`）
+   *   ②`execStubPart2` のハンドラ（`/パワーが?(\d+)以下/`＝**原文と綴りが違い1本も当たらない**うえ、
+   *     当たれば `temp_power_mods` に差分を焼き込む＝**【常】の上限が一度きりの補正に化ける**）。
+   *   ⇒ ②は撤去し、①は payload を読む。
+   * ⚠**payload が無い宣言は上限を掛けない**（fail-closed）。
+   */
+  powerCap?: { max: number };
+  /**
+   * 🆕`TRASH_ALL_OPP_CARDS`＝「対戦相手のすべてのシグニと、対戦相手の手札とエナゾーンにある
+   * すべてのカードをトラッシュに置く」の**対象ゾーン**（§5.3 `O-60` 第34バッチ・2026-09-03）。
+   *
+   * 🔴旧実装は `EffectText + BurstText` に `/《X》を含むすべてのカードをトラッシュに置く/` を当てて
+   *   **カード名一致のエナ限定トラッシュ**へ分岐し、当たらなければ「場＋手札」だけの fallback へ落ちていた
+   *   ＝原文にある**エナゾーンが丸ごと落ちる**過少実行（`WXK11-047`）。
+   *   ⚠しかも regex はこのカードの**コスト句**（「《サーバント》を含むシグニ１５枚をトラッシュに置く」）に
+   *   近い綴りで、少し違えば**コストの名前で相手エナだけ削る**別物に化ける形だった。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）。
+   */
+  trashAllOppZones?: Array<'field' | 'hand' | 'energy'>;
+  /**
+   * 🆕`TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY`＝「対戦相手の場とエナゾーンから**カード名に
+   * 《X》を含む**すべてのカードをトラッシュに置く」の中身（§5.3 `O-60` 第34バッチ・2026-09-03）。
+   *
+   * 🔴旧実装は `/「([^」]+)」`（**かぎ括弧**）で名前を取ろうとしていたが原文の綴りは《》なので
+   *   **1本も当たらず恒久 no-op** だった。さらに照合が**完全一致**で、原文の「**含む**」（部分一致）と別物。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）。
+   */
+  /**
+   * 🆕`SUMMON_FROM_ENERGY`＝「あなたのエナゾーンから（レベルN以下の）シグニを場に出す」の
+   * **レベル制限**（§5.3 `O-60` 第35バッチ・2026-09-03）。省略＝レベル制限なし（原文に書かれていない形）。
+   *
+   * 🔴旧実装は engine が `card.EffectText` に `/レベル([０-９\d]+)以下の/` を当てていた＝
+   *   **カード全文**なので別の能力のレベル表記を拾いうるし、`choiceTextParser` から来る
+   *   （＝選択肢テキストが効果元の全文と一致しない）経路では読みようがなかった。
+   * 🔑**typed な受け皿は既に在る**＝`ADD_TO_FIELD{source:{ENERGY_CARD,…}}`（live 3効果）。
+   *   parser 経路はそちらへ寄せ、この STUB は `choiceTextParser`（実行時の①②選択肢）専用に残す。
+   */
+  summonFromEnergy?: { maxLevel?: number };
+  /**
+   * 🆕`REVEAL_PICK_CLASS_TO_ENERGY`＝「デッキの上からカードをN枚公開する。その中から〈条件〉の
+   * カードをエナゾーンに置き、残りを〈行き先〉に置く」の中身（§5.3 `O-60` 第35バッチ・2026-09-03）。
+   *
+   * 🔴旧実装は `EffectText + BurstText` に `/＜(クラス)＞のシグニ.*エナゾーンに置く/` を当てていたので、
+   *   `WX18-034` の「**《アクセアイコン》を持つ**すべてのシグニ」には**1本も当たらず絞り込みが消え**
+   *   （＝公開したシグニ全部がエナへ行く過剰実行）、さらに**残りの行き先がデッキの一番上に固定**で
+   *   原文の「残りを**トラッシュに置く**」と別物だった。公開枚数も既定2枚に落ちていた（原文3枚）。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）。
+   */
+  /**
+   * 🆕`OPP_SIGNI_TO_DECK_NTH`＝「それをデッキの上から〈N〉番目に置く」の**位置（1始まり）**
+   * （§5.3 `O-60` 第36バッチ・2026-09-03）。
+   *
+   * 🔴旧実装は `EffectText + BurstText` に `/デッキの上から([０-９\d]+)番目/` を当てていたが、
+   *   原文は「**三**番目」＝**漢数字**なので当たらず、`nth` が **0（＝一番上）**へ落ちていた。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）＝一番上へ置くと「デッキの下へ送る」意図と真逆になる。
+   */
+  oppSigniToDeckNth?: { position: number };
+  /**
+   * 🆕`OPTIONAL_HAND_REVEAL_NAMED`＝「手札から《X》N枚を公開してもよい」の**カード名**
+   * （§5.3 `O-60` 第36バッチ・2026-09-03）。
+   *
+   * 🔴消費地点が**2つ**あり、それぞれ**違う regex でカード名を取ろうとして両方外していた**＝
+   *   `effectExecutor` は `/《([^《》]+)》を公開/`（原文は「《X》**１枚を**公開」で間に枚数が入る）、
+   *   `execStubPart3` は `/「([^」]+)」/`（**かぎ括弧**＝原文の綴りではない）。
+   *   ⇒ どちらも空文字になり、**公開の選択肢が常に `available:false`**（＝「そうした場合」が永久に成立しない）
+   *   または**手札に一致0で即終了**していた。
+   * ⚠**payload が無い宣言は公開させない**（fail-closed）。
+   */
+  optionalHandRevealNamed?: { cardName: string };
+  revealPickToEnergy?: {
+    /**
+     * 公開する枚数。**省略可**＝前段の `LOOK_AND_REORDER` が公開したカード（`lastProcessedCards`）を使う。
+     * 🔴この効果は2文で書かれ、**枚数は前の文**（「デッキの上からカードをN枚公開する」）にあるので、
+     *   後半の文だけを見る parser では取れないことがある（第24バッチと同じ形）。
+     */
+    revealCount?: number;
+    /** エナゾーンへ置くカードの条件。 */
+    pickFilter: TargetFilter;
+    /** 残りの行き先。 */
+    remainderTo: 'deck_top' | 'trash';
+  };
+  trashAllByName?: {
+    /** カード名に含まれる文字列（部分一致）。 */
+    nameContains: string;
+    /** 対象ゾーン。 */
+    zones: Array<'field' | 'energy'>;
+  };
   allPlayerMill?: {
     /** 固定枚数。 */
     count?: number;

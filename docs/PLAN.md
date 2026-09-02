@@ -11,50 +11,50 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-03・`O-60` 第21〜28バッチ・索引 A 第6巡・Opus 5 単独）＝engine の「カード全文 regex」を8ハンドラぶん撤去／payload 化**
+- **セッション（2026-09-03・`O-60` 第29〜36バッチ・索引 A 第7巡・Opus 5 単独）＝残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  **この項目の計器は `census:enginetext` の A群**＝**124行 / 121ハンドラ → 115行 / 112ハンドラ**、
-  **miss 28ハンドラ・34カード → 20ハンドラ・26カード**（`BASELINE_SELF_TEXT` も 115 へ払い戻し）。
-  📦**在庫2本＝④機構 worklist 24項目**（`O-60` は継続／🆕`O-224` を1件登録＝23→24）
+  **この項目の計器は `census:enginetext` の A群**＝**115行 / 112ハンドラ → 103行 / 101ハンドラ**、
+  🔑**miss 20ハンドラ・26カード → 9ハンドラ・15カード**（1巡で最大の落差）。
+  📦**在庫2本＝④機構 worklist 24項目**（`O-60` は継続・新規登録0）
   ｜**⑤実機 残 2件**（`V-131`／`V-132`・今回の追加は0）。
-  gates 全緑（golden **3321 / 3321**＝+8本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
-  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴115**・census-costtext A🔴0 据置・
-  lint 0 errors）。**ブラスト半径＝効果 変更8・追加0・削除0、予定外0。**
+  gates 全緑（golden **3323 / 3323**＝+2本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴103**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更10・追加0・削除0、予定外0。**
   🖥**実機＝不要と判定（PLAN §2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
   **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
-  🔑**8バッチ中3バッチは「STUB ごと撤去」**＝`MULTI_SIGNI_TO_ENERGY`（→typed `SEND_TO_ENERGY`）／
-  `INFECTED_SIGNI_POWER_DOWN_BY_LEVEL`（→typed `POWER_MODIFY{deltaPerTargetLevel}`）／
-  `LOOK_TOP_SPELLS_TO_HAND`（live 0 の死んだ枝）。
+  🔑**8バッチ中5バッチは「STUB ごと撤去して typed へ寄せた」**（`POWER_BY_CHARM_COUNT` /
+  `POWER_BY_ENERGY_COLOR_VARIETY` / `POWER_BY_RISE_SIGNI_COUNT` / `POWER_MOD_BY_FRONT_LEVEL` / `POWER_CAP`）。
 
-  🔑**この巡の一番の学び＝「受け皿は既に在った」が5回目・6回目。**
-  第21は `parseSigniTarget` が最初から `count:2, upToCount:true` を出せており、
-  共有の対象パーサへ寄せる regex を**1本広げるだけ**で typed になった。
-  第25は同型の平坦版4枚が既に `POWER_MODIFY{filter:{infected:true}}` で動いており、
-  足りないのは **`deltaPerTargetLevel` の CONTINUOUS 経路**だけだった。
-  ⇒ **payload 化に着手する前に「同じ意味を typed で解けている兄弟カード」を1枚探す。**
+  🔑**この巡の一番の学び＝「単価の regex が外れる」より「修正先か数え方が裏返っている」方が実害だった（4/4）。**
+  第29・第31 は修正先が**対戦相手のシグニ**（原文は「**この**シグニのパワーは」＝真逆）、
+  第32 は正面ゾーンを `signi[zi]`（正面は `2 - zi`）で引いたうえ**効果元自身**に積んでいた。
+  ⇒ **miss を読むときは「何を数えるか」だけでなく「誰に効くか」も原文と突き合わせる。**
 
-  🔴**miss1/live1 の小さい項目でも「別のものを触っている」ことがある**＝第24（`LOOK_TOP_OPP_CHOOSE_TRASH`）は
-  選ばれたカードを `INTERNAL_TRASH_CARD`（**手札から**取り除く実装）へ渡していたので
-  **デッキが減らずトラッシュへ複製**され、「残りを手札に加える」は**1行も実装が無かった**。
+  🔴**一番危なかったのは `until` を書いたこと**＝`POWER_MODIFY_PER_CHARM` を型どおり `until:'PERMANENT'` で
+  出したら**恒久 no-op**になった（`extractPowerModifiesPerCharm` は **`until` があると ACTIVATED 扱いにして
+  CONTINUOUS 走査から外す**）。**逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**形。
+  ⇒ 型の `until` を必須→任意へ緩め「省略＝【常】」を明記した。
+  **typed へ寄せるときは `extract*` 系の収集関数の選別条件を必ず読む。**
 
-  🔴**STUB id は「意味」だけでなく「配線の鍵」でもある**＝第26 の `DOWN_UP_SIGNI_AND_CHOOSE` は
-  `USE_TIME_COST_PAY_STUBS`（`effectParser.ts`）がこの id で**使用時コストの支払いステップを剥がして**おり、
-  typed 化すると**支払いが二重**になる。**id を消す前に `grep <ID> src/data/` も掛ける。**
+  🧹**手書きが parser に追い越されている例をもう1件消化**＝`WXDi-P14-TK04`（`manualEffects.ts`）。
+  手書きは原文「シグニを**１枚まで**」に対し**必ず1枚出させる**過剰実行で、いまの parser は
+  typed `ADD_TO_FIELD{source:{ENERGY_CARD, upToCount:true}}` を出せていた。
+  ⚠**この形はどの計器にも出ない**（`censusManualDrift` は実体同一のものしか出さない）。
 
-  🔑**反転確認は「その1行を壊したら落ちるか」で書く**＝第22 の反転は1回目が素通りした
-  （テストが＜怪異＞のカードだけで「ハードコード」と「filter 参照」を区別できなかった）。
-  **別クラスの filter で絞る assert を足して**取り直した。
+  ⚠**ハンドラを撤去すると `genStubsMd` の説明も消える**＝`POWER_CAP` が一度 `[STUB:POWER_CAP]`
+  （生の英語 ID＝`census:stubs` C群ゲート）になりかけた。
+  **撤去バッチは「逆翻訳を payload から描く」まで同じコミットで閉じる。**
 
-**▶ 次の一手**＝**`O-60` の続き（第29バッチ）**＝残 miss は**20ハンドラ・26カード**で、
-**`POWER_BY_CHARM_COUNT` / `POWER_BY_ENERGY_COLOR_VARIETY` / `POWER_BY_RISE_SIGNI_COUNT` / `POWER_CAP`**
-（いずれも miss1/live1）＝**`POWER_MODIFY` 系の兄弟が typed で解けている可能性が高い**ので、
-**第25バッチと同じく「同じ意味を typed で解けている兄弟カード」を先に1枚探す。**
-⚠**`NEGATE_NTH_ATTACK`（miss1/live3）は消費が `src/screens/battle/attackNegation.ts` にもある**＝
-取るなら**遅いレーン（実機必須）**。
+**▶ 次の一手**＝**`O-60` の続き（第37バッチ）**＝残 miss は**9ハンドラ・15カード**まで落ちた。
+**取れるのは miss1/live1 の5本だけ**＝`ENERGY_BY_LEVEL_SUM_LIMIT` / `OPP_ENERGY_COLOR_CONDITION_TRASH` /
+`POWER_MOD_BY_FIELD_CLASS_LEVEL` / `RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY` / `TARGET_ONLY`。
 ⚠**`LOOK_AND_REORDER`（miss4）と `GRANT_QUOTED_AUTO_ABILITY`（miss3）と `DECK_TOP_TO_LIFE`（miss2）は
-catch-all なので取らない**。**候補は miss 数ではなく「受け皿が既にあるか」で選ぶ。**
-🆕**`O-224`（索引 G）はこの巡の副産物**＝`SPDi43-23-E1` の「レベルが**この方法でダウンしたシグニの数以下**の」が
+catch-all なので取らない**。⚠**`NEGATE_NTH_ATTACK`（miss1/live3）は `src/screens/battle/attackNegation.ts` にも
+消費があり遅いレーン（実機必須）。**
+🔑**取る前に必ず「同じ意味を typed で解けている兄弟カード」を1枚探す**（第29〜32バッチは4本とも在った）。
+🔴**typed へ寄せるときは `extract*` 系の収集関数の選別条件を読む**（`until` を書いて恒久 no-op を作った実例あり）。
+🆕**`O-224`（索引 G）は前巡の副産物**＝`SPDi43-23-E1` の「レベルが**この方法でダウンしたシグニの数以下**の」が
 落ちている（`O-80` 族＝動的カウントを filter へ運ぶ設計問題）。
 🆕**索引 B は `O-223` 1件だけになった**（【シード】の `TargetScope` ＝`src/screens/` を触る遅いレーン）。
 ⚠**`O-195` / `O-190` / `O-188` は「登録時の値」で 🔴要再計測**。
@@ -941,7 +941,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-60` | **26カード**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>miss 20ハンドラ・A🔴 115行。**第28バッチまで消化済み**（1バッチ平均1.3カード） |
+| `O-60` | **15カード**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>miss 9ハンドラ・A🔴 103行。**第36バッチまで消化済み**<br>🔑**残9のうち3本は catch-all（取らない）／1本は `src/screens/` 併用（遅いレーン）** |
 | `O-193` | **25効果** | `census:wiring` の has=0 語彙が未配線＝`isDrive` 14／`powerLteSelf` 9／`levelLtSelf` 2 |
 | `O-198` | **23効果** | `LOOK_PICK_CHAIN` が「ちょうどN枚」を表現できない＝`pickCount` が上限としてしか渡らず0枚を選べる（過小実行）<br>⚠census では原理的に検出できない |
 | `O-192` | **19効果** | `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` がアシストルリグを数え落とす（`matchesFilter` の cardType が厳密一致）<br>続き385 実測 |
@@ -1325,32 +1325,29 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-03（`O-60` 第21〜28バッチ・索引 A 第6巡）＝engine の「カード全文 regex」を8ハンドラぶん撤去／payload 化（Opus 5 単独／本ブロックが直近の正）**
+- **2026-09-03（`O-60` 第29〜36バッチ・索引 A 第7巡）＝残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
   ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  この項目の計器は **`census:enginetext` の A群**＝**124行 / 121ハンドラ → 115行 / 112ハンドラ**、
-  **miss 28ハンドラ・34カード → 20ハンドラ・26カード**。
-  📦**在庫2本**＝**機構 worklist 24項目**（`O-60` は継続／🆕`O-224` を1件登録＝23→24）
-  ｜**実機 残 2件**（`V-131`／`V-132`・今回の追加0）
-  🔧**ゲート（全緑 ✅）**＝golden **3321 / 3321**（3313→3321＝8バッチの契約8本）／
-  smoke 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／
-  manual-fields 0／`census:enginetext` A🔴 **115行**（`BASELINE_SELF_TEXT` も 115）／
-  `census:costtext` A🔴 **0規則**（据置）／lint 0 errors／`npm run regen` 完走。
+  この項目の計器は **`census:enginetext` の A群**＝**115行 / 112ハンドラ → 103行 / 101ハンドラ**、
+  🔑**miss 20ハンドラ・26カード → 9ハンドラ・15カード**。
+  📦**在庫2本**＝**機構 worklist 24項目**（`O-60` は継続・新規登録0）｜**実機 残 2件**（`V-131`／`V-132`）
+  🔧**ゲート（全緑 ✅）**＝golden **3323 / 3323**（3321→3323＝8バッチの契約2本にまとめた）／
+  smoke 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **103行**（`BASELINE_SELF_TEXT` も 103）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors／`npm run regen` 完走。
   🖥**実機＝不要と判定（§2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
   **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
-  🔑**engine の一般則（この巡で足したもの）**＝**「受け皿は既に在った」が5回目・6回目**＝
-  第21は `parseSigniTarget` が最初から `count:2, upToCount:true` を出せており、
-  第25は同型の平坦版4枚が既に `POWER_MODIFY{filter:{infected:true}}` で動いていた。
-  ⇒ **payload 化に着手する前に「同じ意味を typed で解けている兄弟カード」を1枚探す。**
-  🔴**STUB id は「意味」だけでなく「配線の鍵」でもある**＝`DOWN_UP_SIGNI_AND_CHOOSE` は
-  `USE_TIME_COST_PAY_STUBS` がこの id で**使用時コストの支払いステップを剥がして**おり、
-  typed 化すると**支払いが二重**になる。**id を消す前に `grep <ID> src/data/` も掛ける。**
-  🔴**miss1/live1 の小さい項目でも「別のものを触っている」ことがある**＝
-  `LOOK_TOP_OPP_CHOOSE_TRASH` は選ばれたカードを**手札から**取り除く実装へ渡しており、
-  **デッキが減らずトラッシュへ複製**され、「残りを手札に加える」は1行も実装が無かった。
-  🔑**`CHOOSE` の枝の中の STUB はカード全文が特に危ない**（他の枝の数字を先頭一致で拾う）＝第27・第28。
-  ✅**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**。
+  🔑**engine の一般則（この巡で足したもの）**＝**「単価の regex が外れる」より「修正先か数え方が裏返っている」
+  方が実害だった（4/4）**＝第29・第31 は修正先が**対戦相手のシグニ**（原文は「この**シグニ**のパワーは」＝真逆）、
+  第32 は正面ゾーンを `signi[zi]`（正面は `2 - zi`）で引いたうえ**効果元自身**に積んでいた。
+  🔴**typed へ寄せるときは `extract*` 系の収集関数の選別条件を読む**＝`POWER_MODIFY_PER_CHARM` に
+  型どおり `until:'PERMANENT'` を書いたら**恒久 no-op**（`until` があると ACTIVATED 扱いで CONTINUOUS 走査から外れる）。
+  **逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**形＝型の `until` を必須→任意へ緩めた。
+  🧹**手書きが parser に追い越されている例は「どの計器にも出ない」**＝`WXDi-P14-TK04` の手書きは
+  原文「１枚**まで**」に対し必ず1枚出させる過剰実行で、`O-60` の miss を追っていて偶然見つかった。
+  ⚠**ハンドラ撤去は `genStubsMd` の説明も消す**＝`POWER_CAP` が一度 `[STUB:POWER_CAP]`（生の英語 ID）になりかけた。
+  ✅**ブラスト半径＝効果 変更10・追加0・削除0、予定外0**。
 
 ## 付録A. 全体像と Definition of Done
 

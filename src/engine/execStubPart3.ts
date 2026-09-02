@@ -3122,16 +3122,18 @@ export function execStubPart3(
     const addFieldSFT: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
     return selectOrInteract(signiInTrashSFT, 1, false, 'self_trash', addFieldSFT as EffectAction, undefined, ctx);
   }
+  // 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝レベル制限は payload（`summonFromEnergy.maxLevel`）で受け取る。**
+  // 🔴旧実装は `card.EffectText` に `/レベル([０-９\d]+)以下の/` を当てていた＝**カード全文**なので
+  //   別の能力のレベル表記を拾いうるし、`choiceTextParser`（実行時の①②選択肢）から来る経路では
+  //   そもそも選択肢テキストと効果元の全文が一致しないので読みようがなかった。
+  // ⚠**省略＝レベル制限なし**（原文に制限が書かれていない形が正常）＝ここは fail-closed にしない。
+  //   parser 経路は typed `ADD_TO_FIELD{source:{ENERGY_CARD,…}}` へ寄せてある（live 3効果で稼働中）。
   if (stub.id === 'SUMMON_FROM_ENERGY') {
-    const srcSFE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSFE = srcSFE ? (srcSFE.EffectText ?? '') : '';
-    const lvMSFE = txtSFE.match(/レベル([０-９\d]+)以下の/);
-    const toHWSFE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const maxLvSFE = lvMSFE ? parseInt(toHWSFE(lvMSFE[1])) : 99;
+    const maxLvSFE = stub.summonFromEnergy?.maxLevel;
     const signiInEnaSFE = ctx.ownerState.energy.filter(cn => {
       const c = ctx.cardMap.get(cn);
       if (!c || c.Type !== 'シグニ') return false;
-      return parseInt(c.Level ?? '0') <= maxLvSFE;
+      return maxLvSFE === undefined || parseInt(c.Level ?? '0') <= maxLvSFE;
     });
     if (signiInEnaSFE.length === 0) return done(addLog(ctx, 'エナゾーンにシグニなし'));
     const addFieldAct: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
@@ -3510,10 +3512,11 @@ export function execStubPart3(
   }
   // OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
   if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
-    const srcOHRN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
-    const mNameOHRN = txtOHRN.match(/「([^」]+)」/);
-    const nameOHRN = mNameOHRN ? mNameOHRN[1] : '';
+    // 🆕**§5.3 `O-60` 第36バッチ（2026-09-03）＝カード名は payload で受け取る。**
+    // 🔴旧実装は `/「([^」]+)」/`（**かぎ括弧**）で名前を取ろうとしていたが原文の綴りは《》なので
+    //   **1本も当たらず**、常に「手札に『』なし（公開なし）」で終わっていた（恒久 no-op）。
+    // ⚠**payload が無ければ公開させない**（fail-closed）。
+    const nameOHRN = stub.optionalHandRevealNamed?.cardName ?? '';
     const matchingOHRN = ctx.ownerState.hand.filter(cn => nameOHRN && ctx.cardMap.get(cn)?.CardName === nameOHRN);
     if (matchingOHRN.length === 0) return done(addLog(ctx, `手札に「${nameOHRN}」なし（公開なし）`));
     const newOwnerOHRN: PlayerState = {

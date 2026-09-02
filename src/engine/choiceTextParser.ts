@@ -40,6 +40,22 @@ const CHOICE_PATTERNS = [
 ];
 
 /** 選択肢1つ分のテキストをアクションに変換（解析不可ならnull） */
+/**
+ * 🆕「エナゾーンから（レベルN以下の）シグニを場に出す」選択肢を `STUB{SUMMON_FROM_ENERGY}` にする
+ * （§5.3 `O-60` 第35バッチ・2026-09-03）。
+ * 🔑**レベル制限はここ（選択肢テキスト）から読む**＝engine 側でカード全文を読むと、
+ *   選択肢が複数ある札で**別の選択肢のレベル表記**を拾う（`choiceTextParser` 経由では効果元の全文と
+ *   選択肢テキストがそもそも一致しない）。
+ */
+function summonFromEnergyAction(choiceTxt: string): StubAction {
+  const toHalf = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const lvM = choiceTxt.match(/レベル([０-９\d]+)以下の/);
+  return {
+    type: 'STUB', id: 'SUMMON_FROM_ENERGY',
+    ...(lvM ? { summonFromEnergy: { maxLevel: parseInt(toHalf(lvM[1]), 10) } } : {}),
+  } as StubAction;
+}
+
 export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   // 「レベルが場にある【ウィルス】の数以下の対戦相手のシグニ１体を対象とし、それをバニッシュする」（WX16-005①）
   // 汎用バニッシュ判定より先に判定する必要がある
@@ -236,7 +252,7 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
     //   ⚠選択肢テキストは複文になりうる＝**先に当たった1文で return しない**（前半を拾って SEQUENCE にする）。
     if (/エナゾーンから.*シグニ.*場に出す/.test(choiceTxt)) {
       return { type: 'SEQUENCE', steps: [
-        ({ type: 'STUB', id: 'SUMMON_FROM_ENERGY' } as StubAction) as EffectAction,
+        (summonFromEnergyAction(choiceTxt)) as EffectAction,
         pwAllPlus,
       ] } as SequenceAction;
     }
@@ -297,7 +313,7 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   }
   // 「エナゾーンからシグニを場に出す」
   if (choiceTxt.match(/エナゾーンから.*シグニ.*場に出す/)) {
-    return ({ type: 'STUB', id: 'SUMMON_FROM_ENERGY' } as StubAction) as EffectAction;
+    return summonFromEnergyAction(choiceTxt) as EffectAction;
   }
   // 「手札をすべて捨て、N枚引く」
   if (choiceTxt.match(/手札をすべて捨て.*([２-９\d]枚|引く)/)) {

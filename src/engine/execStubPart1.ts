@@ -4797,28 +4797,40 @@ export function execStubPart1(
     }
     return done(addLog(newCtxL, `${logs.join(' / ')}（エナフェイズ終了まで）`));
   }
-  // デッキ上2枚を見てクラスシグニをエナへ、残りをデッキ上へ
+  // REVEAL_PICK_CLASS_TO_ENERGY: デッキ上N枚を公開し、条件に合うカードをエナへ、残りを指定の行き先へ
+  // 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝公開枚数・絞り込み・残りの行き先は payload で受け取る。**
+  // 🔴旧実装は `EffectText + BurstText` に `/[<＜]([^>＞]+)[>＞]のシグニ.*エナゾーンに置く/` を当てていたので、
+  //   `WX18-034` の「**《アクセアイコン》を持つ**すべてのシグニ」には**1本も当たらず絞り込みが消え**
+  //   （公開したシグニ全部がエナへ行く過剰実行）、しかも**残りの行き先がデッキの一番上に固定**で
+  //   原文の「残りを**トラッシュに置く**」と別物、公開枚数も既定2枚（原文3枚）だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY') {
-    const srcRPC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRPC = srcRPC ? (srcRPC.EffectText ?? '') + ' ' + (srcRPC.BurstText ?? '') : '';
-    const classMatchRPC = txtRPC.match(/[<＜]([^>＞]+)[>＞]のシグニ.*エナゾーンに置く/);
-    const targetClassRPC = classMatchRPC?.[1];
-    const viewedRPC = (ctx.lastProcessedCards ?? []).length > 0 ? ctx.lastProcessedCards! : ctx.ownerState.deck.slice(0, 2);
+    const specRPC = stub.revealPickToEnergy;
+    if (!specRPC) return done(addLog(ctx, 'デッキ公開→エナ：内容が無いため何もしない'));
+    // 🔑候補は前段 `LOOK_AND_REORDER` が残した公開結果を優先（原文の「**その中から**」がそのまま成立する）。
+    //   payload に枚数があればそれで切り出す（前段が無い経路のフォールバック）。
+    const viewedRPC = (ctx.lastProcessedCards ?? []).length > 0
+      ? ctx.lastProcessedCards!
+      : specRPC.revealCount !== undefined ? ctx.ownerState.deck.slice(0, specRPC.revealCount) : [];
     if (viewedRPC.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK_CLASS_TO_ENERGY）'));
-    const toEnergyRPC = viewedRPC.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      return c?.Type === 'シグニ' && (!targetClassRPC || c.CardClass?.includes(targetClassRPC));
-    });
-    const toTopRPC = viewedRPC.filter(cn => !toEnergyRPC.includes(cn));
+    const toEnergyRPC = viewedRPC.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), specRPC.pickFilter));
+    const restRPC = viewedRPC.filter(cn => !toEnergyRPC.includes(cn));
     let newDeckRPC = [...ctx.ownerState.deck];
-    for (const cn of [...toEnergyRPC, ...toTopRPC]) {
+    for (const cn of viewedRPC) {
       const idx = newDeckRPC.indexOf(cn); if (idx >= 0) newDeckRPC.splice(idx, 1);
     }
-    newDeckRPC = [...toTopRPC, ...newDeckRPC];
-    const newOwnerRPC = { ...ctx.ownerState, deck: newDeckRPC, energy: [...ctx.ownerState.energy, ...toEnergyRPC] };
-    const enamesRPC = toEnergyRPC.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+    // 残りの行き先＝原文どおり（デッキの一番上／トラッシュ）。
+    const trashRPC = specRPC.remainderTo === 'trash' ? restRPC : [];
+    if (specRPC.remainderTo === 'deck_top') newDeckRPC = [...restRPC, ...newDeckRPC];
+    const newOwnerRPC = {
+      ...ctx.ownerState,
+      deck: newDeckRPC,
+      energy: [...ctx.ownerState.energy, ...toEnergyRPC],
+      trash: [...ctx.ownerState.trash, ...trashRPC],
+    };
+    const enamesRPC = toEnergyRPC.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・');
     return done(addLog({ ...ctx, ownerState: newOwnerRPC },
-      `${enamesRPC || 'なし'}をエナゾーンへ、残り${toTopRPC.length}枚をデッキ上へ`));
+      `${enamesRPC || 'なし'}をエナゾーンへ、残り${restRPC.length}枚を${specRPC.remainderTo === 'trash' ? 'トラッシュ' : 'デッキ上'}へ`));
   }
   // ガードアイコンなしカードを捨てたとき、そのカードをエナへ
   if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {

@@ -2458,7 +2458,12 @@ export function calcFieldPowers(
                 const { frontOfSelf: _f, ...restFilter } = target.filter;
                 const frontBase = frontNum.includes('#') ? frontNum.slice(0, frontNum.indexOf('#')) : frontNum;
                 if (matchesFilter(cardMap.get(frontBase), restFilter)) {
-                  applyDeltaToCard(frontNum, delta, powers, otherPowerProtection);
+                  // 🆕「**そのシグニの**レベル1につき±N」（§5.3 `O-60` 第32バッチ・2026-09-03）＝
+                  //   倍率は**正面のシグニ自身**の実効レベル（`applyDeltaToState` の `perTargetLevel` と同じ規約）。
+                  const frontDelta = mod.deltaPerTargetLevel === true
+                    ? delta * effectiveSigniLevel(otherState, frontNum, cardMap)
+                    : delta;
+                  if (frontDelta !== 0) applyDeltaToCard(frontNum, frontDelta, powers, otherPowerProtection);
                 }
               }
               continue;
@@ -2778,9 +2783,11 @@ export function calcFieldPowers(
         for (const mod of perEnergyColorMods) {
           const enaState = mod.energyOwner === 'self' ? ownerState : otherState;
           const colorSet = new Set<string>();
+          // 🆕`colors` があれば**その色だけ**を数える（§5.3 `O-60` 第30バッチ＝`WXK11-063` は青を数えない）。
+          const countedColors = mod.colors ?? ['白', '赤', '青', '緑', '黒'];
           for (const cn of enaState.energy) {
             const colorStr = cardMap.get(cn)?.Color ?? '';
-            for (const col of ['白', '赤', '青', '緑', '黒']) {
+            for (const col of countedColors) {
               if (colorStr.includes(col)) colorSet.add(col);
             }
           }
@@ -3091,7 +3098,9 @@ export function calcFieldPowers(
   applyFieldMods(opState);
 
   // POWER_CAP: パワー上限の適用（全パワー修正後に上限を適用）
-  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  // 🆕**§5.3 `O-60` 第33バッチ（2026-09-03）＝上限値は payload（`powerCap.max`）で受け取る。**
+  //   旧実装は `cardMap.get(topNum)?.EffectText` を regex で読んでいた（＝効果元自身の全文）。
+  // ⚠**payload が無い宣言は上限を掛けない**（fail-closed）。
   const applyCaps = (state: PlayerState) => {
     for (const stack of state.field.signi) {
       const topNum = stack?.at(-1);
@@ -3100,12 +3109,8 @@ export function calcFieldPowers(
         if (eff.effectType !== 'CONTINUOUS') continue;
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type !== 'STUB' || act.id !== 'POWER_CAP') continue;
-        const txt = cardMap.get(topNum)?.EffectText ?? '';
-        const m = txt.match(/パワーは([０-９\d]+)より大きくならない/);
-        if (m) {
-          const cap = parseInt(toHW(m[1]), 10);
-          if (!isNaN(cap) && (powers.get(topNum) ?? 0) > cap) powers.set(topNum, cap);
-        }
+        const cap = act.powerCap?.max;
+        if (cap !== undefined && (powers.get(topNum) ?? 0) > cap) powers.set(topNum, cap);
       }
     }
   };

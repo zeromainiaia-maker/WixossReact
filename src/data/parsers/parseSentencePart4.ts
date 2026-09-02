@@ -2281,6 +2281,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'HAND_REVEAL_CLASS_SIGNI' } as StubAction;
 
   // ---- その後、特定カードを公開してもよい ----
+  // 🆕§5.3 `O-60` 第36バッチ（2026-09-03）＝**カード名を payload で運ぶ**。
+  //   旧実装は消費地点2つがそれぞれ違う regex（`/《X》を公開/` と `/「X」/`）で名前を取ろうとして
+  //   **両方とも外して**おり、公開の選択肢が常に選べない／手札一致0で即終了していた。
+  const optRevealNameM = t.match(/手札から《([^》]+)》[０-９\d]*枚を公開してもよい/);
+  if (optRevealNameM)
+    return {
+      type: 'STUB', id: 'OPTIONAL_HAND_REVEAL_NAMED',
+      optionalHandRevealNamed: { cardName: optRevealNameM[1] },
+    } as StubAction;
   if (t.match(/手札から《.*》[０-９\d]*枚を公開してもよい/))
     return { type: 'STUB', id: 'OPTIONAL_HAND_REVEAL_NAMED' } as StubAction;
 

@@ -6763,26 +6763,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   `censusManualDrift` の「削除候補」は**実体同一**のものしか出さないので、
   //   **parser が追い越した手書きはどの計器にも出ない**（§6.3 K の既知乖離リストにだけ残っていた）。
 
-  // WXDi-P14-TK04 フェゾーネマジック・深緑（スペル/クラフト）
-  // 【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを場に出す
-  'WXDi-P14-TK04': [
-    {
-      effectId: 'WXDi-P14-TK04-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '緑', count: 0 }] },
-      action: {
-        type: 'SEQUENCE',
-        steps: [
-          { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
-          { type: 'STUB', id: 'SUMMON_FROM_ENERGY' },
-        ],
-      } as SequenceAction,
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
+  // 🏁**WXDi-P14-TK04（フェゾーネマジック・深緑）の手書きは削除した**（2026-09-03 §5.3 `O-60` 第35バッチ）。
+  //   すぐ上の教訓の実例＝**parser が追い越していた**。いまの parser は
+  //   `SEQUENCE[ENERGY_CHARGE_FROM_DECK, ADD_TO_FIELD{source:{ENERGY_CARD, upToCount:true}}]` を出す
+  //   （原文「シグニを**１枚まで**」＝任意）のに対し、手書きは `STUB{SUMMON_FROM_ENERGY}` で
+  //   **必ず1枚出させる**（`selectOrInteract(..., optional=false)`）過剰実行だった。
 
   // WXDi-P09-TK03A コードイート　オンタマ（アクセクラフト）
   // 『【常】：これにアクセされているシグニが場を離れる場合、代わりにこれをゲームから除外してもよい。そうした場合、そのシグニをダウンする。』

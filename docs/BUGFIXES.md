@@ -1,5 +1,87 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第7巡）：§5.3 `O-60` 第29〜36バッチ — 残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化
+
+**ベースライン**＝`11875d8f6`（第21〜28バッチの直後）。**A🔴 SELF_TEXT 124行 → 103行 / 121→101ハンドラ**、
+🔑**miss 28ハンドラ・34カード → 9ハンドラ・15カード**（1巡で最大の落差）。`BASELINE_SELF_TEXT` も 103 へ払い戻し済み。
+**新しいアクション型・条件型は0**。🔑**8バッチ中5バッチは「STUB ごと撤去して typed へ寄せた」**
+（`POWER_BY_CHARM_COUNT` / `POWER_BY_ENERGY_COLOR_VARIETY` / `POWER_BY_RISE_SIGNI_COUNT` /
+`POWER_MOD_BY_FRONT_LEVEL` / `POWER_CAP` のハンドラ）。
+
+### 第29〜32バッチ＝CONTINUOUS のパワー比例4種（各1効果）— 🔑受け皿は既に在った（7・8回目）
+
+🔴**4本とも「単価の regex が外れる」より「修正先か数え方が原文と裏返っている」方が実害だった。**
+
+- **第29 `POWER_BY_CHARM_COUNT`**（`WXK11-041`「このシグニのパワーは**場にある**【チャーム】１枚につき＋1000」）＝
+  ①**自分の場のチャームしか数えない**（原文は所有者を問わない）②修正先が**対戦相手のシグニ**（原文は「**この**シグニ」＝真逆）。
+  ⇒ typed `POWER_MODIFY_PER_CHARM{sourceOwner:'any'}`（live 3効果で稼働中）へ。
+- **第30 `POWER_BY_ENERGY_COLOR_VARIETY`**（`WXK11-063`「**白、赤、緑、黒**の色１種類につき＋1000」）＝
+  **色の限定を一切見ずに5色すべて**を数えていた（青のぶん1色過剰）。
+  ⇒ typed `POWER_MODIFY_PER_ENERGY_COLOR`（**同型5効果が先に稼働**）に `colors?: string[]` を1つ足しただけ。
+- **第31 `POWER_BY_RISE_SIGNI_COUNT`**（`WXK10-064`）＝①regex が「ライズシグニ…体につき」＝**実在しない綴り**
+  ②数える対象を「**スタックが2枚以上のゾーン**」で近似（《ライズアイコン》の有無を見ていない）③修正先が相手（真逆）。
+  ⇒ typed `POWER_MODIFY_PER_FIELD{countFilter:{hasRiseIcon:true}}`（`hasRiseIcon` は `matchesFilter` に実装済み）。
+- **第32 `POWER_MOD_BY_FRONT_LEVEL`**（`WXDi-P04-083`）＝**2つとも裏返っていた**＝
+  ①正面ゾーンを `signi[zi]`（**同じ添字**）で引いていた（正面は `2 - zi`）②修正先が**効果元自身**
+  （原文は「この**シグニの正面のシグニ**のパワーを」）。平坦版の兄弟3枚は既に `POWER_MODIFY{frontOfSelf}` で
+  動いており、足りないのは第25バッチで足した `deltaPerTargetLevel` を `frontOfSelf` 分岐で読むことだけだった。
+
+🔴🔑**この巡で踏んだ一番危ない罠＝`until` を書くと CONTINUOUS 経路から外れる。**
+`POWER_MODIFY_PER_CHARM` を typed 化するとき型どおりに `until:'PERMANENT'` を書いたら**恒久 no-op**になった。
+`extractPowerModifiesPerCharm`（`effectEngine.ts`）が **`until` があると ACTIVATED 扱いにして CONTINUOUS 走査から外す**
+規約だったため。⇒ 型の `until` を**必須→任意**へ緩め、「**省略＝【常】**」を型コメントに明記した。
+**逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**形（`O-128` 第4バッチの「収集契約」と同じ家系）。
+
+### 第33バッチ `POWER_CAP`（1効果）
+
+- 🔑**消費地点が2つ**＝`effectEngine.applyCaps`（**実際に効く方**・`/パワーは(\d+)より大きくならない/`）と
+  `execStubPart2` のハンドラ（`/パワーが?(\d+)以下/`＝**原文と綴りが違い1本も当たらない**）。
+- 後者は当たれば `temp_power_mods` に差分を焼き込む＝**【常】の上限が一度きりの補正に化ける**形だったので**撤去**。
+  前者は payload（`powerCap.max`）を読むようにした。
+
+### 第34バッチ `TRASH_ALL_OPP_CARDS` ＋ `TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY`（各1効果）
+
+- `TRASH_ALL_OPP_CARDS`（`WXK11-047`）＝「カード名一致のエナ限定トラッシュ」へ先に分岐しようとし、外れると
+  「場＋手札」だけの fallback へ落ちていた＝原文にある**エナゾーンが丸ごと落ちる**過少実行。
+  ⚠その regex は同じカードの**コスト句**（「《サーバント》を含むシグニ１５枚をトラッシュに置く」）に近い綴りで、
+  少し違えば**コストの名前で相手エナだけ削る**別物に化ける形だった。⇒ `trashAllOppZones` を payload 化。
+- `TRASH_ALL_BY_NAME…`（`WXEX2-10`）＝`/「([^」]+)」/`（**かぎ括弧**）で名前を取ろうとしていたが原文は《》なので
+  **1本も当たらず恒久 no-op**。照合も**完全一致**で、原文の「**含む**」（部分一致）と別物だった。
+
+### 第35バッチ `SUMMON_FROM_ENERGY` ＋ `REVEAL_PICK_CLASS_TO_ENERGY`（各1効果）
+
+- 🔑**`SUMMON_FROM_ENERGY` は「手書きが parser に追い越されていた」**＝`WXDi-P14-TK04` は
+  `manualEffects.ts` の手書きが `STUB{SUMMON_FROM_ENERGY}` を固定していたが、**いまの parser は
+  typed `ADD_TO_FIELD{source:{ENERGY_CARD, upToCount:true}}` を出せる**（同型3効果が live で稼働）。
+  手書きは原文「シグニを**１枚まで**」（任意）に対し**必ず1枚出させる**過剰実行だった。⇒ 手書きを削除。
+  STUB 自体は `choiceTextParser`（実行時の①②選択肢）が使うので残し、レベル制限を payload 化して
+  **選択肢テキストから読む**ようにした（engine がカード全文を読むと**別の選択肢のレベル**を拾う）。
+- `REVEAL_PICK_CLASS_TO_ENERGY`（`WX18-034`）＝①`/＜クラス＞のシグニ.*エナゾーンに置く/` が
+  「**《アクセアイコン》を持つ**すべてのシグニ」に当たらず**絞り込みが消え**（公開したシグニ全部がエナへ）
+  ②**残りの行き先がデッキの一番上に固定**で原文の「残りを**トラッシュに置く**」と別物
+  ③公開枚数も既定2枚（原文3枚）。⇒ 候補は前段 `LOOK_AND_REORDER` の `lastProcessedCards` から取る（第24バッチと同じ手）。
+
+### 第36バッチ `OPP_SIGNI_TO_DECK_NTH` ＋ `OPTIONAL_HAND_REVEAL_NAMED`（各1効果）
+
+- `OPP_SIGNI_TO_DECK_NTH`（`WDK09-012`）＝原文は「**三**番目」＝**漢数字**なので regex が当たらず
+  `nth` が **0（＝一番上）** に落ちていた＝「デッキの奥へ送る」意図と真逆に、次のドローで戻る位置に置いていた。
+- `OPTIONAL_HAND_REVEAL_NAMED`（`WX05-038`）＝**消費地点2つがそれぞれ違う regex で名前を取ろうとして両方外していた**
+  （`effectExecutor` は `/《X》を公開/`＝原文は「《X》**１枚を**公開」で間に枚数、`execStubPart3` は
+  `/「X」/`＝**かぎ括弧**）。⇒ 公開の選択肢が常に選べない／手札一致0で即終了＝**恒久 no-op** だった。
+
+### 検証
+
+- `npm run gates` **全緑**（golden **3323/3323**＝+2本・smoke 0・fuzz 0・census 3/3・
+  census:stubs A群🔴 0／C群 0・census:enginetext **103/103**・census:costtext A群 0）。
+- **反転確認を8本とも取った**（チャームを自分の場だけに戻す／`colors` を無視／`hasRiseIcon` を外す／
+  `frontOfSelf` の倍率を外す／上限の既定値を復活／エナを一掃しない／残りをデッキ上へ固定／位置の既定 1）
+  ⇒ **8つとも新 golden が落ちる**ことを確認してから元に戻した。
+- **逆翻訳を全10シート再生成して目視**＝該当11行すべてが `[STUB:…]` から**原文どおりの日本語**になった。
+  ⚠**ハンドラを撤去すると `genStubsMd` の説明も消える**＝`POWER_CAP` が一度 `[STUB:POWER_CAP]`（生の英語 ID）に
+  なりかけた（`census:stubs` C群ゲート）。**撤去バッチでは逆翻訳を payload から描くところまで同じコミットで閉じる。**
+- 🔑**⑤実機は不要と判定**（PLAN §2.2）＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
+
 ## 2026-09-03（索引 A 第6巡）：§5.3 `O-60` 第21〜28バッチ — engine の「カード全文 regex」を8ハンドラぶん撤去／payload 化
 
 **ベースライン**＝`49529c27b`（第17〜20バッチの直後）。**A🔴 SELF_TEXT 124行 → 115行 / 121→112ハンドラ**、

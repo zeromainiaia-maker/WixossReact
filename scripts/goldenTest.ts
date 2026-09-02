@@ -20952,6 +20952,143 @@ test('signiAttackGate: 場トラッシュコストは支払い済み再入で再
   };
   eq(signiAttackBlockReason({ ...common, attacker: payable }), null, '他のシグニ2体を払えるならアタック可能');
 }));
+// 🆕§5.3 `O-60` 第33〜36バッチ（2026-09-03）＝残りの「カード全文 regex」5ハンドラを payload 化。
+test('O-60 第33〜36バッチ: パワー上限／一掃／公開→エナ／N番目／任意公開 を payload から読む', () => withSavedCursor(() => {
+  const printed = (n: string) => parseInt(cardMap.get(n)?.Power ?? '0', 10) || 0;
+  // ── 第33 POWER_CAP: 上限は payload。payload が無ければ掛からない
+  const capEff = (max?: number): CardEffect => ({
+    effectId: `GOLDEN-CAP-${max ?? 'none'}`, effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'POWER_CAP', ...(max === undefined ? {} : { powerCap: { max } }) },
+    duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+  } as unknown as CardEffect);
+  const capBoard = mkState({ signi: [SIGNI_P12000, null, null] });
+  const capped = new Map(effectsMap); capped.set(SIGNI_P12000, [capEff(5000)]);
+  eq(calcFieldPowers(capBoard, mkState({}), true, capped, cardMap as Map<string, CardData>).get(SIGNI_P12000), 5000,
+    '上限5000で頭打ちになる');
+  const noCap = new Map(effectsMap); noCap.set(SIGNI_P12000, [capEff()]);
+  eq(calcFieldPowers(capBoard, mkState({}), true, noCap, cardMap as Map<string, CardData>).get(SIGNI_P12000), printed(SIGNI_P12000),
+    '🔴payload が無ければ上限を掛けない');
+  // ── 第34 TRASH_ALL_OPP_CARDS: 対象ゾーンは payload（エナも含む）
+  const runStub = (act: Record<string, unknown>, owner: Partial<PlayerState> = {}, other: Partial<PlayerState> = {}, lastProcessed?: string[]) => {
+    const base = mkCtx({}, {}, SIGNI);
+    const ctx = {
+      ...base,
+      ownerState: { ...(base.ownerState as PlayerState), ...owner },
+      otherState: { ...(base.otherState as PlayerState), ...other },
+      ...(lastProcessed ? { lastProcessedCards: lastProcessed } : {}),
+    } as ExecCtx;
+    return finish(executeEffect({
+      effectId: 't', effectType: 'AUTO', action: { type: 'STUB', ...act } as unknown as EffectAction,
+      duration: 'INSTANT', mandatory: true,
+    } as CardEffect, ctx), ctx);
+  };
+  const oppBoard = { ...mkState({ signi: [SIGNI, SIGNI_P3000, null], hand: 2, energy: 3 }) };
+  const wiped = runStub({ id: 'TRASH_ALL_OPP_CARDS', trashAllOppZones: ['field', 'hand', 'energy'] }, {}, oppBoard);
+  const wo = wiped.otherState as PlayerState;
+  eq(wo.hand.length, 0, '手札が空になる');
+  eq(wo.energy.length, 0, '🔴エナゾーンも空になる（旧 fallback はエナを残していた）');
+  eq(wo.field.signi.filter(x => x).length, 0, '場のシグニも消える');
+  ok(wiped.done, '完了する');
+  const notWiped = runStub({ id: 'TRASH_ALL_OPP_CARDS' }, {}, oppBoard);
+  eq((notWiped.otherState as PlayerState).hand.length, oppBoard.hand.length, '🔴payload が無ければ何もしない');
+  // ── 第34 TRASH_ALL_BY_NAME: カード名は部分一致
+  const named = cardMap.get(SIGNI)?.CardName ?? '';
+  const part = named.slice(0, 2);
+  const byName = runStub({ id: 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY',
+    trashAllByName: { nameContains: part, zones: ['field', 'energy'] } },
+    {}, { ...mkState({ signi: [SIGNI, null, null] }), energy: [SIGNI] } as Partial<PlayerState>);
+  eq((byName.otherState as PlayerState).energy.length, 0, '🔴名前が「含む」で一致すればエナから消える（旧実装は完全一致＋かぎ括弧で恒久 no-op）');
+  ok(runStub({ id: 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY' }, {},
+    { ...mkState({}), energy: [SIGNI] } as Partial<PlayerState>).done, 'payload なしでも落ちない');
+  // ── 第35 REVEAL_PICK_CLASS_TO_ENERGY: 絞り込みと残りの行き先が payload どおり
+  // ⚠`hasIcon:'アクセ'` の判定は `matchesFilter` の「本文に【アクセ】を含むか」（execUtils）。
+  const ACC = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【アクセ】'));
+  const PLAIN = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【アクセ】'));
+  const picked = runStub({ id: 'REVEAL_PICK_CLASS_TO_ENERGY',
+    revealPickToEnergy: { pickFilter: { cardType: 'シグニ', hasIcon: 'アクセ' }, remainderTo: 'trash' } },
+    { deck: [ACC, PLAIN], energy: [], trash: [] } as unknown as Partial<PlayerState>);
+  // lastProcessedCards が無い経路では revealCount が要る＝ここでは payload に枚数を入れて確認する
+  const picked2 = runStub({ id: 'REVEAL_PICK_CLASS_TO_ENERGY',
+    revealPickToEnergy: { revealCount: 2, pickFilter: { cardType: 'シグニ', hasIcon: 'アクセ' }, remainderTo: 'trash' } },
+    { deck: [ACC, PLAIN], energy: [], trash: [] } as unknown as Partial<PlayerState>);
+  ok(picked.done, '公開結果も枚数も無ければ何もしない');
+  const po = picked2.ownerState as PlayerState;
+  eq(JSON.stringify(po.energy), JSON.stringify([ACC]), '🔴《アクセアイコン》持ちだけがエナへ（旧実装は全シグニ）');
+  eq(JSON.stringify(po.trash), JSON.stringify([PLAIN]), '🔴残りはトラッシュへ（旧実装はデッキの一番上に固定）');
+  // ── 第36 OPP_SIGNI_TO_DECK_NTH: 位置は payload（漢数字の「三番目」＝3）
+  const nthBoard = { ...mkState({ signi: [SIGNI_P3000, null, null] }), deck: [SIGNI_L1, SIGNI_L2, SIGNI_L3, SIGNI_L4] } as unknown as Partial<PlayerState>;
+  const nth = runStub({ id: 'OPP_SIGNI_TO_DECK_NTH', oppSigniToDeckNth: { position: 3 } }, {}, nthBoard, [SIGNI_P3000]);
+  eq((nth.otherState as PlayerState).deck[2], SIGNI_P3000, '🔴デッキの上から3番目に入る（旧実装は一番上）');
+  const nthNone = runStub({ id: 'OPP_SIGNI_TO_DECK_NTH' }, {}, nthBoard, [SIGNI_P3000]);
+  eq((nthNone.otherState as PlayerState).field.signi[0]?.at(-1), SIGNI_P3000, '🔴payload が無ければ場から動かさない');
+  eq((nthNone.otherState as PlayerState).deck.length, 4, '🔴payload が無ければデッキ枚数も変わらない');
+  // ── 第36 OPTIONAL_HAND_REVEAL_NAMED: カード名は payload
+  const revealed = runStub({ id: 'OPTIONAL_HAND_REVEAL_NAMED', optionalHandRevealNamed: { cardName: named } },
+    { hand: [SIGNI] } as unknown as Partial<PlayerState>);
+  ok(((revealed.ownerState as PlayerState).hand_revealed_just ?? []).includes(SIGNI),
+    '🔴payload の名前で手札から公開できる（旧実装はかぎ括弧 regex で恒久 no-op）');
+  eq((((runStub({ id: 'OPTIONAL_HAND_REVEAL_NAMED' }, { hand: [SIGNI] } as unknown as Partial<PlayerState>)).ownerState as PlayerState).hand_revealed_just ?? []).length, 0,
+    'payload が無ければ公開しない');
+}));
+// 🆕§5.3 `O-60` 第29〜32バッチ（2026-09-03）＝CONTINUOUS のパワー比例4種を typed へ寄せた。
+// 🔴旧 STUB は4本とも**修正先か数え方が原文と裏返って**いた（下の assert がその向きを固定する）。
+test('CONTINUOUS パワー比例: チャーム／エナ色／ライズ／正面レベル を typed で解く（O-60 第29〜32バッチ）', () => withSavedCursor(() => {
+  const SELF = SIGNI_P3000;
+  const printed = (n: string) => parseInt(cardMap.get(n)?.Power ?? '0', 10) || 0;
+  const mkCont = (action: Record<string, unknown>): CardEffect => ({
+    effectId: `GOLDEN-PWR-${JSON.stringify(action).length}`, effectType: 'CONTINUOUS',
+    action, duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+  } as unknown as CardEffect);
+  const powersOf = (eff: CardEffect, mine: PlayerState, opp: PlayerState) => {
+    const em = new Map(effectsMap); em.set(SELF, [eff]);
+    return calcFieldPowers(mine, opp, true, em, cardMap as Map<string, CardData>);
+  };
+  // ── 第29: 場にある【チャーム】1枚につき＋1000（「場にある」＝両者を数える／効くのは**このシグニ**）
+  const charmAct = { type: 'POWER_MODIFY_PER_CHARM', target: { type: 'SIGNI', owner: 'self', count: 1 },
+    deltaPerCharm: 1000, sourceOwner: 'any', sourceLocation: 'field' };
+  // ⚠`until` を書くと `extractPowerModifiesPerCharm` が ACTIVATED 扱いにして CONTINUOUS 経路から外す＝恒久 no-op。
+  const mineNoCharm = mkState({ signi: [SELF, null, null] });
+  const oppCharm2: PlayerState = { ...mkState({ signi: [SIGNI, SIGNI_P12000, null] }),
+    field: { ...mkState({ signi: [SIGNI, SIGNI_P12000, null] }).field, signi_charms: [fresh(), fresh(), null] } } as PlayerState;
+  eq(powersOf(mkCont(charmAct), mineNoCharm, mkState({})).get(SELF), printed(SELF), 'チャーム0なら素のパワー');
+  eq(powersOf(mkCont(charmAct), mineNoCharm, oppCharm2).get(SELF), printed(SELF) + 2000,
+    '🔴対戦相手の場のチャームも数える（旧実装は自分の場だけ）');
+  // ── 第30: エナの色の種類につき＋1000／`colors` で数える色を限定する
+  const enaColorAct = (colors?: string[]) => ({ type: 'POWER_MODIFY_PER_ENERGY_COLOR',
+    target: { type: 'SIGNI', owner: 'self', count: 1 }, deltaPerColor: 1000, energyOwner: 'self',
+    ...(colors ? { colors } : {}) });
+  const W = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const B = findCard(c => isSigni(c) && (c.Color ?? '') === '青');
+  const mineEna: PlayerState = { ...mkState({ signi: [SELF, null, null] }), energy: [W, B] } as PlayerState;
+  eq(powersOf(mkCont(enaColorAct()), mineEna, mkState({})).get(SELF), printed(SELF) + 2000, '白と青＝2色');
+  eq(powersOf(mkCont(enaColorAct(['白', '赤', '緑', '黒'])), mineEna, mkState({})).get(SELF), printed(SELF) + 1000,
+    '🔴colors に青が無ければ青は数えない（旧実装は5色すべて）');
+  // ── 第31: 場の《ライズアイコン》持ちシグニ1体につき＋2000
+  const RISE = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【ライズ】'));
+  const riseAct = { type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'self', count: 1 },
+    deltaPerUnit: 2000, countFilter: { cardType: 'シグニ', hasRiseIcon: true }, countOwner: 'self', duration: 'PERMANENT' };
+  eq(powersOf(mkCont(riseAct), mkState({ signi: [SELF, SIGNI, null] }), mkState({})).get(SELF), printed(SELF),
+    'ライズ持ちが場に無ければ0');
+  eq(powersOf(mkCont(riseAct), mkState({ signi: [SELF, RISE, null] }), mkState({})).get(SELF), printed(SELF) + 2000,
+    '🔴ライズアイコンの有無で数える（旧実装はスタック2枚以上のゾーン数で近似）');
+  // ── 第32: 正面のシグニのパワーをそのシグニのレベル1につき－1000（効くのは**正面**・ゾーンは 2-zi）
+  const frontAct = { type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } },
+    delta: -1000, deltaPerTargetLevel: true };
+  const mineLeft = mkState({ signi: [SELF, null, null] });          // 自分の左（zi=0）
+  const oppBoard = mkState({ signi: [SIGNI_L1, null, SIGNI_L3] });   // 相手の右（zi=2）＝自分の左の正面
+  const fp = powersOf(mkCont(frontAct), mineLeft, oppBoard);
+  eq(fp.get(SIGNI_L3), printed(SIGNI_L3) - 1000 * 3, '🔴正面（2-zi）のシグニに、自分のレベル分だけ掛かる');
+  eq(fp.get(SIGNI_L1), printed(SIGNI_L1), '🔴同じ添字のシグニには掛からない（旧実装はこちらを引いていた）');
+  eq(fp.get(SELF), printed(SELF), '🔴効果元自身のパワーは動かない（旧実装は自分に積んでいた）');
+  // 撤去した4つの STUB が live に1件も残っていない
+  for (const [cardNum, effs] of effectsMap) {
+    const json = JSON.stringify(effs);
+    for (const id of ['POWER_BY_CHARM_COUNT', 'POWER_BY_ENERGY_COLOR_VARIETY', 'POWER_BY_RISE_SIGNI_COUNT', 'POWER_MOD_BY_FRONT_LEVEL']) {
+      ok(!json.includes(id), `${cardNum}: 撤去済み STUB ${id} が残っていない`);
+    }
+  }
+}));
 // 🆕§5.3 `O-60` 第28バッチ（2026-09-03）＝各プレイヤーのデッキトラッシュ枚数を payload で運ぶ。
 // 🔴旧実装は**カード全文**に2本の regex を当てていたが、原文（`WX22-017` の選択肢③）は
 //   「自分のセンタールリグのレベル１に**つき**カードを３枚」なのでどちらも当たらず**既定 1枚**だった。

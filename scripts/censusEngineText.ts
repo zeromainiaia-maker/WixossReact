@@ -48,7 +48,7 @@ const onlyId = (() => {
 //   `SELECT_TARGET_ONLY`→`TRASH`→`POWER_MODIFY{deltaPerLastProcessedCount}` の payload へ移した。
 // 🆕130→129＝2026-09-02（索引 B 第2巡・§5.3 `O-163`）＝`OPP_DECLARE_CHOICE` のカード全文 regex 枝を撤去し、
 //   ウリス系3効果を `DECLARE_ICON_REVEAL_CHECK`（宣言軸と一致軸数ごとの帰結を JSON に持つ）へ移した分。
-const BASELINE_SELF_TEXT = 115;
+const BASELINE_SELF_TEXT = 103;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
