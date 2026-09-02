@@ -2557,7 +2557,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // ⚠**分岐まで出す**（片方だけだと3分岐の脱落が逆翻訳に映らない＝§5.3 `O-163` の旧バグ）。
       const axesDI = a.declare.map((d: string) => (d === 'icon' ? 'アイコン' : 'カードの種類')).join('と');
       const brDI = a.outcomes
-        .map((o: { matched: number; action: EffectAction }) => `一致${o.matched}軸→${describeAction(o.action)}`)
+        // 🔴**2026-09-02 修正**＝`describeAction` は**存在しない関数**で、`c1e141c6e`（`O-163`）以降
+        //   このカードを描画するたび `npm run regen` が `ReferenceError` で落ちていた（ゲートには入っていない）。
+        //   同ファイル内の正しい入口は `actionJa`。
+        .map((o: { matched: number; action: EffectAction }) => `一致${o.matched}軸→${actionJa(o.action as Action)}`)
         .join(' / ');
       return `あなたの手札を1枚選ぶ。対戦相手は${axesDI}を宣言する。そのカードを公開し、${brDI}`;
     }

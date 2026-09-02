@@ -1,5 +1,80 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 A 第2〜6バッチ）：§5.3 `O-86` ③payload 化＝UI コスト層の原文 regex を5系統ぶん撤去
+
+**ベースライン**＝`960cb12ab`（第1巡＝計器新設と死に規則撤去の直後）。
+**A🔴 COST 規則 45→26本・当たり 261→77カード・真の worklist 229→45カード。**
+
+**真因**＝**カードに印刷されたコスト（【アンコール】【ベット】【ブースト】）と、
+原文が書いている条件つきの置換／軽減を、UI 層が「支払いのたびに `card.EffectText` を
+regex で読み直して」決めていた**。同じ意味を **2〜5個の入口が別々に再解釈**しており、
+規則を1本直すと入口の数だけ挙動が動く（`census:costtext` A群＝この形の全数計器）。
+
+**どう直したか**＝読み取りを **`src/data/keywordCosts.ts` 1箇所**へ集約し、build 時に
+`EffectCost` の payload として刻む。UI は `〜Of(cardNum, effectsMap)` で JSON を読むだけにした。
+
+| バッチ | 系統 | 影響枚数 | 受け皿（`EffectCost`） | 撤去した UI 入口 |
+|---|---|---:|---|---|
+| 第2 | 【アンコール】の印字コスト | 32 | `encoreCost` | `parseEncoreCost`（`ArtsModal`／`BattleScreen`） |
+| 第3 | 【ベット】の印字コイン選択肢 | 68 | `betOptions` | `parseBetOptions`（`artsUseGate`／`ArtsModal`／`CutinModal`／`SpellCastModal`） |
+| 第4 | 【ブースト】の任意追加エナ | 5 | `boostCost` | `parseBoostCost` |
+| 第5 | 使用時の任意支払いによる**軽減** | 33 | `useTimeCost` | `parseUseTimeCostReduction`（5入口＋逆翻訳） |
+| 第6 | 条件つきコスト**置換／軽減** | 48 | `costReplacement` / `optionalDiscardCost` | `computeCostReplacement` の regex 7本 ＋ `parseOptionalDiscardForCost` |
+
+🔴🔑**収穫マージの死角を最初から塞いである**＝マージは live の MANUAL/PARTIAL を効果単位で
+不可侵にするので、`manualEffects.ts` が本文を手書きしたカードでは parser の刻印が**永久に届かない**
+（実測＝アンコール32枚中9枚・ベット68枚中21枚）。⇒ **`buildEffectsJson.ts` が【出現条件】と同じく
+マージの後から重ねる**（fresh 側の `parseCardEffects` と同じ `printedKeywordCosts` を呼ぶので値は必ず一致）。
+これが無ければ「**手書きした札だけ静かにコストを踏み倒す／印刷コストで請求される**」という、
+どの計器にも出ない壊れ方になっていた。
+
+**検証**
+- **A/B（旧 UI 実装を `tmp_*.mjs` へ写経 vs live payload）**＝アンコール 32/32・ベット 68/68・
+  ブースト 5/5・使用時軽減 33/33・任意支払い置換 2/2 が完全一致。
+  **条件つき置換は全カード × ctx 16通り × 盤面3通り＝445,584 通りを照合して不一致 0。**
+- **ブラスト半径**＝ベースライン commit との機械 diff で、変化カードは**すべて payload 追加のみ・予定外 0**。
+- **反転確認あり**＝実機の各シナリオに「払えない／宣言しない側」を必ず組み込んだ（下記）。
+- **ゲート**＝全緑。golden 3275/3275／smoke 全異常0／fuzz 全0／census 3 / BASELINE 5／
+  `census:stubs` A🔴0・C0／manual-fields 0／`census:enginetext` A🔴129（据置）／
+  **`census:costtext` A🔴 45→26規則**（ratchet を実測値へ下げた）／lint 0 errors。
+
+**⑤実機**（`src/screens/` を触ったので必須）＝**6/6 PASS**。
+新規2本＝`o86BoostExtraCost`（`V-124`＝ブースト OFF は0枚で使用可／ON は0枚では押せず／
+《緑》《無》《無》の3枚で成立し全額支払われる）・`o86BetCostReplace`（`V-125`＝エナ0枚では押せず／
+ベット2枚宣言で《緑×0》へ置換されて使用でき／OFF へ戻すと再び押せない。ライフ 7→8・コイン 2→0 まで確認）。
+回帰4本＝`o199EncoreTextCostPay` / `craftArtsBetK07105` / `o123usetimepay` / `o123usetimenopay`。
+
+**踏んだ罠（次に触る人向け）**
+1. 🔴**`JSON.stringify(Infinity)` は `null`**＝使用時軽減の `max` は原文「好きな数」で `Infinity`。
+   payload では **`'ANY'` を文字列で持ち**、読み出し1箇所（`resolveUseTimeCost`）で戻す。
+2. 🔴**`stopIfUnmet` を落とすと置換が別物になる**＝旧 `computeCostReplacement` はベット形／任意支払い形で
+   条件が偽なら**即 `null`**。「最初に成立した項が勝つ」だけにすると後段の項へ落ちて別の置換が成立する。
+3. 🔴**テンプレ文字列の `\d` は二重に書く**＝落とすと `d` に潰れて半角数字が読めなくなる。
+   **現データは全角しか無いので A/B も golden も緑のまま通る**（lint の `no-useless-escape` だけが気づいた）。
+4. 🔴**関数名を `use…` で始めない**＝eslint が React Hook と誤認する（`useTimeCostOf` → `resolveUseTimeCost`）。
+5. ⚠**§6.3 K のトリップワイヤは印字コストを除外する**（`PRINTED_KEYWORD_COST_KEYS` を import して1本で持つ）＝
+   これらは `manualEffects.ts` に書かない種類のフィールド。**届いていること自体は golden が live payload 経由で assert。**
+6. 🔴**`ATTACK_SIGNI` ではアーツ窓が開かない**（`BattleScreen.tsx:8645`＝`ATTACK_ARTS` / `ATTACK_ARTS_OP` だけが
+   timing `ATTACK` へ写像）＝実機シナリオでルリグデッキのカードを押しても画像拡大になるだけ。
+7. ⚠**実機のエナは色を確かめて置く**＝《緑》要求に黒3枚を置くと「payload は読めているのに成立しない」に見える。
+
+**計器の較正1件**＝`censusCostText.ts` の原文追跡 regex が `\s` を含んでおり**改行をまたいで貪欲に伸びて**、
+手前の行から始まった1マッチが後続の規則を飲み込んでいた。**改行コード（LF/CRLF）の違いだけで規則が
+現れたり消えたり**していた（`isMultiEna` の `'：【マルチエナ】'` で実測＝B群 4→5規則）。行内空白のみへ限定した。
+
+**🔴この巡で見つけて直した別バグ1件＝`npm run regen` が落ちていた**
+`scripts/decompileEffects.ts:2560` の `DECLARE_ICON_REVEAL_CHECK` 分岐が **存在しない関数
+`describeAction` を呼んで**おり、このカードを描画するたび `ReferenceError` で全10枚の再生成が止まっていた。
+**混入は `c1e141c6e`（索引 B 第2巡・`O-163`）**＝`regen` は `npm run gates` にも CI にも入っていないので、
+**3コミットのあいだ誰も気づかなかった**。同ファイル内の正しい入口 `actionJa` へ差し替え。
+⇒ 🔑**`gates` が緑でも `regen` が動く保証は無い**（逆翻訳シート・同型★・census:stubs C群の入力が
+全部この経路）。**decompiler を触った巡は `npm run regen` まで回す**（CLAUDE.md の既定どおり）。
+再生成後の**同型★は 0（据置）**。
+
+**残り**＝`computeArtsEffectiveCost` の条件つき軽減群（`@957` センタールリグ＜X＞14カード／
+`@854` 相手センタールリグ色12／`@986` 場のシグニN体につき11 ほか）。詳細は `docs/PLAN_DETAIL.md` の `O-86`。
+
+
 ## 2026-09-02（索引 A 第1巡）：§5.3 `O-86` の①計器・②母集団実測・③死に規則5本の撤去
 
 **ベースライン**＝`cfe8e0d90`（索引 B を空にした直後）。`O-86` の登録票が指定する

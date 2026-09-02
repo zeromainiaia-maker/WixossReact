@@ -1,5 +1,41 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-09-02・索引 A 第1巡・Opus 5 単独）＝§5.3 `O-86` の①計器・②母集団実測・③第1バッチ**
+  📊**進捗3計器＝Sheet1 要対応 19 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 5（据置）**。
+  ⚠**3計器が動かないのは想定どおり**＝`O-86` は**UI 層のコスト計算**の話で、
+  3計器はどれも live JSON か engine しか見ていない（＝**この層を測る計器が無かった**のが `O-86` の本体）。
+  📦**在庫2本＝④機構 worklist 25項目（据置）**（索引 A 17／G 1／E 4／F 3）
+  ｜🏁**⑤実機 残 0件**（コスト系の回帰5シナリオを同巡で実行・全 PASS）。
+  gates 全緑（golden 3275 / 3275 据置・smoke 全異常0・fuzz 全0・census 5 / BASELINE 5・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴129 据置・
+  🆕**census-costtext A🔴45規則**（新設・ratchet）・lint 0 errors）。
+
+  🔑**この巡でやったこと＝登録票が指定する「①まず計器を作る」に従った。**
+  `O-86` は「アーツ／スペルの実効コストを UI 層が原文 regex で毎回読み直している」項目で、
+  🔴**既存の `census:enginetext` は `src/engine/` しか走査しないのでこの層が1行も映らない**
+  （＝A群が0になってもコストの意味は原文 regex のまま）。⇒ `npm run census:costtext` を新設し
+  `runGates` へ同梱（**A群の規則本数の ratchet**＝UI 層で新しく原文 regex を書いたら止まる）。
+
+  📐**②母集団の実測**＝**A🔴 COST 45規則 / 当たり 261カード**。
+  🔑**うち「コスト payload（`costScaling` / `conditionalEnergyReduction`）が無い」229カードが真の worklist**
+  （payload 済み32枚は `computeArtsEffectiveCost` の構造上**既に regex から降りている**）。
+  ⚠登録票の「178カード」はカード種別の内訳から出した別の数え方＝**229 が以後の正**。
+
+  🏁**③第1バッチ＝死に規則5本を撤去**（`《X》を〈N〉**つ少**なくする` 形）＝
+  実データの言い回しは「減る」だけで **`つ少` を含むカードは全 CSV で0枚**。**挙動は1バイトも変わらない**
+  （到達不能な枝の削除）。A群 **50 → 45規則**。
+
+  🔴**計器を書くときに2回踏んだ罠**（次に計器を足す人向け・全部 CLAUDE.md にも書いた）＝
+  ①**行ごとに読むとネストした arrow const を関数境界と誤認**して追跡中の原文変数が消える（A群が2規則に化けた）
+  ②`new RegExp(\`…${'${'}定数}…\`)` の**テンプレ regex**と**複数行呼び出し**は行単位では1本も拾えない（7本）
+  ③**原文を引数で受け取る関数**（`parseUseTimeCostReduction(effectText)` 等）を数えないと
+    `costs.ts` の `parse*` 群と `useTimeCost.ts` が丸ごと消える（**38 → 50規則**の差はここ）。
+
+**▶ 次の一手**＝**`O-86` の③payload 化を上から**＝`parseUseTimeCostReduction`(81カード) /
+`parseBetOptions`(68) / `computeCostReplacement`(33) / `parseEncoreCost`(32)。明細は `docs/_census_costtext.txt`。
+🔴**規則1本ずつ剥がす**＝母集団を見ないまま剥がすと**いま当たっている効果が静かに印刷コスト請求へ落ちる**
+（`costs.ts:262` の前例＝8枚）。⚠**剥がしたら `BASELINE_COST_RULES` を実測値へ下げる**（下げ忘れも exit 1）。
+
 - 🏁**セッション（2026-09-02・索引 B 第2巡・Opus 5 単独）＝§5.3 索引 B の残り9件を全消化して索引 B を空にした**
   （`O-71` / `O-68` / `O-137` / `O-138` / `O-163` / `O-78` / `O-104` / `O-118` / `O-160`）。
   📊**進捗3計器＝Sheet1 要対応 20 → 19 / 863（`mech` 19・即着手可能 0）｜台帳 残 OPEN 44（据置）｜
