@@ -10363,6 +10363,10 @@ const O96_TARGET_BEFORE_OPTIONAL_COST_RE = /を対象とし[、,][^。]*?ても�
 //   型だけ見て足さないこと（`TRANSFER_TO_HAND` がまさにその形）。
 const O96_STORABLE_OUTCOMES = [
   'BOUNCE', 'POWER_MODIFY', 'BANISH', 'TRASH', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'SEND_TO_ENERGY', 'EXILE',
+  // 🆕**第6バッチ（2026-09-02）で4型を追加**＝`targetsStored` は前から消費していたが
+  //   `FREEZABLE` に無く**支払いプロンプトの後で空振り**していたので入れられなかった。
+  //   同じ巡で `fixedCardNums` の消費と `FREEZABLE` 登録を揃えたので解禁できる。
+  'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD',
 ];
 
 function hasStoredTargetBinding(node: unknown): boolean {
@@ -10395,14 +10399,23 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   //   **知らないキーが1つでも混ざっていたら通さない。**
   // ⚠**対象のレベルで額が決まる系（`costColorsPerTargetLevel` 等）は入れない**＝倍率の意味が変わるので
   //   別軸として据置する（許可リストに書いていない＝自動的に弾かれる）。
+  // 🆕**第5バッチ（2026-09-02）で2キーを追加**＝
+  //   ①`costText`＝**表示専用**（`src/types/effects.ts:4920`「decompiler はこれをそのまま描画」）＝
+  //     コスト軸ではないのに未許可キーとして弾いており、**同じ軸（`handDiscard`）を持つ5効果が
+  //     `costText` の有無だけで固定されたりされなかったりして**いた。
+  //   ②`fieldToDeckBottom`＝`OptionalCostSpec` の正規の軸（`execUtils.ts:400`＝可否判定614・支払い777）。
   const allowedCostKeys = [
-    'type', 'id',
+    'type', 'id', 'costText',
     'costColors', 'handDiscard', 'handReveal',
     'fieldTrash', 'fieldDown', 'selfTrash', 'energyTrash', 'underAnySigniTrash', 'charmTrash',
+    'fieldToDeckBottom',
   ];
   if (Object.keys(cost).some(k => !allowedCostKeys.includes(k))) return action;
   // コスト軸が1つも無い payload（＝実質からのコスト）は対象外。
-  if (!Object.keys(cost).some(k => k !== 'type' && k !== 'id')) return action;
+  // 🔴**`costText` は軸に数えない**＝表示専用なので、これだけの payload は「構造化された支払いが無い」＝
+  //   支払いを提示できない。数えると `WXK10-080-E2` のような**払えないコストで帰結を出す**形になる。
+  const COST_AXIS_EXCLUDED = ['type', 'id', 'costText'];
+  if (!Object.keys(cost).some(k => !COST_AXIS_EXCLUDED.includes(k))) return action;
 
   const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
   const outcome = gate.then as EffectAction & {
@@ -12438,6 +12451,46 @@ function applyExplicitTargetMarker(text: string, action: EffectAction): EffectAc
   //   （held が1件増えて発覚）。既存の後段パス（`applyTotalLevelSelectionWiring` 等）と同じく**その場で書く**。
   stamp(action);
   return action;
+}
+
+/**
+ * §5.3 `O-96` 第6バッチ（2026-09-02）＝**`SELECT_TARGET_ONLY` の所有者を、対になる帰結へ合わせる。**
+ *
+ * 🔴**なぜ要るか**＝`applyO96OptionalCostTargetFirst` は `selectTarget` と帰結の `target` に
+ *   **同じオブジェクト参照**を置くが、**後段のパスが帰結側だけを新しいオブジェクトへ差し替える**ことがある
+ *   （実測＝`GRANT_KEYWORD` 5効果で `selectTarget.owner:'any'` ／ 帰結 `target.owner:'self'` に割れた）。
+ *   割れると**相手のシグニを選べてしまい、そのうえ付与は自分のシグニにしか当たらない**＝
+ *   コストだけ払って何も起きない（原文は「あなたのシグニ1体を対象とし」）。
+ * 🔑**触るのは `owner` 1フィールドだけ・しかも `any` → 具体 の方向だけ**＝
+ *   ①`selectTarget` と帰結 `target` が **`owner` 以外は完全一致** ②`selectTarget.owner === 'any'`
+ *   ③帰結側が `self`/`opponent`。この3つが揃ったときだけ狭める。
+ *   ⚠**「差があったら帰結側で上書きする」まで広げてはいけない**＝実測で **held が +23** になった
+ *   （`O-96` と無関係の正準形が多数あり、選択範囲と適用範囲が意図的に違う形もある）。
+ */
+function syncO96SelectTargetOwner(action: EffectAction): void {
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'SEQUENCE' && Array.isArray(obj.steps)) {
+      const steps = obj.steps as Record<string, unknown>[];
+      for (let i = 0; i < steps.length; i++) {
+        const sel = steps[i];
+        const selTarget = sel?.selectTarget as Record<string, unknown> | undefined;
+        if (sel?.type !== 'STUB' || sel.id !== 'SELECT_TARGET_ONLY' || !selTarget) continue;
+        if (selTarget.owner !== 'any') continue;
+        const gate = steps.slice(i + 1).find(x => x?.type === 'CONDITIONAL'
+          && (x.condition as { type?: string } | undefined)?.type === 'PAID_ADDITIONAL_COST');
+        const outcome = gate?.then as Record<string, unknown> | undefined;
+        const target = outcome?.targetsStored ? outcome.target as Record<string, unknown> | undefined : undefined;
+        if (!target || (target.owner !== 'self' && target.owner !== 'opponent')) continue;
+        if (JSON.stringify({ ...selTarget, owner: target.owner }) !== JSON.stringify(target)) continue;
+        selTarget.owner = target.owner;
+      }
+    }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  walk(action);
 }
 
 function parseActionText(text: string): EffectAction {
@@ -24350,6 +24403,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     const cost = { ...restCost, ...printed };
     if (Object.keys(cost).length > 0) effects[0] = { ...first, cost };
   }
+  // 🆕§5.3 `O-96` 第6バッチ＝**最後に**選択範囲と帰結の対象を合わせる（後段のパスが帰結側だけを
+  //   差し替える形が実在するので、`applyO96OptionalCostTargetFirst` の直後では間に合わない）。
+  for (const effect of effects) syncO96SelectTargetOwner(effect.action);
   _currentParseSourceTextStack.length = sourceTextDepth - 1;
   return effects;
 }

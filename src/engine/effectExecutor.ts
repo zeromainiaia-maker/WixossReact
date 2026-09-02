@@ -131,7 +131,14 @@ const exceedPoolCountOf = (state: PlayerState): number =>
 // 分岐に渡すと支払い後に候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）。
 // SEND_TO_ENERGY / TRANSFER_TO_DECK はタスク12(liii) の族（エナ送り・デッキの一番下）で必要になり追加。
 function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
-  const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY'];
+  // 🔴**ここへ足してよいのは `fixedCardNums` を実際に消費する型だけ**＝焼き込み先が無い型を入れると
+  //   `targetsStored:false` にされたうえで限定が消え、**全候補へ当たる**（過剰実行）。
+  // 🆕**2026-09-02（§5.3 `O-96` 第6バッチ）で `FREEZE`/`DOWN`/`UP`/`GRANT_KEYWORD` を追加**＝
+  //   4型とも `targetsStored` は既に消費していたのに `FREEZABLE` に無く、**支払いプロンプトの後で
+  //   候補が空になって黙って空振り**していた（だから `O96_STORABLE_OUTCOMES` にも入れられなかった）。
+  //   同じ巡で `fixedCardNums` の消費を4箇所へ足してある。
+  const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
+    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD'];
   if (FREEZABLE.includes(action.type) && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
@@ -4057,6 +4064,8 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   if (triggerRestrictFZ !== null) cands = cands.filter(n => triggerRestrictFZ!.includes(n));
   // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それを凍結する」。タスク12(lxiv)）
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  // 🆕`fixedCardNums`＝支払いインタラクションを跨いで焼き込まれた同一対象（§5.3 `O-96` 第6バッチ）。
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   // 完全効果耐性: 相手の凍結効果は耐性シグニに無効
   if (a.target.owner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
     cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
@@ -4213,6 +4222,8 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (downProtected.size > 0) cands = cands.filter(n => !downProtected.has(n));
   // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それをダウンする」。タスク12(lxiv)）
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  // 🆕`fixedCardNums`＝支払いインタラクションを跨いで焼き込まれた同一対象（§5.3 `O-96` 第6バッチ）。
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (downThisCardRestrict !== null) cands = cands.filter(n => downThisCardRestrict!.includes(n));
 
@@ -4294,7 +4305,9 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
   const { cands: rawCandsUp, scope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
   // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それをアップする」。タスク12(lxiv)）
-  const cands = a.targetsStored ? rawCandsUp.filter(n => (ctx.storedTargetCards ?? []).includes(n)) : rawCandsUp;
+  // 🆕`fixedCardNums`＝支払いインタラクションを跨いで焼き込まれた同一対象（§5.3 `O-96` 第6バッチ）。
+  const candsStoredUp = a.targetsStored ? rawCandsUp.filter(n => (ctx.storedTargetCards ?? []).includes(n)) : rawCandsUp;
+  const cands = a.fixedCardNums ? candsStoredUp.filter(n => a.fixedCardNums!.includes(n)) : candsStoredUp;
   const state = ownerState(a.target.owner === 'any' ? 'self' : a.target.owner, ctx);
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07/G145等）→ 選択不要で即アップ
   if (a.target.filter?.thisCardOnly) {
@@ -4688,6 +4701,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     // 対象宣言の後に任意コストを挟む形は lastProcessedCards が支払いカードで上書きされるため、
     // STORE_LAST_PROCESSED_TARGETS が保持した同一対象だけへ付与する。
     if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    // 🆕`fixedCardNums`＝支払いインタラクションを跨いで焼き込まれた同一対象（§5.3 `O-96` 第6バッチ）。
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
@@ -4736,7 +4751,10 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   }
   // LRIGは選択UIを出さず自動付与
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
-  if (a.targetsStored || tgt.count === 'ALL') return done(applyGrant(cands, ctx));
+  // 🆕`fixedCardNums`＝`freezeStoredTargets` が支払いプロンプトの直前に `targetsStored` を焼き込んだ形
+  //   （§5.3 `O-96` 第6バッチ）。**ここを足さないと、絞り込みは効くのに選択UIが再び開く**＝
+  //   実機で「払ったのに対象をもう一度選ばされ、確定できずに止まる」になる（実測）。
+  if (a.targetsStored || a.fixedCardNums || tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
   // 「このシグニ」: フィルターなし or thisCardOnly・sourceCardNum が候補に含まれていれば自動適用（選択UIを出さない）
   // ⚠「フィルタ無し」を「このシグニ」と読む既定は、原文「あなたのシグニ１体を**対象とし**」が生む

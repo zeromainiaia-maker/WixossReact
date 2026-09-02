@@ -1,5 +1,112 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 A 第3巡）：§5.3 `O-96` 第5・6バッチ — 対象の照応を19効果ぶん通した（欠陥署名 91→72）
+
+**ベースライン**＝`5c94b5ec4`（`O-195` クローズの直後）。
+登録票の「122効果」は失効していた（その後の `O-188` / `O-190` バッチが食っていた）＝**欠陥署名で 91効果**。
+
+### 真因（1行）
+
+原文は「〈対象〉を対象とし、〈任意コスト〉してもよい。**そうした場合、それを**〜」＝**対象宣言が支払いより前**なのに、
+live は支払いの**後**で対象を選び直していた（＝対象が1体も無くても支払いを提示する／宣言後に対象が変わりうる）。
+
+### ② 仕分けの型（この項目で確立）
+
+`applyO96OptionalCostTargetFirst` のガードを1本ずつ写した仕分け器を書き、**「どのガードで降りているか」**で分類する
+（文型では割れない）。🔴**最初の仕分けは自分の写し間違いで丸ごと化けた**＝`isDidItGate` に `IS_MY_TURN` を
+入れ忘れ、**59効果が「did-it ゲートが無い」に化けた**。`IS_MY_TURN` は「そうした場合」の**プレースホルダー**で、
+支払いの成否は executor の Pattern ④/⑤（`effectExecutor.ts:5002`）が構造で見る。
+
+### 第5バッチ（engine 無改修・11効果）
+
+- 🔴**`costText` は表示専用なのにコスト payload の未許可キーとして弾いていた**（`src/types/effects.ts:4920`
+  「decompiler はこれをそのまま描画」）＝**同じ軸（`handDiscard`）を持つ効果が `costText` の有無だけで
+  固定されたりされなかったり**していた（5効果）。
+  ⚠**許可はするが「コスト軸あり」には数えない**＝数えると `WXK10-080-E2` のように
+  **構造化された支払いが無いのに帰結を出す**形になる。
+- **`fieldToDeckBottom`** は `OptionalCostSpec` の正規の軸（`execUtils.ts:400`・可否614・支払い777）なのに
+  許可リストから漏れていた（2効果）。
+- **parser は既に直していたのに live へ届いていない5効果**を三帳票から採用（`_held_fresh` 4 ＋ `_partial_fresh` 1）。
+  🔑「parser を直したのに live が変わらない」ときは `_held_fresh` / `_partial_fresh` / `_idset_fresh` を見る（CLAUDE.md）。
+
+### 第6バッチ（engine の契約を1つ追加・8効果）
+
+`FREEZE` / `DOWN` / `UP` / `GRANT_KEYWORD` の4型は **`targetsStored` を前から消費していた**のに
+`freezeStoredTargets` の `FREEZABLE` に無く、**支払いプロンプトを跨ぐと `storedTargetCards` が消えて
+黙って空振り**するため帰結型として解禁できなかった。⇒ 🔑**3点契約を4型で揃えた**：
+
+| # | 場所 | 何を |
+|---|---|---|
+| ① | `src/types/effects.ts` | 型に `targetsStored`（既存）＋ **`fixedCardNums` を追加** |
+| ② | `effectExecutor.ts:133` | **`FREEZABLE` へ4型を追加** |
+| ③ | `execFreeze`/`execDown`/`execUp`/`execGrantKeyword` | **`fixedCardNums` の消費**（候補の絞り込み＋**選択UIを開かずに即適用する分岐**） |
+
+🔴**`fixedCardNums` を持たない型を `FREEZABLE` へ入れてはいけない**＝`targetsStored:false` にされたうえで
+焼き込み先が無く、**対象の限定が丸ごと消えて全候補へ当たる**（過剰実行）。
+
+### 🔴 実機だけが捕まえたバグが1件
+
+焼き込み後（`fixedCardNums`）に `execGrantKeyword` の「選択UIを開かずに即付与する」分岐
+（`effectExecutor.ts:4754`）が **`targetsStored` しか見ておらず**、実機で
+**「払ったのに対象をもう一度選ばされ、確定できずに止まる」**になっていた。
+**`npm run golden` 3282本は全緑のまま通っていた**（構造だけ見ていて UI の再プロンプトを観測できない）。
+⇒ **engine の対象解決を触った回は実機まで必ず行く**（§2.2 の判定どおり）。
+
+### 🆕 後段パスが帰結側だけを差し替える形への対処
+
+`applyO96OptionalCostTargetFirst` は `selectTarget` と帰結の `target` に**同じオブジェクト参照**を置くが、
+**後段のパスが帰結側だけを新しいオブジェクトへ差し替える**ことがある（実測＝`GRANT_KEYWORD` 5効果で
+`selectTarget.owner:'any'` ／ 帰結 `target.owner:'self'` に割れた＝**相手のシグニを選べて自分にしか付かない払い損**）。
+⇒ `syncO96SelectTargetOwner`（`parseCardEffects` の最後）で **`owner` 1フィールドだけ・`any`→具体 の方向だけ**合わせる。
+🔴**「差があったら帰結側で上書き」まで広げると held が +23 になる**（`O-96` と無関係の正準形が多数あり、
+選択範囲と適用範囲が意図的に違う形もある）＝**実測して狭めた**。
+
+### 🧹 golden の据置契約を1本、正方向へ置き換えた
+
+「`LAST_PROCESSED_MATCHES` を挟む形は据置（対象宣言で公開カードの参照が壊れる）」は、**包み形**
+（`CONDITIONAL{…, then: SEQUENCE[SELECT_TARGET_ONLY, …]}`）が入った時点で前提が消えていた
+（条件は `then` へ入る**前**に評価される）。⚠**据置契約は「いま壊れる」ことの assert であって永久の仕様ではない**
+（続き773 の教訓＝見送り契約が項目を眠らせる）。実経路の assert（デッキトップがレベル1なら撃てる／2なら止まる）へ置換。
+
+### 影響枚数
+
+**19効果**（`SPDi43-15-E1` `SPDi43-17-E2` `SPDi43-18-E2` `SPDi43-19-E2` `SPDi43-26-E2` `WX08-001-E1`
+`WX10-028-E2` `WX20-042-CB-E3` `WX24-P2-052-E2` `WX24-P2-074-E1` `WX25-CP1-052-E1` `WX25-P2-022-E1`
+`WX25-P3-059-E1` `WXDi-CP01-027-E3` `WXDi-CP02-009-E1` `WXDi-CP02-076-E1` `WXDi-P01-059-E1`
+`WXEX1-15-E1` `WXK03-029-E1`）。
+
+⚠**`WXDi-P08-072` は採用を見送った**＝同じカードの `E2` に**この巡と無関係な差分**
+（効果レベルの `duration` `UNTIL_OPP_TURN_END`→`UNTIL_END_OF_TURN`）が HEAD 時点から held に残っており、
+カード単位採用だと未レビューの変更を巻き込むため。`E1` だけの採用口が無い（`--adopt-partial-effect` は partial 専用）。
+
+### 検証コマンド
+
+- **ブラスト半径**＝ベースライン commit との effectId 単位 機械 diff＝**変化19件・予定外0**。
+- `npm run gates` **全緑**（golden **3282/3282**＝第6バッチの恒久 assert 2本／smoke 全異常0／fuzz 全0／
+  census 3 / BASELINE 5／`census:stubs` A🔴0・C0／manual-fields 0／`census:enginetext` A🔴129 据置／
+  `census:costtext` A🔴0 据置／lint 0 errors）。`npm run regen` 完走・**同型★0**。
+- 三帳票＝held **76→73**／partial **10→9**／idset 7（据置）。
+
+### 反転確認
+
+- 🖥**実機 `V-129`**＝`o96TargetFirstPay`（場に3体・エナ《青》1枚＝**選んだ1体だけ**が【アサシン】を得る／
+  `grants=WD03-009#8802:アサシン…`）／`o96TargetFirstNone`（エナ0枚＝**何も付かない**）。
+  engine を触ったので `O-86` の5本も回帰として同時再実行＝**7/7 PASS**。
+  ⚠**実機の落とし穴2つ**＝(a)`SKIP_BUILD` の既定で**古い dist のまま回る**（`SKIP_BUILD=0` で強制）
+  (b)任意コストは**支払うエナを選んでから `optcost-pay`**＝`発動する` のテキストだけ押しても
+  要求枚数が揃うまで disabled で、ログ上は click 成功に見えるのに state が1歩も進まない。
+- **golden**＝3点契約の存在（`O96_STORABLE_OUTCOMES` ⊆ `FREEZABLE` ∧ `fixedCardNums` の消費）と、
+  焼き込み済みなら**選択UIを開かずに1体だけへ付与する**ことを assert。
+  ⚠**POOL カーソルを消費するテストは `withSavedCursor` で包む**＝包まずに `mkCtx` を足したら
+  無関係な `V-100③` が落ちた（絞り込み実行では緑だった）。
+  ⚠**支払い可否を POOL に依存させない**＝`fill()` が引くエナの色でコストが払えたり払えなかったりして、
+  絞り込みでは通るのに全件実行で落ちる。色を明示的に敷く。
+
+### ⑤実機の要否（§2.2 の判定）
+
+**必須**＝`src/engine/effectExecutor.ts` と `src/types/effects.ts` を触り、**engine の契約を1つ追加した**ため。
+実施済み（上記 7/7 PASS）。**しかも実機だけがバグを1件捕まえた。**
+
 ## 🏁2026-09-02（索引 A 第2巡）：§5.3 `O-195` を再計測してクローズ — 登録票 145効果 → 真の穴 2件
 
 **ベースライン**＝`e867e026d`（`O-86` 第9バッチの直後）。

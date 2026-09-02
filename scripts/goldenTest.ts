@@ -35664,7 +35664,9 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
   });
 }
 
-test('task12(lxiv)① 対象宣言のフィルタが「そうした場合」の本体まで届く（SELECT_TARGET_ONLY→targetsStored）', () => {
+// ⚠**POOL カーソルを消費する**（`mkCtx` を複数回呼ぶ）ので `withSavedCursor` で包む＝
+//   包まないと後続テストが引くカードがずれて、無関係なテスト（`V-100③`）が落ちる（実測）。
+test('task12(lxiv)① 対象宣言のフィルタが「そうした場合」の本体まで届く（SELECT_TARGET_ONLY→targetsStored）', () => withSavedCursor(() => {
   // 代表＝WXK11-031-E1（パワー5000以下・条件つき任意ディスカード）と WXDi-P02-043-E1（2体まで）
   const eff = effectsMap.get('WXK11-031')!.find(e => e.effectId === 'WXK11-031-E1')!;
   const seq = eff.action as SequenceAction;
@@ -35682,11 +35684,29 @@ test('task12(lxiv)① 対象宣言のフィルタが「そうした場合」の�
   const twoSeq = two.action as SequenceAction;
   ok(JSON.stringify(twoSeq.steps.at(-1)).includes('"count":2'), '「２体まで」は本体も2体（従来は1体固定＝過小）');
   ok(JSON.stringify(twoSeq.steps.at(-1)).includes('"owner":"opponent"'), 'owner も宣言に揃う（従来は self へ反転）');
-  // 束縛が効かない型・lastProcessed 依存の形は触らない（honest defer）
-  const keep = effectsMap.get('WXDi-P01-059')!.find(e => e.effectId === 'WXDi-P01-059-E1')!;
-  ok(!JSON.stringify(keep.action).includes('SELECT_TARGET_ONLY'),
-    'LAST_PROCESSED_MATCHES を挟む形は据置（対象宣言で公開カードの参照が壊れるため）');
-});
+  // 🆕**§5.3 `O-96` 第6バッチ（2026-09-02）で「据置」を解除した。**
+  // 🔴旧契約＝「`LAST_PROCESSED_MATCHES` を挟む形は据置（対象宣言で公開カードの参照が壊れる）」。
+  //   その心配は**包み形**（`CONDITIONAL{…, then: SEQUENCE[SELECT_TARGET_ONLY, …]}`）が入った時点で消えている＝
+  //   条件は `then` へ入る**前**に評価されるので、選択が `lastProcessedCards` を上書きしても順序上の害が無い。
+  //   ⚠**据置契約は「いま壊れる」ことの assert であって永久の仕様ではない**（続き773 の教訓＝
+  //   見送り契約がそのまま項目を眠らせる）。前提が変わったら**正方向の assert へ置き換える**。
+  const lp = effectsMap.get('WXDi-P01-059')!.find(e => e.effectId === 'WXDi-P01-059-E1')!;
+  const lpSeq = lp.action as SequenceAction;
+  const lpGate = lpSeq.steps[1] as { type?: string; condition?: { type?: string }; then?: SequenceAction };
+  eq(lpGate.condition?.type, 'LAST_PROCESSED_MATCHES', '公開カードの判定は先頭のまま');
+  eq((lpGate.then?.steps?.[0] as { id?: string })?.id, 'SELECT_TARGET_ONLY',
+    '対象宣言は条件の**内側**へ入る（外に出すと未公開でも選択UIが出る）');
+  // 実経路：デッキトップがレベル1なら撃てる／レベル2なら条件で止まり相手シグニは残る。
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1' && +(c.Power || '0') > 0 && +(c.Power || '0') <= 8000);
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2' && +(c.Power || '0') > 0);
+  const victim = findCard(c => isSigni(c) && +(c.Power || '0') > 0 && +(c.Power || '0') <= 8000);
+  const fire = (top: string) =>
+    run(lp.action, mkCtx({ deckTop: [top], energy: 8 }, { signi: [victim, null, null] }));
+  ok(!fire(lv1).otherState.field.signi.some(s => s?.at(-1) === victim),
+    'デッキトップがレベル1＝支払って対象をバニッシュできる');
+  ok(fire(lv2).otherState.field.signi.some(s => s?.at(-1) === victim),
+    '🔴デッキトップがレベル2＝条件で止まり、選択も支払いも起きない');
+}));
 
 test('task12(lxv)① 条件つき任意コストの条件節が落ちない（parser ガードD 退役）', () => {
   // parser は「〈ゲート〉の場合、〈コスト〉を支払ってもよい。そうした場合、〈本体〉」を
@@ -41397,6 +41417,88 @@ test('O-195: PR-Di035-E1 は engine の既存受け皿へ載る（5色分岐が�
     eq(ngRes.ownerState.field.free_zone.length, 0, '🔴同レベル3体では成立しない（レベル3種類が要る）');
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.3 `O-96` 第5・第6バッチ（2026-09-02）＝「対象宣言 → 任意コスト → そうした場合 → 同じ対象へ」を
+// あと19効果ぶん通した。第6バッチは **engine の契約を1つ足している**ので、その契約をここで固定する。
+// 🔴**契約＝`O96_STORABLE_OUTCOMES` に入れてよいのは「型に `targetsStored` があり、かつ
+//   `freezeStoredTargets` の `FREEZABLE` にも入っていて、`fixedCardNums` を実際に消費する」型だけ。**
+//   どれか1つでも欠けると「フィールドは付くが engine が無視する」＝無言 no-op か、
+//   逆に「限定が消えて全候補へ当たる」＝過剰実行になる。
+// ─────────────────────────────────────────────────────────────────────────────
+test('O-96 第6バッチ: 帰結型の3点契約（targetsStored / FREEZABLE / fixedCardNums）が揃っている', () => {
+  // ① 型に `targetsStored` があること＝parser が載せてよい型かの判定軸。
+  const src = fs.readFileSync(join(root, 'src/types/effects.ts'), 'utf-8');
+  const exec = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf-8');
+  const parser = fs.readFileSync(join(root, 'src/data/effectParser.ts'), 'utf-8');
+
+  const listed = parser.match(/const O96_STORABLE_OUTCOMES = \[([\s\S]*?)\];/)?.[1] ?? '';
+  const outcomes = [...listed.matchAll(/'([A-Z_]+)'/g)].map(m => m[1]);
+  ok(outcomes.length >= 12, `O96_STORABLE_OUTCOMES を読めた: ${outcomes.join(',')}`);
+  for (const t of ['FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD']) {
+    ok(outcomes.includes(t), `${t} が O96_STORABLE_OUTCOMES に入っている（第6バッチで追加）`);
+  }
+
+  // ② `FREEZABLE` に全部入っていること＝支払いプロンプトを跨いで対象を焼き込む側。
+  const freezable = exec.match(/const FREEZABLE = \[([\s\S]*?)\];/)?.[1] ?? '';
+  for (const t of outcomes) {
+    ok(freezable.includes(`'${t}'`), `🔴${t} は FREEZABLE に無い＝支払い後に候補が空になり黙って空振りする`);
+  }
+
+  // ③ `fixedCardNums` を型が持ち、executor が消費していること＝焼き込み先。
+  //    🔴持たない型を FREEZABLE へ入れると `targetsStored:false` にされて**限定が丸ごと消える**（過剰実行）。
+  const consumers = (exec.match(/a\.fixedCardNums/g) ?? []).length;
+  ok(consumers >= 12, `executor が fixedCardNums を消費している箇所: ${consumers}`);
+  ok((src.match(/fixedCardNums\?: string\[\]/g) ?? []).length >= 12,
+    '型側にも fixedCardNums が並んでいる');
+});
+
+test('O-96 第6バッチ: UP/GRANT_KEYWORD が支払い後も同じ対象だけに当たる', () => withSavedCursor(() => {
+  // `WX10-028-E2`「レゾナ１体を対象とし、《白》を支払ってもよい。そうした場合、それをアップする。」
+  const up = effectsMap.get('WX10-028')!.find(e => e.effectId === 'WX10-028-E2')!;
+  const seq = up.action as SequenceAction;
+  eq((seq.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '対象宣言が先頭（支払いの前）');
+  ok(JSON.stringify(seq.steps.at(-1)).includes('"targetsStored":true'), '本体は固定対象だけをアップ');
+  // 🔑`freezeStoredTargets` が `fixedCardNums` へ焼くので、支払いプロンプトを跨いでも対象が生き残る。
+  const a = findCard(c => isSigni(c) && +(c.Power || '0') > 0);
+  const b = findCard(c => isSigni(c) && +(c.Power || '0') > 0 && c.CardNum !== a);
+  const ctx = mkCtx({ signi: [a, b, null], down: [true, true, false] }, {});
+  // 🔴**支払い可否を POOL に依存させない**＝`fill()` が引くカードの色でコスト《白》が払えたり
+  //   払えなかったりして、絞り込み実行では通るのに全件実行で落ちる（実測）。白を明示的に敷く。
+  const white = findCard(c => (c.Color ?? '') === '白');
+  ctx.ownerState.energy = [white, white, white];
+  const r = run(up.action, ctx);
+  const downs = r.ownerState.field.signi_down ?? [];
+  eq(downs.filter(Boolean).length, 1, '🔴アップするのは宣言した1体だけ（もう1体はダウンのまま）');
+
+  // `WX25-P3-059-E1`「あなたのシグニ１体を対象とし、《青》を支払ってもよい。そうした場合、…【アサシン】を得る。」
+  const gk = effectsMap.get('WX25-P3-059')!.find(e => e.effectId === 'WX25-P3-059-E1')!;
+  const gkSeq = gk.action as SequenceAction;
+  const sel = (gkSeq.steps[0] as { selectTarget?: { owner?: string } }).selectTarget;
+  const outcome = (gkSeq.steps.at(-1) as { then?: { target?: { owner?: string } } }).then;
+  eq(sel?.owner, outcome?.target?.owner,
+    '🔴選択範囲と付与範囲の owner が一致する（割れると相手を選べて自分にしか付かない＝払い損）');
+  eq(sel?.owner, 'self', '原文「あなたのシグニ1体」＝自分側だけ');
+
+  // 🔴**焼き込み後（`fixedCardNums`）は選択UIを再び開かずにその場で付与する。**
+  //   ここを落とすと実機で「払ったのに対象をもう一度選ばされ、確定できずに止まる」になる
+  //   （golden は全緑のまま通り、**実機シナリオ `V-129` だけが捕まえた**）。
+  const c1 = findCard(c => isSigni(c) && +(c.Power || '0') > 0);
+  const c2 = findCard(c => isSigni(c) && +(c.Power || '0') > 0 && c.CardNum !== c1);
+  const frozen = {
+    type: 'GRANT_KEYWORD',
+    target: { type: 'SIGNI', owner: 'self', count: 1, explicitTarget: true },
+    keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN',
+    targetsStored: false, fixedCardNums: [c1],
+  } as unknown as EffectAction;
+  const fctx = mkCtx({ signi: [c1, c2, null] }, {});
+  const fr = executeEffect({ effectId: 't', effectType: 'AUTO', action: frozen, duration: 'INSTANT', mandatory: true } as CardEffect, fctx);
+  ok(fr.done, '🔴焼き込み済みなら選択UIを開かない（pending が立たない）');
+  const gk2 = JSON.stringify(fr.ownerState.keyword_grants ?? {});
+  ok(gk2.includes(c1), `焼き込んだ1体に付く: ${gk2}`);
+  ok(!gk2.includes(c2), '🔴もう1体には付かない');
+}));
+
 
 // ── タスク12(cx)：対戦相手のシグニのアタックに応答する【起】（WX05-013-E2）──
 // 旧実装は `condition:{DURING_PHASE, phases:['ATTACK_SIGNI_OP']}` だったが `ATTACK_SIGNI_OP` は

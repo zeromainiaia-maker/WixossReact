@@ -42488,6 +42488,103 @@ scenarios.o86FieldClassNone = {
 };
 order.push('o86FieldClassNone');
 
+/**
+ * §5.3 `O-96` 第6バッチの実機（`V-129`）＝
+ * **「支払いの前に選んだ対象」が支払いプロンプトを跨いで生き残り、その1体だけに帰結が当たる。**
+ *
+ * `WX25-P3-059-E1`「【自】：あなたのアタックフェイズ開始時、あなたのシグニ１体を対象とし、
+ *   《青》を支払ってもよい。そうした場合、ターン終了時まで、それは【アサシン(凍結状態のパワー8000以下)】を得る。」
+ *
+ * 🔑**この巡で足した engine 契約を踏む唯一の観測点**＝`GRANT_KEYWORD` を `FREEZABLE` へ入れ、
+ *   `fixedCardNums` の消費を足した。入れる前は `targetsStored` のまま支払いプロンプトを跨いで
+ *   `storedTargetCards` が消え、**払ったのに何も付かない**（無言の空振り）になる。
+ * 🔑**観測点は `keywordGrants` の instance id**＝「どちらのシグニに付いたか」まで見る。
+ *   枚数だけ見ると「選んでいないほうに付いた」型の壊れ方を緑と誤読する。
+ */
+function o96TargetFirstSpec(withEnergy) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#8801'],
+      'field.lrig_down': false,
+      // 2体置く＝「選んだ1体だけに付く」ことを見るため（1体だと discrimination が無い）。
+      'field.signi': [['WD03-009#8802'], ['WD03-010#8803'], ['WX25-P3-059#8804']],
+      'field.signi_down': [false, false, false],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      // 🔴**青1枚ちょうど**（成立側）／0枚（対照）＝色を確かめずに置くと「payload は読めているのに
+      //   成立しない」に見える（§5.3 `O-86` 第4バッチで踏んだ罠）。
+      'energy': withEnergy ? ['WD03-009#8805'] : [],
+      'hand': [], 'trash': [], 'lrig_trash': [], 'actions_done': [], 'coins': 0,
+      'keyword_grants': {},
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#8806'],
+      'field.signi': [['WD01-013#8807'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO96TargetFirst(page, H, withEnergy) {
+  const tag = withEnergy ? 'o96target-ok' : 'o96target-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 field=${JSON.stringify(st0?.host?.fieldSigni)} energy=${st0?.host?.energy} grants=${JSON.stringify(st0?.host?.keywordGrants)}`);
+  const adv = await H.clickTextOrBtn(['アタックフェイズへ']);
+  H.log('フェイズ進行:', adv ?? '見つからず');
+  // 1体目（ゾーン0＝WD03-009#8802）を選び、支払いプロンプトで「発動する」を押す。
+  let last = st0;
+  let picked = false;
+  let paidEnergy = false;
+  for (let s = 0; s < 16; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // 🔑対象選択は `pick-0`（`EffectInteractionModal`）＝**1回だけ**押す
+    //   （トグルなので毎ティック押すと選択が付いたり外れたりして確定ボタンが永久に有効にならない）。
+    if (!picked) { did = await H.clickTestId('pick-0'); if (did) picked = true; }
+    if (!did) did = await H.clickTextOrBtn(['決定', '確定']);
+    // 🔴**任意コストは「支払うエナを選んでから `optcost-pay`」**＝`発動する` のテキストだけを押しても
+    //   要求枚数が揃うまで disabled のままで、ログ上は click 成功に見えるのに state が1歩も進まない。
+    if (!did && !paidEnergy) { did = await H.clickTestId('optcost-energy-0'); if (did) paidEnergy = true; }
+    if (!did) did = await H.clickTestId('optcost-pay');
+    if (!did) did = await H.stdStep();
+    last = await H.queryState();
+    const grants = last?.host?.keywordGrants ?? [];
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | energy=${last?.host?.energy} grants=${grants.join(',') || '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'} phase=${last?.turnPhase ?? '-'}`);
+    if (grants.some(g => /アサシン/.test(g))) break;
+  }
+  const grants = last?.host?.keywordGrants ?? [];
+  const onPicked = grants.some(g => /WD03-009#8802/.test(g) && /アサシン/.test(g));
+  const onOther = grants.some(g => /(WD03-010#8803|WX25-P3-059#8804)/.test(g) && /アサシン/.test(g));
+  const detail = `energy=${st0?.host?.energy}→${last?.host?.energy} grants=${grants.join(',') || '-'}`;
+  if (!withEnergy) {
+    return grants.some(g => /アサシン/.test(g))
+      ? { pass: false, detail: `🔴《青》を払えないのに【アサシン】が付いた＝支払いゲートが効いていない。${detail}` }
+      : { pass: true, detail: `対照＝エナ0枚では支払えず、何も付かない。${detail}` };
+  }
+  if (!onPicked) {
+    return { pass: false, detail: `🔴支払ったのに選んだシグニへ【アサシン】が付いていない（＝支払いプロンプトを跨いで対象が消える旧挙動）。${detail}` };
+  }
+  if (onOther) {
+    return { pass: false, detail: `🔴選んでいないシグニにも付いた＝対象が固定されていない。${detail}` };
+  }
+  if (last?.host?.energy !== 0) {
+    return { pass: false, detail: `🔴コスト《青》が支払われていない。${detail}` };
+  }
+  return { pass: true, detail: `支払いの前に選んだ1体だけに【アサシン】が付いた（他の2体には付かない）。${detail}` };
+}
+scenarios.o96TargetFirstPay = {
+  title: 'O-96 WX25-P3-059：支払いの前に選んだシグニだけが【アサシン】を得る（fixedCardNums 契約）',
+  spec: o96TargetFirstSpec(true), drive: (page, H) => driveO96TargetFirst(page, H, true),
+};
+order.push('o96TargetFirstPay');
+scenarios.o96TargetFirstNone = {
+  title: 'O-96 対照：《青》を払えなければ何も付かない',
+  spec: o96TargetFirstSpec(false), drive: (page, H) => driveO96TargetFirst(page, H, false),
+};
+order.push('o96TargetFirstNone');
+
 scenarios.o199EncoreTextCostPay = {
   title: 'O-199 WDA-F02-08：アンコール－ルリグの下から3枚をルリグトラッシュへ払って使用できる',
   spec: o199Spec(3), drive: (page, H) => driveO199(page, H, 3),

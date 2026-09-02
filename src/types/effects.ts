@@ -2257,6 +2257,14 @@ export interface FreezeAction {
   target: EffectTarget;
   down?: boolean; // true=「ダウンし凍結」：同一対象をダウンも行う。省略時は凍結のみ（現在のアップ/ダウン状態は変えない）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それを凍結する」。タスク12(lxiv)）
+  /**
+   * 🆕**支払いインタラクションを跨いで固定された対象**（§5.3 `O-96` 第6バッチ・2026-09-02）。
+   * `storedTargetCards` は resume を跨いで生存しないので、`freezeStoredTargets`
+   * （`effectExecutor.ts:133`）が pay/skip 分岐へ埋め込む直前に `targetsStored` をここへ焼き込む。
+   * 🔴**このフィールドを持たない型を `FREEZABLE` へ入れてはいけない**＝`targetsStored:false` に
+   *   されたうえで焼き込み先が無く、**対象の限定が丸ごと消えて全候補へ当たる**（過剰実行）。
+   */
+  fixedCardNums?: string[];
 }
 
 export interface DownAction {
@@ -2264,6 +2272,14 @@ export interface DownAction {
   target: EffectTarget;
   optional?: boolean; // true =「ダウンしてもよい」（スキップ可能。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WD12-013/015）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それをダウンする」。タスク12(lxiv)）
+  /**
+   * 🆕**支払いインタラクションを跨いで固定された対象**（§5.3 `O-96` 第6バッチ・2026-09-02）。
+   * `storedTargetCards` は resume を跨いで生存しないので、`freezeStoredTargets`
+   * （`effectExecutor.ts:133`）が pay/skip 分岐へ埋め込む直前に `targetsStored` をここへ焼き込む。
+   * 🔴**このフィールドを持たない型を `FREEZABLE` へ入れてはいけない**＝`targetsStored:false` に
+   *   されたうえで焼き込み先が無く、**対象の限定が丸ごと消えて全候補へ当たる**（過剰実行）。
+   */
+  fixedCardNums?: string[];
 }
 
 export interface UpAction {
@@ -2272,6 +2288,14 @@ export interface UpAction {
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニ（ダウン状態で場に出たシグニ等）をアップ（ctx.triggeringCardNum → ctx.sourceCardNum）
   targetsBattleAttacker?: boolean; // 「そのアタックしているシグニ」= バトルを行ったアタッカー自身をアップ（ctx.battleAttackerCardNum。ON_SIGNI_BANISH_OPPONENT any_ally 等・能力ホストと攻撃者が別カードになりうるため thisCardOnly/targetsTriggerSource とは別軸。WX17-032）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それをアップする」。タスク12(lxiv)）
+  /**
+   * 🆕**支払いインタラクションを跨いで固定された対象**（§5.3 `O-96` 第6バッチ・2026-09-02）。
+   * `storedTargetCards` は resume を跨いで生存しないので、`freezeStoredTargets`
+   * （`effectExecutor.ts:133`）が pay/skip 分岐へ埋め込む直前に `targetsStored` をここへ焼き込む。
+   * 🔴**このフィールドを持たない型を `FREEZABLE` へ入れてはいけない**＝`targetsStored:false` に
+   *   されたうえで焼き込み先が無く、**対象の限定が丸ごと消えて全候補へ当たる**（過剰実行）。
+   */
+  fixedCardNums?: string[];
 }
 
 export interface BlockActionAction {
@@ -2485,6 +2509,14 @@ export interface GrantKeywordAction {
   fieldCondition?: import('./index').FieldGrantCondition;
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」等。選択UIを出さず同一対象に付与）
   targetsStored?: boolean;        // 対象宣言→任意コストを跨いで storedTargetCards の同一対象へ付与
+  /**
+   * 🆕**支払いインタラクションを跨いで固定された対象**（§5.3 `O-96` 第6バッチ・2026-09-02）。
+   * `storedTargetCards` は resume を跨いで生存しないので、`freezeStoredTargets`
+   * （`effectExecutor.ts:133`）が pay/skip 分岐へ埋め込む直前に `targetsStored` をここへ焼き込む。
+   * 🔴**このフィールドを持たない型を `FREEZABLE` へ入れてはいけない**＝`targetsStored:false` に
+   *   されたうえで焼き込み先が無く、**対象の限定が丸ごと消えて全候補へ当たる**（過剰実行）。
+   */
+  fixedCardNums?: string[];
   targetsTriggerSource?: boolean;  // 「このシグニ/それ」= トリガー元シグニ（ctx.triggeringCardNum → ctx.sourceCardNum）へ無選択付与（ON_ZONE_MOVED self 等）
 }
 
