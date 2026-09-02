@@ -42709,6 +42709,430 @@ order.push('o84ExtraTimingHighLife');
 
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-160`（2026-09-02 索引 B 第2巡）＝「（このターン、）対戦相手がダメージを受けたとき」。
+// 新設 `TriggerTiming.ON_PLAYER_DAMAGED` ＋ 発生印 `PlayerState.damaged_just`
+// （アタックの2経路＝`crashOneLife`／ルリグアタックだけが立て、クラッシュ解決 funnel が読んで消す）。
+//
+// 🔴**観測点は「アタックのダメージでだけ発火する」こと**＝既存 `ON_OPP_LIFE_CRASHED` を流用すると
+//   **効果によるライフクラッシュでも発火**してしまう（「ダメージ」ではないのに反応する過剰実行）。
+//   ⇒ ①シグニアタックでライフを割る（＝ダメージ）→ 発火して**もう1枚**割れる
+//     ②効果でライフを割る（＝ダメージではない）→ **発火しない**（1枚だけ）
+//   の**両方向**を見る。片方だけだと「常に発火」も「永久に不発」も素通りする。
+// ⚠遅延トリガーは【起】で設置される形だが、ここでは `delayed_triggers` を**直接注入**する
+//   （設置側の形は golden が固定済み＝実機で見たいのは**発火経路の配線**）。
+const O160_DELAYED = {
+  type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN',
+  trigger: { timing: 'ON_PLAYER_DAMAGED' },
+  effect: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
+};
+/** 効果によるライフクラッシュ（＝ダメージではない）を1件だけ積んだスタック。 */
+function o160EffectCrashStack() {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o160-crash-1', playerId: null,
+      cardNum: 'WD01-013', effectId: 'O160-EFFECT-CRASH', label: '効果によるライフクラッシュ（注入）',
+      effect: {
+        effectId: 'O160-EFFECT-CRASH', effectType: 'AUTO', timing: ['ON_PLAY'],
+        action: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    }],
+  };
+}
+const o160Spec = (byAttack) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9900'],
+    'field.signi': [['WD01-013#9901'], null, null],       // バニラのアタッカー（正面は空＝ダメージが通る）
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'delayed_triggers': [O160_DELAYED],
+    'hand': [], 'trash': [], 'energy': [], 'lrig_trash': [], 'actions_done': [],
+    'life_cloth': ['WD01-013#9902', 'WD01-013#9903', 'WD01-013#9904'],
+    'deck': ['WD01-013#9905', 'WD01-013#9906', 'WD01-013#9907'],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9890'],
+    'field.signi': [null, null, null],                     // 正面を空にする＝アタックがライフへ通る
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'hand': [], 'trash': [], 'energy': [],
+    // ⚠**【ライフバースト】を持たないカード**（`WD01-013`＝小剣 ククリ）で揃える＝
+    //   バーストが混ざると別の効果が走って観測が濁る。
+    'life_cloth': ['WD01-013#9891', 'WD01-013#9892', 'WD01-013#9893'],
+    'deck': ['WD01-013#9894', 'WD01-013#9895', 'WD01-013#9896'],
+  },
+  top: byAttack
+    ? { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 }
+    : { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o160EffectCrashStack() },
+});
+async function driveO160(page, H, byAttack) {
+  const tag = byAttack ? 'o160-attack' : 'o160-effect';
+  const BASE = 3;                       // guestSet の life_cloth と一致させる（固定値で見る）
+  const st0 = await H.queryState();
+  H.log(`開始 guestLife=${st0?.guest?.life}（基準${BASE}） phase=${st0?.turnPhase} stack=${st0?.stackLen}`);
+  let attacked = !byAttack, opened = false, settled = 0;
+  let last = st0;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    const cur = await H.queryState();
+    if (byAttack && !attacked && cur?.turnPhase !== 'ATTACK_SIGNI' && !cur?.pendingEffect && !(cur?.stackLen > 0)) {
+      await H.closeModals();
+      await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(600);
+      opened = false;
+      did = `repatch:ATTACK_SIGNI(was ${cur.turnPhase})`;
+    }
+    if (!did && byAttack && !attacked) {
+      const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      if (await atk.count() && await atk.isVisible().catch(() => false)) { await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+    }
+    if (!did && byAttack && !opened) { const o = await H.clickTestId('my-signi-zone-0'); if (o) { did = o; opened = true; } }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'エナに送る']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | guestLife=${last?.guest?.life}/${BASE} attacked=${attacked} check=${last?.guest?.checkSlot ?? '-'} stack=${last?.stackLen ?? '-'} pEff=${last?.pendingEffect ?? '-'}`);
+    settled = (attacked && !last?.pendingEffect && !(last?.stackLen > 0) && !last?.guest?.checkSlot) ? settled + 1 : 0;
+    if (settled >= 5 && s > 5) break;
+  }
+  const lost = BASE - (last?.guest?.life ?? BASE);
+  if (byAttack) {
+    if (lost === 0) return { pass: false, detail: `前提崩れ＝アタックのダメージが1枚も通っていない（guestLife=${last?.guest?.life}）` };
+    return lost >= 2
+      ? { pass: true, detail: `アタックのダメージで遅延が発火＝ライフが2枚減った（${BASE}→${last?.guest?.life}）` }
+      : { pass: false, detail: `🔴ダメージなのに遅延が発火していない（${BASE}→${last?.guest?.life}）＝damaged_just か collector の配線漏れ` };
+  }
+  if (lost === 0) return { pass: false, detail: `前提崩れ＝効果のライフクラッシュが起きていない（guestLife=${last?.guest?.life}）` };
+  return lost === 1
+    ? { pass: true, detail: `対照＝効果のクラッシュはダメージではないので遅延は発火しない（${BASE}→${last?.guest?.life}）` }
+    : { pass: false, detail: `🔴効果のクラッシュで遅延が発火した（${BASE}→${last?.guest?.life}）＝ON_OPP_LIFE_CRASHED と同じ穴に落ちている` };
+}
+scenarios.o160DamageByAttack = {
+  title: 'O-160 アタックのダメージで ON_PLAYER_DAMAGED が発火する（ライフが2枚減る）',
+  spec: o160Spec(true), drive: (page, H) => driveO160(page, H, true),
+};
+order.push('o160DamageByAttack');
+scenarios.o160DamageByEffect = {
+  title: 'O-160 対照：効果によるライフクラッシュでは発火しない（ダメージではない）',
+  spec: o160Spec(false), drive: (page, H) => driveO160(page, H, false),
+};
+order.push('o160DamageByEffect');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-163`（2026-09-02 索引 B 第2巡）＝色/アイコン宣言→手札公開→照合の3段。
+// 🔴**旧 live は3分岐が素の3ステップとして並んでいた**＝`WX16-Re17-E1` を撃つたびに
+//   「相手の全シグニをトラッシュ」＋「相手のシグニ1体をバニッシュ」＋「**自分の**手札を全部捨てる」が
+//   **まとめて起きていた**（engine 側はカード全文 regex でペナルティを1種類に焼き込んでおり、
+//   逆翻訳・census・golden・smoke は全部緑のまま意味が壊れていた＝A群の典型）。
+// 🔑観測点＝**分岐が1本だけ走ること**。宣言するのは対戦相手（CPU）なのでどの枝に入るかは選べないが、
+//   「相手の場が全滅**かつ**自分の手札が全消し」が同時に起きたら**旧挙動**＝FAIL と判定できる。
+// ⚠コスト（《無×3》）の支払いUIは本筋ではないので、効果だけを `effect_stack` へ注入して撃つ。
+function o163Stack() {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o163-entry-1', playerId: null,
+      cardNum: 'WX16-Re17', effectId: 'WX16-Re17-E1', label: '狂乱する博奕（注入）',
+      effect: {
+        effectId: 'WX16-Re17-E1', effectType: 'ACTIVATED', timing: ['MAIN'],
+        action: {
+          type: 'DECLARE_ICON_REVEAL_CHECK', declare: ['icon', 'cardType'],
+          outcomes: [
+            { matched: 0, action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } },
+            { matched: 1, action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } } },
+            { matched: 2, action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' } } },
+          ],
+        },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    }],
+  };
+}
+scenarios.o163DeclareIconBranches = {
+  title: 'O-163 WX16-Re17：宣言の一致軸数で分岐が1本だけ走る（3分岐の同時実行に戻らない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9950'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'delayed_triggers': [],
+      // 公開する候補＝白のシグニ2枚（宣言が《白》＋シグニなら一致2軸）。
+      'hand': ['WD01-013#9951', 'WD01-014#9952'],
+      'trash': [], 'energy': [], 'lrig_trash': [], 'actions_done': [],
+      'life_cloth': ['WD01-013#9953', 'WD01-013#9954'],
+      'deck': ['WD01-013#9955', 'WD01-013#9956', 'WD01-013#9957'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9940'],
+      // ⚠**2体置く**＝「全滅（matched 0）」と「1体バニッシュ（matched 1）」を見分けるため。
+      'field.signi': [['WD01-013#9941'], ['WD01-014#9942'], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'energy': [],
+      'life_cloth': ['WD01-013#9943', 'WD01-013#9944'],
+      'deck': ['WD01-013#9945', 'WD01-013#9946'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o163Stack() },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 hostHand=${st0?.host?.hand} guestField=${JSON.stringify(st0?.guest?.fieldSigni)} stack=${st0?.stackLen}`);
+    let settled = 0;
+    let last = st0;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      // 手札選択（自分）→ 宣言（相手＝CPU が応答）→ 解決。汎用ボタンで1手ずつ進める。
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const ready = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!ready) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ', '発動順序を確定', '確定', 'エナに送る']);
+      last = await H.queryState();
+      H.log(`  o163[${s}] -> ${did ?? 'なし'} | hostHand=${last?.host?.hand} guestField=${JSON.stringify(last?.guest?.fieldSigni)} stack=${last?.stackLen ?? '-'} pEff=${last?.pendingEffect ?? '-'} log=${JSON.stringify((last?.logTail ?? []).slice(-3))}`);
+      settled = (!last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 5 && s > 4) break;
+    }
+    const alive = (last?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length > 0).length;
+    const hand = last?.host?.hand ?? 0;
+    const detail = `相手シグニ 2→${alive} / 自分の手札 2→${hand}`;
+    // 🔴旧挙動＝3分岐が同時に走る＝相手が全滅**かつ**自分の手札も全部消える。
+    if (alive === 0 && hand === 0) return { pass: false, detail: `🔴3分岐が同時に走った（${detail}）` };
+    // 一致0＝全滅／一致1＝1体だけ／一致2＝相手は無傷で自分の手札が全部消える。どれか1本だけ。
+    if (alive === 0 && hand === 2) return { pass: true, detail: `一致0の枝だけが走った（${detail}）` };
+    if (alive === 1 && hand === 2) return { pass: true, detail: `一致1の枝だけが走った（${detail}）` };
+    if (alive === 2 && hand === 0) return { pass: true, detail: `一致2の枝だけが走った（${detail}）` };
+    return { pass: false, detail: `どの枝とも一致しない盤面（${detail}）＝解決が途中で止まった疑い` };
+  },
+};
+order.push('o163DeclareIconBranches');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-118`（2026-09-02 索引 B 第2巡）＝エクシードで「どのカードを置くか」を選べるようにした。
+// 🔴旧＝ルリグ【起】の経路には選択UIが無く**下から機械的に**払っていた（色指定は貪欲に満たすだけ）＝
+//   原文「エクシード１（**白のカード**）」で満たす組が複数あるときプレイヤーに選択権が無かった。
+// 🔑**未選択なら従来どおり自動**（既存フローを1バイトも変えない）＝選ぶのは決めたいときだけ。
+// ⚠**観測点は2つ**＝①色を満たさない札を選んだら「発動」が押せない（＝踏み倒しにならない）
+//   ②色を満たす札を選んだら**その札が**ルリグトラッシュへ行く（自動経路の選び方と区別が付く配置にする）。
+scenarios.o118ExceedPick = {
+  title: 'O-118 WX10-001：エクシードで置くカードを選べる（色を満たさない選択では発動できない）',
+  spec: {
+    hostSet: {
+      // 下から [赤, 白] ＋ センター WX10-001。`exceedPoolOf` の添字は 0=赤 / 1=白。
+      // 🔑**自動経路（貪欲）は白を先に選ぶ**ので、「赤を選んだら止まる」ことで選択が効いているとわかる。
+      'field.lrig': ['WD02-004#9960', 'WD01-013#9961', 'WX10-001#9962'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'energy': [], 'lrig_trash': [], 'actions_done': [],
+      'life_cloth': ['WD01-013#9963', 'WD01-013#9964'],
+      'deck': ['WD01-013#9965', 'WD01-013#9966'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9970'],
+      'field.signi': [['WD01-013#9971'], null, null],   // E1 の対象（手札に戻す）
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'energy': [],
+      'life_cloth': ['WD01-013#9972', 'WD01-013#9973'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const lrigImg = page.getByAltText('炎・タマヨリヒメ・伍', { exact: false }).first();
+    if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
+    else return { pass: false, detail: 'センタールリグが見つからない' };
+    await page.waitForTimeout(900);
+    // MAIN の【起】は3つ（エクシード1白／エクシード1赤／エクシード2）＝先頭＝E1（白）を撃つ。
+    const actBtn = page.getByRole('button', { name: /【起】.*エクシード1（白のカード）/ }).first();
+    const anyAct = (await actBtn.count()) ? actBtn : page.getByRole('button', { name: /【起】/ }).first();
+    if (!(await anyAct.count())) return { pass: false, detail: '【起】ボタンが出ない' };
+    await anyAct.click().catch(() => {});
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/o118-modal.png`, fullPage: true });
+    const fire = () => page.getByRole('button', { name: '発動', exact: true }).first();
+    const enabled = async () => (await fire().count()) > 0 && await fire().isEnabled().catch(() => false);
+    const autoOk = await enabled();
+    H.log(`  未選択（自動）: 発動=${autoOk ? '押せる' : '押せない'}`);
+    if (!autoOk) return { pass: false, detail: '🔴未選択でも発動できない＝従来の自動経路を壊している' };
+    // 選択枚数はモーダルの見出しから読む（クリックが当たったかを毎回確かめる）。
+    const selCount = async () => {
+      const t = await page.evaluate(() => document.body.innerText);
+      const m = /ルリグの下から置くカードを選択:\s*(\d+)\s*\//.exec(t);
+      return m ? Number(m[1]) : -1;
+    };
+    // ⚠**モーダルの中の札を掴む**＝盤面にも同名カード（相手の 小剣 ククリ）が居るので、
+    //   `.first()` だと背後の盤面札を押して**モーダルの背景クリック＝閉じる**に化ける（実際に踏んだ）。
+    //   ポータルは body の末尾に付くので `.last()` がモーダル側。
+    const redCard = page.getByAltText('花代・壱', { exact: false }).last();
+    const whiteCard = page.getByAltText('小剣　ククリ', { exact: false }).last();
+    if (!(await redCard.count())) return { pass: false, detail: 'エクシード選択UIに下のカード（赤）が出ていない' };
+    if (!(await whiteCard.count())) return { pass: false, detail: 'エクシード選択UIに下のカード（白）が出ていない' };
+    // ① 色を満たす札（白）を選ぶ → 押せる。
+    await whiteCard.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(600);
+    const whiteOk = await enabled();
+    H.log(`  白を選択（${await selCount()}枚）: 発動=${whiteOk ? '押せる' : '押せない'}`);
+    if (!whiteOk) return { pass: false, detail: `🔴白（色指定を満たす）を選んでも発動できない（選択${await selCount()}枚）` };
+    // ② 白を外して赤（色を満たさない）を選ぶ → 押せない。
+    await whiteCard.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(500);
+    const cleared = await selCount();
+    if (cleared !== 0) return { pass: false, detail: `選択を外せない（${cleared}枚のまま）＝テスト前提が崩れている` };
+    await redCard.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(600);
+    const redOk = await enabled();
+    H.log(`  赤を選択（${await selCount()}枚）: 発動=${redOk ? '押せる' : '押せない'}`);
+    if (redOk) return { pass: false, detail: '🔴色（白）を満たさない選択でも発動できる＝色指定を見ていない' };
+    // ③ 赤を外して白へ戻し、実際に発動する。
+    await redCard.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(500);
+    await whiteCard.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(600);
+    if (!(await enabled())) return { pass: false, detail: `白へ戻したのに発動できない（選択${await selCount()}枚）` };
+    await fire().click().catch(() => {});
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(700);
+      const did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '確定']);
+      const st = await H.queryState();
+      H.log(`  o118[${s}] -> ${did ?? 'なし'} | lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards ?? st?.host?.lrigTrash)} lrig=${JSON.stringify(st?.host?.fieldLrig)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!st?.pendingEffect && !(st?.stackLen > 0) && s > 3) break;
+    }
+    const fin = await H.queryState();
+    const lt = JSON.stringify(fin?.host?.lrigTrashCards ?? fin?.host?.lrigTrash ?? []);
+    return lt.includes('WD01-013#9961')
+      ? { pass: true, detail: `選んだ白のカードがルリグトラッシュへ（lrigTrash=${lt}）` }
+      : { pass: false, detail: `選んだ札が置かれていない（lrigTrash=${lt}）` };
+  },
+};
+order.push('o118ExceedPick');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🆕§5.3 `O-71`（2026-09-02 索引 B 第2巡）＝「対戦相手は手札を１枚チェックゾーンに置く。
+// **このターン終了時、対戦相手はそれを手札に戻す。**」（`WXK10-045-E2`）。
+// 新設は `HAND_TO_CHECK_ZONE` 1つだけで、戻す側は既存の3点組
+// （`STORE_LAST_PROCESSED_TARGETS` → `INSTALL_DELAYED_TRIGGER{ON_TURN_END, TRANSFER_TO_HAND{CHECK_CARD, targetsStored}}`）。
+//
+// 🔴**実機でしか見られないのは順序**＝置き先の `field.check_rest` は
+//   `clearTurnEndScopedState` が**ターン終了時にトラッシュへ**送る（§5.3 `O-143`）。
+//   戻す遅延トリガーが**その前に**解決されなければ、相手は手札を1枚**永久に失う**。
+// ⚠観測点は3つ＝①置いた直後に相手の手札が1枚減る ②ターン終了後に**戻っている**
+//   ③相手のトラッシュが増えていない（＝`check_rest` の掃除に食われていない）。
+function o71Stack() {
+  return {
+    turnPlayerId: null, pendingTurn: [], pendingOpp: [], orderTurnDone: true, orderOppDone: true,
+    queue: [{
+      id: 'o71-entry-1', playerId: null,
+      cardNum: 'WXK10-045', effectId: 'WXK10-045-E2', label: '北風の蒼天 ボレアース（注入）',
+      effect: {
+        effectId: 'WXK10-045-E2', effectType: 'AUTO', timing: ['ON_PLAY'],
+        action: { type: 'SEQUENCE', steps: [
+          { type: 'HAND_TO_CHECK_ZONE', owner: 'opponent', count: 1 },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: { timing: 'ON_TURN_END' },
+            effect: { type: 'TRANSFER_TO_HAND', source: { type: 'CHECK_CARD', owner: 'opponent', count: 1 }, targetsStored: true } },
+        ] },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    }],
+  };
+}
+scenarios.o71HandToCheckZone = {
+  title: 'O-71 WXK10-045：相手の手札1枚をチェックゾーンへ置き、ターン終了時に手札へ戻す',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9980'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.check_rest': [], 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'delayed_triggers': [], 'hand': [], 'trash': [], 'energy': [], 'lrig_trash': [], 'actions_done': [],
+      'life_cloth': ['WD01-013#9981', 'WD01-013#9982'],
+      'deck': ['WD01-013#9983', 'WD01-013#9984'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9990'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.check_rest': [], 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': ['WD01-013#9991', 'WD01-014#9992'],
+      'trash': [], 'energy': [],
+      'life_cloth': ['WD01-013#9993', 'WD01-013#9994'],
+      'deck': ['WD01-013#9995', 'WD01-013#9996'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2, effectStack: o71Stack() },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`開始 guestHand=${st0?.guest?.hand} guestCheckRest=${JSON.stringify(st0?.guest?.checkRest)} guestTrash=${JSON.stringify(st0?.guest?.trashCards)}`);
+    // ⚠**注入したスタックは reload 直後に即解決しうる**＝1回目の観測時点で既に置き終わっていることがある
+    //   （初回実装でこれを「前提崩れ」と誤判定した）。置き済みならそこから続ける。
+    const HAND_BASE = 2;                                   // guestSet の hand と一致させる（固定値で見る）
+    let placed = (st0?.guest?.checkRest ?? [])[0] ?? null;
+    if (!placed && (st0?.guest?.hand ?? 0) !== HAND_BASE) {
+      return { pass: false, detail: `前提崩れ＝置く前なのに相手の手札が${HAND_BASE}枚でない（${st0?.guest?.hand}）` };
+    }
+    // ① 効果を解決＝相手（CPU）が手札1枚をチェックゾーンへ置く。
+    let settled = 0, last = st0;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(700);
+      const did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ', '発動順序を確定', '確定']);
+      last = await H.queryState();
+      const rest = last?.guest?.checkRest ?? [];
+      if (rest.length > 0) placed = rest[0];
+      H.log(`  o71place[${s}] -> ${did ?? 'なし'} | guestHand=${last?.guest?.hand} checkRest=${JSON.stringify(rest)} stack=${last?.stackLen ?? '-'} pEff=${last?.pendingEffect ?? '-'}`);
+      settled = (!last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+      if (placed && settled >= 3) break;
+      if (settled >= 6) break;
+    }
+    if (!placed) return { pass: false, detail: `チェックゾーンへ置かれなかった（guestHand=${last?.guest?.hand} checkRest=${JSON.stringify(last?.guest?.checkRest)}）` };
+    if ((last?.guest?.hand ?? 0) !== HAND_BASE - 1) return { pass: false, detail: `置いたのに手札が減っていない（guestHand=${last?.guest?.hand}）` };
+    H.log(`  置いた札=${placed}（相手の手札 ${HAND_BASE}→${last?.guest?.hand}）`);
+    // ② ターンを終える＝遅延トリガーが発火して手札へ戻る（`check_rest` の掃除より先）。
+    let ended = false; settled = 0;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const cur = await H.queryState();
+      if (!ended) {
+        if (cur?.turnPhase !== 'END') {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'END', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          did = `repatch:END(was ${cur.turnPhase})`;
+        } else {
+          did = await H.clickBtn('ターン終了', { exact: true });
+          if (did) ended = true;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o71end[${s}] -> ${did ?? 'なし'} | phase=${last?.turnPhase} guestHand=${last?.guest?.hand} checkRest=${JSON.stringify(last?.guest?.checkRest)} guestTrash=${JSON.stringify(last?.guest?.trashCards)} pEff=${last?.pendingEffect ?? '-'}`);
+      settled = (ended && !last?.pendingEffect && !(last?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    if (!ended) return { pass: false, detail: `ターンを終われなかった（phase=${last?.turnPhase}）` };
+    const hand = last?.guest?.hand ?? 0;
+    const trash = last?.guest?.trashCards ?? [];
+    const rest = last?.guest?.checkRest ?? [];
+    const detail = `guestHand=${hand} checkRest=${JSON.stringify(rest)} guestTrash=${JSON.stringify(trash)}`;
+    if (trash.includes(placed)) {
+      return { pass: false, detail: `🔴置いた札がトラッシュへ落ちた（${detail}）＝戻す遅延より check_rest の掃除が先に走っている` };
+    }
+    return hand === HAND_BASE && rest.length === 0
+      ? { pass: true, detail: `ターン終了時に手札へ戻った（${detail}）` }
+      : { pass: false, detail: `手札へ戻っていない（${detail}）` };
+  },
+};
+order.push('o71HandToCheckZone');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

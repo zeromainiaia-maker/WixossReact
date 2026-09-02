@@ -3530,6 +3530,15 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   if (src.type === 'TRASH_CARD' && src.filter?.thisCardOnly) {
     return cands.length > 0 ? done(applyTransfer(cands, ctx)) : done(ctx);
   }
+  // 🆕**対象が既に確定している形も選択不要**（§5.3 `O-71`・2026-09-02 実機で発見）＝
+  //   `fixedCardNums`（設置時に焼き込んだ「それ」）で候補が枚数以下まで絞れているなら、
+  //   選ぶものが1通りしか無いのに選択UIを出していた。
+  // 🔴**ターン終了時の遅延トリガーで実機が止まった**＝「このターン終了時、対戦相手はそれを手札に戻す」
+  //   （`WXK10-045-E2`）の解決で `SELECT_TARGET` が開き、そのままターンが進まなくなる。
+  // ⚠`cands.length <= count` のときだけ＝焼き込みが緩くて候補が余る形は従来どおり選ばせる。
+  if (a.fixedCardNums && cands.length > 0 && cands.length <= count) {
+    return done(applyTransfer(cands, ctx));
+  }
   return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
 }
 

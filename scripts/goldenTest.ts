@@ -30133,10 +30133,10 @@ test('PLAN §5.3 WX24-P4-051-E2: 同レベルのエナだけを払い、先に�
   eq(JSON.stringify(paid.pending.candidates), JSON.stringify([sameLevelCost]),
     '🔴同レベルでないエナシグニが支払い候補に混ざった');
   const costPaid = resumeSelectTarget([sameLevelCost], paid.pending, ctxAfter(paid, ctx));
-  ok(!costPaid.done && costPaid.pending.type === 'SELECT_TARGET', '固定した回収対象の解決に進んでいない');
-  if (costPaid.done || costPaid.pending.type !== 'SELECT_TARGET') return;
-  eq(JSON.stringify(costPaid.pending.candidates), JSON.stringify([target]), '支払い後に回収対象を選び直せる');
-  const resolved = resumeSelectTarget([target], costPaid.pending, ctxAfter(costPaid, ctx));
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-71`）＝対象が確定している回収は選択UIを出さずに解決する。**
+  //   旧は候補1件の `SELECT_TARGET` を開いていた（ターン終了時の遅延で盤面が止まる形）。
+  ok(costPaid.done, '🔴固定した回収対象なのに選択UIが開いた');
+  const resolved = costPaid;
   ok(resolved.ownerState.hand.includes(target), '先に対象とした札を回収していない');
   ok(resolved.ownerState.trash.includes(sameLevelCost), '同レベルのエナシグニがトラッシュへ行っていない');
   ok(resolved.ownerState.energy.includes(wrongLevelCost), 'レベル違いのエナシグニを誤って支払った');
@@ -49554,7 +49554,13 @@ test('O-71 WXK10-045-E2: 相手の手札1枚をチェックゾーンへ置き、
 
   // 発火させると手札へ帰る（`check_rest` はこの後 clearTurnEndScopedState がトラッシュへ送るので順序が要）。
   const fireCtx = { ...ctx, ownerState: r.ownerState, otherState: r.otherState } as ExecCtx;
-  const fired = run(dt[0].effect as EffectAction, fireCtx);
+  const fireRaw = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: dt[0].effect as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect,
+    fireCtx);
+  // 🔴**選択UIを出さずに解決すること**（2026-09-02 実機で発見）＝対象は設置時に焼き込んであるので
+  //   選ぶものが1通りしか無い。ここで `SELECT_TARGET` が開くと**ターン終了時に盤面が止まる**。
+  ok(fireRaw.done, '🔴対象が確定しているのに選択UIが開いた（ターン終了時に盤面が止まる）');
+  const fired = finish(fireRaw, fireCtx);
   ok(fired.otherState.hand.includes(moved[0]), 'ターン終了時に同じカードが手札へ戻る');
   eq((fired.otherState.field.check_rest ?? []).length, 0, 'チェックゾーンから抜ける');
 }));
@@ -59342,11 +59348,12 @@ test('O-188 第1バッチ 実行: 支払うと「先に選んだ1枚だけ」が
   ok(!selected.result.done && selected.result.pending.type === 'CHOOSE', 'O-188: 任意コストが提示される');
   if (selected.result.done || selected.result.pending.type !== 'CHOOSE') return;
   const paid = resumeOptionalCost('pay', [o188WhiteEnergy], selected.result.pending, selected.ctx);
-  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', 'O-188: 凍結された回収対象が解決される');
-  if (paid.done || paid.pending.type !== 'SELECT_TARGET') return;
-  eq(JSON.stringify(paid.pending.candidates), JSON.stringify([o188GuardCards[1]]),
-    '🔴O-188: 支払い後に別のトラッシュ札へ選び直せない（これが実害そのもの）');
-  const resolved = resumeSelectTarget([o188GuardCards[1]], paid.pending, ctxAfter(paid, selected.ctx));
+  // 🆕**2026-09-02（索引 B 第2巡・§5.3 `O-71`）＝対象が確定している回収は選択UIを出さずに解決する。**
+  //   🔴旧は候補1件の `SELECT_TARGET` を開いていた＝**選ぶものが1通りしか無いのに問う**形で、
+  //   ターン終了時の遅延トリガーで解決すると**盤面がそこで止まる**（実機で踏んだ）。
+  //   ⚠**実害（別の札へ選び直せてしまう）は消えていない**＝下の対照2件が「宣言した1枚だけが動く」を固定する。
+  ok(paid.done, 'O-188: 🔴凍結された回収対象なのに選択UIが開いた（ターン終了時に盤面が止まる）');
+  const resolved = paid;
   ok(resolved.ownerState.hand.includes(o188GuardCards[1]), 'O-188: 宣言したカードが手札へ行く');
   ok(resolved.ownerState.trash.includes(o188GuardCards[0]), 'O-188: 対照のカードはトラッシュに残る');
   ok(!resolved.ownerState.hand.includes(o188GuardCards[0]), 'O-188: 対照のカードは動かない');

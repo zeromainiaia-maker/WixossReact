@@ -1,5 +1,99 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 B 第2巡）：§5.3 索引 B の残り9件を全消化 — `O-71` / `O-68` / `O-137` / `O-138` / `O-163` / `O-78` / `O-104` / `O-118` / `O-160`
+
+**ベースライン**＝`eca372931`（索引 B 第1巡の直後）。**ユーザー指示で9件すべて着手前に母集団を数え直した**＝
+**索引の 29効果 → 実測20効果**（`O-137` は実測0＝コード変更ゼロでクローズ）。
+
+**ゲート**＝全緑。golden **3269 → 3275**（+6本・全件実行）／smoke 全異常0／fuzz 全0／
+census **5 / BASELINE 5**／`census:stubs` A🔴0・C0／manual-fields 0／
+**`census:enginetext` A🔴 130 → 129行 / 126ハンドラ**（`BASELINE_SELF_TEXT` を 129 へ下げた）／lint 0 errors。
+**実機**＝新規5シナリオ＋回帰3シナリオ すべて PASS（`node scripts/verifyBattleDrive.mjs`）。
+
+### 1件ずつ（真因 / 影響 / 検証）
+
+- 🔴**`O-104` 偽ゲート**（`WX07-039-E2` / `WXEX1-14-E2`・2効果）
+  **真因**＝「そうした場合」が `CONDITIONAL{IS_MY_TURN}`＝`evalCondition` が**常に true** を返すプレースホルダ。
+  `stripDidItConditional` が消すのは**任意ステップをスキップしたとき**だけで、ここは非 optional なので消えない。
+  さらに `fixedSelectionPickLimit` が候補数へクランプするため**払える分だけ払って本体が通る**。
+  ⇒ 自分の＜原子＞が0体でも相手シグニをバニッシュできた。`LAST_PROCESSED_COUNT_GTE{3}` へ差し替え。
+  **影響**＝2効果。**検証**＝`golden --only "第24バッチ"`（静的形＋**実行して3体/2体の両方向**）。
+
+- 🔴**`O-78` 配線漏れ**（`WXK09-015-E3`・1効果）
+  **真因**＝受け皿 `SIGNI_DEPLOY_BAN{namesFromTargets}` は既存だったが、parser の分岐が期間の綴り
+  `このターンと次のターンの間` しか見ておらず、`次の対戦相手のターン終了時まで` が payload 無しの
+  `STUB{DEPLOY_RESTRICT}`（engine にログしか無い**真 no-op**）へ落ちていた。
+  **影響**＝1効果（実測 3→1。他2枚は既に載っていた）。**検証**＝`golden --only "SIGNI_DEPLOY_BAN"`。
+
+- 🔴**`O-71` 遅延本文の照応**（`WXK10-045-E2` / `WX25-CP1-038-E1`・2効果）
+  **真因**＝(a)`WX25-CP1-038-E1` は**パワー5000以下のゲートが無く**（どんな大型でも手札へ戻せた）、
+  2文目の遅延が `STUB{RULE_REMINDER_TEXT}` に化けて消えていた。(b)`WXK10-045-E2` は
+  `STUB{DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END}`（no-op）＋**無関係な `BOUNCE{相手シグニ}`**。
+  受け皿の3点組（`SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS`→`INSTALL_DELAYED_TRIGGER{targetsStored}`）は
+  既存で、新設は**手札→チェックゾーン**の `HAND_TO_CHECK_ZONE` 1つだけ（置き先は `check_rest`）。
+  🔴**実機で別バグを発見**＝戻す側の `TRANSFER_TO_HAND{CHECK_CARD, fixedCardNums}` が**候補1件でも選択UIを開き**、
+  ターン終了時に**盤面ごと止まった**。対象は設置時に焼き込み済みで選ぶものが1通りしか無い＝
+  `execTransferToHand` に「`fixedCardNums` で候補が枚数以下なら即適用」を足した（既存 `thisCardOnly` と同じ規約）。
+  ⚠**この型は golden の autopilot（`run()`）では出ない**＝`ok(result.done)` を書くまで見えない。
+  **影響**＝2効果＋`fixedCardNums` を使う全効果（`O-188` / `WX24-P4-051-E2` の contract を反転）。
+  **検証**＝`golden --only "O-71"` ／実機 `o71HandToCheckZone`（🔴反転＝`check_rest` の掃除より先に手札へ戻る）。
+
+- 🏁**`O-137`＝実測でクローズ（コード変更ゼロ）**。3条件の独立判定も `SWAP_DECK_TOP_AND_LIFE` も実装済みで
+  golden も張ってあった。census の「4件」は「入れ替え」regex の別用法。
+
+- 🔴**`O-138` 条件の欠落 ＋ 「条件が真になる盤面が無い」**（`WX13-006B-E1` / `WX14-006B-E1`・2効果）
+  **真因**＝「対戦相手のチェックゾーンにスペルがある場合」が丸ごと落ちて**チェックゾーンが空でも撃てた**。
+  🔴**条件を足すだけだと逆側の事故**＝解決待ちのスペルは `pending_spell` が保持していて `field` のどこにも
+  属さないので、条件は**永久に偽**＝レゾナ3枚が無言 no-op に化ける。⇒ `PlayerState.spell_in_check_zone` を新設
+  （`QUEUE_SPELL` で置き `FINISH_SPELL`/`FINISH_CUTIN` で降ろす・turn-scoped レジストリに保険登録）。
+  ⚠**処理順序（「そのスペルの効果より先に発動する」）は既に実装済み**だった＝カットイン窓が
+  スペルを打ち消さず先に ON_PLAY を解決する。**影響**＝3効果（`WX13-005B-E1` 含む）。
+  **検証**＝`golden --only "O-138"`（3枚の live 形＋`evalCondition` の空/シグニのみ/スペルあり/解決待ち/窓を閉じた後）。
+
+- 🔴**`O-163` 3分岐の同時実行**（`WX16-Re17-E1` / `WX05-006-E3` / `PR-K060-E2-G`・3効果）
+  **真因**＝engine が `EffectText` **全文**を regex で読んでペナルティを「相手の全シグニをトラッシュ」1種類に
+  焼き込んでおり（`census:enginetext` A群）、JSON 側は**3分岐が素の3ステップとして並んでいた**＝
+  `WX16-Re17-E1` は起動するたび**全シグニトラッシュ＋1体バニッシュ＋自分の手札全捨て**がまとめて起きていた。
+  ⇒ `DECLARE_ICON_REVEAL_CHECK`（宣言する軸1〜2と一致軸数ごとの帰結）を新設し、全文 regex 枝を撤去。
+  **影響**＝3効果。**検証**＝`golden --only "O-163"`（live 形＋一致0/1/2の3枝を実行）／実機 `o163DeclareIconBranches`。
+
+- 🔴**`O-68` 複合コストの踏み倒し**（`WXDi-P03-019-E1` / `WXK10-006-E3`・2効果）
+  **真因**＝①`fieldTrash{count:number}` では「すべて」を表せず、`parseCost` が**意図的に `undefined`**（＝`costUnparsed`）
+  に倒していた（部分採用すると自分の場を1体も失わずに相手の場を全滅できるため）。`fieldTrashAll` を新設して
+  既存の `'ALL'` 規約（`discardAll`/`energyTrashAll`）へ載せた＝**任意【出】の明示保留は0件になった**。
+  ②「ルリグデッキから**クラフトではない**アーツ１枚を…」は修飾語1つで regex を外し、**アーツ1枚のコストが
+  丸ごと落ちていた**。⚠クラフト除外は `Type === 'アーツ'` の完全一致（クラフトは `'アーツ/クラフト'`）が
+  既に弾いており、`excludeCraft` を足すのは**存在しない仕事**だった。キー【起】側にアーツ徴収の支払いと
+  選択UI（`KeyActivatedModal`）と可否ゲート（`canPayTrashArtsFromLrigDeck`）を新設。
+  **影響**＝2効果。**検証**＝`golden --only "O-68"`／`--only "O-46 live"`／`--only "(xxix)"`／`--only "task12(lv)"`。
+
+- 🔴**`O-160` 遅延ダメージトリガー**（`WX18-002-E3` / `WXEX2-27-E3` / `WXDi-P07-047-E1`・3効果）
+  **真因**＝(a)遅延句が落ちて**起動した瞬間に無条件実行**（相手ライフを即クラッシュ／即20枚ミル）
+  (b)直接形は `ON_SIGNI_DAMAGE`（＝**このシグニが**与えたとき）で近似され、ルリグアタックのダメージを取りこぼす。
+  ⇒ `ON_PLAYER_DAMAGED` を新設。発生印 `PlayerState.damaged_just` は**アタックの2経路**
+  （`crashOneLife` とルリグアタック）だけが立て、クラッシュ解決 funnel が読んで `consumeDamagedJust` で消す。
+  ⚠**`ON_OPP_LIFE_CRASHED` を流用してはいけない**＝あちらは**効果によるクラッシュでも発火**する。
+  **影響**＝3効果。**検証**＝`golden --only "O-160"`／実機 `o160DamageByAttack`＋`o160DamageByEffect`（🔴反転）。
+
+- **`O-118` エクシードの選択権**（`WX10-001` E1/E2/E3・3効果）
+  **真因**＝ルリグ【起】の経路には選択UIが無く**下から機械的に**払い、色指定は貪欲に満たすだけだった。
+  `LrigGrantedModal` に選択UIを新設し、`performLrigActivated` に `exceedIndices` を通した。
+  ⚠**未選択なら従来どおり自動**（既存フローを1バイトも変えない）／中途半端な選択は発動を止める／CPU は据置。
+  **影響**＝3効果＋エクシードを払う全ルリグ【起】のUI。
+  **検証**＝実機 `o118ExceedPick`（未選択で発動可／赤＝色不成立で不可／白で可＋その札がルリグトラッシュへ）
+  ＋回帰 `exceedCost`。
+
+### 反転確認（🔴＝旧挙動なら落ちる）
+
+実機5シナリオのうち**3本が反転確認**＝`o160DamageByEffect`（効果のクラッシュで発火したら FAIL）／
+`o118ExceedPick`（色を満たさない選択で発動できたら FAIL）／`o71HandToCheckZone`（`check_rest` の掃除に
+食われてトラッシュへ落ちたら FAIL）。`o163DeclareIconBranches` は「相手全滅**かつ**自分の手札全消し」で FAIL。
+
+### ⑤実機の要否（PLAN §2.2 の機械判定）
+
+**必須**＝`src/screens/`（`BattleScreen.tsx` / `LrigGrantedModal` / `KeyActivatedModal` /
+`controller/battleController.ts` / `turnScopedState.ts`）を触り、**新しい型・機構を6組**足したため。⇒ 同巡で実行・全 PASS。
+
 ## 2026-09-02（索引 B 第1巡）：§5.3 索引 B の上から3件 — `O-181` / `O-59` / `O-58`
 
 **ベースライン**＝`bc71f6c0c`（索引 C を空にした直後）。**3件とも「機構が無い」のではなく「実装済みの機構が

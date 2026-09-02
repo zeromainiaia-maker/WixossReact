@@ -76,14 +76,18 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const totalExceedAvail = (my.field.lrig.length - 1)
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
-              // 🆕§5.3 `O-118`＝色指定つきは**プレイヤーが選んだ組**で判定する（選ばせるのが原文）。
+              // 🆕§5.3 `O-118`＝エクシードで置くカードを**選べる**ようにする。
+              // 🔑**未選択＝従来どおり自動**（`performLrigActivated` が色指定を貪欲に満たしてから下から補う）＝
+              //   既存の全フローを1バイトも変えない。選ぶのは「どれを置くか決めたいとき」だけ。
+              // ⚠**中途半端な選択（枚数不足・色不成立）は発動を止める**＝
+              //   そのまま通すと自動経路へ落ちて「選んだつもりの札と違うカードが置かれる」ことになる。
               const exceedPool = exceedPoolOf(my);
               const exceedColors = eff.cost?.exceedColors;
               const exceedPicked = selectedExceed.map(i => exceedPool[i]).filter((cn): cn is string => !!cn);
+              const exceedSelectionOk = selectedExceed.length === 0
+                || (exceedPicked.length === exceedCost && exceedColorsSatisfied(exceedPicked, exceedColors, battleCardMap));
               const canAffordExceed = exceedCost === 0
-                || (totalExceedAvail >= exceedCost
-                    && exceedPicked.length === exceedCost
-                    && exceedColorsSatisfied(exceedPicked, exceedColors, battleCardMap));
+                || (totalExceedAvail >= exceedCost && exceedSelectionOk);
               const canAffordHandDiscard = eff.cost?.discardAll
                 ? true // 手札をすべて捨てる：常に支払い可能
                 : lgGroups
@@ -440,6 +444,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         ルリグの下から置くカードを選択: {selectedExceed.length} / {exceedCost}枚
                         {exceedColors?.length ? `（${exceedColors.join('と')}のカードが要る）` : ''}
+                        {selectedExceed.length === 0 ? '（選ばなければ自動で下から）' : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {exceedPool.map((num, i) => {
