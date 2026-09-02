@@ -1,5 +1,130 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 A 第4巡）：§5.3 `O-60` 第16バッチ — 「このシグニの下に置く」を payload 化（A🔴 129→128行）
+
+**ベースライン**＝`3e57a0840`（`O-194` クローズの直後）。**`O-60` は継続項目（クローズしていない）。**
+
+### ② 母集団の実測（登録票は失効）
+
+登録票の「A🔴 131行 / 128ハンドラ・miss 35ハンドラ / 44カード」（2026-08-30 第15バッチ後）は失効。
+着手時の実測は **A🔴 129行 / 126ハンドラ・miss 33ハンドラ / 41カード**。
+
+登録票が名指ししていた「次の3件」の先頭 `HAND_CARDS_UNDER_SIGNI|PLACE_SIGNI_UNDER_SELF_OPT`
+（miss2 / live3）を取った。**原文で全数検索して母集団はちょうど 3効果 / 3カード**（全て AUTO）＝
+`SPK01-02-E1` / `WXDi-P05-034-E2` / `WXDi-P11-081-E2`。
+
+### ③ 実装＝受け皿は既にあった（`O-60` の教訓「受け皿は既に在った」の4回目）
+
+🔑**`PLACE_UNDER_SIGNI{source, count, upToCount, filter, selectionConstraint}` が live 41効果で稼働中**で、
+`execPlaceUnderSigni` は**行き先が常に「効果元シグニの下」**（`ctx.sourceCardNum` のゾーンへ差す）＝
+この3効果が欲しかった意味そのもの。足りなかったのは **`source: 'field'` の1値だけ**だった。
+
+**旧実装が読んでいた4軸**（`execStubPart2.ts:91`・`card.EffectText` + `BurstText` に regex）
+| 軸 | 旧 regex | payload |
+|---|---|---|
+| 枚数 | `(?:手札から)?カード(?:を)?([０-９\d]+)枚まで` | `count` |
+| 任意 | `txt.includes('もよい')` | `upToCount` |
+| レベル | `レベル([０-９\d]+)以上` / `レベル([０-９\d]+)(?![以上以下\d])` | `filter.level` |
+| 置き元 | `!txt.includes('手札')` → 場 | `source: 'hand' \| 'field'` |
+
+🔴**4軸とも「カード全文」に当てていた**＝**別の能力に「手札」や「レベルN」が出るだけで軸が裏返りうる**
+形だった（`WXDi-P11-081` は【自】とライフバーストの両方に「手札」が出る）。さらに
+**`ctx.sourceCardNum` から `cardMap` が引けない実行経路では4軸とも既定値へ崩れる**（`O-60` 第9〜11バッチで
+`SEED_BLOOM` が同じ経路で「全開花→1枚だけ」に化けた実績＝この項目の本質的な実害）。
+
+**変更点**
+- 型＝`PlaceUnderSigniAction.source` に **`'field'`** を追加。
+- engine＝`execPlaceUnderSigni` に field 分岐（**各ゾーンの頂点だけ**を候補にし、**効果元自身は除外**）。
+  ⚠`PLACE_UNDER_SOURCE_SIGNI` の適用側は `fromLocation:'field'` を**元から持っていた**ので追加不要だった。
+- parser＝`parserUtils.parsePlaceUnderSourceSigni` を新設し、**2つの生成地点を1本に集約**
+  （`parseSentencePart2`：手札からカードをN枚まで／`parseSentencePart3`：〜をこのシグニの下に置いてもよい）。
+- engine の STUB 分岐（41行）を**撤去**。逆翻訳の原文抽出2ブランチも撤去し、typed の描画へ寄せた
+  （`puLoc` に `field: 'あなたの場の'` を追加＝足さないと `fieldから` と生の英語が出る）。
+
+🔴**実装中に踏んだ罠＝名詞句判定に行き先句が混ざった。**
+「あなたの手札から**カード**を２枚まで**この**シグニの下に置く」で `/のシグニ/` が
+**「このシグニの下」側にマッチ**し、`filter.cardType:'シグニ'` が付いた＝**スペルを下に置けない過小実行**。
+⇒ **行き先句（`(?:この)?シグニの下に置…`）を先に切り落として head だけで判定する**ようにした。
+実機の `o60placeHand` はこの反転（スペルが下に入る）を観測点にしている。
+
+### 🧹 同じカードの別効果で見つけた欠陥2件（教訓⑤「採用前に逆翻訳を全文読む」が当たった）
+
+**① `WXDi-P05-034-E1` に原文の「パワーは＋5000され」が無かった（過小実行）**
+原文「【常】：このシグニの下にカードがあるかぎり、このシグニのパワーは**＋5000され**、
+このシグニは「【自】：…」を得る。」に対し、`manualEffects.ts` の手書きは**引用【自】を平らにした形だけ**で
+**パワー修整が丸ごと落ちていた**。parser は正しい CONTINUOUS SEQUENCE を出していたが、手書きが
+`mergeManualEffects` で常に勝つので届かない（§5.3 `O-93` / `O-194` と同じ「parser が追い越した手書き」）。
+🔑手書きは `abortIfNoCandidate` と `PAID_ADDITIONAL_COST` ゲート（executor の look-ahead＝Pattern④）を
+持つぶん parser より忠実なので、**削除ではなく `-E1b` へ切り出した**（`O-194` と同じ規約）。
+
+**② `fromLeftFieldUnder` の逆翻訳が定型文をベタ書きしていた（計器の嘘）**
+`TRANSFER_TO_HAND` / `ADD_TO_FIELD` の両方が「トラッシュにある、このシグニの下にあった**シグニ1枚**を〜」
+という**固定文字列**を返しており、`count` / `upToCount` / `filter` を**全部捨てて**いた。
+⇒ `SPK01-02-E2` は原文「**カード**を**２枚まで**」なのに「シグニ**1枚**」と描かれ、
+`WXK10-054-E1` の `＜ウェポン＞` も消えていた。**JSON は正しいのに逆翻訳だけが嘘をつく**形＝
+原文照合（§5-6）が素通りする。⇒ `leftFieldUnderNounJa` を新設して payload から描く（live 5効果に効く）。
+🔑**`O-194` で直した `SELF_PLAY_RESTRICT` の rawText と同じ家系**＝
+**「逆翻訳が payload を見ずに文字列を返す」箇所は、そこだけ原文照合が効かない死角になる。**
+
+### ④ ゲート
+
+- `npm run gates` **全緑**（typecheck／golden **3305 / 3305**＝`O-60` 第16バッチの assert 4本を新設／
+  smoke 10723 全異常0／fuzz 全0／census 3 / BASELINE 5 据置／`census:stubs` A🔴0・C0／manual-fields 0／
+  `census:enginetext` A🔴 **129→128行 / 126→125ハンドラ**・miss **33→32ハンドラ / 41→39カード**／
+  `census:costtext` A🔴0 据置／lint 0 errors）。
+- `BASELINE_SELF_TEXT` を **129→128** へ実数更新（払い戻しても exit 1 で止まる ratchet）。
+- `npm run regen` 完走・**同型★0**。
+- ⚠**live へ届けるのに3手かかった**＝parser を直しても3効果とも held/partial に落ちた
+  （`SPK01-02` / `WXDi-P11-081` は `_held_fresh`、`WXDi-P05-034` は `_partial_fresh`）。
+  `heldReview.mjs --adopt-effect` と `--adopt-partial-effect` で効果単位に採用した。
+  🔴**engine の STUB を先に消したので、採用し忘れると live の STUB が無言 no-op になる**
+  （`census:stubs` A群🔴 が拾うが、**撤去と採用は必ず同じコミットで閉じる**）。
+  golden にも「撤去済み STUB が live に1件も残っていない」を全カード走査で入れた。
+
+### ⑤ 実機の要否（§2.2 の判定）
+
+**必須**＝`src/engine/`（`effectExecutor.ts` / `execStubPart2.ts`）を触り、`source: 'field'` という
+**新しい機構の軸**を足したため。`node scripts/verifyBattleDrive.mjs o60placeHand o60placeField` で **2/2 PASS**。
+
+🔑**わざと `effect_stack` 注入経路で撃った**＝この項目の実害は「当たる/外れる」ではなく
+**実行経路によって読めたり読めなかったりする**ことなので、旧実装が崩れる経路で payload 版を確かめるのが要点。
+- `o60placeField`＝レベル3の場シグニが効果元の下へ入り、**レベル1は候補外**・**効果元自身も候補外**
+  （`under=["WD01-010#1"] top=WXDi-P05-034#1`／zone2 の `WD01-013#1` は残ったまま）
+- `o60placeHand`＝**スペル `WD01-018`（噴流する知識）が下に入った**（= `cardType` フィルタが付いていない証拠）
+  かつ**選択UIの上限が2**（= `count:2` を payload から読めている証拠）
+
+⚠**踏んだ罠2つ（どちらもドライバ側）**
+① `pick-0` を無条件に押すと**選択がトグルして永久に確定しない**＝既存の `H.stdStep()`
+（「決定(1/N) が出ていない間だけ pick-0」）に任せるのが定石。
+② 🔑**「N枚まで」を「N枚入ること」と期待してはいけない**＝上限なので1枚で確定してよい。
+**上限は「選択UIが広告する `決定 (n/N)` の N」で測る**（実際に置けた枚数では `count` を読めているか分からない）。
+
+### 影響枚数
+
+挙動が変わったカード **4枚**＝`SPK01-02` / `WXDi-P05-034` / `WXDi-P11-081`（payload 化＝経路非依存に）
+＋ `WXDi-P05-034` の **パワー＋5000 復活**（過小実行の是正）。
+逆翻訳だけが直ったカードがさらに **5枚**（`fromLeftFieldUnder` 群）。予定外の変更 0
+（効果 変更3・追加1・削除0）。
+
+### 検証コマンド
+
+```
+npm run gates
+npm run regen && node scripts/groupSimilar.mjs --all      # 同型★0
+node scripts/verifyBattleDrive.mjs o60placeHand o60placeField
+npx tsx scripts/censusEngineText.ts --id "HAND_CARDS_UNDER_SIGNI|PLACE_SIGNI_UNDER_SELF_OPT"  # A群から消えたこと
+```
+
+### 🔑 この巡から残す教訓
+
+**「逆翻訳が payload を見ずに文字列を返す」箇所は、そこだけ原文照合が効かない死角になる。**
+`O-194` の `SELF_PLAY_RESTRICT{rawText}` と今回の `fromLeftFieldUnder` 定型文は**同じ家系**で、
+どちらも「JSON は正しいのに逆翻訳だけが嘘をつく」＝**§5-6 の原文照合をすり抜ける**。
+⇒ **typed 化のたびに、その payload を描く逆翻訳ブランチが `count` / `upToCount` / `filter` を
+全部出しているかを確かめる**（`O-60` の手口④「逆翻訳も payload から描く」の実務的な意味はこれ）。
+
+---
+
 ## 🏁2026-09-02（索引 A 第3巡）：§5.3 `O-194` を再計測してクローズ — 登録票 68効果 → 真の穴 6効果
 
 **ベースライン**＝`f136bde46`（`O-221` クローズの直後）。

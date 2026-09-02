@@ -30,7 +30,7 @@ import type {
   LookAndReorderAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa, parsePlaceUnderSourceSigni,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -998,9 +998,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SIGNI_GAIN_ONE_LRIG_COLOR' } as StubAction;
   }
 
-  // ---- レベルNのシグニをこのシグニの下に置いてもよい ----
+  // ---- レベルNのシグニをこのシグニの下に置いてもよい（§5.3 `O-60` 第16バッチで typed 化）----
+  // ⚠**「手札から」の有無で置き元が変わる**（無ければ場のシグニ）＝旧 STUB は engine 側で
+  //   `txt.includes('手札')` を**カード全文**に当てていたので、別の能力に「手札」が出るだけで
+  //   置き元が裏返りうる形だった。
   if (t.match(/(?:レベル[０-９\d]+(?:以上|以下)?の)?シグニ.*をこのシグニの下に置いてもよい/)) {
-    return { type: 'STUB', id: 'PLACE_SIGNI_UNDER_SELF_OPT' } as StubAction;
+    const puOpt = parsePlaceUnderSourceSigni(t);
+    if (puOpt) return puOpt as EffectAction;
   }
 
   // ---- シグニ複数体を《サーバントZERO》にする ----

@@ -1,4 +1,4 @@
-import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost, SelectionConstraint } from '../types/effects';
+import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost, SelectionConstraint, PlaceUnderSigniAction } from '../types/effects';
 
 // costColors から実際の色名だけを抽出（カード名を除外、《赤×2》→["赤","赤"]に展開）
 export function extractCostColors(text: string): string[] {
@@ -1358,4 +1358,60 @@ export function blockUntilFromText(t: string): 'END_OF_TURN' | 'NEXT_TURN' | 'PE
   if (/次の(?:あなたの|自分の|対戦相手の)?ターン/.test(t)) return 'NEXT_TURN';
   if (t.includes('このターン')) return 'END_OF_TURN';
   return 'PERMANENT';
+}
+
+
+/**
+ * 🆕**「〜をこのシグニの下に置く（／置いてもよい）」を typed の `PLACE_UNDER_SIGNI` にする唯一の口**
+ * （2026-09-02 §5.3 `O-60` 第16バッチ）。
+ *
+ * 🔴**旧実装は `STUB{HAND_CARDS_UNDER_SIGNI}` / `STUB{PLACE_SIGNI_UNDER_SELF_OPT}` で、
+ *   engine が実行時に `card.EffectText` を4軸ぶん regex で読んでいた**
+ *   （①枚数「カードをN枚まで」②任意「もよい」③レベル「レベルN(以上)」④置き元「手札」を含むか）。
+ *   ⇒ **効果元カードが引けない実行経路**（`effect_stack` 注入など `ctx.sourceCardNum` から
+ *   `cardMap` を引けない場合）では**4軸とも既定値へ崩れる**＝同じ効果が経路によって別物になる
+ *   （`O-60` 第9〜11バッチで実証済みの実害の型）。ここで payload に落として regex を撤去する。
+ *
+ * ⚠**行き先は常に「効果元シグニの下」**（`execPlaceUnderSigni` が `ctx.sourceCardNum` のゾーンへ差す）。
+ * ⚠**`source` は原文の「手札から」の有無で決める**＝無ければ場のシグニを指す
+ *   （`WXDi-P05-034-E2`「あなたのレベル３のシグニ１体を対象とし、それをこのシグニの下に置いてもよい」）。
+ * ⚠**「まで」も「もよい」も上限扱い（`upToCount: true`）**＝どちらも0枚を選べるのが原文の意味。
+ *   逆に「N枚を置く」（言い切り）は `upToCount: false`＝必ず払う。
+ *
+ * マッチしなければ null（呼び出し側は従来の分岐へ落とす）。
+ */
+export function parsePlaceUnderSourceSigni(t: string): PlaceUnderSigniAction | null {
+  const destM = t.match(/(?:この)?シグニの下に置(?:く|いてもよい)/);
+  if (!destM) return null;
+  // 「あなたの…」で始まる置き元宣言だけを受ける（「デッキの上から」等は別ルールが typed で解いている）。
+  if (!/^あなたの/.test(t)) return null;
+  // 🔴**先に行き先句を切り落とす**＝「この**シグニ**の下に置く」の文字列が名詞句判定に混ざると、
+  //   「手札から**カード**を2枚まで」（種類を問わない）に `cardType:'シグニ'` が付いて**過小実行**になる
+  //   （`SPK01-02-E1` で実際に踏んだ＝スペルを下に置けなくなる）。判定は必ず head 側だけで行う。
+  const head = t.slice(0, destM.index ?? 0);
+  // 置き元＝「手札から」が明示されていれば hand、無ければ場のシグニ。
+  const fromHand = /^あなたの手札から/.test(head);
+  // 枚数＝「N枚」「N体」。無指定は1。
+  const cntM = head.match(/([０-９\d]+)(?:枚|体)/);
+  const count = cntM ? parseNum(cntM[1]) : 1;
+  // 上限か否か＝head の「まで」または行き先句の「置いてもよい」。どちらも0枚を選べるのが原文の意味。
+  const upToCount = /まで/.test(head) || /もよい/.test(destM[0]);
+  // 名詞句の絞り込み。「カード」は無フィルタ（種類を問わない）＝`cardType:'シグニ'` を足さない。
+  const isSigniNoun = /シグニ/.test(head);
+  const lvMin = head.match(/レベル([０-９\d]+)以上/);
+  const lvMax = !lvMin && head.match(/レベル([０-９\d]+)以下/);
+  const lvExact = !lvMin && !lvMax && head.match(/レベル([０-９\d]+)の/);
+  const filter: TargetFilter = {
+    ...(isSigniNoun ? { cardType: 'シグニ' as const } : {}),
+    ...(lvMin ? { level: { min: parseNum(lvMin[1]) } }
+      : lvMax ? { level: { max: parseNum(lvMax[1]) } }
+      : lvExact ? { level: parseNum(lvExact[1]) } : {}),
+  };
+  return {
+    type: 'PLACE_UNDER_SIGNI',
+    source: fromHand ? 'hand' : 'field',
+    count,
+    upToCount,
+    ...(Object.keys(filter).length ? { filter } : {}),
+  };
 }

@@ -8103,14 +8103,21 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
     return done(addLog({ ...ctx, ownerState: newOwner }, `${count}`));
   }
 
-  // trash/hand/energy: SELECT_TARGET インタラクション
+  // trash/hand/energy/field: SELECT_TARGET インタラクション
   const state = ctx.ownerState;
   // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 自分のトラッシュがロック中は「下に置く」も領域移動なので不可。
   if (a.source === 'trash' && isOwnTrashMoveLocked('self', ctx)) {
     return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
   }
+  // 🆕`'field'`（2026-09-02 §5.3 `O-60` 第16バッチ）＝自分の場のシグニを効果元の下へ置く。
+  // ⚠**効果元自身は候補から外す**（自分の下に自分は置けない）／**各ゾーンの頂点だけ**を候補にする
+  //   （下に埋まっているカードは「場のシグニ」ではない）。旧 `STUB{PLACE_SIGNI_UNDER_SELF_OPT}` と同じ式。
   const srcList = a.source === 'trash' ? state.trash :
                   a.source === 'hand'  ? state.hand  :
+                  a.source === 'field' ? state.field.signi.flatMap(stack => {
+                    const top = stack?.at(-1);
+                    return top && top !== sourceCardNum ? [top] : [];
+                  }) :
                                           state.energy;
   const cands = srcList.filter(cn => {
     const card = ctx.cardMap.get(cn);
@@ -8118,9 +8125,10 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   });
   if (cands.length === 0) return done(ctx);
   const thenAction: import('../types/effects').PlaceUnderSourceSigniAction =
-    { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: a.source as 'trash' | 'hand' | 'energy' };
+    { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: a.source as 'trash' | 'hand' | 'energy' | 'field' };
   const scope: TargetScope = a.source === 'hand' ? 'self_hand' :
-                              a.source === 'energy' ? 'self_energy' : 'self_trash';
+                              a.source === 'energy' ? 'self_energy' :
+                              a.source === 'field' ? 'self_field' : 'self_trash';
   return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, thenAction, undefined, ctx, false, { selectionConstraint: a.selectionConstraint });
 }
 

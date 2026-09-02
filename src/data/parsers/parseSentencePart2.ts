@@ -44,7 +44,7 @@ import {
   blockUntilFromText,
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
-  parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter,
+  parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter, parsePlaceUnderSourceSigni,
 } from '../parserUtils';
 
 /**
@@ -1520,9 +1520,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SIGNI_POWER_UP_AND_AUTO_ABILITY' } as StubAction;
   }
 
-  // ---- 手札からカードをシグニの下に置く ----
+  // ---- 手札からカードをシグニの下に置く（§5.3 `O-60` 第16バッチで typed 化）----
+  // 🔴旧 `STUB{HAND_CARDS_UNDER_SIGNI}` は engine が実行時に `card.EffectText` から枚数・任意・
+  //   レベル・置き元の**4軸**を regex で読んでいた＝効果元が引けない経路で全部既定値へ崩れる。
   if (t.match(/あなたの手札からカードを.*枚.*このシグニの下に置く/)) {
-    return { type: 'STUB', id: 'HAND_CARDS_UNDER_SIGNI' } as StubAction;
+    const puHand = parsePlaceUnderSourceSigni(t);
+    if (puHand) return puHand as EffectAction;
   }
 
   // ---- カードが【アクセ】としてシグニに付いたとき選択効果 ----

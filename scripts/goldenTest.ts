@@ -61710,6 +61710,112 @@ test('索引A 2026-09-02: O-194 CONTINUOUS BLOCK_ACTION の条件評価に効果
   ok(!withPR(lrig1).forOther.has('USE_SPELL'), 'ルリグタイプ1つ → 制限は掛からない（旧 live は常に掛かっていた）');
 }));
 
+test('索引A 2026-09-02: O-60 第16バッチ＝「このシグニの下に置く」が payload だけで解ける', () => {
+  // 🔴旧実装は `STUB{HAND_CARDS_UNDER_SIGNI}` / `STUB{PLACE_SIGNI_UNDER_SELF_OPT}` で、engine が実行時に
+  //   `card.EffectText` から**4軸**（①枚数「カードをN枚まで」②任意「もよい」③レベル「レベルN(以上)」
+  //   ④置き元「手札」を含むか）を regex で読んでいた＝**効果元が `cardMap` から引けない実行経路**では
+  //   4軸とも既定値へ崩れる（`O-60` 第9〜11バッチで実証済みの実害の型）。
+  // 母集団は原文の全数検索で **3効果 / 3カード**（`SPK01-02` / `WXDi-P05-034` / `WXDi-P11-081`）。
+  const act = (cardNum: string, effectId: string) =>
+    mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!.action as
+      Extract<EffectAction, { type: 'PLACE_UNDER_SIGNI' }>;
+
+  // (1) 手札から「カード」を2枚まで＝**種類を問わない**。
+  //   ⚠ここに `cardType:'シグニ'` を付けてはいけない（スペルを下に置けなくなる＝過小実行）。
+  //   実装中に実際に踏んだ＝「こ**のシグニ**の下に」の文字列が名詞句判定に混ざったため。
+  const a02 = act('SPK01-02', 'SPK01-02-E1');
+  eq(a02.type, 'PLACE_UNDER_SIGNI', 'SPK01-02-E1 typed');
+  eq(a02.source, 'hand', 'SPK01-02-E1 手札から');
+  eq(a02.count, 2, 'SPK01-02-E1 2枚');
+  eq(a02.upToCount, true, 'SPK01-02-E1 「まで」＝上限');
+  eq(a02.filter?.cardType, undefined, 'SPK01-02-E1 「カード」＝種類を問わない');
+
+  // (2) 手札からレベル3以上のシグニを1枚まで（「置いてもよい」＝上限）。
+  const a81 = act('WXDi-P11-081', 'WXDi-P11-081-E2');
+  eq(a81.source, 'hand', 'WXDi-P11-081-E2 手札から');
+  eq(a81.upToCount, true, 'WXDi-P11-081-E2 「もよい」＝上限');
+  eq(a81.filter?.cardType, 'シグニ', 'WXDi-P11-081-E2 シグニ限定');
+  eq(JSON.stringify(a81.filter?.level), JSON.stringify({ min: 3 }), 'WXDi-P11-081-E2 レベル3以上');
+
+  // (3) **場の**レベル3のシグニを1体（「手札から」が無い＝置き元が場）。
+  //   ⚠旧 engine は `txt.includes('手札')` を**カード全文**に当てていたので、別の能力に「手札」が
+  //     出るだけで置き元が裏返りうる形だった。
+  const a34 = act('WXDi-P05-034', 'WXDi-P05-034-E2');
+  eq(a34.source, 'field', 'WXDi-P05-034-E2 置き元は場');
+  eq(a34.filter?.level, 3, 'WXDi-P05-034-E2 レベルちょうど3');
+
+  // 🔴撤去した STUB が live に1件も残っていないこと（残ると engine に消費が無い＝無言 no-op）。
+  for (const [cardNum, effs] of effectsMap) {
+    const json = JSON.stringify(effs);
+    ok(!json.includes('HAND_CARDS_UNDER_SIGNI'), `${cardNum}: 撤去済み STUB が残っていない`);
+    ok(!json.includes('PLACE_SIGNI_UNDER_SELF_OPT'), `${cardNum}: 撤去済み STUB が残っていない`);
+  }
+});
+
+test('索引A 2026-09-02: O-60 第16バッチ＝PLACE_UNDER_SIGNI{source:field} は効果元自身を候補から外す', () => withSavedCursor(() => {
+  // 「あなたの〈条件〉のシグニ1体を対象とし、それを**このシグニの下に**置く」＝自分の下に自分は置けない。
+  // 旧 STUB も `top === ctx.sourceCardNum` で除外していたので、typed 化で落とさないことを固定する。
+  const self = 'WXDi-P05-034';
+  const lv3 = findCard(c => isSigni(c) && c.Level === '3' && c.CardNum !== self);
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== self);
+  const a: EffectAction = { type: 'PLACE_UNDER_SIGNI', source: 'field', count: 1, upToCount: true,
+    filter: { cardType: 'シグニ', level: 3 } };
+
+  // 効果元だけが場に居る＝候補0で何も起きない（fail-closed）。
+  const only = mkCtx({ signi: [self, null, null] }, {}, self);
+  const r0 = run(a, only);
+  eq(JSON.stringify(r0.ownerState.field.signi), JSON.stringify([[self], null, null]),
+    '効果元しか居なければ盤面は動かない（自分を自分の下に置かない）');
+
+  // レベル3が別ゾーンに居れば、それが効果元の下へ入る。
+  const withLv3 = mkCtx({ signi: [self, lv3, null] }, {}, self);
+  const r1 = run(a, withLv3);
+  const zone0 = r1.ownerState.field.signi[0] ?? [];
+  ok(zone0.includes(lv3) && zone0.at(-1) === self, `レベル3が効果元の下に入る（zone0=${JSON.stringify(zone0)}）`);
+  eq(r1.ownerState.field.signi[1], null, '元のゾーンからは抜ける');
+
+  // レベルが合わなければ候補0（filter が効いている）。
+  const withLv2 = mkCtx({ signi: [self, lv2, null] }, {}, self);
+  const r2 = run(a, withLv2);
+  eq(JSON.stringify(r2.ownerState.field.signi), JSON.stringify([[self], [lv2], null]),
+    'レベルが違えば候補0＝盤面は動かない');
+}));
+
+test('索引A 2026-09-02: O-60 第16バッチ＝「下にあったカード」の逆翻訳が payload から出る', () => {
+  // 🔴旧実装は `fromLeftFieldUnder` を見つけると**定型文をベタ書き**し、`count`/`upToCount`/`filter` を
+  //   全部捨てていた＝JSON は正しいのに逆翻訳だけが嘘をつく（原文照合 §5-6 が素通りする）形。
+  //   `SPK01-02-E2` は原文「カードを**2枚まで**」なのに「シグニ**1枚**」と描かれていた。
+  const e02 = (effectsMap.get('SPK01-02') ?? []).find(e => e.effectId === 'SPK01-02-E2')!;
+  const src02 = e02.action as Extract<EffectAction, { type: 'TRANSFER_TO_HAND' }>;
+  eq(src02.source.count, 2, 'SPK01-02-E2 の JSON は元から2枚（壊れていたのは逆翻訳だけ）');
+  eq(src02.source.upToCount, true, 'SPK01-02-E2 は「まで」');
+  eq(src02.source.filter?.cardType, undefined, 'SPK01-02-E2 は「カード」＝種類を問わない');
+
+  // `WXK10-054-E1` は ＜ウェポン＞ 限定＝絞り込みが逆翻訳に出ること（定型文では消えていた）。
+  const e54 = (effectsMap.get('WXK10-054') ?? []).find(e => e.effectId === 'WXK10-054-E1')!;
+  const src54 = (e54.action as Extract<EffectAction, { type: 'TRANSFER_TO_HAND' }>).source;
+  eq(src54.filter?.story, 'ウェポン', 'WXK10-054-E1 は＜ウェポン＞限定');
+});
+
+test('索引A 2026-09-02: O-60 第16バッチ＝WXDi-P05-034 の「パワーは＋5000され」が復活している', () => {
+  // 🔴手書きの `-E1` は引用【自】を平らにした形だけを持ち、**原文の「パワーは＋5000され」が
+  //   丸ごと落ちて**いた（過小実行）。parser は正しく出していたが手書きが常に勝つので届かなかった
+  //   （§5.3 `O-93` / `O-194` と同じ「parser が追い越した手書き」）。
+  // 🔑手書きは `abortIfNoCandidate` と `PAID_ADDITIONAL_COST` ゲートを持つぶん忠実なので、
+  //   削除ではなく `-E1b` へ切り出した（`O-194` と同じ規約）。
+  const effs = mergeManualEffects('WXDi-P05-034', effectsMap.get('WXDi-P05-034') ?? []);
+  const e1b = effs.find(e => e.effectId === 'WXDi-P05-034-E1b')!;
+  eq(e1b.effectType, 'CONTINUOUS', 'E1b は【常】');
+  eq(e1b.activeCondition?.type, 'THIS_CARD_HAS_UNDER', 'E1b の条件は「下にカードがあるかぎり」');
+  const pw = e1b.action as Extract<EffectAction, { type: 'POWER_MODIFY' }>;
+  eq(pw.type, 'POWER_MODIFY', 'E1b はパワー修整');
+  eq(pw.delta, 5000, 'E1b は＋5000');
+  eq(pw.target.filter?.thisCardOnly, true, 'E1b は自分だけ');
+  // 引用【自】側（-E1）は据置＝両方が同じ条件を持つ。
+  const e1 = effs.find(e => e.effectId === 'WXDi-P05-034-E1')!;
+  eq(e1.condition?.type, 'THIS_CARD_HAS_UNDER', 'E1 の条件は据置');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

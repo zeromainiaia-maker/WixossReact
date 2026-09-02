@@ -174,6 +174,20 @@ function lastProcessedCountJa(spec: any): string {
   return `この方法で処理した${noun}の枚数`;
 }
 
+/**
+ * 🆕**「このカードの下にあった〜」（`source.fromLeftFieldUnder`）の名詞句を payload から組む**
+ * （2026-09-02 §5.3 `O-60` 第16バッチ）。`TRANSFER_TO_HAND` と `ADD_TO_FIELD` の2箇所で共有する。
+ * ⚠**枚数・上限・絞り込みを必ず出す**＝ここを定型文にすると JSON が正しくても逆翻訳が嘘をつき、
+ *   原文照合（§5-6）が素通りする（旧実装が実際にそうだった）。
+ */
+function leftFieldUnderNounJa(src: any): string {
+  const noun = src?.filter?.cardType === 'シグニ' ? 'シグニ'
+    : src?.filter?.cardType === 'スペル' ? 'スペル' : 'カード';
+  const cnt = typeof src?.count === 'number' ? src.count : 1;
+  // ⚠助詞は**呼び出し側**が付ける（ここで `を` を足すと「…2枚までを手札に加える」と二重になる）。
+  return `${filterJa(src?.filter)}${noun}${cnt}枚${src?.upToCount ? 'まで' : ''}`;
+}
+
 function filterJa(f?: any): string {
   if (!f) return '';
   const parts: string[] = [];
@@ -1393,7 +1407,7 @@ function actionJa(a?: Action, effectType?: string): string {
         return `対戦相手の手札を見て${nonColorless}${restFilter}${noun}${count}枚を選び、対戦相手はそれを${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       }
       if (a.source?.fromLeftFieldUnder)
-        return `トラッシュにある、このシグニの下にあったシグニ1枚を${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
+        return `トラッシュにある、このカードの下にあった${leftFieldUnderNounJa(a.source)}を${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
         return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
@@ -1547,6 +1561,11 @@ function actionJa(a?: Action, effectType?: string): string {
     // ⚠群の filter は `filterJa` に描かせる（`O-188` 第4バッチ・2026-09-01）。
     //   自前の noun 組み立てでは cardType と color しか出ず、クラス・レベル・アイコン・
     //   《ガードアイコン》を持たない・宣言クラスが**逆翻訳から丸ごと消えて原文照合が効かなくなる**。
+    // 🆕**「このカードの下にあったカード」の描画は payload から組む**（2026-09-02 §5.3 `O-60` 第16バッチ）。
+    // 🔴旧実装は `fromLeftFieldUnder` を見つけると**定型文をベタ書き**して返しており、
+    //   `count` / `upToCount` / `filter` を**全部捨てて**いた＝`SPK01-02-E2`（原文「カードを**2枚まで**」）が
+    //   「シグニ**1枚**」と描かれ、`WXK10-054-E1` の `＜ウェポン＞` も消えていた。
+    //   **JSON は正しいのに逆翻訳だけが嘘をつく**形＝原文照合（§5-6）が効かなくなるので payload から描く。
     case 'TRANSFER_TO_HAND': return a.transferGroups?.length
       ? `${transferGroupZoneJa(a.source)}${a.transferGroups.map((g: any) => {
           const noun = g.filter?.cardType === 'スペル' ? 'スペル'
@@ -1554,7 +1573,7 @@ function actionJa(a?: Action, effectType?: string): string {
           return `${filterJa(g.filter)}${noun}${g.count}枚まで`;
         }).join('と')}対象とし、それらを手札に加える`
       : a.source?.fromLeftFieldUnder
-      ? 'トラッシュにある、このシグニの下にあったシグニ1枚を手札に加える'
+      ? `トラッシュにある、このカードの下にあった${leftFieldUnderNounJa(a.source)}を手札に加える`
       // 「このシグニをエナゾーンから手札に加える」自己回収（thisCardOnly source）。⚠出所を描かないと
       //   `targetJa` が「このシグニを手札に加える」としか書かず、**エナから拾う話だと読めない**
       //   （`ADD_TO_FIELD`／`ADD_TO_LIFE` の同型分岐と揃える＝§5.3 O-54）。
@@ -2607,8 +2626,11 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${targetJa(a.target)}のパワーをこの方法でトラッシュに置いたシグニのレベル1につき${dTr >= 0 ? '＋' : '－'}${Math.abs(dTr)}する`;
     }
     case 'PLACE_UNDER_SIGNI': {
-      // source は文字列の領域指定（deck_top/trash/energy/hand）＋ count ＋ 任意 filter
-      const puLoc: Record<string, string> = { deck_top: 'あなたのデッキの上から', trash: 'あなたのトラッシュから', energy: 'あなたのエナゾーンから', hand: 'あなたの手札から' };
+      // source は文字列の領域指定（deck_top/trash/energy/hand/field）＋ count ＋ 任意 filter
+      // 🆕`field`（2026-09-02 §5.3 `O-60` 第16バッチ）＝「あなたの〈条件〉のシグニ1体を対象とし、
+      //   それをこのシグニの下に置く」。⚠これを表に足さないと `fieldから` と生の英語が出る
+      //   （`census:stubs` C群と同じ「逆翻訳に生の英語 ID が出る」型）。
+      const puLoc: Record<string, string> = { deck_top: 'あなたのデッキの上から', trash: 'あなたのトラッシュから', energy: 'あなたのエナゾーンから', hand: 'あなたの手札から', field: 'あなたの場の' };
       const puFrom = puLoc[a.source] ?? `${a.source}から`;
       const puNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
       const puCnt = a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
@@ -3673,11 +3695,6 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/【ライド】（[\s\S]*?アタックできない）/);
         if (m) return m[0];
       }
-      // 手札をシグニの下に（HAND_CARDS_UNDER_SIGNI・engine実装済み）＝「あなたの手札からカードをN枚までこのシグニの下に置く」。
-      if (a.id === 'HAND_CARDS_UNDER_SIGNI') {
-        const m = currentCardText.match(/あなたの手札からカードを[０-９\d]*枚まで(?:この)?シグニの下に置く/);
-        if (m) return m[0];
-      }
       // クラス宣言（DECLARE_CLASS・engine実装済み）＝「クラスN つを宣言する」（後続の探索は別描画）。
       if (a.id === 'DECLARE_CLASS') {
         // 候補列挙つき（「＜精像＞か＜精武＞か…から1つを宣言する」PR-431・タスク12(xlvi)(c)）
@@ -3791,11 +3808,6 @@ function actionJa(a?: Action, effectType?: string): string {
       // 相手が色を宣言（OPP_DECLARE_COLOR）＝「対戦相手は色N つを宣言する」を原文抽出（宣言色によるトラッシュ処理は後続の別効果側で描画）。
       if (a.id === 'OPP_DECLARE_COLOR') {
         const m = currentCardText.match(/対戦相手は色[０-９\d一]つを宣言する/);
-        if (m) return m[0];
-      }
-      // 自シグニの下にカードを置く（HAND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT）＝カード別（手札から／場のシグニ）に「…をこのシグニの下に置いてもよい」を原文抽出。
-      if (a.id === 'HAND_CARDS_UNDER_SIGNI' || a.id === 'PLACE_SIGNI_UNDER_SELF_OPT') {
-        const m = currentCardText.match(/あなたの[^。]*?をこのシグニの下に置いてもよい(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
       // 相手メインフェイズのリミット減（OPP_MAIN_PHASE_LIMIT_DOWN）＝「次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－Nする」を原文抽出。

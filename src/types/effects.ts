@@ -1924,7 +1924,14 @@ export interface AwakenSigniAction {
 // シグニの下にカードを置く（デッキトップ・トラッシュ・手札から）
 export interface PlaceUnderSigniAction {
   type: 'PLACE_UNDER_SIGNI';
-  source: 'deck_top' | 'trash' | 'hand' | 'energy';
+  /**
+   * 置き元の領域。**行き先は常に「効果元シグニの下」**（`execPlaceUnderSigni` は
+   * `ctx.sourceCardNum` のゾーンへ差し込む）。
+   * 🆕**`'field'`**（2026-09-02 §5.3 `O-60` 第16バッチ）＝「あなたの〈条件〉のシグニ１体を対象とし、
+   * それを**このシグニの下に置く**」（`WXDi-P05-034-E2`）。
+   * ⚠**効果元自身は候補から外す**（自分の下に自分は置けない）＝engine 側で除外している。
+   */
+  source: 'deck_top' | 'trash' | 'hand' | 'energy' | 'field';
   count: number;
   upToCount?: boolean;
   filter?: TargetFilter;

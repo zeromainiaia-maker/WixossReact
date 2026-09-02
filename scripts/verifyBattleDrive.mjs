@@ -1022,7 +1022,115 @@ async function driveO194LrigType(page, H, expectBlocked) {
   return { pass: false, detail: `決着せず（trash ${trash0}→${fin?.host?.trash ?? '-'} logs=${JSON.stringify((fin?.logTail ?? []).slice(-8))}）` };
 }
 
+/**
+ * §5.3 `O-60` 第16バッチの実機ドライバ（手札から／場から で共有）＝**「このシグニの下に置く」の payload 化**。
+ * 🔴旧実装は `STUB{HAND_CARDS_UNDER_SIGNI}` / `STUB{PLACE_SIGNI_UNDER_SELF_OPT}` で、engine が実行時に
+ *   `card.EffectText` から**枚数・任意・レベル・置き元の4軸**を regex で読んでいた。
+ * 🔑**わざと `effect_stack` 注入で撃つ**＝この項目の実害は「当たる/外れる」ではなく
+ *   **実行経路によって読めたり読めなかったりする**こと（`O-60` 第9〜11バッチで `SEED_BLOOM` が
+ *   同じ経路で「全開花→1枚だけ」に化けた実績）。payload 化が経路非依存になったことをここで見る。
+ * 観測点＝**効果元ゾーンのスタックが伸びること**（`queryState` の `fieldSigni` は多段配列を返す）。
+ */
+async function driveO60PlaceUnder(page, H, spec) {
+  const { tag, sourceInst, zoneIdx, expectUnder, expectMax, mustContain, mustNotContain } = spec;
+  // 🔑**選択UI が広告する上限**（「決定 (n/N)」の N）も観測する＝`count` を payload から読めているかは
+  //   「実際に置けた枚数」だけでは分からない（**上限N なので1枚で確定してもよい**）。
+  let seenMax = null;
+  const st0 = await H.queryState();
+  H.log(`開始 ${tag} field=${JSON.stringify(st0?.host?.fieldSigni)} hand=${JSON.stringify(st0?.host?.handCards)} stack=${st0?.stackLen}`);
+  let settled = 0;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    // ⚠**`pick-0` を無条件に押さない**＝`stdStep` は「決定(1/N) が出ていない間だけ pick-0」という
+    //   定石を持っている。先に押すと選択がトグルして永久に確定しない（初回実装でこれを踏んだ）。
+    const confirmTxt = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button')].find(x => /決定\s*\(\d+\/\d+\)/.test(x.textContent ?? ''));
+      return b ? b.textContent : null;
+    });
+    if (confirmTxt) { const m = confirmTxt.match(/\((\d+)\/(\d+)\)/); if (m) seenMax = parseInt(m[2], 10); }
+    let did = await H.stdStep();
+    if (!did) did = await H.clickTextOrBtn(['決定', '確定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const zone = st?.host?.fieldSigni?.[zoneIdx] ?? [];
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | zone${zoneIdx}=${JSON.stringify(zone)} field=${JSON.stringify(st?.host?.fieldSigni)} hand=${st?.host?.hand} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (s === 4) H.log(`    logs: ${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
+    const under = zone.slice(0, -1);
+    if (under.length >= expectUnder && zone.at(-1) === sourceInst) {
+      // 🔑「置けた枚数」だけでなく**何が置かれたか**を見る（filter を落とすと別のカードが入る／
+      //   逆に filter が過剰だと置けるはずのカードが候補から消える）。
+      if (mustNotContain && under.some(cn => String(cn).startsWith(mustNotContain))) {
+        return { pass: false, detail: `🔴置いてはいけないカードが下に入った（under=${JSON.stringify(under)}）` };
+      }
+      if (mustContain && !under.some(cn => String(cn).startsWith(mustContain))) {
+        return { pass: false, detail: `🔴置けるはずのカードが入っていない（期待=${mustContain} under=${JSON.stringify(under)}）` };
+      }
+      if (expectMax && seenMax !== expectMax) {
+        return { pass: false, detail: `🔴選択UIの上限が payload と違う（広告=${seenMax} 期待=${expectMax}）` };
+      }
+      return { pass: true, detail: `効果元の下に ${under.length} 枚入った（under=${JSON.stringify(under)} top=${zone.at(-1)}${expectMax ? ` / 選択上限=${seenMax}` : ''}）` };
+    }
+    settled = (!(st?.stackLen > 0) && !st?.pendingEffect) ? settled + 1 : 0;
+    if (settled >= 5) {
+      return { pass: false, detail: `決着したが下に入っていない（zone${zoneIdx}=${JSON.stringify(zone)} logs=${JSON.stringify((st?.logTail ?? []).slice(-8))}）` };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `決着せず（field=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+}
+
 const scenarios = {
+  // §5.3 `O-60` 第16バッチ（2026-09-02）＝「このシグニの下に置く」の payload 化。
+  //   engine を触った回なので §2.2 で実機まで回す。**わざと `effect_stack` 注入経路**で撃つ
+  //   （旧実装が崩れたのはこの経路＝`ctx.sourceCardNum` からカード全文が引けない）。
+  o60placeHand: {
+    title: 'O-60 SPK01-02: 手札から「カード」を2枚まで自分の下に置く（種類を問わない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        'field.signi': [['SPK01-02#1'], null, null],
+        'field.signi_down': [false, false, false],
+        // 🔑**スペルを1枚混ぜる**＝原文は「カードを2枚まで」＝種類を問わない。
+        //   実装中に「この**シグニ**の下に」の文字列が名詞句判定へ混ざって
+        //   `cardType:'シグニ'` が付く過小実行を踏んだので、その反転をここで見る。
+        hand: ['WD01-018#1', 'WD01-013#1'],
+        'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      top: {
+        active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('SPK01-02', 'SPK01-02#1', 'SPK01-02-E1'),
+      },
+    },
+    drive: (page, H) => driveO60PlaceUnder(page, H, {
+      // ⚠**「2枚まで」は上限**なので「2枚入ること」を期待にしてはいけない（1枚で確定してよい）。
+      //   代わりに ①**スペルが下に入れる**こと（`cardType` フィルタが付いていない証拠）
+      //   ②**選択UIの上限が2**であること（`count:2` を payload から読めている証拠）を見る。
+      tag: 'o60placehand', sourceInst: 'SPK01-02#1', zoneIdx: 0, expectUnder: 1,
+      mustContain: 'WD01-018', expectMax: 2,
+    }),
+  },
+  o60placeField: {
+    title: 'O-60 WXDi-P05-034: 場のレベル3のシグニを自分の下に置く（source:field・効果元は候補外）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#1'],
+        // zone0＝効果元／zone1＝**レベル3**の別シグニ（これが下へ入る）／zone2＝レベル1（filter で候補外）
+        'field.signi': [['WXDi-P05-034#1'], ['WD01-010#1'], ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+        hand: [], 'field.signi_traps': [null, null, null], 'field.check': null,
+      },
+      top: {
+        active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WXDi-P05-034', 'WXDi-P05-034#1', 'WXDi-P05-034-E2'),
+      },
+    },
+    drive: (page, H) => driveO60PlaceUnder(page, H, {
+      tag: 'o60placefield', sourceInst: 'WXDi-P05-034#1', zoneIdx: 0, expectUnder: 1,
+      // 🔑レベル1の `WD01-013` が入ったら filter が落ちている（過剰実行）。
+      mustNotContain: 'WD01-013',
+    }),
+  },
+
   // §5.3 `O-194`（2026-09-02）＝新条件型2つの実機観測点。**型を足した回は実機まで必須**（PLAN §2.2）。
   //   どちらも「条件が丸ごと落ちて無条件に効いていた」過剰実行の是正なので、
   //   **成立する腕と成立しない腕の2本**を必ず並べる（片腕だけだと旧挙動と区別できない）。

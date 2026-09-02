@@ -87,47 +87,11 @@ export function execStubPart2(
     const placeAction: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
     return selectOrInteract(handSigHSU, maxHSU, false, 'self_hand', placeAction as EffectAction, undefined, ctx);
   }
-  // 手札からカードをこのシグニの下に置く（HAND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT）
-  if (stub.id === 'HAND_CARDS_UNDER_SIGNI' || stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT') {
-    const srcHCU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtHCU = srcHCU ? (srcHCU.EffectText ?? '') + ' ' + (srcHCU.BurstText ?? '') : '';
-    const toHWHCU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const maxMHCU = txtHCU.match(/(?:手札から)?カード(?:を)?([０-９\d]+)枚まで/);
-    const maxHCU = maxMHCU ? parseInt(toHWHCU(maxMHCU[1])) : 1;
-    const optHCU = stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT' || txtHCU.includes('もよい');
-    // レベル以上フィルタ（"レベルN以上"）または完全一致フィルタ（"レベルN"）
-    const lvMinMHCU = txtHCU.match(/レベル([０-９\d]+)以上/);
-    const lvExactMHCU = !lvMinMHCU && txtHCU.match(/レベル([０-９\d]+)(?![以上以下\d])/);
-    const minLvHCU = lvMinMHCU ? parseInt(toHWHCU(lvMinMHCU[1])) : 0;
-    const exactLvHCU = lvExactMHCU ? parseInt(toHWHCU(lvExactMHCU[1])) : -1;
-    const levelOkHCU = (lv: number) => {
-      if (exactLvHCU >= 0) return lv === exactLvHCU;
-      if (minLvHCU > 0) return lv >= minLvHCU;
-      return true;
-    };
-    // PLACE_SIGNI_UNDER_SELF_OPT で "手札から" の明示がない場合はフィールドから
-    const useFieldHCU = stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT' && !txtHCU.includes('手札');
-    if (useFieldHCU) {
-      const fieldCandsHCU = ctx.ownerState.field.signi.flatMap(stack => {
-        const top = stack?.at(-1);
-        if (!top || top === ctx.sourceCardNum) return [];
-        const c = ctx.cardMap.get(top);
-        if (!c) return [];
-        return levelOkHCU(parseInt(c.Level ?? '0')) ? [top] : [];
-      });
-      if (fieldCandsHCU.length === 0) return done(addLog(ctx, '対象シグニなし（PLACE_SIGNI_UNDER_SELF_OPT）'));
-      const placeFieldHCU: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'field' };
-      return selectOrInteract(fieldCandsHCU, maxHCU, optHCU, 'self_field', placeFieldHCU as EffectAction, undefined, ctx);
-    }
-    const handCandsHCU = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (!c) return false;
-      return levelOkHCU(parseInt(c.Level ?? '0'));
-    });
-    if (handCandsHCU.length === 0) return done(addLog(ctx, '手札なし（シグニ下配置スキップ）'));
-    const placeActionHCU: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
-    return selectOrInteract(handCandsHCU, maxHCU, optHCU, 'self_hand', placeActionHCU as EffectAction, undefined, ctx);
-  }
+  // 🏁**`HAND_CARDS_UNDER_SIGNI` / `PLACE_SIGNI_UNDER_SELF_OPT` は撤去した**（2026-09-02 §5.3 `O-60` 第16バッチ）。
+  //   旧実装は `card.EffectText` から**枚数・任意・レベル・置き元の4軸**を実行時 regex で読んでいた＝
+  //   効果元が `cardMap` から引けない経路では4軸とも既定値へ崩れる形だった。
+  //   いまは parser が `PLACE_UNDER_SIGNI{source:'hand'|'field', count, upToCount, filter}` を出し、
+  //   `execPlaceUnderSigni`（`effectExecutor.ts`）が payload だけで解く。
   // シグニの下のカードをエナゾーンに置く
   if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
     // SELECT_TARGET後の処理：lastProcessedCardsにカードがある場合

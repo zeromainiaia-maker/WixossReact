@@ -20,6 +20,25 @@ SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-06
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
 
+## +PLACE_UNDER_SIGNI -STUB ［2枚］
+SPK01-02 WXDi-P11-081
+--- SPK01-02
+  原文: 【出】：あなたの手札からカードを２枚までこのシグニの下に置く。【自】：このシグニが場を離れたとき、あなたのトラッシュからこのカードの下にあったカードを２枚まで対象とし、それらを手札に加える。,-
+  - [0].action.id = "HAND_CARDS_UNDER_SIGNI"
+  ~ [0].action.type : "STUB" → "PLACE_UNDER_SIGNI"
+  + [0].action.source = "hand"
+  + [0].action.count = 2
+  + [0].action.upToCount = true
+--- WXDi-P11-081
+  原文: 【自】：このシグニがアタックしたとき、このシグニの下にカードがある場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。【出】：あなたの手札からレベル３以上のシグニ１枚をこのシグニの下に置いてもよい。,：対戦相手のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、ターン終了時まで、それのパワーを－12000する。
+  - [1].action.id = "PLACE_SIGNI_UNDER_SELF_OPT"
+  ~ [1].action.type : "STUB" → "PLACE_UNDER_SIGNI"
+  + [1].action.source = "hand"
+  + [1].action.count = 1
+  + [1].action.upToCount = true
+  + [1].action.filter.cardType = "シグニ"
+  + [1].action.filter.level.min = 3
+
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
 --- WDK05-R11
@@ -41,16 +60,6 @@ WDK05-R11 WXK03-025
   + [0].action.steps[0].count = 4
   + [0].action.steps[0].fromBottom = true
   + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
-
-## +LRIG_DECK_COUNT ［1枚］
-WX13-034
---- WX13-034
-  原文: 【常】：あなたのルリグデッキが０枚であるかぎり、このシグニは対戦相手のアーツの効果を受けない。【常】：あなたのシグニは「【自】：このシグニがアタックしたとき、自身よりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。,：対戦相手のパワー10000以上のシグニ１体を対象とし、あなたのデッキの一番上のカードをエナゾーンに置き、それをバニ
-  + [0].activeCondition.type = "LRIG_DECK_COUNT"
-  + [0].activeCondition.owner = "self"
-  + [0].activeCondition.operator = "eq"
-  + [0].activeCondition.value = 0
-  ~ [1].action.abilities[0].parseStatus : "MANUAL" → "AUTO"
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
