@@ -137,8 +137,11 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   //   4型とも `targetsStored` は既に消費していたのに `FREEZABLE` に無く、**支払いプロンプトの後で
   //   候補が空になって黙って空振り**していた（だから `O96_STORABLE_OUTCOMES` にも入れられなかった）。
   //   同じ巡で `fixedCardNums` の消費を4箇所へ足してある。
+  // 🆕**第8バッチ（2026-09-02）で `ADD_TO_FIELD` を追加**＝トラッシュ／エナから「それを場に出す」形。
+  //   ⚠**場のカードを固定する他の型と意味が違う**（固定するのはトラッシュ／エナの札）ので、
+  //   `execAddToField` 側では `TRASH_CARD` / `ENERGY_CARD` の候補集めの後でだけ絞る。
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
-    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD'];
+    'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD'];
   if (FREEZABLE.includes(action.type) && (action as { targetsStored?: boolean }).targetsStored) {
     return { ...action, targetsStored: false, fixedCardNums: [...(ctx.storedTargetCards ?? [])] } as EffectAction;
   }
@@ -2508,6 +2511,12 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     let cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
+    // 🆕**任意コストの前に宣言した対象だけをトラッシュへ**（§5.3 `O-96` 第9バッチ・2026-09-02）＝
+    //   「対戦相手のエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+    //    **そうした場合、それを**トラッシュに置く」。
+    // ⚠候補式は `zoneTargetCandidates` の `ENERGY_CARD` 分岐と同一（宣言側と揃える）。
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
@@ -3642,6 +3651,46 @@ function deployLimitBlockedFor(
   });
 }
 
+/**
+ * **ゾーン（トラッシュ／エナ）から取る対象宣言**の候補集め。
+ *
+ * 🆕**§5.3 `O-96` 第8バッチ（2026-09-02）で切り出した**＝
+ * `SELECT_TARGET_ONLY`（対象宣言）と `execAddToField`（実行）が**同一関数を共有**するため。
+ * 🔴**宣言時と実行時で候補がズレると「選んだのに出せない」になる**（`O-188` 第1バッチの教訓）＝
+ * 片方だけを書き換えない。
+ * ⚠**`execTrash` の `ENERGY_CARD` 分岐とは式が同一だが関数は分かれている**（あちらは `isTriggerSource` の
+ *   剥がしと「選択UIを出さず直接処理」の分岐を持つ）＝**片方だけフィルタ語彙を足さないこと**。
+ */
+function zoneTargetCandidates(src: EffectTarget, tgtOwner: Owner, ctx: ExecCtx): string[] {
+  const state = ownerState(tgtOwner, ctx);
+  const ownerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const otherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
+  const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
+  if (src.type === 'TRASH_CARD') {
+    let cands = movableTrashCandidates(tgtOwner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
+    if (src.filter?.thisCardOnly) {
+      cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    }
+    if (src.fromLeftFieldUnder) {
+      const allowed = new Set(ctx.leftFieldUnderCards ?? []);
+      cands = cands.filter(n => allowed.has(n));
+    }
+    return cands;
+  }
+  if (src.type === 'ENERGY_CARD') {
+    // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンから場に出す」＝バニッシュでエナへ
+    // 行った自分自身を戻す自己蘇生）。⚠`matchesFilter` は `thisCardOnly` を**黙って無視する**ので
+    // `energyCandidates` の結果には効かない＝ここで絞らないと**エナのどのシグニでも出せる過剰実行**になる。
+    // TRASH_CARD 分岐・`execTransferToHand` の ENERGY_CARD 分岐と同じ規約。
+    if (src.filter?.thisCardOnly) {
+      return (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    }
+    return energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+  }
+  return [];
+}
+
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
@@ -3758,27 +3807,10 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const addToFieldOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const addToFieldOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   if (src.type === 'TRASH_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
-    cands = movableTrashCandidates(tgtOwner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
-    // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
-    if (src.filter?.thisCardOnly) {
-      cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
-    }
-    if (src.fromLeftFieldUnder) {
-      const allowed = new Set(ctx.leftFieldUnderCards ?? []);
-      cands = cands.filter(n => allowed.has(n));
-    }
+    cands = zoneTargetCandidates(src, tgtOwner, ctx);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
-    cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
-    // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンから場に出す」＝バニッシュでエナへ
-    // 行った自分自身を戻す自己蘇生）。⚠`matchesFilter` は `thisCardOnly` を**黙って無視する**ので
-    // `energyCandidates` の結果には効かない＝ここで絞らないと**エナのどのシグニでも出せる過剰実行**になる。
-    // TRASH_CARD 分岐・`execTransferToHand` の ENERGY_CARD 分岐と同じ規約。
-    if (src.filter?.thisCardOnly) {
-      cands = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
-    }
+    cands = zoneTargetCandidates(src, tgtOwner, ctx);
     if (a.targetsTriggerSource) {
       cands = ctx.triggeringCardNum && state.energy.includes(ctx.triggeringCardNum) ? [ctx.triggeringCardNum] : [];
     }
@@ -3798,6 +3830,12 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else {
     return done(ctx);
   }
+
+  // 🆕**任意コストの前に宣言した対象だけを場に出す**（§5.3 `O-96` 第8バッチ）。
+  // ⚠**`TRASH_CARD` / `ENERGY_CARD` の候補を作った後**でしか効かない（`DECK_CARD` は「デッキの上から
+  //   N枚を見て」の別文型で、対象宣言を跨がない）。
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
 
   // 場に出す：空きゾーンに配置（呼び出し元が担当できないため自動的に最初の空きへ）
   const srcDefined = src!;
@@ -10004,7 +10042,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const r = (stub as unknown as { leaveSubResume?: { selected: string[]; pending: PendingInteractionDef & { type: 'SELECT_TARGET' } } }).leaveSubResume;
         return r ? resumeSelectTarget(r.selected, r.pending, ctx) : done(ctx);
       }
-      return execStub(stub, ctx, executeAction, transferToHandTrashCandidates);
+      return execStub(stub, ctx, executeAction, transferToHandTrashCandidates, zoneTargetCandidates);
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);

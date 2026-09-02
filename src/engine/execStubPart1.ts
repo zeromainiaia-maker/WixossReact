@@ -1,4 +1,4 @@
-import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
+import type { Owner, PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource } from './deployLimit';
@@ -51,6 +51,7 @@ export function execStubPart1(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
   transferToHandTrashCandidates: (target: EffectTarget, ctx: ExecCtx) => string[],
+  zoneTargetCandidates: (target: EffectTarget, owner: Owner, ctx: ExecCtx) => string[],
 ): ExecResult | null {
   // WXDi-P11-010A 夢限 -Q-: reset and flip in one indivisible state write.
   // Field SIGNI leave triggers are collected later by BattleScreen's board diff.
@@ -181,6 +182,24 @@ export function execStubPart1(
         : tgt.count === 'ALL' ? cands.length
         : 1;
       return selectOrInteract(cands, count, tgt.upToCount ?? false, 'self_trash',
+        { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
+        false);
+    }
+    // 🆕**§5.3 `O-96` 第8バッチ（2026-09-02）＝エナゾーンの対象宣言**
+    //   （「あなたのエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+    //     **そうした場合、それを**場に出す」）。
+    // ⚠候補集めは `execAddToField` の `ENERGY_CARD` 分岐と**同一関数**を共有する（`TRASH_CARD` と同規約）。
+    // ⚠**相手エナは今回のスコープ外**＝fail-closed のまま（候補0で降りる）。
+    if (tgt.type === 'ENERGY_CARD') {
+      // ⚠`owner` は**エナの持ち主**（相手エナを効果の使用者が選ぶ形＝「対戦相手のエナゾーンから…を対象とし」）。
+      //   「**対戦相手は**自分のエナから選び」は別形（`opponentSelects`）＝ここには来ない。
+      const ownerEN: Owner = tgt.owner === 'opponent' ? 'opponent' : 'self';
+      const cands = zoneTargetCandidates(tgt, ownerEN, ctx);
+      const count = typeof tgt.count === 'number' ? tgt.count
+        : tgt.count === 'ALL' ? cands.length
+        : 1;
+      return selectOrInteract(cands, count, tgt.upToCount ?? false,
+        ownerEN === 'self' ? 'self_energy' : 'opp_energy',
         { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
         false);
     }

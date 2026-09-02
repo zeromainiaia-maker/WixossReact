@@ -1,3 +1,4 @@
+import type { Owner } from '../types';
 import type { EffectAction, EffectTarget, StubAction } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import { done, addLog } from './execUtils';
@@ -10,9 +11,10 @@ export function execStub(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
   transferToHandTrashCandidates: (target: EffectTarget, ctx: ExecCtx) => string[],
+  zoneTargetCandidates: (target: EffectTarget, owner: Owner, ctx: ExecCtx) => string[],
 ): ExecResult {
   return (
-    execStubPart1(stub, ctx, exec, transferToHandTrashCandidates) ??
+    execStubPart1(stub, ctx, exec, transferToHandTrashCandidates, zoneTargetCandidates) ??
     execStubPart2(stub, ctx, exec) ??
     execStubPart3(stub, ctx, exec) ??
     done(addLog(ctx, `[STUB: ${stub.id}]`))

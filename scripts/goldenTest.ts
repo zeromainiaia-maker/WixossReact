@@ -18130,12 +18130,24 @@ test('O-96 第1バッチ 実行: 候補0なら任意コストを提示せず、�
 // 旧＝「ガード軸以外は固定形へ変えない」。第2バッチでガード軸の暫定ガードを外したので、
 // **いま据置なのは「`OPTIONAL_COST` 以外の専用 STUB id を使う形」と「`CHOOSE` のネスト器」**。
 // ⚠**契約テストは削除せず、いま何を据置しているかへ書き換える**（消すと次に無審査で広がる＝§5-4）。
-test('O-188 第2バッチ 据置契約: CHOOSE のネスト器と専用 STUB id は固定形へ変えない', () => {
-  // ①「以下の２つから１つを選ぶ。①…②…」のネスト器（木の形が別）。
+test('O-188 第2バッチ 据置契約: 専用 STUB id は固定形へ変えない（ネスト器は第10バッチで解禁）', () => {
+  // 🆕**2026-09-02（`O-96` 第10バッチ）で①の据置を正方向へ置き換えた**＝`applyO96Nested` が
+  //   `CHOOSE` の枝へ降りるようになったので、ネスト器でも対象宣言が支払いより前に来る。
+  //   ⚠**据置契約は「いま壊れる」ことの assert であって永久の仕様ではない**（続き773 の教訓）。
   for (const [num, eid] of [['WXDi-P13-046', 'WXDi-P13-046-E1'], ['WXDi-P16-055', 'WXDi-P16-055-E1']] as const) {
-    const json = JSON.stringify(o96Live(num, eid).action);
-    ok(!json.includes('SELECT_TARGET_ONLY'), `${eid}: CHOOSE のネスト器へ対象宣言を足さない`);
-    ok(!json.includes('targetsStored'), `${eid}: CHOOSE のネスト器へ targetsStored を足さない`);
+    const action = o96Live(num, eid).action as ChooseAction;
+    eq(action.type, 'CHOOSE', `${eid}: root CHOOSE を維持`);
+    const fixedBranches = action.choices
+      .map(c => c.action)
+      .filter(a => a.type === 'SEQUENCE' && JSON.stringify(a).includes('SELECT_TARGET_ONLY'));
+    ok(fixedBranches.length >= 1, `${eid}: 少なくとも1つの枝で対象宣言が支払いより前に来る`);
+    for (const branch of fixedBranches) {
+      const steps = (branch as SequenceAction).steps as (EffectAction & { id?: string })[];
+      eq(steps[0].id, 'SELECT_TARGET_ONLY', `${eid}: 枝の先頭が対象宣言`);
+      eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', `${eid}: 宣言対象を保存`);
+      eq(steps[2].id, 'OPTIONAL_COST', `${eid}: 保存後に任意コスト`);
+      eq((steps[3] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', `${eid}: 実支払いだけで帰結`);
+    }
   }
   // ②`OPTIONAL_COST` ではない専用 STUB id（engine 側に別経路がある）。
   for (const [num, eid, stub] of [
@@ -18596,17 +18608,29 @@ test('O-96 第3バッチ 実行: 候補0なら任意コストを提示せず、�
   ok(!old.done && old.pending.type === 'CHOOSE', '修正前対照: 対象候補0でも任意コストを提示してしまう');
 }));
 
-test('O-96 第2バッチ 据置契約: CHOOSE 内のネスト器3効果は変更しない', () => {
+// 🆕**2026-09-02（`O-96` 第10バッチ）で据置を正方向へ置き換えた**＝`applyO96Nested` が
+//   `CHOOSE` / `CONDITIONAL` / `GRANT_LRIG_ABILITY` の内側へ降りる。
+// 🔑**枝ごとに独立して判定される**＝片方が既に固定済みでも他方が直る（`WXDi-P09-062-E1` で実測）。
+test('O-96 第10バッチ: CHOOSE 内のネスト枝でも対象宣言が支払いより前に来る', () => {
   for (const [cardNum, effectId] of [
     ['WXDi-D09-P17', 'WXDi-D09-P17-BURST'],
     ['WX25-CP1-004', 'WX25-CP1-004-E1'],
     ['WXDi-P13-045', 'WXDi-P13-045-E1'],
+    ['WXDi-P09-062', 'WXDi-P09-062-E1'],
   ] as const) {
     const effect = o96Live(cardNum, effectId);
     eq(effect.action.type, 'CHOOSE', `${effectId}: root CHOOSE を維持`);
-    const json = JSON.stringify(effect.action);
-    ok(!json.includes('STORE_LAST_PROCESSED_TARGETS'), `${effectId}: ネスト枝へ保存を足さない`);
-    ok(!json.includes('targetsStored'), `${effectId}: ネスト枝の帰結へ照応キーを足さない`);
+    const branches = (effect.action as ChooseAction).choices
+      .map(c => c.action)
+      .filter(a => a.type === 'SEQUENCE' && JSON.stringify(a).includes('SELECT_TARGET_ONLY'));
+    ok(branches.length >= 1, `${effectId}: 少なくとも1つの枝が固定形`);
+    for (const branch of branches) {
+      const steps = (branch as SequenceAction).steps as (EffectAction & { id?: string })[];
+      const declIdx = steps.findIndex(step => step.id === 'SELECT_TARGET_ONLY');
+      const costIdx = steps.findIndex(step => step.id === 'OPTIONAL_COST');
+      eq(steps[declIdx + 1].id, 'STORE_LAST_PROCESSED_TARGETS', `${effectId}: 宣言の直後に保存`);
+      ok(costIdx > declIdx, `${effectId}: 任意コストは対象宣言より後`);
+    }
   }
 });
 
@@ -25863,8 +25887,12 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ];
     for (const [cardNum, effectId, powerRange] of cases) {
       const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      // ⚠**`powerRange` を持つ宣言**を探す（`CHOOSE` の別枝にも対象宣言が入りうる＝
+      //   `WXDi-P09-062-E1` は `O-96` 第10バッチで①枝にもトラッシュ回収の宣言が付いた）。
       const sel = treeFind(eff.action, x => x.type === 'STUB'
-        && (x as { id?: string }).id === 'SELECT_TARGET_ONLY') as { selectTarget?: { filter?: { powerRange?: unknown } } } | null;
+        && (x as { id?: string }).id === 'SELECT_TARGET_ONLY'
+        && !!(x as { selectTarget?: { filter?: { powerRange?: unknown } } }).selectTarget?.filter?.powerRange,
+      ) as { selectTarget?: { filter?: { powerRange?: unknown } } } | null;
       ok(!!sel, `${effectId}: 対象宣言が復元されていない（どのシグニでも撃てる過剰効果）`);
       eq(JSON.stringify(sel!.selectTarget?.filter?.powerRange), JSON.stringify(powerRange), `${effectId}: 宣言のパワー閾値`);
       const bound = treeFind(eff.action, x => (x as { targetsStored?: boolean }).targetsStored === true);
@@ -43962,8 +43990,11 @@ test('§6.4 選択肢内の任意コスト: CHOOSE が残り・両枝とも対�
   // 手札コスト版（①にコストがあり②が無コスト＝順序が逆の形）
   const p17 = pick('WXDi-D09-P17', 'WXDi-D09-P17-BURST');
   eq(p17.type, 'CHOOSE', 'WXDi-D09-P17-BURST: CHOOSE が残っている');
-  eq(p17.choices![0].action.steps![0].handDiscard?.count, 2, '①は手札2枚捨てるコスト（無条件バニッシュではない）');
-  eq(p17.choices![0].action.steps![1].then!.target?.owner, 'opponent', '①のバニッシュは対戦相手');
+  // ⚠**ステップ位置で読まない**＝`O-96` 第10バッチで①枝が固定形（対象宣言→保存→コスト→ゲート）になった。
+  const p17Cost = p17.choices![0].action.steps!.find(st => st.id === 'OPTIONAL_COST')!;
+  eq(p17Cost.handDiscard?.count, 2, '①は手札2枚捨てるコスト（無条件バニッシュではない）');
+  const p17Gate = p17.choices![0].action.steps!.find(st => st.condition && st.then)!;
+  eq(p17Gate.then!.target?.owner, 'opponent', '①のバニッシュは対戦相手');
   eq(p17.choices![1].action.type, 'TRASH', '②は相手の手札を1枚捨てさせる');
 });
 
@@ -44039,10 +44070,12 @@ test('§6.4 ルリグ宣言の取りこぼし: 本体が LRIG{opponent} にな�
   const ch = effectsMap.get('WX25-CP1-004')!.find(e => e.effectId === 'WX25-CP1-004-E1')!.action as unknown as
     { type: string; choices: Array<{ action: { steps?: Array<{ then?: Body }> } }> };
   eq(ch.type, 'CHOOSE', 'WX25-CP1-004-E1: CHOOSE');
-  const opt2 = ch.choices[1].action.steps![1].then!;
+  // ⚠**ステップ位置で読まない**＝`O-96` 第10バッチで②③枝が固定形（宣言→保存→コスト→ゲート）になった。
+  const bodyOf = (i: number): Body => ch.choices[i].action.steps!.find(st => st.then)!.then!;
+  const opt2 = bodyOf(1);
   eq(opt2.target?.type, 'LRIG', '②「対戦相手のルリグ１体」＝LRIG を対象にする');
   eq(opt2.target?.owner, 'opponent', '②は対戦相手（🔴旧実装は owner:self＝自分のシグニをダウンしていた）');
-  const opt3 = ch.choices[2].action.steps![1].then!;
+  const opt3 = bodyOf(2);
   eq(opt3.target?.type, 'SIGNI', '③「対戦相手のシグニ１体」＝SIGNI のまま');
   eq(opt3.target?.owner, 'opponent', '③も対戦相手');
   // 同型の単文カード

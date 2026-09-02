@@ -2250,6 +2250,19 @@ export interface AddToFieldAction {
    *   ゲートが複数空いていても**先頭のゲートゾーンへ自動配置**する。過剰許容を作らない側へ倒した近似。
    */
   gateZoneOnly?: boolean;
+  /**
+   * 🆕**任意コストの前に宣言した対象だけを場に出す**（§5.3 `O-96` 第8バッチ・2026-09-02）。
+   * 「あなたの〈トラッシュ／エナゾーン〉から〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+   * **そうした場合、それを**場に出す」＝原文では対象宣言が支払いより前。
+   * ⚠**`source` が `TRASH_CARD` / `ENERGY_CARD` の経路でだけ効く**（`DECK_CARD`／トークン生成は対象外）。
+   */
+  targetsStored?: boolean;
+  /**
+   * 🆕**支払いインタラクションを跨いで固定された対象**（§5.3 `O-96` 第8バッチ）。
+   * `storedTargetCards` は resume を跨いで生存しないので、`freezeStoredTargets` が焼き込む。
+   * 🔴**このフィールドを消費しない型を `FREEZABLE` へ入れてはいけない**（限定が丸ごと消えて過剰実行）。
+   */
+  fixedCardNums?: string[];
 }
 
 export interface FreezeAction {

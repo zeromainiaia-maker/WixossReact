@@ -9283,6 +9283,47 @@ function applyDroppedRecoveryDesignation(text: string, action: EffectAction): Ef
   return { ...action, steps } as EffectAction;
 }
 
+// ── §5.3 `O-96` 第8バッチ（2026-09-02）：場出しの対象宣言がゾーンごと落ちた形を補う ──
+// 「あなたの〈トラッシュ／エナゾーン〉から〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+//  **そうした場合、それを**（ダウン状態で）場に出す」＝`ADD_TO_FIELD.source` が丸ごと落ちていた。
+// 🔴**`source` の無い `ADD_TO_FIELD` は `execAddToField` の既定経路＝「デッキの一番上を場に出す」**へ
+//   落ちる（`effectExecutor.ts` の `if (!src)`）＝原文と**別のカードが出る**過剰実行。
+// ⚠**壊れている形だけ**を書き換える（`source` も `cardName` も無いもの）＝先行例
+//   `applyDroppedRecoveryDesignation` / `applyDroppedEnergyDesignation` と同じ規約。
+// ⚠**`applyO96OptionalCostTargetFirst` より前**に走らせる（正しい `source` を得てから対象を引き上げる）。
+const PLACE_DESIG_BEFORE_COST_RE =
+  /(?:(対戦相手|あなた)の)?(トラッシュ|エナゾーン)から([^。]{0,60}?(?:カード|シグニ))(?:を)?([０-９\d]+)枚(まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?を(?:ダウン状態で)?場に出す/;
+
+function applyDroppedFieldPlacementDesignation(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const m = text.match(PLACE_DESIG_BEFORE_COST_RE);
+  if (!m) return action;
+  const steps = [...(action as SequenceAction).steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 0) return action;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  const then = gate.then as EffectAction & { source?: EffectTarget; cardName?: string };
+  if (then?.type !== 'ADD_TO_FIELD') return action;
+  if (then.source || then.cardName) return action;
+  const desc = m[3];
+  const filter: TargetFilter = {
+    ...(/シグニ$/.test(desc) ? { cardType: 'シグニ' as const } : {}),
+    ...parseStoryFilter(desc), ...parseColorFilter(desc), ...parseLevelFilter(desc),
+  };
+  const source: EffectTarget = {
+    type: m[2] === 'トラッシュ' ? 'TRASH_CARD' : 'ENERGY_CARD',
+    owner: m[1] === '対戦相手' ? 'opponent' : 'self',
+    count: parseNum(m[4]),
+    upToCount: !!m[5],
+    ...(Object.keys(filter).length > 0 ? { filter } : {}),
+    // 「このシグニの下にあったシグニ」＝離場直前に下にあったカードだけ（既存の受け皿を使う。
+    //  無いと**トラッシュのどのシグニでも出せる**過剰実行になる）。
+    ...(/^この(?:シグニ|カード)の下にあった/.test(desc) ? { fromLeftFieldUnder: true } : {}),
+  };
+  steps[gateIdx] = { ...gate, then: { ...then, source } } as EffectAction;
+  return { ...action, steps } as EffectAction;
+}
+
 // ── §5.3 `O-188` 第4バッチ（2026-09-01）：トラッシュ回収の「それぞれ」を群へ戻す ──
 // 「あなたのトラッシュから〈名詞句A〉と〈名詞句B〉（と〈名詞句C〉）をそれぞれN枚まで
 //   対象とし、それらを手札に加える」は、群ごとにN枚まで選ぶ文型。
@@ -10367,6 +10408,10 @@ const O96_STORABLE_OUTCOMES = [
   //   `FREEZABLE` に無く**支払いプロンプトの後で空振り**していたので入れられなかった。
   //   同じ巡で `fixedCardNums` の消費と `FREEZABLE` 登録を揃えたので解禁できる。
   'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD',
+  // 🆕**第8バッチ（2026-09-02）で追加**＝「それを場に出す」。
+  //   ⚠**固定するのは「場のカード」ではなくトラッシュ／エナの札**＝他の型と `targetsStored` の意味が違う。
+  //   `execAddToField` の `TRASH_CARD`/`ENERGY_CARD` 候補集めの後でだけ絞る形で3点契約を揃えた。
+  'ADD_TO_FIELD',
 ];
 
 function hasStoredTargetBinding(node: unknown): boolean {
@@ -10409,6 +10454,9 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     'costColors', 'handDiscard', 'handReveal',
     'fieldTrash', 'fieldDown', 'selfTrash', 'energyTrash', 'underAnySigniTrash', 'charmTrash',
     'fieldToDeckBottom',
+    // 🆕**第8バッチ**＝`selfToEnergy`（「場にあるこのシグニをエナゾーンに置いてもよい」）も
+    //   `OptionalCostSpec` の正規の軸（`execUtils.ts:412`＝可否640・支払い809）。
+    'selfToEnergy',
   ];
   if (Object.keys(cost).some(k => !allowedCostKeys.includes(k))) return action;
   // コスト軸が1つも無い payload（＝実質からのコスト）は対象外。
@@ -10433,8 +10481,35 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
       && outcome.source.owner === 'self'
       && !outcome.transferGroups?.length
     ? outcome.source : undefined;
-  const declaredTarget = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget : outcome.target;
-  if (!declaredTarget || (outcome.type !== 'TRANSFER_TO_HAND' && declaredTarget.type !== 'SIGNI')) return action;
+  // 🆕**第7バッチ（2026-09-02）＝`TRANSFER_TO_DECK` は対象宣言を `source` に持つ**（`target` が無い型）。
+  //   `execTransferToDeck` の `SIGNI` 分岐は `targetsStored`／`fixedCardNums` を**既に両方消費**しており
+  //   （`effectExecutor.ts:6835` 付近）`FREEZABLE` にも入っている＝**3点契約は揃っていた**。
+  //   ⇒ 「`target` を読んで undefined だから降りる」という**キーの読み違いだけ**が原因だった（9効果）。
+  // ⚠**`SIGNI` 以外の source（`TRASH_CARD`/`ENERGY_CARD` 等）は載せない**＝あちらの分岐は
+  //   `targetsStored`/`fixedCardNums` を見ない（＝フィールドを付けても無視される＝無言 no-op）。
+  const deckTarget = outcome.type === 'TRANSFER_TO_DECK' && outcome.source?.type === 'SIGNI'
+    ? outcome.source : undefined;
+  // 🆕**第8バッチ＝`ADD_TO_FIELD` も対象宣言を `source` に持つ**（トラッシュ／エナの札を場へ出す）。
+  // ⚠**`TRASH_CARD` / `ENERGY_CARD` だけ**＝`execAddToField` の他の経路（`DECK_CARD`／トークン生成）は
+  //   対象固定を消費しない（＝フィールドを付けても無視される＝無言 no-op）。
+  const placeTarget = outcome.type === 'ADD_TO_FIELD'
+      && (outcome.source?.type === 'TRASH_CARD' || outcome.source?.type === 'ENERGY_CARD')
+    ? outcome.source : undefined;
+  const declaredTarget = outcome.type === 'TRANSFER_TO_HAND' ? transferTarget
+    : outcome.type === 'TRANSFER_TO_DECK' ? deckTarget
+      : outcome.type === 'ADD_TO_FIELD' ? placeTarget
+        : outcome.target;
+  if (!declaredTarget) return action;
+  // 🆕**第9バッチ（2026-09-02）＝`TRASH` の対象が相手エナのカードである形を解禁**
+  //   （「対戦相手のエナゾーンから〈名詞句〉１枚を**対象とし**、〈任意コスト〉して**もよい**。
+  //     **そうした場合、それを**トラッシュに置く」）。
+  //   `execTrash` の `ENERGY_CARD` 分岐に `targetsStored`/`fixedCardNums` の消費を足し、
+  //   `SELECT_TARGET_ONLY` を相手エナへ広げて3点契約を揃えてある。
+  // ⚠**`HAND_CARD` は解禁しない**＝`execTrash` の `HAND_CARD` 分岐は対象固定を消費しない。
+  const zoneOutcomeOk = outcome.type === 'TRASH' && declaredTarget.type === 'ENERGY_CARD';
+  // 場のシグニを指す型だけ `SIGNI` を要求する（ゾーンから選ぶ型は上で出処を検証済み）。
+  if (outcome.type !== 'TRANSFER_TO_HAND' && outcome.type !== 'ADD_TO_FIELD' && !zoneOutcomeOk
+      && declaredTarget.type !== 'SIGNI') return action;
 
   const selectTargetStep: EffectAction = {
     type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: declaredTarget, abortIfNoCandidate: true,
@@ -10454,6 +10529,37 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     steps.splice(costIdx, 2, ...fixedSteps);
   }
   return { ...action, steps } as SequenceAction;
+}
+
+// ── §5.3 `O-96` 第10バッチ（2026-09-02）：ネスト器の内側へ降りる ──
+// 「以下の２つから１つを選ぶ。①〈対象〉を対象とし、〈任意コスト〉してもよい。そうした場合、〜」＝
+// **欠陥は枝の中にある**のに、`applyO96OptionalCostTargetFirst` は root が `SEQUENCE` の形しか見ないため
+// `CHOOSE` / `CONDITIONAL` / `GRANT_LRIG_ABILITY` が被さった瞬間に丸ごと届かなくなっていた（実測11効果）。
+// 🔴**降りてよいのは「効果単位の最終 root」から呼ぶときだけ**＝`parseActionText` の途中で降りると
+//   第2バッチで実測した誤爆（組み立て途中の枝が一時的に root `SEQUENCE` に見える）が再発する。
+// ⚠**`SEQUENCE` の中へは降りない**＝root `SEQUENCE` は本体の規則がそのまま扱う。ここで潜ると
+//   「支払いより前に別の動作がある」形まで巻き込む。
+// 🔑**枝ごとに独立して判定される**（二重適用ガードも枝単位）＝片方の枝が既に固定済みでも他方は直る。
+function applyO96Nested(text: string, action: EffectAction, depth = 0): EffectAction {
+  if (depth > 3) return action;
+  const fixed = applyO96OptionalCostTargetFirst(text, action);
+  if (fixed !== action) return fixed;
+  if (action.type === 'CHOOSE') {
+    const choices = action.choices.map(c => ({ ...c, action: applyO96Nested(text, c.action, depth + 1) }));
+    return choices.some((c, i) => c.action !== action.choices[i].action) ? { ...action, choices } : action;
+  }
+  if (action.type === 'CONDITIONAL') {
+    const then = applyO96Nested(text, action.then, depth + 1);
+    const els = action.else ? applyO96Nested(text, action.else, depth + 1) : undefined;
+    if (then === action.then && els === action.else) return action;
+    return { ...action, then, ...(els ? { else: els } : {}) };
+  }
+  if (action.type === 'GRANT_LRIG_ABILITY') {
+    const abilities = action.abilities.map(ab => ({ ...ab, action: applyO96Nested(text, ab.action, depth + 1) }));
+    return abilities.some((ab, i) => ab.action !== action.abilities[i].action)
+      ? { ...action, abilities } : action;
+  }
+  return action;
 }
 
 /**
@@ -24277,7 +24383,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     if (effect.parseStatus === 'AUTO') {
       effect.action = applyRecoveryNounPhraseModifiers(sourceText, effect.action);
       effect.action = applyRecoveryTransferGroups(sourceText, effect.action);
-      effect.action = applyO96OptionalCostTargetFirst(sourceText, effect.action);
+      effect.action = applyDroppedFieldPlacementDesignation(sourceText, effect.action);
+      effect.action = applyO96Nested(sourceText, effect.action);
       effect.action = applyCompositeOptionalCostFields(sourceText, effect.action);
     }
     // LOOK_AND_REORDER 専用分岐が単文条件ラッパより先に本文を消費する形の補完。

@@ -9,6 +9,7 @@
 //   node scripts/heldReview.mjs                     … レビュー表を docs/_held_review.txt へ出力
 //   node scripts/heldReview.mjs --adopt ID1,ID2,…   … 指定カードの fresh を effects_*.json に採用
 //   node scripts/heldReview.mjs --adopt-sig "署名"  … その署名グループ全カードを一括採用
+//   node scripts/heldReview.mjs --adopt-effect ID1,… … held/partial から**効果単位**で採用（AUTO→AUTO 限定）
 // 採用後は必ず npm run gates（typecheck/golden/smoke/fuzz/census/lint 一括）を回す（§3ワークフロー）。
 // 前提: 直前に npm run build:effects を実行済み（docs/_held_fresh.json が最新であること）。
 //   → 2026-07-07 から mtime で自動検査する（parser ソース/CSV が _held_fresh.json より新しければ
@@ -113,19 +114,31 @@ const leafDiff = (oldE, newE, limit = 12) => {
 // Adopt individual AUTO effects from the partial bucket without replacing their
 // curated MANUAL/PARTIAL siblings. This is intentionally argument-driven: no
 // card-specific allowlist or implicit force-adoption is kept in the tool.
-const partialEffectArgIdx = process.argv.indexOf('--adopt-partial-effect');
+// 🆕`--adopt-effect`（2026-09-02・`O-96` 第11バッチ）＝**held からも効果単位で採用する**。
+//   held はカード単位でしか採れなかったため、「同じカードの別効果にこの巡と無関係な差分がある」だけで
+//   直った効果ごと見送るしかなかった（`WXDi-P08-072` で実測＝E1 は正しい修正／E2 は duration の退化）。
+//   ⚠AUTO→AUTO 制限はそのまま（MANUAL/PARTIAL の刻印は効果単位で動かさない）。
+const partialEffectArgIdx = Math.max(
+  process.argv.indexOf('--adopt-partial-effect'),
+  process.argv.indexOf('--adopt-effect'),
+);
 if (partialEffectArgIdx >= 0) {
   const arg = process.argv[partialEffectArgIdx + 1];
-  if (!arg) { console.error('--adopt-partial-effect requires comma-separated effectIds'); process.exit(1); }
-  if (!existsSync(PARTIAL_PATH)) { console.error('docs/_partial_fresh.json is missing; run npm run build:effects first'); process.exit(1); }
+  if (!arg) { console.error('--adopt-effect requires comma-separated effectIds'); process.exit(1); }
   const requested = arg.split(',').map(s => s.trim()).filter(Boolean);
-  const partialFresh = JSON.parse(readFileSync(PARTIAL_PATH, 'utf-8'));
   const freshByEffectId = new Map();
-  for (const [cardNum, effects] of Object.entries(partialFresh)) {
+  if (existsSync(PARTIAL_PATH)) {
+    const partialFresh = JSON.parse(readFileSync(PARTIAL_PATH, 'utf-8'));
+    for (const [cardNum, effects] of Object.entries(partialFresh)) {
+      for (const effect of effects) freshByEffectId.set(effect.effectId, { cardNum, effect });
+    }
+  }
+  // held 側は後勝ち（同じ effectId が両方に出ることは無いが、held の方が新しい形）。
+  for (const [cardNum, effects] of Object.entries(heldFresh)) {
     for (const effect of effects) freshByEffectId.set(effect.effectId, { cardNum, effect });
   }
   const missing = requested.filter(effectId => !freshByEffectId.has(effectId));
-  if (missing.length) { console.error(`partial fresh has no effectId: ${missing.join(', ')}`); process.exit(1); }
+  if (missing.length) { console.error(`held/partial fresh has no effectId: ${missing.join(', ')}`); process.exit(1); }
 
   const replacements = new Map();
   for (const effectId of requested) {
