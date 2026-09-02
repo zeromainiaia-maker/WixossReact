@@ -692,7 +692,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- トラッシュからすべてのカードをデッキに加えてもよい ----
   if (t.match(/トラッシュからすべてのカードをデッキに加えてもよい/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_TRASH_ALL_TO_DECK_OPTIONAL' } as StubAction;
 
   // ---- センタールリグのレベル以下の数字を宣言 ----
   if (t.match(/センタールリグのレベル以下の数字[１-９\d０-９]*つを宣言する/))
@@ -715,8 +715,22 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- デッキの一番上か一番下に置く ----
-  if (t.match(/デッキの一番上か一番下に置く/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+  // 🆕§5.3 `O-60` 第45バッチ（2026-09-03）＝**typed `TRANSFER_TO_DECK{position:'top_or_bottom'}` へ寄せた。**
+  // 🔴旧 `STUB{LOOK_AND_REORDER}` は engine が**カード全文**に
+  //   `デッキの上からカードをN枚見る` を当てており、**同じカードの別の文**に当たると
+  //   「デッキ上を追加でN枚めくる」まったく別の処理が走った（`WX13-035-BURST` は直前の
+  //   `REVEAL_AND_PICK` に加えて**もう2枚**めくっていた）。
+  // ⚠**「残り〜」で始まる文は直前アクションの `remainder` が既に表している**＝二重に処理しないよう no-op。
+  if (t.match(/デッキの一番上か一番下に置く/)) {
+    if (/^残り/.test(t)) return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+    const oppSigniTopBottom = /対戦相手の.*シグニ/.test(t);
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'SIGNI', owner: oppSigniTopBottom ? 'opponent' : 'self', count: 1, filter: { cardType: 'シグニ' } },
+      shuffle: false,
+      position: 'top_or_bottom',
+    } as EffectAction;
+  }
 
   // ---- シグニゾーンに配置してもよい ----
   if (t.match(/シグニゾーン[１-９\d０-９]*つに配置してもよい/))
@@ -758,7 +772,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- デッキ上N枚を見て表/裏束に分けて対戦相手がどちらかをトラッシュ ----
   if (t.match(/表向きの束にし、残りを裏向きの束にする/) ||
       t.match(/どちらかの束をトラッシュに置き.*残りの束を手札に加える/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SPLIT_PILES_OPP_CHOOSE' } as StubAction;
 
   // ---- 対戦相手は手札を２枚捨ててもよい ----
   if (t.match(/^対戦相手は手札を[１-９\d０-９]+枚(?:まで)?捨ててもよい$/))
@@ -995,7 +1009,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- それらのカードを入れ替えてもよい / カードとデッキ上カードを入れ替えてもよい ----
   if (t.match(/とデッキの一番上のカードを入れ替えてもよい/) ||
       t.match(/それらを好きな順番でデッキの一番上に置く/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SWAP_WITH_DECK_TOP' } as StubAction;
 
   // ---- 手札を好きな枚数捨てる ----
   if (t.match(/^あなたは手札を好きな枚数捨てる$/))
@@ -1157,8 +1171,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- 残りをデッキに加えてシャッフルする ----
+  // 🆕§5.3 `O-60` 第45バッチ＝**専用 id に割った**（engine は payload も原文も読まず
+  //   `lastProcessedCards` をデッキへ戻してシャッフルするだけ）。
   if (t.match(/^残りをデッキに加えてシャッフルする$/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'SHUFFLE_REMAINDER_INTO_DECK' } as StubAction;
 
   // ---- このターン、このシグニはバトルしない ----
   if (t.match(/このシグニは、正面にアタックしている対戦相手のシグニとバトルしない/))
@@ -1400,7 +1416,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 公開されたカードをシャッフルしてデッキ下に置く ----
   if (t.match(/^公開されたカードをシャッフルしてデッキの一番下に置く$/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SHUFFLE_REVEALED_TO_DECK_BOTTOM' } as StubAction;
 
   // ---- 対戦相手のシグニを好きな数対象とし、パワーを合計でN減らす ----
   if (t.match(/対戦相手のシグニを好きな数対象とし.*それらのパワーを合計で[＋－][０-９\d０-９]+する/))
@@ -1603,11 +1619,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 残りをライフクロスの上に戻す ----
   if (t.match(/残りを好きな順番でライフクロスの一番上に戻す/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_REMAINDER_TO_LIFE_TOP' } as StubAction;
 
   // ---- 引いた枚数と同じ枚数をデッキの下に置く ----
   if (t.match(/この方法で引いたカードの枚数と同じ枚数のカードを手札から.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM' } as StubAction;
 
   // ---- 引いた枚数と同じ枚数を捨てる ----
   if (t.match(/この方法で引いた枚数と同じ枚数のカードを捨てる/))
@@ -1853,7 +1869,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 残りを好きな順番でデッキの一番上に置く ----
   if (t.match(/^残りを好きな順番でデッキの一番上に置く$/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED' } as StubAction;
 
   // 🏁**2026-09-02（§5.3 `O-151`）に catch-all `それらのパワーを(合わせて|合計で)` を撤去した。**
   //   この枝は「対象宣言が同じ文に無い」2効果のためだけに残していた保留枝で、
@@ -1904,8 +1920,19 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- デッキの上からカードをN枚を見る（重複「を」) ----
-  if (t.match(/デッキの上からカードを[１-９\d０-９]+枚を見る/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+  // 🆕§5.3 `O-60` 第45バッチ＝**typed `LOOK_AND_REORDER` を出す**（枚数は payload）。
+  {
+    const dupLookM = t.match(/デッキの上からカードを([１-９\d０-９]+)枚を見る/);
+    if (dupLookM) {
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { location: 'deck', owner: 'self' },
+        count: parseNum(dupLookM[1]),
+        private: true,
+        destination: { location: 'deck', owner: 'self', position: 'top' },
+      } as EffectAction;
+    }
+  }
 
   // ---- スペルを使用する場合、コストに含まれるエナコストを代わりに《無》として支払ってもよい ----
   if (t.match(/スペルを使用する場合.*代わりに《無》として支払ってもよい/))
@@ -1917,7 +1944,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- デッキの上からカードをN枚トラッシュに置きカードをN枚見る ----
   if (t.match(/デッキの上から、?カードを[１-９\d０-９]+枚トラッシュに置きカードを[１-９\d０-９]+枚見る/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_MILL_THEN_LOOK' } as StubAction;
 
   // ---- 見たカードの中から《X》を〜ダウン状態で場に出し、残りをデッキの一番下に置く ----
   if (t.match(/見たカードの中から.*場に出し.*残りを.*デッキの一番下に置く/))
@@ -1925,7 +1952,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 《ガードアイコン》を持たないカード〜デッキの一番下に置いてもよい ----
   if (t.match(/《ガードアイコン》を持たないカード.*デッキの一番下に置いてもよい/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM' } as StubAction;
 
   // ---- 手札〜ルリグゾーンに裏向きで置く（§6.4 O-3）----
   // ⚠旧 `SOUL_OP` は**カード全文 regex で分岐する別機構**（ルリグの下／ルリグトラッシュ操作）で、
@@ -2044,8 +2071,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEFERRED_REPEAT_ON_REVEALED_NAME' } as StubAction;
 
   // ---- それらのカードを好きな順番でデッキの一番上に戻す ----
+  // ⚠直前の `LOOK_AND_REORDER` の `destination`（デッキの一番上）が既に表している文＝二重処理しない。
   if (t.match(/それらのカードを好きな順番でデッキの一番上に戻す/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 対戦相手の効果によって〜が場を離れる場合、〜行ってもよい ----
   if (t.match(/対戦相手の効果によって.*が場を離れる場合.*行ってもよい/))
@@ -2090,8 +2118,17 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEALED_CARD_COLOR_DISCARD' } as StubAction;
 
   // ---- 手札からカードをN枚まで好きな順番でデッキの一番下に置く ----
-  if (t.match(/手札からカードを[１-９\d０-９]+枚まで好きな順番でデッキの一番下に置く/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+  {
+    const handBottomM = t.match(/手札からカードを([１-９\d０-９]+)枚まで好きな順番でデッキの一番下に置く/);
+    if (handBottomM) {
+      return {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'HAND_CARD', owner: 'self', count: parseNum(handBottomM[1]), upToCount: true },
+        shuffle: false,
+        position: 'bottom',
+      } as EffectAction;
+    }
+  }
 
   // ---- シグニによってダメージを受ける場合、代わりに手札を捨ててもよい ----
   if (t.match(/シグニによってダメージを受ける場合、代わりに手札を.*捨ててもよい/))
@@ -2139,7 +2176,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 〈X〉のシグニを対象とし、トラッシュからそれぞれレベルの異なる〈X〉のシグニN枚をデッキの一番下に置いてもよい ----
   if (t.match(/のシグニ.*を対象とし.*トラッシュからそれぞれレベルの異なる.*のシグニ.*枚を.*デッキの一番下に置いてもよい/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM' } as StubAction;
 
   // 「この方法でトラッシュに置いたカードの中からカードをN枚まで対象とし、エナゾーンに置く」は
   // parseSentencePart3 の `PICK_FROM_TRASHED_CARDS`（trashedPick ペイロードつき）が受ける（§6.4 O-11）。

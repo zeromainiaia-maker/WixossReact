@@ -2035,10 +2035,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
-  // ---- デッキをシャッフルし、そのシグニを公開しデッキの〜に置く ----
-  if (t.match(/デッキをシャッフルし、そのシグニを公開しデッキの(?:一番上|上から)/)) {
-    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
-  }
 
   // ---- その後、デッキをシャッフルし、それをコストを支払わずに使用する**か**トラッシュに置く ----
   // （§6.4 O-34(b)・`WX20-077-E2`）＝**使うか捨てるかの二択**。⚠下の強制版より**先**に置く
@@ -2330,8 +2326,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- デッキの一番下のカードをチェックゾーンに置く ----
+  // 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝**チェックゾーンへ置く**（`WXK02-035-E2`）。
+  // 🔴旧 `STUB{DECK_TOP_TO_LIFE}` は「**デッキの一番上を自分のライフクロスに加える**」＝
+  //   ゾーンも枚数も向きも違うまったく別の効果だった（ライフが1枚増える強い誤り）。
+  // ⚠置き先は `check_rest`（`check` はライフバースト確認中の1枚スロット）。
   if (t.match(/あなたのデッキの一番下のカードをチェックゾーンに置く/)) {
-    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'to_check', trapSource: 'deck_bottom', trapCheckRest: true } as unknown as StubAction;
   }
 
   // ---- その中から1枚を手札に加え〜残りをX置く ----
@@ -3045,8 +3045,19 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
 
   // ---- それをトラッシュに置いて対戦相手デッキ上をライフに ----
+  // 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝**相手のライフを1枚入れ替える**（`WX10-002-E2`）。
+  // 🔴旧 `STUB{DECK_TOP_TO_LIFE}` は「トラッシュに置く」側を**1行も実装しておらず**、
+  //   相手のライフが**減らないまま1枚増える**（＝原文と逆に相手を有利にする）形だった。
+  // ⚠「それ」＝直前の `LOOK_OPP_LIFE_TOP` で見た**相手ライフの一番上**＝`LIFE_CLOTH_CARD` の既定と一致する。
   if (t.match(/トラッシュに置いて対戦相手のデッキの一番上のカードをライフクロスに加えてもよい/))
-    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction,
+        { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } },
+        { type: 'ADD_TO_LIFE', owner: 'opponent', count: 1, fromTop: true },
+      ],
+    } as EffectAction;
 
   // ---- 感染状態の場合、代わりに ----
   if (t.match(/感染状態の場合、代わりに/))

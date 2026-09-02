@@ -3915,6 +3915,15 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     cands = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter, undefined, undefined, ctx.treatAsClassAllZones));
     // 配置は applyDirectAction(ADD_TO_FIELD) が所在（デッキ）を問わず除去・配置する。scope はUI表示用の近似。
     scope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  } else if (src.type === 'CHECK_CARD') {
+    // 🆕**チェックゾーンから場へ**（§5.3 `O-60` 第43バッチ・`WXK02-035-E2`
+    //   「デッキの一番下のカードをチェックゾーンに置く。**それがシグニの場合、それを場に出してもよい**」）。
+    // ⚠候補は `checkZoneCards()`＝`field.check`（バースト確認中の1枚）＋`field.check_rest`。
+    // 🔴**抜き先を `applyToField` にも足すこと**＝足さないと**チェックゾーンに残ったまま場にも出る**
+    //   （＝ターン終了時のチェックゾーン一掃で、場に出したはずのカードがトラッシュへ行く複製バグ）。
+    const resolvedCheckFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum, undefined, undefined, ctx.allColorSigniNums);
+    cands = checkZoneCards(state).filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedCheckFilter, undefined, undefined, ctx.treatAsClassAllZones));
+    scope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
   } else {
     return done(ctx);
   }
@@ -3968,6 +3977,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         newS = { ...newS, hand: newS.hand.filter(x => x !== n),
           signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
         newS = clearNonHandPlacement(newS, n);
+      } else if (srcDefined.type === 'CHECK_CARD') {
+        // 🆕§5.3 `O-60` 第43バッチ＝**チェックゾーンから抜く**（どちらのスロットに居たかで抜き方が違う）。
+        //   ⚠抜き忘れると `clearTurnEndScopedState` が**場に出したカードをターン終了時にトラッシュへ送る**。
+        newS = newS.field.check === n
+          ? { ...newS, field: { ...newS.field, check: null } }
+          : { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== n) } };
+        newS = recordNonHandPlacement(newS, n);
       }
       // 空きゾーンに配置（ゾーン制限に掛からない空きを上で選んである）
       const signi = [...newS.field.signi] as (string[] | null)[];
@@ -6733,6 +6749,17 @@ function transferSpecificDeckCard(a: TransferToDeckAction, cardNum: string, ctx:
 }
 
 function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
+  // 🆕§5.3 `O-60` 第45バッチ＝「デッキの一番上**か**一番下に置く」＝実行時に2択で潰す。
+  // ⚠**先頭で潰す**（`deckInsertIndex` は解決済みの位置しか受けない＝未解決のまま流すと既定の「一番上」に化ける）。
+  if (a.position === 'top_or_bottom') {
+    const mk = (position: 'top' | 'bottom'): EffectAction => ({ ...a, position } as EffectAction);
+    return needsInteraction(addLog(ctx, 'デッキの一番上か一番下かを選ぶ'), {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'deck_top', label: 'デッキの一番上に置く', action: mk('top'), available: true },
+        { id: 'deck_bottom', label: 'デッキの一番下に置く', action: mk('bottom'), available: true },
+      ],
+    });
+  }
   const src = a.source;
   const state = ownerState(src.owner, ctx);
   const toBottom = a.position === 'bottom';
@@ -11967,8 +11994,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       let newS = { ...state };
       const placedFromNonHand = state.deck.includes(cardNum) || state.trash.includes(cardNum) || state.energy.includes(cardNum);
-      // 場に出すカードを現在の領域（デッキ/手札/トラッシュ/エナ）から除去する。
+      // 🆕§5.3 `O-60` 第43バッチ＝**出所が明示されているならそれを優先して抜く**（`WXK02-035-E2`）。
+      // 🔴下の「どの領域に居るか探す」チェーンは**デッキを最初に見る**ので、チェックゾーンへ置いた札が
+      //   デッキにも同じ番号で残っている盤面（instanceId を使わない経路）だと**チェックゾーンから抜けず**、
+      //   ターン終了時の一掃で**場に出したカードがトラッシュへ消える**。
+      // 場に出すカードを現在の領域（デッキ/手札/トラッシュ/エナ/チェックゾーン）から除去する。
       // src 指定の有無に依らず、cardNum が存在する領域から取り除く（デッキ探索→場出しでデッキに残る不具合の修正）。
+      // ⚠**ここは `source` を見ない**（`execPlaceSigniOnField` が `source` を落とした
+      //   `ADD_TO_FIELD` を組み直して呼ぶため）＝所在で決める。
       const di = newS.deck.indexOf(cardNum);
       if (di >= 0) { const dk = [...newS.deck]; dk.splice(di, 1); newS = { ...newS, deck: dk }; }
       else {
@@ -11980,6 +12013,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           else {
             const ei = newS.energy.indexOf(cardNum);
             if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
+            // 🆕§5.3 `O-60` 第43バッチ＝**チェックゾーン**（`WXK02-035-E2`）。ここを足さないと
+            //   カードがチェックゾーンに残ったまま場にも出る＝ターン終了時の一掃で場のカードが消える。
+            else if (newS.field.check === cardNum) {
+              newS = { ...newS, field: { ...newS.field, check: null } };
+            } else if ((newS.field.check_rest ?? []).includes(cardNum)) {
+              newS = { ...newS, field: { ...newS.field, check_rest: (newS.field.check_rest ?? []).filter(x => x !== cardNum) } };
+            }
           }
         }
       }

@@ -1202,7 +1202,13 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'TRASH': {
       const t = a.target;
-      const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
+      // 🆕§5.3 `O-60` 第43バッチ＝`LIFE_CLOTH_CARD`／`TRASH_CARD`／`CHECK_CARD` の名詞が空で
+      //   「対戦相手のを1枚トラッシュに置く」という**ゾーンの消えた文**になっていた（`WX10-002-E2`）。
+      const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ'
+        : t?.type === 'DECK_CARD' ? 'デッキの上からカード'
+        : t?.type === 'LIFE_CLOTH_CARD' ? 'ライフクロスの一番上のカード'
+        : t?.type === 'TRASH_CARD' ? 'トラッシュのカード'
+        : t?.type === 'CHECK_CARD' ? 'チェックゾーンのカード' : '';
       // targetsTriggerSource:「そのシグニ」= トリガー元シグニ（タスク12(lxi) 第3波）
       if (t?.type === 'SIGNI' && a.targetsTriggerSource) return 'それ（トリガー元シグニ）をトラッシュに置く';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
@@ -1604,7 +1610,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
       return a.shuffle
         ? `${targetJa(a.source)}をデッキに加えてシャッフルする${chooser}${opt}`
-        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : a.position === 'third' ? '上から三番目' : '上'}に置く${chooser}${opt}`;
+        // 🆕§5.3 `O-60` 第45バッチ＝`top_or_bottom`（「一番上か一番下」＝実行時の2択）。
+        //   落とすと既定の「上」に化けて、選べることが原文照合に映らない。
+        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : a.position === 'third' ? '上から三番目' : a.position === 'top_or_bottom' ? '一番上か一番下' : '上'}に置く${chooser}${opt}`;
     }
     case 'ADD_CRAFT_TO_LRIG_DECK':
       return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;
@@ -3333,6 +3341,8 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.trapOp === 'to_check') {
           const source = a.trapSource === 'trash' ? 'そのシグニをトラッシュから'
             : a.trapSource === 'deck_top' ? 'あなたのデッキの一番上のカードを'
+            // 🆕§5.3 `O-60` 第43バッチ＝デッキの一番下（`WXK02-035-E2`）。落とすと「その中から」に化ける。
+            : a.trapSource === 'deck_bottom' ? 'あなたのデッキの一番下のカードを'
             : 'その中からカード1枚を';
           return `${source}チェックゾーンに置${a.upToCount ? 'いてもよい' : 'く'}${a.trapRemainder === 'hand' ? '、残りを手札に加える' : ''}`;
         }
@@ -4051,6 +4061,33 @@ function actionJa(a?: Action, effectType?: string): string {
         EXTRA_USE_TIMING: 'このカードは追加で使用タイミングを持つ',
         // 🆕§5.3 `O-203`（2026-09-02）＝参照側（`fieldCandidates`）が Type を差し替えて読む。
         TREAT_SELF_AS_RESONA: 'このシグニをレゾナとしても扱う',
+        // 🆕§5.3 `O-60` 第45バッチ（2026-09-03）＝`STUB{LOOK_AND_REORDER}` の catch-all（15文型）を割った分。
+        //   engine は原文を読まなくなったので、実装が無い側はここで**何が未実装か**を明示する。
+        SHUFFLE_REMAINDER_INTO_DECK: '残りをデッキに加えてシャッフルする',
+        // 🆕§5.3 `O-60` 第41バッチ＝宣言型（消費は `effectEngine.collectOppEnergyColorRestriction`）。
+        //   ハンドラを撤去したので STUBS.md 経由の説明が無くなった＝ここで日本語を与える。
+        OPP_ENERGY_COLOR_CONDITION_TRASH:
+          '対戦相手のエナゾーンに、この能力で宣言された色を持たず無色ではないカードが置かれる場合、代わりにトラッシュに置かれる',
+        DEFERRED_TRASH_ALL_TO_DECK_OPTIONAL:
+          '【未実装】あなたのトラッシュからすべてのカードをデッキに加えてもよい（そうした場合、デッキをシャッフルする）',
+        DEFERRED_SPLIT_PILES_OPP_CHOOSE:
+          '【未実装】公開したカードを表向きの束と裏向きの束に分け、対戦相手がどちらかの束をトラッシュに置き残りの束を手札に加える',
+        DEFERRED_SWAP_WITH_DECK_TOP:
+          '【未実装】そのカードとデッキの一番上のカードを入れ替えてもよい',
+        DEFERRED_SHUFFLE_REVEALED_TO_DECK_BOTTOM:
+          '【未実装】公開されたカードをシャッフルしてデッキの一番下に置く',
+        DEFERRED_REMAINDER_TO_LIFE_TOP:
+          '【未実装】残りを好きな順番でライフクロスの一番上に戻す',
+        DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM:
+          '【未実装】この方法で引いたカードの枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く',
+        DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED:
+          '【未実装】残りを好きな順番でデッキの一番上に置く',
+        DEFERRED_MILL_THEN_LOOK:
+          '【未実装】あなたのデッキの上からカードをトラッシュに置き、その後デッキの上からカードを見る',
+        DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM:
+          '【未実装】対戦相手の手札から《ガードアイコン》を持たないカード1枚を選びデッキの一番下に置いてもよい',
+        DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM:
+          '【未実装】あなたのトラッシュからそれぞれレベルの異なる同クラスのシグニを好きな順番でデッキの一番下に置いてもよい',
         // §5.3 `O-76`／`O-77` 第2バッチ（2026-08-29）＝2つの catch-all から分離した15文型。
         //   ⚠**原文の帰結まで書く**＝保留と同時に「そうした場合」のゲートごと落としているので、
         //     ここに書かないと何が未実装なのか逆翻訳から読めない。

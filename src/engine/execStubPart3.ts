@@ -1085,15 +1085,17 @@ export function execStubPart3(
   }
   // NEGATE_NTH_ATTACK: このターン、対象種別の相手アタックを共有カウントでN回目まで自動無効化
   if (stub.id === 'NEGATE_NTH_ATTACK') {
-    const toHWNNA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcNNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtNNA = srcNNA ? (srcNNA.EffectText ?? '') + ' ' + (srcNNA.BurstText ?? '') : '';
-    // 「一度目か二度目」→2, 「一度目」→1, テキスト不明→1
-    let nNNA = 1;
-    if (txtNNA.match(/[一1１]度目か[二2２]度目/)) nNNA = 2;
-    else if (txtNNA.match(/[一1１]度目か[二2２]度目か[三3３]度目/)) nNNA = 3;
-    else { const m = txtNNA.match(/([０-９\d一二三四五六七八九十]+)回目/); if (m) nNNA = parseInt(toHWNNA(m[1])) || 1; }
-    const params = stub.negateNthAttack ?? { count: nNNA, signi: true, lrig: false };
+    // 🆕**§5.3 `O-60` 第44バッチ（2026-09-03）＝窓（回数と対象種別）は payload だけを読む。**
+    // 🔴旧実装は `EffectText`＋`BurstText` に3本の regex を当てるフォールバックを持っていたが、
+    //   live 3効果は**すべて `negateNthAttack` を持っている**（`SP27-016` は `fixLrigColorFilters.mjs` が
+    //   build 後に付ける）＝フォールバックは1度も使われないうえ、
+    //   ①`一度目か二度目` を先に見るので `一度目か二度目か三度目` に**永久に到達しない**
+    //   ②`SP27-016` の①②③の選択肢テキスト全体を読むので**別の枝の数字**を拾いうる、
+    //   という2つの壊れ方を抱えていた。
+    // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定は「シグニのアタックを1回無効」＝
+    //   原文に無い無効化を配る側なので逆へ倒す。
+    const params = stub.negateNthAttack;
+    if (!params) return done(addLog(ctx, 'アタック無効化の窓が指定されていないため何もしない'));
     const cur = ctx.ownerState.negate_opp_attacks;
     const next = {
       remaining: Math.max(cur?.remaining ?? 0, params.count),

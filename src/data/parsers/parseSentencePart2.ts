@@ -1054,8 +1054,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- デッキの一番上をライフクロスに加える ----
+  // 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝typed `ADD_TO_LIFE` へ寄せた（受け皿は既存）。
   if (t.match(/あなたのデッキの一番上のカードをライフクロスに加え/)) {
-    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
+    return { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true } as EffectAction;
   }
 
   // ---- 特定クラスのシグニは能力を失わず新たに得られない ----

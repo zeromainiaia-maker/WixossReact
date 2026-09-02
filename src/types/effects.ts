@@ -2884,7 +2884,13 @@ export interface TransferToDeckAction {
   source: EffectTarget;
   shuffle: boolean;
   destination?: 'deck' | 'lrig_deck'; // 省略時は 'deck'
-  position?: 'top' | 'second' | 'third' | 'bottom'; // デッキの挿入位置（省略時は top）。🆕'third'＝「デッキの上から三番目に置く」（`WDK09-011-E2`）
+  /**
+   * デッキの挿入位置（省略時は top）。🆕`'third'`＝「デッキの上から三番目に置く」（`WDK09-011-E2`）。
+   * 🆕`'top_or_bottom'`＝「デッキの一番上**か**一番下に置く」（§5.3 `O-60` 第45バッチ・`WXDi-P01-013-E1`）＝
+   *   **効果の使用者が実行時に選ぶ**（`execTransferToDeck` が `top`/`bottom` の2択 CHOOSE を出す）。
+   *   ⚠`deckInsertIndex` は解決済みの位置しか受けない＝ここへ来る前に2択で潰す。
+   */
+  position?: 'top' | 'second' | 'third' | 'bottom' | 'top_or_bottom';
   optional?: boolean;                 // 「…してもよい」＝TRASH_CARD 経路で選択/スキップ可（WX17-028-E1・続き137）
   opponentSelects?: boolean;          // 「対戦相手は自分のシグニ1体を選びデッキに置く」
   targetsStored?: boolean;            // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象（SIGNI 経路）
@@ -5401,7 +5407,9 @@ export interface StubAction {
    * ⚠設置の実体は出所非依存の `INTERNAL_ASK_TRAP_ZONE`→`INTERNAL_PICK_TO_TRAP` が担う
    *   （deck / hand / energy のどこからでも抜く）。ここは**候補集合の出どころだけ**を決める。
    */
-  trapSource?: 'hand' | 'looked' | 'looked_or_hand' | 'energy_self' | 'deck_top' | 'field_signi' | 'check' | 'trash';
+  // 🆕`deck_bottom`＝**デッキの一番下**（§5.3 `O-60` 第43バッチ・`WXK02-035-E2`
+  //   「あなたのデッキの**一番下**のカードをチェックゾーンに置く」）。`deck_top` の鏡。
+  trapSource?: 'hand' | 'looked' | 'looked_or_hand' | 'energy_self' | 'deck_top' | 'deck_bottom' | 'field_signi' | 'check' | 'trash';
   /**
    * `PLACE_TRAP_OPTIONAL` / `SET_HAND_CARD_AS_TRAP`：設置が**任意か**（原文「設置しても**よい**」）。
    * 🔴§5.3 `O-87`（2026-08-26）＝engine は**手札枝を無条件で `optional:false`**（＝強制）にしていた。

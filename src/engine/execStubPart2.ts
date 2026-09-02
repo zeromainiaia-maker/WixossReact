@@ -3070,7 +3070,9 @@ export function execStubPart2(
       }
       const cardToCheck = ctx.lastProcessedCards?.[0]
         ?? (stub.trapSource === 'check' ? ctx.ownerState.field.check : null)
-        ?? (stub.trapSource === 'deck_top' ? ctx.ownerState.deck[0] : null);
+        ?? (stub.trapSource === 'deck_top' ? ctx.ownerState.deck[0] : null)
+        // 🆕§5.3 `O-60` 第43バッチ＝デッキの**一番下**（`WXK02-035-E2`）。
+        ?? (stub.trapSource === 'deck_bottom' ? (ctx.ownerState.deck.at(-1) ?? null) : null);
       if (!cardToCheck) return done(addLog(ctx, '[チェックゾーン：対象カードなし]'));
       let remainderCards: string[] = [];
       if (stub.trapRemainder === 'hand' && typeof stub.value === 'string' && stub.value.startsWith('[')) {

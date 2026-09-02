@@ -6868,6 +6868,78 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX10-002-E2（コードラビリンス ラダー）【自】：このルリグがアタックしたとき、手札を１枚捨ててもよい。
+  //   そうした場合、対戦相手のライフクロスの一番上を見る。その後、**それをトラッシュに置いて**
+  //   対戦相手のデッキの一番上のカードをライフクロスに加えてもよい。
+  // 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝旧 live は末尾が `STUB{DECK_TOP_TO_LIFE}` で
+  //   「トラッシュに置く」側が**1行も実装されておらず**、相手のライフが**減らないまま1枚増える**
+  //   （＝原文と逆に相手を有利にする）形だった。
+  // ⚠**先頭の任意コストは `STUB{OPTIONAL_COST}` のまま**にする＝parser の現行出力は
+  //   `TRASH{HAND_CARD, optional:true}` ＋ `CONDITIONAL{IS_MY_TURN}` で、これは golden の
+  //   「強制の手札捨てコスト」トリップワイヤが禁じている形（払わなくても本体が走る）。
+  'WX10-002': [
+    {
+      effectId: 'WX10-002-E2',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_LRIG'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1 } },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'IS_MY_TURN' },
+            then: { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } },
+          },
+          {
+            type: 'SEQUENCE',
+            steps: [
+              { type: 'STUB', id: 'OPTIONAL_ACTIVATE' },
+              { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } },
+              { type: 'ADD_TO_LIFE', owner: 'opponent', count: 1, fromTop: true },
+            ],
+          },
+        ],
+      } as unknown as import('../types/effects').EffectAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK02-035-E2（羅星 ケンタウルス//THE ANSWER）【出】《青》：あなたのデッキの**一番下**のカードを
+  //   チェックゾーンに置く。それがシグニの場合、それを場に出してもよい。場に出さない場合、それをトラッシュに置く。
+  // 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝旧 live は `STUB{DECK_TOP_TO_LIFE}`＝
+  //   「**デッキの一番上を自分のライフクロスに加える**」＝ゾーンも向きも違う別の効果だった
+  //   （＝毎回ライフが1枚増える）。`DECK_TOP_TO_LIFE` は**4つの無関係な文型の catch-all**で、
+  //   engine がカード全文 regex で枝分かれしていた。
+  // ⚠`ADD_TO_FIELD` は `source` を省くと**デッキの一番上**を出す（＝チェックゾーンに置いた札とは別のカード）。
+  //   `source:{CHECK_CARD}` を明示する（この経路は第43バッチで `execAddToField` に追加した）。
+  // ⚠**近似1件**＝原文「場に出さない場合、それをトラッシュに置く」は**即時**だが、ここでは
+  //   `check_rest` に残し `clearTurnEndScopedState` の**ターン終了時トラッシュ**に委ねている
+  //   （行き先は同じ。ターン中はチェックゾーンに見えたままになる）。
+  'WXK02-035': [
+    {
+      effectId: 'WXK02-035-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      cost: { energy: [{ color: '青', count: 1 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'to_check', trapSource: 'deck_bottom', trapCheckRest: true },
+          {
+            type: 'ADD_TO_FIELD', owner: 'self', optional: true,
+            source: { type: 'CHECK_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+          },
+        ],
+      } as unknown as import('../types/effects').EffectAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX20-056-E2（戦乱の一輪　オイチ）【自】：このシグニがカード名に《オダノブ》を含むシグニにライズされたとき、
   //   ターン終了時まで、**そのシグニ**（＝上に置かれた【ライズ】シグニ）は
   //   「【常】：対戦相手の効果によって、手札に戻らずダウンせず新たに能力を得られない。」を得る。
@@ -7171,14 +7243,20 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WD21-007 自由自罪（ベット―《コイン》《コイン》）
   // 5択から1つ選び対象シグニに付与、ベット時もう1回。パーサーは多択ベットを
-  // BET_MECHANIC stub 化するため、GRANT_QUOTED_AUTO_ABILITY stub を保持する上書き。
+  // BET_MECHANIC stub 化するため、専用 stub を保持する上書き。
+  // 🆕§5.3 `O-60` 第46バッチ（2026-09-03）＝id を `GRANT_QUOTED_AUTO_ABILITY`（30箇所超が使う汎用 id）から
+  //   **このカード専用の `CHOOSE_GRANT_FIVE_KEYWORDS` へ分けた**。
+  // 🔴旧は engine が汎用ハンドラの中で**カード全文**に `/以下の[５5]つから[１1]つを選ぶ/` を当てて
+  //   このカードだけを識別しており、他の3カード（`PR-K076`／`WXDi-CP02-TK03A`／`WXK03-042`）は
+  //   その門を通れず**黙って落ちて**いた（＝miss 3）。id で分ければ原文を読む必要が無い。
   'WD21-007': [
     {
       effectId: 'WD21-007-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN', 'ATTACK', 'SPELL_CUTIN'],
-      cost: { energy: [{ color: '赤', count: 2 }] },
-      action: { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' },
+      // ⚠`betOptions` を落とさない＝ベット段階（《コイン》2枚）が消えると使用UIからベットが選べなくなる。
+      cost: { energy: [{ color: '赤', count: 2 }], betOptions: { options: [2], variable: false } },
+      action: { type: 'STUB', id: 'CHOOSE_GRANT_FIVE_KEYWORDS' },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',

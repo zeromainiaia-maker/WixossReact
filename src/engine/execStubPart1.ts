@@ -1245,10 +1245,14 @@ export function execStubPart1(
     return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: ${quotedActM?.[1] ?? '起動能力'}付与（effectEngineで処理）]`));
   }
   // WD21-007型: 「以下の５つから１つを選ぶ。…対象のシグニ１体は選んだ能力を得る。あなたがベットしていた場合、この効果を１回繰り返す。」
-  if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY') {
-    const srcW7 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtW7 = srcW7 ? (srcW7.EffectText ?? '') : '';
-    if (/以下の[５5]つから[１1]つを選ぶ/.test(txtW7) && /対象のシグニ[１1]体は選んだ能力を得る/.test(txtW7)) {
+  // 🆕**§5.3 `O-60` 第46バッチ（2026-09-03）＝専用 id に分けてカード全文 regex を撤去した。**
+  // 🔴旧は汎用 id `GRANT_QUOTED_AUTO_ABILITY`（live 4効果・parser 生成地点30箇所超）のハンドラの中で
+  //   **カード全文**に `/以下の[５5]つから[１1]つを選ぶ/` を当ててこのカードだけを識別しており、
+  //   残る3カード（`PR-K076`／`WXDi-CP02-TK03A`／`WXK03-042`）は門を通れず**黙って落ちて**いた。
+  //   （3カードは `effectEngine.collectGrantedFromLayer` が別経路で消費する＝B群。）
+  // CHOOSE_GRANT_FIVE_KEYWORDS: 以下の5つから1つを選び、対象のシグニ1体が選んだ能力を得る（ベット時はもう1回）
+  if (stub.id === 'CHOOSE_GRANT_FIVE_KEYWORDS') {
+    {
       const optsW7 = [
         { id: 'w7_1', label: '①【アサシン】を得る', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'assassin' } as StubAction) as EffectAction, available: true },
         { id: 'w7_2', label: '②【ランサー】を得る', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'lancer' } as StubAction) as EffectAction, available: true },
@@ -1299,7 +1303,7 @@ export function execStubPart1(
     // BET_CONDITION: ベットしていれば（他の選択肢・他のシグニで）この効果を1回繰り返す
     if (curW7.ownerState.is_betting_this_effect) {
       curW7 = { ...curW7, ownerState: { ...curW7.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined }, lastProcessedCards: [] };
-      return exec({ type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction, curW7);
+      return exec({ type: 'STUB', id: 'CHOOSE_GRANT_FIVE_KEYWORDS' } as StubAction, curW7);
     }
     return done(curW7);
   }
@@ -4403,56 +4407,20 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwnerIPLUC },
       `${ctx.cardMap.get(cnIPLUC)?.CardName ?? cnIPLUC}をセンタールリグ下に配置`));
   }
-  // デッキを見て並べ替え（STUB版：動的パース）
-  if (stub.id === 'LOOK_AND_REORDER') {
-    const srcLOR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLOR = srcLOR ? (srcLOR.EffectText ?? '') + ' ' + (srcLOR.BurstText ?? '') : '';
-    const toHWL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「残りをデッキに加えてシャッフルする」→ lastProcessedCardsをデッキへシャッフル
-    if ((txtLOR.match(/残りをデッキに加えてシャッフルする/) || txtLOR.match(/^残りをデッキに加えてシャッフルする$/)) && ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0) {
-      const cards = ctx.lastProcessedCards;
-      const newDeck = shuffle([...ctx.ownerState.deck, ...cards]);
-      const newS: PlayerState = { ...ctx.ownerState, deck: newDeck };
-      return done(addLog({ ...ctx, ownerState: newS }, `残り${cards.length}枚をデッキに戻してシャッフル`));
-    }
-    // 「デッキ上からN枚見る」→ LOOK_AND_REORDER インタラクション
-    const lookM = txtLOR.match(/デッキの上(?:から)?カードを?([０-９\d]+)枚(?:を?見る|確認する)/);
-    if (lookM) {
-      const count = parseInt(toHWL(lookM[1]));
-      const visible = ctx.ownerState.deck.slice(0, Math.min(count, ctx.ownerState.deck.length));
-      if (visible.length > 0) {
-        const newS: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visible.length) };
-        return needsInteraction(
-          addLog({ ...ctx, ownerState: newS }, `デッキ上${visible.length}枚を確認`),
-          { type: 'LOOK_AND_REORDER', cards: visible, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top', private: true },
-        );
-      }
-    }
-    return done(addLog(ctx, 'デッキを見て並べ替え（スキップ）'));
-  }
-  // デッキ上をライフクロスに加える
-  if (stub.id === 'DECK_TOP_TO_LIFE') {
-    const srcDTL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDTL = srcDTL ? (srcDTL.EffectText ?? '') + ' ' + (srcDTL.BurstText ?? '') : '';
-    const toHWD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 枚数の解析（デフォルト1枚）
-    const cntM = txtDTL.match(/デッキの一番上(?:から)?([０-９\d]+)枚のカードをライフクロスに/);
-    const addCount = cntM ? parseInt(toHWD(cntM[1])) : 1;
-    // 対象プレイヤーの判断
-    const oppPattern = /対戦相手のデッキの一番上のカードをライフクロスに/;
-    const owner = oppPattern.test(txtDTL) ? 'opponent' : 'self';
-    const st = ownerState(owner, ctx);
-    if (st.deck.length === 0) return done(addLog(ctx, 'デッキなし（ライフ追加）'));
-    const toAdd = st.deck.slice(0, Math.min(addCount, st.deck.length));
-    const newS: PlayerState = {
-      ...st,
-      deck: st.deck.slice(toAdd.length),
-      life_cloth: [...st.life_cloth, ...toAdd],
-    };
-    return done(addLog({
-      ...setOwnerState(owner, newS, ctx),
-      lastProcessedCards: toAdd,
-    }, `デッキ上${toAdd.length}枚をライフクロスに加えた`));
+  // SHUFFLE_REMAINDER_INTO_DECK: 「残りをデッキに加えてシャッフルする」
+  // 🆕**§5.3 `O-60` 第45バッチ（2026-09-03）＝`STUB{LOOK_AND_REORDER}` の catch-all を15文型へ割った。**
+  // 🔴旧実装は**カード全文**に2本の regex を当てており、
+  //   ①「残りをデッキに加えてシャッフル」に当たらないカードでも
+  //   ②「デッキの上からカードをN枚見る」が**同じカードの別の文**に当たると
+  //   **追加でN枚めくる**まったく別の処理が走った（`WX13-035-BURST` は直前の `REVEAL_AND_PICK` に加えて
+  //   もう2枚、`WXDi-CP02-033-E2` は直前の `LOOK_AND_REORDER{count:5}` に加えてもう5枚）。
+  // ⇒ ここは**原文を一切読まない**＝`lastProcessedCards` をデッキへ戻してシャッフルするだけ。
+  if (stub.id === 'SHUFFLE_REMAINDER_INTO_DECK') {
+    const cards = ctx.lastProcessedCards ?? [];
+    if (cards.length === 0) return done(addLog(ctx, 'デッキに戻す残りがない'));
+    const newDeck = shuffle([...ctx.ownerState.deck, ...cards]);
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, deck: newDeck } },
+      `残り${cards.length}枚をデッキに戻してシャッフル`));
   }
   // アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ
   if (stub.id === 'ARTS_USE_DISCARD_LRIG_DECK') {

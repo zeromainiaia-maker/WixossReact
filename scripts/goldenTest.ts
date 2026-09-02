@@ -5320,9 +5320,14 @@ test('§6.4 T1: live の裸 REVEAL_AND_PICK は0枚', () => {
     '裸STUBの再混入を禁止');
 });
 
-test('§6.4 T2: live の DECK_TOP_TO_LIFE は原文にライフクロスがある既知2枚だけ', () => {
-  eq(cardsWithStub('DECK_TOP_TO_LIFE').join('|'), ['WX10-002', 'WXK02-035'].sort().join('|'),
-    '原文に無いタダのライフ増加を禁止');
+// 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝`DECK_TOP_TO_LIFE` は**撤去**した。
+//   4つの無関係な文型（自分ライフへ追加／相手ライフの入れ替え／デッキ下→チェックゾーン／
+//   デッキシャッフル後の公開）の catch-all で、engine がカード全文 regex で枝分かれしていた。
+//   ⇒ ここは「原文にライフクロスが無いカードへタダのライフ増加が付いていないか」の見張りとして、
+//   **id が live から完全に消えていること**を assert する（復活したら即 FAIL）。
+test('§6.4 T2: 撤去済み DECK_TOP_TO_LIFE が live に1件も残っていない', () => {
+  eq(cardsWithStub('DECK_TOP_TO_LIFE').join('|'), '',
+    '撤去済み catch-all が live に復活している（原文に無いタダのライフ増加が付く）');
 });
 
 // §6.4 T3（続き444 の検証で新設）＝**採用の巻き添えで兄弟効果が実装済みSTUBから UNKNOWN へ落ちる**退化の見張り。
@@ -22009,6 +22014,45 @@ test('POWER_MODIFY deltaFromZone zone:under + sumBy:power＝下段シグニの�
   const r = run(act, { ...ctx, ownerState: stacked } as ExecCtx);
   eq(((r.ownerState as PlayerState).temp_power_mods ?? [])[0]?.delta, 3000,
     '下段のシグニ（3000）だけを足す＝スペルは数えない');
+}));
+test('§5.3 O-60 第43バッチ: DECK_TOP_TO_LIFE の catch-all を4文型に割った（2枚とも別の効果だった）', () => {
+  const tree = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  // ①「デッキの一番下のカードをチェックゾーンに置く」＝ライフではなくチェックゾーン。
+  const k02 = tree('WXK02-035', 'WXK02-035-E2');
+  ok(k02.includes('"trapSource":"deck_bottom"'), 'WXK02-035-E2 がデッキの一番下を見ていない');
+  ok(k02.includes('"trapCheckRest":true'), 'WXK02-035-E2 の置き先がチェックゾーンでない');
+  ok(k02.includes('"type":"CHECK_CARD"'), 'WXK02-035-E2 の場出しがチェックゾーン由来になっていない');
+  ok(!k02.includes('DECK_TOP_TO_LIFE'), 'WXK02-035-E2 が撤去済み catch-all へ戻っている');
+  // ②「それをトラッシュに置いて対戦相手のデッキの一番上をライフクロスに加える」＝相手ライフの入れ替え。
+  const w10 = tree('WX10-002', 'WX10-002-E2');
+  ok(w10.includes('"type":"LIFE_CLOTH_CARD"'), 'WX10-002-E2 の「トラッシュに置く」側が実装されていない');
+  ok(w10.includes('"type":"ADD_TO_LIFE"'), 'WX10-002-E2 のライフ追加が落ちている');
+  ok(/"type":"ADD_TO_LIFE","owner":"opponent"/.test(w10.replace(/\s/g, '')),
+    'ライフを増やす先が自分になっている（原文は対戦相手）');
+  ok(!w10.includes('DECK_TOP_TO_LIFE'), 'WX10-002-E2 が撤去済み catch-all へ戻っている');
+});
+test('§5.3 O-60 第43バッチ: ADD_TO_FIELD source:CHECK_CARD＝チェックゾーンから抜いて場へ（複製しない）', () => withSavedCursor(() => {
+  const base = mkCtx({ signi: [null, null, null] }, {}, SIGNI);
+  const ctx = {
+    ...base,
+    ownerState: {
+      ...base.ownerState,
+      // ⚠デッキにも同じ番号が残っていると「所在で決める」除去チェーンがデッキ側を先に消す。
+      deck: base.ownerState.deck.filter(n => n !== SIGNI_L1),
+      field: { ...base.ownerState.field, signi: [null, null, null], check_rest: [SIGNI_L1] },
+    },
+  } as unknown as ExecCtx;
+  const act = {
+    type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'CHECK_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+  } as unknown as EffectAction;
+  const r = run(act, ctx);
+  ok(r.done); if (!r.done) return;
+  const st = r.ownerState as PlayerState;
+  ok(st.field.signi.some(z => z?.includes(SIGNI_L1)), 'チェックゾーンのシグニが場に出ていない');
+  // 🔴反転確認＝チェックゾーンに残っていたらターン終了時の一掃で場のカードが消える（複製バグ）。
+  eq((st.field.check_rest ?? []).includes(SIGNI_L1), false, 'チェックゾーンに残ったまま場にも出た（複製）');
 }));
 test('§5.3 O-60 第42バッチ: 「シグニ１体を対象とする」は所有者を限定しない（owner:any の payload）', () => {
   const t = JSON.stringify((effectsMap.get('WXDi-P07-086') ?? []).find(e => e.effectId === 'WXDi-P07-086-E1')?.action ?? {});
@@ -42165,7 +42209,9 @@ test('task12(lxxxviii) WD21-007: the bet branch repeats the grant once', () => w
     }
     return null;
   };
-  eq(findStub(eff.action), 'GRANT_QUOTED_AUTO_ABILITY', 'WD21-007 は専用ハンドラ経由');
+  // 🆕§5.3 `O-60` 第46バッチ＝汎用 id（30箇所超が使う）から**このカード専用 id**へ分けた
+  //   （engine が汎用ハンドラ内でカード全文 regex を当てて識別していたのを撤去）。
+  eq(findStub(eff.action), 'CHOOSE_GRANT_FIVE_KEYWORDS', 'WD21-007 は専用ハンドラ経由');
   const self = SIGNI_L2;
   const mk2 = (betting: boolean) => {
     const c = mkCtx({ signi: [self, null, null] }, { signi: [SIGNI_L3, null, null] }, 'WD21-007');
