@@ -42009,6 +42009,111 @@ async function driveO199(page, H, underCount) {
   }
   return { pass: true, detail: `テキスト形アンコール（ルリグの下から3枚）を払い、アーツがルリグデッキへ戻った。${detail}` };
 }
+/**
+ * `V-119`＝`O-86` 第4バッチ「【ブースト】の任意追加エナコストを payload から読む」（`ArtsModal`）。
+ * 原文＝`WX25-P1-008`「**ブースト―《緑》《無》《無》**（このアーツを使用する際、使用コストとして
+ *   追加で《緑》《無》《無》を支払ってもよい）…」＝**印刷コストは《緑》×０**（＝無料）。
+ * 🔑観測点は**請求額そのもの**＝ブースト OFF なら0枚で使え、ON なら3枚要る。
+ *   `boostCostOf`（旧 `parseBoostCost`）が読めていなければ **ON にしても0枚で撃てる＝踏み倒し**になる。
+ * ⚠エナは「支払いに使える色」で用意する（《緑》×1＋《無》扱い×2＝色不問の2枚）。
+ */
+const o86BoostSpec = {
+  hostSet: {
+    'field.lrig': ['WD03-004#9740'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': ['WX25-P1-008#9741'],
+    // 《緑》1枚（`WD04-009` 幻獣 セイリュ）＋任意色2枚＝ブーストの《緑》《無》《無》を払える最小構成。
+    // ⚠**色を確かめて置く**＝黒3枚では《緑》が払えず「payload は読めているのに成立しない」に見える（初回実行で踏んだ）。
+    'energy': ['WD04-009#9742', 'WD05-013#9743', 'WD05-014#9744'],
+    'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9791'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+  },
+  // ⚠**`ATTACK_SIGNI` ではアーツ窓が開かない**（`BattleScreen.tsx:8645`＝`ATTACK_ARTS` /
+  //   `ATTACK_ARTS_OP` だけが timing `ATTACK` へ写像される）＝ルリグデッキのカードを押しても
+  //   画像拡大になるだけで「使用」が出ない（初回実行で踏んだ）。
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+};
+async function driveO86Boost(page, H) {
+  await H.ensureMain();
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_ARTS', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(700);
+  const st0 = await H.queryState();
+  H.log(`開始 energy=${st0?.host?.energy} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)} phase=${st0?.turnPhase}`);
+  const openLog = async (tag) => {
+    const names = await page.getByRole('button').allTextContents().catch(() => []);
+    H.log(`  [${tag}] ボタン: ${JSON.stringify(names.map(t => t.trim()).filter(Boolean).slice(0, 30))}`);
+  };
+  H.log(`  my-lrig-dk -> ${await H.clickTestId('my-lrig-dk')}`);
+  await page.waitForTimeout(800); await openLog('lrig-dk');
+  H.log(`  zone-card-0 -> ${await H.clickTestId('zone-card-0')}`);
+  await page.waitForTimeout(800); await openLog('card');
+  await H.clickTextOrBtn(['使用']);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/o86boost-modal.png`, fullPage: true });
+
+  const useBtn = () => page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+  const boostBtn = page.getByRole('button', { name: 'ブーストする', exact: false }).first();
+  if (!(await boostBtn.count())) {
+    const names = await page.getByRole('button').allTextContents().catch(() => []);
+    H.log(`  見えているボタン: ${JSON.stringify(names.map(t => t.trim()).filter(Boolean).slice(0, 40))}`);
+    return { pass: false, detail: '前提崩れ＝「ブーストする」ボタンが描かれていない（payload が読めていない）' };
+  }
+  const boostLabel = ((await boostBtn.textContent().catch(() => '')) ?? '').trim();
+  H.log(`  ブースト表示: ${JSON.stringify(boostLabel)}`);
+  if (!boostLabel.includes('《緑》')) {
+    return { pass: false, detail: `🔴ブースト表示に追加コストが出ていない（payload 未読）: ${JSON.stringify(boostLabel)}` };
+  }
+  // 🔴対照＝ブースト OFF は印刷コスト《緑》×０＝**エナ0枚のまま使用ボタンが押せる**。
+  const offEnabled = await useBtn().isEnabled().catch(() => false);
+  H.log(`  OFF: アーツ使用 enabled=${offEnabled}`);
+  if (!offEnabled) return { pass: false, detail: '前提崩れ＝ブースト OFF（印刷コスト《緑》×０）なのに使用できない' };
+
+  await boostBtn.click().catch(() => {});
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${SHOT}/o86boost-on.png`, fullPage: true });
+  const onEnabledBefore = await useBtn().isEnabled().catch(() => false);
+  H.log(`  ON(エナ未選択): アーツ使用 enabled=${onEnabledBefore}`);
+  if (onEnabledBefore) {
+    return { pass: false, detail: '🔴ブースト ON なのにエナ0枚で使用できる＝追加コストの踏み倒し（payload が請求へ届いていない）' };
+  }
+  for (const id of ['artscost-energy-0', 'artscost-energy-1', 'artscost-energy-2']) {
+    await H.clickTestId(id);
+    await page.waitForTimeout(350);
+  }
+  const onEnabledAfter = await useBtn().isEnabled().catch(() => false);
+  H.log(`  ON(エナ3枚選択): アーツ使用 enabled=${onEnabledAfter}`);
+  if (!onEnabledAfter) return { pass: false, detail: '🔴3枚（《緑》《無》《無》）を選んでもブーストの支払いが成立しない' };
+  await useBtn().click().catch(() => {});
+  let last = st0, settled = 0;
+  for (let i = 0; i < 15; i++) {
+    await page.waitForTimeout(700);
+    const did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+    last = await H.queryState();
+    H.log(`  o86boost[${i}] -> ${did ?? 'なし'} | energy=${last?.host?.energy} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `energy=${h.energy} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+  if (h.energy !== 0) return { pass: false, detail: `🔴ブースト3枚ぶんのエナが支払われていない。${detail}` };
+  if (!(h.lrigTrashCards ?? []).includes('WX25-P1-008#9741')) {
+    return { pass: false, detail: `🔴アーツがルリグトラッシュへ行っていない（使用が成立していない）。${detail}` };
+  }
+  return { pass: true, detail: `ブースト表示 ${JSON.stringify(boostLabel)}／OFF=0枚で使用可・ON=0枚では不可・3枚で成立し全額支払われた。${detail}` };
+}
+scenarios.o86BoostExtraCost = {
+  title: 'O-86 WX25-P1-008：【ブースト】の追加エナコストが payload から請求される（OFF=0枚 / ON=3枚）',
+  spec: o86BoostSpec, drive: (page, H) => driveO86Boost(page, H),
+};
+order.push('o86BoostExtraCost');
+
 scenarios.o199EncoreTextCostPay = {
   title: 'O-199 WDA-F02-08：アンコール－ルリグの下から3枚をルリグトラッシュへ払って使用できる',
   spec: o199Spec(3), drive: (page, H) => driveO199(page, H, 3),

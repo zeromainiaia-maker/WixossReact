@@ -1555,16 +1555,22 @@ export function canAffordWithExtraCost(
   return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay);
 }
 
-// ブーストの任意追加エナコスト（先頭の「ブースト―《色》…」）を返す。
-// アーツ本体 cost とは分離し、宣言時だけ ArtsModal の支払い検証へ加える。
-export function parseBoostCost(effectText: string): { color: string; count: number }[] {
-  const m = effectText.match(/^ブースト[―─]((?:《[白赤青緑黒無]》)+)/);
-  if (!m) return [];
-  const counts = new Map<string, number>();
-  for (const icon of m[1].matchAll(/《([白赤青緑黒無])》/g)) {
-    counts.set(icon[1], (counts.get(icon[1]) ?? 0) + 1);
+/**
+ * 【ブースト】の任意追加エナコスト＝**JSON payload だけを読む**（`EffectCost.boostCost`）。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第4バッチ）＝ここに在った `parseBoostCost(effectText)` を撤去した**（5枚）。
+ * 読み取りは `src/data/keywordCosts.ts` の `parseBoostCostText`。
+ * ⚠**アーツ本体 `cost.energy` とは別枠のまま**＝宣言したときだけ `ArtsModal` の支払い検証へ加える
+ *   （本体へ混ぜるとブーストしなくても払わされる＝過剰の側）。
+ */
+export function boostCostOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): { color: string; count: number }[] {
+  for (const effect of effectsMap.get(getCardNum(cardNum)) ?? []) {
+    if (effect.cost?.boostCost) return effect.cost.boostCost;
   }
-  return [...counts].map(([color, count]) => ({ color, count }));
+  return [];
 }
 
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）

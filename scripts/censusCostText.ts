@@ -41,7 +41,9 @@ const onlyId = (() => {
 //   （`parseEncoreCost` を撤去し、`EffectCost.encoreCost` を `costs.ts` の `encoreCostOf` が読む）。32カード。
 // 44 → 43 ＝ 第3バッチで**【ベット】の印字コイン選択肢を payload へ移した**分
 //   （`parseBetOptions` を撤去し、`EffectCost.betOptions` を `costs.ts` の `betOptionsOf` が読む）。68カード。
-const BASELINE_COST_RULES = 43;
+// 43 → 42 ＝ 第4バッチで**【ブースト】の任意追加エナコストを payload へ移した**分
+//   （`parseBoostCost` を撤去し、`EffectCost.boostCost` を `costs.ts` の `boostCostOf` が読む）。5カード。
+const BASELINE_COST_RULES = 42;
 
 /**
  * 走査対象＝**カードを使うときのコストと可否を決める UI 層**。

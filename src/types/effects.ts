@@ -840,6 +840,11 @@ export interface EffectCost {
   encoreCost?: EncoreCostSpec;
   /** 【ベット】の印字コイン選択肢（§5.3 `O-86`）。UI はこれを読む＝原文 regex を持たない。 */
   betOptions?: BetCostSpec;
+  /**
+   * 【ブースト】の任意追加エナコスト（`ブースト―《色》…` の印字・§5.3 `O-86`）。
+   * ⚠アーツ本体の `energy` とは**別枠**＝宣言したときだけ `ArtsModal` の支払い検証へ加える。
+   */
+  boostCost?: EnergyCost[];
   discard?: number;       // 手札を任意のカードN枚トラッシュ
   discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可

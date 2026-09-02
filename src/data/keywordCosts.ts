@@ -78,7 +78,26 @@ export function parseBetOptionsText(effectText: string): BetCostSpec | null {
 }
 
 /**
- * カード原文から**印字キーワードコスト**をまとめて読む（【アンコール】【ベット】）。
+ * 【ブースト】の任意追加エナコスト（先頭の「ブースト―《色》…」）。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第4バッチ）で `src/screens/battle/costs.ts` からここへ移した**（5枚）。
+ * ⚠アーツ本体 `cost.energy` とは分離する＝宣言時だけ `ArtsModal` の支払い検証へ加える
+ *   （本体へ足すと**ブーストしなくても払わされる**＝過剰の側）。
+ */
+export function parseBoostCostText(effectText: string): EnergyCost[] | null {
+  const m = effectText.match(/^ブースト[―─]((?:《[白赤青緑黒無]》)+)/);
+  if (!m) return null;
+  const counts = new Map<EnergyCost['color'], number>();
+  for (const icon of m[1].matchAll(/《([白赤青緑黒無])》/g)) {
+    const color = icon[1] as EnergyCost['color'];
+    counts.set(color, (counts.get(color) ?? 0) + 1);
+  }
+  const out = [...counts].map(([color, count]) => ({ color, count }));
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * カード原文から**印字キーワードコスト**をまとめて読む（【アンコール】【ベット】【ブースト】）。
  *
  * 🔑**これはカード単位の事実**＝効果本文の解釈ではないので、
  *   ①`parseCardEffects` が先頭効果へ刻み（fresh 側の正）
@@ -86,11 +105,16 @@ export function parseBetOptionsText(effectText: string): BetCostSpec | null {
  *     本文を手書きしたカードでも失われない＝実測でアンコール9枚／ベット21枚が該当）。
  *   両方を同じ関数から作ることで「fresh と live で別の値になる」経路を構造的に消している。
  */
-export function printedKeywordCosts(effectText: string | undefined): Pick<EffectCost, 'encoreCost' | 'betOptions'> {
+export function printedKeywordCosts(effectText: string | undefined): Pick<EffectCost, 'encoreCost' | 'betOptions' | 'boostCost'> {
   const encoreCost = parseEncoreCostText(effectText ?? '');
   const betOptions = parseBetOptionsText(effectText ?? '');
-  return { ...(encoreCost ? { encoreCost } : {}), ...(betOptions ? { betOptions } : {}) };
+  const boostCost = parseBoostCostText(effectText ?? '');
+  return {
+    ...(encoreCost ? { encoreCost } : {}),
+    ...(betOptions ? { betOptions } : {}),
+    ...(boostCost ? { boostCost } : {}),
+  };
 }
 
 /** 印字キーワードコストのキー一覧（重ねる側／除外する側の両方がこれを使う）。 */
-export const PRINTED_KEYWORD_COST_KEYS = ['encoreCost', 'betOptions'] as const;
+export const PRINTED_KEYWORD_COST_KEYS = ['encoreCost', 'betOptions', 'boostCost'] as const;

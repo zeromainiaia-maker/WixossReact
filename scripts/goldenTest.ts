@@ -103,7 +103,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, encoreCostOf, paySelectedExceed } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, boostCostOf, encoreCostOf, paySelectedExceed } from '../src/screens/battle/costs';
 import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -1867,7 +1867,8 @@ test('ブースト4アーツ: 追加エナコストと IS_BOOSTING ゲートを�
   };
   for (const [id, cost] of Object.entries(expected)) {
     const card = cardMap.get(id); ok(!!card, `${id}: card`); if (!card) continue;
-    eq(JSON.stringify(parseBoostCost(card.EffectText ?? '')), JSON.stringify(cost), `${id}: boost cost`);
+    // 🆕§5.3 `O-86` 第4バッチ＝読み取り元は live payload（`EffectCost.boostCost`）。
+    eq(JSON.stringify(boostCostOf(id, effectsMap)), JSON.stringify(cost), `${id}: boost cost`);
     const fresh = parseCardEffects(card)[0];
     ok(JSON.stringify(fresh.action).includes('"type":"IS_BOOSTING"'), `${id}: conditional gate`);
   }
@@ -13858,12 +13859,12 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
       else if (o && typeof o === 'object') for (const k of Object.keys(o)) {
         if (k === 'parseStatus') continue;
         // 🆕**build がマージの後から重ねるカード単位メタは乖離ではない**（§5.3 `O-86` 第2バッチ）＝
-        //   印字キーワードコスト（`encoreCost` / `betOptions`）と【出現条件】は `manualEffects.ts` に書かない
+        //   印字キーワードコスト（`encoreCost` / `betOptions` / `boostCost`）と【出現条件】は `manualEffects.ts` に書かない
         //   （書く場所が「効果本文」ではない）。live にだけ在るのが正しい姿。
         //   ⚠**届いていること自体は別の golden が assert する**（`O-199` のアンコール／ベット段階の
         //     各テストが live payload 経由で見ている）＝
         //     ここで除外しても「重ねが切れたら誰も気づかない」にはならない。
-        if (k === 'encoreCost' || k === 'betOptions' || k === 'appearanceCondition') continue;
+        if (k === 'encoreCost' || k === 'betOptions' || k === 'boostCost' || k === 'appearanceCondition') continue;
         walk((o as Record<string, unknown>)[k], `${pre}.${k}`);
       }
       else out.push(`${pre}=${JSON.stringify(o)}`);

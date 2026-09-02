@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, betOptionsOf, parseBoostCost, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
+import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -97,7 +97,7 @@ export function ArtsModal(p: ArtsModalProps) {
               const costItems = parseGrowCost(effectiveCostAfterPay);
               const encoreCostForCard = encoreCostOf(pendingArtsCard.CardNum, effectsMap);
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
-              const boostCostForCard = parseBoostCost(pendingArtsCard.EffectText ?? '');
+              const boostCostForCard = boostCostOf(pendingArtsCard.CardNum, effectsMap);
               const boostExtraEna = isBoosting ? boostCostForCard : [];
               const keySubCount = keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId ? 2 : 0;
               const baseReq = costItems.reduce((s, c) => s + c.count, 0) +
