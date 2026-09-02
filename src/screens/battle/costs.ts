@@ -6,7 +6,7 @@ import type {
 } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
-import { fieldCandidates, hasNoAbility, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
+import { fieldCandidates, matchesFilter, satisfiesSelectionConstraint, canAddToSelection, splitColors } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 /** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
@@ -905,22 +905,6 @@ export function computeArtsEffectiveCost(
         return out;
       }
     }
-    // 場の特定クラスのシグニ1体につき色コスト軽減（枚数比例。WX04-030「場の＜迷宮＞シグニ1体につき《白×1》減る」）
-    // 色指定は《白×1》（括弧内）/《白》×1（括弧外）の両表記に対応。
-    m = text.match(/(?:あなたの)?場に(?:ある)?＜([^＞]+)＞のシグニ([０-９一]+)体につき[^、。]*?《([^》]+)》(?:×?([０-９\d]+))?減る/);
-    if (m) {
-      const cls = m[1];
-      const perN = parseInt(toHalfWidth(m[2].replace('一', '1'))) || 1;
-      const inner = m[3].match(/([^×x]+)[×x]?([０-９\d]*)/);
-      const color = (inner?.[1] ?? m[3]).trim();
-      const perRed = parseInt(toHalfWidth(inner?.[2] || m[4] || '1')) || 1;
-      const cnt = (myState.field.signi ?? []).filter(stack => {
-        const top = stack?.at(-1);
-        return top && (cardMap.get(top)?.CardClass ?? '').includes(cls);
-      }).length;
-      const reduction = Math.floor(cnt / perN) * perRed;
-      if (reduction > 0) return removeNColorFromCost(base, color, reduction);
-    }
   }
 
   // SPELL_COST_REDUCTION_BY_TRASH_COUNT: トラッシュのクラスシグニN枚につき色コスト×1軽減
@@ -942,6 +926,16 @@ export function computeArtsEffectiveCost(
     }
   }
 
+  // 🗑**2026-09-02（§5.3 `O-86` 第7バッチ）＝`costScaling` payload に取って代わられた比例軽減 regex 13本を撤去した。**
+  //   撤去したのは①場の＜クラス＞シグニN体につき ②ルリグトラッシュのアーツ1枚につき
+  //   ③場の〔色/カード名〕シグニN体につき ④〜⑦相手盤面参照の I-1〜I-4（凍結/能力なし/チャーム/ウィルス/コイン）
+  //   ⑧場のルリグN体以上のピース比例 ⑨場＋エナの二重比例 ⑩トラッシュのカード名比例
+  //   ⑪アクセ済みシグニ比例 ⑫ライフ増＋クラス減 ⑬手札枚数差比例。
+  //   🔑**どれも parser が `EffectCost.costScaling` を刻んでおり、上の payload 分岐が先に return する**＝
+  //     `census:costtext` の「payload無」列が **13本とも 0** だった（＝当たるカードは全部 payload 済み）。
+  //   ⚠**「payload無 0」だけを根拠に消さない**＝payload の解決が null に落ちたときは regex へ落ちる作りなので、
+  //     **撤去の前後で `computeArtsEffectiveCost` の出力を全カード × 盤面マトリクスでダンプして突き合わせた**
+  //     （**323,298 通りで不一致 0**＝到達不能を実測で証明した。手順は PLAN_DETAIL.md の `O-86`）。
   // ===== タスク12(xc)：既存規則集に無かった条件つきコスト軽減（全数計測で 37枚ぶん） =====
   // 「《色×N》…減る」の並びを {color,count}[] へ（複数色を同時に減らす形がある）。
   const parseReduceList = (raw: string) => parseGrowCost(normalizeCostText(raw));
@@ -963,13 +957,6 @@ export function computeArtsEffectiveCost(
     return applyReduce(base, parseReduceList(m[1]), myLrigLevel);
   }
 
-  // C. 「あなたのルリグトラッシュにあるアーツ１枚につき《色×N》減る」（2枚）＝枚数比例。
-  m = text.match(new RegExp(`あなたのルリグトラッシュにあるアーツ[１1]枚につき${RED}減る`));
-  if (m && myState.lrig_trash && cardMap) {
-    const artsCount = myState.lrig_trash.filter(cn => cardMap.get(getCardNum(cn))?.Type === 'アーツ').length;
-    if (artsCount > 0) return applyReduce(base, parseReduceList(m[1]), artsCount);
-  }
-
   // E. 「あなたの場に＜X＞と＜Y＞のシグニがある場合、…《色×N》減る」（1枚）＝両クラスが同時に要る。
   m = text.match(new RegExp(`あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは${RED}減る`));
   if (m && myState.field && cardMap) {
@@ -978,28 +965,6 @@ export function computeArtsEffectiveCost(
       return top && (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(cls);
     });
     if (has(m[1]) && has(m[2])) return applyReduce(base, parseReduceList(m[3]));
-  }
-
-  // H. 「あなたの場にある〔色/カード名条件〕シグニ１体につき《色×N》減る」（11枚）。
-  //    ⚠既存の ＜クラス＞ 版（fieldClassPer）とは**別の形**＝クラス指定が無い／色指定／カード名部分一致。
-  //    ＜＞ を含む文はこの regex に当たらない（`場にある` の直後が `シグニ` でないため）＝取り違えない。
-  m = text.match(new RegExp(
-    `あなたの場にある(?:カード名に《([^》]+)》を含む|([白赤青緑黒])の)?シグニ([０-９一]+)体につき${RED}減る`));
-  if (m && myState.field && cardMap) {
-    const nameKeyword = m[1];
-    const color = m[2];
-    const perN = parseInt(toHalfWidth(m[3].replace('一', '1'))) || 1;
-    const cnt = (myState.field.signi ?? []).filter(stack => {
-      const top = stack?.at(-1);
-      if (!top) return false;
-      const c = cardMap.get(getCardNum(top));
-      if (!c) return false;
-      if (nameKeyword && !c.CardName.includes(nameKeyword)) return false;
-      if (color && !(c.Color ?? '').includes(color)) return false;
-      return true;
-    }).length;
-    const times = Math.floor(cnt / perN);
-    if (times > 0) return applyReduce(base, parseReduceList(m[4]), times);
   }
 
   // SP36-001（炎のタマ）＝相手のこのターンの使用実績で**2文が累積**する唯一の形。
@@ -1022,65 +987,6 @@ export function computeArtsEffectiveCost(
   const oppSt = replaceCtx?.oppState;
   const costSentence = text.split('。').find(s => /この(?:スペル|アーツ|カード)の使用コストは/.test(s)) ?? '';
   if (costSentence) {
-    // 「対戦相手の場にある〜」で数える語＝実測4種。コインだけは場ではないので別規則（I-4）。
-    const OPP_TERM = '(凍結状態のシグニ|能力を持たないシグニ|【チャーム】|【ウィルス】)';
-    const countOppTerm = (term: string): number => {
-      const f = oppSt?.field;
-      if (!f) return 0;
-      if (term === '【チャーム】') return (f.signi_charms ?? []).filter(Boolean).length;
-      if (term === '【ウィルス】') return (f.signi_virus ?? []).reduce((s, n) => s + (n || 0), 0);
-      return (f.signi ?? []).filter((stack, i) => {
-        const top = stack?.at(-1);
-        if (!top) return false;
-        if (term === '凍結状態のシグニ') return (f.signi_frozen ?? [])[i] === true;
-        // 「能力を持たないシグニ」の判定は engine と**同じ1本**（`execUtils.hasNoAbility`）を使う
-        //   ＝⚠CSV は素のシグニを空文字ではなく `-` で持つ（実測158枚）ので独自判定を書くと必ず外す。
-        // cardMap が無いと「全員が能力なし」に化けて**過剰に安くなる**ので、引けないときは数えない。
-        if (!cardMap) return false;
-        return hasNoAbility(top, cardMap, oppSt);
-      }).length;
-    };
-    const countMyClassSigni = (cls: string): number =>
-      (myState.field?.signi ?? []).filter(stack => {
-        const top = stack?.at(-1);
-        return !!top && (cardMap?.get(getCardNum(top))?.CardClass ?? '').includes(cls);
-      }).length;
-
-    // I-1. 合算形「あなたの場にある＜X＞のシグニ1体**か**対戦相手の場にある〔語〕1つにつき《色×N》減る」
-    //      （`WX08-028`／`WX08-032`）＝「か」は択一ではなく**両方の合計**に比例する。
-    //      ⚠I-3 より先に見る（この原文は I-3 の regex も部分一致するため）。
-    m = costSentence.match(new RegExp(
-      `あなたの場にある＜([^＞]+)＞のシグニ[１1]体か対戦相手の場にある${OPP_TERM}[１1](?:体|枚|つ)につき${RED}減る`));
-    if (m) {
-      const times = countMyClassSigni(m[1]) + countOppTerm(m[2]);
-      if (times > 0) return applyReduce(base, parseReduceList(m[3]), times);
-    }
-
-    // I-2. 累積形「…＜X＞のシグニ1体につき《色×N》減**り**、対戦相手の場にある〔語〕1つにつき《色×M》減る」
-    //      （`WX16-033`）＝2つの軽減が**重なる**ので早期 return できない。
-    m = costSentence.match(new RegExp(
-      `あなたの場にある＜([^＞]+)＞のシグニ[１1]体につき${RED}減り[、,]対戦相手の場にある${OPP_TERM}[１1](?:体|枚|つ)につき${RED}減る`));
-    if (m) {
-      let out = base;
-      const myCnt = countMyClassSigni(m[1]);
-      if (myCnt > 0) out = applyReduce(out, parseReduceList(m[2]), myCnt);
-      const oppCnt = countOppTerm(m[3]);
-      if (oppCnt > 0) out = applyReduce(out, parseReduceList(m[4]), oppCnt);
-      if (out !== base) return out;
-    }
-
-    // I-3. 相手のみ「対戦相手の場にある〔語〕1つにつき《色×N》減る」
-    //      （`WX07-065` 凍結／`WX21-Re01` 能力なし／`SP26-003` ウィルス）。
-    m = costSentence.match(new RegExp(`対戦相手の場にある${OPP_TERM}[１1](?:体|枚|つ)につき${RED}減る`));
-    if (m) {
-      const cnt = countOppTerm(m[1]);
-      if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
-    }
-
-    // I-4. 「対戦相手のコイン1枚につき《赤×1》減る」（`SPK01-14`）＝場ではなくコイン枚数。
-    m = costSentence.match(new RegExp(`対戦相手のコイン[１1]枚につき${RED}減る`));
-    if (m && (oppSt?.coins ?? 0) > 0) return applyReduce(base, parseReduceList(m[1]), oppSt!.coins!);
-
     // I-5. 「あなたのライフクロスが対戦相手より多い場合、…《無×3》減る」（`SP38-002`）＝枚数比較。
     //      ⚠相手ライフが未知（`life_cloth` 未指定）のときは**成立させない**＝安いほうへ倒さない。
     m = costSentence.match(new RegExp(`あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは${RED}減る`));
@@ -1094,19 +1000,6 @@ export function computeArtsEffectiveCost(
   //   数え直すと **α ピース5枚／β 相手比較5枚／γ 2条件の重ね4枚** の明確なクラスタがあった。
   {
     const oppSt2 = replaceCtx?.oppState;
-    const colorOf = (cn?: string) => (cn && cardMap?.get(getCardNum(cn))?.Color) ?? '';
-    // α. ピース5枚（`WXDi-P16-003`〜`007`）＝「あなたの場に〔色〕のルリグが２体以上いるかぎり、
-    //    このピースの使用コストはあなたの場にいる〔色〕のルリグ１体につき《色×1》減る」。
-    //    ⚠**場のルリグ＝センター＋アシスト左右**（シグニではない）。2体以上のゲートも原文どおり課す。
-    m = text.match(new RegExp(
-      `あなたの場に([白赤青緑黒])のルリグが([０-９\\d]+)体以上いるかぎり[、,]?[^。]*?使用コストはあなたの場にいる[白赤青緑黒]のルリグ[１1]体につき${RED}減る`));
-    if (m && myState.field && cardMap) {
-      const col = m[1];
-      const need = parseInt(toHalfWidth(m[2])) || 2;
-      const lrigs = [myState.field.lrig?.at(-1), myState.field.assist_lrig_l?.at(-1), myState.field.assist_lrig_r?.at(-1)];
-      const cnt = lrigs.filter(cn => !!cn && colorOf(cn).includes(col)).length;
-      if (cnt >= need) return applyReduce(base, parseReduceList(m[3]), cnt);
-    }
     // β. アーツ5枚（`WX25-P3-002`/`004`/`006`/`008`/`010`）＝「〔ゾーン〕の枚数が対戦相手より〔N枚以上〕
     //    多いかぎり、このアーツの使用コストは《色×2》減る」。⚠相手側が未知なら**成立させない**（I-5 と同じ安全側）。
     m = text.match(new RegExp(
@@ -1167,74 +1060,17 @@ export function computeArtsEffectiveCost(
       if (lrigNameMatches(m[3])) out = applyReduce(out, parseReduceList(m[4]));
       if (out !== base) return out;
     }
-    // γ-4. `WX08-030`＝「場にある＜X＞のシグニ1体につき《緑×1》減り、エナゾーンにある＜X＞のシグニ1枚につき《白×1》減る」
-    m = text.match(new RegExp(
-      `あなたの場にある＜([^＞]+)＞のシグニ[１1]体につき${RED}減り[、,]あなたのエナゾーンにある＜([^＞]+)＞のシグニ[１1]枚につき${RED}減る`));
-    if (m && cardMap) {
-      const cntField = (myState.field?.signi ?? []).filter(stack => {
-        const top = stack?.at(-1);
-        return !!top && (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(m![1]);
-      }).length;
-      const cntEnergy = (myState.energy ?? []).filter(cn => (cardMap.get(getCardNum(cn))?.CardClass ?? '').includes(m![3])).length;
-      let out = base;
-      if (cntField > 0) out = applyReduce(out, parseReduceList(m[2]), cntField);
-      if (cntEnergy > 0) out = applyReduce(out, parseReduceList(m[4]), cntEnergy);
-      if (out !== base) return out;
-    }
     // δ-1. `WX09-037`＝「あなたのセンタールリグがレベルN以上の場合、…《無×2》減る」
     //       ⚠既存の D（レベル比例）／「レベルN以上…《色》1つ少なく」形とは別文型。
     m = text.match(new RegExp(`あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは${RED}減る`));
     if (m && myLrigLevel !== undefined && myLrigLevel >= (parseInt(toHalfWidth(m[1])) || 99)) {
       return applyReduce(base, parseReduceList(m[2]));
     }
-    // δ-2. `WX12-056`＝「あなたのトラッシュにある《カード名》1枚につき《無×1》減る」＝カード名指定の枚数比例。
-    m = text.match(new RegExp(`あなたのトラッシュにある《([^》]+)》[１1]枚につき${RED}減る`));
-    if (m && myState.trash && cardMap) {
-      const cnt = myState.trash.filter(cn => cardMap.get(getCardNum(cn))?.CardName === m![1]).length;
-      if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
-    }
-    // δ-3. `WX15-060`＝「あなたの場にあるアクセされている＜X＞のシグニ1体につき《緑×1》減る」
-    m = text.match(new RegExp(`あなたの場にあるアクセされている＜([^＞]+)＞のシグニ[１1]体につき${RED}減る`));
-    if (m && myState.field && cardMap) {
-      const cnt = (myState.field.signi ?? []).filter((stack, i) => {
-        const top = stack?.at(-1);
-        if (!top) return false;
-        if (!(myState.field!.signi_acce ?? [])[i]) return false;   // アクセが付いているゾーンだけ
-        return (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(m![1]);
-      }).length;
-      if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
-    }
     // δ-6. `WX13-026`＝「このターンに対戦相手のシグニがバニッシュされている場合、《黒×3》減る」。
     //       ⚠ターン履歴なので盤面からは判定できない＝`collectBoardDiffTriggers`（バニッシュ認識の
     //       唯一の funnel）が積む `signi_banished_this_turn` を読む。相手側が未知なら成立させない。
     m = text.match(new RegExp(`このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは${RED}減る`));
     if (m && (oppSt2?.signi_banished_this_turn ?? 0) >= 1) return applyReduce(base, parseReduceList(m[1]));
-    // δ-5. `WX08-026`＝「ライフクロス１枚につき《赤×1》**増え**、＜X＞か＜Y＞のシグニ１体につき《赤×1》減る」
-    //       ＝**増と減が同一文**にある唯一の形。増加は `addNColorToCost` で表す（既存の増加機構は
-    //       場の CONTINUOUS 由来なので、カード自身の原文に書かれた増加は表せなかった）。
-    //       ⚠増を先に適用してから減を引く（順序を逆にすると 0 でクランプされて増分が消える）。
-    m = text.match(new RegExp(
-      `あなたのライフクロス[１1]枚につき${RED}増え[、,]あなたの場にある＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニ[１1]体につき${RED}減る`));
-    if (m && cardMap) {
-      const classes = [m[2], m[3]].filter(Boolean) as string[];
-      const cnt = (myState.field?.signi ?? []).filter(stack => {
-        const top = stack?.at(-1);
-        if (!top) return false;
-        const cls = cardMap.get(getCardNum(top))?.CardClass ?? '';
-        return classes.some(c => cls.includes(c));
-      }).length;
-      let out = base;
-      for (const inc of parseReduceList(m[1])) out = addNColorToCost(out, inc.color, inc.count * myState.life_cloth.length);
-      if (cnt > 0) out = applyReduce(out, parseReduceList(m[4]), cnt);
-      if (out !== base) return out;
-    }
-    // δ-4. `WD16-006`＝「あなたの手札の枚数から対戦相手の手札の枚数を引いた数1につき《青×1》減る」
-    //       ⚠差が0以下なら軽減なし（負の差でコストが増えたりしない）。相手が未知なら成立させない。
-    m = text.match(new RegExp(`あなたの手札の枚数から対戦相手の手札の枚数を引いた数[１1]につき${RED}減る`));
-    if (m && oppSt2?.hand) {
-      const diff = myState.hand.length - oppSt2.hand.length;
-      if (diff > 0) return applyReduce(base, parseReduceList(m[1]), diff);
-    }
   }
 
   // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減。

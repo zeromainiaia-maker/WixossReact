@@ -64,7 +64,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
+import { addNColorToCost, removeNColorFromCost, costScalingOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -36679,9 +36679,12 @@ test('task12(xc): 新規のコスト軽減規則が条件成立時だけ効く',
     field: { signi: [...signi.map(x => [x]), [], [], []].slice(0, 3), lrig: [] },
     life_cloth: [], hand: [], trash: [], lrig_trash: [], ...extra,
   } as unknown as PlayerState);
+    // 🆕§5.3 `O-86` 第7バッチ＝**比例軽減の regex は撤去済み**なので、UI と同じく
+    //   `costScalingOf` / `costReplacementOf` の payload を渡す（渡さないと印刷コストのまま返る）。
   const eff = (num: string, my: PlayerState, lrigName?: string, lv = 0,
     opp?: { turn_arts_used?: boolean; actions_done?: string[] }) =>
-    computeArtsEffectiveCost(cardMap.get(num)!, my, lrigName, '', lv, cardMap, undefined, undefined, opp ? { oppState: opp } : {});
+    computeArtsEffectiveCost(cardMap.get(num)!, my, lrigName, '', lv, cardMap, undefined, undefined,
+      opp ? { oppState: opp } : {}, costScalingOf(num, effectsMap), costReplacementOf(num, effectsMap));
 
   // A. 「あなたのセンタールリグが＜X＞の場合、…減る」（14枚）
   eq(eff('WX11-015', mk([]), '花代・肆', 4), '《赤》×1', 'WX11-015: ＜花代＞で《赤×1》減る');
@@ -36767,8 +36770,11 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
     field: { signi: [...signi.map(x => [x]), [], [], []].slice(0, 3), lrig: [] },
     life_cloth: Array.from({ length: life }, () => 'L'), hand: [], trash: [], lrig_trash: [],
   }) as unknown as PlayerState;
+    // 🆕§5.3 `O-86` 第7バッチ＝**比例軽減の regex は撤去済み**なので、UI と同じく
+    //   `costScalingOf` / `costReplacementOf` の payload を渡す（渡さないと印刷コストのまま返る）。
   const effO = (num: string, my: PlayerState, opp: PlayerState) =>
-    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, '', 0, cardMap, undefined, undefined, { oppState: opp });
+    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, '', 0, cardMap, undefined, undefined,
+      { oppState: opp }, costScalingOf(num, effectsMap), costReplacementOf(num, effectsMap));
   const printed = (num: string) => cardMap.get(num)!.Cost;
   const noOpp = mkOpp({});
 
@@ -36833,8 +36839,16 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
     const moved: string[] = [];
     for (const c of cardMap.values()) {
       if (!['アーツ', 'スペル', 'ピース', 'アーツ/クラフト'].includes(c.Type) || !c.Cost) continue;
-      if (c.CardNum === 'WX08-026') continue;   // 増加方向は下で別に固定する（このリストは軽減の緩めすぎ検出用）
-      const got = computeArtsEffectiveCost(c, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll });
+      // 増加方向は下で別に固定する（このリストは**軽減**の緩めすぎ検出用）。
+      // 🆕**`WX05-034` を追加**（§5.3 `O-86` 第7バッチ）＝「使用コストはあなたのライフクロス１枚につき
+      //   《無×1》**増える**」＝`WX08-026` と同じ増加札。旧実装は**この札の regex を持っておらず**
+      //   （`O-119` の golden が `legacyBugIds` として明示的に除外していた）、payload 経由に切り替えて
+      //   初めて掃引に現れた＝**退化ではなく、旧 regex 側の穴が可視化された**。
+      if (c.CardNum === 'WX08-026' || c.CardNum === 'WX05-034') continue;
+      // 🆕§5.3 `O-86` 第7バッチ＝比例軽減の regex は撤去済み＝**全カードの掃引も payload 経由で行う**
+      //   （渡さないと「動く札は2枚だけ」に化けて、緩めすぎ検出そのものが効かなくなる）。
+      const got = computeArtsEffectiveCost(c, me, undefined, '', 0, cardMap, undefined, undefined,
+        { oppState: oppAll }, costScalingOf(c.CardNum, effectsMap), costReplacementOf(c.CardNum, effectsMap));
       if (got !== c.Cost) moved.push(`${c.CardNum}(${c.Cost}→${got})`);
     }
     eq(moved.join(' / '),
@@ -36849,8 +36863,13 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
     // 🆕 (xciv) δ-5：`WX08-026` は**ライフ1枚につきコストが増える**唯一の札＝「動いた＝緩めすぎ」の
     //    判定に混ぜられない（この盤面は自ライフ7なので +7 されるのが正しい）。上のリストから除外して
     //    **増加方向であること**を別に固定する。
+    // 🆕`WX05-034`＝「ライフクロス１枚につき《無×1》増える」（自ライフ7なので《赤×1》＋《無×7》）。
+    eq(computeArtsEffectiveCost(cardMap.get('WX05-034')!, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll },
+      costScalingOf('WX05-034', effectsMap), costReplacementOf('WX05-034', effectsMap)),
+      '《赤》×1《無》×7', 'WX05-034: ライフ7で《無×7》増える（旧 regex には無かった札）');
     const wx08026 = cardMap.get('WX08-026')!;
-    eq(computeArtsEffectiveCost(wx08026, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll }),
+    eq(computeArtsEffectiveCost(wx08026, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll },
+      costScalingOf('WX08-026', effectsMap), costReplacementOf('WX08-026', effectsMap)),
       '《赤》×12', 'WX08-026: ライフ7で《赤×5》→《赤×12》（増加は減少ではない）');
   });
 }
@@ -41122,8 +41141,11 @@ test('task12(xciv) cost reduction tail: each new cluster actually fires on a sat
     lrig_trash: o.lrigTrash ?? [],
     field: o.field ?? ({ lrig: [], signi: [null, null, null] } as unknown as PlayerState['field']),
   });
+    // 🆕§5.3 `O-86` 第7バッチ＝**比例軽減の regex は撤去済み**なので、UI と同じく
+    //   `costScalingOf` / `costReplacementOf` の payload を渡す（渡さないと印刷コストのまま返る）。
   const run = (num: string, my: ReturnType<typeof mkMy>, opp?: object, lrigName?: string, lrigLevel?: number) =>
-    computeArtsEffectiveCost(cardMap.get(num)!, my, lrigName, undefined, lrigLevel, cardMap as Map<string, CardData>, undefined, undefined, { oppState: opp as never });
+    computeArtsEffectiveCost(cardMap.get(num)!, my, lrigName, undefined, lrigLevel, cardMap as Map<string, CardData>, undefined, undefined,
+      { oppState: opp as never }, costScalingOf(num, effectsMap), costReplacementOf(num, effectsMap));
 
   // α：ピース5枚＝場の〔色〕ルリグ（センター＋アシスト）1体につき軽減。2体以上のゲートつき。
   const whiteLrig = findLrigC(c => (c.Color ?? '').includes('白'));
@@ -41166,8 +41188,10 @@ test('task12(xciv) tail: increase+decrease in one sentence, and the banish-histo
     energy: [] as string[], trash: [] as string[], lrig_trash: [] as string[],
     field: { lrig: [], signi: (o.signi ?? [null, null, null]).map(x => (x ? [x] : null)) } as unknown as PlayerState['field'],
   });
+  // 🆕§5.3 `O-86` 第7バッチ＝比例軽減の regex は撤去済み＝UI と同じく payload を渡す。
   const run2 = (num: string, my: ReturnType<typeof mkMy2>, opp?: object) =>
-    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, undefined, 0, cardMap as Map<string, CardData>, undefined, undefined, { oppState: opp as never });
+    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, undefined, 0, cardMap as Map<string, CardData>, undefined, undefined,
+      { oppState: opp as never }, costScalingOf(num, effectsMap), costReplacementOf(num, effectsMap));
 
   // δ-5 `WX08-026`：ライフ1枚につき《赤×1》**増え**、＜鉱石＞か＜宝石＞1体につき《赤×1》減る。
   const kouseki = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('鉱石'));
@@ -55690,7 +55714,7 @@ test('§5.3 O-120: 「【ランサー】によって」＝クラッシュ原因�
   eq(fire('Ｓランサー'), 0, '🔴別キーワード＝発火しない');
 }));
 
-test('O-119: proportional self-use cost payload covers G1-G18 and preserves the legacy path', () => withSavedCursor(() => {
+test('O-119: proportional self-use cost payload covers G1-G18（独立オラクルで固定）', () => withSavedCursor(() => {
   const groups: Record<string, string[]> = {
     G1: 'WXK06-010 WXK06-016 WXK06-022 WXK07-011 WXK07-018'.split(' '),
     G2: 'WX04-030 WX04-032 WX10-045 WX11-039'.split(' '),
@@ -55807,6 +55831,25 @@ test('O-119: proportional self-use cost payload covers G1-G18 and preserves the 
       { oppState: opp }, payload ? terms : undefined,
     );
   };
+  // 🆕🔴**2026-09-02（§5.3 `O-86` 第7バッチ）＝「legacy 経路」との突き合わせを独立オラクルへ置き換えた。**
+  //   この巡で **`costScaling` payload に取って代わられた比例軽減の regex 13本を撤去した**ので、
+  //   `effective(..., payload:false)` は**印刷コストをそのまま返すだけ**になった＝突き合わせが無意味になる。
+  //   ⚠**「片方を消したから assert も消す」ではない**＝代わりに**この場で独立に計算した期待値**と比べる
+  //   （`applyCostScalingTerms` を呼ばず、`CostScalingTerm` の定義から素直に組み立てる10行）。
+  //   🔑撤去そのものの安全性は**撤去前後の全カード×盤面マトリクス 323,298 通りのダンプ突き合わせ**で
+  //     別途実証済み（不一致0）。ここは以後の回帰を止めるための恒久 assert。
+  const oracleOneTerm = (cost: string, term: CostScalingTerm, total: number): string => {
+    if (term.minCount !== undefined && total < term.minCount) return cost;
+    const times = Math.floor(total / term.per);
+    if (times <= 0) return cost;
+    let out = cost;
+    for (const a of term.amount) {
+      out = term.direction === 'increase'
+        ? addNColorToCost(out, a.color, a.count * times)
+        : removeNColorFromCost(out, a.color, a.count * times);
+    }
+    return out;
+  };
   const freshTerms = (cardNum: string): CostScalingTerm[] => {
     const effects = parseCardEffects(cardMap.get(cardNum)!);
     const effect = effects.find(e => e.effectId === `${cardNum}-E1`)!;
@@ -55818,7 +55861,9 @@ test('O-119: proportional self-use cost payload covers G1-G18 and preserves the 
     return terms!;
   };
 
-  const legacyBugIds = new Set(['WX05-034', 'WD16-023']);
+  // 🗑**`legacyBugIds` は撤去した**（§5.3 `O-86` 第7バッチ）＝`WX05-034` / `WD16-023` は
+  //   **旧 regex 側に規則が無かった**ため legacy 比較から除外されていた2枚。legacy 経路そのものが
+  //   無くなり、独立オラクルで比べるようになったので**除外の理由が消えた＝この2枚も全 assert を通る。**
   for (const cardNum of allIds) {
     const card = cardMap.get(cardNum)!;
     const terms = freshTerms(cardNum);
@@ -55835,9 +55880,8 @@ test('O-119: proportional self-use cost payload covers G1-G18 and preserves the 
           ensureReadableZero(terms, my, opp);
           populate(terms[ti].counts[ci], n, my, opp);
           const actual = effective(card, terms, my, opp, true);
-          if (!legacyBugIds.has(cardNum)) {
-            eq(actual, effective(card, terms, my, opp, false), `${cardNum}: term=${ti} count=${ci} n=${n}`);
-          }
+          // 🔑**1つの count だけを n にした盤面**なので、その項の合計は n・他の項は 0＝独立に期待値を出せる。
+          eq(actual, oracleOneTerm(card.Cost, terms[ti], n), `${cardNum}: term=${ti} count=${ci} n=${n}`);
         }
         const mismatchFilter = terms[ti].counts[ci].filter;
         if (mismatchFilter && Object.keys(mismatchFilter).some(key => key !== 'cardType')) {
@@ -55845,20 +55889,23 @@ test('O-119: proportional self-use cost payload covers G1-G18 and preserves the 
           ensureReadableZero(terms, my, opp);
           populate(terms[ti].counts[ci], 3, my, opp, true);
           eq(effective(card, terms, my, opp, true), zeroPayload, `${cardNum}: nonmatching filter must count zero`);
-          if (!legacyBugIds.has(cardNum)) {
-            eq(effective(card, terms, my, opp, true), effective(card, terms, my, opp, false), `${cardNum}: mismatch invariant`);
-          }
         }
       }
     }
 
-    if (!legacyBugIds.has(cardNum)) {
-      for (const n of [1, 2, 3]) {
-        const my = emptyState(); const opp = emptyState();
-        ensureReadableZero(terms, my, opp);
-        for (const term of terms) populate(term.counts[0], n, my, opp);
-        eq(effective(card, terms, my, opp, true), effective(card, terms, my, opp, false), `${cardNum}: combined n=${n}`);
-      }
+    // 全項の count[0] を同時に満たす盤面＝**項どうしが打ち消し合わないこと**を見る。
+    // ⚠ここは独立オラクルを当てない＝`populate` が同じゾーンへ書くと項ごとの合計が n とは限らない
+    //   （2項が同じ `field` を使う札がある）。**「印刷コストから動く」ことだけ**を恒久 assert する。
+    for (const n of [1, 2, 3]) {
+      const my = emptyState(); const opp = emptyState();
+      ensureReadableZero(terms, my, opp);
+      for (const term of terms) populate(term.counts[0], n, my, opp);
+      // ⚠**「必ず動く」ではない**＝`per` が 5 の札（`WXK06-055`＝トラッシュの＜龍獣＞5枚につき）は
+      //   n=1〜3 では1度も閾値に届かない。**単項オラクルで「動くはず／動かないはず」を先に決めてから**見る。
+      const anyFires = terms.some(t => oracleOneTerm(card.Cost, t, n) !== card.Cost);
+      const combined = effective(card, terms, my, opp, true);
+      if (anyFires) ok(combined !== card.Cost, `${cardNum}: combined n=${n} が印刷コストのまま`);
+      else eq(combined, card.Cost, `${cardNum}: combined n=${n} は閾値未満なので動かない`);
     }
   }
 

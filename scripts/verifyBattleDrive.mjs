@@ -42197,6 +42197,100 @@ async function driveO86BetReplace(page, H) {
   if (h.coins !== 0) return { pass: false, detail: `🔴ベット2枚ぶんのコインが支払われていない。${detail}` };
   return { pass: true, detail: `エナ0枚では使えず、ベット2枚の宣言で《緑×0》へ置換されて使用できた（OFF へ戻すと再び不可）。${detail}` };
 }
+/**
+ * `V-126`＝`O-86` 第7バッチ「比例軽減は payload（`EffectCost.costScaling`）だけで動く」（`artsUseGate` ＋ `ArtsModal`）。
+ * 原文＝`WX12-Re04` ハロー・エフェクト「このアーツの使用コストは、**あなたのルリグトラッシュにあるアーツ
+ *   １枚につき《無×2》減る**。」＝印刷コスト《黒》×１《無》×６（7枚）。
+ * 🔑この巡で**UI 側の比例軽減 regex 13本を撤去した**（payload が先に return するので到達不能だった）。
+ *   ⇒ **実機で軽減が本当に効いているのは payload 経路だけ**であることを、請求額の境界で観測する。
+ * 🔴対照＝ルリグトラッシュが空なら軽減は0＝エナ3枚では使えない。
+ */
+function o86ScalingSpec(artsInLrigTrash) {
+  // ⚠**ルリグトラッシュに置くのは「アーツ」だけ**（規則は `Type === 'アーツ'` を数える）。
+  //   レゾナやキーを混ぜると枚数が合わず「payload は読めているのに軽減されない」に見える。
+  const trash = ['WD01-006#9760', 'WD01-007#9761'].slice(0, artsInLrigTrash);
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-004#9762'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': ['WX12-Re04#9763'],
+      // 《黒》1枚＋任意色2枚＝**軽減後の《黒》×１《無》×２ ちょうど**（印刷コスト7枚には足りない）。
+      'energy': ['WD05-009#9764', 'WD05-010#9765', 'WD05-011#9766'],
+      'lrig_trash': trash, 'hand': [], 'trash': [], 'actions_done': [], 'coins': 0,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9793'],
+      'field.signi': [['WD01-013#9767'], null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO86Scaling(page, H, artsInLrigTrash) {
+  const tag = artsInLrigTrash >= 2 ? 'o86scale-ok' : 'o86scale-ng';
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 energy=${st0?.host?.energy} lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(800);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(800);
+  await H.clickTextOrBtn(['使用']);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+  const useBtn = () => page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+  if (!(await useBtn().count())) {
+    const names = await page.getByRole('button').allTextContents().catch(() => []);
+    H.log(`  見えているボタン: ${JSON.stringify(names.map(t => t.trim()).filter(Boolean).slice(0, 40))}`);
+    return artsInLrigTrash >= 2
+      ? { pass: false, detail: '🔴軽減が効くはずなのにアーツ使用モーダルへ辿り着けない（payload が請求へ届いていない）' }
+      : { pass: true, detail: '対照＝ルリグトラッシュが空＝印刷コスト7枚を払えないので提示されない' };
+  }
+  // エナ3枚を選んでから使用できるか＝軽減後《黒》×１《無》×２ ちょうど。
+  for (const id of ['artscost-energy-0', 'artscost-energy-1', 'artscost-energy-2']) {
+    await H.clickTestId(id);
+    await page.waitForTimeout(350);
+  }
+  const enabled = await useBtn().isEnabled().catch(() => false);
+  H.log(`  エナ3枚選択: アーツ使用 enabled=${enabled}`);
+  if (artsInLrigTrash < 2) {
+    return enabled
+      ? { pass: false, detail: '🔴ルリグトラッシュが空なのにエナ3枚で使える＝軽減の踏み倒し' }
+      : { pass: true, detail: '対照＝ルリグトラッシュが空ならエナ3枚では使えない（印刷コストは7枚）' };
+  }
+  if (!enabled) return { pass: false, detail: '🔴アーツ2枚ぶんの《無×4》軽減が効いていない（エナ3枚で使えるはず）' };
+  await useBtn().click().catch(() => {});
+  let last = st0, settled = 0;
+  for (let i = 0; i < 15; i++) {
+    await page.waitForTimeout(700);
+    const did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | energy=${last?.host?.energy} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} oppSigni=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `energy=${st0?.host?.energy}→${h.energy} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+  if (h.energy !== 0) return { pass: false, detail: `🔴軽減後コスト3枚ぶんのエナが支払われていない。${detail}` };
+  if (!(h.lrigTrashCards ?? []).includes('WX12-Re04#9763')) {
+    return { pass: false, detail: `🔴アーツがルリグトラッシュへ行っていない（使用が成立していない）。${detail}` };
+  }
+  return { pass: true, detail: `ルリグトラッシュのアーツ2枚で《無×4》軽減され、印刷7枚→3枚で使用できた。${detail}` };
+}
+scenarios.o86ScalingPayloadPay = {
+  title: 'O-86 WX12-Re04：比例軽減が payload だけで効く（ルリグトラッシュのアーツ2枚→印刷7枚が3枚に）',
+  spec: o86ScalingSpec(2), drive: (page, H) => driveO86Scaling(page, H, 2),
+};
+order.push('o86ScalingPayloadPay');
+scenarios.o86ScalingPayloadNone = {
+  title: 'O-86 対照：ルリグトラッシュが空なら軽減0＝エナ3枚では使えない',
+  spec: o86ScalingSpec(0), drive: (page, H) => driveO86Scaling(page, H, 0),
+};
+order.push('o86ScalingPayloadNone');
+
 scenarios.o86BetCostReplace = {
   title: 'O-86 WD20-007：ベット宣言で使用コストが《緑×0》へ置換される（payload 経由・エナ0枚で成立）',
   spec: o86BetReplaceSpec, drive: (page, H) => driveO86BetReplace(page, H),

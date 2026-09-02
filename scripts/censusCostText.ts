@@ -50,7 +50,12 @@ const onlyId = (() => {
 //   （`computeCostReplacement` の原文 regex 7本と `parseOptionalDiscardForCost` を撤去し、
 //    `EffectCost.costReplacement` / `optionalDiscardCost` を `costReplacementOf` /
 //    `optionalDiscardCostOf` が読む）。**規則8本ぶん**＝A群 104→77カード・真の worklist 72→45カード。
-const BASELINE_COST_RULES = 26;
+// 26 → 31 → 18 ＝ 第7バッチ。**まず計器を較正して +5**（原文から**派生した変数**への regex を
+//   追跡していなかった＝`const costSentence = text.split('。').find(...)` 経由の**5規則が丸ごと見えていなかった**）、
+//   そのうえで **`costScaling` payload に取って代わられた到達不能 regex 13本を撤去**した。
+//   ⚠撤去は「payload無 0」だけを根拠にせず、**前後の全カード×盤面マトリクス 323,298 通りのダンプ突き合わせ**
+//   （不一致0）で到達不能を実証している。
+const BASELINE_COST_RULES = 18;
 
 /**
  * 走査対象＝**カードを使うときのコストと可否を決める UI 層**。
@@ -128,6 +133,20 @@ for (const { file, cls } of TARGETS) {
   //   `parseBetOptions(effectText)` ほか）＝呼び出し側が `card.EffectText ?? ''` を渡している。
   //   ⚠これを落とすと `costs.ts` の `parse*` 群と `useTimeCost.ts` が丸ごと母集団から消える。
   for (const m of src.matchAll(/\(\s*(effectText|rawText)\s*:\s*string/g)) vars.add(m[1]);
+  // 🆕🔴**原文から派生した変数も原文である**（2026-09-02 の較正）＝
+  //   `const costSentence = text.split('。').find(...)` のように**1段以上ワンクッション置かれた**変数へ
+  //   当てている regex が**まるごと計器から消えていた**（`costs.ts` の I-1〜I-5＝相手盤面参照の5規則）。
+  //   ⇒ **代入の右辺に追跡済みの変数が出てきたら左辺も追跡対象へ足す**（不動点まで繰り返す）。
+  //   ⚠**行内に限る**＝複数行に散った代入まで拾おうとすると無関係な変数まで原文扱いになる。
+  for (let pass = 0; pass < 5; pass++) {
+    const before = vars.size;
+    for (const m of src.matchAll(/\bconst\s+(\w+)\s*=\s*([^;\n]*)/g)) {
+      if (vars.has(m[1])) continue;
+      const rhs = m[2];
+      if ([...vars].some(v => new RegExp(`\\b${v}\\b`).test(rhs))) vars.add(m[1]);
+    }
+    if (vars.size === before) break;
+  }
   const varAlt = [...vars].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   // 「原文を指す式」＝追跡した変数、または `…EffectText …` を含む短い式
   // ⚠**`\s` を入れると改行をまたいで貪欲に伸びる**＝手前の行から始まった1マッチが後続の規則を

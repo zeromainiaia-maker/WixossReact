@@ -2,43 +2,35 @@
 
 ⚠**「当たっているカード数」であって「壊れている件数」ではない**。live 0 の規則は死に規則（先に撤去できる）。
 
-## A🔴 COST  26規則 / 当たり 77カード
+## A🔴 COST  18規則 / 当たり 51カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 14 | 14 | battle/costs.ts:957 | computeArtsEffectiveCost | `/あなたのセンタールリグが＜([^＞]+)＞の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 14 | 14 | battle/costs.ts:951 | computeArtsEffectiveCost | `/あなたのセンタールリグが＜([^＞]+)＞の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
 | 12 | 12 | battle/costs.ts:854 | computeArtsEffectiveCost | `/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの\|このカードの)?(?:使用\|基本)コストは(.+?)になる/` |
-| 11 | 0 | battle/costs.ts:986 | computeArtsEffectiveCost | `/あなたの場にある(?:カード名に《([^》]+)》を含む\|([白赤青緑黒])の)?シグニ([０-９一]+)体につき((?:《[^》]+》)+)減る/` |
-| 5 | 1 | battle/costs.ts:961 | computeArtsEffectiveCost | `/あなたのセンタールリグのレベル[１1]につき((?:《[^》]+》)+)減る/` |
-| 5 | 0 | battle/costs.ts:1101 | computeArtsEffectiveCost | `/あなたの場に([白赤青緑黒])のルリグが([０-９\\d]+)体以上いるかぎり[、,]?[^。]*?使用コストはあなたの場にいる[白赤青緑黒]のルリグ[１1]体につき((?:《[^》]+》)+)減る/` |
-| 5 | 5 | battle/costs.ts:1112 | computeArtsEffectiveCost | `/あなたの(ライフクロス\|ルリグトラッシュにあるアーツ\|手札\|エナゾーンにあるカード\|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 4 | 0 | battle/costs.ts:910 | computeArtsEffectiveCost | `/(?:あなたの)?場に(?:ある)?＜([^＞]+)＞のシグニ([０-９一]+)体につき[^、。]*?《([^》]+)》(?:×?([０-９\d]+))?減る/` |
-| 3 | 3 | battle/costs.ts:1007 | computeArtsEffectiveCost | `/このターンに対戦相手がスペルを使用していた場合/` |
+| 5 | 1 | battle/costs.ts:955 | computeArtsEffectiveCost | `/あなたのセンタールリグのレベル[１1]につき((?:《[^》]+》)+)減る/` |
+| 5 | 5 | battle/costs.ts:1005 | computeArtsEffectiveCost | `/あなたの(ライフクロス\|ルリグトラッシュにあるアーツ\|手札\|エナゾーンにあるカード\|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 3 | 3 | battle/costs.ts:972 | computeArtsEffectiveCost | `/このターンに対戦相手がスペルを使用していた場合/` |
 | 2 | 2 | battle/costs.ts:894 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 2 | 1 | battle/costs.ts:928 | computeArtsEffectiveCost | `/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/` |
-| 2 | 0 | battle/costs.ts:967 | computeArtsEffectiveCost | `/あなたのルリグトラッシュにあるアーツ[１1]枚につき((?:《[^》]+》)+)減る/` |
+| 2 | 1 | battle/costs.ts:912 | computeArtsEffectiveCost | `/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/` |
 | 1 | 1 | battle/costs.ts:877 | computeArtsEffectiveCost | `/あなたの場にパワー([０-９\d]+)以上のシグニがある場合[^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1007 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合/` |
-| 1 | 1 | battle/costs.ts:974 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1011 | computeArtsEffectiveCost | `/使用されたスペル[１1]枚につき((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1013 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1133 | computeArtsEffectiveCost | `/ルリグトラッシュに([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減り[、,]?([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1146 | computeArtsEffectiveCost | `/あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減り[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1162 | computeArtsEffectiveCost | `/使用コストはあなたのセンタールリグが＜([^＞]+)＞の場合[、,]((?:《[^》]+》)+)減り[、,]あなたのセンタールリグが＜([^＞]+)＞の場合[、,]((?:《[^》]+》)+)減る/` |
-| 1 | 0 | battle/costs.ts:1171 | computeArtsEffectiveCost | `/あなたの場にある＜([^＞]+)＞のシグニ[１1]体につき((?:《[^》]+》)+)減り[、,]あなたのエナゾーンにある＜([^＞]+)＞のシグニ[１1]枚につき((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1186 | computeArtsEffectiveCost | `/あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 0 | battle/costs.ts:1191 | computeArtsEffectiveCost | `/あなたのトラッシュにある《([^》]+)》[１1]枚につき((?:《[^》]+》)+)減る/` |
-| 1 | 0 | battle/costs.ts:1197 | computeArtsEffectiveCost | `/あなたの場にあるアクセされている＜([^＞]+)＞のシグニ[１1]体につき((?:《[^》]+》)+)減る/` |
-| 1 | 1 | battle/costs.ts:1210 | computeArtsEffectiveCost | `/このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
-| 1 | 0 | battle/costs.ts:1216 | computeArtsEffectiveCost | `/あなたのライフクロス[１1]枚につき((?:《[^》]+》)+)増え[、,]あなたの場にある＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニ[１1]体につき((?:《[^》]+》)+)減る/` |
-| 1 | 0 | battle/costs.ts:1233 | computeArtsEffectiveCost | `/あなたの手札の枚数から対戦相手の手札の枚数を引いた数[１1]につき((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:972 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合/` |
+| 1 | 1 | battle/costs.ts:961 | computeArtsEffectiveCost | `/あなたの場に＜([^＞]+)＞と＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:976 | computeArtsEffectiveCost | `/使用されたスペル[１1]枚につき((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:978 | computeArtsEffectiveCost | `/このターンに対戦相手がアーツを使用していた場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:992 | computeArtsEffectiveCost | `/あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1026 | computeArtsEffectiveCost | `/ルリグトラッシュに([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減り[、,]?([白赤青緑黒])のアーツがある場合((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1039 | computeArtsEffectiveCost | `/あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減り[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1055 | computeArtsEffectiveCost | `/使用コストはあなたのセンタールリグが＜([^＞]+)＞の場合[、,]((?:《[^》]+》)+)減り[、,]あなたのセンタールリグが＜([^＞]+)＞の場合[、,]((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1065 | computeArtsEffectiveCost | `/あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
+| 1 | 1 | battle/costs.ts:1072 | computeArtsEffectiveCost | `/このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/` |
 
 ## B GATE  5規則 / 当たり 4441カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
 | 4433 | 4405 | battle/growLogic.ts:316 | listGrowCandidates | `/かつ\|と/` |
-| 29 | 29 | battle/costs.ts:1353 | isMultiEna | `'：【マルチエナ】'` |
+| 29 | 29 | battle/costs.ts:1189 | isMultiEna | `'：【マルチエナ】'` |
 | 26 | 26 | battle/lrigActivateGate.ts:110 | canActivateLrigEffect | `'【歌のカケラ】'` |
 | 11 | 11 | battle/pieceCutin.ts:20 | isTeamConditionPiece | `'【使用条件】【チーム】'` |
 | 4 | 4 | battle/growLogic.ts:290 | listGrowCandidates | `/このルリグは(.+)のルリグにしかグロウできない/` |
