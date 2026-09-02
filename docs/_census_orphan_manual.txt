@@ -2,18 +2,16 @@
 # 生成: npx tsx scripts/censusOrphanManual.ts
 # A=解凍候補（live と fresh が実体同一） / B=要レビュー（実体が違う） / C=fresh 無し（parser が出さない id）
 
-## A 解凍候補（SAME） ［1件］
-  WXDi-P11-TK01-E1
+## A 解凍候補（SAME） ［0件］
 
 ## B 要レビュー（DIFF） ［0件］
 
 ## C fresh 無し（NO_FRESH） ［0件］
 
-## D 生成元あり（build 後の修正スクリプト） ［7件］
+## D 生成元あり（build 後の修正スクリプト） ［6件］
   WX11-021-E1
   WX14-028-E1
   WX14-028-BURST
-  WXDi-P15-034-E1
   WXK04-015-E1b
   SP27-016-E1
   PR-457-E2

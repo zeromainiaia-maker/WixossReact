@@ -1,5 +1,88 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 B 第3巡）：🏁§5.3 `O-221` クローズ — 「そうした場合」の did-it ゲート5効果（欠陥署名 13→9）
+
+**ベースライン**＝`c8c1472f0`（`O-220` クローズ時点）。**5件の内訳＝実装4／据置契約1。**
+**計器**＝`npx tsx scripts/archive/o96TargetAnaphoraTriage.ts`（`O-220` の巡で保存したもの）。
+**検証**＝`npm run gates` 全緑（**golden 3298 / 3298**・smoke 10723 全異常0・fuzz 全0・
+census 3 / BASELINE 5・census-stubs A🔴0 / C0・manual-fields 0・census-enginetext A🔴129 据置・
+census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径**＝**4効果**（`PR-Di017B-E1` / `WX20-067-E1` / `WXDi-P14-085-E1` / `WXDi-CP02-052-E1`）
+**・予定外0**。**⑤実機の要否**＝`src/screens/` 未変更＝PLAN §2.2 の機械判定で**不要**
+（観測点は前巡の `V-131`／`V-132` のまま）。
+
+### 🔑 この巡の最大の学び＝登録票の「過剰実行2件」はどちらも誤診だった
+
+「did-it ゲートが無い＝**払わなくても帰結が走る**」と書かれていた `WX20-067-E1` / `WXDi-CP02-052-E1` は、
+**executor の Pattern⑤**（`OPTIONAL_COST` の後続ステップは pay のときだけ走る）が実質のゲートなので
+**払わずに帰結が走ることは無かった**。実際に壊れていたのは**どちらも `O-96` の実害(a)**＝
+**対象が0体でも支払いを提示する**（相手の場が空でも「《白》＋自身ダウン」／「手札1枚捨て」を出す）。
+⇒ **登録票の「何が壊れているか」も、母集団と同じく着手時に実コードで確かめ直す。**（5巡連続で当たった）
+
+### 🔴 O-221 の署名では説明されない欠陥を2件見つけた
+
+1. **`PR-Di017B-E1` は「parser が追い越した手書き」に凍らされていた。**
+   `manualEffects.ts` の古い定義（`STUB{TARGET_ONLY}` ＋ `costText` だけの `OPTIONAL_COST`）が
+   `mergeManualEffects` で常に勝ち、**帰結の「それをトラッシュに置く」が丸ごと無い過小実行**のまま
+   固定されていた（timing も `ATTACK` で原文の「アタックフェイズ開始時」と違っていた）。
+   parser 側は既に `O-96` の正準形を出していたので、**手書きを削除するだけで直った**。
+   🔑**この形はどの計器にも出ない**＝`censusManualDrift` の「削除候補」は**実体同一**しか出さないので、
+   **§6.3 K の既知乖離リスト（UNDATED）にだけ残る**。⇒ **UNDATED の残り3件も同じ疑いで読む。**
+2. **`WXDi-CP02-052-E1` は前置条件が丸ごと落ちていた**＝「あなたの場にあるすべてのシグニが
+   ＜ブルアカ＞の場合」が無く**無条件で発動する過剰実行**。受け皿は既存 `ALL_FIELD_SIGNI_MATCH`。
+
+### バッチ別
+
+| # | 効果 | 何が壊れていたか | 触った層 |
+|---|---|---|---|
+| 1 | `PR-Di017B-E1` | 古い手書きが parser の正準形を凍らせていた（帰結ごと欠落） | manual 削除 |
+| 2 | `WX20-067-E1` | 対象宣言が複合任意コスト（《白》＋自身ダウン）より後ろ | parser |
+| 3 | `WXDi-P14-085-E1` | did-it ゲートが**内側の `SEQUENCE`** にあり `O-96` の規則が届かない | engine / parser |
+| 4 | `WXDi-P16-TK01-E1` | **据置が正しい**（専用 STUB が支払い前に対象の有無を検査する） | golden 契約 |
+| 5 | `WXDi-CP02-052-E1` | 対象宣言が後ろ ＋ 前置条件の欠落 | manual |
+
+### 🔴 第3バッチ＝入れ子は畳まない／空 store では焼かない
+
+`WXDi-P14-085-E1` は `[OPTIONAL_COST, SEQUENCE{snapshot}[CONDITIONAL{gate}→BANISH, CONDITIONAL{…}→TRASH]]`。
+🔑**`snapshotLastProcessedForConditionals` は「この効果で捨てた札」を全 `CONDITIONAL` へ配る印**で、
+平らにすると**先頭の帰結（バニッシュ）が `lastProcessedCards` を書き換えて後段の条件（＜電音部＞3枚）が
+壊れる**。⇒ **ゲートだけ差し替えて器は残す**（parser の `gateReplacement`）。
+
+engine 側はこの形が Pattern④（コストの直後が `CONDITIONAL`）ではなく **Pattern⑤** に入るため、
+`freezeStoredTargets` の木の走査だけが焼き込みの経路になる ⇒ **`CONDITIONAL` の内側へ降りるようにした**。
+🔴**ただし単独で足すと退化する**＝`fixedCardNums: []` は「候補を空集合へ絞る」＝**確実な no-op** なので、
+まだ `STORE_LAST_PROCESSED_TARGETS` を通っていない木を焼くと**生きた照応を殺す**
+（実測＝`WXK11-010-E1` は先頭の任意コストが Pattern⑤ に入る時点で store が空）。
+⇒ **「store が空なら1バイトも焼かない」ガードとセットで入れた**（golden にトリップワイヤを1本）。
+
+### ⚠ ついでに直した／広げたもの
+
+- **`down_self` を `applyO96OptionalCostTargetFirst` の `allowedCostKeys` へ追加**＝
+  `OptionalCostSpec` の正規の軸（`execUtils.ts` の可否判定635・支払い805＝`DOWN{thisCardOnly}`）なのに
+  許可リストから漏れていた（`selfToEnergy` / `fieldToDeckBottom` と同じ基準で入る）。
+- **`MANUAL_DRIFT_KNOWN` から `PR-Di017B-E1` を外した**（§6.3 K の worklist が1件減った）。
+
+### ⚠ 踏んだ罠（この巡で golden が3本落ちた）
+
+1. 🔴**`PAID_ADDITIONAL_COST` は executor の look-ahead 専用**＝コストの直後が `CONDITIONAL` の形
+   （Pattern④）でしか意味を持たず、**通常の評価器へ来ると常に `false`**（`execUtils.ts` の `evalCondition`）。
+   入れ子（Pattern⑤）のゲートをこの型へ差し替えたら**帰結が丸ごと落ちる過小実行**になった
+   （golden `wave3 A5` が捕まえた）。⇒ **入れ子のゲート条件は据置し、照応だけを載せる。**
+2. **既存 golden が「直す前の JSON」を丸ごと固定していた**（`task16 wave1: WX20-067-E1`）＝
+   正準形へ直したので期待値を更新した（削除せず、何を固定しているかを書き換える）。
+3. **`BASELINE_ORPHAN_MANUAL` が 8→9**＝`WX20-067-E1`。**新しく凍らせたのではない**＝この効果は
+   `effectParser.ts` の**カード別の外科パッチ**が `parseStatus:'MANUAL'` を毎回の build で押し直す群で、
+   これまで live が held で古いまま（`AUTO`）だっただけ。`syncManualLive --effect` で
+   **live が fresh に追いついた**結果この test の母集団へ入った（`censusOrphanManual` の表示値は動かない）。
+
+### 残 9 の読み方
+
+**「直す対象」はもう入っていない**＝据置契約6（対象が一意 or engine 側が支払い前に検査する）／
+計器の偽陽性1（署名が引用能力の中にあるだけ）／`O-222` 1／`O-223` 1。
+⇒ **この計器で新しく取れる在庫は尽きた**（次に使うのは `O-222`/`O-223` を消すときか、
+新カードで同じ文型が増えたとき＝そのときは残 9 がベースライン）。
+
+
 ## 2026-09-02（索引 A 第5巡）：🏁§5.3 `O-220` クローズ — 帰結型ごとの「対象固定 3点契約」を8バッチで通した（欠陥署名 23→13）
 
 **ベースライン**＝`f266910e8`（`O-96` クローズ時点）。**16件の内訳＝実装12／据置契約3／新 ID へ分割2**（重複あり）。

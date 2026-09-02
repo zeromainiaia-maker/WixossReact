@@ -10471,8 +10471,41 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   if (hasStoredTargetBinding(action)) return action;
 
   const steps = [...action.steps];
-  const gateIdx = steps.findIndex(isDidItGate);
-  if (gateIdx < 1) return action;
+  // 🆕**§5.3 `O-221` 第3バッチ（2026-09-02）＝did-it ゲートが「コストの直後のネストした
+  //   `SEQUENCE` の先頭」にある形**（`WXDi-P14-085-E1`＝後段の「この効果であなたが＜電音部＞の
+  //   シグニを３枚捨てた場合、〜」が入れ子を作る）。
+  // 🔑**入れ子は畳まない**＝内側の `snapshotLastProcessedForConditionals` は
+  //   「この効果で捨てた札」を全 `CONDITIONAL` へ配るための印。平らにすると
+  //   **先頭の帰結（バニッシュ）が `lastProcessedCards` を書き換えて後段の条件が壊れる**。
+  //   ⇒ **ゲートだけを差し替えて器はそのまま残す**（`gateReplacement`）。
+  let nestedGateIdx = -1;
+  let gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 1) {
+    nestedGateIdx = steps.findIndex((st, i) => i >= 1 && st.type === 'SEQUENCE'
+      && isDidItGate((st as SequenceAction).steps?.[0]));
+    if (nestedGateIdx < 1) return action;
+    gateIdx = nestedGateIdx;
+  }
+  /**
+   * 差し替えたゲートを元の位置（入れ子なら器の先頭）へ戻す。
+   *
+   * 🔴🔑**入れ子のゲートは条件を書き換えない**＝`PAID_ADDITIONAL_COST` は
+   *   **executor の look-ahead（Pattern④＝コストの直後が `CONDITIONAL`）専用**で、
+   *   通常の評価器へ来ると **`execUtils.ts` が常に `false` を返す**（`evalCondition` の
+   *   `case 'PAID_ADDITIONAL_COST': return false`）。入れ子はコストの直後が `SEQUENCE` なので
+   *   **Pattern⑤**（残りステップは pay のときだけ実行）に入り、ゲートは通常評価される。
+   *   ⇒ 条件を差し替えると**帰結が丸ごと落ちる過小実行**になる（golden `wave3 A5` が実際に落ちた）。
+   * ⚠**支払いの有無は Pattern⑤ が既に担保している**（skip は後続を実行しない）ので、
+   *   ここで足すのは**照応（`targetsStored`）だけ**でよい。
+   */
+  const gateReplacement = (newGate: EffectAction): EffectAction => {
+    if (nestedGateIdx < 0) return newGate;
+    const holder = steps[nestedGateIdx] as SequenceAction;
+    const original = holder.steps[0] as import('../types/effects').ConditionalAction;
+    const restored = { ...(newGate as import('../types/effects').ConditionalAction),
+      condition: original.condition } as EffectAction;
+    return { ...holder, steps: [restored, ...holder.steps.slice(1)] } as EffectAction;
+  };
   const costIdx = gateIdx - 1;
   const carrier = steps[costIdx];
   const wrapped = carrier.type === 'CONDITIONAL' && !(carrier as import('../types/effects').ConditionalAction).else
@@ -10500,6 +10533,10 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     // 🆕**第8バッチ**＝`selfToEnergy`（「場にあるこのシグニをエナゾーンに置いてもよい」）も
     //   `OptionalCostSpec` の正規の軸（`execUtils.ts:412`＝可否640・支払い809）。
     'selfToEnergy',
+    // 🆕**§5.3 `O-221` 第2バッチ（2026-09-02）**＝`down_self`（「アップ状態のこのシグニをダウンする」）。
+    //   `OptionalCostSpec` の正規の軸（`execUtils.ts` ＝可否判定635・支払い805＝`DOWN{thisCardOnly}`）なのに
+    //   許可リストから漏れていた（`selfToEnergy` / `fieldToDeckBottom` と同じ基準で入る）。
+    'down_self',
     // 🆕**第12バッチ（2026-09-02）**＝`coinCost`（《コインアイコン》）。
     //   `OPTIONAL_COST` の pay/skip 分岐（`effectExecutor.ts:5939`）が可否（`coins >= coinCost`）も
     //   支払い（`:10777`）も持つ**正規の軸**なのに許可リストから漏れていた（`WXDi-P07-055/072/094` の
@@ -10513,7 +10550,9 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
   const COST_AXIS_EXCLUDED = ['type', 'id', 'costText'];
   if (!Object.keys(cost).some(k => !COST_AXIS_EXCLUDED.includes(k))) return action;
 
-  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  const gate = (nestedGateIdx >= 0
+    ? (steps[nestedGateIdx] as SequenceAction).steps[0]
+    : steps[gateIdx]) as import('../types/effects').ConditionalAction;
   const outcome = gate.then as EffectAction & {
     target?: EffectTarget;
     source?: EffectTarget;
@@ -10539,7 +10578,7 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
       { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: head, abortIfNoCandidate: true } as StubAction,
       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
       cost,
-      { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' }, then: { ...outcome, choices: storedChoices } as EffectAction },
+      gateReplacement({ ...gate, condition: { type: 'PAID_ADDITIONAL_COST' }, then: { ...outcome, choices: storedChoices } as EffectAction }),
     ];
     const nextSteps = [...steps];
     if (wrapped) {
@@ -10558,8 +10597,8 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
       { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: stubTarget, abortIfNoCandidate: true } as StubAction,
       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
       cost,
-      { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' },
-        then: { ...(outcome as StubAction), targetsStored: true } as EffectAction },
+      gateReplacement({ ...gate, condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { ...(outcome as StubAction), targetsStored: true } as EffectAction }),
     ];
     const nextStubSteps = [...steps];
     if (wrapped) {
@@ -10627,7 +10666,7 @@ function applyO96OptionalCostTargetFirst(text: string, action: EffectAction): Ef
     condition: { type: 'PAID_ADDITIONAL_COST' },
     then: { ...outcome, targetsStored: true } as EffectAction,
   };
-  const fixedSteps: EffectAction[] = [selectTargetStep, storeTargetStep, cost, paidGate];
+  const fixedSteps: EffectAction[] = [selectTargetStep, storeTargetStep, cost, gateReplacement(paidGate)];
 
   if (wrapped) {
     // 「〈条件〉の場合、対象とし、支払ってもよい」＝条件不成立時は対象選択も支払いも帰結も出さない。
@@ -24438,15 +24477,35 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         phases: ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'],
       };
       e.triggerCondition = { handOwner: 'any', minCount: 1 };
+      // 🆕**§5.3 `O-221` 第2バッチ（2026-09-02）＝`O-96` の正準形へ直した。**
+      // 🔴**旧形 `[OPTIONAL_COST, BOUNCE]` は「払わなくても戻る」ではない**
+      //   （executor Pattern⑤ が skip を no-op にするので did-it ゲートは実質ある＝登録票の記載は誤り）。
+      //   **本当の欠陥は対象宣言が支払いより後ろだったこと**＝原文は
+      //   「対戦相手のシグニ１体を**対象とし**、《白》を支払い、アップ状態のこのシグニをダウンして**もよい**」
+      //   なので、**相手の場が空でも支払い（自身ダウン）を提示していた**（`O-96` の実害(a)）。
+      // ⚠**`parseStatus:'MANUAL'` なので `applyO96OptionalCostTargetFirst` は走らない**＝ここで手で組む。
       e.action = {
         type: 'SEQUENCE',
         steps: [
-          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'], down_self: true },
           {
-            type: 'BOUNCE',
-            target: {
+            type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+            selectTarget: {
               type: 'SIGNI', owner: 'opponent', count: 1,
               filter: { cardType: 'シグニ' },
+            },
+          },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'], down_self: true },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'PAID_ADDITIONAL_COST' },
+            then: {
+              type: 'BOUNCE',
+              target: {
+                type: 'SIGNI', owner: 'opponent', count: 1,
+                filter: { cardType: 'シグニ' },
+              },
+              targetsStored: true,
             },
           },
         ],

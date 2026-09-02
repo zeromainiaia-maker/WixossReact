@@ -3244,6 +3244,40 @@ live は `REMOVE_ABILITIES{owner:'opponent'}` のみ（アップが落ち、対�
 
 ## 過去セッション要約（新しい順）
 
+- 🏁**セッション（2026-09-02・🏁`O-220` クローズ回・第1〜8バッチ・Opus 5 単独）＝欠陥署名 23→13（-10効果）**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（据置）**
+  ⚠**据置なのは想定どおり**＝直したのは**対象の照応**（誰に当たるか）で、語彙は1つも欠けていない。
+  📦**在庫2本＝④機構 worklist 26項目**（`O-220` を閉じ、`O-222`／`O-223` を**分割登録**＝25→26）
+  ｜**⑤実機 残 2件**（`V-nn` 新規＝新設した型・語彙の選択UIの見え方）。
+  gates 全緑（golden **3292 / 3292**・smoke 10723 全異常0・fuzz 全0・census 3 / BASELINE 5・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴129 据置・census-costtext A🔴0 据置・
+  lint 0 errors）。**ブラスト半径＝18効果・予定外0。**
+
+  🔑**この巡の最大の学び＝「3点契約が足りない」と登録した16件のうち、型の契約が本当に足りなかったのは4件だけ。**
+  残りは **①受け皿が既に在った**（`TRANSFER_TO_DECK{LRIG_TRASH_CARD}`／`SIGNI_ATTACK_BAN{appliesTo:'LRIG'}`／
+  `PICK_FROM_TRASHED_CARDS`）**②対象が一意で直す必要が無かった**（`attackingOnly`／`frontOfSelf`／ルリグ）
+  **③そもそも別の欠陥だった**（引用能力の平坦化／catch-all の誤爆）。**4巡連続で当たった。**
+
+  🔴**盤面破壊バグ2件（ゲートは全部緑だった）**＝①`STUB{SOUL_OP}` が**効果元のシグニをルリグデッキへ**
+  入れていた（`WX11-037-E2`／`WXK01-043-E2`）②`STUB{SIGNI_FLIP_FACEDOWN}` が**効果元に自分自身を
+  裏向きにさせて**いた（`WXDi-P05-037-E2`）。⇒ 🔑**catch-all STUB は「対象を書かなくても動く」ので、
+  対象宣言が落ちた瞬間に別のカードを撃つ**（`census:enginetext` A群の典型的な壊れ方）。
+
+  🔑**その他の一般則**
+  - **対象の指定は「引用を伏せた本文」から読む**＝引用の中の「あなたの」「シグニ」を付与先と読み違える
+    （`WX24-P3-049-E1` は指定が「対戦相手のルリグ」なのに**自分のシグニ**を止めていた）。
+  - **`freezeStoredTargets` はネスト器へ降りる**＝`CHOOSE` の枝に `targetsStored` が残ったまま支払いを
+    跨ぐと `storedTargetCards` が生存せず**黙って空振り**する。
+  - **帰結が STUB のときは原文から宣言を組み直す**（`o96StubDeclaredTarget`）。許可リストは
+    parser（`O96_STORABLE_STUB_IDS`）と engine（`O220_FREEZABLE_STUB_IDS`）で**1対1**に保つ。
+  - 🆕**道具**＝`syncManualLive.ts --effect <CardNum>:<EffectId>`（1効果だけ live へ届ける）。
+    カード単位の同期は**同じカードの別効果を巻き戻す**ことがある（live のほうが新しい場合）。
+
+  ⚠**踏んだ罠3つ**＝①golden の3点契約テストは `O96_STORABLE_OUTCOMES` を regex で読むので
+  **コメントに大文字の識別子を引用符で書くと FAIL する** ②`census:cards` の閉じ判定は見出しが
+  ``### `O-nn` `` であることを要求する（**🏁 は本文の先頭に置く**） ③**`npx tsc --noEmit` は
+  プロジェクト参照を辿らない**＝未 import を見逃す。**`npm run typecheck` が正**。
+
 - 🏁**セッション（2026-09-02・🏁`O-96` クローズ回・第7〜13バッチ・Opus 5 単独）＝欠陥署名 73→23（-50効果）**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（据置）**
   ⚠**据置なのは想定どおり**＝直したのは**対象の照応**（誰に当たるか）で、語彙は1つも欠けていない＝

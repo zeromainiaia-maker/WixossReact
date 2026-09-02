@@ -3611,7 +3611,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-CP02-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ"},"pickCount":1,"then":"hand","pickUpTo":true},{"filter":{"cardType":"シグニ","nonColorless":true},"pickCount":1,"then":"hand","sharesClassWithPrev":true,"pickUpTo":true}],"remainder":{"location":"deck","position":"bottom","reorder":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WXDi-CP02-052": [
-    {"effectId":"WXDi-CP02-052-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"opponent","operator":"lte","value":3},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"optional":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"opponent","operator":"gte","value":4},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}}}}}]}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+      // 🆕**§5.3 `O-221` 第5バッチ（2026-09-02）で2点直した**（`WXDi-CP02-052-E1`）。
+  //   ①**対象宣言を任意コストより前へ**＝原文は「対戦相手のパワー8000以下のシグニ１体を**対象とし**、
+  //     手札を１枚捨てて**もよい**」なので、**候補が居ないのに手札を捨てさせて**いた（`O-96` の実害(a)）。
+  //     `CHOOSE` の両枝は同じ1体を指す（原文の「それ」）＝`targetsStored` を両枝へ刻む。
+  //     🔑engine 側は `freezeStoredTargets` が **`CHOOSE` の枝 → その中の `CONDITIONAL`** まで
+  //     降りて初めて焼き込みが届く（`O-221` 第3バッチで `CONDITIONAL` 降下を足した）。
+  //   ②🔴**前置条件「あなたの場にあるすべてのシグニが＜ブルアカ＞の場合」が丸ごと落ちていた**
+  //     ＝**無条件で発動する過剰実行**。受け皿は既存の `ALL_FIELD_SIGNI_MATCH`（`WXDi-P12-007-E1` と同形）。
+    {"effectId":"WXDi-CP02-052-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CONDITIONAL","condition":{"type":"ALL_FIELD_SIGNI_MATCH","owner":"self","filter":{"cardType":"シグニ","story":"ブルアカ"}},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"opponent","operator":"lte","value":3},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"optional":false,"targetsStored":true}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"LIFE_COUNT","owner":"opponent","operator":"gte","value":4},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"targetsStored":true}}}]}}]}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
   ],
   "WX24-P1-020": [
     {"effectId":"WX24-P1-020-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","story":"宝石"},"pickCount":2,"remainder":{"location":"deck","position":"bottom","reorder":true},"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
@@ -6734,29 +6742,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // PR-Di017B REV:アンコーリング（シグニ）
-  // 【自】アタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい→トラッシュ
-  'PR-Di017B': [
-    {
-      effectId: 'PR-Di017B-E1',
-      effectType: 'AUTO',
-      timing: ['ATTACK'],
-      action: {
-        type: 'SEQUENCE',
-        steps: [
-          { type: 'STUB', id: 'TARGET_ONLY' },
-          {
-            type: 'STUB', id: 'OPTIONAL_COST',
-            costColors: [],
-            costText: '手札を３枚捨てる',
-          },
-        ],
-      } as SequenceAction,
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
+  // 🏁**PR-Di017B（REV:アンコーリング）の手書きは §5.3 `O-221` 第1バッチ（2026-09-02）で削除した。**
+  // 🔴**parser のほうが正しくなっていたのに、この手書きが `mergeManualEffects` で常に勝って
+  //   古い形を永久に凍らせていた**（`STUB{TARGET_ONLY}` ＋ `costText` だけの `OPTIONAL_COST`
+  //   ＝**帰結の「それをトラッシュに置く」が丸ごと無い**＝過小実行。timing も `ATTACK`（起動用）で
+  //   原文の「アタックフェイズ開始時」＝`ON_ATTACK_PHASE_START` と違っていた）。
+  // ⇒ いまの parser は `SELECT_TARGET_ONLY → STORE → OPTIONAL_COST{handDiscard:3} →
+  //   CONDITIONAL{PAID_ADDITIONAL_COST} → TRASH{targetsStored}` を出す（`O-96` の正準形）。
+  // 🔑**教訓＝手書きは「そのとき parser が解けなかった」記録であって、恒久的な正ではない。**
+  //   `censusManualDrift` の「削除候補」は**実体同一**のものしか出さないので、
+  //   **parser が追い越した手書きはどの計器にも出ない**（§6.3 K の既知乖離リストにだけ残っていた）。
 
   // WXDi-P14-TK04 フェゾーネマジック・深緑（スペル/クラフト）
   // 【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを場に出す

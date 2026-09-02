@@ -36,6 +36,28 @@
 
 ### 恒久指標（退避）
 
+- 🏁**2026-09-02（🏁`O-220` クローズ回・第1〜8バッチ）＝帰結型ごとの対象固定 3点契約を揃えた（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 5**（据置）
+  ⚠**据置なのは想定どおり**＝直したのは**対象の照応**（誰に当たるか）で語彙は欠けていない＝
+  census にも意味照合台帳にも出ない型。**測るのは `O-96` の欠陥署名だけ**（**23 → 13効果**）。
+  📦**在庫2本**＝**機構 worklist 26項目**（`O-220` を閉じ `O-222`／`O-223` を分割登録＝25→26）
+  ｜**実機 残 2件**（`V-131`／`V-132`＝新設した宣言スコープと即適用分岐の観測点）
+  🔧**ゲート（全緑 ✅）**＝golden **3292 / 3292**（3283→3292＝`O-220` の契約テスト9本）／
+  smoke **10723** 全異常0／fuzz 全0／census **3 / BASELINE 5**／`census:stubs` A群🔴0・C群0／
+  manual-fields 0／`census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／
+  `census:costtext` A🔴 **0規則**（据置）／lint 0 errors。
+  🖥**実機＝この巡は不要**（`src/screens/` を触っていない＝PLAN §2.2 の機械判定）。観測点は `V-131`／`V-132`。
+  🆕**engine の契約を足した型**＝`REARRANGE_SIGNI` / `POWER_MODIFY_BY_SOURCE` に `targetsStored`＋`fixedCardNums`、
+  STUB 帰結2種（`COPY_CARD` / `TRAP_OPERATION`）＋`SET_OPP_SIGNI_AS_TRAP` に許可リスト方式の契約、
+  `freezeStoredTargets` が **`CHOOSE` の枝へ降りる**。
+  🆕**新設した語彙2つ**＝`TargetFilter.hasTrapAbility`（【トラップ】能力を持つカード）／
+  `trashedPick.dest:'declare'`（この方法でトラッシュに置いた札からの**対象宣言だけ**）。
+  🔴**盤面破壊バグ2件をゲート全緑のまま抱えていた**＝`STUB{SOUL_OP}` が効果元のシグニをルリグデッキへ／
+  `STUB{SIGNI_FLIP_FACEDOWN}` が効果元に自分自身を裏向きにさせていた。
+  ✅**ブラスト半径＝18効果・予定外0**（ベースライン commit との effectId 単位 機械 diff）。
+
+
 - 🏁**2026-09-02（🏁`O-96` クローズ回・第7〜13バッチ）＝対象の照応を50効果ぶん通した（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 5**（据置）
@@ -1410,6 +1432,67 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 ■⚠**1効果なので優先度は低い**（索引 C 相当）。ただし**「シードを対象に取る」文型が増えたら再評価する**。
 
 ### `O-221` — 「そうした場合」の did-it ゲートが生成されない／専用 STUB id（`O-96` から分割・実測5効果）
+
+🏁🏁**2026-09-02（第1〜5バッチ）でクローズした。欠陥署名 13 → 9 効果（-4）。**
+**5件の内訳＝実装4／据置契約1。**
+
+■🔑**この巡の最大の学び＝登録票の「過剰実行2件」は**どちらも誤診だった**。**
+  「did-it ゲートが無い」と書いた `WX20-067-E1` / `WXDi-CP02-052-E1` は、
+  **executor の Pattern⑤（`OPTIONAL_COST` の後続ステップは pay のときだけ走る）が実質のゲート**なので
+  **払わずに帰結が走ることは無かった**。実際に壊れていたのは**どちらも `O-96` の実害(a)**＝
+  **対象が0体でも支払いを提示する**（相手の場が空でも「《白》＋自身ダウン」／「手札1枚捨て」を出す）。
+  ⇒ **登録票の「何が壊れているか」も、母集団と同じく着手時に実コードで確かめ直す。**（5巡連続）
+
+■🔴**この巡で見つけた別系統の欠陥2件**（どちらも O-221 の署名では説明されない）＝
+  ①**`PR-Di017B-E1` は「parser が追い越した手書き」に凍らされていた**＝`manualEffects.ts` の
+    古い定義（`STUB{TARGET_ONLY}` ＋ `costText` だけの `OPTIONAL_COST`）が `mergeManualEffects` で
+    常に勝ち、**帰結の `TRASH` が丸ごと無い過小実行**のまま固定されていた（timing も違っていた）。
+    🔑**この形はどの計器にも出ない**＝`censusManualDrift` の「削除候補」は**実体同一**しか出さないので、
+    **§6.3 K の既知乖離リスト（UNDATED）にだけ残る**。⇒ **UNDATED の残りも同じ疑いで読む。**
+  ②**`WXDi-CP02-052-E1` は前置条件が丸ごと落ちていた**＝「あなたの場にあるすべてのシグニが
+    ＜ブルアカ＞の場合」が無く**無条件で発動する過剰実行**。受け皿は既存 `ALL_FIELD_SIGNI_MATCH`。
+
+■**バッチ別**
+**第1（manual 削除・1効果）＝`PR-Di017B-E1`**＝古い手書きを削除して parser の正準形へ（上記①）。
+  `MANUAL_DRIFT_KNOWN` からも外した。
+**第2（parser・1効果）＝`WX20-067-E1`**＝カード別の外科パッチ（`parseStatus:'MANUAL'` なので
+  `applyO96OptionalCostTargetFirst` は走らない）を `O-96` の正準形へ手で書き直した。
+  ⚠**複合コスト（《白》＋`down_self`）を落とさない**。ついでに **`down_self` を
+  `allowedCostKeys` へ追加**（`OptionalCostSpec` の正規の軸＝可否判定635・支払い805 なのに漏れていた）。
+**第3（engine＋parser・1効果）＝`WXDi-P14-085-E1`**＝did-it ゲートが**内側の `SEQUENCE`** にある形。
+  🔑**入れ子は畳まない**＝`snapshotLastProcessedForConditionals` は「この効果で捨てた札」を全
+  `CONDITIONAL` へ配る印で、平らにすると**先頭の帰結（バニッシュ）が `lastProcessedCards` を
+  書き換えて後段の条件（＜電音部＞3枚）が壊れる**。⇒ **ゲートだけ差し替えて器は残す**（`gateReplacement`）。
+  🔴**engine 側は `freezeStoredTargets` が `CONDITIONAL` の内側へ降りる必要がある**＝
+  この形は Pattern④（コストの直後が `CONDITIONAL`）ではなく **Pattern⑤** に入るので、
+  木の走査だけが焼き込みの経路になる。
+  🔴🔑**ただし単独で足すと退化する**＝`fixedCardNums: []` は「候補を空集合へ絞る」＝**確実な no-op** で、
+  まだ `STORE_LAST_PROCESSED_TARGETS` を通っていない木を焼くと**生きた照応を殺す**
+  （実測＝`WXK11-010-E1` は先頭の任意コストが Pattern⑤ に入る時点で store が空）。
+  ⇒ **「store が空なら1バイトも焼かない」ガードとセットで入れた**（golden にトリップワイヤを1本）。
+**第4（据置契約・1効果）＝`WXDi-P16-TK01-E1`**＝②枝が専用 STUB
+  `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`。**この STUB は支払いを提示する前に engine 側で
+  「対象が居るか」を検査する**（`targetAvailableTOSOC`）＝`O-96` の実害(a)は起きない。
+  残る差は順序だけで、解決中に割り込みが無いので盤面は一致する。**実行して確かめた契約を golden に固定**
+  （対象0なら二択を出さない／対象が居れば出す、の両方向）。
+**第5（manual・1効果）＝`WXDi-CP02-052-E1`**＝対象宣言を手札捨てより前へ＋`CHOOSE` の両枝へ照応、
+  ＋落ちていた前置条件の復元（上記②）。engine 側は第3バッチの `CONDITIONAL` 降下があって初めて
+  枝の中（`CHOOSE` → `CONDITIONAL` → `BOUNCE{targetsStored}`）まで焼き込みが届く。
+
+■⚠**この巡で golden が3本落ちた（罠の記録）**＝
+  ①🔴**`PAID_ADDITIONAL_COST` は executor の look-ahead 専用**（Pattern④＝コストの直後が
+    `CONDITIONAL`）で、**通常の評価器では常に `false`**（`execUtils.ts` の `evalCondition`）。
+    入れ子（Pattern⑤）のゲートをこの型へ差し替えたら**帰結が丸ごと落ちた**。
+    ⇒ **入れ子のゲート条件は据置し、照応だけを載せる。**
+  ②**既存 golden が「直す前の JSON」を丸ごと固定していた**（`task16 wave1`）＝期待値を更新した。
+  ③**`BASELINE_ORPHAN_MANUAL` が 8→9**＝`WX20-067-E1`。**新しく凍らせたのではない**＝
+    カード別の外科パッチが `MANUAL` を毎回押し直す群で、live が held で古かっただけ。
+
+■**残 9 の内訳**＝据置契約6（ルリグ2／`NEGATE_ATTACK` 2／`SIGNI_FLIP_FACEDOWN` 1／
+  `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 1）／計器の偽陽性1（`WX24-P2-055-E1`）／
+  `O-222` 1／`O-223` 1。⇒ **`O-96` 系の欠陥署名は「据置が正しいもの」と「別 ID へ分割したもの」だけになった。**
+
+#### （旧登録票・クローズ前の記載）
 
 **規模／母集団**＝**5効果**（2026-09-02 実測）
 

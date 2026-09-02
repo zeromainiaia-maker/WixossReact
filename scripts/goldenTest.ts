@@ -13849,7 +13849,11 @@ const MANUAL_DRIFT_KNOWN = new Set([
   // ── live のほうが新しい（後から live へ直接入れた手修正）＝**同期してはいけない**側 ──
   'WX24-P4-045-E1', 'WXEX2-71-E2', 'WXEX2-71-E3',   // git 履歴で live が後（--date 判定）
   // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
-  'PR-Di017B-E1',       // UNDATED（manual ブロックが blame で取れない）
+  // ✅2026-09-02（§5.3 `O-221` 第1バッチ）＝`PR-Di017B-E1` は**手書きを削除して**解消＝リストから外した。
+  //   🔴**parser のほうが正しくなっていたのに手書きが常に勝って古い形を凍らせていた**
+  //   （帰結の `TRASH` が丸ごと無い過小実行＋timing も違っていた）。
+  //   🔑**この形はどの計器にも出ない**＝`censusManualDrift` の「削除候補」は**実体同一**しか出さないので、
+  //     **parser が追い越した手書き**はこの既知乖離リストにだけ残る。⇒ **UNDATED の残りも同じ疑いで読む。**
   // ✅`WX05-025-E2` は 2026-08-28（Sheet1 残8枚バッチ）で held を採用して解消＝リストから外した
   //   （held に落ちていた理由は「live が AUTO・manual が MANUAL」で pure superset にならなかったため）。
   'WX13-040-E1', 'WX14-064-E1',                      // UNDATED（manual 側の日付が取れない）
@@ -18218,6 +18222,137 @@ test('O-220 据置契約: 「正面のシグニ」対象は frontOfSelf で一�
   ok(json.includes('"owner":"opponent"'), 'WXDi-P05-037-E2: 対象は相手のシグニ');
   ok(!json.includes('"targetsStored"'), 'WXDi-P05-037-E2: 一意なので照応キーを足さない');
 });
+
+// ── §5.3 `O-221` 第4バッチ（2026-09-02）＝**専用 STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は据置** ──
+// 「対戦相手のシグニ１体を**対象とし**、《赤》を支払って**もよい**。**そうした場合、それを**バニッシュする」
+//  （`WXDi-P16-TK01-E1` の②枝）は `OPTIONAL_COST` ではなく専用 STUB に載っている。
+// 🔑**この STUB は支払いを提示する前に「対象が居るか」を engine 側で検査する**
+//  （`effectExecutor.ts` の `targetAvailableTOSOC`）＝`O-96` の実害(a)（対象0でも支払いを提示する）は起きない。
+//  残る差は「宣言 → 支払い」の**順序**だけで、解決の途中に割り込みが無いので盤面は一致する。
+// ⚠**据置契約は「いま壊れない」ことの assert であって永久の仕様ではない**＝
+//  この STUB へ割り込みが入る文型（相手の応答を挟む等）が現れたら見直す。
+test('O-221 据置契約: TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST は対象0なら支払いを提示しない', () => withSavedCursor(() => {
+  const choose = ((o96Live('WXDi-P16-TK01', 'WXDi-P16-TK01-E1').action as SequenceAction).steps[1]) as ChooseAction;
+  eq(choose.type, 'CHOOSE', 'WXDi-P16-TK01-E1: ３つから２つ選ぶ器を維持');
+  const branch = choose.choices[1].action as SequenceAction;
+  const stub = branch.steps[0] as EffectAction & { id?: string };
+  eq(stub.id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', '②枝は専用 STUB のまま据え置く');
+  ok(!JSON.stringify(branch).includes('SELECT_TARGET_ONLY'), '②枝へ対象宣言を足さない（engine 側に別経路がある）');
+
+  // 🔴**据置の根拠＝相手の場が空なら支払いを提示せずに降りる**（`O-96` の実害(a)が起きない）。
+  const empty = runEffect(branch, mkCtx({ energy: 3 }, { signi: [null, null, null] }, 'WXDi-P16-TK01'));
+  ok(empty.done, '対象0では任意コストを提示しない（＝対象宣言を前へ出す必要が無い）');
+
+  // 対照＝相手にシグニが居れば「対象選択して発動」の二択が出る（据置で機能が死んでいない）。
+  const target = findCard(c => isSigni(c));
+  const filled = runEffect(branch, mkCtx({ energy: 3 }, { signi: [target, null, null] }, 'WXDi-P16-TK01'));
+  ok(!filled.done && filled.pending.type === 'CHOOSE', '対象が居れば支払いの二択が出る');
+}));
+
+// ── §5.3 `O-221` 第1バッチ（2026-09-02）＝**parser が追い越した手書きを削除した** ──
+// 🔴`manualEffects.ts` の `PR-Di017B` は `STUB{TARGET_ONLY}` ＋ `costText` だけの `OPTIONAL_COST`
+//   ＝**帰結の「それをトラッシュに置く」が丸ごと無い過小実行**で、`mergeManualEffects` が常に勝つため
+//   parser が正しくなっても**永久に届かなかった**（timing も `ATTACK` で原文と違っていた）。
+// 🔑**この形はどの計器にも出ない**＝`censusManualDrift` の「削除候補」は**実体同一**しか出さない。
+test('O-221 第1バッチ: PR-Di017B-E1 は parser の正準形（古い手書きを復活させない）', () => {
+  const eff = o96Live('PR-Di017B', 'PR-Di017B-E1');
+  eq(eff.timing?.join(','), 'ON_ATTACK_PHASE_START', 'PR-Di017B-E1: 「アタックフェイズ開始時」');
+  const steps = assertO96FixedOrder('PR-Di017B', 'PR-Di017B-E1');
+  const outcome = (steps[3] as ConditionalAction).then as import('../src/types/effects').TrashAction;
+  eq(outcome.type, 'TRASH', 'PR-Di017B-E1: 帰結はトラッシュ（落ちたままにしない）');
+  eq(outcome.target.owner, 'opponent', 'PR-Di017B-E1: 対象は相手のシグニ');
+  eq(JSON.stringify((steps[2] as import('../src/types/effects').StubAction).handDiscard), '{"count":3}',
+    'PR-Di017B-E1: 手札3枚捨てが構造化コストとして載る（costText だけに戻さない）');
+  // ⚠`SELECT_TARGET_ONLY` を部分一致で拾わないよう、id をそのまま比較する。
+  ok(!(eff.action as SequenceAction).steps.some(st => (st as EffectAction & { id?: string }).id === 'TARGET_ONLY'),
+    'PR-Di017B-E1: catch-all の TARGET_ONLY へ戻さない');
+});
+
+// ── §5.3 `O-221` 第2バッチ（2026-09-02）＝`WX20-067-E1`（複合任意コスト） ──
+// 🔑**「払わなくても手札に戻る」ではなかった**＝executor Pattern⑤ が skip を no-op にするので
+//   did-it ゲートは実質あった（登録票の記載は誤り）。**本当の欠陥は対象宣言が支払いより後ろ**＝
+//   相手の場が空でも「《白》＋このシグニをダウン」を提示していた。
+test('O-221 第2バッチ: WX20-067-E1 は対象宣言が複合任意コストより前（自身ダウンの対価も維持）', () => {
+  const steps = assertO96FixedOrder('WX20-067', 'WX20-067-E1');
+  const cost = steps[2] as import('../src/types/effects').StubAction;
+  eq(JSON.stringify(cost.costColors), '["白"]', 'WX20-067-E1: 《白》のコストを維持');
+  eq(cost.down_self, true, 'WX20-067-E1: 「アップ状態のこのシグニをダウンする」対価を落とさない');
+  const outcome = (steps[3] as ConditionalAction).then as import('../src/types/effects').BounceAction;
+  eq(outcome.type, 'BOUNCE', 'WX20-067-E1: 帰結は手札に戻す');
+  eq(outcome.target.owner, 'opponent', 'WX20-067-E1: 対象は相手のシグニ');
+});
+
+// ── §5.3 `O-221` 第3バッチ（2026-09-02）＝did-it ゲートが**内側の SEQUENCE** にある形 ──
+// 🔑**入れ子は畳まない**＝`snapshotLastProcessedForConditionals` は「この効果で捨てた札」を
+//   全 `CONDITIONAL` へ配る印。平らにすると**先頭の帰結（バニッシュ）が `lastProcessedCards` を
+//   書き換えて後段の条件（＜電音部＞3枚）が壊れる**。⇒ ゲートだけ差し替えて器は残す。
+test('O-221 第3バッチ: WXDi-P14-085-E1 はゲートだけ差し替えて入れ子の器を残す', () => {
+  const steps = (o96Live('WXDi-P14-085', 'WXDi-P14-085-E1').action as SequenceAction).steps as
+    (EffectAction & { id?: string })[];
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', 'WXDi-P14-085-E1: 対象宣言が任意コストより前');
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS', 'WXDi-P14-085-E1: 宣言対象を保存');
+  eq(steps[2].id, 'OPTIONAL_COST', 'WXDi-P14-085-E1: 保存後に任意コスト');
+  const holder = steps[3] as SequenceAction & { snapshotLastProcessedForConditionals?: boolean };
+  eq(holder.type, 'SEQUENCE', 'WXDi-P14-085-E1: 入れ子の器を維持');
+  eq(holder.snapshotLastProcessedForConditionals, true,
+    'WXDi-P14-085-E1: 「この効果で捨てた札」のスナップショットを落とさない');
+  const gate = holder.steps[0] as ConditionalAction;
+  // 🔴**入れ子のゲートは条件を書き換えない**＝`PAID_ADDITIONAL_COST` は executor の look-ahead
+  //   （Pattern④＝コストの直後が `CONDITIONAL`）専用で、通常評価では**常に false**
+  //   （`execUtils.ts` の `evalCondition`）。入れ子は Pattern⑤ に入るので通常評価される＝
+  //   差し替えると**帰結が丸ごと落ちる過小実行**になる（実際に golden `wave3 A5` が落ちた）。
+  //   支払いの有無は Pattern⑤（skip は後続を実行しない）が担保する。
+  eq(gate.condition.type, 'IS_MY_TURN', 'WXDi-P14-085-E1: 入れ子のゲート条件は据置（評価器が false を返す型へ変えない）');
+  eq((gate.then as EffectAction & { targetsStored?: boolean }).targetsStored, true,
+    'WXDi-P14-085-E1: バニッシュは宣言済み対象だけ');
+  const tail = holder.steps[1] as ConditionalAction;
+  eq(tail.condition.type, 'LAST_PROCESSED_MATCHES',
+    'WXDi-P14-085-E1: 後段「＜電音部＞を3枚捨てた場合」を器の中に残す');
+});
+
+// ── §5.3 `O-221` 第5バッチ（2026-09-02）＝`WXDi-CP02-052-E1`（CHOOSE の枝が CONDITIONAL） ──
+test('O-221 第5バッチ: WXDi-CP02-052-E1 は前置条件と対象照応の両方を持つ', () => {
+  const root = o96Live('WXDi-CP02-052', 'WXDi-CP02-052-E1').action as ConditionalAction;
+  eq(root.type, 'CONDITIONAL', 'WXDi-CP02-052-E1: 前置条件で包む');
+  eq(root.condition.type, 'ALL_FIELD_SIGNI_MATCH',
+    '🔴WXDi-CP02-052-E1: 「すべてのシグニが＜ブルアカ＞の場合」＝無条件発動へ戻さない');
+  const steps = (root.then as SequenceAction).steps as (EffectAction & { id?: string })[];
+  eq(steps[0].id, 'SELECT_TARGET_ONLY', 'WXDi-CP02-052-E1: 対象宣言が手札捨てより前');
+  eq((steps[0] as unknown as { abortIfNoCandidate?: boolean }).abortIfNoCandidate, true,
+    'WXDi-CP02-052-E1: 候補0なら捨てさせない');
+  eq((steps[3] as ConditionalAction).condition.type, 'PAID_ADDITIONAL_COST', '実支払いだけで帰結');
+  const choose = (steps[3] as ConditionalAction).then as ChooseAction;
+  eq(choose.type, 'CHOOSE', 'WXDi-CP02-052-E1: 二択の器を維持');
+  for (const c of choose.choices) {
+    const inner = (c.action as ConditionalAction);
+    eq(inner.condition.type, 'LIFE_COUNT', 'WXDi-CP02-052-E1: 枝ごとのライフ条件を維持');
+    eq((inner.then as EffectAction & { targetsStored?: boolean }).targetsStored, true,
+      'WXDi-CP02-052-E1: 枝の帰結は宣言済み対象だけ（枝ごとに選び直さない）');
+  }
+});
+
+// ── §5.3 `O-221` 第3バッチ（2026-09-02）＝`freezeStoredTargets` の「空 store では焼かない」ガード ──
+// 🔴**`fixedCardNums: []` は「候補を空集合へ絞る」＝確実な no-op** なので、まだ
+//   `STORE_LAST_PROCESSED_TARGETS` を通っていない木を焼くと**生きた照応を殺す**。
+// ⚠`WXK11-010-E1` は `[TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST, STORE, OPTIONAL_COST, ゲート]` で、
+//   **先頭の任意コスト**が Pattern⑤ に入った時点では store がまだ空＝ここで `CONDITIONAL` 降下が
+//   焼くと、後段の正しい焼き込みが届く前に `DOWN` が空集合へ固定される。
+test('O-221 トリップワイヤ: 宣言前の焼き込みで照応を殺さない（WXK11-010-E1）', () => withSavedCursor(() => {
+  const inner = ((o96Live('WXK11-010', 'WXK11-010-E1').action as SequenceAction).steps[1]) as SequenceAction;
+  eq((inner.steps[0] as EffectAction & { id?: string }).id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST',
+    'WXK11-010-E1: 先頭は対象つき任意コスト（store はまだ空）');
+  eq((inner.steps[1] as EffectAction & { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS',
+    'WXK11-010-E1: store が埋まるのは2番目');
+  const a = findCard(c => isSigni(c));
+  const b = findCard(c => isSigni(c) && c.CardNum !== a);
+  const r = runEffect(inner, mkCtx({ energy: 5 }, { signi: [a, b, null] }, 'WXK11-010'));
+  ok(!r.done && r.pending.type === 'CHOOSE', 'WXK11-010-E1: 先頭で「対象選択して発動」の二択が出る');
+  const pay = (r.pending as { options: { id: string; action: EffectAction }[] }).options.find(o => o.id === 'pay')!;
+  ok(!JSON.stringify(pay.action).includes('"fixedCardNums":[]'),
+    '🔴宣言前に空の fixedCardNums を焼き込まない（焼くと後段の DOWN が恒久 no-op になる）');
+  ok(JSON.stringify(pay.action).includes('"targetsStored":true'),
+    'targetsStored のまま後段（正しい地点）の焼き込みに委ねる');
+}));
 
 // ── §5.3 `O-220` 第2バッチ（2026-09-02）＝`REARRANGE_SIGNI` の3点契約 ──
 // 「あなたの他のレベル２以上のシグニ１体を**対象とし**、《黒》《無》を支払って**もよい**。
@@ -29859,13 +29994,22 @@ test('task16 wave1: WX20-067-E1 は両者の手札追加にアタックフェイ
       type: 'DURING_PHASE',
       phases: ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'],
     }), 'アタックフェイズ限定');
+    // 🆕**§5.3 `O-221` 第2バッチ（2026-09-02）で `O-96` の正準形へ直した。**
+    // 🔑**旧形が「払わなくても戻る」だったわけではない**（executor Pattern⑤ が skip を no-op にする）＝
+    //   直したのは**対象宣言が支払いより後ろ**だったこと＝相手の場が空でも
+    //   「《白》＋このシグニをダウン」を提示していた（`O-96` の実害(a)）。
     eq(JSON.stringify(eff!.action), JSON.stringify({
       type: 'SEQUENCE',
       steps: [
+        { type: 'STUB', id: 'SELECT_TARGET_ONLY', abortIfNoCandidate: true,
+          selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
         { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'], down_self: true },
-        { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+          then: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+            targetsStored: true } },
       ],
-    }), '《白》＋自身ダウンを払った場合だけ相手シグニをバウンス');
+    }), '対象宣言→《白》＋自身ダウン→払った場合だけ宣言した1体をバウンス');
 
     const watcher = mkState({ signi: ['WX20-067', null, null] });
     const opponent = mkState();
@@ -57331,7 +57475,14 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   ＋ **parser 自身が同じ印を出す3件**（この test は parser を回さないので母集団から外せない）。
   //   （O-149 で WX24-P2-049-E1b を manual E2 へ正規化して D群を9→8。）
   //   ⇒ **以後この数が増えたら「また出所の無いスタンプを押した」** の合図。
-  const BASELINE_ORPHAN_MANUAL = 8; // 🆕旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  // 🆕**2026-09-02（§5.3 `O-221` 第2バッチ）で 8→9**＝`WX20-067-E1`。
+  //   🔑**新しく凍らせたのではない**＝この効果は `effectParser.ts` の**カード別の外科パッチ**が
+  //   `parseStatus:'MANUAL'` を**毎回の build で押し直す**（＝上の注記の「parser 自身が同じ印を出す」群）。
+  //   これまで live が held で古いまま（`AUTO`）だっただけで、`syncManualLive --effect` で
+  //   **live が fresh に追いついた**結果この test の母集団へ入った。
+  //   ⚠`npx tsx scripts/censusOrphanManual.ts` はこの群を**母集団から外す**ので表示値は動かない
+  //     （この test は parser を回さないので外せない＝ずれは意図的）。
+  const BASELINE_ORPHAN_MANUAL = 9; // 旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。

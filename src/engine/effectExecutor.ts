@@ -154,6 +154,14 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   // 🆕**§5.3 `O-220` 第2バッチ（2026-09-02）で `REARRANGE_SIGNI` を追加**＝「それとこのシグニの
   //   場所を入れ替える」（`SPDi43-20-E1`）。`execRearrangeSigni` の `swap` 分岐に絞り込みと
   //   即適用を同じ巡で足してある。
+  // 🔴🆕**§5.3 `O-221` 第3バッチ（2026-09-02）＝store が空なら1バイトも焼かない。**
+  //   `fixedCardNums: []` は「候補を空集合へ絞る」＝**確実な no-op** なので、
+  //   **まだ `STORE_LAST_PROCESSED_TARGETS` を通っていない木を焼くと、生きた照応を殺す。**
+  //   ⚠実例＝`WXK11-010-E1` は `[TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST, STORE, OPTIONAL_COST, ゲート]`
+  //   で、**先頭の任意コスト**が Pattern⑤ に入った時点では store がまだ空。ここで下の CONDITIONAL 降下が
+  //   焼くと、後段の正しい Pattern④ の焼き込みが届く前に `DOWN` が空集合へ固定される。
+  //   ⇒ **空なら据置**＝`targetsStored` のまま後段（正しい地点）の焼き込みに委ねる。
+  if ((ctx.storedTargetCards ?? []).length === 0) return action;
   const FREEZABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND', 'POWER_MODIFY',
     'FREEZE', 'DOWN', 'UP', 'GRANT_KEYWORD', 'ADD_TO_FIELD', 'GRANT_EFFECT', 'REARRANGE_SIGNI',
     // 🆕**§5.3 `O-220` 第8バッチ（2026-09-02）**＝`execPowerModifyBySource` が2キーを
@@ -177,6 +185,17 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   //   `storedTargetCards` は resume を跨いで生存しないので候補が空になり**黙って空振り**する。
   if (action.type === 'CHOOSE') {
     return { ...action, choices: action.choices.map(c => ({ ...c, action: freezeStoredTargets(c.action, ctx) })) };
+  }
+  // 🆕**§5.3 `O-221` 第3バッチ（2026-09-02）＝`CONDITIONAL` の内側へも降りる。**
+  //   did-it ゲートが**内側の `SEQUENCE`** にある形（`WXDi-P14-085-E1`＝後段の
+  //   「この効果であなたが＜電音部＞のシグニを３枚捨てた場合、〜」が入れ子を作る）は
+  //   executor の Pattern④（コストの直後が `CONDITIONAL`）ではなく **Pattern⑤**（残りステップを継続）に
+  //   入るため、`freezeStoredTargets` の木の走査だけが焼き込みの経路になる。
+  // ⚠**上の「store が空なら据置」ガードとセットで初めて安全**（単独で足すと早すぎる地点で焼く）。
+  if (action.type === 'CONDITIONAL') {
+    const c = action as import('../types/effects').ConditionalAction;
+    return { ...c, then: freezeStoredTargets(c.then, ctx),
+      ...(c.else ? { else: freezeStoredTargets(c.else, ctx) } : {}) } as EffectAction;
   }
   return action;
 }
