@@ -20,6 +20,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
+import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter } from '../src/engine/effectEngine';
@@ -63,8 +64,8 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
-import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
+import { handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
+import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
@@ -149,6 +150,18 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   const j = JSON.parse(fs.readFileSync(join(root, 'public/data', f), 'utf-8'));
   for (const [id, effs] of Object.entries(j)) effectsMap.set(id, effs as CardEffect[]);
 }
+/**
+ * 条件つきコスト置換のテスト用ラッパ（§5.3 `O-86` 第6バッチ）。
+ * 🔑`computeCostReplacement` はもう原文を読まない＝**live payload（`EffectCost.costReplacement`）を
+ *   渡すのが本番と同じ経路**。ここで `costReplacementOf` を通しておくと、
+ *   parser の刻印 → build の重ね → live → UI のどこが切れても落ちる。
+ */
+const ccr = (
+  card: { CardNum: string; CardName?: string; Cost: string },
+  myState: { field?: PlayerState['field']; trash?: string[] },
+  cm: Map<string, CardData> | undefined,
+  ctx: Parameters<typeof computeCostReplacement>[3],
+): string | null => computeCostReplacement(card, myState, cm, ctx, costReplacementOf(card.CardNum, effectsMap));
 for (const [id, card] of cardMap) {
   const merged = mergeManualEffects(id, (effectsMap.get(id) ?? []) as never[]);
   if (merged.length > 0) (card as { effects?: CardEffect[] }).effects = merged as CardEffect[];
@@ -13849,6 +13862,7 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
   // ⚠比較は**リーフパス集合**で行う（`JSON.stringify` の素朴比較はキー順に依存し、実体が同一でも
   //   「parser が同じ値を別の順で組み立てただけ」を乖離と誤判定する＝`WD14-011-E1` が既知の実例）。
   //   parseStatus は刻印なので除く（AUTO/MANUAL の差だけで乖離扱いしない）。
+  const PRINTED_COST_KEYS = new Set<string>(PRINTED_KEYWORD_COST_KEYS);
   const strip = (e: CardEffect): string => {
     const out: string[] = [];
     const walk = (o: unknown, pre: string): void => {
@@ -13859,12 +13873,12 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
       else if (o && typeof o === 'object') for (const k of Object.keys(o)) {
         if (k === 'parseStatus') continue;
         // 🆕**build がマージの後から重ねるカード単位メタは乖離ではない**（§5.3 `O-86` 第2バッチ）＝
-        //   印字キーワードコスト（`encoreCost` / `betOptions` / `boostCost`）と【出現条件】は `manualEffects.ts` に書かない
+        //   印字キーワードコスト（`PRINTED_KEYWORD_COST_KEYS`）と【出現条件】は `manualEffects.ts` に書かない
         //   （書く場所が「効果本文」ではない）。live にだけ在るのが正しい姿。
         //   ⚠**届いていること自体は別の golden が assert する**（`O-199` のアンコール／ベット段階の
         //     各テストが live payload 経由で見ている）＝
         //     ここで除外しても「重ねが切れたら誰も気づかない」にはならない。
-        if (k === 'encoreCost' || k === 'betOptions' || k === 'boostCost' || k === 'appearanceCondition') continue;
+        if (PRINTED_COST_KEYS.has(k) || k === 'appearanceCondition') continue;
         walk((o as Record<string, unknown>)[k], `${pre}.${k}`);
       }
       else out.push(`${pre}=${JSON.stringify(o)}`);
@@ -36457,7 +36471,9 @@ test('use-time cost reduction: 対象33枚の spec と軽減後コストが原�
   eq(expected.length, 33, '母集団は33枚');
   for (const [num, source, max, perUnit, afterOne, afterMax] of expected) {
     const card = cardMap.get(num)!;
-    const spec = parseUseTimeCostReduction(card.EffectText ?? '');
+    // 🆕§5.3 `O-86` 第5バッチ＝読み取り元は live payload（`EffectCost.useTimeCost`）。
+    //   原文パーサを直接呼ぶと「parser は読めているが build が live へ届けていない」を見逃す。
+    const spec = resolveUseTimeCost(num, effectsMap);
     ok(!!spec, `${num}: 読める`);
     if (!spec) continue;
     eq(spec.source, source, `${num}: 支払い元`);
@@ -36473,7 +36489,7 @@ test('use-time cost reduction: 対象33枚の spec と軽減後コストが原�
 // 他の支払い元と違い**場スタックを崩す**＝下のカード/チャーム/アクセ→トラッシュ、ソウル→ルリグトラッシュ、
 // ダウン/凍結/血晶武装フラグのリセットが要る。engine の `removeFromField` に委譲していることを固定する。
 test('use-time cost reduction: 場のシグニ払いは removeFromField 相当の後始末をする', () => {
-  const spec = parseUseTimeCostReduction(cardMap.get('WX24-P3-010')!.EffectText ?? '')!;
+  const spec = resolveUseTimeCost('WX24-P3-010', effectsMap)!;
   eq(spec.source, 'signi_trash', '支払い元');
   const signi = cardMap.get(SIGNI)!;
   // ⚠場の要素は assignInstanceIds の `CardNum#n` で**一意**。同じ文字列を2ゾーンに置くと
@@ -36505,7 +36521,7 @@ test('use-time cost reduction: 場のシグニ払いは removeFromField 相当�
   eq(JSON.stringify(r1.state.field.signi), JSON.stringify([[`${signi.CardNum}#1`], null, []]), '選んだゾーンだけ空く');
   eq(applyUseTimeCostReduction('《黒》×4', spec, 1), '《黒》×3', '1体につき《黒×1》');
   // WX25-P1-110＝レベル2以下の＜古代兵器＞1体だけ＝フィルタが効く
-  const spec110 = parseUseTimeCostReduction(cardMap.get('WX25-P1-110')!.EffectText ?? '')!;
+  const spec110 = resolveUseTimeCost('WX25-P1-110', effectsMap)!;
   eq(spec110.max, 1, '1体固定');
   eq(spec110.perUnit, false, '固定形');
   eq(JSON.stringify(spec110.filter.story), JSON.stringify(['古代兵器']), 'クラス指定');
@@ -36541,7 +36557,7 @@ test('use-time cost reduction: 隣接する3枚は読まない（別機構・別
     ['WDK15-007', 'ベット由来の「減る」＝支払い元はコインでベット枝が担当'],
     ['SPK06-01', '「追加で支払ってもよい」＝増額。末尾の「減る」は別カードのコイン技の話'],
   ] as [string, string][]) {
-    ok(parseUseTimeCostReduction(cardMap.get(num)!.EffectText ?? '') === null, `${num}: 読まない（${why}）`);
+    ok(resolveUseTimeCost(num, effectsMap) === null, `${num}: 読まない（${why}）`);
   }
 });
 
@@ -36551,16 +36567,16 @@ test('use-time cost reduction: 固定形はちょうどN枚でだけ効く／候
   eq(dokuga.length, 2, '＜毒牙＞のシグニが2枚見つかる');
   const other = [...cardMap.values()].find(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('毒牙'))!;
   const my13 = { field, hand: [dokuga[0].CardNum, other.CardNum, dokuga[1].CardNum], trash: [] as string[] } as unknown as PlayerState;
-  const spec13 = parseUseTimeCostReduction(cardMap.get('WX13-025')!.EffectText ?? '')!;
+  const spec13 = resolveUseTimeCost('WX13-025', effectsMap)!;
   const cands13 = useTimeCostCandidates(spec13, my13, cardMap);
   eq(cands13.length, 2, '＜毒牙＞以外は候補に出さない');
   eq(JSON.stringify(cands13.map(c => c.key)), JSON.stringify(['h:0', 'h:2']), '候補は手札 index キー');
   ok(useTimeCostSelectionValid(spec13, new Set(['h:0']), 2), '比例形は1枚でも成立');
-  const spec03 = parseUseTimeCostReduction(cardMap.get('WX20-003')!.EffectText ?? '')!;
+  const spec03 = resolveUseTimeCost('WX20-003', effectsMap)!;
   ok(useTimeCostSelectionValid(spec03, new Set(), 3), '固定形も「支払わない」は成立');
   ok(useTimeCostSelectionValid(spec03, new Set(['h:0']), 3), '固定形はちょうど1枚で成立');
   ok(!useTimeCostSelectionValid(spec03, new Set(['h:0', 'h:1']), 3), '固定形は上限超えを認めない');
-  const spec44 = parseUseTimeCostReduction(cardMap.get('WX11-044')!.EffectText ?? '')!;
+  const spec44 = resolveUseTimeCost('WX11-044', effectsMap)!;
   ok(!useTimeCostSelectionValid(spec44, new Set(['h:0', 'h:1']), 5), '3枚形は2枚では成立しない');
   ok(useTimeCostSelectionValid(spec44, new Set(['h:0', 'h:1', 'h:2']), 5), '3枚そろえば成立');
   eq(applyUseTimeCostReduction('《青》×3', spec44, 2), '《青》×3', '半端な支払いでは軽減しない');
@@ -36568,21 +36584,21 @@ test('use-time cost reduction: 固定形はちょうどN枚でだけ効く／候
 
 test('use-time cost reduction: 支払いが各ゾーンを正しく動かす（手札/ダウン/ルリグデッキ/ライフ/キー）', () => {
   const emptyField = { signi: [[], [], []], lrig: [], signi_down: [false, false, false] } as unknown as PlayerState['field'];
-  const spec13 = parseUseTimeCostReduction(cardMap.get('WX13-025')!.EffectText ?? '')!;
+  const spec13 = resolveUseTimeCost('WX13-025', effectsMap)!;
   const myHand = { field: emptyField, hand: ['A', 'B', 'C'], trash: ['T'] } as unknown as PlayerState;
   const r1 = payUseTimeCost(myHand, spec13, new Set(['h:0', 'h:2']), cardMap);
   eq(JSON.stringify(r1.state.hand), JSON.stringify(['B']), '選んだ手札だけ抜ける');
   eq(JSON.stringify(r1.state.trash), JSON.stringify(['T', 'A', 'C']), '捨てた分がトラッシュへ');
   eq(r1.state.turn_hand_discarded_count, 2, '手札を捨てた枚数を加算');
   eq(r1.paidCount, 2, '支払い枚数');
-  const spec24 = parseUseTimeCostReduction(cardMap.get('WX07-024')!.EffectText ?? '')!;
+  const spec24 = resolveUseTimeCost('WX07-024', effectsMap)!;
   const uchu = [...cardMap.values()].find(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙'))!;
   const myField = { field: { signi: [[uchu.CardNum], [uchu.CardNum], []], lrig: [], signi_down: [false, false, true] } } as unknown as PlayerState;
   const cands24 = useTimeCostCandidates(spec24, myField, cardMap);
   eq(cands24.length, 2, 'アップ状態の＜宇宙＞2体だけが候補（空ゾーンは出ない）');
   const r2 = payUseTimeCost(myField, spec24, new Set(['z:0']), cardMap);
   eq(JSON.stringify(r2.state.field.signi_down), JSON.stringify([true, false, true]), '選んだゾーンだけダウン');
-  const spec02 = parseUseTimeCostReduction(cardMap.get('WX24-P2-002')!.EffectText ?? '')!;
+  const spec02 = resolveUseTimeCost('WX24-P2-002', effectsMap)!;
   const whiteArts = [...cardMap.values()].find(c => c.Type === 'アーツ' && (c.Color ?? '').includes('白'))!;
   const blackArts = [...cardMap.values()].find(c => c.Type === 'アーツ' && !(c.Color ?? '').includes('白'))!;
   const myLrig = { field: emptyField, lrig_deck: [whiteArts.CardNum, blackArts.CardNum], lrig_trash: [] as string[] } as unknown as PlayerState;
@@ -36591,12 +36607,12 @@ test('use-time cost reduction: 支払いが各ゾーンを正しく動かす（�
   const r3 = payUseTimeCost(myLrig, spec02, new Set([candsL[0].key]), cardMap);
   eq(JSON.stringify(r3.state.lrig_deck), JSON.stringify([blackArts.CardNum]), 'ルリグデッキから抜ける');
   eq(JSON.stringify(r3.state.lrig_trash), JSON.stringify([whiteArts.CardNum]), 'ルリグトラッシュへ');
-  const spec04 = parseUseTimeCostReduction(cardMap.get('WX24-P3-004')!.EffectText ?? '')!;
+  const spec04 = resolveUseTimeCost('WX24-P3-004', effectsMap)!;
   const myLife = { field: emptyField, life_cloth: ['L1', 'L2'], trash: [] as string[] } as unknown as PlayerState;
   const r4 = payUseTimeCost(myLife, spec04, new Set(['c:0']), cardMap);
   eq(JSON.stringify(r4.state.life_cloth), JSON.stringify(['L2']), 'ライフクロスが1枚減る');
   eq(JSON.stringify(r4.state.trash), JSON.stringify(['L1']), 'トラッシュへ');
-  const specKey = parseUseTimeCostReduction(cardMap.get('SPK01-07')!.EffectText ?? '')!;
+  const specKey = resolveUseTimeCost('SPK01-07', effectsMap)!;
   const myKey = { field: { ...emptyField, key_piece: 'K1', key_piece_extra: ['K2'] }, lrig_trash: [] as string[] } as unknown as PlayerState;
   eq(useTimeCostCandidates(specKey, myKey, cardMap).length, 2, '本体キーと追加キーの両方が候補');
   const r5 = payUseTimeCost(myKey, specKey, new Set(['k:0']), cardMap);
@@ -36875,8 +36891,8 @@ test('cost replacement: 「使用コストは《X》になる」 replaces the pr
     ['WX17-019', 'なし'], ['WD20-007', 'なし'],
     ['WDK06-R07', '《赤》×1《無》×1'], ['WDK08-Y06', '《緑》×1'], ['WXK01-034', '《黒》×1'],
   ] as [string, string][]) {
-    eq(computeCostReplacement(cardOf(num), my, cardMap, {}), null, `${num}: ベット宣言前は印刷コスト`);
-    eq(computeCostReplacement(cardOf(num), my, cardMap, { isBetting: true }), betCost, `${num}: ベット宣言で置換`);
+    eq(ccr(cardOf(num), my, cardMap, {}), null, `${num}: ベット宣言前は印刷コスト`);
+    eq(ccr(cardOf(num), my, cardMap, { isBetting: true }), betCost, `${num}: ベット宣言で置換`);
   }
 
   // ── タスク12(lxxxiv)：カットイン窓でベット宣言できるべき8枚（CSV Timing にスペルカットインを含む
@@ -36891,27 +36907,29 @@ test('cost replacement: 「使用コストは《X》になる」 replaces the pr
     eq(JSON.stringify(spec.options), JSON.stringify(opts), `${num}: ベット段階`);
     ok(cardOf(num).Timing.includes('スペルカットイン'), `${num}: カットイン窓に出る`);
   }
-  eq(computeCostReplacement(cardOf('WX17-019'), my, cardMap, { isBetting: true }), 'なし',
+  eq(ccr(cardOf('WX17-019'), my, cardMap, { isBetting: true }), 'なし',
     'WX17-019: カットイン専用＝ベット宣言でのみ《青×0》になる');
 
   // ── WX09-Re02（原票）＝相手のこのターンのアーツ/スペル使用で2段階。両方成立なら《白×0》が勝つ ──
   const re02 = cardOf('WX09-Re02');
-  eq(computeCostReplacement(re02, my, cardMap, { oppState: { actions_done: [] } }), null, 'WX09-Re02: 相手未使用なら印刷コスト（白1無7）');
-  eq(computeCostReplacement(re02, my, cardMap, { oppState: { turn_arts_used: true, actions_done: [] } }), '《白》×1《無》×4', 'WX09-Re02: アーツのみ');
-  eq(computeCostReplacement(re02, my, cardMap, { oppState: { actions_done: ['USE_SPELL'] } }), '《白》×1《無》×4', 'WX09-Re02: スペルのみ');
-  eq(computeCostReplacement(re02, my, cardMap, { oppState: { turn_arts_used: true, actions_done: ['USE_SPELL'] } }), 'なし', 'WX09-Re02: 両方＝《白×0》');
+  eq(ccr(re02, my, cardMap, { oppState: { actions_done: [] } }), null, 'WX09-Re02: 相手未使用なら印刷コスト（白1無7）');
+  eq(ccr(re02, my, cardMap, { oppState: { turn_arts_used: true, actions_done: [] } }), '《白》×1《無》×4', 'WX09-Re02: アーツのみ');
+  eq(ccr(re02, my, cardMap, { oppState: { actions_done: ['USE_SPELL'] } }), '《白》×1《無》×4', 'WX09-Re02: スペルのみ');
+  eq(ccr(re02, my, cardMap, { oppState: { turn_arts_used: true, actions_done: ['USE_SPELL'] } }), 'なし', 'WX09-Re02: 両方＝《白×0》');
 
   // ── 場のカード名条件（WX05-038）／トラッシュ枚数条件（WD22-041-UG） ──
-  eq(computeCostReplacement(cardOf('WX05-038'), my, cardMap, {}), null, 'WX05-038: カーミラ不在なら印刷コスト');
-  eq(computeCostReplacement(cardOf('WX05-038'),
+  eq(ccr(cardOf('WX05-038'), my, cardMap, {}), null, 'WX05-038: カーミラ不在なら印刷コスト');
+  eq(ccr(cardOf('WX05-038'),
     { field: { signi: [['WX02-023'], [], []], lrig: [] } as unknown as PlayerState['field'], trash: [] }, cardMap, {}),
     '《青》×1', 'WX05-038: 場に《幻水姫　スパイラル・カーミラ》');
-  eq(computeCostReplacement(cardOf('WD22-041-UG'), { field: emptyField, trash: Array(24).fill('x') }, cardMap, {}), null, 'WD22-041-UG: トラッシュ24枚では不成立');
-  eq(computeCostReplacement(cardOf('WD22-041-UG'), { field: emptyField, trash: Array(25).fill('x') }, cardMap, {}), 'なし', 'WD22-041-UG: トラッシュ25枚で《黒×0》');
+  eq(ccr(cardOf('WD22-041-UG'), { field: emptyField, trash: Array(24).fill('x') }, cardMap, {}), null, 'WD22-041-UG: トラッシュ24枚では不成立');
+  eq(ccr(cardOf('WD22-041-UG'), { field: emptyField, trash: Array(25).fill('x') }, cardMap, {}), 'なし', 'WD22-041-UG: トラッシュ25枚で《黒×0》');
 
   // ── computeArtsEffectiveCost 経由（UI が実際に呼ぶ入口）＝条件未成立なら印刷コストのまま ──
+  // 🆕§5.3 `O-86` 第6バッチ＝置換 payload も本番と同じく渡す（10番目の引数）。
   const eff = (num: string, ctx: Parameters<typeof computeCostReplacement>[3]) =>
-    computeArtsEffectiveCost(cardOf(num), { life_cloth: [], hand: [], field: emptyField, trash: [] }, undefined, '', 0, cardMap, undefined, undefined, ctx);
+    computeArtsEffectiveCost(cardOf(num), { life_cloth: [], hand: [], field: emptyField, trash: [] }, undefined, '', 0, cardMap,
+      undefined, undefined, ctx, undefined, costReplacementOf(num, effectsMap));
   eq(eff('WX09-Re02', { oppState: { actions_done: [] } }), cardOf('WX09-Re02').Cost, 'computeArtsEffectiveCost: 条件未成立は印刷コスト');
   eq(eff('WX09-Re02', { oppState: { turn_arts_used: true, actions_done: ['USE_SPELL'] } }), 'なし', 'computeArtsEffectiveCost: 置換が効く');
 
@@ -36942,9 +36960,9 @@ test('SET_CARD_COST_REPLACEMENT: named-card cost replacement persists for the ga
   // UI 側＝カード名一致で印刷コスト（《赤×1》《緑×1》《無×1》）を丸ごと差し替える
   const craft = cardMap.get('WXK03-TK-01B')!;
   const my = { field: { signi: [[], [], []], lrig: [] } as unknown as PlayerState['field'], trash: [] as string[] };
-  eq(computeCostReplacement(craft, my, cardMap, {}), null, '未セットなら印刷コスト');
-  eq(computeCostReplacement(craft, my, cardMap, { cardCostReplacements: reps }), '《黒》×2《無》×1', 'セット後は置換');
-  eq(computeCostReplacement(cardMap.get('WD17-006')!, my, cardMap, { cardCostReplacements: reps }), null, '別カード名には効かない');
+  eq(ccr(craft, my, cardMap, {}), null, '未セットなら印刷コスト');
+  eq(ccr(craft, my, cardMap, { cardCostReplacements: reps }), '《黒》×2《無》×1', 'セット後は置換');
+  eq(ccr(cardMap.get('WD17-006')!, my, cardMap, { cardCostReplacements: reps }), null, '別カード名には効かない');
   // 再設定は後勝ち（同名を二重に積まない）
   const ctx2: ExecCtx = { ...mkCtx({}, {}, 'WXK03-002#lrig'), ownerState: r.ownerState };
   eq((run(effect.action, ctx2).ownerState.card_cost_replacements ?? []).length, 1, '同名の再設定は上書き（重複しない）');
@@ -36958,18 +36976,19 @@ test('optional discard for cost: paying the declared hand groups replaces the pr
     ['WX21-071', '青', '黒', '電機'], ['WX21-035', '赤', '緑', '龍獣'],
   ] as [string, string, string, string][]) {
     const card = cardMap.get(num)!;
-    const spec = parseOptionalDiscardForCost(card.EffectText ?? '')!;
+    // 🆕§5.3 `O-86` 第6バッチ＝読み取り元は live payload（`EffectCost.optionalDiscardCost`）。
+    const spec = optionalDiscardCostOf(num, effectsMap)!;
     ok(!!spec, `${num}: 任意支払い仕様を読める`);
     eq(JSON.stringify(spec.groups), JSON.stringify([
       { color: colA, story: cls, count: 1 }, { color: colB, story: cls, count: 1 },
     ]), `${num}: 2グループ（色違い・同クラス・各1枚）`);
     eq(spec.replacement, 'なし', `${num}: 《色×0》はゼロコストへ畳む`);
-    eq(computeCostReplacement(card, my, cardMap, {}), null, `${num}: 未払いなら印刷コスト`);
-    eq(computeCostReplacement(card, my, cardMap, { paidOptionalDiscard: true }), 'なし', `${num}: 支払い済みで置換`);
+    eq(ccr(card, my, cardMap, {}), null, `${num}: 未払いなら印刷コスト`);
+    eq(ccr(card, my, cardMap, { paidOptionalDiscard: true }), 'なし', `${num}: 支払い済みで置換`);
   }
 
   // 支払い判定＝**貪欲では足りない**（多色シグニは両グループに当たる）ので割り当てを総当たりする
-  const spec = parseOptionalDiscardForCost(cardMap.get('WX21-071')!.EffectText ?? '')!;
+  const spec = optionalDiscardCostOf('WX21-071', effectsMap)!;
   const pick = (pred: (c: CardData) => boolean) => [...cardMap.values()].find(pred)!.CardNum;
   const blue = pick(c => c.Type === 'シグニ' && c.Color === '青' && (c.CardClass ?? '').includes('電機'));
   const black = pick(c => c.Type === 'シグニ' && c.Color === '黒' && (c.CardClass ?? '').includes('電機'));
@@ -36985,7 +37004,7 @@ test('optional discard for cost: paying the declared hand groups replaces the pr
   if (dual) ok(!optionalDiscardSatisfied(spec.groups, [dual.CardNum], cardMap), '多色1枚で2グループは満たせない');
 
   // 母集団＝この規則が発火するのは実測2枚だけ（「減る」形22枚を巻き込まない）
-  const fired = [...cardMap.values()].filter(c => parseOptionalDiscardForCost(c.EffectText ?? '') !== null).map(c => c.CardNum).sort();
+  const fired = [...cardMap.values()].filter(c => optionalDiscardCostOf(c.CardNum, effectsMap) !== null).map(c => c.CardNum).sort();
   eq(JSON.stringify(fired), JSON.stringify(['WX21-035', 'WX21-071']), '発火は WX21-035 / WX21-071 のみ');
 
   // ⚠**過剰ゲートの是正**＝先頭に STUB OPTIONAL_COST が残っていると effectExecutor の Pattern⑤ が
@@ -41043,8 +41062,8 @@ test('task12(lxxxviii) WDK15-007: declaring bet actually reduces the printed cos
   const card = cardMap.get('WDK15-007')!;
   const my = mkState({});
   eq(card.Cost, '《黒》×３', '印刷コスト');
-  eq(computeCostReplacement(card, my, cardMap, {}), null, '宣言前は印刷コストのまま');
-  eq(computeCostReplacement(card, my, cardMap, { isBetting: true }), '《黒》×1', 'ベット宣言で《黒×2》ぶん減る');
+  eq(ccr(card, my, cardMap, {}), null, '宣言前は印刷コストのまま');
+  eq(ccr(card, my, cardMap, { isBetting: true }), '《黒》×1', 'ベット宣言で《黒×2》ぶん減る');
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47168,7 +47187,7 @@ test('O-123 artsUseGate: 使用時の任意支払いで払えるなら提示す�
   const GUARD = findCard(c => isSigni(c) && c.Guard === '1');
   const NOGUARD = findCard(c => isSigni(c) && c.Guard !== '1');
   const card = cardMap.get('WX24-P3-002') as CardData;
-  const spec = parseUseTimeCostReduction(card.EffectText ?? '')!;
+  const spec = resolveUseTimeCost('WX24-P3-002', effectsMap)!;
   eq(applyUseTimeCostReduction(card.Cost, spec, 2), '《白》×1', '前提：《ガードアイコン》2枚払えば《白》×1');
   const gate = (hand: string[], energy: string[]) => {
     const actor = { ...mkState({ energy: 0 }), lrig_deck: [card.CardNum], hand, energy } as PlayerState;

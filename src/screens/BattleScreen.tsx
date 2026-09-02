@@ -49,7 +49,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -70,7 +70,7 @@ import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
 import { GrowModal } from './battle/modals/GrowModal';
 import { ArtsModal } from './battle/modals/ArtsModal';
 import { CutinModal } from './battle/modals/CutinModal';
-import { parseUseTimeCostReduction, payUseTimeCost } from './battle/useTimeCost';
+import { resolveUseTimeCost, payUseTimeCost } from './battle/useTimeCost';
 import { SigniActivatedModal } from './battle/modals/SigniActivatedModal';
 import { SigniOnPlayCostModal } from './battle/modals/SigniOnPlayCostModal';
 import { LrigGrantedModal } from './battle/modals/LrigGrantedModal';
@@ -7208,7 +7208,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         my, op, p.isActorTurn, battleCardMap, effectsMap).map(r => r.effectId);
       // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払い元が手札なら
       // 既存の discard と**同じ index 空間**でまとめて消す（別々に消すと index がずれる）。
-      const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
+      const useCostSpec = resolveUseTimeCost(card.CardNum, effectsMap);
       const useCostHandIdx = useCostSpec?.source === 'hand'
         ? [...useCostPayKeys].filter(k => k.startsWith('h:')).map(k => parseInt(k.slice(2))) : [];
       const discardIdxAll = new Set([...discardIndices, ...useCostHandIdx]);
@@ -7825,7 +7825,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paidNums, battleCards, my.keyword_grants, p.enaAllMulti, p.enaMultiStripped);
       // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。
       // タスク12(lxxxv) の「軽減」も支払い元が手札なら**同じ index 空間**で消す（別々に消すと index がずれる）。
-      const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
+      const useCostSpec = resolveUseTimeCost(card.CardNum, effectsMap);
       const useCostHandIdx = useCostSpec?.source === 'hand'
         ? [...useCostPayKeys].filter(k => k.startsWith('h:')).map(k => parseInt(k.slice(2))) : [];
       const discardIdxAll = [...new Set([...discardIndices, ...useCostHandIdx])].filter(i => i !== handIdx);
@@ -8762,6 +8762,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cardData, my, myLrigCardPC?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
         myLrigCardPC ? parseInt(myLrigCardPC.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
         { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap),
+        costReplacementOf(cardNum, effectsMap),
       );
       const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCostGate, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
       const condOk = canUseArtsCondition(

@@ -6,7 +6,7 @@ import type { ArtsPayerCtx } from './artsUseGate';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyMeltFactPreUseCost, applySpecificCardCostReduction,
-  canAffordWithExtraCost, computeArtsEffectiveCost, costScalingOf, parseGrowCost, removeNColorFromCost,
+  canAffordWithExtraCost, computeArtsEffectiveCost, costReplacementOf, costScalingOf, parseGrowCost, removeNColorFromCost,
 } from './costs';
 import { energyPoolCardNums } from './energyPaySource';
 import { meetsRestriction } from './growLogic';
@@ -63,7 +63,7 @@ export function computeSpellEffectiveCost(p: {
       myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0, cardMap,
       payer.lrigNameAliases, undefined,
       { oppState: op, cardCostReplacements: my.card_cost_replacements, paidOptionalDiscard: p.paidOptionalDiscard },
-      costScalingOf(card.CardNum, p.effectsMap)),
+      costScalingOf(card.CardNum, p.effectsMap), costReplacementOf(card.CardNum, p.effectsMap)),
     'スペル', card.Color, payer.costModsForMy);
   // 次スペルコスト軽減（`WX04-008`《白×2》減）を適用
   for (const r of my.next_spell_cost_reduction ?? []) cost = removeNColorFromCost(cost, r.color, r.count);

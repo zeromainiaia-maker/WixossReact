@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costScalingOf } from '../costs';
+import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -42,6 +42,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
                 card, my, myLrigCardKU?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
                 myLrigCardKU ? parseInt(myLrigCardKU.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
                 { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap),
+                costReplacementOf(card.CardNum, effectsMap),
               );
               const energyTotal = parseGrowCost(effKeyCost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);

@@ -23,7 +23,7 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import type { CardData } from '../src/types';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
-import { parseUseTimeCostReduction } from '../src/screens/battle/useTimeCost';
+import { parseUseTimeCostReductionText } from '../src/data/keywordCosts';
 import { decodeLancerKeyword } from '../src/utils/keywords';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -2797,7 +2797,7 @@ function actionJa(a?: Action, effectType?: string): string {
         // タスク12(lxxxv)：支払いステップを action から落とした31枚は、支払い文が action に無い。
         // 逆翻訳で「支払いが消えた」と読めてしまうので、**使用時に払う**ことを明示して復元する
         // （実際の支払いUIは `src/screens/battle/useTimeCost.ts` ＋ SpellCastModal / ArtsModal）。
-        if (costSents.length > 0 && parseUseTimeCostReduction(currentCardText)) {
+        if (costSents.length > 0 && parseUseTimeCostReductionText(currentCardText)) {
           const paySent = currentCardText.split('。').map(s => s.trim())
             .find(s => /を使用する際/.test(s));
           if (paySent) return `（使用時に支払う）${paySent}。${costSents.join('。')}`;

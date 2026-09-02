@@ -9,158 +9,49 @@
 //   `ARTS_USE_DISCARD_LRIG_DECK` / `DOWN_UP_SIGNI_AND_CHOOSE` ほか）は**実装済みで実際に払わせる**ので、
 //   落とさないと「使用時に払い、解決中にもう一度払わされ、しかも軽減は一度も効かない」ことになる。
 import type { CardData, PlayerState } from '../../types';
+import type { CardEffect, UseTimeCostSpecJson } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
 import { removeFromField } from '../../engine/execUtils';
-import { normalizeCostText, parseGrowCost, removeNColorFromCost } from './costs';
-import { toHalfWidth } from './battleUtils';
+import { removeNColorFromCost } from './costs';
 
 /**
  * 支払い元ゾーン。`signi_trash` 以外は**平坦なリスト**か `signi_down` フラグだけを触る。
  * `signi_trash` だけは場からシグニを外す＝下のカード/チャーム/アクセ/ソウルの後始末（`removeFromField`）と
  * **離場トリガーの発火**（呼び出し側が中央 diff で拾う）が要る＝タスク12(lxxxix)。
  */
-export type UseCostSource = 'hand' | 'signi_down' | 'signi_trash' | 'lrig_deck_arts' | 'life_cloth' | 'key';
+export type UseCostSource = UseTimeCostSpecJson['source'];
 
 /** 支払い候補の絞り込み（指定されたものだけを AND で見る）。 */
-export interface UseCostFilter {
-  /** いずれかの色を含む（原文「青のカード」）。 */
-  color?: string;
-  /** いずれかのクラス（原文「＜空獣＞か＜地獣＞」＝2件になりうる）。 */
-  story?: string[];
-  /** 'シグニ' / 'スペル' / 'アーツ'。原文「カード」＝種別不問なので undefined。 */
-  cardType?: string;
-  minPower?: number;
-  maxLevel?: number;
-  /** 《ガードアイコン》を持つ（`CardData.Guard === '1'`）。 */
-  hasGuard?: boolean;
-}
+export type UseCostFilter = UseTimeCostSpecJson['filter'];
 
-export interface UseTimeCostSpec {
-  source: UseCostSource;
-  filter: UseCostFilter;
-  /** 選べる最大枚数。「好きな数/好きな枚数」は候補数が上限なので `Infinity`。 */
+/**
+ * 実行時の spec＝JSON 表現（`UseTimeCostSpecJson`）の `max` を数値へ解いたもの。
+ * 🔴**`'ANY'`（原文「好きな数／好きな枚数」）は `Infinity`**＝候補数が上限。
+ */
+export interface UseTimeCostSpec extends Omit<UseTimeCostSpecJson, 'max'> {
   max: number;
-  /** true＝**1枚につき** `reduction` ／ false＝ちょうど `max` 枚を払って `reduction` が1回だけ効く。 */
-  perUnit: boolean;
-  reduction: { color: string; count: number }[];
-}
-
-const COST = '((?:《[^》]+》)+)';
-const num = (s: string) => parseInt(toHalfWidth(s));
-
-/** 「好きな数」「２枚まで」「１枚」→ 上限枚数と「ちょうどN枚か上限Nか」。 */
-function parseAmount(raw: string): { max: number; upTo: boolean } {
-  if (/^好きな/.test(raw)) return { max: Infinity, upTo: true };
-  const m = raw.match(/([０-９\d]+)(?:枚|体)(まで)?/);
-  if (!m) return { max: 1, upTo: false };
-  return { max: num(m[1]), upTo: !!m[2] };
 }
 
 /**
- * 支払い候補の記述（「青のスペル」「＜毒牙＞のシグニ」「《ガードアイコン》を持つシグニ」
- * 「パワー10000以上のシグニ」「レベル２以下の＜古代兵器＞のシグニ」）を filter へ落とす。
- */
-function parseDescriptor(d: string): UseCostFilter {
-  const f: UseCostFilter = {};
-  const color = d.match(/([白赤青緑黒])の/);
-  if (color) f.color = color[1];
-  const stories = [...d.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
-  if (stories.length > 0) f.story = stories;
-  const power = d.match(/パワー([０-９\d]+)以上/);
-  if (power) f.minPower = num(power[1]);
-  const level = d.match(/レベル([０-９\d]+)以下/);
-  if (level) f.maxLevel = num(level[1]);
-  if (/《ガードアイコン》を持つ/.test(d)) f.hasGuard = true;
-  const type = d.match(/(シグニ|スペル|アーツ)$/);
-  // 「カード」＝種別不問なので cardType を立てない（`SP38-003` の「青のカード」）。
-  if (type) f.cardType = type[1];
-  return f;
-}
-
-function parseReduction(raw: string): { color: string; count: number }[] {
-  return parseGrowCost(normalizeCostText(raw));
-}
-
-/** 軽減量の記述（比例形／固定形）を読む。見つからなければ null。 */
-function parseReductionClause(text: string): { perUnit: boolean; reduction: { color: string; count: number }[] } | null {
-  // 比例形：「使用コストは(、)この方法で捨てた(カード|シグニ)１枚につき《X》減る」
-  const per = text.match(
-    new RegExp(`使用コストは[、,]?この方法で(?:捨てた|ダウンした|トラッシュに置いた)(?:カード|シグニ)[１1](?:枚|体)につき${COST}減る`),
-  );
-  if (per) return { perUnit: true, reduction: parseReduction(per[1]) };
-  // 固定形：「そうした場合、…使用コストは《X》減る」
-  const fixed = text.match(new RegExp(`そうした場合[、,][^。]*?使用コストは${COST}減る`));
-  if (fixed) return { perUnit: false, reduction: parseReduction(fixed[1]) };
-  return null;
-}
-
-/**
- * 使用時の任意支払いによるコスト軽減を読む。この形でなければ `null`。
+ * 使用時の任意支払いによるコスト軽減＝**JSON payload だけを読む**（`EffectCost.useTimeCost`）。
  *
- * ⚠**ベット由来の「減る」（`WDK15-007`）は対象外**＝支払い元がコインで、宣言UIは既にベット枝が持っている。
- * ⚠**「使用コストとして追加で支払う」（`SPK06-01`）も対象外**＝減額ではなく増額で、原文の意味が逆。
+ * 🆕**2026-09-02（§5.3 `O-86` 第5バッチ）＝ここに在った `parseUseTimeCostReduction(effectText)` を撤去した**
+ *   （81カード・規則6本）。読み取りは `src/data/keywordCosts.ts` の `parseUseTimeCostReductionText` へ移し、
+ *   `buildEffectsJson.ts` が**収穫マージの後から**カードの先頭効果へ重ねる。
+ * 🔴従来は **`artsUseGate` / `ArtsModal` / `SpellCastModal` / `BattleScreen`（2箇所）** が
+ *   支払いのたびに `card.EffectText` を読み直しており、**支払いUI・可否ゲート・実際の支払いが
+ *   別々に原文を再解釈していた**（規則を1本直すと5箇所ぶん挙動が動く形）。
+ * ⚠**`'ANY'` を `Infinity` へ戻すのはここ1箇所**＝素通しすると `Math.min(spec.max, available)` が
+ *   NaN になり、選択がまったく成立しない。
  */
-export function parseUseTimeCostReduction(effectText: string): UseTimeCostSpec | null {
-  if (!effectText || !/使用する際/.test(effectText)) return null;
-  const red = parseReductionClause(effectText);
-  if (!red || red.reduction.length === 0) return null;
-  const HEAD = 'この(?:スペル|アーツ|カード)を使用する際[、,]';
-
-  // ① 手札から捨てる
-  const hand = effectText.match(
-    new RegExp(`${HEAD}手札から(.+?)を(好きな枚数|[０-９\\d]+枚(?:まで)?)(?:捨ててもよい|捨てる)。`),
-  );
-  if (hand) {
-    const { max } = parseAmount(hand[2]);
-    return { source: 'hand', filter: parseDescriptor(hand[1]), max, ...red };
+export function resolveUseTimeCost(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): UseTimeCostSpec | null {
+  for (const effect of effectsMap.get(getCardNum(cardNum)) ?? []) {
+    const spec = effect.cost?.useTimeCost;
+    if (spec) return { ...spec, max: spec.max === 'ANY' ? Infinity : spec.max };
   }
-
-  // ② 場のアップ状態のシグニをダウンする
-  const down = effectText.match(
-    new RegExp(`${HEAD}あなたのアップ状態の(.+?)を(好きな数|[０-９\\d]+体(?:まで)?)ダウンしてもよい。`),
-  );
-  if (down) {
-    const { max } = parseAmount(down[2]);
-    return { source: 'signi_down', filter: parseDescriptor(down[1]), max, ...red };
-  }
-
-  // ②' 場のシグニをトラッシュへ（タスク12(lxxxix)）。⚠**語順が2通りある**＝
-  //    「あなたのシグニ**を好きな数**場からトラッシュに置く」／「あなたの…シグニ**１体を場から**トラッシュに置いてもよい」。
-  const trashAny = effectText.match(
-    new RegExp(`${HEAD}あなたの(.+?)を(好きな数|[０-９\\d]+体(?:まで)?)場からトラッシュに置(?:いてもよい|く)。`),
-  );
-  if (trashAny) {
-    return { source: 'signi_trash', filter: parseDescriptor(trashAny[1]), max: parseAmount(trashAny[2]).max, ...red };
-  }
-  const trashN = effectText.match(
-    new RegExp(`${HEAD}あなたの(.+?)([０-９\\d]+体(?:まで)?)を場からトラッシュに置(?:いてもよい|く)。`),
-  );
-  if (trashN) {
-    return { source: 'signi_trash', filter: parseDescriptor(trashN[1]), max: parseAmount(trashN[2]).max, ...red };
-  }
-
-  // ③ ルリグデッキのアーツをルリグトラッシュへ
-  const lrigArts = effectText.match(
-    new RegExp(`${HEAD}あなたのルリグデッキから(?:([白赤青緑黒])の)?アーツ[１1]枚をルリグトラッシュに置いてもよい。`),
-  );
-  if (lrigArts) {
-    return {
-      source: 'lrig_deck_arts',
-      filter: { cardType: 'アーツ', ...(lrigArts[1] ? { color: lrigArts[1] } : {}) },
-      max: 1, ...red,
-    };
-  }
-
-  // ④ ライフクロス1枚をトラッシュへ
-  if (new RegExp(`${HEAD}あなたのライフクロス[１1]枚をトラッシュに置いてもよい。`).test(effectText)) {
-    return { source: 'life_cloth', filter: {}, max: 1, ...red };
-  }
-
-  // ⑤ 場のキー1枚をルリグトラッシュへ
-  if (new RegExp(`${HEAD}あなたのキー[１1]枚を場からルリグトラッシュに置いてもよい。`).test(effectText)) {
-    return { source: 'key', filter: {}, max: 1, ...red };
-  }
-
   return null;
 }
 

@@ -816,6 +816,77 @@ export type BeatSigniCost = number | { count: number; excludeSelf?: boolean };
  * - 段階（「ベット―《コイン》or《コイン》《コイン》」）→ `{ options:[1,2], variable:false }`
  * - 可変（「ベット―好きな枚数の《コイン》」）→ `{ options:[], variable:true }`（UI が1..所持枚数を提示）
  */
+/**
+ * 使用時（支払い時）の任意支払いによるコスト**軽減**（「この{スペル|アーツ}を使用する際、…してもよい。
+ * そうした場合、使用コストは《X》**減る**」）の JSON 表現。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第5バッチ）＝UI 層の原文 regex から payload へ移した**（81カード）。
+ * 従来は `src/screens/battle/useTimeCost.ts` の `parseUseTimeCostReduction(card.EffectText)` を
+ * **4入口**（`artsUseGate` / `ArtsModal` / `SpellCastModal` / `BattleScreen`＋逆翻訳）が呼び直していた。
+ * ⚠**「使用コストは《X》に*なる*」＝置換（`computeCostReplacement`）とは別物**（あちらは色構成ごと差し替わる）。
+ * 🔴**`max` は `'ANY'` を取りうる**（原文「好きな数／好きな枚数」）＝**JSON に `Infinity` は書けない**ので
+ *   文字列で表し、読み出し側（`resolveUseTimeCost`）が `Infinity` へ戻す。素朴に number にすると
+ *   `JSON.stringify(Infinity)` が `null` になり、**上限が消えて1枚も選べなくなる**。
+ */
+/**
+ * 条件つき使用コストの**置換／軽減**（「〜の場合、この{アーツ|スペル}の使用コストは《X》に**なる**／**減る**」）
+ * を UI が評価できる**閉じた語彙**で表したもの。
+ *
+ * 🆕**2026-09-02（§5.3 `O-86` 第6バッチ）＝`costs.ts` の `computeCostReplacement` が持っていた
+ *   原文 regex 7本を payload へ移した**（33カード）。
+ * 🔑**評価に要るものは `CostReplaceCtx` が既に全部運んでいる**（ベット宣言／相手のこのターンの
+ *   アーツ・スペル使用／自分の場のカード名／自分のトラッシュ枚数）＝新しい参照は増えない。
+ * 🔴**`stopIfUnmet` が挙動の要**＝旧実装はベット形と任意支払い形を**ガードより前／直後に置いて
+ *   条件が偽なら即 `null` を返して**いた。素直に「順に見て最初に成立したもの」にすると
+ *   後段の項へ落ちてしまうので、その早期 return を1フィールドで保存する。
+ */
+export type CostReplacementWhen =
+  | { kind: 'betting' }
+  | { kind: 'paidOptionalDiscard' }
+  /** このターンに対戦相手がアーツ／スペルを使用していたか。`mode:'all'`＝原文「両方を使用していた場合」。 */
+  | { kind: 'oppUsedThisTurn'; arts: boolean; spell: boolean; mode: 'all' | 'any' }
+  | { kind: 'selfFieldHasCardName'; cardName: string }
+  | { kind: 'selfTrashCountGte'; value: number };
+
+export interface CostReplacementTerm {
+  when: CostReplacementWhen;
+  /** 'replace'＝丸ごと差し替え（原文「〜になる」）／'reduce'＝印刷コストから引く（原文「〜減る」）。 */
+  mode: 'replace' | 'reduce';
+  cost: { color: string; count: number }[];
+  /** true＝条件が偽なら**以降の項を見ずに「置換なし」で確定**（旧実装の早期 return を保存する）。 */
+  stopIfUnmet?: boolean;
+}
+
+/**
+ * 使用時の任意支払いによるコスト**置換**（「使用する際、手札から〈色A〉と〈色B〉の＜C＞のシグニを
+ * １枚ずつ捨ててもよい。そうした場合、使用コストは《X》に**なる**」＝`WX21-035`／`WX21-071` の2枚）。
+ * ⚠隣接する「減る」形は `useTimeCost` の側（枚数比例／可変枚数）＝支払いの粒度が違う。
+ */
+export interface OptionalDiscardCostSpec {
+  groups: { color: string; story: string; count: number }[];
+  /** 置換後のコスト（空配列＝「なし」）。 */
+  cost: { color: string; count: number }[];
+}
+
+export interface UseTimeCostSpecJson {
+  /** 支払い元ゾーン。 */
+  source: 'hand' | 'signi_down' | 'signi_trash' | 'lrig_deck_arts' | 'life_cloth' | 'key';
+  /** 支払い候補の絞り込み（指定されたものだけを AND で見る）。 */
+  filter: {
+    color?: string;
+    story?: string[];
+    cardType?: string;
+    minPower?: number;
+    maxLevel?: number;
+    hasGuard?: boolean;
+  };
+  /** 選べる最大枚数。`'ANY'`＝候補数が上限（原文「好きな数／好きな枚数」）。 */
+  max: number | 'ANY';
+  /** true＝**1枚につき** `reduction` ／ false＝ちょうど `max` 枚を払って `reduction` が1回だけ効く。 */
+  perUnit: boolean;
+  reduction: { color: string; count: number }[];
+}
+
 export interface BetCostSpec {
   options: number[];
   variable: boolean;
@@ -845,6 +916,12 @@ export interface EffectCost {
    * ⚠アーツ本体の `energy` とは**別枠**＝宣言したときだけ `ArtsModal` の支払い検証へ加える。
    */
   boostCost?: EnergyCost[];
+  /** 使用時の任意支払いによるコスト軽減（§5.3 `O-86`）。UI はこれを読む＝原文 regex を持たない。 */
+  useTimeCost?: UseTimeCostSpecJson;
+  /** 条件つき使用コストの置換／軽減（§5.3 `O-86`）。**順に見て最初に成立した項**が勝つ。 */
+  costReplacement?: CostReplacementTerm[];
+  /** 使用時の任意支払いによるコスト置換（§5.3 `O-86`）。支払いUI は `groups` を読む。 */
+  optionalDiscardCost?: OptionalDiscardCostSpec;
   discard?: number;       // 手札を任意のカードN枚トラッシュ
   discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可

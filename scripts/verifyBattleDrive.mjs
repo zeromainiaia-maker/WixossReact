@@ -42108,6 +42108,101 @@ async function driveO86Boost(page, H) {
   }
   return { pass: true, detail: `ブースト表示 ${JSON.stringify(boostLabel)}／OFF=0枚で使用可・ON=0枚では不可・3枚で成立し全額支払われた。${detail}` };
 }
+/**
+ * `V-120`＝`O-86` 第6バッチ「条件つき使用コストの置換を payload から読む」（`artsUseGate` ＋ `ArtsModal`）。
+ * 原文＝`WD20-007` 生生流転「**ベット―《コイン》《コイン》あなたがベットする場合、このアーツの
+ *   使用コストは《緑×0》になる。**あなたのデッキの一番上のカードをライフクロスに加える。」
+ * 🔑観測点＝**印刷コスト《緑》×２《無》×２（4枚）を払えない盤面（エナ0枚）でも、ベット2枚を宣言すれば使える**。
+ *   `costReplacementOf`（旧 `computeCostReplacement` の原文 regex）が読めていなければ
+ *   ベットしても印刷コストのままで、**一覧にも出ず／出ても押せない**。
+ * 🔴対照＝ベット OFF に戻すと再び押せなくなる（＝置換がベット宣言に本当に紐づいている）。
+ */
+const o86BetReplaceSpec = {
+  hostSet: {
+    'field.lrig': ['WD03-004#9750'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': ['WD20-007#9751'],
+    'energy': [],            // 🔴印刷コスト4枚は**まったく払えない**
+    'coins': 2,              // ベット2枚ぶんだけ持つ
+    'lrig_trash': [], 'hand': [], 'trash': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9792'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+async function driveO86BetReplace(page, H) {
+  await H.ensureMain();
+  const st0 = await H.queryState();
+  H.log(`開始 energy=${st0?.host?.energy} coins=${st0?.host?.coins} life=${st0?.host?.life} lrigDeck=${JSON.stringify(st0?.host?.lrigDeckCards)}`);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(800);
+  await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(800);
+  await H.clickTextOrBtn(['使用']);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOT}/o86betrep-modal.png`, fullPage: true });
+
+  const useBtn = () => page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+  if (!(await useBtn().count())) {
+    const names = await page.getByRole('button').allTextContents().catch(() => []);
+    H.log(`  見えているボタン: ${JSON.stringify(names.map(t => t.trim()).filter(Boolean).slice(0, 40))}`);
+    return { pass: false, detail: '🔴前提崩れ＝アーツ使用モーダルへ辿り着けない（置換が読めず一覧から消えている疑い）' };
+  }
+  const offEnabled = await useBtn().isEnabled().catch(() => false);
+  H.log(`  ベットOFF: アーツ使用 enabled=${offEnabled}`);
+  if (offEnabled) return { pass: false, detail: '🔴エナ0枚・ベットOFF なのに印刷コスト《緑》×２《無》×２ を踏み倒して使える' };
+
+  const bet2 = page.getByRole('button', { name: '2枚', exact: true }).first();
+  if (!(await bet2.count())) return { pass: false, detail: '前提崩れ＝ベット「2枚」ボタンが無い（betOptions payload が読めていない）' };
+  await bet2.click().catch(() => {});
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${SHOT}/o86betrep-bet.png`, fullPage: true });
+  const onEnabled = await useBtn().isEnabled().catch(() => false);
+  const onLabel = ((await useBtn().textContent().catch(() => '')) ?? '').trim();
+  H.log(`  ベット2枚: アーツ使用 enabled=${onEnabled} label=${JSON.stringify(onLabel)}`);
+  if (!onEnabled) return { pass: false, detail: '🔴ベット2枚を宣言しても《緑×0》へ置換されない（エナ0枚のまま使えるはず）' };
+
+  // 🔴対照＝OFF へ戻すと再び押せない（置換がベット宣言に紐づいている証拠）
+  const off = page.getByRole('button', { name: 'OFF', exact: true }).first();
+  if (await off.count()) {
+    await off.click().catch(() => {});
+    await page.waitForTimeout(500);
+    const backOff = await useBtn().isEnabled().catch(() => false);
+    H.log(`  OFF へ戻す: アーツ使用 enabled=${backOff}`);
+    if (backOff) return { pass: false, detail: '🔴ベットを OFF へ戻しても使えたまま＝置換が宣言に紐づいていない' };
+    await bet2.click().catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  await useBtn().click().catch(() => {});
+  let last = st0, settled = 0;
+  for (let i = 0; i < 15; i++) {
+    await page.waitForTimeout(700);
+    const did = await H.stdStep(['決定', 'OK', 'はい', '確定']);
+    last = await H.queryState();
+    H.log(`  o86betrep[${i}] -> ${did ?? 'なし'} | coins=${last?.host?.coins} life=${last?.host?.life} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+    settled = !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `coins=${st0?.host?.coins}→${h.coins} life=${st0?.host?.life}→${h.life} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+  if (!(h.lrigTrashCards ?? []).includes('WD20-007#9751')) {
+    return { pass: false, detail: `🔴アーツがルリグトラッシュへ行っていない（使用が成立していない）。${detail}` };
+  }
+  if (h.coins !== 0) return { pass: false, detail: `🔴ベット2枚ぶんのコインが支払われていない。${detail}` };
+  return { pass: true, detail: `エナ0枚では使えず、ベット2枚の宣言で《緑×0》へ置換されて使用できた（OFF へ戻すと再び不可）。${detail}` };
+}
+scenarios.o86BetCostReplace = {
+  title: 'O-86 WD20-007：ベット宣言で使用コストが《緑×0》へ置換される（payload 経由・エナ0枚で成立）',
+  spec: o86BetReplaceSpec, drive: (page, H) => driveO86BetReplace(page, H),
+};
+order.push('o86BetCostReplace');
+
 scenarios.o86BoostExtraCost = {
   title: 'O-86 WX25-P1-008：【ブースト】の追加エナコストが payload から請求される（OFF=0枚 / ON=3枚）',
   spec: o86BoostSpec, drive: (page, H) => driveO86Boost(page, H),

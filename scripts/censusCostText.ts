@@ -43,7 +43,14 @@ const onlyId = (() => {
 //   （`parseBetOptions` を撤去し、`EffectCost.betOptions` を `costs.ts` の `betOptionsOf` が読む）。68カード。
 // 43 → 42 ＝ 第4バッチで**【ブースト】の任意追加エナコストを payload へ移した**分
 //   （`parseBoostCost` を撤去し、`EffectCost.boostCost` を `costs.ts` の `boostCostOf` が読む）。5カード。
-const BASELINE_COST_RULES = 42;
+// 42 → 34 ＝ 第5バッチで**使用時の任意支払いによるコスト軽減を payload へ移した**分
+//   （`useTimeCost.ts` の `parseUseTimeCostReduction` を撤去し、`EffectCost.useTimeCost` を
+//    `resolveUseTimeCost` が読む）。**規則8本ぶん**＝A群 182→104カード・真の worklist 150→72カード。
+// 34 → 26 ＝ 第6バッチで**条件つき使用コストの置換／軽減を payload へ移した**分
+//   （`computeCostReplacement` の原文 regex 7本と `parseOptionalDiscardForCost` を撤去し、
+//    `EffectCost.costReplacement` / `optionalDiscardCost` を `costReplacementOf` /
+//    `optionalDiscardCostOf` が読む）。**規則8本ぶん**＝A群 104→77カード・真の worklist 72→45カード。
+const BASELINE_COST_RULES = 26;
 
 /**
  * 走査対象＝**カードを使うときのコストと可否を決める UI 層**。

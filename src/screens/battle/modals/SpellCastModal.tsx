@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { parseGrowCost, canAffordWithExtraCost, isMultiEna, betOptionsOf, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
-import { parseUseTimeCostReduction, useTimeCostCandidates as getTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid as isTimeCostSelectionValid } from '../useTimeCost';
+import { parseGrowCost, canAffordWithExtraCost, isMultiEna, betOptionsOf, optionalDiscardCostOf, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
+import { resolveUseTimeCost, useTimeCostCandidates as getTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid as isTimeCostSelectionValid } from '../useTimeCost';
 import { computeSpellEffectiveCost, spellExtraCosts } from '../spellUseGate';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -48,7 +48,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
               if (!spellCard) return null;
               // 使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）。
               // 支払いが揃ってはじめてコスト置換が成立する＝選択に追従して再計算する（タスク12(lxxxi)）。
-              const optDiscardSpec = parseOptionalDiscardForCost(spellCard.EffectText ?? '');
+              const optDiscardSpec = optionalDiscardCostOf(spellCard.CardNum, effectsMap);
               const optDiscardNums = [...selectedSpellDiscard].map(i => my.hand[i]).filter(Boolean);
               const optDiscardPaid = !!optDiscardSpec
                 && optionalDiscardSatisfied(optDiscardSpec.groups, optDiscardNums, battleCardMap);
@@ -68,7 +68,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                 ? (pendingSpellCast.virusRemovalByZone ?? []).reduce((sum, n) => sum + n, 0)
                 : 0;
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
-              const useCostSpec = parseUseTimeCostReduction(spellCard.EffectText ?? '');
+              const useCostSpec = resolveUseTimeCost(spellCard.CardNum, effectsMap);
               const useCostCands = useCostSpec
                 ? getTimeCostCandidates(useCostSpec, my, battleCardMap, pendingSpellCast.handIndex) : [];
               const useCostBefore = effSpellCost;

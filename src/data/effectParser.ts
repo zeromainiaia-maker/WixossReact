@@ -23587,6 +23587,10 @@ function repairGrantKeywordMetadataBatch41(
 }
 
 export function parseCardEffects(card: CardData): CardEffect[] {
+  // 🔑**印字キーワードコストは正規化前の原文で読む**（§5.3 `O-86`）＝UI（旧 regex）も
+  //   `buildEffectsJson.ts` の重ねも `card.EffectText` そのものを見るので、ここだけ
+  //   `normalizePowerNumericMinusTypo` 済みの文字列を使うと fresh と live が食い違いうる。
+  const rawEffectTextForPrintedCosts = card.EffectText;
   card = {
     ...card,
     EffectText: normalizePowerNumericMinusTypo(card.EffectText),
@@ -24318,7 +24322,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   //   ⚠`manualEffects.ts` が本文を手書きしたカードでは収穫マージが live を温存するので、
   //     `buildEffectsJson.ts` が**マージの後から**同じものを重ねる（そちらが最終的な正）。
   if (effects.length > 0) {
-    const printed = printedKeywordCosts(card.EffectText);
+    const printed = printedKeywordCosts(rawEffectTextForPrintedCosts);
     const first = effects[0];
     const restCost = { ...(first.cost ?? {}) };
     for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];

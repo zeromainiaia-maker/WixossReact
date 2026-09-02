@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
+import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -51,8 +51,9 @@ export function CutinModal(p: CutinModalProps) {
   const { bs, user, my, op, isMyTurn, effectsMap, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, cutinBetAmount, setCutinBetAmount, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   // ベット宣言でコストが置換される札（WX17-019《青×0》/ WD20-007《緑×0》）の置換後コスト。
-  const betReplacedCostOf = (card: { CardName?: string; Cost: string; EffectText?: string }): string | null =>
-    computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true });
+  const betReplacedCostOf = (card: { CardNum: string; CardName?: string; Cost: string }): string | null =>
+    computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
+      costReplacementOf(card.CardNum, effectsMap));
   const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
   // ルリグデッキ由来（＝アーツ本体）の実効コスト（タスク12(lxxxvii)）。
   // 従来はここだけ **CSV の `Cost` 列＋`specificCardCostReductions`** で出しており、
@@ -83,7 +84,8 @@ export function CutinModal(p: CutinModalProps) {
       computeArtsEffectiveCost(card, my, myLrigCardCM?.CardName, oppLrigColorCM,
         myLrigCardCM ? parseInt(myLrigCardCM.Level ?? '0') : 0, battleCardMap,
         myLrigNameAliases, myArtsThresholdReductions,
-        { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap)),
+        { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap),
+        costReplacementOf(card.CardNum, effectsMap)),
       'アーツ', card.Color, activeCostMods.forMy);
     return applySpecificCardCostReduction(eff, card.CardName, specificCardCostReductions);
   };

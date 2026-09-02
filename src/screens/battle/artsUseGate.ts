@@ -13,14 +13,14 @@ import { canUseArtsCondition } from './battleUtils';
 import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyNextArtsCostReduction, applySpecificCardCostReduction,
-  canAffordGrowCost, canAffordWithExtraCost, computeArtsEffectiveCost, computeCostReplacement, costScalingOf,
+  canAffordGrowCost, canAffordWithExtraCost, computeArtsEffectiveCost, computeCostReplacement, costReplacementOf, costScalingOf,
   energyCostToString, isEnaMultiStripped, betOptionsOf,
 } from './costs';
 import { type EnergyPayEntry, buildEnergyPayPool, energyPoolCardNums } from './energyPaySource';
 import { effectiveLrigClass, meetsRestriction } from './growLogic';
 // ⚠`useTimeCostCandidates` は別名で受ける＝`use` 始まりだと eslint の `rules-of-hooks` が React Hook と
 //   誤認して警告を出す（`SpellCastModal` が同じ理由で `getTimeCostCandidates` に別名化している）。
-import { applyUseTimeCostReduction, parseUseTimeCostReduction, useTimeCostCandidates as getTimeCostCandidates } from './useTimeCost';
+import { applyUseTimeCostReduction, resolveUseTimeCost, useTimeCostCandidates as getTimeCostCandidates } from './useTimeCost';
 
 /**
  * 🆕**「条件を満たす場合、このアーツは追加で《X アイコン》を持つ」で足される使用タイミング**
@@ -266,14 +266,16 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
       cardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
       myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0,
       cardMap, payer.lrigNameAliases, payer.artsThresholdReductions,
-      { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap)),
+      { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap),
+      costReplacementOf(cardNum, effectsMap)),
     'アーツ', card.Color, payer.costModsForMy), card.CardName, payer.specificCardCostReductions), my.next_arts_cost_reduction);
   // ベット宣言でのみ成立する置換は宣言が支払いUI内なので、ここでは「ベットすれば払えるか」だけ見る。
   const betSpec = betOptionsOf(cardNum, effectsMap);
   const betCoinMin = betSpec.variable ? 1 : Math.min(...betSpec.options, Infinity);
   const betCost = !isActionBlocked('BET') && !my.negate_coin_abilities
     && Number.isFinite(betCoinMin) && my.coins >= betCoinMin
-    ? computeCostReplacement(card, my, cardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
+    ? computeCostReplacement(card, my, cardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
+        costReplacementOf(cardNum, effectsMap))
     : null;
   // 対戦相手ターン中の代替コスト（`altCostOppTurn`）があればそちらが請求額そのもの。
   const altCost = !isMyTurn ? effectsMap.get(cardNum)?.[0]?.altCostOppTurn : undefined;
@@ -292,7 +294,7 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
   //   「半端に払っても安くならない」原文どおりの挙動がそのまま最良値になる。
   // ⚠**代替コスト（`altCostOppTurn`）が立っている窓では見ない**＝あちらが請求額そのものなので、
   //   印刷コストへの軽減を重ねると二重に安くなる。
-  const useTimeSpec = altCostStr === null ? parseUseTimeCostReduction(card.EffectText ?? '') : null;
+  const useTimeSpec = altCostStr === null ? resolveUseTimeCost(cardNum, effectsMap) : null;
   const useTimeBestCost = useTimeSpec
     ? applyUseTimeCostReduction(reducedCost, useTimeSpec,
         Math.min(useTimeSpec.max, getTimeCostCandidates(useTimeSpec, my, cardMap).length))

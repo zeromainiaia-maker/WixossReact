@@ -4,8 +4,8 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
-import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
+import { computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
+import { resolveUseTimeCost, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
@@ -60,7 +60,8 @@ export function ArtsModal(p: ArtsModalProps) {
               // ベット宣言でコストが置換される札（タスク12(lxxxi)）は betAmount に追従して再計算する
               // （gate から渡された pendingArtsEffectiveCost は宣言前の値なので使えない）。
               const betReplacedCost = betAmount > 0
-                ? computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
+                ? computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
+                    costReplacementOf(pendingArtsCard.CardNum, effectsMap))
                 : null;
               const rawEffectiveCost = betReplacedCost ?? pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
               // SPECIFIC_CARD_COST_REDUCE の二重適用を防ぐ（タスク12(xcvi)）＝
@@ -87,7 +88,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 ? reducedEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
                 : reducedEffectiveCost;
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
-              const useCostSpec = parseUseTimeCostReduction(pendingArtsCard.EffectText ?? '');
+              const useCostSpec = resolveUseTimeCost(pendingArtsCard.CardNum, effectsMap);
               const useCostCands = useCostSpec ? useTimeCostCandidates(useCostSpec, my, battleCardMap) : [];
               const useCostBefore = effectiveCost;
               const useCostIncomplete = !!useCostSpec && selectedArtsUseCostPay.size > 0
@@ -142,7 +143,8 @@ export function ArtsModal(p: ArtsModalProps) {
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost && encoreDiscardOk;
               const betSpec = betOptionsOf(pendingArtsCard.CardNum, effectsMap);
               // ベット宣言でコストが変わる札は、宣言を切り替えたら選択済みエナを白紙に戻す（枚数要件が変わるため）
-              const betReplacesCost = computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true }) !== null;
+              const betReplacesCost = computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
+                costReplacementOf(pendingArtsCard.CardNum, effectsMap)) !== null;
               const encoreCoins = encoreCostForCard?.coins ?? 0;
               const betReservedForEncore = isEncore ? encoreCoins : 0;
               // ベットで選べるコイン枚数（固定/段階/可変）。アンコール併用時はその分を残す
