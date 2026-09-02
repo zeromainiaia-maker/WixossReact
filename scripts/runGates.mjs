@@ -46,6 +46,10 @@ const results = await Promise.all([
   // 🆕§5.3 `O-60`（2026-08-26）＝engine が「効果元のカード全文」を regex で読む箇所の ratchet。
   // 増えたら exit 1（新しいハンドラで全文 regex を書いた）／減っても exit 1（基準の下げ忘れ）。
   run('census-enginetext', 'census:enginetext'),
+  // 🆕§5.3 `O-86`（2026-09-02）＝**UI コスト層**が「カード原文」を regex で読んで実効コストを決める箇所の ratchet。
+  // ⚠`census:enginetext` は `src/engine/` しか走査しないので**この層は1行も映らない**（別計器が要る理由）。
+  // 増えたら exit 1（UI 層で新しく原文 regex を書いた＝payload 化と逆）／減っても exit 1（基準の下げ忘れ）。
+  run('census-costtext', 'census:costtext'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);

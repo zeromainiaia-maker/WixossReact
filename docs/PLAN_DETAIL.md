@@ -34,6 +34,36 @@
 
 > | §6 恒久指標（続き768） | 「恒久指標（退避）2026-09-01 続き768 後」 |
 
+### 恒久指標（退避）2026-09-02 索引 A 第1巡 前（＝索引 B 第2巡 直後の値）
+
+- **2026-09-02（索引 B 第2巡）＝§5.3 索引 B の残り9件を全消化（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 20 → 19 / 863 (2.2%)**（うち `mech` 19・**即着手可能 0**）｜
+  **台帳 残 OPEN 44**（据置）｜**census 高シグナル 5 / BASELINE 5**（据置）
+  ⚠**動かなかった理由**＝①Sheet1 が -1 なのは、この巡で触った14カードのうち **Sheet1 は `WX05-006` の1枚だけ**
+  （他は Sheet2/4/7/8/9）②台帳 残 OPEN 44 は**全件が `src/screens/` か新機構待ち**で §5.2 から取っていない
+  ③census は**この巡で高シグナルに出る形の効果を1件も触っていない**（9件とも engine/UI の配線・分岐の問題で、
+  JSON の語彙は元から載っていた／新設した型は census の語彙表に載る前から live に無かった）。
+  📦**在庫2本**＝**機構 worklist 30 → 25項目**（`| \`O-` 行数の実測＝索引 A **17**／**B 9 → 0**／
+  🆕**G 1**（`O-218`＝`O-68`④ から分離した「【シード】の【起】が UI から使えない」）／E **4**／F **3**）
+  ｜🏁**実機 残 0件**（§5.1＝この巡の5シナリオは同巡で実行・全 PASS）
+  🔧**ゲート（全緑 ✅）**＝golden **3275 / 3275**（3269 → **+6本**）／smoke 全異常0／fuzz 全0／
+  census **5 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  **`census:enginetext` A🔴 130 → 129行 / 126ハンドラ**（`OPP_DECLARE_CHOICE` の全文 regex 枝を撤去）／lint 0 errors。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝新規5シナリオ すべて PASS**（**うち反転確認3本**）＝
+  `o160DamageByAttack`（アタックのダメージで発火＝ライフ2枚減）／`o160DamageByEffect`（🔴反転＝効果のクラッシュでは発火しない）／
+  `o163DeclareIconBranches`（一致軸数で**1本だけ**走る＝3分岐の同時実行に戻らない）／
+  `o118ExceedPick`（🔴反転＝色を満たさない選択では発動できない／未選択なら従来どおり自動）／
+  `o71HandToCheckZone`（🔴反転＝`check_rest` の掃除より先に手札へ戻る）。
+  ⚠**回帰3本も同時に回した**（`exceedCost` / `wxk09050` / `censusDelayedTurnEndStoredTarget`）＝すべて PASS。
+  🆕**足した機構（6組）**＝`HAND_TO_CHECK_ZONE`（`O-71`）／`EffectCost.fieldTrashAll`（`O-68`①）／
+  `PlayerState.spell_in_check_zone`＋`openSpellCheckZone`/`closeSpellCheckZone`（`O-138`）／
+  `DECLARE_ICON_REVEAL_CHECK`（`O-163`）／`TriggerTiming.ON_PLAYER_DAMAGED`＋`PlayerState.damaged_just`＋
+  `collectPlayerDamagedTriggers`＋`consumeDamagedJust`（`O-160`）／ルリグ【起】のエクシード選択UI（`O-118`）。
+  🧹**撤去**＝`OPP_DECLARE_CHOICE` のカード全文 regex 枝（`INTERNAL_ODC_COLOR_CHECK` は到達不能で1バージョンだけ残置）。
+  🔴**この巡の最大の発見＝「条件を足すだけ」「型を足すだけ」は逆側（無言 no-op）の事故になる**
+  （`O-138` は条件が真になる盤面が実装上どこにも無かった／`O-71` は対象が確定しているのに選択UIを開いて
+  ターン終了時に盤面ごと止まった＝**どちらも golden 全緑のまま壊れる形**）。
+
 ### 恒久指標（退避）2026-09-02 索引 B 第2巡 前（＝索引 B 第1巡 直後の値）
 
 - **2026-09-02（索引 B 第1巡）＝§5.3 索引 B の上から3件（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
@@ -797,6 +827,25 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-26 続き666（`O-60` 第8バッチ）で分離**＝旧 id は `CONDITIONAL_ARTS_COST` だったが**コストの話ではない**。**live 0 件の死んだ枝**なので `DEFERRED_FIELD_COUNT_ALT_TRASH` へ改名しただけ（第5バッチの教訓＝**死んだ枝は catch-all の温床**）。⚠**着手前に母集団を実測する**＝live 0 のまま増えないなら parser 側の枝ごと落としてよい。
 
 ### `O-86` — アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている
+
+🏁**2026-09-02（索引 A 第1巡）＝登録票の①②を完了した。**
+①**計器**＝`npm run census:costtext`（`scripts/censusCostText.ts`）を新設。`runGates` に同梱し、
+**A群の規則本数の ratchet**（増えても減っても exit 1）を付けた＝**UI 層で新しく原文 regex を書いたら止まる**。
+②**母集団**＝**A🔴 COST 45規則 / 当たり 261カード**、うち**コスト payload（`costScaling` /
+`conditionalEnergyReduction`）が無い 229カードが真の worklist**（payload 済み32枚は
+`computeArtsEffectiveCost` の「payload が評価できたら下の regex 群を通さない」構造で**既に降りている**）。
+🏁**第1バッチ＝死に規則5本を撤去**（`《X》を〈N〉つ少なくする` 形＝`つ少` を含むカードは全 CSV で **0枚**。
+実データの言い回しは「減る」だけ）＝**50→45規則・挙動は1バイトも変わらない**。
+🔑**計器を書くときに2回踏んだ罠**（次に触る人向け）＝
+(a)**行ごとに読むとネストした arrow const を関数境界と誤認**して追跡中の原文変数が消える（A群が 2規則に化けた）
+(b)`text.match(new RegExp(\`…${'${'}RED}…\`))` の**テンプレ regex**と**複数行にまたがる呼び出し**は
+   行単位では1本も拾えない（`costs.ts` だけで7本）。⇒ **ファイル全体を1文字列として走査**し、
+   `${'${'}定数}` は同ファイルの `const 名 = '…'` から解く。
+(c)**原文を引数で受け取る関数**（`parseUseTimeCostReduction(effectText)` ほか）を数えないと
+   `costs.ts` の `parse*` 群と `useTimeCost.ts` が**丸ごと母集団から消える**（38→50規則の差はここ）。
+▶**残りは③payload 化**＝上位から `parseUseTimeCostReduction`(81カード) / `parseBetOptions`(68) /
+`computeCostReplacement`(33) / `parseEncoreCost`(32)。⚠**規則1本ずつ剥がす**（`costs.ts:262` の前例＝
+母集団を見ずに剥がして8枚が静かに印刷コスト請求へ落ちた）。明細は `docs/_census_costtext.txt`。
 
 **規模／母集団（登録票の記載そのまま）**＝M〜L
 

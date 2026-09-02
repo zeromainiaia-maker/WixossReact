@@ -11,57 +11,41 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-09-02・索引 B 第2巡・Opus 5 単独）＝§5.3 索引 B の残り9件を全消化して索引 B を空にした**
-  （`O-71` / `O-68` / `O-137` / `O-138` / `O-163` / `O-78` / `O-104` / `O-118` / `O-160`）。
-  📊**進捗3計器＝Sheet1 要対応 20 → 19 / 863（`mech` 19・即着手可能 0）｜台帳 残 OPEN 44（据置）｜
-  census 高シグナル 5（据置）**。
-  📦**在庫2本＝④機構 worklist 30 → 25項目**（索引 A 17／**B 9 → 0**／🆕**G 1**（`O-218`＝この巡で分離）／E 4／F 3）
-  ｜🏁**⑤実機 残 0件**（この巡の5シナリオは同巡で実行・全 PASS）。
-  gates 全緑（golden **3275 / 3275**＝3269 から **+6本**・smoke 全異常0・fuzz 全0・census **5 / BASELINE 5**・
-  census-stubs A🔴0/C0・manual-fields 0・**census-enginetext A🔴 130 → 129行**・lint 0 errors）。
+- 🏁**セッション（2026-09-02・索引 A 第1巡・Opus 5 単独）＝§5.3 `O-86` の①計器・②母集団実測・③第1バッチ**
+  📊**進捗3計器＝Sheet1 要対応 19 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 5（据置）**。
+  ⚠**3計器が動かないのは想定どおり**＝`O-86` は**UI 層のコスト計算**の話で、
+  3計器はどれも live JSON か engine しか見ていない（＝**この層を測る計器が無かった**のが `O-86` の本体）。
+  📦**在庫2本＝④機構 worklist 25項目（据置）**（索引 A 17／G 1／E 4／F 3）
+  ｜🏁**⑤実機 残 0件**（コスト系の回帰5シナリオを同巡で実行・全 PASS）。
+  gates 全緑（golden 3275 / 3275 据置・smoke 全異常0・fuzz 全0・census 5 / BASELINE 5・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴129 据置・
+  🆕**census-costtext A🔴45規則**（新設・ratchet）・lint 0 errors）。
 
-  🔑**この巡の主題①＝ユーザー指示どおり9件すべて着手前に母集団を数え直したら、索引の値は 29効果 → 実測20効果だった。**
-  内訳＝`O-137` **4 → 0（実測でクローズ）**／`O-78` **3 → 1**／`O-71` **5 → 2**／`O-138` **4 → 2**／
-  `O-104` **3 → 2（しかも穴が別物）**。⇒ **索引の母集団列は登録当時の標本**（3巡連続で当たった）。
+  🔑**この巡でやったこと＝登録票が指定する「①まず計器を作る」に従った。**
+  `O-86` は「アーツ／スペルの実効コストを UI 層が原文 regex で毎回読み直している」項目で、
+  🔴**既存の `census:enginetext` は `src/engine/` しか走査しないのでこの層が1行も映らない**
+  （＝A群が0になってもコストの意味は原文 regex のまま）。⇒ `npm run census:costtext` を新設し
+  `runGates` へ同梱（**A群の規則本数の ratchet**＝UI 層で新しく原文 regex を書いたら止まる）。
 
-  🔑**主題②＝「受け皿を疑う」が今回も効いた**＝`O-71`（3点組）・`O-78`（`SIGNI_DEPLOY_BAN{namesFromTargets}`）・
-  `O-138`（`CHECK_ZONE_COUNT`）・`O-68`②（クラフト除外は `Type==='アーツ'` の完全一致が既に弾いていた）は
-  **受け皿が既にあり、欠けていたのは配線だけ**だった。⚠`O-68`② で `excludeCraft` キーを足すのは
-  **存在しない仕事**だった（実データの `Type` を見るまで分からない）。
+  📐**②母集団の実測**＝**A🔴 COST 45規則 / 当たり 261カード**。
+  🔑**うち「コスト payload（`costScaling` / `conditionalEnergyReduction`）が無い」229カードが真の worklist**
+  （payload 済み32枚は `computeArtsEffectiveCost` の構造上**既に regex から降りている**）。
+  ⚠登録票の「178カード」はカード種別の内訳から出した別の数え方＝**229 が以後の正**。
 
-  🔴**主題③＝「条件を足すだけ」は逆側の事故になる**（`O-138`）。
-  「対戦相手のチェックゾーンにスペルがある場合」を足しても、**解決待ちのスペルは `pending_spell` が持っていて
-  `field` のどこにも属さない**ので条件は永久に偽＝レゾナ3枚が**無言 no-op** に化けるところだった。
-  ⇒ `PlayerState.spell_in_check_zone` を新設（`QUEUE_SPELL` で置き `FINISH_SPELL`/`FINISH_CUTIN` で降ろす）。
-  🔑**条件型を足す前に「その条件が真になる盤面が実在するか」を確かめる。**
+  🏁**③第1バッチ＝死に規則5本を撤去**（`《X》を〈N〉**つ少**なくする` 形）＝
+  実データの言い回しは「減る」だけで **`つ少` を含むカードは全 CSV で0枚**。**挙動は1バイトも変わらない**
+  （到達不能な枝の削除）。A群 **50 → 45規則**。
 
-  🔴**主題④＝JSON 側に分岐が「素のステップ列」として並んでいた過剰実行**（`O-163`・`WX16-Re17-E1`）＝
-  起動するたび**相手の全シグニをトラッシュ＋1体バニッシュ＋自分の手札全捨て**がまとめて起きていた
-  （engine はカード全文 regex でペナルティを1種類に焼き込み＝`census:enginetext` A群の典型）。
-  新設 `DECLARE_ICON_REVEAL_CHECK` で**宣言する軸と一致軸数ごとの帰結**を JSON に出した（A群 130→129）。
+  🔴**計器を書くときに2回踏んだ罠**（次に計器を足す人向け・全部 CLAUDE.md にも書いた）＝
+  ①**行ごとに読むとネストした arrow const を関数境界と誤認**して追跡中の原文変数が消える（A群が2規則に化けた）
+  ②`new RegExp(\`…${'${'}定数}…\`)` の**テンプレ regex**と**複数行呼び出し**は行単位では1本も拾えない（7本）
+  ③**原文を引数で受け取る関数**（`parseUseTimeCostReduction(effectText)` 等）を数えないと
+    `costs.ts` の `parse*` 群と `useTimeCost.ts` が丸ごと消える（**38 → 50規則**の差はここ）。
 
-  🔴**主題⑤＝偽ゲート**（`O-104`）＝「そうした場合」が `CONDITIONAL{IS_MY_TURN}`（＝常に真）で、
-  中間動作（自分の＜原子＞3体／エナの＜植物＞3枚）を**1つも払えなくても本体が通っていた**。
-  `fixedSelectionPickLimit` が候補数へクランプするので**払える分だけ払って本体だけ通る**＝
-  `LAST_PROCESSED_COUNT_GTE{3}` へ差し替えた。
-
-  🖥**実機で1件バグを見つけて直した**＝`O-71` の「このターン終了時、対戦相手はそれを手札に戻す」が
-  **候補1件の `SELECT_TARGET` を開いてターン終了時に盤面ごと止まった**。対象は設置時に焼き込んであるので
-  選ぶものは1通りしか無い＝`execTransferToHand` に「`fixedCardNums` で候補が枚数以下なら即適用」を足した
-  （既存の `thisCardOnly` と同じ規約）。**golden だけでは出ない型**（`run()` の autopilot が勝手に選んでしまう）。
-
-  🆕**足した機構（6組）**＝`HAND_TO_CHECK_ZONE`（`O-71`）／`EffectCost.fieldTrashAll`（`O-68`①）／
-  `PlayerState.spell_in_check_zone`（`O-138`）／`DECLARE_ICON_REVEAL_CHECK`（`O-163`）／
-  `TriggerTiming.ON_PLAYER_DAMAGED`＋`PlayerState.damaged_just`＋`collectPlayerDamagedTriggers`（`O-160`）／
-  ルリグ【起】のエクシード選択UI（`O-118`）。
-  🧹**撤去**＝`OPP_DECLARE_CHOICE` のカード全文 regex 枝（`O-163`）。
-
-**▶ 次の一手**＝**§5.3 の索引 A を上から**（残17件・母集団2桁＝遅いレーン）。
-⚠**着手前に PLAN_DETAIL の同じ ID の登録票を読む**が、🔴**母集団は必ず自分で数え直す**
-（3巡連続で索引の数字が実測とズレた。索引 B 第2巡は 29効果 → 実測20効果）。
-🆕**この巡で足す確認＝「その条件が真になる盤面が実在するか」**（`O-138` で踏んだ＝条件を足すだけだと
-永久に偽＝無言 no-op へ倒れる）と**「対象が確定しているのに選択UIを開いていないか」**（`O-71` で踏んだ＝
-遅延トリガーで開くとターン終了時に盤面が止まる。golden の autopilot では出ない）。
+**▶ 次の一手**＝**`O-86` の③payload 化を上から**＝`parseUseTimeCostReduction`(81カード) /
+`parseBetOptions`(68) / `computeCostReplacement`(33) / `parseEncoreCost`(32)。明細は `docs/_census_costtext.txt`。
+🔴**規則1本ずつ剥がす**＝母集団を見ないまま剥がすと**いま当たっている効果が静かに印刷コスト請求へ落ちる**
+（`costs.ts:262` の前例＝8枚）。⚠**剥がしたら `BASELINE_COST_RULES` を実測値へ下げる**（下げ忘れも exit 1）。
 
 ## 2. 作業の流れ（1巡の定義）★このプロジェクトの唯一の作業単位
 
@@ -878,7 +862,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-86` | **178カード**<br>🆕2026-09-01 実測 | アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている<br>内訳＝アーツ107／スペル36／シグニ16／ルリグ10／ピース7／レゾナ1／キー1。🔴**着手は実装ではなく計器から**（`census:enginetext` は `src/engine/` しか走査しないので、この178枚は1枚も映らない） |
+| `O-86` | **229カード**<br>🆕2026-09-02 実測（計器新設） | アーツ／スペルの実効コストが UI 層で原文 EffectText を毎回 regex 再パースしている<br>🏁**①計器 ②母集団実測は完了**＝`npm run census:costtext` を新設（`runGates` 同梱・ratchet つき）。**A🔴 COST 45規則 / 当たり 261カード**、うち**コスト payload が無い 229カードが真の worklist**（payload 済み32枚は既に regex から降りている）。<br>🏁**第1バッチで死に規則5本を撤去**（`《X》を〈N〉つ少なくする` 形＝全 CSV で 0枚。挙動は不変）＝50→45規則。<br>▶**次は③payload 化**＝上位から `parseUseTimeCostReduction`(81) / `parseBetOptions`(68) / `computeCostReplacement`(33) / `parseEncoreCost`(32)。⚠**規則1本ずつ剥がす**（母集団が分からないまま剥がすと静かに印刷コスト請求へ落ちる＝`costs.ts:262` の前例＝8枚） |
 | `O-195` | **145効果**<br>🔴要再計測 | 「〜場合、」側の条件節テール＝原文に条件節があるのに live に条件ゼロ（`STATE_CONDITION_CLAUSES_V2` 側）<br>⚠続き549 の 247−102 の引き算値。着手前に数え直す |
 | `O-96` | **122効果** | 「〜を対象とし、（別のカードを）〜してもよい。そうした場合、それを〜する」＝先に対象化したカードと後段の操作対象の照応<br>2026-09-01 続き763 に欠陥署名で実測（161→122） |
 | `O-194` | **68効果** | 【常】の「〜であるかぎり」の条件型テール（レベル合計比較／N種類以上／否定形／【チャーム】数 ほか）<br>続き549 実測 |
@@ -1261,33 +1245,24 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-02（索引 B 第2巡）＝§5.3 索引 B の残り9件を全消化（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 20 → 19 / 863 (2.2%)**（うち `mech` 19・**即着手可能 0**）｜
-  **台帳 残 OPEN 44**（据置）｜**census 高シグナル 5 / BASELINE 5**（据置）
-  ⚠**動かなかった理由**＝①Sheet1 が -1 なのは、この巡で触った14カードのうち **Sheet1 は `WX05-006` の1枚だけ**
-  （他は Sheet2/4/7/8/9）②台帳 残 OPEN 44 は**全件が `src/screens/` か新機構待ち**で §5.2 から取っていない
-  ③census は**この巡で高シグナルに出る形の効果を1件も触っていない**（9件とも engine/UI の配線・分岐の問題で、
-  JSON の語彙は元から載っていた／新設した型は census の語彙表に載る前から live に無かった）。
-  📦**在庫2本**＝**機構 worklist 30 → 25項目**（`| \`O-` 行数の実測＝索引 A **17**／**B 9 → 0**／
-  🆕**G 1**（`O-218`＝`O-68`④ から分離した「【シード】の【起】が UI から使えない」）／E **4**／F **3**）
-  ｜🏁**実機 残 0件**（§5.1＝この巡の5シナリオは同巡で実行・全 PASS）
-  🔧**ゲート（全緑 ✅）**＝golden **3275 / 3275**（3269 → **+6本**）／smoke 全異常0／fuzz 全0／
+- **2026-09-02（索引 A 第1巡）＝§5.3 `O-86` の①計器・②母集団実測・③第1バッチ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 19 / 863 (2.2%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 5 / BASELINE 5**（据置）
+  ⚠**3本とも据置なのは想定どおり**＝`O-86` は**UI 層のコスト計算**の話で、3計器はどれも
+  live JSON か `src/engine/` しか見ていない（**この層を測る計器が無かった**こと自体が `O-86` の本体）。
+  📦**在庫2本**＝**機構 worklist 25項目（据置）**（索引 A **17**／G **1**／E **4**／F **3**）
+  ｜🏁**実機 残 0件**（コスト系の回帰5シナリオを同巡で実行・全 PASS）
+  🔧**ゲート（全緑 ✅）**＝golden **3275 / 3275**（据置）／smoke 全異常0／fuzz 全0／
   census **5 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  **`census:enginetext` A🔴 130 → 129行 / 126ハンドラ**（`OPP_DECLARE_CHOICE` の全文 regex 枝を撤去）／lint 0 errors。
-  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝新規5シナリオ すべて PASS**（**うち反転確認3本**）＝
-  `o160DamageByAttack`（アタックのダメージで発火＝ライフ2枚減）／`o160DamageByEffect`（🔴反転＝効果のクラッシュでは発火しない）／
-  `o163DeclareIconBranches`（一致軸数で**1本だけ**走る＝3分岐の同時実行に戻らない）／
-  `o118ExceedPick`（🔴反転＝色を満たさない選択では発動できない／未選択なら従来どおり自動）／
-  `o71HandToCheckZone`（🔴反転＝`check_rest` の掃除より先に手札へ戻る）。
-  ⚠**回帰3本も同時に回した**（`exceedCost` / `wxk09050` / `censusDelayedTurnEndStoredTarget`）＝すべて PASS。
-  🆕**足した機構（6組）**＝`HAND_TO_CHECK_ZONE`（`O-71`）／`EffectCost.fieldTrashAll`（`O-68`①）／
-  `PlayerState.spell_in_check_zone`＋`openSpellCheckZone`/`closeSpellCheckZone`（`O-138`）／
-  `DECLARE_ICON_REVEAL_CHECK`（`O-163`）／`TriggerTiming.ON_PLAYER_DAMAGED`＋`PlayerState.damaged_just`＋
-  `collectPlayerDamagedTriggers`＋`consumeDamagedJust`（`O-160`）／ルリグ【起】のエクシード選択UI（`O-118`）。
-  🧹**撤去**＝`OPP_DECLARE_CHOICE` のカード全文 regex 枝（`INTERNAL_ODC_COLOR_CHECK` は到達不能で1バージョンだけ残置）。
-  🔴**この巡の最大の発見＝「条件を足すだけ」「型を足すだけ」は逆側（無言 no-op）の事故になる**
-  （`O-138` は条件が真になる盤面が実装上どこにも無かった／`O-71` は対象が確定しているのに選択UIを開いて
-  ターン終了時に盤面ごと止まった＝**どちらも golden 全緑のまま壊れる形**）。
+  `census:enginetext` A🔴 **129行 / 126ハンドラ**（据置）／
+  🆕**`census:costtext` A🔴 45規則 / 当たり 261カード**（新設・`BASELINE_COST_RULES=45`）／lint 0 errors。
+  🖥**実機（`node scripts/verifyBattleDrive.mjs`）＝コスト系の回帰5シナリオ すべて PASS**＝
+  `chainArtsCostReduction` / `b19costup` / `b19costupnone` / `exceedCostPay` / `fezoneDoubleCostPay`。
+  ⚠**新規シナリオは作っていない**＝この巡の変更は**到達不能な枝の削除**（挙動不変）なので、
+  観測すべき新しい挙動が無い。⇒ **既存のコスト経路が壊れていないこと**だけを見た。
+  🆕**足した計器（1本）**＝`npm run census:costtext`（`scripts/censusCostText.ts`・`runGates` 同梱）。
+  🧹**撤去**＝`computeArtsEffectiveCost` の死に規則5本（`《X》を〈N〉つ少なくする` 形＝全 CSV で0枚）。
+  📐**`O-86` の真の worklist ＝ 229カード**（261カードのうちコスト payload が無い分）。
 
 ## 付録A. 全体像と Definition of Done
 

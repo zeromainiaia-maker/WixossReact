@@ -870,36 +870,14 @@ export function computeArtsEffectiveCost(
     }
   }
 
-  // 自分のセンタールリグのレベル条件：コスト減
-  m = text.match(/センタールリグのレベルが([０-９\d]+)(以上|以下)[^、]*(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && myLrigLevel !== undefined) {
-    const threshold = parseInt(toHalfWidth(m[1]));
-    const op = m[2];
-    const condMet = op === '以上' ? myLrigLevel >= threshold : myLrigLevel <= threshold;
-    if (condMet) return removeOneCostColor(base, m[3]);
-  }
-
-  // ライフクロスがN枚以下の場合コスト減
-  m = text.match(/ライフクロスが([０-９\d]+)枚以下.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && myState.life_cloth.length <= parseInt(toHalfWidth(m[1]))) {
-    return removeOneCostColor(base, m[2]);
-  }
-
-  // 手札がN枚以下の場合コスト減
-  m = text.match(/手札が([０-９\d]+)枚以下.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && myState.hand.length <= parseInt(toHalfWidth(m[1]))) {
-    return removeOneCostColor(base, m[2]);
-  }
-
-  // センタールリグ名条件（エイリアスも考慮）
-  m = text.match(/センタールリグのカード名に《([^》]+)》を含む.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && lrigNameMatches(m[1])) {
-    return removeOneCostColor(base, m[2]);
-  }
-  m = text.match(/センタールリグが.*?カード名に《([^》]+)》.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && lrigNameMatches(m[1])) {
-    return removeOneCostColor(base, m[2]);
-  }
+  // 🗑**2026-09-02（§5.3 `O-86` 第1バッチ）＝「《X》を〈N〉つ少なくする」形の規則5本を撤去した。**
+  //   新設した `npm run census:costtext` が **5本とも live 0件**（＝1枚も当たらない死に規則）と測った。
+  //   🔑実データの言い回しは**「減る」だけ**＝`つ少` を含むカードは **0枚**（全 CSV を実測）。
+  //   撤去したのは①センタールリグのレベル条件 ②ライフクロスN枚以下 ③手札N枚以下
+  //   ④⑤センタールリグ名条件（2綴り）＝いずれも**下の「減る」系の規則が同じ意味を担っている**。
+  //   ⚠**挙動は1バイトも変わらない**（到達不能な枝の削除）。新しい綴りのカードが来たら計器が
+  //   「当たらない規則が増えた」ではなく **A群の本数が増えない**まま静かに素通りするので、
+  //   その時は `census:costtext` の上位に出ない＝**原文側から探す**こと（§5.3 `O-86`）。
 
   // フィールドにパワーN以上のシグニがある場合コスト減（CONDITIONAL_COST_REDUCTION_BY_FIELD）
   if (myState.field && cardMap) {

@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-02（索引 A 第1巡）：§5.3 `O-86` の①計器・②母集団実測・③死に規則5本の撤去
+
+**ベースライン**＝`cfe8e0d90`（索引 B を空にした直後）。`O-86` の登録票が指定する
+**「①まず計器を作る ②母集団を実測 ③payload 化」**の①②を完了し、③の**最初の払い戻し**まで進めた。
+
+**ゲート**＝全緑。golden 3275 / 3275（据置）／smoke 全異常0／fuzz 全0／census 5 / BASELINE 5／
+`census:stubs` A🔴0・C0／manual-fields 0／`census:enginetext` A🔴129（据置）／
+🆕**`census:costtext` A🔴45規則**（新設・ratchet）／lint 0 errors。
+**実機**＝コスト系の回帰5シナリオ すべて PASS
+（`chainArtsCostReduction` / `b19costup` / `b19costupnone` / `exceedCostPay` / `fezoneDoubleCostPay`）。
+
+### ① 計器＝`npm run census:costtext` を新設（`scripts/censusCostText.ts`）
+
+**なぜ別計器が要るか**＝既存の `census:enginetext`（`O-60`）は **`src/engine/` しか走査しない**。
+実効コスト（置換／軽減／追加／使用時の任意支払い）を決めているのは
+**`src/screens/battle/costs.ts` ほかの UI 層**で、`card.EffectText` を毎回読み直している＝
+**A群の数字が0になってもコストの意味は原文 regex のまま**。⇒ UI コスト層専用の ratchet を切った
+（`runGates` 同梱。増えても減っても exit 1＝新しく原文 regex を書いたら止まる）。
+
+**計器を書くときに2回踏んだ罠**（初版がどちらも母集団を桁で外した）
+- (a)**行ごとに読むと、ネストした arrow const（`const toCostStr = (raw) => …`）を関数境界と誤認**して
+  追跡中の原文変数が消え、**A群が 2規則**しか出なかった。⇒ ファイル全体を1文字列として走査する。
+- (b)`text.match(new RegExp(\`…${'${'}RED}…\`))` の**テンプレ regex**と**複数行呼び出し**が1本も拾えない
+  （`costs.ts` だけで7本）。⇒ テンプレ内の `${'${'}定数}` を同ファイルの `const 名 = '…'` から解決する。
+- (c)**原文を引数で受け取る関数**（`parseUseTimeCostReduction(effectText)` ほか）を数えないと
+  `costs.ts` の `parse*` 群と `useTimeCost.ts` が丸ごと消える（**38 → 50規則**の差はここ）。
+
+### ② 母集団の実測
+
+**A🔴 COST 45規則 / 当たり 261カード**（B GATE 4規則・C OTHER 3規則）。
+🔑**うち「コスト payload（`costScaling` / `conditionalEnergyReduction`）が無い」229カードが真の worklist**＝
+`computeArtsEffectiveCost` は「payload が評価できたら下の全文 regex 群を通さない」構造なので、
+**payload 済みの32枚は既に regex から降りている**（＝`O-86` の残作業ではない）。
+⚠登録票の「178カード」はカード種別の内訳から出した別の数え方＝**今回の229が以後の正**。
+
+### ③ 第1バッチ＝死に規則5本の撤去（真因 / 影響 / 検証）
+
+**真因**＝`computeArtsEffectiveCost` の「使用コストは《X》を〈N〉**つ少**なくする」形5本
+（センタールリグのレベル／ライフN枚以下／手札N枚以下／センタールリグ名2綴り）が
+**1枚も当たっていなかった**。実データの言い回しは**「減る」だけ**で、`つ少` を含むカードは
+**全 CSV で 0枚**（計器が live 0 と測り、原文側からも確認）。同じ意味は下の「減る」系の規則が担っている。
+**影響**＝0効果（到達不能な枝の削除＝**挙動は1バイトも変わらない**）。A群 **50 → 45規則**。
+**検証**＝`npm run census:costtext`（死に規則 0本になった）／`npm run gates` 全緑／実機コスト系5シナリオ。
+
+### ⑤実機の要否（PLAN §2.2 の機械判定）
+
+**必須**＝`src/screens/battle/costs.ts` を触ったため。⚠**削除だけ**なので新規シナリオは作らず、
+**コスト系の既存5シナリオを回帰として回した**（全 PASS）。
+
 ## 2026-09-02（索引 B 第2巡）：§5.3 索引 B の残り9件を全消化 — `O-71` / `O-68` / `O-137` / `O-138` / `O-163` / `O-78` / `O-104` / `O-118` / `O-160`
 
 **ベースライン**＝`eca372931`（索引 B 第1巡の直後）。**ユーザー指示で9件すべて着手前に母集団を数え直した**＝

@@ -29,6 +29,7 @@
     "census:cards": "node scripts/cardProgressCensus.mjs",
     "census:stubs": "tsx scripts/censusStubs.ts",
     "census:enginetext": "tsx scripts/censusEngineText.ts",
+    "census:costtext": "tsx scripts/censusCostText.ts",
     "census:orphanmanual": "tsx scripts/censusOrphanManual.ts"
   },
   "dependencies": {
