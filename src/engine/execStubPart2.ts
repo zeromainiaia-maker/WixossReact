@@ -41,12 +41,18 @@ function applyTrapToHand(selected: string[], ctx: ExecCtx): ExecCtx & { lastProc
   const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
   const takenTraps: string[] = [];
   const takenSigni: string[] = [];
+  // 🆕§5.3 `O-59`（2026-09-02）＝**抜いたトラップが居たゾーン**を覚える。
+  //   「それがあった**シグニゾーンに**手札からカード1枚を【トラップ】として設置する」（`WX16-028-E2`）は
+  //   この記憶が無いと行き先が決まらず、旧実装は `[トラップ設置保留: previous]` の no-op に倒していた。
+  const takenZones: number[] = [];
   for (const cn of selected) {
     const zi = traps.indexOf(cn);
-    if (zi >= 0) { traps[zi] = null; takenTraps.push(cn); continue; }
+    if (zi >= 0) { traps[zi] = null; takenTraps.push(cn); takenZones.push(zi); continue; }
     if (ctx.ownerState.field.signi.some(stack => stack?.at(-1) === cn)) takenSigni.push(cn);
   }
-  let state: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_traps: traps } };
+  let state: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_traps: traps },
+    // ⚠**同じ解決の中でしか使わない**（`trap_removed_zones` は turn-end で失効する）。
+    ...(takenZones.length > 0 ? { trap_removed_zones: takenZones } : {}) };
   for (const cn of takenSigni) state = removeFromField(cn, state);
   const moved = [...takenTraps, ...takenSigni];
   state = { ...state, hand: [...state.hand, ...moved] };
@@ -3252,7 +3258,24 @@ export function execStubPart2(
   // live 18効果・再帰21ノードすべてへの搭載を機械確認後、旧全文フォールバックは撤去済み。
   if ((stub.id === 'TRAP_OP' || stub.id === 'TRAP_OPERATION') && stub.trapOp) {
     if (stub.trapOp === 'set') {
-      // 固定ゾーン設置／相手の場のシグニ由来は、既存funnelに出所除去・固定ゾーン指定の口が無い。
+      // 🆕§5.3 `O-59`（2026-09-02）＝`trapFixedZone:'previous'`＝「**それがあったシグニゾーンに**手札から
+      //   カード1枚を【トラップ】として設置する」（`WX16-028-E2`）。行き先ゾーンは直前に抜いた
+      //   `trap_removed_zones` から復元する（`applyTrapToHand` が書く）。
+      // ⚠**ゾーンを選ばせない**＝原文がゾーンを決めているので `INTERNAL_ASK_TRAP_ZONE` は通さず、
+      //   `INTERNAL_PICK_TO_TRAP{count:zone}` へ直接渡す。
+      // ⚠**記憶が無ければ何もしない**（fail-closed）＝自由ゾーンへ誤設置すると原文と別の効果になる。
+      if (stub.trapFixedZone === 'previous') {
+        const zonePrev = ctx.ownerState.trap_removed_zones?.[0];
+        if (zonePrev === undefined) return done(addLog(ctx, 'トラップ設置：直前のゾーンが分からない'));
+        const handPrev = ctx.ownerState.hand;
+        if (handPrev.length === 0) return done(addLog(ctx, 'トラップ設置：手札なし'));
+        return needsInteraction(addLog(ctx, `ゾーン${zonePrev + 1}に【トラップ】として設置するカードを手札から選択`), {
+          type: 'SELECT_TARGET', candidates: handPrev, count: 1,
+          optional: stub.upToCount === true, targetScope: 'self_hand',
+          thenAction: ({ type: 'STUB', id: 'INTERNAL_PICK_TO_TRAP', count: zonePrev } as StubAction) as EffectAction,
+        });
+      }
+      // 相手の場のシグニ由来は、既存funnelに出所除去の口が無い。
       // 自由ゾーンへ誤設置するより安全なno-opに倒し、O-59候補として分離する。
       if (stub.trapFixedZone || stub.trapSource === 'field_signi') {
         return done(addLog(ctx, `[トラップ設置保留: ${stub.trapFixedZone ?? stub.trapSource}]`));
@@ -3287,6 +3310,24 @@ export function execStubPart2(
     if (stub.trapOp === 'trash') {
       const maxTrash = Math.max(1, stub.count ?? 1);
       const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+      // 🆕§5.3 `O-59`（2026-09-02）＝「**その**【トラップ】」＝トリガー元シグニと同じゾーンの1枚だけ。
+      // 🔴無指定の経路は**先頭から N 枚**なので、別ゾーンのトラップを巻き込む（`WX21-025-E1`）。
+      if (stub.trapZoneOfTriggerSource) {
+        const trigTZ = ctx.triggeringCardNum;
+        // ⚠トリガー元は**相手のシグニ**（`otherState` 側）。トラップは自分の場にある。
+        const zoneTZ = trigTZ
+          ? ctx.otherState.field.signi.findIndex(stack => stack?.at(-1) === trigTZ)
+          : -1;
+        const cardTZ = zoneTZ >= 0 ? traps[zoneTZ] : null;
+        if (!cardTZ) return done(addLog(ctx, 'そのシグニゾーンに【トラップ】がない'));
+        const nextTZ = traps.map((c, i) => (i === zoneTZ ? null : c)) as (string | null)[];
+        return done(addLog({
+          ...ctx,
+          ownerState: { ...ctx.ownerState, trash: [...ctx.ownerState.trash, cardTZ],
+            field: { ...ctx.ownerState.field, signi_traps: nextTZ } },
+          lastProcessedCards: [cardTZ],
+        }, `そのシグニゾーンの【トラップ】をトラッシュへ`));
+      }
       const trashed = traps.filter((card): card is string => !!card).slice(0, maxTrash);
       if (trashed.length === 0) return done(addLog(ctx, 'トラップなし'));
       const nextTraps = traps.map(card => card && trashed.includes(card) ? null : card) as (string | null)[];
@@ -3319,7 +3360,14 @@ export function execStubPart2(
         `場の${targetDataAT?.CardName ?? selectedAT}のトラップアイコンを発動`));
     }
     if (stub.trapOp === 'rearrange') {
-      return done(addLog(ctx, '[トラップ再配置：並べ替え対話は未実装]'));
+      // 🆕§5.3 `O-59`（2026-09-02）＝「あなたのすべての【トラップ】を好きなように配置し直す」（`WX17-062-E1`）。
+      // 🔑**新しい対話は作らない**＝シグニの並べ替え（`REARRANGE_SIGNI`）と器だけが違うので `mode:'traps'` で共有する。
+      const trapsRA = (ctx.ownerState.field.signi_traps ?? []).filter((c): c is string => !!c);
+      if (trapsRA.length === 0) return done(addLog(ctx, '配置し直す【トラップ】がない'));
+      if (trapsRA.length === 1) return done(addLog(ctx, '【トラップ】が1つだけなので配置は変わらない'));
+      return needsInteraction(addLog(ctx, '【トラップ】を好きなように配置し直す'), {
+        type: 'REARRANGE_SIGNI', owner: 'self', signiNums: trapsRA, optional: false, mode: 'traps',
+      });
     }
     if (stub.trapOp === 'to_check') {
       const pendingLooked = stub.trapSource === 'looked' && stub.value == null && (ctx.lastProcessedCards?.length ?? 0) > 1;
@@ -3414,7 +3462,37 @@ export function execStubPart2(
         `ライフバーストをチェックゾーンにあるかのように発動: ${burstData?.CardName ?? burstCard}`));
     }
     if (stub.trapOp === 'gain_trap_ability') {
-      return done(addLog(ctx, '[トラップ能力コピー：未実装]'));
+      // 🆕§5.3 `O-59`（2026-09-02）＝「このカードは**それのトラップ能力を得て**、その能力を発動する」
+      //   （`WX17-029-TRAP`＝「あなたのトラッシュからカード1枚を対象とし、《無》を支払ってもよい。そうした場合…」）。
+      // 🔑**新しいコピー機構は要らなかった**＝`trapOp:'activate'` と同じく「対象の `TRAP_ICON` 効果を exec する」だけ。
+      // 🔴**ただし `sourceCardNum` は差し替えない**＝原文は「**このカードが**得て発動する」なので、
+      //   コピー元（トラッシュのカード）を効果元にすると能力中の「このシグニ」が**場に居ないカード**を指す。
+      //   （`trapOp:'activate'` は「**場のシグニの**トラップアイコンを発動」なので差し替えるのが正しい＝向きが逆。）
+      const poolGTA = stub.trapSource === 'trash' ? ctx.ownerState.trash
+        : stub.trapSource === 'hand' ? ctx.ownerState.hand
+        : (ctx.ownerState.field.signi_traps ?? []).filter((c): c is string => !!c);
+      const hasTrapIcon = (cn: string): boolean => {
+        const cd = ctx.cardMap.get(getCardNum(cn));
+        const effs = cd?.effects?.length ? cd.effects : cd ? parseCardEffects(cd) : [];
+        return effs.some(e => e.effectType === 'TRAP_ICON');
+      };
+      // ⚠**トラップ能力を持つカードだけを候補にする**（持たないカードを選ばせると必ず空振りになる）。
+      const candsGTA = poolGTA.filter(hasTrapIcon);
+      if (candsGTA.length === 0) return done(addLog(ctx, 'トラップ能力を持つカードが対象領域にない'));
+      const pickedGTA = ctx.lastProcessedCards?.find(cn => candsGTA.includes(cn));
+      if (!pickedGTA) {
+        return needsInteraction(addLog(ctx, 'トラップ能力を得るカードを選択'), {
+          type: 'SELECT_TARGET', candidates: candsGTA, count: 1, optional: false,
+          targetScope: stub.trapSource === 'hand' ? 'self_hand' : 'self_trash',
+          thenAction: ({ ...stub } as StubAction) as EffectAction,
+        });
+      }
+      const cdGTA = ctx.cardMap.get(getCardNum(pickedGTA));
+      const effsGTA = cdGTA?.effects?.length ? cdGTA.effects : cdGTA ? parseCardEffects(cdGTA) : [];
+      const iconGTA = effsGTA.find(e => e.effectType === 'TRAP_ICON');
+      if (!iconGTA) return done(addLog(ctx, `${cdGTA?.CardName ?? pickedGTA}: トラップアイコン能力なし`));
+      return exec(iconGTA.action, addLog({ ...ctx, trapActivated: true },
+        `${cdGTA?.CardName ?? pickedGTA}のトラップ能力を得て発動`));
     }
   }
 

@@ -6,12 +6,13 @@ import type { CardData, PlayerState } from '../types';
 import type { CardEffect, EffectAction } from '../types/effects';
 import type { ExecCtx, ExecResult } from '../engine/execUtils';
 import {
-  executeEffect, executeAction, resumeSelectTarget, resumeSearch, resumeChoose,
-  resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone,
+  executeAction, resumeSelectTarget,
+  resumeRearrangeSigni, applyEffectBanishSubstituteChoice,
 } from '../engine/effectExecutor';
-import { collectOppArtsUseTriggers, type TrigCtx } from '../engine/triggerCollect';
-import { deployLimitBlockReason } from '../engine/deployLimit';
-import { grantedEffectsOf } from '../engine/grantedStore';
+import {
+  collectAttackEndTriggers, collectAttackEndDelayedTriggers, collectSigniAttackDelayedTriggers, type TrigCtx,
+} from '../engine/triggerCollect';
+import { collectBanishSubstitutes } from '../engine/effectEngine';
 import { mergeManualEffects } from '../data/manualEffects';
 
 const cardMap = new Map<string, CardData>();
@@ -62,28 +63,8 @@ function mkCtx(owner: PlayerState, other: PlayerState, sourceInst?: string, eff?
   } as unknown as ExecCtx;
 }
 
-// ── オートパイロット（golden と同じ）──
-function run(eff: EffectAction, ctx: ExecCtx): ExecResult {
-  let result = executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
-  let steps = 0;
-  while (!result.done) {
-    if (++steps > 40) throw new Error('autopilot hang');
-    const pending = (result as { pending: { type: string; [k: string]: unknown } }).pending;
-    const p = pending as Record<string, unknown>;
-    const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
-    switch (pending.type) {
-      case 'SELECT_TARGET': { const cands = (p.candidates as string[]) ?? []; result = resumeSelectTarget(cands.slice(0, Math.min((p.count as number) ?? 1, cands.length)), pending as never, c); break; }
-      case 'SEARCH': { const vis = (p.visibleCards as string[]) ?? []; result = resumeSearch(vis.slice(0, Math.min((p.maxPick as number) ?? 0, vis.length)), pending as never, c); break; }
-      case 'CHOOSE': { const opts = (p.options as { id: string; available?: boolean }[]) ?? []; const pick = opts.find(o => o.available !== false) ?? opts[0]; result = resumeChoose(pick.id, pending as never, c); break; }
-      case 'LOOK_AND_REORDER': result = resumeLookAndReorder((p.cards as string[]) ?? [], [], pending as never, c); break;
-      case 'SELECT_ZONE': result = resumeSelectZone(steps % 3, pending as never, c); break;
-      case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(steps % 3, pending as never, c); break;
-      case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(steps % 3, pending as never, c); break;
-      default: throw new Error(`unhandled pending ${pending.type}`);
-    }
-  }
-  return result;
-}
+// ⚠オートパイロット（`run`）はこの巡のシナリオでは使わないので撤去した。
+//   collector と pending を直接見る形なので、resume は各シナリオが明示的に呼ぶ。
 
 // ── 描画ヘルパー ──
 const nm = (cn: string | null | undefined) => (cn ? (cardMap.get(cn)?.CardName ?? cn) : '空');
@@ -103,9 +84,9 @@ function renderBoard(label: string, st: PlayerState): string {
 interface Assert { ok: boolean; msg: string; }
 interface ScenarioResult { title: string; cardId: string; orig: string; before: string; after: string; logs: string[]; asserts: Assert[]; error?: string; }
 
-// ═══ 2026-09-02（索引C 第10巡）＝この巡で実装した7項目のシナリオ ═══
-// ⚠**机上（golden）で緑でも実機で嘘が出る**のが第9巡の教訓なので、engine の funnel と
-//   pending を「live のカードデータ・live の effects JSON」で通す形にしてある。
+// ═══ 2026-09-02（索引B 第1巡）＝この巡で実装した3項目のシナリオ ═══
+// ⚠**机上（golden）で緑でも実機で嘘が出る**のが第9巡の教訓なので、collector と funnel を
+//   「live のカードデータ・live の effects JSON」で通す形にしてある。
 
 const effectOf = (cardNum: string, effectId: string): CardEffect | undefined =>
   ((cardMap.get(cardNum) as { effects?: CardEffect[] })?.effects ?? []).find(e => e.effectId === effectId);
@@ -114,222 +95,188 @@ const liveEffectsMap = (): Map<string, CardEffect[]> => {
   for (const [id, c] of cardMap) m.set(id, (c as { effects?: CardEffect[] }).effects ?? []);
   return m;
 };
+const mkTrig = (eff: Map<string, CardEffect[]>): TrigCtx => {
+  let g = 0;
+  return { hostId: 'A', guestId: 'D', activeUserId: 'A', meId: 'A', turnPhase: 'ATTACK',
+    effectsMap: eff, cardMap, genId: () => 'e' + (g++) } as unknown as TrigCtx;
+};
 
-/** `O-74`/`O-79`＝「《X》の効果以外によっては／によってしか新たに場に出せない」。 */
-function scenarioOnlyByNamedEffect(): ScenarioResult {
-  const orig = '【常】：このシグニは《現実からの逃避　タマ》の効果以外によっては新たに場に出すことができない。'
-    + ' ／ 【常】：このシグニは《融合の儀　タウィル//メモリア》か《融合の儀　ウムル//メモリア》の効果によってしか新たに場に出せない。';
-  const r: ScenarioResult = { title: 'O-74/O-79 配置元をカード名で限定する自身出撃制限', cardId: 'PR-470B 進化する筋肉　紗倉ひびき / WXDi-P11-050 融合せし極門　ウトゥルス//メモリア', orig, before: '', after: '', logs: [], asserts: [] };
+/** `O-181` 軸(b)＝シグニアタックでも watcher≠アタッカーを収集する（`WX25-CP1-012-E1`）。 */
+function scenarioAttackEndWatcher(): ScenarioResult {
+  const orig = '【自】：あなたのルリグかシグニが**アタックによって**対戦相手のライフクロスを１枚以上クラッシュしたとき、'
+    + '**そのアタック終了時**、対戦相手が《無》を支払わないかぎり、対戦相手にダメージを与える。';
+  const r: ScenarioResult = { title: 'O-181 軸(b) アタック終了時の watcher≠アタッカー', cardId: 'WX25-CP1-012 錠前サオリ', orig, before: '', after: '', logs: [], asserts: [] };
   try {
     const eff = liveEffectsMap();
-    let tama = '';
-    for (const [num, c] of cardMap) if (c.CardName === '現実からの逃避　タマ') { tama = num; break; }
-    const reason = (src?: 'normal_summon' | 'signi_or_spell_effect' | 'other_effect', srcNum?: string) =>
-      deployLimitBlockReason({
-        placingState: mkState({}), opponentState: mkState({}), cardNum: 'PR-470B',
-        cardMap, effectsMap: eff, placementSource: src, placementSourceCardNum: srcNum,
-      });
-    r.before = '《現実からの逃避　タマ》= ' + (tama || '(見つからず)') + '\n場は空・PR-470B を場に出そうとする';
-    const rows: [string, string | null][] = [
-      ['通常召喚', reason('normal_summon')],
-      ['タマの効果', reason('other_effect', tama)],
-      ['別カードの効果', reason('other_effect', 'PR-470B')],
-      ['出自不明', reason(undefined, tama)],
-    ];
-    r.after = rows.map(([k, v]) => '  ' + k + ': ' + (v ?? '配置できる')).join('\n');
-    r.logs = rows.map(([k, v]) => k + ' → ' + (v ?? 'null（配置可）'));
-    r.asserts.push({ ok: tama !== '', msg: '《現実からの逃避　タマ》が live に居る' });
-    r.asserts.push({ ok: reason('other_effect', tama) === null, msg: 'タマの効果でなら場に出せる' });
-    r.asserts.push({ ok: reason('other_effect', 'PR-470B') === 'ONLY_BY_NAMED_EFFECT', msg: '別カードの効果では出せない（旧はどの効果でも出せた）' });
-    r.asserts.push({ ok: reason('normal_summon') === 'ONLY_BY_NAMED_EFFECT', msg: '通常召喚では出せない' });
-    r.asserts.push({ ok: reason(undefined, tama) === null, msg: '出自不明なら掛けない（funnel の既存規約＝過少側）' });
-    const a2 = effectOf('WXDi-P11-050', 'WXDi-P11-050-E1')?.action as { exceptSourceCardNames?: string[] } | undefined;
-    r.asserts.push({ ok: (a2?.exceptSourceCardNames ?? []).length === 2, msg: 'WXDi-P11-050 は2枚の名前を配置元として持つ（旧は engine ログのみの STUB）' });
+    const ATK = [...cardMap.values()].find(c => c.Type === 'シグニ' && c.CardNum !== 'WX25-CP1-012')!.CardNum;
+    const own = mkState({ lrig: ['WX25-CP1-012'], signi: [ATK, null, null] });
+    const e1 = effectOf('WX25-CP1-012', 'WX25-CP1-012-E1');
+    r.before = renderBoard('自分（ルリグが watcher・アタッカーは Z0 のシグニ）', own)
+      + '\n  timing=' + JSON.stringify(e1?.timing) + ' scope=' + String(e1?.triggerScope)
+      + ' attackCrashedLife=' + String(e1?.triggerCondition?.attackCrashedLife);
+    const run = (o: { crashedLife?: boolean }) => collectAttackEndTriggers(
+      mkTrig(eff), 'A', ATK, own, mkState({}), true, { attackerKind: 'signi', ...o });
+    const yes = run({ crashedLife: true }).entries.map(e => e.effectId);
+    const no = run({ crashedLife: false }).entries.map(e => e.effectId);
+    const unk = run({}).entries.map(e => e.effectId);
+    r.after = '  crashedLife=true  → ' + (yes.join(', ') || '(なし)')
+      + '\n  crashedLife=false → ' + (no.join(', ') || '(なし)')
+      + '\n  crashedLife=未提供 → ' + (unk.join(', ') || '(なし)');
+    r.logs = ['旧 live は timing:ON_OPP_LIFE_CRASHED＝クラッシュした瞬間に即時発火し、効果によるクラッシュでも撃てた'];
+    r.asserts.push({ ok: JSON.stringify(e1?.timing) === JSON.stringify(['ON_ATTACK_END']), msg: 'アタック終了時に発火する（旧はクラッシュ即時）' });
+    r.asserts.push({ ok: e1?.triggerScope === 'any_ally', msg: 'watcher≠アタッカーの明示 opt-in が載る' });
+    r.asserts.push({ ok: yes.includes('WX25-CP1-012-E1'), msg: 'シグニのアタックでもルリグ側の watcher が発火する（旧はアタッカー自身しか見ていなかった）' });
+    r.asserts.push({ ok: !no.includes('WX25-CP1-012-E1'), msg: '（反転）ライフをクラッシュしていなければ発火しない' });
+    r.asserts.push({ ok: !unk.includes('WX25-CP1-012-E1'), msg: '（反転）判定材料が無ければ発火しない（fail-closed）' });
   } catch (e) { r.error = (e as Error).message; }
   return r;
 }
 
-/** `O-94`②＝「対戦相手は中央のシグニゾーンにレベル3以上のシグニを新たに配置できない」。 */
-function scenarioZoneLevelRestrict(): ScenarioResult {
-  const orig = '【常】：対戦相手は中央のシグニゾーンにレベル３以上のシグニを新たに配置できない。';
-  const r: ScenarioResult = { title: 'O-94② ゾーン＋レベルの配置禁止が funnel に載る', cardId: 'WXDi-P14-068 幻蟲　ミュウ//フェゾーネ', orig, before: '', after: '', logs: [], asserts: [] };
+/** `O-181`＝「そのアタック終了時に」の遅延はアタック宣言時に発火しない（`WX14-018-E4`）。 */
+function scenarioAttackEndDelayed(): ScenarioResult {
+  const orig = '【起】エクシード２：次のターンの間、対戦相手のシグニ１体がアタックしたとき、**そのアタック終了時に**そのシグニをバニッシュする。';
+  const r: ScenarioResult = { title: 'O-181 「そのアタック終了時に」の遅延トリガー', cardId: 'WX14-018 アンシエント/メイデン　イオナ', orig, before: '', after: '', logs: [], asserts: [] };
   try {
     const eff = liveEffectsMap();
-    const lvOf = (n: string) => parseInt(cardMap.get(n)?.Level ?? '', 10) || 0;
-    let hi = '', lo = '';
-    for (const [num, c] of cardMap) {
-      if (c.Type !== 'シグニ') continue;
-      if (!hi && lvOf(num) >= 3) hi = num;
-      if (!lo && lvOf(num) > 0 && lvOf(num) <= 2) lo = num;
-      if (hi && lo) break;
-    }
-    const holder = mkState({ signi: ['WXDi-P14-068', null, null] });
-    const reason = (cardNum: string, zoneIndex?: number) => deployLimitBlockReason({
-      placingState: mkState({}), opponentState: holder, cardNum, cardMap, effectsMap: eff,
-      placementSource: 'normal_summon', zoneIndex,
-    });
-    r.before = renderBoard('制限を持つ側（相手）', holder)
-      + '\n置こうとするシグニ: Lv3+=' + nm(hi) + ' / Lv2-=' + nm(lo);
-    const rows: [string, string | null][] = [
-      ['Lv' + lvOf(hi) + ' → 中央(Z1)', reason(hi, 1)],
-      ['Lv' + lvOf(hi) + ' → 左(Z0)', reason(hi, 0)],
-      ['Lv' + lvOf(lo) + ' → 中央(Z1)', reason(lo, 1)],
-      ['Lv' + lvOf(hi) + ' → ゾーン未確定', reason(hi)],
-    ];
-    r.after = rows.map(([k, v]) => '  ' + k + ': ' + (v ?? '配置できる')).join('\n');
-    r.logs = rows.map(([k, v]) => k + ' → ' + (v ?? 'null（配置可）'));
-    r.asserts.push({ ok: reason(hi, 1) === 'ZONE_LEVEL_RESTRICT', msg: '中央にレベル3以上は置けない' });
-    r.asserts.push({ ok: reason(hi, 0) === null && reason(hi, 2) === null, msg: '左右のゾーンには置ける（ゾーン限定が効いている）' });
-    r.asserts.push({ ok: reason(lo, 1) === null, msg: 'レベル2以下なら中央にも置ける（レベル限定が効いている）' });
-    r.asserts.push({ ok: reason(hi) === null, msg: 'ゾーン未確定なら掛けない（funnel の既存規約）' });
-    const tk = effectOf('WXDi-P11-TK01', 'WXDi-P11-TK01-E1')?.action as { id?: string; deployRestrict?: { cap?: number } } | undefined;
-    r.asserts.push({ ok: tk?.id === 'DEPLOY_RESTRICT' && tk?.deployRestrict?.cap === 2, msg: '同じ STUB を誤流用していた WXDi-P11-TK01 が体数制限（2体まで）へ戻った' });
+    const ATK = [...cardMap.values()].find(c => c.Type === 'シグニ')!.CardNum;
+    const inst = effectOf('WX14-018', 'WX14-018-E4')?.action as { trigger?: Record<string, unknown>; duration?: string };
+    const dt = { ...inst, sourceCardNum: 'WX14-018' };
+    const base = mkState({ lrig: ['WX14-018'] });
+    const defender = { ...base, delayed_triggers: [dt] } as unknown as PlayerState;
+    r.before = '設置＝' + JSON.stringify(inst?.trigger) + ' / duration=' + String(inst?.duration)
+      + '\n相手の ' + nm(ATK) + ' がアタックする';
+    const decl = collectSigniAttackDelayedTriggers(mkTrig(eff), 'D', defender, ATK);
+    const end = collectAttackEndDelayedTriggers(mkTrig(eff), 'D', defender, ATK, false);
+    const endSelf = collectAttackEndDelayedTriggers(mkTrig(eff), 'D', defender, ATK, true);
+    r.after = '  アタック宣言時 → ' + (decl.length ? decl.map(e => e.label).join(', ') : '(発火しない)')
+      + '\n  アタック終了時 → ' + (end.length ? end.map(e => e.label).join(', ') : '(発火しない)')
+      + '\n  終了時（自分のアタック）→ ' + (endSelf.length ? endSelf.map(e => e.label).join(', ') : '(発火しない)');
+    r.logs = ['旧はアタック宣言時に発火＝バニッシュした時点でそのアタック自体が起きず、バトルもライフクラッシュも発生しなかった'];
+    r.asserts.push({ ok: inst?.trigger?.attackEnd === true, msg: '「そのアタック終了時に」が payload に載る' });
+    r.asserts.push({ ok: decl.length === 0, msg: 'アタック宣言時には発火しない（旧はここで発火してアタックを消していた）' });
+    r.asserts.push({ ok: end.length === 1, msg: 'アタック終了時に1回だけ発火する' });
+    r.asserts.push({ ok: endSelf.length === 0, msg: '（反転）自分のアタックでは発火しない（attackerOwner:opponent）' });
   } catch (e) { r.error = (e as Error).message; }
   return r;
 }
 
-/** `O-130`＝相手アーツの効果を受けた「そのシグニ」をアップ＋効果で得た能力だけ喪失。 */
-function scenarioOppArtsAffected(): ScenarioResult {
-  const orig = '【自】《ターン１回》：あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、そのシグニをアップし、ターン終了時まで、そのシグニは効果によって得ている能力を失う。';
-  const r: ScenarioResult = { title: 'O-130 「そのシグニ」＝効果を受けた自分のシグニ（アップ＋付与能力だけ喪失）', cardId: 'WXK11-019 羅祝石　ダイヤブライド', orig, before: '', after: '', logs: [], asserts: [] };
+/** `O-59`＝【トラップ】の並べ替え／直前ゾーンの記憶／そのゾーンのトラップ／能力コピー。 */
+function scenarioTrapOps(): ScenarioResult {
+  const orig = '【起】あなたのすべての【トラップ】を好きなように配置し直す（WX17-062）／それがあったシグニゾーンに手札から'
+    + 'カード１枚を【トラップ】として設置する（WX16-028）／そのシグニとその【トラップ】をトラッシュに置く（WX21-025）／'
+    + 'このカードはそれのトラップ能力を得て、その能力を発動する（WX17-029）。';
+  const r: ScenarioResult = { title: 'O-59 【トラップ】4機構（並べ替え／直前ゾーン／そのゾーン／能力コピー）', cardId: 'WX17-062 / WX16-028 / WX21-025 / WX17-029', orig, before: '', after: '', logs: [], asserts: [] };
   try {
     const eff = liveEffectsMap();
-    const VICTIM = [...cardMap.values()].find(c => c.Type === 'シグニ' && c.CardNum !== 'WXK11-019' && (parseInt(c.Power || '0', 10) > 0))!.CardNum;
-    // 相手アーツで「アタックできない」を押し付けられた自分のシグニ（＝効果を受けたシグニ）。
-    const gained = [{ effectId: 'X-G', effectType: 'CONTINUOUS',
-      action: { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'ATTACK_SIGNI', until: 'END_OF_TURN' },
-      duration: 'PERMANENT', mandatory: true }] as unknown as CardEffect[];
-    const base = mkState({ signi: ['WXK11-019', VICTIM, null] });
-    const owner = { ...base, granted_effects: { [VICTIM]: gained },
-      field: { ...base.field, signi_down: [false, true, false] } } as unknown as PlayerState;
-    const other = mkState({});
-    let gid = 0;
-    const tctx = { hostId: 'A', guestId: 'D', activeUserId: 'D', meId: 'A', turnPhase: 'ATTACK', effectsMap: eff, cardMap, genId: () => 'e' + (gid++) } as unknown as TrigCtx;
-    r.before = renderBoard('自分（Z1 が相手アーツの効果を受けた＝ダウン＋能力を付与された）', owner)
-      + '\n  ダウン: [' + (owner.field.signi_down ?? []).join(', ') + ']';
-    // ① 収集＝「効果を受けたシグニ」を渡した回だけ発火し、そのシグニが triggeringCardNum に載る
-    const fired = collectOppArtsUseTriggers(tctx, owner, other, false, [VICTIM]).entries;
-    const entry = fired.find(e => e.effectId === 'WXK11-019-E2');
-    const notFired = collectOppArtsUseTriggers(tctx, owner, other, false).entries
-      .some(e => e.effectId === 'WXK11-019-E2');
-    r.asserts.push({ ok: !!entry, msg: '効果を受けたシグニがあるとき発火する' });
-    r.asserts.push({ ok: !notFired, msg: '判定材料が無い回は発火しない（fail-closed・旧は無条件発火）' });
-    r.asserts.push({ ok: entry?.triggeringCardNum === VICTIM, msg: 'トリガー元＝効果を受けたそのシグニ' });
-    // ② 実行＝そのシグニがアップし、付与ぶんだけ失う（印刷能力は残る）
-    const ctx = mkCtx(owner, other, 'WXK11-019');
-    (ctx as { triggeringCardNum?: string }).triggeringCardNum = VICTIM;
-    const res = run((entry?.effect.action ?? effectOf('WXK11-019', 'WXK11-019-E2')!.action) as EffectAction, ctx);
-    r.logs = res.logs;
-    const lost = (res.ownerState as { granted_abilities_removed?: string[] }).granted_abilities_removed ?? [];
-    r.after = renderBoard('自分（実行後）', res.ownerState)
-      + '\n  ダウン: [' + (res.ownerState.field.signi_down ?? []).join(', ') + ']'
-      + '\n  granted_abilities_removed: [' + (lost.map(nm).join(', ') || 'なし') + ']'
-      + '\n  abilities_removed: [' + ((res.ownerState.abilities_removed ?? []).map(nm).join(', ') || 'なし') + ']';
-    r.asserts.push({ ok: res.ownerState.field.signi_down?.[1] === false, msg: '「そのシグニをアップし」が効いた（旧は丸ごと落ちていた）' });
-    r.asserts.push({ ok: lost.includes(VICTIM), msg: '能力を失うのは自分の受けたシグニ（旧は相手のシグニ＝向きが逆）' });
-    r.asserts.push({ ok: !(res.ownerState.abilities_removed ?? []).includes(VICTIM), msg: '印刷能力は消さない（旧は abilities_removed＝全能力喪失の過剰）' });
-    r.asserts.push({ ok: grantedEffectsOf(res.ownerState, VICTIM).length === 0, msg: '効果で得ていた能力は funnel から消えた' });
-    r.asserts.push({ ok: grantedEffectsOf(owner, VICTIM).length === 1, msg: '（反転）実行前は付与能力が生きている' });
-  } catch (e) { r.error = (e as Error).message; }
-  return r;
-}
-
-/** `O-150`＝`reorder:false` の LOOK_AND_REORDER は並べ替えを受け付けない。 */
-function scenarioLookReorderFlag(): ScenarioResult {
-  const orig = '（例）あなたのデッキの一番上のカード３枚を見る。＝並べ替えの指示が無い効果でも、UI が ↑↓ を出しデッキを組み替えられていた。';
-  const r: ScenarioResult = { title: 'O-150 LOOK_AND_REORDER の reorder が pending まで届く（engine が並びの権威）', cardId: 'live 151効果中 105効果が reorder:false', orig, before: '', after: '', logs: [], asserts: [] };
-  try {
-    const deckTop = [POOL[0], POOL[1], POOL[2]];
-    const mk = (reorder: boolean) => ({
-      type: 'LOOK_AND_REORDER' as const, source: { location: 'deck' as const, owner: 'self' as const },
-      count: 3, private: true, reorder,
-      destination: { location: 'deck' as const, owner: 'self' as const, position: 'top' as const },
-    });
-    const runOne = (reorder: boolean, order: string[], trash: string[] = []) => {
-      const st = mkState({});
-      const c = mkCtx({ ...st, deck: [...deckTop, ...st.deck.slice(3)] } as PlayerState, mkState({}));
-      const res0 = executeAction(mk(reorder) as unknown as EffectAction, c);
-      if (res0.done) throw new Error('pending が立たなかった');
-      const pend = (res0 as { pending: { type: string; reorder?: boolean } }).pending;
-      const after = resumeLookAndReorder(order, trash, pend as never,
-        { ...c, ownerState: res0.ownerState, otherState: res0.otherState, logs: res0.logs });
-      return { pend, after };
+    const T0 = POOL[0], T1 = POOL[1], T2 = POOL[2], H = POOL[3];
+    const withTraps = (traps: (string | null)[], o: { hand?: string[]; trash?: string[]; signi?: (string | null)[] } = {}) => {
+      const st = mkState({ signi: o.signi });
+      return { ...st, hand: o.hand ?? [], trash: o.trash ?? [],
+        field: { ...st.field, signi_traps: traps } } as unknown as PlayerState;
     };
-    const rev = [deckTop[2], deckTop[1], deckTop[0]];
-    const no = runOne(false, rev);
-    const yes = runOne(true, rev);
-    const noTrash = runOne(false, rev, [deckTop[1]]);
-    r.before = 'デッキトップ: ' + deckTop.map(nm).join(' → ')
-      + '\nクライアントが返す並び（逆順）: ' + rev.map(nm).join(' → ');
-    r.after = 'reorder:false の結果: ' + no.after.ownerState.deck.slice(0, 3).map(nm).join(' → ')
-      + '\nreorder:true  の結果: ' + yes.after.ownerState.deck.slice(0, 3).map(nm).join(' → ')
-      + '\nreorder:false ＋トラッシュ選択: ' + noTrash.after.ownerState.deck.slice(0, 2).map(nm).join(' → ');
-    r.logs = [...no.after.logs, ...yes.after.logs];
-    r.asserts.push({ ok: no.pend.reorder === false, msg: 'reorder:false が pending まで届く（UI が ↑↓ を隠す根拠）' });
-    r.asserts.push({ ok: yes.pend.reorder === undefined, msg: 'reorder:true は既定（省略）＝並べ替え可' });
-    r.asserts.push({ ok: no.after.ownerState.deck.slice(0, 3).join(',') === deckTop.join(','), msg: 'reorder:false では返された並びを採らない（元の順で戻る）' });
-    r.asserts.push({ ok: yes.after.ownerState.deck.slice(0, 3).join(',') === rev.join(','), msg: 'reorder:true では返された並びで戻る' });
-    r.asserts.push({ ok: noTrash.after.ownerState.deck.slice(0, 2).join(',') === [deckTop[0], deckTop[2]].join(','), msg: 'reorder:false でもトラッシュ選択（別軸）は通る' });
-  } catch (e) { r.error = (e as Error).message; }
-  return r;
-}
-
-/** `O-83`＝条件つきグロウ（コストは払う）＋この方法でグロウしたルリグの【出】抑制。 */
-function scenarioConditionalGrow(): ScenarioResult {
-  const orig = '【アーツ】あなたのセンタールリグのレベルが対戦相手より低い場合、あなたのセンタールリグをグロウしてもよい。この方法でグロウしたルリグの【出】能力は発動しない。';
-  const r: ScenarioResult = { title: 'O-83 条件つきグロウの予約（engine）＋【出】抑制', cardId: 'SP38-001 クロス・テンスグロウ！', orig, before: '', after: '', logs: [], asserts: [] };
-  try {
-    const lrigByLv = (lv: string) => [...cardMap.values()].find(c => c.Type === 'ルリグ' && c.Level === lv)!.CardNum;
-    const LOW = lrigByLv('2'), HIGH = lrigByLv('4');
-    const act = effectOf('SP38-001', 'SP38-001-E1')!.action as { steps: EffectAction[] };
-    const head = { type: 'SEQUENCE', steps: act.steps.slice(0, 2) } as unknown as EffectAction;
-    // ① 自分が低い＝グロウ予約が積まれる
-    const resLow = run(head, mkCtx(mkState({ lrig: [LOW] }), mkState({ lrig: [HIGH] }), 'SP38-001'));
-    // ② 自分が高い＝予約は積まれない（条件が効いている）
-    const resHigh = run(head, mkCtx(mkState({ lrig: [HIGH] }), mkState({ lrig: [LOW] }), 'SP38-001'));
-    const req = (resLow.ownerState as { pending_effect_grow?: { suppressOnPlay?: boolean } }).pending_effect_grow;
-    const reqHigh = (resHigh.ownerState as { pending_effect_grow?: unknown }).pending_effect_grow;
-    r.before = '自センター: ' + nm(LOW) + '(Lv2) ／ 相手センター: ' + nm(HIGH) + '(Lv4)';
-    r.logs = [...resLow.logs, '--- 自分が高い場合 ---', ...resHigh.logs];
-    r.after = '自Lv2 < 相手Lv4 → pending_effect_grow = ' + JSON.stringify(req ?? null)
-      + '\n自Lv4 > 相手Lv2 → pending_effect_grow = ' + JSON.stringify(reqHigh ?? null);
-    r.asserts.push({ ok: !!req, msg: '自分のセンターが低いときだけグロウ予約が積まれる' });
-    r.asserts.push({ ok: req?.suppressOnPlay === true, msg: '「この方法でグロウしたルリグの【出】能力は発動しない」が予約に載る（旧は RULE_REMINDER_TEXT＝完全な no-op）' });
-    r.asserts.push({ ok: reqHigh === undefined, msg: '（反転）自分が高ければグロウしない' });
-    const grow = (act.steps[0] as { then?: { type?: string; id?: string } }).then;
-    r.asserts.push({ ok: grow?.id === 'GROW_BY_EFFECT' && grow?.type !== 'GROW_FREE', msg: 'GROW_FREE ではない＝グロウコストを払う（原文に「支払わずに」が無い）' });
-  } catch (e) { r.error = (e as Error).message; }
-  return r;
-}
-
-/** `O-103`＝「手札に加えるかエナゾーンに置くか場に出し」の3択。 */
-function scenarioThreeWaySearch(): ScenarioResult {
-  const orig = '【LB】：あなたのデッキから＜美巧＞のシグニ１枚を探して公開し手札に加えるかエナゾーンに置くか場に出し、デッキをシャッフルする。';
-  const r: ScenarioResult = { title: 'O-103 行き先が3つある探索（手札／エナ／場）', cardId: 'WX14-024 真実の聖盾　*マウス*', orig, before: '', after: '', logs: [], asserts: [] };
-  try {
-    const act = effectOf('WX14-024', 'WX14-024-BURST')!.action as { type: string; from_count?: number; choices?: { choiceId: string; action: EffectAction }[] };
-    const choices = act.choices ?? [];
-    const BIKO = [...cardMap.values()].find(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('美巧'))!.CardNum;
+    const ctxOf = (own: PlayerState, oth: PlayerState, src: string, trig?: string): ExecCtx => {
+      const c = mkCtx(own, oth, src);
+      (c as { triggeringCardNum?: string }).triggeringCardNum = trig;
+      (c as { effectsMap?: Map<string, CardEffect[]> }).effectsMap = eff;
+      return c;
+    };
     const lines: string[] = [];
-    const landedBy: Record<string, boolean> = {};
-    for (const ch of choices) {
-      const st = mkState({});
-      const owner = { ...st, deck: [BIKO, ...st.deck], energy: [], hand: [] } as unknown as PlayerState;
-      const res = run(ch.action, mkCtx(owner, mkState({}), 'WX14-024'));
-      const s = res.ownerState;
-      const landed = ch.choiceId === 'hand' ? s.hand.includes(BIKO)
-        : ch.choiceId === 'energy' ? s.energy.includes(BIKO)
-        : s.field.signi.some(z => (z ?? []).includes(BIKO));
-      landedBy[ch.choiceId] = landed;
-      lines.push('  ' + ch.choiceId + '（' + ((ch.action as { then?: { type?: string } }).then?.type ?? '?') + '）→ ' + (landed ? '着地した' : '着地しなかった'));
+    // ① 並べ替え
+    const c1 = ctxOf(withTraps([T0, T1, T2]), mkState({}), 'WX17-062');
+    const r1 = executeAction({ type: 'STUB', id: 'TRAP_OP', trapOp: 'rearrange' } as unknown as EffectAction, c1);
+    const p1 = (r1 as Extract<ExecResult, { done: false }>).pending as { type: string; mode?: string; signiNums?: string[] };
+    const after1 = resumeRearrangeSigni([T2, T0, T1], p1 as never, { ...c1, ownerState: r1.ownerState });
+    lines.push('① 並べ替え: ' + [T0, T1, T2].map(nm).join(' / ') + ' → ' + (after1.ownerState.field.signi_traps ?? []).map(x => (x ? nm(x) : '空')).join(' / '));
+    r.asserts.push({ ok: p1.type === 'REARRANGE_SIGNI' && p1.mode === 'traps', msg: '① 並べ替え対話が立つ（旧は「未実装」ログだけの no-op）' });
+    r.asserts.push({ ok: (after1.ownerState.field.signi_traps ?? []).join(',') === [T2, T0, T1].join(','), msg: '① 指定どおりに並び替わる' });
+    // ② 直前ゾーンの記憶
+    const own2 = { ...withTraps([null, T1, null], { hand: [H] }), trap_removed_zones: [1] } as PlayerState;
+    const c2 = ctxOf(own2, mkState({}), 'WX16-028');
+    const setAct = { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'set', trapSource: 'hand', count: 1, trapFixedZone: 'previous' } as unknown as EffectAction;
+    const r2 = executeAction(setAct, c2);
+    const p2 = (r2 as Extract<ExecResult, { done: false }>).pending as { type: string; thenAction?: { count?: number } };
+    const after2 = resumeSelectTarget([H], p2 as never, { ...c2, ownerState: r2.ownerState });
+    lines.push('② 直前ゾーン設置: zone=' + String(p2.thenAction?.count) + ' → ' + (after2.ownerState.field.signi_traps ?? []).map(x => (x ? nm(x) : '空')).join(' / '));
+    const noMemo = executeAction(setAct, ctxOf({ ...mkState({}), hand: [H] } as PlayerState, mkState({}), 'WX16-028'));
+    lines.push('②（反転）記憶なし: ' + String(noMemo.logs.at(-1)));
+    r.asserts.push({ ok: after2.ownerState.field.signi_traps?.[1] === H, msg: '② 直前にトラップが居たゾーンへ設置される（旧は「設置保留」の no-op）' });
+    r.asserts.push({ ok: !after2.ownerState.hand.includes(H), msg: '② 手札からは抜ける（複製しない）' });
+    r.asserts.push({ ok: noMemo.done && String(noMemo.logs.at(-1)).includes('分からない'), msg: '②（反転）記憶が無ければ自由ゾーンへ誤設置しない' });
+    // ③ そのゾーンのトラップ
+    const c3 = ctxOf(withTraps([T0, T1, null]), mkState({ signi: [null, 'X-TRIG', null] }), 'WX21-025', 'X-TRIG');
+    const r3 = executeAction({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'trash', trapZoneOfTriggerSource: true } as unknown as EffectAction, c3);
+    lines.push('③ そのゾーンのトラップ: → ' + (r3.ownerState.field.signi_traps ?? []).map(x => (x ? nm(x) : '空')).join(' / '));
+    r.asserts.push({ ok: r3.ownerState.field.signi_traps?.[1] == null && r3.ownerState.field.signi_traps?.[0] === T0,
+      msg: '③ トリガー元と同じゾーンのトラップだけ落ちる（旧は先頭から落としていた）' });
+    // ④ 能力コピー
+    let withIcon = '';
+    for (const [num, cd] of cardMap) {
+      if (num === 'WX17-029') continue;
+      if (((cd as { effects?: CardEffect[] }).effects ?? []).some(e => e.effectType === 'TRAP_ICON')) { withIcon = num; break; }
     }
-    r.before = 'デッキトップに ' + nm(BIKO) + '（＜美巧＞のシグニ）を仕込み、3つの枝をそれぞれ実行';
+    const c4 = ctxOf(withTraps([null, null, null], { trash: [withIcon, T0] }), mkState({}), 'WX17-029');
+    const r4 = executeAction({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'gain_trap_ability', trapSource: 'trash' } as unknown as EffectAction, c4);
+    const p4 = (r4 as Extract<ExecResult, { done: false }>).pending as { type: string; candidates?: string[] };
+    lines.push('④ 能力コピー候補: ' + (p4.candidates ?? []).map(nm).join(', ') + '（トラップ能力を持つ札だけ）');
+    r.before = 'トラップ枠 / 手札 / トラッシュ を場面ごとに組んで4機構を実行';
     r.after = lines.join('\n');
-    r.logs = choices.map(c => c.choiceId + ': ' + c.action.type + ' → then=' + ((c.action as { then?: { type?: string } }).then?.type ?? '?'));
-    r.asserts.push({ ok: act.type === 'CHOOSE' && act.from_count === 3, msg: '3択として表せている（旧は2択の受け皿でエナの枝が丸ごと落ちていた）' });
-    r.asserts.push({ ok: landedBy.hand === true, msg: '「手札に加える」が実際に手札へ入る' });
-    r.asserts.push({ ok: landedBy.energy === true, msg: '「エナゾーンに置く」が実際にエナへ入る' });
-    r.asserts.push({ ok: landedBy.field === true, msg: '「場に出す」が実際に場へ出る' });
+    r.logs = ['旧はいずれも「未実装」「設置保留」のログだけで盤面が1バイトも動かなかった'];
+    r.asserts.push({ ok: p4.type === 'SELECT_TARGET' && JSON.stringify(p4.candidates) === JSON.stringify([withIcon]),
+      msg: '④ トラップ能力を持つカードだけが候補（旧は「未実装」ログだけ）' });
+    // 構造整理（WX21-025 の3能力が別々に立つ）
+    const ids = ((cardMap.get('WX21-025') as { effects?: CardEffect[] })?.effects ?? []).map(e => e.effectId);
+    r.asserts.push({ ok: ids.includes('WX21-025-TRAP'), msg: '【トラップアイコン】が独立した効果として立つ（旧は【出】に流れ込んで混線）' });
+  } catch (e) { r.error = (e as Error).message; }
+  return r;
+}
+
+/** `O-58` 段2＝victim に付いている札を対価にする任意置換（チャーム／アクセ除外）。 */
+function scenarioAttachedBanishSubstitute(): ScenarioResult {
+  const orig = '【常】：あなたの＜悪魔＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】１枚を'
+    + 'トラッシュに置いて**もよい**（WX04-052）／これにアクセされているシグニが場を離れる場合、代わりに**これをゲームから除外**'
+    + 'してもよい。そうした場合、そのシグニをダウンする（WXDi-P09-TK03A）。';
+  const r: ScenarioResult = { title: 'O-58 段2 付いている札を対価にする任意置換（アタッカー側にもミラー）', cardId: 'WX04-052 堕落の虚無　パイモン / WXDi-P09-TK03A コードイート　オンタマ', orig, before: '', after: '', logs: [], asserts: [] };
+  try {
+    const eff = liveEffectsMap();
+    const DEMON = [...cardMap.values()].find(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('悪魔'))!.CardNum;
+    const CHARM = POOL[5], ACCE = 'WXDi-P09-TK03A';
+    const build = (o: { charm?: boolean; acce?: boolean }) => {
+      const st = mkState({ signi: [DEMON, 'WX04-052', null] });
+      return { ...st, field: { ...st.field,
+        signi_charms: [o.charm ? CHARM : null, null, null],
+        signi_acce: [o.acce ? [ACCE] : null, null, null] } } as unknown as PlayerState;
+    };
+    const opp = mkState({});
+    const optsOf = (st: PlayerState, isOwnerTurn: boolean) =>
+      collectBanishSubstitutes(st, opp, isOwnerTurn, cardMap, eff, DEMON);
+    const charmDef = optsOf(build({ charm: true }), false);
+    const charmAtk = optsOf(build({ charm: true }), true);
+    const acceAtk = optsOf(build({ acce: true }), true);
+    const none = optsOf(build({}), true);
+    r.before = renderBoard('自分（Z0＝＜悪魔＞の victim・Z1＝WX04-052）', build({ charm: true }))
+      + '\n  Z0 のチャーム: ' + nm(CHARM) + ' / アクセ: ' + nm(ACCE);
+    r.after = '  防御側（相手ターン）の選択肢: ' + charmDef.map(o => o.kind).join(', ')
+      + '\n  アタッカー側（自分ターン）の選択肢: ' + charmAtk.map(o => o.kind).join(', ')
+      + '\n  アクセ付き（自分ターン）: ' + acceAtk.map(o => o.kind).join(', ')
+      + '\n  何も付いていない: ' + (none.map(o => o.kind).join(', ') || '(なし)');
+    r.asserts.push({ ok: charmDef.some(o => o.kind === 'trash_charm'), msg: 'チャーム盾が「選択肢」として出る（旧は無条件で自動適用＝選択が奪われていた）' });
+    r.asserts.push({ ok: charmAtk.some(o => o.kind === 'trash_charm'), msg: '🔑アタッカー側でも同じ選択肢が出る（旧は防御側だけ＝O-58 の非対称）' });
+    r.asserts.push({ ok: acceAtk.some(o => o.kind === 'exile_acce'), msg: 'アクセ除外もアタッカー側で出る' });
+    r.asserts.push({ ok: !none.some(o => o.kind === 'trash_charm' || o.kind === 'exile_acce'), msg: '（反転）何も付いていなければ出ない' });
+    // 適用＝行き先とダウンを確かめる（障害③の再発防止）。
+    const charmPick = charmAtk.find(o => o.kind === 'trash_charm')!;
+    const accePick = acceAtk.find(o => o.kind === 'exile_acce')!;
+    const afterCharm = applyEffectBanishSubstituteChoice(DEMON, 'self', charmPick, mkCtx(build({ charm: true }), opp, 'WX04-052'));
+    const afterAcce = applyEffectBanishSubstituteChoice(DEMON, 'self', accePick, mkCtx(build({ acce: true }), opp, 'WXDi-P09-TK03A'));
+    const gone = applyEffectBanishSubstituteChoice(DEMON, 'self', charmPick, mkCtx(build({}), opp, 'WX04-052'));
+    r.logs = [...afterCharm.logs, ...afterAcce.logs, ...gone.logs];
+    r.asserts.push({ ok: afterCharm.ownerState.trash.includes(CHARM) && (afterCharm.ownerState.field.signi[0] ?? []).includes(DEMON),
+      msg: 'チャームを払って victim は場に残る' });
+    r.asserts.push({ ok: (afterAcce.ownerState.excluded ?? []).includes(ACCE) && !afterAcce.ownerState.trash.includes(ACCE),
+      msg: '🔴アクセは**ゲームから除外**（旧はログだけ除外・実装はトラッシュ＝障害③）' });
+    r.asserts.push({ ok: afterAcce.ownerState.field.signi_down?.[0] === true, msg: '「そうした場合、そのシグニをダウンする」が効く' });
+    r.asserts.push({ ok: !gone.ownerState.trash.includes(CHARM) && gone.logs.some(l => l.includes('回避できない')),
+      msg: '（反転）対価が無ければ回避は成立しない（コスト0の身代わりを作らない）' });
   } catch (e) { r.error = (e as Error).message; }
   return r;
 }
@@ -361,8 +308,8 @@ async function main() {
   await loadCards();
   for (const c of cardMap.values()) if (c.Type === 'シグニ' && (parseInt(c.Power || '0', 10) > 0)) POOL.push(c.CardNum);
   const results = [
-    scenarioOnlyByNamedEffect(), scenarioZoneLevelRestrict(), scenarioOppArtsAffected(),
-    scenarioLookReorderFlag(), scenarioConditionalGrow(), scenarioThreeWaySearch(),
+    scenarioAttackEndWatcher(), scenarioAttackEndDelayed(),
+    scenarioTrapOps(), scenarioAttachedBanishSubstitute(),
   ];
   render(results);
   (window as unknown as { __verifyResults: unknown }).__verifyResults = results.map(r => ({ title: r.title, pass: !r.error && r.asserts.every(a => a.ok), asserts: r.asserts, error: r.error }));

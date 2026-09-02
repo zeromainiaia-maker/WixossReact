@@ -1081,7 +1081,11 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   {srcCard?.CardName ?? pe.sourceCardNum}の効果
                 </p>
                 <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
-                  {ownerLabelRS}シグニを好きなように配置し直してください（各シグニのゾーンを選択）
+                  {/* 🆕§5.3 `O-59`＝`mode:'traps'` は【トラップ】の並べ替え（`WX17-062-E1`）。
+                      文言を分けないと「シグニを配置し直す」と嘘の案内になる。 */}
+                  {inter.mode === 'traps'
+                    ? 'あなたの【トラップ】を好きなように配置し直してください（各【トラップ】のゾーンを選択）'
+                    : `${ownerLabelRS}シグニを好きなように配置し直してください（各シグニのゾーンを選択）`}
                 </p>
                 {/* 新しい配置プレビュー */}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>

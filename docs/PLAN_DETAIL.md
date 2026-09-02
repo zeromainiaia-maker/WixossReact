@@ -36,6 +36,43 @@
 
 ### 恒久指標（退避）2026-09-01 続き772 前（＝続き771 の索引 C バッチ直後の値）
 
+- **2026-09-02（索引 C 第10巡）＝§5.3 索引 C の残り7件を全消化（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 22 → 21 / 863 (2.4%)**（うち `mech` 21・**即着手可能 0**）｜
+  **台帳 残 OPEN 44**（据置）｜**census 高シグナル 5 / BASELINE 5**（据置）
+  ⚠**動かなかった理由（3本とも書く）**＝①Sheet1 が -1 なのは**この巡で触った7カードのうち Sheet1 は
+  `WX14-024` の1枚だけ**だから（他は Sheet4/5/6/8/TK）②台帳 残 OPEN 44 は**全件が `src/screens/` か
+  新 engine 機構待ち**で §5.2 からは新規に取っていない ③census は `WXDi-P11-050-E1` が
+  **STUB 免除を外れて +1 した分を較正キー（`SELF_PLAY_RESTRICT`）で戻した**＝**前進0・較正1**（混ぜて読まない）。
+  📦**在庫2本**＝**機構 worklist 43 → 33項目**（`| \`O-` 行数の実測＝索引 A **17**／B **12**／**C 7 → 0（空）**／E **4**／F **3**）
+  ｜🏁**実機 残 0件**（§5.1＝この巡の6シナリオは同巡で実行・全 PASS）
+  🔧**ゲート（全緑 ✅）**＝golden **3265 / 3265**（3259 → **+6本**）／smoke 全異常0／fuzz 全0／
+  census **5 / BASELINE 5**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  **`census:enginetext` A🔴 130行 / 127ハンドラ（据置）**／lint 0 errors。
+  🖥**実機（`npm run verify:browser`）＝6シナリオ・28アサート すべて PASS**（**うち反転確認5本**）＝
+  `O-74/O-79 配置元をカード名で限定`（🔴反転2＝出自不明では掛けない／別カードの効果では出せない）／
+  `O-94② ゾーン＋レベルの配置禁止`（🔴反転1＝左右ゾーンとレベル2以下は置ける）／
+  `O-130 そのシグニ＝効果を受けた自分のシグニ`（🔴反転2＝判定材料が無い回は発火しない／実行前は付与能力が生きている）／
+  `O-150 reorder が pending まで届く`／`O-83 条件つきグロウの予約＋【出】抑制`／`O-103 行き先が3つある探索`。
+  ⚠**`src/verify/main.ts` はこの巡の内容へ差し替えた**（旧3シナリオは golden 側で担保済み）。
+  🆕**足した機構（5組）**＝`SelfPlayRestrictAction.exceptSourceCardNames`＋`DeployLimitInput.placementSourceCardNum`（`O-74`/`O-79`）／
+  `DeployLimitInput.zoneIndex`＋`StubAction.zonePlacementRestrict`（`O-94`②）／
+  `RemoveAbilitiesAction.grantedOnly`＋`PlayerState.granted_abilities_removed`＋`grantedStore.grantedEffectsOf`（`O-130`）／
+  `PendingInteractionDef.LOOK_AND_REORDER.reorder`（`O-150`）／
+  `PlayerState.pending_effect_grow`＋`STUB{GROW_BY_EFFECT}`／`{GROW_BY_EFFECT_SUPPRESS_ON_PLAY}`＋`freeGrowFilter:'plus1_paid'`（`O-83`）。
+  🧹**撤去**＝`deployRestrict.kind` の `only_by_effect`（死枝）／`effectEngine.collectCenterZoneDeployRestrict`／
+  `manualEffects` の `WXDi-P11-TK01`（影武者コピー）／`RULE_REMINDER_TEXT` への誤誘導1本。
+  🔴**この巡の最大の発見＝「実装済みの機構が pending／funnel の境界でフラグを落としていた」型が3件**
+  （`O-150` は `reorder` が pending へ運ばれず **live 105効果が並べ替え可能**／`O-94`② は判定が funnel の外で
+  **CPU 配置・効果配置が素通り**／`O-130` は collector が特定済みの値を entry へ載せていなかった）。
+  ⇒ **型が在ることと、その型が操作地点まで届いていることは別。境界の入口数を数える。**
+  🐛**作業中に見つけた別バグ2件**＝(a)`WXDi-P11-TK01` が**器ごと違う STUB**（体数制限が1件も効かず
+  中央ゾーンだけ封じていた）(b)「効果によって得ている能力を失う」が**印刷能力ごと**消していた（2効果）。
+  🔴**「ルール注記」に見えて実効ルールだった1件**＝`SP38-001` の「この方法でグロウしたルリグの【出】能力は
+  発動しない」が `STUB{RULE_REMINDER_TEXT}`＝完全な no-op だった。
+  🔄**ラチェット更新**＝turn-scoped 母集団 69 → 70（`granted_abilities_removed`）／
+  命名規約外 26 → 27／census 較正キーに `SELF_PLAY_RESTRICT` を追加（`O-132` トリップワイヤへ1行）。
+
+
 - **2026-09-02（索引 C 第9巡）＝§5.3 索引 C を上から15件（Opus 5 単独・実装＋検証＋実機／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 22 / 863 (2.5%)**（うち `mech` 22・**即着手可能 0**・据置）｜
   **台帳 残 OPEN 44**（据置＝この巡は §5.2 から取っていない）｜
@@ -600,6 +637,8 @@
 
 ### `O-58` — バトルでアタッカーがバニッシュされる場合の「身代わり／バニッシュ回避」ladder がミラーされていない
 
+🏁**2026-09-02（索引B 第1巡）に段2 をクローズ＝項目全体を閉じた。** ■**登録票の障害3点は全部片付けた**＝①`BanishSubstituteOptionState` に **`trash_charm` / `exile_acce`** の2 kind を足した（モーダルのラベルも対で追加。⚠**アクセ除外はダウンが付く**のでラベルに明示する＝選ぶ判断が変わる）②アタッカー側は**防御側と同じ `pending_banish_substitute` / `banish_substitute_choice` の器を自分の state で**使う（アタッカーはターンプレイヤー＝解決を回している本人なので同じモーダル・同じハンドラで済む）③🔴**先に決着させた**＝`ACCE_BANISH_SUBSTITUTE` は**ログだけが「ゲームから除外」で実装は `trash`** だった。防御側を `excluded` へ直してからミラーした。■🔴**防御側 ladder の自動適用も外した**＝原文は「〜して**もよい**」なのに無条件で適用しており、「付いている札を残してバニッシュを受ける」選択が player から奪われていた。■⚠**効果バニッシュ経路（`applyEffectBanishSubstituteChoice`）にも同じ2 kind を実装した**＝`isImplementedSubstituteCost` は `kind !== 'pay_cost'` を無条件で通すので、apply 側に分岐が無いと末尾の `trashStackSpell` 枝へ落ちて「**0枚トラッシュで成立**」＝コスト0の身代わりになる（§3 (cxxix) の再来）。
+
 **規模／母集団（登録票の記載そのまま）**＝**L**
 
 **2026-08-24 `O-49` の実測で分離**＝`O-49` は**行き先変更**（どこへ置くか）だけをミラーした。残るのは**バニッシュ自体の置換**（アタッカーが**場に残る**）＝`COOKING_BANISH_SUBSTITUTE`／`CHARM_PROTECTION`／`ACCE_BANISH_SUBSTITUTE`／`ACCE_BANISH_SELF_TRASH`／`RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE`／`RISE_BANISH_SUBSTITUTE`／`BANISH_SUBSTITUTE_RISE_STACK`／`BATTLE_BANISH_PREVENT_LOSE_ABILITY`／`banish_substitute_choice` の**長い else-if ladder（防御側 ≈200行）**。⚠**S ではなく L**＝①「〜してもよい」の**任意分岐にモーダルが要る**（人間／CPU の両経路）②回避成立時は **`ON_BANISH`／`ON_LEAVE_FIELD` を発火させない**別 funnel が要る（`O-47` が張った収集をそのまま通すと誤発火）③代替被害者（別のシグニ／アクセ／チャーム）側のトリガー処理が要る。⚠**着手前に9語彙の live 件数・必須/任意・支払い先・代替被害者・選択フローを全数実測する**（`RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE` は「あなたのターンの間」＝**防御側パスでは恒久 no-op**で、アタッカー側に配線して初めて生きる可能性がある）。⚠**唯一 `BANISH_SUBSTITUTE_RISE_STACK`（`WX22-034` 月光の狩猟　アルテミス）だけは必須（「してもよい」なし）＝モーダル不要**なので、分割するならここが最小の1歩。
@@ -613,6 +652,8 @@
 ③🔴**既存の防御側 `ACCE_BANISH_SUBSTITUTE` はログでは「ゲームから除外」だが実装は `trash` へ置いている**＝**防御側を変更しない制約のまま共通化すると、この不整合をアタッカー側へ複製する**。⇒ 共通化する前にこの1点を決着させること。
 
 ### `O-59` — 固定シグニゾーンへの【トラップ】設置／再配置対話
+
+🏁**2026-09-02（索引B 第1巡）にクローズ＝4件すべて。** ①**並べ替え**（`WX17-062-E1`）＝**新しい対話は作らなかった**＝`REARRANGE_SIGNI` に `mode:'traps'` を足して pending・UI・確定ハンドラを丸ごと共有した（器だけ `field.signi_traps` へ差し替え）。②**直前ゾーンの記憶**（`WX16-028-E2`）＝`PlayerState.trap_removed_zones` を新設し、トラップを抜く唯一の funnel（`applyTrapToHand`）が書く。**ゾーンは選ばせず** `INTERNAL_PICK_TO_TRAP{count:zone}` へ直行する。⚠**記憶が無ければ何もしない**（自由ゾーンへ誤設置しない＝fail-closed）。③**能力コピー**（`WX17-029-TRAP`）＝`trapOp:'activate'` と同じく「対象の `TRAP_ICON` 効果を exec する」だけで足りた。🔴**ただし `sourceCardNum` は差し替えない**＝原文は「**このカードが**得て発動する」なので、コピー元（トラッシュの札）を効果元にすると能力中の「このシグニ」が場に居ないカードを指す（`activate` は「場のシグニのアイコンを発動」なので差し替えるのが正しい＝**向きが逆**）。④**構造整理**（`WX21-025`）＝【出】に流れ込んでいた【トラップアイコン】本文を `WX21-025-TRAP` へ切り出した。🔴**ついでに E1 のバグ2件も直した**＝「そのシグニ」ではなく別の相手シグニを選べた（`targetsTriggerSource` 欠落）／「その【トラップ】」が丸ごと落ちていた（`trapZoneOfTriggerSource` を新設＝無指定の `trapOp:'trash'` は**先頭から N 枚**なので別ゾーンを巻き込む）。
 
 **規模／母集団（登録票の記載そのまま）**＝**L**
 
@@ -1130,6 +1171,8 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 **2026-08-30（§5.2 カード単位バッチ第3回）で分離。** ■**受け皿は形だけ在る**＝parser は `BLOCK_ACTION{actionId:'IGNORE_LRIG_TYPE'}` を出す（`parseSentencePart1.ts:1727`）が、**engine に消費地点が1つも無い**（`grep IGNORE_LRIG_TYPE` の hit は parser と decompiler だけ）。■**判定点は1箇所**＝`screens/battle/growLogic.ts:298` の `lrigClassesCompatible(effectiveLrigClass(...), c.CardClass)`。ここを「無視フラグが立っていたら素通し」にするだけで足りる。■⚠**`WX24-P2-043` はさらに2つ違う**＝(a)「**次に**アシストルリグにグロウする場合」＝**1回限り**の一過性（`blocked_actions` の恒久フラグでは表せない）(b)**アシストグロウ経路**（`listGrowCandidates` はセンター用）。■⚠**decompiler の訳文が誤り**（`decompileEffects.ts:1243`＝「レベル５のシグニの限定条件を無視」）＝直すときに一緒に訂正する。
 
 ### `O-181` — `ON_ATTACK_END`（アタック終了時）を「アタックしたシグニ自身」しか収集しない
+
+🏁**2026-09-02（索引B 第1巡）にクローズ。** 🔴**着手前の実測で母集団が 4→2 に減った**＝`WXK11-006-E4`（キー）と `WX24-P3-055-E2`（場のシグニ）は **legacy の `collectLrigAttackGuardedTriggers` が既に発火させていた**（`sourcesLAG` にキーと場のシグニが入っている）。**collector を実際に走らせて数えること**（読むだけでは分からない）。■**残2件の真の穴**＝①`WX25-CP1-012-E1`＝`collectAttackEndTriggers` が **`if (!isLrigAttack) return` でシグニアタックのときアタッカー自身しか見ていなかった**＝ルリグが watcher の効果は永久に不発火。⇒ watcher 走査を**明示 opt-in（`triggerScope:'any_ally'|'any'`）限定で**シグニアタックにも広げ、`triggerCondition.attackCrashedLife`（新設）＋`AttackEndTriggerOptions.crashedLife` で「アタックによって1枚以上クラッシュ」を判定する（**未提供＝fail-closed**）。旧 live は `ON_OPP_LIFE_CRASHED` の即時発火で**効果によるクラッシュでも撃てた**。②`WX14-018-E4`＝「**そのアタック終了時に**」が落ちて**アタック宣言時にバニッシュ**していた（＝そのアタック自体が起きない過剰実行）。⇒ `trigger.attackEnd` を新設し、宣言時の2 collector は読み飛ばし、`collectAttackEndDelayedTriggers`（新設）だけが拾う。
 
 🔎**2026-09-01 続き772 に設計調査だけ実施（コード変更ゼロ）。** 足りないのは2軸で、入口は**(a)`performGuardResponse` からルリグ側のアタック終了を収集する (b)`collectAttackEndTriggers` の watcher を場の全カードへ広げる**。⚠**登録票の「`WX24-P3-055-E2` は `ON_ATTACK_SIGNI` に化けている」は stale**＝現在は `ON_GUARD` の `PARTIAL`。
 

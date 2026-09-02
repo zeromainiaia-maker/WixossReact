@@ -175,6 +175,8 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   keyword_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'keyword-scoped ability loss; same lifetime as abilities_removed' },
   // 「効果によって得ている能力」だけの喪失（§5.3 `O-130`）も同じ期限。
   granted_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'loss of effect-granted abilities only; same lifetime as abilities_removed' },
+  // 直前に手札へ戻した【トラップ】が居たゾーン（§5.3 `O-59`）。同じ解決内でしか使わないが、残骸をターンへ跨がせない。
+  trap_removed_zones: { boundaries: ['turn-end'], reset: undefined, reason: 'zone memory for re-setting a trap where it was; must not cross turns' },
   // 🔴「このターン次にアタックしたとき無効にされる」＝型コメントに期間が書いてあるのに**失効地点が1つも
   //   無く永続していた**（§6.4 O-3 続き489 で発見。`signi_deploy_power_limit` と同じクラス）。
   //   消費は「そのカードがアタックしたとき」だけなので、**アタックしなければゲーム終了まで残る**＝

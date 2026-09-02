@@ -6727,7 +6727,11 @@ export function collectRiseBanishSubstituteSigni(
  */
 export type BanishSubstituteOption =
   | { kind: 'sacrifice'; sourceNum: string; sacrificeNum: string }
-  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number };
+  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number }
+  /** 🆕§5.3 `O-58` 段2＝victim の【チャーム】1枚をトラッシュして回避（`WX04-052-E1`）。 */
+  | { kind: 'trash_charm'; sourceNum: string; charmNum: string; zoneIndex: number }
+  /** 🆕§5.3 `O-58` 段2＝victim の【アクセ】をゲームから除外して回避し、そのシグニをダウン（`WXDi-P09-TK03A-E1`）。 */
+  | { kind: 'exile_acce'; sourceNum: string; acceNum: string; zoneIndex: number };
 
 /**
  * BANISH_SUBSTITUTE (F-3): 防御側 state のシグニ victimNum がバニッシュされる場合に使える
@@ -6810,6 +6814,38 @@ export function collectBanishSubstitutes(
         // powerReduction（WX06-019）は「効果による場離れ」トリガーでバトル外のため未対応
         continue;
       }
+    }
+  }
+
+  // 🆕§5.3 `O-58` 段2（2026-09-02）＝**victim に付いている札を対価にする任意置換**。
+  // 🔴旧はどちらも防御側の battle ladder が**無条件で自動適用**しており、原文の「〜して**もよい**」＝
+  //   「チャーム／アクセを残してバニッシュを受ける」という選択が player から奪われていた
+  //   （しかもアタッカー側には1本も無い＝`O-58` の非対称そのもの）。
+  // ⚠**victim のゾーンを引いてから**候補にする（付いている札はゾーンに紐づく）。
+  const victimZone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (victimZone >= 0) {
+    // ① CHARM_PROTECTION（`WX04-052-E1`）＝盤面の別シグニが持つ【常】。victim が filter に合うときだけ。
+    const charmNum = state.field.signi_charms?.[victimZone] ?? null;
+    if (charmNum) {
+      for (const sourceNum of tops) {
+        for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+          if (eff.effectType !== 'CONTINUOUS' || eff.action?.type !== 'CHARM_PROTECTION') continue;
+          if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+          const filter = (eff.action as { signiFilter?: import('../types/effects').TargetFilter }).signiFilter;
+          if (filter && !matchesFilter(cardMap.get(baseNum(victimNum)), filter)) continue;
+          result.push({ kind: 'trash_charm', sourceNum, charmNum, zoneIndex: victimZone });
+          break;
+        }
+      }
+    }
+    // ② ACCE_BANISH_SUBSTITUTE（`WXDi-P09-TK03A-E1`）＝**アクセ自身**が持つ【常】。
+    //    ⚠行き先は**ゲーム外**（障害③）。回避が成立すると victim はダウンする。
+    for (const acceNum of (state.field.signi_acce?.[victimZone] ?? [])) {
+      const hasAcceSub = (effectsMap.get(acceNum) ?? effectsMap.get(baseNum(acceNum)) ?? []).some(eff => {
+        const act = eff.action as import('../types/effects').StubAction;
+        return eff.effectType === 'CONTINUOUS' && act?.type === 'STUB' && act.id === 'ACCE_BANISH_SUBSTITUTE';
+      });
+      if (hasAcceSub) result.push({ kind: 'exile_acce', sourceNum: acceNum, acceNum, zoneIndex: victimZone });
     }
   }
   return result;

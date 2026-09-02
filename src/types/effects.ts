@@ -2333,6 +2333,17 @@ export interface InstallDelayedTriggerAction {
     /** 設置時に `storedTargetCards`（無ければ `lastProcessedCards`）を `attackerFixedCardNums` へ焼き込む。 */
     attackerFixedFromStored?: boolean;
     /**
+     * 🆕§5.3 `O-181`（2026-09-02）＝`ON_ATTACK_SIGNI` の遅延を**アタック宣言時ではなく
+     * 「そのアタック終了時」に発火させる**（`WX14-018-E4`
+     * 「次のターンの間、対戦相手のシグニ１体がアタックしたとき、**そのアタック終了時に**そのシグニをバニッシュする」）。
+     *
+     * 🔴**落とすと過剰実行になる**＝宣言時にバニッシュすると**そのアタック自体が起きない**
+     *   （バトルもライフクラッシュも発生しない）＝原文より明確に強い。原文はバトル解決**後**に落とす。
+     * 収集地点＝宣言時の `collectSigniAttackDelayedTriggers` / `collectAttackerSelfDelayedTriggers` は
+     * このフラグを**読み飛ばし**、アタック終了地点の `collectAttackEndDelayedTriggers` だけが拾う。
+     */
+    attackEnd?: boolean;
+    /**
      * 🆕ON_SIGNI_BANISH_BATTLE の**バニッシュした側**のカード条件（2026-08-31 続き748・`WD15-023-E1`
      * 「このターン、あなたの**＜龍獣＞の**シグニが対戦相手のシグニ1体をバニッシュしたとき」）。
      */
@@ -4588,6 +4599,14 @@ export interface StubAction {
     label: string;
     costColors: string[];
     action: EffectAction;
+    /**
+     * 🆕エナ以外の対価で払う枝（§5.3 `O-59`・`WX21-025-TRAP`
+     * 「手札から＜トリック＞のシグニを**２枚捨てる**か《青》《青》を支払ってもよい」）。
+     * ⚠**支払いそのものは `action` の先頭ステップ**（`TRASH{HAND_CARD, asCost}`）が行う。ここは
+     *   **「支払える盤面か」の可否判定にだけ**使う。無いと `costColors` が空の枝が常に available になり、
+     *   **捨てられない盤面でも「支払う」ボタンが出る**（押すと空振りして帰結だけ通る過剰実行）。
+     */
+    handDiscard?: { count: number; filter?: TargetFilter };
   }>;
   /** OPTIONAL_COST: result action when no tier is paid. */
   unpaidAction?: EffectAction;
@@ -4674,8 +4693,20 @@ export interface StubAction {
     | 'under_signi' | 'activate_check_burst' | 'burst_as_check' | 'gain_trap_ability';
   /** 【トラップ】設置・発動・チェックゾーン移動の候補限定。 */
   trapFilter?: TargetFilter;
-  /** 「そのシグニゾーン」「それがあったシグニゾーン」＝既存の自由ゾーン選択では表現不能。 */
+  /**
+   * 「そのシグニゾーン」「それがあったシグニゾーン」＝既存の自由ゾーン選択では表現不能。
+   * 🆕`'previous'` は §5.3 `O-59`（2026-09-02）で実装＝`PlayerState.trap_removed_zones`（直前に手札へ
+   *   戻した【トラップ】が居たゾーン）へ設置する（`WX16-028-E2`）。⚠記憶が無ければ**何もしない**。
+   */
   trapFixedZone?: 'source' | 'previous';
+  /**
+   * 🆕§5.3 `O-59`（2026-09-02）＝`trapOp:'trash'` の対象を「**トリガー元シグニと同じゾーン**の【トラップ】」に絞る
+   * （`WX21-025-E1`「対戦相手のシグニ１体が【トラップ】のあるシグニゾーンに出たとき、そのシグニと
+   * **その【トラップ】**をトラッシュに置く」）。
+   * 🔴無指定の `trapOp:'trash'` は**先頭から N 枚**を落とすので、別ゾーンのトラップを巻き込む。
+   * ⚠トリガー元が場に居ない／ゾーンが引けないときは**何もしない**（fail-closed）。
+   */
+  trapZoneOfTriggerSource?: boolean;
   /** デッキ上を見て選んだ後の残り札の行き先。 */
   trapRemainder?: 'hand' | 'trash' | 'deck_top' | 'deck_bottom';
   /** `under_signi` の付け先カード名。カード全文regexの代わりにparserが列挙する。 */
@@ -4983,6 +5014,19 @@ export interface CardEffect {
      */
     affectedByOppArtsFilter?: TargetFilter;
     attackDealtNoDamage?: boolean;
+    /**
+     * 🆕§5.3 `O-181` 軸(b)（2026-09-02）＝「（あなたのルリグかシグニが）**アタックによって**対戦相手の
+     * ライフクロスを**１枚以上クラッシュしたとき**、**そのアタック終了時**」（`WX25-CP1-012-E1`）。
+     *
+     * 🔴**`ON_OPP_LIFE_CRASHED` では表せない**＝あれは**クラッシュした瞬間**に発火し、しかも
+     *   **効果によるクラッシュでも撃てる**（旧 live がそれ＝過剰実行）。原文の「アタックによって」＋
+     *   「そのアタック終了時」は **`ON_ATTACK_END` ＋ この条件**でしか表せない。
+     * 判定材料は `AttackEndTriggerOptions.crashedLife`（アタック解決の前後でライフ枚数を差分する）。
+     * ⚠**未提供は「分からない」＝発火させない**（fail-closed）。
+     * ⚠**watcher はアタッカー自身とは限らない**（このカードはルリグで、シグニのアタックも監視する）＝
+     *   `triggerScope:'any_ally'` を必ず併記する（既定 `'self'` だと watcher 走査に載らない）。
+     */
+    attackCrashedLife?: boolean;
     // ── ON_ABILITY_ACTIVATED（§6.3 J-1「他能力の発動監視」）の限定 ──
     /** 発動した能力の持ち主（watcher から見て）。省略=どちらでも。 */
     activatedAbilityOwner?: 'self' | 'opponent';

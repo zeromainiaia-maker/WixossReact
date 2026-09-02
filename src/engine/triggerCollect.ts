@@ -166,6 +166,8 @@ export function collectSigniAttackDelayedTriggers(
   const entries: StackEntry[] = [];
   for (const dt of defenderState.delayed_triggers ?? []) {
     if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
+    // 🆕§5.3 `O-181`＝「そのアタック終了時に」の遅延は宣言時に拾わない（`collectAttackEndDelayedTriggers` の担当）。
+    if (dt.trigger.attackEnd) continue;
     if ((dt.trigger.attackerOwner ?? 'any') === 'self') continue;
     if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
     // 🆕アタッカーのカード条件（2026-08-31 続き747）＝「**黒の＜ブルアカ＞の**シグニがアタックしたとき」。
@@ -207,6 +209,8 @@ export function collectAttackerSelfDelayedTriggers(
   const entries: StackEntry[] = [];
   for (const dt of attackerState.delayed_triggers ?? []) {
     if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
+    // 🆕§5.3 `O-181`＝「そのアタック終了時に」の遅延は宣言時に拾わない（上と対称）。
+    if (dt.trigger.attackEnd) continue;
     if ((dt.trigger.attackerOwner ?? 'any') === 'opponent') continue;
     if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
     // 🆕アタッカーのカード条件（2026-08-31 続き747）＝「**黒の＜ブルアカ＞の**シグニがアタックしたとき」。
@@ -221,6 +225,51 @@ export function collectAttackerSelfDelayedTriggers(
       label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（自分シグニアタック時）`,
       effect: {
         effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+      triggeringCardNum: attackerCardNum,
+    });
+  }
+  return entries;
+}
+
+/**
+ * 🆕§5.3 `O-181`（2026-09-02）＝`ON_ATTACK_SIGNI` の遅延のうち **`attackEnd:true`（「そのアタック終了時に」）**
+ * だけを、**アタックの解決が終わった地点**から収集する。
+ *
+ * 🔴**存在理由**＝`WX14-018-E4`「次のターンの間、対戦相手のシグニ１体がアタックしたとき、**そのアタック終了時に**
+ *   そのシグニをバニッシュする」を宣言時に発火させると、**そのアタック自体が起きない**
+ *   （バニッシュされた時点でバトルもライフクラッシュも発生しない）＝原文より明確に強い過剰実行になる。
+ * ⚠**アタッカーが場を離れている場合も設置側は発火しうる**（原文は「そのシグニをバニッシュする」なので
+ *   engine 側の対象解決が空振りするだけ＝ここでは弾かない）。
+ * ⚠`watcherId` / `watcherState`＝**遅延を設置した側**（`attackerOwner:'opponent'` なら防御側）。
+ *   宣言時の2本（`collectSigniAttackDelayedTriggers` / `collectAttackerSelfDelayedTriggers`）と
+ *   同じ向きの判定をここでも行う。
+ */
+export function collectAttackEndDelayedTriggers(
+  ctx: TrigCtx,
+  watcherId: string,
+  watcherState: PlayerState,
+  attackerCardNum: string,
+  /** アタッカーが `watcherState` 側のカードか（＝設置者から見て `attackerOwner:'self'`）。 */
+  attackerIsWatcherSide: boolean,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const dt of watcherState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
+    if (!dt.trigger.attackEnd) continue;                       // 宣言時発火のものはここでは拾わない
+    const want = dt.trigger.attackerOwner ?? 'any';
+    if (want === 'self' && !attackerIsWatcherSide) continue;
+    if (want === 'opponent' && attackerIsWatcherSide) continue;
+    if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    if (dt.trigger.attackerFilter
+      && !matchesFilter(ctx.cardMap.get(getCardNum(attackerCardNum)), dt.trigger.attackerFilter)) continue;
+    if (dt.trigger.attackerFixedCardNums && !dt.trigger.attackerFixedCardNums.includes(attackerCardNum)) continue;
+    entries.push({
+      id: ctx.genId(), playerId: watcherId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（アタック終了時）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_ATTACK_END'],
         action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
       },
       triggeringCardNum: attackerCardNum,
@@ -2308,6 +2357,14 @@ export function collectMagicBoxFlippedTriggers(
 export interface AttackEndTriggerOptions {
   attackerKind?: 'signi' | 'lrig';
   wasGuarded?: boolean;
+  /**
+   * 🆕§5.3 `O-181` 軸(b)（2026-09-02）＝**このアタックで対戦相手のライフクロスを1枚以上クラッシュしたか**。
+   * 「あなたのルリグかシグニが**アタックによって**対戦相手のライフクロスを1枚以上クラッシュしたとき、
+   * **そのアタック終了時**、…」（`WX25-CP1-012-E1`）の `triggerCondition.attackCrashedLife` が読む。
+   * 🔴**未指定＝分からない**であって「クラッシュしていない」ではない＝この条件を持つ効果は**発火させない**
+   *   （fail-closed。旧 live は `ON_OPP_LIFE_CRASHED` の即時発火＝**効果によるクラッシュでも撃てた**過剰実行だった）。
+   */
+  crashedLife?: boolean;
 }
 
 export function collectAttackEndTriggers(
@@ -2330,6 +2387,9 @@ export function collectAttackEndTriggers(
     if (seen.has(key)) return;
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_END')) return;
     if (eff.triggerCondition?.attackDealtNoDamage && dealtDamage) return;
+    // 🆕§5.3 `O-181` 軸(b)＝「アタックによってライフクロスを1枚以上クラッシュしたとき」。
+    // 🔴**未提供（undefined）は「分からない」＝発火させない**（fail-closed）。
+    if (eff.triggerCondition?.attackCrashedLife && options.crashedLife !== true) return;
     if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, isAttackerTurn, ctx.cardMap, sourceNum)) return;
     if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, sourceNum, ctx.turnPhase, ctx.effectivePowers)) return;
     if (!limitOk(eff)) return;
@@ -2345,7 +2405,36 @@ export function collectAttackEndTriggers(
   if ((!ownSigniAutoBlocked || isLrigAttack) && (!removed.has(attackerNum) || isLrigAttack)) {
     for (const eff of effsOf(ctx, attackerNum)) add(attackerNum, eff);
   }
-  if (!isLrigAttack) return { entries, usedOncePerTurnIds };
+
+  /**
+   * watcher ≠ アタッカーの場（シグニ／ルリグ／アシスト／キー）。アタッカー自身は上で処理済み。
+   * ⚠**明示 opt-in（`triggerScope:'any_ally'|'any'`）だけを通す**＝既定 `'self'` の既存効果を巻き込まない。
+   */
+  const watcherSourcesOf = (): string[] => [
+    ...attackerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...(attackerState.field.lrig.at(-1) ? [attackerState.field.lrig.at(-1)!] : []),
+    ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
+    ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
+    ...activeKeyAbilitySources(attackerState),
+  ].filter(n => n !== attackerNum);
+
+  if (!isLrigAttack) {
+    // 🆕§5.3 `O-181` 軸(b)（2026-09-02）＝**シグニアタックでも watcher≠アタッカーを収集する**。
+    // 🔴旧はここで return しており、**シグニのアタック終了時はアタッカー自身しか見ていなかった**＝
+    //   「あなたのルリグかシグニがアタックによって〜したとき、そのアタック終了時」（`WX25-CP1-012-E1`）は
+    //   ルリグが watcher なので**永久に発火しなかった**。
+    for (const sourceNum of watcherSourcesOf()) {
+      const isSigniW = attackerState.field.signi.some(s => s?.at(-1) === sourceNum);
+      if (isSigniW && (ownSigniAutoBlocked || removed.has(sourceNum))) continue;
+      for (const eff of effsOf(ctx, sourceNum)) {
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;  // 明示 opt-in のみ
+        if (eff.triggerFilter && !matchesFilter(attackerCard, eff.triggerFilter)) continue;
+        add(sourceNum, eff);
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  }
 
   const legacyLrigAttackEndOk = (eff: CardEffect): boolean => {
     if (!eff.timing?.includes('ON_GUARD')) return false;
@@ -2373,13 +2462,7 @@ export function collectAttackEndTriggers(
   }
 
   // watcher≠アタッカー。ルリグアタックであることを明示する既存条件、または既存 scope のみを許可する。
-  const watcherSources = [
-    ...attackerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
-    ...(attackerState.field.lrig.at(-1) ? [attackerState.field.lrig.at(-1)!] : []),
-    ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
-    ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
-    ...activeKeyAbilitySources(attackerState),
-  ].filter(n => n !== attackerNum);
+  const watcherSources = watcherSourcesOf();
   for (const sourceNum of watcherSources) {
     const isSigni = attackerState.field.signi.some(s => s?.at(-1) === sourceNum);
     if (isSigni && (ownSigniAutoBlocked || removed.has(sourceNum))) continue;

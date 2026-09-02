@@ -45,7 +45,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
-import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
+import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectAttackEndDelayedTriggers, collectAttackerSelfDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded, detectPlacedFromZone } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -5454,10 +5454,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 27, '命名規約外のターン限定フィールド数（27＝2026-09-02 索引C 第10巡で granted_abilities_removed＝「効果によって得ている能力」だけの喪失を追加・§5.3 `O-130`）');  // +1＝続き518 の team_piece_cutin_window
+  eq(irregular.length, 28, '命名規約外のターン限定フィールド数（28＝2026-09-02 索引B 第1巡で trap_removed_zones＝「それがあったシグニゾーン」の記憶を追加・§5.3 `O-59`）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 70, '型由来38件＋命名規約外26件の母集団（70＝2026-09-02 索引C 第10巡で granted_abilities_removed を追加・§5.3 `O-130`）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 71, '型由来38件＋命名規約外27件の母集団（71＝2026-09-02 索引B 第1巡で trap_removed_zones を追加・§5.3 `O-59`）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -8485,7 +8485,10 @@ test('O-56 parser: TRAP_OP / TRAP_OPERATION の全18効果・21ノードが文�
   const expected = [
     'SP26-001-E1', 'WX15-047-E1', 'WX15-053-BURST', 'WX15-083-BURST', 'WX16-028-E2',
     'WX16-061-E1', 'WX17-029-TRAP', 'WX17-044-E1', 'WX17-062-E1', 'WX21-003-E2',
-    'WX21-025-E2', 'WX21-Re20-E1', 'WXDi-CP02-033-E1', 'WXDi-P11-006-E1',
+    // 🏁`WX21-025-E2` は §5.3 `O-59`（2026-09-02）の構造整理で外れた＝
+    //   【出】に流れ込んでいた【トラップアイコン】本文を `WX21-025-TRAP` へ切り出したので、
+    //   E2 は `SET_OPP_SIGNI_AS_TRAP` 1ステップ（`trapOp` ペイロードを持たない）になった。
+    'WX21-Re20-E1', 'WXDi-CP02-033-E1', 'WXDi-P11-006-E1',
     'WXDi-P11-063-E1', 'WXEX2-15-E1', 'WXEX2-42-E1', 'WXK11-036-E2',
   ];
   const expectedSet = new Set(expected);
@@ -8503,8 +8506,8 @@ test('O-56 parser: TRAP_OP / TRAP_OPERATION の全18効果・21ノードが文�
     if (expectedSet.has(effect.effectId)) walk(effect.effectId, effect.action);
   }
   const actual = [...new Set(found.map(x => x.effectId))].sort();
-  eq(actual.join(','), expected.sort().join(','), '母集団は18効果で集合一致');
-  eq(found.length, 21, '同一効果内の複数ノードを含め21ノード');
+  eq(actual.join(','), expected.sort().join(','), '母集団は17効果で集合一致（O-59 の構造整理で WX21-025-E2 が外れた）');
+  eq(found.length, 20, '同一効果内の複数ノードを含め20ノード（O-59 で WX21-025-E2 の重複設置1ノードを撤去）');
   ok(found.every(x => x.action.trapOp != null), '全ノードがtrapOpを持つ（全文regexフォールバック撤去条件）');
 
   const one = (effectId: string, op?: string) => found.find(x => x.effectId === effectId && (!op || x.action.trapOp === op))?.action;
@@ -13750,6 +13753,191 @@ test('O-181 ON_ATTACK_END: ルリグ付与・全場 watcher を収集し、self 
     '場の legacy ON_GUARD は既存 collector が1回だけ担当');
   eq(guardedAtEnd.entries.filter(e => e.effectId === 'WXDi-D04-004-sub-E1').length, 1,
     '付与ストアは既存 ON_GUARD collector の射程外なので終了 collector が1回担当');
+}));
+test('索引B 2026-09-02: O-58 段2 付いている札を対価にする任意置換（チャーム／アクセ除外）', () => withSavedCursor(() => {
+  // 原文＝`WX04-052-E1`「あなたの＜悪魔＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている
+  //   【チャーム】１枚をトラッシュに置いて**もよい**」／`WXDi-P09-TK03A-E1`「これにアクセされているシグニが
+  //   場を離れる場合、代わりに**これをゲームから除外**してもよい。そうした場合、そのシグニをダウンする」。
+  // 🔴旧＝どちらも**防御側の battle ladder が無条件で自動適用**しており、
+  //   ①「チャーム／アクセを残してバニッシュを受ける」という原文どおりの選択が player から奪われていた
+  //   ②**アタッカー側には1本も無かった**（`O-58` の非対称そのもの）
+  //   ③`ACCE_BANISH_SUBSTITUTE` は**ログだけが「ゲームから除外」で実装は `trash`**（登録票の障害③）。
+  const DEMON = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+  const CHARM = fresh(), ACCE = 'WXDi-P09-TK03A';
+  const withAttached = (opts: { charm?: boolean; acce?: boolean }) => {
+    const st = mkState({ signi: [DEMON, 'WX04-052', null] });
+    return { ...st, field: { ...st.field,
+      signi_charms: [opts.charm ? CHARM : null, null, null],
+      signi_acce: [opts.acce ? [ACCE] : null, null, null] } } as PlayerState;
+  };
+  const opp = mkState({});
+  const optsOf = (st: PlayerState, isOwnerTurn: boolean) =>
+    collectBanishSubstitutes(st, opp, isOwnerTurn, cardMap as Map<string, CardData>, effectsMap, DEMON);
+  // ① チャーム盾＝**選択肢として**出る（自動適用ではない）。
+  const charmOpts = optsOf(withAttached({ charm: true }), false);
+  const charmPick = charmOpts.find(o => o.kind === 'trash_charm');
+  ok(!!charmPick, '【チャーム】をトラッシュする枝が選択肢に出る');
+  eq((charmPick as { charmNum?: string })?.charmNum, CHARM, '対価は victim に付いているチャーム');
+  eq((charmPick as { zoneIndex?: number })?.zoneIndex, 0, 'victim のゾーンで引く');
+  eq(optsOf(withAttached({}), false).some(o => o.kind === 'trash_charm'), false,
+    '（反転）チャームが付いていなければ出ない');
+  // 🔑**アタッカー側（自分のターン）でも同じ枝が出る**＝`O-58` の非対称はここで閉じた。
+  ok(optsOf(withAttached({ charm: true }), true).some(o => o.kind === 'trash_charm'),
+    'アタッカー側（isOwnerTurn=true）でも選択肢に出る（旧は防御側だけ）');
+  // ② アクセ除外＝アクセ自身が持つ【常】。
+  const acceOpts = optsOf(withAttached({ acce: true }), true);
+  const accePick = acceOpts.find(o => o.kind === 'exile_acce');
+  ok(!!accePick, '【アクセ】をゲームから除外する枝が選択肢に出る');
+  eq((accePick as { acceNum?: string })?.acceNum, ACCE, '対価は付いているアクセ自身');
+  // ③ engine の適用＝行き先とダウンを固定する（障害③の再発防止）。
+  const base = mkCtx({}, {});
+  const ctxCharm = { ...base, ownerState: withAttached({ charm: true }) } as ExecCtx;
+  const afterCharm = applyEffectBanishSubstituteChoice(DEMON, 'self', charmPick!, ctxCharm);
+  ok(afterCharm.ownerState.trash.includes(CHARM), 'チャームはトラッシュへ');
+  eq(afterCharm.ownerState.field.signi_charms?.[0], null, 'チャームは外れる');
+  ok((afterCharm.ownerState.field.signi[0] ?? []).includes(DEMON), 'victim は場に残る（バニッシュ回避）');
+  const ctxAcce = { ...base, ownerState: withAttached({ acce: true }) } as ExecCtx;
+  const afterAcce = applyEffectBanishSubstituteChoice(DEMON, 'self', accePick!, ctxAcce);
+  ok((afterAcce.ownerState.excluded ?? []).includes(ACCE),
+    '🔴アクセは**ゲームから除外**（旧はログだけ除外で実装はトラッシュだった＝障害③）');
+  ok(!afterAcce.ownerState.trash.includes(ACCE), '（反転）トラッシュには行かない＝回収できない');
+  eq(afterAcce.ownerState.field.signi_down?.[0], true, '「そうした場合、そのシグニをダウンする」が効く');
+  ok((afterAcce.ownerState.field.signi[0] ?? []).includes(DEMON), 'victim は場に残る（バニッシュ回避）');
+  // ④ 🔴コスト0の身代わりを作らない＝対価が既に無ければ回避は成立しない（§3 (cxxix) の再発防止）。
+  const gone = applyEffectBanishSubstituteChoice(DEMON, 'self', charmPick!,
+    { ...base, ownerState: withAttached({}) } as ExecCtx);
+  eq(gone.ownerState.trash.includes(CHARM), false, '（反転）チャームが無ければ何も払わない');
+  ok(gone.logs.some(l => l.includes('回避できない')), '（反転）回避が成立しないことをログに出す');
+}));
+test('索引B 2026-09-02: O-59 【トラップ】の並べ替え／直前ゾーン記憶／そのゾーンのトラップ／能力コピー', () => withSavedCursor(() => {
+  const T0 = fresh(), T1 = fresh(), T2 = fresh(), H = fresh();
+  const mkTraps = (traps: (string | null)[], o: StateOpts = {}) => {
+    const st = mkState(o);
+    return { ...st, field: { ...st.field, signi_traps: traps } } as PlayerState;
+  };
+  // ① `WX17-062-E1`「あなたのすべての【トラップ】を好きなように配置し直す」＝旧は
+  //    `[トラップ再配置：並べ替え対話は未実装]` のログだけ（no-op）。
+  //    🔑**新しい対話は作らない**＝`REARRANGE_SIGNI` に `mode:'traps'` を足して器だけ差し替えた。
+  {
+    const ctx = { ...mkCtx({}, {}, 'WX17-062'), ownerState: mkTraps([T0, T1, T2]) } as ExecCtx;
+    const r = executeAction({ type: 'STUB', id: 'TRAP_OP', trapOp: 'rearrange' } as unknown as EffectAction, ctx);
+    eq(r.done, false, '並べ替え対話が立つ（旧は no-op ログだけ）');
+    const pend = (r as Extract<ExecResult, { done: false }>).pending as PendingInteractionDef & { type: 'REARRANGE_SIGNI' };
+    eq(pend.type, 'REARRANGE_SIGNI', 'シグニ並べ替えの対話を共有する');
+    eq(pend.mode, 'traps', '器は signi_traps（シグニは1体も動かない）');
+    eq(pend.signiNums.length, 3, '場のトラップ3枚が候補');
+    const after = resumeRearrangeSigni([T2, T0, T1], pend, { ...ctx, ownerState: r.ownerState });
+    eq(after.ownerState.field.signi_traps?.join(','), [T2, T0, T1].join(','), '指定どおりに並び替わる');
+    eq(after.ownerState.field.signi.filter(z => z && z.length).length, 0, 'シグニ側は動かない');
+    // 反転確認＝トラップが1枚以下なら対話を出さない。
+    const one = executeAction({ type: 'STUB', id: 'TRAP_OP', trapOp: 'rearrange' } as unknown as EffectAction,
+      { ...ctx, ownerState: mkTraps([T0, null, null]) });
+    eq(one.done, true, '（反転）トラップ1枚では対話を出さない');
+  }
+  // ② `WX16-028-E2`「それが**あった**シグニゾーンに手札からカード1枚を【トラップ】として設置する」＝
+  //    旧は `[トラップ設置保留: previous]` の no-op（行き先ゾーンを覚える器が無かった）。
+  {
+    const own = { ...mkTraps([null, T1, null], { hand: 0 }), hand: [H], trap_removed_zones: [1] } as PlayerState;
+    const ctx = { ...mkCtx({}, {}, 'WX16-028'), ownerState: own } as ExecCtx;
+    const set: EffectAction = { type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'set', trapSource: 'hand', count: 1, trapFixedZone: 'previous' } as unknown as EffectAction;
+    const r = executeAction(set, ctx);
+    eq(r.done, false, '手札から選ばせる対話が立つ');
+    const pend = (r as Extract<ExecResult, { done: false }>).pending as PendingInteractionDef & { type: 'SELECT_TARGET'; thenAction?: { count?: number } };
+    eq(pend.thenAction?.count, 1, '⚠ゾーンは選ばせない＝記憶した zone1 へ直行する');
+    const after = resumeSelectTarget([H], pend, { ...ctx, ownerState: r.ownerState });
+    eq(after.ownerState.field.signi_traps?.[1], H, '直前にトラップが居たゾーンへ設置される');
+    eq(after.ownerState.hand.includes(H), false, '手札からは抜ける（複製しない）');
+    // 反転確認＝記憶が無ければ何もしない（自由ゾーンへ誤設置しない）。
+    const noMemo = executeAction(set, { ...ctx, ownerState: { ...mkState({}), hand: [H] } as PlayerState });
+    eq(noMemo.done, true, '（反転）記憶が無ければ対話を出さない');
+    ok(noMemo.logs.some(l => l.includes('直前のゾーンが分からない')), '（反転）fail-closed のログが出る');
+  }
+  // ③ `WX21-025-E1`「そのシグニと**その【トラップ】**をトラッシュに置く」＝
+  //    無指定の `trapOp:'trash'` は先頭から N 枚なので別ゾーンのトラップを巻き込む。
+  {
+    const own = mkTraps([T0, T1, null]);
+    const opp = mkState({ signi: [null, 'X-TRIG', null] });
+    const ctx = { ...mkCtx({}, {}, 'WX21-025'), ownerState: own, otherState: opp, triggeringCardNum: 'X-TRIG' } as ExecCtx;
+    const r = executeAction({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'trash', trapZoneOfTriggerSource: true } as unknown as EffectAction, ctx);
+    eq(r.ownerState.field.signi_traps?.join(','), [T0, '', ''].join(','), 'トリガー元と同じゾーン（1）のトラップだけ落ちる');
+    ok(r.ownerState.trash.includes(T1), 'そのトラップはトラッシュへ');
+    ok(!r.ownerState.trash.includes(T0), '別ゾーンのトラップは巻き込まない（旧は先頭から落としていた）');
+  }
+  // ④ `WX17-029-TRAP`「このカードはそれのトラップ能力を得て、その能力を発動する」＝旧は
+  //    `[トラップ能力コピー：未実装]` の no-op。
+  {
+    let withIcon = '';
+    for (const [num, cd] of cardMap) {
+      if (num === 'WX17-029') continue;
+      if (((cd as CardData).effects ?? []).some(e => e.effectType === 'TRAP_ICON')) { withIcon = num; break; }
+    }
+    eq(withIcon !== '', true, 'トラップアイコンを持つカードが live に居る');
+    const own = { ...mkState({}), trash: [withIcon, T0] } as PlayerState;
+    const ctx = { ...mkCtx({}, {}, 'WX17-029'), ownerState: own } as ExecCtx;
+    const r = executeAction({ type: 'STUB', id: 'TRAP_OPERATION', trapOp: 'gain_trap_ability', trapSource: 'trash' } as unknown as EffectAction, ctx);
+    eq(r.done, false, '対象を選ぶ対話が立つ（旧は no-op ログだけ）');
+    const pend = (r as Extract<ExecResult, { done: false }>).pending as PendingInteractionDef & { type: 'SELECT_TARGET' };
+    eq(JSON.stringify(pend.candidates), JSON.stringify([withIcon]),
+      'トラップ能力を持つカードだけが候補（持たない札を選ばせると必ず空振りする）');
+  }
+  // live の構造＝`WX21-025` は3能力が別々に立っている（旧は【トラップアイコン】が E2 に流れ込んで混線）。
+  const ids = (effectsMap.get('WX21-025') ?? []).map(e => e.effectId);
+  ok(ids.includes('WX21-025-TRAP'), '【トラップアイコン】が独立した TRAP_ICON 効果として立つ');
+  const e2 = (effectsMap.get('WX21-025') ?? []).find(e => e.effectId === 'WX21-025-E2');
+  eq((e2?.action as { type?: string; id?: string })?.id, 'SET_OPP_SIGNI_AS_TRAP',
+    '【出】は設置1ステップだけ（旧は同じ設置を2回書いていた）');
+}));
+test('索引B 2026-09-02: O-181 軸(b) シグニアタックでも watcher≠アタッカーを収集する（WX25-CP1-012-E1）', () => withSavedCursor(() => {
+  // 原文＝「あなたのルリグかシグニが**アタックによって**対戦相手のライフクロスを１枚以上クラッシュしたとき、
+  //   **そのアタック終了時**、対戦相手が《無》を支払わないかぎり、対戦相手にダメージを与える。」
+  // 🔴旧 live＝`ON_OPP_LIFE_CRASHED` の即時発火＝①「アタックによって」の限定が無く**効果によるクラッシュでも
+  //   撃てた**（過剰）②「そのアタック終了時」ではなく**クラッシュした瞬間**に割り込んでいた。
+  // 🔴さらに `collectAttackEndTriggers` は**シグニアタックのときアタッカー自身しか見ていなかった**＝
+  //   watcher（このルリグ）は永久に発火しなかった。
+  const e1 = (effectsMap.get('WX25-CP1-012') ?? []).find(x => x.effectId === 'WX25-CP1-012-E1');
+  eq(JSON.stringify(e1?.timing), JSON.stringify(['ON_ATTACK_END']), 'アタック終了時に発火する');
+  eq(e1?.triggerScope, 'any_ally', 'watcher≠アタッカー＝明示 opt-in（既定 self だと走査に載らない）');
+  eq(e1?.triggerCondition?.attackCrashedLife, true, '「アタックによって〜クラッシュしたとき」の限定が載る');
+  const atk = findCard(c => isSigni(c) && c.CardNum !== 'WX25-CP1-012');
+  const host = mkState({ lrig: ['WX25-CP1-012'], signi: [atk, null, null] });
+  const guest = mkState({});
+  const run = (o: { crashedLife?: boolean }) => collectAttackEndTriggers(
+    trigCtx(HOST), HOST, atk, host, guest, true, { attackerKind: 'signi', ...o });
+  ok(has(run({ crashedLife: true }).entries, 'WX25-CP1-012-E1'), 'ライフをクラッシュしたアタックの終了時に発火');
+  ok(!has(run({ crashedLife: false }).entries, 'WX25-CP1-012-E1'), '（反転）クラッシュしていなければ発火しない');
+  ok(!has(run({}).entries, 'WX25-CP1-012-E1'), '（反転）判定材料が無ければ発火しない（fail-closed）');
+  // 反転確認＝既定 scope（'self'）の watcher は巻き込まない。
+  const other = mkState({ lrig: ['WX25-CP1-012'], signi: [atk, 'WXK11-018', null] });
+  ok(!has(collectAttackEndTriggers(trigCtx(HOST), HOST, atk, other, guest, true,
+    { attackerKind: 'signi', crashedLife: true }).entries, 'WXK11-018-E2'),
+    '他のシグニの self ON_ATTACK_END は巻き込まない（明示 opt-in のみ）');
+}));
+test('索引B 2026-09-02: O-181 「そのアタック終了時に」の遅延はアタック宣言時に発火しない（WX14-018-E4）', () => withSavedCursor(() => {
+  // 🔴旧＝`trigger:{timing:'ON_ATTACK_SIGNI', attackerOwner:'opponent'}` だけ＝**アタック宣言時**にバニッシュ。
+  //   バニッシュした時点で**そのアタック自体が起きない**（バトルもライフクラッシュも発生しない）＝
+  //   原文（バトル解決**後**に落とす）より明確に強い過剰実行だった。
+  const e4 = (effectsMap.get('WX14-018') ?? []).find(x => x.effectId === 'WX14-018-E4');
+  const inst = e4?.action as { type?: string; duration?: string; trigger?: Record<string, unknown>; effect?: unknown };
+  eq(inst?.type, 'INSTALL_DELAYED_TRIGGER', '遅延設置');
+  eq(inst?.duration, 'NEXT_TURN', '次のターンの間');
+  eq(inst?.trigger?.attackEnd, true, '「そのアタック終了時に」が載る');
+  eq(inst?.trigger?.attackerOwner, 'opponent', '対戦相手のシグニのアタック');
+  const atk = findCard(c => isSigni(c));
+  const dt = { ...inst, sourceCardNum: 'WX14-018' } as never;
+  const defender = { ...mkState({ lrig: ['WX14-018'] }), delayed_triggers: [dt] } as PlayerState;
+  eq(collectSigniAttackDelayedTriggers(trigCtx(HOST), HOST, defender, atk).length, 0,
+    '宣言時 collector は拾わない（旧はここで拾ってアタックを消していた）');
+  eq(collectAttackEndDelayedTriggers(trigCtx(HOST), HOST, defender, atk, false).length, 1,
+    'アタック終了時に1回だけ拾う');
+  eq(collectAttackEndDelayedTriggers(trigCtx(HOST), HOST, defender, atk, true).length, 0,
+    '（反転）attackerOwner:opponent なので自分のアタックでは拾わない');
+  // 反転確認＝`attackEnd` を持たない遅延は従来どおり宣言時だけで拾う。
+  const legacy = { ...(inst as object), trigger: { ...(inst?.trigger ?? {}), attackEnd: undefined }, sourceCardNum: 'WX14-018' } as never;
+  const defLegacy = { ...mkState({ lrig: ['WX14-018'] }), delayed_triggers: [legacy] } as PlayerState;
+  eq(collectSigniAttackDelayedTriggers(trigCtx(HOST), HOST, defLegacy, atk).length, 1,
+    'attackEnd 無しは従来どおり宣言時に拾う');
+  eq(collectAttackEndDelayedTriggers(trigCtx(HOST), HOST, defLegacy, atk, false).length, 0,
+    'attackEnd 無しは終了時に拾わない（二重発火しない）');
 }));
 test('J-4 WXK11-018-E2 の対象は「このシグニより低いレベル」の他シグニ（自分自身ではない）', () => {
   const eff = (effectsMap.get('WXK11-018') ?? []).find(e => e.effectId === 'WXK11-018-E2');

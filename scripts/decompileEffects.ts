@@ -1733,7 +1733,10 @@ function actionJa(a?: Action, effectType?: string): string {
         //   1体がアタックしたとき」）。JSON に載っているのに逆翻訳へ出ないと「主語の限定が落ちた」ように読める。
         const attackerFilterJa = filterJa(a.trigger.attackerFilter ?? {});
         const onceIDT = a.once ? '次に' : '';
-        return `${durIDT}、${onceIDT}${whoIDT}${attackerFilterJa}シグニがアタックしたとき、${actionJa(a.effect)}`;
+        // 🆕§5.3 `O-181`（2026-09-02）＝「**そのアタック終了時に**」（`WX14-018-E4`）。
+        //   🔴落とすと「アタック宣言時に発火」と同じ文になり、**アタック自体を消していた旧実装と区別できない**。
+        const atEndIDT = a.trigger.attackEnd ? 'そのアタック終了時に' : '';
+        return `${durIDT}、${onceIDT}${whoIDT}${attackerFilterJa}シグニがアタックしたとき、${atEndIDT}${actionJa(a.effect)}`;
       }
       // ON_SIGNI_BANISH_BATTLE（タスク12(lxi) 第7波・WX24-P4-011-E3）：遅延トリガーは**プレイヤー**に
       // 設置されるので主語は「あなたのシグニ」＝timingJa の「このシグニが…」（シグニ自身の【自】用）は使えない。
@@ -3028,6 +3031,20 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
         // costText（エナ色以外の任意コスト句）が明示されていれば原文どおり描画（A3）
         if (a.costText) return a.costText;
+        // 🆕§5.3 `O-59`（2026-09-02）＝排他的な支払い枝（`additionalCostChoices`）を描く。
+        //   🔴旧はここへ落ちて「**コストを支払ってもよい**」に潰れており、**何を払うと何が起きるかが
+        //   1文字も出ていなかった**（`WX21-025-TRAP` の「＜トリック＞2枚捨てるか《青》《青》」）。
+        if (Array.isArray(a.additionalCostChoices) && a.additionalCostChoices.length > 0) {
+          const branches = (a.additionalCostChoices as Array<{ costColors?: string[];
+            handDiscard?: { count: number; filter?: Record<string, unknown> }; action?: unknown }>).map(ch => {
+            const pay = ch.handDiscard
+              ? `手札から${filterJa(ch.handDiscard.filter ?? {})}カードを${numJa(ch.handDiscard.count)}枚捨てる`
+              : (ch.costColors ?? []).map(c => `《${c}》`).join('') || 'コストを支払う';
+            return `${pay}→${actionJa(ch.action as never)}`;
+          });
+          const unpaid = a.unpaidAction ? `／支払わない場合は${actionJa(a.unpaidAction)}` : '';
+          return `以下のいずれかを支払ってもよい【${branches.join(' ／ ')}】${unpaid}`;
+        }
         // タスク12(liii): 対象のレベルが倍率になる任意コスト
         if (a.costColorsPerTargetLevel) {
           const unit = a.costColorsPerTargetLevel.map((c: string) => `《${c}》`).join('');
@@ -3241,7 +3258,12 @@ function actionJa(a?: Action, effectType?: string): string {
           if (a.trapRemainder === 'deck_bottom') return `${base}、残りをデッキの一番下に置く`;
           return base;
         }
-        if (a.trapOp === 'trash') return `あなたの【トラップ】${a.count ?? 1}つをトラッシュに置く`;
+        if (a.trapOp === 'trash') {
+          // 🆕§5.3 `O-59`（2026-09-02）＝「**その**【トラップ】」＝トリガー元と同じゾーンの1つだけ。
+          //   🔴落とすと「あなたの【トラップ】1つ」と同じ文になり、**先頭から落としていた旧実装と区別できない**。
+          if (a.trapZoneOfTriggerSource) return 'そのシグニゾーンにある【トラップ】をトラッシュに置く';
+          return `あなたの【トラップ】${a.count ?? 1}つをトラッシュに置く`;
+        }
         if (a.trapOp === 'activate') return a.trapSource === 'field_signi'
           ? `あなたの${a.trapFilter?.story ? `＜${a.trapFilter.story}＞の` : ''}シグニ1体の《トラップアイコン》を発動させる（そのシグニは場に留まる）`
           : 'あなたの【トラップ】1つを表向きにし《トラップアイコン》を発動させる';
@@ -4863,6 +4885,14 @@ function effJa(e: Eff): string {
     // ON_ATTACK_END（§6.3 J-4）の「そのアタックによってダメージが与えられていない場合」を原文語彙へ戻す。
     if (t === 'ON_ATTACK_END' && e.triggerCondition?.attackDealtNoDamage) {
       s = 'このシグニがアタックしたアタック終了時、そのアタックによって対戦相手にダメージが与えられていない場合';
+    }
+    // 🆕§5.3 `O-181` 軸(b)（2026-09-02）＝「**アタックによって**対戦相手のライフクロスを1枚以上
+    //   クラッシュしたとき、**そのアタック終了時**」（`WX25-CP1-012-E1`）。
+    //   🔴落とすと「アタック終了時」だけの文になり、**クラッシュ限定が無かった旧実装と区別できない**。
+    if (t === 'ON_ATTACK_END' && e.triggerCondition?.attackCrashedLife) {
+      const whoAC = (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
+        ? 'あなたのルリグかシグニ' : 'このシグニ';
+      s = `${whoAC}がアタックによって対戦相手のライフクロスを1枚以上クラッシュしたとき、そのアタック終了時`;
     }
     // ON_ABILITY_ACTIVATED（§6.3 J-1）の限定を原文語彙へ戻す（誰の／どの種別／【英知】限定／場のシグニ限定）。
     if (t === 'ON_ABILITY_ACTIVATED') {

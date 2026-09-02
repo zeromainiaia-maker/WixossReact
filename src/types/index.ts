@@ -125,7 +125,22 @@ export interface Room {
 // BANISH_SUBSTITUTE (F-3) のオプション（engine の BanishSubstituteOption と同形・state永続用）
 export type BanishSubstituteOptionState =
   | { kind: 'sacrifice'; sourceNum: string; sacrificeNum: string }
-  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number };
+  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number }
+  /**
+   * 🆕§5.3 `O-58` 段2（2026-09-02）＝**victim に付いている【チャーム】1枚をトラッシュして回避**
+   * （`WX04-052-E1`「あなたの＜悪魔＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている
+   * 【チャーム】１枚をトラッシュに置いて**もよい**」）。
+   * ⚠**任意**なので選択肢として出す（旧は防御側の ladder が無条件で自動適用していた＝
+   *   「チャームを残す」選択肢が player から奪われていた）。
+   */
+  | { kind: 'trash_charm'; sourceNum: string; charmNum: string; zoneIndex: number }
+  /**
+   * 🆕§5.3 `O-58` 段2（2026-09-02）＝**victim に付いている【アクセ】をゲームから除外して回避し、
+   * そのシグニをダウンする**（`WXDi-P09-TK03A-E1`「代わりにこれをゲームから除外してもよい。
+   * そうした場合、そのシグニをダウンする」）。
+   * 🔴**行き先はトラッシュではなくゲーム外**（障害③＝防御側の実装がログと食い違っていた）。
+   */
+  | { kind: 'exile_acce'; sourceNum: string; acceNum: string; zoneIndex: number };
 
 /**
  * シグニを新たに配置できないシグニゾーン1件（タスク12(lxi) 第10波）。
@@ -1016,6 +1031,16 @@ export interface PlayerState {
    *   ターン全体のフラグ（`suppress_center_on_play`）へ倒すと、同じターンの別のグロウまで黙って抑制する。
    */
   pending_effect_grow?: { suppressOnPlay?: boolean };
+  /**
+   * 🆕§5.3 `O-59`（2026-09-02）＝直前に**手札へ戻した【トラップ】が居たシグニゾーン**の index。
+   * 「それがあった**シグニゾーンに**手札からカード１枚を【トラップ】として設置する」（`WX16-028-E2`）が読む。
+   *
+   * 🔴**`lastProcessedCards` では表せない**＝あれは「どのカードか」しか運ばず、**どのゾーンに居たか**は
+   *   トラップ枠から抜いた瞬間に失われる（旧実装は行き先が決まらず `[トラップ設置保留: previous]` の no-op）。
+   * 書き手＝`applyTrapToHand`（トラップを抜く唯一の funnel）／読み手＝`trapOp:'set'` の `trapFixedZone:'previous'`。
+   * ⚠寿命は turn-end（`turnScopedState` に登録）＝解決を跨いで残しても次のターンには持ち越さない。
+   */
+  trap_removed_zones?: number[];
   // THIS_CARD_FROM_TRASH: トラッシュから場に出したシグニのインスタンスID。直後の【出】効果で
   // 「このシグニがトラッシュから場に出た場合」条件の判定に使う（WX03-034）。ターン開始時にクリア。
   signi_played_from_trash?: string[];
@@ -1634,7 +1659,13 @@ export type PendingInteractionDef =
       owner: 'self' | 'opponent';  // 並び替えるシグニの持ち主（効果オーナー視点）
       signiNums: string[];         // 並び替え対象のシグニ（各ゾーンのトップ instance id）
       optional: boolean;           // true=スキップ可（「配置し直してもよい」）
-      mode?: 'rearrange' | 'swap' | 'swap_pair';
+      /**
+       * 🆕`'traps'`＝**【トラップ】**を好きなように配置し直す（§5.3 `O-59`・`WX17-062-E1`
+       * 「あなたのすべての【トラップ】を好きなように配置し直す」）。
+       * 🔑シグニ側の並べ替え対話と**盤面の器だけが違う**（`field.signi_traps` を置換する）ので、
+       *   pending・UI・確定ハンドラをそのまま共有する。⚠`signiNums` には**トラップのカード番号**が入る。
+       */
+      mode?: 'rearrange' | 'swap' | 'swap_pair' | 'traps';
       swapSourceNum?: string;      // 場の交換元、またはデッキから場へ入る公開シグニ
       swapSourceLocation?: 'field' | 'deck' | 'energy' | 'trash';
       swapIfSameLevel?: boolean;

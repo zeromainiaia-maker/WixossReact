@@ -740,6 +740,38 @@ export function applyEffectBanishSubstituteChoice(
       `身代わり：${nameOf(victimNum)}の代わりに${nameOf(chosen.sacrificeNum)}${log}`);
   }
 
+  // 🆕§5.3 `O-58` 段2（2026-09-02）＝victim に付いている札を対価にする2枝。
+  // 🔴**`isImplementedSubstituteCost` は `kind !== 'pay_cost'` を無条件で通す**ので、ここに分岐が無いと
+  //   末尾の `trashStackSpell` 枝へ落ちて「**0枚トラッシュで成立**」＝コスト0の身代わりになる（§3 (cxxix) の再来）。
+  if (chosen.kind === 'trash_charm') {
+    const charms = [...(state.field.signi_charms ?? [null, null, null])] as (string | null)[];
+    if (charms[chosen.zoneIndex] !== chosen.charmNum) {
+      return addLog(ctx, `身代わり：【チャーム】が既に無いため${nameOf(victimNum)}のバニッシュを回避できない`);
+    }
+    charms[chosen.zoneIndex] = null;
+    return addLog(setOwnerState(victimOwner, {
+      ...state, trash: [...state.trash, chosen.charmNum],
+      field: { ...state.field, signi_charms: charms },
+    }, ctx), `身代わり：【チャーム】をトラッシュして${nameOf(victimNum)}のバニッシュを回避`);
+  }
+  if (chosen.kind === 'exile_acce') {
+    // 🔴行き先は**ゲーム外**（`WXDi-P09-TK03A`「代わりにこれをゲームから除外してもよい」＝障害③）。
+    const slots = (state.field.signi_acce ?? []).map(x => (x ? [...x] : null)) as (string[] | null)[];
+    const slot = slots[chosen.zoneIndex] ?? [];
+    if (!slot.includes(chosen.acceNum)) {
+      return addLog(ctx, `身代わり：【アクセ】が既に無いため${nameOf(victimNum)}のバニッシュを回避できない`);
+    }
+    const rest = slot.filter(n => n !== chosen.acceNum);
+    slots[chosen.zoneIndex] = rest.length > 0 ? rest : null;
+    // 「そうした場合、そのシグニをダウンする」＝回避の代償。落とすと純粋な得になる。
+    const down = [...(state.field.signi_down ?? [false, false, false])];
+    down[chosen.zoneIndex] = true;
+    return addLog(setOwnerState(victimOwner, {
+      ...state, excluded: [...(state.excluded ?? []), chosen.acceNum],
+      field: { ...state.field, signi_acce: slots, signi_down: down },
+    }, ctx), `身代わり：${nameOf(chosen.acceNum)}をゲームから除外して${nameOf(victimNum)}のバニッシュを回避（ダウン）`);
+  }
+
   if (chosen.costType === 'discardSpell') {
     const picked: string[] = [];
     const restHand: string[] = [];
@@ -974,10 +1006,18 @@ export function collectLeaveSubstituteOptions(
       .filter(isImplementedSubstituteCost)) {
       out.push({
         axis: 'banishSubstitute',
-        key: `banishSubstitute:${choice.sourceNum}:${choice.kind === 'sacrifice' ? choice.sacrificeNum : `${choice.costType}${choice.amount}`}`,
+        key: `banishSubstitute:${choice.sourceNum}:${
+          choice.kind === 'sacrifice' ? choice.sacrificeNum
+          : choice.kind === 'trash_charm' ? `charm${choice.zoneIndex}`
+          : choice.kind === 'exile_acce' ? `acce${choice.acceNum}`
+          : `${choice.costType}${choice.amount}`}`,
         kind: 'optional',
         label: choice.kind === 'sacrifice'
           ? `代わりに${ctx.cardMap.get(getCardNum(choice.sacrificeNum))?.CardName ?? choice.sacrificeNum}をバニッシュする`
+          // 🆕§5.3 `O-58` 段2＝付いている札を対価にする2枝。⚠アクセ除外はダウンが付くので明示する。
+          : choice.kind === 'trash_charm' ? '代わりに付いている【チャーム】をトラッシュに置く'
+          : choice.kind === 'exile_acce'
+            ? `代わりに${ctx.cardMap.get(getCardNum(choice.acceNum))?.CardName ?? choice.acceNum}をゲームから除外する（このシグニはダウンする）`
           : choice.costType === 'discardSpell' ? `代わりに手札からスペル${choice.amount}枚を捨てる`
           : choice.costType === 'trashStackSpell' ? `代わりにこのシグニの下からスペル${choice.amount}枚をトラッシュに置く`
           : `代わりにライフクロス${choice.amount}枚をクラッシュする`,
@@ -5654,7 +5694,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               id: choice.id,
               label: choice.label,
               action: choice.action,
-              available: canPayOptionalCost(choice.costColors, cur.ownerState, cur.cardMap),
+              // 🆕§5.3 `O-59`＝エナ以外の対価（手札を捨てる枝）も可否を見る。
+              //   🔴無いと `costColors` が空の枝は常に available ＝**捨てられない盤面でも押せて**
+              //   支払いが空振りしたまま帰結だけ通る（過剰実行）。
+              available: canPayOptionalCost(choice.costColors, cur.ownerState, cur.cardMap)
+                && (!choice.handDiscard
+                  || cur.ownerState.hand.filter(cn =>
+                    !choice.handDiscard!.filter
+                    || matchesFilter(cur.cardMap.get(getCardNum(cn)), choice.handDiscard!.filter),
+                  ).length >= choice.handDiscard.count),
               costColors: choice.costColors,
             })),
             {
@@ -11042,6 +11090,28 @@ export function resumeRearrangeSigni(
   const continueAfterSwap = (cur: ExecCtx): ExecResult => pending.continuation
     ? executeAction(pending.continuation, cur)
     : done(cur);
+  // 🆕§5.3 `O-59`（2026-09-02）＝【トラップ】の並べ替え（`WX17-062-E1`）。
+  // 🔑**シグニは1体も動かない**＝置き換えるのは `field.signi_traps` だけ。
+  // ⚠`newArrangement[zone]` は「そのゾーンに置くトラップのカード番号」（`''`＝空）。
+  //   元の集合に無いカードは無視し、**枚数が合わなくても盤面のトラップ総数は増やさない**。
+  if (pending.mode === 'traps') {
+    const owned = new Set(pending.signiNums);
+    const seenT = new Set<string>();
+    const nextTraps = [0, 1, 2].map(zi => {
+      const cn = newArrangement[zi];
+      if (!cn || !owned.has(cn) || seenT.has(cn)) return null;
+      seenT.add(cn);
+      return cn;
+    }) as (string | null)[];
+    // 置き場を貰えなかったトラップは元の位置へ戻す（＝カードを消さない）。
+    const leftover = pending.signiNums.filter(n => !seenT.has(n));
+    for (const cn of leftover) {
+      const empty = nextTraps.findIndex(x => x === null);
+      if (empty >= 0) nextTraps[empty] = cn;
+    }
+    const newStateT: PlayerState = { ...state, field: { ...f, signi_traps: nextTraps } };
+    return continueAfterSwap(addLog(setOwnerState(pending.owner, newStateT, ctx), '【トラップ】を配置し直した'));
+  }
   if (pending.mode === 'swap_pair') {
     const selected = [...new Set(newArrangement.filter(n => pending.signiNums.includes(n)))].slice(0, 2);
     if (selected.length < 2) return continueAfterSwap(addLog(ctx, 'シグニ2体の入れ替えを行わなかった'));

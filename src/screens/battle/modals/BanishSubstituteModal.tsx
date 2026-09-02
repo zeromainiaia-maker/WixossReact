@@ -34,11 +34,18 @@ export function BanishSubstituteModal(p: BanishSubstituteModalProps) {
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {pend.options.map((opt, i) => {
+                    // 🆕§5.3 `O-58` 段2＝victim に付いている札を対価にする2枝を足した。
+                    //   ⚠**アクセ除外はダウンが付く**ので、ラベルで必ず明示する（選ぶ判断が変わる）。
+                    const nameOf = (n: string) => battleCardMap.get(n)?.CardName ?? n;
                     const label = opt.kind === 'sacrifice'
-                      ? `《${battleCardMap.get(opt.sacrificeNum)?.CardName ?? opt.sacrificeNum}》を代わりにバニッシュ`
-                      : opt.costType === 'discardSpell'
-                        ? `手札からスペル${opt.amount}枚を捨てて回避`
-                        : `《${battleCardMap.get(opt.sourceNum)?.CardName ?? opt.sourceNum}》の下からスペル${opt.amount}枚をトラッシュして回避`;
+                      ? `《${nameOf(opt.sacrificeNum)}》を代わりにバニッシュ`
+                      : opt.kind === 'trash_charm'
+                        ? `付いている【チャーム】をトラッシュして回避`
+                        : opt.kind === 'exile_acce'
+                          ? `《${nameOf(opt.acceNum)}》をゲームから除外して回避（このシグニはダウンする）`
+                          : opt.costType === 'discardSpell'
+                            ? `手札からスペル${opt.amount}枚を捨てて回避`
+                            : `《${nameOf(opt.sourceNum)}》の下からスペル${opt.amount}枚をトラッシュして回避`;
                     return (
                       <button key={i} onClick={() => handleBanishSubstituteChoice(i)} disabled={loading}
                         style={{ padding: '11px 0', borderRadius: 8, border: 'none', backgroundColor: '#e53935',

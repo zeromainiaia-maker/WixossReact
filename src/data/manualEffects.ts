@@ -722,8 +722,48 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 🔴旧 live＝遅延も期間も落ちて**その場で相手シグニ1体をバニッシュ**（メインフェイズの確定除去に化けていた）。
   // 🔑新設 `duration:'NEXT_TURN'`＝ターン終了時に `'THIS_TURN'` へ**降格**して次のターンだけ効く
   //   （降格させることで次のターン終了時には確実に消える＝2ターン残さない）。
+  // 🆕**2026-09-02（索引B 第1巡・§5.3 `O-181`）＝`attackEnd:true` を追加。**
+  //   🔴旧は「そのアタック終了時に」が落ちて**アタック宣言時にバニッシュ**していた＝
+  //   バニッシュした時点で**そのアタック自体が起きない**（バトルもライフクラッシュも発生しない）＝
+  //   原文（バトル解決**後**に落とす）より明確に強い過剰実行だった。
+  //   収集は `collectAttackEndDelayedTriggers`（宣言時の2本は `attackEnd` を読み飛ばす）。
   'WX14-018': [
-    {"effectId":"WX14-018-E4","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":2},"action":{"type":"INSTALL_DELAYED_TRIGGER","duration":"NEXT_TURN","trigger":{"timing":"ON_ATTACK_SIGNI","attackerOwner":"opponent"},"effect":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isTriggerSource":true},"upToCount":false}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX14-018-E4","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":2},"action":{"type":"INSTALL_DELAYED_TRIGGER","duration":"NEXT_TURN","trigger":{"timing":"ON_ATTACK_SIGNI","attackerOwner":"opponent","attackEnd":true},"effect":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isTriggerSource":true},"upToCount":false}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WX21-025 神罠　フーディナ（§5.3 `O-59` 構造整理・2026-09-02 索引B 第1巡）
+  // 原文【自】：対戦相手のシグニ１体が【トラップ】のあるシグニゾーンに出たとき、**そのシグニとその【トラップ】**を
+  //   トラッシュに置く。／【出】：対戦相手のシグニ１体を対象とし、それを【トラップ】としてそのシグニゾーンに設置する。
+  //   ／【トラップアイコン】対戦相手のシグニ１体を対象とし、手札から＜トリック＞のシグニを２枚捨てるか
+  //   《青》《青》を支払ってもよい。そうした場合、それを【トラップ】としてそのシグニゾーンに設置する。
+  // 🔴**旧 live は3つの能力が2つに混線していた**＝
+  //   ①E1 が `TRASH{opponent シグニ1体}` 単独＝**トリガー元ではない別のシグニを選べる**うえ
+  //     「**その【トラップ】**」が丸ごと落ちていた（過剰＋過小）。
+  //   ②E2 に**【トラップアイコン】の本文が流れ込んで**おり、`SET_OPP_SIGNI_AS_TRAP`（正しく動く【出】）の後ろに
+  //     `GRANT_KEYWORD{トラップアイコン→自分}` と `TRAP_OPERATION{trapFixedZone:'source'}`（保留ログだけ）が続いて
+  //     **同じ設置を2回書いている**状態だった。
+  //   ③その結果、**このカードには `TRAP_ICON` 効果が1つも無かった**（アイコンが発動しても何も起きない）。
+  // 🔑`SET_OPP_SIGNI_AS_TRAP` は「居たゾーンの添字をそのまま使う」ので**そのシグニゾーン設置は既に正しい**
+  //   （2026-09-02 の実測。固定ゾーン指定の口を新設してはいけない）。
+  'WX21-025': [
+    {"effectId":"WX21-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_opp","triggerCondition":{"placedOnTrapZone":true},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true},{"type":"STUB","id":"TRAP_OPERATION","trapOp":"trash","trapZoneOfTriggerSource":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX21-025-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"STUB","id":"SET_OPP_SIGNI_AS_TRAP"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX21-025-TRAP","effectType":"TRAP_ICON","timing":["ON_TRAP_ACTIVATE"],"action":{"type":"STUB","id":"OPTIONAL_COST","additionalCostChoices":[{"id":"pay_blue","label":"《青》《青》を支払う","costColors":["青","青"],"action":{"type":"STUB","id":"SET_OPP_SIGNI_AS_TRAP"}},{"id":"discard_trick","label":"手札から＜トリック＞のシグニ2枚を捨てる","costColors":[],"handDiscard":{"count":2,"filter":{"cardType":"シグニ","story":"トリック"}},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2,"filter":{"cardType":"シグニ","story":"トリック"}},"asCost":true},{"type":"STUB","id":"SET_OPP_SIGNI_AS_TRAP"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
+  // WX25-CP1-012 ／ 原文【自】：あなたのルリグかシグニが**アタックによって**対戦相手のライフクロスを
+  //   １枚以上クラッシュしたとき、**そのアタック終了時**、対戦相手が《無》を支払わないかぎり、
+  //   対戦相手にダメージを与える。（§5.3 `O-181` 軸(b)・2026-09-02）
+  // 🔴旧 live＝`timing:['ON_OPP_LIFE_CRASHED']` の即時発火＝2つ同時に壊れていた：
+  //   ①「アタックによって」の限定が無く**効果によるクラッシュでも撃てた**（過剰）
+  //   ②「そのアタック終了時」ではなく**クラッシュした瞬間**に割り込んでいた（バトルの解決前）。
+  // 🔑受け皿は `ON_ATTACK_END` ＋ `triggerCondition.attackCrashedLife`（新設）。
+  // ⚠🔴**`triggerScope:'any_ally'` が必須**＝このカードは**ルリグ**で、アタッカーは自分のシグニでもよい。
+  //   既定 `'self'` だと `collectAttackEndTriggers` の watcher 走査（明示 opt-in のみ）に載らず**永久に不発火**。
+  // ⚠`CONDITIONAL{IS_MY_TURN}` は `OPPONENT_PAY_OPTIONAL` 標準ペアの**プレースホルダ**（live 77効果と同じ形）＝
+  //   SEQUENCE 側が `conditional.then` を支払わなかった枝へ直結するので条件式は評価されない。触らない。
+  'WX25-CP1-012': [
+    {"effectId":"WX25-CP1-012-E1","effectType":"AUTO","timing":["ON_ATTACK_END"],"triggerScope":"any_ally","triggerCondition":{"attackCrashedLife":true},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPPONENT_PAY_OPTIONAL","costColors":["無"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
 
   // ══════════════════════════════════════════════════════════════════════════════
