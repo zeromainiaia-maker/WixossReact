@@ -41323,6 +41323,81 @@ test('O-86 第9バッチ: costScaling が1項も動かないときは盤面由�
   eq(run('SP36-001'), '《赤》×3《無》×2', 'payload 化しても盤面由来の軽減を失わない');
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// §5.3 `O-195`（「〜場合、」側の条件節テール）の再計測で見つかった**条件節の脱落 2件**。
+// 🔴どちらも「原文の条件が live に無い＝無条件で発火する」＝**過剰実行**だった。
+// 🔑計器（原文に「〜場合、」∧ live に条件キーゼロ）は**上限しか出さない**＝550効果のうち
+//   真の穴はこの2件だけだった（用法で仕分け → A群37件を全件目視）。恒久 assert はここに置く。
+// ─────────────────────────────────────────────────────────────────────────────
+test('O-195: WXK11-033-E1 は「対戦相手のセンタールリグがレベル4以上」でだけ【ダブルクラッシュ】が付く', () => {
+  const e = (effectsMap.get('WXK11-033') ?? []).find(x => x.effectId === 'WXK11-033-E1');
+  if (!e) throw new Error('WXK11-033-E1 が無い');
+  const steps = (e.action as { steps: Record<string, unknown>[] }).steps;
+  eq(steps.length, 2, '①バニッシュされない付与 ②条件つき【ダブルクラッシュ】');
+  eq(steps[0].type, 'GRANT_PROTECTION', '1文目は無条件（原文どおり）');
+  eq(steps[1].type, 'CONDITIONAL', '🔴2文目は条件つき（旧: 無条件で常にダブルクラッシュが付いていた）');
+  eq(JSON.stringify((steps[1] as { condition: unknown }).condition),
+    JSON.stringify({ type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: 4 }),
+    '条件は対戦相手のセンタールリグのレベル4以上');
+  // engine 側＝レベル3のセンタールリグでは付かない／レベル4では付く。
+  const lrigOf = (lv: number) => [...cardMap.values()]
+    .find(c => c.Type === 'ルリグ' && parseInt(c.Level ?? '', 10) === lv)!.CardNum;
+  const signi = [...cardMap.values()].find(c => c.Type === 'シグニ' && +(c.Power || '0') > 0)!.CardNum;
+  const hasDouble = (oppLevel: number) => {
+    const ctx = mkCtx({ signi: [signi, null, null] }, { lrig: [lrigOf(oppLevel)] }, signi);
+    const r = run(e.action as EffectAction, ctx);
+    return JSON.stringify(r.ownerState.granted_effects ?? {}).includes('ダブルクラッシュ')
+      || JSON.stringify(r.ownerState.keyword_grants ?? {}).includes('ダブルクラッシュ');
+  };
+  ok(hasDouble(4), 'レベル4のセンタールリグなら付く');
+  ok(!hasDouble(3), '🔴レベル3では付かない（旧挙動＝常に付いていた）');
+});
+
+test('O-195: PR-Di035-E1 は engine の既存受け皿へ載る（5色分岐がその場で全部走らない）', () => {
+  // 🔴旧 live＝「次のあなたのアタックフェイズ開始時」も色ごとの成立条件も丸ごと落ちて、
+  //   **5色ぶんの帰結（相手ライフ-1／手札3枚／全シグニをエナへ／デッキ20枚）がその場で全部走って**いた。
+  // 🔑**受け皿は既に engine に在った**＝`PRDI035_PARADISE_COLOR`（フラグ設置）→
+  //   `collectTurnTriggers` の `ON_ATTACK_PHASE_START` → `PRDI035_APPLY_PARADISE`（色分岐の評価）。
+  //   **producer が1つも無くハンドラだけが眠っていた**（`census:stubs` は「live の STUB に engine の
+  //   消費が無い」向きしか測らないので、この逆向きの死角はどの計器にも出ない）。
+  const e = (effectsMap.get('PR-Di035') ?? []).find(x => x.effectId === 'PR-Di035-E1');
+  if (!e) throw new Error('PR-Di035-E1 が無い');
+  const steps = (e.action as { steps: Record<string, unknown>[] }).steps;
+  eq(steps.length, 2, '①トラッシュから＜プリパラ＞回収 ②遅延フラグの設置だけ');
+  eq(steps[1].type, 'STUB', '2ステップ目は STUB');
+  eq(steps[1].id, 'PRDI035_PARADISE_COLOR', '既存受け皿（新しい機構は足していない）');
+  const json = JSON.stringify(e);
+  ok(!json.includes('SEND_TO_ENERGY') && !json.includes('LIFE_CRASH') && !json.includes('DECK_CARD'),
+    '🔴色分岐の帰結が効果本体に直に並んでいない（旧挙動＝無条件で全部走る）');
+
+  // 使用しても相手の盤面はその場では1枚も動かない＝フラグが立つだけ。
+  const ctx = mkCtx({}, {});
+  const before = { life: ctx.otherState.life_cloth.length, deck: ctx.otherState.deck.length, hand: ctx.otherState.hand.length };
+  const r = run(e.action as EffectAction, ctx);
+  eq(r.otherState.life_cloth.length, before.life, '使用時点で相手のライフは減らない');
+  eq(r.otherState.deck.length, before.deck, '使用時点で相手のデッキは削れない');
+  eq(r.otherState.hand.length, before.hand, '使用時点で相手の手札は落ちない');
+  eq(r.ownerState.pending_pridi035_paradise, true, '次のアタックフェイズ開始時の評価が予約される');
+
+  // 発火側＝`PRDI035_APPLY_PARADISE` は「共通色のプリパラ3体・レベル3種類」でだけ効く。
+  const para = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('プリパラ'));
+  const pick = (color: string, level: string) => para.find(c => (c.Color ?? '').includes(color) && c.Level === level)?.CardNum;
+  const trio = ['1', '2', '3'].map(lv => pick('白', lv));
+  // 🔴**「フィクスチャが無ければ黙って飛ばす」を書かない**（見送り契約＝テストが眠る／続き773）。
+  ok(trio.every(Boolean), `白の＜プリパラ＞シグニ レベル1/2/3 が引ける: ${JSON.stringify(trio)}`);
+  {
+    const fire = (signi: (string | null)[]) => {
+      const c = mkCtx({ signi }, {});
+      c.ownerState.pending_pridi035_paradise = true;
+      return run({ type: 'STUB', id: 'PRDI035_APPLY_PARADISE' } as EffectAction, c);
+    };
+    const okRes = fire(trio as string[]);
+    ok(okRes.ownerState.field.free_zone.length >= 2, '白3体（レベル3種類）でバリア2つを得る');
+    const ngRes = fire([trio[0]!, trio[0]!, trio[0]!]);
+    eq(ngRes.ownerState.field.free_zone.length, 0, '🔴同レベル3体では成立しない（レベル3種類が要る）');
+  }
+});
+
 // ── タスク12(cx)：対戦相手のシグニのアタックに応答する【起】（WX05-013-E2）──
 // 旧実装は `condition:{DURING_PHASE, phases:['ATTACK_SIGNI_OP']}` だったが `ATTACK_SIGNI_OP` は
 // `TurnPhase` に存在しない値＝条件が常に false で**一度もボタンに出なかった**。使用条件ではなく

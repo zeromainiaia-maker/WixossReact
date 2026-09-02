@@ -1,5 +1,50 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- 🏁**セッション（2026-09-02・索引 A `O-86` 第9バッチ＝項目クローズ・Opus 5 単独）＝`computeArtsEffectiveCost` から原文 regex が1本残らず消えた**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（据置）**。
+  ⚠**3計器が据置なのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、3計器はどれも live JSON の
+  効果本文か `src/engine/` しか見ていない。**この層を測るのは `census:costtext` 自身**（14→**0規則**）。
+  📦**在庫2本＝④機構 worklist 25→24項目**（🏁`O-86` をクローズ）｜🏁**⑤実機 残 0件**（新規2本＋
+  `O-86` の8本を一括再実行・**8/8 PASS**）。
+  gates 全緑（golden **3278 / 3278**（3275→3278）・smoke 全異常0・fuzz 全0・census 3 / BASELINE 5・
+  census-stubs A🔴0/C0・manual-fields 0・census-enginetext A🔴129 据置・
+  🏁**census-costtext A🔴 14→0規則**・lint 0 errors）／`npm run regen` 完走・同型★0。
+
+  🔑**この巡でやったこと＝残っていた条件つきコスト軽減 14規則の払い戻し。**
+  **A🔴 COST 規則 14→0本・当たり 23→0カード・真の worklist 18→0カード。**
+  ①**8系統を `EffectCost.costReplacement` へ**（`CostReplacementWhen` に4種を追加＝
+  `selfZoneCountGtOpp` / `selfFieldHasSigni` / `selfLrigTrashHasArtsColor` / `oppSigniBanishedThisTurn`）＝
+  場のパワーN以上1／場の＜クラス＞2／場の＜X＞と＜Y＞1／ライフ枚数比較1／ゾーン枚数差5／
+  ルリグトラッシュの色アーツ2条件1／場の〔色〕＜クラス＞2条件1／相手シグニのバニッシュ履歴1。
+  ②**`SP36-001`（炎のタマ）を `EffectCost.costScaling` へ**＝`CostScalingCount` に
+  `spellsUsedThisTurn` / `artsUsedThisTurn` を追加。🔑**2文が累積する**ので、最初に成立した項で確定する
+  `costReplacement` ではなく**全項が順に累積する `costScaling`** 側へ置く（分けると片方が永久に効かない）。
+  ③**そのまま撤去した2規則**＝どちらも**到達しても出力が動かない**（センタールリグのレベル比例は
+  当たる5枚のうち4枚が payload 済み・残る `WD16-010` は**別カードのコストを下げる文**への誤爆で
+  印刷が `《青》×０`／トラッシュの＜クラス＞比例は残る `WD14-001` が**ルリグ**でこの関数を通らない）。
+
+  🔴🔑**この巡で見つけて直した本物のバグ1件**＝`applyCostScalingTerms` が**非 null を返した時点で
+  early return** していたため、**比例軽減が1項も動かない盤面で、場の CONTINUOUS が与えた軽減
+  （`artsThresholdReductions`）をカード自身の payload が黙って殺していた**（＝原文より高く請求）。
+  regex 群が下に並んでいた頃の「二重適用を防ぐ」early return が、regex 撤去後も残っていたもの。
+  ⇒ `scaled !== base` のときだけ確定する。**16カード × 18,216 セル**で回復（全件「盤面の《無×1》が
+  効くようになった」だけであることを機械確認）。
+
+  🔴🔑**踏んだ罠＝A/B ダンプに `mergeManualEffects` を掛けてはいけない。**
+  アプリ（`App.tsx`）は live JSON をそのまま読む。ダンプ側で manual を重ねると、`buildEffectsJson` が
+  **収穫マージの後から重ねている**印字コスト payload が manual の古い `cost` で上書きされ、
+  **新しい payload が1枚も効かない状態を「挙動不変」と誤って報告する**（実際に1回誤読した）。
+  ⇒ 直した harness を `scripts/archive/o86CaecDump.ts` に残した。
+  ⚠**`manualEffects.ts` が本文を手書きしたカードは `costScaling` の継承も受けない**（`SP36-001`）＝
+  そこだけは **manual 側に payload を直接書く**（`buildEffectsJson` が marker STUB を剥がして live へ届く）。
+
+  ✅**検証＝全6,712カード × 60盤面 × 48文脈＝1,706,432 通り**の撤去前後ダンプ突き合わせ。
+  上記のバグ修正ぶん（16カード）以外は**不一致0**。
+
+**▶ 次の一手**＝**§5.3 索引 A の次の項目**＝`O-195`（145効果・🔴要再計測）→ `O-96`（122効果）→
+`O-194`（68効果）→ `O-60`（44カード）。⚠**`O-195` / `O-190` / `O-188` は「登録時の値」で
+🔴要再計測が付いている**＝着手前に必ず数え直す（`node scripts/archive/censusMechPopulation.mjs --id O-nn`）。
+
 - 🏁**セッション（2026-09-02・索引 A `O-86` 第2〜8バッチ・Opus 5 単独）＝UI コスト層の原文 regex を7系統ぶん payload へ移した**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（19→17）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 5（5→3）**。
   ⚠**台帳が動かないのは想定どおり**＝`O-86` は **UI 層のコスト計算**の話で、意味照合の findings は
