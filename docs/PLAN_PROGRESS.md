@@ -1,5 +1,40 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第29〜36バッチ・索引 A 第7巡・Opus 5 単独）＝残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**115行 / 112ハンドラ → 103行 / 101ハンドラ**、
+  🔑**miss 20ハンドラ・26カード → 9ハンドラ・15カード**（1巡で最大の落差）。
+  📦**在庫2本＝④機構 worklist 24項目**（`O-60` は継続・新規登録0）
+  ｜**⑤実機 残 2件**（`V-131`／`V-132`・今回の追加は0）。
+  gates 全緑（golden **3323 / 3323**＝+2本・smoke 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴103**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更10・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定（PLAN §2.2）**＝`src/data/` `src/engine/` `src/types/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない／新しいアクション型・条件型・機構も0。**
+  🔑**8バッチ中5バッチは「STUB ごと撤去して typed へ寄せた」**（`POWER_BY_CHARM_COUNT` /
+  `POWER_BY_ENERGY_COLOR_VARIETY` / `POWER_BY_RISE_SIGNI_COUNT` / `POWER_MOD_BY_FRONT_LEVEL` / `POWER_CAP`）。
+
+  🔑**この巡の一番の学び＝「単価の regex が外れる」より「修正先か数え方が裏返っている」方が実害だった（4/4）。**
+  第29・第31 は修正先が**対戦相手のシグニ**（原文は「**この**シグニのパワーは」＝真逆）、
+  第32 は正面ゾーンを `signi[zi]`（正面は `2 - zi`）で引いたうえ**効果元自身**に積んでいた。
+  ⇒ **miss を読むときは「何を数えるか」だけでなく「誰に効くか」も原文と突き合わせる。**
+
+  🔴**一番危なかったのは `until` を書いたこと**＝`POWER_MODIFY_PER_CHARM` を型どおり `until:'PERMANENT'` で
+  出したら**恒久 no-op**になった（`extractPowerModifiesPerCharm` は **`until` があると ACTIVATED 扱いにして
+  CONTINUOUS 走査から外す**）。**逆翻訳も census も golden も緑のまま盤面が1ビットも動かない**形。
+  ⇒ 型の `until` を必須→任意へ緩め「省略＝【常】」を明記した。
+  **typed へ寄せるときは `extract*` 系の収集関数の選別条件を必ず読む。**
+
+  🧹**手書きが parser に追い越されている例をもう1件消化**＝`WXDi-P14-TK04`（`manualEffects.ts`）。
+  手書きは原文「シグニを**１枚まで**」に対し**必ず1枚出させる**過剰実行で、いまの parser は
+  typed `ADD_TO_FIELD{source:{ENERGY_CARD, upToCount:true}}` を出せていた。
+  ⚠**この形はどの計器にも出ない**（`censusManualDrift` は実体同一のものしか出さない）。
+
+  ⚠**ハンドラを撤去すると `genStubsMd` の説明も消える**＝`POWER_CAP` が一度 `[STUB:POWER_CAP]`
+  （生の英語 ID＝`census:stubs` C群ゲート）になりかけた。
+  **撤去バッチは「逆翻訳を payload から描く」まで同じコミットで閉じる。**
+
 - **セッション（2026-09-03・`O-60` 第21〜28バッチ・索引 A 第6巡・Opus 5 単独）＝engine の「カード全文 regex」を8ハンドラぶん撤去／payload 化**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

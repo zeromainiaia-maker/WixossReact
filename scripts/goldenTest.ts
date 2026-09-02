@@ -22015,6 +22015,33 @@ test('POWER_MODIFY deltaFromZone zone:under + sumBy:power＝下段シグニの�
   eq(((r.ownerState as PlayerState).temp_power_mods ?? [])[0]?.delta, 3000,
     '下段のシグニ（3000）だけを足す＝スペルは数えない');
 }));
+test('§5.3 O-60 第47バッチ: 登録者数の獲得量は payload だけを読む（カード全文 regex を撤去）', () => withSavedCursor(() => {
+  // live 21効果はすべて value を持つ＝原文を読む必要が無い。
+  let withValue = 0, total = 0;
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      const walk = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        const o = n as Record<string, unknown>;
+        if (o.type === 'STUB' && o.id === 'GAIN_SUBSCRIBER_COUNT') {
+          total++; if (typeof o.value === 'number') withValue++;
+        }
+        for (const v of Object.values(o)) Array.isArray(v) ? v.forEach(walk) : walk(v);
+      };
+      walk(e.action);
+    }
+  }
+  ok(total > 0, 'GAIN_SUBSCRIBER_COUNT が live から消えている');
+  eq(withValue, total, `獲得量 payload が無い効果がある（${total - withValue}件）`);
+  // 反転確認＝payload が無ければ何もしない（旧既定の「1万人」を配らない）。
+  const ctx = mkCtx({}, {}, SIGNI);
+  const r = run({ type: 'STUB', id: 'GAIN_SUBSCRIBER_COUNT' } as unknown as EffectAction, ctx);
+  ok(r.done); if (!r.done) return;
+  eq((r.ownerState as PlayerState).subscriber_count ?? 0, 0, 'payload 無しで登録者数が増えた（fail-closed でない）');
+  const r2 = run({ type: 'STUB', id: 'GAIN_SUBSCRIBER_COUNT', value: 20 } as unknown as EffectAction, ctx);
+  ok(r2.done); if (!r2.done) return;
+  eq((r2.ownerState as PlayerState).subscriber_count ?? 0, 20, 'payload の獲得量が効いていない');
+}));
 test('§5.3 O-60 第43バッチ: DECK_TOP_TO_LIFE の catch-all を4文型に割った（2枚とも別の効果だった）', () => {
   const tree = (num: string, effectId: string) =>
     JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});

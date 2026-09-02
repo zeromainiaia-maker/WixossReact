@@ -4337,22 +4337,14 @@ export function execStubPart2(
     }
     return done(addLog(ctx, 'コスト軽減条件（条件解析不可）'));
   }
-  // CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のセンタールリグ色による基本コスト軽減（実コスト軽減は支払い時に computeArtsEffectiveCost が適用済み。ここでは結果ログのみ）
+  // CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のセンタールリグ色による基本コスト置換の**宣言**。
+  // 🆕**§5.3 `O-60` 第48バッチ（2026-09-03）＝カード全文 regex を撤去した。**
+  // 🔴このハンドラは**ログを出すだけ**（盤面を1ビットも変えない）なのに、実コストを決める側と
+  //   **同じ意味をもう一度カード全文から読み直して**いた＝食い違っても誰も気づけない二重実装だった。
+  // ⚠実コストの置換は `src/data/keywordCosts.ts` の `parseCostReplacementTerms`（原文を読む唯一の場所）が
+  //   `EffectCost.costReplacement` に刻み、UI 層はその payload だけを読む（§5.3 `O-86` でそう決めた）。
   if (stub.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
-    const srcCCOL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCCOL = srcCCOL ? (srcCCOL.EffectText ?? '') + ' ' + (srcCCOL.BurstText ?? '') : '';
-    const condM = txtCCOL.match(/対戦相手のセンタールリグが([赤青緑黒白]+)の場合[、,](?:このカードの|このアーツの)?(?:基本|使用)コストは(.+?)になる/);
-    if (condM) {
-      const condColor = condM[1];
-      const reducedCost = condM[2];
-      const oppLrigCn = ctx.otherState.field.lrig.at(-1);
-      const oppColor = oppLrigCn ? (ctx.cardMap.get(oppLrigCn)?.Color ?? '') : '';
-      const met = oppColor.includes(condColor);
-      return done(addLog(ctx, met
-        ? `基本コスト軽減：相手センタールリグが${condColor}→コスト${reducedCost}（支払い時適用済み）`
-        : `基本コスト軽減：相手センタールリグが${condColor}でない→軽減なし`));
-    }
-    return done(addLog(ctx, 'コスト変更条件（ルリグ属性解析不可）'));
+    return done(addLog(ctx, '基本コストの置換条件（実コストは使用時に costReplacement payload で適用済み）'));
   }
   if (stub.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || stub.id === 'SPECIFIC_CARD_COST_REDUCE'
       || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD') {

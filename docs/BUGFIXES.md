@@ -1,5 +1,147 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第8巡）：§5.3 `O-60` 第37〜48バッチ — miss を 0 にした（12バッチ）
+
+**ベースライン**＝`5c09cf33d`（第29〜36バッチの直後）。**A🔴 SELF_TEXT 103行 → 77行 / 101→75ハンドラ**、
+🔑**miss 9ハンドラ・15カード → 0ハンドラ・0カード**。`BASELINE_SELF_TEXT` も 77 へ払い戻し済み。
+**gates 全緑**（golden 3323 → **3334**＝+11本）。
+🔴**実機は未実施**＝`src/screens/BattleScreen.tsx` を触った（PLAN §2.2 で実機必須）。観測点は `V-133`〜`V-135`。
+
+### 第37バッチ＝死んだ枝の一括撤去（engine 18ハンドラ・parser 10枝）
+
+**真因**＝`census:enginetext` の A群に **live 0 のハンドラが27本**溜まっていた。うち18本は
+parser 側の生成枝ごと**どのカードからも到達しない**（`POWER_MOD_PER_COUNT` は `O-80` の消化で live 0 になり、
+`DO_THREE_THINGS` は parser が SEQUENCE を出すようになって役目を終えていた）。
+**影響枚数**＝0（挙動は1ビットも変わらない）。**検証**＝`npm run build:effects` 後の
+`public/data/effects_*.json` が**バイト同一**であることを撤去の証明にした（`diff -rq`）。
+🔴**反転確認で1件捕まえた**＝`BEAT_ZONE_OP` を消したついでに `INTERNAL_MOVE_TO_BEAT` も消したら、
+**生きている `TRASH_SIGNI_TO_BEAT` の後段**だった（golden `task12(xxii) WXK08-029-E1 E2E` が落ちて発覚）。
+⇒ **live 0 は「死んだ枝」の十分条件ではない**＝`fn:` 関数・`INTERNAL_*`（親から動的に呼ばれる）・
+**live の別 id と関数を共有**するものが混ざる。**残り12本は据え置いた。**
+
+### 第38バッチ＝`POWER_MOD_BY_FIELD_CLASS_LEVEL`（`WD11-007`・1効果）
+
+**真因**＝原文は「この**レゾナの出現条件でトラッシュに置いた**シグニのレベルを合計した数だけ－2000」なのに、
+engine は `＜X＞のシグニのレベルを合計した数だけ－N` を**カード全文**に当てて
+**場に残っている同クラスのシグニ**を数えていた＝支払いで場から消えた2体を数えられず**常に0〜過小**。
+**受け皿は既存**＝`resonaSummon.ts` が刻む `PlayerState.last_appearance_cost_cards`。
+**足したのは `CountFromZone.zone:'appearance_cost'` と `sumBy:'level'` の2値だけ。**
+**影響枚数**＝1。**検証**＝`npm run golden -- --only "O-60 第38バッチ"`（レベル合計×単価／支払い記録なしは0の反転確認）。
+
+### 第39バッチ＝`ON_RISE` 一族の向きを反転（11枚）— 🔴この巡の最大の発見
+
+**真因**＝`ON_RISE`（「このシグニがライズされたとき」）を持つ11枚は**1枚も【ライズ】を印字していない**＝
+自分がライズする側ではなく**ライズされる側（下敷き）**。にもかかわらず
+①`BattleScreen` は**置かれた側**（`ownEffects`）から `ON_RISE` を集め
+②parser は「そのシグニ」を `thisCardOnly`（＝下に埋まった自分自身）へ解決し
+③`risedOntoNameContains` は**下敷きの名前**で判定していた。
+⇒ **この11枚は1度も発火しない死に効果**で、しかも発火したとしても「【ダブルクラッシュ】を得る」
+「バニッシュされない」を**カードの下に埋まった自分自身**へ配る形だった。
+**直し方**＝①収集元を**下敷きのカード**へ ②`triggeringCardNum` に**置かれたシグニ**を載せ
+「そのシグニ」を `targetsTriggerSource` へ ③`risedOntoNameContains` → **`risenByNameContains`**（判定対象を反転）。
+`GrantEffectAction` に `targetsTriggerSource` を追加（`GrantKeyword`／`GrantProtection` には前からあった）。
+**影響枚数**＝11（live で変わったのは4効果＋`WX20-056-E2` の手書き1件）。
+**検証**＝`golden -- --only "O-60 第39バッチ"`（4効果の payload ＋ 付与の実行と fail-closed の反転確認）。
+🔴**実機必須**（`V-133`）。
+
+### 第40バッチ＝`ENERGY_BY_LEVEL_SUM_LIMIT`（`WXK11-040`・1効果）
+
+**真因**＝原文は「対戦相手のシグニを、レベルの合計が**あなたのエナゾーンの《トレット》の枚数**以下になるように
+好きな数対象とし、それらをエナゾーンに置く」なのに、engine は
+`/レベルの合計が(\d*)を超え/` を当てて「**自分のエナ**のレベル合計が上限を超えたぶんを末尾からトラッシュ」＝
+**まったく別の効果**を実行していた（regex は当たらないので上限は10 固定）。
+**受け皿は既存**＝`selectionConstraint.totalLevelMaxRef`（`WXDi-P00-012-E1` が同型で稼働中）。
+**足したのは `$ref:'self_energy_count'`（filter 付きエナ枚数）だけ。**
+**影響枚数**＝1。**検証**＝`golden -- --only "O-60 第40バッチ"`（payload ＋ `$ref` の filter と 0 の反転確認）。
+
+### 第41バッチ＝`OPP_ENERGY_COLOR_CONDITION_TRASH`（`WXK09-037`・1効果）
+
+**真因**＝原文は「**この能力で宣言された色**を持たず無色ではないカードが対戦相手のエナゾーンに置かれる場合、
+代わりにトラッシュ」なのに、`collectOppEnergyColorRestriction` は効果元カードの全文に `/(赤|青|緑|白|黒)/` を
+当てて色を決めていた。**このカードには色名が1文字も書かれていない**＝**常に `null`＝この【常】は丸ごと無効**。
+（同じカードの別能力に色名があれば、逆に**嘘の色**で効く形でもあった。）
+**直し方**＝`PlayerState.declared_color`（`OPP_DECLARE_COLOR` が刻む）から読む。
+原文の「**無色ではない**」除外も入れた（従来は無色カードもトラッシュ行きだった）。
+exec 側のハンドラ（相手エナを1枚勝手にトラッシュする別実装）は撤去。
+**影響枚数**＝1。**検証**＝`golden -- --only "O-60 第41バッチ"`（宣言前は null の fail-closed ＋ 反転確認2本）。
+🔴**実機必須**（`V-134`）。
+
+### 第42バッチ＝`TARGET_ONLY`（`WXDi-P07-086`・1効果）
+
+**真因**＝原文が**修飾語なしの「シグニ１体を対象とする」**なのに、engine は
+`あなたのシグニ`／`自分のシグニ`／`対戦相手.{0,5}シグニ` を**カード全文**に当てて所有者を推測しており、
+**1本も当たらず対戦相手の場だけ**に潰れていた。
+**受け皿は既存**＝`SELECT_TARGET_ONLY` は `owner:'any'` を両フィールド走査で解決する。
+**影響枚数**＝1。**検証**＝`golden -- --only "O-60 第42バッチ"`。
+
+### 第43バッチ＝`DECK_TOP_TO_LIFE` の catch-all を4文型へ割った（live 2枚とも別の効果だった）
+
+**真因**＝1つの STUB id に**無関係な4文型**が集まり、engine がカード全文で枝分かれしていた。
+- `WXK02-035-E2`＝原文「デッキの**一番下**のカードを**チェックゾーン**に置く」が
+  「デッキの**一番上**を**自分のライフクロス**に加える」に化けていた（**毎回ライフが1枚増える**）。
+  ⇒ `TRAP_OPERATION{trapOp:'to_check', trapSource:'deck_bottom', trapCheckRest:true}`（`deck_bottom` を新設）。
+- `WX10-002-E2`＝原文「**それをトラッシュに置いて**対戦相手のデッキの一番上をライフクロスに加える」の
+  **トラッシュ側が1行も実装されておらず**、相手のライフが**減らないまま1枚増える**（原文と逆に相手を有利にする）。
+  ⇒ `TRASH{LIFE_CLOTH_CARD, opponent}` ＋ `ADD_TO_LIFE{opponent, fromTop}`。
+🔴**`ADD_TO_FIELD` に `source:{type:'CHECK_CARD'}` を追加**＝**抜き先を書き忘れると**カードが
+チェックゾーンに残ったまま場にも出て、**ターン終了時の一掃で場のカードがトラッシュへ消える**（複製バグ）。
+golden に反転確認を入れた。
+⚠**近似1件**＝`WXK02-035` の「場に出さない場合、それをトラッシュに置く」は即時ではなく
+`check_rest` のターン終了時トラッシュに委ねている（行き先は同じ）。
+**影響枚数**＝2。**検証**＝`golden -- --only "O-60 第43バッチ"` ＋ `§6.4 T2` を「撤去済み id が live に残っていない」へ書き換え。
+🔴**実機必須**（`V-135`）。
+
+### 第44バッチ＝`NEGATE_NTH_ATTACK`（live 3効果）
+
+**真因**＝live 3効果は**すべて `negateNthAttack` payload を持っている**（`SP27-016` は
+`fixLrigColorFilters.mjs` が build 後に付ける）のに、engine は3本の regex を**カード全文**に当てる
+フォールバックを抱えていた。しかも ①`一度目か二度目` を先に見るので `一度目か二度目か三度目` へ
+**永久に到達しない** ②`SP27-016` は①②③の選択肢テキスト全体を読むので**別の枝の数字**を拾いうる。
+**直し方**＝payload だけを読み、無ければ**何もしない**（旧既定は「シグニのアタックを1回無効」＝原文に無い無効化）。
+**影響枚数**＝0（挙動は変わらない・二重実装の撤去）。
+
+### 第45バッチ＝`LOOK_AND_REORDER` の catch-all を15文型へ割った（live 6枚とも別の効果だった）
+
+**真因**＝parser の**15枝**が1つの STUB id を出し、engine が
+`残りをデッキに加えてシャッフルする` と `デッキの上からカードをN枚見る` の2本を**カード全文**に当てていた。
+🔴**実害は「当たらない」側ではなく「当たったうえで二重に走る」側**＝`WX13-035-BURST` は直前の
+`REVEAL_AND_PICK{revealCount:2}` に加えて**もう2枚**、`WXDi-CP02-033-E2` は直前の
+`LOOK_AND_REORDER{count:5}` に加えて**もう5枚**めくっていた。
+**直し方**＝①`SHUFFLE_REMAINDER_INTO_DECK`（原文を読まず `lastProcessedCards` を戻す）へ分離
+②`TRANSFER_TO_DECK{position:'top_or_bottom'}` を新設（実行時に2択）
+③typed `LOOK_AND_REORDER` / `TRANSFER_TO_DECK{HAND_CARD, bottom}` へ寄せた枝
+④直前アクションの `remainder`/`destination` が既に表している2枝は **no-op** へ
+⑤残る11文型は **`DEFERRED_*`** で明示保留（逆翻訳に日本語の説明を書いた＝`census:stubs` C群 0 を維持）。
+**影響枚数**＝6。**検証**＝`golden`（全件）＋逆翻訳シートの目視（`npm run regen`）。
+
+### 第46バッチ＝`GRANT_QUOTED_AUTO_ABILITY`（live 4効果）
+
+**真因**＝**parser 生成地点30箇所超**の汎用 id のハンドラの中で、engine が**カード全文**に
+`/以下の[５5]つから[１1]つを選ぶ/` を当てて `WD21-007` だけを識別していた。
+残る3枚（`PR-K076`／`WXDi-CP02-TK03A`／`WXK03-042`）は門を通れず**黙って落ちて**いた
+（この3枚は `effectEngine.collectGrantedFromLayer` が別経路で消費する＝B群）。
+**直し方**＝`WD21-007` 専用 id `CHOOSE_GRANT_FIVE_KEYWORDS` へ分離（ベット時の繰り返し枝も同 id へ）。
+⚠**`manualEffects.ts` を書き換えたので `syncManualLive.ts` を回した**（収穫マージは live の MANUAL を不可侵にする）。
+⚠**置換前の live を読まずに書いて `betOptions` を落とし、ベット段階が消えた**（golden が検出）。
+**影響枚数**＝1（残り3枚は据置＝`O-128` 族）。
+
+### 第47・48バッチ＝payload だけを読む形へ（`GAIN_SUBSCRIBER_COUNT` 21効果／`CONDITIONAL_CARD_COST_BY_OPP_LRIG` 5効果）
+
+- **第47**＝`GAIN_SUBSCRIBER_COUNT` は live 21効果すべてが `value` を持つのに、engine は
+  `/登録者数を([０-９\d]+)万人得る/` を**カード全文**に当てていた＝同じカードに2文あると**先頭の数字**を両方に使う形
+  （`WDK16-01*` は【自】と【起】の両方が登録者数に触る）。payload だけを読み、無ければ何もしない。
+- **第48**＝`CONDITIONAL_CARD_COST_BY_OPP_LRIG` は**ログを出すだけ**（盤面を1ビットも変えない）なのに、
+  実コストを決める `keywordCosts.ts` の `parseCostReplacementTerms` と**同じ意味をもう一度**カード全文から
+  読み直していた。**盤面を変えないハンドラの原文読みは、食い違っても誰も気づけない**＝撤去。
+**影響枚数**＝0（どちらも挙動は変わらない・二重実装の撤去）。
+
+### この巡で新設した型・機構（実機の観測点になる）
+
+`CountFromZone.zone:'appearance_cost'`／`CountFromZone.sumBy:'level'`／`$ref:'self_energy_count'`／
+`GrantEffectAction.targetsTriggerSource`／`TransferToDeckAction.position:'top_or_bottom'`／
+`AddToFieldAction.source:{type:'CHECK_CARD'}`／`trapSource:'deck_bottom'`／
+`triggerCondition.risenByNameContains`（`risedOntoNameContains` からの改名＝**意味を反転**）。
+
 ## 2026-09-03（索引 A 第7巡）：§5.3 `O-60` 第29〜36バッチ — 残りの「カード全文 regex」を8ハンドラぶん撤去／payload 化
 
 **ベースライン**＝`11875d8f6`（第21〜28バッチの直後）。**A🔴 SELF_TEXT 124行 → 103行 / 121→101ハンドラ**、

@@ -2077,13 +2077,16 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${drawCount}枚ドロー（手札6枚まで）`));
   }
-  // サブスクライバーカウント+1
+  // GAIN_SUBSCRIBER_COUNT: 登録者数を N 万人得る
+  // 🆕**§5.3 `O-60` 第47バッチ（2026-09-03）＝獲得量は payload（`stub.value`）だけを読む。**
+  // 🔴旧実装は**カード全文**に `/登録者数を([０-９\d]+)万人得る/` を当てており、
+  //   同じカードに「登録者数を〜得る」が2文あると**先頭の数字**を両方に使う形だった
+  //   （`WDK16-01*` は【自】と【起】の両方が登録者数に触る）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定の 1万人は原文に無い加算。
+  //   live 21効果はすべて `value` を持っている（parser が最初からキャプチャしている）。
   if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
-    const srcSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSC = srcSC ? (srcSC.EffectText ?? '') + ' ' + (srcSC.BurstText ?? '') : '';
-    const toHWSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mSC = txtSC.match(/登録者数を([０-９\d]+)万人得る/);
-    const gain = mSC ? parseInt(toHWSC(mSC[1])) : 1;
+    const gain = typeof stub.value === 'number' ? stub.value : Number.NaN;
+    if (!Number.isFinite(gain)) return done(addLog(ctx, '登録者数の獲得量が指定されていないため何もしない'));
     const newCnt = (ctx.ownerState.subscriber_count ?? 0) + gain;
     const newOwner = { ...ctx.ownerState, subscriber_count: newCnt };
     return done(addLog({ ...ctx, ownerState: newOwner }, `登録者数＋${gain}万人（計${newCnt}万人）`));
