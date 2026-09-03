@@ -31,7 +31,7 @@ import type {
 } from '../../types/effects';
 import {
   parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseIconFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa, parsePlaceUnderSourceSigni,
-  parseLrigLimitChangeSpec, parseCollabCallSpec,
+  parseLrigLimitChangeSpec, parseCollabCallSpec, parsePowerPerUnitSpec, parseTrashAllScopeSpec,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -1066,13 +1066,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- ルリグのレベル合計につきパワープラス ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価は payload で渡す。**
   if (t.match(/ルリグのレベルの合計[0-9１-９]+につき[－＋]/)) {
-    return { type: 'STUB', id: 'POWER_MOD_BY_LRIG_LEVEL_SUM' } as StubAction;
+    const plsSpec = parsePowerPerUnitSpec(t);
+    return { type: 'STUB', id: 'POWER_MOD_BY_LRIG_LEVEL_SUM', ...(plsSpec ? { powerPerUnit: plsSpec } : {}) } as StubAction;
   }
 
   // ---- 場にあるシグニが持つ色の種類につきパワー修正 ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価は payload で渡す。**
+  //   🔴旧 engine は regex が外れると**既定 `-3000`**（原文に無い数値）を使っていた。
   if (t.match(/シグニが持つ色の種類.*につき[－＋]/)) {
-    return { type: 'STUB', id: 'POWER_MOD_BY_COLOR_VARIETY' } as StubAction;
+    const cvSpec = parsePowerPerUnitSpec(t);
+    return { type: 'STUB', id: 'POWER_MOD_BY_COLOR_VARIETY', ...(cvSpec ? { powerPerUnit: cvSpec } : {}) } as StubAction;
   }
 
   // ---- 毒牙の他のシグニ効果によってパワーが減ったとき自身パワーアップ ----
@@ -2997,8 +3002,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 各プレイヤーは手札・エナ・シグニをすべてトラッシュに ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝どのゾーンを・誰の分だけ流すかは payload で渡す。**
   if (t.match(/各プレイヤーは.*(?:手札|エナゾーン).*シグニをすべてトラッシュに置く/)) {
-    return { type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY' } as StubAction;
+    const taSpec3 = parseTrashAllScopeSpec(t);
+    return { type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY', ...(taSpec3 ? { trashAllScope: taSpec3 } : {}) } as StubAction;
   }
 
   // ---- このシグニのレベルはN枚につきN減る ----

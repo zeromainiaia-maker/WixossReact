@@ -328,6 +328,98 @@ export function parseCollabCallSpec(t: string): { count: number } | null {
   return null;
 }
 
+/**
+ * 🆕**「〈数え上げ〉N につき ±M」の単価を1文から読む**（§5.3 `O-60` 第59バッチ・2026-09-03）。
+ * `POWER_MOD_BY_LRIG_LEVEL_SUM` / `POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL` 共通。
+ *
+ * 🔴**旧実装（engine 側）はアビリティブロックに `〜につき([－＋][０-９\d]+)` を当てて単価を読んでいた。**
+ *   `POWER_MOD_BY_COLOR_VARIETY` に至っては**外れたときの既定が `-3000`**＝
+ *   原文に無い数値を焼き込んでいた。
+ * 🔑**`targetParity` は必ず効果単位で刻む**＝`WXK10-084` は「奇数がアタック → 偶数を対象」と
+ *   「偶数がアタック → 奇数を対象」の**2能力が同居**しており、カード全文を読むと必ず片方に倒れる。
+ */
+export function parsePowerPerUnitSpec(t: string): { per: number; delta: number; targetParity?: 'odd' | 'even' } | null {
+  const s = stripRuleParens(t);
+  const m = s.match(/([０-９\d]*)(?:つ)?につき[、,]?\s*(?:それの)?(?:パワーを)?([－＋+-])([０-９\d]+)/)
+    ?? s.match(/([０-９\d]*)(?:つ)?につき([－＋+-])([０-９\d]+)/);
+  if (!m) return null;
+  const per = m[1] ? parseNum(m[1]) : 1;
+  const n = parseNum(m[3]);
+  if (!Number.isFinite(n) || !Number.isFinite(per) || per === 0) return null;
+  const delta = (m[2] === '－' || m[2] === '-') ? -n : n;
+  const parityM = s.match(/レベルが(奇数|偶数)の対戦相手/);
+  return {
+    per, delta,
+    ...(parityM ? { targetParity: (parityM[1] === '奇数' ? 'odd' : 'even') as 'odd' | 'even' } : {}),
+  };
+}
+
+/**
+ * 🆕**`TRASH_ALL_SIGNI_AND_KEY` の「どのゾーンを・誰の分だけ」を1文から読む**
+ * （§5.3 `O-60` 第59バッチ・2026-09-03）。
+ *
+ * 🔴**この id は2つの別々の文型の catch-all だった**＝
+ *   `WX07-017-E1`「**各プレイヤーは、自分の手札とエナゾーンにあるカードと場にあるシグニを**
+ *   すべてトラッシュに置く」／`WXEX2-21-E3`「**すべてのシグニ**をトラッシュに置き、
+ *   **すべてのキー**をルリグトラッシュに置く」。engine は `各プレイヤー|すべてのシグニ` と
+ *   `対戦相手` の2本しか見ておらず、**どのゾーンを流すか・キーを流すか**を区別できていなかった。
+ */
+export function parseTrashAllScopeSpec(t: string): {
+  zones: Array<'signi' | 'hand' | 'energy'>; keys?: boolean; owner: 'self' | 'opponent' | 'both';
+} | null {
+  const s = stripRuleParens(t);
+  if (!/トラッシュに置/.test(s)) return null;
+  const zones: Array<'signi' | 'hand' | 'energy'> = [];
+  if (/(?:場にある|すべての)シグニ/.test(s)) zones.push('signi');
+  if (/手札/.test(s)) zones.push('hand');
+  if (/エナゾーン/.test(s)) zones.push('energy');
+  if (zones.length === 0) return null;
+  const keys = /すべてのキーをルリグトラッシュに置く/.test(s);
+  // 「各プレイヤーは」＝両者。主語が無い「すべての〜」も両者（`WXEX2-21-E3`）。
+  const owner: 'self' | 'opponent' | 'both' = /各プレイヤー/.test(s) ? 'both'
+    : /^対戦相手/.test(s) ? 'opponent'
+      : /すべての/.test(s) ? 'both' : 'self';
+  return { zones, ...(keys ? { keys: true } : {}), owner };
+}
+
+/**
+ * 🆕**「以下のN個からM個を選ぶ。…①【X】②【Y】」＝付与するキーワードの選択肢**を1文から読む
+ * （§5.3 `O-60` 第59バッチ・2026-09-03）。
+ *
+ * 🔴**旧実装（engine 側）は8本のキーワード regex をブロック全文に当てて選択肢を組み立てていた**＝
+ *   ①**原文の①②③の並び順を無視して engine 側のパターン順**で出る
+ *   ②**8種の表に無いキーワードの効果は「能力解析不可」で無言 no-op**。
+ * ⚠**`choiceTextParser.ts` のモーダル選択 family とは別**＝あちらは「①②③がそれぞれ別のアクション」で、
+ *   こちらは「①②③がすべて**付与するキーワード**」＝engine 側の語彙で閉じている。
+ */
+export function parseChosenAbilitySpec(t: string): { chooseCount: number; keywords: string[]; targetStory?: string } | null {
+  const s = stripRuleParens(t);
+  const KW: Array<[RegExp, string]> = [
+    [/【アサシン】/, 'アサシン'],
+    [/【ランサー】/, 'ランサー'],
+    [/【ダブルクラッシュ】/, 'ダブルクラッシュ'],
+    [/【シャドウ】/, 'シャドウ'],
+    [/【マルチエナ】/, 'マルチエナ'],
+    [/バニッシュされない/, 'バニッシュ不可'],
+    [/ダウンしない/, 'ダウン不可'],
+    [/手札に戻らない/, 'バウンス不可'],
+  ];
+  // ①②③④⑤ で割って**原文の並び順**で拾う（無ければ文全体を1区画として見る）。
+  const segs = s.split(/[①②③④⑤⑥]/).slice(1);
+  const scan = segs.length > 0 ? segs : [s];
+  const keywords: string[] = [];
+  for (const seg of scan) {
+    for (const [re, kw] of KW) {
+      if (re.test(seg) && !keywords.includes(kw)) { keywords.push(kw); break; }
+    }
+  }
+  if (keywords.length === 0) return null;
+  const cm = s.match(/([２-９2-9\d])つ(?:を|まで)?選ぶ/);
+  const chooseCount = cm ? parseNum(cm[1]) : 1;
+  const storyM = s.match(/あなたの＜([^＞]+)＞のシグニ[０-９\d]+体を対象とし/);
+  return { chooseCount, keywords, ...(storyM ? { targetStory: storyM[1] } : {}) };
+}
+
 export function parseSignedNum(s: string): number {
   const h = toHalf(s);
   if (h.startsWith('-') || h.startsWith('－')) return -parseInt(h.replace(/[＋－+-]/, ''), 10);

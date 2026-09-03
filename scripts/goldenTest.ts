@@ -46851,7 +46851,12 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
     // 8 → 7（2026-08-15 §6.4 O-3 続き493）＝`PREVENT_ZONE_MOVE_BY_OPP` の実行時ゾーン判定を廃止。
     // 期間つきは `ZONE_MOVE_IMMUNITY`（zones を構造で持つ）へ、【常】は `collectProtectedZones` 側の
     // ブロック読みへ寄せたので、**実行時に原文を読む必要がなくなった**（差し戻しではない）。
-    'src/engine/execStubPart2.ts': 7,
+    // 🆕7 → 4（2026-09-03 §5.3 `O-60` 第59バッチ）＝`POWER_MOD_BY_LRIG_LEVEL_SUM` /
+    // `POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL` / `DRAW` /
+    // `GRANT_CHOSEN_ABILITY(_SELF)` を payload 化したぶん。
+    // ⚠**差し戻しではない**＝ブロック読みへ戻したのではなく、**原文を読む必要がなくなった**
+    //   （単価・対象の奇偶・枚数・選択肢が live JSON に構造で載った）。
+    'src/engine/execStubPart2.ts': 4,
     'src/engine/execStubPart3.ts': 3,
     'src/engine/effectExecutor.ts': 2,
   };
@@ -46996,7 +47001,12 @@ test('§6.4 O-23: 「アタックしたそのシグニのレベル」は trigger
   const modOf = (effectId: string, attacker: string, oppTarget: string) => {
     const base = mkCtx({ signi: [src, attacker, null] }, { signi: [oppTarget, null, null] }, src);
     const ctx = { ...base, sourceCardNum: src, sourceEffectId: effectId, triggeringCardNum: attacker } as ExecCtx;
-    const r = run({ type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL' } as unknown as EffectAction, ctx);
+    // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価と対象の奇偶は payload で渡す**（旧は engine が
+    //   `sourceAbilityText` から読んでいた）。**この test の主旨は倍率の出どころ**＝
+    //   効果元（Level 3 固定）ではなく `triggeringCardNum`（アタッカー）で解くこと。
+    const parity = effectId.endsWith('E1') ? 'even' as const : 'odd' as const;
+    const r = run({ type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL',
+      powerPerUnit: { per: 1, delta: -1000, targetParity: parity } } as unknown as EffectAction, ctx);
     return (r.otherState.temp_power_mods ?? []).find(m => m.cardNum === oppTarget)?.delta;
   };
   // E1＝奇数アタッカー→偶数の相手シグニが対象。L1 のアタッカーなら 1×－1000。
@@ -64286,6 +64296,144 @@ test('§5.3 O-60 第58: コラボは payload の人数で呼ぶ／ガードの�
   eq(bare.ownerState.lrig_deck.length, 3, 'payload なしでは1人も呼ばない（fail-closed）');
   ok(bare.done, 'payload なしでは対話も出さない');
 }));
+
+// ── §5.3 `O-60` 第59バッチ（2026-09-03）＝A群の小口4 family を payload 化 ──
+test('§5.3 O-60 第59: 比例パワー修正の単価と対象の奇偶は payload で決まる', () => withSavedCursor(() => {
+  // 🔴`WXK10-084` は**奇偶2能力が同居**する＝効果単位で刻まないと必ず片方へ倒れる。
+  //   原文 E1「レベルが**奇数**のあなたの＜トリック＞のシグニがアタックしたとき、
+  //   レベルが**偶数**の対戦相手のシグニ1体を対象とし」／E2 はその逆。
+  const cases: Array<[string, string, string]> = [
+    ['WXK10-084', 'WXK10-084-E1', JSON.stringify({ per: 1, delta: -1000, targetParity: 'even' })],
+    ['WXK10-084', 'WXK10-084-E2', JSON.stringify({ per: 1, delta: -1000, targetParity: 'odd' })],
+    // 🔴旧 engine は regex が外れると**既定 -3000**（原文に無い数値）を使っていた。
+    ['WXDi-D06-016', 'WXDi-D06-016-E2', JSON.stringify({ per: 1, delta: -3000 })],
+    ['WXDi-P05-055', 'WXDi-P05-055-E2', JSON.stringify({ per: 1, delta: 1000 })],
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: unknown;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && typeof rec.id === 'string' && rec.id.startsWith('POWER_MOD_BY_')) found = rec.powerPerUnit;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(JSON.stringify(found), want, `${effectId} の単価は原文どおり`);
+  }
+  // 実挙動＝ルリグのレベル合計 × 単価。
+  const lrigs = [...cardMap.entries()].filter(([, c]) => c.Type === 'ルリグ' && c.Level === '3').slice(0, 1).map(([n]) => n);
+  ok(lrigs.length === 1, 'レベル3のルリグ標本が取れる');
+  if (lrigs.length === 1) {
+    const src = fresh();
+    const ctx = mkCtx({ lrig: [lrigs[0]], signi: [src, null, null] }, {}, src);
+    const r = run({ type: 'STUB', id: 'POWER_MOD_BY_LRIG_LEVEL_SUM',
+      powerPerUnit: { per: 1, delta: 1000 } } as unknown as EffectAction, ctx);
+    const mod = (r.ownerState.temp_power_mods ?? []).find(m => m.cardNum === src);
+    eq(mod?.delta, 3000, 'ルリグLv3 × ＋1000 = ＋3000');
+  }
+  // 反転＝payload なしは何もしない（fail-closed）。
+  const bare = run({ type: 'STUB', id: 'POWER_MOD_BY_LRIG_LEVEL_SUM' } as unknown as EffectAction,
+    mkCtx({ signi: [fresh(), null, null] }, {}));
+  eq((bare.ownerState.temp_power_mods ?? []).length, 0, 'payload なしではパワーが動かない');
+}));
+
+test('§5.3 O-60 第59: 全体トラッシュは「どのゾーンを・誰の分だけ」を payload で決める', () => withSavedCursor(() => {
+  // 🔴旧実装は**流すゾーンを常に「シグニ＋キー」に固定**しており、2通りに壊れていた＝
+  //   `WX07-017-E1`（原文「各プレイヤーは、自分の**手札とエナゾーンにあるカードと場にあるシグニを**
+  //   すべてトラッシュに置く」）は**手札とエナが1枚も流れず**、**原文に無いキーまで**流していた。
+  const w07 = (effectsMap.get('WX07-017') ?? []).find(e => e.effectId === 'WX07-017-E1');
+  const wex = (effectsMap.get('WXEX2-21') ?? []).find(e => e.effectId === 'WXEX2-21-E3');
+  ok(!!w07 && !!wex, '2効果とも live にある');
+  const pick = (eff: CardEffect): unknown => {
+    let found: unknown;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === 'TRASH_ALL_SIGNI_AND_KEY') found = rec.trashAllScope;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    return found;
+  };
+  if (w07) eq(JSON.stringify(pick(w07)), JSON.stringify({ zones: ['signi', 'hand', 'energy'], owner: 'both' }),
+    'WX07-017 は手札とエナも流す／キーは流さない');
+  if (wex) eq(JSON.stringify(pick(wex)), JSON.stringify({ zones: ['signi'], keys: true, owner: 'both' }),
+    'WXEX2-21 はシグニとキーだけ');
+  // 実挙動＝payload のゾーンだけが流れる。
+  const ctx = mkCtx({ signi: [fresh(), fresh(), null], hand: 3, energy: 4, trash: 0 },
+    { signi: [fresh(), null, null], hand: 2, energy: 1, trash: 0 });
+  const r = run({ type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY',
+    trashAllScope: { zones: ['signi', 'hand', 'energy'], owner: 'both' } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.hand.length, 0, '自分の手札が空');
+  eq(r.ownerState.energy.length, 0, '自分のエナが空');
+  eq(r.ownerState.trash.length, 2 + 3 + 4, '自分のトラッシュへ シグニ2＋手札3＋エナ4');
+  eq(r.otherState.trash.length, 1 + 2 + 1, '相手のトラッシュへ シグニ1＋手札2＋エナ1');
+  // 🔴反転＝キーは payload に無ければ流れない（旧は常に流していた）。
+  const ctx2 = mkCtx({ signi: [fresh(), null, null], hand: 2, energy: 2, trash: 0 }, {});
+  const r2 = run({ type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY',
+    trashAllScope: { zones: ['signi'], owner: 'self' } } as unknown as EffectAction, ctx2);
+  eq(r2.ownerState.hand.length, 2, 'zones に hand が無ければ手札は残る');
+  eq(r2.ownerState.energy.length, 2, 'zones に energy が無ければエナは残る');
+  // 反転＝payload なしは何もしない（fail-closed。盤面を全部流す破壊的な既定は持たせない）。
+  const bare = run({ type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY' } as unknown as EffectAction,
+    mkCtx({ signi: [fresh(), fresh(), null], hand: 3 }, {}));
+  eq(bare.ownerState.field.signi.filter(z => z && z.length > 0).length, 2, 'payload なしでは盤面が動かない');
+}));
+
+test('§5.3 O-60 第59: 「選んだ能力を得る」の選択肢は原文の並び順で payload に載る', () => withSavedCursor(() => {
+  // 🔴旧実装は engine 側の8本のキーワード regex をブロック全文に当てていた＝
+  //   ①**原文の①②③の並び順を無視して engine 側のパターン順**で提示
+  //   ②8種の表に無いキーワードは「能力解析不可」で無言 no-op。
+  const cases: Array<[string, string, string]> = [
+    // 「以下の５つから２つを選ぶ。…①【アサシン】②【ダブルクラッシュ】③バニッシュされない④ダウンしない⑤手札に戻らない」
+    ['WXK04-002', 'WXK04-002-E3',
+      JSON.stringify({ chooseCount: 2, keywords: ['アサシン', 'ダブルクラッシュ', 'バニッシュ不可', 'ダウン不可', 'バウンス不可'] })],
+    ['WXK10-018', 'WXK10-018-E1', JSON.stringify({ chooseCount: 1, keywords: ['アサシン', 'ランサー'] })],
+    ['WXK08-026', 'WXK08-026-E2', JSON.stringify({ chooseCount: 1, keywords: ['アサシン', 'ダブルクラッシュ'] })],
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: unknown;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && (rec.id === 'GRANT_CHOSEN_ABILITY' || rec.id === 'GRANT_CHOSEN_ABILITY_SELF')) found = rec.chosenAbility;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(JSON.stringify(found), want, `${effectId} の選択肢は原文の並び順`);
+  }
+  // 実挙動＝payload の選択肢がそのまま CHOOSE に出る。
+  const src = fresh();
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const res = executeEffect(
+    { effectId: 't', effectType: 'AUTO', duration: 'UNTIL_END_OF_TURN', mandatory: true,
+      action: { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY_SELF',
+        chosenAbility: { chooseCount: 1, keywords: ['アサシン', 'ダブルクラッシュ'] } } as unknown as EffectAction } as CardEffect, ctx);
+  ok(!res.done && res.pending.type === 'CHOOSE', 'CHOOSE が出る');
+  if (!res.done && res.pending.type === 'CHOOSE') {
+    eq(res.pending.options.map(o => o.id).join(','), 'アサシン,ダブルクラッシュ', '原文の並び順で提示');
+    eq(res.pending.count, 1, '選択数も payload');
+  }
+  // 反転＝payload なしは何もしない（fail-closed）。
+  const bare = run({ type: 'STUB', id: 'GRANT_CHOSEN_ABILITY_SELF' } as unknown as EffectAction,
+    mkCtx({ signi: [fresh(), null, null] }, {}));
+  ok(bare.done, 'payload なしでは対話を出さない');
+}));
+
+test('§5.3 O-60 第59: STUB{DRAW} の枚数は payload（原文にその句が無いので regex は必ず外れていた）', () => {
+  const eff = (effectsMap.get('WXDi-P10-006') ?? []).find(e => e.effectId === 'WXDi-P10-006-E3');
+  ok(!!eff, 'WXDi-P10-006-E3 が live にある'); if (!eff) return;
+  const step0 = (eff.action as SequenceAction).steps[0] as unknown as { id?: string; count?: number };
+  eq(step0.id, 'DRAW', '先頭は STUB{DRAW}');
+  eq(step0.count, 1, '枚数は payload（原文「一番上のカードを公開し手札に加える」＝1枚）');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

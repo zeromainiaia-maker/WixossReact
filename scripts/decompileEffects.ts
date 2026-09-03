@@ -2945,7 +2945,9 @@ function actionJa(a?: Action, effectType?: string): string {
         ? 'あなたのトラッシュから＜悪魔＞のシグニ1枚を対象とし、それを【ビート】にする'
         : 'トラッシュからシグニを【ビート】にする';
       if (a.id === 'INTERNAL_MOVE_TO_BEAT') return '直前に選んだシグニを【ビート】にする';
-      if (a.id === 'TRASH_ALL_SIGNI_AND_KEY') return '対象プレイヤーのシグニすべてとキーをトラッシュ／ルリグトラッシュに置く';
+      // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝payload から描く**（下の `trashAllScope` 分岐）。
+      //   🔴旧文言「対象プレイヤーのシグニすべてとキーを…」は**この id が2文型の catch-all だった頃の名残**で、
+      //     `WX07-017`（手札とエナも流す・キーは流さない）を1文字も表していなかった。
       if (a.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || a.id === 'SPECIFIC_CARD_COST_REDUCE') return 'トラッシュ枚数等に応じてスペル／特定カードの使用コストを軽減する';
       if (a.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') return 'このシグニは場から手札に戻らない';
       if (a.id === 'SUPPRESS_GAIN_ABILITY') return 'このターン、あなたのシグニは新たに能力を得られない';
@@ -4574,6 +4576,31 @@ function actionJa(a?: Action, effectType?: string): string {
           }
         };
         return `このゲームの間、${gg.map(one).join('。')}`;
+      }
+      // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝4 family を payload から描く。**
+      if (a.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM' || a.id === 'POWER_MOD_BY_COLOR_VARIETY'
+        || a.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
+        const pu = a.powerPerUnit;
+        if (!pu) return '【※ペイロード欠落】比例パワー修正（engine は何もしない）';
+        const unitJa = a.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM' ? 'あなたの場にいるルリグのレベルの合計'
+          : a.id === 'POWER_MOD_BY_COLOR_VARIETY' ? 'あなたの場にあるシグニが持つ色の種類'
+            : 'アタックしたシグニのレベル';
+        const parityJa = pu.targetParity ? `レベルが${pu.targetParity === 'odd' ? '奇数' : '偶数'}の対戦相手のシグニ1体を対象とし、` : '';
+        return `${parityJa}それのパワーを${unitJa}${pu.per}につき${pu.delta > 0 ? '＋' : '－'}${Math.abs(pu.delta)}する`;
+      }
+      if (a.id === 'TRASH_ALL_SIGNI_AND_KEY') {
+        const ta = a.trashAllScope;
+        if (!ta) return '【※ペイロード欠落】全体トラッシュ（engine は何もしない）';
+        const whoJa = ta.owner === 'both' ? '各プレイヤーは自分の' : ta.owner === 'opponent' ? '対戦相手は自分の' : 'あなたの';
+        const zoneJa = ta.zones.map(z => (z === 'signi' ? '場にあるシグニ' : z === 'hand' ? '手札' : 'エナゾーンにあるカード')).join('と');
+        return `${whoJa}${zoneJa}をすべてトラッシュに置く${ta.keys ? '。すべてのキーをルリグトラッシュに置く' : ''}`;
+      }
+      if (a.id === 'GRANT_CHOSEN_ABILITY' || a.id === 'GRANT_CHOSEN_ABILITY_SELF') {
+        const ca = a.chosenAbility;
+        if (!ca) return '【※ペイロード欠落】選んだ能力の付与（engine は何もしない）';
+        const whoJa = a.id === 'GRANT_CHOSEN_ABILITY_SELF' ? 'このシグニ'
+          : `あなたの${ca.targetStory ? `＜${ca.targetStory}＞の` : ''}シグニ1体`;
+        return `以下の${ca.keywords.length}つから${ca.chooseCount}つを選ぶ。ターン終了時まで、${whoJa}は選んだ能力を得る【${ca.keywords.join('／')}】`;
       }
       // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝3 family を payload から描く。**
       if (a.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {

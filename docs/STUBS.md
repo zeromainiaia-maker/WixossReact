@@ -167,7 +167,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SELF_TO_DECK_TOP` | 2 | 2 | WXDi-P02-058, WXK03-051 | 自シグニをデッキトップに置く |
 | `SET_DISPAIR_BURST_GRANT` | 2 | 2 | WX24-P3-022, WX25-P3-027 | ディスペア：次の対戦相手ターンだけ、自分の全ゾーンの非LBカードへ指定LBを付与する。 |
 | `SET_NEXT_LIFE_CRASH_COUNTER` | 2 | 2 | WX25-P1-004, WXDi-P12-030 | 「次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスをクラッシュする」 |
-| `TRASH_ALL_SIGNI_AND_KEY` | 2 | 2 | WX07-017, WXEX2-21 |  |
+| `TRASH_ALL_SIGNI_AND_KEY` | 2 | 2 | WX07-017, WXEX2-21 | 🆕🔴**§5.3 `O-60` 第59バッチ（2026-09-03）＝原文 regex を撤去して payload で決める。**   旧実装は `sourceAbilityText(ctx)` に `各プレイヤー\|すべてのシグニ`… |
 | `TRASHED_CARD_TO_HAND_OR_ENERGY` | 2 | 2 | WX24-P3-007, WX24-P3-030 | トラッシュに置かれたカードを手札かエナに |
 | `VIEW_AND_DISCARD_SPELL` | 2 | 2 | WX14-038, WXDi-P16-050 | 相手の手札を見てスペルを捨てさせる 🆕**コスト上限と枚数は payload（`viewDiscardSpell`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。 🔴旧実装は **カード全文**へ2本の rege… |
 | `ACCE_BANISH_SUBSTITUTE` | 1 | 1 | WXDi-P09-TK03A | アクセクラフトによる場離れ代替（オンタマ等） |
@@ -270,7 +270,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `PLACE_SIGNI_UNDER_SIGNI` | 2 | 2 | WXDi-P05-060, WXDi-P09-078 | シグニをシグニ下に設置（lastProcessed→sourceCardNumのゾーン下） |
 | `PLAY_SPELL_FROM_HAND` | 2 | 2 | WX11-043, WX12-003 |  |
 | `POWER_DOUBLE_ALL` | 2 | 2 | WX04-049, WX07-029 | 全自シグニのパワーを2倍にする（現在値と同量をデルタ追加） |
-| `POWER_MOD_BY_ATTACKER_LEVEL` | 2 | 1 | WXK10-084 | アタックしたシグニのレベルに基づくパワー修正 |
+| `POWER_MOD_BY_ATTACKER_LEVEL` | 2 | 1 | WXK10-084 | アタックしたシグニのレベルに基づくパワー修正 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価と対象の奇偶は payload（`powerPerUnit`）で受け取る。**   🔴`WXK10-084` は奇偶… |
 | `POWER_MOD_MIRROR` | 2 | 2 | WXEX1-23, WXK06-049 | 捨てたシグニのパワーを±として対象に適用 |
 | `PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN` | 2 | 2 | WXDi-P07-002, WXDi-P09-008 | 相手の次ターン最初のダメージを無効 |
 | `PREVENT_OWN_ARTS_USE` | 2 | 2 | WD15-006, WX13-026 | 自分のアーツ使用封じ |
@@ -344,7 +344,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `POWER_EQUAL_TO_SELF_POWER` | 1 | 1 | WXK02-038 | 自シグニのパワーに等しく相手シグニのパワーを設定 |
 | `POWER_EQUALS_FRONT_SIGNI` | 1 | 1 | PR-K021 | 前のシグニのパワーと等しく設定（自シグニを前シグニのパワーに） |
 | `POWER_MOD_BY_COLOR_VARIETY` | 1 | 1 | WXDi-D06-016 | 自場シグニの色の種類数×delta → 1体相手シグニパワー修正（SELECT_TARGET→自己再帰） |
-| `POWER_MOD_BY_LRIG_LEVEL_SUM` | 1 | 1 | WXDi-P05-055 | ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照） |
+| `POWER_MOD_BY_LRIG_LEVEL_SUM` | 1 | 1 | WXDi-P05-055 | ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照） 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価は payload（`powerPerUnit`）で受け取る。**   ⚠**payloa… |
 | `POWER_MOD_BY_TRASHED_SIGNI_LEVEL` | 1 | 1 | WXDi-P10-009 | トラッシュしたシグニのレベル×-2000 → 1体相手シグニパワー修正（SELECT→INTERNAL） |
 | `POWER_MOD_DOUBLE_DIFF` | 1 | 1 | WX24-P4-054 | 対象シグニの基本パワーと自分の基本パワーとの差の2倍でマイナス |
 | `POWER_UP_BY_DISCARDED_SIGNI_POWER` | 1 | 1 | WDK08-Y01 | 捨てたシグニのパワーだけ自場シグニ1体をパワーアップ（SELECT自場→自己再帰） |

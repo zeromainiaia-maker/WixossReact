@@ -3381,37 +3381,54 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: newOther },
       `相手エナ${oppEnaAll.length}枚+シグニ${oppSigniAll.length}体をトラッシュ`));
   }
+  // 🆕🔴**§5.3 `O-60` 第59バッチ（2026-09-03）＝原文 regex を撤去して payload で決める。**
+  //   旧実装は `sourceAbilityText(ctx)` に `各プレイヤー|すべてのシグニ` と `対戦相手` の**2本だけ**を当てて
+  //   「誰の分か」を決め、**流すゾーンは常に「シグニ＋キー」に固定**していた。⇒ 2通りに壊れていた＝
+  //   🔴①`WX07-017-E1`（原文「各プレイヤーは、自分の**手札とエナゾーンにあるカードと場にあるシグニを**
+  //     すべてトラッシュに置く」）は**手札とエナが1枚も流れず**（過小実行）、
+  //     **原文に無いキーまでルリグトラッシュへ送っていた**（過剰実行）。
+  //   ②`WXEX2-21-E3`（原文「すべてのシグニをトラッシュに置き、**すべてのキー**をルリグトラッシュに置く」）
+  //     だけが「シグニ＋キー」で正しく、**2つの別々の文型が1つの id に同居**していた。
+  // ⚠**payload が無い宣言は何もしない**（fail-closed）＝盤面を全部流す破壊的な既定は持たせない。
   if (stub.id === 'TRASH_ALL_SIGNI_AND_KEY') {
-    // 自分のシグニ全体 + キーをトラッシュ/ルリグトラッシュへ
-    // §6.4 O-20: 全文だと別能力の「対戦相手」を拾って相手側だけ処理する
-    // （`WXEX2-21-E3` の原文は「すべてのシグニ」なのに E1 の「対戦相手」に引きずられていた）。
-    const txtTAK = sourceAbilityText(ctx);
-    // 「すべてのシグニ」「各プレイヤーは…すべて」＝**両者**が対象（live 2効果はどちらもこの形）。
-    // 片側だけに倒すと、相手の場だけ／自分の場だけ流す別物になる。
-    const bothSidesTAK = /各プレイヤー|すべてのシグニ/.test(txtTAK);
-    const targetsTAK: ('self' | 'opponent')[] = bothSidesTAK
-      ? ['self', 'opponent']
-      : [txtTAK.match(/対戦相手/) ? 'opponent' : 'self'];
+    const specTAK = stub.trashAllScope;
+    if (!specTAK) return done(addLog(ctx, '[未実装] 全体トラッシュ（payload なし）'));
+    const targetsTAK: ('self' | 'opponent')[] = specTAK.owner === 'both'
+      ? ['self', 'opponent'] : [specTAK.owner];
     let ctxTAK = ctx;
-    let trashedTAK = 0;
-    let keysTAK = 0;
+    let signiTAK = 0, handTAK = 0, energyTAK = 0, keysTAK = 0;
     for (const target of targetsTAK) {
       const st = ownerState(target, ctxTAK);
-      const signiAll = st.field.signi.flatMap(s => s ?? []);
-      const keyCard = st.field.key_piece;
-      const newField: PlayerState['field'] = { ...st.field, signi: [null, null, null], key_piece: null };
+      const moveSigni = specTAK.zones.includes('signi');
+      const moveHand = specTAK.zones.includes('hand');
+      const moveEnergy = specTAK.zones.includes('energy');
+      const signiAll = moveSigni ? st.field.signi.flatMap(s => s ?? []) : [];
+      const handAll = moveHand ? [...st.hand] : [];
+      const energyAll = moveEnergy ? [...st.energy] : [];
+      const keyCard = specTAK.keys ? st.field.key_piece : null;
       const newSt: PlayerState = {
         ...st,
-        trash: [...st.trash, ...signiAll],
+        ...(moveHand ? { hand: [] } : {}),
+        ...(moveEnergy ? { energy: [] } : {}),
+        trash: [...st.trash, ...signiAll, ...handAll, ...energyAll],
         lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
-        field: newField,
+        field: {
+          ...st.field,
+          ...(moveSigni ? { signi: [null, null, null] as (string[] | null)[] } : {}),
+          ...(specTAK.keys ? { key_piece: null } : {}),
+        },
       };
-      trashedTAK += signiAll.length;
+      signiTAK += signiAll.length; handTAK += handAll.length; energyTAK += energyAll.length;
       if (keyCard) keysTAK++;
       ctxTAK = setOwnerState(target, newSt, ctxTAK);
     }
-    return done(addLog(ctxTAK,
-      `シグニ${trashedTAK}体${keysTAK > 0 ? `+キー${keysTAK}` : ''}をトラッシュへ`));
+    const partsTAK = [
+      ...(signiTAK > 0 ? [`シグニ${signiTAK}体`] : []),
+      ...(handTAK > 0 ? [`手札${handTAK}枚`] : []),
+      ...(energyTAK > 0 ? [`エナ${energyTAK}枚`] : []),
+      ...(keysTAK > 0 ? [`キー${keysTAK}`] : []),
+    ];
+    return done(addLog(ctxTAK, `${partsTAK.join('＋') || '対象なし'}をトラッシュへ`));
   }
   // デッキから探してもよい（REVEAL_AND_PICK: シグニ検索→手札or場）
   if (stub.id === 'REVEAL_AND_PICK') {

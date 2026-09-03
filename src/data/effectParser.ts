@@ -188,6 +188,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
 }
 import {
   parseNum, parseSignedNum, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseDiscardedFromHandThisTurnFilter, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, signiClauseTargetSpec, selectionConstraintFromPhrase, stripReferenceColorPhrase, parsePrintedComparison,
+  parseChosenAbilitySpec,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -16364,7 +16365,13 @@ function parseActionTextInner(text: string): EffectAction {
         const powerCompareGrant = /表記されているパワーよりパワーの高い[^。]*選んだ能力を得る/.test(text);
         const gcaId = powerCompareGrant ? 'SIGNI_GRANT_CHOSEN_ABILITY'
           : selfGrant ? 'GRANT_CHOSEN_ABILITY_SELF' : 'GRANT_CHOSEN_ABILITY';
-        return { type: 'STUB', id: gcaId } as unknown as EffectAction;
+        // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝選択肢・選択数・対象クラスは payload で渡す。**
+        //   🔴旧実装は engine がブロック全文に8本のキーワード regex を当てて選択肢を組み立てており、
+        //     **原文の①②③の並び順を無視して engine 側のパターン順**で出ていた。
+        //   ⚠`SIGNI_GRANT_CHOSEN_ABILITY`（表記パワー比較＋保護）は別ハンドラなので payload を付けない。
+        const gcaSpec = gcaId === 'SIGNI_GRANT_CHOSEN_ABILITY' ? null : parseChosenAbilitySpec(text);
+        return { type: 'STUB', id: gcaId,
+          ...(gcaSpec ? { chosenAbility: gcaSpec } : {}) } as unknown as EffectAction;
       }
       const chosen = buildChoose(text, parseNum(headM[1]), !!headM[2]);
       // 🔴**`headParsed.countChoose` をここで捨てていた**（2026-08-31 続き757）＝この入口は

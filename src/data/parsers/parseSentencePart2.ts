@@ -50,6 +50,7 @@ import {
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
   parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter, parsePlaceUnderSourceSigni,
   makeSoulOpStub, parseTrashUnderPlaceSpec,
+  parsePowerPerUnitSpec, parseTrashAllScopeSpec, parseChosenAbilitySpec,
 } from '../parserUtils';
 
 /**
@@ -650,8 +651,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 選んだ能力を得る ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝選択肢・選択数・対象クラスは payload で渡す。**
   if (t.match(/あなたのシグニ.*ターン終了時まで.*選んだ能力を得る/)) {
-    return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY' } as StubAction;
+    const caSpec = parseChosenAbilitySpec(t);
+    return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY', ...(caSpec ? { chosenAbility: caSpec } : {}) } as StubAction;
   }
 
   // ---- シグニの下にあるカードを手札・エナ等へ移動（他のシグニ基準） ----
@@ -1048,8 +1051,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 場のすべてのシグニとキーをトラッシュ ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝どのゾーンを・誰の分だけ流すかは payload で渡す。**
   if (t.match(/すべてのシグニをトラッシュに置き.*すべてのキーをルリグトラッシュに置く/)) {
-    return { type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY' } as StubAction;
+    const taSpec = parseTrashAllScopeSpec(t);
+    return { type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY', ...(taSpec ? { trashAllScope: taSpec } : {}) } as StubAction;
   }
 
   // ---- 場以外のカードが対戦相手の効果で移動しない ----
@@ -1404,8 +1409,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- このシグニは選んだ能力を得る ----
+  // ⚠この入口は**選択肢の並びを含まない断片**なので payload は付かないことがある（親が付ける）。
   if (t.match(/^このシグニは選んだ能力を得る$/)) {
-    return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY_SELF' } as StubAction;
+    const caSelfSpec = parseChosenAbilitySpec(t);
+    return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY_SELF', ...(caSelfSpec ? { chosenAbility: caSelfSpec } : {}) } as StubAction;
   }
 
   // ---- ＜ウェポン＞の下にトラッシュからシグニを1枚ずつ置く ----
@@ -2741,8 +2748,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- それのパワーをアタックしたシグニのレベル１につき±Nする ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価と対象の奇偶は payload で渡す。**
+  //   🔴`WXK10-084` は奇偶2能力が同居する＝engine がブロックを読んでも**効果単位で刻まないと逆に倒れる**。
   if (t.match(/それのパワーをアタックした.*シグニのレベル[１-９\d]につき[＋＋－-]/)) {
-    return { type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL' } as StubAction;
+    const ppuSpec = parsePowerPerUnitSpec(t);
+    return { type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL', ...(ppuSpec ? { powerPerUnit: ppuSpec } : {}) } as StubAction;
   }
 
   // ---- アップ状態のシグニをトラッシュに置く ----

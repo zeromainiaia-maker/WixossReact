@@ -1,5 +1,101 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第19巡）：§5.3 `O-60` 第59バッチ — A群の小口4 family（比例パワー修正3／全体トラッシュ／DRAW／選んだ能力の付与）
+
+**ベースライン**＝`c81400e01`（第58バッチの直後）。**A🔴 SELF_TEXT 28行 → 22行 / 27→21ハンドラ**
+（`BASELINE_SELF_TEXT` も 22 へ払い戻し）。miss は 0 のまま。
+**gates 全緑**（typecheck・golden **3393 → 3397**＝+4本・smoke 10725 全異常0・fuzz 全0・
+census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴22**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更10・追加0・削除0、予定外0**（＝対象4 family の10効果ちょうど）。
+🖥**実機＝機械判定では不要**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+**`src/screens/` は1行も触っていない**・新しい interaction 型は0）。
+ただし**3効果が「原文と違う数値／落ちていたゾーン／並び順」で動いていた**ので観測点 **`V-140`** を登録した（未実施）。
+
+### 🔴 この巡の主産物＝自己再帰する受け皿は payload を継続へ積み忘れる
+
+`POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL` / `GRANT_CHOSEN_ABILITY` は
+**`SELECT_TARGET` を出したあと自分自身へ再入する**形（`continuation` に同じ id の STUB を積む）。
+payload 化のとき**継続側の STUB にも payload を積まないと、2周目が payload 無し＝fail-closed で
+「対象は選ばせるのに何も起きない」**という無言 no-op になる。
+🔑**捕まえたのは golden の反転側**（`§6.4 O-23` の既存 test が「アタッカー L1 → －1000」を assert していた）＝
+**payload 化のたびに `continuation` / `thenAction` へ渡す STUB を全部見る。**
+
+### family ①：比例パワー修正の残り3ハンドラ（`execStubPart2.ts:216/258/279`）
+
+`POWER_MOD_BY_LRIG_LEVEL_SUM`(live1) / `POWER_MOD_BY_COLOR_VARIETY`(live1) /
+`POWER_MOD_BY_ATTACKER_LEVEL`(live2)。第50バッチで15ハンドラ取った「パワー修正 family」の**残り**。
+単価を payload `powerPerUnit:{per, delta, targetParity?}` へ移した。
+
+🔴**`POWER_MOD_BY_COLOR_VARIETY` は regex が外れたときの既定が `-3000`** ＝
+**原文に無い数値を engine に焼き込んで**いた（当たっている間は見えない）。
+🔑**`targetParity` は効果単位で刻む**＝`WXK10-084` は
+「**奇数**がアタック → **偶数**を対象」と「**偶数**がアタック → **奇数**を対象」の**2能力が同居**しており、
+カード全文を読むと必ず片方へ倒れる（旧実装はブロック読みで回避していたが、それでも原文依存だった）。
+
+### family ②：`TRASH_ALL_SIGNI_AND_KEY`（live2）＝2文型の catch-all
+
+🔴**engine は `各プレイヤー|すべてのシグニ` と `対戦相手` の2本しか見ておらず、
+流すゾーンは常に「シグニ＋キー」に固定**されていた。⇒ 2通りに壊れていた＝
+- `WX07-017-E1`（原文「各プレイヤーは、自分の**手札とエナゾーンにあるカードと場にあるシグニを**すべて
+  トラッシュに置く」）＝**手札とエナが1枚も流れず**（過小実行）、
+  **原文に無いキーまでルリグトラッシュへ送っていた**（過剰実行）。
+- `WXEX2-21-E3`（原文「すべてのシグニをトラッシュに置き、**すべてのキー**をルリグトラッシュに置く」）
+  だけが「シグニ＋キー」で正しかった。
+
+⇒ payload `trashAllScope:{zones, keys?, owner}` へ移した。
+⚠**逆翻訳の固定文言も同じ嘘をついていた**＝`decompileEffects.ts` の早い分岐が
+「対象プレイヤーのシグニすべてとキーを…」を返しており、`WX07-017` を1文字も表していなかった（撤去）。
+
+### family ③：`STUB{DRAW}`（live1）
+
+🔴**この受け皿へ来る唯一の文型（「デッキをシャッフルし一番上のカードを公開し手札に加える」）の原文には
+`カードをN枚引く` という句が無い**＝regex は**必ず外れて既定1**だった（たまたま正しい数だっただけ）。
+⇒ 枚数を payload（`count`）へ。
+⚠**「シャッフル」と「公開」は依然として落ちている**＝後段の
+「この方法で**公開されたカード**が【ライフバースト】を持つ場合」が判定できない（§5.3 `O-232` に登録）。
+
+### family ④：`GRANT_CHOSEN_ABILITY` / `_SELF`（live3）
+
+🔴**engine が8本のキーワード regex をブロック全文に当てて選択肢を組み立てていた**＝
+- **原文の①②③の並び順を無視して engine 側のパターン順**で提示していた
+- **8種の表に無いキーワードの効果は「能力解析不可」で無言 no-op**（＝表が静かな上限になっていた）
+
+⇒ payload `chosenAbility:{chooseCount, keywords, targetStory?}` へ移し、
+**parser が原文の①②③で割って並び順どおり**に載せるようにした。
+⚠**`choiceTextParser.ts` のモーダル選択 family（据置）とは別物**＝あちらは「①②③がそれぞれ別のアクション」、
+こちらは「①②③がすべて**付与するキーワード**」で engine の語彙に閉じている。
+
+### 🔑 一般則
+
+① **自己再帰する受け皿は `continuation` / `thenAction` にも payload を積む**（積み忘れは無言 no-op）。
+② **「外れたときの既定値」は原文に無い数値の焼き込み**＝`-3000` のような具体値の既定は必ず疑う。
+③ **1つの id に2つの文型が同居していると、逆翻訳の固定文言も同じ嘘をつく**＝
+   payload 化したら**逆翻訳の早い分岐も一緒に撤去する**（片方だけ直すと計器は緑のまま）。
+④ **engine 側の「パターン表」は静かな上限**＝表に無い語彙は無言 no-op になるので、
+   表ごと payload へ移して parser 側で読む。
+
+### 見送ったもの
+
+`CONDITIONAL_POWER_BONUS`（A群1行・**リテラル9本**・live **0**）は**この巡では触らない**と決めた＝
+**parser 側に生成元が10箇所以上ある catch-all の安全網**で、live 標本が0なので
+payload 化しても**正しさを1件も検証できない**（fail-closed にすると将来そこへ落ちた効果が無言 no-op になる）。
+⚠**live 0 だけを見て消さない**（登録票の警告どおり）。
+
+### 変更ファイル
+
+`src/types/effects.ts`（`powerPerUnit` / `trashAllScope` / `chosenAbility`）／
+`src/data/parserUtils.ts`（`parsePowerPerUnitSpec` / `parseTrashAllScopeSpec` / `parseChosenAbilitySpec`）／
+`src/data/parsers/parseSentencePart2.ts`・`parseSentencePart3.ts`・`parseSentencePart4.ts`／
+`src/data/effectParser.ts`（`GRANT_CHOSEN_ABILITY` の入口）／
+`src/engine/execStubPart1.ts`（`TRASH_ALL_SIGNI_AND_KEY`）／
+`src/engine/execStubPart2.ts`（パワー修正3・`DRAW`・`GRANT_CHOSEN_ABILITY` 族／継続への payload）／
+`scripts/decompileEffects.ts`（payload から逆翻訳＋固定文言の撤去）／
+`scripts/censusEngineText.ts`（ratchet 28→22）／`scripts/goldenTest.ts`（+4本・既存2本を更新）／
+`public/data/effects_{WX,WXDi,WXK,misc}.json`（10効果）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第18巡）：§5.3 `O-60` 第58バッチ — A群 live効果数の大物3 family（`LIMIT_CHANGE` / `TRASH_SIGNI_UNDER_FIELD_SIGNI` / `COLLAB`）
 
 **ベースライン**＝`87a8c28c4`（第57バッチの直後）。**A🔴 SELF_TEXT 32行 → 28行 / 32→27ハンドラ**

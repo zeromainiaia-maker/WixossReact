@@ -36,6 +36,33 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-03（`O-60` 第58バッチ・索引 A 第18巡）＝A群 live効果数の大物3 family＝「miss=0 は正しいではない」の実証（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 3**（据置）
+  ⚠**据置は想定どおり**＝`O-60` は語彙の欠落ではなく「engine が原文を読む」形を潰す項目なので3計器には出ない。
+  **この項目の計器 `census:enginetext` の A群**＝**32行 / 31ハンドラ → 28行 / 27ハンドラ**
+  （`BASELINE_SELF_TEXT` も 28 へ払い戻し。`INTERNAL_TSU_CHOOSE_ZONE` も同時に落ちて **-4行**）。miss は 0 のまま。
+  📦**在庫2本**＝**機構 worklist 29項目**（🆕`O-230`／`O-231` を登録＝27→29）｜
+  **実機 残 9件**（🆕`V-139` を登録＝8→9）
+  🔧**ゲート（全緑 ✅）**＝golden **3393 / 3393**（3389→3393＝+4本／既存の契約 golden 2本を更新）／
+  smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **28行**（`BASELINE_SELF_TEXT` も 28）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝機械判定では不要（§2.2）**＝`src/screens/` は0行・新しい interaction 型も0。
+  ただし**4効果が「無言 no-op／原文と逆／過小実行」から実際の盤面変化へ変わる**ので `V-139` を登録（未実施）。
+  🔴**主産物＝計器の miss は funnel 経由だと構造的に甘い**＝3ハンドラとも miss 0 だったが、
+  **engine が実際に読むアビリティブロック**にリテラルを当て直したら**3 family とも壊れていた**。
+  🔴**実害**＝①リミット修正の**向きが反転**（`WXDi-P16-002-E1`＝`対戦相手.*` が文を跨いだ）
+  ②**自分側が丸ごと消える**（`WX25-P2-014-E2`＝自分＋1が消え相手−2が二重）
+  ③**「下に置く」枚数が常に1枚**（枚数 regex が live 9/9 で外れ＝助詞1つの差）
+  ④**配置先のクラスをトラッシュ側の絞り込みに使っていた**（3枚）
+  ⑤**catch-all に別の文型**（`WXDi-CP01-005-E1`＝【ガード】の代替コストがコラボ対話に化けていた）。
+  🔴**副産物**＝`until` の判定が「次の〜**の間**」（始点）と「次の〜**終了時まで**」（終点）を混同しており、
+  3効果が**払ったターンには1も効かなかった**。
+  🔑**一般則**＝①**`miss=0` を「正しい」と読まない** ②**regex が当たっている ≠ 正しく当たっている**
+  ③**既定値のある regex は「当たらないこと」が可視化されない** ④**同じ語が期間の始点にも終点にも使われる**。
+  ✅**ブラスト半径＝効果 変更26・追加0・削除0、予定外0**（3 family の25効果＋`until` 修正の波及1件）。
+
 - **2026-09-03（`O-60` 第57バッチ＝🏁`O-228`・索引 A 第17巡）＝A群最大 `SOUL_OP` を payload 化＝A群の miss が全滅（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
@@ -1139,9 +1166,9 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🔴🆕**A🔴 28行 / 27ハンドラ・miss 0（2026-09-03 第58バッチ後）**。⚠**`miss 0` は「正しい」の意味ではない**（第58バッチで miss0 の3 family が全部壊れていた）。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🔴🆕**A🔴 22行 / 21ハンドラ・miss 0（2026-09-03 第59バッチ後）**。⚠**`miss 0` は「正しい」の意味ではない**（第58バッチで miss0 の3 family が全部壊れていた）。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
-**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第58バッチ後）**＝**A🔴 SELF_TEXT 28行／27ハンドラ**（B 57／C 87）・**miss 0**。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は第56バッチの可視化、35→33→32 が第56・第57の消化**）。■🔑🔴**miss は 0 だが、この項目は閉じていない**＝**第58バッチが実証した**＝計器が miss 0 と出していた3 family（`LIMIT_CHANGE`(10)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(9)／`COLLAB`(6)）は**全部壊れていた**。🔴🔑**計器の `miss` は「カード全文」に当てて数える**（`censusEngineText.ts:216`）ので、**`sourceAbilityText` 経由の funnel では構造的に甘く出る**＝**着手前に `abilityBlockTextOf(card, effectId)` でリテラルを当て直すこと**。**残り 27ハンドラ**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第58バッチ後の実測）**＝(1)小口＝`GRANT_CHOSEN_ABILITY` 族(live3)／`POWER_MOD_BY_ATTACKER_LEVEL`(live2)／`TRASH_ALL_SIGNI_AND_KEY`(live2)。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
+**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第59バッチ後）**＝**A🔴 SELF_TEXT 22行／21ハンドラ**・**miss 0**。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は第56バッチの可視化、35→33→32 が第56・第57の消化**）。■🔑🔴**miss は 0 だが、この項目は閉じていない**＝**第58バッチが実証した**＝計器が miss 0 と出していた3 family（`LIMIT_CHANGE`(10)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(9)／`COLLAB`(6)）は**全部壊れていた**。🔴🔑**計器の `miss` は「カード全文」に当てて数える**（`censusEngineText.ts:216`）ので、**`sourceAbilityText` 経由の funnel では構造的に甘く出る**＝**着手前に `abilityBlockTextOf(card, effectId)` でリテラルを当て直すこと**。**残り 21ハンドラ**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第59バッチ後の実測）**＝(1)🔴**live 0 の据置**（`CONDITIONAL_POWER_BONUS` 9リテラル／`CHOOSE_SAME_OPTION_TWICE` 8／`OPP_DECK_REVEAL_UNTIL` 13 ほか）＝**標本が無いので payload 化しても正しさを1件も検証できない。⚠消してもいけない**（parser に生成元がある安全網）。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
 🆕🔑**取る単位は「1ハンドラ」ではなく「家族」**＝第50バッチはパワー修正15ハンドラを1バッチで取り、**A群を17行減らした**（第49バッチは1行）。**同じ受け皿へ寄せられるものを束ねると、探索・配送・ゲート・簿記の固定費が1回で済む。**⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
 
 ■✅**消化済み 56バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
@@ -1192,7 +1219,45 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 `COLLAB`(6)。**計器が miss 0 と出していたのに3 family とも壊れていた**（下の第58バッチの教訓）。
 `WXDi-CP01-005-E1`（【ガード】の代替コスト）は `DEFERRED_GUARD_ALT_COST_COLLAB` へ分離＝`O-230`。
 `WDK15-007-E1`（召喚が live JSON に無い）は `O-231` に登録。
+🆕**第59（2026-09-03・索引 A 第19巡）＝A群の小口4 family**＝比例パワー修正の残り3
+（`POWER_MOD_BY_LRIG_LEVEL_SUM` / `POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL`）／
+`TRASH_ALL_SIGNI_AND_KEY`（2文型の catch-all）／`STUB{DRAW}`／`GRANT_CHOSEN_ABILITY(_SELF)`。
+`WXDi-P10-006-E3` の「シャッフル・公開」の欠落は `O-232` に登録。
 全文は BUGFIXES.md 2026-09-03。
+
+■🆕🔴🔑**第59バッチの教訓（2026-09-03・索引 A 第19巡）＝自己再帰する受け皿は payload を継続へ積み忘れる**
+🔴**①この巡で一番危なかったのは payload の「配送漏れ」だった。**
+`POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL` / `GRANT_CHOSEN_ABILITY` は
+**`SELECT_TARGET` を出したあと `continuation` に同じ id の STUB を積んで自分自身へ再入する**形。
+payload 化のときその継続 STUB にも payload を積まないと、**2周目が payload 無し＝fail-closed で
+「対象は選ばせるのに何も起きない」**無言 no-op になる。
+🔑**捕まえたのは既存 golden の反転側**（`§6.4 O-23` の「アタッカー L1 → －1000」）＝
+**payload 化のたびに `continuation` / `thenAction` に渡す STUB を全部見る。**
+
+🔴**②「外れたときの既定値」は原文に無い数値の焼き込み。**
+`POWER_MOD_BY_COLOR_VARIETY` は regex が外れると **`-3000` 固定**（色が何種でも－3000）。
+当たっている間は見えない＝**具体値の既定は必ず疑う**（`|| 1` のような中立値とは扱いが違う）。
+
+🔴**③1つの id に2文型が同居していると、逆翻訳の固定文言も同じ嘘をつく。**
+`TRASH_ALL_SIGNI_AND_KEY` は流すゾーンが「シグニ＋キー」固定で、
+`WX07-017-E1`（原文「各プレイヤーは、自分の**手札とエナゾーンにあるカードと場にあるシグニを**すべて
+トラッシュに置く」）は**手札とエナが1枚も流れず**（過小）**原文に無いキーを流していた**（過剰）。
+`decompileEffects.ts` の早い分岐も「対象プレイヤーのシグニすべてとキーを…」を返しており、
+**engine と逆翻訳が同じ嘘で一致していた**＝計器は緑のまま。
+⇒ **payload 化したら逆翻訳の固定文言も一緒に撤去する。**
+
+🔴**④engine 側の「パターン表」は静かな上限。**
+`GRANT_CHOSEN_ABILITY` は8本のキーワード regex で選択肢を組み立てており、
+**原文の①②③の並び順を無視**し、**表に無い語彙の効果は「能力解析不可」で無言 no-op** だった。
+⇒ **表ごと payload へ移して parser 側で読む**（原文の①②③で割って並び順どおりに載せる）。
+🔑**モーダル選択 family（据置）との仕分け**＝この id は**選択肢がすべて「付与するキーワード」**＝
+engine の語彙に閉じているので単独で取れた。**「①②③がそれぞれ別のアクション」の形だけが
+`choiceTextParser.ts` の移設待ち**＝family を丸ごと据置にせず1件ずつ見る。
+
+⚠**⑤live 0 のハンドラは「標本が無い」＝payload 化しても検証できない。**
+`CONDITIONAL_POWER_BONUS`（リテラル9本）は parser 側に生成元が10箇所以上ある安全網で、
+fail-closed にすると**将来そこへ落ちた効果が無言 no-op** になる。**触らないと決めた。⚠消してもいけない。**
+全文は BUGFIXES.md 2026-09-03（索引 A 第19巡）。
 
 ■🆕🔴🔑**第58バッチの教訓（2026-09-03・索引 A 第18巡）＝`miss=0` は「正しい」ではないの実証**
 🔴**①計器の `miss` は funnel 経由だと構造的に甘い。**

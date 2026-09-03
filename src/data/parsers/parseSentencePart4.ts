@@ -2003,8 +2003,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
 
   // ---- デッキをシャッフルし一番上のカードを公開し手札に加える ----
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝枚数は payload（`count`）で渡す**（この文型は常に1枚）。
+  //   🔴旧 engine は `カードを([０-９\d]+)枚引く` を**アビリティブロック**に当てて枚数を決めていたが、
+  //     この文型の原文にその句は無い＝**必ず外れて既定1**だった（＝たまたま正しい数だった）。
+  //   ⚠**「シャッフル」と「公開」は依然として落ちている**＝後段の「この方法で公開されたカードが
+  //     【ライフバースト】を持つ場合」が判定できない（§5.3 `O-232` に登録）。
   if (t.match(/デッキをシャッフルし.*一番上のカードを公開し手札に加える/))
-    return { type: 'STUB', id: 'DRAW' } as StubAction;
+    return { type: 'STUB', id: 'DRAW', count: 1 } as StubAction;
 
   // ---- 対戦相手のシグニ〜体を対象とし、以下からN以上選ぶ ----
   if (t.match(/対戦相手のシグニ.*体を対象とし、以下から[１-９\d０-９]*つを選ぶ/))

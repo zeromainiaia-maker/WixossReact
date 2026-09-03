@@ -75,7 +75,7 @@ const onlyIds = (() => {
 //   `ADD_CRAFT_TO_LRIG_DECK`・live9）**と**「シグニの配置替え」family（`SIGNI_REPOSITION` /
 //   `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`・live7）**を payload 化し、
 //   `SWAP_OPTIONAL`（＝入れ替え2効果）を `DEFERRED_SWAP_*` へ分離した分。
-const BASELINE_SELF_TEXT = 28;  // 2026-09-03 第58バッチ（LIMIT_CHANGE / TRASH_SIGNI_UNDER_FIELD_SIGNI + INTERNAL_TSU_CHOOSE_ZONE / COLLAB）で 32→28。消化であって較正ではない
+const BASELINE_SELF_TEXT = 22;  // 2026-09-03 第59バッチ（パワー修正3 / TRASH_ALL_SIGNI_AND_KEY / DRAW / GRANT_CHOSEN_ABILITY 族）で 28→22。消化であって較正ではない
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

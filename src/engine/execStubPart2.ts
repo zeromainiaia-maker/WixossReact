@@ -211,18 +211,17 @@ export function execStubPart2(
     return done(addLog(ctx, `デッキトップ公開：${topNameDTE}（Lv${topDataDTE?.Level ?? '?'}）→条件不一致`));
   }
   // ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照）
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価は payload（`powerPerUnit`）で受け取る。**
+  //   ⚠**payload が無い宣言は何もしない**（fail-closed）。
   if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
-    // §6.4 O-20: 全文だと別能力の「レベルの合計〜につき＋N」を拾いうるのでブロックだけを読む。
-    const txtPMLS = sourceAbilityText(ctx);
-    const toHWPMLS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const specPMLS = stub.powerPerUnit;
     const lrigLvSum = (ctx.ownerState.field.lrig ?? []).reduce((acc, cn) => {
       const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
       return acc + (isNaN(lv) ? 0 : lv);
     }, 0);
-    const perMPMLS = txtPMLS.match(/レベルの合計([０-９\d]*)につき([－＋][０-９\d]+)/);
-    if (perMPMLS) {
-      const divisorPMLS = parseInt(toHWPMLS(perMPMLS[1] || '1')) || 1;
-      const deltaPMLS = parseInt(toHWPMLS(perMPMLS[2]).replace('－', '-').replace('＋', '+'));
+    if (specPMLS) {
+      const divisorPMLS = specPMLS.per || 1;
+      const deltaPMLS = specPMLS.delta;
       const totalDeltaPMLS = Math.floor(lrigLvSum / divisorPMLS) * deltaPMLS;
       if (totalDeltaPMLS !== 0) {
         // 自シグニ（sourceCardNum）に適用、なければ全自シグニ
@@ -240,11 +239,10 @@ export function execStubPart2(
           `パワー${totalDeltaPMLS > 0 ? '+' : ''}${totalDeltaPMLS}（ルリグレベル合計${lrigLvSum}）`));
       }
     }
-    return done(addLog(ctx, `パワー修正（ルリグレベル合計${lrigLvSum}）`));
+    return done(addLog(ctx, specPMLS ? `パワー修正なし（ルリグレベル合計${lrigLvSum}）` : '[未実装] ルリグレベル合計比例パワー修正（payload なし）'));
   }
   // 自場シグニの色の種類数×delta → 1体相手シグニパワー修正（SELECT_TARGET→自己再帰）
   if (stub.id === 'POWER_MOD_BY_COLOR_VARIETY') {
-    const toHWPMCV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const colorSetPMCV = new Set<string>();
     for (let zi = 0; zi < 3; zi++) {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
@@ -254,11 +252,12 @@ export function execStubPart2(
       }
     }
     const varietyPMCV = colorSetPMCV.size;
-    // §6.4 O-20: 全文だと別能力の「〜につき－N」を拾いうるのでブロックだけを読む。
-    const txtPMCV = sourceAbilityText(ctx);
-    const mPMCV = txtPMCV.match(/色の種類([０-９\d]*)つにつき([－＋][０-９\d]+)/);
-    const divisorPMCV = mPMCV ? parseInt(toHWPMCV(mPMCV[1] || '1')) || 1 : 1;
-    const deltaPMCV = mPMCV ? parseInt(toHWPMCV(mPMCV[2]).replace('－', '-').replace('＋', '+')) : -3000;
+    // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価は payload（`powerPerUnit`）で受け取る。**
+    //   🔴旧実装は原文 regex が外れると**既定 `-3000`**＝原文に無い数値を焼き込んでいた。
+    const specPMCV = stub.powerPerUnit;
+    if (!specPMCV) return done(addLog(ctx, '[未実装] 色の種類比例パワー修正（payload なし）'));
+    const divisorPMCV = specPMCV.per || 1;
+    const deltaPMCV = specPMCV.delta;
     const totalDeltaPMCV = Math.floor(varietyPMCV / divisorPMCV) * deltaPMCV;
     // 既にターゲット選択済みなら適用
     const existPMCV = (ctx.lastProcessedCards ?? []).find(cn => ctx.otherState.field.signi.some(s => s?.at(-1) === cn));
@@ -269,14 +268,19 @@ export function execStubPart2(
     }
     const oppCandsPMCV = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
     if (oppCandsPMCV.length === 0) return done(addLog(ctx, '相手シグニなし（POWER_MOD_BY_COLOR_VARIETY）'));
-    const contPMCV: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_COLOR_VARIETY' };
+    // 🔴**継続ステップにも payload を積む**（自己再帰する受け皿。第59バッチの教訓）。
+    const contPMCV: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_COLOR_VARIETY', powerPerUnit: specPMCV };
     const noopPMCV: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(oppCandsPMCV, 1, false, 'opp_field', noopPMCV as EffectAction, contPMCV as EffectAction, ctx);
   }
   // アタックしたシグニのレベルに基づくパワー修正
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝単価と対象の奇偶は payload（`powerPerUnit`）で受け取る。**
+  //   🔴`WXK10-084` は奇偶2能力が同居する＝**効果単位で刻まないと必ず片方へ倒れる**
+  //     （旧はブロック読みで回避していたが、それでも原文依存だった）。
+  //   ⚠**payload が無い宣言は何もしない**（fail-closed）。
   if (stub.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
-    // §6.4 O-20: `WXK10-084` は奇偶2能力が同居し、全文だと E2（奇数対象）も先頭 E1 の「偶数」を拾って**対象が反転**する。
-    const txtPMAL = sourceAbilityText(ctx);
+    const specPMAL = stub.powerPerUnit;
+    if (!specPMAL) return done(addLog(ctx, '[未実装] アタッカーレベル比例パワー修正（payload なし）'));
     const toHWPMAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // §6.4 O-23: 原文は「**アタックしたその**シグニのレベル１につき」＝倍率はアタッカーのレベル。
     // `WXK10-084-E1/E2` は `triggerScope:'any_ally'` なので**能力の持ち主（sourceCardNum）と
@@ -285,27 +289,27 @@ export function execStubPart2(
     //   （`collectAttackerSelfTriggers`＝`triggerCollect.ts:3534`／`collectFieldTriggers` の any_ally＝`:3649`）。
     const attackerNumPMAL = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     const attackerLvPMAL = parseInt(toHWPMAL(ctx.cardMap.get(getCardNum(attackerNumPMAL ?? ''))?.Level ?? '0')) || 0;
-    const perMPMAL = txtPMAL.match(/レベル([０-９\d]*)につき([－＋][０-９\d]+)/);
-    if (!perMPMAL || attackerLvPMAL === 0) return done(addLog(ctx, `パワー修正（アタッカーLv${attackerLvPMAL}）`));
-    const divisorPMAL = parseInt(toHWPMAL(perMPMAL[1] || '1')) || 1;
-    const deltaPMAL = parseInt(toHWPMAL(perMPMAL[2]).replace('－', '-').replace('＋', '+'));
+    if (attackerLvPMAL === 0) return done(addLog(ctx, `パワー修正なし（アタッカーLv${attackerLvPMAL}）`));
+    const divisorPMAL = specPMAL.per || 1;
+    const deltaPMAL = specPMAL.delta;
     const totalDeltaPMAL = Math.floor(attackerLvPMAL / divisorPMAL) * deltaPMAL;
     // 対象シグニが未選択なら SELECT_TARGET で相手シグニを選ぶ（レベル奇数/偶数でフィルタ）
     if (!ctx.lastProcessedCards?.length) {
-      const parityMPMAL = txtPMAL.match(/レベルが(奇数|偶数)の対戦相手/);
-      const parityPMAL = parityMPMAL?.[1];
+      const parityPMAL = specPMAL.targetParity;
       const oppCandsPMAL = ctx.otherState.field.signi.flatMap(s => {
         const top = s?.at(-1);
         if (!top) return [];
         if (parityPMAL) {
           const lv = parseInt(toHWPMAL(ctx.cardMap.get(top)?.Level ?? '0')) || 0;
-          if (parityPMAL === '奇数' && lv % 2 === 0) return [];
-          if (parityPMAL === '偶数' && lv % 2 === 1) return [];
+          if (parityPMAL === 'odd' && lv % 2 === 0) return [];
+          if (parityPMAL === 'even' && lv % 2 === 1) return [];
         }
         return [top];
       });
       if (oppCandsPMAL.length === 0) return done(addLog(ctx, '対象相手シグニなし（POWER_MOD_BY_ATTACKER_LEVEL）'));
-      const contPMAL: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL' };
+      // 🔴**継続ステップにも payload を積む**＝この受け皿は SELECT_TARGET のあと**自分自身へ再入**する。
+      //   積み忘れると2周目が payload 無し＝fail-closed で**何も起きない**（第59バッチで golden が捕捉）。
+      const contPMAL: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL', powerPerUnit: specPMAL };
       return needsInteraction(addLog(ctx, '対象シグニを選択（アタッカーレベルによるパワー修正）'), {
         type: 'SELECT_TARGET', candidates: oppCandsPMAL, count: 1, optional: false,
         targetScope: 'opp_field', thenAction: contPMAL as EffectAction,
@@ -1140,12 +1144,14 @@ export function execStubPart2(
   }
   // === バッチ4: デッキ/手札/エナ操作 ===
   // DRAW: N枚ドロー
+  // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝枚数は payload（`count`）で受け取る。**
+  //   🔴旧実装は `sourceAbilityText(ctx)` に `カードを([０-９\d]+)枚引く` を当てていたが、
+  //     この受け皿へ来る唯一の文型（「デッキをシャッフルし一番上のカードを公開し手札に加える」）の
+  //     原文には**その句が無い**＝**必ず外れて既定1**だった（たまたま正しい数だっただけ）。
+  //   ⚠**payload が無ければ1枚**＝この受け皿は「1枚を手札へ」以外の形を持たない
+  //     （枚数が増える文型はすべて typed `DRAW` が拾う）。
   if (stub.id === 'DRAW') {
-    // §6.4 O-20: カード全文だと別能力の「カードを２枚引く」を拾う（`WXDi-P10-006` は E2 の枚数が E3 に載っていた）。
-    const txtDRW = sourceAbilityText(ctx);
-    const toHWDRW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mDRW = txtDRW.match(/カードを([０-９\d]+)枚引く/);
-    const drawCountDRW = mDRW ? parseInt(toHWDRW(mDRW[1])) : 1;
+    const drawCountDRW = stub.count ?? 1;
     const sDRW = ctx.ownerState;
     const canDrawDRW = Math.min(drawCountDRW, sDRW.deck.length);
     const newSDRW: PlayerState = { ...sDRW, hand: [...sDRW.hand, ...sDRW.deck.slice(0, canDrawDRW)], deck: sDRW.deck.slice(canDrawDRW) };
@@ -4029,11 +4035,14 @@ export function execStubPart2(
   // 選んだキーワード/保護能力付与（シグニ対象・SELECT_TARGET→CHOOSEインタラクション）
   // ※ SIGNI_GRANT_CHOSEN_ABILITY（WXK09-050＝表記パワー比較＋DOWN/BOUNCE 保護）は execStubPart1 の
   //   カード固有ハンドラが先取りするためここには到達しない（generic は power 比較/保護を扱えない・タスク12(iii)）。
+  // 🆕🔴**§5.3 `O-60` 第59バッチ（2026-09-03）＝選択肢・選択数・対象クラスは payload で受け取る。**
+  //   旧実装は `sourceAbilityText(ctx)` に**8本のキーワード regex**を当てて選択肢を組み立てており、
+  //   ①**原文の①②③の並び順を無視して engine 側のパターン順**で提示し、
+  //   ②8種の表に無いキーワードの効果は**「能力解析不可」で無言 no-op** になっていた。
+  // ⚠**payload が無い宣言は何もしない**（fail-closed）。
   if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF') {
-    // §6.4 O-20: 全文だと別能力のクラス限定を拾う（`WXK04-002-E3` は E2 の＜紅蓮＞を拾い、
-    // **クラス無指定の対象が＜紅蓮＞へ限定**されていた）のでブロックだけを読む。
-    const txtGCA = sourceAbilityText(ctx);
-    const toHWGCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const specGCA = stub.chosenAbility;
+    if (!specGCA) return done(addLog(ctx, '[未実装] 選んだ能力の付与（payload なし）'));
     // _SELF は「このシグニは選んだ能力を得る」＝対象選択なしで効果元自身（WXK08-026。
     // 従来は自シグニ全体から SELECT_TARGET していた＝対象の過剰許容・続き77 Opusタスク12(e)）
     const selfTargetGCA = stub.id === 'GRANT_CHOSEN_ABILITY_SELF' && ctx.sourceCardNum
@@ -4048,40 +4057,24 @@ export function execStubPart2(
       // 原文に「あなたの＜X＞のシグニ１体を対象とし」のクラス限定があれば候補に適用する
       // （フィルタ無視の過剰許容を防ぐ＝続き77 Opusタスク12(e)。パワー比較条件等の複雑形は
       //  カード固有ハンドラ（execStubPart1 の SIGNI_GRANT_CHOSEN_ABILITY＝WXK09-050）の管轄）
-      const tgtClassGCA = txtGCA.match(/あなたの＜([^＞]+)＞のシグニ[０-９\d]+体を対象とし/)?.[1];
+      const tgtClassGCA = specGCA.targetStory;
       const fieldCandsGCA = [0,1,2]
         .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
         .filter((cn): cn is string => !!cn)
         .filter(cn => !tgtClassGCA || (ctx.cardMap.get(cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn)?.CardClass ?? '').includes(tgtClassGCA));
       if (fieldCandsGCA.length === 0) return done(addLog(ctx, '能力付与対象なし（自シグニなし）'));
       const noopGCA: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-      const contGCA: StubAction = { type: 'STUB', id: stub.id };
+      // 🔴**継続ステップにも payload を積む**（自己再帰する受け皿。第59バッチの教訓）。
+      const contGCA: StubAction = { type: 'STUB', id: stub.id, chosenAbility: specGCA };
       return needsInteraction(addLog(ctx, '能力を付与するシグニを選択'), {
         type: 'SELECT_TARGET', candidates: fieldCandsGCA, count: 1, optional: false,
         targetScope: 'self_field', thenAction: noopGCA as EffectAction, continuation: contGCA as EffectAction,
       });
     }
-    // 選択数（"N つ選ぶ" or デフォルト1）
-    const chooseCountGCA = (() => {
-      const m = txtGCA.match(/([２-９2-9\d])つを選ぶ/);
-      return m ? parseInt(toHWGCA(m[1])) : 1;
-    })();
-    // テキストから選択肢を抽出（①②③④⑤）
-    const abilitiesGCA: Array<{ label: string; kw: string }> = [];
-    const abilityPatterns: Array<[RegExp, string]> = [
-      [/【アサシン】/, 'アサシン'],
-      [/【ランサー】/, 'ランサー'],
-      [/【ダブルクラッシュ】/, 'ダブルクラッシュ'],
-      [/【シャドウ】/, 'シャドウ'],
-      [/【マルチエナ】/, 'マルチエナ'],
-      [/バニッシュされない/, 'バニッシュ不可'],
-      [/ダウンしない/, 'ダウン不可'],
-      [/手札に戻らない/, 'バウンス不可'],
-    ];
-    for (const [pat, kw] of abilityPatterns) {
-      if (pat.test(txtGCA)) abilitiesGCA.push({ label: `【${kw}】を付与`, kw });
-    }
-    if (abilitiesGCA.length === 0) return done(addLog(ctx, `[能力付与: ${stub.id}]（能力解析不可）`));
+    // 選択数と選択肢は payload（原文の①②③の並び順）。
+    const chooseCountGCA = specGCA.chooseCount;
+    const abilitiesGCA = specGCA.keywords.map(kw => ({ label: `【${kw}】を付与`, kw }));
+    if (abilitiesGCA.length === 0) return done(addLog(ctx, '[未実装] 選んだ能力の付与（選択肢なし）'));
     const optionsGCA = abilitiesGCA.map(({ label, kw }) => ({
       id: kw,
       label,

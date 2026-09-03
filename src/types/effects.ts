@@ -4455,6 +4455,63 @@ export interface StubAction {
    */
   lrigLimitChange?: { owner: Owner; delta: number };
   /**
+   * 🆕**`POWER_MOD_BY_*`（「〈数え上げ〉N につき ±M」）の単価**（§5.3 `O-60` 第59バッチ・2026-09-03）。
+   * 対象＝`POWER_MOD_BY_LRIG_LEVEL_SUM`（場のルリグのレベル合計）／
+   * `POWER_MOD_BY_COLOR_VARIETY`（自場シグニが持つ色の種類）／
+   * `POWER_MOD_BY_ATTACKER_LEVEL`（アタックしたシグニのレベル）。
+   * 🔴**旧実装は engine がアビリティブロックに `〜につき([－＋][０-９\d]+)` を当てて単価を読んでいた**。
+   * ⚠**このペイロードが無い宣言は何もしない**（fail-closed）＝
+   *   `POWER_MOD_BY_COLOR_VARIETY` の既定 `-3000` は**原文に無い数値を焼き込んだ**ものだった。
+   */
+  powerPerUnit?: {
+    /** 「N につき」の N。 */
+    per: number;
+    /** 1単位あたりのパワー増減。 */
+    delta: number;
+    /**
+     * `POWER_MOD_BY_ATTACKER_LEVEL` の対象を「**レベルが奇数／偶数の**対戦相手のシグニ」に絞る。
+     * ⚠`WXK10-084` は奇偶2能力が同居する＝**効果ごとに逆**なので、必ず効果単位で刻む。
+     */
+    targetParity?: 'odd' | 'even';
+  };
+  /**
+   * 🆕**`TRASH_ALL_SIGNI_AND_KEY` の中身**（§5.3 `O-60` 第59バッチ・2026-09-03）。
+   * 🔴**この id は2つの別々の文型の catch-all だった**＝
+   *   `WX07-017-E1`「**各プレイヤーは、自分の手札とエナゾーンにあるカードと場にあるシグニを**
+   *   すべてトラッシュに置く」と `WXEX2-21-E3`「**すべてのシグニ**をトラッシュに置き、
+   *   **すべてのキー**をルリグトラッシュに置く」。engine は `各プレイヤー|すべてのシグニ` と
+   *   `対戦相手` の2本で分岐しており、**どのゾーンを流すか・キーを流すか**を区別できていなかった。
+   * ⚠**このペイロードが無い宣言は何もしない**（fail-closed）＝盤面を全部流す破壊的な既定は持たせない。
+   */
+  trashAllScope?: {
+    /** トラッシュへ送るゾーン。 */
+    zones: Array<'signi' | 'hand' | 'energy'>;
+    /** すべてのキーをルリグトラッシュへ置く。 */
+    keys?: boolean;
+    /** 影響を受けるプレイヤー。 */
+    owner: 'self' | 'opponent' | 'both';
+  };
+  /**
+   * 🆕**`GRANT_CHOSEN_ABILITY` / `GRANT_CHOSEN_ABILITY_SELF` の中身**
+   * （§5.3 `O-60` 第59バッチ・2026-09-03）。
+   * 🔴**旧実装は engine がアビリティブロックに8本のキーワード regex を当てて選択肢を組み立て、
+   *   さらに `([２-９2-9\d])つを選ぶ` で選択数を、`あなたの＜X＞のシグニN体を対象とし` で
+   *   対象クラスを読んでいた**。⇒ **原文の①②③の並び順を無視して engine 側のパターン順**で出るうえ、
+   *   キーワードが8種の表に無い効果は**「能力解析不可」で無言 no-op** になる。
+   * ⚠**このペイロードが無い宣言は何もしない**（fail-closed）。
+   * ⚠**`choiceTextParser.ts` のモーダル選択 family とは別**＝あちらは「①②③がそれぞれ別のアクション」で、
+   *   こちらは「①②③がすべて**付与するキーワード**」＝engine 側の8種表で閉じている。
+   */
+  chosenAbility?: {
+    /** 「〈N〉つを選ぶ」の N。 */
+    chooseCount: number;
+    /** 付与候補（engine の内部語彙。原文の①②③の順）。 */
+    keywords: string[];
+    /** 「あなたの＜X＞のシグニN体を対象とし」の絞り込み。 */
+    targetStory?: string;
+  };
+
+  /**
    * 🆕**`TRASH_SIGNI_UNDER_FIELD_SIGNI` / `INTERNAL_TSU_CHOOSE_ZONE` の中身**
    * （§5.3 `O-60` 第58バッチ・2026-09-03）。
    * 🔴**旧実装は engine が原文に4本の regex を当てていた**＝
