@@ -64478,6 +64478,41 @@ test('§5.3 O-198: live に「pickCount:ALL かつ pickUpTo 無し」は残っ�
   eq(bad.length, 0, `pickCount:'ALL' かつ pickUpTo 無し: ${[...new Set(bad)].join(', ')}`);
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-192`（2026-09-04・索引 A 第31巡）＝🏁**クローズ**。登録票の「19効果」は実測 **0**。
+// 🔴**engine 側の非対称は残っている**＝`matchesFilter` の `cardType` は厳密一致で、
+//    緩めているのは「レゾナ → シグニ」の一方向だけ。`'アシストルリグ'` は `'ルリグ'` に一致しない。
+//    ⇒ **parser が配列形 `['ルリグ','アシストルリグ']` を出すことでだけ**正しく動いている。
+//    この test はその配線が外れたら止まるラチェット（engine を直さない代わりの安全網）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-192: 場のルリグ条件はアシストルリグを数える（cardType の配列形が外れたら FAIL）', () => {
+  const bad: string[] = [];
+  let withAssist = 0;
+  for (const [num, effs] of effectsMap) for (const e of effs) {
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as { type?: string; filter?: { cardType?: string | string[] } };
+      if (o.type === 'HAS_CARD_IN_FIELD' && o.filter?.cardType) {
+        const t = ([] as string[]).concat(o.filter.cardType);
+        if (t.includes('ルリグ')) {
+          if (t.includes('アシストルリグ')) withAssist++;
+          else bad.push(`${num}/${e.effectId}`);
+        }
+      }
+      for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+    };
+    walk(e);
+  }
+  eq(bad.length, 0, `場のルリグ条件がアシストを数え落としている: ${[...new Set(bad)].slice(0, 5).join(', ')}`);
+  ok(withAssist >= 50, `配列形の実物が十分ある（現在 ${withAssist}）＝この test が空振りしていない`);
+  // engine の非対称そのものも凍結する（緩めるなら意図的に、この注記ごと更新すること）。
+  const eu = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  ok(eu.includes("(card.Type === 'レゾナ' && types.includes('シグニ'"),
+    'cardType の緩和はレゾナ→シグニの一方向だけ（アシストルリグは緩めていない）');
+});
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
