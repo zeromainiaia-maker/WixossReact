@@ -6618,9 +6618,13 @@ test('§6.4 reveal-pick 11効果: live JSON の公開元・枚数・filter・行
   const chain = findActionByType(manualEffect('WX24-P4-008', 'WX24-P4-008-E1').action, 'LOOK_PICK_CHAIN')!;
   eq(JSON.stringify(chain), JSON.stringify({
     type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3,
+    // 🆕**§5.3 `O-198`（2026-09-04）＝両段に `pickUpTo` を足した**。原文「その中からシグニを
+    //   **好きな枚数**場に出し、カードを**好きな枚数**手札に加え、残りをエナゾーンに置く」＝
+    //   選ばないこともできる。無いと `SEARCH{optional}` が立たず UI が「選択数 ≧ 候補数」を要求し、
+    //   **公開3枚が1枚残らず場と手札へ流れて `remainder`（エナ）に何も残らない**過大実行だった。
     stages: [
-      { filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field' },
-      { pickCount: 'ALL', pickNoun: 'カード', then: 'hand' },
+      { filter: { cardType: 'シグニ' }, pickCount: 'ALL', pickUpTo: true, then: 'field' },
+      { pickCount: 'ALL', pickUpTo: true, pickNoun: 'カード', then: 'hand' },
     ],
     remainder: { location: 'energy', position: 'any' },
   }));
@@ -6649,7 +6653,7 @@ test('§6.4 reveal-pick 11効果: live JSON の公開元・枚数・filter・行
     { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, shuffle: true },
     { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'opponent', count: 'ALL' }, shuffle: true },
   ]), 'WXDi-P01-026-E1: 両者のシグニゾーン＋トラッシュをデッキへ');
-  const refillStage = { filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field', suppressOnPlay: true };
+  const refillStage = { filter: { cardType: 'シグニ' }, pickCount: 'ALL', pickUpTo: true, then: 'field', suppressOnPlay: true };
   eq(JSON.stringify(eachReset.steps.slice(4)), JSON.stringify([
     { type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 7, stages: [refillStage], remainder: { location: 'trash', position: 'any' } },
     { type: 'LOOK_PICK_CHAIN', owner: 'opponent', revealCount: 7, stages: [refillStage], remainder: { location: 'trash', position: 'any' }, opponentResponds: true },
@@ -64423,6 +64427,56 @@ test('§5.3 O-193: 「合計がこのシグニのパワー以下」は totalPowe
     JSON.stringify({ $ref: 'source_effective_power' }),
     'WXEX2-52-E3: 合計上限が効果元の実効パワーを参照する');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-198`（2026-09-04・索引 A 第30巡）＝🏁**クローズ**。登録票の「23効果」は失効し、
+//   実測の真の穴は **2効果 / 4ステージ**（「好きな枚数」が `pickUpTo` を落としていた）だけだった。
+// 🔑登録票の「`pickCount` が上限としてしか渡らず0枚を選べる（過小実行）」は**現状に当てはまらない**＝
+//    `EffectInteractionModal` の確定ゲートは `optional` が無ければ `選択数 ≧ maxPick` を要求する。
+//    ⇒ 実害の向きは**逆**（`pickUpTo` が無い ALL は「1枚残らず取らされる」過大実行）だった。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-198: 「好きな枚数」の LOOK_PICK_CHAIN は pickUpTo を持つ', () => withSavedCursor(() => {
+  // 🔴無いと `SEARCH{optional}` が立たず、UI が「選択数 ≧ 候補数」を要求する＝
+  //   `WX24-P4-008-E1` は公開3枚が1枚残らず場と手札へ流れて `remainder`（エナ）に何も残らず、
+  //   `WXDi-P01-026-E1` は公開7枚のシグニが全部場に出る（空きゾーンぶんだけ）。原文はどちらも選択。
+  const stagesOf = (num: string, id: string): Array<{ pickCount?: unknown; pickUpTo?: boolean; then?: string }> => {
+    const out: Array<{ pickCount?: unknown; pickUpTo?: boolean; then?: string }> = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as { type?: string; stages?: unknown[] };
+      if (o.type === 'LOOK_PICK_CHAIN' && Array.isArray(o.stages)) out.push(...(o.stages as typeof out));
+      for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+    };
+    walk(effectsMap.get(num)?.find(e => e.effectId === id)?.action);
+    return out;
+  };
+  const a = stagesOf('WX24-P4-008', 'WX24-P4-008-E1');
+  eq(a.length, 2, 'WX24-P4-008-E1: 2段');
+  ok(a.every(st => st.pickCount === 'ALL' && st.pickUpTo === true), 'WX24-P4-008-E1: 両段とも「好きな枚数」');
+  const b = stagesOf('WXDi-P01-026', 'WXDi-P01-026-E1');
+  eq(b.length, 2, 'WXDi-P01-026-E1: 各プレイヤーぶんで2本');
+  ok(b.every(st => st.pickCount === 'ALL' && st.pickUpTo === true), 'WXDi-P01-026-E1: 両者とも「好きな枚数」');
+}));
+
+test('§5.3 O-198: live に「pickCount:ALL かつ pickUpTo 無し」は残っていない', () => {
+  // 🔑ラチェット＝この形が復活したら「全部取らされる」過大実行が戻ったということ。
+  const bad: string[] = [];
+  for (const [num, effs] of effectsMap) for (const e of effs) {
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as { type?: string; stages?: Array<{ pickCount?: unknown; pickUpTo?: boolean }> };
+      if (o.type === 'LOOK_PICK_CHAIN') {
+        for (const st of o.stages ?? []) if (st.pickCount === 'ALL' && !st.pickUpTo) bad.push(`${num}/${e.effectId}`);
+      }
+      for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+    };
+    walk(e.action);
+  }
+  eq(bad.length, 0, `pickCount:'ALL' かつ pickUpTo 無し: ${[...new Set(bad)].join(', ')}`);
+});
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、

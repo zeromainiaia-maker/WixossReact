@@ -13049,7 +13049,18 @@ function applyLookPickUpTo(text: string, parsed: EffectAction): EffectAction {
   // ⚠**ピック節と chain は本数が一致するときだけ対応づける**（択一カードは「その中から〜残りを」が
   //   選択肢ごとに現れ、chain も選択肢ごとに立つ＝`WX26-CP1-019-E1` は 2節 × 2ステージ）。
   const clauses = [...text.matchAll(/その中から(.+?)、\s*残りを/g)].map(m => m[1]);
-  if (!chains.length || chains.length !== clauses.length) return parsed;
+  if (!chains.length) return parsed;
+  // 🆕**§5.3 `O-198`（2026-09-04）＝「各プレイヤーは…」の鏡像は 1節 × N本になる。**
+  //   `WXDi-P01-026-E1`「**各プレイヤーは**自分のデッキの上からカードを７枚見て、その中から
+  //   好きな枚数のシグニを場に出し、残りをトラッシュに置く」＝chain がプレイヤーごとに2本立つのに
+  //   ピック節は1つしか無く、本数一致の条件で**丸ごと降りていた**。
+  //   ⚠**ステージ形状が全本で同一のときだけ**配る（別々の節を持つ択一カードを巻き込まない）。
+  if (chains.length !== clauses.length) {
+    const shape = (st: LookPickStage[]) => JSON.stringify(st.map(x => [x.pickCount, x.then]));
+    if (clauses.length !== 1 || chains.length < 2 || new Set(chains.map(shape)).size !== 1) return parsed;
+    for (const stages of chains) applyUpToClause(clauses[0], stages);
+    return parsed;
+  }
   chains.forEach((stages, i) => applyUpToClause(clauses[i], stages));
   return parsed;
 }
@@ -13060,7 +13071,14 @@ function applyUpToClause(clause: string, stages: LookPickStage[]): void {
   //   （`WXDi-P02-020-E1`「カードを１枚まで手札に加え、シグニを２枚まで場に出し」）、降りると残り半分が
   //   永久に固定枚数のままになる。全ステージに載っているときだけ何もしない（冪等）。
   if (stages.length === 0 || stages.every(st => st.pickUpTo)) return;
-  const picks = [...clause.matchAll(/([０-９\d]+)枚(まで)?/g)].map(m => ({ n: parseNum(m[1]), upTo: m[2] === 'まで' }));
+  // 🆕**§5.3 `O-198`（2026-09-04）＝「好きな枚数」も上限（0枚でもよい）として数える。**
+  //   🔴`pickCount:'ALL'` は engine では「公開札の該当カード**全部**」＝`pickUpTo` が無いと
+  //     `SEARCH{optional}` が立たず、UI の確定ゲートが `選択数 >= maxPick` を要求する＝
+  //     **該当カードを1枚残らず取らされる**（`WX24-P4-008-E1`＝3枚全部が場と手札へ強制的に流れ、
+  //     `WXDi-P01-026-E1`＝7枚のシグニが全部場に出る）。原文はどちらも「**好きな枚数**」＝プレイヤーの選択。
+  //   ⚠数詞の「N枚（まで）」と同じ表に載せる＝`pickCount:'ALL'` と対応づけて1対1判定に乗せる。
+  const picks = [...clause.matchAll(/(?:([０-９\d]+)枚(まで)?|(好きな枚数))/g)]
+    .map(m => (m[3] ? { n: 'ALL' as const, upTo: true } : { n: parseNum(m[1]) as number | 'ALL', upTo: m[2] === 'まで' }));
   if (!picks.some(p => p.upTo)) return;
   // 規則①＝出現と枚数がステージへ1対1で対応する（「カードを1枚まで手札に加え、カードを1枚までトラッシュに置き」）
   if (picks.length === stages.length && picks.every((p, i) => p.n === stages[i].pickCount)) {
@@ -23224,7 +23242,10 @@ function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAct
     } as EffectAction);
     const refill = (owner: 'self' | 'opponent'): EffectAction => ({
       type: 'LOOK_PICK_CHAIN', owner, revealCount,
-      stages: [{ filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field',
+      // 🆕**§5.3 `O-198`（2026-09-04）＝`pickUpTo` を書く**。原文は「**好きな枚数**の
+      //   シグニを場に出し」＝プレイヤーの選択。無いと `SEARCH{optional}` が立たず、
+      //   UI の確定ゲートが「選択数 ≧ 候補数」を要求する＝**公開7枚のシグニを全部場に出させられる**。
+      stages: [{ filter: { cardType: 'シグニ' }, pickCount: 'ALL', pickUpTo: true, then: 'field',
         ...(suppress ? { suppressOnPlay: true } : {}) }],
       remainder: { location: 'trash', position: 'any' },
       ...(owner === 'opponent' ? { opponentResponds: true } : {}),
@@ -23278,9 +23299,11 @@ function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAct
     const count = parseNum(multiM[1]);
     const replacement: EffectAction = {
       type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: count,
+      // 🆕**§5.3 `O-198`（2026-09-04）＝両段に `pickUpTo` を書く**（原文「**好きな枚数**」×2）。
+      //   無いと3枚が1枚残らず場と手札へ流れ、`remainder`（エナゾーン）へは何も残らない。
       stages: [
-        { filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field' },
-        { pickCount: 'ALL', pickNoun: 'カード', then: 'hand' },
+        { filter: { cardType: 'シグニ' }, pickCount: 'ALL', pickUpTo: true, then: 'field' },
+        { pickCount: 'ALL', pickUpTo: true, pickNoun: 'カード', then: 'hand' },
       ],
       remainder: { location: 'energy', position: 'any' },
     } as import('../types/effects').LookPickChainAction;
