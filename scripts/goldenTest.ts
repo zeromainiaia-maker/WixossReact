@@ -64513,6 +64513,34 @@ test('§5.3 O-192: 場のルリグ条件はアシストルリグを数える（c
     'cardType の緩和はレゾナ→シグニの一方向だけ（アシストルリグは緩めていない）');
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3（2026-09-04・索引 A 第32巡）＝`census:wiring` 最大セル `eachDistinctColor`（miss 28）の較正。
+// 🔴「共通する色を持たない」は**3つの別の意味**を持ち、正準形も3つある：
+//    (a) 相互差異（「それぞれ／それと」）      → `selectionConstraint.sharedColor:'none'`
+//    (b) 場のシグニ集合が相互差異             → 条件型 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI`
+//    (c) 基準比較（「センタールリグと」「このシグニと」）→ `colorNotMatchesLrig` / `colorNotMatchesSource`
+//    素の regex はこれを1つの miss 群に混ぜていた（実測 28 のうち**真の穴は 0**）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 wiring 較正: 「共通する色を持たない」の3用法が別々の正準形で配線されている', () => withSavedCursor(() => {
+  // (a) 同じ選択の中の前の1枚と違う色＝`sharedColor:'none'`（「カード1枚と、それと共通する色を持たない…」）
+  const p12 = JSON.stringify(effectsMap.get('WXDi-P12-039')?.find(e => e.effectId === 'WXDi-P12-039-E1')?.action);
+  ok(p12?.includes('"sharedColor":"none"'), 'WXDi-P12-039-E1: 相互差異は selectionConstraint');
+  const p1003 = JSON.stringify(effectsMap.get('WX25-P1-003')?.find(e => e.effectId === 'WX25-P1-003-E1')?.action);
+  ok(p1003?.includes('"sharedColor":"none"'), 'WX25-P1-003-E1: 引用能力の中でも相互差異は selectionConstraint');
+  // (b) 場のシグニ集合が相互に色を共有しない＝専用の条件型
+  const w21 = effectsMap.get('WX21-006')?.find(e => e.effectId === 'WX21-006-E1')?.action as { condition?: { type?: string } };
+  eq(w21?.condition?.type, 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', 'WX21-006-E1: 場の集合の相互差異は条件型');
+  // (c) 基準比較＝ルリグ基準の専用キー
+  const w24 = JSON.stringify(effectsMap.get('WX24-P2-034')?.find(e => e.effectId === 'WX24-P2-034-E1')?.action);
+  ok(w24?.includes('colorNotMatchesLrig'), 'WX24-P2-034-E1: センタールリグ基準は colorNotMatchesLrig');
+  // 計器の較正が入っていること（素の regex へ戻ると 28 件の偽陽性が復活する）。
+  const wiring = fs.readFileSync(join(root, 'scripts/censusWiring.ts'), 'utf8');
+  ok(wiring.includes("key: 'colorNotMatchesRef'"), 'censusWiring が基準比較を別キーで数える');
+  ok(wiring.includes('(?<!(?:ルリグ|このシグニ|このカード)と)共通する色を持たない'),
+    'eachDistinctColor は基準比較を除外する');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

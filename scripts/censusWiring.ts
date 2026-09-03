@@ -91,9 +91,24 @@ const VOCAB: Vocab[] = [
   { key: 'eachDistinctLevel', re: /(?:それぞれ)?レベルの異なる/,
     jsonRe: /"distinct"\s*:\s*"level"|"distinctLevels"\s*:/,
     note: '正準形は selectionConstraint.distinct' },
-  { key: 'eachDistinctColor', re: /(?:それぞれ)?共通する色を持たない/,
-    jsonRe: /"sharedColor"\s*:\s*"none"/,
-    note: '正準形は selectionConstraint.sharedColor' },
+  // 🆕**§5.3（2026-09-04・索引 A 第32巡）＝「相互に異なる」と「基準と違う」を分けた。**
+  //   🔴素の `(?:それぞれ)?共通する色を持たない` は
+  //   (a)**相互差異**「その中から**それぞれ**共通する色を持たないシグニ2枚」＝`selectionConstraint.sharedColor:'none'`
+  //   (b)**基準比較**「（対戦相手の）センタールリグ**と**共通する色を持たない」＝`colorNotMatchesLrig`／
+  //      「**このシグニと**共通する色を持たない」＝`colorNotMatchesSource`
+  //   の**両方**に当たり、全 CSV 実測で (a) 7件 に対し (b) が **46件**＝miss の大半が (b) だった
+  //   （PLAN §5.3 の罠 5. が名指しした「`colorNotMatchesLrig` は既に正しかった 36件」の再発）。
+  //   ⇒ 直前が「と」なら (b) として除外し、(b) は**別キーで数える**（概念ごと消さない）。
+  //   ⚠**「〜と」が付いていても相互差異のことがある**＝「カード１枚**と、それと**共通する色を持たない
+  //     カードを１枚まで」（`WX25-P1-003`／`WXDi-P12-039`）は**同じ選択の中の前の1枚**を指すので
+  //     正準形は `sharedColor:'none'`。基準比較と読めるのは**ルリグ／効果元**を名指した形だけ。
+  { key: 'eachDistinctColor', re: /(?<!(?:ルリグ|このシグニ|このカード)と)共通する色を持たない/,
+    jsonRe: /"sharedColor"\s*:\s*"none"|"NO_COMMON_COLOR_AMONG_FIELD_SIGNI"/,
+    note: '相互差異のみ。正準形は selectionConstraint.sharedColor' },
+  // 基準比較の側（ルリグ基準／効果元基準）。どちらも `TargetFilter` に専用キーがあり engine が消費済み。
+  { key: 'colorNotMatchesRef', re: /(?:ルリグ|このシグニ|このカード)と共通する色を持たない/,
+    jsonRe: /"colorNotMatchesLrig"\s*:|"colorNotMatchesSource"\s*:|"colorMatchesLrig"\s*:/,
+    note: 'センタールリグ／効果元と比較（相互差異とは別軸）' },
 
   // --- 盤面状態フィルタ（execUtils.matchesFilter / effectEngine.matchesStateFilter） ---
   // 2026-08-22 追加。**この群が VOCAB に無かったため `filter.hasCharm` の配線漏れが
