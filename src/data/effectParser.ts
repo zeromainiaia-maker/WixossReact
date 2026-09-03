@@ -23219,6 +23219,27 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  *   ③「それら」＝①で取った3枚への照応。
  * ⚠**近似に寄せない**＝寄せると「自分の盤面を削る」側へ倒れる（旧実装がまさにそれ）。
  */
+/**
+ * 🆕**§5.3 `O-244`（2026-09-04）＝「コストの合計がN以下になるようにスペルをM枚までチェックゾーンに置き、
+ *   …置いたスペルを好きな順番でコストを支払わずに使用する」**（`WXDi-P10-007-E3`・実測1効果）。
+ *
+ * 🔴**旧 live は `LOOK_AND_REORDER{count:10}` だけ**＝「10枚見る」で終わり、
+ *   **チェックゾーンへ置く・そこから無料で使う**という本文が丸ごと落ちていた（過小実行）。
+ *   しかも逆翻訳が「あなたのデッキの上10枚を見る」と**実装済みのように**読めるので、
+ *   `census` の高シグナルでしか気づけない状態だった。
+ *
+ * ■**要るもの**＝①`LOOK_PICK_CHAIN` の行き先に**チェックゾーン**（`then:'check'`）
+ *   ②`selectionConstraint` に**コスト合計の上限**（`totalCostMax`。既存は level/power だけ）
+ *   ③**チェックゾーンからコストを支払わずに使用する**（`PLAY_FREE` の source に `check` が無い）
+ *   ④「好きな順番で」＝複数枚の使用順の選択。
+ * ⚠**近似に寄せない**＝「10枚見るだけ」に留めるのも、順番や上限を無視して全部撃つのも原文と別物。
+ */
+function deferCheckZoneFreeCast(action: EffectAction, sourceText: string): EffectAction {
+  if (!/コストの合計が[０-９\d]+以下になるようにスペルを[０-９\d]+枚までチェックゾーンに置き/.test(sourceText)) return action;
+  if (!/コストを支払わずに使用する/.test(sourceText)) return action;
+  return { type: 'STUB', id: 'DEFERRED_CHECK_ZONE_FREE_CAST' } as EffectAction;
+}
+
 function deferCrossZoneTripleTarget(action: EffectAction, sourceText: string): EffectAction {
   if (!/対戦相手の、シグニ[０-９\d]+体とエナゾーンにあるカード[０-９\d]+枚とトラッシュにあるカード[０-９\d]+枚を対象とし/.test(sourceText)) return action;
   return { type: 'STUB', id: 'DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM' } as EffectAction;
@@ -25619,6 +25640,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = foldColorMatchAllToEnergy(folded, card.EffectText ?? '');
     folded = foldRevealPickPlay(folded, card.EffectText ?? '');
     folded = deferCrossZoneTripleTarget(folded, currentSourceText(e.effectId) ?? '');
+    folded = deferCheckZoneFreeCast(folded, currentSourceText(e.effectId) ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);
