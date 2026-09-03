@@ -4,26 +4,24 @@
 --- 語彙キー別サマリ（miss 降順）---
   miss   has  語彙キー
     12   530  powerRange  ※大クラスタ・action の値との取り違えに注意
-     9     7  acceHost  ※装着ホスト参照（hasAcce とは別キー）
      6   120  levelExact  ※大クラスタ・レベル丁度
      5   285  levelRange  ※大クラスタ
      4  1305  cardClass  ※大クラスタ・対象名詞句用法のみ
-     4     3  levelEqTrigger
      4    34  hasGuard
      3    31  eachDistinctLevel  ※正準形は selectionConstraint.distinct
      3    37  excludeCardName
-     3     6  levelLtTrigger
      1   334  color  ※大クラスタ
      1    23  crossState
      1    43  hasRiseIcon
      1    12  powerLtSelf
-     1     2  powerLtTrigger
      1    62  isDisona
      0    27  hasCrossIcon
+     0     9  levelLtTrigger
      0    41  triggerSubjectClass  ※トリガー主語のクラス限定
      0    27  colorNotMatchesRef  ※センタールリグ／効果元と比較（相互差異とは別軸）
      0     4  noRiseIcon
      0    10  isSelfAcced  ※ActiveCondition/Condition 側（TargetFilter ではない）
+     0    16  acceHost  ※装着ホスト参照（hasAcce とは別キー）
      0    31  infected
      0    32  nonColorless
      0     9  powerLteSelf
@@ -38,37 +36,31 @@
      0    78  noGuard
      0   162  isUp
      0    15  noAbilities
+     0     7  levelEqTrigger
      0     5  excludeResona
      0     6  eachDistinctColor  ※相互差異のみ。正準形は selectionConstraint.sharedColor
      0     4  isDown
      0     1  levelGtTrigger
+     0     3  powerLtTrigger
      0     4  isAwakened
      0     1  powerGtSelf
-    59        合計
+    42        合計
 
 --- 除外：一度も配線されていない語彙（＝配線漏れではなく機構未実装／計器の誤検出）---
   levelLtSelf  miss=1 has=0
 
 --- セル別明細（miss 降順・上位のみ stdout／全量は docs/_census_wiring.txt）---
-  miss=  9 has=   0  acceHost × GRANT_ACCE_HOST_ABILITY[filter]  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  5 has=  12  powerRange × GRANT_KEYWORD{SIGNI}  ★同入口に配線済みあり＝穴が濃い
   miss=  4 has=   4  powerRange × (filter無)  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  4 has=   0  acceHost × GRANT_PROTECTION{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  4 has=   1  levelEqTrigger × SIGNI[filter]  （同入口の配線済みは僅少＝先に用法分類を）
   miss=  3 has=   3  powerRange × POWER_SET{SIGNI}  （同入口の配線済みは僅少＝先に用法分類を）
   miss=  3 has=   0  levelExact × BLOCK_ACTION{PLAYER}  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  3 has=   0  excludeCardName × (filter無)  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  3 has=   1  levelLtTrigger × HAND_CARD[filter]  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  3 has=   7  acceHost × SIGNI[filter]  ★同入口に配線済みあり＝穴が濃い
   miss=  2 has= 521  powerRange × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  2 has= 465  cardClass × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  2 has=   3  eachDistinctLevel × BANISH{SIGNI}  （同入口の配線済みは僅少＝先に用法分類を）
   miss=  2 has=   4  eachDistinctLevel × SIGNI[filter]  （同入口の配線済みは僅少＝先に用法分類を）
   miss=  2 has=   0  levelRange × BLOCK_ACTION{PLAYER}  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  2 has=   0  levelRange × (filter無)  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  2 has=   0  acceHost × GRANT_KEYWORD{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  2 has=   1  levelEqTrigger × BANISH{SIGNI}  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  2 has=   0  levelEqTrigger × TRASH{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  1 has= 127  color × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has=  19  color × BANISH{SIGNI}  ★同入口に配線済みあり＝穴が濃い
   miss=  1 has=  45  powerRange × HAS_CARD_IN_FIELD[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
@@ -80,19 +72,16 @@
   miss=  1 has=  47  cardClass × HAND_CARD[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has= 111  cardClass × BANISH{SIGNI}  ★★同入口に20件以上の配線済み＝穴がほぼ確実
   miss=  1 has=  93  cardClass × (filter無)  ★★同入口に20件以上の配線済み＝穴がほぼ確実
+  miss=  1 has=   3  eachDistinctLevel × TRASH{DECK_CARD}  （同入口の配線済みは僅少＝先に用法分類を）
+  miss=  1 has=  18  eachDistinctLevel × TRASH_CARD[filter]  ★同入口に配線済みあり＝穴が濃い
+  miss=  1 has=   0  eachDistinctLevel × TRASH{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   0  eachDistinctLevel × POWER_MODIFY{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   1  eachDistinctLevel × TRASH{HAND_CARD}  （同入口の配線済みは僅少＝先に用法分類を）
+  miss=  1 has= 155  levelRange × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
+  miss=  1 has=   7  levelRange × TRASH{HAND_CARD}  ★同入口に配線済みあり＝穴が濃い
+  miss=  1 has=   6  levelRange × FREEZE{SIGNI}  ★同入口に配線済みあり＝穴が濃い
 
 ===== セル別 全明細 =====
-
-## acceHost × GRANT_ACCE_HOST_ABILITY[filter]   miss=9 has=0
-   MISS WX15-058-E3	【常】：これにアクセされている＜調理＞のシグニは「【自】：このシグニがアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。」を得る。
-   MISS WX15-102-E2	【常】：これにアクセされている＜調理＞のシグニは「【常】：このシグニは対戦相手のシグニの効果を受けない。」を得る。
-   MISS WX15-105-E2	【常】：これにアクセされている＜調理＞のシグニは「【常】：このシグニは対戦相手のスペルの効果を受けない。」を得る。
-   MISS WX16-045-E3	【常】：これにアクセされている＜調理＞のシグニは「【自】：このシグニがアタックしたとき、自身のパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。
-   MISS WX16-074-E2	【常】：これにアクセされている＜調理＞のシグニは「【自】：このシグニがバニッシュされたとき、カードを１枚引く。」を得る。
-   MISS WX21-041-E2	【常】：これにアクセされている＜調理＞のシグニは「【常】：このシグニは対戦相手の効果によってダウンしない。」を得る。
-   MISS WXEX1-70-E3	【常】：これにアクセされている＜調理＞のシグニは【ランサー】を得る。
-   MISS WXDi-P09-TK02A-E1	【常】：これにアクセされているシグニは【ランサー】を得る。
-   MISS WXK04-050-E1	【常】：これにアクセされているシグニは「【常】：このシグニは対戦相手のルリグの効果を受けない。」を得る。
 
 ## powerRange × GRANT_KEYWORD{SIGNI}   miss=5 has=12
    MISS WX10-047-E1	【常】：あなたの場にパワー50000以上のシグニがあるかぎり、あなたのシグニは【ランサー】を得る。
@@ -109,19 +98,6 @@
    MISS WXDi-P05-076-E2	【自】：このシグニがアタックしたとき、あなたの場にパワー15000以上のシグニがある場合、【エナチャージ１】をする。
    （配線済み見本: WX20-061-E1, WXDi-P02-079-E2, WXDi-P08-073-E2, WXK07-030-E2）
 
-## acceHost × GRANT_PROTECTION{SIGNI}   miss=4 has=0
-   MISS WX15-102-E2	【常】：これにアクセされている＜調理＞のシグニは「【常】：このシグニは対戦相手のシグニの効果を受けない。」を得る。
-   MISS WX15-105-E2	【常】：これにアクセされている＜調理＞のシグニは「【常】：このシグニは対戦相手のスペルの効果を受けない。」を得る。
-   MISS WX21-041-E2	【常】：これにアクセされている＜調理＞のシグニは「【常】：このシグニは対戦相手の効果によってダウンしない。」を得る。
-   MISS WXK04-050-E1	【常】：これにアクセされているシグニは「【常】：このシグニは対戦相手のルリグの効果を受けない。」を得る。
-
-## levelEqTrigger × SIGNI[filter]   miss=4 has=1
-   MISS WX22-024-BURST	：対戦相手のシグニ１体を対象とし、それをバニッシュする。その後、あなたのトラッシュからそのシグニと同じレベルの＜遊具＞のシグニ１枚を対象とし、それを手札に加える。
-   MISS WXEX2-29-E3	【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。そうした場合、各プレイヤーは自分のデッキからそのシグニと同じレベルのシグニ１枚を探して場に出し、デッキをシャッフルする。
-   MISS WX24-P4-013-E3	【起】《ゲーム１回》アストロジ《白×0》：《リコレクトアイコン》［４枚以上］あなたのデッキの一番上を公開する。このターン、この方法で公開されたシグニと同じレベルの、対戦相手のすべての領域にあるシグニは能力を失う。その後、
-   MISS WXK03-006-E1	【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対象のあなたのシグニ１体を場からトラッシュに置く。そうした場合、そのシグニと同じレベルの対象の対戦相手のシグ
-   （配線済み見本: WX09-014-E2）
-
 ## powerRange × POWER_SET{SIGNI}   miss=3 has=3
    MISS WX15-089-E1	【常】：対戦相手の場にパワー10000以上のシグニがあるかぎり、このシグニの基本パワーは12000になる。
    MISS WX15-090-E1	【常】：対戦相手の場にパワー7000以上のシグニがあるかぎり、このシグニの基本パワーは8000になる。
@@ -137,18 +113,6 @@
    MISS WDK14-014-E2	【出】《ビートアイコン》［４枚以下］《炎魔の孔雀 カイム》以外のシグニ１体を【ビート】にする：カードを１枚引く。
    MISS WXK08-043-E1	【出】《ビートアイコン》［４枚以下］《炎魔の悪意 サマエル》以外のシグニ１体を【ビート】にする：カードを１枚引く。
    MISS WXK10-041-E3	【出】《ビートアイコン》［４枚以下］《炎魔の不正 ベリアル》以外のシグニ１体を【ビート】にする：カードを１枚引く。
-
-## levelLtTrigger × HAND_CARD[filter]   miss=3 has=1
-   MISS WX11-035-E1	【自】：あなたの＜アーム＞のシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つシグニ１枚を場に出してもよい。
-   MISS WX14-009-E2	【自】：あなたのカード名に《フレイスロ》を含むシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つ、カード名に《フレイスロ》を含むシグニ１枚をダウン状態で場に出してもよい。
-   MISS WX19-003-E2	【自】《ターン１回》：対戦相手のターンの間、あなたの＜水獣＞のシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つ＜水獣＞のシグニ１枚を場に出してもよい。
-   （配線済み見本: WX22-001-E3）
-
-## acceHost × SIGNI[filter]   miss=3 has=7
-   MISS WX16-045-E3	【常】：これにアクセされている＜調理＞のシグニは「【自】：このシグニがアタックしたとき、自身のパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。
-   MISS WXEX1-70-E3	【常】：これにアクセされている＜調理＞のシグニは【ランサー】を得る。
-   MISS WXDi-P09-TK02A-E1	【常】：これにアクセされているシグニは【ランサー】を得る。
-   （配線済み見本: WD18-013-E2, WD18-015-E2, SP27-015-E2, WX17-033-E3, WXDi-P09-TK01A-E1, WXK04-080-E2, WXK04-082-E2）
 
 ## powerRange × SIGNI[filter]   miss=2 has=521
    MISS WX25-P2-089-E1	あなたの＜武勇＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。（【アサシン】を持つシグニがアタックすると、正面のシグニが凍結状態でパワー8000以下の場合、バトルをせず対戦相手にダメージを与える）
@@ -177,19 +141,6 @@
 ## levelRange × (filter無)   miss=2 has=0
    MISS WX17-076-E2	【自】：このカードが【アクセ】としてレベル２以下の＜調理＞のシグニに付いたとき、カードを１枚引く。
    MISS WX17-076-E3	【自】：このカードが【アクセ】としてレベル３以上の＜調理＞のシグニに付いたとき、あなたのデッキの一番上のカードをエナゾーンに置く。
-
-## acceHost × GRANT_KEYWORD{SIGNI}   miss=2 has=0
-   MISS WXEX1-70-E3	【常】：これにアクセされている＜調理＞のシグニは【ランサー】を得る。
-   MISS WXDi-P09-TK02A-E1	【常】：これにアクセされているシグニは【ランサー】を得る。
-
-## levelEqTrigger × BANISH{SIGNI}   miss=2 has=1
-   MISS WX22-024-BURST	：対戦相手のシグニ１体を対象とし、それをバニッシュする。その後、あなたのトラッシュからそのシグニと同じレベルの＜遊具＞のシグニ１枚を対象とし、それを手札に加える。
-   MISS WXK03-006-E1	【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対象のあなたのシグニ１体を場からトラッシュに置く。そうした場合、そのシグニと同じレベルの対象の対戦相手のシグ
-   （配線済み見本: WX09-014-E2）
-
-## levelEqTrigger × TRASH{SIGNI}   miss=2 has=0
-   MISS WXEX2-29-E3	【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。そうした場合、各プレイヤーは自分のデッキからそのシグニと同じレベルのシグニ１枚を探して場に出し、デッキをシャッフルする。
-   MISS WXK03-006-E1	【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対象のあなたのシグニ１体を場からトラッシュに置く。そうした場合、そのシグニと同じレベルの対象の対戦相手のシグ
 
 ## color × SIGNI[filter]   miss=1 has=127
    MISS WX02-034-BURST	：シグニ１体を対象とし、あなたのエナゾーンに赤のカードと緑のカードがある場合、それをバニッシュする。
@@ -278,22 +229,6 @@
 ## powerLtSelf × HAND_CARD[filter]   miss=1 has=0
    MISS WX16-025-E1	【自】：このシグニが場を離れたとき、あなたの手札からこのシグニよりパワーの低いシグニ１枚を場に出してもよい。
 
-## acceHost × BANISH{SIGNI}   miss=1 has=0
-   MISS WX16-045-E3	【常】：これにアクセされている＜調理＞のシグニは「【自】：このシグニがアタックしたとき、自身のパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。
-
-## levelEqTrigger × TRASH_CARD[filter]   miss=1 has=1
-   MISS WX22-024-BURST	：対戦相手のシグニ１体を対象とし、それをバニッシュする。その後、あなたのトラッシュからそのシグニと同じレベルの＜遊具＞のシグニ１枚を対象とし、それを手札に加える。
-   （配線済み見本: WXEX2-78-E1）
-
-## levelEqTrigger × SEARCH[filter]   miss=1 has=0
-   MISS WXEX2-29-E3	【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。そうした場合、各プレイヤーは自分のデッキからそのシグニと同じレベルのシグニ１枚を探して場に出し、デッキをシャッフルする。
-
-## levelEqTrigger × REMOVE_ABILITIES{SIGNI}   miss=1 has=0
-   MISS WX24-P4-013-E3	【起】《ゲーム１回》アストロジ《白×0》：《リコレクトアイコン》［４枚以上］あなたのデッキの一番上を公開する。このターン、この方法で公開されたシグニと同じレベルの、対戦相手のすべての領域にあるシグニは能力を失う。その後、
-
-## levelEqTrigger × BOUNCE{SIGNI}   miss=1 has=0
-   MISS WX24-P4-013-E3	【起】《ゲーム１回》アストロジ《白×0》：《リコレクトアイコン》［４枚以上］あなたのデッキの一番上を公開する。このターン、この方法で公開されたシグニと同じレベルの、対戦相手のすべての領域にあるシグニは能力を失う。その後、
-
 ## hasGuard × DOWN{LRIG}   miss=1 has=0
    MISS WXDi-D03-004-E3	【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つカードを１
 
@@ -312,17 +247,6 @@
 
 ## hasGuard × SEARCH[filter]   miss=1 has=0
    MISS WXK03-029-E2	【出】《無》：あなたのデッキから《ガードアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
-
-## powerLtTrigger × HAND_CARD[filter]   miss=1 has=0
-   MISS WXDi-P08-031-E1	【出】：カードを３枚引き、あなたの手札からシグニを１枚まで場に出す。その後、そのシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
-
-## powerLtTrigger × BANISH{SIGNI}   miss=1 has=1
-   MISS WXDi-P08-031-E1	【出】：カードを３枚引き、あなたの手札からシグニを１枚まで場に出す。その後、そのシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
-   （配線済み見本: WXK11-020-E2）
-
-## powerLtTrigger × SIGNI[filter]   miss=1 has=2
-   MISS WXDi-P08-031-E1	【出】：カードを３枚引き、あなたの手札からシグニを１枚まで場に出す。その後、そのシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
-   （配線済み見本: WXK11-020-E2, WXK11-041-E3）
 
 ## isDisona × SIGNI[filter]   miss=1 has=38
    MISS WXDi-P13-085-E1	【自】《ターン１回》：あなたの《ディソナアイコン》のカードの効果によって対戦相手のデッキからカードが１枚以上トラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。

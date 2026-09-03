@@ -64541,6 +64541,34 @@ test('§5.3 wiring 較正: 「共通する色を持たない」の3用法が別�
     'eachDistinctColor は基準比較を除外する');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3（2026-09-04・索引 A 第33巡）＝`census:wiring` 較正の続き（`acceHost` 9／
+//   `levelEqTrigger` 4／`levelLtTrigger` 3 ＝**全部 配線済み**だった）。
+// 🔑**同じ概念に複数の正準形がある**＝キー名照合だけの計器は必ず偽陽性を出す（trap (h)）。
+//    ・装着ホストへの**付与**は `TargetFilter.acceHost` ではなく**アクション型** `GRANT_ACCE_HOST_ABILITY`
+//    ・「そのシグニ」基準の比較は 4系統（trigger / lastProcessed / **leftCard** / triggerSource）
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 wiring 較正: 装着ホストへの付与は GRANT_ACCE_HOST_ABILITY で配線済み', () => withSavedCursor(() => {
+  for (const [num, id] of [['WXEX1-70', 'WXEX1-70-E3'], ['WXK04-050', 'WXK04-050-E1']] as const) {
+    const a = effectsMap.get(num)?.find(e => e.effectId === id)?.action as { type?: string; abilities?: unknown[] };
+    eq(a?.type, 'GRANT_ACCE_HOST_ABILITY', `${id}: 装着ホストへの付与型`);
+    ok((a?.abilities?.length ?? 0) > 0, `${id}: 引用能力が展開されている`);
+  }
+}));
+
+test('§5.3 wiring 較正: 「そのシグニより低いレベル」は leftCard 系で配線済み', () => withSavedCursor(() => {
+  // 🔴3件とも `filter.levelBelowLeftCard`（＝**場を離れたカード**のレベル未満・`triggerCollect.ts` が
+  //   `level:{max:N-1}` へ解決）で正しく載っている。`levelLtTrigger` というキー名だけを探すと miss に見える。
+  for (const [num, id] of [['WX11-035', 'WX11-035-E1'], ['WX14-009', 'WX14-009-E2'], ['WX19-003', 'WX19-003-E2']] as const) {
+    const a = JSON.stringify(effectsMap.get(num)?.find(e => e.effectId === id)?.action);
+    ok(a?.includes('"levelBelowLeftCard":true'), `${id}: レベル制限が載っている`);
+  }
+  // 解決側（engine）も残っていること＝キーだけあって読み手が消えたら真 no-op になる。
+  const tc = fs.readFileSync(join(root, 'src/engine/triggerCollect.ts'), 'utf8');
+  ok(tc.includes('obj.levelBelowLeftCard === true'), 'triggerCollect が levelBelowLeftCard を解決する');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

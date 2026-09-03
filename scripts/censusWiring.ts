@@ -142,7 +142,14 @@ const VOCAB: Vocab[] = [
   { key: 'isSelfAcced', re: /この(?:シグニ|カード)が[^。、]{0,24}アクセされて(?:いる|いた)/,
     jsonRe: /"IS_SELF_ACCED"|"THIS_CARD_IS_ACCED"|"leftStateFilter":\s*\{[^}]*"hasAcce"/,
     note: 'ActiveCondition/Condition 側（TargetFilter ではない）' },
+  // 🆕**2026-09-04（索引 A 第33巡）＝`GRANT_ACCE_HOST_ABILITY` も「配線済み」に数える。**
+  //   🔴「これにアクセされている＜調理＞のシグニは**「…」を得る**」は**付与**なので、
+  //     装着関係は `TargetFilter.acceHost` ではなく**アクション型そのもの**が持つ
+  //     （`GRANT_ACCE_HOST_ABILITY{filter, abilities}`・`effectEngine.ts:7047` が消費）。
+  //     キー名照合だけだと**配線済みの9効果が全部 miss に出る**（trap (h)「同じ概念に2つのキー綴り」）。
+  //     実測＝miss 9 は9件すべてこの形で、`TargetFilter.acceHost` の穴は0件だった。
   { key: 'acceHost',   re: /(?:これ|この(?:シグニ|カード))にアクセされて(?:いる|いた)/,
+    jsonRe: /"acceHost"\s*:|"GRANT_ACCE_HOST_ABILITY"|"acceHostFilter"\s*:|"powerLteAcceHost"\s*:/,
     note: '装着ホスト参照（hasAcce とは別キー）' },
   // ⚠`FORCE_SIGNI_ATTACK` は専用キー `infectedOnly` で状態を持つ（`WX16-047-E1`＝配線済み）。
   //   共通の `filter.infected` しか見ないと**正しい効果が miss に出る**。
@@ -161,11 +168,24 @@ const VOCAB: Vocab[] = [
   { key: 'isDown',     re: /ダウン状態(?:の|である)(?!で場に出)(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}(?:シグニ|ルリグ|カード)/ },
 
   // --- 動的比較（effectExecutor.resolveDynamicFilter） ---
-  { key: 'levelEqTrigger',   re: /そのシグニと同じレベル/ },
-  { key: 'levelLtTrigger',   re: /そのシグニより低いレベル/ },
-  { key: 'levelGtTrigger',   re: /そのシグニより高いレベル/ },
-  { key: 'powerLtTrigger',   re: /そのシグニよりパワーの低い/ },
-  { key: 'powerLteTrigger',  re: /そのシグニのパワー以下/ },
+  // 🆕**2026-09-04（索引 A 第33巡）＝「そのシグニ」基準の比較は**同じ概念に4つの綴り**がある。**
+  //   ① `levelEqTrigger` / `levelLtTrigger`（トリガー元）
+  //   ② `levelEqLastProcessed` / `levelLtLastProcessed`（直前に処理した札）
+  //   ③ `levelBelowLeftCard` / `powerBelowLeftCard`（**場を離れたカード**＝`triggerCollect.ts:1739` が解決）
+  //   ④ `levelLtTriggerSource`（遅延トリガーの発火源）
+  //   原文の「そのシグニ」がどれを指すかは文脈で決まり、**parser はどれか1つを選んで既に配線している**。
+  //   キー名照合だけだと**配線済みが miss に出る**（実測＝`levelEqTrigger` 4／`levelLtTrigger` 3 は
+  //   7件すべて ②③ で配線済みだった）。⇒ 概念ごとに綴りを束ねる。
+  { key: 'levelEqTrigger',   re: /そのシグニと同じレベル/,
+    jsonRe: /"levelEqTrigger"\s*:|"levelEqLastProcessed"\s*:|"levelEqLeftCard"\s*:/ },
+  { key: 'levelLtTrigger',   re: /そのシグニより低いレベル/,
+    jsonRe: /"levelLtTrigger"\s*:|"levelLtLastProcessed"\s*:|"levelLtTriggerSource"\s*:|"levelBelowLeftCard"\s*:/ },
+  { key: 'levelGtTrigger',   re: /そのシグニより高いレベル/,
+    jsonRe: /"levelGtTrigger"\s*:|"levelGtLastProcessed"\s*:|"levelAboveLeftCard"\s*:/ },
+  { key: 'powerLtTrigger',   re: /そのシグニよりパワーの低い/,
+    jsonRe: /"powerLtTrigger"\s*:|"powerLtLastProcessed"\s*:|"powerBelowLeftCard"\s*:/ },
+  { key: 'powerLteTrigger',  re: /そのシグニのパワー以下/,
+    jsonRe: /"powerLteTrigger"\s*:|"powerLteLastProcessed"\s*:|"totalPowerMaxRef"\s*:/ },
   { key: 'powerLtSelf',      re: /この(シグニ|カード)よりパワーの低い|自身よりパワーの低い/ },
   { key: 'powerGtSelf',      re: /この(シグニ|カード)よりパワーの高い/ },
   // 🆕**§5.3 `O-193` 第1バッチ（2026-09-04）＝`totalPowerMaxRef` も「配線済み」に数える。**
