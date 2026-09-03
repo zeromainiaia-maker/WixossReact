@@ -1,5 +1,80 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-04（索引 A 第24〜28巡）：§5.3 `O-60` 第64〜68バッチ — 🏁**引用付与 catch-all の3綴りが live 0 に到達**
+
+**ベースライン**＝`aecdabec2`（第63バッチの直後）。**A🔴 SELF_TEXT 13行 / 12ハンドラ（据置）／live 27 → 0**。
+**gates 全緑**（typecheck・golden **3404 → 3418**＝+14本（既存の契約 golden 3本を理由つきで更新）・
+smoke 10725 全異常0・fuzz 全0・census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴13**・census-costtext A🔴0 据置・lint 0 errors）。`npm run regen` 完走後に再度 gates 全緑。
+**ブラスト半径＝効果 変更14・追加0・削除0、予定外0**（14カード×各1効果ちょうど）。
+**実機＝機械判定では不要**（`src/screens/` 0行）だが `src/engine/` を2箇所触り 14効果の挙動が変わったので
+PLAN §5.1 に `V-145` を登録（未実施）。
+
+### 真因（1行）
+`execStubPart1.ts:1462` の引用付与ハンドラは **効果元のアビリティブロック全文**に
+`「([^」]+)」(?:の能力)?(?:を得る|として扱う)` を当てて意味を決めており、**この形に当たらない原文は
+`quotedText` が空か既知パターン表に外れて「能力を付与（ログのみ）」へ落ちる無言 no-op** だった
+（JSON・逆翻訳・census・golden・smoke・fuzz が全部緑のまま壊れる `O-60` の典型形）。
+
+### 影響枚数
+**14カード / 14効果**（第63の較正で見えるようになった 27効果のうち、第63で12、第64〜68で残り15）。
+- **実装で解いた 11効果**＝`WX22-Re04`(2枝)／`WXDi-P05-005`／`PR-K076`／`WXDi-CP02-TK03A`(2効果)／
+  `SP26-005`／`WXDi-P05-069-E1` 周辺／`WXEX1-32`
+- **明示 defer にした 8効果**＝`WXDi-D04-011`(`O-236`)／`WXK03-042`(`O-237`)／`WXDi-P05-069-E2`(`O-238`)／
+  `WXDi-P12-036`(`O-239`)／`WXEX2-66`(`O-240`)／`WXDi-P05-068`(`O-241`)／`WXDi-P03-002`(`O-242`)／
+  `WX25-P2-004`(`O-227` の2件目)
+
+### バッチごとの内訳
+- **第64（`GRANT_QUOTED_ABILITY` → live 0）**＝①`WX22-Re04-E2` の3択のうち①②が**無言 no-op**
+  （engine の切り出しは「を得る」を要求するので、引用だけが並ぶ3択には1本も当たらない）。
+  引用だけの `「【常】：…」` を `GRANT_EFFECT{rawText}` で包み、parser に
+  「パワーは対戦相手の効果によって減少しない」（`powerModifyProtection`）と
+  「場から手札に**移動**しない」（`moveProtectFilter`）を足した。engine 側は `excludeSelf` の解決だけ追加。
+  ②`WXDi-P05-005-E1` は `GAIN_ABILITY_THIS_GAME` が既に宣言を立てている**二重表現**なので catch-all を撤去。
+  ③`WXDi-D04-011-E1` は live が `PARTIAL` で凍っていたため `manualEffects.ts` ＋ `syncManualLive` で配送。
+- **第65（`GRANT_QUOTED_AUTO_ABILITY` → live 0）**＝`restoreQuotedTargetGrant` の id 判定を3綴りへ広げ
+  （`PR-K076-E2`）、`parseSigniAboveQuotedGrant` とパワー修正規則に主語の綴り「**これ**の上にある」を足した
+  （`WXDi-CP02-TK03A`＝**クラフト自身に＋5000**していた過剰実行＋恒久 no-op を同時に是正）。
+  `WXK03-042-E1` は id の名前が嘘（引用付与ではない）＝空きゾーンへの自己移動として `O-237` へ分離。
+- **第66**＝引用の先頭が `《レイヤーアイコン》` でも付与として解けるようにし、「【レイヤー】を持つ」を
+  `hasIcon` として読む（`SP26-005-E1`②）。主語が《カード名》の場全体付与規則を追加（`WXDi-P05-069-E2`）。
+- **第67**＝「この方法でトラッシュに置いたシグニの**すべての**《レイヤーアイコン》の能力を得る」を
+  `LAYER_ABILITY_COPY{source:'last_processed', all:true}` で表し、engine に分岐を実装
+  （**レイヤー能力の実体は `-LAYER` 効果の `GRANT_FIELD_SIGNI_ABILITY.abilities[]`** なので原文を読まない）。
+- **第68**＝残る4文型を `DEFERRED_*` へ。`normalizeGrantKeywordSpelling` の「文が丸ごと keyword」分岐と
+  `applyGameGrantsBatch49` の「見出しだけ」分岐にも名前のある穴を足した。
+
+### 検証コマンド
+`npm run build:effects` → `node scripts/heldReview.mjs --adopt <ID...>` →
+`npx tsx scripts/decompileEffects.ts <CardNum...>`（逆翻訳を目視）→ `npm run gates` → `npm run regen` → `npm run gates`
+
+### 反転確認
+- **live 母集団の直接カウント**＝3綴りを含む効果を全 `effects_*.json` から数え、**27 → 0**（バッチごとに 15→11→8→6→4→0）。
+- **ブラスト半径**＝`git show HEAD:public/data/*.json` と突き合わせて**変更カードを毎バッチ全数列挙**（予定外0）。
+- **逆翻訳**＝14効果すべてを目視。旧「このカードに記載された継続能力を付与する（テキスト検出型）」が
+  **原文どおりの日本語か【未実装】**に変わっていることを確認。
+
+### 🔴 記録すべき教訓
+1. **`census:enginetext` の A群行数は「engine のコード行」**＝**live 0 になっても行は落ちない**。
+   PLAN §1 と `O-60` 登録票に書いてあった「live 0 になれば2行減る」は**誤り**だった（実測で判明）。
+   ⇒ 行を落とすには **parser の catch-all 生成地点を畳んでからハンドラを撤去**する必要がある。
+2. **engine では1本のハンドラでも、parser の復元規則が綴りを1つしか見ていないことがある**
+   （`restoreQuotedTargetGrant`）＝**どの綴りに落ちたかだけで構造化の有無が変わる**。
+   engine 側の分岐条件（`['A','B','C'].includes(id)`）は parser 側のガードにも同じ広さで写す。
+3. **宣言型 STUB は CONTINUOUS として読まれて初めて意味を持つ**＝引用の中身が宣言型なら
+   `GRANT_EFFECT` で包んで `granted_effects` に積む。裸で即時実行すると**誰も読まない**。
+   `GRANT_PROTECTION` は `execGrantProtection` が自前で包み直すのでこの問題が出ない
+   ＝**「アクション型」と「宣言型」で扱いが違う**。
+4. **live が `PARTIAL` の効果は parser をどう直しても届かない**（収穫マージが効果単位で不可侵・
+   `heldReview --adopt` は held バケツ専用）＝`manualEffects.ts` ＋ `syncManualLive` だけが道。
+5. **「見出しだけ取れた」は宣言ではない**＝`gameGrants` が `abilityBlockHeader` だけのときに
+   兄弟の catch-all を落とすと**穴が計器から消える**。名前のある穴へ置き換える。
+6. **近似で既存の受け皿へ寄せない**＝寄せた4件はどれも過大実行になる形だった
+   （期間つきプレイヤー付与→ゲーム中ずっと／クラッシュ順つきバースト付与→ライフ全部／
+   ルリグのアタック上限→無制限／「最初のグロウ」条件落ち→グロウのたびにエナチャージ）。
+7. **`matchesFilter` は `excludeSelf` を見ない**（自己参照を持たない）＝収集器側で発生源を明示的に外す。
+   落とすと原文「あなたの**他の**〜」より広い**自己保護つき**になる。
+
 ## 2026-09-04（索引 A 第23巡）：§5.3 `O-60` 第63バッチ — A群最大 catch-all の解体 第2段＋**計器の較正（3度目）**
 
 **ベースライン**＝`23280eacf`（第62バッチの直後）。**A🔴 SELF_TEXT 13行 / 12ハンドラ（据置）**。
