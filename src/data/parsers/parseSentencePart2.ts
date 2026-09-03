@@ -2806,6 +2806,32 @@ export function parseSentencePart2(t: string): EffectAction | null {
         : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
       return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: swOwner, count: swCount, ...kwUpToCount, ...kwTargetFilter }, keyword: innerShadowM[1], duration: swDur } as GrantKeywordAction;
     }
+    // 🆕**§5.3 `O-60` 第68バッチ（2026-09-04）＝A群最後の catch-all をここで名前のある穴へ割る。**
+    //   🔴この `return` が `GRANT_ABILITY_INNER_TEXT`（engine が効果元の原文を読み直す形＝`O-60` A群）の
+    //     最後の製造元だった。engine 側は引用を切り出せても**既知パターン表に1本も当たらない**ので
+    //     「能力付与：…（ログのみ）」＝**無言 no-op**（＝JSON を見ても計器を見ても壊れていると分からない）。
+    //   ⇒ **受け皿が無いと分かっている3文型は `DEFERRED_*` にして逆翻訳に【未実装】を出す。**
+    //   ⚠**近似で既存の受け皿へ寄せない**＝どれも寄せると過大実行になる（各項目の登録票を参照）。
+    // (1) 全領域への《トラップアイコン》付与（`WXEX2-66-E1`／`O-240`）。
+    //     ⚠`GRANT_ALL_ZONE_LIFEBURST` の**トラップ版は無い**（【ライフバースト】側だけが実装されている）。
+    if (/すべての領域にある[^。]*《トラップアイコン》「/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_GRANT_ALL_ZONE_TRAP_ICON' } as StubAction;
+    }
+    // (2) **期間つき**のプレイヤー付与（`WX25-P2-004-E1`／`O-227` と同じ欠落）。
+    //     ⚠`GRANT_PLAYER_ABILITY` は `permanent:true` 固定（`game_granted_effects`＝このゲームの間）で
+    //       「ターン終了時まで」を持てない＝そのまま載せると**ゲーム中ずっと効く**過大実行になる。
+    //     ⚠**期間の前置きはここへ来る前に剥がれている**（実測＝`t` は「あなたは「【常】…」を得る」だけ）＝
+    //       期間で絞ろうとすると当たらない。主語が「あなた（＝プレイヤー）」であること自体が判定条件。
+    //       恒久側（`GRANT_PLAYER_ABILITY`）を出せる文型は**この fallback へ来る前に**処理済み。
+    if (/^あなたは「【[常自起]】/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL' } as StubAction;
+    }
+    // (3) 「このシグニのアタックは**このシグニの効果によって**無効にされない」（`WXDi-P05-068-E1`／`O-241`）。
+    //     ⚠**自分自身の効果だけ**を除外する耐性で、既存の耐性語彙（`GRANT_PROTECTION` の軸）に
+    //       「アタック無効化」も「発生源＝効果元自身」も無い。
+    if (/このシグニのアタックはこのシグニの効果によって無効にされない/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT' } as StubAction;
+    }
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   }
 

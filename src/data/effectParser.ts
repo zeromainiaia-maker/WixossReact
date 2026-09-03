@@ -7286,9 +7286,15 @@ function normalizeGrantKeywordSpelling(node: unknown): void {
     //   丸ごと消える（実測で held +9）。
     const name = (rec.keyword as string).split(':')[0];
     if (/[、。]/.test(name) || /[【】]/.test(name) || name.length > 14) {
+      // 🆕**§5.3 `O-60` 第68バッチ（2026-09-04）＝文が丸ごと入っていた形も、
+      //   受け皿が無いと分かっている文型は**名前のある穴**へ落とす。**
+      //   🔴`GRANT_ABILITY_INNER_TEXT` は engine が効果元の原文を読み直す catch-all（`O-60` A群）で、
+      //     既知パターン表に当たらなければ**無言 no-op**＝ここへ落とすのは「穴を宣言した」ことにならない。
+      const deferredNGK = /このシグニのアタックはこのシグニの効果によって無効にされない/.test(name)
+        ? 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT' : null;
       for (const k of Object.keys(rec)) delete rec[k];
       rec.type = 'STUB';
-      rec.id = 'GRANT_ABILITY_INNER_TEXT';
+      rec.id = deferredNGK ?? 'GRANT_ABILITY_INNER_TEXT';
       return;
     }
   }
@@ -23739,6 +23745,32 @@ function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, 
     // 🔑`buildGameGrants` は**効果単位の原文（引用文を含む）**を読むので、宣言が1本でも取れた時点で
     //   引用は既に表現済み。⇒ 同じ効果の catch-all は**二重表現**であって欠落ではない。
     // ⚠**宣言が空のときは落とさない**（そのときだけ catch-all が唯一の痕跡になる）。
+    // 🆕**§5.3 `O-60` 第68バッチ（2026-09-04）＝「見出しだけ取れた」は宣言ではない。**
+    //   🔴`abilityBlockHeader` は「このゲームの間、あなたは以下の能力を得る」という**見出し**の印で、
+    //     中身の宣言は1つも取れていない（`WXDi-P03-002-E1`＝「それがそのターンで**あなたの最初の
+    //     グロウである場合**」の条件語彙が無いので、載せると**グロウのたびにエナチャージ**する過大実行）。
+    //     ここで catch-all を落とすと**穴が計器から消える**ので、代わりに**名前のある穴**へ置き換える。
+    const realGrants = grants.filter(g => (g as { kind?: string }).kind !== 'abilityBlockHeader');
+    if (realGrants.length === 0) {
+      const renameCatchAll = (node: unknown): void => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) { node.forEach(renameCatchAll); return; }
+        const o = node as { type?: string; id?: string };
+        if (o.type === 'STUB' && ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'].includes(o.id ?? '')) {
+          o.id = 'DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED';
+        }
+        for (const v of Object.values(node as Record<string, unknown>)) renameCatchAll(v);
+      };
+      renameCatchAll(effect.action);
+      // 宣言側そのものも「見出しだけ」なら穴として出す（残すと逆翻訳が
+      // 「このゲームの間、あなたは以下の能力を得る。」で終わり**実装済みに見える**）。
+      for (const n of nodes) {
+        const o = n as unknown as { id?: string; gameGrants?: unknown };
+        o.id = 'DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED';
+        delete o.gameGrants;
+      }
+      continue;
+    }
     if (grants.length === 0) continue;
     const CATCH_ALL_IDS = new Set(['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY']);
     const pruneCatchAll = (node: EffectAction): EffectAction | null => {

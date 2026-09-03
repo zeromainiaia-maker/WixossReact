@@ -56869,6 +56869,11 @@ test('O-128 第2 非採用契約: 展開不能な引用は GRANT_EFFECT にし�
   //     `GRANT_EFFECT` ではなく専用 payload STUB `OPP_SIGNI_ENERGY_TO_DECK_BOTTOM` へ移した。
   //   ・`WD17-001-E2`＝timing の綴り（「正面**にある**」）を足したので `ON_SIGNI_BANISH_OPPONENT` に解ける。
   //   ⚠**契約の趣旨は変わっていない**＝「引用が解けないなら配らない」。表せるようになった分だけ外した。
+  // 🆕**§5.3 `O-60` 第68バッチ（2026-09-04）＝残る1件の期待 id を `DEFERRED_*` へ更新した。**
+  //   🔴据置先が `GRANT_ABILITY_INNER_TEXT`（engine が原文を読み直す catch-all）だと、
+  //     engine の既知パターン表に当たらないので**無言 no-op**＝「穴を宣言した」ことにならない。
+  //   ⇒ `DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT`（`O-241`）＝逆翻訳に【未実装】が出る。
+  //   ⚠**契約の趣旨は変わっていない**＝「引用が解けないなら配らない」。
   for (const [cardNum, effectId, why] of [
     ['WXDi-P05-068', 'WXDi-P05-068-E1', '対象固有の常時無効耐性が UNKNOWN'],
   ] as const) {
@@ -56876,7 +56881,7 @@ test('O-128 第2 非採用契約: 展開不能な引用は GRANT_EFFECT にし�
     const liveEffect = b45Effect(cardNum, effectId);
     for (const [kind, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
       const json = JSON.stringify(effect.action);
-      ok(json.includes('"id":"GRANT_ABILITY_INNER_TEXT"'), `${effectId} ${kind}: STUB 据置（${why}）`);
+      ok(json.includes('"id":"DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT"'), `${effectId} ${kind}: 明示 defer 据置（${why}）`);
       ok(!json.includes('"type":"GRANT_EFFECT"'), `${effectId} ${kind}: 解釈不能な引用能力を配らない`);
     }
   }
@@ -64277,6 +64282,52 @@ test('§5.3 O-60 第67: クラッシュ順を軸にした【ライフバース�
   //   「このターン、1枚目と2枚目にチェックゾーンに置かれた」という軸を持てない＝寄せると過大実行。
   const a = effectsMap.get('WXDi-P12-036')?.find(e => e.effectId === 'WXDi-P12-036-E1')?.action as { id?: string };
   eq(a?.id, 'DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE', 'WXDi-P12-036-E1: 明示 defer');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第68バッチ（2026-09-04）＝A群最大 catch-all の **live 0 到達**。
+// 🔑3つの綴り（`GRANT_ABILITY_INNER_TEXT` / `GRANT_QUOTED_ABILITY` / `GRANT_QUOTED_AUTO_ABILITY`）が
+//    すべて live から消えた＝**engine が効果元の原文を読み直す最大の層に標本が1件も無い**状態。
+// ⚠**A群の行数（13）は据置**＝この計器は「engine のコード行」を数えるので、live 0 になっても
+//    ハンドラを消すまで行は落ちない。消すには parser 側の catch-all 生成地点（安全網）も同時に畳む必要がある。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第68: 引用付与の catch-all 3綴りは live から全部消えた', () => {
+  const CATCH_ALL = ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'];
+  const hits: string[] = [];
+  const walk = (owner: string, n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(x => walk(owner, x)); return; }
+    const o = n as { type?: string; id?: string };
+    if (o.type === 'STUB' && CATCH_ALL.includes(o.id ?? '')) hits.push(`${owner}:${o.id}`);
+    for (const v of Object.values(n as Record<string, unknown>)) walk(owner, v);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.effectId, e.action);
+  eq(hits.length, 0, `live に引用付与 catch-all が残っている: ${hits.slice(0, 5).join(', ')}`);
+});
+
+test('§5.3 O-60 第68: 受け皿が無い4文型は名前のある穴になった', () => withSavedCursor(() => {
+  // 🔴どれも旧 catch-all では「能力付与：…（ログのみ）」＝**無言 no-op**（JSON も計器も緑のまま）。
+  // ⚠**近似で既存の受け皿へ寄せない**＝寄せるとどれも過大実行になる（各 O 項目の登録票を参照）。
+  const want: Array<[string, string, string]> = [
+    // カード / effectId / 期待 id
+    ['WXEX2-66', 'WXEX2-66-E1', 'DEFERRED_GRANT_ALL_ZONE_TRAP_ICON'],            // O-240（トラップ版の全領域付与が無い）
+    ['WX25-P2-004', 'WX25-P2-004-E1', 'DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL'], // O-227（期間つきプレイヤー付与が無い）
+    ['WXDi-P03-002', 'WXDi-P03-002-E1', 'DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED'],   // O-242（「最初のグロウ」の条件語彙が無い）
+    ['WXDi-P05-068', 'WXDi-P05-068-E1', 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT'], // O-241（自己効果のアタック無効化耐性）
+  ];
+  for (const [num, id, wantId] of want) {
+    const ids: string[] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as { type?: string; id?: string };
+      if (o.type === 'STUB' && o.id) ids.push(o.id);
+      for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+    };
+    walk(effectsMap.get(num)?.find(e => e.effectId === id)?.action);
+    ok(ids.includes(wantId), `${id}: ${wantId} が載る（実際: ${ids.join(',') || 'なし'}）`);
+  }
 }));
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
