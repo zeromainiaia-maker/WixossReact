@@ -10,6 +10,7 @@
  */
 import fs from 'fs';
 import { join } from 'path';
+import { execFileSync } from 'child_process';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef, LifeCrashPreventionSpec } from '../src/types';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
@@ -64824,6 +64825,29 @@ test('§5.3 O-231: 「場に出し」の前半が live に載る', () => withSav
   ok(types.indexOf('ADD_TO_FIELD') < types.indexOf('TRASH_SIGNI_UNDER_FIELD_SIGNI'),
     '🔴召喚は「下に置く」より前（後段が直前に場に出したシグニを参照するため）');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-245`（2026-09-04・索引 A 第42巡）＝**PlayerState の「書かれるだけで読まれない」キー**。
+// 🔴この形は `O-226` で1件だけ見つかっていたが、**どの計器にも映らない**：
+//    `census:stubs` A群には出ない（ハンドラは在って消費地点もある）／`census:enginetext` にも出ない
+//    （原文を読んでいない）／golden・smoke・fuzz も緑（例外も不変条件違反も起きない）。
+//    ＝**宣言だけが立って盤面が動かない真 no-op**。⇒ `npm run census:deadstate` を新設して全数で測った。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラチェット', () => {
+  // ⚠**候補出しであって判定ではない**（動的アクセスは数えられない）が、**増えたら止める**のがこの門の役目。
+  const out = execFileSync(process.execPath, [join(root, 'scripts/censusDeadState.mjs')],
+    { cwd: root, encoding: 'utf8' });
+  const m = out.match(/書きあり・読み0 は (\d+)件/);
+  ok(!!m, 'census:deadstate が件数を出す');
+  const n = parseInt(m![1], 10);
+  // 🆕2026-09-04 の実測 6件。内訳＝`O-226` の2件（`game_declared_signi_level_zero` /
+  //   `game_declared_signi_ignore_restriction`）＋**この計器で新たに見つかった4件**
+  //   （`draw_on_opp_power_zero` / `coin_use_restriction` / `grid_reveal_plus_one_this_turn` /
+  //    `reduce_next_on_play_cost`）。
+  // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
+  eq(n, 6, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+});
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
