@@ -64222,6 +64222,34 @@ test('§5.3 O-60 第65: 空きシグニゾーンへの自己移動は明示 defe
   eq((seq?.steps?.[1] as { type?: string })?.type, 'REARRANGE_SIGNI', 'WXK03-042-E1: 後半（占有ゾーンとの入れ替え）は従来どおり');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第66バッチ（2026-09-04）＝A群最後の綴り `GRANT_ABILITY_INNER_TEXT` の解体 第1段。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第66: 引用の先頭が《アイコン》でも付与として解ける（SP26-005②）', () => withSavedCursor(() => {
+  // 🔴引用が `【自】` で始まらないため場全体付与の規則を外れ、catch-all へ落ちていた。
+  //   engine 側の `「([^」]+)」…を得る` も当たらず `quotedText` が空＝**無言 no-op**（3択の②が消えていた）。
+  // 🔑アイコンは**付与先の絞り込み**（`hasIcon`）が表す＝`rawText` からは剥がす。
+  const seq = effectsMap.get('SP26-005')?.find(e => e.effectId === 'SP26-005-E1')?.action as SequenceAction | undefined;
+  const ch = seq?.steps?.[1] as ChooseAction | undefined;
+  const a = ch?.choices?.[1]?.action as { type?: string; target?: { count?: unknown; filter?: unknown }; effect?: { timing?: string[]; action?: { type?: string } } };
+  eq(a?.type, 'GRANT_EFFECT', 'SP26-005-E1②: 付与として出る');
+  eq(a?.target?.count, 'ALL', '付与先は「すべての」');
+  eq(JSON.stringify(a?.target?.filter), JSON.stringify({ cardType: 'シグニ', story: '怪異', hasIcon: 'レイヤー' }),
+    '「【レイヤー】を持つ＜怪異＞の」が filter に載る');
+  eq(a?.effect?.timing?.[0], 'ON_LEAVE_FIELD', '引用は展開済み（rawText を残さない）');
+  eq(a?.effect?.action?.type, 'BOUNCE', '引用の中身も載る');
+}));
+
+test('§5.3 O-60 第66: 主語が《カード名》の場全体付与＝アタック置換は明示 defer（O-238）', () => withSavedCursor(() => {
+  // 🔴`WXDi-P05-069-E2` はどの付与規則にも当たらず catch-all へ落ち、CONTINUOUS なので
+  //   `executeAction` を通らず（`collectGrantedFromLayer` は引用が【自】のときだけ展開する）恒久 no-op だった。
+  // ⚠引用の中身「アタックする場合、代わりに…」＝**アタックの置換**は engine にどこにも無い。
+  //   `GRANT_FIELD_SIGNI_ABILITY{rawText}` のまま出すと `PARTIAL` になり収穫マージが live へ届けない。
+  const a = effectsMap.get('WXDi-P05-069')?.find(e => e.effectId === 'WXDi-P05-069-E2')?.action as { id?: string };
+  eq(a?.id, 'DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT', 'WXDi-P05-069-E2: 明示 defer');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

@@ -6102,14 +6102,23 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // → GRANT_EFFECT count:'ALL'（引用は expandGrantEffectRawTexts が parseBlock で展開・§5c 続き30）。
   // 期間プレフィックス必須＝【常】の場全体付与（duration無し）はここでは扱わない（GRANT_FIELD_SIGNI_ABILITY の領分）。
   {
-    const m = text.trim().replace(/。$/, '').match(/^ターン終了時まで、(あなたの|対戦相手の)(.*?)すべての(.*?)シグニは「(【[自出起]】.+)」を得る$/s);
-    if (m && !/」と「|」か「/.test(m[4])) {
+    // 🆕**§5.3 `O-60` 第66バッチ（2026-09-04）＝引用の先頭の《…アイコン》と「【レイヤー】を持つ」を足した。**
+    //   🔴`SP26-005-E1`②「ターン終了時まで、あなたの**【レイヤー】を持つ**すべての＜怪異＞のシグニは
+    //     「**《レイヤーアイコン》**【自】：…」を得る」は、引用が `【自】` で始まらないため
+    //     この規則を外れ catch-all `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちていた
+    //     （engine 側も `「([^」]+)」…を得る` が当たらず `quotedText` が空＝**無言 no-op**）。
+    //   🔑アイコンは**付与先の絞り込み**（`hasIcon`）が表しており、引用本文の意味には関与しない＝
+    //     `rawText` からは剥がす（`parseBlock` は `《レイヤーアイコン》` 付きブロックを別扱いするため）。
+    const m = text.trim().replace(/。$/, '').match(/^ターン終了時まで、(あなたの|対戦相手の)(.*?)すべての(.*?)シグニは「(?:《([^》]+)アイコン》)?(【[自出起]】.+)」を得る$/s);
+    if (m && !/」と「|」か「/.test(m[5])) {
       const owner: Owner = m[1] === '対戦相手の' ? 'opponent' : 'self';
       const seg = m[2] + m[3];
       const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(seg), ...parseLevelFilter(seg), ...parseColorFilter(seg) };
       if (seg.includes('感染状態')) filter.infected = true;
+      const iconSeg = seg.match(/【(クロス|ライズ|トラップ|アクセ|レイヤー)】を持つ/);
+      if (iconSeg) filter.hasIcon = iconSeg[1] as NonNullable<TargetFilter['hasIcon']>;
       return { type: 'GRANT_EFFECT', target: { type: 'SIGNI', owner, count: 'ALL', filter },
-        duration: 'UNTIL_END_OF_TURN', rawText: m[4] } as EffectAction;
+        duration: 'UNTIL_END_OF_TURN', rawText: m[5] } as EffectAction;
     }
   }
   // 🆕「(ターン終了時まで|次の対戦相手のターン終了時まで)、この(シグニ|ルリグ)は「【自/出/起】…」を得る」
@@ -6887,6 +6896,27 @@ function parseContinuousQuotedGrant(text: string): EffectAction | null {
   const qfSelf = text.match(/^(?:このシグニは)?「(【[自常起出]】.+)」を得る。?$/s);
   if (qfSelf && !/」と「|」か「/.test(qfSelf[1])) {
     return { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [], rawText: qfSelf[1] } as GrantFieldSigniAbilityAction;
+  }
+  // 🆕**§5.3 `O-60` 第66バッチ（2026-09-04）＝主語が《カード名》の場全体付与。**
+  //   🔴`WXDi-P05-069-E2`「【常】：あなたの《翠将姫　ロビンフッド》は「【常】：…」を得る」は
+  //     この規則群のどれにも当たらず catch-all `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちていた。
+  //     CONTINUOUS なので `executeAction` を通らず（`collectGrantedFromLayer` は
+  //     **引用が【自】のときだけ**展開する）＝**恒久 no-op** だった。
+  //   ⚠引用の中身が「アタックする場合、代わりに…」＝**アタックの置換**は engine にどこにも無い（`O-238`）。
+  //     `GRANT_FIELD_SIGNI_ABILITY{rawText}` のまま出すと展開に失敗して `PARTIAL` になり、
+  //     **収穫マージが live へ届けない**＝catch-all が居座り続ける。⇒ 明示 defer にして計器から降ろす。
+  const qfNamed = text.match(/^(あなたの|対戦相手の)《([^》]+)》は「(【[自常起出]】.+)」を得る。?$/s);
+  if (qfNamed && !/」と「|」か「/.test(qfNamed[3])) {
+    if (/アタックする場合[、,]代わりに/.test(qfNamed[3])) {
+      return { type: 'STUB', id: 'DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT' } as EffectAction;
+    }
+    return {
+      type: 'GRANT_FIELD_SIGNI_ABILITY',
+      ...(qfNamed[1] === '対戦相手の' ? { targetOwner: 'opponent' as Owner } : {}),
+      filter: { cardType: 'シグニ', cardName: qfNamed[2] },
+      abilities: [],
+      rawText: qfNamed[3],
+    } as GrantFieldSigniAbilityAction;
   }
   const qfField = text.match(/^(あなたの|対戦相手の)((?:[白赤青緑黒]の|＜[^＞]+＞[かの]?|他の|レベル[０-９\d]+の|すべての|感染状態の)*)シグニは「(【[自常起出]】.+)」を得る。?$/s);
   if (qfField && !/」と「|」か「/.test(qfField[3])) {
