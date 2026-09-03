@@ -4827,6 +4827,14 @@ export interface StubAction {
    * ⚠**engine は自分側の `lrig_gained_types` にしか積まない**（原文「**すべての**場にある」＝両者）＝
    *   **この巡では payload 化だけを行い、両者化は据置**（`O-60` 登録票に記録）。
    */
+  /**
+   * 🆕`POWER_MOD_BY_FIELD_CLASS_LEVEL_SUM`＝「それのパワーを**あなたの場にある＜X＞のシグニのレベルを
+   * 合計した数**だけ－1000する」（§5.3 `O-60` 第60バッチ・2026-09-03・`WX13-060-E1`②）。
+   * ⚠旧 `STUB{INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS}` は**カード全文**に
+   *   `/＜([^＞]+)＞のシグニのレベルを合計/` を当ててクラスを決めていた（＝別の選択肢の＜X＞を拾いうる）。
+   * ⚠**payload が無ければ何もしない**（fail-closed）＝クラス空文字は全シグニに一致してしまう。
+   */
+  fieldClassLevelSumPower?: { story: string; deltaPerLevel: number };
   gainedLrigType?: string;
   /**
    * ── 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family** ──

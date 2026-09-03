@@ -1194,6 +1194,23 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_COST', coinCost: (t.match(/《コインアイコン》/g) ?? []).length } as StubAction;
   }
 
+  // ---- （使用コストとして）追加で手札をN枚捨ててもよい → OPTIONAL_COST with handDiscard ----
+  // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03・`WD23-044-EA-E1`）＝1枚**。
+  // 🔴従来は typed `TRASH{HAND_CARD, optional:true}` に落ちていた。見た目は同じでも
+  //   **任意コストの支払い記録（`self_optional_effect_taken`）が立たない**ので、後続の
+  //   `CHOOSE{additionalCostChoose}`（＝「支払っていた場合、代わりにKつ選ぶ」）が**永久に昇格しない**。
+  //   支払いの成否を後段が読む形は `STUB{OPTIONAL_COST}` の経路に乗せる必要がある。
+  {
+    const m = t.match(/^(?:その後、)?(?:この(?:スペル|ピース|アーツ|カード)を使用する際、)?(?:使用コストとして)?追加で手札を([０-９\d]+)枚捨ててもよい$/);
+    if (m) {
+      return {
+        type: 'STUB', id: 'OPTIONAL_COST',
+        costText: t.replace(/^(?:その後、)?(?:この(?:スペル|ピース|アーツ|カード)を使用する際、)?/, ''),
+        handDiscard: { count: parseNum(m[1]) },
+      } as StubAction;
+    }
+  }
+
   // ---- （使用コストとして）追加でエクシードN を支払ってもよい → OPTIONAL_COST with exceed ----
   //   engine（`effectExecutor` の OPTIONAL_COST 分岐・`exceed` 参照）は実装済みで、**live の12枚は
   //   すべて手で MANUAL 化して `exceed` を書いていた**＝parser が一度も生成していなかった穴（§6.4 O-6 と同型）。
@@ -1332,12 +1349,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- ベットメカニクス ----
-  // 「ベット―」で始まるカード全体は①②③選択＋ベット強化のBET_MECHANICとして扱う。
-  // 「あなたがベットしていた場合、代わりに」はBET_MECHANIC本文にも必ず含まれるため、
-  // こちらを先に判定すると全てのベットカードがBET_ALTERNATIVE（no-op）に誤分類されてしまう。
-  if (t.match(/^ベット―/)) {
-    return { type: 'STUB', id: 'BET_MECHANIC' } as StubAction;
-  }
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`BET_MECHANIC` ハンドラを engine ごと撤去した**ので、
+  //   「ベット―」で始まる文を丸ごとその受け皿へ流す枝も落とした（live 0）。
+  //   ベットの多択は `effectParser.ts` の `CHOOSE{betChoose}` ビルダーが**カード単位で**受ける。
+  // ⚠下の `BET_ALTERNATIVE`（no-op 宣言）は残す＝「あなたがベットしていた場合、代わりに」だけの文が
+  //   選択数の昇格として既に読まれているときの**重複ステップ落とし**として機能している。
   if (t.match(/あなたがベットしていた場合、代わりに/)) {
     return { type: 'STUB', id: 'BET_ALTERNATIVE' } as StubAction;
   }

@@ -2,11 +2,10 @@
 # 生成: npx tsx scripts/censusOrphanManual.ts
 # A=解凍候補（live と fresh が実体同一） / B=要レビュー（実体が違う） / C=fresh 無し（parser が出さない id）
 
-## A 解凍候補（SAME） ［2件］
-  WX16-023-E1
-  WX16-048-E1
+## A 解凍候補（SAME） ［0件］
 
-## B 要レビュー（DIFF） ［0件］
+## B 要レビュー（DIFF） ［1件］
+  WX09-Re03-E1
 
 ## C fresh 無し（NO_FRESH） ［0件］
 

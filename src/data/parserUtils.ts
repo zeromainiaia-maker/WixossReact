@@ -1510,7 +1510,12 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: Re
   { re: /^《ライズアイコン(?:_[白赤青緑黒])?》(?:_[a-z]+)?を持つ/, apply: (_m, a) => { a.filter.hasRiseIcon = true; return true; } },
   { re: /^《ガードアイコン》を持たない/, apply: (_m, a) => { a.filter.noGuard = true; return true; } },
   { re: /^《ディソナアイコン》(?:を持つ|の)?/, apply: (_m, a) => { a.filter.isDisona = true; return true; } },
-  { re: /^【ライフバースト】を持つ/, apply: (_m, a) => { a.filter.hasLifeBurst = true; return true; } },
+  // 🆕**`《ライフバースト》` 表記も受ける**（§5.3 `O-60` 第60バッチ・2026-09-03・2枚＝`WD23-024-E`／`WD23-044-EA`）。
+  // 🔴原文には `【ライフバースト】` と `《ライフバースト》` の2表記があり、この表は角括弧しか見ていなかった
+  //   ＝`WD23-044-EA-E1` の「トラッシュから《ライフバースト》を持つカード１枚」は**絞り込みが丸ごと落ちて
+  //   トラッシュの任意の1枚**を取れていた（過剰実行）。**別名は必ず両方書く。**
+  { re: /^[【《]ライフバースト[】》]を持たない/, apply: (_m, a) => { a.filter.hasLifeBurst = false; return true; } },
+  { re: /^[【《]ライフバースト[】》]を持つ/, apply: (_m, a) => { a.filter.hasLifeBurst = true; return true; } },
   // ルリグ色参照（タスク12(xlvi)(a)）。「持たない」を「持つ」より先に置く必要はない（末尾が別語）が、
   // **センター／場全体／センター以外**の3種を取り違えると候補集合が丸ごとずれるので独立トークンで持つ。
   { re: /^(?:あなたの)?センタールリグと共通する色を持たない/, apply: (_m, a) => { a.filter.colorNotMatchesLrig = true; return true; } },

@@ -1166,9 +1166,9 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🔴🆕**A🔴 22行 / 21ハンドラ・miss 0（2026-09-03 第59バッチ後）**。⚠**`miss 0` は「正しい」の意味ではない**（第58バッチで miss0 の3 family が全部壊れていた）。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🔴🆕**A🔴 17行 / 16ハンドラ・miss 0（2026-09-03 第60バッチ後）**。⚠**`miss 0` は「正しい」の意味ではない**（第58バッチで miss0 の3 family が全部壊れていた）。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
-**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第59バッチ後）**＝**A🔴 SELF_TEXT 22行／21ハンドラ**・**miss 0**。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は第56バッチの可視化、35→33→32 が第56・第57の消化**）。■🔑🔴**miss は 0 だが、この項目は閉じていない**＝**第58バッチが実証した**＝計器が miss 0 と出していた3 family（`LIMIT_CHANGE`(10)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(9)／`COLLAB`(6)）は**全部壊れていた**。🔴🔑**計器の `miss` は「カード全文」に当てて数える**（`censusEngineText.ts:216`）ので、**`sourceAbilityText` 経由の funnel では構造的に甘く出る**＝**着手前に `abilityBlockTextOf(card, effectId)` でリテラルを当て直すこと**。**残り 21ハンドラ**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第59バッチ後の実測）**＝(1)🔴**live 0 の据置**（`CONDITIONAL_POWER_BONUS` 9リテラル／`CHOOSE_SAME_OPTION_TWICE` 8／`OPP_DECK_REVEAL_UNTIL` 13 ほか）＝**標本が無いので payload 化しても正しさを1件も検証できない。⚠消してもいけない**（parser に生成元がある安全網）。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
+**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第60バッチ後）**＝**A🔴 SELF_TEXT 17行／16ハンドラ**・**miss 0**。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は第56バッチの可視化、35→33→32 が第56・第57の消化**）。■🔑🔴**miss は 0 だが、この項目は閉じていない**＝**第58バッチが実証した**＝計器が miss 0 と出していた3 family（`LIMIT_CHANGE`(10)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(9)／`COLLAB`(6)）は**全部壊れていた**。🔴🔑**計器の `miss` は「カード全文」に当てて数える**（`censusEngineText.ts:216`）ので、**`sourceAbilityText` 経由の funnel では構造的に甘く出る**＝**着手前に `abilityBlockTextOf(card, effectId)` でリテラルを当て直すこと**。**残り 16ハンドラ**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第59バッチ後の実測）**＝(1)🔴**live 0 の据置**（`CONDITIONAL_POWER_BONUS` 9リテラル／`CHOOSE_SAME_OPTION_TWICE` 8／`OPP_DECK_REVEAL_UNTIL` 13 ほか）＝**標本が無いので payload 化しても正しさを1件も検証できない。⚠消してもいけない**（parser に生成元がある安全網）。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
 🆕🔑**取る単位は「1ハンドラ」ではなく「家族」**＝第50バッチはパワー修正15ハンドラを1バッチで取り、**A群を17行減らした**（第49バッチは1行）。**同じ受け皿へ寄せられるものを束ねると、探索・配送・ゲート・簿記の固定費が1回で済む。**⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
 
 ■✅**消化済み 56バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
@@ -1223,7 +1223,54 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 （`POWER_MOD_BY_LRIG_LEVEL_SUM` / `POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL`）／
 `TRASH_ALL_SIGNI_AND_KEY`（2文型の catch-all）／`STUB{DRAW}`／`GRANT_CHOSEN_ABILITY(_SELF)`。
 `WXDi-P10-006-E3` の「シャッフル・公開」の欠落は `O-232` に登録。
+🆕**第60（2026-09-03・索引 A 第20巡）＝モーダル選択 family**＝`BET_MECHANIC`(8)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／
+`CONDITIONAL_ALTERNATE_EFFECT`(1) の4ハンドラを撤去し、parser の `CHOOSE`
+（`betChoose` / `conditionChoose` / `additionalCostChoose`）へ寄せた（live 18効果・**①②③が live JSON に出た**）。
+`INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS` は `POWER_MOD_BY_FIELD_CLASS_LEVEL_SUM` へ改名＋payload 化。
+`SPK16-13E-E1`① の条件語彙欠落は `O-233` に登録（明示 defer）。
 全文は BUGFIXES.md 2026-09-03。
+
+🆕**第60バッチ（2026-09-03・索引 A 第20巡）＝モーダル選択 family を `CHOOSE` へ寄せて受け皿4本を撤去**＝
+`BET_MECHANIC`(live8)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`CONDITIONAL_ALTERNATE_EFFECT`(1)
+＋`INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS`（payload 化して改名）。**live 18効果**。
+受け皿は**すべて既存**（`CHOOSE` の `betChoose` / `conditionChoose` / `additionalCostChoose`）で、
+無かったのは**parser 側の条件語彙2本**（「センタールリグが＜X＞か＜Y＞の場合」＝`OR[LRIG_STORY]`／
+「センタールリグのレベルがN以上の場合」＝`LRIG_LEVEL`）と**追加コスト昇格の枝**だけだった。
+全文は BUGFIXES.md 2026-09-03（索引 A 第20巡）。
+
+■🆕🔴🔑**第60バッチの教訓（2026-09-03・索引 A 第20巡）＝engine には原文解析器が「2つ」ある**
+🔴**①`src/engine/choiceTextParser.ts` は計器に1行も映らない。**
+`censusEngineText.ts` は `EffectText` という**文字列**か `sourceAbilityText(ctx)` の行しか数えない。
+`parseChoiceOptionsFromText(txt, prefix)` は**原文を引数で受け取る**ので、492行・約30分岐の解析器が
+まるごと死角にいた（**`census:costtext` の罠③・第56バッチの funnel 死角と同じ形の3例目**）。
+⇒ **受け皿 STUB を撤去するときは、`choiceTextParser` にしか無い規則を全部 parser へ移す。**
+実測＝移し忘れで3件が壊れた（`WDK06-R08`①のパワー比較が消えて**どの相手シグニもバニッシュ可**／
+`WDK06-R08`②の**2枚サーチが1枚の合成フィルタに潰れ**／`SPK16-13E`③が**ログだけの真 no-op**へ）。
+
+🔴**②「同じ追加コストを2回提示していた」＝受け皿の重複。**
+`SP26-005` / `SP38-004` / `WXDi-P15-002` は `STUB{OPTIONAL_COST}` と
+`STUB{CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE}` が**同じ「追加で支払いますか？」を別々に出して**おり、
+プレイヤーは2回答えさせられていた（後者はカード全文から支払い額を読み直していた）。
+🔑**重複は golden が「そういう契約」として固定していた**（`resumeChoose('pay')` が2回）＝
+**テストが不具合を凍結していた**。撤去してテストを1回へ直した。
+
+🔴**③`STUB` を含む効果は census の高シグナルから免除される＝撤去すると穴が「増えて見える」。**
+今回 live から STUB が消えた瞬間に高シグナルが 3→6 に増えたが、中身は**既存の穴3件**だった＝
+`WDK06-R08`（比較句の脱落）／`WDK12-007`（`GRANT_KEYWORD{keyword:'チャーム'}` という**幻覚**）／
+`WD23-044-EA`（計器が `additionalCostChoose` を知らない＝**較正**）。
+⇒ **2件は実際に直し、1件は計器へキーを足した。「可視化」で片付けず、1件ずつ原因を分ける。**
+
+🔴**④`?` を後置した optional は「直前の1文字」にしか掛からない。**
+共通表の `カードが([０-９\d]*)枚?以上?トラッシュに移動していた場合` は
+「**「以」が必須**で「上」だけ任意」という誤りで、枚数を書かない原文には**構造的に当たらなかった**
+（`SPK16-13E`②＝条件が丸ごと落ちて**無条件に3枚エナチャージ**）。正しくは `(?:([０-９\d]+)枚以上)?`。
+
+🔑**⑤同じ意味の別表記は必ず両方書く**（この巡だけで3件）＝
+`【ライフバースト】`／`《ライフバースト》`（後者は `cardName:'ライフバースト'` に落ちて**恒久 no-match**）、
+「トラッシュに**移動**していた」／「**置かれ**ていた」、「センタールリグ**が**レベルN以上」／
+「センタールリグ**の**レベルがN以上」。
 
 ■🆕🔴🔑**第59バッチの教訓（2026-09-03・索引 A 第19巡）＝自己再帰する受け皿は payload を継続へ積み忘れる**
 🔴**①この巡で一番危なかったのは payload の「配送漏れ」だった。**

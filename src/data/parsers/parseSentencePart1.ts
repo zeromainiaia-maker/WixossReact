@@ -2353,10 +2353,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   `owner:'self'` は所有者反転そのもの。判定は**最後の読点以降の節**で見る（前置きの条件節に
   //   「対戦相手のシグニ1体を対象とし、」等が入る形を巻き込まないため）。相手側の任意支払いは
   //   part3 の `OPPONENT_PAY_OPTIONAL` が受ける。
+  // 🆕🔴**「使用コストとして追加で」の形はここで取らない**（§5.3 `O-60` 第60バッチ・2026-09-03）＝
+  //   見た目は同じ任意の手札捨てでも、**任意コストの支払い記録（`self_optional_effect_taken`）が要る**
+  //   ＝後段の `CHOOSE{additionalCostChoose}`（「支払っていた場合、代わりにKつ選ぶ」）が読む。
+  //   typed `TRASH{optional:true}` はその記録を残さないので、**昇格が永久に起きない**過小実行になる
+  //   （`WD23-044-EA-E1`）。part3 の `OPTIONAL_COST{handDiscard}` へ譲る。
   {
     const optDiscardM = t.match(/手札を([０-９\d]+)枚捨ててもよい$/);
     const lastClause = t.slice(t.lastIndexOf('、') + 1);
-    if (optDiscardM && !/^対戦相手[はが]/.test(lastClause)) {
+    const isUseTimeAdditional = /(?:使用コストとして)?追加で手札を[０-９\d]+枚捨ててもよい$/.test(t)
+      && /使用する際|使用コストとして/.test(t);
+    if (optDiscardM && !isUseTimeAdditional && !/^対戦相手[はが]/.test(lastClause)) {
       return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(optDiscardM[1]) }, optional: true };
     }
   }
@@ -2427,7 +2434,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   ここで弾かれて `cardName:'ライズアイコン_黒'` に落ちていた＝**どのカード名にも一致しない
       //   恒久 no-op**（このコメントが警告している旧バグと同型が、綴り違いで再発していた）。
       const iconM = nameM[1].match(/^(クロス|ライズ|トラップ|アクセ)アイコン(?:_[白赤青緑黒])?$/);
-      if (iconM) filter.hasIcon = iconM[1] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ';
+      // 🆕**`《ライフバースト》を持つ/持たない` も「カード名」ではない**（§5.3 `O-60` 第60バッチ・2026-09-03）＝
+      //   上のコメントが警告している旧バグ（`hasIcon` を `cardName` に落として恒久 no-match）の**3例目**。
+      //   `WD23-044-EA-E1` は「デッキから《ライフバースト》を持つカード１枚を探して」が
+      //   `cardName:'ライフバースト'` になり、**どのカードにも一致しない恒久 no-op** だった。
+      //   ⚠原文には `【ライフバースト】` と `《ライフバースト》` の2表記がある（別名は両方書く）。
+      if (nameM[1] === 'ライフバースト') filter.hasLifeBurst = !/《ライフバースト》を持たない/.test(t);
+      else if (iconM) filter.hasIcon = iconM[1] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ';
       else filter.cardName = nameM[1];
     }
     const upToM = t.match(/([０-９\d]+)枚まで/);
@@ -3085,6 +3098,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   `cardName` は `matchesFilter` に実装済みなのに、この入口の filter 合成から漏れており、
     //   **トラッシュのどのシグニでも2枚回収できる**過剰効果だった。⚠**対象名詞句だけ**を見る（全文禁止の規律）。
     Object.assign(filter, signiClauseContainsNameFilter(trashTargetPhrase));
+    // 🆕**「《ライフバースト》を持つ／持たないカード」**（§5.3 `O-60` 第60バッチ・2026-09-03・`WD23-044-EA-E1`①）＝
+    //   `hasLifeBurst` は型にも `matchesFilter` にも実装済みなのに、この入口の filter 合成から漏れており
+    //   **トラッシュのどのカードでも回収できる**過剰効果だった（`census:wiring` の配線漏れと同型）。
+    //   ⚠原文には `【ライフバースト】`／`《ライフバースト》` の2表記がある。
+    if (/[【《]ライフバースト[】》]を持たない/.test(trashTargetPhrase)) filter.hasLifeBurst = false;
+    else if (/[【《]ライフバースト[】》]を持つ/.test(trashTargetPhrase)) filter.hasLifeBurst = true;
     // 「そのシグニと同じレベルの」＝**トリガー元シグニ基準**の動的等値（§5d パターンA・続き373）。
     // `levelEqTrigger` は型にも engine（`resolveDynamicFilter` の triggeringCardNum 経路／
     // `resolveLeaveFieldDynamicFilters`）にも実装済みで、トラッシュ→**場** の入口では既に配線されていたのに
@@ -3321,8 +3340,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         ...parseStoryFilter(np),
         ...parseColorFilter(np),
         ...parseLevelFilter(np),
-        ...(/【ライフバースト】を持たない/.test(np) ? { hasLifeBurst: false }
-          : /【ライフバースト】を持つ/.test(np) ? { hasLifeBurst: true } : {}),
+        // 🆕`《ライフバースト》` 表記も受ける（§5.3 `O-60` 第60バッチ・2026-09-03）。
+        ...(/[【《]ライフバースト[】》]を持たない/.test(np) ? { hasLifeBurst: false }
+          : /[【《]ライフバースト[】》]を持つ/.test(np) ? { hasLifeBurst: true } : {}),
       };
       return {
         type: 'ADD_TO_LIFE', owner: lifeOwner, count, fromTop: false, fromTrash: true,

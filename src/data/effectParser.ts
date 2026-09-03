@@ -3466,9 +3466,15 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
   // ＝「代わりに」昇格置換のゲート（§3 Opusタスク10 パターンF-2）。この表は matchLeadingStateCondition が使う＝
   // ここに無いと「代わりに」が置換にならず **SEQUENCE で両方実行**される（WXDi-P02-005＝1枚引く→3枚引く＝計4枚）。
-  [/このターンに対戦相手の効果によってあなたの手札からカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+  // 🆕**「トラッシュに**置かれて**いた場合」も同義**（§5.3 `O-60` 第60バッチ・2026-09-03・`SPK16-13E-E1`②）＝
+  //   原文は同じ意味を「移動していた」「置かれていた」の2通りで書く。片方しか無いと条件が丸ごと落ちて
+  //   **無条件に3枚エナチャージ**する過剰実行になっていた。**別名は必ず両方書く。**
+  // 🔴🔑**同時に `枚?以上?` の綴りも直した**＝あれは「**「以」が必須**で「上」だけ任意」という誤りで、
+  //   枚数を書かない原文（`SPK16-13E`）には**構造的に当たらなかった**（`(?:N枚以上)?` が正しい）。
+  //   ⚠**`?` を後置した optional は「直前の1文字」にしか掛からない**＝句を任意にするなら `(?:…)?` で囲む。
+  [/このターンに対戦相手の効果によってあなたの手札からカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
     g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
-  [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+  [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
     g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
   [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
     g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
@@ -3517,6 +3523,24 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'LRIG_COLOR', owner: g[0] === '対戦相手' ? 'opponent' : 'self', color: g[1] })],
   [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
     g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
+  // 🆕**＜X＞か＜Y＞の並列形**（§5.3 `O-60` 第60バッチ・2026-09-03・3枚＝`WX12-005`／`WX17-004`／`WXK03-TK-01B`）。
+  // 🔴この1本が無いために `conditionChoose`（選択数の昇格）が解けず、3枚とも
+  //   **engine がカード全文を regex で読む** `STUB{CONDITIONAL_MULTI_CHOOSE_BY_CENTER}` へ落ちていた。
+  //   そこは `＜タウィル＞` を**ルリグのカード名**と突き合わせており（`CardClass` ではない）、
+  //   「＜リル＞」に対して `'＜リル＞'.includes(CardName)` という**逆包含のまぐれ当たり**でしか成立しなかった
+  //   ＝`紅蓮乙女 リル` のような通常のルリグ名では**条件が永久に不成立**（昇格が起きない過小実行）。
+  [/(あなた|対戦相手)のセンタールリグが＜([^＞]+)＞か＜([^＞]+)＞の場合/,
+    g => ({ type: 'OR', conditions: [
+      { type: 'LRIG_STORY', owner: g[0] === '対戦相手' ? 'opponent' : 'self', story: g[1] },
+      { type: 'LRIG_STORY', owner: g[0] === '対戦相手' ? 'opponent' : 'self', story: g[2] },
+    ] })],
+  // 🆕**「センタールリグ**の**レベルがN以上／以下の場合」**（§5.3 `O-60` 第60バッチ・2026-09-03）。
+  // ⚠既存の語彙は語順違いの「センタールリグ**が**レベルN以上」（`parseCondition` 側）だけで、
+  //   この語順は**どちらの共通表にも無かった**＝`WX13-060` が `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`
+  //   （engine 全文 regex）へ落ちる唯一の理由だった。
+  [/(あなた|対戦相手)のセンタールリグのレベルが([０-９\d]+)(以上|以下)の場合/,
+    g => ({ type: 'LRIG_LEVEL', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
   // 「あなたのセンタールリグが(色)で、あなたのライフクロスがN枚以下の場合、代わりに強化」（WX06-002〜006「五面」）
   // ＝LRIG色＋ライフ枚数の複合条件。表に無いと「代わりに」が置換にならず SEQUENCE 両実行の過剰効果になる。
   [/あなたのセンタールリグが(白|赤|青|緑|黒)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
@@ -3639,9 +3663,9 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
     // （WXDi-P02-005／WXDi-P07-023／SPK16-13E）。engine に状態カウンタを新設（§3 Opusタスク10 パターンF-2）。
     // ⚠これが無いと「代わりに」の置換ゲートが立たず、**SEQUENCE に化けて両方実行**される（1枚引く→3枚引く＝計4枚）。
-    [/このターンに対戦相手の効果によってあなたの手札からカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+    [/このターンに対戦相手の効果によってあなたの手札からカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
       g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
-    [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+    [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
       g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
     // ⚠「N枚以上ある場合」（枚+以上+ある+場合／の 無し）は census 条件節クラスタの独立テンプレ＝
     //   「の場合」固定だと "ある場合" 形（WX12-046/WXDi-P15-094/WXEX1-39 等）が未マッチで条件ごと脱落した。
@@ -5317,17 +5341,123 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   ⚠ここ（単文 funnel の先頭）で分割する＝`parseSentencePart*` からは `parseSingleSentence` を呼べない。
   //   ⚠**右側は再帰で普通に解析する**（解けなければ従来どおり前半だけに倒れる＝fail-closed）。
   {
+    // 🆕**主語つきの「〈誰か〉は自分のトラッシュにあるすべてのカードを〜」も受ける**
+    //   （§5.3 `O-60` 第60バッチ・2026-09-03・`SP38-004-E1`②）。⚠**所有者は主語が決める**＝
+    //   旧規則は `owner:'self'` 固定だったので、対戦相手側の文が**自分のトラッシュを戻す向きの反転**になり、
+    //   さらに後半（ライフ→エナ）も落ちていた（`census:enginetext` 第58バッチと同じ「.*が文を跨ぐ」型の逆）。
     const shuffleContM = text.trim().replace(/。$/, '')
-      .match(/^(?:あなたの)?トラッシュ(?:にある|から)すべてのカードをデッキに加えてシャッフルし、(.+)$/);
+      .match(/^(?:(あなた|対戦相手)は)?(?:自分の|あなたの)?トラッシュ(?:にある|から)すべてのカードをデッキに加えてシャッフルし、(.+)$/);
     if (shuffleContM) {
-      const rest = parseSingleSentence(shuffleContM[1]);
+      const owner = shuffleContM[1] === '対戦相手' ? 'opponent' : 'self';
+      // 後半の主語は前半と同じ＝原文が省略している主語を補ってから解く（`oppChoose` ビルダーと同じ規約）。
+      const restText = owner === 'opponent' && !/^(あなた|対戦相手|各プレイヤー)/.test(shuffleContM[2])
+        ? `対戦相手は${shuffleContM[2]}` : shuffleContM[2];
+      const rest = parseSingleSentence(restText);
       const restJson = JSON.stringify(rest);
       if (!restJson.includes('"UNKNOWN"') && !restJson.includes('DEFERRED_')) {
         return { type: 'SEQUENCE', steps: [
-          { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL' }, shuffle: true } as EffectAction,
+          { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner, count: 'ALL' }, shuffle: true } as EffectAction,
           rest,
         ] } as EffectAction;
       }
+    }
+  }
+  // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`
+  //   （engine がカード全文を読む多択の受け皿）を撤去したので、その①②を単文として解けるようにする。**
+  //   受け皿は**どちらも engine に実装済み**（`draw_on_opp_power_zero` フラグ／レベル合計パワー修正）で、
+  //   無かったのは parser 側の入口だけ＝`WX13-060-E1`。
+  // ⚠**総称規則より先に置く**＝①は下流で `DRAW{count:1}` に潰れており（「パワーが０以下になったとき」の
+  //   遅延条件が丸ごと落ちて**即座に1枚引く**過剰実行）、②は `UNKNOWN` だった。
+  {
+    const t60 = text.trim().replace(/。$/, '');
+    if (/^このターン[、,]対戦相手のシグニのパワーが[０0]以下になったとき[、,]カードを[１1]枚引く$/.test(t60)) {
+      return { type: 'STUB', id: 'DRAW_ON_OPP_POWER_ZERO' } as EffectAction;
+    }
+    // 🆕**「〈条件〉の場合、あなたの手札がN枚より少ない分だけカードを引く」**
+    //   （§5.3 `O-60` 第60バッチ・2026-09-03・`SPK16-13E-E1`③）。
+    // 🔴受け皿は `STUB{DRAW_UNTIL_HAND_SIZE, value:N}`（実装済み）。旧 live は
+    //   `STUB{DRAW_IF_OPP_DISCARDED_HAND}`＝**ログだけの真 no-op** に落ちていた
+    //   （engine の `choiceTextParser` 側だけが `HAND_TRASHED_BY_OPP` + ドローを組んでいた）。
+    {
+      const drawUpM = t60.match(
+        /^このターンに対戦相手の効果によってあなたの手札からカードがトラッシュに(?:移動して|置かれて)いた場合[、,]あなたの手札が([０-９\d]+)枚より少ない分だけカードを引く$/);
+      if (drawUpM) {
+        return {
+          type: 'CONDITIONAL',
+          condition: { type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: 1 },
+          then: { type: 'STUB', id: 'DRAW_UNTIL_HAND_SIZE', value: parseNum(drawUpM[1]) },
+        } as EffectAction;
+      }
+    }
+    // 🆕**「デッキから《ライズアイコン》を持つシグニ1枚**と**＜X＞のシグニ1枚を探して」＝2枚の別サーチ**
+    //   （§5.3 `O-60` 第60バッチ・2026-09-03・`WDK06-R08-E1`②）。
+    // 🔴汎用のサーチ規則は**2つの名詞句を1つの filter に合成**して
+    //   「＜アーム＞**かつ**《ライズアイコン》のシグニ**1枚**」にしていた＝**もう1枚が丸ごと消える**過小実行。
+    {
+      const riseAndClassM = t60.match(
+        /^あなたのデッキから《ライズアイコン》を持つシグニ([０-９\d]+)枚と＜([^＞]+)＞のシグニ([０-９\d]+)枚を探して公開し手札に加え[、,]デッキをシャッフルする$/);
+      if (riseAndClassM) {
+        const mkSearch = (filter: TargetFilter, n: number): EffectAction => ({
+          type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter, maxCount: n,
+          then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+        } as EffectAction);
+        return { type: 'SEQUENCE', steps: [
+          mkSearch({ cardType: 'シグニ', hasIcon: 'ライズ' }, parseNum(riseAndClassM[1])),
+          mkSearch({ cardType: 'シグニ', story: riseAndClassM[2] }, parseNum(riseAndClassM[3])),
+          { type: 'SHUFFLE_DECK', owner: 'self' } as EffectAction,
+        ] } as EffectAction;
+      }
+    }
+    // 🆕**「ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニは
+    //   「【常】：対戦相手のターンの間、バニッシュされない。」を得る」**
+    //   （§5.3 `O-60` 第60バッチ・2026-09-03・`WDK12-007-E1`①後段）。
+    // 🔴**受け皿は全部在った**（`hasCharm` フィルタ／`duringOppTurn`／`count:'ALL'`）のに、
+    //   汎用の引用能力付与規則が **`GRANT_KEYWORD{keyword:'チャーム'}` という幻覚**を出していた
+    //   （「【チャーム】が付いている」という**修飾句を付与するキーワードと読み違えた**）。
+    //   engine の `choiceTextParser` 側もこの後段を丸ごと捨てていた（＝どちらの経路でも効いていなかった）。
+    if (/^ターン終了時まで[、,]【チャーム】が付いているあなたのすべてのシグニは「【常】：対戦相手のターンの間[、,]バニッシュされない。?」を得る$/.test(t60)) {
+      return {
+        type: 'GRANT_PROTECTION',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', hasCharm: true } },
+        from: ['BANISH'], sourceOwner: 'any', duringOppTurn: true, duration: 'UNTIL_END_OF_TURN',
+      } as EffectAction;
+    }
+    // 🆕**「対象のあなたの《ライズアイコン》を持つシグニ１体よりパワーの低い対戦相手のシグニ１体をバニッシュ」**
+    //   （§5.3 `O-60` 第60バッチ・2026-09-03・`WDK06-R08-E1`①）。
+    // 🔴**受け皿は両方とも実装済み**（`SELECT_TARGET_ONLY` で基準体を先に固定し、`powerLtLastProcessed` で
+    //   その個体未満だけを候補にする）だったが、**engine の `choiceTextParser` 側にしか規則が無かった**＝
+    //   parser 経路では比較句が丸ごと落ちて**どの相手シグニでもバニッシュできる**過剰実行になる。
+    {
+      const riseLtM = t60.match(
+        /^対象のあなたの《ライズアイコン》を持つシグニ[１1]体よりパワーの低い対象の対戦相手のシグニ[１1]体をバニッシュする$/);
+      if (riseLtM) {
+        return { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', hasIcon: 'ライズ' } } } as EffectAction,
+          { type: 'BANISH',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtLastProcessed: true } } } as EffectAction,
+        ] } as EffectAction;
+      }
+    }
+    // 🔴**「対象とし、〈条件〉、それを〜」＝条件が**文の途中**にある形**（`SPK16-13E-E1`①）。
+    //   条件「このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合」を表す語彙が**無い**
+    //   （`ENERGY_TRASHED_BY_OPP`／`HAND_TRASHED_BY_OPP` の**シグニ版が欠けている**）。
+    //   ⚠条件を落として `BANISH` にすると**無条件バニッシュ**の過剰実行になるので、
+    //   honest defer（何もしない宣言）に倒す＝機構は §5.3 `O-233` に登録した。
+    if (/^対戦相手のシグニ[１1]体を対象とし[、,]このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合[、,]それをバニッシュする$/.test(t60)) {
+      return { type: 'STUB', id: 'DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT' } as EffectAction;
+    }
+    const clsLvM = t60.match(
+      /^対戦相手のシグニ[１1]体を対象とし[、,]ターン終了時まで[、,]それのパワーをあなたの場にある＜([^＞]+)＞のシグニのレベルを合計した数だけ([＋－+-])([０-９\d]+)する$/);
+    if (clsLvM) {
+      const magnitude = parseNum(clsLvM[3]);
+      return {
+        type: 'STUB', id: 'POWER_MOD_BY_FIELD_CLASS_LEVEL_SUM',
+        fieldClassLevelSumPower: {
+          story: clsLvM[1],
+          deltaPerLevel: /[－-]/.test(clsLvM[2]) ? -magnitude : magnitude,
+        },
+      } as EffectAction;
     }
   }
   // O-60 第13バッチ：直前の typed TRASH が残した実枚数を読む帰結は、総称 STUB より先に固定する。
@@ -15363,15 +15493,24 @@ function parseActionTextInner(text: string): EffectAction {
     const condChooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ。/);
     const condChooseAltM = text.match(/。([^。]*?場合)、代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ。/);
     if (condChooseHeadM && condChooseAltM && /[①②③④⑤]/.test(text)) {
-      // 共通表（`parseHoistStateCondition`）→ 局所パターンの順で条件を解く。
+      // 共通表（`resolveStateConditionClause`）→ 局所パターンの順で条件を解く。
+      // 🆕**表は2つある**（§5.3 `O-99`）＝旧 `parseHoistStateCondition` は `STATE_CONDITION_CLAUSES`
+      //   しか見ないので `LEADING_STATE_CLAUSES` 側にだけ在る語彙を黙って取りこぼしていた。
       const condText = condChooseAltM[1];
       const shareColorM = condText.match(/^あなたの場にそれぞれ共通する色を持つルリグが([０-９\d]+)体以上いる場合$/);
-      const altCond: Condition | null = parseHoistStateCondition(condText + '、')
+      const altCond: Condition | null = resolveStateConditionClause(condText)
         ?? (shareColorM
           ? { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount: parseNum(shareColorM[1]) }
           : null);
+      // 🆕**「追加で〈コスト〉を支払っていた場合、代わりにKつ選ぶ」**（§5.3 `O-60` 第60バッチ・2026-09-03・4効果）。
+      // 🔑これは**盤面条件ではない**（`evalCondition` で解けない）＝受け皿は既にある `additionalCostChoose`
+      //   （engine `effectExecutor.ts:6327` が `self_optional_effect_taken` を読む。`manualEffects.ts` に先例1件）。
+      //   直前の `STUB{OPTIONAL_COST}` が「支払う／スキップ」を提示し、支払ったらこのフラグが立つ。
+      // 🔴これが無かったため `SP26-005`／`SP38-004`／`WXDi-P15-002`／`WD23-044-EA` は
+      //   **engine がカード全文を regex で読む受け皿 STUB**へ落ちていた。
+      const altCostM = altCond ? null : condText.match(/^追加で(?:.+)を?(?:支払っていた|捨てていた)場合$/);
       const condItems = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
-      if (altCond && condItems.length >= 2) {
+      if ((altCond || altCostM) && condItems.length >= 2) {
         const chooseNode = {
           type: 'CHOOSE',
           choose_count: parseNum(condChooseHeadM[1]),
@@ -15382,11 +15521,16 @@ function parseActionTextInner(text: string): EffectAction {
             return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
           }),
           ...(condChooseHeadM[2] ? { upTo: true } : {}),
-          conditionChoose: {
-            condition: altCond,
-            thenChooseCount: parseNum(condChooseAltM[2]),
-            thenUpTo: !!condChooseAltM[3],
-          },
+          ...(altCond
+            ? { conditionChoose: {
+                condition: altCond,
+                thenChooseCount: parseNum(condChooseAltM[2]),
+                thenUpTo: !!condChooseAltM[3],
+              } }
+            : { additionalCostChoose: {
+                thenChooseCount: parseNum(condChooseAltM[2]),
+                thenUpTo: !!condChooseAltM[3],
+              } }),
         } as ChooseAction;
         // ⚠**見出しより前の本文を落とさない**＝`WXK11-005-E1`「各プレイヤーは自分のデッキの上から
         //   カードを５枚トラッシュに置く。その後、あなたは以下の２つから…」の**先頭のミルが消える**
@@ -22262,9 +22406,13 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   let action: EffectAction;
   if (isBetMultiChoose) {
     const parsed = parseActionText(condition ? cleaned : stripped);
+    // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`BET_MECHANIC`（engine がカード全文を読む受け皿）を撤去した。**
+    //   展開できない構造は **`UNKNOWN`（＝計器に見える穴）** に倒す＝旧 STUB は
+    //   「選択数を全文 regex で読み、選択肢を `choiceTextParser` に全文ごと渡す」形で、
+    //   live JSON にも逆翻訳にも①②③が現れないまま動いているように見えていた。
     action = (parsed.type === 'CHOOSE' && (parsed as ChooseAction).betChoose)
       ? parsed
-      : ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction);
+      : ({ type: 'UNKNOWN', raw: condition ? cleaned : stripped } as EffectAction);
   } else {
     action = parseActionText(condition ? cleaned : stripped);
   }

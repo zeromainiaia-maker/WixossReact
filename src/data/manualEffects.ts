@@ -3423,9 +3423,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX06-014": [
     {"effectId":"WX06-014-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":1},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":5,"filter":{"cardType":"シグニ","story":"古代兵器"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
-  "WX09-Re03": [
-    {"effectId":"WX09-Re03-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"白","count":2},{"color":"青","count":2}]},"action":{"type":"STUB","id":"CONDITIONAL_MULTI_CHOOSE_BY_CENTER"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-  ],
   "WX13-019": [
     {"effectId":"WX13-019-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"pickCount":1,"then":"hand","pickNoun":"カード"},{"pickCount":1,"then":"energy","pickNoun":"カード"}],"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],

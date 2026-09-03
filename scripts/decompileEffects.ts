@@ -3058,18 +3058,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // GRANT_TO_PLACED_SIGNI: 「この方法で場に出たシグニは…を得る」（value に原文を保持）。
       if (a.id === 'GRANT_TO_PLACED_SIGNI') return a.value ?? 'この方法で場に出たシグニは能力を得る';
-      // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
-      // STUB。decompiler は JSON に選択肢を持たないため、原文の選択肢をそのまま反映する（＝engine 挙動と一致）。
-      if (a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' || a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
-        const pm = currentCardText.match(/以下の([０-９\d]+)つから([０-９\d]+)つ(まで)?選ぶ/);
-        const totalN = pm ? pm[1] : '';
-        const pick = pm ? pm[2] : '1';
-        const made = pm && pm[3] ? 'まで' : '';
-        const enh = currentCardText.match(/代わりに([０-９\d]+)つ(?:まで)?選ぶ/);
-        const segs = [...currentCardText.matchAll(/[①-⑨]([^①-⑨]*)/g)]
-          .map(x => x[1].replace(/\s+/g, ' ').trim().replace(/(?:。|\s|-)+$/, ''));
-        if (segs.length >= 2) return `以下の${totalN || segs.length}つから${pick}つ${made}${enh ? `（条件達成で${enh[1]}つまで）` : ''}選ぶ【${segs.join(' / ')}】`;
-      }
+      // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE_BY_CENTER(_LEVEL_GTE)` の
+      //   逆翻訳分岐を撤去した。**受け皿 STUB が engine ごと消え、parser が `CHOOSE` を出すので、
+      //   選択肢は JSON から普通に逆翻訳される。
+      // 🔑**第59バッチの教訓の適用**＝engine が原文を読む形を潰したら、
+      //   **逆翻訳側の「原文をそのまま写す」分岐も一緒に撤去する**（残すと計器が緑のまま嘘で一致する）。
       // 🗑`OPTIONAL_DISCARD_HAND_CLASS` の全文 regex 版は撤去（§5.3 `O-60` 第51バッチ・2026-09-03）＝
       //   上の family 分岐が `handCardPick` から描く。
       // OPPONENT_PAY_OPTIONAL: 対戦相手の任意コスト支払い（兄弟 CONDITIONAL(IS_MY_TURN) が
@@ -4033,12 +4026,9 @@ function actionJa(a?: Action, effectType?: string): string {
         if (!payUONU) return '[UPKEEP_OR_NO_UP: 回避条件なし（未指定・engine も何もしない）]';
         return `次の対戦相手のアップフェイズに、対戦相手が${payUONU}かぎり、対戦相手のセンタールリグはアップしない`;
       }
-      // ベット機構（BET_MECHANIC）＝この STUB がアクション全体を占める（構造化なし）ので「ベット―」以降の全文を原文抽出。
-      // §5b Z-2（PLAN.md）。engine 側は §6.3 の機構待ちに登録済み・ここは表現のみ。
-      if (a.id === 'BET_MECHANIC') {
-        const m = currentCardText.match(/ベット―[\s\S]*/);
-        if (m) return m[0];
-      }
+      // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`BET_MECHANIC` の逆翻訳分岐を撤去した。**
+      //   「ベット―以降の全文をそのまま返す」＝**逆翻訳が原文のコピーだった**ので、
+      //   JSON が①②③を持っていないことが照合で永久に見えなかった。いまは `CHOOSE` を普通に逆翻訳する。
       // すべての領域でクラス扱い（TREAT_AS_CLASS_ALL_ZONES）＝「このカードはすべての領域で＜X＞として扱う」を原文抽出
       // （collectTreatAsClassAllZones が同じ正規表現でクラス名を実行時に読み取るため、抽出パターンを合わせてある）。
       if (a.id === 'TREAT_AS_CLASS_ALL_ZONES') {
@@ -4232,6 +4222,12 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】デッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
         DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY:
           '【未実装】あなたは引用された【起】能力を得る',
+        // 🆕§5.3 `O-233`（2026-09-03・`O-60` 第60バッチで分離）＝
+        //   「このターンに**対戦相手の効果によって**あなたのシグニが場を離れていた場合」の条件語彙が無い。
+        //   ⚠`ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` の**シグニ版が欠けている**だけ（1効果）。
+        //   条件を落として `BANISH` にすると**無条件バニッシュ**の過剰実行になるので明示 defer にした。
+        DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT:
+          '【未実装】対戦相手のシグニ1体を対象とし、このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合、それをバニッシュする',
         DEFERRED_TRASH_ALL_TO_DECK_OPTIONAL:
           '【未実装】あなたのトラッシュからすべてのカードをデッキに加えてもよい（そうした場合、デッキをシャッフルする）',
         DEFERRED_SPLIT_PILES_OPP_CHOOSE:
@@ -4663,6 +4659,17 @@ function actionJa(a?: Action, effectType?: string): string {
         return luc.fromAllLrigs
           ? `あなたのルリグの下からカードを合計${luc.count}枚ルリグトラッシュに置いてもよい。そうした場合、以下を行う`
           : `このルリグの下からカード${luc.count}枚をルリグトラッシュに置いてもよい。そうした場合、以下を行う`;
+      }
+      // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝クラス別レベル合計のパワー修正も payload から描く。**
+      //   ⚠**ハンドラのコメントに頼らない**＝`genStubsMd` 経由の説明はコード都合の文言（payload キー名など）が
+      //   そのまま原文照合の表に出る。payload を持つ STUB はここで**原文の語彙**へ翻訳する。
+      if (a.id === 'POWER_MOD_BY_FIELD_CLASS_LEVEL_SUM' && a.fieldClassLevelSumPower) {
+        const fc = a.fieldClassLevelSumPower;
+        const sign = fc.deltaPerLevel < 0 ? '－' : '＋';
+        return `対戦相手のシグニ1体を対象とし、ターン終了時まで、それのパワーをあなたの場にある＜${fc.story}＞のシグニのレベルを合計した数だけ${sign}${Math.abs(fc.deltaPerLevel)}する`;
+      }
+      if (a.id === 'DRAW_ON_OPP_POWER_ZERO') {
+        return 'このターン、対戦相手のシグニのパワーが0以下になったとき、カードを1枚引く';
       }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）

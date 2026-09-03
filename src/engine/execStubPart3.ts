@@ -13,7 +13,7 @@ import {
   sourceAbilityText,
   resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
-import { collectMultiAcceLimits, LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
+import { collectMultiAcceLimits } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
 import { acceCardsAt, cloneAcceSlots, countAcce, findAcceZone } from '../utils/acce';
@@ -2069,60 +2069,11 @@ export function execStubPart3(
       type: 'CHOOSE', options: optsDNP, count: 1,
     });
   }
-  // CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済みシグニをトラッシュへ（代替効果）
-  if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
-    const srcCAE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCAE = srcCAE ? (srcCAE.EffectText ?? '') + ' ' + (srcCAE.BurstText ?? '') : '';
-    // 「追加で手札をN枚捨てていた場合、代わりにKつを選ぶ」パターン。
-    // 直前の任意 TRASH は、実際に捨てたカードだけを lastProcessedCards に残すため、
-    // カード固有情報ではなく支払い結果と一般文型から選択数を決める。
-    const handDiscardAltCAE = txtCAE.match(/追加で手札を([１-９\d]+)枚捨てていた場合[、,]代わりに([２-９\d]+)つを?選ぶ/);
-    if (handDiscardAltCAE) {
-      const toHWCAE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const paidCountCAE = ctx.lastProcessedCards?.length ?? 0;
-      const requiredCAE = parseInt(toHWCAE(handDiscardAltCAE[1]));
-      const enhancedCAE = parseInt(toHWCAE(handDiscardAltCAE[2]));
-      const chooseCountCAE = paidCountCAE >= requiredCAE ? enhancedCAE : 1;
-      const lifeBurstFilterCAE = { hasLifeBurst: true };
-      const optsCAE = [
-        {
-          id: 'cae_life_burst_from_trash', label: '①トラッシュのライフバーストを手札へ', available: true,
-          action: {
-            type: 'TRANSFER_TO_HAND',
-            source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: lifeBurstFilterCAE },
-          } as EffectAction,
-        },
-        {
-          id: 'cae_life_burst_from_deck', label: '②デッキのライフバーストを探して手札へ', available: true,
-          action: {
-            type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: lifeBurstFilterCAE, maxCount: 1,
-            then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
-            afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
-          } as EffectAction,
-        },
-      ];
-      return needsInteraction(addLog(ctx, `追加手札コスト${chooseCountCAE > 1 ? '支払済' : '未払'}（${chooseCountCAE}つ選択）`), {
-        type: 'CHOOSE', options: optsCAE, count: chooseCountCAE, multiSelect: chooseCountCAE > 1,
-      });
-    }
-    // 「あなたの場に＜CLASS＞のシグニがある場合、代わりに」パターン
-    const classMatchCAE = txtCAE.match(/あなたの場に＜([^＞]+)＞のシグニがある場合[、,]代わりに/);
-    const reqClassCAE = classMatchCAE ? classMatchCAE[1] : '';
-    const condMetCAE = reqClassCAE
-      ? ctx.ownerState.field.signi.some(stack => {
-          const cn = stack?.at(-1);
-          return cn && (ctx.cardMap.get(cn)?.CardClass ?? '').includes(reqClassCAE);
-        })
-      : false;
-    if (condMetCAE && ctx.lastProcessedCards?.[0]) {
-      const targetCAE = ctx.lastProcessedCards[0];
-      const removedCAE = removeFromField(targetCAE, ctx.otherState);
-      const newOtherCAE: PlayerState = { ...removedCAE, trash: [...removedCAE.trash, targetCAE] };
-      return done(addLog({ ...ctx, otherState: newOtherCAE },
-        `＜${reqClassCAE}＞あり→${ctx.cardMap.get(targetCAE)?.CardName ?? targetCAE}をトラッシュへ（代替効果）`));
-    }
-    return done(addLog(ctx, `代替条件未達（${reqClassCAE ? '＜' + reqClassCAE + '＞なし' : '条件解析不可'}）`));
-  }
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_ALTERNATE_EFFECT` ハンドラを撤去した。**
+  //   「追加で手札をN枚捨てていた場合、代わりにKつを選ぶ」は parser の `CHOOSE{additionalCostChoose}` へ。
+  //   🔴旧ハンドラは**選択肢の中身（トラッシュ／デッキから《ライフバースト》を持つカード）まで
+  //     ハンドラ内にベタ書き**しており、`WD23-044-EA` 1枚のためのカード専用コードだった。
+  //   ⚠同居していた「あなたの場に＜X＞のシグニがある場合、代わりに」枝は **live 0**（`--id` 実測）。
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（ログのみ）
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュからコスト上限以下のスペルをコストなしで使用
   if (stub.id === 'TRASH_SPELL_FREE_USE_LIMIT') {
@@ -2589,44 +2540,11 @@ export function execStubPart3(
       deck: ctx.ownerState.deck.slice(canDrawDUHS) };
     return done(addLog({ ...ctx, ownerState: newOwnerDUHS }, `${canDrawDUHS}枚ドロー（手札${targetNDUHS}枚まで）`));
   }
-  // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: センタールリグによる複数選択
-  if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
-    const srcCMCBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCMCBC = srcCMCBC ? (srcCMCBC.EffectText ?? '') + ' ' + (srcCMCBC.BurstText ?? '') : '';
-    const toHWCMCBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // ベース選択数「以下のN つから M つ(まで)選ぶ」
-    const baseCountM = txtCMCBC.match(/以下の[２-９\d２-９]つから([２-９\d１1])つ(?:まで)?選ぶ/);
-    const baseCount = baseCountM ? parseInt(toHWCMCBC(baseCountM[1])) : 1;
-    // センタールリグ条件チェック
-    const centerCondM = txtCMCBC.match(/センタールリグが(.+?)の場合/);
-    let condMetCMCBC = !centerCondM; // 条件なしなら常にtrue
-    if (centerCondM) {
-      const reqNames = centerCondM[1].trim().split(/か|と/).map(s => s.trim()).filter(Boolean);
-      const centerTop = ctx.ownerState.field.lrig.at(-1);
-      const centerCard = centerTop ? ctx.cardMap.get(centerTop) : undefined;
-      const centerName = centerCard?.CardName ?? '';
-      const runtimeAliases = ctx.ownerState.lrig_name_aliases ?? [];
-      const hasAllNames = runtimeAliases.includes(LRIG_ALL_NAMES_SENTINEL);
-      const aliases = [centerName, ...runtimeAliases.filter(a => a !== LRIG_ALL_NAMES_SENTINEL)];
-      condMetCMCBC = hasAllNames || reqNames.some(rn => aliases.some(a => a.includes(rn) || rn.includes(a)));
-    }
-    // 選択数: 条件達成なら"代わりにNつまで"、未達成はベース数
-    const enhCountM = txtCMCBC.match(/代わりに([２-９\d])つまで選ぶ/);
-    const maxChooseCount = condMetCMCBC && enhCountM ? parseInt(toHWCMCBC(enhCountM[1])) : baseCount;
-    // 各選択肢（①②③④）を解析してCHOOSEオプション生成（choiceTextParserに共通化）
-    const optionsCMCBC = parseChoiceOptionsFromText(txtCMCBC, 'choice');
-    if (optionsCMCBC.length > 0) {
-      const condLogCMCBC = centerCondM
-        ? `（${condMetCMCBC ? '条件達成' : 'ベース選択'}：最大${maxChooseCount}択）`
-        : `（最大${maxChooseCount}択）`;
-      return needsInteraction(addLog(ctx, `効果を最大${maxChooseCount}つ選択してください${condLogCMCBC}`), {
-        type: 'CHOOSE', options: optionsCMCBC, count: maxChooseCount,
-      });
-    }
-    const centerCMCBC2 = ctx.ownerState.field.lrig.at(-1);
-    const centerCardCMCBC2 = centerCMCBC2 ? ctx.cardMap.get(centerCMCBC2) : undefined;
-    return done(addLog(ctx, `センター（${centerCardCMCBC2?.CardName ?? 'なし'}）による複数選択（解析不可）`));
-  }
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE_BY_CENTER` ハンドラを撤去した。**
+  //   「〈盤面条件〉の場合、代わりにKつまで選ぶ」は parser の `CHOOSE{conditionChoose}` が受け皿。
+  //   🔴旧ハンドラは「あなたのセンタールリグが＜タウィル＞か＜ウムル＞の場合」を**ルリグのカード名**と
+  //     突き合わせており（正しくは `CardClass`＝`LRIG_STORY`）、`'＜リル＞'.includes(CardName)` という
+  //     逆包含のまぐれ当たりでしか成立しなかった＝通常のルリグ名では**昇格が永久に起きない**過小実行だった。
   // INTERNAL_DOWN_AND_FREEZE_OPP: 相手シグニ1体をダウン+全シグニを凍結
   if (stub.id === 'INTERNAL_DOWN_AND_FREEZE_OPP') {
     const downCandsDFO = ctx.otherState.field.signi.flatMap((s, zi) => s?.at(-1) ? [{ cn: s.at(-1)!, zi }] : []);

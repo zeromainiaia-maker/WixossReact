@@ -1,5 +1,129 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第20巡）：§5.3 `O-60` 第60バッチ — モーダル選択 family を `CHOOSE` へ寄せて受け皿4本を撤去
+
+**ベースライン**＝`8778aa68c`（第59バッチの直後）。**A🔴 SELF_TEXT 22行 → 17行 / 21→16ハンドラ**
+（`BASELINE_SELF_TEXT` も 17 へ払い戻し）。miss は 0 のまま。
+**gates 全緑**（typecheck・golden **3397 → 3398**＝+1本・smoke 10725 全異常0・fuzz 全0・
+census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴17**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更18・追加0・削除0、予定外0**。
+⚠`census:cards --sheet 1` の要対応は **16 → 17**（🔴増だが**簿記**＝`O-233` を登録したぶん
+`SPK16-13E` が `mech` に入った。17件は**全部 `mech`＝即着手可能 0**）。
+🖥**実機＝機械判定では不要**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+**`src/screens/` は1行も触っていない**・新しいアクション型／条件型／interaction 型は0＝
+足したのは `StubAction` の payload キー1本 `fieldClassLevelSumPower` だけ）。
+ただし**18効果の提示形（pending）が `STUB` 由来から `CHOOSE{choose_count, multiSelect}` へ変わった**ので、
+実機観測点 **`V-141`** を登録した（未実施）。
+
+### 真因（4 family 共通）＝engine の受け皿が「選択数」も「選択肢」もカード全文から作っていた
+
+4つの受け皿 STUB（`BET_MECHANIC` / `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` /
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` / `CONDITIONAL_ALTERNATE_EFFECT`）は、
+**実行時にカード全文へ regex を当てて**「以下のNつからMつ選ぶ」の数を読み、
+①②③の選択肢は `choiceTextParser`（engine 側のもう1つの原文解析器）に**カード全文ごと**渡していた。
+⇒ **live JSON にも逆翻訳にも①②③が一切現れない**＝逆翻訳・census・golden・smoke が全部緑のまま
+意味が engine の regex で決まる。受け皿は**すべて既存**（`CHOOSE` の `betChoose` /
+`conditionChoose` / `additionalCostChoose`）で、無かったのは parser 側の入口だけだった。
+
+| family | live | 何が壊れていたか |
+|---|---|---|
+| `BET_MECHANIC` | 8 | 選択肢が live に出ない（`WX19-006`①は `STUB{BANISH}`＝**対象を選ばせず、アーツ自身を消そうとする恒久 no-op**） |
+| `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` | 4 | 「センタールリグが＜タウィル＞か＜ウムル＞」を**ルリグのカード名**と突き合わせていた（正しくは `CardClass`）＝`'＜リル＞'.includes(CardName)` という**逆包含のまぐれ当たり**でしか成立せず、`紅蓮乙女 リル` のような通常名では**昇格が永久に起きない**過小実行 |
+| `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` | 4 | 1つの id に**2文型が同居**（センターレベル条件／追加コスト）。さらに `STUB{OPTIONAL_COST}` と**同じ追加コストを二重に提示**していた（プレイヤーが2回「支払いますか？」に答える） |
+| `CONDITIONAL_ALTERNATE_EFFECT` | 1 | 選択肢の中身まで**ハンドラにベタ書き**した `WD23-044-EA` 専用コード |
+
+### 直した内容
+
+- **parser の条件語彙2本**（共通表 `STATE_CONDITION_CLAUSES`）＝
+  「〈誰か〉のセンタールリグが＜X＞か＜Y＞の場合」→ `OR[LRIG_STORY, LRIG_STORY]`（3枚）／
+  「〈誰か〉のセンタールリグ**の**レベルがN以上／以下の場合」→ `LRIG_LEVEL`（既存語彙は語順違いの
+  「センタールリグ**が**レベルN以上」しか無かった）。
+- **`conditionChoose` ビルダーが共通表を1本しか見ていなかった**（§5.3 `O-99` の罠）＝
+  `parseHoistStateCondition` → `resolveStateConditionClause`（2表とも見る）へ。
+- **`additionalCostChoose` の枝を新設**＝「追加で〈コスト〉を支払っていた／捨てていた場合、代わりにKつ選ぶ」。
+  盤面条件では表せない（`evalCondition` に載らない）ので専用キーへ。4効果。
+- **`INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS` → `POWER_MOD_BY_FIELD_CLASS_LEVEL_SUM`**（payload
+  `fieldClassLevelSumPower{story, deltaPerLevel}`）。旧はカード全文から `＜X＞` を読み、
+  **外れると `CardClass.includes('')` が全シグニに真**＝場のシグニ全部のレベル合計になった。
+- **`INTERNAL_CMCLG_DRAW_ON_POWER_ZERO` → `DRAW_ON_OPP_POWER_ZERO`**（parser が直接出すので `INTERNAL_` を外した）。
+- **死枝の `INTERNAL_CMCLG_*` 8本を撤去**（`_DEDUCT` と `_APPLY_POWER_MOD` は他から使われるので残す）。
+- **逆翻訳の「原文をそのまま写す」分岐2本を撤去**（`decompileEffects.ts` の `BET_MECHANIC` は
+  「ベット―以降の全文」を返しており、**JSON が①②③を持たないことが照合で永久に見えなかった**）。
+- **`WX09-Re03` の `manualEffects.ts` 上書きを削除**（STUB を保持するためだけの MANUAL）。
+
+### 🔴 この巡の主産物＝engine には原文解析器が「2つ」ある
+
+`census:enginetext` は `EffectText` という**文字列**か `sourceAbilityText(ctx)` の行しか数えない。
+`parseChoiceOptionsFromText(txt, prefix)` は**原文を引数で受け取る**ので、
+`src/engine/choiceTextParser.ts`（492行・約30分岐）は**初版から一度も計器に映っていなかった**。
+（**`census:costtext` の罠③＝「原文を引数で受け取る関数」／第56バッチの funnel 死角**と同じ形の3例目。）
+
+⇒ **受け皿 STUB を撤去するときは `choiceTextParser` にしか無い規則を全部 parser へ移す。**
+移し忘れで3件が壊れた（どれも gates は緑のままだった）＝
+
+| 症状 | カード | 何が起きたか |
+|---|---|---|
+| 比較句の脱落（過剰） | `WDK06-R08`① | 「《ライズアイコン》を持つシグニ**よりパワーの低い**」が消え、**どの相手シグニでもバニッシュ可**に。受け皿（`SELECT_TARGET_ONLY` ＋ `powerLtLastProcessed`）は両方とも実装済みだった |
+| 2枚サーチが1枚に（過小） | `WDK06-R08`② | 「《ライズアイコン》を持つシグニ1枚**と**＜アーム＞のシグニ1枚」が**1つの合成フィルタ**（＜アーム＞かつライズ・1枚）に潰れた |
+| 真 no-op | `SPK16-13E`③ | `STUB{DRAW_IF_OPP_DISCARDED_HAND}`＝**ログだけ**。`CONDITIONAL{HAND_TRASHED_BY_OPP} → STUB{DRAW_UNTIL_HAND_SIZE:6}` へ |
+
+### 副産物（作業中に見つけてその場で直した parser バグ）
+
+- 🔴**`?` を後置した optional は「直前の1文字」にしか掛からない**＝共通表の
+  `カードが([０-９\d]*)枚?以上?トラッシュに移動していた場合` は「**「以」が必須**で「上」だけ任意」という誤りで、
+  枚数を書かない原文には**構造的に当たらなかった**（`SPK16-13E`②＝条件が落ちて**無条件に3枚エナチャージ**）。
+  正しくは `(?:([０-９\d]+)枚以上)?`。**句を任意にするなら `(?:…)?` で囲む。**
+- 🔴**同じ意味の別表記を両方書いていなかった（3件）**＝`【ライフバースト】`／`《ライフバースト》`
+  （後者は `filter.cardName = 'ライフバースト'` に落ちて**どのカードにも一致しない恒久 no-op**＝
+  同じコメントが警告していた `hasIcon` の旧バグの**3例目**）、
+  「トラッシュに**移動**していた」／「**置かれ**ていた」、
+  「センタールリグ**が**レベルN以上」／「センタールリグ**の**レベルがN以上」。
+- 🔴**`WDK12-007`① 後段が幻覚だった**＝「【チャーム】が付いているあなたのすべてのシグニは
+  「【常】：対戦相手のターンの間、バニッシュされない。」を得る」を
+  **`GRANT_KEYWORD{keyword:'チャーム'}`**（＝修飾句を付与キーワードと読み違え）にしていた。
+  受け皿は全部在った（`hasCharm` / `duringOppTurn` / `count:'ALL'`）ので `GRANT_PROTECTION` へ。
+  ⚠engine の `choiceTextParser` 側も**この後段を丸ごと捨てていた**（どちらの経路でも効いていなかった）。
+- 🔴**「対戦相手は自分のトラッシュを〜」の向きが固定 `self` だった**＝`SP38-004`② は
+  **自分のトラッシュを戻し**、後半（相手のライフ→エナ）も落ちていた。主語から owner を決めるようにし、
+  省略された後半の主語を補ってから解くようにした。
+- 🔴**「対戦相手のレベルN以上のシグニをトラッシュに置く」が `STUB{BANISH}` だった**＝
+  ①「トラッシュに置く」はバニッシュではない ②`STUB{BANISH}` は
+  `lastProcessedCards[0] ?? sourceCardNum` を消す形なので**対象を1体も選ばせない恒久 no-op**。typed `TRASH` へ。
+- **任意の追加手札捨てを `STUB{OPTIONAL_COST, handDiscard}` へ**＝typed `TRASH{optional:true}` では
+  **支払い記録（`self_optional_effect_taken`）が残らず**、後段の `additionalCostChoose` が永久に昇格しない。
+
+### 🔴 計器の読み方（この巡で1件較正した）
+
+live から STUB が消えた瞬間に census の高シグナルが **3→6** に増えたが、
+`vocabCensus` は**STUB を含む効果を高シグナルから免除する**ので、これは**新しい穴ではない**。
+内訳を1件ずつ割ると **実際の穴2件**（`WDK06-R08` の比較句／`WDK12-007` の幻覚＝上で修正）と
+**計器の穴1件**（`additionalCostChoose` をキー表が知らない＝`stripConditionChooseClause` へ追加＝
+`conditionChoose` を足したときと同じ較正）だった。⇒ **「可視化」で片付けず、1件ずつ原因を分ける。**
+
+### 🔑 golden が不具合を凍結していた
+
+`SP26-005`/`SP38-004` の既存 golden は `resumeChoose('pay')` を**2回**書いており、
+「同じ追加コストを2回提示する」という**不具合をそのまま契約として固定していた**。
+受け皿を1本化して1回に直した（他4本も id・型の変化に合わせて理由つきで更新）。
+新規 golden **`§5.3 O-60 第60`** を1本追加＝撤去した5 id が live に戻ったら落ちるラチェット＋
+6項目（`betChoose` / `LRIG_STORY` の OR / `LRIG_LEVEL` と2選択肢の payload /
+`additionalCostChoose` と `hasLifeBurst` / 明示 defer / `powerLtLastProcessed`）。
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt <18枚>
+npm run regen
+npm run gates          # 全緑（golden 3398 / census 3 / enginetext A🔴17）
+npx tsx scripts/censusEngineText.ts --id BET_MECHANIC   # → live 0（撤去済み）
+```
+
+**反転確認**＝`WX12-005` の昇格条件を `LRIG_STORY` にしたので、`CardClass` に「タウィル」を持たない
+センタールリグでは `choose_count` が 1 のままであることを golden で assert（旧実装は
+カード名の逆包含で**たまたま**当たっていた／通常名では**常に不成立**だった）。
+
+
 ## 2026-09-03（索引 A 第19巡）：§5.3 `O-60` 第59バッチ — A群の小口4 family（比例パワー修正3／全体トラッシュ／DRAW／選んだ能力の付与）
 
 **ベースライン**＝`c81400e01`（第58バッチの直後）。**A🔴 SELF_TEXT 28行 → 22行 / 27→21ハンドラ**

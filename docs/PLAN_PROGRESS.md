@@ -1,5 +1,72 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第59バッチ・索引 A 第19巡・Opus 5 単独）＝A群の小口4 family＝**🔴**自己再帰する受け皿は payload を継続へ積み忘れる**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器 `census:enginetext` は A🔴 28行 / 27ハンドラ → 22行 / 21ハンドラ**
+  （`BASELINE_SELF_TEXT` も 22 へ払い戻し）。miss は 0 のまま。
+  📦**在庫2本＝④機構 worklist 30項目**（🆕`O-232` を1件登録＝29→30）｜**⑤実機 残 10件**（🆕`V-140` を登録＝9→10）。
+  gates 全緑（golden **3397 / 3397**＝+4本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴22**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更10・追加0・削除0、予定外0**（＝対象4 family の10効果ちょうど）。
+  🖥**実機＝機械判定では不要**（`src/screens/` は0行・新しい interaction 型0）だが、
+  **3効果が「原文と違う数値／落ちていたゾーン／並び順」で動いていた**ので観測点 `V-140` を登録（未実施）。
+
+  🔴**主産物＝自己再帰する受け皿は payload を継続へ積み忘れる。**
+  `POWER_MOD_BY_COLOR_VARIETY` / `POWER_MOD_BY_ATTACKER_LEVEL` / `GRANT_CHOSEN_ABILITY` は
+  **`SELECT_TARGET` を出したあと自分自身へ再入する**形。payload 化のとき**継続側の STUB にも
+  payload を積まないと、2周目が payload 無し＝fail-closed で「対象は選ばせるのに何も起きない」**
+  無言 no-op になる。🔑**捕まえたのは既存 golden の反転側**（`§6.4 O-23` の「アタッカー L1 → －1000」）。
+  ⇒ **payload 化のたびに `continuation` / `thenAction` へ渡す STUB を全部見る。**
+
+  🔴**実害**＝
+  ①**外れたときの既定値が原文に無い数値**＝`POWER_MOD_BY_COLOR_VARIETY` は regex が外れると
+  **`-3000` 固定**（色が何種でも－3000）。**具体値の既定は必ず疑う。**
+  ②**1つの id に2つの文型が同居**＝`TRASH_ALL_SIGNI_AND_KEY` は流すゾーンが「シグニ＋キー」固定で、
+  `WX07-017-E1`（原文は**手札とエナも**流す・**キーは流さない**）が**両方向に**壊れていた。
+  🔑**逆翻訳の固定文言も同じ嘘をついていた**（「対象プレイヤーのシグニすべてとキーを…」）＝
+  **payload 化したら逆翻訳の早い分岐も一緒に撤去する**（片方だけ直すと計器は緑のまま）。
+  ③**engine 側の「パターン表」は静かな上限**＝`GRANT_CHOSEN_ABILITY` は8本のキーワード regex で
+  選択肢を組み立てており、**原文の①②③の並び順を無視**し、**表に無い語彙は無言 no-op** だった。
+  ④**原文にその句が無い regex**＝`STUB{DRAW}` の `カードをN枚引く` は
+  **この受け皿へ来る唯一の文型には存在しない**＝**必ず外れて既定1**だった。
+
+  🔑**この巡の一般則**＝
+  ①**自己再帰する受け皿は継続にも payload を積む** ②**「外れたときの既定値」は原文に無い数値の焼き込み**
+  ③**payload 化したら逆翻訳の固定文言も撤去する** ④**engine のパターン表は静かな上限**＝表ごと parser へ移す。
+
+  ⚠**見送り**＝`CONDITIONAL_POWER_BONUS`（A群1行・リテラル9本・**live 0**）は触らないと決めた＝
+  **parser 側に生成元が10箇所以上ある安全網**で、live 標本が0なので payload 化しても**正しさを1件も検証できない**。
+
+**▶ 次の一手**＝**`O-60` の続き（第60バッチ〜）。残 21ハンドラ・A🔴 22行。**
+🔴**残るのは「受け皿が先に要る」ものが中心**＝
+(a)🔴**モーダル選択（①②③④）**＝`BET_MECHANIC`(8)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`ARTS_EXTRA_COST_CONDITION`(1)／
+`CHOOSE_N_FROM_LIST`(1)／`CONDITIONAL_ALTERNATE_EFFECT`(1)／`BET_CONDITION`(1)＝**`choiceTextParser.ts`（492行）の
+約20分岐を parser 側へ移すまで採用してはいけない**（登録票に option 単位の優劣表あり）。
+🔑🆕**ただし第59の `GRANT_CHOSEN_ABILITY` は「選択肢が engine の語彙に閉じている」形だったので単独で取れた**＝
+**モーダル family も1件ずつ「選択肢が別アクションか／engine 語彙か」を見て仕分けると取れるものがある。**
+(b)**`GRANT_ABILITY_INNER_TEXT`（live14・引用文の実行時再パース）**＝`O-128` 家系で残る最後の核。
+🔑`restoreQuotedTargetGrant` が既に `GRANT_EFFECT{rawText}` へ戻す安全網を持つので、
+**通っていない14効果がなぜ通らないか**（`quotedIsSafe` の門／対象が自場シグニでない／`このゲームの間` の除外）を1件ずつ見る。
+(c)**live 0 の据置**＝`CONDITIONAL_POWER_BONUS`(9リテラル)／`CHOOSE_SAME_OPTION_TWICE`(8)／
+`OPP_DECK_REVEAL_UNTIL`(13) ほか＝**live 標本が無いので payload 化しても検証できない**。⚠**消してもいけない**。
+🔑**着手手順は第50〜59バッチと同じ**＝①`censusEngineText.ts --id A,B,C,…`（**1起動**）
+🔴②**計器の miss を信じず `abilityBlockTextOf` でリテラルを当て直す**（第58＝miss0 の3 family が全部壊れていた）
+③live JSON を全件ダンプして payload の有無を見る ④**typed で解けている兄弟**と**汎用 payload**から受け皿を探す
+⑤**入口の id 集合**と**parser の綴り**を疑う ⑥**生成側は文型ルールとは限らない**（カード別 override／
+効果単位の後処理） ⑦**engine 側に parser より賢い分岐が無いかを必ず見る** ⑧**payload が前の文にあるなら
+効果単位の後処理＋①②③スコープ**（**文中に主語がある形は文単位で刻む**＝第56で使い分けた）
+⑨**「同じ意味を決めている別の場所」を先に探す**（あれば撤去が正解）
+⑩**新キーの前に「条件型 → 汎用 payload → 既存の受け皿」の順で当たる**
+⑪**payload だけが答えではない＝「構造化された等価物」（効果型・条件型）で判定し直せないかを見る**
+⑫**catch-all に別の文型が混ざっていないかを見る**（第56 `SWAP_OPTIONAL`／第58 `COLLAB`／第59 `TRASH_ALL_SIGNI_AND_KEY`）
+⑬**消費側が engine の別経路（`effectExecutor` のコスト先取り等）にも無いか grep する**（第57＝6効果が恒久 no-op）
+⑭**既定値のある regex は「当たらないこと」が見えない**＝**当たり数を必ず数える**（第58＝枚数 regex が live 9/9 で外れ）
+⑮🆕**自己再帰する受け皿は `continuation` / `thenAction` にも payload を積む**（第59＝積み忘れると無言 no-op）
+⑯🆕**payload 化したら逆翻訳の固定文言も撤去する**（第59＝同じ嘘が2箇所にあった）
+⑰反転は**消費側**を壊して盤面の数で取る ⑱**STUB を解体したら census のキー表を較正する**。
+
 - **セッション（2026-09-03・`O-60` 第58バッチ・索引 A 第18巡・Opus 5 単独）＝A群 live効果数の大物3 family＝**🔴**「miss=0 は正しいではない」の実証**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

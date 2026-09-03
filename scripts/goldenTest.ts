@@ -480,13 +480,23 @@ test('task12(lxxxii) wave4: FISHING optional discard changes 1/2 choices and bot
   const burstDeck = burstTrash;
   const costCard = SIGNI;
 
+  // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝任意の追加手札捨てを `STUB{OPTIONAL_COST}` へ移した。**
+  //   🔴旧は typed `TRASH{HAND_CARD, optional:true}`（＝`SELECT_TARGET` で提示）だったが、
+  //     それでは**任意コストの支払い記録（`self_optional_effect_taken`）が残らない**ので、
+  //     後段の `CHOOSE{additionalCostChoose}` が読む「支払っていた場合」が永久に成立しなかった。
+  //   ⚠**契約は変わっていない**（未払い1つ／支払い2つ・手札1枚が実際にトラッシュへ移る）。
+  //     変わったのは**最初の提示が pay/skip の `CHOOSE` になった**ことだけ。
   const open = (pay: boolean) => {
     const base = mkCtx({}, {}, SOURCE);
     base.ownerState = { ...base.ownerState, hand: [costCard], trash: [SOURCE, burstTrash], deck: [burstDeck] };
     const first = executeEffect(effect, base);
-    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'スペルの任意手札捨てが最初に提示される');
-    if (first.done || first.pending.type !== 'SELECT_TARGET') throw new Error('discard pending missing');
-    const discarded = resumeSelectTarget(pay ? [costCard] : [], first.pending, execCtxFrom(first, base));
+    ok(!first.done && first.pending.type === 'CHOOSE', 'スペルの任意追加コスト（支払う/スキップ）が最初に提示される');
+    if (first.done || first.pending.type !== 'CHOOSE') throw new Error('optional cost pending missing');
+    const paidStep = resumeChoose(pay ? 'pay' : 'skip', first.pending, execCtxFrom(first, base));
+    // 「支払う」を選ぶと手札の対象選択（コスト）が挟まる。
+    const discarded = !paidStep.done && paidStep.pending.type === 'SELECT_TARGET'
+      ? resumeSelectTarget([costCard], paidStep.pending, execCtxFrom(paidStep, base))
+      : paidStep;
     ok(!discarded.done && discarded.pending.type === 'CHOOSE', '①②の選択肢が提示される');
     if (discarded.done || discarded.pending.type !== 'CHOOSE') throw new Error('choice pending missing');
     return { base, result: discarded, pending: discarded.pending };
@@ -495,7 +505,11 @@ test('task12(lxxxii) wave4: FISHING optional discard changes 1/2 choices and bot
   const unpaidTrash = open(false);
   eq(unpaidTrash.pending.count, 1, '追加コスト未払いは1つ選ぶ');
   eq(unpaidTrash.pending.options.length, 2, '未払いでも①②の2候補を提示');
-  const trashPick = resumeChoose('cae_life_burst_from_trash', unpaidTrash.pending, execCtxFrom(unpaidTrash.result, unpaidTrash.base));
+  // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝選択肢 id が `cae_*` から parser 生成の `c0/c1` へ変わった。**
+  //   engine の `CONDITIONAL_ALTERNATE_EFFECT`（カード全文 regex＋選択肢ベタ書き）を撤去し、
+  //   parser の `CHOOSE{additionalCostChoose}` が①②を live JSON に出すようにしたため。
+  //   ⚠**契約は変わっていない**（未払い1つ／支払い2つ・①はトラッシュ回収・②はデッキ探索）。
+  const trashPick = resumeChoose('c0', unpaidTrash.pending, execCtxFrom(unpaidTrash.result, unpaidTrash.base));
   const trashDone = trashPick.done
     ? trashPick
     : trashPick.pending.type === 'SELECT_TARGET'
@@ -505,7 +519,7 @@ test('task12(lxxxii) wave4: FISHING optional discard changes 1/2 choices and bot
   ok(!trashDone.ownerState.trash.includes(burstTrash), '①回収元から除かれる');
 
   const unpaidDeck = open(false);
-  const deckPick = resumeChoose('cae_life_burst_from_deck', unpaidDeck.pending, execCtxFrom(unpaidDeck.result, unpaidDeck.base));
+  const deckPick = resumeChoose('c1', unpaidDeck.pending, execCtxFrom(unpaidDeck.result, unpaidDeck.base));
   ok(!deckPick.done && deckPick.pending.type === 'SEARCH', '②はデッキ探索を提示');
   if (deckPick.done || deckPick.pending.type !== 'SEARCH') throw new Error('deck search missing');
   const deckDone = resumeSearch([burstDeck], deckPick.pending, execCtxFrom(deckPick, unpaidDeck.base));
@@ -558,10 +572,13 @@ test('task12(lxxxii) wave4 guard: existing conditional multi-choose cards remain
     const pay = executeEffect(effect, base);
     ok(!pay.done && pay.pending.type === 'CHOOSE', `${effectId}: 追加コスト選択`);
     if (pay.done || pay.pending.type !== 'CHOOSE') throw new Error(`${effectId}: pay pending missing`);
-    const actualCost = resumeChoose('pay', pay.pending, execCtxFrom(pay, base));
-    ok(!actualCost.done && actualCost.pending.type === 'CHOOSE', `${effectId}: 実コスト選択`);
-    if (actualCost.done || actualCost.pending.type !== 'CHOOSE') throw new Error(`${effectId}: actual cost pending missing`);
-    const choices = resumeChoose('pay', actualCost.pending, execCtxFrom(actualCost, base));
+    // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝支払い提示が1回になった。**
+    //   🔴旧は `STUB{OPTIONAL_COST}` と `STUB{CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE}` が
+    //     **同じ追加コストをそれぞれ提示**しており（後者はカード全文から支払い額を読み直していた）、
+    //     プレイヤーは「支払いますか？」に2回答えさせられていた。受け皿 STUB を撤去して
+    //     `CHOOSE{additionalCostChoose}` に一本化したので、提示は `OPTIONAL_COST` の1回だけ。
+    //   ⚠**契約は変わっていない**（支払えば2つ選べる・選択肢2個・複数選択）。
+    const choices = resumeChoose('pay', pay.pending, execCtxFrom(pay, base));
     ok(!choices.done && choices.pending.type === 'CHOOSE', `${effectId}: 支払い後の効果選択`);
     if (choices.done || choices.pending.type !== 'CHOOSE') throw new Error(`${effectId}: effect choices missing`);
     eq(choices.pending.count, 2, `${effectId}: count=2`);
@@ -2738,7 +2755,10 @@ test('GAIN_EXTRA_TURN / REMOVE_VIRUS: 誰が得るか・何個取り除くかは
   // 🔽**9→8**（2026-09-02・§5.3 `O-148`）＝`WX25-P3-058-E1` は【ウィルス】ではなく
   //   **【みこみこ親衛隊】という別カウンタ**だったので、`REMOVE_MIKOMIKO_GUARD` へ移した。
   //   ⚠**退化ではなく誤流用の解消**＝旧実装は相手の `field.signi_virus` を壊していた。
-  eq(rvNodes.length, 8, 'live の REMOVE_VIRUS ノード数');
+  // 🔼**8→9**（2026-09-03・§5.3 `O-60` 第60バッチ）＝`WX16-005-E1`③（ベットの3択）が live JSON に出た。
+  //   ⚠**新しい効果が増えたのではなく可視化**＝旧 live は `STUB{BET_MECHANIC}` 1ノードで、
+  //   ①②③は engine が実行時にカード全文から組み立てていた（＝live にも逆翻訳にも現れなかった）。
+  eq(rvNodes.length, 9, 'live の REMOVE_VIRUS ノード数');
   eq(rvNodes.filter(n => n.virusCount === undefined).length, 1, 'payload 無しは「これを取り除く」（WX25-P3-TK03）の1件だけ');
 }));
 test('GAIN_EXTRA_TURN: 同じ能力の「対戦相手は…追加ターン」で相手側へ付与する（成立方向）', () => withSavedCursor(() => {
@@ -42267,10 +42287,16 @@ test('task12(xciii) チェイン: engine stacks the reduction on PlayerState and
 // ─────────────────────────────────────────────────────────────────────────────
 test('task12(lxxxviii) BET_MECHANIC: the bet branch changes the choice count at runtime', () => withSavedCursor(() => {
   // 登録時の見立て「ベット宣言できても変わる先の枝が無い」は**JSON だけを見た誤り**。
-  // `STUB BET_MECHANIC` は原文から①②③を組み立て、`is_betting_this_effect` で選択数を切り替える実装済みハンドラ。
+  // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝`STUB{BET_MECHANIC}` を撤去し、
+  //   parser が `CHOOSE{choose_count, betChoose}` を live JSON に出すようにした。**
+  //   🔴旧ハンドラは**カード全文**から選択数2本を regex で読み、選択肢は `choiceTextParser` に
+  //     カード全文ごと渡して組み立てていた＝**live にも逆翻訳にも①②③が現れない**形だった。
+  //   ⚠**契約は変わっていない**（非ベット時の選択数・ベット宣言での昇格・①②…が実在すること）。
+  //     ここで見る形だけが `STUB` → `CHOOSE` になった。
   for (const [cardNum, base, bet] of [['WX19-006', 1, 2], ['WDK12-007', 1, 2], ['WX16-005', 1, 3]] as const) {
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === `${cardNum}-E1`)!;
-    ok(eff.action.type === 'STUB' && (eff.action as StubAction).id === 'BET_MECHANIC', `${cardNum}: BET_MECHANIC`);
+    ok(eff.action.type === 'CHOOSE' && !!(eff.action as ChooseAction).betChoose,
+      `${cardNum}: CHOOSE{betChoose}（旧 STUB{BET_MECHANIC}）`);
     const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, cardNum);
     const plain = executeEffect(eff, ctx);
     ok(!plain.done && plain.pending.type === 'CHOOSE', `${cardNum}: 非ベットでも選択肢が出る（no-op ではない）`);
@@ -54755,7 +54781,10 @@ test('段2 第45バッチ 偽陽性／据置: 専用実行器と別バッチ対�
   const stable: Array<[string, string]> = [
     ['WX12-013-E1', 'ARTS_COST_REDUCTION_BY_EFFECT'],
     ['WX12-037-E2', 'MILL_EACH_REPEAT_ON_NAME'],
-    ['WX19-005-E1', 'BET_MECHANIC'],
+    // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝`STUB{BET_MECHANIC}` を撤去した。**
+    //   この行の趣旨は「段2 第45バッチが**このカードを触らない**」という据置の見張りなので、
+    //   トークンを後継の表現（`betChoose`＝選択数のベット昇格）へ差し替えて据置の意味を保つ。
+    ['WX19-005-E1', 'betChoose'],
     ['WXEX1-07-E1', 'OPP_ENERGY_EXCESS_TRASH'],
     ['WX26-CP1-004-E1', 'RECOLLECT_GATE'],
     ['WX26-CP1-006-E1', 'RECOLLECT_GATE'],
@@ -64434,6 +64463,100 @@ test('§5.3 O-60 第59: STUB{DRAW} の枚数は payload（原文にその句が�
   eq(step0.id, 'DRAW', '先頭は STUB{DRAW}');
   eq(step0.count, 1, '枚数は payload（原文「一番上のカードを公開し手札に加える」＝1枚）');
 });
+
+test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex ではなく CHOOSE の payload で決まる', () => withSavedCursor(() => {
+  // 🏁**engine の受け皿4本を撤去した**（`BET_MECHANIC` / `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` /
+  //   `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` / `CONDITIONAL_ALTERNATE_EFFECT`）。
+  //   どれも**カード全文**から選択数を regex で読み、選択肢は実行時に組み立てていた＝
+  //   **live JSON にも逆翻訳にも①②③が現れない**（計器が全部緑のまま意味が決まる形）。
+  // 🔴**再発防止のラチェット**＝撤去した id が live に1つでも戻ったら落とす。
+  const removedIds = ['BET_MECHANIC', 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER',
+    'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE', 'CONDITIONAL_ALTERNATE_EFFECT',
+    'INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS'];
+  const liveJson = JSON.stringify([...effectsMap.values()]);
+  for (const id of removedIds) ok(!liveJson.includes(`"${id}"`), `live に ${id} が残っていない`);
+
+  // ① ベット＝選択数の昇格は `betChoose`（8効果）。
+  const bet = (effectsMap.get('PR-K072') ?? []).find(e => e.effectId === 'PR-K072-E1');
+  ok(!!bet, 'PR-K072-E1 が live にある'); if (!bet) return;
+  const betCh = bet.action as import('../src/types/effects').ChooseAction;
+  eq(betCh.type, 'CHOOSE', 'ベットの多択は CHOOSE');
+  eq(betCh.choose_count, 1, '通常は1つ選ぶ');
+  eq(betCh.from_count, 2, '①②の2候補が live に出ている');
+  eq(betCh.betChoose?.thenChooseCount, 2, 'ベット宣言で2つへ昇格');
+
+  // ② センタールリグ＝`LRIG_STORY` の OR。
+  //   🔴旧ハンドラは＜タウィル＞を**カード名**と突き合わせていた（正しくは `CardClass`）。
+  const cmc = (effectsMap.get('WX12-005') ?? []).find(e => e.effectId === 'WX12-005-E1');
+  ok(!!cmc, 'WX12-005-E1 が live にある'); if (!cmc) return;
+  const cmcCh = cmc.action as import('../src/types/effects').ChooseAction;
+  eq(JSON.stringify(cmcCh.conditionChoose?.condition), JSON.stringify({
+    type: 'OR', conditions: [
+      { type: 'LRIG_STORY', owner: 'self', story: 'タウィル' },
+      { type: 'LRIG_STORY', owner: 'self', story: 'ウムル' },
+    ],
+  }), '＜タウィル＞か＜ウムル＞は LRIG_STORY の OR');
+  eq(cmcCh.conditionChoose?.thenChooseCount, 2, '条件成立で2つまで');
+  // 🔴**反転確認**＝旧ハンドラは `'＜タウィル＞'.includes(CardName)` という**逆包含のまぐれ当たり**
+  //   でしか成立せず、`紅蓮乙女 リル` のような通常のルリグ名では**昇格が永久に起きなかった**。
+  //   `LRIG_STORY` は `CardClass` を見るので、**名前が短いかどうかに依存しない**ことを両向きで見る。
+  {
+    const tawil = [...cardMap.values()].find(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('タウィル'));
+    const other = [...cardMap.values()].find(c => c.Type === 'ルリグ' && !/タウィル|ウムル/.test(c.CardClass ?? ''));
+    ok(!!tawil && !!other, '＜タウィル＞のルリグと、そうでないルリグが CSV にある');
+    if (tawil && other) {
+      const run = (lrigNum: string) => {
+        const ctx = mkCtx({ lrig: [lrigNum] }, {}, 'WX12-005');
+        const r = executeEffect(cmc, ctx);
+        ok(!r.done && r.pending.type === 'CHOOSE', `${lrigNum}: 選択肢が提示される`);
+        return !r.done && r.pending.type === 'CHOOSE' ? r.pending.count : -1;
+      };
+      eq(run(tawil.CardNum), 2, '＜タウィル＞のセンタールリグなら2つまで（CardClass 一致で昇格）');
+      eq(run(other.CardNum), 1, '＜タウィル＞でも＜ウムル＞でもなければ1つのまま（昇格しない）');
+    }
+  }
+
+  // ③ センタールリグのレベル＝`LRIG_LEVEL`。選択肢2つも payload 化した。
+  const lv = (effectsMap.get('WX13-060') ?? []).find(e => e.effectId === 'WX13-060-E1');
+  ok(!!lv, 'WX13-060-E1 が live にある'); if (!lv) return;
+  const lvCh = lv.action as import('../src/types/effects').ChooseAction;
+  eq(JSON.stringify(lvCh.conditionChoose?.condition),
+    JSON.stringify({ type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 4 }),
+    'センタールリグのレベル4以上は LRIG_LEVEL');
+  eq((lvCh.choices[0].action as unknown as { id?: string }).id, 'DRAW_ON_OPP_POWER_ZERO', '①は遅延ドロー宣言');
+  eq(JSON.stringify((lvCh.choices[1].action as unknown as { fieldClassLevelSumPower?: unknown }).fieldClassLevelSumPower),
+    JSON.stringify({ story: '毒牙', deltaPerLevel: -1000 }),
+    '②のクラスと単価は payload（旧はカード全文 regex＝外れると全シグニのレベル合計になった）');
+
+  // ④ 追加コストの支払い＝`additionalCostChoose`（盤面条件では表せない）。
+  const ac = (effectsMap.get('WD23-044-EA') ?? []).find(e => e.effectId === 'WD23-044-EA-E1');
+  ok(!!ac, 'WD23-044-EA-E1 が live にある'); if (!ac) return;
+  const acSteps = (ac.action as SequenceAction).steps;
+  eq((acSteps[0] as unknown as { id?: string }).id, 'OPTIONAL_COST',
+    '任意の追加手札捨ては OPTIONAL_COST（typed TRASH だと支払い記録が残らず昇格しない）');
+  const acCh = acSteps[1] as unknown as import('../src/types/effects').ChooseAction;
+  eq(acCh.additionalCostChoose?.thenChooseCount, 2, '支払っていたら2つ選ぶ');
+  eq(JSON.stringify((acCh.choices[0].action as unknown as { source?: { filter?: unknown } }).source?.filter),
+    JSON.stringify({ hasLifeBurst: true }),
+    '《ライフバースト》を持つカードは hasLifeBurst（旧は cardName に落ちて恒久 no-match）');
+
+  // ⑤ 表現できない条件は honest defer にする（無条件バニッシュへ倒さない）。
+  const spk = (effectsMap.get('SPK16-13E') ?? []).find(e => e.effectId === 'SPK16-13E-E1');
+  ok(!!spk, 'SPK16-13E-E1 が live にある'); if (!spk) return;
+  const spkCh = spk.action as import('../src/types/effects').ChooseAction;
+  eq((spkCh.choices[0].action as unknown as { id?: string }).id, 'DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT',
+    '①「対戦相手の効果で自分のシグニが場を離れていた場合」は条件語彙が無いので明示 defer（O-233）');
+  eq(JSON.stringify(spkCh.choices[1].condition),
+    JSON.stringify({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: 1 }),
+    '②はエナ側の条件が選択肢のゲートとして載る');
+
+  // ⑥ 比較句を落とさない（`choiceTextParser` にしか規則が無かった＝parser 経路では過剰実行だった）。
+  const wdk = (effectsMap.get('WDK06-R08') ?? []).find(e => e.effectId === 'WDK06-R08-E1');
+  ok(!!wdk, 'WDK06-R08-E1 が live にある'); if (!wdk) return;
+  const wdkCh = wdk.action as import('../src/types/effects').ChooseAction;
+  ok(JSON.stringify(wdkCh.choices[0].action).includes('"powerLtLastProcessed":true'),
+    '①「《ライズアイコン》持ちよりパワーの低い」の比較が残っている');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

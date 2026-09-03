@@ -1707,6 +1707,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
   {
     const l2eM = t.match(/^(対戦相手|あなた)のライフクロス[１1]枚をエナゾーンに置く$/);
     if (l2eM) return { type: 'STUB', id: 'LIFE_TO_ENERGY', owner: l2eM[1] === 'あなた' ? 'self' : 'opponent' } as StubAction;
+    // 🆕**主語つきの「〈誰か〉は自分のライフクロス１枚を〜」**（§5.3 `O-60` 第60バッチ・2026-09-03・`SP38-004-E1`②）。
+    // ⚠所有者は**主語**が決める（「自分の」は主語を指す）＝`あなたの/対戦相手の` の形だけを見ると向きが落ちる。
+    const l2eSubjM = t.match(/^(対戦相手|あなた)は自分のライフクロス[１1]枚をエナゾーンに置く$/);
+    if (l2eSubjM) return { type: 'STUB', id: 'LIFE_TO_ENERGY', owner: l2eSubjM[1] === 'あなた' ? 'self' : 'opponent' } as StubAction;
   }
 
   // ---- 赤の場合、対戦相手のライフクロスをエナゾーンに置く ----
@@ -2092,6 +2096,22 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'COIN_SPEND_CONDITION', coinSpentMin: parseNum(cscM[1]) } as StubAction;
 
   // ---- 対戦相手のレベルN以上のシグニをトラッシュに置く ----
+  // 🆕🔴**§5.3 `O-60` 第60バッチ（2026-09-03）＝typed `TRASH` に直した**（旧＝`STUB{BANISH}`）。
+  //   ①**「トラッシュに置く」はバニッシュではない**（バニッシュ耐性を貫くし、バニッシュ時トリガーも撃たない）。
+  //   ②`STUB{BANISH}` は `lastProcessedCards[0] ?? sourceCardNum` を消す形なので、
+  //     **対象を1体も選ばせず**、アーツ自身を消そうとして「フィールドにない」で終わる**恒久 no-op** だった
+  //     （`WX19-006-E1`①。engine の `choiceTextParser` 側だけが正しく `TRASH{level:{min:4}}` を組んでいた）。
+  {
+    const lvTrashM = t.match(/^対戦相手のレベル([０-９\d]+)以上のシグニ([０-９\d]+)体を対象とし[、,]それらをトラッシュに置く$|^対戦相手のレベル([０-９\d]+)以上のシグニ[１1]体を対象とし[、,]それをトラッシュに置く$/);
+    if (lvTrashM) {
+      const minLv = parseNum(lvTrashM[1] ?? lvTrashM[3]);
+      const cnt = lvTrashM[2] ? parseNum(lvTrashM[2]) : 1;
+      return {
+        type: 'TRASH',
+        target: { type: 'SIGNI', owner: 'opponent', count: cnt, filter: { cardType: 'シグニ', level: { min: minLv } }, upToCount: false },
+      } as unknown as StubAction;
+    }
+  }
   if (t.match(/対戦相手のレベル[０-９\d]+以上のシグニ.*体を対象とし.*トラッシュに置く/))
     return { type: 'STUB', id: 'BANISH' } as StubAction;
 
@@ -2322,9 +2342,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^それ(?:ら)?を裏向きにする(?:もよい)?$/))
     return { type: 'STUB', id: 'SIGNI_FLIP_FACEDOWN' } as StubAction;
 
-  // ---- N個を選ぶ（CHOOSE断片）----
-  if (t.match(/^[１-９\d０-９]+つ(?:まで)?選ぶ$/))
-    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE' } as StubAction;
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）**＝「Nつ選ぶ」だけの断片を
+  //   `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` に落とす枝は撤去した（受け皿ごと消えた・live 0）。
+  //   ⚠選択数の見出しは**文単位より前**の `CHOOSE` ビルダーが読む＝ここへ来る断片は本来の選択肢を持たない。
 
   // ---- 引用符付き常時能力を得る（「【常】：〜」）----
   if (t.match(/^「【常】：.+」$/) || t.match(/^「【常】：.+。」$/))
@@ -2394,9 +2414,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/このシグニと隣接する.*パワー/))
     return { type: 'STUB', id: 'ADJACENT_SIGNI_POWER_MOD' } as StubAction;
 
-  // ---- 場にクラスシグニがある場合の代替効果 ----
-  if (t.match(/あなたの場に＜.*＞のシグニがある場合.*代わり/))
-    return { type: 'STUB', id: 'CONDITIONAL_ALTERNATE_EFFECT' } as StubAction;
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_ALTERNATE_EFFECT` を engine ごと撤去した。**
+  //   この枝は「あなたの場に＜X＞のシグニがある場合、代わりに」を**カード全文 regex の受け皿**へ流していた
+  //   （live 0）。盤面条件つきの「代わりに」は `STATE_CONDITION_CLAUSES` の昇格置換が正しい経路。
 
   // ---- グリッド固有テキスト ----
   if (t.match(/グリッド固有/))
@@ -2863,9 +2883,8 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // という別物だった（`WD16-016-BURST` は「対戦相手が」捨てる側）。effectParser の (a) 裸の多段閾値＋
   // (c) 枚数のみ形「代わりにN枚捨てる」で `CONDITIONAL{HAND_COUNT gte N} then/else` に組み替え済み。
 
-  // ---- 追加で手札を捨てていた場合代わりに選ぶ数が増える ----
-  if (t.match(/追加で手札を[０-９\d]+枚捨てていた場合.*代わりに/))
-    return { type: 'STUB', id: 'CONDITIONAL_ALTERNATE_EFFECT' } as StubAction;
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝同上**。「追加で手札をN枚捨てていた場合、代わりにKつ選ぶ」は
+  //   `effectParser.ts` の `CHOOSE{additionalCostChoose}` ビルダーが**文単位より前**に受ける。
 
   // ---- クラッシュされたカードをエナ代わりにトラッシュ ----
   if (t.match(/クラッシュされたカードはエナゾーンに置かれる代わりにトラッシュに置かれる/))

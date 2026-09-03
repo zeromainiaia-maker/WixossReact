@@ -771,10 +771,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_life', count: 1 } } as StubAction;
   }
 
-  // ---- センタールリグのレベルが条件で代わりに複数選択（レベルが以上）----
-  if (t.match(/センタールリグのレベルが?[０-９\d]+以上の場合.*代わりに[２-９]つまで選ぶ/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE' } as StubAction;
-  }
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` の
+  //   受け皿 STUB を engine ごと撤去したので、ここの生成枝も落とした。**
+  //   「〈センタールリグのレベル〉の場合、代わりにKつまで選ぶ」は
+  //   `effectParser.ts` の `CHOOSE{conditionChoose:{LRIG_LEVEL}}` ビルダーが**文単位より前**に受ける。
 
   // ---- ルリグアタックで特定カード名をすべてトラッシュ ----
   // 🆕§5.3 `O-60` 第34バッチ（2026-09-03）＝**カード名とゾーンを payload で運ぶ**。
@@ -1947,15 +1947,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
-  // ---- センタールリグがレベルN以上の場合、代わりに複数選択 ----
-  if (t.match(/センタールリグ.*レベル[０-９\d]+以上の場合.*代わりに[２-９]つまで選ぶ/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE' } as StubAction;
-  }
-
-  // ---- センタールリグが特定キャラの場合、代わりに複数選択 ----
-  if (t.match(/センタールリグが.*の場合.*代わりに[２-９]つまで選ぶ/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' } as StubAction;
-  }
+  // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE(_BY_CENTER)` の
+  //   受け皿 STUB を engine ごと撤去したので、ここの生成枝も落とした。**（どちらも live 0）
+  //   「〈盤面条件〉の場合、代わりにKつまで選ぶ」は `CHOOSE{conditionChoose}` が受け皿。
 
   // ---- ④など番号付きの選択肢 ----
   if (t.match(/^[④⑤⑥][^⑦].*(?:する|ない|る)$/)) {

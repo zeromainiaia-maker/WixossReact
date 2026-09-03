@@ -1019,9 +1019,14 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
  * `CONDITIONAL` では表せない＝キー表に載らないため、較正しないと
  * **正しく表現した札が「代わりに」だけを理由に高シグナルへ落ちる**。
  * ⚠無条件マスクにはしない（この節を除いた残りに「代わりに」があればフラグ維持）。
+ * 🆕**`additionalCostChoose` も同じ**（§5.3 `O-60` 第60バッチ・2026-09-03）＝
+ * 「**追加で〈コスト〉を支払っていた／捨てていた場合**、代わりにKつ選ぶ」の正表現。
+ * 🔑**較正の理由は続き531 と同じ**＝キー表に載らないキーで正しく表現した札が高シグナルへ落ちる。
+ * ⚠**この形は engine 受け皿 STUB を撤去した副作用で初めて census に見えるようになった**
+ * （`vocabCensus` は STUB を含む効果を高シグナルから免除するため）＝**退化ではなく可視化**。
  */
 const stripConditionChooseClause = (js: string, text: string): string =>
-  /"conditionChoose"/.test(js)
+  /"conditionChoose"|"additionalCostChoose"/.test(js)
     ? text.replace(/[^。]*?場合[、,]代わりに[０-９\d一二三四五六七八九]+つ(?:まで)?を?選ぶ[。]?/g, '')
     : text;
 
