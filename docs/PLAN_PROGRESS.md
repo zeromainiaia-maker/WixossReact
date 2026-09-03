@@ -1,5 +1,48 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-04・第69〜78バッチ・索引 A 第29〜36巡・Opus 5 単独）＝**🏁**`O-60` の A群ハンドラ撤去（13→10行）＋索引 A の5項目をクローズ**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置・全部 `mech`）｜台帳 残 OPEN 44（据置）｜
+  census 高シグナル 2 / BASELINE 2（🆕3→2＝`O-243` を明示 defer にしたぶん）**
+  **`census:enginetext` A🔴 13行 → 10行 / 10ハンドラ（`BASELINE_SELF_TEXT` も 10 へ払い戻し）。**
+  📦**在庫2本＝④機構 worklist 36項目**（39 → `O-193`/`O-198`/`O-192`/`O-190` クローズ −4／`O-197` は残3で継続／
+  🆕`O-243` 登録 +1＝**36**）｜**⑤実機 残 15件**（据置＝この巡は `src/screens/` 0行）。
+  gates 全緑（golden **3432 / 3432**＝+14本・smoke 10725 全異常0・fuzz 全0・census 2 / BASELINE 2・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴10 / BASELINE 10**・census-costtext A🔴0・lint 0 errors）。
+  **ブラスト半径＝効果 変更5・追加0・削除0、予定外0**（第72 の2＋第77 の1＋第78 の1＋第69/70 の 0）。
+
+  🏁**主産物①＝`O-60` の A群最大 catch-all を engine から撤去した（第69→第70）。**
+  第69で **parser の生成地点31箇所**を `DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED` へ畳み、
+  第70で `execStubPart1` の GRANT_QUOTED_* 本体（**204行**）と
+  `effectEngine.collectGrantedFromLayer` の同 STUB 分岐（**22行**）を撤去。
+  ⇒ **A🔴 13行 → 10行**（残る10ハンドラは全部 live 0）。**消化であって較正ではない。**
+
+  🔴**主産物②＝索引 A の登録票が4件連続で「実測 0」だった。**
+  `O-193`（25効果→0）／`O-198`（23→2・向きは**逆**だった）／`O-192`（19→0）／`O-190`（18→0）。
+  内訳＝**計器（`census:wiring`）の偽陽性が大半**で、原因は毎回同じ **trap (h)「同じ概念に複数の正準形がある」**：
+  ①`isDrive`＝トリガー（`ON_SIGNI_BECOMES_DRIVE`）を filter と誤検出
+  ②`powerLteSelf`＝集合上限は `totalPowerMaxRef`
+  ③`eachDistinctColor`＝**相互差異／場の集合／基準比較**の3用法（28件中 真の穴 0）
+  ④`acceHost`＝装着ホストへの**付与**は**アクション型** `GRANT_ACCE_HOST_ABILITY`
+  ⑤`levelEqTrigger`/`levelLtTrigger`＝「そのシグニ」基準は **4系統**（trigger/lastProcessed/**leftCard**/triggerSource）
+  ⇒ **`census:wiring` の miss を 44件ぶん較正した**（残 miss は powerRange 12／levelExact 6／levelRange 5 ほか）。
+
+  🔑**この巡の一般則**＝
+  ①🔴**計測スクリプトの誤りを実装で埋めかけた**（第76）＝payload キーを手で書き写して
+    `selfTrash` を `trashSelf` と打ち間違え、「7効果で前半が消えている」と誤読して parser に規則を2本足した。
+    **`build:effects` のブラスト半径が 0 だったので気づけた**（＝全数突き合わせが唯一の安全網）。
+    ⇒ **キー名は型定義からコピーする。手で書き写さない。**
+  ②🔴**登録票の数字は「登録時の値」でしかない**＝今回4件が実測 0。**着手前の②母集団実測は省略できない。**
+  ③🔴**受け皿があるのにハンドラが渡していないだけ**の形がある（第77＝`selectionConstraint` を
+    `SELECT_TARGET` へ渡していなかった）。**⚠自己再帰する受け皿は継続にも積む**（`O-60` 第59と同型）。
+  ④🔴**「嘘をやめる」だけでも計器は動く**（第78＝`O-243`）。⚠**穴が埋まったのではない**＝
+    `DEFERRED_*` は census の STUB 免除で高シグナルから外れるので、**1件が §5.3 へ移った**という意味。
+
+**▶ 次の一手**＝**索引 A の残り**＝`O-152`（34効果・`ON_HAND_DISCARDED` の watcher が発火しない）＝
+🔴**この巡で静的に追ったが特定できなかった**（collector・early-return・deps はどれも正しく見える）。
+**再現ドライバが在る**（`node scripts/verifyBattleDrive.mjs o143CheckPlace`）＝**実機で追うのが最短**。
+次点＝`O-92`（13枚）／`O-147`（13カード）／`O-70`（12枚）／`O-188`・`O-185`（11）／`O-69`（10枚）。
+⚠**どれも着手前に②母集団を実測する**（この巡の4件はそれで消えた）。
+
 - **セッション（2026-09-04・`O-60` 第64〜68バッチ・索引 A 第24〜28巡・Opus 5 単独）＝**🏁**A群最大 catch-all が live 0 に到達**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置・全部 `mech`）｜台帳 残 OPEN 44（据置）｜
   census 高シグナル 3 / BASELINE 3（据置）**

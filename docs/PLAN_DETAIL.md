@@ -2,6 +2,29 @@
 
 
 
+
+- **2026-09-04（第69〜78バッチ・索引 A 第29〜36巡）＝`O-60` の A群ハンドラ撤去＋索引 A の5項目クローズ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置・全部 `mech`）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 2 / BASELINE 2**（🆕3→2）
+  **`census:enginetext` A群**＝**13行 → 10行 / 10ハンドラ**（`BASELINE_SELF_TEXT` も 10 へ払い戻し）。
+  📦**在庫2本**＝**機構 worklist 36項目**（39 −4 +1）｜**実機 残 15件**（据置）
+  🔧**ゲート（全緑 ✅）**＝golden **3432 / 3432**（3418→3432＝+14本／既存の凍結・契約 golden 6本を理由つきで更新）／
+  smoke **10725** 全異常0／fuzz 全0／census **2 / BASELINE 2**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **10行 / BASELINE 10**／`census:costtext` A🔴 **0規則**（据置）／lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝機械判定では不要（§2.2）**＝`src/screens/` は0行。`src/engine/` は**撤去**（`O-60`）と
+  `selectionConstraint` の受け渡し（`O-197`）だけ。新しい型は `StubAction.selectionConstraint` の1本。
+  🏁**主産物①＝`O-60` の A群最大 catch-all を engine から撤去**（第69で parser の生成地点31箇所を1綴りへ畳み、
+  第70で `execStubPart1` の本体204行と `collectGrantedFromLayer` の分岐22行を削除）。**消化であって較正ではない。**
+  🔴**主産物②＝索引 A の登録票が4件連続で「実測 0」**（`O-193` 25→0／`O-198` 23→2（**向きが逆**）／
+  `O-192` 19→0／`O-190` 18→0）。原因は毎回 **trap (h)「同じ概念に複数の正準形がある」**で、
+  `census:wiring` の miss を **44件ぶん較正**した（`isDrive`／`powerLteSelf`／`eachDistinctColor`／
+  `acceHost`／`levelEqTrigger`／`levelLtTrigger`）。
+  🔑**一般則**＝①**計測スクリプトの誤りを実装で埋めかけた**（キー名を手で書き写した誤字。
+  ブラスト半径 0 で気づいた）②**登録票の数字は登録時の値でしかない**③**受け皿があるのに
+  ハンドラが渡していないだけ**の形がある（⚠継続にも積む）④**「嘘をやめる」だけでも計器は動く**
+  （⚠穴が埋まったのではなく §5.3 へ移った）。
+  ✅**ブラスト半径＝効果 変更5・追加0・削除0、予定外0**。
+
 - **2026-09-04（`O-60` 第64〜68バッチ・索引 A 第24〜28巡）＝A群最大 catch-all が live 0 に到達（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置・全部 `mech`）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
