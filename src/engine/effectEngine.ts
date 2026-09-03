@@ -38,7 +38,7 @@ import type {
 import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, hasAcceAt } from '../utils/acce';
 import { normalizeFieldGrants } from '../utils/fieldGrants';
-import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
+import { abilityBlockTextOf } from '../data/effectParser';
 // ルリグタイプの「印刷＋追加で得た分」は growLogic 側に funnel がある（グロウ互換／使用制限と同じ1本）。
 import { activeGainedLrigTypes } from '../screens/battle/growLogic';
 // 付与ストアの読みは1本に集約する（`granted_abilities_removed`＝「効果によって得ている能力を失う」の消費地点・§5.3 `O-130`）。
@@ -6998,30 +6998,14 @@ export function collectGrantedFromLayer(
           (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
           continue;
         }
-        // CONTINUOUS の引用付与 STUB は executor を通らないため、この collector で【自】を展開する。
-        // STUB 自体は消さず、`sourceAbilityText` と同じ `abilityBlockTextOf(card,effectId)` で当該ブロックだけを読む。
-        if (act.type === 'STUB'
-            && ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_AUTO_ABILITY', 'GRANT_QUOTED_ABILITY'].includes(act.id)) {
-          const sourceCard = cardMap.get(top);
-          const blockText = sourceCard ? abilityBlockTextOf(sourceCard, eff.effectId) : '';
-          const quotedText = blockText.match(/「([^」]+)」(?:の能力)?を得る/)?.[1] ?? '';
-          if (!sourceCard || !/^【自】/.test(quotedText)) continue;
-          const parsedQuoted: CardEffect[] = (() => {
-            try {
-              return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
-            } catch {
-              return [];
-            }
-          })();
-          const usable = parsedQuoted.filter(granted => granted.effectType === 'AUTO' && granted.action
-            && (granted.action.type !== 'STUB' || granted.action.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER'));
-          if (usable.length === 0) continue;
-          const tagged = usable.map((granted, index) => ({
-            ...granted,
-            effectId: `${eff.effectId}-quoted-${index + 1}`,
-          }));
-          result.set(top, [...(result.get(top) ?? []), ...tagged]);
-        }
+        // 🏁**§5.3 `O-60` 第70バッチ（2026-09-04）＝引用付与 catch-all の第2の消費地点を撤去した。**
+        //   🔴ここは CONTINUOUS の `GRANT_ABILITY_INNER_TEXT` / `GRANT_QUOTED_AUTO_ABILITY` /
+        //     `GRANT_QUOTED_ABILITY` を受け、`abilityBlockTextOf` で**原文のブロックを読み直して**
+        //     引用【自】を `parseCardEffects` に食わせ直していた（`census:enginetext` A群の2行目）。
+        //   ⇒ 第64〜68で live 27効果を全部受け皿か明示 defer へ移し、第69で parser の生成地点を畳んだので
+        //     この分岐に来る木はもう存在しない（`execStubPart1` の本体側と同時に撤去）。
+        //   ⚠**引用付与は parser 側で構造化する**＝CONTINUOUS の付与は
+        //     `GRANT_FIELD_SIGNI_ABILITY{rawText}` / `GRANT_SIGNI_ABOVE_ABILITY{rawText}` が受け皿。
       }
     }
   }

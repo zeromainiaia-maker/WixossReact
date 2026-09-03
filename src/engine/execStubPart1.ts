@@ -6,14 +6,13 @@ import { signiAutoPayGateMarkers } from './blockAction';
 import type {
   EffectAction, EffectTarget, StubAction, BanishAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
-import { textHasKeyword } from '../utils/keywords';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
   payBeatSigniCost, payBeatSigniFromTrashCost,
-  isOwnTrashMoveLocked, buildGatedKeywordGrant,
+  isOwnTrashMoveLocked,
   sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
   resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
@@ -1454,210 +1453,22 @@ export function execStubPart1(
       '相手シグニのエナゾーン配置→デッキ下に変更'));
   }
 
-  // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
-  if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
-      stub.id === 'GRANT_ABILITY_INNER_TEXT') {
-    // §6.4 O-20: 全文だと別能力の引用を拾って余計な能力まで付与する
-    // （`WXK03-042-E1` は E2 の耐性引用を拾い、相手シグニ効果耐性まで付けていた）のでブロックだけを読む。
-    const txtGQ = sourceAbilityText(ctx);
-    // 付与するキーワードを抽出（ランサー、ダブルクラッシュ等）
-    const knownKeywords = ['Sランサー', 'ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム', 'シャドウ', 'ガードアイコン', 'アタックできない', 'フリーズ', 'ドライブ'];
-    // 引用符内のテキストを抽出
-    const quotedM = txtGQ.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/) ?? txtGQ.match(/【([^】]+)】を得る/);
-    const quotedText = quotedM ? quotedM[1] : '';
-    // ⚠綴りズレ（全角Ｓ／半角S）を吸収して照合する（§6.4 O-28）＝素の includes は【Ｓランサー】に当たらず、
-    //   『Ｓランサー』に含まれる『ランサー』へフォールバックして**弱い方へ格下げ**していた。
-    const grantedKws = knownKeywords.filter(kw => textHasKeyword(quotedText, kw) || textHasKeyword(txtGQ, `【${kw}】を得`));
-    // 対象シグニを決定（SELECT_TARGET後はlastProcessedCards、「このシグニ」→sourceCardNum、全体→全自シグニ）
-    const allM = txtGQ.match(/あなたのシグニすべては|あなたの場にあるすべてのシグニ/);
-    const rawTargets: string[] = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0
-      ? ctx.lastProcessedCards
-      : allM
-        ? ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : [])
-        : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
-    // 相手効果による能力取得禁止（PREVENT_OPP_SIGNI_ABILITY_GAIN）の保護チェック
-    const abilityGainBlockedGQ = new Set(ctx.otherAbilityGainProtectedNums ?? []);
-    const targetCardNums: string[] = abilityGainBlockedGQ.size > 0
-      ? rawTargets.filter(cn => !abilityGainBlockedGQ.has(cn))
-      : rawTargets;
-
-    // ⚠**条件つきキーワードを先に捌く**（タスク12(cxiv)）＝引用の内側が「正面のシグニのパワーが
-    //   N以下であるかぎり」型のときは `keyword_grants`（条件を持てない）に入れると**常時発動**になる。
-    //   `granted_effects` へ条件つき CONTINUOUS として置き、毎フレーム正面パワーで評価させる。
-    if (grantedKws.length > 0 && targetCardNums.length > 0) {
-      const gatedGQ = grantedKws
-        .map(kw => buildGatedKeywordGrant(quotedText, kw))
-        .filter((e): e is import('../types/effects').CardEffect => e !== null);
-      if (gatedGQ.length > 0) {
-        const grantedMapGQ = { ...(ctx.ownerState.granted_effects ?? {}) };
-        for (const cn of targetCardNums) grantedMapGQ[cn] = [...(grantedMapGQ[cn] ?? []), ...gatedGQ];
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGQ } },
-          `${grantedKws.join('・')}を条件つきで付与（${targetCardNums.length}体・${gatedGQ[0]?.activeCondition?.type ?? '条件'}）`));
-      }
-    }
-
-    // シンプルキーワード付与
-    if (grantedKws.length > 0 && targetCardNums.length > 0) {
-      // 「あなたのシグニは【シャドウX】を得る」パターン: ルリグが対象でも全フィールドシグニへ
-      const allSigniShadowM = txtGQ.match(/あなたのシグニは【(シャドウ[^】]*)】を得る/);
-      const isLrigTarget = ctx.ownerState.field.lrig.includes(targetCardNums[0] ?? '');
-      let actualTargets = targetCardNums;
-      if (allSigniShadowM && isLrigTarget) {
-        actualTargets = ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
-      }
-      const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-      for (const cn of actualTargets) {
-        grants[cn] = [...new Set([...(grants[cn] ?? []), ...grantedKws])];
-      }
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
-        `${grantedKws.join('・')}を付与（${actualTargets.length}体）`));
-    }
-
-    // 既知のCONTINUOUS能力パターンを granted_effects に格納
-    if (targetCardNums.length > 0 && quotedText) {
-      // 「対戦相手のシグニの効果を受けない」→ GRANT_PROTECTION (CONTINUOUS)
-      if (quotedText.includes('対戦相手のシグニの効果を受けない')) {
-        const grantedEff: import('../types/effects').CardEffect = {
-          effectId: `granted-signi-protect-${Date.now()}`,
-          effectType: 'CONTINUOUS',
-          duration: 'UNTIL_END_OF_TURN',
-          action: {
-            type: 'GRANT_PROTECTION',
-            from: ['シグニ'],
-            sourceOwner: 'opponent',
-            duration: 'UNTIL_END_OF_TURN',
-          } as import('../types/effects').GrantProtectionAction,
-        };
-        const grantedMap = { ...(ctx.ownerState.granted_effects ?? {}) };
-        for (const cn of targetCardNums) {
-          grantedMap[cn] = [...(grantedMap[cn] ?? []), grantedEff];
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMap } },
-          `相手シグニ効果耐性を付与（${targetCardNums.length}体）`));
-      }
-      // 「対戦相手の効果を受けない」（シグニ・スペル・アーツすべて）
-      if (quotedText.match(/対戦相手の(?:カードの)?効果を受けない/)) {
-        const grantedEff: import('../types/effects').CardEffect = {
-          effectId: `granted-all-protect-${Date.now()}`,
-          effectType: 'CONTINUOUS',
-          duration: 'UNTIL_END_OF_TURN',
-          action: {
-            type: 'GRANT_PROTECTION',
-            from: ['シグニ', 'スペル', 'アーツ'],
-            sourceOwner: 'opponent',
-            duration: 'UNTIL_END_OF_TURN',
-          } as import('../types/effects').GrantProtectionAction,
-        };
-        const grantedMap = { ...(ctx.ownerState.granted_effects ?? {}) };
-        for (const cn of targetCardNums) {
-          grantedMap[cn] = [...(grantedMap[cn] ?? []), grantedEff];
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMap } },
-          `相手効果耐性を付与（${targetCardNums.length}体）`));
-      }
-      // 「対戦相手の効果によってダウンしない」→ ダウン保護フラグ
-      if (quotedText.match(/対戦相手の効果によってダウンしない/)) {
-        const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-        for (const cn of targetCardNums) {
-          grants[cn] = [...new Set([...(grants[cn] ?? []), '__down_protect__'])];
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
-          `ダウン保護を付与（${targetCardNums.length}体）`));
-      }
-      // 「対戦相手の効果によって〜パワーは－されない」→ パワー弱体保護フラグ
-      if (quotedText.match(/対戦相手の効果によって.{0,15}パワーは?[－-]/)) {
-        const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-        for (const cn of targetCardNums) {
-          grants[cn] = [...new Set([...(grants[cn] ?? []), '__power_minus_protect__'])];
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
-          `パワー弱体保護を付与（${targetCardNums.length}体）`));
-      }
-      // 「対戦相手の効果によってダメージを受けない」→ prevent_lrig_damage（ルリグへの付与）
-      if (quotedText.match(/対戦相手の効果によってダメージを受けない/)) {
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_lrig_damage: true } },
-          '相手効果ダメージ保護を付与'));
-      }
-      // 「対戦相手の効果によって新たに能力を得られない」→ 能力取得禁止フラグ
-      if (quotedText.match(/対戦相手の効果によって新たに能力を得られない/)) {
-        const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-        for (const cn of targetCardNums) {
-          grants[cn] = [...new Set([...(grants[cn] ?? []), '__ability_gain_block__'])];
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
-          `能力取得禁止を付与（${targetCardNums.length}体）`));
-      }
-    }
-
-    // ---- 以下は quotedText ありだが既知パターン外のケース ----
-    if (quotedText) {
-      // 「あなたのシグニは【シャドウX】を得る」（quotedText で直接来るケース）
-      const allShadowQM = quotedText.match(/あなたのシグニは【(シャドウ[^】]*)】を得る/);
-      if (allShadowQM) {
-        const shadowKwQ = allShadowQM[1];
-        const grantsQ = { ...(ctx.ownerState.keyword_grants ?? {}) };
-        for (const stack of ctx.ownerState.field.signi) {
-          const top = stack?.at(-1);
-          if (top) grantsQ[top] = [...new Set([...(grantsQ[top] ?? []), shadowKwQ])];
-        }
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsQ } }, `全シグニに${shadowKwQ}付与`));
-      }
-
-      // 🏁**§5.3 `O-60` 第62バッチ（2026-09-03）＝「引用能力が engine のグローバルな宣言に落ちる」5分岐を
-      //   ここから撤去し、parser が payload つきの専用 STUB を出すようにした。**
-      //   （`LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO` / `LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE` /
-      //     `LRIG_GAIN_OPP_ACTIVATE_COST_UP` / `LRIG_GAIN_ATTACK_PHASE_POWER_DOWN` /
-      //     `OPP_SIGNI_ENERGY_TO_DECK_BOTTOM`＝下に実装がある）
-      //   🔴**この表は静かな上限だった**＝引用の言い回しがどの regex にも当たらないと、
-      //     最後の「能力付与：「…」（ログのみ）」へ落ちて**無言 no-op** になる。
-      //   🔑**engine 側の状態書き込みは1バイトも変えていない**（id と payload の経路だけを移した）。
-
-      // 「あなたがダメージを受ける場合、代わりに〜支払ってもよい」(WX24-P4-021)
-      if (quotedText.match(/あなたがダメージを受ける場合、代わりに.*支払ってもよい/)) {
-        return done(addLog(ctx, 'ダメージ代替コスト付与（ログのみ）'));
-      }
-
-      // 「あなたのシグニのパワーを＋Nする」(WXDi-P11-038): E1のPOWER_MODIFYで既処理のため参照のみ
-      if (quotedText.match(/あなたのシグニのパワーを＋([０-９\d]+)する/)) {
-        return done(addLog(ctx, 'ルリグへのシグニパワー付与能力（effectEngineで処理）'));
-      }
-
-      // B4 精緻化: 引用された【自】/【常】/【起】能力を parseCardEffects で CardEffect 化し、
-      // 自分の場のシグニ（selfTargets）の granted_effects（ターン終了時まで）に積んで実発火させる。
-      // 安全ガード＝(1)対象が自場シグニのみ (2)「このゲームの間」(permanent)は除外（turn-scopedで誤失効を避ける）
-      // (3)parse結果が STUB のみ/空なら従来どおり no-op（誤った能動化を避ける）。⚠相手付与・permanent付与は未対応＝要実機検証。
-      if (/【(?:自|常|起)】/.test(quotedText) && !/このゲームの間/.test(txtGQ)) {
-        const ownerSigniTops = new Set(ctx.ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])));
-        const selfTargets = targetCardNums.filter(cn => ownerSigniTops.has(cn));
-        if (selfTargets.length > 0) {
-          const srcCardGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-          const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').CardData;
-          let parsedEffs: import('../types/effects').CardEffect[];
-          try { parsedEffs = parseCardEffects(synthCard); } catch { parsedEffs = []; }
-          // 構造化 action のほか、engine 実装済みの引用内 STUB は付与してよい。
-          // `SET_OPP_SIGNI_POWER_BY_SELF_POWER` は引用【自】の解決時に execStubPart2 が消費するため、
-          // 「STUBだから」で落とすと PR-K076 の付与だけがログ no-op になる。
-          const usable = parsedEffs.filter(e => e.action
-            && (e.action.type !== 'STUB' || e.action.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER'));
-          if (usable.length > 0) {
-            const grantStoreGQ = /次の(?:対戦相手|相手)の?ターン終了時まで/.test(txtGQ)
-              ? 'granted_effects_until_opp_turn' as const
-              : 'granted_effects' as const;
-            const grantedMapGQ = { ...(ctx.ownerState[grantStoreGQ] ?? {}) };
-            let seqGQ = 0;
-            for (const cn of selfTargets) {
-              const tagged = usable.map(e => ({ ...e, effectId: `granted-gq-${cn}-${Date.now()}-${seqGQ++}`, duration: e.duration ?? ('UNTIL_END_OF_TURN' as const) }));
-              grantedMapGQ[cn] = [...(grantedMapGQ[cn] ?? []), ...tagged];
-            }
-            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, [grantStoreGQ]: grantedMapGQ } },
-              `引用能力「${quotedText.slice(0, 20)}」を${selfTargets.length}体に付与（解析${usable.length}件・${grantStoreGQ === 'granted_effects_until_opp_turn' ? '次の対戦相手のターン終了時まで' : 'ターン終了時まで'}）`));
-          }
-        }
-      }
-      return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 24)}」（ログのみ）`));
-    }
-    return done(addLog(ctx, '能力を付与（effectEngine処理）'));
-  }
+  // 🏁**§5.3 `O-60` 第70バッチ（2026-09-04）＝引用付与 catch-all のハンドラを撤去した。**
+  //
+  // 🔴**何だったか**＝`GRANT_QUOTED_AUTO_ABILITY` / `GRANT_QUOTED_ABILITY` / `GRANT_ABILITY_INNER_TEXT` の3綴りを
+  //   受け、**効果元のアビリティブロック全文**に `「([^」]+)」…を得る` を当てて引用を切り出し、
+  //   キーワード表・条件つきキーワード表・既知 CONTINUOUS パターン表（合計 約200行）で意味を決めていた。
+  //   ＝`census:enginetext` A群の**最大項目**（第63の較正時点で live 27効果 / 14カード）。
+  //
+  // 🔴**なぜ消してよいか**＝第64〜68で live 27効果を**全部**受け皿（11効果）か明示 defer（8効果）へ移し、
+  //   第69で **parser の生成地点31箇所**を `DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED` へ畳んだ＝
+  //   **この3綴りを作る場所がもう無い**（golden『第69: parser は旧3綴りの catch-all をもう生成しない』が守る）。
+  //
+  // 🔑**残す価値が無かった理由**＝表に無い言い回しは最後の `能力を付与（effectEngine処理）` へ落ちる**無言 no-op**で、
+  //   JSON・逆翻訳・census・golden・smoke・fuzz が全部緑のまま意味が壊れる形だった。
+  //   新しい文型は今後 `DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED` に落ち、**逆翻訳に【未実装】が出る**。
+  // ⚠**この分岐を復活させない。** 引用付与は parser 側で `GRANT_EFFECT{rawText}` /
+  //   `GRANT_FIELD_SIGNI_ABILITY{rawText}` / `GRANT_SIGNI_ABOVE_ABILITY{rawText}` のどれかへ載せる。
   // LRIG_UNDER_CARD_OP: `underCardOp` が指す操作を1つだけ行う。
   //
   // 🔴**2026-08-26（§5.3 `O-60` 第2バッチ）＝ここはカード全文 regex で3分岐していた。**

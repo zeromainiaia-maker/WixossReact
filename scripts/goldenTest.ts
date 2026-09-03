@@ -46908,7 +46908,10 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
   const FROZEN: Record<string, number> = {
     // 7 → 6（2026-08-30 §5.3 O-173）＝`POWER_MOD_BY_DISCARD_COUNT_HIGH` を typed 化して
     // 実行時の能力文読みを廃止。単価・対象・捨て札条件は live JSON が構造で持つ。
-    'src/engine/execStubPart1.ts': 6,
+    // 🆕6 → 5（2026-09-04 §5.3 `O-60` 第70バッチ）＝引用付与 catch-all ハンドラを**丸ごと撤去**したぶん。
+    // ⚠**差し戻しではない**＝サイトごと消えた（live 27効果は第64〜68で受け皿／明示 defer へ移し、
+    //   第69で parser の生成地点31箇所を畳んでから消した）。
+    'src/engine/execStubPart1.ts': 5,
     // 9 → 8（2026-08-15 §6.4 O-22(a)）＝`CHARM_CONDITIONAL_POWER` ハンドラを削除したぶん。
     // 差し戻しではなく**サイトごと消えた**（帰結は parser の「代わりに」置換 fixup が構造で持つ）。
     // 8 → 7（2026-08-15 §6.4 O-3 続き493）＝`PREVENT_ZONE_MOVE_BY_OPP` の実行時ゾーン判定を廃止。
@@ -64065,9 +64068,16 @@ test('§5.3 O-60 第63: 計器は多行 if と [..].includes(x.id) 形の門も�
   ok(census.includes('.includes') && census.includes('const gi = ') && census.includes("addGate(v, idm[1])"),
     '[..].includes(x.id) 形の門も拾う');
   // engine 側に「多行 if」の実物が残っている（0 になったら較正ごと消してよい合図）。
-  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
-  ok(/stub\.id === 'GRANT_QUOTED_AUTO_ABILITY' \|\| stub\.id === 'GRANT_QUOTED_ABILITY' \|\|\s*\n\s*stub\.id === 'GRANT_ABILITY_INNER_TEXT'/.test(part1),
+  // 🆕**§5.3 `O-60` 第70バッチ（2026-09-04）＝見張り先を差し替えた。**
+  //   🔴この test が見ていた `GRANT_QUOTED_*` の多行 if は**第70で撤去した**（catch-all ごと消えた）。
+  //     較正そのもの（多行 if を計器が拾えること）はまだ守る価値があるので、
+  //     **現存する別の多行ディスパッチャ**（`execStubPart2` の `PLAY_FREE` 族）へ向け直す。
+  const part2 = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
+  ok(/stub\.id === 'PLAY_FREE' \|\| stub\.id === 'CAST_FROM_OPP_TRASH'[\s\S]{0,8}\|\| stub\.id === 'PLAY_SPELL_FROM_HAND'/.test(part2),
     '多行ディスパッチャの実物が engine に残っている');
+  // 🏁**第70で撤去したことの門**＝旧 catch-all の多行 if が戻っていない。
+  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  ok(!/stub\.id === 'GRANT_QUOTED_AUTO_ABILITY'/.test(part1), '撤去した catch-all が復活していない');
 });
 
 test('§5.3 O-60 第63: 引用の期間が「次の対戦相手のターン終了時まで」なら付与も UNTIL_OPP_TURN_END', () => withSavedCursor(() => {
@@ -64359,6 +64369,28 @@ test('§5.3 O-60 第69: 畳んだ先は逆翻訳に日本語で出る（生の�
   //   将来この穴に新カードが落ちたときに英語 ID が漏れないよう、地図の側で先に守る。
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   ok(dec.includes('DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED:'), 'miscStubMap に日本語がある');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第70バッチ（2026-09-04）＝🏁**引用付与 catch-all のハンドラを撤去した**（A🔴 13→10行）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から消えた', () => {
+  // 🔴撤去したのは2箇所＝`execStubPart1` の GRANT_QUOTED_* 本体（204行・アビリティブロック全文に
+  //   regex を当ててキーワード表／条件つきキーワード表／既知 CONTINUOUS パターン表で意味を決めていた）と
+  //   `effectEngine.collectGrantedFromLayer` の同 STUB 分岐（原文を読み直して引用【自】を再パースしていた）。
+  // ⚠**この test は「復活させない」ための門**＝新しい文型は
+  //   `DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED` に落ちて逆翻訳に【未実装】が出る。
+  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  const engine = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8');
+  for (const id of ['GRANT_QUOTED_AUTO_ABILITY', 'GRANT_QUOTED_ABILITY', 'GRANT_ABILITY_INNER_TEXT']) {
+    ok(!part1.includes(`stub.id === '${id}'`), `execStubPart1 に ${id} のディスパッチが残っている`);
+    ok(!engine.includes(`'${id}'`) || !engine.includes(`.includes(act.id)`),
+      `effectEngine に ${id} の消費が残っている`);
+  }
+  // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
+  const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
+  ok(/const BASELINE_SELF_TEXT = 10;/.test(census), 'BASELINE_SELF_TEXT が実測 10 へ下がっている');
 });
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──

@@ -75,7 +75,10 @@ const onlyIds = (() => {
 //   `ADD_CRAFT_TO_LRIG_DECK`・live9）**と**「シグニの配置替え」family（`SIGNI_REPOSITION` /
 //   `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`・live7）**を payload 化し、
 //   `SWAP_OPTIONAL`（＝入れ替え2効果）を `DEFERRED_SWAP_*` へ分離した分。
-const BASELINE_SELF_TEXT = 13;  // 2026-09-03 第61バッチ（モーダル選択 family の残り＝BET_CONDITION / CHOOSE_N_FROM_LIST / ARTS_EXTRA_COST_CONDITION ＋ effectExecutor の専用先取り）で 17→13。消化であって較正ではない
+const BASELINE_SELF_TEXT = 10;  // 🆕2026-09-04 第70バッチ（引用付与 catch-all のハンドラ撤去）で 13→10。
+//   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
+//   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
+//   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
