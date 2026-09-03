@@ -64699,6 +64699,41 @@ test('§5.3 O-70: 「下に置く」の複合対象は2通りの正準形で配�
     'WXK09-060-E3: 《キャットレ》1枚と《ドッグメ》1枚が groups で表されている');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-188`（2026-09-04・索引 A 第39巡）＝🏁**クローズ**。3つの不足箇所はすべて埋まっていた。
+// 🔑`O-96` の3点契約＝①対象を先に宣言（`SELECT_TARGET_ONLY`）②`STORE_LAST_PROCESSED_TARGETS` で固定
+//    ③支払い後の帰結を `targetsStored` でその対象へ限定。**支払いプロンプトを跨ぐと候補が復活する**ので、
+//    ③が無いと「払ったのに別のカードを選べる」＝原文より広い（過剰実行）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-188: TRANSFER_TO_HAND の対象固定は型・engine・parser の3箇所とも通っている', () => withSavedCursor(() => {
+  // ①型（`TransferToHandAction.targetsStored`）
+  const t = fs.readFileSync(join(root, 'src/types/effects.ts'), 'utf8');
+  const iface = t.slice(t.indexOf('export interface TransferToHandAction'));
+  ok(iface.slice(0, iface.indexOf('}')).includes('targetsStored'), '型に targetsStored がある');
+  // ②engine＝**3つの source 分岐すべて**で絞る（1つでも抜けるとそのゾーンだけ限定が消える）
+  const ex = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
+  const body = ex.slice(ex.indexOf('function execTransferToHand'));
+  const fn = body.slice(0, body.indexOf('function ', 10));
+  eq((fn.match(/if \(a\.targetsStored\) cands = cands\.filter/g) ?? []).length, 3,
+    'TRASH_CARD / CHECK_CARD / ENERGY_CARD の3分岐すべてで絞っている');
+  // ③parser＝実際に載っている効果がある（0 になったらこの test は空振り）
+  let n = 0;
+  for (const effs of effectsMap.values()) for (const e of effs) {
+    const s2 = JSON.stringify(e);
+    if (s2.includes('TRANSFER_TO_HAND') && s2.includes('"targetsStored":true')) n++;
+  }
+  ok(n >= 20, `対象固定つきの TRANSFER_TO_HAND が live に十分ある（現在 ${n}）`);
+  // 代表3件（原文が「〈対象〉を対象とし、…支払ってもよい。そうした場合、それを手札に加える」）
+  for (const [num, id] of [['SPK01-12', 'SPK01-12-E1'], ['WX24-P1-079', 'WX24-P1-079-E1'],
+    ['WX24-P4-044', 'WX24-P4-044-E3']] as const) {
+    const s3 = JSON.stringify(effectsMap.get(num)?.find(e => e.effectId === id)?.action);
+    ok(s3?.includes('"STORE_LAST_PROCESSED_TARGETS"'), `${id}: 対象を先に固定している`);
+    ok(s3?.includes('"targetsStored":true'), `${id}: 帰結がその対象に限定されている`);
+    ok(s3?.includes('"PAID_ADDITIONAL_COST"'), `${id}: did-it ゲートが実支払いを見ている`);
+  }
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
