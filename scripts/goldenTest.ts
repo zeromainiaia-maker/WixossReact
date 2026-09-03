@@ -64569,6 +64569,39 @@ test('§5.3 wiring 較正: 「そのシグニより低いレベル」は leftCar
   ok(tc.includes('obj.levelBelowLeftCard === true'), 'triggerCollect が levelBelowLeftCard を解決する');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-190`（2026-09-04・索引 A 第34巡）＝🏁**クローズ**。登録票の「18効果」は実測 **0**。
+// 🔑複合任意コスト「〈他のコスト〉し、《色》を支払ってもよい」の**前半は全部 payload に載っていた**
+//    （`selfTrash` / `underAnySigniTrash` / `fieldTrash` / `fieldDown` / `fieldTrapTrash` / `handDiscard`）。
+// 🔴**この巡でいちばんの教訓は「計測スクリプトの誤りを実装で埋めかけた」こと**＝
+//    payload キーの許可リストを手で書き写した際に `selfTrash` を `trashSelf` と打ち間違え、
+//    「7効果で前半が消えている」と誤読して parser に規則を2本足した。build:effects の差分が **0** だったので
+//    気づけた（＝**ブラスト半径の全数突き合わせが唯一の安全網だった**）。足した規則は撤去した。
+//    ⇒ **キー名は型定義からコピーする。手で書き写さない。**
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-190: 複合任意コストの「前半」が payload に載っている（消えたら FAIL）', () => withSavedCursor(() => {
+  // 原文「〈非エナのコスト〉し《色》を支払ってもよい。そうした場合、〜」＝**両方**払って初めて帰結が出る。
+  // 前半が落ちると任意コストが原文より安くなる＝過剰実行（払わなくてよいものを払わずに済む）。
+  const want: Array<[string, string, string]> = [
+    ['WX24-P2-063', 'WX24-P2-063-E1', 'selfTrash'],            // このシグニを場からトラッシュに置き《無》
+    ['WX24-P2-086', 'WX24-P2-086-E1', 'selfTrash'],
+    ['WX24-P4-059', 'WX24-P4-059-E1', 'selfTrash'],
+    ['WXDi-P13-044', 'WXDi-P13-044-E1', 'selfTrash'],
+    ['WXDi-P06-083', 'WXDi-P06-083-E1', 'underAnySigniTrash'], // このシグニの下からカード3枚をトラッシュに置き《黒》《無》
+    ['WXDi-P04-007', 'WXDi-P04-007-E1', 'fieldTrash'],         // あなたの白のシグニ1体を場からトラッシュに置き《白》
+    ['WX15-053', 'WX15-053-TRAP', 'fieldTrapTrash'],           // 他の【トラップ】1枚をトラッシュに置き《青》
+    ['WXDi-P03-035', 'WXDi-P03-035-E1', 'fieldDown'],          // アップ状態のシグニ2体をダウンし《白》《無》
+    ['WX24-P1-011', 'WX24-P1-011-E1', 'handDiscard'],          // 手札を1枚捨て《白》
+  ];
+  for (const [num, id, key] of want) {
+    const s2 = JSON.stringify(effectsMap.get(num)?.find(e => e.effectId === id)?.action);
+    ok(s2?.includes('"OPTIONAL_COST"'), `${id}: 任意コストがある`);
+    ok(s2?.includes(`"${key}"`), `${id}: 非エナ側のコスト（${key}）が payload に載っている`);
+    ok(s2?.includes('"costColors"'), `${id}: エナ側も載っている（複合であること）`);
+  }
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
