@@ -64855,6 +64855,28 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   eq(n, 0, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
 });
 
+test('§5.3 O-224: 「この方法でダウンしたシグニの数以下」のしきい値が2形とも載る', () => withSavedCursor(() => {
+  // 🔴受け皿（`TargetFilter.levelLteLastProcessedCount`）は**在ったのに**、parser の規則が
+  //   「好きな数ダウンする」（`steps[0].type === 'DOWN'`）しか見ておらず、
+  //   「**N体まで**ダウンして**もよい**」形（`STUB{DOWN_UP_SIGNI_AND_CHOOSE}`）が素通りしていた＝
+  //   **どのレベルの相手シグニでも手札に戻せる**（0体ダウンでも戻せる）過剰実行だった。
+  // 🔑前段は第26バッチで payload 化済み＝`INTERNAL_DOWN_SELECTED_SIGNI` が**実際にダウンした枚数**を
+  //   `lastProcessedCards` に残す（＝数を運ぶ足場はできていた）。
+  for (const [num, id, head] of [
+    ['WX24-P3-048', 'WX24-P3-048-E1', 'DOWN'],                    // 「好きな数ダウンする」
+    ['SPDi43-23', 'SPDi43-23-E1', 'DOWN_UP_SIGNI_AND_CHOOSE'],    // 「2体までダウンしてもよい」
+  ] as const) {
+    const seq = effectsMap.get(num)?.find(e => e.effectId === id)?.action as SequenceAction | undefined;
+    eq(seq?.type, 'SEQUENCE', `${id}: ダウン→手札戻し`);
+    const s0 = seq!.steps[0] as { type?: string; id?: string };
+    eq(s0.id ?? s0.type, head, `${id}: 前段の形`);
+    const s1 = seq!.steps[1] as { type?: string; target?: { filter?: { levelLteLastProcessedCount?: boolean } } };
+    eq(s1.type, 'BOUNCE', `${id}: 後段は手札戻し`);
+    eq(s1.target?.filter?.levelLteLastProcessedCount, true,
+      `${id}: 🔴「この方法でダウンしたシグニの数以下」のしきい値が載る`);
+  }
+}));
+
 test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わせて読まれている', () => {
   // 🔴`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction` は
   //   書き込みだけで読み手が0だった（宣言だけ立って盤面は動かない真 no-op）。

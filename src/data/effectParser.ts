@@ -24045,6 +24045,23 @@ function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): voi
         ...(action.steps[1].target.filter ?? {}), cardType: 'シグニ', levelLteLastProcessedCount: true,
       };
     }
+    // 🆕**§5.3 `O-224`（2026-09-04）＝「N体まで**ダウンしてもよい**」形も同じしきい値を付ける。**
+    //   🔴上の規則は `steps[0].type === 'DOWN'`（「好きな数ダウンする」）しか見ておらず、
+    //     `SPDi43-23-E1`「アップ状態の白のシグニを**２体まで**ダウンして**もよい**。その後、レベルが
+    //     この方法でダウンしたシグニの数以下の対戦相手のシグニ１体を対象とし、それを手札に戻す」は
+    //     受け皿（`levelLteLastProcessedCount`）が**在るのに素通り**していた＝
+    //     **どのレベルの相手シグニでも手札に戻せる過剰実行**（0体ダウンでも戻せる）。
+    //   🔑前段は第26バッチで payload 化済み＝`STUB{DOWN_UP_SIGNI_AND_CHOOSE}` →
+    //     `INTERNAL_DOWN_SELECTED_SIGNI` が**実際にダウンした枚数**を `lastProcessedCards` に残す
+    //     （＝数を運ぶ足場はできていた）。
+    if (/アップ状態の[^。]*シグニを[０-９\d]+体まで(?:ダウンしてもよい|ダウンする)。?その後、レベルがこの方法でダウンしたシグニの数以下/.test(source)
+        && action.type === 'SEQUENCE'
+        && action.steps[0]?.type === 'STUB' && (action.steps[0] as StubAction).id === 'DOWN_UP_SIGNI_AND_CHOOSE'
+        && action.steps[1]?.type === 'BOUNCE') {
+      action.steps[1].target.filter = {
+        ...(action.steps[1].target.filter ?? {}), cardType: 'シグニ', levelLteLastProcessedCount: true,
+      };
+    }
 
     // 効果元シグニの下の枚数以下。
     if (/レベルがこのシグニの下にあるカードの枚数以下の対戦相手のシグニ/.test(source)
