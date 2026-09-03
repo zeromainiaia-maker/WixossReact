@@ -14020,6 +14020,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let paid: PlayerState = opcPay.applyTo({
         ...placedState,
         hand: newHand,
+        // 🆕§5.3 `O-245`（2026-09-04）＝「**次に**【出】能力を発動する場合」の軽減は**1回で消費する**
+        //   （`reduce_next_on_play_cost`・`WXK04-075-E1`）。⚠ここで消さないと**このターン中ずっと**
+        //   軽減され続ける（原文より安い＝過剰実行）。減額そのものは `SigniOnPlayCostModal` が
+        //   `applyNextOnPlayCostReduction` で行っている。
+        reduce_next_on_play_cost: undefined,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         coins_paid_this_turn: (placedState.coins_paid_this_turn ?? 0) + coinCostOPC, // COINS_PAID_THIS_TURN
         trash: [...placedState.trash, ...paidNums, ...discardNums],

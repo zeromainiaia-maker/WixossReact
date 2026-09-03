@@ -1233,6 +1233,35 @@ export function parseCoinCost(costStr: string): number {
  *   グロウ／キー・ピースの可否判定に置く。
  * ⚠**スペルとシグニは通す**＝`SpellCastModal` のベットと、シグニの【出】/【起】コインコストは対象外。
  */
+/**
+ * 🆕**§5.3 `O-245`（2026-09-04）＝`reduce_next_on_play_cost` の**読み手**。
+ *
+ * 原文＝「このターン、**次にあなたが【出】能力を発動する場合**、それの発動コストは《赤×1》減る」
+ * （`WXK04-075-E1`）。
+ *
+ * 🔴**この state キーには読み手が1人もいなかった**（`npm run census:deadstate` で検出）＝
+ *   宣言だけ立って**印刷コストのまま請求されていた**（＝原文より高い＝過小実行）。
+ *   ⚠`BattleScreen` は**ターン終了時のリセットだけ**は2箇所で書いていた（＝「使っているつもり」に見える形）。
+ * ⚠**エナ配列のまま引く**＝`SigniOnPlayCostModal` は `cost.energy` から枚数と色文字列の**両方**を作るので、
+ *   引き算を1箇所（この関数）に集約して両方へ流す。文字列側だけ直すと**枚数が合わずに確定できなくなる**。
+ * ⚠**色が一致するぶんだけ引く**（`《赤×1》` は赤のコストにしか効かない）。
+ */
+export function applyNextOnPlayCostReduction(
+  energy: { color: string; count: number }[] | undefined,
+  reduction: { color: string; count: number } | undefined,
+): { color: string; count: number }[] {
+  if (!energy?.length || !reduction || reduction.count <= 0) return energy ?? [];
+  let left = reduction.count;
+  return energy
+    .map(e => {
+      if (left <= 0 || e.color !== reduction.color) return e;
+      const cut = Math.min(left, e.count);
+      left -= cut;
+      return { ...e, count: e.count - cut };
+    })
+    .filter(e => e.count > 0);
+}
+
 export function coinPayableFor(
   state: { coin_use_restriction?: string },
   kind: 'spell' | 'signi' | 'arts' | 'lrig' | 'key' | 'piece',

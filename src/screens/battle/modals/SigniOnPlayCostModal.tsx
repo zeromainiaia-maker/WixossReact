@@ -7,7 +7,7 @@ import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashS
 import { getCardNum, matchesFilter, analyzeBeatSigniCost, beatSigniCostCount } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied } from '../costs';
+import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, matchesHandDiscardSigni, handDiscardSigniCostSatisfied, applyNextOnPlayCostReduction } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
@@ -69,7 +69,12 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               // エナ/手札はplacedState基準（グロウ経路はグロウコスト支払い後、チェーン時は前効果の支払い後）
               const pState = pendingSigniOnPlayCost.placedState;
               const pcEnergy = pState.energy;
-              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              // 🆕§5.3 `O-245`（2026-09-04）＝「このターン、次に【出】能力を発動する場合、コストは《色×N》減る」
+              //   （`PlayerState.reduce_next_on_play_cost`・`WXK04-075-E1`）を**ここで1回だけ**引く。
+              //   ⚠枚数（`energyTotal`）と色文字列（`costStr`）の**両方**がこの配列から作られるので、
+              //     片方だけ直すと**枚数が合わずに確定できなくなる**。
+              const onPlayEnergy = applyNextOnPlayCostReduction(eff.cost?.energy, pState.reduce_next_on_play_cost);
+              const energyTotal = onPlayEnergy.reduce((s, c) => s + c.count, 0);
               // 手札コスト（discard/handDiscardSigni=トラッシュ / handToEnergy=エナへ / handToUnderSelf=シグニの下へ。同時指定はない前提で選択UIを共用）
               const discardGroups = eff.cost?.discardGroups;
               // 🆕`discardAll`＝「手札をすべて捨てる」（§5.3 `O-201`・`WXDi-P12-031-E2`）＝枚数は手札の実数。
@@ -165,7 +170,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const underTrashNeeded = eff.cost?.underAnySigniTrash?.count ?? 0;
               const underTrashCandidates = underAnySigniCostCandidates(pState);
               const underTrashOk = underTrashNeeded === 0 || selectedSigniOnPlayUnderTrash.size === underTrashNeeded;
-              const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
+              const costStr = onPlayEnergy.map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);
               const energyOk = energyTotal === 0
                 ? true

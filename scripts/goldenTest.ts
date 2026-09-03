@@ -64845,10 +64845,37 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   //   `INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS, zeroedOwner}` へ寄せてキーごと撤去した。
   //   🆕さらに `coin_use_restriction` も払い戻して **4件**（`costs.coinPayableFor` を新設し、
   //   `negate_coin_abilities` と同じ4入口＋グロウ／キーの可否判定で読むようにした）。
+  //   🆕さらに `reduce_next_on_play_cost` も払い戻して **3件**（`costs.applyNextOnPlayCostReduction` を新設し、
+  //   `SigniOnPlayCostModal` が枚数と色文字列の**両方**をそこから作るようにした＋支払い時に1回で消費）。
   //   残り＝`O-226` の2件（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）＋
-  //   `grid_reveal_plus_one_this_turn` / `reduce_next_on_play_cost`。
+  //   `grid_reveal_plus_one_this_turn`。
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
-  eq(n, 4, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+  eq(n, 3, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+});
+
+test('§5.3 O-245: reduce_next_on_play_cost が【出】コストから引かれ、1回で消費される', () => {
+  // 🔴書き込みだけで読み手が無く、**印刷コストのまま請求されていた**（原文より高い＝過小実行）。
+  //   原文「このターン、**次に**あなたが【出】能力を発動する場合、それの発動コストは《赤×1》減る」（`WXK04-075-E1`）。
+  //   ⚠`BattleScreen` は**ターン終了時のリセットだけ**は2箇所で書いていた＝「使っているつもり」に見える形だった。
+  const costs = fs.readFileSync(join(root, 'src/screens/battle/costs.ts'), 'utf8');
+  ok(costs.includes('export function applyNextOnPlayCostReduction('), '減額の実体が1箇所にある');
+  ok(costs.includes("if (left <= 0 || e.color !== reduction.color) return e;"), '色が一致するぶんだけ引く');
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/SigniOnPlayCostModal.tsx'), 'utf8');
+  // 🔴**枚数と色文字列の両方**を減額後の配列から作る（片方だけだと枚数が合わず確定できなくなる）。
+  ok(modal.includes('const onPlayEnergy = applyNextOnPlayCostReduction('), 'モーダルが減額を通す');
+  ok(modal.includes('const energyTotal = onPlayEnergy.reduce('), '枚数は減額後');
+  ok(modal.includes('const costStr = onPlayEnergy.map('), '色文字列も減額後');
+  // 🔴**1回で消費する**＝残すとこのターン中ずっと軽減され続ける（過剰実行）。
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const payIdx = bs.indexOf('let paid: PlayerState = opcPay.applyTo({');
+  ok(payIdx > 0, '【出】コストの支払い地点がある');
+  ok(bs.slice(payIdx, payIdx + 900).includes('reduce_next_on_play_cost: undefined'), '支払い時に消費している');
+  // parser 側の生成元が残っていること（0 になったらこの配線は空振り）。
+  let n = 0;
+  for (const effs of effectsMap.values()) for (const e of effs) {
+    if (JSON.stringify(e).includes('REDUCE_PLAY_ABILITY_COST')) n++;
+  }
+  ok(n >= 1, `REDUCE_PLAY_ABILITY_COST の live 利用がある（現在 ${n}）`);
 });
 
 test('§5.3 O-245: coin_use_restriction が5つの提示ゲートで読まれている', () => {

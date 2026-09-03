@@ -2,15 +2,14 @@
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
 PlayerState のキー: 327
-🔴 書きあり・読み 0: 4
+🔴 書きあり・読み 0: 3
 
   grid_reveal_plus_one_this_turn  （書き 2 箇所 / 読み 0）
-  reduce_next_on_play_cost  （書き 3 箇所 / 読み 0）
   game_declared_signi_level_zero  （書き 1 箇所 / 読み 0）
   game_declared_signi_ignore_restriction  （書き 1 箇所 / 読み 0）
 
 ## 参考：書き込みの多い順（上位40）
-  1361 読 /  94 書  energy
+  1363 読 /  95 書  energy
   1168 読 /  71 書  deck
   3489 読 /  68 書  field
   1526 読 /  63 書  trash
