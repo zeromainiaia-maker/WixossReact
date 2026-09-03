@@ -24769,10 +24769,30 @@ function applyDurationsBatch40(card: CardData, effects: CardEffect[]): void {
     //     （`WXDi-P13-007-E3` ＝手札を全部捨ててからガード不可）。
     //   ⇒ **木の中の `BLOCK_ACTION{GUARD}` ノードだけを差し替える**（他のステップは触らない）。
     //   ⚠正しい形の先例は `SP38-008-E3` / `WXDi-P09-006-E2`（どちらも live で既にこの形）。
-    if (/このターン、次に(?:この|あなたの)ルリグがアタックしたとき、そのアタックの間、対戦相手は【ガード】ができない/.test(source)) {
+    // 🆕**§5.3 `O-92`（2026-09-04）＝間に「〜であるかぎり」が挟まる形と、`CHOOSE` の枝の中を足した。**
+    //   🔴`SPDi43-10-E2`②「《黒》を支払ってもよい。そうした場合、このターン、**次に**あなたのルリグが
+    //     アタックしたとき、そのアタックの間、**対戦相手のライフクロスが０枚であるかぎり**、
+    //     対戦相手は【ガード】ができない」は**2つの理由**でこの規則から外れていた＝
+    //     ①「そのアタックの間、」の直後に条件節が入るので regex に当たらない
+    //     ②`swapGuardNode` が `CHOOSE` の枝へ降りない。
+    //     ⇒ live は**いま宣言中のアタックで即座に**ガード不可になり、しかも**ライフ0の条件が消えていた**
+    //       （遅延・条件の**両方**を落とす過剰実行）。
+    //   ⚠**条件節が読めないときは触らない**（fail-closed）＝表せない条件を落として「遅延だけ直す」と
+    //     条件側が過大なまま固定されるので、無変換のほうが安全。
+    const nextAttackGuardM = source.match(
+      /このターン、次に(?:この|あなたの)ルリグがアタックしたとき、そのアタックの間、(?:([^。、]{0,40}?)であるかぎり[、,])?対戦相手は【ガード】ができない/);
+    const nextAttackGate: ActiveCondition | undefined = nextAttackGuardM?.[1]
+      ? (/^対戦相手のライフクロスが([０0])枚$/.test(nextAttackGuardM[1])
+        ? { type: 'LIFE_COUNT', owner: 'opponent', operator: 'eq', value: 0 } as ActiveCondition
+        : undefined)
+      : undefined;
+    // 条件句が在るのに表せなかったら**降りる**（`nextAttackGate` が undefined のまま）。
+    const nextAttackOk = !!nextAttackGuardM && (!nextAttackGuardM[1] || !!nextAttackGate);
+    if (nextAttackOk) {
       const nextAttackGrant = (): EffectAction => ({
         type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_END_OF_TURN', abilities: [{
           effectId: `${effect.effectId}-next-attack`, effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+          ...(nextAttackGate ? { activeCondition: nextAttackGate } : {}),
           action: {
             type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until: 'END_OF_ATTACK',
           },
@@ -24791,6 +24811,14 @@ function applyDurationsBatch40(card: CardData, effects: CardEffect[]): void {
           const el = node.else ? swapGuardNode(node.else) : { node: undefined as EffectAction | undefined, hit: false };
           const hit = th.hit || el.hit;
           return { node: hit ? { ...node, then: th.node, ...(el.node ? { else: el.node } : {}) } as EffectAction : node, hit };
+        }
+        // 🆕**`CHOOSE` の枝へも降りる**（`SPDi43-10-E2` は「①ミル ②支払ってガード不可」の2択）。
+        if (node.type === 'CHOOSE') {
+          let hit = false;
+          const choices = (node as ChooseAction).choices.map(c => {
+            const r = swapGuardNode(c.action); hit = hit || r.hit; return { ...c, action: r.node };
+          });
+          return { node: hit ? { ...(node as ChooseAction), choices } as EffectAction : node, hit };
         }
         return { node, hit: false };
       };

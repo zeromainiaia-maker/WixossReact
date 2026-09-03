@@ -64646,6 +64646,36 @@ test('§5.3 O-243: 表せない3ゾーン横断の対象は明示 defer（自傷
   ok(!s2.includes('TRANSFER_TO_DECK'), '自分のシグニをデッキへ送らない');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-92`（2026-09-04・索引 A 第37巡）＝「このターン、**次に**〜がアタックしたとき」の遅延設置。
+// 🔑登録票の「13枚」は 2026-08-28 の仕分け済み分＝**LB の定型（発動時点で既にアタック中）は正しく即時**。
+//    残っていた真の穴は **1効果**＝間に条件節が挟まり、しかも `CHOOSE` の枝にある形。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-92: 「次にアタックしたとき」は条件節つき・CHOOSE の枝でも遅延として載る', () => withSavedCursor(() => {
+  // 🔴`SPDi43-10-E2`②「《黒》を支払ってもよい。そうした場合、このターン、**次に**あなたのルリグが
+  //   アタックしたとき、そのアタックの間、**対戦相手のライフクロスが０枚であるかぎり**、
+  //   対戦相手は【ガード】ができない」は2つの理由でこの規則から外れていた＝
+  //   ①「そのアタックの間、」の直後に条件節が入る ②`swapGuardNode` が `CHOOSE` の枝へ降りない。
+  //   ⇒ live は**いま宣言中のアタックで即座に**ガード不可になり、**ライフ0の条件も消えていた**（過剰実行）。
+  const ch = effectsMap.get('SPDi43-10')?.find(e => e.effectId === 'SPDi43-10-E2')?.action as ChooseAction | undefined;
+  eq(ch?.type, 'CHOOSE', 'SPDi43-10-E2: 2択');
+  const branch = JSON.stringify(ch?.choices?.[1]?.action);
+  ok(branch?.includes('"GRANT_LRIG_ABILITY"'), '②は「次のアタック」への付与になっている');
+  ok(branch?.includes('"consumeOnTrigger":true'), '一回消費');
+  ok(branch?.includes('"ON_ATTACK_LRIG"'), 'トリガーはルリグのアタック');
+  ok(branch?.includes('"LIFE_COUNT"') && branch?.includes('"operator":"eq"'),
+    '「対戦相手のライフクロスが0枚であるかぎり」が activeCondition に載る');
+  // 🔴**負方向**＝いま宣言中のアタックへ即座に効く旧形へ戻っていない
+  //   （`BLOCK_ACTION{GUARD}` が付与の外側に裸で出ていない）。
+  const outer = branch?.replace(/"abilities":\[[\s\S]*\]/, '"abilities":[]');
+  ok(!outer?.includes('"actionId":"GUARD"'), '裸の BLOCK_ACTION{GUARD} が残っていない');
+  // 条件節の無い先例は従来どおり（条件を捏造していない）。
+  const sp38 = JSON.stringify(effectsMap.get('SP38-008')?.find(e => e.effectId === 'SP38-008-E3')?.action);
+  ok(sp38?.includes('"consumeOnTrigger":true') && !sp38?.includes('activeCondition'),
+    'SP38-008-E3: 条件節が無い形に条件を付けない');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

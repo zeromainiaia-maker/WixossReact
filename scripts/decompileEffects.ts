@@ -2722,7 +2722,12 @@ function actionJa(a?: Action, effectType?: string): string {
           && a.abilities[0]?.timing?.includes('ON_ATTACK_LRIG')) {
         const nextAction = a.abilities[0].action;
         const body = nextAction.type === 'UP' ? 'このルリグをアップする' : actionJa(nextAction);
-        return `このターン、次にこのルリグがアタックしたとき、${body}`;
+        // 🆕§5.3 `O-92`（2026-09-04）＝付与する能力の `activeCondition` も描く。
+        //   🔴落とすと「無条件でガード不可」に見える＝原文照合で条件のズレを見つけられない
+        //   （`SPDi43-10-E2`＝「対戦相手のライフクロスが０枚であるかぎり」）。
+        const gate = (a.abilities[0] as { activeCondition?: unknown }).activeCondition;
+        const gateJa = gate ? `${condJa(gate).replace(/である$/, '')}であるかぎり` : '';
+        return `このターン、次にこのルリグがアタックしたとき、${gateJa ? `${gateJa}、` : ''}${body}`;
       }
       const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';
       // ⚠**省略時の既定（ターン終了時まで）も明示する**（§6.4 O-25・続き538）＝engine は duration 省略の
