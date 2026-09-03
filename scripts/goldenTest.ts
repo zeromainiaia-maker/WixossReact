@@ -64841,12 +64841,12 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   const m = out.match(/書きあり・読み0 は (\d+)件/);
   ok(!!m, 'census:deadstate が件数を出す');
   const n = parseInt(m![1], 10);
-  // 🆕2026-09-04 の実測 6件。内訳＝`O-226` の2件（`game_declared_signi_level_zero` /
-  //   `game_declared_signi_ignore_restriction`）＋**この計器で新たに見つかった4件**
-  //   （`draw_on_opp_power_zero` / `coin_use_restriction` / `grid_reveal_plus_one_this_turn` /
-  //    `reduce_next_on_play_cost`）。
+  // 🆕2026-09-04 の初回実測は 6件。**同日に1件払い戻して 5件**＝`draw_on_opp_power_zero` を
+  //   `INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS, zeroedOwner}` へ寄せてキーごと撤去した。
+  //   残り＝`O-226` の2件（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）＋
+  //   `coin_use_restriction` / `grid_reveal_plus_one_this_turn` / `reduce_next_on_play_cost`。
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
-  eq(n, 6, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+  eq(n, 5, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
 });
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
@@ -65400,7 +65400,14 @@ test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex で
   eq(JSON.stringify(lvCh.conditionChoose?.condition),
     JSON.stringify({ type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 4 }),
     'センタールリグのレベル4以上は LRIG_LEVEL');
-  eq((lvCh.choices[0].action as unknown as { id?: string }).id, 'DRAW_ON_OPP_POWER_ZERO', '①は遅延ドロー宣言');
+  // 🆕**§5.3 `O-245`（2026-09-04）＝期待値を差し替えた。** 旧 `STUB{DRAW_ON_OPP_POWER_ZERO}` が書く
+  //   フラグには**読み手が1人もいなかった**（真 no-op）ので、既存の遅延トリガー機構へ寄せた。
+  //   ⚠`zeroedOwner:'opponent'` が落ちると**自分のシグニが0以下でも引ける**（過剰実行）。
+  const lvIdt = lvCh.choices[0].action as unknown as { type?: string; duration?: string; trigger?: { timing?: string; zeroedOwner?: string } };
+  eq(lvIdt.type, 'INSTALL_DELAYED_TRIGGER', '①は遅延トリガーの設置');
+  eq(lvIdt.duration, 'THIS_TURN', '「このターン」');
+  eq(lvIdt.trigger?.timing, 'ON_SIGNI_POWER_ZERO_OR_LESS', 'パワー0以下で発火');
+  eq(lvIdt.trigger?.zeroedOwner, 'opponent', '🔴対戦相手のシグニ限定');
   eq(JSON.stringify((lvCh.choices[1].action as unknown as { fieldClassLevelSumPower?: unknown }).fieldClassLevelSumPower),
     JSON.stringify({ story: '毒牙', deltaPerLevel: -1000 }),
     '②のクラスと単価は payload（旧はカード全文 regex＝外れると全シグニのレベル合計になった）');

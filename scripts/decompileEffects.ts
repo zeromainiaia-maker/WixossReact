@@ -1773,6 +1773,15 @@ function actionJa(a?: Action, effectType?: string): string {
         const filJa = filterJa(a.trigger.triggerFilter ?? {});
         return `${durIDT}、あなたの${filJa}シグニ1体が${causeIDT}バニッシュされたとき、${actionJa(a.effect)}`;
       }
+      // 🆕§5.3 `O-245`（2026-09-04）＝`ON_SIGNI_POWER_ZERO_OR_LESS` の遅延設置。
+      //   🔴`zeroedOwner` を描かないと「**対戦相手の**シグニが」という限定が逆翻訳から消え、
+      //     原文照合で「自分のシグニでも引ける」過剰実行を見つけられない。
+      if (a.trigger?.timing === 'ON_SIGNI_POWER_ZERO_OR_LESS') {
+        const whoPZ = a.trigger.zeroedOwner === 'opponent' ? '対戦相手の'
+          : a.trigger.zeroedOwner === 'self' ? 'あなたの' : '';
+        const durPZ = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : a.duration === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
+        return `${durPZ}、${whoPZ}シグニのパワーが0以下になったとき、${actionJa(a.effect)}`;
+      }
       if (a.trigger?.timing === 'ON_LEAVE_FIELD') {
         const whoIDT = a.trigger.leftOwner === 'opponent' ? '対戦相手の'
           : a.trigger.leftOwner === 'any' ? 'いずれかのプレイヤーの' : 'あなたの';

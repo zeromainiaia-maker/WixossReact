@@ -764,7 +764,8 @@ export interface PlayerState {
   // ハスターリク設置済みゾーン番号（WXDi-P05-TK01A：アタックフェイズ開始時に相手が捨て/払いしないとバニッシュ）
   hastarliq_zones?: number[];
   // このターン、対戦相手シグニのパワーが0以下になったときカード1枚引く（WX13-060①）
-  draw_on_opp_power_zero?: boolean;
+  // 🏁§5.3 `O-245`（2026-09-04）＝**撤去**（読み手が1人もいない真 no-op だった）。
+  //   いまは `INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS, zeroedOwner}` が担う。
   // 宣言したクラス（DECLARE_CLASS効果）
   declared_class?: string;
   // DECLARE_COLORS で同時に宣言した色（WX11-074）。選択順を LOOK_PICK_CHAIN の固定段へ対応付ける。

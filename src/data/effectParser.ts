@@ -5409,14 +5409,22 @@ function parseSingleSentenceInner(text: string): EffectAction {
   }
   // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`
   //   （engine がカード全文を読む多択の受け皿）を撤去したので、その①②を単文として解けるようにする。**
-  //   受け皿は**どちらも engine に実装済み**（`draw_on_opp_power_zero` フラグ／レベル合計パワー修正）で、
-  //   無かったのは parser 側の入口だけ＝`WX13-060-E1`。
+  //   受け皿は**どちらも engine に実装済み**（②のレベル合計パワー修正）で、無かったのは parser 側の入口だけ＝`WX13-060-E1`。
   // ⚠**総称規則より先に置く**＝①は下流で `DRAW{count:1}` に潰れており（「パワーが０以下になったとき」の
   //   遅延条件が丸ごと落ちて**即座に1枚引く**過剰実行）、②は `UNKNOWN` だった。
+  // 🆕🔴**§5.3 `O-245`（2026-09-04）＝①の受け皿を `STUB{DRAW_ON_OPP_POWER_ZERO}` から
+  //   `INSTALL_DELAYED_TRIGGER` へ差し替えた。** 旧 STUB が書く `draw_on_opp_power_zero` フラグには
+  //   **読み手が1人もいなかった**（`npm run census:deadstate` で検出＝宣言だけ立って何も起きない真 no-op）。
+  //   ⇒ 既存の遅延トリガー機構（`O-92` 族）へ寄せ、`collectPowerZeroTriggers` が `zeroedOwner` を見て発火させる。
+  //   ⚠`zeroedOwner:'opponent'` を落とすと**自分のシグニが0以下になっても引ける**（過剰実行）。
   {
     const t60 = text.trim().replace(/。$/, '');
     if (/^このターン[、,]対戦相手のシグニのパワーが[０0]以下になったとき[、,]カードを[１1]枚引く$/.test(t60)) {
-      return { type: 'STUB', id: 'DRAW_ON_OPP_POWER_ZERO' } as EffectAction;
+      return {
+        type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN',
+        trigger: { timing: 'ON_SIGNI_POWER_ZERO_OR_LESS', zeroedOwner: 'opponent' },
+        effect: { type: 'DRAW', owner: 'self', count: 1 },
+      } as unknown as EffectAction;
     }
     // 🆕**「〈条件〉の場合、あなたの手札がN枚より少ない分だけカードを引く」**
     //   （§5.3 `O-60` 第60バッチ・2026-09-03・`SPK16-13E-E1`③）。

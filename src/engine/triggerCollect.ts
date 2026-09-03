@@ -1046,6 +1046,28 @@ export function collectPowerZeroTriggers(
         });
       }
     }
+    // 🆕**§5.3 `O-245`（2026-09-04）＝「このターン、対戦相手のシグニのパワーが0以下になったとき、〜」の
+    //   遅延トリガーもここで拾う**（`WX13-060-E1`①）。
+    //   🔴旧実装は `STUB{DRAW_ON_OPP_POWER_ZERO}` が `draw_on_opp_power_zero` フラグを立てるだけで、
+    //     **そのフラグを読む場所がどこにも無かった**（真 no-op。`npm run census:deadstate` で検出）。
+    //   ⇒ 既存の `INSTALL_DELAYED_TRIGGER`（`O-92` 族）へ寄せ、ここで `zeroedOwner` を見て発火させる。
+    //   ⚠**所有者を見ないと自分のシグニでも発火する**（原文は「対戦相手のシグニ」）。
+    for (const dt of watcherState.delayed_triggers ?? []) {
+      if (dt.trigger?.timing !== 'ON_SIGNI_POWER_ZERO_OR_LESS') continue;
+      const wantZeroed = dt.trigger.zeroedOwner ?? 'any';
+      if (wantZeroed === 'self' && !zeroedIsWatcherOwn) continue;
+      if (wantZeroed === 'opponent' && zeroedIsWatcherOwn) continue;
+      entries.push({
+        id: ctx.genId(), playerId: watcherId,
+        cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+        label: 'このターンの遅延トリガー（シグニのパワーが0以下になったとき）',
+        effect: {
+          effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_SIGNI_POWER_ZERO_OR_LESS'],
+          action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+        },
+        triggeringCardNum: zeroedCardNum,
+      });
+    }
   }
   return { entries, usedHostIds, usedGuestIds };
 }

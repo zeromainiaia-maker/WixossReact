@@ -17,8 +17,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | INTERNAL_ECRV_APPLY | execStubPart1.ts:2087 | 0 | 0 | 0 | 0 |
 | INTERNAL_MARK_REVEALED_NAMED | execStubPart3.ts:3103 | 0 | 0 | 0 | 0 |
 | LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT | execStubPart2.ts:1178 | 0 | 0 | 0 | 0 |
-| OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3038 | 0 | 0 | 13 | 0 |
-| REVEAL_AND_PICK | execStubPart1.ts:3012 | 0 | 0 | 2 | 0 |
+| OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3035 | 0 | 0 | 13 | 0 |
+| REVEAL_AND_PICK | execStubPart1.ts:3009 | 0 | 0 | 2 | 0 |
 | SUMMON_FROM_TRASH | execStubPart3.ts:2761 | 0 | 0 | 1 | 0 |
 
 ## A群 明細
@@ -65,7 +65,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:1178  const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
 
 ### OPP_DECK_REVEAL_UNTIL  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:3038  const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
+  execStubPart1.ts:3035  const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
     lit re:＜([^＞]+)＞のシグニが(?:[０-９\d]+枚)?めくれるまで
     lit re:レベル([０-９\d]+)を持つ
     lit re:シグニが(?:[０-９\d]+枚)?めくれるまで
@@ -81,7 +81,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:残りをシャッフルして
 
 ### REVEAL_AND_PICK  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:3012  const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
+  execStubPart1.ts:3009  const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
     lit re:シグニ([０-９\d]+)枚を探して
     lit re:場に出す
 
@@ -146,4 +146,4 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execUtils.ts:1377 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
   execUtils.ts:2423 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
   execUtils.ts:3881 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
-  triggerCollect.ts:1733 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+  triggerCollect.ts:1755 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

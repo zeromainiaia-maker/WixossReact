@@ -2627,6 +2627,12 @@ export interface InstallDelayedTriggerAction {
     crasherFilter?: TargetFilter; // 発火源シグニの条件（例: 青の＜ブルアカ＞）。⚠engine は「場に該当シグニがいるか」で近似判定（実際のクラッシュ源シグニは未追跡）
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（設置者から見て）。省略=any。WX11-024=opponent
     leftOwner?: 'self' | 'opponent' | 'any';       // ON_LEAVE_FIELD の離脱カード所有者（設置者から見て）。省略=any
+    /**
+     * 🆕**`ON_SIGNI_POWER_ZERO_OR_LESS` の 0化したシグニの所有者**（設置者から見て・§5.3 `O-245`・2026-09-04）。
+     * 🔴無いと「**対戦相手の**シグニのパワーが0以下になったとき」が**自分のシグニでも発火**する（過剰実行）。
+     * ⚠`leftOwner` / `attackerOwner` / `refreshedOwner` と同じ規約＝省略は `any`。
+     */
+    zeroedOwner?: 'self' | 'opponent' | 'any';
     triggerFilter?: TargetFilter;                  // ON_LEAVE_FIELD の離脱カード条件
     attackerOwner?: 'self' | 'opponent' | 'any';   // ON_ATTACK_SIGNI のアタッカー所有者（設置者から見て）。省略=any。WXK05-009-E2=opponent（タスク12(lxi) 第8波）
     /**

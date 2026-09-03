@@ -2927,14 +2927,11 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsAPM } },
       `${ctx.cardMap.get(targetAPM)?.CardName ?? targetAPM}のパワー${deltaAPM > 0 ? '+' : ''}${deltaAPM}`));
   }
-  // DRAW_ON_OPP_POWER_ZERO: このターン相手シグニのパワー≤0でドロー（フラグ設置）
-  // 🆕**§5.3 `O-60` 第60バッチ（2026-09-03）＝旧 id `INTERNAL_CMCLG_DRAW_ON_POWER_ZERO` から改名**＝
-  //   `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`（engine が全文を読む受け皿）を撤去して
-  //   parser が選択肢ごとに直接この宣言を出すようになったので、もう `INTERNAL_`（他ハンドラ専用）ではない。
-  if (stub.id === 'DRAW_ON_OPP_POWER_ZERO') {
-    const newOwnerDPZ: PlayerState = { ...ctx.ownerState, draw_on_opp_power_zero: true };
-    return done(addLog({ ...ctx, ownerState: newOwnerDPZ }, 'このターン、対戦相手のシグニのパワーが0以下になったとき、カードを1枚引く'));
-  }
+  // 🏁**§5.3 `O-245`（2026-09-04）＝`DRAW_ON_OPP_POWER_ZERO` ハンドラを撤去した。**
+  //   🔴書き込み先 `draw_on_opp_power_zero` に**読み手が1人もいなかった**（`npm run census:deadstate` で検出）
+  //   ＝宣言だけ立って何も起きない真 no-op。`census:stubs` A群にも `census:enginetext` にも映らない形。
+  //   ⇒ parser が `INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS, zeroedOwner:'opponent'}` を出し、
+  //     `triggerCollect.collectPowerZeroTriggers` が発火させる（`O-92` 族の既存機構）。
   // INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE: 【レイヤー】持ちシグニに「場を離れたとき手札に戻す」を付与
   if (stub.id === 'INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE') {
     return done(addLog(ctx, '【レイヤー】シグニに「場を離れたとき相手シグニ1体手札に戻す」を付与（effectEngine未対応・ログのみ）'));
