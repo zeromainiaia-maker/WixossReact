@@ -64676,6 +64676,29 @@ test('§5.3 O-92: 「次にアタックしたとき」は条件節つき・CHOOS
     'SP38-008-E3: 条件節が無い形に条件を付けない');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-70`（2026-09-04・索引 A 第38巡）＝🏁**クローズ**。「下に置く」の複合対象は実測 **3効果とも配線済み**。
+// 🔑正準形は**2通り**＝①`SEQUENCE[PLACE_UNDER_SIGNI ×2]`（種別ごとに上限が違う形）
+//    ②`selectionConstraint.groups`（「レベル1・2・3をそれぞれ1枚まで」＝1回の選択に複数の枠）。
+//    キー1つを探す測り方だと②が miss に見える（trap (h) と同型）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-70: 「下に置く」の複合対象は2通りの正準形で配線済み', () => withSavedCursor(() => {
+  // ①種別ごとに上限が違う＝ステップを分ける
+  const a1 = effectsMap.get('WX20-042-CB')?.find(e => e.effectId === 'WX20-042-CB-E1')?.action as SequenceAction | undefined;
+  eq(a1?.type, 'SEQUENCE', 'WX20-042-CB-E1: 2種の対象は2ステップ');
+  eq(a1?.steps.length, 2, '＜原子＞シグニ3枚まで／青のスペル1枚まで');
+  eq(JSON.stringify(a1?.steps.map(st => (st as { count?: number; filter?: unknown }).count)), JSON.stringify([3, 1]),
+    '枚数が原文どおり（旧 live は count:1 に潰れていた）');
+  // ②1回の選択に複数の枠＝`selectionConstraint.groups`
+  const a2 = JSON.stringify(effectsMap.get('WXDi-P06-083')?.find(e => e.effectId === 'WXDi-P06-083-E2')?.action);
+  ok(a2?.includes('"groups"'), 'WXDi-P06-083-E2: 「レベル1・2・3をそれぞれ1枚まで」は groups');
+  // ③カード名2種（`WXK09-060-E3`）は②と同じ `groups` 形（1回の選択で名前ごとに1枚ずつ）
+  const a3 = JSON.stringify(effectsMap.get('WXK09-060')?.find(e => e.effectId === 'WXK09-060-E3')?.action);
+  ok(a3?.includes('"groups"') && a3?.includes('キャットレ') && a3?.includes('ドッグメ'),
+    'WXK09-060-E3: 《キャットレ》1枚と《ドッグメ》1枚が groups で表されている');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
