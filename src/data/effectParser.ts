@@ -7692,6 +7692,11 @@ export const DISTINCT_BATCH5C: Record<string, DistinctKind> = {
   'WXDi-P14-036-E1':'level','WXEX2-25-E2':'level','WX20-002-E1':'name',
   'WXEX2-41-E1':'name','WXDi-D01-004-E1':'class','WX12-Re02-E1':'name','WXDi-P14-027-E1':'name',
 };
+// 🆕**§5.3 `O-197`（2026-09-04）＝選択を STUB ハンドラ側で組む効果のオプトイン表**（上の表とは別枠）。
+//   ⚠値は `inferDistinctKind` が原文から導けなかったときのフォールバックのみ。
+const DISTINCT_BATCH5C_STUB: Record<string, DistinctKind> = {
+  'WDK14-011-E1': 'level',   // 「トラッシュからそれぞれレベルの異なるシグニを2枚まで対象とし、それらを【ビート】にする」
+};
 const DISTINCT_SOURCE_FIX_BATCH5C: Record<string, number> = {
   'SPDi44-12-E1':3,'SPDi44-16-E1':3,'WX15-Re15-E1':4,'WX20-079-E1':4,
   'WX20-Re14-E1':4,'WXEX1-47-E2':4,'WXEX2-74-E2':4,'WX25-P1-014-E1':3,
@@ -7730,7 +7735,27 @@ function applyDistinctBatch5c(effects: CardEffect[], cardText: string): void {
       else visit(v, kind, sourceCount, state);
     }
   };
+  // 🆕**§5.3 `O-197`（2026-09-04）＝`SELECT_TARGET` を自前で出す STUB へも制約を渡す。**
+  //   🔴`visit` が見ているのは「typed な action の target/source」だけなので、
+  //     選択を**ハンドラ側で組み立てる STUB**（`TRASH_SIGNI_TO_BEAT` 等）には一生届かなかった＝
+  //     原文「**それぞれレベルの異なる**シグニ2枚まで」が live のどこにも無く、
+  //     **同じレベルを重ねて選べる**過剰実行だった（`WDK14-011-E1`）。
+  //   ⚠**表に足すのは「どの効果か」だけ**＝種別は `inferDistinctKind`（原文）から導く（既存の規約どおり）。
+  const DISTINCT_STUB_IDS = new Set(['TRASH_SIGNI_TO_BEAT']);
   for (const e of effects) {
+    if (DISTINCT_BATCH5C_STUB[e.effectId]) {
+      const kindStub = inferDistinctKind(cardText) ?? DISTINCT_BATCH5C_STUB[e.effectId];
+      const stampStub = (node: unknown): void => {
+        if (!node || typeof node !== 'object') return;
+        if (Array.isArray(node)) { node.forEach(stampStub); return; }
+        const o = node as Record<string, unknown>;
+        if (o.type === 'STUB' && typeof o.id === 'string' && DISTINCT_STUB_IDS.has(o.id)) {
+          o.selectionConstraint = distinctConstraintOf(kindStub);
+        }
+        for (const v of Object.values(o)) stampStub(v);
+      };
+      stampStub(e.action);
+    }
     if (e.effectId === 'WXK08-027-E1') {
       e.condition = { type:'HAS_CARD_IN_FIELD', owner:'self', filter:{ cardType:'シグニ' }, minCount:3, distinctLevels:true };
     }

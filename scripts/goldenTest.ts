@@ -64602,6 +64602,35 @@ test('§5.3 O-190: 複合任意コストの「前半」が payload に載って�
   }
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-197`（2026-09-04・索引 A 第35巡）＝「それぞれ〜異なる」の残り。
+// 🔑登録票の「約15効果・機構は揃っている・表へ足すだけ」は**半分だけ正しかった**＝
+//    15件のうち **11件は既に配線済み**で、残り4件は**表へ足しても届かない**（選択を STUB ハンドラが
+//    自前で組むので `applyDistinctBatch5c` の `visit` が見ている target/source が存在しない）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-197: 選択を自前で組む STUB にも「それぞれ〜異なる」が届く', () => withSavedCursor(() => {
+  // 🔴`WDK14-011-E1`「あなたのトラッシュから**それぞれレベルの異なる**シグニを**2枚まで**対象とし、
+  //   それらを【ビート】にする」は live のどこにも制約が無く、**同じレベルを重ねて選べた**（過剰実行）。
+  // 🔑受け皿は最初から在った＝`PendingInteractionDef.selectionConstraint` →
+  //   `EffectInteractionModal` の `satisfiesSelectionConstraint`。**ハンドラが渡していなかっただけ。**
+  const a = effectsMap.get('WDK14-011')?.find(e => e.effectId === 'WDK14-011-E1')?.action as
+    { type?: string; id?: string; selectionConstraint?: unknown } | undefined;
+  const stub = a?.type === 'STUB' ? a : undefined;
+  eq(stub?.id, 'TRASH_SIGNI_TO_BEAT', 'WDK14-011-E1: ビート化の STUB');
+  eq(JSON.stringify(stub?.selectionConstraint), JSON.stringify({ distinct: 'level' }),
+    'WDK14-011-E1: 「それぞれレベルの異なる」が payload に載る');
+  // engine 側が対話へ渡していること（本体と**継続の両方**＝落とすと2周目で制約が消える）。
+  const p3 = fs.readFileSync(join(root, 'src/engine/execStubPart3.ts'), 'utf8');
+  const seg = p3.slice(p3.indexOf("if (stub.id === 'TRASH_SIGNI_TO_BEAT')"));
+  const body = seg.slice(0, seg.indexOf('SIGNI_UNDER_WEAPON_SIGNI'));
+  eq((body.match(/stub\.selectionConstraint \?/g) ?? []).length, 2,
+    '本体の SELECT_TARGET と continuation の両方へ渡している（1つなら2周目で制約が消える）');
+  // 別カード（`WXK08-029`＝1枚だけ選ぶ形）には制約を付けない＝表がオプトインであること。
+  const other = JSON.stringify(effectsMap.get('WXK08-029')?.find(e => e.effectId === 'WXK08-029-E1')?.action);
+  ok(!other?.includes('selectionConstraint'), 'WXK08-029-E1: 原文に「それぞれ〜異なる」が無いので付かない');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

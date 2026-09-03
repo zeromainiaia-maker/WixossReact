@@ -2941,9 +2941,18 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'BANISH_TO_LRIG_TRASH_INSTEAD') return 'このカードがバニッシュされる場合、代わりにルリグトラッシュに置く';
       if (a.id === 'DECLARE_COLOR') return '色（白/赤/青/緑/黒）を1つ宣言する';
       if (a.id === 'REPLACE_NEXT_OPP_REFRESH_MILL_LRIG') return '次に対戦相手が行うリフレッシュを「トラッシュをすべてデッキに加えてシャッフルし、ルリグデッキからカード1枚をルリグトラッシュに置く」に置き換える';
-      if (a.id === 'TRASH_SIGNI_TO_BEAT') return a.value === 'WXK08-029'
-        ? 'あなたのトラッシュから＜悪魔＞のシグニ1枚を対象とし、それを【ビート】にする'
-        : 'トラッシュからシグニを【ビート】にする';
+      // 🆕§5.3 `O-197`（2026-09-04）＝`selectionConstraint` を描く（旧文言は「それぞれレベルの異なる」と
+      //   「2枚まで」を1文字も表していなかった＝逆翻訳を読んでも制約の有無が分からなかった）。
+      if (a.id === 'TRASH_SIGNI_TO_BEAT') {
+        const scTB = (a as { selectionConstraint?: { distinct?: string; sharedColor?: string } }).selectionConstraint;
+        const distTB = scTB?.distinct === 'level' ? 'それぞれレベルの異なる'
+          : scTB?.distinct === 'name' ? 'それぞれ名前の異なる'
+            : scTB?.distinct === 'class' ? 'それぞれクラスの異なる'
+              : scTB?.sharedColor === 'none' ? 'それぞれ共通する色を持たない' : '';
+        return a.value === 'WXK08-029'
+          ? 'あなたのトラッシュから＜悪魔＞のシグニ1枚を対象とし、それを【ビート】にする'
+          : `あなたのトラッシュから${distTB}シグニを2枚まで対象とし、それらを【ビート】にする`;
+      }
       if (a.id === 'INTERNAL_MOVE_TO_BEAT') return '直前に選んだシグニを【ビート】にする';
       // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝payload から描く**（下の `trashAllScope` 分岐）。
       //   🔴旧文言「対象プレイヤーのシグニすべてとキーを…」は**この id が2文型の catch-all だった頃の名残**で、

@@ -571,11 +571,17 @@ export function execStubPart3(
     });
     if (candsTSTB.length === 0) return done({ ...addLog(ctx, 'トラッシュにシグニなし（TRASH_SIGNI_TO_BEAT）'), lastProcessedCards: [] });
     const noopTSTB: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    const contTSTB: StubAction = { type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT', ...(wxk08029TSTB ? { value: 'WXK08-029' } : {}) };
+    // 🆕**§5.3 `O-197`（2026-09-04）＝原文の「それぞれレベルの異なる」を対話へ渡す。**
+    //   ⚠**継続にも積む**（`SELECT_TARGET` の continuation で自分自身へ再入するので、
+    //   落とすと2周目の選択で制約が消える＝`O-60` 第59バッチの「payload 積み忘れ」と同型）。
+    const contTSTB: StubAction = { type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT',
+      ...(wxk08029TSTB ? { value: 'WXK08-029' } : {}),
+      ...(stub.selectionConstraint ? { selectionConstraint: stub.selectionConstraint } : {}) };
     const pickCountTSTB = wxk08029TSTB ? 1 : Math.min(2, candsTSTB.length);
     return needsInteraction(addLog(ctx, wxk08029TSTB ? 'ビートにする＜悪魔＞を選択' : 'ビートにするシグニを最大2枚選択'), {
       type: 'SELECT_TARGET', candidates: candsTSTB, count: pickCountTSTB, optional: !wxk08029TSTB,
       targetScope: 'self_trash',
+      ...(stub.selectionConstraint ? { selectionConstraint: stub.selectionConstraint } : {}),
       thenAction: (wxk08029TSTB ? ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_BEAT' } as StubAction) : noopTSTB) as EffectAction,
       ...(wxk08029TSTB ? {} : { continuation: contTSTB as EffectAction }),
     });
