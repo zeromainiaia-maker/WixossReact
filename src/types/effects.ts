@@ -4617,6 +4617,47 @@ export interface StubAction {
   /** `TRASH_SPELL_FREE_USE_LIMIT`＝「トラッシュから**コストの合計がN以下**のスペル1枚を〜使用する」の N。 */
   trashSpellCostMax?: number;
   /**
+   * ── 🆕**§5.3 `O-60` 第53バッチ（2026-09-03）＝「ゾーン移動・公開」と「属性の書き換え」family** ──
+   * どれも **engine が `EffectText`（カード全文）から名前・枚数・色・クラス・レベルを読み直していた**箇所。
+   * ⚠**payload が無ければ何もしない**（fail-closed）。
+   */
+  /**
+   * `ADD_CARD_TO_LRIG_DECK` / `ADD_CARD_TO_LRIG_DECK_HIDDEN`＝ルリグデッキに加える《カード名》の並び。
+   * 🔴旧実装は**カード全文**から `《([^》]+)》` を全部拾っていた＝**コスト記号も混じる**
+   *   （`WXDi-P09-007` は同じカードの別の【起】に《無》《ゲーム１回》《緑×0》があり、
+   *   候補6件のうち3件がコスト表記だった。いまは実体が見つからず黙って捨てられているだけ）。
+   * 🔑`_HIDDEN` は**カード名が前の文にある**（「《A》と《B》を公開する。**それらのどちらか**１枚を〜」）ので、
+   *   parser は**効果単位の後処理**で刻む（第49バッチ②と同じ理由）。
+   */
+  addToLrigDeck?: { cardNames: string[] };
+  /**
+   * `PLACE_TRAP_FROM_REVEALED`＝デッキの上から見る枚数。
+   * 🔴旧既定は **2枚**で、原文3枚・4枚・5枚のカードが**少なく公開する過小実行**になる形だった
+   *   （綴りを `見(?:る|て)` に緩めた履歴がそのまま「綴り依存」の証拠）。
+   */
+  placeTrapReveal?: { revealCount: number };
+  /**
+   * `TRASH_CLASS_TO_HAND_OR_ENERGY`＝トラッシュから対象に取る条件と上限枚数。
+   * 🔴旧実装は**カード全文の最初の `＜…＞`** をクラスとして拾っていた（別の能力のクラスを掴みうる）。
+   */
+  trashPickSplit?: { filter?: TargetFilter; maxCount: number };
+  /**
+   * `CHANGE_SIGNI_COLOR`＝変更先の色と対象の絞り込み。
+   * 🔴旧実装は**カード全文**へ `/それを([赤青緑黒白]+)にする/` と `/レベル(\d+)以下のシグニ/` を当てており、
+   *   `WX25-P3-111` は【起】にも「パワー5000以下のシグニ」があるので**別の能力の絞り込みを掴みうる**形だった。
+   */
+  changeSigniColor?: { color: string; filter?: TargetFilter };
+  /** `GRANT_SIGNI_CLASS`＝このシグニが得る＜クラス＞（原文「このシグニは＜X＞を持つ」）。 */
+  grantSigniClass?: { cardClass: string };
+  /** `DECK_SIGNI_LEVEL_OVERRIDE`＝デッキ内の＜クラス＞と、参照時に扱うレベル。 */
+  deckSigniLevelOverride?: { story: string; level: number };
+  /**
+   * `ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`＝すべての場にあるセンタールリグが追加で得る＜ルリグタイプ＞。
+   * ⚠**engine は自分側の `lrig_gained_types` にしか積まない**（原文「**すべての**場にある」＝両者）＝
+   *   **この巡では payload 化だけを行い、両者化は据置**（`O-60` 登録票に記録）。
+   */
+  gainedLrigType?: string;
+  /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。
    *
@@ -5510,6 +5551,15 @@ export interface StubAction {
   costText?: string;     // OPTIONAL_COST: エナ色以外の任意コスト句を原文どおり明示（例: 「このシグニを場からトラッシュに置いてもよい」「使用コストとして追加でエクシード４を支払ってもよい」）。decompiler はこれをそのまま描画。engine 精緻化は別途（A3）
   revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
     pickCount: number | 'ALL';
+    /**
+     * 🆕**デッキの上から公開する枚数**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+     * 🔴旧実装は engine が `EffectText + BurstText`（**カード全文**）へ
+     *   `/カードを(\d+)枚(?:見る|公開する)/` を当てていた＝`WX14-037` は **`CHOOSE` の②の枝**なので
+     *   カード全文には①の枝や別能力の数字も並び、**先頭一致で別の数を掴みうる**形だった。
+     *   外れたときの既定は **5枚**で、原文3枚・4枚のカードを**多く公開する過剰実行**になる。
+     * ⚠**この payload が無ければ何も公開しない**（fail-closed）。
+     */
+    revealCount?: number;
     // 🆕`'deck_top'`＝「残りを好きな順番でデッキの**一番上**に戻す」（2026-08-28 Sheet1 バッチ・`WX11-026-E2`）。
     //   従来は行き先語彙が一番下／トラッシュ／エナだけで、一番上の形は reveal-pick 規則にすら入れず
     //   **単文規則の `LOOK_AND_REORDER{count:0}` が先に当たって pick 節ごと消えていた**。

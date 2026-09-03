@@ -219,22 +219,15 @@ export function execStubPart3(
       return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: overridesCSC2 } },
         `${ctx.cardMap.get(targetCSC2)?.CardName ?? targetCSC2}の色を${newColorCSC2}に変更`));
     }
-    const srcCSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCSC = srcCSC ? (srcCSC.EffectText ?? '') + ' ' + (srcCSC.BurstText ?? '') : '';
-    // 変更先の色を抽出（「それを白にする」「赤にする」等）
-    const colorMCSC = txtCSC.match(/それを([赤青緑黒白]+)にする/);
-    const newColorCSC = colorMCSC ? colorMCSC[1] : null;
-    if (!newColorCSC) return done(addLog(ctx, 'CHANGE_SIGNI_COLOR: 変更先色不明'));
-    // レベルフィルタ（「レベルN以下のシグニ」）
-    const toHWCSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const lvMaxMCSC = txtCSC.match(/レベル([０-９\d]+)以下のシグニ/);
-    const lvMaxCSC = lvMaxMCSC ? parseInt(toHWCSC(lvMaxMCSC[1])) : 99;
-    // 相手シグニ1体を選択（lastProcessedCardsが既にあれば直接適用）
-    const oppSigniCSC = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => {
-      if (!c) return false;
-      const lv = parseInt(ctx.cardMap.get(c)?.Level ?? '99');
-      return lv <= lvMaxCSC;
-    });
+    // 🆕**変更先の色と対象の絞り込みは payload（`changeSigniColor`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+    // 🔴旧実装は `EffectText + BurstText`（**カード全文**）へ2本の regex を当てており、`WX25-P3-111` は
+    //   【起】にも「パワー5000以下のシグニ」があるので**別の能力の絞り込みを掴みうる**形だった。
+    // ⚠**payload が無ければ何もしない**（fail-closed）。
+    const specCSC = stub.changeSigniColor;
+    if (!specCSC) return done(addLog(ctx, '[CHANGE_SIGNI_COLOR: 変更先色なし（未指定）]'));
+    const newColorCSC = specCSC.color;
+    const oppSigniCSC = [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string =>
+      !!c && (!specCSC.filter || matchesFilter(ctx.cardMap.get(getCardNum(c)), specCSC.filter)));
     if (oppSigniCSC.length === 0) return done(addLog(ctx, '相手シグニなし（CHANGE_SIGNI_COLOR）'));
     const targetCSC = ctx.lastProcessedCards?.[0];
     if (targetCSC && oppSigniCSC.includes(targetCSC)) {
@@ -312,19 +305,17 @@ export function execStubPart3(
   // ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み
   if (stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK') return done(addLog(ctx, '[ALL_CARDS_COLOR_CHANGE_BLACK: effectEngineで処理]'));
   // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照）
+  // 🆕**ルリグタイプは payload（`gainedLrigType`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
+  // ⚠**据置**＝原文は「**すべての**場にあるセンタールリグ」だが engine は**自分側にしか積まない**
+  //   （`lrig_gained_types` は `PlayerState` ごと）。両者化は別項目（`O-60` 登録票に記録）。
   if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') {
-    const srcACLGTGW = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtACLGTGW = srcACLGTGW ? (srcACLGTGW.EffectText ?? '') : '';
-    const gainM = txtACLGTGW.match(/すべての場にあるセンタールリグは＜([^＞]+)＞を追加で得る/);
-    if (gainM) {
-      const typeName = gainM[1];
-      const current = ctx.ownerState.lrig_gained_types ?? [];
-      if (!current.includes(typeName)) {
-        const newOwnerACLGTGW: PlayerState = { ...ctx.ownerState, lrig_gained_types: [...current, typeName] };
-        return done(addLog({ ...ctx, ownerState: newOwnerACLGTGW }, `このゲーム：全センタールリグが＜${typeName}＞を追加で得る`));
-      }
-    }
-    return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: タイプ名解析不可]'));
+    const typeName = stub.gainedLrigType;
+    if (!typeName) return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: タイプ名なし（未指定）]'));
+    const current = ctx.ownerState.lrig_gained_types ?? [];
+    if (current.includes(typeName)) return done(addLog(ctx, `＜${typeName}＞は既に得ている`));
+    const newOwnerACLGTGW: PlayerState = { ...ctx.ownerState, lrig_gained_types: [...current, typeName] };
+    return done(addLog({ ...ctx, ownerState: newOwnerACLGTGW }, `このゲーム：全センタールリグが＜${typeName}＞を追加で得る`));
   }
   // CHANGE_BASE_LEVEL: このシグニの基本レベルを1～3にしてもよい（ターン終了まで）
   if (stub.id === 'CHANGE_BASE_LEVEL') {
@@ -390,14 +381,15 @@ export function execStubPart3(
       `このターン、デッキ内のシグニのレベルをLv${levelDSLOA}として扱う`));
   }
   // DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）
+  // 🆕**クラスとレベルは payload（`deckSigniLevelOverride`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText` を読み、外れると **`'宇宙'` / レベル4 の焼き込み**へ落ちていた
+  //   （＝原文と無関係なクラスのレベルを書き換える）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE') {
-    const srcDSLO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDSLO = srcDSLO ? (srcDSLO.EffectText ?? '') : '';
-    const toHWDSLO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const classMatchDSLO = txtDSLO.match(/＜([^＞]+)＞のシグニのレベルを参照する場合/);
-    const targetClassDSLO = classMatchDSLO?.[1] ?? '宇宙';
-    const levelMatchDSLO = txtDSLO.match(/レベル([１-４\d]+)として扱って/);
-    const levelDSLO = levelMatchDSLO ? parseInt(toHWDSLO(levelMatchDSLO[1])) : 4;
+    const specDSLO = stub.deckSigniLevelOverride;
+    if (!specDSLO) return done(addLog(ctx, '[DECK_SIGNI_LEVEL_OVERRIDE: クラス／レベルなし（未指定）]'));
+    const targetClassDSLO = specDSLO.story;
+    const levelDSLO = specDSLO.level;
     const newOwnerDSLO: PlayerState = { ...ctx.ownerState, deck_signi_level_override: { class: targetClassDSLO, level: levelDSLO } };
     return done(addLog({ ...ctx, ownerState: newOwnerDSLO }, `デッキ内＜${targetClassDSLO}＞シグニのレベルをLv${levelDSLO}として扱う`));
   }
@@ -1787,17 +1779,22 @@ export function execStubPart3(
         type: 'CHOOSE', options: optsCESBL, count: 1,
       });
     }
-    // SELECT_TARGET: 自フィールドの英知シグニ
-    const srcCESBL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCESBL = srcCESBL ? (srcCESBL.EffectText ?? '') + ' ' + (srcCESBL.BurstText ?? '') : '';
-    const classNameCESBL = txtCESBL.match(/＜([^＞]+)＞のシグニ/)?.[1] ?? '英知';
+    // SELECT_TARGET: 自フィールドの対象シグニ
+    // 🆕**絞り込みは payload（既存の汎用 `selectTarget.filter`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+    // 🔴旧実装は `EffectText + BurstText`（**カード全文**）の**最初の `＜X＞のシグニ`** を拾っており、
+    //   `WXEX1-71` は【常】にも「あなたの＜英知＞のシグニ」があるので**別の能力の＜＞を掴みうる**形
+    //   （既定も `'英知'` の焼き込み）。
+    // ⚠**payload が無ければ何もしない**（fail-closed）。
+    const filterCESBL = stub.selectTarget?.filter;
+    if (!filterCESBL) return done(addLog(ctx, '[CHANGE_EICHI_SIGNI_BASE_LEVEL: 対象条件なし（未指定）]'));
+    const classNameCESBL = Array.isArray(filterCESBL.story) ? filterCESBL.story.join('か') : (filterCESBL.story ?? 'シグニ');
     const eichiCandsCESBL = ctx.ownerState.field.signi.flatMap(s => {
       const top = s?.at(-1);
       if (!top || top === ctx.sourceCardNum) return [];
-      return (ctx.cardMap.get(top)?.CardClass ?? '').includes(classNameCESBL) ? [top] : [];
+      return matchesFilter(ctx.cardMap.get(getCardNum(top)), filterCESBL) ? [top] : [];
     });
     if (eichiCandsCESBL.length === 0) return done(addLog(ctx, `＜${classNameCESBL}＞シグニなし（CHANGE_EICHI_SIGNI_BASE_LEVEL）`));
-    const contCESBL: StubAction = { type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL' };
+    const contCESBL: StubAction = { type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL', selectTarget: stub.selectTarget };
     return needsInteraction(addLog(ctx, `＜${classNameCESBL}＞シグニを選択（基本レベル変更）`), {
       type: 'SELECT_TARGET', candidates: eichiCandsCESBL, count: 1, optional: false,
       targetScope: 'self_field', thenAction: contCESBL as EffectAction,

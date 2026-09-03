@@ -1,5 +1,94 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第13巡）：§5.3 `O-60` 第53バッチ — 「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ
+
+**ベースライン**＝`a8041b440`（第52バッチの直後）。**A🔴 SELF_TEXT 39行 → 29行 / 39→29ハンドラ**
+（`BASELINE_SELF_TEXT` も 29 へ払い戻し／A群 live 効果 **77 → 62**／miss は 0 のまま）。
+**gates 全緑**（golden 3362 → **3369**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+census-stubs A🔴0・C0・manual-fields 0・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更21・追加0・削除0、予定外0。**
+🖥**実機＝不要と判定**（`src/screens/` は1行も触っていない・新しいアクション型／interaction 型／対話も0）。
+
+### 何を取ったか
+
+`census:enginetext` A群の **10ハンドラ / live 21効果 / 21カード**：
+**(a) ゾーン移動・公開**＝`ADD_CARD_TO_LRIG_DECK`＋`_HIDDEN`(6)→`addToLrigDeck{cardNames}` ／
+`PLACE_TRAP_FROM_REVEALED`(4)→`placeTrapReveal{revealCount}` ／
+`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`(3)→`revealPickParams.revealCount` ／
+`CRASH_LIFE_TO_HAND`(2)→**既存の汎用 `owner`** ／ `TRASH_CLASS_TO_HAND_OR_ENERGY`(1)→`trashPickSplit`。
+**(b) 属性の書き換え**＝`CHANGE_SIGNI_COLOR`(1)→`changeSigniColor{color,filter}` ／
+`GRANT_SIGNI_CLASS`(1)→`grantSigniClass` ／ `CHANGE_EICHI_SIGNI_BASE_LEVEL`(1)→**既存の汎用 `selectTarget`** ／
+`DECK_SIGNI_LEVEL_OVERRIDE`(1)→`deckSigniLevelOverride` ／
+`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`(1)→`gainedLrigType`。
+
+### 🔴 実害・危険な形 4件
+
+**①`ADD_CARD_TO_LRIG_DECK` は《…》を全部カード名として拾っていた。**
+`WXDi-P09-007` は同じカードの別の【起】に **《無》《ゲーム１回》《緑×0》** があり、候補6件のうち3件が
+**コスト記号**だった（§4.1 の「原文の《…》はカード名だけでなくコスト記号にも使う」の実例）。
+いまは実体が見つからず黙って捨てられているだけで、**同名のカードが実在すれば原文に無いカードが
+ルリグデッキへ入る**。⇒ parser 側で `parseNameFilter` と同じ除外規約を掛けて payload に刻んだ。
+
+**②`CRASH_LIFE_TO_HAND` は「原文を読むために engine が経路情報を復元」していた。**
+`WXDi-P07-001` は `GRANT_LRIG_ABILITY` の子として実行されるため効果元が**付与先のルリグ**になる。
+旧実装はそれでも原文を読みたいので **`effectId` の `-sub-E\d+` からカード番号を逆引きする足場**を
+engine 側に生やしていた。⇒ `owner` payload 1つで足場ごと消えた。
+⚠**fail-closed の向きが重要**＝旧既定の `self` は「**自分の**ライフを手札に加える」＝原文と逆向きの利得。
+
+**③`PLACE_TRAP_FROM_REVEALED` の既定 2枚は原文（3〜5枚）に対する過小実行だった。**
+「N枚見**て**」の連用形を後から足した履歴（`O-55`）が、そのまま**綴り依存**の証拠になっていた。
+
+**④`CHANGE_SIGNI_COLOR` / `CHANGE_EICHI_SIGNI_BASE_LEVEL` / `DECK_SIGNI_LEVEL_OVERRIDE` は
+別の能力の絞り込みを掴みうる位置にあった**（`WX25-P3-111` は【起】にも「パワー5000以下のシグニ」、
+`WXEX1-71` は【常】にも「あなたの＜英知＞のシグニ」）。
+`DECK_SIGNI_LEVEL_OVERRIDE` は外れると **`'宇宙'` / レベル4 の焼き込み**へ落ちる形だった。
+
+### 🔑 教訓
+
+**①「公開枚数は前の文にある」＝文単位では読めない payload がある。**
+`PLACE_TRAP_FROM_REVEALED` / `REVEAL_PICK_HAND_SHUFFLE_BOTTOM` / `ADD_CARD_TO_LRIG_DECK_HIDDEN` は
+どれも「**その中から**〜」の文に STUB が立ち、枚数や名前は**前の文**にある。
+⇒ **効果単位の後処理**で刻んだ（第49バッチ②の再適用）。
+🔴**⚠その後処理は `①②③` があるときセグメントへスコープを狭める**＝`WX14-037` は `CHOOSE` の②の枝で、
+効果全体を見ると①の枝の数字も並ぶ。**選択肢ごとに区切って読む**規律を入れた（golden で assert）。
+
+**②「受け皿は既存の汎用 payload」が2件あった。**
+`CRASH_LIFE_TO_HAND` は `StubAction.owner`、`CHANGE_EICHI_SIGNI_BASE_LEVEL` は `StubAction.selectTarget`
+で足りた。⇒ **新しいキーを足す前に、汎用 payload（`owner` / `selectTarget` / `value`）で足りないかを見る。**
+
+**③payload を足すと既存の「契約 golden」が落ちる。**
+`続き390 WXDi-P07-001-E1` は付与能力の action を **JSON 文字列一致**で assert しており、
+`owner` を足した瞬間に FAIL した。**これは退行ではなく契約の更新**なので期待値側を直した
+（⚠逆に「文字列一致 assert が落ちない payload 追加」は、その効果を誰も assert していない証拠でもある）。
+
+### 反転確認
+
+- `CRASH_LIFE_TO_HAND` の `owner` 読みを `false ? … : 'self'` に差し替える →
+  「対戦相手のライフが1枚減る expected=4 got=5」で **FAIL**（＝旧既定 self の再現）。戻して PASS。
+- golden 内にも payload 側の反転を同梱＝`addToLrigDeck` を落とすとルリグデッキに1枚も入らない、
+  色変更はレベル4のシグニを候補にしない。
+
+### 配送
+
+19効果は `build:effects` が自動採用。**MANUAL 2効果**（`WX24-P2-048`＝`owner`／`WXDi-P03-054`＝`revealCount`）は
+`manualEffects.ts` へ手書きしてから `syncManualLive.ts` で届けた。
+
+### ⚠ 据置（この巡では直さない）
+
+`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` は原文「**すべての**場にあるセンタールリグ」だが、engine は
+`lrig_gained_types`（`PlayerState` ごと）へ**自分側にしか積まない**。**payload 化だけを行い、両者化は据置**
+（逆翻訳にも `（※engine はあなた側のみ）` と明記した）。`O-60` 登録票に記録。
+
+### 触ったファイル
+
+`src/types/effects.ts`（payload 7キー＋`revealPickParams.revealCount`）／
+`src/engine/execStubPart1.ts`・`execStubPart2.ts`・`execStubPart3.ts`（消費側）／
+`src/data/parsers/parseSentencePart1.ts`〜`Part4.ts`・`src/data/effectParser.ts`（生成側＋効果単位の後処理）／
+`src/data/manualEffects.ts`（MANUAL 2件）／`scripts/decompileEffects.ts`（逆翻訳8分岐）／
+`scripts/censusEngineText.ts`（ratchet 39→29）／`scripts/goldenTest.ts`（+7本＋契約1本更新）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第12巡）：§5.3 `O-60` 第52バッチ — 「原文から数値ひとつを読むだけ」family 12ハンドラ
 
 **ベースライン**＝`416bf147c`（第51バッチの直後）。**A🔴 SELF_TEXT 51行 → 39行 / 51→39ハンドラ**

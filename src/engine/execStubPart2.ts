@@ -1025,22 +1025,21 @@ export function execStubPart2(
       `トラッシュ：${ctx.cardMap.get(targetCTTE)?.CardName ?? targetCTTE}→エナゾーン`));
   }
   // トラッシュからクラスシグニを手札かエナへ選択
+  // 🆕**絞り込みと上限枚数は payload（`trashPickSplit`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）の**最初の `＜…＞`** をクラスとして拾っていた
+  //   ＝別の能力の＜クラス＞を掴みうる形だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'TRASH_CLASS_TO_HAND_OR_ENERGY') {
-    // トラッシュからクラスカードを複数選択 → 1枚まで手札、残りエナゾーンへ
-    const srcTCTHOE2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTCTHOE2 = srcTCTHOE2 ? (srcTCTHOE2.EffectText ?? '') + ' ' + (srcTCTHOE2.BurstText ?? '') : '';
-    const toHWTCTHOE2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const classMTCTHOE2 = txtTCTHOE2.match(/＜([^＞]+)＞/);
-    const targetClassTCTHOE2 = classMTCTHOE2?.[1];
-    const countMTCTHOE2 = txtTCTHOE2.match(/([０-９\d]+)枚まで対象/);
-    const maxCountTCTHOE2 = countMTCTHOE2 ? parseInt(toHWTCTHOE2(countMTCTHOE2[1])) : 1;
-    const candsTCTHOE2 = ctx.ownerState.trash.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      return (!targetClassTCTHOE2 || (c?.CardClass ?? '').includes(targetClassTCTHOE2));
-    });
+    const specTCTHOE2 = stub.trashPickSplit;
+    if (!specTCTHOE2) return done(addLog(ctx, '[TRASH_CLASS_TO_HAND_OR_ENERGY: 条件なし（未指定）]'));
+    const maxCountTCTHOE2 = specTCTHOE2.maxCount;
+    const candsTCTHOE2 = ctx.ownerState.trash.filter(cn =>
+      !specTCTHOE2.filter || matchesFilter(ctx.cardMap.get(getCardNum(cn)), specTCTHOE2.filter));
     if (candsTCTHOE2.length === 0) return done(addLog(ctx, 'トラッシュに対象なし（TRASH_CLASS_TO_HAND_OR_ENERGY）'));
+    const storyLabelTCTHOE2 = Array.isArray(specTCTHOE2.filter?.story)
+      ? specTCTHOE2.filter?.story.join('か') : specTCTHOE2.filter?.story;
     const contTCTHOE2: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CLASS_SPLIT' };
-    return needsInteraction(addLog(ctx, `トラッシュから${targetClassTCTHOE2 ?? 'カード'}を${maxCountTCTHOE2}枚まで選択`), {
+    return needsInteraction(addLog(ctx, `トラッシュから${storyLabelTCTHOE2 ?? 'カード'}を${maxCountTCTHOE2}枚まで選択`), {
       type: 'SELECT_TARGET', candidates: candsTCTHOE2, count: maxCountTCTHOE2, optional: false,
       targetScope: 'self_trash', thenAction: contTCTHOE2 as EffectAction,
     });
@@ -1322,11 +1321,14 @@ export function execStubPart2(
       }
       return done(addLog({ ...ctx, ownerState: sACLD }, `${cardsACLD.length}枚をルリグデッキに加えた`));
     }
-    // lastProcessedCards なし：テキストから《カード名》を解析して候補を収集
-    const srcACLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtACLD = srcACLD ? (srcACLD.EffectText ?? '') + ' ' + (srcACLD.BurstText ?? '') : '';
-    const nameMatchesACLD = [...txtACLD.matchAll(/《([^》]+)》/g)].map(m => m[1]);
-    if (nameMatchesACLD.length === 0) return done(addLog(ctx, '[ADD_CARD_TO_LRIG_DECK: カード名解析不可]'));
+    // 🆕**カード名は payload（`addToLrigDeck.cardNames`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+    // 🔴旧実装は `EffectText + BurstText`（**カード全文**）から `《([^》]+)》` を**全部**拾っており、
+    //   **コスト記号まで候補に入っていた**（`WXDi-P09-007` は別の【起】の《無》《ゲーム１回》《緑×0》が混じり
+    //   候補6件中3件がコスト表記。いまは実体が見つからず黙って捨てられているだけで、
+    //   同名のカードが実在すれば**原文に無いカードをルリグデッキへ入れる**）。
+    // ⚠**payload が無ければ何もしない**（fail-closed）。
+    const nameMatchesACLD = stub.addToLrigDeck?.cardNames ?? [];
+    if (nameMatchesACLD.length === 0) return done(addLog(ctx, '[ADD_CARD_TO_LRIG_DECK: カード名なし（未指定）]'));
     // 各カード名に対応するインスタンスを lrig_deck → deck → hand → lrig_trash の順で探す
     const findInstance = (s: PlayerState, name: string): string | undefined => {
       const fromLrigDeck = s.lrig_deck.find(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === name);
@@ -2561,15 +2563,13 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerTTSIZE }, `トラップ→シグニ: ゾーン${zoneIdxTTSIZE + 1}`));
   }
   // PLACE_TRAP_FROM_REVEALED: 前のLOOK_AND_REORDERで公開されたデッキ上N枚からトラップ設置
+  // 🆕**公開枚数は payload（`placeTrapReveal.revealCount`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）を読んでおり、既定 **2枚**は原文（3〜5枚）と
+  //   無関係な**過小実行**だった。「N枚見**て**」の連用形を後から足した履歴が、そのまま綴り依存の証拠。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'PLACE_TRAP_FROM_REVEALED') {
-    const srcPTFR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPTFR = srcPTFR ? (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '') : '';
-    const toHWPTFR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 公開枚数をテキストから解析（デフォルト2枚）
-    // ⚠**「N枚見**て**」の連用形も同義**（`WX16-061`＝3枚／`WX17-029`＝4枚）。`見る` 固定だと既定の2枚に落ちて
-    //   **原文より少なく公開する過小実行**になる（§5.3 `O-55` の regex 緩和でこの経路へ入るようになった）。
-    const cntMPTFR = txtPTFR.match(/カードを([０-９\d]+)枚見(?:る|て)/);
-    const revealCountPTFR = cntMPTFR ? parseInt(toHWPTFR(cntMPTFR[1])) : 2;
+    const revealCountPTFR = stub.placeTrapReveal?.revealCount;
+    if (revealCountPTFR === undefined) return done(addLog(ctx, '[PLACE_TRAP_FROM_REVEALED: 公開枚数なし（未指定）]'));
     // デッキ上から公開カードを取得
     const topCardsPTFR = ctx.ownerState.deck.slice(0, revealCountPTFR);
     if (topCardsPTFR.length === 0) return done(addLog(ctx, 'PLACE_TRAP_FROM_REVEALED: デッキなし'));
@@ -4228,10 +4228,10 @@ export function execStubPart2(
     const srcGSC = ctx.sourceCardNum;
     if (!srcGSC) return done(addLog(ctx, 'GRANT_SIGNI_CLASS: ソースなし'));
     const srcCardGSC = ctx.cardMap.get(srcGSC);
-    const txtGSC = srcCardGSC ? (srcCardGSC.EffectText ?? '') : '';
-    const classMatchGSC = txtGSC.match(/このシグニは＜([^＞]+)＞を持つ/);
-    const classNameGSC = classMatchGSC ? classMatchGSC[1] : '';
-    if (!classNameGSC) return done(addLog(ctx, 'GRANT_SIGNI_CLASS: クラス解析不可'));
+    // 🆕**得るクラスは payload（`grantSigniClass.cardClass`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+    // ⚠**payload が無ければ何もしない**（fail-closed）。
+    const classNameGSC = stub.grantSigniClass?.cardClass ?? '';
+    if (!classNameGSC) return done(addLog(ctx, '[GRANT_SIGNI_CLASS: クラスなし（未指定）]'));
     const existingGSC = srcCardGSC?.CardClass ?? '';
     const newClassGSC = existingGSC.includes(classNameGSC) ? existingGSC : `${existingGSC}:${classNameGSC}`;
     const overridesGSC = { ...(ctx.ownerState.card_class_overrides ?? {}), [srcGSC]: newClassGSC };

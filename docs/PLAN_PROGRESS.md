@@ -1,5 +1,58 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第52バッチ・索引 A 第12巡・Opus 5 単独）＝「原文から数値ひとつを読むだけ」family 12ハンドラ**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**51行 / 51ハンドラ → 39行 / 39ハンドラ**
+  （`BASELINE_SELF_TEXT` も 39 へ払い戻し／A群 live 効果 **98 → 77**／miss は 0 のまま）。
+  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**⑤実機 残 6件**（据置＝今回の追加は0）。
+  gates 全緑（golden **3362 / 3362**＝+10本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴39**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更21・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
+
+  🔴🔑**この巡で一番大きいのは「取る family を選び直したこと」。**
+  PLAN が第一候補にしていた **(a) モーダル選択（①②③④）**は、**受け皿（`CHOOSE` の選択数上書き7本）も
+  parser の typed 出力も既に揃っていて、8枚とも `_held_fresh` で採用待ち**だった。
+  ⚠**それでも単純採用は退行になる**＝engine 側の `choiceTextParser.ts`（492行）が
+  **汎用 parser より賢い分岐を20個ほど持っている**（`levelLteFieldVirusCount` ／ honest defer の
+  `INTERNAL_NOOP` ／ `ENERGY_TRASHED_BY_OPP` 条件 ／ `powerLtLastProcessed` …）。
+  逆に fresh の方が良い option もあり、**option 単位で優劣が入り混じっている**。
+  ⇒ **多バッチ項目として登録票へ記録し、今回は実際に払う family へ切り替えた。**
+  🔑**教訓＝「受け皿が在る」だけでは取れる根拠にならない。「engine 側に parser より賢い分岐が無いか」まで見る。**
+
+  🔴**実害3件**＝
+  ①**`EFFECT_LIMIT` は【常】経路で1ビットも効いていなかった**＝旧実装は `temp_power_mods` をキャップするが
+  **`effectEngine` の CONTINUOUS 計算はそこを通らない**（`WX13-053` はトラッシュ20枚で原文＋10000のところ**＋20000**）。
+  ⇒ `POWER_MODIFY_PER_TRASH_COUNT.maxUnits` を **2経路**へ配線（単価1000の焼き込みも消えた）。
+  ②**`LRIG_LIMIT_MODIFY` の STUB は「向き」も「寿命」も持っていなかった**＝原文「**対戦相手の**リミットを－１
+  （次の相手メインフェイズ終了時まで）」を**常に自分のリミットを恒久で**減らしていた。**受け皿は最初から
+  typed `LrigLimitModifyAction` で、parser の綴りが1本足りないだけだった**（第50バッチ②の再現）。
+  ③**同じ文を読む2ハンドラで既定値が 5 と 3 に食い違っていた**（実測は 5 と **2**＝後者は過少実行）。
+
+  🧹**計器の較正**＝STUB を2つ解体したので census 高シグナルが 3→6 に増えた（STUB 免除が外れた分）。
+  **新キー `maxUnits` を `vocabCensus.ts` のキー表へ足して 3 へ戻した**＝**退化ではなく可視化**。
+  ⚠`maxCount` とは別キーで部分文字列にもならない＝**キー表に足さないと必ず昇格する**。
+
+**▶ 次の一手**＝**`O-60` の続き（第53バッチ〜）。残 39ハンドラ・live 77効果（A🔴 39行）。**
+⚠**miss=0 は「正しい」ではない**（第49・51バッチで実証済み）。
+**次に束ねられる家族**＝
+(a)**ゾーン移動・公開**＝`ADD_CARD_TO_LRIG_DECK|…_HIDDEN`(live6)／`PLACE_TRAP_FROM_REVEALED`(4)／
+`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`(3)／`CRASH_LIFE_TO_HAND`(2)／`TRASH_CLASS_TO_HAND_OR_ENERGY`(1)
+＝**5ハンドラ / live 16効果**。**第52バッチと同じレシピ（filter＋枚数を payload へ）で取れる見込み**。
+(b)**属性の書き換え**＝`CHANGE_SIGNI_COLOR`(1)／`GRANT_SIGNI_CLASS`(1)／`CHANGE_EICHI_SIGNI_BASE_LEVEL`(1)／
+`DECK_SIGNI_LEVEL_OVERRIDE`(1)／`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`(1)＝**5ハンドラ / live 5効果**（色・クラス・レベル）。
+(c)🔴**モーダル選択（①②③④）**＝`BET_MECHANIC`(8)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`CHOOSE_N_FROM_LIST`(1)／`EXTRA_COST_REMOVE_VIRUS`(2)／
+`CONDITIONAL_ALTERNATE_EFFECT`(1)＝**6ハンドラ / live 20効果**。**受け皿は完備・fresh も採用待ちだが、
+`choiceTextParser.ts` の20分岐を parser 側へ移すまで採用してはいけない**（詳細は PLAN_DETAIL の登録票）。
+(d)**引用文の実行時再パース**＝`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＝`O-128` 家系。
+🔑**着手手順は第50〜52バッチと同じ**＝①`censusEngineText.ts --id A,B,C,…`（カンマ区切りで**1起動**）
+②live JSON を全件ダンプして payload の有無を見る ③**typed で解けている兄弟**から受け皿を探す
+④**入口の id 集合**と**parser の綴り**を疑う ⑤**生成側は文型ルールとは限らない**（`effectParser.ts` のカード別
+override／効果単位の後処理がある） ⑥**engine 側に parser より賢い分岐が無いかを必ず見る**（第52バッチの新教訓）
+⑦反転は**消費側**を壊して盤面の数で取る ⑧**STUB を解体したら census のキー表を較正する**。
+
 - **セッション（2026-09-03・`O-60` 第51バッチ・索引 A 第11巡・Opus 5 単独）＝「手札から〈条件〉のカード」family 8ハンドラを payload 化**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

@@ -426,8 +426,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- このシグニは＜X＞を持つ（クラス/ストーリー付与）----
-  if (t.match(/^このシグニは＜[^＞]+＞を持つ/)) {
-    return { type: 'STUB', id: 'GRANT_SIGNI_CLASS' } as StubAction;
+  // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝得るクラスは payload（engine はカード全文を読まない）。
+  const gscM = t.match(/^このシグニは＜([^＞]+)＞を持つ/);
+  if (gscM) {
+    return { type: 'STUB', id: 'GRANT_SIGNI_CLASS', grantSigniClass: { cardClass: gscM[1] } } as StubAction;
   }
 
   // ---- このシグニはアタックできない（CONTINUOUS）----

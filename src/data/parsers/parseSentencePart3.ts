@@ -583,6 +583,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- シグニの色を変更する ----
+  const cscM = t.match(/シグニ[^。]*を([白黒赤青緑無])にする/);
+  if (cscM) {
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝色と対象の絞り込みは payload。
+    const cscLvM = t.match(/レベル([０-９\d]+)以下のシグニ/);
+    return {
+      type: 'STUB', id: 'CHANGE_SIGNI_COLOR',
+      changeSigniColor: {
+        color: cscM[1],
+        ...(cscLvM ? { filter: { cardType: 'シグニ', level: { max: parseNum(cscLvM[1]) } } } : {}),
+      },
+    } as StubAction;
+  }
   if (t.match(/シグニ.*を(?:白|黒|赤|青|緑|無)にする/)) {
     return { type: 'STUB', id: 'CHANGE_SIGNI_COLOR' } as StubAction;
   }
@@ -989,7 +1001,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 特定クラスのシグニをエナゾーンから複数枚手札に加える/エナに置く ----
   if (t.match(/あなたのトラッシュから.+のカードを.*手札に加え.*エナゾーンに置く/)) {
-    return { type: 'STUB', id: 'TRASH_CLASS_TO_HAND_OR_ENERGY' } as StubAction;
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝絞り込みと上限枚数は payload。
+    const tcthoeStoryM = t.match(/あなたのトラッシュから＜([^＞]+)＞のカード/);
+    const tcthoeCntM = t.match(/([０-９\d]+)枚まで対象/);
+    return {
+      type: 'STUB', id: 'TRASH_CLASS_TO_HAND_OR_ENERGY',
+      trashPickSplit: {
+        ...(tcthoeStoryM ? { filter: { story: tcthoeStoryM[1] } } : {}),
+        maxCount: tcthoeCntM ? parseNum(tcthoeCntM[1]) : 1,
+      },
+    } as StubAction;
   }
 
   // ---- トラッシュからコスト合計N以下のスペルを使用 ----
@@ -1206,7 +1227,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   `foldPlaceTrapFromRevealed` が兄弟10効果と同じ `LOOK_PICK_CHAIN{then:'trap'}` へ畳み込む
   //   （残りの行き先＝`LOOK_AND_REORDER{count:0}` の死ステップも同時に解消する）。
   if (t.match(/その中から(?:カード)?[０-９\d]+枚(?:まで)?を?【トラップ】として.*シグニゾーンに設置/)) {
-    return { type: 'STUB', id: 'PLACE_TRAP_FROM_REVEALED' } as StubAction;
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝公開枚数は payload。
+    // ⚠**公開枚数は前の文にある**（「デッキの上からカードをN枚見**て**、**その中から**〜」）ので、
+    //   文単位で読めないときは効果単位の後処理（`effectParser.ts`）が刻む。
+    const ptfrM = t.match(/カードを([０-９\d]+)枚見(?:る|て)/);
+    return {
+      type: 'STUB', id: 'PLACE_TRAP_FROM_REVEALED',
+      ...(ptfrM ? { placeTrapReveal: { revealCount: parseNum(ptfrM[1]) } } : {}),
+    } as StubAction;
   }
 
   // ---- このゲームの間、以下の能力を得る ----

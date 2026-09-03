@@ -3272,9 +3272,48 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'GAIN_SUBSCRIBER_COUNT') {
         return a.value != null ? `登録者数を${a.value}万人得る` : '登録者数を得る';
       }
-      // ADD_CARD_TO_LRIG_DECK_HIDDEN: 公開した候補レゾナのどちらか1枚を裏向きでルリグデッキへ（G039）
-      if (a.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
-        return '原文の候補レゾナのどちらか1枚を裏向きでルリグデッキに加える（ゲーム外から生成）';
+      // ADD_CARD_TO_LRIG_DECK / _HIDDEN: ルリグデッキに加える《カード名》。
+      // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝**payload から描く**（旧は「原文の候補レゾナ」という
+      //   カード名を1つも書かない文で、**名前を取り違えても原文照合で読めなかった**）。
+      if (a.id === 'ADD_CARD_TO_LRIG_DECK' || a.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
+        const namesACLD = a.addToLrigDeck?.cardNames as string[] | undefined;
+        if (!namesACLD?.length) return `[${a.id}: カード名なし（未指定・engine も何もしない）]`;
+        const joinedACLD = namesACLD.map((n: string) => `《${n}》`).join('と');
+        return a.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN'
+          ? `${joinedACLD}のどちらか1枚を対戦相手に見せずに裏向きでルリグデッキに加える`
+          : `あなたのルリグデッキに${joinedACLD}を加える`;
+      }
+      // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝属性の書き換え family も payload から描く。
+      if (a.id === 'CHANGE_SIGNI_COLOR') {
+        if (!a.changeSigniColor) return '[CHANGE_SIGNI_COLOR: 変更先色なし（未指定・engine も何もしない）]';
+        return `対戦相手の${filterJa(a.changeSigniColor.filter)}シグニ1体を対象とし、ターン終了時まで、それを${a.changeSigniColor.color}にする`;
+      }
+      if (a.id === 'GRANT_SIGNI_CLASS') {
+        if (!a.grantSigniClass) return '[GRANT_SIGNI_CLASS: クラスなし（未指定・engine も何もしない）]';
+        return `このシグニは＜${a.grantSigniClass.cardClass}＞を持つ`;
+      }
+      if (a.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {
+        const fCESBL = a.selectTarget?.filter;
+        if (!fCESBL) return '[CHANGE_EICHI_SIGNI_BASE_LEVEL: 対象条件なし（未指定・engine も何もしない）]';
+        return `あなたの${filterJa(fCESBL)}シグニ1体を対象とし、ターン終了時まで、それの基本レベルを1〜3のいずれか1つにする`;
+      }
+      if (a.id === 'DECK_SIGNI_LEVEL_OVERRIDE') {
+        if (!a.deckSigniLevelOverride) return '[DECK_SIGNI_LEVEL_OVERRIDE: クラス／レベルなし（未指定・engine も何もしない）]';
+        return `このターン、あなたのデッキにある＜${a.deckSigniLevelOverride.story}＞のシグニのレベルを参照する場合、レベル${a.deckSigniLevelOverride.level}として扱ってもよい`;
+      }
+      if (a.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') {
+        if (!a.gainedLrigType) return '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: タイプ名なし（未指定・engine も何もしない）]';
+        return `このゲームの間、すべての場にあるセンタールリグは＜${a.gainedLrigType}＞を追加で得る（※engine はあなた側のみ）`;
+      }
+      if (a.id === 'TRASH_CLASS_TO_HAND_OR_ENERGY') {
+        if (!a.trashPickSplit) return '[TRASH_CLASS_TO_HAND_OR_ENERGY: 条件なし（未指定・engine も何もしない）]';
+        return `あなたのトラッシュから${filterJa(a.trashPickSplit.filter)}カードを${a.trashPickSplit.maxCount}枚まで対象とし、それらの中からカードを1枚まで手札に加え、残りをエナゾーンに置く`;
+      }
+      if (a.id === 'CRASH_LIFE_TO_HAND') {
+        if (a.owner !== 'self' && a.owner !== 'opponent') return '[CRASH_LIFE_TO_HAND: 対象プレイヤーなし（未指定・engine も何もしない）]';
+        return a.owner === 'opponent'
+          ? '対戦相手のライフクロス1枚を手札に加えさせる'
+          : 'あなたのライフクロス1枚を手札に加える';
       }
       // DECLARE_NUMBER: 数字宣言（CHOOSE UIで1〜5を選択。declared_guard_restrict_level に保存＝実装済み）
       if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;
@@ -3291,9 +3330,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 【トラップ】設置/操作 STUB群（B1）。engine は signi_traps ゾーン＋execStubPart2 で実装済み。
       // decompiler を原文の【トラップ】語彙で描画（原文クラスタ抽出＋canonicalフォールバック）。
+      // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝**公開枚数を payload から描く**（旧はカード全文から
+      //   原文を切り出しており、engine が読み違えた枚数を逆翻訳が復唱していた）。
       if (a.id === 'PLACE_TRAP_FROM_REVEALED') {
-        const m = currentCardText.match(/その中から[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
-        return m ? m[0] : 'その中からカードを【トラップ】としてあなたのシグニゾーンに設置する';
+        if (!a.placeTrapReveal) return '[PLACE_TRAP_FROM_REVEALED: 公開枚数なし（未指定・engine も何もしない）]';
+        return `あなたのデッキの上からカードを${a.placeTrapReveal.revealCount}枚見て、その中から1枚を【トラップ】としてあなたのシグニゾーンに設置し、残りをデッキの一番下に置く`;
       }
       if (a.id === 'PLACE_TRAP_OPTIONAL' || a.id === 'SET_HAND_CARD_AS_TRAP') {
         // 🔴出所は **JSON の `trapSource` から描く**（§5.3 `O-55`）。従来はカード全文 regex で

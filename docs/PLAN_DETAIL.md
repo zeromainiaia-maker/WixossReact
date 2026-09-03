@@ -36,6 +36,33 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-03（`O-60` 第52バッチ・索引 A 第12巡）＝「原文から数値ひとつを読むだけ」family 12ハンドラ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 3**（据置）
+  ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  この項目の計器は **`census:enginetext` の A群**＝**51行 / 51ハンドラ → 39行 / 39ハンドラ**
+  （A群 live 効果 **98 → 77**・miss は 0 のまま）。
+  📦**在庫2本**＝**機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**実機 残 6件**（据置＝今回の追加0）
+  🔧**ゲート（全緑 ✅）**＝golden **3362 / 3362**（3352→3362＝ラチェット3本＋実挙動7本）／
+  smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **39行**（`BASELINE_SELF_TEXT` も 39）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝不要と判定（§2.2）**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
+  🔴🔑**この巡の一般則＝「受け皿が在る」だけでは着手根拠にならない。**
+  PLAN が第一候補にしていた**モーダル選択 family** は、受け皿（`CHOOSE` の選択数上書き7本）も
+  parser の typed 出力も揃い、**8枚とも `_held_fresh` で採用待ち**だったが、
+  engine の `choiceTextParser.ts`（492行）が**汎用 parser より賢い分岐を約20**持っており
+  **単純採用は過剰実行への退行**になる。⇒ **多バッチ項目として登録し、払う family へ切り替えた。**
+  🔴**実害3件**＝①`EFFECT_LIMIT` は**【常】経路で1ビットも効いていなかった**（`temp_power_mods` を
+  キャップする実装だが CONTINUOUS 計算はそこを通らない＝`WX13-053` は＋10000のところ＋20000）
+  ②`LRIG_LIMIT_MODIFY` の STUB は**向きも寿命も持たず**「対戦相手のリミットを－1（次の相手メインまで）」を
+  **自分のリミットを恒久で**減らしていた（**受け皿は最初から typed／parser の綴りが1本足りないだけ**）
+  ③**同じ文を読む2ハンドラで既定値が 5 と 3 に食い違っていた**（実測 5 と 2＝後者は過少実行）。
+  🧹**計器の較正**＝STUB を2つ解体したので census 高シグナルが 3→6 に増え、
+  **新キー `maxUnits` をキー表へ足して 3 へ戻した**＝**退化ではなく可視化**。
+  ⚠`maxCount` とは別キーで部分文字列にもならない＝**足さないと必ず昇格する**。
+  ✅**ブラスト半径＝効果 変更21・追加0・削除0、予定外0**。
+
 - **2026-09-03（`O-60` 第51バッチ・索引 A 第11巡）＝「手札から〈条件〉のカード」family 8ハンドラを payload 化（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
@@ -984,9 +1011,9 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🆕**miss 0ハンドラ / 0カード・A🔴 39行 / 39ハンドラ・live 77効果（2026-09-03 第52バッチ後 実測）**。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🆕**miss 0ハンドラ / 0カード・A🔴 29行 / 29ハンドラ・live 62効果（2026-09-03 第53バッチ後 実測）**。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
-**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第52バッチ後）**＝**A🔴 SELF_TEXT 39行／39ハンドラ**（B 57／C 64）・**regex が1本も当たらないハンドラ 0・miss カード 0**。⚠旧記載（第51バッチ後 51行／51ハンドラ・live 98効果）は失効。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 75ハンドラ・live 179効果**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第50バッチ後 実測）**＝**live の多い順**が母集団順＝`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族）／`SONG_FRAGMENT`（live11・lit0）／`BET_MECHANIC`（live8）／`ADD_CARD_TO_LRIG_DECK`（live6）／`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）／`CHOOSE_HAND_OR_ENERGY`（live4・**枚数が前の文にあるので payload の運び方を先に決める**）／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`・`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`（live4）／以下 live1〜3。
+**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第53バッチ後）**＝**A🔴 SELF_TEXT 29行／29ハンドラ**（B 57／C 72）・**regex が1本も当たらないハンドラ 0・miss カード 0**。⚠旧記載（第52バッチ後 39行／39ハンドラ・live 77効果）は失効。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 75ハンドラ・live 179効果**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第50バッチ後 実測）**＝**live の多い順**が母集団順＝`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族）／`SONG_FRAGMENT`（live11・lit0）／`BET_MECHANIC`（live8）／`ADD_CARD_TO_LRIG_DECK`（live6）／`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）／`CHOOSE_HAND_OR_ENERGY`（live4・**枚数が前の文にあるので payload の運び方を先に決める**）／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`・`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`（live4）／以下 live1〜3。
 🆕🔑**取る単位は「1ハンドラ」ではなく「家族」**＝第50バッチはパワー修正15ハンドラを1バッチで取り、**A群を17行減らした**（第49バッチは1行）。**同じ受け皿へ寄せられるものを束ねると、探索・配送・ゲート・簿記の固定費が1回で済む。**⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
 
 ■✅**消化済み 50バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
@@ -1005,6 +1032,10 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 🆕**第49（2026-09-03・索引 A 第9巡）＝`GAIN_ABILITY_THIS_GAME`**（live19 / 18カード・**リテラル24本の最大の catch-all**）／
 🆕**第50（2026-09-03・索引 A 第10巡）＝パワー修正 family を1バッチで15ハンドラ**
 （`POWER_MOD_PER_REVEALED` ほか13 id ＋ 後段 `INTERNAL_*` 3本・live 20効果）／
+🆕**第53（2026-09-03・索引 A 第13巡）＝「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ**
+（`ADD_CARD_TO_LRIG_DECK`＋`_HIDDEN`／`PLACE_TRAP_FROM_REVEALED`／`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`／
+`CRASH_LIFE_TO_HAND`／`TRASH_CLASS_TO_HAND_OR_ENERGY`／`CHANGE_SIGNI_COLOR`／`GRANT_SIGNI_CLASS`／
+`CHANGE_EICHI_SIGNI_BASE_LEVEL`／`DECK_SIGNI_LEVEL_OVERRIDE`／`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`・live 21効果）／
 🆕**第52（2026-09-03・索引 A 第12巡）＝「原文から数値ひとつを読むだけ」family 12ハンドラ**
 （スカラー payload 9キーへ10ハンドラ＋`EFFECT_LIMIT`→`POWER_MODIFY_PER_TRASH_COUNT.maxUnits`／
 `LRIG_LIMIT_MODIFY`→ typed `LrigLimitModifyAction` の2ハンドラ撤去・live 21効果）／
@@ -1013,6 +1044,44 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 `OPTIONAL_DISCARD_HAND_CLASS`(2) / `OPTIONAL_DISCARD_CLASS_SIGNI` / `DISCARD_IF_NO_CLASS_SIGNI` /
 `HAND_SIGNI_UNDER_SIGNI`（各1）＋ 後段 `INTERNAL_DISCARD_MATCHING_HAND_DOP`・live 16効果）。
 全文は BUGFIXES.md 2026-09-03。
+
+■🆕🔑**第53バッチの教訓（2026-09-03・索引 A 第13巡）＝「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ**
+🔴**①payload が「前の文」にある形は、効果単位の後処理＋①②③スコープで刻む。**
+`PLACE_TRAP_FROM_REVEALED` / `REVEAL_PICK_HAND_SHUFFLE_BOTTOM` / `ADD_CARD_TO_LRIG_DECK_HIDDEN` は
+どれも **「**その中から**〜」の文に STUB が立ち、枚数やカード名は前の文にある**（第49バッチ② の再現）。
+⚠**効果全体を素で読むと別の枝の数字を掴む**＝`WX14-037` は `CHOOSE` の②の枝で、効果テキストには
+①の枝の数字も並ぶ。⇒ **後処理は `[①-⑤]` でセグメントへ分割し、`choices[i]` の中は `segs[i]` だけを見る。**
+（`src/data/effectParser.ts` の `fillReveal`。golden で「②の枝が3枚」を assert してある。）
+
+🔑**②新しいキーを足す前に「汎用 payload」で足りないかを見る。**
+この巡は2件がそれで足りた＝`CRASH_LIFE_TO_HAND` は **`StubAction.owner`**、
+`CHANGE_EICHI_SIGNI_BASE_LEVEL` は **`StubAction.selectTarget`**（`filter` つき）。
+⇒ **`owner` / `selectTarget` / `value` の3本は「既にある受け皿」として最初に試す。**
+
+🔴**③`《…》` を素で拾うとコスト記号が混じる（§4.1 の実例）。**
+`ADD_CARD_TO_LRIG_DECK` は**カード全文**の `《([^》]+)》` を全部カード名として扱っており、
+`WXDi-P09-007` では別の【起】の **《無》《ゲーム１回》《緑×0》** が候補6件中3件を占めていた。
+いまは実体が引けず黙って捨てられているだけで、**同名カードが実在すれば原文に無いカードが入る**。
+⇒ parser 側で `parseNameFilter` と同じ除外規約（コスト色／`×`／`アイコン`）を掛ける。
+
+🔴**④「原文を読むために engine が経路情報を復元する」形が見つかった（この family で一番重い）。**
+`CRASH_LIFE_TO_HAND` は `GRANT_LRIG_ABILITY` の子として実行されると効果元が**付与先のルリグ**になるため、
+旧実装は **`ctx.sourceEffectId` の `-sub-E\d+` からカード番号を逆引きして原文を引く足場**を持っていた。
+`owner` payload 1つで**足場ごと消えた**。⚠**fail-closed の向き**＝旧既定 `self` は
+「**自分の**ライフを手札に加える」＝**原文と逆向きの利得**なので、既定へ倒してはいけない。
+
+🔑**⑤payload を足すと「JSON 文字列一致」の契約 golden が落ちる。**
+`続き390 WXDi-P07-001-E1` は付与能力の action を `JSON.stringify` 一致で assert しており、`owner` を
+足した瞬間に FAIL した。**これは退行ではなく契約の更新**なので期待値側を直す。
+🔑**逆に、payload を足しても1本も落ちないなら「その効果を誰も assert していない」証拠**＝
+ラチェット golden を張る動機になる。
+
+⚠**⑥据置1件＝`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` の両者化。**
+原文は「**すべての**場にあるセンタールリグは＜X＞を追加で得る」だが、engine は `lrig_gained_types`
+（`PlayerState` ごと）へ**自分側にしか積まない**。この巡は **payload 化だけ**を行い、逆翻訳に
+`（※engine はあなた側のみ）` と明記した。**両者化は `PlayerState` 2面へ書く／収集側を両者走査にする
+のどちらかで、`O-60` の範囲外**（着手するなら母集団を実測してから）。
+全文は BUGFIXES.md 2026-09-03（索引 A 第13巡）。
 
 ■🆕🔑**第52バッチの教訓（2026-09-03・索引 A 第12巡）＝「原文から数値ひとつを読むだけ」family 12ハンドラ**
 🔴🔑**①この巡の最大の産物は「取らなかった family の実測」だった。**

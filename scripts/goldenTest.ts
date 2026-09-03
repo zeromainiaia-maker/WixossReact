@@ -43859,7 +43859,9 @@ const batch390Cases = [
   {
     cardNum: 'WXDi-P07-001', usageLimit: 'once_per_turn',
     action: { type: 'SEQUENCE', steps: [
-      { type: 'STUB', id: 'CRASH_LIFE_TO_HAND' },
+      // 🆕`owner` は §5.3 `O-60` 第53バッチ（2026-09-03）で足した payload＝
+      //   engine はここからライフの持ち主を読む（旧はカード全文 regex ＋ `effectId` の逆引き）。
+      { type: 'STUB', id: 'CRASH_LIFE_TO_HAND', owner: 'opponent' },
       { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count: 1, upToCount: true, filter: { cardType: 'シグニ' } }, suppressOnPlay: true },
     ] },
   },
@@ -63344,6 +63346,183 @@ test('§5.3 O-60 第52: 撤去した2 id は engine のディスパッチにも�
     }
   }
   eq(made, 0, '撤去した受け皿 STUB は live に0件');
+});
+
+
+// ── §5.3 `O-60` 第53バッチ（2026-09-03）＝「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ ──
+// 🔴どれも **engine が `EffectText`（カード全文）から名前・枚数・色・クラス・レベルを読み直していた**箇所。
+const O60B53_KEYS: Array<[string, (n: Record<string, unknown>) => boolean]> = [
+  ['ADD_CARD_TO_LRIG_DECK', n => !!n.addToLrigDeck],
+  ['ADD_CARD_TO_LRIG_DECK_HIDDEN', n => !!n.addToLrigDeck],
+  ['PLACE_TRAP_FROM_REVEALED', n => !!n.placeTrapReveal],
+  ['REVEAL_PICK_HAND_SHUFFLE_BOTTOM',
+    n => (n.revealPickParams as Record<string, unknown> | undefined)?.revealCount !== undefined],
+  ['CRASH_LIFE_TO_HAND', n => n.owner === 'self' || n.owner === 'opponent'],
+  ['TRASH_CLASS_TO_HAND_OR_ENERGY', n => !!n.trashPickSplit],
+  ['CHANGE_SIGNI_COLOR', n => !!n.changeSigniColor],
+  ['GRANT_SIGNI_CLASS', n => !!n.grantSigniClass],
+  ['CHANGE_EICHI_SIGNI_BASE_LEVEL', n => !!(n.selectTarget as Record<string, unknown> | undefined)?.filter],
+  ['DECK_SIGNI_LEVEL_OVERRIDE', n => !!n.deckSigniLevelOverride],
+  ['ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE', n => !!n.gainedLrigType],
+];
+
+test('§5.3 O-60 第53: ゾーン移動・属性 family は live 全ノードが payload を持つ（fail-closed の穴が無い）', () => {
+  const missing: string[] = [];
+  let nodes = 0;
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && typeof rec.id === 'string') {
+      const hit = O60B53_KEYS.find(([id]) => id === rec.id);
+      if (hit) { nodes++; if (!hit[1](rec)) missing.push(`${effectId}(${rec.id})`); }
+    }
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+  eq(missing.length, 0, `payload を持たないノード: ${missing.join(', ')}`);
+  ok(nodes >= 21, `走査対象が消えていない（実測 ${nodes} ノード）`);
+});
+
+test('§5.3 O-60 第53: WXDi-P09-007-E1 のルリグデッキ追加はコスト記号を拾わない（旧は《無》《ゲーム１回》も候補）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXDi-P09-007') ?? []).find(e => e.effectId === 'WXDi-P09-007-E1');
+    ok(!!eff, 'WXDi-P09-007-E1 が live にある'); if (!eff) return;
+    const names = (eff.action as unknown as { addToLrigDeck?: { cardNames: string[] } }).addToLrigDeck?.cardNames ?? [];
+    eq(names.length, 3, '原文の【出】に並ぶ《カード名》は3つ');
+    ok(!names.some(n => ['無', '白', '赤', '青', '緑', '黒'].includes(n) || n.includes('×') || n.includes('アイコン')),
+      `コスト記号が混じっていない: ${names.join(' / ')}`);
+    // 実挙動＝3枚がルリグデッキへ入る（ゲーム外トークン生成を含む）。
+    const r = run(eff.action, mkCtx({}, {}, 'WXDi-P09-007'));
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.lrig_deck.length, 3, '3枚がルリグデッキへ');
+    // 反転＝payload を落とすと1枚も入らない（fail-closed）。
+    const stripped = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    delete (stripped as unknown as { addToLrigDeck?: unknown }).addToLrigDeck;
+    const r2 = run(stripped, mkCtx({}, {}, 'WXDi-P09-007'));
+    ok(r2.done); if (!r2.done) return;
+    eq(r2.ownerState.lrig_deck.length, 0, 'payload なしでは1枚も入らない（fail-closed）');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第53: PLACE_TRAP_FROM_REVEALED の公開枚数は payload（旧既定2枚は原文3〜4枚に対する過小実行）', () => {
+  const savedCursor = cursor;
+  try {
+    const cases: Array<[string, string, number]> = [
+      ['WX16-061', 'WX16-061-E1', 3], ['WX17-029', 'WX17-029-E1', 4],
+      ['WXEX1-13', 'WXEX1-13-E1', 2], ['WXEX2-15', 'WXEX2-15-E1', 3],
+    ];
+    for (const [card, effectId, want] of cases) {
+      const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+      ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+      let found: number | undefined;
+      const visit = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) { n.forEach(visit); return; }
+        const rec = n as Record<string, unknown>;
+        if (rec.type === 'STUB' && rec.id === 'PLACE_TRAP_FROM_REVEALED') {
+          found = (rec.placeTrapReveal as { revealCount: number } | undefined)?.revealCount;
+        }
+        Object.values(rec).forEach(visit);
+      };
+      visit(eff.action);
+      eq(found, want, `${effectId} の公開枚数は原文どおり ${want}`);
+    }
+    // 実挙動＝WX17-029 は4枚公開する（デッキが4枚減る）。
+    const e29 = (effectsMap.get('WX17-029') ?? []).find(e => e.effectId === 'WX17-029-E1');
+    ok(!!e29); if (!e29) return;
+    const r = run(e29.action, mkCtx({ signi: ['WX17-029', null, null] }, {}, 'WX17-029'));
+    ok(r.done); if (!r.done) return;
+    ok(r.logs.some(l => /公開4枚|4枚から/.test(l)) || r.ownerState.field.signi_traps?.some(t => !!t),
+      `4枚公開の痕跡がある（logs=${JSON.stringify(r.logs.slice(-4))}）`);
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第53: CRASH_LIFE_TO_HAND は payload の owner で動く（旧はカード全文＋effectId の逆引き）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXDi-P07-001') ?? []).find(e => e.effectId === 'WXDi-P07-001-E1');
+    ok(!!eff, 'WXDi-P07-001-E1 が live にある'); if (!eff) return;
+    // 付与される能力の中の STUB を直接撃つ（実経路は GRANT_LRIG_ABILITY の子）。
+    const stub = { type: 'STUB', id: 'CRASH_LIFE_TO_HAND', owner: 'opponent' } as unknown as EffectAction;
+    const r = run(stub, mkCtx({ life: 7 }, { life: 5 }, 'WXDi-P07-001'));
+    ok(r.done); if (!r.done) return;
+    eq(r.otherState.life_cloth.length, 4, '対戦相手のライフが1枚減る');
+    eq(r.otherState.hand.length, 6, '対戦相手の手札が1枚増える（5→6）');
+    eq(r.ownerState.life_cloth.length, 7, '自分のライフは動かない');
+    // 反転＝owner を落とすと何もしない（fail-closed）。旧既定 self は「自分のライフを手札に加える」＝原文と逆向き。
+    const r2 = run({ type: 'STUB', id: 'CRASH_LIFE_TO_HAND' } as unknown as EffectAction, mkCtx({ life: 7 }, { life: 5 }, 'WXDi-P07-001'));
+    ok(r2.done); if (!r2.done) return;
+    eq(r2.otherState.life_cloth.length, 5, 'payload なしでは相手のライフも動かない');
+    eq(r2.ownerState.life_cloth.length, 7, 'payload なしでは自分のライフも動かない（fail-closed）');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第53: WX25-P3-111-E1 の色変更はレベル2以下だけを候補にする（旧はカード全文の絞り込み）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WX25-P3-111') ?? []).find(e => e.effectId === 'WX25-P3-111-E1');
+    ok(!!eff, 'WX25-P3-111-E1 が live にある'); if (!eff) return;
+    const spec = (eff.action as unknown as { changeSigniColor?: { color: string; filter?: { level?: { max?: number } } } }).changeSigniColor;
+    eq(spec?.color, '白', '原文「それを白にする」');
+    eq(spec?.filter?.level?.max, 2, '原文「レベル２以下のシグニ」');
+    const lv1 = matchingCard({ cardType: 'シグニ', level: { max: 1 } });
+    const lv4 = matchingCard({ cardType: 'シグニ' }, c => parseInt(c.Level ?? '0') >= 4);
+    // レベル4だけの盤面＝候補が無く何も起きない。
+    const rNone = run(eff.action, mkCtx({}, { signi: [lv4, null, null] }, 'WX25-P3-111'));
+    ok(rNone.done); if (!rNone.done) return;
+    eq(Object.keys(rNone.otherState.signi_color_overrides ?? {}).length, 0, 'レベル4は候補外＝色が変わらない');
+    // レベル1が居れば白になる。
+    const rHit = run(eff.action, mkCtx({}, { signi: [lv1, null, null] }, 'WX25-P3-111'));
+    ok(rHit.done); if (!rHit.done) return;
+    eq(rHit.otherState.signi_color_overrides?.[lv1], '白', 'レベル1は白になる');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第53: 属性 payload の値が原文どおり（クラス／デッキレベル／ルリグタイプ）', () => {
+  const gsc = (effectsMap.get('WX21-Re03') ?? []).find(e => e.effectId === 'WX21-Re03-E1');
+  eq((gsc?.action as unknown as { grantSigniClass?: { cardClass: string } })?.grantSigniClass?.cardClass, '地獣',
+    'WX21-Re03 原文「このシグニは＜地獣＞を持つ」');
+  const dslo = (effectsMap.get('WX18-065') ?? []).find(e => e.effectId === 'WX18-065-E1');
+  const dsloSpec = (dslo?.action as unknown as { deckSigniLevelOverride?: { story: string; level: number } })?.deckSigniLevelOverride;
+  eq(dsloSpec?.story, '宇宙', 'WX18-065 原文「＜宇宙＞のシグニのレベルを参照する場合」');
+  eq(dsloSpec?.level, 4, '原文「レベル４として扱ってもよい」');
+  const pr471 = (effectsMap.get('PR-471') ?? []).find(e => e.effectId === 'PR-471-E1');
+  let gained: string | undefined;
+  const visit = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(visit); return; }
+    const rec = n as Record<string, unknown>;
+    if (rec.type === 'STUB' && rec.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') gained = rec.gainedLrigType as string;
+    Object.values(rec).forEach(visit);
+  };
+  visit(pr471?.action);
+  eq(gained, 'ぶくぶタマ', 'PR-471 原文「すべての場にあるセンタールリグは＜ぶくぶタマ＞を追加で得る」');
+});
+
+test('§5.3 O-60 第53: REVEAL_PICK の公開枚数は payload（旧既定5枚はカード全文頼み）', () => {
+  const cases: Array<[string, string, number]> = [
+    ['WX14-037', 'WX14-037-E1', 3], ['WX16-Re04', 'WX16-Re04-E1', 4], ['WXDi-P03-054', 'WXDi-P03-054-E1', 5],
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: number | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
+        found = (rec.revealPickParams as { revealCount?: number } | undefined)?.revealCount;
+      }
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(found, want, `${effectId} の公開枚数は原文どおり ${want}`);
+  }
+  // 🔑`WX14-037` は `CHOOSE` の②の枝＝**①の枝の数字を掴んでいない**ことがこのテストの本体
+  //   （効果単位の後処理は①②③のセグメントへスコープを狭めている）。
 });
 
 if (listMode) {

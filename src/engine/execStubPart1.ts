@@ -3768,16 +3768,18 @@ export function execStubPart1(
       'このメインフェイズを終了する'));
   }
   // ライフクロスの一番上を手札に加える
+  // 🆕**どちらのライフかは payload（既存の汎用 `owner`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）で所有者を決めていた。しかも
+  //   `GRANT_LRIG_ABILITY` の子として実行される `WXDi-P07-001` では効果元が**付与先のルリグ**になるため、
+  //   **`effectId` の `-sub-E\d+` からカード番号を逆引きする足場**まで engine 側に生えていた
+  //   ＝「原文を読むために engine が経路情報を復元する」という一番重い形だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝既定 self へ倒すと**自分のライフを手札に加える**
+  //   （原文と逆向きの利得）になる。
   if (stub.id === 'CRASH_LIFE_TO_HAND') {
-    // GRANT_LRIG_ABILITY の子はスタック上の sourceCardNum が付与先ルリグになる。
-    // 所有者判定に必要な原文は `{元カード}-sub-E*` の effectId から付与元カードを復元する。
-    const grantedSourceNum = ctx.sourceEffectId?.match(/^(.+)-sub-E\d+(?:[A-Za-z]\w*)?$/)?.[1];
-    const srcCLHNum = grantedSourceNum ?? ctx.sourceCardNum;
-    const srcCLH = srcCLHNum ? ctx.cardMap.get(srcCLHNum) : undefined;
-    const txtCLH = srcCLH ? (srcCLH.EffectText ?? '') + ' ' + (srcCLH.BurstText ?? '') : '';
-    // 対象プレイヤーを判定
-    const isOpp = txtCLH.match(/対戦相手のライフクロス.*手札に加え(?:る|させる)/);
-    const target = isOpp ? 'opponent' : 'self';
+    const target = stub.owner;
+    if (target !== 'self' && target !== 'opponent') {
+      return done(addLog(ctx, '[CRASH_LIFE_TO_HAND: 対象プレイヤーなし（未指定）]'));
+    }
     const st = ownerState(target, ctx);
     if (st.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし（CRASH_LIFE_TO_HAND）'));
     const top = st.life_cloth[st.life_cloth.length - 1];
@@ -4023,12 +4025,14 @@ export function execStubPart1(
   if (stub.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
     const params = stub.revealPickParams
       ?? { pickCount: 1, restDest: 'deck_bottom' as const, then: 'hand' as const };
-    const effText = ctx.sourceCardNum
-      ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
-      : '';
-    const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const revealM = effText.match(/カードを([０-９\d]+)枚(?:見る|公開する)/);
-    const revealCount = revealM ? parseInt(toHW(revealM[1])) : 5;
+    // 🆕**公開枚数は payload（`revealPickParams.revealCount`）**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+    // 🔴旧実装は `EffectText + BurstText`（**カード全文**）を読んでおり、`WX14-037` は `CHOOSE` の②の枝な
+    //   ので**別の枝や別能力の数字**を先頭一致で掴みうる形だった（外れたときの既定 5枚も原文と無関係）。
+    // ⚠**payload が無ければ何も公開しない**（fail-closed）。
+    if (params.revealCount === undefined) {
+      return done(addLog(ctx, '[REVEAL_PICK_HAND_SHUFFLE_BOTTOM: 公開枚数なし（未指定）]'));
+    }
+    const revealCount = params.revealCount;
     const deckCards = ctx.ownerState.deck.slice(0, Math.min(revealCount, ctx.ownerState.deck.length));
     if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK）'));
     const maxPick = params.pickCount === 'ALL' ? deckCards.length : (params.pickCount as number);

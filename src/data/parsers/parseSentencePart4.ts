@@ -2238,7 +2238,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手のライフクロスを手札に加えさせる ----
   if (t.match(/対戦相手のライフクロス[１-９\d０-９]*枚?を手札に加えさせる/))
-    return { type: 'STUB', id: 'CRASH_LIFE_TO_HAND' } as StubAction;
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝どちらのライフかは**既存の汎用 payload `owner`**。
+    // 🔴旧 engine は**カード全文**へ `/対戦相手のライフクロス.*手札に加え(?:る|させる)/` を当てて所有者を決めており、
+    //   `GRANT_LRIG_ABILITY` の子として実行される `WXDi-P07-001` では **`effectId` からカードを復元する
+    //   専用の逆引き**（`-sub-E\d+` の正規表現）まで必要になっていた＝原文を読むための足場が engine 側に生えていた。
+    return { type: 'STUB', id: 'CRASH_LIFE_TO_HAND', owner: 'opponent' } as StubAction;
 
   // ---- このカードをエナゾーンから手札に加えてもよい ----
   // ⚠`filter:{thisCardOnly:true}` が無いと**エナのどのカードでも手札に戻せる過剰実行**になる

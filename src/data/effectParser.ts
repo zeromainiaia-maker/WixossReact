@@ -18287,6 +18287,52 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 🆕**「デッキの上からカードをN枚見る／公開する」の N を、後続ステップの payload へ運ぶ**
+  //   （§5.3 `O-60` 第53バッチ・2026-09-03）。
+  // 🔴旧実装は engine（`PLACE_TRAP_FROM_REVEALED` / `REVEAL_PICK_HAND_SHUFFLE_BOTTOM`）が
+  //   **カード全文**へ `/カードを(\d+)枚(?:見る|公開する)/` を当てて公開枚数を決めていた＝
+  //   別の能力や別の選択肢の数字を掴みうるうえ、外れたときの既定（2枚 / 5枚）が原文と無関係だった。
+  // 🔑**公開枚数は「その中から〜」の前の文にある**ので文単位では読めない＝**効果単位の後処理**で刻む
+  //   （第49バッチ② と同じ理由）。
+  // ⚠**`①②③` があるときは選択肢ごとに区切って読む**＝別の枝の数字を掴まないため。
+  {
+    const revealCountIn = (scope: string): number | undefined => {
+      const m = scope.match(/カードを([０-９\d]+)枚(?:見(?:る|て)|公開する)/);
+      return m ? parseNum(m[1]) : undefined;
+    };
+    const fillReveal = (node: unknown, scope: string): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(n => fillReveal(n, scope)); return; }
+      const rec = node as Record<string, unknown>;
+      // CHOOSE の枝は①②③のセグメントへスコープを狭める
+      if (rec.type === 'CHOOSE' && Array.isArray(rec.choices)) {
+        const segs = [...scope.matchAll(/[①②③④⑤]([^①②③④⑤]*)/gs)].map(x => x[1]);
+        (rec.choices as unknown[]).forEach((ch, i) => fillReveal(ch, segs[i] ?? scope));
+        for (const [k, v] of Object.entries(rec)) if (k !== 'choices') fillReveal(v, scope);
+        return;
+      }
+      if (rec.type === 'STUB' && rec.id === 'PLACE_TRAP_FROM_REVEALED' && !rec.placeTrapReveal) {
+        const n = revealCountIn(scope);
+        if (n !== undefined) rec.placeTrapReveal = { revealCount: n };
+      }
+      if (rec.type === 'STUB' && rec.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM'
+          && rec.revealPickParams && (rec.revealPickParams as Record<string, unknown>).revealCount === undefined) {
+        const n = revealCountIn(scope);
+        if (n !== undefined) (rec.revealPickParams as Record<string, unknown>).revealCount = n;
+      }
+      // 🆕`ADD_CARD_TO_LRIG_DECK_HIDDEN` は**カード名が前の文にある**
+      //   （「《A》１枚と《B》１枚を公開する。**それらのどちらか**１枚を〜」）。
+      if (rec.type === 'STUB' && rec.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN' && !rec.addToLrigDeck) {
+        const COST_LIKE = new Set(['白', '赤', '青', '緑', '黒', '無']);
+        const names = [...scope.matchAll(/《([^》]+)》/g)].map(m => m[1])
+          .filter(n => !COST_LIKE.has(n) && !n.includes('×') && !n.includes('アイコン'));
+        if (names.length > 0) rec.addToLrigDeck = { cardNames: names };
+      }
+      Object.values(rec).forEach(v => fillReveal(v, scope));
+    };
+    steps.forEach(st => fillReveal(st, text));
+  }
+
   // 🆕**「この効果はN枚までしか適用されない」を直前の枚数比例パワー修正へ畳む**
   //   （§5.3 `O-60` 第52バッチ・2026-09-03）。
   // 🔴旧実装は `STUB{EFFECT_LIMIT}` を後ろに残し、**engine がカード全文の regex で上限を読み直して

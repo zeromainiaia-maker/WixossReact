@@ -51,6 +51,16 @@ import {
 } from '../parserUtils';
 
 /**
+ * 🆕**文中の《カード名》をコスト記号を除いて列挙する**（§5.3 `O-60` 第53バッチ・2026-09-03）。
+ * ⚠除外規約は `parseNameFilter` と同じ＝`《白》`〜`《無》`／`×` を含む／`アイコン` を含むものはカード名ではない。
+ */
+function cardNamesInText(t: string): string[] {
+  const COST_LIKE = new Set(['白', '赤', '青', '緑', '黒', '無']);
+  return [...t.matchAll(/《([^》]+)》/g)].map(m => m[1])
+    .filter(n => !COST_LIKE.has(n) && !n.includes('×') && !n.includes('アイコン') && !/^[白赤青緑黒無][×x]\d+$/.test(n));
+}
+
+/**
  * 「このシグニはこのカードの下にある〈X〉のシグニの…能力を得る」の〈X〉を TargetFilter へ落とす
  * （§5.3 `O-66`③・2026-08-25）。旧実装は **engine が `cardMap.EffectText` を regex で読んでいた**ので
  * JSON を見ても対象が分からず、`txt.includes('【常】')` のように**カード全文**を見て別の能力の表記まで
@@ -978,7 +988,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- ルリグデッキに特定カードを加える ----
   if (t.match(/あなたのルリグデッキに《[^》]+》.*加える/)) {
-    return { type: 'STUB', id: 'ADD_CARD_TO_LRIG_DECK' } as StubAction;
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝カード名は payload。
+    // ⚠**コスト記号を除く**（`parseNameFilter` と同じ規約）＝旧 engine は同じカードの別の【起】にある
+    //   《無》《ゲーム１回》《緑×0》まで候補に入れていた。
+    return { type: 'STUB', id: 'ADD_CARD_TO_LRIG_DECK', addToLrigDeck: { cardNames: cardNamesInText(t) } } as StubAction;
   }
 
   // ---- このシグニはすべての色を得る ----
@@ -1693,6 +1706,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- このゲームすべてのセンタールリグが特定タイプを追加で得る ----
+  const aclgM = t.match(/このゲームの間[^。]*すべての場にあるセンタールリグは＜([^＞]+)＞を追加で得る/);
+  if (aclgM) {
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝ルリグタイプは payload。
+    return { type: 'STUB', id: 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE', gainedLrigType: aclgM[1] } as StubAction;
+  }
   if (t.match(/このゲームの間.*すべての場にあるセンタールリグは.*追加で得る/)) {
     return { type: 'STUB', id: 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE' } as StubAction;
   }
@@ -2059,6 +2077,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- デッキのシグニをレベル参照 ----
+  const dsloM = t.match(/あなたのデッキにある＜([^＞]+)＞のシグニのレベルを参照する場合[^。]*レベル([０-９\d]+)として扱ってもよい/);
+  if (dsloM) {
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝クラスとレベルは payload。
+    return {
+      type: 'STUB', id: 'DECK_SIGNI_LEVEL_OVERRIDE',
+      deckSigniLevelOverride: { story: dsloM[1], level: parseNum(dsloM[2]) },
+    } as StubAction;
+  }
   if (t.match(/あなたのデッキにある.*シグニのレベルを参照する場合.*として扱ってもよい/)) {
     return { type: 'STUB', id: 'DECK_SIGNI_LEVEL_OVERRIDE' } as StubAction;
   }
@@ -2287,6 +2313,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 英知シグニの基本レベル変更 ----
+  const cesblM = t.match(/あなたの＜([^＞]+)＞のシグニ[^。]*基本レベルを[^。]*にする/);
+  if (cesblM) {
+    // 🆕§5.3 `O-60` 第53バッチ（2026-09-03）＝対象の絞り込みは**既存の汎用 payload `selectTarget`**。
+    // 🔴旧 engine は**カード全文**の最初の `＜X＞のシグニ` を拾っており、`WXEX1-71` は【常】にも
+    //   「あなたの＜英知＞のシグニ」があるので**別の能力の＜＞を掴みうる**形だった（既定も `'英知'` の焼き込み）。
+    return {
+      type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL',
+      selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: cesblM[1] } },
+    } as StubAction;
+  }
   if (t.match(/あなたの＜英知＞のシグニ.*基本レベルを.*にする/)) {
     return { type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL' } as StubAction;
   }

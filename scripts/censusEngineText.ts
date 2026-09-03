@@ -58,7 +58,9 @@ const onlyIds = (() => {
 // 🆕51→39＝2026-09-03（索引 A 第12巡・§5.3 `O-60` 第52バッチ）＝**「原文から数値ひとつを読むだけ」family 12ハンドラ**を
 //   スカラー payload9本へ寄せ、`EFFECT_LIMIT`（→`POWER_MODIFY_PER_TRASH_COUNT.maxUnits`）と
 //   `LRIG_LIMIT_MODIFY`（→ typed `LrigLimitModifyAction`）の2ハンドラは撤去した分。
-const BASELINE_SELF_TEXT = 39;
+// 🆕39→29＝2026-09-03（索引 A 第13巡・§5.3 `O-60` 第53バッチ）＝**「ゾーン移動・公開」＋「属性の書き換え」family
+//   10ハンドラ**（`ADD_CARD_TO_LRIG_DECK` ほか・live 21効果）を payload 化した分。
+const BASELINE_SELF_TEXT = 29;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
