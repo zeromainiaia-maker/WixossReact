@@ -3549,6 +3549,21 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-D03-021": [
     {"effectId":"WXDi-D03-021-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"CONDITIONAL","condition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"NoLimit","operator":"gte","value":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":10000}}}},"else":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`O-236` 機構待ちの明示 defer。**
+  //   `WXDi-D04-011`（ENDLESS-PUNCHLINE）「あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、
+  //   それは以下の能力を得る。『【常】：このルリグは**ダウン状態でもアタックでき**、１ターンにこのルリグが
+  //   **アタックできる上限は３になる**。【自】《ターン１回》：…**アタックできる上限を減らす**。』」
+  // 🔴旧 live は `STUB{GRANT_QUOTED_ABILITY}`＝engine が効果元の原文を読み直す catch-all（`O-60` A群）で、
+  //   実測すると **`quotedText` の付与先が自場シグニに絞られる**ため（このカードはピース＝場に居ない）
+  //   最後の「能力付与：…（ログのみ）」へ落ちる**無言 no-op** だった。
+  // 🔑**ここを手書きにした理由**＝live が `PARTIAL` で収穫マージが**効果単位で不可侵**（`buildEffectsJson.ts`）＝
+  //   parser をどう直しても live へ届かない。`heldReview --adopt` も held バケツにしか効かない。
+  // ⚠**機構が3本無い**（`O-236`）＝①ルリグの「ダウン状態でもアタックできる」（既存は**シグニ限定**の
+  //   `ATTACK_WHILE_DOWN`）②**1ターンのアタック回数上限**そのもの ③その上限をターン中に増減する口。
+  //   落とすと「レベル3ルリグに何も起きない」で済むが、近似で載せると**アタック回数が無制限になる**側へ倒れる。
+  "WXDi-D04-011": [
+    {"effectId":"WXDi-D04-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"CardJockey","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"STUB","id":"DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   "WXDi-D04-021": [
     {"effectId":"WXDi-D04-021-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1},{"color":"無","count":1}]},"action":{"type":"CONDITIONAL","condition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"CardJockey","operator":"gte","value":3},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":7,"pickCount":2,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom"}},"else":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":7,"filter":{"cardType":"シグニ"},"pickCount":2,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],

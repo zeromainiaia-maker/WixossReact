@@ -23673,6 +23673,30 @@ function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, 
     if (nodes.length === 0) continue;
     const grants = buildGameGrants(sourceTexts.get(effect.effectId) ?? '');
     nodes.forEach((n, i) => { n.gameGrants = i === 0 ? grants : []; });
+
+    // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝宣言が取れたら、同じ効果の中の catch-all を落とす。**
+    // 🔴`WXDi-P05-005-E1`（「このゲームの間、あなたは以下の能力を得る。『【常】：対戦相手は追加で
+    //   手札を１枚捨てるか《無》を支払わないかぎり【ガード】ができない。』」）は
+    //   **同じ引用を2回**表現していた＝`SEQUENCE[GAIN_ABILITY_THIS_GAME{oppGuardExtraHandOrColorless},
+    //   STUB{GRANT_QUOTED_ABILITY}]`。前者が正しく宣言を立て、後者は engine が原文を読み直して
+    //   **何もしない**（`このゲームの間` を含む引用は付与経路から明示的に除外されている）。
+    // 🔑`buildGameGrants` は**効果単位の原文（引用文を含む）**を読むので、宣言が1本でも取れた時点で
+    //   引用は既に表現済み。⇒ 同じ効果の catch-all は**二重表現**であって欠落ではない。
+    // ⚠**宣言が空のときは落とさない**（そのときだけ catch-all が唯一の痕跡になる）。
+    if (grants.length === 0) continue;
+    const CATCH_ALL_IDS = new Set(['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY']);
+    const pruneCatchAll = (node: EffectAction): EffectAction | null => {
+      if (node.type === 'STUB' && CATCH_ALL_IDS.has((node as StubAction).id)) return null;
+      if (node.type === 'SEQUENCE') {
+        const steps = (node as SequenceAction).steps
+          .map(pruneCatchAll).filter((x): x is EffectAction => x !== null);
+        if (steps.length === 0) return null;
+        return steps.length === 1 ? steps[0] : { ...(node as SequenceAction), steps };
+      }
+      return node;
+    };
+    const prunedAction = pruneCatchAll(effect.action);
+    if (prunedAction) effect.action = prunedAction;
   }
 }
 

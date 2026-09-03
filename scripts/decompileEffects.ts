@@ -2949,7 +2949,25 @@ function actionJa(a?: Action, effectType?: string): string {
       //   🔴旧文言「対象プレイヤーのシグニすべてとキーを…」は**この id が2文型の catch-all だった頃の名残**で、
       //     `WX07-017`（手札とエナも流す・キーは流さない）を1文字も表していなかった。
       if (a.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || a.id === 'SPECIFIC_CARD_COST_REDUCE') return 'トラッシュ枚数等に応じてスペル／特定カードの使用コストを軽減する';
-      if (a.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') return 'このシグニは場から手札に戻らない';
+      // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`powerModifyProtection` から描く**（誰の・どの向きの
+      //   パワー修正を止めるのかは payload にしか書いていない）。
+      if ((a as any).powerModifyProtection) {
+        const pmp = (a as any).powerModifyProtection;
+        const dirJa = pmp.directions?.length === 2 ? '増減しない'
+          : pmp.directions?.[0] === 'plus' ? '増加しない' : '減少しない';
+        const ownJa = pmp.subjectOwner === 'opponent' ? '対戦相手の' : pmp.subjectOwner === 'any' ? '' : 'あなたの';
+        // ⚠`filterJa` が `excludeSelf` を「他の」として描くので**ここで足さない**（「他の他の」になる）。
+        const subj = pmp.thisCardOnly ? 'このシグニ'
+          : `${ownJa}${pmp.subjectFilter ? filterJa(pmp.subjectFilter) : ''}シグニ`;
+        return `${subj}のパワーは対戦相手の効果によって${dirJa}`;
+      }
+      // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`moveProtectFilter` から描く**（旧固定文言
+      //   「このシグニは場から手札に戻らない」は**主語が嘘**＝この宣言が守るのは
+      //   payload が指す集合（省略時＝あなたのシグニ全部）であって効果元自身ではない）。
+      if (a.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') {
+        const mpf = (a as any).moveProtectFilter;
+        return `あなたの${mpf ? filterJa(mpf) : ''}シグニは場から手札に移動しない`;
+      }
       if (a.id === 'SUPPRESS_GAIN_ABILITY') return 'このターン、あなたのシグニは新たに能力を得られない';
       if (a.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
         // 保護対象の色（白/赤など）はカードで異なる＝原文から抽出して一致させる。
@@ -4222,6 +4240,14 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】デッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
         DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY:
           '【未実装】あなたは引用された【起】能力を得る',
+        // 🆕§5.3 `O-236`（2026-09-04・`O-60` 第64バッチで分離）＝ルリグへの引用能力付与のうち
+        //   「ダウン状態でもアタックできる」「1ターンのアタック上限」の機構が3本とも無い（`WXDi-D04-011-E1`）。
+        DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY:
+          '【未実装】あなたのレベル3のルリグ1体を対象とし、ターン終了時まで、それは「ダウン状態でもアタックでき、1ターンのアタック上限が3になる（アタック時にデッキの一番上を公開し、レベル1／2のシグニなら上限を2／1減らす）」を得る',
+        // 🆕§5.3 `O-60` 第64バッチ（2026-09-04）＝旧 `GRANT_QUOTED_ABILITY` の `『【常】：…』` 枝。
+        //   engine が効果元の原文を読み直す catch-all だったので、機構が無い側は明示 defer にした。
+        DEFERRED_GRANT_QUOTED_ABILITY_BLOCK:
+          '【未実装】引用された能力ブロック（『…』）を付与する',
         // 🆕§5.3 `O-233`（2026-09-03・`O-60` 第60バッチで分離）＝
         //   「このターンに**対戦相手の効果によって**あなたのシグニが場を離れていた場合」の条件語彙が無い。
         //   ⚠`ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` の**シグニ版が欠けている**だけ（1効果）。
@@ -4420,6 +4446,8 @@ function actionJa(a?: Action, effectType?: string): string {
         // 消費地点＝`effectEngine.collectEnergyColorConversions`
         CONVERT_ENERGY_COLOR: 'このカードはエナゾーンにあるかぎり、指定された色のエナとして扱う',
         // 消費地点＝`effectEngine`（パワー修正の適用側で `powerModifyProtection` を読む）
+        // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝payload があるときは下の `powerModifyProtection`
+        //   分岐が描く**（この固定文言は payload の無い旧形だけの受け皿）。
         PREVENT_POWER_MODIFY_BY_OPP: '対戦相手の効果によって、対象のシグニのパワーは増減しない',
         // 消費地点＝`effectExecutor.applyEffectLeavePayToLoseSelfAbility`
         EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY: 'あなたのシグニ１体が対戦相手の効果によって場を離れる場合、コストを支払ってもよい。そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う',

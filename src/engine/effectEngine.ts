@@ -2152,10 +2152,14 @@ export function calcFieldPowers(
     const assistL = otherState.field.assist_lrig_l?.at(-1); if (assistL) protectionHosts.push(assistL);
     const assistR = otherState.field.assist_lrig_r?.at(-1); if (assistR) protectionHosts.push(assistR);
     protectionHosts.push(...activeKeyAbilitySources(otherState));
-    const addMatching = (state: PlayerState, set: Set<string>, filter?: TargetFilter, only?: string) => {
+    // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`exclude`（`excludeSelf` の解決結果）を受ける。**
+    //   ⚠`matchesFilter` は `excludeSelf` を見ないので、宣言元を渡して明示的に外す
+    //   （`WX22-Re04-E2`①「あなたの**他の**＜英知＞のシグニのパワーは…減少しない」）。
+    const addMatching = (state: PlayerState, set: Set<string>, filter?: TargetFilter, only?: string, exclude?: string) => {
       for (let zi = 0; zi < state.field.signi.length; zi++) {
         const top = state.field.signi[zi]?.at(-1);
         if (!top || (only && top !== only)) continue;
+        if (exclude && top === exclude) continue;
         if (!matchesStateFilter(state, zi, filter)) continue;
         if (!matchesFilter(cardMap.get(top.includes('#') ? top.slice(0, top.indexOf('#')) : top), filter)) continue;
         set.add(top);
@@ -2176,7 +2180,8 @@ export function calcFieldPowers(
           for (const [state, protection] of targets) {
             const only = p.thisCardOnly && state === otherState ? topNum : undefined;
             if (p.thisCardOnly && state !== otherState) continue;
-            for (const direction of p.directions) addMatching(state, protection[direction]!, p.subjectFilter, only);
+            const excludeSelfNum = p.subjectFilter?.excludeSelf && state === otherState ? topNum : undefined;
+            for (const direction of p.directions) addMatching(state, protection[direction]!, p.subjectFilter, only, excludeSelfNum);
           }
         }
       }
@@ -6366,10 +6371,14 @@ export function collectBounceProtectedSigni(
       // 🆕§5.3 `O-66`③：保護対象は **payload（`moveProtectFilter`）** で読む。
       // ⚠ここは**省略＝あなたのシグニ全部**が原文どおり（`WX13-029-E1`②）＝`underAbilityGrant` とは
       //   fail の向きが逆。旧実装は `EffectText` を regex で読んでいた（`O-60` 同型）。
+      // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`excludeSelf`（「あなたの**他の**＜X＞のシグニ」）を効かせる。**
+      //   ⚠`matchesFilter` は `excludeSelf` を**見ない**（自己参照を持たない）ので、
+      //   ここで宣言元（`topNum`）を明示的に外す。落とすと原文より広い**自己保護つき**になる。
       if (act.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') {
         for (const s of state.field.signi) {
           if (!s?.length) continue;
           const sTop = s[s.length - 1];
+          if (act.moveProtectFilter?.excludeSelf && sTop === topNum) continue;
           const sBase = sTop.includes('#') ? sTop.slice(0, sTop.indexOf('#')) : sTop;
           if (matchesFilter(cardMap.get(sBase), act.moveProtectFilter)) protected_.add(sTop);
         }

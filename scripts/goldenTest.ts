@@ -43864,14 +43864,17 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
   const d04LiveIds = effectsMap.get('WXDi-D04-011')!.map(effect => effect.effectId);
   eq(JSON.stringify(d04LiveIds), JSON.stringify(d04RawIds), 'PARTIAL機械採用はeffectId集合を維持');
 
-  // ⚠ D04-011 の action は raw（`SEQUENCE[UNKNOWN, LOOK_AND_REORDER]`）を採らず
-  //   `STUB{GRANT_QUOTED_ABILITY}` を温存する＝原文「それは以下の能力を得る。『…』」は
-  //   引用付与そのもので、この STUB には engine 実装がある（execStubPart1.ts:890＝
-  //   keyword_grants / granted_effects へ展開。他14カードが使用中）。
-  //   raw を採ると実装済み機構を UNKNOWN(no-op) へ落とす退化になる（続き389 検証で是正）。
+  // ⚠ D04-011 の action は raw（`SEQUENCE[UNKNOWN, LOOK_AND_REORDER]`）を採らない＝
+  //   原文「それは以下の能力を得る。『…』」は引用付与そのもので、raw を採ると付与が丸ごと消える。
+  // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝期待値を `DEFERRED_` へ更新した。**
+  //   🔴旧注記の「この STUB には engine 実装がある」は**このカードには当てはまらなかった**＝
+  //     `GRANT_QUOTED_ABILITY` ハンドラは付与先を**自場シグニ**に絞るのに、このカードはピース
+  //     （場のシグニではない）なので毎回「能力付与：…（ログのみ）」へ落ちる**無言 no-op** だった。
+  //   ⇒ 機構が3本無い（`O-236`＝ルリグの「ダウン状態でもアタック」／アタック回数上限／その増減）ので
+  //     明示 defer にし、逆翻訳へ【未実装】を出す。**過小のまま、嘘をやめた**という変更。
   const d04Live = effectsMap.get('WXDi-D04-011')![0];
-  eq(d04Live.action.type, 'STUB', 'D04-011: 実装済みの引用付与STUBを温存');
-  eq((d04Live.action as StubAction).id, 'GRANT_QUOTED_ABILITY', 'D04-011: 引用付与STUBのid');
+  eq(d04Live.action.type, 'STUB', 'D04-011: STUB のまま（raw の UNKNOWN 形を採らない）');
+  eq((d04Live.action as StubAction).id, 'DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY', 'D04-011: 明示 defer の id');
   ok(!JSON.stringify(d04Live.action).includes('UNKNOWN'), 'D04-011: raw の UNKNOWN 形を採用しない');
   ok(!!d04Live.condition, 'D04-011: 使用条件は採用したまま');
 });
@@ -58363,7 +58366,9 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //   **live が fresh に追いついた**結果この test の母集団へ入った。
   //   ⚠`npx tsx scripts/censusOrphanManual.ts` はこの群を**母集団から外す**ので表示値は動かない
   //     （この test は parser を回さないので外せない＝ずれは意図的）。
-  const BASELINE_ORPHAN_MANUAL = 9; // 旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  // 🆕2026-09-04（`O-60` 第64バッチ）＝9→8。live 限定 PARTIAL だった `WXDi-D04-011-E1` を
+  //   `manualEffects.ts` へ書き起こした（＝出所ができたので orphan から外れた）。
+  const BASELINE_ORPHAN_MANUAL = 8; // 旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。
@@ -64097,6 +64102,70 @@ test('§5.3 O-60 第63: 正面レベル／凍結＋パワーのゲートは pars
     const a = effectsMap.get(num)?.find(e => e.effectId === id)?.action as { effect?: { activeCondition?: unknown } } | undefined;
     eq(JSON.stringify(a?.effect?.activeCondition), JSON.stringify(cond), `${id}: ゲートが JSON に載る`);
   }
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第64バッチ（2026-09-04）＝A群最大 catch-all の解体 第3段＝
+//   `GRANT_QUOTED_ABILITY`（live 4占有 / 3効果）を**全部**受け皿へ振り分けて live 0 にした。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第64: GRANT_QUOTED_ABILITY は live から消えた（catch-all の 1/3）', () => {
+  // 🔑A群の2行（`execStubPart1.ts:1462` と `effectEngine.collectGrantedFromLayer`）は
+  //   **3つの id が全部 live 0 になるまで**落ちない（読み出しはハンドラ単位）。
+  //   この巡はそのうち1本を空にした。残りは `GRANT_QUOTED_AUTO_ABILITY` / `GRANT_ABILITY_INNER_TEXT`。
+  let hits = 0;
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    const o = n as { type?: string; id?: string };
+    if (o.type === 'STUB' && o.id === 'GRANT_QUOTED_ABILITY') hits++;
+    for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action);
+  eq(hits, 0, 'live に STUB{GRANT_QUOTED_ABILITY} は無い');
+});
+
+test('§5.3 O-60 第64: 引用だけの「【常】：…」は付与（GRANT_EFFECT）として出す', () => withSavedCursor(() => {
+  // 🔴旧＝`WX22-Re04-E2` の①②は catch-all `STUB{GRANT_QUOTED_ABILITY}` に落ち、engine 側の
+  //   切り出し `「([^」]+)」…を得る` が**「を得る」を要求する**ため1本も当たらず `quotedText` が空＝
+  //   最後の「能力を付与（effectEngine処理）」へ落ちる**無言 no-op** だった
+  //   （③だけは文単位の耐性規則に先に当たっていたので、3択のうち2枝が黙って消えていた）。
+  // 🔑**宣言型 STUB は CONTINUOUS として読まれて初めて意味を持つ**＝引用は `GRANT_EFFECT` で包み、
+  //   `granted_effects` の CONTINUOUS として積む（裸で即時実行すると誰も読まない）。
+  const ch = effectsMap.get('WX22-Re04')?.find(e => e.effectId === 'WX22-Re04-E2')?.action as ChooseAction | undefined;
+  eq(ch?.type, 'CHOOSE', 'WX22-Re04-E2: 3択');
+  eq(ch?.choices?.length, 3, 'WX22-Re04-E2: 選択肢は3つ');
+  const a0 = ch!.choices[0].action as { type?: string; effect?: { action?: { id?: string; powerModifyProtection?: unknown } } };
+  eq(a0.type, 'GRANT_EFFECT', '①は引用付与');
+  eq(a0.effect?.action?.id, 'PREVENT_POWER_MODIFY_BY_OPP', '①＝パワー減少への耐性');
+  eq(JSON.stringify(a0.effect?.action?.powerModifyProtection),
+    JSON.stringify({ directions: ['minus'], subjectOwner: 'self', subjectFilter: { cardType: 'シグニ', story: '英知', excludeSelf: true } }),
+    '①＝「あなたの他の＜英知＞のシグニ」が payload に載る（旧は engine が原文を読んでも空だった）');
+  const a1 = ch!.choices[1].action as { type?: string; effect?: { action?: { id?: string; moveProtectFilter?: unknown } } };
+  eq(a1.type, 'GRANT_EFFECT', '②も引用付与');
+  eq(a1.effect?.action?.id, 'SIGNI_CANT_BOUNCE_FROM_FIELD', '②＝場から手札への移動を止める');
+  eq(JSON.stringify(a1.effect?.action?.moveProtectFilter),
+    JSON.stringify({ cardType: 'シグニ', story: '英知', excludeSelf: true }),
+    '②＝「移動しない」の語形と「他の」が payload に載る');
+}));
+
+test('§5.3 O-60 第64: 宣言が取れた「このゲームの間」の効果から二重表現の catch-all を落とす', () => withSavedCursor(() => {
+  // 🔴`WXDi-P05-005-E1` は `SEQUENCE[GAIN_ABILITY_THIS_GAME{oppGuardExtraHandOrColorless}, STUB{GRANT_QUOTED_ABILITY}]`
+  //   ＝**同じ引用を2回**表現していた（逆翻訳にも2回出ていた）。後者は engine 側で
+  //   「このゲームの間」を含む引用が付与経路から除外されるため**確実に何もしない**。
+  const a = effectsMap.get('WXDi-P05-005')?.find(e => e.effectId === 'WXDi-P05-005-E1')?.action as { type?: string; id?: string; gameGrants?: unknown[] };
+  eq(a?.type, 'STUB', 'WXDi-P05-005-E1: 宣言1本だけになる');
+  eq(a?.id, 'GAIN_ABILITY_THIS_GAME', 'WXDi-P05-005-E1: 残るのは宣言側');
+  eq(a?.gameGrants?.length, 2, 'WXDi-P05-005-E1: 宣言は payload に載っている');
+}));
+
+test('§5.3 O-60 第64: 表せないルリグ付与は明示 defer（O-236）', () => withSavedCursor(() => {
+  // 🔴`WXDi-D04-011-E1` は付与先が**ピース自身**に解決されて自場シグニに一致せず、
+  //   engine の最後のログ枝へ落ちる無言 no-op だった。機構が3本無い（`O-236`）ので
+  //   近似で載せず `DEFERRED_` にして逆翻訳へ【未実装】を出す。
+  // ⚠live が `PARTIAL` で収穫マージが効果単位で不可侵＝`manualEffects.ts` ＋ `syncManualLive` でしか届かない。
+  const a = effectsMap.get('WXDi-D04-011')?.find(e => e.effectId === 'WXDi-D04-011-E1')?.action as { id?: string };
+  eq(a?.id, 'DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY', 'WXDi-D04-011-E1: 明示 defer');
 }));
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──

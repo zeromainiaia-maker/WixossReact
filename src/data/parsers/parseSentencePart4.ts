@@ -1139,8 +1139,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
   // ---- 『【常】：…を得る（長文引用） ----
+  // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`DEFERRED_` へ改名**（旧＝catch-all
+  //   `STUB{GRANT_QUOTED_ABILITY}`＝engine が効果元の原文を読み直す形＝`O-60` A群）。
+  //   実測 live 2効果はどちらも**無言 no-op** だった（`WXDi-P05-005-E1` は同じ効果の
+  //   `GAIN_ABILITY_THIS_GAME` が既に宣言を立てていた二重表現／`WXDi-D04-011-E1` は
+  //   付与先が自場シグニに絞られてログだけ＝`O-236` 機構待ち）。
+  // ⚠ここへ来る文は「『…』」だけで**付与先が書かれていない**（付与先は前の文にある）＝
+  //   受け皿を推測せず、逆翻訳に【未実装】を出して計器に残す。
   if (t.match(/^『【常】：/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_GRANT_QUOTED_ABILITY_BLOCK' } as StubAction;
 
   // ---- 手札から《ガードアイコン》を持つシグニを捨てる ----
   if (t.match(/手札から《ガードアイコン》を持つシグニを.+捨てる/))
@@ -2346,8 +2353,26 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   ⚠選択数の見出しは**文単位より前**の `CHOOSE` ビルダーが読む＝ここへ来る断片は本来の選択肢を持たない。
 
   // ---- 引用符付き常時能力を得る（「【常】：〜」）----
-  if (t.match(/^「【常】：.+」$/) || t.match(/^「【常】：.+。」$/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
+  // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝`GRANT_EFFECT{rawText}` を出す**（旧＝catch-all
+  //   `STUB{GRANT_QUOTED_ABILITY}`＝engine が**効果元のアビリティブロック全文**を読み直す形＝`O-60` A群）。
+  // 🔴旧の実害＝`WX22-Re04-E2` は「以下の3つから1つを選ぶ。①「【常】：…」②「…」③「…」」なので、
+  //   engine の切り出し regex `「([^」]+)」…を得る` は**「を得る」が無くて1本も当たらず**、
+  //   `quotedText` が空 → 最後の `能力を付与（effectEngine処理）` へ落ちる**無言 no-op**だった
+  //   （③だけは文単位の耐性規則に先に当たっていたので、①②の2枝だけが黙って消えていた）。
+  // 🔑`expandGrantEffectRawTexts` が引用文を本物の `CardEffect` へ展開する＝展開先が
+  //   `granted_effects` の CONTINUOUS になるので、`PREVENT_POWER_MODIFY_BY_OPP` /
+  //   `SIGNI_CANT_BOUNCE_FROM_FIELD` のような**宣言型 STUB がそのまま収集器に読まれる**
+  //   （即時実行の裸 STUB では誰も読まない＝ここが「引用は付与として出す」ことの本質）。
+  // ⚠付与先は**このシグニ**（`WX22-Re04-E1`「【常】：…このシグニは自身の【出】能力で**選んだ能力を得る**」）。
+  //   展開できない引用は `rawText` のまま残り効果が `PARTIAL` になる＝収穫マージが live へ届けないので退化しない。
+  if (t.match(/^「【常】：.+」$/) || t.match(/^「【常】：.+。」$/)) {
+    return {
+      type: 'GRANT_EFFECT',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      duration: 'UNTIL_END_OF_TURN',
+      rawText: t.slice(1, -1),
+    } as unknown as EffectAction;
+  }
 
   // ---- ① / ② を行う（番号付き効果フラグメント）----
   if (t.match(/^[①②③④⑤]を行う$/))

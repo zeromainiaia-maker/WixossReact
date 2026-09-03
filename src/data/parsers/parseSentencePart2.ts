@@ -852,6 +852,31 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 他のシグニのパワーが対戦相手の効果で－されない ----
+  // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝「＜クラス＞の」「他の」で絞られた形を payload で出す。**
+  //   🔴旧規則は `あなたの(他の)?シグニの…` にしか当たらず、`WX22-Re04-E2`①
+  //   「あなたの**他の＜英知＞の**シグニのパワーは対戦相手の効果によって**減少しない**」は
+  //   どの規則にも当たらず catch-all `STUB{GRANT_QUOTED_ABILITY}`（engine がカード全文を読む＝`O-60` A群）
+  //   へ落ち、**引用の切り出しにも失敗して無言 no-op** だった。
+  // 🔑受け皿は既存の `powerModifyProtection`（`effectEngine.ts:2171` が読む）＝engine の新機構は要らない。
+  //   `PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP`（絞り込みを持てない全体版）は**そのまま残す**
+  //   ＝live 1効果（`WXK01-001-E1`）が既にその形。
+  {
+    const pmpM = t.match(/^あなたの(他の)?(?:すべての)?(?:＜([^＞]+)＞の)?シグニのパワーは対戦相手の効果によって(?:－[^。]*されない|減少しない)。?$/);
+    if (pmpM && (pmpM[1] || pmpM[2])) {
+      return {
+        type: 'STUB', id: 'PREVENT_POWER_MODIFY_BY_OPP',
+        powerModifyProtection: {
+          directions: ['minus'],
+          subjectOwner: 'self',
+          subjectFilter: {
+            cardType: 'シグニ',
+            ...(pmpM[2] ? { story: pmpM[2] } : {}),
+            ...(pmpM[1] ? { excludeSelf: true } : {}),
+          },
+        },
+      } as StubAction;
+    }
+  }
   if (t.match(/あなたの(?:他の)?シグニのパワーは対戦相手の効果によって－.*されない/)) {
     return { type: 'STUB', id: 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP' } as StubAction;
   }
@@ -1250,11 +1275,28 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   regex で読んでクラスを決めていた＝JSON を見ても何が守られるか分からなかった）。
   //   ⚠クラス修飾が無い形（`WX13-029-E1`②「このターン、あなたのシグニは場から手札に戻らない」）は
   //   **あなたのシグニ全部**が正しいので filter を付けない。
-  if (t.match(/あなたの.*シグニは場から手札に戻らない/)) {
-    const bounceClassM = t.match(/あなたの(?:すべての)?＜([^＞]+)＞のシグニは場から手札に戻らない/);
+  // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝「場から手札に**移動しない**」と「**他の**」を足す。**
+  //   🔴旧規則は「シグニは」と「場から手札に戻らない」が**隣接**していることを要求していたため、
+  //   `WX22-Re04-E2`②「あなたの他の＜英知＞のシグニは**対戦相手の効果によって**場から手札に**移動しない**」は
+  //   語形（移動／戻る）と語順の両方で外れ、catch-all `STUB{GRANT_QUOTED_ABILITY}` へ落ちて無言 no-op だった。
+  //   ⚠クラス修飾も「他の」も無い形（`WX13-029-E1`②）は**あなたのシグニ全部**が原文どおり＝filter を付けない。
+  // ⚠**文まるごとが引用（`「【常】：…」`）のときはここで受けない**＝この STUB は**宣言型**で、
+  //   CONTINUOUS として `collectBounceProtectedSigni` に読まれて初めて意味を持つ。
+  //   引用は「付与」なので `parseSentencePart4` の `GRANT_EFFECT{rawText}` へ通し、
+  //   展開先の CONTINUOUS として積ませる（裸のまま即時実行されると誰も読まない no-op）。
+  //   🔑`GRANT_PROTECTION`（③のバニッシュ耐性）は `execGrantProtection` が自前で付与へ包み直すので
+  //   この問題が出ない＝**「宣言型 STUB」と「アクション型」で扱いが違う**（§4.2 の片肺の実例）。
+  if (t.match(/あなたの[^。]*シグニは[^。]*場から手札に(?:戻らない|移動しない)/) && !/^「【[常自起出]】/.test(t)) {
+    const bounceClassM = t.match(/あなたの(?:すべての)?(?:他の)?＜([^＞]+)＞のシグニは/);
+    const bounceOther = /あなたの他の/.test(t);
+    const bounceFilter = {
+      cardType: 'シグニ',
+      ...(bounceClassM ? { story: bounceClassM[1] } : {}),
+      ...(bounceOther ? { excludeSelf: true } : {}),
+    };
     return {
       type: 'STUB', id: 'SIGNI_CANT_BOUNCE_FROM_FIELD',
-      ...(bounceClassM ? { moveProtectFilter: { cardType: 'シグニ', story: bounceClassM[1] } } : {}),
+      ...(bounceClassM || bounceOther ? { moveProtectFilter: bounceFilter } : {}),
     } as StubAction;
   }
 
