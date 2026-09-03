@@ -64848,9 +64848,29 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   //   🆕さらに `reduce_next_on_play_cost` も払い戻して **3件**（`costs.applyNextOnPlayCostReduction` を新設し、
   //   `SigniOnPlayCostModal` が枚数と色文字列の**両方**をそこから作るようにした＋支払い時に1回で消費）。
   //   🆕さらに `grid_reveal_plus_one_this_turn` もキーごと撤去して **2件**（受け皿が無いので明示 defer＝`O-246`）。
-  //   残り＝`O-226` の2件（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）。
+  //   🏁**2026-09-04 に残り2件（`O-226`）も払い戻して 0 になった**＝`growLogic.declaredSigniOverride` が
+  //   `declared_card_name` と突き合わせて読む（宣言した**名前が一致したときだけ**効く）。
+  // 🔴**0 が正常値**＝以後は「新しい真 no-op が入ったら 0 → 1 で止まる」門として働く。
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
-  eq(n, 2, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+  eq(n, 0, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+});
+
+test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わせて読まれている', () => {
+  // 🔴`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction` は
+  //   書き込みだけで読み手が0だった（宣言だけ立って盤面は動かない真 no-op）。
+  // 🔑**宣言した名前は `declared_card_name` に保存済み**（`STUB{DECLARE_CARD_NAME}`）＝
+  //   足りなかったのは「その名前と突き合わせて読む側」だけだった。
+  const gl = fs.readFileSync(join(root, 'src/screens/battle/growLogic.ts'), 'utf8');
+  ok(gl.includes('export function declaredSigniOverride('), '読み手の実体が1箇所にある');
+  // 🔴**名前が一致したときだけ**効く（フラグだけ見ると全シグニがレベル0＆限定無視＝過剰実行）。
+  ok(gl.includes("cardName === state.declared_card_name"), '宣言した名前と突き合わせている');
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  // 手札からの召喚ゲート＝レベル0（レベル制限とリミット）と限定条件の無視の両方
+  ok(bs.includes('const declaredOverride = declaredSigniOverride(my, cardData.CardName);'), '召喚ゲートで読む');
+  ok(bs.includes('declaredOverride.levelZero ? 0 : (parseInt(cardData.Level) || 0)'), '基本レベルが0になる');
+  ok(bs.includes('ignoreRestriction || declaredOverride.ignoreRestriction'), '限定条件を無視できる');
+  // 場のリミット計算にも効く（原文「メインデッキと手札と**場**にある」）
+  ok(bs.includes('if (declaredSigniOverride(my, top?.CardName).levelZero) return 0;'), '場のレベル合計にも効く');
 });
 
 test('§5.3 O-246: デッキ公開枚数+1 は明示 defer（フラグだけ立てる旧形へ戻さない）', () => withSavedCursor(() => {

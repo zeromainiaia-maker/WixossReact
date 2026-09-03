@@ -50,7 +50,7 @@ import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/trigger
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
 import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
-import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
+import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
 import { collectPlayerDamagedTriggers } from '../engine/triggerCollect';
@@ -6579,6 +6579,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
     if (!stack || stack.length === 0) return 0;
     const top = battleCardMap.get(stack[stack.length - 1]);
+    // 🆕§5.3 `O-226`（2026-09-04）＝「**場にある**宣言したシグニの基本レベルは0になる」＝
+    //   リミット計算にも効く（原文が「メインデッキと手札と場」と書いている側）。
+    if (declaredSigniOverride(my, top?.CardName).levelZero) return 0;
     return parseInt(top?.Level ?? '0') || 0;
   });
   const fieldSigniTotal = fieldSigniTopLevels.reduce((s, l) => s + l, 0);
@@ -8489,7 +8492,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'MAIN') {
       const cardData = battleCardMap.get(cardNum);
       if (cardData?.Type === 'シグニ') {
-        const signiLevel = parseInt(cardData.Level) || 0;
+        // 🆕§5.3 `O-226`（2026-09-04）＝「宣言したシグニの基本レベルは0になり、限定条件を無視して場に出せる」
+        //   （`WXK09-001-E3`）。⚠**名前が一致したときだけ**効く（フラグだけ見ると全シグニが対象＝過剰実行）。
+        const declaredOverride = declaredSigniOverride(my, cardData.CardName);
+        const signiLevel = declaredOverride.levelZero ? 0 : (parseInt(cardData.Level) || 0);
         // レベル制限: シグニLv ≤ ルリグLv
         const levelOk = signiLevel <= currentLrigLevel;
         // リミット制限: 空きゾーンに召喚後の合計レベルがリミット以内であること
@@ -8500,7 +8506,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
         });
         // Restriction チェック
-        const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction);
+        const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass,
+          ignoreRestriction || declaredOverride.ignoreRestriction);
         const printedPower = cardData.Power === '∞' ? Infinity : parseInt(cardData.Power ?? '', 10);
         const powerBlockOk = !isHandSigniPlayBlockedByPower(my, printedPower);
         if (levelOk && canFitSomewhere && restrictionOk && powerBlockOk) {

@@ -259,6 +259,30 @@ export function ignoresLrigTypeForGrow(cardNum: string, effectsMap: Map<string, 
 // 例: Restriction="タマ限定", lrigClass="タマ" → true
 //     Restriction="タマ限定", lrigClass="タマ/イオナ" → true
 //     Restriction="タマ限定", lrigClass="花代" → false
+/**
+ * 🆕**§5.3 `O-226`（2026-09-04）＝「宣言したシグニ」への2つの恒久宣言の**読み手**。
+ *
+ * 原文＝「無色ではないシグニのカード名１つを**宣言する**。このゲームの間、あなたのメインデッキと手札と
+ * 場にある**宣言したシグニの基本レベルは０になり**、あなたは**宣言したシグニを限定条件を無視して場に出せる**」
+ * （`WXK09-001-E3`）。
+ *
+ * 🔴**`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction` には
+ *   読み手が1人もいなかった**（`npm run census:deadstate` で検出）＝宣言だけ立って盤面は動かない真 no-op。
+ * 🔑**宣言した名前そのものは `declared_card_name` に保存済み**（`STUB{DECLARE_CARD_NAME}`）＝
+ *   足りなかったのは「その名前と突き合わせて読む側」だけだった。
+ * ⚠**名前が一致したときだけ**効く（フラグだけ見ると**全シグニ**がレベル0＆限定無視になる＝過剰実行）。
+ */
+export function declaredSigniOverride(
+  state: { declared_card_name?: string; game_declared_signi_level_zero?: boolean; game_declared_signi_ignore_restriction?: boolean },
+  cardName: string | undefined,
+): { levelZero: boolean; ignoreRestriction: boolean } {
+  const named = !!cardName && !!state.declared_card_name && cardName === state.declared_card_name;
+  return {
+    levelZero: named && !!state.game_declared_signi_level_zero,
+    ignoreRestriction: named && !!state.game_declared_signi_ignore_restriction,
+  };
+}
+
 export function meetsRestriction(restriction: string, lrigClass: string, ignoreRestriction = false): boolean {
   if (ignoreRestriction || !restriction || restriction === '-') return true;
   return lrigClass.split(/[/／]/).map(s => s.trim()).some(cls => restriction.includes(cls));
