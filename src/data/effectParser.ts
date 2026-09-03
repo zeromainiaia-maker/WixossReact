@@ -13773,8 +13773,17 @@ function parseActionTextBody(text: string): EffectAction {
   //   （`GAIN_ABILITY_THIS_GAME`＝engine が `game_hand_size_bonus` / `game_opp_guard_extra_colorless` 等を
   //   ここから立てる恒久獲得）。汎用の `GRANT_ABILITY_INNER_TEXT`（実行時に原文を regex 検出するだけ）へ
   //   落とすと**「ゲーム中ずっと」の意味が丸ごと消える**。
+  // 🆕**§5.3 `O-60` 第67バッチ（2026-09-04）＝ここは「catch-all の製造元」なので、
+  //   受け皿が無いと分かっている文型は**名前のある穴**（`DEFERRED_*`）へ落とす。**
+  //   🔴`WXDi-P12-036-E1`「このターン、1枚目と2枚目にあなたのチェックゾーンに置かれたライフクロスは
+  //     【ライフバースト】「…」を得る」は engine の既知パターンに1本も当たらず**無言 no-op** だった。
+  //   ⚠近い受け皿（`GRANT_ALL_ZONE_LIFEBURST`）は「全領域の【ライフバースト】を**持たない**カード」が
+  //     対象で、原文の「**そのターンのクラッシュ順**」という軸を持てない＝寄せると過大実行（`O-239`）。
   const leakStubId = /このゲームの間、あなたは以下の能力を得る/.test(text)
-    ? 'GAIN_ABILITY_THIS_GAME' : 'GRANT_ABILITY_INNER_TEXT';
+    ? 'GAIN_ABILITY_THIS_GAME'
+    : /チェックゾーンに置かれたライフクロスは【ライフバースト】「/.test(text)
+      ? 'DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE'
+      : 'GRANT_ABILITY_INNER_TEXT';
   let safeResult = parsed;
   if (hasNakedImmediate(parsed)) {
     const masked = text

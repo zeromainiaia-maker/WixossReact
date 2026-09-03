@@ -720,6 +720,19 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   同じカードの別の能力に「トラッシュから」があると場所が裏返る形だった。
   //   ⚠絞り込みは `selectTarget.filter`（すぐ下で `parseSigniTarget` が出す）が正＝
   //   engine 側の `'怪異'` ハードコードはこのバッチで撤去した。
+  // 🆕**§5.3 `O-60` 第67バッチ（2026-09-04）＝「この方法でトラッシュに置いたシグニの**すべての**
+  //   《レイヤーアイコン》の能力を得る」**（`WXEX1-32-E2`）。
+  //   🔴旧は `parseSentencePart4` の `/《レイヤーアイコン》の能力を得る/`（「の」入り）が
+  //     catch-all `STUB{GRANT_ABILITY_INNER_TEXT}` へ落としていた＝engine の引用切り出しは
+  //     「「…」を得る」を要求するので当たらず**無言 no-op**（デッキから2枚落とすだけで能力が付かない）。
+  //   ⚠既存の `LAYER_ABILITY_COPY` は「候補から1体選んで1つ」なので選択UIを出す＝
+  //     ここは**直前ステップの結果が対象**（原文に選択は無い）ので `source:'last_processed'` を使う。
+  if (/この方法でトラッシュに置いたシグニの(?:すべての)?《レイヤーアイコン》の?能力を得る/.test(t)) {
+    return {
+      type: 'STUB', id: 'LAYER_ABILITY_COPY',
+      layerCopy: { source: 'last_processed' as const, all: true },
+    } as StubAction;
+  }
   if (t.match(/《レイヤーアイコン》能力.*を得る/)) {
     return {
       type: 'STUB', id: 'LAYER_ABILITY_COPY',
@@ -2633,6 +2646,19 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 引用符の内側のテキスト（...」を得る で終わる）----
   if (t.endsWith('」を得る') || t.endsWith('」を得る。')) {
+    // ---- N枚目にチェックゾーンに置かれたライフクロスが【ライフバースト】を得る ----
+    // 🆕**§5.3 `O-60` 第67バッチ（2026-09-04）＝明示 defer（`O-239`）。**
+    // 🔴旧はこのブロック末尾の catch-all `STUB{GRANT_ABILITY_INNER_TEXT}`（engine が原文を読み直す形＝
+    //   `O-60` A群）に落ち、engine 側の既知パターンにも1本も当たらず**無言 no-op** だった
+    //   （`WXDi-P12-036-E1`＝【出】が何もしない）。
+    // ⚠**近い受け皿は在る**（`GRANT_ALL_ZONE_LIFEBURST` / `SET_DISPAIR_BURST_GRANT`）が、あちらは
+    //   「全領域の**【ライフバースト】を持たない**カード」が対象で、原文の
+    //   「**このターン、1枚目と2枚目に**チェックゾーンに**置かれた**ライフクロス」＝**そのターンの
+    //   クラッシュ順**という軸を持てない。流用すると**ライフ全部が別のバーストを持つ**過大実行になる。
+    // ⚠消費側は `src/screens/battle/allZoneBurst.ts`＝実装するなら UI 層＝遅いレーン＋実機必須。
+    if (/チェックゾーンに置かれたライフクロスは【ライフバースト】「/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE' } as StubAction;
+    }
     const quoted = (t.match(/「([^」]+)」を得る/) ?? [])[1] ?? '';
     if (quoted.includes('アタックできない')) {
       // 🆕**§5.3 `O-220` 第4バッチ（2026-09-02）＝対象の指定は「引用を伏せた本文」から読む。**

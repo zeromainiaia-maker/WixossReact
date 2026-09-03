@@ -3930,7 +3930,11 @@ function actionJa(a?: Action, effectType?: string): string {
       //   **【レイヤー】の宣言文**を抜き出していた＝この効果（コピー本体）とは別の文で、
       //   逆翻訳を読んでも「どこから何を選ぶか」が分からない死角だった。
       if (a.id === 'LAYER_ABILITY_COPY') {
-        const lc = (a as { layerCopy?: { source: string } }).layerCopy;
+        const lc = (a as { layerCopy?: { source: string; all?: boolean } }).layerCopy;
+        // 🆕§5.3 `O-60` 第67バッチ（2026-09-04）＝`'last_processed'` は選択を出さない形。
+        if (lc?.source === 'last_processed') {
+          return 'ターン終了時まで、このシグニはこの方法でトラッシュに置いたシグニのすべての《レイヤーアイコン》の能力を得る';
+        }
         const lcTgt = (a as { selectTarget?: unknown }).selectTarget as { filter?: unknown } | undefined;
         if (!lc || !lcTgt?.filter) return '《レイヤーアイコン》能力をコピーする（対象の指定なし＝適用しない）';
         const lcZone = lc.source === 'trash' ? 'あなたのトラッシュから' : 'あなたの場の';
@@ -4253,6 +4257,11 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE:
           '【未実装】このシグニをあなたの他のシグニゾーン1つに配置してもよい（空きゾーンへの移動）',
         // 🆕§5.3 `O-238`（2026-09-04・`O-60` 第66バッチで分離）＝**アタックの置換**（`WXDi-P05-069-E2`）。
+        // 🆕§5.3 `O-239`（2026-09-04・`O-60` 第67バッチで分離）＝**そのターンのクラッシュ順**を軸にした
+        //   【ライフバースト】付与（`WXDi-P12-036-E1`）。既存 `GRANT_ALL_ZONE_LIFEBURST` は
+        //   「全領域の【ライフバースト】を持たないカード」が対象で、この軸を持てない。
+        DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE:
+          '【未実装】このターン、1枚目と2枚目にあなたのチェックゾーンに置かれたライフクロスは【ライフバースト】「どちらか1つを選ぶ。①対戦相手のシグニ1体をダウンする。②カードを2枚引く。」を得る',
         DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT:
           '【未実装】あなたの《翠将姫　ロビンフッド》は「このシグニがアタックする場合、代わりにあなたのシグニを2体まで裏向きにしてアタックし、このターン終了時、これによって裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする」を得る',
         // 🆕§5.3 `O-233`（2026-09-03・`O-60` 第60バッチで分離）＝

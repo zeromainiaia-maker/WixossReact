@@ -4656,7 +4656,14 @@ export interface StubAction {
    *   `story:'怪異'` / `excludeSelf:true` まで出している）を**トラッシュ分岐では丸ごと無視**していた。
    * ⚠**この payload（と `selectTarget`）が無い宣言は何もしない**（fail-closed）。
    */
-  layerCopy?: { source: 'trash' | 'field' };
+  /**
+   * 🆕`'last_processed'`＝**この方法でトラッシュに置いたシグニ全部**の《レイヤーアイコン》能力を得る
+   * （§5.3 `O-60` 第67バッチ・2026-09-04・`WXEX1-32-E2`）。
+   * ⚠`'trash'` / `'field'` は「候補から**1体選んで1つ**コピー」なので選択UIを出すが、
+   *   こちらは**直前ステップの結果が対象**＝選択UIを出さない（出すと原文に無い問いが増える）。
+   * ⚠`all:true`＝原文「**すべての**《レイヤーアイコン》の能力」＝1つ選ばせない。
+   */
+  layerCopy?: { source: 'trash' | 'field' | 'last_processed'; all?: boolean };
   /**
    * 🆕`EACH_PLAYER_DRAW_DISCARD`＝「各プレイヤーは、カードをN枚引き手札をM枚捨てる」の枚数
    * （§5.3 `O-60` 第23バッチ・2026-09-03）。

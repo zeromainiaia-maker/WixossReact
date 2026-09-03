@@ -4167,6 +4167,36 @@ export function execStubPart2(
   // ⚠**payload と `selectTarget` が揃わなければ何もしない**（fail-closed）。
   if (stub.id === 'LAYER_ABILITY_COPY') {
     const specLAC = stub.layerCopy;
+    // 🆕**§5.3 `O-60` 第67バッチ（2026-09-04）＝`source:'last_processed'`＝選択を出さずに
+    //   「この方法でトラッシュに置いたシグニ」全部の《レイヤーアイコン》能力を効果元へ積む**
+    //   （`WXEX1-32-E2`）。
+    // 🔑**レイヤー能力の実体は `-LAYER` 効果の `GRANT_FIELD_SIGNI_ABILITY.abilities[]`**
+    //   （parser が `《レイヤーアイコン》` ブロックをそこへ畳んでいる）＝**カード原文を読まない**。
+    //   ⚠兄弟の `INTERNAL_LAYER_COPY_APPLY` は対象カードの原文へ regex を当ててキーワードだけ拾う
+    //     古い形（＝表に無い能力は落ちる）。こちらは構造化済みの能力をそのまま渡す。
+    if (specLAC?.source === 'last_processed') {
+      const srcLP = ctx.sourceCardNum;
+      const picksLP = ctx.lastProcessedCards ?? [];
+      if (!srcLP || picksLP.length === 0) return done(addLog(ctx, 'レイヤー能力コピー：直前に処理したシグニが無い'));
+      const copiedLP: import('../types/effects').CardEffect[] = [];
+      for (const cn of picksLP) {
+        const baseLP = getCardNum(cn);
+        const effsLP = ctx.effectsMap?.get(cn) ?? ctx.effectsMap?.get(baseLP) ?? ctx.cardMap.get(baseLP)?.effects ?? [];
+        for (const effLP of effsLP) {
+          if (!/-LAYER$/.test(effLP.effectId ?? '')) continue;
+          const actLP = effLP.action as import('../types/effects').GrantFieldSigniAbilityAction;
+          if (actLP?.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
+          for (const ab of (actLP.abilities ?? [])) {
+            copiedLP.push({ ...ab, effectId: `${srcLP}-layercopy-${copiedLP.length + 1}` });
+          }
+        }
+      }
+      if (copiedLP.length === 0) return done(addLog(ctx, 'レイヤー能力コピー：コピーできる《レイヤーアイコン》能力が無かった'));
+      const grantedLP = { ...(ctx.ownerState.granted_effects ?? {}) };
+      grantedLP[srcLP] = [...(grantedLP[srcLP] ?? []), ...copiedLP];
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedLP } },
+        `この方法でトラッシュに置いたシグニの《レイヤーアイコン》能力${copiedLP.length}件をコピー（ターン終了時まで）`));
+    }
     const filterLAC = stub.selectTarget?.filter;
     if (!specLAC || !filterLAC) return done(addLog(ctx, 'レイヤー能力コピー：対象の指定が無いため何もしない'));
     const srcLAC = ctx.sourceCardNum;

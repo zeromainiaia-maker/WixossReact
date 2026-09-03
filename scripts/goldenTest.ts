@@ -64250,6 +64250,35 @@ test('§5.3 O-60 第66: 主語が《カード名》の場全体付与＝アタ�
   eq(a?.id, 'DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT', 'WXDi-P05-069-E2: 明示 defer');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第67バッチ（2026-09-04）＝`GRANT_ABILITY_INNER_TEXT` の解体 第2段。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第67: 「この方法でトラッシュに置いたシグニのすべてのレイヤー能力」は構造で運ぶ', () => withSavedCursor(() => {
+  // 🔴旧は `parseSentencePart4` の `/《レイヤーアイコン》の能力を得る/` が catch-all へ落としており、
+  //   engine の引用切り出しは「「…」を得る」を要求するので当たらず**無言 no-op**
+  //   （デッキから2枚落とすだけで能力が付かない）。
+  // 🔑レイヤー能力の実体は `-LAYER` 効果の `GRANT_FIELD_SIGNI_ABILITY.abilities[]`＝
+  //   engine は**カード原文を読まずに**構造化済みの能力をそのまま積める。
+  // ⚠既存の `LAYER_ABILITY_COPY`（`'trash'`/`'field'`）は「1体選んで1つ」なので選択UIを出す＝
+  //   原文に無い問いが増える。`'last_processed'` は直前ステップの結果が対象なので選択を出さない。
+  const seq = effectsMap.get('WXEX1-32')?.find(e => e.effectId === 'WXEX1-32-E2')?.action as SequenceAction | undefined;
+  const lc = (seq?.steps?.[1] as { id?: string; layerCopy?: unknown });
+  eq(lc?.id, 'LAYER_ABILITY_COPY', 'WXEX1-32-E2: レイヤー能力コピーとして出る');
+  eq(JSON.stringify(lc?.layerCopy), JSON.stringify({ source: 'last_processed', all: true }),
+    '対象は「この方法でトラッシュに置いた」全部（選択を出さない）');
+  // 受け皿側＝コピー元になる `-LAYER` 効果が live に実在する（0 になったらこの機構ごと死んでいる合図）。
+  const layerCount = [...effectsMap.values()].flat().filter(e => /-LAYER$/.test(e.effectId)).length;
+  ok(layerCount >= 15, `-LAYER 効果が live に十分ある: ${layerCount}`);
+}));
+
+test('§5.3 O-60 第67: クラッシュ順を軸にした【ライフバースト】付与は明示 defer（O-239）', () => withSavedCursor(() => {
+  // ⚠近い受け皿（`GRANT_ALL_ZONE_LIFEBURST`）は「全領域の**【ライフバースト】を持たない**カード」が対象で、
+  //   「このターン、1枚目と2枚目にチェックゾーンに置かれた」という軸を持てない＝寄せると過大実行。
+  const a = effectsMap.get('WXDi-P12-036')?.find(e => e.effectId === 'WXDi-P12-036-E1')?.action as { id?: string };
+  eq(a?.id, 'DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE', 'WXDi-P12-036-E1: 明示 defer');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
