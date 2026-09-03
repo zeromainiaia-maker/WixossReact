@@ -6812,8 +6812,14 @@ function parseCenterColorFrontPowerGrant(text: string): { activeCondition: Activ
 // ⚠**条件抽出ループより前に呼ぶこと**＝引用の中の「〜されたとき、」を `parseActiveCondition` が
 //   先に食うと `^` アンカーが外れて丸ごと取り逃し、**引用の中身だけが外側に残る**
 //   （`WXDi-P06-054-E2` で実測。`parseMultiStageUnderGrant` と同じ理由・同じ位置に置く）。
+// 🆕**§5.3 `O-60` 第65バッチ（2026-09-04）＝主語の綴り「**これ**の上にある」を足した。**
+//   🔴クラフト側の実カードは「**これ**の上にある《X》は…」と書く（`WXDi-CP02-TK03A-E2`／
+//     `WX25-CP1-TK2A-E2` は manual で手当て済み）のに、この規則は「この**カード／シグニ**の上にある」
+//     しか見ておらず、catch-all `STUB{GRANT_QUOTED_AUTO_ABILITY}` へ落ちていた
+//     （CONTINUOUS なので `executeAction` を通らず、`collectGrantedFromLayer` の
+//      `「([^」]+)」を得る` も **`」` を跨げないため引用が空**＝恒久 no-op）。
 function parseSigniAboveQuotedGrant(text: string): EffectAction | null {
-  const named = text.match(/^この(?:カード|シグニ)の上にある《([^》]+)》は「(【[自常起出]】.+)」を得る。?$/s);
+  const named = text.match(/^(?:これ|この(?:カード|シグニ))の上にある《([^》]+)》は「(【[自常起出]】.+)」を得る。?$/s);
   if (named && !/」と「|」か「/.test(named[2])) {
     return {
       type: 'GRANT_SIGNI_ABOVE_ABILITY',
@@ -6821,7 +6827,7 @@ function parseSigniAboveQuotedGrant(text: string): EffectAction | null {
       abilities: [], rawText: named[2],
     } as import('../types/effects').GrantSigniAboveAbilityAction as EffectAction;
   }
-  const m = text.match(/^この(?:カード|シグニ)の上にある((?:[白赤青緑黒]の|＜[^＞]+＞の|レベル[０-９\d]+の)*)シグニは「(【[自常起出]】.+)」を得る。?$/s);
+  const m = text.match(/^(?:これ|この(?:カード|シグニ))の上にある((?:[白赤青緑黒]の|＜[^＞]+＞の|レベル[０-９\d]+の)*)シグニは「(【[自常起出]】.+)」を得る。?$/s);
   if (!m || /」と「|」か「/.test(m[2])) return null;
   const aboveFilter: TargetFilter = {
     cardType: 'シグニ',
@@ -13804,10 +13810,21 @@ function parseActionTextBody(text: string): EffectAction {
  *   ④引用が**単一ブロックの AUTO** で解ける（試験展開）。解けないものは STUB のまま据置＝
  *     `expandGrantEffectRawTexts` が no-op ガードする「rawText だけの GRANT_EFFECT」を作らない。
  */
+// 🆕**§5.3 `O-60` 第65バッチ（2026-09-04）＝3つの catch-all id を同じ受け皿へ流す。**
+//   🔴`GRANT_ABILITY_INNER_TEXT` / `GRANT_QUOTED_ABILITY` / `GRANT_QUOTED_AUTO_ABILITY` は
+//   **engine では同じ1本のハンドラ**（`execStubPart1.ts:1462`）なのに、parser 側の復元規則は
+//   1つ目の綴りしか見ていなかった＝**どの綴りに落ちたかだけで構造化されるかが変わっていた**
+//   （`PR-K076-E2` は `SEQUENCE[POWER_MODIFY, STUB]` という**この規則が扱う形そのもの**なのに、
+//    id が `GRANT_QUOTED_AUTO_ABILITY` だったために素通りしていた）。
+const QUOTED_GRANT_CATCH_ALL_IDS = ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'];
+const isQuotedGrantCatchAll = (n: unknown): boolean => {
+  const o = n as { type?: string; id?: string };
+  return o?.type === 'STUB' && QUOTED_GRANT_CATCH_ALL_IDS.includes(o.id ?? '');
+};
+
 function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAction {
   // ①
-  const stubs = collectActionNodesByType(parsed, 'STUB')
-    .filter(n => (n as StubAction).id === 'GRANT_ABILITY_INNER_TEXT');
+  const stubs = collectActionNodesByType(parsed, 'STUB').filter(isQuotedGrantCatchAll);
   if (stubs.length !== 1) return parsed;
 
   // 引用の試験展開（結果は捨てる＝実展開は expandGrantEffectRawTexts に委ねる）。
@@ -13830,7 +13847,7 @@ function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAct
   };
 
   const replaceStub = (node: EffectAction, replacement: EffectAction): EffectAction => {
-    if (node.type === 'STUB' && node.id === 'GRANT_ABILITY_INNER_TEXT') return replacement;
+    if (isQuotedGrantCatchAll(node)) return replacement;
     if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(step => replaceStub(step, replacement)) };
     if (node.type === 'CONDITIONAL') return {
       ...node,
@@ -13895,7 +13912,7 @@ function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAct
     const last = topSteps.at(-1);
     const prev = topSteps.at(-2);
     if ((scan.match(/を対象とし/g)?.length ?? 0) === 1
-        && last?.type === 'STUB' && last.id === 'GRANT_ABILITY_INNER_TEXT'
+        && isQuotedGrantCatchAll(last)
         && prev?.type === 'ADD_TO_FIELD') {
       return { ...parsed, steps: [
         ...topSteps.slice(0, -1),
@@ -13961,7 +13978,7 @@ function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAct
       const last = steps[steps.length - 1] as StubAction | undefined;
       const prev = steps[steps.length - 2] as (EffectAction & { target?: EffectTarget }) | undefined;
       // 「それのパワーを±Nし、それは「Q」を得る」＝直前の POWER_MODIFY が選んだ対象と同一。
-      if (steps.length >= 2 && last?.type === 'STUB' && last.id === 'GRANT_ABILITY_INNER_TEXT'
+      if (steps.length >= 2 && isQuotedGrantCatchAll(last)
           && prev?.type === 'POWER_MODIFY' && prev.target?.type === 'SIGNI') {
         return { ...node, steps: [
           ...steps.slice(0, -1),
@@ -13978,7 +13995,7 @@ function restoreQuotedTargetGrant(text: string, parsed: EffectAction): EffectAct
       const ch = node as ChooseAction;
       return { ...ch, choices: (ch.choices ?? []).map(o => ({ ...o, action: swap(o.action) })) } as EffectAction;
     }
-    if (node.type === 'STUB' && (node as StubAction).id === 'GRANT_ABILITY_INNER_TEXT' && directTarget) {
+    if (isQuotedGrantCatchAll(node) && directTarget) {
       return { type: 'GRANT_EFFECT', target: directTarget, duration, rawText: quoted } as EffectAction;
     }
     return node;

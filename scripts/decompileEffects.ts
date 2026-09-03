@@ -4248,6 +4248,10 @@ function actionJa(a?: Action, effectType?: string): string {
         //   engine が効果元の原文を読み直す catch-all だったので、機構が無い側は明示 defer にした。
         DEFERRED_GRANT_QUOTED_ABILITY_BLOCK:
           '【未実装】引用された能力ブロック（『…』）を付与する',
+        // 🆕§5.3 `O-237`（2026-09-04・`O-60` 第65バッチで分離）＝**空きシグニゾーンへの自己移動**。
+        //   既存 `REARRANGE_SIGNI{swap}` は「シグニが居るゾーン」しか候補にできない（`WXK03-042-E1`）。
+        DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE:
+          '【未実装】このシグニをあなたの他のシグニゾーン1つに配置してもよい（空きゾーンへの移動）',
         // 🆕§5.3 `O-233`（2026-09-03・`O-60` 第60バッチで分離）＝
         //   「このターンに**対戦相手の効果によって**あなたのシグニが場を離れていた場合」の条件語彙が無い。
         //   ⚠`ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` の**シグニ版が欠けている**だけ（1効果）。

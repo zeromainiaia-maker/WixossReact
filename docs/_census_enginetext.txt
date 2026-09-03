@@ -10,8 +10,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| fn:collectGrantedFromLayer + GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY | effectEngine.ts:7011 | 11 | 11 | 0 | 0 |
-| GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY | execStubPart1.ts:1462 execStubPart1.ts:1634 | 11 | 11 | 5 | 0 |
+| fn:collectGrantedFromLayer + GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY | effectEngine.ts:7011 | 8 | 8 | 0 | 0 |
+| GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY | execStubPart1.ts:1462 execStubPart1.ts:1634 | 8 | 8 | 5 | 0 |
 | CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:2996 | 0 | 0 | 8 | 0 |
 | CONDITIONAL_PER_TRASH | execStubPart2.ts:2132 | 0 | 0 | 1 | 0 |
 | CONDITIONAL_POWER_BONUS | execStubPart1.ts:1866 | 0 | 0 | 9 | 0 |
@@ -25,10 +25,10 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 ## A群 明細
 
-### fn:collectGrantedFromLayer + GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY  (live 11効果 / 11カード / miss 0)
+### fn:collectGrantedFromLayer + GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY  (live 8効果 / 8カード / miss 0)
   effectEngine.ts:7011  return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
 
-### GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY  (live 11効果 / 11カード / miss 0)
+### GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY  (live 8効果 / 8カード / miss 0)
   execStubPart1.ts:1462  const txtGQ = sourceAbilityText(ctx);
   execStubPart1.ts:1634  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
     lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)

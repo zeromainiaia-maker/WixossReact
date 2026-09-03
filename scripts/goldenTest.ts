@@ -64168,6 +64168,60 @@ test('§5.3 O-60 第64: 表せないルリグ付与は明示 defer（O-236）', 
   eq(a?.id, 'DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY', 'WXDi-D04-011-E1: 明示 defer');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第65バッチ（2026-09-04）＝A群最大 catch-all の解体 第4段＝
+//   `GRANT_QUOTED_AUTO_ABILITY`（live 3効果）を全部受け皿へ振り分けて live 0 にした。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第65: GRANT_QUOTED_AUTO_ABILITY は live から消えた（catch-all の 2/3）', () => {
+  let hits = 0;
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    const o = n as { type?: string; id?: string };
+    if (o.type === 'STUB' && o.id === 'GRANT_QUOTED_AUTO_ABILITY') hits++;
+    for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action);
+  eq(hits, 0, 'live に STUB{GRANT_QUOTED_AUTO_ABILITY} は無い');
+});
+
+test('§5.3 O-60 第65: 3つの catch-all 綴りは同じ復元規則を通る（PR-K076）', () => withSavedCursor(() => {
+  // 🔴engine では1本のハンドラなのに、parser の復元規則（`restoreQuotedTargetGrant`）は
+  //   `GRANT_ABILITY_INNER_TEXT` の綴りしか見ていなかった＝**どの綴りに落ちたかで構造化の有無が変わる**。
+  //   `PR-K076-E2` は `SEQUENCE[POWER_MODIFY, STUB]` というこの規則が扱う形そのものだった。
+  const seq = effectsMap.get('PR-K076')?.find(e => e.effectId === 'PR-K076-E2')?.action as SequenceAction | undefined;
+  eq(seq?.type, 'SEQUENCE', 'PR-K076-E2: パワー修正＋付与');
+  const g = seq!.steps[1] as { type?: string; targetsLastProcessed?: boolean; effect?: { timing?: string[]; action?: { id?: string } } };
+  eq(g.type, 'GRANT_EFFECT', '付与は構造化された GRANT_EFFECT');
+  eq(g.targetsLastProcessed, true, '「それ」＝パワーを上げたのと同じシグニ（選択UIを2度出さない）');
+  eq(g.effect?.timing?.[0], 'ON_ATTACK_SIGNI', '引用【自】のトリガーが載る');
+  eq(g.effect?.action?.id, 'SET_OPP_SIGNI_POWER_BY_SELF_POWER', '引用の中身も載る');
+}));
+
+test('§5.3 O-60 第65: 「これの上にある」も上シグニ付与／上シグニ強化として解ける', () => withSavedCursor(() => {
+  // 🔴クラフトの実カードは「**これ**の上にある《X》は…」と書くのに、規則は
+  //   「この**カード／シグニ**の上にある」しか見ていなかった。
+  //   ⇒ E1 は既定 else（`owner:'any'/count:1`）へ落ちて CONTINUOUS では**クラフト自身**に＋5000する
+  //     過剰実行、E2 は catch-all（CONTINUOUS なので executor を通らず恒久 no-op）だった。
+  const e1 = effectsMap.get('WXDi-CP02-TK03A')?.find(e => e.effectId === 'WXDi-CP02-TK03A-E1')?.action as { type?: string; target?: { filter?: unknown } };
+  eq(e1?.type, 'POWER_MODIFY', 'E1: パワー修正');
+  eq(JSON.stringify(e1?.target?.filter), JSON.stringify({ aboveSelf: true, cardName: '棗イロハ' }), 'E1: 付与先は「これの上にある《棗イロハ》」');
+  const e2 = effectsMap.get('WXDi-CP02-TK03A')?.find(e => e.effectId === 'WXDi-CP02-TK03A-E2')?.action as { type?: string; filter?: unknown; abilities?: unknown[] };
+  eq(e2?.type, 'GRANT_SIGNI_ABOVE_ABILITY', 'E2: 下→上への付与宣言');
+  eq(JSON.stringify(e2?.filter), JSON.stringify({ cardName: '棗イロハ' }), 'E2: 付与先はカード名で絞る');
+  eq(e2?.abilities?.length, 1, 'E2: 引用は展開済み（rawText のまま残さない）');
+}));
+
+test('§5.3 O-60 第65: 空きシグニゾーンへの自己移動は明示 defer（O-237）', () => withSavedCursor(() => {
+  // 🔴`WXK03-042-E1` は id が `GRANT_QUOTED_AUTO_ABILITY` なのに**引用付与ではない**（名前が嘘）。
+  //   §6.4 `O-20` で engine の読み取りをアビリティブロック限定にしたので引用が空＝無言 no-op だった。
+  // ⚠`REARRANGE_SIGNI{swap}` は候補を「シグニが居るゾーン」に限るので空きゾーンへは動かせない。
+  const seq = effectsMap.get('WXK03-042')?.find(e => e.effectId === 'WXK03-042-E1')?.action as SequenceAction | undefined;
+  eq((seq?.steps?.[0] as { id?: string })?.id, 'DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE', 'WXK03-042-E1: 前半は明示 defer');
+  eq((seq?.steps?.[1] as { type?: string })?.type, 'REARRANGE_SIGNI', 'WXK03-042-E1: 後半（占有ゾーンとの入れ替え）は従来どおり');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

@@ -641,8 +641,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- アーツ/シグニ使用/バニッシュしたとき（AUTO内包テキスト） ----
-  if (t.match(/あなたがアーツを使用したとき、このシグニを/) ||
-      t.match(/このシグニが場を離れたとき/) ||
+  // 🆕**§5.3 `O-60` 第65バッチ（2026-09-04）＝「あなたがアーツを使用したとき、このシグニを…」を外した。**
+  //   この4パターンは id が `GRANT_QUOTED_AUTO_ABILITY`（engine が原文を読み直す catch-all）だが
+  //   **どれも引用付与ではない**（id の名前が嘘）。live で残っていたのは1本目だけで、
+  //   実体は `WXK03-042-E1` の**空きシグニゾーンへの自己移動**＝`O-237` へ分離した（`parseSentencePart1`）。
+  //   ⚠残り3パターンは **live 0**（＝標本が無く検証できない）ので触らない・消さない。
+  if (t.match(/このシグニが場を離れたとき/) ||
       t.match(/ドローフェイズ以外であなたがカードを[１-９\d０-９]*枚引いたとき/) ||
       t.match(/対戦相手のレベル[０-９\d０-９]+以下のシグニ[１-９\d０-９]*体?がこのシグニの正面.*出たとき/))
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;

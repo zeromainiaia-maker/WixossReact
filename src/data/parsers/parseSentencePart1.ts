@@ -631,6 +631,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'self', count: 1 }, swap: true } as RearrangeSigniAction;
   }
 
+  // ---- このシグニを（あなたの）他のシグニゾーン1つに配置する（＝**空きゾーンへの自己移動**）----
+  // 🆕**§5.3 `O-60` 第65バッチ（2026-09-04）＝明示 defer（`O-237`）。**
+  // 🔴旧は catch-all `STUB{GRANT_QUOTED_AUTO_ABILITY}`（engine が効果元の原文を読み直す形＝`O-60` A群）へ
+  //   落ちていた。`WXK03-042-E1` は §6.4 `O-20` で engine の読み取りを**アビリティブロック限定**にした
+  //   カードそのもの＝ブロック内に引用が無いので `quotedText` が空になり、
+  //   「能力を付与（effectEngine処理）」の**無言 no-op** で終わっていた（id の名前が嘘をついている実例）。
+  // ⚠**受け皿が無い**＝`REARRANGE_SIGNI{swap}` は候補を「**シグニが居るゾーン**」に限るので
+  //   （`effectExecutor.execRearrangeSigni` の `candidates`）、**空きゾーンへ動かす**手段がどこにも無い。
+  //   次文「そのシグニゾーンにシグニがある場合、…場所を入れ替える」＝**占有時だけ**は既存 `REARRANGE_SIGNI`
+  //   が表せている（＝過小のまま。近似で `swap` に寄せると空きゾーンへ動けない誤りが残るので寄せない）。
+  // ⚠**トリガー節が付いたままここへ来る形もある**（`WXK03-042-E1`＝「あなたがアーツを使用したとき、
+  //   このシグニを…配置してもよい」）＝タイミング句が文から剥がれない経路があるので前置きを許す。
+  if (/^(?:[^。]*したとき[、,])?この(?:シグニ|カード)を(?:あなたの)?他のシグニゾーン[１1]つに配置して?もよい$/.test(t.trim())) {
+    return { type: 'STUB', id: 'DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE' } as StubAction;
+  }
+
   // ---- アーツ使用禁止 ----
   if (t.match(/対戦相手はアーツを使用できない/)) {
     const until = t.includes('次のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
@@ -2595,7 +2611,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // スタックの最前面シグニ（＝ホスト）宛。acceHost の兄弟で、装着経路がスタック下である点だけが違う。
     // ⚠これが無いと下の else へ落ちて owner:'any'/count:1＝「場のシグニ1体を任意選択」という別物になっていた
     //   （CONTINUOUS 側は effectEngine が count≠ALL を「効果元自身」に解決するため**自分に**バフする過剰実行）。
-    const aboveSelfM = t.match(/このカードの上にある(＜[^＞]+＞の|《[^》]+》|[白赤青緑黒]の)?(?:シグニ)?のパワーを/);
+    // 🆕**§5.3 `O-60` 第65バッチ（2026-09-04）＝主語の綴り「**これ**の上にある」を足した。**
+    //   🔴実カードは「これの上にある《棗イロハ》のパワーを＋5000する」（`WXDi-CP02-TK03A-E1`）と書く。
+    //     この綴りを見ていなかったので**下の既定 else**（`owner:'any'/count:1`）へ落ち、
+    //     CONTINUOUS では effectEngine が**効果元自身**に解決する＝**クラフト自身に＋5000**する過剰実行だった。
+    const aboveSelfM = t.match(/(?:これ|このカード)の上にある(＜[^＞]+＞の|《[^》]+》|[白赤青緑黒]の)?(?:シグニ)?のパワーを/);
     // 「これにアクセされている[＜クラス＞の|《名前》]シグニのパワーを±N」＝このカードが**アクセとして付いている**
     // ホスト宛（acceHost）。⚠`parseSentencePart2` に専用規則が3本あるが、Part1 の本ブロックが常に先に
     //   `パワーを＋N` を食うため**到達不能な死んだ規則**で、実際には下の既定 else に落ちて
