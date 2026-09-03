@@ -456,8 +456,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' }, optional: true };
 
   // ---- すべてのシグニを好きなように配置し直してもよい ----
+  // 🆕**持ち主と全体形を payload で刻む**（§5.3 `O-60` 第56バッチ・2026-09-03）＝
+  //   この文型は主語が文中にある（「**あなたの**すべてのシグニを」）ので文単位で読める。
   if (t.match(/すべてのシグニを、?好きなように配置し直してもよい/))
-    return { type: 'STUB', id: 'SIGNI_REPOSITION' } as StubAction;
+    return {
+      type: 'STUB', id: 'SIGNI_REPOSITION',
+      owner: /対戦相手の(?:すべての)?シグニ/.test(t) ? 'opponent' : 'self',
+      ...(/対戦相手の(?:すべての)?シグニ/.test(t) ? {} : { repositionAll: true }),
+    } as StubAction;
 
   // ---- 宣言されたカード名のカードが《サーバントZERO》になる ----
   if (t.match(/宣言されたカード名のカードは《サーバント.*》になる/))
@@ -1610,8 +1616,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- そのカードとエナゾーンにあるこのシグニを入れ替えてもよい ----
+  // 🆕**`DEFERRED_` へ改名した**（§5.3 `O-60` 第56バッチ・2026-09-03）＝上と同じ理由
+  //   （`WXDi-P10-047-E1` は**デッキの一番上とエナゾーンのこのシグニを入れ替える**効果で、
+  //   旧 id `SWAP_OPTIONAL` では**自分の場のシグニをゾーン移動する UI** が開いていた）。`O-229`。
   if (t.match(/そのカードとエナゾーンにあるこのシグニを入れ替えてもよい/))
-    return { type: 'STUB', id: 'SWAP_OPTIONAL' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY' } as StubAction;
 
   // ---- あなたの効果によって対戦相手が手札を捨てたとき ----
   if (t.match(/あなたの効果によって対戦相手が手札を[１-９\d０-９]*枚捨てたとき/))

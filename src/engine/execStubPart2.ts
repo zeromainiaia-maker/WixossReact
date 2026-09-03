@@ -1965,10 +1965,15 @@ export function execStubPart2(
   // CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ
   // 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。
   // （旧実装は sourceCardNum＝本体カード自身を加える誤りだった。WXK01-042/WXK09-015/WXDi-P16-009）
+  // 🆕**束の呼称／クラフト名／枚数は payload（`craftToLrigDeck`）**（§5.3 `O-60` 第56バッチ・2026-09-03）。
+  // 🔴旧実装は `sourceAbilityText(ctx)` に `/([０-９\d]+)種類/` と `/《([^》]+)》/` を当てて読み分けていた
+  //   ＝この funnel は行に `EffectText` が出ないので **`census:enginetext` から丸ごと隠れていた**
+  //   （同じ巡で計器を較正して初めて見えた16ハンドラの1つ）。
+  // ⚠**束→カード番号の対応表（`TOKEN_SETS`）は残す**＝あれはゲームデータであって原文の読み取りではない。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'CRAFT_TO_LRIG_DECK' || stub.id === 'ADD_CRAFT_TO_LRIG_DECK') {
-    // §6.4 O-20: 全文だと別能力が名指すクラフトを拾う（`WX25-P1-034-E2` は E1 の《幻怪　ヤミノザンシ》＝
-    // 本来は**場に出す**クラフトをルリグデッキへ加えていた）のでブロックだけを読む。
-    const txtCTLD2 = sourceAbilityText(ctx);
+    const specCTLD = stub.craftToLrigDeck;
+    if (!specCTLD) return done(addLog(ctx, '[CRAFT_TO_LRIG_DECK: 加えるクラフトが未指定]'));
     // 固定トークンセットから「N種類を選んでルリグデッキに加える」型（フェゾーネマジック/ダークアーツ）。
     // これらは原文に個別クラフト名を持たず「○○のクラフトからN種類を…加える(○○は5種類から)」と書かれる。
     const TOKEN_SETS: { keyword: string; nums: string[] }[] = [
@@ -1981,10 +1986,9 @@ export function execStubPart2(
       //   束の呼称は「ヤミノアーツ」）。
       { keyword: 'ヤミノアーツ',       nums: ['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5'] },
     ];
-    const setCTLD = TOKEN_SETS.find(s => txtCTLD2.includes(s.keyword));
+    const setCTLD = specCTLD.setKeyword ? TOKEN_SETS.find(s => s.keyword === specCTLD.setKeyword) : undefined;
     if (setCTLD) {
-      const pickRawCTLD = txtCTLD2.match(/([０-９\d]+)種類/);
-      const pickWantCTLD = pickRawCTLD ? (parseInt(pickRawCTLD[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) || 1) : 1;
+      const pickWantCTLD = specCTLD.pickCount ?? 1;
       const optsTS = setCTLD.nums
         .filter(num => !ctx.ownerState.lrig_deck.some(cn => getCardNum(cn) === num)) // 既にあるものは除外
         .map(num => ({
@@ -1999,10 +2003,9 @@ export function execStubPart2(
         type: 'CHOOSE', options: optsTS, count: pickTS, multiSelect: pickTS > 1,
       });
     }
-    // テキスト中の《名前》のうち、クラフト/トークンとして解決できる最初のものを採用
-    const craftNameCTLD2 = [...txtCTLD2.matchAll(/《([^》]+)》/g)]
-      .map(m => m[1])
-      .find(nm => resolveTokenBase(ctx.cardMap, nm) !== undefined);
+    // payload の《名前》がクラフト/トークンとして解決できるときだけ採用する
+    const craftNameCTLD2 = specCTLD.cardName && resolveTokenBase(ctx.cardMap, specCTLD.cardName) !== undefined
+      ? specCTLD.cardName : undefined;
     let cnCTLD: string | undefined;
     if (craftNameCTLD2) {
       // 既存インスタンス（lrig_trash→field→lrig_deck）を優先、無ければゲーム外生成

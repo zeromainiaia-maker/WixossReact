@@ -3532,14 +3532,35 @@ export function execStubPart3(
       targetScope: 'self_field', thenAction: attachAFTR as EffectAction,
     });
   }
+  // DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP / DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
+  //   **2つのゾーンの一番上を入れ替える**（**機構が無い**・§5.3 `O-229`）。
+  // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝旧 `SWAP_OPTIONAL` から分離した。**
+  // 🔴旧 id は下の「シグニの配置替え」ハンドラに落ちており、原文が**ゾーンの一番上どうしの入れ替え**
+  //   （`WX13-073`＝対戦相手のライフクロス上とデッキ上／`WXDi-P10-047`＝デッキ上とエナのこのシグニ）
+  //   なのに **自分の場のシグニをゾーン移動する UI** が開いていた＝原文と無関係な盤面操作（過剰実行）。
+  if (stub.id === 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP') {
+    return done(addLog(ctx, '[未実装] 対戦相手のライフクロスの一番上とデッキの一番上を入れ替える'));
+  }
+  if (stub.id === 'DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY') {
+    return done(addLog(ctx, '[未実装] デッキの一番上とエナゾーンにあるこのシグニを入れ替える'));
+  }
   // SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体）
   // MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）
-  if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL' || stub.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
-    // §6.4 O-20: 全文だと別能力/Burst の「対戦相手のシグニ」を拾い、**自シグニの配置替えが相手対象化**する
-    // （`WXEX2-04-E1`／`WXDi-P00-015-E1`／`WXDi-P00-068-E1`）のでブロックだけを読む。
-    const txtSR = sourceAbilityText(ctx);
-    const isOppSR = txtSR.includes('対戦相手のシグニ');
-    const isAllSR = txtSR.includes('すべてのシグニを') && !isOppSR;
+  // 🆕**持ち主は既存の汎用 payload `owner`／全体形は `repositionAll`**（§5.3 `O-60` 第56バッチ・2026-09-03）。
+  // 🔴旧実装は `sourceAbilityText(ctx)` の `includes('対戦相手のシグニ')` で持ち主を決めていた
+  //   ＝**持ち主は前の文にある**（「対戦相手のシグニ1体を対象とし、**それを**〜配置してもよい」）ので、
+  //   engine がブロック全文を読み直すしかなかった。⇒ `effectParser` の効果単位の後処理で刻む。
+  // 🔴あわせて `SWAP_OPTIONAL` をこの門から外した＝**「入れ替える」2効果が配置替えに化けていた**
+  //   （`WX13-073` は相手のライフ上とデッキ上、`WXDi-P10-047` はデッキ上とエナのこのシグニ）。
+  //   いまは `DEFERRED_SWAP_*` で機構が無いことを宣言する（`O-229`）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定（自分の場のシグニ）へ倒すと
+  //   原文が相手を指しているときに**自分の盤面を動かす**別物になる。
+  if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
+    if (stub.owner !== 'self' && stub.owner !== 'opponent') {
+      return done(addLog(ctx, '[SIGNI_REPOSITION: 対象の持ち主が未指定]'));
+    }
+    const isOppSR = stub.owner === 'opponent';
+    const isAllSR = stub.repositionAll === true && !isOppSR;
     const targetStateSR = isOppSR ? ctx.otherState : ctx.ownerState;
     const targetScopeSR: TargetScope = isOppSR ? 'opp_field' : 'self_field';
     // 全シグニ配置替え: フィールドのシグニ全体をゾーン選択で入れ替える
@@ -3579,7 +3600,10 @@ export function execStubPart3(
       const noopSR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
       const contSR: StubAction = { type: 'STUB', id: stub.id };
       return needsInteraction(addLog(ctx, '配置替えするシグニを選択'), {
-        type: 'SELECT_TARGET', candidates: candsSR, count: 1, optional: stub.id === 'SWAP_OPTIONAL',
+        // ⚠**第56バッチ前と同じ**＝旧 `optional: stub.id === 'SWAP_OPTIONAL'` は
+        //   `SIGNI_REPOSITION` / `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` では常に `false` だった
+        //   （`SWAP_OPTIONAL` はこの門から外したので、この式はもう分岐しない）。
+        type: 'SELECT_TARGET', candidates: candsSR, count: 1, optional: false,
         targetScope: targetScopeSR, thenAction: noopSR as EffectAction, continuation: contSR as EffectAction,
       });
     }

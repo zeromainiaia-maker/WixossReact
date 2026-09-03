@@ -2779,8 +2779,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- あなたのシグニを他のシグニゾーンに配置（対象指定型）----
+  // 🆕**持ち主を payload で刻む**（§5.3 `O-60` 第56バッチ・2026-09-03）＝この文型は
+  //   主語が文中にある（「**あなたの**シグニ1体を対象とし」）ので文単位で読める。
+  //   ⚠持ち主が**前の文**にある形（「対戦相手のシグニ1体を対象とし。**それを**〜配置してもよい」）は
+  //   `effectParser` の効果単位の後処理が刻む。
   if (t.match(/あなたのシグニ.*を対象とし.*他のシグニゾーン.*配置/)) {
-    return { type: 'STUB', id: 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE' } as StubAction;
+    return { type: 'STUB', id: 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE', owner: 'self' } as StubAction;
   }
 
   // ---- ライフクロスはリフレッシュでトラッシュに移動しない ----

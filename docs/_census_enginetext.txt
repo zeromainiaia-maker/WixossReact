@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
-A🔴 SELF_TEXT（効果元の全文で意味を決める）: 19行 / 19ハンドラ
+A🔴 SELF_TEXT（効果元の全文で意味を決める）: 33行 / 32ハンドラ
 B  OTHER_CARD（他カードの属性判定）      : 57行
-C  COMMENT                              : 79行
-合計 155行
+C  COMMENT                              : 83行
+合計 173行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの
@@ -10,15 +10,28 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1643 | 14 | 14 | 0 | 0 |
+| SOUL_OP | execStubPart1.ts:4151 | 24 | 24 | 13 | 6 |
+| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1430 execStubPart1.ts:1643 | 14 | 14 | 5 | 0 |
+| LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END | execStubPart1.ts:4560 | 10 | 10 | 5 | 0 |
+| TRASH_SIGNI_UNDER_FIELD_SIGNI | execStubPart1.ts:4468 | 9 | 9 | 4 | 0 |
 | BET_MECHANIC | execStubPart1.ts:1233 | 8 | 8 | 2 | 0 |
+| COLLAB | execStubPart3.ts:1199 | 6 | 5 | 3 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER | execStubPart3.ts:2599 | 4 | 4 | 3 | 0 |
 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE | execStubPart1.ts:3063 | 4 | 4 | 4 | 0 |
-| ARTS_EXTRA_COST_CONDITION | execStubPart2.ts:3385 | 1 | 1 | 0 | 0 |
+| GRANT_CHOSEN_ABILITY|GRANT_CHOSEN_ABILITY_SELF | execStubPart2.ts:4035 | 3 | 3 | 0 | 0 |
+| POWER_MOD_BY_ATTACKER_LEVEL | execStubPart2.ts:279 | 2 | 1 | 2 | 0 |
+| TRASH_ALL_SIGNI_AND_KEY | execStubPart1.ts:3388 | 2 | 2 | 2 | 0 |
+| ARTS_EXTRA_COST_CONDITION | execStubPart2.ts:3388 | 1 | 1 | 0 | 0 |
+| BET_CONDITION | execStubPart3.ts:2198 | 1 | 1 | 2 | 0 |
 | CHOOSE_N_FROM_LIST | execStubPart3.ts:3035 | 1 | 1 | 1 | 0 |
 | CONDITIONAL_ALTERNATE_EFFECT | execStubPart3.ts:2079 | 1 | 1 | 2 | 0 |
+| DRAW | execStubPart2.ts:1145 | 1 | 1 | 1 | 0 |
 | OPPONENT_PAY_OPTIONAL + ARTS_EXTRA_COST_CONDITION + OPTIONAL_TRASH_ENERGY_CLASS|OPTIONAL_ACTIVATE + OPTIONAL_COST | effectExecutor.ts:6024 | 1 | 0 | 1 | 0 |
+| POWER_MOD_BY_COLOR_VARIETY | execStubPart2.ts:258 | 1 | 1 | 1 | 0 |
+| POWER_MOD_BY_LRIG_LEVEL_SUM | execStubPart2.ts:216 | 1 | 1 | 1 | 0 |
 | CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:3142 | 0 | 0 | 8 | 0 |
+| CONDITIONAL_PER_TRASH | execStubPart2.ts:2126 | 0 | 0 | 1 | 0 |
+| CONDITIONAL_POWER_BONUS | execStubPart1.ts:1875 | 0 | 0 | 9 | 0 |
 | fn:analyzeBeatSigniCost | execUtils.ts:1423 | 0 | 0 | 2 | 0 |
 | fn:collectGrantedFromLayer | effectEngine.ts:7002 | 0 | 0 | 0 | 0 |
 | INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS | execStubPart1.ts:3324 | 0 | 0 | 1 | 0 |
@@ -32,13 +45,57 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 ## A群 明細
 
+### SOUL_OP  (live 24効果 / 24カード / miss 6)
+  execStubPart1.ts:4151  const effSOtxt = sourceAbilityText(ctx);
+    lit re:それをルリグデッキに加える
+    lit re:それらをルリグトラッシュに置く
+    lit re:ルリグトラッシュから.*アーツ.*ルリグデッキに加える
+    lit re:このカードをあなたのセンタールリグの下に置く
+    lit re:ルリグデッキ(?:の上から)?([０-９\d]+)枚をルリグトラッシュに
+    lit re:このルリグの下からカード[１1]枚をそれの【ソウル】にする
+    lit re:ルリグトラッシュからルリグ[１1]枚をそれの【ソウル】にする
+    lit re:このルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置いてもよい
+    lit re:センタールリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く
+    lit re:ルリグトラッシュから.*レベル([０-９\d]+).*ルリグ[１1]枚.*センタールリグの下に置いてもよい
+    lit str:完全に同一のルリグタイプ
+    lit re:センタールリグの下からカードを好きな枚数対象とし.*ルリグトラッシュに置く
+    lit re:他のルリグの下にあるすべてのカードをこのルリグの下に置く
+    miss: WX22-Re20, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004, WXDi-P13-003B, WXDi-P16-001B
+
 ### GRANT_ABILITY_INNER_TEXT  (live 14効果 / 14カード / miss 0)
+  execStubPart1.ts:1430  const txtGQ = sourceAbilityText(ctx);
   execStubPart1.ts:1643  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
+    lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)
+    lit re:あなたのシグニすべては|あなたの場にあるすべてのシグニ
+    lit re:あなたのシグニは【(シャドウ[^】]*)】を得る
+    lit re:【(?:自|常|起)】
+    lit re:次の(?:対戦相手|相手)の?ターン終了時まで
+
+### LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END  (live 10効果 / 10カード / miss 0)
+  execStubPart1.ts:4560  const txtL = sourceAbilityText(ctx);
+    lit re:(?:あなたの)?.*リミットを([－-])([０-９\d]+)
+    lit re:(?:あなたの)?.*リミットを([＋+]?)([０-９\d]+)(?:にする|増やす|する|し)
+    lit re:(?:あなたの)?.*リミットを＋([０-９\d]+)
+    lit re:対戦相手.*リミットを([－-])([０-９\d]+)
+    lit re:対戦相手.*リミットを＋([０-９\d]+)
+
+### TRASH_SIGNI_UNDER_FIELD_SIGNI  (live 9効果 / 9カード / miss 0)
+  execStubPart1.ts:4468  const txtT = sourceAbilityText(ctx);
+    lit re:シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く
+    lit re:レベル([０-９\d]+)以下の
+    lit re:＜([^＞]+)＞のシグニ.*の下に置く
+    lit re:あなたのトラッシュから(白|赤|青|緑|黒)の
 
 ### BET_MECHANIC  (live 8効果 / 8カード / miss 0)
   execStubPart1.ts:1233  const txtBET = srcBET ? (srcBET.EffectText ?? '') + ' ' + (srcBET.BurstText ?? '') : '';
     lit re:から([１-９\d])つ(?:まで)?(?:を)?選ぶ
     lit re:代わりに([１-９\d])つ(?:まで)?(?:を)?選ぶ
+
+### COLLAB  (live 6効果 / 5カード / miss 0)
+  execStubPart3.ts:1199  const txtCL = sourceAbilityText(ctx);
+    lit re:コラボライバー([２2])人を呼ぶ
+    lit str:コラボライバー
+    lit str:呼ぶ
 
 ### CONDITIONAL_MULTI_CHOOSE_BY_CENTER  (live 4効果 / 4カード / miss 0)
   execStubPart3.ts:2599  const txtCMCBC = srcCMCBC ? (srcCMCBC.EffectText ?? '') + ' ' + (srcCMCBC.BurstText ?? '') : '';
@@ -53,8 +110,26 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:センタールリグのレベルが([１-９\d])以上
     lit re:追加で(?:エクシード([１-９\d])|((?:《[^》]+》)+))を支払(?:ってい)?た場合
 
+### GRANT_CHOSEN_ABILITY|GRANT_CHOSEN_ABILITY_SELF  (live 3効果 / 3カード / miss 0)
+  execStubPart2.ts:4035  const txtGCA = sourceAbilityText(ctx);
+
+### POWER_MOD_BY_ATTACKER_LEVEL  (live 2効果 / 1カード / miss 0)
+  execStubPart2.ts:279  const txtPMAL = sourceAbilityText(ctx);
+    lit re:レベル([０-９\d]*)につき([－＋][０-９\d]+)
+    lit re:レベルが(奇数|偶数)の対戦相手
+
+### TRASH_ALL_SIGNI_AND_KEY  (live 2効果 / 2カード / miss 0)
+  execStubPart1.ts:3388  const txtTAK = sourceAbilityText(ctx);
+    lit re:各プレイヤー|すべてのシグニ
+    lit re:対戦相手
+
 ### ARTS_EXTRA_COST_CONDITION  (live 1効果 / 1カード / miss 0)
-  execStubPart2.ts:3385  const txtAECC = srcAECC ? (srcAECC.EffectText ?? '') : '';
+  execStubPart2.ts:3388  const txtAECC = srcAECC ? (srcAECC.EffectText ?? '') : '';
+
+### BET_CONDITION  (live 1効果 / 1カード / miss 0)
+  execStubPart3.ts:2198  const txtBET = sourceAbilityText(ctx);
+    lit re:あなたがベットしていた場合[^。]*さらに(?:カードを)?([１-９\d０-９]+)枚引く
+    lit re:([０-９\d]+)枚の代わりに([０-９\d]+)枚まで対象とし、それらを手札に加える
 
 ### CHOOSE_N_FROM_LIST  (live 1効果 / 1カード / miss 0)
   execStubPart3.ts:3035  const txtCNFL = srcCNFL ? (srcCNFL.EffectText ?? '') + ' ' + (srcCNFL.BurstText ?? '') : '';
@@ -65,9 +140,21 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:追加で手札を([１-９\d]+)枚捨てていた場合[、,]代わりに([２-９\d]+)つを?選ぶ
     lit re:あなたの場に＜([^＞]+)＞のシグニがある場合[、,]代わりに
 
+### DRAW  (live 1効果 / 1カード / miss 0)
+  execStubPart2.ts:1145  const txtDRW = sourceAbilityText(ctx);
+    lit re:カードを([０-９\d]+)枚引く
+
 ### OPPONENT_PAY_OPTIONAL + ARTS_EXTRA_COST_CONDITION + OPTIONAL_TRASH_ENERGY_CLASS|OPTIONAL_ACTIVATE + OPTIONAL_COST  (live 1効果 / 0カード / miss 0)
   effectExecutor.ts:6024  const txt5 = src5?.EffectText ?? '';
     lit re:エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ
+
+### POWER_MOD_BY_COLOR_VARIETY  (live 1効果 / 1カード / miss 0)
+  execStubPart2.ts:258  const txtPMCV = sourceAbilityText(ctx);
+    lit re:色の種類([０-９\d]*)つにつき([－＋][０-９\d]+)
+
+### POWER_MOD_BY_LRIG_LEVEL_SUM  (live 1効果 / 1カード / miss 0)
+  execStubPart2.ts:216  const txtPMLS = sourceAbilityText(ctx);
+    lit re:レベルの合計([０-９\d]*)につき([－＋][０-９\d]+)
 
 ### CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE  (live 0効果 / 0カード / miss 0)
   execStubPart3.ts:3142  const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
@@ -79,6 +166,22 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:②[^③]*デッキ[^③]*シグニ[^③]*(?:手札|探して)
     lit re:③.*デッキから.*＜([^＞]+)＞のシグニ([２-９\d]+)枚を探して
     lit re:③.*＜([^＞]+)＞のシグニ([２-９\d]+)枚
+
+### CONDITIONAL_PER_TRASH  (live 0効果 / 0カード / miss 0)
+  execStubPart2.ts:2126  const txtCPT = sourceAbilityText(ctx);
+    lit re:トラッシュに(?:カードが)?([０-９\d]+)枚以上
+
+### CONDITIONAL_POWER_BONUS  (live 0効果 / 0カード / miss 0)
+  execStubPart1.ts:1875  const txtCB = sourceAbilityText(ctx);
+    lit re:この方法で.*?([０-９\d]+)枚以上.*?場合.*?([－＋][０-９\d]+)(?:する|される)
+    lit re:あなたの場[にの](?:.*?)シグニが([０-９\d]+)体(?:以上|以上ある)(?:.*?)場合[、，](?:代わりに)?([－＋][０-９\d]+)
+    lit re:あなたのエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)
+    lit re:対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)
+    lit re:あなたの手札が([０-９\d]+)枚以上(?:の場合)?.*?([－＋][０-９\d]+)
+    lit re:あなたのトラッシュにカード名に《?([^》]+)》?を含むカードがある場合.*?([－＋][０-９\d]+)
+    lit re:トラッシュにある＜([^＞]+)＞のカード[０-９\d]*枚?につき([－＋][０-９\d]+)
+    lit re:あなたの場に(?:他の)?＜([^＞]+)＞のシグニがある場合.*?([－＋][０-９\d]+)
+    lit re:このシグニのパワーを([－＋][０-９\d]+)する
 
 ### fn:analyzeBeatSigniCost  (live 0効果 / 0カード / miss 0)
   execUtils.ts:1423  const text = sourceCard?.EffectText ?? '';
@@ -172,8 +275,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:7856 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
   effectExecutor.ts:7413 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
   execStubPart1.ts:1087 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
-  execStubPart2.ts:4169 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
-  execStubPart2.ts:4235 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+  execStubPart2.ts:4172 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
+  execStubPart2.ts:4238 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
   execStubPart3.ts:3283 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
   execUtils.ts:1182 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:1184 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;

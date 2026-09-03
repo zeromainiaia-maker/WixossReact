@@ -1,5 +1,118 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第16巡）：§5.3 `O-60` 第56バッチ — 🔴**計器の較正で16ハンドラの死角が出た**＋2 family 消化
+
+**ベースライン**＝`37f563c1b`（第55バッチの直後）。
+🔴**A🔴 SELF_TEXT 19行 → 35行（較正）→ 33行 / 32ハンドラ（消化後）**。
+**`BASELINE_SELF_TEXT` は 19 → 33 へ引き上げた。⚠これは退化ではなく「可視化」**（engine のコードは1行も増えていない）。
+**gates 全緑**（golden 3379 → **3383**＝+4本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴33**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更17・追加0・削除0、予定外0**（うち `WXDi-P14-009-E1` はキー順のみ）。
+🖥**実機＝不要と判定**（`src/screens/` は1行も触っていない・新しいアクション型／interaction 型／対話も0）。
+
+### 🔴 この巡の主産物＝計器が16ハンドラを見ていなかった
+
+`census:enginetext` は **行に `EffectText` が出る箇所しか数えていなかった**。
+ところが engine の主要な原文読みは **`sourceAbilityText(ctx)`**（→ `abilityBlockTextOf`＝`src/data/` 側）という
+**原文を引数で受け取る funnel** を通っており、**この行には `EffectText` が出ない**。
+⇒ **`src/engine/` に16箇所ある funnel 呼び出しが、計器の初版から一度も数えられていなかった。**
+
+🔑**同じ穴は既に `CLAUDE.md` に書いてあった**＝`census:costtext` の罠③
+「**原文を引数で受け取る関数**（`parseUseTimeCostReduction(effectText)` 等）を数えないと `parse*` 群が丸ごと消える」。
+**別の計器で発見済みの罠を、こちらの計器には適用していなかった。**
+
+■**較正の内容**＝走査の入口に `sourceAbilityText(ctx)` を足し、**無条件に A群（SELF_TEXT）**として数える
+（この funnel は定義上いつも「効果元自身」の原文を返すため）。
+
+■**較正で見えたもの（実測）**＝**A🔴 19行 → 35行 / 34ハンドラ**、そして
+🔴**`miss` が 0 → 3ハンドラ / 11カード**（＝**いま既定値へ落ちている**箇所が3つあった）。
+| 新たに見えた主なハンドラ | live | miss |
+|---|---|---|
+| `SOUL_OP` | 24 | **6** |
+| `CRAFT_TO_LRIG_DECK` / `ADD_CRAFT_TO_LRIG_DECK` | 9 | **3** |
+| `SIGNI_REPOSITION` / `SWAP_OPTIONAL` / `MOVE_TARGET_SIGNI_TO_OTHER_ZONE` | 7 | **2** |
+| `LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` | 10 | 0 |
+| `TRASH_SIGNI_UNDER_FIELD_SIGNI` | 9 | 0 |
+| `COLLAB` | 6 | 0 |
+
+### 何を消化したか（2 family / live 16効果）
+
+**(a)「シグニの配置替え」family（live 7）** → **既存の汎用 `owner`** ＋ 新設 `repositionAll`。
+**(b)「クラフトをルリグデッキへ」family（live 9）** → `craftToLrigDeck{setKeyword|cardName, pickCount}`。
+
+### 🔴 実害・危険な形 3件
+
+**①「入れ替える」2効果が「シグニの配置替え」に化けていた。**
+`SWAP_OPTIONAL` は配置替えハンドラ（`SIGNI_REPOSITION` と同居）に落ちていたが、原文は
+**2つのゾーンの一番上を入れ替える**別の機構だった＝
+`WX13-073-E1`「**対戦相手の**ライフクロスの一番上とデッキの一番上を見る。あなたはそれらを入れ替えてもよい」／
+`WXDi-P10-047-E1`「あなたのデッキの一番上を見る。そのカードと**エナゾーンにあるこのシグニ**を入れ替えてもよい」。
+⇒ どちらも **自分の場のシグニをゾーン移動する UI** が開いていた（原文と無関係な盤面操作）。
+いまは `DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP` / `DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY` で
+機構が無いことを宣言し、`O-229` に登録した。
+🔑**ついでに前段も直った**＝`WX13-073` の「見る」は原文が**対戦相手のデッキ**なのに
+live は `LOOK_AND_REORDER{owner:'self'}`＝**自分のデッキを覗いて**いた（held に stale で眠っていた fresh を採用）。
+
+**②配置替えの持ち主は「前の文」にある。**
+「**対戦相手の**シグニ1体を対象とし、**それを**他のシグニゾーン1つに配置してもよい」＝
+配置の文だけを読んでも持ち主が分からないので、engine がブロック全文を `includes('対戦相手のシグニ')` で
+読み直すしかなかった。⇒ **文中に主語がある形は文単位で**（`parseSentencePart2/4`）、
+**前の文にある形は効果単位の後処理で**（`effectParser` の `fillReveal`）刻み分けた。
+
+**③クラフトの束の呼称が engine の綴り一致に依存していた。**
+`TOKEN_SETS` のキーワード（`'ヤミノアーツ'`）と原文の綴りが1文字でも違うと**候補0＝無言 no-op**になる形
+（§6.4 `O-22(c)` で一度事故済み）。⇒ 束の呼称を **JSON（`craftToLrigDeck.setKeyword`）**へ移し、
+golden は「**live の綴り**」と「その payload で engine が5種を出すこと」の**両方**を assert するようにした。
+
+### 🔑 教訓
+
+**①計器は「読み出しの文字列」ではなく「読み出しの経路」で数える。**
+`EffectText` という語で grep する設計は、**funnel が1枚挟まった瞬間に盲目になる**。
+⇒ **原文を引数で受け取る関数を1本でも作ったら、計器の入口に足す**（`sourceAbilityText` は
+`src/data/` 側で `EffectText` を読むので、`src/engine/` の全走査では永久に見えない）。
+
+**②「ある計器で見つけた罠」は他の計器にも当てる。**
+まったく同じ罠が `CLAUDE.md` の `census:costtext` の項に**先に書かれていた**のに、
+`census:enginetext` には適用されていなかった。**罠の記録は計器ごとではなく横断で読む。**
+
+**③ratchet は「増えたら退化」ではない場合がある。**
+今回の 19→35 は**可視化**で、engine は1行も増えていない。
+⇒ **ベースラインを上げるときは「較正」か「退化」かを必ず1行で書く**（今回は較正）。
+
+**④miss=0 は「正しい」ではないが、miss>0 は本当に壊れている。**
+較正の前は「miss 0ハンドラ」で安心していたが、実際には **miss 3ハンドラ / 11カード**が隠れていた。
+（残るのは `SOUL_OP` の miss6 だけ＝`O-228` に登録。）
+
+### 反転確認
+
+- golden 内に payload 側の反転を同梱＝`owner` を落とすと配置替えの interaction が出ない／
+  `craftToLrigDeck` を落とすとクラフト選択が出ない（どちらも fail-closed）。
+- 相手指定（`owner:'opponent'`）で `targetScope:'opp_field'`・候補2体になることを盤面で assert。
+- 計器の入口そのものを守る golden を追加（`isAbilityFunnel` が消えたら FAIL）。
+
+### 配送
+
+12効果は `build:effects` が自動採用。`WX13-073` / `WXDi-P10-047` は `heldReview --adopt`。
+🔴**`WXDi-P00-068-E1` は外科パッチ**＝fresh 全体を採用すると live の curated な
+`targetsTriggerSource:true`（＝「そうした場合、**それ**のパワーを＋3000」の照応）が落ちるので、
+`owner:'self'` の1キーだけを live へ足した。
+
+### ⚠ 新規登録 2件
+
+- **`O-228`**＝`SOUL_OP`（live 24効果・**miss 6**・リテラル13本）＝ルリグの下／ルリグトラッシュ／
+  ルリグデッキを跨ぐ操作の catch-all。**今回の較正で初めて計器に出た最大の項目**。
+- **`O-229`**＝**2つのゾーンの一番上を入れ替える**機構（`WX13-073` / `WXDi-P10-047`・2効果）。
+
+### 触ったファイル
+
+`scripts/censusEngineText.ts`（**走査の入口に funnel を追加＝較正**／ratchet 19→33）／
+`src/types/effects.ts`（payload 2キー）／`src/engine/execStubPart2.ts`・`execStubPart3.ts`（消費側）／
+`src/data/parsers/parseSentencePart2.ts`・`parseSentencePart3.ts`・`parseSentencePart4.ts`／
+`src/data/effectParser.ts`（効果単位の後処理）／`scripts/decompileEffects.ts`（逆翻訳3分岐＋miscStubMap 2行）／
+`scripts/goldenTest.ts`（+4本＋契約1本更新）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第15巡）：§5.3 `O-60` 第55バッチ — 「引用能力の付与・使用」family 3ハンドラ
 
 **ベースライン**＝`1f6d30587`（第54バッチの直後）。**A🔴 SELF_TEXT 22行 → 19行 / 22→19ハンドラ**

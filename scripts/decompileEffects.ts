@@ -3589,13 +3589,27 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return '色を選ぶ';
       }
-      // クラフトをルリグデッキへ（CRAFT_TO_LRIG_DECK/ADD_CRAFT_TO_LRIG_DECK・engine実装済み）＝
-      // 「クラフトの《X》N枚をルリグデッキに加える」または「クラフトからN種類を…公開しルリグデッキに加える」。
-      // クラフト名/枚数はカードごとに異なるため currentCardText から抽出。
+      // シグニの配置替え（SIGNI_REPOSITION / MOVE_TARGET_SIGNI_TO_OTHER_ZONE・engine実装済み）。
+      // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝payload（`owner` / `repositionAll`）から描く。**
+      // 🔴持ち主は原文では**前の文**にあり、旧 engine はブロック全文を読んで決めていた
+      //   ＝JSON が持ち主を持っていなくても逆翻訳は原文どおりに見えた。
+      if (a.id === 'SIGNI_REPOSITION' || a.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
+        if (a.owner !== 'self' && a.owner !== 'opponent') {
+          return '[SIGNI_REPOSITION: 対象の持ち主なし（未指定・engine も何もしない）]';
+        }
+        const whoRP = a.owner === 'opponent' ? '対戦相手' : 'あなた';
+        if (a.repositionAll) return `${whoRP}のすべてのシグニを好きなように配置し直してもよい`;
+        return `${whoRP}のシグニ1体を他のシグニゾーン1つに配置する`;
+      }
+      // クラフトをルリグデッキへ（CRAFT_TO_LRIG_DECK/ADD_CRAFT_TO_LRIG_DECK・engine実装済み）。
+      // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝payload（`craftToLrigDeck`）から描く。**
+      // 🔴旧は `currentCardText` から原文を切り出しており、**JSON が名前も種類数も持っていなくても
+      //   逆翻訳シートは原文どおりに見えた**（`O-55` と同じ「計器が嘘をつく」形）。
       if (a.id === 'CRAFT_TO_LRIG_DECK' || a.id === 'ADD_CRAFT_TO_LRIG_DECK') {
-        const m = currentCardText.match(/クラフト(?:の《[^》]*》|から)[^。]*?ルリグデッキに加える/);
-        if (m) return m[0];
-        return 'クラフトをルリグデッキに加える';
+        const cr = a.craftToLrigDeck;
+        if (!cr) return '[CRAFT_TO_LRIG_DECK: 加えるクラフトなし（未指定・engine も何もしない）]';
+        if (cr.cardName) return `クラフトの《${cr.cardName}》${cr.pickCount ?? 1}枚をルリグデッキに加える`;
+        return `${cr.setKeyword ?? ''}のクラフトから${cr.pickCount ?? 1}種類を1枚ずつ公開しルリグデッキに加える`;
       }
       // サーバントZERO化（*_SERVANT_ZERO 系4id・engine実装済み）＝
       // 「（ターン終了時まで、）対戦相手の（すべての）シグニ（N体）を《サーバント ＺＥＲＯ》にする」。
@@ -4203,6 +4217,12 @@ function actionJa(a?: Action, effectType?: string): string {
           '対戦相手のエナゾーンに、この能力で宣言された色を持たず無色ではないカードが置かれる場合、代わりにトラッシュに置かれる',
         // 🆕§5.3 `O-60` 第55バッチ（2026-09-03）＝旧 `GRANT_QUOTED_ACTIVATE_ABILITY`。
         //   実測で消費地点0＝真 no-op だったので `DEFERRED_` へ改名した（機構は PLAN §5.3 の登録票）。
+        // 🆕§5.3 `O-60` 第56バッチ（2026-09-03）＝旧 `SWAP_OPTIONAL`（`O-229`）。
+        //   「配置替え」ハンドラに落ちて別の盤面操作になっていたので機構待ちとして分離した。
+        DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP:
+          '【未実装】対戦相手のライフクロスの一番上とデッキの一番上を入れ替えてもよい',
+        DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
+          '【未実装】デッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
         DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY:
           '【未実装】あなたは引用された【起】能力を得る',
         DEFERRED_TRASH_ALL_TO_DECK_OPTIONAL:

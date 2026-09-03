@@ -18342,6 +18342,19 @@ function parseActionTextInner(text: string): EffectAction {
         const n = revealCountIn(scope);
         if (n !== undefined) rec.handOrEnergyLookCount = n;
       }
+      // 🆕`SIGNI_REPOSITION` / `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`（§5.3 `O-60` 第56バッチ・2026-09-03）＝
+      //   **持ち主は「それを他のシグニゾーン1つに配置してもよい」の前の文にある**
+      //   （「**対戦相手の**シグニ1体を対象とし、**それを**〜」）ので文単位では読めない。
+      // 🔴旧 engine は `sourceAbilityText` に `includes('対戦相手のシグニ')` を当てて決めていた。
+      // ⚠**「すべてのシグニを好きなように配置し直す」は自分側だけ**＝相手側が先に立つときは全体形にしない
+      //   （engine 旧実装の `isAllSR = … && !isOppSR` と同じ優先順）。
+      if (rec.type === 'STUB'
+          && (rec.id === 'SIGNI_REPOSITION' || rec.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE')
+          && rec.owner === undefined) {
+        const isOpp = /対戦相手の(?:すべての)?シグニ/.test(scope);
+        rec.owner = isOpp ? 'opponent' : 'self';
+        if (!isOpp && /すべてのシグニを、?好きなように配置し直/.test(scope)) rec.repositionAll = true;
+      }
       if (rec.type === 'STUB' && rec.id === 'PLACE_TRAP_FROM_REVEALED' && !rec.placeTrapReveal) {
         const n = revealCountIn(scope);
         if (n !== undefined) rec.placeTrapReveal = { revealCount: n };

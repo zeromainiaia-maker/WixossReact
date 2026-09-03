@@ -67,7 +67,15 @@ const onlyIds = (() => {
 // 🆕22→19＝2026-09-03（索引 A 第15巡・§5.3 `O-60` 第55バッチ）＝**「引用能力の付与・使用」family 3ハンドラ**
 //   （`SONG_FRAGMENT`＝候補判定を `SONG_ICON` 効果へ／`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`＝parser が
 //   `GRANT_EFFECT{rawText}` を出す／`GRANT_QUOTED_ACTIVATE_ABILITY`＝真 no-op なので `DEFERRED_` へ改名）。
-const BASELINE_SELF_TEXT = 19;
+// 🆕🔴19→**35**＝2026-09-03（索引 A 第16巡・§5.3 `O-60` 第56バッチ）＝**計器の較正であって退化ではない**。
+//   走査の入口に `sourceAbilityText(ctx)` を足した（上の for ループの注記）ところ、**16ハンドラが
+//   丸ごと計器の外**にいたことが分かった（`SOUL_OP` live24/miss6・`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` live10・
+//   `TRASH_SIGNI_UNDER_FIELD_SIGNI` live9・`COLLAB` live6 ほか）。**engine のコードは1行も増えていない。**
+// 🆕35→33＝同バッチの消化＝**「クラフトをルリグデッキへ」family（`CRAFT_TO_LRIG_DECK` /
+//   `ADD_CRAFT_TO_LRIG_DECK`・live9）**と**「シグニの配置替え」family（`SIGNI_REPOSITION` /
+//   `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`・live7）**を payload 化し、
+//   `SWAP_OPTIONAL`（＝入れ替え2効果）を `DEFERRED_SWAP_*` へ分離した分。
+const BASELINE_SELF_TEXT = 33;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
@@ -81,7 +89,16 @@ const engineDir = join(root, 'src/engine');
 for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
   const lines = readFileSync(join(engineDir, f), 'utf-8').split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].includes('EffectText')) continue;
+    // 🆕🔴**`sourceAbilityText(ctx)` も数える**（§5.3 `O-60` 第56バッチ・2026-09-03＝**計器の較正**）。
+    // 🔴**この funnel は「原文を引数で受け取る関数」なので、行に `EffectText` が出ない**＝
+    //   初版から **16ハンドラが丸ごと計器の外**にいた（`CLAUDE.md` が `census:costtext` の罠③として
+    //   既に書いていた同じ穴＝「原文を引数で受け取る関数を数えないと `parse*` 群が丸ごと消える」）。
+    // 🔑`sourceAbilityText` は **効果元自身のアビリティブロック**を返す（`abilityBlockTextOf`）＝
+    //   カード全文より狭い（§6.4 `O-20` の成果）が、**engine が原文を読んで意味を決める**という
+    //   `O-60` の定義そのもの。⇒ 無条件に **A群（SELF_TEXT）** として数える。
+    // ⚠**この行が増えたぶんは「退化」ではなく「可視化」**（実挙動は1ビットも変えていない）。
+    const isAbilityFunnel = lines[i].includes('sourceAbilityText(ctx)');
+    if (!lines[i].includes('EffectText') && !isAbilityFunnel) continue;
     const trimmed = lines[i].trim();
     const isComment = /^(\/\/|\*|\/\*)/.test(trimmed);
 
@@ -121,7 +138,7 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
 
     // 読んでいるカードが「効果元自身」か（代入行の前後3行で判定）
     const win = lines.slice(Math.max(0, i - 3), i + 2).join('\n');
-    const isSelf = /sourceCardNum|sourceCard\b|srcCard\b|ctx\.sourceCard/.test(win);
+    const isSelf = isAbilityFunnel || /sourceCardNum|sourceCard\b|srcCard\b|ctx\.sourceCard/.test(win);
     const varName = lines[i].match(/const\s+(\w+)\s*=/)?.[1] ?? null;
 
     // その変数に適用している regex / includes リテラルを、ハンドラ末尾まで走査して収集

@@ -4703,6 +4703,29 @@ export interface StubAction {
    */
   handOrEnergyLookCount?: number;
   /**
+   * ── 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝計器の較正で見えた `sourceAbilityText` 組** ──
+   * 🔴この巡で `census:enginetext` に **`sourceAbilityText(ctx)` を算入**したところ、
+   *   **16ハンドラが丸ごと計器の外**にいたことが分かった（行に `EffectText` が出ない funnel なので
+   *   初版から一度も数えられていなかった）。以下はそのうち2 family。
+   * ⚠**payload が無ければ何もしない**（fail-closed）。
+   */
+  /**
+   * `CRAFT_TO_LRIG_DECK` / `ADD_CRAFT_TO_LRIG_DECK`（STUB 版）＝ルリグデッキに加えるクラフトの指定。
+   * `setKeyword`＝「〈フェゾーネマジック／ヤミノアーツ〉のクラフトから**N種類**を1枚ずつ」の束の呼称
+   * （束→カード番号の対応表は engine 側のゲームデータ）。`cardName`＝「クラフトの《X》N枚を」の名指し。
+   * 🔴旧実装は `sourceAbilityText` に `/([０-９\d]+)種類/` と `/《([^》]+)》/` を当てて両方を読み分けていた。
+   */
+  craftToLrigDeck?: { setKeyword?: string; cardName?: string; pickCount?: number };
+  /**
+   * `SIGNI_REPOSITION`＝「**すべての**シグニを好きなように配置し直してもよい」の全体形
+   * （1体だけの配置替えは `owner` だけで足りる＝既存の汎用 payload）。
+   * 🔴旧実装は `sourceAbilityText` の `includes('対戦相手のシグニ')` / `includes('すべてのシグニを')` で
+   *   **持ち主と全体かどうか**を決めていた＝**持ち主は前の文にある**（「対戦相手のシグニ１体を対象とし、
+   *   **それを**他のシグニゾーン１つに配置してもよい」）ので、文単位の parser では読めず
+   *   engine がブロック全文を読み直すしかなかった。⇒ **効果単位の後処理**で `owner` を刻む。
+   */
+  repositionAll?: boolean;
+  /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。
    *

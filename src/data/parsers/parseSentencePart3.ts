@@ -144,9 +144,20 @@ export function parseSentencePart3(t: string): EffectAction | null {
     } as StubAction;
   }
 
-  // ---- クラフト ----
+  // ---- クラフト（束から N 種類）----
+  // 🆕**束の呼称と種類数を payload で刻む**（§5.3 `O-60` 第56バッチ・2026-09-03）＝
+  //   engine が `sourceAbilityText` に `/([０-９\d]+)種類/` を当てて読み直していた分を剥がす。
   if (t.includes('クラフトから') && t.includes('ルリグデッキに加える')) {
-    return { type: 'STUB', id: 'CRAFT_TO_LRIG_DECK' } as StubAction;
+    const setM = t.match(/([^\s、。（）]+?)のクラフトから/);
+    const pickM = t.match(/([０-９\d]+)種類/);
+    const craftA: StubAction = { type: 'STUB', id: 'CRAFT_TO_LRIG_DECK' };
+    if (setM || pickM) {
+      craftA.craftToLrigDeck = {
+        ...(setM ? { setKeyword: setM[1] } : {}),
+        ...(pickM ? { pickCount: parseNum(pickM[1]) } : {}),
+      };
+    }
+    return craftA;
   }
 
   // ---- アーツ移動不可 ----
@@ -1358,8 +1369,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 特定クラフトカードをルリグデッキに加える ----
-  if (t.match(/クラフトの《[^》]+》[０-９\d]*枚?をルリグデッキに加える/)) {
-    return { type: 'STUB', id: 'ADD_CRAFT_TO_LRIG_DECK' } as StubAction;
+  // 🆕**クラフト名と枚数を payload で刻む**（§5.3 `O-60` 第56バッチ・2026-09-03）。
+  {
+    const craftNameM = t.match(/クラフトの《([^》]+)》([０-９\d]*)枚?をルリグデッキに加える/);
+    if (craftNameM) {
+      return {
+        type: 'STUB', id: 'ADD_CRAFT_TO_LRIG_DECK',
+        craftToLrigDeck: { cardName: craftNameM[1], pickCount: craftNameM[2] ? parseNum(craftNameM[2]) : 1 },
+      } as StubAction;
+    }
   }
 
   // ---- デッキ上をN枚公開する後続処理 ----
@@ -3086,8 +3104,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_deck_top', count: 1 } } as StubAction;
 
   // ---- それらを入れ替えてもよい ----
+  // 🆕**`DEFERRED_` へ改名した**（§5.3 `O-60` 第56バッチ・2026-09-03）＝**機構が無いことを宣言する**。
+  // 🔴旧 id `SWAP_OPTIONAL` は「シグニの配置替え」ハンドラ（`SIGNI_REPOSITION` と同居）に落ちており、
+  //   `WX13-073-E1`（原文＝**対戦相手のライフクロスの一番上とデッキの一番上を入れ替える**）で
+  //   **自分の場のシグニをゾーン移動する UI** が開いていた＝原文と無関係な盤面操作（過剰実行）。
+  // ■要るもの＝**2つのゾーンの一番上を入れ替える**機構（`O-229`）。
   if (t.match(/^あなたはそれらを入れ替えてもよい$/))
-    return { type: 'STUB', id: 'SWAP_OPTIONAL' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP' } as StubAction;
 
   // ---- トラッシュから手札にあるかのように使用 ----
   if (t.match(/トラッシュから.*手札にあるかのように.*(?:使用|発動)(?:する|してもよい)/) ||

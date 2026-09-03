@@ -47041,13 +47041,23 @@ test('§6.4 O-22(c): ヤミノアーツのクラフト5種がルリグデッキ�
   for (const n of ['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5']) {
     ok(cardMap.has(n), `${n} は CSV に実在する（データ欠落ではない）`);
   }
+  // 🆕**§5.3 `O-60` 第56バッチ（2026-09-03）＝束の呼称は JSON（`craftToLrigDeck.setKeyword`）が持つ。**
+  //   🔑綴り一致の危険は消えていない＝**live の綴りと engine の `TOKEN_SETS` のキーが一致すること**が要件。
+  //   ⇒ live 側の payload と、その payload で engine が5種を出すことの**両方**を assert する。
+  const live034 = (effectsMap.get('WX25-P1-034') ?? []).find(e => e.effectId === 'WX25-P1-034-E2');
+  ok(!!live034, 'WX25-P1-034-E2 が live にある');
+  eq(JSON.stringify((live034?.action as unknown as Record<string, unknown>)?.craftToLrigDeck),
+    JSON.stringify({ setKeyword: 'ヤミノアーツ', pickCount: 2 }), 'live が束の呼称と種類数を持つ');
   const base = mkCtx({}, {}, 'WX25-P1-034');
   const ctx = { ...base, sourceCardNum: 'WX25-P1-034', sourceEffectId: 'WX25-P1-034-E2' } as ExecCtx;
   ctx.ownerState = { ...ctx.ownerState, lrig_deck: [] };
-  const r = executeEffect({ effectId: 'WX25-P1-034-E2', effectType: 'ACTIVATED', action: { type: 'STUB', id: 'CRAFT_TO_LRIG_DECK' } as unknown as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  const r = executeEffect({ effectId: 'WX25-P1-034-E2', effectType: 'ACTIVATED', action: live034!.action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
   const pending = (r as { pending?: { count?: number; options?: Array<{ label?: string }> } }).pending;
   eq(pending?.options?.length, 5, '🔴5種類すべてが候補に出る（キーワード不一致だと候補0＝無言 no-op）');
   eq(pending?.count, 2, '原文「２種類を１枚ずつ」＝2つ選ぶ');
+  // 反転＝payload が無ければ何もしない（fail-closed）。旧既定はブロック全文からキーワードを探していた。
+  const bare = executeEffect({ effectId: 'WX25-P1-034-E2', effectType: 'ACTIVATED', action: { type: 'STUB', id: 'CRAFT_TO_LRIG_DECK' } as unknown as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(bare.done, 'payload なしでは interaction を出さない（fail-closed）');
 });
 
 test('§6.4 O-24: WXK06-030-E2 は「シグニ1体＋エナ1枚を対戦相手が選ぶ」（全体を流さない）', () => {
@@ -63815,6 +63825,111 @@ test('§5.3 O-60 第55: GRANT_QUOTED_ACTIVATE_ABILITY は真 no-op だったの�
   ok(ids.includes('DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY'), '機構が無いことを id で宣言している');
   // live 0 になったので、`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` も残余（fail-closed）だけになる。
   ok(!js.includes('"SIGNI_GRANT_QUOTED_CONSTANT_ABILITY"'), '引用【常】付与の catch-all も live から消えた');
+});
+
+// ── §5.3 `O-60` 第56バッチ（2026-09-03）＝計器の較正で見えた2 family ──
+// 🔴この巡で `census:enginetext` に **`sourceAbilityText(ctx)` を算入**したところ、
+//    **16ハンドラが丸ごと計器の外**にいたことが分かった（行に `EffectText` が出ない funnel）。
+test('§5.3 O-60 第56: シグニの配置替えは payload の owner で動く（旧はブロック全文の includes）', () => withSavedCursor(() => {
+  // 🔴旧＝`sourceAbilityText(ctx).includes('対戦相手のシグニ')`。**持ち主は前の文にある**
+  //   （「対戦相手のシグニ1体を対象とし、**それを**他のシグニゾーン1つに配置してもよい」）ので、
+  //   文単位の parser では読めず engine がブロック全文を読み直すしかなかった。
+  const cases: Array<[string, string, 'self' | 'opponent', boolean]> = [
+    ['WXEX2-04', 'WXEX2-04-E1', 'self', true],
+    ['WXDi-P00-015', 'WXDi-P00-015-E1', 'self', false],
+    ['WXDi-P00-068', 'WXDi-P00-068-E1', 'self', false],
+    ['WX24-P2-089', 'WX24-P2-089-E1', 'opponent', false],
+    ['WXDi-CP02-095', 'WXDi-CP02-095-E1', 'opponent', false],
+  ];
+  for (const [card, effectId, owner, all] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: Record<string, unknown> | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && (rec.id === 'SIGNI_REPOSITION' || rec.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE')) found = rec;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    ok(!!found, `${effectId}: 配置替えノードがある`); if (!found) continue;
+    eq(found.owner, owner, `${effectId}: 持ち主は原文どおり`);
+    eq(found.repositionAll === true, all, `${effectId}: 全体形かどうかも原文どおり`);
+  }
+  // 実挙動＝相手指定なら相手の場から選ばせる（旧は「対戦相手のシグニ」を拾えないと自分の場が候補になった）。
+  const oppCtx = mkCtx({ signi: [fresh(), null, null] }, { signi: [fresh(), fresh(), null] }, 'WX24-P2-089');
+  const first = executeEffect(
+    { effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+      action: { type: 'STUB', id: 'SIGNI_REPOSITION', owner: 'opponent' } as unknown as EffectAction } as CardEffect, oppCtx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'SELECT_TARGET が出る');
+  if (!first.done && first.pending.type === 'SELECT_TARGET') {
+    eq(first.pending.targetScope, 'opp_field', '候補は相手の場');
+    eq(first.pending.candidates.length, 2, '相手のシグニ2体が候補');
+  }
+  // 反転＝payload が無ければ何もしない（fail-closed）。旧既定（自分の場）は原文が相手を指すとき別物になる。
+  const bare = run({ type: 'STUB', id: 'SIGNI_REPOSITION' } as unknown as EffectAction,
+    mkCtx({ signi: [fresh(), fresh(), null] }, {}, 'WX24-P2-089'));
+  ok(bare.done, 'payload なしでは interaction を出さない（fail-closed）');
+}));
+
+test('§5.3 O-60 第56: 「入れ替える」2効果は配置替えではない（DEFERRED_ で機構待ちを宣言）', () => {
+  // 🔴旧 id `SWAP_OPTIONAL` は配置替えハンドラに落ちており、原文が**ゾーンの一番上どうしの入れ替え**
+  //   なのに **自分の場のシグニをゾーン移動する UI** が開いていた（原文と無関係な盤面操作）。
+  const js = JSON.stringify([...effectsMap.values()]);
+  ok(!js.includes('"SWAP_OPTIONAL"'), '旧 id は live から消えた');
+  const w13 = (effectsMap.get('WX13-073') ?? []).find(e => e.effectId === 'WX13-073-E1');
+  const w10 = (effectsMap.get('WXDi-P10-047') ?? []).find(e => e.effectId === 'WXDi-P10-047-E1');
+  ok(!!w13 && !!w10, '2効果が live にある'); if (!w13 || !w10) return;
+  const idsOf = (e: CardEffect) => ((e.action as SequenceAction).steps ?? []).map(s => (s as StubAction).id ?? s.type);
+  ok(idsOf(w13).includes('DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP'), 'WX13-073 は機構待ちを宣言');
+  ok(idsOf(w10).includes('DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY'), 'WXDi-P10-047 は機構待ちを宣言');
+  // 🔑`WX13-073` は原文「**対戦相手の**ライフクロスの一番上と**デッキ**の一番上を見る」＝
+  //   前段の LOOK も相手側でなければならない（旧 live は自分のデッキを見ていた）。
+  const look13 = (w13.action as SequenceAction).steps[0] as unknown as { source?: { owner?: string } };
+  eq(look13?.source?.owner, 'opponent', '前段の「見る」も対戦相手のデッキ');
+});
+
+test('§5.3 O-60 第56: クラフトをルリグデッキへ加える指定は payload（束の呼称／名前／枚数）', () => {
+  // 🔴旧＝`sourceAbilityText(ctx)` に `/([０-９\d]+)種類/` と `/《([^》]+)》/` を当てて読み分けていた。
+  const cases: Array<[string, string, string]> = [
+    ['WX25-P1-034', 'WX25-P1-034-E2', JSON.stringify({ setKeyword: 'ヤミノアーツ', pickCount: 2 })],
+    ['WXDi-P14-006', 'WXDi-P14-006-E3', JSON.stringify({ setKeyword: 'フェゾーネマジック', pickCount: 2 })],
+    ['WXDi-P16-009', 'WXDi-P16-009-E3', JSON.stringify({ cardName: 'インビンシブル・ストーリー', pickCount: 1 })],
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: unknown;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && (rec.id === 'CRAFT_TO_LRIG_DECK' || rec.id === 'ADD_CRAFT_TO_LRIG_DECK')) found = rec.craftToLrigDeck;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(JSON.stringify(found), want, `${effectId} の指定は原文どおり`);
+  }
+});
+
+test('§5.3 O-60 第56: 計器は sourceAbilityText(ctx) の読み出しも数える（16ハンドラの死角を塞いだ）', () => {
+  // 🔴`census:enginetext` は行に `EffectText` が出る箇所しか数えていなかったため、
+  //   **原文を引数で受け取る funnel**（`sourceAbilityText(ctx)` → `abilityBlockTextOf`）を通る
+  //   ハンドラが初版から一度も計器に出ていなかった（`CLAUDE.md` が `census:costtext` の罠③として
+  //   既に書いていた同じ穴）。この test は**その入口が消えないこと**を守る。
+  const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
+  ok(/const isAbilityFunnel = lines\[i\]\.includes\('sourceAbilityText\(ctx\)'\)/.test(census),
+    '走査の入口に sourceAbilityText(ctx) が入っている');
+  ok(/const isSelf = isAbilityFunnel \|\|/.test(census),
+    'funnel 経由の読み出しは無条件に A群（SELF_TEXT）として数える');
+  // engine 側に funnel の呼び出しが実在する（0 になったら計器の入口ごと消してよい合図）。
+  const engineDir = join(root, 'src/engine');
+  const calls = fs.readdirSync(engineDir).filter(n => n.endsWith('.ts')).reduce((n, f) => {
+    const src = fs.readFileSync(join(engineDir, f), 'utf8');
+    return n + (src.match(/sourceAbilityText\(ctx\)/g) ?? []).filter(() => true).length;
+  }, 0);
+  ok(calls >= 10, `engine に funnel の呼び出しが残っている（実測 ${calls} 箇所）`);
 });
 
 if (listMode) {

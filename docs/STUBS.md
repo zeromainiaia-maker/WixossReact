@@ -12,10 +12,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 584 |
-| 　└ ハンドラ実装あり | 527 |
-| 　└ フォールバック（execStub 未処理） | 57 |
+| 　└ ハンドラ実装あり | 528 |
+| 　└ フォールバック（execStub 未処理） | 56 |
 | 総 STUB ノード件数 | 3208 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 344 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 345 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -65,7 +65,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI` | 1 | 1 | WDK17-015 |  |
 | `DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED` | 1 | 1 | WX22-042 |  |
 | `DEFERRED_SELF_TRASH_TO_DECK_BOTTOM` | 1 | 1 | WX22-Re17 |  |
-| `DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP` | 1 | 1 | WXDi-P08-008 |  |
 | `DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM` | 1 | 1 | WX26-CP1-055 |  |
 | `DEFERRED_TRASH_UNDER_DISTINCT_LEVELS` | 1 | 1 | WX24-P4-046 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
@@ -391,7 +390,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SPELL_FROM_TRASH` | 1 | 1 | WXDi-P06-066 |  |
 | `USE_SPELL_FROM_TRASH_PAYING_COST` | 1 | 1 | WXDi-P13-008 | ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）── 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」（`WXDi-P13-008-E1`）。 �… |
 
-### execStubPart3.ts（237 種）
+### execStubPart3.ts（238 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -446,6 +445,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `COIN_USE_RESTRICTION` | 2 | 2 | WXDi-P15-008, WXDi-P15-009 | コイン使用先をスペルとシグニに限定（ゲーム中永続） |
 | `COPY_CARD` | 2 | 2 | WX21-034, WXDi-P07-041 | このシグニはlastProcessed[0]のカードとレベル以外同じになる（card_identity_overrides） |
 | `COPY_SIGNI` | 2 | 2 | WX17-001, WXK04-005 | 自フィールドシグニ1体をトラッシュのシグニと同じカードにする（ターン終了時まで） |
+| `DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP` | 2 | 2 | WX13-073, WXDi-P08-008 | DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP / DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:   **2つのゾーンの一番上を入れ替える**（**機構が無い**・… |
 | `DISONA_RESTRICTION` | 2 | 1 | WXDi-P12-075 | 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」 |
 | `DRAW_AT_TURN_END` | 2 | 2 | WXK01-054, WXK01-089 | このターン終了時にカードをN枚引く予約（場を離れても引く。WXK01-054/089） |
 | `GATE` | 2 | 2 | WDK09-001, WDK09-006 | ゲート効果（ログのみ） 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可） |
@@ -464,7 +464,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `RETURN_SUMMONED_RESONA_AT_TURN_END` | 2 | 2 | WX07-050, WX16-Re18 | 「ターン終了時、（その）レゾナを場からルリグデッキに戻す」の予約。 |
 | `REVEAL_OPP_HAND_CARD` | 2 | 2 | PR-459A, WXDi-P14-060 | 相手の手札のカードを1枚公開 |
 | `SELF_CRASH_TO_TRASH_AND_REFILL` | 2 | 2 | WD06-009, WX20-043 | この方法でチェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにそれをトラッシュへ置きデッキの一番上のカードをライフクロスに加える |
-| `SWAP_OPTIONAL` | 2 | 2 | WX13-073, WXDi-P10-047 | シグニを別のゾーンに移動（自or相手、1体 or 全体） 対象の自シグニを他のシグニゾーンへ移動（同処理） |
 | `TARGET_OPP_SIGNI_ONLY` | 2 | 1 | WXDi-P01-028 | 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」 |
 | `TRASH_SIGNI_TO_BEAT` | 2 | 2 | WDK14-011, WXK08-029 |  |
 | `UPKEEP_OR_NO_UP` | 2 | 2 | WXDi-P06-002, WXDi-P13-075 | 次の相手UPフェーズに条件未達でセンタールリグをアップさせない。 |
@@ -531,6 +530,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DECLARE_ZONE_FOR_CLASS_CHANGE` | 1 | 1 | WX14-032 | メインデッキ/手札/シグニゾーン/トラッシュの1つを指定 |
 | `DECLARED_ICON_HAND_DISCARD_BANISH` | 1 | 1 | WXDi-P12-055 | ═══ DECLARED_ICON_HAND_DISCARD_BANISH（§6.4 O-34(e)・`WXDi-P12-055-E1`）═══ 「対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手は … |
 | `DEFEAT` | 1 | 1 | PR-422 | 敗北処理 - ライフクロスを0にしてゲーム終了を誘発 |
+| `DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY` | 1 | 1 | WXDi-P10-047 |  |
 | `DOUBLE_POWER_MINUS_THIS_TURN` | 1 | 1 | WX04-038 | このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1） |
 | `DOWN_UP_SIGNI_AND_CHOOSE` | 1 | 1 | SPDi43-23 | アップ状態の〈条件〉シグニをN体（まで）ダウンする（コスト軽減素材） |
 | `DRIVE_SIGNI_PREVENT_DOWN` | 1 | 1 | WXK03-035 | ドライブ状態のシグニに対戦相手の効果によるダウン防止を付与 |
@@ -636,7 +636,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 344 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 345 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -976,6 +976,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SUMMON_FROM_ENERGY` | 0 | 0 |  | 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝レベル制限は payload（`summonFromEnergy.maxLevel`）で受け取る。** 🔴旧実装は `card.EffectText` に `/レベル… |
 | `SUMMON_FROM_TRASH` | 0 | 0 |  | トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用） |
 | `SUMMON_FROM_TRASH_TO_HAND_BLACK` | 0 | 0 |  |  |
+| `SWAP_OPTIONAL` | 0 | 0 |  |  |
 | `TK3_DISCARD_BY_LEVEL` | 0 | 0 |  | REVEAL_CARDS 確認後、宣言レベルのシグニを相手手札からすべて捨てさせる |
 | `TRASH_ALL_CHARMS_DRAW_CHARGE` | 0 | 0 |  | 場の全チャームをトラッシュ→同枚数ドロー+エナチャ |
 | `TRASH_ATTACHED_OR_UNDER_CARD` | 0 | 0 |  | シグニに付いているカードまたは下のカード1枚をトラッシュ |
