@@ -1,5 +1,74 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-04（第89〜93バッチ）：`O-245` 完済／`O-246` 分離／`O-226`／`O-224` — **「宣言だけ立って盤面が動かない」在庫のゼロ化**
+
+**ベースライン**＝`d13cac449`（第79〜88 の簿記直後）。
+**gates 全緑**（typecheck・golden **3440 → 3445**＝+5本・smoke 10725 全異常0・fuzz 全0・
+census 高シグナル **1 / BASELINE 1** 据置・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext A🔴 **10行** 据置・census-costtext A🔴0 据置・lint 0 errors）。
+🏁**`census:deadstate` 5件 → 0件（完済）**。
+**ブラスト半径＝効果 変更2・追加0・削除0、予定外0**。
+🖥**実機＝機械判定で必須（§2.2）**＝`src/screens/battle/costs.ts`・`src/screens/battle/growLogic.ts`・
+`src/screens/BattleScreen.tsx` を触った ⇒ **`V-146`・`V-147`・`V-148` を PLAN §5.1 へ登録（未実施）**。
+
+### 第89バッチ `O-245` 第2 — `coin_use_restriction`（コインはスペルとシグニにしか払えない）
+
+- **真因**＝制限フラグを **書く側しかいなかった**＝UI のコスト支払いが誰も読まず、
+  **アーツ・ルリグ・キー・ピースのコストにもコインを払えた**（＝制限が丸ごと無効）。
+- **修正**＝`src/screens/battle/costs.ts` に `coinPayableFor(state, kind)` を新設し、支払い可否の判定から読む。
+- **影響**＝制限を張るカードすべて（フラグを立てる効果の下流）。
+
+### 第90バッチ `O-245` 第3 — `reduce_next_on_play_cost`（次の【出】能力のコスト軽減）
+
+- **真因**＝軽減量が state に積まれるだけで読まれず、**軽減が一度も効いていなかった**。
+- **修正**＝`applyNextOnPlayCostReduction(energy, reduction)` を新設（該当色を差し引き0を落とす）。
+  **支払い確定と同じ代入の中で `reduce_next_on_play_cost: undefined` を消費する**
+  （別の `setState` に分けると1回ぶん多く効く）。
+
+### 第91バッチ `O-246` 分離 — `grid_reveal_plus_one_this_turn`（受け皿が engine に無い）
+
+- **真因**＝「このターン、あなたの効果によってデッキを公開する枚数+1」（`WX06-033-E1`）は
+  **engine 側に置換の口そのものが無い**。読み手を足す先が無い。
+- **判断**＝🔴**実装せずキーごと撤去し、`STUB{DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL}` にして
+  逆翻訳を【未実装】にした**（→ 機構項目 `O-246` として登録）。
+- **教訓**＝**受け皿の無い死んだキーは「実装する」より「撤去して defer に落とす」ほうが正しい。**
+  宣言だけ残すと `census:stubs`（消費地点はある）にも `census:enginetext`（原文を読まない）にも映らず、
+  **実装済みに見えたまま永久に no-op** になる。
+
+### 第92バッチ `O-226` 第1 — 宣言したシグニのレベル0扱い・限定条件無視
+
+- **真因**＝`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction` に読み手がおらず、
+  **宣言しても何も起きなかった**。⚠**着手前の登録メモ「宣言した名前をどこにも保存していない」は誤り**＝
+  `declared_card_name` は既にあった（登録票の推測を実測で否定してから直した）。
+- **修正**＝`growLogic.ts` に `declaredSigniOverride(state, cardName)` を新設し、
+  **手札召喚ゲート**と **`fieldSigniTopLevels`（レベル合計）** の両方から読む。
+  ⚠**名前が一致したときだけ**効かせる（フラグだけで全シグニに掛けない）。
+
+### 第93バッチ `O-224` 🏁 — 「この方法でダウンしたシグニの数以下」のしきい値が片方の文型で落ちていた
+
+- **真因**＝受け皿（`TargetFilter.levelLteLastProcessedCount`・`effectExecutor.ts:3033`）は**在った**のに、
+  parser の規則が「アップ状態の…シグニを**好きな数ダウンする**」＝`steps[0].type === 'DOWN'` しか見ていなかった。
+  `SPDi43-23-E1`「アップ状態の白のシグニを**２体まで**ダウンして**もよい**」は
+  `STUB{DOWN_UP_SIGNI_AND_CHOOSE}` なので入口から外れ、
+  **どのレベルの相手シグニでも手札に戻せる**（0体ダウンでも戻せる）過剰実行だった。
+- **母集団**＝`npm run census:population -- "レベルがこの方法で.{0,20}の数以下"` ＝**効果2件**
+  （OK 1＝`WX24-P3-048-E1`／MISS 1＝`SPDi43-23-E1`）。
+- **修正**＝`effectParser.ts` に「N体までダウンしてもよい」形の規則を1本追加（既存規則は無改変）。
+  前段の枚数は第26バッチで payload 化済み＝`INTERNAL_DOWN_SELECTED_SIGNI` が
+  **実際にダウンした枚数**を `lastProcessedCards` に残していたので、engine 側の追加は不要だった。
+- **検証**＝`npm run gates` 全緑（golden +1本＝2文型を同時に assert）。**反転確認＝規則を外すと新 golden が FAIL。**
+- **影響**＝1効果（`SPDi43-23-E1`）。
+
+### この巡の一般則
+
+- 🔴**「読み手を足す」修正は必ず `src/screens/` に落ちる**＝state を読むのは UI 層のことが多い。
+  §2.2 の機械判定で**実機が必須**になる。**engine だけで閉じると思わない。**
+- 🔴**受け皿が在るのに効かない項目は、機構ではなく「規則が見ている形」を疑う**＝
+  同じ意味の日本語に文型が2つあり、片方だけが入口だった＝**trap (h)「同じ概念に複数の正準形がある」の parser 側の顔**。
+- 🔴**索引に 🏁 を書いたまま行を残さない**＝在庫数（33）と索引の実数（34）がずれる。
+  この巡で `O-92`・`O-224`・`O-245` の3行を PLAN_DETAIL へ退避して **31** に揃えた。
+
+
 ## 2026-09-04（索引 A 第37〜42巡＋索引 B 第1〜2巡）：第79〜88バッチ — **「測り方」を道具にした巡**
 
 **ベースライン**＝`f52aec783`（第69〜78 の簿記直後）。
