@@ -4570,6 +4570,50 @@ function actionJa(a?: Action, effectType?: string): string {
         };
         return `このゲームの間、${gg.map(one).join('。')}`;
       }
+      // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03・`O-228`）＝`SOUL_OP` は payload から描く。**
+      //   🔴それまでは `[STUB:ソウル/ルリグデッキ操作]` の一言で、**engine がアビリティブロック全文の
+      //     13本のリテラルで 13通りに分岐している**ことが逆翻訳から一切見えなかった。
+      //   ⚠**payload が無い `SOUL_OP` は engine が何もしない**ので、その旨をそのまま出す。
+      if (a.id === 'SOUL_OP') {
+        const so = a.soulOp;
+        if (!so) return '【※ペイロード欠落】ルリグ下／ルリグトラッシュ操作（engine は何もしない）';
+        const nJa = so.anyCount ? '好きな枚数' : `${so.count ?? 1}枚${so.upTo ? 'まで' : ''}`;
+        const lvJa = so.levelMax !== undefined ? `レベル${so.levelMax}以下の`
+          : so.level !== undefined ? `レベル${so.level}の` : '';
+        const typeJa = so.sameLrigType ? 'あなたのセンタールリグと完全に同一のルリグタイプを持つ' : '';
+        const okuJa = so.optional ? '置いてもよい' : '置く';  // 「置く」＋「てもよい」は非文になる
+        switch (so.kind) {
+          case 'under_to_lrig_trash':
+            return so.fromAllLrigs
+              ? `あなたのルリグの下からカードを合計${nJa}ルリグトラッシュに${okuJa}`
+              : `あなたのセンタールリグの下からカード${nJa}をルリグトラッシュに${okuJa}`;
+          case 'under_to_soul':
+            return `このルリグの下からカード${nJa}を対象のシグニの【ソウル】にする`;
+          case 'lrig_trash_to_soul':
+            return `あなたのルリグトラッシュからルリグ${nJa}を対象のシグニの【ソウル】にする`;
+          case 'lrig_trash_to_under_center':
+            return `あなたのルリグトラッシュから${typeJa}${lvJa}ルリグ${nJa}を対象とし、それらをあなたのセンタールリグの下に${okuJa}`;
+          case 'self_to_lrig_deck':
+            return 'それをルリグデッキに加える';
+          case 'self_to_under_center':
+            return 'このカードをあなたのセンタールリグの下に置く';
+          case 'processed_to_lrig_trash':
+            return 'それらをルリグトラッシュに置く';
+          case 'lrig_trash_arts_to_lrig_deck':
+            return `あなたのルリグトラッシュからアーツ${nJa}をルリグデッキに加える`;
+          case 'lrig_deck_top_to_lrig_trash':
+            return `あなたのルリグデッキの上からカード${nJa}をルリグトラッシュに置く`;
+          case 'merge_other_lrig_under':
+            return 'あなたの他のルリグの下にあるすべてのカードをこのルリグの下に置く';
+        }
+      }
+      // 🆕**§5.3 `O-60` 第57バッチ＝`OPTIONAL_LRIG_UNDER_COST` の枚数・範囲も payload から描く。**
+      if (a.id === 'OPTIONAL_LRIG_UNDER_COST' && a.lrigUnderCost) {
+        const luc = a.lrigUnderCost;
+        return luc.fromAllLrigs
+          ? `あなたのルリグの下からカードを合計${luc.count}枚ルリグトラッシュに置いてもよい。そうした場合、以下を行う`
+          : `このルリグの下からカード${luc.count}枚をルリグトラッシュに置いてもよい。そうした場合、以下を行う`;
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。

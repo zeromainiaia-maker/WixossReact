@@ -1,5 +1,92 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第17巡）：§5.3 `O-60` 第57バッチ＝🏁`O-228` — `SOUL_OP`（A群最大・唯一の miss）を payload 化
+
+**ベースライン**＝`9f2d91e87`（第56バッチの直後）。**A🔴 SELF_TEXT 33行 → 32行 / 32→31ハンドラ**
+（`BASELINE_SELF_TEXT` も 32 へ払い戻し）。🔴**`miss` は 1ハンドラ / 6カード → 0**（A群全体で miss ゼロ）。
+**gates 全緑**（typecheck・golden **3383 → 3389**＝+6本・smoke 10725 全異常0・fuzz 全0・
+census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴32**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更24・追加0・削除0、予定外0**（＝`SOUL_OP` が居た24効果ちょうど）。
+🖥**実機＝機械判定では不要**（触ったのは `src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+**`src/screens/` は1行も触っていない**・新しい interaction 型は0）。ただし
+**8効果が「恒久 no-op／原文と無関係な UI」から実際の対話へ変わる**ので観測点を **`V-137`／`V-138`** に登録した（未実施）。
+
+### 何を取ったか
+
+`census:enginetext` A群の**最大項目 `SOUL_OP`（live 24効果 / 24カード・リテラル13本・miss 6）**。
+engine（`execStubPart1.ts`）は `sourceAbilityText(ctx)`＝**アビリティブロック全文**に13本のリテラルを当てて
+13通りに分岐していた。**第56バッチの計器較正で初めて見えた項目**で、**A群で唯一 miss が残っていた**。
+
+**13本のリテラルを「どこから／どこへ」の10 kind に割り、`StubAction.soulOp`（`SoulOpSpec`）へ移した**：
+`under_to_lrig_trash` / `under_to_soul` / `lrig_trash_to_soul` / `lrig_trash_to_under_center` /
+`self_to_lrig_deck` / `self_to_under_center` / `processed_to_lrig_trash` /
+`lrig_trash_arts_to_lrig_deck` / `lrig_deck_top_to_lrig_trash` / `merge_other_lrig_under`。
+枚数・「まで」・「好きな枚数」・「合計（＝アシストも含む）」・レベル条件・「完全に同一のルリグタイプ」・
+「〜してもよい」も payload の欄にした。**engine は原文を1文字も読まない**（payload が無ければ何もしない＝fail-closed）。
+
+### 🔴 見つかった実害（3つとも「緑のまま壊れていた」）
+
+**① `effectExecutor` の `SOUL_OP` コスト先取りが、当たっていた6効果すべてで恒久 no-op だった（撤去）**
+`SEQUENCE[STUB{SOUL_OP}, CONDITIONAL{IS_MY_TURN}]` を見つけると「**ソウル**を使用して発動しますか？」を出し、
+**効果元シグニの下のカード**を探していた。ところが原文はどれも
+「〈センター／この／あなたの〉**ルリグ**の下からカードN枚をルリグトラッシュに置いてもよい」で、
+しかも効果元は**ルリグ／アーツ／ピース**＝シグニゾーンに居ない。⇒ `available: hasSoul` が常に false ＝
+**支払い肢が選べず「スキップ」しか無い＝能力が一度も発動できなかった**
+（`WXDi-P04-009` / `WXDi-P06-009` / `WXDi-CP02-002` / `-003` / `-004` / `WD22-016-UG`）。
+🔑**これは §5.3 `O-77`（`LRIG_UNDER_CARD_OP` のコスト先取り撤去）とまったく同じ壊れ方**で、
+そのときの反省コメントが**すぐ下の行に書いてあった**のに、隣の分岐は残っていた。
+⇒ 正しい受け皿は**既にあった** `OPTIONAL_LRIG_UNDER_COST`（`WXDi-P05-009-E1` が manual で使用中）。
+parser の `makeSoulOpStub` が「置いて**もよい**」形をそちらへ振り分け、`lrigUnderCost{count, fromAllLrigs}` で
+枚数と範囲を渡すようにした（従来の固定値「センターの下から1枚」は既定として維持）。
+生成元が消えた `INTERNAL_CONSUME_SOUL` も撤去した。
+
+**② miss 6カードの内訳＝旧 regex が「置い**てもよい**」「**１枚**」しか読めなかった**
+- `WXDi-P13-003B` / `WXDi-P16-001B`＝「このルリグの下からカード１枚をルリグトラッシュに置**く**」（**強制**）
+  → どのリテラルにも当たらず**汎用フォールバック**（＝上記のソウル消費 UI）へ落ち、**無言 no-op**。
+- `WXDi-CP02-002/003/004`＝「**あなたの**ルリグの下からカードを**合計４枚**〜」＝
+  旧 regex は「**この**ルリグの下からカード**N枚**を〜」の形しか無く、**「合計」も「あなたの」も読めなかった**。
+- `WX22-Re20`③＝「ルリグトラッシュから**レベル２以下**のルリグを**２枚まで**〜置**く**」＝
+  旧 regex は `レベルN…ルリグ**１枚**…置い**てもよい**` の1本だけ。
+
+**③ `WD22-016-UG` は「そうした場合」の帰結が原文と別物だった（`manualEffects.ts` へ手書き）**
+原文「あなたのトラッシュからシグニを２枚まで対象とし、あなたのセンタールリグの下からカード４枚を
+ルリグトラッシュに置く。そうした場合、それらを場に出す。」に対し、parser 出力の帰結は
+`ADD_TO_FIELD{owner:'self'}`＝**source 無し**。`execAddToField` の source 無し経路は
+**デッキの一番上**を場に出すので、原文と無関係なカードが出る。
+⚠**それまで気づけなかったのは①のせいで恒久 no-op だったから**（＝コストが払えないので帰結に到達しない）。
+⇒ ①コストは `SOUL_OP{under_to_lrig_trash, count:4}` ②「そうした場合」は **`LAST_PROCESSED_COUNT_GTE:4`**
+（`IS_MY_TURN`＝常に真の**偽ゲート**を置き換え＝§5.3 `O-104` と同型）③帰結は
+`ADD_TO_FIELD{source: TRASH_CARD self 2 upTo シグニ}`。同型1枚なので**速いレーン（手書き）**。
+
+### 🔑 一般則（他の A群項目にもそのまま効く）
+
+① **catch-all を割るときは「消費側の別経路」も一緒に見る**＝この id は
+   `execStubPart1`（本体）と `effectExecutor`（コスト先取り）の**2箇所**で消費されており、
+   本体だけを payload 化しても**6効果は先取り側に吸い込まれたまま**だった。
+   🔑`census:enginetext` は本体しか映さない（先取り側は原文を読まないので A群に出ない）＝
+   **`grep -rn "<STUB id>" src/engine/` を必ず打つ。**
+② **「同じ壊れ方の前例」が隣の行にコメントで残っていることがある**（`O-77` の撤去記録）。
+   **撤去した分岐の隣は疑う。**
+③ **恒久 no-op は下流のバグを隠す**（③の `ADD_TO_FIELD` は①を直して初めて見えた）＝
+   **no-op を直したら、その効果の残りの JSON も原文と突き合わせ直す。**
+④ **受け皿は既にあった**（`OPTIONAL_LRIG_UNDER_COST`）＝**新しい id を作る前に原文の言い回しで
+   `src/` と `goldenTest.ts` を grep する**（PLAN §5.3「1〜3枚の項目の取り方」がそのまま効いた）。
+
+### 変更ファイル
+
+`src/types/effects.ts`（`SoulOpSpec` 新設＋`StubAction.soulOp` / `.lrigUnderCost`）／
+`src/data/parserUtils.ts`（`parseSoulOpSpec` / `makeSoulOpStub`）／
+`src/data/parsers/parseSentencePart2.ts`・`parseSentencePart4.ts`（`SOUL_OP` を出す5箇所を一本化）／
+`src/engine/execStubPart1.ts`（13本の regex 分岐 → payload の `switch`／`INTERNAL_CONSUME_SOUL` 撤去／
+`INTERNAL_PLACE_LRIG_UNDER_CENTER` を `SELECT_TARGET` 受けへ／`INTERNAL_CONSUME_LRIG_UNDER` に `fromAllLrigs`）／
+`src/engine/effectExecutor.ts`（`SOUL_OP` コスト先取り撤去／`OPTIONAL_LRIG_UNDER_COST` の枚数・範囲を payload 化）／
+`src/data/manualEffects.ts`（`WD22-016-UG`）／`scripts/decompileEffects.ts`（payload から逆翻訳）／
+`scripts/censusEngineText.ts`（ratchet 33→32）／`scripts/goldenTest.ts`（+6本）／
+`public/data/effects_{WX,WXDi,misc}.json`（24効果）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第16巡）：§5.3 `O-60` 第56バッチ — 🔴**計器の較正で16ハンドラの死角が出た**＋2 family 消化
 
 **ベースライン**＝`37f563c1b`（第55バッチの直後）。

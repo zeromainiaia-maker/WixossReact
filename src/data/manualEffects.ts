@@ -4348,6 +4348,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
     {"effectId":"WXDi-P05-009-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_LRIG_UNDER_COST"},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1},"shuffle":false,"position":"top"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
   ],
+  // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03・`O-228`）＝「対象を先に宣言してからコストを払う」形。**
+  //   原文「あなたのトラッシュからシグニを２枚まで対象とし、あなたのセンタールリグの下から
+  //   カード４枚をルリグトラッシュに置く。そうした場合、それらを場に出す。」
+  //   🔴parser 出力は帰結が `ADD_TO_FIELD{owner:'self'}`（**source 無し**）＝
+  //     `execAddToField` の「source 無し」経路は**デッキの一番上を場に出す**ので、原文と無関係な
+  //     カードが出る。⚠**それまで気づけなかったのは、この効果が `effectExecutor` の
+  //     `SOUL_OP` コスト先取り（同バッチで撤去）に吸い込まれ、効果元がアーツで
+  //     シグニゾーンに居ないため支払い肢が常に `available:false`＝恒久 no-op だったため。**
+  //   ⇒ ①コストは `SOUL_OP{under_to_lrig_trash,count:4}`（`lastProcessedCards` に4枚を残す）
+  //     ②「そうした場合」は `LAST_PROCESSED_COUNT_GTE:4`（`IS_MY_TURN`＝常に真の偽ゲートを置き換え）
+  //     ③帰結はトラッシュのシグニ2枚まで（宣言は原文どおり「２枚**まで**」）。
+  //   ⚠**宣言と支払いの順序は原文と逆**（払ってから選ぶ）＝解決中に割り込みが無いので最終盤面は一致する
+  //     （`OPTIONAL_LRIG_UNDER_COST` と同じ割り切り）。
+  "WD22-016-UG": [
+    {"effectId":"WD22-016-UG-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SOUL_OP","soulOp":{"kind":"under_to_lrig_trash","count":4}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
   "WX24-P1-050": [
     {"effectId":"WX24-P1-050-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],

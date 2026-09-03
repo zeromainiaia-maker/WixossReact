@@ -15,7 +15,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 　└ ハンドラ実装あり | 528 |
 | 　└ フォールバック（execStub 未処理） | 56 |
 | 総 STUB ノード件数 | 3208 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 345 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 344 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -31,6 +31,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 |---|---:|---:|---|---|
 | `OPTIONAL_ACTIVATE` | 25 | 25 | WD10-001, SPDi43-21, WX02-003 |  |
 | `OPTIONAL_TRASH_SELF` | 17 | 17 | PR-319, WX06-CB01, WX06-CB03 |  |
+| `OPTIONAL_LRIG_UNDER_COST` | 6 | 6 | WXDi-P04-009, WXDi-P05-009, WXDi-P06-009 |  |
 | `GRANT_ALL_ZONE_LIFEBURST` | 5 | 5 | WD14-001, WX02-002, WX17-036 |  |
 | `PREVENT_POWER_MODIFY_BY_OPP` | 5 | 5 | WX05-024, WX12-033, WX20-023 |  |
 | `BATTLE_BANISH_PREVENT_LOSE_ABILITY` | 4 | 4 | WX13-031, WX15-010, WX16-001 |  |
@@ -78,7 +79,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `MAYU_ENCOUNTER_FLIP_AND_GROW` | 1 | 1 | WXDi-P13-003A |  |
 | `OPP_ENERGY_COLOR_CONDITION_TRASH` | 1 | 1 | WXK09-037 |  |
 | `OPP_TURN_ARTS_COST_REDUCTION_ONCE` | 1 | 1 | WXK03-071 |  |
-| `OPTIONAL_LRIG_UNDER_COST` | 1 | 1 | WXDi-P05-009 |  |
 | `POWER_CAP` | 1 | 1 | WX22-022 |  |
 | `REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY` | 1 | 1 | WX24-P3-009 |  |
 | `STRIP_OPP_ENA_MULTI_ENA` | 1 | 1 | WXK11-020 |  |
@@ -103,10 +103,10 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 38 | 38 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `DECLARE_NUMBER` | 31 | 30 | WD06-008, WD13-008, WDK09-011 |  |
 | `RULE_REMINDER_TEXT` | 30 | 30 | SP26-003, PR-469, SPDi47-05 | ゲームプレイに影響しない説明テキストは無音でスキップ |
-| `SOUL_OP` | 24 | 24 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | 登録者数を N 万人得る |
 | `GAIN_ABILITY_THIS_GAME` | 19 | 18 | WX08-015, WX10-011, WX24-P4-036 | このゲームの間、グロウ不可・キーワード付与・特定カード名の使用禁止などの常在効果を得る |
 | `LOOK_OPP_LIFE_TOP` | 19 | 18 | WD06-006, WD06-018, WDK09-017 | 指定されたゾーンの上から N 枚を見る（公開する）。 |
+| `SOUL_OP` | 19 | 19 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 🆕🔴**§5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`。原文 regex を全部撤去して payload で分岐する。**   旧実装は `sourceAbilityText(c… |
 | `DECLARE_CARD_NAME` | 18 | 16 | PR-257, WX10-068, WX11-037 | カード名宣言（手札のカード名から選択） |
 | `COPY_LRIG_NAME_ABILITY` | 16 | 16 | WX24-P4-011, WX24-P4-012, WX24-P4-013 | ルリグトラッシュのルリグ名を現在のルリグに追加する（能力コピーは |
 | `GRANT_QUOTED_ABILITY` | 16 | 15 | WX22-Re04, WX24-P1-042, WXDi-D04-011 | 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects） |
@@ -636,7 +636,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 345 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 344 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -721,8 +721,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_CMCLG_PLAY_CLASS_FROM_TRASH` | 0 | 0 |  | トラッシュから＜CLASS＞のシグニをN枚まで場に出す |
 | `INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS` | 0 | 0 |  | ＜毒牙＞シグニのレベル合計×-1000で対象シグニのパワーを修正 |
 | `INTERNAL_CMCLG_TRASH_TO_DECK_LIFE` | 0 | 0 |  | 自トラッシュ全→デッキにシャッフル+デッキ上→ライフ |
-| `INTERNAL_CONSUME_LRIG_UNDER` | 0 | 0 |  | ルリグの下からN枚をルリグトラッシュへ（SOUL_OP optional消費の実行部） |
-| `INTERNAL_CONSUME_SOUL` | 0 | 0 |  | ソースシグニの下にあるソウルカードをルリグトラッシュへ |
+| `INTERNAL_CONSUME_LRIG_UNDER` | 0 | 0 |  | ルリグの下からN枚をルリグトラッシュへ（OPTIONAL_LRIG_UNDER_COST の実行部） |
 | `INTERNAL_COPY_SIGNI_APPLY` | 0 | 0 |  | card_identity_overrides を設定してコピーを適用 |
 | `INTERNAL_DBPM_DISCARD` | 0 | 0 |  |  |
 | `INTERNAL_DC_DECK_PICK` | 0 | 0 |  | WX24-P1-035用 |

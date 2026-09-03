@@ -36,6 +36,30 @@
 
 ### 恒久指標（退避）
 
+- **2026-09-03（`O-60` 第56バッチ・索引 A 第16巡）＝🔴計器の較正（16ハンドラの死角）＋2 family 消化（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 3**（据置）
+  🔴**この項目の計器 `census:enginetext` の A群**＝**19行 → 35行（較正）→ 33行 / 32ハンドラ（消化後）**。
+  **`BASELINE_SELF_TEXT` は 19 → 33。⚠退化ではなく「可視化」**（engine のコードは1行も増えていない）。
+  **`miss` は 0 → 3ハンドラ / 11カード → 1ハンドラ / 6カード**（残るのは `SOUL_OP` だけ＝`O-228`）。
+  📦**在庫2本**＝**機構 worklist 28項目**（🆕`O-228`／`O-229` を2件登録＝26→28）｜**実機 残 6件**（据置）
+  🔧**ゲート（全緑 ✅）**＝golden **3383 / 3383**（3379→3383＝ラチェット1本＋実挙動3本／既存の契約 golden 1本を更新）／
+  smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **33行**（`BASELINE_SELF_TEXT` も 33）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝不要と判定（§2.2）**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
+  🔴**主産物＝計器が16ハンドラを見ていなかった**＝`census:enginetext` は行に `EffectText` が出る箇所しか
+  数えず、engine の主要な原文読み **`sourceAbilityText(ctx)`**（原文を引数で受け取る funnel）が
+  **初版から一度も数えられていなかった**。同じ罠は `CLAUDE.md` の `census:costtext` の項に**先に書いてあった**。
+  🔴**実害3件**＝①「入れ替える」2効果（`WX13-073` / `WXDi-P10-047`）が**シグニの配置替え**に化けていた
+  （旧 `SWAP_OPTIONAL`。ついでに `WX13-073` は原文が対戦相手のデッキなのに自分のデッキを見ていた）
+  ②配置替えの**持ち主は前の文**にあり engine がブロック全文を `includes` していた
+  ③クラフトの束の呼称が engine の綴り一致に依存していた（§6.4 `O-22(c)` の再発リスク）。
+  🔑**一般則**＝①**計器は「読み出しの文字列」ではなく「読み出しの経路」で数える**
+  ②**ある計器で見つけた罠は他の計器にも当てる** ③**ratchet を上げるときは「較正」か「退化」かを1行書く**
+  ④**miss=0 は「正しい」ではないが、miss>0 は本当に壊れている**。
+  ✅**ブラスト半径＝効果 変更17・追加0・削除0、予定外0**（うち1件はキー順のみ）。
+
 - **2026-09-03（`O-60` 第55バッチ・索引 A 第15巡）＝「引用能力の付与・使用」family 3ハンドラ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
@@ -1086,9 +1110,9 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🔴🆕**A🔴 33行 / 32ハンドラ・miss 1ハンドラ / 6カード（2026-09-03 第56バッチ後・計器の較正あり）**。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🔴🆕**A🔴 32行 / 31ハンドラ・miss 0（2026-09-03 第57バッチ後）**。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
-**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第56バッチ後）**＝**A🔴 SELF_TEXT 33行／32ハンドラ**（B 57／C 83）・**miss 1ハンドラ / 6カード**（`SOUL_OP` だけ＝`O-228`）。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は可視化、35→33 が今回の消化**）。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 32ハンドラ**が今も原文（カード全文またはアビリティブロック）を読んでいる。■**残りの取る順（2026-09-03 第56バッチ後・較正済みの実測）**＝(1)🔴**`O-228`＝`SOUL_OP`（live24・miss6・リテラル13本）**＝**唯一 miss が残っている**＝いま既定値へ落ちているカードが6枚ある。**ここから取る。**(2)較正で見えた miss0 の大物＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`(live10)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(live9)／`COLLAB`(live6)／`GRANT_CHOSEN_ABILITY` 族(live3)。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
+**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第57バッチ後）**＝**A🔴 SELF_TEXT 32行／31ハンドラ**（B 57／C 84）・🔴**miss 0**（🏁`O-228`＝`SOUL_OP` を payload 化して A群から miss が消えた）。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は第56バッチの可視化、35→33→32 が第56・第57の消化**）。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 31ハンドラ**が今も原文（カード全文またはアビリティブロック）を読んでいる。■**残りの取る順（2026-09-03 第57バッチ後の実測）**＝(1)**live効果数の大物**＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`(live10・リテラル5本)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(live9・4本)／`COLLAB`(live6・3本)。(2)`GRANT_CHOSEN_ABILITY` 族(live3)。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
 🆕🔑**取る単位は「1ハンドラ」ではなく「家族」**＝第50バッチはパワー修正15ハンドラを1バッチで取り、**A群を17行減らした**（第49バッチは1行）。**同じ受け皿へ寄せられるものを束ねると、探索・配送・ゲート・簿記の固定費が1回で済む。**⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
 
 ■✅**消化済み 56バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
@@ -1130,7 +1154,43 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 ＋「シグニの配置替え」family（`SIGNI_REPOSITION` / `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`・live7）と
 「クラフトをルリグデッキへ」family（`CRAFT_TO_LRIG_DECK` / `ADD_CRAFT_TO_LRIG_DECK`・live9）の消化。
 `SWAP_OPTIONAL`（入れ替え2効果）は `DEFERRED_SWAP_*` へ分離＝`O-229`**。
+🆕**第57（2026-09-03・索引 A 第17巡）＝🏁`O-228`＝`SOUL_OP`**（live24 / 24カード・**リテラル13本の A群最大 catch-all**・
+**唯一の miss 6カード**）を `SoulOpSpec` の10 kind へ分解。併せて `effectExecutor` の
+`SOUL_OP` コスト先取りを撤去（＝6効果の恒久 no-op を解消）し、`OPTIONAL_LRIG_UNDER_COST` に
+`lrigUnderCost{count, fromAllLrigs}` を足した。`WD22-016-UG` は `manualEffects.ts` で手書き。
 全文は BUGFIXES.md 2026-09-03。
+
+■🆕🔴🔑**第57バッチの教訓（2026-09-03・索引 A 第17巡・🏁`O-228`）＝catch-all の消費側は1箇所とは限らない**
+🔴**①この巡の主産物は「緑のまま恒久 no-op だった6効果」だった。**
+`SOUL_OP` は engine の**2箇所**で消費されていた＝①`execStubPart1.ts` の本体（原文13リテラル）と
+②`effectExecutor.ts` の**任意コスト先取り**（`SEQUENCE[STUB, CONDITIONAL{IS_MY_TURN}]` を見つけると
+「**ソウル**を使用して発動しますか？」を出す）。**②は原文を読まないので `census:enginetext` A群に映らない。**
+ところが原文はどれも「〈センター／この／あなたの〉**ルリグ**の下からカードN枚をルリグトラッシュに置いて
+もよい」で、効果元は**ルリグ／アーツ／ピース**＝シグニゾーンに居ない ⇒ `available: hasSoul` が常に false ＝
+**支払い肢が選べず能力が一度も発動できなかった**
+（`WXDi-P04-009` / `WXDi-P06-009` / `WXDi-CP02-002` / `-003` / `-004` / `WD22-016-UG`）。
+🔑**これは §5.3 `O-77`（`LRIG_UNDER_CARD_OP` の先取り撤去）とまったく同じ壊れ方**で、
+**その反省コメントが撤去した SOUL_OP 分岐のすぐ下の行に書いてあった**。
+⇒ **catch-all を割るときは `grep -rn "<STUB id>" src/engine/` を必ず打つ。撤去した分岐の隣は疑う。**
+
+🔑**②受け皿は既にあった**＝`OPTIONAL_LRIG_UNDER_COST`（`WXDi-P05-009-E1` が manual で使用中）。
+新しい id は作らず、**`lrigUnderCost{count, fromAllLrigs}` の payload を足しただけ**で
+「合計4枚（センター＋アシスト）」まで表せた。**PLAN §5.3「1〜3枚の項目の取り方」＝まず受け皿を疑う、がそのまま効いた。**
+
+🔴**③恒久 no-op は下流のバグを隠す。**
+`WD22-016-UG` の「そうした場合」の帰結は `ADD_TO_FIELD{owner:'self'}`＝**source 無し**で、
+`execAddToField` の source 無し経路は**デッキの一番上**を場に出す（原文は「トラッシュのシグニ2枚まで」）。
+**コストが払えないので帰結に到達せず、今まで一度も見えていなかった。**
+⇒ `manualEffects.ts` へ手書き（「そうした場合」は `LAST_PROCESSED_COUNT_GTE:4`＝`IS_MY_TURN` の
+**偽ゲート**を置き換え＝`O-104` と同型）。**no-op を直したら、その効果の残りの JSON も原文と突き合わせ直す。**
+
+🔑**④miss 6カードの内訳は「読めなかった3文型」**＝
+「置**く**」（強制。旧 regex は「置い**てもよい**」だけ）／「**あなたの**ルリグの下からカードを**合計**N枚」
+（旧は「**この**ルリグの下からカードN枚**を**」だけ）／「レベルN**以下**のルリグを**N枚まで**」
+（旧は「レベルN…ルリグ**１枚**…置い**てもよい**」の1本だけ）。
+⇒ **13本のリテラルを「どこから／どこへ」の10 kind に割り、枚数・上限・任意・範囲・レベル条件は
+payload の欄にした**（`SoulOpSpec`）。engine は原文を1文字も読まず、**payload が無ければ何もしない**（fail-closed）。
+全文は BUGFIXES.md 2026-09-03（索引 A 第17巡）。
 
 ■🆕🔴🔑**第56バッチの教訓（2026-09-03・索引 A 第16巡）＝計器が16ハンドラを見ていなかった**
 🔴**①この巡の主産物は「計器の死角」だった。**

@@ -63932,6 +63932,189 @@ test('§5.3 O-60 第56: 計器は sourceAbilityText(ctx) の読み出しも数�
   ok(calls >= 10, `engine に funnel の呼び出しが残っている（実測 ${calls} 箇所）`);
 });
 
+// ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
+// 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
+//    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
+//    engine は `sourceAbilityText(ctx)`（アビリティブロック全文）に**13本のリテラル**を当てて
+//    13通りに分岐しており、当たらない6枚は「効果元シグニの下のソウルを消費しますか？」という
+//    **原文と無関係な UI**（効果元がルリグ／アーツ／ピースなら支払い肢が常に選べず＝恒久 no-op）へ落ちていた。
+test('§5.3 O-60 第57: SOUL_OP は payload で分岐する（live に裸の SOUL_OP は無い）', () => {
+  const want: Array<[string, string, string]> = [
+    // カード / effectId / 期待 payload（JSON）
+    ['SPDi43-03', 'SPDi43-03-E1', JSON.stringify({ kind: 'under_to_soul', count: 1 })],
+    ['WXDi-P04-024', 'WXDi-P04-024-E2', JSON.stringify({ kind: 'lrig_trash_to_soul', count: 1 })],
+    ['SPK06-05', 'SPK06-05-E1', JSON.stringify({ kind: 'under_to_lrig_trash', count: 4 })],
+    ['WX12-Re22', 'WX12-Re22-E1', JSON.stringify({ kind: 'under_to_lrig_trash', anyCount: true })],
+    // 🔴miss だった2枚＝「置**く**」（強制）は旧 regex が「置い**てもよい**」しか読めず落ちていた。
+    ['WXDi-P13-003B', 'WXDi-P13-003B-E1', JSON.stringify({ kind: 'under_to_lrig_trash', count: 1 })],
+    ['WXDi-P16-001B', 'WXDi-P16-001B-E1', JSON.stringify({ kind: 'under_to_lrig_trash', count: 1 })],
+    // 🔴miss だった1枚＝「レベル２以下のルリグを**２枚まで**…置**く**」。
+    ['WX22-Re20', 'WX22-Re20-E1', JSON.stringify({ kind: 'lrig_trash_to_under_center', count: 2, upTo: true, levelMax: 2 })],
+    ['WX13-033', 'WX13-033-E1', JSON.stringify({ kind: 'lrig_trash_to_under_center', count: 1, level: 0, sameLrigType: true, optional: true })],
+    ['WD21-006', 'WD21-006-E1', JSON.stringify({ kind: 'self_to_under_center' })],
+    ['WXDi-D05-004', 'WXDi-D05-004-E3', JSON.stringify({ kind: 'merge_other_lrig_under' })],
+  ];
+  for (const [card, effectId, payload] of want) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: unknown;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === 'SOUL_OP') found = rec.soulOp;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(JSON.stringify(found), payload, `${effectId} の payload は原文どおり`);
+  }
+  // 🔴**裸の `SOUL_OP` が1つでも残ると engine は何もしない**（fail-closed）＝live 全体で0であること。
+  let bare = 0;
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const visit = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) { n.forEach(visit); return; }
+        const rec = n as Record<string, unknown>;
+        if (rec.type === 'STUB' && rec.id === 'SOUL_OP' && !rec.soulOp) bare++;
+        Object.values(rec).forEach(visit);
+      };
+      visit(e.action);
+    }
+  }
+  eq(bare, 0, 'payload が無い SOUL_OP は live に無い');
+});
+
+test('§5.3 O-60 第57: ルリグの下→ルリグトラッシュは payload の枚数で動く（payload 無しは何もしない）', () => withSavedCursor(() => {
+  const under1 = fresh(), under2 = fresh(), top = fresh();
+  const ctx = mkCtx({ lrig: [under1, under2, top] }, {});
+  const r = run({ type: 'STUB', id: 'SOUL_OP', soulOp: { kind: 'under_to_lrig_trash', count: 1 } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig.length, 2, 'ルリグの下が1枚減る');
+  eq(r.ownerState.field.lrig.at(-1), top, 'トップ（現ルリグ）は残る');
+  eq(r.ownerState.lrig_trash.length, 1, 'ルリグトラッシュへ1枚');
+  // 🔑「N枚」（「まで」が無い）は足りなければ払えない＝「そうした場合」の前提を満たさない。
+  const short = run({ type: 'STUB', id: 'SOUL_OP', soulOp: { kind: 'under_to_lrig_trash', count: 4 } } as unknown as EffectAction,
+    mkCtx({ lrig: [under1, top] }, {}));
+  eq(short.ownerState.lrig_trash.length, 0, '4枚必要なのに2枚しか無ければ1枚も置かない');
+  eq(short.ownerState.field.lrig.length, 2, '盤面は動かない');
+  // 反転＝payload なしは何もしない（旧＝効果元シグニの下のソウルを消費する UI が開いていた）。
+  const bare = run({ type: 'STUB', id: 'SOUL_OP' } as unknown as EffectAction, mkCtx({ lrig: [under1, under2, top] }, {}));
+  eq(bare.ownerState.field.lrig.length, 3, 'payload なしでは盤面が動かない（fail-closed）');
+  ok(bare.done, 'payload なしでは interaction も出さない');
+}));
+
+test('§5.3 O-60 第57: 「あなたのルリグの下から合計N枚」はアシストの下も数える', () => withSavedCursor(() => {
+  // 原文（`WXDi-CP02-002/003/004`）＝「その後、あなたのルリグの下からカードを**合計４枚**
+  // ルリグトラッシュに置いて**もよい**。そうした場合、好きな生徒１人との絆を獲得する。」
+  const c = () => fresh();
+  const [cu1, cu2, ctop, lu1, ltop, ru1, rtop] = [c(), c(), c(), c(), c(), c(), c()];
+  const seq = {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'STUB', id: 'OPTIONAL_LRIG_UNDER_COST', lrigUnderCost: { count: 4, fromAllLrigs: true } },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+    ],
+  } as unknown as EffectAction;
+  // センター2枚＋左1枚＋右1枚＝合計4枚 → 支払える（autopilot は available な pay を選ぶ）
+  const okCtx = mkCtx({ lrig: [cu1, cu2, ctop], assistL: [lu1, ltop], assistR: [ru1, rtop], hand: 3 }, {});
+  const paid = run(seq, okCtx);
+  eq(paid.ownerState.lrig_trash.length, 4, 'センターとアシストの下を合わせて4枚払う');
+  eq(paid.ownerState.field.lrig.length, 1, 'センターはトップだけ残る');
+  eq(paid.ownerState.field.assist_lrig_l?.length, 1, '左アシストもトップだけ残る');
+  eq(paid.ownerState.field.assist_lrig_r?.length, 1, '右アシストもトップだけ残る');
+  eq(paid.ownerState.hand.length, 4, '支払えたので帰結（ドロー）が起きる');
+  // 🔴反転＝合計3枚しか無ければ支払い肢は選べない＝帰結も起きない
+  const shortCtx = mkCtx({ lrig: [cu1, cu2, ctop], assistL: [lu1, ltop], assistR: [rtop], hand: 3 }, {});
+  const skipped = run(seq, shortCtx);
+  eq(skipped.ownerState.lrig_trash.length, 0, '足りないので1枚も払わない');
+  eq(skipped.ownerState.hand.length, 3, '払えないので帰結も起きない');
+  // 🔴反転＝`fromAllLrigs` が無ければセンターだけを見る（合計4枚あっても払えない）
+  const centerOnly = {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'STUB', id: 'OPTIONAL_LRIG_UNDER_COST', lrigUnderCost: { count: 4 } },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+    ],
+  } as unknown as EffectAction;
+  const centerRes = run(centerOnly, mkCtx({ lrig: [cu1, cu2, ctop], assistL: [lu1, ltop], assistR: [ru1, rtop], hand: 3 }, {}));
+  eq(centerRes.ownerState.lrig_trash.length, 0, 'センターの下は2枚なので払えない');
+}));
+
+test('§5.3 O-60 第57: ルリグトラッシュ→センター下はレベル条件と枚数を payload で読む', () => withSavedCursor(() => {
+  // 原文（`WX22-Re20`③）＝「あなたのルリグトラッシュから**レベル２以下**のルリグを**２枚まで**
+  // 対象とし、それらをあなたのセンタールリグの下に置く。」
+  const lrigsByLevel = (lv: number) => [...cardMap.entries()]
+    .filter(([, c]) => (c.Type === 'ルリグ' || c.Type === 'アシストルリグ') && c.Level === String(lv))
+    .map(([n]) => n);
+  const lo = lrigsByLevel(1).slice(0, 2);
+  const hi = lrigsByLevel(4).slice(0, 2);
+  ok(lo.length === 2 && hi.length === 2, 'レベル1・レベル4のルリグが標本として取れる');
+  if (lo.length < 2 || hi.length < 2) return;
+  const top = fresh();
+  const ctx = mkCtx({ lrig: [top] }, {});
+  ctx.ownerState.lrig_trash = [...lo, ...hi];
+  const r = run({ type: 'STUB', id: 'SOUL_OP',
+    soulOp: { kind: 'lrig_trash_to_under_center', count: 2, upTo: true, levelMax: 2 } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig.length, 3, 'センターの下に2枚入る');
+  eq(r.ownerState.field.lrig.at(-1), top, 'トップは現ルリグのまま');
+  ok(lo.every(n => r.ownerState.field.lrig.includes(n)), '置かれたのはレベル2以下の2枚');
+  ok(hi.every(n => r.ownerState.lrig_trash.includes(n)), 'レベル4はルリグトラッシュに残る');
+  // 🔴反転＝条件を満たすルリグが無ければ何も動かない（旧は既定値へ落ちて別の UI が開いた）
+  const noneCtx = mkCtx({ lrig: [top] }, {});
+  noneCtx.ownerState.lrig_trash = [...hi];
+  const none = run({ type: 'STUB', id: 'SOUL_OP',
+    soulOp: { kind: 'lrig_trash_to_under_center', count: 2, upTo: true, levelMax: 2 } } as unknown as EffectAction, noneCtx);
+  eq(none.ownerState.field.lrig.length, 1, '候補ゼロなら盤面は動かない');
+}));
+
+test('§5.3 O-60 第57: SOUL_OP のコスト先取り（ソウル消費）は撤去した', () => withSavedCursor(() => {
+  // 🔴旧＝`SEQUENCE[STUB{SOUL_OP}, CONDITIONAL{IS_MY_TURN}]` を見つけると
+  //   「ソウルを使用して発動しますか？」を出し、**効果元シグニの下のカード**を探していた。
+  //   効果元がルリグ／アーツ／ピースの6効果は `available:false` ＝**恒久 no-op** だった。
+  const engine = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
+  ok(!/if \(stub\.id === 'SOUL_OP'\)/.test(engine), 'effectExecutor に SOUL_OP のコスト先取りは無い');
+  ok(!/INTERNAL_CONSUME_SOUL'/.test(fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8')),
+    '生成元の無くなった INTERNAL_CONSUME_SOUL も撤去した');
+  // 実挙動＝`WXDi-P04-009-E1`（効果元は**ルリグ**）は「ルリグ下1枚」を払って相手の手札を捨てさせる。
+  const eff = (effectsMap.get('WXDi-P04-009') ?? []).find(e => e.effectId === 'WXDi-P04-009-E1');
+  ok(!!eff, 'WXDi-P04-009-E1 が live にある'); if (!eff) return;
+  const under = fresh(), top = fresh();
+  const ctx = mkCtx({ lrig: [under, top] }, { hand: 4 });
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq(r.ownerState.lrig_trash.length, 1, 'ルリグの下から1枚を払った');
+  eq(r.otherState.hand.length, 3, '払えたので相手の手札が1枚減る');
+  // 🔴反転＝ルリグの下が空なら払えず、帰結も起きない（旧は「ソウルが無い」という別理由で常にここだった）
+  const empty = mkCtx({ lrig: [top] }, { hand: 4 });
+  const r2 = finish(executeEffect(eff, empty), empty);
+  eq(r2.otherState.hand.length, 4, 'ルリグの下が空なら相手の手札は減らない');
+}));
+
+test('§5.3 O-60 第57: WD22-016-UG は「そうした場合」がトラッシュのシグニを場に出す（デッキ上ではない）', () => withSavedCursor(() => {
+  // 原文＝「あなたのトラッシュからシグニを２枚まで対象とし、あなたのセンタールリグの下から
+  // カード４枚をルリグトラッシュに置く。そうした場合、それらを場に出す。」
+  // 🔴parser 出力の帰結は `ADD_TO_FIELD{owner:'self'}`（**source 無し**）＝
+  //   `execAddToField` の source 無し経路は**デッキの一番上**を場に出す＝原文と無関係なカードが出る。
+  const eff = (effectsMap.get('WD22-016-UG') ?? []).find(e => e.effectId === 'WD22-016-UG-E1');
+  ok(!!eff, 'WD22-016-UG-E1 が live にある'); if (!eff) return;
+  const steps = (eff.action as SequenceAction).steps;
+  const gate = steps[1] as unknown as { condition?: { type?: string; value?: number }; then?: { source?: { type?: string } } };
+  eq(gate.condition?.type, 'LAST_PROCESSED_COUNT_GTE', '「そうした場合」は偽ゲート（IS_MY_TURN）ではない');
+  eq(gate.condition?.value, 4, '払った枚数が4枚以上であることを見る');
+  eq(gate.then?.source?.type, 'TRASH_CARD', '場に出すのはトラッシュのシグニ（デッキ上ではない）');
+  // 実挙動＝ルリグの下が4枚あれば払ってトラッシュから場に出す。
+  const c = () => fresh();
+  const [u1, u2, u3, u4, top] = [c(), c(), c(), c(), c()];
+  const ctx = mkCtx({ lrig: [u1, u2, u3, u4, top], signi: [null, null, null] }, {});
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq(r.ownerState.lrig_trash.length, 4, 'ルリグの下から4枚を払った');
+  ok(r.ownerState.field.signi.some(z => !!z && z.length > 0), 'トラッシュのシグニが場に出た');
+  // 🔴反転＝ルリグの下が3枚しか無ければ1枚も払わず、場にも出ない。
+  const shortCtx = mkCtx({ lrig: [u1, u2, u3, top], signi: [null, null, null] }, {});
+  const r2 = finish(executeEffect(eff, shortCtx), shortCtx);
+  eq(r2.ownerState.lrig_trash.length, 0, '4枚払えないので1枚も置かない');
+  ok(r2.ownerState.field.signi.every(z => !z || z.length === 0), '払えないので場にも出ない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

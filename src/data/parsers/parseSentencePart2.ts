@@ -49,6 +49,7 @@ import {
   parseNum, parseSignedNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
   parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter, parsePlaceUnderSourceSigni,
+  makeSoulOpStub,
 } from '../parserUtils';
 
 /**
@@ -2743,8 +2744,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- ルリグの下のカード操作（ソウル・移動） ----
+  // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03）＝中身は payload で渡す。**
+  //   🔴旧実装は裸の `STUB{SOUL_OP}` を返し、**engine がアビリティブロック全文に 13本のリテラルを
+  //     当てて 13通りに分岐**していた（`census:enginetext` A群の最大項目・唯一の miss 持ち）。
+  //   ⚠`makeSoulOpStub` は「〜置いて**もよい**」を既存の `OPTIONAL_LRIG_UNDER_COST` へ振り分ける。
   if (t.match(/ルリグの下.+カード/) || t.includes('ソウル】にする')) {
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+    return makeSoulOpStub(t) as EffectAction;
   }
 
   // ---- デッキからN枚このシグニの下に置く ----

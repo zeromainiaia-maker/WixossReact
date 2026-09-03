@@ -4145,248 +4145,240 @@ export function execStubPart1(
     return needsInteraction(addLog(cur, `${sp.classContains}を${sp.toMax}枚までエナゾーンへ`), pendingSP);
   }
   // ソウル/ルリグデッキ操作
+  // 🆕🔴**§5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`。原文 regex を全部撤去して payload で分岐する。**
+  //   旧実装は `sourceAbilityText(ctx)`（アビリティブロック全文）に**13本のリテラル**を当てて
+  //   13通りに分岐していた＝`census:enginetext` A群の最大項目（live 24効果）で、
+  //   **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラ。
+  //   その6枚は下の「汎用フォールバック＝効果元シグニの下のソウルを消費しますか？」へ落ちており、
+  //   効果元がルリグ／アーツ／ピースでシグニゾーンに居ないため**恒久 no-op** だった。
+  // ⚠**payload が無い `SOUL_OP` は何もしない**（fail-closed）＝parser が payload を落としても
+  //   「効かない」で済み、原文と無関係な盤面操作にはならない。
   if (stub.id === 'SOUL_OP') {
+    const spec = stub.soulOp;
+    if (!spec) return done(addLog(ctx, '[未実装] ルリグ下／ルリグトラッシュ操作（payload なし）'));
     const srcSO = ctx.sourceCardNum;
-    // §6.4 O-20: 全文だと別能力のコスト句を拾い、ソウルではなくルリグトラッシュへ行っていた（`SPDi43-03/04/05-E1`）。
-    const effSOtxt = sourceAbilityText(ctx);
-    const processed = ctx.lastProcessedCards ?? [];
-    const toHWSO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「それをルリグデッキに加える」→ sourceCardNumをlrig_deckへ
-    if (effSOtxt.match(/それをルリグデッキに加える/) && srcSO) {
-      const newOwner = { ...ctx.ownerState, lrig_trash: ctx.ownerState.lrig_trash.filter(n => n !== srcSO), lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcSO] };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcSO)?.CardName ?? srcSO}をルリグデッキへ`));
-    }
-    // 「それらをルリグトラッシュに置く」→ lastProcessedCardsをlrig_trashへ
-    if ((effSOtxt.match(/それらをルリグトラッシュに置く/) || effSOtxt.match(/ルリグトラッシュに置く/)) && processed.length > 0) {
-      const newOwner = { ...ctx.ownerState, lrig_trash: [...ctx.ownerState.lrig_trash, ...processed] };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${processed.length}枚をルリグトラッシュへ`));
-    }
-    // 「ルリグトラッシュからアーツをルリグデッキに戻す」
-    if (effSOtxt.match(/ルリグトラッシュから.*アーツ.*ルリグデッキに加える/)) {
-      const artsInLrigTrash = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
-      if (artsInLrigTrash.length > 0) {
-        const toMove = artsInLrigTrash.slice(0, 1);
+    // ルリグスタックは「先頭が下・末尾がトップ（現ルリグ）」。下のカード＝トップ以外。
+    const underOf = (stack: string[] | undefined | null): string[] => (stack && stack.length > 1 ? stack.slice(0, -1) : []);
+    const nameOf = (cn: string) => ctx.cardMap.get(cn)?.CardName ?? cn;
+
+    switch (spec.kind) {
+      // 「それをルリグデッキに加える」＝効果元カードをルリグトラッシュからルリグデッキへ
+      case 'self_to_lrig_deck': {
+        if (!srcSO) return done(addLog(ctx, 'ルリグデッキへ戻す対象なし'));
+        const newOwner = {
+          ...ctx.ownerState,
+          lrig_trash: ctx.ownerState.lrig_trash.filter(n => n !== srcSO),
+          lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcSO],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${nameOf(srcSO)}をルリグデッキへ`));
+      }
+
+      // 「それらをルリグトラッシュに置く」＝直前に処理したカードをルリグトラッシュへ
+      case 'processed_to_lrig_trash': {
+        const processed = ctx.lastProcessedCards ?? [];
+        if (processed.length === 0) return done(addLog(ctx, 'ルリグトラッシュに置くカードなし'));
+        const newOwner = { ...ctx.ownerState, lrig_trash: [...ctx.ownerState.lrig_trash, ...processed] };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${processed.length}枚をルリグトラッシュへ`));
+      }
+
+      // 「ルリグトラッシュからアーツN枚をルリグデッキに加える」
+      case 'lrig_trash_arts_to_lrig_deck': {
+        const artsInLrigTrash = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+        if (artsInLrigTrash.length === 0) return done(addLog(ctx, 'ルリグトラッシュにアーツなし'));
+        const toMove = artsInLrigTrash.slice(0, spec.count ?? 1);
         const newOwner = {
           ...ctx.ownerState,
           lrig_trash: ctx.ownerState.lrig_trash.filter(cn => !toMove.includes(cn)),
           lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), ...toMove],
         };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(toMove[0])?.CardName ?? toMove[0]}をルリグデッキへ`));
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${toMove.map(nameOf).join('・')}をルリグデッキへ`));
       }
-      return done(addLog(ctx, 'ルリグトラッシュにアーツなし'));
-    }
-    // 「このカードをセンタールリグの下に置く」→ sourceCardNumをlrig_deckの先頭（ルリグの下）へ
-    if (effSOtxt.match(/このカードをあなたのセンタールリグの下に置く/) && srcSO) {
-      // ルリグの下 = lrig_deck の末尾（先頭がトップ）に追加
-      const lrig_deck = ctx.ownerState.lrig_deck ?? [];
-      // 手札から取り除く
-      const newHand = ctx.ownerState.hand.filter(cn => cn !== srcSO);
-      const newOwner = { ...ctx.ownerState, hand: newHand, lrig_deck: [...lrig_deck, srcSO] };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcSO)?.CardName ?? srcSO}をルリグデッキ（ルリグ下）へ`));
-    }
-    // 「ルリグデッキからN枚をルリグトラッシュに置く」
-    const lrigDeckTrashM = effSOtxt.match(/ルリグデッキ(?:の上から)?([０-９\d]+)枚をルリグトラッシュに/);
-    if (lrigDeckTrashM) {
-      const count = parseInt(toHWSO(lrigDeckTrashM[1]));
-      const lrig_deck = ctx.ownerState.lrig_deck ?? [];
-      const toTrash = lrig_deck.slice(0, Math.min(count, lrig_deck.length));
-      if (toTrash.length > 0) {
+
+      // 「このカードをあなたのセンタールリグの下に置く」＝効果元を手札からルリグスタックの下へ
+      case 'self_to_under_center': {
+        if (!srcSO) return done(addLog(ctx, 'センタールリグ下に置く対象なし'));
         const newOwner = {
           ...ctx.ownerState,
-          lrig_deck: lrig_deck.slice(toTrash.length),
+          hand: ctx.ownerState.hand.filter(cn => cn !== srcSO),
+          lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcSO],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${nameOf(srcSO)}をルリグデッキ（ルリグ下）へ`));
+      }
+
+      // 「ルリグデッキの上からN枚をルリグトラッシュに置く」
+      case 'lrig_deck_top_to_lrig_trash': {
+        const lrigDeck = ctx.ownerState.lrig_deck ?? [];
+        const toTrash = lrigDeck.slice(0, Math.min(spec.count ?? 1, lrigDeck.length));
+        if (toTrash.length === 0) return done(addLog(ctx, 'ルリグデッキなし'));
+        const newOwner = {
+          ...ctx.ownerState,
+          lrig_deck: lrigDeck.slice(toTrash.length),
           lrig_trash: [...ctx.ownerState.lrig_trash, ...toTrash],
         };
         return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグデッキ上${toTrash.length}枚をルリグトラッシュへ`));
       }
-      return done(addLog(ctx, 'ルリグデッキなし'));
-    }
-    // 「このルリグの下からカード１枚をシグニの【ソウル】にする」
-    if (effSOtxt.match(/このルリグの下からカード[１1]枚をそれの【ソウル】にする/)) {
-      const lrigStack = ctx.ownerState.field.lrig;
-      const underCards = lrigStack.length > 1 ? lrigStack.slice(0, -1) : [];
-      if (underCards.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし（ソウル付与）'));
-      const selfSigniCands = [0, 1, 2]
-        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
-        .filter((c): c is string => !!c);
-      if (selfSigniCands.length === 0) return done(addLog(ctx, 'ソウル付与対象シグニなし'));
-      // SELECT_TARGETで対象シグニを選択してからソウルを付与
-      const soulCard = underCards[underCards.length - 1]; // ルリグ直下のカードを使用
-      const attachSoulStub: StubAction = {
-        type: 'STUB', id: 'INTERNAL_ATTACH_SOUL_FROM_LRIG', value: soulCard,
-      };
-      return selectOrInteract(selfSigniCands, 1, false, 'self_field', attachSoulStub, undefined, ctx);
-    }
-    // 「ルリグトラッシュからルリグ１枚をシグニの【ソウル】にする」
-    if (effSOtxt.match(/ルリグトラッシュからルリグ[１1]枚をそれの【ソウル】にする/)) {
-      const lrigInTrash = ctx.ownerState.lrig_trash.filter(cn => {
-        const c = ctx.cardMap.get(cn);
-        return c?.Type === 'ルリグ' || c?.Type === 'アシストルリグ';
-      });
-      if (lrigInTrash.length === 0) return done(addLog(ctx, 'ルリグトラッシュにルリグなし'));
-      const selfSigniSoulCands = [0, 1, 2]
-        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
-        .filter((c): c is string => !!c);
-      if (selfSigniSoulCands.length === 0) return done(addLog(ctx, 'ソウル付与対象シグニなし'));
-      // まず対象シグニを選択 → INTERNAL_CHOOSE_SOUL_LRIG でルリグトラッシュから選択
-      const chooseSoulStub: StubAction = {
-        type: 'STUB', id: 'INTERNAL_CHOOSE_SOUL_LRIG',
-      };
-      return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, undefined, ctx);
-    }
-    // 「このルリグの下からカードN枚をルリグトラッシュに置いてもよい」（任意・WXDi-P04/05/06-009系）
-    const lrigUnderOptM = effSOtxt.match(/このルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置いてもよい/);
-    if (lrigUnderOptM) {
-      const countLUO = parseInt(toHWSO(lrigUnderOptM[1]));
-      const lrigStackLUO = ctx.ownerState.field.lrig;
-      const underLUO = lrigStackLUO.length > 1 ? lrigStackLUO.slice(0, -1) : [];
-      if (underLUO.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし'));
-      const toConsumeLUO = underLUO.slice(-Math.min(countLUO, underLUO.length));
-      const consumeActLUO = { type: 'STUB', id: 'INTERNAL_CONSUME_LRIG_UNDER', value: countLUO } as StubAction;
-      const noopActLUO: SequenceAction = { type: 'SEQUENCE', steps: [] };
-      const nameListLUO = toConsumeLUO.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
-      return needsInteraction(addLog(ctx, `ルリグ下消費？（${nameListLUO}）`), {
-        type: 'CHOOSE', count: 1,
-        options: [
-          { id: 'consume', label: `ルリグ下（${nameListLUO}）をルリグトラッシュへ`, action: consumeActLUO as EffectAction, available: true },
-          { id: 'skip',    label: 'スキップ', action: noopActLUO as EffectAction, available: true },
-        ],
-      });
-    }
-    // 「センタールリグの下からカードN枚をルリグトラッシュに置く」（強制・固定枚数・WD22-016-UG/SPK06-05系）
-    const centerUnderFixedM = effSOtxt.match(/センタールリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/);
-    if (centerUnderFixedM) {
-      const countCUF = parseInt(toHWSO(centerUnderFixedM[1]));
-      const lrigStackCUF = ctx.ownerState.field.lrig;
-      const underCUF = lrigStackCUF.length > 1 ? lrigStackCUF.slice(0, -1) : [];
-      const toTrashCUF = underCUF.slice(-Math.min(countCUF, underCUF.length));
-      if (toTrashCUF.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし（固定消費）'));
-      const remainCUF = underCUF.slice(0, underCUF.length - toTrashCUF.length);
-      const newLrigCUF = [...remainCUF, lrigStackCUF[lrigStackCUF.length - 1]];
-      const newOwnerCUF: PlayerState = {
-        ...ctx.ownerState,
-        field: { ...ctx.ownerState.field, lrig: newLrigCUF },
-        lrig_trash: [...ctx.ownerState.lrig_trash, ...toTrashCUF],
-      };
-      return done(addLog({ ...ctx, ownerState: newOwnerCUF, lastProcessedCards: toTrashCUF },
-        `センタールリグ下${toTrashCUF.length}枚をルリグトラッシュへ`));
-    }
-    // 「ルリグトラッシュからLvNのルリグをセンタールリグの下に置いてもよい」（WX13-033系）
-    const fromTrashToUnderM = effSOtxt.match(/ルリグトラッシュから.*レベル([０-９\d]+).*ルリグ[１1]枚.*センタールリグの下に置いてもよい/);
-    if (fromTrashToUnderM) {
-      const targetLvFTU = parseInt(toHWSO(fromTrashToUnderM[1]));
-      const centerTopFTU = ctx.ownerState.field.lrig.at(-1);
-      const centerCardFTU = centerTopFTU ? ctx.cardMap.get(centerTopFTU) : undefined;
-      const sameType = effSOtxt.includes('完全に同一のルリグタイプ');
-      const candidatesFTU = ctx.ownerState.lrig_trash.filter(cn => {
-        const c = ctx.cardMap.get(cn);
-        if (!c) return false;
-        if (parseInt(c.Level ?? '') !== targetLvFTU) return false;
-        if (sameType && centerCardFTU) {
-          return c.CardClass === centerCardFTU.CardClass || c.Story === centerCardFTU.Story;
+
+      // 「このルリグの下からカード１枚をそれの【ソウル】にする」
+      case 'under_to_soul': {
+        const underCards = underOf(ctx.ownerState.field.lrig);
+        if (underCards.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし（ソウル付与）'));
+        const selfSigniCands = [0, 1, 2]
+          .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+          .filter((c): c is string => !!c);
+        if (selfSigniCands.length === 0) return done(addLog(ctx, 'ソウル付与対象シグニなし'));
+        const soulCard = underCards[underCards.length - 1]; // ルリグ直下のカードを使用
+        const attachSoulStub: StubAction = { type: 'STUB', id: 'INTERNAL_ATTACH_SOUL_FROM_LRIG', value: soulCard };
+        return selectOrInteract(selfSigniCands, 1, false, 'self_field', attachSoulStub, undefined, ctx);
+      }
+
+      // 「あなたのルリグトラッシュからルリグ１枚をそれの【ソウル】にする」
+      case 'lrig_trash_to_soul': {
+        const lrigInTrash = ctx.ownerState.lrig_trash.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.Type === 'ルリグ' || c?.Type === 'アシストルリグ';
+        });
+        if (lrigInTrash.length === 0) return done(addLog(ctx, 'ルリグトラッシュにルリグなし'));
+        const selfSigniSoulCands = [0, 1, 2]
+          .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+          .filter((c): c is string => !!c);
+        if (selfSigniSoulCands.length === 0) return done(addLog(ctx, 'ソウル付与対象シグニなし'));
+        const chooseSoulStub: StubAction = { type: 'STUB', id: 'INTERNAL_CHOOSE_SOUL_LRIG' };
+        return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, undefined, ctx);
+      }
+
+      // 「〈センター／この／あなたの〉ルリグの下からカードN枚（または好きな枚数）をルリグトラッシュに置く」
+      // ⚠**任意形（「置いてもよい」）はここへ来ない**＝parser が `OPTIONAL_LRIG_UNDER_COST` へ振り分ける。
+      case 'under_to_lrig_trash': {
+        const lrigStack = ctx.ownerState.field.lrig;
+        const centerUnder = underOf(lrigStack);
+        const assistLUnder = underOf(ctx.ownerState.field.assist_lrig_l);
+        const assistRUnder = underOf(ctx.ownerState.field.assist_lrig_r);
+        const pool = spec.fromAllLrigs ? [...centerUnder, ...assistLUnder, ...assistRUnder] : centerUnder;
+        if (pool.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし'));
+        // 🔑**「N枚」（「まで」が無い）は足りなければ払えない**＝「そうした場合」の前提を満たさない。
+        if (!spec.anyCount && !spec.upTo && (spec.count ?? 1) > pool.length) {
+          return done(addLog(ctx, `ルリグの下が${pool.length}枚＝${spec.count}枚を置けない`));
         }
-        return true;
-      });
-      if (candidatesFTU.length === 0) return done(addLog(ctx, `ルリグトラッシュにLv${targetLvFTU}のルリグなし`));
-      const noopFTU: SequenceAction = { type: 'SEQUENCE', steps: [] };
-      const opts = [
-        ...candidatesFTU.map(cn => ({
-          id: cn,
-          label: `${ctx.cardMap.get(cn)?.CardName ?? cn}をセンタールリグ下に置く`,
-          action: { type: 'STUB', id: 'INTERNAL_PLACE_LRIG_UNDER_CENTER', value: cn } as StubAction as EffectAction,
-          available: true,
-        })),
-        { id: 'skip', label: 'スキップ', action: noopFTU as EffectAction, available: true },
-      ];
-      return needsInteraction(addLog(ctx, 'センタールリグ下に置くルリグを選択'), { type: 'CHOOSE', count: 1, options: opts });
-    }
-    // 「センタールリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く」
-    if (effSOtxt.match(/センタールリグの下からカードを好きな枚数対象とし.*ルリグトラッシュに置く/)) {
-      const lrigStackSO = ctx.ownerState.field.lrig;
-      const underCardsSO = lrigStackSO.length > 1 ? lrigStackSO.slice(0, -1) : [];
-      if (underCardsSO.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし'));
-      // 全カードをルリグトラッシュへ（簡易：任意枚数→全枚）
-      const newLrigSO2 = [lrigStackSO[lrigStackSO.length - 1]]; // トップのみ残す
-      const newOwnerSO2: PlayerState = {
-        ...ctx.ownerState,
-        field: { ...ctx.ownerState.field, lrig: newLrigSO2 },
-        lrig_trash: [...ctx.ownerState.lrig_trash, ...underCardsSO],
-      };
-      return done(addLog({ ...ctx, ownerState: newOwnerSO2, lastProcessedCards: underCardsSO },
-        `センタールリグ下${underCardsSO.length}枚をルリグトラッシュへ`));
-    }
-    // 「他のルリグの下にあるすべてのカードをこのルリグの下に置く」（チームルリグ統合）
-    if (effSOtxt.match(/他のルリグの下にあるすべてのカードをこのルリグの下に置く/)) {
-      const assistLSO = ctx.ownerState.field.assist_lrig_l ?? [];
-      const assistRSO = ctx.ownerState.field.assist_lrig_r ?? [];
-      // アシストルリグの下のカード（スタックのトップ以外）を収集
-      const underLSO = assistLSO.length > 1 ? assistLSO.slice(0, -1) : [];
-      const underRSO = assistRSO.length > 1 ? assistRSO.slice(0, -1) : [];
-      const allUnderSO = [...underLSO, ...underRSO];
-      if (allUnderSO.length === 0) return done(addLog(ctx, '他ルリグの下にカードなし'));
-      // センタールリグのスタック下に追加（古いカードが先頭）
-      const newLrigSO = [...allUnderSO, ...ctx.ownerState.field.lrig];
-      // アシストルリグのトップのみ残す
-      const newAssistLSO = assistLSO.length > 0 ? [assistLSO[assistLSO.length - 1]] : [];
-      const newAssistRSO = assistRSO.length > 0 ? [assistRSO[assistRSO.length - 1]] : [];
-      const newOwnerSO: PlayerState = {
-        ...ctx.ownerState,
-        field: { ...ctx.ownerState.field, lrig: newLrigSO, assist_lrig_l: newAssistLSO, assist_lrig_r: newAssistRSO },
-      };
-      return done(addLog({ ...ctx, ownerState: newOwnerSO }, `他ルリグ下${allUnderSO.length}枚をセンタールリグ下に統合`));
-    }
-    // 汎用フォールバック: ソースシグニの下にソウルがあれば消費するインタラクションを提示
-    if (ctx.sourceCardNum) {
-      const srcZoneSO2 = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
-      const stackSO2 = srcZoneSO2 >= 0 ? ctx.ownerState.field.signi[srcZoneSO2] : null;
-      if (stackSO2 && stackSO2.length >= 2) {
-        const soulCardSO2 = stackSO2[0];
-        const soulNameSO2 = ctx.cardMap.get(soulCardSO2)?.CardName ?? soulCardSO2;
-        const consumeSO2: StubAction = { type: 'STUB', id: 'INTERNAL_CONSUME_SOUL' };
-        const noopSO2: SequenceAction = { type: 'SEQUENCE', steps: [] };
-        const pendingSO2: PendingInteractionDef = {
-          type: 'CHOOSE', count: 1,
-          options: [
-            { id: 'consume', label: `ソウル（${soulNameSO2}）を使用`, action: consumeSO2 as EffectAction, available: true },
-            { id: 'skip', label: 'スキップ', action: noopSO2 as EffectAction, available: true },
-          ],
+        const want = spec.anyCount ? pool.length : Math.min(spec.count ?? 1, pool.length);
+        // 下（古い側）から順に取り、各スタックのトップは残す。
+        const takeFrom = (under: string[], n: number) => under.slice(0, Math.max(0, Math.min(n, under.length)));
+        let remain = want;
+        const takeCenter = takeFrom(centerUnder, remain); remain -= takeCenter.length;
+        const takeL = spec.fromAllLrigs ? takeFrom(assistLUnder, remain) : []; remain -= takeL.length;
+        const takeR = spec.fromAllLrigs ? takeFrom(assistRUnder, remain) : [];
+        const moved = [...takeCenter, ...takeL, ...takeR];
+        if (moved.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし'));
+        const rebuild = (stack: string[] | undefined | null, taken: string[]): string[] => {
+          if (!stack || stack.length === 0) return stack ?? [];
+          const under = underOf(stack).filter(cn => !taken.includes(cn));
+          return [...under, stack[stack.length - 1]];
         };
-        return needsInteraction(addLog(ctx, 'ソウルを使用しますか？'), pendingSO2);
+        const newOwner: PlayerState = {
+          ...ctx.ownerState,
+          field: {
+            ...ctx.ownerState.field,
+            lrig: rebuild(lrigStack, takeCenter),
+            ...(spec.fromAllLrigs ? {
+              assist_lrig_l: rebuild(ctx.ownerState.field.assist_lrig_l, takeL),
+              assist_lrig_r: rebuild(ctx.ownerState.field.assist_lrig_r, takeR),
+            } : {}),
+          },
+          lrig_trash: [...ctx.ownerState.lrig_trash, ...moved],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: moved },
+          `ルリグ下${moved.length}枚（${moved.map(nameOf).join('・')}）をルリグトラッシュへ`));
+      }
+
+      // 「あなたのルリグトラッシュから〈レベル条件〉のルリグをN枚まで対象とし、センタールリグの下に置く」
+      case 'lrig_trash_to_under_center': {
+        const centerTop = ctx.ownerState.field.lrig.at(-1);
+        const centerCard = centerTop ? ctx.cardMap.get(centerTop) : undefined;
+        const candidates = ctx.ownerState.lrig_trash.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (!c) return false;
+          if (c.Type !== 'ルリグ' && c.Type !== 'アシストルリグ') return false;
+          const lv = parseInt(c.Level ?? '', 10);
+          if (spec.level !== undefined && lv !== spec.level) return false;
+          if (spec.levelMax !== undefined && !(Number.isFinite(lv) && lv <= spec.levelMax)) return false;
+          if (spec.sameLrigType && centerCard) {
+            return c.CardClass === centerCard.CardClass || c.Story === centerCard.Story;
+          }
+          return true;
+        });
+        if (candidates.length === 0) return done(addLog(ctx, 'ルリグトラッシュに条件を満たすルリグなし'));
+        const pickCount = Math.min(spec.count ?? 1, candidates.length);
+        const placeStub: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_LRIG_UNDER_CENTER' };
+        return selectOrInteract(candidates, pickCount, (spec.upTo ?? false) || (spec.optional ?? false),
+          'self_lrig_trash', placeStub, undefined, ctx);
+      }
+
+      // 「あなたの他のルリグの下にあるすべてのカードをこのルリグの下に置く」（チームルリグ統合）
+      case 'merge_other_lrig_under': {
+        const assistL = ctx.ownerState.field.assist_lrig_l ?? [];
+        const assistR = ctx.ownerState.field.assist_lrig_r ?? [];
+        const allUnder = [...underOf(assistL), ...underOf(assistR)];
+        if (allUnder.length === 0) return done(addLog(ctx, '他ルリグの下にカードなし'));
+        const newOwner: PlayerState = {
+          ...ctx.ownerState,
+          field: {
+            ...ctx.ownerState.field,
+            lrig: [...allUnder, ...ctx.ownerState.field.lrig],
+            assist_lrig_l: assistL.length > 0 ? [assistL[assistL.length - 1]] : [],
+            assist_lrig_r: assistR.length > 0 ? [assistR[assistR.length - 1]] : [],
+          },
+        };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `他ルリグ下${allUnder.length}枚をセンタールリグ下に統合`));
       }
     }
-    return done(addLog(ctx, 'ソウル操作'));
+    return done(addLog(ctx, '[未実装] ルリグ下／ルリグトラッシュ操作'));
   }
-  // INTERNAL_CONSUME_SOUL: ソースシグニの下にあるソウルカードをルリグトラッシュへ
-  if (stub.id === 'INTERNAL_CONSUME_SOUL') {
-    const srcICS = ctx.sourceCardNum;
-    if (!srcICS) return done(addLog(ctx, 'ソウル消費：ソースなし'));
-    const ziICS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcICS);
-    if (ziICS < 0) return done(addLog(ctx, 'ソウル消費：シグニがフィールドにいない'));
-    const stackICS = ctx.ownerState.field.signi[ziICS];
-    if (!stackICS || stackICS.length < 2) return done(addLog(ctx, 'ソウル消費：ソウルなし'));
-    const soulCardICS = stackICS[0];
-    const newStackICS = stackICS.slice(1);
-    const newSigniICS = [...ctx.ownerState.field.signi] as (string[] | null)[];
-    newSigniICS[ziICS] = newStackICS;
-    const newOwnerICS: PlayerState = {
-      ...ctx.ownerState,
-      field: { ...ctx.ownerState.field, signi: newSigniICS },
-      lrig_trash: [...ctx.ownerState.lrig_trash, soulCardICS],
-    };
-    return done(addLog({ ...ctx, ownerState: newOwnerICS },
-      `ソウル（${ctx.cardMap.get(soulCardICS)?.CardName ?? soulCardICS}）を消費してルリグトラッシュへ`));
-  }
-  // INTERNAL_CONSUME_LRIG_UNDER: ルリグの下からN枚をルリグトラッシュへ（SOUL_OP optional消費の実行部）
+  // 🔴🆕**`INTERNAL_CONSUME_SOUL` は撤去した**（§5.3 `O-60` 第57バッチ＝`O-228`・2026-09-03）。
+  //   「効果元シグニの下のカードをルリグトラッシュへ捨てる」実行部で、
+  //   `effectExecutor` の `SOUL_OP` コスト先取り（同バッチで撤去）と
+  //   `SOUL_OP` の汎用フォールバック（同）からしか呼ばれていなかった＝**生成元ゼロ**。
+  //   ⚠**復活させないこと**＝原文が要求していたのは**ルリグ**の下（`INTERNAL_CONSUME_LRIG_UNDER`）で、
+  //     シグニの下（ソウル）ではなかった。
+  // INTERNAL_CONSUME_LRIG_UNDER: ルリグの下からN枚をルリグトラッシュへ（OPTIONAL_LRIG_UNDER_COST の実行部）
+  // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03）＝`lrigUnderCost.fromAllLrigs` に対応**＝
+  //   原文「**あなたの**ルリグの下からカードを**合計**N枚」はセンターだけでは足りず、
+  //   アシストルリグの下も合わせて払う（`WXDi-CP02-002/003/004`）。
   if (stub.id === 'INTERNAL_CONSUME_LRIG_UNDER') {
-    const countICLU = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '1'));
+    const specICLU = stub.lrigUnderCost;
+    const countICLU = specICLU?.count
+      ?? (typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '1')));
+    const underOfICLU = (st: string[] | undefined | null): string[] => (st && st.length > 1 ? st.slice(0, -1) : []);
+    const rebuildICLU = (st: string[] | undefined | null, taken: string[]): string[] => {
+      if (!st || st.length === 0) return st ?? [];
+      return [...underOfICLU(st).filter(cn => !taken.includes(cn)), st[st.length - 1]];
+    };
     const lrigStackICLU = ctx.ownerState.field.lrig;
-    if (lrigStackICLU.length <= 1) return done(addLog(ctx, 'ルリグの下にカードなし'));
-    const underICLU = lrigStackICLU.slice(0, -1);
-    const toConsumeICLU = underICLU.slice(-Math.min(countICLU, underICLU.length));
-    const remainICLU = underICLU.slice(0, underICLU.length - toConsumeICLU.length);
-    const newLrigICLU = [...remainICLU, lrigStackICLU[lrigStackICLU.length - 1]];
+    const centerUnderICLU = underOfICLU(lrigStackICLU);
+    const assistLICLU = specICLU?.fromAllLrigs ? underOfICLU(ctx.ownerState.field.assist_lrig_l) : [];
+    const assistRICLU = specICLU?.fromAllLrigs ? underOfICLU(ctx.ownerState.field.assist_lrig_r) : [];
+    if (centerUnderICLU.length + assistLICLU.length + assistRICLU.length === 0) {
+      return done(addLog(ctx, 'ルリグの下にカードなし'));
+    }
+    // ルリグ直下（新しい側）から順に払う。
+    let remainICLU = countICLU;
+    const takeICLU = (under: string[]) => {
+      const n = Math.max(0, Math.min(remainICLU, under.length));
+      remainICLU -= n;
+      return n > 0 ? under.slice(-n) : [];
+    };
+    const takeCenterICLU = takeICLU(centerUnderICLU);
+    const takeLICLU = takeICLU(assistLICLU);
+    const takeRICLU = takeICLU(assistRICLU);
+    const toConsumeICLU = [...takeCenterICLU, ...takeLICLU, ...takeRICLU];
     const newOwnerICLU: PlayerState = {
       ...ctx.ownerState,
-      field: { ...ctx.ownerState.field, lrig: newLrigICLU },
+      field: {
+        ...ctx.ownerState.field,
+        lrig: rebuildICLU(lrigStackICLU, takeCenterICLU),
+        ...(specICLU?.fromAllLrigs ? {
+          assist_lrig_l: rebuildICLU(ctx.ownerState.field.assist_lrig_l, takeLICLU),
+          assist_lrig_r: rebuildICLU(ctx.ownerState.field.assist_lrig_r, takeRICLU),
+        } : {}),
+      },
       lrig_trash: [...ctx.ownerState.lrig_trash, ...toConsumeICLU],
     };
     const nameListICLU = toConsumeICLU.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
@@ -4394,18 +4386,24 @@ export function execStubPart1(
       `ルリグ下（${nameListICLU}）をルリグトラッシュへ`));
   }
   // INTERNAL_PLACE_LRIG_UNDER_CENTER: ルリグトラッシュから選択ルリグをセンタールリグ下に配置
+  // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03）＝選択は `SELECT_TARGET`（`lastProcessedCards`）で受ける。**
+  //   🔴旧実装は `stub.value` に1枚だけ焼き込む `CHOOSE` から呼ばれていたため、
+  //     原文「レベル２以下のルリグを**２枚まで**」（`WX22-Re20`③）を表現できなかった。
+  //   ⚠`stub.value` 経由も残す（他所から1枚指定で呼ばれても壊れないため）。
   if (stub.id === 'INTERNAL_PLACE_LRIG_UNDER_CENTER') {
-    const cnIPLUC = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
-    if (!cnIPLUC) return done(addLog(ctx, 'センタールリグ下配置：カードなし'));
-    const newLrigTrashIPLUC = ctx.ownerState.lrig_trash.filter(x => x !== cnIPLUC);
-    const newLrigIPLUC = [cnIPLUC, ...ctx.ownerState.field.lrig]; // 最下に追加
+    const legacyIPLUC = typeof stub.value === 'string' ? [stub.value] : [];
+    const picksIPLUC = (legacyIPLUC.length > 0 ? legacyIPLUC : (ctx.lastProcessedCards ?? []))
+      .filter(cn => ctx.ownerState.lrig_trash.includes(cn));
+    if (picksIPLUC.length === 0) return done(addLog(ctx, 'センタールリグ下配置：カードなし'));
+    const newLrigTrashIPLUC = ctx.ownerState.lrig_trash.filter(x => !picksIPLUC.includes(x));
+    const newLrigIPLUC = [...picksIPLUC, ...ctx.ownerState.field.lrig]; // 最下に追加
     const newOwnerIPLUC: PlayerState = {
       ...ctx.ownerState,
       lrig_trash: newLrigTrashIPLUC,
       field: { ...ctx.ownerState.field, lrig: newLrigIPLUC },
     };
     return done(addLog({ ...ctx, ownerState: newOwnerIPLUC },
-      `${ctx.cardMap.get(cnIPLUC)?.CardName ?? cnIPLUC}をセンタールリグ下に配置`));
+      `${picksIPLUC.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}をセンタールリグ下に配置`));
   }
   // SHUFFLE_REMAINDER_INTO_DECK: 「残りをデッキに加えてシャッフルする」
   // 🆕**§5.3 `O-60` 第45バッチ（2026-09-03）＝`STUB{LOOK_AND_REORDER}` の catch-all を15文型へ割った。**

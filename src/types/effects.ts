@@ -4349,6 +4349,62 @@ export type GameGrantSpec =
   | { kind: 'abilityBlockHeader' };
 
 // パーサーが解釈できなかった効果（手動対応が必要）
+/**
+ * 🆕**`SOUL_OP`（ルリグの下／ルリグトラッシュ／ルリグデッキを跨ぐ操作）の中身**
+ * （§5.3 `O-60` 第57バッチ＝`O-228`・2026-09-03）。
+ *
+ * 🔴**旧実装は engine が原文（アビリティブロック全文）を 13本のリテラルで読んでいた**＝
+ *   `census:enginetext` A群の最大項目（live 24効果 / miss 6）。**miss の6枚は
+ *   どの regex にも当たらず「汎用フォールバック＝効果元シグニの下のソウルを消費しますか？」
+ *   という原文と無関係な UI へ落ちていた**（多くは効果元がルリグ／アーツ／ピースで
+ *   シグニゾーンに居ないため**恒久 no-op**）。
+ *
+ * ⚠**`kind` は「どこから／どこへ」だけを持ち、任意（〜してもよい）は別の受け皿**＝
+ *   「ルリグの下から N枚をルリグトラッシュに置いて**もよい**。そうした場合〜」は
+ *   既存の `OPTIONAL_LRIG_UNDER_COST`（`lrigUnderCost`）へ送る。
+ */
+export interface SoulOpSpec {
+  /**
+   * - `under_to_lrig_trash`＝ルリグの下 → ルリグトラッシュ（強制）
+   * - `under_to_soul`＝ルリグの下のカード1枚 → 対象シグニの【ソウル】
+   * - `lrig_trash_to_soul`＝ルリグトラッシュのルリグ1枚 → 対象シグニの【ソウル】
+   * - `lrig_trash_to_under_center`＝ルリグトラッシュのルリグ → センタールリグの下
+   * - `self_to_lrig_deck`＝効果元カード → ルリグデッキ
+   * - `self_to_under_center`＝効果元カード → センタールリグの下
+   * - `processed_to_lrig_trash`＝直前に処理したカード → ルリグトラッシュ
+   * - `lrig_trash_arts_to_lrig_deck`＝ルリグトラッシュのアーツ → ルリグデッキ
+   * - `lrig_deck_top_to_lrig_trash`＝ルリグデッキの上 → ルリグトラッシュ
+   * - `merge_other_lrig_under`＝他のルリグの下のカード全部 → このルリグの下
+   */
+  kind:
+    | 'under_to_lrig_trash'
+    | 'under_to_soul'
+    | 'lrig_trash_to_soul'
+    | 'lrig_trash_to_under_center'
+    | 'self_to_lrig_deck'
+    | 'self_to_under_center'
+    | 'processed_to_lrig_trash'
+    | 'lrig_trash_arts_to_lrig_deck'
+    | 'lrig_deck_top_to_lrig_trash'
+    | 'merge_other_lrig_under';
+  /** 枚数。`anyCount` が立っているときは無視される。 */
+  count?: number;
+  /** 「好きな枚数」＝上限なし（`WX12-Re22`）。 */
+  anyCount?: boolean;
+  /** 「N枚**まで**」＝下回ってもよい。 */
+  upTo?: boolean;
+  /** 「**あなたの**ルリグの下から〜**合計**N枚」＝センターとアシスト両方を合わせる。 */
+  fromAllLrigs?: boolean;
+  /** 候補のレベル（完全一致）。`lrig_trash_to_under_center` 用。 */
+  level?: number;
+  /** 候補のレベル上限（「レベルN**以下**」）。`lrig_trash_to_under_center` 用。 */
+  levelMax?: number;
+  /** 「あなたのセンタールリグと**完全に同一のルリグタイプ**を持つ」（`WX13-033`）。 */
+  sameLrigType?: boolean;
+  /** 「〜して**もよい**」＝スキップ可能。 */
+  optional?: boolean;
+}
+
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
   /**
@@ -4380,6 +4436,22 @@ export interface StubAction {
    */
   targetsStored?: boolean;
   fixedCardNums?: string[];
+  /**
+   * 🆕**`SOUL_OP` の中身**（§5.3 `O-60` 第57バッチ＝`O-228`・2026-09-03）。
+   * 🔴**それまで engine（`execStubPart1.ts`）は `sourceAbilityText(ctx)` に 13本のリテラルを当てて
+   *   13通りに分岐していた**＝`census:enginetext` A群の最大項目で、**唯一 miss（どの regex にも
+   *   当たらず既定値へ落ちるカード）が残っていた**ハンドラ。
+   * ⚠**このペイロードが無い `SOUL_OP` は何もしない**（fail-closed）＝parser が payload を落としたら
+   *   「効かない」で済み、**無関係な盤面のカードが動く**（旧・汎用フォールバックの壊れ方）ことはない。
+   */
+  soulOp?: SoulOpSpec;
+  /**
+   * 🆕**`OPTIONAL_LRIG_UNDER_COST` / `INTERNAL_CONSUME_LRIG_UNDER` の枚数と範囲**
+   * （§5.3 `O-60` 第57バッチ・2026-09-03）。省略時は**センタールリグの下から1枚**（従来の固定値）。
+   * `fromAllLrigs`＝原文「**あなたの**ルリグの下からカードを**合計**N枚」＝
+   * センターとアシスト両方の下を合わせて数える（`WXDi-CP02-002/003/004`）。
+   */
+  lrigUnderCost?: { count: number; fromAllLrigs?: boolean };
   /**
    * `LIFE_CRASH_PREVENTION`（§5.3 `O-66`・2026-08-25）＝「ライフクロスは〜クラッシュされない／
    * N枚までしかクラッシュされない」の中身。

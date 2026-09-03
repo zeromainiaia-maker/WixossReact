@@ -19,7 +19,7 @@ import type {
 } from '../../types/effects';
 import {
   parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence, tradeOptionalCost,
-  parseColorFilter, parseStoryFilter,
+  parseColorFilter, parseStoryFilter, makeSoulOpStub,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -2330,16 +2330,17 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- それらをルリグトラッシュに置く ----
+  // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03）＝以下3件も payload 付きで出す**（旧＝裸の `SOUL_OP`）。
   if (t.match(/^それらをルリグトラッシュに置く$/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+    return makeSoulOpStub(t) as EffectAction;
 
   // ---- それをルリグデッキに加える ----
   if (t.match(/^それをルリグデッキに加える$/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+    return makeSoulOpStub(t) as EffectAction;
 
   // ---- このカードをセンタールリグの下に置く ----
   if (t.match(/このカードをあなたのセンタールリグの下に置く/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+    return makeSoulOpStub(t) as EffectAction;
 
   // ---- 手札シグニへのガードアイコン付与 ----
   if (t.match(/このターン.*手札にあるシグニは《ガードアイコン》を得る/))
@@ -2540,8 +2541,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'GROW_COST_ZERO' } as StubAction;
 
   // ---- ルリグトラッシュからルリグをセンター下へ ----
+  // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03）**＝レベル／枚数／「完全に同一のルリグタイプ」を payload で渡す。
+  //   🔴旧 engine の regex は「レベルN…ルリグ**１枚**…置い**てもよい**」しか読めず、
+  //     `WX22-Re20`③「レベル２以下のルリグを**２枚まで**…置**く**」は**どれにも当たらず既定値へ落ちて**いた。
   if (t.match(/ルリグトラッシュから.*センタールリグの下に置(?:く|いてもよい)/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+    return makeSoulOpStub(t) as EffectAction;
 
   // ---- すべての領域でクラスとして扱う ----
   if (t.match(/このカードはすべての領域で.*として扱う/))

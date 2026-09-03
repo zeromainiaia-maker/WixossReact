@@ -5393,25 +5393,40 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // WXDi-P05-009 は、解決中に割り込みがないため「支払い→トラッシュ選択」で
         // 最終盤面が一致する。消費自体は既存 INTERNAL_CONSUME_LRIG_UNDER を再利用する。
         if (stub.id === 'OPTIONAL_LRIG_UNDER_COST') {
+          // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03）＝枚数と範囲は payload で受け取る。**
+          //   省略時は従来どおり「センタールリグの下から1枚」。
+          //   `fromAllLrigs`＝原文「**あなたの**ルリグの下からカードを**合計**N枚」＝
+          //   センターとアシスト両方の下を合わせて数える（`WXDi-CP02-002/003/004`）。
+          const lucSpec = stub.lrigUnderCost;
+          const lucCount = lucSpec?.count ?? 1;
+          const lucAll = lucSpec?.fromAllLrigs ?? false;
+          const underCountOf = (stack: string[] | undefined | null) => (stack && stack.length > 1 ? stack.length - 1 : 0);
           const lrigStack = cur.ownerState.field.lrig;
-          const hasUnder = lrigStack.length >= 2;
-          const underCard = hasUnder ? lrigStack.at(-2) : undefined;
+          const availUnder = underCountOf(lrigStack)
+            + (lucAll ? underCountOf(cur.ownerState.field.assist_lrig_l) + underCountOf(cur.ownerState.field.assist_lrig_r) : 0);
+          const hasUnder = availUnder >= lucCount;
+          const underCard = lrigStack.length >= 2 ? lrigStack.at(-2) : undefined;
           const underName = underCard ? (cur.cardMap.get(underCard)?.CardName ?? underCard) : null;
           const payAction: EffectAction = {
             type: 'SEQUENCE',
             steps: [
-              { type: 'STUB', id: 'INTERNAL_CONSUME_LRIG_UNDER', value: 1 } as import('../types/effects').StubAction,
+              {
+                type: 'STUB', id: 'INTERNAL_CONSUME_LRIG_UNDER', value: lucCount,
+                ...(lucSpec ? { lrigUnderCost: lucSpec } : {}),
+              } as import('../types/effects').StubAction,
               conditional.then,
             ],
           };
-          return needsInteraction(addLog(cur, 'ルリグ下のカードを使用して発動しますか？'), {
+          return needsInteraction(addLog(cur, `ルリグ下のカード${lucCount}枚を使用して発動しますか？`), {
             type: 'CHOOSE',
             count: 1,
             options: [
               {
                 id: 'pay',
                 available: hasUnder,
-                label: underName ? `ルリグ下（${underName}）を使用して発動` : 'ルリグ下のカードを使用して発動',
+                label: underName && lucCount === 1
+                  ? `ルリグ下（${underName}）を使用して発動`
+                  : `ルリグ下のカード${lucCount}枚を使用して発動`,
                 action: payAction,
               },
               {
@@ -5425,31 +5440,18 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
 
-        // SOUL_OP: ソウルカードを消費してコスト支払い（WXDiシリーズ）
-      if (stub.id === 'SOUL_OP') {
-          const srcZoneSO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
-          const stackSO = srcZoneSO >= 0 ? cur.ownerState.field.signi[srcZoneSO] : null;
-          const hasSoul = stackSO != null && stackSO.length >= 2;
-          const soulCard = hasSoul ? stackSO![0] : null;
-          const soulName = soulCard ? (cur.cardMap.get(soulCard)?.CardName ?? soulCard) : null;
-          const consumeSoulStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_CONSUME_SOUL' };
-          const payActionSO: EffectAction = hasSoul
-            ? ({ type: 'SEQUENCE', steps: [consumeSoulStub as EffectAction, conditional.then] } as SequenceAction)
-            : conditional.then;
-          const optionsSO = [
-            {
-              id: 'pay', available: hasSoul,
-              label: soulName ? `ソウル（${soulName}）を使用して発動` : 'ソウルを使用して発動',
-              action: payActionSO,
-            },
-            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
-          ];
-          const pendingSO: PendingInteractionDef = {
-            type: 'CHOOSE', options: optionsSO, count: 1,
-            ...(cont ? { continuation: cont } : {}),
-          };
-          return needsInteraction(addLog(cur, 'ソウルを使用して発動しますか？'), pendingSO);
-        }
+        // 🔴🆕**SOUL_OP のコスト先取りは撤去した**（§5.3 `O-60` 第57バッチ＝`O-228`・2026-09-03）。
+        //   ここは `SEQUENCE[STUB{SOUL_OP}, CONDITIONAL{IS_MY_TURN}]` を見つけると
+        //   「ソウルを使用して発動しますか？」を出し、**効果元シグニの下のカード**を探していた。
+        //   ⇒ **live で当たっていた6効果すべてで原文がそんなコストを要求していなかった**＝
+        //     原文は「〈センター／この／あなたの〉**ルリグ**の下からカードN枚をルリグトラッシュに
+        //     置いてもよい」（`WXDi-P04-009` / `WXDi-P06-009` / `WXDi-CP02-002〜004`）。
+        //   さらに `available: hasSoul` は**効果元がシグニゾーンに居ること**を要求するので、
+        //     効果元がルリグ／アーツ／ピースの6効果は**支払い肢が常に選べず恒久 no-op** だった。
+        //   ⇒ 正しい受け皿は既存の `OPTIONAL_LRIG_UNDER_COST`（すぐ上）＝parser の
+        //     `makeSoulOpStub` が「置いて**もよい**」形をそちらへ振り分ける。
+        //   ⚠**復活させないこと**＝`SOUL_OP` は「ルリグの下／ルリグトラッシュ／ルリグデッキを跨ぐ
+        //     操作」10種の受け皿であって、ソウル（シグニの下のカード）のコストではない。
 
         // 🔴**LRIG_UNDER_CARD_OP のコスト先取りは撤去した**（§5.3 `O-77`・2026-08-29）。
         //   ここは `SEQUENCE[STUB{LRIG_UNDER_CARD_OP}, CONDITIONAL]` を見つけると

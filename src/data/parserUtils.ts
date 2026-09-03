@@ -1,4 +1,4 @@
-import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost, SelectionConstraint, PlaceUnderSigniAction } from '../types/effects';
+import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost, SelectionConstraint, PlaceUnderSigniAction, SoulOpSpec } from '../types/effects';
 
 // costColors から実際の色名だけを抽出（カード名を除外、《赤×2》→["赤","赤"]に展開）
 export function extractCostColors(text: string): string[] {
@@ -106,6 +106,116 @@ export function stripRuleParens(s: string): string {
 }
 export function parseNum(s: string): number {
   return parseInt(toHalf(s), 10);
+}
+
+
+/**
+ * 🆕**`SOUL_OP` のペイロードを1文から読む**（§5.3 `O-60` 第57バッチ＝`O-228`・2026-09-03）。
+ *
+ * 🔴**それまで engine が `sourceAbilityText(ctx)`（＝アビリティブロック全文）に 13本のリテラルを
+ *   当てて分岐していた**＝`census:enginetext` A群の最大項目で、**唯一 miss が残っていた**ハンドラ。
+ *   全文を読むため「同じブロックの**別の文**」に当たると無関係な処理が走り、
+ *   どれにも当たらない6枚は「効果元シグニの下のソウルを消費しますか？」という
+ *   **原文と無関係な UI**（多くは効果元がルリグ／アーツ／ピースなので**恒久 no-op**）へ落ちていた。
+ *
+ * ⚠**読むのは「その文」だけ**＝呼び出し側（`parseSentencePart2/4`）が既に文単位に割っているので、
+ *   ここで全文を見てはいけない（同じ罠を作り直すことになる）。
+ */
+export function parseSoulOpSpec(t: string): SoulOpSpec | null {
+  const s = stripRuleParens(t);
+
+  // ---- 【ソウル】にする（ルリグの下から／ルリグトラッシュから）----
+  if (/【ソウル】にする/.test(s)) {
+    if (/ルリグトラッシュから/.test(s)) return { kind: 'lrig_trash_to_soul', count: 1 };
+    if (/ルリグの下から/.test(s)) return { kind: 'under_to_soul', count: 1 };
+    return null;
+  }
+
+  // ---- ルリグトラッシュ → センタールリグの下 ----
+  {
+    const m = s.match(/ルリグトラッシュから([\s\S]*?)センタールリグの下に置(いてもよい|く)/);
+    if (m) {
+      const head = m[1];
+      // ⚠枚数は「〜枚」に錨を打つ（「レベル０の」の 0 を枚数と読まないため）。
+      const counts = [...head.matchAll(/([０-９\d]+)枚(まで)?/g)];
+      const last = counts.at(-1);
+      const spec: SoulOpSpec = { kind: 'lrig_trash_to_under_center', count: last ? parseNum(last[1]) : 1 };
+      if (last?.[2]) spec.upTo = true;
+      const lvMax = head.match(/レベル([０-９\d]+)以下/);
+      if (lvMax) spec.levelMax = parseNum(lvMax[1]);
+      else {
+        const lv = head.match(/レベル([０-９\d]+)の/);
+        if (lv) spec.level = parseNum(lv[1]);
+      }
+      if (/完全に同一のルリグタイプ/.test(head)) spec.sameLrigType = true;
+      if (m[2] === 'いてもよい') spec.optional = true;
+      return spec;
+    }
+  }
+
+  // ---- ルリグの下 → ルリグトラッシュ ----
+  {
+    const m = s.match(/ルリグの下からカード(?:を)?(?:合計)?(好きな枚数|[０-９\d]+枚)(まで)?[\s\S]*?ルリグトラッシュに置(いてもよい|く)/);
+    if (m) {
+      const spec: SoulOpSpec = { kind: 'under_to_lrig_trash' };
+      if (m[1] === '好きな枚数') spec.anyCount = true;
+      else spec.count = parseNum(m[1].replace('枚', ''));
+      if (m[2]) spec.upTo = true;
+      // 🔑「**あなたの**ルリグの下」＝センターとアシストを合わせた「合計」。
+      //   「**この**ルリグの下」「**センター**ルリグの下」はセンターだけ。
+      if (/あなたのルリグの下からカード/.test(s)) spec.fromAllLrigs = true;
+      if (m[3] === 'いてもよい') spec.optional = true;
+      return spec;
+    }
+  }
+
+  // ---- 他のルリグの下にあるすべてのカードをこのルリグの下に置く ----
+  if (/他のルリグの下にあるすべてのカードをこのルリグの下に置く/.test(s)) {
+    return { kind: 'merge_other_lrig_under' };
+  }
+
+  // ---- このカードをセンタールリグの下に置く ----
+  if (/このカードを(?:あなたの)?センタールリグの下に置く/.test(s)) {
+    return { kind: 'self_to_under_center' };
+  }
+
+  // ---- ルリグデッキ ⇄ ルリグトラッシュ ----
+  if (/ルリグトラッシュから[\s\S]*アーツ[\s\S]*ルリグデッキに加える/.test(s)) {
+    return { kind: 'lrig_trash_arts_to_lrig_deck', count: 1 };
+  }
+  {
+    const m = s.match(/ルリグデッキ(?:の上から)?([０-９\d]+)枚をルリグトラッシュに/);
+    if (m) return { kind: 'lrig_deck_top_to_lrig_trash', count: parseNum(m[1]) };
+  }
+  if (/それをルリグデッキに加える/.test(s)) return { kind: 'self_to_lrig_deck' };
+  if (/それらをルリグトラッシュに置く/.test(s)) return { kind: 'processed_to_lrig_trash' };
+
+  return null;
+}
+
+/**
+ * 🆕**`SOUL_OP` を出す唯一の入口**（§5.3 `O-60` 第57バッチ・2026-09-03）。
+ *
+ * 🔑**「ルリグの下から N枚をルリグトラッシュに置いて**もよい**」は `SOUL_OP` ではなく
+ *   既存の受け皿 `OPTIONAL_LRIG_UNDER_COST` へ送る**＝あれは
+ *   `effectExecutor` が `STUB → CONDITIONAL{IS_MY_TURN}` を「任意コスト＋そうした場合」として
+ *   拾う専用機構で、`WXDi-P05-009-E1`（manual）が既に使っている。
+ * 🔴**旧実装ではこの文型が `SOUL_OP` のまま `effectExecutor` の「ソウルを使用して発動しますか？」
+ *   分岐に吸い込まれ、効果元シグニの下のソウルを探していた**＝効果元がルリグ／ピースの
+ *   `WXDi-P04-009` / `WXDi-P06-009` / `WXDi-CP02-002〜004` は
+ *   **支払い肢が常に `available:false` ＝恒久 no-op** だった。
+ */
+export function makeSoulOpStub(t: string): StubAction {
+  const spec = parseSoulOpSpec(t);
+  if (!spec) return { type: 'STUB', id: 'SOUL_OP' };
+  if (spec.kind === 'under_to_lrig_trash' && spec.optional && !spec.anyCount) {
+    return {
+      type: 'STUB',
+      id: 'OPTIONAL_LRIG_UNDER_COST',
+      lrigUnderCost: { count: spec.count ?? 1, ...(spec.fromAllLrigs ? { fromAllLrigs: true } : {}) },
+    };
+  }
+  return { type: 'STUB', id: 'SOUL_OP', soulOp: spec };
 }
 
 export function parseSignedNum(s: string): number {
