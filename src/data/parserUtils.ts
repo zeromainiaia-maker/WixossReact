@@ -218,6 +218,116 @@ export function makeSoulOpStub(t: string): StubAction {
   return { type: 'STUB', id: 'SOUL_OP', soulOp: spec };
 }
 
+/**
+ * 🆕**`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` の向きと量を1文から読む**
+ * （§5.3 `O-60` 第58バッチ・2026-09-03）。
+ *
+ * 🔴**旧実装（engine 側）はアビリティブロック全文に5本の regex を当てていた**ため、
+ *   `対戦相手.*リミットを＋([０-９\d]+)` が**文を跨いで**当たり、
+ *   `WXDi-P16-002-E1`（原文「**あなたの**センタールリグのリミットを＋２する」）は
+ *   **相手のリミットを＋２**していた（前の文に「次の**対戦相手**のターンの間、…」がある）。
+ *   さらに engine は「相手側の一致があれば自分側の分岐を丸ごと飛ばす」構造だったため、
+ *   自分と相手の両方を書いた `WX25-P2-014-E2` は**自分の＋1が消えて**いた。
+ *
+ * 🔑**向きは「リミットを」の直前の名詞句だけで決める**（文全体を見ない）。
+ */
+export function parseLrigLimitChangeSpec(t: string): { owner: Owner; delta: number } | null {
+  const s = stripRuleParens(t);
+  const m = s.match(/([^。]*?)リミットを([＋+－-]?)([０-９\d]+)/);
+  if (!m) return null;
+  const sign = m[2];
+  const n = parseNum(m[3]);
+  if (!Number.isFinite(n)) return null;
+  // ⚠**「リミットを」の直前の名詞句だけ**を見る（`WXDi-P16-002` は前の文に「対戦相手」がある）。
+  const near = m[1].split(/[、,]/).pop() ?? '';
+  const owner: Owner = near.includes('対戦相手') ? 'opponent' : 'self';
+  const delta = sign === '－' || sign === '-' ? -n : n;
+  return { owner, delta };
+}
+
+/**
+ * 🆕**「あなたのトラッシュから〈条件〉のシグニN枚（まで）を、あなたの〈条件〉のシグニの下に置く」**の
+ * 枚数・トラッシュ側・配置先を1文から読む（§5.3 `O-60` 第58バッチ・2026-09-03）。
+ *
+ * 🔴**旧実装（engine 側）の壊れ方は3つ**＝
+ *   ①枚数 regex `シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く` は
+ *     **live 9効果すべてに当たらなかった**（原文は「シグニ**を**２枚まで対象とし」「対象のシグニ**を**２枚まで」）
+ *     ＝**常に既定の1枚**で、「２枚まで」の5効果が過小実行だった。
+ *   ②クラス regex `＜([^＞]+)＞のシグニ.*の下に置く` は**最初に出た `＜X＞`** を拾って
+ *     **トラッシュ側の絞り込み**に使っていた。`WDK15-001`／`WXK08-048`／`WXK10-090` は
+ *     `＜X＞` が**配置先**にしか無いので、**トラッシュの＜ウェポン＞しか選べない**過小実行だった。
+ *   ③配置先の絞り込みは `INTERNAL_TSU_CHOOSE_ZONE` が**カード全文**を読んでおり、
+ *     `WXEX2-61`（配置先は《ライズアイコン》を持つシグニ）で**＜武勇＞**を配置先条件にしていた。
+ *
+ * 🔑**文を「配置先の名詞句」で2つに割る**＝末尾の `の下に置く` から遡って
+ *   `対象のあなたの` / `それらをあなたの` / `そのシグニ` などの標識を探し、
+ *   **その手前をトラッシュ側・その後ろを配置先**として別々に解釈する。
+ * 🔑**トラッシュ側は「最後の `トラッシュから`」以降だけ**を見る＝`WDK15-007` は
+ *   1文に `トラッシュから` が2回出る（前半は「＜ウェポン＞のシグニ1枚を**場に出し**」）ので、
+ *   全体を見ると配置対象に＜ウェポン＞の縛りが漏れる。
+ */
+export function parseTrashUnderPlaceSpec(t: string): {
+  count: number; upTo?: boolean; sourceFilter?: TargetFilter; destFilter?: TargetFilter; destLastPlayed?: boolean;
+} | null {
+  const s = stripRuleParens(t);
+  const placeIdx = s.lastIndexOf('の下に置く');
+  if (placeIdx < 0) return null;
+  const head = s.slice(0, placeIdx);
+  if (!head.includes('トラッシュから')) return null;
+
+  // ---- 配置先の名詞句を切り出す ----
+  const MARKERS = ['対象のあなたの', 'それらをあなたの', 'それをあなたの', '、あなたの', 'をあなたの', 'そのシグニ'];
+  let cut = -1; let cutLen = 0;
+  for (const mk of MARKERS) {
+    const i = head.lastIndexOf(mk);
+    if (i > cut) { cut = i; cutLen = mk.length; }
+  }
+  if (cut < 0) return null;
+  const destPhrase = head.slice(cut + cutLen);
+  const destLastPlayed = head.slice(cut, cut + cutLen) === 'そのシグニ';
+
+  // ---- トラッシュ側＝「最後の `トラッシュから`」以降 かつ 配置先の手前 ----
+  const srcStart = head.lastIndexOf('トラッシュから', cut);
+  if (srcStart < 0) return null;
+  const srcPhrase = head.slice(srcStart + 'トラッシュから'.length, cut);
+
+  // 枚数（トラッシュ側の最後の「N枚（まで）」）
+  const counts = [...srcPhrase.matchAll(/([０-９\d]+)枚(まで)?/g)];
+  const last = counts.at(-1);
+  const count = last ? parseNum(last[1]) : 1;
+  const upTo = !!last?.[2];
+
+  const sourceFilter: TargetFilter = {
+    cardType: 'シグニ',
+    ...parseLevelFilter(srcPhrase), ...parseColorFilter(srcPhrase), ...parseStoryFilter(srcPhrase),
+  };
+  const destFilter: TargetFilter = destLastPlayed ? {} : {
+    cardType: 'シグニ',
+    ...parseStoryFilter(destPhrase), ...parseIconFilter(destPhrase), ...parseColorFilter(destPhrase),
+  };
+  return {
+    count, ...(upTo ? { upTo: true } : {}),
+    sourceFilter,
+    ...(destLastPlayed ? { destLastPlayed: true } : { destFilter }),
+  };
+}
+
+/**
+ * 🆕**「コラボライバーN人を呼ぶ」の人数を1文から読む**（§5.3 `O-60` 第58バッチ・2026-09-03）。
+ *
+ * 🔴**旧実装（engine 側）は「`コラボライバー` を含む ∧ `呼ぶ` を含む」で 1人 / 2人 を決めていた**ので、
+ *   「コラボライバー**１人とコラボしてもよい**」（`WXDi-CP01-005-E1`＝【ガード】の代替コスト）が
+ *   **「呼ぶ」形の既定へ落ちて**いた＝原文と無関係にアシストルリグを場へ出す対話が開く。
+ * ⇒ **「呼ぶ」形だけをこの受け皿に残し、代替コスト形は別 id（`DEFERRED_GUARD_ALT_COST_COLLAB`）へ分ける。**
+ */
+export function parseCollabCallSpec(t: string): { count: number } | null {
+  const s = stripRuleParens(t);
+  const m = s.match(/コラボライバー([０-９\d]+)人を呼ぶ/);
+  if (m) return { count: parseNum(m[1]) };
+  if (/コラボライバー[^。]*を呼ぶ/.test(s)) return { count: 1 };
+  return null;
+}
+
 export function parseSignedNum(s: string): number {
   const h = toHalf(s);
   if (h.startsWith('-') || h.startsWith('－')) return -parseInt(h.replace(/[＋－+-]/, ''), 10);

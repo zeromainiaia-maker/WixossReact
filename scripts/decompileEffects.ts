@@ -4206,6 +4206,11 @@ function actionJa(a?: Action, effectType?: string): string {
         //   条件は effect の `activeCondition` 側に載る（この文は「何を足すか」だけを言う）。
         //   消費＝`screens/battle/artsUseGate.ts` の `collectExtraUseTimings`。
         EXTRA_USE_TIMING: 'このカードは追加で使用タイミングを持つ',
+        // 🆕§5.3 `O-230`（2026-09-03・`O-60` 第58バッチで分離）＝【ガード】の代替コストとしての「コラボする」。
+        //   🔴機構待ち＝`WXDi-CP01-005-E1` 1件。旧実装は `STUB{COLLAB}` の「コラボしてもよい」枝に落ちて
+        //     **原文と無関係にアシストルリグを場へ出す対話**が開いていた。
+        DEFERRED_GUARD_ALT_COST_COLLAB:
+          'あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに《無》を支払いコラボライバー1人とコラボしてもよい【未実装】',
         // 🆕§5.3 `O-203`（2026-09-02）＝参照側（`fieldCandidates`）が Type を差し替えて読む。
         TREAT_SELF_AS_RESONA: 'このシグニをレゾナとしても扱う',
         // 🆕§5.3 `O-60` 第45バッチ（2026-09-03）＝`STUB{LOOK_AND_REORDER}` の catch-all（15文型）を割った分。
@@ -4569,6 +4574,24 @@ function actionJa(a?: Action, effectType?: string): string {
           }
         };
         return `このゲームの間、${gg.map(one).join('。')}`;
+      }
+      // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝3 family を payload から描く。**
+      if (a.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
+        const lc = a.lrigLimitChange;
+        if (!lc) return '【※ペイロード欠落】ルリグリミット修正（engine は何もしない）';
+        return `次の${lc.owner === 'opponent' ? '対戦相手' : 'あなた'}のエナフェイズ終了時まで、${lc.owner === 'opponent' ? '対戦相手の' : 'あなたの'}センタールリグのリミットを${lc.delta > 0 ? '＋' : '－'}${Math.abs(lc.delta)}する`;
+      }
+      if (a.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
+        const tu = a.trashUnderPlace;
+        if (!tu) return '【※ペイロード欠落】トラッシュのシグニをシグニの下に置く（engine は何もしない）';
+        const nJa = `${tu.count}枚${tu.upTo ? 'まで' : ''}`;
+        const destJa = tu.destLastPlayed ? 'そのシグニ' : `あなたの${filterJa(tu.destFilter)}シグニ`;
+        return `あなたのトラッシュから${filterJa(tu.sourceFilter)}シグニ${nJa}を対象とし、${tu.count > 1 ? 'それら' : 'それ'}を${destJa}の下に置く`;
+      }
+      if (a.id === 'COLLAB') {
+        const cc = a.collabCall;
+        if (!cc) return '【※ペイロード欠落】コラボライバーを呼ぶ（engine は何もしない）';
+        return `コラボライバー${cc.count}人を呼ぶ`;
       }
       // 🆕**§5.3 `O-60` 第57バッチ（2026-09-03・`O-228`）＝`SOUL_OP` は payload から描く。**
       //   🔴それまでは `[STUB:ソウル/ルリグデッキ操作]` の一言で、**engine がアビリティブロック全文の

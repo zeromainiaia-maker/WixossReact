@@ -1,5 +1,120 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第18巡）：§5.3 `O-60` 第58バッチ — A群 live効果数の大物3 family（`LIMIT_CHANGE` / `TRASH_SIGNI_UNDER_FIELD_SIGNI` / `COLLAB`）
+
+**ベースライン**＝`87a8c28c4`（第57バッチの直後）。**A🔴 SELF_TEXT 32行 → 28行 / 32→27ハンドラ**
+（`BASELINE_SELF_TEXT` も 28 へ払い戻し。`INTERNAL_TSU_CHOOSE_ZONE` も同時に落ちたので **-4行**）。
+**gates 全緑**（typecheck・golden **3389 → 3393**＝+4本・smoke 10725 全異常0・fuzz 全0・
+census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴28**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更26・追加0・削除0、予定外0**（3 family の25効果＋`until` 修正の波及1件）。
+🖥**実機＝機械判定では不要**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+**`src/screens/` は1行も触っていない**・新しい interaction 型は0）。
+ただし**4効果が「無言 no-op／原文と逆／過小実行」から実際の盤面変化へ変わる**ので観測点 **`V-139`** を登録した（未実施）。
+
+### 🔴 この巡の主産物＝「`miss=0` は正しいではない」の実証
+
+計器は3ハンドラとも **miss 0** と出していた。ところが**engine が実際に読む文**（`sourceAbilityText`＝
+**アビリティブロック**）にリテラルを当て直したら、**3 family とも壊れていた**。
+
+🔴🔑**計器の `miss` はカード全文（`EffectText + BurstText`）に当てて数える**（`censusEngineText.ts:216`）。
+`sourceAbilityText` 経由の funnel ハンドラは**engine が読むのはブロックだけ**なので、
+**「別の文に当たっているだけ」を hit と数えてしまう**＝**miss が構造的に甘く出る**。
+⇒ **A群を取るときは、計器の miss を信じずに `abilityBlockTextOf(card, effectId)` でリテラルを当て直す**
+（今回は `tmp_b58probe.ts` で全 25効果を1件ずつ出した）。
+
+### family ①：`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`（live 10効果）
+
+engine はブロック全文に**5本の regex**を当てて向きと量を決めていた。壊れ方は2つ＝
+
+🔴**(a) 向きが反転する**＝`対戦相手.*リミットを＋([０-９\d]+)` の `.*` が**文を跨ぐ**ので、
+原文「**あなたの**センタールリグのリミットを＋２する」の `WXDi-P16-002-E1` は、
+同じブロックの前の文にある「次の**対戦相手**のターンの間、…」を拾って
+**相手のリミットを＋２**していた（自分は0）。
+
+🔴**(b) 自分側が丸ごと消える**＝実装が `if (!oppMinusM && !oppPlusM) { 自分側 }` という構造で、
+**相手側の一致が1本でもあれば自分側の分岐を飛ばす**。自分＋1／相手−2 を両方書いた
+`WX25-P2-014-E2` は**自分の＋1が消え**、さらに相手の−2は後続の
+`STUB{OPP_MAIN_PHASE_LIMIT_DOWN}` と**二重に**掛かっていた。
+
+⇒ payload `lrigLimitChange:{owner, delta}` へ移し、**向きは「リミットを」の直前の名詞句だけ**で決める
+（`parseLrigLimitChangeSpec`）。payload の無い宣言は何もしない（旧既定の「リミット+1」は
+**原文に無い数値を勝手に足す**形だった）。
+
+🔴🔑**副産物＝`until` の判定が「次の」の2つの意味を混同していた**（`parseSentencePart2` の typed `LRIG_LIMIT_MODIFY`）。
+原文の「次の」には**2つの意味**がある＝
+①「次の〈誰かの〉〈フェイズ〉**の間**」＝**その時から**効き始める窓（→ `NEXT_TURN`＝`pending_lrig_limit_mod`）
+②「次の〈誰かの〉〈フェイズ〉**終了時まで**」＝**いま**効き始めてそこまで続く期間
+旧実装は `t.includes('次の')` だけで①に倒していたので、②の3効果
+（`WXDi-P05-025-E2` / `WXDi-P13-004B-E3` / `WXDi-P16-002-E1`＝どれも「次のあなたのエナフェイズ終了時まで、
+…リミットを＋N**する**」）が**払ったターンには1も効かず**、次のターンのメインフェイズから効き始めていた。
+⇒ ②は `END_OF_TURN`（＝`lrig_limit_mod`。**いま**書いてターン終了時にリセット）へ倒した。
+⚠**正確な期間（自分の次のエナフェイズ終了時まで）を表す語彙が `until` に無い**ので**短い側**を選んでいる。
+⚠**この修正は `WXDi-P16-047-E2` にも波及**（`NEXT_TURN`→`END_OF_TURN`）＝盤面はほぼ同じだが
+**判定規則を1本に揃えるため**同じ扱いにした。第52バッチの golden 1本を理由付きで更新。
+
+### family ②：`TRASH_SIGNI_UNDER_FIELD_SIGNI`（live 9効果）＋ `INTERNAL_TSU_CHOOSE_ZONE`
+
+engine は原文に**4本の regex**を当てていた。壊れ方は3つ＝
+
+🔴**(a) 枚数が常に1枚**＝`シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く` は
+**live 9効果すべてに当たらなかった**（原文は「シグニ**を**２枚まで対象とし」「対象のシグニ**を**２枚まで」＝
+助詞が1つ違う）。⇒ 「２枚まで」の**5効果が過小実行**（`WDK15-001` / `WDK15-007` /
+`WXDi-P15-001` / `WXDi-P15-006` / `WXDi-P15-007`）。
+
+🔴**(b) 配置先のクラスをトラッシュ側の絞り込みに使っていた**＝`＜([^＞]+)＞のシグニ.*の下に置く` は
+**最初に出た `＜X＞`** を拾う。`WDK15-001` / `WXK08-048` / `WXK10-090` は `＜X＞` が**配置先にしか無い**ので、
+**トラッシュの＜ウェポン＞しか選べない**過小実行だった。
+
+🔴**(c) 配置先はカード全文から読んでいた**（`INTERNAL_TSU_CHOOSE_ZONE`）＝
+`WXEX2-61`（原文の配置先は**《ライズアイコン》を持つ**シグニ）で、トラッシュ側の**＜武勇＞**を
+配置先条件にしていた。
+
+⇒ payload `trashUnderPlace:{count, upTo, sourceFilter, destFilter, destLastPlayed}` へ移した。
+🔑**文を「配置先の名詞句」で2つに割る**のが要点＝末尾の `の下に置く` から遡って
+`対象のあなたの` / `それらをあなたの` / `そのシグニ` などの標識を探し、**手前をトラッシュ側・後ろを配置先**として
+別々に解釈する。🔑**トラッシュ側は「最後の `トラッシュから`」以降だけ**を見る
+（`WDK15-007` は1文に `トラッシュから` が2回出るので、全体を見ると＜ウェポン＞の縛りが漏れる）。
+
+### family ③：`COLLAB`（live 6効果 / 5カード）
+
+🔴**catch-all に別の文型が混ざっていた**＝engine は「`コラボライバー` を含む ∧ `呼ぶ` を含む」で
+1人／2人を決めていたので、**「呼ぶ」を含まない**文＝`WXDi-CP01-005-E1`
+「【常】：あなたが【ガード】する際、…《無》を支払い**コラボライバー１人とコラボしてもよい**。」
+（＝**【ガード】の代替コスト**という別機構）が下の「コラボしてもよい」既定へ落ち、
+**原文と無関係にアシストルリグを場へ出す対話**を開いていた。
+⇒ 呼ぶ形だけ payload `collabCall:{count}` に残し、代替コスト形は
+`DEFERRED_GUARD_ALT_COST_COLLAB` へ分離（§5.3 `O-230` に登録）。
+生成元の無くなった「コラボしてもよい」フォールバックは撤去した。
+⚠`INTERNAL_DO_COLLAB`（実行部）は**残した**＝golden が挙動を固定しており、`O-230` の受け皿になる。
+
+### 🔑 一般則
+
+① **`miss=0` を「正しい」と読まない**＝funnel 経由のハンドラでは計器の miss が**構造的に甘い**。
+   **`abilityBlockTextOf` でリテラルを当て直してから着手する。**
+② **regex の「当たっている」は「正しく当たっている」ではない**＝`WDK15-001` は
+   クラス regex が**当たっていた**（ただし配置先の語を拾って**トラッシュ側**に適用していた）。
+   **当たり外れだけでなく「何を捕まえたか」を1件ずつ見る。**
+③ **助詞1つで regex は全滅する**＝枚数 regex は「シグニ**を**N枚」の「を」が入るだけで
+   **live 9効果すべてに当たらなかった**のに、既定値（1枚）があるので**誰も気づかなかった**。
+   **既定値のある regex は「当たらないこと」が可視化されない。**
+④ **同じ語（「次の」）が期間の始点にも終点にも使われる**＝
+   「次の〜**の間**」（始点）と「次の〜**終了時まで**」（終点）を刻み分ける。
+
+### 変更ファイル
+
+`src/types/effects.ts`（`lrigLimitChange` / `trashUnderPlace` / `collabCall`）／
+`src/data/parserUtils.ts`（`parseLrigLimitChangeSpec` / `parseTrashUnderPlaceSpec` / `parseCollabCallSpec`）／
+`src/data/parsers/parseSentencePart2.ts`（TSU の payload ＋ `LRIG_LIMIT_MODIFY` の `until` 判定）／
+`parseSentencePart3.ts`（LIMIT / COLLAB）／`src/data/effectParser.ts`（`WX24-P3-*` の複合文）／
+`src/engine/execStubPart1.ts`（LIMIT・TSU・`INTERNAL_TSU_CHOOSE_ZONE` の regex 撤去）／
+`src/engine/execStubPart3.ts`（COLLAB の regex 撤去＋「コラボしてもよい」枝の撤去）／
+`scripts/decompileEffects.ts`（payload から逆翻訳＋`DEFERRED_GUARD_ALT_COST_COLLAB` の日本語）／
+`scripts/censusEngineText.ts`（ratchet 32→28）／`scripts/goldenTest.ts`（+4本・既存2本を更新）／
+`public/data/effects_{WX,WXDi,misc}.json`（26効果）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第17巡）：§5.3 `O-60` 第57バッチ＝🏁`O-228` — `SOUL_OP`（A群最大・唯一の miss）を payload 化
 
 **ベースライン**＝`9f2d91e87`（第56バッチの直後）。**A🔴 SELF_TEXT 33行 → 32行 / 32→31ハンドラ**

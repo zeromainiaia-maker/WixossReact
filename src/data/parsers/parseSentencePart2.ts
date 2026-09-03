@@ -49,7 +49,7 @@ import {
   parseNum, parseSignedNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
   parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter, parsePlaceUnderSourceSigni,
-  makeSoulOpStub,
+  makeSoulOpStub, parseTrashUnderPlaceSpec,
 } from '../parserUtils';
 
 /**
@@ -496,7 +496,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
       // ⚠「（お互いのセンタールリグに影響する）」の注記は **`stripRuleParens` でここへ届く前に消える**ので
       //   ここでは読めない＝`owner:'any'` はカード単位の後段（`parseCardEffects` の末尾）で刻む。
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-      const until: LrigLimitModifyAction['until'] = t.includes('次の') ? 'NEXT_TURN' : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
+      // 🆕🔴**§5.3 `O-60` 第58バッチ（2026-09-03）＝「次の」だけで `NEXT_TURN` に倒さない。**
+      //   原文の「次の」には**2つの意味**がある＝
+      //   ①「次の〈誰かの〉〈フェイズ〉**の間**」＝**その時になってから**効き始める窓（`NEXT_TURN`＝`pending_lrig_limit_mod`）
+      //   ②「次の〈誰かの〉〈フェイズ〉**終了時まで**」＝**いま**効き始めて、そこまで続く期間
+      //   🔴旧実装は②も `NEXT_TURN` にしていたので、`WXDi-P05-025-E2`／`WXDi-P13-004B-E3`／`WXDi-P16-002-E1`
+      //     （どれも「次のあなたのエナフェイズ終了時まで、…リミットを＋N**する**」）が
+      //     **払ったターンには1も効かず**、次のターンのメインフェイズから効き始める形になっていた。
+      //   ⚠**②の正確な期間（自分の次のエナフェイズ終了時まで）を表す語彙は `until` に無い**＝
+      //     `END_OF_TURN`（＝`lrig_limit_mod`。ターン終了時にリセット）へ**短い側に倒す**。
+      //     長い側（`PERMANENT`）は消えない修正になるので選ばない。
+      const until: LrigLimitModifyAction['until'] =
+        /次の[^、。]*の間/.test(t) ? 'NEXT_TURN'
+          : (t.includes('終了時まで') || t.includes('このターン')) ? 'END_OF_TURN'
+            : t.includes('次の') ? 'NEXT_TURN' : 'PERMANENT';
       return { type: 'LRIG_LIMIT_MODIFY', owner, delta, until } as LrigLimitModifyAction;
     }
   }
@@ -2451,8 +2464,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- トラッシュから天使シグニを別シグニの下に置く ----
+  // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝枚数・トラッシュ側・配置先を payload で渡す。**
+  //   🔴旧実装は engine が原文に4本の regex を当てており、**枚数 regex は live 9効果すべてに当たらず
+  //     常に1枚**（「２枚まで」の5効果が過小実行）、**配置先の `＜X＞` をトラッシュ側の絞り込みに使う**
+  //     （`WDK15-001`／`WXK08-048`／`WXK10-090`）という壊れ方をしていた。
   if (t.match(/あなたのトラッシュから.*シグニ.*あなたの.*シグニ.*の下に置く/)) {
-    return { type: 'STUB', id: 'TRASH_SIGNI_UNDER_FIELD_SIGNI' } as StubAction;
+    const tupSpec = parseTrashUnderPlaceSpec(t);
+    return { type: 'STUB', id: 'TRASH_SIGNI_UNDER_FIELD_SIGNI',
+      ...(tupSpec ? { trashUnderPlace: tupSpec } : {}) } as StubAction;
   }
 
   // ---- アクセされているシグニがすべての色を得る ----

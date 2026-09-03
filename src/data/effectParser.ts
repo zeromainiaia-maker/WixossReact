@@ -15540,15 +15540,17 @@ function parseActionTextInner(text: string): EffectAction {
     // 🔴従来はこの文型に規則が無く、4枚は part3 の `LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` へ落ちて
     //   **リミットだけ動き引用能力が丸ごと消え**、`WX24-P3-003-E1` は引用漏出の安全網
     //   （`STUB{GRANT_ABILITY_INNER_TEXT}`）に落ちて**リミットごと何も起きない**真 no-op だった。
-    // ⚠リミット側は既存 STUB に任せる（engine が原文から ±N を読む＝ペイロード不要）。
+    // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝リミット側も payload で渡す**（engine は原文を読まない）。
+    //   ⚠**原文は「**それの**リミットを＋N」＝対象に取った自分のセンタールリグ**なので owner は常に self。
     // ⚠**期間は `UNTIL_OPP_TURN_END` で過少側に倒す**＝原文「次のあなたのエナフェイズ終了時まで」は
     //   相手ターンを跨いで**自分の次のターンのエナフェイズ**まで続くが、その語彙が `EffectDuration` に無い。
     //   長い側（PERMANENT）へ倒すと**消えない付与**になるので短い側を選ぶ。
-    const limitAndGrantM = text.match(/(?:あなたの)?(?:レベル[０-９\d]+以上の)?センタールリグ[１1]体を対象とし[、,]次のあなたのエナフェイズ終了時まで[、,]それのリミットを[＋+][０-９\d]+し[、,]それは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
+    const limitAndGrantM = text.match(/(?:あなたの)?(?:レベル[０-９\d]+以上の)?センタールリグ[１1]体を対象とし[、,]次のあなたのエナフェイズ終了時まで[、,]それのリミットを[＋+]([０-９\d]+)し[、,]それは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
     if (limitAndGrantM) {
       return { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END' } as StubAction,
-        { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: limitAndGrantM[1].trim(),
+        { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
+          lrigLimitChange: { owner: 'self', delta: parseNum(limitAndGrantM[1]) } } as StubAction,
+        { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: limitAndGrantM[2].trim(),
           targetedCenter: true, duration: 'UNTIL_OPP_TURN_END' } as GrantLrigAbilityAction,
       ] } as SequenceAction;
     }

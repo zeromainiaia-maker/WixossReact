@@ -1192,14 +1192,19 @@ export function execStubPart3(
     const newOtherSODC = { ...ctx.otherState, declared_color: colorSODC };
     return done(addLog({ ...ctx, otherState: newOtherSODC }, `対戦相手が色「${colorSODC}」を宣言`));
   }
-  // COLLAB: コラボ効果
+  // COLLAB: コラボ効果（「コラボライバーN人を呼ぶ」）
+  // 🆕🔴**§5.3 `O-60` 第58バッチ（2026-09-03）＝原文 regex を撤去して payload で人数を決める。**
+  //   旧実装は `sourceAbilityText(ctx)` に「`コラボライバー` を含む ∧ `呼ぶ` を含む」を当てて
+  //   1人 / 2人 を決めていたので、**「呼ぶ」を含まない文**（`WXDi-CP01-005-E1`＝
+  //   「【ガード】する際、…《無》を支払い**コラボライバー１人とコラボしてもよい**」＝
+  //   ガードの代替コストという別機構）が**下の「コラボしてもよい」既定へ落ちて**
+  //   原文と無関係にアシストルリグを場へ出す対話を開いていた。
+  //   ⇒ その文型は parser が `DEFERRED_GUARD_ALT_COST_COLLAB` へ分ける（§5.3 `O-230`）。
+  // ⚠**payload が無い宣言は何もしない**（fail-closed）。
   if (stub.id === 'COLLAB') {
-    // §6.4 O-20: 全文だと別能力の人数を拾う（`WXDi-CP01-005-E1` は「1人とコラボ」なのに
-    // E2 の「2人を呼ぶ」で 2人 call になっていた）のでブロックだけを読む。
-    const txtCL = sourceAbilityText(ctx);
-    // 「コラボライバーN人を呼ぶ」= ルリグデッキからアシストルリグをアシストゾーンに配置
-    const callM = txtCL.match(/コラボライバー([２2])人を呼ぶ/);
-    const callCount = callM ? 2 : txtCL.includes('コラボライバー') && txtCL.includes('呼ぶ') ? 1 : 0;
+    const specCL = stub.collabCall;
+    if (!specCL) return done(addLog(ctx, '[未実装] コラボライバーを呼ぶ（payload なし）'));
+    const callCount = specCL.count;
     if (callCount > 0) {
       const lrigDk = ctx.ownerState.lrig_deck;
       const assistInDk = lrigDk.filter(cn => {
@@ -1229,26 +1234,17 @@ export function execStubPart3(
       }
       return done(addLog({ ...ctx, ownerState: ns, lastProcessedCards: placedIds }, `コラボライバー${placed}人を呼んだ`));
     }
-    // 「コラボしてもよい」: 任意でアシストルリグを1人召喚
-    const assistAvailCL = ctx.ownerState.lrig_deck.filter(cn => {
-      const c = ctx.cardMap.get(getCardNum(cn));
-      return c?.Type === 'アシストルリグ';
-    });
-    const hasAssistSpaceCL = (ctx.ownerState.field.assist_lrig_l?.length ?? 0) === 0 ||
-      (ctx.ownerState.field.assist_lrig_r?.length ?? 0) === 0;
-    if (assistAvailCL.length === 0 || !hasAssistSpaceCL) {
-      return done(addLog(ctx, 'コラボ: アシストルリグまたは空きゾーンなし'));
-    }
-    const noopCL: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
-    return needsInteraction(addLog(ctx, 'コラボしますか？（コラボライバーを1人呼ぶ）'), {
-      type: 'CHOOSE', count: 1,
-      options: [
-        { id: 'collab_yes', label: 'コラボする', action: ({ type: 'STUB', id: 'INTERNAL_DO_COLLAB', value: 1 } as StubAction) as EffectAction, available: true },
-        { id: 'collab_no', label: 'しない', action: noopCL as EffectAction, available: true },
-      ],
-    });
+    return done(addLog(ctx, 'コラボライバーを呼ぶ人数が0'));
   }
+  // 🔴🆕**「コラボしてもよい」の任意召喚フォールバックは撤去した**（§5.3 `O-60` 第58バッチ・2026-09-03）。
+  //   `WXDi-CP01-005-E1`（【ガード】の代替コスト）だけがここへ落ちており、**原文と無関係に
+  //   アシストルリグを場へ出す対話**を開いていた。いまは parser が `DEFERRED_GUARD_ALT_COST_COLLAB`
+  //   へ分けるので、この枝に来る効果は無い（§5.3 `O-230`）。
+  //   ⚠**復活させないこと**＝「コラボする」はガード時の支払い手段であって、能力の効果ではない。
   // INTERNAL_DO_COLLAB: コラボ実行（アシストルリグ1人を配置）
+  // ⚠**2026-09-03（第58バッチ）以降、生成元は無い**（唯一の producer だった「コラボしてもよい」
+  //   フォールバックを撤去したため）。**残しているのは実行部として正しく、golden が挙動を固定しており、
+  //   `O-230`（ガードの代替コストとしての「コラボする」）を実装するときの受け皿になるため。**
   if (stub.id === 'INTERNAL_DO_COLLAB') {
     const assistInDkIDC = ctx.ownerState.lrig_deck.filter(cn => {
       const c = ctx.cardMap.get(getCardNum(cn));

@@ -1,5 +1,67 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第57バッチ＝🏁`O-228`・索引 A 第17巡・Opus 5 単独）＝A群最大 `SOUL_OP` を payload 化＝**🔴**A群の miss が全滅（1ハンドラ/6カード → 0）**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器 `census:enginetext` は A🔴 33行 / 32ハンドラ → 32行 / 31ハンドラ**
+  （`BASELINE_SELF_TEXT` も 32 へ払い戻し）。🔴**`miss` は 1ハンドラ / 6カード → 0**（消化であって較正ではない）。
+  📦**在庫2本＝④機構 worklist 27項目**（🏁`O-228` をクローズ＝28→27／新規登録0）｜**⑤実機 残 8件**（🆕`V-137`／`V-138` を登録＝6→8）。
+  gates 全緑（golden **3389 / 3389**＝+6本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴32**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更24・追加0・削除0、予定外0**（＝`SOUL_OP` が居た24効果ちょうど）。
+  🖥**実機＝機械判定では不要**（`src/screens/` は0行・新しい interaction 型0）だが、
+  **8効果が「恒久 no-op／原文と無関係な UI」から実際の対話へ変わる**ので観測点 `V-137`／`V-138` を登録（未実施）。
+
+  🔴**主産物＝「緑のまま恒久 no-op だった6効果」**＝`effectExecutor` の `SOUL_OP` コスト先取りが
+  `SEQUENCE[STUB{SOUL_OP}, CONDITIONAL{IS_MY_TURN}]` を捕まえて「**ソウル**を使用して発動しますか？」を出し、
+  **効果元シグニの下のカード**を探していた。原文はどれも「〈センター／この／あなたの〉**ルリグ**の下から
+  カードN枚をルリグトラッシュに置いてもよい」で、しかも効果元は**ルリグ／アーツ/ピース**＝シグニゾーンに居ない。
+  ⇒ 支払い肢が常にグレー＝**能力が一度も発動できなかった**
+  （`WXDi-P04-009`／`WXDi-P06-009`／`WXDi-CP02-002/003/004`／`WD22-016-UG`）。
+  🔑**これは §5.3 `O-77`（`LRIG_UNDER_CARD_OP` の先取り撤去）とまったく同じ壊れ方で、
+  その反省コメントが「すぐ下の行」に書いてあった**のに隣の分岐は残っていた。
+  ⇒ 受け皿は**既にあった** `OPTIONAL_LRIG_UNDER_COST`（`lrigUnderCost{count, fromAllLrigs}` を足しただけ）。
+
+  🔴**miss 6カードの内訳**＝旧 regex が「置い**てもよい**」「**１枚**」の形しか読めなかった＝
+  「置**く**」（`WXDi-P13-003B`／`WXDi-P16-001B`＝無言 no-op）／「**あなたの**ルリグの下から**合計４枚**」
+  （`WXDi-CP02-002/003/004`）／「レベル２以下のルリグを**２枚まで**」（`WX22-Re20`③）。
+  🔴**恒久 no-op は下流のバグを隠す**＝`WD22-016-UG` は「そうした場合」の帰結が
+  `ADD_TO_FIELD{source 無し}`＝**デッキの一番上**を場に出す JSON だった（原文は「トラッシュのシグニ2枚まで」）。
+  コストが払えないので帰結に到達せず、**今まで一度も見えていなかった**。⇒ `manualEffects.ts` へ手書き
+  （「そうした場合」は `LAST_PROCESSED_COUNT_GTE:4`＝`IS_MY_TURN` の**偽ゲート**を置き換え）。
+
+  🔑**この巡の一般則**＝
+  ①**catch-all を割るときは「消費側の別経路」も一緒に見る**＝`census:enginetext` は本体しか映さない
+  （先取り側は原文を読まないので A群に出ない）＝**`grep -rn "<STUB id>" src/engine/` を必ず打つ**。
+  ②**撤去した分岐の隣は疑う**（同じ壊れ方の前例がコメントで残っていた）。
+  ③**no-op を直したら、その効果の残りの JSON も原文と突き合わせ直す。**
+  ④**新しい id を作る前に、原文の言い回しで `src/` と `goldenTest.ts` を grep する**（受け皿は既にあった）。
+
+**▶ 次の一手**＝**`O-60` の続き（第58バッチ〜）。残 31ハンドラ・A🔴 32行。**
+🔴**A群の `miss` は 0 になったが、`miss=0` は「正しい」ではない**（第49・51・54・55・57バッチで実証）。
+**次に取るのは live効果数の大物3つ**＝`LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END`(live10・リテラル5本)／
+`TRASH_SIGNI_UNDER_FIELD_SIGNI`(live9・4本)／`COLLAB`(live6・3本)。
+**その次**＝`GRANT_CHOSEN_ABILITY` 族(live3)。
+**据置のまま残るもの**＝
+(a)🔴**モーダル選択（①②③④）**＝`BET_MECHANIC`(8)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`ARTS_EXTRA_COST_CONDITION`(1)／
+`CHOOSE_N_FROM_LIST`(1)／`CONDITIONAL_ALTERNATE_EFFECT`(1)＝**`choiceTextParser.ts`（492行）の
+約20分岐を parser 側へ移すまで採用してはいけない**（登録票に option 単位の優劣表あり）。
+(b)**`GRANT_ABILITY_INNER_TEXT`（live14・引用文の実行時再パース）**＝`O-128` 家系で残る最後の核。
+🔑`restoreQuotedTargetGrant` が既に `GRANT_EFFECT{rawText}` へ戻す安全網を持つので、
+**通っていない14効果がなぜ通らないか**（`quotedIsSafe` の門／対象が自場シグニでない／`このゲームの間` の除外）を1件ずつ見る。
+🔑**着手手順は第50〜57バッチと同じ**＝①`censusEngineText.ts --id A,B,C,…`（**1起動**）②live JSON を
+全件ダンプして payload の有無を見る ③**typed で解けている兄弟**と**汎用 payload**から受け皿を探す
+④**入口の id 集合**と**parser の綴り**を疑う ⑤**生成側は文型ルールとは限らない**（カード別 override／
+効果単位の後処理） ⑥**engine 側に parser より賢い分岐が無いかを必ず見る** ⑦**payload が前の文にあるなら
+効果単位の後処理＋①②③スコープ**（**文中に主語がある形は文単位で刻む**＝第56で使い分けた）
+⑧**「同じ意味を決めている別の場所」を先に探す**（あれば撤去が正解）
+⑨**新キーの前に「条件型 → 汎用 payload → 既存の受け皿」の順で当たる**
+⑩**payload だけが答えではない＝「構造化された等価物」（効果型・条件型）で判定し直せないかを見る**
+⑪**catch-all に別の文型が混ざっていないかを見る**（第56の `SWAP_OPTIONAL`＝入れ替えが配置替えに化けていた）
+⑫🆕**消費側が engine の別経路（`effectExecutor` のコスト先取り等）にも無いか grep する**（第57＝6効果が恒久 no-op だった）
+⑬反転は**消費側**を壊して盤面の数で取る ⑭**STUB を解体したら census のキー表を較正する**。
+
 - **セッション（2026-09-03・`O-60` 第56バッチ・索引 A 第16巡・Opus 5 単独）＝🔴計器が16ハンドラを見ていなかった（較正）＋2 family 消化**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   🔴**この項目の計器 `census:enginetext` は 19行 → 35行（較正）→ 33行 / 32ハンドラ（消化後）。**

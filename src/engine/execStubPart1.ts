@@ -4460,54 +4460,52 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン手札のシグニはガードに使える'));
   }
   // トラッシュからシグニをフィールドシグニの下に置く（ライズ補充）
+  // 🆕🔴**§5.3 `O-60` 第58バッチ（2026-09-03）＝原文 regex を全部撤去して payload で決める。**
+  //   旧実装は `sourceAbilityText(ctx)` に**4本の regex**を当てており、3通りに壊れていた＝
+  //   ①枚数 regex `シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く` が
+  //     **live 9効果すべてに当たらなかった**（原文は「シグニ**を**２枚まで対象とし」「対象のシグニ**を**２枚まで」）
+  //     ＝**常に既定の1枚**で、「２枚まで」の5効果が過小実行。
+  //   ②クラス regex は最初に出た `＜X＞` を**トラッシュ側の絞り込み**に使っていたが、
+  //     `WDK15-001`／`WXK08-048`／`WXK10-090` は `＜X＞` が**配置先**にしか無い＝
+  //     **トラッシュの＜ウェポン＞しか選べない**過小実行だった。
+  //   ③配置先の絞り込み（`INTERNAL_TSU_CHOOSE_ZONE`）は**カード全文**を読んでおり、
+  //     `WXEX2-61`（配置先は《ライズアイコン》を持つシグニ）で**＜武勇＞**を配置先条件にしていた。
+  // ⚠**payload が無い宣言は何もしない**（fail-closed）。
   if (stub.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
-    // §6.4 O-20: 全文だと別能力の制限（枚数/レベル/クラス）を採用する
-    // （`WXEX2-61-E1`／`WXK08-048-E2`＝レベル3以下が2以下になる等）のでブロックだけを読む。
-    const txtT = sourceAbilityText(ctx);
-    const toHWT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 枚数（"N枚まで" or デフォルト1）
-    const countMT = txtT.match(/シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く/);
-    const maxCountT = countMT ? parseInt(toHWT(countMT[1])) : 1;
-    // レベル上限
-    const lvMT = txtT.match(/レベル([０-９\d]+)以下の/);
-    const maxLvT = lvMT ? parseInt(toHWT(lvMT[1])) : 99;
-    // クラスフィルタ（＜X＞）
-    const classM = txtT.match(/＜([^＞]+)＞のシグニ.*の下に置く/);
-    const reqClass = classM?.[1];
-    // 色フィルタ
-    const colorM = txtT.match(/あなたのトラッシュから(白|赤|青|緑|黒)の/);
-    const reqColor = colorM?.[1];
-    const trashSigniT = ctx.ownerState.trash.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (!c || c.Type !== 'シグニ') return false;
-      if (parseInt(c.Level ?? '0') > maxLvT) return false;
-      if (reqClass && !(c.CardClass ?? '').includes(reqClass)) return false;
-      if (reqColor && !(c.Color ?? '').includes(reqColor)) return false;
-      return true;
-    });
-    if (trashSigniT.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（シグニ下配置スキップ）'));
+    const specT = stub.trashUnderPlace;
+    if (!specT) return done(addLog(ctx, '[未実装] トラッシュのシグニをシグニの下に置く（payload なし）'));
+    const trashSigniT = ctx.ownerState.trash.filter(cn =>
+      matchesFilter(ctx.cardMap.get(getCardNum(cn)), specT.sourceFilter ?? { cardType: 'シグニ' }));
+    if (trashSigniT.length === 0) return done(addLog(ctx, 'トラッシュに対象のシグニなし（シグニ下配置スキップ）'));
     const noopTSU: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    const contTSU: StubAction = { type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE' };
+    // 🔑**配置先の条件は継続ステップへ引き継ぐ**（旧はここで捨てて engine が原文を読み直していた）。
+    const contTSU: StubAction = { type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE', trashUnderPlace: specT };
     return needsInteraction(addLog(ctx, 'トラッシュからシグニを選択（下に置く）'), {
-      type: 'SELECT_TARGET', candidates: trashSigniT, count: Math.min(maxCountT, trashSigniT.length),
-      optional: true, targetScope: 'self_trash',
+      type: 'SELECT_TARGET', candidates: trashSigniT,
+      count: Math.min(specT.count, trashSigniT.length),
+      optional: specT.upTo ?? true, targetScope: 'self_trash',
       thenAction: noopTSU as EffectAction, continuation: contTSU as EffectAction,
     });
   }
   // INTERNAL_TSU_CHOOSE_ZONE: 選択トラッシュシグニをどのフィールドシグニの下に置くか選択
+  // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝配置先の条件は payload（`trashUnderPlace.destFilter`）で受け取る。**
+  //   🔴旧実装は `sourceCardNum` の**カード全文**に `＜X＞のシグニ…体…の下に置く` を当てており、
+  //     トラッシュ側の `＜X＞` を拾って配置先を誤って絞っていた（`WXEX2-61`）。
   if (stub.id === 'INTERNAL_TSU_CHOOSE_ZONE') {
     const rawTrash = stub.value ? String(stub.value).split(',') : (ctx.lastProcessedCards ?? []);
     if (rawTrash.length === 0) return done(addLog(ctx, 'キャンセル（下置きスキップ）'));
     const [firstTrash, ...restTrash] = rawTrash;
-    const srcTSU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTSU = srcTSU ? (srcTSU.EffectText ?? '') + ' ' + (srcTSU.BurstText ?? '') : '';
-    // 配置先クラスフィルタ
-    const fieldClassM = txtTSU.match(/対象の.*＜([^＞]+)＞のシグニ.*体.*の下に置く|＜([^＞]+)＞のシグニ.*体.*の下に置く/);
-    const reqFieldClass = fieldClassM?.[1] ?? fieldClassM?.[2];
+    const specTSU = stub.trashUnderPlace;
+    // ⚠**`destLastPlayed`（「**その**シグニの下に置く」＝`WDK15-007`）は絞り込まない**＝
+    //   参照先の「直前に場に出したシグニ」を engine が持っていない。**過小に倒さず全ゾーンを候補にする。**
+    //   🔴そもそも `WDK15-007` は前段「あなたのトラッシュから対象の＜ウェポン＞のシグニ１枚を**場に出し**」が
+    //     live JSON に無い（parser の別の穴）＝§5.3 `O-231` に登録した。
     const fieldZones = [0, 1, 2].filter(zi => {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
       if (!top) return false;
-      if (reqFieldClass && !(ctx.cardMap.get(top)?.CardClass ?? '').includes(reqFieldClass)) return false;
+      if (specTSU?.destFilter && !specTSU.destLastPlayed) {
+        return matchesFilter(ctx.cardMap.get(getCardNum(top)), specTSU.destFilter);
+      }
       return true;
     });
     if (fieldZones.length === 0) return done(addLog(ctx, '対象フィールドシグニなし'));
@@ -4518,7 +4516,8 @@ export function execStubPart1(
       return {
         id: `zone_${zi}`,
         label: `${ctx.cardMap.get(top)?.CardName ?? top}の下（ゾーン${zi + 1}）`,
-        action: { type: 'STUB', id: 'INTERNAL_TSU_DO_PLACE', value: encoded } as StubAction as EffectAction,
+        action: { type: 'STUB', id: 'INTERNAL_TSU_DO_PLACE', value: encoded,
+          ...(specTSU ? { trashUnderPlace: specTSU } : {}) } as StubAction as EffectAction,
         available: true,
       };
     });
@@ -4553,51 +4552,25 @@ export function execStubPart1(
     return done(ctxITP);
   }
   // ルリグリミット修正（エナフェイズ終了まで）
+  // 🆕🔴**§5.3 `O-60` 第58バッチ（2026-09-03）＝原文 regex を全部撤去して payload で決める。**
+  //   旧実装は `sourceAbilityText(ctx)`（アビリティブロック全文）に**5本の regex**を当てており、
+  //   ①`対戦相手.*リミットを＋N` が**文を跨いで**当たるため、原文「**あなたの**センタールリグの
+  //     リミットを＋２」の `WXDi-P16-002-E1` が**相手のリミットを＋２**していた
+  //     （同じブロックの前の文に「次の**対戦相手**のターンの間、…」がある）。
+  //   ②「相手側の一致があれば自分側の分岐を丸ごと飛ばす」構造だったので、自分と相手の両方を書いた
+  //     `WX25-P2-014-E2`（自分＋1／相手−2）は**自分の＋1が消え**、さらに相手の−2は
+  //     後続の `OPP_MAIN_PHASE_LIMIT_DOWN` と**二重に**掛かっていた。
+  // ⚠**payload が無い宣言は何もしない**（fail-closed）＝旧既定の「リミット+1」は
+  //   原文に無い数値を勝手に足す形だった。
   if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
-    // §6.4 O-20: 全文だと別能力の「対戦相手」を横断し、自分の＋2が相手の＋2になっていた（`WXDi-P13-004B-E3`）。
-    const txtL = sourceAbilityText(ctx);
-    const toHWL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    let newCtxL = ctx;
-    const logs: string[] = [];
-    // 自分のリミット変更（「あなたの...リミットを＋N/－N」または単純に「リミットを」）
-    const selfMinusM = txtL.match(/(?:あなたの)?.*リミットを([－-])([０-９\d]+)/);
-    const selfPlusM = txtL.match(/(?:あなたの)?.*リミットを([＋+]?)([０-９\d]+)(?:にする|増やす|する|し)/);
-    const selfPlusM2 = txtL.match(/(?:あなたの)?.*リミットを＋([０-９\d]+)/);
-    // 相手のリミット変更（「対戦相手の...リミットを」）
-    const oppMinusM = txtL.match(/対戦相手.*リミットを([－-])([０-９\d]+)/);
-    const oppPlusM = txtL.match(/対戦相手.*リミットを＋([０-９\d]+)/);
-    // 自分側
-    if (!oppMinusM && !oppPlusM) {
-      let deltaOwn = 1;
-      if (selfMinusM && !selfMinusM[0].includes('対戦相手')) {
-        deltaOwn = -parseInt(toHWL(selfMinusM[2]));
-      } else if (selfPlusM && !selfPlusM[0].includes('対戦相手')) {
-        deltaOwn = parseInt(toHWL(selfPlusM[2]));
-      } else if (selfPlusM2 && !selfPlusM2[0].includes('対戦相手')) {
-        deltaOwn = parseInt(toHWL(selfPlusM2[1]));
-      }
-      const newModOwn = (newCtxL.ownerState.lrig_limit_mod ?? 0) + deltaOwn;
-      newCtxL = { ...newCtxL, ownerState: { ...newCtxL.ownerState, lrig_limit_mod: newModOwn } };
-      logs.push(`自リミット${deltaOwn > 0 ? '+' : ''}${deltaOwn}`);
-    }
-    // 相手側
-    if (oppMinusM) {
-      const deltaOpp = -parseInt(toHWL(oppMinusM[2]));
-      const newModOpp = (newCtxL.otherState.lrig_limit_mod ?? 0) + deltaOpp;
-      newCtxL = { ...newCtxL, otherState: { ...newCtxL.otherState, lrig_limit_mod: newModOpp } };
-      logs.push(`相手リミット${deltaOpp}`);
-    } else if (oppPlusM) {
-      const deltaOpp = parseInt(toHWL(oppPlusM[1]));
-      const newModOpp = (newCtxL.otherState.lrig_limit_mod ?? 0) + deltaOpp;
-      newCtxL = { ...newCtxL, otherState: { ...newCtxL.otherState, lrig_limit_mod: newModOpp } };
-      logs.push(`相手リミット+${deltaOpp}`);
-    }
-    if (logs.length === 0) {
-      // フォールバック: リミット+1
-      newCtxL = { ...newCtxL, ownerState: { ...newCtxL.ownerState, lrig_limit_mod: (newCtxL.ownerState.lrig_limit_mod ?? 0) + 1 } };
-      logs.push('リミット+1（デフォルト）');
-    }
-    return done(addLog(newCtxL, `${logs.join(' / ')}（エナフェイズ終了まで）`));
+    const specL = stub.lrigLimitChange;
+    if (!specL) return done(addLog(ctx, '[未実装] ルリグリミット修正（payload なし）'));
+    const ownerL: Owner = specL.owner === 'opponent' ? 'opponent' : 'self';
+    const stL = ownerL === 'opponent' ? ctx.otherState : ctx.ownerState;
+    const nextL: PlayerState = { ...stL, lrig_limit_mod: (stL.lrig_limit_mod ?? 0) + specL.delta };
+    const ctxL = ownerL === 'opponent' ? { ...ctx, otherState: nextL } : { ...ctx, ownerState: nextL };
+    return done(addLog(ctxL,
+      `${ownerL === 'opponent' ? '対戦相手の' : ''}リミット${specL.delta > 0 ? '+' : ''}${specL.delta}（エナフェイズ終了まで）`));
   }
   // REVEAL_PICK_CLASS_TO_ENERGY: デッキ上N枚を公開し、条件に合うカードをエナへ、残りを指定の行き先へ
   // 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝公開枚数・絞り込み・残りの行き先は payload で受け取る。**

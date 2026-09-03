@@ -34384,7 +34384,10 @@ test('task12(lv) COLLAB: アシスト実戦ゾーン配置→共通【出】coll
     const collab = executeEffect({
       effectId: 'golden-collab',
       effectType: 'AUTO',
-      action: { type: 'STUB', id: 'COLLAB' },
+      // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝人数は payload で渡す**（旧は engine が
+      //   `sourceCardNum` の原文に「`コラボライバー` ∧ `呼ぶ`」を当てて決めていた）。
+      //   `WXDi-CP01-006` の原文は「【出】：コラボライバー２人を呼ぶ。」＝ count 2。
+      action: { type: 'STUB', id: 'COLLAB', collabCall: { count: 2 } },
       duration: 'INSTANT',
       mandatory: true,
     } as CardEffect, {
@@ -63266,7 +63269,17 @@ test('§5.3 O-60 第52: WXDi-P16-047-E2 は「対戦相手の」リミットを�
   ok(!!mod, 'typed LRIG_LIMIT_MODIFY がある'); if (!mod) return;
   eq(mod.owner, 'opponent', '原文「**対戦相手の**センタールリグのリミットを－１する」');
   eq(mod.delta, -1, '－1');
-  eq(mod.until, 'NEXT_TURN', '「次の対戦相手のメインフェイズ終了時まで」＝恒久ではない');
+  // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）で `NEXT_TURN` → `END_OF_TURN` へ更新**（契約の変更）。
+  //   🔴原文の「次の」には2つの意味がある＝「次の〜**の間**」＝**その時から**効く窓（`NEXT_TURN`＝
+  //     `pending_lrig_limit_mod`＝次のメインフェイズから適用）／
+  //     「次の〜**終了時まで**」＝**いま**効き始めてそこまで続く期間。
+  //   旧実装は「`次の` を含む」だけで `NEXT_TURN` に倒しており、後者の3効果
+  //     （`WXDi-P05-025-E2` ほか）が**払ったターンには1も効かなかった**。
+  //   ⚠**この効果自体は `NEXT_TURN` でもほぼ同じ盤面になる**（相手のリミットが効くのは相手のメイン
+  //     フェイズだけ）が、**判定規則を1本に揃える**ために同じ扱いにした。
+  //   ⚠**正確な期間（相手の次のメインフェイズ終了時まで）を表す語彙は `until` に無い**＝
+  //     `END_OF_TURN`（相手のターン終了時にリセット）へ倒している。`PERMANENT` でないことが要点。
+  eq(mod.until, 'END_OF_TURN', '「次の対戦相手のメインフェイズ終了時まで」＝いま効き始めて恒久ではない');
 });
 
 test('§5.3 O-60 第52: エナしきい値は2ハンドラで別々の値が届く（旧は既定 5 と 3 で食い違っていた）', () => {
@@ -64113,6 +64126,165 @@ test('§5.3 O-60 第57: WD22-016-UG は「そうした場合」がトラッシ�
   const r2 = finish(executeEffect(eff, shortCtx), shortCtx);
   eq(r2.ownerState.lrig_trash.length, 0, '4枚払えないので1枚も置かない');
   ok(r2.ownerState.field.signi.every(z => !z || z.length === 0), '払えないので場にも出ない');
+}));
+
+// ── §5.3 `O-60` 第58バッチ（2026-09-03）＝A群 live効果数の大物3 family を payload 化 ──
+// 🔑**この巡は「miss=0 は正しいではない」の実証**＝計器は3ハンドラとも miss 0 と出していたが、
+//    engine が実際に読む**アビリティブロック**にリテラルを当て直したら3 family とも壊れていた。
+// 🔴**計器の miss はカード全文に当てて数える**ので、`sourceAbilityText` 経由の funnel では**甘く出る**。
+test('§5.3 O-60 第58: ルリグリミット修正は payload の向きと量で動く（旧はブロック全文を読んでいた）', () => withSavedCursor(() => {
+  // 🔴旧＝`対戦相手.*リミットを＋N` が**文を跨いで**当たり、原文「**あなたの**センタールリグの
+  //   リミットを＋２」の `WXDi-P16-002-E1` が**相手のリミットを＋２**していた。
+  const w16 = (effectsMap.get('WXDi-P16-002') ?? []).find(e => e.effectId === 'WXDi-P16-002-E1');
+  ok(!!w16, 'WXDi-P16-002-E1 が live にある');
+  if (w16) {
+    const gate = ((w16.action as SequenceAction).steps[2] as unknown as { then?: Record<string, unknown> }).then;
+    eq(gate?.owner, 'self', '原文どおり「あなたの」センタールリグ（旧は opponent に化けていた）');
+    eq(gate?.delta, 2, '＋2');
+  }
+  // 🔴旧＝相手側の一致があると**自分側の分岐を丸ごと飛ばす**構造だったので、自分＋1／相手−2 を
+  //   両方書いた `WX25-P2-014-E2` は**自分の＋1が消え**、相手の−2は後続ステップと**二重**に掛かっていた。
+  const w25 = (effectsMap.get('WX25-P2-014') ?? []).find(e => e.effectId === 'WX25-P2-014-E2');
+  ok(!!w25, 'WX25-P2-014-E2 が live にある');
+  if (w25) {
+    const steps = (w25.action as SequenceAction).steps;
+    eq((steps[0] as unknown as { lrigLimitChange?: Record<string, unknown> }).lrigLimitChange?.delta, 1, '自分は＋1');
+    eq((steps[0] as unknown as { lrigLimitChange?: Record<string, unknown> }).lrigLimitChange?.owner, 'self', '自分側');
+    eq(steps[1].type, 'LRIG_LIMIT_MODIFY', '相手側は typed 受け皿（旧は STUB で二重計上していた）');
+    eq((steps[1] as unknown as { owner?: string }).owner, 'opponent', '相手側');
+    eq((steps[1] as unknown as { delta?: number }).delta, -2, '−2');
+  }
+  // 実挙動＝payload の owner 側だけが動く。
+  const selfCtx = mkCtx({}, {});
+  const rSelf = run({ type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
+    lrigLimitChange: { owner: 'self', delta: 2 } } as unknown as EffectAction, selfCtx);
+  eq(rSelf.ownerState.lrig_limit_mod, 2, '自分のリミットが＋2');
+  eq(rSelf.otherState.lrig_limit_mod ?? 0, 0, '相手は動かない');
+  const oppCtx = mkCtx({}, {});
+  const rOpp = run({ type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
+    lrigLimitChange: { owner: 'opponent', delta: -2 } } as unknown as EffectAction, oppCtx);
+  eq(rOpp.otherState.lrig_limit_mod, -2, '相手のリミットが－2');
+  eq(rOpp.ownerState.lrig_limit_mod ?? 0, 0, '自分は動かない');
+  // 反転＝payload なしは何もしない（旧既定は「リミット+1」＝原文に無い数値を足していた）。
+  const bare = run({ type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END' } as unknown as EffectAction, mkCtx({}, {}));
+  eq(bare.ownerState.lrig_limit_mod ?? 0, 0, 'payload なしでは1も動かない（fail-closed）');
+}));
+
+test('§5.3 O-60 第58: 「次の〜終了時まで」は NEXT_TURN ではない（いま効き始める）', () => {
+  // 🔴原文の「次の」には2つの意味がある＝「次の〜**の間**」＝その時から効く／
+  //   「次の〜**終了時まで**」＝**いま**効き始めてそこまで続く。旧実装は後者も `NEXT_TURN`（＝
+  //   `pending_lrig_limit_mod`＝次のターンのメインフェイズから）にしていたので、
+  //   `WXDi-P05-025-E2` などは**払ったターンには1も効かなかった**。
+  const cases: Array<[string, string, string]> = [
+    ['WXDi-P05-025', 'WXDi-P05-025-E2', 'END_OF_TURN'],   // 「次のあなたのエナフェイズ終了時まで」
+    ['WXDi-P13-004B', 'WXDi-P13-004B-E3', 'END_OF_TURN'], // 同上
+    ['WX16-Re19', 'WX16-Re19-E2', 'NEXT_TURN'],           // 「次の対戦相手のメインフェイズ**の間**」
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: string | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'LRIG_LIMIT_MODIFY') found = rec.until as string;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(found, want, `${effectId} の期間`);
+  }
+});
+
+test('§5.3 O-60 第58: トラッシュ→シグニ下は枚数もトラッシュ側も配置先も payload で決まる', () => withSavedCursor(() => {
+  // 🔴旧実装の壊れ方3つ＝①枚数 regex が **live 9効果すべてに当たらず常に1枚**
+  //   ②配置先の `＜X＞` を**トラッシュ側の絞り込み**に使う ③配置先はカード全文から読む。
+  const cases: Array<[string, string, string]> = [
+    // 「対象のシグニを２枚まで、対象のあなたの＜ウェポン＞のシグニ２体までの下に置く」
+    ['WDK15-001', 'WDK15-001-E3',
+      JSON.stringify({ count: 2, upTo: true, sourceFilter: { cardType: 'シグニ' }, destFilter: { cardType: 'シグニ', story: 'ウェポン' } })],
+    // 「対象のレベル３以下の＜武勇＞のシグニ１枚を対象のあなたの《ライズアイコン》を持つシグニ１体の下に置く」
+    ['WXEX2-61', 'WXEX2-61-E1',
+      JSON.stringify({ count: 1, sourceFilter: { cardType: 'シグニ', level: { max: 3 }, story: '武勇' }, destFilter: { cardType: 'シグニ', hasIcon: 'ライズ' } })],
+    // 「＜解放派＞のシグニを２枚まで対象とし、それらをあなたの＜解放派＞のシグニ２体までの下に置く」
+    ['WXDi-P15-006', 'WXDi-P15-006-E3',
+      JSON.stringify({ count: 2, upTo: true, sourceFilter: { cardType: 'シグニ', story: '解放派' }, destFilter: { cardType: 'シグニ', story: '解放派' } })],
+    // 「対象のあなたのトラッシュからシグニ１枚を対象のあなたの＜ウェポン＞のシグニ１体の下に置く」
+    ['WXK08-048', 'WXK08-048-E2',
+      JSON.stringify({ count: 1, sourceFilter: { cardType: 'シグニ' }, destFilter: { cardType: 'シグニ', story: 'ウェポン' } })],
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: unknown;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') found = rec.trashUnderPlace;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(JSON.stringify(found), want, `${effectId} の指定は原文どおり`);
+  }
+  // 実挙動＝トラッシュ側は sourceFilter で絞られ、選べる枚数は payload の count。
+  const trashCtx = mkCtx({ signi: [fresh(), null, null] }, {});
+  const first = executeEffect(
+    { effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+      action: { type: 'STUB', id: 'TRASH_SIGNI_UNDER_FIELD_SIGNI',
+        trashUnderPlace: { count: 2, upTo: true, sourceFilter: { cardType: 'シグニ' },
+          destFilter: { cardType: 'シグニ' } } } as unknown as EffectAction } as CardEffect, trashCtx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'SELECT_TARGET が出る');
+  if (!first.done && first.pending.type === 'SELECT_TARGET') {
+    eq(first.pending.targetScope, 'self_trash', '候補は自分のトラッシュ');
+    eq(first.pending.count, Math.min(2, first.pending.candidates.length), '選べる枚数は payload の count（旧は常に1）');
+  }
+  // 反転＝payload が無ければ何もしない（fail-closed）。
+  const bare = run({ type: 'STUB', id: 'TRASH_SIGNI_UNDER_FIELD_SIGNI' } as unknown as EffectAction,
+    mkCtx({ signi: [fresh(), null, null] }, {}));
+  ok(bare.done, 'payload なしでは interaction を出さない');
+}));
+
+test('§5.3 O-60 第58: コラボは payload の人数で呼ぶ／ガードの代替コストは別機構へ分けた', () => withSavedCursor(() => {
+  // 🔴旧＝engine が「`コラボライバー` ∧ `呼ぶ`」の有無で人数を決めていたので、
+  //   「コラボライバー**１人とコラボしてもよい**」（＝【ガード】の代替コスト）が
+  //   **アシストルリグを場へ出す対話**に化けていた。
+  const call = (effectsMap.get('WXDi-CP01-005') ?? []).find(e => e.effectId === 'WXDi-CP01-005-E2');
+  const guard = (effectsMap.get('WXDi-CP01-005') ?? []).find(e => e.effectId === 'WXDi-CP01-005-E1');
+  ok(!!call && !!guard, 'WXDi-CP01-005 の2効果が live にある');
+  if (call) eq(JSON.stringify((call.action as unknown as { collabCall?: unknown }).collabCall), JSON.stringify({ count: 2 }), '「２人を呼ぶ」は payload');
+  if (guard) eq((guard.action as unknown as { id?: string }).id, 'DEFERRED_GUARD_ALT_COST_COLLAB', 'ガードの代替コストは機構待ちを宣言（§5.3 O-230）');
+  // 旧 id が live のどこにも payload 無しで残っていないこと。
+  let bareCollab = 0;
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const visit = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) { n.forEach(visit); return; }
+        const rec = n as Record<string, unknown>;
+        if (rec.type === 'STUB' && rec.id === 'COLLAB' && !rec.collabCall) bareCollab++;
+        Object.values(rec).forEach(visit);
+      };
+      visit(e.action);
+    }
+  }
+  eq(bareCollab, 0, 'payload が無い COLLAB は live に無い');
+  // 実挙動＝payload の人数だけアシストルリグを場へ出す。
+  const ctx = mkCtx({}, {});
+  const assists = [...cardMap.entries()].filter(([, c]) => c.Type === 'アシストルリグ').slice(0, 3).map(([n]) => n);
+  ok(assists.length >= 3, 'アシストルリグの標本が取れる');
+  if (assists.length < 3) return;
+  ctx.ownerState.lrig_deck = [...assists];
+  const r = run({ type: 'STUB', id: 'COLLAB', collabCall: { count: 2 } } as unknown as EffectAction, ctx);
+  const placed = (r.ownerState.field.assist_lrig_l?.length ?? 0) + (r.ownerState.field.assist_lrig_r?.length ?? 0);
+  eq(placed, 2, '2人を呼んだ');
+  eq(r.ownerState.lrig_deck.length, 1, 'ルリグデッキから2枚出た');
+  // 反転＝payload なしは何もしない（旧はここで「コラボしますか？」の対話が開いていた）。
+  const bareCtx = mkCtx({}, {});
+  bareCtx.ownerState.lrig_deck = [...assists];
+  const bare = run({ type: 'STUB', id: 'COLLAB' } as unknown as EffectAction, bareCtx);
+  eq(bare.ownerState.lrig_deck.length, 3, 'payload なしでは1人も呼ばない（fail-closed）');
+  ok(bare.done, 'payload なしでは対話も出さない');
 }));
 
 if (listMode) {

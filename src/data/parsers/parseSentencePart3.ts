@@ -31,6 +31,7 @@ import type {
 } from '../../types/effects';
 import {
   parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseIconFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa, parsePlaceUnderSourceSigni,
+  parseLrigLimitChangeSpec, parseCollabCallSpec,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -176,8 +177,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- コラボ・コラボライバー ----
+  // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝人数は payload で渡す。**
+  //   🔴旧実装は engine が「`コラボライバー` ∧ `呼ぶ`」の有無で人数を決めており、
+  //     「コラボライバー１人と**コラボしてもよい**」＝【ガード】の代替コスト（`WXDi-CP01-005-E1`）が
+  //     **アシストルリグを場へ出す対話**に化けていた。⇒ 別機構なので `DEFERRED_` へ分ける（§5.3 `O-230`）。
   if (t.includes('コラボライバー') || t.includes('コラボしてもよい')) {
-    return { type: 'STUB', id: 'COLLAB' } as StubAction;
+    const collabSpec = parseCollabCallSpec(t);
+    if (collabSpec) return { type: 'STUB', id: 'COLLAB', collabCall: collabSpec } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_GUARD_ALT_COST_COLLAB' } as StubAction;
   }
 
   // ---- デッキ一番上を見て一番下に置いてもよい ----
@@ -549,8 +556,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- エナフェイズ終了時までリミット変更 ----
+  // 🆕**§5.3 `O-60` 第58バッチ（2026-09-03）＝向きと量は payload で渡す。**
+  //   🔴旧実装は engine がアビリティブロック全文に5本の regex を当てており、
+  //     「対戦相手」が**別の文に**出るだけで自分の＋Nが相手の＋Nになっていた（`WXDi-P16-002-E1`）。
   if (t.match(/エナフェイズ終了時まで.*リミット/)) {
-    return { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END' } as StubAction;
+    const limSpec = parseLrigLimitChangeSpec(t);
+    return { type: 'STUB', id: 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END',
+      ...(limSpec ? { lrigLimitChange: limSpec } : {}) } as StubAction;
   }
 
   // ---- このターン、あなたはダメージを受けない・敗北しない ----
