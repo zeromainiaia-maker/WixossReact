@@ -4658,6 +4658,51 @@ export interface StubAction {
    */
   gainedLrigType?: string;
   /**
+   * ── 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family** ──
+   * どれも **engine が `EffectText`（＋`BurstText`＝カード全文）から色・枚数・条件を読み直していた**箇所。
+   * 🔑この family の実害は3種類あった＝
+   *   ①**実コストを決める側と二重実装**（`CONDITIONAL_COST_REDUCTION_BY_FIELD`＝ログだけなのに
+   *     `cost.costReplacement` と別の判定式を持っていた＝食い違っても誰も気づけない）
+   *   ②**付与能力の中で実行されると効果元が別カードになり、regex が丸ごと外れる**
+   *     （`UPKEEP_OR_NO_UP`＝`GRANT_LRIG_ABILITY` の子。第53バッチ④ と同型）
+   *   ③**カード全文なので別の能力・別の選択肢の数字を掴む**（`CHOOSE_HAND_OR_ENERGY`）。
+   * ⚠**どれも payload が無ければ何もしない**（fail-closed）。
+   */
+  /**
+   * `REDUCE_PLAY_ABILITY_COST`＝「次にあなたが【出】能力を発動する場合、それの発動コストは
+   * 《色×N》減る」の色と枚数（`WXK04-075-E1`）。
+   * 🔴旧実装は外れると**《赤》×1**へ落ちていた（原文と無関係な色で軽減する形）。
+   */
+  reduceNextOnPlayCost?: { color: string; count: number };
+  /**
+   * `UPKEEP_OR_NO_UP`＝「次の対戦相手のアップフェイズに、対戦相手が〈支払い〉をしないかぎり、
+   * 対戦相手のセンタールリグはアップしない」の**回避条件**。
+   * 🔴`WXDi-P06-002-E1` はこの STUB が `GRANT_LRIG_ABILITY` の子にあり、実行時の効果元は
+   *   **付与先のルリグ**になる＝**原文の《無》《無》《無》に1本も当たらず**既定 `pay_colorless1` へ落ちて
+   *   いた（＝相手は《無》1つで回避できる＝原文の 1/3 の重さ）。第53バッチ④ と同型の経路依存。
+   */
+  upkeepCondition?: 'pay_colorless1' | 'pay_colorless3' | 'discard_or_colorless1';
+  /**
+   * `GAIN_COIN_AND_DISCARD`＝「《コインアイコン》をN得、手札をM枚捨てる」の枚数（`WD23-004-E-E1`）。
+   * 🔴旧実装のコイン側 regex は `コインN(枚|個)を得る` で、原文の綴り **《コインアイコン》を得**に
+   *   1本も当たっていなかった（＝いつも既定 1。たまたま正しいだけ＝**miss=0 は正しさではない**）。
+   */
+  coinAndDiscard?: { coin: number; discard: number };
+  /**
+   * `CONDITIONAL_TRASH_TO_ENERGY`＝原文の「あなたのセンタールリグが＜X＞の場合」を engine が
+   * 読み直していた分を撤去した（§5.3 `O-60` 第54バッチ）。**条件は `CONDITIONAL{LRIG_STORY}` へ移した**
+   * ので、この STUB には payload を足していない（＝ハンドラは移動だけを行う）。
+   */
+  /**
+   * `CHOOSE_HAND_OR_ENERGY`＝「あなたのデッキの上からカードを**N**枚見る。その中からカードを
+   * 好きな枚数手札に加え、残りをエナゾーンに置く」の N。
+   * 🔑**N は「その中から〜」の前の文にある**＝文単位では読めないので `effectParser` の
+   *   **効果単位の後処理**（`fillReveal`）で刻む（第53バッチ① と同じ）。
+   * ⚠**`①②③` があるときはセグメントへスコープを狭める**（`WXDi-CP01-004` はこの効果が③の枝）。
+   * 🔴旧既定は 3 枚で、`WXDi-CP02-003`（原文 **5枚**）は regex が当たっていたから合っていただけ。
+   */
+  handOrEnergyLookCount?: number;
+  /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。
    *

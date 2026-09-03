@@ -2159,14 +2159,16 @@ export function execStubPart3(
       addLog({ ...ctx, sourceCardNum: cnTSFUL, lastProcessedCards: [] },
         `${cardTSFUL.CardName}をトラッシュからコストなしで使用`));
   }
-  // UPKEEP_OR_NO_UP: 次の相手UPフェーズに条件未達でセンタールリグをアップさせない
+  // UPKEEP_OR_NO_UP: 次の相手UPフェーズに条件未達でセンタールリグをアップさせない。
+  // 🆕**回避条件は payload（`upkeepCondition`）**（§5.3 `O-60` 第54バッチ・2026-09-03）。
+  // 🔴旧実装は効果元のカード全文を読んでいたが、`WXDi-P06-002-E1` はこの STUB が
+  //   `GRANT_LRIG_ABILITY` の子にあり、実行時の効果元は**付与先のルリグ**になる＝
+  //   原文の《無》《無》《無》に**1本も当たらず**既定 `pay_colorless1` へ落ちていた
+  //   （＝相手は《無》1つで回避できる＝**原文の 1/3 の重さ**）。第53バッチ④ と同型の経路依存。
+  // ⚠**payload が無ければ制限を張らない**（fail-closed）＝旧既定へ倒すと原文に無い重さで縛る。
   if (stub.id === 'UPKEEP_OR_NO_UP') {
-    const srcUONU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtUONU = srcUONU ? (srcUONU.EffectText ?? '') + ' ' + (srcUONU.BurstText ?? '') : '';
-    // 《無》×3 を支払わないかぎり
-    let condUONU: PlayerState['lrig_upkeep_condition'] = 'pay_colorless1';
-    if (txtUONU.match(/《無》《無》《無》を支払わないかぎり/)) condUONU = 'pay_colorless3';
-    else if (txtUONU.match(/手札を[１1]枚捨てるか《無》を支払わないかぎり/)) condUONU = 'discard_or_colorless1';
+    const condUONU = stub.upkeepCondition;
+    if (!condUONU) return done(addLog(ctx, '[UPKEEP_OR_NO_UP: 回避条件なし（未指定）]'));
     const newOtherUONU: PlayerState = { ...ctx.otherState, lrig_upkeep_condition: condUONU };
     const condLabel = condUONU === 'pay_colorless3' ? '《無》×3を支払う' : condUONU === 'discard_or_colorless1' ? '手札1枚捨てるか《無》払う' : '《無》×1を支払う';
     return done(addLog({ ...ctx, otherState: newOtherUONU }, `次の対戦相手UPフェーズ：${condLabel}かセンタールリグはアップしない`));
@@ -2357,13 +2359,17 @@ export function execStubPart3(
       targetScope: 'self_hand', thenAction: noopCHC as EffectAction,
     });
   }
-  // CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
+  // CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）。
+  // 🆕**見る枚数は payload（`handOrEnergyLookCount`）**（§5.3 `O-60` 第54バッチ・2026-09-03）。
+  // 🔑N は**「その中から〜」の前の文**にあるので文単位では読めない＝`effectParser` の
+  //   **効果単位の後処理**（`fillReveal`）が `①②③` のセグメントへスコープを狭めて刻む。
+  // 🔴旧実装は `EffectText + BurstText`（カード全文）の最初の `N枚見る` を拾い、外れると
+  //   **既定 3 枚**へ落ちていた＝`WXDi-CP01-004` のように**別の選択肢の数字**が先に並ぶ形では
+  //   原文と違う枚数になりうるし、原文 5 枚の `WXDi-CP02-003` は当たっていたから合っていただけ。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'CHOOSE_HAND_OR_ENERGY') {
-    const srcCHOE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCHOE = srcCHOE ? (srcCHOE.EffectText ?? '') + ' ' + (srcCHOE.BurstText ?? '') : '';
-    const toHWCHOE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const countMCHOE = txtCHOE.match(/([０-９\d]+)枚見る/);
-    const revealCountCHOE = countMCHOE ? parseInt(toHWCHOE(countMCHOE[1])) : 3;
+    const revealCountCHOE = stub.handOrEnergyLookCount;
+    if (revealCountCHOE === undefined) return done(addLog(ctx, '[CHOOSE_HAND_OR_ENERGY: 見る枚数なし（未指定）]'));
     const topCardsCHOE = ctx.ownerState.deck.slice(0, revealCountCHOE);
     if (topCardsCHOE.length === 0) return done(addLog(ctx, 'デッキなし（CHOOSE_HAND_OR_ENERGY）'));
     const addToHandCHOE: import('../types/effects').AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };

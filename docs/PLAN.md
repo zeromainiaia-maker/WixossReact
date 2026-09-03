@@ -11,55 +11,61 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-03・`O-60` 第53バッチ・索引 A 第13巡・Opus 5 単独）＝「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ**
+- **セッション（2026-09-03・`O-60` 第54バッチ・索引 A 第14巡・Opus 5 単独）＝「使用コスト・追加支払い・維持コスト」family 7ハンドラ**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  **この項目の計器は `census:enginetext` の A群**＝**39行 / 39ハンドラ → 29行 / 29ハンドラ**
-  （`BASELINE_SELF_TEXT` も 29 へ払い戻し／A群 live 効果 **77 → 62**／miss は 0 のまま）。
+  **この項目の計器は `census:enginetext` の A群**＝**29行 / 29ハンドラ → 22行 / 22ハンドラ**
+  （`BASELINE_SELF_TEXT` も 22 へ払い戻し／A群 live 効果 **62 → 48**／miss は 0 のまま）。
   📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**⑤実機 残 6件**（据置＝今回の追加0）。
-  gates 全緑（golden **3369 / 3369**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
-  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴29**・census-costtext A🔴0 据置・lint 0 errors）。
-  **ブラスト半径＝効果 変更21・追加0・削除0、予定外0。**
+  gates 全緑（golden **3376 / 3376**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴22**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更11・追加0・削除0、予定外0。**
   🖥**実機＝不要と判定**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
 
   🔴**実害・危険な形4件**＝
-  ①**`ADD_CARD_TO_LRIG_DECK` は《…》を全部カード名として拾っていた**（`WXDi-P09-007` は別の【起】の
-  **《無》《ゲーム１回》《緑×0》**が候補6件中3件＝§4.1「《…》はコスト記号にも使う」の実例）。
-  ②**`CRASH_LIFE_TO_HAND` は原文を読むために engine が経路情報を復元していた**＝`GRANT_LRIG_ABILITY` の
-  子では効果元が付与先ルリグになるので、**`effectId` の `-sub-E\d+` からカード番号を逆引きする足場**が
-  engine 側に生えていた。`owner` payload 1つで足場ごと消えた
-  （⚠旧既定 `self` は「**自分の**ライフを手札に加える」＝**原文と逆向きの利得**）。
-  ③**`PLACE_TRAP_FROM_REVEALED` の既定2枚は原文3〜5枚に対する過小実行**。
-  ④**属性書き換え3件は別の能力の絞り込みを掴みうる位置**にあり、`DECK_SIGNI_LEVEL_OVERRIDE` は
-  外れると **`'宇宙'`／レベル4 の焼き込み**へ落ちた。
+  ①**`UPKEEP_OR_NO_UP` は付与能力の中で回避条件が 1/3 に化けていた**＝`WXDi-P06-002-E1` はこの STUB が
+  `GRANT_LRIG_ABILITY` の子で、`triggerCollect` はトリガーを**付与先のルリグ**の `cardNum` で積む。
+  旧 engine はその原文を読むので《無》《無》《無》に当たらず既定 `pay_colorless1` へ落ちていた。
+  **反転を数で取った**＝付与先になりうるレベル3ルリグ **341枚**のうち、旧ロジックが `pay_colorless3` を
+  返すのは **3枚だけ**（＝338/341 で外れる）。第53バッチ④ と同型の経路依存。
+  ②**`CONDITIONAL_COST_REDUCTION_BY_FIELD` は「盤面を変えないハンドラが実コストと別の判定式を持つ」
+  二重実装**＝`WX15-034` は原文「パワー15000以上」なのに**選択肢①の＜武勇＞**を拾い、`WX12-049` は
+  独立2本の軽減を `every`（両方必要）にしていた。⇒ 第48バッチと同じく**撤去**（実コストは `costReplacement`）。
+  ③**`CHOOSE_HAND_OR_ENERGY` の既定3枚**＝`WXDi-CP02-003` は原文5枚で、regex が**たまたま当たっていた**だけ。
+  ④**`GAIN_COIN_AND_DISCARD` のコイン regex は1本も当たっていなかった**（原文は《コインアイコン》を得）。
 
   🔑**この巡の一般則**＝
-  ①**「公開枚数・カード名は前の文にある」＝文単位では読めない payload がある**（`その中から〜` の文に
-  STUB が立つ）。**効果単位の後処理**で刻むが、🔴**`①②③` があるときはセグメントへスコープを狭める**
-  （`WX14-037` は `CHOOSE` の②の枝で、効果全体には①の枝の数字も並ぶ）。
-  ②**新しいキーを足す前に汎用 payload（`owner` / `selectTarget` / `value`）で足りないかを見る**＝
-  この巡は2件がそれで足りた。
-  ③**payload を足すと既存の「JSON 文字列一致」契約 golden が落ちる**＝**退行ではなく契約の更新**。
-  逆に落ちないなら、その効果を誰も assert していない証拠でもある。
+  ①**A群を見るときは「同じ意味を決めている別の場所」を先に探す**＝あれば payload 化ではなく**撤去**が正解
+  （盤面を変えないハンドラは census:enginetext 以外のどの計器にも映らない）。
+  ②**条件は payload ではなく既存の条件型へ出せることがある**＝`CONDITIONAL_TRASH_TO_ENERGY` は
+  `CONDITIONAL{LRIG_STORY}`（既存）で足り、**新キー0本**で engine の全文読みが消えた。
+  ⇒ **新キーの前に「条件型 → 汎用 payload → 既存の受け皿」の順で当たる**（第53② の一段上）。
+  ③**payload を刻むと manual が「影武者」になる**＝`EXTRA_COST_REMOVE_VIRUS` の手書き2件が parser 出力と
+  実体同一になり `§6.4 O-42 tripwire` が教えてくれた。⇒ 削除＋`censusOrphanManual --unfreeze A`。
 
-**▶ 次の一手**＝**`O-60` の続き（第54バッチ〜）。残 29ハンドラ・live 62効果（A🔴 29行）。**
-⚠**miss=0 は「正しい」ではない**（第49・51バッチで実証済み）。
+**▶ 次の一手**＝**`O-60` の続き（第55バッチ〜）。残 22ハンドラ・live 48効果（A🔴 22行）。**
+⚠**miss=0 は「正しい」ではない**（第49・51・54バッチで実証済み）。
 **残りの内訳**＝
 (a)🔴**モーダル選択（①②③④）**＝`BET_MECHANIC`(8)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／
-`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`CHOOSE_N_FROM_LIST`(1)／`EXTRA_COST_REMOVE_VIRUS`(2)／
-`CONDITIONAL_ALTERNATE_EFFECT`(1)＝**6ハンドラ / live 20効果**。**受け皿は完備・fresh も採用待ちだが、
-`choiceTextParser.ts`（492行）の約20分岐を parser 側へ移すまで採用してはいけない**
-（PLAN_DETAIL の登録票に option 単位の優劣表と取り方の見立てがある。**1バッチ＝2〜3カード**に切る）。
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`CHOOSE_N_FROM_LIST`(1)／
+`CONDITIONAL_ALTERNATE_EFFECT`(1)／`ARTS_EXTRA_COST_CONDITION`(1)／後段 `INTERNAL_ECRV_APPLY`
+＝**7ハンドラ / live 19効果**。**受け皿は完備・fresh も採用待ちだが、`choiceTextParser.ts`（492行）の
+約20分岐を parser 側へ移すまで採用してはいけない**（PLAN_DETAIL の登録票に option 単位の優劣表と
+取り方の見立てがある。**1バッチ＝2〜3カード**に切る）。
+🆕`ARTS_EXTRA_COST_CONDITION`（`WX26-CP1-024`）は第54バッチで**この family へ振り分けた**＝engine が
+①②を「パワー＋N」「ダウン」の2形だけの自前 regex で組んでおり、正すには `CHOOSE{choices[]}` ＋
+「追加コストを払っていたら選択数を2にする」上書きが要る。
 (b)**引用文の実行時再パース**＝`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＋
 `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`(3)＋`GRANT_QUOTED_ACTIVATE_ABILITY`(1)＝**`O-128` 家系**。
-(c)**残りの単発**＝`CHOOSE_HAND_OR_ENERGY`(4)／`CONDITIONAL_COST_REDUCTION_BY_FIELD`(3)／
-`REVEAL_CLASS_SIGNI_FROM_HAND` は済／`UPKEEP_OR_NO_UP`(2)／`EXTRA_COST_REMOVE_VIRUS`(2) ほか live1〜2。
-🔑**着手手順は第50〜53バッチと同じ**＝①`censusEngineText.ts --id A,B,C,…`（**1起動**）②live JSON を
+(c)**残りの単発**＝`CONDITIONAL_COST_REDUCTION_BY_FIELD` は済／`UPKEEP_OR_NO_UP` は済／
+live 1〜2の `CHOOSE_SAME_OPTION_TWICE` ほかと `fn:` 2本・`INTERNAL_*` 群（**live 0 でも死に枝ではない**）。
+🔑**着手手順は第50〜54バッチと同じ**＝①`censusEngineText.ts --id A,B,C,…`（**1起動**）②live JSON を
 全件ダンプして payload の有無を見る ③**typed で解けている兄弟**と**汎用 payload**から受け皿を探す
 ④**入口の id 集合**と**parser の綴り**を疑う ⑤**生成側は文型ルールとは限らない**（カード別 override／
 効果単位の後処理） ⑥**engine 側に parser より賢い分岐が無いかを必ず見る** ⑦**payload が前の文にあるなら
-効果単位の後処理＋①②③スコープ** ⑧反転は**消費側**を壊して盤面の数で取る
-⑨**STUB を解体したら census のキー表を較正する**。
+効果単位の後処理＋①②③スコープ** ⑧🆕**「同じ意味を決めている別の場所」を先に探す**（あれば撤去が正解）
+⑨🆕**新キーの前に「条件型 → 汎用 payload → 既存の受け皿」の順で当たる**
+⑩反転は**消費側**を壊して盤面の数で取る ⑪**STUB を解体したら census のキー表を較正する**。
 
 ---
 
@@ -804,7 +810,7 @@
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-60` | **29ハンドラ / live 62効果**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>**A🔴 29行 / 29ハンドラ・miss 0**。**第53バッチまで消化済み**（第50 -17行／第51 -8／第52 -12／第53 -10）<br>🔑**miss=0 は「正しい」ではない**（第49・51バッチで実証）<br>🔴**「受け皿が在る」は着手根拠にならない**＝モーダル選択 family は受け皿も fresh も揃っているが `choiceTextParser.ts`（492行）が汎用 parser より賢い分岐を約20持ち、単純採用は過剰実行への退行になる（**多バッチ項目**・登録票に option 単位の優劣表あり）<br>🔑**残りは3つ**＝(a)モーダル選択 6ハンドラ/live20（多バッチ）／(b)引用文の実行時再パース＝`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＋`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`(3)＋`GRANT_QUOTED_ACTIVATE_ABILITY`(1)＝`O-128` 家系／(c)live1〜4の単発<br>⚠**据置1件**＝`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` は原文「すべての場にある」だが engine は自分側にしか積まない（payload 化のみ完了・両者化は別項目） |
+| `O-60` | **22ハンドラ / live 48効果**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>**A🔴 22行 / 22ハンドラ・miss 0**。**第54バッチまで消化済み**（第50 -17行／第51 -8／第52 -12／第53 -10／第54 -7）<br>🔑**miss=0 は「正しい」ではない**（第49・51・54バッチで実証）<br>🔑🆕**payload 化が正解とは限らない**＝「同じ意味を決めている別の場所」があるハンドラは**撤去**が正解（第54の `CONDITIONAL_COST_REDUCTION_BY_FIELD`＝盤面を変えないのに実コストと別の判定式を持つ二重実装だった）。条件は既存の条件型（`CONDITIONAL{LRIG_STORY}` 等）へ出せることもある＝**新キーの前に「条件型 → 汎用 payload → 既存の受け皿」**<br>🔴**「受け皿が在る」は着手根拠にならない**＝モーダル選択 family は受け皿も fresh も揃っているが `choiceTextParser.ts`（492行）が汎用 parser より賢い分岐を約20持ち、単純採用は過剰実行への退行になる（**多バッチ項目**・登録票に option 単位の優劣表あり）<br>🔑**残りは3つ**＝(a)モーダル選択 7ハンドラ/live19（多バッチ・第54で `ARTS_EXTRA_COST_CONDITION` をここへ振り分けた）／(b)引用文の実行時再パース＝`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＋`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`(3)＋`GRANT_QUOTED_ACTIVATE_ABILITY`(1)＝`O-128` 家系／(c)live1〜2の単発<br>⚠**据置1件**＝`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` は原文「すべての場にある」だが engine は自分側にしか積まない（payload 化のみ完了・両者化は別項目） |
 | `O-193` | **25効果** | `census:wiring` の has=0 語彙が未配線＝`isDrive` 14／`powerLteSelf` 9／`levelLtSelf` 2 |
 | `O-198` | **23効果** | `LOOK_PICK_CHAIN` が「ちょうどN枚」を表現できない＝`pickCount` が上限としてしか渡らず0枚を選べる（過小実行）<br>⚠census では原理的に検出できない |
 | `O-192` | **19効果** | `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` がアシストルリグを数え落とす（`matchesFilter` の cardType が厳密一致）<br>続き385 実測 |
@@ -1189,31 +1195,30 @@
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-03（`O-60` 第53バッチ・索引 A 第13巡）＝「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ（Opus 5 単独／本ブロックが直近の正）**
+- **2026-09-03（`O-60` 第54バッチ・索引 A 第14巡）＝「使用コスト・追加支払い・維持コスト」family 7ハンドラ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
   ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  この項目の計器は **`census:enginetext` の A群**＝**39行 / 39ハンドラ → 29行 / 29ハンドラ**
-  （A群 live 効果 **77 → 62**・miss は 0 のまま）。
+  この項目の計器は **`census:enginetext` の A群**＝**29行 / 29ハンドラ → 22行 / 22ハンドラ**
+  （A群 live 効果 **62 → 48**・miss は 0 のまま）。
   📦**在庫2本**＝**機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**実機 残 6件**（据置＝今回の追加0）
-  🔧**ゲート（全緑 ✅）**＝golden **3369 / 3369**（3362→3369＝ラチェット1本＋実挙動6本／既存の契約 golden 1本を更新）／
+  🔧**ゲート（全緑 ✅）**＝golden **3376 / 3376**（3369→3376＝ラチェット1本＋実挙動6本／既存の契約 golden 1本を更新）／
   smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 **29行**（`BASELINE_SELF_TEXT` も 29）／`census:costtext` A🔴 **0規則**（据置）／
+  `census:enginetext` A🔴 **22行**（`BASELINE_SELF_TEXT` も 22）／`census:costtext` A🔴 **0規則**（据置）／
   lint 0 errors／`npm run regen` 完走。
   🖥**実機＝不要と判定（§2.2）**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
-  🔴**実害・危険な形4件**＝①`ADD_CARD_TO_LRIG_DECK` は《…》を全部カード名として拾っていた
-  （別の【起】の《無》《ゲーム１回》《緑×0》が候補6件中3件）②`CRASH_LIFE_TO_HAND` は原文を読むために
-  **`effectId` からカード番号を逆引きする足場**を engine に生やしていた（旧既定 `self` は原文と逆向きの利得）
-  ③`PLACE_TRAP_FROM_REVEALED` の既定2枚は原文3〜5枚に対する過小実行
-  ④属性書き換え3件は別の能力の絞り込みを掴みうる位置にあった。
-  🔑**一般則**＝①**payload が「前の文」にあるなら効果単位の後処理で刻む。ただし `①②③` があるときは
-  セグメントへスコープを狭める**（`WX14-037` は `CHOOSE` の②の枝）②**新しいキーの前に汎用 payload
-  （`owner` / `selectTarget` / `value`）で足りないかを見る**（この巡は2件がそれで足りた）
-  ③**payload を足すと「JSON 文字列一致」の契約 golden が落ちる＝退行ではなく契約の更新**
-  （落ちないならその効果を誰も assert していない証拠）。
-  ⚠**据置1件**＝`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` は原文「すべての場にある」だが engine は
-  自分側にしか積まない（payload 化のみ完了・両者化は別項目）。
-  ✅**ブラスト半径＝効果 変更21・追加0・削除0、予定外0**。
+  🔴**実害・危険な形4件**＝①`UPKEEP_OR_NO_UP` は付与能力の中で回避条件が **1/3 の重さ**に化けていた
+  （付与先になりうるレベル3ルリグ341枚のうち旧ロジックが正しい値を返すのは3枚だけ＝338/341 で外れる）
+  ②`CONDITIONAL_COST_REDUCTION_BY_FIELD` は**盤面を変えないのに実コストと別の判定式**を持つ二重実装
+  （`WX15-034` は選択肢①の＜武勇＞を拾い、`WX12-049` は独立2本の軽減を「両方必要」にしていた）
+  ③`CHOOSE_HAND_OR_ENERGY` の既定3枚は原文5枚に対する過少実行（regex がたまたま当たっていた）
+  ④`GAIN_COIN_AND_DISCARD` のコイン regex は1本も当たっていなかった。
+  🔑**一般則**＝①**A群は「同じ意味を決めている別の場所」を先に探す**＝あれば payload 化ではなく**撤去**
+  （盤面を変えないハンドラは census:enginetext 以外のどの計器にも映らない）
+  ②**条件は payload ではなく既存の条件型へ出せることがある**（`CONDITIONAL{LRIG_STORY}` で新キー0本）
+  ③**payload を刻むと manual が影武者になる**（`§6.4 O-42 tripwire` が検出→削除＋`--unfreeze A`）。
+  ⚠**この巡では取らなかった1件**＝`ARTS_EXTRA_COST_CONDITION` はモーダル選択 family (a) へ振り分けた。
+  ✅**ブラスト半径＝効果 変更11・追加0・削除0、予定外0**。
 
 ## 付録A. 全体像と Definition of Done
 

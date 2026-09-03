@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 585（総ノード 3211 件）
-逆翻訳シートの [STUB:…] 総数: 446  うち生ID露出 5 箇所（4 種）
+逆翻訳シートの [STUB:…] 総数: 438  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 24 種 / 25 件
@@ -22,10 +22,10 @@ live JSON の STUB id 種類 : 585（総ノード 3211 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      2件   2枚  DEFERRED_COLOR_QUALIFIED_USE_BLOCK  [生ID露出 2]
         カード: PR-471, WXK09-037
-        生成: src\data\parsers\parseSentencePart2.ts:471
+        生成: src\data\parsers\parseSentencePart2.ts:472
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:22012
+        生成: src\data\effectParser.ts:22020
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1642

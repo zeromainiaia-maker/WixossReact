@@ -60,7 +60,11 @@ const onlyIds = (() => {
 //   `LRIG_LIMIT_MODIFY`（→ typed `LrigLimitModifyAction`）の2ハンドラは撤去した分。
 // 🆕39→29＝2026-09-03（索引 A 第13巡・§5.3 `O-60` 第53バッチ）＝**「ゾーン移動・公開」＋「属性の書き換え」family
 //   10ハンドラ**（`ADD_CARD_TO_LRIG_DECK` ほか・live 21効果）を payload 化した分。
-const BASELINE_SELF_TEXT = 29;
+// 🆕29→22＝2026-09-03（索引 A 第14巡・§5.3 `O-60` 第54バッチ）＝**「使用コスト・追加支払い・維持コスト」
+//   family 7ハンドラ**（`CONDITIONAL_COST_REDUCTION_BY_FIELD` / `REDUCE_PLAY_ABILITY_COST` /
+//   `EXTRA_COST_REMOVE_VIRUS` / `UPKEEP_OR_NO_UP` / `GAIN_COIN_AND_DISCARD` /
+//   `CONDITIONAL_TRASH_TO_ENERGY` / `CHOOSE_HAND_OR_ENERGY`・live 13効果）を payload 化／撤去した分。
+const BASELINE_SELF_TEXT = 22;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

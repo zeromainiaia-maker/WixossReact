@@ -43853,7 +43853,11 @@ const batch390Cases = [
     cardNum: 'WXDi-P06-002', usageLimit: 'once_per_turn',
     action: { type: 'SEQUENCE', steps: [
       { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, actingPlayerSelects: true } },
-      { type: 'STUB', id: 'UPKEEP_OR_NO_UP' },
+      // 🆕`upkeepCondition` は §5.3 `O-60` 第54バッチ（2026-09-03）で足した payload。
+      // 🔴この STUB は `GRANT_LRIG_ABILITY` の子なので、実行時の効果元は**付与先のルリグ**になる
+      //   ＝旧 engine は原文の《無》《無》《無》に1本も当たらず既定 `pay_colorless1` へ落ちていた
+      //   （相手は《無》1つで回避できた＝**原文の 1/3 の重さ**）。
+      { type: 'STUB', id: 'UPKEEP_OR_NO_UP', upkeepCondition: 'pay_colorless3' },
     ] },
   },
   {
@@ -63523,6 +63527,202 @@ test('§5.3 O-60 第53: REVEAL_PICK の公開枚数は payload（旧既定5枚�
   }
   // 🔑`WX14-037` は `CHOOSE` の②の枝＝**①の枝の数字を掴んでいない**ことがこのテストの本体
   //   （効果単位の後処理は①②③のセグメントへスコープを狭めている）。
+});
+
+// ── §5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family 7ハンドラ ──
+// 🔴どれも **engine が `EffectText`（＋`BurstText`＝カード全文）から色・枚数・条件を読み直していた**箇所。
+const O60B54_KEYS: Array<[string, (n: Record<string, unknown>) => boolean]> = [
+  ['REDUCE_PLAY_ABILITY_COST', n => !!n.reduceNextOnPlayCost],
+  ['UPKEEP_OR_NO_UP', n => !!n.upkeepCondition],
+  ['GAIN_COIN_AND_DISCARD', n => !!n.coinAndDiscard],
+  ['EXTRA_COST_REMOVE_VIRUS', n => n.virusCount !== undefined],
+  ['CHOOSE_HAND_OR_ENERGY', n => n.handOrEnergyLookCount !== undefined],
+];
+
+test('§5.3 O-60 第54: コスト・支払い family は live 全ノードが payload を持つ（fail-closed の穴が無い）', () => {
+  const missing: string[] = [];
+  let nodes = 0;
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && typeof rec.id === 'string') {
+      const hit = O60B54_KEYS.find(([id]) => id === rec.id);
+      if (hit) { nodes++; if (!hit[1](rec)) missing.push(`${effectId}(${rec.id})`); }
+    }
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+  eq(missing.length, 0, `payload を持たないノード: ${missing.join(', ')}`);
+  ok(nodes >= 10, `走査対象が消えていない（実測 ${nodes} ノード）`);
+});
+
+test('§5.3 O-60 第54: UPKEEP_OR_NO_UP は付与能力の中でも原文どおりの重さ（旧は既定 pay_colorless1 へ転落）', () => withSavedCursor(() => {
+  // 🔴`WXDi-P06-002-E1` は `GRANT_LRIG_ABILITY` の子なので、実行時の効果元は**付与先のルリグ**。
+  //   旧 engine は効果元の原文を読んでいたので《無》《無》《無》に1本も当たらず、
+  //   相手は《無》1つで回避できていた（＝原文の 1/3 の重さ）。
+  const p06 = (effectsMap.get('WXDi-P06-002') ?? []).find(e => e.effectId === 'WXDi-P06-002-E1');
+  ok(!!p06, 'WXDi-P06-002-E1 が live にある'); if (!p06) return;
+  let cond: unknown;
+  const visit = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(visit); return; }
+    const rec = n as Record<string, unknown>;
+    if (rec.type === 'STUB' && rec.id === 'UPKEEP_OR_NO_UP') cond = rec.upkeepCondition;
+    Object.values(rec).forEach(visit);
+  };
+  visit(p06.action);
+  eq(cond, 'pay_colorless3', '付与される【自】の回避条件は《無》×3');
+  const p13 = (effectsMap.get('WXDi-P13-075') ?? []).find(e => e.effectId === 'WXDi-P13-075-E1');
+  ok(!!p13, 'WXDi-P13-075-E1 が live にある'); if (!p13) return;
+  cond = undefined; visit(p13.action);
+  eq(cond, 'discard_or_colorless1', '原文「手札を１枚捨てるか《無》を支払わないかぎり」');
+  // 実挙動＝相手側の state に条件が積まれる。
+  const r = run({ type: 'STUB', id: 'UPKEEP_OR_NO_UP', upkeepCondition: 'pay_colorless3' } as unknown as EffectAction,
+    mkCtx({}, {}, 'WXDi-P06-002'));
+  ok(r.done); if (!r.done) return;
+  eq(r.otherState.lrig_upkeep_condition, 'pay_colorless3', '相手のアップ条件へ配線');
+  // 反転＝payload が無ければ制限を張らない（fail-closed）。旧既定 pay_colorless1 は原文より軽い縛り。
+  const r2 = run({ type: 'STUB', id: 'UPKEEP_OR_NO_UP' } as unknown as EffectAction, mkCtx({}, {}, 'WXDi-P06-002'));
+  ok(r2.done); if (!r2.done) return;
+  eq(r2.otherState.lrig_upkeep_condition, undefined, 'payload なしでは制限を張らない（fail-closed）');
+}));
+
+test('§5.3 O-60 第54: CHOOSE_HAND_OR_ENERGY の見る枚数は payload（前の文にある数字を効果単位で刻む）', () => withSavedCursor(() => {
+  const cases: Array<[string, string, number]> = [
+    ['WX24-P1-025', 'WX24-P1-025-E1', 3], ['WX24-P2-042', 'WX24-P2-042-E1', 3],
+    // 🔑`WXDi-CP01-004` はこの効果が **③の枝**＝①②の枝の数字を掴んでいないことがこのケースの本体。
+    ['WXDi-CP01-004', 'WXDi-CP01-004-E1', 3],
+    // 🔴`WXDi-CP02-003` は原文 **5枚**＝旧既定 3 ではなく、当たっていたから合っていただけ。
+    ['WXDi-CP02-003', 'WXDi-CP02-003-E1', 5],
+  ];
+  for (const [card, effectId, want] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    let found: number | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === 'CHOOSE_HAND_OR_ENERGY') found = rec.handOrEnergyLookCount as number | undefined;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff.action);
+    eq(found, want, `${effectId} の見る枚数は原文どおり ${want}`);
+  }
+  // 実挙動＝payload の枚数だけ SEARCH 候補が出る。
+  const ctx5 = mkCtx({}, {}, 'WXDi-CP02-003');
+  const first = executeEffect(
+    { effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+      action: { type: 'STUB', id: 'CHOOSE_HAND_OR_ENERGY', handOrEnergyLookCount: 5 } as unknown as EffectAction } as CardEffect, ctx5);
+  ok(!first.done && first.pending.type === 'SEARCH', 'SEARCH interaction が出る');
+  if (!first.done && first.pending.type === 'SEARCH') eq(first.pending.visibleCards.length, 5, 'デッキ上5枚が候補');
+  // 反転＝payload が無ければ何もしない（fail-closed）。旧既定 3 は原文と無関係な枚数。
+  const r2 = run({ type: 'STUB', id: 'CHOOSE_HAND_OR_ENERGY' } as unknown as EffectAction, mkCtx({}, {}, 'WXDi-CP02-003'));
+  ok(r2.done); if (!r2.done) return;
+  eq(r2.ownerState.hand.length, 5, 'payload なしでは手札が動かない（fail-closed）');
+}));
+
+test('§5.3 O-60 第54: REDUCE_PLAY_ABILITY_COST と GAIN_COIN_AND_DISCARD は payload から動く', () => withSavedCursor(() => {
+  const k04 = (effectsMap.get('WXK04-075') ?? []).find(e => e.effectId === 'WXK04-075-E1');
+  ok(!!k04, 'WXK04-075-E1 が live にある'); if (!k04) return;
+  eq(JSON.stringify((k04.action as unknown as Record<string, unknown>).reduceNextOnPlayCost),
+    JSON.stringify({ color: '赤', count: 1 }), '原文「発動コストは《赤×1》減る」');
+  const r = run(k04.action, mkCtx({}, {}, 'WXK04-075'));
+  ok(r.done); if (!r.done) return;
+  eq(JSON.stringify(r.ownerState.reduce_next_on_play_cost), JSON.stringify({ color: '赤', count: 1 }), '軽減が state へ');
+  // 反転＝payload なしでは軽減しない（旧既定は原文を読まずに《赤》×1 を掛けていた）。
+  const r2 = run({ type: 'STUB', id: 'REDUCE_PLAY_ABILITY_COST' } as unknown as EffectAction, mkCtx({}, {}, 'WXK04-075'));
+  ok(r2.done); if (!r2.done) return;
+  eq(r2.ownerState.reduce_next_on_play_cost, undefined, 'payload なしでは軽減しない（fail-closed）');
+
+  const wd23 = (effectsMap.get('WD23-004-E') ?? []).find(e => e.effectId === 'WD23-004-E-E1');
+  ok(!!wd23, 'WD23-004-E-E1 が live にある'); if (!wd23) return;
+  // 🔴旧 engine のコイン regex は `コインN(枚|個)を得る` で、原文の綴り「《コインアイコン》を得」に
+  //   1本も当たっていなかった（既定 1 でたまたま合っていただけ＝**miss=0 は正しさではない**）。
+  eq(JSON.stringify((wd23.action as unknown as Record<string, unknown>).coinAndDiscard),
+    JSON.stringify({ coin: 1, discard: 1 }), '原文「《コインアイコン》を得、手札を１枚捨てる」');
+  const rc = run(wd23.action, mkCtx({ coins: 2, hand: 4 }, {}, 'WD23-004-E'));
+  ok(rc.done); if (!rc.done) return;
+  eq(rc.ownerState.coins, 3, 'コインが1枚増える');
+  eq(rc.ownerState.hand.length, 3, '手札を1枚捨てる');
+  const rc2 = run({ type: 'STUB', id: 'GAIN_COIN_AND_DISCARD' } as unknown as EffectAction, mkCtx({ coins: 2, hand: 4 }, {}, 'WD23-004-E'));
+  ok(rc2.done); if (!rc2.done) return;
+  eq(rc2.ownerState.coins, 2, 'payload なしではコインを配らない（fail-closed）');
+  eq(rc2.ownerState.hand.length, 4, 'payload なしでは手札も動かない');
+}));
+
+test('§5.3 O-60 第54: WX14-029-E2 のセンタールリグ条件は CONDITIONAL{LRIG_STORY} が持つ', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX14-029') ?? []).find(e => e.effectId === 'WX14-029-E2');
+  ok(!!eff, 'WX14-029-E2 が live にある'); if (!eff) return;
+  const act = eff.action as unknown as Record<string, unknown>;
+  eq(act.type, 'CONDITIONAL', '条件は engine の全文 regex ではなく JSON が持つ');
+  eq(JSON.stringify(act.condition), JSON.stringify({ type: 'LRIG_STORY', owner: 'self', story: 'アイヤイ' }),
+    '原文「あなたのセンタールリグが＜アイヤイ＞の場合」');
+  // 実挙動＝センタールリグが＜アイヤイ＞のときだけ、このカードがトラッシュ→エナへ動く。
+  const aiyai = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('アイヤイ'));
+  const other = findCard(c => c.Type === 'ルリグ' && !(c.CardClass ?? '').includes('アイヤイ')
+    && !(c.Story ?? '').includes('アイヤイ') && !(c.CardName ?? '').includes('アイヤイ'));
+  const mk = (lrig: string) => {
+    const ctx = mkCtx({ lrig: [lrig] }, {}, 'WX14-029');
+    ctx.ownerState.trash = ['WX14-029', ...ctx.ownerState.trash];
+    return ctx;
+  };
+  const rOk = run(eff.action, mk(aiyai));
+  ok(rOk.done); if (!rOk.done) return;
+  ok(rOk.ownerState.energy.includes('WX14-029'), '＜アイヤイ＞ならエナゾーンへ');
+  const rNg = run(eff.action, mk(other));
+  ok(rNg.done); if (!rNg.done) return;
+  ok(!rNg.ownerState.energy.includes('WX14-029'), '＜アイヤイ＞でなければ動かない');
+  ok(rNg.ownerState.trash.includes('WX14-029'), 'トラッシュに残る');
+}));
+
+test('§5.3 O-60 第54: EXTRA_COST_REMOVE_VIRUS の取り除ける上限は payload（value→virusCount へ移設）', () => withSavedCursor(() => {
+  const w23 = (effectsMap.get('WX16-023') ?? []).find(e => e.effectId === 'WX16-023-E1');
+  const w48 = (effectsMap.get('WX16-048') ?? []).find(e => e.effectId === 'WX16-048-E1');
+  ok(!!w23 && !!w48, 'WX16-023-E1 / WX16-048-E1 が live にある'); if (!w23 || !w48) return;
+  eq((w23.action as unknown as Record<string, unknown>).virusCount, 2, '原文「【ウィルス】を２つまで取り除いてもよい」');
+  eq((w48.action as unknown as Record<string, unknown>).virusCount, 'any', '原文「【ウィルス】を好きな数取り除いてもよい」');
+  // 🔑manual 影武者を外して parser 生成へ戻したので、live の刻印は AUTO（§6.4 O-42 tripwire と対）。
+  eq(w23.parseStatus, 'AUTO', 'manual 解除後の live 刻印');
+  eq(w48.parseStatus, 'AUTO', 'manual 解除後の live 刻印');
+  // 実挙動＝提示される「取り除く数」の選択肢は 0〜min(payload, 場のウィルス総数)。
+  const mk = () => {
+    const ctx = mkCtx({}, {}, 'WX16-023');
+    ctx.otherState.field.signi_virus = [2, 2, 0];
+    return ctx;
+  };
+  const first = executeEffect(
+    { effectId: 't', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+      action: { type: 'STUB', id: 'EXTRA_COST_REMOVE_VIRUS', virusCount: 2 } as unknown as EffectAction } as CardEffect, mk());
+  ok(!first.done && first.pending.type === 'CHOOSE', 'CHOOSE interaction が出る');
+  if (!first.done && first.pending.type === 'CHOOSE') eq(first.pending.options.length, 3, '0〜2 の3択（payload が上限）');
+  // 反転＝payload が無ければ 0 個（fail-closed）。旧既定は「場のウィルス全部」まで許していた。
+  const bare = executeEffect(
+    { effectId: 't', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+      action: { type: 'STUB', id: 'EXTRA_COST_REMOVE_VIRUS' } as unknown as EffectAction } as CardEffect, mk());
+  ok(!bare.done && bare.pending.type === 'CHOOSE', 'payload なしでも CHOOSE は出る');
+  if (!bare.done && bare.pending.type === 'CHOOSE') eq(bare.pending.options.length, 1, 'payload なしでは「取り除かない」だけ（fail-closed）');
+}));
+
+test('§5.3 O-60 第54: CONDITIONAL_COST_REDUCTION_BY_FIELD の実コストは costReplacement payload が持つ', () => {
+  // 🔴旧 engine はログを出すだけなのに、カード全文の `＜…＞` を全部拾って**別の判定式**を組んでいた。
+  //   `WX15-034` は原文「場に**パワー15000以上**のシグニがある場合」なのに選択肢①の＜武勇＞を掴み、
+  //   `WX12-049` は独立2本の軽減を `every`（両方必要）にしていた。
+  const cases: Array<[string, string]> = [
+    ['WX10-031', 'WX10-031-E1'], ['WX12-049', 'WX12-049-E1'], ['WX15-034', 'WX15-034-E1'],
+  ];
+  for (const [card, effectId] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    const repl = (eff.cost as unknown as { costReplacement?: unknown[] } | undefined)?.costReplacement;
+    ok(Array.isArray(repl) && repl.length > 0, `${effectId}: 実コストは costReplacement payload が持つ`);
+  }
+  // `WX12-049` の2本は独立（accumulate）＝片方だけでも軽減される。
+  const w49 = (effectsMap.get('WX12-049') ?? []).find(e => e.effectId === 'WX12-049-E1');
+  const repl49 = (w49?.cost as unknown as { costReplacement?: Array<Record<string, unknown>> } | undefined)?.costReplacement ?? [];
+  eq(repl49.length, 2, '青の＜電機＞と黒の＜電機＞で別々の軽減');
+  ok(repl49.every(r => r.accumulate === true), '両方が accumulate＝片方だけ満たしても効く');
 });
 
 if (listMode) {

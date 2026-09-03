@@ -2214,19 +2214,20 @@ export function execStubPart1(
       thenAction: addHandAction as EffectAction,
     });
   }
-  // EXTRA_COST_REMOVE_VIRUS: ウイルスを任意数取り除いてからN+1択の効果を選ぶ
+  // EXTRA_COST_REMOVE_VIRUS: ウイルスを任意数取り除いてからN+1択の効果を選ぶ。
+  // 🆕**取り除ける上限は payload（`virusCount`＝`REMOVE_VIRUS` と共有）**
+  //   （§5.3 `O-60` 第54バッチ・2026-09-03）。`'any'`／`'all'` は原文「好きな数」＝場のウィルス全部。
+  // 🔴旧実装は `EffectText + BurstText`（カード全文）にも regex を当てていた＝
+  //   **同じカードの別の能力**の「【ウィルス】をNつまで取り除」を掴みうる形だった
+  //   （live 2効果は `value` payload が先に効いていたので regex は死んでいた＝**miss=0 の中身**）。
+  // ⚠**payload が無ければ 0 個**（fail-closed）＝原文は「取り除いて**もよい**」なので
+  //   0 は必ず正当な選択肢。旧既定（場のウィルス全部）へ倒すと過剰実行になりうる。
   if (stub.id === 'EXTRA_COST_REMOVE_VIRUS') {
     const virusArrECRV = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const totalVirusECRV = virusArrECRV.reduce((s, v) => s + v, 0);
-    const srcECRV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtECRV = srcECRV ? (srcECRV.EffectText ?? '') + ' ' + (srcECRV.BurstText ?? '') : '';
-    const toHWECRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 最大取り除き数を解析
-    const maxRemoveM = txtECRV.match(/【ウィルス】を([０-９\d]+)つまで取り除|好きな数取り除/);
-    const configuredMaxECRV = typeof stub.value === 'number' ? stub.value : undefined;
-    const maxRemoveECRV = configuredMaxECRV ?? (maxRemoveM
-      ? (maxRemoveM[1] ? parseInt(toHWECRV(maxRemoveM[1])) : totalVirusECRV)
-      : totalVirusECRV);
+    const specECRV = stub.virusCount;
+    const maxRemoveECRV = typeof specECRV === 'number' ? specECRV
+      : (specECRV === 'any' || specECRV === 'all') ? totalVirusECRV : 0;
     // 取り除く数を選択 (0 から min(max, totalVirus))
     const removeOptions: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
     for (let n = 0; n <= Math.min(maxRemoveECRV, totalVirusECRV); n++) {

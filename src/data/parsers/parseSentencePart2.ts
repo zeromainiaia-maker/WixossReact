@@ -42,6 +42,7 @@ import type {
   CardLocation,
   RevealAction,
   EffectDuration,
+  ConditionalAction,
 } from '../../types/effects';
 import {
   blockUntilFromText,
@@ -1205,8 +1206,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 【出】能力のコストを減少 ----
+  // 🆕**軽減する色と枚数を payload で刻む**（§5.3 `O-60` 第54バッチ・2026-09-03）＝
+  //   engine が `EffectText`（カード全文）から読み直していた分を剥がすため。
   if (t.match(/次にあなたが【出】能力を発動する場合.*発動コストは.*減る/)) {
-    return { type: 'STUB', id: 'REDUCE_PLAY_ABILITY_COST' } as StubAction;
+    const rpacM = t.match(/発動コストは《([白赤青緑黒無])×?([０-９\d]*)》?(?:×([０-９\d]+))?[^。]*?減る/);
+    const rpac: StubAction = { type: 'STUB', id: 'REDUCE_PLAY_ABILITY_COST' };
+    if (rpacM) {
+      const n = rpacM[2] || rpacM[3];
+      rpac.reduceNextOnPlayCost = { color: rpacM[1], count: n ? parseNum(n) : 1 };
+    }
+    return rpac;
   }
 
   // ---- 手札から特定クラスのシグニを公開してもよい ----
@@ -1540,8 +1549,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 《コインアイコン》を得て手札を捨てる ----
+  // 🆕**枚数を payload で刻む**（§5.3 `O-60` 第54バッチ・2026-09-03）。
+  // 🔴engine 側のコイン regex は `コインN枚を得る` で、**原文の綴り《コインアイコン》を得 に
+  //   1本も当たっていなかった**（既定 1 でたまたま合っていただけ）。
   if (t.match(/《コインアイコン》を得.*手札を.*捨てる/)) {
-    return { type: 'STUB', id: 'GAIN_COIN_AND_DISCARD' } as StubAction;
+    const coinN = (t.match(/《コインアイコン》/g) ?? []).length || 1;
+    const discM = t.match(/手札を([０-９\d]*)枚?(?:捨て|トラッシュ)/);
+    return {
+      type: 'STUB', id: 'GAIN_COIN_AND_DISCARD',
+      coinAndDiscard: { coin: coinN, discard: discM && discM[1] ? parseNum(discM[1]) : 1 },
+    } as StubAction;
   }
 
   // ---- 水獣/特定クラスのシグニが場を離れる代わりにパワー減少 ----
@@ -1828,8 +1845,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 特定センタールリグのとき、トラッシュからエナゾーンに置く ----
+  // 🆕**条件は `CONDITIONAL{LRIG_STORY}` へ出す**（§5.3 `O-60` 第54バッチ・2026-09-03）＝
+  //   engine が `EffectText + BurstText`（カード全文）へ `/あなたのセンタールリグが＜X＞の場合/` を
+  //   当てて判定していた分を剥がす。**受け皿は既存の条件型**（新設なし）。
   if (t.match(/センタールリグが.*の場合.*トラッシュからエナゾーンに置く/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_TRASH_TO_ENERGY' } as StubAction;
+    const cttes: StubAction = { type: 'STUB', id: 'CONDITIONAL_TRASH_TO_ENERGY' };
+    const ctteM = t.match(/あなたのセンタールリグが＜([^＞]+)＞の場合/);
+    if (ctteM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LRIG_STORY', owner: 'self', story: ctteM[1] },
+        then: cttes as EffectAction,
+      } as ConditionalAction;
+    }
+    return cttes;
   }
 
   // ---- DECLARE_ZONE_FOR_CLASS_CHANGE: 【出】で領域を指定する（WX14-032）----
@@ -2047,8 +2076,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- ウィルス追加コストでのアーツ使用 ----
+  // 🆕**取り除ける上限を payload で刻む**（§5.3 `O-60` 第54バッチ・2026-09-03）＝
+  //   `REMOVE_VIRUS` と同じ `virusCount`（`'any'`＝原文「好きな数」）を共有する。
   if (t.match(/使用コストとして追加で.*【ウィルス】を.*取り除いてもよい/)) {
-    return { type: 'STUB', id: 'EXTRA_COST_REMOVE_VIRUS' } as StubAction;
+    const ecrv: StubAction = { type: 'STUB', id: 'EXTRA_COST_REMOVE_VIRUS' };
+    const ecrvM = t.match(/【ウィルス】を([０-９\d]+)つまで取り除/);
+    if (ecrvM) ecrv.virusCount = parseNum(ecrvM[1]);
+    else if (/【ウィルス】を好きな数取り除/.test(t)) ecrv.virusCount = 'any';
+    return ecrv;
   }
 
   // ---- アクセコスト軽減 ----

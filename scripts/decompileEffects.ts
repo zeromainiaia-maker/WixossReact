@@ -3315,6 +3315,28 @@ function actionJa(a?: Action, effectType?: string): string {
           ? '対戦相手のライフクロス1枚を手札に加えさせる'
           : 'あなたのライフクロス1枚を手札に加える';
       }
+      // 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family。**
+      // どれも engine がカード全文 regex で読んでいた値を payload へ移したので、**逆翻訳も payload から描く**
+      //   （原文から切り出すと、payload が落ちていても逆翻訳だけは正しく見える＝第53バッチの教訓）。
+      if (a.id === 'REDUCE_PLAY_ABILITY_COST') {
+        if (!a.reduceNextOnPlayCost) return '[REDUCE_PLAY_ABILITY_COST: 軽減内容なし（未指定・engine も何もしない）]';
+        return `このターン、次にあなたが【出】能力を発動する場合、それの発動コストは《${a.reduceNextOnPlayCost.color}×${a.reduceNextOnPlayCost.count}》減る`;
+      }
+      if (a.id === 'GAIN_COIN_AND_DISCARD') {
+        if (!a.coinAndDiscard) return '[GAIN_COIN_AND_DISCARD: 枚数なし（未指定・engine も何もしない）]';
+        return `${'《コインアイコン》'.repeat(Math.max(1, a.coinAndDiscard.coin))}を得、手札を${a.coinAndDiscard.discard}枚捨てる`;
+      }
+      if (a.id === 'CHOOSE_HAND_OR_ENERGY') {
+        if (a.handOrEnergyLookCount === undefined) return '[CHOOSE_HAND_OR_ENERGY: 見る枚数なし（未指定・engine も何もしない）]';
+        return `その中から（デッキの上から${a.handOrEnergyLookCount}枚）カードを好きな枚数手札に加え、残りをエナゾーンに置く`;
+      }
+      if (a.id === 'EXTRA_COST_REMOVE_VIRUS') {
+        // ⚠**選択肢そのもの（①②③…）はまだ engine 側の `choiceTextParser` が原文から組む**
+        //   （`INTERNAL_ECRV_APPLY`＝`O-60` のモーダル選択 family。この巡では取っていない）。
+        if (a.virusCount === undefined) return '[EXTRA_COST_REMOVE_VIRUS: 取り除ける上限なし（未指定・engine は0個）]';
+        const nECRV = a.virusCount === 'any' || a.virusCount === 'all' ? '好きな数' : `${a.virusCount}つまで`;
+        return `使用コストとして追加で対戦相手の場にある【ウィルス】を${nECRV}取り除いてもよい。取り除いた数に1を加えた数だけ、以下から選ぶ`;
+      }
       // DECLARE_NUMBER: 数字宣言（CHOOSE UIで1〜5を選択。declared_guard_restrict_level に保存＝実装済み）
       if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;
       if (a.id === 'DECLARE_NUMBER') return '数字1つを宣言する';
@@ -3984,10 +4006,16 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの、場とエナゾーンにある[^。]*?シグニは追加で[^。]*?を得る/);
         if (m) return m[0];
       }
-      // 次の相手アップフェイズにアップさせない（UPKEEP_OR_NO_UP）＝「次の対戦相手のアップフェイズに、対戦相手が…支払わないかぎり、対戦相手のセンタールリグはアップしない」を原文抽出。
+      // 次の相手アップフェイズにアップさせない（UPKEEP_OR_NO_UP）。
+      // 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝payload（`upkeepCondition`）から描く。**
+      // 🔴旧は `currentCardText` から原文を切り出しており、`WXDi-P06-002` のように
+      //   **付与能力の中で実行されて engine が回避条件を読み違える**形でも逆翻訳だけは正しく見えた。
       if (a.id === 'UPKEEP_OR_NO_UP') {
-        const m = currentCardText.match(/次の対戦相手のアップフェイズに、対戦相手が[^。]*?支払わないかぎり、対戦相手のセンタールリグはアップしない/);
-        if (m) return m[0];
+        const payUONU = a.upkeepCondition === 'pay_colorless3' ? '《無》《無》《無》を支払わない'
+          : a.upkeepCondition === 'discard_or_colorless1' ? '手札を１枚捨てるか《無》を支払わない'
+          : a.upkeepCondition === 'pay_colorless1' ? '《無》を支払わない' : undefined;
+        if (!payUONU) return '[UPKEEP_OR_NO_UP: 回避条件なし（未指定・engine も何もしない）]';
+        return `次の対戦相手のアップフェイズに、対戦相手が${payUONU}かぎり、対戦相手のセンタールリグはアップしない`;
       }
       // ベット機構（BET_MECHANIC）＝この STUB がアクション全体を占める（構造化なし）ので「ベット―」以降の全文を原文抽出。
       // §5b Z-2（PLAN.md）。engine 側は §6.3 の機構待ちに登録済み・ここは表現のみ。

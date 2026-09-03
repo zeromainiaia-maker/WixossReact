@@ -2583,8 +2583,19 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LIMIT_OPP_ATTACK_ONCE' } as StubAction;
 
   // ---- アップフェイズに手札/エナ支払いなしだとアップしない ----
-  if (t.match(/アップフェイズに.*(?:捨てるか|支払わないかぎり).*アップしない/))
-    return { type: 'STUB', id: 'UPKEEP_OR_NO_UP' } as StubAction;
+  // 🆕**回避条件を payload で刻む**（§5.3 `O-60` 第54バッチ・2026-09-03）。
+  // 🔴`WXDi-P06-002-E1` はこの STUB が `GRANT_LRIG_ABILITY` の子にあり、実行時の効果元は
+  //   **付与先のルリグ**になる＝engine が引く原文が別のカードになり、既定 `pay_colorless1` へ
+  //   落ちていた（＝相手は《無》1つで回避できる＝原文の 1/3 の重さ）。第53バッチ④ と同型。
+  if (t.match(/アップフェイズに.*(?:捨てるか|支払わないかぎり).*アップしない/)) {
+    const uonu: StubAction = { type: 'STUB', id: 'UPKEEP_OR_NO_UP' };
+    if (/手札を[１1]枚捨てるか《無》を支払わないかぎり/.test(t)) uonu.upkeepCondition = 'discard_or_colorless1';
+    else {
+      const payM = t.match(/((?:《無》)+)を支払わないかぎり/);
+      if (payM) uonu.upkeepCondition = payM[1].length / 3 >= 3 ? 'pay_colorless3' : 'pay_colorless1';
+    }
+    return uonu;
+  }
 
   // ---- 対戦相手のシグニの各種能力を失わせる ----
   if (t.match(/【シャドウ】.*失い.*新たに得られない/))

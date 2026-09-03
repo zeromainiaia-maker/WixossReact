@@ -20,6 +20,30 @@ SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-06
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
 
+## +LRIG_LIMIT_MODIFY -STUB ［5枚］
+WX25-P2-014 WXDi-P05-025 WXDi-P13-004B WXDi-P13-029 WXDi-P16-002
+--- WX25-P2-014
+  原文: 【常】《相手ターン》：あなたの場に＜宇宙＞のシグニがあるかぎり、対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない。【起】《ゲーム１回》レリーズ《白×0》：次のあなたのエナフェイズ終了時まで、このルリグのリミットを＋１する。次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－２する。,-
+  - [1].action.steps[1].id = "OPP_MAIN_PHASE_LIMIT_DOWN"
+  ~ [1].action.steps[1].type : "STUB" → "LRIG_LIMIT_MODIFY"
+  + [1].action.steps[1].owner = "opponent"
+  + [1].action.steps[1].delta = -2
+  + [1].action.steps[1].until = "NEXT_TURN"
+--- WXDi-P05-025
+  原文: 【出】：あなたのデッキの上からカードを５枚見る。その中からシグニを２枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。【出】：次のあなたのエナフェイズ終了時まで、あなたのセンタールリグのリミットを＋２する。,-
+  - [1].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  ~ [1].action.type : "STUB" → "LRIG_LIMIT_MODIFY"
+  + [1].action.owner = "self"
+  + [1].action.delta = 2
+  + [1].action.until = "NEXT_TURN"
+--- WXDi-P13-004B
+  原文: 【常】：対戦相手のターンの間、このシグニは【シャドウ】を得る。【自】：このシグニがアタックしたとき、カードを１枚引くか【エナチャージ１】をする。【出】：次のあなたのエナフェイズ終了時まで、このシグニが場にあるかぎり、あなたのセンタールリグのリミットを＋２する。,-
+  - [2].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  ~ [2].action.type : "STUB" → "LRIG_LIMIT_MODIFY"
+  + [2].action.owner = "self"
+  + [2].action.delta = 2
+  + [2].action.until = "NEXT_TURN"
+
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
 --- WDK05-R11
@@ -59,6 +83,18 @@ WX13-040
   ~ [0].action.steps[1].then.type : "BOUNCE" → "SEQUENCE"
   + [0].action.steps[1].then.steps[0].type = "STUB"
   …（他 11 行）
+
+## +CONDITIONAL +LRIG_STORY ［1枚］
+WX14-029
+--- WX14-029
+  原文: 【自】：カード１枚があなたのエナゾーンから手札に移動したとき、このシグニをバニッシュしてもよい。その後、この効果でこのシグニをバニッシュしていた場合、あなたのエナゾーンからシグニ１枚を対象とし、それをダウン状態で場に出す。【自】：このカードが手札かデッキからトラッシュに置かれたとき、あなたのセンタールリグが＜アイヤイ＞の場合、このカードをトラッシュからエナゾ
+  - [1].action.id = "CONDITIONAL_TRASH_TO_ENERGY"
+  ~ [1].action.type : "STUB" → "CONDITIONAL"
+  + [1].action.condition.type = "LRIG_STORY"
+  + [1].action.condition.owner = "self"
+  + [1].action.condition.story = "アイヤイ"
+  + [1].action.then.type = "STUB"
+  + [1].action.then.id = "CONDITIONAL_TRASH_TO_ENERGY"
 
 ## +SELF_OPTIONAL_EFFECT_TAKEN -IS_MY_TURN ［1枚］
 WX14-064
@@ -232,7 +268,7 @@ WXDi-CP02-003
   + [0].action.steps[0].steps[0].shuffle = true
   + [0].action.steps[0].steps[1].type = "LOOK_AND_REORDER"
   + [0].action.steps[0].steps[1].source.location = "deck"
-  …（他 8 行）
+  …（他 9 行）
 
 ## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +PREVENT_DAMAGE +SEQUENCE ［1枚］
 WXK04-014

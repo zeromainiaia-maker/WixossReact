@@ -18311,6 +18311,14 @@ function parseActionTextInner(text: string): EffectAction {
         for (const [k, v] of Object.entries(rec)) if (k !== 'choices') fillReveal(v, scope);
         return;
       }
+      // 🆕`CHOOSE_HAND_OR_ENERGY`（§5.3 `O-60` 第54バッチ・2026-09-03）＝
+      //   「デッキの上からカードを**N**枚見る。**その中から**カードを好きな枚数手札に加え、残りを
+      //   エナゾーンに置く」の N。🔴旧 engine の既定は 3 枚で、原文 5 枚の `WXDi-CP02-003` は
+      //   カード全文 regex が当たっていたから合っていただけ（＝**miss=0 は正しさではない**）。
+      if (rec.type === 'STUB' && rec.id === 'CHOOSE_HAND_OR_ENERGY' && rec.handOrEnergyLookCount === undefined) {
+        const n = revealCountIn(scope);
+        if (n !== undefined) rec.handOrEnergyLookCount = n;
+      }
       if (rec.type === 'STUB' && rec.id === 'PLACE_TRAP_FROM_REVEALED' && !rec.placeTrapReveal) {
         const n = revealCountIn(scope);
         if (n !== undefined) rec.placeTrapReveal = { revealCount: n };

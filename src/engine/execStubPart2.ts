@@ -656,15 +656,16 @@ export function execStubPart2(
     const nameETH = selectedETH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
     return done(addLog({ ...ctx, ownerState: newOwnerETH }, `エナゾーン：${nameETH}→手札`));
   }
-  // コイン獲得+手札から捨て（先頭N枚を自動捨て）
+  // GAIN_COIN_AND_DISCARD: コイン獲得+手札から捨て。
+  // 🆕**枚数は payload（`coinAndDiscard`）**（§5.3 `O-60` 第54バッチ・2026-09-03）。
+  // 🔴旧実装のコイン側 regex は `コインN(枚|個)を得る` で、原文の綴り **《コインアイコン》を得**に
+  //   **1本も当たっていなかった**（＝いつも既定 1。合っていたのは偶然＝**miss=0 は正しさではない**）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定へ倒すと原文を読まずにコインを配る。
   if (stub.id === 'GAIN_COIN_AND_DISCARD') {
-    const srcGCAD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtGCAD = srcGCAD ? (srcGCAD.EffectText ?? '') + ' ' + (srcGCAD.BurstText ?? '') : '';
-    const toHWGCAD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const coinMGCAD = txtGCAD.match(/コイン([０-９\d]*)(?:枚?|個?)を得る/);
-    const coinCountGCAD = coinMGCAD ? (parseInt(toHWGCAD(coinMGCAD[1] || '1')) || 1) : 1;
-    const discardMGCAD = txtGCAD.match(/手札を([０-９\d]*)枚?(?:捨て|トラッシュ)/);
-    const discardCountGCAD = discardMGCAD ? (parseInt(toHWGCAD(discardMGCAD[1] || '1')) || 1) : 1;
+    const specGCAD = stub.coinAndDiscard;
+    if (!specGCAD) return done(addLog(ctx, '[GAIN_COIN_AND_DISCARD: 枚数なし（未指定）]'));
+    const coinCountGCAD = specGCAD.coin;
+    const discardCountGCAD = specGCAD.discard;
     // コイン付与
     const ctxCoinGCAD = addLog({ ...ctx, ownerState: { ...ctx.ownerState, coins: (ctx.ownerState.coins ?? 0) + coinCountGCAD } }, `コイン+${coinCountGCAD}`);
     // 手札がなければそのまま終了
@@ -1001,19 +1002,13 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: ownerTIZO, otherState: otherTIZO },
       targetsTIZO.length > 0 ? 'ターン終了時：元ゾーン占有時トラッシュを予約' : '占有時トラッシュ対象なし'));
   }
-  // 条件付きトラッシュ→エナ（センタールリグ名条件付き）
+  // CONDITIONAL_TRASH_TO_ENERGY: このカードをトラッシュからエナゾーンに置く。
+  // 🆕**「あなたのセンタールリグが＜X＞の場合」は `CONDITIONAL{LRIG_STORY}` へ出した**
+  //   （§5.3 `O-60` 第54バッチ・2026-09-03）＝ここではもうカード全文を読まない。
+  // 🔴旧実装は `EffectText + BurstText`（カード全文）に regex を当てており、
+  //   **同じカードの別の能力**の＜クラス＞を掴みうるうえ、効果元が `cardMap` から引けない経路では
+  //   **条件が丸ごと消えて無条件に成立**していた（`O-60` 第9バッチの実害と同型）。
   if (stub.id === 'CONDITIONAL_TRASH_TO_ENERGY') {
-    const srcCTTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCTTE = srcCTTE ? (srcCTTE.EffectText ?? '') + ' ' + (srcCTTE.BurstText ?? '') : '';
-    // 「センタールリグが＜X＞の場合」条件チェック
-    const lrigCondM = txtCTTE.match(/あなたのセンタールリグが＜([^＞]+)＞の場合/);
-    if (lrigCondM) {
-      const reqLrigClass = lrigCondM[1];
-      const centerLrig = ctx.ownerState.field.lrig.at(-1);
-      const lrigCard = centerLrig ? ctx.cardMap.get(centerLrig) : undefined;
-      const lrigOk = lrigCard && ((lrigCard.Story ?? '').includes(reqLrigClass) || (lrigCard.CardClass ?? '').includes(reqLrigClass) || (lrigCard.CardName ?? '').includes(reqLrigClass));
-      if (!lrigOk) return done(addLog(ctx, `センタールリグが＜${reqLrigClass}＞でない（条件未達）`));
-    }
     const targetCTTE = ctx.sourceCardNum && ctx.ownerState.trash.includes(ctx.sourceCardNum)
       ? ctx.sourceCardNum
       : (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
@@ -3988,21 +3983,18 @@ export function execStubPart2(
     return done(addLog(ctx, '[グロウコスト代替: GROW_COST_SUBSTITUTE_TRASH_SIGNI]'));
   }
   // コスト軽減系（engine: コスト計算システム未実装）
-  // CONDITIONAL_COST_REDUCTION_BY_FIELD: フィールド条件（クラス/枚数）でコスト軽減チェック
+  // CONDITIONAL_COST_REDUCTION_BY_FIELD: 場の条件による使用コスト軽減の**宣言**。
+  // 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝カード全文 regex を撤去した。**
+  // 🔴このハンドラは**ログを出すだけ**（盤面を1ビットも変えない）のに、実コストを決める側と
+  //   **別の判定式**をカード全文から組み立てていた＝食い違っても誰も気づけない二重実装だった。
+  //   実害＝①`WX15-034` の条件は原文「場に**パワー15000以上**のシグニがある場合」なのに、
+  //   全文の最初の `＜…＞`（**選択肢①の＜武勇＞**）を拾って別の条件を判定していた
+  //   ②`WX12-049` の原文は「青の＜電機＞があれば《青》減り、黒の＜電機＞があれば《黒》減る」＝
+  //   **独立した2本**なのに `every` で **両方必要**にしていた。
+  // ⚠実コストの軽減は `EffectCost.costReplacement`（`accumulate` つき）が持ち、UI 層はその payload
+  //   だけを読む（§5.3 `O-86` でそう決めた）。live 3効果とも `costReplacement` は刻まれている。
   if (stub.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD') {
-    const srcCCRF = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCCRF = srcCCRF ? (srcCCRF.EffectText ?? '') + ' ' + (srcCCRF.BurstText ?? '') : '';
-    // クラス条件（「＜クラス1＞と＜クラス2＞のシグニがある場合」）
-    const classMatchesCCRF = [...txtCCRF.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]).slice(0, 3);
-    if (classMatchesCCRF.length > 0) {
-      const allPresentCCRF = classMatchesCCRF.every(cls =>
-        ctx.ownerState.field.signi.some(s => {
-          const top = s?.at(-1); return top && ctx.cardMap.get(top)?.CardClass?.includes(cls);
-        })
-      );
-      return done(addLog(ctx, `コスト軽減条件[${classMatchesCCRF.join('+')}]: ${allPresentCCRF ? '条件達成（コスト軽減適用）' : '条件未達（通常コスト）'}`));
-    }
-    return done(addLog(ctx, 'コスト軽減条件（条件解析不可）'));
+    return done(addLog(ctx, '使用コストの軽減条件（実コストは使用時に costReplacement payload で適用済み）'));
   }
   // CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のセンタールリグ色による基本コスト置換の**宣言**。
   // 🆕**§5.3 `O-60` 第48バッチ（2026-09-03）＝カード全文 regex を撤去した。**
@@ -4017,17 +4009,16 @@ export function execStubPart2(
       || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD') {
     return done(addLog(ctx, `[コスト軽減: ${stub.id}]`));
   }
-  // REDUCE_PLAY_ABILITY_COST: 次の【出】能力コストを軽減
+  // REDUCE_PLAY_ABILITY_COST: 次の【出】能力コストを軽減。
+  // 🆕**軽減する色と枚数は payload（`reduceNextOnPlayCost`）**（§5.3 `O-60` 第54バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText`（カード全文）を2本の regex で読み、外れると**《赤》×1**へ落ちていた
+  //   ＝原文と無関係な色を軽減しうる形だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'REDUCE_PLAY_ABILITY_COST') {
-    const srcRPAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRPAC = srcRPAC ? (srcRPAC.EffectText ?? '') : '';
-    const toHWRPAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const colorMatchRPAC = txtRPAC.match(/発動コストは《([白赤青緑黒無])/);
-    const colorRPAC = colorMatchRPAC?.[1] ?? '赤';
-    const countMatchRPAC = txtRPAC.match(/《[白赤青緑黒無]×([０-９\d]+)》減る/);
-    const countRPAC = countMatchRPAC ? parseInt(toHWRPAC(countMatchRPAC[1])) : 1;
-    const newOwnerRPAC: PlayerState = { ...ctx.ownerState, reduce_next_on_play_cost: { color: colorRPAC, count: countRPAC } };
-    return done(addLog({ ...ctx, ownerState: newOwnerRPAC }, `次の【出】能力コスト軽減（${colorRPAC}×${countRPAC}）`));
+    const specRPAC = stub.reduceNextOnPlayCost;
+    if (!specRPAC) return done(addLog(ctx, '[REDUCE_PLAY_ABILITY_COST: 軽減内容なし（未指定）]'));
+    const newOwnerRPAC: PlayerState = { ...ctx.ownerState, reduce_next_on_play_cost: { color: specRPAC.color, count: specRPAC.count } };
+    return done(addLog({ ...ctx, ownerState: newOwnerRPAC }, `次の【出】能力コスト軽減（${specRPAC.color}×${specRPAC.count}）`));
   }
   // ガード系（engine: ガードコスト処理未実装）
   if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
