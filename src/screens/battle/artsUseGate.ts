@@ -14,7 +14,7 @@ import { cardNameUseBlocked } from './cardNameUseBlock';
 import {
   applyContinuousCostDecreases, applyNextArtsCostReduction, applySpecificCardCostReduction,
   canAffordGrowCost, canAffordWithExtraCost, computeArtsEffectiveCost, computeCostReplacement, costReplacementOf, costScalingOf,
-  energyCostToString, isEnaMultiStripped, betOptionsOf,
+  energyCostToString, isEnaMultiStripped, betOptionsOf, coinPayableFor,
 } from './costs';
 import { type EnergyPayEntry, buildEnergyPayPool, energyPoolCardNums } from './energyPaySource';
 import { effectiveLrigClass, meetsRestriction } from './growLogic';
@@ -272,7 +272,8 @@ export function checkArtsUse(p: ArtsUseGateInput): ArtsUseCheck {
   // ベット宣言でのみ成立する置換は宣言が支払いUI内なので、ここでは「ベットすれば払えるか」だけ見る。
   const betSpec = betOptionsOf(cardNum, effectsMap);
   const betCoinMin = betSpec.variable ? 1 : Math.min(...betSpec.options, Infinity);
-  const betCost = !isActionBlocked('BET') && !my.negate_coin_abilities
+  // 🆕§5.3 `O-245`（2026-09-04）＝`coin_use_restriction`（コインはスペルとシグニにしか払えない）。
+  const betCost = !isActionBlocked('BET') && !my.negate_coin_abilities && coinPayableFor(my, 'arts')
     && Number.isFinite(betCoinMin) && my.coins >= betCoinMin
     ? computeCostReplacement(card, my, cardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
         costReplacementOf(cardNum, effectsMap))

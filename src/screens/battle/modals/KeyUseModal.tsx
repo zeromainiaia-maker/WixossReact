@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf } from '../costs';
+import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, coinPayableFor } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -47,7 +47,8 @@ export function KeyUseModal(p: KeyUseModalProps) {
               const energyTotal = parseGrowCost(effKeyCost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, effKeyCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
-              const canAfford = energyOk && my.coins >= coinNeeded;
+              // 🆕§5.3 `O-245`（2026-09-04）＝キー／ピースは `coin_use_restriction` の対象。
+              const canAfford = energyOk && my.coins >= coinNeeded && (coinNeeded === 0 || coinPayableFor(my, 'key'));
               return (
                 <>
                   {/* ピースは「セット」ではなく**使用**（1回払って即解決→ルリグトラッシュ。§3 (cxxiii)・続き475g）。 */}

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
+import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, betOptionsOf, computeCostReplacement, computeArtsEffectiveCost, costReplacementOf, costScalingOf, applyContinuousCostDecreases, applySpecificCardCostReduction, coinPayableFor } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -54,7 +54,8 @@ export function CutinModal(p: CutinModalProps) {
   const betReplacedCostOf = (card: { CardNum: string; CardName?: string; Cost: string }): string | null =>
     computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true },
       costReplacementOf(card.CardNum, effectsMap));
-  const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
+  // 🆕§5.3 `O-245`（2026-09-04）＝カットインのベットもアーツ経路（`coin_use_restriction` の対象）。
+  const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities || !coinPayableFor(my, 'arts');
   // ルリグデッキ由来（＝アーツ本体）の実効コスト（タスク12(lxxxvii)）。
   // 従来はここだけ **CSV の `Cost` 列＋`specificCardCostReductions`** で出しており、
   // `computeArtsEffectiveCost`（EffectText 由来の条件つき軽減）・`applyContinuousCostDecreases`

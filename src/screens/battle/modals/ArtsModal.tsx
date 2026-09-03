@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
+import { computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor } from '../costs';
 import { resolveUseTimeCost, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -151,7 +151,8 @@ export function ArtsModal(p: ArtsModalProps) {
               const betOptions: number[] = betSpec.variable
                 ? Array.from({ length: Math.max(0, Math.min(5, my.coins) - betReservedForEncore) }, (_, i) => i + 1)
                 : betSpec.options;
-              const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
+              // 🆕§5.3 `O-245`（2026-09-04）＝コインはスペルとシグニにしか払えない宣言（`coin_use_restriction`）。
+              const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities || !coinPayableFor(my, 'arts');
               const canBet = !betBlocked && betOptions.some(n => n > 0 && n + betReservedForEncore <= my.coins);
               const canEncore = !!encoreCostForCard && (encoreCoins === 0 || my.coins >= encoreCoins + betAmount)
                 && encoreTextPayable && !isActionBlocked('ENCORE');

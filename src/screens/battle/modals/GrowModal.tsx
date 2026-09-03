@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { collectGrowCostReductions, collectGrowCostSubstitute } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna } from '../costs';
+import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna, coinPayableFor } from '../costs';
 import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -63,7 +63,8 @@ export function GrowModal(p: GrowModalProps) {
                     // 🆕§5.3 `O-83`＝`'plus1_paid'` は**効果によるグロウだがコストは払う**＝free 扱いにしない。
                     const isFreeGrow = my.free_grow_this_turn === true
                       || (freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid');
-                    const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
+                    // 🆕§5.3 `O-245`（2026-09-04）＝グロウはルリグ＝`coin_use_restriction` の対象。
+                    const canAfford = isFreeGrow || ((growCoinNeeded === 0 || (my.coins >= growCoinNeeded && coinPayableFor(my, 'lrig'))) &&
                       canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (

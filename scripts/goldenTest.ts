@@ -64843,10 +64843,37 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   const n = parseInt(m![1], 10);
   // 🆕2026-09-04 の初回実測は 6件。**同日に1件払い戻して 5件**＝`draw_on_opp_power_zero` を
   //   `INSTALL_DELAYED_TRIGGER{ON_SIGNI_POWER_ZERO_OR_LESS, zeroedOwner}` へ寄せてキーごと撤去した。
+  //   🆕さらに `coin_use_restriction` も払い戻して **4件**（`costs.coinPayableFor` を新設し、
+  //   `negate_coin_abilities` と同じ4入口＋グロウ／キーの可否判定で読むようにした）。
   //   残り＝`O-226` の2件（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）＋
-  //   `coin_use_restriction` / `grid_reveal_plus_one_this_turn` / `reduce_next_on_play_cost`。
+  //   `grid_reveal_plus_one_this_turn` / `reduce_next_on_play_cost`。
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
-  eq(n, 5, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+  eq(n, 4, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+});
+
+test('§5.3 O-245: coin_use_restriction が5つの提示ゲートで読まれている', () => {
+  // 🔴書き込みだけで読み手が無く、**コインが何にでも払えたまま**だった（原文より緩い＝過剰実行）。
+  //   原文「このゲームの間、あなたは《コインアイコン》を**スペルとシグニにしか**支払えない」
+  //   （`WXDi-P15-008-E3` / `WXDi-P15-009-E3`）。
+  // ⚠**支払いの瞬間ではなく提示の瞬間で止める**＝支払い側で0にすると「払ったことにされてコストだけ消える」。
+  // ⚠**スペル側（`SpellCastModal` のベット）は通す**＝原文が許している。
+  const sites: Array<[string, string]> = [
+    ['src/screens/battle/artsUseGate.ts', "coinPayableFor(my, 'arts')"],
+    ['src/screens/battle/modals/ArtsModal.tsx', "coinPayableFor(my, 'arts')"],
+    ['src/screens/battle/modals/CutinModal.tsx', "coinPayableFor(my, 'arts')"],
+    ['src/screens/battle/modals/GrowModal.tsx', "coinPayableFor(my, 'lrig')"],
+    ['src/screens/battle/modals/KeyUseModal.tsx', "coinPayableFor(my, 'key')"],
+  ];
+  for (const [f, needle] of sites) {
+    ok(fs.readFileSync(join(root, f), 'utf8').includes(needle), `${f} が ${needle} で絞っている`);
+  }
+  // 🔴**負方向**＝スペルのベットは塞がない（原文が許している）。
+  const spellModal = fs.readFileSync(join(root, 'src/screens/battle/modals/SpellCastModal.tsx'), 'utf8');
+  ok(!spellModal.includes('coinPayableFor'), 'スペルのベットは制限の対象外');
+  // 読み手の実体（`spell_signi_only` のときだけ絞る）。
+  const costs = fs.readFileSync(join(root, 'src/screens/battle/costs.ts'), 'utf8');
+  ok(costs.includes("state.coin_use_restriction !== 'spell_signi_only'"), '制限値を見て判定している');
+  ok(costs.includes("return kind === 'spell' || kind === 'signi';"), 'スペルとシグニだけ通す');
 });
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──

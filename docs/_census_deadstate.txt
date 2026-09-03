@@ -2,9 +2,8 @@
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
 PlayerState のキー: 327
-🔴 書きあり・読み 0: 5
+🔴 書きあり・読み 0: 4
 
-  coin_use_restriction  （書き 1 箇所 / 読み 0）
   grid_reveal_plus_one_this_turn  （書き 2 箇所 / 読み 0）
   reduce_next_on_play_cost  （書き 3 箇所 / 読み 0）
   game_declared_signi_level_zero  （書き 1 箇所 / 読み 0）

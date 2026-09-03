@@ -1220,6 +1220,27 @@ export function parseCoinCost(costStr: string): number {
  * `buildEffectsJson.ts` が**マージの後から**カードの先頭効果へ重ねる（先頭効果が MANUAL/PARTIAL の21枚でも届く）。
  * ⚠**ベットではないカードは従来どおり `{ options: [], variable: false }`**（呼び出し側の分岐を変えない）。
  */
+/**
+ * 🆕**§5.3 `O-245`（2026-09-04）＝`coin_use_restriction` の**読み手**。
+ *
+ * 原文＝「このゲームの間、あなたは《コインアイコン》を**スペルとシグニにしか**支払えない」
+ * （`WXDi-P15-008-E3` / `WXDi-P15-009-E3`）。
+ *
+ * 🔴**この state キーには読み手が1人もいなかった**（`npm run census:deadstate` で検出）＝
+ *   宣言だけが立ってコインは何にでも払えたまま＝**原文より緩い（過剰実行）**。
+ * ⚠**「支払いの瞬間」ではなく「提示の瞬間」で止める**＝支払い側で0にすると
+ *   「払ったことにされてコストだけ消える」形になる。既存の `negate_coin_abilities` と同じ4入口＋
+ *   グロウ／キー・ピースの可否判定に置く。
+ * ⚠**スペルとシグニは通す**＝`SpellCastModal` のベットと、シグニの【出】/【起】コインコストは対象外。
+ */
+export function coinPayableFor(
+  state: { coin_use_restriction?: string },
+  kind: 'spell' | 'signi' | 'arts' | 'lrig' | 'key' | 'piece',
+): boolean {
+  if (state.coin_use_restriction !== 'spell_signi_only') return true;
+  return kind === 'spell' || kind === 'signi';
+}
+
 export function betOptionsOf(
   cardNum: string,
   effectsMap: Map<string, CardEffect[]>,
