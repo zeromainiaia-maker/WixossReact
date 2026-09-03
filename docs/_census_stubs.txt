@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 593（総ノード 3181 件）
+live JSON の STUB id 種類 : 594（総ノード 3182 件）
 逆翻訳シートの [STUB:…] 総数: 381  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 33 種 / 34 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 33 種 / 34 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 34 種 / 35 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 34 種 / 35 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 32 種 / 102 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
@@ -32,6 +32,9 @@ live JSON の STUB id 種類 : 593（総ノード 3181 件）
      1件   1枚  DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT
         カード: SPK16-13E
         生成: src\data\effectParser.ts:5599
+     1件   1枚  DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM
+        カード: WX21-028
+        生成: src\data\effectParser.ts:23224
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1661
@@ -40,7 +43,7 @@ live JSON の STUB id 種類 : 593（総ノード 3181 件）
         生成: src\data\effectParser.ts:14878
      1件   1枚  DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED
         カード: WXDi-P03-002
-        生成: src\data\effectParser.ts:23812 / src\data\effectParser.ts:23821
+        生成: src\data\effectParser.ts:23834 / src\data\effectParser.ts:23843
      1件   1枚  DEFERRED_GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
         生成: src\data\parsers\parseSentencePart2.ts:2818

@@ -23202,6 +23202,28 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  * 旧 STUB{REVEAL_PICK_PLAY} を、公開元・枚数・filter・pick枚数・残り先が明示された木へ畳む。
  * 文型判定はこの関数だけに集約し、適用対象は旧STUBを含む木に限定する。engine はカード原文を読まない。
  */
+/**
+ * 🆕**§5.3 `O-243`（2026-09-04）＝3ゾーン横断の複数対象＋3色の在庫コスト**（`WX21-028-E2`・実測1効果）。
+ *
+ * 原文＝「**対戦相手の、シグニ１体とエナゾーンにあるカード１枚とトラッシュにあるカード１枚**を対象とし、
+ *       **あなたのエナゾーンから赤と青と緑の＜天使＞のシグニを１枚ずつ**デッキに加えてシャッフルする。
+ *       そうした場合、**それらを**シャッフルしてデッキの一番下に置く。」
+ *
+ * 🔴**旧 live は原文と無関係な自傷だった**＝`SEQUENCE[TRANSFER_TO_DECK{**自分の**トラッシュ1枚},
+ *   CONDITIONAL{IS_MY_TURN}→TRANSFER_TO_DECK{**自分の**シグニ1体を一番下}]`＝
+ *   **相手の3枚が自分の1枚に化け、そのうえ自分のシグニをデッキの一番下へ送っていた。**
+ *   `census` の高シグナル3件のうちの1件（「クラス指定」「Nまで上限選択」で検出）。
+ *
+ * ■**要るもの**＝①**別ゾーンを横断する対象グループ**（場／エナ／トラッシュを1回の宣言で取る）
+ *   ②「赤と青と緑を1枚ずつ」＝**色ごとに1枚**の在庫コスト（`transferGroups` の色版）
+ *   ③「それら」＝①で取った3枚への照応。
+ * ⚠**近似に寄せない**＝寄せると「自分の盤面を削る」側へ倒れる（旧実装がまさにそれ）。
+ */
+function deferCrossZoneTripleTarget(action: EffectAction, sourceText: string): EffectAction {
+  if (!/対戦相手の、シグニ[０-９\d]+体とエナゾーンにあるカード[０-９\d]+枚とトラッシュにあるカード[０-９\d]+枚を対象とし/.test(sourceText)) return action;
+  return { type: 'STUB', id: 'DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM' } as EffectAction;
+}
+
 function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAction {
   const hasStub = (node: unknown): boolean => {
     if (!node || typeof node !== 'object') return false;
@@ -25568,6 +25590,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = foldGradedEnergyEachLevelReplacement(folded, card.EffectText ?? '');
     folded = foldColorMatchAllToEnergy(folded, card.EffectText ?? '');
     folded = foldRevealPickPlay(folded, card.EffectText ?? '');
+    folded = deferCrossZoneTripleTarget(folded, currentSourceText(e.effectId) ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);
