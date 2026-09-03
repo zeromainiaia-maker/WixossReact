@@ -23234,6 +23234,49 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  *   ④「好きな順番で」＝複数枚の使用順の選択。
  * ⚠**近似に寄せない**＝「10枚見るだけ」に留めるのも、順番や上限を無視して全部撃つのも原文と別物。
  */
+/**
+ * 🆕**§5.3 `O-232`（2026-09-04）＝「デッキをシャッフルし一番上のカードを公開し手札に加える。
+ *   その後、…**この方法で公開されたカードが【ライフバースト】を持つ場合**、…」**（`WXDi-P10-006-E3`・実測1効果）。
+ *
+ * 🔴**旧 live は3つとも壊れていた**＝
+ *   ①シャッフルと公開が `STUB{DRAW, count:1}` に潰れ、**公開の記録が残らない**
+ *   ②そのせいで後段の2分岐が**どちらも無条件で実行**され
+ *   ③しかも付与キーワードが**両方【ライフバースト】**（原文は【アサシン】と【ダブルクラッシュ】）。
+ *   ＝「引いて、シグニ2体にライフバーストを配る」という原文と無関係な効果になっていた。
+ *
+ * 🔑**受け皿は全部在った**（engine 変更なし）＝`SHUFFLE_DECK` ／
+ *   `REVEAL_AND_PICK{recordRevealed}`（公開札を `lastProcessedCards` に残す）／
+ *   `LAST_PROCESSED_MATCHES{filter:{hasLifeBurst}}`（`matchesFilter` が消費済み）。
+ * ⚠**対象の選択は分岐の中に置く**＝先に選ぶと `lastProcessedCards` が対象シグニで上書きされ、
+ *   条件が**公開札ではなく選んだシグニ**を見てしまう（原文の順序＝公開→判定→付与とも一致する）。
+ */
+function foldShuffleRevealTopThenBranch(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(
+    /デッキをシャッフルし一番上のカードを公開し手札に加える。[\s\S]*?この方法で公開されたカードが【ライフバースト】を持つ場合[、,]ターン終了時まで[、,]それは【([^】]+)】を得る。[\s\S]*?持たない場合[、,]ターン終了時まで[、,]それは【([^】]+)】を得る/);
+  if (!m) return action;
+  const grant = (keyword: string): EffectAction => ({
+    type: 'GRANT_KEYWORD',
+    target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+    keyword, duration: 'UNTIL_END_OF_TURN',
+  } as EffectAction);
+  return {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'SHUFFLE_DECK', owner: 'self' } as EffectAction,
+      {
+        type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, pickCount: 1, recordRevealed: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+      } as unknown as EffectAction,
+      {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_MATCHES', filter: { hasLifeBurst: true }, minCount: 1 },
+        then: grant(m[1]),
+        else: grant(m[2]),
+      } as EffectAction,
+    ],
+  } as EffectAction;
+}
+
 function deferCheckZoneFreeCast(action: EffectAction, sourceText: string): EffectAction {
   if (!/コストの合計が[０-９\d]+以下になるようにスペルを[０-９\d]+枚までチェックゾーンに置き/.test(sourceText)) return action;
   if (!/コストを支払わずに使用する/.test(sourceText)) return action;
@@ -25641,6 +25684,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = foldRevealPickPlay(folded, card.EffectText ?? '');
     folded = deferCrossZoneTripleTarget(folded, currentSourceText(e.effectId) ?? '');
     folded = deferCheckZoneFreeCast(folded, currentSourceText(e.effectId) ?? '');
+    folded = foldShuffleRevealTopThenBranch(folded, currentSourceText(e.effectId) ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);

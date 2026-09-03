@@ -64770,6 +64770,36 @@ test('§5.3 O-69: 「この方法でN枚以上」は5通りの正準形で配線
     '⑤ハンドラ内の枚数ゲート（消えると無条件グロウ＝過剰実行へ戻る）');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-232`（2026-09-04・索引 B 第1巡）＝🏁**クローズ**。シャッフル＋公開＋2分岐（`WXDi-P10-006-E3`）。
+// 🔴**旧 live は3つとも壊れていた**＝①シャッフルと公開が `STUB{DRAW}` に潰れて**公開の記録が残らず**
+//    ②そのせいで2分岐が**どちらも無条件で実行**され ③付与キーワードが**両方【ライフバースト】**だった
+//    （原文は【アサシン】と【ダブルクラッシュ】）＝「引いてシグニ2体にライフバーストを配る」別物。
+// 🔑受け皿は全部在った（engine 変更 0）＝`SHUFFLE_DECK` / `REVEAL_AND_PICK{recordRevealed}` /
+//    `LAST_PROCESSED_MATCHES{filter:{hasLifeBurst}}`。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-232: シャッフル→公開→公開札で2分岐が構造で載る', () => withSavedCursor(() => {
+  const seq = effectsMap.get('WXDi-P10-006')?.find(e => e.effectId === 'WXDi-P10-006-E3')?.action as SequenceAction | undefined;
+  eq(seq?.type, 'SEQUENCE', 'WXDi-P10-006-E3: 3ステップ');
+  eq(seq?.steps.length, 3, 'シャッフル／公開＋手札／分岐');
+  eq((seq!.steps[0] as { type?: string }).type, 'SHUFFLE_DECK', '①シャッフル（旧は消えていた）');
+  const rp = seq!.steps[1] as { type?: string; revealCount?: number; recordRevealed?: boolean };
+  eq(rp.type, 'REVEAL_AND_PICK', '②一番上を公開して手札へ');
+  eq(rp.recordRevealed, true, '🔴公開札を lastProcessedCards に残す（これが無いと後段が判定できない）');
+  const cond = seq!.steps[2] as { type?: string; condition?: { type?: string; filter?: { hasLifeBurst?: boolean } };
+    then?: { keyword?: string }; else?: { keyword?: string } };
+  eq(cond.type, 'CONDITIONAL', '③2分岐');
+  eq(cond.condition?.type, 'LAST_PROCESSED_MATCHES', '公開札を見る');
+  eq(cond.condition?.filter?.hasLifeBurst, true, '【ライフバースト】を持つかで分かれる');
+  eq(cond.then?.keyword, 'アサシン', '持つ場合＝【アサシン】');
+  eq(cond.else?.keyword, 'ダブルクラッシュ', '持たない場合＝【ダブルクラッシュ】');
+  // 🔴**負方向**＝旧形（ドロー＋ライフバースト2連）へ戻っていない。
+  const s2 = JSON.stringify(seq);
+  ok(!s2.includes('"id":"DRAW"'), '「引く」へ潰れていない');
+  ok(!s2.includes('"keyword":"ライフバースト"'), '付与キーワードが【ライフバースト】に化けていない');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
@@ -65242,12 +65272,24 @@ test('§5.3 O-60 第59: 「選んだ能力を得る」の選択肢は原文の�
   ok(bare.done, 'payload なしでは対話を出さない');
 }));
 
-test('§5.3 O-60 第59: STUB{DRAW} の枚数は payload（原文にその句が無いので regex は必ず外れていた）', () => {
-  const eff = (effectsMap.get('WXDi-P10-006') ?? []).find(e => e.effectId === 'WXDi-P10-006-E3');
-  ok(!!eff, 'WXDi-P10-006-E3 が live にある'); if (!eff) return;
-  const step0 = (eff.action as SequenceAction).steps[0] as unknown as { id?: string; count?: number };
-  eq(step0.id, 'DRAW', '先頭は STUB{DRAW}');
-  eq(step0.count, 1, '枚数は payload（原文「一番上のカードを公開し手札に加える」＝1枚）');
+test('§5.3 O-60 第59 → O-232: STUB{DRAW} は live から消えた（「引く」は原文と別物だった）', () => {
+  // 🆕**§5.3 `O-232`（2026-09-04）で期待値を差し替えた。**
+  //   第59バッチは `STUB{DRAW}` の**枚数**を payload 化して「原文に無い regex の既定値」を潰したが、
+  //   🔴**そもそも `WXDi-P10-006-E3` は「引く」効果ではなかった**＝原文は
+  //   「デッキを**シャッフル**し**一番上のカードを公開し**手札に加える」で、後段の2分岐が
+  //   **公開したカードを参照する**。`DRAW` に潰すと公開の記録が残らず、分岐が判定できない。
+  //   ⇒ `O-232` で `SHUFFLE_DECK` ＋ `REVEAL_AND_PICK{recordRevealed}` へ組み替えた。
+  // 🔑**この test は「潰し直さない」ための門**＝`STUB{DRAW}` の live 利用は現在 0。
+  let hits = 0;
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    const o = n as { type?: string; id?: string };
+    if (o.type === 'STUB' && o.id === 'DRAW') hits++;
+    for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action);
+  eq(hits, 0, 'live に STUB{DRAW} は無い（typed な DRAW か REVEAL_AND_PICK で表す）');
 });
 
 test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex ではなく CHOOSE の payload で決まる', () => withSavedCursor(() => {
