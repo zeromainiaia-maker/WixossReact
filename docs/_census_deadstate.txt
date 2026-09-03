@@ -1,10 +1,9 @@
 # PlayerState の「書かれるだけで読まれない」キー（§5.3 `O-226` の一般化）
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
-PlayerState のキー: 327
-🔴 書きあり・読み 0: 3
+PlayerState のキー: 326
+🔴 書きあり・読み 0: 2
 
-  grid_reveal_plus_one_this_turn  （書き 2 箇所 / 読み 0）
   game_declared_signi_level_zero  （書き 1 箇所 / 読み 0）
   game_declared_signi_ignore_restriction  （書き 1 箇所 / 読み 0）
 

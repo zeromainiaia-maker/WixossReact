@@ -1167,7 +1167,8 @@ export interface PlayerState {
   // 読みは `effectiveLrigClass`（グロウ互換・「〇〇限定」）と `collectLrigNameAliases`。
   lrig_gained_types_timed?: Array<{ lrigType: string; turnsRemaining: number }>;
   // GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1できる
-  grid_reveal_plus_one_this_turn?: boolean;
+  // 🏁§5.3 `O-246`（2026-09-04）＝**撤去**（読み手が1人もいない真 no-op だった）。
+  //   受け皿は「すべての公開地点に『+1しますか』を挿す」置換効果＝PLAN §5.3 `O-246`。
   // DECK_SIGNI_LEVEL_OVERRIDE: このターン、指定クラスのデッキシグニのレベルをN扱い
   deck_signi_level_override?: { class: string; level: number };
   // REDUCE_PLAY_ABILITY_COST: 次の【出】能力コスト軽減（color×count）

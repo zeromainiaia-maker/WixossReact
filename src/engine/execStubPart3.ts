@@ -2156,11 +2156,10 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerRPN }, 'このターン相手シグニへの+パワー修正を-に置換'));
   }
   // === バッチ16: アクセ・公開・汎用選択系 ===
-  // GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1フラグを設定
-  if (stub.id === 'GRID_REVEAL_PLUS') {
-    const newOwnerGRP: PlayerState = { ...ctx.ownerState, grid_reveal_plus_one_this_turn: true };
-    return done(addLog({ ...ctx, ownerState: newOwnerGRP }, 'グリッド公開：このターンデッキ公開枚数+1'));
-  }
+  // 🏁**§5.3 `O-246`（2026-09-04）＝`GRID_REVEAL_PLUS` ハンドラを撤去した。**
+  //   🔴書き込み先 `grid_reveal_plus_one_this_turn` に**読み手が1人もいなかった**
+  //     （`npm run census:deadstate` で検出）＝宣言だけ立って公開枚数は増えない真 no-op。
+  //   ⇒ parser が `DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL` を出す（逆翻訳に【未実装】）。
   // MAGIC_BOX_REVEAL: 場のMBを表向きにしてシグニにする（全MBをシグニとして配置）
   if (stub.id === 'MAGIC_BOX_REVEAL') {
     const mbsReveal = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];

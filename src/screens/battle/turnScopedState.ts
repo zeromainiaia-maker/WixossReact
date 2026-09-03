@@ -32,7 +32,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   // 相手効果によるエナ廃棄累計は、ターン単位の条件カウンタ。
   energy_trashed_by_opp_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'opponent-effect energy trash total for the current turn' },
   // グリッドの公開枚数加算は、付与されたターンだけ有効。
-  grid_reveal_plus_one_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'grid reveal modifier granted for the current turn' },
+  // 🏁§5.3 `O-246`（2026-09-04）＝`grid_reveal_plus_one_this_turn` はキーごと撤去した
+  //   （読み手が1人もいない真 no-op だった）。リセット先も一緒に消す。
   // 相手効果による手札廃棄累計は、ターン単位の条件カウンタ。
   hand_trashed_by_opp_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'opponent-effect hand trash total for the current turn' },
   // 非ディソナスペル使用履歴は、現在ターンの使用条件だけが参照する。

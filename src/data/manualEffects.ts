@@ -6553,13 +6553,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WX06-033 反復する独自性　グリッド
   // 【出】このターン、あなたの効果によってデッキ上から公開する場合、代わりに1枚多く公開してもよい。
-  //   （既存型では表現不可のためUNKNOWNアクション＋MANUALステータス）
+  // 🆕**§5.3 `O-246`（2026-09-04）＝`GRID_REVEAL_PLUS` から明示 defer へ改名した。**
+  //   🔴旧ハンドラは `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が1人もいなかった**
+  //     （`npm run census:deadstate` で検出＝宣言だけ立って公開枚数は増えない真 no-op）。
+  //   ⚠**受け皿が無い**＝任意の置換効果なので、`REVEAL_AND_PICK` / `LOOK_AND_REORDER` /
+  //     `LOOK_PICK_CHAIN` の**すべての公開地点**に「+1しますか」の提示を挿す必要がある。
+  //   🔑**parser も同じ id を出せるようになった**（原文の言い回しで拾う規則を足した）＝
+  //     この手書きは**parser 出力と実体同一**になったので、`censusManualDrift` の削除候補に出る。
   'WX06-033': [
     {
       effectId: 'WX06-033-E1',
       effectType: 'AUTO',
       timing: ['ON_PLAY'],
-      action: { type: 'STUB', id: 'GRID_REVEAL_PLUS' },
+      action: { type: 'STUB', id: 'DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL' },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
       parseStatus: 'MANUAL',

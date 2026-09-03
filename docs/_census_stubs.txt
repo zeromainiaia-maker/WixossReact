@@ -5,12 +5,12 @@ live JSON の STUB id 種類 : 593（総ノード 3181 件）
 逆翻訳シートの [STUB:…] 総数: 380  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 35 種 / 36 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 35 種 / 36 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 36 種 / 37 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 36 種 / 37 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 32 種 / 102 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 558 種
+  D 健全（実装あり＋日本語表示）                          : 557 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 332 種
 
 ==============================================================================
@@ -110,6 +110,9 @@ live JSON の STUB id 種類 : 593（総ノード 3181 件）
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2135
+     1件   1枚  DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL
+        カード: WX06-033
+        生成: src\data\manualEffects.ts:6568 / src\data\parsers\parseSentencePart3.ts:439
      1件   1枚  DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI
         カード: WDK17-015
         生成: src\data\effectParser.ts:14890

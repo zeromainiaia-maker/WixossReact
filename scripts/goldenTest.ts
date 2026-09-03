@@ -5491,7 +5491,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 43, 'PlayerState の命名規約由来フィールド数（43＝2026-08-31 続き748 で deck_to_trash_cards_this_turn＝絞り込み付き履歴参照の実体側を追加）');
+  eq(convention.length, 42, 'PlayerState の命名規約由来フィールド数（🆕42＝2026-09-04 `O-246` で grid_reveal_plus_one_this_turn を撤去＝読み手が1人もいない真 no-op だった。旧43）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5506,7 +5506,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 73, '型由来38件＋命名規約外27件の母集団（73＝2026-09-02 索引B 第2巡で spell_in_check_zone〔`O-138`〕と damaged_just〔`O-160`〕を追加）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 72, '型由来38件＋命名規約外27件の母集団（🆕72＝2026-09-04 `O-246` で grid_reveal_plus_one_this_turn を撤去。旧73＝2026-09-02 索引B 第2巡で spell_in_check_zone〔`O-138`〕と damaged_just〔`O-160`〕を追加）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -64847,11 +64847,24 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   //   `negate_coin_abilities` と同じ4入口＋グロウ／キーの可否判定で読むようにした）。
   //   🆕さらに `reduce_next_on_play_cost` も払い戻して **3件**（`costs.applyNextOnPlayCostReduction` を新設し、
   //   `SigniOnPlayCostModal` が枚数と色文字列の**両方**をそこから作るようにした＋支払い時に1回で消費）。
-  //   残り＝`O-226` の2件（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）＋
-  //   `grid_reveal_plus_one_this_turn`。
+  //   🆕さらに `grid_reveal_plus_one_this_turn` もキーごと撤去して **2件**（受け皿が無いので明示 defer＝`O-246`）。
+  //   残り＝`O-226` の2件（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）。
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
-  eq(n, 3, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+  eq(n, 2, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
 });
+
+test('§5.3 O-246: デッキ公開枚数+1 は明示 defer（フラグだけ立てる旧形へ戻さない）', () => withSavedCursor(() => {
+  // 🔴旧 `STUB{GRID_REVEAL_PLUS}` は `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が0**だった。
+  // ⚠受け皿が無い＝原文は**任意の置換効果**で、`REVEAL_AND_PICK` / `LOOK_AND_REORDER` /
+  //   `LOOK_PICK_CHAIN` の**すべての公開地点**に「+1しますか」の提示を挿す必要がある（実測1効果）。
+  const a = effectsMap.get('WX06-033')?.find(e => e.effectId === 'WX06-033-E1')?.action as { id?: string };
+  eq(a?.id, 'DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL', 'WX06-033-E1: 明示 defer');
+  // 🔴**負方向**＝フラグとハンドラが復活していない。
+  const p3 = fs.readFileSync(join(root, 'src/engine/execStubPart3.ts'), 'utf8');
+  ok(!p3.includes("stub.id === 'GRID_REVEAL_PLUS'"), '旧ハンドラが復活していない');
+  const types = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
+  ok(!/^\s{2}grid_reveal_plus_one_this_turn\?:/m.test(types), '死んだ state キーが復活していない');
+}));
 
 test('§5.3 O-245: reduce_next_on_play_cost が【出】コストから引かれ、1回で消費される', () => {
   // 🔴書き込みだけで読み手が無く、**印刷コストのまま請求されていた**（原文より高い＝過小実行）。

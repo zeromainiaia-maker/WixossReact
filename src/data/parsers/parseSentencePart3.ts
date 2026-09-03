@@ -424,9 +424,19 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR' } as StubAction;
   }
 
-  // ---- グリッド固有デッキ公開+1 ----
-  if (t.match(/デッキ上公開枚数\+[０-９\d]+/)) {
-    return { type: 'STUB', id: 'GRID_REVEAL_PLUS' } as StubAction;
+  // ---- デッキ公開枚数+1（任意の置換効果）----
+  // 🆕**§5.3 `O-246`（2026-09-04）＝明示 defer**（旧＝`STUB{GRID_REVEAL_PLUS}`）。
+  // 🔴旧ハンドラは `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が1人もいなかった**
+  //   （`npm run census:deadstate` で検出＝宣言だけ立って公開枚数は増えない真 no-op）。
+  // ⚠**受け皿が無い**＝原文「あなたの効果によってデッキの上から**特定の値の枚数**のカードを公開する場合、
+  //   代わりに**1枚多く公開してもよい**」は**任意の置換効果**で、`REVEAL_AND_PICK.revealCount` /
+  //   `LOOK_AND_REORDER.count` / `LOOK_PICK_CHAIN.revealCount` の**すべての公開地点**に
+  //   「+1しますか」の提示を挿す必要がある（実測1効果）。
+  // ⚠**原文の言い回しで拾う**＝旧規則の `デッキ上公開枚数+N` は**どのカードの原文にも無い**綴りで、
+  //   実際に live へ載っていたのは `manualEffects.ts` 側だった（規則は死んでいた）。
+  if (t.match(/デッキ上公開枚数\+[０-９\d]+/)
+      || /^このターン[、,]あなたの効果によってあなたのデッキの上から特定の値の枚数のカードを公開する場合[、,]代わりに[１1]枚多く公開してもよい$/.test(t.trim())) {
+    return { type: 'STUB', id: 'DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL' } as StubAction;
   }
 
   // ---- ガード代替コスト ----
