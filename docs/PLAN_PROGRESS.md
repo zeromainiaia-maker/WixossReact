@@ -1,5 +1,37 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第54バッチ・索引 A 第14巡・Opus 5 単独）＝「使用コスト・追加支払い・維持コスト」family 7ハンドラ**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**29行 / 29ハンドラ → 22行 / 22ハンドラ**
+  （`BASELINE_SELF_TEXT` も 22 へ払い戻し／A群 live 効果 **62 → 48**／miss は 0 のまま）。
+  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**⑤実機 残 6件**（据置＝今回の追加0）。
+  gates 全緑（golden **3376 / 3376**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴22**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更11・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
+
+  🔴**実害・危険な形4件**＝
+  ①**`UPKEEP_OR_NO_UP` は付与能力の中で回避条件が 1/3 に化けていた**＝`WXDi-P06-002-E1` はこの STUB が
+  `GRANT_LRIG_ABILITY` の子で、`triggerCollect` はトリガーを**付与先のルリグ**の `cardNum` で積む。
+  旧 engine はその原文を読むので《無》《無》《無》に当たらず既定 `pay_colorless1` へ落ちていた。
+  **反転を数で取った**＝付与先になりうるレベル3ルリグ **341枚**のうち、旧ロジックが `pay_colorless3` を
+  返すのは **3枚だけ**（＝338/341 で外れる）。第53バッチ④ と同型の経路依存。
+  ②**`CONDITIONAL_COST_REDUCTION_BY_FIELD` は「盤面を変えないハンドラが実コストと別の判定式を持つ」
+  二重実装**＝`WX15-034` は原文「パワー15000以上」なのに**選択肢①の＜武勇＞**を拾い、`WX12-049` は
+  独立2本の軽減を `every`（両方必要）にしていた。⇒ 第48バッチと同じく**撤去**（実コストは `costReplacement`）。
+  ③**`CHOOSE_HAND_OR_ENERGY` の既定3枚**＝`WXDi-CP02-003` は原文5枚で、regex が**たまたま当たっていた**だけ。
+  ④**`GAIN_COIN_AND_DISCARD` のコイン regex は1本も当たっていなかった**（原文は《コインアイコン》を得）。
+
+  🔑**この巡の一般則**＝
+  ①**A群を見るときは「同じ意味を決めている別の場所」を先に探す**＝あれば payload 化ではなく**撤去**が正解
+  （盤面を変えないハンドラは census:enginetext 以外のどの計器にも映らない）。
+  ②**条件は payload ではなく既存の条件型へ出せることがある**＝`CONDITIONAL_TRASH_TO_ENERGY` は
+  `CONDITIONAL{LRIG_STORY}`（既存）で足り、**新キー0本**で engine の全文読みが消えた。
+  ⇒ **新キーの前に「条件型 → 汎用 payload → 既存の受け皿」の順で当たる**（第53② の一段上）。
+  ③**payload を刻むと manual が「影武者」になる**＝`EXTRA_COST_REMOVE_VIRUS` の手書き2件が parser 出力と
+  実体同一になり `§6.4 O-42 tripwire` が教えてくれた。⇒ 削除＋`censusOrphanManual --unfreeze A`。
+
 - **セッション（2026-09-03・`O-60` 第53バッチ・索引 A 第13巡・Opus 5 単独）＝「ゾーン移動・公開」＋「属性の書き換え」family 10ハンドラ**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

@@ -17022,9 +17022,13 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
     return QUOTE_STUBS.some(s => js.includes(`"${s}"`));
   }).map(c => c.CardNum).sort();
   // 原文母集団は8枚だが、`WXDi-P15-071` だけは**ベット分岐**が要るので (cxviii) で
-  // `CONDITIONAL{IS_BETTING}`＋`GRANT_EFFECT` へ組み替えた＝引用付与ハンドラを通らない。残り7枚。
-  eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P10-025,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069',
-     '引用付与ハンドラを通る正面パワー条件つきカードは7枚（8枚目の WXDi-P15-071 は (cxviii) で別経路）');
+  // `CONDITIONAL{IS_BETTING}`＋`GRANT_EFFECT` へ組み替えた＝引用付与ハンドラを通らない。
+  // 🆕**さらに `WXDi-P10-025` が抜けて6枚**（§5.3 `O-60` 第55バッチ・2026-09-03）＝
+  //   `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` を parser の `GRANT_EFFECT{rawText}` へ移したので、
+  //   このカードはもう引用付与ハンドラを通らない（`activeCondition` は JSON が持つ）。
+  //   🔑**契約の更新であって退行ではない**＝ゲートは別テスト「第55」で assert している。
+  eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069',
+     '引用付与ハンドラを通る正面パワー条件つきカードは6枚（WXDi-P15-071 は (cxviii)／WXDi-P10-025 は O-60 第55 で別経路）');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -63723,6 +63727,94 @@ test('§5.3 O-60 第54: CONDITIONAL_COST_REDUCTION_BY_FIELD の実コストは c
   const repl49 = (w49?.cost as unknown as { costReplacement?: Array<Record<string, unknown>> } | undefined)?.costReplacement ?? [];
   eq(repl49.length, 2, '青の＜電機＞と黒の＜電機＞で別々の軽減');
   ok(repl49.every(r => r.accumulate === true), '両方が accumulate＝片方だけ満たしても効く');
+});
+
+// ── §5.3 `O-60` 第55バッチ（2026-09-03）＝「引用能力の付与・使用」family 3ハンドラ ──
+// 🔴どれも **engine が `EffectText`（カード全文）を読んで意味を決めていた**箇所。
+test('§5.3 O-60 第55: 引用【常】付与は JSON が activeCondition を持つ（旧は engine がカード全文から読み直し）', () => withSavedCursor(() => {
+  // 🔴旧＝`STUB{SIGNI_GRANT_QUOTED_CONSTANT_ABILITY}` ＋ engine がカード全文から
+  //   キーワード／体数／ゲートを読み直す形。実害2件＝
+  //   ①`WXDi-P01-002` の「正面に**パワー12000以上のシグニがある**かぎり」は engine 側
+  //     `buildGatedKeywordGrant` のどの綴りにも当たらず**2体へ無条件に【アサシン】**を配っていた
+  //   ②`WXDi-P14-008` の【シャドウ（レベル３以上）】は**括弧内スコープが落ちて**素の `シャドウ` になっていた。
+  const cases: Array<[string, string, string, number, string]> = [
+    ['WXDi-P01-002', 'WXDi-P01-002-E1', 'アサシン', 2,
+      JSON.stringify({ type: 'FRONT_SIGNI_POWER', operator: 'gte', value: 12000 })],
+    ['WXDi-P10-025', 'WXDi-P10-025-E1', 'アサシン', 2,
+      JSON.stringify({ type: 'FRONT_SIGNI_POWER', operator: 'gte', value: 10000 })],
+    ['WXDi-P14-008', 'WXDi-P14-008-E2', 'シャドウ:{"levelGte":3}', 1,
+      JSON.stringify({ type: 'TURN_OWNER', owner: 'opponent' })],
+  ];
+  for (const [card, effectId, keyword, count, cond] of cases) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    const a = eff.action as unknown as Record<string, unknown>;
+    eq(a.type, 'GRANT_EFFECT', `${effectId}: 引用付与は構造化された GRANT_EFFECT`);
+    eq((a.target as { count?: number } | undefined)?.count, count, `${effectId}: 対象体数は原文どおり ${count}`);
+    const inner = a.effect as Record<string, unknown> | undefined;
+    ok(!!inner, `${effectId}: 引用が CardEffect へ展開されている`); if (!inner) continue;
+    eq(inner.effectType, 'CONTINUOUS', `${effectId}: 【常】として積む`);
+    eq(JSON.stringify(inner.activeCondition), cond, `${effectId}: ゲートが JSON にある`);
+    const inAct = inner.action as Record<string, unknown>;
+    eq(inAct.type, 'GRANT_KEYWORD', `${effectId}: 中身はキーワード付与`);
+    eq(inAct.keyword, keyword, `${effectId}: キーワードは原文どおり（括弧内スコープを含む）`);
+  }
+  // ★engine 側の効き＝付与先を発生源として毎フレーム評価される（WXDi-P01-002 のゲート）。
+  const eff1 = (effectsMap.get('WXDi-P01-002') ?? []).find(e => e.effectId === 'WXDi-P01-002-E1')!;
+  const granted = [(eff1.action as unknown as { effect: CardEffect }).effect];
+  const augmented = new Map(effectsMap);
+  augmented.set('WXDi-P01-002', [...(effectsMap.get('WXDi-P01-002') ?? []), ...granted]);
+  const kwWith = (frontPower: number | null) => {
+    const own = mkState({ signi: ['WXDi-P01-002', null, null] });
+    const front = frontPower === null ? null : fresh();
+    const opp = mkState({ signi: [null, null, front] });
+    const powers = new Map<string, number>([['WXDi-P01-002', 3000]]);
+    if (front) powers.set(front, frontPower!);
+    return (collectContinuousGrantedKeywords(own, opp, true, augmented, cardMap as Map<string, CardData>, powers)['WXDi-P01-002'] ?? []);
+  };
+  eq(kwWith(11999).join(','), '', '正面が11999＝アサシンは付かない（旧実装はここでも付いていた）');
+  eq(kwWith(12000).join(','), 'アサシン', '正面が12000以上＝アサシン');
+}));
+
+test('§5.3 O-60 第55: SONG_FRAGMENT の候補は「SONG_ICON 効果を持つカード」（旧は原文に語が出るだけで拾っていた）', () => withSavedCursor(() => {
+  // 🔴旧＝`card.EffectText.includes('【歌のカケラ】')`。実測＝原文にこの語を含む26枚のうち
+  //   `WX26-CP1-101`（スペル「力を貸して！」）は**自分の【歌のカケラ】を持たない**
+  //   （「【歌のカケラ】を**持つカード**」と書いているだけ）＝エナゾーンにあると候補に出て、
+  //   選ぶと**トラッシュへ置かれるだけで何も起きない**（カードの丸損）。
+  const hasSong = (cn: string) => (effectsMap.get(cn) ?? []).some(e => e.effectType === 'SONG_ICON');
+  ok(!hasSong('WX26-CP1-101'), '「力を貸して！」は SONG_ICON を持たない（＝候補ではない）');
+  ok(hasSong('WX26-CP1-078'), '「曽本さき」は SONG_ICON を持つ（＝候補）');
+  // 実挙動＝エナに「力を貸して！」と歌のカケラ持ち1枚があるとき、選択 UI を経ずに後者だけが使われる。
+  const ctx = mkCtx({}, {}, 'WX26-CP1-101');
+  ctx.ownerState.energy = ['WX26-CP1-101', 'WX26-CP1-078'];
+  ctx.effectsMap = effectsMap;
+  const r = run({ type: 'STUB', id: 'SONG_FRAGMENT' } as unknown as EffectAction, ctx);
+  ok(r.done); if (!r.done) return;
+  ok(r.ownerState.trash.includes('WX26-CP1-078'), '歌のカケラ持ちがトラッシュへ');
+  ok(!r.ownerState.trash.includes('WX26-CP1-101'), '「力を貸して！」は候補に出ないのでエナに残る');
+  ok(r.ownerState.energy.includes('WX26-CP1-101'), 'エナから消えていない');
+  ok(r.logs.some(l => l.includes('【歌のカケラ】発動')), `歌のカケラが発動した（logs=${JSON.stringify(r.logs.slice(-3))}）`);
+  // 反転＝候補が「力を貸して！」だけなら1枚も選ばれない（旧実装はこれを選んでトラッシュしていた）。
+  const ctx2 = mkCtx({}, {}, 'WX26-CP1-101');
+  ctx2.ownerState.energy = ['WX26-CP1-101'];
+  ctx2.effectsMap = effectsMap;
+  const r2 = run({ type: 'STUB', id: 'SONG_FRAGMENT' } as unknown as EffectAction, ctx2);
+  ok(r2.done); if (!r2.done) return;
+  eq(r2.ownerState.energy.length, 1, 'エナのカードは減らない');
+  eq(r2.ownerState.trash.length, 3, 'トラッシュも増えない（mkState 既定の3枚のまま）');
+}));
+
+test('§5.3 O-60 第55: GRANT_QUOTED_ACTIVATE_ABILITY は真 no-op だったので DEFERRED_ へ改名した', () => {
+  // 🔴旧コメントは「effectEngine の CONTINUOUS 処理で対応」だったが、`censusStubs --id` の実測で
+  //   **消費地点 0**＝ハンドラはカード全文から引用文を切り出してログに出すだけの真 no-op だった。
+  const js = JSON.stringify([...effectsMap.values()]);
+  ok(!js.includes('"GRANT_QUOTED_ACTIVATE_ABILITY"'), '旧 id は live から消えた');
+  const eff = (effectsMap.get('WXDi-P09-066') ?? []).find(e => e.effectId === 'WXDi-P09-066-E1');
+  ok(!!eff, 'WXDi-P09-066-E1 が live にある'); if (!eff) return;
+  const ids = ((eff.action as SequenceAction).steps ?? []).map(s => (s as StubAction).id ?? s.type);
+  ok(ids.includes('DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY'), '機構が無いことを id で宣言している');
+  // live 0 になったので、`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` も残余（fail-closed）だけになる。
+  ok(!js.includes('"SIGNI_GRANT_QUOTED_CONSTANT_ABILITY"'), '引用【常】付与の catch-all も live から消えた');
 });
 
 if (listMode) {

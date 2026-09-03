@@ -64,7 +64,10 @@ const onlyIds = (() => {
 //   family 7ハンドラ**（`CONDITIONAL_COST_REDUCTION_BY_FIELD` / `REDUCE_PLAY_ABILITY_COST` /
 //   `EXTRA_COST_REMOVE_VIRUS` / `UPKEEP_OR_NO_UP` / `GAIN_COIN_AND_DISCARD` /
 //   `CONDITIONAL_TRASH_TO_ENERGY` / `CHOOSE_HAND_OR_ENERGY`・live 13効果）を payload 化／撤去した分。
-const BASELINE_SELF_TEXT = 22;
+// 🆕22→19＝2026-09-03（索引 A 第15巡・§5.3 `O-60` 第55バッチ）＝**「引用能力の付与・使用」family 3ハンドラ**
+//   （`SONG_FRAGMENT`＝候補判定を `SONG_ICON` 効果へ／`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`＝parser が
+//   `GRANT_EFFECT{rawText}` を出す／`GRANT_QUOTED_ACTIVATE_ABILITY`＝真 no-op なので `DEFERRED_` へ改名）。
+const BASELINE_SELF_TEXT = 19;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

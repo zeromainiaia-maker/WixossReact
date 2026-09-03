@@ -1,5 +1,111 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第15巡）：§5.3 `O-60` 第55バッチ — 「引用能力の付与・使用」family 3ハンドラ
+
+**ベースライン**＝`1f6d30587`（第54バッチの直後）。**A🔴 SELF_TEXT 22行 → 19行 / 22→19ハンドラ**
+（`BASELINE_SELF_TEXT` も 19 へ払い戻し／A群 live 効果 **48 → 33**／miss は 0 のまま）。
+**gates 全緑**（golden 3376 → **3379**＝+3本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴19**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更4・追加0・削除0、予定外0。**
+🖥**実機＝不要と判定**（`src/screens/` は1行も触っていない・新しいアクション型／interaction 型／対話も0＝
+足したのは `parseActiveCondition` の regex 2本と engine のヘルパ関数1つだけ）。
+
+### 何を取ったか
+
+`census:enginetext` A群の **3ハンドラ / live 15効果**：
+
+| ハンドラ | live | 直し方 |
+|---|---|---|
+| `SONG_FRAGMENT`（＋`INTERNAL_SONG_FRAGMENT`） | 11 | 候補判定を **`SONG_ICON` 効果の有無**へ（構造化） |
+| `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` | 3 | parser が **`GRANT_EFFECT{rawText}`** を出す（engine は fail-closed の残余へ） |
+| `GRANT_QUOTED_ACTIVATE_ABILITY` | 1 | **真 no-op だったので `DEFERRED_` へ改名**（`O-227` を登録） |
+
+### 🔴 実害・危険な形 4件
+
+**①`SONG_FRAGMENT` は「原文に【歌のカケラ】と書いてあるだけ」のカードを候補にしていた。**
+旧＝`card.EffectText.includes('【歌のカケラ】')`。実測＝原文にこの語を含むのは**26枚**で、
+うちエナゾーンに入りうるのは16枚。そのうち **`WX26-CP1-101`（スペル「力を貸して！」）は自分の
+【歌のカケラ】を持たない**（「【歌のカケラ】を**持つカード**を…」と書いているだけの、**使う側**のカード）。
+⇒ エナゾーンにあると候補に出て、選ぶと**トラッシュへ置かれるだけで何も起きない**＝カードの丸損。
+🔑`SONG_ICON` は parser が `/【歌のカケラ】：/` から作る効果なので、**構造化された判定と原文が一致する**。
+⚠**候補判定と実行を同じ funnel（`songIconEffectOf`）に通した**＝別々に判定すると
+「選べるのに何も起きない」が復活する（旧実装はまさにこの形だった）。
+
+**②`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` はゲートを落として無条件付与に化けていた。**
+`WXDi-P01-002-E1`「あなたのシグニを２体まで対象とし、…それらは『【常】：このシグニは、**正面に
+パワー12000以上のシグニがある**かぎり、【アサシン】を得る。』を得る」＝engine 側の
+`buildGatedKeywordGrant` は「正面**のシグニのパワーが**N以上であるかぎり」の綴りしか知らず、
+この言い回しには**1本も当たらない** → `null` → **2体へ無条件に【アサシン】**（過剰実行）。
+
+**③同ハンドラは【シャドウ（レベル３以上）】の括弧内スコープを落としていた。**
+`WXDi-P14-008-E2` は `txt.includes('シャドウ')` で素の `シャドウ` を付与していた＝
+**レベル2以下のシグニに対してもシャドウが効く**（過剰実行）。
+いまは parser が `シャドウ:{"levelGte":3}` を刻む。
+
+**④`GRANT_QUOTED_ACTIVATE_ABILITY` は「実装済み」を騙るコメントつきの真 no-op だった。**
+ハンドラのコメントは「effectEngine の CONTINUOUS 処理で対応」だったが、
+`npx tsx scripts/censusStubs.ts --id GRANT_QUOTED_ACTIVATE_ABILITY` の実測で**消費地点 0**。
+実体は**カード全文から引用文を切り出してログに出すだけ**。⇒ `DEFERRED_` へ改名して
+逆翻訳に `【未実装】` を出し、機構を `O-227` に登録した。
+
+### 🔑 教訓
+
+**①「engine が原文で判定している」の直し方は payload だけではない＝“構造化された等価物”を探す。**
+`SONG_FRAGMENT` の正解は payload ではなく **`SONG_ICON` 効果の有無**だった
+（parser が同じ原文から作る構造なので、意味が二重管理にならない）。
+⇒ **A群を見るときの3択**＝(a) payload へ移す (b) 同じ意味を決めている別の場所があるなら**撤去**（第54①）
+(c) **構造化された等価物**（効果型・条件型）で判定し直す。
+
+**②catch-all STUB を消す一番安い方法は「既存の構造化経路に落とす」。**
+`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` は `GRANT_EFFECT{rawText}` に変えるだけで
+`expandGrantEffectRawTexts` が本物の `CardEffect`（`activeCondition` つき CONTINUOUS）へ展開した
+＝**engine 変更0行・新しい型0本**。`WXDi-P07-009` / `WXDi-P09-053` が既に同じ形で live に居たのが根拠。
+⚠**対象は引用より前の部分だけで読む**＝`parseSigniTarget(t)` に文全体を渡すと
+引用内の「パワー12000以上」を**対象フィルタ**に混ぜる（実測＝`WXDi-P01-002` が
+`filter:{powerRange:{min:12000}}` になった）。`t.slice(0, t.indexOf('「'))` で切る。
+
+**③逆翻訳が「原文そのまま」に見えるのは、直っている証拠ではなく死角の証拠。**
+この3カードの旧逆翻訳は**原文を丸ごと引用して完璧に見えていた**（`「【常】：…」を得る`）。
+構造化した結果は `【シャドウ:{"levelGte":3}】` のように**読みにくくなった**が、
+**engine が実際に何をするか**が初めて見えるようになった。
+（生 JSON 表記の日本語化は PLAN §5.5 の既存項目。**今回の変化は退行ではない**。）
+
+**④「実装済み」を騙るコメントは `censusStubs --id` で必ず裏を取る。**
+`GRANT_QUOTED_ACTIVATE_ABILITY` は 消費地点0（＝真 no-op）なのに
+「effectEngine で対応」というコメントが3年ぶん残っていた。**コメントは実装の証拠にならない。**
+
+### 反転確認
+
+- **`SONG_FRAGMENT`**＝旧ロジック（原文 includes）を再現して数で取った＝
+  原文に【歌のカケラ】を含む26枚のうち、`SONG_ICON` を持たないのに候補になるカードが実在する
+  （`WX26-CP1-101`）。golden にエナ2枚の盤面で「力を貸して！はエナに残る」を assert。
+- **`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`**＝golden で `collectContinuousGrantedKeywords` を直接叩き、
+  正面 11999 では**アサシンが付かない**／12000 では付くことを assert（旧実装は 11999 でも付いていた）。
+- 契約 golden 1本を更新＝`task12(cxiv)` の母集団は 7枚 → **6枚**（`WXDi-P10-025` が構造化経路へ移った）。
+  **退行ではなく契約の更新**（ゲートは第55の新テストが assert する）。
+
+### 配送
+
+4効果とも `heldReview --adopt`（構造変更なので自動採用に乗らない）。
+`SONG_FRAGMENT` は engine のみの変更なので JSON 差分0。
+
+### ⚠ 新規登録 1件
+
+**`O-227`**＝**期間つきでプレイヤーが得る【起】能力**（`WXDi-P09-066-E1`）。
+`GRANT_PLAYER_ABILITY` は `permanent:true` の AUTO 用ストア（`game_granted_effects`）なので流用できず、
+**`src/screens/` の提示（起動 UI）が要る＝遅いレーン＋実機必須**。PLAN §5.3 索引 G。
+
+### 触ったファイル
+
+`src/engine/execStubPart1.ts`（`songIconEffectOf` 新設＋`SONG_FRAGMENT`／`INTERNAL_SONG_FRAGMENT`／
+`DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY`）／`src/engine/execStubPart2.ts`（残余を fail-closed へ）／
+`src/data/parsers/parseSentencePart2.ts`（`GRANT_EFFECT{rawText}` 生成＋`DEFERRED_` 改名）／
+`src/data/effectParser.ts`（`parseActiveCondition` に正面パワー2形）／
+`scripts/decompileEffects.ts`（`miscStubMap` に1行）／`scripts/censusEngineText.ts`（ratchet 22→19）／
+`scripts/goldenTest.ts`（+3本＋契約1本更新）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第14巡）：§5.3 `O-60` 第54バッチ — 「使用コスト・追加支払い・維持コスト」family 7ハンドラ
 
 **ベースライン**＝`560cd80b5`（第53バッチの直後）。**A🔴 SELF_TEXT 29行 → 22行 / 29→22ハンドラ**

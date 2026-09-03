@@ -4201,6 +4201,10 @@ function actionJa(a?: Action, effectType?: string): string {
         //   ハンドラを撤去したので STUBS.md 経由の説明が無くなった＝ここで日本語を与える。
         OPP_ENERGY_COLOR_CONDITION_TRASH:
           '対戦相手のエナゾーンに、この能力で宣言された色を持たず無色ではないカードが置かれる場合、代わりにトラッシュに置かれる',
+        // 🆕§5.3 `O-60` 第55バッチ（2026-09-03）＝旧 `GRANT_QUOTED_ACTIVATE_ABILITY`。
+        //   実測で消費地点0＝真 no-op だったので `DEFERRED_` へ改名した（機構は PLAN §5.3 の登録票）。
+        DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY:
+          '【未実装】あなたは引用された【起】能力を得る',
         DEFERRED_TRASH_ALL_TO_DECK_OPTIONAL:
           '【未実装】あなたのトラッシュからすべてのカードをデッキに加えてもよい（そうした場合、デッキをシャッフルする）',
         DEFERRED_SPLIT_PILES_OPP_CHOOSE:

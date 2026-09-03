@@ -16,7 +16,6 @@ import {
   canPayOptionalCost,
   hasNoAbility,
   designatedZones,
-  buildGatedKeywordGrant,
   sourceAbilityText,
   resolveHandCardPick,
 } from './execUtils';
@@ -4111,53 +4110,21 @@ export function execStubPart2(
     // keyword_grants に同カードの付与済みキーワードがあれば継続（effectEngineで動的参照）
     return done(ctx);
   }
-  // SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用常在能力を自シグニに付与（SELECT_TARGET→keyword_grants）
+  // SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用【常】能力の付与（**構造化できなかったときの残余**）。
+  // 🆕**§5.3 `O-60` 第55バッチ（2026-09-03）＝カード全文 regex を撤去した。**
+  // 🔴旧実装は `EffectText + BurstText`（カード全文）から
+  //   ①付与するキーワード（`アサシン`/`シャドウ`/`ランサー`/`ダブルクラッシュ` の includes）
+  //   ②対象体数（`シグニをN体まで`）③ゲート（`buildGatedKeywordGrant` にカード全文を渡す）
+  //   を読み直していた。実害2件＝
+  //   ・`WXDi-P01-002`「正面に**パワー12000以上のシグニがある**かぎり」は `buildGatedKeywordGrant` の
+  //     どの綴りにも当たらず **2体へ無条件に【アサシン】**を配っていた（過剰実行）。
+  //   ・`WXDi-P14-008`「【シャドウ（レベル３以上）】」は**括弧内スコープが落ちて**素の `シャドウ` になり、
+  //     レベル2以下のシグニに対してもシャドウが効いていた（過剰実行）。
+  // ⇒ いまは parser が `GRANT_EFFECT{rawText}` を出し、`expandGrantEffectRawTexts` が
+  //   `activeCondition` つきの本物の `CardEffect` へ展開する（live 3効果すべてが移行済み＝この id は live 0）。
+  // ⚠**残っているのは「対象か引用が読めなかった」ときの残余**＝**何もしない**（fail-closed）。
   if (stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
-    const srcSGQCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';
-    const toHWSGQCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 付与するキーワードを引用文から解析
-    // 注意: keyword_grantsはhasGrantedKeyword/hasKeyword（utils/keywords.ts）が日本語の正式名でしか
-    // 照合しないため、英語短縮コード（'assassin'等）を入れると常時非発火になる（2026-06-17発見・修正）
-    let kwSGQCA: string | null = null;
-    if (txtSGQCA.includes('アサシン')) kwSGQCA = 'アサシン';
-    else if (txtSGQCA.includes('シャドウ')) kwSGQCA = 'シャドウ';
-    else if (textHasKeyword(txtSGQCA, 'Sランサー')) kwSGQCA = 'Sランサー';  // ⚠全角【Ｓランサー】を吸収（§6.4 O-28）
-    else if (txtSGQCA.includes('ランサー')) kwSGQCA = 'ランサー';
-    else if (txtSGQCA.includes('ダブルクラッシュ')) kwSGQCA = 'ダブルクラッシュ';
-    // 対象シグニ数
-    const countMSGQCA = txtSGQCA.match(/シグニを([０-９\d]+)体まで/);
-    const maxCntSGQCA = countMSGQCA ? parseInt(toHWSGQCA(countMSGQCA[1])) : 1;
-    // 対象選択済みならキーワードを付与
-    if (ctx.lastProcessedCards?.length) {
-      if (!kwSGQCA) return done(addLog(ctx, '[SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: キーワード解析不可]'));
-      // ⚠引用の内側が「正面のシグニのパワーがN以上であるかぎり」型なら条件つき CONTINUOUS として
-      //   `granted_effects` へ（`keyword_grants` は条件を持てず**常時発動**になる。タスク12(cxiv)）。
-      const gatedSGQCA = buildGatedKeywordGrant(txtSGQCA, kwSGQCA);
-      if (gatedSGQCA) {
-        const grantedMapSG = { ...(ctx.ownerState.granted_effects ?? {}) };
-        for (const cn of ctx.lastProcessedCards) grantedMapSG[cn] = [...(grantedMapSG[cn] ?? []), gatedSGQCA];
-        const namesSG = ctx.lastProcessedCards.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapSG } },
-          `${namesSG}→【${kwSGQCA}】を条件つきで付与（正面のパワー条件つき）`));
-      }
-      const newGrants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-      for (const cn of ctx.lastProcessedCards) {
-        const prev = newGrants[cn] ?? [];
-        if (!prev.includes(kwSGQCA)) newGrants[cn] = [...prev, kwSGQCA];
-      }
-      const names = ctx.lastProcessedCards.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: newGrants } },
-        `${names}→【${kwSGQCA}】付与`));
-    }
-    // 自フィールドからSELECT_TARGET
-    const fieldCandsSGQCA = ctx.ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-    if (fieldCandsSGQCA.length === 0) return done(addLog(ctx, '自フィールドにシグニなし'));
-    const contSGQCA: StubAction = { type: 'STUB', id: 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY' };
-    return needsInteraction(addLog(ctx, `シグニを選択（引用常在能力付与: ${kwSGQCA ?? '?'}）`), {
-      type: 'SELECT_TARGET', candidates: fieldCandsSGQCA, count: maxCntSGQCA, optional: true,
-      targetScope: 'self_field', thenAction: contSGQCA as EffectAction,
-    });
+    return done(addLog(ctx, '[SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用能力を構造化できず（未実装）]'));
   }
   // 能力付与系（CONTINUOUS効果はeffectEngineで処理、AUTO/ACTIVATEDでも来た場合のフォールバック）
   // GRANT_UNDER_SIGNI_*/GRANT_UNDER_LRIG_*/GRANT_LRIG_TRASH_ACTIVATE_ABILITY

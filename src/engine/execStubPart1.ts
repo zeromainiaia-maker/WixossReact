@@ -23,6 +23,28 @@ import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 
 /**
+ * カード1枚の **【歌のカケラ】能力（`SONG_ICON`）** を返す（無ければ `undefined`）。
+ *
+ * 🆕**§5.3 `O-60` 第55バッチ（2026-09-03）＝`SONG_FRAGMENT` の候補判定を原文から外すために切り出した。**
+ * 🔴旧は `card.EffectText.includes('【歌のカケラ】')` で候補を決めていたが、これは
+ *   **「【歌のカケラ】を持つカード」と書いてあるだけのカード**まで拾う。実測＝原文にこの語を含む26枚のうち
+ *   `WX26-CP1-101`（スペル「力を貸して！」＝**自分では歌のカケラを持たず、他のカードのそれを使う側**）が
+ *   該当し、エナゾーンにあると候補に出て**トラッシュへ置かれるだけで何も起きない**（カードの丸損）。
+ * 🔑`SONG_ICON` は parser が `/【歌のカケラ】：/` から作る効果なので、**構造化された判定と原文が一致する**。
+ * ⚠**候補判定と実行で同じ funnel を通す**（別々に判定すると「選べるのに何も起きない」が復活する）。
+ * ⚠`effectsMap` → `cardMap.effects`（live JSON） → `parseCardEffects` の順に見る＝
+ *   live を持たないテスト経路でも候補が消えない。
+ */
+function songIconEffectOf(ctx: ExecCtx, instanceId: string): import('../types/effects').CardEffect | undefined {
+  const base = getCardNum(instanceId);
+  const card = ctx.cardMap.get(base);
+  if (!card) return undefined;
+  const effs = ctx.effectsMap?.get(instanceId) ?? ctx.effectsMap?.get(base)
+    ?? card.effects ?? parseCardEffects(card);
+  return effs.find(e => e.effectType === 'SONG_ICON');
+}
+
+/**
  * `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` の候補＝ルリグデッキにある「コストの合計が N 以上」のアーツ。
  *
  * ⚠**コストの合計は `parseEnergyCosts` で数える**＝`《白》×１《無》×１` のような表記を色ごとに分解して
@@ -1236,14 +1258,15 @@ export function execStubPart1(
   if (stub.id === 'BET_ALTERNATIVE') {
     return done(addLog(ctx, 'ベット強化（BET_MECHANICで処理済み）'));
   }
-  // GRANT_QUOTED_ACTIVATE_ABILITY: 「【起】...」付与（effectEngineのCONTINUOUS処理で対応）
-  // WXK08-078: GRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVELに変換済み（collectGrantedFromUnderSigni）
-  // WX13-058: effects.jsonでDOUBLE_OWN_POWER_MINUS+HAS_CARD_IN_FIELD条件に変換済み
-  if (stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
-    const srcGQAA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtGQAA = srcGQAA ? (srcGQAA.EffectText ?? '') : '';
-    const quotedActM = txtGQAA.match(/「(【起】[^」]{1,30})/);
-    return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: ${quotedActM?.[1] ?? '起動能力'}付与（effectEngineで処理）]`));
+  // DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY: 引用された【起】能力をプレイヤーが得る（**機構が無い**）。
+  // 🆕**§5.3 `O-60` 第55バッチ（2026-09-03）＝カード全文 regex を撤去し、`DEFERRED_` へ改名した。**
+  // 🔴旧コメントは「effectEngine の CONTINUOUS 処理で対応」と書いてあったが、
+  //   `censusStubs --id GRANT_QUOTED_ACTIVATE_ABILITY` の実測で**消費地点 0＝真 no-op**だった
+  //   （ハンドラはカード全文から引用文を切り出してログに出すだけ）。**id が嘘をつく形**だったので改名した。
+  // ■要るもの＝**期間つきでプレイヤーが得る【起】能力**の提示（`GRANT_PLAYER_ABILITY` は
+  //   `permanent:true` の AUTO 用ストア `game_granted_effects` なので流用できない）。`src/screens/` 側。
+  if (stub.id === 'DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY') {
+    return done(addLog(ctx, '[未実装] 引用された【起】能力の付与（DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY）'));
   }
   // WD21-007型: 「以下の５つから１つを選ぶ。…対象のシグニ１体は選んだ能力を得る。あなたがベットしていた場合、この効果を１回繰り返す。」
   // 🆕**§5.3 `O-60` 第46バッチ（2026-09-03）＝専用 id に分けてカード全文 regex を撤去した。**
@@ -3541,12 +3564,15 @@ export function execStubPart1(
   }
   // SONG_FRAGMENT: エナゾーンから【歌のカケラ】持ちカードをトラッシュに置き、その効果を発動
   // 「このルリグはそのカードの【歌のカケラ】を使用する」= ルリグ効果として扱う
+  // 🆕**候補は「`SONG_ICON` 効果を持つカード」で判定する**（§5.3 `O-60` 第55バッチ・2026-09-03）。
+  // 🔴旧は `EffectText.includes('【歌のカケラ】')`＝**原文にその語が出るだけ**で候補にしていた。
+  //   実測＝原文に【歌のカケラ】を含む26枚のうち **`WX26-CP1-101`（スペル「力を貸して！」）は
+  //   自分の【歌のカケラ】を持たない**（「【歌のカケラ】を**持つカード**」と書いているだけ）＝
+  //   エナゾーンにあると候補に出て、選ぶと**トラッシュへ置かれるだけで何も起きない**（カードの丸損）。
+  // 🔑`SONG_ICON` はまさに `/【歌のカケラ】：/` から作られる効果なので、構造化された判定と原文が一致する。
   if (stub.id === 'SONG_FRAGMENT') {
     const lrigCardNumSF = ctx.sourceCardNum; // 発動元ルリグ
-    const songCardsInEnergy = ctx.ownerState.energy.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      return c?.EffectText?.includes('【歌のカケラ】');
-    });
+    const songCardsInEnergy = ctx.ownerState.energy.filter(cn => songIconEffectOf(ctx, cn));
     if (songCardsInEnergy.length === 0) return done(addLog(ctx, '歌のカケラ：エナゾーンにカードなし'));
     if (songCardsInEnergy.length > 1) {
       // 複数ある場合はSELECT_TARGETで選択 → INTERNAL_SONG_FRAGMENTで処理
@@ -3562,14 +3588,13 @@ export function execStubPart1(
       return needsInteraction(addLog(ctx, '歌のカケラカードを選択'), pendingSF);
     }
     const songCard = songCardsInEnergy[0];
-    const songCardData = ctx.cardMap.get(songCard);
+    const songCardData = ctx.cardMap.get(getCardNum(songCard));
     const newOwnerSF: PlayerState = {
       ...ctx.ownerState,
       energy: ctx.ownerState.energy.filter(cn => cn !== songCard),
       trash: [...ctx.ownerState.trash, songCard],
     };
-    const songEffects = parseCardEffects(songCardData!);
-    const songEff = songEffects.find(e => e.effectType === 'SONG_ICON');
+    const songEff = songIconEffectOf(ctx, songCard);
     if (songEff) {
       // sourceCardNum をルリグのCardNumに設定（ルリグ効果として扱うため）
       const songCtx = { ...ctx, ownerState: newOwnerSF, sourceCardNum: lrigCardNumSF };
@@ -3583,14 +3608,13 @@ export function execStubPart1(
     // stub.value にルリグCardNumが格納されている（SONG_FRAGMENTから渡される）
     const lrigCardNumISF = typeof stub.value === 'string' ? stub.value : ctx.sourceCardNum;
     if (!selectedSF) return done(addLog(ctx, 'INTERNAL_SONG_FRAGMENT: 選択なし'));
-    const songCardDataISF = ctx.cardMap.get(selectedSF);
+    const songCardDataISF = ctx.cardMap.get(getCardNum(selectedSF));
     const newOwnerISF: PlayerState = {
       ...ctx.ownerState,
       energy: ctx.ownerState.energy.filter(cn => cn !== selectedSF),
       trash: [...ctx.ownerState.trash, selectedSF],
     };
-    const songEffsISF = parseCardEffects(songCardDataISF!);
-    const songEffISF = songEffsISF.find(e => e.effectType === 'SONG_ICON');
+    const songEffISF = songIconEffectOf(ctx, selectedSF);
     if (songEffISF) {
       // sourceCardNum をルリグのCardNumに設定（ルリグ効果として扱うため）
       const songCtxISF = { ...ctx, ownerState: newOwnerISF, sourceCardNum: lrigCardNumISF };

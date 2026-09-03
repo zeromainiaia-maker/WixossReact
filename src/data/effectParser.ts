@@ -1334,6 +1334,29 @@ function parseActiveCondition(text: string): ConditionParseResult {
         rest: text.slice(frontCmpM[0].length), conditionFound: true,
       };
     }
+    // 🆕「（このシグニは、）正面のシグニのパワーがN{以上|以下}であるかぎり、」／
+    //   「（このシグニは、）正面にパワーN{以上|以下}のシグニがあるかぎり、」
+    //   （§5.3 `O-60` 第55バッチ・2026-09-03・`WXDi-P10-025` / `WXDi-P01-002` の引用内側）。
+    // 🔴この2形が無かったため、引用付与が catch-all `STUB{SIGNI_GRANT_QUOTED_CONSTANT_ABILITY}` に落ち、
+    //   engine が**カード全文**からキーワードだけを読んで `keyword_grants` へ入れていた＝
+    //   engine 側 `buildGatedKeywordGrant` は「正面に**パワーN以上のシグニがある**かぎり」の綴りを知らず、
+    //   `WXDi-P01-002` は **2体へ無条件に【アサシン】**を配っていた（過剰実行）。
+    // 🔑**主語の「このシグニは」を条件節と一緒に食べる**＝残余が「【アサシン】を得る。」になり、
+    //   既存の `GRANT_KEYWORD{thisCardOnly}` 経路にそのまま乗る。
+    {
+      const frontPowerM = text.match(/^(?:このシグニは[、,]?)?正面のシグニのパワーが([０-９\d,]+)(以上|以下)であるかぎり[、,]/)
+        ?? text.match(/^(?:このシグニは[、,]?)?正面にパワー([０-９\d,]+)(以上|以下)のシグニがあるかぎり[、,]/);
+      if (frontPowerM) {
+        return {
+          condition: {
+            type: 'FRONT_SIGNI_POWER',
+            operator: frontPowerM[2] === '以上' ? 'gte' : 'lte',
+            value: parseNum(frontPowerM[1].replace(/,/g, '')),
+          } as import('../types/effects').ActiveCondition,
+          rest: text.slice(frontPowerM[0].length), conditionFound: true,
+        };
+      }
+    }
     // 「このシグニの〈レベル/パワー〉が正面のシグニと同じであるかぎり、」（WXDi-P13-082 の引用内側）
     const frontEqM = text.match(/^このシグニの(レベル|パワー)が正面のシグニと同じであるかぎり、/);
     if (frontEqM) {

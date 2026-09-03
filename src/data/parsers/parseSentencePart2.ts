@@ -1322,8 +1322,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 引用符付き起動能力を得る（【起】...）----
+  // 🆕**`DEFERRED_` へ改名した**（§5.3 `O-60` 第55バッチ・2026-09-03）＝**機構が無いことを宣言する**。
+  // 🔴旧 id は engine 側に「effectEngine の CONTINUOUS 処理で対応」というコメント付きのハンドラが
+  //   あったが、`npx tsx scripts/censusStubs.ts --id GRANT_QUOTED_ACTIVATE_ABILITY` の実測で
+  //   **消費地点 0＝真 no-op**（ハンドラはカード全文から引用文を切り出してログに出すだけ）だった。
+  // ■要るもの＝**プレイヤーが得る【起】能力**（`GRANT_PLAYER_ABILITY` は `permanent:true` の
+  //   AUTO 用ストア `game_granted_effects` で、期間つき・起動型は UI（`src/screens/`）側の提示が要る）。
+  //   詳細は PLAN §5.3 の登録票。
   if (t.match(/「【起】.*」を得る/s)) {
-    return { type: 'STUB', id: 'GRANT_QUOTED_ACTIVATE_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY' } as StubAction;
   }
 
   // ---- 引用符付き自動能力を得る（【自】...）----
@@ -1752,8 +1759,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CENTER_LRIG_RIDES_ON_SIGNI' } as StubAction;
   }
 
-  // ---- シグニに引用符付き自動能力複数個を付与 ----
+  // ---- シグニに引用符つき【常】能力を付与 ----
+  // 🆕**構造化した `GRANT_EFFECT{rawText}` を出す**（§5.3 `O-60` 第55バッチ・2026-09-03）＝
+  //   `expandGrantEffectRawTexts` が引用文を本物の `CardEffect`（`activeCondition` つき CONTINUOUS）へ展開する。
+  // 🔴旧は catch-all `STUB{SIGNI_GRANT_QUOTED_CONSTANT_ABILITY}` に落とし、**engine がカード全文から
+  //   キーワードと体数を読み直して** `keyword_grants` へ入れていた＝
+  //   ①ゲート（「〜であるかぎり」）を engine の regex が知らない綴りだと**無条件付与**に化ける
+  //   ②【シャドウ（レベル３以上）】のような**括弧内スコープが落ちて**全シグニ相手のシャドウになる。
+  // ⚠**対象は引用より前の部分だけで読む**＝引用内の「パワー12000以上」を対象フィルタに混ぜないため。
   if (t.match(/あなたのシグニ.*ターン終了時まで.*「【常】：.*」を得る/s)) {
+    const qmSGQ = t.match(/「(【常】：.+?)」を得る/s);
+    const headSGQ = t.includes('「') ? t.slice(0, t.indexOf('「')) : t;
+    const tgtSGQ = parseSigniTarget(headSGQ, 'self');
+    const durSGQ: EffectDuration = /次の対戦相手のターン終了時まで/.test(t) ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+    if (qmSGQ && tgtSGQ) return { type: 'GRANT_EFFECT', target: tgtSGQ, duration: durSGQ, rawText: qmSGQ[1] } as EffectAction;
     return { type: 'STUB', id: 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY' } as StubAction;
   }
 
