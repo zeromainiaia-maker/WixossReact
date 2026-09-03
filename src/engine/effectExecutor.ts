@@ -8929,7 +8929,11 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
   } else {
     count = countTrash(a.trashOwner === 'self' ? ctx.ownerState : ctx.otherState);
   }
-  const delta = Math.floor(count / a.unitSize) * a.deltaPerUnit;
+  // 🆕**「この効果はN枚までしか適用されない」**（§5.3 `O-60` 第52バッチ・2026-09-03）＝
+  //   数えた枚数を上限で頭打ちにする。⚠**同じ上限を `effectEngine` の CONTINUOUS 計算にも配線してある**
+  //   （`until` の有無で読み手が変わるため。片方だけだと挙動が割れる）。
+  const cappedCount = a.maxUnits !== undefined ? Math.min(count, a.maxUnits * a.unitSize) : count;
+  const delta = Math.floor(cappedCount / a.unitSize) * a.deltaPerUnit;
   if (delta === 0) return done(ctx);
 
   const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
@@ -8941,7 +8945,7 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
     const s = ownerState(tgtO, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
-      `パワー${delta > 0 ? '+' : ''}${delta}（トラッシュ${count}枚×${a.deltaPerUnit}/${a.unitSize}）`);
+      `パワー${delta > 0 ? '+' : ''}${delta}（トラッシュ${count}枚${a.maxUnits !== undefined ? `→上限${a.maxUnits}枚` : ''}×${a.deltaPerUnit}/${a.unitSize}）`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));

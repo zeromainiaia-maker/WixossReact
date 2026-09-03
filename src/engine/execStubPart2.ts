@@ -1159,12 +1159,13 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newSDRW }, `${drawCountDRW}枚ドロー`));
   }
   // DRAW_DISCARD_COUNT_PLUS_N: 捨てた枚数+Nドロー
+  // 🆕**加算値は payload（`drawDiscardPlus`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は **カード全文**へ `/枚数に(\d+)を加えた/` を当てていた＝`WXDi-P00-018` は同じ効果内に
+  //   「枚数**から**１を**引いた**」（相手側）が並んでおり、綴りが1文字違うだけの隣接表記だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定 +1 は原文を読まないドローになる。
   if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
-    const toHWDDCPN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcDDCPN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDDCPN = srcDDCPN ? (srcDDCPN.EffectText ?? '') + ' ' + (srcDDCPN.BurstText ?? '') : '';
-    const mDDCPN = txtDDCPN.match(/枚数に([０-９\d]+)を加えた/);
-    const plusN = mDDCPN ? parseInt(toHWDDCPN(mDDCPN[1])) : 1;
+    const plusN = stub.drawDiscardPlus;
+    if (plusN === undefined) return done(addLog(ctx, '[DRAW_DISCARD_COUNT_PLUS_N: 加算値なし（未指定）]'));
     const discardCount = ctx.lastProcessedCards?.length ?? 0;
     const drawCount = discardCount + plusN;
     const sDDCPN = ctx.ownerState;
@@ -1479,17 +1480,13 @@ export function execStubPart2(
     const newSITC: PlayerState = { ...sITC, hand: sITC.hand.filter(c => c !== cnITC), trash: [...sITC.trash, cnITC] };
     return done(addLog({ ...ctx, ownerState: newSITC }, `${ctx.cardMap.get(cnITC)?.CardName ?? cnITC}をトラッシュへ`));
   }
-  // LRIG_LIMIT_MODIFY (STUB版): ルリグリミット修正
-  if (stub.id === 'LRIG_LIMIT_MODIFY') {
-    const srcLLM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLLM = srcLLM ? (srcLLM.EffectText ?? '') + ' ' + (srcLLM.BurstText ?? '') : '';
-    const toHWLLM = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mLLM = txtLLM.match(/リミットを?([＋+－-]?[０-９\d]+)/);
-    if (!mLLM) return done(addLog(ctx, 'ルリグリミット修正値解析失敗'));
-    const deltaLLM = parseInt(toHWLLM(mLLM[1]).replace('＋', '+').replace('－', '-'));
-    const newSLLM: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + deltaLLM };
-    return done(addLog({ ...ctx, ownerState: newSLLM }, `ルリグリミット${deltaLLM > 0 ? '+' : ''}${deltaLLM}`));
-  }
+  // 🗑**`STUB{LRIG_LIMIT_MODIFY}` は撤去した**（§5.3 `O-60` 第52バッチ・2026-09-03）＝
+  //   受け皿は**最初から typed `LRIG_LIMIT_MODIFY`（`LrigLimitModifyAction{owner,delta,until}`）だった**。
+  //   parser 側の regex が「リミット**は**N（増え|減る）」しか読まず、`WXDi-P16-047-E2` の
+  //   「リミット**を**－１**する**」が届かないだけで、この STUB に落ちていた（第50バッチ②と同じ形）。
+  // 🔴旧 STUB は **カード全文**へ `/リミットを?([＋+－-]?\d+)/` を当て、`owner` も `until` も持たず
+  //   **常に自分のリミットを恒久的に**動かしていた（原文は「**対戦相手の**センタールリグ」「次の相手の
+  //   メインフェイズ終了時まで」＝向きも寿命も違う）。
   // LRIG_TRASH_KEY_TO_CENTER_UNDER: ルリグトラッシュのキーをセンタールリグの下に
   if (stub.id === 'LRIG_TRASH_KEY_TO_CENTER_UNDER') {
     const sLTKCU = ctx.ownerState;

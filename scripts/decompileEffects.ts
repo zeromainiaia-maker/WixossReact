@@ -2372,7 +2372,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const ct = a.countFilter?.cardType;
       const noun = ct == null ? 'カード' : ([] as string[]).concat(ct).join('か');
       const per = a.countByVariety ? `${noun}の種類${unit > 1 ? `${unit}` : '1'}つ` : `${noun}${unit > 1 ? `${unit}` : '1'}枚`;
-      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${who}トラッシュにある${cf}${per}につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+      // 🆕「この効果はN枚までしか適用されない」（§5.3 `O-60` 第52バッチ）＝上限も描かないと
+      //   原文照合で「上限が落ちたこと」が読めない（旧は別 STUB として別行に出ていた）。
+      const capJa = a.maxUnits !== undefined ? `。この効果は${a.maxUnits}枚までしか適用されない` : '';
+      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${who}トラッシュにある${cf}${per}につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する${capJa}`;
     }
     case 'POWER_MODIFY_PER_LIFE_COUNT': {
       const d = a.deltaPerLife ?? a.deltaPerUnit ?? 0;
@@ -3665,11 +3668,8 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:ターン終了時まで、)?対戦相手のシグニゾーン[０-９\d]*つを消す/);
         if (m) return m[0];
       }
-      // 効果の適用上限（EFFECT_LIMIT・engine実装済み・パワー修正等の注記）＝「この効果はN枚までしか適用されない」。
-      if (a.id === 'EFFECT_LIMIT') {
-        const m = currentCardText.match(/この効果は[０-９\d]+枚までしか適用されない/);
-        if (m) return m[0];
-      }
+      // 🗑`EFFECT_LIMIT` の分岐は撤去（§5.3 `O-60` 第52バッチ・2026-09-03）＝上限は
+      //   `POWER_MODIFY_PER_TRASH_COUNT.maxUnits` / `deltaFromZone.maxCount` へ畳まれ、live に0件。
       // 2倍マイナス（DOUBLE_OWN_POWER_MINUS・engine実装済み）＝「（対象とし、）このターン、あなたの効果によってそれのパワーが－（マイナス）される場合、代わりに２倍－（マイナス）される」。
       if (a.id === 'DOUBLE_OWN_POWER_MINUS') {
         const m = currentCardText.match(/(?:対戦相手のシグニ[０-９\d]*体を対象とし、)?このターン、あなたの効果によってそれのパワーが－（マイナス）される場合、代わりに２倍－（マイナス）される/);
@@ -3746,10 +3746,51 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの手札から《アクセアイコン》を持つシグニを[０-９\d]*枚まで(?:あなたの)?エナゾーンに置く/);
         if (m) return m[0];
       }
-      // 捨てた枚数+Nドロー（DRAW_DISCARD_COUNT_PLUS_N・engine実装済み）＝「この方法でカードをN枚以上捨てた場合、捨てた枚数にMを加えた枚数のカードを引く」。
+      // 捨てた枚数+Nドロー。🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝**payload から描く**
+      //   （旧はカード全文から原文を切り出しており、engine の取り違えをそのまま復唱していた）。
       if (a.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
-        const m = currentCardText.match(/この方法でカードを[０-９\d]*枚以上捨てた場合、捨てた枚数に[０-９\d]*を加えた枚数のカードを引く/);
-        if (m) return m[0];
+        if (a.drawDiscardPlus === undefined) return '[DRAW_DISCARD_COUNT_PLUS_N: 加算値なし（未指定・engine も何もしない）]';
+        return `この方法で捨てた枚数に${a.drawDiscardPlus}を加えた枚数のカードを引く`;
+      }
+      // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝スカラー payload family の逆翻訳。
+      //   ⚠**数値を描かないと「原文の数と違う」ことが原文照合で読めない**（§4.1 の教訓）。
+      if (a.id === 'LIMIT_OPP_DRAW_COUNT') {
+        if (a.drawLimit === undefined) return '[LIMIT_OPP_DRAW_COUNT: 上限なし（未指定・engine も何もしない）]';
+        return `対戦相手は次の自分のターン、カードを合計${a.drawLimit}枚までしか引けない`;
+      }
+      if (a.id === 'OPP_HAND_TO_DECK_TOP') {
+        if (a.oppHandToDeckCount === undefined) return '[OPP_HAND_TO_DECK_TOP: 枚数なし（未指定・engine も何もしない）]';
+        return `対戦相手は手札を${a.oppHandToDeckCount}枚デッキの一番上に置く`;
+      }
+      if (a.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {
+        if (a.oppSigniPowerMin === undefined) return '[OPP_CHOOSE_OWN_SIGNI_TO_ENERGY: パワー下限なし（未指定・engine も何もしない）]';
+        const pmJa = a.oppSigniPowerMin > 0 ? `パワー${a.oppSigniPowerMin}以上の` : '';
+        return `対戦相手は自分の${pmJa}シグニ1体を選びエナゾーンに置く`;
+      }
+      if (a.id === 'VIEW_AND_DISCARD_SPELL') {
+        if (!a.viewDiscardSpell) return '[VIEW_AND_DISCARD_SPELL: 条件なし（未指定・engine も何もしない）]';
+        const vdCost = a.viewDiscardSpell.costMax !== undefined ? `コストの合計が${a.viewDiscardSpell.costMax}以下の` : '';
+        return `対戦相手の手札を見て、その中から${vdCost}スペル${a.viewDiscardSpell.count}枚を選び捨てさせる`;
+      }
+      if (a.id === 'COIN_SPEND_CONDITION') {
+        if (a.coinSpentMin === undefined) return '[COIN_SPEND_CONDITION: しきい値なし（未指定・engine も何もしない）]';
+        return `このターン終了時、《コイン》を合計${a.coinSpentMin}枚以上支払っていなかった場合、この方法で場に出したシグニをトラッシュに置く`;
+      }
+      if (a.id === 'OPP_ENERGY_EXCESS_TRASH') {
+        if (a.oppEnergyThreshold === undefined) return '[OPP_ENERGY_EXCESS_TRASH: しきい値なし（未指定・engine も何もしない）]';
+        return `対戦相手のエナゾーンにカードが${a.oppEnergyThreshold}枚以上ある場合、対戦相手は自分のエナゾーンからカード1枚を選びトラッシュに置く`;
+      }
+      if (a.id === 'CONDITIONAL_TRASH_UNDER_SIGNI') {
+        if (a.oppEnergyThreshold === undefined) return '[CONDITIONAL_TRASH_UNDER_SIGNI: しきい値なし（未指定・engine も何もしない）]';
+        return `対戦相手のエナゾーンにカードが${a.oppEnergyThreshold}枚以上ある場合、あなたのシグニの下からカード1枚をトラッシュに置いてもよい`;
+      }
+      if (a.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK') {
+        if (a.lrigAttackTimes === undefined) return '[MULTI_DAMAGE_ON_LRIG_ATTACK: 回数なし（未指定・engine も何もしない）]';
+        return `このターン、このルリグは自身のアタックによってダメージを${a.lrigAttackTimes}回与える`;
+      }
+      if (a.id === 'TRASH_SPELL_FREE_USE_LIMIT') {
+        if (a.trashSpellCostMax === undefined) return '[TRASH_SPELL_FREE_USE_LIMIT: コスト上限なし（未指定・engine も何もしない）]';
+        return `あなたのトラッシュからコストの合計が${a.trashSpellCostMax}以下のスペル1枚を対象とし、それをコストを支払わずに使用する`;
       }
       // ライド（CENTER_LRIG_RIDES_ON_SIGNI・engine実装済み）＝「【ライド】（ターン終了時まで、このルリグは…に乗る。…ドライブ状態のルリグはアタックできない）」。
       if (a.id === 'CENTER_LRIG_RIDES_ON_SIGNI') {

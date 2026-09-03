@@ -1,5 +1,53 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第51バッチ・索引 A 第11巡・Opus 5 単独）＝「手札から〈条件〉のカード」family 8ハンドラを payload 化**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**59行 / 59ハンドラ → 51行 / 51ハンドラ**
+  （`BASELINE_SELF_TEXT` も 51 へ払い戻し／A群 live 効果 **114 → 98**／miss は 0 のまま）。
+  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続・新規登録0）
+  ｜**⑤実機 残 6件**（`V-131`／`V-132`／`V-133`〜`V-135`／🆕`V-136`＝**この巡で1件増えた**）。
+  gates 全緑（golden **3352 / 3352**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴51**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更16・追加0・削除0、予定外0。**
+  🖥**実機＝機械判定では不要**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+  **`src/screens/` は1行も触っていない**・新しいアクション型／interaction 型は0）。
+  ⚠ただし **`WXDi-P15-067` は「無言 no-op」から「置き先を選ぶ CHOOSE が出る」へ変わる**ので
+  観測点を **`V-136`** に登録した（**未実施**）。**「機械判定で不要」でも、無から生えた対話は観測点にする。**
+
+  🔴**実害2件（payload へ寄せて初めて見えた）**＝
+  ①**`WXDi-P15-067`（スペル）は原文2文目が丸ごと死んでいた**＝置き先が `PLACE_UNDER_SOURCE_SIGNI`＝
+  **効果元シグニの下**に固定で、効果元がスペルだと `zoneIdx === -1` で**無言終了**していた
+  （原文は「あなたの＜解放派＞のシグニ**１体の下に**」＝置き先を選ぶのが正しい）。
+  ②**`DISCARD_OR_PENALTY` は消費地点が2つあり、それぞれ別の regex でカード全文を読んでいた**＝
+  ラベルを作る側と実際に捨てさせる後段で綴りが違い、片方が外れると**ラベルと実挙動が食い違う**形だった。
+
+  🔑**この巡の一般則**＝**`miss=0` は「壊れていない」ではない、の3例目。**
+  `WXDi-P15-067` は **regex が当たったうえで**置き先の解決に失敗して no-op だった＝
+  **miss は「原文に当たるか」しか測っていない**（第49・50バッチと同じ結論を別の壊れ方で踏んだ）。
+  🔑**逆翻訳も payload から描き直す**＝この family の逆翻訳は engine と**同じ全文 regex** を持っており、
+  **engine の取り違えをそのまま復唱**していた（＝原文照合という主軸の検査が構造的に効かない）。
+  🔑**用法トリップワイヤを新 payload にも張った**＝「`handCardPick` が付くのは family の6 id だけ」。
+
+**▶ 次の一手**＝**`O-60` の続き（第52バッチ〜）＝引き続き「家族」で束ねて取る。**
+🔑**残 51ハンドラ・live 98効果**（A🔴 51行）。⚠**miss=0 は「正しい」ではない**（第49・51バッチで実証済み）。
+**次に束ねられる家族**＝(a)**モーダル選択（①②③④）**＝`BET_MECHANIC`(live8)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／
+`CHOOSE_N_FROM_LIST`(1)／`CHOOSE_SAME_OPTION_TWICE`(0)＋`INTERNAL_ECRV_APPLY`
+＝**6ハンドラ / live 17効果**。🔴**共通の受け皿は `engine/choiceTextParser.ts`（約500行）＝
+「①②③④の中身を実行時に再パースする」**ので、payload 化には **parser 側で選択肢を構造化する**（＝典型的な
+新機構）。**取る前に「typed な `CHOOSE{choices[]}` が既にあるか」を必ず先に測る**（live には既に
+`CHOOSE{choices[{choiceId,label,action}]}` が大量にある＝**受け皿は在る可能性が高い**）。
+(b)**引用文の実行時再パース**＝`GRANT_ABILITY_INNER_TEXT`(live14)＋`SONG_FRAGMENT`(11)
+＝**lit0 でこの項目で一番重い**（`O-128` 家系の「引用能力の構造化」が要る）。
+(c)**ゾーン移動・公開**＝`ADD_CARD_TO_LRIG_DECK`(6)／`PLACE_TRAP_FROM_REVEALED`(4)／
+`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`(3) ほか。
+🔑**着手手順は第50・51バッチと同じ**＝①`npx tsx scripts/censusEngineText.ts --id A,B,C,…`（カンマ区切りで**1起動**）
+②live JSON を全件ダンプして**payload の有無**を見る ③**受け皿が既に在るか**を typed な兄弟から探す
+④**入口の id 集合**を疑う ⑤**生成側は文型ルールとは限らない**（`effectParser.ts` のカード別 override が
+STUB を作っている場合がある＝文型だけ直しても届かない） ⑥反転は**消費側**を壊して盤面の数で取る。
+🖥**実機の残は6件**（`V-131`／`V-132`／`V-133`〜`V-135`／`V-136`）。
+
 - **セッション（2026-09-03・`O-60` 第50バッチ・索引 A 第10巡・Opus 5 単独）＝パワー修正 family 15ハンドラを1バッチで payload 化**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

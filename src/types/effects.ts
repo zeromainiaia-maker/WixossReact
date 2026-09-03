@@ -4062,6 +4062,19 @@ export interface PowerModifyPerTrashCountAction {
   countFilter?: TargetFilter;   // カウント対象のフィルタ（クラス・色・タイプ等）
   countByVariety?: boolean;     // true=種類, false=枚数
   until?: EffectDuration;       // END_OF_TURN なら起動/自動効果；なければ常時効果
+  /**
+   * 🆕「**この効果はN枚までしか適用されない**」の上限（§5.3 `O-60` 第52バッチ・2026-09-03）＝
+   * 数えた枚数をこの値で頭打ちにする（`Math.min(count, maxUnits * unitSize)`）。
+   *
+   * 🔴旧実装は `STUB{EFFECT_LIMIT}` が**カード全文の regex で上限枚数を読み、`temp_power_mods` の
+   *   最後のエントリを `上限×1000` でキャップする**という別物だった。⇒ 2つの理由で壊れていた：
+   *   ①**単価 1000 が焼き込み**（原文の「１枚につき±X」を読んでいない）
+   *   ②🔴**【常】経路（`effectEngine` の CONTINUOUS 計算）は `temp_power_mods` を通らない**ので
+   *     **上限が1ビットも効いていなかった**（`WX13-053`＝トラッシュ20枚なら原文の＋10000ではなく**＋20000**）。
+   * ⚠**読み手は2経路**（`execPowerModifyPerTrashCount` と `effectEngine` の CONTINUOUS 計算）＝
+   *   片方だけに配線すると `until` の有無で挙動が割れる（第50バッチ③と同じ家系）。
+   */
+  maxUnits?: number;
 }
 
 // ライフクロス枚数につきパワー±M（常時効果）
@@ -4568,6 +4581,41 @@ export interface StubAction {
    * ⚠**payload が無い宣言は何もしない**（fail-closed）。
    */
   handToUnderSigni?: { hostFilter?: TargetFilter };
+  /**
+   * ── 🆕**§5.3 `O-60` 第52バッチ（2026-09-03）＝「engine が原文から拾っていた数値ひとつ」の受け皿** ──
+   *
+   * 下の9本はどれも **`EffectText + BurstText`（＝カード全文）に regex を1本当てて数値を決めていた**
+   * ハンドラの置き換え。意味はばらばらだが、**壊れ方が同じ**なので1バッチで取った：
+   * ①**カード全文**なので同じカードの**別の能力**の数字を拾いうる ②綴りが1つ違うと**既定値へ落ちる**
+   * ③効果元が `cardMap` から引けない経路（スペル・`effect_stack` 注入）では**必ず既定値**になる。
+   * ⚠**どれも payload が無ければ何もしない**（fail-closed）＝旧既定値へ倒すと原文と無関係な数で動く。
+   */
+  /** `DRAW_DISCARD_COUNT_PLUS_N`＝「捨てた枚数に**N**を加えた枚数のカードを引く」の N。 */
+  drawDiscardPlus?: number;
+  /** `LIMIT_OPP_DRAW_COUNT`＝「カードを合計**N**枚までしか引けない」の N。 */
+  drawLimit?: number;
+  /** `OPP_HAND_TO_DECK_TOP`＝「対戦相手は手札を**N**枚デッキの一番上に置く」の N。 */
+  oppHandToDeckCount?: number;
+  /** `OPP_CHOOSE_OWN_SIGNI_TO_ENERGY`＝「対戦相手は自分の**パワーN以上**のシグニ1体を選び」の N。 */
+  oppSigniPowerMin?: number;
+  /**
+   * `VIEW_AND_DISCARD_SPELL`＝「対戦相手の手札を見て（**コストの合計がN以下の**）スペル**M**枚を選び捨てさせる」。
+   * ⚠`costMax` を**省略＝上限なし**（`WXDi-P16-050` は原文にコスト条件が無い）。
+   *   旧実装の既定 99 と同じだが、**「読めなかった」と「原文に無い」を区別できる**のが違い。
+   */
+  viewDiscardSpell?: { costMax?: number; count: number };
+  /** `COIN_SPEND_CONDITION`＝「《コインアイコン》を合計**N**枚以上支払っていなかった場合」の N。 */
+  coinSpentMin?: number;
+  /**
+   * `OPP_ENERGY_EXCESS_TRASH` / `CONDITIONAL_TRASH_UNDER_SIGNI`＝
+   * 「対戦相手のエナゾーンにカードが**N**枚以上ある場合」の N（2ハンドラで共有）。
+   * 🔴旧実装は**同じ文を読むのに既定値が 5 と 3 で食い違っていた**（第11バッチの `virusCount` と同じ形）。
+   */
+  oppEnergyThreshold?: number;
+  /** `MULTI_DAMAGE_ON_LRIG_ATTACK`＝「このルリグは自身のアタックによってダメージを**N**回与える」の N。 */
+  lrigAttackTimes?: number;
+  /** `TRASH_SPELL_FREE_USE_LIMIT`＝「トラッシュから**コストの合計がN以下**のスペル1枚を〜使用する」の N。 */
+  trashSpellCostMax?: number;
   /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。

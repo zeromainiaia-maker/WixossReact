@@ -472,9 +472,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- センタールリグのリミット増減 ----
   {
-    const limitM = t.match(/(?:対戦相手の)?センタールリグのリミットは([１-９\d]+)(増え|減る)/);
-    if (limitM) {
-      const delta = parseNum(limitM[1]) * (limitM[2] === '増え' ? 1 : -1);
+    // 🆕**「リミット**を**－N**する**」形も受ける**（§5.3 `O-60` 第52バッチ・2026-09-03）＝
+    //   `WXDi-P16-047-E2`「対戦相手のセンタールリグのリミットを－１する」は**助詞と動詞が違う**だけで
+    //   この typed 受け皿に届かず、`STUB{LRIG_LIMIT_MODIFY}`（engine がカード全文を読む）へ落ちていた。
+    const limitVerbM = t.match(/(?:対戦相手の)?センタールリグのリミットは([１-９\d]+)(増え|減る)/);
+    const limitSignM = t.match(/(?:対戦相手の)?センタールリグのリミットを([＋－+-])([１-９\d]+)する/);
+    if (limitVerbM || limitSignM) {
+      const delta = limitVerbM
+        ? parseNum(limitVerbM[1]) * (limitVerbM[2] === '増え' ? 1 : -1)
+        : parseNum(limitSignM![2]) * ('＋+'.includes(limitSignM![1]) ? 1 : -1);
       // ⚠「（お互いのセンタールリグに影響する）」の注記は **`stripRuleParens` でここへ届く前に消える**ので
       //   ここでは読めない＝`owner:'any'` はカード単位の後段（`parseCardEffects` の末尾）で刻む。
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
@@ -854,8 +860,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手は手札をN枚デッキの一番上に置く ----
-  if (t.match(/対戦相手は手札を[０-９\d１-３]+枚デッキの一番上に置く/)) {
-    return { type: 'STUB', id: 'OPP_HAND_TO_DECK_TOP' } as StubAction;
+  // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝枚数は payload（engine はカード全文を読まない）。
+  const ohtdM = t.match(/対戦相手は手札を([０-９\d１-９]+)枚デッキの一番上に置く/);
+  if (ohtdM) {
+    return { type: 'STUB', id: 'OPP_HAND_TO_DECK_TOP', oppHandToDeckCount: parseNum(ohtdM[1]) } as StubAction;
   }
 
   // ---- バニッシュしたシグニがエナ代わりにトラッシュ（このシグニによって）----
@@ -1085,8 +1093,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- このルリグは自身のアタックで複数回ダメージ ----
-  if (t.match(/このターン.*このルリグは自身のアタックによってダメージを[０-９\d]+回与える/)) {
-    return { type: 'STUB', id: 'MULTI_DAMAGE_ON_LRIG_ATTACK' } as StubAction;
+  const mdalaM = t.match(/このターン[^。]*このルリグは自身のアタックによってダメージを([０-９\d]+)回与える/);
+  if (mdalaM) {
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝回数は payload。
+    return { type: 'STUB', id: 'MULTI_DAMAGE_ON_LRIG_ATTACK', lrigAttackTimes: parseNum(mdalaM[1]) } as StubAction;
   }
 
   // ---- すべての効果を無効 ----
@@ -1815,7 +1825,18 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 対戦相手の手札を見て特定スペルを捨てさせる ----
   if (t.match(/対戦相手の手札を見て.*スペル.*捨てさせる/)) {
-    return { type: 'STUB', id: 'VIEW_AND_DISCARD_SPELL' } as StubAction;
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝コスト上限と枚数は payload。
+    // ⚠**`costMax` は原文に書いてあるときだけ載せる**＝`WXDi-P16-050` は無条件（旧既定 99 と同義だが、
+    //   「読めなかった」と「原文に無い」を JSON 上で区別できる）。
+    const vdsCostM = t.match(/コストの合計が([０-９\d]+)以下のスペル/);
+    const vdsCntM = t.match(/スペル([０-９\d]+)枚/);
+    return {
+      type: 'STUB', id: 'VIEW_AND_DISCARD_SPELL',
+      viewDiscardSpell: {
+        ...(vdsCostM ? { costMax: parseNum(vdsCostM[1]) } : {}),
+        count: vdsCntM ? parseNum(vdsCntM[1]) : 1,
+      },
+    } as StubAction;
   }
 
   // ---- 《ライズアイコン》を持つシグニがバニッシュされる場合、代わりに下のカードをトラッシュ ----
@@ -2217,13 +2238,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のエナゾーン超過でトラッシュ ----
-  if (t.match(/対戦相手のエナゾーンにカードが[０-９\d]+枚以上ある場合.*トラッシュに置く/)) {
-    return { type: 'STUB', id: 'OPP_ENERGY_EXCESS_TRASH' } as StubAction;
+  const oeetM = t.match(/対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合[^。]*トラッシュに置く/);
+  if (oeetM) {
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝しきい値は payload。
+    return { type: 'STUB', id: 'OPP_ENERGY_EXCESS_TRASH', oppEnergyThreshold: parseNum(oeetM[1]) } as StubAction;
   }
 
   // ---- 次のターンまで引ける枚数制限 ----
-  if (t.match(/次のターンの間.*対戦相手はカードを合計[０-９\d]+枚までしか引けない/)) {
-    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
+  const lodc2M = t.match(/次のターンの間[^。]*対戦相手はカードを合計([０-９\d]+)枚までしか引けない/);
+  if (lodc2M) {
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝上限は payload。
+    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT', drawLimit: parseNum(lodc2M[1]) } as StubAction;
   }
 
   // ---- レゾナの出現条件のカードをエナゾーンに置く ----

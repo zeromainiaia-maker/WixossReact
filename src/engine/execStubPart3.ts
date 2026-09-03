@@ -498,12 +498,13 @@ export function execStubPart3(
     return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
   }
   // ドロー枚数制限（次のターン）
+  // 🆕**上限は payload（`drawLimit`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は **カード全文**へ `/合計(\d+)枚までしか引けない/` を当てていた＝`WXK06-004` は
+  //   同じカードに「シグニを２体までしか場に出すことができない」等の別上限が並ぶ形だった。
+  // ⚠**payload が無ければ制限を張らない**（fail-closed）＝旧既定 1 は「原文を読まずに1枚へ絞る」過剰実行。
   if (stub.id === 'LIMIT_OPP_DRAW_COUNT') {
-    const srcLODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLODC = srcLODC ? (srcLODC.EffectText ?? '') + ' ' + (srcLODC.BurstText ?? '') : '';
-    const toHWLODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const limitM = txtLODC.match(/合計([０-９\d]+)枚までしか引けない/);
-    const limitVal = limitM ? parseInt(toHWLODC(limitM[1])) : 1;
+    const limitVal = stub.drawLimit;
+    if (limitVal === undefined) return done(addLog(ctx, '[LIMIT_OPP_DRAW_COUNT: 上限なし（未指定）]'));
     const newOtherLODC: PlayerState = { ...ctx.otherState, draw_limit: limitVal };
     return done(addLog({ ...ctx, otherState: newOtherLODC }, `対戦相手の次ターンのドロー上限${limitVal}枚に制限`));
   }
@@ -687,12 +688,13 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerIPTSUAW }, `ウェポン下に配置: ${ctx.cardMap.get(cardIPTSUAW)?.CardName ?? cardIPTSUAW}`));
   }
   // CONDITIONAL_TRASH_UNDER_SIGNI: 相手エナN枚以上の場合、シグニ下カードを任意でトラッシュ
+  // 🆕**しきい値は payload（`oppEnergyThreshold`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は **カード全文**を読み、**同じ文を読む `OPP_ENERGY_EXCESS_TRASH` と既定値が 3 と 5 で
+  //   食い違っていた**（どちらが正しいのか JSON からは決して分からない形）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'CONDITIONAL_TRASH_UNDER_SIGNI') {
-    const toHWCTUS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcCTUS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCTUS = srcCTUS ? (srcCTUS.EffectText ?? '') + ' ' + (srcCTUS.BurstText ?? '') : '';
-    const enaMCTUS = txtCTUS.match(/エナゾーンにカードが([０-９\d]+)枚以上/);
-    const enaThreshCTUS = enaMCTUS ? parseInt(toHWCTUS(enaMCTUS[1])) : 3;
+    const enaThreshCTUS = stub.oppEnergyThreshold;
+    if (enaThreshCTUS === undefined) return done(addLog(ctx, '[CONDITIONAL_TRASH_UNDER_SIGNI: しきい値なし（未指定）]'));
     if (ctx.otherState.energy.length < enaThreshCTUS) {
       return done(addLog(ctx, `条件不成立（相手エナ${ctx.otherState.energy.length}枚 < ${enaThreshCTUS}）`));
     }
@@ -999,12 +1001,11 @@ export function execStubPart3(
     return selectOrInteract(candsORHOSB, 1, false, 'opp_hand', ttdActionORHOSB, undefined, ctx, true);
   }
   // MULTI_DAMAGE_ON_LRIG_ATTACK: このターン、ルリグアタックをN回与える（lrig_attack_remainingフラグでBattleScreen側が管理）
+  // 🆕**回数は payload（`lrigAttackTimes`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定 3 は原文を読まずに3回攻撃させる過剰実行。
   if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK') {
-    const srcMDALA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtMDALA = srcMDALA ? (srcMDALA.EffectText ?? '') + ' ' + (srcMDALA.BurstText ?? '') : '';
-    const toHWMDALA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mMDALA = txtMDALA.match(/ダメージを([０-９\d]+)回与える/);
-    const totalMDALA = mMDALA ? parseInt(toHWMDALA(mMDALA[1])) : 3;
+    const totalMDALA = stub.lrigAttackTimes;
+    if (totalMDALA === undefined) return done(addLog(ctx, '[MULTI_DAMAGE_ON_LRIG_ATTACK: 回数なし（未指定）]'));
     // 残り回数 = 合計 - 1（1回目は通常アタック扱い）
     const newOwnerMDALA = { ...ctx.ownerState, lrig_attack_remaining: totalMDALA - 1 };
     return done(addLog({ ...ctx, ownerState: newOwnerMDALA }, `このターン、ルリグが${totalMDALA}回アタックする（残り${totalMDALA - 1}回）`));
@@ -1118,31 +1119,13 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: newOtherNAOE },
       '相手のCONTINUOUS効果を全て無効化（このターン）'));
   }
-  // EFFECT_LIMIT: 連続効果の上限枚数をキャップ（直前のパワー修正を上限値でキャップ）
-  if (stub.id === 'EFFECT_LIMIT') {
-    const srcEL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtEL = srcEL ? (srcEL.EffectText ?? '') + ' ' + (srcEL.BurstText ?? '') : '';
-    const toHWEL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const capMEL = txtEL.match(/この効果は([０-９\d]+)枚(?:まで|までしか)/);
-    if (capMEL && ctx.sourceCardNum) {
-      const cap = parseInt(toHWEL(capMEL[1]));
-      // temp_power_mods の最後のエントリをキャップ（deltaPerUnit * cap が上限）
-      const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
-      if (mods.length > 0) {
-        const last = mods[mods.length - 1];
-        // deltaPerUnit を推定（最後のdelta / 現在のカウントから逆算が困難なので単純に cap を使う）
-        // 最も単純な実装：delta の絶対値が cap * 1000 を超える場合キャップ
-        const capVal = cap * 1000;
-        if (Math.abs(last.delta) > capVal) {
-          mods[mods.length - 1] = { ...last, delta: last.delta > 0 ? capVal : -capVal };
-          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
-            `効果上限: ${cap}枚（パワー修正を${last.delta > 0 ? '+' : '-'}${capVal}にキャップ）`));
-        }
-      }
-      return done(addLog(ctx, `効果上限: ${cap}枚（キャップ内）`));
-    }
-    return done(addLog(ctx, '効果制限'));
-  }
+  // 🗑**`STUB{EFFECT_LIMIT}` は撤去した**（§5.3 `O-60` 第52バッチ・2026-09-03）＝
+  //   「この効果はN枚までしか適用されない」は parser が**直前の枚数比例パワー修正へ畳む**ようになった
+  //   （`POWER_MODIFY_PER_TRASH_COUNT.maxUnits` ／ `POWER_MODIFY.deltaFromZone.maxCount`）。
+  // 🔴旧実装は **カード全文**から上限を読み、`temp_power_mods` の最後のエントリを **`上限×1000`** で
+  //   キャップしていた＝①単価 1000 が焼き込み（原文の「１枚につき±X」を読んでいない）
+  //   ②🔴**【常】経路（`effectEngine` の CONTINUOUS 計算）は `temp_power_mods` を通らない**ので
+  //   `WX13-053` では**上限が1ビットも効いていなかった**（トラッシュ20枚で原文＋10000のところ＋20000）。
   // DISONA_RESTRICTION: 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」
   // （使用条件側「すでに非ディソナスペルを使用していた場合は使用不可」はeffect.conditionで判定済み）
   if (stub.id === 'DISONA_RESTRICTION') {
@@ -1154,11 +1137,10 @@ export function execStubPart3(
     // lastProcessedCards[0] が今ターン場に出たシグニ → ターン終了時チェック対象として登録
     const cnCCSC = ctx.lastProcessedCards?.[0];
     if (!cnCCSC) return done(addLog(ctx, '[COIN_SPEND_CONDITION: 対象シグニなし]'));
-    const srcCCSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCCSC = srcCCSC ? (srcCCSC.EffectText ?? '') : '';
-    const toHWCCSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const minCoinsM = txtCCSC.match(/《コインアイコン》を合計([０-９\d]+)枚以上支払っていなかった場合/);
-    const minCoins = minCoinsM ? parseInt(toHWCCSC(minCoinsM[1])) : 1;
+    // 🆕**しきい値は payload（`coinSpentMin`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+    // ⚠**payload が無ければ登録しない**（fail-closed）＝旧既定 1 は原文を読まないチェックになる。
+    const minCoins = stub.coinSpentMin;
+    if (minCoins === undefined) return done(addLog(ctx, '[COIN_SPEND_CONDITION: しきい値なし（未指定）]'));
     const newCCSC = [...(ctx.ownerState.coin_condition_signi_instances ?? []), cnCCSC];
     const newOwnerCCSC: PlayerState = { ...ctx.ownerState, coin_condition_signi_instances: newCCSC };
     return done(addLog({ ...ctx, ownerState: newOwnerCCSC }, `コイン消費チェック登録：${ctx.cardMap.get(cnCCSC)?.CardName ?? cnCCSC}（コイン${minCoins}枚以上要）`));
@@ -2153,11 +2135,10 @@ export function execStubPart3(
   if (stub.id === 'TRASH_SPELL_FREE_USE_LIMIT') {
     const cnTSFUL = ctx.lastProcessedCards?.[0];
     if (!cnTSFUL) {
-      const srcTSFUL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-      const txtTSFUL = srcTSFUL ? (srcTSFUL.EffectText ?? '') + ' ' + (srcTSFUL.BurstText ?? '') : '';
-      const toHWTSFUL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const costLimMTSFUL = txtTSFUL.match(/コストの合計が([０-９\d]+)以下のスペル/);
-      const costLimTSFUL = costLimMTSFUL ? parseInt(toHWTSFUL(costLimMTSFUL[1])) : 2;
+      // 🆕**コスト上限は payload（`trashSpellCostMax`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+      // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定 2 は原文を読まない上限。
+      const costLimTSFUL = stub.trashSpellCostMax;
+      if (costLimTSFUL === undefined) return done(addLog(ctx, '[TRASH_SPELL_FREE_USE_LIMIT: コスト上限なし（未指定）]'));
       const trashSpellsTSFUL = ctx.ownerState.trash.filter(cn => {
         const c = ctx.cardMap.get(cn);
         if (!c || c.Type !== 'スペル') return false;

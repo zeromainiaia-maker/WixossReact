@@ -1,5 +1,110 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第12巡）：§5.3 `O-60` 第52バッチ — 「原文から数値ひとつを読むだけ」family 12ハンドラ
+
+**ベースライン**＝`416bf147c`（第51バッチの直後）。**A🔴 SELF_TEXT 51行 → 39行 / 51→39ハンドラ**
+（`BASELINE_SELF_TEXT` も 39 へ払い戻し／A群 live 効果 **98 → 77**／miss は 0 のまま）。
+**gates 全緑**（golden 3352 → **3362**＝+10本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+census-stubs A🔴0・C0・manual-fields 0・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更21・追加0・削除0、予定外0。**
+🖥**実機＝不要と判定**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+**`src/screens/` は1行も触っていない**・新しいアクション型／interaction 型は0・新しい対話も0）。
+
+### 🔴 まず「取る family」の選び直しをした（PLAN の見立ては半分外れだった）
+
+PLAN §1 の「次の一手」は **(a) モーダル選択（①②③④）6ハンドラ / live17** を第一候補にし、
+「typed な `CHOOSE{choices[]}` が既に在る可能性が高い」と書いていた。**実測した結果、着手しない判断にした。**
+
+- ✅**受け皿は完備していた**＝`CHOOSE{choose_count, from_count, choices[], upTo, allowRepeat, noRepeat}` に加え、
+  選択数の上書きが **`betChoose` / `conditionChoose` / `recollectArts` / `recollect` /
+  `preUseVirusChoose` / `additionalCostChoose` / `countChoose`** の **7本**も既にある。
+- ✅**parser も既に typed を出していた**＝`BET_MECHANIC` の live 8カードは**8枚とも** `parseCardEffects` が
+  typed `CHOOSE{…, betChoose}` を返しており、**8枚とも `docs/_held_fresh.json` で採用待ち**だった。
+- 🔴**しかし単純採用は退行になる。** engine 側の `src/engine/choiceTextParser.ts`（**492行**）は
+  **汎用 parser より賢い分岐を20個ほど持っている**＝
+  `WX16-005` の `levelLteFieldVirusCount`（fresh は落ちる＝過剰実行）／
+  `SPK16-13E` ①の**honest defer**（`INTERNAL_NOOP`。fresh は**無条件バニッシュ**＝過剰実行）／
+  ②③の `ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` 条件（fresh は条件ごと落ちる）／
+  `WDK06-R08` ①の `powerLtLastProcessed`（fresh は素の BANISH）／
+  `WX19-006` ①は engine が `TRASH{level.min:4}`（fresh は `STUB{BANISH}`）。
+  **逆に fresh の方が良い option もある**（`PR-K072` ②は engine が `INTERNAL_NOOP`、
+  `WDK12-007` は engine が STUB 2本／`WX19-005` ①は fresh が typed）。
+  ⇒ **option 単位で優劣が入り混じっており、「採用」でも「engine 優先」でも一律には直せない。**
+- ⇒ **この family は `choiceTextParser` の知識を parser 側へ移設する多バッチ項目**として登録票へ記録し、
+  今回は**実際に払う family**（下記）へ切り替えた。
+  🔑**教訓＝「受け皿が在る」だけでは取れる根拠にならない。「engine 側に parser より賢い分岐が無いか」まで見る。**
+
+### 何を取ったか
+
+`census:enginetext` A群のうち、**engine が `EffectText + BurstText`（カード全文）に regex を1本当てて
+数値ひとつを決めていた 12ハンドラ / live 21効果 / 21カード**を1バッチで取った。壊れ方が3つとも同じ＝
+①**カード全文**なので同じカードの**別の能力**の数字を拾いうる ②綴りが1つ違えば**既定値へ落ちる**
+③効果元が `cardMap` から引けない経路では**必ず既定値**。
+
+**(1) スカラー payload へ寄せた 10ハンドラ**（`StubAction` に9キー）＝
+`DRAW_DISCARD_COUNT_PLUS_N`(3)→`drawDiscardPlus` ／ `LIMIT_OPP_DRAW_COUNT`(3)→`drawLimit` ／
+`OPP_HAND_TO_DECK_TOP`(2)→`oppHandToDeckCount` ／ `OPP_CHOOSE_OWN_SIGNI_TO_ENERGY`(2)→`oppSigniPowerMin` ／
+`VIEW_AND_DISCARD_SPELL`(2)→`viewDiscardSpell{costMax?,count}` ／ `COIN_SPEND_CONDITION`(1)→`coinSpentMin` ／
+`OPP_ENERGY_EXCESS_TRASH`(1)＋`CONDITIONAL_TRASH_UNDER_SIGNI`(1)→`oppEnergyThreshold`（**共有**） ／
+`MULTI_DAMAGE_ON_LRIG_ATTACK`(1)→`lrigAttackTimes` ／ `TRASH_SPELL_FREE_USE_LIMIT`(1)→`trashSpellCostMax`。
+
+**(2) 受け皿が別に在ったので STUB ごと撤去した 2ハンドラ**＝
+`EFFECT_LIMIT`(3)→`POWER_MODIFY_PER_TRASH_COUNT.maxUnits` ／
+`LRIG_LIMIT_MODIFY`(1)→ typed `LrigLimitModifyAction`。
+
+### 🔴 実害3件
+
+**①`EFFECT_LIMIT` は【常】経路で1ビットも効いていなかった。**
+原文「この効果は１０枚までしか適用されない」に対し、旧実装は `temp_power_mods` の最後のエントリを
+**`上限×1000`** でキャップしていた。ところが **`effectEngine` の CONTINUOUS 計算は `temp_power_mods` を
+通らない**ので、`WX13-053`（【常】「トラッシュの＜空獣＞＜地獣＞1枚につき＋1000」）は
+**トラッシュ20枚で原文の＋10000ではなく＋20000**になっていた。
+⇒ `maxUnits` を **executor と effectEngine の2経路**へ配線した（第50バッチ③と同じ家系）。
+⚠**単価 1000 の焼き込み**も同時に消えた（`deltaPerUnit` から計算するようになった）。
+
+**②`LRIG_LIMIT_MODIFY` の STUB は「向き」も「寿命」も持っていなかった。**
+`WXDi-P16-047-E2` の原文は「**対戦相手の**センタールリグのリミットを－１する（**次の対戦相手のメイン
+フェイズ終了時まで**）」だが、旧 STUB は **常に自分のリミットを恒久的に**減らしていた（向きが逆・寿命なし）。
+🔑**受け皿は最初から typed `LRIG_LIMIT_MODIFY{owner, delta, until}` だった**＝parser の regex が
+「リミット**は**N（増え|減る）」しか読まず、「リミット**を**－１**する**」が届かないだけだった（第50バッチ②の再現）。
+
+**③同じ文を読む2ハンドラで既定値が食い違っていた。**
+「対戦相手のエナゾーンにカードがN枚以上ある場合」を `OPP_ENERGY_EXCESS_TRASH` は既定 **5**、
+`CONDITIONAL_TRASH_UNDER_SIGNI` は既定 **3** で読んでいた（＝どちらが正しいのか JSON からは決して分からない）。
+実測すると原文は **5** と **2**＝**後者は既定 3 では発火しない盤面がある**（過少実行）。
+
+### 🧹 計器の較正（退化ではない）
+
+STUB を2つ解体したので `census` の高シグナルが **3 → 6** へ増えた（`census` は STUB/MANUAL を高シグナルから
+免除するため）。増えた3件は `WX13-053-E1` / `WX21-066-E1` / `WXDi-P10-076-E1` ＝**新キー `maxUnits` が
+キー表に無かっただけ**なので `scripts/vocabCensus.ts` の「「Nまで」上限選択」へ追加して **3 / BASELINE 3** に戻した。
+⚠**`maxCount` とは別キーで部分文字列にもならない**（`upTo` も含まれない）＝キー表に足さないと必ず昇格する。
+
+### 反転確認
+
+- `effectEngine` の `maxUnits` 読みを `false &&` で殺す → `WX13-053` の golden が
+  「20枚あっても上限10枚ぶん（＋10000）で止まる expected=15000 got=25000」で **FAIL**（＝旧挙動の再現）。戻して PASS。
+- golden 内にも payload 側の反転を同梱＝上限を外すと 20枚ぶん／15枚ぶんに戻る、
+  `oppEnergyThreshold` を落とすと1枚も落ちない（fail-closed）、`lrigAttackTimes` を5にすると残り4回。
+- 撤去した2 id は **live 0 のラチェット**を golden に張った（parser が別経路で作り直したら FAIL）。
+
+### 配送
+
+21効果すべて `AUTO`。18効果は `build:effects` が自動採用、**キーが減る4カード**
+（`WX13-053` / `WX21-066` / `WXDi-P10-076` / `WXDi-P16-047`＝STUB 撤去は純粋上位集合ではない）は
+`heldReview --adopt` で明示採用した。**`manualEffects.ts` の変更は0。**
+
+### 触ったファイル
+
+`src/types/effects.ts`（スカラー9キー＋`PowerModifyPerTrashCountAction.maxUnits`）／
+`src/engine/execStubPart1.ts`・`execStubPart2.ts`・`execStubPart3.ts`・`effectExecutor.ts`・`effectEngine.ts`（消費側）／
+`src/data/parsers/parseSentencePart2.ts`・`parseSentencePart3.ts`・`parseSentencePart4.ts`・
+`src/data/effectParser.ts`（生成側＋`EFFECT_LIMIT` の畳み込み後処理）／
+`scripts/decompileEffects.ts`（逆翻訳9分岐）／`scripts/censusEngineText.ts`（ratchet 51→39）／
+`scripts/vocabCensus.ts`（キー表較正）／`scripts/goldenTest.ts`（+10本）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第11巡）：§5.3 `O-60` 第51バッチ — 「手札から〈条件〉のカード」family 8ハンドラを payload 化
 
 **ベースライン**＝`4fadd1278`（第50バッチの直後）。**A🔴 SELF_TEXT 59行 → 51行 / 59→51ハンドラ**

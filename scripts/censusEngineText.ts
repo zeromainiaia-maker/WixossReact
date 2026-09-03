@@ -55,7 +55,10 @@ const onlyIds = (() => {
 //   ウリス系3効果を `DECLARE_ICON_REVEAL_CHECK`（宣言軸と一致軸数ごとの帰結を JSON に持つ）へ移した分。
 // 🆕59→51＝2026-09-03（索引 A 第11巡・§5.3 `O-60` 第51バッチ）＝**「手札から〈条件〉のカード」family 8ハンドラ**を
 //   共有 payload（`handCardPick` / `discardPenalty` / `discardIfNoSigni` / `handToUnderSigni`）へ寄せた分。
-const BASELINE_SELF_TEXT = 51;
+// 🆕51→39＝2026-09-03（索引 A 第12巡・§5.3 `O-60` 第52バッチ）＝**「原文から数値ひとつを読むだけ」family 12ハンドラ**を
+//   スカラー payload9本へ寄せ、`EFFECT_LIMIT`（→`POWER_MODIFY_PER_TRASH_COUNT.maxUnits`）と
+//   `LRIG_LIMIT_MODIFY`（→ typed `LrigLimitModifyAction`）の2ハンドラは撤去した分。
+const BASELINE_SELF_TEXT = 39;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {

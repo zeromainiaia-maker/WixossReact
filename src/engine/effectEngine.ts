@@ -2758,7 +2758,13 @@ export function calcFieldPowers(
                 mod.trashOwner === 'self' ? ownerState : otherState,
                 mod.trashOwner === 'self' ? oppTrashColorLoss : false,
               );
-          const delta = Math.floor(count / mod.unitSize) * mod.deltaPerUnit;
+          // 🆕**「この効果はN枚までしか適用されない」**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+          // 🔴**ここが本当の穴だった**＝旧実装の `STUB{EFFECT_LIMIT}` は `temp_power_mods` の最後の
+          //   エントリをキャップする実装で、**この CONTINUOUS 計算は `temp_power_mods` を通らない**ため
+          //   `WX13-053`（【常】）では**上限が1ビットも効いていなかった**（トラッシュ20枚で＋20000）。
+          const cappedCount = mod.maxUnits !== undefined
+            ? Math.min(count, mod.maxUnits * mod.unitSize) : count;
+          const delta = Math.floor(cappedCount / mod.unitSize) * mod.deltaPerUnit;
           if (delta !== 0 && powers.has(topNum)) {
             applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }

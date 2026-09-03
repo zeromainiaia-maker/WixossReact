@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［45枚］
-SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX17-009 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-004 WXDi-CP02-050 WXDi-D06-010 WXDi-P02-018 WXDi-P03-002 WXDi-P05-005 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-061 WXDi-P11-064 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK03-050 WXK06-040 WXK08-056 WXK09-040 WXK11-026
+## （type増減なし＝値/構造変更） ［47枚］
+SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX13-073 WX14-069 WX17-009 WX22-044 WX24-P1-064 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WX26-CP1-055 WXDi-CP01-006 WXDi-CP02-004 WXDi-CP02-050 WXDi-D06-010 WXDi-P00-068 WXDi-P02-018 WXDi-P03-002 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P10-061 WXDi-P11-064 WXDi-P14-057 WXDi-P15-002 WXDi-P15-071 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK03-050 WXK06-040 WXK08-056 WXK09-040 WXK11-026
 --- SP27-009
   原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から＜天使＞か＜悪魔＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。,-
   - [0].action.filter.cardClass[0] = "天使"
@@ -199,7 +199,7 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].choiceId = "c0"
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
-  …（他 39 行）
+  …（他 40 行）
 
 ## -LOOK_AND_REORDER ［1枚］
 WXDi-P08-062
@@ -234,15 +234,6 @@ WXDi-CP02-003
   + [0].action.steps[0].steps[1].source.location = "deck"
   …（他 8 行）
 
-## +SEQUENCE ［1枚］
-WX25-P2-001
---- WX25-P2-001
-  原文: このゲームの間、あなたは以下の能力を得る。『【常】：対戦相手は追加で《無》を支払わないかぎり【ガード】ができない。【起】《ターン１回》手札から《ガードアイコン》を持つシグニを１枚捨てる：【ルリグバリア】１つを得る。』,-
-  - [0].action.id = "GAIN_ABILITY_THIS_GAME"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
-
 ## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +PREVENT_DAMAGE +SEQUENCE ［1枚］
 WXK04-014
 --- WXK04-014
@@ -275,6 +266,24 @@ WXK06-049
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
 
+## -SEQUENCE ［1枚］
+WXK10-050
+--- WXK10-050
+  原文: 【自】：このシグニに《改造素材》が使用されたとき、あなたのトラッシュからレベルの異なる＜電機＞のシグニ２枚を対象とし、それらをエナゾーンに置く。【起】エナゾーンからレベル１～４の＜電機＞のシグニを１枚ずつトラッシュに置く：対戦相手のシグニを、レベルの合計が６以下になるように２体まで対象とし、それらをエナゾーンに置く。,：対戦相手のレベル３以上のシグニ１体を対
+  - [1].action.steps[0].type = "SEND_TO_ENERGY"
+  - [1].action.steps[0].target.type = "SIGNI"
+  - [1].action.steps[0].target.owner = "opponent"
+  - [1].action.steps[0].target.count = 2
+  - [1].action.steps[0].target.upToCount = true
+  - [1].action.steps[0].target.filter.cardType = "シグニ"
+  - [1].action.steps[0].target.totalLevelMax = 6
+  ~ [1].action.type : "SEQUENCE" → "SEND_TO_ENERGY"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "opponent"
+  + [1].action.target.count = 2
+  + [1].action.target.upToCount = true
+  …（他 2 行）
+
 ## +CONDITIONAL +HAS_CARD_IN_FIELD +UNKNOWN -STUB ［1枚］
 WD09-018
 --- WD09-018
@@ -286,24 +295,6 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
-
-## +POWER_MODIFY +SIGNI -STUB ［1枚］
-WD11-007
---- WD11-007
-  原文: 【出現条件】《メインフェイズアイコン》レゾナではない＜凶蟲＞のシグニ２体をあなたの場からトラッシュに置く【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを、このレゾナの出現条件でトラッシュに置いたシグニのレベルを合計した数だけ－2000する。,-
-  - [0].action.id = "POWER_MOD_BY_FIELD_CLASS_LEVEL"
-  ~ [0].action.type : "STUB" → "POWER_MODIFY"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "opponent"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.upToCount = false
-  + [0].action.delta = -2000
-  + [0].action.deltaFromZone.zone = "appearance_cost"
-  + [0].action.deltaFromZone.owner = "self"
-  + [0].action.deltaFromZone.filter.cardType = "シグニ"
-  + [0].action.deltaFromZone.sumBy = "level"
-  …（他 2 行）
 
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009
@@ -342,6 +333,24 @@ WDK06-C06
   ~ [0].condition.type : "TRASH_COUNT" → "COND_STUB"
   + [0].condition.raw = "あなたのトラッシュにカードが２０枚以上ある"
 
+## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［1枚］
+WDK08-Y13
+--- WDK08-Y13
+  原文: 【自】：このカードがあなたの効果によって手札から公開されたとき、あなたのシグニ１体を対象とし、手札から《幻水　カババン》を１枚捨ててもよい。そうした場合、ターン終了時まで、それのパワーを＋5000する。,-
+  - [0].action.steps[0].costText = "あなたのシグニ１体を対象とし、手札から《幻水　カババン》を１枚捨ててもよい"
+  - [0].action.steps[0].handDiscard.count = 1
+  - [0].action.steps[0].handDiscard.filter.cardName = "幻水　カババン"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "POWER_MODIFY"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.delta = 5000
+  - [0].action.steps[1].then.targetsTriggerSource = true
+  ~ [0].action.steps[0].id : "OPTIONAL_COST" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  …（他 22 行）
+
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007
 --- WDK12-007
@@ -359,6 +368,14 @@ WDK12-007
   + [0].action.choices[0].action.steps[0].charm.count = 1
   + [0].action.choices[0].action.steps[0].charm.filter.story = "微菌"
   …（他 21 行）
+
+## +STUB ［1枚］
+SP26-001
+--- SP26-001
+  原文: 以下の２つから１つを選ぶ。①あなたのデッキの上からカードを５枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番上に置く。その後、あなたの【トラップ】１つを対象とし、それを表向きにし《トラップアイコン》を発動させる。②カードを２枚引き、手札１枚を【トラップ】としてあなたのシグニゾーンに設置する。
+  ~ [0].action.choices[0].action.steps[1].id : "ACTIVATE_TRAP" → "DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED"
+  + [0].action.choices[0].action.steps[2].type = "STUB"
+  + [0].action.choices[0].action.steps[2].id = "ACTIVATE_TRAP"
 
 ## +BANISH +CHOOSE +ENERGY_CHARGE_FROM_DECK +SIGNI ［1枚］
 SPK16-13E

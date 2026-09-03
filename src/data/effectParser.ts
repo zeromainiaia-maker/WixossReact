@@ -18287,6 +18287,26 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 🆕**「この効果はN枚までしか適用されない」を直前の枚数比例パワー修正へ畳む**
+  //   （§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は `STUB{EFFECT_LIMIT}` を後ろに残し、**engine がカード全文の regex で上限を読み直して
+  //   `temp_power_mods` の最後のエントリを「上限×1000」でキャップ**していた。単価 1000 は焼き込みで、
+  //   しかも**【常】経路（`effectEngine` の CONTINUOUS 計算）は `temp_power_mods` を通らない**ため
+  //   `WX13-053` では**上限が1ビットも効いていなかった**（トラッシュ20枚で原文＋10000のところ＋20000）。
+  // 🔑`deltaFromZone{maxCount}` を使う経路（`trashM` 側）は既に `removeStubFromSequences` で畳んでいる。
+  //   ここは `POWER_MODIFY_PER_TRASH_COUNT` を使う経路の同じ畳み込み。
+  {
+    const elIdx = steps.findIndex(st => st?.type === 'STUB' && (st as StubAction).id === 'EFFECT_LIMIT');
+    const perTrashIdx = steps.findIndex(st => st?.type === 'POWER_MODIFY_PER_TRASH_COUNT');
+    const elCapM = text.match(/この効果は([０-９\d]+)枚までしか適用されない/);
+    if (elIdx >= 0 && perTrashIdx >= 0 && elCapM) {
+      const capped = { ...(steps[perTrashIdx] as import('../types/effects').PowerModifyPerTrashCountAction), maxUnits: parseNum(elCapM[1]) };
+      const foldedEL = steps.filter((_, i) => i !== elIdx).map((st, i) => (i === (perTrashIdx > elIdx ? perTrashIdx - 1 : perTrashIdx) ? capped : st));
+      steps.length = 0;
+      steps.push(...(foldedEL as EffectAction[]));
+    }
+  }
+
   // 遅延タイミング宣言（「次の対戦相手のアタックフェイズ開始時、〜」）が**明示 defer** のとき、
   // その後ろの文は**すべてその時点で起きる本文**なので、いま実行してはいけない（§6.4 O-3）。
   // 🔴`SPDi43-24-E2` は `SEQUENCE[STUB{DEFERRED…}, NEGATE_ATTACK]` で、**使った瞬間に相手のアタックを

@@ -956,8 +956,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 捨てたカード枚数に1加えた枚数ドロー ----
-  if (t.match(/捨てた(?:カードの)?枚数に[０-９\d]+を加えた枚数.*カードを引く/)) {
-    return { type: 'STUB', id: 'DRAW_DISCARD_COUNT_PLUS_N' } as StubAction;
+  const ddcpnM = t.match(/捨てた(?:カードの)?枚数に([０-９\d]+)を加えた枚数[^。]*カードを引く/);
+  if (ddcpnM) {
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝加算値は payload（engine はカード全文を読まない）。
+    return { type: 'STUB', id: 'DRAW_DISCARD_COUNT_PLUS_N', drawDiscardPlus: parseNum(ddcpnM[1]) } as StubAction;
   }
 
   // ---- このターンゲームに敗北しない ----
@@ -991,8 +993,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- トラッシュからコスト合計N以下のスペルを使用 ----
-  if (t.match(/トラッシュからコストの合計が[０-９\d]+以下.*スペル.*コストを支払わずに使用する/)) {
-    return { type: 'STUB', id: 'TRASH_SPELL_FREE_USE_LIMIT' } as StubAction;
+  const tsfulM = t.match(/トラッシュからコストの合計が([０-９\d]+)以下[^。]*スペル[^。]*コストを支払わずに使用する/);
+  if (tsfulM) {
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝コスト上限は payload。
+    return { type: 'STUB', id: 'TRASH_SPELL_FREE_USE_LIMIT', trashSpellCostMax: parseNum(tsfulM[1]) } as StubAction;
   }
 
   // ---- 手札から特定クラスのシグニをエナゾーンに置く ----
@@ -1039,7 +1043,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手が自分のパワーN以上のシグニを選びエナゾーンに置く ----
   if (t.match(/対戦相手は自分の.+シグニ.+エナゾーンに置く/)) {
-    return { type: 'STUB', id: 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY' } as StubAction;
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝パワー下限は payload。
+    // ⚠**原文に無ければ 0**（＝全シグニが候補）＝旧既定と同じだが、JSON に明示されるので逆翻訳で読める。
+    const ocsM = t.match(/パワー([０-９\d]+)以上のシグニ/);
+    return {
+      type: 'STUB', id: 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY',
+      oppSigniPowerMin: ocsM ? parseNum(ocsM[1]) : 0,
+    } as StubAction;
   }
 
   // ---- 手札からレベルNのシグニをエナゾーンに置く ----

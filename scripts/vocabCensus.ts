@@ -1541,7 +1541,10 @@ const PATTERNS: Pattern[] = [
   //   **PLAN §5d-0 (ii) に「LPC の exact-N 表現ギャップ 23効果」として登録済み**＝較正で見えなくしたわけではない。
   {
     name: '「Nまで」上限選択', re: /[０-９\d](枚|体)まで/,
-    keys: ['"upToCount":true', 'maxCount', 'upTo', 'pickUpTo', 'transferGroups'],
+    // 🆕`maxUnits`＝「この効果はN枚までしか適用されない」（§5.3 `O-60` 第52バッチ・2026-09-03）。
+    //   ⚠**キー表に足さないと「STUB を解体した効果が高シグナルへ昇格する」**＝退化ではなく可視化なので、
+    //   受け皿キーを足して較正する（`maxCount` とは別キー＝部分文字列にもならない）。
+    keys: ['"upToCount":true', 'maxCount', 'maxUnits', 'upTo', 'pickUpTo', 'transferGroups'],
     extraOk: (js, t) => {
       // 🆕2026-08-31 較正＝コスト側の「手札をN枚**まで**捨てる：」の正表現は `cost.discardUpTo`
       //   （**大文字 U** なのでキー表の `'upTo'` に一度も当たらない＝`maxCost` / `Under` と同じ罠）。

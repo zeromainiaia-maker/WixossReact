@@ -63128,6 +63128,224 @@ test('§5.3 O-60 第51: WXDi-P15-067-E1 は＜解放派＞シグニの下に置�
   } finally { cursor = savedCursor; }
 });
 
+
+// ── §5.3 `O-60` 第52バッチ（2026-09-03）＝「原文から数値ひとつを読むだけ」family 12ハンドラを payload 化 ──
+// 🔴この family は **engine が `EffectText + BurstText`（カード全文）に regex を1本当てて数値を決めていた**。
+//   壊れ方が3つとも同じ＝①別の能力の数字を拾いうる ②綴りが1つ違えば既定値 ③効果元が引けない経路では必ず既定値。
+const O60B52_SCALARS: Array<[string, string]> = [
+  ['DRAW_DISCARD_COUNT_PLUS_N', 'drawDiscardPlus'],
+  ['LIMIT_OPP_DRAW_COUNT', 'drawLimit'],
+  ['OPP_HAND_TO_DECK_TOP', 'oppHandToDeckCount'],
+  ['OPP_CHOOSE_OWN_SIGNI_TO_ENERGY', 'oppSigniPowerMin'],
+  ['VIEW_AND_DISCARD_SPELL', 'viewDiscardSpell'],
+  ['COIN_SPEND_CONDITION', 'coinSpentMin'],
+  ['OPP_ENERGY_EXCESS_TRASH', 'oppEnergyThreshold'],
+  ['CONDITIONAL_TRASH_UNDER_SIGNI', 'oppEnergyThreshold'],
+  ['MULTI_DAMAGE_ON_LRIG_ATTACK', 'lrigAttackTimes'],
+  ['TRASH_SPELL_FREE_USE_LIMIT', 'trashSpellCostMax'],
+];
+function o60b52Visit(cb: (node: Record<string, unknown>, effectId: string) => void): void {
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    cb(rec, effectId);
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+}
+
+test('§5.3 O-60 第52: スカラー family は live 全ノードが payload を持つ（fail-closed の穴が無い）', () => {
+  const missing: string[] = [];
+  let nodes = 0;
+  o60b52Visit((rec, effectId) => {
+    if (rec.type !== 'STUB' || typeof rec.id !== 'string') return;
+    const hit = O60B52_SCALARS.find(([id]) => id === rec.id);
+    if (!hit) return;
+    nodes++;
+    if (rec[hit[1]] === undefined) missing.push(`${effectId}(${rec.id}.${hit[1]})`);
+  });
+  eq(missing.length, 0, `payload を持たないノード: ${missing.join(', ')}`);
+  ok(nodes >= 17, `走査対象が消えていない（実測 ${nodes} ノード）`);
+});
+
+// 🔑**撤去のラチェット**＝この2つは「受け皿が別に在った」ので STUB ごと消した。
+//   live に戻ってきたら parser が別経路で作っている＝engine 側に受け手が居ないまま無言 no-op になる。
+test('§5.3 O-60 第52: EFFECT_LIMIT / LRIG_LIMIT_MODIFY の STUB は live に1件も残っていない', () => {
+  const strays: string[] = [];
+  o60b52Visit((rec, effectId) => {
+    if (rec.type === 'STUB' && (rec.id === 'EFFECT_LIMIT' || rec.id === 'LRIG_LIMIT_MODIFY')) {
+      strays.push(`${effectId}(${String(rec.id)})`);
+    }
+  });
+  eq(strays.length, 0, `撤去済み STUB が live に残っている: ${strays.join(', ')}`);
+});
+
+test('§5.3 O-60 第52: WX13-053-E1 の【常】上限が実際に効く（旧は temp_power_mods 経由で1ビットも効かなかった）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WX13-053') ?? []).find(e => e.effectId === 'WX13-053-E1');
+    ok(!!eff, 'WX13-053-E1 が live にある'); if (!eff) return;
+    eq((eff.action as unknown as { maxUnits?: number }).maxUnits, 10, '原文「この効果は１０枚までしか適用されない」');
+    // トラッシュに＜空獣＞/＜地獣＞のシグニを20枚積む＝原文どおりなら＋10000（上限10枚）で頭打ち。
+    const beasts = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && /空獣|地獣/.test(c.CardClass ?? '')).slice(0, 20).map(c => c.CardNum);
+    ok(beasts.length >= 20, `＜空獣＞/＜地獣＞のシグニを20枚用意できる（実測 ${beasts.length}）`);
+    const base = parseInt(cardMap.get('WX13-053')?.Power || '0');
+    const my = mkState({ signi: ['WX13-053', null, null] });
+    const capped = calcFieldPowers(
+      { ...my, trash: beasts } as PlayerState, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+    eq(capped.get('WX13-053'), base + 10000, '20枚あっても上限10枚ぶん（＋10000）で止まる');
+    // 反転＝上限を外すと 20枚ぶん（＋20000）＝**これが旧挙動**（CONTINUOUS 経路には上限が効いていなかった）。
+    const noCapMap = new Map(effectsMap);
+    noCapMap.set('WX13-053', (effectsMap.get('WX13-053') ?? []).map(e => (
+      e.effectId === 'WX13-053-E1'
+        ? { ...e, action: { ...(e.action as object), maxUnits: undefined } as typeof e.action }
+        : e)));
+    const uncapped = calcFieldPowers(
+      { ...my, trash: beasts } as PlayerState, mkState({}), true, noCapMap, cardMap as Map<string, CardData>);
+    eq(uncapped.get('WX13-053'), base + 20000, '上限を外すと20枚ぶん＝旧挙動が再現する');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第52: WX21-066-E1 は実行経路でも上限が効く（until つき＝executor 側の読み手）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WX21-066') ?? []).find(e => e.effectId === 'WX21-066-E1');
+    ok(!!eff, 'WX21-066-E1 が live にある'); if (!eff) return;
+    const poison = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('毒牙')).slice(0, 15).map(c => c.CardNum);
+    ok(poison.length >= 15, `＜毒牙＞のシグニを15枚用意できる（実測 ${poison.length}）`);
+    const oppSigni = fresh();
+    const mk = (action: EffectAction) => {
+      const ctx = mkCtx({}, { signi: [oppSigni, null, null] }, 'WX21-066');
+      ctx.ownerState = { ...ctx.ownerState, trash: [...poison] };
+      return run(action, ctx);
+    };
+    const r = mk(eff.action);
+    ok(r.done); if (!r.done) return;
+    eq((r.otherState.temp_power_mods ?? []).find(m => m.cardNum === oppSigni)?.delta, -10000,
+      '15枚あっても上限10枚ぶん（－10000）で止まる');
+    // 反転＝上限を外すと15枚ぶん（－15000）。
+    const noCap = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    delete (noCap as unknown as { maxUnits?: number }).maxUnits;
+    const r2 = mk(noCap);
+    ok(r2.done); if (!r2.done) return;
+    eq((r2.otherState.temp_power_mods ?? []).find(m => m.cardNum === oppSigni)?.delta, -15000,
+      '上限を外すと15枚ぶん＝旧挙動');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第52: WXDi-P16-047-E2 は「対戦相手の」リミットを減らす（旧 STUB は自分のを恒久で減らしていた）', () => {
+  const eff = (effectsMap.get('WXDi-P16-047') ?? []).find(e => e.effectId === 'WXDi-P16-047-E2');
+  ok(!!eff, 'WXDi-P16-047-E2 が live にある'); if (!eff) return;
+  const json = JSON.stringify(eff.action);
+  ok(!json.includes('"id":"LRIG_LIMIT_MODIFY"'), '受け皿 STUB ではなく typed アクションになっている');
+  const seq = eff.action as { steps?: { type: string; then?: { type: string; owner?: string; delta?: number; until?: string } }[] };
+  const mod = (seq.steps ?? []).map(st => st.then).find(t => t?.type === 'LRIG_LIMIT_MODIFY');
+  ok(!!mod, 'typed LRIG_LIMIT_MODIFY がある'); if (!mod) return;
+  eq(mod.owner, 'opponent', '原文「**対戦相手の**センタールリグのリミットを－１する」');
+  eq(mod.delta, -1, '－1');
+  eq(mod.until, 'NEXT_TURN', '「次の対戦相手のメインフェイズ終了時まで」＝恒久ではない');
+});
+
+test('§5.3 O-60 第52: エナしきい値は2ハンドラで別々の値が届く（旧は既定 5 と 3 で食い違っていた）', () => {
+  const a = (effectsMap.get('WXEX1-07') ?? []).find(e => e.effectId === 'WXEX1-07-E1');
+  const b = (effectsMap.get('WXDi-P16-064') ?? []).find(e => e.effectId === 'WXDi-P16-064-E1');
+  ok(!!a && !!b, '2効果とも live にある'); if (!a || !b) return;
+  const pick = (act: unknown, id: string): Record<string, unknown> | null => {
+    let found: Record<string, unknown> | null = null;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === id) found = rec;
+      Object.values(rec).forEach(visit);
+    };
+    visit(act);
+    return found;
+  };
+  eq((pick(a.action, 'OPP_ENERGY_EXCESS_TRASH') as { oppEnergyThreshold?: number } | null)?.oppEnergyThreshold, 5,
+    'WXEX1-07 原文「エナゾーンにカードが５枚以上」');
+  eq((pick(b.action, 'CONDITIONAL_TRASH_UNDER_SIGNI') as { oppEnergyThreshold?: number } | null)?.oppEnergyThreshold, 2,
+    'WXDi-P16-064 原文「エナゾーンにカードが２枚以上」（旧既定 3 では発火しない盤面がある）');
+});
+
+test('§5.3 O-60 第52: WXEX1-07-E1 は相手エナがしきい値未満なら発火しない（payload が実際に読まれている）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXEX1-07') ?? []).find(e => e.effectId === 'WXEX1-07-E1');
+    ok(!!eff, 'WXEX1-07-E1 が live にある'); if (!eff) return;
+    const under = run(eff.action, mkCtx({}, { energy: 4 }, 'WXEX1-07'));
+    ok(under.done, 'エナ4枚では対話を出さずに終わる'); if (!under.done) return;
+    eq(under.otherState.energy.length, 4, '4枚のまま（しきい値5未満）');
+    const over = run(eff.action, mkCtx({}, { energy: 5 }, 'WXEX1-07'));
+    ok(over.done); if (!over.done) return;
+    eq(over.otherState.energy.length, 4, 'エナ5枚なら1枚トラッシュへ');
+    // 反転＝payload を落とすと何もしない（fail-closed）。
+    const stripped = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    delete (stripped as unknown as { oppEnergyThreshold?: number }).oppEnergyThreshold;
+    const r2 = run(stripped, mkCtx({}, { energy: 5 }, 'WXEX1-07'));
+    ok(r2.done); if (!r2.done) return;
+    eq(r2.otherState.energy.length, 5, 'payload なしでは1枚も落ちない（fail-closed）');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第52: WXK01-004-E3 のルリグ連続アタック回数は payload から読む', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXK01-004') ?? []).find(e => e.effectId === 'WXK01-004-E3');
+    ok(!!eff, 'WXK01-004-E3 が live にある'); if (!eff) return;
+    const r = run(eff.action, mkCtx({}, {}, 'WXK01-004'));
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.lrig_attack_remaining, 2, '原文「ダメージを３回与える」＝残り2回');
+    // 反転＝payload を変えると回数が変わる（既定 3 の焼き込みではない）。
+    const five = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    (five as unknown as { lrigAttackTimes: number }).lrigAttackTimes = 5;
+    const r2 = run(five, mkCtx({}, {}, 'WXK01-004'));
+    ok(r2.done); if (!r2.done) return;
+    eq(r2.ownerState.lrig_attack_remaining, 4, 'payload の回数がそのまま効く');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第52: VIEW_AND_DISCARD_SPELL の costMax は「原文に無い」と「N以下」を区別する', () => {
+  const withCost = (effectsMap.get('WX14-038') ?? []).find(e => e.effectId === 'WX14-038-E1');
+  const noCost = (effectsMap.get('WXDi-P16-050') ?? []).find(e => e.effectId === 'WXDi-P16-050-E2');
+  ok(!!withCost && !!noCost, '2効果とも live にある'); if (!withCost || !noCost) return;
+  const spec = (act: unknown): { costMax?: number; count: number } | undefined => {
+    let f: { costMax?: number; count: number } | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'STUB' && rec.id === 'VIEW_AND_DISCARD_SPELL') f = rec.viewDiscardSpell as typeof f;
+      Object.values(rec).forEach(visit);
+    };
+    visit(act);
+    return f;
+  };
+  eq(spec(withCost.action)?.costMax, 1, 'WX14-038 原文「コストの合計が１以下のスペル」');
+  eq(spec(withCost.action)?.count, 1, '1枚');
+  eq(spec(noCost.action)?.costMax, undefined, 'WXDi-P16-050 は原文にコスト条件が無い＝キーを載せない');
+  eq(spec(noCost.action)?.count, 1, '1枚');
+});
+
+test('§5.3 O-60 第52: 撤去した2 id は engine のディスパッチにも残っていない（無言 no-op の逆流を防ぐ）', () => {
+  // 🔑`EFFECT_LIMIT` / `LRIG_LIMIT_MODIFY` の**STUB ハンドラ**を消したので、万一 parser が作っても
+  //   engine は `[STUB未実装]` を明示する（無言で握り潰さない）。ここでは live 0 と併せて
+  //   「作られていない」ことをもう一段押さえる＝parser の全出力を走査する。
+  let made = 0;
+  for (const [cardNum] of cardMap) {
+    const effs = effectsMap.get(cardNum);
+    if (!effs) continue;
+    for (const e of effs) {
+      const js = JSON.stringify(e.action);
+      if (js.includes('"id":"EFFECT_LIMIT"') || js.includes('"id":"LRIG_LIMIT_MODIFY"')) made++;
+    }
+  }
+  eq(made, 0, '撤去した受け皿 STUB は live に0件');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

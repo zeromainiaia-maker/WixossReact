@@ -2512,12 +2512,14 @@ export function execStubPart1(
     return needsInteraction(addLog(ctx, '手札から有色カードをエナゾーンに置いてもよい'), pendingHNE);
   }
   // 対戦相手のエナゾーンが閾値以上の場合、1枚トラッシュに
+  // 🆕**しきい値は payload（`oppEnergyThreshold`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）へ `/エナゾーンにカードが(\d+)枚以上/` を当てており、
+  //   同じ文を読む `CONDITIONAL_TRASH_UNDER_SIGNI` と**既定値が 5 と 3 で食い違っていた**
+  //   （＝どちらが正しいのか JSON からは決して分からない形）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝既定値へ倒すと原文と無関係なしきい値で発火する。
   if (stub.id === 'OPP_ENERGY_EXCESS_TRASH') {
-    const srcOEE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOEE = srcOEE ? (srcOEE.EffectText ?? '') + ' ' + (srcOEE.BurstText ?? '') : '';
-    const toHWOEE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const threshMOEE = txtOEE.match(/エナゾーンにカードが([０-９\d]+)枚以上/);
-    const threshOEE = threshMOEE ? parseInt(toHWOEE(threshMOEE[1])) : 5;
+    const threshOEE = stub.oppEnergyThreshold;
+    if (threshOEE === undefined) return done(addLog(ctx, '[OPP_ENERGY_EXCESS_TRASH: しきい値なし（未指定）]'));
     if (ctx.otherState.energy.length < threshOEE) {
       return done(addLog(ctx, `相手エナ${ctx.otherState.energy.length}枚（${threshOEE}枚未満、スキップ）`));
     }
@@ -2601,23 +2603,23 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwnerHTE }, `${names || 'なし'}をエナゾーンへ`));
   }
   // 相手の手札を見てスペルを捨てさせる
+  // 🆕**コスト上限と枚数は payload（`viewDiscardSpell`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は **カード全文**へ2本の regex を当てており、`WXDi-P16-050` は【自】の
+  //   「手札からスペルを１枚捨て」を `/スペル(\d+)枚/` で拾いうる位置にあった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。`costMax` 省略＝上限なし（原文にコスト条件が無い）。
   if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
-    const srcVDS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtVDS = srcVDS ? (srcVDS.EffectText ?? '') + ' ' + (srcVDS.BurstText ?? '') : '';
-    const toHWVDS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // コスト合計N以下のスペル
-    const costLimitM = txtVDS.match(/コストの合計が([０-９\d]+)以下のスペル/);
-    const costLimit = costLimitM ? parseInt(toHWVDS(costLimitM[1])) : 99;
+    const specVDS = stub.viewDiscardSpell;
+    if (!specVDS) return done(addLog(ctx, '[VIEW_AND_DISCARD_SPELL: 条件なし（未指定）]'));
+    const costLimit = specVDS.costMax;
     const spellCands = ctx.otherState.hand.filter(cn => {
       const c = ctx.cardMap.get(cn);
       if (c?.Type !== 'スペル') return false;
-      const cost = c.Cost ?? '';
-      const colorCount = (cost.match(/[赤青緑黒白無]/g) ?? []).length;
+      if (costLimit === undefined) return true;
+      const colorCount = ((c.Cost ?? '').match(/[赤青緑黒白無]/g) ?? []).length;
       return colorCount <= costLimit;
     });
     if (spellCands.length === 0) return done(addLog(ctx, '相手手札に対象スペルなし'));
-    const maxM2 = txtVDS.match(/スペル([０-９\d]+)枚/);
-    const maxVDS = maxM2 ? parseInt(toHWVDS(maxM2[1])) : 1;
+    const maxVDS = specVDS.count;
     const discardVDS: TrashAction = {
       type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
     };
@@ -2665,12 +2667,13 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: newOther }, `${namesOTT}を相手デッキトップへ`));
   }
   // 相手の手札をデッキトップに置く
+  // 🆕**枚数は payload（`oppHandToDeckCount`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は **カード全文**へ `/手札を(\d+)枚/` を当てていた＝同じカードの**別の能力**の
+  //   「手札を◯枚捨てる」等を先に掴みうる（`WXK06-028` は【起】にも手札の枚数表記がある）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'OPP_HAND_TO_DECK_TOP') {
-    const srcHDT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtHDT = srcHDT ? (srcHDT.EffectText ?? '') + ' ' + (srcHDT.BurstText ?? '') : '';
-    const toHWHDT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const maxMHDT = txtHDT.match(/手札を([０-９\d]+)枚/);
-    const maxHDT = maxMHDT ? parseInt(toHWHDT(maxMHDT[1])) : 1;
+    const maxHDT = stub.oppHandToDeckCount;
+    if (maxHDT === undefined) return done(addLog(ctx, '[OPP_HAND_TO_DECK_TOP: 枚数なし（未指定）]'));
     if (ctx.otherState.hand.length === 0) return done(addLog(ctx, '相手手札なし'));
     const noopHDT: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contHDT: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_HAND_TO_DECK_TOP' };
@@ -4726,12 +4729,13 @@ export function execStubPart1(
     return selectOrInteract(pickRCS.cands, pickRCS.count, pickRCS.optional, 'self_hand', markRevealRCS as EffectAction, undefined, ctx);
   }
   // 対戦相手が自分のシグニを選んでエナに置く
+  // 🆕**パワー下限は payload（`oppSigniPowerMin`）**（§5.3 `O-60` 第52バッチ・2026-09-03）。
+  // 🔴旧実装は **カード全文**へ `/パワー(\d+)以上のシグニ/` を当てていた＝`WXDi-P12-051` は
+  //   【常】にも「パワーは＋3000」「【シャドウ（レベル３以上のシグニ）】」があり、別の能力の数字を掴みうる形。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定 0 へ倒すと**相手の全シグニ**が候補になる。
   if (stub.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {
-    const srcOCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOCS = srcOCS ? (srcOCS.EffectText ?? '') + ' ' + (srcOCS.BurstText ?? '') : '';
-    const toHWOCS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const powerLimitM = txtOCS.match(/パワー([０-９\d]+)以上のシグニ/);
-    const powerLimit = powerLimitM ? parseInt(toHWOCS(powerLimitM[1])) : 0;
+    const powerLimit = stub.oppSigniPowerMin;
+    if (powerLimit === undefined) return done(addLog(ctx, '[OPP_CHOOSE_OWN_SIGNI_TO_ENERGY: パワー下限なし（未指定）]'));
     const oppCands = ctx.otherState.field.signi
       .map(s => s?.at(-1))
       .filter((cn): cn is string => {

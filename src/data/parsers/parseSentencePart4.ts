@@ -2066,12 +2066,16 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
   // ---- 対戦相手のエナゾーンにカードがN枚以上ある場合、シグニの下から〜トラッシュに置いてもよい ----
-  if (t.match(/対戦相手のエナゾーンにカードが[１-９\d０-９]+枚以上ある場合.*シグニの下から.*トラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'CONDITIONAL_TRASH_UNDER_SIGNI' } as StubAction;
+  const ctusM = t.match(/対戦相手のエナゾーンにカードが([１-９\d０-９]+)枚以上ある場合[^。]*シグニの下から[^。]*トラッシュに置いてもよい/);
+  if (ctusM)
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝しきい値は payload（`OPP_ENERGY_EXCESS_TRASH` と共有）。
+    return { type: 'STUB', id: 'CONDITIONAL_TRASH_UNDER_SIGNI', oppEnergyThreshold: parseNum(ctusM[1]) } as StubAction;
 
   // ---- このターン終了時、《コインアイコン》を合計N枚以上支払っていなかった場合 ----
-  if (t.match(/このターン終了時.*《コインアイコン》を合計[１-９\d０-９]+枚以上支払っていなかった場合/))
-    return { type: 'STUB', id: 'COIN_SPEND_CONDITION' } as StubAction;
+  const cscM = t.match(/このターン終了時[^。]*《コインアイコン》を合計([１-９\d０-９]+)枚以上支払っていなかった場合/);
+  if (cscM)
+    // 🆕§5.3 `O-60` 第52バッチ（2026-09-03）＝しきい値は payload。
+    return { type: 'STUB', id: 'COIN_SPEND_CONDITION', coinSpentMin: parseNum(cscM[1]) } as StubAction;
 
   // ---- 対戦相手のレベルN以上のシグニをトラッシュに置く ----
   if (t.match(/対戦相手のレベル[０-９\d]+以上のシグニ.*体を対象とし.*トラッシュに置く/))
@@ -2224,8 +2228,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- すべてのプレイヤーはドローフェイズにN枚までしか引けない ----
-  if (t.match(/すべてのプレイヤーはドローフェイズの間にカードを合計[０-９\d]+枚までしか引けない/))
-    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
+  const lodc4aM = t.match(/すべてのプレイヤーはドローフェイズの間にカードを合計([０-９\d]+)枚までしか引けない/);
+  if (lodc4aM)
+    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT', drawLimit: parseNum(lodc4aM[1]) } as StubAction;
 
   // ---- 【マルチエナ】常時能力（このシグニ自身が持つキーワード。括弧の補足付きも許容） ----
   if (t.match(/^(?:【常】：)?【マルチエナ】(?:（[^）]*）)?。?$/))
@@ -2585,9 +2590,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/【常】能力の効果によって.*パワーは＋されない/))
     return { type: 'STUB', id: 'PREVENT_OPP_POWER_PLUS' } as StubAction;
 
-  // ---- リミット－N ----
-  if (t.match(/センタールリグのリミットを[－＋][１-９]/))
-    return { type: 'STUB', id: 'LRIG_LIMIT_MODIFY' } as StubAction;
+  // 🗑**「リミットを±N する」の受け皿 STUB は撤去した**（§5.3 `O-60` 第52バッチ・2026-09-03）＝
+  //   typed `LRIG_LIMIT_MODIFY`（`parseSentencePart2` の「センタールリグのリミット〜」）が
+  //   **この綴りも読むようになった**ので、ここへは落ちてこない。engine のハンドラも撤去済み。
 
   // ---- シグニの下に置く（クラス条件） ----
   if (t.match(/のシグニ.*の下に置く(?:てもよい)?$/) && !t.match(/センタールリグの下/))
@@ -2760,8 +2765,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEAL' } as StubAction;
 
   // ---- 次の対戦相手ドローフェイズのカード枚数制限 ----
-  if (t.match(/次の.*ドローフェイズの間にカードを合計[０-９\d]+枚までしか引けない/))
-    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
+  const lodc4bM = t.match(/次の[^。]*ドローフェイズの間にカードを合計([０-９\d]+)枚までしか引けない/);
+  if (lodc4bM)
+    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT', drawLimit: parseNum(lodc4bM[1]) } as StubAction;
 
   // ---- このシグニはレベル以外で同じカードになる ----
   if (t.match(/このシグニはレベル.*を除き.*同じカードになる/))

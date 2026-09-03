@@ -11,53 +11,58 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-03・`O-60` 第51バッチ・索引 A 第11巡・Opus 5 単独）＝「手札から〈条件〉のカード」family 8ハンドラを payload 化**
+- **セッション（2026-09-03・`O-60` 第52バッチ・索引 A 第12巡・Opus 5 単独）＝「原文から数値ひとつを読むだけ」family 12ハンドラ**
   📊**進捗3計器＝Sheet1 要対応 16 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  **この項目の計器は `census:enginetext` の A群**＝**59行 / 59ハンドラ → 51行 / 51ハンドラ**
-  （`BASELINE_SELF_TEXT` も 51 へ払い戻し／A群 live 効果 **114 → 98**／miss は 0 のまま）。
-  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続・新規登録0）
-  ｜**⑤実機 残 6件**（`V-131`／`V-132`／`V-133`〜`V-135`／🆕`V-136`＝**この巡で1件増えた**）。
-  gates 全緑（golden **3352 / 3352**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
-  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴51**・census-costtext A🔴0 据置・lint 0 errors）。
-  **ブラスト半径＝効果 変更16・追加0・削除0、予定外0。**
-  🖥**実機＝機械判定では不要**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
-  **`src/screens/` は1行も触っていない**・新しいアクション型／interaction 型は0）。
-  ⚠ただし **`WXDi-P15-067` は「無言 no-op」から「置き先を選ぶ CHOOSE が出る」へ変わる**ので
-  観測点を **`V-136`** に登録した（**未実施**）。**「機械判定で不要」でも、無から生えた対話は観測点にする。**
+  **この項目の計器は `census:enginetext` の A群**＝**51行 / 51ハンドラ → 39行 / 39ハンドラ**
+  （`BASELINE_SELF_TEXT` も 39 へ払い戻し／A群 live 効果 **98 → 77**／miss は 0 のまま）。
+  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**⑤実機 残 6件**（据置＝今回の追加は0）。
+  gates 全緑（golden **3362 / 3362**＝+10本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴39**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更21・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
 
-  🔴**実害2件（payload へ寄せて初めて見えた）**＝
-  ①**`WXDi-P15-067`（スペル）は原文2文目が丸ごと死んでいた**＝置き先が `PLACE_UNDER_SOURCE_SIGNI`＝
-  **効果元シグニの下**に固定で、効果元がスペルだと `zoneIdx === -1` で**無言終了**していた
-  （原文は「あなたの＜解放派＞のシグニ**１体の下に**」＝置き先を選ぶのが正しい）。
-  ②**`DISCARD_OR_PENALTY` は消費地点が2つあり、それぞれ別の regex でカード全文を読んでいた**＝
-  ラベルを作る側と実際に捨てさせる後段で綴りが違い、片方が外れると**ラベルと実挙動が食い違う**形だった。
+  🔴🔑**この巡で一番大きいのは「取る family を選び直したこと」。**
+  PLAN が第一候補にしていた **(a) モーダル選択（①②③④）**は、**受け皿（`CHOOSE` の選択数上書き7本）も
+  parser の typed 出力も既に揃っていて、8枚とも `_held_fresh` で採用待ち**だった。
+  ⚠**それでも単純採用は退行になる**＝engine 側の `choiceTextParser.ts`（492行）が
+  **汎用 parser より賢い分岐を20個ほど持っている**（`levelLteFieldVirusCount` ／ honest defer の
+  `INTERNAL_NOOP` ／ `ENERGY_TRASHED_BY_OPP` 条件 ／ `powerLtLastProcessed` …）。
+  逆に fresh の方が良い option もあり、**option 単位で優劣が入り混じっている**。
+  ⇒ **多バッチ項目として登録票へ記録し、今回は実際に払う family へ切り替えた。**
+  🔑**教訓＝「受け皿が在る」だけでは取れる根拠にならない。「engine 側に parser より賢い分岐が無いか」まで見る。**
 
-  🔑**この巡の一般則**＝**`miss=0` は「壊れていない」ではない、の3例目。**
-  `WXDi-P15-067` は **regex が当たったうえで**置き先の解決に失敗して no-op だった＝
-  **miss は「原文に当たるか」しか測っていない**（第49・50バッチと同じ結論を別の壊れ方で踏んだ）。
-  🔑**逆翻訳も payload から描き直す**＝この family の逆翻訳は engine と**同じ全文 regex** を持っており、
-  **engine の取り違えをそのまま復唱**していた（＝原文照合という主軸の検査が構造的に効かない）。
-  🔑**用法トリップワイヤを新 payload にも張った**＝「`handCardPick` が付くのは family の6 id だけ」。
+  🔴**実害3件**＝
+  ①**`EFFECT_LIMIT` は【常】経路で1ビットも効いていなかった**＝旧実装は `temp_power_mods` をキャップするが
+  **`effectEngine` の CONTINUOUS 計算はそこを通らない**（`WX13-053` はトラッシュ20枚で原文＋10000のところ**＋20000**）。
+  ⇒ `POWER_MODIFY_PER_TRASH_COUNT.maxUnits` を **2経路**へ配線（単価1000の焼き込みも消えた）。
+  ②**`LRIG_LIMIT_MODIFY` の STUB は「向き」も「寿命」も持っていなかった**＝原文「**対戦相手の**リミットを－１
+  （次の相手メインフェイズ終了時まで）」を**常に自分のリミットを恒久で**減らしていた。**受け皿は最初から
+  typed `LrigLimitModifyAction` で、parser の綴りが1本足りないだけだった**（第50バッチ②の再現）。
+  ③**同じ文を読む2ハンドラで既定値が 5 と 3 に食い違っていた**（実測は 5 と **2**＝後者は過少実行）。
 
-**▶ 次の一手**＝**`O-60` の続き（第52バッチ〜）＝引き続き「家族」で束ねて取る。**
-🔑**残 51ハンドラ・live 98効果**（A🔴 51行）。⚠**miss=0 は「正しい」ではない**（第49・51バッチで実証済み）。
-**次に束ねられる家族**＝(a)**モーダル選択（①②③④）**＝`BET_MECHANIC`(live8)／
-`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／
-`CHOOSE_N_FROM_LIST`(1)／`CHOOSE_SAME_OPTION_TWICE`(0)＋`INTERNAL_ECRV_APPLY`
-＝**6ハンドラ / live 17効果**。🔴**共通の受け皿は `engine/choiceTextParser.ts`（約500行）＝
-「①②③④の中身を実行時に再パースする」**ので、payload 化には **parser 側で選択肢を構造化する**（＝典型的な
-新機構）。**取る前に「typed な `CHOOSE{choices[]}` が既にあるか」を必ず先に測る**（live には既に
-`CHOOSE{choices[{choiceId,label,action}]}` が大量にある＝**受け皿は在る可能性が高い**）。
-(b)**引用文の実行時再パース**＝`GRANT_ABILITY_INNER_TEXT`(live14)＋`SONG_FRAGMENT`(11)
-＝**lit0 でこの項目で一番重い**（`O-128` 家系の「引用能力の構造化」が要る）。
-(c)**ゾーン移動・公開**＝`ADD_CARD_TO_LRIG_DECK`(6)／`PLACE_TRAP_FROM_REVEALED`(4)／
-`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`(3) ほか。
-🔑**着手手順は第50・51バッチと同じ**＝①`npx tsx scripts/censusEngineText.ts --id A,B,C,…`（カンマ区切りで**1起動**）
-②live JSON を全件ダンプして**payload の有無**を見る ③**受け皿が既に在るか**を typed な兄弟から探す
-④**入口の id 集合**を疑う ⑤**生成側は文型ルールとは限らない**（`effectParser.ts` のカード別 override が
-STUB を作っている場合がある＝文型だけ直しても届かない） ⑥反転は**消費側**を壊して盤面の数で取る。
-🖥**実機の残は6件**（`V-131`／`V-132`／`V-133`〜`V-135`／`V-136`）。
+  🧹**計器の較正**＝STUB を2つ解体したので census 高シグナルが 3→6 に増えた（STUB 免除が外れた分）。
+  **新キー `maxUnits` を `vocabCensus.ts` のキー表へ足して 3 へ戻した**＝**退化ではなく可視化**。
+  ⚠`maxCount` とは別キーで部分文字列にもならない＝**キー表に足さないと必ず昇格する**。
+
+**▶ 次の一手**＝**`O-60` の続き（第53バッチ〜）。残 39ハンドラ・live 77効果（A🔴 39行）。**
+⚠**miss=0 は「正しい」ではない**（第49・51バッチで実証済み）。
+**次に束ねられる家族**＝
+(a)**ゾーン移動・公開**＝`ADD_CARD_TO_LRIG_DECK|…_HIDDEN`(live6)／`PLACE_TRAP_FROM_REVEALED`(4)／
+`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`(3)／`CRASH_LIFE_TO_HAND`(2)／`TRASH_CLASS_TO_HAND_OR_ENERGY`(1)
+＝**5ハンドラ / live 16効果**。**第52バッチと同じレシピ（filter＋枚数を payload へ）で取れる見込み**。
+(b)**属性の書き換え**＝`CHANGE_SIGNI_COLOR`(1)／`GRANT_SIGNI_CLASS`(1)／`CHANGE_EICHI_SIGNI_BASE_LEVEL`(1)／
+`DECK_SIGNI_LEVEL_OVERRIDE`(1)／`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`(1)＝**5ハンドラ / live 5効果**（色・クラス・レベル）。
+(c)🔴**モーダル選択（①②③④）**＝`BET_MECHANIC`(8)／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`(4)／
+`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`(4)／`CHOOSE_N_FROM_LIST`(1)／`EXTRA_COST_REMOVE_VIRUS`(2)／
+`CONDITIONAL_ALTERNATE_EFFECT`(1)＝**6ハンドラ / live 20効果**。**受け皿は完備・fresh も採用待ちだが、
+`choiceTextParser.ts` の20分岐を parser 側へ移すまで採用してはいけない**（詳細は PLAN_DETAIL の登録票）。
+(d)**引用文の実行時再パース**＝`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＝`O-128` 家系。
+🔑**着手手順は第50〜52バッチと同じ**＝①`censusEngineText.ts --id A,B,C,…`（カンマ区切りで**1起動**）
+②live JSON を全件ダンプして payload の有無を見る ③**typed で解けている兄弟**から受け皿を探す
+④**入口の id 集合**と**parser の綴り**を疑う ⑤**生成側は文型ルールとは限らない**（`effectParser.ts` のカード別
+override／効果単位の後処理がある） ⑥**engine 側に parser より賢い分岐が無いかを必ず見る**（第52バッチの新教訓）
+⑦反転は**消費側**を壊して盤面の数で取る ⑧**STUB を解体したら census のキー表を較正する**。
 
 ---
 
@@ -802,7 +807,7 @@ STUB を作っている場合がある＝文型だけ直しても届かない）
 #### 索引 A. 母集団2桁（**ここから取る**・遅いレーン）
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-60` | **51ハンドラ / live 98効果**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>**A🔴 51行 / 51ハンドラ・miss 0**。**第51バッチまで消化済み**<br>🔑**取る単位は「家族」**＝第50はパワー修正15ハンドラで**-17行**、第51は手札 family 8ハンドラで**-8行**（第49は1ハンドラ -1行）。固定費はバッチ回数に比例する<br>🔑**miss=0 は「正しい」ではない**＝第51バッチで**3例目**が出た（`WXDi-P15-067` は**regex が当たったうえで**置き先の解決に失敗して恒久 no-op だった＝miss は「原文に当たるか」しか測らない）<br>🔑**次の家族**＝(a)**モーダル選択（①②③④）6ハンドラ / live17**（受け皿は `choiceTextParser.ts` 約500行＝**parser 側で選択肢を構造化する**新機構。⚠着手前に typed な `CHOOSE{choices[]}` が既に在るかを測る）／(b)`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＝**lit0 で一番重い**（`O-128` 家系）／(c)ゾーン移動・公開＝`ADD_CARD_TO_LRIG_DECK`(6)／`PLACE_TRAP_FROM_REVEALED`(4) ほか<br>⚠**生成側は文型ルールとは限らない**＝`effectParser.ts` のカード別 override が STUB を作っている場合があり、文型だけ直しても live に届かない（第51バッチで2件） |
+| `O-60` | **39ハンドラ / live 77効果**<br>🆕2026-09-03 実測 | engine が「カード全文 regex」で意味を決める箇所が系統として残っている<br>**A🔴 39行 / 39ハンドラ・miss 0**。**第52バッチまで消化済み**<br>🔑**取る単位は「家族」**＝第50はパワー修正15ハンドラ（-17行）、第51は手札 family 8ハンドラ（-8行）、第52はスカラー family 12ハンドラ（**-12行**）。固定費はバッチ回数に比例する<br>🔑**miss=0 は「正しい」ではない**（第49・51バッチで実証）<br>🔴🆕**「受け皿が在る」は着手根拠にならない**＝第52バッチで**モーダル選択 family は受け皿も fresh も揃っていたのに着手を見送った**（`src/engine/choiceTextParser.ts` 492行が汎用 parser より賢い分岐を約20持ち、単純採用は過剰実行への退行になる）。**engine 側に parser より賢い分岐が無いかまで見る**<br>🔑**次の家族**＝(a)ゾーン移動・公開 5ハンドラ/live16（第52と同じレシピ）／(b)属性の書き換え 5ハンドラ/live5／(c)モーダル選択 6ハンドラ/live20（**多バッチ項目**・PLAN_DETAIL の登録票を読む）／(d)`GRANT_ABILITY_INNER_TEXT`(14)＋`SONG_FRAGMENT`(11)＝`O-128` 家系<br>⚠**STUB を解体したら `vocabCensus.ts` のキー表を較正する**（第52バッチで census 3→6 に昇格＝退化ではなく可視化） |
 | `O-193` | **25効果** | `census:wiring` の has=0 語彙が未配線＝`isDrive` 14／`powerLteSelf` 9／`levelLtSelf` 2 |
 | `O-198` | **23効果** | `LOOK_PICK_CHAIN` が「ちょうどN枚」を表現できない＝`pickCount` が上限としてしか渡らず0枚を選べる（過小実行）<br>⚠census では原理的に検出できない |
 | `O-192` | **19効果** | `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` がアシストルリグを数え落とす（`matchesFilter` の cardType が厳密一致）<br>続き385 実測 |
@@ -1187,36 +1192,32 @@ STUB を作っている場合がある＝文型だけ直しても届かない）
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-03（`O-60` 第51バッチ・索引 A 第11巡）＝「手札から〈条件〉のカード」family 8ハンドラを payload 化（Opus 5 単独／本ブロックが直近の正）**
+- **2026-09-03（`O-60` 第52バッチ・索引 A 第12巡）＝「原文から数値ひとつを読むだけ」family 12ハンドラ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 3 / BASELINE 3**（据置）
   ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
-  この項目の計器は **`census:enginetext` の A群**＝**59行 / 59ハンドラ → 51行 / 51ハンドラ**
-  （A群 live 効果 **114 → 98**・miss は 0 のまま）。
-  📦**在庫2本**＝**機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**実機 残 6件**
-  （`V-131`／`V-132`／`V-133`〜`V-135`／🆕`V-136`＝**この巡で1件増えた**＝新しく対話が生えたカードの観測点）
-  🔧**ゲート（全緑 ✅）**＝golden **3352 / 3352**（3345→3352＝第51バッチの契約2本＋実挙動5本）／
+  この項目の計器は **`census:enginetext` の A群**＝**51行 / 51ハンドラ → 39行 / 39ハンドラ**
+  （A群 live 効果 **98 → 77**・miss は 0 のまま）。
+  📦**在庫2本**＝**機構 worklist 25項目**（`O-60` は継続・新規登録0）｜**実機 残 6件**（据置＝今回の追加0）
+  🔧**ゲート（全緑 ✅）**＝golden **3362 / 3362**（3352→3362＝ラチェット3本＋実挙動7本）／
   smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 **51行**（`BASELINE_SELF_TEXT` も 51）／`census:costtext` A🔴 **0規則**（据置）／
+  `census:enginetext` A🔴 **39行**（`BASELINE_SELF_TEXT` も 39）／`census:costtext` A🔴 **0規則**（据置）／
   lint 0 errors／`npm run regen` 完走。
-  🖥**実機＝機械判定では不要（§2.2）**＝`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ。
-  **`src/screens/` は1行も触っていない。** 新しいアクション型／interaction 型は**0**（足したのは
-  `StubAction` の payload 4本と `PlaceUnderSourceSigniAction.hostCardNum` だけ）。
-  ⚠**それでも `V-136` を登録した**＝`WXDi-P15-067` は「無言 no-op」から「置き先を選ぶ CHOOSE が出る」へ変わる。
-  **機械判定で不要でも、無から生えた対話は観測点にする。**
-  🔴**実害2件**＝①`WXDi-P15-067`（スペル）は**原文2文目が丸ごと死んでいた**（置き先が「効果元シグニの下」に
-  固定で、効果元が場に無く `zoneIdx === -1` で無言終了）②`DISCARD_OR_PENALTY` は**消費地点が2つあり
-  それぞれ別の regex でカード全文を読んで**おり、ラベルと実挙動が食い違いうる形だった。
-  🔑**一般則（この巡で足したもの）＝`miss=0` は「壊れていない」ではない、の3例目。**
-  `WXDi-P15-067` は **regex が当たったうえで**帰結の解決に失敗していた＝
-  **miss は「原文に当たるか」しか測っていない。**
-  🔑**逆翻訳も payload から描き直す**＝この family の逆翻訳は engine と**同じ全文 regex** を持っており、
-  **engine の取り違えをそのまま復唱**していた（＝原文照合という主軸の検査が構造的に効かない）。
-  🔑**新しい payload には用法トリップワイヤを張る**（第50バッチ④の再適用）＝
-  「`handCardPick` が付くのは family の6 id だけ」を golden で assert。
-  ⚠**生成側は文型ルールとは限らない**＝`effectParser.ts` のカード別 override が STUB を作っている2件は
-  文型ルールを直しても live に届かず、**live をダンプして初めて分かった**。
-  ✅**ブラスト半径＝効果 変更16・追加0・削除0、予定外0**。
+  🖥**実機＝不要と判定（§2.2）**＝`src/screens/` は1行も触っておらず、新しいアクション型／interaction 型／対話も0。
+  🔴🔑**この巡の一般則＝「受け皿が在る」だけでは着手根拠にならない。**
+  PLAN が第一候補にしていた**モーダル選択 family** は、受け皿（`CHOOSE` の選択数上書き7本）も
+  parser の typed 出力も揃い、**8枚とも `_held_fresh` で採用待ち**だったが、
+  engine の `choiceTextParser.ts`（492行）が**汎用 parser より賢い分岐を約20**持っており
+  **単純採用は過剰実行への退行**になる。⇒ **多バッチ項目として登録し、払う family へ切り替えた。**
+  🔴**実害3件**＝①`EFFECT_LIMIT` は**【常】経路で1ビットも効いていなかった**（`temp_power_mods` を
+  キャップする実装だが CONTINUOUS 計算はそこを通らない＝`WX13-053` は＋10000のところ＋20000）
+  ②`LRIG_LIMIT_MODIFY` の STUB は**向きも寿命も持たず**「対戦相手のリミットを－1（次の相手メインまで）」を
+  **自分のリミットを恒久で**減らしていた（**受け皿は最初から typed／parser の綴りが1本足りないだけ**）
+  ③**同じ文を読む2ハンドラで既定値が 5 と 3 に食い違っていた**（実測 5 と 2＝後者は過少実行）。
+  🧹**計器の較正**＝STUB を2つ解体したので census 高シグナルが 3→6 に増え、
+  **新キー `maxUnits` をキー表へ足して 3 へ戻した**＝**退化ではなく可視化**。
+  ⚠`maxCount` とは別キーで部分文字列にもならない＝**足さないと必ず昇格する**。
+  ✅**ブラスト半径＝効果 変更21・追加0・削除0、予定外0**。
 
 ## 付録A. 全体像と Definition of Done
 
