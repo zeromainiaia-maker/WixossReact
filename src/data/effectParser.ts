@@ -15448,6 +15448,34 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- ベットで**対象枚数**が増える型（§5.3 `O-60` 第61バッチ・2026-09-03・`WDK01-010-E1` 1枚）----
+  // ⚠**選択数（`betChoose`）ではなく対象枚数**なので下の CHOOSE 経路とは別物。
+  // 🔴旧 live は `SEQUENCE[TRANSFER_TO_HAND(3枚), STUB{BET_CONDITION}]` で、engine 側が
+  //   **カード全文から「A枚の代わりにB枚」を読み**、差分1枚を追加で選ばせていた。
+  //   その追加選択は **`trash` の「シグニ」全部が候補**＝原文の絞り込み
+  //   （センタールリグと共通する色／それぞれレベルが異なる）が**追加の1枚にだけ掛からない**過剰実行だった。
+  // 🔑**受け皿は既存の `CONDITIONAL{IS_BETTING}`**＝枚数を差し替えた本文を**もう一度解いて** then/else に置く
+  //   （絞り込みは本文側の規則がそのまま効くので、片方だけ緩むことがない）。
+  {
+    const betCountM = text.trim().match(
+      /^([\s\S]+?)。あなたがベットしていた場合[、,]([０-９\d]+)枚の代わりに([０-９\d]+)枚まで対象とし、それらを手札に加える。?$/);
+    if (betCountM) {
+      const baseText = betCountM[1] + '。';
+      const boosted = baseText.replace(`${betCountM[2]}枚まで対象とし`, `${betCountM[3]}枚まで対象とし`);
+      if (boosted !== baseText) {
+        const baseAction = parseActionText(baseText);
+        const betAction = parseActionText(boosted);
+        const clean = (a: EffectAction) => !JSON.stringify(a).includes('"UNKNOWN"');
+        if (clean(baseAction) && clean(betAction)) {
+          return {
+            type: 'CONDITIONAL', condition: { type: 'IS_BETTING' },
+            then: betAction, else: baseAction,
+          } as EffectAction;
+        }
+      }
+    }
+  }
+
   // ---- ベット選択数変更型（最優先）----
   // 「以下のN個からMつ(まで)選ぶ。あなたがベットしていた場合、代わりにKつ(まで)選ぶ。①…②…」
   // → CHOOSE(choose_count=M) に betChoose(thenChooseCount=K) を付与（ベット宣言で選択数が増える）。
@@ -15508,7 +15536,10 @@ function parseActionTextInner(text: string): EffectAction {
       //   直前の `STUB{OPTIONAL_COST}` が「支払う／スキップ」を提示し、支払ったらこのフラグが立つ。
       // 🔴これが無かったため `SP26-005`／`SP38-004`／`WXDi-P15-002`／`WD23-044-EA` は
       //   **engine がカード全文を regex で読む受け皿 STUB**へ落ちていた。
-      const altCostM = altCond ? null : condText.match(/^追加で(?:.+)を?(?:支払っていた|捨てていた)場合$/);
+      // 🆕**「この〈カード種〉を使用する際に〈コスト〉を置いていた場合」も同型**
+      //   （§5.3 `O-60` 第61バッチ・2026-09-03・`WX26-CP1-024-E1`）＝原文は「追加で」と書かないことがある。
+      const altCostM = altCond ? null : condText.match(
+        /^(?:追加で|この(?:アーツ|スペル|ピース|カード)を使用する際に).+(?:支払っていた|捨てていた|置いていた)場合$/);
       const condItems = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
       if ((altCond || altCostM) && condItems.length >= 2) {
         const chooseNode = {
@@ -16380,7 +16411,10 @@ function parseActionTextInner(text: string): EffectAction {
    */
   const parseChooseHeaderCount = (src: string):
     { count: number; upTo: boolean; countChoose?: ChooseAction['countChoose'] } | null => {
-    const fixed = src.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
+    // 🆕**「以下**から**Nつから」の綴りも受ける**（§5.3 `O-60` 第61バッチ・2026-09-03・`WX13-003` 1枚）＝
+    //   原文の綴りゆれ（「以下**の**4つから」ではなく「以下**から**4つから」）。
+    //   ⚠**選択肢を任意化して緩めない**＝`以下から` の枝を1本足すだけにする。
+    const fixed = src.match(/以下(?:の[０-９\d２-９]+つ|から[０-９\d２-９]+つ)から(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     if (fixed) return { count: parseNum(fixed[1]), upTo: !!fixed[2] };
     // 「この【起】能力で**まだ選ばれていない**１つを選ぶ」（`PR-469`）＝既存の「まだ選んでいないもの」と同義。
     // ⚠**選択履歴（使用済み選択肢の除外）は未実装**＝毎回すべての選択肢から選べる近似のまま
@@ -16490,7 +16524,7 @@ function parseActionTextInner(text: string): EffectAction {
     // 🆕ヘッダの解析は `parseChooseHeaderCount` に集約（§6.4 O-11・続き533）＝
     //   「この【起】能力でまだ選ばれていない１つを選ぶ」（`PR-469`）のような綴りの違いを
     //   **ここの regex を増やさずに**受けられるようにする。
-    const headSrcM = text.trim().match(/^(以下の[０-９\d２-９]+つから[^。]*?選ぶ)。/);
+    const headSrcM = text.trim().match(/^(以下(?:の[０-９\d２-９]+つ|から[０-９\d２-９]+つ)から[^。]*?選ぶ)。/);
     const headParsed = headSrcM ? parseChooseHeaderCount(headSrcM[1]) : null;
     const headM = headParsed ? ([headSrcM![0], String(headParsed.count), headParsed.upTo ? 'まで' : undefined] as unknown as RegExpMatchArray) : null;
     if (headM && headParsed && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
@@ -16517,12 +16551,32 @@ function parseActionTextInner(text: string): EffectAction {
         return { type: 'STUB', id: gcaId,
           ...(gcaSpec ? { chosenAbility: gcaSpec } : {}) } as unknown as EffectAction;
       }
+      // 🆕**見出しと①の間に挟まる「コスト宣言」を落とさない**（§5.3 `O-60` 第61バッチ・2026-09-03）＝
+      //   `WX13-003`「以下から４つから４つまで選ぶ。**選んだ数が３つ以上の場合、このアーツの使用コストは…増える。**①…」。
+      // ⚠**コスト宣言マーカーに限定する**（`ARTS_COST_REDUCTION_BY_*`）＝ここで一般の後続文まで拾うと
+      //   「選ばなくても必ず走る二重実行」（§6.4 O-4／O-33）を作り直してしまう。
+      //   マーカー自身は engine では no-op（コストは支払い時に `EffectCost.costScaling` から計算する）だが、
+      //   **落とすと「構造化できていないコスト文がある」痕跡ごと消える**＝計器から見えなくなる。
+      const midChoiceText = (() => {
+        const firstMark = text.search(/[①②③④⑤]/);
+        const headEnd = (headSrcM?.index ?? 0) + (headSrcM?.[0].length ?? 0);
+        return firstMark > headEnd ? text.slice(headEnd, firstMark).trim() : '';
+      })();
+      const midCostMarker = midChoiceText ? parseActionText(midChoiceText) : null;
+      const midCostSteps = midCostMarker && midCostMarker.type === 'STUB'
+        && (midCostMarker.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || midCostMarker.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG')
+        ? [midCostMarker as EffectAction] : [];
       const chosen = buildChoose(text, parseNum(headM[1]), !!headM[2]);
       // 🔴**`headParsed.countChoose` をここで捨てていた**（2026-08-31 続き757）＝この入口は
       //   `parseChooseHeaderCount` の count/upTo だけを読み、動的選択数を落としていたので
       //   「センタールリグのレベル１につき１つまで選ぶ」等が**常に1つ固定**へ潰れていた
       //   （`buildChooseFromHeader` 側には配線済み＝**同義の入口が2つあって片方だけ取り残されていた**型）。
-      if (chosen) return headParsed.countChoose ? { ...chosen, countChoose: headParsed.countChoose } : chosen;
+      if (chosen) {
+        const node = headParsed.countChoose ? { ...chosen, countChoose: headParsed.countChoose } : chosen;
+        return midCostSteps.length > 0
+          ? { type: 'SEQUENCE', steps: [node, ...midCostSteps] } as SequenceAction
+          : node;
+      }
     }
   }
 

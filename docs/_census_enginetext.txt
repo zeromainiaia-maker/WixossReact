@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
-A🔴 SELF_TEXT（効果元の全文で意味を決める）: 17行 / 16ハンドラ
+A🔴 SELF_TEXT（効果元の全文で意味を決める）: 13行 / 12ハンドラ
 B  OTHER_CARD（他カードの属性判定）      : 57行
 C  COMMENT                              : 90行
-合計 164行
+合計 160行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの
@@ -11,21 +11,17 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
 | GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1409 execStubPart1.ts:1622 | 15 | 15 | 5 | 0 |
-| ARTS_EXTRA_COST_CONDITION | execStubPart2.ts:3394 | 1 | 1 | 0 | 0 |
-| BET_CONDITION | execStubPart3.ts:2145 | 1 | 1 | 2 | 0 |
-| CHOOSE_N_FROM_LIST | execStubPart3.ts:2949 | 1 | 1 | 1 | 0 |
-| OPPONENT_PAY_OPTIONAL + ARTS_EXTRA_COST_CONDITION + OPTIONAL_TRASH_ENERGY_CLASS|OPTIONAL_ACTIVATE + OPTIONAL_COST | effectExecutor.ts:6026 | 1 | 0 | 1 | 0 |
-| CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:3056 | 0 | 0 | 8 | 0 |
+| CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:2996 | 0 | 0 | 8 | 0 |
 | CONDITIONAL_PER_TRASH | execStubPart2.ts:2132 | 0 | 0 | 1 | 0 |
 | CONDITIONAL_POWER_BONUS | execStubPart1.ts:1854 | 0 | 0 | 9 | 0 |
 | fn:analyzeBeatSigniCost | execUtils.ts:1423 | 0 | 0 | 2 | 0 |
 | fn:collectGrantedFromLayer | effectEngine.ts:7002 | 0 | 0 | 0 | 0 |
 | INTERNAL_ECRV_APPLY | execStubPart1.ts:2264 | 0 | 0 | 0 | 0 |
-| INTERNAL_MARK_REVEALED_NAMED | execStubPart3.ts:3157 | 0 | 0 | 0 | 0 |
+| INTERNAL_MARK_REVEALED_NAMED | execStubPart3.ts:3097 | 0 | 0 | 0 | 0 |
 | LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT | execStubPart2.ts:1178 | 0 | 0 | 0 | 0 |
 | OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3215 | 0 | 0 | 13 | 0 |
 | REVEAL_AND_PICK | execStubPart1.ts:3189 | 0 | 0 | 2 | 0 |
-| SUMMON_FROM_TRASH | execStubPart3.ts:2801 | 0 | 0 | 1 | 0 |
+| SUMMON_FROM_TRASH | execStubPart3.ts:2755 | 0 | 0 | 1 | 0 |
 
 ## A群 明細
 
@@ -38,24 +34,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:【(?:自|常|起)】
     lit re:次の(?:対戦相手|相手)の?ターン終了時まで
 
-### ARTS_EXTRA_COST_CONDITION  (live 1効果 / 1カード / miss 0)
-  execStubPart2.ts:3394  const txtAECC = srcAECC ? (srcAECC.EffectText ?? '') : '';
-
-### BET_CONDITION  (live 1効果 / 1カード / miss 0)
-  execStubPart3.ts:2145  const txtBET = sourceAbilityText(ctx);
-    lit re:あなたがベットしていた場合[^。]*さらに(?:カードを)?([１-９\d０-９]+)枚引く
-    lit re:([０-９\d]+)枚の代わりに([０-９\d]+)枚まで対象とし、それらを手札に加える
-
-### CHOOSE_N_FROM_LIST  (live 1効果 / 1カード / miss 0)
-  execStubPart3.ts:2949  const txtCNFL = srcCNFL ? (srcCNFL.EffectText ?? '') + ' ' + (srcCNFL.BurstText ?? '') : '';
-    lit re:([１-４1-4])つ(?:まで)?選ぶ
-
-### OPPONENT_PAY_OPTIONAL + ARTS_EXTRA_COST_CONDITION + OPTIONAL_TRASH_ENERGY_CLASS|OPTIONAL_ACTIVATE + OPTIONAL_COST  (live 1効果 / 0カード / miss 0)
-  effectExecutor.ts:6026  const txt5 = src5?.EffectText ?? '';
-    lit re:エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ
-
 ### CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:3056  const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
+  execStubPart3.ts:2996  const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
     lit re:あなたがベットしていた場合、代わりに([２-９\d])つ(?:まで)?選ぶ
     lit re:以下の.*?から([２-９\d])つまで選ぶ
     lit re:①.*手札に戻す
@@ -93,7 +73,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart1.ts:2264  const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
 
 ### INTERNAL_MARK_REVEALED_NAMED  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:3157  const nameMRFH = ((srcMRFH?.EffectText ?? '') + ' ' + (srcMRFH?.BurstText ?? '')).match(/《([^《》]+)》を公開/)?.[1];
+  execStubPart3.ts:3097  const nameMRFH = ((srcMRFH?.EffectText ?? '') + ' ' + (srcMRFH?.BurstText ?? '')).match(/《([^《》]+)》を公開/)?.[1];
 
 ### LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT  (live 0効果 / 0カード / miss 0)
   execStubPart2.ts:1178  const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
@@ -120,7 +100,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:場に出す
 
 ### SUMMON_FROM_TRASH  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:2801  const txtSFT = srcSFT ? (srcSFT.EffectText ?? '') : '';
+  execStubPart3.ts:2755  const txtSFT = srcSFT ? (srcSFT.EffectText ?? '') : '';
     lit re:トラッシュから.*レベル([０-９\d]+)以下の.*シグニ
 
 ## B群（他カードの属性判定＝正当寄り）
@@ -163,11 +143,11 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:7694 <fn:collectGrowCostSubstitute> const txt = card.EffectText ?? '';
   effectEngine.ts:7726 <fn:collectGuardAlternativeCost> const txt = txtCard?.EffectText ?? '';
   effectEngine.ts:7856 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
-  effectExecutor.ts:7415 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
+  effectExecutor.ts:7392 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
   execStubPart1.ts:1087 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
-  execStubPart2.ts:4165 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
-  execStubPart2.ts:4231 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
-  execStubPart3.ts:3197 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
+  execStubPart2.ts:4131 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
+  execStubPart2.ts:4197 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+  execStubPart3.ts:3137 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
   execUtils.ts:1182 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:1184 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   execUtils.ts:1186 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;

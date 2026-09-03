@@ -1,5 +1,71 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第21巡）：§5.3 `O-60` 第61バッチ — モーダル選択 family の残り3件（受け皿3本＋executor の専用先取りを撤去）
+
+**ベースライン**＝`778de877a`（第60バッチの直後）。**A🔴 SELF_TEXT 17行 → 13行 / 16→12ハンドラ**
+（`BASELINE_SELF_TEXT` も 13 へ払い戻し）。miss は 0 のまま。
+**gates 全緑**（typecheck・golden **3398 → 3399**＝+1本（既存の契約 golden 2本を理由つきで更新）・
+smoke 10725 全異常0・fuzz 全0・census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴13**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更3・追加0・削除0、予定外0**（`census:cards --sheet 1` 要対応 17 据置）。
+🖥**実機＝機械判定では不要**（`src/screens/` は1行も触っていない・新しいアクション型／条件型／
+interaction 型・payload キーも0＝既存の `energyTrash` / `IS_BETTING` / `additionalCostChoose` を使っただけ）。
+ただし**3効果の提示形が変わった**ので実機観測点 **`V-142`** を登録した（未実施）。
+
+### 撤去したもの
+
+| 受け皿 | live | 何が壊れていたか |
+|---|---|---|
+| `BET_CONDITION` | 1 | **アビリティブロック全文**から「A枚の代わりにB枚」を読み、差分(B-A)枚を追加で選ばせていた。🔴その追加選択の候補は **`trash` の「シグニ」全部**＝原文の絞り込み（センタールリグと共通する色／それぞれレベルが異なる）が**追加の1枚にだけ掛からない**過剰実行 |
+| `CHOOSE_N_FROM_LIST` | 1 | カード全文から選択数を読み、選択肢は `choiceTextParser` に全文ごと渡す。見出しの綴りゆれ「以下**から**4つから」を parser が受けられずここへ落ちていた |
+| `ARTS_EXTRA_COST_CONDITION` | 1 | 選択肢2つを**ハンドラにベタ書き**した `WX26-CP1-024` 専用コード |
+| `effectExecutor` の専用先取り | — | `OPTIONAL_TRASH_ENERGY_CLASS` + `ARTS_EXTRA_COST_CONDITION` の組み合わせに対し、**カード全文**から ＜クラス＞ と枚数を読み直していた（A群1行） |
+| `INTERNAL_OTEC_SKIP` | 0 | 上の先取りからしか呼ばれない死枝 |
+
+### 直した内容（受け皿はすべて既存）
+
+- **`WDK01-010`**（ベットで**対象枚数**が増える）＝`CONDITIONAL{IS_BETTING}` の then/else に
+  **枚数だけ差し替えた同じ本文をもう一度解いて**置く。⇒ 絞り込み（`colorMatchesLrig` /
+  `selectionConstraint{distinct:'level'}`）が**両枝に等しく載る**。
+- **`WX13-003`**＝`parseChooseHeaderCount` と見出し抽出に「以下**から**Nつから」の枝を1本足した
+  （⚠**選択肢を任意化して緩めない**）。あわせて**見出しと①の間のコスト宣言**
+  （`ARTS_COST_REDUCTION_BY_EFFECT`）を落とさないようにした。
+- **`WX26-CP1-024`**＝「この〈カード種〉を使用する際、エナから…トラッシュに置いてもよい」だけを
+  `STUB{OPTIONAL_COST, energyTrash{count, filter}}` へ分け、後段を `CHOOSE{additionalCostChoose}` へ。
+  条件節の綴り「**使用する際に**〜置いていた場合」も `additionalCostChoose` の枝で受けるようにした。
+- **意味の違う catch-all 3本を撤去**＝`CHOOSE_N_FROM_LIST` には「プレイヤーを1人まで選ぶ」
+  「以下のNつを**行う**」（＝選ぶのではなく全部やる＝**意味が逆**）「対戦相手はシグニを好きな数選ぶ」が
+  相乗りしていた（全部 live 0）。
+
+### 🔴 この巡の主産物＝「昇格」には2つの軸がある
+
+`CHOOSE{betChoose / conditionChoose / additionalCostChoose}` は**選択肢を何個選べるか**の昇格。
+`WDK01-010` は**1つの効果の対象枚数**が増える形で、軸が違う。
+軸を取り違えると「差分だけを追加で処理する」実装になり、**追加ぶんにだけ絞り込みが掛からない**。
+⇒ **枚数を差し替えた本文を丸ごと解き直して `CONDITIONAL` の両枝に置く**（片方だけ緩むことがない）。
+
+### 🔑 `choiceTextParser.ts` の呼び出し元は残り1本になった
+
+第60バッチで見つけた「engine の第2の原文解析器」（492行・約30分岐）は、
+この巡で **`INTERNAL_ECRV_APPLY`（`EXTRA_COST_REMOVE_VIRUS` の継続・live 2効果）1本**からしか
+呼ばれない状態になった。そこを移せば**ファイルごと削除できる**＝`O-234` に登録した。
+⚠**着手には `src/screens/BattleScreen.tsx`（`pre_use_virus_removed` の書き込み側）が要る**＝
+遅いレーン＋実機必須なのでこの巡では取らなかった。
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt WDK01-010,WX13-003,WX26-CP1-024
+npm run regen
+npm run gates          # 全緑（golden 3399 / census 3 / enginetext A🔴13）
+npx tsx scripts/censusEngineText.ts --id BET_CONDITION   # → live 0（撤去済み）
+```
+
+**反転確認**＝`WDK01-010` の `CONDITIONAL` **両枝**に `colorMatchesLrig` と
+`selectionConstraint{distinct:'level'}` が載っていることを golden で assert（旧実装は
+ベット時の**追加1枚だけ**がその絞り込みを持たなかった＝片側だけ緩む壊れ方）。
+
+
 ## 2026-09-03（索引 A 第20巡）：§5.3 `O-60` 第60バッチ — モーダル選択 family を `CHOOSE` へ寄せて受け皿4本を撤去
 
 **ベースライン**＝`8778aa68c`（第59バッチの直後）。**A🔴 SELF_TEXT 22行 → 17行 / 21→16ハンドラ**

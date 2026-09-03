@@ -3388,43 +3388,9 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: newOtherBOZP },
       `${spanBOZP}の間、相手ゾーン${zonesBOZP.map(z => z + 1).join('・')}へのシグニ配置を禁止${costBOZP}`));
   }
-  // ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
-  if (stub.id === 'ARTS_EXTRA_COST_CONDITION') {
-    const srcAECC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtAECC = srcAECC ? (srcAECC.EffectText ?? '') : '';
-    const extraPaidAECC = ctx.ownerState.self_optional_effect_taken === true;
-    // ①②テキストから選択肢を生成
-    const toHWAECC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const choicePatsAECC = [/①([^②③]{1,80})/, /②([^③④]{1,80})/];
-    const optsAECC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    for (let i = 0; i < choicePatsAECC.length; i++) {
-      const mat = txtAECC.match(choicePatsAECC[i]);
-      if (!mat) continue;
-      const ctxtAECC = mat[1].replace(/。\s*$/, '').trim();
-      // ①パワー+SHADOW付与
-      if (i === 0 && ctxtAECC.match(/パワーを＋([０-９\d]+)/)) {
-        const deltaMat = ctxtAECC.match(/パワーを＋([０-９\d]+)/);
-        const delta = deltaMat ? parseInt(toHWAECC(deltaMat[1])) : 10000;
-        const pmAct: import('../types/effects').PowerModifyAction = {
-          type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta,
-        };
-        optsAECC.push({ id: 'aecc_1', label: `①${ctxtAECC.slice(0, 25)}...`, action: pmAct as EffectAction, available: true });
-      }
-      // ②ダウン
-      if (i === 1 && ctxtAECC.match(/ダウン/)) {
-        const downAct: import('../types/effects').DownAction = {
-          type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: {} },
-        };
-        optsAECC.push({ id: 'aecc_2', label: `②${ctxtAECC.slice(0, 25)}...`, action: downAct as EffectAction, available: true });
-      }
-    }
-    if (optsAECC.length === 0) return done(addLog(ctx, '[ARTS_EXTRA_COST_CONDITION: 選択肢解析不可]'));
-    const countAECC = extraPaidAECC ? Math.min(2, optsAECC.length) : 1;
-    const consumedAECC = { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } };
-    return needsInteraction(addLog(consumedAECC, `追加コスト${extraPaidAECC ? '支払済（2つ選択）' : '未払（1つ選択）'}`), {
-      type: 'CHOOSE', options: optsAECC, count: countAECC, multiSelect: countAECC > 1,
-    });
-  }
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`ARTS_EXTRA_COST_CONDITION` を撤去した。**
+  //   「使用する際に〈X〉を置いていた場合、代わりにKつ選ぶ」は `CHOOSE{additionalCostChoose}` が受け皿
+  //   （支払いは前段の `STUB{OPTIONAL_COST, energyTrash}` が提示し、成否は `self_optional_effect_taken`）。
   // アーツ条件系（engine: アーツ使用条件未実装）
   if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ACCE_COST_REDUCTION') {
     return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));

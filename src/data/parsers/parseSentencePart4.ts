@@ -492,9 +492,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^このターン終了時、手札を[１-９\d０-９]+枚捨てる$/))
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 2 } };
 
-  // ---- プレイヤーを1人まで選ぶ ----
-  if (t.match(/^プレイヤーを[１-９\d０-９]*人?まで選ぶ$/))
-    return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）**＝「プレイヤーを1人まで選ぶ」を
+  //   `CHOOSE_N_FROM_LIST`（①②③の多択の受け皿）へ流していた枝を撤去した＝**id が嘘をつく形**で、
+  //   受け皿ごと消えた。live 0。
 
   // ---- 対戦相手のすべてのシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション）----
   if (t.match(/対戦相手のすべてのシグニをエナゾーンに置く/))
@@ -696,9 +696,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/その中から(?:赤|白|青|緑|黒)のシグニ[１-９\d０-９]*枚を場に出し、残りをトラッシュに置く/))
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
-  // ---- 以下のN個を行う ----
-  if (t.match(/^以下の[１-９\d０-９]+つを行う$/))
-    return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）**＝「以下のNつを**行う**」（＝選ぶのではなく全部やる）を
+  //   `CHOOSE_N_FROM_LIST`（**選ぶ**受け皿）へ流していた枝を撤去した＝**意味が逆**だった。
+  //   正しい経路は `tryParseDoAllItems`（`effectParser.ts` の単文 funnel 先頭）。live 0。
 
   // ---- グロウフェイズのコスト変化 ----
   if (t.match(/グロウフェイズの間.*エナコストは/))
@@ -809,9 +809,8 @@ export function parseSentencePart4(t: string): EffectAction | null {
       ? { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP', lookZone: { zone: 'opp_hand', count: 'ALL' } } as StubAction
       : { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
-  // ---- 対戦相手はシグニを好きな数選ぶ ----
-  if (t.match(/^対戦相手は(?:自分の)?シグニを好きな数選ぶ$/))
-    return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）**＝「対戦相手はシグニを好きな数選ぶ」を
+  //   `CHOOSE_N_FROM_LIST` へ流していた枝を撤去した（**選ぶのは相手・対象はシグニ**で別物）。live 0。
 
   // ---- あなたのライフクロスN枚をトラッシュに置いてもよい ----
   if (t.match(/^あなたのライフクロス[１-９\d０-９]*枚をトラッシュに置いてもよい$/))
@@ -1774,9 +1773,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対象のシグニ.*選んだ能力を得る/))
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
 
-  // ---- あなたがベットしていた場合（繰り返す・代わりに等） ----
-  if (t.match(/あなたがベットしていた場合/))
-    return { type: 'STUB', id: 'BET_CONDITION' } as StubAction;
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`BET_CONDITION` ハンドラを engine ごと撤去した。**
+  //   ベットの昇格は**選択数**なら `CHOOSE{betChoose}`、**対象枚数**なら `CONDITIONAL{IS_BETTING}`
+  //   （`effectParser.ts` の「ベットで対象枚数が増える型」）が受け皿。live 0。
 
   // ---- シグニがトラッシュから場に出たとき、払い、トラッシュに置いてもよい ----
   if (t.match(/のシグニ.*がトラッシュから場に出たとき.*払い.*トラッシュに置いてもよい/))
@@ -2220,9 +2219,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/そのアタック終了時.*このシグニを場から.*に置いてもよい/))
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
 
-  // ---- このアーツを使用する際に〈X〉のカードをトラッシュに置いていた場合 ----
-  if (t.match(/このアーツを使用する際に.*のカード.*枚をトラッシュに置いていた場合/))
-    return { type: 'STUB', id: 'ARTS_EXTRA_COST_CONDITION' } as StubAction;
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`ARTS_EXTRA_COST_CONDITION` を engine ごと撤去した。**
+  //   「使用する際に〈X〉を置いていた場合、代わりにKつ選ぶ」は `CHOOSE{additionalCostChoose}` が受け皿
+  //   （支払いは前段の `STUB{OPTIONAL_COST, energyTrash}` が提示し、成否を `self_optional_effect_taken` に残す）。live 0。
 
   // ---- 手札から色の〈X〉のカードをN枚まで捨てる ----
   if (t.match(/手札から.*の[＜〈<].+[＞〉>]のカードを[１-９\d０-９]+枚まで捨てる/))

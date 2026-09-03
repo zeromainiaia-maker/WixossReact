@@ -3030,10 +3030,10 @@ export function execStubPart1(
     newOwnerOTEC = { ...newOwnerOTEC, trash: [...newOwnerOTEC.trash, selectedCardOTEC] };
     return done(addLog({ ...ctx, ownerState: newOwnerOTEC }, `${cardNameOTEC}をエナからトラッシュへ`));
   }
-  if (stub.id === 'INTERNAL_OTEC_SKIP') {
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } },
-      '任意エナ支払いをスキップ'));
-  }
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`INTERNAL_OTEC_SKIP` を撤去した。**
+  //   `ARTS_EXTRA_COST_CONDITION` 専用の「スキップしても後続の多択は出す」分岐からしか呼ばれておらず、
+  //   その分岐ごと消えた（呼び出し元0・live 0）。任意コストのスキップは汎用経路の
+  //   `INTERNAL_CLEAR_OPTIONAL_EFFECT_TAKEN` が同じ役割を持つ。
   // 🏁**§5.3 `O-60` 第60バッチ（2026-09-03）＝`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` を撤去した。**
   //   1つの id に**2つの文型**（センタールリグのレベル条件／追加コストの支払い）が同居しており、
   //   選択肢も**このハンドラ専用の ①〜④ 解析表**（`choiceTextParser` とは別実装＝同じ仕事の2つ目のコピー）で

@@ -10,11 +10,9 @@ import {
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
   isOwnTrashMoveLocked,
   matchesFilter,
-  sourceAbilityText,
   resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
 import { collectMultiAcceLimits } from './effectEngine';
-import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
 import { acceCardsAt, cloneAcceSlots, countAcce, findAcceZone } from '../utils/acce';
 
@@ -2136,56 +2134,12 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerACZB },
       `${ctx.cardMap.get(targetACZB)?.CardName ?? targetACZB}の次の起動コスト→《黒×0》`));
   }
-  // BET_CONDITION: ベット宣言していた場合に追加効果を実行
-  if (stub.id === 'BET_CONDITION') {
-    if (!ctx.ownerState.is_betting_this_effect) {
-      return done(addLog(ctx, 'ベットなし：BET_CONDITION スキップ'));
-    }
-    // §6.4 O-20 の作法＝カード全文ではなくこの効果を生んだ能力ブロックを読む。
-    const txtBET = sourceAbilityText(ctx);
-    const toHWBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「さらにカードをN枚引く」パターン
-    const drawBET = txtBET.match(/あなたがベットしていた場合[^。]*さらに(?:カードを)?([１-９\d０-９]+)枚引く/);
-    if (drawBET) {
-      const countBET = parseInt(toHWBET(drawBET[1]));
-      const canDrawBET = Math.min(countBET, ctx.ownerState.deck.length);
-      const newOwnerBET: PlayerState = {
-        ...ctx.ownerState,
-        hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, canDrawBET)],
-        deck: ctx.ownerState.deck.slice(canDrawBET),
-        is_betting_this_effect: undefined,
-        is_boosting_this_effect: undefined,
-      };
-      return done(addLog({ ...ctx, ownerState: newOwnerBET }, `ベットあり：${canDrawBET}枚ドロー`));
-    }
-    // 「Ａ枚の代わりにＢ枚まで対象とし、それらを手札に加える」パターン（WDK01-010）：
-    // 直前のTRANSFER_TO_HAND（トラッシュ→手札）でA枚まで既に対象済みのため、差分(B-A)枚を追加で選ぶ
-    const moreBET = txtBET.match(/([０-９\d]+)枚の代わりに([０-９\d]+)枚まで対象とし、それらを手札に加える/);
-    if (moreBET) {
-      const origBET = parseInt(toHWBET(moreBET[1]));
-      const extraBET = parseInt(toHWBET(moreBET[2])) - origBET;
-      const clearedOwnerBET: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined };
-      if (extraBET <= 0) return done(addLog({ ...ctx, ownerState: clearedOwnerBET }, 'ベットあり（追加対象なし）'));
-      const candsMoreBET = clearedOwnerBET.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
-      if (candsMoreBET.length === 0) return done(addLog({ ...ctx, ownerState: clearedOwnerBET }, 'ベットあり：トラッシュに追加対象なし'));
-      const thenMoreBET: StubAction = { type: 'STUB', id: 'INTERNAL_BET_EXTRA_TO_HAND' };
-      return selectOrInteract(candsMoreBET, extraBET, true, 'self_trash', thenMoreBET as EffectAction, undefined, { ...ctx, ownerState: clearedOwnerBET });
-    }
-    // 未知パターン: フラグクリアのみ
-    const newOwnerBETClear: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined };
-    return done(addLog({ ...ctx, ownerState: newOwnerBETClear }, 'ベットあり（追加効果パターン未対応）'));
-  }
-  // INTERNAL_BET_EXTRA_TO_HAND: ベット時の追加対象（トラッシュ→手札）を1枚処理
-  if (stub.id === 'INTERNAL_BET_EXTRA_TO_HAND') {
-    const cnBETX = ctx.lastProcessedCards?.[0];
-    if (!cnBETX) return done(ctx);
-    const newOwnerBETX: PlayerState = {
-      ...ctx.ownerState,
-      trash: ctx.ownerState.trash.filter(cn => cn !== cnBETX),
-      hand: [...ctx.ownerState.hand, cnBETX],
-    };
-    return done(addLog({ ...ctx, ownerState: newOwnerBETX }, `${ctx.cardMap.get(cnBETX)?.CardName ?? cnBETX}を手札に追加（ベット追加対象）`));
-  }
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`BET_CONDITION` と `INTERNAL_BET_EXTRA_TO_HAND` を撤去した。**
+  //   旧実装は**アビリティブロック全文**に「A枚の代わりにB枚まで対象とし」を当て、差分(B-A)枚を
+  //   **追加で選ばせて**いた。🔴その追加選択の候補は **`trash` の「シグニ」全部**で、原文の絞り込み
+  //   （センタールリグと共通する色／それぞれレベルが異なる）が**追加の1枚にだけ掛からない**過剰実行だった。
+  //   いまは parser が `CONDITIONAL{IS_BETTING}` の then/else に**枚数だけ差し替えた同じ本文**を置く
+  //   ＝絞り込みは本文側の規則がそのまま効くので片方だけ緩むことがない。
   // DISABLE_FIRST_ABILITY_ON_ATTACK: アタック時最初の能力を無効化（ログのみ）
   if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
     return done(addLog(ctx, 'アタック時最初の能力を無効化'));
@@ -2943,23 +2897,9 @@ export function execStubPart3(
   //   1体ずつ `CHOOSE` させる旧実装の受け皿で、枚数指定（「２体まで」）を表せなかった。
   //   いまは `INTERNAL_DOWN_SELECTED_SIGNI` が選ばれた分をまとめてダウンする。
 
-  // CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
-  if (stub.id === 'CHOOSE_N_FROM_LIST') {
-    const srcCNFL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCNFL = srcCNFL ? (srcCNFL.EffectText ?? '') + ' ' + (srcCNFL.BurstText ?? '') : '';
-    const toHWCNFL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 選択数を解析（「N つまで選ぶ」「N つ選ぶ」）
-    const countM = txtCNFL.match(/([１-４1-4])つ(?:まで)?選ぶ/);
-    const maxChoose = countM ? parseInt(toHWCNFL(countM[1])) : 2;
-    // ①②③④ を解析してCHOOSEオプション生成（choiceTextParserに共通化）
-    const optsCNFL = parseChoiceOptionsFromText(txtCNFL, 'choice');
-    if (optsCNFL.length > 0) {
-      return needsInteraction(addLog(ctx, `効果を${maxChoose}つ選択（CHOOSE_N_FROM_LIST）`), {
-        type: 'CHOOSE', options: optsCNFL, count: Math.min(maxChoose, optsCNFL.length),
-      });
-    }
-    return done(addLog(ctx, `リストからN個選択（解析不可: ${txtCNFL.slice(0,30)}）`));
-  }
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`CHOOSE_N_FROM_LIST` を撤去した。**
+  //   カード全文から選択数を regex で読み、選択肢は `choiceTextParser` に全文ごと渡す受け皿だった。
+  //   parser が `CHOOSE` を出す（見出しの綴りゆれ「以下**から**Nつから」も受けるようにした）。
   // CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE
   // CHOOSE_COLOR_FROM_LIST: エナゾーンの色から選ぶ（最大N色）→ selectedColors に保存
   if (stub.id === 'CHOOSE_COLOR_FROM_LIST') {

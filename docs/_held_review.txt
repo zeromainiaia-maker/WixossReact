@@ -20,6 +20,39 @@ SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX14-069 WX17-00
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
 
+## +SEQUENCE +STUB ［2枚］
+PR-K056 WX20-Re20
+--- PR-K056
+  原文: 以下の５つから５つまで選ぶ。このアーツの使用コストは選んだ数だけ《青×1》増える。①対戦相手のレベル３以下のシグニ１体を対象とし、それをダウンする。②対戦相手のレベル４以上のシグニ１体を対象とし、それをダウンする。③対戦相手のすべてのシグニを凍結する。④対戦相手は手札を１枚捨てる。⑤カードを１枚引く。,-
+  - [0].action.choose_count = 5
+  - [0].action.from_count = 5
+  - [0].action.choices[0].choiceId = "c0"
+  - [0].action.choices[0].label = "選択肢1"
+  - [0].action.choices[0].action.type = "DOWN"
+  - [0].action.choices[0].action.target.type = "SIGNI"
+  - [0].action.choices[0].action.target.owner = "opponent"
+  - [0].action.choices[0].action.target.count = 1
+  - [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  - [0].action.choices[0].action.target.filter.level.max = 3
+  - [0].action.choices[0].action.target.upToCount = false
+  - [0].action.choices[1].choiceId = "c1"
+  …（他 72 行）
+--- WX20-Re20
+  原文: 以下の２つから２つまで選ぶ。選んだ数が２つの場合、このアーツの使用コストは《無×2》増える。①あなたのデッキから能力を持たないシグニを３枚まで探して公開し手札に加え、デッキをシャッフルする。②あなたの手札から能力を持たないシグニを好きな枚数場に出す。ターン終了時、それらを場からトラッシュに置く。,-
+  - [0].action.choose_count = 2
+  - [0].action.from_count = 2
+  - [0].action.choices[0].choiceId = "c0"
+  - [0].action.choices[0].label = "選択肢1"
+  - [0].action.choices[0].action.type = "SEARCH"
+  - [0].action.choices[0].action.from.location = "deck"
+  - [0].action.choices[0].action.from.owner = "self"
+  - [0].action.choices[0].action.filter.cardType = "シグニ"
+  - [0].action.choices[0].action.filter.noAbilities = true
+  - [0].action.choices[0].action.maxCount = 3
+  - [0].action.choices[0].action.then.type = "SEQUENCE"
+  - [0].action.choices[0].action.then.steps[0].type = "REVEAL"
+  …（他 50 行）
+
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
 --- WDK05-R11
@@ -41,6 +74,24 @@ WDK05-R11 WXK03-025
   + [0].action.steps[0].count = 4
   + [0].action.steps[0].fromBottom = true
   + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
+
+## +BANISH×2 +CHOOSE +DOWN +FREEZE +HAND_CARD +LRIG×2 +SEQUENCE +SIGNI×2 +TRASH -STUB ［1枚］
+WX13-003
+--- WX13-003
+  原文: 以下から４つから４つまで選ぶ。選んだ数が３つ以上の場合、このアーツの使用コストは、選んだ数から２を引いた数だけ《無×2》増える。①対戦相手のセンタールリグ１体を対象とし、それをダウンする。②対戦相手のセンタールリグ１体を対象とし、それを凍結する。③対戦相手のパワー７０００以下のシグニ１体を対象とし、それをバニッシュする。④レゾナではない対戦相手のシグニ１体を
+  - [0].action.steps[0].id = "CHOOSE_N_FROM_LIST"
+  ~ [0].action.steps[0].type : "STUB" → "CHOOSE"
+  + [0].action.steps[0].choose_count = 4
+  + [0].action.steps[0].from_count = 4
+  + [0].action.steps[0].choices[0].choiceId = "c0"
+  + [0].action.steps[0].choices[0].label = "選択肢1"
+  + [0].action.steps[0].choices[0].action.type = "DOWN"
+  + [0].action.steps[0].choices[0].action.target.type = "LRIG"
+  + [0].action.steps[0].choices[0].action.target.owner = "opponent"
+  + [0].action.steps[0].choices[0].action.target.count = 1
+  + [0].action.steps[0].choices[1].choiceId = "c1"
+  + [0].action.steps[0].choices[1].label = "選択肢2"
+  …（他 28 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -172,6 +223,24 @@ WXDi-P13-029
   + [0].action.delta = -2
   + [0].action.until = "NEXT_TURN"
 
+## +CHOOSE +DOWN +GRANT_EFFECT +GRANT_KEYWORD +POWER_MODIFY +SEQUENCE +SIGNI×3 +TURN_OWNER -STUB ［1枚］
+WX26-CP1-024
+--- WX26-CP1-024
+  原文: このアーツを使用する際、あなたのエナゾーンから＜プリオケ＞のカード３枚をトラッシュに置いてもよい。以下の２つから１つを選ぶ。このアーツを使用する際に＜プリオケ＞のカード３枚をトラッシュに置いていた場合、代わりに２つ選ぶ。①あなたの＜プリオケ＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋10000し、それは「【常】《相手ターン》：【シャドウ】」を
+  - [0].action.steps[1].id = "ARTS_EXTRA_COST_CONDITION"
+  ~ [0].action.steps[0].id : "OPTIONAL_TRASH_ENERGY_CLASS" → "OPTIONAL_COST"
+  + [0].action.steps[0].costText = "あなたのエナゾーンから＜プリオケ＞のカード３枚をトラッシュに置いてもよい"
+  + [0].action.steps[0].energyTrash.count = 3
+  + [0].action.steps[0].energyTrash.filter.story = "プリオケ"
+  ~ [0].action.steps[1].type : "STUB" → "CHOOSE"
+  + [0].action.steps[1].choose_count = 1
+  + [0].action.steps[1].from_count = 2
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  + [0].action.steps[1].choices[0].label = "選択肢1"
+  + [0].action.steps[1].choices[0].action.type = "SEQUENCE"
+  + [0].action.steps[1].choices[0].action.steps[0].type = "POWER_MODIFY"
+  …（他 36 行）
+
 ## +BANISH_REDIRECT +SIGNI -STUB ［1枚］
 WXK06-049
 --- WXK06-049
@@ -225,23 +294,23 @@ WDK01-009
   ~ [0].condition.type : "LRIG_COLOR" → "COND_STUB"
   + [0].condition.raw = "あなたのセンタールリグが赤の"
 
-## +ADD_TO_HAND +REVEAL +SEARCH +SEQUENCE×2 ［1枚］
-WDK06-R08
---- WDK06-R08
-  原文: ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①対象のあなたの《ライズアイコン》を持つシグニ１体よりパワーの低い対象の対戦相手のシグニ１体をバニッシュする。②あなたのデッキから《ライズアイコン》を持つシグニ１枚と＜アーム＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
-  - [0].action.choices[1].action.from.location = "deck"
-  - [0].action.choices[1].action.from.owner = "self"
-  - [0].action.choices[1].action.filter.cardType = "シグニ"
-  - [0].action.choices[1].action.filter.story = "アーム"
-  - [0].action.choices[1].action.filter.hasIcon = "ライズ"
-  - [0].action.choices[1].action.maxCount = 1
-  - [0].action.choices[1].action.then.type = "SEQUENCE"
-  - [0].action.choices[1].action.then.steps[0].type = "REVEAL"
-  - [0].action.choices[1].action.then.steps[1].type = "ADD_TO_HAND"
-  - [0].action.choices[1].action.then.steps[1].owner = "self"
-  - [0].action.choices[1].action.afterSearch.type = "SHUFFLE_DECK"
-  - [0].action.choices[1].action.afterSearch.owner = "self"
-  …（他 23 行）
+## +CONDITIONAL +IS_BETTING +TRANSFER_TO_HAND +TRASH_CARD -SEQUENCE -STUB ［1枚］
+WDK01-010
+--- WDK01-010
+  原文: ベット―《コインアイコン》あなたのトラッシュからあなたのセンタールリグと共通する色を持つそれぞれレベルの異なるシグニを３枚まで対象とし、それらを手札に加える。あなたがベットしていた場合、３枚の代わりに４枚まで対象とし、それらを手札に加える。,-
+  - [0].action.steps[0].type = "TRANSFER_TO_HAND"
+  - [0].action.steps[0].source.type = "TRASH_CARD"
+  - [0].action.steps[0].source.owner = "self"
+  - [0].action.steps[0].source.count = 3
+  - [0].action.steps[0].source.upToCount = true
+  - [0].action.steps[0].source.filter.cardType = "シグニ"
+  - [0].action.steps[0].source.filter.colorMatchesLrig = true
+  - [0].action.steps[0].source.selectionConstraint.distinct = "level"
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "BET_CONDITION"
+  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.condition.type = "IS_BETTING"
+  …（他 16 行）
 
 ## +COND_STUB -TRASH_COUNT ［1枚］
 WDK06-C06
@@ -278,15 +347,4 @@ SP26-001
   ~ [0].action.choices[0].action.steps[1].id : "ACTIVATE_TRAP" → "DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED"
   + [0].action.choices[0].action.steps[2].type = "STUB"
   + [0].action.choices[0].action.steps[2].id = "ACTIVATE_TRAP"
-
-## +HAND_TRASHED_BY_OPP ［1枚］
-SPK16-13E
---- SPK16-13E
-  原文: ベット―《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①対戦相手のシグニ１体を対象とし、このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合、それをバニッシュする。②このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに置かれていた場合、あなたのデッキの上からカードを３枚エ
-  ~ [0].action.choices[2].action.id : "DRAW_IF_OPP_DISCARDED_HAND" → "DRAW_UNTIL_HAND_SIZE"
-  + [0].action.choices[2].action.value = 6
-  + [0].action.choices[2].condition.type = "HAND_TRASHED_BY_OPP"
-  + [0].action.choices[2].condition.owner = "self"
-  + [0].action.choices[2].condition.operator = "gte"
-  + [0].action.choices[2].condition.value = 1
 

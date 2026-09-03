@@ -46883,7 +46883,10 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
     // ⚠**差し戻しではない**＝ブロック読みへ戻したのではなく、**原文を読む必要がなくなった**
     //   （単価・対象の奇偶・枚数・選択肢が live JSON に構造で載った）。
     'src/engine/execStubPart2.ts': 4,
-    'src/engine/execStubPart3.ts': 3,
+    // 🆕3 → 2（2026-09-03 §5.3 `O-60` 第61バッチ）＝`BET_CONDITION` を撤去したぶん。
+    // ⚠**差し戻しではない**＝ベットの対象枚数昇格は parser の `CONDITIONAL{IS_BETTING}`（枚数だけ
+    //   差し替えた同じ本文を then/else に置く）へ移り、engine が原文を読む必要がなくなった。
+    'src/engine/execStubPart3.ts': 2,
     'src/engine/effectExecutor.ts': 2,
   };
   for (const [f, n] of Object.entries(FROZEN)) {
@@ -46948,26 +46951,29 @@ test('§6.4 O-21: 同じ STUB id の後発ハンドラが到達不能になっ�
     `後発ハンドラが到達不能になっている（先着を素通りさせるか、後発を消すこと）: ${dead.join(' ')}`);
 });
 
-test('§6.4 O-21: BET_CONDITION がベット時に追加対象を出す（先着 no-op に潰されていない）', () => {
-  // `WDK01-010`「…シグニを３枚まで対象とし、それらを手札に加える。あなたがベットしていた場合、
-  //  ３枚の代わりに４枚まで対象とし、それらを手札に加える。」＝差分1枚を追加で選ばせる。
-  const src = 'WDK01-010';
-  const signiInTrash = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
-  const mk = (betting: boolean): ExecCtx => {
-    const c = mkCtx({}, {});
-    c.sourceCardNum = src;
-    c.sourceEffectId = 'WDK01-010-E1';
-    c.ownerState = { ...c.ownerState, trash: [...signiInTrash] };
-    (c.ownerState as unknown as { is_betting_this_effect?: boolean }).is_betting_this_effect = betting;
-    return c;
-  };
-  const act = { type: 'STUB', id: 'BET_CONDITION' } as unknown as EffectAction;
-  const bet = executeEffect({ effectId: 'WDK01-010-E1', effectType: 'ACTIVATED', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, mk(true));
-  eq((bet as { pending?: { count?: number } }).pending?.count, 1,
-    '🔴ベット時は「４枚まで」との差分1枚をトラッシュから追加で選べる（先着 no-op に潰されていた）');
-  const noBet = executeEffect({ effectId: 'WDK01-010-E1', effectType: 'ACTIVATED', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, mk(false));
-  ok((noBet as { pending?: unknown }).pending === undefined, '非ベット時は追加対象を出さない');
-  ok((noBet as { logs: string[] }).logs.some(l => l.includes('ベットなし')), '非ベット時は素通りログ');
+test('§6.4 O-21 / §5.3 O-60 第61: ベットで「対象枚数」が増える形は CONDITIONAL{IS_BETTING} で表す', () => {
+  // `WDK01-010`「…あなたのセンタールリグと共通する色を持つそれぞれレベルの異なるシグニを**３枚まで**対象とし、
+  //  それらを手札に加える。あなたがベットしていた場合、**３枚の代わりに４枚まで**対象とし、それらを手札に加える。」
+  // 🆕**§5.3 `O-60` 第61バッチ（2026-09-03）＝`STUB{BET_CONDITION}` を engine ごと撤去した。**
+  //   🔴旧実装は**アビリティブロック全文**から「A枚の代わりにB枚」を読み、差分(B-A)枚を追加で選ばせていたが、
+  //     その追加選択の候補は **`trash` の「シグニ」全部**＝原文の絞り込み（共通色／レベルが互いに異なる）が
+  //     **追加の1枚にだけ掛からない**過剰実行だった。
+  //   ⇒ いまは parser が**枚数だけ差し替えた同じ本文**を then/else に置く＝片方だけ緩むことがない。
+  const eff = (effectsMap.get('WDK01-010') ?? []).find(e => e.effectId === 'WDK01-010-E1');
+  ok(!!eff, 'WDK01-010-E1 が live にある'); if (!eff) return;
+  const cond = eff.action as import('../src/types/effects').ConditionalAction;
+  eq(cond.type, 'CONDITIONAL', 'ベット昇格は CONDITIONAL で表す');
+  eq(cond.condition.type, 'IS_BETTING', '条件は IS_BETTING');
+  const src = (a: unknown) => (a as { source?: { count?: number; upToCount?: boolean; filter?: unknown; selectionConstraint?: unknown } }).source;
+  eq(src(cond.then)?.count, 4, 'ベット時は4枚まで');
+  eq(src(cond.else)?.count, 3, '非ベット時は3枚まで');
+  for (const [label, node] of [['then', cond.then], ['else', cond.else]] as const) {
+    eq(src(node)?.upToCount, true, `${label}: 「N枚**まで**」の upTo が落ちていない`);
+    eq(JSON.stringify(src(node)?.filter), JSON.stringify({ cardType: 'シグニ', colorMatchesLrig: true }),
+      `${label}: センタールリグと共通する色の絞り込みが両枝にある`);
+    eq(JSON.stringify(src(node)?.selectionConstraint), JSON.stringify({ distinct: 'level' }),
+      `${label}: 「それぞれレベルの異なる」制約が両枝にある（旧は追加1枚にだけ掛かっていなかった）`);
+  }
 });
 
 // ─── §6.4 O-22(a) / O-23 / O-24（2026-08-15 続き484）────────────────────────
@@ -64556,6 +64562,42 @@ test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex で
   const wdkCh = wdk.action as import('../src/types/effects').ChooseAction;
   ok(JSON.stringify(wdkCh.choices[0].action).includes('"powerLtLastProcessed":true'),
     '①「《ライズアイコン》持ちよりパワーの低い」の比較が残っている');
+}));
+
+test('§5.3 O-60 第61: モーダル選択 family の残り3件も CHOOSE / CONDITIONAL へ移した', () => withSavedCursor(() => {
+  // 🏁**engine の受け皿3本＋`effectExecutor` の専用先取りを撤去した**
+  //   （`BET_CONDITION` / `CHOOSE_N_FROM_LIST` / `ARTS_EXTRA_COST_CONDITION`）。
+  // 🔴**再発防止のラチェット**＝撤去した id が live に1つでも戻ったら落とす。
+  const removedIds = ['BET_CONDITION', 'CHOOSE_N_FROM_LIST', 'ARTS_EXTRA_COST_CONDITION', 'INTERNAL_OTEC_SKIP'];
+  const liveJson = JSON.stringify([...effectsMap.values()]);
+  for (const id of removedIds) ok(!liveJson.includes(`"${id}"`), `live に ${id} が残っていない`);
+
+  // ① `WX13-003`＝見出しの綴りゆれ「以下**から**4つから4つまで選ぶ」。
+  //   ⚠**見出しと①の間のコスト宣言を落とさない**（`ARTS_COST_REDUCTION_BY_EFFECT` は
+  //     engine では no-op だが「構造化できていないコスト文がある」痕跡＝消すと計器から見えなくなる）。
+  const w13 = (effectsMap.get('WX13-003') ?? []).find(e => e.effectId === 'WX13-003-E1');
+  ok(!!w13, 'WX13-003-E1 が live にある'); if (!w13) return;
+  const w13Steps = (w13.action as SequenceAction).steps;
+  const w13Ch = w13Steps[0] as unknown as import('../src/types/effects').ChooseAction;
+  eq(w13Ch.type, 'CHOOSE', '「以下から4つから4つまで選ぶ」が CHOOSE になる');
+  eq(w13Ch.choose_count, 4, '4つ');
+  eq(w13Ch.from_count, 4, '①②③④の4候補');
+  eq(w13Ch.upTo, true, '「4つ**まで**」の upTo が落ちていない');
+  eq((w13Steps[1] as unknown as { id?: string }).id, 'ARTS_COST_REDUCTION_BY_EFFECT',
+    '見出しと①の間のコスト宣言が残っている');
+
+  // ② `WX26-CP1-024`＝使用時の任意エナトラッシュ→支払っていたら2つ選ぶ。
+  //   🔴旧は `effectExecutor` が**カード全文**から ＜クラス＞ と枚数を読み直していた（A群1行）。
+  const w26 = (effectsMap.get('WX26-CP1-024') ?? []).find(e => e.effectId === 'WX26-CP1-024-E1');
+  ok(!!w26, 'WX26-CP1-024-E1 が live にある'); if (!w26) return;
+  const w26Steps = (w26.action as SequenceAction).steps;
+  const w26Cost = w26Steps[0] as unknown as { id?: string; energyTrash?: unknown };
+  eq(w26Cost.id, 'OPTIONAL_COST', '任意コストは OPTIONAL_COST（支払い記録が残る経路）');
+  eq(JSON.stringify(w26Cost.energyTrash), JSON.stringify({ count: 3, filter: { story: 'プリオケ' } }),
+    'エナから＜プリオケ＞3枚が payload（旧はカード全文 regex）');
+  const w26Ch = w26Steps[1] as unknown as import('../src/types/effects').ChooseAction;
+  eq(w26Ch.type, 'CHOOSE', '後段は CHOOSE');
+  eq(w26Ch.additionalCostChoose?.thenChooseCount, 2, '支払っていたら2つ選ぶ');
 }));
 
 if (listMode) {

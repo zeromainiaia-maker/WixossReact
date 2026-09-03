@@ -2378,6 +2378,27 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // `CONDITIONAL{...} then TRASH{HAND_CARD self, optional}` に正しく解けている）。吐いていた
   // `STUB{CONDITIONAL_DISCARD}` は条件を見ずに自分の手札を1枚捨てるだけの別物なので、id ごと退役した。
 
+  // ---- 使用時の任意追加コスト＝エナから〈条件〉のカードN枚をトラッシュ（§5.3 `O-60` 第61バッチ・2026-09-03）----
+  // 🆕**「この〈カード種〉を使用する際、あなたのエナゾーンから…トラッシュに置いてもよい」だけを
+  //   `STUB{OPTIONAL_COST, energyTrash}` へ分ける**（1枚＝`WX26-CP1-024`）。
+  // 🔴理由＝後段が「**置いていた場合**、代わりにKつ選ぶ」で**支払いの成否を読む**ので、
+  //   `self_optional_effect_taken` を残す `OPTIONAL_COST` の経路に乗せる必要がある
+  //   （素の `OPTIONAL_TRASH_ENERGY_CLASS` は残す＝live 38効果が別の文型で使っている）。
+  // 🔴これで `effectExecutor.ts` の「`OPTIONAL_TRASH_ENERGY_CLASS` + `ARTS_EXTRA_COST_CONDITION`」
+  //   専用先取り（**カード全文から ＜クラス＞ と枚数を読み直していた**）が要らなくなる。
+  {
+    const useEnergyTrashM = t.match(
+      /^この(?:アーツ|スペル|ピース|カード)を使用する際[、,]あなたのエナゾーンから(?:あなたの)?(.*?)カード([０-９\d]+)枚を?トラッシュに置いてもよい$/);
+    if (useEnergyTrashM) {
+      const filter = { ...parseCardTypeFilter(useEnergyTrashM[1]), ...parseStoryFilter(useEnergyTrashM[1]), ...parseColorFilter(useEnergyTrashM[1]) };
+      return {
+        type: 'STUB', id: 'OPTIONAL_COST',
+        costText: t.replace(/^この(?:アーツ|スペル|ピース|カード)を使用する際[、,]/, ''),
+        energyTrash: { count: parseNum(useEnergyTrashM[2]), ...(Object.keys(filter).length > 0 ? { filter } : {}) },
+      } as StubAction;
+    }
+  }
+
   // ---- エナから特定クラスのカードをトラッシュに置いてもよい（任意）----
   if (t.match(/あなたのエナゾーンから.+のカード[０-９\d]+枚?をトラッシュに置いてもよい/)) {
     return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
@@ -3172,10 +3193,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/その中から好きな数の[＜〈<].+[＞〉>]のシグニを場に出し、残りをトラッシュに置く/))
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
-  // ---- 以下からN選ぶ ----
-  if (t.match(/^以下から[０-９\d]+つから[０-９\d]+つまで選ぶ$/) ||
-      t.match(/^以下から[０-９\d]+つ選ぶ$/))
-    return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
+  // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`CHOOSE_N_FROM_LIST`（engine がカード全文から
+  //   選択数を読み、選択肢は `choiceTextParser` に全文ごと渡す受け皿）を撤去した。**
+  //   「以下**から**Nつから」の綴りは `parseChooseHeaderCount` が受けるようになったので、
+  //   ここへ来る「見出しだけの断片」は**選択肢を持たない**＝受け皿へ流しても意味を作れない。
 
   // ---- それをトラッシュに置いて対戦相手デッキ上をライフに ----
   // 🆕§5.3 `O-60` 第43バッチ（2026-09-03）＝**相手のライフを1枚入れ替える**（`WX10-002-E2`）。
