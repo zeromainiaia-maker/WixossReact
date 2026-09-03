@@ -23250,6 +23250,56 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  * ⚠**対象の選択は分岐の中に置く**＝先に選ぶと `lastProcessedCards` が対象シグニで上書きされ、
  *   条件が**公開札ではなく選んだシグニ**を見てしまう（原文の順序＝公開→判定→付与とも一致する）。
  */
+/**
+ * 🆕**§5.3 `O-231`（2026-09-04）＝「トラッシュから〈A〉を**場に出し**、〈B〉を…」の**前半が丸ごと落ちる**形。**
+ *
+ * 実測2効果（`npm run census:population -- "シグニ１枚を場に出し"` の真の MISS）：
+ * ①`SPK01-09-BURST`「あなたのトラッシュから、**対象のレベル１の**＜トリック＞のシグニ１枚を**場に出し**
+ *   **対象のレベル３の**＜トリック＞のシグニ１枚を手札に加える」
+ *   🔴旧 live は `TRANSFER_TO_HAND` 1本だけ＝**場に出す側が消え、しかも両方のレベル限定も消えていた**
+ *   （＝トラッシュから任意の＜トリック＞1枚を手札に加えるだけの別物）。
+ * ②`WDK15-007-E1`「あなたのトラッシュから対象の＜ウェポン＞のシグニ１枚を**場に出し**、
+ *   あなたのトラッシュから対象のシグニを２枚まで**そのシグニの下に置く**」
+ *   🔴旧 live は `SEQUENCE[ARTS_COST_REDUCTION_BY_EFFECT, TRASH_SIGNI_UNDER_FIELD_SIGNI{destLastPlayed}]`＝
+ *   **召喚が丸ごと落ちている**のに後段が「直前に場に出したシグニ」を参照しており、参照先が永久に不在だった。
+ *
+ * 🔑**受け皿は既存の `ADD_TO_FIELD{source:{TRASH_CARD}}`**（engine 変更 0）。
+ * ⚠**①は2つの対象宣言が連続する形**＝レベルが違うので1本の `TRANSFER_TO_HAND` には畳めない。
+ */
+function foldTrashSummonThenSecond(action: EffectAction, sourceText: string): EffectAction {
+  // ①「トラッシュから、対象のレベルNの＜X＞のシグニ1枚を場に出し 対象のレベルMの＜X＞のシグニ1枚を手札に加える」
+  const pair = sourceText.match(
+    /トラッシュから[、,]?対象のレベル([０-９\d])の＜([^＞]+)＞のシグニ[１1]枚を場に出し[、,]?対象のレベル([０-９\d])の＜([^＞]+)＞のシグニ[１1]枚を手札に加える/);
+  if (pair) {
+    const lv = (v: string) => parseNum(v);
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'ADD_TO_FIELD', owner: 'self',
+          source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+            filter: { cardType: 'シグニ', story: pair[2], level: lv(pair[1]) } } } as unknown as EffectAction,
+        { type: 'TRANSFER_TO_HAND',
+          source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+            filter: { cardType: 'シグニ', story: pair[4], level: lv(pair[3]) } } } as unknown as EffectAction,
+      ],
+    } as EffectAction;
+  }
+  // ②「トラッシュから対象の＜X＞のシグニ1枚を場に出し、…そのシグニの下に置く」＝召喚を前へ足す。
+  //   ⚠**後段（`TRASH_SIGNI_UNDER_FIELD_SIGNI`）は触らない**＝「下に置く」側は既に payload を持っている。
+  const summonM = sourceText.match(/トラッシュから対象の＜([^＞]+)＞のシグニ[１1]枚を場に出し[、,]?[^。]*?そのシグニの下に置く/);
+  if (summonM && action.type === 'SEQUENCE') {
+    const steps = (action as SequenceAction).steps;
+    const idx = steps.findIndex(st => st.type === 'STUB' && (st as StubAction).id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI');
+    if (idx >= 0 && !steps.some(st => st.type === 'ADD_TO_FIELD')) {
+      const summon = { type: 'ADD_TO_FIELD', owner: 'self',
+        source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false,
+          filter: { cardType: 'シグニ', story: summonM[1] } } } as unknown as EffectAction;
+      return { ...(action as SequenceAction), steps: [...steps.slice(0, idx), summon, ...steps.slice(idx)] } as EffectAction;
+    }
+  }
+  return action;
+}
+
 function foldShuffleRevealTopThenBranch(action: EffectAction, sourceText: string): EffectAction {
   const m = sourceText.match(
     /デッキをシャッフルし一番上のカードを公開し手札に加える。[\s\S]*?この方法で公開されたカードが【ライフバースト】を持つ場合[、,]ターン終了時まで[、,]それは【([^】]+)】を得る。[\s\S]*?持たない場合[、,]ターン終了時まで[、,]それは【([^】]+)】を得る/);
@@ -25685,6 +25735,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = deferCrossZoneTripleTarget(folded, currentSourceText(e.effectId) ?? '');
     folded = deferCheckZoneFreeCast(folded, currentSourceText(e.effectId) ?? '');
     folded = foldShuffleRevealTopThenBranch(folded, currentSourceText(e.effectId) ?? '');
+    folded = foldTrashSummonThenSecond(folded, currentSourceText(e.effectId) ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);

@@ -64800,6 +64800,31 @@ test('§5.3 O-232: シャッフル→公開→公開札で2分岐が構造で載
   ok(!s2.includes('"keyword":"ライフバースト"'), '付与キーワードが【ライフバースト】に化けていない');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-231`（2026-09-04・索引 B 第2巡）＝🏁**クローズ**。「トラッシュから〈A〉を**場に出し**、〈B〉…」の
+//   **前半が丸ごと落ちる**形（実測2効果）。🔑受け皿は既存の `ADD_TO_FIELD{source:{TRASH_CARD}}`（engine 変更 0）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-231: 「場に出し」の前半が live に載る', () => withSavedCursor(() => {
+  // ①`SPK01-09-BURST`「トラッシュから、**対象のレベル1の**＜トリック＞のシグニ1枚を**場に出し**
+  //   **対象のレベル3の**＜トリック＞のシグニ1枚を手札に加える」
+  //   🔴旧 live は `TRANSFER_TO_HAND` 1本だけ＝場に出す側が消え、**両方のレベル限定も消えていた**。
+  const a1 = effectsMap.get('SPK01-09')?.find(e => e.effectId === 'SPK01-09-BURST')?.action as SequenceAction | undefined;
+  eq(a1?.type, 'SEQUENCE', 'SPK01-09-BURST: 2ステップ');
+  const s0 = a1!.steps[0] as { type?: string; source?: { filter?: { level?: unknown; story?: string } } };
+  eq(s0.type, 'ADD_TO_FIELD', '①場に出す（旧は消えていた）');
+  eq(s0.source?.filter?.level, 1, '①レベル1限定');
+  const s1 = a1!.steps[1] as { type?: string; source?: { filter?: { level?: unknown } } };
+  eq(s1.type, 'TRANSFER_TO_HAND', '②手札に加える');
+  eq(s1.source?.filter?.level, 3, '②レベル3限定（旧はレベル限定が消えていた）');
+  // ②`WDK15-007-E1`＝召喚が落ちているのに後段が「そのシグニの下に置く」＝参照先が永久に不在だった。
+  const a2 = effectsMap.get('WDK15-007')?.find(e => e.effectId === 'WDK15-007-E1')?.action as SequenceAction | undefined;
+  const types = a2?.steps.map(st => (st as { type?: string; id?: string }).id ?? st.type) ?? [];
+  ok(types.includes('ADD_TO_FIELD'), 'WDK15-007-E1: 召喚が入っている');
+  ok(types.indexOf('ADD_TO_FIELD') < types.indexOf('TRASH_SIGNI_UNDER_FIELD_SIGNI'),
+    '🔴召喚は「下に置く」より前（後段が直前に場に出したシグニを参照するため）');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
