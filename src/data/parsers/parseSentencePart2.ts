@@ -1635,6 +1635,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   ■原文該当は全 CSV でこの1枚。
 
   // ---- 武勇シグニを捨ててもよい（手札から）----
+  // 🆕§5.3 `O-60` 第51バッチ（2026-09-03）＝**絞り込みと上限枚数は payload で運ぶ**。
+  //   🔴旧実装は engine がカード全文へ `/シグニを?([０-９\d]+)枚まで/` を当てており、
+  //   `PR-328` は**この上限がそのまま後段 CHOOSE の選択数**（`countChoose`）になるので、
+  //   別の能力の数字を拾うと**選べる効果の数まで化ける**形だった。
+  const odcsM = t.match(/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで捨ててもよい/);
+  if (odcsM) {
+    return {
+      type: 'STUB', id: 'OPTIONAL_DISCARD_CLASS_SIGNI',
+      handCardPick: {
+        filter: { cardType: 'シグニ', ...(odcsM[1] ? { story: odcsM[1] } : {}) },
+        count: parseNum(odcsM[2]), upTo: true,
+      },
+    } as StubAction;
+  }
   if (t.match(/手札から.*シグニを.*枚まで捨ててもよい/)) {
     return { type: 'STUB', id: 'OPTIONAL_DISCARD_CLASS_SIGNI' } as StubAction;
   }

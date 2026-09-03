@@ -14,6 +14,7 @@ import {
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
+  resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
@@ -5618,28 +5619,28 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
 
-        // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニ1枚を任意で捨てる → そうした場合 conditional.then（G253）
-        // クラスは EffectText から解釈（OPTIONAL_TRASH_ENERGY_CLASS の手札版）。
+        // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニN枚を任意で捨てる → そうした場合 conditional.then（G253）
+        // 🆕**絞り込みと枚数は payload（`handCardPick`）**（§5.3 `O-60` 第51バッチ・2026-09-03）。
+        // 🔴旧実装は `EffectText + BurstText`（**カード全文**）へ
+        //   `/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/` を当てていた＝**最初に見つかった
+        //   「手札から」句**のクラスを使うので、同じカードに手札を触る能力が2つあると取り違える形だった。
+        // ⚠**payload が無ければ発動させない**（fail-closed）＝旧既定（クラス無しの手札シグニ1枚）へ倒すと
+        //   原文にないカードをコストにできる過剰実行に戻る。
         if (stub.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
-          const srcODHC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
-          const txtODHC = srcODHC ? (srcODHC.EffectText ?? '') + ' ' + (srcODHC.BurstText ?? '') : '';
-          const clsMODHC = txtODHC.match(/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/);
-          const reqClassODHC = clsMODHC?.[1] ?? '';
-          const handFilterODHC = { cardType: 'シグニ' as const, ...(reqClassODHC ? { story: reqClassODHC } : {}) };
-          const handCandsODHC = cur.ownerState.hand.filter(cn => matchesFilter(cur.cardMap.get(cn), handFilterODHC));
+          const pickODHC = resolveHandCardPick(stub.handCardPick, cur);
           const elseActODHC = (conditional.else ?? noopAction) as EffectAction;
-          if (handCandsODHC.length === 0) {
-            // 捨てられる候補なし: 効果不発（else があれば実行）。続行ステップは継続。
+          if (!pickODHC || pickODHC.cands.length < pickODHC.count) {
+            // 捨てられる候補なし（または payload 未指定）: 効果不発（else があれば実行）。続行ステップは継続。
             if (cont) return executeAction(cont, cur);
             return executeAction(elseActODHC, cur);
           }
           const discardODHC: EffectAction = {
             type: 'TRASH',
-            target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: handFilterODHC },
+            target: { type: 'HAND_CARD', owner: 'self', count: pickODHC.count, ...(stub.handCardPick?.filter ? { filter: stub.handCardPick.filter } : {}) },
           } as EffectAction;
           const payActODHC: EffectAction = { type: 'SEQUENCE', steps: [discardODHC, conditional.then] } as SequenceAction;
           const optsODHC = [
-            { id: 'pay', label: reqClassODHC ? `手札から＜${reqClassODHC}＞のシグニを捨てて発動` : '手札を捨てて発動', action: payActODHC, available: true },
+            { id: 'pay', label: `手札から${handCardPickLabel(stub.handCardPick)}を捨てて発動`, action: payActODHC, available: true },
             { id: 'skip', label: 'スキップ', action: elseActODHC, available: true },
           ];
           return needsInteraction(addLog(cur, '手札を捨てて発動しますか？'), {
@@ -12293,8 +12294,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'PLACE_UNDER_SOURCE_SIGNI': {
       // ctx.sourceCardNum にあるシグニのゾーンに cardNum を下から追加
-      const fromLoc = (action as import('../types/effects').PlaceUnderSourceSigniAction).fromLocation;
-      const sourceCard = ctx.sourceCardNum;
+      const pussA = action as import('../types/effects').PlaceUnderSourceSigniAction;
+      const fromLoc = pussA.fromLocation;
+      // 🆕**置き先は `hostCardNum` があればそちら**（§5.3 `O-60` 第51バッチ・2026-09-03）＝
+      //   効果元がスペルの「〈手札のシグニ〉を**あなたの〈条件〉のシグニ１体の下に**置く」用。
+      const sourceCard = pussA.hostCardNum ?? ctx.sourceCardNum;
       if (!sourceCard) return done(ctx);
       const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCard));
       if (zoneIdx === -1) return done(ctx);

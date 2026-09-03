@@ -188,6 +188,16 @@ function leftFieldUnderNounJa(src: any): string {
   return `${filterJa(src?.filter)}${noun}${cnt}枚${src?.upToCount ? 'まで' : ''}`;
 }
 
+/**
+ * 🆕「手札から〈条件〉のカードを N枚」family の名詞句を描く（§5.3 `O-60` 第51バッチ・2026-09-03）。
+ * ⚠`filterJa` は**修飾語だけ**を返す（名詞は呼び出し側が付ける規約）ので、ここで `cardType` を名詞にする。
+ */
+function handPickJa(pick?: { filter?: any; count?: number; anyCount?: boolean; upTo?: boolean }): string {
+  const noun = pick?.filter?.cardType ? ([] as string[]).concat(pick.filter.cardType).join('か') : 'カード';
+  const n = pick?.anyCount ? '好きな枚数' : `${pick?.count ?? 1}枚${pick?.upTo ? 'まで' : ''}`;
+  return `${filterJa(pick?.filter)}${noun}を${n}`;
+}
+
 function filterJa(f?: any): string {
   if (!f) return '';
   const parts: string[] = [];
@@ -2971,15 +2981,33 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF') return 'このターン、あなたの効果によってシグニのアタックは無効にならない';
       if (a.id === 'MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC') return 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る';
       if (a.id === 'DOUBLE_POWER_MINUS_THIS_TURN') return 'このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに2倍－される';
-      // DISCARD_OR_PENALTY: 原文から「＜クラス＞/種別のカードを1枚捨てないかぎり手札をN枚捨てる」を復元
+      // DISCARD_OR_PENALTY: 「〈条件〉のカードをN枚捨てないかぎり手札をM枚捨てる」
+      // 🆕**payload から描く**（§5.3 `O-60` 第51バッチ・2026-09-03）＝旧実装は engine と同じく
+      //   `currentCardText`（カード全文）へ regex を当てており、engine 側の取り違えを**そのまま復唱**していた
+      //   ＝原文照合という主軸の検査が効かない形だった。
       if (a.id === 'DISCARD_OR_PENALTY') {
-        const toHWdop = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const clsM = currentCardText.match(/手札から[<＜]([^>＞]+)[>＞]のシグニを１枚捨てないかぎり/);
-        const typeM = !clsM ? currentCardText.match(/手札から(スペル|シグニ|アーツ)を１枚捨てないかぎり/) : null;
-        const penM = currentCardText.match(/かぎり手札を([２-９\d]+)枚捨てる/);
-        const n = penM ? parseInt(toHWdop(penM[1])) : 2;
-        const subj = clsM ? `手札から＜${clsM[1]}＞のシグニを1枚` : typeM ? `手札から${typeM[1]}を1枚` : '手札から指定カードを1枚';
-        return `あなたは${subj}捨てないかぎり手札を${n}枚捨てる`;
+        if (!a.handCardPick || !a.discardPenalty) return '[DISCARD_OR_PENALTY: 捨てる条件／ペナルティ枚数なし（未指定・engine も何もしない）]';
+        return `あなたは手札から${handPickJa(a.handCardPick)}捨てないかぎり手札を${a.discardPenalty.count}枚捨てる`;
+      }
+      // 🆕「手札から〈条件〉のカードを N枚」family の逆翻訳（§5.3 `O-60` 第51バッチ・2026-09-03）。
+      //   ⚠**payload を描かないと「直したこと自体が読めない」**（§4.1 の教訓）＝
+      //     絞り込みと枚数が逆翻訳から消えると原文照合がフィルタの誤りを検出できない。
+      if (a.id === 'HAND_REVEAL_CLASS_SIGNI' || a.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
+        if (!a.handCardPick) return `[${a.id}: 公開条件なし（未指定・engine も何もしない）]`;
+        return `あなたの手札から${handPickJa(a.handCardPick)}公開する`;
+      }
+      if (a.id === 'OPTIONAL_DISCARD_CLASS_SIGNI' || a.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
+        if (!a.handCardPick) return `[${a.id}: 捨てる条件なし（未指定・engine も何もしない）]`;
+        return `あなたの手札から${handPickJa(a.handCardPick)}捨ててもよい`;
+      }
+      if (a.id === 'DISCARD_IF_NO_CLASS_SIGNI') {
+        if (!a.discardIfNoSigni) return '[DISCARD_IF_NO_CLASS_SIGNI: 条件なし（未指定・engine も何もしない）]';
+        return `あなたの場に他の${filterJa(a.discardIfNoSigni.filter)}${a.discardIfNoSigni.filter?.cardType ?? 'シグニ'}がない場合、あなたは手札を${a.discardIfNoSigni.discardCount}枚捨てる`;
+      }
+      if (a.id === 'HAND_SIGNI_UNDER_SIGNI') {
+        if (!a.handCardPick || !a.handToUnderSigni) return '[HAND_SIGNI_UNDER_SIGNI: 置く対象／置き先なし（未指定・engine も何もしない）]';
+        const hostJa = `${filterJa(a.handToUnderSigni.hostFilter)}${a.handToUnderSigni.hostFilter?.cardType ?? 'シグニ'}`;
+        return `あなたの手札から${handPickJa({ ...a.handCardPick, upTo: false })}あなたの${hostJa}１体の下に置いてもよい`;
       }
       // OPTIONAL_COST 系: 「《色》を支払ってもよい」（effectExecutor が直後の CONDITIONAL(IS_MY_TURN) と結合して
       // 「支払う→効果発動 / スキップ」を生成する標準パターン。後続の「そうした場合、…」が効果本体）
@@ -3037,13 +3065,8 @@ function actionJa(a?: Action, effectType?: string): string {
           .map(x => x[1].replace(/\s+/g, ' ').trim().replace(/(?:。|\s|-)+$/, ''));
         if (segs.length >= 2) return `以下の${totalN || segs.length}つから${pick}つ${made}${enh ? `（条件達成で${enh[1]}つまで）` : ''}選ぶ【${segs.join(' / ')}】`;
       }
-      // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニN枚を任意で捨てる（クラス/枚数は EffectText から復元）
-      if (a.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
-        const m = currentCardText.match(/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)を?([０-９\d]+)枚/);
-        const cls = m?.[1] ? `＜${m[1]}＞の` : '';
-        const n = m?.[2] ? numJa(parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
-        return `あなたの手札から${cls}シグニ${n}枚を捨ててもよい`;
-      }
+      // 🗑`OPTIONAL_DISCARD_HAND_CLASS` の全文 regex 版は撤去（§5.3 `O-60` 第51バッチ・2026-09-03）＝
+      //   上の family 分岐が `handCardPick` から描く。
       // OPPONENT_PAY_OPTIONAL: 対戦相手の任意コスト支払い（兄弟 CONDITIONAL(IS_MY_TURN) が
       // 「そうしなかった場合」の本体＝SEQUENCE 描画側でラベルを反転する）
       if (a.id === 'OPPONENT_PAY_OPTIONAL') {

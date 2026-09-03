@@ -3461,6 +3461,34 @@ export function resolvePendingExiles(state: PlayerState, forceTurnEnd = false): 
 }
 
 // SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを決める
+/**
+ * 🆕**「手札から〈条件〉のカードを N枚」の payload を候補・枚数・任意性へ解く**
+ * （§5.3 `O-60` 第51バッチ・2026-09-03）。**手札を読む family 7ハンドラの共通入口**。
+ *
+ * 🔴**payload が無ければ `null`**（fail-closed）＝呼び出し側は「何もしない」で終わる。
+ *   旧実装は7ハンドラがそれぞれ `EffectText + BurstText`（カード全文）へ regex を当てており、
+ *   外れると**絞り込み無し・1枚**という既定へ落ちて原文にないカードまで触れた。
+ * ⚠**`anyCount` は「候補全部」**＝候補が0件のときは `count:0` になるので、
+ *   呼び出し側は `cands.length === 0` を先に見て空振りを記録する。
+ */
+export function resolveHandCardPick(
+  pick: StubAction['handCardPick'],
+  ctx: ExecCtx,
+): { cands: string[]; count: number; optional: boolean } | null {
+  if (!pick) return null;
+  const cands = ctx.ownerState.hand.filter(cn => !pick.filter || matchesFilter(ctx.cardMap.get(getCardNum(cn)), pick.filter));
+  const count = pick.anyCount ? cands.length : Math.max(1, pick.count ?? 1);
+  return { cands, count, optional: !!pick.anyCount || !!pick.upTo };
+}
+
+/** `resolveHandCardPick` の絞り込みを日本語ラベルへ（ログ・選択肢の表示用）。 */
+export function handCardPickLabel(pick: StubAction['handCardPick']): string {
+  const f = pick?.filter;
+  if (!f) return 'カード';
+  const story = Array.isArray(f.story) ? f.story.join('か') : f.story;
+  return `${story ? `＜${story}＞の` : ''}${f.cardType ?? 'カード'}`;
+}
+
 export function selectOrInteract(
   candidates: string[],
   count: number,

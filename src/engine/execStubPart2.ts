@@ -18,6 +18,7 @@ import {
   designatedZones,
   buildGatedKeywordGrant,
   sourceAbilityText,
+  resolveHandCardPick,
 } from './execUtils';
 import { allAcceCards } from '../utils/acce';
 import { consumeDeclaredGuardRestrictLevel } from '../screens/battle/turnScopedState';
@@ -68,24 +69,45 @@ export function execStubPart2(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
-  // 手札のシグニをこのシグニの下に置く
+  // 手札のシグニを〈条件〉のシグニの下に置く
+  // 🆕**手札側の絞り込み・枚数（`handCardPick`）と置き先（`handToUnderSigni.hostFilter`）は payload**
+  //   （§5.3 `O-60` 第51バッチ・2026-09-03）。
+  // 🔴旧実装は**2つとも壊れていた**＝①絞り込みと枚数をカード全文 regex で読み直していた
+  //   ②置き先が `PLACE_UNDER_SOURCE_SIGNI`＝**効果元シグニの下**に固定だったので、live の唯一のカード
+  //   `WXDi-P15-067`（**スペル**）では効果元が場に無く `zoneIdx === -1` で**恒久 無言 no-op** だった
+  //   （原文「あなたの＜解放派＞のシグニ１体の下に置いてもよい」が丸ごと死んでいた）。
+  // 🔑置き先の選択を先に済ませ、選んだシグニを `hostCardNum` へ焼き込んでから手札を選ばせる（2段）。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'HAND_SIGNI_UNDER_SIGNI') {
-    const srcHSU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtHSU = srcHSU ? (srcHSU.EffectText ?? '') + ' ' + (srcHSU.BurstText ?? '') : '';
-    const toHWHSU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const maxMHSU = txtHSU.match(/手札から.*シグニ([０-９\d]+)枚/);
-    const maxHSU = maxMHSU ? parseInt(toHWHSU(maxMHSU[1])) : 1;
-    const classMatchHSU = txtHSU.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
-    const targetClassHSU = classMatchHSU?.[1];
-    const handSigHSU = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (c?.Type !== 'シグニ') return false;
-      if (targetClassHSU && !c.CardClass?.includes(targetClassHSU)) return false;
-      return true;
+    const pickHSU = resolveHandCardPick(stub.handCardPick, ctx);
+    const specHSU = stub.handToUnderSigni;
+    if (!pickHSU || !specHSU) return done(addLog(ctx, '[HAND_SIGNI_UNDER_SIGNI: 置く対象／置き先なし（未指定）]'));
+    if (pickHSU.cands.length === 0) return done(addLog(ctx, '手札にシグニなし（シグニ下配置スキップ）'));
+    const hostsHSU = ctx.ownerState.field.signi.flatMap(stack => {
+      const top = stack?.at(-1);
+      if (!top || top === ctx.sourceCardNum) return [];
+      return (!specHSU.hostFilter || matchesFilter(ctx.cardMap.get(getCardNum(top)), specHSU.hostFilter)) ? [top] : [];
     });
-    if (handSigHSU.length === 0) return done(addLog(ctx, '手札にシグニなし（シグニ下配置スキップ）'));
-    const placeAction: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
-    return selectOrInteract(handSigHSU, maxHSU, false, 'self_hand', placeAction as EffectAction, undefined, ctx);
+    if (hostsHSU.length === 0) return done(addLog(ctx, '置き先のシグニなし（シグニ下配置スキップ）'));
+    const optsHSU = hostsHSU.map((host, i) => ({
+      id: `host${i}`,
+      label: `${ctx.cardMap.get(getCardNum(host))?.CardName ?? host}の下に置く`,
+      action: { type: 'STUB', id: 'INTERNAL_HSUS_PICK_HAND', value: host, handCardPick: stub.handCardPick } as EffectAction,
+      available: true,
+    }));
+    if (pickHSU.optional) {
+      optsHSU.push({ id: 'skip', label: '置かない', action: { type: 'STUB', id: 'INTERNAL_NOOP' } as EffectAction, available: true });
+    }
+    return needsInteraction(addLog(ctx, 'どのシグニの下に置きますか？'), { type: 'CHOOSE', options: optsHSU, count: 1 });
+  }
+  // INTERNAL_HSUS_PICK_HAND: `HAND_SIGNI_UNDER_SIGNI` の2段目＝置き先（`stub.value`）を焼き込んで手札を選ばせる。
+  if (stub.id === 'INTERNAL_HSUS_PICK_HAND') {
+    const pickHSU2 = resolveHandCardPick(stub.handCardPick, ctx);
+    const hostHSU2 = typeof stub.value === 'string' ? stub.value : undefined;
+    if (!pickHSU2 || !hostHSU2) return done(ctx);
+    if (pickHSU2.cands.length === 0) return done(addLog(ctx, '手札にシグニなし（シグニ下配置スキップ）'));
+    const placeAction: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand', hostCardNum: hostHSU2 };
+    return selectOrInteract(pickHSU2.cands, pickHSU2.count, pickHSU2.optional, 'self_hand', placeAction as EffectAction, undefined, ctx);
   }
   // 🏁**`HAND_CARDS_UNDER_SIGNI` / `PLACE_SIGNI_UNDER_SELF_OPT` は撤去した**（2026-09-02 §5.3 `O-60` 第16バッチ）。
   //   旧実装は `card.EffectText` から**枚数・任意・レベル・置き元の4軸**を実行時 regex で読んでいた＝

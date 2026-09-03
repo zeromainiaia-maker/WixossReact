@@ -777,6 +777,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 特定クラスがいない場合手札を捨てる ----
+  // 🆕§5.3 `O-60` 第51バッチ（2026-09-03）＝**場の絞り込みと枚数は payload で運ぶ**。
+  const dincM = t.match(/場に他の(?:＜([^＞]+)＞の)?シグニがない場合[^。]*手札を([０-９\d]+)枚捨てる/);
+  if (dincM) {
+    return {
+      type: 'STUB', id: 'DISCARD_IF_NO_CLASS_SIGNI',
+      discardIfNoSigni: {
+        filter: { cardType: 'シグニ', ...(dincM[1] ? { story: dincM[1] } : {}) },
+        discardCount: parseNum(dincM[2]),
+      },
+    } as StubAction;
+  }
   if (t.match(/場に他の.+のシグニがない場合.*手札を.*捨てる/)) {
     return { type: 'STUB', id: 'DISCARD_IF_NO_CLASS_SIGNI' } as StubAction;
   }
@@ -2191,6 +2202,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 手札からクラスシグニを好きな枚数公開する ----
+  // 🆕§5.3 `O-60` 第51バッチ（2026-09-03）＝**絞り込みは payload で運ぶ**（engine はカード全文を読まない）。
+  const revealAnyM = t.match(/手札から(?:それぞれ名前の異なる)?(?:[<＜]([^>＞]+)[>＞]の)?シグニを?好きな枚数公開する/);
+  if (revealAnyM) {
+    return {
+      type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND',
+      handCardPick: {
+        filter: { cardType: 'シグニ', ...(revealAnyM[1] ? { story: revealAnyM[1] } : {}) },
+        anyCount: true,
+      },
+    } as StubAction;
+  }
   if (t.match(/手札から.+のシグニを好きな枚数公開する/)) {
     return { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' } as StubAction;
   }
@@ -2283,6 +2305,21 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 手札から捨てなければ手札をN枚捨てる（コスト選択）----
+  // 🆕§5.3 `O-60` 第51バッチ（2026-09-03）＝**捨てる条件とペナルティ枚数は payload で運ぶ**。
+  //   🔴旧実装は engine の**2地点**（`DISCARD_OR_PENALTY` と後段 `INTERNAL_DISCARD_MATCHING_HAND_DOP`）が
+  //   それぞれカード全文へ regex を当てており、綴りが少し違うと**条件だけがズレて別のカードを捨てられる**形だった。
+  const dopM = t.match(/手札から(?:＜([^＞]+)＞の)?(スペル|シグニ|アーツ|カード)を([０-９\d]+)枚捨てないかぎり手札を([０-９\d]+)枚捨てる/);
+  if (dopM) {
+    const dopFilter: TargetFilter = {
+      ...(dopM[2] === 'カード' ? {} : { cardType: dopM[2] as 'スペル' | 'シグニ' | 'アーツ' }),
+      ...(dopM[1] ? { story: dopM[1] } : {}),
+    };
+    return {
+      type: 'STUB', id: 'DISCARD_OR_PENALTY',
+      handCardPick: { ...(Object.keys(dopFilter).length > 0 ? { filter: dopFilter } : {}), count: parseNum(dopM[3]) },
+      discardPenalty: { count: parseNum(dopM[4]) },
+    } as StubAction;
+  }
   if (t.match(/手札から.+捨てないかぎり手札を[０-９\d]+枚捨てる/)) {
     return { type: 'STUB', id: 'DISCARD_OR_PENALTY' } as StubAction;
   }

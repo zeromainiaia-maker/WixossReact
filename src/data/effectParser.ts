@@ -11494,7 +11494,9 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
   }
   if (cardNum === 'WDK08-Y11') {
     setAction('WDK08-Y11-E2', { type: 'SEQUENCE', steps: [
-      { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' },
+      // 🆕公開する手札の絞り込みは payload（§5.3 `O-60` 第51バッチ・2026-09-03）＝engine は原文を読まない。
+      { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND',
+        handCardPick: { filter: { cardType: 'シグニ', story: '水獣' }, anyCount: true } },
       { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 6, verbJa: '公開した' }, then: {
         type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'Sランサー', duration: 'UNTIL_END_OF_TURN',
       }, else: { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 4, verbJa: '公開した' }, then: {
@@ -11504,7 +11506,9 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
   }
   if (cardNum === 'WXK04-034') {
     setAction('WXK04-034-E1', { type: 'SEQUENCE', steps: [
-      { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' },
+      // 🆕公開する手札の絞り込みは payload（§5.3 `O-60` 第51バッチ・2026-09-03）＝engine は原文を読まない。
+      { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND',
+        handCardPick: { filter: { cardType: 'シグニ', story: '水獣' }, anyCount: true } },
       { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 5, verbJa: '公開した' }, then: {
         type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2,
       }, else: { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 3, verbJa: '公開した' }, then: {

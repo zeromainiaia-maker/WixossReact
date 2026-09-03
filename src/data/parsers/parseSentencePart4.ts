@@ -26,6 +26,22 @@ import { parseSentencePart2 } from './parseSentencePart2';
 
 
 /**
+ * 「（…、）手札から{好きな枚数の}?{＜クラス＞の}?シグニ{N枚}?を公開する」の**絞り込みと枚数**
+ * （§5.3 `O-60` 第51バッチ・2026-09-03）。
+ * ⚠**`手札から` より後ろだけ**を見る＝前置きの「対戦相手のシグニ１体を対象とし、」に
+ *   ＜クラス＞が書いてある形（`WX06-019-BURST`）でそれを拾わないため。
+ */
+function parseHandRevealPick(t: string): NonNullable<StubAction['handCardPick']> {
+  const seg = t.slice(Math.max(0, t.indexOf('手札から')));
+  const anyCount = /^手札から好きな枚数/.test(seg) || /シグニを好きな枚数/.test(seg);
+  const filter: TargetFilter = { cardType: 'シグニ' };
+  const storyM = seg.match(/^手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]の/);
+  if (storyM) filter.story = storyM[1];
+  const countM = seg.match(/シグニ(?:を)?([０-９\d]+)枚/);
+  return { filter, ...(anyCount ? { anyCount: true } : { count: countM ? parseNum(countM[1]) : 1 }) };
+}
+
+/**
  * 「（あなたの）手札から〈修飾〉〈名詞〉を{好きな枚数|N枚まで}捨てる」＝**可変枚数の手札捨て**（§6.4 O-11・2026-08-17）。
  *
  * 🔴従来はこの文型が**バラバラに3本の `STUB{OPTIONAL_COST}`（ペイロード無し＝真 no-op）**へ落ちており、
@@ -2328,9 +2344,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REPEAT_EFFECT' } as StubAction;
 
   // ---- 手札からクラスシグニを公開 ----
+  // 🆕§5.3 `O-60` 第51バッチ（2026-09-03）＝**絞り込みと枚数は payload で運ぶ**。
+  //   🔴旧実装は engine が `EffectText + BurstText`（カード全文）に
+  //   `/手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]/` を当てていたので、**同じカードの別の能力**の
+  //   ＜クラス＞や《カード名》を掴みうる形だった（`WX05-030` は【起】と【ライフバースト】の両方に
+  //   「手札から＜アーム＞の」がある）。ここは**文**しか見ないので取り違えが起きない。
   if (t.match(/手札から(?:好きな枚数の)?[＜《].*[＞》].*シグニ.*を公開する/) ||
       t.match(/対戦相手のシグニ.*を対象とし.*手札から.*シグニを公開する/))
-    return { type: 'STUB', id: 'HAND_REVEAL_CLASS_SIGNI' } as StubAction;
+    return { type: 'STUB', id: 'HAND_REVEAL_CLASS_SIGNI', handCardPick: parseHandRevealPick(t) } as StubAction;
 
   // ---- その後、特定カードを公開してもよい ----
   // 🆕§5.3 `O-60` 第36バッチ（2026-09-03）＝**カード名を payload で運ぶ**。
@@ -2766,6 +2787,19 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ALL_PLAYER_MILL' } as StubAction;
 
   // ---- ＜解放派＞等のシグニを他シグニの下に置いてもよい ----
+  // 🆕§5.3 `O-60` 第51バッチ（2026-09-03）＝**手札側の絞り込みと「置き先」を payload で運ぶ**。
+  //   🔴旧実装は置き先が `PLACE_UNDER_SOURCE_SIGNI`＝**効果元シグニの下**に固定で、live の唯一のカード
+  //   `WXDi-P15-067` は**スペル**なので効果元が場に無く**恒久 無言 no-op** だった（原文2文目が丸ごと死）。
+  const handUnderM = t.match(/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)枚を(?:あなたの)?(?:＜([^＞]+)＞の)?シグニ[０-９\d]*体の下に置いてもよい/);
+  if (handUnderM)
+    return {
+      type: 'STUB', id: 'HAND_SIGNI_UNDER_SIGNI',
+      handCardPick: {
+        filter: { cardType: 'シグニ', ...(handUnderM[1] ? { story: handUnderM[1] } : {}) },
+        count: parseNum(handUnderM[2]), upTo: true,
+      },
+      handToUnderSigni: { ...(handUnderM[3] ? { hostFilter: { cardType: 'シグニ', story: handUnderM[3] } } : {}) },
+    } as StubAction;
   if (t.match(/手札から＜.*＞のシグニ.*の下に置いてもよい/))
     return { type: 'STUB', id: 'HAND_SIGNI_UNDER_SIGNI' } as StubAction;
 

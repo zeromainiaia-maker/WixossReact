@@ -1962,6 +1962,12 @@ export interface PlaceUnderSigniAction {
 export interface PlaceUnderSourceSigniAction {
   type: 'PLACE_UNDER_SOURCE_SIGNI';
   fromLocation: 'trash' | 'hand' | 'energy' | 'field' | 'deck'; // 🆕'deck'＝LOOK_PICK_CHAIN{then:'under'} の公開札（2026-08-31）
+  /**
+   * 🆕**置き先のシグニを明示する**（§5.3 `O-60` 第51バッチ・2026-09-03）。省略＝従来どおり
+   * `ctx.sourceCardNum`（＝効果元シグニ）の下。**効果元がスペルの効果**（`WXDi-P15-067`）では
+   * 効果元が場に無く `zoneIdx === -1` で無言 no-op になるため、置き先を選ばせて焼き込む。
+   */
+  hostCardNum?: string;
 }
 
 // このターン、次にターゲットシグニ（またはルリグ）がアタックしたとき、そのアタックを無効にする
@@ -4514,6 +4520,54 @@ export interface StubAction {
    * ⚠**payload が無い宣言は何もしない**（fail-closed）。
    */
   lookTopReturnRestBottom?: { lookCount: number };
+  /**
+   * 🆕**「手札から〈条件〉のカードを N枚（公開する／捨てる／下に置く）」の中身**
+   * （§5.3 `O-60` 第51バッチ・2026-09-03）。**手札を読む family 7ハンドラで共有する**＝
+   * `HAND_REVEAL_CLASS_SIGNI` / `REVEAL_CLASS_SIGNI_FROM_HAND` / `OPTIONAL_DISCARD_CLASS_SIGNI` /
+   * `OPTIONAL_DISCARD_HAND_CLASS` / `DISCARD_OR_PENALTY`（＋後段 `INTERNAL_DISCARD_MATCHING_HAND_DOP`） /
+   * `HAND_SIGNI_UNDER_SIGNI`。
+   *
+   * 🔴旧実装は7ハンドラが**それぞれ別の regex** で `EffectText + BurstText`（＝カード全文）から
+   *   クラス名と枚数を読み直していた＝**同じカードの別の能力**の＜クラス＞や数字を掴みうる形で、
+   *   しかも `ctx.sourceCardNum` から全文が引けない経路（効果スタック注入・スペル）では
+   *   絞り込みが丸ごと消えて**手札の全カードが候補**になっていた（`O-60` 第9バッチの実害と同型）。
+   * ⚠**この payload が無い宣言は何もしない**（fail-closed）＝旧既定（絞り込み無し・1枚）へ倒すと
+   *   原文にないカードまで公開／破棄できる過剰実行に戻る。
+   */
+  handCardPick?: {
+    /** 手札候補の絞り込み（`cardType` ／＜クラス＞＝`story` ／色）。 */
+    filter?: TargetFilter;
+    /** 枚数（既定 1）。`anyCount` が true のときは無視。 */
+    count?: number;
+    /** 「好きな枚数」＝該当する手札全部まで選べる。 */
+    anyCount?: boolean;
+    /** 「N枚まで」「してもよい」＝0枚でもよい。 */
+    upTo?: boolean;
+  };
+  /**
+   * 🆕`DISCARD_OR_PENALTY`＝「〈handCardPick〉を捨てない**かぎり手札をN枚捨てる**」のペナルティ枚数
+   * （§5.3 `O-60` 第51バッチ・2026-09-03）。
+   * ⚠**payload が無い宣言はペナルティを課さない**（fail-closed）＝旧既定は regex が外れても **2枚**を
+   *   焼き込んでおり、原文を読まずに手札を捨てさせる過剰実行だった。
+   */
+  discardPenalty?: { count: number };
+  /**
+   * 🆕`DISCARD_IF_NO_CLASS_SIGNI`＝「あなたの場に**他の〈条件〉のシグニがない場合**、あなたは手札をN枚捨てる」
+   * （§5.3 `O-60` 第51バッチ・2026-09-03）。`filter` は**場のシグニ**の絞り込み（手札ではない）。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）＝旧既定は絞り込みが消えると
+   *   「他のシグニが1体でもあれば捨てない」＝**クラス無視**に化けていた。
+   */
+  discardIfNoSigni?: { filter: TargetFilter; discardCount: number };
+  /**
+   * 🆕`HAND_SIGNI_UNDER_SIGNI`＝「あなたの手札から〈handCardPick〉を**あなたの〈hostFilter〉のシグニ１体の
+   * 下に**置いてもよい」の**置き先**（§5.3 `O-60` 第51バッチ・2026-09-03）。
+   *
+   * 🔴旧実装は置き先を `PLACE_UNDER_SOURCE_SIGNI`＝**効果元シグニの下**に固定していたが、live の唯一の
+   *   カード `WXDi-P15-067` は**スペル**なので `ctx.sourceCardNum` が場に無く、
+   *   `zoneIdx === -1` で**恒久 無言 no-op** だった（原文の2文目が丸ごと死んでいた）。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）。
+   */
+  handToUnderSigni?: { hostFilter?: TargetFilter };
   /**
    * 🆕`ALL_PLAYER_MILL`＝「各プレイヤーは自分のデッキの上から（自分のセンタールリグのレベル１に
    * つき）カードをN枚トラッシュに置く」の枚数（§5.3 `O-60` 第28バッチ・2026-09-03）。

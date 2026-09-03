@@ -1,5 +1,99 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第11巡）：§5.3 `O-60` 第51バッチ — 「手札から〈条件〉のカード」family 8ハンドラを payload 化
+
+**ベースライン**＝`4fadd1278`（第50バッチの直後）。**A🔴 SELF_TEXT 59行 → 51行 / 59→51ハンドラ**
+（`BASELINE_SELF_TEXT` も 51 へ払い戻し／A群 live 効果 **114 → 98**／miss は 0 のまま）。
+**gates 全緑**（golden 3345 → **3352**＝+7本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+census-stubs A🔴0・C0・manual-fields 0・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更16・追加0・削除0、予定外0。**
+🖥**実機＝機械判定では不要**（`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ／
+**`src/screens/` は1行も触っていない**・新しいアクション型／interaction 型は0）。ただし
+**`WXDi-P15-067` は「無言 no-op」から「置き先を選ぶ CHOOSE が出る」へ変わる**ので観測点を **`V-136`** に登録した（未実施）。
+
+### 何を取ったか
+
+`census:enginetext` A群の**「手札から〈条件〉のカードを N枚（公開する／捨てる／下に置く）」family
+8ハンドラ / live 16効果 / 16カード**を1バッチで取った。
+`HAND_REVEAL_CLASS_SIGNI`(live5) / `REVEAL_CLASS_SIGNI_FROM_HAND`(3) / `DISCARD_OR_PENALTY`(3) /
+`OPTIONAL_DISCARD_HAND_CLASS`(2) / `OPTIONAL_DISCARD_CLASS_SIGNI`(1) / `DISCARD_IF_NO_CLASS_SIGNI`(1) /
+`HAND_SIGNI_UNDER_SIGNI`(1) ＋ 後段 `INTERNAL_DISCARD_MATCHING_HAND_DOP`(live 0)。
+
+### 受け皿は1つに束ねた（`StubAction` の payload 4本）
+
+| payload | 何を運ぶ | 使うハンドラ |
+|---|---|---|
+| `handCardPick{filter,count,anyCount,upTo}` | 手札候補の絞り込み・枚数・任意性 | 6ハンドラ（＋後段1） |
+| `discardPenalty{count}` | 「捨てないかぎり手札をN枚捨てる」のN | `DISCARD_OR_PENALTY` |
+| `discardIfNoSigni{filter,discardCount}` | **場**のシグニの絞り込み（手札ではない） | `DISCARD_IF_NO_CLASS_SIGNI` |
+| `handToUnderSigni{hostFilter}` | 「〜の下に置く」の**置き先** | `HAND_SIGNI_UNDER_SIGNI` |
+
+engine 側の共通入口は `execUtils.resolveHandCardPick()` / `handCardPickLabel()` の2本だけ。
+**新しいアクション型は0**。足したのは `PlaceUnderSourceSigniAction.hostCardNum`（省略時は従来どおり効果元）1つ。
+
+### 🔴 実害2件（payload へ寄せて初めて見えた）
+
+**①`WXDi-P15-067`（INSPIRATION）は原文2文目が丸ごと死んでいた（恒久 無言 no-op）。**
+原文「あなたの手札から＜解放派＞のシグニ１枚を**あなたの＜解放派＞のシグニ１体の下に**置いてもよい」に対し、
+旧実装は置き先を `PLACE_UNDER_SOURCE_SIGNI`＝**効果元シグニの下**に固定していた。
+このカードは**スペル**なので `ctx.sourceCardNum` は場に無く、`zoneIdx === -1` で **`done(ctx)`＝無言で終了**していた。
+⇒ 置き先を先に選ばせ（CHOOSE）、選んだシグニを `hostCardNum` へ焼き込んでから手札を選ばせる2段にした。
+🔑**この形はどの計器にも映らなかった**＝engine に消費地点があるので `census:stubs` A群🔴 に出ず、
+逆翻訳は「〜の下に置いてもよい」と**正しそうな日本語**を出すので C群ゲートも通る。
+**`census:enginetext` の A群に居たことだけが手掛かりだった**（miss は 0＝regex は当たっていた）。
+
+**②`DISCARD_OR_PENALTY` は消費地点が2つあり、それぞれ別の regex でカード全文を読んでいた。**
+選択肢のラベルを作る側（`/手札から＜X＞のシグニを１枚捨てないかぎり/`）と、実際に捨てさせる後段
+`INTERNAL_DISCARD_MATCHING_HAND_DOP`（`/手札から＜X＞のシグニ/`）で**綴りが違う**＝
+片方だけが外れると「ラベルと実際に捨てられるカードが食い違う」形だった。⇒ 親が payload を後段へ渡す1本に統一。
+
+### 🔑 教訓
+
+**①この family の真因も「読む場所」だった。** parser は**その効果の文**しか見ないが、engine は
+`EffectText + BurstText`＝**カード全文**を見る。`WX05-030` は【起】と【ライフバースト】の**両方**に
+「手札から＜アーム＞の」があり、`WXK05-043` は【自】と【出】の両方が手札を触る。
+いまは当たっていても、**綴りが1つ違えば別の能力の数字を掴む**位置に全部あった。
+
+**②`miss=0` は「壊れていない」ではない、の3例目。** この family は miss 0 だったが、
+`WXDi-P15-067` は**regex が当たったうえで**置き先の解決に失敗して no-op だった
+＝**miss は「原文に当たるか」しか測っていない**（第49バッチ①・第50バッチと同じ結論）。
+
+**③新しい payload には「用法トリップワイヤ」を張った**（第50バッチ④の再適用）＝
+「`handCardPick` が付くのは family の6 id だけ」を golden で assert する。
+消費地点を増やすときは契約ごと書き換える。
+
+**④逆翻訳も payload から描き直した。** `DISCARD_OR_PENALTY` / `OPTIONAL_DISCARD_HAND_CLASS` の逆翻訳は
+engine と**同じ全文 regex** を持っており、**engine の取り違えをそのまま復唱**していた
+（＝原文照合という主軸の検査が構造的に効かない）。family 5本ぶんの描画を payload 読みへ移した。
+
+### 反転確認
+
+- `hostCardNum` の分岐を `false &&` で殺す → `WXDi-P15-067` の golden が
+  「場の＜解放派＞シグニの下にカードが1枚入る expected=2 got=1」で **FAIL**（＝旧挙動の再現）。戻して PASS。
+- golden 内でも payload 側を壊す反転を各テストに同梱＝`handCardPick` を落とすと選択が立たない（fail-closed）／
+  上限を1へ落とすと選択数が1になる／`discardPenalty` を3へ変えると3枚捨てる／
+  `hostFilter` を別クラスにすると1枚も動かない。
+- ⚠**反転は必ず消費側（engine）を壊して取る**（第49バッチ④）＝parser を壊しても収穫マージが
+  痩せた効果を live へ届けないので golden は緑のままになる。
+
+### 配送
+
+`AUTO` 11効果は `build:effects` で自動。**`MANUAL` 5効果**（`WX14-072` / `WX14-075` / `WXK04-090` /
+`WX24-P3-068` / `WXDi-P14-083`）は `manualEffects.ts` へ手書きしてから `syncManualLive.ts` で live へ届けた。
+🔑**`WDK08-Y11` と `WXK04-034` の2件は parser の文型ルールではなく `effectParser.ts` のカード別
+override が STUB を作っていた**＝文型側だけ直しても届かない（`--id` で live を確認して初めて判明）。
+
+### 触ったファイル
+
+`src/types/effects.ts`（payload 4本＋`hostCardNum`）／`src/engine/execUtils.ts`（共通入口2本）／
+`src/engine/execStubPart1.ts`・`execStubPart2.ts`・`execStubPart3.ts`・`effectExecutor.ts`（消費側）／
+`src/data/parsers/parseSentencePart2.ts`・`parseSentencePart3.ts`・`parseSentencePart4.ts`・
+`src/data/effectParser.ts`（生成側）／`src/data/manualEffects.ts`（MANUAL 5件）／
+`scripts/decompileEffects.ts`（逆翻訳）／`scripts/censusEngineText.ts`（ratchet 59→51）／
+`scripts/goldenTest.ts`（+7本）。**`src/screens/` は0行。**
+
+---
+
 ## 2026-09-03（索引 A 第10巡）：§5.3 `O-60` 第50バッチ — パワー family 15ハンドラを1バッチで payload 化
 
 **ベースライン**＝`2f920586e`（第49バッチの直後）。**A🔴 SELF_TEXT 76行 → 59行 / 74→59ハンドラ**（`BASELINE_SELF_TEXT` も 59 へ払い戻し）。

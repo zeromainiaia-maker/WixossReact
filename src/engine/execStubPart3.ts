@@ -11,6 +11,7 @@ import {
   isOwnTrashMoveLocked,
   matchesFilter,
   sourceAbilityText,
+  resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
 import { collectMultiAcceLimits, LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
@@ -3222,32 +3223,27 @@ export function execStubPart3(
     return done(addLog({ ...ctx, lastProcessedCards: [topREV] }, `公開：${cardREV?.CardName ?? topREV}`));
   }
   // HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを選択して公開（SELECT_TARGET）
+  // 🆕**絞り込みと枚数は payload（`handCardPick`）で受け取る**（§5.3 `O-60` 第51バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）へ `/手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]/`
+  //   を当てていたので、同じカードの**別の能力**の＜クラス＞を掴みうるうえ、`好きな枚数` の判定も
+  //   全文 `includes` だった（別の能力に「好きな枚数」があると**1枚のはずが全部公開できる**）。
+  // ⚠**payload が無ければ何も公開しない**（fail-closed）。
   if (stub.id === 'HAND_REVEAL_CLASS_SIGNI') {
-    const srcHRCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
-    // クラス名を抽出（例: ＜アーム＞、＜水獣＞）
-    const classMatchHRCS = txtHRCS.match(/手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]/);
-    const classNameHRCS = classMatchHRCS ? classMatchHRCS[1] : '';
-    const isAnyCountHRCS = txtHRCS.includes('好きな枚数');
-    // 手札からクラスシグニを絞り込む
-    const candsHRCS = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      return c?.Type === 'シグニ' && (!classNameHRCS || (c.CardClass ?? '').includes(classNameHRCS));
-    });
-    if (candsHRCS.length === 0) {
-      return done(addLog({ ...ctx, lastProcessedCards: [] },
-        `手札に${classNameHRCS ? `＜${classNameHRCS}＞` : ''}シグニなし（公開なし）`));
+    const pickHRCS = resolveHandCardPick(stub.handCardPick, ctx);
+    if (!pickHRCS) return done(addLog({ ...ctx, lastProcessedCards: [] }, '[HAND_REVEAL_CLASS_SIGNI: 公開条件なし（未指定）]'));
+    const labelHRCS = handCardPickLabel(stub.handCardPick);
+    if (pickHRCS.cands.length === 0) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] }, `手札に${labelHRCS}なし（公開なし）`));
     }
-    const countHRCS = isAnyCountHRCS ? candsHRCS.length : 1;
     // 公開カードを hand_revealed_just に記録（ON_REVEALED_FROM_HANDトリガー検出用）
     const markRevealHRCS: StubAction = { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_FROM_HAND' };
     return needsInteraction(
-      addLog(ctx, `手札から${classNameHRCS ? `＜${classNameHRCS}＞` : ''}シグニを${isAnyCountHRCS ? '好きな枚数' : '１枚'}公開する`),
+      addLog(ctx, `手札から${labelHRCS}を${stub.handCardPick?.anyCount ? '好きな枚数' : `${pickHRCS.count}枚`}公開する`),
       {
         type: 'SELECT_TARGET',
-        candidates: candsHRCS,
-        count: countHRCS,
-        optional: isAnyCountHRCS,
+        candidates: pickHRCS.cands,
+        count: pickHRCS.count,
+        optional: pickHRCS.optional,
         targetScope: 'self_hand',
         thenAction: markRevealHRCS as EffectAction,
       }
@@ -3431,48 +3427,42 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newSETHOD }, `${ctx.cardMap.get(lastEnaETHOD)?.CardName ?? lastEnaETHOD}をエナ→手札`));
   }
   // DISCARD_OR_PENALTY: 特定カード1枚捨てるかペナルティ（N枚捨て）を選ぶ
+  // 🆕**捨てる条件（`handCardPick`）とペナルティ枚数（`discardPenalty`）は payload**
+  //   （§5.3 `O-60` 第51バッチ・2026-09-03）。
+  // 🔴旧実装はここと後段 `INTERNAL_DISCARD_MATCHING_HAND_DOP` の**2地点**がそれぞれ違う regex で
+  //   カード全文を読んでおり（前者は「〜を１枚捨てないかぎり」まで含む／後者は「手札から〜」だけ）、
+  //   **綴りがズレると選択肢のラベルと実際に捨てられるカードが食い違う**形だった。
+  // ⚠**payload が無ければ何もしない**（fail-closed）＝旧既定はペナルティ **2枚**を焼き込んでおり、
+  //   原文を1文字も読まずに手札を捨てさせる過剰実行だった。
   if (stub.id === 'DISCARD_OR_PENALTY') {
-    const srcDOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDOP = srcDOP ? (srcDOP.EffectText ?? '') + ' ' + (srcDOP.BurstText ?? '') : '';
-    const toHWDOP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const classMatchDOP = txtDOP.match(/手札から[<＜]([^>＞]+)[>＞]のシグニを１枚捨てないかぎり/);
-    const typeMatchDOP = !classMatchDOP ? txtDOP.match(/手札から(スペル|シグニ|アーツ)を１枚捨てないかぎり/) : null;
-    const penaltyMDOP = txtDOP.match(/かぎり手札を([２-９\d]+)枚捨てる/);
-    const penaltyCount = penaltyMDOP ? parseInt(toHWDOP(penaltyMDOP[1])) : 2;
-    const matchingDOP = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (classMatchDOP) return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(classMatchDOP[1]);
-      if (typeMatchDOP) return c?.Type === typeMatchDOP[1];
-      return false;
-    });
-    const labelDOP = classMatchDOP ? `＜${classMatchDOP[1]}＞シグニを1枚捨てる` : typeMatchDOP ? `${typeMatchDOP[1]}を1枚捨てる` : '指定カードを1枚捨てる';
+    const pickDOP = resolveHandCardPick(stub.handCardPick, ctx);
+    const penaltyCount = stub.discardPenalty?.count;
+    if (!pickDOP || penaltyCount === undefined) {
+      return done(addLog(ctx, '[DISCARD_OR_PENALTY: 捨てる条件／ペナルティ枚数なし（未指定）]'));
+    }
+    const labelDOP = `${handCardPickLabel(stub.handCardPick)}を${pickDOP.count}枚捨てる`;
     const penaltyActionDOP: StubAction = { type: 'STUB', id: 'INTERNAL_DISCARD_PENALTY', value: penaltyCount };
-    if (matchingDOP.length === 0) {
+    if (pickDOP.cands.length < pickDOP.count) {
       const toDiscard = ctx.ownerState.hand.slice(0, penaltyCount);
       const newOwner = { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(penaltyCount), trash: [...ctx.ownerState.trash, ...toDiscard] };
       return done(addLog({ ...ctx, ownerState: newOwner }, `指定カードなし→ペナルティ手札${penaltyCount}枚捨て`));
     }
     return needsInteraction(addLog(ctx, `${labelDOP}か手札を${penaltyCount}枚捨てるか選択`), {
       type: 'CHOOSE', count: 1, options: [
-        { id: 'specific', label: labelDOP, action: { type: 'STUB', id: 'INTERNAL_DISCARD_MATCHING_HAND_DOP' } as EffectAction, available: true },
+        // 🔑後段へ**同じ payload を持たせて渡す**＝2地点が別々に原文を読み直す形をここで断ち切る。
+        { id: 'specific', label: labelDOP,
+          action: { type: 'STUB', id: 'INTERNAL_DISCARD_MATCHING_HAND_DOP', handCardPick: stub.handCardPick } as EffectAction,
+          available: true },
         { id: 'penalty',  label: `手札を${penaltyCount}枚捨てる`, action: penaltyActionDOP as EffectAction, available: ctx.ownerState.hand.length >= penaltyCount },
       ],
     });
   }
   if (stub.id === 'INTERNAL_DISCARD_MATCHING_HAND_DOP') {
-    const srcIDMD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtIDMD = srcIDMD ? (srcIDMD.EffectText ?? '') + ' ' + (srcIDMD.BurstText ?? '') : '';
-    const classMatchIDMD = txtIDMD.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
-    const typeMatchIDMD = !classMatchIDMD ? txtIDMD.match(/手札から(スペル|シグニ|アーツ)/) : null;
-    const candsIDMD = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (classMatchIDMD) return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(classMatchIDMD[1]);
-      if (typeMatchIDMD) return c?.Type === typeMatchIDMD[1];
-      return false;
-    });
-    if (candsIDMD.length === 0) return done(addLog(ctx, '該当カードなし'));
+    const pickIDMD = resolveHandCardPick(stub.handCardPick, ctx);
+    if (!pickIDMD) return done(addLog(ctx, '[INTERNAL_DISCARD_MATCHING_HAND_DOP: 捨てる条件なし（未指定）]'));
+    if (pickIDMD.cands.length === 0) return done(addLog(ctx, '該当カードなし'));
     const trashOneIDMD: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
-    return selectOrInteract(candsIDMD, 1, false, 'self_hand', trashOneIDMD as EffectAction, undefined, ctx);
+    return selectOrInteract(pickIDMD.cands, pickIDMD.count, false, 'self_hand', trashOneIDMD as EffectAction, undefined, ctx);
   }
   if (stub.id === 'INTERNAL_DISCARD_PENALTY') {
     const cntIDP = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '2'));

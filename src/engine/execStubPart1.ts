@@ -15,6 +15,7 @@ import {
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked, buildGatedKeywordGrant,
   sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
+  resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
 import { cloneAcceSlots } from '../utils/acce';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
@@ -2549,24 +2550,26 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: newOther }, `${namesOET}を相手エナからトラッシュへ`));
   }
   // フィールドに他のクラスシグニがない場合、手札を捨てる
+  // 🆕**場の絞り込みと枚数は payload（`discardIfNoSigni`）**（§5.3 `O-60` 第51バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）を読み、regex が外れると
+  //   `targetClassDINC === undefined`＝**クラス無視で「他のシグニが1体でもあれば捨てない」**に化けた。
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'DISCARD_IF_NO_CLASS_SIGNI') {
-    const srcDINC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDINC = srcDINC ? (srcDINC.EffectText ?? '') + ' ' + (srcDINC.BurstText ?? '') : '';
-    const classMatchDINC = txtDINC.match(/他の[<＜]([^>＞]+)[>＞]のシグニがない場合/);
-    const targetClassDINC = classMatchDINC?.[1];
-    // フィールドに自分以外のクラスシグニがあるかチェック
+    const specDINC = stub.discardIfNoSigni;
+    if (!specDINC) return done(addLog(ctx, '[DISCARD_IF_NO_CLASS_SIGNI: 条件なし（未指定）]'));
+    // フィールドに自分以外の該当シグニがあるかチェック
     const hasOtherClassSigni = ctx.ownerState.field.signi.some(stack => {
       const top = stack?.at(-1);
       if (!top || top === ctx.sourceCardNum) return false;
-      const c = ctx.cardMap.get(top);
-      return c?.Type === 'シグニ' && (!targetClassDINC || c.CardClass?.includes(targetClassDINC));
+      return matchesFilter(ctx.cardMap.get(getCardNum(top)), specDINC.filter);
     });
-    if (hasOtherClassSigni) return done(addLog(ctx, `他の${targetClassDINC ?? 'クラス'}シグニあり（捨てスキップ）`));
+    const labelDINC = Array.isArray(specDINC.filter.story) ? specDINC.filter.story.join('か') : specDINC.filter.story;
+    if (hasOtherClassSigni) return done(addLog(ctx, `他の${labelDINC ? `＜${labelDINC}＞の` : ''}シグニあり（捨てスキップ）`));
     if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし'));
     const discardDINC: TrashAction = {
       type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 },
     };
-    return selectOrInteract(ctx.ownerState.hand, 1, false, 'self_hand', discardDINC as EffectAction, undefined, ctx);
+    return selectOrInteract(ctx.ownerState.hand, specDINC.discardCount, false, 'self_hand', discardDINC as EffectAction, undefined, ctx);
   }
   // このターンにこのシグニがアタックしていた場合、手札を1枚捨てる
   if (stub.id === 'DISCARD_IF_ATTACKED_THIS_TURN') {
@@ -4706,24 +4709,21 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: newOther }, `${names}をデッキに加えてシャッフル`));
   }
   // 手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない）
+  // 🆕**絞り込みは payload（`handCardPick`）**（§5.3 `O-60` 第51バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）を読んでおり、`WXK05-043` のように
+  //   **同じカードの別の能力**にも「手札から＜水獣＞の」と書ける形では取り違えが起きうるうえ、
+  //   効果元が `cardMap` から引けない経路では絞り込みが消えて**手札の全シグニ**が候補になった。
+  // ⚠**payload が無ければ何も公開しない**（fail-closed）。
   if (stub.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
-    const srcRev = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRev = srcRev ? (srcRev.EffectText ?? '') + ' ' + (srcRev.BurstText ?? '') : '';
-    const classMatchRev = txtRev.match(/手札から(?:それぞれ名前の異なる)?[<＜]([^>＞]+)[>＞]のシグニ/);
-    const targetClassRev = classMatchRev?.[1];
-    const handCands = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (c?.Type !== 'シグニ') return false;
-      if (targetClassRev && !c.CardClass?.includes(targetClassRev)) return false;
-      return true;
-    });
-    if (handCands.length === 0) return done({
-      ...addLog(ctx, `手札に${targetClassRev ?? 'クラス'}シグニなし（公開スキップ）`),
+    const pickRCS = resolveHandCardPick(stub.handCardPick, ctx);
+    if (!pickRCS) return done(addLog({ ...ctx, lastProcessedCards: [] }, '[REVEAL_CLASS_SIGNI_FROM_HAND: 公開条件なし（未指定）]'));
+    if (pickRCS.cands.length === 0) return done({
+      ...addLog(ctx, `手札に${handCardPickLabel(stub.handCardPick)}なし（公開スキップ）`),
       lastProcessedCards: [],
     });
     // 公開カードを hand_revealed_just に記録（ON_REVEALED_FROM_HANDトリガー検出用、execStubPart3にハンドラ）
     const markRevealRCS: StubAction = { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_FROM_HAND' };
-    return selectOrInteract(handCands, handCands.length, true, 'self_hand', markRevealRCS as EffectAction, undefined, ctx);
+    return selectOrInteract(pickRCS.cands, pickRCS.count, pickRCS.optional, 'self_hand', markRevealRCS as EffectAction, undefined, ctx);
   }
   // 対戦相手が自分のシグニを選んでエナに置く
   if (stub.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {
@@ -4972,29 +4972,20 @@ export function execStubPart1(
     });
   }
   // 手札からクラスシグニを任意枚数捨てる
+  // 🆕**絞り込みと上限枚数は payload（`handCardPick`）**（§5.3 `O-60` 第51バッチ・2026-09-03）。
+  // 🔴旧実装は `EffectText + BurstText`（**カード全文**）へ「シグニをN枚まで」を当てていた＝
+  //   `PR-328` は**捨てた枚数がそのまま後段 CHOOSE の選択数**（`countChoose`）になるので、
+  //   別の能力の数字を拾うと**選べる効果の数まで化ける**形だった（§6.4 O-11・続き532 で
+  //   助詞「を」を足して直したのは「同じ穴に別の綴りで落ちた」だけ）。
+  // ⚠**payload が無ければ何も捨てない**（fail-closed）。
   if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
-    const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
-    const toHWODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const classMatchODC = txtODC.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
-    const targetClassODC = classMatchODC?.[1];
-    // ⚠**「シグニ**を**２枚まで」の `を` を許すこと**＝`PR-328`「手札から＜武勇＞のシグニ**を**２枚まで
-    //   捨ててもよい」がこの regex から外れ、上限が既定の **1枚** に落ちていた（§6.4 O-11・続き532）。
-    //   このカードは捨てた枚数がそのまま後段 CHOOSE の選択数（`countChoose`）になるので、
-    //   上限が半分になると**選べる効果も半分**になる。
-    const maxMODC = txtODC.match(/シグニを?([０-９\d]+)枚まで/);
-    const maxODC = maxMODC ? parseInt(toHWODC(maxMODC[1])) : 1;
-    const handCands = ctx.ownerState.hand.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (c?.Type !== 'シグニ') return false;
-      if (targetClassODC && !c.CardClass?.includes(targetClassODC)) return false;
-      return true;
-    });
-    if (handCands.length === 0) return done(addLog(ctx, `手札に${targetClassODC ?? 'クラス'}シグニなし（任意捨てスキップ）`));
+    const pickODC = resolveHandCardPick(stub.handCardPick, ctx);
+    if (!pickODC) return done(addLog(ctx, '[OPTIONAL_DISCARD_CLASS_SIGNI: 捨てる条件なし（未指定）]'));
+    if (pickODC.cands.length === 0) return done(addLog(ctx, `手札に${handCardPickLabel(stub.handCardPick)}なし（任意捨てスキップ）`));
     const discardActionODC: TrashAction = {
       type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 },
     };
-    return selectOrInteract(handCands, maxODC, true, 'self_hand', discardActionODC as EffectAction, undefined, ctx);
+    return selectOrInteract(pickODC.cands, pickODC.count, true, 'self_hand', discardActionODC as EffectAction, undefined, ctx);
   }
   return null;
 }

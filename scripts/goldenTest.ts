@@ -62934,6 +62934,200 @@ test('§5.3 O-60 第50: signi_zone_all はスタックの下段まで数える�
   } finally { cursor = savedCursor; }
 });
 
+
+// ── §5.3 `O-60` 第51バッチ（2026-09-03）＝「手札から〈条件〉のカードを N枚」family 8ハンドラを payload 化 ──
+// 🔴この family は **engine が `EffectText + BurstText`（カード全文）を8本の別々の regex で読んで**
+//   クラス名と枚数を決めていた。受け皿は1つ（`handCardPick`）に束ねた。
+// ⚠**反転は必ず消費側（engine が読む payload）を壊して取る**（第49バッチ④＝parser を壊しても
+//   収穫マージが痩せた効果を live へ届けないので golden は緑のまま）。
+const O60B51_IDS = [
+  'HAND_REVEAL_CLASS_SIGNI', 'REVEAL_CLASS_SIGNI_FROM_HAND', 'OPTIONAL_DISCARD_CLASS_SIGNI',
+  'OPTIONAL_DISCARD_HAND_CLASS', 'DISCARD_OR_PENALTY', 'HAND_SIGNI_UNDER_SIGNI',
+];
+function o60b51Nodes(): { effectId: string; node: Record<string, unknown> }[] {
+  const out: { effectId: string; node: Record<string, unknown> }[] = [];
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && typeof rec.id === 'string'
+        && (O60B51_IDS.includes(rec.id) || rec.id === 'DISCARD_IF_NO_CLASS_SIGNI')) {
+      out.push({ effectId, node: rec });
+    }
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+  return out;
+}
+
+test('§5.3 O-60 第51: 手札 family は live 全ノードが payload を持つ（fail-closed の穴が無い）', () => {
+  const nodes = o60b51Nodes();
+  const missing = nodes.filter(({ node }) => (
+    node.id === 'DISCARD_IF_NO_CLASS_SIGNI' ? !node.discardIfNoSigni : !node.handCardPick
+  )).map(({ effectId, node }) => `${effectId}(${String(node.id)})`);
+  eq(missing.length, 0, `payload を持たないノード: ${missing.join(', ')}`);
+  ok(nodes.length >= 16, `走査対象が消えていない（実測 ${nodes.length} ノード）`);
+  // `DISCARD_OR_PENALTY` はペナルティ枚数も payload（無いと engine は何もしない）。
+  const dop = nodes.filter(({ node }) => node.id === 'DISCARD_OR_PENALTY');
+  ok(dop.length >= 3, `DISCARD_OR_PENALTY が3件以上（実測 ${dop.length}）`);
+  eq(dop.filter(({ node }) => !node.discardPenalty).length, 0, 'discardPenalty を持たないノードが無い');
+  // `HAND_SIGNI_UNDER_SIGNI` は置き先も payload。
+  const hsu = nodes.filter(({ node }) => node.id === 'HAND_SIGNI_UNDER_SIGNI');
+  eq(hsu.filter(({ node }) => !node.handToUnderSigni).length, 0, 'handToUnderSigni を持たないノードが無い');
+});
+
+// 🔑**用法トリップワイヤ**（第50バッチ④）＝`handCardPick` の消費地点はこの family だけ。
+//   別の STUB へ付け始めたらここが FAIL するので、そのときは消費側の契約ごと書き換える。
+test('§5.3 O-60 第51: handCardPick が付くのは手札 family の STUB だけ（消費地点の契約）', () => {
+  const strays: string[] = [];
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.handCardPick && !(rec.type === 'STUB' && typeof rec.id === 'string' && O60B51_IDS.includes(rec.id))) {
+      strays.push(`${effectId}(${String(rec.type)}/${String(rec.id)})`);
+    }
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+  eq(strays.length, 0, `family 外の handCardPick: ${strays.join(', ')}`);
+});
+
+test('§5.3 O-60 第51: WX05-030-E1 の公開候補は＜アーム＞のシグニだけ（旧はカード全文 regex）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WX05-030') ?? []).find(e => e.effectId === 'WX05-030-E1');
+    ok(!!eff, 'WX05-030-E1 が live にある'); if (!eff) return;
+    const arm = matchingCard({ cardType: 'シグニ', story: 'アーム' });
+    const notArm = matchingCard({ cardType: 'シグニ' }, c => !(c.CardClass ?? '').includes('アーム'));
+    const mk = () => {
+      const ctx = mkCtx({}, {}, 'WX05-030');
+      ctx.ownerState = { ...ctx.ownerState, hand: [arm, notArm] };
+      return ctx;
+    };
+    const first = executeEffect(
+      { effectId: 't', effectType: 'AUTO', action: eff.action, duration: 'INSTANT', mandatory: true } as CardEffect, mk());
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', '手札公開の SELECT_TARGET が立つ');
+    if (first.done) return;
+    const cands = (first.pending as unknown as { candidates: string[] }).candidates;
+    eq(cands.length, 1, '候補は1枚だけ');
+    eq(cands[0], arm, '＜アーム＞のシグニだけが候補（絞り込みが payload から効く）');
+    eq((first.pending as unknown as { count: number }).count, 1, '原文「１枚」＝1枚');
+    // 反転＝消費側の payload を落とすと engine は何も公開しない（fail-closed）。
+    const stripped = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    (stripped as unknown as { steps: Record<string, unknown>[] }).steps[0].handCardPick = undefined;
+    const r2 = executeEffect(
+      { effectId: 't', effectType: 'AUTO', action: stripped, duration: 'INSTANT', mandatory: true } as CardEffect, mk());
+    ok(r2.done || r2.pending.type !== 'SELECT_TARGET', 'payload なしでは手札公開の選択が立たない（fail-closed）');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第51: PR-328-E1 は＜武勇＞を2枚まで捨てられる（上限は payload・後段の選択数に直結）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('PR-328') ?? []).find(e => e.effectId === 'PR-328-E1');
+    ok(!!eff, 'PR-328-E1 が live にある'); if (!eff) return;
+    const buyu = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('武勇')).slice(0, 2).map(c => c.CardNum);
+    eq(buyu.length, 2, '＜武勇＞のシグニを2枚用意できる');
+    const other = matchingCard({ cardType: 'シグニ' }, c => !(c.CardClass ?? '').includes('武勇'));
+    const mk = (action: EffectAction) => {
+      const ctx = mkCtx({}, {}, 'PR-328');
+      ctx.ownerState = { ...ctx.ownerState, hand: [...buyu, other] };
+      return executeEffect(
+        { effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    };
+    const first = mk(eff.action);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', '手札捨ての SELECT_TARGET が立つ'); if (first.done) return;
+    const p = first.pending as unknown as { candidates: string[]; count: number; optional: boolean };
+    eq(p.count, 2, '「２枚まで」＝上限2（旧は全文 regex 頼みで1枚に落ちる形だった）');
+    ok(p.optional, '「まで」＝0枚でもよい');
+    eq(p.candidates.length, 2, '候補は＜武勇＞のシグニ2枚だけ');
+    // 反転＝上限を payload で1へ落とすと選択数も1になる（ハードコードではない）。
+    const one = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    ((one as unknown as { steps: { handCardPick: { count: number } }[] }).steps[0]).handCardPick.count = 1;
+    const r2 = mk(one);
+    ok(!r2.done); if (r2.done) return;
+    eq((r2.pending as unknown as { count: number }).count, 1, 'payload の上限がそのまま選択数になる');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第51: WX04-047-E1 のペナルティ枚数は payload（該当カードが無ければその枚数を捨てる）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WX04-047') ?? []).find(e => e.effectId === 'WX04-047-E1');
+    ok(!!eff, 'WX04-047-E1 が live にある'); if (!eff) return;
+    const notAtom = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('原子')).slice(0, 4).map(c => c.CardNum);
+    eq(notAtom.length, 4, '＜原子＞でないシグニを4枚用意できる');
+    const mk = (action: EffectAction) => {
+      const ctx = mkCtx({}, {}, 'WX04-047');
+      ctx.ownerState = { ...ctx.ownerState, hand: [...notAtom] };
+      return run(action, ctx);
+    };
+    const r = mk(eff.action);
+    ok(r.done); if (!r.done) return;
+    // ドロー2枚（手札4→6）→ 該当カード無し → ペナルティ2枚捨て（6→4）
+    eq(r.ownerState.hand.length, 4, '2枚引いてペナルティ2枚捨て');
+    eq(r.ownerState.trash.length, 3 + 2, 'ペナルティ分がトラッシュへ');
+    // 反転＝ペナルティ枚数を payload で3へ変えると3枚捨てる（旧は既定 2 の焼き込みだった）。
+    const three = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    ((three as unknown as { steps: { discardPenalty: { count: number } }[] }).steps[1]).discardPenalty.count = 3;
+    const r2 = mk(three);
+    ok(r2.done); if (!r2.done) return;
+    eq(r2.ownerState.hand.length, 3, 'payload の枚数がそのまま効く');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第51: WXDi-P07-062-E1 は「他の＜宝石＞がある/ない」で捨てるかどうかが変わる', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXDi-P07-062') ?? []).find(e => e.effectId === 'WXDi-P07-062-E1');
+    ok(!!eff, 'WXDi-P07-062-E1 が live にある'); if (!eff) return;
+    const gem = matchingCard({ cardType: 'シグニ', story: '宝石' }, c => c.CardNum !== 'WXDi-P07-062');
+    const notGem = matchingCard({ cardType: 'シグニ' }, c => !(c.CardClass ?? '').includes('宝石'));
+    const mk = (fieldCard: string) => {
+      const ctx = mkCtx({ signi: ['WXDi-P07-062', fieldCard, null] }, {}, 'WXDi-P07-062');
+      return run(eff.action, ctx);
+    };
+    const withGem = mk(gem);
+    ok(withGem.done); if (!withGem.done) return;
+    eq(withGem.ownerState.hand.length, 5, '他の＜宝石＞があるので捨てない');
+    const withoutGem = mk(notGem);
+    ok(withoutGem.done); if (!withoutGem.done) return;
+    eq(withoutGem.ownerState.hand.length, 4, '他の＜宝石＞が無いので手札を1枚捨てる');
+  } finally { cursor = savedCursor; }
+});
+
+test('§5.3 O-60 第51: WXDi-P15-067-E1 は＜解放派＞シグニの下に置ける（旧はスペル効果元で恒久 no-op だった）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = (effectsMap.get('WXDi-P15-067') ?? []).find(e => e.effectId === 'WXDi-P15-067-E1');
+    ok(!!eff, 'WXDi-P15-067-E1 が live にある'); if (!eff) return;
+    const kaiho = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('解放派')).slice(0, 2).map(c => c.CardNum);
+    eq(kaiho.length, 2, '＜解放派＞のシグニを2枚用意できる');
+    const mkCtx067 = (action: EffectAction) => {
+      const ctx = mkCtx({ signi: [kaiho[0], null, null] }, {}, 'WXDi-P15-067');
+      ctx.ownerState = { ...ctx.ownerState, hand: [kaiho[1]] };
+      return run(action, ctx);
+    };
+    const r = mkCtx067(eff.action);
+    ok(r.done); if (!r.done) return;
+    // 🔴旧実装は置き先が「効果元シグニの下」固定＝効果元は**スペル**なので場に無く、無言 no-op だった。
+    eq(r.ownerState.field.signi[0]?.length, 2, '場の＜解放派＞シグニの下にカードが1枚入る');
+    eq(r.ownerState.field.signi[0]?.[0], kaiho[1], '下に入ったのは手札から選んだカード');
+    ok(!r.ownerState.hand.includes(kaiho[1]), '手札から取り除かれている');
+    // 反転＝置き先フィルタを別クラスにすると候補が無くなり、1枚も動かない。
+    const swapped = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+    ((swapped as unknown as { steps: { handToUnderSigni: { hostFilter: { story: string } } }[] }).steps[1])
+      .handToUnderSigni.hostFilter.story = '天使';
+    const r2 = mkCtx067(swapped);
+    ok(r2.done); if (!r2.done) return;
+    eq(r2.ownerState.field.signi[0]?.length, 1, '置き先フィルタに合わなければ下に入らない');
+  } finally { cursor = savedCursor; }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
