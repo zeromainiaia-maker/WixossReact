@@ -3139,7 +3139,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- 《ヘブン》/自動能力引用文 ----
   if (t.match(/が《ヘブン》したとき/) ||
       t.match(/^【自】：.+したとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- アタックを一度無効にする ----
   // 🆕**§5.3 `O-220` 第1バッチ（2026-09-02）＝「**この**アタックで…ダメージを与えない」は `attackingOnly`**。
@@ -3229,7 +3229,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- シグニがアクセされたとき自動能力 ----
   if (t.match(/シグニ[１-９1-9０-９\d]*体?がアクセされたとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- そのシグニと共通する色を持つシグニを手札から捨ててもよい ----
   if (t.match(/手札からそのシグニと共通する色を持つシグニを[１-９1-9０-９\d]*枚捨ててもよい/))

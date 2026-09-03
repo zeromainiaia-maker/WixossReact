@@ -1409,7 +1409,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 引用符付き自動能力を得る（【自】...）----
   if (t.match(/「【自】.*」を得る/s)) {
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
   }
 
   // ---- 特定シグニゾーンにアタック可能 ----
@@ -2062,7 +2062,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       } as EffectAction));
       return grantsGQA.length === 1 ? grantsGQA[0] : { type: 'SEQUENCE', steps: grantsGQA } as EffectAction;
     }
-    return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
   }
 
   // ---- エナコスト節約（センタールリグの色のエナの代わりにシグニをトラッシュ）----
@@ -2832,7 +2832,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
     if (/このシグニのアタックはこのシグニの効果によって無効にされない/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT' } as StubAction;
     }
-    return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
   }
 
   // ---- そのアタックを無効にする（単独）----

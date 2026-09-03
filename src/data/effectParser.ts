@@ -7294,7 +7294,7 @@ function normalizeGrantKeywordSpelling(node: unknown): void {
         ? 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT' : null;
       for (const k of Object.keys(rec)) delete rec[k];
       rec.type = 'STUB';
-      rec.id = deferredNGK ?? 'GRANT_ABILITY_INNER_TEXT';
+      rec.id = deferredNGK ?? 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED';
       return;
     }
   }
@@ -8024,7 +8024,7 @@ function applyQuotedFrontPowerGrantBatch(cardNum: string, effects: CardEffect[])
     if (grantQFP) expandGrantEffectRawTexts(grantQFP, cardNum);
     seq.steps.splice(1, 0, grantQFP && (grantQFP as { effect?: unknown }).effect
       ? grantQFP
-      : { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as EffectAction);
+      : { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as EffectAction);
   }
 
   // ── タスク12(cxviii)：`WXDi-P15-071` のベット分岐 ──
@@ -12706,7 +12706,7 @@ function prependShuffleBeforeTopDeckAction(text: string, parsed: EffectAction): 
  */
 function prependOuterPowerBeforeQuotedGrant(text: string, parsed: EffectAction): EffectAction {
   if (parsed.type !== 'STUB'
-      || !['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_AUTO_ABILITY', 'GRANT_QUOTED_ABILITY'].includes(parsed.id)) return parsed;
+      || !QUOTED_GRANT_CATCH_ALL_IDS.includes(parsed.id)) return parsed;
   const powerM = text.match(/(?:それ|そのシグニ|このシグニ)のパワーを([＋+－-])([０-９\d,，]+)し、(?:それ|そのシグニ|このシグニ)は[「『]/);
   if (!powerM || powerM.index === undefined) return parsed;
 
@@ -13789,7 +13789,7 @@ function parseActionTextBody(text: string): EffectAction {
     ? 'GAIN_ABILITY_THIS_GAME'
     : /チェックゾーンに置かれたライフクロスは【ライフバースト】「/.test(text)
       ? 'DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE'
-      : 'GRANT_ABILITY_INNER_TEXT';
+      : 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED';
   let safeResult = parsed;
   if (hasNakedImmediate(parsed)) {
     const masked = text
@@ -13861,7 +13861,11 @@ function parseActionTextBody(text: string): EffectAction {
 //   1つ目の綴りしか見ていなかった＝**どの綴りに落ちたかだけで構造化されるかが変わっていた**
 //   （`PR-K076-E2` は `SEQUENCE[POWER_MODIFY, STUB]` という**この規則が扱う形そのもの**なのに、
 //    id が `GRANT_QUOTED_AUTO_ABILITY` だったために素通りしていた）。
-const QUOTED_GRANT_CATCH_ALL_IDS = ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'];
+// 🆕**§5.3 `O-60` 第69バッチ（2026-09-04）＝parser の生成地点を1つの綴りへ畳んだ。**
+//   🔴旧は綴りが3つあり、**engine では同じ1本のハンドラ**なのに parser 側の復元規則・後処理が
+//     どれか1つしか見ていない、という取りこぼしを繰り返し生んでいた（第65の実例）。
+//   ⚠**旧3綴りは残す**＝`live` には無いが、外部（過去の JSON／手書き）から来た木を判定するときに要る。
+const QUOTED_GRANT_CATCH_ALL_IDS = ['DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED', 'GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'];
 const isQuotedGrantCatchAll = (n: unknown): boolean => {
   const o = n as { type?: string; id?: string };
   return o?.type === 'STUB' && QUOTED_GRANT_CATCH_ALL_IDS.includes(o.id ?? '');
@@ -14070,7 +14074,7 @@ function restoreQuotedLrigDamageReplaceGrant(text: string, parsed: EffectAction)
     duration: /次の対戦相手のターン終了時まで/.test(text) ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN',
   } as GrantLrigAbilityAction;
   const swap = (node: EffectAction): EffectAction => {
-    if (node.type === 'STUB' && (node as StubAction).id === 'GRANT_ABILITY_INNER_TEXT') return grant;
+    if (isQuotedGrantCatchAll(node)) return grant;
     if (node.type === 'SEQUENCE') return { ...node, steps: (node as SequenceAction).steps.map(swap) };
     if (node.type === 'CONDITIONAL') {
       const c = node as import('../types/effects').ConditionalAction;
@@ -23756,7 +23760,7 @@ function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, 
         if (!node || typeof node !== 'object') return;
         if (Array.isArray(node)) { node.forEach(renameCatchAll); return; }
         const o = node as { type?: string; id?: string };
-        if (o.type === 'STUB' && ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'].includes(o.id ?? '')) {
+        if (o.type === 'STUB' && QUOTED_GRANT_CATCH_ALL_IDS.includes(o.id ?? '')) {
           o.id = 'DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED';
         }
         for (const v of Object.values(node as Record<string, unknown>)) renameCatchAll(v);
@@ -23772,7 +23776,7 @@ function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, 
       continue;
     }
     if (grants.length === 0) continue;
-    const CATCH_ALL_IDS = new Set(['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY']);
+    const CATCH_ALL_IDS = new Set(QUOTED_GRANT_CATCH_ALL_IDS);
     const pruneCatchAll = (node: EffectAction): EffectAction | null => {
       if (node.type === 'STUB' && CATCH_ALL_IDS.has((node as StubAction).id)) return null;
       if (node.type === 'SEQUENCE') {

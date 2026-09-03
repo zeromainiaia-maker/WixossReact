@@ -64330,6 +64330,37 @@ test('§5.3 O-60 第68: 受け皿が無い4文型は名前のある穴になっ�
   }
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第69バッチ（2026-09-04）＝parser の引用付与 catch-all を1つの綴りへ畳んだ。
+// 🔑**engine では1本のハンドラなのに parser 側の綴りが3つある**という非対称が、第65 のような
+//    「どの綴りに落ちたかだけで構造化の有無が変わる」取りこぼしを繰り返し生んでいた。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第69: parser は旧3綴りの catch-all をもう生成しない', () => {
+  // ⚠**判定は「生成地点」だけ**＝`QUOTED_GRANT_CATCH_ALL_IDS`（判定用の集合）と
+  //   コメント中の言及は残ってよい（外部から来た木を読むために要る）。
+  const files = [
+    'src/data/parsers/parseSentencePart1.ts', 'src/data/parsers/parseSentencePart2.ts',
+    'src/data/parsers/parseSentencePart3.ts', 'src/data/parsers/parseSentencePart4.ts',
+    'src/data/effectParser.ts',
+  ];
+  const bad: string[] = [];
+  for (const f of files) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    for (const id of ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY']) {
+      if (src.includes(`id: '${id}'`)) bad.push(`${f}: id: '${id}'`);
+    }
+  }
+  eq(bad.length, 0, `旧綴りの生成地点が残っている: ${bad.join(', ')}`);
+});
+
+test('§5.3 O-60 第69: 畳んだ先は逆翻訳に日本語で出る（生の英語 ID を出さない）', () => {
+  // ⚠`census:stubs` C群のゲートは**逆翻訳シートの実出力**を読むので live 0 のうちは映らない。
+  //   将来この穴に新カードが落ちたときに英語 ID が漏れないよう、地図の側で先に守る。
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(dec.includes('DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED:'), 'miscStubMap に日本語がある');
+});
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。

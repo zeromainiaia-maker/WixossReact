@@ -340,7 +340,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このシグニが〜したとき（AUTO能力引用） ----
   if (t.match(/このシグニが対戦相手のシグニ[１-９\d０-９]*体?をバニッシュしたとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- カード名に〜を含むシグニを手札/エナ ----
   if (t.match(/あなたの場にカード名に《.+》を含むシグニがある場合、代わりに/))
@@ -432,7 +432,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 《レイヤーアイコン》の能力を得る ----
   if (t.match(/《レイヤーアイコン》の能力を得る/))
-    return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- この下からカードをトラッシュに置いてもよい ----
   {
@@ -649,7 +649,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/このシグニが場を離れたとき/) ||
       t.match(/ドローフェイズ以外であなたがカードを[１-９\d０-９]*枚引いたとき/) ||
       t.match(/対戦相手のレベル[０-９\d０-９]+以下のシグニ[１-９\d０-９]*体?がこのシグニの正面.*出たとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- コスト支払いでシグニをトラッシュ（任意コスト形式） ----
   if (t.match(/《[白赤青緑黒無][^》]*》.*を支払い、このシグニを場からトラッシュに置いてもよい/))
@@ -1260,7 +1260,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたのシグニ１体に【ソウル】が付いたとき ----
   if (t.match(/【ソウル】が付いたとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- このゲームの間N回使用したのが〜回目である場合 ----
   if (t.match(/このゲームの間にあなたがこの【起】を使用したのが[１-９\d０-９]+回目である場合/))
@@ -1303,7 +1303,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手のシグニがこのシグニの正面〜 (AUTO trigger) ----
   if (t.match(/対戦相手のシグニ.*がこのシグニの正面のシグニゾーンに出たとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- あなたの場にあるシグニの下からそれぞれレベルの異なるシグニをトラッシュ ----
   if (t.match(/このシグニの下からそれぞれレベルの異なるシグニ[１-９\d０-９]+枚をトラッシュに置いてもよい/))
@@ -1368,7 +1368,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このシグニが対戦相手の能力か効果の対象になったとき、裏向き/表向きにする ----
   if (t.match(/このシグニが対戦相手の.*対象になったとき.*裏向きにし、表向きにする/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- 手札から〈クラス〉のカードをN枚まで公開してもよい ----
   if (t.match(/あなたの手札から[＜〈<].+[＞〉>]のカードを[１-９\d０-９]+枚?まで(?:公開|捨て)(?:てもよい)?$/))
@@ -1376,7 +1376,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手のアタックフェイズ開始時、手札から捨ててもよい ----
   if (t.match(/対戦相手のアタックフェイズ開始時、手札から.*捨ててもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- エナゾーンからカードをトラッシュに置いてもよい（条件付き） ----
   if (t.match(/あなたのエナゾーンから[＜〈<].+[＞〉>]のカードを[１-９\d０-９]+枚までトラッシュに置いてもよい/))
@@ -1436,7 +1436,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたのターンの間、バトルしたとき〜 ----
   if (t.match(/あなたのターンの間、このシグニがバトルしたとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- このアーツによってルリグが得た能力 ----
   if (t.match(/このアーツによってあなたのルリグが得た能力は/))
@@ -1502,7 +1502,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手のシグニ１体が場に出たとき（自動能力） ----
   if (t.match(/対戦相手のシグニ[１-９\d０-９]*体?が場に出たとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- そのシグニをトラッシュに置く（単独文） ----
   if (t.match(/^そのシグニをトラッシュに置く$/))
@@ -1526,7 +1526,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 各アタックフェイズ開始時、裏向きのシグニゾーンに〜場合 ----
   if (t.match(/各アタックフェイズ開始時、裏向きの.*場合/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- それを表向きにする（単独文） ----
   if (t.match(/^それを表向きにする$/))
@@ -1580,7 +1580,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 各ターン終了時、エナゾーンから対象とし自分をトラッシュ ----
   if (t.match(/各ターン終了時、対戦相手のエナゾーンからカード[１-９\d０-９]*枚を対象とし/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- 対戦相手の手札を見て無色ではないカードを選ぶ ----
   // 🔴§5.3 `O-60` 第1バッチ＝連用形「見**て**」で engine の終止形 regex に当たらず、
@@ -1634,7 +1634,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたの効果によって対戦相手が手札を捨てたとき ----
   if (t.match(/あなたの効果によって対戦相手が手札を[１-９\d０-９]*枚捨てたとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- チェックゾーンから《ガードアイコン》を持たないカードを手札に ----
   if (t.match(/チェックゾーンから《ガードアイコン》を持たないカードを[１-９\d０-９]*枚まで対象とし.*手札に加える/))
@@ -1758,7 +1758,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このカードにグロウする際、手札からシグニをN枚まで公開する ----
   if (t.match(/このカードにグロウする際、手札から.*公開する/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- 使用コストはセンタールリグのレベルにつきN減る ----
   if (t.match(/使用コストは.*センタールリグのレベル.*減る/))
@@ -1782,7 +1782,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対象のシグニは選んだ能力を得る ----
   if (t.match(/対象のシグニ.*選んだ能力を得る/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`BET_CONDITION` ハンドラを engine ごと撤去した。**
   //   ベットの昇格は**選択数**なら `CHOOSE{betChoose}`、**対象枚数**なら `CONDITIONAL{IS_BETTING}`
@@ -1790,7 +1790,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- シグニがトラッシュから場に出たとき、払い、トラッシュに置いてもよい ----
   if (t.match(/のシグニ.*がトラッシュから場に出たとき.*払い.*トラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- このターン、あなたは《X》を使用できない ----
   {
@@ -2014,7 +2014,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- メインフェイズの間、デッキからシグニがトラッシュに置かれたとき、場に出す ----
   if (t.match(/メインフェイズの間.*デッキから.*シグニ.*がトラッシュに置かれたとき.*場に出す/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- デッキをシャッフルし一番上のカードを公開し手札に加える ----
   // 🆕**§5.3 `O-60` 第59バッチ（2026-09-03）＝枚数は payload（`count`）で渡す**（この文型は常に1枚）。
@@ -2035,11 +2035,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このカードが捨てられたとき、手札を〜してもよい ----
   if (t.match(/このカードが捨てられたとき/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- アタックフェイズの間、エナコストを支払う際、シグニの下のカードをトラッシュに置いて支払える ----
   if (t.match(/アタックフェイズの間.*エナコストを支払う際.*シグニの下にあるカードを.*トラッシュに置いて支払える/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- この方法でエナコストはNターンにN以上しか支払えない ----
   if (t.match(/この方法でエナコストは.*ターンに.*しか支払えない/))
@@ -2071,11 +2071,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- スペルを使用したとき、手札を捨ててもよい ----
   if (t.match(/スペルを使用したとき.*手札を.*枚捨ててもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- このカードを捨てたとき、手札を捨ててもよい ----
   if (t.match(/このカードを捨てたとき.*手札を.*枚捨ててもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- このシグニの下からカードを好きな枚数トラッシュに置く ----
   if (t.match(/このシグニの下からカードを好きな枚数トラッシュに置く/))
@@ -2141,11 +2141,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 対戦相手の効果によって〜が場を離れる場合、〜行ってもよい ----
   if (t.match(/対戦相手の効果によって.*が場を離れる場合.*行ってもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- バトルによってシグニをバニッシュしたとき、〜捨ててもよい ----
   if (t.match(/バトルによってシグニ.*をバニッシュしたとき.*捨ててもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // ---- このターンにあなたが手札からXのカードをN枚以上捨てていた場合 ----
   if (t.match(/このターンにあなたが手札から.*カードを[１-９\d０-９]+枚以上捨てていた場合/))
@@ -2228,7 +2228,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- アタック終了時、このシグニを場から〜に置いてもよい ----
   if (t.match(/そのアタック終了時.*このシグニを場から.*に置いてもよい/))
-    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
 
   // 🏁**§5.3 `O-60` 第61バッチ（2026-09-03）＝`ARTS_EXTRA_COST_CONDITION` を engine ごと撤去した。**
   //   「使用する際に〈X〉を置いていた場合、代わりにKつ選ぶ」は `CHOOSE{additionalCostChoose}` が受け皿
