@@ -20,6 +20,54 @@ SP27-009 SP38-006 WD07-006 WD19-009 WDK16-13 WX12-Re10 WX13-031 WX14-069 WX17-00
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
 
+## +FRONT_SIGNI_POWER +GRANT_EFFECT +GRANT_KEYWORD +SIGNI×2 -STUB ［5枚］
+WXDi-CP02-057 WXDi-CP02-089 WXDi-P05-081 WXDi-P11-071 WXDi-P14-065
+--- WXDi-CP02-057
+  原文: 【出】手札から＜ブルアカ＞のカードを１枚エナゾーンに置く：あなたのエナゾーンから＜ブルアカ＞のカード１枚を対象とし、それを手札に加える。【起】エナゾーンから＜ブルアカ＞のカード２枚をトラッシュに置く：ターン終了時まで、このシグニは「【常】：このシグニは正面のシグニのパワーが12000以上であるかぎり、【アサシン】を得る。」を得る。【絆起】《緑×0》：あなたの
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.effect.effectId = "WXDi-CP02-057-sub-E1"
+  + [1].action.effect.effectType = "CONTINUOUS"
+  + [1].action.effect.activeCondition.type = "FRONT_SIGNI_POWER"
+  + [1].action.effect.activeCondition.operator = "gte"
+  + [1].action.effect.activeCondition.value = 12000
+  …（他 10 行）
+--- WXDi-CP02-089
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのエナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、このシグニは「【常】：このシグニは正面のシグニのパワーが5000以下であるかぎり、【ランサー】を得る。」を得る。【絆自】《ターン１回》：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、【エナチャージ１】
+  - [0].action.steps[1].then.id = "GRANT_QUOTED_ABILITY"
+  ~ [0].action.steps[1].then.type : "STUB" → "GRANT_EFFECT"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  + [0].action.steps[1].then.target.owner = "self"
+  + [0].action.steps[1].then.target.count = 1
+  + [0].action.steps[1].then.target.filter.thisCardOnly = true
+  + [0].action.steps[1].then.duration = "UNTIL_END_OF_TURN"
+  + [0].action.steps[1].then.effect.effectId = "WXDi-CP02-089-sub-E1"
+  + [0].action.steps[1].then.effect.effectType = "CONTINUOUS"
+  + [0].action.steps[1].then.effect.activeCondition.type = "FRONT_SIGNI_POWER"
+  + [0].action.steps[1].then.effect.activeCondition.operator = "lte"
+  + [0].action.steps[1].then.effect.activeCondition.value = 5000
+  …（他 10 行）
+--- WXDi-P05-081
+  原文: 【出】《黒》：あなたのトラッシュにカードが７枚以上ある場合、ターン終了時まで、このシグニは「【常】：このシグニは正面のシグニのパワーが5000以下であるかぎり、【アサシン】を得る。」を得る。,-
+  - [0].action.then.id = "GRANT_QUOTED_ABILITY"
+  ~ [0].action.then.type : "STUB" → "GRANT_EFFECT"
+  + [0].action.then.target.type = "SIGNI"
+  + [0].action.then.target.owner = "self"
+  + [0].action.then.target.count = 1
+  + [0].action.then.target.filter.thisCardOnly = true
+  + [0].action.then.duration = "UNTIL_END_OF_TURN"
+  + [0].action.then.effect.effectId = "WXDi-P05-081-sub-E1"
+  + [0].action.then.effect.effectType = "CONTINUOUS"
+  + [0].action.then.effect.activeCondition.type = "FRONT_SIGNI_POWER"
+  + [0].action.then.effect.activeCondition.operator = "lte"
+  + [0].action.then.effect.activeCondition.value = 5000
+  …（他 10 行）
+
 ## +SEQUENCE +STUB ［2枚］
 PR-K056 WX20-Re20
 --- PR-K056
@@ -77,6 +125,72 @@ WX22-Re20 WXEX1-04
   + [1].action.duration = "UNTIL_END_OF_TURN"
   + [1].action.rawText = "【常】：あなたが《無》《無》を支払わないかぎりアタックできない。"
   ~ [1].parseStatus : "AUTO" → "PARTIAL"
+
+## +GRANT_EFFECT +GRANT_KEYWORD +SIGNI×2 +TURN_OWNER -STUB ［2枚］
+WXDi-P06-032 WXDi-P13-044
+--- WXDi-P06-032
+  原文: 【自】：あなたのアタックフェイズ開始時、レベルがあなたの場にいる白のルリグの数以下の対戦相手のシグニ１体を対象とし、《白》《白》を支払ってもよい。そうした場合、それを手札に戻す。【起】《白》：次の対戦相手のターン終了時まで、このシグニは「【常】：対戦相手のターンの間、【シャドウ】を得る。」を得る。【起】《白》《白》《無》《無》《無》トラッシュにあるこのカード
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  + [1].action.duration = "UNTIL_OPP_TURN_END"
+  + [1].action.effect.effectId = "WXDi-P06-032-sub-E1"
+  + [1].action.effect.effectType = "CONTINUOUS"
+  + [1].action.effect.activeCondition.type = "TURN_OWNER"
+  + [1].action.effect.activeCondition.owner = "opponent"
+  + [1].action.effect.action.type = "GRANT_KEYWORD"
+  …（他 9 行）
+--- WXDi-P13-044
+  原文: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、このシグニを場からトラッシュに置き《白》《無》《無》を支払ってもよい。そうした場合、それをトラッシュに置く。【起】《ダウン》：次の対戦相手のターン終了時まで、このシグニは「【常】：対戦相手のターンの間、【シャドウ】を得る。」を得る。,：カードを２枚引く。このターン、あなたの手札にあるシ
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  + [1].action.duration = "UNTIL_OPP_TURN_END"
+  + [1].action.effect.effectId = "WXDi-P13-044-sub-E1"
+  + [1].action.effect.effectType = "CONTINUOUS"
+  + [1].action.effect.activeCondition.type = "TURN_OWNER"
+  + [1].action.effect.activeCondition.owner = "opponent"
+  + [1].action.effect.action.type = "GRANT_KEYWORD"
+  …（他 9 行）
+
+## +FRONT_SIGNI +GRANT_EFFECT +GRANT_KEYWORD +SIGNI×2 -STUB ［2枚］
+WXDi-P12-078 WXDi-P13-079
+--- WXDi-P12-078
+  原文: 【常】：このシグニは各ターンに一度しかアタックできない。【出】エナゾーンから《ディソナアイコン》のカード１枚をトラッシュに置く：ターン終了時まで、このシグニは「【常】：このシグニは正面のシグニがレベル１であるかぎり、【ランサー】を得る。」を得る。,-
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.effect.effectId = "WXDi-P12-078-sub-E1"
+  + [1].action.effect.effectType = "CONTINUOUS"
+  + [1].action.effect.activeCondition.type = "FRONT_SIGNI"
+  + [1].action.effect.activeCondition.filter.cardType = "シグニ"
+  + [1].action.effect.activeCondition.filter.level = 1
+  …（他 10 行）
+--- WXDi-P13-079
+  原文: 【出】エナゾーンから《ディソナアイコン》のカード２枚をトラッシュに置く：ターン終了時まで、このシグニは「【常】：このシグニは正面のシグニがレベル２以下であるかぎり、【ランサー】を得る。」を得る。,-
+  - [0].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [0].action.type : "STUB" → "GRANT_EFFECT"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.thisCardOnly = true
+  + [0].action.duration = "UNTIL_END_OF_TURN"
+  + [0].action.effect.effectId = "WXDi-P13-079-sub-E1"
+  + [0].action.effect.effectType = "CONTINUOUS"
+  + [0].action.effect.activeCondition.type = "FRONT_SIGNI"
+  + [0].action.effect.activeCondition.filter.cardType = "シグニ"
+  + [0].action.effect.activeCondition.filter.level.max = 2
+  …（他 10 行）
 
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
@@ -229,6 +343,60 @@ WXDi-P13-029
   + [0].action.owner = "opponent"
   + [0].action.delta = -2
   + [0].action.until = "NEXT_TURN"
+
+## +AND +FRONT_SIGNI +FRONT_SIGNI_POWER +GRANT_EFFECT +GRANT_KEYWORD +SIGNI×2 -STUB ［1枚］
+WXDi-P13-069
+--- WXDi-P13-069
+  原文: 【自】：このシグニがアタックしたとき、あなたの場に他の《ディソナアイコン》のシグニがある場合、カードを１枚引き、手札を１枚捨てる。【出】《青》：ターン終了時まで、このシグニは「【常】：このシグニの正面のシグニが、凍結状態でパワーが5000以下であるかぎり、このシグニは【アサシン】を得る。」を得る。,-
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.effect.effectId = "WXDi-P13-069-sub-E1"
+  + [1].action.effect.effectType = "CONTINUOUS"
+  + [1].action.effect.activeCondition.type = "AND"
+  + [1].action.effect.activeCondition.conditions[0].type = "FRONT_SIGNI"
+  + [1].action.effect.activeCondition.conditions[0].filter.cardType = "シグニ"
+  …（他 14 行）
+
+## +FRONT_SIGNI_POWER +GRANT_EFFECT×2 +GRANT_KEYWORD +SEQUENCE +SIGNI×3 ［1枚］
+WXDi-P15-069
+--- WXDi-P15-069
+  原文: 【自】《ターン２回》：あなたが《コインアイコン》を１枚以上支払ったとき、次の対戦相手のターン終了時まで、このシグニのパワーを＋2000する。【起】《コインアイコン》《コインアイコン》：ターン終了時まで、このシグニは「【常】：このシグニは正面のシグニのパワーが5000以下であるかぎり、【ランサー】を得る。」と「【常】：このシグニは各ターンに一度しかアタックでき
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "SEQUENCE"
+  + [1].action.steps[0].type = "GRANT_EFFECT"
+  + [1].action.steps[0].target.type = "SIGNI"
+  + [1].action.steps[0].target.owner = "self"
+  + [1].action.steps[0].target.count = 1
+  + [1].action.steps[0].target.filter.thisCardOnly = true
+  + [1].action.steps[0].duration = "UNTIL_END_OF_TURN"
+  + [1].action.steps[0].effect.effectId = "WXDi-P15-069-sub-E1"
+  + [1].action.steps[0].effect.effectType = "CONTINUOUS"
+  + [1].action.steps[0].effect.activeCondition.type = "FRONT_SIGNI_POWER"
+  + [1].action.steps[0].effect.activeCondition.operator = "lte"
+  …（他 24 行）
+
+## +COUNT_THRESHOLD +GRANT_EFFECT +GRANT_KEYWORD +SIGNI×2 -STUB ［1枚］
+WX24-P1-042
+--- WX24-P1-042
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《閃花繚乱　花代・参》がいる場合、対戦相手のパワー12000以下のシグニ１体を対象とし、手札から＜宝石＞のシグニを１枚捨ててもよい。そうした場合、それをバニッシュする。【起】エナゾーンから＜宝石＞のシグニ３枚をトラッシュに置く：ターン終了時まで、このシグニは「【常】：あなたの手札が２枚以下であるかぎり、この
+  - [1].action.id = "GRANT_QUOTED_ABILITY"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.effect.effectId = "WX24-P1-042-sub-E1"
+  + [1].action.effect.effectType = "CONTINUOUS"
+  + [1].action.effect.activeCondition.type = "COUNT_THRESHOLD"
+  + [1].action.effect.activeCondition.location = "hand"
+  + [1].action.effect.activeCondition.owner = "self"
+  …（他 12 行）
 
 ## +GRANT_EFFECT -GRANT_KEYWORD ［1枚］
 WX24-P3-002

@@ -10,12 +10,12 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1462 execStubPart1.ts:1634 | 8 | 8 | 5 | 0 |
+| fn:collectGrantedFromLayer + GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY | effectEngine.ts:7002 | 15 | 14 | 0 | 0 |
+| GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY | execStubPart1.ts:1462 execStubPart1.ts:1634 | 15 | 14 | 5 | 0 |
 | CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:2996 | 0 | 0 | 8 | 0 |
 | CONDITIONAL_PER_TRASH | execStubPart2.ts:2132 | 0 | 0 | 1 | 0 |
 | CONDITIONAL_POWER_BONUS | execStubPart1.ts:1866 | 0 | 0 | 9 | 0 |
 | fn:analyzeBeatSigniCost | execUtils.ts:1423 | 0 | 0 | 2 | 0 |
-| fn:collectGrantedFromLayer | effectEngine.ts:7002 | 0 | 0 | 0 | 0 |
 | INTERNAL_ECRV_APPLY | execStubPart1.ts:2276 | 0 | 0 | 0 | 0 |
 | INTERNAL_MARK_REVEALED_NAMED | execStubPart3.ts:3097 | 0 | 0 | 0 | 0 |
 | LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT | execStubPart2.ts:1178 | 0 | 0 | 0 | 0 |
@@ -25,7 +25,10 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 ## A群 明細
 
-### GRANT_ABILITY_INNER_TEXT  (live 8効果 / 8カード / miss 0)
+### fn:collectGrantedFromLayer + GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY  (live 15効果 / 14カード / miss 0)
+  effectEngine.ts:7002  return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
+
+### GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY  (live 15効果 / 14カード / miss 0)
   execStubPart1.ts:1462  const txtGQ = sourceAbilityText(ctx);
   execStubPart1.ts:1634  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
     lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)
@@ -65,9 +68,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execUtils.ts:1423  const text = sourceCard?.EffectText ?? '';
     lit re:このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に
     lit re:このシグニと他のシグニ([０-９0-9]+)体
-
-### fn:collectGrantedFromLayer  (live 0効果 / 0カード / miss 0)
-  effectEngine.ts:7002  return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
 
 ### INTERNAL_ECRV_APPLY  (live 0効果 / 0カード / miss 0)
   execStubPart1.ts:2276  const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';

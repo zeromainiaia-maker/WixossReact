@@ -11604,9 +11604,14 @@ test('続き377l: 【K】は「を得る」隣接では取らない（保有フ�
   eq(p15a?.type, 'CHOOSE', 'WXDi-P15-048-E2: 「【A】か【B】」は2択の CHOOSE');
   eq(p15a?.choices?.map(c => c.action?.keyword).join('/'), 'アサシン/ダブルクラッシュ',
     'WXDi-P15-048-E2: 前段・後段の両方が原文順で載る（後段だけを採らない）');
+  // 🆕**期待値を更新**（§5.3 `O-60` 第63バッチ・2026-09-04）＝`WXDi-P11-071-E2` は
+  //   `STUB{GRANT_QUOTED_ABILITY}` から **`GRANT_EFFECT{effect:{activeCondition, GRANT_KEYWORD}}`** へ移った。
+  //   🔑**トリップワイヤの意図は「無条件 `GRANT_KEYWORD` へ潰さない」**なので、
+  //     受け皿が STUB でも構造化 `GRANT_EFFECT` でもよい＝**裸の `GRANT_KEYWORD` だけを禁止する**。
   for (const [card, effId] of [['WXK02-057', 'WXK02-057-E1'], ['WXDi-P11-071', 'WXDi-P11-071-E2']] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
-    eq(e?.action?.type, 'STUB',
+    const a = e?.action as { type?: string; effect?: { activeCondition?: unknown; action?: { type?: string } } } | undefined;
+    ok(a?.type === 'STUB' || (a?.type === 'GRANT_EFFECT' && !!a.effect?.activeCondition),
       `${effId}: 「『【常】：〜かぎり、【K】を得る。』を得る」＝条件付き引用付与を無条件 GRANT_KEYWORD へ潰さない`);
   }
 }));
@@ -17047,8 +17052,20 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
   //   `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` を parser の `GRANT_EFFECT{rawText}` へ移したので、
   //   このカードはもう引用付与ハンドラを通らない（`activeCondition` は JSON が持つ）。
   //   🔑**契約の更新であって退行ではない**＝ゲートは別テスト「第55」で assert している。
-  eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069',
-     '引用付与ハンドラを通る正面パワー条件つきカードは6枚（WXDi-P15-071 は (cxviii)／WXDi-P10-025 は O-60 第55 で別経路）');
+  // 🆕🏁**6枚 → 0枚**（§5.3 `O-60` 第63バッチ・2026-09-04）＝残る6枚も parser の
+  //   `GRANT_EFFECT{rawText}` へ移した（`parseSentencePart2` の「このシグニは「【常】…」を得る」規則）。
+  //   ⇒ **正面パワーのゲートを engine の全文 regex に頼るカードはもう1枚も無い。**
+  //   🔴**ゲートの向きを反転させる**＝この母集団は「0 のまま」が正で、**増えたら退行**（engine の
+  //     `buildGatedKeywordGrant` へ逆流したか、parser の規則が外れたかのどちらか）。
+  eq(pop.join(','), '',
+     '正面パワー条件つきの引用付与が引用付与ハンドラ（＝engine の全文 regex）へ戻っていない');
+  // 🔑**「STUB が消えた」だけでは足りない**＝条件が JSON 側に載っていることまで固定する。
+  //   （STUB を消して無条件 `GRANT_KEYWORD` にする退化は上の `pop` では検出できない。）
+  for (const num of ['WXDi-CP02-057', 'WXDi-CP02-089', 'WXDi-P05-081', 'WXDi-P11-071', 'WXDi-P14-065', 'WXDi-P15-069']) {
+    const js = JSON.stringify(effectsMap.get(num) ?? []);
+    ok(js.includes('"FRONT_SIGNI_POWER"'),
+      `${num}: 正面パワーのゲートが activeCondition として JSON に載っている`);
+  }
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -17084,26 +17101,38 @@ test('§6.4 O-25(d) buildGatedKeywordGrant: 5形のゲートを activeCondition 
 
 test('§6.4 O-25(d) 引用付与6効果: ゲート条件が落ちて常時発動になっていない', () => withSavedCursor(() => {
   // live の実 action を実行し、**無条件の `keyword_grants` に落ちていない**ことを固定する。
-  const cases: [string, string, string][] = [
-    ['WXDi-P12-078', 'WXDi-P12-078-E2', 'ランサー'],
-    ['WXDi-P13-079', 'WXDi-P13-079-E1', 'ランサー'],
-    ['WXDi-P13-069', 'WXDi-P13-069-E2', 'アサシン'],
-    ['WX24-P1-042', 'WX24-P1-042-E2', 'ダブルクラッシュ'],
-    ['WXDi-P06-032', 'WXDi-P06-032-E2', 'シャドウ'],
-    ['WXDi-P13-044', 'WXDi-P13-044-E2', 'シャドウ'],
+  // 🆕🔴**付与ストアを原文の期間で撃ち分ける**（§5.3 `O-60` 第63バッチ・2026-09-04）。
+  //   旧 engine 経路（`buildGatedKeywordGrant`）は**期間を一切見ず常に `granted_effects`**（＝ターン内）へ
+  //   入れていた。【シャドウ】の2枚は原文が「**次の対戦相手のターン終了時まで**」得るのに、
+  //   `granted_effects` は**ターン終了でクリアされる**（`turnScopedState.ts:427` ほか3箇所）ので、
+  //   🔴**「対戦相手のターンの間」という発動条件が真になる頃には付与そのものが消えていた＝恒久 no-op**。
+  //   ⇒ parser が `GRANT_EFFECT{duration:'UNTIL_OPP_TURN_END'}` を出し、`execGrantEffect` が
+  //     `granted_effects_until_opp_turn` へ入れる（`BattleScreen` は2ストアを merge して読む）。
+  const cases: [string, string, string, 'granted_effects' | 'granted_effects_until_opp_turn'][] = [
+    ['WXDi-P12-078', 'WXDi-P12-078-E2', 'ランサー', 'granted_effects'],
+    ['WXDi-P13-079', 'WXDi-P13-079-E1', 'ランサー', 'granted_effects'],
+    ['WXDi-P13-069', 'WXDi-P13-069-E2', 'アサシン', 'granted_effects'],
+    ['WX24-P1-042', 'WX24-P1-042-E2', 'ダブルクラッシュ', 'granted_effects'],
+    ['WXDi-P06-032', 'WXDi-P06-032-E2', 'シャドウ', 'granted_effects_until_opp_turn'],
+    ['WXDi-P13-044', 'WXDi-P13-044-E2', 'シャドウ', 'granted_effects_until_opp_turn'],
   ];
-  for (const [cardNum, effectId, kw] of cases) {
+  for (const [cardNum, effectId, kw, store] of cases) {
     const eff = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
     if (!eff) throw new Error(`${effectId} が存在`);
     const ctx = mkCtx({ signi: [cardNum, null, null] }, { signi: [null, null, 'WX01-001'] }, cardNum);
     const r = run(eff.action, ctx);
     eq((r.ownerState.keyword_grants?.[cardNum] ?? []).includes(kw), false,
       `🔴${effectId}: ${kw} が無条件の keyword_grants に入っている（ゲートが落ちている）`);
-    const granted = r.ownerState.granted_effects?.[cardNum] ?? [];
-    eq(granted.length, 1, `${effectId}: 条件つき CONTINUOUS が1本 granted_effects に入る`);
+    const granted = r.ownerState[store]?.[cardNum] ?? [];
+    eq(granted.length, 1, `${effectId}: 条件つき CONTINUOUS が1本 ${store} に入る`);
     ok(!!granted[0].activeCondition, `${effectId}: activeCondition つきで入る`);
     eq((granted[0].action as import('../src/types/effects').GrantKeywordAction).keyword, kw,
       `${effectId}: 付与キーワードは ${kw}`);
+    // 🔑**もう一方のストアには入らない**＝期間の撃ち分けが効いていることまで固定する
+    //   （両方へ入れる実装だと上の assert だけでは通ってしまう）。
+    const other = store === 'granted_effects' ? 'granted_effects_until_opp_turn' : 'granted_effects';
+    eq((r.ownerState[other]?.[cardNum] ?? []).length, 0,
+      `${effectId}: 期間の違うストア（${other}）には入らない`);
   }
 }));
 
@@ -64006,6 +64035,69 @@ test('§5.3 O-60 第56: 計器は sourceAbilityText(ctx) の読み出しも数�
   }, 0);
   ok(calls >= 10, `engine に funnel の呼び出しが残っている（実測 ${calls} 箇所）`);
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第63バッチ（2026-09-04）＝「このシグニは「【常】…」を得る」family（live 12効果）を
+//   `GRANT_EFFECT{rawText}` へ寄せ、engine の `buildGatedKeywordGrant`（5パターン表）を parser の
+//   条件節テーブルへ移した。＋**計器の較正**（多行 `if` と `[...].includes(x.id)` 形の門を拾う）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第63: 計器は多行 if と [..].includes(x.id) 形の門も拾う（live 8→27 の可視化）', () => {
+  // 🔴後方走査は「`stub.id === 'X'` を含む行」で打ち切るため、
+  //   `if (stub.id === 'A' || stub.id === 'B' ||⏎ stub.id === 'C') {` は **C しか拾えなかった**＝
+  //   `GRANT_ABILITY_INNER_TEXT`(8) だけが母集団に見え、同じハンドラが受ける
+  //   `GRANT_QUOTED_ABILITY`(16) / `GRANT_QUOTED_AUTO_ABILITY`(3) が**計器の外**にいた。
+  //   `['A','B'].includes(act.id)` 形も同じ理由で門が0個になり `fn:collectGrantedFromLayer` が live 0 に見えていた。
+  // ⚠**engine のコードは1行も変えていない＝可視化であって退化ではない。**
+  const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
+  ok(census.includes('k--) scanIds(lines[k]);') && census.includes('const scanIds = (ln: string)'),
+    '直上が || / && で折り返した条件式の門も拾う');
+  ok(census.includes('.includes') && census.includes('const gi = ') && census.includes("addGate(v, idm[1])"),
+    '[..].includes(x.id) 形の門も拾う');
+  // engine 側に「多行 if」の実物が残っている（0 になったら較正ごと消してよい合図）。
+  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  ok(/stub\.id === 'GRANT_QUOTED_AUTO_ABILITY' \|\| stub\.id === 'GRANT_QUOTED_ABILITY' \|\|\s*\n\s*stub\.id === 'GRANT_ABILITY_INNER_TEXT'/.test(part1),
+    '多行ディスパッチャの実物が engine に残っている');
+});
+
+test('§5.3 O-60 第63: 引用の期間が「次の対戦相手のターン終了時まで」なら付与も UNTIL_OPP_TURN_END', () => withSavedCursor(() => {
+  // 🔴旧 catch-all は**期間を一切見ず**常に `granted_effects`（ターン内）へ入れていた。
+  //   【シャドウ】の2枚は「**対戦相手のターンの間**」に効く能力を「**次の対戦相手のターン終了時まで**」得るので、
+  //   ターン終了でストアが消える＝**条件が真になる頃には付与が無い恒久 no-op** だった。
+  for (const [num, id] of [['WXDi-P06-032', 'WXDi-P06-032-E2'], ['WXDi-P13-044', 'WXDi-P13-044-E2']] as const) {
+    const a = effectsMap.get(num)?.find(e => e.effectId === id)?.action as { type?: string; duration?: string } | undefined;
+    eq(a?.type, 'GRANT_EFFECT', `${id}: 引用付与は構造化された GRANT_EFFECT`);
+    eq(a?.duration, 'UNTIL_OPP_TURN_END', `${id}: 原文「次の対戦相手のターン終了時まで」が付与の期間に載る`);
+  }
+}));
+
+test('§5.3 O-60 第63: 引用が2つ並ぶ形は両方載る（旧は後ろの1つしか読めなかった）', () => withSavedCursor(() => {
+  // 🔴engine の切り出しは `「([^」]+)」…を得る` ＝`」` を跨げないので、
+  //   `「A」と「B」を得る` では A（＝条件つき【ランサー】）が**丸ごと落ちて**いた（過小実行）。
+  const seq = effectsMap.get('WXDi-P15-069')?.find(e => e.effectId === 'WXDi-P15-069-E2')?.action as SequenceAction | undefined;
+  eq(seq?.type, 'SEQUENCE', 'WXDi-P15-069-E2: 2つの付与が並ぶ');
+  eq(seq?.steps.length, 2, 'WXDi-P15-069-E2: 引用は2つとも載る');
+  const inner0 = (seq!.steps[0] as { effect?: { activeCondition?: { type?: string }; action?: { keyword?: string } } }).effect;
+  eq(inner0?.activeCondition?.type, 'FRONT_SIGNI_POWER', '1つ目＝正面パワーのゲートつき');
+  eq(inner0?.action?.keyword, 'ランサー', '1つ目＝【ランサー】');
+}));
+
+test('§5.3 O-60 第63: 正面レベル／凍結＋パワーのゲートは parser 側で activeCondition になる', () => withSavedCursor(() => {
+  // 🔴engine の `buildGatedKeywordGrant` にしか無かった2形＝parser 単体では**条件が黙って落ちて**
+  //   無条件【ランサー】【アサシン】になっていた（`GRANT_EFFECT` へ移した瞬間に過剰実行へ倒れる形）。
+  const want: [string, string, unknown][] = [
+    ['WXDi-P12-078', 'WXDi-P12-078-E2', { type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', level: 1 } }],
+    ['WXDi-P13-079', 'WXDi-P13-079-E1', { type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', level: { max: 2 } } }],
+    ['WXDi-P13-069', 'WXDi-P13-069-E2', { type: 'AND', conditions: [
+      { type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', isFrozen: true } },
+      { type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 5000 },
+    ] }],
+  ];
+  for (const [num, id, cond] of want) {
+    const a = effectsMap.get(num)?.find(e => e.effectId === id)?.action as { effect?: { activeCondition?: unknown } } | undefined;
+    eq(JSON.stringify(a?.effect?.activeCondition), JSON.stringify(cond), `${id}: ゲートが JSON に載る`);
+  }
+}));
 
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、

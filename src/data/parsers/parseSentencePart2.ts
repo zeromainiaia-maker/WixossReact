@@ -1981,7 +1981,32 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- このシグニは◎能力を得る（引用符付き複雑な能力文）----
+  // 🆕**構造化した `GRANT_EFFECT{rawText}` を出す**（§5.3 `O-60` 第63バッチ・2026-09-04）＝
+  //   `expandGrantEffectRawTexts` が引用文を本物の `CardEffect`（`activeCondition` つき CONTINUOUS）へ展開する。
+  //   展開できない引用は `rawText` のまま残り `PARTIAL` になる＝**収穫マージが live へ届けない**ので退化しない。
+  // 🔴旧は catch-all `STUB{GRANT_QUOTED_ABILITY}` に落とし、**engine が効果元の原文を読み直して**
+  //   キーワードとゲート条件を `buildGatedKeywordGrant` の**5パターン表**で拾っていた（`O-60` A群）。実害＝
+  //   ①**期間が落ちる**＝「次の対戦相手のターン終了時まで」でも engine は `granted_effects`（ターン内）へ入れる
+  //     ＝相手ターンに消える（`WXDi-P06-032-E2`／`WXDi-P13-044-E2` の【シャドウ】）。
+  //   ②**引用が2つある形は後ろの1つしか読まない**＝`「A」と「B」を得る` の quotedM が `[^」]+` なので
+  //     A（＝【ランサー】）が丸ごと落ちていた（`WXDi-P15-069-E2`）。
+  //   ③表に無い綴りは**無条件付与**へ落ちる（＝ゲートが消える過剰実行）。
+  // ⚠**引用は「【常】…」で始まるものだけを取る**（本文の別の鉤括弧を巻き込まない）。
   if (t.match(/このシグニは「【[常出起自]】.*」を得る/s)) {
+    const quotesGQA = [...t.matchAll(/「(【[常出起自]】[\s\S]*?)」/g)].map(m => m[1]);
+    if (quotesGQA.length > 0) {
+      // ⚠**期間はここで判定しない**＝ブロック単位の後段 `upgradeToOppTurnEnd`（`effectParser.ts` の
+      //   `OPP_TURN_END_RE`）が `duration:'UNTIL_END_OF_TURN'` を `'UNTIL_OPP_TURN_END'` へ昇格する。
+      //   🔑初稿はここでも同じ判定を書いていたが、**反転確認（分岐を `false &&` で殺す）が PASS した**＝
+      //     同じ意味を2箇所で決めていた（§4.1「反転確認が PASS したら観測点を疑う」の (a)）。⇒ 片方を撤去。
+      //   🔴**旧 STUB には `duration` キーが無かった**ので、この後段の昇格が**当たる先を持たなかった**＝
+      //     engine が期間を見ずに `granted_effects`（ターン内）へ入れる恒久 no-op の真因はここ。
+      const tgtGQA: EffectTarget = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
+      const grantsGQA = quotesGQA.map(q => ({
+        type: 'GRANT_EFFECT', target: tgtGQA, duration: 'UNTIL_END_OF_TURN' as EffectDuration, rawText: q,
+      } as EffectAction));
+      return grantsGQA.length === 1 ? grantsGQA[0] : { type: 'SEQUENCE', steps: grantsGQA } as EffectAction;
+    }
     return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
   }
 

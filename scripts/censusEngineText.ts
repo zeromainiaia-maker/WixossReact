@@ -118,15 +118,42 @@ for (const f of readdirSync(engineDir).filter(n => n.endsWith('.ts'))) {
     //   打ち切らずに固定幅の窓で拾うと、**直前の兄弟ハンドラの `if (stub.id === 'PREV')` を門として
     //   数えてしまう**（`LOOK_OPP_LIFE_TOP` が `REVEAL_EACH_PLAYER_DECK_TOP` との AND に化けた）。
     let handler = '(top)';
-    for (let j = i; j >= 0 && j > i - 500; j--) {
+    // 🆕🔴**1行に収まらない門も全部拾う**（§5.3 `O-60` 第63バッチ・2026-09-04＝**計器の較正**）。
+    //   ①**`||` で折り返した `if`**＝後方走査は「`stub.id === 'X'` を含む行」で打ち切るので、
+    //     `if (stub.id === 'A' || stub.id === 'B' ||⏎    stub.id === 'C') {` は **C しか拾えなかった**
+    //     （`GRANT_ABILITY_INNER_TEXT` の live が 8 と出ていたが、同じハンドラは
+    //      `GRANT_QUOTED_ABILITY`(16)／`GRANT_QUOTED_AUTO_ABILITY`(3) も受けており**真の母集団は27効果**）。
+    //   ②**`['A','B'].includes(x.id)` 形**＝`x.id === 'A'` の形しか見ていなかったので門が0個になり、
+    //     `fn:collectGrantedFromLayer` が **live 0** と出ていた（実際は上と同じ27効果の一部）。
+    //   🔑**この2つは `census:costtext` の罠②（複数行呼び出しは行単位では拾えない）と同型**＝
+    //     罠は計器ごとではなく横断で読む（`CLAUDE.md`）。⚠**engine のコードは1行も変えていない＝可視化。**
+    const scanIds = (ln: string): boolean => {
+      let disp = false;
       const g = /\b(\w+)\.id\s*===\s*'([A-Z0-9_]+)'/g;
       let mg: RegExpExecArray | null;
-      let dispatcher = false;
-      while ((mg = g.exec(lines[j]))) {
+      while ((mg = g.exec(ln))) {
         addGate(mg[1], mg[2]);
-        if (mg[1] === 'stub') dispatcher = true;
+        if (mg[1] === 'stub') disp = true;
       }
-      if (dispatcher) { handler = [...(gates.get('stub') ?? [])].join('|'); break; }
+      const gi = /\[([^\]]*)\]\s*\.includes\(\s*(\w+)\.id\s*\)/g;
+      let mi: RegExpExecArray | null;
+      while ((mi = gi.exec(ln))) {
+        const v = mi[2];
+        for (const idm of mi[1].matchAll(/'([A-Z0-9_]+)'/g)) {
+          addGate(v, idm[1]);
+          if (v === 'stub') disp = true;
+        }
+      }
+      return disp;
+    };
+    for (let j = i; j >= 0 && j > i - 500; j--) {
+      const dispatcher = scanIds(lines[j]);
+      if (dispatcher) {
+        // 直上が `||`／`&&` で折り返しているなら、その行の門も同じ条件式の一部として拾う。
+        for (let k = j - 1; k >= 0 && /(\|\||&&)\s*$/.test(lines[k].trim()); k--) scanIds(lines[k]);
+        handler = [...(gates.get('stub') ?? [])].join('|');
+        break;
+      }
       const cs = lines[j].match(/^\s*case\s+'([A-Za-z0-9_]+)'\s*:/);
       if (cs) { handler = 'case:' + cs[1]; break; }
       const fn = lines[j].match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/);

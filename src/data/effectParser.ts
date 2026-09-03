@@ -1358,6 +1358,51 @@ function parseActiveCondition(text: string): ConditionParseResult {
         };
       }
     }
+    // 🆕**「正面のシグニが、凍結状態でパワーがN{以上|以下}であるかぎり、」**（`WXDi-P13-069-E2` の引用内側）。
+    //   ⚠**下の「レベル」形・上の「パワー」形より先に置く**＝先に「パワーが…」だけを見る規則へ落ちると
+    //     **凍結の条件が消えて過剰実行**になる（engine 側 `buildGatedKeywordGrant` の①と同じ並び順の理由）。
+    //   ⚠**パワーは `FRONT_SIGNI_POWER`（実効パワー）／状態は `FRONT_SIGNI{filter}`（表記＋盤面状態）**と
+    //     評価器が別なので `AND` で2本に割る（`FRONT_SIGNI{powerRange}` に畳むと `matchesFilter` が
+    //     **表記パワー**で判定してバフ／デバフを無視する）。
+    // 🔴**§5.3 `O-60` 第63バッチ（2026-09-04）＝engine のパターン表を parser へ移した分。**
+    {
+      const frontFrozenPowerM = text.match(/^(?:このシグニ[はの][、,]?)?正面のシグニが[、,]?凍結状態でパワーが([０-９\d,]+)(以上|以下)であるかぎり[、,]/);
+      if (frontFrozenPowerM) {
+        return {
+          condition: {
+            type: 'AND',
+            conditions: [
+              { type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', isFrozen: true } },
+              {
+                type: 'FRONT_SIGNI_POWER',
+                operator: frontFrozenPowerM[2] === '以上' ? 'gte' : 'lte',
+                value: parseNum(frontFrozenPowerM[1].replace(/,/g, '')),
+              },
+            ],
+          } as import('../types/effects').ActiveCondition,
+          rest: text.slice(frontFrozenPowerM[0].length), conditionFound: true,
+        };
+      }
+    }
+    // 🆕**「正面のシグニがレベルN{以上|以下}であるかぎり、」**（`WXDi-P12-078-E2`＝丁度／`WXDi-P13-079-E1`＝以下）。
+    //   ⚠**比較語が無ければ「丁度N」**＝`{max:N}` に倒すと**レベル1未満まで拾う過剰実行**になる。
+    // 🔴**§5.3 `O-60` 第63バッチ（2026-09-04）＝engine のパターン表を parser へ移した分。**
+    {
+      const frontLevelM = text.match(/^(?:このシグニ[はの][、,]?)?正面のシグニがレベル([０-９\d]+)(以上|以下)?であるかぎり[、,]/);
+      if (frontLevelM) {
+        const lv = parseNum(frontLevelM[1]);
+        return {
+          condition: {
+            type: 'FRONT_SIGNI',
+            filter: {
+              cardType: 'シグニ',
+              level: frontLevelM[2] === '以上' ? { min: lv } : frontLevelM[2] === '以下' ? { max: lv } : lv,
+            },
+          } as import('../types/effects').ActiveCondition,
+          rest: text.slice(frontLevelM[0].length), conditionFound: true,
+        };
+      }
+    }
     // 「このシグニの〈レベル/パワー〉が正面のシグニと同じであるかぎり、」（WXDi-P13-082 の引用内側）
     const frontEqM = text.match(/^このシグニの(レベル|パワー)が正面のシグニと同じであるかぎり、/);
     if (frontEqM) {
@@ -7917,7 +7962,28 @@ function applyQuotedFrontPowerGrantBatch(cardNum: string, effects: CardEffect[])
   if (gk?.type !== 'GRANT_KEYWORD' || !gk.keyword?.includes('であるかぎり')) return;
   const declare: EffectAction = { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: gk.target } as EffectAction;
   seq.steps[0] = declare;
-  if (spec.addGrantStep) seq.steps.splice(1, 0, { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as EffectAction);
+  if (spec.addGrantStep) {
+    // 🆕**構造化した `GRANT_EFFECT{targetsLastProcessed, rawText}` を足す**（§5.3 `O-60` 第63バッチ・2026-09-04）＝
+    //   `expandGrantEffectRawTexts` が引用文を `activeCondition` つき CONTINUOUS へ展開する。
+    // 🔴旧はここに `STUB{GRANT_QUOTED_ABILITY}` を挿していた＝**engine が効果元の原文を読み直す catch-all**
+    //   （`O-60` A群）で、ゲート条件は engine 側 `buildGatedKeywordGrant` の**5パターン表**頼みだった。
+    //   受け皿は**すぐ下の `WXDi-P15-071` の非ベット枝と同型**（`GRANT_EFFECT{targetsLastProcessed}`）。
+    const srcQFP = currentSourceText(spec.effectId) ?? '';
+    const qmQFP = srcQFP.match(/「(【[常出起自]】[\s\S]*?)」を得る/);
+    // ⚠**この後処理は `expandGrantEffectRawTexts` より後に走る**ので、ここで自分で展開する。
+    //   展開しないと `rawText` だけの `GRANT_EFFECT` になり、`execGrantEffect` の
+    //   `if (!a.effect) return done(ctx)` で**無言 no-op**＝旧 catch-all より退化する。
+    const grantQFP = qmQFP
+      ? {
+        type: 'GRANT_EFFECT', targetsLastProcessed: true, duration: 'UNTIL_END_OF_TURN',
+        target: { type: 'SIGNI', owner: 'self', count: 1 }, rawText: qmQFP[1],
+      } as EffectAction
+      : null;
+    if (grantQFP) expandGrantEffectRawTexts(grantQFP, cardNum);
+    seq.steps.splice(1, 0, grantQFP && (grantQFP as { effect?: unknown }).effect
+      ? grantQFP
+      : { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as EffectAction);
+  }
 
   // ── タスク12(cxviii)：`WXDi-P15-071` のベット分岐 ──
   // 「…それは『【常】：正面のシグニのパワーが8000以下であるかぎり【ランサー】を得る。』を得る。

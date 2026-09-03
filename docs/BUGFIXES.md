@@ -1,5 +1,100 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-04（索引 A 第23巡）：§5.3 `O-60` 第63バッチ — A群最大 catch-all の解体 第2段＋**計器の較正（3度目）**
+
+**ベースライン**＝`23280eacf`（第62バッチの直後）。**A🔴 SELF_TEXT 13行 / 12ハンドラ（据置）**。
+**gates 全緑**（typecheck・golden **3400 → 3404**＝+4本（既存の契約 golden 3本を理由つきで更新）・
+smoke 10725 全異常0・fuzz 全0・census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴13**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更12・追加0・削除0、予定外0**（12カード × 各1効果ちょうど。
+`census:cards --sheet 1` 要対応 17 据置／意味照合 残 OPEN 44 据置）。
+🖥**実機＝機械判定では不要**（`src/engine/` も `src/screens/` も1行も触っていない・新しいアクション型／条件型0
+＝足したのは parser の**条件節2形**で、どちらも既存 `ActiveCondition` の組み合わせ）。
+ただし**12効果の挙動が変わった（うち2効果は恒久 no-op から実際の効果へ）**ので観測点 **`V-144`** を登録した（未実施）。
+
+### 1. 真因（計器）＝後方走査が「多行 `if`」と「`[...].includes(x.id)`」を読んでいなかった
+
+`census:enginetext` は読み出し行から**後方へ走査して最初に見つけた `stub.id === 'X'` の行で打ち切る**。
+`execStubPart1.ts:1458` のディスパッチャは**2行**に折り返しており、
+
+```ts
+  if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
+      stub.id === 'GRANT_ABILITY_INNER_TEXT') {
+```
+
+打ち切りが**2行目で起きる**ため、**1行目の2つの id が門として数えられていなかった**。
+⇒ A群最大ハンドラの母集団が **live 8** と出ていたが、実際は **8 + 16 + 3 = 27**。
+同じ理由（`['A','B'].includes(act.id)` 形＝`x.id === 'A'` の形しか見ていなかった）で、
+**同じ27効果を消費する第2の地点** `effectEngine.collectGrantedFromLayer` も **live 0** に見えていた。
+
+🔴**これは `census:costtext` の罠②（テンプレ regex と複数行呼び出しは行単位では拾えない）と同型**で、
+第56バッチの funnel 死角（`sourceAbilityText(ctx)`）に続き **`O-60` だけで3度目**。
+🔑**罠の記録は計器ごとではなく横断で読む**（`CLAUDE.md` が既にそう書いていた）。
+
+**直し方**＝`scripts/censusEngineText.ts` の門収集を関数 `scanIds()` に抽出し、
+①ディスパッチャ行を見つけたら**直上が `||`／`&&` で折り返している間だけ**上へ辿って門を足す
+②`[...].includes(<var>.id)` 形からも id を取る。
+⚠**engine のコードは1行も変えていない＝可視化であって退化ではない**（A群の行数は **13 のまま**なので
+`BASELINE_SELF_TEXT` も据置）。golden に**入口を守る test** を1本足した（`§5.3 O-60 第63: 計器は…`）。
+
+### 2. 消化＝「このシグニは「【常】…」を得る」family 12効果（live 27 → 15）
+
+`parseSentencePart2.ts` の
+
+```ts
+  if (t.match(/このシグニは「【[常出起自]】.*」を得る/s)) return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' };
+```
+
+を**構造化した `GRANT_EFFECT{target:{thisCardOnly}, duration, rawText}`** に置き換えた
+（`expandGrantEffectRawTexts` が引用文を `activeCondition` つき CONTINUOUS へ展開する＝
+第55バッチの `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` と**同じ受け皿**）。
+`WXDi-P14-065-E1` は `applyQuotedFrontPowerGrantBatch` が挿していた STUB を同じ形（`targetsLastProcessed`）へ。
+
+あわせて engine 側 `buildGatedKeywordGrant`（**5パターン表**）のうち **parser に無かった2形**を
+`parseActiveCondition` の条件節テーブルへ移した：
+
+| 原文 | activeCondition |
+|---|---|
+| 正面のシグニがレベルN（以上／以下）であるかぎり | `FRONT_SIGNI{filter:{level}}`（⚠比較語なしは**丁度N**） |
+| 正面のシグニが、凍結状態でパワーがN以下であるかぎり | `AND[FRONT_SIGNI{isFrozen}, FRONT_SIGNI_POWER]`（⚠評価器が別なので2本に割る） |
+
+**対象12効果**＝`WX24-P1-042-E2`／`WXDi-P05-081-E1`／`WXDi-P06-032-E2`／`WXDi-P11-071-E2`／
+`WXDi-P12-078-E2`／`WXDi-P13-044-E2`／`WXDi-P13-069-E2`／`WXDi-P13-079-E1`／`WXDi-P14-065-E1`／
+`WXDi-P15-069-E2`／`WXDi-CP02-057-E2`／`WXDi-CP02-089-E1`。
+
+### 3. 実害（どれも逆翻訳・census・golden・smoke・fuzz が全部緑のまま壊れていた）
+
+- 🔴**①期間が engine で落ちていた＝恒久 no-op 2効果**。原文は「**次の対戦相手のターン終了時まで**」得るのに、
+  旧ハンドラは**期間を一切見ず**常に `granted_effects`（ターン内）へ入れていた。この store は
+  **ターン終了でクリアされる**（`turnScopedState.ts:427` ほか3箇所）ので、
+  中身の「**対戦相手のターンの間**、【シャドウ】を得る」という条件が真になる頃には**付与そのものが消えていた**
+  （`WXDi-P06-032-E2`／`WXDi-P13-044-E2`）。⇒ いまは `GRANT_EFFECT{duration:'UNTIL_OPP_TURN_END'}` を出し、
+  `execGrantEffect` が `granted_effects_until_opp_turn` へ入れる（`BattleScreen` は2 store を merge して読む）。
+- 🔴**②`「A」と「B」を得る` の前半が丸ごと落ちる**。切り出しが `「([^」]+)」…を得る` で `」` を跨げないため、
+  `WXDi-P15-069-E2` は**後ろの引用しか読めず【ランサー】が一度も付かなかった**（過小実行）。
+- 🔴**③表に無い綴りは無条件付与**＝engine のパターン表は「静かな上限」。
+
+### 4. 教訓
+
+- 🔑🔴**「表ごと parser へ移す」ときは、移す前に受け皿単体の出力を測る。**
+  引用文だけを `parseCardEffects` に通したところ、**3形で条件が黙って落ちて**いた
+  （正面レベル丁度／正面レベル以下／凍結＋パワー）。**そのまま `GRANT_EFFECT` へ載せていたら
+  engine の表より退化して無条件【ランサー】【アサシン】になっていた**（過小 → 過大への反転）。
+- 🔑🔴**反転確認が PASS したら「同じ意味を決める別の場所」を疑う。**
+  期間の判定を `false &&` で殺しても出力が変わらず、真因は**ブロック単位の後段 `upgradeToOppTurnEnd`
+  （`OPP_TURN_END_RE`）が既に昇格していた**こと＝同じ意味を2箇所で決めていた。⇒ parser 側の重複を撤去した。
+  §4.1 の「反転確認が PASS したら観測点を疑う」の (a) は、**「2箇所で決めている」の合図**でもある。
+- 🔑🔴**旧 STUB には `duration` キーが無かった**＝だから既にある期間昇格パスが**当たる先を持たなかった**。
+  **catch-all は「意味を落とす」だけでなく「既にある正しい後段を無効化する」。**
+- 🔑**収穫マージは STUB→構造化を「純粋上位集合でない」と見て held へ送る**＝12件とも `_held_fresh` に入った。
+  `--adopt-effect` で**効果単位**に採用し、カードごとに「変わったのは狙った1効果だけ」を機械照合した。
+
+**検証コマンド**＝`npm run gates`（全緑）／`npm run golden -- --only "O-60 第63"`／
+`npx tsx scripts/censusEngineText.ts --id "GRANT_ABILITY_INNER_TEXT|GRANT_QUOTED_AUTO_ABILITY|GRANT_QUOTED_ABILITY"`。
+**反転確認**＝live の `WXDi-P06-032-E2` の `action.duration` を `UNTIL_END_OF_TURN` に書き換えると
+新旧2本の golden が**両方 FAIL** する（観測点に判別力があることを確認済み）。
+
+
 ## 2026-09-03（索引 A 第22巡）：§5.3 `O-60` 第62バッチ — `GRANT_ABILITY_INNER_TEXT`（A群最大 catch-all）の解体 第1段
 
 **ベースライン**＝`ffc6b6d68`（第61バッチの直後）。**A🔴 SELF_TEXT 13行 / 12ハンドラ（据置）**。
