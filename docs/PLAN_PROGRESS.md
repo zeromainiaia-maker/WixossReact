@@ -1,5 +1,45 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-03・`O-60` 第49バッチ・索引 A 第9巡・Opus 5 単独）＝最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化**
+  📊**進捗3計器＝Sheet1 要対応 16 / 863（`WX08-015` `WX10-011` が `mech` から降りた）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
+  ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  **この項目の計器は `census:enginetext` の A群**＝**77行 / 75ハンドラ → 76行 / 74ハンドラ**（miss は 0 のまま／
+  `BASELINE_SELF_TEXT` も 76 へ払い戻し）。🔑**live 効果を測り直した＝179 → 134**（旧値は複合 id の重複を数えていた）。
+  📦**在庫2本＝④機構 worklist 25項目**（`O-60` は継続／🆕`O-226` を1件登録＝24→25）
+  ｜**⑤実機 残 5件**（`V-131`／`V-132`／`V-133`〜`V-135`・今回の追加は0）。
+  gates 全緑（golden **3340 / 3340**＝+6本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴76**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更19・追加0・削除0、予定外0。**
+  🖥**実機＝不要と判定（PLAN §2.2）**＝`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない**。新設したのは payload 型（`GameGrantSpec`）だけで**engine 機構は0**
+  （消費先は既存の `PlayerState` 恒久フラグ20本そのまま）。
+
+  🔴**この巡の一番の発見＝`miss=0` は「壊れていない」ではない、の実例。**
+  `GAIN_ABILITY_THIS_GAME` は**24本のリテラルのうち1本でも当たれば miss に出ない**ので、
+  `メインフェイズ開始時.*手札.*5枚以下`（**半角5**）が原文の全角「５枚以下」に**1枚も当たらない**まま
+  `WXDi-P11-004` が**丸ごと無言 no-op**だった。⇒ **リテラルが複数あるハンドラは
+  `censusEngineText.ts --id <ハンドラ>` の「カード別 当たり外れ」で1本ずつ見る。**
+
+  🔴**もう1件＝`WXK03-003A-E2` は1回の起動で使用回数が2進んでいた**（原文2文がそれぞれ STUB を作り、
+  旧 engine が**ノードごとにカード全文を読み直して**いた）＝「5回目に裏返す」が**3回目**に来ていた。
+  ⇒ 後処理は**先頭ノードにだけ全宣言を載せ、残りは空配列**にする。
+
+  🔑**payload 化の刻み場所は「文の受け皿サイト」ではなく「効果単位の後処理」だった**＝受け皿サイト12箇所が
+  見ている文は「このゲームの間、あなたは以下の能力を得る」**だけ**で、宣言の中身が書いてある『…』は別の文
+  （12サイト全部を実測）。`docs/_effect_srctext.json`（効果単位の原文）を読む後処理なら中身まで取れる。
+
+  🔴🔑**反転確認の教訓＝payload 生成側（parser）を壊す反転は素通りする。**
+  収穫マージが**fresh が痩せた効果を live へ届けない**（`_held_fresh` に回る）ので golden は緑のまま。
+  ⇒ **壊すなら消費側（engine）**。3箇所壊して 6本中3本 FAIL を確認した。
+
+  ⚠**配送が3系統に割れた**＝AUTO 6件は `--adopt-effect`／MANUAL・PARTIAL 4件は `manualEffects.ts` 手書き＋
+  `syncManualLive.ts`／残りは build で自動。**payload の並べ替えだけでも live には届かない**（held）。
+  🔑**「live 全19ノードが payload を持つ」を golden のラチェットにした**＝この配送漏れは他のどの計器にも出ない。
+
+  🧹**payload 化すると死んだ state キーが見える**＝`game_declared_signi_level_zero` /
+  `game_declared_signi_ignore_restriction` / `lrig_activation_count` に読み手が0だった（→ 🆕`O-226`）。
+  **旧実装は「ハンドラがある＝実装済み」に見え、`census:stubs` A群にも出なかった。**
+
 - **セッション（2026-09-03・`O-60` 第37〜48バッチ・索引 A 第8巡・Opus 5 単独）＝miss を 0 にした（12バッチ）**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 3 / BASELINE 3（据置）**
   ⚠**据置は想定どおり**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。

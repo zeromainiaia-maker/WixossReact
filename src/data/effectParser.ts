@@ -5154,11 +5154,43 @@ function revertUnresolvedPerLastProcessed(node: unknown): void {
 }
 
 /** `STUB{POWER_MOD_PER_COUNT}` がこの action ツリーのどこかに居るか（§5.3 `O-80` 第1バッチ）。 */
+/**
+ * 🆕**「パワーを〈何かの数〉１つにつき±N」の catch-all は id が14種に割れていた**
+ * （§5.3 `O-60` 第50バッチ・2026-09-03）。
+ *
+ * 🔴どれも**parser が意味を刻めず engine がカード全文 regex で読み直していた同型**なのに、
+ *   `rewritePowerModPerCountPayload` の文型ルール群は `POWER_MOD_PER_COUNT` **1つの id にしか
+ *   当たっていなかった**＝残り13種は既存ルールが在っても永久に届かなかった
+ *   （`POWER_MOD_BY_TRASH_CLASS_COUNT` は既存の「トラッシュにある〈filter〉N枚につき」ルールで
+ *   そのまま解けるのに、id が違うだけで engine の全文 regex に残っていた）。
+ * ⇒ **入口をこの集合に束ねる**。id を1つ足すと既存の文型ルール全部がそのカードにも効く。
+ *
+ * ⚠**ここへ id を足したら `rewritePowerModPerCountPayload` にその文型のルールがあるか必ず確かめる**＝
+ *   無いまま足すと `replaceUniquePowerModPerCount` が呼ばれず**STUB がそのまま残る**（挙動は変わらないが、
+ *   engine 側のハンドラを撤去していたら無言 no-op になる）。撤去と受け皿は同じコミットで閉じる。
+ */
+const POWER_MOD_CATCH_ALL_IDS = new Set([
+  'POWER_MOD_PER_COUNT',
+  'POWER_MOD_PER_REVEALED',
+  'POWER_MOD_BY_LRIG_TRASH_ARTS',
+  'POWER_MOD_BY_TRASH_CLASS_COUNT',
+  'POWER_MOD_BY_UNDER_COUNT',
+  'POWER_MOD_BY_LRIG_LEVEL',
+  'POWER_DOWN_BY_ZONE_CARD_COUNT',
+  'POWER_BY_ACCE_COUNT',
+  'POWER_BY_CENTER_LRIG_TYPE_COUNT',
+  'POWER_BY_LEVEL_SUM_COMPARE',
+  'POWER_BOOST_PER_SIGNI_WITH_ICON',
+  'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL',
+  'ADJACENT_SIGNI_POWER_MOD',
+  'MULTI_SIGNI_POWER_UP_5000',
+]);
+
 function containsPowerModPerCount(node: unknown): boolean {
   if (Array.isArray(node)) return node.some(containsPowerModPerCount);
   if (!node || typeof node !== 'object') return false;
   const o = node as Record<string, unknown>;
-  if (o.type === 'STUB' && o.id === 'POWER_MOD_PER_COUNT') return true;
+  if (o.type === 'STUB' && typeof o.id === 'string' && POWER_MOD_CATCH_ALL_IDS.has(o.id)) return true;
   return Object.values(o).some(containsPowerModPerCount);
 }
 
@@ -8763,13 +8795,24 @@ function applyExceedBodyFixes(cardNum: string, effects: CardEffect[]): void {
 function applyLeadingSelfDesignationToPowerModify(text: string, action: EffectAction): EffectAction {
   if (/代わりに/.test(text)) return action;
   if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
-  const m = text.match(/あなたの([^、。]{0,24}?)シグニ(?:を)?([０-９\d]+)体(?:まで)?を対象とし、[^。]*?それら?の(?:基本)?パワーを/);
+  // 🆕**照応が「1つの文境界」をまたぐ形も拾う**（§5.3 `O-60` 第50バッチ・2026-09-03）＝
+  //   `WXK05-043-E2` / `WXK10-081-E2`「あなたの＜水獣＞のシグニ１体を対象とし、手札から…公開する**。**
+  //   ターン終了時まで、**それの**パワーをこの方法で公開したカード１枚につき＋1000する」。
+  //   従来は `[^。]*?` が句点を越えられず、末尾の `POWER_MODIFY` が `targetsTriggerSource`
+  //   （＝指し先未確定）のまま残り、`revertUnresolvedPerLastProcessed` が catch-all STUB へ差し戻していた
+  //   ＝**そこから先は engine がカード全文 regex で読む**（`O-60` の入口）。
+  //   ⚠またげるのは**1文だけ**（`(?:[^。]*。)?`）＝「を対象とし」1回の縛りと合わせて narrow に保つ。
+  const m = text.match(/あなたの([^、。]{0,24}?)シグニ(?:を)?([０-９\d]+)体(?:まで)?を対象とし、(?:[^。]*。)?[^。]*?それら?の(?:基本)?パワーを/);
   if (!m) return action;
-  const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget }) | null;
+  const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget; targetsTriggerSource?: boolean }) | null;
   if (!fin || fin.type !== 'POWER_MODIFY' || !fin.target) return action;
-  if (fin.target.type !== 'SIGNI' || fin.target.owner !== 'any') return action;
+  // (c) owner が未確定（`any`）か、🆕**照応が解けず `targetsTriggerSource` へ落ちている**ときだけ直す。
+  //   ⚠既に owner が確定していて照応フラグも無いノードは別経路で解決済み＝上書きしない。
+  if (fin.target.type !== 'SIGNI') return action;
+  if (fin.target.owner !== 'any' && fin.targetsTriggerSource !== true) return action;
   // 名詞句だけを parseSigniTarget に渡す（文全体を渡すと後続節の語を拾う＝続き376d の教訓）
   fin.target = parseSigniTarget(`あなたの${m[1]}シグニ${m[2]}体`, 'self');
+  delete fin.targetsTriggerSource;
   return action;
 }
 
@@ -14345,7 +14388,7 @@ function replaceUniquePowerModPerCount(action: EffectAction, replacement: Effect
     if (Array.isArray(node)) { node.forEach(scan); return; }
     if (!node || typeof node !== 'object') return;
     const o = node as Record<string, unknown>;
-    if (o.type === 'STUB' && o.id === 'POWER_MOD_PER_COUNT') found.push(o);
+    if (o.type === 'STUB' && typeof o.id === 'string' && POWER_MOD_CATCH_ALL_IDS.has(o.id)) found.push(o);
     Object.values(o).forEach(scan);
   };
   scan(action);
@@ -14770,15 +14813,23 @@ function rewritePowerModPerCountPayload(text: string, action: EffectAction): Eff
   // 🔑倍率元は `CountFromZone.zone:'under'`（効果元スタックの下段）＝payload で確定させる。
   // ⚠「それ」の照応は**同じ文の「対戦相手のシグニ〜を対象とし」**でのみ確定させる（§5.3 `O-80` の
   //   fail-closed 則）。主語が「このシグニのパワーを」なら効果元自身。どちらでもなければ差し戻す。
-  const underCountM = t.match(/パワーを(?:この|その)シグニの下にある([^、。]*?)([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  // ⚠**「それぞれ」「〜を２体まで」「それらの」の3語で外れていた**（§5.3 `O-60` 第50バッチ）＝
+  //   `WXDi-P09-046-E2`「対戦相手のシグニ**を２体まで**対象とし…**それらの**パワーを**それぞれ**この
+  //   シグニの下にあるカード１枚につき－3000」。当たらないので engine のカード全文 regex に残っていた。
+  const underCountM = t.match(/パワーを(?:それぞれ)?(?:この|その)シグニの下にある([^、。]*?)([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
   if (underCountM) {
     const selfSubject = /(?:この|その)シグニのパワーを(?:この|その)シグニの下にある/.test(t);
-    const oppAnaphora = /対戦相手のシグニ[０-９\d]*体(?:まで)?を対象とし/.test(t) && /それのパワーを/.test(t);
+    const oppAnaM = t.match(/対戦相手のシグニ(?:を)?([０-９\d]*)体(まで)?を?対象とし/);
+    const oppAnaphora = !!oppAnaM && /それ(?:ら)?のパワーを/.test(t);
     if (selfSubject || oppAnaphora) {
       const underFilter = countFilter(underCountM[1]);
       return replaceUniquePowerModPerCount(action, {
         type: 'POWER_MODIFY',
-        target: selfSubject ? selfThis : opponentOne,
+        // 🆕対象体数と「まで」を原文から取る（既定の1体固定だと `WXDi-P09-046` が**1体にしか効かない**）。
+        target: selfSubject ? selfThis : {
+          type: 'SIGNI', owner: 'opponent', count: oppAnaM?.[1] ? parseNum(oppAnaM[1]) : 1,
+          filter: { cardType: 'シグニ' }, upToCount: !!oppAnaM?.[2],
+        },
         delta: 0,
         deltaFromZone: {
           zone: 'under', owner: 'self',
@@ -14788,6 +14839,158 @@ function rewritePowerModPerCountPayload(text: string, action: EffectAction): Eff
         },
       } as PowerModifyAction);
     }
+  }
+
+  // ═══ 🆕§5.3 `O-60` 第50バッチ（2026-09-03）＝「パワーを〈軸〉１つにつき±N」の残り13 id ═══
+  // どれも engine が**カード全文 regex** で「何を数えるか」と「単価」を読み直していた同型で、
+  // **受け皿はすべて既存**（`deltaFromZone` / `POWER_MODIFY_PER_*` / `perLastProcessed`）＝
+  // 新設したのは `CountFromZone.zone` の2値（`signi_zone_all` / `center_lrig_types`）だけ。
+  //
+  // 🔴**主語（誰のパワーが動くか）を必ず原文から取る**＝この family の旧 engine は
+  //   「対象が未選択なら相手の全シグニへ」と倒す実装が多く、第29〜36巡では**修正先が真逆**の事故が4件出た。
+  //   決められない文は `null` で差し戻す（＝STUB のまま＝この巡では触らない）。
+  const ownAllSigniPM: EffectTarget = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } };
+  const powerSubjectPM = (): EffectTarget | null =>
+    /(?:この|その)シグニのパワー(?:を|は)/.test(t) ? selfThis
+    : /あなたのシグニのパワーを/.test(t) ? ownAllSigniPM
+    : /対戦相手のシグニ(?:を)?[０-９\d]*体(?:まで)?を対象とし/.test(t) ? opponentOne
+    : null;
+
+  // ① 「あなたのルリグトラッシュにあるアーツN枚につき±X」（`WX24-P1-049` / `WX24-P4-044` / `WX25-P2-062`）
+  const lrigTrashArtsPM = t.match(/パワーを(?:あなたの)?ルリグトラッシュにあるアーツ([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (lrigTrashArtsPM) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY', target: subj, delta: 0,
+      deltaFromZone: {
+        zone: 'lrig_trash', owner: 'self', filter: { cardType: 'アーツ' },
+        unitSize: parseNum(lrigTrashArtsPM[1]),
+        per: signOf(lrigTrashArtsPM[2]) * parseNum(lrigTrashArtsPM[3]),
+      },
+    } as PowerModifyAction);
+  }
+
+  // ② 「あなたのシグニゾーンにあるカードN枚につき±X」（`WXK08-032-E2`）
+  // ⚠**`zone:'field'` ではない**＝あちらは各スタックの最上面＋センタールリグしか数えない。
+  //   原文「シグニゾーンにあるカード」はスタックの下段も含む（旧 engine も `stack.length` の総和だった）。
+  const signiZoneAllPM = t.match(/パワーを(?:あなたの)?シグニゾーンにあるカード([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (signiZoneAllPM) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY', target: subj, delta: 0,
+      deltaFromZone: {
+        zone: 'signi_zone_all', owner: 'self',
+        unitSize: parseNum(signiZoneAllPM[1]),
+        per: signOf(signiZoneAllPM[2]) * parseNum(signiZoneAllPM[3]),
+      },
+    } as PowerModifyAction);
+  }
+
+  // ③ 「あなたの場にある【アクセ】N枚につき±X」（`WX21-062-E1`・【常】）
+  const accePM = t.match(/パワーは(?:あなたの)?場にある【アクセ】([０-９\d]+)枚につき([＋+－-])([０-９\d]+)/);
+  if (accePM) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY', target: subj, delta: 0,
+      deltaFromZone: {
+        zone: 'acce', owner: 'self',
+        unitSize: parseNum(accePM[1]), per: signOf(accePM[2]) * parseNum(accePM[3]),
+      },
+    } as PowerModifyAction);
+  }
+
+  // ④ 「あなたのセンタールリグのルリグタイプNつにつき±X」（`PR-472-E1`・【常】）
+  const lrigTypePM = t.match(/パワーは(あなた|対戦相手)のセンタールリグのルリグタイプ([０-９\d]+)つにつき([＋+－-])([０-９\d]+)/);
+  if (lrigTypePM) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY', target: subj, delta: 0,
+      deltaFromZone: {
+        zone: 'center_lrig_types', owner: lrigTypePM[1] === '対戦相手' ? 'opponent' : 'self',
+        unitSize: parseNum(lrigTypePM[2]), per: signOf(lrigTypePM[3]) * parseNum(lrigTypePM[4]),
+      },
+    } as PowerModifyAction);
+  }
+
+  // ⑤ 「《ライズアイコン》を持つあなたのシグニN体につき±X」（`WX17-053-E1`）
+  // 🔑受け皿は既存の `POWER_MODIFY_PER_FIELD`（`countFilter` + `countOwner`）＝`hasRiseIcon` も既存の語彙。
+  const riseIconPM = t.match(/パワーを《ライズアイコン》を持つ(あなた|対戦相手)のシグニ([０-９\d]+)体につき([＋+－-])([０-９\d]+)/);
+  if (riseIconPM && parseNum(riseIconPM[2]) === 1) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_FIELD', target: subj,
+      deltaPerUnit: signOf(riseIconPM[3]) * parseNum(riseIconPM[4]),
+      countFilter: { cardType: 'シグニ', hasRiseIcon: true },
+      countOwner: riseIconPM[1] === '対戦相手' ? 'opponent' : 'self',
+    } as EffectAction);
+  }
+
+  // ⑥ 「〈誰か〉のセンタールリグのレベル１につき±X」（`WXK09-035-E1`）
+  // ⚠`POWER_MODIFY_PER_LRIG_LEVEL` は単位（N レベルごと）を持たないので**「１につき」以外は差し戻す**。
+  const centerLrigLvPM = t.match(/パワーを(あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき([＋+－-])([０-９\d]+)/);
+  if (centerLrigLvPM && parseNum(centerLrigLvPM[2]) === 1) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_LRIG_LEVEL', target: subj,
+      deltaPerLevel: signOf(centerLrigLvPM[3]) * parseNum(centerLrigLvPM[4]),
+      lrigOwner: centerLrigLvPM[1] === '対戦相手' ? 'opponent' : 'self',
+    } as EffectAction);
+  }
+
+  // ⑦ 「〈誰か〉の場にあるシグニのレベルの合計１につき±X」（`WXK10-089-E1`）
+  // ⚠**盤面条件つき**＝「自分の合計が相手の合計以下の場合」。条件を落とすと**常に効く過剰実行**になる。
+  const fieldLvSumPM = t.match(/パワーを(あなた|対戦相手)の場にあるシグニのレベルの合計([０-９\d]+)につき([＋+－-])([０-９\d]+)/);
+  if (fieldLvSumPM && parseNum(fieldLvSumPM[2]) === 1) {
+    const subj = powerSubjectPM();
+    if (subj) {
+      const body: EffectAction = {
+        type: 'POWER_MODIFY_PER_LEVEL_SUM', target: subj,
+        deltaPerLevel: signOf(fieldLvSumPM[3]) * parseNum(fieldLvSumPM[4]),
+        countFilter: { cardType: 'シグニ' },
+        countOwner: fieldLvSumPM[1] === '対戦相手' ? 'opponent' : 'self',
+      } as EffectAction;
+      const gated = /あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計以下の場合/.test(t)
+        ? ({
+            type: 'CONDITIONAL',
+            condition: { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'lte', compareTo: 'opponent' },
+            then: body,
+          } as EffectAction)
+        : body;
+      return replaceUniquePowerModPerCount(action, gated);
+    }
+  }
+
+  // ⑧ 「トラッシュに置かれたそのシグニのレベル１につき±X」（`WXK10-056-E1`）
+  const trashedLvPM = t.match(/パワーをトラッシュに置かれた(?:その)?シグニのレベル([０-９\d]+)につき([＋+－-])([０-９\d]+)/);
+  if (trashedLvPM && parseNum(trashedLvPM[1]) === 1) {
+    const subj = powerSubjectPM();
+    if (subj) return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY_PER_TRASHED_LEVEL', target: subj,
+      deltaPerLevel: signOf(trashedLvPM[2]) * parseNum(trashedLvPM[3]),
+      until: 'UNTIL_END_OF_TURN',
+    } as EffectAction);
+  }
+
+  // ⑨⑩ 「〈自分のシグニ〉をN体まで対象とし、それらのパワーをそれぞれ±X」＝**倍率ではなく固定値**。
+  // 🔴この2件が catch-all に居たのは「につき」が無いのに同じ受け皿 STUB へ落ちていたから＝
+  //   旧 engine は `\+([０-９\d]+)`（**半角+**）で単価を読もうとして原文の全角「＋」に当たらず、
+  //   ハンドラ名へ焼き込んだ既定値（`MULTI_SIGNI_POWER_UP_5000` の 5000）で動いていた。
+  const multiFixedPM = t.match(/((?:この|その)シグニと隣接するあなたの|あなたの＜[^＞]+＞の)シグニを([０-９\d]+)体まで対象とし[^。]*?それらのパワーをそれぞれ([＋+－-])([０-９\d]+)/);
+  if (multiFixedPM) {
+    const adjacent = multiFixedPM[1].includes('隣接');
+    const storyPM = multiFixedPM[1].match(/＜([^＞]+)＞/);
+    return replaceUniquePowerModPerCount(action, {
+      type: 'POWER_MODIFY',
+      target: {
+        type: 'SIGNI', owner: 'self', count: parseNum(multiFixedPM[2]), upToCount: true,
+        filter: {
+          cardType: 'シグニ',
+          ...(adjacent ? { adjacentToSelf: true } : {}),
+          ...(storyPM ? { story: storyPM[1] } : {}),
+        },
+      },
+      delta: signOf(multiFixedPM[3]) * parseNum(multiFixedPM[4]),
+    } as PowerModifyAction);
   }
 
   // 🆕「このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ＋する」

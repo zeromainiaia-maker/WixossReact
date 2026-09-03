@@ -197,7 +197,17 @@ export interface CountFromZone {
    *   旧 `STUB{POWER_MOD_BY_FIELD_CLASS_LEVEL}` は「**場に残っている**同クラスのシグニ」を数えており、
    *   支払いで場から消えた2体を数えられず**常に 0〜過小**だったので、fail-closed でも退化しない。
    */
-  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check' | 'appearance_cost';
+  /**
+   * 🆕`signi_zone_all`＝**シグニゾーンにあるカード全部**（スタックの下段も含む・`field.signi` の総枚数）。
+   * §5.3 `O-60` 第50バッチ（2026-09-03）＝原文「あなたの**シグニゾーンにあるカード**１枚につき」。
+   * ⚠`zone:'field'` とは別物＝あちらは**各スタックの最上面＋センタールリグ**しか返さない
+   *   （＝下段を数え落とし、ルリグを1枚混ぜる）。
+   * 🆕`center_lrig_types`＝**センタールリグのルリグタイプ数**（`CardClass` の `/` 区切り）。
+   * §5.3 `O-60` 第50バッチ＝原文「あなたのセンタールリグの**ルリグタイプ１つにつき**」。
+   * ⚠**カードを数えるゾーンではない**＝`filter` / `sumBy` / `distinctBy` は効かない（`unitSize` / `per` / `maxCount` は効く）。
+   *   同じ軸の `$ref:'self_center_lrig_type_count'` / `'opp_center_lrig_type_count'` と**同じ数え方**にしてある。
+   */
+  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap' | 'under' | 'check' | 'appearance_cost' | 'signi_zone_all' | 'center_lrig_types';
   owner: Owner;
   filter?: TargetFilter;
   /**

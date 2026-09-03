@@ -1363,6 +1363,27 @@ function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
   return [];
 }
 
+/**
+ * 🆕**CONTINUOUS の `POWER_MODIFY` で `deltaFromZone` を解く**（§5.3 `O-60` 第50バッチ・2026-09-03）。
+ *
+ * 🔴**それまで CONTINUOUS 側は `typeof mod.delta === 'number' ? mod.delta : 0` で、
+ *   `deltaFromZone` を書いた【常】効果は無言で ±0 になっていた**（＝`O-128` 第4バッチ・第30バッチと
+ *   同じ「収集契約」の罠＝逆翻訳も census も golden も緑のまま盤面が1ビットも動かない）。
+ *   実行経路（`effectExecutor`）だけが `resolveCountRef` で解いていた。
+ *
+ * ⚠**知らないゾーンは 0 へ fail-closed**（従来と同じ＝退化しない）。
+ * ⚠`filter` はカード属性（`matchesFilter`）＋盤面状態（`matchesStateFilter`・`field` のみ）で評価する。
+ */
+function continuousPowerDelta(
+  mod: PowerModifyAction,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+): number {
+  if (!mod.deltaFromZone) return typeof mod.delta === 'number' ? mod.delta : 0;
+  return countZoneUnitsForContinuous(mod.deltaFromZone, ownerState, otherState, cardMap);
+}
+
 // CONTINUOUS効果向け条件評価（ExecCtx 不要、PlayerState + cardMap のみ使用）
 function evalConditionForContinuous(
   cond: Condition,
@@ -2445,7 +2466,7 @@ export function calcFieldPowers(
 
         const mods = extractPowerModifies(effect.action);
         for (const mod of mods) {
-          const delta = typeof mod.delta === 'number' ? mod.delta : 0;
+          const delta = continuousPowerDelta(mod, ownerState, otherState, cardMap);
           const target = mod.target;
           const isSelfOnly = target.count !== 'ALL';
 
@@ -2550,7 +2571,7 @@ export function calcFieldPowers(
           const branch = condMet ? condAct.then : condAct.else;
           if (branch) {
             for (const mod of extractPowerModifies(branch)) {
-              const delta = typeof mod.delta === 'number' ? mod.delta : 0;
+              const delta = continuousPowerDelta(mod, ownerState, otherState, cardMap);
               if (delta === 0) continue;
               const target = mod.target;
               if (target.count !== 'ALL') {
@@ -2875,14 +2896,6 @@ export function calcFieldPowers(
           const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const parseN = (s: string) => parseInt(toHW(s), 10);
 
-          // POWER_BY_ACCE_COUNT: 場のアクセ枚数×値だけパワーアップ
-          if (stub.id === 'POWER_BY_ACCE_COUNT') {
-            const acceCount = allAcceCards(ownerState.field).length;
-            const m = txt.match(/【アクセ】１枚につき[＋+]([０-９\d]+)/);
-            if (m && acceCount > 0 && powers.has(topNum)) {
-              applyDeltaToCard(topNum, acceCount * parseN(m[1]), powers, ownerPowerProtection);
-            }
-          }
 
           // DYNAMIC_LEVEL_BY_ENERGY: 「パワーはこのシグニのレベル１につき＋N」= 実効レベル×N
           if (stub.id === 'DYNAMIC_LEVEL_BY_ENERGY') {
@@ -2927,56 +2940,7 @@ export function calcFieldPowers(
             }
           }
 
-          // POWER_BY_CENTER_LRIG_TYPE_COUNT: センタールリグのルリグタイプ数×値
-          if (stub.id === 'POWER_BY_CENTER_LRIG_TYPE_COUNT') {
-            const lrigTop = ownerState.field.lrig.at(-1);
-            const lrigCard = lrigTop ? cardMap.get(lrigTop) : undefined;
-            const typeCount = lrigCard?.CardClass
-              ? lrigCard.CardClass.split(/[/／]/).filter(Boolean).length
-              : 0;
-            const m = txt.match(/ルリグタイプ１つにつき[＋+]([０-９\d]+)/);
-            if (m && typeCount > 0 && powers.has(topNum)) {
-              applyDeltaToCard(topNum, typeCount * parseN(m[1]), powers, ownerPowerProtection);
-            }
-          }
 
-          // POWER_MOD_PER_COUNT (CONT): 各種カウント×値だけパワー修正（自シグニに適用）
-          if (stub.id === 'POWER_MOD_PER_COUNT') {
-            const toHWPMPC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-            const parseNPMPC = (s: string) => parseInt(toHWPMPC(s), 10);
-            let countPMPC = 0;
-            let deltaPMPC = 0;
-            // 手札N枚につき
-            const handM = txt.match(/手札([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
-            if (handM) {
-              const divisorH = parseInt(toHWPMPC(handM[1] || '1')) || 1;
-              countPMPC = Math.floor(ownerState.hand.length / divisorH);
-              deltaPMPC = parseNPMPC(handM[2].replace('＋', '+').replace('－', '-'));
-            }
-            // エナゾーンのカードN枚につき
-            if (!handM) {
-              const enaM = txt.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
-              if (enaM) {
-                const divisorE = parseInt(toHWPMPC(enaM[1] || '1')) || 1;
-                countPMPC = Math.floor(ownerState.energy.length / divisorE);
-                deltaPMPC = parseNPMPC(enaM[2].replace('＋', '+').replace('－', '-'));
-              }
-            }
-            // 登録者数N万人につき
-            if (!deltaPMPC) {
-              const subM = txt.match(/登録者数([０-９\d]*)万人につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
-              if (subM) {
-                const divisorS = parseInt(toHWPMPC(subM[1] || '1')) || 1;
-                const subCount = ownerState.subscriber_count ?? 0;
-                countPMPC = Math.floor(subCount / divisorS);
-                deltaPMPC = parseNPMPC(subM[2].replace('＋', '+').replace('－', '-'));
-              }
-            }
-            const totalPMPC = countPMPC * deltaPMPC;
-            if (totalPMPC !== 0 && powers.has(topNum)) {
-              applyDeltaToCard(topNum, totalPMPC, powers, ownerPowerProtection);
-            }
-          }
 
           // POWER_MOD_BY_FRONT_LEVEL: 正面の相手シグニのレベル×値だけその相手シグニのパワーを下げる
           if (stub.id === 'POWER_MOD_BY_FRONT_LEVEL') {
@@ -3003,7 +2967,7 @@ export function calcFieldPowers(
       if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, '', powers, oppTrashColorLoss, turnPhase)) continue;
       for (const mod of extractPowerModifies(effect.action)) {
         if (mod.target.count !== 'ALL') continue;
-        const delta = typeof mod.delta === 'number' ? mod.delta : 0;
+        const delta = continuousPowerDelta(mod, ownerState, otherState, cardMap);
         if (mod.target.owner === 'self' || mod.target.owner === 'any') {
           applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
         }
@@ -3221,12 +3185,15 @@ export interface ActiveCostMod {
  * - BattleScreen でスペル/アーツ使用コスト計算時に呼び出す
  */
 /**
- * 🆕`COST_INCREASE.amountFromZone` の単位量を数える（2026-08-31 続き749）。
+ * CONTINUOUS 側の `CountFromZone` 解決器（`COST_INCREASE.amountFromZone`／`POWER_MODIFY.deltaFromZone`）。
  * ⚠effectEngine は `execUtils` を import できない（循環）ので、`countFromZone` の**必要な部分だけ**を写している。
- *   対応ゾーンは `field` / `energy` / `trash` / `hand`＝**知らないゾーンは 0 へ fail-closed**。
+ *   **知らないゾーンは 0 へ fail-closed**（＝実行経路の `countFromZone` より対応ゾーンが少ない）。
  * ⚠`field` は**シグニ頂点**を見る（ゾーン状態フィルタ＝凍結/ダウン等も評価する）。
+ * 🆕2026-08-31 続き749 で `COST_INCREASE` 用に新設 → §5.3 `O-60` 第50バッチ（2026-09-03）で
+ *   `POWER_MODIFY` と共用にし、`lrig_trash` / `acce` / `signi_zone_all` / `center_lrig_types` を足した。
+ *   ⚠**2本目の写しを作らない**（写しが増えると実行経路とのズレが2箇所に散る）。
  */
-function countCostIncreaseUnits(
+function countZoneUnitsForContinuous(
   spec: import('../types/effects').CountFromZone,
   ownerState: PlayerState,
   otherState: PlayerState,
@@ -3243,12 +3210,29 @@ function countCostIncreaseUnits(
       if (!matchesStateFilter(st, zi, spec.filter)) continue;
       n += 1;
     }
+  } else if (spec.zone === 'center_lrig_types') {
+    // 🆕カードを数えるゾーンではない＝センタールリグのルリグタイプ数（`CardClass` の `/` 区切り）。
+    //   `$ref:'self_center_lrig_type_count'`（`execUtils.resolveCountRef`）と同じ数え方に合わせる。
+    const center = st.field.lrig.at(-1);
+    n = center
+      ? (cardMap.get(center.includes('#') ? center.slice(0, center.indexOf('#')) : center)?.CardClass ?? '')
+        .split('/').map(x => x.trim()).filter(Boolean).length
+      : 0;
   } else {
-    const zoneCards = spec.zone === 'energy' ? st.energy : spec.zone === 'trash' ? st.trash : spec.zone === 'hand' ? st.hand : [];
+    const zoneCards =
+      spec.zone === 'energy' ? st.energy
+      : spec.zone === 'trash' ? st.trash
+      : spec.zone === 'hand' ? st.hand
+      : spec.zone === 'lrig_trash' ? (st.lrig_trash ?? [])
+      : spec.zone === 'acce' ? (st.field.signi_acce ?? []).flatMap(slot => slot ?? [])
+      // 🆕`signi_zone_all`＝スタックの**全カード**（下段も含む・ルリグは含まない）。`field` と取り違えない。
+      : spec.zone === 'signi_zone_all' ? st.field.signi.flatMap(stack => stack ?? [])
+      : [];
     n = zoneCards.filter(cn => matchesFilter(cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]), spec.filter)).length;
   }
+  const capped = spec.maxCount === undefined ? n : Math.min(n, Math.max(0, spec.maxCount));
   const unit = spec.unitSize ?? 1;
-  return unit > 0 ? Math.floor(n / unit) * (spec.per ?? 1) : 0;
+  return unit > 0 ? Math.floor(capped / unit) * (spec.per ?? 1) : 0;
 }
 
 export function calcActiveCostMods(
@@ -3282,7 +3266,7 @@ export function calcActiveCostMods(
           //   ⚠0枚なら**増加なし**（`amount` をそのまま積むと固定値の増加に化ける）。
           let amount = inc.amount;
           if (inc.amountFromZone) {
-            const units = countCostIncreaseUnits(inc.amountFromZone, ownerState, otherState, _cardMap);
+            const units = countZoneUnitsForContinuous(inc.amountFromZone, ownerState, otherState, _cardMap);
             if (units <= 0) continue;
             amount = inc.amount.map(e => ({ ...e, count: e.count * units }));
           }

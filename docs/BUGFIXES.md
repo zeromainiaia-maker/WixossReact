@@ -1,5 +1,104 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第10巡）：§5.3 `O-60` 第50バッチ — パワー family 15ハンドラを1バッチで payload 化
+
+**ベースライン**＝`2f920586e`（第49バッチの直後）。**A🔴 SELF_TEXT 76行 → 59行 / 74→59ハンドラ**（`BASELINE_SELF_TEXT` も 59 へ払い戻し）。
+🔑**1バッチで17行・15ハンドラ**（第49バッチは1行／1ハンドラ）＝**家族単位で取ると固定費が1回で済む**。
+**gates 全緑**（golden 3340 → **3345**＝+5本）。
+✅**実機不要**＝`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ。**`src/screens/` は1行も触っていない。**
+
+### 何を取ったか
+
+`census:enginetext` A群の**「パワーを〈何かの数〉１つにつき±N」family 16ハンドラ / live 20効果**を一度に取った。
+`POWER_MOD_PER_REVEALED`(5) / `POWER_MOD_BY_LRIG_TRASH_ARTS`(3) / `POWER_MOD_BY_TRASH_CLASS_COUNT`(2) /
+`ADJACENT_SIGNI_POWER_MOD` / `MULTI_SIGNI_POWER_UP_5000` / `OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL` /
+`POWER_BOOST_PER_SIGNI_WITH_ICON` / `POWER_BY_ACCE_COUNT` / `POWER_BY_CENTER_LRIG_TYPE_COUNT` /
+`POWER_BY_LEVEL_SUM_COMPARE` / `POWER_DOWN_BY_ZONE_CARD_COUNT` / `POWER_MOD_BY_LRIG_LEVEL` /
+`POWER_MOD_BY_UNDER_COUNT`（各1）＋ 後段 `INTERNAL_PMBUC_APPLY` / `INTERNAL_POWER_UP_SELECTED` /
+`INTERNAL_APPLY_POWER_DELTA_OPP` ＋ CONTINUOUS 側の `POWER_MOD_PER_COUNT`（live 0）。
+
+### 🔴 真因は「id が14種に割れていたこと」だった（regex ではない）
+
+parser には**「パワーを〈ゾーン〉N枚につき±X」の文型ルール群が既にあった**（`rewritePowerModPerCountPayload`）。
+ところが入口の `containsPowerModPerCount` / `replaceUniquePowerModPerCount` が
+**`STUB{POWER_MOD_PER_COUNT}` という1つの id しか見ておらず**、同義の catch-all 13種には**永久に届かなかった**。
+実例＝`POWER_MOD_BY_TRASH_CLASS_COUNT`（2効果）は既存の「トラッシュにある〈filter〉N枚につき」ルールで
+そのまま解けるのに、**id が違うだけ**で engine のカード全文 regex に残っていた。
+⇒ **入口を `POWER_MOD_CATCH_ALL_IDS`（14 id の集合）に束ねた瞬間、ルール追加ゼロで 5効果が typed になった。**
+
+### 受け皿は全部既存だった（「まず受け皿を疑う」7回目）
+
+| 原文の軸 | 受け皿 | 新規 |
+|---|---|---|
+| ルリグトラッシュのアーツ／トラッシュの〈クラス〉／シグニの下 | `POWER_MODIFY.deltaFromZone`（`CountFromZone`） | — |
+| この方法で公開したカード | `deltaPerLastProcessedCount` + `perLastProcessed` | — |
+| 《ライズアイコン》を持つ自分のシグニ | `POWER_MODIFY_PER_FIELD{countFilter:{hasRiseIcon}}` | — |
+| 相手センタールリグのレベル | `POWER_MODIFY_PER_LRIG_LEVEL` | — |
+| 自分の場のシグニのレベル合計 | `POWER_MODIFY_PER_LEVEL_SUM` ＋ `FIELD_LEVEL_SUM` 条件 | — |
+| トラッシュに置かれたシグニのレベル | `POWER_MODIFY_PER_TRASHED_LEVEL` | — |
+| 隣接／クラス限定の複数体（固定値） | 素の `POWER_MODIFY` ＋ `adjacentToSelf` / `story` | — |
+| シグニゾーンにあるカード（下段含む） | `CountFromZone.zone` | 🆕`signi_zone_all` |
+| センタールリグのルリグタイプ数 | `CountFromZone.zone` | 🆕`center_lrig_types` |
+
+**新しいアクション型は0本**。足したのは `CountFromZone.zone` の2値だけ。
+
+### 🔴 機構の穴3つ（payload へ寄せて初めて見えた）
+
+**①CONTINUOUS は `deltaFromZone` を読んでいなかった。**`effectEngine` の【常】経路は
+`typeof mod.delta === 'number' ? mod.delta : 0` で、**`deltaFromZone` を書いた【常】効果は無言で ±0** になる
+（`O-128` 第4バッチ・第30バッチと同じ「収集契約」の罠）。実行経路だけが `resolveCountRef` で解いていた。
+⇒ `continuousPowerDelta()` を新設して3つの消費地点へ配線。`COST_INCREASE` 用の局所解決器
+`countCostIncreaseUnits` を `countZoneUnitsForContinuous` へ改名して**共用**にした（写しを2本作らない）。
+
+**②`adjacentToSelf` は実行経路に消費地点が無かった。**`matchesFilter`/`matchesStateFilter` はゾーン番号を
+受け取らないので、【出】【自】の対象宣言に付けると**素通りして自分の場の全シグニが候補**になる。
+🔑**これは golden のトリップワイヤ（「`adjacentToSelf` は CONTINUOUS の `POWER_MODIFY` にしか付いていない」）が
+その場で捕まえた**＝`WXK01-060-E1` を typed 化した直後に FAIL。
+⇒ `execUtils.fieldCandidatesByOwner` に `keepAdjacent` を足し、トリップワイヤを
+**「`POWER_MODIFY.target.filter` 以外に出たら FAIL」**（出現数と認可数の突き合わせ）へ書き換えた。
+
+**③文境界をまたぐ照応が解けず catch-all へ差し戻されていた。**`WXK05-043-E2` / `WXK10-081-E2`
+「あなたの＜水獣＞のシグニ１体を対象とし、…公開する**。** ターン終了時まで、**それの**パワーを…」は
+`applyLeadingSelfDesignationToPowerModify` の `[^。]*?` が句点を越えられず `targetsTriggerSource`（未確定）のまま残り、
+`revertUnresolvedPerLastProcessed` が STUB へ戻していた＝**そこから先は engine の全文 regex**。
+⇒ 照応解決器を「**1文だけ**またげる」＋「`targetsTriggerSource` で未確定のノードも直す」へ広げた。
+
+### 挙動が変わったもの（実害）
+
+- **`WXDi-P09-046-E2` は1体にしか効いていなかった**＝原文「対戦相手のシグニ**を２体まで**対象とし」に対し
+  engine の regex が `シグニ([０-９\d]*)体まで`（「を」を許さない）で外れ、既定の1体へ落ちていた。
+- **`WXK01-060-E1` / `WXK07-039-E1` の単価はハンドラ名の焼き込みだった**＝`\+([０-９\d]+)`（**半角+**）が
+  原文の全角「＋」に当たらず、`MULTI_SIGNI_POWER_UP_5000` は名前の 5000 で動いていた（たまたま一致）。
+- 残りは payload へ移しただけで実挙動は同一（live のバイト同一を撤去の証明に使った）。
+
+### 検証コマンド
+
+- `npm run golden -- --only "O-60 第50"`（**4本**）＋ `--only "adjacentToSelf"`（**2本**）
+- `npm run gates`（全緑）＝golden **3345/3345**・smoke **10725**・fuzz 0・census **3 / BASELINE 3**・
+  `census:stubs` A群🔴0・C群0・`census:enginetext` **A🔴 59 / BASELINE 59**・`census:costtext` A群0
+- `npm run regen` 完走
+
+### 反転確認（あり・3機構とも独立に）
+
+①CONTINUOUS の `deltaFromZone` を無視 → アクセ／ルリグタイプの【常】テストが FAIL
+②`signi_zone_all` を「最上面のみ」へすり替え → －6000 が －4000 になって FAIL
+③`center_lrig_types` を固定1へ → タイプ2つの assert が FAIL
+🔑**②は最初 payload の zone 名しか assert しておらず素通りした**（第22バッチ⑥の再現）＝
+**スタック下段まで数えることを盤面で測る**テストを足して取り直した。
+
+### 罠（次に family バッチを取る人へ）
+
+- ⚠**`live 0` のハンドラでも消す前に呼び出し元を grep する**＝`INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS`
+  （live 0）は**生きている `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` の後段**なので残した。
+- ⚠**parser の受け皿サイトは消さない**＝あれが STUB を出し、文型ルールがそれを typed へ置換する2段構え。
+  消すと別の catch-all へ落ちる（第21バッチ②の逆パターン）。
+- ⚠**`syncManualLive` が id 集合ズレで止まる**（`WX25-CP1-061` は manual に E3 が無く fresh が E2 を出す＝`O-39`）。
+  この巡は live の当該ノードだけを直接書き換えて manual と一致させた（drift を作らない側へ倒した）。
+- 🔑**計器の `--id` をカンマ区切り対応にした**＝1起動で全カードを parse する（約40秒）ので、
+  family バッチで1ハンドラずつ起動すると待ち時間だけで十数分になる。
+
+---
+
 ## 2026-09-03（索引 A 第9巡）：§5.3 `O-60` 第49バッチ — 最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化
 
 **ベースライン**＝`a5679359a`（第47〜48バッチの直後）。**A🔴 SELF_TEXT 77行 → 76行 / 75→74ハンドラ**、

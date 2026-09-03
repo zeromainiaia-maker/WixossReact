@@ -97,6 +97,7 @@ import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/execUtils';
 import { getRiseFilter } from '../src/engine/execUtils';
+import { fieldCandidatesByOwner } from '../src/engine/execUtils';
 import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction, ignoresLrigTypeForGrow } from '../src/screens/battle/growLogic';
@@ -4351,7 +4352,10 @@ test('スコープつきキーワード直後のブロックを飲み込まな�
     eq(e.length, 3, 'WX24-P4-044: 3ブロック（旧＝2つ目の【常】が欠落して2ブロック）');
     eq(e[0].action.keyword, 'シャドウ:{"lrigTrashArtsColor":true}', 'WX24-P4-044-E1 シャドウのスコープ');
     eq(e[1].effectType, 'CONTINUOUS', 'WX24-P4-044-E2 は2つ目の【常】');
-    eq((e[1].action as { id?: string }).id, 'POWER_MOD_BY_LRIG_TRASH_ARTS', 'WX24-P4-044-E2 は実装済みハンドラへ届く');
+    // 🆕§5.3 `O-60` 第50バッチ（2026-09-03）＝この STUB は typed `POWER_MODIFY{deltaFromZone}` へ移した。
+    eq(e[1].action.type, 'POWER_MODIFY', 'WX24-P4-044-E2 は typed なパワー修正');
+    eq((e[1].action as { deltaFromZone?: { zone?: string } }).deltaFromZone?.zone, 'lrig_trash',
+      'WX24-P4-044-E2 はルリグトラッシュのアーツ枚数を数える');
     eq(e[2].effectType, 'AUTO', 'WX24-P4-044-E3 は【自】（旧 E2）');
   }
   // 🔴 fail-closed ガード＝**スコープの無い裸のキーワード**は従来どおり分割される（退化していない）。
@@ -39390,20 +39394,70 @@ test('§3 (cxxxvii): 「このシグニの隣にあるあなたのシグニ」�
   eq(downed.get(nb), 3000, 'ダウン状態なら隣バフも乗らない');
 }));
 
-test('§3 (cxxxvii): `adjacentToSelf` は CONTINUOUS の POWER_MODIFY にしか付いていない（消費地点の外で使わない）', () => {
+test('§3 (cxxxvii): `adjacentToSelf` は消費地点のある2経路にしか付いていない', () => {
   // ⚠`matchesFilter`／`matchesStateFilter` は**効果元のゾーンを知らない**ので隣接を判定できない＝
-  //   対象宣言（SELECT_TARGET 等）にこのキーを付けると**黙って無視されて過剰選択**になる。
-  //   消費地点（`calcFieldPowers`）を増やすまでは、この tripwire で用法を CONTINUOUS に固定する。
-  const offenders: string[] = [];
+  //   ゾーンを見る地点を通らない場所にこのキーを付けると**黙って無視されて過剰選択**になる。
+  // 🆕**2026-09-03（§5.3 `O-60` 第50バッチ）＝消費地点を1つ増やした**＝
+  //   実行経路の対象選択（`execUtils.fieldCandidatesByOwner` の `keepAdjacent`）。
+  //   ⇒ 許すのは **(a) CONTINUOUS の `POWER_MODIFY`（`calcFieldPowers`）** と
+  //     **(b) `target.filter` に載った `POWER_MODIFY`（対象選択で絞る）** の2つだけ。
+  //   ⚠**それ以外（`SELECT_TARGET_ONLY` 等の別 action へ付ける）はいまも素通り**なので落とす。
+  // 🔑不変条件は1本＝**`adjacentToSelf` は `POWER_MODIFY` の `target.filter` にしか現れない**。
+  //   消費地点2つ（`calcFieldPowers` / `fieldCandidatesByOwner`）はどちらもそこしか読まないので、
+  //   他の場所（別 action の filter、`countFilter`、`selectTarget` 等）に出たら素通り＝過剰選択。
+  //   ⚠**ネストを辿る**＝`WXK01-060-E1` は root が `CHOOSE` でその枝に `POWER_MODIFY` が居る。
+  // 🔑数え方＝**JSON 全体の出現数**と**認可された場所（`POWER_MODIFY.target.filter`）の数**を突き合わせる。
+  //   親を辿る walker を書くより堅い（`countFilter` 等どこに増えても差分に出る）。
+  const badEffects: string[] = [];
+  let sanctioned = 0;
+  const countSanctioned = (node: unknown): number => {
+    if (!node || typeof node !== 'object') return 0;
+    if (Array.isArray(node)) return node.reduce<number>((n, v) => n + countSanctioned(v), 0);
+    const rec = node as Record<string, unknown>;
+    const target = rec.target as { filter?: Record<string, unknown> } | undefined;
+    const here = rec.type === 'POWER_MODIFY' && target?.filter?.adjacentToSelf ? 1 : 0;
+    return here + Object.values(rec).reduce<number>((n, v) => n + countSanctioned(v), 0);
+  };
   for (const [num, effs] of effectsMap) {
     for (const e of effs) {
       const json = JSON.stringify(e.action ?? {});
-      if (!json.includes('"adjacentToSelf"')) continue;
-      const ok = e.effectType === 'CONTINUOUS' && (e.action as { type?: string }).type === 'POWER_MODIFY';
-      if (!ok) offenders.push(`${num}/${e.effectId}`);
+      const total = (json.match(/"adjacentToSelf"/g) ?? []).length;
+      if (total === 0) continue;
+      const okCount = countSanctioned(e.action);
+      sanctioned += okCount;
+      if (okCount !== total) badEffects.push(`${num}/${e.effectId}(${okCount}/${total})`);
     }
   }
-  eq(offenders.join(','), '', `CONTINUOUS POWER_MODIFY 以外に adjacentToSelf が付いている: ${offenders.join(',')}`);
+  eq(badEffects.join(','), '',
+    `POWER_MODIFY.target.filter 以外に adjacentToSelf が付いている: ${badEffects.join(',')}`);
+  ok(sanctioned >= 3, `走査対象が消えていない（実測 ${sanctioned} 箇所）`);
+});
+
+test('§5.3 O-60 第50: adjacentToSelf は実行経路でも隣のゾーンだけに絞る（WXK01-060-E1）', () => {
+  const savedCursor = cursor;
+  try {
+    // 🔴配線前は `fieldCandidates` がこのキーを知らず、**自分の場のシグニ全部**が候補になっていた
+    //   （原文は「このシグニと隣接するあなたのシグニ」＝真ん中に居るなら左右の2体だけ）。
+    const eff = (effectsMap.get('WXK01-060') ?? []).find(e => e.effectId === 'WXK01-060-E1');
+    ok(!!eff, 'WXK01-060-E1 が live にある'); if (!eff) return;
+    const choose = eff.action as { type: string; choices?: { action: EffectAction }[] };
+    eq(choose.type, 'CHOOSE');
+    const body = choose.choices?.[1]?.action as (EffectAction & { target?: { filter?: Record<string, unknown> } });
+    ok(!!body?.target?.filter?.adjacentToSelf, '②の枝が隣接フィルタを持つ');
+    // 効果元を中央（zi=1）に置き、左右＋自分自身の3体を並べる。
+    const ctx = mkCtx({}, {}, 'WXK01-060');
+    const left = POOL[0], right = POOL[1];
+    ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field,
+      signi: [[left], ['WXK01-060'], [right]] } };
+    const cands = fieldCandidatesByOwner('self', body.target!.filter as never, ctx).cands;
+    eq([...cands].sort().join(','), [left, right].sort().join(','),
+      '候補は左右の2体だけ（効果元自身は「隣」ではない）');
+    // 効果元が場にいなければ候補ゼロ（fail-closed）。
+    const off = mkCtx({}, {}, 'WXK01-060');
+    off.ownerState = { ...off.ownerState, field: { ...off.ownerState.field, signi: [[left], null, [right]] } };
+    eq(fieldCandidatesByOwner('self', body.target!.filter as never, off).cands.length, 0,
+      '効果元が場にいなければ候補ゼロ');
+  } finally { cursor = savedCursor; }
 });
 
 // ══════════════ §8 `O-1` (g) 選択の精緻化（`cpuBoardEval.ts`・続き569）══════════════
@@ -62748,6 +62802,137 @@ test('§5.3 O-60 第49: WXDi-P07-006-E1 のコイン獲得は条件節のアイ�
   eq(coin?.count, 5, '原文「《コイン》×5を得る」＝条件節の1つを数えない');
 });
 
+
+// ── §5.3 `O-60` 第50バッチ（2026-09-03）＝「パワーを〈軸〉１つにつき±N」family 15ハンドラを payload 化 ──
+// 🔴この family は **engine が `card.EffectText` を読んで「何を数えるか」と「単価」を決めていた**。
+//   受け皿はすべて既存（`deltaFromZone` / `POWER_MODIFY_PER_*` / `perLastProcessed`）だったが、
+//   **catch-all の STUB id が14種に割れていて parser の文型ルールに1本も届いていなかった**のが根。
+test('§5.3 O-60 第50: パワー family の catch-all STUB は live に1件も残っていない', () => {
+  const goneIds = [
+    'POWER_MOD_PER_COUNT', 'POWER_MOD_PER_REVEALED', 'POWER_MOD_BY_LRIG_TRASH_ARTS',
+    'POWER_MOD_BY_TRASH_CLASS_COUNT', 'POWER_MOD_BY_UNDER_COUNT', 'POWER_MOD_BY_LRIG_LEVEL',
+    'POWER_DOWN_BY_ZONE_CARD_COUNT', 'POWER_BY_ACCE_COUNT', 'POWER_BY_CENTER_LRIG_TYPE_COUNT',
+    'POWER_BY_LEVEL_SUM_COMPARE', 'POWER_BOOST_PER_SIGNI_WITH_ICON',
+    'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL', 'ADJACENT_SIGNI_POWER_MOD', 'MULTI_SIGNI_POWER_UP_5000',
+  ];
+  const left: string[] = [];
+  const visit = (node: unknown, effectId: string): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, effectId)); return; }
+    const rec = node as Record<string, unknown>;
+    if (rec.type === 'STUB' && typeof rec.id === 'string' && goneIds.includes(rec.id)) left.push(`${effectId}:${rec.id}`);
+    Object.values(rec).forEach(v => visit(v, effectId));
+  };
+  for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
+  // 🔴engine 側のハンドラを撤去済み＝残っていたら**無言 no-op**（逆翻訳も census も緑のまま盤面が動かない）。
+  eq(left.length, 0, `撤去済み catch-all が live に残っている: ${left.join(', ')}`);
+});
+
+test('§5.3 O-60 第50: 数える軸と単価が payload に載っている（13効果の代表8件）', () => {
+  const act = (cardNum: string, effectId: string): Record<string, unknown> => {
+    const hit = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!hit, `${effectId} が live にある`);
+    return (hit?.action ?? {}) as unknown as Record<string, unknown>;
+  };
+  const dz = (a: Record<string, unknown>): Record<string, unknown> =>
+    (a.deltaFromZone ?? {}) as Record<string, unknown>;
+
+  // ルリグトラッシュのアーツ枚数（対象＝相手1体／自分の場全体の2形）
+  eq(dz(act('WX24-P1-049', 'WX24-P1-049-E1')).zone, 'lrig_trash');
+  eq(dz(act('WX24-P1-049', 'WX24-P1-049-E1')).per, -1000);
+  eq((act('WX24-P4-044', 'WX24-P4-044-E2').target as { owner?: string; count?: unknown }).count, 'ALL',
+    'WX24-P4-044-E2 は「あなたのシグニの」＝場全体（旧は相手1体へ落ちうる形だった）');
+  eq(dz(act('WX24-P4-044', 'WX24-P4-044-E2')).per, 1000);
+
+  // 🔑シグニゾーンの**全カード**（`zone:'field'` は最上面＋ルリグしか数えない別物）
+  eq(dz(act('WXK08-032', 'WXK08-032-E2')).zone, 'signi_zone_all');
+  // 効果元シグニの下（`WXDi-P09-046-E2` は「**を**２体**まで**」＝旧 regex が外れて1体固定だった）
+  const under = act('WXDi-P09-046', 'WXDi-P09-046-E2');
+  eq(dz(under).zone, 'under');
+  eq((under.target as { count?: number }).count, 2, '対象は2体まで');
+  eq((under.target as { upToCount?: boolean }).upToCount, true);
+
+  // 相手センタールリグのレベル／自分の場のレベル合計（どちらも既存の PER_* 型へ）
+  const lrigLv = act('WXK09-035', 'WXK09-035-E1');
+  ok(JSON.stringify(lrigLv).includes('"POWER_MODIFY_PER_LRIG_LEVEL"'), 'WXK09-035-E1 は PER_LRIG_LEVEL');
+  ok(JSON.stringify(lrigLv).includes('"lrigOwner":"opponent"'), '参照するのは対戦相手のルリグ');
+  const lvSum = act('WXK10-089', 'WXK10-089-E1');
+  eq(lvSum.type, 'CONDITIONAL', 'WXK10-089-E1 は盤面条件つき（条件を落とすと常に効く過剰実行）');
+  eq((lvSum.condition as { type?: string; operator?: string }).type, 'FIELD_LEVEL_SUM');
+  eq((lvSum.condition as { operator?: string }).operator, 'lte');
+
+  // 固定値＋対象フィルタ（「につき」ではないのに同じ catch-all に落ちていた2件）
+  const adj = act('WXK01-060', 'WXK01-060-E1');
+  ok(JSON.stringify(adj).includes('"adjacentToSelf":true'), 'WXK01-060-E1 は隣接フィルタ');
+  ok(JSON.stringify(adj).includes('"delta":3000'), '単価は原文の＋3000（全角＋で旧 regex は外れていた）');
+  const atom = act('WXK07-039', 'WXK07-039-E1');
+  ok(JSON.stringify(atom).includes('"story":"原子"'), 'WXK07-039-E1 はクラス限定');
+  ok(JSON.stringify(atom).includes('"delta":5000'), '単価はハンドラ名の焼き込みではなく原文由来');
+
+  // 文境界をまたぐ照応（「あなたの＜水獣＞のシグニ1体を対象とし…**。**…**それの**パワーを」）
+  const rev = act('WXK05-043', 'WXK05-043-E2');
+  ok(!JSON.stringify(rev).includes('targetsTriggerSource'),
+    'WXK05-043-E2 の「それ」は前文の対象へ解決される（未解決だと catch-all へ差し戻される）');
+  ok(JSON.stringify(rev).includes('"story":"水獣"'), '対象は＜水獣＞限定');
+});
+
+test('§5.3 O-60 第50: 【常】の deltaFromZone が実際に効く（CONTINUOUS の収集契約）', () => {
+  // 🔴**ここが第50バッチで一番危なかった**＝CONTINUOUS 側は `typeof mod.delta === 'number' ? … : 0` で
+  //   `deltaFromZone` を見ておらず、【常】へ書くと**無言で ±0**（`O-128` 第4バッチ・第30バッチと同じ罠）。
+  //   payload の形だけを assert しても捕まらないので、**実効パワーを計算して**押さえる。
+  const cm = cardMap as Map<string, CardData>;
+
+  // `WX21-062`「このシグニのパワーはあなたの場にある【アクセ】１枚につき＋2000される」
+  const acceSt = mkState({ signi: ['WX21-062', null, null] });
+  acceSt.field.signi_acce = [['WX21-062'], null, null];   // アクセ1枚
+  const acce0 = mkState({ signi: ['WX21-062', null, null] });
+  const base = Number.parseInt(cm.get('WX21-062')?.Power ?? '0', 10);
+  eq(calcFieldPowers(acce0, mkState({}), true, effectsMap, cm).get('WX21-062'), base, 'アクセ0枚なら素のパワー');
+  eq(calcFieldPowers(acceSt, mkState({}), true, effectsMap, cm).get('WX21-062'), base + 2000, 'アクセ1枚で+2000');
+
+  // `PR-472`「このシグニのパワーはあなたのセンタールリグのルリグタイプ１つにつき＋2000される」
+  // ⚠ルリグタイプ数は `CardClass` の `/` 区切り（`$ref:'self_center_lrig_type_count'` と同じ数え方）。
+  const baseP = Number.parseInt(cm.get('PR-472')?.Power ?? '0', 10);
+  const lrigTypes = (cn: string): number =>
+    (cm.get(cn)?.CardClass ?? '').split('/').map(x => x.trim()).filter(Boolean).length;
+  const noLrig = mkState({ signi: ['PR-472', null, null] });
+  eq(calcFieldPowers(noLrig, mkState({}), true, effectsMap, cm).get('PR-472'), baseP,
+    'センタールリグ不在なら0（fail-closed）');
+  const oneType = [...cm.keys()].find(cn => cm.get(cn)?.Type === 'ルリグ' && lrigTypes(cn) === 1);
+  ok(!!oneType, 'ルリグタイプ1つのルリグが存在する');
+  if (oneType) {
+    const st1 = mkState({ signi: ['PR-472', null, null], lrig: [oneType] });
+    eq(calcFieldPowers(st1, mkState({}), true, effectsMap, cm).get('PR-472'), baseP + 2000, 'タイプ1つで+2000');
+  }
+  const twoType = [...cm.keys()].find(cn => cm.get(cn)?.Type === 'ルリグ' && lrigTypes(cn) === 2);
+  if (twoType) {
+    const st2 = mkState({ signi: ['PR-472', null, null], lrig: [twoType] });
+    eq(calcFieldPowers(st2, mkState({}), true, effectsMap, cm).get('PR-472'), baseP + 4000, 'タイプ2つで+4000');
+  }
+});
+
+
+test('§5.3 O-60 第50: signi_zone_all はスタックの下段まで数える（zone:field との取り違え検出）', () => {
+  const savedCursor = cursor;
+  try {
+    // 🔴**payload の zone 名を assert するだけでは足りない**（第22バッチ⑥の教訓）＝
+    //   `signi_zone_all` を `field`（最上面＋ルリグ）にすり替えても形は同じなので、**枚数で押さえる**。
+    //   原文（`WXK08-032-E2`）＝「あなたの**シグニゾーンにあるカード**１枚につき－2000」。
+    const eff = (effectsMap.get('WXK08-032') ?? []).find(e => e.effectId === 'WXK08-032-E2');
+    ok(!!eff, 'WXK08-032-E2 が live にある'); if (!eff) return;
+    const ctx = mkCtx({}, {}, 'WXK08-032');
+    // 自分の場＝ライズ2枚重ね + 単体1枚 ＝ **カード3枚**（最上面だけなら2枚）
+    ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field,
+      signi: [['WXK08-032', 'WXK08-032'], ['WXK08-032'], null] as unknown as PlayerState['field']['signi'] } };
+    const oppNum = POOL[0];
+    ctx.otherState = { ...ctx.otherState, field: { ...ctx.otherState.field, signi: [[oppNum], null, null] } };
+    const r = run(eff.action, ctx);
+    ok(r.done); if (!r.done) return;
+    const mods = r.otherState.temp_power_mods ?? [];
+    eq(mods.length, 1, '相手シグニ1体へ適用');
+    eq(mods[0]?.delta, -6000, 'スタック下段まで数えて3枚×－2000（最上面だけなら－4000）');
+  } finally { cursor = savedCursor; }
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

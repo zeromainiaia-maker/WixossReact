@@ -1,7 +1,7 @@
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction, StubAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, PowerModifyAction, AttachAcceAction, } from '../types/effects';
+  EffectAction, StubAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, AttachAcceAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -3417,26 +3417,6 @@ export function execStubPart3(
       targetScope: 'opp_field', thenAction: banishTSAOTE as EffectAction,
     });
   }
-  // MULTI_SIGNI_POWER_UP_5000: 複数シグニに+5000パワー
-  if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
-    const toHWMSPU5 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcMSPU5 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtMSPU5 = srcMSPU5 ? (srcMSPU5.EffectText ?? '') + ' ' + (srcMSPU5.BurstText ?? '') : '';
-    const mMSPU5 = txtMSPU5.match(/([０-９\d]+)体/);
-    const countMSPU5 = mMSPU5 ? parseInt(toHWMSPU5(mMSPU5[1])) : 2;
-    const mDeltaMSPU5 = txtMSPU5.match(/\+([０-９\d]+)/);
-    const deltaMSPU5 = mDeltaMSPU5 ? parseInt(toHWMSPU5(mDeltaMSPU5[1])) : 5000;
-    const candsMSPU5 = (ctx.ownerState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
-    if (candsMSPU5.length === 0) return done(addLog(ctx, 'シグニなし'));
-    const pmMSPU5: PowerModifyAction = {
-      type: 'POWER_MODIFY', delta: deltaMSPU5, target: { type: 'SIGNI', owner: 'self', count: 1 },
-    };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: candsMSPU5,
-      count: Math.min(countMSPU5, candsMSPU5.length), optional: false,
-      targetScope: 'self_field', thenAction: pmMSPU5 as EffectAction,
-    });
-  }
   // === バッチ13: エナ操作・カウント・条件分岐系 ===
   // ENERGY_TO_HAND_ON_DECK: エナゾーンの末尾→手札（デッキ経由を省略）
   if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
@@ -3950,35 +3930,6 @@ export function execStubPart3(
   if (stub.id === 'OPTIONAL_DISCARD_GUARD') {
     const newOwnerODG: PlayerState = { ...ctx.ownerState, optional_discard_guard_enabled: true };
     return done(addLog({ ...ctx, ownerState: newOwnerODG }, '手札から任意カードを捨ててガード可能（このターン）'));
-  }
-  // ADJACENT_SIGNI_POWER_MOD: このシグニと隣接するシグニ最大2体のパワーを修正
-  if (stub.id === 'ADJACENT_SIGNI_POWER_MOD') {
-    const zoneIdxADJ = ctx.sourceCardNum
-      ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
-      : -1;
-    if (zoneIdxADJ === -1) return done(addLog(ctx, 'ADJACENT_SIGNI_POWER_MOD: ゾーンが見つかりません'));
-    const adjNumsADJ: string[] = [];
-    if (zoneIdxADJ > 0) {
-      const adj = ctx.ownerState.field.signi[zoneIdxADJ - 1]?.at(-1);
-      if (adj) adjNumsADJ.push(adj);
-    }
-    if (zoneIdxADJ < 2) {
-      const adj = ctx.ownerState.field.signi[zoneIdxADJ + 1]?.at(-1);
-      if (adj) adjNumsADJ.push(adj);
-    }
-    if (adjNumsADJ.length === 0) return done(addLog(ctx, '隣接シグニなし（ADJACENT_SIGNI_POWER_MOD）'));
-    // deltaをカードテキストから取得（未記述なら+3000デフォルト）
-    const srcADJ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtADJ = srcADJ ? (srcADJ.EffectText ?? '') : '';
-    const toHWADJ = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mADJ = txtADJ.match(/[＋+]([０-９\d]+)/);
-    const deltaADJ = mADJ ? parseInt(toHWADJ(mADJ[1])) : 3000;
-    const modsADJ = [
-      ...(ctx.ownerState.temp_power_mods ?? []),
-      ...adjNumsADJ.map(cn => ({ cardNum: cn, delta: deltaADJ })),
-    ];
-    const newOwnerADJ = { ...ctx.ownerState, temp_power_mods: modsADJ };
-    return done(addLog({ ...ctx, ownerState: newOwnerADJ }, `隣接${adjNumsADJ.length}体パワー+${deltaADJ}`));
   }
 
   // OPP_DRAW_LIMIT_PER_TURN: ドローフェイズ中の相手ドローを1枚に制限（BattleScreen側処理）

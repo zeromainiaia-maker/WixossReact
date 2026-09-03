@@ -926,11 +926,12 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🆕**miss 0ハンドラ / 0カード・A🔴 76行 / 74ハンドラ・live 134効果（2026-09-03 第49バッチ後 実測）**。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🆕**miss 0ハンドラ / 0カード・A🔴 59行 / 59ハンドラ・live 114効果（2026-09-03 第50バッチ後 実測）**。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
-**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第49バッチ後）**＝**A🔴 SELF_TEXT 76行／74ハンドラ**（B 58／C 58）・**regex が1本も当たらないハンドラ 0・miss カード 0**。⚠旧記載（第48バッチ後 77行／75ハンドラ）は失効。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 75ハンドラ・live 179効果**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第49バッチ後 実測）**＝**live の多い順**が母集団順＝`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族）／`SONG_FRAGMENT`（live11・lit0）／`BET_MECHANIC`（live8）／`ADD_CARD_TO_LRIG_DECK`（live6）／`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）／`CHOOSE_HAND_OR_ENERGY`（live4・**枚数が前の文にあるので payload の運び方を先に決める**）／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`（live4）／以下 live1〜3。⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
+**手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第50バッチ後）**＝**A🔴 SELF_TEXT 59行／59ハンドラ**（B 57／C 58）・**regex が1本も当たらないハンドラ 0・miss カード 0**。⚠旧記載（第49バッチ後 76行／74ハンドラ）は失効。■🔑🔴**miss は 0 になったが、この項目は閉じていない**＝登録票の警告どおり**miss=0 は「正しい」ではない**（たまたま当たっているだけ）。**残り 75ハンドラ・live 179効果**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第50バッチ後 実測）**＝**live の多い順**が母集団順＝`GRANT_ABILITY_INNER_TEXT`（live14・lit0＝引用文の再パース＝`O-128` 族）／`SONG_FRAGMENT`（live11・lit0）／`BET_MECHANIC`（live8）／`ADD_CARD_TO_LRIG_DECK`（live6）／`HAND_REVEAL_CLASS_SIGNI`・`POWER_MOD_PER_REVEALED`（live5）／`CHOOSE_HAND_OR_ENERGY`（live4・**枚数が前の文にあるので payload の運び方を先に決める**）／`CONDITIONAL_MULTI_CHOOSE_BY_CENTER`・`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`（live4）／以下 live1〜3。
+🆕🔑**取る単位は「1ハンドラ」ではなく「家族」**＝第50バッチはパワー修正15ハンドラを1バッチで取り、**A群を17行減らした**（第49バッチは1行）。**同じ受け皿へ寄せられるものを束ねると、探索・配送・ゲート・簿記の固定費が1回で済む。**⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
 
-■✅**消化済み 49バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
+■✅**消化済み 50バッチ**＝第1〜16（`LOOK_OPP_LIFE_TOP` ほか。全文は BUGFIXES.md 2026-08-26〜2026-09-02）／
 第17〜20（`OPP_SIGNI_ATTACK_POWER_RESTRICT` / `CLASS_CHANGE` / `HAND_SIZE_INCREASE`＋`REDUCE_OPP_HAND_LIMIT` /
 `PLAY_SPELL_FREE_IGNORE_RESTRICTION`）／第21〜28（`MULTI_SIGNI_TO_ENERGY` / `LAYER_ABILITY_COPY` /
 `EACH_PLAYER_DRAW_DISCARD` / `LOOK_TOP_OPP_CHOOSE_TRASH` / `INFECTED_SIGNI_POWER_DOWN_BY_LEVEL` /
@@ -943,8 +944,37 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 第42 `TARGET_ONLY`／第43 `DECK_TOP_TO_LIFE`（4文型へ分割）／第44 `NEGATE_NTH_ATTACK`／
 第45 `LOOK_AND_REORDER`（15文型へ分割）／第46 `GRANT_QUOTED_AUTO_ABILITY`（WD21-007 を専用 id へ）／
 第47 `GAIN_SUBSCRIBER_COUNT`／第48 `CONDITIONAL_CARD_COST_BY_OPP_LRIG`**／
-🆕**第49（2026-09-03・索引 A 第9巡）＝`GAIN_ABILITY_THIS_GAME`**（live19 / 18カード・**リテラル24本の最大の catch-all**）。
+🆕**第49（2026-09-03・索引 A 第9巡）＝`GAIN_ABILITY_THIS_GAME`**（live19 / 18カード・**リテラル24本の最大の catch-all**）／
+🆕**第50（2026-09-03・索引 A 第10巡）＝パワー修正 family を1バッチで15ハンドラ**
+（`POWER_MOD_PER_REVEALED` ほか13 id ＋ 後段 `INTERNAL_*` 3本・live 20効果）。
 全文は BUGFIXES.md 2026-09-03。
+
+■🆕🔑**第50バッチの教訓（2026-09-03・索引 A 第10巡）＝この項目の取り方そのものを変えた**
+🔑**①取る単位は「1ハンドラ」ではなく「家族」。** 第49（1ハンドラ・A群 -1行）と第50（15ハンドラ・**-17行**）は
+同じくらいの時間で終わった＝**固定費（探索・配送・ゲート・簿記）はバッチ回数に比例し、ハンドラ数には比例しない。**
+残りも `census:enginetext` の A群表を**受け皿の家族**で束ねてから取る。
+🔴**②この family の真因は regex ではなく「id が14種に割れていたこと」だった。**
+parser には文型ルール群が既に在ったのに、入口（`containsPowerModPerCount`）が
+**`POWER_MOD_PER_COUNT` 1つの id しか見ておらず**、同義の catch-all 13種には永久に届かなかった。
+**入口を id 集合へ束ねただけでルール追加ゼロで5効果が typed になった。**
+⇒ **A群のハンドラを見たら「同じ意味の別 id が居ないか」を先に数える**（`census:enginetext` の表を家族で読む）。
+🔴**③CONTINUOUS と実行経路は payload の読み手が別。片方しか無い口が2つ見つかった。**
+(a)`deltaFromZone` は実行経路（`resolveCountRef`）だけが解き、**【常】は無言で ±0**
+(b)`adjacentToSelf` は【常】（`calcFieldPowers`）だけが解き、**【出】【自】は素通りして全シグニが候補**。
+⇒ **typed へ寄せるときは「その payload を読むのは誰か」を経路ごとに確かめる**（`O-128` 第4バッチの収集契約と同じ家系）。
+🔑**④それを捕まえたのは golden の「用法トリップワイヤ」だった**＝
+「`adjacentToSelf` は CONTINUOUS の `POWER_MODIFY` にしか付いていない」が typed 化の直後に FAIL した。
+**消費地点が1つしか無い語彙にはこの形のトリップワイヤを張る**（消費地点を増やしたら契約ごと書き換える）。
+🔴**⑤反転確認は「payload の名前」ではなく「盤面の数」で取る。** `signi_zone_all` を `field`（最上面のみ）へ
+すり替える反転が**素通りした**（zone 名しか assert していなかった）＝第22バッチ⑥の再現。
+**スタック下段まで数えることを実効パワーで測る**テストに差し替えて取り直した。
+⚠**⑥`live 0` でも呼び出し元を grep してから消す**（第37バッチ①の再現）＝
+`INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS` は live 0 だが**生きている親ハンドラの後段**だったので残した。
+⚠**⑦parser の受け皿サイトは消さない**＝「サイトが STUB を出す → 文型ルールが typed へ置換する」の2段構えなので、
+サイトを消すと別の catch-all へ落ちる。**engine のハンドラだけを撤去し、live に残 0 を golden でラチェットする。**
+🧹**⑧計器の `--id` をカンマ区切り対応にした**＝1起動で全カードを parse する（約40秒）ので、
+family バッチで1ハンドラずつ起動すると待ち時間だけで十数分になる（`census:orphanmanual` と同じ理由）。
+全文は BUGFIXES.md 2026-09-03（索引 A 第10巡）。
 
 ■🆕🔑**第49バッチの教訓（2026-09-03・索引 A 第9巡）**
 🔴**①`miss=0` は「壊れていない」ではない、の実例が出た。** `GAIN_ABILITY_THIS_GAME` は
@@ -2859,6 +2889,36 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-03・`O-60` 第49バッチ後・PLAN §6 から退避）
+
+- **2026-09-03（`O-60` 第49バッチ・索引 A 第9巡）＝最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 16 / 863 (1.9%)**（前ブロックの記載 17 から -1）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 3 / BASELINE 3**（据置）
+  ⚠**据置の理由**＝`O-60` は**語彙の欠落ではなく「engine が原文を読む」形**を潰す項目なので3計器には出ない。
+  Sheet1 が1枚減ったのは `WX08-015` `WX10-011` が `mech`（`O-60`）から降りたため（実挙動の前進）。
+  この項目の計器は **`census:enginetext` の A群**＝**77行 / 75ハンドラ → 76行 / 74ハンドラ**（miss は 0 のまま）。
+  🔑**A群の live 効果数を測り直した＝179 → 134**（旧値は複合 id 行の重複を数えていた。
+  測り方＝`docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計）。
+  📦**在庫2本**＝**機構 worklist 25項目**（`O-60` は継続／🆕`O-226` を1件登録＝24→25）
+  ｜**実機 残 5件**（`V-131`／`V-132`／`V-133`〜`V-135`）
+  🔧**ゲート（全緑 ✅）**＝golden **3340 / 3340**（3334→3340＝第49バッチの契約6本）／
+  smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **76行**（`BASELINE_SELF_TEXT` も 76）／`census:costtext` A🔴 **0規則**（据置）／
+  lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝不要と判定（§2.2）**＝`src/types/` `src/data/` `src/engine/` `public/data/` `scripts/` のみ。
+  **`src/screens/` は1行も触っていない。** 新設は payload 型（`GameGrantSpec`）だけで**engine 機構は0**
+  （消費先は既存の `PlayerState` 恒久フラグ20本そのまま）。
+  🔑**engine の一般則（この巡で足したもの）**＝**`miss=0` は「壊れていない」ではない**＝
+  リテラルが複数あるハンドラは**1本でも当たれば miss に出ない**ので、
+  `メインフェイズ開始時.*手札.*5枚以下`（半角5）が原文の全角「５枚以下」に**1枚も当たらない**まま
+  `WXDi-P11-004` が丸ごと無言 no-op だった。**リテラル複数のハンドラは `--id` の「カード別 当たり外れ」で1本ずつ見る。**
+  🔴**同じ STUB が1効果に複数並ぶ形は「全文を読む実装」だと必ず多重適用になる**＝`WXK03-003A-E2` は
+  使用回数が1起動で+2（「5回目に裏返す」が3回目に来ていた）。**先頭ノードにだけ payload を載せる。**
+  🔴**payload 生成側（parser）を壊す反転確認は素通りする**＝収穫マージが fresh の痩せを live へ届けないため。
+  **反転は消費側（engine）を壊して取る。**
+  🧹**payload 化すると死んだ state キーが見える**＝`game_declared_signi_level_zero` ほか3本に読み手が0（→ `O-226`）。
+  ✅**ブラスト半径＝効果 変更19・追加0・削除0、予定外0**。
 
 ### 恒久指標アーカイブ（2026-09-03・`O-60` 第29〜36バッチ後・PLAN §6 から退避）
 

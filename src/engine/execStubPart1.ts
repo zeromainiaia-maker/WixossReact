@@ -4895,25 +4895,6 @@ export function execStubPart1(
     const soulNameSFLTR = ctx.cardMap.get(soulCardSFLTR)?.CardName ?? soulCardSFLTR;
     return done(addLog({ ...ctx, ownerState: newOwnerSFLTR }, `${soulNameSFLTR}を${signNameSFLTR}の【ソウル】に付与`));
   }
-  // 公開したカード枚数基準パワー修正
-  if (stub.id === 'POWER_MOD_PER_REVEALED') {
-    const revCount = (ctx.lastProcessedCards ?? []).length;
-    if (revCount === 0) return done(addLog(ctx, 'パワー修正：公開0枚'));
-    const srcPR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPR = srcPR ? (srcPR.EffectText ?? '') + ' ' + (srcPR.BurstText ?? '') : '';
-    const toHWPR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mPR = txtPR.match(/枚につき([＋+][０-９\d]+)/);
-    const deltaPerCard = mPR ? parseInt(toHWPR(mPR[1]).replace('＋', '+').replace('+', '+')) : 1000;
-    const totalDelta = deltaPerCard * revCount;
-    const targetCnPR = ctx.sourceCardNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)
-      ? ctx.sourceCardNum
-      : ctx.ownerState.field.signi.find(s => s && s.length > 0)?.at(-1);
-    if (!targetCnPR) return done(addLog(ctx, `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（フィールドなし）`));
-    const mods = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: targetCnPR, delta: totalDelta }];
-    const newOwner = { ...ctx.ownerState, temp_power_mods: mods };
-    return done(addLog({ ...ctx, ownerState: newOwner },
-      `${ctx.cardMap.get(targetCnPR)?.CardName ?? targetCnPR}パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（${revCount}枚公開）`));
-  }
   // このターン相手はガードできない（追加コストを払えば可能な語彙とは分離）
   if (stub.id === 'PREVENT_OPP_GUARD_THIS_TURN') {
     const newOwner = { ...ctx.ownerState, prevent_opp_guard: true };

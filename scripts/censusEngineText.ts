@@ -1,6 +1,6 @@
 // engine 全文 regex センサス（§5.3 `O-60`・2026-08-26新設）
 //   実行: npx tsx scripts/censusEngineText.ts            （明細 docs/_census_enginetext.txt）
-//         npx tsx scripts/censusEngineText.ts --id X      （1ハンドラの完全内訳＝原文と regex の当たり外れ）
+//         npx tsx scripts/censusEngineText.ts --id X[,Y,…] （1〜N ハンドラの完全内訳＝原文と regex の当たり外れ）
 //
 // ねらい＝**engine が「カード全文（EffectText / BurstText）」を regex で読んで意味を決めている箇所**を
 // 全数で仕分ける。この形は JSON を見ても何が起きるか分からず、**逆翻訳・census・golden・smoke・fuzz が
@@ -28,9 +28,14 @@ import Papa from 'papaparse';
 
 const root = join(import.meta.dirname, '..');
 const argv = process.argv.slice(2);
-const onlyId = (() => {
+// ⚠**カンマ区切りで複数指定できる**（§5.3 `O-60` 第50バッチ・2026-09-03）＝
+//   この計器は**1起動で全カードを parse する（約40秒）**ので、家族単位のバッチを取るときに
+//   1ハンドラずつ起動すると待ち時間だけで十数分になる（`census:orphanmanual` の `--id` と同じ理由）。
+const onlyIds = (() => {
   const i = argv.indexOf('--id');
-  return i >= 0 ? argv[i + 1] : null;
+  if (i < 0) return null;
+  const ids = (argv[i + 1] ?? '').split(',').map(x => x.trim()).filter(Boolean);
+  return ids.length ? ids : null;
 })();
 
 // ── ratchet ─────────────────────────────────────────────────────────────────
@@ -48,7 +53,7 @@ const onlyId = (() => {
 //   `SELECT_TARGET_ONLY`→`TRASH`→`POWER_MODIFY{deltaPerLastProcessedCount}` の payload へ移した。
 // 🆕130→129＝2026-09-02（索引 B 第2巡・§5.3 `O-163`）＝`OPP_DECLARE_CHOICE` のカード全文 regex 枝を撤去し、
 //   ウリス系3効果を `DECLARE_ICON_REVEAL_CHECK`（宣言軸と一致軸数ごとの帰結を JSON に持つ）へ移した分。
-const BASELINE_SELF_TEXT = 76;
+const BASELINE_SELF_TEXT = 59;
 
 // ── 1) engine を全走査して EffectText 読み出しを拾う ────────────────────────
 type Row = {
@@ -230,9 +235,14 @@ const nSelf = selfRows.length;
 const nOther = rows.filter(r => r.cls === 'OTHER_CARD').length;
 const nComment = rows.filter(r => r.cls === 'COMMENT').length;
 
-if (onlyId) {
-  const h = handlers.get(onlyId);
-  if (!h) { console.error(`[census:enginetext] ハンドラ '${onlyId}' は A群に無い`); process.exit(1); }
+if (onlyIds) {
+  const missingIds = onlyIds.filter(id => !handlers.has(id));
+  if (missingIds.length) {
+    console.error(`[census:enginetext] ハンドラが A群に無い: ${missingIds.join(', ')}`);
+    process.exit(1);
+  }
+  for (const onlyId of onlyIds) {
+  const h = handlers.get(onlyId)!;
   console.log(`=== ${onlyId} ===`);
   console.log(`読み出し地点: ${h.lines.map(l => `${l.file}:${l.line}`).join(', ')}`);
   console.log(`live: ${h.effects}効果 / ${h.cards.length}カード`);
@@ -249,6 +259,8 @@ if (onlyId) {
     });
     console.log(`\n[${c}] ${t.replace(/\s+/g, ' ').slice(0, 200)}`);
     for (const x of hits) console.log(`    ${x}`);
+  }
+  console.log('');
   }
   process.exit(0);
 }

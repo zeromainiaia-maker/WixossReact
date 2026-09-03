@@ -281,6 +281,11 @@ export function zoneCardsOf(
         ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
         ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
       ]
+    // 🆕`signi_zone_all`＝シグニゾーンの**スタック全カード**（下段も含む・ルリグは含まない）。
+    //   §5.3 `O-60` 第50バッチ＝原文「あなたのシグニゾーンにあるカード１枚につき」。
+    //   ⚠`field` と取り違えない（あちらは最上面＋センタールリグ）。
+    : fromZone.zone === 'signi_zone_all'
+    ? state.field.signi.flatMap(stack => stack ?? [])
     : fromZone.zone === 'hand' ? state.hand
     : fromZone.zone === 'energy' ? state.energy
     : fromZone.zone === 'trash' ? state.trash
@@ -306,6 +311,19 @@ export function countFromZone(
   // ⚠`owner` は見ない（効果元は常にその効果を出したプレイヤーの場にいる）＝`ownerSt` を使う。
   // ⚠効果元が特定できない／場にいない経路は **0**（fail-closed）。旧 `STUB{POWER_MOD_PER_COUNT}` も
   //   `ctx.sourceCardNum` が無ければ何もしなかったので退化しない。
+  // 🆕`center_lrig_types`＝**カードを数えるゾーンではない**（センタールリグのルリグタイプ数）。
+  //   §5.3 `O-60` 第50バッチ。`$ref:'self_center_lrig_type_count'` と同じ数え方（`CardClass` の `/` 区切り）。
+  //   ⚠`filter` / `sumBy` / `distinctBy` は意味を持たないので通さない。`unitSize` / `maxCount` / `per` は下で効く。
+  if (fromZone.zone === 'center_lrig_types') {
+    const centerCLT = (fromZone.owner === 'opponent' ? otherSt : ownerSt).field.lrig.at(-1);
+    const typesCLT = centerCLT
+      ? (cardMap.get(getCardNum(centerCLT))?.CardClass ?? '').split('/').map(x => x.trim()).filter(Boolean).length
+      : 0;
+    const cappedCLT = fromZone.maxCount === undefined ? typesCLT : Math.min(typesCLT, Math.max(0, fromZone.maxCount));
+    if (fromZone.unitSize !== undefined && (!Number.isFinite(fromZone.unitSize) || fromZone.unitSize <= 0)) return 0;
+    const unitsCLT = fromZone.unitSize === undefined ? cappedCLT : Math.floor(cappedCLT / fromZone.unitSize);
+    return unitsCLT * (fromZone.per ?? 1);
+  }
   const cards = zoneCardsOf(fromZone, ownerSt, otherSt, sourceCardNum);
   const matchedCards = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter));
   const rawMatched = fromZone.sumBy === 'power'
@@ -1625,16 +1643,43 @@ export function fieldCandidatesByOwner(
 ): { cands: string[]; scope: TargetScope; isAny: boolean } {
   const dropSelf = (cands: string[]): string[] =>
     filter?.excludeSelf && ctx.sourceCardNum ? cands.filter(n => n !== ctx.sourceCardNum) : cands;
+  /**
+   * 🆕`adjacentToSelf`＝「**このシグニと隣接する**あなたのシグニ」（§5.3 `O-60` 第50バッチ・2026-09-03）。
+   * 🔴**それまで消費地点は `calcFieldPowers` の CONTINUOUS 経路だけ**で、実行経路（対象選択）には
+   *   何も無かった＝【出】【自】の効果に付けると**フィルタが素通りして自分の全シグニが候補になる**
+   *   （`WXK01-060-E1`「このシグニと隣接するあなたのシグニを２体まで対象とし」）。
+   *   golden のトリップワイヤ「adjacentToSelf は CONTINUOUS の POWER_MODIFY にしか付いていない」が
+   *   まさにこの穴を守っていた＝**実行経路で使うならここを通す**。
+   * ⚠ゾーン隣接は `matchesFilter` / `matchesStateFilter` では判定できない（どちらもゾーン番号を受け取らない）＝
+   *   `ctx.sourceCardNum` を持つこの関数が唯一の口。
+   * ⚠**効果元自身は「隣」ではない**／効果元が場にいなければ候補ゼロ（fail-closed）。
+   * ⚠語彙は「**あなたの**シグニ」限定＝自分の場でだけ絞る（相手側に来たら候補ゼロへ倒す）。
+   */
+  const keepAdjacent = (cands: string[], state: PlayerState, isSelfSide: boolean): string[] => {
+    if (!filter?.adjacentToSelf) return cands;
+    if (!isSelfSide) return [];
+    const zi = state.field.signi.findIndex(st => st?.at(-1) === ctx.sourceCardNum);
+    if (zi < 0) return [];
+    const zones = [zi - 1, zi + 1].filter(z => z >= 0 && z < state.field.signi.length);
+    const adjacentNums = new Set(zones.map(z => state.field.signi[z]?.at(-1)).filter((n): n is string => !!n));
+    return cands.filter(cn => adjacentNums.has(cn));
+  };
   if (owner !== 'any') {
     const state = ownerState(owner, ctx);
     return {
-      cands: dropSelf(fieldCandidates(state, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)),
+      cands: dropSelf(keepAdjacent(
+        fieldCandidates(state, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors),
+        state, owner === 'self')),
       scope: owner === 'self' ? 'self_field' : 'opp_field',
       isAny: false,
     };
   }
-  const self = fieldCandidates(ctx.ownerState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  const opp = fieldCandidates(ctx.otherState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const self = keepAdjacent(
+    fieldCandidates(ctx.ownerState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors),
+    ctx.ownerState, true);
+  const opp = keepAdjacent(
+    fieldCandidates(ctx.otherState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors),
+    ctx.otherState, false);
   return { cands: dropSelf([...self, ...opp]), scope: 'both_field', isAny: true };
 }
 
