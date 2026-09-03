@@ -153,7 +153,13 @@ const VOCAB: Vocab[] = [
   { key: 'powerLteTrigger',  re: /そのシグニのパワー以下/ },
   { key: 'powerLtSelf',      re: /この(シグニ|カード)よりパワーの低い|自身よりパワーの低い/ },
   { key: 'powerGtSelf',      re: /この(シグニ|カード)よりパワーの高い/ },
-  { key: 'powerLteSelf',     re: /この(シグニ|カード)のパワー以下|自身のパワー以下/ },
+  // 🆕**§5.3 `O-193` 第1バッチ（2026-09-04）＝`totalPowerMaxRef` も「配線済み」に数える。**
+  //   🔴唯一の miss だった `WXEX2-52-E3`（「パワーの**合計が**このシグニのパワー以下になるように…2枚まで」）は
+  //     **1体ずつの `powerLteSelf` ではなく選択集合の上限**＝正準形は
+  //     `selectionConstraint.totalPowerMaxRef:{$ref:'source_effective_power'}` で**既に配線済み**だった。
+  //   ⚠計器がキー名照合しかしないので、**同じ概念に2つのキー綴りが併存**する trap (h) の実例。
+  { key: 'powerLteSelf',     re: /この(シグニ|カード)のパワー以下|自身のパワー以下/,
+    jsonRe: /"powerLteSelf"\s*:|"totalPowerMaxRef"\s*:|"source_effective_power"/ },
   { key: 'levelLtSelf',      re: /この(シグニ|カード)より低いレベル/ },
   { key: 'levelGtSelf',      re: /この(シグニ|カード)より高いレベル/ },
 
@@ -164,7 +170,15 @@ const VOCAB: Vocab[] = [
   //   にも当たり、実測 `isAwakened` は miss 10 のうち 7、`isPuppet` は miss 11 のうち 9 がこれだった。
   //   `levelRange` を名詞に係る形へ限定した続き377d と同型の較正。
   { key: 'isAwakened',       re: /覚醒状態の(シグニ|カード)/ },
-  { key: 'isDrive',          re: /ドライブ状態/ },
+  // 🆕**§5.3 `O-193` 第1バッチ（2026-09-04）＝名詞に係る形だけを見る**（`isAwakened` / `isPuppet` と同じ較正）。
+  //   🔴素の `/ドライブ状態/` は
+  //   (a)**トリガー**「このシグニが**ドライブ状態になったとき**」＝`timing:'ON_SIGNI_BECOMES_DRIVE'`（配線済み）
+  //   (b)**条件節**「このシグニが**ドライブ状態の場合**」＝Condition
+  //   にも当たる。実測＝`isDrive × SIGNI[filter]` の miss 8 は **8件すべて (a)(b)** で、
+  //   TargetFilter の穴は1件も無かった（`WDK01-012`/`014`/`017`／`WXEX1-37-E2`／`WXEX2-63`／
+  //   `WXK01-047-E2`／`WXK03-061`＝トリガー、`WX22-020-E2`＝条件節）。
+  //   ⚠**この較正は「穴が消えた」のではなく「最初から穴ではなかった」**（PLAN §5.3 の罠 3.）。
+  { key: 'isDrive',          re: /ドライブ状態の(?:シグニ|カード)/ },
   { key: 'crossState',       re: /クロス状態/ },
   // 傀儡は**専用キーが3つ**ある＝対象フィルタ `isPuppet` のほか、トリガー主語の
   // `triggerCondition.placedPuppet`（「あなたの傀儡状態のシグニ1体が**場に出たとき**」`WDK17-001-E1`）と、

@@ -64393,6 +64393,37 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   ok(/const BASELINE_SELF_TEXT = 10;/.test(census), 'BASELINE_SELF_TEXT が実測 10 へ下がっている');
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-193`（2026-09-04・索引 A 第29巡）＝🏁**クローズ**。登録票の「25効果」は**全部 計器の誤検出**だった。
+// 🔑`census:wiring` はキー名照合しかしないので、**同じ概念の別の綴り**と**別の用法**を miss に混ぜる。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-193: 「ドライブ状態になったとき」はトリガーであって TargetFilter ではない', () => withSavedCursor(() => {
+  // 🔴`census:wiring` の `isDrive` miss 8 は**8件すべて**がトリガー（`ON_SIGNI_BECOMES_DRIVE`）か
+  //   条件節で、`TargetFilter.isDrive` の穴は1件も無かった。
+  for (const [num, id] of [['WDK01-012', 'WDK01-012-E1'], ['WXK03-061', 'WXK03-061-E1']] as const) {
+    const e = effectsMap.get(num)?.find(x => x.effectId === id);
+    eq(e?.timing?.[0], 'ON_SIGNI_BECOMES_DRIVE', `${id}: ドライブ化はトリガーとして載っている`);
+  }
+  // 名詞に係る形（「あなたの**ドライブ状態のシグニは**」）は従来どおり filter として載る。
+  const cont = JSON.stringify(effectsMap.get('WXEX1-37')?.find(x => x.effectId === 'WXEX1-37-E1')?.action);
+  ok(cont?.includes('isDrive'), 'WXEX1-37-E1: 名詞句用法は TargetFilter.isDrive');
+  // 計器の較正が入っていること（素の /ドライブ状態/ へ戻ったら誤検出が復活する）。
+  const wiring = fs.readFileSync(join(root, 'scripts/censusWiring.ts'), 'utf8');
+  ok(wiring.includes("key: 'isDrive',          re: /ドライブ状態の(?:シグニ|カード)/"),
+    'censusWiring の isDrive は名詞に係る形だけを見る');
+}));
+
+test('§5.3 O-193: 「合計がこのシグニのパワー以下」は totalPowerMaxRef で配線済み', () => withSavedCursor(() => {
+  // 🔴`powerLteSelf` の唯一の miss `WXEX2-52-E3` は**1体ずつの上限ではなく選択集合の上限**で、
+  //   正準形（`selectionConstraint.totalPowerMaxRef`）で既に配線されていた＝trap (h)「同じ概念に2つの綴り」。
+  const a = effectsMap.get('WXEX2-52')?.find(e => e.effectId === 'WXEX2-52-E3')?.action as
+    { source?: { selectionConstraint?: { totalPowerMaxRef?: unknown } } } | undefined;
+  eq(JSON.stringify(a?.source?.selectionConstraint?.totalPowerMaxRef),
+    JSON.stringify({ $ref: 'source_effective_power' }),
+    'WXEX2-52-E3: 合計上限が効果元の実効パワーを参照する');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
