@@ -1,5 +1,54 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-04・`O-60` 第64〜68バッチ・索引 A 第24〜28巡・Opus 5 単独）＝**🏁**A群最大 catch-all が live 0 に到達**
+  📊**進捗3計器＝Sheet1 要対応 17 / 863（据置・全部 `mech`）｜台帳 残 OPEN 44（据置）｜
+  census 高シグナル 3 / BASELINE 3（据置）**
+  **この項目の計器 `census:enginetext` は A🔴 13行 / 12ハンドラ（据置）だが、`live` は 27 → 0。**
+  🏁**主産物＝引用付与 catch-all の3綴り（`GRANT_ABILITY_INNER_TEXT` /
+  `GRANT_QUOTED_ABILITY` / `GRANT_QUOTED_AUTO_ABILITY`）を live 0 にした**＝
+  第63の較正時点で 27効果あった母集団を、5バッチ（第64〜68）で**全部**受け皿か
+  **名前のある穴**へ振り分けた（`O-235` クローズ）。内訳＝**実装で解いた 11効果**／
+  **明示 defer にした 8効果**（＝`O-236`〜`O-242` の7項目に登録）／第63で消化済み 12効果。
+  📦**在庫2本＝④機構 worklist 39項目**（`O-235` クローズ −1／🆕`O-236`〜`O-242` 登録 +7＝33→39）｜
+  **⑤実機 残 15件**（🆕`V-145`＝14→15）。
+  gates 全緑（golden **3418 / 3418**＝+14本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴13**・census-costtext A🔴0 据置・lint 0 errors）。
+  **ブラスト半径＝効果 変更14・追加0・削除0、予定外0**（14カード×各1効果ちょうど）。
+  🖥**実機＝機械判定では不要**（`src/screens/` 0行）だが `src/engine/` を2箇所触り、
+  **14効果の挙動が変わった（うち10効果は恒久 no-op から実際の効果／明示 defer へ）**ので `V-145` を登録（未実施）。
+
+  🔴**この巡でいちばん重い発見＝PLAN の記述が間違っていた。**
+  旧 §1／`O-60` 登録票の「**A群の2行が減るのは 3 id すべてが live 0 になったとき**」は**誤り**。
+  `census:enginetext` が数えているのは **engine のコード行**なので、**live が 0 になっても
+  ハンドラを消すまで行は 1 行も落ちない**（実測＝live 27→0 で A🔴 13行のまま）。
+  ⇒ **`O-60` の次の一手は「parser 側の catch-all 生成地点を畳んでから、ハンドラごと撤去する」**。
+  ⚠**いま消してはいけない**＝parser には安全網の生成地点が5箇所残っており、PLAN §5.3 の
+  「**parser に生成元がある安全網は触らない・消さない**」に当たる。生成元を先に畳む。
+
+  🔑**この5巡の一般則**＝
+  ①🔴**「engine では1本のハンドラ」なのに parser 側の復元規則が綴りを1つしか見ていないことがある**
+    （第65＝`restoreQuotedTargetGrant` が `GRANT_ABILITY_INNER_TEXT` だけを見ており、
+    **どの綴りに落ちたかだけで構造化の有無が変わっていた**）。**engine 側の分岐条件を parser 側の
+    ガードにも同じ広さで写す。**
+  ②🔴**宣言型 STUB は CONTINUOUS として読まれて初めて意味を持つ**＝引用の中身が宣言型なら
+    `GRANT_EFFECT` で包んで `granted_effects` へ積む（裸で即時実行すると**誰も読まない**）。
+    `GRANT_PROTECTION` は `execGrantProtection` が自前で包み直すのでこの問題が出ない
+    ＝**「アクション型」と「宣言型」で扱いが違う**（第64）。
+  ③🔴**live が `PARTIAL` の効果は parser をどう直しても届かない**（収穫マージが効果単位で不可侵・
+    `heldReview --adopt` も held バケツにしか効かない）＝`manualEffects.ts` ＋ `syncManualLive` だけが道（第64）。
+  ④🔴**「見出しだけ取れた」は宣言ではない**＝`gameGrants` が `abilityBlockHeader` だけのときに
+    兄弟の catch-all を落とすと**穴が計器から消える**。名前のある穴へ置き換える（第68）。
+  ⑤🔴**近似で既存の受け皿へ寄せない**＝寄せた4件はどれも過大実行になる形だった
+    （期間つきプレイヤー付与→ゲーム中ずっと／クラッシュ順つきバースト付与→ライフ全部／
+    ルリグのアタック上限→無制限／「最初のグロウ」条件落ち→グロウのたびにエナチャージ）。
+
+**▶ 次の一手**＝**`O-60` のハンドラ撤去（A🔴 13→11行）**＝①parser の catch-all 生成地点5箇所
+（`parseSentencePart2` の `」を得る` 末尾／`parseSentencePart4` 2箇所／`effectParser` の引用漏出安全網／
+`normalizeGrantKeywordSpelling`）を**名前のある穴か構造化**へ畳む →②`execStubPart1.ts:1459` の
+GRANT_QUOTED_* ハンドラと `effectEngine.collectGrantedFromLayer` の STUB 分岐を撤去 →
+③`BASELINE_SELF_TEXT` を 11 へ下げる。
+次点＝**`O-234`**（`choiceTextParser` 最後の呼び出し元・⚠`src/screens/` を触る）。
+
 - **セッション（2026-09-04・`O-60` 第63バッチ・索引 A 第23巡・Opus 5 単独）＝A群最大 catch-all の解体 第2段＝**🔴**罠は計器ごとではなく横断で読む**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置・全部 `mech`）｜台帳 残 OPEN 44（据置）｜
   census 高シグナル 3 / BASELINE 3（据置）**

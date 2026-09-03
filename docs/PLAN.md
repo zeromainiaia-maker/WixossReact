@@ -11,54 +11,48 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-04・`O-60` 第64〜68バッチ・索引 A 第24〜28巡・Opus 5 単独）＝**🏁**A群最大 catch-all が live 0 に到達**
+- **セッション（2026-09-04・第69〜78バッチ・索引 A 第29〜36巡・Opus 5 単独）＝**🏁**`O-60` の A群ハンドラ撤去（13→10行）＋索引 A の5項目をクローズ**
   📊**進捗3計器＝Sheet1 要対応 17 / 863（据置・全部 `mech`）｜台帳 残 OPEN 44（据置）｜
-  census 高シグナル 3 / BASELINE 3（据置）**
-  **この項目の計器 `census:enginetext` は A🔴 13行 / 12ハンドラ（据置）だが、`live` は 27 → 0。**
-  🏁**主産物＝引用付与 catch-all の3綴り（`GRANT_ABILITY_INNER_TEXT` /
-  `GRANT_QUOTED_ABILITY` / `GRANT_QUOTED_AUTO_ABILITY`）を live 0 にした**＝
-  第63の較正時点で 27効果あった母集団を、5バッチ（第64〜68）で**全部**受け皿か
-  **名前のある穴**へ振り分けた（`O-235` クローズ）。内訳＝**実装で解いた 11効果**／
-  **明示 defer にした 8効果**（＝`O-236`〜`O-242` の7項目に登録）／第63で消化済み 12効果。
-  📦**在庫2本＝④機構 worklist 39項目**（`O-235` クローズ −1／🆕`O-236`〜`O-242` 登録 +7＝33→39）｜
-  **⑤実機 残 15件**（🆕`V-145`＝14→15）。
-  gates 全緑（golden **3418 / 3418**＝+14本・smoke 10725 全異常0・fuzz 全0・census 3 / BASELINE 3・
-  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴13**・census-costtext A🔴0 据置・lint 0 errors）。
-  **ブラスト半径＝効果 変更14・追加0・削除0、予定外0**（14カード×各1効果ちょうど）。
-  🖥**実機＝機械判定では不要**（`src/screens/` 0行）だが `src/engine/` を2箇所触り、
-  **14効果の挙動が変わった（うち10効果は恒久 no-op から実際の効果／明示 defer へ）**ので `V-145` を登録（未実施）。
+  census 高シグナル 2 / BASELINE 2（🆕3→2＝`O-243` を明示 defer にしたぶん）**
+  **`census:enginetext` A🔴 13行 → 10行 / 10ハンドラ（`BASELINE_SELF_TEXT` も 10 へ払い戻し）。**
+  📦**在庫2本＝④機構 worklist 36項目**（39 → `O-193`/`O-198`/`O-192`/`O-190` クローズ −4／`O-197` は残3で継続／
+  🆕`O-243` 登録 +1＝**36**）｜**⑤実機 残 15件**（据置＝この巡は `src/screens/` 0行）。
+  gates 全緑（golden **3432 / 3432**＝+14本・smoke 10725 全異常0・fuzz 全0・census 2 / BASELINE 2・
+  census-stubs A🔴0・C0・manual-fields 0・census-enginetext **A🔴10 / BASELINE 10**・census-costtext A🔴0・lint 0 errors）。
+  **ブラスト半径＝効果 変更5・追加0・削除0、予定外0**（第72 の2＋第77 の1＋第78 の1＋第69/70 の 0）。
 
-  🔴**この巡でいちばん重い発見＝PLAN の記述が間違っていた。**
-  旧 §1／`O-60` 登録票の「**A群の2行が減るのは 3 id すべてが live 0 になったとき**」は**誤り**。
-  `census:enginetext` が数えているのは **engine のコード行**なので、**live が 0 になっても
-  ハンドラを消すまで行は 1 行も落ちない**（実測＝live 27→0 で A🔴 13行のまま）。
-  ⇒ **`O-60` の次の一手は「parser 側の catch-all 生成地点を畳んでから、ハンドラごと撤去する」**。
-  ⚠**いま消してはいけない**＝parser には安全網の生成地点が5箇所残っており、PLAN §5.3 の
-  「**parser に生成元がある安全網は触らない・消さない**」に当たる。生成元を先に畳む。
+  🏁**主産物①＝`O-60` の A群最大 catch-all を engine から撤去した（第69→第70）。**
+  第69で **parser の生成地点31箇所**を `DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED` へ畳み、
+  第70で `execStubPart1` の GRANT_QUOTED_* 本体（**204行**）と
+  `effectEngine.collectGrantedFromLayer` の同 STUB 分岐（**22行**）を撤去。
+  ⇒ **A🔴 13行 → 10行**（残る10ハンドラは全部 live 0）。**消化であって較正ではない。**
 
-  🔑**この5巡の一般則**＝
-  ①🔴**「engine では1本のハンドラ」なのに parser 側の復元規則が綴りを1つしか見ていないことがある**
-    （第65＝`restoreQuotedTargetGrant` が `GRANT_ABILITY_INNER_TEXT` だけを見ており、
-    **どの綴りに落ちたかだけで構造化の有無が変わっていた**）。**engine 側の分岐条件を parser 側の
-    ガードにも同じ広さで写す。**
-  ②🔴**宣言型 STUB は CONTINUOUS として読まれて初めて意味を持つ**＝引用の中身が宣言型なら
-    `GRANT_EFFECT` で包んで `granted_effects` へ積む（裸で即時実行すると**誰も読まない**）。
-    `GRANT_PROTECTION` は `execGrantProtection` が自前で包み直すのでこの問題が出ない
-    ＝**「アクション型」と「宣言型」で扱いが違う**（第64）。
-  ③🔴**live が `PARTIAL` の効果は parser をどう直しても届かない**（収穫マージが効果単位で不可侵・
-    `heldReview --adopt` も held バケツにしか効かない）＝`manualEffects.ts` ＋ `syncManualLive` だけが道（第64）。
-  ④🔴**「見出しだけ取れた」は宣言ではない**＝`gameGrants` が `abilityBlockHeader` だけのときに
-    兄弟の catch-all を落とすと**穴が計器から消える**。名前のある穴へ置き換える（第68）。
-  ⑤🔴**近似で既存の受け皿へ寄せない**＝寄せた4件はどれも過大実行になる形だった
-    （期間つきプレイヤー付与→ゲーム中ずっと／クラッシュ順つきバースト付与→ライフ全部／
-    ルリグのアタック上限→無制限／「最初のグロウ」条件落ち→グロウのたびにエナチャージ）。
+  🔴**主産物②＝索引 A の登録票が4件連続で「実測 0」だった。**
+  `O-193`（25効果→0）／`O-198`（23→2・向きは**逆**だった）／`O-192`（19→0）／`O-190`（18→0）。
+  内訳＝**計器（`census:wiring`）の偽陽性が大半**で、原因は毎回同じ **trap (h)「同じ概念に複数の正準形がある」**：
+  ①`isDrive`＝トリガー（`ON_SIGNI_BECOMES_DRIVE`）を filter と誤検出
+  ②`powerLteSelf`＝集合上限は `totalPowerMaxRef`
+  ③`eachDistinctColor`＝**相互差異／場の集合／基準比較**の3用法（28件中 真の穴 0）
+  ④`acceHost`＝装着ホストへの**付与**は**アクション型** `GRANT_ACCE_HOST_ABILITY`
+  ⑤`levelEqTrigger`/`levelLtTrigger`＝「そのシグニ」基準は **4系統**（trigger/lastProcessed/**leftCard**/triggerSource）
+  ⇒ **`census:wiring` の miss を 44件ぶん較正した**（残 miss は powerRange 12／levelExact 6／levelRange 5 ほか）。
 
-**▶ 次の一手**＝**`O-60` のハンドラ撤去（A🔴 13→11行）**＝①parser の catch-all 生成地点5箇所
-（`parseSentencePart2` の `」を得る` 末尾／`parseSentencePart4` 2箇所／`effectParser` の引用漏出安全網／
-`normalizeGrantKeywordSpelling`）を**名前のある穴か構造化**へ畳む →②`execStubPart1.ts:1459` の
-GRANT_QUOTED_* ハンドラと `effectEngine.collectGrantedFromLayer` の STUB 分岐を撤去 →
-③`BASELINE_SELF_TEXT` を 11 へ下げる。
-次点＝**`O-234`**（`choiceTextParser` 最後の呼び出し元・⚠`src/screens/` を触る）。
+  🔑**この巡の一般則**＝
+  ①🔴**計測スクリプトの誤りを実装で埋めかけた**（第76）＝payload キーを手で書き写して
+    `selfTrash` を `trashSelf` と打ち間違え、「7効果で前半が消えている」と誤読して parser に規則を2本足した。
+    **`build:effects` のブラスト半径が 0 だったので気づけた**（＝全数突き合わせが唯一の安全網）。
+    ⇒ **キー名は型定義からコピーする。手で書き写さない。**
+  ②🔴**登録票の数字は「登録時の値」でしかない**＝今回4件が実測 0。**着手前の②母集団実測は省略できない。**
+  ③🔴**受け皿があるのにハンドラが渡していないだけ**の形がある（第77＝`selectionConstraint` を
+    `SELECT_TARGET` へ渡していなかった）。**⚠自己再帰する受け皿は継続にも積む**（`O-60` 第59と同型）。
+  ④🔴**「嘘をやめる」だけでも計器は動く**（第78＝`O-243`）。⚠**穴が埋まったのではない**＝
+    `DEFERRED_*` は census の STUB 免除で高シグナルから外れるので、**1件が §5.3 へ移った**という意味。
+
+**▶ 次の一手**＝**索引 A の残り**＝`O-152`（34効果・`ON_HAND_DISCARDED` の watcher が発火しない）＝
+🔴**この巡で静的に追ったが特定できなかった**（collector・early-return・deps はどれも正しく見える）。
+**再現ドライバが在る**（`node scripts/verifyBattleDrive.mjs o143CheckPlace`）＝**実機で追うのが最短**。
+次点＝`O-92`（13枚）／`O-147`（13カード）／`O-70`（12枚）／`O-188`・`O-185`（11）／`O-69`（10枚）。
+⚠**どれも着手前に②母集団を実測する**（この巡の4件はそれで消えた）。
 
 ---
 
@@ -464,7 +458,7 @@ GRANT_QUOTED_* ハンドラと `effectEngine.collectGrantedFromLayer` の STUB �
 > | 節 | 役割（2026-09-01 以降） | 残 |
 > |---|---|---|
 > | **§5.1** | **実機で確かめる**（`V-nn`）＝`src/screens/`・`src/engine/` に触れた回／挙動が変わった回の返済 | **15件**（`V-131`〜`V-145`。🆕2026-09-04 第64〜68で `V-145` を登録） |
-> | **§5.3** | 🔥**唯一の本線キュー**＝機構 worklist（`O-nn`）。索引 A→B→C の順に取る | **39項目**<br>🆕2026-09-04（`O-60` 第64〜68）＝`O-235` クローズ −1／`O-236`〜`O-242` 登録 +7＝33→39。⚠**増えたのは退化ではない**＝catch-all に隠れていた穴を1件ずつ名前つきで出した結果 |
+> | **§5.3** | 🔥**唯一の本線キュー**＝機構 worklist（`O-nn`）。索引 A→B→C の順に取る | **36項目**<br>🆕2026-09-04（第69〜78）＝`O-193`／`O-198`／`O-192`／`O-190` を**実測 0 でクローズ** −4、`O-243` 登録 +1＝39→36。⚠**「実測 0」は計器の偽陽性が大半**（trap (h)「同じ概念に複数の正準形がある」）＝**着手前の②母集団実測は省略できない** |
 > | §5.2 | 🏁掘り尽くし。**ここから新規に取らない**（残44は §5.3／§5.1 の結果として減る） | 44 |
 > | §5.4 | 構造混線だけ（1件あたりのコストが桁で高い＝**後回しでよい**） | 5件 |
 > | §5.5 | 低優先・保留 | — |
@@ -951,7 +945,7 @@ GRANT_QUOTED_* ハンドラと `effectEngine.collectGrantedFromLayer` の STUB �
 | `O-70` | **12枚** | 「下に置く」の複合対象＝2種の対象をそれぞれの上限で選ぶ形が表せない<br>⚠`liveRe` 未確定＝過大の可能性 |
 | `O-188` | **11効果**<br>🔴要再計測 | `TRANSFER_TO_HAND` が `targetsStored` を持たない＝「対象を先に固定してから任意コストを払う」形に載せられない<br>⚠**登録時の値**＝続き766〜768 で**第1〜第7バッチ（計19効果）を消化済み**なので**残は未再計測**。着手前に必ず数え直す |
 | `O-185` | **11効果**<br>🆕2026-09-01 再計測 | census 高シグナルの残り＝「絞り込み／条件／機構が丸ごと落ちている」テール<br>🔴**登録票の「144効果」は失効**＝`npm run census` 実測で **高シグナル欠落 11効果**（ベースライン12）。`O-217` はこの11効果と全域重複 |
-| `O-152` | **34効果**<br>🆕2026-09-01 実測 | 🔴 `ON_HAND_DISCARDED` の watcher が「効果による手札捨て」で発火しない（配送のどこかで落ちている）<br>🔴**登録票の「1カード」は標本1枚を数えていただけ**＝live 実測で **34効果／33カード**。受け皿（`execTrash` の `hand_discarded_just`／`collectHandDiscardTriggers`）は在り、**壊れているのは配送**。⚠**再現は実機のみ**＝`node scripts/verifyBattleDrive.mjs o143CheckPlace`（`queryState` で `hand_discarded_just` が永続しているかを先に見る）
+| `O-152` | **34効果**<br>🆕2026-09-01 実測 | 🔴 `ON_HAND_DISCARDED` の watcher が「効果による手札捨て」で発火しない（配送のどこかで落ちている）<br>🔴**登録票の「1カード」は標本1枚を数えていただけ**＝live 実測で **34効果／33カード**。受け皿（`execTrash` の `hand_discarded_just`／`collectHandDiscardTriggers`）は在り、**壊れているのは配送**。⚠**再現は実機のみ**＝`node scripts/verifyBattleDrive.mjs o143CheckPlace`（`queryState` で `hand_discarded_just` が永続しているかを先に見る）<br>🆕🔴**2026-09-04（第78巡で静的に追ったが特定できなかった）**＝収集側（`triggerCollect.collectHandDiscardTriggers` の**ルリグ走査**）も、配送側（`BattleScreen` の watcher＝`hand_discarded_just` を読む `useEffect`）も**見た限り正しい**：早期 return は `bs.effect_stack || bs.pending_effect` だけで、deps に両方が入っているのでスタックが空いた時点で再実行される。⇒ **落ちているのは「フラグを載せた state 書き込み」より後**の可能性が高い。🔑**再現ドライバが在る**＝`node scripts/verifyBattleDrive.mjs o143CheckPlace`（既定 `order` からは外してある）。**実機で `hand_discarded_just` の生存を見るのが最短**（静的読みでは2回とも当てられなかった）。
 | `O-69` | **10枚** | 「この方法でカードが N枚以上トラッシュに置かれた場合」＝コスト支払いで実際に動いた枚数を読む条件型が無い<br>⚠`liveRe` 未確定＝過大の可能性 |
 
 #### 索引 B. 母集団 3〜8効果
@@ -1340,35 +1334,27 @@ GRANT_QUOTED_* ハンドラと `effectEngine.collectGrantedFromLayer` の STUB �
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-04（`O-60` 第64〜68バッチ・索引 A 第24〜28巡）＝A群最大 catch-all が live 0 に到達（Opus 5 単独／本ブロックが直近の正）**
+- **2026-09-04（第69〜78バッチ・索引 A 第29〜36巡）＝`O-60` の A群ハンドラ撤去＋索引 A の5項目クローズ（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置・全部 `mech`）｜**台帳 残 OPEN 44**（据置）｜
-  **census 高シグナル 3 / BASELINE 3**（据置）
-  **この項目の計器 `census:enginetext` の A群**＝**13行 / 12ハンドラ（据置）**。**ただし live は 27 → 0。**
-  📦**在庫2本**＝**機構 worklist 39項目**（`O-235` クローズ −1／🆕`O-236`〜`O-242` +7＝33→39）｜
-  **実機 残 15件**（🆕`V-145`＝14→15）
-  🔧**ゲート（全緑 ✅）**＝golden **3418 / 3418**（3404→3418＝+14本／既存の契約 golden 3本を理由つきで更新）／
-  smoke **10725** 全異常0／fuzz 全0／census **3 / BASELINE 3**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 **13行**（据置）／`census:costtext` A🔴 **0規則**（据置）／
-  lint 0 errors／`npm run regen` 完走後に再度 gates 全緑。
-  🖥**実機＝機械判定では不要（§2.2）**＝`src/screens/` は0行。ただし `src/engine/` を2箇所触り
-  **14効果の挙動が変わった（うち10効果は恒久 no-op から実際の効果／明示 defer へ）**ので `V-145` を登録（未実施）。
-  🏁**主産物＝引用付与 catch-all の3綴りが live 0**＝`GRANT_ABILITY_INNER_TEXT` /
-  `GRANT_QUOTED_ABILITY` / `GRANT_QUOTED_AUTO_ABILITY`（第63の較正時点で 27効果）を
-  5バッチで**全部**受け皿（11効果）か**名前のある穴**（8効果）へ振り分けた（`O-235` クローズ）。
-  🔴🔑**最重要の発見＝PLAN の記述が間違っていた**＝「A群の2行が減るのは live 0 になったとき」は**誤り**。
-  この計器は **engine のコード行**を数えるので、**live 0 でもハンドラを消すまで行は落ちない**（実測）。
-  ⇒ 次の一手は「parser の catch-all 生成地点5箇所を畳んでから、ハンドラごと撤去する」。
-  🔴**実害（どれも計器が全部緑のまま壊れていた）**＝
-  ①`WX22-Re04-E2` の**3択のうち2枝が無言 no-op**（engine の切り出しが「を得る」を要求し1本も当たらない）
-  ②`WXDi-CP02-TK03A-E1` は**クラフト自身に＋5000**していた（「これの上にある」の綴りを見ておらず既定 else へ）
-  ③`WXEX1-32-E2` は**デッキから2枚落とすだけ**で能力が付かなかった
-  ④`WXDi-D04-011` / `WXK03-042` / `WXDi-P05-069` / `WXDi-P12-036` ほか**7効果が恒久 no-op**。
-  🔑**一般則**＝①**engine では1本のハンドラでも parser の復元規則が綴りを1つしか見ていないことがある**
-  ②**宣言型 STUB は CONTINUOUS として読まれて初めて意味を持つ**（引用は `GRANT_EFFECT` で包む）
-  ③**live が `PARTIAL` の効果は `manualEffects.ts` ＋ `syncManualLive` でしか届かない**
-  ④**「見出しだけ取れた」は宣言ではない**（`gameGrants` が `abilityBlockHeader` だけなら穴を宣言し直す）
-  ⑤**近似で既存の受け皿へ寄せない**（寄せた4件はどれも過大実行になる形だった）。
-  ✅**ブラスト半径＝効果 変更14・追加0・削除0、予定外0**。
+  **census 高シグナル 2 / BASELINE 2**（🆕3→2）
+  **`census:enginetext` A群**＝**13行 → 10行 / 10ハンドラ**（`BASELINE_SELF_TEXT` も 10 へ払い戻し）。
+  📦**在庫2本**＝**機構 worklist 36項目**（39 −4 +1）｜**実機 残 15件**（据置）
+  🔧**ゲート（全緑 ✅）**＝golden **3432 / 3432**（3418→3432＝+14本／既存の凍結・契約 golden 6本を理由つきで更新）／
+  smoke **10725** 全異常0／fuzz 全0／census **2 / BASELINE 2**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **10行 / BASELINE 10**／`census:costtext` A🔴 **0規則**（据置）／lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝機械判定では不要（§2.2）**＝`src/screens/` は0行。`src/engine/` は**撤去**（`O-60`）と
+  `selectionConstraint` の受け渡し（`O-197`）だけ。新しい型は `StubAction.selectionConstraint` の1本。
+  🏁**主産物①＝`O-60` の A群最大 catch-all を engine から撤去**（第69で parser の生成地点31箇所を1綴りへ畳み、
+  第70で `execStubPart1` の本体204行と `collectGrantedFromLayer` の分岐22行を削除）。**消化であって較正ではない。**
+  🔴**主産物②＝索引 A の登録票が4件連続で「実測 0」**（`O-193` 25→0／`O-198` 23→2（**向きが逆**）／
+  `O-192` 19→0／`O-190` 18→0）。原因は毎回 **trap (h)「同じ概念に複数の正準形がある」**で、
+  `census:wiring` の miss を **44件ぶん較正**した（`isDrive`／`powerLteSelf`／`eachDistinctColor`／
+  `acceHost`／`levelEqTrigger`／`levelLtTrigger`）。
+  🔑**一般則**＝①**計測スクリプトの誤りを実装で埋めかけた**（キー名を手で書き写した誤字。
+  ブラスト半径 0 で気づいた）②**登録票の数字は登録時の値でしかない**③**受け皿があるのに
+  ハンドラが渡していないだけ**の形がある（⚠継続にも積む）④**「嘘をやめる」だけでも計器は動く**
+  （⚠穴が埋まったのではなく §5.3 へ移った）。
+  ✅**ブラスト半径＝効果 変更5・追加0・削除0、予定外0**。
 
 - **2026-09-03（`O-60` 第61バッチ・索引 A 第21巡）＝モーダル選択 family の残り3件（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置・全部 `mech`）｜**台帳 残 OPEN 44**（据置）｜
