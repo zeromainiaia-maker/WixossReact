@@ -1166,7 +1166,7 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 
 ### `O-60` — engine が「カード全文 regex」で意味を決める箇所が系統として残っている
 
-**規模／母集団**＝🔴🆕**A🔴 13行 / 12ハンドラ・miss 0（2026-09-03 第61バッチ後）**。⚠**`miss 0` は「正しい」の意味ではない**（第58バッチで miss0 の3 family が全部壊れていた）。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
+**規模／母集団**＝🔴🆕**A🔴 13行 / 12ハンドラ・miss 0（2026-09-03 第62バッチ後・据置）**。🔴**残る live 効果は `GRANT_ABILITY_INNER_TEXT`（live 8）だけ**＝他11ハンドラは live 0 の据置。⚠**`miss 0` は「正しい」の意味ではない**（第58バッチで miss0 の3 family が全部壊れていた）。⚠**第55バッチ後の「19行 / 19ハンドラ・miss 0」は計器が16ハンドラを見落としていた数字**（下記「第56バッチの教訓」）。⚠「A🔴 77行 / 75ハンドラ・live 179効果」（第48バッチ後）以前の記載はすべて失効（**live 効果数はハンドラ複合 id の重複を数えていた**＝今回は `docs/_census_enginetext.txt` の A群ランキング表の live効果列の合計で測り直した）。⚠「138ハンドラ」は**効果数ではない**
 
 **手順①（機械分類）は計器になった**＝`npm run census:enginetext`（明細 `docs/_census_enginetext.txt`・`npx tsx scripts/censusEngineText.ts --id <ハンドラ>` で1件の完全内訳）。■**現在地（2026-09-03・第61バッチ後）**＝**A🔴 SELF_TEXT 13行／12ハンドラ**・**miss 0**。⚠**第55バッチ以前の数字はすべて失効**（計器が `sourceAbilityText(ctx)` 経由の16ハンドラを数えていなかった＝**19→35 は第56バッチの可視化、35→33→32 が第56・第57の消化**）。■🔑🔴**miss は 0 だが、この項目は閉じていない**＝**第58バッチが実証した**＝計器が miss 0 と出していた3 family（`LIMIT_CHANGE`(10)／`TRASH_SIGNI_UNDER_FIELD_SIGNI`(9)／`COLLAB`(6)）は**全部壊れていた**。🔴🔑**計器の `miss` は「カード全文」に当てて数える**（`censusEngineText.ts:216`）ので、**`sourceAbilityText` 経由の funnel では構造的に甘く出る**＝**着手前に `abilityBlockTextOf(card, effectId)` でリテラルを当て直すこと**。**残り 12ハンドラ**が今も原文を読んでいる。■**残りの取る順（2026-09-03 第59バッチ後の実測）**＝(1)🔴**live 0 の据置**（`CONDITIONAL_POWER_BONUS` 9リテラル／`CHOOSE_SAME_OPTION_TWICE` 8／`OPP_DECK_REVEAL_UNTIL` 13 ほか）＝**標本が無いので payload 化しても正しさを1件も検証できない。⚠消してもいけない**（parser に生成元がある安全網）。(3)`GRANT_ABILITY_INNER_TEXT`(live14)＝`O-128` 家系で残る最後の核（🔑`restoreQuotedTargetGrant` の安全網を**通っていない理由**を1件ずつ見る）。(4)モーダル選択 family（`BET_MECHANIC`(8) ほか live19）＝**受け皿が在るだけでは着手根拠にならない**（`choiceTextParser.ts` の約20分岐を parser へ移すのが先）。
 🆕🔑**取る単位は「1ハンドラ」ではなく「家族」**＝第50バッチはパワー修正15ハンドラを1バッチで取り、**A群を17行減らした**（第49バッチは1行）。**同じ受け皿へ寄せられるものを束ねると、探索・配送・ゲート・簿記の固定費が1回で済む。**⚠**`lit0`（リテラル0本）のハンドラは「原文を regex で読む」形の中でも一番重い**＝引用文を**実行時に再パース**するので、payload 化には「引用能力を parser 側で構造化する」（＝`O-128` の家系）が要る。■**live 0 の 12ハンドラは「死んだ枝」ではない**＝`fn:` 2本（`analyzeBeatSigniCost`／`collectGrantedFromLayer`）と `INTERNAL_*` 7本は**live の親ハンドラから動的に呼ばれる**、`OPP_DECK_REVEAL_UNTIL`／`REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` は**同じ関数を live の別 id と共有**している。**live 0 だけを見て消さない。**
@@ -1235,6 +1235,13 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 受け皿は `CHOOSE{additionalCostChoose}`（`WX26-CP1-024`）／素の `CHOOSE`（`WX13-003`）／
 `CONDITIONAL{IS_BETTING}`（`WDK01-010`＝**対象枚数**の昇格）。
 `choiceTextParser.ts` の最後の呼び出し元（`INTERNAL_ECRV_APPLY`）は `O-234` に登録。
+🆕**第62（2026-09-03・索引 A 第22巡）＝`GRANT_ABILITY_INNER_TEXT`（A群最大 catch-all）の解体 第1段**＝
+**live 15 → 8 効果**。①引用が engine のグローバル宣言に落ちる5件を payload STUB へ
+（`LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE` / `LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO` /
+`LRIG_GAIN_OPP_ACTIVATE_COST_UP` / `LRIG_GAIN_ATTACK_PHASE_POWER_DOWN` /
+`OPP_SIGNI_ENERGY_TO_DECK_BOTTOM`）②引用が解ける2件を `GRANT_EFFECT` へ（`WD17-001-E2` / `WX25-P2-004-E1`）
+③`WXDi-P07-085-E1` の3択を `POWER_SET` ＋ `GRANT_PROTECTION` へ。
+⚠**A群の行数は 13 のまま**（ハンドラ単位で数えるため live 0 になるまで減らない）＝残り8効果は `O-235`。
 全文は BUGFIXES.md 2026-09-03。
 
 🆕**第60バッチ（2026-09-03・索引 A 第20巡）＝モーダル選択 family を `CHOOSE` へ寄せて受け皿4本を撤去**＝
@@ -1245,6 +1252,29 @@ GRANT_KEYWORD{トラップアイコン→自分}, CONDITIONAL{IS_MY_TURN, TRAP_O
 無かったのは**parser 側の条件語彙2本**（「センタールリグが＜X＞か＜Y＞の場合」＝`OR[LRIG_STORY]`／
 「センタールリグのレベルがN以上の場合」＝`LRIG_LEVEL`）と**追加コスト昇格の枝**だけだった。
 全文は BUGFIXES.md 2026-09-03（索引 A 第20巡）。
+
+■🆕🔴🔑**第62バッチの教訓（2026-09-03・索引 A 第22巡）＝据置を解くときは「表せるようになったか」を測る**
+🔴**①一度載せてから差し戻した実例。**
+`WXDi-P03-002-E1`（「このゲームの間、あなたは以下の能力を得る。『【自】：…』」）は
+`GRANT_PLAYER_ABILITY` に**載る**（引用は AUTO で解けた）。だが原文の
+「**それがそのターンであなたの最初のグロウである場合**」を表す条件語彙が**無い**ので、
+載せると**グロウのたびにエナチャージする過剰実行**になる。⇒ **現状（真 no-op＝過小）から悪い方へ倒さない。**
+🔑**「引用が解ける」と「効果が表せる」は別**＝引用の中の条件まで見る。
+
+🔴**②timing のフォールバックは既存 golden が守っていた。**
+`WD17-001-E2` は引用の timing が `ON_PLAY` へ落ちるため据置になっていた
+（＝**場に出た瞬間にアップする**過剰実行）。原因は**別名の取りこぼし1つ**＝
+既存規則が「正面**の**」しか受けず、原文は「正面**にある**」だった。⇒ 綴りを1本足したら `ON_SIGNI_BANISH_OPPONENT` に解けた。
+🔑**据置の理由が「語彙が無い」なら、まず綴りゆれを疑う。**
+
+🔑**③engine 未配線でも「宣言だけは載せる」**＝`banishedFrontOnly`（正面限定）は配線が
+`src/screens/` を触るので今回は入れていないが、**出さないと原文照合から制約が丸ごと消える**ので
+parser と逆翻訳には出した（`commonClass` と同じ規約）。⚠**実装したことにはしない**（`O-235` に登録）。
+
+🔴**④A群の行数は「ハンドラ単位」で数える。**
+分岐をいくつ parser へ移しても、**その STUB が live 0 になるまで A群の行は1行も減らない**。
+第62は8効果を移したが 13行のまま。⇒ **catch-all は「families を全部片付ける」計画を立ててから着手する**
+（`O-235` に残り8効果の内訳を7種類の機構として書き出した）。
 
 ■🆕🔴🔑**第61バッチの教訓（2026-09-03・索引 A 第21巡）＝「昇格」には2つの軸がある**
 🔴**①選択数の昇格と対象枚数の昇格は別物。**

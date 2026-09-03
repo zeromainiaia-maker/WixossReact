@@ -19090,13 +19090,18 @@ test('parse O-128: 中間動作なしの形は対象つき GRANT_EFFECT にな�
   eq(a.duration, 'UNTIL_END_OF_TURN', 'ターン終了時まで');
   eq(a.effect?.usageLimit, 'once_per_turn', '《ターン１回》も引用側に載る');
 });
-test('parse O-128: 引用の timing がフォールバックする形は STUB のまま据置（幻覚を配らない）', () => {
-  // 「正面にあるシグニをバニッシュしたとき」に対応する timing 語彙がまだ無く ON_PLAY へ落ちる。
-  // parseStatus は AUTO のままなので、timing フォールバックを見ないと**原文に無い能力**を付与してしまう。
+test('parse O-128 / §5.3 O-60 第62: 引用の timing 語彙を足したので「正面にあるシグニをバニッシュしたとき」が解ける', () => {
+  // 🆕**§5.3 `O-60` 第62バッチ（2026-09-03）＝旧契約は「timing 語彙が無いので STUB のまま据置」だった。**
+  //   🔴当時の落ち先は `ON_PLAY`（＝**場に出た瞬間にアップする**過剰実行）で、`quotedIsSafe` の
+  //     timing フォールバック検査が正しく弾いていた。今回**「正面**にある**」の綴りを1本足した**
+  //     （既存規則は「正面**の**」しか受けていなかった＝別名の取りこぼし）ので `ON_SIGNI_BANISH_OPPONENT` に解ける。
+  //   ⚠**据置を解いた理由は「表せるようになったから」**＝ガード自体（timing フォールバックなら据置）は残っている。
   const e = parseCardEffects({ CardNum: 'TEST-O128C', Type: 'ルリグ', EffectText: '【起】《ターン１回》《赤》《赤》《赤》：《ライズアイコン》を持つあなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニが正面にあるシグニ１体をバニッシュしたとき、このシグニをアップする。」を得る。' } as unknown as CardData)[0];
-  const a = e.action as unknown as { type: string; id?: string };
-  eq(a.type, 'STUB', 'timing が解けない引用は据置');
-  eq(a.id, 'GRANT_ABILITY_INNER_TEXT', '宣言済みの穴として census:stubs に残す');
+  const a = e.action as unknown as { type: string; effect?: { timing?: string[]; action?: { type?: string } }; target?: { filter?: { hasIcon?: string } } };
+  eq(a.type, 'GRANT_EFFECT', '引用が解けるので GRANT_EFFECT で付与する');
+  eq(a.target?.filter?.hasIcon, 'ライズ', '対象は《ライズアイコン》を持つ自分のシグニ');
+  eq(a.effect?.timing?.[0], 'ON_SIGNI_BANISH_OPPONENT', '🔴 ON_PLAY へフォールバックしていない（場に出た瞬間の発動は原文に無い）');
+  eq(a.effect?.action?.type, 'UP', '帰結は「このシグニをアップする」');
 });
 test('BLOCK_ACTION DRAW_OR_ADD_TO_HAND_BY_EFFECT 実行: 効果ドローが止まる', () => {
   const base = mkCtx({}, {});
@@ -56826,11 +56831,14 @@ test('O-128 第2 C群 E2E: WX25-CP1-064 は自身へ長期付与し、相手タ�
     .some(e => e.effectId === 'WX25-CP1-064-sub-E1'), false, '付与先不在では引用【自】も発火しない');
 }));
 
-test('O-128 第2 非採用契約: 展開不能／timing fallback の3効果は GRANT_EFFECT にしない', () => {
+test('O-128 第2 非採用契約: 展開不能な引用は GRANT_EFFECT にしない', () => {
+  // 🆕**§5.3 `O-60` 第62バッチ（2026-09-03）で2件が据置を卒業した**（残りは1件）＝
+  //   ・`WX25-CP1-003-E1`＝引用（相手シグニのエナ→デッキ下の置換）は**engine のグローバル宣言**なので、
+  //     `GRANT_EFFECT` ではなく専用 payload STUB `OPP_SIGNI_ENERGY_TO_DECK_BOTTOM` へ移した。
+  //   ・`WD17-001-E2`＝timing の綴り（「正面**にある**」）を足したので `ON_SIGNI_BANISH_OPPONENT` に解ける。
+  //   ⚠**契約の趣旨は変わっていない**＝「引用が解けないなら配らない」。表せるようになった分だけ外した。
   for (const [cardNum, effectId, why] of [
-    ['WX25-CP1-003', 'WX25-CP1-003-E1', '置換能力の引用が UNKNOWN'],
     ['WXDi-P05-068', 'WXDi-P05-068-E1', '対象固有の常時無効耐性が UNKNOWN'],
-    ['WD17-001', 'WD17-001-E2', 'バニッシュ時 timing が ON_PLAY へ fallback'],
   ] as const) {
     const freshEffect = batch29Effect(effectId);
     const liveEffect = b45Effect(cardNum, effectId);
@@ -56839,6 +56847,15 @@ test('O-128 第2 非採用契約: 展開不能／timing fallback の3効果は G
       ok(json.includes('"id":"GRANT_ABILITY_INNER_TEXT"'), `${effectId} ${kind}: STUB 据置（${why}）`);
       ok(!json.includes('"type":"GRANT_EFFECT"'), `${effectId} ${kind}: 解釈不能な引用能力を配らない`);
     }
+  }
+  // 🔴**卒業した2件が「解けた形」で live に載っていること**（STUB へ戻ったら落とす）。
+  ok(JSON.stringify(b45Effect('WX25-CP1-003', 'WX25-CP1-003-E1').action).includes('"OPP_SIGNI_ENERGY_TO_DECK_BOTTOM"'),
+    'WX25-CP1-003-E1: 引用はグローバル宣言の payload STUB へ');
+  {
+    const w17 = JSON.stringify(b45Effect('WD17-001', 'WD17-001-E2').action);
+    ok(w17.includes('"type":"GRANT_EFFECT"') && w17.includes('"ON_SIGNI_BANISH_OPPONENT"'),
+      'WD17-001-E2: 引用が解けた形で載っている');
+    ok(!w17.includes('"ON_PLAY"'), '🔴 ON_PLAY へフォールバックしていない');
   }
 });
 
@@ -64598,6 +64615,48 @@ test('§5.3 O-60 第61: モーダル選択 family の残り3件も CHOOSE / COND
   const w26Ch = w26Steps[1] as unknown as import('../src/types/effects').ChooseAction;
   eq(w26Ch.type, 'CHOOSE', '後段は CHOOSE');
   eq(w26Ch.additionalCostChoose?.thenChooseCount, 2, '支払っていたら2つ選ぶ');
+}));
+
+test('§5.3 O-60 第62: 引用能力が engine のグローバル宣言に落ちる family は payload STUB で決まる', () => withSavedCursor(() => {
+  // 🔴旧 `STUB{GRANT_ABILITY_INNER_TEXT}` は**アビリティブロック全文**から引用を切り出し、
+  //   その中身に**ハードコードした regex 5本**を当ててどのフラグかを決めていた（`O-60` A群の最大 catch-all）。
+  //   ⇒ **表に無い言い回しは「能力付与：…（ログのみ）」の無言 no-op** になる静かな上限だった。
+  const cases: Array<[string, string, string, unknown]> = [
+    ['SPDi43-01', 'SPDi43-01-E2', 'LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE', { autoPayGateColors: ['無'] }],
+    ['WXDi-P16-044', 'WXDi-P16-044-E2', 'LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO', {}],
+    ['WXDi-P15-033', 'WXDi-P15-033-E2', 'LRIG_GAIN_OPP_ACTIVATE_COST_UP', { oppActivateCostPlus: 1 }],
+    ['WX24-P2-030', 'WX24-P2-030-E2', 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN', { powerPerUnit: { per: 1, delta: -2000 } }],
+  ];
+  for (const [cardNum, effectId, id, payload] of cases) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live にある`); if (!eff) continue;
+    const a = eff.action as unknown as Record<string, unknown>;
+    eq(a.id, id, `${effectId}: 専用 id へ移した`);
+    for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
+      eq(JSON.stringify(a[k]), JSON.stringify(v), `${effectId}: ${k} が payload に載る`);
+    }
+  }
+  // ⑤「対戦相手のすべてのシグニを凍結**し**、次の…それらのシグニは「…」を得る」＝
+  //   🔴**連用形の前半（凍結）を落とさない**（旧 live はこの前半を失っていた）。
+  const w25 = (effectsMap.get('WX25-CP1-003') ?? []).find(e => e.effectId === 'WX25-CP1-003-E1');
+  ok(!!w25, 'WX25-CP1-003-E1 が live にある'); if (!w25) return;
+  const w25Json = JSON.stringify(w25.action);
+  ok(w25Json.includes('"OPP_SIGNI_ENERGY_TO_DECK_BOTTOM"'), 'エナ→デッキ下の置換宣言が載る');
+  ok(w25Json.includes('"FREEZE"'), '🔴 前半の「すべてのシグニを凍結」が落ちていない');
+
+  // 🔴**基本パワーの変更が3択とも丸ごと落ちていた**（`WXDi-P07-085-E1`）＝受け皿 `POWER_SET` は実装済みで、
+  //   parser 側に入口が無かっただけ。②③の付与も含めて3択すべてを固定する。
+  const p85 = (effectsMap.get('WXDi-P07-085') ?? []).find(e => e.effectId === 'WXDi-P07-085-E1');
+  ok(!!p85, 'WXDi-P07-085-E1 が live にある'); if (!p85) return;
+  const p85Ch = p85.action as import('../src/types/effects').ChooseAction;
+  const powers = [5000, 10000, 12000];
+  p85Ch.choices.forEach((c, i) => {
+    const steps = (c.action as SequenceAction).steps as unknown as Record<string, unknown>[];
+    eq(steps[0].type, 'POWER_SET', `選択肢${i + 1}: 基本パワーの変更が載っている`);
+    eq(steps[0].value, powers[i], `選択肢${i + 1}: 基本パワー${powers[i]}`);
+  });
+  eq((p85Ch.choices[2].action as SequenceAction).steps[1].type, 'GRANT_PROTECTION',
+    '③「対戦相手の効果によってダウンしない」は GRANT_PROTECTION{from:[DOWN]}');
 }));
 
 if (listMode) {

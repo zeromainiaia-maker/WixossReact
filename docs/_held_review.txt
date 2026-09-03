@@ -53,6 +53,31 @@ PR-K056 WX20-Re20
   - [0].action.choices[0].action.then.steps[0].type = "REVEAL"
   …（他 50 行）
 
+## +GRANT_EFFECT +SIGNI -STUB ［2枚］
+WX22-Re20 WXEX1-04
+--- WX22-Re20
+  原文: 以下の３つから２つまで選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのセンタールリグのレベル１につき－2000する。②ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》を支払わないかぎりアタックできない。」を得る。③あなたのルリグトラッシュからレベル２以下のルリグを２枚まで対象とし、それらをあなたのセンタール
+  - [0].action.choices[1].action.id = "OPP_SIGNI_ATTACK_COST"
+  ~ [0].action.choices[1].action.type : "STUB" → "GRANT_EFFECT"
+  + [0].action.choices[1].action.target.type = "SIGNI"
+  + [0].action.choices[1].action.target.owner = "opponent"
+  + [0].action.choices[1].action.target.count = "ALL"
+  + [0].action.choices[1].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[1].action.duration = "UNTIL_END_OF_TURN"
+  + [0].action.choices[1].action.rawText = "【常】：あなたが《無》を支払わないかぎりアタックできない。"
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
+--- WXEX1-04
+  原文: 【自】《ターン１回》：あなたのターンの間、あなたのレゾナ１体が場に出たとき、以下の３つから１つを選ぶ。①カードを１枚引き、【エナチャージ１】をする。②対戦相手のシグニ１体を対象とし、それを手札に戻す。③ターン終了時まで、そのレゾナは「【常】：バニッシュされない。」を得る。【起】《アタックフェイズアイコン》《コインアイコン》《コインアイコン》：ターン終了時まで
+  - [1].action.id = "OPP_SIGNI_ATTACK_COST"
+  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "opponent"
+  + [1].action.target.count = "ALL"
+  + [1].action.target.filter.cardType = "シグニ"
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.rawText = "【常】：あなたが《無》《無》を支払わないかぎりアタックできない。"
+  ~ [1].parseStatus : "AUTO" → "PARTIAL"
+
 ## +MILL -DECK_CARD -TRASH ［2枚］
 WDK05-R11 WXK03-025
 --- WDK05-R11
@@ -74,24 +99,6 @@ WDK05-R11 WXK03-025
   + [0].action.steps[0].count = 4
   + [0].action.steps[0].fromBottom = true
   + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
-
-## +BANISH×2 +CHOOSE +DOWN +FREEZE +HAND_CARD +LRIG×2 +SEQUENCE +SIGNI×2 +TRASH -STUB ［1枚］
-WX13-003
---- WX13-003
-  原文: 以下から４つから４つまで選ぶ。選んだ数が３つ以上の場合、このアーツの使用コストは、選んだ数から２を引いた数だけ《無×2》増える。①対戦相手のセンタールリグ１体を対象とし、それをダウンする。②対戦相手のセンタールリグ１体を対象とし、それを凍結する。③対戦相手のパワー７０００以下のシグニ１体を対象とし、それをバニッシュする。④レゾナではない対戦相手のシグニ１体を
-  - [0].action.steps[0].id = "CHOOSE_N_FROM_LIST"
-  ~ [0].action.steps[0].type : "STUB" → "CHOOSE"
-  + [0].action.steps[0].choose_count = 4
-  + [0].action.steps[0].from_count = 4
-  + [0].action.steps[0].choices[0].choiceId = "c0"
-  + [0].action.steps[0].choices[0].label = "選択肢1"
-  + [0].action.steps[0].choices[0].action.type = "DOWN"
-  + [0].action.steps[0].choices[0].action.target.type = "LRIG"
-  + [0].action.steps[0].choices[0].action.target.owner = "opponent"
-  + [0].action.steps[0].choices[0].action.target.count = 1
-  + [0].action.steps[0].choices[1].choiceId = "c1"
-  + [0].action.steps[0].choices[1].label = "選択肢2"
-  …（他 28 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -223,23 +230,15 @@ WXDi-P13-029
   + [0].action.delta = -2
   + [0].action.until = "NEXT_TURN"
 
-## +CHOOSE +DOWN +GRANT_EFFECT +GRANT_KEYWORD +POWER_MODIFY +SEQUENCE +SIGNI×3 +TURN_OWNER -STUB ［1枚］
-WX26-CP1-024
---- WX26-CP1-024
-  原文: このアーツを使用する際、あなたのエナゾーンから＜プリオケ＞のカード３枚をトラッシュに置いてもよい。以下の２つから１つを選ぶ。このアーツを使用する際に＜プリオケ＞のカード３枚をトラッシュに置いていた場合、代わりに２つ選ぶ。①あなたの＜プリオケ＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋10000し、それは「【常】《相手ターン》：【シャドウ】」を
-  - [0].action.steps[1].id = "ARTS_EXTRA_COST_CONDITION"
-  ~ [0].action.steps[0].id : "OPTIONAL_TRASH_ENERGY_CLASS" → "OPTIONAL_COST"
-  + [0].action.steps[0].costText = "あなたのエナゾーンから＜プリオケ＞のカード３枚をトラッシュに置いてもよい"
-  + [0].action.steps[0].energyTrash.count = 3
-  + [0].action.steps[0].energyTrash.filter.story = "プリオケ"
-  ~ [0].action.steps[1].type : "STUB" → "CHOOSE"
-  + [0].action.steps[1].choose_count = 1
-  + [0].action.steps[1].from_count = 2
-  + [0].action.steps[1].choices[0].choiceId = "c0"
-  + [0].action.steps[1].choices[0].label = "選択肢1"
-  + [0].action.steps[1].choices[0].action.type = "SEQUENCE"
-  + [0].action.steps[1].choices[0].action.steps[0].type = "POWER_MODIFY"
-  …（他 36 行）
+## +GRANT_EFFECT -GRANT_KEYWORD ［1枚］
+WX24-P3-002
+--- WX24-P3-002
+  原文: このアーツを使用する際、手札から《ガードアイコン》を持つシグニを好きな枚数捨てる。このアーツの使用コストはこの方法で捨てたカード１枚につき《白×2》減る。《リコレクトアイコン》［４枚以上］ターン終了時まで、対戦相手のすべてのシグニは「【常】：アタックできない。」を得る。,-
+  - [0].action.steps[2].keyword = "アタックできない"
+  ~ [0].action.steps[2].type : "GRANT_KEYWORD" → "GRANT_EFFECT"
+  + [0].action.steps[2].target.filter.cardType = "シグニ"
+  + [0].action.steps[2].rawText = "【常】：アタックできない。"
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
 
 ## +BANISH_REDIRECT +SIGNI -STUB ［1枚］
 WXK06-049
@@ -293,24 +292,6 @@ WDK01-009
   - [0].condition.color = "赤"
   ~ [0].condition.type : "LRIG_COLOR" → "COND_STUB"
   + [0].condition.raw = "あなたのセンタールリグが赤の"
-
-## +CONDITIONAL +IS_BETTING +TRANSFER_TO_HAND +TRASH_CARD -SEQUENCE -STUB ［1枚］
-WDK01-010
---- WDK01-010
-  原文: ベット―《コインアイコン》あなたのトラッシュからあなたのセンタールリグと共通する色を持つそれぞれレベルの異なるシグニを３枚まで対象とし、それらを手札に加える。あなたがベットしていた場合、３枚の代わりに４枚まで対象とし、それらを手札に加える。,-
-  - [0].action.steps[0].type = "TRANSFER_TO_HAND"
-  - [0].action.steps[0].source.type = "TRASH_CARD"
-  - [0].action.steps[0].source.owner = "self"
-  - [0].action.steps[0].source.count = 3
-  - [0].action.steps[0].source.upToCount = true
-  - [0].action.steps[0].source.filter.cardType = "シグニ"
-  - [0].action.steps[0].source.filter.colorMatchesLrig = true
-  - [0].action.steps[0].source.selectionConstraint.distinct = "level"
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "BET_CONDITION"
-  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.condition.type = "IS_BETTING"
-  …（他 16 行）
 
 ## +COND_STUB -TRASH_COUNT ［1枚］
 WDK06-C06

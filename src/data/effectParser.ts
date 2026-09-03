@@ -5408,7 +5408,113 @@ function parseSingleSentenceInner(text: string): EffectAction {
         ] } as EffectAction;
       }
     }
-    // 🆕**「ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニは
+    // 🆕🔴**§5.3 `O-60` 第62バッチ（2026-09-03）＝引用能力が engine の
+    //   「グローバルな宣言」に落ちる family（6効果）を parser 側の payload STUB へ移す。**
+    // 🔴旧 `STUB{GRANT_ABILITY_INNER_TEXT}` は**アビリティブロック全文**から引用を切り出し、
+    //   その中身に**4本のハードコード regex** を当ててどのフラグかを決めていた（`O-60` A群の最大 catch-all）。
+    //   ⇒ **表に無い言い回しは「能力付与：…（ログのみ）」の無言 no-op** になる静かな上限だった。
+    // 🔑**engine 側の状態書き込みは1バイトも変えていない**（id と payload の経路だけを移した）。
+    // 🆕**「ターン終了時まで、このシグニは基本パワーがNになり、〈X〉」**（§5.3 `O-60` 第62バッチ・
+    //   2026-09-03・`WXDi-P07-085-E1` の①②③）。
+    // 🔴**基本パワーの変更が3択とも丸ごと落ちていた**（①は `GRANT_KEYWORD` だけ、②③は受け皿 STUB だけ）。
+    //   受け皿 `POWER_SET` は実装済み＝parser 側に入口が無かっただけ。
+    {
+      const basePowerM = t60.match(/^ターン終了時まで[、,]このシグニは基本パワーが([０-９\d]+)になり[、,](.+)$/);
+      if (basePowerM) {
+        const rest = parseSingleSentence(`ターン終了時まで、このシグニは${basePowerM[2]}`);
+        if (!JSON.stringify(rest).includes('"UNKNOWN"')) {
+          return { type: 'SEQUENCE', steps: [
+            { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+              value: parseNum(basePowerM[1]), duration: 'UNTIL_END_OF_TURN' } as EffectAction,
+            rest,
+          ] } as EffectAction;
+        }
+      }
+    }
+    // 🆕**「ターン終了時まで、このシグニは「【常】：対戦相手の効果によってダウンしない。」を得る」**
+    //   （§5.3 `O-60` 第62バッチ・`WXDi-P07-085-E1`③）。
+    // 🔑受け皿は既存の `GRANT_PROTECTION{from:['DOWN'], sourceOwner:'opponent'}`＝
+    //   旧 `GRANT_ABILITY_INNER_TEXT` は `keyword_grants` の `__down_protect__` へ落としていた（同義）。
+    if (/^ターン終了時まで[、,]このシグニは「【常】：対戦相手の効果によってダウンしない。?」を得る$/.test(t60)) {
+      return {
+        type: 'GRANT_PROTECTION',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        from: ['DOWN'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN',
+      } as EffectAction;
+    }
+    // 🆕**「〈対象〉を対象とし、ターン終了時まで、それは「Q」を得る」／「〈期間〉、対戦相手のすべての
+    //   シグニは「Q」を得る」**（§5.3 `O-60` 第62バッチ・2026-09-03・`WD17-001-E2`／`WX25-P2-004-E1`）。
+    // 🔑**受け皿は既存の `GRANT_EFFECT{target, rawText}`**＝`expandGrantEffectRawTexts` が
+    //   ビルド時に引用を1ブロックとして解いて `effect` に畳む（解けなければ PARTIAL で留め置かれる＝
+    //   **無言 no-op にはならない**）。
+    // 🔴旧 `STUB{GRANT_ABILITY_INNER_TEXT}` はどちらも**対象が自場シグニでない**（効果元がルリグ／アーツ）
+    //   ため最後の「能力付与：…（ログのみ）」へ落ちていた＝**真 no-op**だった。
+    {
+      const riseGrantM = t60.match(
+        /^《ライズアイコン》を持つあなたのシグニ[１1]体を対象とし[、,]ターン終了時まで[、,]それは「(【[自出起常]】[\s\S]+)」を得る$/);
+      if (riseGrantM) {
+        return {
+          type: 'GRANT_EFFECT',
+          target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', hasIcon: 'ライズ' } },
+          duration: 'UNTIL_END_OF_TURN', rawText: riseGrantM[1],
+        } as EffectAction;
+      }
+      const allOppGrantM = t60.match(
+        /^ターン終了時まで[、,]対戦相手のすべてのシグニは「(【[自出起常]】[\s\S]+)」を得る$/);
+      if (allOppGrantM) {
+        return {
+          type: 'GRANT_EFFECT',
+          target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+          duration: 'UNTIL_END_OF_TURN', rawText: allOppGrantM[1],
+        } as EffectAction;
+      }
+    }
+    {
+      const lrigGainM = t60.match(/^次の対戦相手のターン終了時まで[、,]このルリグは「【常】：([\s\S]+)」を得る$/);
+      const q = lrigGainM?.[1] ?? '';
+      // ①「対戦相手のシグニの【自】能力が発動する場合、〈コスト〉を支払わないかぎり何もしない」（`SPDi43-01-E2`）
+      const payGateM = q.match(/対戦相手のシグニの【自】能力が発動する場合[^。]*?((?:《[^》]+》)+)を支払わないかぎり[^。]*何もしない/);
+      if (payGateM) {
+        return { type: 'STUB', id: 'LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE',
+          autoPayGateColors: [...payGateM[1].matchAll(/《(.)》/g)].map(m => m[1]) } as EffectAction;
+      }
+      // ②「対戦相手のシグニの【自】能力は発動しない」（`WXDi-P16-044-E2`）
+      if (/^対戦相手のシグニの【自】能力は発動しない。?$/.test(q)) {
+        return { type: 'STUB', id: 'LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO' } as EffectAction;
+      }
+      // ③「対戦相手のカードの【起】能力の使用コストは《無×N》増える」（`WXDi-P15-033-E2`）
+      const actCostM = q.match(/^対戦相手のカードの【起】能力の使用コストは《無[×x]([０-９\d]+)》増える。?$/);
+      if (actCostM) {
+        return { type: 'STUB', id: 'LRIG_GAIN_OPP_ACTIVATE_COST_UP',
+          oppActivateCostPlus: parseNum(actCostM[1]) } as EffectAction;
+      }
+      // ④「アタックフェイズの間、対戦相手のシグニのパワーをあなたの場にあるシグニ１体につき－Nする」（`WX24-P2-030-E2`）
+      const atkPhaseM = q.match(/^アタックフェイズの間[、,]対戦相手のシグニのパワーをあなたの場にあるシグニ([０-９\d]+)体につき[－-]([０-９\d]+)する。?$/);
+      if (atkPhaseM) {
+        return { type: 'STUB', id: 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN',
+          powerPerUnit: { per: parseNum(atkPhaseM[1]), delta: -parseNum(atkPhaseM[2]) } } as EffectAction;
+      }
+    }
+    // ⑤「〈期間〉、それらのシグニは「【常】：このシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる。」を得る」
+    //   （`WX25-CP1-003-E1`＝対戦相手の全シグニ）。
+    {
+      const oppEnergyBottomRe = /次の対戦相手のターン終了時まで[、,]それらのシグニは「【常】：このシグニがエナゾーンに置かれる場合[、,]代わりにデッキの一番下に置かれる。?」を得る$/;
+      if (oppEnergyBottomRe.test(t60)) {
+        const decl = { type: 'STUB', id: 'OPP_SIGNI_ENERGY_TO_DECK_BOTTOM' } as EffectAction;
+        // ⚠**連用形の前半を落とさない**＝`WX25-CP1-003` は「対戦相手のすべてのシグニを凍結**し**、次の…」で
+        //   1文になっており、後半だけを受けると**凍結が丸ごと消える**（旧 live もこの前半を失っていた）。
+        const head = t60.replace(oppEnergyBottomRe, '').replace(/[、,]$/, '');
+        if (!head) return decl;
+        const headM = head.match(/^(.+)し$/);
+        if (headM) {
+          const headAction = parseSingleSentence(`${headM[1]}する`);
+          if (!JSON.stringify(headAction).includes('"UNKNOWN"')) {
+            return { type: 'SEQUENCE', steps: [headAction, decl] } as EffectAction;
+          }
+        }
+      }
+    }
+    // 🆕**「ターン終了時まで[、,]【チャーム】が付いているあなたのすべてのシグニは
     //   「【常】：対戦相手のターンの間、バニッシュされない。」を得る」**
     //   （§5.3 `O-60` 第60バッチ・2026-09-03・`WDK12-007-E1`①後段）。
     // 🔴**受け皿は全部在った**（`hasCharm` フィルタ／`duringOppTurn`／`count:'ALL'`）のに、
@@ -15772,6 +15878,11 @@ function parseActionTextInner(text: string): EffectAction {
       return { type: 'GRANT_PLAYER_ABILITY', abilities: [], rawText: playerGrantM[1].trim(), permanent: true,
         targetOwner: 'opponent' } as unknown as EffectAction;
     }
+    // ⚠🔴**「あなたは以下の能力を得る」（`WXDi-P03-002-E1`）は据置**（§5.3 `O-60` 第62バッチ・2026-09-03）＝
+    //   `GRANT_PLAYER_ABILITY` へ載せると引用は AUTO で解けるのに、原文の
+    //   「**それがそのターンであなたの最初のグロウである場合**」を表す条件語彙が**無い**ので、
+    //   **グロウのたびにエナチャージする過剰実行**になる。現状（真 no-op＝過小）から**悪い方へ倒さない**。
+    //   ⇒ 機構は §5.3 `O-235` に登録した。
   }
 
   // ---- 「あなたのすべてのルリグは以下の能力を得る」（§6.4 O-4 続き499）----
@@ -19151,7 +19262,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   バトルでバニッシュする相手は常に正面＝相手シグニなので owner/正面 filter は不要（WX17-046 英知=7／WXK04-044 血晶武装 granted）。
              //   ⚠「効果によって」「あなたのシグニを」は含まない（前者は上の BY_EFFECT、後者は主語違いで非マッチ）。
              //   「感染状態の」（WX16-079）は banishedFilter に下で抽出（タスク16[B]）。
-             : /このシグニが(?:正面の)?(?:感染状態の|凍結状態の)?シグニ(?:[０-９\d]+体)?をバニッシュしたとき/.test(trigText) ? ['ON_SIGNI_BANISH_OPPONENT']
+             // 🆕**「正面**にある**シグニ」も同義**（§5.3 `O-60` 第62バッチ・2026-09-03・`WD17-001-E2` の引用）＝
+             //   従来は「正面**の**」しか受けず、引用能力の timing が `ON_PLAY` へフォールバックしていた
+             //   （＝**場に出た瞬間にアップする**過剰実行。`quotedIsSafe` の timing ガードが正しく弾いていた）。
+             : /このシグニが(?:正面の|正面にある)?(?:感染状態の|凍結状態の)?シグニ(?:[０-９\d]+体)?をバニッシュしたとき/.test(trigText) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 「このシグニが（対戦相手の）（レベルN(以下)の／パワーN以上の）シグニとバトルしたとき」「このシグニがバトルしたとき」（§3 Opusタスク16）。
              // engine 配線済み＝BattleScreen の collectBattleTrig（参加した両シグニ自身の ON_SIGNI_BATTLE を scope self で収集・
              //   バトル相手の level/power は triggerFilter で評価＝続き178）。filter は下で抽出。
@@ -20507,6 +20621,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         //   ゾーンの不一致を判定（battleBanishEntries）。
         if (/バトルによって正面以外のシグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedNotFront: true };
+        }
+        // 🆕**正の向き**「このシグニが**正面（にある）**シグニ１体をバニッシュしたとき」
+        //   （§5.3 `O-60` 第62バッチ・2026-09-03・`WD17-001-E2` の引用能力）。
+        //   ⚠engine 未配線＝**宣言だけ載せる**（出さないと原文照合から「正面」の制約が丸ごと消える）。
+        if (/このシグニが正面(?:の|にある)シグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedFrontOnly: true };
         }
       }
       // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（「あなたの＜X＞のシグニが効果によって…バニッシュしたとき」WX07-036）：主語を triggerScope:any_ally＋triggerFilter に抽出（actionText 非改変）。

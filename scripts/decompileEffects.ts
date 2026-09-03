@@ -4668,6 +4668,24 @@ function actionJa(a?: Action, effectType?: string): string {
         const sign = fc.deltaPerLevel < 0 ? '－' : '＋';
         return `対戦相手のシグニ1体を対象とし、ターン終了時まで、それのパワーをあなたの場にある＜${fc.story}＞のシグニのレベルを合計した数だけ${sign}${Math.abs(fc.deltaPerLevel)}する`;
       }
+      // 🆕**§5.3 `O-60` 第62バッチ（2026-09-03）＝ルリグが得るグローバル宣言も payload から描く。**
+      if (a.id === 'LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE' && a.autoPayGateColors) {
+        const cols = a.autoPayGateColors.map(c => `《${c}》`).join('');
+        return `次の対戦相手のターン終了時まで、対戦相手のシグニの【自】能力が発動する場合、対戦相手が${cols}を支払わないかぎり、その能力は何もしない`;
+      }
+      if (a.id === 'LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO') {
+        return '次の対戦相手のターン終了時まで、対戦相手のシグニの【自】能力は発動しない';
+      }
+      if (a.id === 'LRIG_GAIN_OPP_ACTIVATE_COST_UP' && a.oppActivateCostPlus) {
+        return `次の対戦相手のターン終了時まで、対戦相手のカードの【起】能力の使用コストは《無×${a.oppActivateCostPlus}》増える`;
+      }
+      if (a.id === 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN' && a.powerPerUnit) {
+        const pu = a.powerPerUnit;
+        return `次の対戦相手のターン終了時まで、アタックフェイズの間、対戦相手のシグニのパワーをあなたの場にあるシグニ${pu.per}体につき${pu.delta < 0 ? '－' : '＋'}${Math.abs(pu.delta)}する`;
+      }
+      if (a.id === 'OPP_SIGNI_ENERGY_TO_DECK_BOTTOM') {
+        return '次の対戦相手のターン終了時まで、対戦相手のシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる';
+      }
       if (a.id === 'DRAW_ON_OPP_POWER_ZERO') {
         return 'このターン、対戦相手のシグニのパワーが0以下になったとき、カードを1枚引く';
       }
@@ -5204,11 +5222,14 @@ function effJa(e: Eff): string {
     }
     // ON_SIGNI_BANISH_OPPONENT の banishedFilter/banishedNotFront（被バニッシュシグニの状態/位置限定・
     //   WX16-079/WXK02-054/WXEX2-76/WX17-032 等）。主語は triggerScope（self=このシグニ／any_ally=あなたのシグニ）。
-    if (t === 'ON_SIGNI_BANISH_OPPONENT' && (e.triggerCondition?.banishedFilter || e.triggerCondition?.banishedNotFront)) {
+    if (t === 'ON_SIGNI_BANISH_OPPONENT' && (e.triggerCondition?.banishedFilter || e.triggerCondition?.banishedNotFront || e.triggerCondition?.banishedFrontOnly)) {
       const bf = e.triggerCondition.banishedFilter;
       const stJa = bf?.isFrozen ? '凍結状態の' : bf?.infected ? '感染状態の' : '';
       const charmJa = bf?.hasCharm ? '【チャーム】が付いている' : '';
-      const frontJa = e.triggerCondition.banishedNotFront ? '正面以外の' : '';
+      // 🆕`banishedFrontOnly`＝正の向き（§5.3 `O-60` 第62バッチ・2026-09-03）。
+      //   ⚠engine 未配線だが**逆翻訳には出す**（出さないと原文照合から「正面」の制約が消える）。
+      const frontJa = e.triggerCondition.banishedNotFront ? '正面以外の'
+        : e.triggerCondition.banishedFrontOnly ? '正面の' : '';
       const subjJa = e.triggerScope === 'any_ally' ? 'あなたのシグニ' : 'このシグニ';
       s = `${subjJa}がバトルによって${charmJa}${frontJa}対戦相手の${stJa}シグニをバニッシュしたとき`;
     }

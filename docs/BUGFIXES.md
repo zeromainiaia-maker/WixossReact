@@ -1,5 +1,75 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-03（索引 A 第22巡）：§5.3 `O-60` 第62バッチ — `GRANT_ABILITY_INNER_TEXT`（A群最大 catch-all）の解体 第1段
+
+**ベースライン**＝`ffc6b6d68`（第61バッチの直後）。**A🔴 SELF_TEXT 13行 / 12ハンドラ（据置）**。
+🔴**A群の行数は「ハンドラ単位の読み出し行」で数える**ので、分岐をいくつ parser へ移しても
+**その STUB が live 0 になるまで1行も減らない**。この巡は **live 15 → 8 効果**まで割った（残りは `O-235`）。
+**gates 全緑**（typecheck・golden **3399 → 3400**＝+1本（既存の契約 golden 2本を理由つきで更新）・
+smoke 10725 全異常0・fuzz 全0・census 高シグナル 3 / BASELINE 3・census-stubs A🔴0・C0・manual-fields 0・
+census-enginetext **A🔴13**・census-costtext A🔴0 据置・lint 0 errors）。
+**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**（`census:cards --sheet 1` 要対応 17 据置）。
+🖥**実機＝機械判定では不要**（`src/screens/` は1行も触っていない・新しいアクション型／条件型・
+interaction 型は0＝足したのは `StubAction` の payload キー2本と `triggerCondition` の宣言キー1本）。
+ただし**8効果の挙動が変わった**ので実機観測点 **`V-143`** を登録した（未実施）。
+
+### 真因＝「引用能力の付与」という1つの id に、8種類の別々の機構が同居していた
+
+`STUB{GRANT_ABILITY_INNER_TEXT}`（live 15）は**アビリティブロック全文**から `「…」を得る` の引用を切り出し、
+その中身に**ハードコードした regex 表**を当ててどの機構かを決めていた。
+⇒ 🔴**表に無い言い回しは「能力付与：「…」（ログのみ）」へ落ちる無言 no-op**（静かな上限）。
+さらに**引用符が `『』` だと切り出しに失敗**（`WXDi-P03-002`）、
+**対象が自場シグニでないと最後まで落ちる**（効果元がルリグ／アーツの5効果）といった穴があった。
+
+### 移した8効果
+
+| 効果 | 移し先 | 旧挙動 |
+|---|---|---|
+| `SPDi43-01-E2` | `LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE{autoPayGateColors}` | 引用 regex |
+| `WXDi-P16-044-E2` | `LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO` | 引用 regex |
+| `WXDi-P15-033-E2` | `LRIG_GAIN_OPP_ACTIVATE_COST_UP{oppActivateCostPlus}` | 引用 regex |
+| `WX24-P2-030-E2` | `LRIG_GAIN_ATTACK_PHASE_POWER_DOWN{powerPerUnit}` | 引用 regex |
+| `WX25-CP1-003-E1` | `OPP_SIGNI_ENERGY_TO_DECK_BOTTOM` | 引用 regex。🔴**連用形の前半「対戦相手のすべてのシグニを凍結し、」が丸ごと落ちていた**ので併せて復元 |
+| `WD17-001-E2` | `GRANT_EFFECT{target:{hasIcon:'ライズ'}, effect}` | 🔴**真 no-op**（効果元がルリグ＝`selfTargets` が空） |
+| `WX25-P2-004-E1`（主節） | `GRANT_EFFECT{SIGNI opponent ALL, effect}` | 🔴**真 no-op**（効果元がアーツ） |
+| `WXDi-P07-085-E1`（3択） | `POWER_SET` ＋ `GRANT_PROTECTION{from:['DOWN']}` | 🔴**基本パワーの変更が3択とも丸ごと落ちていた**（受け皿 `POWER_SET` は実装済みで parser 側の入口が無かっただけ） |
+
+⚠**engine 側の状態書き込みは1バイトも変えていない**（5つのフラグは id と payload の経路だけを移した）。
+
+### 🔴 この巡の主産物＝据置を解くときは「表せるようになったか」を測る
+
+**一度載せてから差し戻した実例**＝`WXDi-P03-002-E1`（「このゲームの間、あなたは以下の能力を得る。『【自】：…』」）は
+`GRANT_PLAYER_ABILITY` に**載る**（引用は AUTO で解けた）。だが原文の
+「**それがそのターンであなたの最初のグロウである場合**」を表す条件語彙が**無い**ので、
+載せると**グロウのたびにエナチャージする過剰実行**になる。
+⇒ **現状（真 no-op＝過小）から悪い方へ倒さない。**🔑**「引用が解ける」と「効果が表せる」は別。**
+
+**逆に、据置の理由が別名の取りこぼしだった例**＝`WD17-001-E2` は引用の timing が `ON_PLAY` へ落ちるため
+据置になっていた（＝**場に出た瞬間にアップする**過剰実行。既存 golden がその契約を守っていた）。
+原因は**綴り1つ**＝既存規則が「正面**の**」しか受けず、原文は「正面**にある**」だった。
+1本足したら `ON_SIGNI_BANISH_OPPONENT` に解けた。🔑**据置の理由が「語彙が無い」ならまず綴りゆれを疑う。**
+
+### engine 未配線でも「宣言だけは載せる」
+
+「正面にあるシグニをバニッシュしたとき」の**正面限定**は `triggerCondition.banishedFrontOnly` として
+parser が出し、逆翻訳にも描く。⚠**engine は未配線**（配線は `banishedNotFront` と同じ
+`battleBanishEntries` のゾーン比較＝`src/screens/BattleScreen.tsx` を触るので実機必須＝`O-235` に登録）。
+🔑**出さないと原文照合から制約が丸ごと消える**（`commonClass` と同じ規約）。⚠**実装したことにはしない。**
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt <8枚>
+npm run regen
+npm run gates          # 全緑（golden 3400 / census 3 / enginetext A🔴13 据置）
+npx tsx scripts/censusEngineText.ts --id GRANT_ABILITY_INNER_TEXT   # → live 15→8
+```
+
+**反転確認**＝`WD17-001-E2` の逆翻訳が「【自】このシグニがバトルによって**正面の**対戦相手のシグニを
+バニッシュしたとき：このシグニをアップする」であること（🔴旧は `ON_PLAY`＝**場に出た瞬間**に落ちる形だった）。
+`WXDi-P07-085-E1` は3択すべてに `POWER_SET`（5000/10000/12000）が載っていることを golden で assert。
+
+
 ## 2026-09-03（索引 A 第21巡）：§5.3 `O-60` 第61バッチ — モーダル選択 family の残り3件（受け皿3本＋executor の専用先取りを撤去）
 
 **ベースライン**＝`778de877a`（第60バッチの直後）。**A🔴 SELF_TEXT 17行 → 13行 / 16→12ハンドラ**

@@ -4835,6 +4835,17 @@ export interface StubAction {
    * ⚠**payload が無ければ何もしない**（fail-closed）＝クラス空文字は全シグニに一致してしまう。
    */
   fieldClassLevelSumPower?: { story: string; deltaPerLevel: number };
+  /**
+   * 🆕**ルリグが引用能力を得る形（§5.3 `O-60` 第62バッチ・2026-09-03）の payload。**
+   * 原文はいずれも「次の対戦相手のターン終了時まで、このルリグは「【常】：〈Q〉」を得る。」で、
+   * 引用の中身は engine のグローバルな宣言（`blocked_actions` / スカラーフラグ）に落ちる。
+   * 🔴旧 `STUB{GRANT_ABILITY_INNER_TEXT}` は**引用文に4本の regex を当てて**どのフラグかを決めていた
+   *   （`O-60` A群）。表に無い言い回しは**無言 no-op** になる静かな上限だった。
+   */
+  /** `LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE`＝相手シグニの【自】は指定コストを払わないかぎり何もしない。 */
+  autoPayGateColors?: string[];
+  /** `LRIG_GAIN_OPP_ACTIVATE_COST_UP`＝対戦相手のカードの【起】能力の使用コストが《無×N》増える。 */
+  oppActivateCostPlus?: number;
   gainedLrigType?: string;
   /**
    * ── 🆕**§5.3 `O-60` 第54バッチ（2026-09-03）＝「使用コスト・追加支払い・維持コスト」family** ──
@@ -6299,6 +6310,15 @@ export interface CardEffect {
      * ⚠`movedToDeckFromTrash` と排他ではないが、原文で両方書かれる形は実測0件。
      */
     movedToDeckFromField?: boolean;
+    /**
+     * 🆕**「このシグニが**正面にある**シグニ１体をバニッシュしたとき」**（§5.3 `O-60` 第62バッチ・
+     * 2026-09-03・`WD17-001-E2` の引用能力）＝`banishedNotFront` の**正の向き**。
+     * ⚠**engine 未配線**（消費は `banishedNotFront` と同じ `battleBanishEntries` のゾーン比較になる予定）＝
+     *   いまは `ON_SIGNI_BANISH_OPPONENT` の近似（＝正面以外を効果でバニッシュしても発火する）。
+     *   ⚠**出さないと原文照合から制約が丸ごと消える**ので、宣言だけは載せる（`commonClass` と同じ規約）。
+     *   配線は §5.3 `O-235` に登録した（`src/screens/BattleScreen.tsx` を触る＝実機必須）。
+     */
+    banishedFrontOnly?: boolean;
     banishedFilter?: TargetFilter;                    // ON_SIGNI_BANISH_OPPONENT/_BATTLE の被バニッシュシグニ限定（「感染状態の/凍結状態の/【チャーム】が付いている…シグニをバニッシュしたとき」WX16-079/WXK02-054/WXEX2-76 等）。バニッシュ**直前**の盤面状態（matchesStateFilter＝infected/isFrozen/hasCharm）＋カードデータ（matchesFilter）で判定。triggerFilter は any_ally scope で**バニッシュした側**に使われるため別軸
     /**
      * 🆕**正面以外のシグニゾーンへアタックした**とき限定（2026-08-31 続き749・`WXEX2-71-E1`

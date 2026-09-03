@@ -1401,6 +1401,59 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapKKB } },
       `血晶武装シグニ${armoredTops.length}体に「アタック時バニッシュ」を付与（ターン終了時まで）`));
   }
+  // ── 🆕**§5.3 `O-60` 第62バッチ（2026-09-03）＝「次の対戦相手のターン終了時まで、このルリグは
+  //   「【常】：〈Q〉」を得る」family（5効果）**。引用の中身は engine のグローバルな宣言に落ちるので、
+  //   **どの宣言かは parser が決めて payload で渡す**（旧 `GRANT_ABILITY_INNER_TEXT` の引用 regex 4本＋1本）。
+  //   ⚠**状態書き込みは旧実装と1バイトも同じ**にしてある（この巡は経路の移設だけ）。
+  //   ⚠**payload が無ければ何もしない**（fail-closed）。
+
+  // LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO: 次の対戦相手のターン終了時まで、対戦相手のシグニの【自】能力は発動しない
+  //   （`WXDi-P16-044-E2`）
+  if (stub.id === 'LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO') {
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, blocked_actions: [...(ctx.ownerState.blocked_actions ?? []), 'BLOCK_OPP_SIGNI_AUTO'] },
+      otherState: { ...ctx.otherState, blocked_actions: [...(ctx.otherState.blocked_actions ?? []), 'BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'] },
+    }, '相手シグニ【自】能力ブロック（次ターンも）'));
+  }
+  // LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE: 対戦相手のシグニの【自】能力が発動する場合、対戦相手が指定コストを支払わないかぎりその能力は何もしない
+  //   （`SPDi43-01-E2`）
+  // 🔴**「丸ごと止める」ではない**＝支払えば通るゲート（§6.4 O-38・続き544）。消費は `BattleScreen.resolveStackNext`。
+  if (stub.id === 'LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE') {
+    const gateColorsLG = stub.autoPayGateColors;
+    if (!gateColorsLG || gateColorsLG.length === 0) return done(addLog(ctx, '[未実装] 相手【自】能力ゲート（payload なし）'));
+    const markersLG = signiAutoPayGateMarkers(gateColorsLG);
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, blocked_actions: [...(ctx.ownerState.blocked_actions ?? []), markersLG.declarer] },
+      otherState: { ...ctx.otherState, blocked_actions: [...(ctx.otherState.blocked_actions ?? []), markersLG.opponentNextTurn] },
+    }, `相手シグニ【自】能力は${gateColorsLG.map(c => `《${c}》`).join('')}を支払わないかぎり何もしない（次の対戦相手のターン終了時まで）`));
+  }
+  // LRIG_GAIN_OPP_ACTIVATE_COST_UP: 対戦相手のカードの【起】能力の使用コストは《無×N》増える
+  //   （`WXDi-P15-033-E2`）
+  if (stub.id === 'LRIG_GAIN_OPP_ACTIVATE_COST_UP') {
+    const nLG = stub.oppActivateCostPlus;
+    if (!nLG) return done(addLog(ctx, '[未実装] 相手【起】能力コスト増加（payload なし）'));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_opp_act_cost_plus: (ctx.ownerState.lrig_opp_act_cost_plus ?? 0) + nLG } },
+      `相手起動能力コスト《無×${nLG}》増加`));
+  }
+  // LRIG_GAIN_ATTACK_PHASE_POWER_DOWN: アタックフェイズの間、対戦相手のシグニのパワーをあなたの場にあるシグニ1体につき－Nする
+  //   （`WX24-P2-030-E2`）
+  if (stub.id === 'LRIG_GAIN_ATTACK_PHASE_POWER_DOWN') {
+    const specLG = stub.powerPerUnit;
+    if (!specLG) return done(addLog(ctx, '[未実装] アタックフェイズ中のパワーダウン（payload なし）'));
+    // 消費側（`BattleScreen`）は「自シグニ1体につき N」で読むので、単価を1体あたりへ正規化する。
+    const perOneLG = Math.abs(specLG.delta) / (specLG.per || 1);
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_attack_phase_power_down_per_signi: perOneLG } },
+      `アタックフェイズ中：相手シグニパワー自シグニ×-${perOneLG}付与`));
+  }
+  // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM: 対戦相手のシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる
+  //   （`WX25-CP1-003-E1`）
+  if (stub.id === 'OPP_SIGNI_ENERGY_TO_DECK_BOTTOM') {
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, opp_signi_energy_to_deck_bottom: true } },
+      '相手シグニのエナゾーン配置→デッキ下に変更'));
+  }
+
   // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
       stub.id === 'GRANT_ABILITY_INNER_TEXT') {
@@ -1538,8 +1591,6 @@ export function execStubPart1(
 
     // ---- 以下は quotedText ありだが既知パターン外のケース ----
     if (quotedText) {
-      const toHWGQ = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-
       // 「あなたのシグニは【シャドウX】を得る」（quotedText で直接来るケース）
       const allShadowQM = quotedText.match(/あなたのシグニは【(シャドウ[^】]*)】を得る/);
       if (allShadowQM) {
@@ -1552,53 +1603,14 @@ export function execStubPart1(
         return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsQ } }, `全シグニに${shadowKwQ}付与`));
       }
 
-      // 「対戦相手のシグニの【自】能力は発動しない」(WXDi-P16-044)
-      if (quotedText.match(/対戦相手のシグニの【自】能力は発動しない/)) {
-        const newMyBlocked = [...(ctx.ownerState.blocked_actions ?? []), 'BLOCK_OPP_SIGNI_AUTO'];
-        const newOtherBlocked = [...(ctx.otherState.blocked_actions ?? []), 'BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'];
-        return done(addLog({
-          ...ctx,
-          ownerState: { ...ctx.ownerState, blocked_actions: newMyBlocked },
-          otherState: { ...ctx.otherState, blocked_actions: newOtherBlocked },
-        }, '相手シグニ【自】能力ブロック（次ターンも）'));
-      }
-
-      // 「対戦相手のシグニの【自】能力が発動する場合、〈コスト〉を支払わないかぎり何もしない」(SPDi43-01)
-      // 🔴旧実装は `BLOCK_OPP_SIGNI_AUTO` ／ `BLOCK_OWN_SIGNI_AUTO:NEXT_TURN` で**丸ごと止めていた**＝
-      //   相手に支払いの機会が一度も来ない原文より強い近似だった（§6.4 O-38・続き544）。
-      //   ⇒ **支払えば通るゲート**へ（宣言＝ここ／消費＝`BattleScreen.resolveStackNext` の1点）。
-      const autoPayGateM = quotedText.match(/対戦相手のシグニの【自】能力が発動する場合[^。]*?((?:《[^》]+》)+)を支払わないかぎり[^。]*何もしない/);
-      if (autoPayGateM) {
-        const gateColors = [...autoPayGateM[1].matchAll(/《(.)》/g)].map(m => m[1]);
-        const markers = signiAutoPayGateMarkers(gateColors);
-        return done(addLog({
-          ...ctx,
-          ownerState: { ...ctx.ownerState, blocked_actions: [...(ctx.ownerState.blocked_actions ?? []), markers.declarer] },
-          otherState: { ...ctx.otherState, blocked_actions: [...(ctx.otherState.blocked_actions ?? []), markers.opponentNextTurn] },
-        }, `相手シグニ【自】能力は${gateColors.map(c => `《${c}》`).join('')}を支払わないかぎり何もしない（次の対戦相手のターン終了時まで）`));
-      }
-
-      // 「対戦相手のカードの【起】能力の使用コストは《無×N》増える」(WXDi-P15-033)
-      const actCostM = quotedText.match(/対戦相手のカードの【起】能力の使用コストは《無[×x]([０-９\d]+)》増える/);
-      if (actCostM) {
-        const n = parseInt(toHWGQ(actCostM[1])) || 1;
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_opp_act_cost_plus: (ctx.ownerState.lrig_opp_act_cost_plus ?? 0) + n } },
-          `相手起動能力コスト《無×${n}》増加`));
-      }
-
-      // 「アタックフェイズの間、対戦相手のシグニのパワーをN体につき－Nする」(WX24-P2-030)
-      const atkPhaseM = quotedText.match(/アタックフェイズの間.*対戦相手のシグニのパワーを.*つき[－-]([０-９\d]+)する/);
-      if (atkPhaseM) {
-        const delta = parseInt(toHWGQ(atkPhaseM[1])) || 2000;
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_attack_phase_power_down_per_signi: delta } },
-          `アタックフェイズ中：相手シグニパワー自シグニ×-${delta}付与`));
-      }
-
-      // 「このシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる」(WX25-CP1-003)
-      if (quotedText.match(/このシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる/)) {
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, opp_signi_energy_to_deck_bottom: true } },
-          '相手シグニのエナゾーン配置→デッキ下に変更'));
-      }
+      // 🏁**§5.3 `O-60` 第62バッチ（2026-09-03）＝「引用能力が engine のグローバルな宣言に落ちる」5分岐を
+      //   ここから撤去し、parser が payload つきの専用 STUB を出すようにした。**
+      //   （`LRIG_GAIN_BLOCK_OPP_SIGNI_AUTO` / `LRIG_GAIN_OPP_SIGNI_AUTO_PAY_GATE` /
+      //     `LRIG_GAIN_OPP_ACTIVATE_COST_UP` / `LRIG_GAIN_ATTACK_PHASE_POWER_DOWN` /
+      //     `OPP_SIGNI_ENERGY_TO_DECK_BOTTOM`＝下に実装がある）
+      //   🔴**この表は静かな上限だった**＝引用の言い回しがどの regex にも当たらないと、
+      //     最後の「能力付与：「…」（ログのみ）」へ落ちて**無言 no-op** になる。
+      //   🔑**engine 側の状態書き込みは1バイトも変えていない**（id と payload の経路だけを移した）。
 
       // 「あなたがダメージを受ける場合、代わりに〜支払ってもよい」(WX24-P4-021)
       if (quotedText.match(/あなたがダメージを受ける場合、代わりに.*支払ってもよい/)) {

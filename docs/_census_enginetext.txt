@@ -10,24 +10,24 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1409 execStubPart1.ts:1622 | 15 | 15 | 5 | 0 |
+| GRANT_ABILITY_INNER_TEXT | execStubPart1.ts:1462 execStubPart1.ts:1634 | 8 | 8 | 5 | 0 |
 | CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:2996 | 0 | 0 | 8 | 0 |
 | CONDITIONAL_PER_TRASH | execStubPart2.ts:2132 | 0 | 0 | 1 | 0 |
-| CONDITIONAL_POWER_BONUS | execStubPart1.ts:1854 | 0 | 0 | 9 | 0 |
+| CONDITIONAL_POWER_BONUS | execStubPart1.ts:1866 | 0 | 0 | 9 | 0 |
 | fn:analyzeBeatSigniCost | execUtils.ts:1423 | 0 | 0 | 2 | 0 |
 | fn:collectGrantedFromLayer | effectEngine.ts:7002 | 0 | 0 | 0 | 0 |
-| INTERNAL_ECRV_APPLY | execStubPart1.ts:2264 | 0 | 0 | 0 | 0 |
+| INTERNAL_ECRV_APPLY | execStubPart1.ts:2276 | 0 | 0 | 0 | 0 |
 | INTERNAL_MARK_REVEALED_NAMED | execStubPart3.ts:3097 | 0 | 0 | 0 | 0 |
 | LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT | execStubPart2.ts:1178 | 0 | 0 | 0 | 0 |
-| OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3215 | 0 | 0 | 13 | 0 |
-| REVEAL_AND_PICK | execStubPart1.ts:3189 | 0 | 0 | 2 | 0 |
+| OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3227 | 0 | 0 | 13 | 0 |
+| REVEAL_AND_PICK | execStubPart1.ts:3201 | 0 | 0 | 2 | 0 |
 | SUMMON_FROM_TRASH | execStubPart3.ts:2755 | 0 | 0 | 1 | 0 |
 
 ## A群 明細
 
-### GRANT_ABILITY_INNER_TEXT  (live 15効果 / 15カード / miss 0)
-  execStubPart1.ts:1409  const txtGQ = sourceAbilityText(ctx);
-  execStubPart1.ts:1622  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
+### GRANT_ABILITY_INNER_TEXT  (live 8効果 / 8カード / miss 0)
+  execStubPart1.ts:1462  const txtGQ = sourceAbilityText(ctx);
+  execStubPart1.ts:1634  const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').C
     lit re:「([^」]+)」(?:の能力)?(?:を得る|として扱う)
     lit re:あなたのシグニすべては|あなたの場にあるすべてのシグニ
     lit re:あなたのシグニは【(シャドウ[^】]*)】を得る
@@ -50,7 +50,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:トラッシュに(?:カードが)?([０-９\d]+)枚以上
 
 ### CONDITIONAL_POWER_BONUS  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:1854  const txtCB = sourceAbilityText(ctx);
+  execStubPart1.ts:1866  const txtCB = sourceAbilityText(ctx);
     lit re:この方法で.*?([０-９\d]+)枚以上.*?場合.*?([－＋][０-９\d]+)(?:する|される)
     lit re:あなたの場[にの](?:.*?)シグニが([０-９\d]+)体(?:以上|以上ある)(?:.*?)場合[、，](?:代わりに)?([－＋][０-９\d]+)
     lit re:あなたのエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)
@@ -70,7 +70,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:7002  return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
 
 ### INTERNAL_ECRV_APPLY  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:2264  const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
+  execStubPart1.ts:2276  const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
 
 ### INTERNAL_MARK_REVEALED_NAMED  (live 0効果 / 0カード / miss 0)
   execStubPart3.ts:3097  const nameMRFH = ((srcMRFH?.EffectText ?? '') + ' ' + (srcMRFH?.BurstText ?? '')).match(/《([^《》]+)》を公開/)?.[1];
@@ -79,7 +79,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execStubPart2.ts:1178  const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
 
 ### OPP_DECK_REVEAL_UNTIL  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:3215  const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
+  execStubPart1.ts:3227  const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
     lit re:＜([^＞]+)＞のシグニが(?:[０-９\d]+枚)?めくれるまで
     lit re:レベル([０-９\d]+)を持つ
     lit re:シグニが(?:[０-９\d]+枚)?めくれるまで
@@ -95,7 +95,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:残りをシャッフルして
 
 ### REVEAL_AND_PICK  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:3189  const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
+  execStubPart1.ts:3201  const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
     lit re:シグニ([０-９\d]+)枚を探して
     lit re:場に出す
 
