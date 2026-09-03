@@ -64747,6 +64747,29 @@ test('§5.3 O-244: 「見るだけ」に潰れた本文は明示 defer にする
   ok(!JSON.stringify(a).includes('LOOK_AND_REORDER'), '「見るだけ」へ潰れていない');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-69`（2026-09-04・索引 A 第41巡）＝🏁**クローズ**。「この方法でN枚以上〜した場合」は実測 **30効果とも配線済み**。
+// 🔑正準形が**5通り**ある（だから「条件型が無い」と見えていた＝trap (h) の6例目）：
+//    ①`ACTIVATED_DISCARD_COUNT_GTE`（【起】コストで捨てた枚数）
+//    ②`ENERGY_TRASH_COLOR_COUNT_GTE`（エナから色つきで落とした枚数）
+//    ③`TRASHED_STORY_COUNT_GTE`（この方法でトラッシュに置かれたクラスの枚数）
+//    ④`ZONE_SUM_COUNT`（**払う前**のゾーン合計＝「すべて捨てる」コストでは枚数が等価）
+//    ⑤**専用ハンドラの中の判定**（`prepareMayuEncounter` の `movedCount >= 5`）
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-69: 「この方法でN枚以上」は5通りの正準形で配線済み', () => withSavedCursor(() => {
+  const condOf = (num: string, id: string): string => JSON.stringify(effectsMap.get(num)?.find(e => e.effectId === id));
+  ok(condOf('WX05-022', 'WX05-022-E2').includes('"ACTIVATED_DISCARD_COUNT_GTE"'), '①【起】コストの捨て枚数');
+  ok(condOf('WX04-002', 'WX04-002-E2').includes('"ENERGY_TRASH_COLOR_COUNT_GTE"'), '②エナの色つき枚数');
+  ok(condOf('WX20-029', 'WX20-029-E2').includes('"TRASHED_STORY_COUNT_GTE"'), '③この方法で落ちたクラスの枚数');
+  ok(condOf('WXDi-P12-031', 'WXDi-P12-031-E2').includes('"ZONE_SUM_COUNT"'), '④払う前のゾーン合計（等価な前置き判定）');
+  // ⑤専用ハンドラの中で数える形＝JSON には条件が出ない。**ハンドラ側を凍結する**
+  //   （`WXDi-P13-003A-E1` は「この方法でカードが5枚以上トラッシュに置かれた場合」だけがグロウの条件）。
+  const mayu = fs.readFileSync(join(root, 'src/screens/battle/mayuEncounter.ts'), 'utf8');
+  ok(/const canGrow = movedCount >= 5;/.test(mayu),
+    '⑤ハンドラ内の枚数ゲート（消えると無条件グロウ＝過剰実行へ戻る）');
+}));
+
 // ── §5.3 `O-60` 第57バッチ（2026-09-03）＝`O-228`＝`SOUL_OP` を payload 化 ──
 // 🔴この id は `census:enginetext` A群の**最大項目**（live 24効果 / 24カード）で、
 //    **唯一 miss（どの regex にも当たらないカード）が 6枚残っていた**ハンドラだった。
