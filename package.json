@@ -27,6 +27,7 @@
     "census:wiring": "tsx scripts/censusWiring.ts",
     "census:goldentypes": "tsx scripts/goldenTypeCoverage.ts",
     "census:cards": "node scripts/cardProgressCensus.mjs",
+    "census:population": "node scripts/censusPopulation.mjs",
     "census:stubs": "tsx scripts/censusStubs.ts",
     "census:enginetext": "tsx scripts/censusEngineText.ts",
     "census:costtext": "tsx scripts/censusCostText.ts",
