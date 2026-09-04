@@ -1727,6 +1727,13 @@ export interface SelectionConstraint {
   /** 実行時に解決するパワー合計の上限（「**このシグニのパワー**以下になるように」＝`{$ref:'source_effective_power'}`）。 */
   totalPowerMaxRef?: NumberOrRef;
   /**
+   * 🆕**§5.3 `O-244`（2026-09-04）＝「**コストの合計がN以下になるように**スペルを2枚まで」**
+   * （`WXDi-P10-007-E3`）。**印刷コスト**（`Cost` 列の `《色》×N` の合計）で数える。
+   * ⚠**コストが読めないカードは不成立**へ倒す（fail-closed）＝読めない札を混ぜて上限を素通りさせない。
+   * ⚠`distinct:'costSum'`（互いに異なる）とは別軸＝あちらは**比較**、こちらは**合計の上限**。
+   */
+  totalCostMax?: number;
+  /**
    * 🆕**選択集合のパワー合計がちょうどこの値**（§5.3 `O-212`）＝「パワーの合計が12000に**なるように**」。
    * ⚠**上限（`totalPowerMax`）とは別軸**＝ちょうどにできない組み合わせは選べない。
    *   途中経過（選択の積み上げ）は `canAddToSelection` が**超過だけ**を弾き、確定時に一致を要求する。
@@ -5435,6 +5442,11 @@ export interface StubAction {
    * ⚠**対象は「相手の 場／エナ／トラッシュ から1枚ずつ」で固定**（原文の形）＝ここには持たせない。
    */
   crossZoneTriple?: { colors: string[]; story: string };
+  /**
+   * 🆕**§5.3 `O-244`（2026-09-04）＝デッキ上を見てチェックゾーンへ置き、無料で使う**（`WXDi-P10-007-E3`）。
+   * `lookCount`＝見る枚数／`maxPick`＝置ける上限／`totalCostMax`＝置く札の**コスト合計の上限**。
+   */
+  checkZoneFreeCast?: { lookCount: number; maxPick: number; totalCostMax: number };
   /**
    * 🆕**§5.3 `O-230`／`O-60`（2026-09-04）＝`GUARD_ALTERNATIVE_COST` の中身を payload で運ぶ。**
    * 🔴旧 `collectGuardAlternativeCost` は**カード全文 regex**

@@ -23473,10 +23473,23 @@ function foldShuffleRevealTopThenBranch(action: EffectAction, sourceText: string
   } as EffectAction;
 }
 
+/**
+ * 🆕**§5.3 `O-244`（2026-09-04 実装）＝デッキ上を見てチェックゾーンへ置き、無料で使う。**
+ * `WXDi-P10-007-E3`「デッキの上からカードを10枚見る。その中から**コストの合計が4以下になるように**
+ *   スペルを2枚まで**チェックゾーンに置き**、残りをデッキに加えてシャッフルする。この方法で
+ *   チェックゾーンに置いたスペルを**好きな順番でコストを支払わずに使用する**」
+ * 🔴旧 live は `LOOK_AND_REORDER{count:10}` だけで**本文が丸ごと落ちて**おり、
+ *   しかも逆翻訳が「デッキの上10枚を見る」と**実装済みのように読めた**。
+ * ⚠**枚数・上限は原文から読む**（固定しない）。
+ */
 function deferCheckZoneFreeCast(action: EffectAction, sourceText: string): EffectAction {
-  if (!/コストの合計が[０-９\d]+以下になるようにスペルを[０-９\d]+枚までチェックゾーンに置き/.test(sourceText)) return action;
+  // ⚠**`[^。]` で挟まない**＝原文は「…10枚見る**。**その中から…」と句点を跨ぐ（最初これで1件も当たらなかった）。
+  const m = sourceText.match(/デッキの上からカードを([０-９\d]+)枚見る[\s\S]*?コストの合計が([０-９\d]+)以下になるようにスペルを([０-９\d]+)枚までチェックゾーンに置き/);
+  if (!m) return action;
   if (!/コストを支払わずに使用する/.test(sourceText)) return action;
-  return { type: 'STUB', id: 'DEFERRED_CHECK_ZONE_FREE_CAST' } as EffectAction;
+  const num = (x: string) => parseInt(x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+  return { type: 'STUB', id: 'CHECK_ZONE_FREE_CAST',
+    checkZoneFreeCast: { lookCount: num(m[1]), totalCostMax: num(m[2]), maxPick: num(m[3]) } } as unknown as EffectAction;
 }
 
 /**

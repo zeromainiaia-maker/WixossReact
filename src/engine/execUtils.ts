@@ -3722,6 +3722,21 @@ export function satisfiesSelectionConstraint(
     const level = parseInt(card?.Level ?? '', 10);
     return sum + (Number.isFinite(level) ? level : 0);
   }, 0);
+  // 🆕§5.3 `O-244`＝コスト合計の上限（印刷コストの `《色》×N` を足す）。
+  //   ⚠**コストが読めないカードは不成立**（fail-closed）＝読めない札を混ぜて上限を素通りさせない。
+  if (constraint.totalCostMax !== undefined) {
+    let costSum = 0;
+    for (const card of cards) {
+      if (!card) return false;
+      const raw = card.Cost ?? '';
+      if (raw === '' || raw === '-') { costSum += 0; continue; }
+      for (const m of raw.matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+        if (m[1] === 'コイン') continue;
+        costSum += parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+      }
+    }
+    if (costSum > constraint.totalCostMax) return false;
+  }
   if (constraint.totalLevelExact !== undefined && levelSum() !== constraint.totalLevelExact) return false;
   if (constraint.totalLevelMax !== undefined && levelSum() > constraint.totalLevelMax) return false;
   // 🆕§5.3 `O-212`＝パワー合計の上限／一致。⚠印刷パワーで数え、**パワー不明は不成立**（fail-closed）。

@@ -5,13 +5,13 @@ live JSON の STUB id 種類 : 586（総ノード 3180 件）
 逆翻訳シートの [STUB:…] 総数: 380  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 27 種 / 28 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 27 種 / 28 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 26 種 / 27 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 26 種 / 27 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 33 種 / 103 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 559 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 337 種
+  D 健全（実装あり＋日本語表示）                          : 560 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 338 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -26,9 +26,6 @@ live JSON の STUB id 種類 : 586（総ノード 3180 件）
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
         生成: src\data\effectParser.ts:22630
-     1件   1枚  DEFERRED_CHECK_ZONE_FREE_CAST
-        カード: WXDi-P10-007
-        生成: src\data\effectParser.ts:23479
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1663

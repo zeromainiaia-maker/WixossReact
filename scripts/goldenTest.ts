@@ -22628,6 +22628,30 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
 // 🆕**§5.3 `O-243`（2026-09-04）＝3ゾーン横断の対象＋在庫コスト。**
 //   🔴旧 live は**原文と無関係な自傷**だった（相手の3枚が自分のトラッシュ1枚に化け、
 //     さらに**自分のシグニ**をデッキの一番下へ送っていた）。
+// 🆕**§5.3 `O-244`（2026-09-04）＝デッキ上を見てチェックゾーンへ置き、無料で使う。**
+//   🔴旧 live は `LOOK_AND_REORDER{count:10}` だけで**本文が丸ごと落ちて**おり、
+//     しかも逆翻訳が「デッキの上10枚を見る」と**実装済みのように読めた**。
+test('§5.3 O-244: 枚数・コスト上限は原文どおりの payload／コスト合計の上限が効く', () => withSavedCursor(() => {
+  const e3 = (effectsMap.get('WXDi-P10-007') ?? []).find(e => e.effectId === 'WXDi-P10-007-E3');
+  const act = e3?.action as unknown as { id?: string; checkZoneFreeCast?: { lookCount?: number; maxPick?: number; totalCostMax?: number } };
+  eq(act?.id, 'CHECK_ZONE_FREE_CAST', '実装済みの受け皿へ載っていない');
+  eq(act?.checkZoneFreeCast?.lookCount, 10, '見る枚数が原文どおりでない');
+  eq(act?.checkZoneFreeCast?.maxPick, 2, '置ける枚数が原文どおりでない');
+  eq(act?.checkZoneFreeCast?.totalCostMax, 4, 'コスト合計の上限が原文どおりでない');
+  // 🔴**新設した `totalCostMax` が実際に効く**（`satisfiesSelectionConstraint`）。
+  const cheap = findCard(c => (c.Type ?? '') === 'スペル' && /^《[^》]+》×[０-９\d]$/.test(c.Cost ?? '') );
+  const cost = (n: string) => {
+    let t = 0;
+    for (const m of (cardMap.get(n)?.Cost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+      if (m[1] === 'コイン') continue;
+      t += Number.parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    }
+    return t;
+  };
+  ok(satisfiesSelectionConstraint([cheap], { totalCostMax: 99 }, cardMap), '上限99なら通る');
+  ok(!satisfiesSelectionConstraint([cheap], { totalCostMax: cost(cheap) - 1 }, cardMap),
+    `🔴コスト合計の上限を超えても通った（${cheap} の合計=${cost(cheap)}）`);
+}));
 test('§5.3 O-243: 相手の 場／エナ／トラッシュ から1枚ずつ取り、コストが揃わなければ何も動かない', () => withSavedCursor(() => {
   const e2 = (effectsMap.get('WX21-028') ?? []).find(e => e.effectId === 'WX21-028-E2');
   const act = e2?.action as unknown as { id?: string; crossZoneTriple?: { colors?: string[]; story?: string } };
@@ -65403,9 +65427,9 @@ test('§5.3 O-188: TRANSFER_TO_HAND の対象固定は型・engine・parser の3
 //    しかも逆翻訳が**実装済みのように読めた**＝`census` の高シグナルでしか気づけない形だった。
 // ══════════════════════════════════════════════════════════════════════════════
 
-test('§5.3 O-244: 「見るだけ」に潰れた本文は明示 defer にする', () => withSavedCursor(() => {
+test('§5.3 O-244: 「見るだけ」に潰れていた本文が実装済みの受け皿へ載る', () => withSavedCursor(() => {
   const a = effectsMap.get('WXDi-P10-007')?.find(e => e.effectId === 'WXDi-P10-007-E3')?.action as { type?: string; id?: string };
-  eq(a?.id, 'DEFERRED_CHECK_ZONE_FREE_CAST', 'WXDi-P10-007-E3: 明示 defer');
+  eq(a?.id, 'CHECK_ZONE_FREE_CAST', 'WXDi-P10-007-E3: 実装済みの受け皿');
   // 🔴**負方向**＝「10枚見るだけ」の旧形へ戻っていない（戻ると逆翻訳が実装済みに見える）。
   ok(!JSON.stringify(a).includes('LOOK_AND_REORDER'), '「見るだけ」へ潰れていない');
 }));

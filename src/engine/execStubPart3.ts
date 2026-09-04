@@ -2162,6 +2162,87 @@ export function execStubPart3(
   //   🆕いまは `REVEAL_COUNT_PLUS_ONE_OPTIONAL` が `reveal_count_plus_one_this_turn` を立て、
   //     **公開のたびに**「1枚多く公開しますか？」を出す（`maybeAskRevealPlusOne`）。
   //     ⚠**自動加算にしない**＝原文は「してもよい」＝任意の置換なので、問わずに増やすと過剰実行。
+  // ── CHECK_ZONE_FREE_CAST（§5.3 `O-244`・2026-09-04）──
+  // 「デッキの上からN枚見る。その中から**コストの合計がM以下になるように**スペルをK枚まで**チェックゾーンに置き**、
+  //   残りをデッキに加えてシャッフルする。この方法でチェックゾーンに置いたスペルを
+  //   **好きな順番でコストを支払わずに使用する**」（`WXDi-P10-007-E3`）
+  // 🔴旧 live は `LOOK_AND_REORDER{count:10}` だけで**本文が丸ごと落ちて**おり、しかも逆翻訳が
+  //   「デッキの上10枚を見る」と**実装済みのように読めた**（census の高シグナルでしか気づけなかった）。
+  // 🔑**受け皿は既存を組み合わせる**＝チェックゾーンは `field.check_rest`（`O-143` で複数枚対応済み）、
+  //   無料使用の本体は `USE_SPELL_FROM_TRASH`（フリープレイ系＝主効果を実行する）。
+  // 🔑**段階は `value` で見分ける**（`lastProcessedCards` の有無で見分けない＝前段の処理を巻き込む）。
+  if (stub.id === 'CHECK_ZONE_FREE_CAST') {
+    const specCF = stub.checkZoneFreeCast;
+    if (!specCF) return done(addLog(ctx, '[チェックゾーンへ置いて使用: 内容が無いため何もしない]'));
+    // ── 段0＝デッキの上からN枚を見て、その中からスペルを選ぶ（コスト合計の上限つき）。
+    if (stub.value !== 'placed' && stub.value !== 'casting') {
+      const lookedCF = ctx.ownerState.deck.slice(0, specCF.lookCount);
+      if (lookedCF.length === 0) return done(addLog(ctx, 'デッキにカードがない'));
+      const candsCF = lookedCF.filter(cn => ctx.cardMap.get(getCardNum(cn))?.Type === 'スペル');
+      if (candsCF.length === 0) {
+        // 見たカードは全部デッキへ戻してシャッフル（原文「残りをデッキに加えてシャッフル」）。
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, deck: shuffle([...ctx.ownerState.deck]) } },
+          `デッキの上${lookedCF.length}枚を見た（スペルなし）`));
+      }
+      // ⚠**デッキ上を見て選ぶのは `SEARCH`**（`TargetScope` に `self_deck` は無い＝
+      //   既存の「N枚見てその中から選ぶ」は全部 `SEARCH{visibleCards}` を通る）。
+      return needsInteraction(addLog(ctx, `デッキの上${lookedCF.length}枚を見る`), {
+        type: 'SEARCH', visibleCards: candsCF,
+        maxPick: Math.min(specCF.maxPick, candsCF.length), optional: true,
+        selectionConstraint: { totalCostMax: specCF.totalCostMax },
+        thenAction: ({ ...stub, value: 'placed',
+          value2: lookedCF.join(',') } as StubAction) as EffectAction,
+      });
+    }
+    // ── 段1＝選んだスペルをチェックゾーンへ、見た残りをデッキへ戻してシャッフル。
+    if (stub.value === 'placed') {
+      const lookedCF2 = stub.value2 ? stub.value2.split(',').filter(Boolean) : [];
+      const chosenCF = (ctx.lastProcessedCards ?? []).filter(cn => lookedCF2.includes(cn));
+      const restCF = lookedCF2.filter(cn => !chosenCF.includes(cn));
+      const deckAfterCF = ctx.ownerState.deck.filter(cn => !lookedCF2.includes(cn));
+      const stateCF: PlayerState = {
+        ...ctx.ownerState,
+        deck: shuffle([...deckAfterCF, ...restCF]),
+        field: { ...ctx.ownerState.field, check_rest: [...(ctx.ownerState.field.check_rest ?? []), ...chosenCF] },
+      };
+      const ctxCF = addLog({ ...ctx, ownerState: stateCF },
+        chosenCF.length > 0
+          ? `${chosenCF.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・')}をチェックゾーンに置いた`
+          : 'チェックゾーンに置かなかった');
+      if (chosenCF.length === 0) return done(ctxCF);
+      return exec({ ...stub, value: 'casting', value2: chosenCF.join(',') } as StubAction as EffectAction, ctxCF);
+    }
+    // ── 段2＝「好きな順番で」コストを支払わずに使用する（1枚ずつ選ばせる）。
+    const remainCF = stub.value2 ? stub.value2.split(',').filter(Boolean) : [];
+    if (remainCF.length === 0) return done(ctx);
+    const castOne = (cn: string): EffectAction => ({
+      type: 'SEQUENCE', steps: [
+        // ⚠**チェックゾーンから外してから使う**＝残したままだと確認スロットが埋まって盤面が固まる
+        //   （§5.1 `V-135`② で見た形）。
+        { type: 'STUB', id: 'INTERNAL_CZFC_REMOVE_CHECK', carriedCardNum: cn } as StubAction,
+        { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cn } as StubAction,
+        { type: 'STUB', id: 'CHECK_ZONE_FREE_CAST', checkZoneFreeCast: specCF, value: 'casting',
+          value2: remainCF.filter(x => x !== cn).join(',') } as StubAction,
+      ],
+    } as EffectAction);
+    if (remainCF.length === 1) return exec(castOne(remainCF[0]), ctx);
+    return needsInteraction(addLog(ctx, 'どちらのスペルから使用しますか？'), {
+      type: 'CHOOSE', count: 1,
+      options: remainCF.map((cn, i) => ({
+        id: `czfc_${i}`,
+        label: `${ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn} を使用`,
+        action: castOne(cn), available: true,
+      })),
+    });
+  }
+  // INTERNAL_CZFC_REMOVE_CHECK: 使用する1枚をチェックゾーンから外す（§5.3 `O-244`）。
+  if (stub.id === 'INTERNAL_CZFC_REMOVE_CHECK') {
+    const cnRC = stub.carriedCardNum;
+    if (!cnRC) return done(ctx);
+    return done({ ...ctx, ownerState: { ...ctx.ownerState,
+      field: { ...ctx.ownerState.field,
+        check_rest: (ctx.ownerState.field.check_rest ?? []).filter(x => x !== cnRC) } } });
+  }
   // ── CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM（§5.3 `O-243`・2026-09-04）──
   // 「**対戦相手の、シグニ1体とエナゾーンにあるカード1枚とトラッシュにあるカード1枚**を対象とし、
   //   **あなたのエナゾーンから赤と青と緑の＜天使＞のシグニを1枚ずつ**デッキに加えてシャッフルする。
