@@ -49103,15 +49103,18 @@ scenarios.o238FlipAttack = {
       // 🔴**押す前にフェイズが流れたら戻す**（§4.4 の既知＝`b11attacktrigger` と同じ対処）。
       //   これが無いと「ボタンが出なかった」と誤報する（CPU ターンへ渡ってしまう）。
       if (!clicked) {
-        const ph = await H.queryState();
-        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+        const ph = await v14QueryBattleState(page);
+        // ⚠**フェイズだけでなく盤面も見る**＝一括実行では前の巡でゲームごと入れ替わる（新規ゲームが張られる）ので、
+        //   フェイズが偶然 ATTACK_SIGNI でも別の盤面を掴んでいることがある。
+        const boardOk = (ph?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes(O238_ROBINHOOD));
+        if (!boardOk || (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0))) {
           await H.closeModals();
           await injectScenario(page, scenarios.o238FlipAttack.spec);
           await page.waitForTimeout(900);
           await page.reload({ waitUntil: 'networkidle' });
           await page.waitForTimeout(1500);
           modalOpened = false;
-          did = `re-inject(was ${ph.turnPhase})`;
+          did = `re-inject(was ${ph.turnPhase} / board=${boardOk})`;
         }
       }
       if (!did && !clicked) {
@@ -49195,13 +49198,16 @@ scenarios.o238GrantGatedByOtherSigni = {
       // ⚠押す前にフェイズが流れたら盤面ごと張り直す（`o238FlipAttack` と同じ）。
       if (!attacked) {
         const ph = await v14QueryBattleState(page);
-        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+        // ⚠**盤面も見る**＝一括実行では前の巡でゲームごと入れ替わる（フェイズが偶然合っていても別の盤面）。
+        const boardOk = (ph?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes(O238_ROBINHOOD))
+          && (ph?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+        if (!boardOk || (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0))) {
           await H.closeModals();
           await injectScenario(page, scenarios.o238GrantGatedByOtherSigni.spec);
           await page.waitForTimeout(900);
           await page.reload({ waitUntil: 'networkidle' });
           await page.waitForTimeout(1500);
-          did = `re-inject(was ${ph.turnPhase})`;
+          did = `re-inject(was ${ph.turnPhase} / board=${boardOk})`;
         }
       }
       if (!did) {
@@ -49234,6 +49240,11 @@ scenarios.o238GrantGatedByOtherSigni = {
     const remain = (last?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length;
     const dump = `guest=${JSON.stringify(last?.guest?.fieldSigni)} gEnergy=${(last?.guest?.energy ?? []).length} attacked=${attacked} 発動提示=${sawActivate}`;
     if (!attacked) return { pass: false, detail: `前提崩れ＝アタックが1度も起きなかった。${dump}` };
+    // 🔴**判定の瞬間も自分が張った盤面であること**＝一括実行ではゲームごと入れ替わる（新しいゲームが張られる）。
+    //   これを見ないと「別ゲームの空の盤面」を「全シグニがエナへ行った＝旧挙動」と**誤って赤にする**（実測）。
+    if (!(last?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes(O238_ROBINHOOD))) {
+      return { pass: false, detail: `前提崩れ＝判定時の盤面が自分のものではない（別ゲームを掴んだ）。${dump}` };
+    }
     if (sawActivate) return { pass: false, detail: `🔴旧挙動＝他にシグニが2体いるのに引用【自】の発動が提示された（条件節が落ちている）。${dump}` };
     if (remain === 0) return { pass: false, detail: `🔴旧挙動＝相手の全シグニがエナへ行った（条件節が落ちている）。${dump}` };
     return { pass: true, detail: `他にシグニが2体いるので引用【自】は提示すらされず、相手の場は残った（${remain}体）。${dump}` };
@@ -49277,13 +49288,15 @@ scenarios.o238GrantOpenedByFlip = {
       let did = null;
       if (!clicked) {
         const ph = await v14QueryBattleState(page);
-        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+        const boardOk = (ph?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3
+          && (ph?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+        if (!boardOk || (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0))) {
           await H.closeModals();
           await injectScenario(page, scenarios.o238GrantOpenedByFlip.spec);
           await page.waitForTimeout(900);
           await page.reload({ waitUntil: 'networkidle' });
           await page.waitForTimeout(1500);
-          did = `re-inject(was ${ph.turnPhase})`;
+          did = `re-inject(was ${ph.turnPhase} / board=${boardOk})`;
         }
       }
       if (!did) {
@@ -49367,13 +49380,16 @@ scenarios.o238GrantAloneNormalAttack = {
       let did = null;
       if (!attacked) {
         const ph = await v14QueryBattleState(page);
-        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+        // ⚠**盤面も見る**＝一括実行では前の巡でゲームごと入れ替わる（フェイズが偶然合っていても別の盤面）。
+        const boardOk = (ph?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes(O238_ROBINHOOD))
+          && (ph?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+        if (!boardOk || (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0))) {
           await H.closeModals();
           await injectScenario(page, scenarios.o238GrantAloneNormalAttack.spec);
           await page.waitForTimeout(900);
           await page.reload({ waitUntil: 'networkidle' });
           await page.waitForTimeout(1500);
-          did = `re-inject(was ${ph.turnPhase})`;
+          did = `re-inject(was ${ph.turnPhase} / board=${boardOk})`;
         }
       }
       if (!did) {
@@ -49419,6 +49435,287 @@ scenarios.o238GrantAloneNormalAttack = {
   },
 };
 order.push('o238GrantAloneNormalAttack');
+
+
+// -----------------------------------------------------------------------------
+// §5.3 `O-248`（2026-09-05）＝**グロウ時の「公開する／捨ててもよい」支払い**。
+// 🔑**2つを別経路にしたのが要点**＝
+//   ①**公開**（手札を失わない）＝断る理由が無いので支払い UI を挟まず「手札に持っているか」で自動適用
+//     （`HAND_COUNT_FILTER` ＋ `collectGrowCostReductions` の許可リスト）
+//   ②**捨てる**（手札を失う）＝`collectGrowPayOptions` → `GrowModal` の支払い UI が取ってから適用
+//   ⚠②を①と同じ扱いにすると**捨てずにタダ**（過小コスト）、①を②にすると**押すまで安くならない**（過大）。
+// 🔴**旧挙動**＝`WX21-017`/`WX21-018` は parser が `zeroAct` を作って**返さずに捨てて**おり、
+//   catch-all の `STUB{GROW_COST_ZERO}` に落ちて**恒久 no-op**（捨てても1円も安くならない）。
+//   `WD13-002`/`WD13-003` は条件が `LAST_PROCESSED_MATCHES`／`IS_MY_TURN` で**永久に成立しない**＝
+//   公開しても軽減が来ない（`O-219` で過剰実行を塞いだ側の裏返し）。
+// -----------------------------------------------------------------------------
+const O248_TAWIL_L1 = 'WX21-019#1';   // 果たされし使　リワト＝エット（Lv1 タウィル）
+const O248_TAWIL_L2 = 'WX21-018#1';   // 満たされし使　リワト＝トヴォ（Lv2・GrowCost《緑》×1・天使1枚を捨てれば《緑×0》）
+const O248_ANGEL    = 'WX01-035#1';   // 祝福の女神　アテナ（精像：天使）
+const O248_ARM      = 'WD01-009#1';   // 甲冑　ローメイル（精武：アーム＝天使ではない）
+const O248_IONA_L3  = 'WX11-008#1';   // 未練の巫女　ユキ（Lv3 イオナ）
+const O248_IONA_L4  = 'WD13-002#1';   // 愛幸の巫女　ユキ（Lv4・GrowCost《白》×1《黒》×1《無》×1）
+const O248_MEIKYU   = 'WX04-029#1';   // コードラビリンス　クイン（精械：迷宮）
+const O248_DOKUGA   = 'WX04-037#1';   // フィア＝リカブト（精武：毒牙）
+
+/** グロウ盤面の共通 spec（⚠**CORE フィールドは明示クリアする**＝§5.1 の教訓）。 */
+const o248GrowSpec = (p) => ({
+  hostSet: {
+    'field.lrig': [p.lrig],
+    'field.lrig_down': false,
+    'lrig_deck': [p.target],
+    'energy': p.energy,
+    'hand': p.hand,
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'actions_done': [],
+    'free_grow_this_turn': false,
+    'lrig_grew_this_turn': false,
+    // ⚠**`life_cloth` は注入しない**（2026-09-05 実測）＝作った instance id を積むと
+    //   注入そのものが通らなくなり（`injected=false`）、**全シナリオが別ゲームを掴む**ようになった。
+    //   ライフは既存ゲームのものをそのまま使う。
+  },
+  guestSet: { 'field.signi': [null, null, null], 'field.check': null, 'actions_done': [] },
+  top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+});
+
+/** グロウ候補を開いて、必要なら任意コストの手札を選び、「グロウ実行」まで押す共通ドライバ。 */
+const o248DriveGrow = async (page, H, spec, candidateRe, opts) => {
+  let before = await H.queryState();
+  for (let r = 0; r < 6; r++) {
+    // 🔴**lrig だけで注入確認しない**＝一括実行では前の巡のゲームが進んでいて、
+    //   「ルリグは合っているのに手札・エナが別物」という半端な一致が起きる（2026-09-05 に空振り緑を2本出した）。
+    const ok = before?.host?.lrigTop === spec.hostSet['field.lrig'][0]
+      && (before?.host?.handCards ?? []).length === spec.hostSet['hand'].length
+      && (before?.host?.energyCards ?? []).length === spec.hostSet['energy'].length;
+    H.log(`注入確認(試行${r}): lrigTop=${before?.host?.lrigTop} hand=${JSON.stringify(before?.host?.handCards)} energy=${JSON.stringify(before?.host?.energyCards)} ok=${ok}`);
+    if (ok) break;
+    await injectScenario(page, spec);
+    await page.waitForTimeout(1200);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1500);
+    before = await H.queryState();
+  }
+  // 🔴**注入が確定しないまま先へ進まない**＝負のシナリオ（「グロウできない」）は
+  //   盤面が入っていなくても緑になるので、**前提が崩れていることを前提崩れとして落とす**
+  //   （2026-09-05 に一括実行で実際に空振り緑を1本出した）。
+  const injected = before?.host?.lrigTop === spec.hostSet['field.lrig'][0];
+  const opened = injected ? await H.openGrow(candidateRe) : false;
+  H.log(`注入=${injected} / グロウ候補クリック: ${opened ? 'OK' : '押せず（候補が灰色＝払える見込みが立っていない）'}`);
+  let picked = false, executed = false;
+  let last = before;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${opts.tag}-${s}.png`, fullPage: true });
+    let did = null;
+    // ⚠**任意コストの手札は `growpay-hand-<手札index>`**（トグルなので押した index は覚える）。
+    if (!did && opened && !picked && opts.payHandIdx !== undefined) {
+      const b = page.getByTestId(`growpay-hand-${opts.payHandIdx}`).first();
+      if (await b.count() && await b.isVisible().catch(() => false)) {
+        await b.click().catch(() => {}); did = `growpay-hand-${opts.payHandIdx}`; picked = true;
+      }
+    }
+    if (!did && opened) {
+      const exec = page.getByTestId('grow-execute').first();
+      if (await exec.count() && await exec.isVisible().catch(() => false) && await exec.isEnabled().catch(() => false)) {
+        await exec.click().catch(() => {}); did = 'grow-execute'; executed = true;
+      }
+    }
+    last = await H.queryState();
+    H.log(`  ${opts.tag}[${s}] -> ${did ?? 'なし'} | lrigTop=${last?.host?.lrigTop} hand=${JSON.stringify(last?.host?.handCards)} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}`);
+    // ⚠**判定に要る事実が出そろったら即抜ける**＝空回ししているあいだにターンが流れて
+    //   「別のゲームの盤面」を掴み、負のシナリオが空振りで緑になる。
+    if (executed && last?.host?.lrigTop !== spec.hostSet['field.lrig'][0]) break;
+    if (opts.stopWhenIdle && !did && s >= 2) break;
+  }
+  return { injected, opened, picked, executed, last };
+};
+
+scenarios.o248GrowDiscardPay = {
+  title: 'WX21-018（手札の＜天使＞1枚を捨てて《緑×0》でグロウ）【旧実装はエナ0では候補が灰色のまま】',
+  spec: o248GrowSpec({ lrig: O248_TAWIL_L1, target: O248_TAWIL_L2, energy: [], hand: [O248_ANGEL] }),
+  async drive(page, H) {
+    // 🔴**エナ0**にしてある＝**捨てる支払いが効いていなければ絶対にグロウできない**盤面。
+    const r = await o248DriveGrow(page, H, scenarios.o248GrowDiscardPay.spec, /満たされし使/, { tag: 'o248Pay', payHandIdx: 0 });
+    const st = r.last;
+    const dump = `lrigTop=${st?.host?.lrigTop} hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)} opened=${r.opened} picked=${r.picked}`;
+    if (st?.host?.lrigTop !== 'WX21-019#1' && st?.host?.lrigTop !== 'WX21-018#1') {
+      return { pass: false, detail: `前提崩れ＝判定時の盤面が自分のものではない（別ゲームを掴んだ）。${dump}` };
+    }
+    if (!r.opened) return { pass: false, detail: `🔴グロウ候補が押せなかった＝Phase1 の払える見込み判定に任意コストが入っていない。${dump}` };
+    if (!r.picked) return { pass: false, detail: `🔴任意コストの手札が提示されなかった（growpay-hand-0）。${dump}` };
+    if (st?.host?.lrigTop !== 'WX21-018#1') return { pass: false, detail: `🔴グロウが完了しなかった。${dump}` };
+    const handNums = (st?.host?.handCards ?? []).map(c => (typeof c === 'string' ? c : c?.cardNum));
+    if (handNums.includes('WX01-035#1')) return { pass: false, detail: `🔴捨てたはずの＜天使＞が手札に残っている＝支払いが素通り。${dump}` };
+    if (!(st?.host?.trashCards ?? []).includes('WX01-035#1')) return { pass: false, detail: `🔴捨てた＜天使＞がトラッシュに無い。${dump}` };
+    return { pass: true, detail: `エナ0でも＜天使＞1枚を捨てて《緑×0》でグロウできた（手札→トラッシュも確認）。${dump}` };
+  },
+};
+
+/**
+ * 🔴🔑**負のシナリオ用＝候補を「押さずに」見る。**
+ *
+ * `H.openGrow` は候補ボタンを `.click().catch(() => {})` で押すが、**無効なボタンを押すと
+ * Playwright は「有効になるまで」待ち、既定タイムアウト（30秒）を丸ごと溶かす**。
+ * その間にゲームが進んで終わり、**新しいゲームが張られて観測が別盤面に化ける**
+ * （2026-09-05 に「前提崩れ」を10回以上出した真因がこれ）。
+ * ⇒ 「グロウできないこと」を主張する観測は **`isEnabled()` を読むだけ**にして、1秒台で閉じる。
+ */
+const o248ProbeGrowCandidate = async (page, H, candidateRe) => {
+  // ⚠**「グロウ」ボタン→候補一覧の表示は1回で決まらない**（フェイズ反映と再描画のずれ）＝
+  //   読むだけなので安く、4回まで見に行く。**候補ボタンは押さない**（押すと上の罠を踏む）。
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(600);
+    const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+    if (await gb.count() && await gb.isVisible().catch(() => false)) await gb.click().catch(() => {});
+    await page.waitForTimeout(800);
+    const cand = page.getByRole('button', { name: candidateRe }).first();
+    const present = (await cand.count()) > 0 && await cand.isVisible().catch(() => false);
+    if (present) return { present, enabled: await cand.isEnabled().catch(() => false) };
+    H.log(`  候補が見えない（試行${attempt + 1}）＝開き直す`);
+  }
+  return { present: false, enabled: false };
+};
+
+scenarios.o248GrowDiscardNoAngel = {
+  title: 'WX21-018（＜天使＞を持たずエナ0）＝グロウできない【捨てずにタダになる過小コストの検出】',
+  spec: o248GrowSpec({ lrig: O248_TAWIL_L1, target: O248_TAWIL_L2, energy: [], hand: [O248_ARM] }),
+  async drive(page, H) {
+    // 🔴**軽減を無条件に適用してしまう実装**なら、ここでグロウが通ってしまう（捨てずにタダ）。
+    // 🔑🔴**負のシナリオは「短く」書く**＝待っているあいだに CPU がゲームを終わらせ、
+    //   新しいゲームが張られて**別ゲームの盤面を掴む**（2026-09-05 に一括実行で何度も踏んだ）。
+    //   ⇒ 注入 → 候補を押す → 1ティック → 判定、で閉じる。**張り直しのリトライは事態を悪化させる**
+    //     （やり直すほど時間が延びて、その間にまたゲームが終わる）。
+    const spec = scenarios.o248GrowDiscardNoAngel.spec;
+    let before = await H.queryState();
+    for (let r = 0; r < 6; r++) {
+      if (before?.host?.lrigTop === O248_TAWIL_L1 && (before?.host?.handCards ?? []).length === 1) break;
+      H.log(`注入やり直し(${r}): lrigTop=${before?.host?.lrigTop} hand=${JSON.stringify(before?.host?.handCards)}`);
+      await injectScenario(page, spec);
+      await page.waitForTimeout(1000);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1400);
+      before = await H.queryState();
+    }
+    const injected = before?.host?.lrigTop === O248_TAWIL_L1;
+    const probe = injected ? await o248ProbeGrowCandidate(page, H, /満たされし使/) : { present: false, enabled: false };
+    await page.screenshot({ path: `${SHOT}/o248NoAngel-final.png`, fullPage: true });
+    const st = await H.queryState();
+    const dump = `lrigTop=${st?.host?.lrigTop} hand=${JSON.stringify(st?.host?.handCards)} injected=${injected} 候補=${JSON.stringify(probe)}`;
+    H.log(`  o248NoAngel 判定: ${dump}`);
+    if (!injected) return { pass: false, detail: `前提崩れ＝盤面が注入できていない（この判定は空振りでは意味を持たない）。${dump}` };
+    if (st?.host?.lrigTop !== O248_TAWIL_L1) return { pass: false, detail: `前提崩れ＝判定時の盤面が自分のものではない。${dump}` };
+    if (!probe.present) return { pass: false, detail: `前提崩れ＝グロウ候補そのものが出ていない（レベル・ルリグタイプの前提が崩れている）。${dump}` };
+    if (probe.enabled) return { pass: false, detail: `🔴＜天使＞を1枚も持っていない（エナも0）のに候補が押せる＝捨てずにタダになる過小コスト。${dump}` };
+    return { pass: true, detail: `候補は出るが灰色＝＜天使＞を捨てられないのでグロウできない（過小コストになっていない）。${dump}` };
+  },
+};
+
+scenarios.o248GrowRevealAuto = {
+  title: 'WD13-002（手札に＜迷宮＞と＜毒牙＞＝公開でコストが《無》×1まで下がる）【旧実装は軽減0】',
+  // 印字《白》×1《黒》×1《無》×1（=3枚）に対してエナは1枚だけ＝**公開の軽減が効かなければ払えない**。
+  spec: o248GrowSpec({ lrig: O248_IONA_L3, target: O248_IONA_L4, energy: ['WD01-013#9'], hand: [O248_MEIKYU, O248_DOKUGA] }),
+  async drive(page, H) {
+    const spec = scenarios.o248GrowRevealAuto.spec;
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      if (before?.host?.lrigTop === O248_IONA_L3
+        && (before?.host?.handCards ?? []).length === spec.hostSet['hand'].length
+        && (before?.host?.energyCards ?? []).length === 1) break;
+      await injectScenario(page, spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    const injected = before?.host?.lrigTop === O248_IONA_L3
+      && (before?.host?.handCards ?? []).length === spec.hostSet['hand'].length;
+    const opened = injected ? await H.openGrow(/愛幸の巫女/) : false;
+    H.log(`注入=${injected} / グロウ候補クリック: ${opened ? 'OK' : '押せず'}`);
+    let energyPicked = false, executed = false;
+    let last = before;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o248Reveal-${s}.png`, fullPage: true });
+      let did = null;
+      // 残る《無》×1 をエナ1枚で払う（Phase 2 のエナサムネは img[alt] で掴む）。
+      if (!did && opened && !energyPicked) {
+        const img = page.locator('img[alt="小剣　ククリ"]').last();
+        if (await img.count() && await img.isVisible().catch(() => false)) {
+          await img.click().catch(() => {}); did = 'ena:小剣　ククリ'; energyPicked = true;
+        }
+      }
+      if (!did && opened) {
+        const exec = page.getByTestId('grow-execute').first();
+        if (await exec.count() && await exec.isVisible().catch(() => false) && await exec.isEnabled().catch(() => false)) {
+          await exec.click().catch(() => {}); did = 'grow-execute'; executed = true;
+        }
+      }
+      last = await H.queryState();
+      H.log(`  o248Reveal[${s}] -> ${did ?? 'なし'} | lrigTop=${last?.host?.lrigTop} hand=${JSON.stringify(last?.host?.handCards)} energy=${JSON.stringify(last?.host?.energyCards)}`);
+      if (last?.host?.lrigTop === 'WD13-002#1') break;
+    }
+    const st = last;
+    const dump = `lrigTop=${st?.host?.lrigTop} hand=${JSON.stringify(st?.host?.handCards)} energy=${JSON.stringify(st?.host?.energyCards)} injected=${injected} opened=${opened} exec=${executed}`;
+    if (!injected) return { pass: false, detail: `前提崩れ＝盤面が注入できていない。${dump}` };
+    if (st?.host?.lrigTop !== O248_IONA_L3 && st?.host?.lrigTop !== 'WD13-002#1') {
+      return { pass: false, detail: `前提崩れ＝判定時の盤面が自分のものではない（別ゲームを掴んだ）。${dump}` };
+    }
+    if (!opened) return { pass: false, detail: `🔴グロウ候補が押せなかった＝公開ぶんの軽減が効いていない（エナ1枚では印字3枚を払えない）。${dump}` };
+    if (st?.host?.lrigTop !== 'WD13-002#1') return { pass: false, detail: `🔴グロウが完了しなかった。${dump}` };
+    // ⚠**公開は手札を失わない**＝2枚とも手札に残っていること（捨ててしまっていないか）。
+    const handNums = (st?.host?.handCards ?? []).map(c => (typeof c === 'string' ? c : c?.cardNum));
+    if (!handNums.includes('WX04-029#1') || !handNums.includes('WX04-037#1')) {
+      return { pass: false, detail: `🔴公開したカードが手札から消えている（公開は捨てるではない）。${dump}` };
+    }
+    return { pass: true, detail: `＜迷宮＞＋＜毒牙＞を手札に持っているので《白×1》《黒×1》が下がり、エナ1枚でグロウできた（公開したカードは手札に残る）。${dump}` };
+  },
+};
+
+// 🔴**登録順＝実行順**＝**グロウが成立するシナリオを最後に置く**。
+//   成立側は手札もエナも使い切るので、そのあとゲームが終わって**新しいゲームが張られ**、
+//   後続のシナリオが「別の盤面」を掴む（2026-09-05 に一括実行で3本を空振り FAIL させた）。
+order.push('o248GrowDiscardNoAngel');
+order.push('o248GrowRevealNone');
+order.push('o248GrowRevealAuto');
+order.push('o248GrowDiscardPay');
+
+scenarios.o248GrowRevealNone = {
+  title: 'WD13-002（手札に＜迷宮＞も＜毒牙＞も無い）＝エナ1枚では払えない【無条件軽減の検出】',
+  spec: o248GrowSpec({ lrig: O248_IONA_L3, target: O248_IONA_L4, energy: ['WD01-013#9'], hand: [O248_ARM] }),
+  async drive(page, H) {
+    // 🔑**短く閉じる**（理由は `o248GrowDiscardNoAngel` の注記と同じ）。
+    const spec = scenarios.o248GrowRevealNone.spec;
+    let before = await H.queryState();
+    for (let r = 0; r < 6; r++) {
+      if (before?.host?.lrigTop === O248_IONA_L3 && (before?.host?.handCards ?? []).length === 1) break;
+      H.log(`注入やり直し(${r}): lrigTop=${before?.host?.lrigTop} hand=${JSON.stringify(before?.host?.handCards)}`);
+      await injectScenario(page, spec);
+      await page.waitForTimeout(1000);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1400);
+      before = await H.queryState();
+    }
+    const injected = before?.host?.lrigTop === O248_IONA_L3;
+    const probe = injected ? await o248ProbeGrowCandidate(page, H, /愛幸の巫女/) : { present: false, enabled: false };
+    await page.screenshot({ path: `${SHOT}/o248RevealNone-final.png`, fullPage: true });
+    const last = await H.queryState();
+    const dump = `lrigTop=${last?.host?.lrigTop} injected=${injected} 候補=${JSON.stringify(probe)}`;
+    H.log(`  o248RevealNone 判定: ${dump}`);
+    if (!injected) return { pass: false, detail: `前提崩れ＝盤面が注入できていない（この判定は空振りでは意味を持たない）。${dump}` };
+    if (last?.host?.lrigTop !== O248_IONA_L3) return { pass: false, detail: `前提崩れ＝判定時の盤面が自分のものではない。${dump}` };
+    if (!probe.present) return { pass: false, detail: `前提崩れ＝グロウ候補そのものが出ていない。${dump}` };
+    if (probe.enabled) return { pass: false, detail: `🔴＜迷宮＞も＜毒牙＞も持っていないのにエナ1枚で候補が押せる＝無条件軽減（過小コスト）。${dump}` };
+    return { pass: true, detail: `対象を持っていなければ軽減されず、エナ1枚では候補が灰色のまま。${dump}` };
+  },
+};
+
+order.push('o248GrowDiscardNoAngel');
+order.push('o248GrowRevealNone');
+order.push('o248GrowRevealAuto');
+order.push('o248GrowDiscardPay');
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

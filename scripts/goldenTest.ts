@@ -23,7 +23,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -69,6 +69,7 @@ import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement'
 import { addNColorToCost, removeNColorFromCost, costScalingOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
+import { applyGrowCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -65106,6 +65107,87 @@ test('§5.3 O-60 第66: 引用の先頭が《アイコン》でも付与とし�
     '「【レイヤー】を持つ＜怪異＞の」が filter に載る');
   eq(a?.effect?.timing?.[0], 'ON_LEAVE_FIELD', '引用は展開済み（rawText を残さない）');
   eq(a?.effect?.action?.type, 'BOUNCE', '引用の中身も載る');
+}));
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-248`（2026-09-05）＝グロウ時の「公開する／捨ててもよい」支払い。
+// 🔑**2つを別経路にしたのが要点**＝
+//   ①**公開**（手札を失わない）＝`HAND_COUNT_FILTER` の条件として `collectGrowCostReductions` が自動適用
+//   ②**捨てる**（手札を失う）＝`collectGrowPayOptions` → `GrowModal` の支払い UI が取ってから適用
+//   ⚠②を①と同じ扱いにすると**捨てずにタダ**（過小コスト）、①を②にすると**押すまで安くならない**（過大）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-248: 「捨ててもよい」は payload 化され、支払うまで軽減されない', () => withSavedCursor(() => {
+  // 🔴旧は `parseSentencePart2` が `zeroAct` を作って**返さずに捨てて**おり、catch-all の
+  //   `STUB{GROW_COST_ZERO}` に落ちていた＝`collectGrowCostReductions` はその STUB を見ないので恒久 no-op、
+  //   逆翻訳も「《無×0》になる（実質フリーグロウ）」と**原文に無い色**を出していた。
+  for (const [num, color] of [['WX21-017', '青'], ['WX21-018', '緑']] as const) {
+    const act = effectsMap.get(num)?.find(e => e.effectId === `${num}-E1`)?.action as SequenceAction | undefined;
+    const gate = act?.steps?.[1] as { type?: string; condition?: { type?: string }; then?: { type?: string; zeroColors?: string[]; forSelfGrowOnly?: boolean } } | undefined;
+    eq(gate?.condition?.type, 'IS_MY_TURN', `${num}: 「そうした場合」の慣例エンコードは据置`);
+    eq(gate?.then?.type, 'GROW_COST_REDUCTION', `${num}: STUB ではなく軽減アクション`);
+    eq((gate?.then?.zeroColors ?? []).join(','), color, `${num}: 0にする色は原文どおり`);
+    eq(gate?.then?.forSelfGrowOnly, true, `${num}: グロウ先自身の宣言`);
+  }
+  // 🔴**支払う前は1円も安くならない**（`scan` は `CONDITIONAL{IS_MY_TURN}` を覗かない）。
+  const angel = 'WX01-035';   // 祝福の女神　アテナ（精像：天使）
+  const st = { ...mkState({ hand: 0 }), hand: [angel, angel] } as PlayerState;
+  eq(JSON.stringify(collectGrowCostReductions(st, mkState(), true, effectsMap, cardMap, 'WX21-017')), '[]',
+    '天使を2枚持っていても、捨てるまでは軽減0');
+  // 提示は別経路から出る。
+  const opts = collectGrowPayOptions('WX21-017', effectsMap, cardMap);
+  eq(opts.length, 1, 'WX21-017: 支払い提示が1件');
+  eq(opts[0].handDiscard.count, 2, '捨てる枚数');
+  eq(opts[0].handDiscard.filter?.story, '天使', '対象は＜天使＞');
+  eq(JSON.stringify(opts[0].reduction), JSON.stringify([{ color: '青', count: 99 }]), '払えば《青》は全額落ちる');
+  eq(growPayCandidateHandIndices(st, opts[0], cardMap).join(','), '0,1', '手札の候補 index');
+  // 払えば印字《青》×２が消える。
+  // ⚠`removeNColorFromCost` は全部落ちると **`'なし'`** を返す（空文字ではない）＝
+  //   `parseGrowCost('なし')` は空配列なので要求枚数0になる。
+  eq(applyGrowCostReduction('《青》×２', opts[0].reduction), 'なし', '払えばグロウコストは残らない');
+  eq(parseGrowCost(applyGrowCostReduction('《青》×２', opts[0].reduction)).length, 0, '要求枚数は0');
+  eq(applyGrowCostReduction('《青》×２', []), '《青》×２', '払わなければ据置');
+  // ⚠**対象外の手札では成立しない**（候補の突き合わせが効いていること）。
+  const noAngel = { ...mkState({ hand: 0 }), hand: ['WD01-009', 'WD01-009'] } as PlayerState;  // ＜アーム＞
+  eq(growPayCandidateHandIndices(noAngel, opts[0], cardMap).length, 0, '＜天使＞でない手札は候補外');
+}));
+
+test('§5.3 O-248: 「公開する」は手札の中身で自動適用する（WD13-002）', () => withSavedCursor(() => {
+  // 原文「手札からシグニを2枚まで公開する。この方法で＜迷宮＞を公開した場合《白×1》減り、＜毒牙＞の場合《黒×1》減る」。
+  // 🔑公開は**手札を失わない**＝断る理由が無いので、支払い UI を挟まず「持っているか」で解く。
+  const meikyu = 'WX04-029';  // コードラビリンス　クイン（精械：迷宮）
+  const dokuga = 'WX04-037';  // フィア＝リカブト（精武：毒牙）
+  const red = (hand: string[]) => collectGrowCostReductions(
+    { ...mkState({ hand: 0 }), hand } as PlayerState, mkState(), true, effectsMap, cardMap, 'WD13-002');
+  eq(JSON.stringify(red([])), '[]', '手札に無ければ軽減0（旧は無条件で白1黒1だった）');
+  eq(JSON.stringify(red([meikyu])), JSON.stringify([{ color: '白', count: 1 }]), '＜迷宮＞だけなら白×1');
+  eq(JSON.stringify(red([dokuga])), JSON.stringify([{ color: '黒', count: 1 }]), '＜毒牙＞だけなら黒×1');
+  eq(JSON.stringify(red([meikyu, dokuga])), JSON.stringify([{ color: '白', count: 1 }, { color: '黒', count: 1 }]),
+    '2枚まで公開できるので両方同時に減る');
+  // 🔴**グロウ先として評価しているときだけ**＝場に居るあいだ次のグロウを安くしない（`forSelfGrowOnly`）。
+  eq(JSON.stringify(collectGrowCostReductions(
+    { ...mkState({ hand: 0 }), hand: [meikyu, dokuga] } as PlayerState, mkState(), true, effectsMap, cardMap)), '[]',
+    'growTargetCardNum を渡さなければ1件も拾わない');
+  // 「捨てる」ではないので支払い提示は出ない。
+  eq(collectGrowPayOptions('WD13-002', effectsMap, cardMap).length, 0, '公開は任意コストの提示に出さない');
+}));
+
+test('§5.3 O-248: 「＜アーム＞1枚と＜天使＞1枚を公開してもよい」は AND（WD13-003）', () => withSavedCursor(() => {
+  const arm = 'WD01-009';    // 甲冑　ローメイル（精武：アーム）
+  const angel = 'WX01-035';  // 祝福の女神　アテナ（精像：天使）
+  const red = (hand: string[]) => collectGrowCostReductions(
+    { ...mkState({ hand: 0 }), hand } as PlayerState, mkState(), true, effectsMap, cardMap, 'WD13-003');
+  eq(JSON.stringify(red([arm])), '[]', '＜アーム＞だけでは減らない');
+  eq(JSON.stringify(red([angel])), '[]', '＜天使＞だけでは減らない');
+  eq(JSON.stringify(red([arm, angel])), JSON.stringify([{ color: '白', count: 1 }]), '両方あって初めて白×1');
+  // 🔑AND 近似が成立する根拠＝**アームと天使を両方持つカードは全カード中0枚**（別々の2枚と同値）。
+  let both = 0;
+  for (const c of cardMap.values()) {
+    const cls = c.CardClass ?? '';
+    if (cls.includes('アーム') && cls.includes('天使')) both++;
+  }
+  eq(both, 0, '＜アーム＞かつ＜天使＞のカードは存在しない（AND 近似の前提）');
 }));
 
 test('§5.3 O-238: フリップアタック付与は payload で運ぶ（原文 regex を engine から降ろす）', () => withSavedCursor(() => {

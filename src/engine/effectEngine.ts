@@ -3433,16 +3433,39 @@ export function collectGrowCostReductions(
     } else if (action.type === 'CONDITIONAL') {
       // 🆕**§5.3 `O-219`**＝ここで評価できる条件だけを通す。⚠**未知の条件を「真」に倒さない**
       //   （倒すと `WX21-017` の「手札から＜天使＞を2枚捨ててもよい」が**捨てずに**タダになる過小コスト）。
-      const cnd = (action as import('../types/effects').ConditionalAction).condition as { type?: string; owner?: string; operator?: string; value?: number };
-      if (cnd?.type === 'LIFE_COUNT') {
-        const n = (cnd.owner === 'opponent' ? otherState : state).life_cloth.length;
-        const v = cnd.value ?? 0;
-        const okCond = cnd.operator === 'lte' ? n <= v : cnd.operator === 'gte' ? n >= v
-          : cnd.operator === 'lt' ? n < v : cnd.operator === 'gt' ? n > v : n === v;
-        if (okCond) scan((action as import('../types/effects').ConditionalAction).then);
-      }
+      const cnd = (action as import('../types/effects').ConditionalAction).condition;
+      if (evalGrowScanCondition(cnd)) scan((action as import('../types/effects').ConditionalAction).then);
     }
   };
+  /**
+   * 🔴**許可リスト方式**＝ここで解ける条件だけ true を返し、**知らない型は必ず false**（未知を真に倒さない）。
+   * 🆕**§5.3 `O-248`（2026-09-05）＝`HAND_COUNT_FILTER` と `AND` を追加した。**
+   *   「このカードにグロウする際、手札から〜を**公開する**」（`WD13-002` / `WD13-003`）は
+   *   **公開しても手札を失わない＝常に得**なので、支払い UI を挟まず「手札に持っているか」で自動適用する。
+   *   ⚠**「捨てる」はここに来てはいけない**（＝`collectGrowPayOptions` 側）。捨てる形は
+   *     `CONDITIONAL{IS_MY_TURN}`（「そうした場合」の慣例エンコード）で包まれており、この関数は false を返す。
+   */
+  function evalGrowScanCondition(cnd: import('../types/effects').Condition | undefined): boolean {
+    if (!cnd) return false;
+    if (cnd.type === 'AND') return cnd.conditions.every(evalGrowScanCondition);
+    if (cnd.type === 'LIFE_COUNT') {
+      const n = (cnd.owner === 'opponent' ? otherState : state).life_cloth.length;
+      const v = typeof cnd.value === 'number' ? cnd.value : 0;
+      return cnd.operator === 'lte' ? n <= v : cnd.operator === 'gte' ? n >= v
+        : cnd.operator === 'lt' ? n < v : cnd.operator === 'gt' ? n > v : n === v;
+    }
+    if (cnd.type === 'HAND_COUNT_FILTER') {
+      const src = cnd.owner === 'opponent' ? otherState : state;
+      const matched = src.hand.filter(n => matchesFilter(cardMap.get(baseNumG(n)), cnd.filter));
+      const n = cnd.distinctName
+        ? new Set(matched.map(cn => cardMap.get(baseNumG(cn))?.CardName ?? cn)).size
+        : matched.length;
+      const v = typeof cnd.value === 'number' ? cnd.value : 0;
+      return cnd.operator === 'lte' ? n <= v : cnd.operator === 'gte' ? n >= v
+        : cnd.operator === 'lt' ? n < v : cnd.operator === 'gt' ? n > v : n === v;
+    }
+    return false;
+  }
   const candidates: string[] = [];
   for (const stack of state.field.signi) if (stack?.length) candidates.push(stack[stack.length - 1]);
   if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
@@ -3466,6 +3489,84 @@ export function collectGrowCostReductions(
     selfGrowScan = false;
   }
   return [...totals.entries()].map(([color, count]) => ({ color, count }));
+}
+
+/**
+ * 🆕**§5.3 `O-248`（2026-09-05）＝グロウ先カード自身の「支払えば安くなる」任意コストの提示。**
+ *
+ * 原文「【常】：**この**カードにグロウする際、手札から＜天使＞のシグニを２枚**捨ててもよい**。
+ * そうした場合、このカードにグロウするためのコストは《青×0》になる」（`WX21-017` / `WX21-018`）。
+ *
+ * 🔴**`collectGrowCostReductions` はこれを拾ってはいけない**＝拾うと**捨てずにタダになる過小コスト**。
+ *   （`scan` が `CONDITIONAL` を `LIFE_COUNT` 以外で覗かないのは、そのための意図的な穴。）
+ *   ⇒ 支払いを**UI が実際に取ってから**軽減を足す、という別経路がここ。
+ * ⚠**「公開する」は任意コストではない**＝失うものが無いので選択させる意味がなく、`HAND_COUNT_FILTER` の
+ *   条件として `collectGrowCostReductions` 側で自動適用する（`WD13-002` / `WD13-003`）。
+ *   **「捨てる」だけがここに来る。**
+ */
+export interface GrowPayOption {
+  effectId: string;
+  /** 手札から捨てる枚数と対象（`STUB{OPTIONAL_COST}.handDiscard`）。 */
+  handDiscard: { count: number; filter?: import('../types/effects').TargetFilter };
+  /** 支払ったときに足す軽減（`zeroColors` は `collectGrowCostReductions` と同じ 99 の慣例で表す）。 */
+  reduction: { color: string; count: number }[];
+  /** UI 表示用の日本語（「手札から＜天使＞のシグニを2枚捨てる」）。 */
+  labelJa: string;
+}
+
+/** `GROW_COST_REDUCTION` を `{color,count}` の並びへ潰す（`zeroColors` は 99＝全額）。 */
+function growReductionEntries(gcr: import('../types/effects').GrowCostReductionAction): { color: string; count: number }[] {
+  const out: { color: string; count: number }[] = [...(gcr.reduction ?? [])];
+  for (const color of gcr.zeroColors ?? []) out.push({ color, count: 99 });
+  return out;
+}
+
+export function collectGrowPayOptions(
+  growTargetCardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): GrowPayOption[] {
+  const baseNum = growTargetCardNum.includes('#') ? growTargetCardNum.slice(0, growTargetCardNum.indexOf('#')) : growTargetCardNum;
+  const out: GrowPayOption[] = [];
+  for (const eff of (effectsMap.get(baseNum) ?? [])) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    if (eff.action.type !== 'SEQUENCE') continue;
+    const steps = (eff.action as import('../types/effects').SequenceAction).steps;
+    // 「任意コスト → そうした場合（`CONDITIONAL{IS_MY_TURN}` の慣例エンコード）→ 軽減」の3点セットだけを見る。
+    const costStep = steps[0] as import('../types/effects').StubAction | undefined;
+    const gateStep = steps[1] as import('../types/effects').ConditionalAction | undefined;
+    if (costStep?.type !== 'STUB' || costStep.id !== 'OPTIONAL_COST') continue;
+    const hd = costStep.handDiscard;
+    if (!hd || hd.count === 'ALL') continue;
+    if (gateStep?.type !== 'CONDITIONAL' || gateStep.condition?.type !== 'IS_MY_TURN') continue;
+    const then = gateStep.then as import('../types/effects').GrowCostReductionAction;
+    if (then?.type !== 'GROW_COST_REDUCTION' || !then.forSelfGrowOnly) continue;
+    const reduction = growReductionEntries(then);
+    if (reduction.length === 0) continue;
+    const cls = hd.filter?.story ? `＜${hd.filter.story}＞の` : '';
+    const kind = hd.filter?.cardType ?? 'カード';
+    out.push({
+      effectId: eff.effectId,
+      handDiscard: { count: hd.count, filter: hd.filter },
+      reduction,
+      labelJa: `手札から${cls}${kind}を${hd.count}枚捨てる`,
+    });
+  }
+  void cardMap;
+  return out;
+}
+
+/** 手札のうち、この任意コストで捨てられるカードの index 一覧。 */
+export function growPayCandidateHandIndices(
+  state: PlayerState,
+  option: GrowPayOption,
+  cardMap: Map<string, CardData>,
+): number[] {
+  const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  return state.hand
+    .map((n, i) => ({ n, i }))
+    .filter(({ n }) => matchesFilter(cardMap.get(baseNum(n)), option.handDiscard.filter))
+    .map(({ i }) => i);
 }
 
 // ===== GRANT_LRIG_ABILITY 収集 =====

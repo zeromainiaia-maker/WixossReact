@@ -124,6 +124,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
             then: zeroAct,
           };
         }
+        // 🆕🔴**§5.3 `O-248`（2026-09-05）＝条件が無い形で `zeroAct` を作って捨てていた。**
+        //   ここで `return` していなかったので、`WX21-017` / `WX21-018`（「手札から＜天使＞を捨ててもよい。
+        //   そうした場合、コストは《青×0》になる」）は**素通りして catch-all の `STUB{GROW_COST_ZERO}`** に落ち、
+        //   ①`collectGrowCostReductions` はその STUB を見ないので**恒久 no-op**
+        //   ②逆翻訳も「《無×0》になる（実質フリーグロウ）」と**原文に無い色**を出していた。
+        //   ⚠`forSelfGrowOnly` が付くので、場に出た後（センターに居るあいだ）は拾われない＝
+        //     「次のグロウが不当に安い」側の過小コストも同時に塞がる。
+        return zeroAct;
       }
     }
     const growCostM = t.match(/(?:この?カードの上に)?グロウするためのコストは(.+)減る/);

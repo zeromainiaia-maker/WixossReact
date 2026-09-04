@@ -4756,6 +4756,32 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-05・第138バッチ後・PLAN §6 から退避）
+
+- **2026-09-05（第138バッチ）＝🏁`O-238` クローズ＝フリップアタックが初めて実際に動いた（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）
+  **`census:enginetext` A🔴 0行**（据置・**B 56 → 55行**＝engine から原文 regex を1本降ろした）／
+  **`census:costtext` A🔴 0規則**（据置）／**`census:deadstate` 0件**（据置）。
+  📦**在庫2本**＝**機構 worklist 8 → 7項目**（🏁`O-238` −1）＝索引 **A 0／B 0**／G 2／E 5。
+  🏁**索引 B（母集団3〜8効果）も残0**＝以後は索引 **G→E** の順に取る。
+  ⚠索引 E の5件は計器の較正＝**挙動を直す項目は2件**（`O-248`／`O-226` 残1＝後者はデータ側の欠落で着手不可）｜**実機 残 0件**。
+  🔧**ゲート（全緑 ✅）**＝golden **3475 / 3475**（3473 +2本）／
+  smoke 全異常0／fuzz 全0／census **1 / BASELINE 1**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🖥**実機＝新規4本 ALL PASS**（`o238FlipAttack` / `o238GrantOpenedByFlip` /
+  `o238GrantAloneNormalAttack` / `o238GrantGatedByOtherSigni`）。**反転確認4本**（golden 1・実機 2・旧挙動の実観測 1）。
+  🔴**最大の発見＝`census:enginetext` の B群（他カードの属性判定＝「正当寄り」）にも、壊れて静かな原文 regex は居る。**
+  `collectAltAttackFlipSigni` は場の他シグニを走査するので B群に分類され、**A群の worklist に1度も出ないまま恒久 no-op** だった。
+  ⇒ **catch-all を解体して id を変えたら、旧 id を `grep -rn "<旧 id>" src/`（`src/engine/` に限らない）で数える。**
+  🔴**「近似」は下流の機構を丸ごと殺す**＝裏向きを `signi_down`（ダウン）で近似すると、
+  このカードの目的（場のシグニを減らして「他にシグニがない」を作る）が**成立しなくなる**のに、
+  JSON にも盤面ログにも間違いが現れない。
+  🔴**同じティックで盤面を変えてから解決する処理は「盤面」と「`effectsMap`」を両方渡す**
+  （①だけだと「裏向きにはなるが付与が開かない」＝**半分だけ動く**）。
+  ✅**ブラスト半径**＝挙動が変わるのは **2カード**（`WXDi-P05-069` / `WXDi-P01-040`）＋
+  `HAS_CARD_IN_FIELD{negate}` を今後使うすべての効果（この語彙は live 使用0件のまま**型にだけ在った**）。
+
 ### 恒久指標アーカイブ（2026-09-05・第137バッチ後・PLAN §6 から退避）
 
 - **2026-09-05（第137バッチ）＝🏁`O-147` クローズ＝【ライズ】41枚が全数ゲートされた（Opus 5 単独／本ブロックが直近の正）**

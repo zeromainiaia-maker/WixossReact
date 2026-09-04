@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect, TriggerOriginZone } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectGrowPayOptions, growPayCandidateHandIndices, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -234,6 +234,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     showGrowModal, setShowGrowModal, freeGrowFilter, setFreeGrowFilter,
     pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost,
     openFreeGrow, closeGrowModal, toggleGrowCost,
+    growPayDiscard, toggleGrowPayDiscard,
   } = useGrowModal();
   const {
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
@@ -6866,6 +6867,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
        * ⚠`PlayerState.suppress_center_on_play`（ターン全体）とは別軸＝state に焼き付けない。
        */
       suppressOnPlayOnce?: boolean;
+      /**
+       * 🆕**§5.3 `O-248`（2026-09-05）＝グロウ先カード自身の「捨ててもよい」任意コストで捨てる手札の index。**
+       * （`WX21-017`「手札から＜天使＞のシグニを2枚捨ててもよい。そうした場合、コストは《青×0》になる」）
+       * 🔴**軽減の適用とセットでしか渡してはいけない**＝片方だけだと
+       *   「捨てたのに安くならない」／「捨てずに安くなる」のどちらかになる。
+       */
+      growPayDiscardHandIdx?: number[];
     } = {},
     p: {
       actor: PlayerState; opponent: PlayerState;
@@ -6904,7 +6912,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paidNums = [...growPay.paidNums];
       // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
       const growSubInfoExec = wasFreeGrow ? null : collectGrowCostSubstitute(growBase, battleCardMap, effectsMap);
-      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(growBase, growOp, p.isActorTurn, effectsMap, battleCardMap, card.CardNum)));
+      // 🆕**§5.3 `O-248`**＝任意コスト（手札を捨てる）を実際に払ったぶんの軽減を足す。
+      //   ⚠**払った枚数が足りていなければ足さない**＝UI 側の検証をここでも通す（直呼び対策）。
+      const growPayIdxExec = options.growPayDiscardHandIdx ?? [];
+      const growPayOptExec = growPayIdxExec.length > 0
+        ? collectGrowPayOptions(card.CardNum, effectsMap, battleCardMap)
+          .find(o => o.handDiscard.count === growPayIdxExec.length)
+        : undefined;
+      const growPayNums = growPayOptExec
+        ? growPayIdxExec.map(i => growBase.hand[i]).filter((n): n is string => !!n)
+        : [];
+      const growPayValidExec = !!growPayOptExec && growPayNums.length === growPayOptExec.handDiscard.count
+        && growPayIdxExec.every(i => growPayCandidateHandIndices(growBase, growPayOptExec, battleCardMap).includes(i));
+      const growPayReductions = growPayValidExec && growPayOptExec ? growPayOptExec.reduction : [];
+      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, [
+        ...collectGrowCostReductions(growBase, growOp, p.isActorTurn, effectsMap, battleCardMap, card.CardNum),
+        ...growPayReductions,
+      ]));
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
       let growSubSigniPaid: string | null = null;
       if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
@@ -6929,7 +6953,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 🆕**§5.3 `O-242`（2026-09-04）**＝「それがそのターンであなたの**最初の**グロウである場合」の判定材料。
         //   ⚠bool では足りない（グロウと同時に true になるので、後段からは常に true に見える）。
         lrig_grow_count_this_turn: (growBase.lrig_grow_count_this_turn ?? 0) + 1,
-        trash: [...growBase.trash, ...paidNums],
+        // 🆕**§5.3 `O-248`**＝任意コストで捨てた手札もトラッシュへ（エナ支払いと同じ行き先）。
+        // 🔴**手札から抜く条件とトラッシュへ積む条件は必ず同じ式にする**（2026-09-05・実機が検出）＝
+        //   旧版は抜く側だけ `growPayNums.length > 0`、積む側だけ `growPayValidExec` で見ていたので、
+        //   検証に落ちた瞬間に**カードが手札からもトラッシュからも消える**（カードがゲームから蒸発する）。
+        hand: growPayValidExec
+          ? growBase.hand.filter((_, i) => !growPayIdxExec.includes(i))
+          : growBase.hand,
+        trash: [...growBase.trash, ...paidNums, ...(growPayValidExec ? growPayNums : [])],
         actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
         coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
         coins_paid_this_turn: (growBase.coins_paid_this_turn ?? 0) + growCoinCost, // COINS_PAID_THIS_TURN（支払いのみ・coinGain は数えない）
@@ -7150,6 +7181,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
        * ⚠`PlayerState.suppress_center_on_play`（ターン全体）とは別軸＝state に焼き付けない。
        */
       suppressOnPlayOnce?: boolean;
+      /** 🆕**§5.3 `O-248`**＝グロウ先の「捨ててもよい」任意コストで捨てる手札の index。 */
+      growPayDiscardHandIdx?: number[];
     } = {},
   ) => {
     if (loading) return;
@@ -15513,7 +15546,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <EndConfirmModal ctx={modalCtx} showEndConfirm={showEndConfirm} setShowEndConfirm={setShowEndConfirm} handleEnd={handleEnd} />
 
       {/* グロウ選択モーダル */}
-      <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} />
+      <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} growPayDiscard={growPayDiscard} toggleGrowPayDiscard={toggleGrowPayDiscard} />
 
       {/* アーツ使用モーダル */}
       <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} selectedArtsUseCostPay={selectedArtsUseCostPay} setSelectedArtsUseCostPay={setSelectedArtsUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />

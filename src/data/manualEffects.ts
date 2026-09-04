@@ -3913,6 +3913,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WD12-015": [
     {"effectId":"WD12-015-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"triggerScope":"any_ally","action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true,"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":{"max":1}}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+  // 🆕**§5.3 `O-248`（2026-09-05）＝「公開する」支払いは UI を挟まず「手札に持っているか」で自動適用する。**
+  //   🔑**公開は手札を失わない**＝断る理由が（このモデルには）無いので、選択させても常に同じ答えになる。
+  //     ⇒ `HAND_COUNT_FILTER` の条件として書き、`collectGrowCostReductions` の許可リストで解く。
+  //   ⚠**「捨てる」は自動適用してはいけない**（`WX21-017`/`WX21-018`）＝あちらは手札を失うので
+  //     `collectGrowPayOptions` → `GrowModal` の支払い UI 経由（`CONDITIONAL{IS_MY_TURN}` のまま残す）。
+  //   ⚠`WD13-003` の「＜アーム＞1枚**と**＜天使＞1枚」は **AND で近似できる**＝
+  //     アームと天使を**両方持つカードは全カード中0枚**（2026-09-05 実測）なので「別々の2枚」と同値。
+  "WD13-003": [
+    {"effectId":"WD13-003-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"手札から＜アーム＞のシグニ１枚と＜天使＞のシグニ１枚を公開してもよい"},{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"アーム"},"operator":"gte","value":1},{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"天使"},"operator":"gte","value":1}]},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"白","count":1}],"forSelfGrowOnly":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   "WD13-002": [
     // 🆕🔴**§5.3 `O-219`（2026-09-04）＝旧定義は「公開した場合」を丸ごと落として《白×1》《黒×1》を
     //   **無条件で**与えていた。** 原文は「このカードにグロウする際、手札からシグニを2枚まで公開する。
@@ -3923,7 +3933,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     //   ⇒ 兄弟の `WD13-003-E1` と同じ「支払い（公開）を先に置く」形へ揃え、支払い UI が入るまでは
     //     `collectGrowCostReductions` に拾われないようにする（`scan` は `CONDITIONAL` の中を
     //     `LIFE_COUNT` 以外では覗かない）。**グロウ時の公開／捨てる支払い UI は §5.3 `O-248`。**
-    {"effectId":"WD13-002-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"手札からシグニを２枚まで公開する"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"迷宮"},"minCount":1},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"白","count":1}],"forSelfGrowOnly":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"毒牙"},"minCount":1},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"黒","count":1}],"forSelfGrowOnly":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WD13-002-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"手札からシグニを２枚まで公開する"},{"type":"CONDITIONAL","condition":{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"迷宮"},"operator":"gte","value":1},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"白","count":1}],"forSelfGrowOnly":true}},{"type":"CONDITIONAL","condition":{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"毒牙"},"operator":"gte","value":1},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"黒","count":1}],"forSelfGrowOnly":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WD22-007-G": [
     {"effectId":"WD22-007-G-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"そのシグニを場からトラッシュに置いてもよい"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn","triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true},"triggerFilter":{"story":"遊具"}},

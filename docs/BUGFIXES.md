@@ -1,5 +1,104 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第139バッチ）：🏁`O-248` クローズ＝**グロウ時の「公開する／捨ててもよい」支払いを通した**（索引 G が残1）
+
+**ベースライン**＝`94e465891`（第138＝`O-238` クローズの直後）。
+**gates 全緑**（typecheck・golden **3478/3478**＝3475 +3本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機＝新規4本＋回帰4本＝8本 ALL PASS**（新規 `o248GrowDiscardNoAngel` / `o248GrowRevealNone` /
+`o248GrowRevealAuto` / `o248GrowDiscardPay`、回帰は `O-238` の4本）。
+**実機要否**＝§2.2 の機械判定どおり **`src/screens/` を触った**＝**実機まで必須**。
+**反転確認＝3本**（golden 側は3本とも新規 assert・実機2本＋`GrowModal` の軽減撤去／`HAND_COUNT_FILTER` の閾値改変）。
+**在庫**＝機構 worklist **7 → 6項目**（🏁`O-248` クローズ）／実機 残 **0件**（同じ巡で閉じた）。
+
+### 真因
+
+**グロウ先カード自身が「グロウする際に支払える任意コスト」を持つ形が、どこにも配線されていなかった。**
+`O-219`（2026-09-04）で「収集の軸」（ルリグデッキの中のグロウ先を走査する `growTargetCardNum`）は通したが、
+**支払いを取る口が無い**ので、4効果とも `collectGrowCostReductions` に**拾われないように**揃えてあった（＝意図的な no-op）。
+
+| 効果 | 何が起きていたか |
+|---|---|
+| `WX21-017-E1` / `WX21-018-E1` | 🔴parser（`parseSentencePart2`）が `zeroAct` を**作って返さずに捨てて**おり、catch-all の `STUB{GROW_COST_ZERO}` に落ちていた。`collectGrowCostReductions` はその STUB を見ないので**恒久 no-op**（＜天使＞を捨てても1円も安くならない）。逆翻訳も **「《無×0》になる（実質フリーグロウ）」と原文に無い色**を出していた（原文は《青×0》/《緑×0》） |
+| `WD13-002-E1` / `WD13-003-E1` | 条件が `LAST_PROCESSED_MATCHES`（公開の記録が無いので永久に偽）／`IS_MY_TURN`（「そうした場合」の慣例エンコード＝`scan` が覗かない）で、**公開しても軽減が来ない** |
+
+### 影響枚数
+
+**4枚**＝`WX21-017`／`WX21-018`（捨てる）／`WD13-002`／`WD13-003`（公開する）。
+
+### 🔑 設計の要点＝**「公開」と「捨てる」を別経路にした**
+
+| | 公開する（`WD13-002` / `WD13-003`） | 捨てる（`WX21-017` / `WX21-018`） |
+|---|---|---|
+| 失うもの | **無い** | **手札** |
+| 断る理由 | （このモデルには）無い | ある＝トレードオフ |
+| 実装 | `HAND_COUNT_FILTER` の条件として **`collectGrowCostReductions` が自動適用** | `collectGrowPayOptions` → **`GrowModal` の支払い UI** が取ってから適用 |
+
+⚠**逆にすると両方向に壊れる**＝捨てるを自動適用すると**捨てずにタダ**（過小コスト）、公開を UI にすると
+**押すまで安くならない**うえ、押す以外の答えが無い選択を毎回見せることになる。
+🔑`WD13-003` の「＜アーム＞1枚**と**＜天使＞1枚」は **AND で近似できる**＝
+**アームと天使を両方持つカードは全カード中0枚**（実測・golden で assert 済み）なので「別々の2枚」と同値。
+
+### 直したもの
+
+| # | 場所 | 内容 |
+|---|---|---|
+| 1 | `src/data/parsers/parseSentencePart2.ts` | 条件が無い形で `zeroAct` を返す（`forSelfGrowOnly` 付き＝場に出た後は拾われない） |
+| 2 | `src/engine/effectEngine.ts` | `collectGrowPayOptions` / `growPayCandidateHandIndices` を新設（`SEQUENCE[OPTIONAL_COST{handDiscard}, CONDITIONAL{IS_MY_TURN} → GROW_COST_REDUCTION{forSelfGrowOnly}]` だけを拾う） |
+| 3 | 同上 | `collectGrowCostReductions` の `CONDITIONAL` 許可リストを関数化し、`HAND_COUNT_FILTER` と `AND` を追加（🔴**知らない型は必ず false**＝未知を真に倒さない規約は維持） |
+| 4 | `src/data/manualEffects.ts` | `WD13-002-E1` の条件を `HAND_COUNT_FILTER` へ。`WD13-003-E1` を MANUAL 化して `AND` を書いた |
+| 5 | `src/screens/battle/hooks/useGrowModal.ts` | `growPayDiscard`（捨てる手札の選択）を追加 |
+| 6 | `src/screens/battle/modals/GrowModal.tsx` | Phase 1＝**払える見込みの判定に任意コストを入れる**（入れないと支払い UI に到達できない）／Phase 2＝手札の選択列（`growpay-hand-*`）と、選び切ったときだけの軽減 |
+| 7 | `src/screens/BattleScreen.tsx` | `performGrow` に `growPayDiscardHandIdx` を通し、手札→トラッシュを実行 |
+| 8 | `scripts/goldenTest.ts` | 3本 |
+| 9 | `scripts/verifyBattleDrive.mjs` | 実機4本 |
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt-effect WX21-017-E1,WX21-018-E1
+npx tsx scripts/syncManualLive.ts WD13-002 WD13-003
+npm run regen && npm run gates
+node scripts/verifyBattleDrive.mjs o248GrowDiscardNoAngel o248GrowRevealNone o248GrowRevealAuto o248GrowDiscardPay
+```
+
+### 反転確認（3本・すべて実測）
+
+| 反転したもの | 期待 | 実測 |
+|---|---|---|
+| `GrowModal` Phase 2 から支払いぶんの軽減を外す | `o248GrowDiscardPay` 赤 | **FAIL**＝「グロウが完了しなかった」 |
+| `WD13-002` の `HAND_COUNT_FILTER` の閾値を 1→99 に | `o248GrowRevealAuto` 赤 | **FAIL**＝「グロウが完了しなかった」 |
+| `performGrow` から支払いぶんの軽減を外す | 赤になるはず | **PASS のまま**＝🔑**`performGrow` はコストを再検証しない**（支払い可否の門は UI 側だけ）。反転の当て先を間違えた実例として残す |
+
+### 🔴 実機が見つけた真バグ＝**カードがゲームから蒸発する**
+
+`performGrow` で **手札から抜く条件とトラッシュへ積む条件を別の式で書いていた**
+（抜く側は `growPayNums.length > 0`、積む側は `growPayValidExec`）。
+検証に落ちた瞬間に**手札からもトラッシュからも消える**＝カードが盤面から蒸発する。
+実機ログで `hand=[] trash=["（別のカード）"]` と出て初めて気づいた（golden では検証が必ず通る値しか渡していない）。
+🔑**「取り除く」と「置く」は必ず同じ式で書く。**
+
+### 🔴 実機ドライバの最大の罠＝**無効なボタンを `.click().catch(() => {})` で押すと30秒溶ける**
+
+「グロウできないこと」を主張する負のシナリオが**33〜111秒**かかって毎回「別ゲームを掴んだ」で落ちていた。
+真因は `H.openGrow` が候補ボタンを `.click()` すること＝**Playwright は無効なボタンが有効になるまで待つ**（既定30秒）。
+その間に CPU がゲームを終わらせ、**新しいゲームが張られて観測が別盤面に化ける**。
+⇒ 負の観測は **`isEnabled()` を読むだけ**にした（`o248ProbeGrowCandidate`）＝**111秒 → 2秒**。
+🔑**`.catch(() => {})` を置いた行は「効いたか」だけでなく「待たされていないか」も疑う**
+（§5.1 の既存教訓「`.catch(() => {})` の次の行で効いたか測る」の**時間側**の顔）。
+
+### 🔑 そのほか、この巡で踏んで直したもの
+
+- **判定の瞬間に「自分が張った盤面か」を必ず見る**＝見ないと、別ゲームの空の盤面を
+  「相手の全シグニがエナへ行った＝旧挙動」と**誤って赤にする**（実測）。
+  ⚠ 逆に「注入できていない」を PASS に数える空振り緑も同じ穴（こちらも実測で2本出した）。
+- **`life_cloth` は注入しない**＝作った instance id を積むと**注入そのものが通らなくなり**、
+  全シナリオが別ゲームを掴むようになった（入れた直後に4本中3本が落ちて発覚）。
+- **同じシナリオ id を2回定義すると後勝ちで古い方が動く**＝差し替えたつもりの修正がまったく効かない
+  （`grep -c "scenarios.<id> = {"` で1であることを確かめる）。
+
+---
+
 ## 2026-09-05（第138バッチ）：🏁`O-238` クローズ＝**フリップアタックが1枚も動いていなかった**（機構3つは最初から在った）
 
 **ベースライン**＝`a9f6e7ae9`（第137＝`O-147` クローズの直後）。

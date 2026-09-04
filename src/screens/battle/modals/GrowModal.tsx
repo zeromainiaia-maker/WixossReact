@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
-import { collectGrowCostReductions, collectGrowCostSubstitute } from '../../../engine/effectEngine';
+import { collectGrowCostReductions, collectGrowCostSubstitute, collectGrowPayOptions, growPayCandidateHandIndices } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna, coinPayableFor } from '../costs';
 import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
@@ -20,13 +20,16 @@ interface GrowModalProps {
   setFreeGrowFilter: Dispatch<SetStateAction<'same' | 'plus1' | 'plus1_paid' | null>>;
   growCandidates: CardData[];
   currentLrigLevel: number;
-  executeGrow: (card: CardData, costIndices: Set<number>) => void;
+  executeGrow: (card: CardData, costIndices: Set<number>, options?: { growPayDiscardHandIdx?: number[] }) => void;
   toggleGrowCostCard: (idx: number) => void;
+  /** 🆕**§5.3 `O-248`**＝グロウ先の「捨ててもよい」任意コストで捨てる手札の index。 */
+  growPayDiscard: Set<number>;
+  toggleGrowPayDiscard: (idx: number) => void;
 }
 
 export function GrowModal(p: GrowModalProps) {
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
-  const { showGrowModal, setShowGrowModal, pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost, freeGrowFilter, setFreeGrowFilter, growCandidates, currentLrigLevel, executeGrow, toggleGrowCostCard } = p;
+  const { showGrowModal, setShowGrowModal, pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost, freeGrowFilter, setFreeGrowFilter, growCandidates, currentLrigLevel, executeGrow, toggleGrowCostCard, growPayDiscard, toggleGrowPayDiscard } = p;
   return (
     <>
       {showGrowModal && createPortal(
@@ -58,20 +61,33 @@ export function GrowModal(p: GrowModalProps) {
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
                     // GROW_COST_REDUCTION: 場のCONTINUOUS軽減をグロウコストへ適用（エナ部分のみ・コインは据置）。⚠要実機検証
-                    const growCostR = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum));
+                    const baseRed = collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum);
+                    const growCostR = applyGrowCostReduction(card.GrowCost, baseRed);
+                    // 🆕**§5.3 `O-248`（2026-09-05）＝グロウ先自身の「捨ててもよい」任意コスト。**
+                    //   🔴**払える見込みの判定にも入れる**＝入れないと「エナは足りないが手札で0にできる」形が
+                    //     Phase 1 で灰色のままになり、**支払い UI に到達できない**（＝機構を足しても使えない）。
+                    const growPayOpt = collectGrowPayOptions(card.CardNum, effectsMap, battleCardMap)[0];
+                    const growPayReady = !!growPayOpt
+                      && growPayCandidateHandIndices(my, growPayOpt, battleCardMap).length >= growPayOpt.handDiscard.count;
+                    const growCostRPaid = growPayOpt && growPayReady
+                      ? applyGrowCostReduction(card.GrowCost, [...baseRed, ...growPayOpt.reduction])
+                      : growCostR;
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     // 🆕§5.3 `O-83`＝`'plus1_paid'` は**効果によるグロウだがコストは払う**＝free 扱いにしない。
                     const isFreeGrow = my.free_grow_this_turn === true
                       || (freeGrowFilter !== null && freeGrowFilter !== 'plus1_paid');
                     // 🆕§5.3 `O-245`（2026-09-04）＝グロウはルリグ＝`coin_use_restriction` の対象。
-                    const canAfford = isFreeGrow || ((growCoinNeeded === 0 || (my.coins >= growCoinNeeded && coinPayableFor(my, 'lrig'))) &&
-                      canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase));
+                    const coinOk = growCoinNeeded === 0 || (my.coins >= growCoinNeeded && coinPayableFor(my, 'lrig'));
+                    const enaOkFor = (cost: string) => canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
+                    const canAfford = isFreeGrow || (coinOk && (enaOkFor(growCostR) || enaOkFor(growCostRPaid)));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
                           if (!canAfford) return;
-                          if (totalReq === 0) { executeGrow(card, new Set()); }
+                          // ⚠**任意コストがあるカードは即実行しない**＝支払うかどうかを選ばせる必要がある
+                          //   （即実行すると「捨てずにタダ」か「捨てられずに払えない」のどちらかに倒れる）。
+                          if (totalReq === 0 && !growPayOpt) { executeGrow(card, new Set()); }
                           else { setPendingGrowCard(card); setSelectedGrowCost(new Set()); }
                         }}
                         disabled={loading || !canAfford}
@@ -105,6 +121,11 @@ export function GrowModal(p: GrowModalProps) {
                               コイン+{card.Coin}枚
                             </p>
                           )}
+                          {growPayOpt && (
+                            <p style={{ color: growPayReady ? '#4caf50' : C.textFaint, fontSize: 10, margin: '2px 0 0' }}>
+                              {growPayReady ? '任意: ' : '任意（手札不足）: '}{growPayOpt.labelJa} → {growCostRPaid || 'コストなし'}
+                            </p>
+                          )}
                           {growCoinNeeded > 0 && (
                             <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
                               コイン×{growCoinNeeded}（所持: {my.coins}）
@@ -129,7 +150,17 @@ export function GrowModal(p: GrowModalProps) {
             ) : (() => {
               /* ── Phase 2: コスト支払いカード選択 ── */
               // GROW_COST_REDUCTION 適用後のグロウコストで支払い枚数を要求（エナ部分のみ・⚠要実機検証）
-              const reducedGrowCost = applyGrowCostReduction(pendingGrowCard.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, pendingGrowCard.CardNum));
+              const baseRed2 = collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, pendingGrowCard.CardNum);
+              // 🆕**§5.3 `O-248`（2026-09-05）＝グロウ先自身の「捨ててもよい」任意コスト。**
+              //   🔴**選び切ったときだけ**軽減を足す（途中の枚数で安くすると「1枚捨てて0円」になる）。
+              //   ⚠候補外の手札を選んでいたら無効＝`growPayCandidateHandIndices` で必ず突き合わせる。
+              const growPayOpt = collectGrowPayOptions(pendingGrowCard.CardNum, effectsMap, battleCardMap)[0];
+              const growPayCands = growPayOpt ? growPayCandidateHandIndices(my, growPayOpt, battleCardMap) : [];
+              const growPayIdx = [...growPayDiscard];
+              const growPayPaid = !!growPayOpt && growPayIdx.length === growPayOpt.handDiscard.count
+                && growPayIdx.every(i => growPayCands.includes(i));
+              const reducedGrowCost = applyGrowCostReduction(pendingGrowCard.GrowCost,
+                growPayPaid && growPayOpt ? [...baseRed2, ...growPayOpt.reduction] : baseRed2);
               const costItems = parseGrowCost(reducedGrowCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedGrowCost].map(i => myEnergyPayPool[i].cardNum);
@@ -157,7 +188,7 @@ export function GrowModal(p: GrowModalProps) {
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingGrowCard(null); setSelectedGrowCost(new Set()); }}
+                    <button onClick={() => { setPendingGrowCard(null); setSelectedGrowCost(new Set()); growPayIdx.forEach(toggleGrowPayDiscard); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
@@ -185,6 +216,40 @@ export function GrowModal(p: GrowModalProps) {
                       </p>
                     </div>
                   </div>
+                  {growPayOpt && (
+                    <div style={{ border: C.borderUI, borderRadius: 8, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <p style={{ color: growPayPaid ? C.success : C.textDim, fontSize: 11, margin: 0, textAlign: 'center' }}>
+                        任意コスト: {growPayOpt.labelJa}（{growPayDiscard.size} / {growPayOpt.handDiscard.count}枚）
+                      </p>
+                      {growPayCands.length === 0 ? (
+                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0, textAlign: 'center' }}>対象の手札がありません</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                          {growPayCands.map(i => {
+                            const c = battleCardMap.get(my.hand[i]);
+                            const sel = growPayDiscard.has(i);
+                            return (
+                              <div key={i} data-testid={`growpay-hand-${i}`} onClick={() => toggleGrowPayDiscard(i)}
+                                style={{ position: 'relative', width: 44, height: 62, borderRadius: 4, overflow: 'hidden',
+                                  cursor: 'pointer', flexShrink: 0, border: sel ? C.borderMulliganSel : C.borderCard }}>
+                                {c ? (
+                                  <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                                ) : <span style={{ fontSize: 8, color: C.textFaint }}>{my.hand[i]}</span>}
+                                {sel && (
+                                  <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ color: C.text, fontSize: 13, fontWeight: 'bold' }}>✓</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
                     エナから選択: {selectedGrowCost.size} / {totalReq}枚
                     {costItems.map((c, i) => (
@@ -241,7 +306,7 @@ export function GrowModal(p: GrowModalProps) {
                       （自動適用：追加で{growSubInfo.substituteColor}のエナカードを選ばなくてOK）
                     </p>
                   )}
-                  <button onClick={() => executeGrow(pendingGrowCard, selectedGrowCost)}
+                  <button data-testid="grow-execute" onClick={() => executeGrow(pendingGrowCard, selectedGrowCost, growPayPaid ? { growPayDiscardHandIdx: growPayIdx } : undefined)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.success : C.disabled,
