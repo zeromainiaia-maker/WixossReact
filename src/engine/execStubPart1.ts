@@ -4364,7 +4364,7 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: newOtherIOFTE },
       `${ctx.cardMap.get(targetIOFTE)?.CardName ?? targetIOFTE}→相手エナゾーンへ`));
   }
-  // 自シグニを他の空きシグニゾーンに移動（してもよい）
+  // MOVE_TO_OTHER_SIGNI_ZONE: 自シグニを他のシグニゾーンへ移動（してもよい）＝既定は空きゾーンのみ・moveSelfZone.allowSwap で占有ゾーンとの入れ替えも選べる
   if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
     const srcMov = ctx.sourceCardNum;
     if (!srcMov) return done(addLog(ctx, 'ゾーン移動：ソースカードなし'));
@@ -4372,13 +4372,27 @@ export function execStubPart1(
     if (currentZone < 0) return done(addLog(ctx, 'ゾーン移動：フィールドにいない'));
     const emptyZones = [0, 1, 2].filter(i =>
       i !== currentZone && (!ctx.ownerState.field.signi[i] || ctx.ownerState.field.signi[i]!.length === 0));
-    if (emptyZones.length === 0) return done(addLog(ctx, 'ゾーン移動：空きゾーンなし'));
-    const moveOptions = emptyZones.map(zi => ({
-      id: `zone_${zi}`,
-      label: `ゾーン${zi + 1}に移動`,
-      action: ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_ZONE', value: zi } as StubAction) as EffectAction,
-      available: true,
-    }));
+    // 🆕§5.3 `O-237`（2026-09-04）＝**`allowSwap` のときだけ占有ゾーンも候補にする**（原文に
+    //   「そのシグニゾーンにシグニがある場合、…場所を入れ替える」と書いてある札だけ）。
+    //   ⚠既定は空きゾーンだけ＝入れ替え条項の無い5枚（`WX14-050` ほか）の挙動を変えない。
+    const swapZones = stub.moveSelfZone?.allowSwap
+      ? [0, 1, 2].filter(i => i !== currentZone && (ctx.ownerState.field.signi[i]?.length ?? 0) > 0)
+      : [];
+    if (emptyZones.length === 0 && swapZones.length === 0) return done(addLog(ctx, 'ゾーン移動：空きゾーンなし'));
+    const moveOptions = [
+      ...emptyZones.map(zi => ({
+        id: `zone_${zi}`,
+        label: `ゾーン${zi + 1}に移動`,
+        action: ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_ZONE', value: zi } as StubAction) as EffectAction,
+        available: true,
+      })),
+      ...swapZones.map(zi => ({
+        id: `swap_${zi}`,
+        label: `ゾーン${zi + 1}のシグニと入れ替える`,
+        action: ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_ZONE', value: zi, moveSelfZone: { allowSwap: true } } as StubAction) as EffectAction,
+        available: true,
+      })),
+    ];
     moveOptions.push({ id: 'skip', label: 'スキップ',
       action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
       available: true });
@@ -4393,7 +4407,11 @@ export function execStubPart1(
     if (curZone < 0 || curZone === targetZoneNum) return done(addLog(ctx, 'ゾーン移動：ゾーン特定不可'));
     const newSigniMov = [...ctx.ownerState.field.signi] as (string[] | null)[];
     const movedStack = [...(newSigniMov[curZone] ?? [])];
-    newSigniMov[curZone] = null;
+    // 🆕§5.3 `O-237`＝**入れ替え**（`allowSwap`）＝行き先に居るシグニを元のゾーンへ移す。
+    //   ⚠**マーカー（ダウン／凍結／チャーム…）も一緒に入れ替える**＝下の一括入れ替えがそれを担う
+    //   （既定の「移動」はマーカーを元ゾーンで消すので、そちらとは分岐する）。
+    const swapStack = stub.moveSelfZone?.allowSwap ? [...(newSigniMov[targetZoneNum] ?? [])] : [];
+    newSigniMov[curZone] = swapStack.length > 0 ? swapStack : null;
     newSigniMov[targetZoneNum] = movedStack;
     const copyArr = <T>(arr: T[] | undefined, def: T): T[] =>
       arr ? [...arr] : [def, def, def];
@@ -4403,10 +4421,17 @@ export function execStubPart1(
     const newAcce   = copyArr(ctx.ownerState.field.signi_acce as (null | string[])[], null);
     const newVirus   = copyArr(ctx.ownerState.field.signi_virus, 0);
     const newChokkin = copyArr(ctx.ownerState.field.signi_chokkin, 0);
+    const prevAtTarget = [newDown[targetZoneNum], newFrozen[targetZoneNum], newCharms[targetZoneNum], newAcce[targetZoneNum], newVirus[targetZoneNum], newChokkin[targetZoneNum]] as const;
     [newDown[targetZoneNum], newFrozen[targetZoneNum], newCharms[targetZoneNum], newAcce[targetZoneNum], newVirus[targetZoneNum], newChokkin[targetZoneNum]] =
       [newDown[curZone], newFrozen[curZone], newCharms[curZone], newAcce[curZone], newVirus[curZone], newChokkin[curZone]];
-    newDown[curZone] = false; newFrozen[curZone] = false;
-    newCharms[curZone] = null; newAcce[curZone] = null; newVirus[curZone] = 0; newChokkin[curZone] = 0;
+    if (swapStack.length > 0) {
+      // 入れ替え＝行き先のマーカーを元ゾーンへ運ぶ（消さない）。
+      [newDown[curZone], newFrozen[curZone], newCharms[curZone], newAcce[curZone], newVirus[curZone], newChokkin[curZone]] =
+        [prevAtTarget[0], prevAtTarget[1], prevAtTarget[2], prevAtTarget[3], prevAtTarget[4], prevAtTarget[5]];
+    } else {
+      newDown[curZone] = false; newFrozen[curZone] = false;
+      newCharms[curZone] = null; newAcce[curZone] = null; newVirus[curZone] = 0; newChokkin[curZone] = 0;
+    }
     const newFieldMov = {
       ...ctx.ownerState.field, signi: newSigniMov,
       signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[],

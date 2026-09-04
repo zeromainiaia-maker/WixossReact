@@ -5707,6 +5707,16 @@ export interface StubAction {
    */
   abortIfNoCandidate?: boolean;
   /**
+   * 🆕**§5.3 `O-237`（2026-09-04）＝`MOVE_TO_OTHER_SIGNI_ZONE` の「占有ゾーンとは**入れ替える**」枝。**
+   * 原文（`WXK03-042-E1`）＝「このシグニをあなたの**他のシグニゾーン１つ**に配置してもよい。
+   * **そのシグニゾーンにシグニがある場合、そこに配置する代わりにこのシグニとそのシグニの場所を入れ替える。**」
+   * 🔴既定（payload 無し）は**空きゾーンだけ**を提示する＝それが正しいカードが5枚ある
+   *   （`WX14-050` ほか＝原文に入れ替え条項が無い）。**`allowSwap` を立てたときだけ**占有ゾーンも候補にする。
+   * ⚠旧 live は `STUB{DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE}` ＋
+   *   `REARRANGE_SIGNI{owner:'any', swap:true}`＝**相手のシグニとも入れ替えられる**過剰実行だった。
+   */
+  moveSelfZone?: { allowSwap?: boolean };
+  /**
    * OPTIONAL_COST: 「このキーを場からルリグトラッシュに置く」（§6.4 O-3・`WDK06-R09-E1`）。
    * ⚠キーゾーンはシグニゾーンと別なので `fieldToLrigTrash` では払えない。
    */

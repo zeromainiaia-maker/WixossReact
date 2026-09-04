@@ -24088,10 +24088,14 @@ for (const spec of pairSwapSpecs) test(`§6.4 pair swap E2E ${spec.effectId}`, (
   }
 }));
 
-// 群Cのうち原文どおり「このシグニ↔場の1体」である7効果。WXDi-P08-037-E2は直前の専用E2Eで固定済み。
+// 群Cのうち原文どおり「このシグニ↔場の1体」である効果。WXDi-P08-037-E2は直前の専用E2Eで固定済み。
+// 🏁**2026-09-04（§5.3 `O-237`）＝`WXK03-042-E1` をこの表から外した**＝原文は
+//   「他のシグニゾーン**1つ**に配置してもよい。**そのシグニゾーンにシグニがある場合**、…入れ替える」で、
+//   **空きゾーンへの移動が本体・入れ替えは rider**。`REARRANGE_SIGNI` の別ステップに割ると
+//   `owner:'any'`＝**相手のシグニとも入れ替えられる**過剰実行になっていた（両方向は「§5.3 O-237」が持つ）。
 for (const [cardNum, effectId] of [
   ['SPDi43-20', 'SPDi43-20-E1'], ['WX04-061', 'WX04-061-E2'], ['WXDi-P00-063', 'WXDi-P00-063-E1'],
-  ['WXK03-042', 'WXK03-042-E1'], ['WXK03-043', 'WXK03-043-E1'], ['WXK03-072', 'WXK03-072-E2'], ['WXK10-078', 'WXK10-078-E3'],
+  ['WXK03-043', 'WXK03-043-E1'], ['WXK03-072', 'WXK03-072-E2'], ['WXK10-078', 'WXK10-078-E3'],
 ] as const) test(`§6.4 source swap baseline E2E ${effectId}`, () => withSavedCursor(() => {
   const action = findActionByType(manualEffect(cardNum, effectId).action, 'REARRANGE_SIGNI')!;
   ok(!action.swapSourceLocation && !action.swapBetweenTargets, `${effectId}: 従来の効果元固定形を維持`);
@@ -64234,13 +64238,14 @@ test('§5.3 O-60 第65: 「これの上にある」も上シグニ付与／上�
   eq(e2?.abilities?.length, 1, 'E2: 引用は展開済み（rawText のまま残さない）');
 }));
 
-test('§5.3 O-60 第65: 空きシグニゾーンへの自己移動は明示 defer（O-237）', () => withSavedCursor(() => {
+test('§5.3 O-60 第65: 空きシグニゾーンへの自己移動（🏁O-237 で本実装へ）', () => withSavedCursor(() => {
   // 🔴`WXK03-042-E1` は id が `GRANT_QUOTED_AUTO_ABILITY` なのに**引用付与ではない**（名前が嘘）。
   //   §6.4 `O-20` で engine の読み取りをアビリティブロック限定にしたので引用が空＝無言 no-op だった。
-  // ⚠`REARRANGE_SIGNI{swap}` は候補を「シグニが居るゾーン」に限るので空きゾーンへは動かせない。
-  const seq = effectsMap.get('WXK03-042')?.find(e => e.effectId === 'WXK03-042-E1')?.action as SequenceAction | undefined;
-  eq((seq?.steps?.[0] as { id?: string })?.id, 'DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE', 'WXK03-042-E1: 前半は明示 defer');
-  eq((seq?.steps?.[1] as { type?: string })?.type, 'REARRANGE_SIGNI', 'WXK03-042-E1: 後半（占有ゾーンとの入れ替え）は従来どおり');
+  // 🏁**2026-09-04（`O-237`）＝明示 defer から引き取った**＝既存の `STUB{MOVE_TO_OTHER_SIGNI_ZONE}` に
+  //   `moveSelfZone.allowSwap` を足し、次文の rider（占有ゾーンとの入れ替え）を畳んで**1つの対話**にした。
+  //   詳細な両方向は「§5.3 O-237」の golden が持つ（ここは「defer へ戻っていない」ことだけを見る）。
+  const a = effectsMap.get('WXK03-042')?.find(e => e.effectId === 'WXK03-042-E1')?.action as { type?: string; id?: string };
+  eq(a?.id, 'MOVE_TO_OTHER_SIGNI_ZONE', 'WXK03-042-E1: 明示 defer へ戻っていない');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -64610,6 +64615,43 @@ test('§5.3 O-190: 複合任意コストの「前半」が payload に載って�
 //    15件のうち **11件は既に配線済み**で、残り4件は**表へ足しても届かない**（選択を STUB ハンドラが
 //    自前で組むので `applyDistinctBatch5c` の `visit` が見ている target/source が存在しない）。
 // ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-237: 自己ゾーン移動は空きゾーン＋（入れ替え条項があるときだけ）占有ゾーン', () => withSavedCursor(() => {
+  // 🔴旧 live（`WXK03-042-E1`）は2文がそれぞれ別ステップになり、
+  //   前段が `STUB{DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE}`（何もしない）＋
+  //   後段が `REARRANGE_SIGNI{owner:'any', swap:true}`＝**相手のシグニとも入れ替えられる**過剰実行だった。
+  // 🔑**受け皿は既存**＝`STUB{MOVE_TO_OTHER_SIGNI_ZONE}` を同じ文型の5枚が既に使っていた
+  //   （登録票の「受け皿が無い」は誤り＝PLAN §5.3「まず受け皿を疑う」の実例）。
+  const a = effectsMap.get('WXK03-042')?.find(e => e.effectId === 'WXK03-042-E1')?.action as StubAction;
+  eq(a?.type, 'STUB', 'SEQUENCE ではなく1つの対話に畳まれる');
+  eq(a?.id, 'MOVE_TO_OTHER_SIGNI_ZONE', '既存の受け皿を使う');
+  eq(a?.moveSelfZone?.allowSwap, true, '「そのシグニゾーンにシグニがある場合…入れ替える」＝rider を畳んだ');
+  // 🔴**負方向＝入れ替え条項の無い5枚は空きゾーンだけのまま**（近似で swap を広げない）。
+  for (const num of ['WX14-050', 'WX14-052', 'WX14-053', 'WXDi-P02-053', 'WXK06-076']) {
+    const s = effectsMap.get(num)?.find(e => e.effectId === `${num}-E1`)?.action as StubAction;
+    eq(s?.id, 'MOVE_TO_OTHER_SIGNI_ZONE', `${num}: 同じ受け皿`);
+    eq(s?.moveSelfZone, undefined, `${num}: 原文に入れ替え条項が無いので占有ゾーンは候補にしない`);
+  }
+  // 実行＝空き1つ＋占有1つの盤面で、選択肢が「移動」と「入れ替え」の2つ出る。
+  const self = findCard(c => isSigni(c));
+  const other = findCard(c => isSigni(c) && c !== self);
+  const ctx = mkCtx({ signi: [self, other] }, {}, self);
+  const offered = executeAction(a as EffectAction, ctx);
+  ok(!offered.done && offered.pending?.type === 'CHOOSE', '移動先の対話が出る');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    const ids = offered.pending.options.map(o => o.id);
+    ok(ids.includes('zone_2'), '空きゾーン（ゾーン3）へは「移動」');
+    ok(ids.includes('swap_1'), '占有ゾーン（ゾーン2）へは「入れ替え」');
+    ok(ids.includes('skip'), '「してもよい」＝スキップできる');
+  }
+  // 🔴**負方向＝allowSwap が無ければ占有ゾーンは出ない。**
+  const plain = executeAction({ ...(a as StubAction), moveSelfZone: undefined } as EffectAction, mkCtx({ signi: [self, other] }, {}, self));
+  if (!plain.done && plain.pending.type === 'CHOOSE') {
+    ok(!plain.pending.options.some(o => o.id.startsWith('swap_')), 'allowSwap 無しでは入れ替えの選択肢が出ない');
+  } else {
+    ok(false, 'allowSwap 無しでも対話は出る（空きゾーンが1つある）');
+  }
+}));
 
 test('§5.3 O-233: 「対戦相手の効果によってシグニが場を離れていた場合」の条件が効く', () => withSavedCursor(() => {
   // 🔴この条件語彙は `HAND_TRASHED_BY_OPP` / `ENERGY_TRASHED_BY_OPP` の**シグニ版だけが欠けていた**（3本目）。

@@ -83,6 +83,14 @@
   （`banishedFrontOnly`。⚠実装したことにはしない）。
   ✅**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**。
 
+## 2026-09-04 整理④：`O-237` を🏁クローズして索引から削除
+
+> **登録票の「受け皿が無い」は誤りだった**＝`STUB{MOVE_TO_OTHER_SIGNI_ZONE}`（空きゾーンへの自己移動）を
+> **同じ文型の5枚が既に使っていた**。足りなかったのは「占有ゾーンとは入れ替える」枝（`moveSelfZone.allowSwap`）と、
+> 次文の rider を畳む fold だけ。全文は BUGFIXES.md の同日。
+
+| `O-237` | **1効果** | 🆕**2026-09-04（`O-60` 第65バッチで分離）**＝**空きシグニゾーンへの自己移動**（`WXK03-042-E1`「あなたがアーツを使用したとき、このシグニをあなたの他のシグニゾーン１つに配置してもよい」）。<br>⚠`REARRANGE_SIGNI{swap}` は候補を「**シグニが居るゾーン**」に限る（`execRearrangeSigni` の `candidates`）ので**空きゾーンへは動かせない**。次文「そのシグニゾーンにシグニがある場合、…場所を入れ替える」＝占有時だけは既存で表せている（過小のまま）。<br>🔴旧 id は `GRANT_QUOTED_AUTO_ABILITY`＝**引用付与ではない**（id の名前が嘘）。いまは `DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE`。 |
+
 ## 2026-09-04 整理③：`O-233` を🏁クローズして索引から削除
 
 > 条件語彙 `SIGNI_LEFT_BY_OPP_EFFECT`（`HAND_TRASHED_BY_OPP` / `ENERGY_TRASHED_BY_OPP` の**シグニ版**＝3本目）を

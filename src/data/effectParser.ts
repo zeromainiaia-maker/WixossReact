@@ -23283,6 +23283,29 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  * 🔑**受け皿は既存の `ADD_TO_FIELD{source:{TRASH_CARD}}`**（engine 変更 0）。
  * ⚠**①は2つの対象宣言が連続する形**＝レベルが違うので1本の `TRANSFER_TO_HAND` には畳めない。
  */
+/**
+ * 🆕**§5.3 `O-237`（2026-09-04）＝「そのシグニゾーンにシグニがある場合、そこに配置する代わりに
+ * このシグニとそのシグニの場所を入れ替える」は**前文の rider**（別の行動ではない）。**
+ *
+ * 🔴旧 live（`WXK03-042-E1`）は2文がそれぞれ別ステップになり、後段が
+ *   `REARRANGE_SIGNI{owner:'any', swap:true}`＝**相手のシグニとも入れ替えられる**過剰実行だった
+ *   （原文は「**あなたの**他のシグニゾーン」）。しかも前段は明示 defer で何もしなかった。
+ * ⇒ **後段を畳んで `moveSelfZone.allowSwap` にする**＝1つの対話で「空きゾーンへ移動」と
+ *   「占有ゾーンのシグニと入れ替え」を並べて出す。
+ * ⚠**入れ替え条項が原文に無い5枚には掛けない**（`WX14-050` ほか＝空きゾーンだけが正しい）。
+ */
+function foldMoveSelfZoneSwap(action: EffectAction, sourceText: string): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  if (!/そのシグニゾーンにシグニがある場合[、,]そこに配置する代わりに/.test(sourceText)) return action;
+  const steps = (action as SequenceAction).steps;
+  const moveIdx = steps.findIndex(st => st.type === 'STUB' && (st as StubAction).id === 'MOVE_TO_OTHER_SIGNI_ZONE');
+  const swapIdx = steps.findIndex(st => st.type === 'REARRANGE_SIGNI' && (st as { swap?: boolean }).swap === true);
+  if (moveIdx < 0 || swapIdx < 0) return action;
+  const moved = { ...(steps[moveIdx] as StubAction), moveSelfZone: { allowSwap: true } } as EffectAction;
+  const rest = steps.filter((_, i) => i !== swapIdx).map((st, i) => (i === moveIdx ? moved : st));
+  return rest.length === 1 ? rest[0] : ({ ...(action as SequenceAction), steps: rest } as EffectAction);
+}
+
 function foldTrashSummonThenSecond(action: EffectAction, sourceText: string): EffectAction {
   // ①「トラッシュから、対象のレベルNの＜X＞のシグニ1枚を場に出し 対象のレベルMの＜X＞のシグニ1枚を手札に加える」
   const pair = sourceText.match(
@@ -25770,6 +25793,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = deferCheckZoneFreeCast(folded, currentSourceText(e.effectId) ?? '');
     folded = foldShuffleRevealTopThenBranch(folded, currentSourceText(e.effectId) ?? '');
     folded = foldTrashSummonThenSecond(folded, currentSourceText(e.effectId) ?? '');
+    folded = foldMoveSelfZoneSwap(folded, currentSourceText(e.effectId) ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);

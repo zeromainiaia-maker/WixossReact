@@ -637,14 +637,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   落ちていた。`WXK03-042-E1` は §6.4 `O-20` で engine の読み取りを**アビリティブロック限定**にした
   //   カードそのもの＝ブロック内に引用が無いので `quotedText` が空になり、
   //   「能力を付与（effectEngine処理）」の**無言 no-op** で終わっていた（id の名前が嘘をついている実例）。
-  // ⚠**受け皿が無い**＝`REARRANGE_SIGNI{swap}` は候補を「**シグニが居るゾーン**」に限るので
-  //   （`effectExecutor.execRearrangeSigni` の `candidates`）、**空きゾーンへ動かす**手段がどこにも無い。
-  //   次文「そのシグニゾーンにシグニがある場合、…場所を入れ替える」＝**占有時だけ**は既存 `REARRANGE_SIGNI`
-  //   が表せている（＝過小のまま。近似で `swap` に寄せると空きゾーンへ動けない誤りが残るので寄せない）。
+  // 🏁**§5.3 `O-237`（2026-09-04）＝受け皿は既存だった**＝`STUB{MOVE_TO_OTHER_SIGNI_ZONE}`
+  //   （`execStubPart1.ts`＝空きゾーンを選ばせて移動する対話）。同じ文型の**5枚が既にこれを使っている**
+  //   （`WX14-050` / `WX14-052` / `WX14-053` / `WXDi-P02-053` / `WXK06-076`）＝
+  //   「受け皿が無い」という登録票の見立てが誤っていた（PLAN §5.3「まず受け皿を疑う」の実例）。
+  // ⚠**「そのシグニゾーンにシグニがある場合、…場所を入れ替える」は次文の rider**＝
+  //   `effectParser.ts` の `foldMoveSelfZoneSwap` が畳んで `moveSelfZone.allowSwap` にする
+  //   （ここで前もって立てない＝入れ替え条項の無い5枚まで占有ゾーンへ動けてしまう）。
   // ⚠**トリガー節が付いたままここへ来る形もある**（`WXK03-042-E1`＝「あなたがアーツを使用したとき、
   //   このシグニを…配置してもよい」）＝タイミング句が文から剥がれない経路があるので前置きを許す。
   if (/^(?:[^。]*したとき[、,])?この(?:シグニ|カード)を(?:あなたの)?他のシグニゾーン[１1]つに配置して?もよい$/.test(t.trim())) {
-    return { type: 'STUB', id: 'DEFERRED_MOVE_SELF_TO_OTHER_SIGNI_ZONE' } as StubAction;
+    return { type: 'STUB', id: 'MOVE_TO_OTHER_SIGNI_ZONE' } as StubAction;
   }
 
   // ---- アーツ使用禁止 ----
