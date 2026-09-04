@@ -7,6 +7,7 @@ import { collectForcePlaceFrontZones } from '../../../engine/effectEngine';
 import { deployLimitBlockReason } from '../../../engine/deployLimit';
 import { C } from '../../../components/BoardComponents';
 import { findSigniZoneBlock, resolveSigniZonePlacement } from '../signiZoneBlock';
+import { declaredSigniOverride } from '../growLogic';
 import type { BattleModalCtx } from './types';
 
 interface SigniSummonZoneModalProps {
@@ -40,7 +41,12 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
             </p>
             {(() => {
               const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
-              const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
+              // 🆕🔴**§5.3 `O-226`（2026-09-04・`V-148` の実機で発覚）＝宣言したシグニは基本レベル0。**
+              //   手札の「召喚」ゲートと `fieldSigniTopLevels` には読み手を入れたのに**このモーダルには無く**、
+              //   `afterTotal = 0 + 4 > リミット2` で**3ゾーンとも disabled**＝
+              //   **「召喚」は押せるのに1体も置けない**（提示だけ通って配置できない）状態だった。
+              const signiLevel = declaredSigniOverride(my, summonCard?.CardName).levelZero
+                ? 0 : (parseInt(summonCard?.Level ?? '0') || 0);
               return (
                 <p style={{ color: C.textDim, fontSize: 12, margin: '0 0 14px' }}>
                   Lv.{signiLevel}　リミット: {fieldSigniTotal}/{lrigLimit === Infinity ? '∞' : lrigLimit}
@@ -50,7 +56,9 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               {([0, 1, 2] as const).map(zi => {
                 const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
-                const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
+                // 🆕§5.3 `O-226`＝宣言したシグニは基本レベル0（上の表示行と同じ規則を必ず使う）。
+                const signiLevel = declaredSigniOverride(my, summonCard?.CardName).levelZero
+                  ? 0 : (parseInt(summonCard?.Level ?? '0') || 0);
                 const zoneStack = my.field.signi[zi] ?? [];
                 const isOccupied = zoneStack.length > 0;
                 const pendingRiseFilter = summonCard ? getRiseFilter(summonCard.EffectText ?? '') : null;

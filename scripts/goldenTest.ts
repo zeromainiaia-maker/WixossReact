@@ -64946,6 +64946,14 @@ test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わ
   ok(bs.includes('ignoreRestriction || declaredOverride.ignoreRestriction'), '限定条件を無視できる');
   // 場のリミット計算にも効く（原文「メインデッキと手札と**場**にある」）
   ok(bs.includes('if (declaredSigniOverride(my, top?.CardName).levelZero) return 0;'), '場のレベル合計にも効く');
+  // 🆕🔴**2026-09-04（`V-148` の実機で発覚）＝読み手は3箇所要る。**
+  //   手札の「召喚」ゲートと場のレベル合計だけでは足りず、**召喚先ゾーンのモーダル**が
+  //   印字レベル（4）でリミットを見ていたため `afterTotal 4 > リミット2` で**3ゾーンとも disabled**＝
+  //   **「召喚」は押せるのに1体も置けない**（提示だけ通って配置できない）状態だった。
+  //   🔑**「ゲートを通した」と「実際に置けた」は別の観測面**＝ラベルの有無だけを見る実機シナリオでは緑に見える。
+  const zone = fs.readFileSync(join(root, 'src/screens/battle/modals/SigniSummonZoneModal.tsx'), 'utf8');
+  eq((zone.match(/declaredSigniOverride\(my, summonCard\?\.CardName\)\.levelZero/g) ?? []).length, 2,
+    '召喚先ゾーンのモーダルも表示行とゾーン判定の**両方**で読む（片方だけだと表示と可否が食い違う）');
 });
 
 test('§5.3 O-246: デッキ公開枚数+1 は明示 defer（フラグだけ立てる旧形へ戻さない）', () => withSavedCursor(() => {

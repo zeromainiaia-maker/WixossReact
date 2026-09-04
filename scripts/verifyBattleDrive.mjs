@@ -44386,6 +44386,308 @@ scenarios.o245CoinSpellBetAllowed = {
 };
 order.push('o245CoinSpellBetAllowed');
 
+// -----------------------------------------------------------------------------
+// §5.1 `V-147`（2026-09-04・`O-245` 第3バッチ）＝**次の【出】能力のコスト軽減**
+//   （`reduce_next_on_play_cost`＝`WXK04-075-E1`「このターン、次にあなたが【出】能力を発動する場合、
+//   それの発動コストは《赤×1》減る」）。
+// 🔴**この state キーには読み手が1人もいなかった**（`npm run census:deadstate` で検出）＝
+//   軽減量が積まれるだけで**印刷コストのまま請求されていた**（＝原文より高い＝過小実行）。
+//   ⚠`BattleScreen` は**ターン終了時のリセットだけ**は2箇所で書いていた＝「使っているつもり」に見える形。
+// 読み手は `costs.ts` の `applyNextOnPlayCostReduction`（`SigniOnPlayCostModal` が1回だけ引く）。
+// ⚠**枚数（`エナゾーンから選択: x / N枚`）と色文字列（`コスト:`）の両方**を見る＝
+//   片方だけ直すと**表示は減るのに確定できない**形になる（実装時に踏んだ罠）。
+// 🔴**軽減そのものは state 注入で作る**＝`WXK04-075` は **ＬｏＶ限定**なので盤面づくりの固定費が高く、
+//   観測したいのは「読み手が居るか」なので、原因（state）だけを置いて対照と差し替える（§4.4 📌3）。
+// -----------------------------------------------------------------------------
+
+/** `SigniOnPlayCostModal` の請求（コスト文字列と要求枚数）を読む。 */
+async function readOnPlayCharge(page) {
+  for (let k = 0; k < 24; k++) {
+    const r = await page.evaluate(() => {
+      const t = document.body.innerText;
+      const cost = (t.match(/コスト: ([^\n]*)/) ?? [])[1] ?? null;
+      const m = t.match(/エナゾーンから選択: (\d+) \/ (\d+)枚/);
+      const head = /【出】効果を発動しますか？/.test(t);
+      return { head, cost, need: m ? Number(m[2]) : null };
+    }).catch(() => null);
+    if (r && r.head && r.need !== null) return r;
+    await page.waitForTimeout(150);
+  }
+  return { head: false, cost: null, need: null };
+}
+
+/** `V-147`＝『次の【出】』の軽減が請求に効く／色違いには効かない／1回で消える。 */
+function mkOnPlayReduceScenario(color) {
+  const id = color === '赤' ? 'o245OnPlayReduceRed' : 'o245OnPlayReduceOtherColor';
+  return {
+    title: color === '赤'
+      ? 'O-245 V-147①②：次の【出】のコストが《赤》1つぶん減り、1回で消える（WX24-D2-20）'
+      : 'O-245 V-147③ 反転：色が違う軽減（《青》）では【出】コストは減らない（WX24-D2-20）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#9800'],           // Lv3・リミット8（Lv2 シグニを2体置ける）
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [],
+        // 羅輝石　ヴォルカノ（Lv3・限定なし・【出】《赤》《赤》＝**エナだけのコスト**）を2枚。
+        // ⚠**エナ以外のコストを持つ札を選ばない**＝WX03-017 は【出】に「ルリグデッキから赤のアーツ1枚を
+        //   トラッシュ」が同居しており、ルリグデッキが空だと確定できず**1体目が永久に解決しない**
+        //   ＝『1回で消える』を観測できない（§4.4 📌35b の実測版）。
+        'hand': ['WX24-D2-20#9850', 'WX24-D2-20#9851'],
+        'energy': ['WX04-068#9860', 'WX04-068#9861', 'WX04-068#9862', 'WX04-068#9863'],
+        'coins': 0, 'actions_done': [], 'game_actions_done': [],
+        // 🔴ここだけが本命シナリオと対照の差分（色だけを差し替える）。
+        reduce_next_on_play_cost: { color, count: 1 },
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const charges = [];
+      // 2体ぶん回す＝1体目で軽減が効き、2体目は印刷どおり（＝1回で消費される）。
+      for (const round of [0, 1]) {
+        const hand = await H.clickTestId('my-hand-card-0');
+        await page.waitForTimeout(500);
+        const summon = await H.clickBtn('召喚', { exact: true });
+        await page.waitForTimeout(500);
+        const zone = await H.clickTestId(`summon-zone-${round}`, 'summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        H.log(`  ${id}[${round}]: hand=${hand ?? '-'} 召喚=${summon ?? '-'} zone=${zone ?? '-'}`);
+        const charge = await readOnPlayCharge(page);
+        charges.push(charge);
+        H.log(`  ${id}[${round}]: 請求=${JSON.stringify(charge)}`);
+        await page.screenshot({ path: `${SHOT}/${id}-${round}.png`, fullPage: true });
+        if (!charge.head) break;
+        // 支払って確定する（⚠押した index を覚える＝トグルで外れる＝§4.4 📌8p）。
+        const picked = new Set();
+        for (let t = 0; t < 12; t++) {
+          const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+            await fire.click({ timeout: 1200 }).catch(() => {});
+            break;
+          }
+          let clicked = false;
+          for (let i = 0; i < 6 && !clicked; i++) {
+            if (picked.has(i)) continue;
+            const e = page.getByTestId(`onplaycost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click({ timeout: 1200 }).catch(() => {}); picked.add(i); clicked = true; }
+          }
+          if (!clicked) break;
+          await page.waitForTimeout(200);
+        }
+        // 解決しきる（【出】の対象選択などが挟まったら流す）。
+        for (let t = 0; t < 10; t++) {
+          await page.waitForTimeout(500);
+          const st = await H.queryState();
+          if (!st?.pendingEffect && !(st?.stackLen > 0) && !(await page.getByTestId('pick-0').first().count())) break;
+          const did = await H.clickTestId('pick-0') ?? await H.clickTextOrBtn(['決定', '確定', 'OK', 'はい']);
+          if (!did) break;
+        }
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const st = await H.queryState();
+      const detail = `請求=${JSON.stringify(charges)} energy=${st?.host?.energy} field=${JSON.stringify(st?.host?.fieldSigni)}`;
+      if (!charges[0]?.head) return { pass: false, detail: `前提崩れ＝1体目で【出】コストモーダルが出ない。${detail}` };
+      if (color === '赤') {
+        if (charges[0].need !== 1) {
+          return { pass: false, detail: `🔴軽減が効いていない＝印刷どおり《赤》《赤》を請求された（need=${charges[0].need}／期待1）。${detail}` };
+        }
+        // ⚠**エナ部分だけを見る**（'・' の後ろは別種のコストの説明文＝そこに色名が出ることがある）。
+        const enaPart0 = (charges[0].cost ?? '').split('・')[0];
+        if (enaPart0 !== '《赤》×1') {
+          return { pass: false, detail: `色文字列が枚数と食い違う（エナ部分=${JSON.stringify(enaPart0)}／期待「《赤》×1」）＝表示だけ減って確定できない形。${detail}` };
+        }
+        if (!charges[1]?.head) return { pass: false, detail: `前提崩れ＝2体目で【出】コストモーダルが出ない（1回で消えたかを見られない）。${detail}` };
+        if (charges[1].need !== 2) {
+          return { pass: false, detail: `🔴軽減が1回で消えていない＝2体目も減っている（need=${charges[1].need}／期待2）。${detail}` };
+        }
+        return { pass: true, detail: `1体目は《赤》1枚（軽減あり）・2体目は《赤》《赤》2枚（1回で消費）。${detail}` };
+      }
+      return charges[0].need === 2
+        ? { pass: true, detail: `対照＝《青》の軽減では《赤》《赤》は減らない（need=2）。${detail}` }
+        : { pass: false, detail: `🔴色が違うのに減った＝色照合が効いていない（need=${charges[0].need}／期待2）。${detail}` };
+    },
+  };
+}
+scenarios.o245OnPlayReduceRed = mkOnPlayReduceScenario('赤');
+order.push('o245OnPlayReduceRed');
+scenarios.o245OnPlayReduceOtherColor = mkOnPlayReduceScenario('青');
+order.push('o245OnPlayReduceOtherColor');
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-148`（2026-09-04・`O-226` 第1バッチ）＝**宣言したシグニのレベル0＆限定条件無視**
+//   （`WXK09-001-E3`「このゲームの間、あなたのメインデッキと手札と場にある**宣言した名前の**シグニの
+//   基本レベルは0になり、限定条件を無視して場に出せる」）。
+// 🔴**2つの state キー（`game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`）に
+//   読み手が1人もいなかった**（`npm run census:deadstate` で検出）＝**宣言しても何も起きなかった**。
+//   ⚠着手前の登録メモ「宣言した名前をどこにも保存していない」は**誤り**＝`declared_card_name` は既に在った。
+// 読み手は `growLogic.declaredSigniOverride`＝**手札召喚ゲート**と **`fieldSigniTopLevels`（リミット計算）**の両方。
+// 🔴**本質は「名前が一致したときだけ」**＝フラグだけ見る実装だと**全シグニが対象**になる（過剰実行）。
+//   ⇒ 同じ盤面に**宣言していない別の限定シグニ**を置いて、そちらは今までどおり出せないことを見る。
+// 盤面＝ルリグ `WD01-004`（タマ・Lv1・リミット2）／
+//   宣言シグニ `WD02-009`「羅石　ヴォルカノ」（Lv4・**花代限定**）＝レベルも限定も両方アウト／
+//   対照シグニ `WD03-009`「コードアート　Ｒ・Ｍ・Ｎ」（Lv4・**ピルルク限定**）＝同じくアウト／
+//   `WD01-013`「小剣　ククリ」（Lv1・限定なし・バニラ）＝リミット圧迫の観測用。
+// ⚠**カード名の全角スペース（U+3000）はそのまま書く**＝`declared_card_name` は DB 値どうしの一致判定
+//   （§4.4 📌17 の accessible name 正規化は**掴む**ときの話で、ここは無関係）。
+// -----------------------------------------------------------------------------
+
+/**
+ * 手札 index の札を開いて行動ラベルを読み、**確実に閉じてから**返す。
+ * 🔴**初版はここで1往復溶かした**＝`CardModal` は「タップして閉じる」＝**オーバーレイ全体がクローズ領域**で、
+ *   `閉じる` という**ボタンは無い**（テキストの一部）。閉じ損ねたまま次の札を押しても**前の札のモーダルを
+ *   読み続ける**ので、「宣言側も非宣言側も召喚できる＝名前照合が効いていない」という
+ *   もっともらしい偽陽性になった（§4.4 📌4／📌24 の実例）。
+ * ⇒ **読んだモーダルがどの札のものかを毎回照合し**、違えば閉じ直して開き直す。
+ */
+async function readHandActionLabels(page, H, idx, expectName) {
+  const modalName = () => page.evaluate(() => {
+    const m = document.querySelector('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]');
+    return m ? (m.textContent || '').trim().slice(0, 40) : null;
+  }).catch(() => null);
+  const closeModal = async () => {
+    for (let k = 0; k < 6; k++) {
+      if (!(await modalName())) return true;
+      await page.mouse.click(8, 8).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+    return !(await modalName());
+  };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await closeModal();
+    await H.clickTestId(`my-hand-card-${idx}`);
+    let name = null;
+    for (let k = 0; k < 20; k++) { await page.waitForTimeout(150); name = await modalName(); if (name) break; }
+    if (!name) continue;
+    if (expectName && !name.includes(expectName)) continue;   // 別の札のモーダル＝開き直す
+    const labels = await page.locator('[data-action-label]').evaluateAll(
+      els => els.map(e => e.getAttribute('data-action-label'))).catch(() => []);
+    await closeModal();
+    return { labels, name };
+  }
+  await closeModal();
+  return { labels: [], name: null };
+}
+
+function mkDeclaredSigniScenario(declared) {
+  const id = declared ? 'o226DeclaredSigniOverride' : 'o226DeclaredSigniOverrideOff';
+  return {
+    title: declared
+      ? 'O-226 V-148①②③：宣言したシグニだけがレベル0＆限定無視で召喚でき、リミットを圧迫しない'
+      : 'O-226 V-148 反転：宣言が無ければ同じ盤面で1枚も召喚できない',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-004#9800'],           // 三日月の巫女　タマヨリヒメ（タマ・Lv1・リミット2）
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [],
+        'hand': ['WD02-009#9870', 'WD03-009#9871', 'WD01-013#9872'],
+        'energy': ['WX04-068#9860', 'WX04-068#9861', 'WX04-068#9862'],
+        'coins': 0, 'actions_done': [], 'game_actions_done': [],
+        // 🔴ここだけが本命シナリオと対照の差分（宣言そのものを外す）。
+        ...(declared ? {
+          declared_card_name: '羅石　ヴォルカノ',
+          game_declared_signi_level_zero: true,
+          game_declared_signi_ignore_restriction: true,
+        } : {}),
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const r0 = await readHandActionLabels(page, H, 0, '羅石');   // 宣言したシグニ（Lv4・花代限定）
+      const r1 = await readHandActionLabels(page, H, 1, 'コードアート');   // 宣言していないシグニ（Lv4・ピルルク限定）
+      const l0 = r0.labels, l1 = r1.labels;
+      H.log(`  ${id}: 宣言側=${JSON.stringify(r0)} 非宣言側=${JSON.stringify(r1)}`);
+      const has = (ls) => ls.includes('召喚');
+      if (!r0.name || !r1.name) {
+        return { pass: false, detail: `前提崩れ＝狙った札のモーダルを開けていない（r0=${JSON.stringify(r0)} r1=${JSON.stringify(r1)}）` };
+      }
+      if (!declared) {
+        await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+        if (has(l0) || has(l1)) {
+          return { pass: false, detail: `🔴対照が壊れている＝宣言していないのに召喚できる（宣言側=${JSON.stringify(l0)} 非宣言側=${JSON.stringify(l1)}）` };
+        }
+        return { pass: true, detail: `対照＝宣言が無ければ Lv4・限定つきの2枚とも「召喚」が出ない（レベル制限と限定条件が生きている）` };
+      }
+      if (!has(l0)) {
+        return { pass: false, detail: `🔴旧挙動＝宣言しても何も起きない（「召喚」が出ない・labels=${JSON.stringify(l0)}）` };
+      }
+      if (has(l1)) {
+        return { pass: false, detail: `🔴過剰実行＝宣言していない別の限定シグニまで召喚できる（名前照合が効いていない・labels=${JSON.stringify(l1)}）` };
+      }
+      // ② 実際に場へ出す（Lv4・限定違いのシグニがタマ Lv1 のもとで出る）。
+      // ⚠**1発ずつ順番に押さない**（§4.4 📌24＝ラベルを読んだ時点で開いていたモーダルが
+      //   クリック時には閉じていることがある）＝**押せなければ開き直す**ループにする。
+      let placed = false;
+      let st = null;
+      for (let t = 0; t < 18; t++) {
+        await page.waitForTimeout(500);
+        st = await H.queryState();
+        placed = JSON.stringify(st?.host?.fieldSigni ?? []).includes('WD02-009');
+        if (placed) break;
+        let did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.clickBtn('召喚', { exact: true });
+        if (!did) did = await H.clickBtn('スキップ', { exact: true });
+        if (!did) {
+          // 🔴**モーダルが開いているときに手札を押さない**（§4.4 📌2b の同型）＝`CardModal` は
+          //   「タップして閉じる」＝**全画面オーバーレイ**なので、手札の testid を押すと**閉じるだけ**。
+          //   開け閉めを繰り返して18ティックまるごと空振りした（実測）。
+          const modalOpen = await page.locator('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]').count();
+          if (!modalOpen) did = await H.clickTestId('my-hand-card-0');
+        }
+        H.log(`  ${id}[summon ${t}] -> ${did ?? 'なし'} field=${JSON.stringify(st?.host?.fieldSigni)}`);
+      }
+      // 【出】コストの提示が残っていたらスキップして閉じる。
+      for (let t = 0; t < 6; t++) {
+        const skipped = await H.clickBtn('スキップ', { exact: true });
+        if (!skipped) break;
+        await page.waitForTimeout(400);
+      }
+      await page.waitForTimeout(600);
+      st = await H.queryState();
+      placed = JSON.stringify(st?.host?.fieldSigni ?? []).includes('WD02-009');
+      // ③ リミットを圧迫しない＝Lv4 が 0 として数えられるので Lv1 のバニラがまだ出せる。
+      //   （宣言が効いていなければ 4+1=5 > リミット2 で「召喚」は出ない。）
+      const vanilla = await readHandActionLabels(page, H, 1, '小剣');   // 召喚後の手札＝[WD03-009, WD01-013]
+      const lVanilla = vanilla.labels;
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: 配置=${placed} field=${JSON.stringify(st?.host?.fieldSigni)} バニラ側=${JSON.stringify(lVanilla)}`);
+      if (!placed) {
+        return { pass: false, detail: `「召喚」は出たのに場に出ていない（field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+      }
+      if (!vanilla.name) {
+        return { pass: false, detail: `前提崩れ＝召喚後に「小剣　ククリ」のモーダルを開けていない（${JSON.stringify(vanilla)}）` };
+      }
+      if (!has(lVanilla)) {
+        return { pass: false, detail: `🔴リミットを圧迫している＝Lv4 が 0 として数えられていない（labels=${JSON.stringify(lVanilla)}・field=${JSON.stringify(st?.host?.fieldSigni)}）` };
+      }
+      return { pass: true, detail: `宣言した「羅石　ヴォルカノ」だけが Lv1 ルリグのもとで召喚でき（レベル0＆限定無視）、リミットも圧迫しない（Lv1 バニラがまだ出せる）。非宣言の限定シグニは今までどおり出せない。field=${JSON.stringify(st?.host?.fieldSigni)}` };
+    },
+  };
+}
+scenarios.o226DeclaredSigniOverride = mkDeclaredSigniScenario(true);
+order.push('o226DeclaredSigniOverride');
+scenarios.o226DeclaredSigniOverrideOff = mkDeclaredSigniScenario(false);
+order.push('o226DeclaredSigniOverrideOff');
+
+
+
+
+
 
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
