@@ -2162,6 +2162,83 @@ export function execStubPart3(
   //   🆕いまは `REVEAL_COUNT_PLUS_ONE_OPTIONAL` が `reveal_count_plus_one_this_turn` を立て、
   //     **公開のたびに**「1枚多く公開しますか？」を出す（`maybeAskRevealPlusOne`）。
   //     ⚠**自動加算にしない**＝原文は「してもよい」＝任意の置換なので、問わずに増やすと過剰実行。
+  // ── CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM（§5.3 `O-243`・2026-09-04）──
+  // 「**対戦相手の、シグニ1体とエナゾーンにあるカード1枚とトラッシュにあるカード1枚**を対象とし、
+  //   **あなたのエナゾーンから赤と青と緑の＜天使＞のシグニを1枚ずつ**デッキに加えてシャッフルする。
+  //   **そうした場合、それらを**シャッフルしてデッキの一番下に置く」（`WX21-028-E2`）
+  // 🔑**段階は `value` で見分ける**（`lastProcessedCards` の有無で見分けると前段の処理を巻き込む＝
+  //   `USE_SPELL_FROM_TRASH_PAYING_COST` と同じ規約）。確定した対象は `value2` へ焼き込んで運ぶ。
+  // 🔴**「そうした場合」＝コストを払えなければ対象は動かさない**（払えないのに動かすと過剰実行）。
+  if (stub.id === 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM') {
+    const specCZ = stub.crossZoneTriple;
+    if (!specCZ) return done(addLog(ctx, '[3ゾーン対象: 内容が無いため何もしない]'));
+    const pickedCZ: string[] = stub.value2 ? stub.value2.split(',').filter(Boolean) : [];
+    const stageCZ = pickedCZ.length;
+    // ── 段0〜2＝相手の 場／エナ／トラッシュ から1枚ずつ宣言する。
+    if (stageCZ < 3) {
+      const zonesCZ: Array<{ cands: string[]; scope: TargetScope; label: string }> = [
+        { cands: ctx.otherState.field.signi.flatMap(st2 => st2?.at(-1) ? [st2.at(-1)!] : []), scope: 'opp_field', label: '対戦相手のシグニ' },
+        { cands: [...ctx.otherState.energy], scope: 'opp_energy', label: '対戦相手のエナゾーン' },
+        { cands: [...ctx.otherState.trash], scope: 'opp_trash', label: '対戦相手のトラッシュ' },
+      ];
+      const zCZ = zonesCZ[stageCZ];
+      // ⚠**候補が無いゾーンは飛ばす**（原文「1枚を対象とし」＝居なければその枠は取れない）。
+      if (zCZ.cands.length === 0) {
+        return exec({ ...stub, value2: [...pickedCZ, ''].join(',') } as StubAction as EffectAction, ctx);
+      }
+      return needsInteraction(addLog(ctx, `${zCZ.label}から1枚を対象にする`), {
+        type: 'SELECT_TARGET', candidates: zCZ.cands, count: 1, optional: false, targetScope: zCZ.scope,
+        thenAction: ({ type: 'STUB', id: 'INTERNAL_CZT_PICKED', crossZoneTriple: specCZ,
+          value2: pickedCZ.join(',') } as StubAction) as EffectAction,
+      });
+    }
+    // ── 段3＝コスト（エナから指定色の＜story＞のシグニを1枚ずつデッキへ）。
+    const usedCZ = new Set<string>();
+    const payCZ: string[] = [];
+    for (const color of specCZ.colors) {
+      const hit = ctx.ownerState.energy.find(cn => {
+        if (usedCZ.has(cn)) return false;
+        const c = ctx.cardMap.get(getCardNum(cn));
+        return c?.Type === 'シグニ' && (c.Color ?? '').includes(color) && (c.CardClass ?? '').includes(specCZ.story);
+      });
+      if (!hit) break;
+      usedCZ.add(hit); payCZ.push(hit);
+    }
+    const targetsCZ = pickedCZ.filter(Boolean);
+    // 🔴**払えなければ「そうした場合」が成立しない**＝対象は1枚も動かさない。
+    if (payCZ.length < specCZ.colors.length) {
+      return done(addLog(ctx, `エナに${specCZ.colors.map(c => `《${c}》`).join('')}の＜${specCZ.story}＞のシグニが揃っていない（対象は動かない）`));
+    }
+    const ownerAfterCZ: PlayerState = {
+      ...ctx.ownerState,
+      energy: ctx.ownerState.energy.filter(cn => !usedCZ.has(cn)),
+      deck: shuffle([...ctx.ownerState.deck, ...payCZ]),
+    };
+    // 対象は**それぞれの持ち主のデッキ**の一番下へ（原文「それらをシャッフルしてデッキの一番下に置く」）。
+    const otherAfterCZ: PlayerState = {
+      ...ctx.otherState,
+      field: { ...ctx.otherState.field,
+        signi: ctx.otherState.field.signi.map(st2 => {
+          if (!st2 || st2.length === 0) return st2;
+          return targetsCZ.includes(st2[st2.length - 1]) ? null : st2;
+        }) },
+      energy: ctx.otherState.energy.filter(cn => !targetsCZ.includes(cn)),
+      trash: ctx.otherState.trash.filter(cn => !targetsCZ.includes(cn)),
+      deck: [...ctx.otherState.deck, ...shuffle([...targetsCZ])],
+    };
+    return done(addLog({ ...ctx, ownerState: ownerAfterCZ, otherState: otherAfterCZ, lastProcessedCards: targetsCZ },
+      `エナから${payCZ.length}枚をデッキへ加えてシャッフルし、対象${targetsCZ.length}枚を対戦相手のデッキの一番下へ`));
+  }
+  // INTERNAL_CZT_PICKED: `CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM` の各段の確定（選んだ1枚を積んで再入）。
+  if (stub.id === 'INTERNAL_CZT_PICKED') {
+    // ⚠**空文字も1段として積む**（候補が居ないゾーンを飛ばした印）＝段数を「配列長」で数えているため。
+    const prevCZP = stub.value2 ? stub.value2.split(',') : [];
+    const gotCZP = ctx.lastProcessedCards?.[0] ?? '';
+    return exec({ type: 'STUB', id: 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM',
+      crossZoneTriple: stub.crossZoneTriple,
+      value2: [...prevCZP, gotCZP].join(','),
+    } as StubAction as EffectAction, ctx);
+  }
   if (stub.id === 'REVEAL_COUNT_PLUS_ONE_OPTIONAL') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, reveal_count_plus_one_this_turn: true } },
       'このターン、デッキの上から公開する枚数を1枚増やしてもよい'));

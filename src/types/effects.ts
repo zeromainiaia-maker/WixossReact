@@ -5430,6 +5430,12 @@ export interface StubAction {
    */
   value2?: string;
   /**
+   * 🆕**§5.3 `O-243`（2026-09-04）＝3ゾーン横断の対象＋在庫コスト**（`WX21-028-E2`）。
+   * `colors`＝エナから**1枚ずつ**デッキへ加える色（原文「赤と青と緑」）／`story`＝そのクラス（＜天使＞）。
+   * ⚠**対象は「相手の 場／エナ／トラッシュ から1枚ずつ」で固定**（原文の形）＝ここには持たせない。
+   */
+  crossZoneTriple?: { colors: string[]; story: string };
+  /**
    * 🆕**§5.3 `O-230`／`O-60`（2026-09-04）＝`GUARD_ALTERNATIVE_COST` の中身を payload で運ぶ。**
    * 🔴旧 `collectGuardAlternativeCost` は**カード全文 regex**
    *   （`/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/`）で読んでいたので、

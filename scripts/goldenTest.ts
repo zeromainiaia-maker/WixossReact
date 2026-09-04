@@ -22625,6 +22625,33 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
 // 🆕**§5.3 `O-230`（2026-09-04）＝`GUARD_ALTERNATIVE_COST` の中身は payload で運ぶ。**
 //   🔴旧 `collectGuardAlternativeCost` は**カード全文 regex**で「エナから＜X＞のシグニ1枚」しか読めず、
 //     それ以外の言い回しは**黙って「代替コスト無し」**に落ちていた（`census:enginetext` A群の1行でもあった）。
+// 🆕**§5.3 `O-243`（2026-09-04）＝3ゾーン横断の対象＋在庫コスト。**
+//   🔴旧 live は**原文と無関係な自傷**だった（相手の3枚が自分のトラッシュ1枚に化け、
+//     さらに**自分のシグニ**をデッキの一番下へ送っていた）。
+test('§5.3 O-243: 相手の 場／エナ／トラッシュ から1枚ずつ取り、コストが揃わなければ何も動かない', () => withSavedCursor(() => {
+  const e2 = (effectsMap.get('WX21-028') ?? []).find(e => e.effectId === 'WX21-028-E2');
+  const act = e2?.action as unknown as { id?: string; crossZoneTriple?: { colors?: string[]; story?: string } };
+  eq(act?.id, 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM', '実装済みの受け皿へ載っていない');
+  eq((act?.crossZoneTriple?.colors ?? []).join(','), '赤,青,緑', 'コストの色が原文どおりでない');
+  eq(act?.crossZoneTriple?.story, '天使', 'コストのクラスが原文どおりでない');
+  // 🔴**反転確認＝コストが揃わなければ対象は1枚も動かない**（「そうした場合」）。
+  //   ⚠段階を飛ばして最終段（3枚宣言済み）から入れる＝対話を再現しなくても帰結だけ見られる。
+  const oppSigni = SIGNI, oppEna = SIGNI_L2, oppTrash = SIGNI_L3;
+  const ctxNoPay = mkCtx({ energy: 0 }, { signi: [oppSigni, null, null], energy: 0, trash: 0 });
+  const withZones = { ...ctxNoPay,
+    otherState: { ...ctxNoPay.otherState, energy: [oppEna], trash: [oppTrash] } as PlayerState } as ExecCtx;
+  const staged = { type: 'STUB', id: 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM',
+    crossZoneTriple: { colors: ['赤', '青', '緑'], story: '天使' },
+    value2: [oppSigni, oppEna, oppTrash].join(',') } as unknown as EffectAction;
+  const r0 = run(staged, withZones);
+  const o0 = r0.otherState as PlayerState;
+  ok(o0.energy.includes(oppEna) && o0.trash.includes(oppTrash),
+    '🔴コストが払えないのに対象が動いた（「そうした場合」が無条件成立）');
+  eq(tops(o0)[0], oppSigni, '🔴コストが払えないのに相手のシグニが場から消えた');
+  // 🔴**自分側を巻き込まない**（旧挙動＝自分のシグニをデッキの一番下へ送っていた）。
+  eq(tops(r0.ownerState as PlayerState).filter(Boolean).length,
+    tops(withZones.ownerState as PlayerState).filter(Boolean).length, '🔴自分の場が動いた');
+}));
 test('§5.3 O-230: ガード代替コストは payload だけで決まる（原文 regex へ戻らない）', () => withSavedCursor(() => {
   const src = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8');
   const fn = src.slice(src.indexOf('export function collectGuardAlternativeCost'));
@@ -65273,9 +65300,9 @@ test('§5.3 O-197: 選択を自前で組む STUB にも「それぞれ〜異な�
 //    そのうえ**自分のシグニ**をデッキの一番下へ送っていた。⇒ 近似に寄せず穴を宣言した。
 // ══════════════════════════════════════════════════════════════════════════════
 
-test('§5.3 O-243: 表せない3ゾーン横断の対象は明示 defer（自傷へ倒さない）', () => withSavedCursor(() => {
+test('§5.3 O-243: 3ゾーン横断の対象は実装済み（自傷へ倒さない）', () => withSavedCursor(() => {
   const a = effectsMap.get('WX21-028')?.find(e => e.effectId === 'WX21-028-E2')?.action as { type?: string; id?: string };
-  eq(a?.id, 'DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM', 'WX21-028-E2: 明示 defer');
+  eq(a?.id, 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM', 'WX21-028-E2: 実装済みの受け皿');
   // 🔴**負方向**＝自分のカードを動かす旧形へ戻っていない（この2つが復活したら自傷が再発する）。
   const s2 = JSON.stringify(a);
   ok(!s2.includes('TRASH_CARD'), '自分のトラッシュを巻き込まない');

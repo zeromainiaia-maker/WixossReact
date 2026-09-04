@@ -23479,9 +23479,24 @@ function deferCheckZoneFreeCast(action: EffectAction, sourceText: string): Effec
   return { type: 'STUB', id: 'DEFERRED_CHECK_ZONE_FREE_CAST' } as EffectAction;
 }
 
+/**
+ * 🆕**§5.3 `O-243`（2026-09-04 実装）＝3ゾーン横断の対象＋在庫コスト。**
+ * `WX21-028-E2`「**対戦相手の、シグニ1体とエナゾーンにあるカード1枚とトラッシュにあるカード1枚**を対象とし、
+ *   **あなたのエナゾーンから赤と青と緑の＜天使＞のシグニを1枚ずつ**デッキに加えてシャッフルする。
+ *   **そうした場合、それらを**シャッフルしてデッキの一番下に置く」
+ * 🔴旧 live は**原文と無関係な自傷**だった（相手の3枚が自分のトラッシュ1枚に化け、自分のシグニを
+ *   デッキの一番下へ送っていた）＝いったん明示 defer にしてあった。
+ * ⚠**コストの色とクラスは原文から読む**（固定しない）＝別カードが増えたら payload だけで足りる。
+ */
 function deferCrossZoneTripleTarget(action: EffectAction, sourceText: string): EffectAction {
   if (!/対戦相手の、シグニ[０-９\d]+体とエナゾーンにあるカード[０-９\d]+枚とトラッシュにあるカード[０-９\d]+枚を対象とし/.test(sourceText)) return action;
-  return { type: 'STUB', id: 'DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM' } as EffectAction;
+  // 「あなたのエナゾーンから赤と青と緑の＜天使＞のシグニを1枚ずつデッキに加えてシャッフルする」
+  const costM = sourceText.match(/あなたのエナゾーンから([^＜。]*?)の?＜([^＞]+)＞のシグニを１枚ずつデッキに加えて/);
+  if (!costM) return action;
+  const colors = costM[1].split(/と/).map(c => c.trim()).filter(c => /^[白赤青緑黒]$/.test(c));
+  if (colors.length === 0) return action;
+  return { type: 'STUB', id: 'CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM',
+    crossZoneTriple: { colors, story: costM[2] } } as unknown as EffectAction;
 }
 
 function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAction {
