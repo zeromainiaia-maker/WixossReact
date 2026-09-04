@@ -47358,7 +47358,7 @@ function mkCounterVampScenario(counted) {
         if (!chose) {
           const b = page.getByRole('button', { name: /^(✓ )?選択肢1$/ }).first();
           if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
-            await b.click({ timeout: 1200 }).catch(() => {}); chose = true; did = 'opt:選択肢1';
+            await b.click({ timeout: 1200 }).catch(() => {}); chose = true; did = `opt:選択肢${optNo}`;
           }
         }
         if (!did && !picked) {
@@ -47494,6 +47494,407 @@ scenarios.v136PlaceUnderKaiho = mkInspirationScenario(true);
 order.push('v136PlaceUnderKaiho');
 scenarios.v136PlaceUnderNoHost = mkInspirationScenario(false);
 order.push('v136PlaceUnderNoHost');
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-145`①（`O-60` 第64〜68バッチ＝**3択の消えていた2枝**）
+// `WX22-Re04`（験英の応援 ＃ウカロー＃）の【出】3択のうち
+//   ①「あなたの**他の**＜英知＞のシグニのパワーは対戦相手の効果によって減少しない」
+//   ②「あなたの**他の**＜英知＞のシグニは対戦相手の効果によって場から手札に移動しない」
+// 🔴**旧は①②とも無言 no-op**（③のバニッシュ耐性だけが動いていた）。
+// 🔴**さらに `O-247` を入れるまで①は実機で観測できなかった**＝保護が
+//   `applyDeltaToCard(..., protection)` を通る CONTINUOUS のデルタにしか効かず、
+//   **【出】【自】【起】が書く `temp_power_mods` を素通し**していた（＝原文が主に想定している経路）。
+// 🔑**観測は「盤面に表示される実効パワー」**＝`temp_power_mods` は DB にそのまま載る
+//   （`queryState().powerMods` はブロックされても値が見える）ので、**state を見ると必ず緑に化ける**。
+//   `calcFieldPowers` の結果は画面にしか出ない ⇒ **DOM の数字を読む。**
+// ⚠**反転確認は同じシナリオの中に入れる**＝効果元の ウカロー**自身**は守られない（原文「あなたの**他の**」）。
+// -----------------------------------------------------------------------------
+
+/** 自分のシグニゾーンに表示されている実効パワーを読む（`BoardComponents.tsx:627` の数字）。 */
+async function readSigniEffectivePower(page, zone) {
+  return await page.evaluate((z) => {
+    const slot = document.querySelector(`[data-testid="my-signi-zone-${z}"]`);
+    if (!slot) return null;
+    // ⚠**要素の種類を決め打ちしない**＝数字は `div` とは限らない。
+    //   **子を持たない要素のテキスト**だけを見て、数字だけのものを拾う。
+    const nums = Array.from(slot.querySelectorAll('*'))
+      .filter(e => e.children.length === 0)
+      .map(e => (e.textContent || '').replace(/[,\s]/g, ''))
+      // ⚠**1桁も拾う**＝`displayPow` は `Math.max(0, …)` なので**0になりうる**
+      //   （3桁以上に絞ると「0に落ちた」を「読めない」と誤診する＝実測で踏んだ）。
+      .filter(t => /^\d{1,6}$/.test(t));
+    return nums.length ? Number(nums[nums.length - 1]) : null;
+  }, zone).catch(() => null);
+}
+
+const V145A_UKARO = 'WX22-Re04#9950';      // 験英の応援 ＃ウカロー＃（精像：英知・P7000）＝効果元＝**守られない側**
+const V145A_EICHI = 'WXK02-085#9951';      // 費英の埋没 サンクコ（精像：英知・P10000）＝**守られる側**
+// ⚠**非英知は「−3000 しても 0 にならない」パワーにする**＝0 になるとルール処理でバニッシュされ、
+//   「守られなかった」のか「場から消えた」のかが混ざる（最初 P3000 で踏んだ）。
+const V145A_OTHER = 'WD03-010#9952';       // コードアート Ｄ・Ｒ・Ｓ（精械：電機・P10000）＝英知でない＝**守られない側**
+const V145A_OPPSRC = 'WD02-013#9990';      // 相手の場のカード（`srcCardNum` の支配者＝「対戦相手の効果」の出所）
+
+// 🔴**1ビットだけ反転する対**＝盤面も修整も同じで、**3択のどれを選ぶか**だけを変える。
+//   選択肢3（バニッシュ耐性）を選べばパワーは守られない＝「選んだ枝が効いている」ことの証拠。
+function mkUkaroProtectScenario(optNo) {
+  const id = optNo === 1 ? 'v145PowerProtectOtherEichi' : 'v145PowerProtectWrongBranch';
+  return {
+  title: optNo === 1
+    ? 'O-60 V-145①：WX22-Re04 の①は「他の＜英知＞」だけを相手効果のパワー減少から守る（効果元自身と非英知は守らない）'
+    : 'O-60 V-145① 反転：選択肢3（バニッシュ耐性）を選ぶとパワーは守られない（選んだ枝だけが効く）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9953'],
+      'field.signi': [[V145A_UKARO], [V145A_EICHI], [V145A_OTHER]],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD01-013#9960', 'WD01-013#9961', 'WD02-013#9962'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9991'],
+      // ⚠**相手の場に「効果の出所」を置く**＝`tempModBlocked` は `mod.srcCardNum` の支配者で
+      //   「対戦相手の効果か」を決める（`effectEngine.ts:3036`）。置かないと出所が解決できず素通しになる。
+      'field.signi': [[V145A_OPPSRC], null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9996', 'WD01-013#9997'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WX22-Re04', V145A_UKARO, 'WX22-Re04-E2') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  ${id}: 開始 field=${JSON.stringify(st0?.host?.fieldSigni)} pEff=${st0?.pendingEffect ?? '-'} stack=${st0?.stackLen}`);
+    // ── ① 3択の「選択肢1」を選ぶ（＝パワー減少への耐性）。
+    let chose = false, settled = 0, st = st0;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      if (!chose) {
+        const b = page.getByRole('button', { name: new RegExp(`^(✓ )?選択肢${optNo}$`) }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click({ timeout: 1200 }).catch(() => {}); chose = true; did = `opt:選択肢${optNo}`;
+        }
+      }
+      if (!did) did = await clickDecideNofM(page);
+      if (!did) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | chose=${chose} gEff=${JSON.stringify(st?.host?.grantedEffectIds)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (chose && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 2) break;
+    }
+    if (!chose) return { pass: false, detail: `前提崩れ＝3択の「選択肢${optNo}」を押せていない（gEff=${JSON.stringify(st?.host?.grantedEffectIds)}）` };
+    const granted = (st?.host?.grantedEffectIds ?? []).filter(e => e.startsWith(`${V145A_UKARO}:`));
+    // ── ② 保護が無いときの表示パワーを先に取る（基準）。
+    await H.closeModals();
+    await page.waitForTimeout(700);
+    const before = [0, 1, 2];
+    const p0 = [];
+    for (const z of before) p0.push(await readSigniEffectivePower(page, z));
+    H.log(`  ${id}: 修整前の表示パワー=${JSON.stringify(p0)} 付与=${JSON.stringify(granted)}`);
+    // ── ③ 「対戦相手の効果による −3000」を3体すべてへ載せる（出所は相手の場のカード）。
+    //     ⚠**同じ delta・同じ srcCardNum**＝1ビットも変えずに「誰が守られるか」だけを見る（§4.4 📌3）。
+    await H.patchPlayerState('host', {
+      'temp_power_mods': [
+        { cardNum: V145A_UKARO, delta: -3000, srcCardNum: V145A_OPPSRC },
+        { cardNum: V145A_EICHI, delta: -3000, srcCardNum: V145A_OPPSRC },
+        { cardNum: V145A_OTHER, delta: -3000, srcCardNum: V145A_OPPSRC },
+      ],
+    });
+    // 反映を「観測して」から読む（固定 sleep で済ませない＝§5.1 の教訓）。
+    let p1 = [null, null, null];
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(500);
+      const cur = await H.queryState();
+      p1 = [];
+      for (const z of before) p1.push(await readSigniEffectivePower(page, z));
+      H.log(`  ${id}.after[${s}] 表示パワー=${JSON.stringify(p1)} dbMods=${JSON.stringify(cur?.host?.powerMods)}`);
+      if ((cur?.host?.powerMods ?? []).length === 3 && p1.every(v => v !== null)) break;
+    }
+    await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+    const dump = `付与=${JSON.stringify(granted)} 表示パワー ${JSON.stringify(p0)} → ${JSON.stringify(p1)}`;
+    if (granted.length === 0) return { pass: false, detail: `🔴選択肢1を選んでも能力が付いていない（旧＝無言 no-op）。${dump}` };
+    if (p1.some(v => v === null)) return { pass: false, detail: `前提崩れ＝表示パワーが読めない。${dump}` };
+    const dropped = [0, 1, 2].map(i => (p0[i] ?? 0) - (p1[i] ?? 0));
+    if (optNo !== 1) {
+      // 🔴**反転＝別の枝（バニッシュ耐性）を選んだので、3体とも −3000 が乗る。**
+      if (dropped.every(d => d === 3000)) {
+        return { pass: true, detail: `反転＝選択肢${optNo}を選ぶとパワー減少は守られない（3体とも −3000）。${dump}` };
+      }
+      return { pass: false, detail: `🔴選択肢${optNo}なのにパワーが守られた（減少 ${JSON.stringify(dropped)}）＝どの枝を選んでも同じ耐性が付いている。${dump}` };
+    }
+    // 🔴**本題＝ゾーン1（他の＜英知＞）だけ減らない。**
+    if (dropped[1] !== 0) return { pass: false, detail: `🔴他の＜英知＞（${V145A_EICHI}）が ${dropped[1]} 減った＝保護が一時修整に効いていない（O-247 以前の挙動）。${dump}` };
+    // 🔴**反転確認①＝効果元の ウカロー 自身は守られない**（原文「あなたの**他の**」）。
+    if (dropped[0] !== 3000) return { pass: false, detail: `🔴効果元の ウカロー 自身まで守られた（減少 ${dropped[0]}）＝excludeSelf が効いていない。${dump}` };
+    // 🔴**反転確認②＝＜英知＞でないシグニは守られない。**
+    if (dropped[2] !== 3000) return { pass: false, detail: `🔴＜英知＞でないシグニまで守られた（減少 ${dropped[2]}）＝subjectFilter が効いていない。${dump}` };
+    return { pass: true, detail: `他の＜英知＞だけが −3000 を無効化（0）、効果元自身と非英知は −3000 が乗った。${dump}` };
+  },
+  };
+}
+scenarios.v145PowerProtectOtherEichi = mkUkaroProtectScenario(1);
+order.push('v145PowerProtectOtherEichi');
+scenarios.v145PowerProtectWrongBranch = mkUkaroProtectScenario(3);
+order.push('v145PowerProtectWrongBranch');
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-145`②（**引用【自】の付与**）＝`PR-K076`（大装 ネメシス）の【起】
+// 「あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000し、**それは**
+//  「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、
+//   それのパワーを**このシグニのパワーと同じだけ**－する。」を得る。」
+// 🔑**観測は3点**＝
+//   ①＋3000 と 付与が**同じインスタンス**に乗る（`targetsLastProcessed`＝もう一度選ばされない）
+//   ②対象選択は**1回だけ**（2回目の候補UIが出ない）
+//   ③そのシグニでアタックすると相手のパワーが**そのシグニの実効パワーぶん**下がる（＝base+3000）
+// ⚠**`effect_stack` 注入で撃つ**＝【起】のコストは《黒》＋**自身をトラッシュ**で、
+//   自身が消えると③の「このシグニのパワー」が観測しにくい（コストは観測点ではない）。
+// -----------------------------------------------------------------------------
+
+const V145B_SRC = 'PR-K076#9970';        // 大装 ネメシス（P7000）＝効果元
+const V145B_TARGET = 'WXK02-085#9971';   // 費英の埋没 サンクコ（P10000・バニラ）＝＋3000 と付与を受ける側
+const V145B_OPP = 'WXK02-083#9990';      // 択英の選択 トレオフ（P15000・バニラ）＝アタックの正面
+
+scenarios.v145GrantQuotedAutoOnAttack = {
+  title: 'O-60 V-145②：PR-K076 の【起】は「＋3000」と「引用【自】」を同じ1体へ乗せ、アタック時に相手のパワーをそのシグニのパワーぶん下げる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9972'],
+      'field.signi': [[V145B_SRC], [V145B_TARGET], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD01-013#9980', 'WD01-013#9981', 'WD02-013#9982'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9991'],
+      // ⚠**3ゾーンとも埋める**＝host と guest のゾーン index は正面で一致しない（§4.4 📌8e）。
+      'field.signi': [[V145B_OPP], [`${V145B_OPP.split('#')[0]}#9992`], [`${V145B_OPP.split('#')[0]}#9993`]],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'life_cloth': ['WD01-013#9994', 'WD01-013#9995'],
+      'deck': ['WD01-013#9996', 'WD01-013#9997'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('PR-K076', V145B_SRC, 'PR-K076-E2') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  v145grant: 開始 field=${JSON.stringify(st0?.host?.fieldSigni)} pEff=${st0?.pendingEffect ?? '-'} stack=${st0?.stackLen}`);
+    // ── ① 対象選択（自分のシグニ1体）＝**候補UIが出た回数**を数える（2回目が出たら targetsLastProcessed が効いていない）。
+    let pickRounds = 0, picked = false, settled = 0, st = st0;
+    let pickUiOpen = false, pickedThisRound = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      const cur = await H.queryState();
+      const pk = page.locator(`[data-testid^="pick-"][data-card-num="${V145B_TARGET.split('#')[0]}"]`).first();
+      const anyPick = await page.locator('[data-testid^="pick-"]').count().catch(() => 0);
+      // 🔴**「候補UIが出た回数」は立ち上がりエッジで数える**＝モーダルは確定するまで開きっぱなしなので、
+      //   毎ティック数えると1回の問いが何十回にも化ける（＋候補を押し直してトグルで外れる）。
+      if (anyPick > 0 && !pickUiOpen) {
+        pickUiOpen = true; pickRounds++;
+        pickedThisRound = false;
+        H.log(`  ${'v145grant'}: 候補UI ${pickRounds}回目`);
+      } else if (anyPick === 0 && pickUiOpen) {
+        pickUiOpen = false;
+      }
+      if (anyPick > 0 && !pickedThisRound) {
+        if (await pk.count() && await pk.isVisible().catch(() => false)) {
+          await pk.click({ timeout: 1200 }).catch(() => {}); pickedThisRound = true; picked = true; did = `pick:${V145B_TARGET}`;
+        } else {
+          const any = page.locator('[data-testid^="pick-"]').first();
+          if (await any.isVisible().catch(() => false)) { await any.click({ timeout: 1200 }).catch(() => {}); pickedThisRound = true; picked = true; did = 'pick-0'; }
+        }
+      }
+      const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || pickedThisRound;
+      if (!did && mayDecide) did = await clickDecideNofM(page);
+      if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v145grant[${s}] -> ${did ?? 'なし'} | 候補UI回数=${pickRounds} pow=${JSON.stringify(st?.host?.powerMods)} gEff=${JSON.stringify(st?.host?.grantedEffectIds)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (picked && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+    const buffed = (st?.host?.powerMods ?? []).some(m => m === `${V145B_TARGET}:3000`);
+    const grantedOnTarget = (st?.host?.grantedEffectIds ?? []).some(e => e.startsWith(`${V145B_TARGET}:`));
+    const grantedOnSrc = (st?.host?.grantedEffectIds ?? []).some(e => e.startsWith(`${V145B_SRC}:`));
+    H.log(`  v145grant: ＋3000=${buffed} 付与(対象)=${grantedOnTarget} 付与(効果元)=${grantedOnSrc}`);
+    if (!buffed) return { pass: false, detail: `前提崩れ＝＋3000 が対象に乗っていない（pow=${JSON.stringify(st?.host?.powerMods)}）` };
+    // 🔴**本題①＝付与先が「＋3000 を受けた同じ1体」**（効果元へ逃げていない＝`targetsLastProcessed`）。
+    if (!grantedOnTarget) return { pass: false, detail: `🔴引用【自】が対象へ付いていない（gEff=${JSON.stringify(st?.host?.grantedEffectIds)}）` };
+    if (grantedOnSrc) return { pass: false, detail: `🔴引用【自】が効果元へ付いた＝「それは」の解決先が違う（gEff=${JSON.stringify(st?.host?.grantedEffectIds)}）` };
+    // 🔴**本題②＝対象選択は1回だけ。**
+    if (pickRounds > 1) return { pass: false, detail: `🔴対象を ${pickRounds} 回選ばされた＝targetsLastProcessed が効いていない` };
+
+    // ── ② アタックフェイズへ進め、そのシグニでアタックする。
+    await H.closeModals();
+    await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(700);
+    let opened = false, attacked = false, oppPicked = false, st2 = st;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      const cur = await H.queryState();
+      if (!attacked && cur?.turnPhase !== 'ATTACK_SIGNI' && !cur?.pendingEffect && !(cur?.stackLen > 0)) {
+        await H.closeModals();
+        await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(500); opened = false; did = 'repatch:ATTACK_SIGNI';
+      }
+      if (!did && !attacked) {
+        if (!opened) { const o = await H.clickTestId('my-signi-zone-1'); opened = !!o; did = o; }
+        if (!did) { const a = await H.clickBtn('アタック', { exact: true }); if (a) { attacked = true; did = a; } }
+        if (!did && opened) opened = false;
+      }
+      if (!did && !oppPicked) {
+        const pk = page.locator('[data-testid^="pick-"]').first();
+        if (await pk.count() && await pk.isVisible().catch(() => false)) { await pk.click({ timeout: 1200 }).catch(() => {}); oppPicked = true; did = 'pick:相手'; }
+      }
+      const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || oppPicked;
+      if (!did && mayDecide) did = await clickDecideNofM(page);
+      if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', 'ガードしない', '決定', '確定', 'OK', 'はい']);
+      st2 = await H.queryState();
+      H.log(`  v145grant.atk[${s}] -> ${did ?? 'なし'} | atk=${attacked} 選んだ=${oppPicked} gPow=${JSON.stringify(st2?.guest?.powerMods)} pEff=${st2?.pendingEffect ?? '-'} stack=${st2?.stackLen ?? '-'}`);
+      if (attacked && (st2?.guest?.powerMods ?? []).length > 0 && !st2?.pendingEffect) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v145GrantQuotedAutoOnAttack-final.png`, fullPage: true });
+    const gPow = st2?.guest?.powerMods ?? [];
+    const dump = `候補UI回数=${pickRounds} ＋3000=${buffed} 付与=${JSON.stringify(st?.host?.grantedEffectIds)} gPowerMods=${JSON.stringify(gPow)}`;
+    if (!attacked) return { pass: false, detail: `前提崩れ＝アタックできていない。${dump}` };
+    if (gPow.length === 0) return { pass: false, detail: `🔴アタックしても相手のパワーが下がらない＝引用【自】が発火していない。${dump}` };
+    // 🔴**本題③＝下げ幅は「このシグニのパワー」＝印字10000 ＋ 修整3000 ＝ 13000。**
+    const want = -13000;
+    if (!gPow.some(m => m.endsWith(`:${want}`))) {
+      return { pass: false, detail: `🔴下げ幅が ${want} でない（実測 ${JSON.stringify(gPow)}）＝「このシグニのパワー」を実効値で読んでいない（印字だけ／固定値の疑い）。${dump}` };
+    }
+    return { pass: true, detail: `対象1体に＋3000 と引用【自】が同時に乗り（選択は1回だけ）、アタックで相手のパワーが実効パワーぶん −13000 下がった。${dump}` };
+  },
+};
+order.push('v145GrantQuotedAutoOnAttack');
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-145`③（**クラフトの下から上へ**）＝`WXDi-CP02-TK03A`（虎丸）の【常】2本は
+//   **自分の上に乗っている《棗イロハ》**へ効く（`aboveSelf` / `GRANT_SIGNI_ABOVE_ABILITY`）。
+//   E1＝そのシグニのパワーを＋5000／E2＝そのシグニに「【自】アタックフェイズ開始時、相手シグニ2体まで−3000」を与える。
+// 🔴**旧は E1 が「場のシグニ1体」に潰れて**クラフト自身**にバフし、E2 は恒久 no-op だった。**
+// 🔴**1ビットだけ反転する対**＝**上に乗せる札だけ**を《棗イロハ》↔別のシグニに替える（下の虎丸も盤面も同じ）。
+// -----------------------------------------------------------------------------
+
+const V145C_TORA = 'WXDi-CP02-TK03A#9940';   // 虎丸（クラフト）＝下敷き
+const V145C_IROHA = 'WXDi-CP02-061#9941';    // 棗イロハ（P10000）＝上に乗る「正」の札
+const V145C_OTHER = 'WXK02-085#9941';        // 費英の埋没 サンクコ（P10000・バニラ）＝上に乗る「反転」の札
+const V145C_OPP = 'WXK02-083#9942';          // 択英の選択 トレオフ（P15000・バニラ）＝相手シグニ
+
+function mkTorawaruScenario(withIroha) {
+  const id = withIroha ? 'v145CraftAboveIroha' : 'v145CraftAboveOther';
+  const above = withIroha ? V145C_IROHA : V145C_OTHER;
+  return {
+    title: `O-60 V-145③：WXDi-CP02-TK03A の【常】は「自分の上の《棗イロハ》」へ＋5000と【自】を与える（${withIroha ? '棗イロハを乗せた' : '反転＝別のシグニを乗せた'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9943'],
+        // ⚠**下＝虎丸／上＝観測対象**のスタック。ゾーン0だけを使う。
+        'field.signi': [[V145C_TORA, above], null, null],
+        'field.signi_down': [false, false, false],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD01-013#9950', 'WD01-013#9951', 'WD02-013#9952'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9991'],
+        'field.signi': [[V145C_OPP], [`${V145C_OPP.split('#')[0]}#9993`], null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'life_cloth': ['WD01-013#9994', 'WD01-013#9995'],
+        'deck': ['WD01-013#9996', 'WD01-013#9997'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      await page.waitForTimeout(700);
+      const st0 = await H.queryState();
+      const pow0 = await readSigniEffectivePower(page, 0);
+      H.log(`  ${id}: 開始 field=${JSON.stringify(st0?.host?.fieldSigni)} 上の表示パワー=${pow0}`);
+      // ── ① E1＝上に乗った《棗イロハ》の実効パワーが ＋5000（10000 → 15000）。
+      //    ⚠**state には出ない**（CONTINUOUS なので `temp_power_mods` を通らない）＝**DOM を読む**。
+      // ── ② E2＝アタックフェイズへ進むと相手シグニ2体まで −3000。
+      let advanced = false, settled = 0, st = st0;
+      const pickedIdx = new Set();
+      // 🔴**解決後は何も押さない／観測はピーク値を sticky に持つ**（§4.4 📌25d）＝
+      //   余分な `決定` が**コミット前のスナップショットで上書き**して gPowerMods が 0 へ戻る
+      //   （単体 PASS・一括だけ FAIL の位置依存フレークとして出た）。
+      let peakGPow = [];
+      let doneClicking = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const cur = await H.queryState();
+        if ((cur?.guest?.powerMods ?? []).length >= peakGPow.length) peakGPow = cur?.guest?.powerMods ?? [];
+        if (doneClicking) { st = cur; if (s > 6) break; continue; }
+        if (!advanced) {
+          if (!did) did = await H.clickTextOrBtn(['このまま進む']);
+          if (!did) { const b = await H.clickBtn('アタックフェイズへ'); if (b) { advanced = true; did = b; } }
+        }
+        // 「2体まで」＝候補を1つずつ**1回だけ**押してから決定（§4.4 📌2c＝毎ティック押すとトグルで外れる）。
+        const pk = page.locator('[data-testid^="pick-"]');
+        const n = await pk.count().catch(() => 0);
+        if (!did && n > 0) {
+          for (let i = 0; i < n; i++) {
+            if (pickedIdx.has(i)) continue;
+            const el = pk.nth(i);
+            if (await el.isVisible().catch(() => false)) { await el.click({ timeout: 1200 }).catch(() => {}); pickedIdx.add(i); did = `pick-${i}`; break; }
+          }
+        }
+        // 🔴**決定は「出ている候補を全部押してから」**（§4.4 📌8n）。
+        const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || (n > 0 && pickedIdx.size >= n);
+        if (!did && mayDecide) did = await clickDecideNofM(page);
+        if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', 'ガードしない', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} 進行=${advanced} gPow=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if ((st?.guest?.powerMods ?? []).length >= peakGPow.length) peakGPow = st?.guest?.powerMods ?? [];
+        settled = (advanced && !st?.pendingEffect && !(st?.stackLen > 0) && st?.turnPhase !== 'MAIN') ? settled + 1 : 0;
+        if (settled >= 2) doneClicking = true;
+      }
+      const pow1 = await readSigniEffectivePower(page, 0);
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const gPow = peakGPow;
+      const dump = `上の表示パワー ${pow0} → ${pow1} phase=${st?.turnPhase} gPowerMods(ピーク)=${JSON.stringify(gPow)}`;
+      if (!advanced) return { pass: false, detail: `前提崩れ＝アタックフェイズへ進めていない。${dump}` };
+      if (pow0 === null) return { pass: false, detail: `前提崩れ＝表示パワーが読めない。${dump}` };
+      if (withIroha) {
+        // 🔴**本題①＝上の《棗イロハ》が 10000+5000 = 15000。**
+        if (pow0 !== 15000) return { pass: false, detail: `🔴上の《棗イロハ》の実効パワーが 15000 でない（${pow0}）＝aboveSelf が効いていない（旧＝クラフト自身にバフ）。${dump}` };
+        // 🔴**本題②＝アタックフェイズ開始時に相手が −3000（2体まで）。**
+        const minus = gPow.filter(m => m.endsWith(':-3000'));
+        if (minus.length === 0) return { pass: false, detail: `🔴アタックフェイズ開始時の −3000 が飛ばない＝E2 が恒久 no-op（旧挙動）。${dump}` };
+        return { pass: true, detail: `上の《棗イロハ》が ${pow0}（＋5000）になり、アタックフェイズ開始時に相手 ${minus.length} 体へ −3000 が飛んだ。${dump}` };
+      }
+      // 🔴**反転＝《棗イロハ》でなければ ＋5000 も 【自】も付かない。**
+      if (pow0 !== 10000) return { pass: false, detail: `🔴《棗イロハ》でないのに実効パワーが ${pow0}（＋5000 が付いた）＝cardName が効いていない。${dump}` };
+      if (gPow.some(m => m.endsWith(':-3000'))) return { pass: false, detail: `🔴《棗イロハ》でないのに −3000 が飛んだ＝GRANT_SIGNI_ABOVE_ABILITY の絞り込みが効いていない。${dump}` };
+      return { pass: true, detail: `反転＝上が《棗イロハ》でなければ ＋5000 も 【自】も付かない。${dump}` };
+    },
+  };
+}
+scenarios.v145CraftAboveIroha = mkTorawaruScenario(true);
+order.push('v145CraftAboveIroha');
+scenarios.v145CraftAboveOther = mkTorawaruScenario(false);
+order.push('v145CraftAboveOther');
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
