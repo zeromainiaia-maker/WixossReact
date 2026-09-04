@@ -3877,28 +3877,48 @@ export function canAddToSelection(
 }
 
 /**
- * カードの EffectText から【ライズ】条件フィルターを取得する。
- * ライズカードでない場合は null を返す。
+ * 【ライズ】の**配置要求**（配置先＋下に重ねる材料）。
+ *
+ * 🆕**2026-09-05・§5.3 `O-147`（下位family B）で「1枚のフィルタ」から拡張した。**
+ * 旧 `getRiseFilter` は **「場のシグニ1体の上に置く」しか表せず**、
+ * 「トラッシュ／エナのカードを下に重ねて出す」4枚（`WXEX1-35` `WXK05-035`
+ * `WXDi-P06-034` `WXDi-P15-048`）を `null` で落としていた＝
+ * **材料を1枚も払わずに空きシグニゾーンへ普通に召喚できる過剰実行**だった。
+ *
+ * ⚠**残る下位family A（場のシグニを2〜3体消費して1ゾーンへ積む9枚）は依然 `null`**＝
+ * 多ゾーン消費UI（`SigniSummonZoneModal` の複数ゾーン選択）が要る。§5.3 `O-147` に据置。
  */
-export function getRiseFilter(effectText: string): TargetFilter | null {
-  // 🔴**終端は「（この条件」だけではない**（2026-08-29・§5.1 `V-89` の切り分けで発見）。
-  //   旧実装は `/【ライズ】(.+?)（この条件/` ＝**「（この条件を満たさない場合…）」を書いている新しめのカードにしか
-  //   当たらず、41枚中31枚で null を返していた**＝**ライズ条件がまったく効かず、空きシグニゾーンへ
-  //   普通に召喚できていた**（下にカードが1枚も無いので「このシグニの下から〜」のコスト・パワー参照も死ぬ）。
-  //   ⇒ 終端を「（この条件」か**次の能力マーカー `【`** か**文末**にした。
-  const m = effectText.match(/【ライズ】(.+?)(?=（この条件|【|$)/s);
-  if (!m) return null;
-  const cond = m[1];
+export interface RiseMaterialSpec {
+  /** 材料を引く領域 */
+  from: 'trash' | 'energy';
+  /** その領域から引く枚数 */
+  count: number;
+  /** 材料カードの条件 */
+  filter: TargetFilter;
+  /** 「それぞれレベルの異なる」＝選んだ材料どうしのレベルが互いに異なること */
+  distinctLevel?: boolean;
+}
 
-  // 🔴**複数体ライズ（2体以上／トラッシュ・エナから重ねる）はここでは受けない**＝
-  //   「赤のシグニ**２体**の上に置く（どちらかのシグニがあるシグニゾーンに出す）」は
-  //   **2体を消費して1ゾーンへ積む**機構で、`matchesRiseFilter`（1ゾーンのトップ1枚を見る）では表せない。
-  //   1体ぶんだけ通すと**「半分だけ実装した嘘」**になるので null のまま（＝現状維持）にして、
-  //   機構は §5.3 `O-147` に登録した。⚠**該当13枚は依然ライズ条件が効かない**（既知の穴）。
-  if (/[２-９2-9]体|[２-９2-9]枚|重ね/.test(cond)) return null;
-  // 「《A》１体と《B》１体と《C》１体の上に置く」（`WX20-038`）も複数体ライズ＝「体」が2回以上出たら除外。
-  if ((cond.match(/体/g) ?? []).length >= 2) return null;
+/** 配置先＝場のシグニ1体の上（`filter` を満たすトップ1枚が要る）／空いているシグニゾーン。 */
+export type RiseBase =
+  | { kind: 'field'; filter: TargetFilter }
+  | { kind: 'empty' };
 
+export interface RiseRequirement {
+  base: RiseBase;
+  /** 下に重ねる追加材料（場以外の領域から引く）。単体ライズでは空配列。 */
+  materials: RiseMaterialSpec[];
+  /** 【ライズ】直後の条件節そのまま（UI 表示用） */
+  rawText: string;
+}
+
+const riseToHalfWidth = (v: string) => v.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+/**
+ * ライズ条件節の名詞句（「あなたのレベル２以下の赤のシグニ」等）を `TargetFilter` へ落とす。
+ * ⚠**配置先にも材料にも同じ規則を使う**（別々に書くと片方だけ直る事故になる）。
+ */
+function parseRiseCardFilter(cond: string): TargetFilter {
   const filter: TargetFilter = { cardType: 'シグニ' };
 
   // ＜クラス＞フィルター
@@ -3914,17 +3934,17 @@ export function getRiseFilter(effectText: string): TargetFilter | null {
   const colorM = cond.match(/(白|赤|青|緑|黒)の(?:シグニ|＜)/);
   if (colorM) filter.color = colorM[1];
 
-  // レベルフィルター（「レベルN以上の」／🆕「レベルN以下の」／🆕「レベルNの」）。
+  // レベルフィルター（「レベルN以上の」／「レベルN以下の」／「レベルNの」）。
   // ⚠旧実装は**「以上」だけ**だった＝実データの主流である「レベル２以下の」「レベル１の」が全部落ちて
   //   **レベル無制限**になっていた（`WX15-041`/`WX15-073`/`WX16-038`/`WX16-059`/`WX17-055`/`WX18-061`/
   //   `WX21-Re05`/`WXEX2-61` の8枚）。
-  const toHW = (v: string) => v.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  // ⚠**「レベルの異なる」に数字は無い**ので `lvEq` には当たらない（`distinctLevel` 側で読む）。
   const lvGe = cond.match(/レベル([０-９\d])以上/);
   const lvLe = cond.match(/レベル([０-９\d])以下/);
   const lvEq = cond.match(/レベル([０-９\d])の/);
-  if (lvGe) filter.level = { min: parseInt(toHW(lvGe[1])) };
-  else if (lvLe) filter.level = { max: parseInt(toHW(lvLe[1])) };
-  else if (lvEq) { const n = parseInt(toHW(lvEq[1])); filter.level = { min: n, max: n }; }
+  if (lvGe) filter.level = { min: parseInt(riseToHalfWidth(lvGe[1])) };
+  else if (lvLe) filter.level = { max: parseInt(riseToHalfWidth(lvLe[1])) };
+  else if (lvEq) { const n = parseInt(riseToHalfWidth(lvEq[1])); filter.level = { min: n, max: n }; }
 
   // カード名指定（`WXK09-060`＝「あなたの《楽隊の童話　ロバン》１体の上に置く」）。
   // ⚠**《…アイコン》はカード名ではない**（《ライズアイコン》《ディソナアイコン》＝上で別扱い）ので除外する。
@@ -3934,11 +3954,81 @@ export function getRiseFilter(effectText: string): TargetFilter | null {
   // 《ライズアイコン》を持つ → hasRiseIcon フラグ（matchesFilter拡張なしでは使えないので特殊扱い）
   if (cond.includes('《ライズアイコン》')) {
     // 特別フラグ: matchesFilter では処理不可→呼び出し側でカードテキストを直接確認する必要あり
-    // filter.__hasRiseIcon = true; ← 拡張不可なのでstoryに特殊値を入れる
     (filter as Record<string, unknown>).__requiresRiseIcon = true;
   }
 
   return filter;
+}
+
+/**
+ * 材料句（「エナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつ」）を `RiseMaterialSpec[]` へ落とす。
+ * 表せない形は `null`（＝ライズ条件ごと落とす＝**半分だけ実装した嘘を作らない**）。
+ */
+function parseRiseMaterials(phrase: string): RiseMaterialSpec[] | null {
+  const zm = phrase.match(/^(エナゾーンとトラッシュ|トラッシュとエナゾーン|トラッシュ|エナゾーン)にある(.+)$/);
+  if (!zm) return null;
+  const zones: ('trash' | 'energy')[] = zm[1] === 'エナゾーンとトラッシュ' ? ['energy', 'trash']
+    : zm[1] === 'トラッシュとエナゾーン' ? ['trash', 'energy']
+      : zm[1] === 'トラッシュ' ? ['trash'] : ['energy'];
+  const body = zm[2];
+  const cm = body.match(/([０-９\d]+)枚(ずつ)?$/);
+  if (!cm) return null;
+  const count = parseInt(riseToHalfWidth(cm[1]), 10);
+  if (!(count > 0)) return null;
+  // 「ずつ」＝各領域から count 枚。無いのに領域が2つある形（「AとBにある〜N枚」）は
+  // どちらから何枚かが決まらない＝表せないので落とす。
+  if (zones.length > 1 && !cm[2]) return null;
+  const desc = body.slice(0, cm.index);
+  const filter = parseRiseCardFilter(desc);
+  const distinctLevel = /レベルの異なる/.test(desc);
+  return zones.map(from => ({ from, count, filter, ...(distinctLevel ? { distinctLevel: true } : {}) }));
+}
+
+/**
+ * カードの EffectText から【ライズ】の配置要求を取得する。
+ * ライズカードでない／今の受け皿では表せない形は null を返す。
+ */
+export function getRiseRequirement(effectText: string): RiseRequirement | null {
+  // 🔴**終端は「（この条件」だけではない**（2026-08-29・§5.1 `V-89` の切り分けで発見）。
+  //   旧実装は `/【ライズ】(.+?)（この条件/` ＝**「（この条件を満たさない場合…）」を書いている新しめのカードにしか
+  //   当たらず、41枚中31枚で null を返していた**＝**ライズ条件がまったく効かず、空きシグニゾーンへ
+  //   普通に召喚できていた**（下にカードが1枚も無いので「このシグニの下から〜」のコスト・パワー参照も死ぬ）。
+  //   ⇒ 終端を「（この条件」か**次の能力マーカー `【`** か**文末**にした。
+  const m = effectText.match(/【ライズ】(.+?)(?=（この条件|【|$)/s);
+  if (!m) return null;
+  const cond = m[1];
+
+  // ── (B1) 場のシグニを使わず、他領域のカードを下に重ねて**空きシグニゾーン**へ出す ──
+  //   `WXDi-P06-034`「あなたのトラッシュにある＜武勇＞のシグニ２枚を下に重ねて場に出す（空いているシグニゾーンに出す）」
+  //   `WXDi-P15-048`「あなたのトラッシュにある＜解放派＞のシグニ１枚を下に重ねて場に出す（空いているシグニゾーンに出す）」
+  const b1 = cond.match(/^あなたの((?:エナゾーンと|トラッシュと)?(?:トラッシュ|エナゾーン)にある.+?)を下に重ねて場に出す/);
+  if (b1) {
+    const materials = parseRiseMaterials(b1[1]);
+    return materials ? { base: { kind: 'empty' }, materials, rawText: cond } : null;
+  }
+
+  // ── (B2) 場のシグニ**1体**に、他領域のカードを重ねてその上に置く ──
+  //   `WXEX1-35`「あなたのレベル３以下の赤のシグニ１体にトラッシュにあるそれぞれレベルの異なる赤のシグニ３枚を重ね、その上に置く」
+  //   `WXK05-035`「あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつを重ね、その上に置く」
+  const b2 = cond.match(/^(.+?)に((?:エナゾーンと|トラッシュと)?(?:トラッシュ|エナゾーン)にある.+?)を重ね、その上に置く/);
+  if (b2) {
+    const baseText = b2[1];
+    // 配置先は「場のシグニ**1体**」に限る（2体以上は下位family A＝多ゾーン消費UI待ち）。
+    if ((baseText.match(/体/g) ?? []).length !== 1 || !/[１1]体/.test(baseText)) return null;
+    const materials = parseRiseMaterials(b2[2]);
+    return materials ? { base: { kind: 'field', filter: parseRiseCardFilter(baseText) }, materials, rawText: cond } : null;
+  }
+
+  // 🔴**下位family A（場のシグニを2〜3体消費して1ゾーンへ積む9枚）はここでは受けない**＝
+  //   「赤のシグニ**２体**の上に置く（どちらかのシグニがあるシグニゾーンに出す）」は
+  //   **N体を消費して1ゾーンへ積む**機構で、`matchesRiseFilter`（1ゾーンのトップ1枚を見る）では表せない。
+  //   1体ぶんだけ通すと**「半分だけ実装した嘘」**になるので null のまま（＝現状維持）にして、
+  //   機構は §5.3 `O-147` に据え置いた。⚠**該当9枚は依然ライズ条件が効かない**（既知の穴）。
+  if (/[２-９2-9]体|[２-９2-9]枚|重ね/.test(cond)) return null;
+  // 「《A》１体と《B》１体と《C》１体の上に置く」（`WX20-038`）も複数体ライズ＝「体」が2回以上出たら除外。
+  if ((cond.match(/体/g) ?? []).length >= 2) return null;
+
+  return { base: { kind: 'field', filter: parseRiseCardFilter(cond) }, materials: [], rawText: cond };
 }
 
 /**

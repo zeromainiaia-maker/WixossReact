@@ -38678,6 +38678,348 @@ scenarios.riseGateLevelColor = {
 order.push('riseGateLevelColor');
 // ── ライズ配置条件ゲート END ──
 
+// ── §5.3 `O-147`（下位family B）＝材料つき【ライズ】の実機ガード（2026-09-05） ──
+/**
+ * 🔴**旧挙動**＝`getRiseFilter` は「場のシグニ1体の上に置く」しか表せず、
+ *   「トラッシュ／エナのカードを**下に重ねて**出す」4枚（`WXEX1-35` `WXK05-035`
+ *   `WXDi-P06-034` `WXDi-P15-048`）で **null** を返していた＝ライズ条件が丸ごと消え、
+ *   **材料を1枚も払わずに空きシグニゾーンへ普通に召喚できた**（在庫要求ごと消える過剰実行）。
+ * 🔑**観測点は「積み方」**＝配置後のゾーンが `[材料…, 本体]` になり、
+ *   選んだ材料がトラッシュから**消えている**こと（`fieldSigni` と `trashCards` の両方を見る）。
+ * ⚠**材料の候補提示も観測する**＝＜武勇＞でないトラッシュ札（デコイ）が候補に出ないこと。
+ */
+scenarios.o147RiseTrashStack = {
+  title: 'WXDi-P06-034（トラッシュの＜武勇＞2枚を下に重ねて空きゾーンへ）【旧実装は材料なしでタダ召喚】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],                       // Lv4 / Limit11（制限なしのシグニなので誰でもよい）
+      'field.signi': [null, null, null],
+      // 材料2枚（＜武勇＞）＋デコイ1枚（＜鉱石＞＝候補に出てはいけない）
+      'trash': ['WD17-014#1', 'WD17-012#1', 'WD02-013#1'],
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXDi-P06-034#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴**注入は稀に前のシナリオの盤面に負ける**（§5.1 の既知のレース＝`charmToTrash` と同じ対処）。
+    //   ⚠**確認せずに進むと「材料選択が出なかった＝旧挙動」と誤報する**（2026-09-05 に1度踏んだ）。
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? []).every(z => !z || z.length === 0)
+        && (before?.host?.trashCards ?? []).length === 3;
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(before?.host?.fieldSigni)} trash=${JSON.stringify(before?.host?.trashCards)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseTrashStack.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    H.log(`開始 trash=${JSON.stringify(before?.host?.trashCards)} field=${JSON.stringify(before?.host?.fieldSigni)}`);
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let options = null, zoneBefore = null, picked = 0;
+    let last = before;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o147TrashStack-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      // 材料モーダルが出たら、まず「どれが候補に出ているか」を記録する（これが本命の観測の半分）。
+      if (!did && options === null) {
+        const probe = page.getByTestId('rise-material-0-0').first();
+        if (await probe.count() && await probe.isVisible().catch(() => false)) {
+          options = [];
+          for (const i of [0, 1, 2]) {
+            const b = page.getByTestId(`rise-material-0-${i}`).first();
+            if (await b.count()) options.push(i);
+          }
+          // 材料を選ぶ前のゾーンボタンの状態＝「材料を選択」で無効になっているはず。
+          const z = page.getByTestId('summon-zone-0').first();
+          if (await z.count()) {
+            zoneBefore = {
+              text: (await z.textContent().catch(() => '') ?? '').replace(/\s+/g, ' ').trim(),
+              enabled: await z.isEnabled().catch(() => false),
+            };
+          }
+          H.log(`  材料候補: ${JSON.stringify(options)} / 選択前ゾーン0: ${JSON.stringify(zoneBefore)}`);
+        }
+      }
+      // 材料を2枚選ぶ → そのあとゾーンを押す
+      if (!did && options && picked < options.length && picked < 2) {
+        const hit = await H.clickTestId(`rise-material-0-${options[picked]}`);
+        if (hit) { picked++; did = hit; }
+      }
+      if (!did && picked >= 2) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o147[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)} trash=${JSON.stringify(last?.host?.trashCards)} pEff=${last?.pendingEffect ?? '-'}`);
+      const zones = last?.host?.fieldSigni ?? [];
+      if (zones.some(z => Array.isArray(z) && z.includes('WXDi-P06-034#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WXDi-P06-034#1'));
+    const trash = last?.host?.trashCards ?? [];
+    const detail = `配置先=${at} field=${JSON.stringify(zones)} trash=${JSON.stringify(trash)} 材料候補=${JSON.stringify(options)} 選択前ゾーン0=${JSON.stringify(zoneBefore)}`;
+    // ⚠**本題（候補の絞り込み）を先に判定**＝デコイが候補に出ていたらフィルタが効いていない。
+    if (options === null) return { pass: false, detail: `🔴材料選択が1度も出なかった＝旧挙動（材料なしで召喚できている疑い）。${detail}` };
+    if (options.length !== 2) return { pass: false, detail: `🔴材料候補が2枚でない＝＜武勇＞フィルタが効いていない（＜鉱石＞のデコイが混ざった）。${detail}` };
+    if (zoneBefore && zoneBefore.enabled) return { pass: false, detail: `🔴材料を選ぶ前からゾーンが押せた＝材料が配置条件になっていない。${detail}` };
+    if (at < 0) return { pass: false, detail: `前提崩れ＝召喚自体が完了していない。${detail}` };
+    const stack = zones[at] ?? [];
+    if (stack.length !== 3 || stack.at(-1) !== 'WXDi-P06-034#1') {
+      return { pass: false, detail: `🔴積み方が違う（材料2枚の上に本体、の3枚になっていない）。${detail}` };
+    }
+    const stillInTrash = stack.slice(0, -1).filter(c => trash.includes(c));
+    if (stillInTrash.length) return { pass: false, detail: `🔴下に重ねた材料がトラッシュにも残っている（複製）=${JSON.stringify(stillInTrash)}。${detail}` };
+    return { pass: true, detail: `＜武勇＞2枚だけが候補に出て、選ぶまでゾーンは押せず、配置後は [材料,材料,本体] の3枚積み・トラッシュから消えた。${detail}` };
+  },
+};
+order.push('o147RiseTrashStack');
+
+/**
+ * 対照＝**材料が足りなければ召喚そのものが提示されない**（材料はコストではなく配置条件）。
+ * 🔑旧挙動なら「召喚」ボタンが出て空きゾーンへ普通に置けてしまう。
+ */
+scenarios.o147RiseMaterialShort = {
+  title: 'WXDi-P06-034（トラッシュに＜武勇＞が1枚しかない）＝召喚できない【旧実装はタダで出せた】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [null, null, null],
+      'trash': ['WD17-014#1', 'WD02-013#1'],             // ＜武勇＞は1枚だけ＝2枚に足りない
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXDi-P06-034#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴🔑**「出ないこと」を主張する観測ほど前提の確認が要る**（注入が負けていても同じ結果に見える）。
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? []).every(z => !z || z.length === 0)
+        && (before?.host?.trashCards ?? []).length === 2
+        && (before?.host?.handCards ?? [])[0] === 'WXDi-P06-034#1';
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(before?.host?.fieldSigni)} trash=${JSON.stringify(before?.host?.trashCards)} hand0=${(before?.host?.handCards ?? [])[0]} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseMaterialShort.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    if ((before?.host?.handCards ?? [])[0] !== 'WXDi-P06-034#1') {
+      return { pass: false, detail: `前提崩れ＝手札の先頭が WXDi-P06-034 ではない（注入が負けた）。hand=${JSON.stringify(before?.host?.handCards)}` };
+    }
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `${SHOT}/o147Short-0.png`, fullPage: true });
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    const offered = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+    if (offered) {
+      // 旧挙動の再現＝押せてしまうなら実際に押して、配置まで通るかを見る。
+      await summonBtn.click().catch(() => {});
+      await page.waitForTimeout(900);
+      await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      await page.waitForTimeout(1200);
+    }
+    const st = await H.queryState();
+    const zones = st?.host?.fieldSigni ?? [];
+    const placed = zones.some(z => Array.isArray(z) && z.includes('WXDi-P06-034#1'));
+    const detail = `召喚ボタン提示=${offered} field=${JSON.stringify(zones)} trash=${JSON.stringify(st?.host?.trashCards)}`;
+    if (placed) return { pass: false, detail: `🔴材料が足りないのに場に出た＝旧挙動（配置条件が効いていない）。${detail}` };
+    if (offered) return { pass: false, detail: `🔴場には出なかったが「召喚」が提示された＝押せるのに置けない片肺。${detail}` };
+    return { pass: true, detail: `材料（＜武勇＞2枚）が揃わないので「召喚」自体が提示されない。${detail}` };
+  },
+};
+order.push('o147RiseMaterialShort');
+
+/**
+ * 下位family B②＝**場のシグニ1体の上**に、トラッシュの3枚を重ねて置く（`WXEX1-35`）。
+ * 🔑観測点は3つ＝①「それぞれレベルの異なる」＝同レベルを2枚選ぶと確定できない
+ *   ②積み方が `[下敷き, 材料×3, 本体]` の5枚になる ③下敷きのレベルと入れ替わる（リミット計算）。
+ * ⚠`WXEX1-35` は**リル限定**なのでルリグは `WX21-008`（天空の記憶　リル・Limit12・能力なし）を使う。
+ */
+scenarios.o147RiseFieldPlusTrash = {
+  title: 'WXEX1-35（場の赤Lv3の上に、トラッシュのレベル違い赤3枚を重ねる）【旧実装は材料も下敷きも無しで出せた】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX21-008#1'],                        // リル Lv4 / Limit12 / 能力なし
+      'field.signi': [['WD02-010#1'], null, null],         // zone0=赤Lv3（配置先＝レベル3以下の赤）
+      // 材料＝赤Lv1/Lv2/Lv3（レベルが互いに異なる）＋同レベル重複のデコイ（赤Lv1）
+      'trash': ['WX04-070#1', 'WX04-067#1', 'WX04-065#1', 'WX05-057#1'],
+      'energy': [],
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXEX1-35#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴注入レース対策（`o147RiseTrashStack` と同じ）。
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? [])[0]?.[0] === 'WD02-010#1'
+        && (before?.host?.trashCards ?? []).length === 4;
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(before?.host?.fieldSigni)} trash=${JSON.stringify(before?.host?.trashCards)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseFieldPlusTrash.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    H.log(`開始 field=${JSON.stringify(before?.host?.fieldSigni)} trash=${JSON.stringify(before?.host?.trashCards)}`);
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let sameLevelBlocked = null, picked = [];
+    let last = before;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o147FieldPlus-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      // 材料モーダルが出たら、まず**同レベル2枚（Lv1+Lv1）を選んでもゾーンが押せない**ことを確かめる。
+      if (!did && sameLevelBlocked === null) {
+        const probe = page.getByTestId('rise-material-0-0').first();
+        if (await probe.count() && await probe.isVisible().catch(() => false)) {
+          // 候補の並びはトラッシュの添字順＝[0]=Lv1 / [1]=Lv2 / [2]=Lv3 / [3]=Lv1(重複)
+          await H.clickTestId('rise-material-0-0'); await page.waitForTimeout(200);
+          await H.clickTestId('rise-material-0-3'); await page.waitForTimeout(200);
+          await H.clickTestId('rise-material-0-1'); await page.waitForTimeout(300);
+          const z = page.getByTestId('summon-zone-0').first();
+          sameLevelBlocked = !(await z.isEnabled().catch(() => false));
+          H.log(`  同レベル2枚（Lv1×2）+Lv1 選択時にゾーン0は押せない: ${sameLevelBlocked}`);
+          // 重複を外して Lv3 を入れ直す＝Lv1/Lv2/Lv3 の3枚にする
+          await H.clickTestId('rise-material-0-3'); await page.waitForTimeout(200);
+          await H.clickTestId('rise-material-0-2'); await page.waitForTimeout(300);
+          picked = [0, 1, 2];
+          did = 'rise-material:Lv1/Lv2/Lv3';
+        }
+      }
+      if (!did && picked.length === 3) did = await H.clickTestId('summon-zone-0');
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o147b[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)} trash=${JSON.stringify(last?.host?.trashCards)}`);
+      const zones = last?.host?.fieldSigni ?? [];
+      if (zones.some(z => Array.isArray(z) && z.includes('WXEX1-35#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WXEX1-35#1'));
+    const trash = last?.host?.trashCards ?? [];
+    const detail = `配置先=${at} field=${JSON.stringify(zones)} trash=${JSON.stringify(trash)} 同レベル拒否=${sameLevelBlocked}`;
+    if (sameLevelBlocked === null) return { pass: false, detail: `🔴材料選択が1度も出なかった＝旧挙動（材料なしで召喚できている疑い）。${detail}` };
+    if (sameLevelBlocked !== true) return { pass: false, detail: `🔴「それぞれレベルの異なる」が効いていない（同レベル2枚でも確定できた）。${detail}` };
+    if (at === 1 || at === 2) return { pass: false, detail: `🔴空きゾーンへ普通に召喚できた＝配置先条件が効いていない（旧挙動）。${detail}` };
+    if (at !== 0) return { pass: false, detail: `前提崩れ＝召喚自体が完了していない。${detail}` };
+    const stack = zones[0] ?? [];
+    const ok = stack.length === 5 && stack[0] === 'WD02-010#1' && stack.at(-1) === 'WXEX1-35#1';
+    if (!ok) return { pass: false, detail: `🔴積み方が違う（[下敷き, 材料×3, 本体] の5枚になっていない）。${detail}` };
+    const dup = stack.slice(0, -1).filter(c => trash.includes(c));
+    if (dup.length) return { pass: false, detail: `🔴下に重ねた材料がトラッシュにも残っている（複製）=${JSON.stringify(dup)}。${detail}` };
+    return { pass: true, detail: `レベル相異が強制され、赤Lv3の上に材料3枚を重ねた5枚積みになり、材料はトラッシュから消えた。${detail}` };
+  },
+};
+order.push('o147RiseFieldPlusTrash');
+
+/**
+ * 下位family B②の**エナ経路**（`WXK05-035`＝「エナゾーンとトラッシュにある＜アーム＞のシグニ**1枚ずつ**」）。
+ * 🔑**トラッシュ経路とはコードが別**（`payRiseMaterials` の戻り値を `energy` へ書き戻す枝）＝
+ *   ここだけ落ちると「エナは減らないのに下には重なる」＝**カードが複製される**。
+ * ⚠`WXK05-035` はリル限定・Lv4 なのでルリグは `WX21-008`（Limit12・能力なし）。
+ *   【出】は「下にレベル1・2・3のシグニがある場合」なので、材料がLv1/Lv2 だけの本シナリオでは発火しない（対話が挟まらない）。
+ */
+scenarios.o147RiseEnergyAndTrash = {
+  title: 'WXK05-035（エナとトラッシュから＜アーム＞1枚ずつを重ねる）【旧実装は材料なしでタダ召喚】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX21-008#1'],
+      'field.signi': [['WXK02-076#1'], null, null],       // zone0=＜アーム＞赤Lv3（配置先）
+      'trash': ['WDK06-R16#1', 'WD02-013#1'],             // ＜アーム＞Lv1 ＋ デコイ（＜鉱石＞）
+      'energy': ['WXK02-078#1', 'WD02-012#1'],            // ＜アーム＞Lv2 ＋ デコイ（＜鉱石＞）
+      'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXK05-035#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴注入レース対策（`o147RiseTrashStack` と同じ）。
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? [])[0]?.[0] === 'WXK02-076#1'
+        && (before?.host?.energyCards ?? []).length === 2;
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(before?.host?.fieldSigni)} energy=${JSON.stringify(before?.host?.energyCards)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseEnergyAndTrash.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    H.log(`開始 field=${JSON.stringify(before?.host?.fieldSigni)} energy=${JSON.stringify(before?.host?.energyCards)} trash=${JSON.stringify(before?.host?.trashCards)}`);
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let groups = null, picked = false;
+    let last = before;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o147EnergyTrash-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      if (!did && groups === null) {
+        const probe = page.getByTestId('rise-material-0-0').first();
+        if (await probe.count() && await probe.isVisible().catch(() => false)) {
+          // 枠は2つ（group0=エナ／group1=トラッシュ）。デコイが候補に出ていないことも見る。
+          groups = [];
+          for (const g of [0, 1]) {
+            const idx = [];
+            for (const i of [0, 1]) {
+              const b = page.getByTestId(`rise-material-${g}-${i}`).first();
+              if (await b.count()) idx.push(i);
+            }
+            groups.push(idx);
+          }
+          H.log(`  材料候補: ${JSON.stringify(groups)}`);
+          await H.clickTestId('rise-material-0-0'); await page.waitForTimeout(200);
+          await H.clickTestId('rise-material-1-0'); await page.waitForTimeout(300);
+          picked = true;
+          did = 'rise-material:エナ+トラッシュ';
+        }
+      }
+      if (!did && picked) did = await H.clickTestId('summon-zone-0');
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o147c[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}`);
+      const zones = last?.host?.fieldSigni ?? [];
+      if (zones.some(z => Array.isArray(z) && z.includes('WXK05-035#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WXK05-035#1'));
+    const energy = last?.host?.energyCards ?? [];
+    const trash = last?.host?.trashCards ?? [];
+    const detail = `配置先=${at} field=${JSON.stringify(zones)} energy=${JSON.stringify(energy)} trash=${JSON.stringify(trash)} 材料候補=${JSON.stringify(groups)}`;
+    if (groups === null) return { pass: false, detail: `🔴材料選択が1度も出なかった＝旧挙動（材料なしで召喚できている疑い）。${detail}` };
+    if (JSON.stringify(groups) !== JSON.stringify([[0], [0]])) {
+      return { pass: false, detail: `🔴候補が「各領域の＜アーム＞1枚ずつ」になっていない（デコイが混ざった／枠が立っていない）。${detail}` };
+    }
+    if (at !== 0) return { pass: false, detail: `前提崩れ＝＜アーム＞の上に配置できていない。${detail}` };
+    const stack = zones[0] ?? [];
+    const ok = stack.length === 4 && stack[0] === 'WXK02-076#1' && stack.at(-1) === 'WXK05-035#1';
+    if (!ok) return { pass: false, detail: `🔴積み方が違う（[下敷き, エナ材料, トラッシュ材料, 本体] の4枚になっていない）。${detail}` };
+    // 🔑**本題**＝エナから引いた札がエナに残っていない（残っていたら複製）。
+    if (energy.includes('WXK02-078#1')) return { pass: false, detail: `🔴下に重ねたのにエナゾーンにも残っている（複製）。${detail}` };
+    if (trash.includes('WDK06-R16#1')) return { pass: false, detail: `🔴下に重ねたのにトラッシュにも残っている（複製）。${detail}` };
+    if (!energy.includes('WD02-012#1')) return { pass: false, detail: `🔴選んでいないエナ（デコイ）まで消えた。${detail}` };
+    return { pass: true, detail: `エナとトラッシュから1枚ずつを下に重ねて4枚積みになり、両領域から消え、選んでいない札は残った。${detail}` };
+  },
+};
+order.push('o147RiseEnergyAndTrash');
+// ── `O-147` 材料つき【ライズ】 END ──
+
 // ── §5.3 `O-60` 第9バッチ（`SEED_BLOOM` の枚数を payload へ）の実機観測点 ──
 /**
  * 🔴**旧 engine は `(EffectText + BurstText).includes('好きな枚数')`** ＝**カード全文**に1度でも出れば
@@ -48608,6 +48950,9 @@ try {
         trash: (s.trash ?? []).length,
         trashCards: s.trash ?? [],
         energy: (s.energy ?? []).length,
+        // 🆕§5.3 `O-147`（2026-09-05）＝【ライズ】の材料をエナから引く形（`WXK05-035`）の観測点。
+        //   枚数だけだと「どの札が下へ重なったか」が見えない。
+        energyCards: s.energy ?? [],
         life: (s.life_cloth ?? []).length,
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),

@@ -3580,6 +3580,33 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 
 **規模／母集団（登録票の記載そのまま）**＝**13カード**
 
+🔻**2026-09-05（下位family B）にクローズ＝13カード → 残 9カード。**
+■**入れたもの**＝`getRiseFilter`（`TargetFilter | null`）を **`getRiseRequirement`（`RiseRequirement | null`）**へ広げた＝
+`{ base: {kind:'field', filter} | {kind:'empty'}, materials: RiseMaterialSpec[] }`。
+これで **(B) トラッシュ／エナのカードを下に重ねて出す4枚**（`WXDi-P06-034`＝トラッシュの＜武勇＞2枚→空きゾーン／
+`WXDi-P15-048`＝トラッシュの＜解放派＞1枚→空きゾーン／`WXEX1-35`＝場の赤Lv3以下＋トラッシュの**レベル相異**赤3枚／
+`WXK05-035`＝場の＜アーム＞＋**エナとトラッシュから1枚ずつ**）が表せるようになった。
+■**判定は `src/screens/battle/riseSummon.ts` 1本**（`riseMaterialOptions` / `canPayRiseMaterials` /
+`validateRiseMaterials` / `payRiseMaterials`）＝**モーダルの活性化・手札の「召喚」ゲート・`handleSummonSigni` の確定**が
+同じ関数を呼ぶ。⚠**別々に書くと「押せるのに置けない／置けるのに押せない」片肺になる**（`O-226` で踏んだ形）。
+■**UI** は `SigniSummonZoneModal` に「下に重ねるカード」の枠（領域ごと・枚数固定）を足しただけ＝**新しいモーダルは作っていない**。
+積み方は `newSigni[zone] = [...既存スタック, ...材料, 本体]` の1式で場型・空きゾーン型の両方を表す。
+■🔑**同じ巡で見つけた別の穴を2つ塞いだ**＝
+  ①**CPU 召喚ループはライズを1度も見ていなかった**（空きゾーンしか回らず `newSigni[zone] = [id]` と置く）＝
+    **【ライズ】41枚を下敷きも材料も無しで空きゾーンへタダで出していた**（人間側だけがゲートされていた）。
+    CPU に材料選択の経路は無いので **fail-closed で候補から除外**した。
+  ②**手札の「召喚」ゲート（`getMyHandCardActions`）が空きゾーン前提だった**＝
+    ライズは下敷きのレベルと入れ替わるのに `fieldSigniTotal + Lv <= リミット` かつ**空きゾーンがあること**を要求しており、
+    **盤面が埋まっている／合計レベルが足りないだけで合法なライズが打てなかった**（過少実行）。配置先の種類ごとに分けた。
+■**実機5本 PASS**（`node scripts/verifyBattleDrive.mjs riseGateLevelColor o147RiseTrashStack o147RiseMaterialShort o147RiseFieldPlusTrash o147RiseEnergyAndTrash`）
+＝候補の絞り込み・材料未選択ではゾーンが押せないこと・レベル相異の強制・積み方（3枚/4枚/5枚）・
+**材料が元の領域から消えていること（複製していない）**・**材料が足りなければ「召喚」自体が出ないこと**まで見る。
+■**golden のラチェット**＝`RISE_CARD_TOTAL 41` は据置、`RISE_CARD_GATED 28 → 32`、`RISE_CARD_MATERIAL 4` を新設。
+■🔴**残 (A) は 9枚**（`WX16-027` `WX17-026` `WX20-037` `WX20-038` `WXK03-021` `WXK08-031` `WXK11-038` `WXK11-053` `WX24-P1-043`）＝
+**場のシグニを2〜3体消費して1ゾーンへ積む**形。`SigniSummonZoneModal` を**複数ゾーン選択**にし、
+選ばれた全ゾーンのスタックを1ゾーンへ畳む必要がある（`getRiseRequirement` は今も `null` を返す＝既知の穴のまま）。
+⚠**着手前に9枚を数え直す**（golden の `RISE_CARD_GATED` が件数をロックしている）。
+
 **2026-08-29 続き716（§5.1 `V-89` の切り分けで発見）。** ■**経緯**＝`getRiseFilter` の終端が `（この条件` 固定で、【ライズ】41枚のうち**31枚で null**＝**ライズ条件が丸ごと効かず空きシグニゾーンへ普通に召喚できていた**。終端・色・レベル・カード名を直して**10→28枚**が正しくゲートされるようにしたが、**残る13枚は「1体の上に置く」ではないので今の受け皿では表せない**。 ■**該当13枚**＝`WX16-027` `WX17-026` `WX20-037` `WXEX1-35` `WXK03-021` `WXK08-031` `WXK11-038` `WXK11-053` `WX24-P1-043` `WX20-038` `WXK05-035` `WXDi-P06-034` `WXDi-P15-048`。**形は3つ**＝(a)「＜X＞のシグニ**２体（３体）**の上に置く（どちらかのシグニがあるシグニゾーンに出す）」＝**2〜3ゾーンを消費して1ゾーンへ積む** (b)「《A》１体と《B》１体と《C》１体の上に置く」＝**カード名指定の複数材料**（`WX20-038`） (c)「トラッシュ／エナゾーンにある〜を下に重ねて場に出す（空いているシグニゾーンに出す）」＝**場以外から材料を引く**。 ■🔴**1体ぶんだけ通してはいけない**＝`getRiseFilter` は今わざと null を返している（「半分だけ実装した嘘」を作らないため）。**この13枚はいま「ライズ条件なしで普通に召喚できる」ままで、それが既知の穴**。 ■**要るもの**＝`getRiseFilter` の戻り値を「1枚のフィルタ」から**材料リスト**へ広げ、`SigniSummonZoneModal` を**複数ゾーン選択**にする（`handleSummonSigni` の `newSigni[zoneIndex] = [...existing, cardNum]` も**選ばれた全ゾーンのスタックを1ゾーンへ畳む**形に変える）。⚠**回帰は召喚UI全体**なので、`riseGateLevelColor`（単体ライズの実機ガード）を必ず一緒に回す。 ■⚠**着手前に13枚を数え直す**（`npm run golden -- --only "rise: getRiseFilter"` が `RISE_CARD_TOTAL`/`RISE_CARD_GATED` で件数をロックしている）。
 
 ### `O-148` — 「【ウィルス】を好きな数取り除く」の枚数をプレイヤーが選べない（常に最大数）／取り除いた数が後続へ届かない
@@ -4705,6 +4732,31 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-05・第130〜135バッチ後・PLAN §6 から退避）
+
+- **2026-09-05（第130〜135バッチ）＝🏁`O-60` クローズ＝A群 9行→**0**（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）
+  🏁**`census:enginetext` A🔴 9行 → 0行 / 0ハンドラ**（`BASELINE_SELF_TEXT` も **0** へ払い戻し）／
+  **`census:costtext` A🔴 0規則**（据置）／**`census:deadstate` 0件**（据置）。
+  📦**在庫2本**＝**機構 worklist 10 → 9項目**（🏁`O-60` −1）＝索引 A 1／B 1／G 2／E 5。
+  ⚠**索引 E の5件は計器の較正**＝挙動を直す項目は **4件**｜**実機 残 0件**（据置）。
+  🔧**ゲート（全緑 ✅）**＝golden **3472 / 3472**（3467→3472＝+5本／既存の契約 golden 5本を理由つきで更新）／
+  smoke **10725** 全異常0／fuzz 全0／census **1 / BASELINE 1**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors／
+  `npm run regen` 完走後に再度 gates 全緑。
+  🖥**実機＝新規2本（反転1組）＋回帰3本＝5本 ALL PASS**（第132のみ＝`src/screens/` を触った回）。
+  🏁**消化5バッチ**＝第130（死んだ STUB ハンドラ2本を撤去）／第131（公開記録を payload 化＝恒久 no-op を解消）／
+  第132（【ビート】コストの対象を payload 化＝live 9効果）／第133（死んだ catch-all 3 family を parser 規則ごと撤去）／
+  第134（「めくれるまで公開」を payload 化＝live 4効果）／🏁第135（条件節の捨て場を「名前のある穴」へ改名して
+  ハンドラを撤去＝**A群 0**）。
+  🔴**最大の発見＝計器のラベルは母集団ではない**＝A群は「`if` の最後の id」でグループ化されるので
+  `DECK_REVEAL_UNTIL`（live 4）が `OPP_DECK_REVEAL_UNTIL`（live 0）に化けていた。
+  逆に `REVEAL_AND_PICK` は grep で live 472 に見えたが**アクション型**の数で STUB 形は0だった。
+  🔴**実機が UI の穴を1件捕まえた**＝場の【ビート】コストに支払い可否の門が無く、他のシグニ0体でも
+  【発動】が押せて**召喚だけが宙に浮いて**いた（trash 側にだけ門があった）。
+  ✅**ブラスト半径＝live は13カードのみ**（【ビート】9＋「めくれるまで公開」4）。第130/133/135 は live 差分ゼロ。
 
 ### 恒久指標アーカイブ（2026-09-04・第111〜120バッチ後・PLAN §6 から退避）
 

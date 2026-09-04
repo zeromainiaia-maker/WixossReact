@@ -98,7 +98,7 @@ import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimi
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
-import { getRiseFilter } from '../src/engine/execUtils';
+import { getRiseRequirement } from '../src/engine/execUtils';
 import { fieldCandidatesByOwner } from '../src/engine/execUtils';
 import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
@@ -59092,42 +59092,79 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
     `live 限定 MANUAL スタンプが減った: ${orphans.length} < ${BASELINE_ORPHAN_MANUAL}（BASELINE_ORPHAN_MANUAL を実数へ下げる）`);
 }));
 
-// ── ライズ配置条件（`getRiseFilter`）＝2026-08-29・§5.1 `V-89` の切り分けで見つかった engine バグの回帰ガード ──
+// ── ライズ配置条件（`getRiseRequirement`）＝2026-08-29・§5.1 `V-89` の切り分けで見つかった engine バグの回帰ガード ──
 // 🔴**旧実装は終端が `（この条件` 固定**で、【ライズ】41枚のうち **31枚で null**（＝ライズ条件が丸ごと無効・
 //   空きシグニゾーンへ普通に召喚できた）。さらに色は「あなたの」直後限定、レベルは「以上」だけを読んでいた。
+// 🆕**2026-09-05・§5.3 `O-147`（下位family B）＝戻り値を「1枚のフィルタ」から `RiseRequirement`
+//   （配置先＋下に重ねる材料）へ広げた**＝材料つき4枚（`WXEX1-35` `WXK05-035` `WXDi-P06-034`
+//   `WXDi-P15-048`）が **null＝材料を1枚も払わず空きゾーンへ召喚できる過剰実行**だったのを閉じた。
 // ⚠**カバレッジは件数でロックする**（テキストは CSV 側で増えるので、個別カードだけ見ると母集団の変化に気づけない）。
-test('rise: getRiseFilter が【ライズ】カードの配置条件を取りこぼさない（終端・色・レベル・カード名）', () => {
+test('rise: getRiseRequirement が【ライズ】カードの配置条件を取りこぼさない（終端・色・レベル・カード名・材料）', () => {
+  const riseFilterOf = (t: string) => {
+    const req = getRiseRequirement(t);
+    // 「単体ライズ（場のシグニ1体の上・材料なし）」だけを旧 `getRiseFilter` 相当として読む。
+    return req && req.base.kind === 'field' && req.materials.length === 0 ? req.base.filter : null;
+  };
   // 単体ライズ＝終端が `【`（旧実装が全部取りこぼしていた形）
-  const oda = getRiseFilter('【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【常】：このシグニは…');
+  const oda = riseFilterOf('【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【常】：このシグニは…');
   eq(oda?.cardType, 'シグニ', 'WX15-032 cardType');
   eq(oda?.story, '武勇', 'WX15-032 story');
   // 「あなたの」直後に色が来ない形＝旧実装は色を落として**どの色にも乗れた**
-  const ake = getRiseFilter('【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【自】：…');
+  const ake = riseFilterOf('【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【自】：…');
   eq(ake?.color, '赤', 'WX15-041 color');
   eq(JSON.stringify(ake?.level), JSON.stringify({ max: 2 }), 'WX15-041 level(以下)');
   // 「レベルNの」＝旧実装は「以上」しか読まずレベル無制限だった
-  const kin = getRiseFilter('【ライズ】あなたのレベル１の赤のシグニ１体の上に置く【常】：…');
+  const kin = riseFilterOf('【ライズ】あなたのレベル１の赤のシグニ１体の上に置く【常】：…');
   eq(JSON.stringify(kin?.level), JSON.stringify({ min: 1, max: 1 }), 'WX16-059 level(丁度)');
   // 「（この条件…）」つきの新しい書式は従来どおり通る
-  const nob = getRiseFilter('【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさない場合、このシグニは場に出せない）【出】：…');
+  const nob = riseFilterOf('【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさない場合、このシグニは場に出せない）【出】：…');
   eq(nob?.color, '赤', 'WXDi-D09-H13 color');
   // カード名指定（《…アイコン》はカード名ではない）
-  const kok = getRiseFilter('【ライズ】あなたの《楽隊の童話　ロバン》１体の上に置く【自】：…');
+  const kok = riseFilterOf('【ライズ】あなたの《楽隊の童話　ロバン》１体の上に置く【自】：…');
   eq(kok?.cardName, '楽隊の童話　ロバン', 'WXK09-060 cardName');
-  const jin = getRiseFilter('【ライズ】あなたの《ディソナアイコン》のシグニ１体の上に置く（この条件を満たさない場合、このシグニは場に出せない）【常】：…');
+  const jin = riseFilterOf('【ライズ】あなたの《ディソナアイコン》のシグニ１体の上に置く（この条件を満たさない場合、このシグニは場に出せない）【常】：…');
   eq(jin?.cardName, undefined, 'アイコンを cardName にしない');
   eq(jin?.isDisona, true, 'WXDi-P12-068 isDisona');
-  // 🔴**複数体ライズは null のまま**＝1体ぶんだけ通すと「半分だけ実装した嘘」になる（機構は §5.3 `O-147`）
-  eq(getRiseFilter('【ライズ】あなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【出】：…'), null, '2体ライズは受けない');
-  eq(getRiseFilter('【ライズ】あなたの《轟左砲　ドーラ》１体と《弩中砲　グスタフト》１体と《轟右砲　ドスラフ》１体の上に置く【常】：…'), null, '3枚指定ライズは受けない');
-  eq(getRiseFilter('【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつを重ね、その上に置く【常】：…'), null, '「重ね」は受けない');
-  // 母集団のラチェット＝CSV 全件で「フィルタが立つ枚数」を固定する。
-  const RISE_CARD_TOTAL = 41;   // 先頭が【ライズ】の CSV カード数（新カードで増えたら実数へ上げる）
-  const RISE_CARD_GATED = 28;   // うちライズ条件が立つ枚数（残 13 = 複数体ライズ＝§5.3 `O-147`）
+
+  // 🆕**§5.3 `O-147` 下位family B①＝トラッシュのカードを下に重ねて空きシグニゾーンへ出す**
+  const kuu = getRiseRequirement('【ライズ】あなたのトラッシュにある＜武勇＞のシグニ２枚を下に重ねて場に出す（空いているシグニゾーンに出す）【常】：…');
+  eq(kuu?.base.kind, 'empty', 'WXDi-P06-034 は空きゾーンへ出す');
+  eq(kuu?.materials.length, 1, 'WXDi-P06-034 材料枠は1つ');
+  eq(kuu?.materials[0].from, 'trash', 'WXDi-P06-034 材料はトラッシュ');
+  eq(kuu?.materials[0].count, 2, 'WXDi-P06-034 材料は2枚');
+  eq(kuu?.materials[0].filter.story, '武勇', 'WXDi-P06-034 材料は＜武勇＞');
+  eq(kuu?.materials[0].distinctLevel, undefined, 'WXDi-P06-034 にレベル相異条件は無い');
+
+  // 🆕**下位family B②＝場のシグニ1体に、他領域のカードを重ねてその上に置く**
+  const jan = getRiseRequirement('【ライズ】あなたのレベル３以下の赤のシグニ１体にトラッシュにあるそれぞれレベルの異なる赤のシグニ３枚を重ね、その上に置く【常】：…');
+  eq(jan?.base.kind, 'field', 'WXEX1-35 は場のシグニの上');
+  eq(jan?.base.kind === 'field' ? JSON.stringify(jan.base.filter.level) : '', JSON.stringify({ max: 3 }), 'WXEX1-35 配置先はレベル3以下');
+  eq(jan?.materials[0].count, 3, 'WXEX1-35 材料は3枚');
+  eq(jan?.materials[0].distinctLevel, true, 'WXEX1-35 はレベルが互いに異なること');
+  // ⚠「レベルの異なる」を `level:{min,max}` へ落とさない（数字が無いので `lvEq` に当たってはいけない）
+  eq(jan?.materials[0].filter.level, undefined, 'WXEX1-35 材料にレベル値フィルタは付かない');
+  const oni = getRiseRequirement('【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつを重ね、その上に置く【常】：…');
+  eq(oni?.materials.length, 2, 'WXK05-035 は「1枚ずつ」＝領域ごとに枠が立つ');
+  eq(oni?.materials.map(m => m.from).join(','), 'energy,trash', 'WXK05-035 の領域はエナ→トラッシュ');
+  eq(oni?.materials.every(m => m.count === 1), true, 'WXK05-035 は各1枚');
+
+  // 🔴**下位family A（場のシグニを2〜3体消費して1ゾーンへ積む）は null のまま**＝
+  //   1体ぶんだけ通すと「半分だけ実装した嘘」になる（多ゾーン消費UI待ち＝§5.3 `O-147`）
+  eq(getRiseRequirement('【ライズ】あなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【出】：…'), null, '2体ライズは受けない');
+  eq(getRiseRequirement('【ライズ】あなたの《轟左砲　ドーラ》１体と《弩中砲　グスタフト》１体と《轟右砲　ドスラフ》１体の上に置く【常】：…'), null, '3枚指定ライズは受けない');
+  eq(getRiseRequirement('【ライズ】《ライズアイコン》を持つシグニ１体と＜武勇＞のシグニ２体の上に出す【常】：…'), null, '「1体と2体」も受けない');
+  // 領域が2つあるのに「ずつ」が無い形＝どちらから何枚かが決まらない＝落とす
+  eq(getRiseRequirement('【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ２枚を重ね、その上に置く【常】：…'), null, '「ずつ」の無い2領域は受けない');
+
+  // 母集団のラチェット＝CSV 全件で「配置要求が立つ枚数」を固定する。
+  const RISE_CARD_TOTAL = 41;      // 先頭が【ライズ】の CSV カード数（新カードで増えたら実数へ上げる）
+  const RISE_CARD_GATED = 32;      // 旧28 →**32**（2026-09-05・`O-147` 下位family B の4枚を回収）
+  const RISE_CARD_MATERIAL = 4;    // うち「下に重ねる材料」を要求する枚数（family B）
   const riseCards = [...cardMap.values()].filter(c => /^【ライズ】/.test(c.EffectText ?? ''));
-  const gated = riseCards.filter(c => getRiseFilter(c.EffectText ?? '') !== null);
+  const reqs = riseCards.map(c => getRiseRequirement(c.EffectText ?? ''));
   eq(riseCards.length, RISE_CARD_TOTAL, '【ライズ】カード総数');
-  eq(gated.length, RISE_CARD_GATED, 'ライズ条件が立つカード数（減ったら退化・増えたら基準を上げる）');
+  eq(reqs.filter(r => r !== null).length, RISE_CARD_GATED, 'ライズ条件が立つカード数（減ったら退化・増えたら基準を上げる）');
+  eq(reqs.filter(r => (r?.materials.length ?? 0) > 0).length, RISE_CARD_MATERIAL, '材料つきライズの枚数');
 });
 
 // ── `remainder.reorder`（`O-51` の並べ替え対話）の到達率ラチェット（§5.3 `O-144`・2026-08-29） ──

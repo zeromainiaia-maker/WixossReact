@@ -9,7 +9,7 @@ applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFront
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, resumeAllocatePower, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, beatSigniCostCount, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
+import { getRiseRequirement, matchesRiseFilter, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, sweepFacedownAttached, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, collectAttackerSelfDelayedTriggers as pureCollectAttackerSelfDelayedTriggers, collectAttackEndDelayedTriggers as pureCollectAttackEndDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
@@ -127,6 +127,7 @@ import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spel
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
+import { canPayRiseMaterials, payRiseMaterials, validateRiseMaterials, type RiseMaterialItem } from './battle/riseSummon';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost, canPayLrigAttackFieldTrashCost, deterministicLrigAttackFieldTrashZones, payLrigAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
@@ -6236,6 +6237,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     handIndex: number,
     zoneIndex: number,
     resona?: { candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection },
+    // 🆕§5.3 `O-147`（下位family B）＝【ライズ】で**下に重ねる材料**（トラッシュ／エナから引く）。
+    riseMaterials?: RiseMaterialItem[],
   ) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     const resonaAttackResponse = !!resona && bs.turn_phase === 'ATTACK_ARTS_OP' && !isMyTurn;
@@ -6247,19 +6250,41 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!summonCardNum) return;
     const summonPlacedFromZone: TriggerOriginZone = resona ? 'lrig_deck' : 'hand';
     const summonCardData = battleCardMap.get(summonCardNum);
-    const riseFilter = resona ? null : (summonCardData ? getRiseFilter(summonCardData.EffectText ?? '') : null);
+    const riseReq = resona ? null : (summonCardData ? getRiseRequirement(summonCardData.EffectText ?? '') : null);
+    // 🆕§5.3 `O-147`＝配置先が「場のシグニ1体の上」か「空きシグニゾーン」かで分岐する
+    //   （空きゾーン型＝`WXDi-P06-034`/`WXDi-P15-048` は**材料を払って**空きゾーンへ出す）。
+    const riseOnField = riseReq?.base.kind === 'field';
     const existingZoneStack = my.field.signi[zoneIndex] ?? [];
     // ライズ条件チェック
-    if (riseFilter) {
+    if (riseReq?.base.kind === 'field') {
       // ライズシグニ: 空きゾーンには出せない、条件不一致ゾーンにも出せない
       const existingTop = existingZoneStack.at(-1);
       if (!existingTop) return; // 空きゾーン不可
       const existingTopNum = getCardNum(existingTop);
-      if (!matchesRiseFilter(existingTopNum, riseFilter, battleCardMap)) return;
+      if (!matchesRiseFilter(existingTopNum, riseReq.base.filter, battleCardMap)) return;
+    } else if (riseReq?.base.kind === 'empty') {
+      if (existingZoneStack.length > 0) return; // 空きシグニゾーンにしか出せない
     } else {
       // 通常シグニは空きゾーンへ。レゾナだけは、出現条件で同時にトラッシュへ置くゾーンを召喚先にできる。
       const paidDestination = resona?.selection.items?.some(i => i.zone === 'field' && i.index === zoneIndex);
       if (existingZoneStack.length > 0 && !paidDestination) return;
+    }
+    // 🆕§5.3 `O-147`（下位family B）＝【ライズ】の**下に重ねる材料**（トラッシュ／エナ）を確定する。
+    //   🔴**材料はコストではなく配置条件**＝満たせないなら召喚そのものが成立しない（＝ここで return）。
+    //   ⚠**UI の活性化判定と同じ関数（`riseSummon.ts`）を使う**（別々に書くと押せるのに配置できない片肺になる）。
+    let riseStacked: string[] = [];
+    let riseTrashAfter: string[] | null = null;
+    let riseEnergyAfter: string[] | null = null;
+    if (riseReq && riseReq.materials.length > 0) {
+      const picked = riseMaterials ?? [];
+      if (!validateRiseMaterials(my, riseReq, picked, battleCardMap)) return;
+      // ⚠**変数名を `paid` のような一般名にしない**＝`census:costtext` の原文追跡は
+      //   **ファイル全体を名前で伝播する**ので、`paid` を汚染源にすると `card`／`cardNum`／`timing` まで
+      //   「原文由来」に化けて **C群が 3規則→6規則・14カード→941カード**に膨らむ（2026-09-05 に実測）。
+      const riseMaterialPayment = payRiseMaterials(my, riseReq, picked);
+      riseStacked = riseMaterialPayment.stacked;
+      riseTrashAfter = riseMaterialPayment.trash;
+      riseEnergyAfter = riseMaterialPayment.energy;
     }
     if (isActionBlocked('PLAY_COLORLESS') && summonCardData?.Color === '無') return;
     // 🏁§5.3 `O-94`② で `OPP_ZONE_PLACEMENT_RESTRICT` は `deployLimitBlockReason` の funnel へ移した
@@ -6275,7 +6300,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const blockedDeploy = deployLimitBlockReason({
         placingState: my, opponentState: op, cardNum: summonCardNum,
         cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
-        onExistingStack: !!riseFilter || existingZoneStack.length > 0,
+        onExistingStack: riseOnField || existingZoneStack.length > 0,
         fieldCountAdjust: paidFieldCount,
         placementSource: 'normal_summon',
         zoneIndex,
@@ -6283,14 +6308,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (blockedDeploy) return;
     }
     // FORCE_PLACE_FRONT: 相手の該当シグニの正面に配置を強制（正面が空いている場合のみ）。ライズは上乗せのため対象外。
-    if (!riseFilter) {
+    if (!riseReq) {
       const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
       if (forcedFront.size > 0 && !forcedFront.has(zoneIndex)) return;
     }
     // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）: 「新たに配置できない」ゾーン。
     // 《無》×N の支払い回避つきならエナから徴収して通す（不足なら不成立＝ガード追加《無》と同じ作法）。
     // ライズは既存シグニへの上乗せ＝「新たに配置」ではないので対象外。
-    const zoneBlockPay = riseFilter ? null : resolveSigniZonePlacement(my, zoneIndex);
+    const zoneBlockPay = riseOnField ? null : resolveSigniZonePlacement(my, zoneIndex);
     if (zoneBlockPay && !zoneBlockPay.allowed) return;
     // SELF_PLAY_RESTRICT（自身出撃制限・Opusタスク12(xlix)）: このカード自身の【常】出撃条件を満たさなければ通常召喚不可。
     // never（効果でのみ配置可）＝常に不可。condition あり＝盤面で評価（未満たしなら不可）。未対応語彙は permissive（従来同値）。
@@ -6317,10 +6342,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const cardNum = summonCardNum;
       const newSigni = [...my.field.signi] as (string[] | null)[];
-      const isRise = !!riseFilter;
+      const isRise = !!riseReq;
       if (isRise) {
-        // ライズ: 既存スタックの上に積む（下カードはそのまま）
-        newSigni[zoneIndex] = [...(existingZoneStack), cardNum];
+        // ライズ: 既存スタック → 下に重ねる材料 → このカード の順に積む。
+        //   🆕§5.3 `O-147`＝空きゾーン型（`existingZoneStack` が空）でも同じ式で表せる。
+        newSigni[zoneIndex] = [...existingZoneStack, ...riseStacked, cardNum];
       } else {
         newSigni[zoneIndex] = [cardNum];
       }
@@ -6371,7 +6397,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             signi_acce:   newAcce,
             signi_soul:   newSoul,
           },
-          trash: [...my.trash, ...zoneExtraTrash],
+          // 🆕§5.3 `O-147`＝下に重ねた材料はトラッシュ／エナから取り除く（`riseTrashAfter`/`riseEnergyAfter`）。
+          trash: [...(riseTrashAfter ?? my.trash), ...zoneExtraTrash],
+          ...(riseEnergyAfter ? { energy: riseEnergyAfter } : {}),
           lrig_trash: zoneExtraLrigTrash.length > 0 ? [...my.lrig_trash, ...zoneExtraLrigTrash] : my.lrig_trash,
         };
       }
@@ -8528,10 +8556,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // リミット制限: 空きゾーンに召喚後の合計レベルがリミット以内であること
         // ＋ LIMIT_ALL_FIELD_N: 場のシグニ体数が上限未満であること（WX04-005-E3「1体しか場に出せない」）
         const myCurrentSigniCount = my.field.signi.filter(stk => (stk ?? []).length > 0).length;
-        const canFitSomewhere = myCurrentSigniCount < fieldSigniCountLimit && [0, 1, 2].some(zi => {
-          const isEmpty = (my.field.signi[zi] ?? []).length === 0;
-          return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
-        });
+        // 🆕🔴**§5.3 `O-147`（2026-09-05）＝【ライズ】はこのゲートを通れないことがあった。**
+        //   旧実装は**空きゾーンがあること**と `fieldSigniTotal + Lv <= リミット` しか見ておらず、
+        //   ライズ（＝場のシグニ1体の上に置く＝下敷きのレベルと入れ替わる）では
+        //   **「盤面が埋まっている」「合計レベルが足りない」だけで「召喚」ボタンが消えていた**＝
+        //   合法なライズが打てない（過少実行）。⇒ 配置先の種類ごとに判定を分ける。
+        //   ⚠**モーダル（`SigniSummonZoneModal`）と同じ規則を使う**（片方だけ直すと
+        //     「押せるのに置けない／置けるのに押せない」になる）。
+        const handRiseReq = getRiseRequirement(cardData.EffectText ?? '');
+        const canFitSomewhere = handRiseReq
+          ? (canPayRiseMaterials(my, handRiseReq, battleCardMap) && [0, 1, 2].some(zi => {
+            const stack = my.field.signi[zi] ?? [];
+            if (handRiseReq.base.kind === 'empty') {
+              return stack.length === 0 && myCurrentSigniCount < fieldSigniCountLimit
+                && (fieldSigniTotal + signiLevel) <= lrigLimit;
+            }
+            if (stack.length === 0) return false;
+            if (!matchesRiseFilter(getCardNum(stack.at(-1)!), handRiseReq.base.filter, battleCardMap)) return false;
+            // 下敷きのレベルと入れ替わる（体数は増えないので `fieldSigniCountLimit` は見ない）。
+            const underLevel = parseInt(battleCardMap.get(getCardNum(stack.at(-1)!))?.Level ?? '0') || 0;
+            return (fieldSigniTotal - underLevel + signiLevel) <= lrigLimit;
+          }))
+          : myCurrentSigniCount < fieldSigniCountLimit && [0, 1, 2].some(zi => {
+            const isEmpty = (my.field.signi[zi] ?? []).length === 0;
+            return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
+          });
         // Restriction チェック
         const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass,
           ignoreRestriction || declaredOverride.ignoreRestriction);
@@ -12137,6 +12186,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ⚠パワー上限（`signi_deploy_power_limit`）は従来 CPU が見ておらず、人間だけが縛られていた（続き405）。
         // ⚠**可否（ここ）と選択（`pickCpuDeployCard`）を分ける**＝可否は人間と同じ gate 群が権威。
         const placeable = handSignis.filter(({ id, card }) => {
+          // 🆕🔴**§5.3 `O-147`（2026-09-05）＝CPU は【ライズ】の配置条件を1度も見ていなかった。**
+          //   このループは**空きゾーンしか回らず** `newSigni[zone] = [candidate.id]` と置くので、
+          //   ライズ41枚を**下敷きも材料も無しで空きゾーンへタダで出していた**（人間側だけが
+          //   `getRiseRequirement` でゲートされていた＝CPU の一方的な過剰実行）。
+          //   ⚠CPU 側に下敷き／材料の選択経路は無いので **fail-closed で候補から外す**
+          //     （1体ぶんだけ通す「半分だけ実装した嘘」を作らない）。CPU のライズ召喚は §5.3 `O-147` に据置。
+          if (getRiseRequirement(card!.EffectText ?? '')) return false;
           const lv = parseInt(card!.Level) || 0;
           if (lv > cpuLrigLevel || fieldTotal + lv > cpuLimit) return false;
           const power = card!.Power === '∞' ? Infinity : parseInt(card!.Power ?? '', 10);
