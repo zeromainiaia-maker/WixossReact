@@ -20,11 +20,13 @@ interface GuardResponseDialogProps {
   handleGuardResponse: (handIndex: number | null) => void;
   handleGuardWithEnergyAlternative: () => void;
   handleGuardWithHandAlternative: () => void;
+  /** 🆕§5.3 `O-230`＝《無》×N を払ってコラボライバー M 人とコラボする代替ガード。 */
+  handleGuardWithCollabAlternative: (colorless: number, collab: number) => void;
 }
 
 export function GuardResponseDialog(p: GuardResponseDialogProps) {
   const { bs, user, my, op, isMyTurn, loading, battleCardMap, effectsMap } = p.ctx;
-  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithHandAlternative } = p;
+  const { contBlocked, myHandGuardClasses, isHost, performGuardResponse, handleGuardResponse, handleGuardWithEnergyAlternative, handleGuardWithHandAlternative, handleGuardWithCollabAlternative } = p;
   return (
     <>
       {my.field.lrig_attacked && !my.field.check && createPortal(
@@ -75,10 +77,15 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               const guardBlockedByExtraGuard = oppExtraGuardFromHand && guardCardCountInHand < 2;
               // GUARD_ALTERNATIVE_COST: エナゾーンから指定クラスシグニをトラッシュしてガード可能
               const guardAltCost = !guardDisabledByOpp ? collectGuardAlternativeCost(my, battleCardMap, effectsMap) : null;
-              const guardAltEnergySigni = guardAltCost ? my.energy.filter(cn => {
+              // 🆕§5.3 `O-230`＝代替コストは2種類（エナのクラス指定トラッシュ／《無》＋コラボ）。
+              const guardAltEnergyClass = guardAltCost?.spec.kind === 'energy_trash_class' ? guardAltCost.spec.signiClass : null;
+              const guardAltEnergySigni = guardAltEnergyClass ? my.energy.filter(cn => {
                 const c = battleCardMap.get(cn);
-                return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(guardAltCost.signiClass);
+                return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(guardAltEnergyClass);
               }) : [];
+              // 🆕「《無》をN枚支払いコラボライバーM人とコラボしてもよい」＝エナがN枚あれば提示する。
+              //   ⚠**コラボの実行部（`INTERNAL_DO_COLLAB`）は既にある**＝ここは提示と支払いだけ。
+              const guardAltCollab = guardAltCost?.spec.kind === 'colorless_and_collab' ? guardAltCost.spec : null;
               const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost || guardBlockedByExtraGuard) ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ num, card }) => {
@@ -136,12 +143,21 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                       ⚠ 追加で手札1枚か《無》×1を支払わないとガードできません（自動消費）
                     </p>
                   )}
-                  {guardAltCost && guardAltEnergySigni.length > 0 && (
+                  {guardAltCollab && my.energy.length >= guardAltCollab.colorless && (
+                    <button onClick={() => handleGuardWithCollabAlternative(guardAltCollab.colorless, guardAltCollab.collab)} disabled={loading}
+                      data-testid="guard-alt-collab"
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #d08bd0',
+                        backgroundColor: 'rgba(208,139,208,0.15)', color: '#d08bd0', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：《無》×{guardAltCollab.colorless}を支払いコラボライバー{guardAltCollab.collab}人とコラボ
+                    </button>
+                  )}
+                  {guardAltEnergyClass && guardAltEnergySigni.length > 0 && (
                     <button onClick={handleGuardWithEnergyAlternative} disabled={loading}
                       style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4caf50',
                         backgroundColor: 'rgba(76,175,80,0.15)', color: '#4caf50', cursor: 'pointer',
                         fontSize: 13, marginBottom: 8 }}>
-                      代替ガード：エナ＜{guardAltCost.signiClass}＞1枚をトラッシュ
+                      代替ガード：エナ＜{guardAltEnergyClass}＞1枚をトラッシュ
                     </button>
                   )}
                   {myGuardAltHand > 0 && my.hand.length >= myGuardAltHand && (

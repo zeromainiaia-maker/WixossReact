@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 587（総ノード 3180 件）
-逆翻訳シートの [STUB:…] 総数: 379  うち生ID露出 5 箇所（4 種）
+live JSON の STUB id 種類 : 586（総ノード 3180 件）
+逆翻訳シートの [STUB:…] 総数: 380  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 29 種 / 30 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 29 種 / 30 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 28 種 / 29 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 28 種 / 29 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 33 種 / 103 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
@@ -47,9 +47,6 @@ live JSON の STUB id 種類 : 587（総ノード 3180 件）
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
         生成: src\data\parsers\parseSentencePart2.ts:2845
-     1件   1枚  DEFERRED_GUARD_ALT_COST_COLLAB
-        カード: WXDi-CP01-005
-        生成: src\data\parsers\parseSentencePart3.ts:187
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
         生成: src\data\effectParser.ts:14954
@@ -206,7 +203,7 @@ live JSON の STUB id 種類 : 587（総ノード 3180 件）
         消費: src\engine\execUtils.ts:1971
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:7943
+        消費: src\engine\effectEngine.ts:7942
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:53

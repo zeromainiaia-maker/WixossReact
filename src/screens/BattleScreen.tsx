@@ -12655,10 +12655,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleGuardWithEnergyAlternative = async () => {
     if (!my.field.lrig_attacked || loading) return;
     const altCost = collectGuardAlternativeCost(my, battleCardMap, effectsMap);
-    if (!altCost) return;
+    if (altCost?.spec.kind !== 'energy_trash_class') return;
+    const altClass = altCost.spec.signiClass;
     const energySigni = my.energy.filter(cn => {
       const c = battleCardMap.get(cn);
-      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(altCost.signiClass);
+      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(altClass);
     });
     if (energySigni.length === 0) return;
     setLoading(true);
@@ -12678,7 +12679,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: { ...my.field, lrig_attacked: false },
         actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
       };
-      appendBattleLogs([`ガード代替コスト：エナ＜${altCost.signiClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
+      appendBattleLogs([`ガード代替コスト：エナ＜${altClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
       const newOpState = attackGuard.usedOncePerTurnIds.length > 0
         ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
@@ -12694,6 +12695,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // game_guard_alt_hand: 手札N枚を捨ててガード（ガードアイコン不要の代替）
+  /**
+   * 🆕**§5.3 `O-230`（2026-09-04）＝【ガード】の代替コストとしての「コラボする」。**
+   * `WXDi-CP01-005-E1`「あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに
+   *   《無》を支払い**コラボライバー1人とコラボしてもよい**。」
+   * 🔴旧は `STUB{COLLAB}` の「コラボしてもよい」枝へ落ちて**原文と無関係にアシストルリグを場へ出す対話**が開いていた。
+   * 🔑**コラボの実行部（`INTERNAL_DO_COLLAB`）は既にある**＝ここは「ガードの代わりに払う」入口と支払いだけ。
+   * ⚠**エナの支払いは《無》＝色を問わない**ので先頭から N 枚取る（他の《無》コストと同じ規約）。
+   */
+  const handleGuardWithCollabAlternative = async (colorless: number, collab: number) => {
+    if (!my.field.lrig_attacked || loading) return;
+    if (my.energy.length < colorless) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const paid = my.energy.slice(0, colorless);
+      const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
+        collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+      const attackerId = isHost ? bs.guest_id : bs.host_id;
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      guardTriggers.push(...attackGuard.entries);
+      // コラボ本体は既存の実行部へ委譲する（アシストルリグ1人を場へ）。
+      guardTriggers.push({
+        id: generateUUID(), playerId: user.id, cardNum: my.field.lrig.at(-1) ?? '', effectId: 'O230-GUARD-COLLAB',
+        label: `【ガード】の代替コスト：コラボライバー${collab}人とコラボ`,
+        effect: {
+          effectId: 'O230-GUARD-COLLAB', effectType: 'ACTIVATED' as const, duration: 'INSTANT' as const,
+          mandatory: true, parseStatus: 'MANUAL' as const,
+          action: { type: 'STUB', id: 'INTERNAL_DO_COLLAB', value: String(collab) },
+        } as unknown as import('../types/effects').CardEffect,
+      });
+      const newMyState: PlayerState = {
+        ...my,
+        energy: my.energy.slice(colorless),
+        trash: [...my.trash, ...paid],
+        field: { ...my.field, lrig_attacked: false },
+        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
+      };
+      appendBattleLogs([`ガード代替：《無》×${colorless}を支払いコラボライバー${collab}人とコラボ`]);
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const newOpState = attackGuard.usedOncePerTurnIds.length > 0
+        ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : clearEndOfAttackEffects(op);
+      const existingStackCG = bs.effect_stack ?? null;
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOpState },
+        effectStack: existingStackCG ? pushToStack(existingStackCG, guardTriggers) : initStack(bs.active_user_id ?? user.id, guardTriggers),
+      }));
+    } finally { setLoading(false); }
+  };
+
   const handleGuardWithHandAlternative = async () => {
     if (!my.field.lrig_attacked || loading) return;
     const altN = Math.max(my.game_guard_alt_hand ?? 0, my.guard_alt_hand_until_opp_turn ?? 0);
@@ -15355,7 +15406,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} crashSourceSuppressActive={crashSourceSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
 
       {/* ガード応答ダイアログ（自分が攻撃されたとき・バースト処理中は非表示） */}
-      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} />
+      <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} handleGuardWithCollabAlternative={handleGuardWithCollabAlternative} />
 
       {/* リムーブ選択モーダル */}
       <RemoveZoneModal ctx={modalCtx} showRemoveModal={showRemoveModal} setShowRemoveModal={setShowRemoveModal} selectedRemoveZones={selectedRemoveZones} toggleRemoveZone={toggleRemoveZone} handleRemove={handleRemove} />

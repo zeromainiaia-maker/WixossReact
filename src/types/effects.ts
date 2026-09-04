@@ -5429,6 +5429,17 @@ export interface StubAction {
    * ⚠`value` は段階（`'picked'`）に使っているので、領域は別キーで運ぶ。
    */
   value2?: string;
+  /**
+   * 🆕**§5.3 `O-230`／`O-60`（2026-09-04）＝`GUARD_ALTERNATIVE_COST` の中身を payload で運ぶ。**
+   * 🔴旧 `collectGuardAlternativeCost` は**カード全文 regex**
+   *   （`/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/`）で読んでいたので、
+   *   **別の言い回しの代替コストは1本も当たらず、黙って「代替コスト無し」に落ちていた**
+   *   （`WXDi-CP01-005-E1`＝「《無》を支払いコラボライバー1人とコラボしてもよい」）。
+   * ⚠**payload が無い宣言は代替コスト無し**（fail-closed）＝原文に無い代替を勝手に生やさない。
+   */
+  guardAltCost?:
+    | { kind: 'energy_trash_class'; signiClass: string }
+    | { kind: 'colorless_and_collab'; colorless: number; collab: number };
   /** 多段対話を跨いで運ぶ対象シグニ（§6.4 O-34(e)＝先に宣言した相手シグニ1体）。 */
   carriedTargetNum?: string;
   /**

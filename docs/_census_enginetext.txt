@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
 A🔴 SELF_TEXT（効果元の全文で意味を決める）: 9行 / 9ハンドラ
-B  OTHER_CARD（他カードの属性判定）      : 57行
-C  COMMENT                              : 91行
-合計 157行
+B  OTHER_CARD（他カードの属性判定）      : 56行
+C  COMMENT                              : 90行
+合計 155行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの
@@ -123,8 +123,7 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:7715 <fn:collectFieldSigniExtraColors + INHERIT_UNDER_SIGNI_COLOR|GAIN_LRIG_COLOR|ALL_ZONE_BLACK> const txt = card?.EffectText ?? '';
   effectEngine.ts:7752 <fn:collectAltAttackFlipSigni> const txt = card?.EffectText ?? '';
   effectEngine.ts:7783 <fn:collectGrowCostSubstitute> const txt = card.EffectText ?? '';
-  effectEngine.ts:7815 <fn:collectGuardAlternativeCost> const txt = txtCard?.EffectText ?? '';
-  effectEngine.ts:7945 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
+  effectEngine.ts:7944 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
   effectExecutor.ts:7422 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
   execStubPart1.ts:1122 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:4175 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';

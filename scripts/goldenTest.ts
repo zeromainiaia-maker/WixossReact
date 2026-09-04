@@ -22622,6 +22622,23 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
 // 🆕**§5.3 `O-246`（2026-09-04）＝「デッキの上から1枚多く公開してもよい」の任意置換。**
 //   🔴旧 `GRID_REVEAL_PLUS` は `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が0人**だった。
 //   ⚠**自動加算にしない**＝原文は「してもよい」なので、公開のたびに問う（問わずに増やすと過剰実行）。
+// 🆕**§5.3 `O-230`（2026-09-04）＝`GUARD_ALTERNATIVE_COST` の中身は payload で運ぶ。**
+//   🔴旧 `collectGuardAlternativeCost` は**カード全文 regex**で「エナから＜X＞のシグニ1枚」しか読めず、
+//     それ以外の言い回しは**黙って「代替コスト無し」**に落ちていた（`census:enginetext` A群の1行でもあった）。
+test('§5.3 O-230: ガード代替コストは payload だけで決まる（原文 regex へ戻らない）', () => withSavedCursor(() => {
+  const src = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8');
+  const fn = src.slice(src.indexOf('export function collectGuardAlternativeCost'));
+  const body = fn.slice(0, Math.max(0, fn.indexOf(String.fromCharCode(10) + '}' + String.fromCharCode(10))));
+  ok(!body.includes('EffectText'), '🔴collectGuardAlternativeCost が原文（EffectText）を読み直している');
+  ok(body.includes('act.guardAltCost'), 'payload を読んでいない');
+  // live の2形が両方 payload を持つ（＝engine が読める）。
+  const en = (effectsMap.get('WX24-P2-026') ?? []).find(e => e.effectId === 'WX24-P2-026-E1');
+  eq((en?.action as unknown as { guardAltCost?: { kind?: string; signiClass?: string } })?.guardAltCost?.signiClass, '植物',
+    'エナ側の代替コストが payload になっていない');
+  const cb = (effectsMap.get('WXDi-CP01-005') ?? []).find(e => e.effectId === 'WXDi-CP01-005-E1');
+  eq((cb?.action as unknown as { guardAltCost?: { kind?: string } })?.guardAltCost?.kind, 'colorless_and_collab',
+    'コラボ側の代替コストが payload になっていない');
+}));
 test('§5.3 O-246: 公開枚数+1 は「公開のたびに問う」任意置換（フラグが無ければ問わない）', () => withSavedCursor(() => {
   // ⚠**アクションは live から取る**＝手書きすると `REVEAL_AND_PICK` の必須フィールドが欠けて
   //   executor の中で例外になる（形を推測しない＝`o190LiveEffect` と同じ規約）。
@@ -66054,7 +66071,14 @@ test('§5.3 O-60 第58: コラボは payload の人数で呼ぶ／ガードの�
   const guard = (effectsMap.get('WXDi-CP01-005') ?? []).find(e => e.effectId === 'WXDi-CP01-005-E1');
   ok(!!call && !!guard, 'WXDi-CP01-005 の2効果が live にある');
   if (call) eq(JSON.stringify((call.action as unknown as { collabCall?: unknown }).collabCall), JSON.stringify({ count: 2 }), '「２人を呼ぶ」は payload');
-  if (guard) eq((guard.action as unknown as { id?: string }).id, 'DEFERRED_GUARD_ALT_COST_COLLAB', 'ガードの代替コストは機構待ちを宣言（§5.3 O-230）');
+  // 🏁**§5.3 `O-230`（2026-09-04 実装済み）**＝機構待ちではなく、**payload を持つ代替コスト**になった。
+  if (guard) {
+    const g = guard.action as unknown as { id?: string; guardAltCost?: { kind?: string; colorless?: number; collab?: number } };
+    eq(g.id, 'GUARD_ALTERNATIVE_COST', 'ガードの代替コストは実装済みの受け皿へ載る（§5.3 O-230）');
+    eq(g.guardAltCost?.kind, 'colorless_and_collab', '代替コストの種別が payload に無い');
+    eq(g.guardAltCost?.colorless, 1, '《無》の枚数が payload に無い');
+    eq(g.guardAltCost?.collab, 1, 'コラボ人数が payload に無い');
+  }
   // 旧 id が live のどこにも payload 無しで残っていないこと。
   let bareCollab = 0;
   for (const effs of effectsMap.values()) {

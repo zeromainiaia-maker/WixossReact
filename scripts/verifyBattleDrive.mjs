@@ -48035,6 +48035,100 @@ scenarios.o185GrantTrashSpellUse = {
 };
 order.push('o185GrantTrashSpellUse');
 
+
+// -----------------------------------------------------------------------------
+// §5.3 `O-230`（2026-09-04 クローズ）＝**【ガード】の代替コストとしての「コラボする」**。
+// `WXDi-CP01-005-E1`「【常】：あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに
+//   《無》を支払い**コラボライバー1人とコラボしてもよい**。」
+// 🔴旧は `STUB{COLLAB}` の「コラボしてもよい」枝へ落ちて**原文と無関係にアシストルリグを場へ出す対話**が開き、
+//   その後 `DEFERRED_GUARD_ALT_COST_COLLAB`（明示 defer）にしてあった。
+// 🔑**同時に `GUARD_ALTERNATIVE_COST` を payload 化した**＝旧 `collectGuardAlternativeCost` は
+//   **カード全文 regex**で「エナから＜X＞のシグニ1枚」しか読めず、他の言い回しは黙って「代替コスト無し」だった。
+// 🔑**観測は「ガード応答ダイアログに代替の選択肢が出るか」**＝
+//   `field.lrig_attacked` を立てるとダイアログが出る（`GuardResponseDialog.tsx:33`）。
+// ⚠**反転確認**＝エナが0枚なら《無》×1 を払えないので提示されない。
+// -----------------------------------------------------------------------------
+
+const O230_LRIG = 'WXDi-CP01-005#9700';   // ＃ヘルエスタ国営放送（この【常】を持つルリグ）
+
+function mkGuardAltCollabScenario(hasEnergy) {
+  const id = hasEnergy ? 'o230GuardAltCollab' : 'o230GuardAltCollabNoEnergy';
+  return {
+    title: `O-230：【ガード】の代替コスト「《無》×1 を払いコラボライバー1人とコラボ」が応答ダイアログに出る（${hasEnergy ? 'エナあり' : '反転＝エナ0枚'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': [O230_LRIG],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        // ⚠**ルリグに攻撃された状態**を直接作る（`GuardResponseDialog` の表示条件）。
+        'field.lrig_attacked': true,
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': ['WD01-017#9710'],                     // サーバント Ｏ（《ガードアイコン》＝通常ガードの対照）
+        'energy': hasEnergy ? ['WD05-013#9711', 'WD05-013#9712'] : [],
+        'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'life_cloth': ['WD01-013#9713', 'WD01-013#9714'],
+        'deck': ['WD01-013#9720', 'WD01-013#9721'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9790'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9796', 'WD01-013#9797'],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 energy=${st0?.host?.energy} lrigAttacked=true`);
+      // ── ダイアログのボタンを**押す前に全部読む**（これが本題の観測）。
+      let labels = null;
+      for (let s = 0; s < 14 && labels === null; s++) {
+        await page.waitForTimeout(600);
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .map(e => (e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)).catch(() => []);
+        if (btns.some(b => b.includes('ガード'))) labels = btns;
+      }
+      H.log(`  ${id}: ダイアログのボタン=${JSON.stringify(labels)}`);
+      const hasCollab = (labels ?? []).some(b => b.includes('コラボライバー'));
+      if (!hasEnergy) {
+        await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+        if (labels === null) return { pass: false, detail: `前提崩れ＝ガード応答ダイアログが出ない` };
+        return hasCollab
+          ? { pass: false, detail: `🔴エナ0枚なのに《無》×1 の代替が提示された（払えないのに選べる）。ボタン=${JSON.stringify(labels)}` }
+          : { pass: true, detail: `反転＝エナ0枚なら代替コストは提示されない。ボタン=${JSON.stringify(labels)}` };
+      }
+      if (labels === null) return { pass: false, detail: `前提崩れ＝ガード応答ダイアログが出ない` };
+      if (!hasCollab) return { pass: false, detail: `🔴代替コスト「コラボライバー1人とコラボ」が出ない（旧＝明示 defer／payload が読めていない）。ボタン=${JSON.stringify(labels)}` };
+      // ── 押すと《無》×1 が支払われ、コラボの実行部へ入る。
+      const before = await H.queryState();
+      const clicked = await H.clickTestId('guard-alt-collab');
+      let st = before;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(500);
+        await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] energy=${st?.host?.energy} trash=${st?.host?.trash} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if ((st?.host?.energy ?? 9) < (before?.host?.energy ?? 0)) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `押した=${clicked ?? 'なし'} energy ${before?.host?.energy}→${st?.host?.energy} trash=${st?.host?.trash} ボタン=${JSON.stringify(labels)}`;
+      if (!clicked) return { pass: false, detail: `前提崩れ＝代替コストのボタンを押せない。${dump}` };
+      if ((st?.host?.energy ?? 0) !== (before?.host?.energy ?? 0) - 1) {
+        return { pass: false, detail: `🔴《無》×1 が支払われていない。${dump}` };
+      }
+      return { pass: true, detail: `代替コスト「《無》×1＋コラボライバー1人」が提示され、押すとエナが1枚減った。${dump}` };
+    },
+  };
+}
+scenarios.o230GuardAltCollab = mkGuardAltCollabScenario(true);
+order.push('o230GuardAltCollab');
+scenarios.o230GuardAltCollabNoEnergy = mkGuardAltCollabScenario(false);
+order.push('o230GuardAltCollabNoEnergy');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

@@ -7798,9 +7798,10 @@ export function collectGrowCostSubstitute(
  */
 export function collectGuardAlternativeCost(
   ownerState: PlayerState,
-  cardMap: Map<string, CardData>,
+  /** ⚠**もう読まない**（payload 化で原文参照が消えた）。呼び出し側の引数順を壊さないために残してある。 */
+  _cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-): { signiClass: string; sourceCardNum: string } | null {
+): { spec: NonNullable<import('../types/effects').StubAction['guardAltCost']>; sourceCardNum: string } | null {
   // シグニゾーンに加え、センタールリグも走査（COPY_LRIG_NAME_ABILITY でルリグが【常】コピーした場合に対応）。
   const lrigTop = ownerState.field.lrig.at(-1);
   const holders = [...ownerState.field.signi.map(s => s?.at(-1)), lrigTop];
@@ -7810,14 +7811,12 @@ export function collectGuardAlternativeCost(
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'GUARD_ALTERNATIVE_COST') continue;
-      // コピー効果の場合は元カードの EffectText を参照（保持者のテキストには記述がないため）。
-      const txtCard = eff.copiedFromCardNum ? cardMap.get(eff.copiedFromCardNum) : cardMap.get(top);
-      const txt = txtCard?.EffectText ?? '';
-      // 「《ガードアイコン》を持つカードを１枚捨てる代わりにあなたのエナゾーンから＜植物＞のシグニ１枚をトラッシュ」
-      const classM = txt.match(/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/);
-      if (classM) {
-        return { signiClass: classM[1], sourceCardNum: top };
-      }
+      // 🆕**§5.3 `O-230`（2026-09-04）＝中身は payload で受け取る。**
+      //   🔴旧はここで**カード全文 regex**（`/代わりにあなたのエナゾーンから＜X＞のシグニ/`）を当てており、
+      //     別の言い回し（`WXDi-CP01-005-E1`＝「《無》を支払いコラボライバー1人とコラボしてもよい」）は
+      //     **1本も当たらず黙って「代替コスト無し」**に落ちていた。
+      //   ⚠**payload が無ければ代替コスト無し**（fail-closed）＝原文に無い代替を勝手に生やさない。
+      if (act.guardAltCost) return { spec: act.guardAltCost, sourceCardNum: top };
     }
   }
   return null;

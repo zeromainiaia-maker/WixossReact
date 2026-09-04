@@ -181,10 +181,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   🔴旧実装は engine が「`コラボライバー` ∧ `呼ぶ`」の有無で人数を決めており、
   //     「コラボライバー１人と**コラボしてもよい**」＝【ガード】の代替コスト（`WXDi-CP01-005-E1`）が
   //     **アシストルリグを場へ出す対話**に化けていた。⇒ 別機構なので `DEFERRED_` へ分ける（§5.3 `O-230`）。
-  if (t.includes('コラボライバー') || t.includes('コラボしてもよい')) {
+  // 🆕**§5.3 `O-230`（2026-09-04）＝【ガード】の代替コスト形は下の「ガード代替コスト」規則が拾う。**
+  //   ⚠ここで先に食べると payload を持たない `DEFERRED_` に落ちるので、**先に除外する**。
+  if ((t.includes('コラボライバー') || t.includes('コラボしてもよい')) && !/【ガード】する際/.test(t)) {
     const collabSpec = parseCollabCallSpec(t);
     if (collabSpec) return { type: 'STUB', id: 'COLLAB', collabCall: collabSpec } as StubAction;
-    return { type: 'STUB', id: 'DEFERRED_GUARD_ALT_COST_COLLAB' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_GUARD_ALT_COST_UNKNOWN' } as StubAction;
   }
 
   // ---- デッキ一番上を見て一番下に置いてもよい ----
@@ -440,8 +442,25 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- ガード代替コスト ----
+  // 🆕**§5.3 `O-230`（2026-09-04）＝中身を payload で運ぶ**（engine の全文 regex を撤去した）。
+  //   ⚠**払う中身が読めない文は受け皿へ載せない**（fail-closed）＝載せると engine 側で
+  //     「代替コスト無し」に落ちるだけだが、**逆翻訳が「代替コストがある」と嘘をつく**。
   if (t.match(/【ガード】する際.*代わりに/)) {
-    return { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST' } as StubAction;
+    // ①「あなたのエナゾーンから＜X＞のシグニ１枚をトラッシュ」
+    const enM = t.match(/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/);
+    if (enM) {
+      return { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST',
+        guardAltCost: { kind: 'energy_trash_class', signiClass: enM[1] } } as StubAction;
+    }
+    // ②「《無》をN枚支払いコラボライバーM人とコラボしてもよい」（`WXDi-CP01-005-E1`）
+    const cbM = t.match(/代わりに《無》(?:×([０-９\d]+))?を?支払い.*コラボライバー([０-９\d]+)人とコラボ/);
+    if (cbM) {
+      const num = (x: string | undefined, d: number) =>
+        x ? parseInt(x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10) : d;
+      return { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST',
+        guardAltCost: { kind: 'colorless_and_collab', colorless: num(cbM[1], 1), collab: num(cbM[2], 1) } } as StubAction;
+    }
+    return { type: 'STUB', id: 'DEFERRED_GUARD_ALT_COST_UNKNOWN' } as StubAction;
   }
 
   // ---- 特定カードの使用コスト減少 ----
