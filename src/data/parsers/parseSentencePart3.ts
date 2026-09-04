@@ -436,7 +436,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   実際に live へ載っていたのは `manualEffects.ts` 側だった（規則は死んでいた）。
   if (t.match(/デッキ上公開枚数\+[０-９\d]+/)
       || /^このターン[、,]あなたの効果によってあなたのデッキの上から特定の値の枚数のカードを公開する場合[、,]代わりに[１1]枚多く公開してもよい$/.test(t.trim())) {
-    return { type: 'STUB', id: 'DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL' } as StubAction;
+    return { type: 'STUB', id: 'REVEAL_COUNT_PLUS_ONE_OPTIONAL' } as StubAction;
   }
 
   // ---- ガード代替コスト ----

@@ -6628,7 +6628,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX06-033-E1',
       effectType: 'AUTO',
       timing: ['ON_PLAY'],
-      action: { type: 'STUB', id: 'DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL' },
+      action: { type: 'STUB', id: 'REVEAL_COUNT_PLUS_ONE_OPTIONAL' },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
       parseStatus: 'MANUAL',

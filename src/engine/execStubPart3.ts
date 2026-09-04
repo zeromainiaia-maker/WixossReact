@@ -2156,10 +2156,16 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerRPN }, 'このターン相手シグニへの+パワー修正を-に置換'));
   }
   // === バッチ16: アクセ・公開・汎用選択系 ===
-  // 🏁**§5.3 `O-246`（2026-09-04）＝`GRID_REVEAL_PLUS` ハンドラを撤去した。**
-  //   🔴書き込み先 `grid_reveal_plus_one_this_turn` に**読み手が1人もいなかった**
-  //     （`npm run census:deadstate` で検出）＝宣言だけ立って公開枚数は増えない真 no-op。
-  //   ⇒ parser が `DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL` を出す（逆翻訳に【未実装】）。
+  // 🏁**§5.3 `O-246`（2026-09-04）＝実装した。**
+  //   🔴旧 `GRID_REVEAL_PLUS` は `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が1人もいなかった**
+  //     （`npm run census:deadstate` で検出）＝宣言だけ立って公開枚数は増えない真 no-op。撤去済み。
+  //   🆕いまは `REVEAL_COUNT_PLUS_ONE_OPTIONAL` が `reveal_count_plus_one_this_turn` を立て、
+  //     **公開のたびに**「1枚多く公開しますか？」を出す（`maybeAskRevealPlusOne`）。
+  //     ⚠**自動加算にしない**＝原文は「してもよい」＝任意の置換なので、問わずに増やすと過剰実行。
+  if (stub.id === 'REVEAL_COUNT_PLUS_ONE_OPTIONAL') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, reveal_count_plus_one_this_turn: true } },
+      'このターン、デッキの上から公開する枚数を1枚増やしてもよい'));
+  }
   // MAGIC_BOX_REVEAL: 場のMBを表向きにしてシグニにする（全MBをシグニとして配置）
   if (stub.id === 'MAGIC_BOX_REVEAL') {
     const mbsReveal = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];

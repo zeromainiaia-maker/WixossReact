@@ -6494,6 +6494,13 @@ function execPreventRefresh(_a: PreventRefreshAction, ctx: ExecCtx): ExecResult 
 }
 
 function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
+  // 🆕§5.3 `O-246`＝「デッキの上から**特定の値の枚数**を公開する」枝だけ +1 を問う。
+  //   ⚠`private:true`（＝自分だけ見る「見る」）と `ALL` は原文の「公開する」ではないので対象外。
+  if (a.source.location === 'deck' && a.source.owner === 'self' && a.count !== 'ALL' && a.private === false) {
+    const askLAR = maybeAskRevealPlusOne(ctx, 'self', (a as { _revealPlus?: boolean })._revealPlus,
+      plus => ({ ...a, _revealPlus: plus } as unknown as EffectAction));
+    if (askLAR) return askLAR;
+  }
   if (a.source.location === 'deck'
       && a.source.owner === 'self'
       && a.count === 1
@@ -6533,7 +6540,9 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   else if (a.source.location === 'life_cloth') sourceCards = state.life_cloth;
   else return done(addLog(ctx, `LOOK_AND_REORDER未対応source: ${String(a.source.location)}`));
   // `'ALL'`＝そのゾーンの全部（「あなたのすべてのライフクロスを見て」＝§6.4 O-4）。
-  const count = a.count === 'ALL' ? sourceCards.length : resolveNum(a.count);
+  // 🆕§5.3 `O-246`＝上で「1枚多く公開する」を選んでいれば +1（`_revealPlus`）。
+  const count = a.count === 'ALL' ? sourceCards.length
+    : resolveNum(a.count) + ((a as { _revealPlus?: boolean })._revealPlus ? 1 : 0);
   // 「N枚まで見る」は情報を得る前に見る枚数を0..Nから決める。既定（フィールド省略）は
   // 従来どおりN枚固定のままにし、upToCount:trueだけを選択経路へ送る。
   if (a.upToCount && a.count !== 'ALL') {
@@ -7427,9 +7436,44 @@ function getLevelReferenceOverride(card: import('../types').CardData | undefined
   return null;
 }
 
+/**
+ * 🆕**§5.3 `O-246`（2026-09-04）＝「デッキの上から公開する枚数を1枚増やしてもよい」の任意置換。**
+ *
+ * 🔑**「してもよい」なので公開のたびに問う**（フラグは「問う権利」であって自動加算ではない）。
+ * ⚠**再入で無限に問わない**＝答えは `_revealPlus`（`true`/`false`）としてアクションへ焼き込み、
+ *   2度目以降はそのまま返す（`_revealed` と同じ private フィールドの規約）。
+ * ⚠**適用先は「デッキの上からN枚公開する」地点だけ**＝手札を見る枝や `ALL` 指定には効かせない
+ *   （原文は「デッキの上から**特定の値の枚数**」）。
+ *
+ * @param rerun 答えを焼き込んだアクションを作って返す関数（呼び出し側の型に合わせる）
+ * @returns 問う必要があれば `ExecResult`（CHOOSE）、無ければ `null`
+ */
+function maybeAskRevealPlusOne(
+  ctx: ExecCtx,
+  owner: 'self' | 'opponent',
+  already: boolean | undefined,
+  rerun: (plus: boolean) => EffectAction,
+): ExecResult | null {
+  if (already !== undefined) return null;
+  // ⚠**「あなたの効果によって**あなたの**デッキの上から」**＝自分のデッキを公開するときだけ。
+  if (owner !== 'self') return null;
+  if (!ctx.ownerState.reveal_count_plus_one_this_turn) return null;
+  return needsInteraction(addLog(ctx, 'デッキの上から1枚多く公開しますか？'), {
+    type: 'CHOOSE', count: 1, options: [
+      { id: 'plus', label: '1枚多く公開する', action: rerun(true), available: true },
+      { id: 'keep', label: 'そのまま公開する', action: rerun(false), available: true },
+    ],
+  });
+}
+
 function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
-  const count = resolveCountRef(a.revealCount, ctx);
+  // 🆕§5.3 `O-246`＝公開枚数の任意 +1（問うのは1回だけ）。
+  const askRAP = maybeAskRevealPlusOne(ctx, a.owner === 'opponent' ? 'opponent' : 'self',
+    (a as { _revealPlus?: boolean })._revealPlus,
+    plus => ({ ...a, _revealPlus: plus } as unknown as EffectAction));
+  if (askRAP) return askRAP;
+  const count = resolveCountRef(a.revealCount, ctx) + ((a as { _revealPlus?: boolean })._revealPlus ? 1 : 0);
   const fromBottom = a.from === 'deck_bottom';
   const visible = fromBottom ? state.deck.slice(-count) : state.deck.slice(0, count);
   // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
@@ -7563,7 +7607,13 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   const owner = a.owner;
   const isCont = !!a._revealed;
   const deck0 = ownerState(owner, ctx).deck;
-  const revealed: string[] = a._revealed ?? deck0.slice(0, Math.min(resolveCountRef(a.revealCount, ctx), deck0.length));
+  // 🆕§5.3 `O-246`＝公開枚数の任意 +1（**継続再入では問わない**＝`_revealed` があれば確定済み）。
+  const askLPC = isCont ? null : maybeAskRevealPlusOne(ctx, owner === 'opponent' ? 'opponent' : 'self',
+    (a as { _revealPlus?: boolean })._revealPlus,
+    plus => ({ ...a, _revealPlus: plus } as unknown as EffectAction));
+  if (askLPC) return askLPC;
+  const baseLPC = resolveCountRef(a.revealCount, ctx) + ((a as { _revealPlus?: boolean })._revealPlus ? 1 : 0);
+  const revealed: string[] = a._revealed ?? deck0.slice(0, Math.min(baseLPC, deck0.length));
   if (revealed.length === 0) return done(ctx);
   let cur = isCont ? ctx : addLog(ctx, `デッキ上${revealed.length}枚を見る`);
   let prevPicks: string[] = isCont ? (cur.lastProcessedCards ?? []) : [];

@@ -5609,7 +5609,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 48, 'PlayerState の命名規約由来フィールド数（🆕48＝2026-09-04 に `O-185` の trash_spells_usable_this_turn を新設。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 49, 'PlayerState の命名規約由来フィールド数（🆕49＝2026-09-04 に `O-246` の reveal_count_plus_one_this_turn を新設。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5624,7 +5624,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 78, '型由来38件＋命名規約外27件の母集団（🆕78＝2026-09-04 に `O-185` の trash_spells_usable_this_turn を新設。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 79, '型由来38件＋命名規約外27件の母集団（🆕79＝2026-09-04 に `O-246` の reveal_count_plus_one_this_turn を新設。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -22619,6 +22619,50 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
 //   🔴旧は `execPlayFree` の `thenAction` が `ADD_TO_HAND` に落ちており、**選んだスペルが手札に来て**いた
 //     （`source:'opp_trash'` では**相手のトラッシュから奪う**）＝原文と別物だった。
 //   ⚠**カードは動かさない**＝トラッシュに置いたまま `trash_spells_usable_this_turn` に許可が積まれる。
+// 🆕**§5.3 `O-246`（2026-09-04）＝「デッキの上から1枚多く公開してもよい」の任意置換。**
+//   🔴旧 `GRID_REVEAL_PLUS` は `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が0人**だった。
+//   ⚠**自動加算にしない**＝原文は「してもよい」なので、公開のたびに問う（問わずに増やすと過剰実行）。
+test('§5.3 O-246: 公開枚数+1 は「公開のたびに問う」任意置換（フラグが無ければ問わない）', () => withSavedCursor(() => {
+  // ⚠**アクションは live から取る**＝手書きすると `REVEAL_AND_PICK` の必須フィールドが欠けて
+  //   executor の中で例外になる（形を推測しない＝`o190LiveEffect` と同じ規約）。
+  const live = (effectsMap.get('WX25-P1-022') ?? []).find(e => e.effectId === 'WX25-P1-022-E1');
+  const act = live?.action as EffectAction;
+  ok(!!act && (act as unknown as { type?: string }).type === 'REVEAL_AND_PICK',
+    'WX25-P1-022-E1 が REVEAL_AND_PICK でない（母集団が変わった合図）');
+  // 反転確認①＝権利が無ければ問わない（従来どおり）。
+  const plain = executeEffect(
+    { effectId: 'o246a', effectType: 'AUTO', duration: 'INSTANT', mandatory: true, action: act } as CardEffect,
+    mkCtx({}, {}));
+  const plainPending = (plain as unknown as { pending?: { type?: string } }).pending;
+  ok(plain.done || plainPending?.type !== 'CHOOSE',
+    '権利が無いのに「1枚多く公開しますか？」が出た');
+  // 本題＝権利があれば CHOOSE が出て、2択とも同じアクションの再入になる。
+  const ctx0 = mkCtx({}, {});
+  const withRight = { ...ctx0, ownerState: { ...ctx0.ownerState, reveal_count_plus_one_this_turn: true } as PlayerState } as ExecCtx;
+  const asked = executeEffect(
+    { effectId: 'o246b', effectType: 'AUTO', duration: 'INSTANT', mandatory: true, action: act } as CardEffect,
+    withRight);
+  const askedPending = (asked as unknown as { pending?: { type?: string; options?: { action: unknown }[] } }).pending;
+  eq(askedPending?.type, 'CHOOSE', '🔴権利があるのに問いが出ない（自動加算 or 無視）');
+  if (askedPending?.type === 'CHOOSE') {
+    const opts = askedPending.options ?? [];
+    eq(opts.length, 2, '選択肢は「1枚多く公開する」「そのまま公開する」の2つ');
+    const plusAct = opts[0].action as unknown as { _revealPlus?: boolean };
+    const keepAct = opts[1].action as unknown as { _revealPlus?: boolean };
+    eq(plusAct._revealPlus, true, '「1枚多く」側に答えが焼き込まれていない');
+    eq(keepAct._revealPlus, false, '「そのまま」側に答えが焼き込まれていない');
+    // 反転確認②＝答えを焼き込んだ再入では**もう問わない**（無限ループにしない）。
+    const again = executeEffect(
+      { effectId: 'o246c', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+        action: opts[1].action as EffectAction } as CardEffect, withRight);
+    const againPending = (again as unknown as { pending?: { type?: string } }).pending;
+    ok(again.done || againPending?.type !== 'CHOOSE', '🔴答えを焼き込んでもまだ問う（無限ループ）');
+  }
+  // live の `WX06-033-E1` が実装済みの id を指していることも固定する（旧 DEFERRED_ へ戻らない）。
+  const e1 = (effectsMap.get('WX06-033') ?? []).find(e => e.effectId === 'WX06-033-E1');
+  eq((e1?.action as unknown as { id?: string })?.id, 'REVEAL_COUNT_PLUS_ONE_OPTIONAL',
+    'WX06-033-E1 が実装済みの STUB id を指していない');
+}));
 test('§5.3 O-185: PLAY_FREE{grantUseThisTurn} はカードを動かさず「このターン使用できる」許可を積む', () => withSavedCursor(() => {
   const spell = findCard(c => (c.Type ?? '') === 'スペル');
   const ctx = mkCtx({}, {});
@@ -65613,12 +65657,12 @@ test('§5.3 O-226: 「宣言したシグニ」の2宣言が名前と突き合わ
     '召喚先ゾーンのモーダルも表示行とゾーン判定の**両方**で読む（片方だけだと表示と可否が食い違う）');
 });
 
-test('§5.3 O-246: デッキ公開枚数+1 は明示 defer（フラグだけ立てる旧形へ戻さない）', () => withSavedCursor(() => {
+test('§5.3 O-246: デッキ公開枚数+1 は実装済み（フラグだけ立てる旧形へ戻さない）', () => withSavedCursor(() => {
   // 🔴旧 `STUB{GRID_REVEAL_PLUS}` は `grid_reveal_plus_one_this_turn` を立てるだけで**読み手が0**だった。
-  // ⚠受け皿が無い＝原文は**任意の置換効果**で、`REVEAL_AND_PICK` / `LOOK_AND_REORDER` /
-  //   `LOOK_PICK_CHAIN` の**すべての公開地点**に「+1しますか」の提示を挿す必要がある（実測1効果）。
+  // 🏁**2026-09-04 に実装**＝`REVEAL_COUNT_PLUS_ONE_OPTIONAL` が権利を立て、
+  //   `REVEAL_AND_PICK` / `LOOK_AND_REORDER` / `LOOK_PICK_CHAIN` の公開地点で「+1しますか」を問う。
   const a = effectsMap.get('WX06-033')?.find(e => e.effectId === 'WX06-033-E1')?.action as { id?: string };
-  eq(a?.id, 'DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL', 'WX06-033-E1: 明示 defer');
+  eq(a?.id, 'REVEAL_COUNT_PLUS_ONE_OPTIONAL', 'WX06-033-E1: 実装済みの STUB id');
   // 🔴**負方向**＝フラグとハンドラが復活していない。
   const p3 = fs.readFileSync(join(root, 'src/engine/execStubPart3.ts'), 'utf8');
   ok(!p3.includes("stub.id === 'GRID_REVEAL_PLUS'"), '旧ハンドラが復活していない');
