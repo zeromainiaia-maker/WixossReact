@@ -16,7 +16,6 @@ import {
   canPayOptionalCost,
   hasNoAbility,
   designatedZones,
-  sourceAbilityText,
   resolveHandCardPick,
   trapIconEffectOf,
 } from './execUtils';
@@ -1173,26 +1172,12 @@ export function execStubPart2(
     const newSDDCPN: PlayerState = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDraw)], deck: sDDCPN.deck.slice(canDraw) };
     return done(addLog({ ...ctx, ownerState: newSDDCPN }, `捨て${discardCount}枚+${plusN}→${canDraw}枚ドロー`));
   }
-  // LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え
-  if (stub.id === 'LOOK_TOP_N' || stub.id === 'LOOK_TOP_SORT' || stub.id === 'LOOK_TOP_COLOR_SORT' || stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
-    const srcLTN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
-    const toHWLTN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    let countLTN = 3;
-    if (stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
-      countLTN = ctx.ownerState.life_cloth.length;
-    } else {
-      const mLTN = txtLTN.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
-      if (mLTN) countLTN = parseInt(toHWLTN(mLTN[1]));
-    }
-    const visLTN = ctx.ownerState.deck.slice(0, Math.min(countLTN, ctx.ownerState.deck.length));
-    if (visLTN.length === 0) return done(addLog(ctx, 'デッキなし'));
-    const newSLTN: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTN.length) };
-    return needsInteraction(
-      addLog({ ...ctx, ownerState: newSLTN }, `デッキ上${visLTN.length}枚を確認`),
-      { type: 'LOOK_AND_REORDER', cards: visLTN, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top', private: true },
-    );
-  }
+  // 🏁**`LOOK_TOP_N` / `LOOK_TOP_SORT` / `LOOK_TOP_COLOR_SORT` / `LOOK_TOP_BY_LIFE_COUNT` は撤去した**
+  //   （2026-09-05 §5.3 `O-60` 第74バッチ）＝**live 0 の死んだ枝**。4つとも見る枚数を
+  //   カード全文の `/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/` から読み、外れると**既定 3 枚**へ黙って落ちていた
+  //   （隔てない隣の `LOOK_TOP_ONE_RETURN_REST_BOTTOM` が第27バッチで踏んだ罠と同じ形）。
+  //   生成元の parser 規則（4本）も同時に撤去したので、この文型は【未実装】として逆翻訳に出る。
+  //   ⚠復活させるなら**枚数を payload で受け取る**（隣の `lookTopReturnRestBottom` が先例）。
   // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認し1枚をトップ・残りをデッキ下に
   // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を見て1枚をトップへ・残りを好きな順番でデッキ下へ
   // 🆕**§5.3 `O-60` 第27バッチ（2026-09-03）＝見る枚数は payload で受け取る。**
@@ -2127,26 +2112,11 @@ export function execStubPart2(
     sPSUS = { ...sPSUS, field: { ...sPSUS.field, signi: newSigniPSUS } };
     return done(addLog({ ...ctx, ownerState: sPSUS }, `${ctx.cardMap.get(cardToPlacePSUS)?.CardName ?? cardToPlacePSUS}をシグニ下に設置`));
   }
-  // CONDITIONAL_PER_TRASH: トラッシュ枚数による条件（N枚以上でX）
-  if (stub.id === 'CONDITIONAL_PER_TRASH') {
-    // §6.4 O-20: 全文だと別能力の閾値（`WX12-037` は E1 の「25枚以上」）を拾うのでブロックだけを読む。
-    const txtCPT = sourceAbilityText(ctx);
-    const toHWCPT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mCPT = txtCPT.match(/トラッシュに(?:カードが)?([０-９\d]+)枚以上/);
-    // ⚠既定値を発明しない。自分のブロックに閾値が無いなら「この効果はトラッシュ枚数条件ではない」
-    //   （`WX12-037-E2` は本当は「《メツム》を落としたら効果を繰り返す」＝別機構）。
-    //   ここで 5 を仮置きすると**無害な空振りが余分な1ドローに化ける**ので黙って何もしない。
-    if (!mCPT) return done(addLog(ctx, '[CONDITIONAL_PER_TRASH: この能力にトラッシュ枚数条件なし＝未実装]'));
-    const threshold = parseInt(toHWCPT(mCPT[1]));
-    const trashCountCPT = ctx.ownerState.trash.length;
-    if (trashCountCPT < threshold) return done(addLog(ctx, `トラッシュ${trashCountCPT}枚（閾値${threshold}枚に未達）`));
-    // 条件達成→1枚ドロー
-    const sCPT = ctx.ownerState;
-    if (sCPT.deck.length === 0) return done(addLog(ctx, `トラッシュ条件達成だがデッキなし`));
-    const drawnCPT = sCPT.deck[0];
-    return done(addLog({ ...ctx, ownerState: { ...sCPT, deck: sCPT.deck.slice(1), hand: [...sCPT.hand, drawnCPT] } },
-      `トラッシュ${trashCountCPT}枚条件達成→1枚ドロー`));
-  }
+  // 🏁**`CONDITIONAL_PER_TRASH` は撤去した**（2026-09-05 §5.3 `O-60` 第74バッチ）＝
+  //   **live 0 の死んだ枝**。アビリティブロックの原文に `トラッシュにN枚以上` を当てて
+  //   閾値を読み、達成したら**1枚ドロー**するというカード固有の近似だった（帰結も原文を見ていない）。
+  //   生成元の parser 規則（「この方法でトラッシュに置いたカードの中に」）も同時に撤去した＝
+  //   この文型は `MILL_EACH_REPEAT_ON_NAME`（`O-22(b)`）が構造化して取っている。
   // 🆕§6.4 O-22(b) MILL_EACH_REPEAT_ON_NAME（`WX12-037-E2`）＝「各プレイヤーは自分のデッキの上から
   // カードをN枚トラッシュに置く。この方法でトラッシュに置いたカードの中にカード名に《X》を含む
   // カードがある場合、あなたはこの効果を繰り返してもよい。（リフレッシュはこの効果をすべて処理してから行う）」

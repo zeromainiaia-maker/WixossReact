@@ -1,7 +1,7 @@
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction, StubAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, AttachAcceAction, } from '../types/effects';
+  EffectAction, StubAction, BanishAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, AttachAcceAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -3182,67 +3182,12 @@ export function execStubPart3(
       type: 'CHOOSE', options: optsKIY, count: 1, ...(remainingKIY > 1 ? { continuation: contKIY as EffectAction } : {}),
     });
   }
-  if (stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
-    const srcCSO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
-    const toHWCSO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // ベット強化版「あなたがベットしていた場合、代わりにNつまで選ぶ」があれば優先（常にベットしたとして扱う近似）
-    const cntMCSOBet = txtCSO.match(/あなたがベットしていた場合、代わりに([２-９\d])つ(?:まで)?選ぶ/);
-    const cntMCSO = cntMCSOBet ?? txtCSO.match(/以下の.*?から([２-９\d])つまで選ぶ/);
-    const maxRoundsCSO = cntMCSO ? parseInt(toHWCSO(cntMCSO[1])) : 2;
-    const remainingCSO = typeof stub.value === 'number' ? stub.value : maxRoundsCSO;
-    if (remainingCSO <= 0) return done(addLog(ctx, '選択完了'));
-    const optsCSO: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    // ①バウンス: 相手シグニを手札に戻す（手札捨てセットも含む）
-    if (txtCSO.match(/①.*手札に戻す/)) {
-      const hasDiscard = /①[^②]*手札を[１1]枚捨てる/.test(txtCSO);
-      const bounceAct: EffectAction = hasDiscard
-        ? { type: 'SEQUENCE', steps: [
-            { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as BounceAction,
-            { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as TrashAction,
-          ]} as import('../types/effects').SequenceAction
-        : { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as BounceAction;
-      optsCSO.push({
-        id: 'cso_bounce', label: '①相手シグニを手札に戻す' + (hasDiscard ? '（手札1枚捨て）' : ''),
-        action: bounceAct,
-        available: ctx.otherState.field.signi.some(s => s && s.length > 0),
-      });
-    }
-    // ②アタックできない付与: センタールリグにアタック禁止を付与（③以降に文を伸ばさないよう[^③]で範囲限定）
-    if (txtCSO.match(/②[^③]*アタックできない/)) {
-      optsCSO.push({
-        id: 'cso_no_attack', label: '②相手センタールリグにアタック不可を付与',
-        action: { type: 'STUB', id: 'INTERNAL_GRANT_NO_ATTACK_LRIG' } as StubAction as EffectAction,
-        available: !!ctx.otherState.field.lrig.at(-1),
-      });
-    }
-    // ②サーチ: デッキからシグニを手札に加える（③のクラス指定サーチと誤マッチしないよう[^③]で範囲限定）
-    if (txtCSO.match(/②[^③]*デッキ[^③]*シグニ[^③]*(?:手札|探して)/)) {
-      optsCSO.push({
-        id: 'cso_search', label: '②デッキからシグニを手札に加える',
-        action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as EffectAction,
-        available: ctx.ownerState.deck.some(cn => ctx.cardMap.get(cn)?.Type === 'シグニ'),
-      });
-    }
-    // ③クラスサーチ: デッキから特定クラスのシグニをN枚手札に加える
-    if (txtCSO.match(/③.*デッキから.*＜([^＞]+)＞のシグニ([２-９\d]+)枚を探して/)) {
-      const mCS3 = txtCSO.match(/③.*＜([^＞]+)＞のシグニ([２-９\d]+)枚/);
-      const className3 = mCS3 ? mCS3[1] : '';
-      const cnt3 = mCS3 ? parseInt(toHWCSO(mCS3[2])) : 2;
-      optsCSO.push({
-        id: 'cso_class_search', label: `③デッキから＜${className3}＞を${cnt3}枚手札へ`,
-        action: { type: 'SEQUENCE', steps: [
-          { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', story: className3 }, maxCount: cnt3, then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } },
-        ]} as import('../types/effects').SequenceAction as EffectAction,
-        available: ctx.ownerState.deck.some(cn => (ctx.cardMap.get(cn)?.CardClass ?? '').includes(className3)),
-      });
-    }
-    if (optsCSO.length === 0) return done(addLog(ctx, `[CHOOSE_SAME_OPTION: 選択肢解析失敗]`));
-    const contCSO: StubAction = { type: 'STUB', id: stub.id, value: remainingCSO - 1 };
-    return needsInteraction(addLog(ctx, `選択（残り${remainingCSO}回、同一選択肢可）`), {
-      type: 'CHOOSE', options: optsCSO, count: 1, continuation: contCSO as EffectAction,
-    });
-  }
+  // 🏁**`CHOOSE_SAME_OPTION_TWICE` / `CHOOSE_SAME_OPTION_MULTIPLE` は撤去した**（2026-09-05 §5.3 `O-60` 第74バッチ）＝
+  //   **live 0 の死んだ catch-all**。ハンドラは効果元の**カード全文**から「①…手札に戻す」「②…アタックできない」
+  //   「③…デッキから＜X＞のシグニN枚を探して」を regex で読み取って選択肢を組み立てていた（8本のリテラル）＝
+  //   §5.3 `O-60` A群の典型。生成元の parser 規則（「同じ選択肢を2回選んでもよい」「N回以上選んでもよい」）も
+  //   同時に撤去したので、この文型は【未実装】として逆翻訳に出る（＝名前のある穴）。
+  //   ⚠**復活させない**＝選択肢の中身は原文ではなく `CHOOSE` の構造で表す（`O-20` で潰した型の生き残りだった）。
   // REVEAL: デッキ上を公開（名前ログ）
   if (stub.id === 'REVEAL') {
     const sREV = ctx.ownerState;

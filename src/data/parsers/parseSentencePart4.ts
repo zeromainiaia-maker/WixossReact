@@ -2472,9 +2472,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
     }
   }
 
-  // ---- 緑/青/黒カードを色別にエナまたはトラッシュへ ----
-  if (t.match(/その中から.*(?:緑|青|黒|白|赤)の.*カード.*(?:エナゾーンに置き|手札に加え).*残り.*(?:トラッシュ|デッキ)/))
-    return { type: 'STUB', id: 'LOOK_TOP_COLOR_SORT' } as StubAction;
+  // 🏁**`LOOK_TOP_COLOR_SORT` の catch-all は撤去した**（2026-09-05 §5.3 `O-60` 第74バッチ・live 0）。
 
   // （「対戦相手は…シグニゾーンに…シグニを新たに配置することができない」は
   //   parseSentencePart3 の BLOCK_OPP_ZONE_PLACEMENT へ統合＝タスク12(lxi) 第10波。
@@ -2492,9 +2490,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/その中から.*シグニを.*場に出し.*残り.*手札に加える/))
     return { type: 'STUB', id: 'LOOK_TOP_SIGNI_TO_FIELD' } as StubAction;
 
-  // ---- その中から好きな枚数をデッキ上に戻し残りをデッキ下 ----
-  if (t.match(/その中から.*デッキの一番上に戻し.*残り.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'LOOK_TOP_SORT' } as StubAction;
+  // 🏁**`LOOK_TOP_SORT` の catch-all は撤去した**（同上・live 0）。
 
   // ---- その中から対戦相手の選んだカードをトラッシュ、残りを手札 ----
   // 🆕§5.3 `O-60` 第24バッチ（2026-09-03）＝**トラッシュ枚数を payload で運ぶ**。
@@ -2865,9 +2861,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/デッキの一番上と一番下を見る/))
     return { type: 'STUB', id: 'LOOK_TOP_BOTTOM' } as StubAction;
 
-  // ---- デッキをライフクロス枚数依存で見る ----
-  if (t.match(/デッキの上から.*「.*ライフクロスの枚数.*」枚見る/))
-    return { type: 'STUB', id: 'LOOK_TOP_BY_LIFE_COUNT' } as StubAction;
+  // 🏁**`LOOK_TOP_BY_LIFE_COUNT` の catch-all は撤去した**（同上・live 0）。
 
   // ---- 各プレイヤーデッキをトラッシュ ----
   // 🆕§5.3 `O-60` 第28バッチ（2026-09-03）＝固定枚数も payload で運ぶ（engine は原文を読まない）。
@@ -2909,9 +2903,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^そうした場合、それを手札に加える$/))
     return { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction;
 
-  // ---- そうした場合、デッキ上をN枚見る ----
-  if (t.match(/^そうした場合.*デッキの上から.*枚.*見る$/))
-    return { type: 'STUB', id: 'LOOK_TOP_N' } as StubAction;
+  // 🏁**`LOOK_TOP_N` の catch-all は撤去した**（同上・live 0）。⚠復活させるなら**枚数を payload で**渡す。
 
   // 「N枚以上の場合、代わりにM枚捨てる」＝**多段閾値の昇格置換**なので、ここでは拾わない（タスク12(lxii)）。
   // 旧 `STUB{CONDITIONAL_DISCARD}` は①条件を一切見ず②`ctx.ownerState.hand`＝**自分の手札**を1枚捨てさせる

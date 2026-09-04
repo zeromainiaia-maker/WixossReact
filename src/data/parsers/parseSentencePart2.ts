@@ -864,10 +864,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
-  // ---- 同じ選択肢を2回選んでもよい ----
-  if (t.match(/同じ選択肢を[２-９]回選んでもよい/)) {
-    return { type: 'STUB', id: 'CHOOSE_SAME_OPTION_TWICE' } as StubAction;
-  }
+  // 🏁**「同じ選択肢を2回選んでもよい」の catch-all は撤去した**（2026-09-05 §5.3 `O-60` 第74バッチ）＝
+  //   受け側の `STUB{CHOOSE_SAME_OPTION_TWICE}` が**カード全文から①②③を regex で読む**ハンドラで、
+  //   live 0（＝どのカードもここへ来ていない）だった。選択肢は原文ではなく `CHOOSE` の構造で表す。
 
   // ---- 対戦相手のレベルNのシグニをトラッシュに置く ----
   if (t.match(/対戦相手のレベル[０-９\d]+(?:以下)?のシグニ([０-９\d]+)体を対象とし.*トラッシュに置く/)) {

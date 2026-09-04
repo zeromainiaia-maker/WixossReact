@@ -1,5 +1,98 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第130〜134バッチ）：`O-60`＝engine の原文 regex を **A🔴 9行 → 1行** へ — **計器の「live 0」が嘘をついていた**
+
+**ベースライン**＝`20507ad2e`（PLAN 整理⑦の直後）。
+**gates 全緑**（golden **3467 → 3471**＝+4本／既存の契約 golden 4本を理由つきで更新・smoke 10725 全異常0・
+fuzz 全0・census 1 / BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・
+**`census:enginetext` A🔴 9行 → 1行**（`BASELINE_SELF_TEXT` も 1 へ払い戻し）・`census:costtext` A🔴 0規則・
+lint 0 errors・`npm run regen` 完走後に再度 gates 全緑）。
+**実機＝新規2本＋回帰3本＝5本 ALL PASS**（第132のみ）。**実機要否は §2.2 の機械判定どおり**＝
+第132 だけが `src/screens/`（`SigniOnPlayCostModal`）を触ったので実機必須、
+第130/133 は live JSON が**1バイトも変わらない**（死んだ枝の撤去）、第131/134 は `src/engine/` と
+`src/data/` だけで挙動は payload 化の前後で同値（第131 は恒久 no-op → 記録されるようになった engine 単体の修正）＝
+いずれも④ゲートまでで完了と判定した。
+**在庫**＝機構 worklist **10項目（据置）**／実機 残 **0件（据置）**。
+
+| バッチ | 内容 |
+|---|---|
+| 130（`O-60` 第71） | **生成元が1つも無い STUB ハンドラ2本を撤去**（`REVEAL_AND_PICK` / `SUMMON_FROM_TRASH`）＝A🔴 9→7 |
+| 131（第72） | 内部 STUB `INTERNAL_MARK_REVEALED_NAMED` を payload 化＝A🔴 7→6（**公開の記録が恒久 no-op だった**） |
+| 132（第73） | 【ビート】コストの「誰を」を payload 化＝A🔴 6→5（live 9効果・**実機が支払いUIの穴を1件捕まえた**） |
+| 133（第74） | live 0 の死んだ catch-all 3 family を **parser 規則ごと**撤去＝A🔴 5→2 |
+| 134（第75） | 「〜がめくれるまで公開する」を payload 化＝A🔴 2→1（**計器が live 0 と嘘をついていた family**） |
+
+---
+
+### 🔴 この巡の最大の発見＝**計器のラベルを事実と読まない**
+
+`census:enginetext` は A群を「ハンドラの `if` から拾った id」でグループ化するので、
+`if (stub.id === 'DECK_REVEAL_UNTIL' || … || stub.id === 'OPP_DECK_REVEAL_UNTIL')` は
+**最後の id で `live 0`** と表示されていた。実際には `DECK_REVEAL_UNTIL` が **live 4効果**で動いていた。
+⇒ 🔑**A群を取る前に `grep -o '"id":"<ID>"' public/data/effects_*.json | wc -l` を id ごとに打つ。**
+（同じ罠＝`REVEAL_AND_PICK` は逆に「live 472」と見えたが、それは**アクション型**の出現数で、
+STUB 形は0だった。**同じ綴りが型と id の2つの名前空間にある。**）
+
+### 🔑 「live 0 のハンドラを消す」の安全な手順（第71・第74で確立）
+
+1. **engine のハンドラ**と**それを生む parser 規則**を**同時に**消す。
+   （②を残すと新カードが**ハンドラの無い STUB**＝無言 no-op へ落ちる。②だけ消すと逆翻訳が黙って変わる。）
+2. `npm run build:effects` を回して **live JSON の差分がゼロ**であることを確かめる＝**本当に死んでいた証拠**。
+   （第74は3 family・7規則を消して差分0。第71は生成元が src/ にも live にも1つも無いことを grep で確認。）
+3. golden に「復活させない門」を1本（engine のディスパッチと parser の生成地点の両方を assert）。
+
+### 🔴 恒久 no-op だったもの（第72）
+
+`INTERNAL_MARK_REVEALED_NAMED` は公開したカード名を**カード全文**の `/《X》を公開/` から導いていたが、
+原文の綴りは「《X》**１枚を**公開してもよい」＝**1本も当たらず**、`hand_revealed_just` が1度も立たなかった
+（＝`ON_REVEALED_FROM_HAND` が永久に不発）。生成側（`effectExecutor` の任意公開 CHOOSE）は
+払い出す名前を**既に持っていた**＝原文を読み直す理由がそもそも無かった。
+⇒ 🔑**catch-all を割ったら、そこから積む内部 STUB も見る**（生成側だけ直した第36の取り残し）。
+
+### 🔴 実機だけが捕まえた UI の穴（第73）
+
+「このシグニと**他のシグニ１体**を【ビート】にする」の【出】は、場に他のシグニが**0体でも【発動】が押せた**。
+押すと engine の `payBeatSigniCost` が `ok:false` を返し、**何も起きないまま召喚だけが宙に浮く**。
+`beat_signi_from_trash` 側には支払い可否の門（`beatTrashOkM`）があったのに、**場側だけ素通り**だった。
+⇒ `SigniOnPlayCostModal` に `beatFieldOkM` を追加。⚠**自身（`includeSelf`）は数えない**＝
+このモーダルが開く時点では召喚が確定しておらず `selfZone` が -1 のことがある。
+🔑**同じ family の片方にだけ門がある形は、もう片方を必ず疑う。**
+
+### 🔑 表示だけが嘘だった（第73）
+
+`beat_signi` の `count` は「このシグニと他のシグニ１体」でも **1** で、支払いUIは
+「シグニ**1体**を【ビート】に」と表示していた（実際は自身＋1体の**2体**が場を離れる）。
+payload 化で `count`＝**合計体数**にした。⇒ 🔑**engine が正しくても表示が嘘をつく**（§5.1 の教訓）。
+
+### ⚠ 「壊れている」と「壊れうる」を書き分けた（第73）
+
+裸の「シグニN体を【ビート】にする」は旧実装で**自身が無条件に候補外**だったが、
+live の標本 `WDK14-001-E2` は**ルリグ**（シグニゾーンに居ない＝除外されようがない）＝**実害ゼロ**。
+母集団の `Type` を見ずに「過小実行を直した」と書くと、次に読む人が**存在しない不具合の再現**を探す。
+
+### 🔑 実機の罠（第73で踏み直した2つ）
+
+- **`field.beat_zone` は CORE フィールド**＝spec で明示クリアしないと前のシナリオの【ビート】が残り、
+  ［４枚以下］のゲートが閉じて**能力が提示されない**（単体 PASS・一括 FAIL）。
+- **前シナリオのモーダルが開いたままだと注入が画面に届かない**＝`H.closeModals()` ＋
+  「手札カードが出るまで待つ」を drive の先頭に置く。
+
+### 変更ファイル
+
+`src/engine/execStubPart1.ts`（`REVEAL_AND_PICK` 撤去・`DECK_REVEAL_UNTIL` payload 化）／
+`src/engine/execStubPart2.ts`（`LOOK_TOP_*` / `CONDITIONAL_PER_TRASH` 撤去）／
+`src/engine/execStubPart3.ts`（`SUMMON_FROM_TRASH` / `CHOOSE_SAME_OPTION_*` 撤去・公開記録の payload 化）／
+`src/engine/execUtils.ts`（`analyzeBeatSigniCost` / `payBeatSigniCost`）／`src/engine/effectExecutor.ts`（payload を積む）／
+`src/data/effectParser.ts`（【ビート】コストの一般規則・effectId allowlist の撤去）／
+`src/data/parsers/parseSentencePart2/3/4.ts`（死んだ規則7本の撤去・`parseDeckRevealUntilSpec` 新設）／
+`src/data/manualEffects.ts`（live 4効果へ `deckRevealUntil` を手書き→`syncManualLive`）／
+`src/types/effects.ts`（`BeatSigniCost` 拡張・`deckRevealUntil` 新設）／
+`src/screens/battle/modals/SigniOnPlayCostModal.tsx`（`beatFieldOkM`）／
+`scripts/censusEngineText.ts`（ratchet 9→1）／`scripts/goldenTest.ts`／`scripts/decompileEffects.ts`／
+`scripts/verifyBattleDrive.mjs`（実機2本）／`public/data/effects_*.json`（13カードのみ）。
+
+---
+
 ## 2026-09-04（第121〜129バッチ）：実機完済＋機構6件クローズ — **実機が engine の穴を2件、ゲートが自分の事故を1件捕まえた**
 
 **ベースライン**＝`e340af93b`（第111〜120 の簿記直後）。

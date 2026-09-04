@@ -3050,33 +3050,20 @@ export function execStubPart1(
     return done(addLog(ctxTAK, `${partsTAK.join('＋') || '対象なし'}をトラッシュへ`));
   }
   // デッキを条件が満たされるまで公開する
+  // 🆕**§5.3 `O-60` 第75バッチ（2026-09-05）＝停止条件も公開札の行き先も payload（`deckRevealUntil`）で受け取る。**
+  // 🔴旧実装は効果元の **カード全文**（`EffectText + BurstText`）に **13本**のリテラルを当てていた＝
+  //   ①同じカードの別能力の文を拾いうる（`WXK10-031` は【自】と【出】の両方にデッキ公開の文がある）
+  //   ②「未知文型は公開札を全部デッキ下へ戻す」安全網が、原文が「トラッシュに置く」でも黙って戻す**別の嘘**
+  //   になっていた。⚠**この family は計器に `live 0` と出ていた**（`if` の最後の id でグループ化されるため）が、
+  //   実際は `DECK_REVEAL_UNTIL` が **live 4効果**で動いていた＝**id ごとに数え直すこと。**
+  // ⚠**payload が無ければ何もしない**（fail-closed）。
   if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
+    const specRU = stub.deckRevealUntil;
+    if (!specRU) return done(addLog(ctx, '[DECK_REVEAL_UNTIL: 公開条件が無いため何もしない＝未実装]'));
     const isOpp = stub.id === 'OPP_DECK_REVEAL_UNTIL';
     const stateRU = isOpp ? ctx.otherState : ctx.ownerState;
-    const srcRU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
-    const toHWRU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 停止条件を解析
-    const classM = txtRU.match(/＜([^＞]+)＞のシグニが(?:[０-９\d]+枚)?めくれるまで/);
-    const targetClassRU = classM ? classM[1] : null;
-    const lvM = txtRU.match(/レベル([０-９\d]+)を持つ/);
-    const targetLvRU = lvM ? parseInt(toHWRU(lvM[1])) : null;
-    const untilSigniRU = !!txtRU.match(/シグニが(?:[０-９\d]+枚)?めくれるまで/);
-    const untilSigniCountM = txtRU.match(/シグニが([０-９\d]+)枚めくれるまで/);
-    const untilSigniCountRU = untilSigniCountM ? parseInt(toHWRU(untilSigniCountM[1])) : 1;
-    const untilNameRU = !!txtRU.match(/宣言したカードがめくれるまで|宣言したカードが公開されるまで/);
+    const needCountRU = specRU.count ?? 1;
     const declaredNameRU = ctx.ownerState.declared_card_name ?? null;
-    const toTrashRestRU = !!txtRU.match(/残りをトラッシュに置く/);
-    const toBottomRestRU = !!txtRU.match(/残り.*デッキの一番下/);
-    const toBottomAllRU = !!txtRU.match(/公開された?カードを(?:シャッフルして)?デッキの一番下に置く/);
-    const toBottomOtherRU = !!txtRU.match(/公開した他のカードを(?:シャッフルして)?デッキの一番下に置く/);
-    const hitToHandRU = !!txtRU.match(/それを手札に加える/);
-    // 「公開したカードをトラッシュに置く」＝ヒットシグニを含む公開カード全てをトラッシュへ（WXK10-031）。
-    // ヒットシグニはレベル参照（lastProcessedCards）としてのみ使い、物理的にはトラッシュに置く。未対応だと deck から除去され行き場を失い消失していた。
-    // 「（この方法で）公開されたカードをトラッシュに置く」も同義（WXK01-037）。従来はどの廃棄分岐にも掛からず
-    // 公開札が消滅していた＝安全網（デッキ下へ戻す）でも原文の「トラッシュ」と食い違うため、ここで受ける。
-    const toTrashAllRU = !!txtRU.match(/公開した(?:カード|カードすべて)をトラッシュに置く/)
-      || !!txtRU.match(/(?:この方法で)?公開されたカードをトラッシュに置く/);
     // デッキを先頭から公開していく
     const deckRU = [...stateRU.deck];
     const revealedRU: string[] = [];
@@ -3086,34 +3073,34 @@ export function execStubPart1(
       revealedRU.push(cn);
       const card = ctx.cardMap.get(cn);
       let stop = false;
-      if (untilSigniRU && card?.Type === 'シグニ') {
-        if (!targetClassRU || card?.CardClass?.includes(targetClassRU)) {
-          if (!targetLvRU || parseInt(card?.Level ?? '0') === targetLvRU) {
+      if (specRU.until === 'signi' && card?.Type === 'シグニ') {
+        if (!specRU.signiClass || card?.CardClass?.includes(specRU.signiClass)) {
+          if (specRU.signiLevel === undefined || parseInt(card?.Level ?? '0') === specRU.signiLevel) {
             hitCountRU++;
-            if (hitCountRU >= untilSigniCountRU) stop = true;
+            if (hitCountRU >= needCountRU) stop = true;
           }
         }
       }
-      if (untilNameRU && declaredNameRU && card?.CardName === declaredNameRU) stop = true;
-      if (!untilSigniRU && !untilNameRU) { break; } // 条件不明：先頭1枚
+      if (specRU.until === 'declaredName' && declaredNameRU && card?.CardName === declaredNameRU) stop = true;
       if (stop) { hitCardRU = cn; break; }
     }
     const nonHitRU = revealedRU.filter(cn => cn !== hitCardRU);
     let newStateRU = { ...stateRU, deck: deckRU.filter(cn => !revealedRU.includes(cn)) };
-    if (toTrashAllRU && revealedRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...revealedRU] };
-    else if (toTrashRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...nonHitRU] };
-    if (hitToHandRU && hitCardRU) newStateRU = { ...newStateRU, hand: [...newStateRU.hand, hitCardRU] };
-    if (toBottomRestRU && nonHitRU.length > 0) {
-      const bottomRU = txtRU.match(/残りをシャッフルして/) ? shuffle([...nonHitRU]) : nonHitRU;
-      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...bottomRU] };
-    }
-    if (toBottomAllRU && revealedRU.length > 0) {
+    if (specRU.allTo === 'trash' && revealedRU.length > 0) {
+      newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...revealedRU] };
+    } else if (specRU.allTo === 'deckBottomShuffled' && revealedRU.length > 0) {
       newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...revealedRU])] };
-    } else if (toBottomOtherRU && nonHitRU.length > 0) {
-      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...nonHitRU])] };
-    } else if (!toTrashAllRU && !toTrashRestRU && !toBottomRestRU && !hitToHandRU && revealedRU.length > 0) {
-      // 未知文型でも公開カードをゲームから消さない安全網。
-      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...revealedRU])] };
+    } else {
+      if (specRU.hitTo === 'hand' && hitCardRU) newStateRU = { ...newStateRU, hand: [...newStateRU.hand, hitCardRU] };
+      if (nonHitRU.length > 0) {
+        if (specRU.restTo === 'trash') newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...nonHitRU] };
+        else if (specRU.restTo === 'deckBottomShuffled') newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...nonHitRU])] };
+        else if (specRU.restTo === 'deckBottom') newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...nonHitRU] };
+      }
+      // ⚠行き先が1つも書かれていない payload では**公開札をゲームから消さない**（デッキ下へ戻す安全網）。
+      if (!specRU.hitTo && !specRU.restTo && revealedRU.length > 0) {
+        newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...revealedRU])] };
+      }
     }
     const newCtxRU = isOpp
       ? { ...ctx, otherState: newStateRU, lastProcessedCards: revealedRU }

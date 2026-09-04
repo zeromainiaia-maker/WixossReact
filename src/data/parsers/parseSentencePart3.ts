@@ -1392,10 +1392,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ACTIVATE_TRAP_IN_FIELD' } as StubAction;
   }
 
-  // ---- 同じ選択肢をN回以上選んでもよい ----
-  if (t.match(/同じ選択肢を[０-９\d]+回以上選んでもよい/)) {
-    return { type: 'STUB', id: 'CHOOSE_SAME_OPTION_MULTIPLE' } as StubAction;
-  }
+  // 🏁**「同じ選択肢をN回以上選んでもよい」の catch-all も撤去**（同上・§5.3 `O-60` 第74バッチ）。
 
   // ---- 対戦相手のシグニとあなたのシグニ各1体（トレード）----
   if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、(?:あなたの|この)?シグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
@@ -1834,8 +1831,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- デッキ上からシグニがめくれるまで/宣言したカードまで公開する ----
+  // 🆕停止条件と行き先は payload で渡す（§5.3 `O-60` 第75）＝読めない文型は**名前のある穴**へ落とす。
   if (t.match(/デッキの上から.*めくれるまで公開する/)) {
-    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as StubAction;
+    const specDRU = parseDeckRevealUntilSpec(t);
+    return specDRU
+      ? { type: 'STUB', id: 'DECK_REVEAL_UNTIL', deckRevealUntil: specDRU } as StubAction
+      : { type: 'STUB', id: 'DEFERRED_DECK_REVEAL_UNTIL_UNPARSED' } as StubAction;
   }
 
   // ---- デッキ上を公開し、宣言レベルのシグニなら手札/エナに加える ----
@@ -2303,10 +2304,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY', ...(specRPE2 ? { revealPickToEnergy: specRPE2 } : {}) } as StubAction;
   }
 
-  // ---- この方法でトラッシュに置いたカードの中に〜がある場合 ----
-  if (t.match(/この方法でトラッシュに置いたカードの中に/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_PER_TRASH' } as StubAction;
-  }
+  // 🏁**「この方法でトラッシュに置いたカードの中に」の catch-all は撤去した**（2026-09-05 §5.3 `O-60` 第74）＝
+  //   受け側 `STUB{CONDITIONAL_PER_TRASH}` は原文から閾値を読んで**1枚ドロー**する近似で live 0 だった。
+  //   この文型は `MILL_EACH_REPEAT_ON_NAME`（§6.4 `O-22(b)`）が構造化して取っている。
 
   // ---- その中から《アクセアイコン》を持つカードをエナゾーンに ----
   if (t.match(/その中から《アクセアイコン》を持つ.+エナゾーンに置き/)) {
@@ -2435,12 +2435,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手はデッキをシグニ/スペルがめくれるまで公開する ----
   if (t.match(/対戦相手は.*デッキを上から.*めくれるまで公開する/)) {
-    return { type: 'STUB', id: 'OPP_DECK_REVEAL_UNTIL' } as StubAction;
+    const specODRU = parseDeckRevealUntilSpec(t);
+    return specODRU
+      ? { type: 'STUB', id: 'OPP_DECK_REVEAL_UNTIL', deckRevealUntil: specODRU } as StubAction
+      : { type: 'STUB', id: 'DEFERRED_DECK_REVEAL_UNTIL_UNPARSED' } as StubAction;
   }
 
   // ---- あなたのデッキを上から特定カードがめくれるまで公開する ----
   if (t.match(/あなたのデッキを上から.+がめくれるまで公開する/)) {
-    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL_CLASS' } as StubAction;
+    const specDRUC = parseDeckRevealUntilSpec(t);
+    return specDRUC
+      ? { type: 'STUB', id: 'DECK_REVEAL_UNTIL_CLASS', deckRevealUntil: specDRUC } as StubAction
+      : { type: 'STUB', id: 'DEFERRED_DECK_REVEAL_UNTIL_UNPARSED' } as StubAction;
   }
 
   // ---- 手札から捨てなければ手札をN枚捨てる（コスト選択）----
@@ -2540,7 +2546,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- デッキの上から〜がめくれるまで公開し手札に加える（汎用）----
   if (t.match(/あなたのデッキの上から.+がめくれるまで公開し(?:、それ)?を手札に加える/)) {
-    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as StubAction;
+    const specDRU2 = parseDeckRevealUntilSpec(t);
+    return specDRU2
+      ? { type: 'STUB', id: 'DECK_REVEAL_UNTIL', deckRevealUntil: { ...specDRU2, hitTo: 'hand' } } as StubAction
+      : { type: 'STUB', id: 'DEFERRED_DECK_REVEAL_UNTIL_UNPARSED' } as StubAction;
   }
 
   // ---- デッキの上からN枚のカードを公開する（センタールリグレベル参照等）----
@@ -3370,4 +3379,35 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'TRAP_OP', trapOp: 'rearrange' } as StubAction;
 
   return null;
+}
+
+/**
+ * 「デッキの上から〈条件〉がめくれるまで公開する」の payload を**この文だけ**から作る
+ * （🆕2026-09-05・§5.3 `O-60` 第75バッチ）。
+ * 🔴engine 側で**カード全文**に regex を当てていたのをここへ移した＝同じカードの別能力の文を拾わない。
+ * ⚠**停止条件が読めなければ `undefined`**（呼び出し側は `DEFERRED_*` へ落として【未実装】を出す）。
+ * ⚠行き先（`hitTo`/`restTo`/`allTo`）は**同じ文に書かれているときだけ**入る＝別の文に分かれている
+ *   カードは `manualEffects.ts` 側で payload を手書きする（live 4効果はすべてそれ）。
+ */
+export function parseDeckRevealUntilSpec(t: string): NonNullable<StubAction['deckRevealUntil']> | undefined {
+  const toHW = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const untilName = /宣言したカードが(?:めくれる|公開される)まで/.test(t);
+  const untilSigni = /シグニが(?:[０-９\d]+枚)?めくれるまで/.test(t);
+  if (!untilName && !untilSigni) return undefined;
+  const spec: NonNullable<StubAction['deckRevealUntil']> = { until: untilName ? 'declaredName' : 'signi' };
+  if (untilSigni) {
+    const cntM = t.match(/シグニが([０-９\d]+)枚めくれるまで/);
+    if (cntM) spec.count = parseInt(toHW(cntM[1]), 10);
+    const classM = t.match(/＜([^＞]+)＞のシグニが(?:[０-９\d]+枚)?めくれるまで/);
+    if (classM) spec.signiClass = classM[1];
+    const lvM = t.match(/レベル([０-９\d]+)を持つ/);
+    if (lvM) spec.signiLevel = parseInt(toHW(lvM[1]), 10);
+  }
+  if (/それを手札に加える/.test(t)) spec.hitTo = 'hand';
+  if (/残りをシャッフルして.*デッキの一番下/.test(t)) spec.restTo = 'deckBottomShuffled';
+  else if (/残り.*デッキの一番下/.test(t)) spec.restTo = 'deckBottom';
+  else if (/残りをトラッシュに置く/.test(t)) spec.restTo = 'trash';
+  if (/公開した(?:カード|カードすべて)をトラッシュに置く|(?:この方法で)?公開されたカードをトラッシュに置く/.test(t)) spec.allTo = 'trash';
+  else if (/公開された?カードを(?:シャッフルして)?デッキの一番下に置く/.test(t)) spec.allTo = 'deckBottomShuffled';
+  return spec;
 }

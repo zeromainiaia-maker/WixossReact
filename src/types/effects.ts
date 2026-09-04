@@ -4805,6 +4805,30 @@ export interface StubAction {
    */
   lookTopReturnRestBottom?: { lookCount: number };
   /**
+   * 🆕**「デッキの上から〈条件〉がめくれるまで公開する」の中身**（`DECK_REVEAL_UNTIL` /
+   * `DECK_REVEAL_UNTIL_CLASS` / `OPP_DECK_REVEAL_UNTIL`。2026-09-05・§5.3 `O-60` 第75バッチ）。
+   *
+   * 🔴旧実装は engine が **効果元のカード全文**（`EffectText + BurstText`）に **13本**のリテラルを当てて
+   *   停止条件（シグニ／＜クラス＞／レベル／宣言名・枚数）と**公開札の行き先**を決めていた＝`O-60` A群の
+   *   最後の funnel。⚠**計器はこれを live 0 と表示していた**（`if` の最後の id `OPP_DECK_REVEAL_UNTIL` で
+   *   グループ化していたため）が、実際には `DECK_REVEAL_UNTIL` が **live 4効果**で動いていた
+   *   ＝🔑**「live 0」は計器のラベルであって事実ではないことがある。必ず id ごとに数え直す。**
+   * - `until`＝停止条件（`signi`＝シグニがめくれるまで／`declaredName`＝宣言したカードがめくれるまで）。
+   * - `count`＝「シグニがN枚めくれるまで」の N（省略＝1）。`signiClass`/`signiLevel` は絞り込み。
+   * - `hitTo`＝ヒット札の行き先（`hand` のみ）。`restTo`＝ヒット以外の行き先。`allTo`＝公開札すべての行き先。
+   * ⚠**payload が無い宣言は何もしない**（fail-closed）＝旧実装の「未知文型は全部デッキ下へ戻す」安全網は、
+   *   原文が「トラッシュに置く」でも黙ってデッキへ戻す**別の嘘**だった。
+   */
+  deckRevealUntil?: {
+    until: 'signi' | 'declaredName';
+    count?: number;
+    signiClass?: string;
+    signiLevel?: number;
+    hitTo?: 'hand';
+    restTo?: 'trash' | 'deckBottom' | 'deckBottomShuffled';
+    allTo?: 'trash' | 'deckBottomShuffled';
+  };
+  /**
    * 🆕**「手札から〈条件〉のカードを N枚（公開する／捨てる／下に置く）」の中身**
    * （§5.3 `O-60` 第51バッチ・2026-09-03）。**手札を読む family 7ハンドラで共有する**＝
    * `HAND_REVEAL_CLASS_SIGNI` / `REVEAL_CLASS_SIGNI_FROM_HAND` / `OPTIONAL_DISCARD_CLASS_SIGNI` /

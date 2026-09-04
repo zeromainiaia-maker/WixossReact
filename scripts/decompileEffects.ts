@@ -4274,6 +4274,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-60` 第75（2026-09-05）＝「〜がめくれるまで公開する」の停止条件が読めなかった文型。
+        //   ⚠engine の catch-all（カード全文 regex）を撤去したので、**名前のある穴**として宣言する。
+        DEFERRED_DECK_REVEAL_UNTIL_UNPARSED: '【未実装】デッキの上から条件を満たすカードがめくれるまで公開する',
         // 🆕§5.3 `O-229`（2026-09-04）＝デッキの一番上とエナゾーンにある効果元自身の入れ替え。
         SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
           'あなたのデッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',

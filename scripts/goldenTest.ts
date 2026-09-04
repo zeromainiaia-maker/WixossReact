@@ -4128,7 +4128,8 @@ test('WXK10-031機構: DECK_REVEAL_UNTIL→公開カードトラッシュ→そ�
   const ctx = { ...mkCtx({ deckTop: [SIGNI_L3] }, { signi: [SIGNI_L4, SIGNI_L1, null] }), sourceCardNum: 'WXK10-031', triggeringCardNum: 'WXK10-031' } as ExecCtx;
   const oppHand0 = ctx.otherState.hand.length;
   const action = { type: 'SEQUENCE', steps: [
-    { type: 'STUB', id: 'DECK_REVEAL_UNTIL' },
+    // 🆕2026-09-05（§5.3 `O-60` 第75）＝停止条件と行き先は payload で渡す（engine はカード全文を読まない）。
+    { type: 'STUB', id: 'DECK_REVEAL_UNTIL', deckRevealUntil: { until: 'signi', allTo: 'trash' } },
     { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLtLastProcessed: true }, upToCount: false } },
   ] } as unknown as EffectAction;
   const r = run(action, ctx);
@@ -47605,7 +47606,10 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
     // `GRANT_CHOSEN_ABILITY(_SELF)` を payload 化したぶん。
     // ⚠**差し戻しではない**＝ブロック読みへ戻したのではなく、**原文を読む必要がなくなった**
     //   （単価・対象の奇偶・枚数・選択肢が live JSON に構造で載った）。
-    'src/engine/execStubPart2.ts': 4,
+    // 🆕4 → 3（2026-09-05 §5.3 `O-60` 第74バッチ）＝`CONDITIONAL_PER_TRASH` の**ハンドラごと撤去**したぶん。
+    // ⚠**差し戻しではない**＝全文読みへ戻したのではなく、live 0 の死んだ枝を parser 規則ごと消した
+    //   （同じ文型は `MILL_EACH_REPEAT_ON_NAME` が構造化して取っている）。
+    'src/engine/execStubPart2.ts': 3,
     // 🆕3 → 2（2026-09-03 §5.3 `O-60` 第61バッチ）＝`BET_CONDITION` を撤去したぶん。
     // ⚠**差し戻しではない**＝ベットの対象枚数昇格は parser の `CONDITIONAL{IS_BETTING}`（枚数だけ
     //   差し替えた同じ本文を then/else に置く）へ移り、engine が原文を読む必要がなくなった。
@@ -65092,7 +65096,95 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   }
   // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
-  ok(/const BASELINE_SELF_TEXT = 5;/.test(census), 'BASELINE_SELF_TEXT が実測 5 へ下がっている（§5.3 `O-60` 第71〜第73）');
+  ok(/const BASELINE_SELF_TEXT = 1;/.test(census), 'BASELINE_SELF_TEXT が実測 1 へ下がっている（§5.3 `O-60` 第71〜第75）');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第75バッチ（2026-09-05）＝「〜がめくれるまで公開する」を payload 化（A🔴 2→1行）。
+// 🔴🔑**この family は計器に `live 0` と出ていたが、実際は live 4効果で動いていた。**
+//   計器はハンドラの `if` から拾った**最後の id**（`OPP_DECK_REVEAL_UNTIL`）でグループ化するので、
+//   同じ if が受ける `DECK_REVEAL_UNTIL`（live 4）が数から消えていた。⇒ **A群を取る前に id ごとに数え直す。**
+// 撤去したのは13本のリテラル（停止条件4種＋公開札の行き先5種＋シャッフル有無）で、どれも
+// **効果元のカード全文**に当てていた＝`WXK10-031` のように【自】と【出】の両方にデッキ公開の文がある
+// カードでは、別の能力の行き先を拾いうる形だった。
+// ⚠**「未知文型は全部デッキ下へ戻す」安全網も撤去**＝原文が「トラッシュに置く」でも黙って戻す別の嘘。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第75: 「めくれるまで公開」は payload で停止条件と行き先が決まる', () => withSavedCursor(() => {
+  const spec = (id: string) => {
+    const cardNum = id.replace(/-E\d+(-G)?$/, '');
+    const found = JSON.stringify(effectsMap.get(cardNum) ?? []);
+    return found;
+  };
+  // ── live payload（4効果とも `manualEffects.ts` の手書き＝原文どおりの行き先を持つ）
+  ok(spec('WX22-021-E2').includes('"deckRevealUntil":{"until":"declaredName","hitTo":"hand","restTo":"deckBottomShuffled"}'),
+    'WX22-021-E2＝宣言名まで公開→それを手札／残りはシャッフルしてデッキ下');
+  ok(spec('WDK13-017-E1').includes('"deckRevealUntil":{"until":"signi","count":2,"allTo":"trash"}'),
+    'WDK13-017-E1＝シグニ2枚まで公開→公開札はすべてトラッシュ');
+  ok(spec('WDK04-006-E1').includes('"deckRevealUntil":{"until":"signi","allTo":"deckBottomShuffled"}'),
+    'WDK04-006-E1-G＝シグニまで公開→公開札はシャッフルしてデッキ下');
+  ok(spec('WXK10-031-E1').includes('"deckRevealUntil":{"until":"signi","allTo":"trash"}'),
+    'WXK10-031-E1＝シグニまで公開→公開札はすべてトラッシュ');
+  // ── engine＝**カード全文が空でも** payload どおりに動く（原文を読んでいない証拠）
+  // ⚠**同じカード番号を2回置かない**＝engine は公開札を `includes` で除くので、同じ番号が2枚あると
+  //   両方まとめて消えて「デッキに残るはず」の assert が崩れる（第75で実際に踏んだ）。
+  const SIGNI_HIT = SIGNI_L2;
+  const SPELL_ANY = findCard(c => c.Type === 'スペル');
+  const runReveal = (payload: Record<string, unknown> | undefined, deck: string[]) => {
+    const base = mkCtx({}, {}, SPELL_ANY);
+    const ctx = { ...base, ownerState: { ...(base.ownerState as PlayerState), deck, trash: [], hand: [] } } as ExecCtx;
+    return finish(executeEffect({
+      effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+      action: { type: 'STUB', id: 'DECK_REVEAL_UNTIL', ...(payload ? { deckRevealUntil: payload } : {}) } as unknown as EffectAction,
+    } as CardEffect, ctx), ctx);
+  };
+  const deck3 = [SPELL_ANY, SIGNI_HIT, SIGNI_L4];
+  const toTrash = runReveal({ until: 'signi', allTo: 'trash' }, deck3).ownerState as PlayerState;
+  eq(toTrash.trash.join(','), [SPELL_ANY, SIGNI_HIT].join(','), '🔴公開札はすべてトラッシュへ（ヒット札も含む）');
+  eq(toTrash.deck.join(','), SIGNI_L4, '公開していない札はデッキに残る');
+  const toBottom = runReveal({ until: 'signi', allTo: 'deckBottomShuffled' }, deck3).ownerState as PlayerState;
+  eq(toBottom.trash.length, 0, 'デッキ下へ戻す payload ではトラッシュへ行かない');
+  eq(toBottom.deck.length, 3, '公開札はデッキへ戻る（枚数保存）');
+  const twice = runReveal({ until: 'signi', count: 2, allTo: 'trash' }, [SIGNI_L1, SPELL_ANY, SIGNI_HIT, SIGNI_L3]).ownerState as PlayerState;
+  eq(twice.trash.length, 3, '🔴「2枚めくれるまで」は2体目で止まる（既定1枚に落ちない）');
+  // ⚠payload が無ければ**何もしない**（fail-closed）＝旧実装の「全部デッキ下へ戻す」安全網は撤去した。
+  const noPayload = runReveal(undefined, deck3).ownerState as PlayerState;
+  eq(noPayload.deck.join(','), deck3.join(','), 'payload なしではデッキを1枚も動かさない');
+  // ── engine から原文 regex が消えていること（復活させない門）
+  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  ok(!part1.includes('めくれるまで/'), 'DECK_REVEAL_UNTIL に原文 regex が復活している');
+  // ── 読めない文型は**名前のある穴**になること（無言 no-op にしない）
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(dec.includes('DEFERRED_DECK_REVEAL_UNTIL_UNPARSED:'), '逆翻訳に日本語の【未実装】が用意されている');
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第74バッチ（2026-09-05）＝**live 0 の死んだ catch-all を parser 規則ごと撤去**（A🔴 5→2行）。
+// 🔑**「live 0 のハンドラを消す」の安全な手順**＝①engine のハンドラと②それを生む parser 規則を**同時に**消し、
+//   ③`npm run build:effects` を回して **live JSON の差分がゼロ**であることを確かめる（＝本当に死んでいた証拠）。
+//   ②を残すと新カードが**ハンドラの無い STUB**＝無言 no-op へ落ち、②だけ消すと逆翻訳が黙って変わる。
+// 撤去した3 family（どれも効果元の原文を読んで意味を決めていた＝A群の本体）＝
+//   ①`CHOOSE_SAME_OPTION_TWICE` / `CHOOSE_SAME_OPTION_MULTIPLE`（カード全文から①②③の選択肢を組み立てる）
+//   ②`LOOK_TOP_N` / `LOOK_TOP_SORT` / `LOOK_TOP_COLOR_SORT` / `LOOK_TOP_BY_LIFE_COUNT`（見る枚数＝既定3枚）
+//   ③`CONDITIONAL_PER_TRASH`（閾値を読んで1枚ドローする近似。構造化は `MILL_EACH_REPEAT_ON_NAME` が持つ）
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第74: 死んだ catch-all 3 family が engine からも parser からも消えた', () => {
+  const engineSrc = ['src/engine/execStubPart1.ts', 'src/engine/execStubPart2.ts', 'src/engine/execStubPart3.ts']
+    .map(f => fs.readFileSync(join(root, f), 'utf8')).join('\n');
+  const parserSrc = ['src/data/effectParser.ts', 'src/data/parsers/parseSentencePart2.ts',
+    'src/data/parsers/parseSentencePart3.ts', 'src/data/parsers/parseSentencePart4.ts']
+    .map(f => fs.readFileSync(join(root, f), 'utf8')).join('\n');
+  for (const id of ['CHOOSE_SAME_OPTION_TWICE', 'CHOOSE_SAME_OPTION_MULTIPLE', 'CONDITIONAL_PER_TRASH',
+    'LOOK_TOP_N', 'LOOK_TOP_SORT', 'LOOK_TOP_COLOR_SORT', 'LOOK_TOP_BY_LIFE_COUNT']) {
+    ok(!engineSrc.includes(`stub.id === '${id}'`), `engine に ${id} のディスパッチが残っている`);
+    ok(!parserSrc.includes(`id: '${id}'`), `parser に ${id} の生成地点が残っている`);
+    // live にも1件も無いこと（撤去の前提が崩れたらここで落ちる）。
+    eq(cardsWithStub(id, true).length, 0, `live に STUB{${id}} が現れた＝ハンドラの無い無言 no-op`);
+  }
+  // ⚠**巻き添えで消していない**＝payload 化して生きている隣の family は残っていること。
+  ok(engineSrc.includes("stub.id === 'LOOK_TOP_ONE_RETURN_REST_BOTTOM'"), 'payload 版の LOOK_TOP は残す');
+  ok(engineSrc.includes("stub.id === 'MILL_EACH_REPEAT_ON_NAME'"), '構造化された「この方法で」側は残す');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
