@@ -83,6 +83,14 @@
   （`banishedFrontOnly`。⚠実装したことにはしない）。
   ✅**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**。
 
+## 2026-09-04 整理⑥：`O-234` を🏁クローズして索引から削除
+
+> **engine の第2の原文解析器 `src/engine/choiceTextParser.ts`（492行）を削除した。**
+> 最後の呼び出し元（`INTERNAL_ECRV_APPLY`）を payload（`StubAction.extraCostChoose`）へ寄せ、
+> golden がテスト内で呼んでいた2箇所も live の `CHOOSE` を読む形へ移した。全文は BUGFIXES.md の同日。
+
+| `O-234` | **2効果** | 🆕**2026-09-03（`O-60` 第61バッチで分離）**＝**`src/engine/choiceTextParser.ts`（492行・約30分岐）の最後の呼び出し元**が残っている。<br>🔑**この巡でこのファイルは「1本の継続ハンドラからしか呼ばれない」状態になった**＝`INTERNAL_ECRV_APPLY`（`EXTRA_COST_REMOVE_VIRUS` の継続・live 2効果＝`WX16-023`／`WX16-048`）。ここを移せば**engine の第2の原文解析器を丸ごと削除できる**。<br>原文＝「以下の3つ（4つ）から、**追加で取り除いた【ウィルス】の数に1を加えた数だけ**選ぶ」。<br>■**受け皿の見立て**＝`CHOOSE{countChoose:{count:{$ref:…}}}` は**在る**。足りないのは①`$ref`1本（取り除いた数＋1）②その数を**効果解決中に**運ぶ口。<br>🔴**`pre_use_virus_removed` は `src/screens/BattleScreen.tsx` が使用宣言時に書く**（＝スペル/アーツの使用コスト経路）ので、**`src/screens/` を触る＝遅いレーン＋実機必須**。<br>⚠**着手前に「使用時コストとして取り除く」経路と「効果の中で取り除く」経路のどちらなのかを1件ずつ確かめる**（`EXTRA_COST_REMOVE_VIRUS` は後者として実装されている）。 |
+
 ## 2026-09-04 整理⑤：`O-241` を🏁クローズして索引から削除
 
 > `attack_not_negated_by_self_effect_this_turn`（**カード単位**のアタック無効化免疫）を新設。

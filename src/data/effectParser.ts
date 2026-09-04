@@ -23303,6 +23303,35 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  *   ここで**カード全文から名前を読み直して** `selectTarget.filter` に載せる。
  * ⚠**載せないと自分のシグニ全部が候補**になる＝原文（《大罠　ハーメルン》限定）より緩い過剰実行。
  */
+/**
+ * 🆕**§5.3 `O-234`（2026-09-04）＝`EXTRA_COST_REMOVE_VIRUS` の①②③④を parser が解いて payload に載せる。**
+ *
+ * 🔴これで **engine の第2の原文解析器**（`src/engine/choiceTextParser.ts`・492行・約30分岐）の
+ *   **最後の呼び出し元が消える**。二重管理のあいだ「片方だけ直して**どちらの経路でも効かない**」事故が
+ *   実際に起きていた（`effectParser.ts` の 5439 / 5582 / 5593 / 22778 のコメント群が記録）。
+ * ⚠**選択数（除去数＋1）は engine が実行時に決める**＝ここでは `choose_count` を 1 で置いておき、
+ *   `INTERNAL_ECRV_APPLY` が上書きする（payload は選択肢の集合だけを運ぶ）。
+ */
+function foldExtraCostRemoveVirusChoices(action: EffectAction, sourceText: string): EffectAction {
+  const items = [...sourceText.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
+  if (items.length < 2) return action;
+  const stamp = (a: EffectAction): EffectAction => {
+    if (a.type === 'STUB' && (a as StubAction).id === 'EXTRA_COST_REMOVE_VIRUS' && !(a as StubAction).extraCostChoose) {
+      const choices = items.map((m, i) => {
+        const optRaw = m[1].replace(/[。）\s]+$/, '').trim();
+        const { action: optAction, condition } = liftChoiceOptionCondition(parseActionText(optRaw), optRaw);
+        return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action: optAction, ...(condition ? { condition } : {}) };
+      });
+      if (choices.some(c => c.action.type === 'UNKNOWN')) return a;   // fail-closed（半分だけ載せない）
+      return { ...(a as StubAction),
+        extraCostChoose: { type: 'CHOOSE', choose_count: 1, from_count: choices.length, choices } as ChooseAction } as EffectAction;
+    }
+    if (a.type === 'SEQUENCE') return { ...(a as SequenceAction), steps: (a as SequenceAction).steps.map(stamp) } as EffectAction;
+    return a;
+  };
+  return stamp(action);
+}
+
 function foldAttackNegImmuneTarget(action: EffectAction, sourceText: string): EffectAction {
   const m = sourceText.match(/あなたの《([^》]+)》[１1]体を対象とし[、,][^。]*?このシグニのアタックはこのシグニの効果によって無効にされない/);
   if (!m) return action;
@@ -25869,6 +25898,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     //   あれは「文が丸ごと keyword に入った」record の**キーを全消しして STUB へ置き換える**ので、
     //   前段で載せた `selectTarget` は**必ず消える**（実測で1往復した）。対象の絞り込みはここで載せ直す。
     e.action = foldAttackNegImmuneTarget(e.action, card.EffectText ?? '');
+    e.action = foldExtraCostRemoveVirusChoices(e.action, `${card.EffectText ?? ''} ${card.BurstText ?? ''}`);
     // 🔴`REVEAL_AND_PICK.then` のエナ行きを正準形 `ADD_TO_ENERGY` へ揃える（2026-08-22 段2 第4バッチ）。
     // 旧 `ENERGY_CHARGE{target:{DECK_CARD}}` は **engine では場のシグニが候補になる**（`execEnergyCharge` は
     // HAND_CARD / TRASH_CARD 以外を `fieldCandidates` へ落とす＝`effectExecutor.ts:2046`）＝公開して選んだ

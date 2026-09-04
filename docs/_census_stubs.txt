@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 590（総ノード 3180 件）
-逆翻訳シートの [STUB:…] 総数: 378  うち生ID露出 5 箇所（4 種）
+逆翻訳シートの [STUB:…] 総数: 379  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 33 種 / 34 件
@@ -28,10 +28,10 @@ live JSON の STUB id 種類 : 590（総ノード 3180 件）
         生成: src\data\effectParser.ts:22576
      1件   1枚  DEFERRED_CHECK_ZONE_FREE_CAST
         カード: WXDi-P10-007
-        生成: src\data\effectParser.ts:23396
+        生成: src\data\effectParser.ts:23425
      1件   1枚  DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM
         カード: WX21-028
-        生成: src\data\effectParser.ts:23401
+        生成: src\data\effectParser.ts:23430
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1661
@@ -40,7 +40,7 @@ live JSON の STUB id 種類 : 590（総ノード 3180 件）
         生成: src\data\effectParser.ts:14896
      1件   1枚  DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED
         カード: WXDi-P03-002
-        生成: src\data\effectParser.ts:24011 / src\data\effectParser.ts:24020
+        生成: src\data\effectParser.ts:24040 / src\data\effectParser.ts:24049
      1件   1枚  DEFERRED_GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
         生成: src\data\parsers\parseSentencePart2.ts:2818

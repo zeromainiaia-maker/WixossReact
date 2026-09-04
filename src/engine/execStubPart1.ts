@@ -8,7 +8,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter,
+  removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter, evalCondition,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
   payBeatSigniCost, payBeatSigniFromTrashCost,
@@ -17,7 +17,6 @@ import {
   resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
 import { cloneAcceSlots } from '../utils/acce';
-import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 
@@ -2059,7 +2058,8 @@ export function execStubPart1(
       removeOptions.push({
         id: `remove_${n}`,
         label: n === 0 ? '取り除かない' : `ウイルス${n}つ取り除く`,
-        action: ({ type: 'STUB', id: 'INTERNAL_ECRV_APPLY', value: n } as StubAction) as EffectAction,
+        // 🆕§5.3 `O-234`（2026-09-04）＝**選択肢の payload を継続へ持ち回す**（`ctx` は resume を跨がない）。
+        action: ({ type: 'STUB', id: 'INTERNAL_ECRV_APPLY', value: n, extraCostChoose: stub.extraCostChoose } as StubAction) as EffectAction,
         available: true,
       });
     }
@@ -2083,16 +2083,25 @@ export function execStubPart1(
       otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
     if (removedECRV > 0) ctxECRV = addLog(ctxECRV as import('./execUtils').ExecCtx, `ウイルス${removedECRV}個除去`) as typeof ctx;
     const chooseCount = removeN + 1;
-    const srcECRV2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
-    // ①②③④の効果オプションを解析（choiceTextParserに共通化）
-    const optsECRV = parseChoiceOptionsFromText(txtECRV2, 'eff');
-    if (optsECRV.length > 0) {
-      return needsInteraction(addLog(ctxECRV, `効果を${chooseCount}つ選択`), {
-        type: 'CHOOSE', options: optsECRV, count: Math.min(chooseCount, optsECRV.length),
-      });
-    }
-    return done(addLog(ctxECRV, `ウイルス${removeN}個除去→効果${chooseCount}択（解析不可）`));
+    // 🆕§5.3 `O-234`（2026-09-04）＝**選択肢は parser が解いた payload から**組む。
+    // 🔴旧実装は効果元の `EffectText + BurstText` を engine が読み直していた
+    //   （`choiceTextParser.ts`＝engine の第2の原文解析器）。parser 側と二重管理になり、
+    //   片方だけ直すと**どちらの経路でも効かない**事故が実際に起きていた。
+    // ⚠**payload が無ければ何もしない**（fail-closed）＝原文を読み直す経路へは戻さない。
+    const chooseECRV = stub.extraCostChoose;
+    if (!chooseECRV) return done(addLog(ctxECRV, `ウイルス${removeN}個除去→効果${chooseCount}択（選択肢の payload なし）`));
+    // **選択数は実行時に決まる**（除去数＋1）＝payload の選択肢をそのまま提示し、`count` だけを上書きする。
+    // ⚠`executeAction` はここから呼べない（`execStubPart1` → `effectExecutor` は循環参照）ので、
+    //   `CHOOSE` の interaction を自分で組む（旧実装と同じ形＝**中身の出どころだけが payload に変わった**）。
+    const optionsECRV = chooseECRV.choices.map(ch => ({
+      id: ch.choiceId,
+      label: ch.label,
+      action: ch.action,
+      available: ch.condition ? evalCondition(ch.condition, ctxECRV as import('./execUtils').ExecCtx) : true,
+    }));
+    return needsInteraction(addLog(ctxECRV, `効果を${chooseCount}つ選択`), {
+      type: 'CHOOSE', options: optionsECRV, count: Math.min(chooseCount, optionsECRV.length),
+    });
   }
   // SUMMON_FROM_TRASH_TO_HAND_BLACK: トラッシュから黒シグニを手札へ
   if (stub.id === 'OPP_ENERGY_COLORLESS_ABILITY_LOSS') {

@@ -5717,6 +5717,17 @@ export interface StubAction {
    */
   moveSelfZone?: { allowSwap?: boolean };
   /**
+   * 🆕**§5.3 `O-234`（2026-09-04）＝`EXTRA_COST_REMOVE_VIRUS` の選択肢を payload で運ぶ。**
+   * 原文＝「以下の３つ（４つ）から、**取り除いた【ウィルス】の数に１を加えた数だけ**選ぶ。①…②…③…」。
+   * 🔴**旧実装は engine が効果元の `EffectText + BurstText` を読み直して選択肢を組んでいた**
+   *   （`src/engine/choiceTextParser.ts`＝**engine の第2の原文解析器**・492行）。
+   *   parser 側の規則と二重管理で、片方だけ直すと**どちらの経路でも効かない**事故が実際に起きていた
+   *   （`effectParser.ts` の 5439 / 5582 / 5593 / 22778 のコメント群がその記録）。
+   * ⇒ **選択肢は parser が解いて `CHOOSE` のまま載せる**＝engine は選択数（除去数＋1）だけを決める。
+   * ⚠**payload が無ければ何もしない**（fail-closed）＝原文を読み直す経路へは戻さない。
+   */
+  extraCostChoose?: ChooseAction;
+  /**
    * OPTIONAL_COST: 「このキーを場からルリグトラッシュに置く」（§6.4 O-3・`WDK06-R09-E1`）。
    * ⚠キーゾーンはシグニゾーンと別なので `fieldToLrigTrash` では払えない。
    */

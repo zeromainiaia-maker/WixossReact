@@ -112,7 +112,6 @@ import { handDiscardHistoryRecord } from '../src/screens/battle/costs';
 import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
-import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
@@ -214,6 +213,22 @@ function mkCtx(owner: StateOpts, other: StateOpts, sourceInst?: string): ExecCtx
     cardMap: cardMap as Map<string, CardData>, logs: [],
     sourceCardNum: sourceInst, triggeringCardNum: sourceInst, currentPhase: 'MAIN',
   } as unknown as ExecCtx;
+}
+
+/**
+ * 🆕**§5.3 `O-234`（2026-09-04）＝live の `CHOOSE` から選択肢の action を取る。**
+ * 🔴以前は `engine/choiceTextParser.parseChoiceOptionsFromText(card.EffectText)` を**テストの中で**
+ *   呼んでいたが、あれは **engine の第2の原文解析器**で、parser 側と二重管理だった
+ *   （＝テストが「engine 側の解釈」を固定していて、**live JSON が壊れていても緑**になりえた）。
+ *   ファイルごと削除したので、**live の payload そのもの**を見る形へ寄せた。
+ */
+function liveChoiceAction(cardNum: string, effectId: string, index: number): EffectAction {
+  const act = effectsMap.get(cardNum)?.find(e => e.effectId === effectId)?.action as { type?: string; choices?: { action: EffectAction; condition?: Condition }[] };
+  if (act?.type !== 'CHOOSE' || !act.choices?.[index]) throw new Error(`${effectId}: choices[${index}] が live に無い`);
+  const ch = act.choices[index];
+  // ⚠**選択肢のゲートは `choices[i].condition` に載る**（旧 `choiceTextParser` は action の中へ畳んでいた）＝
+  //   ここで包まないと「条件不成立でも実行される」形でテストが通ってしまう。
+  return ch.condition ? ({ type: 'CONDITIONAL', condition: ch.condition, then: ch.action } as EffectAction) : ch.action;
 }
 
 // ── オートパイロット（最終 ExecResult を返す）──
@@ -34410,11 +34425,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
 test('task12(xxix) BET choices: 条件成立/不成立を両方向で盤面固定（A1/A3/A4）', () => {
   const savedCursor = cursor;
   try {
-    const wx19005 = (cardMap.get('WX19-005')?.EffectText ?? '');
-    const spk = (cardMap.get('SPK16-13E')?.EffectText ?? '');
-    const energyGate = parseChoiceOptionsFromText(wx19005)[1].action;
-    const energyChargeGate = parseChoiceOptionsFromText(spk)[1].action;
-    const drawGate = parseChoiceOptionsFromText(spk)[2].action;
+    const energyGate = liveChoiceAction('WX19-005', 'WX19-005-E1', 1);
+    const energyChargeGate = liveChoiceAction('SPK16-13E', 'SPK16-13E-E1', 1);
+    const drawGate = liveChoiceAction('SPK16-13E', 'SPK16-13E-E1', 2);
 
     const eNo = run(energyGate, mkCtx({}, { energy: 3, trash: 0 }));
     eq(eNo.otherState.energy.length, 3, 'A1不成立: 相手エナ3枚は維持');
@@ -34628,12 +34641,9 @@ test('task12(lv) INTERNAL_DO_COLLAB: 任意COLLAB枝も配置カードをsurface
 test('task12(xxix) BET choices: 脱落サブアクションが盤面を変える（B1/B2/B3）', () => {
   const savedCursor = cursor;
   try {
-    const wx19006 = cardMap.get('WX19-006')?.EffectText ?? '';
-    const wx19005 = cardMap.get('WX19-005')?.EffectText ?? '';
-    const prk072 = cardMap.get('PR-K072')?.EffectText ?? '';
-    const exileDraw = parseChoiceOptionsFromText(wx19006)[2].action;
-    const drawBlindTrash = parseChoiceOptionsFromText(wx19005)[2].action;
-    const downDraw = parseChoiceOptionsFromText(prk072)[0].action;
+    const exileDraw = liveChoiceAction('WX19-006', 'WX19-006-E1', 2);
+    const drawBlindTrash = liveChoiceAction('WX19-005', 'WX19-005-E1', 2);
+    const downDraw = liveChoiceAction('PR-K072', 'PR-K072-E1', 0);
     const spell1 = findCard(c => c.Type === 'スペル');
     const spell2 = findCard(c => c.Type === 'スペル' && c.CardNum !== spell1);
     const nonSpell = findCard(c => c.Type === 'シグニ' && c.CardNum !== spell1 && c.CardNum !== spell2);
@@ -34661,10 +34671,8 @@ test('task12(xxix) BET choices: 脱落サブアクションが盤面を変える
 test('task12(xxix) BET choices: 対象フィルタと移動種別を盤面固定（C1/C2）', () => {
   const savedCursor = cursor;
   try {
-    const wx19006 = cardMap.get('WX19-006')?.EffectText ?? '';
-    const wdk06 = cardMap.get('WDK06-R08')?.EffectText ?? '';
-    const trashLv4 = parseChoiceOptionsFromText(wx19006)[0].action;
-    const lowerThanRise = parseChoiceOptionsFromText(wdk06)[0].action;
+    const trashLv4 = liveChoiceAction('WX19-006', 'WX19-006-E1', 0);
+    const lowerThanRise = liveChoiceAction('WDK06-R08', 'WDK06-R08-E1', 0);
     const c1Base = mkCtx({}, { signi: [SIGNI_L3, SIGNI_L4, null], trash: 0 });
     const c1 = run(trashLv4, c1Base);
     ok(tops(c1.otherState).includes(SIGNI_L3), 'C1 レベル3は対象外');
@@ -64406,7 +64414,7 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   }
   // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
-  ok(/const BASELINE_SELF_TEXT = 10;/.test(census), 'BASELINE_SELF_TEXT が実測 10 へ下がっている');
+  ok(/const BASELINE_SELF_TEXT = 9;/.test(census), 'BASELINE_SELF_TEXT が実測 9 へ下がっている（§5.3 `O-234` で choiceTextParser.ts を削除）');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
