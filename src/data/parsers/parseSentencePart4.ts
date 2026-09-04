@@ -1629,8 +1629,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // 🆕**`DEFERRED_` へ改名した**（§5.3 `O-60` 第56バッチ・2026-09-03）＝上と同じ理由
   //   （`WXDi-P10-047-E1` は**デッキの一番上とエナゾーンのこのシグニを入れ替える**効果で、
   //   旧 id `SWAP_OPTIONAL` では**自分の場のシグニをゾーン移動する UI** が開いていた）。`O-229`。
+  // 🏁**§5.3 `O-229`（2026-09-04）＝実装した**（`execStubPart3` の `SWAP_DECK_TOP_WITH_SELF_IN_ENERGY`）。
+  //   ⚠**`SWAP_DECK_TOP_AND_LIFE` へ寄せない**＝入れ替える相手が**ライフクロスではなくエナゾーンの効果元自身**。
   if (t.match(/そのカードとエナゾーンにあるこのシグニを入れ替えてもよい/))
-    return { type: 'STUB', id: 'DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY' } as StubAction;
+    return { type: 'STUB', id: 'SWAP_DECK_TOP_WITH_SELF_IN_ENERGY', swapOptional: true } as StubAction;
 
   // ---- あなたの効果によって対戦相手が手札を捨てたとき ----
   if (t.match(/あなたの効果によって対戦相手が手札を[１-９\d０-９]*枚捨てたとき/))
@@ -1978,8 +1980,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
 
   // ---- そのカードと対戦相手のデッキの一番上のカードを入れ替えてもよい ----
+  // 🏁**§5.3 `O-229`（2026-09-04）＝受け皿は既に在った**（`SWAP_DECK_TOP_AND_LIFE`）。
+  // 🔴旧実装は `STUB{LRIG_UNDER_CARD_OP}`（**ルリグの下のカード操作**）＝原文と無関係な別機構だった。
+  //   `effectParser.ts` の literal 表がそれを `DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP` へ上書きしていたので
+  //   逆翻訳では【未実装】に見えていたが、**表を消すと下の嘘がそのまま出る**ので生成元をここで直す。
+  // ⚠所有者は原文の「対戦相手の」＝直前の文が「対戦相手のライフクロスの一番上を公開する」。
   if (t.match(/そのカードと.*デッキの一番上のカードを入れ替えてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'SWAP_DECK_TOP_AND_LIFE', owner: 'opponent', optional: true } as EffectAction;
 
   // ---- デッキの上からカードをN枚トラッシュに置きカードをN枚見る ----
   if (t.match(/デッキの上から、?カードを[１-９\d０-９]+枚トラッシュに置きカードを[１-９\d０-９]+枚見る/))

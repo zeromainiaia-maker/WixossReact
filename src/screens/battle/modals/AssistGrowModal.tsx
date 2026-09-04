@@ -44,7 +44,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
-                    const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
+                    const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum));
                     const canAfford = canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
                     const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
@@ -87,7 +87,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 //   《無×1》減る」）も合流する。⚠`collectGrowCostReductions` は**場の CONTINUOUS**しか見ないので、
                 //   ピースが解決時に積んだ `next_assist_grow_mods` はここで足さないと届かない。
                 const growCost = applyGrowCostReduction(card.GrowCost, [
-                  ...collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap),
+                  ...collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum),
                   ...(my.next_assist_grow_mods?.reduction ?? []),
                 ]);
                 const energyTotal = parseGrowCost(growCost).reduce((s, c) => s + c.count, 0);

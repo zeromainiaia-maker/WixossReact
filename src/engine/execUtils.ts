@@ -20,7 +20,7 @@ import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCos
 import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
 import { underAnySigniCostCandidates } from '../screens/battle/underAnySigniCost';
 import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
-import { abilityBlockTextOf } from '../data/effectParser';
+import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 
 // ===== 実行コンテキスト & 結果型 =====
 
@@ -1338,6 +1338,55 @@ export function canSatisfyDiscardGroups(
  * インスタンスID（CardNum#N）からCardNumを取り出す。
  * #N がない場合はそのまま返す（後方互換）。
  */
+/**
+ * 🆕**§5.3 `O-240`（2026-09-04）＝「あなたのすべての領域にある《トラップアイコン》を持たない〈filter〉の
+ * カードは《トラップアイコン》「…」を得る」**（`WXEX2-66-E1`）の付与を1本に集める funnel。
+ *
+ * 🔴**【ライフバースト】側だけが実装されていた**（`GRANT_ALL_ZONE_LIFEBURST` ＋ `allZoneBurst.ts`）＝
+ *   トラップ側は付与そのものが無く、`WXEX2-66-E1` は無言 no-op だった。
+ * 🔑**「トラップ能力を持つか」と「発動する能力」は必ず対で解決する**＝片方だけを付与側にすると
+ *   「候補には出るのに発動しない」／「発動はするが候補に出ない」の無言のズレになる。
+ * ⚠**原文は「持た**ない**カードは」**＝native の `TRAP_ICON` を持つカードには付与しない（上書きしない）。
+ */
+export function allZoneTrapGrantOf(state: PlayerState, effectsMap?: Map<string, CardEffect[]>): StubAction | null {
+  if (!effectsMap) return null;
+  const hosts: string[] = [];
+  for (const stack of state.field.signi) { const top = stack?.at(-1); if (top) hosts.push(top); }
+  for (const top of [state.field.lrig.at(-1), (state.field.assist_lrig_l ?? []).at(-1), (state.field.assist_lrig_r ?? []).at(-1)]) {
+    if (top) hosts.push(top);
+  }
+  for (const num of hosts) {
+    for (const eff of effectsMap.get(num) ?? []) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as StubAction;
+      if (act.type === 'STUB' && act.id === 'GRANT_ALL_ZONE_TRAP_ICON') return act;
+    }
+  }
+  return null;
+}
+
+/**
+ * カードの【トラップ】能力（`TRAP_ICON` 効果）を返す。native が無ければ `O-240` の全領域付与を見る。
+ * ⚠**トラップ発動の入口は engine に4本ある**（`ACTIVATE_TRAP` / `trapOp:'activate'` / `gain_trap_ability` /
+ *   `hasTrapAbilityCard`）＝**必ずこの1本を通す**（写経すると付与が効く経路と効かない経路が割れる）。
+ */
+export function trapIconEffectOf(cardNum: string, ctx: ExecCtx): CardEffect | null {
+  const cd = ctx.cardMap.get(getCardNum(cardNum));
+  const effs = cd?.effects?.length ? cd.effects : cd ? parseCardEffects(cd) : [];
+  const native = effs.find(e => e.effectType === 'TRAP_ICON');
+  if (native) return native;
+  const grant = allZoneTrapGrantOf(ctx.ownerState, ctx.effectsMap);
+  if (!grant) return null;
+  if (grant.trapGrantFilter && !matchesFilter(cd, grant.trapGrantFilter)) return null;
+  if (!grant.trapGrantAction) return null;
+  return {
+    effectId: `${getCardNum(cardNum)}-GRANTED-TRAP`, effectType: 'TRAP_ICON',
+    timing: ['ON_TRAP_ACTIVATE'], action: grant.trapGrantAction,
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect;
+}
+
+
 export function getCardNum(id: string): string {
   const h = id.indexOf('#');
   return h > 0 ? id.slice(0, h) : id;

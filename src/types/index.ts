@@ -386,7 +386,9 @@ export interface PlayerState {
   //   temp_power_mods と同様に適用（レベルフィルタ判定用）。ターン境界で temp_power_mods と共にクリア。
   temp_level_mods?: Array<{ cardNum: string; delta: number }>;
   // 次の対戦相手のターン終了時までの一時パワー修正（temp_power_modsの長期版。UNTIL_OPP_TURN_END）
-  power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcType?: string }>;
+  // ⚠`srcCardNum` は `execPowerModify` が既に書いている（型宣言だけ欠けていた）＝§5.3 `O-247` の
+  //   「対戦相手の効果によって減少しない」保護は発生元の支配者で判定するので、ここに無いと長期版だけ素通しになる。
+  power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string }>;
   /**
    * 🆕**「次のあなたのターン終了時まで」のパワー修整**（2026-09-02・§5.3 `O-186`）。
    * ⚠**寿命はグローバルターン終了の残り回数（`turnEnds`）**＝`clearTurnEndScopedState` が毎回1減らし、
@@ -431,6 +433,23 @@ export interface PlayerState {
   granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;
   // このターンに自分のライフクロスがクラッシュされた枚数（LIFE_CRASHED_THIS_TURN 条件用。ターン開始時にリセット）
   life_crashed_this_turn?: number;
+  /**
+   * 🆕**このターンに「チェックゾーンへ置かれた」ライフクロスを置かれた順に持つ**（2026-09-04・§5.3 `O-239`）。
+   * 🔴**`life_crashed_this_turn` では足りない**＝あちらは枚数だけなので、ダブルクラッシュで2枚同時に
+   *   置かれたときに「1枚目／2枚目」を区別できない。原文（`WXDi-P12-036-E1`）は**順番**を軸にする。
+   * ⚠**チェックゾーンを経由しないクラッシュは数えない**（`LIFE_CRASH{triggerBurst:false}` は
+   *   そのままトラッシュへ行く＝原文「チェックゾーンに置かれた」に当たらない）。
+   * ⚠ターン終了時にクリア（`turnScopedState.ts`）。
+   */
+  checked_life_order_this_turn?: string[];
+  /**
+   * 🆕**「このターン、N枚目までにあなたのチェックゾーンに置かれたライフクロスは【ライフバースト】「…」を得る」**
+   * （2026-09-04・§5.3 `O-239`・`WXDi-P12-036-E1`）。
+   * 🔴**`GRANT_ALL_ZONE_LIFEBURST` へ寄せない**＝あちらは「全領域の【ライフバースト】を**持たない**カード」が
+   *   対象で**そのターンのクラッシュ順**という軸を持てない＝寄せると**ライフ全部が別バーストを持つ**過大実行。
+   * ⚠ターン終了時にクリア（`turnScopedState.ts`）。
+   */
+  nth_checked_burst_grant_this_turn?: { maxOrdinal: number; action: import('./effects').EffectAction };
   /** Number of this player's life cloths crashed during the immediately preceding turn. */
   life_crashed_last_turn?: number;
   // このターンに「自分のどのシグニが対戦相手のライフクロスを何枚クラッシュしたか」（クラッシュした側＝攻撃側の
@@ -1030,6 +1049,13 @@ export interface PlayerState {
    */
   lrig_grew_this_turn?: boolean;
   /**
+   * 🆕**このターンにセンターグロウした回数**（2026-09-04・§5.3 `O-242`）。
+   * 🔴**`lrig_grew_this_turn`（bool）では足りない**＝あれはグロウ実行と同時に true になるので、
+   *   グロウ後に走るトリガーからは「これが最初のグロウか」を判定できない（常に true に見える）。
+   * ⚠ターン終了時にクリア（`turnScopedState.ts`）。
+   */
+  lrig_grow_count_this_turn?: number;
+  /**
    * **CPU がこのターンに能動使用した【起】の effectId**（§8／§6.4 `O-1`・`cpuActivate.ts`）。
    * ⚠**ルールの状態ではなく CPU の行動履歴**＝engine は読まない。CPU が同じ【起】を
    *   撃ち直して無限ループになるのを止めるためだけに存在する（`usageLimit` の無い効果や
@@ -1192,6 +1218,11 @@ export interface PlayerState {
   game_suppress_lb?: boolean;       // WXK08-028: このゲーム、ライフバーストは発動しない
   game_main_draw?: boolean;         // WXDi-P11-004: メインフェイズ開始時、手札5枚以下ならドロー
   game_grow_draw?: boolean;         // WX24-P4-036: グロウしたとき1枚ドロー
+  /**
+   * 🆕**§5.3 `O-242`（2026-09-04）＝「そのターンであなたの**最初の**グロウである場合、【エナチャージN】」**
+   * （`WXDi-P03-002-E1`）。値はチャージ枚数。判定は `lrig_grow_count_this_turn === 1`。
+   */
+  game_first_grow_energy_charge?: number;
   game_hand_size_bonus?: number;    // WX25-P2-005: 手札上限増加
   game_energy_phase_draw?: boolean; // WX25-P2-005: エナフェイズ開始時1枚ドロー
   game_no_coin_gain?: boolean;                     // WXDi-P07-006: このゲームコイン獲得禁止
@@ -1510,6 +1541,8 @@ export type TargetScope =
   | 'self_trash' | 'opp_trash'
   | 'both_trash' // 自分・対戦相手の両トラッシュ（「いずれかのトラッシュから」）
   | 'self_trap'  // 自分の field.signi_traps（裏向き【トラップ】）
+  // 🆕自分の field.signi_seeds（【シード】）＝§5.3 `O-223`（2026-09-04）。
+  | 'self_seed'
   | 'self_energy'| 'opp_energy'
   // 手札＋エナゾーンを跨いだ単一プール（「エナゾーンのカードと手札を合計N枚」＝タスク12(lxi) 第11波）
   | 'self_hand_energy' | 'opp_hand_energy'

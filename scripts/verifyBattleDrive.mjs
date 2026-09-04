@@ -41975,6 +41975,119 @@ scenarios.o180GrowIgnoreLrigType = {
 };
 order.push('o180GrowIgnoreLrigType');
 
+/**
+ * 🆕**`V-150`＝§5.3 `O-219`（2026-09-04）＝グロウ先カード自身のグロウコスト軽減。**
+ *
+ * 🔴この巡まで `collectGrowCostReductions` は**自分の場のシグニ＋センタールリグ**しか走査しておらず、
+ *   ①**グロウ先（ルリグデッキの中）は候補に入らず恒久 no-op** ②逆にそのカードへグロウし終えて
+ *   センターに居るあいだは走査されるので**次のグロウが原文と無関係に安くなる**、の2方向に壊れていた。
+ * 🔑**実機でしか見えない**＝直したのは `GrowModal` の候補ごとのコスト計算で、
+ *   golden は純関数（`collectGrowCostReductions`）までしか見ていない。
+ * 🔑**反転は1ビットだけ**＝盤面は同じで**トラッシュの＜悪魔＞が6枚か5枚か**だけを変える
+ *   （`WD14-001-E1`＝「トラッシュにある＜悪魔＞のシグニ６枚につき《黒×1》減る」）。
+ */
+const o219Trash = (n) => Array.from({ length: n }, (_, i) => `WD05-009#95${String(i).padStart(2, '0')}`);
+const o219Spec = (devils) => ({
+  hostSet: {
+    // センター＝ウリス Lv4。グロウ先は WD14-001（ウリス Lv5・GrowCost《黒》×3）。
+    'field.lrig': ['WD05-001#9700'],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': ['WD14-001#9701'],
+    // エナは黒6枚＝どちらの盤面でもコストは払える（差が「軽減が効くか」の1ビットだけになる）。
+    'energy': Array.from({ length: 6 }, (_, i) => `WD05-009#96${String(i).padStart(2, '0')}`),
+    // ⚠**デッキを厚くする**＝前のシナリオでデッキが尽きた状態から入ると**リフレッシュ**が走って
+    //   フェイズごと動き、「候補が1つも出ない」になる（一括実行だけ FAIL する形＝§5.1 の教訓）。
+    'hand': [], 'deck': Array.from({ length: 10 }, (_, i) => `WD01-013#97${String(30 + i)}`),
+    'trash': o219Trash(devils),
+    'life_cloth': ['WD01-013#9741', 'WD01-013#9742', 'WD01-013#9743'],
+    'lrig_trash': [], 'coins': 0, 'actions_done': [], 'blocked_actions': [],
+    // 🔑**「盤面に1枚あるかどうかで結果が変わる」枠は両サイド明示的に空にする**（§5.1 の教訓）。
+    'field.signi_traps': [null, null, null], 'field.signi_seeds': [null, null, null],
+    'field.facedown_signi': [null, null, null], 'field.signi_down': [false, false, false],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9790'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+    'field.signi_traps': [null, null, null], 'field.signi_seeds': [null, null, null],
+    'hand': [], 'deck': Array.from({ length: 10 }, (_, i) => `WD01-013#98${String(30 + i)}`),
+    'life_cloth': ['WD01-013#9841', 'WD01-013#9842', 'WD01-013#9843'],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** グロウ窓を開いて、`WD14-001` の候補ボタンに出ている**実効コスト文字列**を読む。 */
+async function o219ReadGrowCostLabel(page, H, tag) {
+  // 🔴🔑**注入した盤面が画面に届くまで待ってから読む**＝ルーム生成直後の1本目は
+  //   まだ前の盤面を掴んでいることがあり、「候補が1つも出ない」で FAIL する
+  //   （**バッチの1本目だけ FAIL** する位置依存フレーク＝§5.1 の教訓 (b) と同型）。
+  for (let w = 0; w < 12; w++) {
+    const st = await H.queryState();
+    if ((st?.host?.lrigTop ?? '').startsWith('WD05-001')) break;
+    H.log(`  ${tag} settle[${w}] lrigTop=${st?.host?.lrigTop}`);
+    await page.waitForTimeout(500);
+  }
+  let label = null;
+  for (let k = 0; k < 6 && !label; k++) {
+    await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(700);
+    const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+    if ((await gb.count()) > 0 && await gb.isVisible().catch(() => false)) await gb.click().catch(() => {});
+    await page.waitForTimeout(600);
+    const list = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(b => (b.textContent || '').trim()).filter(t => /虚幸の閻魔/.test(t)));
+    if (list.length > 0) label = list[0];
+    H.log(`  ${tag}[${k}] 候補ボタン=${JSON.stringify(list)}`);
+  }
+  // 🔴🔑**開いたグロウモーダルは必ず閉じる**＝開けっ放しだと**次のシナリオの注入が画面に反映されず**、
+  //   「候補が1つも出ない」で FAIL する（単体では PASS・一括だけ FAIL する位置依存フレークの典型）。
+  //   ⚠観測だけの巡なので**グロウは実行しない**（盤面を変えない）。
+  const cancel = page.getByRole('button', { name: /キャンセル（グロウしない）/ }).first();
+  if ((await cancel.count()) > 0) await cancel.click().catch(() => {});
+  await page.waitForTimeout(400);
+  return label;
+}
+
+scenarios.o219SelfGrowCostReduction = {
+  title: 'O-219 WD14-001：グロウ先カード自身の「このカードにグロウするためのコストは〜減る」が実効コストに効く',
+  spec: o219Spec(6),
+  async drive(page, H) {
+    const label = await o219ReadGrowCostLabel(page, H, 'o219six');
+    if (!label) return { pass: false, detail: '🔴グロウ候補（虚幸の閻魔　ウリス）が1つも出ない＝前提崩れ' };
+    // 印字《黒》×3 − 軽減《黒》×1 ＝ ×2。
+    // ⚠🔑**「最初の《黒》×N」だけを読む**＝この巡でラベルに**取り消し線つきの印字コストを併記**したので、
+    //   単純な `/《黒》×3/` は**併記された印字側**に当たって永久に FAIL する（この罠を実際に踏んだ）。
+    // ⚠全角/半角の両方を許す（印字は全角・軽減後は再構築されるので半角）。
+    const firstCost = (label.match(/《黒》×([0-9０-９])/) ?? [])[1] ?? '';
+    const norm = firstCost.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    if (norm === '3') return { pass: false, detail: `🔴軽減が届いていない（実効コストが印字の《黒》×3 のまま）＝グロウ先が走査対象に入っていない。label=${label}` };
+    return norm === '2'
+      ? { pass: true, detail: `グロウ先自身の軽減が効いて実効コストが《黒》×3 → ×2 になった（印字は取り消し線で併記）。label=${label}` }
+      : { pass: false, detail: `想定外のコスト表示。label=${label}` };
+  },
+};
+order.push('o219SelfGrowCostReduction');
+
+scenarios.o219SelfGrowCostNotReduced = {
+  title: 'O-219 反転 WD14-001：トラッシュの＜悪魔＞が5枚（6枚未満）なら軽減されない',
+  spec: o219Spec(5),
+  async drive(page, H) {
+    const label = await o219ReadGrowCostLabel(page, H, 'o219five');
+    if (!label) return { pass: false, detail: '🔴グロウ候補が1つも出ない＝前提崩れ' };
+    // ⚠こちらも**最初の《黒》×N**（＝実効コスト）で見る。軽減0なら印字が併記されない（同値なので）。
+    const firstCost5 = (label.match(/《黒》×([0-9０-９])/) ?? [])[1] ?? '';
+    const norm5 = firstCost5.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    return norm5 === '3'
+      ? { pass: true, detail: `＜悪魔＞5枚では軽減0＝実効コストも印字どおり《黒》×3。label=${label}` }
+      : { pass: false, detail: `🔴閾値（6枚につき1）を無視して軽減している＝過小コスト。label=${label}` };
+  },
+};
+order.push('o219SelfGrowCostNotReduced');
+
+
 /** `V-113`＝`O-148`「【ウィルス】を好きな数取り除く」＝枚数選択と、取り除いた数の後段への運搬。 */
 scenarios.o148VirusAnyCount = {
   title: 'O-148 WD19-001-E2：ウィルスを好きな数（2つ）取り除き、パワー修整が取り除いた数に比例する',

@@ -131,7 +131,7 @@ import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost, canPayLrigAttackFieldTrashCost, deterministicLrigAttackFieldTrashZones, payLrigAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard } from './battle/cpuBoardEval';
-import { listActivatableSigniEffects } from './battle/signiActivateGate';
+import { listActivatableSigniEffects, listActivatableSeedEffects } from './battle/signiActivateGate';
 import { pickCpuSigniActivated, selectEnergyIndicesForCost } from './battle/cpuActivate';
 import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects } from './battle/lrigActivateGate';
 import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
@@ -4826,8 +4826,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 静的封じ + CONTINUOUS（グロウフェイズスキップ常在）+ no_grow を考慮
       const blocked = isActionBlocked('GROW') || (my.no_grow ?? false);
       if (!grew && !blocked) {
-        const growRed = collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap);
         const hasAffordable = growCandidates.some(card => {
+          // 🆕**§5.3 `O-219`**＝グロウ先カード自身の軽減（「このカードにグロウするためのコストは〜」）は
+          //   **候補ごとに違う**ので、ループの外で1回だけ計算しない。
+          const growRed = collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum);
           const gCoin = parseCoinCost(card.GrowCost);
           return (gCoin === 0 || my.coins >= gCoin) &&
             // エナ代替トラッシュ（COST_SUBSTITUTE / ENERGY_SUBSTITUTE_TRASH_SIGNI 等）はグロウ支払いにも効く
@@ -6846,7 +6848,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paidNums = [...growPay.paidNums];
       // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
       const growSubInfoExec = wasFreeGrow ? null : collectGrowCostSubstitute(growBase, battleCardMap, effectsMap);
-      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(growBase, growOp, p.isActorTurn, effectsMap, battleCardMap)));
+      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(growBase, growOp, p.isActorTurn, effectsMap, battleCardMap, card.CardNum)));
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
       let growSubSigniPaid: string | null = null;
       if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
@@ -6868,6 +6870,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: { ...growBase.field, lrig: [...growBase.field.lrig, instanceId] },
         // §6.4 O-10（続き515）＝「このターンにあなたのセンタールリグがグロウしていない場合」の判定材料。
         lrig_grew_this_turn: true,
+        // 🆕**§5.3 `O-242`（2026-09-04）**＝「それがそのターンであなたの**最初の**グロウである場合」の判定材料。
+        //   ⚠bool では足りない（グロウと同時に true になるので、後段からは常に true に見える）。
+        lrig_grow_count_this_turn: (growBase.lrig_grow_count_this_turn ?? 0) + 1,
         trash: [...growBase.trash, ...paidNums],
         actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
         coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
@@ -6914,6 +6919,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const drawCard = newMyState.deck[0];
         newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
         logs.push('グロウ時ドロー（このゲーム）');
+      }
+      // 🆕**§5.3 `O-242`（2026-09-04）**＝「あなたのルリグがグロウしたとき、それが**そのターンで
+      //   あなたの最初のグロウである場合**、【エナチャージN】をする」（`WXDi-P03-002-E1`）。
+      //   🔴旧実装は `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED`＝**無言 no-op** だった。
+      //   ⚠**「最初のグロウ」を落とさない**＝落とすとグロウのたびにエナチャージする過大実行になる。
+      const firstGrowEnaN = newMyState.game_first_grow_energy_charge ?? 0;
+      if (firstGrowEnaN > 0 && (newMyState.lrig_grow_count_this_turn ?? 0) === 1 && newMyState.deck.length > 0) {
+        const charged = newMyState.deck.slice(0, firstGrowEnaN);
+        newMyState = { ...newMyState, deck: newMyState.deck.slice(charged.length), energy: [...newMyState.energy, ...charged] };
+        logs.push(`このターン最初のグロウ：【エナチャージ${charged.length}】（このゲーム）`);
       }
       appendBattleLogs(logs);
 
@@ -8900,6 +8915,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...state,
         life_cloth: state.life_cloth.slice(0, -1),
         life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + 1, // LIFE_CRASHED_THIS_TURN 用
+        // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する。
+        checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), crashed],
         field: { ...state.field, check: crashed },
         crash_source_card_num: crashSourceCardNum,
         // §5.3 O-120: 原因は**発生源と必ず同じ地点で**書く（片方だけだと前のクラッシュの原因が残る）。
@@ -11928,12 +11945,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'GROW') {
       const cpuContBlockedGrow = calcContinuousBlockedActions(cpuSt, huSt, true, effectsMap, battleCardMap).forSelf;
       if (canGrowNow(cpuSt, cpuContBlockedGrow)) {
-        const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, true, effectsMap, battleCardMap);
         const cpuEnaMultiStrippedGrow = isEnaMultiStripped(cpuSt, huSt, false, effectsMap, battleCardMap);
         const cpuGrowPool = buildEnergyPayPool(cpuSt, { turnPhase: 'GROW', isMyTurn: true, effectsMap });
         const cpuGrowPoolNums = energyPoolCardNums(cpuGrowPool);
         // 候補は人間と同じ gate。コストは**払える1枚目**を選ぶ（決定論・盤面評価はしない）。
         for (const growCard of listGrowCandidates({ my: cpuSt, cardMap: battleCardMap, effectsMap })) {
+          // 🆕**§5.3 `O-219`**＝グロウ先ごとに軽減が変わる（人間UIと同じ関数・同じ引数で読む）。
+          const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, true, effectsMap, battleCardMap, growCard.CardNum);
           const growCostStr = applyGrowCostReduction(growCard.GrowCost, cpuGrowRed);
           const growCoinNeed = parseCoinCost(growCard.GrowCost);
           if (growCoinNeed > 0 && (cpuSt.coins ?? 0) < growCoinNeed) continue;
@@ -12838,6 +12856,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             //   ⚠ダブル／トリプルクラッシュの追加分も枚数に含める（`my.life_cloth` からの実減少数を数える）。
             life_crashed_this_turn:
               (my.life_crashed_this_turn ?? 0) + (my.life_cloth.length - lifeAfterCrash.length),
+            // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する（ルリグアタック経路）。
+            checked_life_order_this_turn: [...(my.checked_life_order_this_turn ?? []), ...(crashed ? [crashed] : []), ...pendingAfterCrash],
             pending_crashed_cards: pendingAfterCrash,
             crash_source_card_num: op.field.lrig.at(-1),
             pending_crash_source_card_nums: pendingAfterCrash.map(() => op.field.lrig.at(-1) ?? null),
@@ -12929,8 +12949,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const getAllZoneBurstGrant = (
     state: PlayerState,
     includeTemporary = false,
+    // 🆕**§5.3 `O-239`**＝順序つき付与（N枚目まで）を見るために、判定中のライフクロスを渡す。
+    cardNum?: string,
   ): import('../types/effects').StubAction | null => {
-    return resolveAllZoneBurstGrant(state, effectsMap, includeTemporary);
+    return resolveAllZoneBurstGrant(state, effectsMap, includeTemporary, cardNum);
   };
   // クラッシュされたカードが付与ライフバーストの対象か（burstFilter があればクラッシュカードが一致する必要がある）
   const matchesAllZoneBurstGrant = (
@@ -13208,7 +13230,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // WD14-001 / WX17-036: ネイティブ【ライフバースト】を持たないカードに付与された合成バーストを追加
       // （burstFilter があればクラッシュカードが一致した場合のみ）
       const temporaryGrantActive = bs.active_user_id !== ownerId;
-      const allZoneBurstGrant = getAllZoneBurstGrant(my, temporaryGrantActive);
+      const allZoneBurstGrant = getAllZoneBurstGrant(my, temporaryGrantActive, cardNum);
       // 既定はネイティブ【ライフバースト】が無いカードのみに付与。burstAdditive=true（WX02-002）は
       // ネイティブを持つカードにも追加し、両方を好きな順で使用できる。
       const grantedBurstApplies = shouldAddGrantedAllZoneBurst(
@@ -14688,15 +14710,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // MAIN（メインフェイズ）と ATTACK_ARTS（自分のアタックフェイズ＝アーツステップ）の場シグニ【起】発動。
     // 《アタックフェイズアイコン》付き【起】（timing:['ATTACK_ARTS']）はアタックフェイズのみ、無印【起】（timing未指定/['MAIN']）はメインのみ。
     if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS') {
-      if (!stack || stack.length === 0) return [];
+      // 🆕**§5.3 `O-218`（2026-09-04）＝【シード】として置いたカードの【起】を提示する。**
+      //   🔴engine（`SEED_BLOOM{seedTargetSelf}`）は完成済みで、欠けていたのは**入口だけ**だった
+      //     ＝`field.signi_seeds` を読むのは cardMap のロード1箇所で、能力を surface するコードが無かった。
+      //   ⚠**シグニの有無と独立**＝シードはシグニが居ないゾーンにも置ける（先に返さない）。
+      const seedActions: CardAction[] = [];
+      const seedNum = my.field.signi_seeds?.[rawZoneIdx] ?? null;
+      if (seedNum) {
+        for (const seedEff of listActivatableSeedEffects({
+          my, op, zoneIndex: rawZoneIdx, phase: bs.turn_phase, isMyTurn,
+          effectsMap, cardMap: battleCardMap, energyPool: myEnergyPayPool,
+          effectivePowers, contBlockedSelf: contBlocked.forSelf,
+        })) {
+          const seedCostLabel = trashActivateCostLabels(seedEff, my, op).join('・');
+          seedActions.push({
+            label: `【起】この【シード】${seedCostLabel ? `（${seedCostLabel}）` : ''}`,
+            color: '#44ff88',
+            onClick: () => { openSigniActivated({ cardNum: seedNum, effect: seedEff }); },
+          });
+        }
+      }
+      if (!stack || stack.length === 0) return seedActions;
       const topNum = stack[stack.length - 1];
       // GATE: 【起】の発動可否は `signiActivateGate` に一本化（人間ボタン／CPU の候補フィルタと同じ関数）。
       const activatable = listActivatableSigniEffects({
         my, op, zoneIndex: rawZoneIdx, phase: bs.turn_phase, isMyTurn,
         effectsMap, cardMap: battleCardMap, effectivePowers, contBlockedSelf: contBlocked.forSelf,
       });
-      if (activatable.length === 0) return [];
-      return activatable.map(eff => {
+      if (activatable.length === 0) return seedActions;
+      return [...seedActions, ...activatable.map(eff => {
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
         const costLabel = eff.cost
           ? [
@@ -14732,7 +14774,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           color: C.coin,
           onClick: () => { openSigniActivated({ cardNum: topNum, effect: eff }); },
         };
-      });
+      })];
     }
 
     if (bs.turn_phase === 'ATTACK_SIGNI') {

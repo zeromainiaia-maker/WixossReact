@@ -45,6 +45,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   applyEffectLeaveSubstitutes, collectLeaveSubstituteOptions, autoChooseLeaveSubstitute,
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
+  hasTrapAbilityCard,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectOppArtsAffectedOwnSigni, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, collectOppLifeCrashedTriggers, crashCauseMatches, spellUseTriggerMatches, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, onPlayOriginMatches, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, collectPlayerDamagedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
@@ -96,7 +97,7 @@ import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstS
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
-import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/execUtils';
+import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
 import { getRiseFilter } from '../src/engine/execUtils';
 import { fieldCandidatesByOwner } from '../src/engine/execUtils';
 import { resolveCountRef } from '../src/engine/execUtils';
@@ -126,7 +127,7 @@ import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { PIECE_CUTIN_COMMIT_ORDER } from '../src/screens/battle/pieceCutinCommit';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
-import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
+import { listActivatableSeedEffects, listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor, listUsableArts } from '../src/screens/battle/artsUseGate';
 import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
@@ -134,7 +135,7 @@ import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKin
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
-import { exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { collectGrantedLrigEffects, exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
@@ -2549,16 +2550,24 @@ test('collectGrowCostReductions: 場のCONT GROW_COST_REDUCTIONを色別集計',
 test('collectGrowCostReductions per-count: WX14-009 トラッシュの《フレイスロ》N枚で赤floor(N/7)（タスク12(xviii)）', () => {
   // 従来は枚数無視で常時-赤1の過大軽減バグ。修正後は floor(match/7) 倍（7未満は0）。
   const flCard = findCard(c => (c.CardName ?? '').includes('フレイスロ'));
-  const mk = (n: number) => { const st = mkState({}); st.field.lrig = ['WX14-009']; st.trash = Array.from({ length: n }, () => flCard); return st; };
-  const red = (n: number) => Object.fromEntries(collectGrowCostReductions(mk(n), mkState({}), true, effectsMap, cardMap as Map<string, CardData>).map(r => [r.color, r.count]));
+  // 🆕**§5.3 `O-219`（2026-09-04）で軸を直した**＝原文は「**この**カードにグロウするためのコストは」なので
+  //   **グロウ先として渡したときだけ**効く。⚠旧テストは `field.lrig = ['WX14-009']`（＝既にセンターに居る）で
+  //   assert していた＝**まさに直した過小コストのバグを固定していた**。
+  const mk = (n: number) => { const st = mkState({}); st.trash = Array.from({ length: n }, () => flCard); return st; };
+  const red = (n: number) => Object.fromEntries(collectGrowCostReductions(mk(n), mkState({}), true, effectsMap, cardMap as Map<string, CardData>, 'WX14-009').map(r => [r.color, r.count]));
   eq(red(6)['赤'] ?? 0, 0, '6枚（7未満）は減額0');
   eq(red(7)['赤'], 1, '7枚で赤1');
   eq(red(14)['赤'], 2, '14枚で赤2');
+  // 反転確認＝センタールリグとして場に居るあいだは「次の」グロウを安くしない
+  const onField = mk(14); onField.field.lrig = ['WX14-009'];
+  eq(Object.fromEntries(collectGrowCostReductions(onField, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).map(r => [r.color, r.count]))['赤'] ?? 0,
+    0, 'O-219 反転: センターに居ても次のグロウは安くならない');
 });
 test('collectGrowCostReductions per-count: WD14-001 トラッシュの＜悪魔＞シグニN枚で黒floor(N/6)（タスク12(xviii)）', () => {
   const akuma = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('悪魔'));
-  const mk = (n: number) => { const st = mkState({}); st.field.lrig = ['WD14-001']; st.trash = Array.from({ length: n }, () => akuma); return st; };
-  const red = (n: number) => Object.fromEntries(collectGrowCostReductions(mk(n), mkState({}), true, effectsMap, cardMap as Map<string, CardData>).map(r => [r.color, r.count]));
+  // 🆕**§5.3 `O-219`**＝グロウ先として渡したときだけ効く（上の WX14-009 と同じ理由で旧 assert を差し替えた）。
+  const mk = (n: number) => { const st = mkState({}); st.trash = Array.from({ length: n }, () => akuma); return st; };
+  const red = (n: number) => Object.fromEntries(collectGrowCostReductions(mk(n), mkState({}), true, effectsMap, cardMap as Map<string, CardData>, 'WD14-001').map(r => [r.color, r.count]));
   eq(red(5)['黒'] ?? 0, 0, '5枚（6未満）は減額0');
   eq(red(6)['黒'], 1, '6枚で黒1');
   eq(red(12)['黒'], 2, '12枚で黒2');
@@ -3348,6 +3357,100 @@ test('§6.3(f) POWER_MODIFY免疫5件: ±方向と保護スコープを厳密に
     eq(p.get(emitter), expected, `WXK03-018: 相手自己 delta=${delta}（＋のみ免疫）`);
   }
 });
+
+// ── 🆕§5.3 `O-247`（2026-09-04）：「対戦相手の効果によって減少しない」を**一時修整**にも効かせる ──
+// 🔴この巡まで、保護は `applyDeltaToCard(..., protection)` を通る **CONTINUOUS のデルタにしか効かなかった**。
+//   `calcFieldPowers` の `applyTempMods` は `temp_power_mods` / `power_mods_until_opp_turn` /
+//   `power_mods_until_next_own_turn` を**保護集合を一切見ずに**加算していたので、
+//   原文が主に想定している経路（相手の【出】【自】【起】が書く −N）が丸ごと素通しだった。
+// 🔑**反転確認は3方向**＝①保護対象＋相手発生元＝止まる ②filter 外＝通る ③**自分の効果**＝通る。
+test('§5.3 O-247: 対戦相手の効果によるパワー減少の保護が temp_power_mods にも効く（自分の効果は通る）', () => withSavedCursor(() => {
+  const basePower = (n: string) => parseInt(cardMap.get(n)?.Power ?? '0', 10);
+  const manualMap = (...ids: string[]) => {
+    const em = new Map(effectsMap);
+    for (const id of ids) em.set(id, mergeManualEffects(id, em.get(id) ?? []));
+    return em;
+  };
+  const mine = findCard(c => isSigni(c) && !['WX05-024', 'WX12-033', 'WX20-023', 'WX22-013', 'WXK03-018'].includes(c.CardNum));
+  const beast = findCard(c => isSigni(c) && ((c.CardClass ?? '').includes('空獣') || (c.CardClass ?? '').includes('地獣')) && c.CardNum !== mine);
+  const plain = findCard(c => isSigni(c) && c.CardNum !== mine && c.CardNum !== beast
+    && !(c.CardClass ?? '').includes('空獣') && !(c.CardClass ?? '').includes('地獣'));
+  const em = manualMap('WX12-033');
+  // WX12-033＝「【常】：対戦相手の効果によって、あなたの＜空獣＞と＜地獣＞のシグニのパワーは増減しない。」
+  // 保護の宣言者は op 側。止まるのは **me（＝op から見た対戦相手）が支配する効果**だけ。
+  const build = () => ({ me: mkState({ signi: [mine, null, null] }), op: mkState({ signi: ['WX12-033', beast, plain] }) });
+  {
+    const { me, op } = build();
+    op.temp_power_mods = [
+      { cardNum: beast, delta: -3000, srcCardNum: mine },   // ①相手（me）の効果 → 止まる
+      { cardNum: plain, delta: -3000, srcCardNum: mine },   // ②filter 外 → 通る
+    ];
+    const p = calcFieldPowers(me, op, true, em, cardMap as Map<string, CardData>);
+    eq(p.get(beast), basePower(beast), 'O-247: 相手効果の temp_power_mods −3000 が空獣/地獣で止まる');
+    eq(p.get(plain), basePower(plain) - 3000, 'O-247: filter 外のシグニには同じ −3000 が通る');
+  }
+  { // ③自分（op）自身の効果による −3000 は原文の対象外＝そのまま通る（過剰保護にしない）
+    const { me, op } = build();
+    op.temp_power_mods = [{ cardNum: beast, delta: -3000, srcCardNum: 'WX12-033' }];
+    const p = calcFieldPowers(me, op, true, em, cardMap as Map<string, CardData>);
+    eq(p.get(beast), basePower(beast) - 3000, 'O-247 反転: 自分の効果による −3000 は保護されない');
+  }
+  { // ④発生元不明（srcCardNum なし）＝どちらの支配下か決められないので素通し（現状維持へ fail-open）
+    const { me, op } = build();
+    op.temp_power_mods = [{ cardNum: beast, delta: -3000 }];
+    const p = calcFieldPowers(me, op, true, em, cardMap as Map<string, CardData>);
+    eq(p.get(beast), basePower(beast) - 3000, 'O-247 反転: 発生元不明は判定せず通す（ミラー戦の取り違えより素通しへ倒す）');
+  }
+  { // ⑤長期版（power_mods_until_opp_turn）も同じ保護を通る
+    const { me, op } = build();
+    op.power_mods_until_opp_turn = [{ cardNum: beast, delta: -3000, srcCardNum: mine }];
+    const p = calcFieldPowers(me, op, true, em, cardMap as Map<string, CardData>);
+    eq(p.get(beast), basePower(beast), 'O-247: power_mods_until_opp_turn の相手効果 −3000 も止まる');
+  }
+}));
+
+// ── 🆕§5.3 `O-219`（2026-09-04）：「**この**カードにグロウするためのコストは〜」の軸 ──
+// 🔴この巡まで `collectGrowCostReductions` は**自分の場のシグニ＋センタールリグ**しか走査していなかったので、
+//   ①**グロウ先（ルリグデッキの中）は候補に入らず恒久 no-op** ②逆にそのカードへグロウし終えて
+//   センターに居るあいだは走査されるので、**原文と無関係に「次の」グロウが安くなる**、の2方向に壊れていた。
+// 🔑**反転確認**＝グロウ先として渡したときだけ効き、場（センタールリグ）としては効かない。
+test('§5.3 O-219: 「このカードにグロウするためのコストは〜」はグロウ先からだけ拾う（場では拾わない）', () => withSavedCursor(() => {
+  const em = new Map(effectsMap);
+  for (const id of ['WD14-001', 'WX14-009', 'WX13-001', 'WD13-002']) em.set(id, mergeManualEffects(id, em.get(id) ?? []));
+  const red = (state: PlayerState, target?: string) =>
+    collectGrowCostReductions(state, mkState({}), true, em, cardMap as Map<string, CardData>, target);
+  const of = (rs: { color: string; count: number }[], c: string) => rs.find(r => r.color === c)?.count ?? 0;
+
+  // WD14-001＝「トラッシュにある＜悪魔＞のシグニ６枚につき《黒×1》減る」
+  const devil = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+  {
+    const st = mkState({ trash: 0 });
+    st.trash = Array(6).fill(devil);
+    eq(of(red(st, 'WD14-001'), '黒'), 1, 'O-219: グロウ先 WD14-001 の《黒×1》軽減が届く');
+    eq(of(red(st), '黒'), 0, 'O-219 反転: グロウ先に渡さなければ拾われない');
+    st.field.lrig = ['WD14-001'];
+    eq(of(red(st), '黒'), 0, 'O-219 反転: センタールリグに居ても「次の」グロウは安くならない');
+  }
+  { // 一致枚数が閾値未満なら0（perCount の既存契約を壊していない）
+    const st = mkState({ trash: 0 });
+    st.trash = Array(5).fill(devil);
+    eq(of(red(st, 'WD14-001'), '黒'), 0, 'O-219: ＜悪魔＞5枚（6枚未満）では軽減0');
+  }
+  { // WX13-001＝「ライフクロスが１枚以下の場合、このルリグにグロウするためのコストは《赤×0》《緑×0》になる」
+    const low = mkState({ life: 1 });
+    const high = mkState({ life: 4 });
+    ok(of(red(low, 'WX13-001'), '赤') >= 3 && of(red(low, 'WX13-001'), '緑') >= 3,
+      'O-219: ライフ1枚以下で《赤》《緑》が全額落ちる（印字 ×1 を上回る）');
+    eq(of(red(high, 'WX13-001'), '赤'), 0, 'O-219 反転: ライフ4枚では軽減されない（条件を真に倒さない）');
+  }
+  { // WD13-002＝「公開した場合」の支払いが未実装のあいだは**1色も**軽減しない（旧定義は無条件2色だった）
+    const st = mkState({});
+    eq(of(red(st, 'WD13-002'), '白'), 0, 'O-219: WD13-002 は公開の支払い前に軽減しない（白）');
+    eq(of(red(st, 'WD13-002'), '黒'), 0, 'O-219: WD13-002 は公開の支払い前に軽減しない（黒）');
+    st.field.lrig = ['WD13-002'];
+    eq(of(red(st), '白'), 0, 'O-219 反転: センターに居ても次のグロウを安くしない');
+  }
+}));
 
 // ── 続き143: 「この方法で〔フィルタ〕がN枚以上〜した場合」CONDITIONAL 持ち上げ（LAST_PROCESSED_MATCHES minCount）＝
 // 結果カウント閾値（Cluster B）。ミル結果の一致枚数が閾値未満なら発火しない回帰ガード（過剰実行にならない）。
@@ -5506,7 +5609,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 44, 'PlayerState の命名規約由来フィールド数（🆕44＝2026-09-04 `O-241` で attack_not_negated_by_self_effect_this_turn を新設。43＝`O-233` の signi_left_by_opp_effect_this_turn）');
+  eq(convention.length, 47, 'PlayerState の命名規約由来フィールド数（🆕47＝2026-09-04 に3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5521,7 +5624,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 74, '型由来38件＋命名規約外27件の母集団（🆕74＝2026-09-04 `O-241` で attack_not_negated_by_self_effect_this_turn を新設。73＝`O-233` の signi_left_by_opp_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 77, '型由来38件＋命名規約外27件の母集団（🆕77＝2026-09-04 に3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -11224,6 +11327,265 @@ test('C1 ON_TRAP_ACTIVATE: 発動イベント時だけ場/トラッシュ watche
   const r2 = collectTrapActivateTriggers({ ...trigCtx(HOST, HOST), effectsMap: localEffects }, HOST, hostUsed, guest);
   ok(!r2.entries.some(e => e.effectId === 'WXEX2-66-E2'), '同一ターン2回目は非発火');
 });
+
+// ── 🆕§5.3 `O-240`（2026-09-04）：全領域への《トラップアイコン》付与 ──
+// 🔴【ライフバースト】側（`GRANT_ALL_ZONE_LIFEBURST`）だけが実装されており、トラップ版は
+//   `DEFERRED_GRANT_ALL_ZONE_TRAP_ICON`＝**無言 no-op** だった（`WXEX2-66-E1`）。
+// 🔑**発動の入口は engine に4本ある**（`ACTIVATE_TRAP` / `trapOp:'activate'` / `gain_trap_ability` /
+//   `hasTrapAbilityCard`）＝すべて `trapIconEffectOf` 1本を通すことを assert する。
+// 🔑**反転確認は3方向**＝①filter 外は付与されない ②native の《トラップアイコン》は上書きしない
+//   ③付与元が場に居なければ付与されない。
+test('§5.3 O-240: 全領域への《トラップアイコン》付与（native 優先・filter 外は付与しない）', () => withSavedCursor(() => {
+  const em = new Map(effectsMap);
+  em.set('WXEX2-66', mergeManualEffects('WXEX2-66', em.get('WXEX2-66') ?? []));
+  const grantAct = (em.get('WXEX2-66') ?? []).find(e => e.effectId === 'WXEX2-66-E1')?.action as { id?: string; trapGrantFilter?: unknown; trapGrantAction?: unknown };
+  eq(grantAct?.id, 'GRANT_ALL_ZONE_TRAP_ICON', 'O-240: live が構造化された付与になっている（DEFERRED でない）');
+  ok(!!grantAct?.trapGrantAction, 'O-240: 引用の中身が payload に入っている（中身なしの付与を作らない）');
+
+  const trick = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('トリック')
+    && !(cardMap.get(c.CardNum)?.effects ?? []).some(e => e.effectType === 'TRAP_ICON') && c.CardNum !== 'WXEX2-66');
+  const plain = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('トリック') && c.CardNum !== 'WXEX2-66');
+
+  const mk = (withHost: boolean) => {
+    const ctx = mkCtx({}, {});
+    ctx.effectsMap = em;
+    if (withHost) ctx.ownerState.field.signi = [['WXEX2-66'], null, null];
+    return ctx;
+  };
+  { // ①付与元が場に居る＝＜トリック＞は《トラップアイコン》を得る
+    const ctx = mk(true);
+    ok(hasTrapAbilityCard(trick, ctx), 'O-240: ＜トリック＞が《トラップアイコン》を得る');
+    eq(hasTrapAbilityCard(plain, ctx), false, 'O-240 反転: filter 外（非トリック）は得ない');
+  }
+  { // ②付与元が場に居なければ付与されない
+    const ctx = mk(false);
+    eq(hasTrapAbilityCard(trick, ctx), false, 'O-240 反転: 付与元が場に居なければ得ない');
+  }
+  { // ③実際に発動すると引用の中身（1枚引く／エナチャージ）が走る＝無言 no-op ではない
+    // ⚠**`trapActivated` marker では assert しない**＝golden の autopilot（`finish`）が
+    //   pending 再開時に `ctx` から ExecCtx を組み直すので marker を落とす（**engine ではなく
+    //   テストハーネスの都合**。実機は `resumeChoose` 等が `trapActivated` を運ぶ）。
+    //   ⇒ **盤面が実際に動いたこと**（手札+1）で見る。
+    const ctx = mk(true);
+    ctx.ownerState.field.signi_traps = [trick, null, null];
+    const before = ctx.ownerState.hand.length;
+    const r = run({ type: 'STUB', id: 'ACTIVATE_TRAP' } as EffectAction, ctx);
+    eq(r.ownerState.hand.length, before + 1, 'O-240: 付与された《トラップアイコン》が実際に解決する（1枚引く）');
+    ok(r.logs.some(l => l.includes('トラップ発動')), 'O-240: トラップ発動としてログに残る');
+  }
+  { // ④native の《トラップアイコン》を持つカードは上書きしない（原文「持たないカードは」）
+    const ctx = mk(true);
+    const nativeEff = trapIconEffectOf('WXEX2-66', ctx);
+    eq(nativeEff?.effectId, 'WXEX2-66-TRAP', 'O-240 反転: native を持つカードは付与で上書きされない');
+  }
+}));
+
+// ── 🆕§5.3 `O-239`（2026-09-04）：そのターンのクラッシュ順を軸にした【ライフバースト】付与 ──
+// 🔴旧 `DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE` は無言 no-op（`WXDi-P12-036-E1`）。
+// 🔑**軸は「枚数」ではなく「置かれた順」**＝`life_crashed_this_turn` ではダブルクラッシュの
+//   1枚目/2枚目を区別できないので `checked_life_order_this_turn` を新設した。
+// 🔑**反転確認**＝3枚目には付かない／宣言が無ければ1枚目にも付かない。
+test('§5.3 O-239: N枚目までにチェックゾーンへ置かれたライフクロスだけが【ライフバースト】を得る', () => withSavedCursor(() => {
+  const act = effectsMap.get('WXDi-P12-036')?.find(e => e.effectId === 'WXDi-P12-036-E1')?.action as { id?: string; burstMaxOrdinal?: number; burstAction?: { type?: string; choices?: unknown[] } };
+  eq(act?.id, 'GRANT_BURST_TO_NTH_CHECKED_LIFE', 'O-239: live が構造化された付与になっている');
+  eq(act?.burstMaxOrdinal, 2, 'O-239: 「1枚目と2枚目」→ 上限2');
+  eq(act?.burstAction?.type, 'CHOOSE', 'O-239: 引用の中身が複文（①②）でも CHOOSE として載る');
+  eq(act?.burstAction?.choices?.length, 2, 'O-239: ①②の両方が載る（単文funnelだと②だけになる）');
+
+  // 実行＝宣言がターンスコープの state に載る
+  const ctx = mkCtx({}, {});
+  const r = run(act as unknown as EffectAction, ctx);
+  eq(r.ownerState.nth_checked_burst_grant_this_turn?.maxOrdinal, 2, 'O-239: 宣言が state に載る');
+
+  // 判定＝置かれた順で 1・2枚目だけが得る
+  const l1 = 'LIFE-1', l2 = 'LIFE-2', l3 = 'LIFE-3';
+  const st = { ...r.ownerState, checked_life_order_this_turn: [l1, l2, l3] } as PlayerState;
+  const cm = cardMap as Map<string, CardData>;
+  ok(shouldAddGrantedAllZoneBurst(l1, st, cm, effectsMap, false), 'O-239: 1枚目は得る');
+  ok(shouldAddGrantedAllZoneBurst(l2, st, cm, effectsMap, false), 'O-239: 2枚目も得る');
+  eq(shouldAddGrantedAllZoneBurst(l3, st, cm, effectsMap, false), false, 'O-239 反転: 3枚目は得ない');
+  // 反転＝宣言が無ければ1枚目にも付かない
+  const noGrant = { ...st, nth_checked_burst_grant_this_turn: undefined } as PlayerState;
+  eq(shouldAddGrantedAllZoneBurst(l1, noGrant, cm, effectsMap, false), false, 'O-239 反転: 宣言が無ければ付かない');
+  // 反転＝チェックゾーンを経由していないカードには付かない（順序リストに載らない）
+  eq(shouldAddGrantedAllZoneBurst('LIFE-X', st, cm, effectsMap, false), false, 'O-239 反転: 順序リストに無いカードは付かない');
+}));
+
+// ── 🆕§5.3 `O-242`（2026-09-04）：そのターンの「最初のグロウ」限定のエナチャージ ──
+// 🔴旧 `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED`＝無言 no-op（`WXDi-P03-002-E1`）。
+// 🔑**条件を落として `growDraw` へ寄せない**＝寄せるとグロウのたびに発火する過大実行（第62で差し戻した件）。
+// 🔑**`lrig_grew_this_turn`（bool）では判定できない**＝グロウと同時に true になるので後段からは常に true。
+test('§5.3 O-242: 「そのターンで最初のグロウ」限定のエナチャージ宣言が live と engine に載る', () => withSavedCursor(() => {
+  const act = effectsMap.get('WXDi-P03-002')?.find(e => e.effectId === 'WXDi-P03-002-E1')?.action as { id?: string; gameGrants?: Array<{ kind?: string; count?: number }> };
+  eq(act?.id, 'GAIN_ABILITY_THIS_GAME', 'O-242: live が宣言になっている（DEFERRED でない）');
+  const g = act?.gameGrants?.find(x => x.kind === 'firstGrowEnergyCharge');
+  ok(!!g, 'O-242: firstGrowEnergyCharge の宣言が載る');
+  eq(g?.count, 1, 'O-242: 【エナチャージ1】');
+  // engine 側＝宣言が state へ落ちる
+  const r = run(act as unknown as EffectAction, mkCtx({}, {}));
+  eq(r.ownerState.game_first_grow_energy_charge, 1, 'O-242: 宣言が state に載る（読み手のあるキー）');
+  // 反転＝「最初のグロウ」の条件が payload から消えていない（＝無条件の growDraw に化けていない）
+  eq(act?.gameGrants?.some(x => x.kind === 'growDraw'), false, 'O-242 反転: 無条件のグロウ時ドローへ寄っていない');
+}));
+
+// ── 🆕§5.3 `O-229`（2026-09-04）：2つのゾーンの一番上を入れ替える ──
+// 🔴旧 `DEFERRED_SWAP_*` は無言 no-op（さらにその前は「シグニの配置替え」UI が開く過剰実行だった）。
+// 🔑**片方は受け皿が既に在った**＝`SWAP_DECK_TOP_AND_LIFE`（§5.3「1〜3枚の取り方」第1項がまた当たった）。
+//   実測母集団は登録票の 2効果 → **3効果**（`WXDi-P08-008-E2` が同型で混ざっていた）。
+// 🔑もう片方（デッキ上 ↔ エナの効果元自身）は寄せずに専用ハンドラを1本置いた。
+test('§5.3 O-229: ゾーンの一番上どうしの入れ替え（受け皿へ張り替え＋エナ版を新設）', () => withSavedCursor(() => {
+  const idsOf = (num: string, id: string): string[] => {
+    const out: string[] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as { type?: string; id?: string };
+      if (o.type) out.push(o.type === 'STUB' ? (o.id ?? 'STUB') : o.type);
+      for (const v of Object.values(n as Record<string, unknown>)) walk(v);
+    };
+    walk(effectsMap.get(num)?.find(e => e.effectId === id)?.action);
+    return out;
+  };
+  for (const [num, id] of [['WX13-073', 'WX13-073-E1'], ['WXDi-P08-008', 'WXDi-P08-008-E2']] as const) {
+    const ids = idsOf(num, id);
+    ok(ids.includes('SWAP_DECK_TOP_AND_LIFE'), `${id}: 既存の受け皿へ載る`);
+    ok(!ids.some(x => x.startsWith('DEFERRED_')), `${id} 反転: 明示 defer が残っていない`);
+    ok(!ids.includes('LRIG_UNDER_CARD_OP'), `${id} 反転: ルリグの下の操作へ落ちていない`);
+  }
+  ok(idsOf('WXDi-P10-047', 'WXDi-P10-047-E1').includes('SWAP_DECK_TOP_WITH_SELF_IN_ENERGY'),
+    'WXDi-P10-047-E1: エナ版の専用ハンドラへ載る');
+
+  // engine＝デッキの一番上とエナゾーンにある効果元自身が入れ替わる
+  {
+    const ctx = mkCtx({ energy: 3 }, {});
+    const self = ctx.ownerState.energy[1];
+    ctx.sourceCardNum = self;
+    const deckTop = ctx.ownerState.deck[0];
+    const r = run({ type: 'STUB', id: 'SWAP_DECK_TOP_WITH_SELF_IN_ENERGY' } as EffectAction, ctx);
+    eq(r.ownerState.deck[0], self, 'O-229: このシグニがデッキの一番上へ');
+    eq(r.ownerState.energy[1], deckTop, 'O-229: デッキの一番上がエナの同じ位置へ');
+    eq(r.ownerState.energy.length, 3, 'O-229: エナの枚数は変わらない');
+  }
+  { // 反転＝エナに居なければ何もしない（場に居るときに動かさない）
+    const ctx = mkCtx({ energy: 3 }, {});
+    ctx.sourceCardNum = 'NOT-IN-ENERGY';
+    const before = JSON.stringify([ctx.ownerState.deck, ctx.ownerState.energy]);
+    const r = run({ type: 'STUB', id: 'SWAP_DECK_TOP_WITH_SELF_IN_ENERGY' } as EffectAction, ctx);
+    eq(JSON.stringify([r.ownerState.deck, r.ownerState.energy]), before, 'O-229 反転: エナに居なければ盤面不変');
+  }
+  { // 相手のライフ上 ↔ 相手のデッキ上（既存の受け皿の挙動を O-229 の観点で固定）
+    const ctx = mkCtx({}, { life: 3 });
+    const oppDeckTop = ctx.otherState.deck[0];
+    const oppLifeTop = ctx.otherState.life_cloth[ctx.otherState.life_cloth.length - 1];
+    const r = run({ type: 'SWAP_DECK_TOP_AND_LIFE', owner: 'opponent' } as EffectAction, ctx);
+    eq(r.otherState.deck[0], oppLifeTop, 'O-229: 相手ライフの一番上が相手デッキの一番上へ');
+    eq(r.otherState.life_cloth[r.otherState.life_cloth.length - 1], oppDeckTop, 'O-229: 相手デッキの一番上が相手ライフの一番上へ');
+  }
+}));
+
+// ── 🆕§5.3 `O-223` / `O-218`（2026-09-04）：【シード】family ──
+// 🔑**1バッチで2項目**＝探索・ゲート・簿記の固定費はバッチ回数に比例するので、受け皿の家族でまとめる。
+test('§5.3 O-223: 【シード】の対象宣言は支払いより前（候補0なら支払いを提示しない）', () => withSavedCursor(() => {
+  const act = effectsMap.get('WXK05-050')?.find(e => e.effectId === 'WXK05-050-E2')?.action as { steps?: Array<{ id?: string; type?: string; condition?: { type?: string } }> };
+  const ids = (act?.steps ?? []).map(s => s.id ?? s.type);
+  eq(ids[0], 'SELECT_TARGET_ONLY', 'O-223: 宣言が先頭（支払いより前）');
+  eq(ids[1], 'STORE_LAST_PROCESSED_TARGETS', 'O-223: 宣言した対象を固定する');
+  eq(ids[2], 'OPTIONAL_COST', 'O-223: 支払いは宣言のあと');
+  eq(act?.steps?.[3]?.condition?.type, 'SELF_OPTIONAL_EFFECT_TAKEN',
+    'O-223 反転: 「そうした場合」が IS_MY_TURN（常に真）の偽ゲートに戻っていない');
+
+  // engine＝シードが0枚なら宣言で降りる（＝支払いプロンプトが出ない）
+  {
+    const ctx = mkCtx({}, {});
+    const r = run({ type: 'STUB', id: 'SELECT_TARGET_ONLY',
+      selectTarget: { type: 'SEED_CARD', owner: 'self', count: 1 }, abortIfNoCandidate: true } as EffectAction, ctx);
+    ok(r.done, 'O-223 反転: シード0枚なら対話を開かずに降りる');
+  }
+  // engine＝シードが1枚なら選択UIを開かず即確定し、その1枚だけが開花対象になる
+  {
+    const ctx = mkCtx({}, {});
+    const seed = ctx.ownerState.deck[5];
+    ctx.ownerState.field.signi_seeds = [null, seed, null];
+    const r = run({ type: 'STUB', id: 'SELECT_TARGET_ONLY',
+      selectTarget: { type: 'SEED_CARD', owner: 'self', count: 1 } } as EffectAction, ctx);
+    ok(r.done, 'O-223: 1枚なら問わずに確定する');
+    eq(r.lastProcessedCards?.[0], seed, 'O-223: 宣言した【シード】が lastProcessed に残る');
+  }
+  // engine＝OPTIONAL_COST は「払った／払わなかった」を残す（偽ゲートを本物にするための材料）
+  // ⚠**払える盤面と払えない盤面の両方**で見る（autopilot は available な枝を選ぶので、
+  //   エナが無いと黙って skip 側を通り、片方向しか確かめられない）。
+  {
+    const white = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+    const rich = mkCtx({}, {});
+    rich.ownerState.energy = [white, white, white];
+    const paid = run({ type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] } as EffectAction, rich);
+    eq(paid.ownerState.self_optional_effect_taken, true, 'O-223: 支払うと self_optional_effect_taken が立つ');
+    const poor = mkCtx({}, {});
+    poor.ownerState.energy = [];
+    poor.ownerState.self_optional_effect_taken = true;   // 前段の別の任意効果の印が残っている状況
+    const skipped = run({ type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] } as EffectAction, poor);
+    eq(skipped.ownerState.self_optional_effect_taken, false,
+      'O-223 反転: 払えず skip したら印を消す（前段の印が残っていると誤発火する）');
+  }
+}));
+
+test('§5.3 O-218: 【シード】の【起】が UI の入口から提示される', () => withSavedCursor(() => {
+  const my = mkState({});
+  const op = mkState({});
+  my.field.signi_seeds = ['WXK04-060', null, null];
+  my.energy = Array(4).fill(0).map(() => findCard(c => isSigni(c) && (c.CardClass ?? '').includes('植物')));
+  const em = new Map(effectsMap);
+  em.set('WXK04-060', mergeManualEffects('WXK04-060', em.get('WXK04-060') ?? []));
+  const listed = listActivatableSeedEffects({
+    my, op, zoneIndex: 0, phase: 'MAIN', isMyTurn: true, effectsMap: em, cardMap: cardMap as Map<string, CardData>,
+  });
+  ok(listed.some(e => e.effectId === 'WXK04-060-E2'), 'O-218: シードの【起】が提示される');
+  // 反転①＝別ゾーンには出ない
+  eq(listActivatableSeedEffects({ my, op, zoneIndex: 1, phase: 'MAIN', isMyTurn: true, effectsMap: em, cardMap: cardMap as Map<string, CardData> }).length,
+    0, 'O-218 反転: シードの無いゾーンでは提示しない');
+  // 反転②＝コスト（エナの＜植物＞2枚）が払えなければ出ない
+  const poor = { ...my, energy: [] } as PlayerState;
+  eq(listActivatableSeedEffects({ my: poor, op, zoneIndex: 0, phase: 'MAIN', isMyTurn: true, effectsMap: em, cardMap: cardMap as Map<string, CardData> }).length,
+    0, 'O-218 反転: コストが払えなければ提示しない');
+  // 反転③＝相手ターンでは出ない
+  eq(listActivatableSeedEffects({ my, op, zoneIndex: 0, phase: 'MAIN', isMyTurn: false, effectsMap: em, cardMap: cardMap as Map<string, CardData> }).length,
+    0, 'O-218 反転: 自分のターンでなければ提示しない');
+}));
+
+// ── 🆕§5.3 `O-227`（2026-09-04）：期間つきのプレイヤー付与【起】 ──
+// 🔴旧 `DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY`＝無言 no-op（`WXDi-P09-066-E1`）。
+// 🔑**新しい機構は1つも要らなかった**＝`GRANT_LRIG_ABILITY{duration:'UNTIL_OPP_TURN_END'}` が
+//   `lrig_granted_auto_effects_until_opp_turn` へ積み、`collectGrantedLrigEffects` が UI へ出し、
+//   `clearUntilOppTurnEffects` が期限で消す。**「まず受け皿を疑う」がまた当たった。**
+test('§5.3 O-227: 期間つきプレイヤー付与【起】は既存の付与ストアに載って UI から撃てる', () => withSavedCursor(() => {
+  const act = effectsMap.get('WXDi-P09-066')?.find(e => e.effectId === 'WXDi-P09-066-E1')?.action as { steps?: Array<{ type?: string; id?: string; duration?: string; abilities?: CardEffect[] }> };
+  const grantStep = (act?.steps ?? []).find(s => s.type === 'GRANT_LRIG_ABILITY');
+  ok(!!grantStep, 'O-227: 明示 defer ではなく付与になっている');
+  eq(grantStep?.duration, 'UNTIL_OPP_TURN_END', 'O-227: 期間は「次の対戦相手のターン終了時まで」');
+  const ability = grantStep?.abilities?.[0];
+  eq(ability?.effectType, 'ACTIVATED', 'O-227: 得るのは【起】');
+  eq(JSON.stringify(ability?.timing), JSON.stringify(['MAIN', 'ATTACK_ARTS']),
+    'O-227: 《メインフェイズアイコン》《アタックフェイズアイコン》の両方');
+  eq(ability?.action.type, 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND', 'O-227: 中身は裏向きカードの回収');
+
+  // engine＝実行すると期限つきストアへ積まれる
+  const ctx = mkCtx({ hand: 3 }, {});
+  ctx.ownerState.field.lrig = ['WXDi-P09-066'];
+  const r = run(act as unknown as EffectAction, ctx);
+  const stored = r.ownerState.lrig_granted_auto_effects_until_opp_turn ?? [];
+  ok(stored.some(e => e.effectId === 'WXDi-P09-066-E1-GRANT'), 'O-227: 期限つき付与ストアへ積まれる');
+  // UI ゲート＝メインでもアタックフェイズでも提示される
+  for (const phase of ['MAIN', 'ATTACK_ARTS'] as const) {
+    const listed = listActivatableGrantedLrigEffects({
+      my: r.ownerState, op: r.otherState, phase, effectsMap, cardMap: cardMap as Map<string, CardData>, blockedSelf: new Set<string>(),
+    }, collectGrantedLrigEffects(r.ownerState, r.otherState, true, effectsMap, cardMap as Map<string, CardData>));
+    ok(listed.some(e => e.effectId === 'WXDi-P09-066-E1-GRANT'), `O-227: ${phase} で提示される`);
+  }
+  // 反転＝期限（次の対戦相手のターン終了時）でストアごと消える
+  const cleared = clearUntilOppTurnEffects(r.ownerState);
+  eq((cleared.lrig_granted_auto_effects_until_opp_turn ?? []).length, 0,
+    'O-227 反転: 次の対戦相手のターン終了時に失効する（残ると恒久付与になる）');
+}));
 
 test('executor trap event marker: 実発動はtrue、トラップを手札へ戻すだけなら立たない', () => {
   const ctx = mkCtx({}, {});
@@ -58354,7 +58716,8 @@ test('O-76/O-77② parser契約: 受け皿があるものは typed へ・無い�
     ['WX24-P4-085', 'WX24-P4-085-E1', 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
     ['WXDi-P00-063', 'WXDi-P00-063-E2', 'DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
     ['WXDi-P06-045', 'WXDi-P06-045-E1', 'DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE'],
-    ['WXDi-P08-008', 'WXDi-P08-008-E2', 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP'],
+    // 🏁`O-229`（2026-09-04）＝**受け皿は既に在った**（`SWAP_DECK_TOP_AND_LIFE`）ので明示 defer を撤去した。
+    ['WXDi-P08-008', 'WXDi-P08-008-E2', 'SWAP_DECK_TOP_AND_LIFE'],
     ['WXK08-084', 'WXK08-084-E1', 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
     ['WXK10-045', 'WXK10-045-E2', 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
   ] as const) {
@@ -63998,7 +64361,9 @@ test('§5.3 O-60 第55: GRANT_QUOTED_ACTIVATE_ABILITY は真 no-op だったの�
   const eff = (effectsMap.get('WXDi-P09-066') ?? []).find(e => e.effectId === 'WXDi-P09-066-E1');
   ok(!!eff, 'WXDi-P09-066-E1 が live にある'); if (!eff) return;
   const ids = ((eff.action as SequenceAction).steps ?? []).map(s => (s as StubAction).id ?? s.type);
-  ok(ids.includes('DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY'), '機構が無いことを id で宣言している');
+  // 🏁**§5.3 `O-227`（2026-09-04）で実装した**＝`GRANT_LRIG_ABILITY{UNTIL_OPP_TURN_END}` が受け皿だった。
+  //   ⚠**parser の `DEFERRED_*` 生成は残す**（同型の別カードが来たら無言 no-op にせず穴として出す）。
+  ok(ids.includes('GRANT_LRIG_ABILITY'), '期間つき付与の受け皿へ載っている');
   // live 0 になったので、`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` も残余（fail-closed）だけになる。
   ok(!js.includes('"SIGNI_GRANT_QUOTED_CONSTANT_ABILITY"'), '引用【常】付与の catch-all も live から消えた');
 });
@@ -64058,8 +64423,10 @@ test('§5.3 O-60 第56: 「入れ替える」2効果は配置替えではない�
   const w10 = (effectsMap.get('WXDi-P10-047') ?? []).find(e => e.effectId === 'WXDi-P10-047-E1');
   ok(!!w13 && !!w10, '2効果が live にある'); if (!w13 || !w10) return;
   const idsOf = (e: CardEffect) => ((e.action as SequenceAction).steps ?? []).map(s => (s as StubAction).id ?? s.type);
-  ok(idsOf(w13).includes('DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP'), 'WX13-073 は機構待ちを宣言');
-  ok(idsOf(w10).includes('DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY'), 'WXDi-P10-047 は機構待ちを宣言');
+  // 🏁**§5.3 `O-229`（2026-09-04）で実装した**＝この契約は「機構待ちの宣言」から
+  //   「配置替えハンドラへ落ちていないこと」の回帰ガードへ役割を変える。
+  ok(idsOf(w13).includes('SWAP_DECK_TOP_AND_LIFE'), 'WX13-073 は既存の受け皿へ載る');
+  ok(idsOf(w10).includes('SWAP_DECK_TOP_WITH_SELF_IN_ENERGY'), 'WXDi-P10-047 はエナ版の専用ハンドラへ載る');
   // 🔑`WX13-073` は原文「**対戦相手の**ライフクロスの一番上と**デッキ**の一番上を見る」＝
   //   前段の LOOK も相手側でなければならない（旧 live は自分のデッキを見ていた）。
   const look13 = (w13.action as SequenceAction).steps[0] as unknown as { source?: { owner?: string } };
@@ -64347,11 +64714,13 @@ test('§5.3 O-60 第67: 「この方法でトラッシュに置いたシグニ�
   ok(layerCount >= 15, `-LAYER 効果が live に十分ある: ${layerCount}`);
 }));
 
-test('§5.3 O-60 第67: クラッシュ順を軸にした【ライフバースト】付与は明示 defer（O-239）', () => withSavedCursor(() => {
-  // ⚠近い受け皿（`GRANT_ALL_ZONE_LIFEBURST`）は「全領域の**【ライフバースト】を持たない**カード」が対象で、
-  //   「このターン、1枚目と2枚目にチェックゾーンに置かれた」という軸を持てない＝寄せると過大実行。
+// 🏁**§5.3 `O-239`（2026-09-04）で本実装した**＝旧「明示 defer」契約はここで役目を終えた。
+//   ⚠近い受け皿（`GRANT_ALL_ZONE_LIFEBURST`）は「全領域の**【ライフバースト】を持たない**カード」が対象で
+//     「そのターンの何枚目か」の軸を持てないので、**寄せずに別軸**（`checked_life_order_this_turn`）を足した。
+//   挙動の assert は上の `§5.3 O-239: N枚目までに…` が持つ（順序・上限・反転）。
+test('§5.3 O-60 第67: クラッシュ順を軸にした【ライフバースト】付与は構造化されている（O-239）', () => withSavedCursor(() => {
   const a = effectsMap.get('WXDi-P12-036')?.find(e => e.effectId === 'WXDi-P12-036-E1')?.action as { id?: string };
-  eq(a?.id, 'DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE', 'WXDi-P12-036-E1: 明示 defer');
+  eq(a?.id, 'GRANT_BURST_TO_NTH_CHECKED_LIFE', 'WXDi-P12-036-E1: 構造化された付与（DEFERRED でない）');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -64381,9 +64750,14 @@ test('§5.3 O-60 第68: 受け皿が無い4文型は名前のある穴になっ�
   // ⚠**近似で既存の受け皿へ寄せない**＝寄せるとどれも過大実行になる（各 O 項目の登録票を参照）。
   const want: Array<[string, string, string]> = [
     // カード / effectId / 期待 id
-    ['WXEX2-66', 'WXEX2-66-E1', 'DEFERRED_GRANT_ALL_ZONE_TRAP_ICON'],            // O-240（トラップ版の全領域付与が無い）
+    // 🏁`O-240`（2026-09-04）＝明示 defer から本実装へ（全領域への《トラップアイコン》付与）。
+    //   ⚠**引用の中身が解けなかったときは今も `DEFERRED_*` へ落ちる**（part2 の規則が残っている）＝
+    //     中身の無い付与を載せて「トラップは発動したのに何も起きない」無言 no-op にしないため。
+    ['WXEX2-66', 'WXEX2-66-E1', 'GRANT_ALL_ZONE_TRAP_ICON'],
     ['WX25-P2-004', 'WX25-P2-004-E1', 'DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL'], // O-227（期間つきプレイヤー付与が無い）
-    ['WXDi-P03-002', 'WXDi-P03-002-E1', 'DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED'],   // O-242（「最初のグロウ」の条件語彙が無い）
+    // 🏁`O-242`（2026-09-04）＝明示 defer から本実装へ（`firstGrowEnergyCharge` の宣言）。
+    //   ⚠**宣言が1本も取れないときは今も `DEFERRED_*` へ落ちる**（見出しだけの `abilityBlockHeader` は宣言に数えない）。
+    ['WXDi-P03-002', 'WXDi-P03-002-E1', 'GAIN_ABILITY_THIS_GAME'],
     // 🏁`O-241`（2026-09-04）＝明示 defer から本実装へ（カード単位のアタック無効化免疫）。
     ['WXDi-P05-068', 'WXDi-P05-068-E1', 'GRANT_ATTACK_NOT_NEGATED_BY_SELF'],
   ];

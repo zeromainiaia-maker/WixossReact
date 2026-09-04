@@ -31,6 +31,8 @@ export function payLifeOnPlayCost(
     trash: [...state.trash, ...trashed],
     hand: [...state.hand, ...toHand],
     life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + crashed.length,
+    // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する。
+    checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), ...crashed],
     field: { ...state.field, check: crashed[0] ?? state.field.check },
     crash_source_card_num: crashed.length > 0 ? undefined : state.crash_source_card_num,
     // §5.3 O-120: コスト支払いのクラッシュに原因キーワードは無い（発生源と同じ地点で消す）。

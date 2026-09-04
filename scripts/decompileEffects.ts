@@ -401,7 +401,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     // 🆕チェックゾーン（§5.3 `O-143`）＝ここを書かないと逆翻訳でゾーンが消えて「カードを手札に加える」になる。
     : t.type === 'CHECK_CARD' ? '(チェックゾーン)' : '';
   let u: string;
-  if (t.type === 'LRIG') u = 'ルリグ';
+  // 🆕§5.3 `O-223`（2026-09-04）＝【シード】（`field.signi_seeds`）の対象宣言。
+  //   ⚠書かないと逆翻訳が「あなたの**シグニ**1体を対象とする」になり、**原文と別の盤面**を指す嘘になる。
+  if (t.type === 'SEED_CARD') u = '【シード】';
+  else if (t.type === 'LRIG') u = 'ルリグ';
   else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = t.count === 'ALL' ? 'ルリグとシグニ' : 'センタールリグかシグニ';
   // 場のキー（§6.4 O-17）。数詞は下の `counter` が `loc` 無し＝「体」になるので、ここで「枚」へ寄せる。
   else if (t.type === 'KEY') u = 'キー';
@@ -421,7 +424,8 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     const mPick = typeof t.count === 'number' ? `${t.count}体まで` : '好きな数';
     return `${own}${filterJa(t.filter)}${u}をレベルの合計が${t.totalLevelMax}以下になるように${mPick}`.trim();
   }
-  const counter = (loc || t.type === 'KEY') ? '枚' : '体';
+  // 🆕§5.3 `O-223`＝【シード】はゾーンの札なので数詞は「枚」（`loc` が無いので既定は「体」）。
+  const counter = (loc || t.type === 'KEY' || t.type === 'SEED_CARD') ? '枚' : '体';
   if (t.selectionConstraint?.groups?.length) {
     return `${own}${selectionGroupsJa(t.selectionConstraint.groups, counter)}${loc}`.trim();
   }
@@ -2779,20 +2783,28 @@ function actionJa(a?: Action, effectType?: string): string {
       ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'
       : '直前に見つけたカード名との絆を獲得する';
     case 'GROW_COST_REDUCTION': {
+      // 🆕**§5.3 `O-219`（2026-09-04）**＝「**この**カードにグロウするためのコストは」は
+      //   **グロウ先カード自身**の宣言（`forSelfGrowOnly`）＝逆翻訳でも「あなたの次の」と書かない
+      //   （書くと「場に居るあいだ次のグロウが安くなる」という**直したばかりの嘘**を逆翻訳が再生する）。
+      const selfJa = a.forSelfGrowOnly ? 'このカードにグロウするための' : 'あなたの次の';
+      // 「《赤×0》に**なる**」＝その色を全額落とす。
+      if (a.zeroColors?.length) {
+        return `${a.forSelfGrowOnly ? 'このカードに' : ''}グロウするためのコストは${a.zeroColors.map(c => `《${c}×0》`).join('')}になる`;
+      }
       const redJa = `グロウコストを${costJa({ energy: a.reduction })}減らす`;
       if (a.perCount) {
         const f = a.perCount.filter;
         const subj = f.cardName
           ? `カード名に《${f.cardName}》を含むカード`
           : `${f.story ? `＜${f.story}＞の` : ''}${f.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
-        return `あなたのトラッシュにある${subj}${a.perCount.count}枚につき、あなたの次の${redJa}`;
+        return `あなたのトラッシュにある${subj}${a.perCount.count}枚につき、${selfJa}${redJa}`;
       }
       // 🆕§5.3 `O-180`＝一過性のアシストグロウ限定（次の1回だけ）。
       if (a.nextAssistGrowOnly) {
         const ign = a.ignoreLrigType ? 'グロウするためのルリグタイプは無視され、' : '';
         return `このターン、あなたのルリグが次にアシストルリグにグロウする場合、${ign}${redJa}`;
       }
-      return `あなたの次の${redJa}`;
+      return `${selfJa}${redJa}`;
     }
     case 'LRIG_LIMIT_MODIFY': {
       // 🔑`NEXT_TURN` の実体は **`pending_lrig_limit_mod` → 次のターンの GROW→MAIN 遷移で `lrig_limit_mod` へ**
@@ -3296,6 +3308,19 @@ function actionJa(a?: Action, effectType?: string): string {
         ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
         : '';
       const extra = `${burstExtra}${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}`;
+      // 🆕**§5.3 `O-239`（2026-09-04）＝そのターンの N 枚目までにチェックゾーンへ置かれたライフクロスへの
+      //   【ライフバースト】付与。** ⚠payload から書く（原文をもう一度読まない）。
+      if (a.id === 'GRANT_BURST_TO_NTH_CHECKED_LIFE') {
+        return `このターン、${a.burstMaxOrdinal ?? 1}枚目までにあなたのチェックゾーンに置かれたライフクロスは【ライフバースト】「${a.burstAction ? actionJa(a.burstAction) : '？'}」を得る`;
+      }
+      // 🆕**§5.3 `O-240`（2026-09-04）＝全領域への《トラップアイコン》付与。**
+      //   ⚠**payload から書く**（`GRANT_ALL_ZONE_LIFEBURST` 側は `currentCardText` を regex で読んでいるが、
+      //     あれは原文をもう一度読む形＝新しく増やさない）。
+      if (a.id === 'GRANT_ALL_ZONE_TRAP_ICON') {
+        // ⚠`filterJa` は名詞を付けない（「＜トリック＞の」で終わる）＝**「カード」を必ず補う**。
+        const subjJa = `${a.trapGrantFilter ? filterJa(a.trapGrantFilter) : ''}カード`;
+        return `あなたのすべての領域にある《トラップアイコン》を持たない${subjJa}は《トラップアイコン》「${a.trapGrantAction ? actionJa(a.trapGrantAction) : '？'}」を得る`;
+      }
       const allFieldLimitM = a.id.match(/^LIMIT_ALL_FIELD_(\d+)$/);
       if (allFieldLimitM) return `[STUB:すべてのプレイヤーはシグニを${allFieldLimitM[1]}体しか場に出せない（超過分はトラッシュ）${extra}]`;
       // COPY_LRIG_TRASH_ACTIVATED / INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュのルリグの【起】能力を継承（BattleScreen のルリグメニューで実装済み）
@@ -4249,6 +4274,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-229`（2026-09-04）＝デッキの一番上とエナゾーンにある効果元自身の入れ替え。
+        SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
+          'あなたのデッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
         // 🆕§5.3 `O-84`（2026-09-02）＝「条件を満たす場合、このアーツは追加で《X アイコン》を持つ」。
         //   条件は effect の `activeCondition` 側に載る（この文は「何を足すか」だけを言う）。
         //   消費＝`screens/battle/artsUseGate.ts` の `collectExtraUseTimings`。
@@ -4271,10 +4299,6 @@ function actionJa(a?: Action, effectType?: string): string {
         //   実測で消費地点0＝真 no-op だったので `DEFERRED_` へ改名した（機構は PLAN §5.3 の登録票）。
         // 🆕§5.3 `O-60` 第56バッチ（2026-09-03）＝旧 `SWAP_OPTIONAL`（`O-229`）。
         //   「配置替え」ハンドラに落ちて別の盤面操作になっていたので機構待ちとして分離した。
-        DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP:
-          '【未実装】対戦相手のライフクロスの一番上とデッキの一番上を入れ替えてもよい',
-        DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY:
-          '【未実装】デッキの一番上のカードとエナゾーンにあるこのシグニを入れ替えてもよい',
         DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY:
           '【未実装】あなたは引用された【起】能力を得る',
         // 🆕§5.3 `O-236`（2026-09-04・`O-60` 第64バッチで分離）＝ルリグへの引用能力付与のうち
@@ -4386,8 +4410,6 @@ function actionJa(a?: Action, effectType?: string): string {
           '【未実装】対戦相手はデッキの一番上を公開する。あなたはそれを対戦相手のデッキの一番下に置いてもよい',
         DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE:
           '【未実装】対戦相手のシグニ1体を対象とし、それを他のシグニゾーン1つに配置する',
-        DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP:
-          '【未実装】対戦相手のライフクロスの一番上のカードと、対戦相手のデッキの一番上のカードを入れ替えてもよい',
         DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI:
           '【未実装】見たカードの中から1枚を対象のシグニの下に置く（残りはデッキの一番下）',
         DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END:
@@ -4660,6 +4682,8 @@ function actionJa(a?: Action, effectType?: string): string {
             case 'mainPhaseDrawIfHandLte':
               return `あなたのメインフェイズ開始時、あなたの手札が${g.handLte}枚以下の場合、カードを１枚引く`;
             case 'growDraw': return 'あなたのセンタールリグがグロウしたとき、カードを１枚引く';
+            // 🆕§5.3 `O-242`（2026-09-04）
+            case 'firstGrowEnergyCharge': return `あなたのルリグがグロウしたとき、それがそのターンであなたの最初のグロウである場合、【エナチャージ${g.count}】をする`;
             case 'handSizeBonus': return `あなたの手札の枚数の上限は${g.value}増える`;
             case 'energyPhaseDraw': return 'あなたのエナフェイズ開始時、カードを１枚引く';
             case 'deckSigniLevelOverride':

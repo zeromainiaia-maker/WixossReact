@@ -3175,8 +3175,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   `WX13-073-E1`（原文＝**対戦相手のライフクロスの一番上とデッキの一番上を入れ替える**）で
   //   **自分の場のシグニをゾーン移動する UI** が開いていた＝原文と無関係な盤面操作（過剰実行）。
   // ■要るもの＝**2つのゾーンの一番上を入れ替える**機構（`O-229`）。
+  // 🏁**§5.3 `O-229`（2026-09-04）＝受け皿は既に在った**＝`SWAP_DECK_TOP_AND_LIFE`
+  //   （`execSwapDeckTopAndLife`＝デッキの一番上とライフクロスの一番上を入れ替える／`optional` の2択つき）。
+  //   ⚠**所有者は「対戦相手の」**＝直前の文が「対戦相手のライフクロスの一番上とデッキの一番上を見る」。
+  //   🔑「まず受け皿を疑う」（§5.3 の1〜3枚の取り方 第1項）がまた当たった。
   if (t.match(/^あなたはそれらを入れ替えてもよい$/))
-    return { type: 'STUB', id: 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP' } as StubAction;
+    return { type: 'SWAP_DECK_TOP_AND_LIFE', owner: 'opponent', optional: true } as EffectAction;
 
   // ---- トラッシュから手札にあるかのように使用 ----
   if (t.match(/トラッシュから.*手札にあるかのように.*(?:使用|発動)(?:する|してもよい)/) ||

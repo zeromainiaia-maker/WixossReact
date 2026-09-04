@@ -58,7 +58,7 @@ export function GrowModal(p: GrowModalProps) {
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
                     // GROW_COST_REDUCTION: 場のCONTINUOUS軽減をグロウコストへ適用（エナ部分のみ・コインは据置）。⚠要実機検証
-                    const growCostR = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
+                    const growCostR = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, card.CardNum));
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     // 🆕§5.3 `O-83`＝`'plus1_paid'` は**効果によるグロウだがコストは払う**＝free 扱いにしない。
                     const isFreeGrow = my.free_grow_this_turn === true
@@ -87,8 +87,18 @@ export function GrowModal(p: GrowModalProps) {
                           <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>
                             {card.CardName}
                           </p>
+                          {/* 🆕🔴**§5.3 `O-219`（2026-09-04・実機 `V-150` が発見）＝軽減後の実効コストを出す。**
+                              🔴旧はここが**印字コスト（`card.GrowCost`）そのまま**で、`growCostR`（軽減後）は
+                                支払い可否と要求枚数の計算にしか使われていなかった＝
+                                **「《黒》×3 と書いてあるのに2枚しか要求されない」**という表示の嘘。
+                              ⚠**軽減が効いている候補だけ**印字を併記する（常に併記すると読みにくい）。 */}
                           <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
-                            コスト: {card.GrowCost || 'なし'}
+                            コスト: {growCostR || 'なし'}
+                            {growCostR !== card.GrowCost && (
+                              <span style={{ marginLeft: 6, textDecoration: 'line-through', opacity: 0.6 }}>
+                                {card.GrowCost || 'なし'}
+                              </span>
+                            )}
                           </p>
                           {(parseInt(card.Coin) || 0) > 0 && (
                             <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
@@ -119,7 +129,7 @@ export function GrowModal(p: GrowModalProps) {
             ) : (() => {
               /* ── Phase 2: コスト支払いカード選択 ── */
               // GROW_COST_REDUCTION 適用後のグロウコストで支払い枚数を要求（エナ部分のみ・⚠要実機検証）
-              const reducedGrowCost = applyGrowCostReduction(pendingGrowCard.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
+              const reducedGrowCost = applyGrowCostReduction(pendingGrowCard.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, pendingGrowCard.CardNum));
               const costItems = parseGrowCost(reducedGrowCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedGrowCost].map(i => myEnergyPayPool[i].cardNum);
@@ -164,8 +174,14 @@ export function GrowModal(p: GrowModalProps) {
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>
                         {pendingGrowCard.CardName}
                       </p>
+                      {/* 🆕**§5.3 `O-219`**＝Phase 1 と同じく**軽減後**を出す（片方だけ直すと画面内で矛盾する）。 */}
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
-                        コスト: {pendingGrowCard.GrowCost}
+                        コスト: {reducedGrowCost}
+                        {reducedGrowCost !== pendingGrowCard.GrowCost && (
+                          <span style={{ marginLeft: 6, textDecoration: 'line-through', opacity: 0.6 }}>
+                            {pendingGrowCard.GrowCost}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>

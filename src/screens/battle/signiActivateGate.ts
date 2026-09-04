@@ -6,7 +6,12 @@ import { countAcce } from '../../utils/acce';
 import { fieldTrashGroupsAffordable, fieldTrashSelectableZones } from './fieldLimit';
 import { payLrigDownCost } from './lrigDownCost';
 import { canPayUnderSelfTrash } from './underAnySigniCost';
-import { handDiscardSigniAffordable, trashExileAffordable } from './costs';
+import { energyTrashCostSatisfied, handDiscardSigniAffordable, trashExileAffordable } from './costs';
+// 🆕§5.3 `O-218`（2026-09-04）＝【シード】の【起】は「場に居ないカードのコスト判定」なので
+//   トラッシュ【起】と同じ funnel を使う（写経しない）。
+import { canOfferTrashActivate } from './trashActivateCost';
+import type { EnergyPayEntry } from './energyPaySource';
+import type { TurnPhase } from '../../types';
 
 /**
  * 場のシグニ【起】が**いま撃てるか**（提示の可否）を1か所で判定する純関数。
@@ -52,6 +57,71 @@ function canPayExileLrigFromLrigDeck(eff: CardEffect, my: PlayerState, cardMap: 
     return (card.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(c.story);
   }).length;
   return n >= c.count;
+}
+
+/**
+ * 🆕**§5.3 `O-218`（2026-09-04）＝【シード】として置いたカードの【起】能力の一覧。**
+ *
+ * 🔴**engine 側は完成していた**（`SEED_BLOOM{seedTargetSelf}` は `field.signi_seeds` を見て
+ *   効果元のシードだけを開花する）。欠けていたのは**入口**＝`field.signi_seeds` を読むのは
+ *   `BattleScreen.tsx` の cardMap ロード1箇所だけで、シードの能力を surface するコードが無かった
+ *   （`WXK04-060-E2`「【起】【シード】であるこのカードを公開し、エナゾーンから＜植物＞のシグニ2枚を
+ *    トラッシュに置く：この【シード】を開花する」が**一度も提示されない**）。
+ * ⚠**シグニ版（下）と同じ関数にはできない**＝あちらは `field.signi[zi]` のトップを見る。
+ *   ⇒ シグニ版と**同じ順序で同じ種類の gate を並べる**（timing／`costUnparsed`／使用回数／
+ *   `blocked_actions`／`USE_ACT` ブロック）。コストの支払い可否は**トラッシュ【起】と同じ funnel**
+ *   （`canOfferTrashActivate`）へ寄せる＝場に居ないカードのコスト判定は既にあちらが持っている。
+ */
+export function listActivatableSeedEffects(p: {
+  my: PlayerState; op: PlayerState; zoneIndex: number;
+  phase: TurnPhase; isMyTurn: boolean;
+  effectsMap: Map<string, CardEffect[]>; cardMap: Map<string, CardData>;
+  energyPool?: readonly EnergyPayEntry[];
+  effectivePowers?: Map<string, number>;
+  contBlockedSelf?: Set<string>;
+}): CardEffect[] {
+  const { my, op, zoneIndex, phase, isMyTurn, effectsMap, cardMap } = p;
+  if (!isMyTurn) return [];
+  const seedNum = my.field.signi_seeds?.[zoneIndex] ?? null;
+  if (!seedNum) return [];
+  if (my.abilities_removed?.includes(seedNum)) return [];
+  const blockedSelf = p.contBlockedSelf
+    ?? calcContinuousBlockedActions(my, op, isMyTurn, effectsMap, cardMap,
+      p.effectivePowers ?? calcFieldPowers(my, op, isMyTurn, effectsMap, cardMap, phase)).forSelf;
+  if ((my.blocked_actions ?? []).includes('USE_ACT') || blockedSelf.has('USE_ACT')) return [];
+  return (effectsMap.get(getCardNum(seedNum)) ?? []).filter(e =>
+    e.effectType === 'ACTIVATED'
+    && (phase === 'MAIN'
+      ? (e.timing === undefined || e.timing.includes('MAIN'))
+      : !!e.timing?.includes('ATTACK_ARTS'))
+    // 🔴`costUnparsed`＝原文のコストを表現できなかった印＝提示すると**踏み倒して撃てる**。
+    && !e.costUnparsed
+    && !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId))
+    && !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2)
+    && !(e.usageLimit === 'once_per_game' && (my.game_actions_done ?? []).includes(e.effectId))
+    && !(my.blocked_actions ?? []).includes(e.effectId)
+    // ⚠**`canOfferTrashActivate` の対応コスト表に `energyTrash` は入っていない**
+    //   （トラッシュ【起】の支払いUIが持っていないため）。シードは `SigniActivatedModal` で払うので
+    //   **そちらは持っている**＝ここだけ別に見る。⚠支払いUIと同じ関数（`energyTrashAffordableFor`）を通す。
+    && canOfferTrashActivate({ ...e, cost: e.cost ? { ...e.cost, energyTrash: undefined } : e.cost }, my, op, cardMap, p.energyPool)
+    && energyTrashAffordableFor(e, my, cardMap),
+  );
+}
+
+/**
+ * `cost.energyTrash`（エナゾーンから条件つきでN枚トラッシュ）を**いま払えるか**。
+ * ⚠支払いUI（`SigniActivatedModal`）は `energyTrashCostSatisfied` で可否を出すので、
+ *   提示側もその関数を通す（写経すると「提示されるのに払えない」／その逆になる）。
+ */
+function energyTrashAffordableFor(e: CardEffect, my: PlayerState, cardMap: Map<string, CardData>): boolean {
+  const spec = e.cost?.energyTrash;
+  if (!spec) return true;
+  const idx = my.energy
+    .map((num, i) => ({ num, i }))
+    .filter(x => matchesFilter(cardMap.get(getCardNum(x.num)), spec.filter))
+    .slice(0, spec.count)
+    .map(x => x.i);
+  return energyTrashCostSatisfied(my.energy, new Set(idx), spec, cardMap);
 }
 
 /**

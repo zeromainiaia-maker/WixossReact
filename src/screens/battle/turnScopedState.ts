@@ -75,6 +75,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_by_signi_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi life crash total for the current turn' },
   // ライフクラッシュ累計は終了時に last_turn へ写し、現在ターン分を破棄する。
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
+  // 🆕**§5.3 `O-239`（2026-09-04）**＝チェックゾーンへ置かれたライフクロスの**順序**と、
+  //   「N枚目までに置かれたライフは【ライフバースト】…を得る」の宣言。どちらも「このターン」限定。
+  checked_life_order_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'order of life cloths put into the check zone during the current turn' },
+  nth_checked_burst_grant_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'burst granted to the first N life cloths checked during the current turn' },
   // 「このターン、あなたのライフクロスはクラッシュされない」＝アーツ由来のクラッシュ防止宣言（§5.3 O-66）。
   // ⚠**【常】の宣言はここに載らない**（盤面から毎回読む）＝失効させるのはアーツ由来だけでよい。
   life_crash_preventions_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'arts-declared life crash prevention lasting for the current turn' },
@@ -95,6 +99,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   free_grow_this_turn: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'free-grow entitlement is consumed by grow or expires at turn end' },
   // このターンにグロウしたか（§6.4 O-10 続き515）＝「このターンにグロウしていない場合」の判定材料。
   lrig_grew_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'grow history for the current turn' },
+  // 🆕**§5.3 `O-242`（2026-09-04）**＝「そのターンで最初のグロウか」の判定材料。
+  lrig_grow_count_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'number of center grows during the current turn' },
   // CPU が能動使用した【起】の履歴は、そのターンの重複起動を止めるためだけのもの。
   cpu_activated_effect_ids_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'CPU activated-ability history that prevents re-firing within the turn' },
   // CPU が使用したアーツ／スペルの履歴も、そのターンの選び直し（＝窓で止まる）を防ぐためだけのもの。

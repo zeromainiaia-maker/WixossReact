@@ -12,7 +12,6 @@ import type {
   CostReductionAction,
   GrantProtectionAction,
   GrantKeywordAction,
-  GrowFreeAction,
   BlockActionAction,
   PreventDamageAction,
   ZoneMoveImmunityAction,
@@ -102,13 +101,30 @@ export function parseSentencePart2(t: string): EffectAction | null {
   // ---- グロウコスト減少 ----
   {
     // コスト0（ライフ条件付き等）
-    const growFreeCondM = t.match(/ライフクロスが([０-９\d]+)枚以下の場合.*グロウするためのコストは.*×0.*になる/);
-    if (growFreeCondM) {
-      return {
-        type: 'CONDITIONAL',
-        condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(growFreeCondM[1]) },
-        then: { type: 'GROW_FREE' } as GrowFreeAction,
-      };
+    // 🆕🔴**§5.3 `O-219`（2026-09-04）＝「**この**カード／ルリグにグロウするためのコストは」は軸が逆。**
+    //   場に居るカードが次のグロウを安くするのではなく、**グロウ先カード自身**が自分へのグロウを安くする。
+    //   立てないと ①ルリグデッキの中は走査されないので恒久 no-op ②グロウし終えてセンターに居るあいだは
+    //   走査されるので**次のグロウが原文と無関係に安くなる**、の2方向に壊れる。
+    const selfGrow = /この(?:カード|ルリグ)にグロウするための/.test(t);
+    const growZeroM = t.match(/グロウするためのコストは((?:《[^》]+》)+)になる/);
+    if (growZeroM) {
+      // 「《赤×0》《緑×0》に**なる**」＝その色は全額0（「減る」の固定減算では表せない）。
+      const zeroColors = [...growZeroM[1].matchAll(/《([白青赤緑黒無])×0》/g)].map(m => m[1]);
+      if (zeroColors.length > 0) {
+        const zeroAct = { type: 'GROW_COST_REDUCTION', reduction: [], zeroColors,
+          ...(selfGrow ? { forSelfGrowOnly: true } : {}) } as GrowCostReductionAction;
+        // 🆕ライフ条件つき（`WX13-001`）＝`CONDITIONAL` で包む。⚠**`GROW_FREE` を流用しない**
+        //   （あれは spell の `findGrowFreeAction` 専用で CONTINUOUS からは一度も読まれず、
+        //    しかも「コストを支払わずに」＝指定外の色まで踏み倒す）。
+        const lifeCondM = t.match(/ライフクロスが([０-９\d]+)枚以下の場合/);
+        if (lifeCondM) {
+          return {
+            type: 'CONDITIONAL',
+            condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(lifeCondM[1]) },
+            then: zeroAct,
+          };
+        }
+      }
     }
     const growCostM = t.match(/(?:この?カードの上に)?グロウするためのコストは(.+)減る/);
     if (growCostM) {
@@ -125,7 +141,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
         if (nameM) filter.cardName = nameM[1];
         if (storyM) filter.story = storyM[1];
         if (subj.includes('シグニ')) filter.cardType = 'シグニ';
-        return { type: 'GROW_COST_REDUCTION', reduction, perCount: { filter, count: parseNum(perCountM[2]) } } as GrowCostReductionAction;
+        return { type: 'GROW_COST_REDUCTION', reduction, perCount: { filter, count: parseNum(perCountM[2]) },
+          ...(selfGrow ? { forSelfGrowOnly: true } : {}) } as GrowCostReductionAction;
       }
       // 🆕**「このターン、あなたのルリグが次にアシストルリグにグロウする場合、グロウするための
       //   ルリグタイプは無視され、グロウするためのコストは《無×1》減る」**（§5.3 `O-180`・`WX24-P2-043`）。
@@ -138,7 +155,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
           ...( /ルリグタイプは無視/.test(t) ? { ignoreLrigType: true } : {}),
         } as GrowCostReductionAction;
       }
-      return { type: 'GROW_COST_REDUCTION', reduction } as GrowCostReductionAction;
+      return { type: 'GROW_COST_REDUCTION', reduction,
+        ...(selfGrow ? { forSelfGrowOnly: true } : {}) } as GrowCostReductionAction;
     }
   }
 

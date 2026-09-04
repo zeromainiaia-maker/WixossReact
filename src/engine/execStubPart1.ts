@@ -239,6 +239,21 @@ export function execStubPart1(
         { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
         false);
     }
+    // 🆕**§5.3 `O-223`（2026-09-04）＝【シード】の対象宣言**
+    //   （「あなたの【シード】１枚を**対象とし**、《白》を支払って**もよい**。**そうした場合、それを**開花し〜」）。
+    // 🔴旧 `STUB{SEED_FLOWER_OP}` は**支払いのあとで**開花するシードを選ばせていた＝
+    //   ①シードが0枚でも先に支払いを提示する ②宣言と実行の順序が原文と逆。
+    // ⚠**候補が0なら宣言ごと降りる**（`abortIfNoCandidate` と同じ向き）＝支払いを提示しない。
+    if (tgt.type === 'SEED_CARD') {
+      const seedState = ownerState(tgt.owner === 'opponent' ? 'opponent' : 'self', ctx);
+      const seedCands = (seedState.field.signi_seeds ?? [])
+        .filter((n): n is string => !!n)
+        .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), tgt.filter));
+      const seedCount = typeof tgt.count === 'number' ? tgt.count
+        : tgt.count === 'ALL' ? seedCands.length : 1;
+      return selectOrInteract(seedCands, seedCount, tgt.upToCount ?? false, 'self_seed',
+        { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx, false);
+    }
     if (tgt.type !== 'SIGNI' && tgt.type !== 'LRIG' && tgt.type !== 'CENTER_LRIG_OR_SIGNI') {
       return done({ ...ctx, lastProcessedCards: [] });
     }
@@ -546,6 +561,22 @@ export function execStubPart1(
       ownerState: { ...ctx.ownerState, allzone_burst_grant_until_opp_turn: grant },
     }, '次の対戦相手ターンの間、全ゾーンの非ライフバーストカードへライフバーストを付与'));
   }
+  // 🆕**§5.3 `O-239`（2026-09-04）＝「このターン、1枚目と2枚目にあなたのチェックゾーンに置かれた
+  //   ライフクロスは【ライフバースト】「…」を得る」**（`WXDi-P12-036-E1`）。
+  //   🔴旧 `DEFERRED_GRANT_BURST_TO_NTH_CHECKED_LIFE` は無言 no-op だった。
+  //   ⚠**`GRANT_ALL_ZONE_LIFEBURST` へ寄せない**＝あちらは「全領域の非バーストカード」が対象で
+  //     **順番の軸を持てない**＝寄せるとライフ全部が別バーストを持つ過大実行になる。
+  if (stub.id === 'GRANT_BURST_TO_NTH_CHECKED_LIFE') {
+    // ⚠**中身が無い付与は載せない**（載せると「バーストは出るのに何も起きない」無言 no-op）。
+    if (!stub.burstAction) return done(addLog(ctx, '付与する【ライフバースト】の内容が無いため何もしない'));
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        nth_checked_burst_grant_this_turn: { maxOrdinal: stub.burstMaxOrdinal ?? 1, action: stub.burstAction },
+      },
+    }, `このターン、${stub.burstMaxOrdinal ?? 1}枚目までにチェックゾーンへ置かれたライフクロスへ【ライフバースト】を付与`));
+  }
   if (stub.id === 'NEGATE_ATTACK_ON_TRIGGER') {
     // 発動中のアタックを無効化: prevent_next_damage と同様のフラグで近似
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
@@ -565,17 +596,23 @@ export function execStubPart1(
     // ⚠エナ色以外の対価（自己トラッシュ等）も出す＝§6.4 O-26・続き535（4サイト共通の `optionalCostExtraLabels`）。
     const payPartsOC = [...costColorsOC.map(c => `《${c}》`), ...optionalCostExtraLabels(specOC)];
     const payLabelOC = payPartsOC.length > 0 ? `発動する（${payPartsOC.join('＋')}）` : '発動する';
-    const noopOC: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
     const payStepsOC = optionalCostPaySteps(specOC);
-    const payActionOC: EffectAction = payStepsOC.length === 0 ? noopOC
-      : payStepsOC.length === 1 ? payStepsOC[0]
-      : { type: 'SEQUENCE', steps: payStepsOC };
+    // 🆕**§5.3 `O-223`（2026-09-04）＝支払ったかどうかを `self_optional_effect_taken` に残す。**
+    //   🔴これが無いと「そうした場合、」を `CONDITIONAL{SELF_OPTIONAL_EFFECT_TAKEN}` で書けず、
+    //     parser は `CONDITIONAL{IS_MY_TURN}`（**常に真**）という偽ゲートを置くしかなかった
+    //     ＝**払わなくても本体が走る**過剰実行（`O-104` で見つけたのと同じ形）。
+    //   ⚠**skip では明示的に false にする**＝前段の別の任意効果の印が残っていると誤発火する。
+    const takenMark = { type: 'STUB', id: 'INTERNAL_SET_OPTIONAL_EFFECT_TAKEN' } as StubAction as EffectAction;
+    const clearMark = { type: 'STUB', id: 'INTERNAL_CLEAR_OPTIONAL_EFFECT_TAKEN' } as StubAction as EffectAction;
     return needsInteraction(addLog(ctx, '任意コスト：発動しますか？'), {
       type: 'CHOOSE', count: 1,
       options: [
-        { id: 'pay',  label: payLabelOC, action: payActionOC, available: canAffordOC,
+        { id: 'pay',  label: payLabelOC,
+          action: { type: 'SEQUENCE', steps: [...payStepsOC, takenMark] } as EffectAction,
+          available: canAffordOC,
           ...(costColorsOC.length ? { costColors: costColorsOC } : {}) },
-        { id: 'skip', label: 'スキップ',  action: noopOC as EffectAction, available: true },
+        { id: 'skip', label: 'スキップ',
+          action: { type: 'SEQUENCE', steps: [clearMark] } as EffectAction, available: true },
       ],
     });
   }
@@ -3300,6 +3337,11 @@ export function execStubPart1(
         case 'growDraw':
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_draw: true } };
           logsGA.push('グロウ時ドロー（このゲーム）');
+          break;
+        // 🆕§5.3 `O-242`（2026-09-04）＝そのターンの**最初のグロウ**限定のエナチャージ。
+        case 'firstGrowEnergyCharge':
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_first_grow_energy_charge: g.count } };
+          logsGA.push(`そのターン最初のグロウ時に【エナチャージ${g.count}】（このゲーム）`);
           break;
         case 'handSizeBonus':
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,

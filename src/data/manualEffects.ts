@@ -1602,6 +1602,38 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   次のターンの間、それらは「【常】：アタックできない。」を得る。
   // 🔴旧 live＝**「自分のシグニに【シード】キーワードを永続付与」**という別のカードになっていた（原文と無関係）。
   // 受け皿は既存 `SAME_ZONE_HAS_SEED` ＋ `SIGNI_ATTACK_BAN{targetsStored, turns:2}`（`WXDi-P08-030-E1` と同型）。
+  // 🆕🔴**§5.3 `O-223`（2026-09-04）＝【シード】を対象に取る宣言**（`WXK05-050-E2`）。
+  //   原文＝「【自】：このシグニが開花したとき、あなたの【シード】１枚を**対象とし**、《白》を支払って**もよい**。
+  //          **そうした場合、それを**開花し、あなたのデッキの一番上を見て、それを【シード】として
+  //          あなたのシグニゾーンに出す。」
+  //   🔴旧 live は `SEQUENCE[OPTIONAL_COST{白}, CONDITIONAL{IS_MY_TURN} → SEED_FLOWER_OP]` で3つ壊れていた：
+  //     (a) **シードが0枚でも先に支払いを提示する**（宣言が無いので候補0で降りられない）
+  //     (b) **支払いのあとで**開花するシードを選ばせる＝宣言と実行の順序が原文と逆
+  //     (c) `CONDITIONAL{IS_MY_TURN}` は**常に真**の偽ゲート＝**払わなくても本体が走る**（`O-104` と同型）。
+  //   ⇒ 正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST → CONDITIONAL{支払った}`
+  //     へ書き直した。engine 側の受け皿はこの巡で新設（`SEED_CARD` スコープ／`SEED_FLOWER_OP.targetsStored`／
+  //     `OPTIONAL_COST` が `self_optional_effect_taken` を残す）。
+  // 🆕🔴**§5.3 `O-227`（2026-09-04）＝期間つきのプレイヤー付与【起】**（`WXDi-P09-066-E1`）。
+  //   原文＝「【起】《ターン１回》《青×0》：あなたの手札を１枚ルリグゾーンに裏向きで置く。
+  //          **次の対戦相手のターン終了時まで、あなたは**「【起】《メインフェイズアイコン》
+  //          《アタックフェイズアイコン》《青×0》：この方法で置いたカードをルリグゾーンから手札に加える。」
+  //          **を得る**。次の対戦相手のターン終了時、そのカードを手札に加える。」
+  //   🔴旧 live は `STUB{DEFERRED_GRANT_QUOTED_ACTIVATE_ABILITY}`＝**無言 no-op**
+  //     （その前は「effectEngine の CONTINUOUS 処理で対応」というコメント付きの真 no-op で、
+  //      実体はカード全文から引用文を切り出してログに出すだけだった）。
+  //   🔑**受け皿は既に全部在った**（§5.3「1〜3枚の取り方」第1項がまた当たった）＝
+  //     `GRANT_LRIG_ABILITY{duration:'UNTIL_OPP_TURN_END'}` が
+  //     `lrig_granted_auto_effects_until_opp_turn` へ積み、
+  //     `collectGrantedLrigEffects` → `listActivatableGrantedLrigEffects` が UI へ出し、
+  //     `clearUntilOppTurnEffects` が期限で消す。**新しい機構は1つも要らなかった。**
+  //   ⚠**早取りしても最後の `DELAY_TO_NEXT_OPP_TURN_END` は残る**が、その時点で裏向きカードが
+  //     無ければ何も起きない（二重取得にならない）。
+  'WXDi-P09-066': [
+    {"effectId":"WXDi-P09-066-E1","effectType":"ACTIVATED","timing":["MAIN"],"usageLimit":"once_per_turn","cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"PLACE_FACEDOWN_LRIG_ZONE","source":"hand","count":1},{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_OPP_TURN_END","abilities":[{"effectId":"WXDi-P09-066-E1-GRANT","effectType":"ACTIVATED","timing":["MAIN","ATTACK_ARTS"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"RETURN_FACEDOWN_LRIG_ZONE_TO_HAND"},"duration":"INSTANT","mandatory":false}]},{"type":"DELAY_TO_NEXT_OPP_TURN_END","action":{"type":"RETURN_FACEDOWN_LRIG_ZONE_TO_HAND"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+  'WXK05-050': [
+    {"effectId":"WXK05-050-E2","effectType":"AUTO","timing":["ON_BLOOM"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SEED_CARD","owner":"self","count":1,"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["白"]},{"type":"CONDITIONAL","condition":{"type":"SELF_OPTIONAL_EFFECT_TAKEN"},"then":{"type":"STUB","id":"SEED_FLOWER_OP","targetsStored":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
   'WXK05-052': [
     {"effectId":"WXK05-052-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"SAME_ZONE_HAS_SEED"},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"SIGNI_ATTACK_BAN","owner":"opponent","targetsStored":true,"turns":2}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
@@ -3876,7 +3908,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WD12-015-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"triggerScope":"any_ally","action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true,"isUp":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":{"max":1}}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WD13-002": [
-    {"effectId":"WD13-002-E1","effectType":"CONTINUOUS","action":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"白","count":1},{"color":"黒","count":1}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    // 🆕🔴**§5.3 `O-219`（2026-09-04）＝旧定義は「公開した場合」を丸ごと落として《白×1》《黒×1》を
+    //   **無条件で**与えていた。** 原文は「このカードにグロウする際、手札からシグニを2枚まで公開する。
+    //   この方法で＜迷宮＞を公開した場合《白×1》減り、＜毒牙＞の場合《黒×1》減る」＝
+    //   **公開した内容で色が決まる**（両方同時に減るとは限らない）。
+    //   🔴しかも旧定義は `forSelfGrowOnly` を持たないので、**このカードへグロウし終えてセンターに居るあいだ
+    //     ずっと「次の」グロウを2色ぶん安くしていた**（原文と無関係な過小コスト）。
+    //   ⇒ 兄弟の `WD13-003-E1` と同じ「支払い（公開）を先に置く」形へ揃え、支払い UI が入るまでは
+    //     `collectGrowCostReductions` に拾われないようにする（`scan` は `CONDITIONAL` の中を
+    //     `LIFE_COUNT` 以外では覗かない）。**グロウ時の公開／捨てる支払い UI は §5.3 `O-248`。**
+    {"effectId":"WD13-002-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"手札からシグニを２枚まで公開する"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"迷宮"},"minCount":1},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"白","count":1}],"forSelfGrowOnly":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"story":"毒牙"},"minCount":1},"then":{"type":"GROW_COST_REDUCTION","reduction":[{"color":"黒","count":1}],"forSelfGrowOnly":true}}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WD22-007-G": [
     {"effectId":"WD22-007-G-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costText":"そのシグニを場からトラッシュに置いてもよい"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn","triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true},"triggerFilter":{"story":"遊具"}},

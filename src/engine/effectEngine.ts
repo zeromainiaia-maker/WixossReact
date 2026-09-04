@@ -2134,6 +2134,20 @@ export function calcFieldPowers(
   collectBase(myState);
   collectBase(opState);
 
+  // 🆕🔴**§5.3 `O-247`（2026-09-04）＝「パワーは対戦相手の効果によって減少しない」を一時修整にも効かせる。**
+  //   保護集合は CONTINUOUS 計算（`applyEffects`）のローカル変数でしか組み立てていなかったので、
+  //   【出】【自】【起】が書く `temp_power_mods` / `power_mods_until_*` は**保護を1本も通らず素通し**だった。
+  //   実測母集団＝保護を宣言する効果は **9効果 / 9カード**で、**9件すべてが原文「対戦相手の効果によって」**
+  //   （＝CONTINUOUS 限定ではない）＝この穴は9件全部に効いていた。
+  //   ⚠**スナップショットは `powerModifyProtection` を積み終えた直後に取る**＝その下で足す
+  //     `PREVENT_OPP_POWER_PLUS` は原文が「対戦相手の**【常】能力の**効果によって」なので一時修整には効かない。
+  //   🔑`applyEffects(A, B)` が作る2集合は**どちらも「A が支配する効果」を止める**（保護の宣言元は B 側）。
+  const tempModProtections: Array<{
+    source: PlayerState;      // この保護が止める効果の支配者（＝applyEffects の ownerState）
+    ownerSide: PlayerState; ownerProt: PowerDeltaProtection;
+    otherSide: PlayerState; otherProt: PowerDeltaProtection;
+  }> = [];
+
   // フィールド上のすべてのカードの CONTINUOUS POWER_MODIFY を適用
   const applyEffects = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
     // NEGATE_ALL_OPP_EFFECTS: all_cont_effects_negated フラグがあれば全CONT効果をスキップ
@@ -2195,6 +2209,15 @@ export function calcFieldPowers(
         if (top && top !== protectionSource) otherPowerProtected.add(top);
       }
     }
+    // 🆕**§5.3 `O-247`**＝ここまでが「対戦相手の効果によって」型の保護（＝一時修整にも効く）。
+    //   これより下（`PREVENT_OPP_POWER_PLUS`）は【常】能力限定なので**必ずこの位置でコピーを取る**。
+    tempModProtections.push({
+      source: ownerState,
+      ownerSide: ownerState,
+      ownerProt: { minus: new Set(ownerPowerProtection.minus!), plus: new Set(ownerPowerProtection.plus!) },
+      otherSide: otherState,
+      otherProt: { minus: new Set(otherPowerProtection.minus!), plus: new Set(otherPowerProtection.plus!) },
+    });
 
     // PREVENT_OPP_POWER_PLUS: 相手（ownerState）のCONT効果による正パワー修正を、otherState側がブロック
     // otherStateのシグニがPREVENT_OPP_POWER_PLUSを持つ場合、ownerState由来の正デルタをブロック
@@ -2992,6 +3015,41 @@ export function calcFieldPowers(
   applyEffects(myState, opState, isMyTurn);
   applyEffects(opState, myState, !isMyTurn);
 
+  // 🆕**§5.3 `O-247`**＝一時修整の**発生元がどちらのプレイヤーの支配下か**を、いま盤面が持っている
+  //   実 id で決める。⚠**両方に居る／どちらにも居ない ときは判定しない（＝保護しない）**＝
+  //   `instanceId` は1プレイヤー内でしか一意でないので、ミラー戦で取り違えて**自分の効果で下げた分まで
+  //   消す**（過剰保護＝新しい嘘）より、素通し（現状維持）へ倒す。**判定できたときだけ止める。**
+  const cardIdsOf = (s: PlayerState): Set<string> => {
+    const out = new Set<string>();
+    const push = (arr?: readonly (string | null | undefined)[]) => { for (const v of arr ?? []) if (v) out.add(v); };
+    push(s.deck); push(s.lrig_deck); push(s.hand); push(s.life_cloth); push(s.trash); push(s.lrig_trash);
+    push(s.excluded); push(s.energy); push(s.field.lrig); push(s.field.assist_lrig_l); push(s.field.assist_lrig_r);
+    push(s.field.key_piece_extra); push([s.field.key_piece]); push([s.field.check]); push(s.field.check_rest);
+    for (const stack of s.field.signi) push(stack ?? []);
+    return out;
+  };
+  const myCardIds = cardIdsOf(myState);
+  const opCardIds = cardIdsOf(opState);
+  const sourceOwnerOf = (srcCardNum?: string): PlayerState | undefined => {
+    if (!srcCardNum) return undefined;
+    const inMy = myCardIds.has(srcCardNum);
+    const inOp = opCardIds.has(srcCardNum);
+    return inMy && !inOp ? myState : inOp && !inMy ? opState : undefined;
+  };
+  // 対象カード `cardNum`（`state` 側のシグニ）への delta が、`srcCardNum` の支配者の効果に対する
+  // 保護で止まるか。止まるなら true。
+  const tempModBlocked = (state: PlayerState, cardNum: string, delta: number, srcCardNum?: string): boolean => {
+    const srcOwner = sourceOwnerOf(srcCardNum);
+    if (!srcOwner) return false;
+    const entry = tempModProtections.find(p => p.source === srcOwner);
+    if (!entry) return false;
+    const prot = state === entry.ownerSide ? entry.ownerProt : state === entry.otherSide ? entry.otherProt : undefined;
+    if (!prot) return false;
+    if (delta < 0) return !!prot.minus?.has(cardNum);
+    if (delta > 0) return !!prot.plus?.has(cardNum);
+    return false;
+  };
+
   // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
   // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
   // doubleNeg: このstateのシグニへの負デルタを2倍にする（対戦相手が double_power_minus_this_turn を持つ場合。WX04-038-E1）
@@ -3016,6 +3074,9 @@ export function calcFieldPowers(
         let delta = mod.delta < 0 && mult > 1 ? mod.delta * mult : mod.delta;
         // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
         if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
+        // 🆕**§5.3 `O-247`**＝「対戦相手の効果によって増減しない」保護。**倍率を掛けたあとの実デルタの向き**で
+        //   判定する（`REPLACE_PLUS_N` で正が負へ反転した分も「減少」として止まる）。落とすので適用順は無関係。
+        if (tempModBlocked(state, mod.cardNum, delta, mod.srcCardNum)) continue;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
       }
     }
@@ -3328,13 +3389,22 @@ export function collectGrowCostReductions(
   isOwnerTurn: boolean,
   effectsMap: Map<string, CardEffect[]>,
   cardMap: Map<string, CardData>,
+  /**
+   * 🆕**§5.3 `O-219`（2026-09-04）＝いまグロウしようとしている先のカード**（ルリグデッキの中）。
+   * 「**この**カードにグロウするためのコストは〜減る」（`forSelfGrowOnly`）は**このカードからしか拾わない**。
+   * ⚠**省略すると `forSelfGrowOnly` は1件も拾われない**（＝従来どおり）。グロウ候補を列挙する側は必ず渡す。
+   */
+  growTargetCardNum?: string,
 ): { color: string; count: number }[] {
   const totals = new Map<string, number>();
   const add = (color: string, count: number) => { if (count > 0) totals.set(color, (totals.get(color) ?? 0) + count); };
   const baseNumG = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  // selfGrow=true のときは `forSelfGrowOnly` の宣言だけを拾い、false のときは逆にそれを捨てる。
+  let selfGrowScan = false;
   const scan = (action: EffectAction) => {
     if (action.type === 'GROW_COST_REDUCTION') {
       const gcr = action as import('../types/effects').GrowCostReductionAction;
+      if (!!gcr.forSelfGrowOnly !== selfGrowScan) return;
       // per-count scaling:「トラッシュの<filter>N枚につき」＝一致枚数を数えて floor(match/N) 倍する
       // （一致 N 未満なら 0＝減額なし）。perCount 無しは従来どおり固定減額。
       let mult = 1;
@@ -3343,10 +3413,24 @@ export function collectGrowCostReductions(
         mult = Math.floor(matchCount / gcr.perCount.count);
       }
       if (mult > 0) for (const r of gcr.reduction) add(r.color, r.count * mult);
+      // 🆕**§5.3 `O-219`**＝「《赤×0》に**なる**」＝その色を全額落とす。`removeNColorFromCost` は
+      //   0未満をクランプするので、印字コストの上限（実測3）を超える値を1つ積めば「0になる」を表せる。
+      for (const color of gcr.zeroColors ?? []) add(color, 99);
     } else if (action.type === 'COST_REDUCTION' && (action as CostReductionAction).isGrowCost) {
       for (const r of (action as CostReductionAction).reduction) add(r.color, r.count);
     } else if (action.type === 'SEQUENCE') {
       for (const s of (action as import('../types/effects').SequenceAction).steps) scan(s);
+    } else if (action.type === 'CONDITIONAL') {
+      // 🆕**§5.3 `O-219`**＝ここで評価できる条件だけを通す。⚠**未知の条件を「真」に倒さない**
+      //   （倒すと `WX21-017` の「手札から＜天使＞を2枚捨ててもよい」が**捨てずに**タダになる過小コスト）。
+      const cnd = (action as import('../types/effects').ConditionalAction).condition as { type?: string; owner?: string; operator?: string; value?: number };
+      if (cnd?.type === 'LIFE_COUNT') {
+        const n = (cnd.owner === 'opponent' ? otherState : state).life_cloth.length;
+        const v = cnd.value ?? 0;
+        const okCond = cnd.operator === 'lte' ? n <= v : cnd.operator === 'gte' ? n >= v
+          : cnd.operator === 'lt' ? n < v : cnd.operator === 'gt' ? n > v : n === v;
+        if (okCond) scan((action as import('../types/effects').ConditionalAction).then);
+      }
     }
   };
   const candidates: string[] = [];
@@ -3358,6 +3442,18 @@ export function collectGrowCostReductions(
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, num)) continue;
       scan(eff.action);
     }
+  }
+  // 🆕**§5.3 `O-219`**＝グロウ先カード自身の「このカードにグロウするためのコストは〜」を拾う。
+  //   ⚠**場の候補とは別ループ**＝同じカードが**場にもグロウ先にも**現れることは無い（ルリグデッキの中）ので
+  //     二重加算にはならないが、`selfGrowScan` の向きを取り違えると片方が丸ごと消えるので分けてある。
+  if (growTargetCardNum) {
+    selfGrowScan = true;
+    for (const eff of (effectsMap.get(baseNumG(growTargetCardNum)) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, growTargetCardNum)) continue;
+      scan(eff.action);
+    }
+    selfGrowScan = false;
   }
   return [...totals.entries()].map(([color, count]) => ({ color, count }));
 }

@@ -6515,6 +6515,54 @@ function parseSingleSentenceInner(text: string): EffectAction {
     } as EffectAction;
   }
 
+  // 🆕🔴**§5.3 `O-240`（2026-09-04）＝全領域への《トラップアイコン》付与**（`WXEX2-66-E1`）。
+  //   「あなたのすべての領域にある《トラップアイコン》を**持たない**〈filter〉のカードは
+  //    《トラップアイコン》「〈引用〉」を得る」＝**【ライフバースト】側（`GRANT_ALL_ZONE_LIFEBURST`）の
+  //    トラップ版が無く**、旧実装は `DEFERRED_GRANT_ALL_ZONE_TRAP_ICON`（＝逆翻訳に【未実装】）だった。
+  //   ⚠**ここ（`parseSentencePart*` の手前）で受ける**＝引用の中身を `parseSingleSentence` で再帰解析するため
+  //     （part2 からは呼べない。同ファイルの `shuffleContM` と同じ理由）。
+  //   ⚠**引用が解けなければ `DEFERRED_*` のまま落とす**（part2 の規則へ素通しする）＝
+  //     中身の無い付与を載せると「トラップは発動したのに何も起きない」無言 no-op になる。
+  {
+    const trapGrantM = t.match(/すべての領域にある(.*?)《トラップアイコン》「(.+?)」を得る/);
+    if (trapGrantM && /《トラップアイコン》を持たない/.test(t)) {
+      const subj = trapGrantM[1].replace(/《トラップアイコン》を持たない/, '');
+      const trapGrantFilter: TargetFilter = {};
+      const storyM = subj.match(/＜([^＞]+)＞/);
+      if (storyM) trapGrantFilter.story = storyM[1];
+      const colorM = subj.match(/([白青赤緑黒])の/);
+      if (colorM) trapGrantFilter.color = colorM[1];
+      if (/シグニ/.test(subj)) trapGrantFilter.cardType = 'シグニ';
+      // ⚠複文になりうるので単文funnelではなく `parseActionText` を通す（`O-239` と同じ理由）。
+      const inner = parseActionText(trapGrantM[2]);
+      if (inner && inner.type !== 'UNKNOWN') {
+        return { type: 'STUB', id: 'GRANT_ALL_ZONE_TRAP_ICON',
+          ...(Object.keys(trapGrantFilter).length ? { trapGrantFilter } : {}),
+          trapGrantAction: inner } as EffectAction;
+      }
+    }
+  }
+
+  // 🆕🔴**§5.3 `O-239`（2026-09-04）＝そのターンのクラッシュ順を軸にした【ライフバースト】付与**
+  //   （`WXDi-P12-036-E1`「このターン、1枚目と2枚目にあなたのチェックゾーンに置かれたライフクロスは
+  //    【ライフバースト】「…」を得る」）。旧実装は `DEFERRED_*`＝無言 no-op。
+  //   ⚠**ここ（`parseSentencePart*` の手前）で受ける**＝引用の中身を `parseSingleSentence` で再帰解析するため。
+  //   ⚠**引用が解けなければ `DEFERRED_*` のまま落とす**（中身の無い付与を載せない）。
+  {
+    const nthBurstM = t.match(/チェックゾーンに置かれたライフクロスは【ライフバースト】「(.+?)」を得る/);
+    if (nthBurstM) {
+      // 「1枚目と2枚目に」「1枚目に」＝全角/半角の数字をすべて拾い、**最大値**を上限にする。
+      const ordinals = [...t.matchAll(/([０-９\d]+)枚目/g)].map(m => parseNum(m[1]));
+      // ⚠**`parseSingleSentence` では足りない**＝引用の中身は複文（「どちらか1つを選ぶ。①…②…」）に
+      //   なりうる。単文funnelへ渡すと**①が丸ごと消えて②だけ**になる（この巡で実測）。
+      const inner = parseActionText(nthBurstM[1]);
+      if (ordinals.length > 0 && inner && inner.type !== 'UNKNOWN') {
+        return { type: 'STUB', id: 'GRANT_BURST_TO_NTH_CHECKED_LIFE',
+          burstMaxOrdinal: Math.max(...ordinals), burstAction: inner } as EffectAction;
+      }
+    }
+  }
+
   const result =
     parseSentencePart1(t, _parsingCardNum) ??
     parseSentencePart2(t) ??
@@ -13828,6 +13876,13 @@ function parseActionTextBody(text: string): EffectAction {
     if (!node || typeof node !== 'object') return false;
     const obj = node as { type?: string; [k: string]: unknown };
     if (obj.type?.startsWith('GRANT_')) return true;
+    // 🆕**§5.3 `O-240`（2026-09-04）**＝`GRANT_ALL_ZONE_TRAP_ICON` は **STUB だが引用の中身を
+    //   `trapGrantAction` に構造化して持っている**ので、引用漏出の安全網に掛けてはいけない。
+    //   ⚠掛かると `text` を `__QUOTED_ABILITY__` でマスクして再パースするため、**せっかく解いた
+    //     引用が捨てられて `DEFERRED_*` へ落ちる**（この巡で実際に踏んだ）。
+    //   ⚠`type.startsWith('GRANT_')` へ寄せない＝`GRANT_QUOTED_*` 系の catch-all は
+    //     まさにこの安全網が捕まえるべき対象なので、id 前方一致にすると安全網ごと無効化する。
+    if (obj.type === 'STUB' && (obj.id === 'GRANT_ALL_ZONE_TRAP_ICON' || obj.id === 'GRANT_BURST_TO_NTH_CHECKED_LIFE')) return true;
     return Object.values(obj).some(value => Array.isArray(value)
       ? value.some(hasStructuredGrant)
       : hasStructuredGrant(value));
@@ -14901,7 +14956,6 @@ const CATCH_ALL_DEFER_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
   [/あなたのデッキの一番上のカードをトラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベル/, 'DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL'],
   [/対戦相手はデッキの一番上を公開する。あなたはそれを対戦相手のデッキの一番下に置いてもよい/, 'DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM'],
   [/それを他のシグニゾーン[０-９\d]*つ?に配置する/, 'DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE'],
-  [/そのカードと対戦相手のデッキの一番上のカードを入れ替えてもよい/, 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP'],
   [/その中から[０-９\d]+枚をそれの下に置く/, 'DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI'],
   [/対戦相手は手札を[０-９\d]+枚チェックゾーンに置く/, 'DEFERRED_OPP_HAND_TO_CHECK_ZONE_UNTIL_END'],
 ];

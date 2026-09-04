@@ -92,7 +92,7 @@ export function PhaseConfirmDialogs(p: PhaseConfirmDialogsProps) {
             </p>
             <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 12px' }}>
               {growCandidates
-                .filter(c => canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, applyGrowCostReduction(c.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap)), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs))
+                .filter(c => canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, applyGrowCostReduction(c.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap, c.CardNum)), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs))
                 .map(c => c.CardName)
                 .join('・')}
             </p>

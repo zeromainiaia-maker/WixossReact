@@ -54,6 +54,10 @@ export function buildGameGrants(text: string): GameGrantSpec[] {
   const mainDraw = t.match(/メインフェイズ開始時[^。]*手札が([０-９\d]+)枚以下[^。]*カードを[０-９\d]*枚?引く/);
   if (mainDraw) out.push({ kind: 'mainPhaseDrawIfHandLte', handLte: num(mainDraw[1], 5) });
   if (/グロウしたとき[^。]*カードを[^。]*引く/.test(t)) out.push({ kind: 'growDraw' });
+  // 🆕**§5.3 `O-242`（2026-09-04）＝そのターンの**最初のグロウ**限定のエナチャージ（`WXDi-P03-002-E1`）。**
+  //   ⚠**条件（最初のグロウ）を落として `growDraw` 側へ寄せない**＝グロウのたびに発火する過大実行になる。
+  const firstGrowEna = t.match(/グロウしたとき[^。]*最初のグロウである場合[^。]*【エナチャージ([０-９\d]+)】/);
+  if (firstGrowEna) out.push({ kind: 'firstGrowEnergyCharge', count: num(firstGrowEna[1], 1) });
   if (/エナフェイズ開始時[^。]*カードを[^。]*引く/.test(t)) out.push({ kind: 'energyPhaseDraw' });
 
   // ---- 手札上限 ----

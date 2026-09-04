@@ -1,5 +1,148 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-04（第111〜120バッチ）：機構 worklist 9項目を消化 — **受け皿は5件で「既に在った」／実機が表示の嘘を1件捕まえた**
+
+**ベースライン**＝`bf45a07e8`（第106〜110 の簿記直後）。
+**gates 全緑**（golden **3461 / 3461**（3452 → +9）・smoke 10725 全異常0・fuzz 全0・census 1 / BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴 9行（据置）・`census:costtext` A🔴 0規則（据置）・
+`census:deadstate` 0件（据置）・lint 0 errors）。
+**実機＝新規2本**（**反転確認1組**）。**単体でも、グロウ横断回帰5本の一括でも ALL PASS。**
+
+| バッチ | 項目 | レーン | 主産物 |
+|---|---|---|---|
+| 第111 | `O-247` | 遅い（engine） | 「対戦相手の効果によってパワーは減少しない」が**一時修整に1件も効いていなかった** |
+| 第112 | `O-219` | 遅い（engine＋screens） | グロウ先カード自身のコスト軽減が**恒久 no-op ＋ 逆向きの過小コスト**だった |
+| 第113 | `O-240` | 遅い（engine＋parser） | 全領域への《トラップアイコン》付与（【ライフバースト】側だけ実装されていた） |
+| 第114 | `O-239` | 遅い（engine＋screens） | そのターンの**クラッシュ順**を軸にした【ライフバースト】付与 |
+| 第115 | `O-242` | 遅い（parser＋screens） | 「そのターンで**最初の**グロウ」限定のエナチャージ |
+| 第116 | `O-229` | 遅い（parser＋engine） | ゾーンの一番上どうしの入れ替え（**受け皿は既に在った**） |
+| 第117 | `O-223` ＋ `O-218` | 遅い（engine＋screens） | 【シード】family＝対象宣言のスコープ／【起】の UI 入口 |
+| 第118 | `O-227` | **速い**（manual 1件） | 期間つきプレイヤー付与【起】（**受け皿は既に全部在った**） |
+| 第119 | `V-150` 実機 | — | 実機2本 ＋ グロウ横断回帰3本＝**5本 ALL PASS** |
+| 第120 | 簿記 | — | 本記録・PLAN 3ファイル |
+
+---
+
+### ① 🔴 `O-247`：「パワーは対戦相手の効果によって減少しない」が**一時修整を1件も止めていなかった**
+
+**真因**＝保護集合は `effectEngine.calcFieldPowers` の `applyEffects` の**ローカル変数**でしか組み立てておらず、
+`applyDeltaToCard(..., protection)` を通る **CONTINUOUS のデルタにしか効かなかった**。
+`applyTempMods` は `temp_power_mods` / `power_mods_until_opp_turn` / `power_mods_until_next_own_turn` を
+**保護集合を一切見ずに**加算する＝**相手の【出】【自】【起】が書く −N を素通し**（原文が主に想定している経路がまさにこれ）。
+
+**影響**＝**保護を宣言する効果は 9効果 / 9カード**で、**9件すべてが原文「対戦相手の効果によって」**（登録票の「1効果」は分離のきっかけになった標本1枚）。
+`WX05-024` / `WX12-033` / `WX20-023` / `WX22-013` / `WX22-Re04` / `WXDi-P07-085` / `WXK03-018` / `WXK03-026` / `WXK06-024`。
+
+**直し方**＝`powerModifyProtection` を積み終えた直後に**スナップショット**を取り、`applyTempMods` から参照する。
+- ⚠**その位置で取るのが要点**＝下で足す `PREVENT_OPP_POWER_PLUS` は原文が「対戦相手の**【常】能力の**効果によって」で一時修整には効かない。
+- 発生元の支配者は**盤面の全ゾーンの実 id**で決める。⚠**両方に居る／どちらにも居ない ときは判定しない（＝保護しない）**
+  ＝`instanceId` は1プレイヤー内でしか一意でないので、ミラー戦で取り違えて**自分の効果で下げた分まで消す**（過剰保護＝新しい嘘）より素通しへ倒す。
+- `power_mods_until_opp_turn` の型に `srcCardNum` が**宣言だけ欠けていた**（`execPowerModify` は既に書いていた）＝長期版だけ素通しになるので足した。
+
+**検証**＝`golden --only "O-247"`（保護／filter 外／**自分の効果**／発生元不明／長期版の5方向・**反転確認つき**）。
+反転確認＝判定行を `false &&` で殺すと FAIL することを実測。
+
+---
+
+### ② 🔴 `O-219`：グロウ先カード自身のコスト軽減が**2方向に壊れていた**
+
+**原文**＝「【常】：**この**カードにグロウするためのコストは〜減る」（`WD14-001` / `WX14-009` ほか）。
+
+**真因**＝`collectGrowCostReductions` が**自分の場のシグニ＋センタールリグ**しか走査していなかった。
+1. **グロウ先（ルリグデッキの中）は候補に入らない**＝恒久 no-op。
+2. 逆に**そのカードへグロウし終えてセンターに居るあいだ**は走査されるので、**次の**グロウが原文と無関係に安くなる（過小コスト）。
+   🔴**既存 golden 2本がこの (2) を assert していた**（`field.lrig = ['WX14-009']` で軽減が出ることを固定していた）＝**バグを固定していたテスト**。
+
+**直し方**＝`GrowCostReductionAction.forSelfGrowOnly` を新設し、
+`collectGrowCostReductions(..., growTargetCardNum?)` が**場の候補からは `forSelfGrowOnly` を無視し、グロウ先からだけ拾う**。
+呼び出し元は**6箇所**（`GrowModal` 2 / `AssistGrowModal` / `PhaseConfirmDialogs` / `BattleScreen` の人間ゲート / CPU）＝
+⚠**候補ごとに軽減が違う**ので、ループの外で1回だけ計算していた2箇所をループ内へ移した。
+
+**副産物**＝`GROW_COST_REDUCTION.zeroColors`（「《赤×0》《緑×0》に**なる**」＝固定減算では表せない）を新設し、
+`WX13-001-E1` を `GROW_FREE`（**spell の `findGrowFreeAction` 専用で CONTINUOUS からは一度も読まれない**うえ
+「コストを支払わずに」＝指定外の色まで踏み倒す）から移した。`scan` は `CONDITIONAL{LIFE_COUNT}` だけを評価する
+（⚠**未知の条件を「真」に倒さない**＝倒すと `WX21-017` の「＜天使＞2枚捨ててもよい」が**捨てずに**タダになる）。
+
+**母集団**＝原文7効果。うち **`WD14-001` / `WX14-009` / `WX13-001` の3件を実働化**。
+残り4件（`WD13-002` / `WD13-003` / `WX21-017` / `WX21-018`）は**グロウ時の公開／捨てる支払い UI** が要る＝§5.3 `O-248` に登録。
+🔴`WD13-002-E1` は旧定義が「公開した場合」を丸ごと落として《白×1》《黒×1》を**無条件**で与えていたので、
+兄弟（`WD13-003-E1`）と同じ「支払いを先に置く」形へ揃えて**支払い UI が入るまで拾われない**ようにした。
+
+---
+
+### ③ 🔴 `O-219` の実機（`V-150`）が**表示の嘘**を1件捕まえた
+
+**症状**＝グロウ候補ボタンに「コスト: 《黒》×３」と出るのに、**要求されるのは2枚**。
+
+**真因**＝`GrowModal` の候補一覧（Phase 1）と支払い画面（Phase 2）が**印字コスト（`card.GrowCost`）をそのまま描いていた**。
+軽減後の `growCostR` / `reducedGrowCost` は**支払い可否と要求枚数の計算にしか使われていなかった**。
+⇒ これは `O-219` 以前から在ったバグ（場の軽減も表示されていなかった）で、**軽減が実際に効くようになって初めて見えた**。
+
+**直し方**＝両画面とも**実効コスト**を出し、印字と違うときだけ取り消し線で併記する。
+🔑**実機シナリオでしか見えない層**＝golden は純関数（`collectGrowCostReductions`）までしか見ていない。
+
+---
+
+### ④ `O-240` / `O-239`：付与の2 family（トラップ側・クラッシュ順側）
+
+- **`O-240`**（`WXEX2-66-E1`）＝**【ライフバースト】側だけ実装されていた**（`GRANT_ALL_ZONE_LIFEBURST`）。
+  `GRANT_ALL_ZONE_TRAP_ICON{trapGrantFilter, trapGrantAction}` を新設し、**トラップ発動の4入口**
+  （`ACTIVATE_TRAP` / `trapOp:'activate'` / `gain_trap_ability` / `hasTrapAbilityCard`）を
+  **`trapIconEffectOf` 1本**へ寄せた。⚠原文は「持た**ない**カードは」＝native の `TRAP_ICON` は上書きしない。
+  🔴**引用漏出の安全網に食われる罠**を踏んだ＝`hasStructuredGrant` が `type.startsWith('GRANT_')` しか見ないので、
+  **STUB だが引用を構造化して持っている**この付与が `__QUOTED_ABILITY__` マスクで再パースされ、せっかく解いた引用が捨てられていた。
+  ⚠**`type` 前方一致へ寄せない**（`GRANT_QUOTED_*` の catch-all はまさに安全網が捕まえるべき対象）＝id を1つだけ許可した。
+- **`O-239`**（`WXDi-P12-036-E1`）＝「このターン、1枚目と2枚目に**チェックゾーンに置かれた**ライフクロスは【ライフバースト】…を得る」。
+  🔴**`life_crashed_this_turn`（枚数）では足りない**＝ダブルクラッシュで2枚同時に置かれると1枚目/2枚目を区別できない。
+  ⇒ `checked_life_order_this_turn`（置かれた順）を新設し、**チェックゾーンを経由する4地点**へ配線
+  （`execLifeCrash` 2 / `lifeCost` / `crashOneLife` / ルリグアタック）。⚠`triggerBurst:false` は数えない（原文「置かれた」に当たらない）。
+- 🔑**両方とも引用の中身は `parseActionText`（複文funnel）で解く**＝`parseSingleSentence` に渡すと
+  「どちらか1つを選ぶ。①…②…」の**①が丸ごと消えて②だけ**になる（実測して直した）。
+
+---
+
+### ⑤ `O-242` / `O-229` / `O-223` / `O-218` / `O-227`
+
+- **`O-242`**（`WXDi-P03-002-E1`）＝`GameGrantSpec.firstGrowEnergyCharge` を新設。
+  🔴**`lrig_grew_this_turn`（bool）では判定できない**＝グロウと同時に true になるので後段からは常に true に見える
+  ⇒ `lrig_grow_count_this_turn`（回数）を新設して `=== 1` で見る。⚠条件を落として `growDraw` へ寄せると**グロウのたびに発火**する。
+- **`O-229`**＝🔑**受け皿は既に在った**（`SWAP_DECK_TOP_AND_LIFE`）。母集団は登録票の2効果 → **実測3効果**
+  （`WXDi-P08-008-E2` が同型で混ざっていた・そちらは `STUB{LRIG_UNDER_CARD_OP}`＝**ルリグの下の操作**という別機構に落ちていた）。
+  エナ版（`WXDi-P10-047-E1`＝デッキ上 ↔ **エナにある効果元自身**）だけ専用ハンドラを1本置いた。
+- **`O-223`**（`WXK05-050-E2`）＝`TargetType.SEED_CARD` ＋ `TargetScope.self_seed` を新設。
+  🔴旧 live は3つ同時に壊れていた＝(a) シードが0枚でも先に支払いを提示 (b) **支払いのあとで**開花対象を選ばせる
+  (c)「そうした場合」が `CONDITIONAL{IS_MY_TURN}`（**常に真**）＝**払わなくても本体が走る**（`O-104` と同型の偽ゲート）。
+  ⇒ 正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST → CONDITIONAL{SELF_OPTIONAL_EFFECT_TAKEN}` へ。
+  **`OPTIONAL_COST` が「払った／払わなかった」を `self_optional_effect_taken` に残すようにした**（偽ゲートを本物にするための材料）。
+- **`O-218`**（`WXK04-060-E2`）＝**engine 側は完成していた**（`SEED_BLOOM{seedTargetSelf}`）。欠けていたのは**入口だけ**
+  ＝`field.signi_seeds` を読むのは cardMap のロード1箇所で、能力を surface するコードが無かった。
+  `listActivatableSeedEffects` を `signiActivateGate.ts` へ足し、シグニゾーンのアクションメニューへ出した。
+  ⚠**シグニの有無と独立**（シードはシグニが居ないゾーンにも置ける）。⚠コスト可否は
+  `canOfferTrashActivate`（場に居ないカードの funnel）＋ `energyTrash` だけ別途（あちらの対応表に無い）。
+- **`O-227`**（`WXDi-P09-066-E1`）＝🔑**新しい機構は1つも要らなかった**。
+  `GRANT_LRIG_ABILITY{duration:'UNTIL_OPP_TURN_END'}` が `lrig_granted_auto_effects_until_opp_turn` へ積み、
+  `collectGrantedLrigEffects` → `listActivatableGrantedLrigEffects` が UI へ出し、`clearUntilOppTurnEffects` が期限で消す。
+  **速いレーン（`manualEffects.ts` 1件＋`syncManualLive`）で閉じた。**
+
+---
+
+### ⑥ この巡の一般則
+
+- 🔑**「まず受け皿を疑う」が 9項目中 5件で当たった**（`O-229` / `O-227` / `O-218` の engine 側 / `O-223` の実行部 / `O-219` の収集軸以外）。
+  **提案キー名で grep して無いと言わない**＝原文の言い回しと**既存の store 名**（`lrig_granted_auto_effects_until_opp_turn` 等）でも引く。
+- 🔴**「実装した」の反対は「テストがバグを固定していた」**＝`O-219` は**既存 golden 2本が誤挙動を assert** していた。
+  ⇒ **索引の項目を取るときは、その受け皿を触る既存 golden を必ず読む**（緑のまま直せないことがある）。
+- 🔴**逆翻訳の固定文言は payload 化と同時に撤去する**＝`GRANT_ALL_ZONE_LIFEBURST` 側は今も `currentCardText` を
+  regex で読んでいる（原文の再読）。新しく足した2つ（トラップ／クラッシュ順）は**payload から書いた**。
+- 🔴**実機は「盤面が動いたか」だけでなく「画面に何が出ているか」も見る**＝`V-150` が捕まえたのは**表示の嘘**で、
+  盤面（支払い枚数）は正しかった。**ラベルに出ないコストはプレイヤーには存在しない。**
+- 🔑**実機シナリオの後始末**＝開いたモーダルは**必ず閉じる**（開けっ放しだと次のシナリオの注入が画面に届かず
+  「候補が1つも出ない」＝**単体 PASS・一括だけ FAIL** の位置依存フレークになる。今回2度踏んだ）。
+  ＋**注入した盤面が画面に届くまで待ってから読む**（バッチ1本目だけ FAIL する形）。
+- 🔑**取り消し線つきの併記を足したら、実機の assert は「最初の1つ」で読む**＝単純な regex は**併記した印字側**に当たって永久に FAIL する。
+
+---
+
 ## 2026-09-04（第106〜110バッチ）：実機 残9件 → 1件 — **配置先の絞り込みが2枚目から消えていた／保護が効果由来の減少を止められない**
 
 **ベースライン**＝`16cd24aac`（第105 の簿記直後）。

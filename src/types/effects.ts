@@ -1598,6 +1598,14 @@ export interface EffectTarget {
     | 'DECK_CARD'
     | 'TRASH_CARD'
     | 'LRIG_TRASH_CARD'
+    /**
+     * 🆕**あなたの【シード】（`field.signi_seeds`）1枚**（2026-09-04・§5.3 `O-223`）。
+     * 原文「あなたの【シード】１枚を**対象とし**、《白》を支払って**もよい**。**そうした場合、それを**開花し〜」
+     * （`WXK05-050-E2`）＝**支払いより前に宣言する**ので `SELECT_TARGET_ONLY` の口が要る。
+     * 🔴旧実装（`STUB{SEED_FLOWER_OP}`）は**支払いのあとで**開花するシードを選ばせていた＝
+     *   ①シードが0枚でも先に支払いを提示する ②宣言と実行の順序が原文と逆。
+     */
+    | 'SEED_CARD'
     | 'LRIG_DECK_CARD'
     | 'ENERGY_CARD'
     /**
@@ -3641,6 +3649,24 @@ export interface GrowCostReductionAction {
    *   こちらは**グロウする側に一時的にかかる**ので流用できない。
    */
   ignoreLrigType?: boolean;
+  /**
+   * 🆕🔴**「**この**カード／ルリグにグロウするためのコストは〜減る」**（2026-09-04・§5.3 `O-219`）。
+   *
+   * 🔴**軸が逆**＝ほかの `GROW_COST_REDUCTION` は「**場に居る**カードが**次のグロウ**を安くする」だが、
+   *   この形は「**いまグロウしようとしている先のカード自身**が、**自分へのグロウ**を安くする」。
+   * 🔴**これを立てないと2方向に壊れる**＝①`collectGrowCostReductions` は場のシグニ／センタールリグ
+   *   しか走査しないので、**グロウ先（ルリグデッキの中）は候補に入らず恒久 no-op** ②逆にそのカードへ
+   *   グロウし終えてセンターに居るあいだは走査対象になるので、**原文と無関係に「次の」グロウが安くなる**。
+   * ⇒ `collectGrowCostReductions` は **`forSelfGrowOnly` を場の候補からは無視し、グロウ先カードからだけ拾う**。
+   */
+  forSelfGrowOnly?: boolean;
+  /**
+   * 🆕**「グロウするためのコストは《赤×0》《緑×0》に**なる**」**（2026-09-04・§5.3 `O-219`）。
+   * ⚠**「減る」ではなく「なる」**＝印字コストがいくつでもその色は0になる。`reduction` の固定減算では
+   *   表せない（印字が《赤》×3 なら −1 では足りない）ので、**色ごとに全額を落とす**指定を別に持つ。
+   * 🔴**`GROW_FREE` を流用しない**＝あれは「コストを支払わずにグロウする」＝**指定外の色まで踏み倒す**。
+   */
+  zeroColors?: string[];
 }
 
 /**
@@ -4342,6 +4368,14 @@ export type GameGrantSpec =
   | { kind: 'mainPhaseDrawIfHandLte'; handLte: number }
   /** 「あなたのセンタールリグがグロウしたとき、カードを1枚引く」 */
   | { kind: 'growDraw' }
+  /**
+   * 🆕**「あなたのルリグがグロウしたとき、それが**そのターンであなたの最初のグロウである場合**、
+   * 【エナチャージN】をする」**（2026-09-04・§5.3 `O-242`・`WXDi-P03-002-E1`）。
+   * 🔴**`growDraw` へ寄せない**＝あちらは無条件・ドロー。この宣言は**そのターンの最初の1回だけ**で、
+   *   条件を落とすと**グロウのたびにエナチャージ**する過大実行になる（第62バッチで実測して差し戻した件）。
+   * ⚠判定は `lrig_grow_count_this_turn === 1`（グロウ実行後の値）。
+   */
+  | { kind: 'firstGrowEnergyCharge'; count: number }
   /** 「あなたの手札の枚数の上限はN増える」 */
   | { kind: 'handSizeBonus'; value: number }
   /** 「あなたのエナフェイズ開始時、カードを1枚引く」 */
@@ -5917,6 +5951,26 @@ export interface StubAction {
     | 'under_signi' | 'activate_check_burst' | 'burst_as_check' | 'gain_trap_ability';
   /** 【トラップ】設置・発動・チェックゾーン移動の候補限定。 */
   trapFilter?: TargetFilter;
+  /**
+   * 🆕**`GRANT_ALL_ZONE_TRAP_ICON`（2026-09-04・§5.3 `O-240`）＝「あなたのすべての領域にある
+   * 《トラップアイコン》を**持たない**〈filter〉のカードは《トラップアイコン》「…」を得る」**（`WXEX2-66-E1`）。
+   * ⚠**`trapFilter` とは別軸**＝あちらは「どのトラップを操作するか」の絞り込み。
+   * 🔑消費は `trapIconEffectOf` 1本（`effectExecutor.ts`）＝トラップ発動の4入口すべてがそこを通る。
+   */
+  /**
+   * 🆕`GRANT_BURST_TO_NTH_CHECKED_LIFE`（2026-09-04・§5.3 `O-239`）＝
+   * 「このターン、**N枚目まで**にあなたのチェックゾーンに置かれたライフクロスは【ライフバースト】「…」を得る」。
+   * ⚠付与の中身は既存の `burstAction`（`GRANT_ALL_ZONE_LIFEBURST` と共有）。
+   */
+  burstMaxOrdinal?: number;
+  /**
+   * 🆕`SWAP_DECK_TOP_WITH_SELF_IN_ENERGY`（2026-09-04・§5.3 `O-229`）＝「入れ替えて**もよい**」の2択を出すか。
+   * ⚠汎用の `optional` は `StubAction` に無い（用途ごとに別キー）ので専用名にする。
+   */
+  swapOptional?: boolean;
+  trapGrantFilter?: TargetFilter;
+  /** 付与する《トラップアイコン》の中身（引用の action）。無ければ付与しない（無言 no-op にしない）。 */
+  trapGrantAction?: EffectAction;
   /**
    * 「そのシグニゾーン」「それがあったシグニゾーン」＝既存の自由ゾーン選択では表現不能。
    * 🆕`'previous'` は §5.3 `O-59`（2026-09-02）で実装＝`PlayerState.trap_removed_zones`（直前に手札へ

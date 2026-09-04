@@ -18,6 +18,7 @@ import {
   designatedZones,
   sourceAbilityText,
   resolveHandCardPick,
+  trapIconEffectOf,
 } from './execUtils';
 import { allAcceCards } from '../utils/acce';
 import { consumeDeclaredGuardRestrictLevel } from '../screens/battle/turnScopedState';
@@ -2494,12 +2495,9 @@ export function execStubPart2(
     const newOwnerAT = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardAT], field: { ...ctx.ownerState.field, signi_traps: newTrapsAT } };
     const loggedCtxAT = addLog({ ...ctx, ownerState: newOwnerAT, sourceCardNum: trapCardAT }, `トラップ発動: ゾーン${firstTrapIdxAT + 1}（${ctx.cardMap.get(trapCardAT)?.CardName ?? trapCardAT}）`);
     // TRAP_ICON効果を解析して実行
-    const trapDataAT = ctx.cardMap.get(trapCardAT);
-    if (trapDataAT) {
-      const trapEffsAT = parseCardEffects(trapDataAT);
-      const trapIconEffAT = trapEffsAT.find(e => e.effectType === 'TRAP_ICON');
-      if (trapIconEffAT) return exec(trapIconEffAT.action, { ...loggedCtxAT, trapActivated: true });
-    }
+    // 🆕**§5.3 `O-240`**＝native が無ければ全領域付与（`GRANT_ALL_ZONE_TRAP_ICON`）を見る funnel を通す。
+    const trapIconEffAT = trapIconEffectOf(trapCardAT, loggedCtxAT);
+    if (trapIconEffAT) return exec(trapIconEffAT.action, { ...loggedCtxAT, trapActivated: true });
     return done({ ...loggedCtxAT, trapActivated: true });
   }
   // SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置
@@ -2708,8 +2706,8 @@ export function execStubPart2(
         });
       }
       const targetDataAT = ctx.cardMap.get(getCardNum(selectedAT));
-      const targetEffectsAT = targetDataAT?.effects?.length ? targetDataAT.effects : targetDataAT ? parseCardEffects(targetDataAT) : [];
-      const trapIconAT = targetEffectsAT.find(effect => effect.effectType === 'TRAP_ICON');
+      // 🆕**§5.3 `O-240`**＝付与された《トラップアイコン》も同じ funnel から取る。
+      const trapIconAT = trapIconEffectOf(selectedAT, ctx);
       if (!trapIconAT) return done(addLog(ctx, `${targetDataAT?.CardName ?? selectedAT}: トラップアイコン能力なし`));
       return exec(trapIconAT.action, addLog({ ...ctx, sourceCardNum: selectedAT, trapActivated: true },
         `場の${targetDataAT?.CardName ?? selectedAT}のトラップアイコンを発動`));
@@ -2838,11 +2836,9 @@ export function execStubPart2(
       const poolGTA = stub.trapSource === 'trash' ? ctx.ownerState.trash
         : stub.trapSource === 'hand' ? ctx.ownerState.hand
         : (ctx.ownerState.field.signi_traps ?? []).filter((c): c is string => !!c);
-      const hasTrapIcon = (cn: string): boolean => {
-        const cd = ctx.cardMap.get(getCardNum(cn));
-        const effs = cd?.effects?.length ? cd.effects : cd ? parseCardEffects(cd) : [];
-        return effs.some(e => e.effectType === 'TRAP_ICON');
-      };
+      // 🆕**§5.3 `O-240`**＝候補判定も発動も `trapIconEffectOf` 1本に寄せる
+      //   （片方だけ付与を見ると「候補に出るのに発動しない」無言のズレになる）。
+      const hasTrapIcon = (cn: string): boolean => trapIconEffectOf(cn, ctx) !== null;
       // ⚠**トラップ能力を持つカードだけを候補にする**（持たないカードを選ばせると必ず空振りになる）。
       const candsGTA = poolGTA.filter(hasTrapIcon);
       if (candsGTA.length === 0) return done(addLog(ctx, 'トラップ能力を持つカードが対象領域にない'));
@@ -2860,8 +2856,7 @@ export function execStubPart2(
         });
       }
       const cdGTA = ctx.cardMap.get(getCardNum(pickedGTA));
-      const effsGTA = cdGTA?.effects?.length ? cdGTA.effects : cdGTA ? parseCardEffects(cdGTA) : [];
-      const iconGTA = effsGTA.find(e => e.effectType === 'TRAP_ICON');
+      const iconGTA = trapIconEffectOf(pickedGTA, ctx);
       if (!iconGTA) return done(addLog(ctx, `${cdGTA?.CardName ?? pickedGTA}: トラップアイコン能力なし`));
       return exec(iconGTA.action, addLog({ ...ctx, trapActivated: true },
         `${cdGTA?.CardName ?? pickedGTA}のトラップ能力を得て発動`));
@@ -3151,8 +3146,19 @@ export function execStubPart2(
   // SEED_FLOWER_OP: 別シード1枚を開花してデッキ上をシード設置（ヤマレンゲ系）
   if (stub.id === 'SEED_FLOWER_OP') {
     const seedsSFO = ctx.ownerState.field.signi_seeds ?? [null, null, null];
-    const availSFO = [0, 1, 2].filter(zi => seedsSFO[zi] !== null);
+    let availSFO = [0, 1, 2].filter(zi => seedsSFO[zi] !== null);
+    // 🆕**§5.3 `O-223`（2026-09-04）＝支払いより前に宣言した【シード】だけへ絞る。**
+    // 🔴旧は支払いのあとで**もう一度選ばされて**いた（`O-96`/`O-220` で3度踏んだのと同じ形）。
+    const fixedSFO = stub.fixedCardNums ?? (stub.targetsStored ? ctx.storedTargetCards : undefined);
+    if (fixedSFO) availSFO = availSFO.filter(zi => fixedSFO.includes(seedsSFO[zi]!));
     if (availSFO.length === 0) return done(addLog(ctx, 'SEED_FLOWER_OP: シードなし'));
+    // 🔴**3点契約の③後半＝選択UIを開かずに即実行する**（1つに確定しているのに問い直さない）。
+    if (fixedSFO && availSFO.length === 1) {
+      return exec(({ type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: availSFO[0] } as StubAction,
+        { type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK_TOP_PLACE' } as StubAction,
+      ] } as SequenceAction) as EffectAction, ctx);
+    }
     const optsSFO = availSFO.map(zi => {
       const seedName = ctx.cardMap.get(seedsSFO[zi]!)?.CardName ?? seedsSFO[zi]!;
       return {

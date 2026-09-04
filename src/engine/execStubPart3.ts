@@ -3397,11 +3397,34 @@ export function execStubPart3(
   // 🔴旧 id は下の「シグニの配置替え」ハンドラに落ちており、原文が**ゾーンの一番上どうしの入れ替え**
   //   （`WX13-073`＝対戦相手のライフクロス上とデッキ上／`WXDi-P10-047`＝デッキ上とエナのこのシグニ）
   //   なのに **自分の場のシグニをゾーン移動する UI** が開いていた＝原文と無関係な盤面操作（過剰実行）。
-  if (stub.id === 'DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP') {
-    return done(addLog(ctx, '[未実装] 対戦相手のライフクロスの一番上とデッキの一番上を入れ替える'));
-  }
-  if (stub.id === 'DEFERRED_SWAP_DECK_TOP_WITH_SELF_IN_ENERGY') {
-    return done(addLog(ctx, '[未実装] デッキの一番上とエナゾーンにあるこのシグニを入れ替える'));
+  // 🏁**§5.3 `O-229`（2026-09-04）＝実装した。**
+  //   ①`DEFERRED_SWAP_OPP_LIFE_TOP_AND_DECK_TOP` は**受け皿が既に在った**（`SWAP_DECK_TOP_AND_LIFE`）ので
+  //     parser 側を張り替えて id ごと撤去した。
+  //   ②こちらは入れ替える相手が**エナゾーンにある効果元自身**なので専用ハンドラを1本置く。
+  // 🔴**「エナゾーンにあるこのシグニ」＝バニッシュ後の自分自身**（`WXDi-P10-047-E1` は【自】バニッシュ時）＝
+  //   場ではなくエナから探す。居なければ何もしない（fail-closed）。
+  if (stub.id === 'SWAP_DECK_TOP_WITH_SELF_IN_ENERGY') {
+    const stSW = ctx.ownerState;
+    const selfSW = ctx.sourceCardNum;
+    const enaIdxSW = selfSW ? stSW.energy.indexOf(selfSW) : -1;
+    if (enaIdxSW < 0) return done(addLog(ctx, 'エナゾーンにこのシグニがないため入れ替えない'));
+    if (stSW.deck.length === 0) return done(addLog(ctx, 'デッキが空のため入れ替えない'));
+    if (stub.swapOptional) {
+      return needsInteraction(ctx, {
+        type: 'CHOOSE', count: 1, options: [
+          { id: 'swap', label: 'デッキの一番上とエナゾーンにあるこのシグニを入れ替える',
+            action: { ...stub, swapOptional: false } as EffectAction, available: true },
+          { id: 'skip', label: '入れ替えない',
+            action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as StubAction as EffectAction, available: true },
+        ],
+      });
+    }
+    const deckTopSW = stSW.deck[0];
+    const newEnergySW = [...stSW.energy];
+    newEnergySW[enaIdxSW] = deckTopSW;
+    return done(addLog({ ...ctx, ownerState: {
+      ...stSW, deck: [selfSW!, ...stSW.deck.slice(1)], energy: newEnergySW,
+    } }, `デッキの一番上（${ctx.cardMap.get(getCardNum(deckTopSW))?.CardName ?? deckTopSW}）とエナゾーンのこのシグニを入れ替えた`));
   }
   // SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体）
   // MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）

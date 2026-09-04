@@ -160,6 +160,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               opp_trash:   '相手のトラッシュから',
               both_trash:  'いずれかのトラッシュから',
               self_trap:   '自分の【トラップ】から',
+              // 🆕§5.3 `O-223`（2026-09-04）
+              self_seed:   '自分の【シード】から',
               // 場のキー枠（§6.4 O-17・`WXK05-010-E2`「対戦相手のキー１枚を対象とし」）
               self_key:    '自分のキーから',
               opp_key:     '相手のキーから',

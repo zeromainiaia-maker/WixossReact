@@ -15,6 +15,7 @@ import {
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone, checkZoneCards,
   resolveHandCardPick, handCardPickLabel,
+  trapIconEffectOf,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost, beatSigniCostCount };
@@ -26,7 +27,6 @@ import { grantedEffectsOf } from './grantedStore';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
 // ⚠`gain_trap_ability` の候補判定（`hasTrapAbilityCard`）用＝`execStubPart2` と同じ経路。
-import { parseCardEffects } from '../data/effectParser';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
@@ -868,6 +868,8 @@ export function applyEffectBanishSubstituteChoice(
       ...state,
       life_cloth: life,
       life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + crashed.length,
+      // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する（枚数だけでは1枚目/2枚目を区別できない）。
+      checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), ...crashed],
       field: { ...state.field, check: checkCard },
       pending_crashed_cards: pending.length > 0
         ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
@@ -2806,6 +2808,8 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       ...state,
       life_cloth: life,
       life_crashed_this_turn: crashedCountAcc,
+      // 🆕**§5.3 `O-239`**＝チェックゾーンへ置かれた順を記録する（枚数だけでは1枚目/2枚目を区別できない）。
+      checked_life_order_this_turn: [...(state.checked_life_order_this_turn ?? []), ...crashed],
       field: { ...state.field, check: checkCard },
       pending_crashed_cards: pending.length > 0 ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
       crash_source_card_num: checkCard ? ctx.sourceCardNum : state.crash_source_card_num,
@@ -3503,9 +3507,7 @@ function transferToHandTrashCandidates(src: EffectTarget, ctx: ExecCtx): string[
 
 /** カードが【トラップ】能力（`TRAP_ICON` 効果）を持つか。`execStubPart2` の `gain_trap_ability` と同じ判定。 */
 export function hasTrapAbilityCard(cardNum: string, ctx: ExecCtx): boolean {
-  const cd = ctx.cardMap.get(getCardNum(cardNum));
-  const effs = cd?.effects?.length ? cd.effects : cd ? parseCardEffects(cd) : [];
-  return effs.some(e => e.effectType === 'TRAP_ICON');
+  return trapIconEffectOf(cardNum, ctx) !== null;
 }
 
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
