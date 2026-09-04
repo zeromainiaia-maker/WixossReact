@@ -15136,7 +15136,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ATTACK_LRIGフェイズ：ルリグアタック
     if (bs.turn_phase === 'ATTACK_LRIG') {
-      if (my.field.lrig_down) return []; // 攻撃済み
+      // 🆕**§5.3 `O-236`（2026-09-04）＝門は2箇所ある。**
+      //   🔴`performLrigAttack`（実行）だけ直しても**ここ（アクション一覧）が塞いだままだと
+      //     「アタック」ボタンが1つも出ない**＝実機で0回になる（実測で踏んだ）。
+      //   ⚠**同じ式を2箇所に書いたときの典型**（§5.1 の教訓「片方だけ直すと全ゲート緑のまま
+      //     実際に使われる経路にだけ実装が無い」）。
+      const lrigAtkLimitAL = my.lrig_attack_limit_this_turn;
+      if (my.field.lrig_down && !my.lrig_attack_while_down_this_turn) return []; // 攻撃済み
+      if (lrigAtkLimitAL !== undefined && (my.lrig_attack_count_this_turn ?? 0) >= lrigAtkLimitAL) return []; // 付与された上限に達した
       if (op.field.lrig_attacked) return []; // ガード応答待ち
       const lrigTopALK = my.field.lrig.at(-1);
       const driveCanAttack = !!(lrigTopALK && (effectsMap.get(lrigTopALK) ?? []).some(e =>

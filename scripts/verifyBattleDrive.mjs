@@ -48129,6 +48129,125 @@ order.push('o230GuardAltCollab');
 scenarios.o230GuardAltCollabNoEnergy = mkGuardAltCollabScenario(false);
 order.push('o230GuardAltCollabNoEnergy');
 
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-151`（§5.3 `O-236`＝**ルリグのアタック回数上限とダウン中アタック**）
+// `WXDi-D04-011-E1`（ENDLESS-PUNCHLINE）「このルリグは**ダウン状態でもアタックでき**、
+//   1ターンにこのルリグが**アタックできる上限は3になる**」。
+// 🔴**旧は既定の「1回」を真偽値（`lrig_has_attacked`）で表していた**ので2回目以降を表せず、
+//   さらに付与そのものが無言 no-op だった。
+// 🔑**観測は「2回目のアタックができるか」**＝`src/screens/BattleScreen.tsx` の
+//   `performLrigAttack` の門（`lrig_has_attacked` / `field.lrig_down`）を直接触った回。
+// ⚠**反転確認**＝上限を付与していない盤面では2回目のアタックボタンが出ない（従来どおり1回きり）。
+// -----------------------------------------------------------------------------
+
+/** ルリグを開いて「アタック」を押す。押せたら true。 */
+async function tryLrigAttack(page, H, altPart) {
+  // ⚠**開き直しを繰り返す**＝1回のクリックで開くとは限らない（§4.4 📌24）。
+  //   ⚠**ラベルは前方一致**＝コスト付きだと「アタック（《無》×1）」になる（`exact` だと当たらない）。
+  for (let k = 0; k < 6; k++) {
+    const img = page.getByAltText(altPart, { exact: false }).first();
+    if (await img.count()) await img.click({ force: true, timeout: 1200 }).catch(() => {});
+    else await H.clickTestId('my-lrig-zone');
+    await page.waitForTimeout(600);
+    const labels = await page.evaluate(() => Array.from(document.querySelectorAll('[data-action-label]'))
+      .map(e => e.getAttribute('data-action-label') || '')).catch(() => []);
+    if (k === 0) H.log(`    tryLrigAttack: ラベル=${JSON.stringify(labels)}`);
+    const idx = labels.findIndex(l => l.startsWith('アタック') && !l.startsWith('アタック不可'));
+    if (idx >= 0) {
+      const hit = await H.clickTestId(`card-action-${idx}`);
+      if (hit) return true;
+    }
+  }
+  return false;
+}
+
+function mkLrigAttackLimitScenario(granted) {
+  const id = granted ? 'v151LrigAttackLimit3' : 'v151LrigAttackLimitDefault';
+  const hostSet = {
+    'field.lrig': ['WD01-001#9600'],                  // 満月の巫女 タマヨリヒメ（Lv4・能力は【常】1本だけ）
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 🔴**ダウン状態から始める**＝「ダウン状態でもアタックできる」の観測点でもある。
+    'field.lrig_down': true,
+    'lrig_deck': [], 'lrig_trash': [],
+    'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+    'actions_done': [], 'game_actions_done': [],
+    'deck': ['WD01-013#9610', 'WD01-013#9611', 'WD01-013#9612'],
+  };
+  // 🔴**1ビットだけ反転する**＝付与された上限（＋ダウン中アタック）の有無だけを変える。
+  if (granted) {
+    hostSet['lrig_attack_limit_this_turn'] = 3;
+    hostSet['lrig_attack_while_down_this_turn'] = true;
+    hostSet['lrig_attack_count_this_turn'] = 0;
+  }
+  return {
+    title: `O-236 V-151：ルリグは付与された上限まで何度でもアタックでき、ダウン中でもアタックできる（${granted ? '上限3を付与' : '反転＝付与なし'}）`,
+    spec: {
+      hostSet,
+      guestSet: {
+        // ⚠**両者を同じカードにしない**＝`getByAltText` が相手のルリグを掴む（§4.4 📌6 の同族）。
+        'field.lrig': ['WD03-002#9690'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'life_cloth': ['WD01-013#9691', 'WD01-013#9692', 'WD01-013#9693', 'WD01-013#9694'],
+        'deck': ['WD01-013#9696', 'WD01-013#9697'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await page.waitForTimeout(1500);   // 注入直後は描画前＝先に落ち着かせる
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 phase=${st0?.turnPhase} lrigDown=${JSON.stringify(st0?.host?.fieldLrigDown ?? null)} 上限=${st0?.host?.lrigAttackLimit} gLife=${st0?.guest?.life}`);
+      let attacks = 0;
+      for (let round = 0; round < 3; round++) {
+        // フェイズが流れたら貼り直す（アタックのたびに解決が走るため）。
+        for (let s = 0; s < 10; s++) {
+          await page.waitForTimeout(500);
+          const cur = await H.queryState();
+          if (cur?.turnPhase !== 'ATTACK_LRIG' && !cur?.pendingEffect && !(cur?.stackLen > 0)) {
+            await H.closeModals();
+            await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_LRIG', effect_stack: null, pending_effect: null });
+            await page.waitForTimeout(500);
+          }
+          // ガード応答やライフクラッシュ確認を先に片づける（§4.4 📌1/📌8c）。
+          const did = await H.stdStep(['発動順序を確定', 'ガードしない', 'エナに送る', '決定', '確定', 'OK', 'はい', 'このまま進む']);
+          if (!did) break;
+        }
+        const ok = await tryLrigAttack(page, H, 'タマヨリヒメ');
+        H.log(`  ${id}: ${round + 1}回目のアタック=${ok}`);
+        if (!ok) break;
+        attacks++;
+        // アタックの解決（ガード応答・ライフクラッシュ）を進める。
+        for (let s = 0; s < 12; s++) {
+          await page.waitForTimeout(500);
+          const did = await H.stdStep(['ガードしない', 'エナに送る', '発動順序を確定', '決定', 'OK', 'はい']);
+          const cur = await H.queryState();
+          if (!did && !cur?.pendingEffect && !(cur?.stackLen > 0)) break;
+        }
+      }
+      const st = await H.queryState();
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const dump = `アタック回数=${attacks} gLife=${st0?.guest?.life}→${st?.guest?.life} 上限=${st?.host?.lrigAttackLimit ?? '-'}`;
+      if (granted) {
+        // 🔴**本題＝ダウン状態から始めて2回以上アタックできる。**
+        if (attacks < 2) return { pass: false, detail: `🔴上限3を付与したのに${attacks}回しかアタックできない（ダウン中アタック／回数上限が効いていない）。${dump}` };
+        return { pass: true, detail: `ダウン状態から始めて${attacks}回アタックできた（付与された上限3）。${dump}` };
+      }
+      // 🔴**反転＝付与が無ければダウン中は1回も撃てない**（従来どおり）。
+      if (attacks > 0) return { pass: false, detail: `🔴付与が無いのにダウン状態でアタックできた（${attacks}回）＝門が緩んでいる。${dump}` };
+      return { pass: true, detail: `反転＝付与が無ければダウン状態のルリグはアタックできない。${dump}` };
+    },
+  };
+}
+scenarios.v151LrigAttackLimit3 = mkLrigAttackLimitScenario(true);
+order.push('v151LrigAttackLimit3');
+scenarios.v151LrigAttackLimitDefault = mkLrigAttackLimitScenario(false);
+order.push('v151LrigAttackLimitDefault');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -48382,6 +48501,10 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
         signiFrozen: s.field?.signi_frozen ?? null,
+        // 🆕§5.3 `O-236`（2026-09-04）＝ルリグのアタック上限まわり（`V-151` の観測点）。
+        fieldLrigDown: s.field?.lrig_down ?? null,
+        lrigAttackLimit: s.lrig_attack_limit_this_turn ?? null,
+        lrigAttackCount: s.lrig_attack_count_this_turn ?? 0,
         // 🆕§5.3 `O-185`（2026-09-04）＝「このターン、あなたはそれらを使用してもよい」の許可ストア。
         //   ⚠**カードは動かない**ので、盤面差分では「何も起きていない」と区別が付かない＝ここを見る。
         trashSpellsUsable: s.trash_spells_usable_this_turn ?? [],
