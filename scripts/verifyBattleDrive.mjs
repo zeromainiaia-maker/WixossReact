@@ -19658,6 +19658,7 @@ scenarios.o143CheckPlace = {
     H.log(`開始 checkSlot=${before?.host?.checkSlot} checkRest=${JSON.stringify(before?.host?.checkRest)} hand=${JSON.stringify(before?.host?.handCards)}`);
     let lrigOpened = false, acted = false;
     const pressed = new Set();   // §4.4 罠2c＝pick はトグル。押した index を覚えて未選択だけ押す。
+    let lastPEff = '-';          // 🔴選択画面が変わったら記憶をリセットする（下の注記）。
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${SHOT}/o143CheckPlace-${s}.png`, fullPage: true }).catch(() => {});
@@ -19679,6 +19680,12 @@ scenarios.o143CheckPlace = {
         }
       }
       if (!did) {
+        // 🔴**選択画面は2回来る**（2026-09-04・`O-152`）＝①【起】の「手札を2枚捨てる」
+        //   ②その捨てを見た【自】の「そのシグニをトラッシュからチェックゾーンに置いてもよい」。
+        //   ②は **optional**（`決定 (0/1)` が最初から enabled）なので、**押した index の記憶を
+        //   画面ごとにリセットしないと1枚も選ばずに確定してしまう**（実測でここを踏んだ）。
+        const pEffNow = st?.pendingEffect ?? '-';
+        if (pEffNow !== lastPEff) { pressed.clear(); lastPEff = pEffNow; }
         // 手札2枚捨て＝**未選択の pick を1つずつ**押す（同じ index を押し続けるとトグルで外れる）。
         for (let i = 0; i < 5 && !did; i++) {
           if (pressed.has(i)) continue;
@@ -19700,6 +19707,9 @@ scenarios.o143CheckPlace = {
     return { pass: false, detail: `チェックゾーンに1枚も置かれなかった（acted=${acted} checkSlot=${fin?.host?.checkSlot} checkRest=${JSON.stringify(fin?.host?.checkRest)} hand=${JSON.stringify(fin?.host?.handCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
   },
 };
+
+// 🏁2026-09-04（`O-152`）＝FAIL 再現用に `order` から外していたが、**修正して PASS したので既定へ戻す**。
+order.push('o143CheckPlace');
 
 scenarios.o143CheckCount = {
   title: 'WXDi-P11-006-E2（§5.3 O-143＝チェックゾーン3枚 → 相手シグニ -3000）',
@@ -45800,6 +45810,11 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
         signiFrozen: s.field?.signi_frozen ?? null,
+        // 🆕§5.3 `O-152`（2026-09-04）＝「効果による手札捨て」の直前フラグ。
+        //   `ON_HAND_DISCARDED` は **executor が立てて BattleScreen の watcher が消化する**2段構えなので、
+        //   **立っているのに消化されない**のか**そもそも立たない**のかはここでしか切り分けられない。
+        handDiscardedJust: s.hand_discarded_just ?? null,
+        handDiscardedJustByOpp: s.hand_discarded_just_by_opp ?? null,
         // §5.3 O-55：【トラップ】設置の観測点（どのカードがどのゾーンに裏向きで置かれたか）。
         signiTraps: s.field?.signi_traps ?? [null, null, null],
         // 🆕§5.1 `V-113`（2026-09-01）＝各シグニゾーンの【ウィルス】個数。

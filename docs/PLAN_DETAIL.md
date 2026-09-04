@@ -83,6 +83,15 @@
   （`banishedFrontOnly`。⚠実装したことにはしない）。
   ✅**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**。
 
+## 2026-09-04 整理②：`O-152` を🏁クローズして索引から削除
+
+> **登録票の症状（「`ON_HAND_DISCARDED` の watcher が効果による手札捨てで1件も発火しない」）は stale だった。**
+> 実機（`node scripts/verifyBattleDrive.mjs o143CheckPlace`）で **stack 0→1→0** を観測＝
+> **トリガーは正しく積まれて解決していた**。残っていたのは `to_check` の**候補の作り方**で、
+> `WXDi-P11-006-E1` 1効果だけの問題だった（母集団34効果のうち実害1）。全文は BUGFIXES.md の同日。
+
+| `O-152` | **34効果**<br>🆕2026-09-01 実測 | 🔴 `ON_HAND_DISCARDED` の watcher が「効果による手札捨て」で発火しない（配送のどこかで落ちている）<br>🔴**登録票の「1カード」は標本1枚を数えていただけ**＝live 実測で **34効果／33カード**。受け皿（`execTrash` の `hand_discarded_just`／`collectHandDiscardTriggers`）は在り、**壊れているのは配送**。⚠**再現は実機のみ**＝`node scripts/verifyBattleDrive.mjs o143CheckPlace`（`queryState` で `hand_discarded_just` が永続しているかを先に見る）<br>🆕🔴**2026-09-04（第78巡で静的に追ったが特定できなかった）**＝収集側（`triggerCollect.collectHandDiscardTriggers` の**ルリグ走査**）も、配送側（`BattleScreen` の watcher＝`hand_discarded_just` を読む `useEffect`）も**見た限り正しい**：早期 return は `bs.effect_stack || bs.pending_effect` だけで、deps に両方が入っているのでスタックが空いた時点で再実行される。⇒ **落ちているのは「フラグを載せた state 書き込み」より後**の可能性が高い。🔑**再現ドライバが在る**＝`node scripts/verifyBattleDrive.mjs o143CheckPlace`（既定 `order` からは外してある）。**実機で `hand_discarded_just` の生存を見るのが最短**（静的読みでは2回とも当てられなかった）。
+
 ## 2026-09-04 整理：§5.3 索引からクローズ行を削除（`O-92` / `O-224` / `O-245`）
 
 > **PLAN の規約**＝「クローズした項目は PLAN から消す（ID も残さない＝退避先と git 履歴が正）」。

@@ -2728,9 +2728,19 @@ export function execStubPart2(
       const pendingLooked = stub.trapSource === 'looked' && stub.value == null && (ctx.lastProcessedCards?.length ?? 0) > 1;
       const pendingOptional = stub.upToCount === true && stub.value == null;
       if (pendingLooked || pendingOptional) {
+        // 🆕🔴**§5.3 `O-152`（2026-09-04・実機で発覚）＝トリガー起点では `lastProcessedCards` が空。**
+        //   `WXDi-P11-006-E1`「あなたがシグニを１枚捨てたとき、…**そのシグニを**トラッシュから
+        //   チェックゾーンに置いてもよい」は **`ON_HAND_DISCARDED` の StackEntry** から実行されるので、
+        //   `lastProcessedCards`（＝同じ効果の中で直前に処理した札）は**必ず空**＝
+        //   「チェックゾーン：候補なし」で**恒久 no-op** だった（トリガー自体は正しく積まれて解決していた）。
+        //   ⇒ **「そのカード」＝`triggeringCardNum`** を候補のフォールバックにする。
+        //   ⚠**`lastProcessedCards` があるときはそちらを優先**（同一効果内の連続処理を壊さない）。
+        const trapCheckSeed = (ctx.lastProcessedCards?.length ?? 0) > 0
+          ? ctx.lastProcessedCards!
+          : (ctx.triggeringCardNum ? [ctx.triggeringCardNum] : []);
         const candidates = stub.trapSource === 'trash'
-          ? (ctx.lastProcessedCards ?? []).filter(card => ctx.ownerState.trash.includes(card))
-          : (ctx.lastProcessedCards ?? []);
+          ? trapCheckSeed.filter(card => ctx.ownerState.trash.includes(card))
+          : trapCheckSeed;
         if (candidates.length === 0) return done(addLog(ctx, 'チェックゾーン：候補なし'));
         return needsInteraction(addLog(ctx, 'チェックゾーンに置くカードを選択'), {
           type: 'SELECT_TARGET', candidates, count: 1, optional: stub.upToCount === true,

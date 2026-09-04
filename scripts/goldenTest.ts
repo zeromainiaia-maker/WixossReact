@@ -64855,6 +64855,52 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   eq(n, 0, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
 });
 
+test('§5.3 O-152: 「そのシグニをトラッシュからチェックゾーンへ」はトリガー起点でも候補が出る', () => withSavedCursor(() => {
+  // 🔴**実機（`o143CheckPlace`）で発覚した恒久 no-op**＝`WXDi-P11-006-E1`
+  //   「あなたがシグニを１枚捨てたとき、…**そのシグニを**トラッシュからチェックゾーンに置いてもよい」は
+  //   **`ON_HAND_DISCARDED` の StackEntry** から実行されるので `lastProcessedCards` は**必ず空**＝
+  //   `to_check` の候補が0件で「チェックゾーン：候補なし」に落ち、**一度も置けなかった**。
+  // 🔑**トリガー自体は正しく積まれて解決していた**（実機で stack 0→1→0 を観測）＝
+  //   登録票の「watcher が1件も発火しない」は **stale**（配送は直っていて、残っていたのは候補の作り方）。
+  // ⇒ **「そのカード」＝`triggeringCardNum`** を候補のフォールバックにした。
+  const action = effectsMap.get('WXDi-P11-006')?.find(e => e.effectId === 'WXDi-P11-006-E1')?.action;
+  ok(!!action, 'WXDi-P11-006-E1 が live にある');
+  const discarded = findCard(c => isSigni(c));
+  // トリガー起点＝`lastProcessedCards` は空で、`triggeringCardNum` に「捨てられたシグニ」が入る。
+  const ctx = mkCtx({}, {}, 'WXDi-P11-006');
+  ctx.ownerState.trash = [discarded];
+  ctx.ownerState.field = { ...ctx.ownerState.field, check_rest: [] };
+  ctx.lastProcessedCards = [];
+  ctx.triggeringCardNum = discarded;
+  const offered = executeAction(action as EffectAction, ctx);
+  ok(!offered.done && offered.pending?.type === 'SELECT_TARGET',
+    '🔴トリガー起点でも「チェックゾーンに置くカードを選択」が出る（旧は候補なしで無言 done）');
+  if (!offered.done && offered.pending.type === 'SELECT_TARGET') {
+    eq(JSON.stringify(offered.pending.candidates), JSON.stringify([discarded]),
+      '候補は「そのシグニ」1枚（トラッシュに在ること）');
+    eq(offered.pending.optional, true, '「置いてもよい」＝任意');
+  }
+  // 🔴**負方向①＝トラッシュに無ければ候補にしない**（「トラッシュから」と原文が書いている）。
+  const gone = mkCtx({}, {}, 'WXDi-P11-006');
+  gone.ownerState.trash = [];
+  gone.lastProcessedCards = [];
+  gone.triggeringCardNum = discarded;
+  ok(executeAction(action as EffectAction, gone).done, 'トラッシュに無ければ対話を出さない');
+  // 🔴**負方向②＝`lastProcessedCards` があるときはそちらを優先**（同一効果内の連続処理を壊さない）。
+  const other = findCard(c => isSigni(c) && c !== discarded);
+  const chained = mkCtx({}, {}, 'WXDi-P11-006');
+  chained.ownerState.trash = [discarded, other];
+  chained.lastProcessedCards = [other];
+  chained.triggeringCardNum = discarded;
+  const chainedOffer = executeAction(action as EffectAction, chained);
+  if (!chainedOffer.done && chainedOffer.pending.type === 'SELECT_TARGET') {
+    eq(JSON.stringify(chainedOffer.pending.candidates), JSON.stringify([other]),
+      'lastProcessedCards があるときはそちらが候補（フォールバックに奪われない）');
+  } else {
+    ok(false, 'lastProcessedCards があるときも対話が出る');
+  }
+}));
+
 test('§5.1 V-146: 印字キーワードコストは manualEffects を持つカードでも起動時経路で残る', () => {
   // 🔴**実機で見つけた真 no-op**＝`buildEffectsMap`（起動時に UI が使う唯一の経路）は
   //   `mergeManualEffects` を通すが、あれは **effectId 一致で常に manual 側を勝たせる**ので、
