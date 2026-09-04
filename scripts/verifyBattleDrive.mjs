@@ -48138,7 +48138,11 @@ function mkCounterVampScenario(counted) {
         if (!chose) {
           const b = page.getByRole('button', { name: /^(✓ )?選択肢1$/ }).first();
           if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
-            await b.click({ timeout: 1200 }).catch(() => {}); chose = true; did = `opt:選択肢${optNo}`;
+            // 🔴**2026-09-05 修正**＝ここは `${optNo}` を参照していたが、この関数（`mkCounterVampScenario`）には
+            //   `optNo` が無い（`mkUkaroProtectScenario` からのコピー漏れ）。`ReferenceError` で
+            //   **`v149LeftByOppBanish` / `v149LeftByOppNone` の2本が起動直後に例外死**しており、
+            //   ずっと回帰カバレッジ0だった（一括実行のログで初めて出た）。
+            await b.click({ timeout: 1200 }).catch(() => {}); chose = true; did = 'opt:選択肢1';
           }
         }
         if (!did && !picked) {

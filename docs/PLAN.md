@@ -737,6 +737,14 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 - 🔴🆕**`npm run typecheck`（`tsc -b`）は `scripts/` を見ていない**（`tsconfig.app.json` の `include: ["src"]`）＝`goldenTest.ts` に型の合わない古い式が残っても**typecheck は緑**。⇒ **`scripts/` を直したら golden を実際に走らせるまで「直った」と言わない。**🔑**逆に `src/screens/` の純関数（React 非依存）は golden から import できる**＝判定ロジックは実機ではなく golden で網羅する（実機は組み合わせを網羅できない）。
 - 🔑🆕**「ゲートを通した」と「実際に置けた」は別の観測面**（`O-226`）＝「召喚」は押せるのに `SigniSummonZoneModal` が3ゾーンとも disabled だった。**ラベルの有無で止めず、最後まで置ききって盤面を assert する。**
 - 🔑🆕**実機は「盤面が動いたか」だけでなく「画面に何が出ているか」も見る**（`V-150`）＝`GrowModal` は軽減後の値を**支払い可否と要求枚数の計算にしか使わず**、印字コストをそのまま描いていた。⚠**実効パワーも同じ**＝`temp_power_mods` は `queryState` に載るが `calcFieldPowers` の結果は画面にしかない（ドライバの `readSigniEffectivePower` で DOM から読む）。
+- 🔴🆕**`verifyBattleDrive.mjs` は同時に2つ走らせない**（2026-09-05 実測）＝**1つのルームを共有する**ので、
+  背後でフルバッチが回っていると手元のシナリオが**別ゲームの盤面を掴む**。
+  ⚠**`--list` のような未対応フラグを渡すと「全シナリオを実行」になる**（`runIds` のフィルタで落ちるだけ）＝
+  一覧を見たいときは**ソースを grep する**。
+- 🔴🆕**シナリオが `drive例外` で死んでいても、単体で回さなければ気づかない**（2026-09-05）＝
+  `mkCounterVampScenario` が別関数からのコピー漏れで `optNo` を参照しており、
+  **`v149LeftByOppBanish` / `v149LeftByOppNone` の2本が起動直後に `ReferenceError` で死んでいた**
+  （＝回帰カバレッジ0のまま放置）。**フルバッチのログは `❌ FAIL` だけでなく `drive例外` を grep する。**
 - 🔴🆕**無効なボタンを `.click().catch(() => {})` で押すと30秒溶ける**（`O-248`・2026-09-05）＝
   Playwright は**無効なボタンが有効になるまで待つ**（既定30秒）。その間に CPU がゲームを終わらせ、
   **新しいゲームが張られて観測が別盤面に化ける**。「できないこと」を主張する観測は
