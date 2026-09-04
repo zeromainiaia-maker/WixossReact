@@ -137,12 +137,15 @@ if (fs.existsSync('docs/_idset_fresh.json')) {
   for (const c of Object.keys(JSON.parse(fs.readFileSync('docs/_idset_fresh.json', 'utf-8')))) mark(c, 'idset');
 }
 
+let mechOpenIds = [];
 // (6) 🆕**PLAN §5.3 の機構 worklist（`O-nn`）に名指しされているカード**（2026-08-30 続き736 新設）。
 //     ここに載るカードは「JSON を直すだけでは閉じられない＝engine/型に受け皿が要る」と判定済みなので、
 //     **カード単位のバッチから外して取る**（外さないと「調べ直して → 機構待ちと再確認 → 据置」に時間を使う。
 //     実測＝§5.2 Sheet2 バッチ6 は 54件の triage で 19件が既登録の機構待ちで、閉じられたのは6件だった）。
 // ⚠**この判定は下限**＝登録票は代表カードしか書いていないものが多い（「母集団未計測」が頻出）。
 //     **`mech` が立たない ≠ 機構待ちでない。** 開いた先で機構待ちと分かるカードは依然として出る。
+// 🆕⚠**逆に「立つ ＝ 機構待ち」でもない**＝登録票の本文は**先行実装例・反例・事故の実例**としてもカード番号を
+//     引く（`O-187`）。**開いた項目の本文だけ**に絞ってなお残る引用は数え続けるので、開く前に本文を読むこと。
 // ⚠**部分一致の罠**＝`WX24-P2` は `WX24-P2-009` の部分文字列なので、直後が英数字なら別カードとして弾く
 //     （`-E1` / `-BURST` のような接尾辞つき表記は同じカードなので拾う）。
 // 🔴**2026-09-01 に読む範囲を2ファイルへ広げた。** §5.3 は同日の再編で「索引表（PLAN.md）＋登録票の全文
@@ -161,21 +164,35 @@ if (fs.existsSync('docs/_idset_fresh.json')) {
   const tickets = dFrom >= 0 ? detailText.slice(dFrom, dTo > dFrom ? dTo : detailText.length) : '';
   if (!tickets) console.error('⚠ PLAN_DETAIL.md の §5.3 登録票節を切り出せなかった＝mech フラグが大幅に過少になる（節見出しが変わった可能性）');
 
-  // 🆕**クローズ済みの登録票は数えない**（2026-09-01 続き771）＝PLAN の運用では
-  //   「クローズした項目は §5.3 の索引から消すが、登録票の全文は PLAN_DETAIL に残す」ので、
-  //   登録票をそのまま読むと**消化しても mech が減らない**（この計器の目的＝1シートを分母にした
-  //   **単調減少するカウンタ**が成り立たなくなる）。
-  //   ⚠**判定は「見出しの直後に 🏁 がある」ことだけ**＝本文中の 🏁（「主群4効果を消化」等の部分消化）は
-  //     項目自体のクローズではないので数え続ける（fail-open 側＝過少に出さない）。
+  // 🆕🔴**「まだ開いている項目」の正は §5.3 の索引テーブルだけ**（2026-09-05 `O-187` でクローズ）。
+  //   旧実装は登録票の**見出し直後の 🏁**でクローズを判定していたが、**PLAN の運用はそこに 🏁 を書かない**
+  //   （「消化したら索引の行ごと消す」だけで、登録票は無改変のまま PLAN_DETAIL に残る）。
+  //   ⇒ 実測＝登録票 114件のうち 🏁 判定で落ちたのは 64件で、**残り50件のうち 44件は既にクローズ済み**。
+  //     その44件の本文（`O-60` 62枚・`O-185` 34枚・`O-128` 32枚…）に出てくる**引用カードまで全部** `mech` に化け、
+  //     **カード数 316 / Sheet1 17枚**を機構待ちに数えていた（＝正しく動いているカードが要対応に居座る）。
+  //   ⇒ **索引テーブルの行（`| \`O-nn\` |`）に出る ID だけを開いているものとして扱う。**
+  //   ⚠**この経路は fail-closed**＝索引の書式を表以外（箇条書き等）に変えると**その項目が丸ごと数から消える**。
+  //     0件になったら異常なので下で止める。**新規登録は必ず索引に1行（表）で足すこと**（§5.3 の登録ルール）。
+  const openIds = new Set([...sec53.matchAll(/^\|\s*`(O-\d+)`/gm)].map(m => m[1]));
+  mechOpenIds = [...openIds];
+  if (sec53 && openIds.size === 0) {
+    console.error('⚠ PLAN.md §5.3 の索引テーブルから O-nn を1件も拾えなかった＝mech フラグが登録票ぶん0件になる（索引の書式が変わった可能性）');
+  }
   const openTickets = tickets
     .split(/\n(?=### `O-\d+`)/)
     .filter(block => {
-      if (!block.startsWith('### `O-')) return true;
-      const body = block.slice(block.indexOf('\n') + 1).trimStart();
-      return !body.startsWith('🏁');
+      const m = block.match(/^### `(O-\d+)`/);
+      return m ? openIds.has(m[1]) : true;   // 見出し以外（節の前文）はそのまま
     })
     .join('\n');
-  const haystack = sec53 + '\n' + openTickets;
+
+  // 🆕**「■ 監視だけしている項目（着手不要・壊れたら気付く）」は数えない**（2026-09-05 `O-187`）＝
+  //   あの節に並ぶカードは**挙動が正しいと確認済み**の反例・偽陽性・表示だけの不足であって機構待ちではない
+  //   （実測11枚＝`WX08-020` `WX18-039` `WXK01-102` ほか）。⚠**据置（過少のまま）の項目だけは
+  //   「■ 個別カードの機構待ち」側へ移してある**＝節をまたいで分類が混ざらないようにすること。
+  const watchFrom = sec53.indexOf('**■ 監視だけしている項目');
+  const sec53Work = watchFrom >= 0 ? sec53.slice(0, watchFrom) : sec53;
+  const haystack = sec53Work + '\n' + openTickets;
   for (const c of rows.keys()) {
     for (let i = haystack.indexOf(c); i >= 0; i = haystack.indexOf(c, i + 1)) {
       const next = haystack[i + c.length];
@@ -211,6 +228,7 @@ console.log(`  held（parser 改善の未採用）  : ${byFlag('held')}`);
 console.log(`  partial（同上・MANUAL 混在） : ${byFlag('partial')}`);
 console.log(`  idset（id 集合ズレ＝§6.4 O-39）: ${byFlag('idset')}`);
 console.log(`  🆕mech（PLAN §5.3 に登録済み＝機構待ち）: ${byFlag('mech')}  ※JSON 修正では閉じない。開く前に §5.3 を読む（この判定は**下限**）`);
+console.log(`     └ 参照した §5.3 索引の未クローズ項目: ${mechOpenIds.length ? mechOpenIds.join(' ') : '（0件＝索引の書式を確認）'}`);
 console.log(`\n===== 束ねた現在地（${scopeLabel}）=====`);
 console.log(`  🎯要対応カード（フラグ1つ以上）: ${flagged.length} / ${withEffects.length}  (${pct(flagged.length, withEffects.length)})`);
 console.log(`  どのフラグも立たないカード     : ${clean.length} / ${withEffects.length}  (${pct(clean.length, withEffects.length)})`);
