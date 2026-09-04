@@ -46819,6 +46819,266 @@ scenarios.v139RiseIconDest = {
 };
 order.push('v139RiseIconDest');
 
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-140`（`O-60` 第59バッチ＝**比例パワー修正・全体トラッシュ・選んだ能力の付与**）
+// 🔴この巡の3つの落とし穴（PLAN §5.1 の登録票）＝
+//   ①**自己再帰する受け皿は `continuation` / `thenAction` にも payload を積む**
+//   ②**「外れたときの既定値」が具体値なら原文に無い数値の焼き込みを疑う**
+//     （`POWER_MOD_BY_COLOR_VARIETY` は regex が外れると色が何種でも `-3000` 固定だった）
+//   ③**payload 化したら逆翻訳の固定文言も撤去する**
+//     （`TRASH_ALL_SIGNI_AND_KEY` は engine と `decompileEffects.ts` が**同じ嘘で一致**していたので計器が緑のままだった）
+// ⚠**payload は `o190LiveEffect` で live から読む**（手書きすると観測の意味が消える）。
+// -----------------------------------------------------------------------------
+
+// ── ① `WX07-017`（台風一過）＝**手札・エナ・場のシグニ**が両プレイヤーとも空になる。キーは残る ──
+scenarios.v140TyphoonWipe = {
+  title: 'O-60 V-140①：WX07-017 は両プレイヤーの「手札とエナと場のシグニ」を流す（旧＝シグニとキーだけ流して手札とエナは1枚も動かなかった）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9701'],
+      'field.signi': [['WD01-013#9702'], ['WD02-013#9703'], null],
+      'field.check': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': ['WD03-013#9704', 'WD03-012#9705'],
+      'energy': ['WD05-013#9706', 'WD01-017#9707'],
+      'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD01-013#9710', 'WD01-013#9711', 'WD01-013#9712', 'WD02-013#9713'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [['WD01-013#9791'], null, null],
+      'field.check': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': ['WD03-013#9792'],
+      'energy': ['WD05-013#9793'],
+      'trash': [],
+      'deck': ['WD01-013#9796', 'WD01-013#9797'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WX07-017', 'WX07-017#9720', 'WX07-017-E1') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  v140typhoon: 開始 hand=${st0?.host?.hand} energy=${st0?.host?.energy} field=${JSON.stringify(st0?.host?.fieldSigni)} gHand=${st0?.guest?.hand} gEnergy=${st0?.guest?.energy}`);
+    // 🔑**「流れたこと」は sticky に取る**（後段の「トラッシュから3枚まで戻す」で数が戻るため・§4.4 📌8d）。
+    let wipedHand = false, wipedEnergy = false, wipedGuestHand = false, wipedGuestEnergy = false, wipedSigni = false;
+    let settled = 0, st = st0;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(500);
+      // 後段は「3枚まで」＝0枚で確定してよいので、候補は押さずに決定だけで抜ける。
+      const did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい', 'スキップ', '選ばない']);
+      st = await H.queryState();
+      wipedHand ||= (st?.host?.hand ?? 99) === 0;
+      wipedEnergy ||= (st?.host?.energy ?? 99) === 0;
+      wipedGuestHand ||= (st?.guest?.hand ?? 99) === 0;
+      wipedGuestEnergy ||= (st?.guest?.energy ?? 99) === 0;
+      wipedSigni ||= JSON.stringify(st?.host?.fieldSigni ?? []) === JSON.stringify([null, null, null]);
+      H.log(`  v140typhoon[${s}] -> ${did ?? 'なし'} | hand=${st?.host?.hand}(w=${wipedHand}) ena=${st?.host?.energy}(w=${wipedEnergy}) field=${JSON.stringify(st?.host?.fieldSigni)}(w=${wipedSigni}) gHand=${st?.guest?.hand}(w=${wipedGuestHand}) gEna=${st?.guest?.energy}(w=${wipedGuestEnergy}) pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v140TyphoonWipe-final.png`, fullPage: true });
+    const dump = `自分 hand=${wipedHand} energy=${wipedEnergy} signi=${wipedSigni}／相手 hand=${wipedGuestHand} energy=${wipedGuestEnergy}｜最終 trash=${st?.host?.trash} gTrash=${st?.guest?.trash}`;
+    // 🔴**本題を先に判定**＝旧はシグニだけ流れて手札とエナが1枚も動かなかった。
+    if (!wipedSigni) return { pass: false, detail: `🔴場のシグニが流れていない。${dump}` };
+    if (!wipedHand || !wipedEnergy) return { pass: false, detail: `🔴自分の手札／エナが流れていない（旧挙動＝zones が signi だけ）。${dump}` };
+    if (!wipedGuestHand || !wipedGuestEnergy) return { pass: false, detail: `🔴相手側が流れていない（owner:'both' が効いていない）。${dump}` };
+    return { pass: true, detail: `両プレイヤーの手札・エナ・場のシグニがすべて流れた。${dump}` };
+  },
+};
+order.push('v140TyphoonWipe');
+
+// ── ② `WXK10-084`＝アタックした＜トリック＞の**レベル1につき−1000**（効果元のレベルではない）──
+// 🔴**1ビットだけ反転する対**＝アタッカーの**レベルだけ** Lv1 ↔ Lv4 に替える（盤面の他は一切変えない）。
+const V140_TRICK_L1 = 'WDK04-016#9730';  // 小罠 クラウン・キャノン（精武：トリック Lv1・バニラ）
+const V140_TRICK_L4 = 'WXK01-101#9730';  // 超罠 ドロンコ（精武：トリック Lv4・バニラ）＝**同じインスタンスIDで差し替える**
+const V140_WATCHER = 'WXK10-084#9731';   // 大罠 キノコイモムシ（【自】＝観測対象の watcher）
+const V140_OPP_EVEN = 'WD01-016#9780';   // サーバント Ｄ（Lv2＝**偶数**＝E1 の対象）
+const V140_OPP_ODD = 'WD01-017#9781';    // サーバント Ｏ（Lv1＝**奇数**＝E1 の対象外）
+
+function mkTrickPowerScenario(lv4) {
+  const id = lv4 ? 'v140TrickLevel4' : 'v140TrickLevel1';
+  const attacker = lv4 ? V140_TRICK_L4 : V140_TRICK_L1;
+  const want = lv4 ? -4000 : -1000;
+  return {
+    title: `O-60 V-140②：WXK10-084 は「アタックしたシグニのレベル1につき−1000」＝レベル${lv4 ? '4なら−4000' : '1なら−1000'}（旧＝効果元 Lv3 に引きずられうる）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WDK15-001#9732'],           // ナナシ 其ノ四ノ報（Lv4 / Limit11・グズ子ではないが watcher の限定は召喚時のみ）
+        'field.signi': [[attacker], [V140_WATCHER], null],
+        'field.signi_down': [false, false, false],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD01-013#9740', 'WD01-013#9741'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9790'],
+        // ⚠**正面（zone0）に偶数レベルのシグニ**＝アタックが素通りしてライフクラッシュにならないようにする
+        //   （§4.4 📌8e＝ゾーン index は正面で一致しないので3ゾーンとも埋める）。
+        'field.signi': [[V140_OPP_EVEN], [V140_OPP_ODD], [`${V140_OPP_EVEN.split('#')[0]}#9782`]],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'life_cloth': ['WD01-013#9793', 'WD01-013#9794', 'WD01-013#9795'],
+        'deck': ['WD01-013#9796', 'WD01-013#9797'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 phase=${st0?.turnPhase} field=${JSON.stringify(st0?.host?.fieldSigni)} gPow=${JSON.stringify(st0?.guest?.powerMods)}`);
+      let opened = false, attacked = false, candLabels = null, picked = false, settled = 0, st = st0;
+      for (let s = 0; s < 28; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const cur = await H.queryState();
+        if (!attacked && cur?.turnPhase !== 'ATTACK_SIGNI' && !cur?.pendingEffect && !(cur?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(500);
+          opened = false; did = `repatch:ATTACK_SIGNI`;
+        }
+        if (!did && !attacked) {
+          if (!opened) { const o = await H.clickTestId('my-signi-zone-0'); opened = !!o; did = o; }
+          if (!did) { const a = await H.clickBtn('アタック', { exact: true }); if (a) { attacked = true; did = a; } }
+          if (!did && opened) opened = false;   // 開き直す（§4.4 📌24）
+        }
+        // 対象候補（レベルが偶数の相手シグニだけ）を**押す前に記録する**。
+        if (!did) {
+          const pk = page.locator('[data-testid^="pick-"]');
+          const n = await pk.count().catch(() => 0);
+          if (n > 0) {
+            if (candLabels === null) {
+              candLabels = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="pick-"]'))
+                .map(el => el.getAttribute('data-card-num') || ''));
+              H.log(`  ${id}: 対象候補=${JSON.stringify(candLabels)}`);
+            }
+            if (!picked) { await pk.first().click({ timeout: 1200 }).catch(() => {}); picked = true; did = 'pick-0'; }
+          }
+        }
+        const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || picked;
+        if (!did && mayDecide) did = await clickDecideNofM(page);
+        if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', 'ガードしない', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | atk=${attacked} picked=${picked} gPow=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (attacked && picked && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 3) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const mods = st?.guest?.powerMods ?? [];
+      const dump = `対象候補=${JSON.stringify(candLabels)} gPowerMods=${JSON.stringify(mods)} field=${JSON.stringify(st?.host?.fieldSigni)}`;
+      if (!attacked) return { pass: false, detail: `前提崩れ＝アタックできていない。${dump}` };
+      if (candLabels === null) return { pass: false, detail: `🔴対象選択が1度も出ない＝【自】が発火していない。${dump}` };
+      // 🔴**本題①＝候補の偶奇はアタッカーの偶奇で反転する**＝
+      //   E1「レベルが**奇数**のトリックがアタック → レベルが**偶数**の相手シグニ」／
+      //   E2「レベルが**偶数**のトリックがアタック → レベルが**奇数**の相手シグニ」。
+      //   ⚠**この反転こそが観測点**（片方だけ見ると「偶数固定」でも緑になる）。
+      const wantNum = (lv4 ? V140_OPP_ODD : V140_OPP_EVEN).split('#')[0];
+      const badNum = (lv4 ? V140_OPP_EVEN : V140_OPP_ODD).split('#')[0];
+      if (candLabels.some(x => String(x).startsWith(badNum))) {
+        return { pass: false, detail: `🔴レベルが${lv4 ? '偶数' : '奇数'}の相手シグニが候補に出た＝アタッカーの偶奇で対象が反転していない。${dump}` };
+      }
+      if (!candLabels.some(x => String(x).startsWith(wantNum))) {
+        return { pass: false, detail: `前提崩れ＝候補に ${wantNum} が居ない。${dump}` };
+      }
+      // 🔴**本題②＝−1000 × アタックしたシグニのレベル**（効果元 Lv3 に引きずられない）。
+      const hit = mods.find(m => m.endsWith(`:${want}`));
+      if (!hit) return { pass: false, detail: `🔴パワー修整が ${want} でない＝アタックしたシグニのレベルを読んでいない。${dump}` };
+      return { pass: true, detail: `レベル${lv4 ? 4 : 1}（${lv4 ? '偶' : '奇'}数）のトリックがアタック → ${want}／候補はレベルが${lv4 ? '奇' : '偶'}数の相手シグニだけ。${dump}` };
+    },
+  };
+}
+scenarios.v140TrickLevel1 = mkTrickPowerScenario(false);
+order.push('v140TrickLevel1');
+scenarios.v140TrickLevel4 = mkTrickPowerScenario(true);
+order.push('v140TrickLevel4');
+
+
+// ── `V-140` 反転確認＝`WXDi-D06-016-E2`（`POWER_MOD_BY_COLOR_VARIETY`）──
+// 🔴**旧は regex が外れると「原文に無い既定 −3000（1種ぶん）」へ落ちた**＝
+//   自分の場のシグニが何色あっても **−3000 固定**になりうる形だった。
+// 🔑**「外れたときの既定値が具体値」なら原文に無い数値の焼き込みを疑う**（この巡の一般則②）。
+// 🔴**1ビットだけ反転する対**＝盤面のシグニ3体の**色だけ**を「3種」↔「1種」に替える（枚数・レベルは同じ）。
+const V140_C_WHITE = 'WD01-013#9750';   // 小剣 ククリ（白 Lv1 バニラ）
+const V140_C_RED = 'WD02-013#9751';     // 羅石 アイロン（赤 Lv1 バニラ）
+const V140_C_BLUE = 'WD03-013#9752';    // コードアート Ｓ・Ｃ（青 Lv1 バニラ）
+const V140_C_WHITE2 = 'WD01-013#9753';
+const V140_C_WHITE3 = 'WD01-013#9754';
+const V140_C_TARGET = 'WD01-013#9785';  // 相手シグニ（対象）
+
+function mkColorVarietyScenario(threeColors) {
+  const id = threeColors ? 'v140ColorVariety3' : 'v140ColorVariety1';
+  const mine = threeColors
+    ? [[V140_C_WHITE], [V140_C_RED], [V140_C_BLUE]]
+    : [[V140_C_WHITE], [V140_C_WHITE2], [V140_C_WHITE3]];
+  const want = threeColors ? -9000 : -3000;
+  return {
+    title: `O-60 V-140 反転：WXDi-D06-016 の減少量は「あなたの場のシグニが持つ色の種類 × −3000」＝${threeColors ? '3種で−9000' : '1種で−3000'}（旧＝regex が外れると常に−3000）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9755'],
+        'field.signi': mine,
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD01-013#9756', 'WD01-013#9757'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9790'],
+        'field.signi': [[V140_C_TARGET], null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9796', 'WD01-013#9797'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WXDi-D06-016', 'WXDi-D06-016#9758', 'WXDi-D06-016-E2') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 myField=${JSON.stringify(st0?.host?.fieldSigni)} gPow=${JSON.stringify(st0?.guest?.powerMods)} stack=${st0?.stackLen}`);
+      let picked = false, settled = 0, st = st0;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const cur = await H.queryState();
+        const pk = page.locator('[data-testid^="pick-"]');
+        const n = await pk.count().catch(() => 0);
+        if (n > 0 && !picked) { await pk.first().click({ timeout: 1200 }).catch(() => {}); picked = true; did = 'pick-0'; }
+        const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || picked;
+        if (!did && mayDecide) did = await clickDecideNofM(page);
+        if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | picked=${picked} gPow=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 3) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const mods = st?.guest?.powerMods ?? [];
+      const dump = `自分の場=${JSON.stringify(st?.host?.fieldSigni)} gPowerMods=${JSON.stringify(mods)}`;
+      if (mods.length === 0) return { pass: false, detail: `🔴パワー修整が1つも乗っていない＝効果が走っていない。${dump}` };
+      const hit = mods.find(m => m.endsWith(`:${want}`));
+      if (!hit) {
+        const got = mods.map(m => m.split(':').pop()).join(',');
+        return { pass: false, detail: `🔴減少量が ${want} でない（実測 ${got}）＝${threeColors ? '色の種類を数えず既定 −3000 へ落ちている（旧挙動）' : '1種なのに過剰'}。${dump}` };
+      }
+      return { pass: true, detail: `自分の場のシグニの色が${threeColors ? '3種で −9000' : '1種で −3000'}（種類数 × −3000）。${dump}` };
+    },
+  };
+}
+scenarios.v140ColorVariety3 = mkColorVarietyScenario(true);
+order.push('v140ColorVariety3');
+scenarios.v140ColorVariety1 = mkColorVarietyScenario(false);
+order.push('v140ColorVariety1');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
