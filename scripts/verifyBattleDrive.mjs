@@ -47192,6 +47192,196 @@ order.push('v145LayerCopyTwo');
 scenarios.v145LayerCopyNone = mkLayerCopyScenario(false);
 order.push('v145LayerCopyNone');
 
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-149`（`O-233`＝**相手の効果で場を離れたシグニのターン内カウンタ**）
+// `SPK16-13E-E1`①「対戦相手のシグニ１体を対象とし、**このターンに対戦相手の効果によってあなたのシグニが
+// 場を離れていた場合**、それをバニッシュする」＝新設の条件語彙 `SIGNI_LEFT_BY_OPP_EFFECT`。
+// 🔑**1ビットだけ反転する対**＝盤面は同じで、`signi_left_by_opp_effect_this_turn` の有無だけを変える。
+// ⚠**カウンタを増やす側（`BattleScreen.tsx:3407` の `causeOwnerId` 判定）はこの2本では踏んでいない**
+//   ＝ここで見るのは「条件が読まれて枝が分かれること」。カウンタの生成経路は別の観測点が要る。
+// -----------------------------------------------------------------------------
+
+const V149_OPP_TARGET = 'WD01-013#9900';
+function mkCounterVampScenario(counted) {
+  const id = counted ? 'v149LeftByOppBanish' : 'v149LeftByOppNone';
+  const hostSet = {
+    'field.lrig': ['WD01-001#9901'],
+    'field.signi': [['WD02-013#9902'], null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': [], 'lrig_trash': [],
+    'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+    'actions_done': [], 'game_actions_done': [],
+    'deck': ['WD01-013#9910', 'WD01-013#9911', 'WD01-013#9912'],
+  };
+  // ⚠**反転側はキーごと書かない**＝「0」ではなく「そもそも起きていない」が実体。
+  if (counted) hostSet['signi_left_by_opp_effect_this_turn'] = 1;
+  return {
+    title: `O-233 V-149：SPK16-13E の①は「このターンに相手の効果で自分のシグニが場を離れていた場合」だけバニッシュする（${counted ? '成立' : '反転'}）`,
+    spec: {
+      hostSet,
+      guestSet: {
+        'field.lrig': ['WD01-001#9990'],
+        'field.signi': [[V149_OPP_TARGET], null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9996', 'WD01-013#9997'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2,
+        effectStack: o190EffectStack('SPK16-13E', 'SPK16-13E#9920', 'SPK16-13E-E1') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 gField=${JSON.stringify(st0?.guest?.fieldSigni)} gTrash=${JSON.stringify(st0?.guest?.trashCards)} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+      let chose = false, picked = false, settled = 0, st = st0, doneClicking = false;
+      let peakGuestField = st0?.guest?.fieldSigni ?? [];
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        const cur = await H.queryState();
+        if (doneClicking) { st = cur; if (s > 6) break; continue; }
+        let did = null;
+        if (!chose) {
+          const b = page.getByRole('button', { name: /^(✓ )?選択肢1$/ }).first();
+          if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+            await b.click({ timeout: 1200 }).catch(() => {}); chose = true; did = 'opt:選択肢1';
+          }
+        }
+        if (!did && !picked) {
+          const pk = page.locator('[data-testid^="pick-"]').first();
+          if (await pk.count() && await pk.isVisible().catch(() => false)) { await pk.click({ timeout: 1200 }).catch(() => {}); picked = true; did = 'pick-0'; }
+        }
+        const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || picked;
+        if (!did && mayDecide) did = await clickDecideNofM(page);
+        if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい', 'ベットしない', 'スキップ']);
+        st = await H.queryState();
+        if (JSON.stringify(st?.guest?.fieldSigni ?? []).includes(V149_OPP_TARGET)) peakGuestField = st?.guest?.fieldSigni ?? [];
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | chose=${chose} picked=${picked} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (chose && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 2) doneClicking = true;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const onField = JSON.stringify(st?.guest?.fieldSigni ?? []).includes(V149_OPP_TARGET);
+      const dump = `選択肢1=${chose} 対象を選んだ=${picked} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy} gTrash=${JSON.stringify(st?.guest?.trashCards)}`;
+      if (!chose) return { pass: false, detail: `前提崩れ＝3択の「選択肢1」を押せていない。${dump}` };
+      if (counted) {
+        if (onField) return { pass: false, detail: `🔴カウンタが立っているのに相手シグニが残っている＝条件が読まれていない。${dump}` };
+        return { pass: true, detail: `このターンに相手の効果で自分のシグニが場を離れていたので、相手シグニ1体をバニッシュできた。${dump}` };
+      }
+      if (!onField) return { pass: false, detail: `🔴条件を満たしていないのにバニッシュされた＝条件が無条件成立になっている。${dump}` };
+      return { pass: true, detail: `反転＝カウンタが立っていなければ相手シグニは場に残る（①は空振り）。${dump}` };
+    },
+  };
+}
+scenarios.v149LeftByOppBanish = mkCounterVampScenario(true);
+order.push('v149LeftByOppBanish');
+scenarios.v149LeftByOppNone = mkCounterVampScenario(false);
+order.push('v149LeftByOppNone');
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-136`（`O-60` 第51バッチ＝`WXDi-P15-067`（INSPIRATION・**スペル**））
+// 「カードを２枚引く。あなたの手札から＜解放派＞のシグニ１枚をあなたの＜解放派＞のシグニ１体の**下に置いてもよい**。」
+// 🔴**旧はこの2文目が1度も動かなかった**＝効果元が**スペル**なので `PLACE_UNDER_SOURCE_SIGNI` の
+//   「効果元シグニのゾーン」検索が `-1` を返し、**無言で終了**していた。
+//   ⇒ **「対話が出ること」自体が観測点。**
+// ⚠**反転確認**＝場に＜解放派＞のシグニが1体も無ければ対話が出ない（置き先なし）。
+// -----------------------------------------------------------------------------
+
+const V136_HOST_KAIHO = 'WXDi-P15-060#9930';  // 幻竜 遊月//THE DOOR（解放派 Lv1）＝置き先
+const V136_HAND_KAIHO = 'WXDi-P15-061#9931';  // 羅星 サシェ//THE DOOR（解放派 Lv1）＝手札から置く側
+const V136_NON_KAIHO = 'WD01-013#9932';       // 小剣 ククリ（解放派ではない）＝候補外の対照
+
+/** @param hasHost true＝場に＜解放派＞が居る（対話が出る）／false＝居ない（**対話が出ない**反転） */
+function mkInspirationScenario(hasHost) {
+  const id = hasHost ? 'v136PlaceUnderKaiho' : 'v136PlaceUnderNoHost';
+  return {
+    title: `O-60 V-136：WXDi-P15-067（スペル）は「手札の＜解放派＞を場の＜解放派＞の下に置く」対話を出す（${hasHost ? '置き先あり' : '反転＝置き先なし'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9933'],
+        // ⚠**置き先は＜解放派＞1体＋非解放派1体**＝絞り込みが効いていることを候補の中身で見る。
+        'field.signi': hasHost ? [[V136_HOST_KAIHO], [V136_NON_KAIHO], null] : [[V136_NON_KAIHO], null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [V136_HAND_KAIHO],
+        'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD01-013#9940', 'WD01-013#9941', 'WD02-013#9942', 'WD03-013#9943'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9990'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9996', 'WD01-013#9997'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WXDi-P15-067', 'WXDi-P15-067#9934', 'WXDi-P15-067-E1') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 hand=${JSON.stringify(st0?.host?.handCards)} field=${JSON.stringify(st0?.host?.fieldSigni)} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+      let destLabels = null, picked = false, settled = 0, st = st0, doneClicking = false;
+      let peakField = st0?.host?.fieldSigni ?? [];
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        const cur = await H.queryState();
+        if (doneClicking) { st = cur; if (s > 6) break; continue; }
+        let did = null;
+        // 置き先の CHOOSE（「〜の下（ゾーンN）」）が出たら**押す前にラベルを記録**する。
+        // ⚠**ラベルは「<カード名>の下に置く」**（`execStubPart2.ts:93`）＝
+        //   「の下」で終端固定にすると1つも当たらない（実測＝CHOOSE は開いているのに18秒空振り）。
+        const zb = page.getByRole('button', { name: /の下に置く$/ });
+        const zn = await zb.count().catch(() => 0);
+        if (zn > 0 && destLabels === null) {
+          destLabels = [];
+          for (let i = 0; i < zn; i++) destLabels.push(((await zb.nth(i).textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim());
+          H.log(`  ${id}: 置き先候補=${JSON.stringify(destLabels)}`);
+        }
+        if (zn > 0) { await zb.first().click({ timeout: 1200 }).catch(() => {}); did = `dest:${destLabels?.[0]}`; await page.waitForTimeout(500); }
+        if (!did && !picked) {
+          const pk = page.locator('[data-testid^="pick-"]').first();
+          if (await pk.count() && await pk.isVisible().catch(() => false)) { await pk.click({ timeout: 1200 }).catch(() => {}); picked = true; did = 'pick-0'; }
+        }
+        const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || picked;
+        if (!did && mayDecide) did = await clickDecideNofM(page);
+        if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        const f = st?.host?.fieldSigni ?? [];
+        if (JSON.stringify(f).includes(V136_HAND_KAIHO)) peakField = f;
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | 置き先UI=${destLabels !== null} picked=${picked} hand=${JSON.stringify(st?.host?.handCards)} field=${JSON.stringify(f)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 3) doneClicking = true;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const field = JSON.stringify(peakField);
+      const dump = `置き先候補=${JSON.stringify(destLabels)} field=${field} hand=${JSON.stringify(st?.host?.handCards)}`;
+      if (!hasHost) {
+        if (destLabels !== null) return { pass: false, detail: `🔴場に＜解放派＞が1体も居ないのに置き先の対話が出た。${dump}` };
+        if (field.includes(V136_HAND_KAIHO)) return { pass: false, detail: `🔴置き先が無いのに手札のシグニが場へ移った。${dump}` };
+        return { pass: true, detail: `反転＝置き先が無ければ対話は出ず、手札のシグニも動かない（2枚引くだけ）。${dump}` };
+      }
+      // 🔴**本題＝対話が出ること自体**（旧はスペルなので無言終了だった）。
+      if (destLabels === null) return { pass: false, detail: `🔴置き先の対話が1度も出ない＝効果元がスペルだと無言終了する旧挙動。${dump}` };
+      if (destLabels.length !== 1) return { pass: false, detail: `🔴置き先候補が1件でない（${destLabels.length}件＝${JSON.stringify(destLabels)}）＝＜解放派＞に絞られていない。${dump}` };
+      if (!field.includes(V136_HAND_KAIHO)) return { pass: false, detail: `🔴選んだのに手札のシグニが下へ入っていない。${dump}` };
+      const zone0 = JSON.stringify(peakField[0] ?? []);
+      if (!(zone0.includes(V136_HAND_KAIHO) && zone0.includes(V136_HOST_KAIHO))) {
+        return { pass: false, detail: `🔴＜解放派＞のスタックが2枚になっていない（zone0=${zone0}）。${dump}` };
+      }
+      return { pass: true, detail: `スペルからでも置き先の対話が出て、候補は＜解放派＞1体だけ。手札の＜解放派＞がその下に入りスタックが2枚になった。${dump}` };
+    },
+  };
+}
+scenarios.v136PlaceUnderKaiho = mkInspirationScenario(true);
+order.push('v136PlaceUnderKaiho');
+scenarios.v136PlaceUnderNoHost = mkInspirationScenario(false);
+order.push('v136PlaceUnderNoHost');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
