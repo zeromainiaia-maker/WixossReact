@@ -46036,6 +46036,473 @@ scenarios.v135CheckFromDeckBottom = {
 };
 order.push('v135CheckFromDeckBottom');
 
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-137`（`O-60` 第57バッチ＝`O-228`＝**`SOUL_OP` のコスト先取り撤去**）
+// 🔴**旧実装は `SEQUENCE[STUB{SOUL_OP}, CONDITIONAL{IS_MY_TURN}]` を見つけると
+//   「ソウルを使用して発動しますか？」を出し、`available: hasSoul`＝**効果元がシグニゾーンに居ること**を
+//   要求していた。原文は「〈この／あなたの〉**ルリグ**の下からカードN枚をルリグトラッシュに置いてもよい」で、
+//   効果元はルリグ／ピース＝**シグニゾーンに居ない**ので、**支払い肢が常にグレー＝恒久 no-op**だった。
+//   ⇒ 正しい受け皿 `OPTIONAL_LRIG_UNDER_COST`（`effectExecutor.ts:5403`）へ振り分けた。
+// 🔑**観測点は「支払い肢が選べること」**＝盤面だけ見ると「スキップした」と区別が付かない（§4.4 📌4）ので、
+//   **ボタンの enabled と、払ったあとの `lrigTrash` / 相手手札の実変化**を両方見る。
+// -----------------------------------------------------------------------------
+
+const V137_UNDER = 'WXDi-D05-003#9400';    // ファイト Dr.タマゴ（Lv2・能力なし＝ルリグの下に敷く1枚）
+const V137_LRIG = 'WXDi-P04-009#9401';     // ノンストップ Dr.タマゴ（Lv3・【自】このルリグがアタックしたとき…）
+
+/** 自分のセンタールリグを開く（カード画像 → StackModal／CardModal）。 */
+async function openMyLrig(page, H, altPart) {
+  const img = page.getByAltText(altPart, { exact: false }).first();
+  if (await img.count()) { await img.click({ force: true, timeout: 1200 }).catch(() => {}); return 'lrig:click'; }
+  return await H.clickTestId('my-lrig-zone') ?? await H.clickTestId('my-lrig');
+}
+
+/**
+ * @param hasUnder true＝ルリグの下に1枚敷く（支払える）／false＝下が空（**支払い肢がグレー**の反転確認）
+ */
+function mkLrigUnderCostScenario(hasUnder) {
+  const id = hasUnder ? 'v137LrigUnderPay' : 'v137LrigUnderNoPay';
+  return {
+    title: `O-60 V-137①：WXDi-P04-009 のアタック時に「ルリグ下のカード1枚を使用して発動」が${hasUnder ? '選べて払える' : 'グレーで選べない'}（旧＝常にグレー＝恒久 no-op）`,
+    spec: {
+      hostSet: {
+        // ⚠**ルリグスタックの末尾がセンタールリグ**。その1つ手前が「ルリグの下」。
+        'field.lrig': hasUnder ? [V137_UNDER, V137_LRIG] : [V137_LRIG],
+        'field.signi': [null, null, null],          // シグニ0＝シグニアタックステップを歩かずに済む
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD03-013#9410', 'WD03-012#9411', 'WD01-017#9412'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9490'],
+        // ⚠**相手の場は空**＝E2（ON_HAND_DISCARDED → 相手シグニ1体を凍結）の候補を0にして対話を挟まない。
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        // 手札2枚＝「1枚捨てさせる」が枚数差で見える（0枚だと捨てさせようがなく前提が崩れる）。
+        'hand': ['WD01-013#9491', 'WD01-017#9492'],
+        'energy': [], 'trash': [],
+        'life_cloth': ['WD01-013#9493', 'WD01-013#9494', 'WD01-013#9495'],
+        'deck': ['WD01-013#9496', 'WD01-013#9497'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      const gHand0 = st0?.guest?.hand ?? 0;
+      H.log(`  ${id}: 開始 phase=${st0?.turnPhase} lrigStack(under=${st0?.host?.lrigUnder}) lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)} gHand=${gHand0}`);
+      let opened = false, attacked = false, payLabel = null, payEnabled = null, chosen = null, settled = 0, st = st0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        // フェイズが巻き戻ったら貼り直す（既存シナリオと同型）。
+        if (!attacked && st?.turnPhase && st.turnPhase !== 'ATTACK_LRIG' && !st?.pendingEffect && !(st?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_LRIG', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(500);
+          opened = false; did = `repatch:ATTACK_LRIG(was ${st.turnPhase})`;
+        }
+        // ① ルリグを開いて「アタック」
+        if (!did && !attacked) {
+          if (!opened) { did = await openMyLrig(page, H, 'ノンストップ'); opened = !!did; }
+          if (!did) {
+            const a = await H.clickBtn('アタック', { exact: true });
+            if (a) { attacked = true; did = a; }
+          }
+        }
+        // ② 出た CHOOSE の2肢を**押す前に記録する**（これが本題の観測）。
+        if (payLabel === null) {
+          const btns = page.getByRole('button', { name: /使用して発動/ });
+          const n = await btns.count().catch(() => 0);
+          if (n > 0) {
+            const b = btns.first();
+            payLabel = ((await b.textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim();
+            payEnabled = await b.isEnabled().catch(() => false);
+            H.log(`  ${id}: 支払い肢="${payLabel}" enabled=${payEnabled}`);
+          }
+        }
+        // ③ 成立側は払う／反転側はスキップして抜ける。
+        if (!did && payLabel !== null && !chosen) {
+          if (hasUnder) {
+            const b = page.getByRole('button', { name: /使用して発動/ }).first();
+            if (await b.isEnabled().catch(() => false)) { await b.click({ timeout: 1200 }).catch(() => {}); chosen = 'pay'; did = 'btn:使用して発動'; }
+          }
+          if (!did) {
+            const sk = await H.clickBtn('スキップ');
+            if (sk) { chosen = chosen ?? 'skip'; did = sk; }
+          }
+        }
+        // ⚠**`発動順序を確定` を落とさない**＝複数トリガーの整列待ちで stack が1のまま固まる。
+        if (!did) did = await H.stdStep(['発動順序を確定', 'ガードしない', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} atk=${attacked} pay=${payLabel !== null} chosen=${chosen ?? '-'} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} under=${st?.host?.lrigUnder} gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (chosen && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 3) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const lrigTrash = st?.host?.lrigTrashCards ?? [];
+      const gHand = st?.guest?.hand ?? 0;
+      const dump = `支払い肢="${payLabel}" enabled=${payEnabled} 選択=${chosen} lrigTrash=${JSON.stringify(lrigTrash)} under=${st?.host?.lrigUnder} gHand=${gHand0}→${gHand}`;
+      // 🔴**本題を先に判定**＝旧実装は「ソウルを使用して発動しますか？」で支払い肢が常にグレーだった。
+      if (payLabel === null) return { pass: false, detail: `🔴アタックしても支払いの二択が出ない。${dump}` };
+      if (!/ルリグ下/.test(payLabel)) return { pass: false, detail: `🔴支払い肢の文言が「ルリグ下…」ではない＝旧の「ソウルを使用して発動」へ戻っている。${dump}` };
+      if (hasUnder) {
+        if (!payEnabled) return { pass: false, detail: `🔴ルリグの下に1枚あるのに支払い肢がグレー（旧挙動＝効果元がシグニゾーンに居ることを要求している）。${dump}` };
+        if (!lrigTrash.includes(V137_UNDER)) return { pass: false, detail: `🔴払ったのに下の1枚がルリグトラッシュへ行っていない。${dump}` };
+        if (gHand >= gHand0) return { pass: false, detail: `🔴払ったのに相手の手札が減っていない（「そうした場合」が走っていない）。${dump}` };
+        return { pass: true, detail: `「${payLabel}」が選べて、払うと下の1枚がルリグトラッシュへ移り相手の手札が1枚減った。${dump}` };
+      }
+      if (payEnabled) return { pass: false, detail: `🔴ルリグの下が空なのに支払い肢が選べる（払えないことがボタンに出ていない）。${dump}` };
+      if (lrigTrash.length > 0) return { pass: false, detail: `🔴払えないのにルリグトラッシュが増えた。${dump}` };
+      if (gHand !== gHand0) return { pass: false, detail: `🔴払っていないのに相手の手札が動いた＝「そうした場合」が無条件成立。${dump}` };
+      return { pass: true, detail: `反転＝ルリグの下が空なら「${payLabel}」はグレーで、スキップしか選べず相手の手札も動かない。${dump}` };
+    },
+  };
+}
+scenarios.v137LrigUnderPay = mkLrigUnderCostScenario(true);
+order.push('v137LrigUnderPay');
+scenarios.v137LrigUnderNoPay = mkLrigUnderCostScenario(false);
+order.push('v137LrigUnderNoPay');
+
+
+// `V-137`② `WXDi-CP02-002`（セミナー・ピース）＝**センターとアシスト両方の下を合わせて4枚**払う
+// （`lrigUnderCost{count:4, fromAllLrigs:true}`）。
+// ⚠**`effect_stack` 注入で撃つ**＝このピースは【使用条件】が2本（青のルリグを1体以上含む／
+//   このゲームの間に《連邦生徒会》か《クロノス報道部》を使用している）あり、
+//   **観測点（ルリグ下の合計と支払い肢）と無関係な固定費が高い**（§5.1 の教訓＝続き771）。
+//   payload は `o190LiveEffect` で **live JSON から読む**ので、payload を外す反転確認で必ず赤になる。
+const V137B_CENTER = ['WXDi-D05-002#9420', 'WXDi-D05-003#9421', 'WXDi-P04-009#9422']; // 下2枚＋センター
+const V137B_ASSIST_L = ['WXDi-D05-002#9423', 'WXDi-P01-013#9424'];                    // 下1枚＋アシスト
+const V137B_ASSIST_R = ['WXDi-D05-003#9425', 'WXDi-P01-013#9426'];                    // 下1枚＋アシスト
+const V137B_UNDERS = ['WXDi-D05-002#9420', 'WXDi-D05-003#9421', 'WXDi-D05-002#9423', 'WXDi-D05-003#9425'];
+
+/** @param enough true＝下の合計4枚（払える）／false＝合計3枚（**グレー**の反転確認） */
+function mkAllLrigsUnderScenario(enough) {
+  const id = enough ? 'v137AllLrigsUnderPay' : 'v137AllLrigsUnderShort';
+  // 🔴**対照は原因を1つだけ外す**（§4.4 📌3）＝**右アシストの下1枚だけ**を抜いて 4→3 にする。
+  const assistR = enough ? V137B_ASSIST_R : [V137B_ASSIST_R[1]];
+  return {
+    title: `O-60 V-137②：WXDi-CP02-002 は「ルリグ下のカード4枚」をセンター＋アシスト両方から払える（下の合計${enough ? '4枚＝払える' : '3枚＝グレー'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': V137B_CENTER,
+        'field.assist_lrig_l': V137B_ASSIST_L,
+        'field.assist_lrig_r': assistR,
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD03-013#9430', 'WD03-012#9431', 'WD01-017#9432', 'WD01-013#9433', 'WD02-013#9434', 'WD05-013#9435'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9490'],                 // FREEZE{LRIG opponent} の対象
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9496', 'WD01-013#9497'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WXDi-CP02-002', 'WXDi-CP02-002#9440', 'WXDi-CP02-002-E1') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)} hand=${st0?.host?.hand} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+      let payLabel = null, payEnabled = null, chosen = null, settled = 0, st = st0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        if (payLabel === null) {
+          const btns = page.getByRole('button', { name: /使用して発動/ });
+          if ((await btns.count().catch(() => 0)) > 0) {
+            const b = btns.first();
+            payLabel = ((await b.textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim();
+            payEnabled = await b.isEnabled().catch(() => false);
+            H.log(`  ${id}: 支払い肢="${payLabel}" enabled=${payEnabled}`);
+          }
+        }
+        if (payLabel !== null && !chosen) {
+          if (enough) {
+            const b = page.getByRole('button', { name: /使用して発動/ }).first();
+            if (await b.isEnabled().catch(() => false)) { await b.click({ timeout: 1200 }).catch(() => {}); chosen = 'pay'; did = 'btn:使用して発動'; }
+          }
+          if (!did) { const sk = await H.clickBtn('スキップ'); if (sk) { chosen = chosen ?? 'skip'; did = sk; } }
+        }
+        if (!did) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | pay=${payLabel !== null} chosen=${chosen ?? '-'} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} under=${st?.host?.lrigUnder} hand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (chosen && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 3) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const lrigTrash = st?.host?.lrigTrashCards ?? [];
+      const dump = `支払い肢="${payLabel}" enabled=${payEnabled} 選択=${chosen} lrigTrash=${JSON.stringify(lrigTrash)} centerUnder=${st?.host?.lrigUnder} hand=${st?.host?.hand}`;
+      if (payLabel === null) return { pass: false, detail: `🔴支払いの二択が出ない。${dump}` };
+      if (!/ルリグ下のカード4枚/.test(payLabel)) return { pass: false, detail: `🔴支払い肢が「ルリグ下のカード4枚…」でない＝枚数 payload が読めていない。${dump}` };
+      if (enough) {
+        if (!payEnabled) return { pass: false, detail: `🔴センター2＋アシスト1＋1＝合計4枚あるのに支払い肢がグレー＝fromAllLrigs が効いていない（センターの2枚しか数えていない）。${dump}` };
+        const paid = V137B_UNDERS.filter(n => lrigTrash.includes(n));
+        if (paid.length !== 4) return { pass: false, detail: `🔴払った枚数が4枚でない（${paid.length}枚＝${JSON.stringify(paid)}）＝アシスト側から取れていない。${dump}` };
+        return { pass: true, detail: `センター2＋左アシスト1＋右アシスト1＝合計4枚をまとめて払えた（lrigTrash に4枚とも入った）。${dump}` };
+      }
+      if (payEnabled) return { pass: false, detail: `🔴合計3枚しかないのに支払い肢が選べる（払えないことがボタンに出ていない）。${dump}` };
+      if (lrigTrash.length > 0) return { pass: false, detail: `🔴払えないのにルリグトラッシュが増えた。${dump}` };
+      return { pass: true, detail: `反転＝合計3枚では「${payLabel}」がグレーで、1枚も払われない。${dump}` };
+    },
+  };
+}
+scenarios.v137AllLrigsUnderPay = mkAllLrigsUnderScenario(true);
+order.push('v137AllLrigsUnderPay');
+scenarios.v137AllLrigsUnderShort = mkAllLrigsUnderScenario(false);
+order.push('v137AllLrigsUnderShort');
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-138`（`O-60` 第57バッチ＝**`SOUL_OP` の payload 化**）
+// 🔴**旧実装は `SOUL_OP` の意味を「効果元シグニの下のカード」と決め打ちし、細部（枚数・レベル制限・
+//   どのゾーンからどこへ）を**カード全文 regex**で読んでいた。当たらないと**既定値へ落ちる**ので、
+//   `WX22-Re20` の③（ルリグトラッシュ → センタールリグの下）は **miss＝既定値**で動いていた。
+//   ⇒ `soulOp{kind,count,upTo,levelMax}` の payload を parser から渡す形へ移した。
+// ⚠**3本とも `effect_stack` 注入で撃つ**＝`WX22-Re20`/`WD22-016-UG` はアーツ（`WD22-016-UG` は
+//   さらに **ウリス/グズ子限定**）、`WXDi-P13-003B` はルリグの【出】で、
+//   **観測点と無関係な固定費（限定・グロウ・アーツ窓）が高い**。payload は `o190LiveEffect` で live から読む。
+// -----------------------------------------------------------------------------
+
+// ── ① `WX22-Re20-E1` の③＝ルリグトラッシュの**レベル2以下のルリグだけ**が候補・2枚まで ──
+const V138_LT_OK1 = 'WXDi-D05-002#9500';   // レッツゴー Dr.タマゴ（Lv1・候補）
+const V138_LT_OK2 = 'WXDi-D05-003#9501';   // ファイト Dr.タマゴ（Lv2・候補）
+const V138_LT_NG1 = 'WXDi-P04-009#9502';   // ノンストップ Dr.タマゴ（Lv3・**候補外**）
+const V138_LT_NG2 = 'WD01-001#9503';       // 満月の巫女 タマヨリヒメ（Lv4・**候補外**）
+const V138_CENTER = 'WXDi-P15-011#9504';   // プロフェッサー 防衛者Dr.タマゴ（Lv3・センター）
+
+scenarios.v138LrigTrashToUnder = {
+  title: 'O-60 V-138①：WX22-Re20 の③は「ルリグトラッシュのレベル2以下のルリグ」だけを候補に出し、2枚までセンタールリグの下へ（旧＝regex が外れて既定値）',
+  spec: {
+    hostSet: {
+      'field.lrig': [V138_CENTER],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [],
+      // ⚠**候補2枚＋候補外2枚**＝「絞り込みが効いている」ことを候補の中身で見る（§4.4 📌8l）。
+      'lrig_trash': [V138_LT_OK1, V138_LT_NG1, V138_LT_OK2, V138_LT_NG2],
+      'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD03-013#9510', 'WD03-012#9511', 'WD01-017#9512'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9590'],
+      'field.signi': [['WD01-013#9591'], null, null],   // 選択肢1/2 が空振りしないよう1体だけ置く
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9596', 'WD01-013#9597'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WX22-Re20', 'WX22-Re20#9520', 'WX22-Re20-E1') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  v138lt: 開始 lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)} under=${st0?.host?.lrigUnder} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+    let chosenOpts = new Set(), candLabels = null, picked = new Set(), decided = 0, settled = 0, st = st0;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      // 🔴**`決定` を押してよいかを毎ティック測り直す**（§4.4 📌8n）＝`pendingCandidates` は DB 由来で
+      //   **DOM より先に真**になるので、`SELECT_TARGET` に入った最初のティックで決定を押すと **0枚で確定**する
+      //   （実測＝候補が描画される1ティック前に押して「選んだ2枚が下に入らない」FAIL になった）。
+      const phase = (await H.queryState())?.pendingEffect ?? null;
+      const mayDecide = phase !== 'SELECT_TARGET' || picked.size > 0;
+      // (1) 3択のうち「選択肢2」と「選択肢3」を1回ずつ押す（§4.4 📌2c＝押した肢を覚える）。
+      for (const label of ['選択肢3', '選択肢2']) {
+        if (chosenOpts.has(label)) continue;
+        const b = page.getByRole('button', { name: new RegExp(`^(✓ )?${label}$`) }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click({ timeout: 1200 }).catch(() => {}); chosenOpts.add(label); did = `opt:${label}`; break;
+        }
+      }
+      // (2) SELECT_TARGET の候補を記録して、候補全部（＝2枚まで）を1回ずつ押す。
+      if (!did) {
+        const pk = page.locator('[data-testid^="pick-"]');
+        const n = await pk.count().catch(() => 0);
+        if (n > 0 && candLabels === null) {
+          candLabels = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="pick-"]'))
+            .map(el => (el.getAttribute('data-card-num') || el.getAttribute('data-testid') || '')));
+          H.log(`  v138lt: 候補=${JSON.stringify(candLabels)}`);
+        }
+        for (let i = 0; i < n; i++) {
+          if (picked.has(i)) continue;
+          const el = pk.nth(i);
+          if (await el.isVisible().catch(() => false)) { await el.click({ timeout: 1200 }).catch(() => {}); picked.add(i); did = `pick-${i}`; break; }
+        }
+      }
+      if (!did && mayDecide) { const d = await clickDecideNofM(page); if (d) { decided++; did = d; } }
+      if (!did && mayDecide) did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v138lt[${s}] -> ${did ?? 'なし'} | opts=${[...chosenOpts]} picked=${[...picked]} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} under=${st?.host?.lrigUnder} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (chosenOpts.size >= 1 && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v138LrigTrashToUnder-final.png`, fullPage: true });
+    const lt = st?.host?.lrigTrashCards ?? [];
+    const under = st?.host?.lrigUnder ?? 0;
+    const dump = `候補=${JSON.stringify(candLabels)} lrigTrash=${JSON.stringify(lt)} centerUnder=${under} 選んだ肢=${[...chosenOpts]}`;
+    if (candLabels === null) return { pass: false, detail: `🔴ルリグトラッシュの選択UIが1度も出ない（旧＝regex が外れて既定値へ落ちていた）。${dump}` };
+    // 🔴**本題＝候補がレベル2以下のルリグだけに絞られていること**
+    const nums = candLabels.map(x => String(x));
+    if (nums.some(x => x.startsWith('WXDi-P04-009') || x.startsWith('WD01-001'))) {
+      return { pass: false, detail: `🔴レベル3以上のルリグが候補に出た＝levelMax:2 が効いていない。${dump}` };
+    }
+    if (candLabels.length !== 2) return { pass: false, detail: `🔴候補が2件でない（${candLabels.length}件）。${dump}` };
+    if (under !== 2) return { pass: false, detail: `🔴選んだ2枚がセンタールリグの下に入っていない（under=${under}）。${dump}` };
+    if (lt.includes(V138_LT_OK1) || lt.includes(V138_LT_OK2)) {
+      return { pass: false, detail: `🔴下に入ったのにルリグトラッシュにも残っている＝複製。${dump}` };
+    }
+    if (!lt.includes(V138_LT_NG1) || !lt.includes(V138_LT_NG2)) {
+      return { pass: false, detail: `🔴候補外のルリグまで動いた。${dump}` };
+    }
+    return { pass: true, detail: `候補はレベル2以下のルリグ2枚だけ。2枚ともセンタールリグの下へ移り、レベル3以上はルリグトラッシュに残った。${dump}` };
+  },
+};
+order.push('v138LrigTrashToUnder');
+
+// ── ② `WXDi-P13-003B-E1`＝ルリグの下から1枚が**自動で**ルリグトラッシュへ（旧＝無言で何も起きない） ──
+const V138_MAYU_UNDER = 'WXDi-D05-003#9530';
+scenarios.v138UnderToLrigTrashAuto = {
+  title: 'O-60 V-138②：WXDi-P13-003B はルリグの下から1枚を自動でルリグトラッシュへ置き、相手の全シグニが能力を失う（旧＝無言 no-op）',
+  spec: {
+    hostSet: {
+      'field.lrig': [V138_MAYU_UNDER, V138_CENTER],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD03-013#9540', 'WD03-012#9541'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9590'],
+      // 能力を失う対象＝相手のシグニ全部（2体で「ALL」が効いていることまで見る）。
+      'field.signi': [['WX16-039#9592'], ['WX20-056#9593'], null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9596', 'WD01-013#9597'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WXDi-P13-003B', 'WXDi-P13-003B#9531', 'WXDi-P13-003B-E1') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  v138mayu: 開始 under=${st0?.host?.lrigUnder} lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)} removed=${JSON.stringify(st0?.guest?.abilitiesRemoved)} stack=${st0?.stackLen}`);
+    let settled = 0, st = st0;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v138mayu[${s}] -> ${did ?? 'なし'} | under=${st?.host?.lrigUnder} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} removed=${JSON.stringify(st?.guest?.abilitiesRemoved)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v138UnderToLrigTrashAuto-final.png`, fullPage: true });
+    const lt = st?.host?.lrigTrashCards ?? [];
+    const removed = st?.guest?.abilitiesRemoved ?? [];
+    const dump = `under=${st?.host?.lrigUnder} lrigTrash=${JSON.stringify(lt)} 能力喪失=${JSON.stringify(removed)}`;
+    if (!lt.includes(V138_MAYU_UNDER)) return { pass: false, detail: `🔴ルリグの下の1枚がルリグトラッシュへ行っていない（旧＝無言 no-op）。${dump}` };
+    if ((st?.host?.lrigUnder ?? 0) !== 0) return { pass: false, detail: `🔴下から抜けていない（複製）。${dump}` };
+    if (removed.length < 2) return { pass: false, detail: `🔴相手の全シグニが能力を失っていない（${removed.length}体）。${dump}` };
+    return { pass: true, detail: `ルリグの下の1枚が自動でルリグトラッシュへ移り、相手のシグニ2体とも能力を失った。${dump}` };
+  },
+};
+order.push('v138UnderToLrigTrashAuto');
+
+// ── ③ `WD22-016-UG-E1`＝**ルリグの下が4枚あるときだけ**4枚払ってトラッシュのシグニ2枚まで場に出す ──
+const V138_EX_UNDERS = ['WXDi-D05-002#9550', 'WXDi-D05-003#9551', 'WXDi-D05-002#9552', 'WXDi-D05-003#9553'];
+const V138_EX_TRASH = ['WD01-013#9560', 'WD02-013#9561'];
+function mkExceedScenario(enough) {
+  const id = enough ? 'v138ExceedPay4' : 'v138ExceedShort';
+  // 🔴**対照は原因を1つだけ外す**＝**下の枚数だけ** 4→3 にする（トラッシュも盤面もそのまま）。
+  const unders = enough ? V138_EX_UNDERS : V138_EX_UNDERS.slice(0, 3);
+  return {
+    title: `O-60 V-138③：WD22-016-UG はセンタールリグの下${enough ? '4枚を払ってトラッシュのシグニを場に出す' : 'が3枚なら1枚も払わず場にも出さない'}`,
+    spec: {
+      hostSet: {
+        'field.lrig': [...unders, V138_CENTER],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'coins': 0,
+        'trash': V138_EX_TRASH,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD03-013#9570', 'WD03-012#9571', 'WD01-017#9572'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9590'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9596', 'WD01-013#9597'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WD22-016-UG', 'WD22-016-UG#9580', 'WD22-016-UG-E1') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 under=${st0?.host?.lrigUnder} trash=${JSON.stringify(st0?.host?.trashCards)} field=${JSON.stringify(st0?.host?.fieldSigni)} stack=${st0?.stackLen}`);
+      let picked = new Set(), settled = 0, st = st0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        // 🔴**`決定` は「1枚でも選んでから」**（§4.4 📌8n）＝`pendingCandidates` は DB 由来で DOM より先に
+        //   真になるので、候補が描画される前に決定を押すと **0枚で確定**する。
+        //   ⚠**単体では PASS・バッチだけ FAIL** という位置依存フレークになる（実測でそうなった）。
+        const phaseEx = (await H.queryState())?.pendingEffect ?? null;
+        const mayDecideEx = phaseEx !== 'SELECT_TARGET' || picked.size > 0;
+        const pk = page.locator('[data-testid^="pick-"]');
+        const n = await pk.count().catch(() => 0);
+        for (let i = 0; i < n; i++) {
+          if (picked.has(i)) continue;
+          const el = pk.nth(i);
+          if (await el.isVisible().catch(() => false)) { await el.click({ timeout: 1200 }).catch(() => {}); picked.add(i); did = `pick-${i}`; break; }
+        }
+        if (!did && mayDecideEx) did = await clickDecideNofM(page);
+        if (!did) did = await H.clickZone?.();
+        if (!did && mayDecideEx) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | picked=${[...picked]} under=${st?.host?.lrigUnder} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} trash=${JSON.stringify(st?.host?.trashCards)} field=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 4) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const field = JSON.stringify(st?.host?.fieldSigni ?? []);
+      const placed = V138_EX_TRASH.filter(n => field.includes(n));
+      const lt = st?.host?.lrigTrashCards ?? [];
+      const dump = `under=${st0?.host?.lrigUnder}→${st?.host?.lrigUnder} lrigTrash=${JSON.stringify(lt)} 場に出た=${JSON.stringify(placed)} field=${field}`;
+      if (enough) {
+        if (lt.length !== 4) return { pass: false, detail: `🔴下の4枚がルリグトラッシュへ行っていない（${lt.length}枚）。${dump}` };
+        if (placed.length === 0) return { pass: false, detail: `🔴払ったのにトラッシュのシグニが1体も場に出ていない（「そうした場合」が走っていない）。${dump}` };
+        return { pass: true, detail: `下4枚を払い、トラッシュのシグニ${placed.length}体が場に出た。${dump}` };
+      }
+      if (lt.length > 0) return { pass: false, detail: `🔴下が3枚しかないのに払われた（${lt.length}枚）。${dump}` };
+      if (placed.length > 0) return { pass: false, detail: `🔴払っていないのに場に出た＝「そうした場合」が無条件成立（旧挙動）。${dump}` };
+      return { pass: true, detail: `反転＝下が3枚なら1枚も払わず、トラッシュのシグニも場に出ない。${dump}` };
+    },
+  };
+}
+scenarios.v138ExceedPay4 = mkExceedScenario(true);
+order.push('v138ExceedPay4');
+scenarios.v138ExceedShort = mkExceedScenario(false);
+order.push('v138ExceedShort');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
