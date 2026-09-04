@@ -44684,6 +44684,286 @@ order.push('o226DeclaredSigniOverride');
 scenarios.o226DeclaredSigniOverrideOff = mkDeclaredSigniScenario(false);
 order.push('o226DeclaredSigniOverrideOff');
 
+// -----------------------------------------------------------------------------
+// §5.1 `V-141`（2026-09-04・`O-60` 第60バッチ）＝**モーダル選択 family の提示**。
+// 🔴engine が**カード全文 regex** で選択肢を組んでいたものを `CHOOSE` payload
+//   （`betChoose` / `conditionChoose` / `additionalCostChoose`）へ寄せた回の実機返済。
+// ⚠**観測点は「いくつ選べるか」**＝`EffectInteractionModal` は
+//   単一選択なら「効果を選択してください」、複数選択なら「N個選択（x/N）」／「N個まで選択（x/N）」を出す。
+// 🔴**対照は盤面を1文字も変えず「昇格の条件」だけを外す**（ベットしない／ルリグの Story を変える）。
+// -----------------------------------------------------------------------------
+
+/** ルリグデッキのアーツを使う（任意でベット枚数を指定）。エナは要求枚数ぶん1回ずつ押す。 */
+async function useArtsFromLrigDeck(page, H, { betLabel = null } = {}) {
+  const opened = await openV04LrigDeckAction(page, '使用');
+  if (!opened.ok) return { ok: false, detail: opened.detail };
+  if (betLabel) {
+    const bet = await H.clickBtn(betLabel, { exact: true });
+    if (!bet) return { ok: false, detail: `ベット「${betLabel}」が押せない` };
+    await page.waitForTimeout(300);
+  }
+  // ⚠**押した index を覚えて未選択だけ足す**（§4.4 📌8p＝押し直すとトグルで外れる）。
+  const picked = new Set();
+  for (let t = 0; t < 14; t++) {
+    const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+    if (await submit.count() && await submit.isVisible().catch(() => false)
+        && await submit.isEnabled().catch(() => false)) {
+      await submit.click({ timeout: 1200 }).catch(() => {});
+      return { ok: true, detail: `bet=${betLabel ?? 'なし'} ena=${[...picked]}` };
+    }
+    let clicked = false;
+    for (let i = 0; i < 8 && !clicked; i++) {
+      if (picked.has(i)) continue;
+      const e = page.getByTestId(`artscost-energy-${i}`).first();
+      if (await e.count() && await e.isVisible().catch(() => false)) {
+        await e.click({ timeout: 1200 }).catch(() => {}); picked.add(i); clicked = true;
+      }
+    }
+    if (!clicked) break;
+    await page.waitForTimeout(200);
+  }
+  return { ok: false, detail: `「アーツ使用」が enabled にならない（ena=${[...picked]}）` };
+}
+
+/** CHOOSE モーダルの提示形を読む（単一選択か・何個まで選べるか）。 */
+async function readChoosePrompt(page) {
+  for (let k = 0; k < 26; k++) {
+    const r = await page.evaluate(() => {
+      const t = document.body.innerText;
+      const multi = t.match(/(\d+)個(まで)?選択（(\d+)\/(\d+)）/);
+      return {
+        single: /効果を選択してください/.test(t),
+        multi: multi ? { max: Number(multi[1]), upTo: !!multi[2] } : null,
+        optCost: /追加コストを(選択|支払)/.test(t),
+      };
+    }).catch(() => null);
+    if (r && (r.single || r.multi)) return r;
+    await page.waitForTimeout(200);
+  }
+  return { single: false, multi: null, optCost: false };
+}
+
+const V141_ARTS_BOARD = (lrig, artsNum, energy) => ({
+  hostSet: {
+    'field.lrig': [lrig],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': [artsNum],
+    'energy': energy,
+    'coins': 3, 'hand': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9890'],
+    // ⚠相手の場は空にしない＝選択肢①（対戦相手のシグニを対象）が `available:false` になり
+    //   「選べる数」を見るシナリオの前提が崩れる。
+    'field.signi': [['WD01-013#9880'], ['WD01-013#9881'], ['WD01-013#9882']],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** `V-141`①＝`PR-K072`（ベット―《コイン》1）＝ベットすると2つ選べる。 */
+function mkBetChooseScenario(bet) {
+  const id = bet ? 'v141BetChooseOn' : 'v141BetChooseOff';
+  return {
+    title: bet
+      ? 'O-60 V-141①：PR-K072 はベット宣言すると選択肢を2つとも選べる'
+      : 'O-60 V-141① 対照：ベットしなければ PR-K072 は1つしか選べない',
+    // 青1＋無1（無はどの色でも払える）。
+    spec: V141_ARTS_BOARD('WD03-002#9800', 'PR-K072#9820',
+      ['WD03-013#9860', 'WD03-013#9861', 'WD03-013#9862']),
+    async drive(page, H) {
+      await H.ensureMain();
+      const used = await useArtsFromLrigDeck(page, H, { betLabel: bet ? '1枚' : null });
+      H.log(`  ${id}: アーツ使用=${JSON.stringify(used)}`);
+      if (!used.ok) return { pass: false, detail: `前提崩れ＝アーツを使えない（${used.detail}）` };
+      const p = await readChoosePrompt(page);
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: 提示=${JSON.stringify(p)}`);
+      if (bet) {
+        return p.multi?.max === 2 && p.multi?.upTo === false
+          ? { pass: true, detail: `ベット宣言で「2個選択」になった（betChoose.thenChooseCount=2 が UI に届いている）` }
+          : { pass: false, detail: `🔴ベットしても2つ選べない（提示=${JSON.stringify(p)}）` };
+      }
+      return p.single && !p.multi
+        ? { pass: true, detail: `対照＝ベットしなければ単一選択のまま（提示=${JSON.stringify(p)}）` }
+        : { pass: false, detail: `🔴ベットしていないのに複数選択になっている（提示=${JSON.stringify(p)}）` };
+    },
+  };
+}
+scenarios.v141BetChooseOn = mkBetChooseScenario(true);
+order.push('v141BetChooseOn');
+scenarios.v141BetChooseOff = mkBetChooseScenario(false);
+order.push('v141BetChooseOff');
+
+/** `V-141`②＝`WX17-004` はセンタールリグが＜リル＞／＜メル＞のときだけ2つまで選べる。 */
+function mkLrigStoryChooseScenario(ril) {
+  const id = ril ? 'v141LrigStoryChooseTwo' : 'v141LrigStoryChooseOne';
+  return {
+    title: ril
+      ? 'O-60 V-141②：WX17-004 は＜リル＞のとき2つまで選べる（conditionChoose）'
+      : 'O-60 V-141② 反転：＜リル＞でも＜メル＞でもなければ1つだけ',
+    // 赤1＋緑1＋無1。
+    spec: V141_ARTS_BOARD(ril ? 'WX15-009#9800' : 'WD03-002#9800', 'WX17-004#9820',
+      ['WD02-013#9860', 'WX01-090#9861', 'WD03-013#9862', 'WD02-013#9863']),
+    async drive(page, H) {
+      await H.ensureMain();
+      const used = await useArtsFromLrigDeck(page, H);
+      H.log(`  ${id}: アーツ使用=${JSON.stringify(used)}`);
+      if (!used.ok) return { pass: false, detail: `前提崩れ＝アーツを使えない（${used.detail}）` };
+      const p = await readChoosePrompt(page);
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: 提示=${JSON.stringify(p)}`);
+      if (ril) {
+        return p.multi?.max === 2 && p.multi?.upTo === true
+          ? { pass: true, detail: `＜リル＞のセンタールリグで「2個まで選択」になった（LRIG_STORY 照合が効いている）` }
+          : { pass: false, detail: `🔴＜リル＞なのに昇格しない（旧はカード名照合だったので通常名では永久に1つだった）。提示=${JSON.stringify(p)}` };
+      }
+      return p.single && !p.multi
+        ? { pass: true, detail: `対照＝＜ピルルク＞では単一選択のまま（条件が効いている＝常時昇格に倒れていない）` }
+        : { pass: false, detail: `🔴条件を満たさないのに昇格している（提示=${JSON.stringify(p)}）` };
+    },
+  };
+}
+scenarios.v141LrigStoryChooseTwo = mkLrigStoryChooseScenario(true);
+order.push('v141LrigStoryChooseTwo');
+scenarios.v141LrigStoryChooseOne = mkLrigStoryChooseScenario(false);
+order.push('v141LrigStoryChooseOne');
+
+/**
+ * `V-141`③④＝`WD23-044-EA`（スペル・限定なし・《青》×１）
+ *   「使用コストとして追加で手札を１枚捨ててもよい」＝`OPTIONAL_COST` →
+ *   支払っていれば `CHOOSE` が **2つとも**選べる（`additionalCostChoose`）。
+ * 🔴③旧は `OPTIONAL_COST` と受け皿 STUB が**同じ支払いを二重に提示**していた＝**提示は1回だけ**。
+ * 🔴④選択肢①の候補は**《ライフバースト》を持つカードだけ**（旧は `cardName:'ライフバースト'` で
+ *   **どのカードにも一致しない**か、絞り込みが丸ごと落ちていた）。
+ */
+function mkAdditionalCostChooseScenario(pay) {
+  const id = pay ? 'v141AdditionalCostChooseTwo' : 'v141AdditionalCostChooseOne';
+  return {
+    title: pay
+      ? 'O-60 V-141③④：WD23-044-EA は追加コストを払うと2つ選べ、提示は1回だけ'
+      : 'O-60 V-141③ 対照：追加コストを払わなければ1つだけ',
+    spec: {
+      hostSet: {
+        // ⚠**限定はスペルの使用も止める**（§4.4 📌8k）＝WD23-044-EA は**エルドラ/あや限定**なので
+        //   ピルルクのルリグでは「発動」ボタンが1度も出ない（実測で1往復した）。
+        'field.lrig': ['WX02-010#9800'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [],
+        // 手札＝スペル本体＋捨てる用の1枚。
+        'hand': ['WD23-044-EA#9840', 'WD01-013#9841'],
+        'energy': ['WD03-013#9860', 'WD03-013#9861'],
+        // トラッシュ＝《ライフバースト》持ち2枚＋非所持2枚（候補が LB 持ちだけに絞られるか）。
+        // ⚠**候補がちょうど必要数だとモーダルが出ない**（§4.4 📌8l）＝LB 持ちは2枚入れる。
+        'trash': ['WD01-016#9870', 'WD01-017#9871', 'WD01-012#9872', 'WD01-013#9873'],
+        'coins': 0, 'actions_done': [], 'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      await H.clickTestId('my-hand-card-0');
+      await page.waitForTimeout(500);
+      const cast = await H.clickBtn('発動', { exact: true });
+      // 使用コスト（《青》×1）を払って発動する。
+      const picked = new Set();
+      let fired = false;
+      for (let t = 0; t < 14 && !fired; t++) {
+        const go = page.getByRole('button', { name: '発動する', exact: false }).first();
+        if (await go.count() && await go.isVisible().catch(() => false) && await go.isEnabled().catch(() => false)) {
+          await go.click({ timeout: 1200 }).catch(() => {}); fired = true; break;
+        }
+        let clicked = false;
+        for (let i = 0; i < 6 && !clicked; i++) {
+          if (picked.has(i)) continue;
+          const c = page.getByTestId(`spellcost-energy-${i}`).first();
+          if (await c.count() && await c.isVisible().catch(() => false)) {
+            await c.click({ timeout: 1200 }).catch(() => {}); picked.add(i); clicked = true;
+          }
+        }
+        if (!clicked) break;
+        await page.waitForTimeout(200);
+      }
+      H.log(`  ${id}: 発動=${cast ?? '-'} コスト=${[...picked]} 確定=${fired}`);
+      if (!fired) return { pass: false, detail: `前提崩れ＝スペルを発動できない（コスト=${[...picked]}）` };
+      // 追加コストの提示（1回だけ出るはず）。⚠**出た回数を数える**＝旧は二重提示だった。
+      let asks = 0;
+      for (let t = 0; t < 20; t++) {
+        await page.waitForTimeout(300);
+        const payBtn = page.getByTestId('optcost-pay').first();
+        const skipBtn = page.getByTestId('optcost-skip').first();
+        const hasPay = await payBtn.count() && await payBtn.isVisible().catch(() => false);
+        const hasSkip = await skipBtn.count() && await skipBtn.isVisible().catch(() => false);
+        if (!hasPay && !hasSkip) {
+          if (asks > 0) break;      // 提示は終わった
+          continue;
+        }
+        asks++;
+        if (pay) {
+          // 捨てる手札を選んでから「支払う」（⚠候補を押し直すとトグルで外れる）。
+          for (let i = 0; i < 4; i++) {
+            const h = page.getByTestId(`optcost-hand-${i}`).first();
+            if (await h.count() && await h.isVisible().catch(() => false)) { await h.click({ timeout: 1200 }).catch(() => {}); break; }
+          }
+          await page.waitForTimeout(250);
+          if (await payBtn.isEnabled().catch(() => false)) await payBtn.click({ timeout: 1200 }).catch(() => {});
+          else if (hasSkip) await skipBtn.click({ timeout: 1200 }).catch(() => {});
+        } else if (hasSkip) {
+          await skipBtn.click({ timeout: 1200 }).catch(() => {});
+        }
+        await page.waitForTimeout(500);
+      }
+      // 🔴支払いを選んだあとに**「手札からトラッシュに置くカードを選んでください」＋「決定 (0/1)」**が挟まる
+      //   （`optcost-pay` は「払う意思」までで、実際に捨てる札は別画面で選ぶ）。ここを越えないと
+      //   `CHOOSE` に到達せず「支払ったのに2つ選べない」に見える（実測で1往復した）。
+      if (pay) {
+        for (let t = 0; t < 12; t++) {
+          const decide = page.getByRole('button', { name: /^決定/ }).first();
+          if (await decide.count() && await decide.isVisible().catch(() => false)) {
+            if (await decide.isEnabled().catch(() => false)) { await decide.click({ timeout: 1200 }).catch(() => {}); break; }
+            const pk = page.getByTestId('pick-0').first();
+            if (await pk.count() && await pk.isVisible().catch(() => false)) await pk.click({ timeout: 1200 }).catch(() => {});
+          }
+          await page.waitForTimeout(300);
+        }
+        await page.waitForTimeout(500);
+      }
+      const p = await readChoosePrompt(page);
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: 追加コスト提示=${asks}回 提示=${JSON.stringify(p)}`);
+      if (asks === 0) return { pass: false, detail: `前提崩れ＝追加コストの提示が1度も出ない（提示=${JSON.stringify(p)}）` };
+      if (asks > 1) return { pass: false, detail: `🔴旧挙動＝同じ追加コストが${asks}回提示された（二重提示）。提示=${JSON.stringify(p)}` };
+      if (pay) {
+        return p.multi?.max === 2
+          ? { pass: true, detail: `追加コストの提示は1回だけで、支払うと「${p.multi.max}個${p.multi.upTo ? 'まで' : ''}選択」になった` }
+          : { pass: false, detail: `🔴支払ったのに2つ選べない（提示=${JSON.stringify(p)}）` };
+      }
+      return p.single && !p.multi
+        ? { pass: true, detail: `対照＝支払わなければ単一選択のまま（提示は1回だけ）` }
+        : { pass: false, detail: `🔴支払っていないのに昇格している（提示=${JSON.stringify(p)}）` };
+    },
+  };
+}
+scenarios.v141AdditionalCostChooseTwo = mkAdditionalCostChooseScenario(true);
+order.push('v141AdditionalCostChooseTwo');
+scenarios.v141AdditionalCostChooseOne = mkAdditionalCostChooseScenario(false);
+order.push('v141AdditionalCostChooseOne');
+
+
+
+
+
 
 
 
