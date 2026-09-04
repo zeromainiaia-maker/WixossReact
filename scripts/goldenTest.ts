@@ -22246,6 +22246,43 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
   eq(Object.keys((r2.ownerState as PlayerState).granted_effects ?? {}).length, 0,
     '場に居ないトリガー元なのに誰かへ付与した（fail-closed でない）');
 }));
+// 🆕🔴**§5.1 `V-133`②（2026-09-04・実機で発覚）＝`GRANT_PROTECTION` は `target` 無しでも
+//   `targetsTriggerSource` だけで対象を決められなければならない。**
+//   旧実装は `const tgt = a.target ?? …; if (!tgt) return done(ctx);` が
+//   `targetsTriggerSource` の分岐**より前**にあったため、`target` を書いていない宣言が**恒久 no-op**だった。
+//   実害＝`WX20-056-E2` の「対戦相手の効果によって、手札に戻らず**ダウンせず**」が1度も付いていなかった。
+//   ⚠**同居する `GRANT_EFFECT`（能力獲得禁止）は効いていた**ので「半分だけ動く」形になり、
+//   逆翻訳・census・golden・smoke・fuzz のどれにも映らなかった（実機だけが捕まえた）。
+test('§5.1 V-133②: GRANT_PROTECTION は target 無し＋targetsTriggerSource だけでトリガー元へ付与できる', () => withSavedCursor(() => {
+  const host = SIGNI, risen = SIGNI_L3;
+  const ctx = mkCtx({ signi: [risen, null, null] }, {}, host);
+  // live（`WX20-056-E2` の1歩目）と同じ形＝`target` も `subjectFilter` も持たない。
+  const prot = {
+    type: 'GRANT_PROTECTION',
+    targetsTriggerSource: true,
+    from: ['BOUNCE', 'DOWN'],
+    sourceOwner: 'opponent',
+    duration: 'UNTIL_END_OF_TURN',
+  } as unknown as EffectAction;
+  const r = run(prot, { ...ctx, triggeringCardNum: risen } as ExecCtx);
+  const grants = (r.ownerState as PlayerState).keyword_grants ?? {};
+  ok((grants[risen] ?? []).some(k => k === 'PROTECTION:BOUNCE,DOWN:opponent'),
+    `🔴target 無しの GRANT_PROTECTION が無言 no-op になっている（keyword_grants=${JSON.stringify(grants)}）`);
+  // 反転確認①＝トリガー元が場に居なければ誰にも付けない（自由選択へ落ちない）。
+  const r2 = run(prot, { ...ctx, triggeringCardNum: 'NOT-ON-FIELD' } as ExecCtx);
+  eq(Object.keys((r2.ownerState as PlayerState).keyword_grants ?? {}).length, 0,
+    '場に居ないトリガー元なのに誰かへ耐性を付けた（fail-closed でない）');
+  // 反転確認②＝`targetsTriggerSource` も `target` も無ければ従来どおり何もしない。
+  const r3 = run({ type: 'GRANT_PROTECTION', from: ['BOUNCE'], duration: 'UNTIL_END_OF_TURN' } as unknown as EffectAction,
+    { ...ctx, triggeringCardNum: risen } as ExecCtx);
+  eq(Object.keys((r3.ownerState as PlayerState).keyword_grants ?? {}).length, 0,
+    '対象の宣言が1つも無いのに付与された');
+  // live の `WX20-056-E2` が実際にこの形（target 無し）であることも固定する。
+  const e2 = (effectsMap.get('WX20-056') ?? []).find(e => e.effectId === 'WX20-056-E2');
+  const step0 = (e2?.action as { steps?: { type: string; target?: unknown; targetsTriggerSource?: boolean }[] })?.steps?.[0];
+  eq(step0?.type, 'GRANT_PROTECTION', 'WX20-056-E2 の1歩目が GRANT_PROTECTION でない');
+  ok(step0?.targetsTriggerSource === true, 'WX20-056-E2 の1歩目が「そのシグニ」を指していない');
+}));
 test('§5.3 O-60 第38バッチ: deltaFromZone zone:appearance_cost + sumBy:level＝出現条件で払ったカードのレベル合計', () => withSavedCursor(() => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, { signi: [SIGNI_P3000, null, null] }, src);

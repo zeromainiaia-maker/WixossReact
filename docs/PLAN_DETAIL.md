@@ -3945,6 +3945,32 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-04・第95〜104バッチ後・PLAN §6 から退避）
+
+- **2026-09-04（第95〜104バッチ）＝実機返済4件＋機構クローズ6件（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 18 / 863 (2.1%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）
+  **🔻`census:enginetext` A🔴 10行 / 10ハンドラ → 9行 / 9ハンドラ**（`BASELINE_SELF_TEXT` も 9 へ払い戻し）／
+  **`census:deadstate` 0件**（据置）。
+  📦**在庫2本**＝**機構 worklist 26項目**（31 −6）｜**実機 残 11件**（14 −4 +1）
+  🔧**ゲート（全緑 ✅）**＝golden **3451 / 3451**（3447→3451＝+4本／既存の凍結・契約 golden 7本を理由つきで更新／
+  ラチェット5本を実測値へ更新）／smoke **10725** 全異常0／fuzz 全0／census **1 / BASELINE 1**／
+  `census:stubs` A群🔴0・C群0／manual-fields 0／`census:enginetext` A🔴 **9行**／`census:costtext` A🔴 **0規則**／
+  lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝新規19本を単体でも一括でも ALL PASS**（`V-141` 6本・`V-142` 5本・`V-143` 5本・`V-144` 4本）。
+  ⚠`O-233` で `src/screens/BattleScreen.tsx` を触ったので **`V-149` を登録**（未実施）。
+  🔴**主産物①＝登録票の見立てが4件中3件で外れていた**（`O-152` の症状は stale／`O-237` の「受け皿が無い」は誤り／
+  `O-197` の残3件は2件が既に明示 defer）。
+  🔴**主産物②＝`WXK10-051-E1` の live が丸ごと幻覚だった**（原文に無いバニッシュ＋原文に無い条件＋
+  対象1体のはずが相手の全シグニ半減／本体は欠落）。
+  🔴**主産物③＝engine の第2の原文解析器 `choiceTextParser.ts`（492行）を削除**（`O-234`）＝
+  **golden がテストの中でそれを呼んでいた**＝live JSON が壊れていても緑になりえた形も同時に解消。
+  🔑**一般則**＝①**登録票は見立てであって実測ではない**（着手前に再現か母集団で確かめる）
+  ②**トリガー起点では `lastProcessedCards` は必ず空**（「その札」は `triggeringCardNum`）
+  ③**テストが engine の解釈器を呼んでいたら live を検証していない**
+  ④**payload は「最後に record を書き換えるパス」の後に載せる**。
+  ✅**ブラスト半径＝効果 変更6・追加0・削除0、予定外0。**
+
 ### 恒久指標アーカイブ（2026-09-03・`O-60` 第49バッチ後・PLAN §6 から退避）
 
 - **2026-09-03（`O-60` 第49バッチ・索引 A 第9巡）＝最大の catch-all `GAIN_ABILITY_THIS_GAME` を payload 化（Opus 5 単独／本ブロックが直近の正）**

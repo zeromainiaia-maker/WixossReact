@@ -19708,8 +19708,6 @@ scenarios.o143CheckPlace = {
   },
 };
 
-// 🏁2026-09-04（`O-152`）＝FAIL 再現用に `order` から外していたが、**修正して PASS したので既定へ戻す**。
-order.push('o143CheckPlace');
 
 scenarios.o143CheckCount = {
   title: 'WXDi-P11-006-E2（§5.3 O-143＝チェックゾーン3枚 → 相手シグニ -3000）',
@@ -20948,6 +20946,8 @@ const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
 // ⚠バッチ末尾の「自分ターン系」は既知の batch 限定状態汚染で FAIL しうる（driver 側の分離強化は別 follow-up）＝
 // FAIL が出たら該当を単体（`node scripts/verifyBattleDrive.mjs <id>`）で再実行して切り分けること。
 const order = ['v91refreshonce', 'wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'ontargeted', 'ontargeted2', 'ontargeted3', 'ontargeted4', 'ontargeted5', 'ontargetedUsageLimit', 'banishbyeffect', 'charmToTrash', 'charmToTrashBattle', 'exceedCost', 'exceedCostPay', 'lrigundermoved', 'keywordgained', 'powerzero', 'freezetrigger', 'freezetriggerUsageLimit', 'wd07012', 'cpugrow', 'cpugrowblocked', 'lrigGrowAnyOpp', 'lrigGrowAnyOppP03046', 'wxk10068banish', 'lrigattackstepstart', 'lrigAttackStepStartUsageLimit', 'beatBecomeSelfWDK14017', 'placedFront', 'placedFrontNegative', 'drawBySourceStory', 'leaveFieldToHand', 'oppDraw', 'refreshTrigger', 'oppPowerDecreased', 'energyToTrash', 'outsideDrawPhase', 'handDiscard', 'deployRestrict', 'acceAttach', 'acceSelfScope', 'acceOtherScope', 'onPlayAnyOpp', 'freezeLrig', 'negateAttackLrig', 'blockDrawByEffect', 'exileHandBlind', 'delayedAttackTrigger', 'revealDeckTopBanish', 'installDelayedTriggerFire', 'installByEffectFreeze', 'optionalTrashEnergyClassAttack', 'craftTokenPlace', 'craftEnergyCP02087', 'craftTurnEndP03078', 'craftHandSpellP05068', 'craftArtsBetK07105', 'g144DownTrigger', 'g145ByEffectTrigger', 'f3PayCostWX10033', 'f3SacrificeWX12024', 'powerModifyPerEnergy', 'artsUsedThisTurnGate', 'oppDirectAttackNegate', 'lookReorderCanTrash', 'o51ReorderRemainder', 'beatMultiCandidateSelect', 'onPlayUsageLimit', 'onTargetedForcedBypass', 'onTargetedSourceSigniBanish', 'trashCounterOpp', 'lrigGrowUsageLimit', 'powerzeroUsageLimit', 'wx24p2018GrantFire', 'oppDrawOwnEffectOnly', 'battleLevel4Filter', 'artsUseGreenFilter', 'oppPayEnergyInsufficient', 'lbOwnerReversal', 'sequenceContinuationAcrossGate', 'wdk14013TrashPicker', 'meltFactVirusRemoval', 'mugenQFlip', 'mayuEncounterFreeGrow', 'zoneBlockUnconditional', 'zoneBlockColorlessInsufficient', 'zoneBlockColorlessSufficient', 'zoneBlockMultiZones', 'vacatedZoneBlockFollowsActualZone', 'lxivMultiTargetPayBanishesBoth', 'lxivMultiTargetSkipBanishesNone', 'lxvGateTruePromptsChoose', 'lxvGateFalseSilentSkip', 'lxWX12020ScaledDiscardDelta', 'lxWX12020EmptyHandSkipsPicker', 'secondWaveEnergyBranch', 'energyLeftAnyZoneTrigger', 'doubleCrashUpTrigger', 'oppResourceLossChoose', 'spellUnderMemoriaPlace', 'spellUnderMemoriaSkip', 'aboveSelfSelfBuffStopped', 'wxdip03057DownUnderRed', 'trashMoveLockAllowsWhenUnlocked', 'wxk06067CrossZoneStubFires', 'wx22025SigniTrashBranch', 'wx22025SigniTrashUnavailable', 'spdi4302AvoidedNoChoose', 'wxex225SkipAutoTrashesTrigger', 'wxdip08007SkipRemovesAbilities', 'wxdip08007PaySpares', 'wx17040ConditionsFalseNoop', 'wx17040ConditionsTrueExecuteAll', 'centerZoneOnlyPicker', 'lxvGateTrueSkipNoBody', 'opponentPayOptionalBothBranchesCoexist', 'lrigDownGrowColorSubstituteFires', 'lrigDownCenterOnlyUnwired', 'lrigDownCenterOnlyPays', 'lrigDownLevelLrigActivated', 'noAbilityDeckBottomAttackPhase', 'noAbilityDeckBottomMainPhaseNoop', 'oppDiscardGateReachesDiscard', 'wd16016BurstOpponentDiscard', 'lxWXDiP03089SingleTargetedFire', 'v11EffectDeployCountFlagBlocked', 'v11EffectDeployNoLimitControl', 'v11EffectDeployContinuousBlocked', 'v11CpuDeployCountContinuousBlocked', 'v11CpuDeployCountNoLimitControl', 'v11CpuDeployPowerLimitWithControl', 'v12CpuCannotAttackGranted', 'v12CpuCannotAttackGrantedControl', 'v12CpuPowerCapWithControl', 'v12GrantedBattleBanishOnce', 'v12GrantedSpellUseMinus4000', 'v12PrintedEnergyChargeControl', 'v12GrantedEnergyChargeTwice', 'v12GrantedEnergyChargeThirdBlocked', 'o141UnderCount', 'o141UnderCountOne', 'o142LevelSame', 'o142LevelSameLv1', 'o143CheckCount', 'o143CheckCountOne']; // lrigDownGrowColorSubstituteFires（2026-08-05・Sonnet・PLAN§7「(xxxvi)のグロウ支払いUI」）＝続き206で配線されたグロウ支払い経路のエナ代替（wildcardInstIds/colorOverrideMap）が実選択でも機能するかを実機確認。WX16-Re06（印刷色「白」・エナゾーンにあるかぎりセンタールリグの色として代替可）を**緑の**センタールリグ（WD04-004→WD04-003・GrowCost《緑×1》）のエナに置き、素の色一致では絶対に払えない組み合わせでグロウが成立する（lrigTop変化・WX16-Re06がエナ→トラッシュへ移動）ことを2回連続PASSで確認・既定orderに追加。 // lxvGateTrueSkipNoBody/opponentPayOptionalBothBranchesCoexist（2026-08-05・Sonnet・PLAN§7残り＝タスク12(xi)＋併記型(c)）＝(xi)はlxvGateTruePromptsChoose/lxvGateFalseSilentSkipが未検証のまま残していた「ゲート成立→CHOOSE出現→あえてスキップ」branchをWXDi-P02-077-E1で追加確認（エナ無傷・【ランサー】も付与されない＝コスト踏み倒しバグは再発なし）。併記型(c)は当時「liveで併記型が載っているのは現状0」で保留だったが`WXDi-P08-007-E3`が現在costColors＋opponentHandDiscardを同時に持つ実例として存在＝pending_effect.interaction.optionsを直読みし、同一CHOOSEにid='pay'（costColors付き）とid='discard'が同時に存在することを実機ランタイムで確認。各2回連続PASSで既定orderに追加。⚠併せて確認したON_LRIG_GROW④横グロウ経路は既存の`lrigGrowUsageLimit`（続き141・既定order内）が同じE2E（ゲット・グロウ経由の2回目ON_LRIG_GROW不発火）をすでに実機確認済みと判明＝新規シナリオ不要。**新規実バグ発見（既定order外・意図的FAIL＝`lrigDownCenterOnlyUnwired`）**＝lrigDownコストの限定(a)(b)（続き218）を調査中、【起】ACTIVATED効果の`cost.lrigDown`が`executeSigniActivated`（BattleScreen.tsx）にもSigniActivatedModal.tsxにも一切配線されていないと判明＝センタールリグを事前にダウン済みにしてもWXK10-037-E2の【起】ボタンがenabledのまま押せ、コスト無視でSEARCHが実行された（2回連続再現）。詳細はPLAN§3新規登録行参照。 // wx17040ConditionsFalseNoop/wx17040ConditionsTrueExecuteAll/centerZoneOnlyPicker（2026-08-05・Sonnet・PLAN§7タスク12(lxiii)(a)(b)）＝`WX17-040-E1`（スペル「以下の3つから3つまで選ぶ」・①②はchoice.condition〔HAND_COMPARE_OPP／ENERGY_COMPARE_OPP〕でCHOOSEのavailable自体が決まる・③はch.condition無しで常にavailable:trueだが action内側のCONDITIONALが条件を持つ）と`WXDi-P02-065-E2`（centerZoneOnly:trueのSELECT_TARGETフィルタ）を実機確認。wx17040ConditionsFalseNoopは3条件すべて不成立にして①②ボタンがdisabled・③は選べるが対象選択にすら進まず静かに無効果（hHand/hEnergy/gField無変化）を確認。wx17040ConditionsTrueExecuteAllは3条件すべて成立にして①②がenabled・3つとも選択→確定するとドロー＋エナチャージ＋（SELECT_TARGETを経て）バニッシュが全実行されることを確認。centerZoneOnlyPickerは対戦相手の場を左中右すべて埋めた状態で召喚し、SELECT_TARGETの候補が中央（zone1）の1体だけに絞られ、確定後は中央のシグニだけが凍結されることを確認（従来「左右も選べた」の逆＝正しく絞られていることの確認）。各2回連続PASSで既定orderに追加。 // spdi4302AvoidedNoChoose/wxex225SkipAutoTrashesTrigger/wxdip08007SkipRemovesAbilities/wxdip08007PaySpares（2026-08-05・Sonnet・PLAN§7「残る実機検証項目」＝SPDi43-02-E1「回避時に選択肢CHOOSEが出ないこと」とWXEX2-25-E1／WXDi-P08-007-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」）＝いずれも「owner=guest（CPU・受動的watcherとして置くだけ）にし『対戦相手』=hostが応答者になるよう設計する」新パターン（wx22025と同型）で解決。spdi4302AvoidedNoChooseはhostが「支払う」（costColors非搭載STUBの無料pay枝＝(ci)と同型）で回避すると、続くCHOOSE(選択肢1/2)が一度も出現しないことを確認（原文どおりの「手札を2枚捨てる」回避枝はSELECT_TARGET{targetScope:'opp_hand'}のviewer相対バグ＝後述の新規発見バグを踏むため迂回）。wxex225SkipAutoTrashesTriggerはWD08-001の【起】《ダウン》でhost自身の信号をbyEffectで場に出し、guestのWXEX2-25が誘発→hostが「支払わない」を選ぶと、追加のSELECT_TARGETなしにその信号が自動でhostトラッシュへ戻る（targetsTriggerSource正常動作）ことを確認。wxdip08007SkipRemovesAbilities/wxdip08007PaySparesはhostが自分のシグニでアタック→guestのWXDi-P08-007が誘発→「支払わない」で追加選択UIなしにアタッカー自身が能力喪失（targetsTriggerSource正常）／《無》×1を支払うと能力喪失を回避、の対を確認。各2回連続PASSで既定orderに追加。⚠**新規実バグ発見（Opusタスク12(cv)への追記登録）**＝`wxex225DiscardAvoids`（既定order外・意図的FAIL）でhostが原文どおり「手札を1枚捨てる」を選ぶと、続くSELECT_TARGET{targetScope:'opp_hand'}の候補描画（`EffectInteractionModal.tsx:234`）がownerState相対の真の対象（host自身の手札）ではなくviewer(host)相対の`op.hand`（guestの手札）を表示し、候補との一致が一つも無く「決定 (0/1)」が永久disabledでソフトロックする（2回連続再現）。`spdi4302AvoidedNoChoose`でも同型のソフトロックを一度観測（原文の「手札を2枚捨てる」枝を避けて「支払う」枝で迂回）＝(cv)はLB「相手に選ばせる」型で発見されたが、**OPPONENT_PAY_OPTIONALのopponentHandDiscard回避コスト（応答者=viewer自身の手札が真の対象になるケース全般）でも同根のソフトロックが起きることを新たに確認**＝影響範囲がhandSpec持ち33効果超へ拡大する疑い。 // wx22025SigniTrashBranch/wx22025SigniTrashUnavailable（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第3波 WX22-025-E3）＝相手側CHOOSE4択のうち未検証だった「自分のシグニを1体トラッシュに置く」枝を実機確認。**新パターン＝guest（CPU）をアタッカー＝効果オーナーにすることで「対戦相手」＝host（driver操作アカウント）が応答者になり、respondPlayerIdがCPU_PLAYER_ID以外になってCPU自動応答がbailoutし、host自身の画面にCHOOSEモーダルが実際に描画される**（既存のLB所有者反転トリックが使えない非LIFE_BURST効果向けの代替手段＝`wxk06067CrossZoneStubFires`の「構造的に到達不能」を回避する糸口）。wx22025SigniTrashBranchはhostが自分の場から明示的にsigniTrash枝を選び、SELECT_TARGETで自分のシグニを選んでBANISHではなくTRASHが解決しライフクロスは無傷（LIFE_CRASHはOPPONENT_PAY_OPTIONALのcontinuation設計上'skip'以外の枝では発火しないことをコード読解でも確認）。wx22025SigniTrashUnavailableはhostの場が空だとボタンがdisabledになることを確認（この場合の直接攻撃による通常戦闘ダメージは本効果と無関係）。各2回連続PASSで既定orderに追加。 // wxk06067CrossZoneStubFires（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第11波 WXK06-067-E1）＝【起】《青》＋自身トラッシュでOPPONENT_PAY_OPTIONAL{opponentHandOrEnergyToDeckTop:2}（手札とエナを跨いだ単一プールのクロスゾーンpicker＝プロジェクト初）が発火することを実機確認。costColors非搭載のためOpusタスク12(ci)と同型の穴でCPU自動応答が常に無料'pay'枝（options配列の先頭かつ常時available）を選び、guestの場/手札/エナが一切変化しないことを2回連続PASSで確認・既定orderに追加。⚠**クロスゾーンpicker本体（handOrEnergyToDeckTop枝）のUI描画自体（`EffectInteractionModal.tsx`の`self_hand_energy`/`opp_hand_energy`スコープ・「手札とエナから合計」表示・`inter.candidates`経由で(cv)のようなop.hand直接参照バグは無いことをコード読解で確認済み）は、本カードが非LIFE_BURSTのため`secondWaveEnergyBranch`等が使うLB所有者反転トリックが使えず、単一アカウントdriverでは構造的に到達不能**＝低優先で保留（(ci)修正後にownerId反転可能なLB型カードが見つかれば改めて検証）。 // trashMoveLockAllowsWhenUnlocked（2026-08-05・Sonnet・PLAN§7タスク12(lxxiii)対照）＝WD05-018（トラッシュのシグニ1枚を手札に加える・《無》×2）でlock_trash_move_this_turnフラグが無い通常時は普通に動くことを2回連続PASSで確認・既定orderに追加。⚠対の`trashMoveLockBlocksSelfEffect`（フラグありでMAINフェイズでも普通に動いてしまう＝ロック機構が実UI経路で丸ごと不発）は実バグとしてOpusタスク12(cvii)へ登録・意図的FAILとして既定order外のまま保持（詳細はPLAN§3(cvii)）。 // spellUnderMemoriaPlace/spellUnderMemoriaSkip（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P11-063-E2）＝スペル《無心の豪圧》がバニッシュ解決後に自身をメモリア（幻怪姫エクス等3種）の下に置いてもよい選択（STUB TRAP_OPERATIONの「の下に置いてもよい」分岐＝part1の同名STUBに食われて長期間到達不能だった経路）をUIで初実走。置く→ホストに+2000（hostZone0=[スペル,メモリア]）、スキップ→トラッシュのままで+2000は乗らないの両方を各2回連続PASSで確認・既定orderに追加。 // aboveSelfSelfBuffStopped/wxdip03057DownUnderRed（2026-08-05・Sonnet・PLAN§7タスク16「【常】版4枚の自己バフ停止」）＝WXK08-086/WXDi-P03-057/WXDi-P05-050の「このカードの上にあるシグニのパワーを＋N」（aboveSelf）が単独配置（下にカードなし＝スタック長1）では一切適用されない（effectEngine.ts:1562のstack.length<2ガード）ことを確認＝従来の自己バフ退行は再発していない。対照実験としてWXDi-P03-057の【起】《ダウン》で他の赤シグニ(WD02-009)の下に潜らせると、そのホストの表示パワーが12,000→14,000（aboveSelf+2000）へ実際に上がることも確認（CONTINUOUS/PERMANENTのaboveSelfはtemp_power_modsに書かれない純計算値のためDOM表示で判定）。各2回連続PASSで既定orderに追加（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P13-051-E3）＝「対戦相手の効果1つによって、あなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき」誘発（`collectOppResourceLossTriggers`のエナ経路）をWXDi-D07-013（【出】mandatory・対戦相手のエナ1枚をトラッシュ）×WXDi-P13-051（watcher・CHOOSE「引く/エナチャージ」）で実機確認。誘発後CPU（guest）がCHOOSEを自動選択（ドロー/エナチャージいずれか）することを含め2回連続PASSで既定orderに追加。手札喪失経路・「1つの相手効果が両方やる場合は1回だけ」は未個別実機（低優先＝`collectOppResourceLossTriggers`は中央diffで両方を1本のentryへ畳む設計・コード読解で確認済み）。 // doubleCrashUpTrigger（2026-08-05・Sonnet・PLAN§7タスク16 WX05-020-E1）＝【ダブルクラッシュ】直接注入で1アタックにguestライフを2枚同時クラッシュ（原文①の足し方）→「1ターンに合計2枚以上クラッシュ」条件が成立しE1（アップ）が発火してsigni_downがfalseへ復帰することを実機確認。2回連続PASSで既定orderに追加。②のE2（アタック1枚+アーツ被効果1枚の足し方）・ターンまたぎリセットは未個別実機（低優先）。 // energyLeftAnyZoneTrigger（2026-08-05・Sonnet・PLAN§7タスク16 WXDi-P06-038-E1）＝「あなたのエナゾーンから効果によってカード1枚が他の領域に移動したとき」＝トラッシュ以外（手札）行きでも`energyLeftToAnyZone`triggerConditionで発火することをWXEX1-42（自身のエナから植物シグニ1枚を手札へ）の召喚で実機確認。2回連続PASSで既定orderに追加。 // secondWaveEnergyBranch（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第2波(a)）＝WX15-033-BURSTのOPPONENT_PAY_OPTIONALに手札枝＋エナ枝が並ぶケースをLB経由（所有者反転でdriver自身がCHOOSEを受ける）で実機確認。手札1枚(<2)で「手札を2枚捨てる」枝はdisabled、エナ3枚(≥2)で「エナゾーンから2枚」枝をあえて選択→自分のエナがちょうど2枚トラッシュされ対象シグニは場に残存を2回連続PASSで確認・既定orderに追加。WXK05-001-E1も同一OPPONENT_PAY_OPTIONALコードパスのため個別実機は任意。ALL枝（WX24-P4-023-E3・該当0枚で枝非表示）は未個別検証のまま残（低優先）。 // lxWX12020ScaledDiscardDelta/lxWX12020EmptyHandSkipsPicker（2026-08-05・Sonnet・PLAN§7タスク12(lx)(a)）＝WX12-020-E3の「アタック時にまず相手1体を対象選択→次に手札を好きな枚数(upToCount)捨てる→POWER_MODIFY(targetsStored,deltaPerLastProcessedCount)で捨てた枚数×-6000がその1体だけに乗る」を実機確認。手札0枚だとピッカー自体が出ずdelta=0で素通り・クラッシュしないことも確認。各2回連続PASSで既定orderに追加。⚠同バッチのlxWXDiP03089SingleTargetedFire（タスク12(lx)(b)＝POWER_MODIFY{targetsStored}は再選択なし）は「再選択が消えたこと」自体は確認できたが、ON_TARGETED watcherが期待の1回ではなく0回しか発火しない別バグを発見（Opusタスク12(civ)へ登録）＝既定order外の意図的FAILとして保持（PLAN§3参照）。 // lxivMultiTargetPayBanishesBoth/lxivMultiTargetSkipBanishesNone/lxvGateTruePromptsChoose/lxvGateFalseSilentSkip（2026-08-05・Sonnet・PLAN§7タスク12(lxiv)(lxv)）＝「対象ピッカー前置」（SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→OPTIONAL_COST→CONDITIONAL(IS_MY_TURN)→BANISH{targetsStored}）と「条件つき任意コストのゲート」（CONDITIONAL{gate}→STUB OPTIONAL_COST の包み形）を実機確認。WXDi-P02-043-E1で対象2体まで選択→支払う→両方バニッシュ／支払わない→どちらも残存、WXDi-P02-077-E1で手札6枚以上ならCHOOSE出現→支払う→ランサー付与／5枚以下は「任意コストの条件を満たさない（スキップ）」で静かに不発、を各2回連続PASSで確認・既定orderに追加。⚠実機で判明＝支払い後、freezeStoredTargetsでfixedCardNumsに絞られたBANISH自体もselectOrInteract経由の再確認SELECT_TARGET（候補2件でも確認クリックが要る）を要求する＝対象確定は支払い前後で計2回。また対象ピッカー自身がupToCount:true由来の「スキップ」ボタンを持つため、H.stdStep()の汎用フォールバック（デフォルトlabelsに'スキップ'を含む）に委譲するとpick-Nがまだ描画されていない一瞬にそちらを誤クリックし0件確定で終わるレースが実機で再現した＝この2シナリオではH.stdStep()を使わず明示的なラベルのみで進行する。 // zoneBlockUnconditional/zoneBlockColorlessInsufficient/zoneBlockColorlessSufficient/zoneBlockMultiZones/vacatedZoneBlockFollowsActualZone（2026-08-05・Sonnet・PLAN§7タスク12(lxi)第10波(a)(b)+タスク12(lxxvi)）＝「シグニを新たに配置できないゾーン」（`BLOCK_OPP_ZONE_PLACEMENT`/`signi_zone_blocks`・`signiZoneBlock.ts`）のDOM描画（`(配置禁止)`ラベル・`《無》×N不足`・disabled）と実際の配置阻止/コスト徴収を実機確認。vacatedZoneBlockFollowsActualZoneはWX08-032-E1を実際にキャスト→guest zone2のシグニをバニッシュ→`signi_zone_vacated_just`経由の禁止ゾーンがzone2に正しく付き**zone1へフォールバックしない**ことを実配線で確認（state注入だけでは検証できない回帰点）。各2回連続PASSで既定orderに追加。 // wdk14013TrashPicker/meltFactVirusRemoval/mugenQFlip/mayuEncounterFreeGrow（2026-08-04・Sonnet・PLAN§6.3 H/I′(b)(c)(d)(e)）＝各2回連続PASSで既定orderに追加。(a)ガード追加《無》N枚徴収（guardExtraColorlessSufficient/Insufficient）はルーム再利用バッチだと前シナリオのguestルリグダウン状態が残りCPUが再アタックせずFAILする既知制約のため既定order外・単体実行専用のまま。 // oppPayEnergyInsufficient/lbOwnerReversal/sequenceContinuationAcrossGate（2026-08-04・Sonnet・PLAN§7タスク12(lxi)本消化(a)(d)(e)）＝WX25-P1-038-E1のOPPONENT_PAY_OPTIONAL availableゲート（エナ不足→skip→banish）、WX24-P2-071-BURSTのLB所有者反転（支払い側が常にLB所有者の対戦相手になること）、WX24-P1-023-E1の内側ゲート解決後もREVEAL_AND_PICKが中断を跨いで続行することを新規検証・各2回連続PASSで既定orderに追加。同バッチの(a)対照実験(oppPayEnergySufficient)と(b)(oppDiscardGateBareBug)は逆に実バグを検出（Opusタスク12(cii)＝CPU自動応答のCHOOSEはcostColors付きpay選択時にエナinstanceIdを渡さず常に「コスト支払いエラー: エナ不足」で空振り／Opusタスク12(ci)＝costColors非搭載のOPPONENT_PAY_OPTIONALは無条件で無料payを選択肢に積むためCPUが最優先で選び discard/energyTrash 等の回避コストが実質死んでいる）＝既定order外の意図的FAILとして保持（PLAN§3参照）。 // oppDrawOwnEffectOnly（2026-07-17・続き170・Sonnet・PLAN§3タスク1・Opusタスク12(xxi)続き162の反転検証）＝`collectOppDrawTriggers`に`drawByDrawerOwnEffect`triggerConditionが追加されPR-423にフラグ付与された修正の反転確認。旧・意図的FAIL（host自身の効果でguestが引いただけでPR-423が誤発火）が2回連続PASS（guestドロー後もPR-423生存・guest.life無傷）＝実バグ解消を確認・既定orderに追加。 // wx24p2018GrantFire（2026-07-16・続き164・Opus・タスク1）＝引用付与の対象-コスト分離2文型の完全経路（E1発火→《赤》支払い→対象＜龍獣＞選択→内側【自】付与→アタック→相手不払い→アサシン付与）。旧・意図的FAIL（ルリグ自身へ即付与）が parser 修正＋JSON採用で反転・2回連続PASS＝既定orderに追加。 // powerzeroUsageLimit（2026-07-15・続き141・Sonnet・PLAN§3タスク1(c)）＝R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit新規シナリオ。WD11-013（【出】対戦相手シグニ-1000・コストなし）を2枚手札に用意しguest場のP1000シグニ2体を順に0化＝1枚目でwatcher（アイン＝テトロド）が発火してドロー、2枚目では《ターン1回》のため発火せず手札据え置きを確認。3回連続PASS＝既定orderに追加。 // lrigGrowUsageLimit（2026-07-15・続き141・Sonnet・PLAN§3タスク1(b)）＝タスク12(vi-5)（続き135・Opusで二面コレクタのusageLimit書き戻しを一括修正済み）の反転検証。旧FAILの真因はengineではなくdriver側＝ゲット・グロウ横グロウで開くグロウ先カード（タマヨリヒメ）の【出】効果コスト確認モーダル（SigniOnPlayCostModal）をスペル用testId（spellcost-energy-0）で探していたため永久に「なし」を繰り返しグロウ完了判定（lrigTop変化）に到達できなかった（続き132の「driverでlrigTopが変化せず再現不能」の真因＝旧記録の想定と異なりengine不具合ではなかった）。修正＝候補クリック後は正しいtestId（onplaycost-energy-0）とスキップボタンで処理。修正後2回連続PASS（usageLimit正しく機能＝ゲット・グロウ経由の2回目ON_LRIG_GROWで発火せず）＝既定orderに追加。 // trashCounterOpp（2026-07-15・続き141・Sonnet・PLAN§3タスク1(a)）＝タスク12(iv)（続き135・Opusでapplydirect Actionの手札カウンタ3種書き戻しを修正済み）の反転検証。FRESH=1新規ルーム/既存ルーム再利用の両方で計3回連続PASS（guest.hand_trashed_by_opp_this_turn=1を確認）＝実バグ解消を確認・既定orderに追加。⚠旧handPrependを`hand`直接指定へ変更（続き139のblockDrawByEffect/exileHandBlindと同型の残留ランダム手札混入対策）。 // onTargetedForcedBypass（続き137・Opus・タスク12(xx)）＝targetsTriggerSource/targetsLastProcessedの選択UIなし自動対象化がcollectTargetedTriggersを素通りしON_TARGETEDが発火しなかった実バグ（続き127でSonnetが再現・登録）。execPowerModifyがautoTargetedCardsをExecResultにsurfaceし、resolveStackNextのdone分岐で「対戦相手の場のautoTargetedCards」をON_TARGETED収集にかける修正。WX12-010（ON_ATTACK_SIGNI any_opp+targetsTriggerSource -2000）×WXDi-P03-067（ON_TARGETED self=DRAW×1）で、guest空手札注入→CPUアタック→POWER_MODIFY成立→ON_TARGETEDでguestが1枚ドロー（gHand=1）を確認。修正前はPOWER_MODIFYだけ成立しhand=0のまま。⚠計測はdelta不可（CPUアタックが注入直後に完結）＝空手札注入の絶対値判定。 // onPlayUsageLimit（続き135・Opus・タスク12(x)）＝collectFieldTriggers に usageLimit ガードが存在せず「味方のシグニが場に出るたびに◯◯（ターン1回）」型32枚が同一ターンの複数召喚で毎回発火していた実バグの回帰。WX24-P1-046-E1（＜地獣＞2体召喚）で1回だけ発火（hDeck -1・actions_done に effectId 1件）を2回連続PASS確認。修正前は actions_done に effectId が入ること自体があり得ない（書き戻し機構が無かった）ため、このシナリオは修正の有無を確実に切り分ける。 // beatMultiCandidateSelect（続き129・Sonnet・PLAN§7「ビート機構Phase1-7」残）＝`analyzeBeatSigniCost`/`actBeatNeedSelect`（SigniActivatedModal.tsx）の複数候補ゾーン選択UIは実装済みだったが実機未検証だった。WXK08-026を候補2体（小剣ククリ/羅植姫アキナナ）と共に配置→候補の一方（小剣ククリ）だけを選んで【起】発動→選んだ方だけがbeat_zoneへ移り選ばなかった方は場に残存することを2回連続PASSで確認＝新規バグなし・既定orderに追加。lookReorderCanTrash（続き128・Sonnet・PLAN§7.2「対話UIの残実装」）＝EffectInteractionModal.tsxのLOOK_AND_REORDER canTrash UI（「トラッシュ」トグル→「決定」確定）は実装済みだったが実機未検証だった。WX20-037召喚→デッキ上3枚を見て1枚トラッシュ選択→確定でhTrash+1・hDeck-1を2回連続PASSで確認＝既定orderに追加。queryStateのsideOf()に`deck`（deck.length）フィールドを新規追加。onTargetedForcedBypass（続き127・Sonnet・PLAN§7「ON_TARGETED forced単一対象follow-up」）＝`targetsTriggerSource`の選択UIなし自動解決が`collectTargetedTriggers`を素通りしON_TARGETEDが発火しない実バグをWX12-010×WXDi-P03-067の組で実機再現（FRESH=1含め2回連続再現）＝Opusタスク12(xx)へ登録・意図的FAIL回帰として既定order外のまま（修正後にPASSへ反転させ追加する）。oppDirectAttackNegate（続き126・Sonnet・PLAN§7「その他の実機検証待ち」＝WX04-004-E2守備側アタック無効化）＝正面が空のシグニアタックに対しSTUB(OPP_DIRECT_ATTACK_NEGATE)がCHOOSE(pay/skip)→TRASH(HAND_CARD,美巧)→エナ支払いでcancel_current_signi_attackを立てるフローを実機で新規検証・2回連続PASS（hLife 6→6で無効化を確認）＝既定orderに追加。queryStateのsideOf()に`life`（life_cloth.length）フィールドを新規追加（今後のシナリオでも life 増減の判定に使える）。f3SacrificeWX12024（旧f3SacrificeWX12024Bug）＝✅続き117（Opus・タスク12(xv)）でWX12-024-E1をSTUB BANISH_SUBSTITUTE化し身代わりモーダルの実発火を2回連続PASS確認＝既定orderに復帰。craftArtsBetK07105＝✅続き122（Sonnet）で再検証したところ engine修正（続き117）後は H.stdStep() の pick-0 ハンドリングだけで手札ピッカーも問題なく解決し2回連続PASS＝「driverのHAND_CARDピッカー未クリック」という旧コメントの想定は誤りと判明（当時はengine未修正でSELECT_TARGETに到達すらしていなかった）＝既定orderに追加。自分ターン系→CPUターンの順。craftTokenPlace（続き113・Sonnet・PLAN§6.4「クラフトトークンの実機配置検証」）＝WX25-CP1-066の`ADD_TO_FIELD{cardName:'雷ちゃん'}`（`execAddToField`の「ゲーム外からトークン生成」分岐＝`effectExecutor.ts:1170`）が実機で正しく`WX25-CP1-TK1A`（CardData_TK.csv）へ解決され場に出ることを確認・2回連続PASSで既定orderに追加。⚠原文の「あなたの場に《雷ちゃん》がない場合」条件がJSONに無い（無条件実行）点はPLAN§6.4に既知の「場存在条件」近似として既に記載済み＝新規発見ではない。driverの肝＝(a)discardコストの手札ピッカーはSigniActivatedModal内蔵（`pick-0`ではなく`img[alt=カード名]`クリック）で、しかも同名imgが画面下部の手札ストリップにもDOM順で先に存在するため`.first()`だと誤って背景オーバーレイのキャンセルを誘発する＝`.last()`（createPortalで後から追加される側）を使う。(b)配置先ゾーンが2つ空くとSELECT_SIGNI_ZONEの「ゾーンN」ボタンクリックが要る。revealDeckTopBanish/installDelayedTriggerFire（続き112・Sonnet・PLAN§7 B2/B3）＝WX17-028のREVEAL_DECK_TOP+動的閾値バニッシュとWX25-CP1-069のINSTALL_DELAYED_TRIGGER実発火（ライフクラッシュ経由）を新規検証・各2回連続PASSで既定orderに追加。B3はcrasherFilterが「クラッシュ源を追跡せず場に該当シグニがいるかで代用」という既知の近似（PLAN B3欄に明記）だが今回の検証目的（設置→同ターン内発火の一気通貫）はこの近似のままでも確認可能。installByEffectFreeze/optionalTrashEnergyClassAttack（続き112・Sonnet・PLAN§7「機構④誤parse3枚」）＝WXDi-P07-044-E2（any_ally+byEffect ADD_TO_FIELD watcher）とWX25-P3-062-E2（OPTIONAL_TRASH_ENERGY_CLASS＋HAS_CARD_IN_FIELD lrig名条件）を新規検証・各2回連続PASSで既定orderに追加＝機構④誤parse3枚（WXDi-P07-044/WX25-P3-062/WX25-P2-009）のうち実機検証待ちだった2枚が決着（WX25-P2-009は別途未配線STUB・機構待ちのまま§6.3送り）。freezeLrig/negateAttackLrig/blockDrawByEffect（続き79・Sonnet）＝続き76のパターンB(FREEZE/NEGATE_ATTACKのLRIG対象)・パターンC(BLOCK_ACTION DRAW_OR_ADD_TO_HAND_BY_EFFECT)を実機PASS確認＝既定orderに追加。exileHandBlind/delayedAttackTrigger（続き81・Sonnet）＝FAILの原因はいずれもengine/parserではなくテストドライバ側の不具合（詳細BUGFIXES）と判明・driver修正後2回連続PASS確認＝既定orderに追加。trashCounterOppは調査の結果、resumeSelectTarget→applyDirectAction のTRASH/HAND_CARD分岐がhand_trashed_by_opp_this_turn等3フィールドの更新を欠く実engineバグ（count:1でSELECT_TARGET経由するTRASH全般に影響）と確定＝修正はOpusタスク12へ登録・既定order外のまま（PLAN§3参照）。oppPowerDecreased/energyToTrash/outsideDrawPhase/handDiscard は続き61（Opus）でresume経路取りこぼしを collectBoardDiffTriggers 統合で修正し実機PASS確認済み＝既定orderに復帰。deployRestrict は続き62（Opus）で配置数制限（DEPLOY_RESTRICT count分岐）を実装し実機PASS（BUGFIXES/PLAN§6.3参照）。charmToTrash/exceedCost/ontargeted2 は続き64（Sonnet）でR42/R44/ON_TARGETED①を新規検証・単体PASS。acceAttach（R45① ON_ACCE_ATTACH host条件）は続き65（Opus）で execAttachAcce fromHand経路の2段chaining実装と battleCardNums への signi_acce 走査追加の2バグを修正し実機PASS（2回連続・deterministic）＝既定orderに追加。ontargeted2は5回中4回PASSで軽微なタイミングフレークあり＝ontargetedと同一コードパスのためengine側の問題ではないと判断。ontargeted3/4/5（続き72・Sonnet）＝ON_TARGETED残り3枚（WXDi-P11-040/WXDi-D09-H14/WX25-P2-055）を個別検証・単体PASS（3件とも再現確認）。ontargeted3はGRANT_KEYWORDのexcludeSelf未実装、ontargeted5はREMOVE_ABILITIES target.ownerが原文と逆（'opponent'だが原文は自己参照）という2件の実データ疑義を発見＝修正はせずOpusタスク12へ登録（PLAN§7参照）。lrigGrowAnyOpp（続き73・Sonnet）＝ON_LRIG_GROW残②（WXDi-P13-047・any_opp）を検証・2回連続PASS＝guest自身のターン中のグロウでも発火＝原文「あなたのターンの間」のturnOwnerゲートが未実装という実データ疑義を発見＝修正はせずOpusタスク12へ登録。lrigGrowAnyOppP03046（続き73・Sonnet）＝ON_LRIG_GROW残②のもう1枚（WXDi-P03-046・SELECT_TARGET要のTRANSFER_TO_HAND）を検証・2回連続PASS＝R38/R43/R46/R39系統のresume経路取りこぼしバグには該当しない（トリガー元＝CPU自動グロウが対話不要で完了し、watcher側のSELECT_TARGETはhost自身の新規interactionとして正常に処理されるため）。ontargetedUsageLimit/charmToTrashBattle（続き74でFAIL→続き75・Opusでengine修正→実機PASS）＝前者は collectTargetedTriggers が usedHostIds/usedGuestIds を返し呼び出し元が actions_done へ書き戻すよう修正（《ターン1回》が毎回発火していた）・後者は resolvePendingSigniBattleFor に collectCharmToTrashTriggers を配線（バトルバニッシュでのチャーム喪失が一度も収集されていなかった）＝既定orderに追加")
+// 🏁2026-09-04（`O-152`）＝FAIL 再現用に `order` から外していたが、**修正して PASS したので既定へ戻す**。
+order.push('o143CheckPlace');
 // タスク12(cix)＝コスト経路の「この方法でダウンしたルリグ」参照。golden では原理的に守れない（engine ハーネスは
 // 支払いも同じ ExecCtx で行うため lastProcessedCards が届いてしまう）ので、実機シナリオを既定 order に入れる。
 order.push('lrigDownLevelRemoveAbilities');
@@ -45556,6 +45556,485 @@ for (const kind of ['lancer', 'assassin']) {
 
 
 
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-133`（`O-60` 第39バッチ＝**`ON_RISE` の収集元と「そのシグニ」を反転した**）
+// 🔴**旧実装は「置かれた側（【ライズ】シグニ自身）」から `ON_RISE` を集めていた**が、`ON_RISE` を持つ11枚は
+//   **1枚も【ライズ】を印字していない**（＝ライズされる側＝**下敷き**）ので、**11枚が1度も発火しない死に効果**だった。
+//   ⇒ `BattleScreen.tsx:6492` で収集元を**下敷き**へ、帰結の「そのシグニ」（`targetsTriggerSource`）を
+//   **上に置かれた【ライズ】シグニ**へ反転した。**「発火すること」自体が観測点。**
+// ⚠**観測は instance id で行う**＝バッジ（`title`）はゾーンの絵しか見ないので「上下どちらに付いたか」を分けられない。
+//   `keyword_grants` / `granted_effects` / `temp_power_mods` はすべて **instance id キー**なので、
+//   **下敷き（`WX16-039#…`/`WX20-056#…`）に付いていないこと**まで assert する。
+// -----------------------------------------------------------------------------
+
+/** 手札の1枚目を「召喚」→指定ゾーンへ置く（ライズは `summon-zone-N` が下敷きのゾーン）。 */
+async function riseSummonToZone(page, H, zone) {
+  await H.clickTestId('my-hand-card-0');
+  await page.waitForTimeout(400);
+  const summon = await H.clickBtn('召喚', { exact: true });
+  // ⚠§4.4 📌8k＝限定・レベル・リミットを満たさないと「召喚」が**そもそも出ない**。
+  if (!summon) return { ok: false, detail: '「召喚」ボタンが出ない（限定／レベル／リミットを疑う）' };
+  await page.waitForTimeout(400);
+  const btn = page.getByTestId(`summon-zone-${zone}`).first();
+  if (!(await btn.count())) return { ok: false, detail: `summon-zone-${zone} が出ない` };
+  // ⚠§4.4 📌2d＝ライズ条件を満たさないゾーンは disabled。押せたかどうかを明示的に見る。
+  const enabled = await btn.isEnabled().catch(() => false);
+  if (!enabled) return { ok: false, detail: `summon-zone-${zone} が disabled＝ライズ条件を満たしていない` };
+  await btn.click({ timeout: 1200 }).catch(() => {});
+  return { ok: true, detail: `召喚→zone${zone}` };
+}
+
+/**
+ * `V-133` の共通ドライバ。下敷き（`under`）の上へ手札の `riser` をライズさせ、
+ * **settled になるまで**待ってから instance 単位で観測する。
+ */
+function mkRiseScenario({ id, title, lrig, under, riser, judge }) {
+  return {
+    title,
+    spec: {
+      hostSet: {
+        'field.lrig': [lrig],
+        'field.signi': [null, [under], null],   // zone1（中央）に下敷き1体だけ
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'field.signi_frozen': [false, false, false],
+        'field.signi_down': [false, false, false],
+        'lrig_deck': [],
+        'hand': [riser],
+        'energy': [], 'coins': 0, 'trash': [],
+        'actions_done': [], 'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        // ⚠**相手の場は空**＝`WX15-032` の【出】（パワー以下の相手シグニ1体をバニッシュ）の候補を0にして
+        //   対話を挟まない（§4.4 📌8z＝銀行役の副作用を観測に混ぜない）。
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log(`  ${id}: 開始 field=${JSON.stringify(before?.host?.fieldSigni)} kw=${JSON.stringify(before?.host?.keywordGrants)}`);
+      const placed = await riseSummonToZone(page, H, 1);
+      H.log(`  ${id}: 召喚=${JSON.stringify(placed)}`);
+      if (!placed.ok) return { pass: false, detail: `前提崩れ＝${placed.detail}` };
+      // settled ストリーク（§5.1 の教訓＝確定直後の1回読みはコミット前の盤面を掴む）。
+      let st = before, settled = 0, stacked = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(500);
+        const did = await H.stdStep();
+        st = await H.queryState();
+        const zones = st?.host?.fieldSigni ?? [];
+        stacked = stacked || (zones[1] ?? []).length >= 2;
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(zones)} kw=${JSON.stringify(st?.host?.keywordGrants)} gEff=${JSON.stringify(st?.host?.grantedEffectIds)} pow=${JSON.stringify(st?.host?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (!(st?.stackLen > 0) && !st?.pendingEffect && stacked) ? settled + 1 : 0;
+        if (settled >= 3) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const zones = st?.host?.fieldSigni ?? [];
+      const stack1 = zones[1] ?? [];
+      if (!(stack1.includes(riser) && stack1.includes(under))) {
+        return { pass: false, detail: `前提崩れ＝ライズが成立していない（zone1=${JSON.stringify(stack1)}）` };
+      }
+      if (stack1.at(-1) !== riser) {
+        return { pass: false, detail: `前提崩れ＝上に乗ったのが ${stack1.at(-1)}（riser=${riser} ではない）` };
+      }
+      return judge({
+        kwOf: (inst) => (st?.host?.keywordGrants ?? []).filter(e => e.startsWith(`${inst}:`)),
+        gEffOf: (inst) => (st?.host?.grantedEffectIds ?? []).filter(e => e.startsWith(`${inst}:`)),
+        powOf: (inst) => (st?.host?.powerMods ?? []).filter(e => e.startsWith(`${inst}:`)),
+        dump: `zone1=${JSON.stringify(stack1)} kw=${JSON.stringify(st?.host?.keywordGrants)} gEff=${JSON.stringify(st?.host?.grantedEffectIds)} pow=${JSON.stringify(st?.host?.powerMods)}`,
+      });
+    },
+  };
+}
+
+// ① `WX16-039`（鎌振の十勇　ユリカマ・Lv2 赤＜武勇＞）の【自】
+//    「このシグニがライズされたとき、ターン終了時まで、**そのシグニ**は【ダブルクラッシュ】を得る」。
+//    riser＝`WX17-055`（混成の怪物　フンババ・Lv1 赤＜武勇＞／【ライズ】レベル２以下の赤のシグニ１体の上に置く）。
+//    ⚠フンババ自身の【自】は「**対戦相手のターンの間**、場を離れたとき」＝自ターンでは完全に不活性。
+const V133_UNDER1 = 'WX16-039#9101';
+const V133_RISER1 = 'WX17-055#9102';
+scenarios.v133RiseDoubleCrash = mkRiseScenario({
+  id: 'v133RiseDoubleCrash',
+  title: 'O-60 V-133①：WX16-039 がライズされると【ダブルクラッシュ】は「上に置かれたシグニ」に付く（旧＝1度も発火しない）',
+  lrig: 'WX21-008#9100',                       // 天空の記憶 リル（Lv4 / Limit12 / 能力なし）
+  under: V133_UNDER1,
+  riser: V133_RISER1,
+  judge({ kwOf, dump }) {
+    const top = kwOf(V133_RISER1).some(e => e.includes('ダブルクラッシュ'));
+    const bottom = kwOf(V133_UNDER1).some(e => e.includes('ダブルクラッシュ'));
+    if (!top && !bottom) return { pass: false, detail: `🔴ライズしても【ダブルクラッシュ】が誰にも付かない＝ON_RISE が発火していない（旧挙動）。${dump}` };
+    if (bottom && !top) return { pass: false, detail: `🔴下敷き（${V133_UNDER1}）に付いた＝「そのシグニ」の解決先が反転していない（旧挙動）。${dump}` };
+    if (bottom) return { pass: false, detail: `🔴上下の両方に付いた＝付与先が絞れていない。${dump}` };
+    return { pass: true, detail: `ライズされた側（下敷き ${V133_UNDER1}）の【自】が発火し、【ダブルクラッシュ】は上に置かれた ${V133_RISER1} だけに付いた。${dump}` };
+  },
+});
+order.push('v133RiseDoubleCrash');
+
+// ② `WX20-056`（戦乱の一輪　オイチ・Lv1 赤＜武勇＞）の
+//    E1＝「ライズされたとき、そのシグニのパワーを＋3000」（無条件）
+//    E2＝「**カード名に《オダノブ》を含むシグニに**ライズされたとき、そのシグニは
+//         『【常】：対戦相手の効果によって、手札に戻らずダウンせず新たに能力を得られない。』を得る」。
+//    riser（成立）＝`WX15-032`（矜持の豪魔　オダノブ・Lv4 赤＜武勇＞／リル限定／【ライズ】＜武勇＞のシグニ１体の上に置く）。
+//    riser（反転）＝`WX17-055`（フンババ＝名前に《オダノブ》を含まない）。
+// 🔴**反転側の判定は「E1 は発火する」を先頭に置く**（§4.4 📌3b）＝
+//    E1 の＋3000 は**旧実装でも新実装でも観測できる痕跡**なので、「E2 が出ない」が
+//    〈収集そのものが起きていない〉のか〈`risenByNameContains` が効いた〉のかを切り分けられる。
+const V133_UNDER2 = 'WX20-056#9111';
+const V133_ODANOBU = 'WX15-032#9112';
+const V133_NOTODA = 'WX17-055#9113';
+scenarios.v133RiseOdanobuOn = mkRiseScenario({
+  id: 'v133RiseOdanobuOn',
+  title: 'O-60 V-133②：WX20-056 は《オダノブ》にライズされたときだけ E2（手札に戻らず／ダウンせず／能力を得ない）を上のシグニへ付ける（成立）',
+  lrig: 'WX21-008#9110',
+  under: V133_UNDER2,
+  riser: V133_ODANOBU,
+  judge({ kwOf, gEffOf, powOf, dump }) {
+    const pow = powOf(V133_ODANOBU).some(e => e.endsWith(':3000'));
+    if (!pow) return { pass: false, detail: `前提崩れ＝E1（そのシグニのパワー＋3000）が上のシグニに乗っていない＝ON_RISE 自体が発火していない。${dump}` };
+    const prot = kwOf(V133_ODANOBU).some(e => e.includes('PROTECTION:BOUNCE,DOWN'));
+    const gained = gEffOf(V133_ODANOBU).length > 0;
+    const onBottom = kwOf(V133_UNDER2).some(e => e.includes('PROTECTION')) || gEffOf(V133_UNDER2).length > 0;
+    if (onBottom) return { pass: false, detail: `🔴下敷き（${V133_UNDER2}）へ付いた＝「そのシグニ」の解決先が反転していない。${dump}` };
+    if (!prot) return { pass: false, detail: `🔴E2 の耐性（手札に戻らず／ダウンしない）が付いていない。${dump}` };
+    if (!gained) return { pass: false, detail: `🔴E2 の「新たに能力を得られない」（granted_effects）が付いていない。${dump}` };
+    return { pass: true, detail: `E1（＋3000）と E2（耐性＋能力獲得禁止）が両方とも上の《オダノブ》へ付いた。${dump}` };
+  },
+});
+order.push('v133RiseOdanobuOn');
+
+scenarios.v133RiseOdanobuOff = mkRiseScenario({
+  id: 'v133RiseOdanobuOff',
+  title: 'O-60 V-133②反転：《オダノブ》を含まない【ライズ】シグニでは E2 は発火しない（E1 の＋3000 だけ）',
+  lrig: 'WX21-008#9110',
+  under: V133_UNDER2,
+  riser: V133_NOTODA,
+  judge({ kwOf, gEffOf, powOf, dump }) {
+    // 🔴**先に「E1 は発火した」を確かめる**＝これが無いと「E2 が出ない」が単に収集失敗の写しになる。
+    const pow = powOf(V133_NOTODA).some(e => e.endsWith(':3000'));
+    if (!pow) return { pass: false, detail: `前提崩れ＝E1（＋3000）すら乗っていない＝ON_RISE の収集が起きていない（反転の主張が成立しない）。${dump}` };
+    const prot = kwOf(V133_NOTODA).some(e => e.includes('PROTECTION:BOUNCE,DOWN'));
+    const gained = gEffOf(V133_NOTODA).length > 0;
+    if (prot || gained) return { pass: false, detail: `🔴《オダノブ》を含まないのに E2 が発火した＝risenByNameContains が効いていない（prot=${prot} gEff=${gained}）。${dump}` };
+    return { pass: true, detail: `反転＝E1（＋3000）だけが乗り、E2（耐性／能力獲得禁止）は発火しなかった。${dump}` };
+  },
+});
+order.push('v133RiseOdanobuOff');
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-134`（`O-60` 第41バッチ＝**相手エナの色制限が「宣言された色」で効く**）
+// `WXK09-037`（紡槍　アークエナジェ）の【常】＝
+//   「対戦相手のエナゾーンに**この【出】能力で宣言された色を持たず無色ではない**カードが置かれる場合、
+//     代わりにトラッシュに置かれる」。
+// 🔴**旧実装は原文 regex から色を読もうとしていたが、原文には色名が1文字も無い**（色は実行時に宣言される）
+//   ＝**常に null＝制限が1度も張られなかった**。⇒ `collectOppEnergyColorRestriction` が
+//   `PlayerState.declared_color` を読む形へ移した（`effectEngine.ts:4368`）。
+// 🔑**観測は「チャージした1枚がエナへ入ったかトラッシュへ落ちたか」**＝
+//   制限を持つカードは**相手（guest）の場**に置き、**こちら（host）がチャージする**側にする
+//   （`BattleScreen.tsx:4882` の `collectOppEnergyColorRestriction(op, my, …)` と同じ向き）。
+// ⚠**エナチャージはターン1回**（`actions_done` に `ENERGY`）＝1シナリオにつき1枚しか測れないので、
+//   「落ちる／入る／無色は素通し／宣言前は無制限」を**4本に割る**。
+// -----------------------------------------------------------------------------
+
+const V134_RESTRICTOR = 'WXK09-037#9200';   // 紡槍 アークエナジェ（【常】OPP_ENERGY_COLOR_CONDITION_TRASH）
+const V134_RED   = 'WD02-013#9201';         // 羅石 アイロン（赤・バニラ）＝宣言色《青》を持たない
+const V134_BLUE  = 'WD03-013#9202';         // コードアート Ｓ・Ｃ（青・バニラ）＝宣言色そのもの
+const V134_NONE  = 'WD01-017#9203';         // サーバント Ｏ（無色）＝原文「無色ではない」の除外側
+
+/**
+ * @param id          シナリオID
+ * @param charge      チャージする1枚
+ * @param declared    host（＝チャージする側）に刻まれている宣言色。null なら宣言前
+ * @param expectTrash true＝トラッシュへ落ちるのが正／false＝エナへ入るのが正
+ */
+function mkEnergyColorScenario({ id, title, charge, declared, expectTrash, why }) {
+  const hostSet = {
+    'field.lrig': ['WD01-001#9210'],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'lrig_deck': [],
+    'hand': [charge],
+    'energy': [], 'trash': [], 'coins': 0,
+    'actions_done': [], 'game_actions_done': [],
+    'deck': ['WD01-013#9211', 'WD01-013#9212', 'WD01-013#9213'],
+  };
+  // ⚠**宣言前（反転）は `declared_color` を書かない**＝キーごと存在しないのが「宣言前」の実体
+  //   （空文字を入れると `if (!declared) return null` と同じ枝に落ちるが、実体が違うので混ぜない）。
+  if (declared) hostSet['declared_color'] = declared;
+  return {
+    title,
+    spec: {
+      hostSet,
+      guestSet: {
+        'field.lrig': ['WD01-001#9220'],
+        // 制限を持つカードは**相手の場**に置く（この向きが原文＝「対戦相手のエナゾーンに…」）。
+        'field.signi': [null, [V134_RESTRICTOR], null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9221', 'WD01-013#9222'],
+      },
+      top: { active: 'host', turn_phase: 'ENERGY', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`  ${id}: 開始 phase=${before?.turnPhase ?? '-'} hand=${JSON.stringify(before?.host?.handCards)} guestField=${JSON.stringify(before?.guest?.fieldSigni)}`);
+      let opened = false, moved = false, stable = 0, st = before;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(400);
+        let did = null;
+        if (!opened) { did = await H.clickTestId('my-hand-card-0'); opened = !!did; }
+        if (!did && opened && !moved) did = await H.clickBtn('エナチャージ', { exact: true });
+        st = await H.queryState();
+        const inEnergy = (st?.host?.energyCards ?? []).includes(charge);
+        const inTrash = (st?.host?.trashCards ?? []).includes(charge);
+        moved = moved || inEnergy || inTrash;
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | opened=${opened} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)} hand=${JSON.stringify(st?.host?.handCards)}`);
+        stable = moved ? stable + 1 : 0;
+        if (stable >= 3) break;
+        // 開いたモーダルが閉じてしまったら開き直す（§4.4 📌24）。
+        if (s > 3 && !moved) opened = false;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const inEnergy = (st?.host?.energyCards ?? []).includes(charge);
+      const inTrash = (st?.host?.trashCards ?? []).includes(charge);
+      const dump = `energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)} hand=${JSON.stringify(st?.host?.handCards)} logs=${JSON.stringify((st?.logTail ?? []).slice(-4))}`;
+      // 🔴**前提条件＝「1枚が実際に手札から動いた」**（何も起きなかったのを緑と読まない・§4.4 📌3）。
+      if (!inEnergy && !inTrash) return { pass: false, detail: `前提崩れ＝エナチャージが1度も成立していない。${dump}` };
+      if (inEnergy && inTrash) return { pass: false, detail: `🔴エナとトラッシュの両方に居る＝複製している。${dump}` };
+      if (expectTrash) {
+        return inTrash
+          ? { pass: true, detail: `${why}＝トラッシュへ落ちた。${dump}` }
+          : { pass: false, detail: `🔴${why}のにエナへ入った＝色制限が張られていない（旧挙動）。${dump}` };
+      }
+      return inEnergy
+        ? { pass: true, detail: `${why}＝そのままエナへ入った。${dump}` }
+        : { pass: false, detail: `🔴${why}のにトラッシュへ落ちた＝制限が過剰に効いている。${dump}` };
+    },
+  };
+}
+
+const V134_CASES = [
+  {
+    id: 'v134ChargeNonDeclaredToTrash',
+    title: 'O-60 V-134①：宣言色《青》を持たない赤カードのエナチャージはトラッシュへ（旧＝制限が1度も張られなかった）',
+    charge: V134_RED, declared: '青', expectTrash: true,
+    why: '宣言色《青》を持たない有色カード（赤）',
+  },
+  {
+    id: 'v134ChargeDeclaredToEnergy',
+    title: 'O-60 V-134②：宣言色《青》を持つカードは普通にエナへ入る（過剰実行の対照）',
+    charge: V134_BLUE, declared: '青', expectTrash: false,
+    why: '宣言色《青》を持つカード',
+  },
+  {
+    id: 'v134ChargeColorlessToEnergy',
+    title: 'O-60 V-134③：無色のカードは制限を受けない（原文「無色ではない」）',
+    charge: V134_NONE, declared: '青', expectTrash: false,
+    why: '無色のカード（原文の除外側）',
+  },
+  {
+    id: 'v134ChargeNoDeclarationToEnergy',
+    title: 'O-60 V-134④反転：宣言前は制限が張られない（同じ赤カードが素通りする）',
+    charge: V134_RED, declared: null, expectTrash: false,
+    why: '宣言前（declared_color なし）の赤カード',
+  },
+];
+for (const c of V134_CASES) { scenarios[c.id] = mkEnergyColorScenario(c); order.push(c.id); }
+
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-135`（`O-60` 第43・45バッチ＝**新設した選択UIが実機で出る**）
+// ①`WXDi-P01-013-E1`＝「対戦相手のシグニ１体を対象とし、それを**デッキの一番上か一番下**に置く」
+//   ＝`TRANSFER_TO_DECK{position:'top_or_bottom'}`。**旧実装は2択が無く既定の「一番上」へ化けていた**。
+//   ⚠実際の順番は **2択が先、対象選択が後**（`effectExecutor.ts:6742` が先頭で `needsInteraction` を返すため）。
+// ②`WXK02-035-E2`＝「デッキの**一番下**のカードをチェックゾーンに置く。それがシグニの場合、
+//   それを場に出してもよい」＝`TRAP_OPERATION{to_check, deck_bottom, trapCheckRest}` → `ADD_TO_FIELD{CHECK_CARD, optional}`。
+//   🔑**「出したあとチェックゾーンに残っていない」まで見る**（残ると確認スロットが埋まって盤面が固まる）。
+// ⚠**payload は手書きせず live JSON を読む**（`o190LiveEffect`）＝payload を外す反転確認で必ず赤になる。
+// -----------------------------------------------------------------------------
+
+const V135_ASSIST = 'WXDi-P01-013#9300';    // レイ＊絶対零度（アシストルリグ・【出】）
+const V135_OPP_A = 'WD03-010#9301';         // コードアート Ｄ・Ｒ・Ｓ（青 Lv3 バニラ）
+const V135_OPP_B = 'WX04-075#9302';         // 幻水 クラゲ（青 Lv3 バニラ）
+// ⚠**どちらも Lv3**＝後段の `CONDITIONAL{level<=2}`（対戦相手が手札を1枚捨てる）を踏まないようにして、
+//   観測を「2択UIと置き先」だけに絞る（§4.4 📌8z＝観測に無関係な副作用を混ぜない）。
+
+function mkDeckPosScenario(toBottom) {
+  const id = toBottom ? 'v135DeckPosBottom' : 'v135DeckPosTop';
+  const posLabel = toBottom ? 'デッキの一番下に置く' : 'デッキの一番上に置く';
+  return {
+    title: `O-60 V-135①：WXDi-P01-013 の「デッキの一番上か一番下」2択が実機で出て、${toBottom ? '一番下' : '一番上'}を選ぶとそこに入る`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9310'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': ['WD01-013#9311', 'WD01-013#9312'],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9320'],
+        // 候補2体＝**対象選択モーダルも出る**こと（1体だと自動適用されて選択UIが立たない＝§4.4 📌8l）。
+        'field.signi': [[V135_OPP_A], [V135_OPP_B], null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        // 置き先が「上」か「下」かを**両端の札で見分けられる**ように、デッキは別カードで埋める。
+        'deck': ['WD05-013#9321', 'WD02-013#9322', 'WD01-017#9323'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WXDi-P01-013', V135_ASSIST, 'WXDi-P01-013-E1') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      const deck0 = st0?.guest?.deckCards ?? [];
+      H.log(`  ${id}: 開始 guestDeck=${JSON.stringify(deck0)} guestField=${JSON.stringify(st0?.guest?.fieldSigni)} stack=${st0?.stackLen} pEff=${st0?.pendingEffect ?? '-'}`);
+      let sawPos = false, posClicked = false, sawPick = false, pickedInst = null, settled = 0, st = st0;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        // (1) 2択（新設した `top_or_bottom`）を先に潰す。⚠**ボタン限定で前方一致**（§4.4 📌2/📌2b）。
+        if (!posClicked) {
+          const b = await H.clickBtn(posLabel);
+          if (b) { sawPos = true; posClicked = true; did = b; }
+          else if (!sawPos) {
+            // 出ているかどうかだけ先に記録する（出ていないなら「2択が無い」＝旧挙動）。
+            const any = await page.getByRole('button', { name: /デッキの一番/ }).count().catch(() => 0);
+            if (any > 0) sawPos = true;
+          }
+        }
+        // (2) 対象選択（相手の場の2体）＝**押した札を1度だけ**押す（§4.4 📌2c）。
+        if (!did && posClicked && !pickedInst) {
+          for (const inst of [V135_OPP_A, V135_OPP_B]) {
+            const el = page.locator(`[data-testid^="pick-"][data-card-num="${inst.split('#')[0]}"]`).first();
+            if (await el.count() && await el.isVisible().catch(() => false)) {
+              sawPick = true;
+              await el.click({ timeout: 1200 }).catch(() => {});
+              pickedInst = inst; did = `pick:${inst}`; break;
+            }
+          }
+        }
+        if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+        st = await H.queryState();
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | pos=${posClicked} pick=${pickedInst ?? '-'} guestDeck=${JSON.stringify(st?.guest?.deckCards)} guestField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (posClicked && pickedInst && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 3) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const deck = st?.guest?.deckCards ?? [];
+      const field = st?.guest?.fieldSigni ?? [];
+      const dump = `2択UI=${sawPos} 対象UI=${sawPick} 選んだ=${pickedInst} guestDeck=${JSON.stringify(deck)} guestField=${JSON.stringify(field)}`;
+      // 🔴**本題を先に判定**＝旧実装は2択が出ずに既定の「一番上」へ化けた。
+      if (!sawPos) return { pass: false, detail: `🔴「デッキの一番上／一番下」の2択が1度も出ない＝既定へ化けている（旧挙動）。${dump}` };
+      if (!pickedInst) return { pass: false, detail: `前提崩れ＝対象を選べていない。${dump}` };
+      if (JSON.stringify(field).includes(pickedInst)) {
+        return { pass: false, detail: `🔴選んだシグニが場に残っている＝デッキへ動いていない。${dump}` };
+      }
+      const at = deck.indexOf(pickedInst);
+      if (at < 0) return { pass: false, detail: `🔴選んだシグニが相手のデッキに入っていない。${dump}` };
+      if (toBottom) {
+        return at === deck.length - 1
+          ? { pass: true, detail: `2択で「一番下」を選ぶとデッキの末尾に入った（index ${at}/${deck.length - 1}）。${dump}` }
+          : { pass: false, detail: `🔴「一番下」を選んだのに index ${at}（末尾は ${deck.length - 1}）＝位置が既定へ化けている。${dump}` };
+      }
+      return at === 0
+        ? { pass: true, detail: `2択で「一番上」を選ぶとデッキの先頭に入った（index 0）。${dump}` }
+        : { pass: false, detail: `🔴「一番上」を選んだのに index ${at}。${dump}` };
+    },
+  };
+}
+scenarios.v135DeckPosBottom = mkDeckPosScenario(true);
+order.push('v135DeckPosBottom');
+scenarios.v135DeckPosTop = mkDeckPosScenario(false);
+order.push('v135DeckPosTop');
+
+// ② `WXK02-035-E2`（浴英の発見　アルキメス・Lv4 青・**リメンバ限定**）【出】《青》。
+//    ⚠限定・レベル・リミットを満たすルリグが要る（§4.4 📌8k）＝`WXK02-003`（リメンバ Lv4 / Limit11 / 青）。
+const V135_ALKI = 'WXK02-035#9330';
+const V135_BOTTOM = 'WD02-013#9343';        // デッキの一番下＝シグニ（＝場に出す選択肢が出る側）
+scenarios.v135CheckFromDeckBottom = {
+  title: 'O-60 V-135②：WXK02-035 の【出】《青》でデッキの一番下がチェックゾーンへ行き、場に出すとチェックゾーンに残らない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK02-003#9331'],      // 来夢の巫女 リメンバ・ミッドナイト（Lv4 / Limit11 / 青）
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [],
+      'hand': [V135_ALKI],
+      'energy': ['WD03-013#9332', 'WD03-012#9333'],   // 青2枚（【出】コスト《青》×1）
+      'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      // ⚠**末尾がデッキの一番下**。観測対象と埋め札は別カードにする（§4.4 📌22）。
+      'deck': ['WD01-013#9341', 'WD01-017#9342', V135_BOTTOM],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9350'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9351', 'WD01-013#9352'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`  v135check: 開始 deck=${JSON.stringify(st0?.host?.deckCards)} energy=${st0?.host?.energy} checkRest=${JSON.stringify(st0?.host?.checkRest)}`);
+    const summoned = await summonAndPayOnPlay(page, H, 1);
+    H.log(`  v135check: 召喚=${JSON.stringify(summoned)}`);
+    if (!summoned.ok) return { pass: false, detail: `前提崩れ＝召喚／【出】《青》の支払いに到達できない（${summoned.detail}）` };
+    let sawCheck = false, placedOnField = false, settled = 0, st = st0;
+    // 🔴**候補セルは「1回だけ」押す**（§4.4 📌2c/📌8p＝毎ティック押すとトグルで選択が外れ、
+    //   `決定` に永久に到達しない＝実測で24ティックまるごと空振りした）。
+    let pickedOnce = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      // 「場に出す」＝任意の ADD_TO_FIELD。候補 →（stdStep の）決定 → ゾーン選択の順で進む。
+      const pk = page.locator(`[data-testid^="pick-"][data-card-num="${V135_BOTTOM.split('#')[0]}"]`).first();
+      if (!pickedOnce && !placedOnField && await pk.count() && await pk.isVisible().catch(() => false)) {
+        await pk.click({ timeout: 1200 }).catch(() => {}); pickedOnce = true; did = 'pick:bottom';
+      }
+      // ⚠**`場に出す` を `clickTextOrBtn` に渡さない**（§4.4 📌2b）＝盤面ログの文字列に当たって
+      //   「押せた」と報告しながら1ミリも進まない（実測＝24ティック空振り）。**確定はボタン限定**で押す。
+      if (!did) did = await clickDecideNofM(page);
+      if (!did) did = await H.clickZone?.();
+      if (!did) did = await H.stdStep(['決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      // 候補モーダルが閉じてしまったら選び直せるようにする（§4.4 📌24）。
+      if (!placedOnField && pickedOnce && s > 8 && !st?.pendingEffect) pickedOnce = false;
+      // sticky＝一度立てたら下げない（§4.4 📌8d）。
+      sawCheck = sawCheck || (st?.host?.checkRest ?? []).includes(V135_BOTTOM) || (st?.host?.checkSlot === V135_BOTTOM);
+      placedOnField = placedOnField || JSON.stringify(st?.host?.fieldSigni ?? []).includes(V135_BOTTOM);
+      H.log(`  v135check[${s}] -> ${did ?? 'なし'} | sawCheck=${sawCheck} placed=${placedOnField} checkSlot=${st?.host?.checkSlot} checkRest=${JSON.stringify(st?.host?.checkRest)} field=${JSON.stringify(st?.host?.fieldSigni)} deck=${JSON.stringify(st?.host?.deckCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (placedOnField && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 3) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v135CheckFromDeckBottom-final.png`, fullPage: true });
+    const dump = `checkSlot=${st?.host?.checkSlot} checkRest=${JSON.stringify(st?.host?.checkRest)} field=${JSON.stringify(st?.host?.fieldSigni)} deck=${JSON.stringify(st?.host?.deckCards)} trash=${JSON.stringify(st?.host?.trashCards)}`;
+    if (!sawCheck) return { pass: false, detail: `🔴デッキの一番下がチェックゾーンへ1度も置かれなかった。${dump}` };
+    if (!placedOnField) return { pass: false, detail: `🔴「場に出す」を選べなかった／出せなかった。${dump}` };
+    // 🔑**本題の後半**＝出したあとチェックゾーンに残らないこと（残ると確認スロットが埋まって盤面が固まる）。
+    if ((st?.host?.checkRest ?? []).includes(V135_BOTTOM) || st?.host?.checkSlot === V135_BOTTOM) {
+      return { pass: false, detail: `🔴場に出したのにチェックゾーンにも残っている＝複製／盤面が固まる。${dump}` };
+    }
+    return { pass: true, detail: `デッキの一番下がチェックゾーンを経由して場に出て、チェックゾーンには残らなかった。${dump}` };
+  },
+};
+order.push('v135CheckFromDeckBottom');
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

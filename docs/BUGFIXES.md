@@ -1,5 +1,142 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-04（第105バッチ）：`V-133`／`V-134`／`V-135` の実機返済 — **実機ドライバが起動不能だった／`GRANT_PROTECTION` の順序バグ**
+
+**ベースライン**＝`0a3c393b6`（第95〜104 の簿記直後）。
+**gates 全緑**（golden **3451 → 3452**＝+1本・smoke 10725 全異常0・fuzz 全0・census 1 / BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴 9行・`census:costtext` A🔴 0規則・lint 0 errors）。
+**実機＝新規10本を単体でも、既存回帰2本を足した12本一括でも ALL PASS。**
+**ブラスト半径＝`public/data/effects_*.json` の変更 0**（live の効果は1件も書き換えていない）。
+**⑤実機判定**＝`src/engine/effectExecutor.ts` を触ったので §2.2 の表では④まででよいが、
+**この巡は §5.1 の返済そのもの**なので当然⑤まで回した。
+
+---
+
+### ① 🔴 実機ドライバ `scripts/verifyBattleDrive.mjs` が前コミットから**1本も起動しなかった**
+
+**症状**＝どのシナリオIDを指定しても、ブラウザを開く前に落ちる。
+
+```
+file:///C:/Users/zerom/WixossReact/scripts/verifyBattleDrive.mjs:19712
+order.push('o143CheckPlace');
+ReferenceError: Cannot access 'order' before initialization
+```
+
+**真因**＝`0b24d7b48`（`O-152` クローズ回）が `order.push('o143CheckPlace');` を
+**`const order = [...]` の宣言（20950行目）より 1238行 上**へ置いた。`const` は TDZ を持つので
+**モジュールの読み込み時点で例外**になり、**全シナリオが即死**していた。
+（コミットメッセージには「既定 order へ戻した」とあり、意図は正しい。置いた場所だけが誤り。）
+
+**修正**＝`order.push` とその直前のコメントを **`const order` 宣言の直後**へ移した。挙動は同じ（既定 order に含まれる）。
+
+**検証**＝`node scripts/verifyBattleDrive.mjs v144LancerGateOn` が `ReferenceError` → **PASS (4s)** に反転。
+
+🔑**教訓**＝§4.4 📌25（「シナリオが軒並み落ちるときは基盤の故障を疑う」）**の1段手前がある**＝
+**「1本も起動しない」**。⇒ **§5.1 を開いたら、新しいシナリオを書く前に既存の1本を回して基盤の生存を確かめる。**
+（この故障は前セッションの簿記時点では気づけない＝**実機の在庫を寝かせるほど発見が遅れる**。）
+
+---
+
+### ② 🔴 `GRANT_PROTECTION` は `target` を書かないと**恒久 no-op** だった（engine の分岐順）
+
+**症状**＝`WX20-056`（戦乱の一輪　オイチ）の E2
+「【自】：このシグニがカード名に《オダノブ》を含むシグニにライズされたとき、ターン終了時まで、そのシグニは
+『【常】：対戦相手の効果によって、**手札に戻らずダウンせず**新たに能力を得られない。』を得る」のうち、
+**「手札に戻らずダウンせず」だけが1度も付かない**。
+
+**真因**＝`src/engine/effectExecutor.ts` の `execGrantProtection` が
+
+```ts
+const tgt = a.target ?? (a.subjectFilter ? {…} : undefined);
+if (!tgt) return done(ctx);          // ← ここで無言 return
+…
+if (a.targetsTriggerSource) { … }    // ← 「そのシグニ」の分岐はこの後ろ
+```
+
+の順だったため、**`targetsTriggerSource`（＝自分で対象を決められる印）だけを持つ宣言**が
+`tgt === undefined` で先に落ちていた。
+
+**母集団（実測）**＝live の `GRANT_PROTECTION{targetsTriggerSource:true}` は **4件**
+（`WX14-049` / `WX16-037` / `WX20-056` / `WXEX1-58`）。うち `target` も `subjectFilter` も持たないのは
+**`WX20-056` の1件だけ**＝**実害1効果**。
+
+**修正**＝`targetsTriggerSource` の分岐を `!tgt` ガードの**前**へ出し、所属の既定を `tgt?.owner ?? 'self'` にした。
+既存3件はすべて `target.owner === 'self'` なので**挙動は1バイトも変わらない**（`!tgt` ガード自体は
+分岐の後ろに残してあるので、対象の宣言が1つも無い異常系は従来どおり no-op）。
+
+🔴**なぜ計器に映らなかったか**＝同じ SEQUENCE の2歩目（`GRANT_EFFECT{PREVENT_ABILITY_GAIN_BY_OPP}`）は
+**効いていた**ので、ログにも盤面にも「半分だけ動いている」形で出る。
+逆翻訳は JSON の宣言をそのまま日本語化するだけなので原文どおりに見え、
+census（語彙の欠落）・`census:enginetext`（原文 regex）・golden・smoke・fuzz のどれも動かなかった。
+⇒ **実機だけが捕まえた。**
+
+**検証**＝
+- 実機 `v133RiseOdanobuOn` が **FAIL（`kw=[]`）→ PASS（`kw=["WX15-032#9112:PROTECTION:BOUNCE,DOWN:opponent"]`）**。
+- golden を1本追加（`§5.1 V-133②: GRANT_PROTECTION は target 無し＋targetsTriggerSource だけでトリガー元へ付与できる`）＝
+  **反転確認済み**（`!tgt` ガードを元に戻すと FAIL、戻すと PASS）。負方向2本（場に居ないトリガー元へは付けない／
+  対象の宣言が1つも無ければ従来どおり何もしない）と live 形状の固定も同テストに入れた。
+
+🔑**教訓**＝**「自分で対象を決める」印（`targetsTriggerSource` / `targetsLastProcessed` / `targetsStored`）は、
+汎用の対象ガードより先に読む。** 順序を逆にすると、**その印を書いた宣言だけが静かに死ぬ**。
+（`execGrantKeyword` / `execGrantEffect` は正しく印を先に読んでいた＝**同じ family で1本だけ順序が違った**。）
+
+---
+
+### ③ 実機シナリオ 新規10本（`scripts/verifyBattleDrive.mjs`）
+
+| ID | 観測点 |
+|---|---|
+| `v133RiseDoubleCrash` | `WX16-039` の上に【ライズ】シグニを重ねると【ダブルクラッシュ】が**上のシグニ**に付く（instance id で上下を区別） |
+| `v133RiseOdanobuOn` | `WX20-056` に《オダノブ》がライズすると E1（＋3000）と E2（耐性＋能力獲得禁止）が**両方とも上**へ |
+| `v133RiseOdanobuOff` | 🔴**反転**＝《オダノブ》を含まない riser では E2 は発火せず **E1 だけ**乗る |
+| `v134ChargeNonDeclaredToTrash` | 宣言色《青》を持たない赤カードのエナチャージが**トラッシュへ** |
+| `v134ChargeDeclaredToEnergy` | 宣言色を持つカードは普通にエナへ（過剰実行の対照） |
+| `v134ChargeColorlessToEnergy` | **無色**は制限を受けない（原文「無色ではない」の除外側） |
+| `v134ChargeNoDeclarationToEnergy` | 🔴**反転**＝宣言前は制限が張られない |
+| `v135DeckPosBottom` | `top_or_bottom` の2択が出て、「一番下」を選ぶと相手デッキの**末尾**に入る |
+| `v135DeckPosTop` | 🔴**1ビット反転**＝「一番上」を選ぶと**先頭**に入る |
+| `v135CheckFromDeckBottom` | `WXK02-035`【出】《青》＝デッキ最下→チェックゾーン→場に出す。**出したあとチェックゾーンに残らない** |
+
+**観測の作り方で効いたこと**＝
+- 🔑**`V-133` は instance id で判定する**＝盤面バッジ（`title`）はゾーンの絵しか見ないので
+  「上下どちらに付いたか」を分けられない。`keyword_grants` / `granted_effects` / `temp_power_mods` は
+  すべて instance id キーなので、**下敷きに付いていないこと**まで assert できる。
+- 🔑**`V-133` の反転側は「E1 は発火した」を判定の先頭に置いた**（§4.4 📌3b）＝
+  E1 の＋3000 は旧実装でも新実装でも残る痕跡なので、「E2 が出ない」が
+  〈収集そのものが起きていない〉のか〈`risenByNameContains` が効いた〉のかを切り分けられる。
+- 🔑**`V-134` は制限カードを相手（guest）の場に置き、こちら（host）がチャージする向きで作った**＝
+  `BattleScreen.tsx:4882` の `collectOppEnergyColorRestriction(op, my, …)` と同じ向き。
+  ⚠**エナチャージはターン1回**（`actions_done`）なので、1シナリオ1枚＝**4本に割った**。
+- 🔑**`V-135`① は `effect_stack` 注入**（`o190EffectStack` を再利用＝**payload は live JSON から読む**ので
+  payload を外す反転確認で必ず赤になる）。`WXDi-P01-013` はアシストルリグで、
+  実際にグロウさせる経路は観測に無関係な固定費が高い。
+- ⚠**実際の順番は「2択が先、対象選択が後」**（`effectExecutor.ts:6742` が先頭で `needsInteraction` を返すため）＝
+  登録票の「相手シグニ1体を選んだあと2択が出る」は逆。**登録票の症状は見立てであって実測ではない**（前巡の一般則の再確認）。
+
+**踏み直した罠2つ**＝
+- 🔴**候補セルを毎ティック押した**（§4.4 📌2c／📌8p）＝トグルで選択が外れ、`決定` に永久に到達せず**24ティック空振り**。
+- 🔴**`H.stdStep(['場に出す', …])` が盤面ログのテキストに当たった**（§4.4 📌2b）＝
+  `txt:場に出す` を毎ティック「押せた」と報告しながら1ミリも進まなかった。
+  ⇒ **確定は `clickDecideNofM`（ボタン限定・`/^決定/` 前方一致）で押す。**
+
+---
+
+### ④ `docs/PLAN.md` の §2「作業の流れ」を git 履歴から復元した
+
+`a5679359a`（`O-60` 第47〜48バッチの簿記）が §1 を入れ替えるときに、
+**§2 全体（172行・`2.0` レーン選択／`2.1` 1巡の手順／`2.2` 完了の定義／`2.3` 実機の要否／
+`2.4` バグを見つけたとき／`2.5` 停止通知メール）を巻き添えで削除**していた。
+`CLAUDE.md` も PLAN 冒頭も「cold start は §1 → §2 → §5 の順に読む」と指示し、
+§5 の各所が「§2.2 の機械判定」「§2.0 のレーン」を参照しているのに、**実体が10日ぶん存在しなかった**。
+⇒ `a5679359a^` から無改変で復元し、§1 と §3 の間へ戻した。
+
+🔑**教訓**＝**入れ替え式の節（§1 / §6）を機械で書き換えるときは、置換範囲の終端を「次の見出し」で取る。**
+行数や目視で切ると隣の節ごと持っていく。
+
+---
+
+**コミット**＝この記録のコミット。**要実機検証＝なし**（この巡で⑤まで完了）。
+
 ## 2026-09-04（第95〜104バッチ）：実機返済4件＋機構クローズ6件 — **「登録票を疑う」巡**
 
 **ベースライン**＝`967821629`（第94 の簿記直後）。

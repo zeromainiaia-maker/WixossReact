@@ -7132,7 +7132,16 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   const tgt: EffectTarget | undefined = a.target ?? (a.subjectFilter ? {
     type: 'SIGNI', owner: a.subjectOwner ?? 'self', count: 'ALL', filter: a.subjectFilter,
   } : undefined);
-  if (!tgt) return done(ctx);
+  // 🔴**`targetsTriggerSource` は単独で対象を決められる**＝`target` も `subjectFilter` も要らない
+  //   （「そのシグニは〜を得る」＝トリガー元1体に確定する）。**旧実装はここで `!tgt` を先に見て
+  //   無言 return していた**ため、`target` を書き忘れた宣言が**恒久 no-op** になっていた
+  //   （2026-09-04・§5.1 `V-133`②の実機で発覚＝`WX20-056-E2` の「手札に戻らずダウンせず」が
+  //   1度も付いていなかった。同居する `GRANT_EFFECT` 側だけが効いていたのでログも盤面も
+  //   「半分だけ動いている」形になり、golden・census・逆翻訳のどれにも映らなかった）。
+  //   ⚠**所属の既定は `self`**＝既存3件（`WX14-049`/`WX16-037`/`WXEX1-58`）はいずれも
+  //   `target.owner==='self'` なので、この既定で挙動は1バイトも変わらない。
+  const tsOwner: Owner = tgt?.owner ?? 'self';
+  if (!tgt && !a.targetsTriggerSource) return done(ctx);
   // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時までクリアされない）
   const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
 
@@ -7140,7 +7149,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   const applyProtection = (selected: string[], c: ExecCtx): ExecCtx => {
     let cur = c;
     for (const n of selected) {
-      const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(n, cur) : tgt.owner;
+      const own: Owner = tsOwner === 'any' ? sideOfFieldCard(n, cur) : tsOwner;
       const s = ownerState(own, cur);
       const grants = { ...(s[gkey] ?? {}) };
       grants[n] = [...new Set([...(grants[n] ?? []), keyword])];
@@ -7151,11 +7160,13 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   };
 
   // 「そのレゾナ」＝出現条件支払いトリガーが保持した、今出たレゾナへ直接付与。
+  // 🆕「そのシグニ」（`ON_RISE` の上に置かれた【ライズ】シグニ等）も同じ経路で解決する。
   if (a.targetsTriggerSource) {
     const trigger = ctx.triggeringCardNum;
-    const onField = trigger && ownerState(tgt.owner, ctx).field.signi.some(stack => stack?.at(-1) === trigger);
+    const onField = trigger && ownerState(tsOwner, ctx).field.signi.some(stack => stack?.at(-1) === trigger);
     return done(trigger && onField ? applyProtection([trigger], ctx) : ctx);
   }
+  if (!tgt) return done(ctx);
 
   // センタールリグへの付与（「あなたのセンタールリグ…は効果を受けない」WX04-064 等）
   if (tgt.type === 'LRIG') {
