@@ -3717,6 +3717,30 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 ## 恒久指標の過去行（§6 から退避）
 
+- **2026-09-04（第89〜93バッチ・`O-245`／`O-226`／`O-224` 消化）＝「宣言だけ立って盤面が動かない」在庫の完済（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 18 / 863 (2.1%)**（17→18＝🆕`O-246` 登録ぶんの**可視化**・全部 `mech`）｜
+  **台帳 残 OPEN 44**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）
+  **`census:enginetext` A🔴 10行 / 10ハンドラ（据置）／🏁`census:deadstate` 5 → 0件（完済）**。
+  📦**在庫2本**＝**機構 worklist 31項目**（33 −2 +1 −1）｜**実機 残 17件**（15 +2）
+  🔧**ゲート（全緑 ✅）**＝golden **3445 / 3445**（3440→3445＝+5本／既存の凍結・契約 golden を理由つきで更新）／
+  smoke **10725** 全異常0／fuzz 全0／census **1 / BASELINE 1**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **10行**／`census:costtext` A🔴 **0規則**／lint 0 errors／`npm run regen` 完走。
+  🖥**実機＝機械判定で必須（§2.2）**＝`src/screens/battle/costs.ts`・`growLogic.ts`・`BattleScreen.tsx` を触った。
+  ⇒ **`V-146`（コイン支払い制限）・`V-147`（次の【出】コスト軽減）・`V-148`（宣言シグニのレベル0＆限定無視）を登録**（未実施）。
+  🏁**主産物①＝`census:deadstate` を 5 → 0 まで完済**＝`coin_use_restriction`（アーツ・ルリグ・キー・ピースにも
+  コインが払えていた）／`reduce_next_on_play_cost`（軽減が効いていなかった）／`game_declared_signi_level_zero`・
+  `game_declared_signi_ignore_restriction`（宣言しても何も起きなかった）に**読み手**を足し、
+  受け皿が engine に無い `grid_reveal_plus_one_this_turn` は**キーごと撤去して明示 defer**（→ `O-246`）。
+  🏁**主産物②＝`O-224`**＝受け皿（`TargetFilter.levelLteLastProcessedCount`）は**在ったのに**、
+  parser の規則が「好きな数ダウンする」形しか見ておらず「**N体まで**ダウンして**もよい**」形が素通り
+  ⇒ `SPDi43-23-E1` は**どのレベルの相手シグニでも手札に戻せた**（0体ダウンでも戻せた）。
+  🔑**一般則**＝①**「読み手を足す」修正は必ず `src/screens/` に落ちる**（実機が必須になる）
+  ②**受け皿が無い死んだキーは撤去して defer に落とす**（宣言だけ残すとどの計器にも映らない）
+  ③**受け皿が在るのに効かない項目は「規則が見ている形」を疑う**（trap (h) の parser 側の顔）
+  ④**索引に 🏁 を書いたまま行を残さない**（在庫数と実数がずれる）。
+  ✅**ブラスト半径＝効果 変更2・追加0・削除0、予定外0**。
+
+
 - **2026-09-04（第79〜88バッチ・索引 A 第37〜42巡＋索引 B 第1〜2巡）＝「測り方」を道具にした巡（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置・全部 `mech`）｜**台帳 残 OPEN 44**（据置）｜
   **census 高シグナル 1 / BASELINE 1**（🆕2→1）
