@@ -1110,6 +1110,12 @@ export interface PlayerState {
   // （HAND_TRASHED_BY_OPP / ENERGY_TRASHED_BY_OPP）用＝WXDi-P02-005/WXDi-P07-023/SPK16-13E。ターン境界で0へリセット。
   hand_trashed_by_opp_this_turn?: number;
   energy_trashed_by_opp_this_turn?: number;
+  // 🆕§5.3 `O-233`（2026-09-04）＝このターンに**対戦相手の効果によって**このプレイヤーのシグニが
+  //   **場を離れた**累計体数（`SIGNI_LEFT_BY_OPP_EFFECT`）。上の手札／エナ版と同じ規約
+  //   （＝`causeOwnerId` が持ち主と違うときだけ増える＝バトルやルール処理では増えない）。
+  // ⚠**キー名は `_this_turn` で終える**＝`turnScopedState.ts` の `ConventionTurnScopedField` が
+  //   その命名でしかターン境界のリセットを受け付けない（`turn_..._count` と書くと型エラーになる）。
+  signi_left_by_opp_effect_this_turn?: number;
   /**
    * このターンに**ダウン状態になった自分のシグニ**のカード番号（発生順）。
    * 「それがこのターンで**N回目**である場合」条件（`SIGNI_DOWNED_COUNT_THIS_TURN`）用＝`WX05-042`（§6.4 O-11）。

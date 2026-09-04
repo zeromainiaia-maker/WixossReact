@@ -3521,6 +3521,9 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
   [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
     g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+  // 🆕§5.3 `O-233`（2026-09-04）＝手札／エナ版の**シグニ版**（`SPK16-13E-E1`①）。
+  [/このターンに対戦相手の効果によってあなたの(?:シグニ|すべてのシグニ)が(?:([０-９\d]+)体以上)?場を離れていた場合/,
+    g => ({ type: 'SIGNI_LEFT_BY_OPP_EFFECT', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
   [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
     g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
   // ⚠「以上/以下」が付かない**ちょうどN枚**（WD20-018②「あなたのライフクロスが０枚の場合」）が上の規則に
@@ -3712,6 +3715,9 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
     [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが(?:([０-９\d]+)枚以上)?トラッシュに(?:移動して|置かれて)いた場合/,
       g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+    // 🆕§5.3 `O-233`（2026-09-04）＝手札／エナ版の**シグニ版**（`SPK16-13E-E1`①）。
+    [/このターンに対戦相手の効果によってあなたの(?:シグニ|すべてのシグニ)が(?:([０-９\d]+)体以上)?場を離れていた場合/,
+      g => ({ type: 'SIGNI_LEFT_BY_OPP_EFFECT', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
     // ⚠「N枚以上ある場合」（枚+以上+ある+場合／の 無し）は census 条件節クラスタの独立テンプレ＝
     //   「の場合」固定だと "ある場合" 形（WX12-046/WXDi-P15-094/WXEX1-39 等）が未マッチで条件ごと脱落した。
     //   `(?:ある)?の?場合` で「N枚以上ある場合」「N枚以下の場合」「N枚の場合」の三形を許容する。
@@ -5598,13 +5604,16 @@ function parseSingleSentenceInner(text: string): EffectAction {
         ] } as EffectAction;
       }
     }
-    // 🔴**「対象とし、〈条件〉、それを〜」＝条件が**文の途中**にある形**（`SPK16-13E-E1`①）。
-    //   条件「このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合」を表す語彙が**無い**
-    //   （`ENERGY_TRASHED_BY_OPP`／`HAND_TRASHED_BY_OPP` の**シグニ版が欠けている**）。
-    //   ⚠条件を落として `BANISH` にすると**無条件バニッシュ**の過剰実行になるので、
-    //   honest defer（何もしない宣言）に倒す＝機構は §5.3 `O-233` に登録した。
+    // 🏁**§5.3 `O-233`（2026-09-04）＝「対象とし、〈条件〉、それを〜」＝条件が**文の途中**にある形**
+    //   （`SPK16-13E-E1`①）。条件語彙 `SIGNI_LEFT_BY_OPP_EFFECT`（手札／エナ版の**シグニ版**）を新設して
+    //   honest defer（`DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT`）から引き取った。
+    //   ⚠**条件を落として `BANISH` にすると無条件バニッシュの過剰実行**になる＝ここは必ず `CONDITIONAL` で包む。
     if (/^対戦相手のシグニ[１1]体を対象とし[、,]このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合[、,]それをバニッシュする$/.test(t60)) {
-      return { type: 'STUB', id: 'DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT' } as EffectAction;
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'SIGNI_LEFT_BY_OPP_EFFECT', owner: 'self', operator: 'gte', value: 1 },
+        then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+      } as EffectAction;
     }
     const clsLvM = t60.match(
       /^対戦相手のシグニ[１1]体を対象とし[、,]ターン終了時まで[、,]それのパワーをあなたの場にある＜([^＞]+)＞のシグニのレベルを合計した数だけ([＋－+-])([０-９\d]+)する$/);

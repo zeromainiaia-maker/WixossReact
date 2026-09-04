@@ -3399,11 +3399,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）。causeOwnerId＝この効果のオーナー
     // （「あなたの効果によって対戦相手の…」any_opp／「対戦相手の効果によって」byOpponentEffect の判定に使用）。
-    for (const { cardNum, under, zoneIdx } of detectLeftFieldSigni(beforeHost, h)) {
+    // 🆕§5.3 `O-233`（2026-09-04）＝**このターンに「対戦相手の効果によって」場を離れたシグニ**の累計。
+    //   `SIGNI_LEFT_BY_OPP_EFFECT`（`SPK16-13E-E1`①）が読む。`hand_trashed_by_opp_this_turn` /
+    //   `energy_trashed_by_opp_this_turn` と同じ規約＝**離脱の原因が効果で、その効果のオーナーが
+    //   持ち主ではない**ときだけ数える（バトルのバニッシュやルール処理では `causeOwnerId` が無い＝数えない）。
+    const leftHostSigni = detectLeftFieldSigni(beforeHost, h);
+    const leftGuestSigni = detectLeftFieldSigni(beforeGuest, g);
+    if (causeOwnerId && causeOwnerId !== bs.host_id && leftHostSigni.length > 0) {
+      h = { ...h, signi_left_by_opp_effect_this_turn: (h.signi_left_by_opp_effect_this_turn ?? 0) + leftHostSigni.length };
+    }
+    if (causeOwnerId && causeOwnerId !== bs.guest_id && leftGuestSigni.length > 0) {
+      g = { ...g, signi_left_by_opp_effect_this_turn: (g.signi_left_by_opp_effect_this_turn ?? 0) + leftGuestSigni.length };
+    }
+    for (const { cardNum, under, zoneIdx } of leftHostSigni) {
       const lf = collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g, causeOwnerId, beforeHost, zoneIdx);
       entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }
-    for (const { cardNum, under, zoneIdx } of detectLeftFieldSigni(beforeGuest, g)) {
+    for (const { cardNum, under, zoneIdx } of leftGuestSigni) {
       const lf = collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g, causeOwnerId, beforeGuest, zoneIdx);
       entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }

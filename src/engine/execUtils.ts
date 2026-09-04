@@ -2259,6 +2259,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).hand_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ENERGY_TRASHED_BY_OPP':
       return cmp(st(cond.owner).energy_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
+    // 🆕§5.3 `O-233`＝「このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合」。
+    case 'SIGNI_LEFT_BY_OPP_EFFECT':
+      return cmp(st(cond.owner).signi_left_by_opp_effect_this_turn ?? 0, cond.operator, cond.value);
     case 'ARTS_USED_THIS_TURN': {
       const artsSt = st(cond.owner);
       // exactCount＝「それがこのターンにあなたが使用したN枚目のアーツだった場合」（WXK01-042）。

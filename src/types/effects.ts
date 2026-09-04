@@ -429,6 +429,16 @@ export type Condition =
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
+  /**
+   * 🆕**§5.3 `O-233`（2026-09-04）＝「このターンに**対戦相手の効果によって**あなたのシグニが
+   * **場を離れていた**場合」**（`SPK16-13E-E1`①）。上の手札／エナ版の**3本目**（同じ「相手の効果で
+   * 失った」系）で、**シグニ版だけが欠けていた**。
+   * 🔴これが無い間、原文の条件を落として `BANISH` にすると**無条件バニッシュ**の過剰実行になるため、
+   *   `STUB{DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT}` の honest defer に倒していた。
+   * ⚠**バトルによるバニッシュは数えない**（原文が「効果によって」と書いている）＝
+   *   カウンタは `causeOwnerId`（離脱を引き起こした**効果**のオーナー）が在るときだけ増える。
+   */
+  | { type: 'SIGNI_LEFT_BY_OPP_EFFECT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンに owner がアーツを使用していた場合（minCount指定時はturn_arts_used_namesを数える。exactCount＝ちょうどN枚目）
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
   | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number; exactCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1。exactCount＝「N枚目のスペルだった場合」の**ちょうどN**＝N+1枚目では成立しない）
@@ -746,6 +756,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
   ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
   COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
+  SIGNI_LEFT_BY_OPP_EFFECT: true,
   SIGNI_DOWNED_COUNT_THIS_TURN: true, OPP_SIGNI_BANISHED_COUNT_THIS_TURN: true, APPEARANCE_COST_SAME_NAME: true,
   PAID_COLORS_INCLUDE_ALL: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,

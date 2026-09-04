@@ -843,6 +843,8 @@ function condJa(c?: any): string {
     case 'COINS_PAID_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が《コイン》を合計${numJa(c.value)}枚${opJa(c.operator)}支払っていた`;
     case 'HAND_TRASHED_BY_OPP':   return `このターンに対戦相手の効果によってあなたの手札からカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
     case 'ENERGY_TRASHED_BY_OPP': return `このターンに対戦相手の効果によってあなたのエナゾーンからカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
+    // 🆕§5.3 `O-233`（2026-09-04）＝手札／エナ版の**シグニ版**。
+    case 'SIGNI_LEFT_BY_OPP_EFFECT': return `このターンに対戦相手の効果によってあなたのシグニが${numJa(c.value)}体以上場を離れていた`;
     case 'IS_MY_TURN': return '自分のターンの間';
     case 'IS_OPPONENT_TURN': return '対戦相手のターンの間';
     case 'IS_BETTING': return c.minCoins != null

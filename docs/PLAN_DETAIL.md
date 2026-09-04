@@ -83,6 +83,13 @@
   （`banishedFrontOnly`。⚠実装したことにはしない）。
   ✅**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**。
 
+## 2026-09-04 整理③：`O-233` を🏁クローズして索引から削除
+
+> 条件語彙 `SIGNI_LEFT_BY_OPP_EFFECT`（`HAND_TRASHED_BY_OPP` / `ENERGY_TRASHED_BY_OPP` の**シグニ版**＝3本目）を
+> 新設し、`SPK16-13E-E1`① を honest defer から引き取った。全文は BUGFIXES.md の同日。
+
+| `O-233` | **1効果** | 🆕**2026-09-03（`O-60` 第60バッチで分離）**＝「このターンに**対戦相手の効果によって**あなたのシグニが**場を離れていた**場合」の条件語彙が無い。<br>`SPK16-13E-E1`①「対戦相手のシグニ１体を対象とし、**このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合**、それをバニッシュする。」<br>🔑**`ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` の**シグニ版が欠けているだけ**（同じ「相手の効果で失った」系の3本目）。<br>■**要るもの**＝ターン内カウンタ（`turn_signi_left_by_opp_effect_count` 相当）＋条件型1本（型・`CONDITION_TYPES`・`evalCondition`・`checkActiveCondition`・golden・parser の6箇所）。⚠**条件側に STUB の道は無い**＝`COND_STUB` は無条件成立なので流用禁止。<br>■現状は `STUB{DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT}`（明示 defer・逆翻訳に【未実装】と出る）。条件を落とすと**無条件バニッシュ**の過剰実行になるのでこの向きに倒してある。 |
+
 ## 2026-09-04 整理②：`O-152` を🏁クローズして索引から削除
 
 > **登録票の症状（「`ON_HAND_DISCARDED` の watcher が効果による手札捨てで1件も発火しない」）は stale だった。**

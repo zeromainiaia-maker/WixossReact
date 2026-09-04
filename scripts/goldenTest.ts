@@ -5491,7 +5491,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 42, 'PlayerState の命名規約由来フィールド数（🆕42＝2026-09-04 `O-246` で grid_reveal_plus_one_this_turn を撤去＝読み手が1人もいない真 no-op だった。旧43）');
+  eq(convention.length, 43, 'PlayerState の命名規約由来フィールド数（🆕43＝2026-09-04 `O-233` で signi_left_by_opp_effect_this_turn を新設。42＝`O-246` で grid_reveal_plus_one_this_turn を撤去）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5506,7 +5506,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 72, '型由来38件＋命名規約外27件の母集団（🆕72＝2026-09-04 `O-246` で grid_reveal_plus_one_this_turn を撤去。旧73＝2026-09-02 索引B 第2巡で spell_in_check_zone〔`O-138`〕と damaged_just〔`O-160`〕を追加）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 73, '型由来38件＋命名規約外27件の母集団（🆕73＝2026-09-04 `O-233` で signi_left_by_opp_effect_this_turn を新設。72＝`O-246` で grid_reveal_plus_one_this_turn を撤去）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -25110,7 +25110,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
-  eq(Object.keys(C_TYPES).length, 147, 'Condition の型数（147＝2026-09-02 §5.3 `O-194` で `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT` を追加。145＝続き759 の REFRESH_COUNT_THIS_TURN）');
+  eq(Object.keys(C_TYPES).length, 148, 'Condition の型数（🆕148＝2026-09-04 §5.3 `O-233` で `SIGNI_LEFT_BY_OPP_EFFECT` を追加。147＝`O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -64611,6 +64611,35 @@ test('§5.3 O-190: 複合任意コストの「前半」が payload に載って�
 //    自前で組むので `applyDistinctBatch5c` の `visit` が見ている target/source が存在しない）。
 // ══════════════════════════════════════════════════════════════════════════════
 
+test('§5.3 O-233: 「対戦相手の効果によってシグニが場を離れていた場合」の条件が効く', () => withSavedCursor(() => {
+  // 🔴この条件語彙は `HAND_TRASHED_BY_OPP` / `ENERGY_TRASHED_BY_OPP` の**シグニ版だけが欠けていた**（3本目）。
+  //   条件を落として `BANISH` にすると**無条件バニッシュ**の過剰実行になるので、それまでは
+  //   `STUB{DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT}` の honest defer に倒してあった。
+  // 原文（`SPK16-13E-E1`①）＝「対戦相手のシグニ１体を対象とし、**このターンに対戦相手の効果によって
+  //   あなたのシグニが場を離れていた場合**、それをバニッシュする。」
+  const c0 = (effectsMap.get('SPK16-13E')?.[0]?.action as { choices?: { action: { type: string; condition?: { type?: string; owner?: string; value?: number }; then?: { type?: string } } }[] }).choices?.[0].action;
+  eq(c0?.type, 'CONDITIONAL', '①は条件つき（無条件バニッシュに倒れていない）');
+  eq(c0?.condition?.type, 'SIGNI_LEFT_BY_OPP_EFFECT', '新設した条件語彙を使う');
+  eq(c0?.condition?.owner, 'self', '数えるのは「あなたの」シグニ');
+  eq(c0?.condition?.value, 1, '1体以上');
+  eq(c0?.then?.type, 'BANISH', '成立時だけバニッシュ');
+  // 評価器（`evalCondition`）＝カウンタが0なら false・1以上なら true。
+  const cond = c0!.condition as Condition;
+  const zero = mkCtx({}, {});
+  ok(!evalCondition(cond, zero), 'カウンタ0では成立しない');
+  const one = mkCtx({}, {});
+  (one.ownerState as { signi_left_by_opp_effect_this_turn?: number }).signi_left_by_opp_effect_this_turn = 1;
+  ok(evalCondition(cond, one), 'カウンタ1で成立する');
+  // 🔴**書き手が居ること**＝`BattleScreen` の ON_LEAVE_FIELD 検出点で、
+  //   **原因が効果で、その効果のオーナーが持ち主でない**ときだけ数える（バトルやルール処理では数えない）。
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(bs.includes("causeOwnerId && causeOwnerId !== bs.host_id && leftHostSigni.length > 0"), 'host 側の書き手がある');
+  ok(bs.includes("causeOwnerId && causeOwnerId !== bs.guest_id && leftGuestSigni.length > 0"), 'guest 側の書き手がある');
+  // 🔴**ターン境界で戻ること**（「このターンに」＝ターン単位のカウンタ）。
+  const ts = fs.readFileSync(join(root, 'src/screens/battle/turnScopedState.ts'), 'utf8');
+  ok(ts.includes('signi_left_by_opp_effect_this_turn'), 'ターン終了時にリセットされる');
+}));
+
 test('§5.3 O-197: 選択を自前で組む STUB にも「それぞれ〜異なる」が届く', () => withSavedCursor(() => {
   // 🔴`WDK14-011-E1`「あなたのトラッシュから**それぞれレベルの異なる**シグニを**2枚まで**対象とし、
   //   それらを【ビート】にする」は live のどこにも制約が無く、**同じレベルを重ねて選べた**（過剰実行）。
@@ -65682,8 +65711,13 @@ test('§5.3 O-60 第60: モーダル選択 family は engine の全文 regex で
   const spk = (effectsMap.get('SPK16-13E') ?? []).find(e => e.effectId === 'SPK16-13E-E1');
   ok(!!spk, 'SPK16-13E-E1 が live にある'); if (!spk) return;
   const spkCh = spk.action as import('../src/types/effects').ChooseAction;
-  eq((spkCh.choices[0].action as unknown as { id?: string }).id, 'DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT',
-    '①「対戦相手の効果で自分のシグニが場を離れていた場合」は条件語彙が無いので明示 defer（O-233）');
+  // 🏁①は `O-233`（2026-09-04）で条件語彙 `SIGNI_LEFT_BY_OPP_EFFECT` を新設して引き取った
+  //   （明示 defer `DEFERRED_BANISH_IF_SIGNI_LEFT_BY_OPP_EFFECT` から本実装へ）。
+  //   🔴**条件が消えていないこと**が本題＝落とすと無条件バニッシュの過剰実行に戻る。
+  eq(JSON.stringify(spkCh.choices[0].action),
+    JSON.stringify({ type: 'CONDITIONAL', condition: { type: 'SIGNI_LEFT_BY_OPP_EFFECT', owner: 'self', operator: 'gte', value: 1 },
+      then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } } }),
+    '①＝条件つきバニッシュ（無条件に倒れていない）');
   eq(JSON.stringify(spkCh.choices[1].condition),
     JSON.stringify({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: 1 }),
     '②はエナ側の条件が選択肢のゲートとして載る');
