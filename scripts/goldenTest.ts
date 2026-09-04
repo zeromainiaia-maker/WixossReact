@@ -20,7 +20,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
-import { parseRevealPickDescriptor } from '../src/data/parserUtils';
+import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni, collectGrowPayOptions, growPayCandidateHandIndices } from '../src/engine/effectEngine';
@@ -59287,8 +59287,10 @@ test('O-147: 多ゾーン消費ライズの枠割り当て（候補数では判�
 // ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
 //   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
 test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
-  const BASELINE_REORDER_MISSING = 13;   // 旧16→14（O-149）→**13**（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
-  //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）。⚠**払い戻したら実測値へ下げる**（CLAUDE.md）。
+  const BASELINE_REORDER_MISSING = 12;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
+  //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）。
+  //   ⚠**払い戻したら実測値へ下げる**（CLAUDE.md）。
   const srcPath = join(root, 'docs/_effect_srctext.json');
   const srcMap = JSON.parse(fs.readFileSync(srcPath, 'utf8')) as Record<string, unknown>;
   const hasReorder = (o: unknown): boolean => {
@@ -67041,6 +67043,66 @@ test('§5.3 O-60 第62: 引用能力が engine のグローバル宣言に落ち
   eq((p85Ch.choices[2].action as SequenceAction).steps[1].type, 'GRANT_PROTECTION',
     '③「対戦相手の効果によってダウンしない」は GRANT_PROTECTION{from:[DOWN]}');
 }));
+
+// 🆕**第141バッチ＝`parseStoryFilter` の「先頭条件節ガード」は位置で割る**（2026-09-05）。
+// 2026-08-27 に入れたガード（`WX10-062`＝条件節のクラスが対象へ誤付着する過小実行を止めるもの）が
+// **過剰にも発火**し、held に **5枚**の退化として溜まっていた（live は正しかったので実機は無傷）。
+// このテストは**両向き**を固定する＝落としてよい形／落としてはいけない形をペアで置く。
+test('§5.3 held 第141: 条件節ガードは「対象指定より前のクラス」と「全体が条件節」を落とさない', () => {
+  const storyOf = (json: string) => (json.match(/"story":"[^"]+"/g) ?? []).join(',');
+
+  // ① 🔴**全体が条件節**＝落とすとクラスが丸ごと消える（`LAST_PROCESSED_MATCHES` の filter がレベルだけになり、
+  //    どのクラスのシグニでも成立する過剰実行になっていた）。
+  const wdk = (effectsMap.get('WDK16-13') ?? []).find(e => e.effectId === 'WDK16-13-E1');
+  ok(!!wdk, 'WDK16-13-E1 が live にある'); if (!wdk) return;
+  const wdkStep = ((wdk.action as SequenceAction).steps[1] as unknown as Record<string, unknown>);
+  const wdkCond = wdkStep.condition as unknown as Record<string, unknown>;
+  eq(wdkCond.type, 'LAST_PROCESSED_MATCHES', 'WDK16-13: 「この方法で…公開された場合」は LAST_PROCESSED_MATCHES');
+  eq((wdkCond.filter as Record<string, unknown>).story, '電機', '🔴 条件節のクラス＜電機＞が残っている');
+
+  // ② 🔴**対象指定より前のクラス**＝引用能力の中の「かぎり、」に当たって対象の＜宝石＞まで消えていた。
+  const p164 = (effectsMap.get('WX24-P1-064') ?? []).find(e => e.effectId === 'WX24-P1-064-E1');
+  ok(!!p164, 'WX24-P1-064-E1 が live にある'); if (!p164) return;
+  ok(storyOf(JSON.stringify(p164.action)).includes('宝石'),
+    '🔴 「あなたの＜宝石＞のシグニ1体を対象とし」の＜宝石＞が対象に残っている');
+
+  // ③ **落とし続けるべき形（反転側）その1**＝クラスが「を対象と」より**後ろ**にある＝条件節のクラス。
+  //    対象へ付けると「＜鉱石＞か＜宝石＞の相手シグニしか倒せない」過小実行になる。
+  const w925 = (effectsMap.get('WX09-025') ?? []).find(e => e.effectId === 'WX09-025-E1');
+  ok(!!w925, 'WX09-025-E1 が live にある'); if (!w925) return;
+  const w925Target = (w925.action as unknown as Record<string, unknown>).target as Record<string, unknown>;
+  ok(!('story' in (w925Target.filter as Record<string, unknown>)),
+    '🔴 WX09-025: 条件節の＜鉱石＞＜宝石＞がバニッシュ対象へ付いていない');
+  ok(JSON.stringify(w925.condition).includes('鉱石'), 'WX09-025: クラスは条件側に載っている');
+
+  // ④ **落とし続けるべき形（反転側）その2**＝ガード導入時の基準カード（`WX10-062`）。
+  const w1062 = (effectsMap.get('WX10-062') ?? []).find(e => e.effectId === 'WX10-062-E1');
+  ok(!!w1062, 'WX10-062-E1 が live にある'); if (!w1062) return;
+  ok(!storyOf(JSON.stringify((w1062.action as unknown as Record<string, unknown>).target ?? {})).length,
+    '🔴 WX10-062: 条件節の＜ウェポン＞＜アーム＞がバニッシュ対象へ付いていない');
+
+  // ⑤ 🔑**held を採用した分**＝トリガー節のクラスは対象に付かない（`WXDi-P10-061`）。
+  //    live は＜プリパラ＞を凍結対象に付けており、**相手が＜プリパラ＞を出さないかぎり不発**だった。
+  const p61 = (effectsMap.get('WXDi-P10-061') ?? []).find(e => e.effectId === 'WXDi-P10-061-E2');
+  ok(!!p61, 'WXDi-P10-061-E2 が live にある'); if (!p61) return;
+  ok(!JSON.stringify((p61.action as unknown as Record<string, unknown>).target).includes('プリパラ'),
+    '🔴 WXDi-P10-061: 凍結対象は無限定（トリガー節の＜プリパラ＞が付いていない）');
+  ok(JSON.stringify(p61.triggerFilter ?? {}).includes('プリパラ'), 'クラスはトリガー側に載っている');
+
+  // ⑥ 🔴🔑**live だけを見ていても parser の退化は捕まらない**＝収穫マージが live を温存するので、
+  //    ①〜⑤ は**旧 parser のままでも緑になる**（実測＝この巡の退化5枚は live 側が全部正しかった）。
+  //    ⇒ **`parseStoryFilter` を直接呼んで単体で固定する**（ここが本当のトリップワイヤ）。
+  eq(JSON.stringify(parseStoryFilter('この方法でレベル２以下の＜電機＞のシグニが公開された場合、')),
+    JSON.stringify({ story: '電機' }), '🔴 全体が条件節＝クラスを落とさない');
+  eq(JSON.stringify(parseStoryFilter('あなたの＜宝石＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：あなたの手札が２枚以下であるかぎり、このシグニは【アサシン】を得る。」を得る。')),
+    JSON.stringify({ story: '宝石' }), '🔴 対象指定より前のクラスは対象の修飾語＝落とさない');
+  eq(JSON.stringify(parseStoryFilter('対戦相手のパワー8000以下のシグニ１体を対象とし、あなたの場に＜鉱石＞か＜宝石＞のシグニが合計３体ある場合、それをバニッシュする')),
+    JSON.stringify({}), '🔴 反転：対象指定より後ろのクラスは条件節＝従来どおり落とす');
+  eq(JSON.stringify(parseStoryFilter('あなたの場に他の＜ウェポン＞と＜アーム＞のシグニがある場合、対象の対戦相手のパワー7000以下のシグニ１体をバニッシュする')),
+    JSON.stringify({}), '🔴 反転：ガード導入時の基準カード（WX10-062）は落とし続ける');
+  eq(JSON.stringify(parseStoryFilter('あなたが＜プリパラ＞のシグニを１枚捨てたとき、対戦相手のシグニ１体を対象とし、それを凍結する')),
+    JSON.stringify({}), '🔴 反転：トリガー節のクラスは落とし続ける');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));
