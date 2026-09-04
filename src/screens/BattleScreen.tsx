@@ -11137,8 +11137,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const { attacker: my, defender: op, attackerId } = p;
     const slot: LrigAttackSlot = p.slot ?? 'center';
     const isCenterAttack = slot === 'center';
-    if (isCenterAttack && my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
-    if (isCenterAttack && my.field.lrig_down) return false; // すでに攻撃済み
+    // 🆕**§5.3 `O-236`（2026-09-04）＝「1ターンにこのルリグがアタックできる上限は N になる」。**
+    //   🔴既定は「1回」を真偽値（`lrig_has_attacked`）で表していたので**2回目以降を表せなかった**。
+    //   ⚠**上限が未設定のときは従来どおり**（真偽値の門だけ）＝既存カードの挙動は1つも変えない。
+    const lrigAtkLimit = my.lrig_attack_limit_this_turn;
+    const lrigAtkCount = my.lrig_attack_count_this_turn ?? 0;
+    if (isCenterAttack) {
+      if (lrigAtkLimit === undefined) {
+        if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
+      } else if (lrigAtkCount >= lrigAtkLimit) {
+        return false; // 付与された上限に達した
+      }
+    }
+    // 🆕**「ダウン状態でもアタックできる」**（`O-236`）＝ルリグ側の軸。
+    //   ⚠シグニ用の `ATTACK_WHILE_DOWN` とは**別軸**（あちらは `signiAttackGate.ts`）。
+    if (isCenterAttack && my.field.lrig_down && !my.lrig_attack_while_down_this_turn) return false; // すでに攻撃済み
     if (!isCenterAttack && !assistLrigAttackableSlots(my, battleCardMap).includes(slot)) return false;
     if (op.field.lrig_attacked) return false; // ガード応答待ち中
     const myLrigNumLA = lrigSlotTop(my, slot);
@@ -11209,6 +11222,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const attackedMyState: PlayerState = {
         ...myAfterFieldTrash, energy: myEnergyAfterAttack,
         ...(isCenterAttack ? { lrig_has_attacked: true } : {}),
+        // 🆕§5.3 `O-236`＝上限つきのときは回数も数える（上限が無い日は書かない＝既存の挙動を汚さない）。
+        ...(isCenterAttack && my.lrig_attack_limit_this_turn !== undefined
+          ? { lrig_attack_count_this_turn: (my.lrig_attack_count_this_turn ?? 0) + 1 } : {}),
         field: markLrigSlotDown(myAfterFieldTrash, slot),
       };
       // NEGATE_NTH_ATTACK は「アタックしたとき」に無効化するため、追加コスト支払い・ダウン・攻撃済み化は行う。

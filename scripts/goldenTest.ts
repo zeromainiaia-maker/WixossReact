@@ -5609,7 +5609,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 49, 'PlayerState の命名規約由来フィールド数（🆕49＝2026-09-04 に `O-246` の reveal_count_plus_one_this_turn を新設。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 52, 'PlayerState の命名規約由来フィールド数（🆕52＝2026-09-04 に `O-236` の lrig_attack_limit_this_turn / lrig_attack_count_this_turn / lrig_attack_while_down_this_turn を新設。49＝`O-246` の reveal_count_plus_one_this_turn。48＝`O-185` の trash_spells_usable_this_turn。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5624,7 +5624,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 79, '型由来38件＋命名規約外27件の母集団（🆕79＝2026-09-04 に `O-246` の reveal_count_plus_one_this_turn を新設。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 82, '型由来38件＋命名規約外27件の母集団（🆕82＝2026-09-04 に `O-236` の3本を新設。79＝`O-246` の reveal_count_plus_one_this_turn。78＝`O-185` の trash_spells_usable_this_turn。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -22631,6 +22631,30 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
 // 🆕**§5.3 `O-244`（2026-09-04）＝デッキ上を見てチェックゾーンへ置き、無料で使う。**
 //   🔴旧 live は `LOOK_AND_REORDER{count:10}` だけで**本文が丸ごと落ちて**おり、
 //     しかも逆翻訳が「デッキの上10枚を見る」と**実装済みのように読めた**。
+// 🆕**§5.3 `O-236`（2026-09-04）＝ルリグの「1ターンにアタックできる上限」と「ダウン状態でもアタックできる」。**
+//   🔴既定は「1回」を真偽値（`lrig_has_attacked`）で表していたので**2回目以降を表せなかった**。
+test('§5.3 O-236: ルリグのアタック上限は「なる」（置き換え）／減らすのは0でクランプ', () => withSavedCursor(() => {
+  const e1 = (effectsMap.get('WXDi-D04-011') ?? []).find(e => e.effectId === 'WXDi-D04-011-E1');
+  const tree = JSON.stringify(e1?.action ?? {});
+  ok(tree.includes('"LRIG_ATTACK_LIMIT"'), '実装済みの受け皿へ載っていない');
+  ok(tree.includes('"limit":3'), '上限3が payload に無い');
+  ok(tree.includes('"whileDown":true'), '「ダウン状態でもアタックできる」が payload に無い');
+  ok(tree.includes('REVEAL_DECK_TOP_AND_REDUCE_LRIG_ATTACK_LIMIT'), '【自】側が載っていない');
+  // 実挙動＝上限は置き換え、減らすのは0でクランプ。
+  const setLim = run({ type: 'STUB', id: 'LRIG_ATTACK_LIMIT',
+    lrigAttackLimit: { limit: 3, whileDown: true } } as unknown as EffectAction, mkCtx({}, {}));
+  eq((setLim.ownerState as PlayerState).lrig_attack_limit_this_turn, 3, '上限が入っていない');
+  eq((setLim.ownerState as PlayerState).lrig_attack_while_down_this_turn, true, 'ダウン中アタックが入っていない');
+  const dec = run({ type: 'STUB', id: 'REDUCE_LRIG_ATTACK_LIMIT', value: 2 } as unknown as EffectAction,
+    { ...mkCtx({}, {}), ownerState: { ...mkCtx({}, {}).ownerState, lrig_attack_limit_this_turn: 3 } as PlayerState } as ExecCtx);
+  eq((dec.ownerState as PlayerState).lrig_attack_limit_this_turn, 1, '−2 が効いていない');
+  const dec2 = run({ type: 'STUB', id: 'REDUCE_LRIG_ATTACK_LIMIT', value: 5 } as unknown as EffectAction,
+    { ...mkCtx({}, {}), ownerState: { ...mkCtx({}, {}).ownerState, lrig_attack_limit_this_turn: 3 } as PlayerState } as ExecCtx);
+  eq((dec2.ownerState as PlayerState).lrig_attack_limit_this_turn, 0, '🔴0でクランプしていない（負の上限）');
+  // 反転確認＝上限が未設定なら「減らす」は何もしない（既存カードの挙動を汚さない）。
+  const noLim = run({ type: 'STUB', id: 'REDUCE_LRIG_ATTACK_LIMIT', value: 1 } as unknown as EffectAction, mkCtx({}, {}));
+  eq((noLim.ownerState as PlayerState).lrig_attack_limit_this_turn, undefined, '🔴上限が無いのに書き込んだ');
+}));
 test('§5.3 O-244: 枚数・コスト上限は原文どおりの payload／コスト合計の上限が効く', () => withSavedCursor(() => {
   const e3 = (effectsMap.get('WXDi-P10-007') ?? []).find(e => e.effectId === 'WXDi-P10-007-E3');
   const act = e3?.action as unknown as { id?: string; checkZoneFreeCast?: { lookCount?: number; maxPick?: number; totalCostMax?: number } };
@@ -44442,11 +44466,13 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
   //   🔴旧注記の「この STUB には engine 実装がある」は**このカードには当てはまらなかった**＝
   //     `GRANT_QUOTED_ABILITY` ハンドラは付与先を**自場シグニ**に絞るのに、このカードはピース
   //     （場のシグニではない）なので毎回「能力付与：…（ログのみ）」へ落ちる**無言 no-op** だった。
-  //   ⇒ 機構が3本無い（`O-236`＝ルリグの「ダウン状態でもアタック」／アタック回数上限／その増減）ので
-  //     明示 defer にし、逆翻訳へ【未実装】を出す。**過小のまま、嘘をやめた**という変更。
+  //   ⇒ 機構が3本無かったので明示 defer にしていた。
+  // 🏁**§5.3 `O-236`（2026-09-04）＝3本とも実装したので `SEQUENCE[LRIG_ATTACK_LIMIT, INSTALL_DELAYED_TRIGGER]` へ昇格。**
+  //   ⚠**トリップワイヤの主旨は「raw の UNKNOWN 形を採らない」**（付与が丸ごと消える形へ戻さない）＝
+  //     そこは `LRIG_ATTACK_LIMIT` が居ることで固定する。
   const d04Live = effectsMap.get('WXDi-D04-011')![0];
-  eq(d04Live.action.type, 'STUB', 'D04-011: STUB のまま（raw の UNKNOWN 形を採らない）');
-  eq((d04Live.action as StubAction).id, 'DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY', 'D04-011: 明示 defer の id');
+  ok(JSON.stringify(d04Live.action).includes('LRIG_ATTACK_LIMIT'),
+    'D04-011: ルリグのアタック上限が載っていない（raw の UNKNOWN 形へ戻った疑い）');
   ok(!JSON.stringify(d04Live.action).includes('UNKNOWN'), 'D04-011: raw の UNKNOWN 形を採用しない');
   ok(!!d04Live.condition, 'D04-011: 使用条件は採用したまま');
 });
@@ -64756,13 +64782,14 @@ test('§5.3 O-60 第64: 宣言が取れた「このゲームの間」の効果�
   eq(a?.gameGrants?.length, 2, 'WXDi-P05-005-E1: 宣言は payload に載っている');
 }));
 
-test('§5.3 O-60 第64: 表せないルリグ付与は明示 defer（O-236）', () => withSavedCursor(() => {
-  // 🔴`WXDi-D04-011-E1` は付与先が**ピース自身**に解決されて自場シグニに一致せず、
-  //   engine の最後のログ枝へ落ちる無言 no-op だった。機構が3本無い（`O-236`）ので
-  //   近似で載せず `DEFERRED_` にして逆翻訳へ【未実装】を出す。
+test('§5.3 O-60 第64: ルリグ付与は実装済み（O-236＝明示 defer から昇格）', () => withSavedCursor(() => {
+  // 🔴旧＝付与先が**ピース自身**に解決されて自場シグニに一致せず、engine の最後のログ枝へ落ちる無言 no-op。
+  //   機構が3本無かったので `DEFERRED_` にしてあった。🏁2026-09-04 に3本とも実装した（`O-236`）。
   // ⚠live が `PARTIAL` で収穫マージが効果単位で不可侵＝`manualEffects.ts` ＋ `syncManualLive` でしか届かない。
-  const a = effectsMap.get('WXDi-D04-011')?.find(e => e.effectId === 'WXDi-D04-011-E1')?.action as { id?: string };
-  eq(a?.id, 'DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY', 'WXDi-D04-011-E1: 明示 defer');
+  const a = effectsMap.get('WXDi-D04-011')?.find(e => e.effectId === 'WXDi-D04-011-E1')?.action;
+  const tree = JSON.stringify(a ?? {});
+  ok(tree.includes('LRIG_ATTACK_LIMIT'), 'WXDi-D04-011-E1: 実装済みの受け皿へ載っていない');
+  ok(!tree.includes('DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY'), '明示 defer へ戻っている');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════

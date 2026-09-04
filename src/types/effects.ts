@@ -5448,6 +5448,17 @@ export interface StubAction {
    */
   checkZoneFreeCast?: { lookCount: number; maxPick: number; totalCostMax: number };
   /**
+   * 🆕**§5.3 `O-236`（2026-09-04）＝ルリグの「1ターンにアタックできる上限」と「ダウン状態でもアタックできる」。**
+   * ⚠**`limit` は「なる」＝置き換え**（加算ではない）。⚠シグニ用の `ATTACK_WHILE_DOWN` とは別軸。
+   */
+  lrigAttackLimit?: { limit: number; whileDown?: boolean };
+  /**
+   * 🆕**§5.3 `O-236`（2026-09-04）＝デッキをシャッフルして一番上を公開し、
+   * **そのカードのレベルに応じて**ルリグのアタック上限を減らす**（`WXDi-D04-011-E1` の【自】）。
+   * ⚠**一致しないレベルなら何も減らさない**（原文はレベル1と2しか書いていない）。
+   */
+  revealReduceLrigLimit?: Array<{ level: number; reduce: number }>;
+  /**
    * 🆕**§5.3 `O-230`／`O-60`（2026-09-04）＝`GUARD_ALTERNATIVE_COST` の中身を payload で運ぶ。**
    * 🔴旧 `collectGuardAlternativeCost` は**カード全文 regex**
    *   （`/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/`）で読んでいたので、

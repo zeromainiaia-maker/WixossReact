@@ -2162,6 +2162,43 @@ export function execStubPart3(
   //   🆕いまは `REVEAL_COUNT_PLUS_ONE_OPTIONAL` が `reveal_count_plus_one_this_turn` を立て、
   //     **公開のたびに**「1枚多く公開しますか？」を出す（`maybeAskRevealPlusOne`）。
   //     ⚠**自動加算にしない**＝原文は「してもよい」＝任意の置換なので、問わずに増やすと過剰実行。
+  // ── LRIG_ATTACK_LIMIT / REDUCE_LRIG_ATTACK_LIMIT（§5.3 `O-236`・2026-09-04）──
+  // 「このルリグは**ダウン状態でもアタックでき**、1ターンにこのルリグが**アタックできる上限は N になる**」
+  //   ＋「このターン、このルリグがアタックできる**上限を M 減らす**」（`WXDi-D04-011-E1`）
+  // ⚠**上限は「なる」＝置き換え**（加算ではない）。⚠**減らすのは下限0でクランプ**する。
+  if (stub.id === 'LRIG_ATTACK_LIMIT') {
+    const specLA = stub.lrigAttackLimit;
+    if (!specLA) return done(addLog(ctx, '[ルリグのアタック上限: 内容が無いため何もしない]'));
+    const nextLA: PlayerState = {
+      ...ctx.ownerState,
+      lrig_attack_limit_this_turn: specLA.limit,
+      ...(specLA.whileDown ? { lrig_attack_while_down_this_turn: true } : {}),
+    };
+    return done(addLog({ ...ctx, ownerState: nextLA },
+      `このターン、ルリグは${specLA.whileDown ? 'ダウン状態でもアタックでき、' : ''}アタックできる上限が${specLA.limit}になる`));
+  }
+  // 🆕§5.3 `O-236`＝デッキの一番上を公開し、そのレベルに応じて上限を減らす（`WXDi-D04-011-E1` の【自】）。
+  //   ⚠**一致しないレベルなら何も減らさない**（原文はレベル1と2しか書いていない＝過剰に減らさない）。
+  if (stub.id === 'REVEAL_DECK_TOP_AND_REDUCE_LRIG_ATTACK_LIMIT') {
+    const tableRR = stub.revealReduceLrigLimit ?? [];
+    const topRR = ctx.ownerState.deck[0];
+    if (!topRR) return done(addLog(ctx, 'デッキにカードがない'));
+    const cardRR = ctx.cardMap.get(getCardNum(topRR));
+    const ctxRR = addLog(ctx, `デッキの一番上を公開：${cardRR?.CardName ?? topRR}`);
+    if (cardRR?.Type !== 'シグニ') return done(ctxRR);
+    const lvRR = Number.parseInt(cardRR.Level ?? '', 10);
+    const hitRR = tableRR.find(t => t.level === lvRR);
+    if (!hitRR) return done(ctxRR);
+    return exec({ type: 'STUB', id: 'REDUCE_LRIG_ATTACK_LIMIT', value: hitRR.reduce } as StubAction as EffectAction, ctxRR);
+  }
+  if (stub.id === 'REDUCE_LRIG_ATTACK_LIMIT') {
+    const decLA = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '1'), 10);
+    const curLA = ctx.ownerState.lrig_attack_limit_this_turn;
+    if (curLA === undefined) return done(addLog(ctx, 'アタック上限が設定されていない（減らせない）'));
+    const nextLimit = Math.max(0, curLA - (Number.isFinite(decLA) ? decLA : 1));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_attack_limit_this_turn: nextLimit } },
+      `このターン、ルリグがアタックできる上限が${nextLimit}になる（−${decLA}）`));
+  }
   // ── CHECK_ZONE_FREE_CAST（§5.3 `O-244`・2026-09-04）──
   // 「デッキの上からN枚見る。その中から**コストの合計がM以下になるように**スペルをK枚まで**チェックゾーンに置き**、
   //   残りをデッキに加えてシャッフルする。この方法でチェックゾーンに置いたスペルを

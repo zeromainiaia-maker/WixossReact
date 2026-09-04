@@ -44,6 +44,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
   trash_spells_usable_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'permission to use the named trash spells lasts for the current turn' },
   // 🆕§5.3 `O-246`＝「1枚多く公開してもよい」の権利も、そのターンだけ。
   reveal_count_plus_one_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'optional +1 reveal replacement lasts for the current turn' },
+  // 🆕§5.3 `O-236`＝ルリグのアタック上限・回数・ダウン中アタックは、そのターンだけ。
+  lrig_attack_limit_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'granted lrig attack limit lasts for the current turn' },
+  lrig_attack_count_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'lrig attack count for the current turn' },
+  lrig_attack_while_down_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'lrig may attack while down for the current turn' },
   // 非ディソナスペル使用履歴は、現在ターンの使用条件だけが参照する。
   non_dissona_spell_played_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'non-Dissona spell history for the current turn' },
   // 相手カードをデッキへ移した累計は、ターン単位の条件カウンタ。
