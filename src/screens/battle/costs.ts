@@ -444,7 +444,13 @@ export function parseGrowCost(raw: string): { color: string; count: number }[] {
   if (!raw || raw === 'なし' || raw === '-') return [];
   const result: { color: string; count: number }[] = [];
   for (const m of raw.matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
-    if (m[1] === 'コイン') continue; // コインはエナではない。parseCoinCostで別処理
+    // コインはエナではない。`parseCoinCost` で別処理。
+    // 🆕🔴**2026-09-04（`V-146` の実機で発覚）＝CSV の `Cost` 列には綴りが2つある**＝
+    //   `《コイン》×N`（77枚）と `《コインアイコン》×N`（1枚＝`SP38-006`）。
+    //   ここが後者を除外していなかったため **「コインアイコン」という存在しないエナ色**を要求し、
+    //   `canAffordGrowCost` が永久に false ＝**`SP38-006` は1度も場に出せなかった**（ルリグデッキを
+    //   開いても「キーにセット」の行動が出ない）。trap (h)「同じ概念に複数の正準形がある」の CSV 側の顔。
+    if (m[1] === 'コイン' || m[1] === 'コインアイコン') continue;
     const count = parseInt(toHalfWidth(m[2]));
     if (count > 0) result.push({ color: m[1], count });
   }
@@ -1206,7 +1212,10 @@ export function canAffordGrowCost(
 export function parseCoinCost(costStr: string): number {
   if (!costStr) return 0;
   const toHalf = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
-  for (const m of costStr.matchAll(/《コイン》×([０-９\d]+)/g)) return parseInt(toHalf(m[1])) || 0;
+  // 🆕🔴**2026-09-04（`V-146` の実機で発覚）＝`《コインアイコン》×N` の綴りも受ける**（`SP38-006`）。
+  //   旧実装は `《コイン》×N` しか見ておらず、その1枚は **coinNeeded=0**＝コストが無いことになっていた
+  //   （＝`coin_use_restriction` の判定も `coinNeeded === 0` で素通りしていた）。
+  for (const m of costStr.matchAll(/《コイン(?:アイコン)?》×([０-９\d]+)/g)) return parseInt(toHalf(m[1])) || 0;
   return 0;
 }
 

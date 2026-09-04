@@ -44190,6 +44190,203 @@ scenarios.o71HandToCheckZone = {
   },
 };
 order.push('o71HandToCheckZone');
+// -----------------------------------------------------------------------------
+// §5.1 `V-146`（2026-09-04・`O-245` 第2バッチ）＝**コインはスペルとシグニにしか払えない**
+//   （`coin_use_restriction: 'spell_signi_only'`＝`WXDi-P15-008-E3` / `WXDi-P15-009-E3`）。
+// 🔴**この state キーには読み手が1人もいなかった**（`npm run census:deadstate` で検出）＝
+//   宣言だけが立って**コインは何にでも払えた**（＝原文より緩い過剰実行）。読み手は
+//   `costs.ts` の `coinPayableFor(state, kind)` で、`ArtsModal` / `CutinModal` / `GrowModal` /
+//   `KeyUseModal` / `artsUseGate` の5入口が読む。
+// ⚠**観測点は「払えてしまう」ではなく「提示されない（＝ボタンが disabled）」**＝
+//   支払い側で0にする実装だと「払ったことにされてコストだけ消える」形になり盤面では気づけない。
+// 🔴**対照は盤面を1文字も変えず `coin_use_restriction` だけを外す**（§4.4 📌3）。
+// ⚠**② の「コインが要るグロウ」は実機で観測できない**＝CSV 全数で `GrowCost` に《コインアイコン》を
+//   持つルリグは**0枚**（実測）。`GrowModal` の読み手は入れてあるが、標本が無いので実機には出せない。
+//   ⇒ ③（キー／ピース＝`SP38-006` が唯一の標本）で「ルリグ側の入口」を代表させる。
+// -----------------------------------------------------------------------------
+
+/** ArtsModal / SpellCastModal / KeyUseModal のボタン状態を読む（見つかるまで最大3秒待つ＝§4.4 📌7）。 */
+async function readBetButtons(page, want) {
+  for (let k = 0; k < 20; k++) {
+    const r = await page.evaluate((labels) => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const pick = (t) => {
+        const b = btns.find(x => (x.textContent || '').trim() === t);
+        return b ? { found: true, enabled: !b.disabled } : { found: false, enabled: null };
+      };
+      const out = { all: btns.map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 30) };
+      for (const l of labels) out[l] = pick(l);
+      return out;
+    }, ['OFF', ...want]).catch(() => null);
+    if (r && want.every(l => r[l] && r[l].found)) return r;
+    await page.waitForTimeout(150);
+  }
+  return await page.evaluate(() => ({
+    all: Array.from(document.querySelectorAll('button')).map(b => (b.textContent || '').trim()).filter(Boolean).slice(0, 30),
+  })).catch(() => ({ all: [] }));
+}
+
+/** `V-146` ①/反転＝アーツ `WX15-030`（限定なし・《無》×０・ベット2枚）のベット提示。 */
+function mkCoinArtsBetScenario(restricted) {
+  const id = restricted ? 'o245CoinArtsBetBlocked' : 'o245CoinArtsBetAllowed';
+  return {
+    title: restricted
+      ? 'O-245 V-146①：coin_use_restriction 下ではアーツのベットが提示されない（WX15-030）'
+      : 'O-245 V-146 反転：制限が無ければアーツのベットは今までどおり提示される（WX15-030）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#9800'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': ['WX15-030#9820'],
+        'energy': ['WD01-013#9801', 'WD01-013#9802'],
+        'coins': 5,
+        'hand': [], 'actions_done': [], 'game_actions_done': [],
+        ...(restricted ? { coin_use_restriction: 'spell_signi_only' } : {}),
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await openV04LrigDeckAction(page, '使用');
+      H.log(`  ${id}: ルリグデッキ→アーツ→使用 = ${JSON.stringify(opened)}`);
+      if (!opened.ok) return { pass: false, detail: `前提崩れ＝アーツの「使用」に到達できない（${opened.detail}）` };
+      const bet = await readBetButtons(page, ['2枚']);
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: ベット行=${JSON.stringify(bet)}`);
+      if (!(bet['2枚'] && bet['2枚'].found)) {
+        return { pass: false, detail: `前提崩れ＝ベット行そのものが出ていない（buttons=${JSON.stringify(bet.all)}）` };
+      }
+      const st = await H.queryState();
+      if ((st?.host?.coins ?? 0) < 2) return { pass: false, detail: `前提崩れ＝コインが2枚未満（coins=${st?.host?.coins}）` };
+      if (restricted) {
+        if (bet['2枚'].enabled) {
+          return { pass: false, detail: `🔴旧挙動＝制限下でもアーツにベットできる（coin_use_restriction が読まれていない）。buttons=${JSON.stringify(bet.all)}` };
+        }
+        if (bet.OFF && bet.OFF.found && bet.OFF.enabled) {
+          return { pass: false, detail: `ベット枚数だけ塞がって OFF が押せる＝betBlocked が効いていない。buttons=${JSON.stringify(bet.all)}` };
+        }
+        return { pass: true, detail: `制限下でアーツのベットが提示されない（「2枚」disabled・OFF も disabled・coins=${st?.host?.coins}＝所持しているのに払えない）` };
+      }
+      return bet['2枚'].enabled
+        ? { pass: true, detail: `対照＝制限が無ければ「2枚」は押せる（coins=${st?.host?.coins}）` }
+        : { pass: false, detail: `🔴対照が壊れている＝制限が無いのにベットできない（過剰なブロック）。buttons=${JSON.stringify(bet.all)}` };
+    },
+  };
+}
+scenarios.o245CoinArtsBetBlocked = mkCoinArtsBetScenario(true);
+order.push('o245CoinArtsBetBlocked');
+scenarios.o245CoinArtsBetAllowed = mkCoinArtsBetScenario(false);
+order.push('o245CoinArtsBetAllowed');
+
+/** `V-146` ③/反転＝キー `SP38-006`（限定なし・《コインアイコン》×１・エナ0）のセット可否。 */
+function mkCoinKeySetScenario(restricted) {
+  const id = restricted ? 'o245CoinKeySetBlocked' : 'o245CoinKeySetAllowed';
+  return {
+    title: restricted
+      ? 'O-245 V-146③：coin_use_restriction 下ではコインが要るキーをセットできない（SP38-006）'
+      : 'O-245 V-146 反転：制限が無ければコインが要るキーは今までどおりセットできる（SP38-006）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#9800'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': ['SP38-006#9830'],
+        'energy': ['WD01-013#9801', 'WD01-013#9802'],
+        'coins': 5,
+        'hand': [], 'actions_done': [], 'game_actions_done': [],
+        ...(restricted ? { coin_use_restriction: 'spell_signi_only' } : {}),
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await openV04LrigDeckAction(page, ['キーにセット', 'ピースを使用']);
+      H.log(`  ${id}: ルリグデッキ→キー→セット = ${JSON.stringify(opened)}`);
+      if (!opened.ok) return { pass: false, detail: `前提崩れ＝キーの「キーにセット」に到達できない（${opened.detail}）` };
+      const btn = await readBetButtons(page, ['セット']);
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: 確定ボタン=${JSON.stringify(btn)}`);
+      if (!(btn['セット'] && btn['セット'].found)) {
+        return { pass: false, detail: `前提崩れ＝KeyUseModal の確定ボタンが出ていない（buttons=${JSON.stringify(btn.all)}）` };
+      }
+      const st = await H.queryState();
+      if ((st?.host?.coins ?? 0) < 1) return { pass: false, detail: `前提崩れ＝コインが0枚（coins=${st?.host?.coins}）` };
+      if (restricted) {
+        return btn['セット'].enabled
+          ? { pass: false, detail: `🔴旧挙動＝制限下でもコインでキーをセットできる。buttons=${JSON.stringify(btn.all)}` }
+          : { pass: true, detail: `制限下でキーの「セット」が disabled（coins=${st?.host?.coins}＝所持しているのに払えない）` };
+      }
+      return btn['セット'].enabled
+        ? { pass: true, detail: `対照＝制限が無ければキーはセットできる（coins=${st?.host?.coins}）` }
+        : { pass: false, detail: `🔴対照が壊れている＝制限が無いのにセットできない（過剰なブロック）。buttons=${JSON.stringify(btn.all)}` };
+    },
+  };
+}
+scenarios.o245CoinKeySetBlocked = mkCoinKeySetScenario(true);
+order.push('o245CoinKeySetBlocked');
+scenarios.o245CoinKeySetAllowed = mkCoinKeySetScenario(false);
+order.push('o245CoinKeySetAllowed');
+
+/** `V-146` ④＝**スペルのベットは今までどおり**（原文が許している側＝過剰ブロックの検出）。 */
+scenarios.o245CoinSpellBetAllowed = {
+  title: 'O-245 V-146④：coin_use_restriction 下でもスペルのベットは提示される（WXDi-D09-P26）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#9800'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [],
+      'hand': ['WXDi-D09-P26#9840'],
+      'energy': ['WD01-013#9801', 'WD01-013#9802'],
+      'coins': 5,
+      coin_use_restriction: 'spell_signi_only',
+      'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9890'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const h0 = await H.clickTestId('my-hand-card-0');
+    await page.waitForTimeout(600);
+    const cast = await H.clickBtn('発動', { exact: true });
+    H.log(`  spellBet: hand=${h0 ?? '-'} 発動=${cast ?? '-'}`);
+    const bet = await readBetButtons(page, ['1枚']);
+    await page.screenshot({ path: `${SHOT}/o245CoinSpellBetAllowed-final.png`, fullPage: true });
+    H.log(`  spellBet: ベット行=${JSON.stringify(bet)}`);
+    if (!(bet['1枚'] && bet['1枚'].found)) {
+      return { pass: false, detail: `前提崩れ＝スペルのベット行が出ていない（buttons=${JSON.stringify(bet.all)}）` };
+    }
+    const st = await H.queryState();
+    return bet['1枚'].enabled
+      ? { pass: true, detail: `制限下でもスペルのベットは提示される（原文が許している側＝過剰ブロックなし・coins=${st?.host?.coins}）` }
+      : { pass: false, detail: `🔴過剰ブロック＝スペルにまで制限が掛かっている。buttons=${JSON.stringify(bet.all)}` };
+  },
+};
+order.push('o245CoinSpellBetAllowed');
+
+
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

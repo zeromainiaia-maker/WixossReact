@@ -65,7 +65,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { addNColorToCost, removeNColorFromCost, costScalingOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
+import { addNColorToCost, removeNColorFromCost, costScalingOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -64853,6 +64853,59 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   // 🔴**0 が正常値**＝以後は「新しい真 no-op が入ったら 0 → 1 で止まる」門として働く。
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
   eq(n, 0, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
+});
+
+test('§5.1 V-146: 印字キーワードコストは manualEffects を持つカードでも起動時経路で残る', () => {
+  // 🔴**実機で見つけた真 no-op**＝`buildEffectsMap`（起動時に UI が使う唯一の経路）は
+  //   `mergeManualEffects` を通すが、あれは **effectId 一致で常に manual 側を勝たせる**ので、
+  //   **live JSON が持っていた `betOptions` / `encoreCost` 等が実行時だけ消えていた**。
+  //   （`buildEffectsJson.ts` は同じ理由で**マージの後から**重ね直していたが、起動時経路には無かった。）
+  // 実測30枚が該当し、`WXDi-D09-P26`（RECOVERY）は**ベット行が1つも描画されなかった**
+  //   ＝コインを持っていてもベットできず `CONDITIONAL{IS_BETTING}` の枝へ永久に行けなかった。
+  // ⚠**live JSON を見ても分からない**（live 側は正しい）＝この golden は**起動時経路**を assert する。
+  const PRINTED = ['encoreCost', 'betOptions', 'boostCost', 'useTimeCost', 'costReplacement', 'optionalDiscardCost'] as const;
+  // 印字キーワードコストを持つ live 先頭効果のうち、manualEffects が同じ effectId を上書きするカード。
+  const victims: string[] = [];
+  for (const [num, effs] of effectsMap) {
+    const first = effs[0];
+    if (!first?.cost) continue;
+    const printed = PRINTED.filter(k => (first.cost as Record<string, unknown>)[k] !== undefined);
+    if (printed.length === 0) continue;
+    const card = cardMap.get(num);
+    if (!card) continue;
+    const runtime = buildEffectsMap([card]).get(num);
+    const runtimeFirst = runtime?.[0];
+    for (const k of printed) {
+      if ((runtimeFirst?.cost as Record<string, unknown> | undefined)?.[k] === undefined) victims.push(`${num}:${k}`);
+    }
+  }
+  eq(victims.length, 0, `🔴起動時経路で印字キーワードコストが落ちるカード: ${victims.slice(0, 12).join(', ')}`);
+  // 代表1枚を名指しで固定する（回帰の読み手を残す）。
+  const rec = buildEffectsMap([cardMap.get('WXDi-D09-P26')!]).get('WXDi-D09-P26');
+  eq(JSON.stringify(rec?.[0]?.cost?.betOptions), '{"options":[1],"variable":false}',
+    'WXDi-D09-P26（RECOVERY）＝ベット《コインアイコン》1枚が起動時経路にも載る');
+  // ⚠**先頭以外には刻まない**＝`betOptionsOf` は全効果を走査して最初の1つを読むので二重に効く。
+  eq((rec?.[1]?.cost as Record<string, unknown> | undefined)?.betOptions, undefined,
+    'WXDi-D09-P26-BURST（2つ目の効果）には刻まない');
+});
+
+test('§5.1 V-146: 《コインアイコン》×N の綴りもコインコストとして読む（SP38-006）', () => {
+  // 🔴**実機で見つけた恒久 no-op**＝CSV の `Cost` 列にはコインの綴りが**2つ**ある＝
+  //   `《コイン》×N`（77枚）と `《コインアイコン》×N`（1枚＝`SP38-006`「創鍵の巫女　マユ」）。
+  //   `parseCoinCost` は前者しか見ておらず **coinNeeded=0**、`parseGrowCost` は後者を
+  //   **「コインアイコン」という存在しないエナ色**として要求していたので、
+  //   `canAffordGrowCost` が永久に false ＝**このキーは1度も場に出せなかった**
+  //   （ルリグデッキを開いても「キーにセット」の行動が0件）。
+  // 🔑trap (h)「同じ概念に複数の正準形がある」の **CSV 側の顔**＝データを直すのではなく
+  //   **読み手を両方の綴りに対応させる**（原文はどちらも正しい印字）。
+  eq(parseCoinCost('《コインアイコン》×１'), 1, 'アイコン表記のコイン1枚');
+  eq(parseCoinCost('《コイン》×２'), 2, '従来表記（77枚）は据置');
+  eq(JSON.stringify(parseGrowCost('《コインアイコン》×１')), '[]', 'コインはエナ要求に混ぜない');
+  eq(JSON.stringify(parseGrowCost('《コイン》×２《赤》×１')), '[{"color":"赤","count":1}]', '従来表記も据置');
+  // 実データ側の固定＝この綴りを持つ唯一のカード。
+  const sp = cardMap.get('SP38-006');
+  eq(sp?.Cost, '《コインアイコン》×１', 'SP38-006 の Cost 列（CSV は直さない＝読み手を直した）');
+  eq(parseCoinCost(sp?.Cost ?? ''), 1, 'SP38-006 はコイン1枚のキーとして読める');
 });
 
 test('§5.3 O-224: 「この方法でダウンしたシグニの数以下」のしきい値が2形とも載る', () => withSavedCursor(() => {

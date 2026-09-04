@@ -26111,7 +26111,23 @@ export function buildEffectsMap(cards: CardData[]): Map<string, CardEffect[]> {
       ? card.effects
       : parseCardEffects(card);
     // マニュアル効果をマージ
-    const merged = mergeManualEffects(card.CardNum, raw);
+    const mergedRaw = mergeManualEffects(card.CardNum, raw);
+    // 🆕🔴**§5.1 `V-146` の実機で見つけた真 no-op（2026-09-04）＝印字キーワードコストの再重ね。**
+    //   `mergeManualEffects` は **effectId 一致で常に manual 側を勝たせる**ので、
+    //   **live JSON が持っていた `betOptions` / `encoreCost` 等が実行時に消える**。
+    //   （`buildEffectsJson.ts` は同じ理由で**マージの後から**重ね直しているが、
+    //     **起動時のこの経路には同じ手当てが無かった**＝live は正しいのに UI だけ落ちる形。）
+    //   🔴**実測30枚**（ベット17／アンコール7／コスト置換4／ブースト1／使用時任意コスト…）＝
+    //   実機で `WXDi-D09-P26`（RECOVERY）の**ベット行が1つも描画されなかった**ことで発覚した。
+    //   ⚠**先頭効果だけに刻み、先頭以外からは剥がす**（`betOptionsOf` はカードの全効果を走査して
+    //     最初の1つを読むので、2つ目以降に残っていると二重に効く）＝`buildEffectsJson.ts` と同じ規則。
+    const printedRuntime = printedKeywordCosts(card.EffectText);
+    const merged = Object.keys(printedRuntime).length === 0 ? mergedRaw : mergedRaw.map((effect, index) => {
+      const restCost = { ...(effect.cost ?? {}) } as Record<string, unknown>;
+      for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
+      if (index !== 0) return effect.cost ? { ...effect, cost: restCost as typeof effect.cost } : effect;
+      return { ...effect, cost: { ...restCost, ...printedRuntime } as typeof effect.cost };
+    });
     // triggerScope を動的に補完（Supabase保存時に欠けている場合に対応）
     const effects = merged.map(e =>
       e.triggerScope !== undefined
