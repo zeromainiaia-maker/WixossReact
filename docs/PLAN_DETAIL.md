@@ -4756,6 +4756,30 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-05・第137バッチ後・PLAN §6 から退避）
+
+- **2026-09-05（第137バッチ）＝🏁`O-147` クローズ＝【ライズ】41枚が全数ゲートされた（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）
+  **`census:enginetext` A🔴 0行**（据置）／**`census:costtext` A🔴 0規則**（据置）／**`census:deadstate` 0件**（据置）。
+  📦**在庫2本**＝**機構 worklist 9 → 8項目**（🏁`O-147` −1）＝索引 **A 0**／B 1／G 2／E 5。
+  🏁**索引 A（母集団2桁）が残0になった**＝以後は索引 **B→G→E** の順に取る。
+  ⚠索引 E の5件は計器の較正＝**挙動を直す項目は3件**（`O-238`／`O-248`／`O-226` 残1）｜**実機 残 0件**。
+  🔧**ゲート（全緑 ✅）**＝golden **3473 / 3473**（3472 +1本＝枠割り当ての単体テスト）／
+  smoke 全異常0／fuzz 全0／census **1 / BASELINE 1**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🖥**実機＝新規4本＋回帰5本＝9本 ALL PASS**（`o147RiseTwoZoneFold` / `o147RiseThreeZoneFold` /
+  `o147RiseDistinctLevel` / `o147RiseFieldShort` ＋ `riseGateLevelColor` と family B の4本）。
+  🔧**ラチェット**＝`RISE_CARD_TOTAL 41`（据置）／**`RISE_CARD_GATED 32 → 41`**／
+  `RISE_CARD_MATERIAL 4`（据置）／**`RISE_CARD_MULTI_FIELD 9`（新設）**＋「枠の体数の合計は1〜3」の不変条件。
+  🔴**最大の発見＝「各枠に候補が count 体以上あるか」では判定できない**＝`WX17-026` は
+  **同じゾーンが両方の枠の候補になりうる**ので、数で見ると**＜武勇＞3体・ライズ持ち0体の盤面を「払える」と誤答**する。
+  ⇒ 割り当てを1つ実際に構成する（`findRiseFieldAssignment`）。
+  🔴**畳む処理は4つ同時に壊れる**＝並び／空ゾーン化／付随状態／`ON_RISE` の収集元が全部
+  配置先1ゾーンだけを見ていた（1つ直すと盤面は正しく見えるのに**チャームだけ浮く**）。
+  🔴**`npm run typecheck` は `scripts/` を見ていない**＝golden に型の合わない古い式が残っても緑だった。
+  ✅**ブラスト半径**＝配置条件が新たに効くのは **9カード**（多ゾーン消費ライズ）。live JSON は1バイトも変わらない。
+
 ### 恒久指標アーカイブ（2026-09-05・第136バッチ後・PLAN §6 から退避）
 
 - **2026-09-05（第136バッチ）＝`O-147` 下位family B＝材料つき【ライズ】4枚を回収（Opus 5 単独／本ブロックが直近の正）**

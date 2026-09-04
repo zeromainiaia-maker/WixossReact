@@ -60,7 +60,7 @@ import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers, consumeOnceDelayedTriggers } from './battle/delayedTrigger';
-import { resolveTurnEndFacedownReturns } from '../engine/facedownSigni';
+import { resolveTurnEndFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, isPhaseSkipped } from './battle/attackStepPhase';
 import { resolveTurnHandover } from './battle/turnHandover';
@@ -2812,6 +2812,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { ...base, turnPhase: phase, effectsMap: augMap };
   };
 
+  /**
+   * 🆕**§5.3 `O-238`（2026-09-05）＝「React state にまだ反映していない盤面」で【レイヤー付与】を組み直す `TrigCtx`。**
+   *
+   * 🔴**症状**＝フリップアタック（`WXDi-P05-069`）で自シグニ2体を裏向きにしてから
+   *   《翠将姫　ロビンフッド》がアタックしても、「あなたの場に他にシグニがないかぎり」で開くはずの
+   *   引用【自】（`WXDi-P01-040-E1`）が**一度も発火しない**。
+   * 🔑**真因**＝`effectsMap`（memo）の依存は `bs`＝**`persist.commit` 前の盤面**なので、
+   *   同じティックで裏向きにしても `collectGrantedFromLayer` は**裏向きにする前の場**で評価済み＝
+   *   `activeCondition` が false のまま付与が載っていない。`mkTrigCtxForPhase` と**同じ形のズレ**。
+   * ⚠**足すだけ**（effectId で重複を弾く）＝盤面変更で条件が false に転じた付与の撤去はしない
+   *   （`mkTrigCtxForPhase` と同じ規約。撤去まで要る形が出たらそこで拡張する）。
+   */
+  const mkTrigCtxWithLayerGrants = (myS: PlayerState, opS: PlayerState, myIsActive: boolean): TrigCtx => {
+    const base = mkTrigCtx();
+    const augMap = new InstanceMap<import('../types/effects').CardEffect[]>(effectsMap);
+    const merged = [
+      ...collectGrantedFromLayer(myS, opS, myIsActive, augMap, battleCardMap),
+      ...collectGrantedFromLayer(opS, myS, !myIsActive, augMap, battleCardMap),
+    ];
+    for (const [num, extra] of merged) {
+      const cur = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
+      const seen = new Set(cur.map(e => e.effectId));
+      const add = extra.filter(e => !seen.has(e.effectId));
+      if (add.length > 0) augMap.set(num, [...cur, ...add]);
+    }
+    return { ...base, effectsMap: augMap };
+  };
+
   const collectTargetedTriggers = (targetedNums: string[], targetedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState, origin?: TargetedOrigin, beforeHostState: PlayerState = afterHostState, beforeGuestState: PlayerState = afterGuestState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectTargetedTriggers(mkTrigCtx(), targetedNums, targetedOwnerId, afterHostState, afterGuestState, origin, beforeHostState, beforeGuestState);
   const collectLrigGrowTriggers = (grownOwnerId: string, afterGrowerState: PlayerState, afterOpState: PlayerState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
@@ -4114,21 +4142,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`ターン終了時：トラッシュ＜${ttCls}＞シグニ${ttToHand.length}枚を手札へ（このゲーム）`]);
           }
         }
-        // flip_attack_signi_zones: フリップアタックで裏向きにしたシグニをターン終了時に表向きに戻す
-        if (!turnEndEffectsAlreadyResolved && (my.flip_attack_signi_zones ?? []).length > 0) {
-          const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
-          const unflipped: string[] = [];
-          for (const zi of my.flip_attack_signi_zones!) {
-            if (my.field.signi[zi]?.length) { // ゾーンにシグニが残っていれば表向きに戻す
-              newSigniDownFA[zi] = false;
-              const topName = battleCardMap.get(my.field.signi[zi]?.at(-1) ?? '')?.CardName;
-              if (topName) unflipped.push(topName);
-            }
-          }
-          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi_down: newSigniDownFA };
-          if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
-        }
-
         // 遅延自己除外：場に残っていてもターン終了時には除外する。
         const exileAtEnd = resolvePendingExiles({
           ...my, hand: myHandEND, deck: myDeckPreLimit,
@@ -4162,7 +4175,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               coin_condition_signi_instances: undefined,
               turn_end_field_trash_targets: undefined,
               turn_end_energy_trash_targets: undefined,
-              flip_attack_signi_zones: undefined,
               end_turn_effects_resolved: true,
             },
             opp: { key: isHost ? 'guest_state' : 'host_state', state: opEndState },
@@ -4262,7 +4274,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           deck_signi_level_override: undefined,       // デッキシグニレベルオーバーライドをリセット
           reduce_next_on_play_cost: undefined,        // 【出】コスト軽減フラグをリセット
           optional_discard_guard_enabled: undefined,  // 任意捨てガードフラグをリセット
-          flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
@@ -4654,20 +4665,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`ターン終了時：トラッシュ＜${ttCls}＞シグニ${ttToHand.length}枚を手札へ（このゲーム）`]);
         }
       }
-      // flip_attack_signi_zones
-      if (!my.end_turn_effects_resolved && (my.flip_attack_signi_zones ?? []).length > 0) {
-        const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
-        const unflipped: string[] = [];
-        for (const zi of my.flip_attack_signi_zones!) {
-          if (my.field.signi[zi]?.length) { // ゾーンにシグニが残っていれば表向きに戻す
-            newSigniDownFA[zi] = false;
-            const topName = battleCardMap.get(my.field.signi[zi]?.at(-1) ?? '')?.CardName;
-            if (topName) unflipped.push(topName);
-          }
-        }
-        myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi_down: newSigniDownFA };
-        if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
-      }
       // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
@@ -4716,7 +4713,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         negate_coin_abilities: undefined, coin_condition_signi_instances: undefined,
         deck_signi_level_override: undefined,
         reduce_next_on_play_cost: undefined, optional_discard_guard_enabled: undefined,
-        flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
+        turn_end_field_trash_targets: undefined,
         turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined,
         turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
@@ -9128,22 +9125,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
+      // 🆕**§5.3 `O-238`（2026-09-05）＝「裏向き」をダウンで近似するのをやめた。**
+      //   🔴旧実装は `signi_down` を立てるだけだった＝**裏向きのカードは場のシグニのまま**なので、
+      //     付与元《翠将姫　ロビンフッド》自身の「あなたの場に**他にシグニがない**かぎり」が永久に成立せず、
+      //     このアタック置換を使う意味（相手の全シグニをエナへ送る【自】を開く）が丸ごと消えていた。
+      //   ⇒ 既存の裏向き機構（`facedownSigni.ts`＝`field.facedown_signi` へ移して**場のシグニとして扱わない**）に載せる。
+      //     復帰も専用フィールドをやめて `turn_end_facedown_signi_returns`（trashIfOccupied=false＝
+      //     「同じ場所にシグニがない場合だけ表向き」）へ寄せた＝**ターン終了の3経路すべてで解決される**
+      //     （旧 `flip_attack_signi_zones` は CPU 側のターン終了経路に復帰処理が無かった）。
+      let flippedState: PlayerState = my;
+      const flippedNums: string[] = [];
       const flippedCards: string[] = [];
       for (const zi of flipZones) {
-        const top = my.field.signi[zi]?.at(-1);
-        if (top && !my.field.signi_down?.[zi]) {
-          newSigniDown[zi] = true; // 裏向き = ダウン状態で表現
-          flippedCards.push(battleCardMap.get(top)?.CardName ?? top);
-        }
+        const top = flippedState.field.signi[zi]?.at(-1);
+        if (!top) continue;
+        const moved = moveFieldSigniFacedown(flippedState, top);
+        if (!moved.target) continue;
+        flippedState = moved.state;
+        flippedNums.push(top);
+        flippedCards.push(battleCardMap.get(top)?.CardName ?? top);
       }
-      const attackerName = battleCardMap.get(my.field.signi[attackZone]?.at(-1) ?? '')?.CardName ?? '';
-      const newMyState: PlayerState = clearEndOfAttackEffects({
-        ...my,
-        field: { ...my.field, signi_down: newSigniDown as [boolean, boolean, boolean] },
-        flip_attack_signi_zones: flipZones,
-        attacked_signi_ids: [...(my.attacked_signi_ids ?? []), my.field.signi[attackZone]?.at(-1) ?? ''],
-      });
+      flippedState = scheduleTurnEndFacedownReturns(flippedState, flippedNums);
+      const attackerName = battleCardMap.get(attackerNum ?? '')?.CardName ?? '';
+      // ⚠**`attacked_signi_ids` の追記は経路で分ける**＝`performSigniAttack` は自分で追記するので、
+      //   委譲する側（`flippedAttacker`）へ先に足すと同じ id が2回入る。
+      const flippedAttacker: PlayerState = clearEndOfAttackEffects(flippedState);
+      const newMyState: PlayerState = {
+        ...flippedAttacker,
+        attacked_signi_ids: [...(flippedAttacker.attacked_signi_ids ?? []), attackerNum ?? ''],
+      };
       appendBattleLogs([`フリップアタック：${attackerName}がアタック（${flippedCards.join('・')}を裏向き）`]);
       // 正面の相手シグニとバトル（通常アタックと同じ処理だがアサシン的に直接ダメージ）
       const opZone = 2 - attackZone;
@@ -9164,9 +9174,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOtherState } }));
         }
       } else {
-        // 正面にシグニ → バトル（通常アタックへ委譲）
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
-        await handleSigniAttack(attackZone);
+        // 正面にシグニ → バトル（通常アタックの解決器へ**裏向きにした状態を渡して**委譲する）。
+        // 🔴🆕**§5.3 `O-238`（2026-09-05・実機でしか出なかった真バグ）＝ここは `handleSigniAttack` を
+        //   呼んではいけない。** あれは `attacker: my`＝**React state の（＝裏向きにする前の）盤面**を
+        //   渡すので、直前に commit した裏向きが**次の commit で丸ごと上書きされて消える**
+        //   （実機では「フリップアタックを押すと普通のアタックになる」＝裏向きが1体も起きない）。
+        //   `persist.commit` と React 反映のタイミング差は golden/smoke/fuzz のどれにも映らない。
+        // 🔑**直前に自分で作った盤面があるなら、それを引数で渡す**（クロージャの state を読み直さない）。
+        await performSigniAttack(attackZone, {
+          attacker: flippedAttacker, defender: op,
+          attackerId: user.id,
+          defenderId: isHost ? bs.guest_id : bs.host_id,
+          attackerKey: stateKey,
+          // 🔴**裏向きにした直後の盤面で【常】付与を組み直す**＝これが無いと
+          //   《翠将姫　ロビンフッド》の「あなたの場に他にシグニがないかぎり」で開く引用【自】が
+          //   1度も発火しない（＝フリップアタックを使う意味が消える）。
+          regrantLayerAbilities: true,
+        });
       }
     } finally { setLoading(false); }
   };
@@ -9185,6 +9209,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     /** 「手札をN枚捨てないかぎりアタックできない」の支払い（手札 index・§6.4 O-3）。 */
     attackHandDiscardIndices?: number[];
     attackHandDiscardAlreadyPaid?: boolean;
+    /**
+     * 🆕**§5.3 `O-238`**＝`attacker`/`defender` が **React state にまだ反映していない盤面**であることの宣言。
+     * 立てると `collectGrantedFromLayer`（【レイヤー付与】）をその盤面で組み直してから【自】を収集する。
+     * ⚠立てないと `effectsMap`（memo＝`bs` 依存）が**変更前の場**のままなので、
+     *   直前に自分で変えた盤面で初めて成立する付与が**1つも載らない**。
+     */
+    regrantLayerAbilities?: boolean;
   }) => {
     let my = p.attacker;
     let op = p.defender;
@@ -9338,10 +9369,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_ATTACK_SIGNIトリガー収集（Phase 1：バトル前に処理するトリガー）
       // condition を持つ AUTO は発動条件を満たす場合のみ収集（「〜であるかぎり『【自】アタック時…』を得る」系）
       const atkSelfPowers = calcFieldPowers(newMyState, newOpState, true, effectsMap, battleCardMap, bs.turn_phase);
+      // 🆕**§5.3 `O-238`**＝呼び出し元が「React state にまだ反映していない盤面」を渡してきたとき
+      //   （フリップアタック）は、`effectsMap`（memo）が**変更前の場**で組まれているので
+      //   【レイヤー付与】だけ組み直す。同一なら memo をそのまま使う（余計な再計算をしない）。
+      // ⚠**`my` は関数先頭で `let my = p.attacker` と shadow されている**＝`p.attacker === my` は常に true。
+      //   （2026-09-05 に実際にこれで1回空振りした）＝呼び出し元が明示フラグで宣言する。
+      const atkTrigCtx = p.regrantLayerAbilities ? mkTrigCtxWithLayerGrants(newMyState, newOpState, true) : mkTrigCtx();
       const attackEntries = pureCollectAttackerSelfTriggers(
         // 🆕最後の引数＝「正面以外のシグニゾーンにアタックしたか」（2026-08-31 続き749・`WXEX2-71-E1`）。
         //   `isSideAttack` は上（:8826）で `p.targetOpZone !== undefined`＝【側面アタック】として既に立っている。
-        mkTrigCtx(), newMyState, newOpState, myTopNum, attackerId, atkSelfPowers, isSideAttack,
+        atkTrigCtx, newMyState, newOpState, myTopNum, attackerId, atkSelfPowers, isSideAttack,
       );
 
       // 🆕INSTALL_DELAYED_TRIGGER（§5.3 2026-08-27 Sheet1 B11）＝**攻撃側**に設置された
@@ -15053,7 +15090,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // WXDi-P05-069: フリップアタック（ロビンフッド対象）
-      const altFlip = collectAltAttackFlipSigni(my, battleCardMap, effectsMap);
+      const altFlip = collectAltAttackFlipSigni(my, effectsMap);
       if (altFlip && fieldTrashAtkCost === 0 && (battleCardMap.get(topNum)?.CardName ?? '').includes(altFlip.targetSigniName)) {
         const flipCandidates = [0, 1, 2].filter(zi => zi !== rawZoneIdx && (my.field.signi[zi]?.length ?? 0) > 0);
         if (flipCandidates.length > 0) {

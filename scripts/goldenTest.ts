@@ -23,7 +23,7 @@ import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { allowedLifeCrashCount, collectLifeCrashPreventions } from '../src/engine/lifeCrashGate';
-import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels, collectFrozenBanishOverrides, collectBounceProtectedSigni, collectAltAttackFlipSigni } from '../src/engine/effectEngine';
 import { collectOppLrigAttackExtraCost, matchesStateFilter, collectOppEnergyColorRestriction } from '../src/engine/effectEngine';
 // 5.3 O-60 第3・第4バッチ＝payload 化した収集経路（旧実装は全部 EffectText を regex で読んでいた）。
 import { collectLrigNameAliases, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectDeployCountLimit, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
@@ -122,7 +122,7 @@ import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, h
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, detectNewlyFrozen, countMovedToDeck, countMovedToDeckFromField, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
-import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
+import { resolveTurnEndFacedownReturns, moveFieldSigniFacedown, scheduleTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeSpellCheckZone, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
@@ -65108,13 +65108,66 @@ test('§5.3 O-60 第66: 引用の先頭が《アイコン》でも付与とし�
   eq(a?.effect?.action?.type, 'BOUNCE', '引用の中身も載る');
 }));
 
-test('§5.3 O-60 第66: 主語が《カード名》の場全体付与＝アタック置換は明示 defer（O-238）', () => withSavedCursor(() => {
-  // 🔴`WXDi-P05-069-E2` はどの付与規則にも当たらず catch-all へ落ち、CONTINUOUS なので
-  //   `executeAction` を通らず（`collectGrantedFromLayer` は引用が【自】のときだけ展開する）恒久 no-op だった。
-  // ⚠引用の中身「アタックする場合、代わりに…」＝**アタックの置換**は engine にどこにも無い。
-  //   `GRANT_FIELD_SIGNI_ABILITY{rawText}` のまま出すと `PARTIAL` になり収穫マージが live へ届けない。
-  const a = effectsMap.get('WXDi-P05-069')?.find(e => e.effectId === 'WXDi-P05-069-E2')?.action as { id?: string };
-  eq(a?.id, 'DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT', 'WXDi-P05-069-E2: 明示 defer');
+test('§5.3 O-238: フリップアタック付与は payload で運ぶ（原文 regex を engine から降ろす）', () => withSavedCursor(() => {
+  // 🔴**受け皿（`handleFlipAttack` ＋ `facedownSigni.ts`）は前から在った**のに、engine の収集器
+  //   `collectAltAttackFlipSigni` が**旧 catch-all の id（`GRANT_ABILITY_INNER_TEXT`）＋原文 regex**を
+  //   見ていたため、第66バッチで parser がこの語形を明示 defer に変えた日から**恒久 no-op** になっていた。
+  // 🔑この行は `census:enginetext` では **B群（他カードの属性判定）**＝A群の worklist に出ない。
+  //   **B群にも「壊れて静か」な原文 regex は居る。**
+  type FlipAct = { id?: string; altAttackFlip?: { grantedToCardName?: string; maxFlip?: number } };
+  const a = effectsMap.get('WXDi-P05-069')?.find(e => e.effectId === 'WXDi-P05-069-E2')?.action as FlipAct;
+  eq(a?.id, 'GRANT_QUOTED_ATTACK_FLIP', 'WXDi-P05-069-E2: payload 化した id');
+  eq(a?.altAttackFlip?.grantedToCardName, '翠将姫　ロビンフッド', '付与先のカード名が payload に載る');
+  eq(a?.altAttackFlip?.maxFlip, 2, '裏向きにする最大体数が payload に載る');
+  // engine の収集器が payload だけで解けること（原文を渡していない）。
+  const got = collectAltAttackFlipSigni(mkState({ signi: [null, 'WXDi-P05-069', null] }), effectsMap);
+  eq(got?.targetSigniName, '翠将姫　ロビンフッド', 'collectAltAttackFlipSigni: 付与先');
+  eq(got?.maxFlip, 2, 'collectAltAttackFlipSigni: 最大体数');
+}));
+
+test('§5.3 O-238: 「あなたの場に他にシグニがないかぎり」＝HAS_CARD_IN_FIELD の negate', () => withSavedCursor(() => {
+  // 🔴語順が既存規則（「あなたの場に他の**シグニがある**かぎり」）と逆なのでどこにも当たらず、
+  //   `WXDi-P01-040-E1`（翠将姫　ロビンフッド）は**条件節が丸ごと落ちて無条件付与**になっていた＝
+  //   盤面に関係なく「アタックしたとき《緑》《無》で対戦相手のすべてのシグニをエナゾーンへ」が撃てる過剰実行。
+  const eff = effectsMap.get('WXDi-P01-040')?.find(e => e.effectId === 'WXDi-P01-040-E1');
+  const c = eff?.activeCondition as { type?: string; excludeSelf?: boolean; negate?: boolean } | undefined;
+  eq(c?.type, 'HAS_CARD_IN_FIELD', 'WXDi-P01-040-E1: 条件節が載る');
+  eq(c?.excludeSelf, true, '「他に」＝効果元自身を除外');
+  eq(c?.negate, true, '「ないかぎり」＝否定');
+  // 🔴`negate` は型に在るだけで**どの評価器も読んでいなかった**（live に1件も無かったので誰も踏んでいない）。
+  const alone = mkState({ signi: [null, 'WXDi-P01-040', null] });
+  const withOther = mkState({ signi: ['WXDi-P05-069', 'WXDi-P01-040', null] });
+  eq(checkActiveCondition(eff?.activeCondition, alone, mkState(), true, cardMap, 'WXDi-P01-040'), true,
+    '他にシグニが無ければ成立');
+  eq(checkActiveCondition(eff?.activeCondition, withOther, mkState(), true, cardMap, 'WXDi-P01-040'), false,
+    '他にシグニが1体でもあれば不成立（negate を読まないと常に true で過剰実行）');
+}));
+
+test('§5.3 O-238: フリップアタックの裏向きは「ダウン」ではない（場のシグニとして数えない）', () => withSavedCursor(() => {
+  // 🔴旧実装は `signi_down` を立てるだけだった＝裏向きのカードが**場のシグニのまま**なので、
+  //   付与元《翠将姫　ロビンフッド》自身の「あなたの場に他にシグニがないかぎり」が永久に成立せず、
+  //   このアタック置換を使う意味（相手の全シグニをエナへ送る【自】を開く）が丸ごと消えていた。
+  const opp = mkState();
+  let st = mkState({ signi: ['WXDi-P05-069', 'WXDi-P01-040', null] });
+  const eff = effectsMap.get('WXDi-P01-040')?.find(e => e.effectId === 'WXDi-P01-040-E1');
+  eq(checkActiveCondition(eff?.activeCondition, st, opp, true, cardMap, 'WXDi-P01-040'), false, '裏向きにする前は不成立');
+  const moved = moveFieldSigniFacedown(st, 'WXDi-P05-069');
+  eq(!!moved.target, true, '場のシグニが裏向きへ移る');
+  st = scheduleTurnEndFacedownReturns(moved.state, ['WXDi-P05-069']);
+  eq(st.field.signi[0], null, '裏向き中はシグニゾーンが空');
+  eq(checkActiveCondition(eff?.activeCondition, st, opp, true, cardMap, 'WXDi-P01-040'), true,
+    '裏向きにしたので「他にシグニがない」が成立する＝これがこのアタック置換の目的');
+  // ターン終了時の復帰＝「同じ場所にシグニがない場合」だけ表向き（trashIfOccupied=false）。
+  const back = resolveTurnEndFacedownReturns(st);
+  eq(back.flipped.join(','), 'WXDi-P05-069', 'ターン終了時に表向きへ戻る');
+  eq(back.state.field.signi[0]?.at(-1), 'WXDi-P05-069', '元のゾーンへ戻る');
+  // 同じ場所が埋まっていれば裏向きのまま（トラッシュしない）。
+  let occ = scheduleTurnEndFacedownReturns(
+    moveFieldSigniFacedown(mkState({ signi: ['WXDi-P05-069', null, null] }), 'WXDi-P05-069').state, ['WXDi-P05-069']);
+  occ = { ...occ, field: { ...occ.field, signi: [['WXDi-P01-040'], null, null] } } as PlayerState;
+  const stay = resolveTurnEndFacedownReturns(occ);
+  eq(stay.flipped.length, 0, '同じ場所にシグニがあれば表向きにしない');
+  eq(stay.trashed.length, 0, 'トラッシュもしない（裏向きのまま）');
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════

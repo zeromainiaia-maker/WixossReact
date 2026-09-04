@@ -1,5 +1,110 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第138バッチ）：🏁`O-238` クローズ＝**フリップアタックが1枚も動いていなかった**（機構3つは最初から在った）
+
+**ベースライン**＝`a9f6e7ae9`（第137＝`O-147` クローズの直後）。
+**gates 全緑**（typecheck・golden **3475/3475**＝3473 +2本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行（**B 56→55行**）・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機＝新規4本 ALL PASS**（`o238FlipAttack` / `o238GrantOpenedByFlip` / `o238GrantAloneNormalAttack` / `o238GrantGatedByOtherSigni`）。
+**実機要否**＝§2.2 の機械判定どおり **`src/screens/` を触った**＝**実機まで必須**。
+**反転確認＝4本**（golden 1・実機 2・旧挙動の実観測 1／下の「反転確認」節）。
+**在庫**＝機構 worklist **8 → 7項目**（🏁`O-238` クローズ＝**索引 B が残0**）／実機 残 **0件**（同じ巡で閉じた）。
+
+### 真因（4つ・全部「静かに壊れる」形）
+
+登録票には「**要るもの**＝①アタック宣言の置換フック ②裏向きのままアタックする状態 ③ターン終了時の復帰判定」と書いてあったが、
+**②③は `facedownSigni.ts` に、①は `handleFlipAttack` に、最初から全部実装済みだった。** 欠けていたのは配線と、その配線の周りの4つのバグ。
+
+| # | 場所 | 何が壊れていたか |
+|---|---|---|
+| 1 | `src/data/effectParser.ts` ／ `src/engine/effectEngine.ts` | **収集器 `collectAltAttackFlipSigni` が旧 catch-all の STUB id（`GRANT_ABILITY_INNER_TEXT`）＋原文 regex を見ていた**ので、`O-60` 第66バッチ（2026-09-04）で parser がこの語形を `DEFERRED_*` に変えた日から**「フリップアタック」ボタンが1度も出ない恒久 no-op**になっていた |
+| 2 | `src/screens/BattleScreen.tsx`（`handleFlipAttack`） | **「裏向き」を `signi_down`（ダウン）で近似していた**＝裏向きのカードが**場のシグニのまま**なので、付与元《翠将姫　ロビンフッド》自身の「あなたの場に**他にシグニがない**かぎり」が永久に成立せず、**このアタック置換を使う意味が丸ごと消えていた** |
+| 3 | 同上 | **バトルを `handleSigniAttack` へ委譲していた**＝あれは `attacker: my`＝**React state の（裏向きにする前の）盤面**を渡すので、直前に commit した裏向きが**次の commit で丸ごと上書きされて消える**（実機では「押すと普通のアタックになる」） |
+| 4 | 同上（`performSigniAttack`） | 裏向きにした直後の盤面で**【レイヤー付与】が組み直されない**＝`effectsMap`（memo）の依存は `bs`＝commit 前の盤面なので、**裏向きにして初めて成立する付与が1つも載らない**＝引用【自】が発火しない |
+| 5 | `src/data/effectParser.ts` ／ `src/engine/effectEngine.ts` | 付与元の条件「**あなたの場に他にシグニがないかぎり**」がどの規則にも当たらず、`WXDi-P01-040-E1` は**条件節が丸ごと落ちて無条件付与**＝盤面に関係なく《緑》《無》で**相手の全シグニをエナへ送れる過剰実行**だった |
+
+### 影響枚数
+
+**2枚**＝`WXDi-P05-069`（翠将　リトルジョン・E2）／`WXDi-P01-040`（翠将姫　ロビンフッド・E1）。
+⚠ ただし **5 の `HAS_CARD_IN_FIELD{negate}` は語彙そのものが誰にも読まれていなかった**（live 使用0件・型にだけ在った）ので、
+今後この否定を使う効果すべてに効く。
+
+### 直したもの
+
+| # | 場所 | 内容 |
+|---|---|---|
+| 1 | `src/types/effects.ts` | `StubAction.altAttackFlip{grantedToCardName, maxFlip}` を新設。`ActiveCondition` の `HAS_CARD_IN_FIELD` に `negate?`（`Condition` 側にだけ在って欠けていた） |
+| 2 | `src/data/effectParser.ts` | 引用付与のうち**受け皿のある語形だけ** `STUB{GRANT_QUOTED_ATTACK_FLIP}` へ payload 化（残りは `DEFERRED_*` のまま）。「あなたの場に他にシグニがないかぎり、」→ `HAS_CARD_IN_FIELD{excludeSelf, negate}` |
+| 3 | `src/engine/effectEngine.ts` | `collectAltAttackFlipSigni` を**payload 読み**に（原文 regex を撤去＝`census:enginetext` B 56→55行）。`HAS_CARD_IN_FIELD` の `negate` を **`checkActiveCondition` と `evalConditionForContinuous` の両方**に実装（`execUtils.evalCondition` は既に読んでいた＝3評価器を揃えた） |
+| 4 | `src/screens/BattleScreen.tsx` | `handleFlipAttack` を `moveFieldSigniFacedown` ＋ `scheduleTurnEndFacedownReturns` へ載せ替え（**真の裏向き**）。専用フィールド `flip_attack_signi_zones` と自前の復帰処理2箇所を撤去＝汎用の `turn_end_facedown_signi_returns` に寄せた（**旧実装は CPU 側のターン終了経路に復帰処理が無かった**） |
+| 5 | 同上 | バトルは `performSigniAttack(..., { attacker: flippedAttacker, regrantLayerAbilities: true })` へ直接委譲 |
+| 6 | 同上 | `mkTrigCtxWithLayerGrants(myS, opS, myIsActive)` を新設（`mkTrigCtxForPhase` と同じ形＝**React state に未反映の盤面で `collectGrantedFromLayer` を組み直す**） |
+| 7 | `scripts/decompileEffects.ts` | `GRANT_QUOTED_ATTACK_FLIP` の逆翻訳を payload から組む。`DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT` の説明を「残りの語形」用に一般化 |
+| 8 | `scripts/goldenTest.ts` | 3本（payload・negate 両方向・裏向き→ターン終了復帰の往復） |
+| 9 | `scripts/verifyBattleDrive.mjs` | 実機4本 |
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt-effect WXDi-P05-069-E2
+npm run regen && npm run gates
+SKIP_BUILD=0 node scripts/verifyBattleDrive.mjs o238FlipAttack o238GrantOpenedByFlip o238GrantAloneNormalAttack o238GrantGatedByOtherSigni
+```
+
+### 反転確認（4本・すべて実測）
+
+| 反転したもの | 期待 | 実測 |
+|---|---|---|
+| `checkActiveCondition` の `negate` を落とす | golden 赤 | **FAIL 2本**（「他にシグニが無ければ成立」が false に、「裏向きにする前は不成立」が true に） |
+| live JSON から `WXDi-P01-040-E1.activeCondition` を削る | `o238GrantGatedByOtherSigni` 赤 | **FAIL**＝「他にシグニが2体いるのに引用【自】の発動が提示された」 |
+| `regrantLayerAbilities: true` を落とす | `o238GrantOpenedByFlip` 赤 | **FAIL**＝「フリップして場が1体になったのに引用【自】が提示されなかった」 |
+| 旧実装（`handleSigniAttack` へ委譲）そのもの | 裏向きが消える | **実観測**＝ボタンは出たが `facedown=[null,null,null]` のまま普通のアタックになった |
+
+### 🔑 この巡の最大の発見＝**`census:enginetext` の B群（他カードの属性判定＝「正当寄り」）にも、壊れて静かな原文 regex は居る**
+
+`collectAltAttackFlipSigni` は**場の他シグニを走査する**ので B群に分類されており、
+**A群（本命の worklist）には1度も出てこなかった**。A🔴 が0行になっても「engine が原文で意味を決めている箇所は無い」ではない。
+🔑**id を変える改修（catch-all の解体）をしたら、その id を読んでいる収集器を `grep -rn "<旧 id>" src/` で必ず数える。**
+`O-60` 第57バッチで学んだ「catch-all を割るときは `grep -rn "<STUB id>" src/engine/` を必ず打つ」と**同じ罠を、今度は `src/screens/` 側の消費地点で踏んだ**
+（あのときの grep は `src/engine/` に限っていた）。⇒ **grep の範囲は `src/` 全体にする。**
+
+### 🔑 2つ目＝**「近似」は下流の機構を丸ごと殺す**
+
+裏向きを「ダウン」で近似した実装は、**単体では自然に見える**（画面上は倒れて見える）。
+しかしこのカードの目的は「**場のシグニを減らして『他にシグニがない』を作る**」ことなので、
+近似した瞬間に**カードの存在意義がゼロになる**。しかも `signi_down` は場のシグニとして数えられ続けるので、
+**盤面ログにも JSON にも「間違い」は現れない**。
+🔑**近似を入れるときは「その近似で意味を失う効果はないか」を、同じカード族の原文で確かめる**
+（今回は付与元 `WXDi-P01-040` の原文を読んだ瞬間に分かった）。
+
+### 🔑 3つ目＝**同じティックで盤面を変えてから解決する処理は「2つとも」渡す**
+
+`handleFlipAttack` は ①盤面（`attacker`）②その盤面で組み直した `effectsMap` の**両方**を渡さないと動かなかった。
+①だけ渡した段階では「裏向きにはなるが引用【自】が開かない」という**半分だけ動く**状態になり、
+実機ログでは「フリップは成功」に見えるので**そこで止めると誤って完了と判断する**。
+🔑**`persist.commit` してから同じティックで続きを解決する箇所は、`effectsMap`（memo）も一緒に組み直す。**
+⚠**`p.attacker === my` で「呼び出し元が別の盤面を渡したか」を判定してはいけない**＝
+`performSigniAttack` は関数先頭で `let my = p.attacker` と **shadow している**ので常に true になる（実際に1回空振りした）。**明示フラグで宣言する。**
+
+### 🔑 実機ドライバで踏んだ罠3つ（次に書く人へ）
+
+1. 🔴**前の巡の `field.check` が残ると「ライフクロスクラッシュ」モーダルが全操作をブロックする**＝
+   症状は「**フリップアタックのボタンが出ない**」という**別の場所の空振り**。⇒ §5.1 の「CORE フィールドを明示クリア」に
+   **`field.check` と `life_cloth` も入れる**（2回誤読した）。
+2. **`my-signi-zone-N` はトグル**＝毎ティック押すと開閉を繰り返して**開いた瞬間を1度も観測できない**。
+   ⚠**「ボタンが0本」で開閉を判定してもいけない**（盤面には常時「ルリグアタックへ／エナに送る／終了」が出ている）＝
+   **アタック系のラベルが見えているか**で判定する。
+3. **任意コストの支払いラベルは「発動する（コスト: …）」**で、しかも**先に `optcost-energy-*` を N 枚選ぶまで無効**。
+   「支払う」だけを探すと**プロンプトは出ているのに押せず「開かない」と誤報する**（実際に2回誤報した）。
+
+### 🔑 4つ目＝**「出ないこと」を主張する実機には、必ず「出る側」の対照を隣に置く**
+
+`o238GrantGatedByOtherSigni`（他にシグニ2体＝提示されない）は、それ単独では
+**付与機構ごと壊れていても緑になる**。実際 `activeCondition` を削る反転で**一度 PASS した**（＝判別力ゼロだった）。
+⇒ `o238GrantAloneNormalAttack`（単騎＝提示される）を足して初めて反転が赤になった。
+
+---
+
 ## 2026-09-05（第137バッチ）：🏁`O-147` クローズ＝**【ライズ】41枚すべてに配置条件が効くようになった**（下位family A の9枚）
 
 **ベースライン**＝`e9dc0e4ac`（第136＝下位family B の直後）。

@@ -2854,6 +2854,13 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FORCE_FRONT_SIGNI_ATTACK': return 'このシグニの正面のシグニは、可能ならアタックしなければならない';
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
+      // 🆕§5.3 `O-238`（2026-09-05）＝フリップアタック付与は payload から文を組む
+      //   （engine も UI も原文を読まないので、逆翻訳もここが唯一の生成地点）。
+      if (a.id === 'GRANT_QUOTED_ATTACK_FLIP' && a.altAttackFlip) {
+        return `あなたの《${a.altAttackFlip.grantedToCardName}》は「このシグニがアタックする場合、代わりにあなたのシグニを`
+          + `${a.altAttackFlip.maxFlip}体まで裏向きにしてアタックし、このターン終了時、これによって裏向きにしたシグニを、`
+          + `同じ場所にシグニがない場合、表向きにする」を得る`;
+      }
       if (a.id === 'MULTI_ACCE_LIMIT') return a.value === 'ALL'
         ? 'このシグニには好きな枚数の【アクセ】を付けることができる'
         : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
@@ -4375,8 +4382,11 @@ function actionJa(a?: Action, effectType?: string): string {
         //   アタック無効化耐性（`WXDi-P05-068-E1`）。耐性語彙に「アタック無効化」も「発生源＝効果元自身」も無い。
         DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT:
           '【未実装】このシグニのアタックはこのシグニの効果によって無効にされない',
+        // 🆕§5.3 `O-238`（2026-09-05）＝**実装済みの語形は payload 化して defer から降ろした**
+        //   （`GRANT_QUOTED_ATTACK_FLIP`＝下の分岐で payload から文を組む）。
+        //   この defer は「アタックする場合、代わりに…」の**残りの語形**のための受け皿として残す。
         DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT:
-          '【未実装】あなたの《翠将姫　ロビンフッド》は「このシグニがアタックする場合、代わりにあなたのシグニを2体まで裏向きにしてアタックし、このターン終了時、これによって裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする」を得る',
+          '【未実装】引用された「このシグニがアタックする場合、代わりに〜」の置換能力を得る',
         // 🆕§5.3 `O-233`（2026-09-03・`O-60` 第60バッチで分離）＝
         //   「このターンに**対戦相手の効果によって**あなたのシグニが場を離れていた場合」の条件語彙が無い。
         //   ⚠`ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` の**シグニ版が欠けている**だけ（1効果）。

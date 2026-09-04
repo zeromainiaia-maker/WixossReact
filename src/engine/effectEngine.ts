@@ -231,7 +231,12 @@ export function checkActiveCondition(
         }
       }
       const count = distinctColorSet?.size ?? distinctNameSet?.size ?? distinctLevelSet?.size ?? distinctClassSet?.size ?? matched;
-      return count >= (cond.minCount ?? 1);
+      // 🆕**§5.3 `O-238`（2026-09-05）＝`negate` を実装した。**
+      //   🔴型（`ActiveCondition` の `HAS_CARD_IN_FIELD`）には前から `negate?: boolean` が在ったのに、
+      //     **どの評価器も読んでいなかった**（live に1件も無かったので誰も踏んでいない＝宣言だけの死角）。
+      //     `evalConditionForContinuous` 側にも同じ実装を入れてある（判定器が2つある語彙は必ず両方揃える）。
+      const hcifHit = count >= (cond.minCount ?? 1);
+      return cond.negate ? !hcifHit : hcifHit;
     }
     case 'HAS_TRAP_IN_FIELD': {
       // 🆕minCount（2026-08-31）＝`execUtils.evalCondition` と同じ意味で揃える（§4.2 の両評価器規約）。
@@ -1514,6 +1519,9 @@ function evalConditionForContinuous(
       return cond.colors.every(color => ez.some(n => cardMap.get(n)?.Color?.includes(color)));
     }
     case 'HAS_CARD_IN_FIELD': {
+      // 🆕**§5.3 `O-238`（2026-09-05）**＝`negate` は本体を1つの関数に畳んで最後に反転する
+      //   （`checkActiveCondition` 側と同じ意味。distinct 系・ルリグゾーン走査の全分岐に効かせるため）。
+      const hcifPositive = (): boolean => {
       const hcifStates = cond.owner === 'any' ? [ownerState, otherState] : [st(cond.owner)];
       const matchedNums: string[] = [];
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
@@ -1539,6 +1547,8 @@ function evalConditionForContinuous(
         return hcifStates.some(state => lrigZoneTops(state.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter)));
       }
       return false;
+      };
+      return cond.negate ? !hcifPositive() : hcifPositive();
     }
     case 'HAS_KEY_IN_FIELD': {
       const f = st(cond.owner).field;
@@ -7733,12 +7743,12 @@ export function collectFieldSigniExtraColors(
 
 /**
  * collectAltAttackFlipSigni: WXDi-P05-069 翠将　リトルジョン
- * フィールドに「特定シグニがアタックする場合、代わりにシグニを裏向きにしてアタック」
- * CONTINUOUS GRANT_ABILITY_INNER_TEXT があれば、対象シグニ名と最大フリップ数を返す。
+ * 場のシグニに「あなたの《X》は「【常】：このシグニがアタックする場合、代わりにあなたのシグニをN体まで
+ * 裏向きにしてアタックし、…」を得る」＝`STUB{GRANT_QUOTED_ATTACK_FLIP}` があれば、
+ * 付与先のカード名と最大フリップ数を返す（§5.3 `O-238`）。
  */
 export function collectAltAttackFlipSigni(
   state: PlayerState,
-  cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): { targetSigniName: string; maxFlip: number } | null {
   for (const stack of state.field.signi) {
@@ -7747,15 +7757,13 @@ export function collectAltAttackFlipSigni(
     for (const eff of (effectsMap.get(top) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'GRANT_ABILITY_INNER_TEXT') continue;
-      const card = cardMap.get(top);
-      const txt = card?.EffectText ?? '';
-      // 「あなたの《X》は「...シグニをN体まで裏向きにしてアタック...」を得る」
-      const targetM = txt.match(/あなたの《([^》]+)》は「.*あなたのシグニを([０-９\d]+)体まで裏向きにしてアタック/);
-      if (targetM) {
-        const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        return { targetSigniName: targetM[1], maxFlip: parseInt(toHW(targetM[2])) || 2 };
-      }
+      // 🆕**§5.3 `O-238`（2026-09-05）＝payload 読みへ移行。**
+      //   🔴従来は旧 catch-all の id（`GRANT_ABILITY_INNER_TEXT`）＋**原文 regex** で拾っていたので、
+      //     parser 側でこの語形の id が変わった日（第66バッチ）から**1枚も当たらず恒久 no-op** になっていた。
+      //     ⚠この行は `census:enginetext` では **B群（他カードの属性判定）** に分類されており、
+      //     A群の worklist には出ない＝**B群にも「壊れて静か」な原文 regex は居る**。
+      if (act.type !== 'STUB' || act.id !== 'GRANT_QUOTED_ATTACK_FLIP' || !act.altAttackFlip) continue;
+      return { targetSigniName: act.altAttackFlip.grantedToCardName, maxFlip: act.altAttackFlip.maxFlip };
     }
   }
   return null;

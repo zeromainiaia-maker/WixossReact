@@ -250,7 +250,10 @@ export type ActiveCondition =
   // compareToSelf は正面シグニの level/power を効果元自身と比較（power は effectivePowers があればそれを使う）。
   | { type: 'FRONT_SIGNI'; filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: CompareOp } }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' }
+  // 🆕`negate`（2026-09-05・§5.3 `O-238`）＝`Condition` 側にだけ在って**この `ActiveCondition` 側に無かった**。
+  //   「あなたの場に他にシグニがないかぎり」（`WXDi-P01-040-E1`）の受け皿。両評価器（`checkActiveCondition` /
+  //   `evalConditionForContinuous` / `execUtils.evalCondition`）に実装済み。
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean }
   | { type: 'HAS_TRAP_IN_FIELD'; owner: Owner; negate?: boolean; minCount?: number } // シグニゾーンに裏向きの【トラップ】がある／ない。🆕minCount（2026-08-31・Condition 側と対で更新）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner; operator?: CompareOp; value?: number }
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
@@ -5795,6 +5798,23 @@ export interface StubAction {
    *   この効果は「解決」と「アタック先の提示」の両方を変える。
    */
   sideAttackEmptyZoneAsFront?: { cardClass?: string };
+  /**
+   * 🆕**§5.3 `O-238`**（2026-09-05）＝`GRANT_QUOTED_ATTACK_FLIP`（`WXDi-P05-069-E2` 翠将　リトルジョン）。
+   * 「あなたの《X》は「【常】：このシグニがアタックする場合、代わりにあなたのシグニをN体まで**裏向きにして**
+   * アタックし、このターン終了時、これによって裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする。」を得る」。
+   * 🔴**受け皿（`handleFlipAttack` ＋ `facedownSigni.ts`）は前から在った**＝欠けていたのは**この payload だけ**で、
+   *   engine 側の収集器が原文 regex ＋ 旧 catch-all の STUB id を見ていたため、parser の id が変わった日から
+   *   **恒久 no-op** になっていた（`census:enginetext` では B群＝「他カードの属性判定」に分類されて A群の worklist に出ない）。
+   * ⚠**裏向きは「ダウン」ではない**＝裏向きのカードは**場のシグニとして扱わない**（`field.facedown_signi`）。
+   *   ダウンで近似すると付与元《翠将姫　ロビンフッド》の「あなたの場に他にシグニがないかぎり」が永久に成立せず、
+   *   このアタック置換を使う意味そのものが消える。
+   */
+  altAttackFlip?: {
+    /** 置換能力を得るシグニのカード名（原文の《X》）。 */
+    grantedToCardName: string;
+    /** 裏向きにする自分のシグニの最大体数。 */
+    maxFlip: number;
+  };
   /** OPTIONAL_COST: 相手の場のウィルスN個を左のゾーンから取り除く任意コスト。 */
   removeOppVirus?: number;
   // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----

@@ -1560,6 +1560,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
     rest: text.slice(fieldOtherSigniM[0].length), conditionFound: true,
   };
 
+  // 🆕**§5.3 `O-238`（2026-09-05）＝上の 2c-2 の否定形。**
+  //   🔴語順が逆（「他の**シグニがある**」／「他に**シグニがない**」）で既存規則のどれにも当たらず、
+  //     `WXDi-P01-040-E1`（翠将姫　ロビンフッド）は**条件節が丸ごと落ちて無条件付与**になっていた＝
+  //     盤面に関係なく「アタックしたとき《緑》《無》で対戦相手のすべてのシグニをエナゾーンへ」が撃てる過剰実行。
+  //   ⚠`HAS_CARD_IN_FIELD` の否定は `negate`（§6.4 O-11 の慣例）だが、**両評価器とも `negate` を見ていなかった**
+  //     （live に1件も無かったので誰も踏んでいない）＝同じコミットで `checkActiveCondition` /
+  //     `evalConditionForContinuous` の両方へ実装した。片方だけだと静かに片肺になる。
+  const fieldNoOtherSigniM = text.match(/^あなたの場に他にシグニがない(?:かぎり|限り)、/);
+  if (fieldNoOtherSigniM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, excludeSelf: true, negate: true },
+    rest: text.slice(fieldNoOtherSigniM[0].length), conditionFound: true,
+  };
+
   // パターン2d: 「あなたの場に他の《X》のシグニがあるかぎり、」（アイコン条件）
   const fieldOtherIconM = text.match(/^あなたの場に他の《([^》]+)》のシグニがあるかぎり、/);
   if (fieldOtherIconM) {
@@ -6994,12 +7007,26 @@ function parseContinuousQuotedGrant(text: string): EffectAction | null {
   //     この規則群のどれにも当たらず catch-all `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ちていた。
   //     CONTINUOUS なので `executeAction` を通らず（`collectGrantedFromLayer` は
   //     **引用が【自】のときだけ**展開する）＝**恒久 no-op** だった。
-  //   ⚠引用の中身が「アタックする場合、代わりに…」＝**アタックの置換**は engine にどこにも無い（`O-238`）。
-  //     `GRANT_FIELD_SIGNI_ABILITY{rawText}` のまま出すと展開に失敗して `PARTIAL` になり、
-  //     **収穫マージが live へ届けない**＝catch-all が居座り続ける。⇒ 明示 defer にして計器から降ろす。
+  //   ⚠引用の中身が「アタックする場合、代わりに…」＝**アタックの置換**は `GRANT_FIELD_SIGNI_ABILITY{rawText}`
+  //     のまま出すと展開に失敗して `PARTIAL` になり、**収穫マージが live へ届けない**＝catch-all が居座り続ける。
+  //     ⇒ 受け皿のある形（下の `GRANT_QUOTED_ATTACK_FLIP`）だけ payload 化し、残りは明示 defer にして計器から降ろす。
   const qfNamed = text.match(/^(あなたの|対戦相手の)《([^》]+)》は「(【[自常起出]】.+)」を得る。?$/s);
   if (qfNamed && !/」と「|」か「/.test(qfNamed[3])) {
     if (/アタックする場合[、,]代わりに/.test(qfNamed[3])) {
+      // 🆕**§5.3 `O-238`（2026-09-05）＝フリップアタックの payload 化。**
+      //   `WXDi-P05-069-E2`「あなたの《翠将姫　ロビンフッド》は「【常】：このシグニがアタックする場合、代わりに
+      //   あなたのシグニを２体まで裏向きにしてアタックし、このターン終了時、これによって裏向きにしたシグニを、
+      //   同じ場所にシグニがない場合、表向きにする。」を得る」。
+      //   🔴**受け皿（`handleFlipAttack` ＋ `facedownSigni.ts`）は前から在った**＝engine 側の収集器
+      //   `collectAltAttackFlipSigni` が**原文 regex ＋ 旧 catch-all の STUB id**（`GRANT_ABILITY_INNER_TEXT`）を
+      //   見ていたので、第66バッチでこの語形を明示 defer に変えた日から**恒久 no-op** になっていた。
+      //   ⇒ id と payload の両方を parser 側から与える（engine は原文を読まない）。
+      const flipM = qfNamed[3].match(
+        /このシグニがアタックする場合[、,]代わりにあなたのシグニを([０-９\d]+)体まで裏向きにしてアタックし/);
+      if (flipM && qfNamed[1] === 'あなたの') {
+        return { type: 'STUB', id: 'GRANT_QUOTED_ATTACK_FLIP',
+          altAttackFlip: { grantedToCardName: qfNamed[2], maxFlip: parseNum(flipM[1]) } } as EffectAction;
+      }
       return { type: 'STUB', id: 'DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT' } as EffectAction;
     }
     return {

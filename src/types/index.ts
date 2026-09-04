@@ -1271,7 +1271,6 @@ export interface PlayerState {
   opp_signi_energy_to_deck_bottom?: boolean;       // WX25-CP1-003: 相手シグニのエナ→デッキ下
   lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
   lrig_activation_count?: { [cardNum: string]: number }; // WXK03-003A: 特定ルリグ起動能力の使用回数
-  flip_attack_signi_zones?: number[];              // WXDi-P05-069: フリップアタックで裏向きにしたゾーン番号
   // 「この方法で裏向きにしたシグニ」のターン終了時復帰予約。
   // field.facedown_signi と同じゾーン番号を保持し、別効果で裏向きになったカードを巻き込まない。
   // trashIfOccupied=false は「同じ場所にシグニがない場合だけ表向き」（場所が埋まっていれば裏向きのまま）。

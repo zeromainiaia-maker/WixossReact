@@ -49031,6 +49031,395 @@ order.push('v151LrigAttackLimitDefault');
 order.push('o60BeatSelfAndOther');
 order.push('o60BeatSelfAndOtherNoOther');
 
+
+// -----------------------------------------------------------------------------
+// §5.3 `O-238`（2026-09-05）＝**フリップアタック**（`WXDi-P05-069` 翠将　リトルジョン）。
+// 「【常】：あなたの《翠将姫　ロビンフッド》は「【常】：このシグニがアタックする場合、代わりにあなたの
+//  シグニを２体まで**裏向きにして**アタックし、このターン終了時、これによって裏向きにしたシグニを、
+//  同じ場所にシグニがない場合、表向きにする。」を得る」。
+// 🔴**旧挙動は2つ壊れていた**：
+//   ①`collectAltAttackFlipSigni` が**旧 catch-all の STUB id ＋原文 regex**を見ていたので、parser 側の
+//     id が変わった日から**「フリップアタック」ボタンが1度も出ない**恒久 no-op（`census:enginetext` では
+//     B群＝A群の worklist に出ない＝**B群にも「壊れて静か」な原文 regex は居る**）。
+//   ②裏向きを `signi_down`（ダウン）で近似していたので、裏向きにしても**場のシグニのまま**＝
+//     付与元《翠将姫　ロビンフッド》自身の「あなたの場に**他にシグニがない**かぎり」が永久に成立せず、
+//     このアタック置換を使う意味（相手の全シグニをエナへ送る【自】を開く）が丸ごと消えていた。
+// 🔑観測点は **`facedownSigni`**（＝`v14QueryBattleState` でしか見えない）と `fieldSigni` の**両方**＝
+//   「ダウンしただけ」と「本当に裏向き」はこの2つを並べないと区別できない。
+// -----------------------------------------------------------------------------
+const O238_LITTLEJOHN = 'WXDi-P05-069#1';   // 翠将　リトルジョン（付与元・裏向きにされる側）
+const O238_ROBINHOOD  = 'WXDi-P01-040#1';   // 翠将姫　ロビンフッド（アタッカー＝置換能力を得る）
+const O238_FILLER     = 'WD01-013#1';       // 小剣　ククリ（もう1体の裏向き候補）
+const o238Board = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#1'],
+    // zone1 がアタッカー（正面＝guest zone1）。zone0/zone2 が裏向きにする候補2体。
+    'field.signi': [[O238_LITTLEJOHN], [O238_ROBINHOOD], [O238_FILLER]],
+    'field.signi_down': [false, false, false],
+    'field.facedown_signi': [null, null, null],
+    'turn_end_facedown_signi_returns': [],
+    'attacked_signi_ids': [],
+    'actions_done': [],
+    'energy': [],                       // 🔑エナ0＝引用【自】の《緑》《無》は**払えない**ので支払いUIで止まらない
+    // 🔴**CORE フィールドは明示クリアする**（§5.1 の教訓）＝`injectScenario` の除外方式では消えないので、
+    //   前の巡の `field.check`（＝「ライフクロスクラッシュ」モーダル）が残ると**全操作がブロックされ**、
+    //   症状は「フリップアタックのボタンが出ない」という**別の場所の空振り**になる（実際に2回誤読した）。
+    'field.check': null,
+    'life_cloth': ['WD01-013#11', 'WD01-013#12', 'WD01-013#13'],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, ['WD01-013#2'], null],   // 正面にシグニ（空だとダイレクト＝ガード応答待ちになる）
+    'field.signi_down': [false, false, false],
+    'actions_done': [],
+    'field.check': null,
+    'life_cloth': ['WD01-013#21', 'WD01-013#22', 'WD01-013#23'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+scenarios.o238FlipAttack = {
+  title: 'WXDi-P05-069（フリップアタック＝2体を裏向きにしてアタック）【旧実装はボタンすら出ない】',
+  spec: o238Board(),
+  async drive(page, H) {
+    // 注入レース対策（§5.1 の既知＝`o147RiseTrashStack` と同じ）。
+    let before = await v14QueryBattleState(page);
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(before?.host?.fieldSigni)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o238FlipAttack.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await v14QueryBattleState(page);
+    }
+    let sawButton = false, clicked = false, modalOpened = false, labels = [];
+    let last = before;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/o238Flip-${s}.png`, fullPage: true });
+      let did = null;
+      // 🔴**押す前にフェイズが流れたら戻す**（§4.4 の既知＝`b11attacktrigger` と同じ対処）。
+      //   これが無いと「ボタンが出なかった」と誤報する（CPU ターンへ渡ってしまう）。
+      if (!clicked) {
+        const ph = await H.queryState();
+        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+          await H.closeModals();
+          await injectScenario(page, scenarios.o238FlipAttack.spec);
+          await page.waitForTimeout(900);
+          await page.reload({ waitUntil: 'networkidle' });
+          await page.waitForTimeout(1500);
+          modalOpened = false;
+          did = `re-inject(was ${ph.turnPhase})`;
+        }
+      }
+      if (!did && !clicked) {
+        // ⚠**「出なかった」を主張する観測は、そのとき何が出ていたかを必ず残す**（§5.1 の教訓）。
+        labels = await page.locator('button').evaluateAll(
+          els => els.map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(t => t)).catch(() => []);
+        const btn = page.getByRole('button', { name: /フリップアタック/ }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          sawButton = true;
+          await btn.click().catch(() => {});
+          did = 'btn:フリップアタック'; clicked = true;
+        }
+      }
+      // ⚠**`my-signi-zone-N` はトグル**＝毎ティック押すと開いて閉じてを繰り返し、開いた瞬間を1度も観測できない。
+      //   ⚠**「ボタンが0本」で判定してもいけない**＝盤面には常時「ルリグアタックへ／エナに送る／終了」が出ている。
+      //   ⇒ **ゾーンの行動一覧が開いているか**（アタック系のラベルが見えているか）で判定する。
+      const zoneOpen = labels.some(t => /フリップアタック|側面アタック|^アタック$/.test(t));
+      if (!did && !clicked && !zoneOpen) {
+        const opened = await H.clickTestId('my-signi-zone-1');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', '支払わない']);
+      // ⚠**押す前に `stdStep` を回さない**＝フェイズを進めてアタックの機会を潰してしまう。
+      if (!did && clicked) did = await H.stdStep();
+      last = await v14QueryBattleState(page);
+      H.log(`  o238[${s}] -> ${did ?? 'なし'} | labels=${JSON.stringify(labels)} field=${JSON.stringify(last?.host?.fieldSigni)} facedown=${JSON.stringify(last?.host?.facedownSigni)} down=${JSON.stringify(last?.host?.signiDown)} 予約=${JSON.stringify(last?.host?.turnEndFacedownReturns)}`);
+      if (clicked && (last?.host?.facedownSigni ?? []).some(n => !!n)) break;
+    }
+    const fd = last?.host?.facedownSigni ?? [];
+    const fs = last?.host?.fieldSigni ?? [];
+    const dump = `field=${JSON.stringify(fs)} facedown=${JSON.stringify(fd)} down=${JSON.stringify(last?.host?.signiDown)} 予約=${JSON.stringify(last?.host?.turnEndFacedownReturns)}`;
+    if (!sawButton) return { pass: false, detail: `🔴「フリップアタック」ボタンが1度も出なかった＝旧挙動（収集器が payload を読めていない）。${dump}` };
+    const flipped = fd.filter(n => !!n);
+    if (flipped.length !== 2) return { pass: false, detail: `🔴裏向きが2枚になっていない。${dump}` };
+    // 🔴ここが②の判別＝「ダウンしただけ」なら fieldSigni に残ったままになる。
+    if (fs[0]?.length || fs[2]?.length) {
+      return { pass: false, detail: `🔴裏向きにしたゾーンに場のシグニが残っている＝ダウンで近似する旧挙動。${dump}` };
+    }
+    const resv = last?.host?.turnEndFacedownReturns ?? [];
+    if (resv.length !== 2 || resv.some(r => r.trashIfOccupied)) {
+      return { pass: false, detail: `🔴ターン終了時の復帰予約が2件（trashIfOccupied=false）で入っていない。${dump}` };
+    }
+    return { pass: true, detail: `「フリップアタック」が提示され、2体が本当に裏向き（場のシグニから消えた）＝復帰予約も入った。${dump}` };
+  },
+};
+order.push('o238FlipAttack');
+
+/**
+ * 🔴**対照＝「あなたの場に他にシグニがないかぎり」の negate 側。**
+ * 同じ盤面で**フリップせずに普通にアタック**すると、場に他のシグニが2体いるので
+ * ロビンフッドの引用【自】（《緑》《無》で相手の全シグニをエナへ）は**得られない**。
+ * 旧 live は条件節が丸ごと落ちていた（`activeCondition` なし）ので、**盤面に関係なく必ず提示**された。
+ * 🔑観測は結果（相手の場のシグニが残る）で見る＝提示の有無だけだと支払い UI の差で偽陽性になる。
+ */
+scenarios.o238GrantGatedByOtherSigni = {
+  title: 'WXDi-P01-040（他にシグニが2体＝引用【自】は得られない）【旧実装は無条件付与】',
+  spec: (() => {
+    const b = o238Board();
+    b.hostSet['energy'] = ['WD04-014#1', 'WD04-014#2', 'WD04-014#3'];  // 払える状態にしておく（旧挙動なら撃てる）
+    b.guestSet['field.signi'] = [['WD01-013#3'], ['WD01-013#2'], ['WD01-013#4']];
+    return b;
+  })(),
+  async drive(page, H) {
+    let before = await v14QueryBattleState(page);
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+      H.log(`注入確認(試行${r}): guest=${JSON.stringify(before?.guest?.fieldSigni)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o238GrantGatedByOtherSigni.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await v14QueryBattleState(page);
+    }
+    let attacked = false, labels = [], settled = 0, sawActivate = false;
+    let last = before;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/o238Gate-${s}.png`, fullPage: true });
+      let did = null;
+      // ⚠押す前にフェイズが流れたら盤面ごと張り直す（`o238FlipAttack` と同じ）。
+      if (!attacked) {
+        const ph = await v14QueryBattleState(page);
+        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+          await H.closeModals();
+          await injectScenario(page, scenarios.o238GrantGatedByOtherSigni.spec);
+          await page.waitForTimeout(900);
+          await page.reload({ waitUntil: 'networkidle' });
+          await page.waitForTimeout(1500);
+          did = `re-inject(was ${ph.turnPhase})`;
+        }
+      }
+      if (!did) {
+        labels = await page.locator('button').evaluateAll(
+          els => els.map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(t => t)).catch(() => []);
+      }
+      if (!did && !attacked) {
+        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atk.count() && await atk.isVisible().catch(() => false)) {
+          await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+        }
+      }
+      // ⚠**ゾーンの行動一覧はトグル**＝開いていないときだけ押す（§`o238FlipAttack` と同じ罠）。
+      if (!did && !attacked && !labels.some(t => /^アタック$|フリップアタック|側面アタック/.test(t))) {
+        const opened = await H.clickTestId('my-signi-zone-1');
+        if (opened) did = opened;
+      }
+      // ⚠**支払いが提示されたら払う**（旧挙動なら払えて全シグニがエナへ行く＝赤になる側）。
+      //   🔑ラベルは「発動する（コスト: 《緑》＋《無》）」＝**提示そのものが過剰実行の直接証拠**なので記録する。
+      if (labels.some(t => /発動する/.test(t))) sawActivate = true;
+      if (!did) did = await H.clickTextOrBtn(['発動する', '支払う', '決定', 'OK', 'はい', 'ガードしない', 'しない']);
+      // 🔴**アタック後に `stdStep` でフェイズを進めない**＝進めると次のターンの盤面を掴んで
+      //   「相手の場が空になった＝旧挙動」と**誤報する**（2026-09-05 に実測して1度踏んだ）。
+      if (!did && !attacked) did = await H.stdStep();
+      last = await v14QueryBattleState(page);
+      H.log(`  o238g[${s}] -> ${did ?? 'なし'} | labels=${JSON.stringify(labels)} guest=${JSON.stringify(last?.guest?.fieldSigni)} gEnergy=${(last?.guest?.energy ?? []).length} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      // バトルが解決しきった時点（スタックも待ちも無い）で判定へ抜ける。
+      if (attacked) { settled++; if (settled >= 5 && !last?.pendingEffect && !(last?.stackLen > 0)) break; }
+    }
+    const remain = (last?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length;
+    const dump = `guest=${JSON.stringify(last?.guest?.fieldSigni)} gEnergy=${(last?.guest?.energy ?? []).length} attacked=${attacked} 発動提示=${sawActivate}`;
+    if (!attacked) return { pass: false, detail: `前提崩れ＝アタックが1度も起きなかった。${dump}` };
+    if (sawActivate) return { pass: false, detail: `🔴旧挙動＝他にシグニが2体いるのに引用【自】の発動が提示された（条件節が落ちている）。${dump}` };
+    if (remain === 0) return { pass: false, detail: `🔴旧挙動＝相手の全シグニがエナへ行った（条件節が落ちている）。${dump}` };
+    return { pass: true, detail: `他にシグニが2体いるので引用【自】は提示すらされず、相手の場は残った（${remain}体）。${dump}` };
+  },
+};
+order.push('o238GrantGatedByOtherSigni');
+
+/**
+ * 🔑**正対照＝フリップして「他にシグニがない」を作ると、引用【自】が実際に開く。**
+ * これが通って初めて「裏向きは場のシグニとして扱わない」が**盤面の意味として**効いていると言える
+ * （`o238FlipAttack` は裏向きになったことしか見ていない）。
+ * 手順＝フリップアタック → 場はロビンフッド1体 → アタック時の《緑》《無》を払う →
+ * **対戦相手のすべてのシグニがエナゾーンへ**。
+ */
+scenarios.o238GrantOpenedByFlip = {
+  title: 'WXDi-P05-069→P01-040（フリップして他にシグニ0体＝引用【自】が開く）',
+  spec: (() => {
+    const b = o238Board();
+    b.hostSet['energy'] = ['WD04-014#1', 'WD04-014#2', 'WD04-014#3'];   // 《緑》《無》を払える
+    b.guestSet['field.signi'] = [['WD01-013#3'], ['WD01-013#2'], ['WD01-013#4']];
+    return b;
+  })(),
+  async drive(page, H) {
+    let before = await v14QueryBattleState(page);
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3
+        && (before?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+      H.log(`注入確認(試行${r}): host=${JSON.stringify(before?.host?.fieldSigni)} guest=${JSON.stringify(before?.guest?.fieldSigni)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o238GrantOpenedByFlip.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await v14QueryBattleState(page);
+    }
+    let clicked = false, labels = [], settled = 0, sawPay = false; const pickedCost = new Set();
+    let last = before;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/o238Open-${s}.png`, fullPage: true });
+      let did = null;
+      if (!clicked) {
+        const ph = await v14QueryBattleState(page);
+        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+          await H.closeModals();
+          await injectScenario(page, scenarios.o238GrantOpenedByFlip.spec);
+          await page.waitForTimeout(900);
+          await page.reload({ waitUntil: 'networkidle' });
+          await page.waitForTimeout(1500);
+          did = `re-inject(was ${ph.turnPhase})`;
+        }
+      }
+      if (!did) {
+        labels = await page.locator('button').evaluateAll(
+          els => els.map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(t => t)).catch(() => []);
+      }
+      if (!did && !clicked) {
+        const btn = page.getByRole('button', { name: /フリップアタック/ }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          await btn.click().catch(() => {}); did = 'btn:フリップアタック'; clicked = true;
+        }
+      }
+      if (!did && !clicked && !labels.some(t => /^アタック$|フリップアタック|側面アタック/.test(t))) {
+        const opened = await H.clickTestId('my-signi-zone-1');
+        if (opened) did = opened;
+      }
+      // 🔑**支払いラベルは「発動する（コスト: …）」**＝「支払う」だけを探すと永久に押せない
+      //   （2026-09-05 に実測＝プロンプトは出ていたのにドライバが押せず「開かない」と誤報した）。
+      // 🔑**さらに「発動する」は先にエナを N 枚選ぶまで無効**（`optcost-energy-*`）＝
+      //   押せているのに何も起きない、という形で2度目の誤報になる。⚠**選んだ枚は覚える**（押し直すとトグルで外れる）。
+      if (labels.some(t => /発動する|支払/.test(t))) sawPay = true;
+      if (!did) {
+        for (let i = 0; i < 6 && !did; i++) {
+          if (pickedCost.has(i)) continue;
+          const c = page.getByTestId(`optcost-energy-${i}`).first();
+          if (await c.count() && await c.isVisible().catch(() => false)) {
+            await c.click().catch(() => {}); pickedCost.add(i); did = `optcost-energy-${i}`;
+          }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動する', '支払う', '決定', 'OK', 'はい', 'ガードしない', 'しない']);
+      if (!did && !clicked) did = await H.stdStep();
+      last = await v14QueryBattleState(page);
+      const remainNow = (last?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length;
+      H.log(`  o238o[${s}] -> ${did ?? 'なし'} | labels=${JSON.stringify(labels)} guest=${JSON.stringify(last?.guest?.fieldSigni)} 残=${remainNow} gEnergy=${(last?.guest?.energy ?? []).length} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      if (sawPay) break;
+      if (clicked) { settled++; if (settled >= 8 && !last?.pendingEffect && !(last?.stackLen > 0)) break; }
+    }
+    const dump = `guest=${JSON.stringify(last?.guest?.fieldSigni)} 発動提示=${sawPay} facedown=${JSON.stringify(last?.host?.facedownSigni)}`;
+    if (!clicked) return { pass: false, detail: `前提崩れ＝フリップアタックを押せなかった。${dump}` };
+    // 🔑**観測点は「引用【自】が提示されたか」**＝コスト支払いの完遂は `OPTIONAL_COST` の汎用機構で、
+    //   ここで新しいのは「裏向きにしたことで付与が成立するか」だけ。提示の有無がその直接の証拠。
+    if (!sawPay) return { pass: false, detail: `🔴フリップして場が1体になったのに引用【自】が提示されなかった＝裏向きが【常】付与の再評価に届いていない。${dump}` };
+    return { pass: true, detail: `フリップで「他にシグニがない」が成立し、引用【自】（《緑》《無》）が提示された。${dump}` };
+  },
+};
+order.push('o238GrantOpenedByFlip');
+
+/**
+ * 🔑**基準線＝そもそも「場に他にシグニがいない」状態で普通にアタックしたら引用【自】は開くのか。**
+ * `o238GrantOpenedByFlip` が落ちたときに「フリップ経路だけの問題」か「付与そのものが届いていないか」を
+ * 切り分けるためのコントロール（PLAN §4.4＝「出ないこと」を主張する前に出る側を必ず作る）。
+ */
+scenarios.o238GrantAloneNormalAttack = {
+  title: 'WXDi-P01-040 単騎で普通にアタック＝引用【自】が開く（基準線）',
+  spec: (() => {
+    const b = o238Board();
+    b.hostSet['field.signi'] = [null, [O238_ROBINHOOD], null];
+    b.hostSet['energy'] = ['WD04-014#1', 'WD04-014#2', 'WD04-014#3'];
+    b.guestSet['field.signi'] = [['WD01-013#3'], ['WD01-013#2'], ['WD01-013#4']];
+    return b;
+  })(),
+  async drive(page, H) {
+    let before = await v14QueryBattleState(page);
+    for (let r = 0; r < 4; r++) {
+      const ok = (before?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 1
+        && (before?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length === 3;
+      H.log(`注入確認(試行${r}): host=${JSON.stringify(before?.host?.fieldSigni)} guest=${JSON.stringify(before?.guest?.fieldSigni)} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o238GrantAloneNormalAttack.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await v14QueryBattleState(page);
+    }
+    let attacked = false, labels = [], settled = 0, sawPay = false; const pickedCost = new Set();
+    let last = before;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/o238Alone-${s}.png`, fullPage: true });
+      let did = null;
+      if (!attacked) {
+        const ph = await v14QueryBattleState(page);
+        if (ph?.turnPhase && ph.turnPhase !== 'ATTACK_SIGNI' && !ph?.pendingEffect && !(ph?.stackLen > 0)) {
+          await H.closeModals();
+          await injectScenario(page, scenarios.o238GrantAloneNormalAttack.spec);
+          await page.waitForTimeout(900);
+          await page.reload({ waitUntil: 'networkidle' });
+          await page.waitForTimeout(1500);
+          did = `re-inject(was ${ph.turnPhase})`;
+        }
+      }
+      if (!did) {
+        labels = await page.locator('button').evaluateAll(
+          els => els.map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(t => t)).catch(() => []);
+      }
+      if (!did && !attacked) {
+        const atk = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atk.count() && await atk.isVisible().catch(() => false)) {
+          await atk.click().catch(() => {}); did = 'btn:アタック'; attacked = true;
+        }
+      }
+      if (!did && !attacked && !labels.some(t => /^アタック$|フリップアタック|側面アタック/.test(t))) {
+        const opened = await H.clickTestId('my-signi-zone-1');
+        if (opened) did = opened;
+      }
+      // 🔑**支払いラベルは「発動する（コスト: …）」**＝「支払う」だけを探すと永久に押せない
+      //   （2026-09-05 に実測＝プロンプトは出ていたのにドライバが押せず「開かない」と誤報した）。
+      // 🔑**さらに「発動する」は先にエナを N 枚選ぶまで無効**（`optcost-energy-*`）＝
+      //   押せているのに何も起きない、という形で2度目の誤報になる。⚠**選んだ枚は覚える**（押し直すとトグルで外れる）。
+      if (labels.some(t => /発動する|支払/.test(t))) sawPay = true;
+      if (!did) {
+        for (let i = 0; i < 6 && !did; i++) {
+          if (pickedCost.has(i)) continue;
+          const c = page.getByTestId(`optcost-energy-${i}`).first();
+          if (await c.count() && await c.isVisible().catch(() => false)) {
+            await c.click().catch(() => {}); pickedCost.add(i); did = `optcost-energy-${i}`;
+          }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動する', '支払う', '決定', 'OK', 'はい', 'ガードしない', 'しない']);
+      if (!did && !attacked) did = await H.stdStep();
+      last = await v14QueryBattleState(page);
+      const remainNow = (last?.guest?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.length).length;
+      H.log(`  o238a[${s}] -> ${did ?? 'なし'} | labels=${JSON.stringify(labels)} guest=${JSON.stringify(last?.guest?.fieldSigni)} 残=${remainNow} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      if (sawPay) break;
+      if (attacked) { settled++; if (settled >= 8 && !last?.pendingEffect && !(last?.stackLen > 0)) break; }
+    }
+    const dump = `guest=${JSON.stringify(last?.guest?.fieldSigni)} 発動提示=${sawPay}`;
+    if (!attacked) return { pass: false, detail: `前提崩れ＝アタックできなかった。${dump}` };
+    if (!sawPay) return { pass: false, detail: `🔴単騎でも引用【自】が提示されない＝付与そのものが届いていない（フリップ経路の問題ではない）。${dump}` };
+    return { pass: true, detail: `単騎なら引用【自】（《緑》《無》）が提示された＝この対照が negative 側を空振りでなくする。${dump}` };
+  },
+};
+order.push('o238GrantAloneNormalAttack');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
