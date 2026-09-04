@@ -98,7 +98,10 @@ import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimi
 import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
-import { getRiseRequirement } from '../src/engine/execUtils';
+import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
+import {
+  EMPTY_RISE_SELECTION, canPayRiseField, findRiseFieldAssignment, riseConsumedZones, validateRiseField,
+} from '../src/screens/battle/riseSummon';
 import { fieldCandidatesByOwner } from '../src/engine/execUtils';
 import { resolveCountRef } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
@@ -59103,7 +59106,8 @@ test('rise: getRiseRequirement が【ライズ】カードの配置条件を取�
   const riseFilterOf = (t: string) => {
     const req = getRiseRequirement(t);
     // 「単体ライズ（場のシグニ1体の上・材料なし）」だけを旧 `getRiseFilter` 相当として読む。
-    return req && req.base.kind === 'field' && req.materials.length === 0 ? req.base.filter : null;
+    return req && req.base.kind === 'field' && req.materials.length === 0 && riseFieldTotal(req.base) === 1
+      ? req.base.groups[0].filter : null;
   };
   // 単体ライズ＝終端が `【`（旧実装が全部取りこぼしていた形）
   const oda = riseFilterOf('【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【常】：このシグニは…');
@@ -59138,7 +59142,7 @@ test('rise: getRiseRequirement が【ライズ】カードの配置条件を取�
   // 🆕**下位family B②＝場のシグニ1体に、他領域のカードを重ねてその上に置く**
   const jan = getRiseRequirement('【ライズ】あなたのレベル３以下の赤のシグニ１体にトラッシュにあるそれぞれレベルの異なる赤のシグニ３枚を重ね、その上に置く【常】：…');
   eq(jan?.base.kind, 'field', 'WXEX1-35 は場のシグニの上');
-  eq(jan?.base.kind === 'field' ? JSON.stringify(jan.base.filter.level) : '', JSON.stringify({ max: 3 }), 'WXEX1-35 配置先はレベル3以下');
+  eq(jan?.base.kind === 'field' ? JSON.stringify(jan.base.groups[0].filter.level) : '', JSON.stringify({ max: 3 }), 'WXEX1-35 配置先はレベル3以下');
   eq(jan?.materials[0].count, 3, 'WXEX1-35 材料は3枚');
   eq(jan?.materials[0].distinctLevel, true, 'WXEX1-35 はレベルが互いに異なること');
   // ⚠「レベルの異なる」を `level:{min,max}` へ落とさない（数字が無いので `lvEq` に当たってはいけない）
@@ -59148,23 +59152,133 @@ test('rise: getRiseRequirement が【ライズ】カードの配置条件を取�
   eq(oni?.materials.map(m => m.from).join(','), 'energy,trash', 'WXK05-035 の領域はエナ→トラッシュ');
   eq(oni?.materials.every(m => m.count === 1), true, 'WXK05-035 は各1枚');
 
-  // 🔴**下位family A（場のシグニを2〜3体消費して1ゾーンへ積む）は null のまま**＝
-  //   1体ぶんだけ通すと「半分だけ実装した嘘」になる（多ゾーン消費UI待ち＝§5.3 `O-147`）
-  eq(getRiseRequirement('【ライズ】あなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【出】：…'), null, '2体ライズは受けない');
-  eq(getRiseRequirement('【ライズ】あなたの《轟左砲　ドーラ》１体と《弩中砲　グスタフト》１体と《轟右砲　ドスラフ》１体の上に置く【常】：…'), null, '3枚指定ライズは受けない');
-  eq(getRiseRequirement('【ライズ】《ライズアイコン》を持つシグニ１体と＜武勇＞のシグニ２体の上に出す【常】：…'), null, '「1体と2体」も受けない');
-  // 領域が2つあるのに「ずつ」が無い形＝どちらから何枚かが決まらない＝落とす
+  // 🆕**§5.3 `O-147` 下位family A＝場のシグニを2〜3体消費して1ゾーンへ積む**（2026-09-05）
+  const tou = getRiseRequirement('【ライズ】あなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【出】：…');
+  eq(tou?.base.kind === 'field' ? riseFieldTotal(tou.base) : 0, 2, 'WX20-037 は2体消費');
+  eq(tou?.base.kind === 'field' ? tou.base.groups[0].filter.color : '', '赤', 'WX20-037 は赤のシグニ');
+  // 「《A》1体と《B》1体と《C》1体」＝**枠が3つ**（同じ条件の3体ではない）
+  const gus = getRiseRequirement('【ライズ】あなたの《轟左砲　ドーラ》１体と《弩中砲　グスタフト》１体と《轟右砲　ドスラフ》１体の上に置く【常】：…');
+  eq(gus?.base.kind === 'field' ? gus.base.groups.length : 0, 3, 'WX20-038 は枠が3つ');
+  eq(gus?.base.kind === 'field' ? gus.base.groups.map(g => g.filter.cardName).join('/') : '',
+    '轟左砲　ドーラ/弩中砲　グスタフト/轟右砲　ドスラフ', 'WX20-038 は枠ごとにカード名が違う');
+  // 「《ライズアイコン》を持つシグニ1体と＜武勇＞のシグニ2体」＝**条件の違う枠が並ぶ**
+  const gil = getRiseRequirement('【ライズ】《ライズアイコン》を持つシグニ１体と＜武勇＞のシグニ２体の上に出す【常】：…');
+  eq(gil?.base.kind === 'field' ? gil.base.groups.length : 0, 2, 'WX17-026 は枠が2つ');
+  eq(gil?.base.kind === 'field' ? (gil.base.groups[0].filter as Record<string, unknown>).__requiresRiseIcon : undefined,
+    true, 'WX17-026 の第1枠は《ライズアイコン》');
+  eq(gil?.base.kind === 'field' ? gil.base.groups[1].count : 0, 2, 'WX17-026 の第2枠は2体');
+  // 選択全体にかかる制約（枠ごとではない）
+  const exc = getRiseRequirement('【ライズ】レベルの異なるあなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【自】：…');
+  eq(exc?.base.kind === 'field' ? exc.base.distinctLevel : undefined, true, 'WXK03-021 はレベル相異');
+  // ⚠「レベルの異なる」を `level:{min,max}` へ落とさない（数字が無いので `lvEq` に当たってはいけない）
+  eq(exc?.base.kind === 'field' ? exc.base.groups[0].filter.level : undefined, undefined, 'WXK03-021 にレベル値フィルタは付かない');
+  const tri = getRiseRequirement('【ライズ】共通する色を持たないあなたのシグニ２体の上に置く【自】：…');
+  eq(tri?.base.kind === 'field' ? tri.base.distinctColor : undefined, true, 'WXK11-038 は色を共有しない');
+  eq(tri?.base.kind === 'field' ? tri.base.groups[0].filter.color : undefined, undefined, 'WXK11-038 に色フィルタは付かない');
+  // 🔴**表せない形は null のまま**＝半分だけ実装した嘘を作らない
+  //   領域が2つあるのに「ずつ」が無い形＝どちらから何枚かが決まらない
   eq(getRiseRequirement('【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ２枚を重ね、その上に置く【常】：…'), null, '「ずつ」の無い2領域は受けない');
+  //   シグニゾーンは3つしかない＝4体以上は表せない
+  eq(getRiseRequirement('【ライズ】あなたの赤のシグニ４体の上に置く【常】：…'), null, '4体ライズは受けない');
+  //   体数の書いていない枠が混じる形も受けない
+  eq(getRiseRequirement('【ライズ】あなたの赤のシグニ２体とあなたの＜武勇＞のシグニの上に置く【常】：…'), null, '体数の無い枠は受けない');
 
   // 母集団のラチェット＝CSV 全件で「配置要求が立つ枚数」を固定する。
   const RISE_CARD_TOTAL = 41;      // 先頭が【ライズ】の CSV カード数（新カードで増えたら実数へ上げる）
-  const RISE_CARD_GATED = 32;      // 旧28 →**32**（2026-09-05・`O-147` 下位family B の4枚を回収）
+  const RISE_CARD_GATED = 41;      // 旧28 → 32（family B の4枚）→ 🏁**41**（2026-09-05・family A の9枚で全数）
   const RISE_CARD_MATERIAL = 4;    // うち「下に重ねる材料」を要求する枚数（family B）
+  const RISE_CARD_MULTI_FIELD = 9; // うち場のシグニを2体以上消費する枚数（family A）
   const riseCards = [...cardMap.values()].filter(c => /^【ライズ】/.test(c.EffectText ?? ''));
   const reqs = riseCards.map(c => getRiseRequirement(c.EffectText ?? ''));
   eq(riseCards.length, RISE_CARD_TOTAL, '【ライズ】カード総数');
   eq(reqs.filter(r => r !== null).length, RISE_CARD_GATED, 'ライズ条件が立つカード数（減ったら退化・増えたら基準を上げる）');
   eq(reqs.filter(r => (r?.materials.length ?? 0) > 0).length, RISE_CARD_MATERIAL, '材料つきライズの枚数');
+  eq(reqs.filter(r => r && riseFieldTotal(r.base) >= 2).length, RISE_CARD_MULTI_FIELD, '多ゾーン消費ライズの枚数');
+  // 🔑**枠の体数の合計は必ず1〜3**（シグニゾーンは3つ）＝4体以上を要求する解釈が紛れ込んだら止める。
+  for (const r of reqs) {
+    if (r?.base.kind !== 'field') continue;
+    ok(riseFieldTotal(r.base) >= 1 && riseFieldTotal(r.base) <= 3, `配置先の体数が1〜3の外: ${r.rawText}`);
+  }
+});
+
+
+// ── 多ゾーン消費ライズの「枠へのゾーン割り当て」（§5.3 `O-147` 下位family A・2026-09-05） ──
+// 🔴**枠ごとの候補数を数えるだけでは足りない**＝`WX17-026`「《ライズアイコン》を持つシグニ1体と
+//   ＜武勇＞のシグニ2体」は**同じゾーンが両方の枠の候補になりうる**ので、
+//   「各枠に候補が count 体以上ある」を見ると**実際には作れない割り当てを可能と誤答する**。
+// ⚠**この判定は `src/screens/battle/riseSummon.ts` にあり、`npm run typecheck`（`tsc -b`）は
+//   `src` しか見ないが `scripts/` は見ない**＝ここが唯一の自動検証になる（実機は組み合わせを網羅できない）。
+test('O-147: 多ゾーン消費ライズの枠割り当て（候補数では判定できない形・制約つき）', () => {
+  const reqOf = (t: string) => {
+    const r = getRiseRequirement(t);
+    if (!r) throw new Error(`ライズ条件が立たない: ${t}`);
+    return r;
+  };
+  // 盤面＝3ゾーンにカード番号を直接置く（`riseSummon` は cardMap から属性を引くだけ）。
+  const board = (nums: (string | null)[]): PlayerState =>
+    ({ field: { signi: nums.map(n => (n ? [n] : null)) } } as unknown as PlayerState);
+  const cm = cardMap as Map<string, CardData>;
+
+  // (a) 「あなたのシグニ２体の上に置く」＝どの2体でもよい
+  const anyTwo = reqOf('【ライズ】あなたのシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【起】：…');
+  eq(canPayRiseField(board(['WD01-013', 'WD01-012', null]), anyTwo, cm), true, '2体いれば払える');
+  eq(canPayRiseField(board(['WD01-013', null, null]), anyTwo, cm), false, '1体では払えない');
+  // 選択の検証＝枠ごとの体数・重複なし
+  eq(validateRiseField(board(['WD01-013', 'WD01-012', null]), anyTwo,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 1, group: 0 }], cm), true, '2ゾーン選択は妥当');
+  eq(validateRiseField(board(['WD01-013', 'WD01-012', null]), anyTwo,
+    [{ zoneIndex: 0, group: 0 }], cm), false, '1ゾーンでは足りない');
+  eq(validateRiseField(board(['WD01-013', 'WD01-012', null]), anyTwo,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 0, group: 0 }], cm), false, '同じゾーンを2回選べない');
+  eq(validateRiseField(board(['WD01-013', 'WD01-012', null]), anyTwo,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 2, group: 0 }], cm), false, '空きゾーンは選べない');
+
+  // (b) 「レベルの異なるあなたの赤のシグニ２体」＝選択全体にかかる制約
+  const distinctLv = reqOf('【ライズ】レベルの異なるあなたの赤のシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【自】：…');
+  //   `WD02-013`＝赤Lv1 / `WD02-012`＝赤Lv2 / `WX04-070`＝赤Lv1
+  eq(canPayRiseField(board(['WD02-013', 'WX04-070', null]), distinctLv, cm), false, '同レベル2体では払えない');
+  eq(canPayRiseField(board(['WD02-013', 'WD02-012', null]), distinctLv, cm), true, 'レベルが違えば払える');
+  eq(validateRiseField(board(['WD02-013', 'WX04-070', 'WD02-012']), distinctLv,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 1, group: 0 }], cm), false, '同レベルの組は妥当でない');
+  eq(validateRiseField(board(['WD02-013', 'WX04-070', 'WD02-012']), distinctLv,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 2, group: 0 }], cm), true, 'レベル違いの組は妥当');
+  // 白のシグニは色フィルタで落ちる
+  eq(canPayRiseField(board(['WD01-013', 'WD01-012', null]), distinctLv, cm), false, '赤でないシグニは使えない');
+
+  // (c) 🔴**候補数では判定できない形**＝「《ライズアイコン》を持つシグニ1体と＜武勇＞のシグニ2体」。
+  //   `WX15-073`＝【ライズ】を持つ＜武勇＞（**両方の枠の候補**）／`WD17-014`・`WD17-012`＝ただの＜武勇＞。
+  const mixed = reqOf('【ライズ】《ライズアイコン》を持つシグニ１体と＜武勇＞のシグニ２体の上に出す【常】：…');
+  eq(canPayRiseField(board(['WX15-073', 'WD17-014', 'WD17-012']), mixed, cm), true,
+    'ライズ持ち1体＋＜武勇＞2体なら割り当てが作れる');
+  // ⚠ライズ持ちが居ない盤面＝＜武勇＞は3体いても第1枠が埋まらない（候補数だけ見ると「払える」に化ける）
+  eq(canPayRiseField(board(['WD17-014', 'WD17-012', 'WD17-010']), mixed, cm), false,
+    '《ライズアイコン》が1体も無ければ払えない');
+  // 割り当ては「ライズ持ちを第1枠へ」しかありえない
+  const assign = findRiseFieldAssignment(board(['WX15-073', 'WD17-014', 'WD17-012']), mixed, cm);
+  eq(assign?.find(a => a.group === 0)?.zoneIndex, 0, 'ライズ持ちのゾーンが第1枠に入る');
+  eq(assign?.filter(a => a.group === 1).length, 2, '第2枠は2体');
+  // 同じゾーンを2つの枠に入れた選択は妥当でない
+  eq(validateRiseField(board(['WX15-073', 'WD17-014', 'WD17-012']), mixed,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 0, group: 1 }, { zoneIndex: 1, group: 1 }], cm), false,
+    '同じゾーンを2つの枠へ入れられない');
+
+  // (d) 「共通する色を持たないあなたのシグニ２体」＝多色シグニがあるので色は集合で見る
+  const distinctColor = reqOf('【ライズ】共通する色を持たないあなたのシグニ２体の上に置く【自】：…');
+  //   `WD01-013`＝白 / `WD02-013`＝赤 / `WXDi-D07-020`＝赤黒
+  eq(canPayRiseField(board(['WD01-013', 'WD02-013', null]), distinctColor, cm), true, '白と赤は色を共有しない');
+  eq(validateRiseField(board(['WD02-013', 'WXDi-D07-020', null]), distinctColor,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 1, group: 0 }], cm), false,
+    '赤と「赤黒」は赤を共有する（多色を1色として扱わない）');
+  eq(validateRiseField(board(['WD01-013', 'WXDi-D07-020', null]), distinctColor,
+    [{ zoneIndex: 0, group: 0 }, { zoneIndex: 1, group: 0 }], cm), true, '白と「赤黒」は共有しない');
+
+  // (e) 単体ライズ・材料つきライズでは場の枠判定を要求しない（`riseConsumedZones` は配置先1つ）
+  const single = reqOf('【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【常】：…');
+  eq(riseConsumedZones(single, EMPTY_RISE_SELECTION, 2).join(','), '2', '単体ライズは配置先だけを潰す');
+  const emptyBase = reqOf('【ライズ】あなたのトラッシュにある＜武勇＞のシグニ２枚を下に重ねて場に出す（空いているシグニゾーンに出す）【常】：…');
+  eq(riseConsumedZones(emptyBase, EMPTY_RISE_SELECTION, 1).length, 0, '空きゾーン型は場のシグニを潰さない');
+  eq(riseConsumedZones(anyTwo, { materials: [], fieldZones: [{ zoneIndex: 0, group: 0 }, { zoneIndex: 2, group: 0 }] }, 0)
+    .sort().join(','), '0,2', '多ゾーン消費型は選んだ全ゾーンを潰す');
 });
 
 // ── `remainder.reorder`（`O-51` の並べ替え対話）の到達率ラチェット（§5.3 `O-144`・2026-08-29） ──

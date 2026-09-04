@@ -3580,6 +3580,29 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 
 **規模／母集団（登録票の記載そのまま）**＝**13カード**
 
+🏁**2026-09-05（第137バッチ）に完全クローズ＝【ライズ】41枚すべてに配置条件が効くようになった。**
+■**入れたもの**＝`RiseBase` の `field` を「1枚のフィルタ」から**枠のリスト**へ広げた
+（`{kind:'field', groups: RiseFieldGroup[], distinctLevel?, distinctColor?}`）。これで残り9枚が表せる＝
+`WX16-027`／`WX20-037`／`WXK08-031`（同条件 N体）・`WXK03-021`／`WXK11-053`（レベル相異）・
+`WXK11-038`（共通する色を持たない）・`WX17-026`（《ライズアイコン》1体＋＜武勇＞2体）・
+`WX20-038`（《A》1体と《B》1体と《C》1体）・`WX24-P1-043`（赤3体）。
+■🔑**枠ごとの候補数では判定できない**＝`WX17-026` は**同じゾーンが両方の枠の候補になりうる**ので、
+「各枠に候補が count 体以上ある」で判定すると**実際には作れない割り当てを可能と誤答する**。
+⇒ `findRiseFieldAssignment` が**枠へのゾーンの割り当て（二部マッチング）を実際に1つ構成する**
+（ゾーンは3つなので総当たりでよい）。制約（レベル相異／色を共有しない）も**割り当てが確定した時点**で見る。
+■**UI**＝`SigniSummonZoneModal` に「下敷きにするシグニ」を枠ごとに選ばせる列を追加し、
+**召喚先は下敷きに選んだゾーンだけ**が押せる（原文「どちらかのシグニがあるシグニゾーンに出す」）。
+■**確定処理**＝`riseFoldZones`（配置先を先頭に、残りはゾーン番号順）で
+`newSigni[dest] = [...潰した全ゾーンのスタック, ...材料, 本体]` へ畳み、**他の潰したゾーンを `null` にする**。
+🔴**付随状態も潰した全ゾーンぶん落とす**（旧実装は配置先1ゾーンだけ＝**空にしたゾーンにチャーム／アクセ／ソウルだけが浮いて残る**）。
+🔴**`ON_RISE` も潰した全ゾーンのトップから集める**（旧実装は配置先のトップだけ＝他ゾーンから潰されたシグニの【自】が発火しなかった）。
+■**検証**＝golden に**枠割り当ての単体テスト**（`O-147: 多ゾーン消費ライズの枠割り当て`）を新設。
+⚠**`npm run typecheck`（`tsc -b`）は `src` しか見ず `scripts/` を見ない**ので、
+`riseSummon.ts` の判定は**この golden が唯一の自動検証**（実機は組み合わせを網羅できない）。
+実機は4本追加（2ゾーン畳み／3ゾーン畳み／レベル相異の両方向／下敷き不足で召喚が出ない）。
+■**ラチェット**＝`RISE_CARD_TOTAL 41`（据置）／**`RISE_CARD_GATED 28 → 32 → 41`**／
+`RISE_CARD_MATERIAL 4`／**`RISE_CARD_MULTI_FIELD 9`（新設）**＋「枠の体数の合計は必ず1〜3」の不変条件。
+
 🔻**2026-09-05（下位family B）にクローズ＝13カード → 残 9カード。**
 ■**入れたもの**＝`getRiseFilter`（`TargetFilter | null`）を **`getRiseRequirement`（`RiseRequirement | null`）**へ広げた＝
 `{ base: {kind:'field', filter} | {kind:'empty'}, materials: RiseMaterialSpec[] }`。
@@ -4732,6 +4755,28 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   **`census:enginetext`（`O-60` ratchet）＝A🔴 130行 / 127ハンドラ（据置）**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
+
+### 恒久指標アーカイブ（2026-09-05・第136バッチ後・PLAN §6 から退避）
+
+- **2026-09-05（第136バッチ）＝`O-147` 下位family B＝材料つき【ライズ】4枚を回収（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 17 / 863 (2.0%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）
+  **`census:enginetext` A🔴 0行**（据置）／**`census:costtext` A🔴 0規則**（据置）／**`census:deadstate` 0件**（据置）。
+  📦**在庫2本**＝**機構 worklist 9項目（据置）**＝索引 A 1／B 1／G 2／E 5。
+  ⚠**`O-147` はクローズしていない**（下位family B の4枚だけを閉じ、family A の9枚が残る）＝
+  索引 A の行は残るが**母集団は 13 → 9 カード**。⚠索引 E の5件は計器の較正＝挙動を直す項目は **4件**｜**実機 残 0件**。
+  🔧**ゲート（全緑 ✅）**＝golden **3472 / 3472**（本数据置＝既存の `rise:` 契約 golden 1本を拡張）／
+  smoke 全異常0／fuzz 全0／census **1 / BASELINE 1**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行 / BASELINE 0**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🖥**実機＝新規4本＋回帰1本＝5本 ALL PASS**（`riseGateLevelColor` / `o147RiseTrashStack` /
+  `o147RiseMaterialShort` / `o147RiseFieldPlusTrash` / `o147RiseEnergyAndTrash`）。
+  🔧**ラチェット**＝`RISE_CARD_TOTAL 41`（据置）／**`RISE_CARD_GATED 28 → 32`**／**`RISE_CARD_MATERIAL 4`（新設）**。
+  🔴**最大の発見＝同じ判定の「第3の口」は CPU だった**＝ライズ条件は `V-89`（2026-08-29）で28枚まで直したはずが、
+  **CPU 召喚ループは rise を1行も見ておらず【ライズ】41枚を下敷きも材料も無しでタダ召喚**していた（fail-closed で除外）。
+  🔴**過少側も同時に壊れていた**＝手札の「召喚」ゲートが空きゾーン前提で、
+  **盤面が埋まっている／合計レベルが足りないだけで合法なライズが打てなかった**。
+  ✅**ブラスト半径**＝配置条件が新たに効くのは **4カード**（材料つきライズ）＋
+  **CPU 側は【ライズ】41枚が「出せなくなる」**（過剰実行の是正・fail-closed）。live JSON は1バイトも変わらない。
 
 ### 恒久指標アーカイブ（2026-09-05・第130〜135バッチ後・PLAN §6 から退避）
 

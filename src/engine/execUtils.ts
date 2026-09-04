@@ -3899,10 +3899,36 @@ export interface RiseMaterialSpec {
   distinctLevel?: boolean;
 }
 
-/** 配置先＝場のシグニ1体の上（`filter` を満たすトップ1枚が要る）／空いているシグニゾーン。 */
+/**
+ * 配置先で消費する場のシグニ1枠（`count` 体ぶん）。
+ * 🆕**2026-09-05・§5.3 `O-147`（下位family A）で「1枚のフィルタ」から枠のリストへ広げた。**
+ * `WX17-026`「《ライズアイコン》を持つシグニ**1体**と＜武勇＞のシグニ**2体**の上に出す」／
+ * `WX20-038`「《A》1体と《B》1体と《C》1体の上に置く」のように**異なる条件の枠が並ぶ**形がある。
+ */
+export interface RiseFieldGroup {
+  /** この枠で消費する体数 */
+  count: number;
+  /** 消費するシグニ（各シグニゾーンのトップ）の条件 */
+  filter: TargetFilter;
+}
+
+/** 配置先＝場のシグニ N体の上（各枠のトップが要る）／空いているシグニゾーン。 */
 export type RiseBase =
-  | { kind: 'field'; filter: TargetFilter }
+  | {
+    kind: 'field';
+    /** 消費する枠。単体ライズは `[{count:1, filter}]`。 */
+    groups: RiseFieldGroup[];
+    /** 「（それぞれ）レベルの異なる」＝選んだ全シグニのレベルが互いに異なること */
+    distinctLevel?: boolean;
+    /** 「共通する色を持たない」＝選んだ全シグニが互いに色を1つも共有しないこと */
+    distinctColor?: boolean;
+  }
   | { kind: 'empty' };
+
+/** 配置先で消費する体数の合計（単体ライズなら 1）。 */
+export function riseFieldTotal(base: RiseBase): number {
+  return base.kind === 'field' ? base.groups.reduce((n, g) => n + g.count, 0) : 0;
+}
 
 export interface RiseRequirement {
   base: RiseBase;
@@ -3985,6 +4011,55 @@ function parseRiseMaterials(phrase: string): RiseMaterialSpec[] | null {
 }
 
 /**
+ * 「あなたの＜武勇＞のシグニ**２体**の上に置く」形（下位family A）の配置先を枠のリストへ落とす。
+ * 表せない形は `null`（＝ライズ条件ごと落とす＝**半分だけ実装した嘘を作らない**）。
+ *
+ * ⚠**呼ぶのは「体」が2回以上出るか「N体（N≥2）」があるときだけ**＝単体ライズ28枚の解釈は
+ *   従来どおり `parseRiseCardFilter(cond)` に任せる（ここを通すと母集団が黙って動く）。
+ */
+function parseRiseFieldBase(cond: string): RiseBase | null {
+  // 「〜の上に置く（…）」「〜の上に出す」の手前までが配置先の記述。
+  const m = cond.match(/^(.+?)の上に(?:置く|出す)/);
+  if (!m) return null;
+  const body = m[1];
+
+  // 選んだシグニどうしにかかる制約（先頭の修飾）。⚠**枠ごとではなく選択全体にかかる。**
+  const distinctLevel = /レベルの異なる/.test(body);
+  const distinctColor = /共通する色を持たない/.test(body);
+
+  // 🔴**「と」で枠を割るのは《》／＜＞の外だけ**（カード名やクラス名に「と」が入りうる）。
+  const parts: string[] = [];
+  let depthName = 0, depthClass = 0, cur = '';
+  for (const ch of body) {
+    if (ch === '《') depthName++;
+    else if (ch === '》') depthName--;
+    else if (ch === '＜') depthClass++;
+    else if (ch === '＞') depthClass--;
+    if (ch === 'と' && depthName === 0 && depthClass === 0) { parts.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  parts.push(cur);
+
+  const groups: RiseFieldGroup[] = [];
+  for (const part of parts) {
+    const cm = part.match(/([０-９\d]+)体/);
+    if (!cm) return null;                       // 体数の書いていない枠は解釈しない
+    const count = parseInt(riseToHalfWidth(cm[1]), 10);
+    if (!(count > 0)) return null;
+    groups.push({ count, filter: parseRiseCardFilter(part) });
+  }
+  const total = groups.reduce((n, g) => n + g.count, 0);
+  // シグニゾーンは3つしかない＝4体以上を要求する形は表せない（実データにも無い）。
+  if (total < 2 || total > 3) return null;
+  return {
+    kind: 'field',
+    groups,
+    ...(distinctLevel ? { distinctLevel: true } : {}),
+    ...(distinctColor ? { distinctColor: true } : {}),
+  };
+}
+
+/**
  * カードの EffectText から【ライズ】の配置要求を取得する。
  * ライズカードでない／今の受け皿では表せない形は null を返す。
  */
@@ -4016,19 +4091,22 @@ export function getRiseRequirement(effectText: string): RiseRequirement | null {
     // 配置先は「場のシグニ**1体**」に限る（2体以上は下位family A＝多ゾーン消費UI待ち）。
     if ((baseText.match(/体/g) ?? []).length !== 1 || !/[１1]体/.test(baseText)) return null;
     const materials = parseRiseMaterials(b2[2]);
-    return materials ? { base: { kind: 'field', filter: parseRiseCardFilter(baseText) }, materials, rawText: cond } : null;
+    return materials
+      ? { base: { kind: 'field', groups: [{ count: 1, filter: parseRiseCardFilter(baseText) }] }, materials, rawText: cond }
+      : null;
   }
 
-  // 🔴**下位family A（場のシグニを2〜3体消費して1ゾーンへ積む9枚）はここでは受けない**＝
-  //   「赤のシグニ**２体**の上に置く（どちらかのシグニがあるシグニゾーンに出す）」は
-  //   **N体を消費して1ゾーンへ積む**機構で、`matchesRiseFilter`（1ゾーンのトップ1枚を見る）では表せない。
-  //   1体ぶんだけ通すと**「半分だけ実装した嘘」**になるので null のまま（＝現状維持）にして、
-  //   機構は §5.3 `O-147` に据え置いた。⚠**該当9枚は依然ライズ条件が効かない**（既知の穴）。
-  if (/[２-９2-9]体|[２-９2-9]枚|重ね/.test(cond)) return null;
-  // 「《A》１体と《B》１体と《C》１体の上に置く」（`WX20-038`）も複数体ライズ＝「体」が2回以上出たら除外。
-  if ((cond.match(/体/g) ?? []).length >= 2) return null;
+  // ── (A) 場のシグニを**2〜3体消費して1ゾーンへ積む**（2026-09-05 に実装） ──
+  //   `WX16-027`／`WX20-037`／`WXK08-031`（N体）・`WXK03-021`／`WXK11-053`（レベル相異）・
+  //   `WXK11-038`（共通する色を持たない）・`WX17-026`／`WX20-038`（異なる条件の枠が並ぶ）・`WX24-P1-043`。
+  //   ⚠**「N枚」「重ね」は他領域の材料**（(B) で処理済み）＝ここへ来たら解釈しない。
+  if (/[２-９2-9]枚|重ね/.test(cond)) return null;
+  if (/[２-９2-9]体/.test(cond) || (cond.match(/体/g) ?? []).length >= 2) {
+    const base = parseRiseFieldBase(cond);
+    return base ? { base, materials: [], rawText: cond } : null;
+  }
 
-  return { base: { kind: 'field', filter: parseRiseCardFilter(cond) }, materials: [], rawText: cond };
+  return { base: { kind: 'field', groups: [{ count: 1, filter: parseRiseCardFilter(cond) }] }, materials: [], rawText: cond };
 }
 
 /**

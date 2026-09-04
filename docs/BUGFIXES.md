@@ -1,5 +1,74 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第137バッチ）：🏁`O-147` クローズ＝**【ライズ】41枚すべてに配置条件が効くようになった**（下位family A の9枚）
+
+**ベースライン**＝`e9dc0e4ac`（第136＝下位family B の直後）。
+**gates 全緑**（typecheck・golden **3473/3473**＝3472 +1本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機＝新規4本＋回帰5本＝9本 ALL PASS**（新規 `o147RiseTwoZoneFold` / `o147RiseThreeZoneFold` /
+`o147RiseDistinctLevel` / `o147RiseFieldShort`、回帰 `riseGateLevelColor` ＋ family B の4本）。
+**実機要否**＝§2.2 の機械判定どおり **`src/screens/` を触った ∧ 新しい型（`RiseFieldGroup`）を足した**＝**実機まで必須**。
+**在庫**＝機構 worklist **9 → 8項目**（🏁`O-147` クローズ＝**索引 A が残0**）／実機 残 **0件**（同じ巡で閉じた）。
+
+### 真因
+
+**`RiseBase.field` が「1枚の `TargetFilter`」しか持てず、「場のシグニを N体消費して1ゾーンへ積む」が表せなかった。**
+そのため下位family A の9枚は **`getRiseRequirement` が `null`**＝
+**ライズ条件が丸ごと消えて、下敷きを1体も潰さずに空きシグニゾーンへ普通に召喚できていた**（過剰実行）。
+
+### 影響枚数
+
+**9枚**＝`WX16-027`／`WX20-037`／`WXK08-031`（同条件 N体）・`WXK03-021`／`WXK11-053`（レベル相異）・
+`WXK11-038`（共通する色を持たない）・`WX17-026`（《ライズアイコン》1体＋＜武勇＞2体）・
+`WX20-038`（《A》1体と《B》1体と《C》1体）・`WX24-P1-043`（赤3体）。
+これで **【ライズ】41枚が全数ゲートされる**（`RISE_CARD_GATED` 28 → 32 → **41**）。
+
+### 直したもの
+
+| # | 場所 | 内容 |
+|---|---|---|
+| 1 | `src/engine/execUtils.ts` | `RiseBase.field` を `{groups: RiseFieldGroup[], distinctLevel?, distinctColor?}` へ。`parseRiseFieldBase` が「〜の上に置く／出す」の手前を **`と` で枠に割る**（⚠**《》／＜＞ の外だけで割る**＝カード名に `と` が入りうる）。枠の合計は **1〜3体**に限る（シグニゾーンは3つ） |
+| 2 | `src/screens/battle/riseSummon.ts` | `riseFieldOptions` / `findRiseFieldAssignment` / `canPayRiseField` / `validateRiseField` / `riseConsumedZones` を追加。選択は `RiseSelection{materials, fieldZones}` の1型にまとめた |
+| 3 | `src/screens/battle/modals/SigniSummonZoneModal.tsx` | 「下敷きにするシグニ」を枠ごとに選ぶ列を追加。**召喚先は下敷きに選んだゾーンだけ**が押せる |
+| 4 | `src/screens/BattleScreen.tsx`（`handleSummonSigni`） | `riseFoldZones`（配置先を先頭に、残りはゾーン番号順）で1ゾーンへ畳み、**潰した他ゾーンを `null` に**。リミット計算も潰した全ゾーンのトップを引く |
+| 5 | 🔴同上（付随状態） | **潰した全ゾーン**のダウン／凍結／チャーム／アクセ／ソウルを落とす（旧実装は配置先1ゾーンだけ＝**空にしたゾーンにチャーム・アクセ・ソウルだけが浮いて残る**） |
+| 6 | 🔴同上（`ON_RISE`） | **潰した全ゾーンのトップ**から収集（旧実装は配置先のトップだけ＝他ゾーンから潰されたシグニの【自】が発火しない） |
+
+### 🔑 この巡の最大の発見＝**「各枠に候補が足りているか」では判定できない**
+
+`WX17-026`「《ライズアイコン》を持つシグニ**1体**と＜武勇＞のシグニ**2体**の上に出す」は、
+**同じゾーンが両方の枠の候補になりうる**（ライズ持ちの＜武勇＞シグニ）。
+枠ごとに「候補が count 体以上あるか」を数えると、**実際には作れない割り当てを「払える」と誤答する**
+（＜武勇＞3体・ライズ持ち0体の盤面で「払える」に化ける）。
+⇒ `findRiseFieldAssignment` が**割り当てを1つ実際に構成する**（ゾーンは3つなので総当たり）。
+制約（レベル相異／色を共有しない）も**割り当てが確定した時点**で見る。
+🔑**「N個の枠に M個の候補」を数で判定したくなったら、まず1つ構成してみる。**
+
+### 検証コマンド
+
+```
+npm run gates
+node scripts/verifyBattleDrive.mjs o147RiseTwoZoneFold o147RiseThreeZoneFold o147RiseDistinctLevel o147RiseFieldShort
+node scripts/verifyBattleDrive.mjs riseGateLevelColor o147RiseTrashStack o147RiseMaterialShort o147RiseFieldPlusTrash o147RiseEnergyAndTrash
+```
+
+**反転確認あり**＝実機4本はすべて「旧挙動なら FAIL する」判定文
+（下敷きの選択が出ない／選ぶ前に召喚先が押せる／同レベル2体で確定できる／
+潰したゾーンが空にならない＝複製／下敷きが足りないのに場に出る、を別の FAIL 分岐にしてある）。
+
+### 🔑 その他の教訓
+
+- 🔴**`npm run typecheck`（`tsc -b`）は `src` しか見ず `scripts/` を見ない**（`tsconfig.app.json` の `include: ["src"]`）＝
+  `goldenTest.ts` に**型の合わない古い式が残っても typecheck は緑**だった（実際 `base.filter` が残っていて
+  golden の実行時例外で初めて気づいた）。⇒ **`scripts/` を直したら golden を実際に走らせるまで「直った」と言わない。**
+- 🔑**`src/screens/` の純関数は golden から import できる**＝`riseSummon.ts`（React 非依存）の枠割り当てを
+  golden で単体テストした。**実機は組み合わせを網羅できない**ので、判定ロジックはこちらで固める。
+- 🔑**畳む処理は「並び」「空ゾーン化」「付随状態」「トリガー収集」の4つが同時に壊れる**＝
+  1つだけ直すと盤面は正しく見えるのに **チャームだけ浮く／`ON_RISE` が片方しか出ない**という
+  「全ゲート緑のまま静かに間違う」形になる。**畳む対象の集合（`riseFoldZones`）を1つ作って全部そこから回す。**
+
+---
+
 ## 2026-09-05（第136バッチ）：`O-147` 下位family B＝**材料つき【ライズ】4枚**を配置条件として表せるようにした（13カード → 残 9）
 
 **ベースライン**＝`fbb31cee9`（`O-60` クローズの直後）。

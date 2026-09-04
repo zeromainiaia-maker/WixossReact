@@ -39018,6 +39018,308 @@ scenarios.o147RiseEnergyAndTrash = {
   },
 };
 order.push('o147RiseEnergyAndTrash');
+
+// ── §5.3 `O-147`（下位family A）＝多ゾーン消費ライズの実機ガード（2026-09-05） ──
+/**
+ * 🔴**旧挙動**＝「あなたのシグニ**２体**の上に置く」形（9枚）は `getRiseRequirement` が **null** を返し、
+ *   **ライズ条件が丸ごと消えて空きシグニゾーンへ普通に召喚できた**（下敷きを1体も潰さない過剰実行）。
+ * 🔑**観測点は3つ**＝①下敷きを選ぶまで召喚先ゾーンが押せない ②配置後のゾーンが
+ *   `[下敷き…, 本体]` に**畳まれ**、潰した他ゾーンが**空になる** ③**カードが複製されない**
+ *   （潰したシグニが他ゾーンにも残っていない）。
+ */
+scenarios.o147RiseTwoZoneFold = {
+  title: 'WXK08-031（あなたのシグニ2体の上に置く）＝2ゾーンを潰して1ゾーンへ畳む【旧実装は空きゾーンへタダ召喚】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],                                   // タマ Lv4 / Limit11
+      'field.signi': [['WD01-013#1'], ['WD01-012#1'], ['WD02-013#1']], // Lv1 / Lv2 / Lv1（合計4）
+      'field.signi_down': [false, false, false],
+      'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXK08-031#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴注入レース対策（§5.1 の既知のレース）。
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const zs = before?.host?.fieldSigni ?? [];
+      const ok = zs.filter(z => Array.isArray(z) && z.length > 0).length === 3
+        && (before?.host?.handCards ?? [])[0] === 'WXK08-031#1';
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(zs)} hand0=${(before?.host?.handCards ?? [])[0]} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseTwoZoneFold.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let zonesBefore = null, picked = 0;
+    let last = before;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o147TwoZone-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      // 下敷き選択が出たら、まず「選ぶ前は召喚先が押せない」ことを記録する（本命の観測の半分）。
+      if (!did && zonesBefore === null) {
+        const probe = page.getByTestId('rise-field-0-0').first();
+        if (await probe.count() && await probe.isVisible().catch(() => false)) {
+          zonesBefore = [];
+          for (const zi of [0, 1, 2]) {
+            const b = page.getByTestId(`summon-zone-${zi}`).first();
+            zonesBefore.push({
+              zone: zi,
+              text: (await b.textContent().catch(() => '') ?? '').replace(/\s+/g, ' ').trim(),
+              enabled: await b.isEnabled().catch(() => false),
+            });
+          }
+          H.log(`  下敷き未選択時の召喚先: ${JSON.stringify(zonesBefore)}`);
+        }
+      }
+      // 下敷きにゾーン0とゾーン1を選ぶ（ゾーン2は残す＝潰していないゾーンが無傷かも見る）
+      if (!did && zonesBefore !== null && picked < 2) {
+        const hit = await H.clickTestId(`rise-field-0-${picked}`);
+        if (hit) { picked++; did = hit; }
+      }
+      if (!did && picked >= 2) did = await H.clickTestId('summon-zone-0');
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o147a[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'}`);
+      const zs = last?.host?.fieldSigni ?? [];
+      if (zs.some(z => Array.isArray(z) && z.includes('WXK08-031#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WXK08-031#1'));
+    const detail = `配置先=${at} field=${JSON.stringify(zones)} 下敷き未選択時=${JSON.stringify(zonesBefore)}`;
+    if (zonesBefore === null) return { pass: false, detail: `🔴下敷きの選択が1度も出なかった＝旧挙動（条件なしで召喚できている疑い）。${detail}` };
+    if (zonesBefore.some(z => z.enabled)) return { pass: false, detail: `🔴下敷きを選ぶ前から召喚先が押せた＝多ゾーン消費が配置条件になっていない。${detail}` };
+    if (at !== 0) return { pass: false, detail: `前提崩れ＝ゾーン1へ配置できていない。${detail}` };
+    const stack = zones[0] ?? [];
+    if (stack.join(',') !== 'WD01-013#1,WD01-012#1,WXK08-031#1') {
+      return { pass: false, detail: `🔴積み方が違う（[下敷き,下敷き,本体] に畳まれていない）。${detail}` };
+    }
+    if ((zones[1] ?? []).length !== 0) return { pass: false, detail: `🔴潰したゾーン2が空になっていない＝シグニが複製された。${detail}` };
+    if ((zones[2] ?? []).join(',') !== 'WD02-013#1') return { pass: false, detail: `🔴潰していないゾーン3まで動いた。${detail}` };
+    return { pass: true, detail: `下敷き2体を選ぶまで召喚先は押せず、選んだ2ゾーンが1ゾーンへ畳まれ、残したゾーンは無傷。${detail}` };
+  },
+};
+order.push('o147RiseTwoZoneFold');
+
+/**
+ * 3体消費（`WX24-P1-043`「あなたの赤のシグニ３体の上に置く」）＝**盤面の3ゾーンすべて**を1ゾーンへ畳む。
+ * 🔑2体版と別に見るのは、**畳む枚数が増えるとスタックの並びと空ゾーン化の両方が壊れやすい**ため。
+ */
+scenarios.o147RiseThreeZoneFold = {
+  title: 'WX24-P1-043（あなたの赤のシグニ3体の上に置く）＝3ゾーンを1ゾーンへ畳む',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],                                    // タマ Lv4 / Limit11
+      'field.signi': [['WD02-013#1'], ['WD02-012#1'], ['WX04-070#1']], // 赤Lv1 / 赤Lv2 / 赤Lv1（合計4）
+      'field.signi_down': [false, false, false],
+      'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WX24-P1-043#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const zs = before?.host?.fieldSigni ?? [];
+      const ok = zs.filter(z => Array.isArray(z) && z.length > 0).length === 3
+        && (before?.host?.handCards ?? [])[0] === 'WX24-P1-043#1';
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(zs)} hand0=${(before?.host?.handCards ?? [])[0]} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseThreeZoneFold.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let opened = false, picked = 0;
+    let last = before;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o147ThreeZone-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      if (!did && !opened) {
+        const probe = page.getByTestId('rise-field-0-0').first();
+        if (await probe.count() && await probe.isVisible().catch(() => false)) opened = true;
+      }
+      if (!did && opened && picked < 3) {
+        const hit = await H.clickTestId(`rise-field-0-${picked}`);
+        if (hit) { picked++; did = hit; }
+      }
+      if (!did && picked >= 3) did = await H.clickTestId('summon-zone-1');
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o147a3[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)}`);
+      const zs = last?.host?.fieldSigni ?? [];
+      if (zs.some(z => Array.isArray(z) && z.includes('WX24-P1-043#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WX24-P1-043#1'));
+    const detail = `配置先=${at} field=${JSON.stringify(zones)}`;
+    if (!opened) return { pass: false, detail: `🔴下敷きの選択が1度も出なかった＝旧挙動。${detail}` };
+    if (at !== 1) return { pass: false, detail: `前提崩れ＝ゾーン2へ配置できていない（配置先は下敷きに選んだゾーンから選ぶ）。${detail}` };
+    const stack = zones[1] ?? [];
+    // 🔑並びは「配置先を先頭に、残りはゾーン番号順」＝ゾーン2 → ゾーン1 → ゾーン3。
+    if (stack.join(',') !== 'WD02-012#1,WD02-013#1,WX04-070#1,WX24-P1-043#1') {
+      return { pass: false, detail: `🔴積み方が違う（[配置先,残りをゾーン順,本体] の4枚になっていない）。${detail}` };
+    }
+    if ((zones[0] ?? []).length !== 0 || (zones[2] ?? []).length !== 0) {
+      return { pass: false, detail: `🔴潰した他ゾーンが空になっていない＝シグニが複製された。${detail}` };
+    }
+    return { pass: true, detail: `3ゾーンが1ゾーンへ畳まれ（配置先が一番下）、他の2ゾーンは空になった。${detail}` };
+  },
+};
+order.push('o147RiseThreeZoneFold');
+
+/**
+ * 「**レベルの異なる**あなたの赤のシグニ２体」（`WXK03-021`）＝**選択全体にかかる制約**。
+ * 🔑同レベル2体を選んでも確定できず、レベル違いにすると確定できる（**同じ札で1ビットだけ反転**）。
+ * ⚠`WXK03-021` はリル限定なのでルリグは `WX21-008`（天空の記憶　リル・Limit12・能力なし）。
+ */
+scenarios.o147RiseDistinctLevel = {
+  title: 'WXK03-021（レベルの異なる赤のシグニ2体の上に置く）＝同レベル2体では確定できない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX21-008#1'],                                    // リル Lv4 / Limit12 / 能力なし
+      'field.signi': [['WD02-013#1'], ['WX04-070#1'], ['WD02-012#1']], // 赤Lv1 / 赤Lv1 / 赤Lv2
+      'field.signi_down': [false, false, false],
+      'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXK03-021#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const zs = before?.host?.fieldSigni ?? [];
+      const ok = zs.filter(z => Array.isArray(z) && z.length > 0).length === 3
+        && (before?.host?.handCards ?? [])[0] === 'WXK03-021#1';
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(zs)} hand0=${(before?.host?.handCards ?? [])[0]} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseDistinctLevel.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let sameLevelBlocked = null, ready = false;
+    let last = before;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o147DistinctLv-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('召喚', { exact: true });
+      if (!did && sameLevelBlocked === null) {
+        const probe = page.getByTestId('rise-field-0-0').first();
+        if (await probe.count() && await probe.isVisible().catch(() => false)) {
+          // ① 同レベル（ゾーン1＝赤Lv1／ゾーン2＝赤Lv1）を選ぶ → 確定できないはず
+          await H.clickTestId('rise-field-0-0'); await page.waitForTimeout(200);
+          await H.clickTestId('rise-field-0-1'); await page.waitForTimeout(350);
+          const z0 = page.getByTestId('summon-zone-0').first();
+          const z1 = page.getByTestId('summon-zone-1').first();
+          sameLevelBlocked = !(await z0.isEnabled().catch(() => false))
+            && !(await z1.isEnabled().catch(() => false));
+          H.log(`  同レベル2体（赤Lv1×2）を選んだとき召喚先が押せない: ${sameLevelBlocked}`);
+          // ② 1ビットだけ反転＝ゾーン2（赤Lv1）を外してゾーン3（赤Lv2）へ差し替える
+          await H.clickTestId('rise-field-0-1'); await page.waitForTimeout(200);
+          await H.clickTestId('rise-field-0-2'); await page.waitForTimeout(350);
+          ready = true;
+          did = 'rise-field:Lv1+Lv2';
+        }
+      }
+      if (!did && ready) did = await H.clickTestId('summon-zone-0');
+      if (!did) did = await H.stdStep();
+      last = await H.queryState();
+      H.log(`  o147dl[${s}] -> ${did ?? 'なし'} | field=${JSON.stringify(last?.host?.fieldSigni)}`);
+      const zs = last?.host?.fieldSigni ?? [];
+      if (zs.some(z => Array.isArray(z) && z.includes('WXK03-021#1'))) break;
+    }
+    const zones = last?.host?.fieldSigni ?? [];
+    const at = zones.findIndex(z => Array.isArray(z) && z.includes('WXK03-021#1'));
+    const detail = `配置先=${at} field=${JSON.stringify(zones)} 同レベル拒否=${sameLevelBlocked}`;
+    if (sameLevelBlocked === null) return { pass: false, detail: `🔴下敷きの選択が1度も出なかった＝旧挙動。${detail}` };
+    if (sameLevelBlocked !== true) return { pass: false, detail: `🔴「レベルの異なる」が効いていない（同レベル2体でも確定できた）。${detail}` };
+    if (at !== 0) return { pass: false, detail: `前提崩れ＝レベル違いに差し替えても配置できていない。${detail}` };
+    const stack = zones[0] ?? [];
+    if (stack.join(',') !== 'WD02-013#1,WD02-012#1,WXK03-021#1') {
+      return { pass: false, detail: `🔴積み方が違う（赤Lv1と赤Lv2を畳んだ3枚になっていない）。${detail}` };
+    }
+    if ((zones[1] ?? []).join(',') !== 'WX04-070#1') return { pass: false, detail: `🔴選んでいないゾーン2まで動いた。${detail}` };
+    return { pass: true, detail: `同レベル2体では確定できず、1体をレベル違いに差し替えると確定できた（選んでいないゾーンは無傷）。${detail}` };
+  },
+};
+order.push('o147RiseDistinctLevel');
+
+/**
+ * 対照＝**下敷きが足りなければ召喚そのものが提示されない**（下敷きはコストではなく配置条件）。
+ * 🔑旧挙動なら「召喚」ボタンが出て空きゾーンへ普通に置けてしまう。
+ */
+scenarios.o147RiseFieldShort = {
+  title: 'WXK08-031（場にシグニが1体しかいない）＝召喚できない【旧実装はタダで出せた】',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WD01-013#1'], null, null],   // 1体だけ＝2体に足りない
+      'field.signi_down': [false, false, false],
+      'trash': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: { 'field.signi': [null, null, null], 'actions_done': [] },
+    handPrepend: ['WXK08-031#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // 🔴🔑「出ないこと」を主張する観測ほど前提の確認が要る（注入が負けても同じ結果に見える）。
+    let before = await H.queryState();
+    for (let r = 0; r < 4; r++) {
+      const zs = before?.host?.fieldSigni ?? [];
+      const ok = zs.filter(z => Array.isArray(z) && z.length > 0).length === 1
+        && (before?.host?.handCards ?? [])[0] === 'WXK08-031#1';
+      H.log(`注入確認(試行${r}): field=${JSON.stringify(zs)} hand0=${(before?.host?.handCards ?? [])[0]} ok=${ok}`);
+      if (ok) break;
+      await injectScenario(page, scenarios.o147RiseFieldShort.spec);
+      await page.waitForTimeout(1200);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      before = await H.queryState();
+    }
+    if ((before?.host?.handCards ?? [])[0] !== 'WXK08-031#1') {
+      return { pass: false, detail: `前提崩れ＝手札の先頭が WXK08-031 ではない（注入が負けた）。hand=${JSON.stringify(before?.host?.handCards)}` };
+    }
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `${SHOT}/o147FieldShort-0.png`, fullPage: true });
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    const offered = (await summonBtn.count()) > 0 && await summonBtn.isVisible().catch(() => false);
+    if (offered) {
+      // 旧挙動の再現＝押せてしまうなら実際に押して、配置まで通るかを見る。
+      await summonBtn.click().catch(() => {});
+      await page.waitForTimeout(900);
+      await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+      await page.waitForTimeout(1200);
+    }
+    const st = await H.queryState();
+    const zones = st?.host?.fieldSigni ?? [];
+    const placed = zones.some(z => Array.isArray(z) && z.includes('WXK08-031#1'));
+    const detail = `召喚ボタン提示=${offered} field=${JSON.stringify(zones)}`;
+    if (placed) return { pass: false, detail: `🔴下敷きが足りないのに場に出た＝旧挙動（配置条件が効いていない）。${detail}` };
+    if (offered) return { pass: false, detail: `🔴場には出なかったが「召喚」が提示された＝押せるのに置けない片肺。${detail}` };
+    return { pass: true, detail: `下敷き（シグニ2体）が揃わないので「召喚」自体が提示されない。${detail}` };
+  },
+};
+order.push('o147RiseFieldShort');
+// ── `O-147` 多ゾーン消費【ライズ】 END ──
 // ── `O-147` 材料つき【ライズ】 END ──
 
 // ── §5.3 `O-60` 第9バッチ（`SEED_BLOOM` の枚数を payload へ）の実機観測点 ──

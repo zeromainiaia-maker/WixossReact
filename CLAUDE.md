@@ -41,7 +41,7 @@ WixossカードゲームのReactクローン実装。
 実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/PLAN.md §7`。
 - `npm run gates` — **全ゲート一括**（typecheck 先行→golden/smoke/fuzz/census/census:stubs/manual-fields/lint を並列実行＝`scripts/runGates.mjs`）。engine/parser/decompiler を触ったらこれ1本でよい。**2026-07-12高速化：tsc incremental＋eslint --cache 導入で無変更時 約3秒・変更後も数秒**（キャッシュ消失時のみ約37秒。キャッシュ置き場は `node_modules/.tmp/`・`node_modules/.cache/eslint/`＝gitignore圏内）
 - `npm run regen` — **decompileシート全10枚＋下流（genReviewRepr/groupSimilar/groupBySentence）を一括再生成（UTF-8直書き）**。旧手順の「⚠Bash の `>` で1枚ずつリダイレクト」は不要（PowerShell の `>` が UTF-16 を書いて下流を壊す事故を構造的に回避。下流3スクリプトには UTF-16 混入ガードもあり、混入時は即 exit 1）
-- `npm run typecheck` — 型チェック（CIと同じ／必須）
+- `npm run typecheck` — 型チェック（CIと同じ／必須）。🆕🔴**`scripts/` は見ていない**（`tsc -b` → `tsconfig.app.json` の `include: ["src"]`）＝**`scripts/goldenTest.ts` などに型の合わない式が残っても緑**（2026-09-05・`O-147` で実測＝`base.filter` が残ったまま typecheck を通り、golden の実行時例外で初めて出た）。⇒ **`scripts/` を直したら `npm run golden` を実際に走らせるまで「直った」と言わない。**🔑**逆に `src/screens/` の純関数（React 非依存）は golden から import できる**＝判定ロジックは実機ではなく golden で網羅する。
 - `npm run smoke` — 全効果10582件を自動実行し CRASH/HANG/INVARIANT 検出（現状 全0）
 - `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（**現状 2770/2770 PASS・全件 約89秒**）。🆕**2026-08-25＝テスト名フィルタを追加**＝`npm run golden -- --only "<部分文字列>"` で絞れる（**約1.5秒**・複数指定可＝OR・名前一覧は `npm run golden -- --list`・0件マッチは exit 1）。🔴**フィルタ実行の PASS/FAIL は全件実行と等価ではない**（`goldenTest.ts:155` の POOL カーソルがテスト間で共有される可変状態＝スキップすると後続テストが引くカードが変わり**両方向に化けうる**）＝**1巡を閉じる前に必ずフィルタなしで全件を回す**（PLAN §2.1 ④）。⚠`npm run gates`・CI は常に全件
 - `npm run fuzz` — 乱択 自己対戦ファズ＝進化盤面で効果連鎖し相互作用/複製バグ検出（現状 全0・シード再現可）
