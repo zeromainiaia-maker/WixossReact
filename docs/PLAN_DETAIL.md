@@ -3757,6 +3757,29 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
 
 ## 恒久指標の過去行（§6 から退避）
 
+- **2026-09-04（第94バッチ＝`V-146`／`V-147`／`V-148` の実機返済）＝実機だけが見つけた穴3つ（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 18 / 863 (2.1%)**（据置）｜**台帳 残 OPEN 44**（据置）｜
+  **census 高シグナル 1 / BASELINE 1**（据置）
+  **`census:enginetext` A🔴 10行 / 10ハンドラ（据置）／`census:deadstate` 0件（据置）**。
+  📦**在庫2本**＝**機構 worklist 31項目**（据置）｜**実機 残 14件**（17 −3）
+  🔧**ゲート（全緑 ✅）**＝golden **3447 / 3447**（3445→3447＝+2本）／smoke **10725** 全異常0／fuzz 全0／
+  census **1 / BASELINE 1**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **10行**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🖥**実機＝新規シナリオ9本を単体でも9本一括でも ALL PASS**
+  （`o245CoinArtsBetBlocked`/`Allowed`・`o245CoinKeySetBlocked`/`Allowed`・`o245CoinSpellBetAllowed`・
+  `o245OnPlayReduceRed`/`OtherColor`・`o226DeclaredSigniOverride`/`Off`）。
+  🔴**主産物＝実機でしか出ない穴3つ**＝①**起動時経路で印字キーワードコストが消える（30枚）**
+  （`mergeManualEffects` が live の `betOptions`/`encoreCost` を effectId ごと上書き＝
+  `buildEffectsJson.ts` の後付けが**起動時経路に無かった**）②**`《コインアイコン》×N` の綴りを
+  誰も読めない（1枚＝`SP38-006` が1度も場に出せなかった）**③**「召喚」は押せるのに1体も置けない**
+  （`SigniSummonZoneModal` が印字レベルでリミットを見て3ゾーンとも disabled）。
+  🔑**一般則**＝①**「ゲートを通した」と「実際に置けた」は別の観測面**（最後まで置ききって盤面を assert）
+  ②**同じ後付けが要る経路は build と runtime の2つある**（live が正しくても実行時は別）
+  ③**trap (h) は CSV にもある**（データを直さず読み手を両対応に）
+  ④**`CardModal` は全画面オーバーレイ＝閉じ損ねると前の札を読み続ける**（§4.4 📌4／📌24）。
+  ✅**ブラスト半径＝効果 変更0・追加0・削除0、予定外0**（live JSON は不変更＝直したのは実行時経路）。
+
+
 - **2026-09-04（第89〜93バッチ・`O-245`／`O-226`／`O-224` 消化）＝「宣言だけ立って盤面が動かない」在庫の完済（Opus 5 単独／本ブロックが直近の正）**
   📊**進捗3計器**＝**Sheet1 要対応 18 / 863 (2.1%)**（17→18＝🆕`O-246` 登録ぶんの**可視化**・全部 `mech`）｜
   **台帳 残 OPEN 44**（据置）｜**census 高シグナル 1 / BASELINE 1**（据置）
