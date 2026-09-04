@@ -45212,6 +45212,192 @@ order.push('v142EnergyTrashChooseTwo');
 scenarios.v142EnergyTrashChooseOne = mkEnergyTrashChooseScenario(false);
 order.push('v142EnergyTrashChooseOne');
 
+// -----------------------------------------------------------------------------
+// §5.1 `V-143`（2026-09-04・`O-60` 第62バッチ）＝**引用能力の付与**。
+// 🔴engine が**カード全文 regex** で「『…』の中身」を組み立てていたものを parser の payload へ寄せた回。
+// ここで見るのは**盤面に出る2件**＝
+//   ②`WXDi-P07-085` の【起】3択で**基本パワーが 5000／10000／12000 に変わる**
+//      （🔴旧は**3択とも基本パワーの変更が丸ごと落ちていた**＝`POWER_SET` が1度も走らなかった）。
+//   ③`WX25-CP1-003` の《リコレクト》条件を満たすと**相手のすべてのシグニが凍結**する
+//      （🔴旧は連用形の前半が落ちて凍結しなかった）。
+// ⚠`POWER_SET` は `temp_power_mods` に **delta = 設定値 − 基本パワー** で入る（`effectExecutor.ts:2278`）＝
+//   `WXDi-P07-085` の基本パワーは **8000** なので ①=-3000 ②=+2000 ③=+4000。
+// ⚠**①②③は「実装済み4件」のうち engine 付与（`GRANT_*`）側の①④を含まない**＝
+//   あちらは盤面差分が出るまでにバトル1回を要するので、この巡では golden 側に留める（PLAN に明記）。
+// -----------------------------------------------------------------------------
+
+/** シグニの【起】を開いて、エナを払って発動する。 */
+async function fireSigniActivated(page, H, zone = 0) {
+  const opened = await H.clickTestId(`my-signi-zone-${zone}`);
+  if (!opened) return { ok: false, detail: `my-signi-zone-${zone} が押せない` };
+  await page.waitForTimeout(400);
+  // ⚠**まず【起】そのものを選ぶ**（モーダルを開いただけでは支払いUIが出ない）。
+  const lbl = page.locator('[data-action-label]').first();
+  if (!(await lbl.count()) || !(await lbl.isVisible().catch(() => false))) {
+    return { ok: false, detail: '【起】の行動ラベルが出ない' };
+  }
+  await lbl.click({ timeout: 1200 }).catch(() => {});
+  const picked = new Set();
+  for (let t = 0; t < 16; t++) {
+    await page.waitForTimeout(250);
+    const fire = page.getByTestId('signiact-fire').first();
+    if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+      await fire.click({ timeout: 1200 }).catch(() => {});
+      return { ok: true, detail: `ena=${[...picked]}` };
+    }
+    let clicked = false;
+    for (let i = 0; i < 8 && !clicked; i++) {
+      if (picked.has(i)) continue;
+      const e = page.getByTestId(`signiactcost-energy-${i}`).first();
+      if (await e.count() && await e.isVisible().catch(() => false)) {
+        await e.click({ timeout: 1200 }).catch(() => {}); picked.add(i); clicked = true;
+      }
+    }
+    if (!clicked && picked.size === 0) break;
+  }
+  return { ok: false, detail: `「発動」が enabled にならない（ena=${[...picked]}）` };
+}
+
+/** `V-143`②＝`WXDi-P07-085`（基本パワー8000）の【起】3択で基本パワーが変わる。 */
+function mkBasePowerScenario(choice) {
+  const WANT = { 1: -3000, 2: 2000, 3: 4000 };      // 5000 / 10000 / 12000 − 基本8000
+  const id = `v143BasePower${choice}`;
+  return {
+    title: `O-60 V-143②：WXDi-P07-085 の【起】選択肢${choice}で基本パワーが${8000 + WANT[choice]}になる`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD04-004#9800'],           // 一ノ娘　緑姫（緑・Lv1・リミット2）
+        'field.signi': [['WXDi-P07-085#9850'], null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [],
+        'energy': ['WX01-090#9860', 'WX01-090#9861', 'WX01-090#9862'],
+        'coins': 0, 'hand': [], 'actions_done': [], 'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [['WD01-013#9880'], null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      // 🔴**前提＝始めは修整が載っていない**（載った瞬間を観測してから判定する＝§4.4 📌5）。
+      if ((st0?.host?.powerMods ?? []).length !== 0) {
+        return { pass: false, detail: `前提崩れ＝開始時に powerMods が載っている（${JSON.stringify(st0?.host?.powerMods)}）` };
+      }
+      const fired = await fireSigniActivated(page, H, 0);
+      H.log(`  ${id}: 【起】=${JSON.stringify(fired)}`);
+      if (!fired.ok) return { pass: false, detail: `前提崩れ＝【起】を撃てない（${fired.detail}）` };
+      // 3択のうち choice 番目を押す。
+      let clicked = null;
+      for (let t = 0; t < 20; t++) {
+        await page.waitForTimeout(300);
+        const b = page.getByRole('button', { name: `選択肢${choice}`, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false)) {
+          await b.click({ timeout: 1200 }).catch(() => {}); clicked = `選択肢${choice}`; break;
+        }
+      }
+      if (!clicked) return { pass: false, detail: `前提崩れ＝3択が提示されない` };
+      let mods = [];
+      for (let t = 0; t < 14; t++) {
+        await page.waitForTimeout(400);
+        const st = await H.queryState();
+        mods = st?.host?.powerMods ?? [];
+        if (mods.length > 0) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: powerMods=${JSON.stringify(mods)}`);
+      const want = `WXDi-P07-085#9850:${WANT[choice]}`;
+      return mods.includes(want)
+        ? { pass: true, detail: `選択肢${choice}で基本パワーが ${8000 + WANT[choice]} になった（powerMods=${JSON.stringify(mods)}）` }
+        : { pass: false, detail: `🔴旧挙動＝基本パワーの変更が載らない（powerMods=${JSON.stringify(mods)}／期待 ${want}）` };
+    },
+  };
+}
+for (const c of [1, 2, 3]) {
+  scenarios[`v143BasePower${c}`] = mkBasePowerScenario(c);
+  order.push(`v143BasePower${c}`);
+}
+
+/** `V-143`③＝`WX25-CP1-003`（《リコレクト》4枚以上）で**相手のすべてのシグニが凍結**する。 */
+function mkRecollectFreezeScenario(met) {
+  const id = met ? 'v143RecollectFreezeAll' : 'v143RecollectFreezeNone';
+  return {
+    title: met
+      ? 'O-60 V-143③：WX25-CP1-003 は《リコレクト》4枚以上で相手のすべてのシグニを凍結する'
+      : 'O-60 V-143③ 反転：リコレクト条件を満たさなければ凍結しない',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#9800'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': ['WX25-CP1-003#9820'],
+        // 🔴**《リコレクトアイコン》［４枚以上］は「ルリグトラッシュの**アーツ**の枚数」**＝
+        //   `effectExecutor.ts:5183` が `Type === 'アーツ'` で数える。シグニを4枚置いても0枚扱いで
+        //   条件未達になる（実測で1往復した）。ここだけが本命と反転の差分。
+        'lrig_trash': met
+          ? ['WX15-030#9830', 'WX15-015#9831', 'WX15-021#9832', 'WX15-026#9833']
+          : ['WX15-030#9830'],
+        'energy': ['WD03-013#9860', 'WD03-013#9861', 'WD03-012#9862'],
+        'coins': 0, 'hand': [], 'actions_done': [], 'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [['WD01-013#9880'], ['WD01-013#9881'], ['WD01-013#9882']],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const st0 = await H.queryState();
+      if ((st0?.guest?.signiFrozen ?? []).some(Boolean)) {
+        return { pass: false, detail: `前提崩れ＝開始時に相手のシグニが凍結している（${JSON.stringify(st0?.guest?.signiFrozen)}）` };
+      }
+      const used = await useArtsFromLrigDeck(page, H);
+      H.log(`  ${id}: アーツ使用=${JSON.stringify(used)}`);
+      if (!used.ok) return { pass: false, detail: `前提崩れ＝アーツを使えない（${used.detail}）` };
+      // 「カードを3枚引く」→「対戦相手のシグニ1体を対象」→「手札から＜ブルアカ＞を好きな枚数公開」を流す。
+      let frozen = [];
+      let settled = 0;
+      for (let t = 0; t < 26; t++) {
+        await page.waitForTimeout(450);
+        let did = await settleDecideNofM(page, 4) ? 'decide' : null;
+        if (!did) did = await H.clickTestId('pick-0');
+        if (!did) did = await H.clickTextOrBtn(['スキップ', '決定', '確定', 'OK', 'はい']);
+        const st = await H.queryState();
+        frozen = st?.guest?.signiFrozen ?? [];
+        if (frozen.some(Boolean)) break;
+        settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 4) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: guest.signiFrozen=${JSON.stringify(frozen)}`);
+      const all = frozen.length === 3 && frozen.every(Boolean);
+      if (met) {
+        return all
+          ? { pass: true, detail: `リコレクト成立で相手のすべてのシグニが凍結した（${JSON.stringify(frozen)}）` }
+          : { pass: false, detail: `🔴旧挙動＝連用形の前半（全体凍結）が落ちている（${JSON.stringify(frozen)}）` };
+      }
+      return frozen.some(Boolean)
+        ? { pass: false, detail: `🔴条件を満たさないのに凍結した（${JSON.stringify(frozen)}）` }
+        : { pass: true, detail: `反転＝リコレクト条件（ルリグトラッシュ4枚以上）を満たさなければ凍結しない` };
+    },
+  };
+}
+scenarios.v143RecollectFreezeAll = mkRecollectFreezeScenario(true);
+order.push('v143RecollectFreezeAll');
+scenarios.v143RecollectFreezeNone = mkRecollectFreezeScenario(false);
+order.push('v143RecollectFreezeNone');
+
+
+
 
 
 
