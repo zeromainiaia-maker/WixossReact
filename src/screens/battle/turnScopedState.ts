@@ -40,6 +40,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   attack_not_negated_by_self_effect_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'per-signi immunity to self-inflicted attack negation lasts for the current turn' },
   // 🆕§5.3 `O-233`＝相手効果でシグニが場を離れた累計も、ターン単位の条件カウンタ。
   signi_left_by_opp_effect_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'signi that left the field by opponent effects during the current turn' },
+  // 🆕§5.3 `O-185`＝「このターン、あなたはそれらを使用してもよい」の許可は、そのターンだけ。
+  trash_spells_usable_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'permission to use the named trash spells lasts for the current turn' },
   // 非ディソナスペル使用履歴は、現在ターンの使用条件だけが参照する。
   non_dissona_spell_played_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'non-Dissona spell history for the current turn' },
   // 相手カードをデッキへ移した累計は、ターン単位の条件カウンタ。

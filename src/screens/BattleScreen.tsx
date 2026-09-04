@@ -8599,6 +8599,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）。トラッシュゾーンUIから発動。
   // エナ以外のコスト（手札捨て/コイン/【ウィルス】除去/【チャーム】/ルリグダウン/エクシード）と
   // 《アタックフェイズアイコン》起動に対応（PLAN §6.4）。支払い可否は `canOfferTrashActivate` 一本。
+  /**
+   * 🆕**§5.3 `O-185`（2026-09-04）＝「このターン、あなたはそれらを使用してもよい」で許可されたスペルを使う。**
+   * 🔴**許可は「カードを動かさない」**（トラッシュに置いたまま）ので、**使用の入口はトラッシュのカードアクション**。
+   * ⚠**印刷コストはここで請求しない**＝`USE_SPELL_FROM_TRASH_PAYING_COST`（`value:'picked'`）が
+   *   色を展開して「支払う／使用しない」の CHOOSE を出す（自分のトラッシュ側と同じ関数を通す）。
+   * ⚠**許可は1回使ったら消す**＝原文は「使用してもよい」で、使ったカードはトラッシュから出ていく。
+   */
+  const useGrantedTrashSpell = async (cardNum: string, from: 'self' | 'opponent') => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const entry = {
+        id: generateUUID(), playerId: user.id, cardNum, effectId: `O185-USE-${cardNum}`,
+        label: `${battleCardMap.get(getCardNum(cardNum))?.CardName ?? cardNum} を使用（コストを支払う）`,
+        effect: {
+          effectId: `O185-USE-${cardNum}`, effectType: 'ACTIVATED' as const, duration: 'INSTANT' as const,
+          mandatory: true, parseStatus: 'MANUAL' as const,
+          action: { type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', value: 'picked',
+            carriedCardNum: cardNum, ...(from === 'opponent' ? { value2: 'opp_trash' } : {}) },
+        } as unknown as import('../types/effects').CardEffect,
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const nextMy: PlayerState = {
+        ...my,
+        trash_spells_usable_this_turn: (my.trash_spells_usable_this_turn ?? [])
+          .filter(e => !(e.cardNum === cardNum && e.from === from)),
+      };
+      const existing = bs.effect_stack ?? null;
+      const stack = existing ? pushToStack(existing, [entry]) : initStack(bs.active_user_id ?? user.id, [entry]);
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: nextMy, effectStack: stack }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** 🆕`O-185`＝**相手のトラッシュ**のカードアクション（許可されたスペルの「使用」だけを出す）。 */
+  const getOpTrashCardActions = (cardNum: string): CardAction[] => {
+    if (loading || !isMyTurn) return [];
+    const phase = bs.turn_phase;
+    if (phase !== 'MAIN' && phase !== 'ATTACK_ARTS') return [];
+    const granted = (my.trash_spells_usable_this_turn ?? [])
+      .some(e => e.cardNum === cardNum && e.from === 'opponent');
+    if (!granted) return [];
+    return [{
+      label: '【使用】このターン使用できる（コストを支払う）',
+      color: '#ff6b35',
+      onClick: () => { void useGrantedTrashSpell(cardNum, 'opponent'); },
+    }];
+  };
+
   const getMyTrashCardActions = (cardNum: string): CardAction[] => {
     if (loading) return [];
     const actions: CardAction[] = [];
@@ -8615,6 +8665,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // §6.4 O-10（続き514）＝「対戦相手のトラッシュ…にあるカードは能力を失い」（`WX12-023`）＝
     // 相手の場に宣言があれば**自分のトラッシュ起動は丸ごと使えない**。
     if (isTrashImmuneByOpponent(op, battleCardMap, effectsMap)) return actions;
+    // 🆕**§5.3 `O-185`＝「このターン使用してもよい」で許可されたスペル**（【起】ではない別入口）。
+    if ((my.trash_spells_usable_this_turn ?? []).some(e => e.cardNum === cardNum && e.from === 'self')) {
+      actions.push({
+        label: '【使用】このターン使用できる（コストを支払う）',
+        color: '#ff6b35',
+        onClick: () => { void useGrantedTrashSpell(cardNum, 'self'); },
+      });
+    }
     const effs = effectsMap.get(cardNum) ?? [];
     for (const eff of effs) {
       if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
@@ -15483,7 +15541,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         {/* 相手盤面 */}
         <div style={{ border: C.borderPanel, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgOpponent }}>
           <HandCards cardNums={op.hand} cards={battleCards} faceDown />
-          <PlayerField state={op} cards={battleCards} isMe={false} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.op} />
+          <PlayerField state={op} cards={battleCards} isMe={false} getTrashCardActions={getOpTrashCardActions} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.op} />
         </div>
 
         {/* 中央区切り */}

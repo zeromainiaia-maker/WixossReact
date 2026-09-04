@@ -11,7 +11,7 @@ live JSON の STUB id 種類 : 587（総ノード 3180 件）
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 33 種 / 103 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 557 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 336 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -43,7 +43,7 @@ live JSON の STUB id 種類 : 587（総ノード 3180 件）
         生成: src\data\effectParser.ts:6976
      1件   1枚  DEFERRED_GRANT_QUOTED_LRIG_ATTACK_ABILITY
         カード: WXDi-D04-011
-        生成: src\data\manualEffects.ts:3597
+        生成: src\data\manualEffects.ts:3603
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
         生成: src\data\parsers\parseSentencePart2.ts:2845
@@ -94,7 +94,7 @@ live JSON の STUB id 種類 : 587（総ノード 3180 件）
         生成: src\data\parsers\parseSentencePart4.ts:2142
      1件   1枚  DEFERRED_REVEAL_COUNT_PLUS_ONE_OPTIONAL
         カード: WX06-033
-        生成: src\data\manualEffects.ts:6625 / src\data\parsers\parseSentencePart3.ts:439
+        生成: src\data\manualEffects.ts:6631 / src\data\parsers\parseSentencePart3.ts:439
      1件   1枚  DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI
         カード: WDK17-015
         生成: src\data\effectParser.ts:14955
@@ -176,10 +176,10 @@ live JSON の STUB id 種類 : 587（総ノード 3180 件）
         消費: src\engine\execUtils.ts:1362
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9472
+        消費: src\engine\effectExecutor.ts:9480
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9474
+        消費: src\engine\effectExecutor.ts:9482
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66

@@ -1,7 +1,7 @@
 # PlayerState の「書かれるだけで読まれない」キー（§5.3 `O-226` の一般化）
 # ⚠候補出しであって判定ではない＝動的アクセスは数えられない。1件ずつ grep で消費地点を確かめること。
 
-PlayerState のキー: 332
+PlayerState のキー: 333
 🔴 書きあり・読み 0: 0
 
 
@@ -9,7 +9,7 @@ PlayerState のキー: 332
   1378 読 /  96 書  energy
   1166 読 /  71 書  deck
   3500 読 /  68 書  field
-  1524 読 /  63 書  trash
+  1530 読 /  63 書  trash
   1697 読 /  59 書  hand
     54 読 /  41 書  temp_power_mods
    193 読 /  39 書  lrig_deck

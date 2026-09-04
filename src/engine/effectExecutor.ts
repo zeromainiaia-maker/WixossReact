@@ -8031,9 +8031,17 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   // opp_hand: 相手の手札から選んだスペルを「あなたの手札にあるかのように」コストなしで使用する（WX04-003）。
   // STUB 'PLAY_FREE' が選択カードの主効果を実際に実行し、使用後は持ち主（相手）のトラッシュへ送る。
   // その他のソース（self hand / opp_trash / lrig_deck）は従来どおりのプレースホルダー（暫定）。
-  const thenAction: EffectAction = a.source === 'opp_hand'
-    ? ({ type: 'STUB', id: 'PLAY_FREE' } as StubAction)
-    : ({ type: 'ADD_TO_HAND', owner: 'self' } as EffectAction);
+  // 🆕**§5.3 `O-185`（2026-09-04）＝「このターン、あなたはそれらを使用してもよい」は許可を積むだけ。**
+  //   🔴旧はここが `ADD_TO_HAND` に落ちていたので、**選んだスペルが手札に来ていた**
+  //   （`source:'opp_trash'` では**相手のトラッシュから奪う**）＝原文と別物だった。
+  //   ⚠**カードは動かさない**（トラッシュに置いたまま使用可能にする）。使用時のコストは
+  //   `USE_SPELL_FROM_TRASH_PAYING_COST` 側が印刷コストから請求する。
+  const thenAction: EffectAction = a.grantUseThisTurn
+    ? ({ type: 'STUB', id: 'INTERNAL_GRANT_TRASH_SPELL_USE',
+         value: a.source === 'opp_trash' ? 'opponent' : 'self' } as StubAction)
+    : a.source === 'opp_hand'
+      ? ({ type: 'STUB', id: 'PLAY_FREE' } as StubAction)
+      : ({ type: 'ADD_TO_HAND', owner: 'self' } as EffectAction);
 
   // SEARCH は0枚選択で確定でき、「使用してもよい」（辞退）に対応する
   return needsInteraction(ctx, {

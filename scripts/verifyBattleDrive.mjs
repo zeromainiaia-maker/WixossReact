@@ -47896,6 +47896,141 @@ order.push('v145CraftAboveIroha');
 scenarios.v145CraftAboveOther = mkTorawaruScenario(false);
 order.push('v145CraftAboveOther');
 
+
+// -----------------------------------------------------------------------------
+// §5.3 `O-185`（2026-09-04 クローズ）＝**「このターン、あなたはそれらを使用してもよい」の許可ストア**。
+// `WX25-P1-022-E2`「あなたと対戦相手のトラッシュからスペルをそれぞれ1枚まで対象とし、
+//   **このターン、あなたはそれらを使用してもよい**。（コストは支払う）」
+// 🔴**旧は `execPlayFree` の帰結が `ADD_TO_HAND`**＝選んだスペルが**手札に来て**いた
+//   （`opp_trash` 側は**相手のトラッシュから奪って**いた）＝原文と別物。
+// 🔑**実機で見るのは3点**＝
+//   ①解決してもカードは**動かない**（自分のトラッシュにも相手のトラッシュにも残る）
+//   ②トラッシュのカードに**「【使用】このターン使用できる（コストを支払う）」**が出る（自分側・相手側の両方）
+//   ③押すと**印刷コストの支払い CHOOSE**が出て、払うとスペルの本体が走る
+// ⚠**`src/screens/` を触った回**なので PLAN §2.2 の機械判定で実機必須。
+// -----------------------------------------------------------------------------
+
+const O185_LRIG = 'WX25-P1-022#9800';     // ミルルン・ケミストリー（ルリグ）
+const O185_MY_SPELL = 'WX15-118#9801';    // ブラック・タイアップ（スペル・黒×2＝相手全シグニ−2000／−3000）
+const O185_OPP_SPELL = 'WX10-060#9890';   // クロス・バウンス（スペル）＝相手のトラッシュに置く1枚
+
+/**
+ * トラッシュゾーンを開き、**その中のカードをタップしてから**アクションラベルを読む。
+ * ⚠**ゾーン一覧にはボタンが出ない**＝`ZoneCardModal` は `CardSlot` に `actions` を渡すだけで、
+ *   `data-action-label` を描くのは**カードを開いた `CardModal`**（`BoardComponents.tsx:99`）。
+ *   一覧のまま読むと必ず空配列になる（実測で踏んだ）。
+ */
+async function readTrashCardLabels(page, H, isMine, cardNum) {
+  // ⚠**前に開いた `CardModal` / `ZoneCardModal` を先に閉じる**＝
+  //   `H.closeModals()` は Escape と「タップして閉じる」しか見ないので、`ZoneCardModal` の
+  //   「✕」ボタンが残ると**次のゾーンを開いても前のゾーンの一覧が前面に残る**
+  //   （実測＝op-trash をクリックできたのに `zone-card-*` が0件だった）。
+  // 🔴**読む前にページを再読込する。**
+  //   ここは `ZoneCardModal` の上に `CardModal` が重なる**2枚重ね**になるので、
+  //   「閉じる」ボタンも背景クリックも**前面の CardModal に吸われて**下のゾーン一覧が残り、
+  //   次のゾーンを開くクリックが通らない（実測＝`op-trash` を押せたと報告されるのに `zone-card-*` が0件・
+  //   スクショには自分のトラッシュ一覧が写っていた）。
+  //   ⚠盤面は Supabase 側にあるので再読込しても状態は失われない（注入直後の `page.reload()` と同じ）。
+  await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.waitForTimeout(2500);
+  const zone = isMine ? 'my-trash' : 'op-trash';
+  const base = cardNum.split('#')[0];
+  const cell = page.locator(`[data-testid^="zone-card-"][data-card-num="${base}"]`).first();
+  // ⚠**開いたことを観測してから読む**＝1回クリックして即読むと、描画前で必ず0件になる。
+  //   ⚠**開き直しも要る**＝前面に別モーダルが残っていると最初のクリックが吸われる。
+  let opened = null, nCell = 0;
+  for (let k = 0; k < 6 && nCell === 0; k++) {
+    opened = await H.clickTestId(zone) ?? opened;
+    await page.waitForTimeout(600);
+    nCell = await cell.count();
+  }
+  H.log(`    trashLabels(${zone}): zoneClick=${opened ?? 'なし'} セル=${nCell}`);
+  if (nCell) { await cell.click({ timeout: 1200 }).catch(() => {}); await page.waitForTimeout(600); }
+  else { await page.screenshot({ path: `${SHOT}/trashLabels-${zone}.png`, fullPage: true }); }
+  return await page.evaluate(() => Array.from(document.querySelectorAll('[data-action-label]'))
+    .map(e => e.getAttribute('data-action-label') || '')).catch(() => []);
+}
+
+scenarios.o185GrantTrashSpellUse = {
+  title: 'O-185：WX25-P1-022 の【起】は「このターン使用してもよい」の許可を積む（カードは動かない／自分と相手の両方のトラッシュに「【使用】」が出る）',
+  spec: {
+    hostSet: {
+      'field.lrig': [O185_LRIG],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': [],
+      // 黒2枚＝許可されたスペル（《黒》×2）を実際に払える（③の観測に要る）。
+      'energy': ['WD05-013#9810', 'WD05-013#9811'],
+      'trash': [O185_MY_SPELL],
+      'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD01-013#9820', 'WD01-013#9821', 'WD02-013#9822'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9891'],
+      'field.signi': [['WD01-013#9892'], ['WD02-013#9893'], null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [],
+      'trash': [O185_OPP_SPELL],
+      'deck': ['WD01-013#9896', 'WD01-013#9897'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WX25-P1-022', O185_LRIG, 'WX25-P1-022-E2') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  o185: 開始 myTrash=${JSON.stringify(st0?.host?.trashCards)} opTrash=${JSON.stringify(st0?.guest?.trashCards)} hand=${st0?.host?.hand} stack=${st0?.stackLen}`);
+    // ── ① 2段の SEARCH（自分のトラッシュ／相手のトラッシュ）で1枚ずつ選ぶ。
+    let rounds = 0, uiOpen = false, pickedThisRound = false, settled = 0, st = st0, doneClicking = false;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(500);
+      const cur = await H.queryState();
+      if (doneClicking) { st = cur; if (s > 5) break; continue; }
+      let did = null;
+      const pk = page.locator('[data-testid^="pick-"]');
+      const n = await pk.count().catch(() => 0);
+      // 🔴**候補UIの回数は立ち上がりエッジで数える**（§4.4 📌25c）。
+      if (n > 0 && !uiOpen) { uiOpen = true; rounds++; pickedThisRound = false; H.log(`  o185: 候補UI ${rounds}回目`); }
+      else if (n === 0 && uiOpen) uiOpen = false;
+      if (n > 0 && !pickedThisRound) {
+        const el = pk.first();
+        if (await el.isVisible().catch(() => false)) { await el.click({ timeout: 1200 }).catch(() => {}); pickedThisRound = true; did = 'pick-0'; }
+      }
+      const mayDecide = cur?.pendingEffect !== 'SEARCH' && cur?.pendingEffect !== 'SELECT_TARGET' ? true : pickedThisRound;
+      if (!did && mayDecide) did = await clickDecideNofM(page);
+      if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  o185[${s}] -> ${did ?? 'なし'} | 回数=${rounds} myTrash=${JSON.stringify(st?.host?.trashCards)} opTrash=${JSON.stringify(st?.guest?.trashCards)} hand=${st?.host?.hand} 許可=${JSON.stringify(st?.host?.trashSpellsUsable)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (rounds >= 1 && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 3) doneClicking = true;
+    }
+    await H.closeModals();
+    await page.waitForTimeout(500);
+    const myTrash = st?.host?.trashCards ?? [];
+    const opTrash = st?.guest?.trashCards ?? [];
+    const permits = st?.host?.trashSpellsUsable ?? [];
+    // ── ② 「カードが動かない」ことを先に確かめる（旧＝手札へ来る／相手から奪う）。
+    if (!myTrash.includes(O185_MY_SPELL)) return { pass: false, detail: `🔴自分のトラッシュからスペルが消えた（旧＝手札へ来る）。myTrash=${JSON.stringify(myTrash)} hand=${st?.host?.hand}` };
+    if (!opTrash.includes(O185_OPP_SPELL)) return { pass: false, detail: `🔴相手のトラッシュからスペルを奪った（旧挙動）。opTrash=${JSON.stringify(opTrash)}` };
+    if (permits.length !== 2) return { pass: false, detail: `🔴許可が2件積まれていない（${JSON.stringify(permits)}）＝許可ストアが効いていない` };
+    // ── ③ 自分／相手それぞれのトラッシュに「【使用】」が出る。
+    const myLabels = await readTrashCardLabels(page, H, true, O185_MY_SPELL);
+    H.log(`  o185: 自分のトラッシュのラベル=${JSON.stringify(myLabels)}`);
+    await H.closeModals(); await page.waitForTimeout(400);
+    const opLabels = await readTrashCardLabels(page, H, false, O185_OPP_SPELL);
+    H.log(`  o185: 相手のトラッシュのラベル=${JSON.stringify(opLabels)}`);
+    await page.screenshot({ path: `${SHOT}/o185GrantTrashSpellUse-final.png`, fullPage: true });
+    const dump = `許可=${JSON.stringify(permits)} 自分ラベル=${JSON.stringify(myLabels)} 相手ラベル=${JSON.stringify(opLabels)} myTrash=${JSON.stringify(myTrash)} opTrash=${JSON.stringify(opTrash)}`;
+    if (!myLabels.some(l => l.startsWith('【使用】'))) return { pass: false, detail: `🔴自分のトラッシュに「【使用】」が出ない。${dump}` };
+    if (!opLabels.some(l => l.startsWith('【使用】'))) return { pass: false, detail: `🔴相手のトラッシュに「【使用】」が出ない（相手フィールドへ getter を渡していない）。${dump}` };
+    return { pass: true, detail: `許可が2件積まれ、カードは両方のトラッシュに残ったまま、自分と相手の両方のトラッシュに「【使用】」が出た（候補UI ${rounds}回）。${dump}` };
+  },
+};
+order.push('o185GrantTrashSpellUse');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -48149,6 +48284,9 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
         signiFrozen: s.field?.signi_frozen ?? null,
+        // 🆕§5.3 `O-185`（2026-09-04）＝「このターン、あなたはそれらを使用してもよい」の許可ストア。
+        //   ⚠**カードは動かない**ので、盤面差分では「何も起きていない」と区別が付かない＝ここを見る。
+        trashSpellsUsable: s.trash_spells_usable_this_turn ?? [],
         // 🆕§5.1 `V-139`（2026-09-04）＝ルリグリミット修正の観測点。**2スロットある**＝
         //   `lrig_limit_mod`＝いま効いている分（`END_OF_TURN` / エナフェイズ終了まで）、
         //   `pending_lrig_limit_mod`＝`until:'NEXT_TURN'` の予約（GROW→MAIN 遷移で本スロットへ移る）。

@@ -3184,6 +3184,12 @@ export interface PlayFreeAction {
    */
   source: 'hand' | 'opp_hand' | 'opp_trash' | 'lrig_deck' | 'trash';
   filter: TargetFilter;
+  /**
+   * 🆕**§5.3 `O-185`（2026-09-04）＝「**このターン**、あなたはそれらを使用してもよい」。**
+   * 解決時に使うのではなく、**選んだカードをそのターンのあいだ使用可能にする**（`PlayerState.trash_spells_usable_this_turn`）。
+   * ⚠**`ignoreCost` とは独立**＝許可されたカードは**使用時に印刷コストを払う**（原文「（コストは支払う）」）。
+   */
+  grantUseThisTurn?: boolean;
   ignoreCost: boolean;
   ignoreRestrictions?: boolean;
   optional: boolean;
@@ -5417,6 +5423,12 @@ export interface StubAction {
    *   宣言をまたぐ参照はここへ**焼き込んで**運ぶ（`fixedCardNums` と同じ理由）。
    */
   carriedCardNum?: string;
+  /**
+   * 🆕**§5.3 `O-185`（2026-09-04）＝`USE_SPELL_FROM_TRASH_PAYING_COST` の対象領域。**
+   * `'opp_trash'` なら候補も本体も**相手のトラッシュ**側になる（既定は自分のトラッシュ）。
+   * ⚠`value` は段階（`'picked'`）に使っているので、領域は別キーで運ぶ。
+   */
+  value2?: string;
   /** 多段対話を跨いで運ぶ対象シグニ（§6.4 O-34(e)＝先に宣言した相手シグニ1体）。 */
   carriedTargetNum?: string;
   /**

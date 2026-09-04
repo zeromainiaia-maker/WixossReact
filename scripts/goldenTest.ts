@@ -5609,7 +5609,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 47, 'PlayerState の命名規約由来フィールド数（🆕47＝2026-09-04 に3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
+  eq(convention.length, 48, 'PlayerState の命名規約由来フィールド数（🆕48＝2026-09-04 に `O-185` の trash_spells_usable_this_turn を新設。47＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。44＝`O-241` の attack_not_negated_by_self_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5624,7 +5624,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 77, '型由来38件＋命名規約外27件の母集団（🆕77＝2026-09-04 に3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 78, '型由来38件＋命名規約外27件の母集団（🆕78＝2026-09-04 に `O-185` の trash_spells_usable_this_turn を新設。77＝同日3本新設＝`O-239` の checked_life_order_this_turn / nth_checked_burst_grant_this_turn ＋ `O-242` の lrig_grow_count_this_turn。74＝`O-241` の attack_not_negated_by_self_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -22615,6 +22615,50 @@ test('§5.3 O-60 第39バッチ: GRANT_EFFECT targetsTriggerSource＝トリガ�
 //   実害＝`WX20-056-E2` の「対戦相手の効果によって、手札に戻らず**ダウンせず**」が1度も付いていなかった。
 //   ⚠**同居する `GRANT_EFFECT`（能力獲得禁止）は効いていた**ので「半分だけ動く」形になり、
 //   逆翻訳・census・golden・smoke・fuzz のどれにも映らなかった（実機だけが捕まえた）。
+// 🆕🔴**§5.3 `O-185`（2026-09-04）＝「このターン、あなたはそれらを使用してもよい」は許可を積む。**
+//   🔴旧は `execPlayFree` の `thenAction` が `ADD_TO_HAND` に落ちており、**選んだスペルが手札に来て**いた
+//     （`source:'opp_trash'` では**相手のトラッシュから奪う**）＝原文と別物だった。
+//   ⚠**カードは動かさない**＝トラッシュに置いたまま `trash_spells_usable_this_turn` に許可が積まれる。
+test('§5.3 O-185: PLAY_FREE{grantUseThisTurn} はカードを動かさず「このターン使用できる」許可を積む', () => withSavedCursor(() => {
+  const spell = findCard(c => (c.Type ?? '') === 'スペル');
+  const ctx = mkCtx({}, {});
+  const withTrash = {
+    ...ctx,
+    ownerState: { ...ctx.ownerState, trash: [spell] } as PlayerState,
+    otherState: { ...ctx.otherState, trash: [spell] } as PlayerState,
+  } as ExecCtx;
+  const act = { type: 'PLAY_FREE', source: 'trash', filter: { cardType: 'スペル' },
+    ignoreCost: false, optional: true, grantUseThisTurn: true } as unknown as EffectAction;
+  const first = executeEffect(
+    { effectId: 'o185', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: true, action: act } as CardEffect,
+    withTrash);
+  ok(!first.done && first.pending.type === 'SEARCH', 'トラッシュのスペルを選ぶ SEARCH が出る');
+  // 選んだあとの帰結＝許可が積まれ、**手札は増えず・トラッシュから減らない**。
+  const r = run(act, withTrash);
+  const st = r.ownerState as PlayerState;
+  const granted = st.trash_spells_usable_this_turn ?? [];
+  eq(granted.length, 1, `🔴許可が積まれていない（${JSON.stringify(granted)}）`);
+  eq(granted[0].from, 'self', '許可の領域は自分のトラッシュ');
+  eq(granted[0].cardNum, spell, '許可の対象は選んだスペル');
+  ok(st.trash.includes(spell), '🔴トラッシュから消えた（カードは動かさないのが原文）');
+  ok(!st.hand.includes(spell), '🔴手札へ来た＝旧 ADD_TO_HAND の挙動');
+  // 反転確認①＝`grantUseThisTurn` が無ければ従来どおり（許可は積まれない）。
+  const plain = run({ ...(act as unknown as Record<string, unknown>), grantUseThisTurn: undefined } as unknown as EffectAction, withTrash);
+  eq(((plain.ownerState as PlayerState).trash_spells_usable_this_turn ?? []).length, 0,
+    'grantUseThisTurn を外しても許可が積まれる（フラグが効いていない）');
+  // 反転確認②＝`source:'opp_trash'` の許可は `from:'opponent'`（相手のトラッシュに置いたまま使う）。
+  const oppAct = { ...(act as unknown as Record<string, unknown>), source: 'opp_trash' } as unknown as EffectAction;
+  const r2 = run(oppAct, withTrash);
+  const g2 = (r2.ownerState as PlayerState).trash_spells_usable_this_turn ?? [];
+  eq(g2.length, 1, '相手トラッシュ側の許可が積まれていない');
+  eq(g2[0].from, 'opponent', '相手トラッシュ側の許可が from:opponent でない');
+  ok((r2.otherState as PlayerState).trash.includes(spell), '🔴相手のトラッシュから奪っている（旧挙動）');
+  // live の `WX25-P1-022-E2` が実際にこの形（2枝とも grantUseThisTurn）であることも固定する。
+  const e2 = (effectsMap.get('WX25-P1-022') ?? []).find(e => e.effectId === 'WX25-P1-022-E2');
+  const tree = JSON.stringify(e2?.action ?? {});
+  eq((tree.match(/"grantUseThisTurn":true/g) ?? []).length, 2,
+    'WX25-P1-022-E2 の2枝とも grantUseThisTurn になっていない');
+}));
 test('§5.1 V-133②: GRANT_PROTECTION は target 無し＋targetsTriggerSource だけでトリガー元へ付与できる', () => withSavedCursor(() => {
   const host = SIGNI, risen = SIGNI_L3;
   const ctx = mkCtx({ signi: [risen, null, null] }, {}, host);

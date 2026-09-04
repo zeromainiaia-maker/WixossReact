@@ -1107,6 +1107,17 @@ export interface PlayerState {
   // THIS_CARD_FROM_NON_HAND_THIS_TURN: このターンに手札以外から場に出たシグニのインスタンスID。
   // 効果配置・レゾナ等の非手札配置で記録し、手札からの配置で同一IDの古い記録を除去する。ターン開始時にクリア。
   signi_played_from_non_hand_this_turn?: string[];
+  /**
+   * 🆕**§5.3 `O-185`（2026-09-04）＝「このターン、あなたはそれらを使用してもよい」の許可ストア。**
+   * `WX25-P1-022-E2`「あなたと対戦相手のトラッシュからスペルをそれぞれ1枚まで対象とし、
+   * **このターン、あなたはそれらを使用してもよい**。（コストは支払う）」。
+   * 🔴**原文の要点は「許可の期間」**＝解決時に使うのではなく、**そのターンのうちなら後で使ってよい**。
+   *   旧 live は `PLAY_FREE{source:'trash'|'opp_trash'}` で、engine の実体は `ADD_TO_HAND`＝
+   *   **選んだスペルが手札に来る**（相手のトラッシュからも奪う）＝原文と別物だった。
+   * ⚠**`from` は「どちらのトラッシュに在るか」**＝`'opponent'` の1枚は**相手のトラッシュに置いたまま**使う。
+   * ⚠ターン終了でクリア（`turnScopedState.ts`）。
+   */
+  trash_spells_usable_this_turn?: { cardNum: string; from: 'self' | 'opponent' }[];
   // 🆕2026-08-27 B8: ON_PLAY の**由来ゾーン限定**（`triggerCondition.fromZones`）用に、場に出した瞬間の
   // 移動元を `"<instanceId>:<zone>"` で記録する。⚠**盤面差分（`detectPlacedFromZone`）だけでは足りない**＝
   // `execAddToField` は**ゾーン選択インタラクションの前に元の領域からカードを取り除く**ので、

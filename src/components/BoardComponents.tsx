@@ -1038,7 +1038,12 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       }
       <Stat label="ライフ"      value={state.life_cloth.length} color="#bb3333" />
       <Stat label="エナ"        value={state.energy.length}     testId={isMe ? 'my-energy' : undefined} onClick={() => setZoneModal({ title: 'エナゾーン', cardNums: state.energy, isEnergy: isMe })} />
-      <Stat label="トラッシュ"  value={state.trash.length}      testId={isMe ? 'my-trash' : undefined} onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: isMe })} />
+      {/* 🆕**§5.3 `O-185`（2026-09-04）＝相手のトラッシュにもカードアクションを出せるようにした。**
+          原文「**対戦相手の**トラッシュからスペルを…このターン、あなたはそれらを使用してもよい」は、
+          **相手のトラッシュに置いたまま使う**ので、入口が相手側のゾーンにしか無い。
+          ⚠`isTrash` を `isMe` で切っていたため、相手のトラッシュは**アクション欄そのものが無効**だった。
+          ⚠`getTrashCardActions` が未指定の呼び出し（従来どおり）では何も出ないので、既存画面は変わらない。 */}
+      <Stat label="トラッシュ"  value={state.trash.length}      testId={isMe ? 'my-trash' : 'op-trash'} onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: true })} />
       <Stat label="Lトラッシュ" value={state.lrig_trash.length} onClick={() => showZone('ルリグトラッシュ', state.lrig_trash)} />
       <Stat label="コイン"      value={state.coins} color="#cc8800" />
     </div>

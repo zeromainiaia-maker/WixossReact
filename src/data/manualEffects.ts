@@ -1062,9 +1062,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //     「コストは支払う」を表せていなかった。⇒ 両側とも `PLAY_FREE{ignoreCost:false}` に揃える
   //     （`source:'trash'` は今回追加）。⚠**もう1件の finding「あなたと対戦相手のトラッシュ」は較正**＝
   //     自分側の枝は前から在った（claim の「対戦相手のトラッシュだけ」は stale）。
-  //   ⚠**「このターン使用してもよい」という*権利*の付与は受け皿が無い**（即時使用の近似のまま）＝`PARTIAL`。
+  //   🆕**2026-09-04（§5.3 `O-185` クローズ）＝「このターン使用してもよい」という*権利*の受け皿を新設した。**
+  //     `grantUseThisTurn:true` を足すと、`execPlayFree` はカードを動かさず
+  //     `PlayerState.trash_spells_usable_this_turn` に**許可**を積む（`INTERNAL_GRANT_TRASH_SPELL_USE`）。
+  //     使用は `getMyTrashCardActions` / `getOpTrashCardActions` の「【使用】」から行い、
+  //     印刷コストは `USE_SPELL_FROM_TRASH_PAYING_COST` が請求する。
+  //   🔴**旧はここが `ADD_TO_HAND` に落ちていた**＝選んだスペルが**手札に来て**いた
+  //     （`opp_trash` 側は**相手のトラッシュから奪って**いた）＝原文と別物だった。
   'WX25-P1-022': [
-    {"effectId":"WX25-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"PLAY_FREE","source":"trash","filter":{"cardType":"スペル"},"ignoreCost":false,"optional":true},{"type":"PLAY_FREE","source":"opp_trash","filter":{"cardType":"スペル"},"ignoreCost":false,"ignoreRestrictions":true,"optional":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
+    {"effectId":"WX25-P1-022-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"PLAY_FREE","source":"trash","filter":{"cardType":"スペル"},"ignoreCost":false,"optional":true,"grantUseThisTurn":true},{"type":"PLAY_FREE","source":"opp_trash","filter":{"cardType":"スペル"},"ignoreCost":false,"ignoreRestrictions":true,"optional":true,"grantUseThisTurn":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL","usageLimit":"once_per_game"},
   ],
 
   // WX22-Re02 ／ 原文【出】《緑×0》：**あなたのエナゾーンにある**《アクセアイコン》を持つ＜調理＞のシグニ１枚を

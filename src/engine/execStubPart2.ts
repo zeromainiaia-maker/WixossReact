@@ -3472,6 +3472,26 @@ export function execStubPart2(
       addLog({ ...ctxPSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
         `${cardPSFIR.CardName}をコストなし・限定条件無視で使用`));
   }
+  // ── INTERNAL_GRANT_TRASH_SPELL_USE（§5.3 `O-185`・2026-09-04）──
+  // 「このターン、あなたは**それら**を使用してもよい」＝**選んだカードを動かさずに、そのターンだけ使用可能にする**。
+  // ⚠`value` は「どちらのトラッシュに在るか」（`'self'` / `'opponent'`）＝**使用時にどちらの領域から引くか**を決める。
+  // ⚠許可は**効果オーナー側**の `trash_spells_usable_this_turn` に積む（使ってよいのは「あなた」だから）。
+  if (stub.id === 'INTERNAL_GRANT_TRASH_SPELL_USE') {
+    const picked = ctx.lastProcessedCards ?? [];
+    if (picked.length === 0) return done(addLog(ctx, '[使用許可: 対象なし]'));
+    const fromGTS: 'self' | 'opponent' = stub.value === 'opponent' ? 'opponent' : 'self';
+    const curGTS = ctx.ownerState.trash_spells_usable_this_turn ?? [];
+    const addGTS = picked
+      .filter(cn => !curGTS.some(e => e.cardNum === cn && e.from === fromGTS))
+      .map(cn => ({ cardNum: cn, from: fromGTS }));
+    if (addGTS.length === 0) return done(ctx);
+    const nextGTS: PlayerState = {
+      ...ctx.ownerState,
+      trash_spells_usable_this_turn: [...curGTS, ...addGTS],
+    };
+    return done(addLog({ ...ctx, ownerState: nextGTS },
+      `${addGTS.map(e => ctx.cardMap.get(getCardNum(e.cardNum))?.CardName ?? e.cardNum).join('・')}をこのターン使用できる（コストは支払う）`));
+  }
   // ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）──
   // 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」（`WXDi-P13-008-E1`）。
   // 🔴既存 `USE_SPELL_FROM_TRASH` は**コストを支払わずに**使うので流用すると過剰実行になる。
@@ -3482,11 +3502,13 @@ export function execStubPart2(
   if (stub.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') {
     if (stub.value !== 'picked') {
       const filtUS = stub.selectTarget?.filter;
-      const candsUS = ctx.ownerState.trash.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
+      // 🆕`value2:'opp_trash'`＝**相手のトラッシュ**を候補にする（§5.3 `O-185`）。
+      const zoneUS = stub.value2 === 'opp_trash' ? ctx.otherState.trash : ctx.ownerState.trash;
+      const candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
       if (candsUS.length === 0) return done(addLog(ctx, '[トラッシュから使用: 対象のスペルなし]'));
       return needsInteraction(addLog(ctx, 'トラッシュから使用するスペルを選ぶ'), {
         type: 'SELECT_TARGET', candidates: candsUS, count: 1, optional: true,
-        targetScope: 'self_trash',
+        targetScope: stub.value2 === 'opp_trash' ? 'opp_trash' : 'self_trash',
         thenAction: ({ ...stub, value: 'picked' } as StubAction) as EffectAction,
       });
     }
@@ -3501,7 +3523,13 @@ export function execStubPart2(
       const nUS = parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
       for (let i = 0; i < nUS; i++) colorsUS.push(m[1]);
     }
-    const bodyUS: StubAction = { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS };
+    // 🆕**§5.3 `O-185`＝相手のトラッシュから使う場合は本体を `CAST_FROM_OPP_TRASH` にする。**
+    //   ⚠あちらは「コストなし」型だが、**支払いはこの手前で済ませている**ので二重請求にはならない。
+    //   ⚠**相手のトラッシュから取り除くのは `CAST_FROM_OPP_TRASH` の役目**（自分のトラッシュへ積み直さない）。
+    const fromOppUS = stub.value2 === 'opp_trash';
+    const bodyUS: StubAction = fromOppUS
+      ? { type: 'STUB', id: 'CAST_FROM_OPP_TRASH', carriedCardNum: cnUS }
+      : { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS };
     if (colorsUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
     const payUS: EffectAction = { type: 'SEQUENCE', steps: [
       { type: 'STUB', id: 'INTERNAL_CMCLG_DEDUCT', value: JSON.stringify(colorsUS) } as StubAction,
