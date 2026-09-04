@@ -45396,6 +45396,143 @@ order.push('v143RecollectFreezeAll');
 scenarios.v143RecollectFreezeNone = mkRecollectFreezeScenario(false);
 order.push('v143RecollectFreezeNone');
 
+// -----------------------------------------------------------------------------
+// §5.1 `V-144`（2026-09-04・`O-60` 第63バッチ）＝**引用【常】の条件つきキーワード付与**。
+// 🔴engine の**パターン表**（カード全文 regex）から parser の `activeCondition` へ移した回。
+//   ⚠**本質は「常時発動へ倒れていないこと」**＝条件を満たさない正面ではキーワードが**付かない**。
+// 観測点＝盤面バッジ（`BoardComponents.tsx:722`＝`title` にキーワード名がそのまま入る）。
+//   `title="ランサー"` / `title="アサシン"` を自分のシグニゾーンの中で数える。
+// ⚠**`keyword_grants` では見えない**＝この付与は「付与された CONTINUOUS の `activeCondition` を
+//   毎レンダリング評価する」動的キーワードなので、state には積まれない（`dynamicKeywords` 経路）。
+// -----------------------------------------------------------------------------
+
+/** 自分のシグニゾーンに付いている状態キーワードのバッジを読む。 */
+async function readSigniKeywordBadges(page, zone = 1) {
+  return await page.evaluate((z) => {
+    const slot = document.querySelector(`[data-testid="my-signi-zone-${z}"]`);
+    if (!slot) return null;
+    return Array.from(slot.querySelectorAll('[title]')).map(e => e.getAttribute('title'));
+  }, zone).catch(() => null);
+}
+
+/** 手札の1枚目を指定ゾーンへ召喚し、【出】コストを払う（払えなければスキップしない＝前提崩れ）。 */
+async function summonAndPayOnPlay(page, H, zone) {
+  await H.clickTestId('my-hand-card-0');
+  await page.waitForTimeout(400);
+  const summon = await H.clickBtn('召喚', { exact: true });
+  if (!summon) return { ok: false, detail: '「召喚」が出ない（限定／レベル／リミットを疑う）' };
+  await page.waitForTimeout(400);
+  const z = await H.clickTestId(`summon-zone-${zone}`);
+  if (!z) return { ok: false, detail: `summon-zone-${zone} が押せない` };
+  // 【出】コスト（エナ支払い／エナトラッシュ）を1回ずつ押して「発動」。
+  const picked = new Set();
+  for (let t = 0; t < 18; t++) {
+    await page.waitForTimeout(300);
+    const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+    if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) {
+      await fire.click({ timeout: 1200 }).catch(() => {});
+      return { ok: true, detail: `paid=${[...picked]}` };
+    }
+    let clicked = false;
+    for (let i = 0; i < 8 && !clicked; i++) {
+      const key = `e${i}`;
+      if (picked.has(key)) continue;
+      for (const tid of [`onplaycost-enatrash-${i}`, `onplaycost-energy-${i}`]) {
+        const e = page.getByTestId(tid).first();
+        if (await e.count() && await e.isVisible().catch(() => false)) {
+          await e.click({ timeout: 1200 }).catch(() => {}); picked.add(key); clicked = true; break;
+        }
+      }
+    }
+    if (!clicked && picked.size === 0 && t > 6) break;
+  }
+  return { ok: false, detail: `【出】の「発動」が enabled にならない（paid=${[...picked]}）` };
+}
+
+/**
+ * `V-144`③＝**条件つきキーワード付与のゲート**。
+ *  - `WXDi-P12-078`（緑 Lv1・//ディソナ）＝正面が**レベル1**のときだけ【ランサー】。
+ *  - `WXDi-P13-069`（青 Lv1・//ディソナ）＝正面が**凍結かつパワー5000以下**のときだけ【アサシン】。
+ * 🔴**反転（条件を満たさない正面）でバッジが消えること**が本題＝engine のパターン表から
+ *   `activeCondition` へ移した箇所なので「常時発動へ倒れていないこと」を見る。
+ */
+function mkKeywordGateScenario(kind, met) {
+  const LANCER = kind === 'lancer';
+  const id = `v144${LANCER ? 'Lancer' : 'Assassin'}Gate${met ? 'On' : 'Off'}`;
+  // 正面（相手の3ゾーン）＝ランサーは「レベル1か否か」、アサシンは「凍結かつ5000以下か否か」で作り分ける。
+  // 🔴**対照は原因を1つだけ外す**（§4.4 📌3）＝
+  //   ランサー側は**レベルだけ**を変える（Lv1(3000) → Lv3(7000)）、
+  //   アサシン側は**凍結だけ**を外す（正面の札は Lv1(3000)＝パワー条件は満たしたまま）。
+  const frontCard = LANCER ? (met ? 'WD01-013' : 'WD03-010') : 'WD01-013';
+  const frozen = LANCER ? [false, false, false] : (met ? [true, true, true] : [false, false, false]);
+  return {
+    title: `O-60 V-144③：${LANCER ? 'WXDi-P12-078 の【ランサー】は正面がレベル1のときだけ' : 'WXDi-P13-069 の【アサシン】は正面が凍結かつ5000以下のときだけ'}付く（${met ? '成立' : '反転'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': [LANCER ? 'WD04-004#9800' : 'WD03-004#9800'],   // 緑姫 Lv1 ／ ピルルク・Ｋ Lv1（どちらもリミット2）
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [],
+        'hand': [LANCER ? 'WXDi-P12-078#9850' : 'WXDi-P13-069#9850'],
+        // ランサー側の【出】コストは「エナから《ディソナアイコン》1枚をトラッシュ」＝ディソナを積む。
+        'energy': LANCER
+          ? ['WXDi-P13-069#9860', 'WXDi-P13-069#9861']
+          : ['WD03-013#9860', 'WD03-013#9861'],
+        'coins': 0, 'trash': [], 'actions_done': [], 'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        // ⚠**3ゾーンとも同じ札で埋める**＝host と guest のゾーン index は「正面」で一致しない（§4.4 📌8e）。
+        'field.signi': [[`${frontCard}#9880`], [`${frontCard}#9881`], [`${frontCard}#9882`]],
+        'field.signi_frozen': frozen,
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await readSigniKeywordBadges(page, 1);
+      const summoned = await summonAndPayOnPlay(page, H, 1);
+      H.log(`  ${id}: 召喚=${JSON.stringify(summoned)}`);
+      if (!summoned.ok) return { pass: false, detail: `前提崩れ＝召喚／【出】支払いに到達できない（${summoned.detail}）` };
+      let badges = null;
+      let placed = false;
+      for (let t = 0; t < 16; t++) {
+        await page.waitForTimeout(400);
+        const st = await H.queryState();
+        placed = JSON.stringify(st?.host?.fieldSigni ?? []).includes(LANCER ? 'WXDi-P12-078' : 'WXDi-P13-069');
+        badges = await readSigniKeywordBadges(page, 1);
+        if (placed && badges && badges.length > 0) break;
+        if (placed && t > 8) break;
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      H.log(`  ${id}: 配置=${placed} バッジ(前)=${JSON.stringify(before)} バッジ(後)=${JSON.stringify(badges)}`);
+      if (!placed) return { pass: false, detail: `前提崩れ＝場に出ていない（バッジ=${JSON.stringify(badges)}）` };
+      const kw = LANCER ? 'ランサー' : 'アサシン';
+      const has = (badges ?? []).includes(kw);
+      if (met) {
+        return has
+          ? { pass: true, detail: `条件成立で【${kw}】が付いた（バッジ=${JSON.stringify(badges)}）` }
+          : { pass: false, detail: `🔴条件を満たすのに【${kw}】が付かない（バッジ=${JSON.stringify(badges)}）` };
+      }
+      return has
+        ? { pass: false, detail: `🔴条件を満たさないのに【${kw}】が付いた＝常時発動へ倒れている（バッジ=${JSON.stringify(badges)}）` }
+        : { pass: true, detail: `反転＝条件を満たさない正面では【${kw}】が付かない（バッジ=${JSON.stringify(badges)}）` };
+    },
+  };
+}
+for (const kind of ['lancer', 'assassin']) {
+  for (const met of [true, false]) {
+    const id = `v144${kind === 'lancer' ? 'Lancer' : 'Assassin'}Gate${met ? 'On' : 'Off'}`;
+    scenarios[id] = mkKeywordGateScenario(kind, met);
+    order.push(id);
+  }
+}
+
+
+
 
 
 
