@@ -5491,7 +5491,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   // 39 → 40（2026-08-27 B8 で signi_placed_origin_this_turn を追加＝ON_PLAY の**由来ゾーン限定**の解決用。
   //   `execAddToField` がゾーン選択インタラクションの前に元の領域からカードを取り除くため、
   //   盤面差分だけでは resume 後に由来が復元できない＝配置時に記録するしかない）
-  eq(convention.length, 43, 'PlayerState の命名規約由来フィールド数（🆕43＝2026-09-04 `O-233` で signi_left_by_opp_effect_this_turn を新設。42＝`O-246` で grid_reveal_plus_one_this_turn を撤去）');
+  eq(convention.length, 44, 'PlayerState の命名規約由来フィールド数（🆕44＝2026-09-04 `O-241` で attack_not_negated_by_self_effect_this_turn を新設。43＝`O-233` の signi_left_by_opp_effect_this_turn）');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -5506,7 +5506,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと fun
   eq(irregular.length, 30, '命名規約外のターン限定フィールド数（30＝2026-09-02 索引B 第2巡で spell_in_check_zone〔§5.3 `O-138`〕と damaged_just〔§5.3 `O-160`〕を追加）');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 73, '型由来38件＋命名規約外27件の母集団（🆕73＝2026-09-04 `O-233` で signi_left_by_opp_effect_this_turn を新設。72＝`O-246` で grid_reveal_plus_one_this_turn を撤去）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
+  eq(registered.length, 74, '型由来38件＋命名規約外27件の母集団（🆕74＝2026-09-04 `O-241` で attack_not_negated_by_self_effect_this_turn を新設。73＝`O-233` の signi_left_by_opp_effect_this_turn）');  // +1＝2026-08-27 B8 の signi_placed_origin_this_turn（ON_PLAY 由来ゾーン限定）
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -56887,14 +56887,18 @@ test('O-128 第2 非採用契約: 展開不能な引用は GRANT_EFFECT にし�
   //     engine の既知パターン表に当たらないので**無言 no-op**＝「穴を宣言した」ことにならない。
   //   ⇒ `DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT`（`O-241`）＝逆翻訳に【未実装】が出る。
   //   ⚠**契約の趣旨は変わっていない**＝「引用が解けないなら配らない」。
+  // 🏁**§5.3 `O-241`（2026-09-04）＝最後の1件も据置を卒業した**＝
+  //   `GRANT_ATTACK_NOT_NEGATED_BY_SELF`（カード単位のアタック無効化免疫）を新設して引き取った。
+  //   ⚠**契約の趣旨は変わっていない**＝「引用が解けないなら `GRANT_EFFECT` で配らない」。
+  //   下の負方向（`GRANT_EFFECT` にしない）だけを残す。
   for (const [cardNum, effectId, why] of [
-    ['WXDi-P05-068', 'WXDi-P05-068-E1', '対象固有の常時無効耐性が UNKNOWN'],
+    ['WXDi-P05-068', 'WXDi-P05-068-E1', '自己効果のアタック無効化免疫（`O-241` で本実装）'],
   ] as const) {
     const freshEffect = batch29Effect(effectId);
     const liveEffect = b45Effect(cardNum, effectId);
     for (const [kind, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
       const json = JSON.stringify(effect.action);
-      ok(json.includes('"id":"DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT"'), `${effectId} ${kind}: 明示 defer 据置（${why}）`);
+      ok(json.includes('"id":"GRANT_ATTACK_NOT_NEGATED_BY_SELF"'), `${effectId} ${kind}: 本実装の受け皿へ（${why}）`);
       ok(!json.includes('"type":"GRANT_EFFECT"'), `${effectId} ${kind}: 解釈不能な引用能力を配らない`);
     }
   }
@@ -64335,7 +64339,8 @@ test('§5.3 O-60 第68: 受け皿が無い4文型は名前のある穴になっ�
     ['WXEX2-66', 'WXEX2-66-E1', 'DEFERRED_GRANT_ALL_ZONE_TRAP_ICON'],            // O-240（トラップ版の全領域付与が無い）
     ['WX25-P2-004', 'WX25-P2-004-E1', 'DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL'], // O-227（期間つきプレイヤー付与が無い）
     ['WXDi-P03-002', 'WXDi-P03-002-E1', 'DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED'],   // O-242（「最初のグロウ」の条件語彙が無い）
-    ['WXDi-P05-068', 'WXDi-P05-068-E1', 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT'], // O-241（自己効果のアタック無効化耐性）
+    // 🏁`O-241`（2026-09-04）＝明示 defer から本実装へ（カード単位のアタック無効化免疫）。
+    ['WXDi-P05-068', 'WXDi-P05-068-E1', 'GRANT_ATTACK_NOT_NEGATED_BY_SELF'],
   ];
   for (const [num, id, wantId] of want) {
     const ids: string[] = [];
@@ -64615,6 +64620,40 @@ test('§5.3 O-190: 複合任意コストの「前半」が payload に載って�
 //    15件のうち **11件は既に配線済み**で、残り4件は**表へ足しても届かない**（選択を STUB ハンドラが
 //    自前で組むので `applyDistinctBatch5c` の `visit` が見ている target/source が存在しない）。
 // ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-241: 「このシグニのアタックはこのシグニの効果によって無効にされない」', () => withSavedCursor(() => {
+  // 🔴旧は `normalizeGrantKeywordSpelling` が「文が丸ごと `keyword` に入った」形を catch-all へ落としており、
+  //   `hasKeyword` に一度も当たらない**無言 no-op** だった（のちに明示 defer へ）。
+  // 原文（`WXDi-P05-068-E1`）＝「…あなたの《大罠　ハーメルン》１体を対象とし、ターン終了時まで、
+  //   それは『【常】：このシグニのアタックはこのシグニの効果によって無効にされない。』を得る。」
+  const seq = effectsMap.get('WXDi-P05-068')?.find(e => e.effectId === 'WXDi-P05-068-E1')?.action as SequenceAction;
+  const grant = seq.steps[1] as StubAction;
+  eq(grant.id, 'GRANT_ATTACK_NOT_NEGATED_BY_SELF', '明示 defer から本実装へ');
+  // 🔴**対象の絞り込みが載っていること**＝載っていないと自分のシグニ全部が候補になる（原文より緩い）。
+  eq(JSON.stringify(grant.selectTarget?.filter), JSON.stringify({ cardType: 'シグニ', cardName: '大罠　ハーメルン' }),
+    '《大罠　ハーメルン》1体だけが対象');
+  // 実行＝候補が1体なら対話を出さずに付く（§`O-51` の規約）。
+  const ctx = mkCtx({ signi: ['WXDi-P05-037'] }, {}, 'WXDi-P05-068');
+  const granted = run(grant as EffectAction, ctx);
+  eq(JSON.stringify(granted.ownerState.attack_not_negated_by_self_effect_this_turn), JSON.stringify(['WXDi-P05-037']),
+    '免疫が対象シグニに付く');
+  // 🔴**消費側**＝`SET_CANCEL_ATTACK_FLAG`（`WXDi-P05-037-E1` の「そのアタックを無効にする」）は
+  //   免疫が付いた自分自身の効果では**フラグを立てない**。
+  const immune = { ...ctx, ownerState: granted.ownerState, sourceCardNum: 'WXDi-P05-037' } as ExecCtx;
+  const blocked = run({ type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' } as EffectAction, immune);
+  eq(blocked.ownerState.cancel_current_signi_attack, undefined, '自分の効果ではアタックが無効にならない');
+  // 🔴**負方向①＝免疫が無ければ従来どおり無効化される。**
+  const plain = run({ type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' } as EffectAction,
+    { ...mkCtx({ signi: ['WXDi-P05-037'] }, {}, 'WXDi-P05-037') } as ExecCtx);
+  eq(plain.ownerState.cancel_current_signi_attack, true, '免疫が無ければ無効化される');
+  // 🔴**負方向②＝他のカードの効果による無効化は通す**（免疫は「このシグニの効果によって」だけ）。
+  const otherSrc = { ...ctx, ownerState: granted.ownerState, sourceCardNum: 'WXDi-P05-068' } as ExecCtx;
+  const notImmune = run({ type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' } as EffectAction, otherSrc);
+  eq(notImmune.ownerState.cancel_current_signi_attack, true, '別のカードの効果による無効化は通る');
+  // 🔴**ターン境界で戻る**（「ターン終了時まで」）。
+  const ts = fs.readFileSync(join(root, 'src/screens/battle/turnScopedState.ts'), 'utf8');
+  ok(ts.includes('attack_not_negated_by_self_effect_this_turn'), 'ターン終了時にリセットされる');
+}));
 
 test('§5.3 O-237: 自己ゾーン移動は空きゾーン＋（入れ替え条項があるときだけ）占有ゾーン', () => withSavedCursor(() => {
   // 🔴旧 live（`WXK03-042-E1`）は2文がそれぞれ別ステップになり、

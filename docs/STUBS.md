@@ -12,10 +12,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 590 |
-| 　└ ハンドラ実装あり | 523 |
-| 　└ フォールバック（execStub 未処理） | 67 |
+| 　└ ハンドラ実装あり | 524 |
+| 　└ フォールバック（execStub 未処理） | 66 |
 | 総 STUB ノード件数 | 3180 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 333 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 334 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -46,7 +46,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
-| `DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT` | 1 | 1 | WXDi-P05-068 |  |
 | `DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE` | 1 | 1 | SPDi43-05 |  |
 | `DEFERRED_CHECK_ZONE_FREE_CAST` | 1 | 1 | WXDi-P10-007 |  |
 | `DEFERRED_CROSS_ZONE_TRIPLE_TARGET_TO_DECK_BOTTOM` | 1 | 1 | WX21-028 |  |
@@ -400,7 +399,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `USE_SPELL_FROM_TRASH` | 1 | 1 | WXDi-P06-066 |  |
 | `USE_SPELL_FROM_TRASH_PAYING_COST` | 1 | 1 | WXDi-P13-008 | ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）── 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」（`WXDi-P13-008-E1`）。 �… |
 
-### execStubPart3.ts（234 種）
+### execStubPart3.ts（235 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -551,6 +550,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `FIRST_SPELL_COST_UP` | 1 | 1 | WXDi-P13-072 | コストアップ系（engine: コスト計算未実装） |
 | `GAIN_ADDITIONAL_LRIG_TYPE` | 1 | 1 | WXK09-005 |  |
 | `GAIN_LRIG_COLOR` | 1 | 1 | WXDi-P16-058 |  |
+| `GRANT_ATTACK_NOT_NEGATED_BY_SELF` | 1 | 1 | WXDi-P05-068 | 対象のシグニ1体は、このターン、自分自身の効果ではアタックを無効にされない |
 | `GRANT_CONDITIONAL_ASSASSIN_ABILITY` | 1 | 1 | WXK02-057 | 条件付きアサシンをkeyword_grantsに付与 |
 | `GRANT_NEXT_SPELL_UNCOUNTERABLE` | 1 | 1 | WX04-008 | 次に自分が使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール） |
 | `GROW_BY_EFFECT` | 1 | 1 | SP38-001 | GROW_BY_EFFECT（§5.3 `O-83`・`SP38-001-E1`）＝「あなたのセンタールリグをグロウしてもよい」。 🔑**engine は予約だけ**＝実際のグロウは BattleScreen が `executeGro… |
@@ -642,7 +642,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 333 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 334 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -763,6 +763,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_GCA_APPLY` | 0 | 0 |  | 選んだ保護（ダウン/バウンス）をターン終了時まで付与 |
 | `INTERNAL_GCA_SELECT` | 0 | 0 |  | 表記パワーより現在パワーが高いあなたの＜電機＞シグニ１体を対象に選ぶ |
 | `INTERNAL_GEN_TOKEN_TO_LRIG_DECK` | 0 | 0 |  | 指定 base CardNum のトークンをゲーム外生成しルリグデッキへ（フェゾーネ等） |
+| `INTERNAL_GRANT_ATTACK_NOT_NEGATED_BY_SELF` | 0 | 0 |  | 対象のシグニ1体は、このターン、自分自身の効果ではアタックを無効にされない 🆕§5.3 `O-241`（2026-09-04）＝原文（`WXDi-P05-068-E1`）＝「あなたの《大罠　ハーメルン》１体を対象とし、   ターン終了時… |
 | `INTERNAL_GRANT_KEYWORD_TO_TARGET` | 0 | 0 |  | 選択されたキーワード/保護能力を対象シグニに付与 |
 | `INTERNAL_GRANT_NO_ATTACK_LRIG` | 0 | 0 |  | CHOOSE_SAME_OPTION_TWICEから呼ばれる内部ハンドラ |
 | `INTERNAL_HAND_OR_ENERGY` | 0 | 0 |  | 「それぞれ手札に加えるかエナゾーンに置き」を1枚ずつ問うチェーン（タスク12(xlvi)(h)）。 |

@@ -7307,8 +7307,9 @@ function normalizeGrantKeywordSpelling(node: unknown): void {
       //   受け皿が無いと分かっている文型は**名前のある穴**へ落とす。**
       //   🔴`GRANT_ABILITY_INNER_TEXT` は engine が効果元の原文を読み直す catch-all（`O-60` A群）で、
       //     既知パターン表に当たらなければ**無言 no-op**＝ここへ落とすのは「穴を宣言した」ことにならない。
+      // 🏁§5.3 `O-241`（2026-09-04）＝受け皿を新設したので明示 defer から本実装へ。
       const deferredNGK = /このシグニのアタックはこのシグニの効果によって無効にされない/.test(name)
-        ? 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT' : null;
+        ? 'GRANT_ATTACK_NOT_NEGATED_BY_SELF' : null;
       for (const k of Object.keys(rec)) delete rec[k];
       rec.type = 'STUB';
       rec.id = deferredNGK ?? 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED';
@@ -23294,6 +23295,28 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
  *   「占有ゾーンのシグニと入れ替え」を並べて出す。
  * ⚠**入れ替え条項が原文に無い5枚には掛けない**（`WX14-050` ほか＝空きゾーンだけが正しい）。
  */
+/**
+ * 🆕**§5.3 `O-241`（2026-09-04）＝「あなたの《X》１体を対象とし、…それは『【常】：このシグニのアタックは
+ * このシグニの効果によって無効にされない。』を得る」の**対象の絞り込み**を STUB へ運ぶ。**
+ *
+ * 🔴文単位の parser には**引用の中身しか来ない**（対象節は別の文で消費される）ので、
+ *   ここで**カード全文から名前を読み直して** `selectTarget.filter` に載せる。
+ * ⚠**載せないと自分のシグニ全部が候補**になる＝原文（《大罠　ハーメルン》限定）より緩い過剰実行。
+ */
+function foldAttackNegImmuneTarget(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(/あなたの《([^》]+)》[１1]体を対象とし[、,][^。]*?このシグニのアタックはこのシグニの効果によって無効にされない/);
+  if (!m) return action;
+  const name = m[1];
+  const stamp = (a: EffectAction): EffectAction => {
+    if (a.type === 'STUB' && (a as StubAction).id === 'GRANT_ATTACK_NOT_NEGATED_BY_SELF') {
+      return { ...(a as StubAction), selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', cardName: name } } } as EffectAction;
+    }
+    if (a.type === 'SEQUENCE') return { ...(a as SequenceAction), steps: (a as SequenceAction).steps.map(stamp) } as EffectAction;
+    return a;
+  };
+  return stamp(action);
+}
+
 function foldMoveSelfZoneSwap(action: EffectAction, sourceText: string): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (!/そのシグニゾーンにシグニがある場合[、,]そこに配置する代わりに/.test(sourceText)) return action;
@@ -25842,6 +25865,10 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // ⚠**live データ側も1綴りに寄せる**＝`hasKeyword` 側の吸収（safety net）だけに頼ると、
     //   直接比較する読み手（表示・キーワード集合）が綴りごとに分岐して無言でズレる。
     normalizeGrantKeywordSpelling(e.action);
+    // 🔴**`normalizeGrantKeywordSpelling` の後に置く**（§5.3 `O-241`・2026-09-04）＝
+    //   あれは「文が丸ごと keyword に入った」record の**キーを全消しして STUB へ置き換える**ので、
+    //   前段で載せた `selectTarget` は**必ず消える**（実測で1往復した）。対象の絞り込みはここで載せ直す。
+    e.action = foldAttackNegImmuneTarget(e.action, card.EffectText ?? '');
     // 🔴`REVEAL_AND_PICK.then` のエナ行きを正準形 `ADD_TO_ENERGY` へ揃える（2026-08-22 段2 第4バッチ）。
     // 旧 `ENERGY_CHARGE{target:{DECK_CARD}}` は **engine では場のシグニが候補になる**（`execEnergyCharge` は
     // HAND_CARD / TRASH_CARD 以外を `fieldCandidates` へ落とす＝`effectExecutor.ts:2046`）＝公開して選んだ

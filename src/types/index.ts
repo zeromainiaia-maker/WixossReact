@@ -1116,6 +1116,11 @@ export interface PlayerState {
   // ⚠**キー名は `_this_turn` で終える**＝`turnScopedState.ts` の `ConventionTurnScopedField` が
   //   その命名でしかターン境界のリセットを受け付けない（`turn_..._count` と書くと型エラーになる）。
   signi_left_by_opp_effect_this_turn?: number;
+  // 🆕§5.3 `O-241`（2026-09-04）＝「**このシグニの**アタックは**このシグニの効果によって**無効にされない」
+  //   （`WXDi-P05-068-E1` が《大罠　ハーメルン》へ付与する【常】）。値は**そのシグニの instance id**。
+  // 🔑既存の `own_effects_cannot_negate_signi_attack_this_turn`（プレイヤー単位・`WX24-P4-016-E3`）の
+  //   **カード単位版**＝発生源も対象も「そのシグニ自身」に限る。
+  attack_not_negated_by_self_effect_this_turn?: string[];
   /**
    * このターンに**ダウン状態になった自分のシグニ**のカード番号（発生順）。
    * 「それがこのターンで**N回目**である場合」条件（`SIGNI_DOWNED_COUNT_THIS_TURN`）用＝`WX05-042`（§6.4 O-11）。

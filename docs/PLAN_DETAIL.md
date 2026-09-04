@@ -83,6 +83,14 @@
   （`banishedFrontOnly`。⚠実装したことにはしない）。
   ✅**ブラスト半径＝効果 変更8・追加0・削除0、予定外0**。
 
+## 2026-09-04 整理⑤：`O-241` を🏁クローズして索引から削除
+
+> `attack_not_negated_by_self_effect_this_turn`（**カード単位**のアタック無効化免疫）を新設。
+> 既存の `own_effects_cannot_negate_signi_attack_this_turn`（プレイヤー単位）の兄弟で、
+> **発生源も対象も「そのシグニ自身」**に限る。全文は BUGFIXES.md の同日。
+
+| `O-241` | **1効果** | 🆕**2026-09-04（`O-60` 第68バッチで分離）**＝**自分自身の効果だけ**を除外するアタック無効化耐性（`WXDi-P05-068-E1`「【常】：このシグニのアタックは**このシグニの効果によって**無効にされない」）。<br>⚠耐性語彙（`GrantProtectionAction.from`）に「**アタック無効化**」軸も「**発生源＝効果元自身**」も無い。<br>🔴旧は `normalizeGrantKeywordSpelling` が「文が丸ごと `keyword` に入った」形を catch-all へ落としていた（＝`hasKeyword` に一度も当たらない無言 no-op）。いまは `DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT`。 |
+
 ## 2026-09-04 整理④：`O-237` を🏁クローズして索引から削除
 
 > **登録票の「受け皿が無い」は誤りだった**＝`STUB{MOVE_TO_OTHER_SIGNI_ZONE}`（空きゾーンへの自己移動）を

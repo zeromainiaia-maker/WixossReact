@@ -5202,7 +5202,40 @@ export function execStubPart3(
     if (ctx.ownerState.own_effects_cannot_negate_signi_attack_this_turn) {
       return done(addLog(ctx, 'このターン、あなたの効果によってシグニのアタックは無効にならない'));
     }
+    // 🆕§5.3 `O-241`（2026-09-04）＝**カード単位**の免疫＝「このシグニのアタックは**このシグニの効果に
+    //   よって**無効にされない」。`sourceCardNum`（＝無効化を宣言した効果の持ち主）が免疫リストに居れば
+    //   何もしない。⚠**発生源と対象が同じシグニ**の場合だけ効く（他人の効果による無効化は通す）。
+    if (ctx.sourceCardNum && (ctx.ownerState.attack_not_negated_by_self_effect_this_turn ?? []).includes(ctx.sourceCardNum)) {
+      return done(addLog(ctx, `${ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.CardName ?? ctx.sourceCardNum}のアタックはこのシグニの効果によって無効にされない`));
+    }
     return done({ ...ctx, ownerState: { ...ctx.ownerState, cancel_current_signi_attack: true } });
+  }
+
+  // GRANT_ATTACK_NOT_NEGATED_BY_SELF: 対象のシグニ1体は、このターン、自分自身の効果ではアタックを無効にされない
+  // 🆕§5.3 `O-241`（2026-09-04）＝原文（`WXDi-P05-068-E1`）＝「あなたの《大罠　ハーメルン》１体を対象とし、
+  //   ターン終了時まで、それは『【常】：このシグニのアタックはこのシグニの効果によって無効にされない。』を得る。」
+  //   ⚠**対象が居なければ何もしない**（fail-closed）。候補が1体なら対話を出さない（§`O-51` の規約）。
+  if (stub.id === 'GRANT_ATTACK_NOT_NEGATED_BY_SELF' || stub.id === 'INTERNAL_GRANT_ATTACK_NOT_NEGATED_BY_SELF') {
+    const applyANN = (picked: string[], cur: ExecCtx): ExecResult => done(addLog({
+      ...cur,
+      ownerState: { ...cur.ownerState,
+        attack_not_negated_by_self_effect_this_turn: [...(cur.ownerState.attack_not_negated_by_self_effect_this_turn ?? []), ...picked] },
+    }, `${picked.map(n => cur.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}のアタックはこのシグニの効果によって無効にされない（ターン終了時まで）`));
+    if (stub.id === 'INTERNAL_GRANT_ATTACK_NOT_NEGATED_BY_SELF') {
+      const pickedANN = ctx.lastProcessedCards ?? [];
+      if (pickedANN.length === 0) return done(addLog(ctx, 'アタック無効化耐性：対象なし'));
+      return applyANN(pickedANN, ctx);
+    }
+    const candsANN = ctx.ownerState.field.signi
+      .map(st2 => st2?.at(-1))
+      .filter((n): n is string => !!n
+        && (!stub.selectTarget?.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), stub.selectTarget.filter)));
+    if (candsANN.length === 0) return done(addLog(ctx, 'アタック無効化耐性：対象なし'));
+    if (candsANN.length === 1) return applyANN([candsANN[0]], ctx);
+    return needsInteraction(addLog(ctx, 'アタック無効化耐性を与えるシグニを選択'), {
+      type: 'SELECT_TARGET', candidates: candsANN, count: 1, optional: false, targetScope: 'self_field',
+      thenAction: ({ type: 'STUB', id: 'INTERNAL_GRANT_ATTACK_NOT_NEGATED_BY_SELF' } as StubAction) as EffectAction,
+    });
   }
 
   // SET_CANCEL_OPP_ATTACK_FLAG: 守備側の効果が「対戦相手のアタック」を無効化する場合に使う。

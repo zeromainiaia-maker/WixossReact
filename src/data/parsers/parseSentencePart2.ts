@@ -2826,11 +2826,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
     if (/^あなたは「【[常自起]】/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL' } as StubAction;
     }
-    // (3) 「このシグニのアタックは**このシグニの効果によって**無効にされない」（`WXDi-P05-068-E1`／`O-241`）。
-    //     ⚠**自分自身の効果だけ**を除外する耐性で、既存の耐性語彙（`GRANT_PROTECTION` の軸）に
-    //       「アタック無効化」も「発生源＝効果元自身」も無い。
+    // 🏁(3) 「このシグニのアタックは**このシグニの効果によって**無効にされない」（`WXDi-P05-068-E1`／`O-241`）。
+    //     🆕**2026-09-04 に受け皿を新設して引き取った**＝`attack_not_negated_by_self_effect_this_turn`
+    //     （カード単位の免疫。プレイヤー単位の `own_effects_cannot_negate_signi_attack_this_turn` の兄弟）。
+    //     ⚠**発生源も対象も「そのシグニ自身」**＝他人の効果による無効化は通す（過剰にしない）。
     if (/このシグニのアタックはこのシグニの効果によって無効にされない/.test(t)) {
-      return { type: 'STUB', id: 'DEFERRED_ATTACK_NOT_NEGATED_BY_SELF_EFFECT' } as StubAction;
+      return { type: 'STUB', id: 'GRANT_ATTACK_NOT_NEGATED_BY_SELF' } as StubAction;
     }
     return { type: 'STUB', id: 'DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED' } as StubAction;
   }
