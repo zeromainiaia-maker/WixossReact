@@ -5492,7 +5492,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               label: targetName ? `《${targetName}》を公開する` : '公開する',
               // 公開記録（ON_REVEALED_FROM_HANDトリガー検出用）を挟んでから then を実行
               action: { type: 'SEQUENCE', steps: [
-                { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_NAMED' } as StubAction,
+                // 🆕**§5.3 `O-60` 第72バッチ（2026-09-05）＝公開したカード名は payload で渡す。**
+                // 🔴渡さなかったので、受け側が `EffectText + BurstText` に `/《([^《》]+)》を公開/` を
+                //   当て直していた＝原文は「《X》**１枚を**公開してもよい」で**1本も当たらず**、
+                //   公開の記録（`hand_revealed_just`）が1度も立たなかった（`ON_REVEALED_FROM_HAND` が不発）。
+                //   ここでは payload の `targetName` が既に手元にある＝**原文を読み直す理由がそもそも無かった**。
+                { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_NAMED',
+                  optionalHandRevealNamed: { cardName: targetName } } as StubAction,
                 conditional.then,
               ] } as EffectAction },
             { id: 'skip', label: '公開しない', action: (conditional.else ?? noopAction) as EffectAction, available: true },

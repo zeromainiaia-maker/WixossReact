@@ -1452,8 +1452,8 @@ export function addToBeatZone(state: PlayerState, cards: string[]): PlayerState 
 
 // ─── 【ビート】コスト支払い（cost.beat_signi）───────────────────────────────
 // 「シグニを【ビート】にする」コストを支払う＝対象シグニを場から beat_zone へ移し beat_became_just に積む
-//（ON_BECOME_BEAT 発火用）。数値形の対象の意味（このシグニ/他の/任意）は後方互換のため
-// 効果元の EffectText から導出する。構造化形の除外条件は JSON payload だけを読む。
+//（ON_BECOME_BEAT 発火用）。🆕**対象の意味（このシグニ／他の／裸／同名除外）は JSON payload だけを読む**
+//（`O-60` 第73バッチで原文 regex を撤去。数値形は「自身以外を N 体」の後方互換）。
 // **近似：「他の」シグニはレベルが低い順に自動選択**（プレイヤー選択は未実装）。
 // 【ビート】コストの構造を解析（UIのプレイヤー選択／payBeatSigniCost の自動近似の双方が参照）。
 // includeSelf=自身も【ビート】に／otherPart=「他の/任意」で選ぶ枚数／eligibleOtherZones=その選択候補ゾーン。
@@ -1469,20 +1469,26 @@ export function analyzeBeatSigniCost(
 ): { includeSelf: boolean; selfZone: number; otherPart: number; eligibleOtherZones: number[] } {
   const srcNum = getCardNum(sourceCardNum);
   const sourceCard = cardMap.get(srcNum);
-  const text = sourceCard?.EffectText ?? '';
   const count = beatSigniCostCount(cost);
-  const includeSelf = /このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に/.test(text);
-  const selfOtherM = text.match(/このシグニと他のシグニ([０-９0-9]+)体/);
+  // 🆕**§5.3 `O-60` 第73バッチ（2026-09-05）＝対象の意味は payload だけを読む（原文は読まない）。**
+  // 🔴旧実装は `sourceCard.EffectText`（**カード全文**）に `/このシグニ(を|と他のシグニN体)…【ビート】に/`
+  //   を当てて `includeSelf` を決めていた＝①同じカードの別能力の文に当たりうる
+  //   ②「シグニ１体を【ビート】にする」（裸の形）はどの分岐にも当たらず、**自身が無条件で候補外**
+  //   になっていた。⚠live の唯一の標本 `WDK14-001-E2` は**ルリグ**でシグニゾーンに居ないため実害は
+  //   まだ出ていない（効果元がシグニの同型が来た日に過小実行になる）＝payload で先に塞いだ。
+  // ⚠数値形（`beat_signi: N`）は後方互換＝**自身以外を N 体**（旧既定と同じ）。
+  const spec = typeof cost === 'object' ? cost : undefined;
+  const includeSelf = spec?.includeSelf ?? false;
+  const otherPart = spec?.otherCount ?? (includeSelf ? 0 : Math.max(1, count));
+  const selfEligible = spec?.selfEligible ?? false;
   // `excludeSelf` はインスタンス1体ではなく「効果元と同じカード名」を除外する。
   // 原文が効果元自身のカード名を《〜》以外と印字する文型なので、同名の別コピーも支払えない。
-  const excludedName = typeof cost === 'object' && cost.excludeSelf ? sourceCard?.CardName : undefined;
-  const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30)), 10);
-  const otherPart = includeSelf ? (selfOtherM ? toN(selfOtherM[1]) : 0) : Math.max(1, count);
+  const excludedName = spec?.excludeSelf ? sourceCard?.CardName : undefined;
   const signi = state.field.signi;
   const selfZone = signi.findIndex(s => getCardNum(s?.at(-1) ?? '') === srcNum && (s?.length ?? 0) > 0);
   const eligibleOtherZones = signi
     .map((s, zi) => ({ zi, cn: s?.at(-1) }))
-    .filter(z => z.cn && z.zi !== selfZone
+    .filter(z => z.cn && (selfEligible || z.zi !== selfZone)
       && (!excludedName || cardMap.get(getCardNum(z.cn))?.CardName !== excludedName))
     .map(z => z.zi);
   return { includeSelf, selfZone, otherPart, eligibleOtherZones };
@@ -1522,7 +1528,9 @@ export function payBeatSigniCost(
   for (const zi of chosenZones) { moved.push(signi[zi]!.at(-1)!); movedZones.add(zi); }
 
   // 支払い不能判定：自身を含むのに自身が場にいない／「他の」が必要数に満たない
-  const gotOthers = [...movedZones].filter(zi => zi !== selfZone).length;
+  // ⚠**`selfEligible`（裸の「シグニN体」）では自身も「N体」の1体として数える**＝
+  //   ここで自身ゾーンを一律に引くと、自身を選んだときだけ支払い不能へ落ちる（第73バッチで実測）。
+  const gotOthers = movedZones.size - (includeSelf && selfZone >= 0 ? 1 : 0);
   if ((includeSelf && selfZone < 0) || gotOthers < otherPart) {
     return { state, moved: [], ok: false, log: '【ビート】コスト支払い不能（対象シグニ不足）' };
   }

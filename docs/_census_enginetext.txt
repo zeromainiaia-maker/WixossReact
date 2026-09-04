@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
-A🔴 SELF_TEXT（効果元の全文で意味を決める）: 9行 / 9ハンドラ
+A🔴 SELF_TEXT（効果元の全文で意味を決める）: 5行 / 5ハンドラ
 B  OTHER_CARD（他カードの属性判定）      : 56行
-C  COMMENT                              : 90行
-合計 155行
+C  COMMENT                              : 92行
+合計 153行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの
@@ -10,20 +10,16 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:3202 | 0 | 0 | 8 | 0 |
+| CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE | execStubPart3.ts:3187 | 0 | 0 | 8 | 0 |
 | CONDITIONAL_PER_TRASH | execStubPart2.ts:2133 | 0 | 0 | 1 | 0 |
 | CONDITIONAL_POWER_BONUS | execStubPart1.ts:1713 | 0 | 0 | 9 | 0 |
-| fn:analyzeBeatSigniCost | execUtils.ts:1472 | 0 | 0 | 2 | 0 |
-| INTERNAL_MARK_REVEALED_NAMED | execStubPart3.ts:3303 | 0 | 0 | 0 | 0 |
 | LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT | execStubPart2.ts:1179 | 0 | 0 | 0 | 0 |
-| OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3081 | 0 | 0 | 13 | 0 |
-| REVEAL_AND_PICK | execStubPart1.ts:3055 | 0 | 0 | 2 | 0 |
-| SUMMON_FROM_TRASH | execStubPart3.ts:2961 | 0 | 0 | 1 | 0 |
+| OPP_DECK_REVEAL_UNTIL | execStubPart1.ts:3057 | 0 | 0 | 13 | 0 |
 
 ## A群 明細
 
 ### CHOOSE_SAME_OPTION_TWICE|CHOOSE_SAME_OPTION_MULTIPLE  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:3202  const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
+  execStubPart3.ts:3187  const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
     lit re:あなたがベットしていた場合、代わりに([２-９\d])つ(?:まで)?選ぶ
     lit re:以下の.*?から([２-９\d])つまで選ぶ
     lit re:①.*手札に戻す
@@ -49,19 +45,11 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:あなたの場に(?:他の)?＜([^＞]+)＞のシグニがある場合.*?([－＋][０-９\d]+)
     lit re:このシグニのパワーを([－＋][０-９\d]+)する
 
-### fn:analyzeBeatSigniCost  (live 0効果 / 0カード / miss 0)
-  execUtils.ts:1472  const text = sourceCard?.EffectText ?? '';
-    lit re:このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に
-    lit re:このシグニと他のシグニ([０-９0-9]+)体
-
-### INTERNAL_MARK_REVEALED_NAMED  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:3303  const nameMRFH = ((srcMRFH?.EffectText ?? '') + ' ' + (srcMRFH?.BurstText ?? '')).match(/《([^《》]+)》を公開/)?.[1];
-
 ### LOOK_TOP_N|LOOK_TOP_SORT|LOOK_TOP_COLOR_SORT|LOOK_TOP_BY_LIFE_COUNT  (live 0効果 / 0カード / miss 0)
   execStubPart2.ts:1179  const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
 
 ### OPP_DECK_REVEAL_UNTIL  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:3081  const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
+  execStubPart1.ts:3057  const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
     lit re:＜([^＞]+)＞のシグニが(?:[０-９\d]+枚)?めくれるまで
     lit re:レベル([０-９\d]+)を持つ
     lit re:シグニが(?:[０-９\d]+枚)?めくれるまで
@@ -75,15 +63,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
     lit re:公開した(?:カード|カードすべて)をトラッシュに置く
     lit re:(?:この方法で)?公開されたカードをトラッシュに置く
     lit re:残りをシャッフルして
-
-### REVEAL_AND_PICK  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:3055  const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
-    lit re:シグニ([０-９\d]+)枚を探して
-    lit re:場に出す
-
-### SUMMON_FROM_TRASH  (live 0効果 / 0カード / miss 0)
-  execStubPart3.ts:2961  const txtSFT = srcSFT ? (srcSFT.EffectText ?? '') : '';
-    lit re:トラッシュから.*レベル([０-９\d]+)以下の.*シグニ
 
 ## B群（他カードの属性判定＝正当寄り）
   assistLrig.ts:26 <fn:collectReturnableAssistLrigTops> if (action.withoutAttackPhaseIcon && (card.EffectText ?? '').includes('アタックフェイズアイコン')) return false;
@@ -124,11 +103,11 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   effectEngine.ts:7752 <fn:collectAltAttackFlipSigni> const txt = card?.EffectText ?? '';
   effectEngine.ts:7783 <fn:collectGrowCostSubstitute> const txt = card.EffectText ?? '';
   effectEngine.ts:7944 <fn:collectTreatAsClassAllZones> const text = card?.EffectText ?? '';
-  effectExecutor.ts:7422 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
+  effectExecutor.ts:7428 <fn:getLevelReferenceOverride> const txt = card?.EffectText ?? '';
   execStubPart1.ts:1122 <INTERNAL_DECLARE_DECK_TOP_ICON> const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
   execStubPart2.ts:4175 <GRANT_ABILITY_UNTIL_OPP_TURN> const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
   execStubPart2.ts:4271 <INTERNAL_LAYER_COPY_APPLY> const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
-  execStubPart3.ts:3343 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
+  execStubPart3.ts:3333 <ACCE_SIGNI_GRANT_ABILITY> const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
   execUtils.ts:1182 <fn:matchesFilter> if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   execUtils.ts:1184 <fn:matchesFilter> if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   execUtils.ts:1186 <fn:matchesFilter> if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
@@ -139,6 +118,6 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
   execUtils.ts:1287 <fn:matchesFilter> const printed = card.EffectText?.includes('：【マルチエナ】') ?? false;
   execUtils.ts:1296 <fn:matchesFilter> const txt = card.EffectText ?? '';
   execUtils.ts:1426 <fn:hasNoAbility> return blank(card.EffectText) && blank(card.BurstText);
-  execUtils.ts:2475 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
-  execUtils.ts:3948 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
+  execUtils.ts:2483 <case:DECK_TOP_MATCHES> const txt = topCard?.EffectText ?? '';
+  execUtils.ts:3956 <fn:matchesRiseFilter> return !!(card.EffectText?.includes('【ライズ】'));
   triggerCollect.ts:1755 <fn:resolveLeaveFieldDynamicFilters> .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))

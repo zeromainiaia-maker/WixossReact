@@ -8539,6 +8539,142 @@ const scenarios = {
     },
   },
 
+  // §5.3 `O-60` 第73バッチ（2026-09-05）＝【ビート】コストの「誰を」を payload 化した回の観測点。
+  // WXK08-068（炎魔の尾火　アイトワラス・Lv4・タウィル限定）＝「【出】…**このシグニと他のシグニ１体**を
+  // 【ビート】にする：対戦相手のシグニ１体を対象とし、それをバニッシュする」＝**自身＋他1体の計2体**が
+  // 場を離れる形。🔴旧 live は `beat_signi: 1`（＝engine が効果元の**カード全文**に regex を当てて
+  // 「自身も含む」を導いていたので枚数は1のままでよかった）＝支払いUIの表示だけが
+  // 「シグニ**1体**を【ビート】に」という嘘だった。payload 化で `count`＝合計体数（2）になる。
+  // ⚠ここで見るのは表示ではなく**盤面**＝「2体とも場から消えること」（表示は §4.4 の別項）。
+  o60BeatSelfAndOther: {
+    title: 'O-60 第73＝【ビート】コスト payload（WXK08-068＝自身＋他1体の2体が場を離れて相手をバニッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX06-001#1'],            // 永らえし者 タウィル＝フィーラ（Lv4・タウィル限定を満たす）
+        'field.signi': [['WD01-013#1'], null, null], // 「他のシグニ」候補1体（Lv1＝リミット内）
+        'field.signi_down': [false, false, false],
+        // 🔴**CORE フィールドの明示クリア**（§5.1 教訓）＝`beat_zone` は除外方式の注入では消えないので、
+        //   前のシナリオで【ビート】化したカードが残り、［４枚以下］のゲートが閉じて**能力が提示されない**
+        //   （単体 PASS・一括 FAIL の典型。実際にこの1行が無くて踏んだ）。
+        'field.beat_zone': [],
+        'hand': ['WXK08-068#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.signi': [['WD01-012#1'], null, null] }, // バニッシュ対象
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      // 🔴一括実行では前シナリオのモーダルが開いたままだと**注入が画面に届かない**（§5.1 教訓）＝
+      //   「召喚」を押しても1体も置けず、単体 PASS・一括 FAIL になる（第73で実際に踏んだ）。
+      await H.closeModals();
+      await H.ensureMain();
+      for (let w = 0; w < 12; w++) {                 // 注入が画面へ届くのを待ってから読む
+        if (await page.getByTestId('my-hand-card-0').count()) break;
+        await page.waitForTimeout(400);
+      }
+      const before = await H.queryState();
+      const gCount = (st) => (st?.guest?.fieldSigni ?? []).flat().filter(Boolean).length;
+      const hCount = (st) => (st?.host?.fieldSigni ?? []).flat().filter(Boolean).length;
+      H.log('開始時 hField:', JSON.stringify(before?.host?.fieldSigni), 'gField:', JSON.stringify(before?.guest?.fieldSigni));
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/o60BeatSelfAndOther-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+            await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+          }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) { // SELECT_TARGET（バニッシュ対象＝guest シグニ）＝⚠決定が出ていない間だけ pick-0（押し直すとトグルで外れる）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  bso[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        // 期待＝host は「召喚した自身」も「他の1体」も居なくなる（＝0体）／guest は1体減る
+        if (hCount(st) === 0 && gCount(st) === gCount(before) - 1) {
+          return { pass: true, detail: `自身＋他1体の計2体が【ビート】へ（hField ${JSON.stringify(before.host.fieldSigni)}→${JSON.stringify(st.host.fieldSigni)}）＋相手シグニがバニッシュ（gField ${JSON.stringify(before.guest.fieldSigni)}→${JSON.stringify(st.guest.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `2体【ビート】化＋バニッシュ 未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // 🔴反転確認＝**1ビットだけ**変える（「他のシグニ」が場に居ない）。`otherCount:1` が満たせないので
+  // 支払いは成立せず、相手シグニは残る。⚠ここが PASS しないと上の PASS は「無条件で発動している」でも
+  // 説明がついてしまう（§4.4 の反転確認）。
+  o60BeatSelfAndOtherNoOther: {
+    title: 'O-60 第73 反転＝他のシグニが居なければ【ビート】コストを払えず相手シグニは残る',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX06-001#1'],
+        'field.signi': [null, null, null],       // 🔴「他のシグニ」が1体も居ない
+        'field.signi_down': [false, false, false],
+        'field.beat_zone': [],                   // 同上＝前の巡の【ビート】を持ち越さない
+
+        'hand': ['WXK08-068#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.signi': [['WD01-012#1'], null, null] },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.closeModals();                          // 同上＝一括実行での残留モーダル対策
+      await H.ensureMain();
+      for (let w = 0; w < 12; w++) {
+        if (await page.getByTestId('my-hand-card-0').count()) break;
+        await page.waitForTimeout(400);
+      }
+      const before = await H.queryState();
+      H.log('開始時 hField:', JSON.stringify(before?.host?.fieldSigni), 'gField:', JSON.stringify(before?.guest?.fieldSigni),
+        'hand:', JSON.stringify(before?.host?.handCards ?? before?.host?.hand), 'trash:', JSON.stringify(before?.host?.trashCards ?? before?.host?.trash));
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 14; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/o60BeatSelfAndOtherNoOther-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+            await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+          }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1');
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) { // 反転側でも同じ手順を踏む（対象選択まで来ないことが期待値）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  bsn[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      }
+      const fin = await H.queryState();
+      const gAfter = (fin?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+      const hAfter = (fin?.host?.fieldSigni ?? []).flat().filter(Boolean);
+      if (gAfter.length === 1 && hAfter.length === 1) {
+        return { pass: true, detail: `他のシグニが居ないので支払い不成立＝相手シグニは残り（gField=${JSON.stringify(fin.guest.fieldSigni)}）、召喚した自身も場に残る（hField=${JSON.stringify(fin.host.fieldSigni)}）` };
+      }
+      return { pass: false, detail: `反転が崩れた（hField=${JSON.stringify(fin?.host?.fieldSigni)} gField=${JSON.stringify(fin?.guest?.fieldSigni)}）＝支払えないはずのコストで発動している疑い` };
+    },
+  },
+
   // レゾナ【出現条件】召喚UI（MAIN）＝WX08-021 サソリスをルリグデッキから開き、
   // ＜凶蟲＞2枚を手札から選択して支払い、実UIの召喚先選択を通してzone0へ配置する。
   resonaMainWx08021: {
@@ -48247,6 +48383,9 @@ scenarios.v151LrigAttackLimit3 = mkLrigAttackLimitScenario(true);
 order.push('v151LrigAttackLimit3');
 scenarios.v151LrigAttackLimitDefault = mkLrigAttackLimitScenario(false);
 order.push('v151LrigAttackLimitDefault');
+// §5.3 `O-60` 第73（2026-09-05）＝【ビート】コストの対象を payload 化した回の反転1組。
+order.push('o60BeatSelfAndOther');
+order.push('o60BeatSelfAndOtherNoOther');
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

@@ -553,10 +553,37 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   // このルリグの下からカードN枚をルリグトラッシュに置く → exceed（エクシードの文章表現）
   const emLrig = !em ? costStr.match(/このルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/) : null;
   if (emLrig) cost.exceed = parseNum(emLrig[1]);
-  // シグニを【ビート】にする（コスト）: "他のシグニ1体" or "シグニ1体"
-  const beatM = costStr.match(/(?:他の)?シグニ([０-９\d]+)体を【ビート】にする/);
-  if (beatM) cost.beat_signi = parseNum(beatM[1]);
-  else if (costStr.includes('シグニ１体を【ビート】にする') || costStr.includes('他のシグニ１体を【ビート】にする') || costStr.includes('このシグニを【ビート】にする')) cost.beat_signi = 1;
+  // シグニを【ビート】にする（コスト）
+  // 🆕**§5.3 `O-60` 第73バッチ（2026-09-05）＝「誰を【ビート】にするか」まで payload で表す。**
+  // 🔴旧実装は枚数だけを刻み、**自身を含むか**は engine が `EffectText`（カード全文）に
+  //   regex を当てて導いていた（＝`O-60` A群の最後の funnel の1本）。ここは**コスト句だけ**を
+  //   見ているので、同じカードの別能力に当たる余地がない＝**読むならここで1度だけ読む。**
+  // ⚠4形を区別する（順番が意味を持つ＝「このシグニと他の」は「他の」より先に見る）。
+  {
+    const beatSelfOther = costStr.match(/このシグニと他のシグニ([０-９\d]+)体を【ビート】にする/);
+    const beatExclName = costStr.match(/《[^》]+》以外のシグニ([０-９\d]+)体を【ビート】にする/);
+    const beatOther = costStr.match(/他のシグニ([０-９\d]+)体を【ビート】にする/);
+    // ⚠ここへ来るのは上の3形のどれでもなかったときだけなので、素の regex でよい（後読みを使わない）。
+    const beatBare = costStr.match(/シグニ([０-９\d]+)体を【ビート】にする/);
+    if (beatSelfOther) {
+      const n = parseNum(beatSelfOther[1]);
+      cost.beat_signi = { count: n + 1, includeSelf: true, otherCount: n };
+    } else if (costStr.includes('このシグニを【ビート】にする')) {
+      cost.beat_signi = { count: 1, includeSelf: true, otherCount: 0 };
+    } else if (beatExclName) {
+      // 「《効果元のカード名》以外のシグニ１体」＝同名の別コピーも候補にしない（excludeSelf の意味）。
+      // 🔑旧実装は effectId 3件の allowlist だったので、同型の新カードは黙って除外なしに落ちていた。
+      const n = parseNum(beatExclName[1]);
+      cost.beat_signi = { count: n, excludeSelf: true, otherCount: n };
+    } else if (beatOther) {
+      const n = parseNum(beatOther[1]);
+      cost.beat_signi = { count: n, otherCount: n };
+    } else if (beatBare) {
+      // 裸の「シグニN体」＝**自身も選べる**（旧実装は自身を候補から外していた＝過小実行）。
+      const n = parseNum(beatBare[1]);
+      cost.beat_signi = { count: n, otherCount: n, selfEligible: true };
+    }
+  }
   const coinM = costStr.match(/《コインアイコン》/g);
   if (coinM?.length) cost.coin = coinM.length;
   // 対戦相手の場の【ウィルス】N個を取り除く → removeOppVirus
@@ -24755,12 +24782,9 @@ function applyIdentityCostTriggerBatch2026Aug30(card: CardData, effects: CardEff
       }
     }
 
-    if (['WDK14-014-E2', 'WXK08-043-E1', 'WXK10-041-E3'].includes(effect.effectId)
-        && /《[^》]+》以外のシグニ１体を【ビート】にする/.test(source)
-        && typeof effect.cost?.beat_signi === 'number') {
-      effect.cost.beat_signi = { count: effect.cost.beat_signi, excludeSelf: true };
-      changed = true;
-    }
+    // 🏁**2026-09-05（§5.3 `O-60` 第73バッチ）＝この effectId allowlist は一般規則へ畳んだ。**
+    // 「《X》以外のシグニN体を【ビート】にする」の `excludeSelf` は `parseCost`（コスト句だけを見る）が
+    // 直接刻む。⚠allowlist のままだと**同型の新カードが黙って「除外なし」へ落ちる**（無言の過剰実行）。
 
     if (effect.effectId === 'WXEX2-39-E3'
         && /コストか＜凶蟲＞のシグニの効果によって手札からトラッシュに置かれたとき/.test(source)) {

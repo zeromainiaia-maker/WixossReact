@@ -11,7 +11,7 @@ live JSON の STUB id 種類 : 587（総ノード 3181 件）
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 33 種 / 103 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 562 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 339 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 337 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -25,86 +25,86 @@ live JSON の STUB id 種類 : 587（総ノード 3181 件）
         生成: src\data\parsers\parseSentencePart2.ts:492
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:22630
+        生成: src\data\effectParser.ts:22657
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1663
      1件   1枚  DEFERRED_EACH_PLAYER_REVEAL_HAND
         カード: WXEX2-80
-        生成: src\data\effectParser.ts:14951
+        生成: src\data\effectParser.ts:14978
      1件   1枚  DEFERRED_GRANT_QUOTED_ATTACK_REPLACEMENT
         カード: WXDi-P05-069
-        生成: src\data\effectParser.ts:6976
+        生成: src\data\effectParser.ts:7003
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
         生成: src\data\parsers\parseSentencePart2.ts:2845
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
-        生成: src\data\effectParser.ts:14954
+        生成: src\data\effectParser.ts:14981
      1件   1枚  DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE
         カード: WXDi-P06-045
-        生成: src\data\effectParser.ts:14958
+        生成: src\data\effectParser.ts:14985
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD
         カード: SPK01-14
-        生成: src\data\effectParser.ts:14947
+        生成: src\data\effectParser.ts:14974
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL
         カード: PR-K078
-        生成: src\data\effectParser.ts:14949
+        生成: src\data\effectParser.ts:14976
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK
         カード: PR-K070
-        生成: src\data\effectParser.ts:14948
+        生成: src\data\effectParser.ts:14975
      1件   1枚  DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH
         カード: WXDi-P00-037
-        生成: src\data\effectParser.ts:14952
+        生成: src\data\effectParser.ts:14979
      1件   1枚  DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM
         カード: WXDi-P00-063
-        生成: src\data\effectParser.ts:14957
+        生成: src\data\effectParser.ts:14984
      1件   1枚  DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM
         カード: WXDi-P09-065
         生成: src\data\parsers\parseSentencePart4.ts:2001
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:15245
+        生成: src\data\effectParser.ts:15272
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2184
      1件   1枚  DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE
         カード: WDK09-015
-        生成: src\data\effectParser.ts:15140
+        生成: src\data\effectParser.ts:15167
      1件   1枚  DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL
         カード: WX24-P4-085
-        生成: src\data\effectParser.ts:14956
+        生成: src\data\effectParser.ts:14983
      1件   1枚  DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI
         カード: WXK08-084
-        生成: src\data\effectParser.ts:14959
+        生成: src\data\effectParser.ts:14986
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:2142
      1件   1枚  DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI
         カード: WDK17-015
-        生成: src\data\effectParser.ts:14955
+        生成: src\data\effectParser.ts:14982
      1件   1枚  DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED
         カード: WX22-042
-        生成: src\data\effectParser.ts:15250
+        生成: src\data\effectParser.ts:15277
      1件   1枚  DEFERRED_SELF_TRASH_TO_DECK_BOTTOM
         カード: WX22-Re17
-        生成: src\data\effectParser.ts:14950
+        生成: src\data\effectParser.ts:14977
      1件   1枚  DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM
         カード: WX26-CP1-055
         生成: src\data\parsers\parseSentencePart4.ts:2250
      1件   1枚  DEFERRED_TRASH_UNDER_DISTINCT_LEVELS
         カード: WX24-P4-046
-        生成: src\data\effectParser.ts:15136
+        生成: src\data\effectParser.ts:15163
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
 ==============================================================================
     25件  25枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他19枚
-        消費: src\engine\effectExecutor.ts:6005 / src\engine\effectExecutor.ts:6020 / src\engine\triggerCollect.ts:520
+        消費: src\engine\effectExecutor.ts:6011 / src\engine\effectExecutor.ts:6026 / src\engine\triggerCollect.ts:520
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
-        消費: src\engine\effectExecutor.ts:5609 / src\engine\effectExecutor.ts:5614
+        消費: src\engine\effectExecutor.ts:5615 / src\engine\effectExecutor.ts:5620
      6件   6枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P04-009, WXDi-P05-009, WXDi-P06-009, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004
         消費: src\engine\effectExecutor.ts:5405
@@ -137,7 +137,7 @@ live JSON の STUB id 種類 : 587（総ノード 3181 件）
         消費: src\engine\effectExecutor.ts:469
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
-        消費: src\engine\effectExecutor.ts:5638
+        消費: src\engine\effectExecutor.ts:5644
      1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:109
@@ -161,10 +161,10 @@ live JSON の STUB id 種類 : 587（総ノード 3181 件）
         消費: src\engine\execUtils.ts:1362
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9530
+        消費: src\engine\effectExecutor.ts:9536
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9532
+        消費: src\engine\effectExecutor.ts:9538
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66
@@ -191,7 +191,7 @@ live JSON の STUB id 種類 : 587（総ノード 3181 件）
         消費: src\screens\battle\costs.ts:1073
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1971
+        消費: src\engine\execUtils.ts:1979
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:7942

@@ -194,7 +194,17 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
               }).length >= beatTrashCostM.count;
-              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk && t2dOk
+              // 🆕**§5.3 `O-60` 第73バッチ（2026-09-05）＝場の【ビート】コストにも「そもそも払えるか」の門。**
+              // 🔴実機で発見＝「このシグニと**他のシグニ１体**を【ビート】にする」の【出】は、場に他の
+              //   シグニが1体も居なくても【発動】が**押せる**状態だった。押すと engine の
+              //   `payBeatSigniCost` が `ok:false` を返して**何も起きず、召喚だけが宙に浮く**
+              //   （盤面にも DB にも出ないので golden では踏めない＝`beat_signi_from_trash` 側にだけ
+              //    `beatTrashOkM` の門があり、場側は素通りだった）。
+              // ⚠**自身（`includeSelf`）は数えない**＝このモーダルが開く時点では召喚が確定しておらず
+              //   `selfZone` が -1 のことがある（ここで自身を要求すると払える形まで塞ぐ）。
+              const beatFieldOkM = beatSigniCostCount(eff.cost?.beat_signi) === 0
+                || beatCostM.eligibleOtherZones.length >= beatCostM.otherPart;
+              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatFieldOkM && beatSelectOk && t2dOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && handDiscardSigniOk

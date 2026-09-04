@@ -846,8 +846,25 @@ export interface CostScalingTerm {
  *
  * 数値形は既存データとの後方互換。構造化形の `excludeSelf` は「効果元と同じカード名を除外する」
  * （原文が効果元自身のカード名を《〜》以外と印字する形）で、同名の別コピーも候補にしない。
+ *
+ * 🆕**2026-09-05（§5.3 `O-60` 第73バッチ）＝「誰を【ビート】にするか」も payload で表す。**
+ * 🔴従来は engine の `analyzeBeatSigniCost` が**効果元のカード全文**（`EffectText`）に
+ *   `/このシグニ(を|と他のシグニN体)…【ビート】に/` を当てて `includeSelf` を導いていた＝
+ *   **同じカードの別の能力の文に当たりうる**うえ、「シグニ１体を【ビート】にする」（＝自分自身も
+ *   選べる裸の形）は**どの分岐にも当たらず自身が無条件で候補外**になっていた
+ *   （⚠live の標本 `WDK14-001-E2` は**ルリグ**なので実害はまだ無い＝効果元がシグニの同型が来た日に出る）。
+ * - `count`＝**【ビート】になる合計体数**（UI の「シグニN体を【ビート】に」の表示もこれ）。
+ * - `includeSelf`＝効果元自身が**必ず**含まれる（「このシグニと他のシグニN体」「このシグニを」）。
+ * - `otherCount`＝自身以外に選ぶ体数（`includeSelf` の有無にかかわらず必要数はこれ）。
+ * - `selfEligible`＝自身を**選んでもよい**（「シグニN体」の裸の形）。`includeSelf` とは別物。
  */
-export type BeatSigniCost = number | { count: number; excludeSelf?: boolean };
+export type BeatSigniCost = number | {
+  count: number;
+  excludeSelf?: boolean;
+  includeSelf?: boolean;
+  otherCount?: number;
+  selfEligible?: boolean;
+};
 
 /**
  * 【アンコール】の支払い（`アンコール－…` の印字）＝**カードに印刷されたキーワードコスト**。

@@ -34,7 +34,7 @@ import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
 import { trashActivateVerbLabel } from '../src/screens/battle/trashActivateCost';
 import { clearTurnEndScopedState } from '../src/screens/battle/turnScopedState';
 import { matchesTrashArtsFromLrigDeckCost } from '../src/screens/battle/artsTrashCost';
-import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
+import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, sweepFacedownAttached, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, beatSigniCostCount, payBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -17219,7 +17219,8 @@ test('census同一性 A群: live 4効果は動的filterを持ち、不一致レ�
 // B群はカード全文 regex 依存をやめ、live JSON の構造化コストだけで同名コピーを除外する。
 test('censusコスト B群: beat_signi.excludeSelf は同名コピーを除外し、別名だけを支払い候補にする', () => withSavedCursor(() => {
   const effect = (effectsMap.get('WDK14-014') ?? []).find(e => e.effectId === 'WDK14-014-E2')!;
-  eq(JSON.stringify(effect.cost?.beat_signi), JSON.stringify({ count: 1, excludeSelf: true }), 'live JSON に除外を保持');
+  // 🆕2026-09-05（`O-60` 第73）＝`otherCount` が増えた（必要数を payload で持つようになったため）。
+  eq(JSON.stringify(effect.cost?.beat_signi), JSON.stringify({ count: 1, excludeSelf: true, otherCount: 1 }), 'live JSON に除外を保持');
   const st = { field: { signi: [['WDK14-014'], ['WDK14-012'], null] } } as unknown as PlayerState;
   const m = new Map<string, CardData>([
     // EffectText は空。除外が JSON payload だけで効くことを固定する。
@@ -21478,6 +21479,20 @@ test('O-60 第33〜36バッチ: パワー上限／一掃／公開→エナ／N�
     '🔴payload の名前で手札から公開できる（旧実装はかぎ括弧 regex で恒久 no-op）');
   eq((((runStub({ id: 'OPTIONAL_HAND_REVEAL_NAMED' }, { hand: [SIGNI] } as unknown as Partial<PlayerState>)).ownerState as PlayerState).hand_revealed_just ?? []).length, 0,
     'payload が無ければ公開しない');
+  // ── 🆕第72 INTERNAL_MARK_REVEALED_NAMED: 公開の「記録」側も payload（`O-60` A群の残り1本）
+  // 🔴旧実装はカード全文に `/《([^《》]+)》を公開/` を当てて名前を導出していたが、原文の綴りは
+  //   「《X》**１枚を**公開してもよい」＝**1本も当たらず**、`hand_revealed_just` が1度も立たなかった
+  //   （＝`ON_REVEALED_FROM_HAND` が永久に不発。生成側の第36バッチと**同じ罠**が内部 STUB に残っていた）。
+  const marked = runStub({ id: 'INTERNAL_MARK_REVEALED_NAMED', optionalHandRevealNamed: { cardName: named } },
+    { hand: [SIGNI] } as unknown as Partial<PlayerState>);
+  ok(((marked.ownerState as PlayerState).hand_revealed_just ?? []).includes(SIGNI),
+    '🔴payload の名前で公開が記録される（旧実装は全文 regex が外れて恒久 no-op）');
+  eq((((runStub({ id: 'INTERNAL_MARK_REVEALED_NAMED' }, { hand: [SIGNI] } as unknown as Partial<PlayerState>)).ownerState as PlayerState).hand_revealed_just ?? []).length, 0,
+    'payload が無ければ記録しない（fail-closed）');
+  // 生成側（`effectExecutor` の任意公開 CHOOSE）が payload を積んでいること＝ここが抜けると上の分岐が死ぬ。
+  ok(fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8')
+    .includes("id: 'INTERNAL_MARK_REVEALED_NAMED',\n                  optionalHandRevealNamed: { cardName: targetName }"),
+    '生成側が公開するカード名を payload で渡している');
 }));
 // 🆕§5.3 `O-60` 第29〜32バッチ（2026-09-03）＝CONTINUOUS のパワー比例4種を typed へ寄せた。
 // 🔴旧 STUB は4本とも**修正先か数え方が原文と裏返って**いた（下の assert がその向きを固定する）。
@@ -36375,14 +36390,18 @@ test('task12(xxix)(1) wave7: seven beat costs preserve per-effect shape and are 
     const stub = optionalOnPlayCostStub(effect.cost!, effectId);
     ok(!!stub, `${effectId}: shared OPTIONAL_COST に収集`);
     if (want.key === 'beat_signi') {
-      eq(beatSigniCostCount(stub!.beat_signi), 1, `${effectId}: beat_signi count`);
+      // 🆕2026-09-05（`O-60` 第73）＝`count` は**【ビート】になる合計体数**になった。
+      // 🔴旧は「このシグニと他のシグニ１体」でも `1`＝**UI が「シグニ1体を【ビート】に」と嘘を表示**
+      //   していた（実際は自身＋1体の2体が場を離れる）。
+      eq(beatSigniCostCount(stub!.beat_signi), want.includeSelf ? want.otherPart + 1 : want.otherPart,
+        `${effectId}: beat_signi count＝合計体数`);
       const state = mkState({ signi: [cardNum, other, null] });
       const a = analyzeBeatSigniCost(state, cardNum, cardMap, effect.cost!.beat_signi!);
       eq(a.includeSelf, want.includeSelf, `${effectId}: 自身を支払いに含むか`);
       eq(a.otherPart, want.otherPart, `${effectId}: 自身以外の必要数`);
       ok(!a.eligibleOtherZones.includes(a.selfZone), `${effectId}: 自身は他シグニ候補へ重複しない`);
       if (['WDK14-014-E2', 'WXK08-043-E1', 'WXK10-041-E3'].includes(effectId)) {
-        eq(JSON.stringify(stub!.beat_signi), JSON.stringify({ count: 1, excludeSelf: true }),
+        eq(JSON.stringify(stub!.beat_signi), JSON.stringify({ count: 1, excludeSelf: true, otherCount: 1 }),
           `${effectId}: structured excludeSelf payload`);
         const duplicate = mkState({ signi: [cardNum, `${cardNum}#duplicate`, other] });
         const named = analyzeBeatSigniCost(duplicate, cardNum, cardMap, effect.cost!.beat_signi!);
@@ -36394,6 +36413,71 @@ test('task12(xxix)(1) wave7: seven beat costs preserve per-effect shape and are 
     }
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第73バッチ（2026-09-05）＝【ビート】コストの「誰を」を payload へ移した（A🔴 6→5行）。
+// 🔴撤去したのは `analyzeBeatSigniCost` が **効果元のカード全文**に当てていた2本の regex。
+//   ①`/このシグニ(を|と他のシグニN体)…【ビート】に/`＝**同じカードの別能力の文にも当たりうる**
+//   ②裸の「シグニN体を【ビート】にする」は**どちらの regex にも当たらず**、常に「自身は候補外」へ
+//     落ちていた。⚠**今日の live では実害ゼロ**＝この形を持つ唯一のカード `WDK14-001-E2` は**ルリグ**で
+//     シグニゾーンに居ない（自身ゾーン＝-1 なので、そもそも除外されようがない）。**効果元がシグニの
+//     同型が出た日に初めて過小実行になる**ので、payload で「自身も選べる」を明示して先に塞いだ。
+//   🔑**「壊れている」と「壊れうる」を書き分ける**＝母集団（カードの Type）を見ずに前者と書くと、
+//     次に読む人が存在しない不具合の再現を探して時間を溶かす（第73で危うく取り違えた）。
+// 🔑**当たり外れが可視化されない既定値**の典型＝外れると「includeSelf=false・自身は候補外」に
+//   静かに落ちるので、逆翻訳にも census にも出ない（§4.3 の「既定値のある regex」）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第73: 【ビート】コストの対象は payload だけで決まる（原文は読まない）', () => withSavedCursor(() => {
+  const live = (id: string) => {
+    const cardNum = id.replace(/-E\d+$/, '');
+    return (effectsMap.get(cardNum) ?? []).find(e => e.effectId === id)!.cost!.beat_signi!;
+  };
+  // ── live payload（parser がコスト句だけを読んで刻む）
+  eq(JSON.stringify(live('WDK14-001-E2')), JSON.stringify({ count: 1, otherCount: 1, selfEligible: true }),
+    '🔴裸の「シグニ１体」＝自身も選べる（旧は無条件で候補外。live はルリグだけなので実害は無かった）');
+  eq(JSON.stringify(live('WXK08-046-E1')), JSON.stringify({ count: 1, includeSelf: true, otherCount: 0 }),
+    '「このシグニを」＝自身のみ');
+  eq(JSON.stringify(live('WXK08-068-E1')), JSON.stringify({ count: 2, includeSelf: true, otherCount: 1 }),
+    '「このシグニと他のシグニ１体」＝合計2体');
+  eq(JSON.stringify(live('WXK08-026-E2')), JSON.stringify({ count: 1, otherCount: 1 }),
+    '「他のシグニ１体」＝自身は含まない');
+  // ── engine 側＝**EffectText が空でも**同じ結論になること（原文を読んでいない証拠）
+  const noText = (nums: string[]) => new Map<string, CardData>(
+    nums.map(n => [n, { CardName: `名前${n}`, EffectText: '' } as CardData]));
+  const board = (nums: (string | null)[]) =>
+    ({ field: { signi: nums.map(n => (n ? [n] : null)) } } as unknown as PlayerState);
+  const bare = analyzeBeatSigniCost(board(['A', 'B', null]), 'A', noText(['A', 'B']), live('WDK14-001-E2'));
+  ok(!bare.includeSelf, '裸の形は「必ず自身」ではない');
+  eq(bare.eligibleOtherZones.join(','), '0,1', '🔴効果元がシグニでも自身のゾーンが候補に入る（旧は必ず外れた）');
+  eq(bare.otherPart, 1, '必要数は payload の otherCount');
+  const selfOnly = analyzeBeatSigniCost(board(['A', 'B', null]), 'A', noText(['A', 'B']), live('WXK08-046-E1'));
+  ok(selfOnly.includeSelf && selfOnly.otherPart === 0, '「このシグニを」は自身だけ');
+  eq(selfOnly.eligibleOtherZones.join(','), '1', '自身は他シグニ候補へ重複しない');
+  const both = analyzeBeatSigniCost(board(['A', 'B', null]), 'A', noText(['A', 'B']), live('WXK08-068-E1'));
+  ok(both.includeSelf && both.otherPart === 1, '自身＋他1体');
+  // ── 支払い＝裸の形で「自身を選ぶ」が成立すること（🔴旧の gotOthers 計算では支払い不能に落ちた）
+  const paidSelf = payBeatSigniCost(mkState({ signi: [SIGNI, SIGNI_P3000, null] }), SIGNI, cardMap,
+    { count: 1, otherCount: 1, selfEligible: true }, [0]);
+  ok(paidSelf.ok && paidSelf.moved.length === 1 && paidSelf.moved[0] === SIGNI,
+    '🔴自身を選んで払える（1体だけが場を離れる）');
+  const paidOther = payBeatSigniCost(mkState({ signi: [SIGNI, SIGNI_P3000, null] }), SIGNI, cardMap,
+    { count: 1, otherCount: 1, selfEligible: true }, [1]);
+  ok(paidOther.ok && paidOther.moved.join(',') === SIGNI_P3000, '反転確認: 他のシグニを選んでも払える');
+  // ── 原文 regex が engine から消えていること（復活させない門）
+  const util = fs.readFileSync(join(root, 'src/engine/execUtils.ts'), 'utf8');
+  ok(!util.includes('このシグニと他のシグニ([０-９0-9]+)体'), 'analyzeBeatSigniCost に原文 regex が復活している');
+  // ── parser 側は effectId の allowlist を持たないこと（同型の新カードが黙って落ちない門）
+  const parser = fs.readFileSync(join(root, 'src/data/effectParser.ts'), 'utf8');
+  ok(!parser.includes('effect.cost.beat_signi = { count: effect.cost.beat_signi, excludeSelf: true }'),
+    'excludeSelf を effectId allowlist で後付けする分岐が復活している（一般規則へ畳んだはず）');
+  // ── 支払いUIの門（実機 `o60BeatSelfAndOtherNoOther` が捕まえた穴）＝
+  //    「他のシグニ」が1体も居なくても【発動】が押せ、engine が ok:false を返して**召喚だけが宙に浮く**
+  //    状態だった（盤面にも DB にも出ないので golden では踏めない＝ここは存在だけを守る）。
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/SigniOnPlayCostModal.tsx'), 'utf8');
+  ok(/const beatFieldOkM =/.test(modal) && /&& beatFieldOkM &&/.test(modal),
+    '場の【ビート】コストの支払い可否ゲートが canAfford から外れている');
+}));
 
 test('task12(xxix)(1) wave7 condition: beat 4 collects, beat 5 rejects on engine placement/assist path', () => {
   const ids = [
@@ -65008,7 +65092,34 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   }
   // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
-  ok(/const BASELINE_SELF_TEXT = 9;/.test(census), 'BASELINE_SELF_TEXT が実測 9 へ下がっている（§5.3 `O-234` で choiceTextParser.ts を削除）');
+  ok(/const BASELINE_SELF_TEXT = 5;/.test(census), 'BASELINE_SELF_TEXT が実測 5 へ下がっている（§5.3 `O-60` 第71〜第73）');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.3 `O-60` 第71バッチ（2026-09-05）＝🏁**生成元が1つも無い STUB ハンドラ2本を撤去した**（A🔴 9→7行）。
+// 🔴**「live 0」だけでは消してよい根拠にならない**（parser に生成元があるなら新カードが無言 no-op へ落ちる）。
+//   消してよいのは**生成元が src/ にも live にも1つも無い**＝到達不能なコードだけ。
+//   ①`STUB{REVEAL_AND_PICK}`＝parser が出すのは**アクション型**の `REVEAL_AND_PICK` だけで、
+//     STUB 形の生成地点は1つも無かった（live も 0＝既存の「§6.4 T1: live の裸 REVEAL_AND_PICK は0枚」が門）。
+//   ②`STUB{SUMMON_FROM_TRASH}`＝唯一の生成元だった `choiceTextParser.ts` が `O-234`（第104バッチ）で
+//     削除済みだった＝**削除の巻き添えで到達不能になった残骸**。⚠隣の `SUMMON_FROM_ENERGY` は
+//     payload 化して**生きている**ので消さない（同じ family でも生成元の有無で判断する）。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第71: 到達不能だった STUB ハンドラ2本が engine から消えた', () => {
+  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  const part3 = fs.readFileSync(join(root, 'src/engine/execStubPart3.ts'), 'utf8');
+  ok(!part1.includes("stub.id === 'REVEAL_AND_PICK'"), 'execStubPart1 に STUB{REVEAL_AND_PICK} のディスパッチが残っている');
+  ok(!part3.includes("stub.id === 'SUMMON_FROM_TRASH'"), 'execStubPart3 に STUB{SUMMON_FROM_TRASH} のディスパッチが残っている');
+  // 🔑撤去の前提＝生成元が無いこと。生成元が復活したらこの test が先に落ちて「無言 no-op」を防ぐ。
+  for (const f of ['src/data/effectParser.ts', 'src/data/manualEffects.ts']) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    for (const id of ['REVEAL_AND_PICK', 'SUMMON_FROM_TRASH']) {
+      ok(!src.includes("id: '" + id + "'"), f + ' に STUB{' + id + '} の生成地点が復活している');
+    }
+  }
+  // payload 化して生きている隣の family は消していないこと（過剰撤去の門）。
+  ok(part3.includes("stub.id === 'SUMMON_FROM_ENERGY'"), 'SUMMON_FROM_ENERGY まで消してはいけない');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

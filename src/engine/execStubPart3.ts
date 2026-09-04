@@ -2955,21 +2955,6 @@ export function execStubPart3(
       (ctx.cardMap.get(getCardNum(headIPSR))?.CardName ?? headIPSR) + 'を出現条件を無視して場に出す');
     return contIPSR ? exec(contIPSR, placedIPSR) : done(placedIPSR);
   }
-  // SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用）
-  if (stub.id === 'SUMMON_FROM_TRASH') {
-    const srcSFT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSFT = srcSFT ? (srcSFT.EffectText ?? '') : '';
-    const lvMSFT = txtSFT.match(/トラッシュから.*レベル([０-９\d]+)以下の.*シグニ/);
-    const maxLvSFT = lvMSFT ? parseInt(lvMSFT[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : 99;
-    const signiInTrashSFT = ctx.ownerState.trash.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      if (!c || c.Type !== 'シグニ') return false;
-      return (parseInt(c.Level ?? '0') || 0) <= maxLvSFT;
-    });
-    if (signiInTrashSFT.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし'));
-    const addFieldSFT: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
-    return selectOrInteract(signiInTrashSFT, 1, false, 'self_trash', addFieldSFT as EffectAction, undefined, ctx);
-  }
   // 🆕**§5.3 `O-60` 第35バッチ（2026-09-03）＝レベル制限は payload（`summonFromEnergy.maxLevel`）で受け取る。**
   // 🔴旧実装は `card.EffectText` に `/レベル([０-９\d]+)以下の/` を当てていた＝**カード全文**なので
   //   別の能力のレベル表記を拾いうるし、`choiceTextParser`（実行時の①②選択肢）から来る経路では
@@ -3298,9 +3283,14 @@ export function execStubPart3(
   if (stub.id === 'INTERNAL_MARK_REVEALED_FROM_HAND' || stub.id === 'INTERNAL_MARK_REVEALED_NAMED') {
     let revealedMRFH: string[];
     if (stub.id === 'INTERNAL_MARK_REVEALED_NAMED') {
-      // 効果テキストの「《名前》を公開」から導出（OPTIONAL_HAND_REVEAL_NAMEDのCHOOSE経由）
-      const srcMRFH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-      const nameMRFH = ((srcMRFH?.EffectText ?? '') + ' ' + (srcMRFH?.BurstText ?? '')).match(/《([^《》]+)》を公開/)?.[1];
+      // 🆕**§5.3 `O-60` 第72バッチ（2026-09-05）＝カード名は payload（`optionalHandRevealNamed.cardName`）で受け取る。**
+      // 🔴旧実装は `EffectText + BurstText` に `/《([^《》]+)》を公開/` を当てて名前を導出していたが、
+      //   原文は「《X》**１枚を**公開してもよい」＝間に枚数が入るので**1本も当たらず**、
+      //   公開の記録が常に空＝`hand_revealed_just` が立たず `ON_REVEALED_FROM_HAND` が永久に不発だった。
+      //   （⚠すぐ下の `OPTIONAL_HAND_REVEAL_NAMED` が第36バッチで踏んだ罠と**同じ形**＝生成側だけ直して
+      //     内部 STUB 側が取り残されていた。**catch-all を割ったら、そこから積む内部 STUB も見る。**）
+      // ⚠**payload が無ければ記録しない**（fail-closed＝誰かが名前を勝手に決めない）。
+      const nameMRFH = stub.optionalHandRevealNamed?.cardName;
       const foundMRFH = nameMRFH ? ctx.ownerState.hand.find(cn => ctx.cardMap.get(cn)?.CardName === nameMRFH) : undefined;
       revealedMRFH = foundMRFH ? [foundMRFH] : [];
     } else {

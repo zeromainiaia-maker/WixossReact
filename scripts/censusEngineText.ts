@@ -75,7 +75,7 @@ const onlyIds = (() => {
 //   `ADD_CRAFT_TO_LRIG_DECK`・live9）**と**「シグニの配置替え」family（`SIGNI_REPOSITION` /
 //   `MOVE_TARGET_SIGNI_TO_OTHER_ZONE`・live7）**を payload 化し、
 //   `SWAP_OPTIONAL`（＝入れ替え2効果）を `DEFERRED_SWAP_*` へ分離した分。
-const BASELINE_SELF_TEXT = 9;   // 🆕2026-09-04 §5.3 `O-234`（engine の第2の原文解析器 `choiceTextParser.ts` を削除）で 10→9。
+const BASELINE_SELF_TEXT = 5;   // 🆕2026-09-05 §5.3 `O-60` 第71バッチ（生成元の無い死んだ STUB ハンドラ2本 `REVEAL_AND_PICK`／`SUMMON_FROM_TRASH` を撤去）で 9→7／第72（内部 STUB `INTERNAL_MARK_REVEALED_NAMED` を payload 化）で 7→6／第73（【ビート】コストの対象を payload 化）で 6→5。
 //   撤去したのは `execStubPart1` の GRANT_QUOTED_* 本体（204行）と `effectEngine.collectGrantedFromLayer` の
 //   同 STUB 分岐。**消化であって較正ではない**（live 27効果を第64〜68で受け皿／明示 defer へ移し、
 //   第69で parser の生成地点31箇所を畳んでから消した）。旧 13 は 2026-09-03 第61バッチで 17→13。

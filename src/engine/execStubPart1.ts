@@ -4,7 +4,7 @@ import { parseEnergyCosts } from '../data/parserUtils';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource } from './deployLimit';
 import { signiAutoPayGateMarkers } from './blockAction';
 import type {
-  EffectAction, EffectTarget, StubAction, BanishAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
+  EffectAction, EffectTarget, StubAction, BanishAction, TrashAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -3048,30 +3048,6 @@ export function execStubPart1(
       ...(keysTAK > 0 ? [`キー${keysTAK}`] : []),
     ];
     return done(addLog(ctxTAK, `${partsTAK.join('＋') || '対象なし'}をトラッシュへ`));
-  }
-  // デッキから探してもよい（REVEAL_AND_PICK: シグニ検索→手札or場）
-  if (stub.id === 'REVEAL_AND_PICK') {
-    const srcRAP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
-    const toHWRAP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const countM = txtRAP.match(/シグニ([０-９\d]+)枚を探して/);
-    const pickCount = countM ? parseInt(toHWRAP(countM[1])) : 1;
-    // デッキ全体からシグニのみをフィルタ
-    const signiInDeck = ctx.ownerState.deck.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
-    if (signiInDeck.length === 0) return done(addLog(ctx, 'デッキにシグニなし'));
-    const toField = txtRAP.match(/場に出す/) && !txtRAP.match(/手札に加える/);
-    const thenAction: EffectAction = toField
-      ? { type: 'ADD_TO_FIELD', owner: 'self' } as AddToFieldAction
-      : { type: 'ADD_TO_HAND', owner: 'self' } as AddToHandAction;
-    const shuffleAction: ShuffleDeckAction = { type: 'SHUFFLE_DECK', owner: 'self' };
-    const pending: PendingInteractionDef = {
-      type: 'SEARCH',
-      visibleCards: signiInDeck,
-      maxPick: Math.min(pickCount, signiInDeck.length),
-      thenAction,
-      afterAction: shuffleAction,
-    };
-    return needsInteraction(addLog(ctx, `デッキからシグニを${pickCount}枚まで検索`), pending);
   }
   // デッキを条件が満たされるまで公開する
   if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
