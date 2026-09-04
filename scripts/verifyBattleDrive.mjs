@@ -47079,6 +47079,119 @@ order.push('v140ColorVariety3');
 scenarios.v140ColorVariety1 = mkColorVarietyScenario(false);
 order.push('v140ColorVariety1');
 
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-145`④（`O-60` 第64〜68バッチ＝**引用付与 catch-all の解体**）＝
+// `WXEX1-32`（幻怪姫　ヌエ）の【出】＝デッキから＜怪異＞2枚をトラッシュへ落とし、
+// **そのターンの間、落とした2枚の《レイヤーアイコン》能力をヌエ自身が持つ**（`LAYER_ABILITY_COPY{source:'last_processed', all:true}`）。
+// 🔴**旧は落とすだけで何も付かなかった**（catch-all が「能力を付与」とログするだけの恒久 no-op）。
+// 🔑**観測は `granted_effects` の件数**＝落とした枚数ぶん増えることを見る。
+//   ⚠**盤面（トラッシュが2枚増えた）だけ見ると、コピーが走らなくても同じ絵になる**（§4.4 📌4）。
+// ⚠**`effect_stack` 注入で撃つ**＝`WXEX1-32` は**ドーナ限定**で、召喚経路は観測に無関係な固定費が高い。
+// -----------------------------------------------------------------------------
+
+const V145_NUE = 'WXEX1-32#9800';
+const V145_LAYER1 = 'WX16-049#9801';   // 幻怪 コナキ（＜怪異＞・《レイヤーアイコン》【常】パワー＋2000）
+const V145_LAYER2 = 'WX16-052#9802';   // 幻怪 カラカサ（＜怪異＞・《レイヤーアイコン》【常】パワー＋1000）
+
+/** @param withLayers true＝デッキに＜怪異＞2枚（コピー成立）／false＝1枚も無い（対照） */
+function mkLayerCopyScenario(withLayers) {
+  const id = withLayers ? 'v145LayerCopyTwo' : 'v145LayerCopyNone';
+  const deck = withLayers
+    ? [V145_LAYER1, V145_LAYER2, 'WD01-013#9810', 'WD01-013#9811']
+    : ['WD01-013#9810', 'WD01-013#9811', 'WD02-013#9812', 'WD03-013#9813'];
+  return {
+    title: `O-60 V-145④：WXEX1-32 は落とした＜怪異＞の《レイヤーアイコン》能力を得る（${withLayers ? 'デッキに2枚＝2件付与' : '対照＝デッキに0枚なら1件も付かない'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#9803'],
+        'field.signi': [[V145_NUE], null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'lrig_deck': [], 'lrig_trash': [],
+        'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+        'actions_done': [], 'game_actions_done': [],
+        'deck': deck,
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#9890'],
+        'field.signi': [null, null, null],
+        'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+        'field.free_zone': [], 'field.beat_zone': [],
+        'hand': [], 'energy': [], 'trash': [],
+        'deck': ['WD01-013#9896', 'WD01-013#9897'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+        effectStack: o190EffectStack('WXEX1-32', V145_NUE, 'WXEX1-32-E2') },
+    },
+    async drive(page, H) {
+      const st0 = await H.queryState();
+      H.log(`  ${id}: 開始 deck=${JSON.stringify(st0?.host?.deckCards)} trash=${JSON.stringify(st0?.host?.trashCards)} gEff=${JSON.stringify(st0?.host?.grantedEffectIds)} stack=${st0?.stackLen}`);
+      let candLabels = null, picked = new Set(), settled = 0, st = st0;
+      // 🔴**観測は sticky に取る**（§4.4 📌8d）＝解決が済んだあとに余分な `決定` を押すと
+      //   **コミット前のスナップショットで上書きされて盤面が巻き戻る**（実測＝trash 2枚と付与2件が
+      //   1ティック後に両方 0 へ戻った）。⇒ **ピーク値を覚え、解決したら以後は何も押さない。**
+      let peakTrash = [], peakGranted = [];
+      let doneClicking = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(500);
+        let did = null;
+        const cur = await H.queryState();
+        if (doneClicking) {
+          st = cur;
+          H.log(`  ${id}[${s}] 観測のみ | trash=${JSON.stringify(st?.host?.trashCards)} gEff=${JSON.stringify(st?.host?.grantedEffectIds)}`);
+          if (s > 6) break;
+          continue;
+        }
+        const pk = page.locator('[data-testid^="pick-"]');
+        const n = await pk.count().catch(() => 0);
+        if (n > 0) {
+          if (candLabels === null) {
+            candLabels = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="pick-"]'))
+              .map(el => el.getAttribute('data-card-num') || ''));
+            H.log(`  ${id}: 候補=${JSON.stringify(candLabels)}`);
+          }
+          for (let i = 0; i < n; i++) {
+            if (picked.has(i)) continue;
+            const el = pk.nth(i);
+            if (await el.isVisible().catch(() => false)) { await el.click({ timeout: 1200 }).catch(() => {}); picked.add(i); did = `pick-${i}`; break; }
+          }
+        }
+        // 🔴**決定は候補を全部押してから**（§4.4 📌8n）。候補0件（対照）なら素通り。
+        const mayDecide = cur?.pendingEffect !== 'SELECT_TARGET' || (n > 0 && picked.size >= n) || n === 0;
+        if (!did && mayDecide) did = await clickDecideNofM(page);
+        if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい', 'スキップ', '選ばない']);
+        st = await H.queryState();
+        if ((st?.host?.trashCards ?? []).length >= peakTrash.length) peakTrash = st?.host?.trashCards ?? [];
+        if ((st?.host?.grantedEffectIds ?? []).length >= peakGranted.length) peakGranted = st?.host?.grantedEffectIds ?? [];
+        H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | 押した=${[...picked]} trash=${JSON.stringify(st?.host?.trashCards)} gEff=${JSON.stringify(st?.host?.grantedEffectIds)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+        if (settled >= 2) doneClicking = true;   // 解決したら以後は押さない（上書きで巻き戻るため）
+      }
+      await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+      const gEff = peakGranted;
+      const mine = gEff.filter(e => e.startsWith(`${V145_NUE}:`));
+      const trash = peakTrash;
+      const dump = `候補=${JSON.stringify(candLabels)} trash=${JSON.stringify(trash)} grantedEffects=${JSON.stringify(gEff)}`;
+      if (withLayers) {
+        // 前提＝2枚が実際にトラッシュへ落ちた（落ちていないなら「付かない」の意味が変わる）。
+        const dropped = [V145_LAYER1, V145_LAYER2].filter(n => trash.includes(n));
+        if (dropped.length !== 2) return { pass: false, detail: `前提崩れ＝＜怪異＞2枚が落ちていない（${dropped.length}枚）。${dump}` };
+        if (mine.length === 0) return { pass: false, detail: `🔴落としただけで《レイヤーアイコン》能力が1件も付いていない（旧＝恒久 no-op）。${dump}` };
+        const cnt = Number.parseInt(mine[0].split(':').pop() ?? '0', 10);
+        if (cnt < 2) return { pass: false, detail: `🔴付与が ${cnt} 件＝落とした2枚ぶん（all:true）になっていない。${dump}` };
+        return { pass: true, detail: `落とした＜怪異＞2枚の《レイヤーアイコン》能力が ${cnt} 件ヌエへ付いた。${dump}` };
+      }
+      if (mine.length > 0) return { pass: false, detail: `🔴対照＝デッキに＜怪異＞が1枚も無いのに能力が付いた（${JSON.stringify(mine)}）。${dump}` };
+      return { pass: true, detail: `対照＝落とすものが無ければ1件も付かない。${dump}` };
+    },
+  };
+}
+scenarios.v145LayerCopyTwo = mkLayerCopyScenario(true);
+order.push('v145LayerCopyTwo');
+scenarios.v145LayerCopyNone = mkLayerCopyScenario(false);
+order.push('v145LayerCopyNone');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
