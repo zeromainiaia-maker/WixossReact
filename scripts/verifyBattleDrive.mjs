@@ -47614,7 +47614,11 @@ function mkUkaroProtectScenario(optNo) {
       p1 = [];
       for (const z of before) p1.push(await readSigniEffectivePower(page, z));
       H.log(`  ${id}.after[${s}] 表示パワー=${JSON.stringify(p1)} dbMods=${JSON.stringify(cur?.host?.powerMods)}`);
-      if ((cur?.host?.powerMods ?? []).length === 3 && p1.every(v => v !== null)) break;
+      // 🔴**DB に載ったことを進行条件にしない**＝`temp_power_mods` は先に真になり、
+      //   **画面の再描画はそのあと**（DB だけ見て抜けると「1件も減っていない」を読んでしまう＝
+      //   単体 PASS・一括だけ FAIL の位置依存フレークになった）。
+      //   ⇒ **必ず減る側（効果元の ウカロー＝保護対象外）の表示が動いたこと**を待つ。
+      if ((cur?.host?.powerMods ?? []).length === 3 && p1.every(v => v !== null) && p1[0] !== p0[0]) break;
     }
     await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
     const dump = `付与=${JSON.stringify(granted)} 表示パワー ${JSON.stringify(p0)} → ${JSON.stringify(p1)}`;
