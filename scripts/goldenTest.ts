@@ -65556,6 +65556,32 @@ test('§5.3 O-60 第58: トラッシュ→シグニ下は枚数もトラッシ�
   const bare = run({ type: 'STUB', id: 'TRASH_SIGNI_UNDER_FIELD_SIGNI' } as unknown as EffectAction,
     mkCtx({ signi: [fresh(), null, null] }, {}));
   ok(bare.done, 'payload なしでは interaction を出さない');
+  // 🆕🔴**§5.1 `V-139`③（2026-09-04・実機で発覚）＝2枚目以降も `destFilter` が効くこと。**
+  //   `INTERNAL_TSU_DO_PLACE` が残りへ進むときに `trashUnderPlace` を落としていたので、
+  //   **1枚目だけ正しく、2枚目の配置先候補に条件外のシグニが出ていた**（live 5効果が該当）。
+  //   ⚠**1枚目は正しいので、盤面だけ／1枚だけの検証では緑に化ける。**
+  // ⚠**盤面は「条件を満たすゾーン」と「満たさないゾーン」を1つずつ**作る＝
+  //   どちらか一方しか無いと、payload を落としても候補数が変わらず**両方向で緑**になる（最初これで空振りした）。
+  const WEAPON = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('ウェポン'));
+  const NON_WEAPON = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('ウェポン'));
+  const spec2 = { count: 2, upTo: true, sourceFilter: { cardType: 'シグニ' },
+    destFilter: { cardType: 'シグニ', story: 'ウェポン' } };
+  // ⚠**`run` はオートパイロットで interaction を潰してしまう**ので、`executeEffect` で1手だけ進める。
+  const rest2 = executeEffect(
+    { effectId: 't2', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+      action: { type: 'STUB', id: 'INTERNAL_TSU_DO_PLACE',
+        value: `${SIGNI_L2}:0:${SIGNI_L3}`, trashUnderPlace: spec2 } as unknown as EffectAction } as CardEffect,
+    // ⚠**`StateOpts.signi` は「1ゾーン1枚のフラット配列」**（`mkState` が `[s]` へ包む）＝
+    //   `[[WEAPON], …]` と書くと二重配列になり `getCardNum` が解けず、**フィルタが常に外れて緑に化ける**。
+    mkCtx({ signi: [WEAPON, NON_WEAPON, null] }, {}));
+  // 2枚目の問いは `INTERNAL_TSU_CHOOSE_ZONE` を再入するので、そこへ payload が渡っていれば
+  // **配置先候補は destFilter を満たすゾーンだけ**＝ここでは＜ウェポン＞の1ゾーンだけになる。
+  ok(!rest2.done && rest2.pending.type === 'CHOOSE', '2枚目の配置先 CHOOSE が出る');
+  if (!rest2.done && rest2.pending.type === 'CHOOSE') {
+    eq(rest2.pending.options.length, 1,
+      `🔴2枚目の配置先候補が destFilter で絞られていない（${JSON.stringify(rest2.pending.options.map(o => o.label))}）`);
+    eq(rest2.pending.options[0].id, 'zone_0', '2枚目の配置先は＜ウェポン＞のゾーンだけ');
+  }
 }));
 
 test('§5.3 O-60 第58: コラボは payload の人数で呼ぶ／ガードの代替コストは別機構へ分けた', () => withSavedCursor(() => {

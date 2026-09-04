@@ -46503,6 +46503,322 @@ order.push('v138ExceedPay4');
 scenarios.v138ExceedShort = mkExceedScenario(false);
 order.push('v138ExceedShort');
 
+
+// -----------------------------------------------------------------------------
+// §5.1 `V-139`（`O-60` 第58バッチ＝**リミット修正の向きと、下に置く枚数・絞り込み**）
+// 🔴**旧実装は `sourceAbilityText(ctx)`（アビリティブロック全文）に regex を5本当てて
+//   「誰の」「いくつ」を決めていた**ため、
+//   ①`対戦相手.*リミットを＋N` が**文を跨いで**当たり、原文「**あなたの**センタールリグのリミットを＋２」
+//     （`WXDi-P16-002-E1`）が**対戦相手の**リミットを＋２していた（同ブロックの前文に「次の**対戦相手**の
+//     ターンの間、…」がある）。
+//   ②「相手側の一致があれば自分側の分岐を丸ごと飛ばす」構造だったので、自分と相手の両方を書いた
+//     `WX25-P2-014-E2`（自分＋1／相手−2）は**自分の＋1が消え**、相手の−2が**二重**に掛かって−4だった。
+//   ⇒ payload（`lrigLimitChange` / `LRIG_LIMIT_MODIFY{owner,delta,until}`）で決める形へ移した。
+// 🔑**観測は2スロットを両方見る**＝`lrig_limit_mod`（いま効いている分）と
+//   `pending_lrig_limit_mod`（`until:'NEXT_TURN'` の予約）。**片方だけ見ると「向きが逆」と
+//   「まだ効いていない」を取り違える。**
+// ⚠**どちらも `effect_stack` 注入で撃つ**（ピース＝【使用条件】2本／レリーズ＝ゲーム1回コスト）。
+//   payload は `o190LiveEffect` で live から読む。
+// -----------------------------------------------------------------------------
+
+const V139_LRIG_L2 = 'WXDi-D05-003#9600';   // ファイト Dr.タマゴ（Lv2＝`LRIG_LEVEL >= 2` の条件を満たす）
+const V139_OPP_LRIG = 'WD01-001#9690';
+
+/** `V-139`① `WXDi-P16-002-E1`＝**あなたの**センタールリグのリミットが**そのターンのうちに**＋2。 */
+scenarios.v139PieceLimitSelfPlus2 = {
+  title: 'O-60 V-139①：WXDi-P16-002 は「あなたの」センタールリグのリミットを＋2する（旧＝相手に＋2／しかも次ターン扱い）',
+  spec: {
+    hostSet: {
+      'field.lrig': [V139_LRIG_L2],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD03-013#9610', 'WD03-012#9611', 'WD01-017#9612', 'WD01-013#9613'],
+    },
+    guestSet: {
+      'field.lrig': [V139_OPP_LRIG],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9696', 'WD01-013#9697'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WXDi-P16-002', 'WXDi-P16-002#9620', 'WXDi-P16-002-E1') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  v139piece: 開始 selfLimitMod=${st0?.host?.lrigLimitMod} oppLimitMod=${st0?.guest?.lrigLimitMod} stack=${st0?.stackLen}`);
+    let settled = 0, st = st0;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v139piece[${s}] -> ${did ?? 'なし'} | self=${st?.host?.lrigLimitMod}/pend=${st?.host?.pendingLrigLimitMod} opp=${st?.guest?.lrigLimitMod}/pend=${st?.guest?.pendingLrigLimitMod} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v139PieceLimitSelfPlus2-final.png`, fullPage: true });
+    const self = st?.host?.lrigLimitMod ?? 0, selfPend = st?.host?.pendingLrigLimitMod ?? 0;
+    const opp = st?.guest?.lrigLimitMod ?? 0, oppPend = st?.guest?.pendingLrigLimitMod ?? 0;
+    const dump = `自分 mod=${self}/pending=${selfPend}｜相手 mod=${opp}/pending=${oppPend}`;
+    // 🔴**本題を先に判定**＝旧は「相手に＋2」だった。
+    if (opp !== 0 || oppPend !== 0) return { pass: false, detail: `🔴対戦相手のリミットが動いた＝向きが逆（旧挙動）。${dump}` };
+    if (self === 0 && selfPend === 2) return { pass: false, detail: `🔴自分の＋2が「次のターン」へ回った＝そのターンのうちに効いていない（旧 NEXT_TURN 扱い）。${dump}` };
+    if (self !== 2) return { pass: false, detail: `🔴自分のリミット修整が＋2でない。${dump}` };
+    return { pass: true, detail: `あなたのセンタールリグのリミットだけが、そのターンのうちに＋2された。${dump}` };
+  },
+};
+order.push('v139PieceLimitSelfPlus2');
+
+/** `V-139`② `WX25-P2-014-E2`＝**自分＋1 と 相手−2 の両方**が起きる（相手は −4 ではない）。 */
+scenarios.v139ReleaseLimitBothSides = {
+  title: 'O-60 V-139②：WX25-P2-014 は自分＋1／相手−2 の両方が起きる（旧＝自分の＋1が消え、相手が−4に二重掛け）',
+  spec: {
+    hostSet: {
+      'field.lrig': [V139_LRIG_L2],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      'hand': [], 'energy': [], 'trash': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD03-013#9630', 'WD03-012#9631', 'WD01-017#9632'],
+    },
+    guestSet: {
+      'field.lrig': [V139_OPP_LRIG],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9696', 'WD01-013#9697'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WX25-P2-014', 'WX25-P2-014#9640', 'WX25-P2-014-E2') },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log(`  v139rel: 開始 self=${st0?.host?.lrigLimitMod} opp=${st0?.guest?.lrigLimitMod}/${st0?.guest?.pendingLrigLimitMod} stack=${st0?.stackLen}`);
+    let settled = 0, st = st0;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+      st = await H.queryState();
+      H.log(`  v139rel[${s}] -> ${did ?? 'なし'} | self=${st?.host?.lrigLimitMod}/pend=${st?.host?.pendingLrigLimitMod} opp=${st?.guest?.lrigLimitMod}/pend=${st?.guest?.pendingLrigLimitMod} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      settled = (!st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    await page.screenshot({ path: `${SHOT}/v139ReleaseLimitBothSides-final.png`, fullPage: true });
+    const self = st?.host?.lrigLimitMod ?? 0;
+    const opp = st?.guest?.lrigLimitMod ?? 0, oppPend = st?.guest?.pendingLrigLimitMod ?? 0;
+    const dump = `自分 mod=${self}｜相手 mod=${opp}/pending=${oppPend}`;
+    // 🔴**両方を assert する**＝片方だけ見ると「自分の＋1が消えた」旧挙動を見落とす。
+    if (self !== 1) return { pass: false, detail: `🔴自分のリミット＋1が乗っていない（self=${self}）＝旧の「相手側が一致したら自分側を飛ばす」構造。${dump}` };
+    const oppTotal = opp + oppPend;
+    if (oppTotal === -4) return { pass: false, detail: `🔴相手のリミットが−4＝二重掛け（旧挙動）。${dump}` };
+    if (oppTotal !== -2) return { pass: false, detail: `🔴相手のリミット修整が−2でない（合計 ${oppTotal}）。${dump}` };
+    // 原文「次の対戦相手のメインフェイズの間」＝`until:'NEXT_TURN'` の予約スロットに載るのが正。
+    if (oppPend !== -2) return { pass: false, detail: `🔴相手の−2が予約（次のメインフェイズから）ではなく即時に載っている。${dump}` };
+    return { pass: true, detail: `自分は即時＋1、相手は「次のメインフェイズから−2」の予約。二重掛け（−4）にならない。${dump}` };
+  },
+};
+order.push('v139ReleaseLimitBothSides');
+
+
+// `V-139`③④＝`TRASH_SIGNI_UNDER_FIELD_SIGNI` の **枚数と2つの絞り込み**（`trashUnderPlace`）。
+// 🔴**旧実装は枚数 regex が live 9効果すべてに外れていた**ので**常に1枚**、
+//   さらに**配置先の `＜X＞` をトラッシュ側の絞り込みに使っていた**（源と行き先の取り違え）。
+// 🔑**観測は「候補の中身」**＝2段の選択UI（①トラッシュから選ぶ ②場のどのシグニの下に置くか）の
+//   **それぞれで何が候補に出たか**を記録する。盤面だけ見ると「置けた」で緑に化ける。
+const V139_WEAPON = 'WX04-067#9650';     // 爆砲 ナインティーン（精武：ウェポン・バニラ）＝配置先の正
+const V139_NONWEAPON = 'WXK02-096#9651'; // 魏軍の堅実 ジョコウ（精像：武勇・バニラ）＝配置先の**外**
+const V139_TR1 = 'WD17-012#9652';        // 鷹武の円卓 ガウェイン（Lv2 武勇・バニラ）
+const V139_TR2 = 'WD17-010#9653';        // 湖騎の円卓 ランスロット（Lv3 武勇・バニラ）
+const V139_TR3 = 'WD03-013#9654';        // コードアート Ｓ・Ｃ（Lv1 青・**武勇ではない**）
+
+/**
+ * 2段の選択UIを最後まで運び、**各段の候補集合**を記録して返す共通ドライバ。
+ * @param picks 各段で押す枚数（`[n1, n2]`）。`null` は「出た候補を全部押す」。
+ */
+async function driveTrashUnderPlace(page, H, tag, wantPicks) {
+  const seen = [];               // トラッシュ側の候補（段ごと）
+  const destPrompts = [];        // 🔑**配置先の問いは「押した回数」で数える**（同じ候補集合が2回出るのが正）
+  let stage = -1, pickedInStage = new Set(), settled = 0;
+  let st = await H.queryState();
+  H.log(`  ${tag}: 開始 trash=${JSON.stringify(st?.host?.trashCards)} field=${JSON.stringify(st?.host?.fieldSigni)} stack=${st?.stackLen} pEff=${st?.pendingEffect ?? '-'}`);
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(500);
+    let did = null;
+    const cur = await H.queryState();
+    const pk = page.locator('[data-testid^="pick-"]');
+    const n = await pk.count().catch(() => 0);
+    if (n > 0) {
+      const labels = await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="pick-"]'))
+        .map(el => el.getAttribute('data-card-num') || el.getAttribute('data-testid') || ''));
+      const key = labels.join(',');
+      if (seen.length === 0 || seen[seen.length - 1].key !== key) {
+        seen.push({ key, labels });
+        stage = seen.length - 1;
+        pickedInStage = new Set();      // 🔑**画面が変わったら「押した記憶」をリセットする**
+        H.log(`  ${tag}: 段${stage} 候補=${JSON.stringify(labels)}`);
+      }
+      const want = wantPicks?.[stage] ?? n;
+      for (let i = 0; i < n && pickedInStage.size < want; i++) {
+        if (pickedInStage.has(i)) continue;
+        const el = pk.nth(i);
+        if (await el.isVisible().catch(() => false)) { await el.click({ timeout: 1200 }).catch(() => {}); pickedInStage.add(i); did = `pick-${i}@${stage}`; break; }
+      }
+    }
+    // 🔴**配置先は `pick-*` ではなく CHOOSE**＝ラベルは `<カード名>の下（ゾーンN）`
+    //   （`execStubPart1.ts` の `INTERNAL_TSU_CHOOSE_ZONE`）。⚠`H.clickZone()` は `^ゾーンN` 走査なので当たらない。
+    //   **押す前に全ラベルを記録する**＝これが「配置先が絞られているか」の唯一の証拠。
+    //   ⚠**同じ候補集合が2回続くのが正**（2枚置くので2回問われる）＝**重複除去で数えない**。
+    if (!did) {
+      const zb = page.getByRole('button', { name: /の下（ゾーン/ });
+      const zn = await zb.count().catch(() => 0);
+      if (zn > 0) {
+        const zlabels = [];
+        for (let i = 0; i < zn; i++) zlabels.push(((await zb.nth(i).textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim());
+        await zb.first().click({ timeout: 1200 }).catch(() => {});
+        destPrompts.push(zlabels);
+        H.log(`  ${tag}: 配置先候補[${destPrompts.length}]=${JSON.stringify(zlabels)}`);
+        did = `dest:${zlabels[0]}`;
+        await page.waitForTimeout(600);   // 同じ問いを2回押さないよう、解決を待ってから次のティックへ
+      }
+    }
+    // 🔴**`決定` を押してよい条件**（§4.4 📌8n・📌2b）＝
+    //   `SELECT_TARGET` は必要数を押してから。**`CHOOSE`（配置先の問い）では絶対に押さない**＝
+    //   DOM がまだ描けていないティックで `決定` を押すと**配置せずに解決してしまう**（実測でそうなった）。
+    const mayDecide = cur?.pendingEffect === 'SELECT_TARGET'
+      ? (n > 0 && pickedInStage.size >= (wantPicks?.[stage] ?? n))
+      : cur?.pendingEffect !== 'CHOOSE';
+    if (!did && mayDecide) did = await clickDecideNofM(page);
+    if (!did && mayDecide) did = await H.stdStep(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+    st = await H.queryState();
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | 段=${stage} 押した=${[...pickedInStage]} 配置先問い=${destPrompts.length} trash=${JSON.stringify(st?.host?.trashCards)} field=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    settled = (seen.length > 0 && !st?.pendingEffect && !(st?.stackLen > 0)) ? settled + 1 : 0;
+    if (settled >= 3) break;
+  }
+  await page.screenshot({ path: `${SHOT}/${tag}-final.png`, fullPage: true });
+  return { seen, destPrompts, st };
+}
+
+// ③ `WDK15-001-E3`＝トラッシュのシグニを**2枚まで**、配置先は**あなたの＜ウェポン＞のシグニ**だけ。
+scenarios.v139TrashUnderTwoWeapons = {
+  title: 'O-60 V-139③：WDK15-001 の【起】はトラッシュのシグニを2枚選べ、配置先は＜ウェポン＞のシグニだけ（旧＝常に1枚・候補もトラッシュの＜ウェポン＞に化けていた）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WDK15-001#9660'],
+      // 配置先＝ウェポン1体／非ウェポン1体（**絞り込みが効いていれば候補は1件**）。
+      'field.signi': [[V139_WEAPON], [V139_NONWEAPON], null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      // トラッシュ＝シグニ3枚（sourceFilter は `cardType:シグニ` だけ＝3枚とも候補になるのが正）。
+      'trash': [V139_TR1, V139_TR2, V139_TR3],
+      'hand': [], 'energy': [], 'coins': 2,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD03-013#9670', 'WD03-012#9671', 'WD01-017#9672', 'WD01-013#9673'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9690'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9696', 'WD01-013#9697'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WDK15-001', 'WDK15-001#9660', 'WDK15-001-E3') },
+  },
+  async drive(page, H) {
+    const { seen, destPrompts, st } = await driveTrashUnderPlace(page, H, 'v139weapon', [2, 1]);
+    const dump = `トラッシュ側=${JSON.stringify(seen.map(x => x.labels))} 配置先の問い=${JSON.stringify(destPrompts)} field=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trashCards)}`;
+    if (seen.length === 0) return { pass: false, detail: `🔴選択UIが1度も出ない。${dump}` };
+    const src = seen[0].labels;
+    // 🔴**本題①＝トラッシュ側は絞られていない（原文は「対象のシグニを2枚まで」）**
+    if (src.length !== 3) return { pass: false, detail: `🔴トラッシュ側の候補が3件でない（${src.length}件＝配置先の＜ウェポン＞をトラッシュ側の絞り込みに使う旧挙動の疑い）。${dump}` };
+    // 🔴**本題②＝2枚選べる**（旧は常に1枚）
+    const zone0 = JSON.stringify(st?.host?.fieldSigni?.[0] ?? []);
+    const placed = [V139_TR1, V139_TR2, V139_TR3].filter(n => JSON.stringify(st?.host?.fieldSigni ?? []).includes(n));
+    if (placed.length < 2) return { pass: false, detail: `🔴2枚選んだのに下へ入ったのが${placed.length}枚＝枚数が1に固定されている（旧挙動）。${dump}` };
+    // 🔴**本題③＝配置先は＜ウェポン＞のシグニだけ**
+    if (!zone0.includes(V139_WEAPON)) return { pass: false, detail: `前提崩れ＝ウェポンのシグニがゾーン0に居ない。${dump}` };
+    const underNonWeapon = JSON.stringify(st?.host?.fieldSigni?.[1] ?? []);
+    if (placed.some(n => underNonWeapon.includes(n))) {
+      return { pass: false, detail: `🔴＜ウェポン＞でないシグニの下にも置けた＝destFilter が効いていない。${dump}` };
+    }
+    // 🔴**配置先の絞り込みは「毎回」効いていること**（2026-09-04・実機で見つけた engine バグ）＝
+    //   旧実装は `INTERNAL_TSU_DO_PLACE` が残りへ進むときに `trashUnderPlace` を落としていたので、
+    //   **2枚目以降だけ** destFilter が消えて＜武勇＞のシグニまで候補に出ていた。
+    //   ⚠**1枚目は正しい**ので、最初の1回だけ見ると緑に化ける。
+    if (destPrompts.length < 2) return { pass: false, detail: `🔴配置先の問いが2回出ていない（${destPrompts.length}回）＝2枚置けていない。${dump}` };
+    for (const [i, labels] of destPrompts.entries()) {
+      if (labels.length !== 1) {
+        return { pass: false, detail: `🔴${i + 1}回目の配置先候補が1件でない（${labels.length}件＝${JSON.stringify(labels)}）＝＜ウェポン＞に絞られていない。${dump}` };
+      }
+    }
+    return { pass: true, detail: `トラッシュ側は3件すべて候補、2枚選べ、配置先は**2回とも**＜ウェポン＞のシグニ1体だけに絞られた。${dump}` };
+  },
+};
+order.push('v139TrashUnderTwoWeapons');
+
+// ④ `WXEX2-61-E1`＝配置先は**《ライズアイコン》を持つシグニ**（旧＝＜武勇＞のシグニが候補だった）。
+const V139_RISER = 'WX17-055#9680';       // 混成の怪物 フンババ（【ライズ】＝ライズアイコンを持つ）
+const V139_BUYU = 'WD17-012#9681';        // 鷹武の円卓 ガウェイン（＜武勇＞だが**ライズアイコンなし**）
+scenarios.v139RiseIconDest = {
+  title: 'O-60 V-139④：WXEX2-61 の配置先は《ライズアイコン》を持つシグニだけ（旧＝＜武勇＞のシグニが候補だった）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX21-008#9682'],                      // 天空の記憶 リル（Lv4 / Limit12 / 能力なし）
+      // ゾーン0＝ライズアイコン持ち（配置先の正）／ゾーン1＝＜武勇＞だがライズアイコンなし（**外**）。
+      'field.signi': [[V139_RISER], [V139_BUYU], null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'lrig_deck': [], 'lrig_trash': [],
+      // sourceFilter＝レベル3以下の＜武勇＞のシグニ（`WD03-013` は青＝**候補外**の対照）。
+      'trash': [V139_TR1, V139_TR3],
+      'hand': [], 'energy': [], 'coins': 0,
+      'actions_done': [], 'game_actions_done': [],
+      'deck': ['WD03-013#9683', 'WD03-012#9684', 'WD01-017#9685'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9690'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+      'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#9696', 'WD01-013#9697'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      effectStack: o190EffectStack('WXEX2-61', 'WXEX2-61#9686', 'WXEX2-61-E1') },
+  },
+  async drive(page, H) {
+    const { seen, destPrompts, st } = await driveTrashUnderPlace(page, H, 'v139rise', [1, 1]);
+    const dump = `トラッシュ側=${JSON.stringify(seen.map(x => x.labels))} 配置先の問い=${JSON.stringify(destPrompts)} field=${JSON.stringify(st?.host?.fieldSigni)} trash=${JSON.stringify(st?.host?.trashCards)}`;
+    if (seen.length === 0) return { pass: false, detail: `🔴選択UIが1度も出ない。${dump}` };
+    // 🔴**本題①＝トラッシュ側は「レベル3以下の＜武勇＞」だけ**（青の `WD03-013` は出ない）。
+    if (seen[0].labels.some(x => String(x).startsWith('WD03-013'))) {
+      return { pass: false, detail: `🔴＜武勇＞でないシグニがトラッシュ側の候補に出た＝sourceFilter が効いていない。${dump}` };
+    }
+    if (seen[0].labels.length !== 1) return { pass: false, detail: `🔴トラッシュ側の候補が1件でない（${seen[0].labels.length}件）。${dump}` };
+    // 🔴**本題②＝配置先は《ライズアイコン》を持つシグニだけ**（＜武勇＞のガウェインは候補外）。
+    const zone1 = JSON.stringify(st?.host?.fieldSigni?.[1] ?? []);
+    if (zone1.includes(V139_TR1)) return { pass: false, detail: `🔴ライズアイコンを持たない＜武勇＞のシグニの下に入った（旧挙動）。${dump}` };
+    const zone0 = JSON.stringify(st?.host?.fieldSigni?.[0] ?? []);
+    if (!zone0.includes(V139_TR1)) return { pass: false, detail: `🔴《ライズアイコン》持ちの下に入っていない。${dump}` };
+    if (destPrompts.length !== 1) return { pass: false, detail: `🔴配置先の問いが1回でない（${destPrompts.length}回）。${dump}` };
+    if (destPrompts[0].length !== 1) {
+      return { pass: false, detail: `🔴配置先の候補が1件でない（${destPrompts[0].length}件＝${JSON.stringify(destPrompts[0])}）＝ライズアイコンに絞られていない。${dump}` };
+    }
+    return { pass: true, detail: `トラッシュ側はレベル3以下の＜武勇＞1件だけ、配置先は《ライズアイコン》持ちだけに絞られた。${dump}` };
+  },
+};
+order.push('v139RiseIconDest');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -46756,6 +47072,12 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
         signiFrozen: s.field?.signi_frozen ?? null,
+        // 🆕§5.1 `V-139`（2026-09-04）＝ルリグリミット修正の観測点。**2スロットある**＝
+        //   `lrig_limit_mod`＝いま効いている分（`END_OF_TURN` / エナフェイズ終了まで）、
+        //   `pending_lrig_limit_mod`＝`until:'NEXT_TURN'` の予約（GROW→MAIN 遷移で本スロットへ移る）。
+        //   ⚠**片方だけ見ると「向きが逆」と「まだ効いていない」を取り違える**（旧実装は原文と逆向きだった）。
+        lrigLimitMod: s.lrig_limit_mod ?? 0,
+        pendingLrigLimitMod: s.pending_lrig_limit_mod ?? 0,
         // 🆕§5.3 `O-152`（2026-09-04）＝「効果による手札捨て」の直前フラグ。
         //   `ON_HAND_DISCARDED` は **executor が立てて BattleScreen の watcher が消化する**2段構えなので、
         //   **立っているのに消化されない**のか**そもそも立たない**のかはここでしか切り分けられない。

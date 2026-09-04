@@ -4144,8 +4144,17 @@ export function execStubPart1(
     const ctxITP = addLog({ ...ctx, ownerState: newOwnerITP },
       `${ctx.cardMap.get(trashCard)?.CardName ?? trashCard}をゾーン${zone + 1}のシグニの下に配置`);
     // 残りのトラッシュカードがあれば次の選択へ
+    // 🔴🆕**§5.1 `V-139`③（2026-09-04・実機で発覚）＝`trashUnderPlace` を継承する。**
+    //   旧実装はここで payload を落としていたので、**2枚目以降の配置先だけ絞り込みが消えていた**
+    //   （`WDK15-001` で1枚目は「＜ウェポン＞の下」1択なのに、2枚目は＜武勇＞のシグニも候補に出た）。
+    //   ⚠**1枚目は正しいので、盤面だけ見ても・1枚しか置かない検証でも緑になる**＝
+    //     `count>=2` かつ配置先条件つきの **live 5効果**（`WDK15-001` / `WDK15-007` /
+    //     `WXDi-P15-001` / `WXDi-P15-006` / `WXDi-P15-007`）が全部この形だった。
     if (restStr) {
-      const nextStub: StubAction = { type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE', value: restStr };
+      const nextStub: StubAction = {
+        type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE', value: restStr,
+        ...(stub.trashUnderPlace ? { trashUnderPlace: stub.trashUnderPlace } : {}),
+      };
       return exec(nextStub as EffectAction, ctxITP);
     }
     return done(ctxITP);
