@@ -2143,7 +2143,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- あなたの場にあるすべてのシグニが〜の場合（条件付き効果）----
   if (t.match(/^あなたの場にあるすべてのシグニが.+の場合/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
   }
 
   // ---- このシグニの下からカードをトラッシュに置く ----
@@ -2653,7 +2653,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- センタールリグが〜の場合（汎用フォールバック）----
   if (t.match(/あなたのセンタールリグが.+の場合、(?:代わりに|追加で|この能力)/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
   }
 
   // ---- 次の対戦相手のターン、対戦相手のルリグによるダメージを受けない ----
@@ -3257,7 +3257,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 感染状態の場合、代わりに ----
   if (t.match(/感染状態の場合、代わりに/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- ウィルスN個取り除く（複数形・任意） ----
   // 🔴**旧 engine の個数 regex は終止形 `取り除く` しか見ておらず、この「取り除い**て**もよい」形が

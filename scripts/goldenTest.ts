@@ -47595,7 +47595,10 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
     // 🆕6 → 5（2026-09-04 §5.3 `O-60` 第70バッチ）＝引用付与 catch-all ハンドラを**丸ごと撤去**したぶん。
     // ⚠**差し戻しではない**＝サイトごと消えた（live 27効果は第64〜68で受け皿／明示 defer へ移し、
     //   第69で parser の生成地点31箇所を畳んでから消した）。
-    'src/engine/execStubPart1.ts': 5,
+    // 🆕5 → 4（2026-09-05 §5.3 `O-60` 第76バッチ）＝`CONDITIONAL_POWER_BONUS` を**ハンドラごと撤去**したぶん。
+    // ⚠**差し戻しではない**＝あれは「条件節の捨て場」で、9本のリテラルに当たらなければログだけ出す
+    //   無言 no-op だった。41箇所の生成 id を `DEFERRED_CONDITIONAL_CLAUSE_UNPARSED` へ改名して閉じた。
+    'src/engine/execStubPart1.ts': 4,
     // 9 → 8（2026-08-15 §6.4 O-22(a)）＝`CHARM_CONDITIONAL_POWER` ハンドラを削除したぶん。
     // 差し戻しではなく**サイトごと消えた**（帰結は parser の「代わりに」置換 fixup が構造で持つ）。
     // 8 → 7（2026-08-15 §6.4 O-3 続き493）＝`PREVENT_ZONE_MOVE_BY_OPP` の実行時ゾーン判定を廃止。
@@ -65096,7 +65099,33 @@ test('§5.3 O-60 第70: 引用付与 catch-all の消費地点が engine から�
   }
   // ratchet が実測へ下がっていること（下げ忘れは census:enginetext のゲートが止めるが、二重に守る）。
   const census = fs.readFileSync(join(root, 'scripts/censusEngineText.ts'), 'utf8');
-  ok(/const BASELINE_SELF_TEXT = 1;/.test(census), 'BASELINE_SELF_TEXT が実測 1 へ下がっている（§5.3 `O-60` 第71〜第75）');
+  ok(/const BASELINE_SELF_TEXT = 0;/.test(census), 'BASELINE_SELF_TEXT が実測 0 へ下がっている（§5.3 `O-60` 第71〜第76＝A群が空）');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🏁§5.3 `O-60` 第76バッチ（2026-09-05）＝**A群（engine が効果元の原文を読む箇所）が 0 になった。**
+// 撤去したのは最後の1本 `CONDITIONAL_POWER_BONUS`。🔴**名前が実体と食い違っていた**＝parser 側の41箇所は
+// 「条件節を構造化できなかった」文の捨て場で、中身は「それが＜X＞のシグニの場合、追加でトラッシュに置く」
+// 「センタールリグが〜でない場合、デッキに加える」などパワーと無関係な文ばかり。engine は9本のリテラルを
+// アビリティブロックに当て、**どれにも当たらなければログだけ出して何もしない**（無言 no-op）実装だった。
+// ⇒ 41箇所を `DEFERRED_CONDITIONAL_CLAUSE_UNPARSED`（名前のある穴）へ改名し、ハンドラを撤去した。
+// ⚠**live 実害ゼロ**＝fresh で当たる3効果は全部 `manualEffects.ts` が構造化済み（`build:effects` 差分ゼロ）。
+// 🔑**この門が守るもの**＝「engine が原文を読む」形を新しく足したら `census:enginetext` が exit 1 で止まる
+//   （BASELINE 0）。**A群 0 は「もう原文を読んでいない」であって「全部実装済み」ではない。**
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('§5.3 O-60 第76: 条件節の捨て場が「名前のある穴」になり engine から原文読みが消えた', () => {
+  const part1 = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  ok(!part1.includes("stub.id === 'CONDITIONAL_POWER_BONUS'"), 'engine に CONDITIONAL_POWER_BONUS のディスパッチが残っている');
+  const parserSrc = ['src/data/effectParser.ts', 'src/data/parsers/parseSentencePart2.ts',
+    'src/data/parsers/parseSentencePart3.ts', 'src/data/parsers/parseSentencePart4.ts']
+    .map(f => fs.readFileSync(join(root, f), 'utf8')).join('\n');
+  ok(!parserSrc.includes("id: 'CONDITIONAL_POWER_BONUS'"), 'parser に旧 id の生成地点が残っている');
+  ok(parserSrc.includes("id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED'"), '名前のある穴へ改名されている');
+  eq(cardsWithStub('CONDITIONAL_POWER_BONUS', true).length, 0, 'live に旧 id が現れた');
+  // 逆翻訳に生の英語 ID を出さない（`census:stubs` C群と同じ規約を、live 0 のうちから守る）。
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(dec.includes('DEFERRED_CONDITIONAL_CLAUSE_UNPARSED:'), 'miscStubMap に日本語がある');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -1,8 +1,8 @@
 # engine 全文 regex センサス（O-60）
-A🔴 SELF_TEXT（効果元の全文で意味を決める）: 1行 / 1ハンドラ
+A🔴 SELF_TEXT（効果元の全文で意味を決める）: 0行 / 0ハンドラ
 B  OTHER_CARD（他カードの属性判定）      : 56行
 C  COMMENT                              : 93行
-合計 150行
+合計 149行
 
 ## A群ランキング（miss降順→live効果数降順）
 miss = live でこのハンドラへ来るカードのうち、抽出した regex/includes の 1本以上が原文に当たらないもの
@@ -10,21 +10,8 @@ miss = live でこのハンドラへ来るカードのうち、抽出した rege
 
 | ハンドラ | 行 | live効果 | liveカード | リテラル | miss |
 |---|---|---|---|---|---|
-| CONDITIONAL_POWER_BONUS | execStubPart1.ts:1713 | 0 | 0 | 9 | 0 |
 
 ## A群 明細
-
-### CONDITIONAL_POWER_BONUS  (live 0効果 / 0カード / miss 0)
-  execStubPart1.ts:1713  const txtCB = sourceAbilityText(ctx);
-    lit re:この方法で.*?([０-９\d]+)枚以上.*?場合.*?([－＋][０-９\d]+)(?:する|される)
-    lit re:あなたの場[にの](?:.*?)シグニが([０-９\d]+)体(?:以上|以上ある)(?:.*?)場合[、，](?:代わりに)?([－＋][０-９\d]+)
-    lit re:あなたのエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)
-    lit re:対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)
-    lit re:あなたの手札が([０-９\d]+)枚以上(?:の場合)?.*?([－＋][０-９\d]+)
-    lit re:あなたのトラッシュにカード名に《?([^》]+)》?を含むカードがある場合.*?([－＋][０-９\d]+)
-    lit re:トラッシュにある＜([^＞]+)＞のカード[０-９\d]*枚?につき([－＋][０-９\d]+)
-    lit re:あなたの場に(?:他の)?＜([^＞]+)＞のシグニがある場合.*?([－＋][０-９\d]+)
-    lit re:このシグニのパワーを([－＋][０-９\d]+)する
 
 ## B群（他カードの属性判定＝正当寄り）
   assistLrig.ts:26 <fn:collectReturnableAssistLrigTops> if (action.withoutAttackPhaseIcon && (card.EffectText ?? '').includes('アタックフェイズアイコン')) return false;

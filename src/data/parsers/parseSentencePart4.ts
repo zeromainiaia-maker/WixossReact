@@ -344,7 +344,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- カード名に〜を含むシグニを手札/エナ ----
   if (t.match(/あなたの場にカード名に《.+》を含むシグニがある場合、代わりに/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 選んだ数がNつの場合コストが変わる ----
   if (t.match(/選んだ数が[１-９\d０-９]+つの場合、このアーツの使用コストは/))
@@ -352,7 +352,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- それが〜の場合、追加でトラッシュ ----
   if (t.match(/それが.+のシグニの場合、追加でそれをトラッシュに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- ルリグのエクシード能力をコスト0で使用 ----
   if (t.match(/ルリグのエクシード(?:の値が[１-９\d０-９]+以下の)?能力[１-９\d０-９]*つをコストを支払わずに使用する/))
@@ -385,7 +385,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- この方法でN枚以上公開/トラッシュした場合 ----
   if (t.match(/この方法でカードが[１-９\d０-９]+枚以上公開された場合/) ||
       t.match(/この方法でカードを[１-９\d０-９]+枚トラッシュに置いた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // 「手札からそれぞれ異なる色を持つ〜シグニを好きな枚数捨てる」は
   // `parseVariableHandDiscard`（この関数の冒頭）が正準形 TRASH で受ける＝旧 `STUB{OPTIONAL_COST}` は撤去。
@@ -445,11 +445,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- スペルがN種類以上ある場合 ----
   if (t.match(/スペルが[１-９\d０-９]+種類以上ある場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- この方法でシグニをN枚以上公開した場合 ----
   if (t.match(/この方法でシグニを[１-９\d０-９]+枚以上公開した場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 手札をすべて捨ててもよい ----
   if (t.match(/^あなたは手札をすべて捨ててもよい$/))
@@ -599,7 +599,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- トラッシュから場に出た場合、代わりにパワー変動 ----
   if (t.match(/トラッシュから場に出た場合、代わりに[＋－][０-９\d０-９]+する/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 手札をN枚捨ててもよい（任意） ----
   if (t.match(/^あなたは手札を[１-９\d０-９]+枚捨ててもよい$/))
@@ -638,7 +638,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたのターンの場合（条件付き効果） ----
   if (t.match(/^あなたのターンの場合、/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- アーツ/シグニ使用/バニッシュしたとき（AUTO内包テキスト） ----
   // 🆕**§5.3 `O-60` 第65バッチ（2026-09-04）＝「あなたがアーツを使用したとき、このシグニを…」を外した。**
@@ -661,7 +661,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- レベルが偶数/奇数の場合 ----
   if (t.match(/レベルが(?:偶数|奇数)のシグニの場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 手札から〜捨てないかぎり ----
   if (t.match(/手札から.+捨てないかぎり/))
@@ -676,7 +676,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- デッキ公開して宣言した色のカードをエナゾーン ----
   if (t.match(/デッキの一番上を公開し、それが宣言した色を持つカードの場合.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 【シード】として場に出す ----
   if (t.match(/【シード】として.*シグニゾーンに出してもよい/) ||
@@ -694,7 +694,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- センタールリグがNでない場合、カードをデッキに加える ----
   if (t.match(/センタールリグが.*でない場合.*デッキに加える/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- その中から赤/白/特定色シグニを場に出す ----
   if (t.match(/その中から(?:赤|白|青|緑|黒)のシグニ[１-９\d０-９]*枚を場に出し、残りをトラッシュに置く/))
@@ -843,7 +843,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- デッキ一番上のカードを公開し（デッキ上確認系） ----
   if (t.match(/^このシグニがアップ状態の場合、あなたのデッキの一番上を公開してもよい$/) ||
       t.match(/^あなたのデッキの一番上を公開し、そのカードが宣言した.*場合.*手札に加える$/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 対戦相手は手札をすべてルリグゾーンに裏向きで置く（§6.4 O-3）----
   // ⚠🔴旧 `TARGET_AND_DISCARD_HAND` は「対戦相手のシグニを対象とし**自分の**手札を1枚トラッシュ」する
@@ -937,7 +937,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このターン〜スペルを使用していた場合 ----
   if (t.match(/このターンにあなたがスペルを使用していた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- その中からスペル１枚を公開し手札に加え残りをデッキ下 ----
   if (t.match(/その中からスペル[１-９\d０-９]*枚を公開し手札に加え.*デッキの一番下に置く/))
@@ -973,7 +973,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 場にカード名を含むルリグがいる場合、以下のN個から選ぶ ----
   if (t.match(/場にカード名に《.+》を含む.*がいる場合、以下の[１-９\d０-９]+つから/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- このシグニの下にあるカード全てトラッシュ ----
   // 🔴**この操作だけが engine の「無条件フォールバック」で実行されていた**＝原文にこの文が無い効果でも、
@@ -1045,7 +1045,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対戦相手のエナゾーンにカードが[１-９\d０-９]+枚以上ある場合、手札から/) ||
       t.match(/このターンにあなたが効果によってカードを[１-９\d０-９]+枚以上引いていた場合.*手札を/) ||
       t.match(/あなたの手札が[１-９\d０-９]+枚以上ある場合.*手札から/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- エナゾーンに置いてもよい（シグニ → エナ転換） ----
   if (t.match(/そのアタック終了時.*エナゾーンから.*シグニ.*場にあるこのシグニをエナゾーンに置いてもよい/))
@@ -1116,7 +1116,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- カードをN枚引き、手札をN枚まで捨てる ----
   if (t.match(/カードを[１-９\d０-９]+枚引き、手札を[１-９\d０-９]+枚まで捨てる/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 対戦相手のシグニを対象とし、それを他のシグニゾーンに配置してもよい ----
   if (t.match(/対戦相手のシグニ[１-９\d０-９]*体?を対象とし、それを他のシグニゾーン/))
@@ -1124,7 +1124,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このシグニと同じシグニゾーンに〜がある場合 ----
   if (t.match(/このシグニと同じシグニゾーンに.*がある場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- それのレベルN につき手札を捨ててもよい ----
   if (t.match(/それのレベル[１-９\d０-９]につき手札を[１-９\d０-９]*枚捨ててもよい/))
@@ -1159,7 +1159,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたの場にあるシグニが持つ色がN種類以上ある場合 ----
   if (t.match(/あなたの場にあるシグニが持つ色が合計[１-９\d０-９]+種類以上ある場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 手札からカードをN枚エナゾーンに置く ----
   // 🔴2026-08-16（§6.4 O-11）＝従来は**ペイロードの無い `STUB{OPTIONAL_COST}`** に落としていた＝
@@ -1200,7 +1200,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- それらのシグニがカード名と同じ場合、手札に加える ----
   if (t.match(/それらのシグニがそれぞれあなたの場にあるシグニと同じカード名の場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 残りをデッキに加えてシャッフルする ----
   // 🆕§5.3 `O-60` 第45バッチ＝**専用 id に割った**（engine は payload も原文も読まず
@@ -1226,7 +1226,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- このターンにあなたがアーツを使用していた場合 ----
   if (t.match(/このターンにあなたがアーツを使用していた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 【起】〜シグニを捨てる：能力を得る（コスト形式） ----
   if (t.match(/^【起】《ターン[１-９\d０-９]*回》手札から.+捨てる：/))
@@ -1256,7 +1256,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- そのカードがNのシグニの場合（レベル条件） ----
   if (t.match(/そのカードがレベル[１-９\d０-９]+のシグニの場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- あなたのシグニ１体に【ソウル】が付いたとき ----
   if (t.match(/【ソウル】が付いたとき/))
@@ -1295,7 +1295,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- レベル合計がNの場合〜 ----
   if (t.match(/レベルの合計が[１-９\d０-９]+の場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- それを【シード】として出すかエナゾーンに置く ----
   if (t.match(/シード.*出すか.*エナゾーンに置く/))
@@ -1315,7 +1315,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたの場に共通する色を持つルリグがN体以上いる場合 ----
   if (t.match(/あなたの場に共通する色を持つルリグが[１-９\d０-９]+体以上いる場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- スペルの場合、対戦相手はそのカードを捨てる ----
   if (t.match(/^スペルの場合、対戦相手はそのカードを捨てる$/))
@@ -1364,7 +1364,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
     }
   }
   if (t.match(/あなたの場に他の[＜〈<].+[＞〉>]のシグニがある場合、対戦相手のレベル.+のシグニ.+対象とし、それをトラッシュに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- このシグニが対戦相手の能力か効果の対象になったとき、裏向き/表向きにする ----
   if (t.match(/このシグニが対戦相手の.*対象になったとき.*裏向きにし、表向きにする/))
@@ -1471,11 +1471,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法でカードをN枚以上トラッシュに置いた場合 ----
   if (t.match(/この方法でカードを[１-９\d０-９]+枚以上トラッシュに置いた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- N枚以上トラッシュに置いた場合、追加で〜 ----
   if (t.match(/[１-９\d０-９]+枚以上トラッシュに置いた場合、追加で/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- その後、手札を１枚捨てる（単独文） ----
   if (t.match(/^その後、手札を[１-９\d０-９]+枚捨てる$/))
@@ -1498,7 +1498,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法であなたのセンタールリグのレベル以下のシグニがトラッシュに置かれた場合 ----
   if (t.match(/この方法であなたのセンタールリグのレベル以下のシグニがトラッシュに置かれた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 対戦相手のシグニ１体が場に出たとき（自動能力） ----
   if (t.match(/対戦相手のシグニ[１-９\d０-９]*体?が場に出たとき/))
@@ -1542,7 +1542,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 追加で《色》を支払っていた場合 ----
   if (t.match(/追加で《[白赤青緑黒無][^》]*》を支払っていた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- この方法でグロウしたルリグの【出】能力は発動しない ----
   // 🆕§5.3 `O-83`＝**ルール注記ではなく実効ルール**（旧 `RULE_REMINDER_TEXT` は engine で完全な no-op ＝
@@ -1576,7 +1576,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- いずれかのプレイヤーがリフレッシュしていた場合 ----
   if (t.match(/いずれかのプレイヤーがリフレッシュしていた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 各ターン終了時、エナゾーンから対象とし自分をトラッシュ ----
   if (t.match(/各ターン終了時、対戦相手のエナゾーンからカード[１-９\d０-９]*枚を対象とし/))
@@ -1615,7 +1615,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法でカードを何枚かトラッシュ後、ライフを加える ----
   if (t.match(/この方法でカードを[１-９\d０-９]+枚以上捨てた場合.*ライフクロス/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- アタックフェイズ終了時〜（条件付き） ----
   if (t.match(/あなたのアタックフェイズ終了時.*場を離れていた場合.*デッキの一番下に置いてもよい/))
@@ -1623,7 +1623,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 場に出さない場合、エナゾーンに置く ----
   if (t.match(/^《無》《無》を支払わなかった場合、それを手札に加える$/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- そのカードとエナゾーンにあるこのシグニを入れ替えてもよい ----
   // 🆕**`DEFERRED_` へ改名した**（§5.3 `O-60` 第56バッチ・2026-09-03）＝上と同じ理由
@@ -1728,7 +1728,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 赤の場合、対戦相手のライフクロスをエナゾーンに置く ----
   // ⚠残っているのは条件節を持ち上げられない形だけ（`WXK09-003-E1`＝MANUAL 済み）。live 0件。
   if (t.match(/.*の場合、対戦相手のライフクロス.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 対戦相手のシグニのパワーが効果によって+される場合、代わりに-される ----
   if (t.match(/対戦相手のシグニのパワーが効果によって.*される場合、代わりに.*される/))
@@ -1748,7 +1748,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法で〈X〉のシグニがN種類公開された場合 ----
   if (t.match(/この方法で.*のシグニが[１-９\d０-９]+種類公開された場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- この効果をセンタールリグのレベルと同じ回数行う ----
   if (t.match(/この効果を.*センタールリグのレベルと同じ回数行う/))
@@ -1756,7 +1756,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法でデッキにカードをN枚以上加えた場合 ----
   if (t.match(/この方法でデッキにカードを[１-９\d０-９]+枚以上加えた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- このカードにグロウする際、手札からシグニをN枚まで公開する ----
   if (t.match(/このカードにグロウする際、手札から.*公開する/))
@@ -1818,7 +1818,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 代わりにN枚まで対象とし、それらを手札に加える ----
   if (t.match(/代わりに[１-９\d０-９]+枚まで対象とし、それらを手札に加える/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- このシグニが中央のシグニゾーンにある場合 ----
   if (t.match(/このシグニが中央のシグニゾーンにある場合/))
@@ -1868,7 +1868,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- それぞれレベルの異なるシグニN枚が公開された場合、追加で ----
   if (t.match(/それぞれレベルの異なるシグニ[１-９\d０-９]+枚が公開された場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- 手札が５枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く（WDK08-Y08-E1）----
   // 🔴従来は `CONDITIONAL_POWER_BONUS`（パワー修正の catch-all）＝**丸ごと無言 no-op**で、
@@ -1934,7 +1934,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法でカードがN枚トラッシュに置かれた場合 ----
   if (t.match(/この方法でカードが[１-９\d０-９]+枚トラッシュに置かれた場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- あなたと対戦相手のデッキの一番下のカードをトラッシュに置く ----
   if (t.match(/あなたと対戦相手のデッキの一番下のカードをトラッシュに置く/))
@@ -1958,7 +1958,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- この方法でシグニを手札に加えた場合、手札をN枚捨てる ----
   if (t.match(/この方法でシグニを手札に加えた場合、手札を[１-９\d０-９]+枚捨てる/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- デッキの上からカードをN枚を見る（重複「を」) ----
   // 🆕§5.3 `O-60` 第45バッチ＝**typed `LOOK_AND_REORDER` を出す**（枚数は payload）。
@@ -2268,7 +2268,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 手札をN枚以上捨てた場合、追加でライフクロス〜デッキの一番下に置く ----
   if (t.match(/手札を[１-９\d０-９]+枚以上捨てた場合.*ライフクロス.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_CONDITIONAL_CLAUSE_UNPARSED' } as StubAction;
 
   // ---- このメインフェイズを終了する ----
   if (t.match(/^このメインフェイズを終了する$/))

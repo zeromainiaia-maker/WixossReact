@@ -4274,6 +4274,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-60` 第76（2026-09-05・**A群 最後の1本**）＝条件節を構造化できなかった文。
+        //   🔴旧 id は `CONDITIONAL_POWER_BONUS` だったが、実体は「条件節の捨て場」で
+        //     パワーと無関係な文（追加トラッシュ／デッキに加える 等）まで入っており、
+        //     engine は9本のリテラルに当たらなければ**ログだけ出して何もしない**無言 no-op だった。
+        DEFERRED_CONDITIONAL_CLAUSE_UNPARSED: '【未実装】条件つきの効果（条件節を構造化できていない）',
         // 🆕§5.3 `O-60` 第75（2026-09-05）＝「〜がめくれるまで公開する」の停止条件が読めなかった文型。
         //   ⚠engine の catch-all（カード全文 regex）を撤去したので、**名前のある穴**として宣言する。
         DEFERRED_DECK_REVEAL_UNTIL_UNPARSED: '【未実装】デッキの上から条件を満たすカードがめくれるまで公開する',

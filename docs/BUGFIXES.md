@@ -1,18 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-09-05（第130〜134バッチ）：`O-60`＝engine の原文 regex を **A🔴 9行 → 1行** へ — **計器の「live 0」が嘘をついていた**
+## 2026-09-05（第130〜135バッチ）：🏁`O-60` クローズ＝engine の原文 regex が **A🔴 9行 → 0** — **計器の「live 0」が嘘をついていた**
 
 **ベースライン**＝`20507ad2e`（PLAN 整理⑦の直後）。
-**gates 全緑**（golden **3467 → 3471**＝+4本／既存の契約 golden 4本を理由つきで更新・smoke 10725 全異常0・
+**gates 全緑**（golden **3467 → 3472**＝+5本／既存の契約 golden 5本を理由つきで更新・smoke 10725 全異常0・
 fuzz 全0・census 1 / BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・
-**`census:enginetext` A🔴 9行 → 1行**（`BASELINE_SELF_TEXT` も 1 へ払い戻し）・`census:costtext` A🔴 0規則・
+**`census:enginetext` A🔴 9行 → 0行 / 0ハンドラ**（`BASELINE_SELF_TEXT` も **0** へ払い戻し）・`census:costtext` A🔴 0規則・
 lint 0 errors・`npm run regen` 完走後に再度 gates 全緑）。
 **実機＝新規2本＋回帰3本＝5本 ALL PASS**（第132のみ）。**実機要否は §2.2 の機械判定どおり**＝
 第132 だけが `src/screens/`（`SigniOnPlayCostModal`）を触ったので実機必須、
 第130/133 は live JSON が**1バイトも変わらない**（死んだ枝の撤去）、第131/134 は `src/engine/` と
 `src/data/` だけで挙動は payload 化の前後で同値（第131 は恒久 no-op → 記録されるようになった engine 単体の修正）＝
 いずれも④ゲートまでで完了と判定した。
-**在庫**＝機構 worklist **10項目（据置）**／実機 残 **0件（据置）**。
+**在庫**＝機構 worklist **10 → 9項目**（🏁`O-60` クローズ）／実機 残 **0件（据置）**。
 
 | バッチ | 内容 |
 |---|---|
@@ -21,6 +21,7 @@ lint 0 errors・`npm run regen` 完走後に再度 gates 全緑）。
 | 132（第73） | 【ビート】コストの「誰を」を payload 化＝A🔴 6→5（live 9効果・**実機が支払いUIの穴を1件捕まえた**） |
 | 133（第74） | live 0 の死んだ catch-all 3 family を **parser 規則ごと**撤去＝A🔴 5→2 |
 | 134（第75） | 「〜がめくれるまで公開する」を payload 化＝A🔴 2→1（**計器が live 0 と嘘をついていた family**） |
+| 135（第76） | 🏁**条件節の捨て場 `CONDITIONAL_POWER_BONUS` を「名前のある穴」へ改名してハンドラを撤去**＝A🔴 1→**0**（`O-60` クローズ） |
 
 ---
 
@@ -77,6 +78,27 @@ live の標本 `WDK14-001-E2` は**ルリグ**（シグニゾーンに居ない�
 - **前シナリオのモーダルが開いたままだと注入が画面に届かない**＝`H.closeModals()` ＋
   「手札カードが出るまで待つ」を drive の先頭に置く。
 
+### 🏁 `O-60` クローズ＝A群が 0 になった（第135）
+
+残っていた `CONDITIONAL_POWER_BONUS` は **名前が実体と食い違うハンドラ**だった。
+parser 側の生成地点41箇所は「**条件節を構造化できなかった文の捨て場**」で、中身は
+「それが＜X＞のシグニの場合、追加でそれをトラッシュに置く」「センタールリグが〜でない場合、デッキに加える」
+「スペルがN種類以上ある場合」など**パワーと無関係な文が大半**。engine 側はアビリティブロックの原文に
+**9本のリテラル**を当ててパワー修整を試み、**どれにも当たらなければログだけ返す**＝盤面が動かない**無言 no-op**だった。
+
+⇒ 41箇所を **`DEFERRED_CONDITIONAL_CLAUSE_UNPARSED`（名前のある穴）**へ改名し、engine のハンドラを撤去。
+逆翻訳には **【未実装】条件つきの効果（条件節を構造化できていない）** が出る（`census:stubs` A群🔴 は
+`DEFERRED_*` を無言 no-op に数えない＝**宣言された穴**）。
+
+**live 実害はゼロ**＝fresh parse で当たるのは3効果だけで（`WXK06-032-E1` / `WXDi-D04-011-E1` / `SPDi47-03-E2`）、
+**3件とも `manualEffects.ts` が構造化済み**＝live には1件も出ていなかった（`build:effects` の**差分ゼロ**で確認）。
+
+🔑**母集団の測り方**＝live 0 でも parser の生成地点が41箇所ある形は、**fresh parse で数える**しかない
+（`parseCardEffects` を全カードへ当てて STUB id を数える使い捨てスクリプト）。**live 0 ＝ 死んでいる、ではない。**
+🔑**「A群 0」は「もう原文を読んでいない」であって「全部実装済み」ではない。**
+捨て場だった文型は【未実装】として可視化されただけ＝必要になったら条件型を足す（PLAN §4.2 の6箇所セット）。
+
+
 ### 変更ファイル
 
 `src/engine/execStubPart1.ts`（`REVEAL_AND_PICK` 撤去・`DECK_REVEAL_UNTIL` payload 化）／
@@ -90,6 +112,7 @@ live の標本 `WDK14-001-E2` は**ルリグ**（シグニゾーンに居ない�
 `src/screens/battle/modals/SigniOnPlayCostModal.tsx`（`beatFieldOkM`）／
 `scripts/censusEngineText.ts`（ratchet 9→1）／`scripts/goldenTest.ts`／`scripts/decompileEffects.ts`／
 `scripts/verifyBattleDrive.mjs`（実機2本）／`public/data/effects_*.json`（13カードのみ）。
+第135＝`src/engine/execStubPart1.ts`（`CONDITIONAL_POWER_BONUS` 撤去）／`src/data/parsers/parseSentencePart3/4.ts`（生成 id 41箇所を `DEFERRED_*` へ改名）／`scripts/decompileEffects.ts`（日本語ラベル）／`scripts/censusEngineText.ts`（ratchet 1→0）／`scripts/goldenTest.ts`。**live JSON は差分ゼロ。**
 
 ---
 

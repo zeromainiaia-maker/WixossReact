@@ -13,7 +13,7 @@ import {
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked,
-  sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
+  fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
   resolveHandCardPick, handCardPickLabel,
 } from './execUtils';
 import { cloneAcceSlots } from '../utils/acce';
@@ -1706,118 +1706,17 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwnerDPM },
       `このターン、${specDPM.sourceSigniOnly ? 'あなたのシグニの効果' : 'あなたの効果'}による相手へのパワーマイナスが2倍`));
   }
-  // 条件付きパワーボーナス
-  if (stub.id === 'CONDITIONAL_POWER_BONUS') {
-    // §6.4 O-20: 全文だと別能力の条件・数値を実行してしまう
-    // （`WX26-CP1-057-E2`／`WX25-CP1-056-E1`＝相手をトラッシュする効果が自己バフ化）のでブロックだけを読む。
-    const txtCB = sourceAbilityText(ctx);
-    const toHWC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const toSignedC = (s: string) => parseInt(toHWC(s).replace('－', '-').replace('＋', '+'));
-    // 共通ユーティリティ：対象シグニ全体にパワー修正を適用
-    const applyPowerDelta = (delta: number, target: 'self' | 'opponent', reason: string): ExecResult => {
-      if (delta === 0) return done(addLog(ctx, reason));
-      const targetState = target === 'self' ? ctx.ownerState : ctx.otherState;
-      const mods = [...(targetState.temp_power_mods ?? [])];
-      for (let zi = 0; zi < 3; zi++) {
-        const top = targetState.field.signi[zi]?.at(-1);
-        if (top) mods.push({ cardNum: top, delta });
-      }
-      const newState = { ...targetState, temp_power_mods: mods };
-      const newCtx = target === 'self'
-        ? { ...ctx, ownerState: newState }
-        : { ...ctx, otherState: newState };
-      return done(addLog(newCtx, `パワー${delta > 0 ? '+' : ''}${delta}（${reason}）`));
-    };
-    // パターン「この方法でN枚以上の場合、±X」（lastProcessedCards使用）
-    const cM = txtCB.match(/この方法で.*?([０-９\d]+)枚以上.*?場合.*?([－＋][０-９\d]+)(?:する|される)/s);
-    if (cM) {
-      const threshold = parseInt(toHWC(cM[1]));
-      const delta = toSignedC(cM[2]);
-      const processed = ctx.lastProcessedCards ?? [];
-      if (processed.length >= threshold) return applyPowerDelta(delta, 'opponent', `条件達成（${processed.length}枚≥${threshold}）`);
-      return done(addLog(ctx, `条件未達（必要${threshold}枚、処理${processed.length}枚）`));
-    }
-    // パターン「あなたの場にシグニがN体以上ある場合、代わりに±X」
-    const fieldM = txtCB.match(/あなたの場[にの](?:.*?)シグニが([０-９\d]+)体(?:以上|以上ある)(?:.*?)場合[、，](?:代わりに)?([－＋][０-９\d]+)/);
-    if (fieldM) {
-      const threshold = parseInt(toHWC(fieldM[1]));
-      const delta = toSignedC(fieldM[2]);
-      const ownCount = ctx.ownerState.field.signi.filter(s => s && s.length > 0).length;
-      if (ownCount >= threshold) return applyPowerDelta(delta, 'opponent', `自場${ownCount}体≥${threshold}`);
-      return done(addLog(ctx, `条件未達（自場${ownCount}体/必要${threshold}体）`));
-    }
-    // パターン「あなたのエナゾーンにカードがN枚以上ある場合」
-    const energyM = txtCB.match(/あなたのエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)/);
-    if (energyM) {
-      const threshold = parseInt(toHWC(energyM[1]));
-      const delta = toSignedC(energyM[2]);
-      if (ctx.ownerState.energy.length >= threshold) return applyPowerDelta(delta, 'opponent', `エナ${ctx.ownerState.energy.length}枚≥${threshold}`);
-      return done(addLog(ctx, `条件未達（エナ${ctx.ownerState.energy.length}枚/必要${threshold}枚）`));
-    }
-    // パターン「対戦相手のエナゾーンにカードがN枚以上ある場合」
-    const oppEnergyM = txtCB.match(/対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)/);
-    if (oppEnergyM) {
-      const threshold = parseInt(toHWC(oppEnergyM[1]));
-      const delta = toSignedC(oppEnergyM[2]);
-      if (ctx.otherState.energy.length >= threshold) return applyPowerDelta(delta, 'opponent', `相手エナ${ctx.otherState.energy.length}枚≥${threshold}`);
-      return done(addLog(ctx, `条件未達（相手エナ${ctx.otherState.energy.length}枚/必要${threshold}枚）`));
-    }
-    // パターン「あなたの手札がN枚以上の場合」
-    const handM = txtCB.match(/あなたの手札が([０-９\d]+)枚以上(?:の場合)?.*?([－＋][０-９\d]+)/);
-    if (handM) {
-      const threshold = parseInt(toHWC(handM[1]));
-      const delta = toSignedC(handM[2]);
-      if (ctx.ownerState.hand.length >= threshold) return applyPowerDelta(delta, 'opponent', `手札${ctx.ownerState.hand.length}枚≥${threshold}`);
-      return done(addLog(ctx, `条件未達（手札${ctx.ownerState.hand.length}枚/必要${threshold}枚）`));
-    }
-    // パターン「あなたのトラッシュにカード名に〜を含むカードがある場合」（固定パワー）
-    const trashNameM = txtCB.match(/あなたのトラッシュにカード名に《?([^》]+)》?を含むカードがある場合.*?([－＋][０-９\d]+)/);
-    if (trashNameM) {
-      const cardName = trashNameM[1];
-      const delta = toSignedC(trashNameM[2]);
-      const found = ctx.ownerState.trash.some(cn => ctx.cardMap.get(cn)?.CardName?.includes(cardName));
-      if (found) return applyPowerDelta(delta, 'opponent', `トラッシュに${cardName}あり`);
-      return done(addLog(ctx, `条件未達（トラッシュに${cardName}なし）`));
-    }
-    // パターン「トラッシュにある＜クラス＞のカードN枚につき±X」
-    const trashClassM = txtCB.match(/トラッシュにある＜([^＞]+)＞のカード[０-９\d]*枚?につき([－＋][０-９\d]+)/);
-    if (trashClassM) {
-      const cls = trashClassM[1];
-      const delta = toSignedC(trashClassM[2]);
-      const count = ctx.ownerState.trash.filter(cn => {
-        const c = ctx.cardMap.get(cn);
-        return c?.CardClass?.includes(cls) || c?.CardName?.includes(cls);
-      }).length;
-      if (count > 0) {
-        const totalDelta = count * delta;
-        return applyPowerDelta(totalDelta, 'opponent', `トラッシュ<${cls}>${count}枚×${delta}`);
-      }
-      return done(addLog(ctx, `条件未達（トラッシュ<${cls}>なし）`));
-    }
-    // パターン「場に他の＜クラス＞のシグニがある場合、±X」
-    const fieldClassM = txtCB.match(/あなたの場に(?:他の)?＜([^＞]+)＞のシグニがある場合.*?([－＋][０-９\d]+)/);
-    if (fieldClassM) {
-      const cls = fieldClassM[1];
-      const delta = toSignedC(fieldClassM[2]);
-      const found = ctx.ownerState.field.signi.some((s) => {
-        const top = s?.at(-1);
-        if (!top || top === ctx.sourceCardNum) return false;
-        const c = ctx.cardMap.get(top);
-        return c?.CardClass?.includes(cls);
-      });
-      if (found) return applyPowerDelta(delta, 'self', `場に<${cls}>あり`);
-      return done(addLog(ctx, `条件未達（場に<${cls}>なし）`));
-    }
-    // パターン「このシグニのパワーを±X（自シグニ強化）」
-    const selfPwM = txtCB.match(/このシグニのパワーを([－＋][０-９\d]+)する/);
-    if (selfPwM && ctx.sourceCardNum) {
-      const delta = toSignedC(selfPwM[1]);
-      const mods = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta }];
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
-        `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}パワー${delta > 0 ? '+' : ''}${delta}`));
-    }
-    return done(addLog(ctx, '条件付きパワー修正'));
-  }
+  // 🏁**`CONDITIONAL_POWER_BONUS` は撤去した**（2026-09-05 §5.3 `O-60` 第76バッチ＝**A群 最後の1本**）。
+  //   🔴**このハンドラは名前が実体と食い違っていた**＝parser 側の41箇所は「条件節を構造化できなかった」
+  //     文の捨て場で、中身は「それが＜X＞のシグニの場合、追加でトラッシュに置く」「センタールリグが〜で
+  //     ない場合、デッキに加える」など**パワーと無関係**なものばかりだった。engine 側はアビリティブロックの
+  //     原文に**9本のリテラル**を当ててパワー修整を試み、**どれにも当たらなければ
+  //     `addLog('条件付きパワー修正')` だけ返す**＝ログだけ出て盤面が動かない**無言 no-op** だった。
+  //   ⇒ 41箇所の生成 id を **`DEFERRED_CONDITIONAL_CLAUSE_UNPARSED`（名前のある穴）**へ改名し、
+  //     逆翻訳に【未実装】が出るようにした（`census:stubs` A群🔴 は `DEFERRED_*` を無言 no-op に数えない）。
+  //   ⚠**live 実害はゼロ**＝fresh parse で当たる3効果（`WXK06-032-E1` / `WXDi-D04-011-E1` / `SPDi47-03-E2`）は
+  //     すべて `manualEffects.ts` が構造化済みで、live には1件も出ていなかった（`build:effects` の差分ゼロで確認）。
+  //   ⚠**復活させない**＝条件節は `CONDITIONAL` ＋ 条件型で表す。パワー修整だけなら `POWER_MODIFY`。
   // LRIG_GROW_RESTRICT: このルリグは指定された名前/色のルリグにしかグロウできない
   // ⚠判定は `BattleScreen` の growCandidates 側（原文を読む）＝ここは実行時 no-op のログ1行。
   //   旧コメント「対戦相手の no_grow フラグをセット」は**実装と無関係**で、逆翻訳にそのまま出ていた。
