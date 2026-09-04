@@ -45480,7 +45480,8 @@ const B9_TRADE_STUB_ALLOWED = [
   'WXEX1-09-E2',      // 「場**か**エナゾーンから」＝複数ゾーンのコストが表せない
   'WX25-CP1-003-E1',  // 「手札から〜を**好きな枚数公開**」＝可変枚数＋公開が表せない
   'WXDi-P16-069-E1',  // 「シグニの**下から**」＝`underAnySigniTrash` 系の別受け皿が要る
-  'WXK10-051-E1',     // 「トラッシュから〜4枚を**デッキに加えて**」＝デッキ戻しコストが表せない
+  // 🏁2026-09-04（§5.3 `O-197`）＝`WXK10-051-E1` は `manualEffects.ts` へ手書きして catch-all から降りた
+  //   （`TRANSFER_TO_DECK{optional, selectionConstraint{distinct:'level'}}` ＋ `deltaFromSourcePower`）。
   // 🏁**`WD22-029-G-E2` は 2026-08-28（§5.3 `O-133` B群 第8バッチ）で解消**＝
   //   「別の parse 入口を通るため後段規則が当たらない（要調査）」の正体は **parse 入口ではなく凍結**だった。
   //   同カードの `E1` が孤児 MANUAL で凍っていたため、収穫マージが**カード単位で held に落とし**、
@@ -64854,6 +64855,43 @@ test('§5.3 O-245: 書かれるだけで読まれない PlayerState キーのラ
   // 🔴**減ったら実数へ下げる**（払い戻しの記録を残すため）。増えたら新しい真 no-op が入った合図。
   eq(n, 0, `書きあり・読み0 のキー数（増＝新しい真 no-op／減＝払い戻し。詳細は docs/_census_deadstate.txt）`);
 });
+
+test('§5.3 O-197: WXK10-051-E1 は「対象1体」「レベル違い黒4枚」「パワーの半分」を全部持つ', () => withSavedCursor(() => {
+  // 🔴**旧 live は丸ごと幻覚だった**＝`STUB{TRADE_BANISH_SELF_SIGNI}`（**自分のシグニをトラッシュして
+  //   相手をバニッシュ**＝原文に1文字も無い）＋`CONDITIONAL{IS_MY_TURN}`（原文に無い条件）＋
+  //   `STUB{SHUFFLE_DECK_POWER_HALF}`（**相手の全シグニ**を半減＝原文は対象1体だけ）。
+  // 原文＝「【自】：このシグニがアタックしたとき、**対戦相手のシグニ１体を対象とし**、あなたのトラッシュから
+  //   **それぞれレベルの異なる黒のシグニ４枚**をデッキに加えて**もよい**。**そうした場合**、デッキを
+  //   シャッフルし、ターン終了時まで、**それの**パワーを**このシグニのパワーの半分**だけ－する。」
+  const steps = (effectsMap.get('WXK10-051')?.find(e => e.effectId === 'WXK10-051-E1')?.action as SequenceAction).steps;
+  eq((steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '①対象1体を先に固定する');
+  eq((steps[1] as { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS', '②任意コストの前に対象を保存する');
+  const tr = steps[2] as { type: string; optional?: boolean; shuffle?: boolean; source?: { count?: number; filter?: { color?: string }; selectionConstraint?: { distinct?: string } } };
+  eq(tr.type, 'TRANSFER_TO_DECK', '③トラッシュからデッキへ');
+  eq(tr.optional, true, '「〜してもよい」＝任意');
+  eq(tr.shuffle, true, '「そうした場合、デッキをシャッフルし」');
+  eq(tr.source?.count, 4, '4枚');
+  eq(tr.source?.filter?.color, '黒', '黒のシグニだけ');
+  eq(tr.source?.selectionConstraint?.distinct, 'level', '🔴それぞれレベルが異なる（この制約が O-197 の本題）');
+  const cond = steps[3] as { type: string; condition?: { type?: string; minCount?: number }; then?: PowerModifyAction };
+  eq(cond.condition?.type, 'LAST_PROCESSED_MATCHES', '「そうした場合」＝実際に戻したときだけ');
+  eq(cond.condition?.minCount, 4, '4枚戻したときだけ（0枚でスキップしたら下がらない）');
+  eq(cond.then?.targetsStored, true, '「それ」＝最初に対象化した相手シグニ1体');
+  eq(cond.then?.deltaFromSourcePower?.divisor, 2, 'このシグニのパワーの半分');
+  eq(cond.then?.delta, -1, 'delta は符号だけを担う（±1）');
+  // 🔴**負方向＝相手の全シグニではない**（旧 `SHUFFLE_DECK_POWER_HALF` は3体まとめて半減させていた）。
+  eq(cond.then?.target.count, 1, '対象は1体');
+  // 実行＝効果元のパワー7000 → 半分の 3500 を切り捨てで －3500。
+  const target = findCard(c => isSigni(c));
+  // ⚠**golden の `cardMap` は素の Map**＝`fieldCandidates` は instance id を解決しない（実機は `InstanceMap`）。
+  //   `#1` を付けると候補0件で**静かに何も起きない**（実測で1往復した）＝ここでは素のカード番号を使う。
+  const ctx = mkCtx({}, { signi: [target] }, 'WXK10-051');
+  ctx.storedTargetCards = [target];
+  const applied = run(cond.then as EffectAction, ctx);
+  const mods = (applied.otherState.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`);
+  eq(JSON.stringify(mods), JSON.stringify([`${target}:-3500`]),
+    '効果元（印刷パワー7000）の半分＝－3500 が対象1体にだけ載る');
+}));
 
 test('§5.3 O-152: 「そのシグニをトラッシュからチェックゾーンへ」はトリガー起点でも候補が出る', () => withSavedCursor(() => {
   // 🔴**実機（`o143CheckPlace`）で発覚した恒久 no-op**＝`WXDi-P11-006-E1`

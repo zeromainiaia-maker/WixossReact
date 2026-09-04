@@ -2052,7 +2052,15 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   // （WX12-020-E3・タスク12(lx)②）。現在の手札枚数を数える POWER_MODIFY_PER_HAND_COUNT とは別物。
   // deltaFromZone:「〈ゾーン〉にある〈filter〉のカード1枚につき±N」＝枚数×per（§6.4 O-3）。
   // ⚠`resolveNum` は `{$ref}` を 0 に潰すので、動的値は必ず `resolveCountRef` 側で解決する。
-  const delta = a.deltaFromZone
+  // 🆕`deltaFromSourcePower`＝「このシグニのパワーの半分だけ」（§5.3 `O-197`・2026-09-04）＝
+  //   倍率元は**効果元シグニ自身の実効パワー**（`delta` は ±1 で符号だけを担う）。端数切り捨て。
+  const srcPowerBase = a.deltaFromSourcePower && ctx.sourceCardNum
+    ? (ctx.effectivePowers?.get(ctx.sourceCardNum)
+      ?? (Number.parseInt(ctx.cardMap.get(getCardNum(ctx.sourceCardNum))?.Power ?? '', 10) || 0))
+    : 0;
+  const delta = a.deltaFromSourcePower
+    ? resolveNum(a.delta) * Math.floor(srcPowerBase / Math.max(1, a.deltaFromSourcePower.divisor))
+    : a.deltaFromZone
     ? resolveCountRef(a.delta, ctx, a.deltaFromZone)
     : a.deltaPerLastProcessedCount
       ? resolveNum(a.delta) * lastProcessedUnits(a.perLastProcessed, ctx)

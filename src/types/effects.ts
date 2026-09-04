@@ -2107,6 +2107,18 @@ export interface PowerModifyAction {
    */
   deltaFromZone?: CountFromZone;
   /**
+   * 🆕**「〈効果元〉のパワーの半分だけ±する」**（§5.3 `O-197`・2026-09-04・`WXK10-051-E1`）＝
+   * **倍率元は効果元シグニ自身の実効パワー**で、`delta` は **±1 を入れて符号だけを担う**
+   * （`perLastProcessed.unit:'power_sum'` と同じ流儀）。端数は**切り捨て**。
+   *
+   * 🔴**これが無かった間、この文型は engine の catch-all STUB に落ちていた**＝
+   *   `WXK10-051-E1` は `STUB{TRADE_BANISH_SELF_SIGNI}`（自分のシグニをトラッシュして相手を
+   *   バニッシュ＝**原文に無い挙動**）＋`STUB{SHUFFLE_DECK_POWER_HALF}`（**相手の全シグニ**を半減＝
+   *   原文は対象1体）という**二重の幻覚**だった。
+   * ⚠**実効パワー→印刷値の順で読む**（`effectivePowers` を先に見る＝場のパワー修整を無視しない）。
+   */
+  deltaFromSourcePower?: { divisor: number };
+  /**
    * 「それらのパワーを**合わせて**／**合計で**－N する」（§5.3 `O-140`・2026-08-29）＝
    * **`delta`（または `deltaFromZone` の解決値）を1体あたりではなく「総量」として扱い、
    * 選んだ対象へプレイヤーが割り振る**。原文は毎回「この効果では1000単位でしか数字を割り振ることが

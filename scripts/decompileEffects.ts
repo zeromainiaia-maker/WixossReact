@@ -1282,6 +1282,14 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.duration === 'UNTIL_NEXT_OWN_TURN_END' ? '（次のあなたのターン終了時まで）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         : a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : '';
+      // 🆕`deltaFromSourcePower`＝「**このシグニのパワーの半分**だけ±する」（§5.3 `O-197`・2026-09-04）。
+      //   ⚠ここを書かないと逆翻訳から**この行が丸ごと消える**（`delta:-1` が「－1する」に見えるより悪い＝
+      //   何が起きるか読めない）。`divisor` は原文の分母（2＝半分／3＝3分の1）。
+      if (a.deltaFromSourcePower) {
+        const dv = a.deltaFromSourcePower.divisor;
+        const frac = dv === 2 ? '半分' : `${dv}分の1`;
+        return `${pmSubj}のパワーをこのシグニのパワーの${frac}だけ${a.delta >= 0 ? '＋' : '－'}する${pmDuration}`;
+      }
       // deltaPerLastProcessedCount: 倍率は「この方法で（直前ステップで）処理した枚数」（タスク12(lx)②）。
       // 🆕§5.3 `O-80` 第1バッチ（2026-08-26）＝**何を数えるかは `perLastProcessed` から描く**。
       //   旧実装は「この方法で**捨てた手札**1枚につき」と決め打ちで、`＜悪魔＞のシグニ`／`黒のカード`／

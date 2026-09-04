@@ -3835,6 +3835,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK10-044": [
     {"effectId":"WXK10-044-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"青","count":1}],"handDiscardSigni":{"count":1,"story":"迷宮"}},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","levelLteDiscardSigni":true}},"shuffle":false},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
+  // 🆕**§5.3 `O-197`（2026-09-04）＝`WXK10-051-E1` は live が丸ごと幻覚だった。**
+  //   原文＝「【自】：このシグニがアタックしたとき、**対戦相手のシグニ１体を対象とし**、
+  //   あなたのトラッシュから**それぞれレベルの異なる黒のシグニ４枚**をデッキに加えて**もよい**。
+  //   **そうした場合**、デッキをシャッフルし、ターン終了時まで、**それの**パワーを
+  //   **このシグニのパワーの半分**だけ－する。」
+  // 🔴旧 live＝`STUB{TRADE_BANISH_SELF_SIGNI}`（**自分のシグニをトラッシュして相手をバニッシュ**＝
+  //   原文に1文字も無い挙動）＋`CONDITIONAL{IS_MY_TURN}`（原文に無い条件）＋
+  //   `STUB{SHUFFLE_DECK_POWER_HALF}`（**相手の全シグニ**を半減＝原文は対象1体だけ）＝**二重の幻覚**。
+  // 🔑受け皿は3つとも既存＋1つ新設＝`selectionConstraint{distinct:'level'}`（既存）／
+  //   `TRANSFER_TO_DECK{optional}`（既存）／`targetsStored`（既存）／
+  //   `POWER_MODIFY.deltaFromSourcePower{divisor:2}`（**この巡で新設**＝`delta:-1` が符号だけを担う）。
+  // ⚠「そうした場合」は `LAST_PROCESSED_MATCHES{minCount:4}`＝**4枚デッキへ戻したときだけ**下がる
+  //   （0枚を選んでスキップしたらパワーは動かない＝原文どおり）。
+  "WXK10-051": [
+    {"effectId":"WXK10-051-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","color":"黒"},"selectionConstraint":{"distinct":"level"}},"shuffle":true,"optional":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","color":"黒"},"minCount":4},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-1,"deltaFromSourcePower":{"divisor":2},"targetsStored":true}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
   "WXK10-052": [
     {"effectId":"WXK10-052-E1","effectType":"AUTO","timing":["ON_CARD_MILLED_FROM_DECK"],"triggerCondition":{"byOwnEffect":true,"milledDeckOwner":"self","milledMinCount":1,"milledCardFilter":{"cardType":"シグニ","cardClass":"龍獣"}},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-2000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],
