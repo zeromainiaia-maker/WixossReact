@@ -525,7 +525,7 @@ SP27-016-E1 WD04-009-E2 WD21-007-E1 WX05-021-E1 WX09-019-E2 WX15-010-E1 WX16-Re0
 ### STUB/MANUAL格納（要個別確認）
 （なし）
 
-## 逆:JSONにSEARCH→原文に語なし ［原文該当 329／高シグナル 0／STUB・MANUAL格納 0］
+## 逆:JSONにSEARCH→原文に語なし ［原文該当 328／高シグナル 0／STUB・MANUAL格納 0］
 ### 高シグナル（対応語彙なし）
 （なし）
 ### STUB/MANUAL格納（要個別確認）

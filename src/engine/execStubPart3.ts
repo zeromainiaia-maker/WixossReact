@@ -1146,6 +1146,24 @@ export function execStubPart3(
     const newOwnerCUR: PlayerState = { ...ctx.ownerState, coin_use_restriction: 'spell_signi_only' };
     return done(addLog({ ...ctx, ownerState: newOwnerCUR }, 'このゲームの間：コインはスペルとシグニにしか支払えない'));
   }
+  // RETURN_SELF_SPELL_TO_HAND: このスペルを手札に戻す
+  // （§5.3 `O-258`・`WXK08-040-E1`③）🔴旧は汎用 BOUNCE に食われて
+  //   「あなたのシグニ1体を手札に戻す」に化けていた＝原文と別物。
+  // ⚠**トラッシュ送りは `finalizeUsedCardPlacement` が担当**＝手札に入っていたら置かない、という
+  //   ガードを同関数へ足してある（ここで hand に入れるだけだと手札とトラッシュに二重で現れる）。
+  if (stub.id === 'RETURN_SELF_SPELL_TO_HAND') {
+    const selfRSS = ctx.sourceCardNum;
+    if (!selfRSS) return done(addLog(ctx, 'このスペルを手札に戻す：使用中のカードが特定できない'));
+    if (ctx.ownerState.hand.includes(selfRSS)) return done(ctx);
+    const newOwnerRSS: PlayerState = {
+      ...ctx.ownerState,
+      hand: [...ctx.ownerState.hand, selfRSS],
+      // 既にトラッシュへ置かれていたら取り除く（解決順が変わっても二重にしない）。
+      trash: ctx.ownerState.trash.filter(n => n !== selfRSS),
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerRSS },
+      `${ctx.cardMap.get(getCardNum(selfRSS))?.CardName ?? selfRSS}を手札に戻した`));
+  }
   // INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）
   if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
     return done(addLog(ctx, '起動能力コスト増加'));

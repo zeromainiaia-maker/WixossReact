@@ -101,6 +101,7 @@ import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
 import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
+import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import {
   EMPTY_RISE_SELECTION, canPayRiseField, findRiseFieldAssignment, riseConsumedZones, validateRiseField,
 } from '../src/screens/battle/riseSummon';
@@ -68032,6 +68033,52 @@ test('§5.3 O-256: 場→デッキの一番上のコストが live に載り、�
   ok(gate.includes('e.cost?.fieldToDeckTop && fieldTrashSelectableZones'),
      '候補が足りなければ提示しない（払えないのに撃てる、を作らない）');
 });
+
+// ═══ §5.3 `O-147` ラチェット＝【ライズ】条件が原文から解けている7枚（2026-09-05・第165バッチ）═══
+// 🔑意味照合台帳に「ライズ条件が JSON にない」という finding が7件 OPEN のまま残っていたが、
+//   【ライズ】は**JSON ではなく `getRiseRequirement(card.EffectText)` が読む**設計（出現条件は印字＝
+//   カード単位の事実なので効果 JSON には載らない）。7枚とも解けていることを実測して台帳を閉じた。
+// 🔴`getRiseRequirement` が `null` を返すと**下敷きも材料も払わずに空きゾーンへ普通に召喚できる**（過剰実行）。
+test('§5.3 O-147: 台帳が「JSON にない」と言っていた【ライズ】7枚は原文から解けている', () => {
+  const shape = (cardNum: string): string => {
+    const req = getRiseRequirement(cardMap.get(cardNum)?.EffectText ?? '');
+    if (!req) return 'null';
+    const base = req.base.kind === 'empty' ? 'empty'
+      : `field(${req.base.groups.map(g => `${g.count}${g.filter?.story ? `:${g.filter.story}` : g.filter?.color ? `:${g.filter.color}` : ''}`).join('+')}`
+        + `${req.base.distinctColor ? ',異色' : ''}${req.base.distinctLevel ? ',異レベル' : ''})`;
+    return `${base}/材料${req.materials.length}`;
+  };
+  eq(shape('WX16-027'), 'field(2:武勇)/材料0', 'WX16-027: ＜武勇＞2体の上');
+  eq(shape('WX20-037'), 'field(2:赤)/材料0', 'WX20-037: 赤2体の上');
+  eq(shape('WXDi-P15-048'), 'empty/材料1', 'WXDi-P15-048: トラッシュから1枚を下に重ねて空きゾーンへ');
+  eq(shape('WXK05-035'), 'field(1:アーム)/材料2', 'WXK05-035: ＜アーム＞1体＋エナ/トラッシュから1枚ずつ');
+  eq(shape('WXK08-031'), 'field(2)/材料0', 'WXK08-031: シグニ2体の上');
+  eq(shape('WXK11-038'), 'field(2,異色)/材料0', 'WXK11-038: 共通する色を持たない2体の上');
+  eq(shape('WXK11-053'), 'field(3:赤,異レベル)/材料0', 'WXK11-053: レベルの異なる赤3体の上');
+});
+
+// ═══ §5.3 `O-258`＝「このスペルを手札に戻す」が汎用 BOUNCE に食われていた（2026-09-05・1効果）═══
+// 🔴`WXK08-040-E1`③「あなたの登録者数が１００万人を達成している場合、**このスペルを手札に戻す**」が
+//   **「あなたのシグニ1体を手札に戻す」**に化けていた＝スペルは戻らず自分の場のシグニが1体戻る（別物）。
+//   ⚠`WX21-057-E2` の【トラップ】が同じ汎用 BOUNCE に食われた罠と同型。
+test('§5.3 O-258: 「このスペルを手札に戻す」は使用中のカード自身を戻す', () => withSavedCursor(() => {
+  const live = (effectsMap.get('WXK08-040') ?? []).find(e => e.effectId === 'WXK08-040-E1')!;
+  const third = (live.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[2];
+  const json = JSON.stringify(third);
+  ok(json.includes('RETURN_SELF_SPELL_TO_HAND'), '③は「このスペルを手札に戻す」の専用ハンドラ');
+  ok(!json.includes('"BOUNCE"'), '🔴汎用 BOUNCE（自分のシグニ1体を戻す）へ戻っていない');
+  // engine：使用中のカードが手札へ入り、トラッシュには残らない
+  const SPELL = 'WXK08-040';
+  const ctx = { ...mkCtx({}, {}), sourceCardNum: SPELL } as ExecCtx;
+  const r = executeAction({ type: 'STUB', id: 'RETURN_SELF_SPELL_TO_HAND' } as EffectAction, ctx);
+  ok(r.done, '対話を出さずに解決する');
+  ok(r.ownerState.hand.includes(SPELL), '🔴使用中のスペルが手札に戻る');
+  ok(!r.ownerState.trash.includes(SPELL), 'トラッシュには入らない');
+  // 使用カードの既定配置（`finalizeUsedCardPlacement`）が二重に置かない
+  const placed = finalizeUsedCardPlacement(r.ownerState, SPELL, 'trash');
+  ok(!placed.trash.includes(SPELL),
+     '🔴手札へ戻したカードを既定ゾーンへも置かない（手札とトラッシュに二重で現れる事故）');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

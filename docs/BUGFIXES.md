@@ -1,5 +1,99 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第157〜166バッチ）：逆翻訳がコスト payload を描いていなかった穴5本＋真no-opコスト2本
+
+**ベースライン**＝`eedde29b7`（第156の直後）。
+**gates 全緑**（typecheck・golden **3505/3505**＝3493 +12本・smoke 全異常0（10725効果）・fuzz 全0・
+census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・
+`census:costtext` A🔴0規則・lint 0 errors）。
+🔴**実機要否＝必須なのに未実施**＝`src/screens/`（`ArtsModal`／`BattleScreen`／`signiActivateGate`／新規
+`fieldToDeckTopCost.ts`）と `src/engine/` を触った＝§2.2 では実機まで。**10バッチを回すユーザー指示のもとで
+④ゲートまでとし、観測点を `V-152`〜`V-155` として PLAN §5.1 に登録した**（次セッションの一手目）。
+
+### 第157（§5.3 `O-251`・4効果）＝「使用コストは**選んだ数だけ**《色×M》増える」が一度も増額していなかった
+- **真因**＝`CostScalingCount` の全種別が盤面（またはターン履歴）で、「**この CHOOSE で選んだ数**」を数える種別が無い。
+  parser はコスト増の文を `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`（no-op マーカー）として残すだけだった。
+- **影響**＝`PR-K056`／`WX13-003`／`WXK05-002`／`WX20-Re20`（アーツが原文より安く撃てる＝過剰実行）。
+- **受け皿**＝新種別 `declaredChooseCount` ＋ `CostScalingTerm.offset`/`maxCount`（原文の3綴りを表す）。
+  盤面から読めないので**支払いより先に宣言させる**＝`ArtsModal` の宣言 UI → `PlayerState.declared_choose_count`
+  → `ChooseAction.declaredCountChoose` が選択数をその数に**固定**する。
+  🔑固定しないと「3つ分払って5つ選ぶ」＝直す前より悪い。
+- ⚠`costScalingOf`（提示ゲートの funnel）からは宣言依存項を**除いた**＝二重適用しない。宣言が無い経路（CPU）は従来どおり。
+- **検証**＝`npm run golden -- --only "O-251"`（3本）＋ `npm run gates`。**反転確認**＝`declaredCountChoose` を外すと
+  「宣言した数ちょうどに固定される」golden が FAIL。
+
+### 第158（§5.3 `O-252`・56効果＋35カード）＝逆翻訳が `EffectCost.costReplacement` を1文字も描いていなかった
+- **真因**＝①`STUB{ARTS_COST_REDUCTION_BY_CENTER_LRIG}` が**原文の該当文をそのまま貼って**おり、
+  **payload が空でも同じ文が出る**（`O-119` が `costScaling` について書いた罠の `costReplacement` 版）。
+  ②`mergeManualEffects` は live の効果を manual 定義で丸ごと置き換えるので、`buildEffectsJson` が
+  **マージの後から**重ねる印字キーワードコストが**逆翻訳からだけ消えていた**（実測35カード）。
+- **直し方**＝`costReplacementJa` を新設して payload から描き、manual マージの後に `printedKeywordCosts` を
+  **`buildEffectsJson` と同じ funnel で**重ね直した。payload が描けている効果では原文貼り付けの分岐を黙らせる。
+- 🔴🔑**踏んで撤回した罠**＝痕跡 STUB を **parser の途中**（`stripCostScalingMarker` と同じ地点）で剥がしたら、
+  **後段の後処理がステップ位置を前提にしていて木が壊れた**＝`WX11-015` の「この方法で3枚以上捨てた場合」の
+  `CONDITIONAL` が丸ごと消え、**2体目のバニッシュが無条件**になった（過剰実行）。
+  ⇒ **JSON の木は触らず、逆翻訳側だけ payload へ寄せる。** golden にラチェットを張った。
+  🔑**held のレビュー表で `- …` が大量に出ているグループは、署名だけ見て採用しない**（一度採用してしまった）。
+
+### 第159（§5.3 `O-250`・1効果）＝「Aと、Aと同じレベルのB」の2つ目の対象が無かった
+- `WX24-P2-002-E1`「対戦相手のシグニ１体**と、そのシグニと同じレベルの対戦相手のルリグ１体**を対象とし」の
+  **ルリグ側が丸ごと無かった**（過小実行）。
+- 🔑**受け皿は全部あった**（登録票の「`GRANT_KEYWORD` は選んだ札を残さない」は誤り）＝`resumeSelectTarget` の
+  per-card ループが最後に `lastProcessedCards = selected` を置くので、選択UIを経た `GRANT_KEYWORD` の
+  **次のステップ**から `levelEqLastProcessed` で参照できる。⇒ 足りなかったのは JSON だけ。
+- **検証**＝golden で正方向（同レベルのルリグに付く）と負方向（レベルが違えば付かない）の両方を固定。
+
+### 第160（§5.3 `O-253`・3効果）＝逆翻訳が `LRIG_DECK_CARD` を「シグニ」と描いていた
+- `targetJa` のゾーン名テーブルに `LRIG_DECK_CARD` が無く既定の `unit`（＝'シグニ'）へ落ちていた＝
+  「ルリグデッキにある**ピース**1枚をゲームから除外する」が**「あなたのシグニ1体を除外する」**になっていた。
+- 🔑**JSON は最初から正しく、実装は1行も要らなかった**＝PLAN §5.4 (iii)（構造混線＝木ごと作り直し）に
+  登録されていた `WXDi-P04-016-E3` の正体はこれ。同節の他3件も**再照合したら全部消化済み**だった。
+- ⚠**§5.4 (iii) の項目は「登録時点の逆翻訳」で立っている**＝着手前に必ず現在の逆翻訳を読み直す。
+
+### 第161（§5.3 `O-254`・141効果）＝`costJa` が描かないコストキーの全数ラチェット
+- 埋めた穴＝`fieldTrashAll`（1効果＝**意味照合台帳が「コスト未実装」と誤って OPEN にしていた当のカード**）＋
+  印字キーワードコスト `encoreCost`(32)／`betOptions`(68)／`boostCost`(5)／`optionalDiscardCost`(2)。
+- ⚠`useTimeCost` だけは意図的な例外（`STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が原文の支払い文を復元済み）＝
+  golden のラチェットにその1つだけを許可リストとして書いた。**新しいコストキーを足したら costJa にも1行足す。**
+
+### 第162（§5.3 `O-255`・3効果）＝`selfPowerDown`（自傷パワーのコスト）が真 no-op だった
+- 型・parser・逆翻訳は在ったのに **engine/UI のどこにも消費が無く**、自傷が一度も起きていなかった＝
+  「【起】《無》**ターン終了時まで、このシグニのパワーを－10000する**：…」が《無×1》だけで撃てた（過剰実行）。
+- 支払い地点（`executeSigniActivated`）で `temp_power_mods` へ `-N` を積むようにし、支払いUIにも表示。
+  あわせて「**－Nする**」綴りを parser が読むようにした（`WXDi-P07-046-E3`）。
+- ⚠**期間はターン終了時まで**なので `temp_power_mods`（ターン境界でクリア）へ積む。`field_power_mods` だと永久に下がる。
+- 🔴**この形はどの計器にも出ない**（`census:deadstate` は PlayerState のキー、`census:stubs` は STUB、
+  `census:enginetext` は原文 regex しか見ない）＝**意味照合台帳だけが見つけられた。**
+
+### 第163（§5.3 `O-256`・2効果）＝「他のシグニ１体を場からデッキの一番上に置く」コストを丸ごと落としていた
+- `WDK05-T12-E1`（【出】）／`WXK10-057-E2`（【起】）がエナコストだけで撃てた（過剰実行）。
+- 新キー `EffectCost.fieldToDeckTop` ＋ 専用支払い `src/screens/battle/fieldToDeckTopCost.ts`
+  （`fieldBanishCost.ts` と同じ作法＝ゾーン選択 state `fieldTrashZones` を共用し、行き先だけ分ける）。
+- ⚠**`fieldTrash` を流用しない**＝デッキの一番上は引き直せるので、トラッシュ送りにすると**逆に高すぎる**コストになる。
+- 配線＝【出】と【起】の**両方**の支払い／提示ゲート（`signiActivateGate`）／支払いUI 2種／
+  `OPTIONAL_COST` 経路（`optionalOnPlayCostStub` ＋ `OptionalCostSpec` の可否・支払い）。
+  🔑`optionalOnPlayCostStub` の SUPPORTED に足さないと**任意【出】が丸ごと積まれなくなる**（golden が検出した）。
+
+### 第164〜166＝意味照合台帳の消化（残 OPEN 36 → 24）
+- **第164**＝`semanticAuditRecheck` の候補4件を全数目視して閉じた（`PR-K056-E1`／`WXDi-P03-019-E1`／
+  `WXDi-P07-046-E3`／`WDK05-T12-E1`）。🔑**うち2件は逆翻訳が payload を描いていなかっただけ**で、
+  live も engine も最初から正しかった。
+- **第165**＝**【ライズ】findings 7件は stale**（`WX16-027`／`WX20-037`／`WXDi-P15-048`／`WXK05-035`／
+  `WXK08-031`／`WXK11-038`／`WXK11-053`）。出現条件は**JSON ではなく `getRiseRequirement(EffectText)` が読む**設計で、
+  `O-147`（第137バッチ）が下位family A/B まで実装済み。7枚とも正しい要求を返すことを実測し golden で固定した。
+  ⚠**【ハーモニー】の2件は閉じない**＝parser が接頭辞を捨てているだけで engine にも UI にも実装が無い＝`O-257` として登録。
+- **第166（§5.3 `O-258`・1効果）**＝`WXK08-040-E1`③「**このスペルを手札に戻す**」が**汎用 BOUNCE に食われて
+  「あなたのシグニ1体を手札に戻す」**に化けていた（別物）。専用ハンドラ `STUB{RETURN_SELF_SPELL_TO_HAND}` を新設し、
+  `finalizeUsedCardPlacement` に「手札へ戻した使用カードは既定ゾーンへ置かない」ガードを足した
+  （無いと**同じカードが手札とトラッシュに二重で現れる**）。
+
+**検証コマンド**＝`npm run gates`／`npm run golden -- --only "O-251" --only "O-252" --only "O-253" --only "O-254"
+--only "O-255" --only "O-256" --only "O-258" --only "O-147" --only "O-250"`／`node scripts/heldReview.mjs`（残1＝意図的な据置）。
+**反転確認**＝3本（①`declaredCountChoose` を外すと選択数固定の golden が FAIL ②痕跡 STUB を parser で剥がすと
+`WX11-015` の `CONDITIONAL` が消えて golden が FAIL ③`fieldToDeckTop` を SUPPORTED から外すと
+`(xxix)(1)` の「未対応の外側 cost は0件」が FAIL）。
+
+
 ## 2026-09-05（第154〜156バッチ）：🏁**`O-249`（`held`）クローズ**＋意味照合台帳の消化漏れ回収
 
 **ベースライン**＝`a0f7702a7`（第153の直後）。

@@ -2287,6 +2287,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 🆕**「このスペルを手札に戻す」＝使用中のスペル自身**（2026-09-05・§5.3 `O-258`・`WXK08-040-E1`）。
+  // 🔴**汎用 BOUNCE に食われて「あなたのシグニ1体を手札に戻す」に化けていた**＝原文と別物
+  //   （スペルは戻らず、自分の場のシグニが1体戻る）。⚠`WX21-057-E2` の【トラップ】と同じ罠の別形。
+  // ⚠「この**シグニ**を手札に戻す」（＝下の `thisCardOnly` 枝）とは別＝**カード種別で分岐する**。
+  if (/^この(?:スペル|カード)を手札に戻す$/.test(t.replace(/。$/, '').trim())) {
+    return { type: 'STUB', id: 'RETURN_SELF_SPELL_TO_HAND' } as StubAction;
+  }
   // ---- バウンス（手札に戻す / 戻してもよい）----
   if (t.includes('手札に戻す') || t.includes('手札に戻してもよい')) {
     const upToM = t.match(/([０-９\d]+)体まで/);

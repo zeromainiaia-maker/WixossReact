@@ -21,3 +21,16 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +STUB -BOUNCE -SIGNI ［1枚］
+WXK08-040
+--- WXK08-040
+  原文: 以下の３つから２つまで選ぶ。①あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対戦相手のシグニ１体を対象とし、それを手札に戻す。③あなたの登録者数が１００万人を達成している場合、このスペルを手札に戻す。,：あなたのデッキから＜電機＞のシグニ１枚を探して公開し手札に加えるか場に出し、デッキをシャッフルする。
+  - [0].action.choices[2].action.target.type = "SIGNI"
+  - [0].action.choices[2].action.target.owner = "self"
+  - [0].action.choices[2].action.target.count = 1
+  - [0].action.choices[2].action.target.upToCount = false
+  - [0].action.choices[2].action.target.filter.cardType = "シグニ"
+  - [0].action.choices[2].action.optional = false
+  ~ [0].action.choices[2].action.type : "BOUNCE" → "STUB"
+  + [0].action.choices[2].action.id = "RETURN_SELF_SPELL_TO_HAND"
+
