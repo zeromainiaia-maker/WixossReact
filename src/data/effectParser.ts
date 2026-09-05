@@ -902,6 +902,23 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
       };
     }
   }
+  // 🆕**場のシグニN体をデッキの一番上に置く** → `fieldToDeckTop`（2026-09-05・§5.3 `O-256`・2効果）。
+  //   原文「【出】《白》**他のシグニ１体を場からデッキの一番上に置く**：…」（`WDK05-T12`／`WXK10-057`）。
+  //   🔴旧＝この句を1つも読まず、エナコストだけで撃てた（過剰実行）。
+  //   ⚠「**この**シグニを…一番**下**に置く」は既存の `selfToDeckBottom`＝上の分岐が先に立つので当たらない。
+  //   ⚠`fieldTrash` / `fieldBanish` とは**行き先が違う**ので流用しない（デッキの上＝引き直せる）。
+  if (!cost.fieldToDeckTop && !cost.selfToDeckBottom) {
+    const ftdM = costStr.match(/(対戦相手の|相手の)?(他の)?(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体を場からデッキの一番上に置く/);
+    if (ftdM && !ftdM[1]) {
+      const ftdFilter: TargetFilter = { cardType: 'シグニ' };
+      if (ftdM[3]) ftdFilter.story = ftdM[3];
+      cost.fieldToDeckTop = {
+        count: parseNum(ftdM[4]),
+        filter: ftdFilter,
+        ...(ftdM[2] ? { excludeSelf: true } : {}),
+      };
+    }
+  }
   // アップ状態のルリグN体をダウン → lrigDown
   if (!cost.lrigDown) {
     // ⚠ レベル限定・センター限定は従来キャプチャしておきながら捨てていた＝コストが緩くなる過剰効果だった
@@ -1029,8 +1046,12 @@ function parseCost(rawCostStr: string): EffectCost | undefined {
   // このシグニを場からデッキの一番下に置く → selfToDeckBottom
   if (/このシグニを(?:場から)?デッキの一番下に置く/.test(costStr)) cost.selfToDeckBottom = true;
   // このシグニのパワーをN減らす（コスト） → selfPowerDown
+  // 🆕**「－Nする」綴りも受ける**（2026-09-05・§5.3 `O-255`・`WXDi-P07-046-E3`）＝
+  //   原文は「【起】《ターン１回》《無》**ターン終了時まで、このシグニのパワーを－10000する**：…」。
+  //   🔴受けないと**自傷ぶんが丸ごと落ちて《無×1》だけで撃てる**（過剰実行）。
   if (!cost.selfPowerDown) {
-    const spdM = costStr.match(/このシグニのパワーを([０-９\d]+)減らす/);
+    const spdM = costStr.match(/このシグニのパワーを([０-９\d]+)減らす/)
+      ?? costStr.match(/このシグニのパワーを[－-]([０-９\d]+)する/);
     if (spdM) cost.selfPowerDown = parseNum(spdM[1]);
   }
   // 場のレゾナをルリグトラッシュに置く → fieldToLrigTrash

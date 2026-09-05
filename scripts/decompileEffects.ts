@@ -423,6 +423,14 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   const loc = t.type === 'HAND_CARD' ? '(手札)' : t.type === 'TRASH_CARD' ? '(トラッシュ)'
     : t.type === 'ENERGY_CARD' ? '(エナ)' : t.type === 'DECK_CARD' ? '(デッキ)'
     : t.type === 'LRIG_TRASH_CARD' ? '(ルリグトラッシュ)' : t.type === 'LIFE_CLOTH_CARD' ? '(ライフ)'
+    // 🆕**ルリグデッキ**（2026-09-05・§5.3 `O-253`・live 3効果）＝書かないと下の `u = unit` へ落ちて
+    //   **「あなたのシグニ1体をゲームから除外する」**という**別の盤面を指す嘘**になる
+    //   （`WXDi-P04-016-E3` の原文は「あなたのルリグデッキにある**ピース**1枚をゲームから除外する」）。
+    //   🔴JSON は最初から正しかった＝これは逆翻訳だけの嘘で、`§5.4 (iii)` に
+    //   「構造混線（木ごと作り直し）」として登録されていた項目の正体でもある。
+    : t.type === 'LRIG_DECK_CARD' ? '(ルリグデッキ)'
+    // 🆕**手札とエナを跨ぐ単一プール**（`WXK06-067-E1`「エナゾーンのカードと手札を合計2枚」）。
+    : t.type === 'HAND_OR_ENERGY_CARD' ? '(手札かエナ)'
     // 🆕チェックゾーン（§5.3 `O-143`）＝ここを書かないと逆翻訳でゾーンが消えて「カードを手札に加える」になる。
     : t.type === 'CHECK_CARD' ? '(チェックゾーン)' : '';
   let u: string;
@@ -650,7 +658,12 @@ function costReplacementWhenJa(when: any): string {
 }
 
 function costReplacementJa(terms: any[]): string {
-  return terms.map(term => {
+  return terms
+    // 🆕`paidOptionalDiscard` は `optionalDiscardCost`（何を払うか）と**対**で載る payload なので、
+    //   そちらが「捨ててもよい（そうした場合、使用コストは〜になる）」と1文で描く＝ここでは描かない
+    //   （両方描くと同じ意味が二重に出る。live 2効果）。
+    .filter(term => term?.when?.kind !== 'paidOptionalDiscard')
+    .map(term => {
     const amount = (term.cost ?? []).map((e: any) => `《${e.color}×${e.count}》`).join('') || 'なし';
     const verb = term.mode === 'replace' ? 'になる' : '減る';
     return `${costReplacementWhenJa(term.when)}、このカードの使用コストは${amount}${verb}`;
@@ -663,7 +676,12 @@ function costJa(c?: any): string {
   if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
   // O-119: JSON payload から描く。本文 regex へ戻すと payload 欠落を逆翻訳が隠す。
   if (c.costScaling?.length) parts.push(costScalingJa(c.costScaling));
-  if (c.costReplacement?.length) parts.push(costReplacementJa(c.costReplacement));
+  // ⚠**空文字を push しない**＝`parts` は「＋」で連結されるので `＋＋` が出る
+  //   （`paidOptionalDiscard` だけを持つ効果で実際に出た）。
+  if (c.costReplacement?.length) {
+    const crJa = costReplacementJa(c.costReplacement);
+    if (crJa) parts.push(crJa);
+  }
   // 🆕`exceedColors`（`WX10-001`「エクシード１（白のカード）」）＝描かないと色指定なしと同じ文になり、
   //   engine は区別しているのに原文照合では見えない偽陰性になる。
   if (c.exceed != null) parts.push(`エクシード${c.exceed}${c.exceedColors?.length ? `（${c.exceedColors.join('と')}のカード）` : ''}`);
@@ -702,6 +720,8 @@ function costJa(c?: any): string {
   if (c.fieldTrashGroups) parts.push(`場から${c.fieldTrashGroups.map((g: any) => `${filterJa(g.filter)}シグニ${g.count}体`).join('と')}をトラッシュ`);
   // fieldBanish: 行き先はエナゾーン＝「トラッシュ」と書き分ける（§5.3 `O-67`）。
   if (c.fieldBanish) parts.push(`${c.fieldBanish.excludeSelf ? '他の' : ''}${filterJa(c.fieldBanish.filter)}シグニ${c.fieldBanish.count}体をバニッシュ`);
+  // 🆕§5.3 `O-256`＝場のシグニをデッキの一番上へ（`fieldTrash` とは行き先が違う）。
+  if (c.fieldToDeckTop) parts.push(`${c.fieldToDeckTop.excludeSelf ? '他の' : ''}${filterJa(c.fieldToDeckTop.filter)}シグニ${c.fieldToDeckTop.count}体を場からデッキの一番上に置く`);
   if (c.fieldToLrigTrash) {
     const unit = c.fieldToLrigTrash.filter?.cardType === 'レゾナ' ? 'レゾナ' : 'カード';
     parts.push(`場から${filterJa(c.fieldToLrigTrash.filter)}${unit}${c.fieldToLrigTrash.count}体をルリグトラッシュに置く`);
@@ -749,6 +769,11 @@ function costJa(c?: any): string {
   if (c.fieldExileSelf) parts.push('場にあるこのシグニをゲームから除外する');
   if (c.bounceSelf) parts.push('このシグニを場から手札に戻す');
   if (c.energyTrashAll) parts.push('エナゾーンにあるすべてのカードをトラッシュに置く');
+  // 🆕§5.3 `O-254`（2026-09-05）＝`fieldTrashAll`（`O-68`① で受け皿を作った「すべてのシグニを
+  //   場からトラッシュに置く」）を**描いていなかった**＝`WXDi-P03-019-E1` の逆翻訳が
+  //   「手札とエナだけ捨てて相手の場を全滅」に読め、**意味照合台帳が「コストが実装されていない」と
+  //   誤って OPEN のまま**だった（実際は live に `fieldTrashAll:true` があり engine も消費している）。
+  if (c.fieldTrashAll) parts.push('場にあるすべてのシグニをトラッシュに置く');
   if (c.energyTrashColorAll) parts.push(`エナゾーンからすべての${c.energyTrashColorAll}のカードをトラッシュに置く`);
   if (c.energyTrashSelf) parts.push('エナゾーンからこのカードをトラッシュに置く');
   if (c.energyTrashGroups) parts.push(`エナゾーンから${c.energyTrashGroups.map((g: any) => `${filterJa(g.filter)}カード${g.count}枚`).join('と')}をトラッシュに置く`);
@@ -765,6 +790,34 @@ function costJa(c?: any): string {
   if (c.selfToDeckBottom) parts.push('このシグニをデッキの一番下に置く');
   if (c.banish_self) parts.push('このシグニをバニッシュする');
   if (c.acceTrash != null) parts.push(`あなたの【アクセ】${c.acceTrash}枚をトラッシュに置く`);
+  // 🆕**印字キーワードコスト**（2026-09-05・§5.3 `O-254`）＝【アンコール】【ベット】【ブースト】と
+  //   「使用する際に〜を捨ててもよい。そうした場合コストは《X》になる」。
+  // 🔴これらは `EffectCost` に payload として載っている（`printedKeywordCosts`）のに
+  //   `costJa` が1つも描いておらず、**逆翻訳だけを見ると「そんな支払いは無い」に読めた**（実測107効果）。
+  // ⚠`useTimeCost` はここでは描かない＝`STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が原文の支払い文を
+  //   復元しており、両方描くと二重に出る（その分岐のコメント参照）。
+  if (c.encoreCost) {
+    const enc = [
+      ...(c.encoreCost.energy ?? []).map((e: any) => `《${e.color}×${e.count}》`),
+      ...(c.encoreCost.coins ? [`コイン${c.encoreCost.coins}`] : []),
+      ...(c.encoreCost.exceed ? [`エクシード${c.encoreCost.exceed}`] : []),
+      ...(c.encoreCost.trashOwnKey ? ['キー1枚を場からルリグトラッシュに置く'] : []),
+      ...(c.encoreCost.handDiscardSigni
+        ? [`手札から${c.encoreCost.handDiscardSigni.story ? `＜${c.encoreCost.handDiscardSigni.story}＞の` : ''}シグニ${c.encoreCost.handDiscardSigni.count}枚を捨てる`] : []),
+    ].join('');
+    parts.push(`アンコール${enc ? `（${enc}）` : ''}`);
+  }
+  if (c.betOptions) {
+    parts.push(c.betOptions.variable ? 'ベット（好きな枚数のコイン）'
+      : `ベット（コイン${(c.betOptions.options ?? []).join('か')}）`);
+  }
+  if (c.boostCost) parts.push(`ブースト（${c.boostCost.map((e: any) => `《${e.color}×${e.count}》`).join('')}）`);
+  if (c.optionalDiscardCost) {
+    const groups = (c.optionalDiscardCost.groups ?? [])
+      .map((g: any) => `${g.color ? `《${g.color}》の` : ''}${g.story ? `＜${g.story}＞の` : ''}シグニ${g.count}枚`).join('と');
+    const after = (c.optionalDiscardCost.cost ?? []).map((e: any) => `《${e.color}×${e.count}》`).join('') || 'なし';
+    parts.push(`使用する際、手札から${groups}を捨ててもよい（そうした場合、使用コストは${after}になる）`);
+  }
   if (c.chargeCounterRemove != null) parts.push(`この上からカウンター${c.chargeCounterRemove}つを取り除く`);
   if (c.trapToHand != null) parts.push(`あなたの【トラップ】${c.trapToHand}枚を手札に加える`);
   // `none:true`＝**コストなしの任意効果**（発動するかの確認だけ）。他のキーと同時には立たない。

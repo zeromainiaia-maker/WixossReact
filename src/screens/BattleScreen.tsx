@@ -28,6 +28,7 @@ import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { payFieldBanishCost } from './battle/fieldBanishCost';
+import { payFieldToDeckTopCost } from './battle/fieldToDeckTopCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateVerbLabel } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
@@ -13737,6 +13738,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_discarded_signi_class: discardedCards.length > 0
           ? (battleCardMap.get(discardedCards[0])?.CardClass ?? my.last_discarded_signi_class)
           : my.last_discarded_signi_class,
+        // 🆕**`selfPowerDown`＝「ターン終了時まで、このシグニのパワーを－N する」コスト**
+        //   （2026-09-05・§5.3 `O-255`・live 3効果）。
+        // 🔴**parser も逆翻訳も対応済みなのに engine/UI のどこにも消費が無く、自傷ぶんが
+        //   一度も起きていなかった**＝コストが原文より安い（過剰実行）。
+        // ⚠**期間はターン終了時まで**なので `temp_power_mods`（ターン境界でクリア）へ積む
+        //   ＝`field_power_mods`（クリアしない）に積むと永久に下がる。
+        ...(effect.cost?.selfPowerDown
+          ? { temp_power_mods: [...(my.temp_power_mods ?? []),
+              { cardNum, delta: -effect.cost.selfPowerDown, srcCardNum: cardNum }] }
+          : {}),
       });
       // energyTrashAll: エナゾーンを空にする（funnel の index 控除のあとに当てる）
       if (effect.cost?.energyTrashAll) paid = { ...paid, energy: [] };
@@ -13843,8 +13854,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!fbPaidAct) { setLoading(false); return; } // 支払い不能（UI側でも無効化済み）
         paid = fbPaidAct.state;
       }
+      // 🆕fieldToDeckTop: 場のシグニをコストで**デッキの一番上**へ（§5.3 `O-256`・`WXK10-057-E2`）。
+      // 🔴**行き先が違う**＝下の `fieldTrash` ブロック（トラッシュ送り）へ落とすと資源を失う。
+      // ⚠ゾーン選択 state は `fieldTrashZones` を共用する（parser は3キーを同時に立てない）。
+      const fieldToDeckTopCostAct = effect.cost?.fieldToDeckTop;
+      if (fieldToDeckTopCostAct) {
+        const ftdPaidAct = payFieldToDeckTopCost({
+          my: paid, zones: fieldTrashZones, cost: fieldToDeckTopCostAct, cardMap: battleCardMap,
+        });
+        if (!ftdPaidAct) { setLoading(false); return; } // 支払い不能（UI側でも無効化済み）
+        paid = ftdPaidAct.state;
+        appendBattleLogs(ftdPaidAct.logs);
+      }
       // fieldTrash: 場のシグニをコストでトラッシュ（チャーム/アクセも一緒に。WX03-035「他の＜古代兵器＞のシグニ1体を場からトラッシュ」等）
-      if (!fieldBanishCostAct && fieldTrashZones.size > 0) {
+      if (!fieldBanishCostAct && !fieldToDeckTopCostAct && fieldTrashZones.size > 0) {
         const newSigniFA  = [...paid.field.signi] as (string[] | null)[];
         const newDownFA   = [...(paid.field.signi_down   ?? [false, false, false])];
         const newFrozenFA = [...(paid.field.signi_frozen ?? [false, false, false])];
@@ -14434,8 +14457,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           paid = { ...paid, trash: [...paid.trash, ...handPickedNums] };
         }
       }
+      // 🆕fieldToDeckTop: 場のシグニをコストで**デッキの一番上**へ（§5.3 `O-256`・`WDK05-T12-E1`）。
+      // 🔴行き先が違うので下の `fieldTrash` ブロックへ落とさない（あちらはトラッシュ送り＝資源を失う）。
+      const fieldToDeckTopCost = cost?.fieldToDeckTop;
+      if (fieldToDeckTopCost) {
+        const ftdPaid = payFieldToDeckTopCost({
+          my: paid, zones: fieldTrashZones, cost: fieldToDeckTopCost, cardMap: battleCardMap,
+        });
+        if (!ftdPaid) { setLoading(false); return; } // 支払い不能（UI側でも無効化済み）
+        paid = ftdPaid.state;
+        payLogs.push(...ftdPaid.logs);
+      }
       // fieldTrash / fieldToLrigTrash: 場のシグニを指定先へ（付属カードはルールどおりトラッシュへ）
-      if (fieldTrashZones.size > 0) {
+      if (!fieldToDeckTopCost && fieldTrashZones.size > 0) {
         const newSigniF  = [...paid.field.signi] as (string[] | null)[];
         const newDownF   = [...(paid.field.signi_down   ?? [false, false, false])];
         const newFrozenF = [...(paid.field.signi_frozen ?? [false, false, false])];

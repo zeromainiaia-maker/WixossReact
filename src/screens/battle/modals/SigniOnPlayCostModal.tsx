@@ -110,8 +110,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 : (eff.cost?.energyTrash?.count ?? 0);
               const enaTrashFilter = enaTrashGroups?.length ? undefined : eff.cost?.energyTrash?.filter;
               // 場のシグニトラッシュコスト
+              // 🆕`fieldToDeckTop`（§5.3 `O-256`）も同じゾーン選択UIを使う（行き先だけが違う）。
               const ftCost = eff.cost?.fieldTrash
-                ?? (eff.cost?.fieldToLrigTrash ? { ...eff.cost.fieldToLrigTrash, excludeSelf: false } : undefined);
+                ?? (eff.cost?.fieldToLrigTrash ? { ...eff.cost.fieldToLrigTrash, excludeSelf: false } : undefined)
+                ?? eff.cost?.fieldToDeckTop;
               const ftGroups = eff.cost?.fieldTrashGroups;
               const ftNeeded = ftCost?.count ?? ftGroups?.reduce((n, g) => n + g.count, 0) ?? 0;
               const selfZoneFT = pendingSigniOnPlayCost.placedZone

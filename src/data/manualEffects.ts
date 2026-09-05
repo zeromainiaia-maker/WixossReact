@@ -1718,6 +1718,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX24-P2-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"filter":{"cardType":"シグニ"},"pickCount":1,"pickUpTo":true,"then":"field"}],"remainder":{"location":"deck","position":"bottom","reorder":true}},{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX24-P2-001-E1-GRANT","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"until":"UNTIL_END_OF_TURN"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},{"type":"RECOLLECT_GATE","minArts":4},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
   ],
 
+  // WX24-P2-002 ／ 原文＝…対戦相手のシグニ１体**と、そのシグニと同じレベルの対戦相手のルリグ１体**を対象とし、
+  //   ターン終了時まで、それらは「【常】：アタックできない。」を得る。
+  // 🔴旧 live＝**ルリグ側の対象が丸ごと無かった**（シグニ1体にしか付かない＝過小実行）。
+  //   ⚠その前（第146バッチより前）は逆に**シグニ側**に `levelEqLastProcessed` が誤って載っており、
+  //     参照先が空なので候補0＝**アーツを撃っても何も起きない恒久 no-op** だった。
+  // 🔑**受け皿は全部あった**（§5.3 `O-250` の登録票「`GRANT_KEYWORD` は選んだ札を残さない」は誤り）＝
+  //   `resumeSelectTarget` の per-card ループが最後に `lastProcessedCards = selected` を置くので、
+  //   選択UIを経た `GRANT_KEYWORD` の**次のステップ**からは選んだシグニが読める。
+  //   ⇒ 足りなかったのは **2つ目の対象を書いた JSON だけ**。
+  // ⚠ステップの順序を入れ替えないこと（ルリグ側が先だと参照先が空で候補0になる）。
+  // ⚠`useTimeCost`（使用時の任意支払いによる軽減）は**印字キーワードコスト**なので
+  //   `buildEffectsJson` がマージの後から重ねる＝ここに書かない。
+  'WX24-P2-002': [
+    {"effectId":"WX24-P2-002-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"白","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"explicitTarget":true,"upToCount":false},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"},{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"opponent","count":1,"filter":{"levelEqLastProcessed":true}},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
+
   // WX25-CP1-TK2A ／ 原文【常】：**これの上にある《鰐渕アカリ》は**「【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、
   //   《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－5000する。」を得る。
   // 🔴旧 live＝付与が消えて **CONTINUOUS の裸 POWER_MODIFY**＝毎回無条件・コスト無しで相手を－5000していた。

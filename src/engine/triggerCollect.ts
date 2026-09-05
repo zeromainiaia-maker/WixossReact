@@ -399,6 +399,9 @@ export function optionalOnPlayCostStub(
     'discardAll', 'energyTrashAll', 'trashToDeckBottom',
     // 🆕§5.3 `O-68`①（2026-09-02）＝「すべてのシグニを場からトラッシュに置く」。
     'fieldTrashAll',
+    // 🆕§5.3 `O-256`（2026-09-05）＝「他のシグニ1体を場からデッキの一番上に置く」。
+    //   SUPPORTED に無いと `WDK05-T12-E1` の任意【出】が丸ごと積まれなくなる（取りこぼす側）。
+    'fieldToDeckTop',
     // 支払いキーではなく**コストの修飾**（§6.4 O-35・続き530）。呼び出し側が
     // `applyAbilityCostReduction` で `energy` へ焼き込み済みなので、ここでは無視して通す
     // （SUPPORTED に無いと「未対応キーあり」で包めず、任意【出】が丸ごと積まれなくなる）。
@@ -443,6 +446,7 @@ export function optionalOnPlayCostStub(
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
     ...(cost.energyTrashGroups ? { energyTrashGroups: cost.energyTrashGroups } : {}),
     ...(cost.exceed ? { exceed: cost.exceed } : {}),
+    ...(cost.fieldToDeckTop ? { fieldToDeckTop: cost.fieldToDeckTop } : {}),
     ...(cost.fieldTrash ? { fieldTrash: cost.fieldTrash } : {}),
     ...(cost.fieldTrashGroups ? { fieldTrashGroups: cost.fieldTrashGroups } : {}),
     ...(cost.fieldToLrigTrash ? { fieldToLrigTrash: cost.fieldToLrigTrash } : {}),

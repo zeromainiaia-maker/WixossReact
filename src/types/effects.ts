@@ -1104,6 +1104,18 @@ export interface EffectCost {
    * 支払いは `screens/battle/fieldBanishCost.ts` の `payFieldBanishCost` 1本（シグニ【起】／ルリグ【起】共通）。
    */
   fieldBanish?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /**
+   * 🆕自分の場のシグニN体を**デッキの一番上に置く**コスト（2026-09-05・§5.3 `O-256`・live 2効果）。
+   * 原文「【出】《白》**他のシグニ１体を場からデッキの一番上に置く**：…」（`WDK05-T12-E1`／`WXK10-057-E2`）。
+   *
+   * 🔴**旧 live はこのコスト句を丸ごと落としていた**＝《白×1》だけで撃てた（過剰実行）。
+   * ⚠**`fieldTrash` を流用してはいけない＝行き先が違う**（デッキの一番上＝引き直せる／トラッシュ＝失う）。
+   * ⚠**`selfToDeckBottom` とも別**（あちらは効果元自身・行き先はデッキの一番**下**）。
+   * ⚠**`fieldTrash` / `fieldBanish` との併用は無い**（parser は1つしか立てない）＝
+   *   支払いUIのゾーン選択 state（`fieldTrashZones`）は共用する。
+   * 支払いは `screens/battle/fieldToDeckTopCost.ts` の `payFieldToDeckTopCost` 1本。
+   */
+  fieldToDeckTop?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // 手札からN枚をこのシグニの下に置く
   lrigDown?: { count: number; centerOnly?: boolean; level?: number }; // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。centerOnly=「センタールリグ」限定・level=「レベルNのルリグ」限定（WXDi-P02-016/P03-009/P04-042。指定時は該当レベルのゾーンだけが支払い候補）
@@ -5769,6 +5781,11 @@ export interface StubAction {
   fieldTrapTrash?: { count: number; excludeSource?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /**
+   * 🆕OPTIONAL_COST: 自分の場のシグニをデッキの**一番上**へ置く任意コスト（§5.3 `O-256`）。
+   * ⚠`fieldToDeckBottom` と**行き先が違う**（一番上＝次に引く位置）ので流用しない。
+   */
+  fieldToDeckTop?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 異なる条件の場シグニを組でトラッシュへ置く任意コスト。 */
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   /** OPTIONAL_COST: 自分の場のカードをルリグトラッシュへ置く任意コスト。 */

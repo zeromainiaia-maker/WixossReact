@@ -131,9 +131,13 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               // 🆕fieldBanish（§5.3 `O-67`・`WX05-044-E1`）は**同じゾーン選択UI**を使う（parser が片方しか
               // 立てないので state を共用できる）。⚠**行き先だけが違う**（エナゾーン）＝支払いは
               // `payFieldBanishCost`／ラベルも「バニッシュ」に切り替える。
+              // 🆕`fieldToDeckTop`（§5.3 `O-256`）も**同じゾーン選択UI**を使う。⚠行き先だけが違う
+              //   （デッキの一番上＝引き直せる）ので、支払いは `payFieldToDeckTopCost`／ラベルも書き分ける。
               const actFieldBanishCost = eff.cost?.fieldBanish;
-              const actFieldTrashCost = eff.cost?.fieldTrash ?? actFieldBanishCost;
+              const actFieldToDeckTopCost = eff.cost?.fieldToDeckTop;
+              const actFieldTrashCost = eff.cost?.fieldTrash ?? actFieldBanishCost ?? actFieldToDeckTopCost;
               const actFieldIsBanish = !eff.cost?.fieldTrash && !!actFieldBanishCost;
+              const actFieldIsDeckTop = !eff.cost?.fieldTrash && !actFieldBanishCost && !!actFieldToDeckTopCost;
               const actFieldTrashGroups = eff.cost?.fieldTrashGroups;
               const actSelfZoneFt = my.field.signi.findIndex(s => s?.at(-1) === pendingSigniActivated.cardNum);
               const actFtNeeded = actFieldTrashGroups
@@ -195,6 +199,9 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                                 eff.cost?.discard ? `手札${actDiscardFilter ? `の${actFilterLabel}` : ''}${eff.cost.discard}枚` : null,
                             coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
+                            // 🆕§5.3 `O-255`＝自傷パワーのコスト（ターン終了時まで）。
+                            //   書かないと「《無×1》だけで撃てる」ように見える（実際に engine もそうだった）。
+                            eff.cost?.selfPowerDown ? `このシグニのパワーを－${eff.cost.selfPowerDown}（ターン終了時まで）` : null,
                             virusNeededAct > 0 ? `相手の【ウィルス】${virusNeededAct}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
                             eff.cost?.trash_self ? 'このシグニをトラッシュ' : null,
                             eff.cost?.bounceSelf ? 'このシグニを手札に戻す' : null,
@@ -601,7 +608,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                       <p style={{ color: actFieldTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
                         場から{actFieldTrashGroups
                           ? actFieldTrashGroups.map(g => `${fmtDiscardFilterLabel(g.filter)}シグニ${g.count}体`).join('と')
-                          : `${actFieldTrashCost!.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldTrashCost!.filter)}シグニ`}を{actFieldIsBanish ? 'バニッシュ' : 'トラッシュ'}:
+                          : `${actFieldTrashCost!.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldTrashCost!.filter)}シグニ`}を{actFieldIsBanish ? 'バニッシュ' : actFieldIsDeckTop ? 'デッキの一番上へ' : 'トラッシュ'}:
                         {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体
                       </p>
                       {actFtSelectableZones.length === 0 ? (

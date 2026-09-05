@@ -435,6 +435,8 @@ export interface OptionalCostSpec {
   /** field.signi_traps はシグニゾーンと別領域なので fieldTrash と分ける。 */
   fieldTrapTrash?: { count: number; excludeSource?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** 🆕場のシグニをデッキの**一番上**へ（§5.3 `O-256`）。`fieldToDeckBottom` と行き先が違う。 */
+  fieldToDeckTop?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
   /**
@@ -502,7 +504,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     underAnySigniTrash: a.underAnySigniTrash, trashExile: a.trashExile, trashToDeckBottom: a.trashToDeckBottom,
     energyTrash, energyTrashGroups: a.energyTrashGroups,
     fieldTrash: a.fieldTrash, fieldTrapTrash: a.fieldTrapTrash,
-    fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
+    fieldToDeckBottom: a.fieldToDeckBottom, fieldToDeckTop: a.fieldToDeckTop, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy, selfTrash: a.selfTrash,
     selfEnergyToDeckBottom: a.selfEnergyToDeckBottom,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
@@ -652,6 +654,11 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = fieldCandidates(ctx.ownerState, spec.fieldToDeckBottom.filter, ctx.cardMap)
       .filter(n => !spec.fieldToDeckBottom!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldToDeckBottom.count) return false;
+  }
+  if (spec.fieldToDeckTop) {
+    const matching = fieldCandidates(ctx.ownerState, spec.fieldToDeckTop.filter, ctx.cardMap)
+      .filter(n => !spec.fieldToDeckTop!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
+    if (matching.length < spec.fieldToDeckTop.count) return false;
   }
   if (spec.fieldTrashGroups
     && !fieldTrashGroupsAffordable(spec.fieldTrashGroups, ctx.ownerState.field.signi, ctx.cardMap)) return false;
@@ -818,6 +825,17 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
         filter: {
           ...(spec.fieldToDeckBottom.filter ?? {}),
           ...(spec.fieldToDeckBottom.excludeSelf ? { excludeSelf: true } : {}),
+        },
+      },
+    } as EffectAction] : []),
+    ...(spec.fieldToDeckTop ? [{
+      // 🆕§5.3 `O-256`＝行き先は `position:'top'`（次に引く位置）。`bottom` と取り違えない。
+      type: 'TRANSFER_TO_DECK', shuffle: false, position: 'top',
+      source: {
+        type: 'SIGNI', owner: 'self', count: spec.fieldToDeckTop.count,
+        filter: {
+          ...(spec.fieldToDeckTop.filter ?? {}),
+          ...(spec.fieldToDeckTop.excludeSelf ? { excludeSelf: true } : {}),
         },
       },
     } as EffectAction] : []),

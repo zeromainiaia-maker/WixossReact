@@ -214,6 +214,9 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
     // fieldBanish: バニッシュできるシグニ（excludeSelf=自身を除く）が必要数いないと支払えない（§5.3 `O-67`）。
     // ⚠行き先はエナゾーンだが**可否の軸は fieldTrash と同じ**（候補が必要数いるか）。
     !(e.cost?.fieldBanish && fieldTrashSelectableZones(e.cost.fieldBanish, my, cardMap, zoneIndex).length < e.cost.fieldBanish.count) &&
+    // 🆕fieldToDeckTop: デッキの一番上へ置けるシグニが必要数いないと支払えない（§5.3 `O-256`）。
+    //   ⚠行き先はデッキの上だが**可否の軸は fieldTrash と同じ**（候補が必要数いるか）。
+    !(e.cost?.fieldToDeckTop && fieldTrashSelectableZones(e.cost.fieldToDeckTop, my, cardMap, zoneIndex).length < e.cost.fieldToDeckTop.count) &&
     // fieldTrashGroups: 各グループ（異クラス）を満たすシグニ構成が場にないと支払えない
     !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, cardMap)) &&
     // beat_signi: 場にシグニがいないと【ビート】にできない（精密な不足は支払い時に判定）

@@ -33647,6 +33647,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       'discardAll', 'energyTrashAll', 'trashToDeckBottom',
       // 🆕2026-09-02（索引 B 第2巡・§5.3 `O-68`①）＝場のシグニ全損。
       'fieldTrashAll',
+      // 🆕2026-09-05（§5.3 `O-256`）＝「他のシグニ1体を場からデッキの一番上に置く」。
+      'fieldToDeckTop',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
@@ -67395,9 +67397,10 @@ test('§5.3 O-249 第146b: 採用した held のうち live 側が恒久 no-op �
   // ⑩ `WX24-P2-002-E1`＝**live が恒久 no-op だった側**。「対戦相手のシグニ１体と、そのシグニと同じレベルの
   //    対戦相手のルリグ１体」の**シグニ側**に `levelEqLastProcessed` が誤って載っており、
   //    参照先（lastProcessedCards）が空なので `resolveDynamicFilter` が到達不能 level を返し候補0だった。
-  //    ⚠**ルリグ側の対象はまだ表現できていない**（`O-250` として登録）＝ここではシグニ側の no-op 解消だけを固定する。
+  //    🆕**2026-09-05（`O-250`）にルリグ側の対象を足した**（live は `MANUAL`）＝
+  //    ここで固定するのは「**シグニ側**にレベル同一性を載せない」1点だけ（載せると候補0の恒久 no-op に戻る）。
   for (const [label, e] of Object.entries({ live: both('WX24-P2-002', 'WX24-P2-002-E1')[0], fresh: both('WX24-P2-002', 'WX24-P2-002-E1')[1] })) {
-    eq(filterOf(e, 'steps.1.target').filter, undefined,
+    ok(!(filterOf(e, 'steps.1.target').filter as Record<string, unknown> | undefined)?.levelEqLastProcessed,
       `WX24-P2-002-E1 ${label}: シグニ側にレベル同一性を載せない（載せると候補0の恒久 no-op）`);
   }
 });
@@ -67869,7 +67872,7 @@ test('§5.3 O-252: 痕跡マーカーは JSON に残したまま、逆翻訳側�
 test('§5.3 O-252: 逆翻訳が印字キーワードコストを payload から描く（manual マージで落とさない）', () => {
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   ok(dec.includes('function costReplacementJa('), '逆翻訳に costReplacement の描画器がある');
-  ok(dec.includes('if (c.costReplacement?.length) parts.push(costReplacementJa(c.costReplacement));'),
+  ok(dec.includes('const crJa = costReplacementJa(c.costReplacement);'),
      '🔴costJa が costReplacement を描く（原文貼り付けへ戻していない）');
   ok(dec.includes('printedKeywordCosts(cardMap.get(id)?.EffectText)'),
      '🔴manual マージの後に印字キーワードコストを重ね直す（buildEffectsJson と同じ funnel）');
@@ -67888,6 +67891,146 @@ test('§5.3 O-252: 逆翻訳が印字キーワードコストを payload から�
   }
   ok(dropped.length >= 30,
      `manual マージで印字コストが落ちるカードは実在する（実測 ${dropped.length}枚・重ね直しが無いと逆翻訳が嘘をつく）`);
+});
+
+// ═══ §5.3 `O-250`＝「Aと、Aと同じレベルのB」の2つ目の対象（2026-09-05・1効果）═══
+// 🔴`WX24-P2-002-E1`＝「対戦相手のシグニ１体**と、そのシグニと同じレベルの対戦相手のルリグ１体**を対象とし、
+//   ターン終了時まで、それらは「【常】：アタックできない。」を得る」の **ルリグ側が丸ごと無かった**（過小実行）。
+// 🔑受け皿は全部あった＝`resumeSelectTarget` の per-card ループが `lastProcessedCards = selected` を置くので、
+//   選択UIを経た `GRANT_KEYWORD` の**次のステップ**から `levelEqLastProcessed` で参照できる。
+test('§5.3 O-250: 選んだシグニと同じレベルの相手ルリグにも【アタックできない】が付く', () => withSavedCursor(() => {
+  const live = manualEffect('WX24-P2-002', 'WX24-P2-002-E1');
+  const steps = (live.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  eq(steps.length, 3, 'コスト宣言＋シグニ付与＋ルリグ付与の3ステップ');
+  eq((steps[2] as { target?: { type?: string } }).target?.type, 'LRIG', '3つ目の対象はルリグ');
+  ok(JSON.stringify(steps[2]).includes('levelEqLastProcessed'),
+     '🔴ルリグ側は「選んだシグニと同じレベル」で絞る（無条件付与になっていない）');
+  // レベル3のシグニを選ぶ → レベル3のルリグに付く
+  const lrigL3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const runWith = (lrigNum: string) => {
+    const ctx = mkCtx({}, { signi: [SIGNI_L3, SIGNI_L1, null], lrig: [lrigNum] }) as ExecCtx;
+    const r = executeEffect(live, ctx);
+    ok(!r.done && r.pending.type === 'SELECT_TARGET', 'まずシグニを選ばせる');
+    const pend = (r as { pending: PendingInteractionDef }).pending;
+    const c: ExecCtx = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+    return resumeSelectTarget([SIGNI_L3], pend as never, c);
+  };
+  const same = runWith(lrigL3);
+  eq(same.otherState.keyword_grants?.[SIGNI_L3]?.includes('アタックできない'), true,
+     '選んだシグニに【アタックできない】が付く');
+  eq(same.otherState.keyword_grants?.[lrigL3]?.includes('アタックできない'), true,
+     '🔴同じレベル（3）のルリグにも付く＝2つ目の対象が表せている');
+  // レベルが違うルリグには付かない（無条件付与へ倒れていない＝負方向）
+  const lrigL1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const diff = runWith(lrigL1);
+  eq(diff.otherState.keyword_grants?.[SIGNI_L3]?.includes('アタックできない'), true,
+     'シグニ側は変わらず付く');
+  ok(!diff.otherState.keyword_grants?.[lrigL1]?.includes('アタックできない'),
+     '🔴レベルが違うルリグには付かない（「同じレベルの」を無視していない）');
+}));
+
+// ═══ §5.3 `O-253`＝逆翻訳が `LRIG_DECK_CARD` を「シグニ」と描いていた（2026-09-05・3効果）═══
+// 🔴`targetJa` のゾーン名テーブルに `LRIG_DECK_CARD` が無く、既定の `unit`（＝'シグニ'）へ落ちていた＝
+//   「あなたのルリグデッキにある**ピース**1枚をゲームから除外する」が
+//   **「あなたのシグニ1体をゲームから除外する」**という**別の盤面を指す嘘**になっていた。
+// 🔑**JSON は最初から正しかった**＝`§5.4 (iii)`（構造混線＝木ごと作り直し）に登録されていた
+//   `WXDi-P04-016-E3` の正体はこれで、実装は1行も要らなかった。
+test('§5.3 O-253: 逆翻訳の対象ゾーン名に LRIG_DECK_CARD がある（「シグニ」へ落ちない）', () => {
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(dec.includes("t.type === 'LRIG_DECK_CARD' ? '(ルリグデッキ)'"),
+     '🔴LRIG_DECK_CARD のゾーン名がある（無いと既定の「シグニ」に化ける）');
+  ok(dec.includes("t.type === 'HAND_OR_ENERGY_CARD' ? '(手札かエナ)'"),
+     'HAND_OR_ENERGY_CARD も同じ穴だったので同時に埋めてある');
+  // 母集団のラチェット＝この型を使う効果が増えたら、逆翻訳を見直すきっかけにする。
+  const users: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) if (JSON.stringify(e.action).includes('"LRIG_DECK_CARD"')) users.push(e.effectId);
+  }
+  eq(users.sort().join(','), 'WXDi-D07-004-E3,WXDi-P04-013-E3,WXDi-P04-016-E3',
+     'LRIG_DECK_CARD を対象宣言に使う効果は3つ（増えたら逆翻訳を確認する）');
+  // JSON 側は「ピース」を指している＝直したのは表示だけ、という契約を固定する。
+  const e3 = (effectsMap.get('WXDi-P04-016') ?? []).find(e => e.effectId === 'WXDi-P04-016-E3')!;
+  ok(JSON.stringify(e3.action).includes('"cardType":"ピース"'),
+     '🔴除外するのはルリグデッキのピース（自分のシグニではない）');
+});
+
+// ═══ §5.3 `O-254`＝逆翻訳が描かないコストキーの全数ラチェット（2026-09-05）═══
+// 🔴**未対応キーは「黙って消える」**＝逆翻訳だけを見ると「そんな支払いは無い」に読める。
+//   実測で埋めた穴＝`fieldTrashAll`（1効果・意味照合台帳が「コスト未実装」と誤って OPEN にしていた当のカード）
+//   ＋印字キーワードコスト `encoreCost`(32) / `betOptions`(68) / `boostCost`(5) / `optionalDiscardCost`(2)。
+test('§5.3 O-254: costJa が live の全コストキーを描く（useTimeCost だけが意図的な例外）', () => {
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  const start = dec.indexOf('function costJa(');
+  const end = dec.indexOf('\nfunction ', start + 10);
+  const body = dec.slice(start, end);
+  ok(start > 0 && end > start, 'costJa の本文を切り出せる');
+  const seen = new Map<string, number>();
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) for (const k of Object.keys(e.cost ?? {})) seen.set(k, (seen.get(k) ?? 0) + 1);
+  }
+  // ⚠`useTimeCost` は `STUB{ARTS_COST_REDUCTION_BY_*}` の分岐が原文の支払い文を復元しているので
+  //   costJa では描かない（両方描くと二重に出る）。それ以外に例外を増やさない。
+  const EXPECTED_EXCEPTIONS = ['useTimeCost'];
+  const missing = [...seen].filter(([k]) => !body.includes('c.' + k)).map(([k, n]) => `${k}(${n})`).sort();
+  eq(missing.join(','), EXPECTED_EXCEPTIONS.map(k => `${k}(${seen.get(k)})`).join(','),
+     '🔴新しいコストキーを足したら costJa にも1行足す（さもないと逆翻訳が計器として嘘をつく）');
+});
+
+// ═══ §5.3 `O-255`＝`selfPowerDown`（自傷パワーのコスト）が真 no-op だった（2026-09-05・3効果）═══
+// 🔴parser も逆翻訳も `EffectCost.selfPowerDown` に対応済みだったのに、**engine/UI のどこにも消費が無く**
+//   自傷ぶんが一度も起きていなかった＝「【起】《無》**ターン終了時まで、このシグニのパワーを－10000する**：…」が
+//   《無×1》だけで撃てた（過剰実行）。⚠この形はどの計器にも出ない（`census:deadstate` は PlayerState のキー、
+//   `census:stubs` は STUB、`census:enginetext` は原文 regex しか見ない）。
+test('§5.3 O-255: 自傷パワーのコストが live に載り、支払い地点で消費される', () => {
+  const users: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) if (e.cost?.selfPowerDown !== undefined) users.push(`${e.effectId}:${e.cost.selfPowerDown}`);
+  }
+  eq(users.sort().join(','), 'WX07-042-E2:5000,WX13-036-E3:20000,WXDi-P07-046-E3:10000',
+     '3効果とも payload を持つ（「－Nする」綴りの WXDi-P07-046-E3 が落ちていた）');
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  ok(bs.includes('effect.cost?.selfPowerDown'),
+     '🔴シグニ【起】の支払い地点が selfPowerDown を読む（読まないと自傷が起きない＝コストが只）');
+  ok(bs.includes('delta: -effect.cost.selfPowerDown'),
+     '🔴引く向きで積む（＋にすると自分が強くなる）');
+  ok(bs.includes('temp_power_mods: [...(my.temp_power_mods ?? [])'),
+     '🔴ターン終了時までの枠（temp_power_mods）へ積む＝field_power_mods だと永久に下がる');
+  const modal = fs.readFileSync(join(root, 'src/screens/battle/modals/SigniActivatedModal.tsx'), 'utf8');
+  ok(modal.includes('eff.cost?.selfPowerDown'), '支払いUIにもコストとして出る');
+});
+
+// ═══ §5.3 `O-256`＝「他のシグニ1体を場からデッキの一番上に置く」コスト（2026-09-05・2効果）═══
+// 🔴旧 live はこのコスト句を**1つも読んでおらず**、エナコストだけで撃てた（過剰実行）。
+// ⚠**`fieldTrash` を流用しない**＝デッキの一番上に置いたカードは引き直せる（トラッシュ送りは資源を失う）。
+test('§5.3 O-256: 場→デッキの一番上のコストが live に載り、支払いは専用 funnel を通る', () => {
+  const users: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) if (e.cost?.fieldToDeckTop) users.push(`${e.effectId}:${JSON.stringify(e.cost.fieldToDeckTop)}`);
+  }
+  eq(users.sort().join(' / '),
+     'WDK05-T12-E1:{"count":1,"filter":{"cardType":"シグニ"},"excludeSelf":true} / '
+     + 'WXK10-057-E2:{"count":1,"filter":{"cardType":"シグニ"},"excludeSelf":true}',
+     '2効果とも payload を持ち、「他の」＝効果元を除く');
+  // 「このシグニを…一番**下**に置く」は別キー（`selfToDeckBottom`）＝取り違えていない（負方向）
+  for (const cardNum of ['WXDi-P08-062', 'WXK10-043'] as const) {
+    const effs = effectsMap.get(cardNum) ?? [];
+    ok(effs.some(e => e.cost?.selfToDeckBottom), `${cardNum}: 「このシグニを一番下」は selfToDeckBottom のまま`);
+    ok(!effs.some(e => e.cost?.fieldToDeckTop), `${cardNum}: 新規則が誤って当たっていない`);
+  }
+  // 支払い funnel（行き先がデッキの上であること）
+  const pay = fs.readFileSync(join(root, 'src/screens/battle/fieldToDeckTopCost.ts'), 'utf8').replace(/\r\n/g, '\n');
+  ok(pay.includes('deck: [...toDeckTop, ...p.my.deck]'),
+     '🔴行き先はデッキの**先頭**（＝次に引かれる位置）。末尾に足すと「一番下」になる');
+  ok(pay.includes('toTrash.push(...stack.slice(0, -1)'),
+     'スタックの下に敷かれたカードはルールどおりトラッシュへ（デッキへ戻すのは最上段だけ）');
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  eq((bs.match(/payFieldToDeckTopCost\(\{/g) ?? []).length, 2,
+     '🔴【出】と【起】の両方で払う（片方だけだと踏み倒せる経路が残る）');
+  ok(bs.includes('!fieldBanishCostAct && !fieldToDeckTopCostAct && fieldTrashZones.size > 0'),
+     '🔴fieldTrash ブロックへ落ちない（落ちるとデッキではなくトラッシュへ行く）');
+  const gate = fs.readFileSync(join(root, 'src/screens/battle/signiActivateGate.ts'), 'utf8');
+  ok(gate.includes('e.cost?.fieldToDeckTop && fieldTrashSelectableZones'),
+     '候補が足りなければ提示しない（払えないのに撃てる、を作らない）');
 });
 
 if (listMode) {
