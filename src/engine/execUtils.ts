@@ -445,7 +445,7 @@ export interface OptionalCostSpec {
    */
   trashOwnKey?: boolean;
   fieldDown?: { count: number; filter?: TargetFilter };
-  lrigDown?: { count: number; centerOnly?: boolean; level?: number };
+  lrigDown?: { count: number; centerOnly?: boolean; level?: number; color?: string };
   down_self?: boolean;
   /** 効果元シグニ自身を場からエナゾーンへ置く任意コスト（§6.4 O-7）。 */
   selfToEnergy?: boolean;
@@ -739,6 +739,9 @@ export function optionalCostExtraLabels(spec: OptionalCostSpec): string[] {
     ...(spec.trashExile ? [`${spec.trashExile.owner === 'any' ? 'いずれかの' : '自分の'}トラッシュから${spec.trashExile.count}枚を除外`] : []),
     ...(spec.fieldTrapTrash ? [`${spec.fieldTrapTrash.excludeSource ? '他の' : ''}【トラップ】${spec.fieldTrapTrash.count}枚をトラッシュ`] : []),
     ...(spec.trashToDeckBottom ? [`トラッシュから${spec.trashToDeckBottom.count}枚をデッキの一番下へ`] : []),
+    // 🆕§5.3 `O-257`（2026-09-05）＝ルリグのダウンはラベルが無いと**何を払うのか画面に出ない**
+    //   （【ハーモニー】は「払わなければ自分がダウンする」形なので、払う内容が読めないと判断できない）。
+    ...(spec.lrigDown ? [`${spec.lrigDown.color ? `${spec.lrigDown.color}の` : ''}${spec.lrigDown.centerOnly ? 'センター' : ''}ルリグ${spec.lrigDown.count}体をダウン`] : []),
   ];
 }
 

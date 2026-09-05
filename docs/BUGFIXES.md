@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-09-05（第157〜167バッチ）：逆翻訳のコスト payload 穴5本＋真no-opコスト2本＋実機7シナリオ
+## 2026-09-05（第157〜169バッチ）：逆翻訳のコスト payload 穴6本＋真no-opコスト2本＋【ハーモニー】＋実機10シナリオ
 
 **ベースライン**＝`eedde29b7`（第156の直後）。
 **gates 全緑**（typecheck・golden **3505/3505**＝3493 +12本・smoke 全異常0（10725効果）・fuzz 全0・
@@ -105,13 +105,49 @@ census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census
 - 🔧**ついでに直した計器のバグ**＝`verifyBattleDrive.mjs` の `order.push` が**同じ4行を二重に持って**おり、
   フルバッチで `o248*` の4本が**2回ずつ**走っていた（結果は変わらないので実行時間だけが倍になり気づけない）。
 
+### 第168（§5.3 `O-251` クローズ ＋ `O-259` 新設・16効果）＝コスト句が「実装済みに見える」穴を可視化
+- 🏁**`O-251` をクローズ**＝19出現を用法で割ったら、手を入れる必要があったのは4効果だけだった
+  （①対戦相手のコスト増13効果は**4経路で既に配線済み** ②自分の盤面比例2効果は**既に `costScaling` 済み**
+  ③「選んだ数だけ」4効果＝第157 ④残 `SP38-005-E1` 1効果）。
+- 🛑**`SP38-005-E1` は根拠つき defer**＝帰結「対戦相手のルリグ1体のレベルを－1」を実装するには
+  **ルリグの実効レベルを読む funnel** が要るが、`field.lrig.at(-1)` を読む箇所は `src/engine/`＋`src/screens/` で
+  **197箇所**あり、`LRIG_LEVEL_CMP_OPP` も `LRIG_LEVEL_EQ_OPP` も**印字レベルしか読まない**
+  （＝積んでも誰も読まない真 no-op になる）。**1効果のために全部を寄せない**（§5.3 の既定）。
+  🟢いまの姿は無言 no-op ではない（帰結は `DEFERRED_*`＝【未実装】表示／コスト句は下記で【※コスト未構造化】）。
+- 🆕**`O-259`（16効果）**＝`STUB{ARTS_COST_REDUCTION_BY_*}` / `CONDITIONAL_ARTS_COST` の逆翻訳は
+  **原文のコスト文をそのまま貼る**ので、**何も構造化できていない効果でも実装済みに読める**
+  （`O-252` と同じ罠の「payload が空の側」）。payload（`costScaling`／`costReplacement`／`useTimeCost`／
+  `optionalDiscardCost`）が1つも無いときだけ **`【※コスト未構造化】`** を付け、golden にラチェット（16）を張った。
+
+### 第169（§5.3 `O-257`・12枚）＝【ハーモニー】が engine にも UI にも無かった
+- 原文「【ハーモニー】〈色〉のルリグN体（このシグニが場に出たとき、あなたの**アップ状態の**〈色〉のルリグN体を
+  **ダウンしないかぎり、これをダウンする**）」。🔴旧＝parser が接頭辞を捨てるだけで**出しても何も起きなかった**
+  （ルリグのダウンを要求もしないし、払わなくても自分がダウンしない＝過剰実行）。
+- 🔑**受け皿はほぼ全部あった**＝`STUB{OPTIONAL_COST}` の `lrigDown` 軸（可否＝`payLrigDownCost`／
+  支払い＝`INTERNAL_PAY_LRIG_DOWN`）＋ `unlessPay`（文言反転）＋ `CONDITIONAL{PAID_ADDITIONAL_COST}`。
+  **足したのは3つだけ**＝①`lrigDown.color`（⚠多色ルリグの `Color` は `白青` と連結されるので `includes`）
+  ②`parseHarmonyAbility` ③**マージの後から重ねる経路**（【出現条件】と同じ作法。
+  🔴fresh 任せだと **MANUAL/PARTIAL を含む4枚が id 集合ズレで温存され能力が永久に載らない**）。
+- 🔴**罠＝「後から重ねる」形を新設した回は `build:effects` を2回回す**＝比較は重ねる**前**の live に対して
+  行われるので、1回目は12枚が `_held_fresh`／`_idset_fresh` に出たままになり
+  （held 2→9・idset 6→10）、`census:cards` の要対応が 76→82 に増えて**退化に見える**。2回目で 1／6 へ収束する。
+- 🖥**実機 `V-156` 3本 PASS**＝支払う（ルリグがダウン・シグニはアップ）／支払わない（**シグニがダウン**）／
+  ルリグが白なら「支払う」が灰色（色限定）。支払いラベルが「支払う（コスト: 赤のルリグ1体をダウン）」と出ることも確認。
+- 🔑**踏んだ罠2つを §4.3 へ追記**＝①**golden のラチェットが落ちるとテストが途中で abort して POOL カーソルが
+  変わり、無関係な後続テストまで赤くなる**（`WXDi-CP02-036-E1` の E2E が巻き添えで落ち、engine の回帰を疑った）
+  ②**`scripts/` の重複 import は typecheck も golden も通る**（typecheck は `scripts/` を見ず、esbuild が黙って畳む）。
+
 **検証コマンド**＝`npm run gates`／`npm run golden -- --only "O-251" --only "O-252" --only "O-253" --only "O-254"
 --only "O-255" --only "O-256" --only "O-258" --only "O-147" --only "O-250"`／`node scripts/heldReview.mjs`（残1＝意図的な据置）／
 `SKIP_BUILD=1 node scripts/verifyBattleDrive.mjs v152DeclareRaisesCost v152DeclareLimitedByEnergy v153SelfPowerDownPaid v154FieldToDeckTopPaid v154FieldToDeckTopNoOther v155SameLevelLrigAlsoBanned v155DifferentLevelLrigSafe`。
-**反転確認**＝4本（①`declaredCountChoose` を外すと選択数固定の golden が FAIL ②痕跡 STUB を parser で剥がすと
+**反転確認**＝6本（①`declaredCountChoose` を外すと選択数固定の golden が FAIL ②痕跡 STUB を parser で剥がすと
 `WX11-015` の `CONDITIONAL` が消えて golden が FAIL ③`fieldToDeckTop` を SUPPORTED から外すと
 `(xxix)(1)` の「未対応の外側 cost は0件」が FAIL ④**実機 `v154FieldToDeckTopPaid` が instance id を落とす旧実装で
-実際に赤くなった**）。
+実際に赤くなった** ⑤`lrigDown.color` を落とすと `v156HarmonyWrongColorCannotPay` が FAIL（白でも払えてしまう）
+⑥【ハーモニー】の overlay を外すと `O-257` golden の12枚一覧が FAIL）。
+**実機**＝`SKIP_BUILD=0 node scripts/verifyBattleDrive.mjs v152DeclareRaisesCost v152DeclareLimitedByEnergy
+v153SelfPowerDownPaid v154FieldToDeckTopPaid v154FieldToDeckTopNoOther v155SameLevelLrigAlsoBanned
+v155DifferentLevelLrigSafe v156HarmonyPayLrigDown v156HarmonySkipSelfDown v156HarmonyWrongColorCannotPay`（10本 ALL PASS）。
 
 
 ## 2026-09-05（第154〜156バッチ）：🏁**`O-249`（`held`）クローズ**＋意味照合台帳の消化漏れ回収

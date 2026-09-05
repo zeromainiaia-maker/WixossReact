@@ -1118,7 +1118,14 @@ export interface EffectCost {
   fieldToDeckTop?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // 手札からN枚をこのシグニの下に置く
-  lrigDown?: { count: number; centerOnly?: boolean; level?: number }; // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。centerOnly=「センタールリグ」限定・level=「レベルNのルリグ」限定（WXDi-P02-016/P03-009/P04-042。指定時は該当レベルのゾーンだけが支払い候補）
+  /**
+   * アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。
+   * `centerOnly`＝「センタールリグ」限定・`level`＝「レベルNのルリグ」限定
+   * （`WXDi-P02-016`/`P03-009`/`P04-042`。指定時は該当レベルのゾーンだけが支払い候補）。
+   * 🆕`color`＝**「〈色〉のルリグN体」限定**（2026-09-05・§5.3 `O-257`＝【ハーモニー】12枚）。
+   *   ⚠**色は「含む」で見る**（多色ルリグは `Color` が `白青` のように連結される）。
+   */
+  lrigDown?: { count: number; centerOnly?: boolean; level?: number; color?: string };
   lrigDownVariable?: { min: number }; // アップ状態のルリグを好きな数ダウン（0を含む）
   lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
@@ -5793,7 +5800,7 @@ export interface StubAction {
   /** OPTIONAL_COST: アップ状態の**自分の場のシグニ**N体をダウンする任意コスト（「あなたのアップ状態の＜X＞のシグニN体をダウンし…てもよい」）。filter は色/クラス等の限定。 */
   fieldDown?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
-  lrigDown?: { count: number; centerOnly?: boolean; level?: number };
+  lrigDown?: { count: number; centerOnly?: boolean; level?: number; color?: string };
   /** OPTIONAL_COST: アップ状態のルリグを好きな数ダウンする。 */
   lrigDownVariable?: { min: number };
   /** INTERNAL_PAY_LRIG_DOWN_VARIABLE の選択枚数。 */

@@ -50370,6 +50370,210 @@ order.push('v155SameLevelLrigAlsoBanned');
 order.push('v155DifferentLevelLrigSafe');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-156`（§5.3 `O-257`）＝**【ハーモニー】＝出したとき、ルリグをダウンしないかぎり自分がダウンする**
+//
+// `WXDi-P02-035`（大装　ヤエキリ・白・Lv3）
+// 「【ハーモニー】赤のルリグ１体（このシグニが場に出たとき、あなたの**アップ状態の赤のルリグ１体**を
+//  ダウンしないかぎり、**これをダウンする**）」
+//
+// 🔴**旧挙動＝parser が接頭辞を捨てるだけで engine にも UI にも実装が無く、出しても何も起きなかった**
+//   （ルリグのダウンを要求もしないし、払わなくても自分がダウンしない＝過剰実行）。
+// 🔑**実機でしか出ない理由**＝支払いは `OPTIONAL_COST` の pay/skip 対話で、
+//   **払った側はルリグがダウン／払わない側は自分がダウン**という**2つの盤面**を見比べないと確かめられない。
+//   さらに `unlessPay` の文言反転（「支払う／支払わない」）は UI にしか現れない。
+// ══════════════════════════════════════════════════════════════════════════════
+const V156_SIGNI = 'WXDi-P02-035#1';    // 大装 ヤエキリ（【ハーモニー】赤のルリグ1体）
+const V156_RED_LRIG = 'WD02-001#1';     // 赤のルリグ（＝支払える側）
+const V156_WHITE_LRIG = 'WD01-001#1';   // 白のルリグ（＝色が違うので払えない側）
+
+const v156Spec = (lrig) => ({
+  hostSet: {
+    'field.lrig': [lrig],
+    'field.lrig_down': false,
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.assist_lrig_l': [], 'field.assist_lrig_r': [],
+    lrig_deck: [],
+    energy: [],
+    hand: [V156_SIGNI],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** 手札の【ハーモニー】シグニを召喚し、pay/skip の選択肢が出るまで進める。 */
+const v156Summon = async (page, H, tag, choose) => {
+  await H.ensureMain();
+  let summoned = false;
+  let zonePicked = false;
+  let chose = null;
+  const labels = [];
+  for (let s = 0; s < 18; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: SHOT + '/' + tag + '-' + s + '.png', fullPage: true });
+    let did = null;
+    if (!summoned) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) await page.waitForTimeout(500);
+      const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+        await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+      }
+    }
+    if (!did && summoned && !zonePicked) {
+      const z = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (z) { zonePicked = true; did = z; }
+    }
+    // 🔑**`unlessPay` の文言は「支払う／支払わない」**（`発動する／スキップ` ではない）＝
+    //   これ自体が観測点（払わない方が得に見える表示になっていないか）。
+    if (!did && zonePicked && !chose) {
+      const seen = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button')).map(b => (b.textContent || '').trim())
+          .filter(t => /支払|スキップ|発動する/.test(t))).catch(() => []);
+      if (seen.length) labels.push(...seen);
+      const btn = page.getByRole('button', { name: choose, exact: false }).first();
+      if (await btn.count() && await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
+        await btn.click().catch(() => {}); chose = choose; did = 'btn:' + choose;
+      }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし') + ' | field=' + JSON.stringify(st?.host?.fieldSigni)
+      + ' signiDown=' + JSON.stringify(st?.host?.signiDown) + ' lrigDown=' + JSON.stringify(st?.host?.fieldLrigDown)
+      + ' pEff=' + (st?.pendingEffect ?? '-') + ' stack=' + (st?.stackLen ?? '-'));
+    if (chose && !st?.pendingEffect && !(st?.stackLen > 0)) {
+      await page.waitForTimeout(900);
+      return { ok: true, state: await H.queryState(), labels: [...new Set(labels)] };
+    }
+  }
+  return { ok: false, state: await H.queryState(), labels: [...new Set(labels)], summoned, zonePicked, chose };
+};
+
+scenarios.v156HarmonyPayLrigDown = {
+  title: 'V-156①：WXDi-P02-035 を出して「支払う」＝赤のルリグがダウンし、シグニはアップのまま【旧実装は何も起きなかった】',
+  spec: v156Spec(V156_RED_LRIG),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.host?.lrigTop !== V156_RED_LRIG || !(st0?.host?.handCards ?? []).includes(V156_SIGNI)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+        + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+    }
+    if (st0?.host?.fieldLrigDown === true) return { pass: false, detail: '前提崩れ＝ルリグが最初からダウンしている' };
+    const r = await v156Summon(page, H, 'v156Pay', '支払う');
+    const st = r.state;
+    const zone = (st?.host?.fieldSigni ?? []).findIndex(z => Array.isArray(z) && z.includes(V156_SIGNI));
+    const dump = 'field=' + JSON.stringify(st?.host?.fieldSigni) + ' signiDown=' + JSON.stringify(st?.host?.signiDown)
+      + ' lrigDown=' + JSON.stringify(st?.host?.fieldLrigDown) + ' 出たラベル=' + JSON.stringify(r.labels);
+    H.log('  判定: ' + dump);
+    if (!r.ok) return { pass: false, detail: '【ハーモニー】の支払いに到達しなかった。' + dump };
+    if (zone < 0) return { pass: false, detail: '前提崩れ＝シグニが場に出ていない。' + dump };
+    if (!r.labels.some(l => /支払う/.test(l))) {
+      return { pass: false, detail: '🔴「支払う／支払わない」の文言になっていない（`unlessPay` が効いていない＝払わない方が得に見える）。' + dump };
+    }
+    if (st?.host?.fieldLrigDown !== true) {
+      return { pass: false, detail: '🔴支払ったのにルリグがダウンしていない＝コストが只（過剰実行）。' + dump };
+    }
+    if ((st?.host?.signiDown ?? [])[zone] === true) {
+      return { pass: false, detail: '🔴支払ったのにシグニまでダウンした（pay 側で else が走っている）。' + dump };
+    }
+    return { pass: true, detail: '「支払う」でルリグがダウンし、シグニはアップのまま場に残った。' + dump };
+  },
+};
+
+scenarios.v156HarmonySkipSelfDown = {
+  // 🔴**判別力の本体**＝盤面も操作も同じで、**押すボタンだけ**を「支払わない」に変える1ビット反転。
+  title: 'V-156②：同じ盤面で「支払わない」＝ルリグはアップのまま／このシグニがダウンする【旧実装はダウンしなかった】',
+  spec: v156Spec(V156_RED_LRIG),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.host?.lrigTop !== V156_RED_LRIG || !(st0?.host?.handCards ?? []).includes(V156_SIGNI)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+        + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+    }
+    const r = await v156Summon(page, H, 'v156Skip', '支払わない');
+    const st = r.state;
+    const zone = (st?.host?.fieldSigni ?? []).findIndex(z => Array.isArray(z) && z.includes(V156_SIGNI));
+    const dump = 'field=' + JSON.stringify(st?.host?.fieldSigni) + ' signiDown=' + JSON.stringify(st?.host?.signiDown)
+      + ' lrigDown=' + JSON.stringify(st?.host?.fieldLrigDown) + ' 出たラベル=' + JSON.stringify(r.labels);
+    H.log('  判定: ' + dump);
+    if (!r.ok) return { pass: false, detail: '【ハーモニー】の選択に到達しなかった。' + dump };
+    if (zone < 0) return { pass: false, detail: '前提崩れ＝シグニが場に出ていない。' + dump };
+    if (st?.host?.fieldLrigDown === true) {
+      return { pass: false, detail: '🔴支払わなかったのにルリグがダウンした（skip 側で pay が走っている）。' + dump };
+    }
+    if ((st?.host?.signiDown ?? [])[zone] !== true) {
+      return { pass: false, detail: '🔴支払わなかったのにこのシグニがダウンしていない＝【ハーモニー】が只（過剰実行＝旧挙動）。' + dump };
+    }
+    return { pass: true, detail: '「支払わない」でルリグはアップのまま、このシグニがダウンした。' + dump };
+  },
+};
+
+scenarios.v156HarmonyWrongColorCannotPay = {
+  // 🔴**色限定の対照**＝ルリグを**白**に替えると「支払う」が選べない（赤のルリグが居ない）。
+  title: 'V-156③：ルリグが白なら「支払う」は選べない（色限定が効いている）【`lrigDown.color` を落とすと払えてしまう】',
+  spec: v156Spec(V156_WHITE_LRIG),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.host?.lrigTop !== V156_WHITE_LRIG || !(st0?.host?.handCards ?? []).includes(V156_SIGNI)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+        + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+    }
+    await H.ensureMain();
+    let summoned = false;
+    let zonePicked = false;
+    let payEnabled = null;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!summoned) {
+        did = await H.clickTestId('my-hand-card-0');
+        if (did) await page.waitForTimeout(500);
+        const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+          await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+        }
+      }
+      if (!did && summoned && !zonePicked) {
+        const z = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (z) { zonePicked = true; did = z; }
+      }
+      // 🔑**押さずに `isEnabled()` を読むだけ**（§5.1 `O-248` の教訓＝無効なボタンを押すと30秒待たされる）。
+      if (zonePicked) {
+        const pay = page.getByRole('button', { name: /支払う/ }).first();
+        if (await pay.count() && await pay.isVisible().catch(() => false)) {
+          payEnabled = await pay.isEnabled().catch(() => false);
+          break;
+        }
+      }
+      H.log('  v156Color[' + s + '] -> ' + (did ?? 'なし') + ' summoned=' + summoned + ' zone=' + zonePicked);
+    }
+    await page.screenshot({ path: SHOT + '/v156WrongColor-final.png', fullPage: true });
+    const st = await H.queryState();
+    const dump = '「支払う」有効=' + payEnabled + ' summoned=' + summoned + ' zone=' + zonePicked
+      + ' lrigDown=' + JSON.stringify(st?.host?.fieldLrigDown) + ' field=' + JSON.stringify(st?.host?.fieldSigni);
+    H.log('  判定: ' + dump);
+    if (!summoned) return { pass: false, detail: '前提崩れ＝召喚できなかった。' + dump };
+    if (payEnabled === null) return { pass: false, detail: '前提崩れ＝【ハーモニー】の選択が出なかった。' + dump };
+    if (payEnabled === true) {
+      return { pass: false, detail: '🔴赤のルリグが居ないのに「支払う」が押せる＝色限定が効いていない（`lrigDown.color` が落ちている）。' + dump };
+    }
+    return { pass: true, detail: '白のルリグしか居なければ「支払う」は灰色＝色限定が効いている。' + dump };
+  },
+};
+
+order.push('v156HarmonyPayLrigDown');
+order.push('v156HarmonySkipSelfDown');
+order.push('v156HarmonyWrongColorCannotPay');
+
+
 order.push('v152DeclareRaisesCost');
 order.push('v152DeclareLimitedByEnergy');
 

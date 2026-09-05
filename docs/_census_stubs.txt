@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 586（総ノード 3177 件）
+live JSON の STUB id 種類 : 586（総ノード 3189 件）
 逆翻訳シートの [STUB:…] 総数: 375  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -25,13 +25,13 @@ live JSON の STUB id 種類 : 586（総ノード 3177 件）
         生成: src\data\parsers\parseSentencePart2.ts:500
      2件   2枚  DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED
         カード: WX25-P2-003, WXDi-P05-004
-        生成: src\data\effectParser.ts:24387 / src\data\effectParser.ts:24396
+        生成: src\data\effectParser.ts:24429 / src\data\effectParser.ts:24438
      2件   2枚  DEFERRED_GUARD_ALT_COST_UNKNOWN
         カード: WX25-P1-071, WXDi-P06-006
         生成: src\data\parsers\parseSentencePart3.ts:190 / src\data\parsers\parseSentencePart3.ts:464
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:22895
+        生成: src\data\effectParser.ts:22937
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1682
@@ -167,7 +167,7 @@ live JSON の STUB id 種類 : 586（総ノード 3177 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GRANT_ALL_ZONE_TRAP_ICON
         カード: WXEX2-66
-        消費: src\engine\execUtils.ts:1380
+        消費: src\engine\execUtils.ts:1383
      1件   1枚  GRANT_QUOTED_ATTACK_FLIP
         カード: WXDi-P05-069
         消費: src\engine\effectEngine.ts:7866
@@ -203,7 +203,7 @@ live JSON の STUB id 種類 : 586（総ノード 3177 件）
         消費: src\screens\battle\costs.ts:1127
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1997
+        消費: src\engine\execUtils.ts:2000
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:8051

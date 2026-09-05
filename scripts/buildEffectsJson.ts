@@ -13,6 +13,7 @@ import Papa from 'papaparse';
 import { parseCardEffects, getSilentFallbackLog, enableSourceTextLog, getSourceTextLog } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { PRINTED_KEYWORD_COST_KEYS, printedKeywordCosts } from '../src/data/keywordCosts';
+import { parseHarmonyAbility } from '../src/data/effectParser';
 import type { CardData } from '../src/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +100,8 @@ const appearanceByCard = new Map<string, NonNullable<ReturnType<typeof parseCard
 // richness ガードが `manualEffects.ts` 側を温存したカードでも失われないよう fresh から独立して重ねる
 // （実測＝アンコール32枚中9枚・ベット68枚中21枚が先頭効果 MANUAL/PARTIAL＝重ねなければ静かに落ちる）。
 const printedCostByCard = new Map<string, ReturnType<typeof printedKeywordCosts>>();
+/** 🆕【ハーモニー】能力（§5.3 `O-257`）＝印字なので `appearanceCondition` と同じく最後に重ねる。 */
+const harmonyByCard = new Map<string, NonNullable<ReturnType<typeof parseHarmonyAbility>>>();
 let parsed = 0, unknown = 0;
 
 for (const r of rows) {
@@ -130,6 +133,8 @@ for (const r of rows) {
   const appearance = parsedEffects.find(e => e.appearanceCondition)?.appearanceCondition;
   if (appearance) appearanceByCard.set(card.CardNum, appearance);
   // 印字キーワードコストは**カード単位の事実**＝【出現条件】と同じく最後に重ねる（§5.3 `O-86`）。
+  const harmony = parseHarmonyAbility(card.CardNum, card.EffectText ?? '');
+  if (harmony) harmonyByCard.set(card.CardNum, harmony);
   const printedCosts = printedKeywordCosts(card.EffectText);
   if (Object.keys(printedCosts).length > 0) printedCostByCard.set(card.CardNum, printedCosts);
   const effects = mergeManualEffects(card.CardNum, parsedEffects);
@@ -316,6 +321,17 @@ for (const [id, printed] of printedCostByCard) {
     if (index !== 0) return effect.cost ? { ...effect, cost: restCost } : effect;
     return { ...effect, cost: { ...restCost, ...printed } };
   }) as ReturnType<typeof parseCardEffects>;
+}
+// 🆕**【ハーモニー】は印字（カード単位の事実）**＝【出現条件】と同じく**マージの後から重ねる**
+//   （2026-09-05・§5.3 `O-257`）。🔴fresh に任せると **MANUAL/PARTIAL を含むカード（実測4枚）で
+//   id 集合ズレとして温存され、能力が永久に載らない**（`_idset_fresh.json` に出るだけ）。
+// ⚠**先頭に置く**（`-HARMONY` は場に出たときの支払いなので、他の【出】より先に読ませたい）。
+// ⚠**既にあるなら差し替える**＝旧 build が別の形で刻んでいた残骸を残さない。
+for (const [id, harmony] of harmonyByCard) {
+  const effects = result[id];
+  if (!effects) continue;
+  const rest = effects.filter(e => e.effectId !== harmony.effectId);
+  result[id] = [harmony, ...rest] as ReturnType<typeof parseCardEffects>;
 }
 for (const [id, appearance] of appearanceByCard) {
   const effects = result[id];

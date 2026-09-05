@@ -28,9 +28,13 @@ export function payLrigDownCost(
   const paidCards: string[] = [];
   const levelOk = (stack?: string[]) => cost.level === undefined
     || Number(cardMap.get(getCardNum(stack?.at(-1) ?? ''))?.Level) === cost.level;
+  // 🆕**色限定**（2026-09-05・§5.3 `O-257`＝【ハーモニー】「〈色〉のルリグN体をダウン」）。
+  // ⚠**`includes` で見る**＝多色ルリグの `Color` は `白青` のように連結されるので完全一致だと外れる。
+  const colorOk = (stack?: string[]) => cost.color === undefined
+    || (cardMap.get(getCardNum(stack?.at(-1) ?? ''))?.Color ?? '').includes(cost.color);
   const pay = (stack: string[] | undefined, down: boolean | undefined, markDown: () => void) => {
     const top = stack?.at(-1);
-    if (remaining <= 0 || !top || down || !levelOk(stack)) return;
+    if (remaining <= 0 || !top || down || !levelOk(stack) || !colorOk(stack)) return;
     markDown();
     paidCards.push(top);
     remaining--;

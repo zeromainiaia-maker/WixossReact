@@ -19334,6 +19334,48 @@ function splitEffectBlocks(text: string): string[] {
   return normalized.split(/(?<=。|。」)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム|絆)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
 }
 
+/**
+ * 🆕**【ハーモニー】を1つの `AUTO / ON_PLAY` 能力として組む**（2026-09-05・§5.3 `O-257`・実測12枚）。
+ *
+ * 原文＝「【ハーモニー】〈色〉のルリグN体（このシグニが場に出たとき、あなたの**アップ状態の**
+ * 〈色〉のルリグN体を**ダウンしないかぎり、これをダウンする**）」。
+ *
+ * 🔴**旧＝parser が接頭辞を捨てるだけで engine にも UI にも実装が無かった**＝
+ *   出しても何も起きない（ルリグのダウンを要求もしないし、払わなくても自分がダウンしない）＝**過剰実行**。
+ * 🔑**受け皿は全部あった**＝`STUB{OPTIONAL_COST}` の `lrigDown` 軸（可否＝`payLrigDownCost`／
+ *   支払い＝`INTERNAL_PAY_LRIG_DOWN`）＋ `unlessPay`（「支払わないかぎり」形の文言反転）＋
+ *   `CONDITIONAL{PAID_ADDITIONAL_COST}` の pay/skip 分岐。足したのは **`lrigDown.color`** だけ。
+ * ⚠**出現条件ではない**（【ライズ】と違って召喚は常にできる）＝`getRiseRequirement` の側へ足さない。
+ * ⚠**注釈は `stripRuleParens` で落ちる**ので、**素の `card.EffectText`** から読む。
+ */
+export function parseHarmonyAbility(cardNum: string, effectText: string): CardEffect | null {
+  const m = (effectText ?? '').match(/^【ハーモニー】([白赤青緑黒])?の?ルリグ([０-９\d一二三四五六七八九]+)体/);
+  if (!m) return null;
+  const count = parseNum(m[2]);
+  if (!Number.isFinite(count) || count <= 0) return null;
+  return {
+    effectId: `${cardNum}-HARMONY`,
+    effectType: 'AUTO',
+    timing: ['ON_PLAY'],
+    triggerScope: 'self',
+    action: {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', unlessPay: true,
+          lrigDown: { count, ...(m[1] ? { color: m[1] } : {}) } } as EffectAction,
+        // pay → 何も起きない／skip → **このシグニをダウンする**（原文「ダウンしないかぎり、これをダウンする」）。
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+          then: { type: 'SEQUENCE', steps: [] },
+          else: { type: 'DOWN', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
+        } as EffectAction,
+      ],
+    } as EffectAction,
+    duration: 'INSTANT',
+    mandatory: true,
+    parseStatus: 'AUTO',
+  } as CardEffect;
+}
+
 // 効果ではないキーワード接頭辞（ライズ条件・ハーモニー条件等）を除去する
 // （【レイヤー】はparseCardEffects内のextractLayerGrantで先に処理される）
 function stripKeywordPrefixes(text: string): string {
@@ -25827,6 +25869,14 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
       const layerAbilities: CardEffect[] = [];
       const layerBlocks: string[] = [];
+      // 🆕**【ハーモニー】は接頭辞を捨てる前に能力へ組む**（§5.3 `O-257`）＝
+      //   `stripKeywordPrefixes` が `/^【ハーモニー】[^【]*/` で丸ごと落としてしまうため、その前に読む。
+      //   ⚠**素の `card.EffectText`** から読む（注釈は `stripRuleParens` で既に落ちている）。
+      const harmonyEffect = parseHarmonyAbility(card.CardNum, card.EffectText ?? '');
+      if (harmonyEffect) {
+        logSourceText(harmonyEffect.effectId, (card.EffectText ?? '').match(/^【ハーモニー】[^【]*/)?.[0] ?? '');
+        effects.push(harmonyEffect);
+      }
       const allBlocks = splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText)));
       // 印刷済み【チーム】宣言は、直後以外も含む各【チーム自／起／出】能力の有効条件。
       // 能力本文やカード番号では分岐せず、宣言されたチーム名と能力ブロックのマーカーだけを結ぶ。

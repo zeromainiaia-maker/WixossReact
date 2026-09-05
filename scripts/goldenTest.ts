@@ -101,7 +101,7 @@ import { grantedEffectsOf } from '../src/engine/grantedStore';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
 import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
-import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
+import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import {
   EMPTY_RISE_SELECTION, canPayRiseField, findRiseFieldAssignment, riseConsumedZones, validateRiseField,
 } from '../src/screens/battle/riseSummon';
@@ -33585,7 +33585,10 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1454→1455＝2026-08-31 census 第6弾で `WX17-002-E1` を2能力へ割った分（原文ブロックが
     //   【常】グロウ制限 ＋【出】カードを２枚引く の**2能力ぶん**で、live は「【常】の枠で毎回ドロー2」に
     //   化けていた）。新設した `WX17-002-E1b`（AUTO / ON_PLAY / mandatory・条件なし）がこの集合へ入る。
-    eq(eligible.length, 1455, '段階2 mandatory集合');
+    // 🆕1455→1467＝2026-09-05（§5.3 `O-257`）で【ハーモニー】**12枚**に
+    //   `AUTO / ON_PLAY / mandatory` の能力（「〈色〉のルリグをダウンしないかぎり、これをダウンする」）を
+    //   足した分。⚠**任意なのは中の支払いだけ**で能力自体は強制なので、この集合に入るのが正しい。
+    eq(eligible.length, 1467, '段階2 mandatory集合');
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
     // 🆕1396→1395 / 58→59＝2026-08-30 §5.2 カード単位バッチ第1回で `WDK05-T14-E1` に
@@ -33597,7 +33600,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 🆕1395→1393 / 60→62＝2026-09-02（索引 B 第2巡・§5.3 `O-138`）＝`WX13-006B-E1` / `WX14-006B-E1` に
     //   「対戦相手のチェックゾーンにスペルがある場合」の条件が付いた分（**集合の総数は動かない**＝
     //   条件なし側から条件あり側へ2件移っただけ。旧は条件が落ちていて**空でも撃てた**）。
-    eq(eligible.length - conditional.length, 1393, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    // 🆕1393→1405＝2026-09-05（§5.3 `O-257`）の【ハーモニー】12枚（条件は持たず、
+    //   支払うかどうかは解決中の `OPTIONAL_COST` が問う）＝**条件なし側**へ入る。
+    eq(eligible.length - conditional.length, 1405, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
     eq(conditional.length, 62, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     // 🆕2026-09-01 続き767＝`energyTrashGroups` を語彙化して `WXK03-070-E1` の costUnparsed を解いたので +1。
     // 🆕962→964＝2026-09-02（§5.3 `O-201`）で `WXDi-P12-031-E2`（`discardAll`＋`energyTrashAll`）と
@@ -68083,6 +68088,88 @@ test('§5.3 O-258: 「このスペルを手札に戻す」は使用中のカー�
   const placed = finalizeUsedCardPlacement(r.ownerState, SPELL, 'trash');
   ok(!placed.trash.includes(SPELL),
      '🔴手札へ戻したカードを既定ゾーンへも置かない（手札とトラッシュに二重で現れる事故）');
+}));
+
+// ═══ §5.3 `O-259`＝コスト句のマーカーだけ有って payload が無い効果を逆翻訳で可視化（2026-09-05）═══
+// 🔴`STUB{ARTS_COST_REDUCTION_BY_*}` / `CONDITIONAL_ARTS_COST` の逆翻訳は**原文のコスト文をそのまま貼る**ので、
+//   **何も構造化できていない効果でも「実装済み」に読める**（`O-252` と同じ罠の「payload が空の側」）。
+//   ⇒ payload（`costScaling` / `costReplacement` / `useTimeCost` / `optionalDiscardCost`）が
+//   1つも無いときだけ `【※コスト未構造化】` を付ける。
+test('§5.3 O-259: コストのマーカーだけ有って payload が無い効果を数える（ラチェット）', () => {
+  const MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'ARTS_COST_REDUCTION_BY_CENTER_LRIG',
+    'CONDITIONAL_ARTS_COST', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
+  const hasMarker = (node: unknown): boolean => {
+    if (Array.isArray(node)) return node.some(hasMarker);
+    if (!node || typeof node !== 'object') return false;
+    const o = node as Record<string, unknown>;
+    if (o.type === 'STUB' && typeof o.id === 'string' && MARKERS.has(o.id)) return true;
+    return Object.values(o).some(hasMarker);
+  };
+  const naked: string[] = [];
+  let withMarker = 0;
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      if (!hasMarker(e.action)) continue;
+      withMarker++;
+      const c = (e.cost ?? {}) as Record<string, unknown>;
+      const payload = ['costScaling', 'costReplacement', 'useTimeCost', 'optionalDiscardCost']
+        .some(k => { const v = c[k]; return Array.isArray(v) ? v.length > 0 : v !== undefined; });
+      if (!payload) naked.push(e.effectId);
+    }
+  }
+  ok(withMarker >= 90, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
+  // 🔴**この数はコスト句が本当に未実装な効果の数**＝減ったら実数へ下げる／増えたら新しい穴。
+  eq(naked.length, 16, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
+  // 逆翻訳が「未構造化」であることを明示する（この印が無いと計器が実装済みと嘘をつく）
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(dec.includes("const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';"),
+     '🔴payload が無いときだけ「未構造化」と明示する（payload がある効果には付けない）');
+});
+
+// ═══ §5.3 `O-257`＝【ハーモニー】が engine にも UI にも無かった（2026-09-05・12枚）═══
+// 原文「【ハーモニー】〈色〉のルリグN体（このシグニが場に出たとき、あなたの**アップ状態の**〈色〉のルリグN体を
+// **ダウンしないかぎり、これをダウンする**）」。
+// 🔴旧＝parser が接頭辞を捨てるだけで、**出しても何も起きなかった**（払わなくても自分がダウンしない＝過剰実行）。
+// 🔑受け皿は既存の `STUB{OPTIONAL_COST}`＋`lrigDown`＋`unlessPay`＋`CONDITIONAL{PAID_ADDITIONAL_COST}`。
+//   足したのは **`lrigDown.color`** だけ（＋印字なのでマージ後に重ねる経路）。
+// ⚠**`withSavedCursor` で包む**＝この中で `mkState({})` を呼ぶと共有 POOL カーソルが進み、
+//   **後続テストが引くカードが変わる**（実測＝`WXDi-CP02-036-E1` の E2E が 1体残って FAIL した）。
+test('§5.3 O-257: 【ハーモニー】12枚が ON_PLAY の任意コストとして live に載る', () => withSavedCursor(() => {
+  const users: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    if (effs.some(e => e.effectId === `${cardNum}-HARMONY`)) users.push(cardNum);
+  }
+  eq(users.sort().join(','),
+     'WXDi-D09-P16,WXDi-P02-035,WXDi-P02-038,WXDi-P02-042,WXDi-P02-043,WXDi-P02-046,'
+     + 'WXDi-P03-035,WXDi-P03-042,WXDi-P03-044,WXDi-P04-034,WXDi-P04-036,WXDi-P12-055',
+     '【ハーモニー】を持つ12枚すべてに能力が載る（`WXDi-P07-041` は綴りが違うだけの偽陽性＝入らない）');
+  // 🔴**印字なのでマージの後から重ねる**＝MANUAL/PARTIAL を含むカード（実測4枚）でも落ちない。
+  const build = fs.readFileSync(join(root, 'scripts/buildEffectsJson.ts'), 'utf8');
+  ok(build.includes('for (const [id, harmony] of harmonyByCard) {'),
+     '🔴fresh 任せにしない（id 集合ズレで温存され永久に載らないカードが出る）');
+  // 形の契約＝任意コスト（ルリグをダウン）→ 払わなければ自分をダウン
+  const h = (effectsMap.get('WXDi-P02-035') ?? []).find(e => e.effectId === 'WXDi-P02-035-HARMONY')!;
+  eq(h.effectType, 'AUTO', '【ハーモニー】は出現条件ではなく ON_PLAY の能力（召喚自体は止めない）');
+  eq(JSON.stringify(h.timing), '["ON_PLAY"]', '場に出たとき');
+  const steps = (h.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+  const opt = steps[0] as unknown as { id?: string; unlessPay?: boolean; lrigDown?: { count: number; color?: string } };
+  eq(opt.id, 'OPTIONAL_COST', '任意コストの口');
+  eq(opt.unlessPay, true, '🔴「支払わないかぎり」形＝UI の文言も反転する（払わない方が得に見えない）');
+  eq(JSON.stringify(opt.lrigDown), '{"count":1,"color":"赤"}', '赤のルリグ1体をダウン');
+  const cond = steps[1] as unknown as { condition?: { type?: string }; else?: { type?: string } };
+  eq(cond.condition?.type, 'PAID_ADDITIONAL_COST', '支払ったかで分岐');
+  eq(cond.else?.type, 'DOWN', '🔴払わなかった側（else）で**このシグニをダウン**する');
+  // 色限定が支払い可否に効く（`payLrigDownCost`）＝色違いのルリグでは払えない
+  const mkLrig = (num: string): PlayerState => {
+    const base = mkState({});
+    return { ...base, field: { ...base.field, lrig: [num], lrig_down: false } } as PlayerState;
+  };
+  const red = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤') && c.Level === '4');
+  const white = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '') === '白' && c.Level === '4');
+  ok(!!payLrigDownCost(mkLrig(red), { count: 1, color: '赤' }, cardMap), '赤のルリグなら払える');
+  ok(!payLrigDownCost(mkLrig(white), { count: 1, color: '赤' }, cardMap),
+     '🔴白のルリグでは払えない（色限定が効いている＝無条件で払えるへ倒れていない）');
+  ok(!!payLrigDownCost(mkLrig(white), { count: 1 }, cardMap), '色指定が無ければ色は問わない（既存の挙動を変えていない）');
 }));
 
 if (listMode) {

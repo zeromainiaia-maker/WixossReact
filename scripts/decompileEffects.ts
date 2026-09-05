@@ -106,6 +106,15 @@ let currentEffectText = '';
  *   （2026-09-05 に実測＝`WX11-015` の「この方法で3枚以上捨てた場合」の `CONDITIONAL` が丸ごと消えた）。
  */
 let currentEffectHasCostReplacement = false;
+/**
+ * 🆕**いま描いている効果が「コストの payload」を1つでも持つか**（2026-09-05・§5.3 `O-259`）。
+ *
+ * 🔴`STUB{ARTS_COST_REDUCTION_BY_*}` / `CONDITIONAL_ARTS_COST` の分岐は**原文のコスト文をそのまま貼る**ので、
+ * **何も構造化できていない効果でも「実装済みに見える」**（`O-252` と同じ罠の、payload が空の側）。
+ * 実測 **16効果**が「マーカーだけ有って `costScaling` も `costReplacement` も `useTimeCost` も
+ * `optionalDiscardCost` も無い」＝**コスト句が本当に未実装**。⇒ そのときだけ `【※コスト未構造化】` を付ける。
+ */
+let currentEffectHasCostPayload = false;
 
 // §5b Opusタスク(A)：付与系 action の action内 duration が curated JSON で落ちている（PERMANENT/未設定）場合に、
 // 原文の該当付与文へ期間句（ターン終了時まで／次の相手のターン終了時まで）があれば注記を復元する。
@@ -2179,6 +2188,10 @@ function actionJa(a?: Action, effectType?: string): string {
           : oc.handDiscard ? `手札を${numJa(oc.handDiscard.count)}枚捨て`
           : oc.energyTrash ? `エナゾーンからカードを${numJa(oc.energyTrash.count)}枚トラッシュに置か`
           : oc.costText ? `${oc.costText}を行わ`
+          // 🆕§5.3 `O-257`（2026-09-05）＝【ハーモニー】の「〈色〉のルリグN体をダウンしないかぎり」。
+          //   🔴書かないと「**コストを**支払わないかぎり」という**何を払うのか分からない**文になり、
+          //   原文照合が通らないうえ「払う先はルリグ」という一番大事な情報が消える。
+          : oc.lrigDown ? `あなたのアップ状態の${oc.lrigDown.color ? `${oc.lrigDown.color}の` : ''}${oc.lrigDown.centerOnly ? 'センター' : ''}ルリグ${numJa(oc.lrigDown.count)}体をダウンし`
           : 'コストを支払わ';
         return `${costJa}ないかぎり、${actionJa(a.steps[1].else)}`;
       }
@@ -3059,12 +3072,17 @@ function actionJa(a?: Action, effectType?: string): string {
         // タスク12(lxxxv)：支払いステップを action から落とした31枚は、支払い文が action に無い。
         // 逆翻訳で「支払いが消えた」と読めてしまうので、**使用時に払う**ことを明示して復元する
         // （実際の支払いUIは `src/screens/battle/useTimeCost.ts` ＋ SpellCastModal / ArtsModal）。
+        // 🆕**payload が1つも無いなら「未構造化」と明示する**（2026-09-05・§5.3 `O-259`・実測16効果）＝
+        //   この分岐は原文をそのまま貼るので、**何も実装できていない効果でも実装済みに見える**
+        //   （`O-252` と同じ罠の「payload が空の側」）。⚠**payload がある効果には付けない**
+        //   ＝`useTimeCost` は下の復元が正しい表示、`costScaling`/`costReplacement` は別の枝が描く。
+        const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';
         if (costSents.length > 0 && parseUseTimeCostReductionText(currentCardText)) {
           const paySent = currentCardText.split('。').map(s => s.trim())
             .find(s => /を使用する際/.test(s));
-          if (paySent) return `（使用時に支払う）${paySent}。${costSents.join('。')}`;
+          if (paySent) return `${costUnstructured}（使用時に支払う）${paySent}。${costSents.join('。')}`;
         }
-        if (costSents.length > 0) return costSents.join('。');
+        if (costSents.length > 0) return `${costUnstructured}${costSents.join('。')}`;
         // 抽出不能（コスト色無視/エナコスト代替/グロウコスト/ライフ枚数条件等の別記述）は従来マーカーにフォールバック
       }
       // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
@@ -5892,11 +5910,15 @@ function renderCards(ids: string[]): string {
     for (const e of effs) {
       // restoreLeadDuration の探索範囲を当該効果の原文セクションに絞る（BURST は BurstText・他は EffectText）。
       currentEffectText = /BURST/.test(e.effectId) ? (card?.BurstText ?? '') : (card?.EffectText ?? '');
-      currentEffectHasCostReplacement = !!(e as { cost?: { costReplacement?: unknown[] } }).cost?.costReplacement?.length;
+      const eCost = (e as { cost?: Record<string, unknown> }).cost ?? {};
+      currentEffectHasCostReplacement = !!(eCost.costReplacement as unknown[] | undefined)?.length;
+      currentEffectHasCostPayload = ['costScaling', 'costReplacement', 'useTimeCost', 'optionalDiscardCost']
+        .some(k => { const v = eCost[k]; return Array.isArray(v) ? v.length > 0 : v !== undefined; });
       out.push(`  ${e.effectId}: ${effJa(e)}`);
     }
     currentEffectText = '';
     currentEffectHasCostReplacement = false;
+    currentEffectHasCostPayload = false;
     currentCardName = '';
   }
   out.push('\n' + '='.repeat(78));
