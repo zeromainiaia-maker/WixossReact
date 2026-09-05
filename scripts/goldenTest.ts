@@ -67104,6 +67104,37 @@ test('§5.3 held 第141: 条件節ガードは「対象指定より前のクラ�
     JSON.stringify({}), '🔴 反転：トリガー節のクラスは落とし続ける');
 });
 
+// 🆕**第142バッチ＝held（収穫マージの温存キュー）から「明確な改善」だけを効果単位で採用した**（2026-09-05）。
+// 🔑**held は「parser 改善の未採用」ではなく「live と fresh が食い違っている」箱**＝**両向きが混ざっている**。
+//   この巡で全68枚を目視し、**live が誤りで fresh が正しい4枚だけ**を採った（残りは fresh 側の退化なので採らない）。
+test('§5.3 held 第142: デッキの「下から」と相手デッキのミルが live で逆になっていた', () => {
+  // ① 🔴**原文「デッキの下から」が live では上からになっていた**（`TRASH{DECK_CARD}` は先頭から削る）。
+  //    正準形は `MILL{fromBottom:true}`（engine 実装は `effectExecutor.ts:8922`）。母集団は原文全数で6効果、
+  //    そのうち**逆翻訳が「上から」と出ていたのはこの2件だけ**（残り4件は既に正しい）。
+  for (const [card, id, count] of [['WDK05-R11', 'WDK05-R11-E1', 2], ['WXK03-025', 'WXK03-025-E1', 4]] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === id);
+    ok(!!e, `${id} が live にある`); if (!e) return;
+    const json = JSON.stringify(e.action);
+    ok(json.includes('"MILL"') && json.includes('"fromBottom":true'),
+      `🔴 ${id}: 「デッキの下から」は MILL{fromBottom:true}（TRASH{DECK_CARD}＝上からではない）`);
+    ok(json.includes(`"count":${count}`), `${id}: 枚数 ${count}`);
+  }
+
+  // ② 🔴**「対戦相手のデッキの一番上のカードをトラッシュに置く」が自分のデッキを削っていた**。
+  const k40 = (effectsMap.get('WXK06-040') ?? []).find(e => e.effectId === 'WXK06-040-E1');
+  ok(!!k40, 'WXK06-040-E1 が live にある'); if (!k40) return;
+  const millStep = (k40.action as SequenceAction).steps[1] as unknown as Record<string, unknown>;
+  eq(millStep.type, 'TRASH', 'WXK06-040: 2番目のステップはデッキ削り');
+  eq((millStep.target as Record<string, unknown>).owner, 'opponent',
+    '🔴 WXK06-040: 削るのは対戦相手のデッキ（live は self ＝自分のデッキを削っていた）');
+
+  // ③ **「そうでない場合、それをデッキの一番下に置いてもよい」＝上のままでも下でもよい**＝`split_top_bottom`。
+  const k50 = (effectsMap.get('WXK03-050') ?? []).find(e => e.effectId === 'WXK03-050-E1');
+  ok(!!k50, 'WXK03-050-E1 が live にある'); if (!k50) return;
+  ok(JSON.stringify(k50.action).includes('"split_top_bottom"'),
+    'WXK03-050: 任意の「一番下に置いてもよい」は split_top_bottom（bottom 固定ではない）');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

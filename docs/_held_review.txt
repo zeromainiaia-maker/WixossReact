@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［41枚］
-SP27-009 SP38-006 WD07-006 WD19-009 WX13-031 WX17-009 WX22-044 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-071 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-003 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WX26-CP1-055 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-P00-068 WXDi-P02-018 WXDi-P05-004 WXDi-P06-006 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P11-064 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK03-050 WXK06-040 WXK08-056 WXK09-040 WXK11-026
+## （type増減なし＝値/構造変更） ［39枚］
+SP27-009 SP38-006 WD07-006 WD19-009 WX13-031 WX17-009 WX22-044 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-071 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-003 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WX26-CP1-055 WXDi-CP01-006 WXDi-CP02-050 WXDi-D06-010 WXDi-P00-068 WXDi-P02-018 WXDi-P05-004 WXDi-P06-006 WXDi-P06-011 WXDi-P08-072 WXDi-P09-005 WXDi-P11-064 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK08-056 WXK09-040 WXK11-026
 --- SP27-009
   原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から＜天使＞か＜悪魔＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。,-
   - [0].action.filter.cardClass[0] = "天使"
@@ -121,28 +121,6 @@ WX25-P2-001 WXK10-050
   + [1].action.target.count = 2
   + [1].action.target.upToCount = true
   …（他 2 行）
-
-## +MILL -DECK_CARD -TRASH ［2枚］
-WDK05-R11 WXK03-025
---- WDK05-R11
-  原文: 【自】：このシグニがアタックしたとき、《青》を支払ってもよい。そうした場合、あなたのデッキの下からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計と同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。,：対戦相手のシグニ１体を対象とし、それをダウンする。カードを１枚引く。
-  - [0].action.steps[1].then.target.type = "DECK_CARD"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 2
-  ~ [0].action.steps[1].then.type : "TRASH" → "MILL"
-  + [0].action.steps[1].then.owner = "self"
-  + [0].action.steps[1].then.count = 2
-  + [0].action.steps[1].then.fromBottom = true
---- WXK03-025
-  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを４枚トラッシュに置く。この方法でそれぞれレベルの異なるシグニ４枚がトラッシュに置かれた場合、対戦相手は手札を２枚捨てる。【出】：対戦相手の場にある凍結状態のシグニ１体につきカードを１枚引く。この方法で引いたカードの枚数と同じ枚数のカードを手札から好きな順番でデッキの一番下に置く。,：対戦相手
-  - [0].action.steps[0].target.type = "DECK_CARD"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 4
-  ~ [0].action.steps[0].type : "TRASH" → "MILL"
-  + [0].action.steps[0].owner = "self"
-  + [0].action.steps[0].count = 4
-  + [0].action.steps[0].fromBottom = true
-  + [0].action.steps[1].then.target.selectionConstraint.distinct = "level"
 
 ## +DECK_CARD×2 +SEQUENCE×2 +TRASH×2 +UNKNOWN -STUB ［1枚］
 WX12-037

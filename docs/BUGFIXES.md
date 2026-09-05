@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第142バッチ）：**held を全数目視して「live が誤りで fresh が正しい」4効果だけを採用した**（デッキの向き2件・ミルの所有者1件）
+
+**ベースライン**＝`363eed171`（第141の直後）。
+**gates 全緑**（typecheck・golden **3480/3480**＝3479 +1本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機要否**＝§2.2 の機械判定どおり **`public/data/` と `scripts/goldenTest.ts` しか触っていない**＝**④まででよい**。
+**在庫**＝held **68枚 → 64枚**。
+
+### 🔑 この巡で確定したこと＝**`held` は「parser 改善の未採用」ではなく「live と fresh が食い違っている箱」**
+
+CLAUDE.md／`census:cards` はこのフラグを「parser 改善の未採用」と書いているが、**全68枚を目視した実測では両向きが混ざっている**。
+
+| 向き | 件数の感触 | 例 |
+|---|---|---|
+| **fresh が正しい（live の誤り）** | **4効果**（この巡で採用） | 下記 |
+| **fresh が退化**（live が正しい＝温存が仕事をしている） | 多数 | `WXK01-020`（「１枚以下」の `lte` が `eq` に）／`WXK01-044`（`levelParity:"even"` 脱落）／`WXK03-006`（`levelEqLastProcessed` 脱落）／`WXDi-P11-064`（`thisCardOnly` → 他シグニ）／`WXDi-P00-040`（`TRASH_HAS_CARD{distinctClasses}` 脱落）／`WXEX2-09`（STUB → `UNKNOWN`）／`WX17-005`（ベット分岐が `DECLARE_CARD_NAME` に化ける） |
+
+⇒ **`--adopt-sig`（署名グループ一括採用）は使えない**＝同じ署名の中に両向きが入る。**1枚ずつ原文と突き合わせる。**
+
+### 採用した4効果（すべて **live の実挙動が原文と逆／別物**だった）
+
+| 効果 | 原文 | live（誤） | fresh（正） |
+|---|---|---|---|
+| `WDK05-R11-E1` | 「あなたのデッキの**下から**カードを２枚トラッシュに置く」 | `TRASH{DECK_CARD}`＝**上から**削る | `MILL{fromBottom:true}` |
+| `WXK03-025-E1` | 同上（４枚） | 同上 | 同上＋`selectionConstraint.distinct:"level"` |
+| `WXK06-040-E1` | 「**対戦相手の**デッキの一番上のカードをトラッシュに置く」 | `owner:"self"`＝**自分のデッキ**を削っていた | `owner:"opponent"` |
+| `WXK03-050-E1` | 「そうでない場合、それをデッキの一番下に置いて**もよい**」 | `remainder.position:"bottom"`＝**必ず下**へ | `"split_top_bottom"`（上のままでも下でもよい） |
+
+**母集団の実測**＝「デッキの下から」は原文全数で **6効果/6カード**。逆翻訳を読むと**「上から」と出ていたのは上の2件だけ**
+（`WDK05-R14-E2`／`WXK03-068-E1`／`WXK05-025-E2` は既に正しく、`WXK03-039-E1` は STUB の説明文に「下から」が入っている）。
+
+### 教訓
+
+- 🔴**`held` を件数で語らない**＝「74枚の parser 改善が眠っている」ではない。**多数は温存が正しく効いている**。
+  減らし方は**採用**だけでなく**parser の退化を直すこと**（第141がその形＝5枚が差分ごと消えた）。
+- 🔑**逆翻訳は held の判定に効く**＝`census:population` で原文の全数を出し、**逆翻訳が原文と逆を言っている行**を探すと
+  「live が誤っている側」が機械的に絞れる（この巡は 6効果 → 2効果に絞れた）。
+
+### 検証コマンド
+
+```
+npm run golden -- --only "第142"
+npm run gates                      # 全緑（golden 3480/3480）
+npm run census:population -- "デッキの下から"
+```
+
 ## 2026-09-05（第141バッチ）：**`parseStoryFilter` の「先頭条件節ガード」が過剰発火していた**（held に5枚の退化として溜まっていた）
 
 **ベースライン**＝`780ebb4d2`（第140＝`O-187` クローズの直後）。
