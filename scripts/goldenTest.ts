@@ -67179,7 +67179,40 @@ test('§5.3 held 第143: 引用能力の《ターン1回》をコスト句と誤
   //    トップレベルの《クロスアイコン》族はこの巡では触っていない。
   const cross = (effectsMap.get('WX25-P1-072') ?? []).find(e => e.effectId === 'WX25-P1-072-E1');
   ok(!!cross, 'WX25-P1-072-E1 が live にある'); if (!cross) return;
-  eq(cross.costUnparsed, true, '🔴 トップレベルの costUnparsed はこの巡で落としていない（別軸）');
+  eq(cross.costUnparsed, undefined,
+    '🆕 第144でトップレベル側（《クロスアイコン》のカード名／【絆自】の《ターン1回》）も落とした');
+});
+
+// 🆕**第144バッチ＝トップレベルの偽 `costUnparsed`（《クロスアイコン》族・【絆自】）と、
+//   ライフバーストの「そのシグニゾーン」参照**（2026-09-05・held 由来）。
+test('§5.3 held 第144: クロス条件のカード名をコスト句と誤認しない／「そのシグニゾーン」は designated', () => {
+  // ① 🔴**`《クロスアイコン》《轟左砲　ドーラ》の右…` の**カード名**をコスト句と誤認していた**。
+  //    【クロス自】は AUTO なので提示自体は起きるが、`costUnparsed` は
+  //    `wrapOptionalOnPlay` / `signiActivateGate` / `attackResponse` の**収集を止める印**なので残さない。
+  for (const [card, id] of [
+    ['WX13-031', 'WX13-031-E2'], ['WX25-P1-072', 'WX25-P1-072-E1'],
+    ['WX25-P1-073', 'WX25-P1-073-E1'], ['WX25-P1-076', 'WX25-P1-076-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === id);
+    ok(!!e, `${id} が live にある`); if (!e) continue;
+    eq(e.costUnparsed, undefined, `🔴 ${id}: クロス条件のカード名はコスト句ではない`);
+  }
+  // ② **【絆自】の《ターン1回》**＝同じ偽陽性。併せてトリガー範囲も入った。
+  const c80 = (effectsMap.get('WX25-CP1-080') ?? []).find(e => e.effectId === 'WX25-CP1-080-E2');
+  ok(!!c80, 'WX25-CP1-080-E2 が live にある'); if (!c80) return;
+  eq(c80.costUnparsed, undefined, '🔴 WX25-CP1-080-E2: 【絆自】の《ターン1回》はコスト句ではない');
+  eq(c80.triggerScope, 'self', 'WX25-CP1-080-E2: 「このシグニが…クラッシュしたとき」は self');
+
+  // ③ 🔴**「そのシグニゾーンにあるシグニ」＝直前に指定したゾーン**（`zoneSource:'designated'`）。
+  //    live は `owner:'any', count:1`＝**どのシグニでもよい1体**になっており、
+  //    ウィルスを置いたゾーンと無関係のシグニのパワーを下げていた。
+  const w09 = (effectsMap.get('WD19-009') ?? []).find(e => e.effectId === 'WD19-009-BURST');
+  ok(!!w09, 'WD19-009-BURST が live にある'); if (!w09) return;
+  const powStep = (w09.action as SequenceAction).steps[1] as unknown as Record<string, unknown>;
+  const pt = powStep.target as Record<string, unknown>;
+  eq(pt.zoneSource, 'designated', '🔴 WD19-009-BURST: 対象は「そのシグニゾーン」に限る');
+  eq(pt.owner, 'opponent', 'WD19-009-BURST: 対戦相手側のゾーン');
+  eq(pt.count, 'ALL', 'WD19-009-BURST: そのゾーンにあるシグニ（count は ALL＋zoneSource で1体に絞られる）');
 });
 
 if (listMode) {
