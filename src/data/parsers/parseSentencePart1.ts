@@ -3895,8 +3895,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- チアガール変換 ----
   if (t.includes('チアガールにする')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    // 🔴**2026-09-05 第150バッチ＝「このシグニ」枝が owner を self にするだけで `thisCardOnly` を
+    //   刻んでいなかった**＝`WXEX2-30-E2`「【出】《白》：**この**シグニをチアガールにする」が
+    //   **自分のシグニなら誰でも選べる**過剰対象化になっていた（チアガールはフリーゾーンへ移す＝
+    //   シグニゾーンを1つ空ける強い効果なので、対象が自由だと別のカードだった）。
     const target: EffectTarget = t.includes('このシグニ')
-      ? { type: 'SIGNI', owner: 'self', count: 1 }
+      ? { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }
       : { type: 'SIGNI', owner, count: 1 };
     return { type: 'GRANT_KEYWORD', target, keyword: 'チアガール', duration: 'PERMANENT' };
   }

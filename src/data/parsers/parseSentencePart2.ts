@@ -2519,7 +2519,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- ライズシグニが場を離れる際にその下のカードをトラッシュ ----
-  if (t.match(/アタックフェイズの間.*《ライズアイコン》を持つあなたのシグニが.*場を離れる場合.*その下からすべてのカード/)) {
+  // 🔴**2026-09-05 第150バッチ＝前置き「アタックフェイズの間、」を必須にしていたせいで規則が死んでいた。**
+  //   上流が「アタックフェイズの間、」を `activeCondition:{type:'DURING_ATTACK_PHASE'}` へ**持ち上げて剥がす**
+  //   ようになったので、ここへ来る文からその語は消える。⇒ **`UNKNOWN` に落ちて置換が丸ごと効かなくなっていた**
+  //   （`WXEX2-09-E1`＝原文1枚）。期間は `activeCondition` 側が持つので、ここでは主語と帰結だけを見る。
+  if (t.match(/《ライズアイコン》を持つあなたのシグニが.*場を離れる場合.*その下からすべてのカード/)) {
     return { type: 'STUB', id: 'RISE_LEAVE_DISCARD_STACK' } as StubAction;
   }
 

@@ -5615,7 +5615,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
       }
       const allOppGrantM = t60.match(
         /^ターン終了時まで[、,]対戦相手のすべてのシグニは「(【[自出起常]】[\s\S]+)」を得る$/);
-      if (allOppGrantM) {
+      // 🔴**「アタックできない」系の引用はここで受けない**（2026-09-05 第151バッチ）＝
+      //   この汎用 `GRANT_EFFECT{rawText}` は `expandGrantEffectRawTexts` が引用を CardEffect へ展開できたときだけ
+      //   意味を持つが、「【常】：アタックできない。」は展開されず `rawText` のまま `PARTIAL` に留まる＝
+      //   **engine の no-op ガードに落ちてアタック禁止が一度も効かない**（`WX24-P3-002-E1`）。
+      //   この文型には**専用の受け皿が2つ実装済み**（多数派102効果の `GRANT_KEYWORD{'アタックできない'}` と、
+      //   支払い回避つきの `SIGNI_ATTACK_BAN{unlessPayColorless}`）ので、そちらへ譲る。
+      if (allOppGrantM && !/アタックできない/.test(allOppGrantM[1])) {
         return {
           type: 'GRANT_EFFECT',
           target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
@@ -11899,7 +11905,14 @@ function applyThisWayTrashOutcomeGuards(text: string, action: EffectAction): Eff
     if (repeatM && steps.length === 2 && inner?.type === 'SEQUENCE' && inner.steps.length === 2
         && isDeckTrash(inner.steps[0], 'self', parseNum(repeatM[1]))
         && isDeckTrash(inner.steps[1], 'opponent', parseNum(repeatM[1]))
-        && steps[1]?.type === 'STUB' && steps[1].id === 'CONDITIONAL_PER_TRASH') {
+        // 🔴**2026-09-05 第150バッチ＝受け側の catch-all が撤去されて畳み込みが死んでいた。**
+        //   `O-60` 第74バッチが `STUB{CONDITIONAL_PER_TRASH}`（原文から閾値を読んで1枚ドローする近似）を
+        //   撤去した結果、ここの守り `steps[1].id === 'CONDITIONAL_PER_TRASH'` が**二度と成立せず**、
+        //   `WX12-037-E2` は payload（`millEachRepeatOnName`）を失って**繰り返しが丸ごと消えた**
+        //   （＝両者のミルが1回しか起きない過小実行）。⇒ **撤去後の姿である `UNKNOWN` も受ける。**
+        //   ⚠この畳み込みの本体は上の**原文 regex**（カード名まで固定）なので、受け側を緩めても広がらない。
+        && (steps[1]?.type === 'UNKNOWN'
+          || (steps[1]?.type === 'STUB' && steps[1].id === 'CONDITIONAL_PER_TRASH'))) {
       return { type: 'STUB', id: 'MILL_EACH_REPEAT_ON_NAME',
         millEachRepeatOnName: { count: parseNum(repeatM[1]), name: repeatM[2] } } as StubAction;
     }
@@ -16211,8 +16224,13 @@ function parseActionTextInner(text: string): EffectAction {
   // 🔴従来は3効果とも `BLOCK_ACTION{ATTACK, owner:'any', until:END_OF_TURN}` ＝支払い回避も期間も所有者も
   //   落ちて**両プレイヤーのシグニが無条件でアタック不可**になっていた（`WXDi-P11-005-E3`／`WXDi-P16-034-E2`）。
   {
+    // ⚠**付与先の綴りは3系統ある**（2026-09-05 第151バッチで2系統目を追加）＝
+    //   「このルリグ／対戦相手**は**」（＝プレイヤーへの付与）と「対戦相手の（すべての）**シグニは**」（＝シグニへの付与）。
+    //   後者は `WX22-Re20-E1`②／`WXEX1-04-E2` の2効果で、従来は汎用 `GRANT_EFFECT{rawText}` に飲まれて
+    //   **展開できず PARTIAL のまま no-op**（＝支払わなくてもアタックできた）になっていた。
+    //   ⚠主語の助詞は「あなた**は**」と「あなた**が**」の両方が実在する。⚠「シグニで」も省かれる。
     const atkTaxGrantM = text.match(
-      /^(ターン終了時まで|次の対戦相手のターン終了時まで|次の対戦相手のターンの間)、(?:このルリグ|対戦相手)は[「『]【常】：(?:対戦相手|あなた)は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(?:(中央|左|右)のシグニゾーンにある)?シグニでアタックできない。?[」』]を得る。?$/);
+      /^(ターン終了時まで|次の対戦相手のターン終了時まで|次の対戦相手のターンの間)、(?:このルリグ|対戦相手(?:の(?:すべての)?シグニ)?)は[「『]【常】：(?:対戦相手|あなた)[はが](?:((?:《無》)+)を支払わないかぎり)?[、,]?(?:(中央|左|右)のシグニゾーンにある)?(?:シグニで)?アタックできない。?[」』]を得る。?$/);
     if (atkTaxGrantM && (atkTaxGrantM[2] || atkTaxGrantM[3])) {
       return {
         type: 'SIGNI_ATTACK_BAN', owner: 'opponent',

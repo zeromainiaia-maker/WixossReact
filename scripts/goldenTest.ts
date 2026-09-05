@@ -14278,7 +14278,9 @@ const MANUAL_DRIFT_KNOWN = new Set([
   //     **parser が追い越した手書き**はこの既知乖離リストにだけ残る。⇒ **UNDATED の残りも同じ疑いで読む。**
   // ✅`WX05-025-E2` は 2026-08-28（Sheet1 残8枚バッチ）で held を採用して解消＝リストから外した
   //   （held に落ちていた理由は「live が AUTO・manual が MANUAL」で pure superset にならなかったため）。
-  'WX13-040-E1', 'WX14-064-E1',                      // UNDATED（manual 側の日付が取れない）
+  // 🏁`WX14-064-E1` は 2026-09-05（§5.3 `O-249` 第152バッチ）に **held から採用して解消**した
+  //   （「そうした場合」が `IS_MY_TURN` ではなく `SELF_OPTIONAL_EFFECT_TAKEN` になった manual 定義が live へ届いた）。
+  // 🏁`WX13-040-E1` も 2026-09-05（§5.3 `O-249` 第153バッチ）に採用して解消（《白》コストが live へ届いた）。
   // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   // ✅2026-09-02（`O-96` 第11バッチ）＝`WXDi-P02-039-E1` は `syncManualLive` で解消（同カードの E2 を
@@ -67495,6 +67497,200 @@ test('§5.3 O-249 第149: サーバントZERO 化が「カード名の宣言」�
     eq(cond.condition.type, 'FIELD_SIGNI_SHARE_CLASS', `WX09-041-E1 ${label}: 場の共通クラス判定`);
     eq((cond.then as { type?: string }).type, 'SEARCH', `WX09-041-E1 ${label}: 追加探索が残る`);
   }
+});
+
+test('§5.3 O-249 第150: 「このシグニをチアガールにする」が自分の全シグニから選べた（32枚）ほか、撤去・持ち上げの巻き添えで死んだ規則2本', () => {
+  const pair = (cardNum: string, effectId: string) => ([
+    ['live', findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId)!],
+  ] as const);
+
+  // ① 🔴**チアガール変換の「このシグニ」枝が `thisCardOnly` を刻んでいなかった**＝
+  //    原文32枚すべてが「**この**シグニをチアガールにする」なのに、**自分のシグニなら誰でも**選べた。
+  //    チアガールはフリーゾーンへ移す＝シグニゾーンを1つ空ける強い効果なので、対象が自由だと別のカード。
+  let cheer = 0;
+  for (const [, effects] of effectsMap) for (const e of effects) {
+    const a = e.action as { type?: string; keyword?: string; target?: { filter?: Record<string, unknown> } };
+    if (a.type !== 'GRANT_KEYWORD' || a.keyword !== 'チアガール') continue;
+    cheer++;
+    eq(a.target?.filter?.thisCardOnly, true, `${e.effectId}: チアガール化の対象は効果元自身のみ`);
+  }
+  ok(cheer >= 30, `チアガール変換の走査対象が消えていない（実測 ${cheer} 効果）`);
+
+  // ② 🔴**受け側の catch-all を撤去したせいで畳み込みが死んでいた**（`WX12-037-E2`）＝
+  //    `O-60` 第74 が `STUB{CONDITIONAL_PER_TRASH}` を撤去した結果、`MILL_EACH_REPEAT_ON_NAME` への
+  //    畳み込みの守り（`steps[1].id === 'CONDITIONAL_PER_TRASH'`）が二度と成立せず、
+  //    **繰り返しが丸ごと消えた**（両者のミルが1回しか起きない過小実行）。
+  for (const [label, e] of pair('WX12-037', 'WX12-037-E2')) {
+    const a = e.action as { id?: string; millEachRepeatOnName?: { count?: number; name?: string } };
+    eq(a.id, 'MILL_EACH_REPEAT_ON_NAME', `WX12-037-E2 ${label}: 繰り返しミルとして構造化される`);
+    eq(a.millEachRepeatOnName?.count, 5, `WX12-037-E2 ${label}: 各5枚`);
+    eq(a.millEachRepeatOnName?.name, 'メツム', `WX12-037-E2 ${label}: 繰り返し条件のカード名`);
+  }
+
+  // ③ 🔴**前置きの持ち上げに巻き込まれて規則が死んでいた**（`WXEX2-09-E1`）＝
+  //    「アタックフェイズの間、」が `activeCondition` へ持ち上げられて剥がされるようになったのに、
+  //    受け側 regex がその語を必須にしたままで `UNKNOWN`＝置換が丸ごと効かなくなっていた。
+  for (const [label, e] of pair('WXEX2-09', 'WXEX2-09-E1')) {
+    eq((e.action as { id?: string }).id, 'RISE_LEAVE_DISCARD_STACK', `WXEX2-09-E1 ${label}: ライズの離場置換`);
+    eq(e.activeCondition?.type, 'DURING_ATTACK_PHASE', `WXEX2-09-E1 ${label}: 期間は activeCondition が持つ`);
+  }
+});
+
+test('§5.3 O-249 第151: 「対戦相手のすべてのシグニは〈引用〉を得る」の汎用規則がアタック禁止の専用受け皿2つを飲んでいた', () => {
+  const pair = (cardNum: string, effectId: string) => ([
+    ['live', findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId)!],
+  ] as const);
+  const findNode = (a: unknown, pred: (o: Record<string, unknown>) => boolean): Record<string, unknown> | undefined => {
+    let hit: Record<string, unknown> | undefined;
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object' || hit) return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as Record<string, unknown>;
+      if (pred(o)) { hit = o; return; }
+      Object.values(o).forEach(walk);
+    };
+    walk(a);
+    return hit;
+  };
+
+  // 🔴`O-60` 第62 が足した汎用 `GRANT_EFFECT{rawText}`（「ターン終了時まで、対戦相手のすべてのシグニは「Q」を得る」）が
+  //    **アタック禁止の引用まで飲んでいた**。この引用は `expandGrantEffectRawTexts` で展開できず `rawText` のまま
+  //    `PARTIAL` に留まる＝**engine の no-op ガードに落ちてアタック禁止が一度も効かない**。
+  //    受け皿は2つとも実装済み＝支払い回避つきは `SIGNI_ATTACK_BAN{unlessPayColorless}`、素の禁止は
+  //    多数派102効果と同じ `GRANT_KEYWORD{'アタックできない'}`。
+
+  // ① 支払い回避つき。⚠**枚数は原文どおり**＝旧 live の `STUB{OPP_SIGNI_ATTACK_COST}` は
+  //    engine 側で `signi_attack_cost: 2` を**焼き込んで**おり、《無》1つの `WX22-Re20` でも2つ払わされていた。
+  for (const [label, e] of pair('WX22-Re20', 'WX22-Re20-E1')) {
+    const ban = findNode(e.action, o => o.type === 'SIGNI_ATTACK_BAN');
+    ok(!!ban, `WX22-Re20-E1 ${label}: SIGNI_ATTACK_BAN へ落ちる`);
+    eq(ban?.owner, 'opponent', `WX22-Re20-E1 ${label}: 止まるのは対戦相手`);
+    eq(ban?.unlessPayColorless, 1, `WX22-Re20-E1 ${label}: 《無》1つで回避（原文どおり）`);
+  }
+  for (const [label, e] of pair('WXEX1-04', 'WXEX1-04-E2')) {
+    const ban = findNode(e.action, o => o.type === 'SIGNI_ATTACK_BAN');
+    ok(!!ban, `WXEX1-04-E2 ${label}: SIGNI_ATTACK_BAN へ落ちる`);
+    eq(ban?.unlessPayColorless, 2, `WXEX1-04-E2 ${label}: 《無》2つで回避`);
+  }
+
+  // ② 素の禁止は多数派と同じ GRANT_KEYWORD（＝engine が LRIG / CENTER_LRIG_OR_SIGNI も解決できる経路）。
+  for (const [label, e] of pair('WX24-P3-002', 'WX24-P3-002-E1')) {
+    const gk = findNode(e.action, o => o.type === 'GRANT_KEYWORD' && o.keyword === 'アタックできない');
+    ok(!!gk, `WX24-P3-002-E1 ${label}: GRANT_KEYWORD へ落ちる`);
+    eq((gk?.target as Record<string, unknown>).owner, 'opponent', `WX24-P3-002-E1 ${label}: 相手側`);
+    eq((gk?.target as Record<string, unknown>).count, 'ALL', `WX24-P3-002-E1 ${label}: すべてのシグニ`);
+    ok(!JSON.stringify(e.action).includes('"rawText":"【常】：アタックできない。"'),
+      `WX24-P3-002-E1 ${label}: 展開できない rawText のまま残さない`);
+  }
+});
+
+test('§5.3 O-249 第152: held のうち fresh が正しい7枚を採用（typed 化・平坦化・脱落補完）', () => {
+  const live = (cardNum: string, effectId: string) => findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+
+  // ① 🔴`WXDi-P03-031-E1`＝「あなたのエナゾーンにあるカードが持つ色が合計３種類以上ある場合」が
+  //    **丸ごと落ちて無条件ダウン**になっていた（過剰実行）。
+  {
+    const a = live('WXDi-P03-031', 'WXDi-P03-031-E1').action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(a.type, 'CONDITIONAL', 'WXDi-P03-031-E1: 条件つき');
+    eq(a.condition.type, 'ENERGY_COUNT_FILTER', 'WXDi-P03-031-E1: エナの色種類数');
+    eq((a.condition as unknown as Record<string, unknown>).distinctColor, true, 'WXDi-P03-031-E1: 色の種類で数える');
+    eq((a.condition as unknown as Record<string, unknown>).value, 3, 'WXDi-P03-031-E1: 3種類以上');
+  }
+  // ② 🔴`WXDi-P13-029-E1`＝`STUB{OPP_MAIN_PHASE_LIMIT_DOWN}` を typed 化。
+  //    `LRIG_LIMIT_MODIFY{until:'NEXT_TURN'}` は `pending_lrig_limit_mod` へ積まれ、
+  //    BattleScreen の GROW→MAIN 遷移が実際のリミットへ移す。
+  {
+    const a = live('WXDi-P13-029', 'WXDi-P13-029-E1').action as Extract<EffectAction, { type: 'LRIG_LIMIT_MODIFY' }>;
+    eq(a.type, 'LRIG_LIMIT_MODIFY', 'WXDi-P13-029-E1: typed なリミット修整');
+    eq(a.owner, 'opponent', 'WXDi-P13-029-E1: 相手のリミット');
+    eq(a.delta, -2, 'WXDi-P13-029-E1: −2');
+    eq(a.until, 'NEXT_TURN', 'WXDi-P13-029-E1: 次の相手メインフェイズの間');
+  }
+  // ③ 🔴`WXDi-P08-062-E1`＝「デッキの一番上を見る。そのカードをデッキの一番下に置いてもよい」は
+  //    **1枚を見て上か下かを選ぶ**（`split_top_bottom`）。旧 live は LOOK を2本並べており、
+  //    **合計2枚**を見て2枚目を必ず下へ送る別効果になっていた。
+  {
+    const a = live('WXDi-P08-062', 'WXDi-P08-062-E1').action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    const look = a.steps[0] as Extract<EffectAction, { type: 'LOOK_AND_REORDER' }>;
+    eq(a.steps.length, 1, 'WXDi-P08-062-E1: LOOK は1本だけ');
+    eq(look.count, 1, 'WXDi-P08-062-E1: 見るのは1枚');
+    eq(look.destination.position, 'split_top_bottom', 'WXDi-P08-062-E1: 上か下かを選ぶ');
+  }
+  // ④ `SP26-001-E1`①＝「残りを好きな順番でデッキの一番上に置く」が**丸ごと落ちて**いた（`ACTIVATE_TRAP` だけ残っていた）。
+  {
+    const a = live('SP26-001', 'SP26-001-E1').action as Extract<EffectAction, { type: 'CHOOSE' }>;
+    const first = a.choices[0].action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    const ids = first.steps.map(st => (st as { id?: string }).id);
+    ok(ids.includes('DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED'), 'SP26-001-E1: 残りの行き先が痕跡として残る');
+    ok(ids.includes('ACTIVATE_TRAP'), 'SP26-001-E1: 【トラップ】の発動も残る');
+  }
+  // ⑤ 平坦化2枚＝意味は変えない（SEQUENCE の1要素包みを外しただけ）。
+  eq((live('WXK10-050', 'WXK10-050-E2').action as { type?: string }).type, 'SEND_TO_ENERGY',
+    'WXK10-050-E2: 1要素 SEQUENCE の包みを外す');
+  eq(((live('WXK10-050', 'WXK10-050-E2').action as unknown as Record<string, Record<string, unknown>>).target).totalLevelMax, 6,
+    'WXK10-050-E2: レベル合計6以下の上限を保つ');
+  eq((live('WX25-P2-001', 'WX25-P2-001-E1').action as { id?: string }).id, 'GAIN_ABILITY_THIS_GAME',
+    'WX25-P2-001-E1: 宣言はそのまま（包みだけ外す）');
+  // ⑥ `WX14-064-E1`＝「そうした場合」は `IS_MY_TURN` ではなく `SELF_OPTIONAL_EFFECT_TAKEN`。
+  {
+    const e = live('WX14-064', 'WX14-064-E1');
+    const a = e.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    const cond = a.steps.find(st => st.type === 'CONDITIONAL') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(cond.condition.type, 'SELF_OPTIONAL_EFFECT_TAKEN', 'WX14-064-E1: 任意コストを払ったときだけ引く');
+    eq(e.mandatory, false, 'WX14-064-E1: 任意');
+  }
+});
+
+test('§5.3 O-249 第153: 【常】の置換が STUB のままで一度も発動しなかった／対象固定の欠落／引用能力の過剰実行', () => {
+  const live = (cardNum: string, effectId: string) => findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+
+  // ① 🔴`WXK06-049-E1`＝**【常】の置換なのに実行ハンドラ（`STUB{BANISH_BY_SELF_GOES_TO_TRASH}`）で書かれていた**。
+  //    CONTINUOUS 効果は「実行」されないので、`execStubPart3` のハンドラは一度も走らない＝
+  //    このシグニでバニッシュした相手シグニがエナへ行ったまま（原文はトラッシュ）。
+  //    受け皿は `effectEngine` が毎フレーム走査する typed の `BANISH_REDIRECT`。
+  {
+    const e = live('WXK06-049', 'WXK06-049-E1');
+    const a = e.action as Extract<EffectAction, { type: 'BANISH_REDIRECT' }>;
+    eq(a.type, 'BANISH_REDIRECT', 'WXK06-049-E1: typed な置換');
+    eq(a.redirectTo, 'trash', 'WXK06-049-E1: エナではなくトラッシュへ');
+    eq(a.bySource, 'by_this', 'WXK06-049-E1: このシグニがバニッシュしたときだけ');
+    eq(e.activeCondition?.type, 'SELF_POWER_THRESHOLD', 'WXK06-049-E1: パワー8000以上のゲートを保つ');
+  }
+
+  // ② 🔴`WDK08-Y13-E1`＝「あなたのシグニ**１体を対象とし**、手札から《幻水　カババン》を捨ててもよい。
+  //    そうした場合、それのパワーを＋5000」＝旧 live は `targetsTriggerSource`（＝公開された**このカード自身**）を
+  //    狙っており、**原文の「対象とし」を無視して別のカードを強化**していた。
+  //    `O-96` の「対象を先に固定してから任意コストを払う」形（`SELECT_TARGET_ONLY`＋`STORE`＋`targetsStored`）が正。
+  {
+    const a = live('WDK08-Y13', 'WDK08-Y13-E1').action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    eq((a.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', 'WDK08-Y13-E1: 先に対象を選ぶ');
+    eq((a.steps[1] as { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS', 'WDK08-Y13-E1: その対象を保持する');
+    const cond = a.steps[3] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(cond.condition.type, 'PAID_ADDITIONAL_COST', 'WDK08-Y13-E1: 払ったときだけ');
+    eq((cond.then as unknown as Record<string, unknown>).targetsStored, true, 'WDK08-Y13-E1: 強化するのは先に選んだ対象');
+    ok(!JSON.stringify(a).includes('targetsTriggerSource'), 'WDK08-Y13-E1: トリガー元を狙わない');
+  }
+
+  // ③ `WX13-040-E1`＝原文の《白》コストが live に無く**タダで撃てて**いた（`MANUAL_DRIFT_KNOWN` に載っていた乖離）。
+  {
+    const a = live('WX13-040', 'WX13-040-E1').action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    const pay = a.steps[0] as unknown as Record<string, unknown>;
+    eq(pay.id, 'OPTIONAL_COST', 'WX13-040-E1: 任意コストとして払う');
+    eq(JSON.stringify(pay.costColors), '["白"]', 'WX13-040-E1: 《白》を支払う');
+    eq(((a.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition).type, 'PAID_ADDITIONAL_COST',
+      'WX13-040-E1: 払ったときだけ手札に戻す');
+  }
+
+  // ④ ⚠**`WXDi-P04-002` は据置**（採用しかけたが**続き389 のトリップワイヤに従って戻した**）。
+  //    fresh は【使用条件】【チーム】を `condition:LRIG_TEAM_COUNT` として構造化できる一方、
+  //    引用本体（「このゲームの間、あなたは以下の能力を得る。『【自】…以下の3つから1つを選ぶ』」）は
+  //    `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` に落ちる＝**①②③が1つも走らなくなる**。
+  //    live の平坦化（＝ゲーム中ずっと続く【自】をその場1回に化かす近似）も原文とは違うが、
+  //    「どちらがマシか」は**カード単位の採用では選べない**（`--adopt` は全部か無か）。
+  //    ⇒ 既存の契約（続き389）を優先し、**parser で「引用ブロックを本物の CardEffect へ展開する」まで据置**。
+  //    その契約自体は同ファイルの「続き389 採用5効果と据置4効果」テストが引き続き守る。
 });
 
 if (listMode) {
