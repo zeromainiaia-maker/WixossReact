@@ -43095,6 +43095,174 @@ scenarios.o200KeyGateOn = {
   spec: o200GateSpec(2), drive: (page, H) => driveO200Gate(page, H, 2),
 };
 order.push('o200KeyGateOn');
+/**
+ * `V-161`＝§5.3 `O-226`（2026-09-06）。3本。
+ *
+ * ■ (a)(b)＝**`UNLIMITED_KEYS`（【常】キーを好きな枚数場に出せる）の BattleScreen ゲート**。
+ * 🔴この STUB は**読み手（`hasUnlimitedKeys` の2箇所）だけ在って live 0件**＝
+ *   parser も manualEffects も一度も生成しておらず、**一度も起動されたことのない読み手**だった。
+ *   golden から触れない（`BattleScreen` の React state 密結合部）ので実機でしか守れない。
+ * ⚠`V-115`（`o200KeyGateOn/Off`）とは**別軸**＝あちらは `key_place_limit`（回数指定の永続フラグ）、
+ *   こちらは**ルリグの【常】**。対照は「【常】を持たないルリグ」に替えるだけで、
+ *   `key_place_limit` は**どちらにも入れない**（入れると何が枠を開けたのか区別が付かない）。
+ *
+ * ■ (c)＝**裏返しそのもの**（`nthActivationFlip`）。`lrig_activation_count` を4にしておいて
+ *   【起】を1回押す＝5回目。`card_identity_overrides` が `WXK03-003B` を指し、
+ *   裏面の `ON_LRIG_FLIP`（ルリグトラッシュの**アーツだけ**をルリグの下へ）まで走ることを見る。
+ */
+function o226KeySpec(centerLrig) {
+  return {
+    hostSet: {
+      'field.lrig': [centerLrig],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      // 既にキーが1枚場にある＝枠が1のままなら2枚目は置けない盤面。
+      'field.key_piece': 'WX22-006#9741',
+      'field.key_piece_extra': [],
+      'lrig_deck': ['WXK01-014#9742'],
+      'coins': 3,
+      // ⚠`key_place_limit` は**入れない**＝枠を開けたのが【常】であることを一意にする。
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'lrig_trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveO226KeyGate(page, H, expectOpen) {
+  const tag = expectOpen ? 'o226key-on' : 'o226key-off';
+  await H.ensureMain();
+  const openDk = await H.clickTestId('my-lrig-dk');
+  H.log(`ルリグDK: ${openDk ?? '見つからず'}`);
+  await page.waitForTimeout(800);
+  const openKey = await H.clickTestId('zone-card-0');
+  H.log(`キー(zone-card-0): ${openKey ?? '見つからず'}`);
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOT}/${tag}-modal.png`, fullPage: true });
+  const setBtn = page.getByRole('button', { name: 'キーにセット', exact: false }).first();
+  const visible = (await setBtn.count()) > 0 && await setBtn.isVisible().catch(() => false);
+  const st00 = await H.queryState();
+  H.log(`  「キーにセット」ボタン: ${visible ? 'あり' : 'なし'} | lrigTop=${st00?.host?.lrigTop} limit=${st00?.host?.keyPlaceLimit} key=${st00?.host?.keyPiece}`);
+  if (!expectOpen) {
+    // 🔴対照＝【常】を持たないルリグなら、キーが場にある間は2枚目を置けない（既定の枠1）。
+    return visible
+      ? { pass: false, detail: `🔴【常】が無いルリグなのに2枚目のキーをセットできてしまう（lrigTop=${st00?.host?.lrigTop}）` }
+      : { pass: true, detail: `対照＝UNLIMITED_KEYS を持たないルリグでは2枚目のキーはセットできない（lrigTop=${st00?.host?.lrigTop}）` };
+  }
+  if (!visible) {
+    return { pass: false, detail: '🔴【常】「キーを好きな枚数場に出すことができる」があるのに「キーにセット」が出ない（UNLIMITED_KEYS が live に無いか、ゲートが読んでいない）' };
+  }
+  await setBtn.click().catch(() => {});
+  let last = null;
+  for (let i = 0; i < 14; i++) {
+    await page.waitForTimeout(700);
+    // KeyUseModal の確定ボタンは「セット」（`stdStep` の汎用ラベルには無い）。
+    const did = await H.clickBtn('セット', { exact: true }) ?? await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    last = await H.queryState();
+    H.log(`  ${tag}[${i}] -> ${did ?? 'なし'} | key=${last?.host?.keyPiece} extra=${JSON.stringify(last?.host?.keyPieceExtra)} lrigDeck=${JSON.stringify(last?.host?.lrigDeckCards)}`);
+    if ((last?.host?.keyPieceExtra ?? []).length > 0) break;
+  }
+  const h = last?.host ?? {};
+  const detail = `key=${h.keyPiece} extra=${JSON.stringify(h.keyPieceExtra)} lrigDeck=${JSON.stringify(h.lrigDeckCards)} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+  if (!(h.keyPieceExtra ?? []).includes('WXK01-014#9742')) {
+    return { pass: false, detail: `🔴2枚目が key_piece_extra へ入っていない。${detail}` };
+  }
+  if (h.keyPiece !== 'WX22-006#9741') return { pass: false, detail: `🔴既存キーが差し替えられた（枠が開いていない）。${detail}` };
+  return { pass: true, detail: `【常】で枠が開き、2枚目のキーをセットできた（既存キーは場に残る）。${detail}` };
+}
+scenarios.o226KeyUnlimitedOn = {
+  title: 'O-226 WXK03-003A【常】：キーを好きな枚数場に出せる（2枚目を手でセットできる）',
+  spec: o226KeySpec('WXK03-003A#9740'), drive: (page, H) => driveO226KeyGate(page, H, true),
+};
+order.push('o226KeyUnlimitedOn');
+scenarios.o226KeyUnlimitedOff = {
+  title: 'O-226 対照：【常】を持たないルリグでは2枚目のキーはセットできない',
+  spec: o226KeySpec('WD03-003#9740'), drive: (page, H) => driveO226KeyGate(page, H, false),
+};
+order.push('o226KeyUnlimitedOff');
+
+scenarios.o226LrigFlip = {
+  title: 'O-226 WXK03-003A-E2：5回目の【起】でルリグが裏返り、ルリグトラッシュのアーツだけが下に入る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK03-003A#9750'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      // 🔑**4回目まで済ませた状態を注入する**＝【起】は《ターン１回》なので5ターン回せない。
+      //   ⚠キーが CardNum か instance id かは engine の `ctx.sourceCardNum` 次第＝**両方積む**
+      //   （当たらない方は読まれないだけ。片方だけにすると「0→1」なのか「4→5」なのか分からない）。
+      'lrig_activation_count': { 'WXK03-003A': 4, 'WXK03-003A#9750': 4 },
+      // 裏面の【自】が拾うのは**アーツだけ**＝ルリグを1枚混ぜて「一緒に動かない」ことを見る。
+      'lrig_trash': ['WD01-006#9751', 'WD01-007#9752', 'WD02-004#9753'],
+      // 🔴【起】のコストは《無×1》＝エナが無いと「発動」が disabled のままで前提が崩れる（初回これを踏んだ）。
+      'energy': ['WD01-013#9754', 'WD01-013#9755'],
+      'coins': 3,
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [],
+      'hand': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9790'],
+      'field.signi': [null, null, null],
+      'field.check': null, 'field.free_zone': [], 'field.beat_zone': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const st0 = await H.queryState();
+    H.log(`開始 lrigTop=${st0?.host?.lrigTop} under=${st0?.host?.lrigUnder} count=${JSON.stringify(st0?.host?.lrigActivationCount)} lrigTrash=${JSON.stringify(st0?.host?.lrigTrashCards)} energy=${st0?.host?.energy}`);
+    let opened = false, actClicked = false, paid = false, fired = false, settled = 0, last = st0;
+    for (let i = 0; i < 26; i++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/o226flip-${i}.png`, fullPage: true });
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      else if (!actClicked) { did = await H.clickBtn(/^【起】/); if (did) actClicked = true; }
+      else if (!paid) {
+        // 🔴**ルリグ【起】は「エナを選んでから」でないと「発動」が disabled**（初回これで25秒空振りした）。
+        //   `LrigGrantedModal` のエナ選択には testid が無かったので同バッチで `lrigact-energy-<i>` を足した。
+        did = await H.clickTestId('lrigact-energy-0');
+        if (did) paid = true;
+      }
+      else if (!fired) {
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) fired = true;
+        else if (i % 4 === 3) { opened = false; actClicked = false; paid = false; await H.closeModals(); }
+      }
+      if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+      last = await H.queryState();
+      H.log(`  o226flip[${i}] -> ${did ?? 'なし'} | lrigTop=${last?.host?.lrigTop} under=${last?.host?.lrigUnder} ident=${JSON.stringify(last?.host?.identityOverrides)} count=${JSON.stringify(last?.host?.lrigActivationCount)} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}`);
+      settled = fired && !last?.pendingEffect && !(last?.stackLen > 0) ? settled + 1 : 0;
+      if (settled >= 4) break;
+    }
+    const h = last?.host ?? {};
+    const detail = `lrigTop=${h.lrigTop} under=${h.lrigUnder} ident=${JSON.stringify(h.identityOverrides)} count=${JSON.stringify(h.lrigActivationCount)} lrigTrash=${JSON.stringify(h.lrigTrashCards)}`;
+    if (!fired) return { pass: false, detail: `前提崩れ＝【起】を発動できていない。${detail}` };
+    // ① 裏返っている（旧実装＝ログを1行出すだけ＝ここが空のまま）。
+    if ((h.identityOverrides ?? {})['WXK03-003A#9750'] !== 'WXK03-003B') {
+      return { pass: false, detail: `🔴5回目なのにルリグが裏返っていない。${detail}` };
+    }
+    // ② 裏面の【自】が走ってアーツ2枚だけが下に入った。
+    if (h.lrigUnder !== 2) {
+      return { pass: false, detail: `🔴ルリグの下に入ったのが2枚でない（アーツ2枚が期待）。${detail}` };
+    }
+    if ((h.lrigTrashCards ?? []).includes('WD01-006#9751') || (h.lrigTrashCards ?? []).includes('WD01-007#9752')) {
+      return { pass: false, detail: `🔴アーツがルリグトラッシュに残っている。${detail}` };
+    }
+    // ③ ルリグは一緒に動かない（`cardTypes:['アーツ']` が効いている証拠）。
+    if (!(h.lrigTrashCards ?? []).includes('WD02-004#9753')) {
+      return { pass: false, detail: `🔴アーツ以外（ルリグ）まで下へ入っている＝候補の種別が効いていない。${detail}` };
+    }
+    return { pass: true, detail: `5回目の【起】で -Ｅ- へ裏返り、ルリグトラッシュのアーツ2枚だけがルリグの下に入った（ルリグは残った）。${detail}` };
+  },
+};
+order.push('o226LrigFlip');
+
 scenarios.o200KeyGateOff = {
   title: 'O-200 対照：枠が既定(1)なら2枚目のキーはセットできない',
   spec: o200GateSpec(null), drive: (page, H) => driveO200Gate(page, H, null),
@@ -51451,6 +51619,10 @@ try {
         keyPieceExtra: s.field?.key_piece_extra ?? [],
         keyPlaceLimit: s.key_place_limit ?? null,
         identityOverrides: s.card_identity_overrides ?? {},
+        // 🆕§5.3 `O-226`（2026-09-06・`V-161`）＝「この【起】を使用したのがN回目か」の台帳。
+        //   🔴**キーが CardNum か instance id かは engine の `ctx.sourceCardNum` 次第**で、
+        //   注入して「4→5回目」を作るときにどちらで積むかが変わる＝観測できないと当て推量になる。
+        lrigActivationCount: s.lrig_activation_count ?? {},
         energyCards: s.energy ?? [],
         zoneBlocks: s.signi_zone_blocks ?? [],
         zoneBlocksNextTurn: s.signi_zone_blocks_next_turn ?? [],

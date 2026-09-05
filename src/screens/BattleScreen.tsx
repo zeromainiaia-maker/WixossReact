@@ -840,6 +840,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WXDi-P13-004B');   // UNKNOWN-CODE-RU-
     nums.add('WXDi-P16-001B');   // 扉の俯瞰者 ウトゥルス
     nums.add('WXDi-P11-010B');   // 夢限 -A-
+    // 🔴🆕**裏返し先は「反応的ロード」では間に合わない**（§5.3 `O-226`・2026-09-06・実機で発覚）＝
+    //   `card_identity_overrides` を書く engine は `ctx.cardMap.has(flipTo)` を fail-closed で見るので、
+    //   ここに無いカードへは**そもそも裏返らない**（＝どのゾーンにも居ないので反応的には載らない）。
+    //   golden では全カードの cardMap を渡すため**この穴は再現しない**＝実機でしか出ない。
+    //   ⚠この表は静かな上限＝新しい両面ルリグを足したらここにも足す。
+    //   守りは `goldenTest.ts` の「§5.3 O-226 裏面ロード」＝live の全 `flipTo` がここに在ることを assert する。
+    nums.add('WXK03-003B');      // 夢限 -Ｅ-
     nums.add('PR-Di017B');       // REV:アンコーリング
     // 解決待ちのスペル/効果は一時的にどのゾーンにも属さない（pending_spell は hand から除かれ pending に保持）。
     // この瞬間に effectsMap から脱落すると handleCutinPass で spellEff=undefined となり効果が no-op 化するため、

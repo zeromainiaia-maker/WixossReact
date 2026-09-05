@@ -187,6 +187,11 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                           const isSel = selectedLrigGrantedCost.has(i);
                           return (
                             <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
+                              // 🆕実機ドライバ用の掴み手（§5.3 `O-226`・`V-161`・2026-09-06）。
+                              //   🔴ここに testid が無かったので、ルリグ【起】は**エナを選べず「発動」が
+                              //   永久に disabled**＝実機シナリオが「前提崩れ」でしか終われなかった。
+                              //   命名は同モーダルの `lrigact-fieldbanish-${zi}` に揃える。
+                              data-testid={`lrigact-energy-${i}`}
                               onClick={() => setSelectedLrigGrantedCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

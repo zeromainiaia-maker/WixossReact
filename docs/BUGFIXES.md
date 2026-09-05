@@ -1,5 +1,56 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第175バッチ）：`O-226` を実機まで返済＝**fail-closed が実機では常に閉じていた**
+
+**ベースライン**＝第174の直後。**gates 全緑**（typecheck・golden **3516/3516**＝+1本・smoke 全異常0・
+fuzz 全0・census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・
+`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+🖥**実機まで実施**＝`src/screens/` を2ファイル触ったので必須。**`V-161` 3シナリオ ALL PASS**（負方向の対照1本）。
+
+### ① 🔴🔑実機が出した本物のバグ＝`cardMap.has(flipTo)` が**実機では常に false**
+
+- 第174で入れた fail-closed（「裏面が `cardMap` に実在するときだけ差し替える」）は
+  **golden では通るが実機では一度も通らない**。golden は**全カード**の cardMap を渡すのに対し、
+  実機の `battleCardMap` は `battleCardNums`＝**その対戦に出ているカードだけ**で、
+  **裏面はどのゾーンにも居ない**（デッキにもルリグデッキにも入らない）ので載らない。
+- 症状＝実機で【起】を5回目まで撃つと **`lrig_activation_count` は 4→5 に進むのに
+  `card_identity_overrides` が空のまま**＝裏返らない。
+- ⇒ `BattleScreen` の「変身/REV先」常時ロード表に `WXK03-003B` を追加
+  （前例の `WXDi-P11-010B` ほか4枚と同じ扱い）。
+- 🔑**この表は静かな上限**なので、**live の全 `flipTo` が表に在ることを assert する golden** を新設した
+  （`§5.3 O-226 裏面ロード`）。**golden はこの穴自体を再現できない**＝再現できないなら**表の側を守る**。
+
+### ② 実機シナリオで踏んだ罠2つ
+
+- **ルリグ【起】は「エナを選んでから」でないと「発動」が disabled**＝先に押すと25秒空振りして
+  「前提崩れ」で終わる。`LrigGrantedModal` のエナ選択には **testid が無かった**ので
+  `lrigact-energy-<i>` を新設（命名は同モーダルの `lrigact-fieldbanish-<zi>` に揃えた）。
+- **`lrig_activation_count` のキーは instance id**（`WXK03-003A#9750`）であって CardNum ではない。
+  「4→5回目」を注入で作るときに CardNum で積むと当たらず、**0→1 なのか 4→5 なのか区別が付かない**。
+  ⇒ 両方のキーで積み、**カウンタ自体を `queryState` の観測点に足した**（`lrigActivationCount`）。
+
+### ③ 観測できたこと（実機ログ）
+
+```
+[3] btn:発動                → stack=1
+[4] ident={"WXK03-003A#9750":"WXK03-003B"}  count 4→5   ← 裏返った
+[5] under=0→2  lrigTrash=["WD02-004#9753"]              ← 裏面の【自】が発火
+```
+
+「ロココ・バウンダリー・エイボンをセンタールリグ下に配置」「[自分] 夢限　-Ｅ- の【自】効果（反転時）」が
+ログに出て、ルリグに `×3` バッジ（本体＋下2枚）。**アーツ2枚だけが下へ入り、ルリグ1枚は残った**
+（`cardTypes:['アーツ']` が効いている）。アップロードした画像も表示された。
+
+### 検証コマンド
+
+```
+node scripts/verifyBattleDrive.mjs o226KeyUnlimitedOn o226KeyUnlimitedOff o226LrigFlip
+npm run golden -- --only "O-226"    # 5本 PASS
+npm run gates                        # 全緑（golden 3516/3516）
+```
+
+🏁**`O-226` 完全クローズ**（索引 G が空・実機 `V-nn` の未実施も 0件）。
+
 ## 2026-09-06（第174バッチ）：`WXK03-003B`「夢限　-Ｅ-」の**カードデータ欠落**と、そこで見つかった恒久 no-op 2つ
 
 **ベースライン**＝第173の直後。**gates 全緑**（typecheck・golden **3515/3515**＝+3本・smoke 全異常0・

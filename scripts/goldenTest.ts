@@ -68634,6 +68634,33 @@ test('§5.3 O-226: 5回目の【起】でセンタールリグが裏面へ差し
      '🔴CSV に無いカード番号へは差し替えない');
 }));
 
+// 🔴**実機でしか出なかった穴を golden で守る**（§5.3 `O-226`・2026-09-06・`V-161`）。
+//    engine は `ctx.cardMap.has(flipTo)` を fail-closed で見るが、実機の `cardMap` は
+//    **その対戦に出ているカードだけ**（`battleCardNums`）＝裏面はどのゾーンにも居ないので載らない。
+//    ⇒ `BattleScreen` の「変身/REV先」常時ロード表に無い裏面へは**そもそも裏返らない**。
+//    golden は全カードの cardMap を渡すのでこの穴を再現できない＝**表の側を直接 assert する**。
+test('§5.3 O-226 裏面ロード: live の全 flipTo が BattleScreen の常時ロード表に載っている', () => {
+  const flipTargets = new Set<string>();
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const visit = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) { n.forEach(visit); return; }
+        const rec = n as Record<string, unknown>;
+        if (rec.kind === 'nthActivationFlip' && typeof rec.flipTo === 'string') flipTargets.add(rec.flipTo);
+        Object.values(rec).forEach(visit);
+      };
+      visit(e.action);
+    }
+  }
+  ok(flipTargets.size > 0, '前提＝live に flipTo を持つ効果がある（0だとこのテストが空振りする）');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  for (const target of flipTargets) {
+    ok(src.includes(`nums.add('${target}')`),
+       `🔴${target} が BattleScreen の常時ロード表に無い＝実機では裏返らない（cardMap.has が false）`);
+  }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
