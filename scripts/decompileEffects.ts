@@ -23,6 +23,7 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import type { CardData } from '../src/types';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
+import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { parseUseTimeCostReductionText } from '../src/data/keywordCosts';
 import { decodeLancerKeyword } from '../src/utils/keywords';
 
@@ -54,6 +55,21 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
     const merged = mergeManualEffects(id, (effectsMap.get(id) ?? []) as never[]);
     if (merged.length > 0) effectsMap.set(id, merged as Eff[]);
   }
+  // 🆕**印字キーワードコストを重ね直す**（2026-09-05・§5.3 `O-252`）。
+  // 🔴`mergeManualEffects` は **live の効果を manual の定義で丸ごと置き換える**ので、
+  //   `buildEffectsJson` が**マージの後から**重ねている印字コスト
+  //   （`encoreCost` / `betOptions` / `boostCost` / `useTimeCost` / `costReplacement` / `optionalDiscardCost`）が
+  //   **逆翻訳からだけ消えていた**＝live（ゲームが読む値）にはあるのに「アンコールもベットも無い札」に見えた（実測35カード）。
+  // 🔑重ね方は `buildEffectsJson.ts:310` と同じ＝**先頭効果1つだけ**に刻み、先頭以外からは剥がす。
+  for (const [id, effs] of effectsMap) {
+    const printed = printedKeywordCosts(cardMap.get(id)?.EffectText) as Record<string, unknown>;
+    effectsMap.set(id, effs.map((effect, index) => {
+      const restCost = { ...((effect as { cost?: Record<string, unknown> }).cost ?? {}) };
+      for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
+      const cost = index === 0 ? { ...restCost, ...printed } : restCost;
+      return (Object.keys(cost).length > 0 ? { ...effect, cost } : effect) as Eff;
+    }));
+  }
 }
 
 // ── STUBS.md から STUB id → 説明 マップを構築（逆翻訳で id ではなく説明文を出すため）──
@@ -81,6 +97,15 @@ let currentCardName = '';
 // 「ターン終了時まで…【ダブルクラッシュ】」／バースト「このターンと次のターンの間…【ダブルクラッシュ】」）で
 // 期間句を取り違えるため、効果ごとに本文／バーストへ絞る（出力ループで effectId により設定）。
 let currentEffectText = '';
+/**
+ * 🆕§5.3 `O-252`（2026-09-05）＝**いま描いている効果が `costReplacement` payload を持つか。**
+ * 持つなら `STUB{ARTS_COST_REDUCTION_BY_CENTER_LRIG}` の「原文の該当文をそのまま貼る」分岐を黙らせる
+ * （payload 側 `costReplacementJa` が同じ意味を描くので**二重に出る**うえ、
+ *  原文貼り付けは **payload が空でも同じ文を出す**＝逆翻訳が実装の有無を映さなくなる）。
+ * 🔴**JSON の木は触らない**＝痕跡 STUB を parser で剥がすと**後段の後処理が位置を前提にしていて木が壊れる**
+ *   （2026-09-05 に実測＝`WX11-015` の「この方法で3枚以上捨てた場合」の `CONDITIONAL` が丸ごと消えた）。
+ */
+let currentEffectHasCostReplacement = false;
 
 // §5b Opusタスク(A)：付与系 action の action内 duration が curated JSON で落ちている（PERMANENT/未設定）場合に、
 // 原文の該当付与文へ期間句（ターン終了時まで／次の相手のターン終了時まで）があれば注記を復元する。
@@ -551,7 +576,26 @@ function costScalingCountJa(count: any, per: number): string {
   return `${own}トラッシュにある${noun}${per}枚`;
 }
 
-function costScalingJa(terms: any[]): string {
+/**
+ * 🆕§5.3 `O-251`＝「選んだ数だけ増える」項の逆翻訳。
+ * ⚠**盤面を数える項とは文型が違う**（「〜につき」を書かない）ので、共通の `body` に混ぜない。
+ */
+function chosenCountTermJa(term: any): string {
+  const amount = term.amount.map((e: any) => `《${e.color}×${e.count}》`).join('');
+  const verb = term.direction === 'increase' ? '増える' : '減る';
+  if (term.maxCount !== undefined && term.maxCount === term.minCount) {
+    return `選んだ数が${term.minCount}つの場合、このカードの使用コストは${amount}${verb}`;
+  }
+  const gate = term.minCount !== undefined ? `選んだ数が${term.minCount}つ以上の場合、` : '';
+  const per = term.offset ? `選んだ数から${term.offset}を引いた数だけ` : '選んだ数だけ';
+  return `${gate}このカードの使用コストは${per}${amount}${verb}`;
+}
+
+function costScalingJa(allTerms: any[]): string {
+  const chosen = allTerms.filter(t => t.counts?.some((c: any) => c.kind === 'declaredChooseCount'));
+  const terms = allTerms.filter(t => !chosen.includes(t));
+  const chosenJa = chosen.map(chosenCountTermJa);
+  if (terms.length === 0) return chosenJa.join('。');
   const body = terms.map((term, index) => {
     const counts = term.counts.map((count: any) => costScalingCountJa(count, term.per)).join('か');
     const amount = term.amount.map((e: any) => `《${e.color}×${e.count}》`).join('');
@@ -563,7 +607,54 @@ function costScalingJa(terms: any[]): string {
   const gateCount = gated?.counts?.length === 1 && gated.counts[0]?.kind === 'fieldLrig'
     ? `${costScalingCountJa(gated.counts[0], gated.minCount)}以上いるかぎり、`
     : '';
-  return `${gateCount}このカードの使用コストは${body}`;
+  return [`${gateCount}このカードの使用コストは${body}`, ...chosenJa].join('。');
+}
+
+/**
+ * 🆕**条件つきコスト置換／軽減（`EffectCost.costReplacement`）を payload から描く**
+ * （2026-09-05・§5.3 `O-252`）。
+ *
+ * 🔴**それまで逆翻訳はこの payload を1文字も描いていなかった。**
+ * 代わりに `STUB{ARTS_COST_REDUCTION_BY_CENTER_LRIG}` の分岐が**原文の該当文をそのまま貼って**おり、
+ * 「原文と一致しているから実装できている」と読める状態だった＝**payload が空でも同じ文が出る**
+ * （`costScaling` について `O-119` が「本文 regex へ戻すと payload 欠落を逆翻訳が隠す」と
+ * 書いた罠の、`costReplacement` 版）。
+ */
+function costReplacementWhenJa(when: any): string {
+  const k = when?.kind;
+  if (k === 'betting') return 'あなたがベットしていた場合';
+  if (k === 'paidOptionalDiscard') return 'あなたが使用時の任意の支払いをしていた場合';
+  if (k === 'oppUsedThisTurn') {
+    const kinds = [when.arts ? 'アーツ' : '', when.spell ? 'スペル' : ''].filter(Boolean);
+    return `このターンに対戦相手が${kinds.join(when.mode === 'all' ? 'と' : 'か')}を使用していた場合`;
+  }
+  if (k === 'selfFieldHasCardName') return `あなたの場に《${when.cardName}》がある場合`;
+  if (k === 'selfTrashCountGte') return `あなたのトラッシュが${when.value}枚以上の場合`;
+  if (k === 'selfCenterLrigName') return `あなたのセンタールリグが＜${when.keyword}＞の場合`;
+  if (k === 'oppCenterLrigColor') return `対戦相手のセンタールリグが${(when.colors ?? []).join('か')}の場合`;
+  if (k === 'selfCenterLrigLevelGte') return `あなたのセンタールリグがレベル${when.value}以上の場合`;
+  if (k === 'selfZoneCountGtOpp') {
+    const zone = { life_cloth: 'ライフクロス', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ',
+      lrig_trash_arts: 'ルリグトラッシュにあるアーツ' }[when.zone as string] ?? when.zone;
+    const by = when.by > 1 ? `${when.by}枚以上` : '';
+    return `あなたの${zone}の枚数が対戦相手より${by}多い場合`;
+  }
+  if (k === 'selfFieldHasSigni') {
+    const each = (when.each ?? []).map((x: any) =>
+      `${x.color ? `${x.color}の` : ''}${x.story ? `＜${x.story}＞の` : ''}${x.minPower ? `パワー${x.minPower}以上の` : ''}シグニ`);
+    return `あなたの場に${each.join('と')}がいる場合`;
+  }
+  if (k === 'selfLrigTrashHasArtsColor') return `あなたのルリグトラッシュに${when.color}のアーツがある場合`;
+  if (k === 'oppSigniBanishedThisTurn') return 'このターンに対戦相手のシグニがバニッシュされていた場合';
+  return `〈条件:${k}〉の場合`;
+}
+
+function costReplacementJa(terms: any[]): string {
+  return terms.map(term => {
+    const amount = (term.cost ?? []).map((e: any) => `《${e.color}×${e.count}》`).join('') || 'なし';
+    const verb = term.mode === 'replace' ? 'になる' : '減る';
+    return `${costReplacementWhenJa(term.when)}、このカードの使用コストは${amount}${verb}`;
+  }).join('。');
 }
 
 function costJa(c?: any): string {
@@ -572,6 +663,7 @@ function costJa(c?: any): string {
   if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
   // O-119: JSON payload から描く。本文 regex へ戻すと payload 欠落を逆翻訳が隠す。
   if (c.costScaling?.length) parts.push(costScalingJa(c.costScaling));
+  if (c.costReplacement?.length) parts.push(costReplacementJa(c.costReplacement));
   // 🆕`exceedColors`（`WX10-001`「エクシード１（白のカード）」）＝描かないと色指定なしと同じ文になり、
   //   engine は区別しているのに原文照合では見えない偽陰性になる。
   if (c.exceed != null) parts.push(`エクシード${c.exceed}${c.exceedColors?.length ? `（${c.exceedColors.join('と')}のカード）` : ''}`);
@@ -2905,6 +2997,8 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         return `あなたのライフクロスが${acc.level}枚${acc.op ?? '以下'}の場合、このアーツの使用コストが変わる（支払い時に自動適用）`;
       }
+      // 🆕§5.3 `O-252`＝**payload が描けているなら原文貼り付けはしない**（二重表示＋計器の嘘）。
+      if (a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' && currentEffectHasCostReplacement) return '';
       if (a.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' || a.id === 'CONDITIONAL_ARTS_COST') {
         const costSents = currentCardText.split('。')
           .map(s => s.trim())
@@ -5745,9 +5839,11 @@ function renderCards(ids: string[]): string {
     for (const e of effs) {
       // restoreLeadDuration の探索範囲を当該効果の原文セクションに絞る（BURST は BurstText・他は EffectText）。
       currentEffectText = /BURST/.test(e.effectId) ? (card?.BurstText ?? '') : (card?.EffectText ?? '');
+      currentEffectHasCostReplacement = !!(e as { cost?: { costReplacement?: unknown[] } }).cost?.costReplacement?.length;
       out.push(`  ${e.effectId}: ${effJa(e)}`);
     }
     currentEffectText = '';
+    currentEffectHasCostReplacement = false;
     currentCardName = '';
   }
   out.push('\n' + '='.repeat(78));

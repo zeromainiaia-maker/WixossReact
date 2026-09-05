@@ -18,6 +18,7 @@ import type { CostScalingCount, CostScalingTerm, TargetFilter } from '../src/typ
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
+import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni, collectHandLimits } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor, parseStoryFilter } from '../src/data/parserUtils';
@@ -66,7 +67,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { addNColorToCost, removeNColorFromCost, costScalingOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
+import { addNColorToCost, removeNColorFromCost, costScalingOf, declaredChooseScalingOf, declaredChooseMaxOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { applyGrowCostReduction } from '../src/screens/battle/costs';
@@ -21507,7 +21508,9 @@ test('O-60 第33〜36バッチ: パワー上限／一掃／公開→エナ／N�
   eq((((runStub({ id: 'INTERNAL_MARK_REVEALED_NAMED' }, { hand: [SIGNI] } as unknown as Partial<PlayerState>)).ownerState as PlayerState).hand_revealed_just ?? []).length, 0,
     'payload が無ければ記録しない（fail-closed）');
   // 生成側（`effectExecutor` の任意公開 CHOOSE）が payload を積んでいること＝ここが抜けると上の分岐が死ぬ。
-  ok(fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8')
+  // ⚠**改行コードに依存させない**（2026-09-05 §5.3 `O-251` で発覚）＝この assert は \n 直書きで、
+  //   `core.autocrlf=true` の作業ツリー（CRLF）では**ローカルだけ恒久 FAIL**していた（CI は LF なので緑）。
+  ok(fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8').replace(/\r\n/g, '\n')
     .includes("id: 'INTERNAL_MARK_REVEALED_NAMED',\n                  optionalHandRevealNamed: { cardName: targetName }"),
     '生成側が公開するカード名を payload で渡している');
 }));
@@ -23232,9 +23235,14 @@ test('choice ビルダー: 選択肢本文が top-level へ漏れていない（
         `${effectId}: CHOOSE の外に本文アクションが漏れている`);
     }
   }
-  // 見出し側の宣言（コスト増減）は残す＝`WX13-003-E1` の「選んだ数から2を引いた数だけコストが増える」。
+  // 見出し側の宣言（コスト増減）は落とさない＝`WX13-003-E1` の「選んだ数から2を引いた数だけコストが増える」。
+  // 🆕**2026-09-05（§5.3 `O-251`）に受け皿ができたので、痕跡 STUB ではなく payload で持つ**
+  //   （`stripCostScalingMarker` の規約＝構造化できたらマーカーを剥がす）。
   const wx13 = (effectsMap.get('WX13-003') ?? []).find(e => e.effectId === 'WX13-003-E1')!;
-  ok(JSON.stringify(wx13.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'), 'WX13-003-E1: 見出しのコスト宣言まで落とさない');
+  ok(!JSON.stringify(wx13.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'),
+    'WX13-003-E1: 構造化できたので痕跡マーカーは剥がれている');
+  ok((wx13.cost?.costScaling ?? []).some(t => t.counts.some(c => c.kind === 'declaredChooseCount')),
+    'WX13-003-E1: 見出しのコスト宣言は costScaling として残っている');
   // ⚠`①` を持たない「プレイヤーをN人まで選ぶ」（旧 `CHOOSE_N_FROM_LIST`）の後続は**本体**＝落とさない。
   // 🆕2026-09-02（§5.3 `O-162`）＝2効果とも `CHOOSE`（選択肢＝あなた／対戦相手）へ移した。
   //   本体は `choices[].action` の中にあるので「落としていない」の検査はそちらを見る。
@@ -67004,8 +67012,10 @@ test('§5.3 O-60 第61: モーダル選択 family の残り3件も CHOOSE / COND
   eq(w13Ch.choose_count, 4, '4つ');
   eq(w13Ch.from_count, 4, '①②③④の4候補');
   eq(w13Ch.upTo, true, '「4つ**まで**」の upTo が落ちていない');
-  eq((w13Steps[1] as unknown as { id?: string }).id, 'ARTS_COST_REDUCTION_BY_EFFECT',
-    '見出しと①の間のコスト宣言が残っている');
+  // 🆕**2026-09-05（§5.3 `O-251`）＝痕跡 STUB から payload へ昇格した。**
+  eq(w13Steps.length, 1, '見出しと①の間のコスト宣言は構造化されたので step には残らない');
+  ok((w13.cost?.costScaling ?? []).some(t => t.counts.some(c => c.kind === 'declaredChooseCount')),
+    '見出しと①の間のコスト宣言は costScaling として残っている');
 
   // ② `WX26-CP1-024`＝使用時の任意エナトラッシュ→支払っていたら2つ選ぶ。
   //   🔴旧は `effectExecutor` が**カード全文**から ＜クラス＞ と枚数を読み直していた（A群1行）。
@@ -67444,8 +67454,8 @@ test('§5.3 O-249 第148: DEFERRED_ へ改名した catch-all が prune 対象�
   ok(!!d04, 'WXDi-D04-011-E1 が fresh にある');
 
   // `PR-K056` / `WX20-Re20`＝「以下のNつからNつ**まで**選ぶ。…使用コストは選んだ数だけ《色×M》**増える**。」
-  // 🔑CHOOSE は `upTo` を保ったまま、構造化できていないコスト増の痕跡（`ARTS_COST_REDUCTION_BY_EFFECT`）を
-  //   後段に残す形が正（`O-60` 第61バッチの規約）。⚠**コスト増そのものは未実装**＝`O-251`。
+  // 🆕**2026-09-05（§5.3 `O-251`）に構造化した**＝CHOOSE は `upTo` を保ったまま、コスト増は
+  //   `costScaling{declaredChooseCount}` へ落ち、痕跡 STUB は剥がれる（`stripCostScalingMarker` の規約）。
   for (const cardNum of ['PR-K056', 'WX20-Re20'] as const) {
     for (const [label, e] of [
       ['live', findEffectDeep(effectsMap.get(cardNum) ?? [], `${cardNum}-E1`)!],
@@ -67455,9 +67465,9 @@ test('§5.3 O-249 第148: DEFERRED_ へ改名した catch-all が prune 対象�
       const choose = steps[0] as Extract<EffectAction, { type: 'CHOOSE' }>;
       eq(choose.type, 'CHOOSE', `${cardNum} ${label}: 先頭が CHOOSE`);
       eq(choose.upTo, true, `${cardNum} ${label}: 「Nつまで」＝上限（必ずN個選ばされない）`);
-      eq((steps[1] as { id?: string }).id, 'ARTS_COST_REDUCTION_BY_EFFECT',
-        `${cardNum} ${label}: 構造化できていないコスト増の痕跡を残す（O-251 の worklist）`);
-      eq(e.cost?.costScaling, undefined, `${cardNum} ${label}: 「選んだ数だけ」は costScaling へまだ落ちない（O-251）`);
+      eq(steps.length, 1, `${cardNum} ${label}: 構造化できたので痕跡マーカーは剥がれている`);
+      ok((e.cost?.costScaling ?? []).some(t => t.counts.some(c => c.kind === 'declaredChooseCount')),
+        `${cardNum} ${label}: 「選んだ数だけ」が costScaling へ落ちている（O-251）`);
     }
   }
 });
@@ -67749,6 +67759,135 @@ test('§5.3 O-249 第154: 「それを…てもよい。そうした場合、そ
     ok(JSON.stringify(ab.action).includes('"reorder":true'), 'SP38-006: 並べ替えの権利が引用能力にも届く');
     eq(ab.parseStatus, 'AUTO', 'SP38-006: 無言フォールバックが解消して AUTO になる');
   }
+});
+
+// ═══ §5.3 `O-251`＝「使用コストは選んだ数だけ増える」（2026-09-05・4効果）═══
+// 🔴**旧 live は増額が一度も起きなかった**＝parser がこの文を `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`
+//   （no-op マーカー）として残すだけで、`CostScalingCount` に「CHOOSE で選んだ数」を数える種別が無かった。
+//   ⇒ アーツが原文より安く撃てる（過剰実行）。
+// 🔑**盤面から読めない唯一の count**＝支払いより先に宣言させる（`ArtsModal` → `declared_choose_count`）。
+test('§5.3 O-251: 「選んだ数だけ増える」4効果が payload を持ち、no-op マーカーが消えている', () => {
+  const live = (cardNum: string, effectId: string) => findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+  const cases: [string, string][] = [
+    ['PR-K056', 'PR-K056-E1'], ['WX13-003', 'WX13-003-E1'],
+    ['WX20-Re20', 'WX20-Re20-E1'], ['WXK05-002', 'WXK05-002-E1'],
+  ];
+  for (const [num, eid] of cases) {
+    const e = live(num, eid);
+    const terms = e.cost?.costScaling ?? [];
+    ok(terms.some(t => t.counts.some(c => c.kind === 'declaredChooseCount')),
+       `${eid}: costScaling に declaredChooseCount 項がある`);
+    ok(!JSON.stringify(e.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'),
+       `${eid}: 🔴 no-op マーカーが残っていない（構造化できたら剥がす契約）`);
+    ok(JSON.stringify(e.action).includes('"declaredCountChoose":true'),
+       `${eid}: 🔴 CHOOSE に宣言数固定の印が付く（無いと払った数より多く選べる）`);
+  }
+  // 原文の3綴りが別々の payload に落ちること（数式が同じ形へ潰れていない）
+  const t = (num: string, eid: string) => (live(num, eid).cost!.costScaling!)[0];
+  eq(JSON.stringify(t('PR-K056', 'PR-K056-E1')),
+     '{"direction":"increase","counts":[{"kind":"declaredChooseCount","owner":"self"}],"per":1,"amount":[{"color":"青","count":1}]}',
+     'PR-K056:「選んだ数だけ《青×1》増える」＝素の比例');
+  eq(JSON.stringify(t('WX13-003', 'WX13-003-E1')),
+     '{"direction":"increase","counts":[{"kind":"declaredChooseCount","owner":"self"}],"per":1,"amount":[{"color":"無","count":2}],"minCount":3,"offset":2}',
+     'WX13-003:「3つ以上の場合、選んだ数から2を引いた数だけ」＝minCount＋offset');
+  eq(JSON.stringify(t('WX20-Re20', 'WX20-Re20-E1')),
+     '{"direction":"increase","counts":[{"kind":"declaredChooseCount","owner":"self"}],"per":2,"amount":[{"color":"無","count":2}],"minCount":2,"maxCount":2}',
+     'WX20-Re20:「2つの場合」＝ちょうど2（minCount===maxCount）の定額');
+});
+
+test('§5.3 O-251: 宣言した数だけコストが増える（0つなら印刷どおり）', () => {
+  const my = { life_cloth: [], hand: [], energy: [] };
+  const at = (num: string, _eid: string, base: string, n: number) =>
+    applyCostScalingTerms(base, declaredChooseScalingOf(num, effectsMap)!,
+      { ...my, declared_choose_count: n }, undefined, cardMap);
+  // PR-K056＝《青》×１ に「選んだ数だけ《青×1》」
+  eq(at('PR-K056', 'PR-K056-E1', '《青》×1', 0), '《青》×1', '0つ宣言＝印刷どおり');
+  eq(at('PR-K056', 'PR-K056-E1', '《青》×1', 3), '《青》×4', '3つ宣言＝《青》+3');
+  eq(at('PR-K056', 'PR-K056-E1', '《青》×1', 5), '《青》×6', '5つ全部＝《青》+5');
+  // WX13-003＝3つ未満は増えない／3つで+1組／4つで+2組
+  eq(at('WX13-003', 'WX13-003-E1', '《青》×2《赤》×1', 2), '《青》×2《赤》×1', '2つは閾値未満＝増えない');
+  eq(at('WX13-003', 'WX13-003-E1', '《青》×2《赤》×1', 3), '《青》×2《赤》×1《無》×2', '3つ＝(3-2)組＝《無》×2');
+  eq(at('WX13-003', 'WX13-003-E1', '《青》×2《赤》×1', 4), '《青》×2《赤》×1《無》×4', '4つ＝(4-2)組＝《無》×4');
+  // WX20-Re20＝ちょうど2つのときだけ定額
+  eq(at('WX20-Re20', 'WX20-Re20-E1', '《白》×1', 1), '《白》×1', '1つ＝増えない');
+  eq(at('WX20-Re20', 'WX20-Re20-E1', '《白》×1', 2), '《白》×1《無》×2', '2つ＝定額《無》×2');
+  // WXK05-002＝2つ以上で (n-1) 組
+  eq(at('WXK05-002', 'WXK05-002-E1', '《白》×2', 1), '《白》×2', '1つ＝増えない');
+  eq(at('WXK05-002', 'WXK05-002-E1', '《白》×2', 3), '《白》×6《無》×2', '3つ＝(3-1)組＝《白》+4《無》+2');
+  // 🔴提示ゲートが使う funnel からは除いてある（宣言前に増額しない＝二重適用しない）
+  ok(!(costScalingOf('PR-K056', effectsMap) ?? []).some(t => t.counts.some(c => c.kind === 'declaredChooseCount')),
+     '🔴costScalingOf は宣言依存項を返さない（ArtsModal 側と二重に適用しない）');
+  eq(declaredChooseMaxOf('PR-K056', effectsMap), 5, '宣言できる上限は CHOOSE の from_count');
+  eq(declaredChooseMaxOf('WX20-Re20', effectsMap), 2, '同上（2択）');
+  eq(declaredChooseMaxOf('WX01-001', effectsMap), null, '無関係な札には宣言 UI を出さない');
+});
+
+test('§5.3 O-251: CHOOSE は宣言した数ちょうどに固定される（払った分より多く選べない）', () => withSavedCursor(() => {
+  const live = findEffectDeep(effectsMap.get('PR-K056') ?? [], 'PR-K056-E1')!;
+  const base = mkCtx({}, { hand: 3 });
+  // 3つ宣言＝3つちょうど（`upTo` は落ちる）
+  const r3 = executeEffect(live, { ...base, ownerState: { ...base.ownerState, declared_choose_count: 3 } } as ExecCtx);
+  ok(!r3.done && r3.pending.type === 'CHOOSE', 'CHOOSE を提示する');
+  const ask3 = (r3 as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(ask3.count, 3, '🔴宣言した3つに固定される');
+  ok(!(ask3 as unknown as Record<string, unknown>).upTo, '🔴「まで」は落ちる（3つ払って5つ選べない）');
+  // 0つ宣言＝1つも選ばせない
+  const r0 = executeEffect(live, { ...base, ownerState: { ...base.ownerState, declared_choose_count: 0 } } as ExecCtx);
+  ok(r0.done, '0つ宣言なら選択を出さずに終わる');
+  // 宣言が無い（CPU 経路）＝従来どおり「5つまで」
+  const rn = executeEffect(live, base);
+  const askN = (rn as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(askN.count, 5, '宣言が無ければ従来どおり choose_count のまま');
+  ok((askN as unknown as Record<string, unknown>).upTo, '宣言が無ければ upTo も従来どおり');
+}));
+
+// ═══ §5.3 `O-252`＝逆翻訳が `costReplacement` を payload から描いていなかった（2026-09-05）═══
+// 🔴**症状は2つ**＝①`STUB{ARTS_COST_REDUCTION_BY_CENTER_LRIG}` が**原文の該当文をそのまま貼って**おり、
+//   payload が空でも同じ文が出た（＝逆翻訳が実装の有無を映さない。`O-119` が `costScaling` について
+//   書いた罠の `costReplacement` 版）②`mergeManualEffects` は live の効果を manual の定義で丸ごと
+//   置き換えるので、`buildEffectsJson` がマージの**後から**重ねる印字キーワードコストが
+//   **逆翻訳からだけ消えていた**（実測35カード）。
+test('§5.3 O-252: 痕跡マーカーは JSON に残したまま、逆翻訳側だけ payload へ寄せる', () => {
+  // 🔴**parser で痕跡 STUB を剥がしてはいけない**（2026-09-05 に実測して撤回した）＝
+  //   `parseCardEffects` の後段は**ステップの位置**を前提にした後処理を持っており、
+  //   マーカーを1つ抜くと `WX11-015` の「この方法で3枚以上捨てた場合」の `CONDITIONAL` が
+  //   **木ごと消えて2体目のバニッシュが無条件になった**（過剰実行）。
+  const marked = [...effectsMap].filter(([, effs]) =>
+    effs.some(e => JSON.stringify(e.action).includes('ARTS_COST_REDUCTION_BY_CENTER_LRIG')));
+  ok(marked.length >= 10, `痕跡マーカーは JSON に残っている（実測 ${marked.length}枚・剥がすと木が壊れる）`);
+  for (const [, effs] of marked) {
+    ok(!!effs[0]?.cost?.costReplacement?.length,
+       `${effs[0]?.effectId}: マーカーを持つ効果は条件つき軽減の payload も持つ（逆翻訳はそちらを描く）`);
+  }
+  // `WX11-015`＝剥がした版で壊れた当のカード。条件つき2体目が残っていることを固定する。
+  const w11 = (effectsMap.get('WX11-015') ?? []).find(e => e.effectId === 'WX11-015-E1')!;
+  const w11Json = JSON.stringify(w11.action);
+  ok(w11Json.includes('"LAST_PROCESSED_COUNT_GTE"') && w11Json.includes('"value":3'),
+     '🔴WX11-015: 「この方法で3枚以上捨てた場合」の条件が残っている（2体目が無条件になっていない）');
+});
+
+test('§5.3 O-252: 逆翻訳が印字キーワードコストを payload から描く（manual マージで落とさない）', () => {
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
+  ok(dec.includes('function costReplacementJa('), '逆翻訳に costReplacement の描画器がある');
+  ok(dec.includes('if (c.costReplacement?.length) parts.push(costReplacementJa(c.costReplacement));'),
+     '🔴costJa が costReplacement を描く（原文貼り付けへ戻していない）');
+  ok(dec.includes('printedKeywordCosts(cardMap.get(id)?.EffectText)'),
+     '🔴manual マージの後に印字キーワードコストを重ね直す（buildEffectsJson と同じ funnel）');
+  ok(dec.includes("if (a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' && currentEffectHasCostReplacement) return '';"),
+     '🔴payload が描けている効果では原文貼り付けの分岐を黙らせる（二重表示＋「payload が空でも同じ文」を作らない）');
+  // 重ね直しが要る母集団＝manual 定義が印字コストを書いていないカード。0 になったら契約を見直す。
+  const dropped: string[] = [];
+  for (const [cardNum, manuals] of Object.entries(MANUAL_EFFECTS)) {
+    const card = cardMap.get(cardNum);
+    if (!card) continue;
+    const printed = printedKeywordCosts(card.EffectText) as Record<string, unknown>;
+    const keys = PRINTED_KEYWORD_COST_KEYS.filter(k => printed[k] !== undefined);
+    if (!keys.length) continue;
+    const first = (manuals as CardEffect[])[0];
+    if (keys.some(k => (first?.cost as Record<string, unknown> | undefined)?.[k] === undefined)) dropped.push(cardNum);
+  }
+  ok(dropped.length >= 30,
+     `manual マージで印字コストが落ちるカードは実在する（実測 ${dropped.length}枚・重ね直しが無いと逆翻訳が嘘をつく）`);
 });
 
 if (listMode) {

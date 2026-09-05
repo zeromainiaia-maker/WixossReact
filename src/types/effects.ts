@@ -829,7 +829,17 @@ export type CostScalingCount =
    *   そちらが先に return して**比例項が永久に効かなくなる**。
    */
   | { kind: 'artsUsedThisTurn'; owner: Owner }
-  | { kind: 'charm' | 'virus'; owner: Owner };
+  | { kind: 'charm' | 'virus'; owner: Owner }
+  /**
+   * 🆕**この使用宣言で「以下のNつから」いくつ選ぶと宣言したか**（§5.3 `O-251`・2026-09-05・4効果）。
+   * 原文「このアーツの使用コストは**選んだ数だけ**《青×1》増える」（`PR-K056`／`WX13-003`／
+   * `WXK05-002`／`WX20-Re20`）。
+   * 🔴**他の種別と違って盤面から読めない**＝支払いより先に「いくつ選ぶか」を宣言させ、
+   *   その数を `PlayerState.declared_choose_count` に置く（`ArtsModal` の宣言 UI → `performArts`）。
+   *   宣言が無い state（CPU 経路など）は **0**＝増額なしへ倒す（安いほうへ倒すが、
+   *   `ChooseAction.declaredCountChoose` が無いので選択数も制限されない＝旧挙動と同じ）。
+   */
+  | { kind: 'declaredChooseCount'; owner: Owner };
 
 /** 「〜N体／枚につき《色×M》減る／増える」＝使用コストの比例増減1項。 */
 export interface CostScalingTerm {
@@ -842,6 +852,14 @@ export interface CostScalingTerm {
   amount: EnergyCost[];
   /** 「N体以上いるかぎり」付きの項。合計が未満なら項全体を適用しない。 */
   minCount?: number;
+  /** 🆕「N体**以下**のかぎり」＝合計が超えたら項全体を適用しない（`minCount` と同値なら「ちょうどN」）。 */
+  maxCount?: number;
+  /**
+   * 🆕**割る前に合計から引く数**（§5.3 `O-251`）＝原文「選んだ数**から2を引いた数**だけ」。
+   * `times = floor(max(0, total - offset) / per)`。⚠`minCount` は**引く前の合計**で判定する
+   * （原文が「選んだ数が3つ以上の場合、選んだ数から2を引いた数だけ」と2つを別に書くため）。
+   */
+  offset?: number;
 }
 
 /**
@@ -2558,6 +2576,16 @@ export interface ChooseAction {
    * 🔴これが無かった頃は**カードごと受け皿 STUB に落ちて①②③が1つも実行されない**真 no-op だった。
    */
   countChoose?: { count: NumberOrRef; countFromZone?: CountFromZone; upTo?: boolean };
+  /**
+   * 🆕**使用宣言時に「いくつ選ぶか」を先に宣言する**（§5.3 `O-251`・2026-09-05）＝
+   * 「このアーツの使用コストは**選んだ数だけ**《色×N》増える」形。
+   * 🔴**コストが選択数に依存するので、支払いより後に選ばせると必ず安く撃てる**（過剰実行）。
+   * ⇒ `ArtsModal` が宣言 UI を出して `PlayerState.declared_choose_count` に置き、ここでその数に**固定**する
+   *   （`upTo` を落として「宣言した数ちょうど」にする＝払った分だけ選ばせる）。
+   * ⚠**宣言が無い state（CPU 経路）では従来どおり `upTo` のまま**＝増額も選択制限もしない近似。
+   * 🔑生成は `wireDeclaredChooseCount`（`cost.costScaling` に `declaredChooseCount` 項がある効果だけ）。
+   */
+  declaredCountChoose?: boolean;
   /**
    * 🆕「以下のN個から**まだ選んでいないもの**１つを選ぶ」（2026-09-01 続き760・`WXDi-P11-003-E1-GRANT`）＝
    * **このゲーム中に一度選んだ選択肢は二度と選べない**。

@@ -1390,6 +1390,16 @@ export interface PlayerState {
    * （`WXDi-CP02-094-E1`）。⚠`deck_to_trash_count_this_turn` と**同じ地点**で更新する。
    */
   deck_to_trash_cards_this_turn?: string[];
+  /**
+   * 🆕**使用宣言時に「以下のNつから」いくつ選ぶと宣言したか**（§5.3 `O-251`・2026-09-05）。
+   * `CostScalingCount.declaredChooseCount` が読んで**使用コストの増加**を決め、
+   * `ChooseAction.declaredCountChoose` が読んで**選択数をその数に固定**する。
+   * 🔴**支払いより先に決まっていないと必ず安く撃てる**ので、`ArtsModal` の宣言 UI →
+   *   `performArts` の支払い state に載せる、という順序を崩さないこと。
+   * ⚠使用ごとに**上書き**する（`last_paid_energy_colors` と同じ規約）。消費した `CHOOSE` が
+   *   `undefined` へ戻すので、宣言が無い経路（CPU）は従来どおりの `upTo` 選択になる。
+   */
+  declared_choose_count?: number;
   // このターンにアーツを使用したか（「このターンにあなたがアーツを使用していた場合」WX25-P1-106）。ターン境界でリセット
   turn_arts_used?: boolean;
   turn_arts_used_names?: string[];

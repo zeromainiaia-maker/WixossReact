@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 585（総ノード 3179 件）
+live JSON の STUB id 種類 : 585（総ノード 3176 件）
 逆翻訳シートの [STUB:…] 総数: 374  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -25,61 +25,61 @@ live JSON の STUB id 種類 : 585（総ノード 3179 件）
         生成: src\data\parsers\parseSentencePart2.ts:500
      2件   2枚  DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED
         カード: WX25-P2-003, WXDi-P05-004
-        生成: src\data\effectParser.ts:24305 / src\data\effectParser.ts:24314
+        生成: src\data\effectParser.ts:24366 / src\data\effectParser.ts:24375
      2件   2枚  DEFERRED_GUARD_ALT_COST_UNKNOWN
         カード: WX25-P1-071, WXDi-P06-006
         生成: src\data\parsers\parseSentencePart3.ts:190 / src\data\parsers\parseSentencePart3.ts:464
      1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
-        生成: src\data\effectParser.ts:22813
+        生成: src\data\effectParser.ts:22874
      1件   1枚  DEFERRED_DRAWN_COUNT_HAND_TO_DECK_BOTTOM
         カード: WXK03-025
         生成: src\data\parsers\parseSentencePart4.ts:1682
      1件   1枚  DEFERRED_EACH_PLAYER_REVEAL_HAND
         カード: WXEX2-80
-        生成: src\data\effectParser.ts:15115
+        生成: src\data\effectParser.ts:15176
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
         生成: src\data\parsers\parseSentencePart2.ts:2863
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
-        生成: src\data\effectParser.ts:15118
+        生成: src\data\effectParser.ts:15179
      1件   1枚  DEFERRED_MOVE_OPP_SIGNI_TO_OTHER_ZONE
         カード: WXDi-P06-045
-        生成: src\data\effectParser.ts:15122
+        生成: src\data\effectParser.ts:15183
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_HAND_DISCARD
         カード: SPK01-14
-        生成: src\data\effectParser.ts:15111
+        生成: src\data\effectParser.ts:15172
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_HAND_REVEAL
         カード: PR-K078
-        生成: src\data\effectParser.ts:15113
+        生成: src\data\effectParser.ts:15174
      1件   1枚  DEFERRED_OPP_BLIND_PICK_MY_LRIG_DECK
         カード: PR-K070
-        生成: src\data\effectParser.ts:15112
+        生成: src\data\effectParser.ts:15173
      1件   1枚  DEFERRED_OPP_DECK_BOTTOM_MILL_THEN_NAME_BANISH
         カード: WXDi-P00-037
-        生成: src\data\effectParser.ts:15116
+        生成: src\data\effectParser.ts:15177
      1件   1枚  DEFERRED_OPP_DECK_TOP_REVEAL_TO_BOTTOM
         カード: WXDi-P00-063
-        生成: src\data\effectParser.ts:15121
+        生成: src\data\effectParser.ts:15182
      1件   1枚  DEFERRED_OPP_HAND_NON_GUARD_TO_DECK_BOTTOM
         カード: WXDi-P09-065
         生成: src\data\parsers\parseSentencePart4.ts:2020
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:15409
+        生成: src\data\effectParser.ts:15470
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2191
      1件   1枚  DEFERRED_OPP_TRASH_TO_DECK_THEN_REARRANGE
         カード: WDK09-015
-        生成: src\data\effectParser.ts:15304
+        生成: src\data\effectParser.ts:15365
      1件   1枚  DEFERRED_OPTIONAL_SELF_MILL_THEN_LEVEL_MILL
         カード: WX24-P4-085
-        生成: src\data\effectParser.ts:15120
+        生成: src\data\effectParser.ts:15181
      1件   1枚  DEFERRED_PLACE_LOOKED_CARD_UNDER_SIGNI
         カード: WXK08-084
-        生成: src\data\effectParser.ts:15123
+        生成: src\data\effectParser.ts:15184
      1件   1枚  DEFERRED_REMAINDER_TO_DECK_TOP_ORDERED
         カード: SP26-001
         生成: src\data\parsers\parseSentencePart4.ts:1932
@@ -88,22 +88,22 @@ live JSON の STUB id 種類 : 585（総ノード 3179 件）
         生成: src\data\parsers\parseSentencePart4.ts:2161
      1件   1枚  DEFERRED_SELF_BECOME_ACCE_OF_PLAYED_SIGNI
         カード: WDK17-015
-        生成: src\data\effectParser.ts:15119
+        生成: src\data\effectParser.ts:15180
      1件   1枚  DEFERRED_SELF_SIGNI_COLOR_TO_DECLARED
         カード: WX22-042
-        生成: src\data\effectParser.ts:15414
+        生成: src\data\effectParser.ts:15475
      1件   1枚  DEFERRED_SELF_SIGNI_SERVANT_ZERO
         カード: WXK11-014
         生成: src\data\parsers\parseSentencePart4.ts:731
      1件   1枚  DEFERRED_SELF_TRASH_TO_DECK_BOTTOM
         カード: WX22-Re17
-        生成: src\data\effectParser.ts:15114
+        生成: src\data\effectParser.ts:15175
      1件   1枚  DEFERRED_TRASH_DISTINCT_LEVEL_TO_DECK_BOTTOM
         カード: WX26-CP1-055
         生成: src\data\parsers\parseSentencePart4.ts:2269
      1件   1枚  DEFERRED_TRASH_UNDER_DISTINCT_LEVELS
         カード: WX24-P4-046
-        生成: src\data\effectParser.ts:15300
+        生成: src\data\effectParser.ts:15361
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -173,10 +173,10 @@ live JSON の STUB id 種類 : 585（総ノード 3179 件）
         消費: src\engine\effectEngine.ts:7866
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9536
+        消費: src\engine\effectExecutor.ts:9554
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9538
+        消費: src\engine\effectExecutor.ts:9556
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66
@@ -200,7 +200,7 @@ live JSON の STUB id 種類 : 585（総ノード 3179 件）
         消費: src\engine\refresh.ts:30
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WXK11-020
-        消費: src\screens\battle\costs.ts:1073
+        消費: src\screens\battle\costs.ts:1127
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
         消費: src\engine\execUtils.ts:1979

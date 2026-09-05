@@ -484,13 +484,59 @@ export function addNColorToCost(cost: string, color: string, n: number): string 
   return newParts.filter(p => p.count > 0).map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
 }
 
-/** カードの全効果から、カード自身の使用コスト比例増減 payload を1本で取り出す。 */
+const isDeclaredChooseTerm = (term: CostScalingTerm): boolean =>
+  term.counts.some(count => count.kind === 'declaredChooseCount');
+
+/**
+ * カードの全効果から、カード自身の使用コスト比例増減 payload を1本で取り出す。
+ *
+ * 🔴**「選んだ数だけ増える」項（§5.3 `O-251`）は除く**＝あれは盤面ではなく**宣言 UI の入力**に依存するので、
+ * 提示ゲート（`artsUseGate`）の時点では確定していない。ゲートは**増額なし**で通し（0個選ぶのは常に合法）、
+ * 実額は `ArtsModal` が `declaredChooseScalingOf` を使って宣言数に追従させる。
+ */
 export function costScalingOf(
   cardNum: string,
   effectsMap: Map<string, CardEffect[]>,
 ): CostScalingTerm[] | undefined {
-  const terms = (effectsMap.get(getCardNum(cardNum)) ?? []).flatMap(effect => effect.cost?.costScaling ?? []);
+  const terms = (effectsMap.get(getCardNum(cardNum)) ?? [])
+    .flatMap(effect => effect.cost?.costScaling ?? []).filter(term => !isDeclaredChooseTerm(term));
   return terms.length > 0 ? terms : undefined;
+}
+
+/** 🆕§5.3 `O-251`＝「選んだ数だけ増える」項だけ。`ArtsModal` の宣言 UI が使う。 */
+export function declaredChooseScalingOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): CostScalingTerm[] | undefined {
+  const terms = (effectsMap.get(getCardNum(cardNum)) ?? [])
+    .flatMap(effect => effect.cost?.costScaling ?? []).filter(isDeclaredChooseTerm);
+  return terms.length > 0 ? terms : undefined;
+}
+
+/**
+ * 🆕§5.3 `O-251`＝宣言できる選択数の上限（`declaredCountChoose` が付いた `CHOOSE` の選択肢数）。
+ * ⚠**`choose_count` ではなく `from_count`** を上限にする（原文「以下のNつからNつ**まで**選ぶ」）。
+ * 見つからなければ `null`＝宣言 UI を出さない（＝増額しない従来どおりの挙動へ落ちる）。
+ */
+export function declaredChooseMaxOf(
+  cardNum: string,
+  effectsMap: Map<string, CardEffect[]>,
+): number | null {
+  const walk = (action: unknown): number | null => {
+    if (!action || typeof action !== 'object') return null;
+    const a = action as { type?: string; declaredCountChoose?: boolean; from_count?: number; steps?: unknown[] };
+    if (a.type === 'CHOOSE' && a.declaredCountChoose && typeof a.from_count === 'number') return a.from_count;
+    for (const step of a.steps ?? []) {
+      const found = walk(step);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+  for (const effect of effectsMap.get(getCardNum(cardNum)) ?? []) {
+    const found = walk(effect.action);
+    if (found !== null) return found;
+  }
+  return null;
 }
 
 type CostScalingState = {
@@ -504,6 +550,8 @@ type CostScalingState = {
   // 🆕`spellsUsedThisTurn` / `artsUsedThisTurn`（§5.3 `O-86` 第9バッチ・`SP36-001`）の参照元。
   actions_done?: string[];
   turn_arts_used?: boolean;
+  /** 🆕§5.3 `O-251`＝使用宣言時に「いくつ選ぶ」と宣言したか（`declaredChooseCount` の参照元）。 */
+  declared_choose_count?: number;
 };
 
 function scalingOwnerState(
@@ -539,6 +587,9 @@ function resolveCostScalingCount(
   //   旧 `computeArtsEffectiveCost` は `actions_done ?? []` / `turn_arts_used === true` と読んでおり、
   //   欄が無いことを「使っていない」に倒していた。ここで null にすると `applyCostScalingTerms` が
   //   項ごと null を返し、**同じ札のもう一方の軽減項まで丸ごと消える**。
+  // 🆕§5.3 `O-251`＝「選んだ数だけ増える」。**宣言が無ければ 0**（増額なし）＝
+  //   宣言 UI を通らない経路（CPU）で `null` に倒すと、同じ札の別の項まで丸ごと消える。
+  if (count.kind === 'declaredChooseCount') return Math.max(0, state.declared_choose_count ?? 0);
   if (count.kind === 'spellsUsedThisTurn') return (state.actions_done ?? []).filter(a => a === 'USE_SPELL').length;
   if (count.kind === 'artsUsedThisTurn') return state.turn_arts_used === true ? 1 : 0;
 
@@ -591,7 +642,10 @@ export function applyCostScalingTerms(
     if (counts.some(count => count === null)) return null;
     const total = (counts as number[]).reduce((sum, count) => sum + count, 0);
     if (term.minCount !== undefined && total < term.minCount) continue;
-    const times = Math.floor(total / term.per);
+    // 🆕`maxCount`／`offset`（§5.3 `O-251`）＝原文「選んだ数が3つ以上の場合、選んだ数から2を引いた数だけ」。
+    //   ⚠**しきい値は引く前の合計で見る**（原文が2つを別々に書くため）。
+    if (term.maxCount !== undefined && total > term.maxCount) continue;
+    const times = Math.floor(Math.max(0, total - (term.offset ?? 0)) / term.per);
     if (times <= 0) continue;
     for (const amount of term.amount) {
       out = term.direction === 'increase'

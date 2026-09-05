@@ -6336,9 +6336,27 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     if (!a.allowRepeat) effectiveCount = Math.min(effectiveCount, options.filter(o => o.available).length);
     if (effectiveCount === 0) return done(addLog(ctx, '選択可能な選択肢0（選ばない）'));
   }
-  const chooseCtx = a.additionalCostChoose
+  // 🆕§5.3 `O-251`（2026-09-05）＝**使用宣言時に「いくつ選ぶ」と宣言している**形。
+  // 🔴コストが選択数に比例して増えるので、**宣言した数ちょうど**に固定しないと払った分より多く選べる
+  //   （＝アーツが原文より安く撃てる過剰実行）。宣言が無い経路（CPU）は従来どおり `upTo` のまま。
+  let consumedDeclaredCount = false;
+  if (a.declaredCountChoose && typeof ctx.ownerState.declared_choose_count === 'number') {
+    consumedDeclaredCount = true;
+    effectiveCount = Math.max(0, Math.min(
+      ctx.ownerState.declared_choose_count, options.filter(o => o.available).length));
+    effectiveUpTo = false;
+    if (effectiveCount === 0) {
+      return done(addLog(
+        { ...ctx, ownerState: { ...ctx.ownerState, declared_choose_count: undefined } }, '選択数0（宣言時に0つを選んだ）'));
+    }
+  }
+  const chooseCtx0 = a.additionalCostChoose
     ? { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } }
     : ctx;
+  // 宣言は**この選択で使い切る**（残すと同じターンの別の効果が古い宣言を読む）。
+  const chooseCtx = consumedDeclaredCount
+    ? { ...chooseCtx0, ownerState: { ...chooseCtx0.ownerState, declared_choose_count: undefined } }
+    : chooseCtx0;
   return needsInteraction(chooseCtx, {
     type: 'CHOOSE', options, count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),

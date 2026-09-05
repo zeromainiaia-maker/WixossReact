@@ -11,6 +11,11 @@ export interface ArtsModalState {
   selectedArtsDiscard: Set<number>;
   /** 使用時の任意支払いによるコスト**軽減**で選んだ支払い（`useTimeCost.ts` の候補 key）。タスク12(lxxxv) */
   selectedArtsUseCostPay: Set<string>;
+  /**
+   * 🆕§5.3 `O-251`＝「以下のNつから選ぶ」で**いくつ選ぶと宣言したか**。
+   * 🔴使用コストがこの数に比例して増えるので、**支払いより先に**決める必要がある。
+   */
+  declaredArtsChooseCount: number;
   // ベットで支払うコイン枚数（0=ベットしない）。固定/段階(or)/可変(好きな枚数)を統一表現
   betAmount: number;
   isBoosting: boolean;
@@ -24,6 +29,7 @@ const initialState: ArtsModalState = {
   selectedArtsCost: new Set(),
   selectedArtsDiscard: new Set(),
   selectedArtsUseCostPay: new Set(),
+  declaredArtsChooseCount: 0,
   betAmount: 0,
   isBoosting: false,
   isEncore: false,
@@ -39,17 +45,19 @@ export function useArtsModal() {
     setSelectedArtsCost: set.selectedArtsCost,
     setSelectedArtsDiscard: set.selectedArtsDiscard,
     setSelectedArtsUseCostPay: set.selectedArtsUseCostPay,
+    setDeclaredArtsChooseCount: set.declaredArtsChooseCount,
     setBetAmount: set.betAmount,
     setIsBoosting: set.isBoosting,
     setIsEncore: set.isEncore,
     /** アーツ詳細（Phase2）を開く：対象カード＋減額後実効コストをセットし選択を白紙化 */
     openArtsModal: (card: CardData, effectiveCost: string | null) =>
-      patch({ pendingArtsCard: card, pendingArtsEffectiveCost: effectiveCost, selectedArtsCost: new Set(), selectedArtsUseCostPay: new Set(), isBoosting: false, showArtsModal: true }),
+      patch({ pendingArtsCard: card, pendingArtsEffectiveCost: effectiveCost, selectedArtsCost: new Set(), selectedArtsUseCostPay: new Set(), declaredArtsChooseCount: 0, isBoosting: false, showArtsModal: true }),
     /** モーダルを閉じて選択・ベット・アンコールを全リセット（keySubstituteEnabled はキー側で別途） */
     closeArtsModal: () =>
       patch({
         showArtsModal: false, pendingArtsCard: null, selectedArtsCost: new Set(),
-        selectedArtsDiscard: new Set(), selectedArtsUseCostPay: new Set(), betAmount: 0, isBoosting: false, isEncore: false,
+        selectedArtsDiscard: new Set(), selectedArtsUseCostPay: new Set(), declaredArtsChooseCount: 0,
+        betAmount: 0, isBoosting: false, isEncore: false,
       }),
     /** コスト支払いエナの選択トグル */
     toggleArtsCost: (idx: number) =>

@@ -239,7 +239,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
     pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost,
-    selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isEncore, setIsEncore,
+    selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay,
+    declaredArtsChooseCount, setDeclaredArtsChooseCount, betAmount, setBetAmount, isEncore, setIsEncore,
     isBoosting, setIsBoosting, openArtsModal, closeArtsModal, toggleArtsCost,
   } = useArtsModal();
   const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones, openRemoveZone } = useRemoveZone();
@@ -7281,6 +7282,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       useKeySub?: boolean;
       boosting?: boolean;
       useCostPayKeys?: Set<string>;
+      /**
+       * 🆕§5.3 `O-251`＝「以下のNつから」いくつ選ぶと**宣言**したか。
+       * 🔴コストがこの数に比例して増えるので、支払い state に載せて `CHOOSE` を宣言数に固定する。
+       * ⚠**未指定（CPU 経路）は従来どおり**＝増額もせず選択数も固定しない近似。
+       */
+      declaredChooseCount?: number;
     },
     p: {
       actor: PlayerState; opponent: PlayerState;
@@ -7379,6 +7386,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ⚠支払いのたびに**上書き**する（前の使用の色を持ち越さない＝`last_cost_trashed_cards` と同じ規約）。
         last_paid_energy_colors: artsPaidEnergyColors,
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
+        // §5.3 `O-251`＝宣言した選択数。`execChoose` が読んで選択数を固定し、読んだら `undefined` へ戻す。
+        declared_choose_count: sel.declaredChooseCount,
         is_betting_this_effect: betCost > 0 ? true : undefined,
         is_boosting_this_effect: boosting ? true : undefined,
         bet_coins_paid: betCost > 0 ? betCost : undefined,
@@ -7471,11 +7480,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /** 人間UI（`ArtsModal` / ルリグデッキのカード詳細）から呼ぶ薄いラッパー。本体は `performArts`。 */
-  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set()) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set(), declaredChooseCount?: number) => {
     if (loading) return;
     closeArtsModal();
     setKeySubstituteEnabled(false);
-    await performArts(card, { costIndices, betCoins, encore, discardIndices, useKeySub, boosting, useCostPayKeys }, {
+    await performArts(card, { costIndices, betCoins, encore, discardIndices, useKeySub, boosting, useCostPayKeys, declaredChooseCount }, {
       actor: my, opponent: op,
       actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
       isActorTurn: isMyTurn,
@@ -15549,7 +15558,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} growPayDiscard={growPayDiscard} toggleGrowPayDiscard={toggleGrowPayDiscard} />
 
       {/* アーツ使用モーダル */}
-      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} selectedArtsUseCostPay={selectedArtsUseCostPay} setSelectedArtsUseCostPay={setSelectedArtsUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
+      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} selectedArtsUseCostPay={selectedArtsUseCostPay} setSelectedArtsUseCostPay={setSelectedArtsUseCostPay} declaredArtsChooseCount={declaredArtsChooseCount} setDeclaredArtsChooseCount={setDeclaredArtsChooseCount} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
 
       {/* スペル発動コスト選択 */}
       <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} selectedSpellDiscard={selectedSpellDiscard} setSelectedSpellDiscard={setSelectedSpellDiscard} selectedSpellUseCostPay={selectedSpellUseCostPay} setSelectedSpellUseCostPay={setSelectedSpellUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />

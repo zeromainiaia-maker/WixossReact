@@ -1126,11 +1126,51 @@ function costScalingTerm(
   perRaw: string,
   amountRaw: string,
   minCount?: number,
+  extra?: { maxCount?: number; offset?: number },
 ): CostScalingTerm | null {
   const per = parseNum(perRaw);
   const amount = parseEnergyCosts(amountRaw);
   if (!Number.isFinite(per) || per <= 0 || counts.length === 0 || amount.length === 0) return null;
-  return { direction, counts, per, amount, ...(minCount !== undefined ? { minCount } : {}) };
+  return {
+    direction, counts, per, amount,
+    ...(minCount !== undefined ? { minCount } : {}),
+    ...(extra?.maxCount !== undefined ? { maxCount: extra.maxCount } : {}),
+    ...(extra?.offset ? { offset: extra.offset } : {}),
+  };
+}
+
+/**
+ * 🆕§5.3 `O-251`（2026-09-05）＝**「以下のNつから選ぶ」の選んだ数に比例して使用コストが増える**。
+ *
+ * 🔴**実害＝アーツが原文より安く撃てる**（過剰実行）。従来 parser はこの文を
+ * `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`（no-op マーカー）として残すだけで、**増額は一度も起きなかった**。
+ * 3綴り（実測4効果）：
+ * - `PR-K056`「このアーツの使用コストは**選んだ数だけ**《青×1》増える」
+ * - `WX13-003`／`WXK05-002`「**選んだ数がKつ以上の場合**、…**選んだ数からJを引いた数だけ**《…》増える」
+ * - `WX20-Re20`「**選んだ数がKつの場合**、…《無×2》増える」＝`minCount === maxCount` の定額
+ *
+ * 🔑**盤面から読めない唯一の `CostScalingCount`**＝支払いより先に宣言させる
+ *   （`ArtsModal` → `PlayerState.declared_choose_count` → `ChooseAction.declaredCountChoose` で選択数を固定）。
+ */
+function parseChosenOptionCostIncrease(sentence: string): CostScalingTerm | null {
+  const amount = COST_SCALING_AMOUNT_SOURCE;
+  const num = COST_SCALING_NUM_SOURCE;
+  const self = '(?:スペル|アーツ|カード|ピース)';
+  const count: CostScalingCount[] = [{ kind: 'declaredChooseCount', owner: 'self' }];
+  // 「選んだ数がKつ以上の場合、この…の使用コストは、選んだ数からJを引いた数だけ《…》増える」
+  let m = sentence.match(new RegExp(
+    `^選んだ数が${num}つ以上の場合[、,]この${self}の使用コストは[、,]?選んだ数から${num}を引いた数だけ${amount}増える$`));
+  if (m) return costScalingTerm('increase', count, '1', m[3], parseNum(m[1]), { offset: parseNum(m[2]) });
+  // 「選んだ数がKつの場合、この…の使用コストは《…》増える」＝ちょうどKのときだけ定額で増える。
+  m = sentence.match(new RegExp(`^選んだ数が${num}つの場合[、,]この${self}の使用コストは${amount}増える$`));
+  if (m) {
+    const k = parseNum(m[1]);
+    return costScalingTerm('increase', count, String(k), m[2], k, { maxCount: k });
+  }
+  // 「この…の使用コストは選んだ数だけ《…》増える」
+  m = sentence.match(new RegExp(`^この${self}の使用コストは選んだ数だけ${amount}増える$`));
+  if (m) return costScalingTerm('increase', count, '1', m[1]);
+  return null;
 }
 
 function opponentScalingCount(raw: string): CostScalingCount | null {
@@ -1273,6 +1313,9 @@ function parseCostScaling(text: string): CostScalingTerm[] | undefined {
   for (const sentence of text.split('。')) {
     const oppArts = parseOppArtsUsedCostReduction(sentence);
     if (oppArts) { matched = true; terms.push(oppArts); continue; }
+    // 🆕§5.3 `O-251`＝「選んだ数だけ増える」は**「につき」を書かない**ので、下のゲートより先に見る。
+    const chosen = parseChosenOptionCostIncrease(sentence);
+    if (chosen) { matched = true; terms.push(chosen); continue; }
     if (!(/この(?:スペル|アーツ|カード|ピース)の使用コストは/.test(sentence) && /につき/.test(sentence))) continue;
     matched = true;
     const parsed = parseCostScalingSentence(sentence);
@@ -1288,6 +1331,23 @@ function withCostScaling(cost: EffectCost | undefined, terms: CostScalingTerm[] 
   return { ...(cost ?? {}), costScaling: terms };
 }
 
+/**
+ * 🆕§5.3 `O-251`＝`declaredChooseCount` の項がある効果の `CHOOSE` に「宣言した数へ固定する」印を付ける。
+ * 🔴**印が無いと、宣言した数より多く選べる**＝払った額より多く効果が出る（過剰実行）。
+ * ⚠**最初に見つけた `CHOOSE` 1つだけ**に付ける（この形の原文は必ず先頭の選択に掛かる）。
+ */
+function wireDeclaredChooseCount(action: EffectAction, terms: CostScalingTerm[] | undefined): EffectAction {
+  if (!terms?.some(term => term.counts.some(count => count.kind === 'declaredChooseCount'))) return action;
+  let done = false;
+  const walk = (node: EffectAction): EffectAction => {
+    if (done) return node;
+    if (node.type === 'CHOOSE') { done = true; return { ...node, declaredCountChoose: true } as EffectAction; }
+    if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(walk) } as EffectAction;
+    return node;
+  };
+  return walk(action);
+}
+
 const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
 function stripCostScalingMarker(action: EffectAction, terms: CostScalingTerm[] | undefined): EffectAction {
   if (!terms) return action;
@@ -1295,6 +1355,7 @@ function stripCostScalingMarker(action: EffectAction, terms: CostScalingTerm[] |
   if (action.type !== 'SEQUENCE') return action;
   return { ...action, steps: action.steps.filter(step => !(step.type === 'STUB' && COST_SCALING_MARKERS.has(step.id))) };
 }
+
 
 
 function parseArtsTiming(timingStr: string): EffectTiming[] {
@@ -23022,7 +23083,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   }
   // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払いは使用時UIが行うので解決中の重複ステップを落とす。
   action = stripUseTimeCostReductionStep(action, stripped);
-  action = stripCostScalingMarker(action, costScaling);
+  action = wireDeclaredChooseCount(stripCostScalingMarker(action, costScaling), costScaling);
   // ブースト後半の「それ」は直前に対象とした同じシグニを指す。文分割後の既定 owner:self を
   // 直前対象へ戻す（WX25-P1-002）。選択UI上は同一対象の再選択になるが owner/filter は保持する。
   if (/^ブースト[―─]/.test(card.EffectText) && action.type === 'SEQUENCE') {
@@ -23186,7 +23247,7 @@ function parseSpellEffect(card: CardData): CardEffect | null {
     : parseActionText(actionText);
   let action = stripUseTimeCostReductionStep(
     stripUseTimeOptionalCostStep(parsedAction, stripped), stripped);
-  action = stripCostScalingMarker(action, costScaling);
+  action = wireDeclaredChooseCount(stripCostScalingMarker(action, costScaling), costScaling);
   const spellFb = consumeSilentFallbacks();
   logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';

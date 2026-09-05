@@ -1295,6 +1295,11 @@ const PATTERNS: Pattern[] = [
       // （§6.4 O-3 続き492・live 1件）。⚠較正キーは narrow に取る＝`DRAW` を鍵にすると
       //   ドロー系の高シグナルを丸ごと隠す。
       'RESERVE_DRAW_PHASE_REPLACEMENT',
+      // 🆕§5.3 `O-251`＝「**選んだ数が3つ以上の場合**、使用コストは選んだ数から2を引いた数だけ増える」
+      //   （`WX13-003-E1`）。条件は `costScaling[].minCount` に載っており **`CONDITIONAL` にはならない**
+      //   （コストは支払い時に解決するので action の木に条件節が現れない）。
+      //   ⚠narrow に取る＝この綴りは live 4効果しか無い（`declaredChooseCount` を持つ札だけ）。
+      'declaredChooseCount',
       // 🆕`"once":true`＝`INSTALL_DELAYED_TRIGGER` の「それがこのターンであなたの**最初の**
       //   リフレッシュ**である場合**」（`WX09-Re06-E1`）。**回数条件を設置側のフラグで内包する正表現**で、
       //   `CONDITIONAL` にはならない。⚠narrow に取る＝`usageLimit:"once_per_turn"` は

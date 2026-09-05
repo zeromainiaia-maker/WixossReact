@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors, matchesFilter, getCardNum } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor } from '../costs';
+import { computeCostReplacement, costReplacementOf, canAffordWithExtraCost, parseGrowCost, betOptionsOf, boostCostOf, encoreCostOf, canPayExceed, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction, coinPayableFor, applyCostScalingTerms, declaredChooseScalingOf, declaredChooseMaxOf } from '../costs';
 import { resolveUseTimeCost, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
@@ -24,6 +24,9 @@ interface ArtsModalProps {
   setSelectedArtsDiscard: Dispatch<SetStateAction<Set<number>>>;
   selectedArtsUseCostPay: Set<string>;
   setSelectedArtsUseCostPay: Dispatch<SetStateAction<Set<string>>>;
+  /** 🆕§5.3 `O-251`＝「以下のNつから」いくつ選ぶかの宣言（使用コストがこれに比例して増える）。 */
+  declaredArtsChooseCount: number;
+  setDeclaredArtsChooseCount: Dispatch<SetStateAction<number>>;
   betAmount: number;
   setBetAmount: Dispatch<SetStateAction<number>>;
   isBoosting: boolean;
@@ -32,13 +35,13 @@ interface ArtsModalProps {
   setIsEncore: Dispatch<SetStateAction<boolean>>;
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
-  executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean, boosting?: boolean, useCostPayKeys?: Set<string>) => void;
+  executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean, boosting?: boolean, useCostPayKeys?: Set<string>, declaredChooseCount?: number) => void;
   toggleArtsCostCard: (idx: number) => void;
 }
 
 export function ArtsModal(p: ArtsModalProps) {
   const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
-  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, executeArts, toggleArtsCostCard } = p;
+  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, declaredArtsChooseCount, setDeclaredArtsChooseCount, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, executeArts, toggleArtsCostCard } = p;
   return (
     <>
       {showArtsModal && pendingArtsCard && createPortal(
@@ -88,13 +91,22 @@ export function ArtsModal(p: ArtsModalProps) {
                 ? reducedEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
                 : reducedEffectiveCost;
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
+              // 🆕§5.3 `O-251`＝「以下のNつからNつまで選ぶ。使用コストは**選んだ数だけ**《色×M》増える」。
+              // 🔴**選ばせてから請求すると必ず安く撃てる**ので、宣言をここ（支払いの前）で取る。
+              //   ⚠この項は `costScalingOf`（＝提示ゲートが使う funnel）からは除いてある＝二重適用しない。
+              const declaredChooseTerms = declaredChooseScalingOf(pendingArtsCard.CardNum, effectsMap);
+              const declaredChooseMax = declaredChooseTerms ? declaredChooseMaxOf(pendingArtsCard.CardNum, effectsMap) : null;
+              const costAfterDeclared = declaredChooseTerms && declaredChooseMax !== null
+                ? (applyCostScalingTerms(effectiveCost, declaredChooseTerms,
+                    { ...my, declared_choose_count: declaredArtsChooseCount }, op, battleCardMap) ?? effectiveCost)
+                : effectiveCost;
               const useCostSpec = resolveUseTimeCost(pendingArtsCard.CardNum, effectsMap);
               const useCostCands = useCostSpec ? useTimeCostCandidates(useCostSpec, my, battleCardMap) : [];
-              const useCostBefore = effectiveCost;
+              const useCostBefore = costAfterDeclared;
               const useCostIncomplete = !!useCostSpec && selectedArtsUseCostPay.size > 0
                 && !useTimeCostSelectionValid(useCostSpec, selectedArtsUseCostPay, useCostCands.length);
               const effectiveCostAfterPay = useCostSpec
-                ? applyUseTimeCostReduction(effectiveCost, useCostSpec, selectedArtsUseCostPay.size) : effectiveCost;
+                ? applyUseTimeCostReduction(costAfterDeclared, useCostSpec, selectedArtsUseCostPay.size) : costAfterDeclared;
               const costItems = parseGrowCost(effectiveCostAfterPay);
               const encoreCostForCard = encoreCostOf(pendingArtsCard.CardNum, effectsMap);
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
@@ -262,6 +274,24 @@ export function ArtsModal(p: ArtsModalProps) {
                       {keySubstituteEnabled ? '✓ ' : ''}キー代替: {battleCardMap.get(myEnergyTrashSubInfo.keySubInstId)?.CardName ?? 'キー'} をルリグTへ (エナ2任意色分)
                     </button>
                   )}
+                  {/* 🆕§5.3 `O-251`＝選ぶ数の宣言。コスト表示・支払い枚数はこの数に追従する。 */}
+                  {declaredChooseTerms && declaredChooseMax !== null && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ color: C.textDim, fontSize: 11 }}>選ぶ数を宣言（コストが増えます）</span>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {Array.from({ length: declaredChooseMax + 1 }, (_, n) => (
+                          <button key={n} data-testid={`arts-declare-choose-${n}`}
+                            onClick={() => { setDeclaredArtsChooseCount(n); setSelectedArtsCost(new Set()); }}
+                            style={{ padding: '4px 10px', borderRadius: 6,
+                              border: declaredArtsChooseCount === n ? '2px solid #ff9800' : C.borderUI,
+                              backgroundColor: declaredArtsChooseCount === n ? 'rgba(255,152,0,0.2)' : 'transparent',
+                              color: C.text, fontSize: 12, cursor: 'pointer' }}>
+                            {n}つ
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {useCostSpec && (
                     <UseCostPaymentPanel spec={useCostSpec} candidates={useCostCands}
                       selected={selectedArtsUseCostPay} setSelected={setSelectedArtsUseCostPay}
@@ -372,7 +402,7 @@ export function ArtsModal(p: ArtsModalProps) {
                       </div>
                     </>
                   )}
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting, useCostIncomplete ? new Set() : selectedArtsUseCostPay)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting, useCostIncomplete ? new Set() : selectedArtsUseCostPay, declaredChooseTerms ? declaredArtsChooseCount : undefined)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,
