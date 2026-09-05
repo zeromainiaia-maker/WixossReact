@@ -50790,7 +50790,9 @@ const v159Spec = () => ({
 });
 
 scenarios.v159TrashSpellCostReduced = {
-  title: 'V-159：WX14-002 の【起】＝トラッシュのスペルを「青1・黒1 減らして」使う（印刷3枚→支払い《無》1つ）【旧実装は候補すら出ない】',
+  // 🔑**1シナリオで2つの観測点を見る**＝`V-159`（軽減）と `V-160`（§5.3 `O-260`＝使ったスペルが
+  //   トラッシュではなく**ゲームから除外**される）は**同じ1回の使用**でしか観測できない。
+  title: 'V-159/V-160：WX14-002 の【起】＝トラッシュのスペルを「青1・黒1 減らして」使い、使用後はゲームから除外される【旧実装は候補すら出ず、除外も別物】',
   spec: v159Spec(),
   async drive(page, H) {
     const st0 = await H.queryState();
@@ -50803,7 +50805,10 @@ scenarios.v159TrashSpellCostReduced = {
     let opened = false, fired = false, picked = false, payLabel = null, paid = false;
     const enaPicked = new Set();
     let reqCount = null;
-    for (let s = 0; s < 20 && !paid; s++) {
+    // 🔴**支払った時点で止めない**＝置換ステップ（`EXILE_FROM_CHECK_ZONE`）は**スペル本体の効果を
+    //   解決したあと**に走るので、`pendingEffect` が空になるまで進めないと「除外されていない」と誤診する。
+    let settled = false, postPicked = false;
+    for (let s = 0; s < 24 && !settled; s++) {
       await page.waitForTimeout(800);
       let did = null;
       if (!opened) {
@@ -50820,6 +50825,12 @@ scenarios.v159TrashSpellCostReduced = {
         if (await lbl.count() && await lbl.isVisible().catch(() => false)) {
           await lbl.click().catch(() => {}); fired = true; did = 'act-label';
         }
+      }
+      // 支払い後＝スペル本体の対象選択（相手シグニ1体をバニッシュ）を進める。
+      // ⚠**候補セルはトグル**（§4.4 罠 8p）＝毎tick押すと選択が外れて「決定」に一生到達しない。
+      if (!did && paid && !postPicked) {
+        const p1 = await H.clickTestId('pick-0');
+        if (p1) { postPicked = true; did = p1; }
       }
       // 🔴**候補選択（`pick-0`）は「決定」より先に試す**＝順序を逆にすると、選ぶ前に「決定」を押して
       //   **0枚選択で確定**してしまい、「候補が出ない」と誤診する（実測で1回踏んだ）。
@@ -50862,12 +50873,15 @@ scenarios.v159TrashSpellCostReduced = {
       const st = await H.queryState();
       H.log('  v159[' + s + '] -> ' + (did ?? 'なし') + ' | energy=' + st?.host?.energy
         + ' lrigUnder=' + st?.host?.lrigUnder + ' payLabel=' + JSON.stringify(payLabel)
+        + ' 除外=' + JSON.stringify(st?.host?.excludedCards)
         + ' pEff=' + (st?.pendingEffect ?? '-'));
+      if (paid && !st?.pendingEffect && !(st?.stackLen > 0)) settled = true;
     }
     await page.screenshot({ path: SHOT + '/v159-trash-spell.png', fullPage: true });
     const st1 = await H.queryState();
     const dump = 'エナ ' + ena0 + '→' + st1?.host?.energy + ' 必要枚数=' + reqCount + ' 支払い表示=' + JSON.stringify(payLabel)
-      + ' ルリグ下=' + st1?.host?.lrigUnder;
+      + ' ルリグ下=' + st1?.host?.lrigUnder
+      + ' 除外=' + JSON.stringify(st1?.host?.excludedCards) + ' トラッシュ=' + JSON.stringify(st1?.host?.trashCards);
     H.log('  判定: ' + dump);
     if (payLabel === null) {
       const seen = await page.evaluate(() => [...document.querySelectorAll('button,[data-action-label]')]
@@ -50889,7 +50903,16 @@ scenarios.v159TrashSpellCostReduced = {
     if (st1?.host?.energy !== ena0 - 1) {
       return { pass: false, detail: '🔴実際に減ったエナが1枚ではない（ラベルと支払いが食い違う）。' + dump };
     }
-    return { pass: true, detail: '印刷3枚のうち青と黒が軽減で消え、《無》1つだけを払った。' + dump };
+    // ── `V-160`（§5.3 `O-260`）＝「それがチェックゾーンから別の領域に移動される場合、代わりに除外」──
+    const excluded = st1?.host?.excludedCards ?? [];
+    const trash = st1?.host?.trashCards ?? [];
+    if (!excluded.includes(V159_SPELL)) {
+      return { pass: false, detail: '🔴使ったスペルがゲームから除外されていない（`O-260` の置換が効いていない）。' + dump };
+    }
+    if (trash.includes(V159_SPELL)) {
+      return { pass: false, detail: '🔴除外したはずのスペルがトラッシュにも居る（二重計上）。' + dump };
+    }
+    return { pass: true, detail: '印刷3枚のうち青と黒が軽減で消えて《無》1つだけを払い、使ったスペルはトラッシュではなくゲームから除外された。' + dump };
   },
 };
 

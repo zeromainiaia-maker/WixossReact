@@ -3,67 +3,43 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CARD ［2枚］
-WX12-003 WX20-059
---- WX12-003
-  原文: 【自】《ターン１回》：あなたがスペルを使用したとき、対戦相手のシグニ１体を対象とし、それをダウンし凍結する。【出】：あなたのデッキからスペル１枚を探して公開し手札に加え、デッキをシャッフルする。【起】《アタックフェイズアイコン》《無》《無》：あなたの手札からコストの合計が２～４の青か黒のスペル１枚を、そのコストを支払って使用する。,-
-  ~ [2].action.id : "PLAY_SPELL_FROM_HAND" → "USE_SPELL_FROM_TRASH_PAYING_COST"
-  + [2].action.value2 = "hand"
-  + [2].action.selectTarget.type = "CARD"
-  + [2].action.selectTarget.owner = "self"
-  + [2].action.selectTarget.count = 1
-  + [2].action.selectTarget.filter.cardType = "スペル"
-  + [2].action.selectTarget.filter.costMin = 2
-  + [2].action.selectTarget.filter.costMax = 4
-  + [2].action.selectTarget.filter.color[0] = "青"
-  + [2].action.selectTarget.filter.color[1] = "黒"
---- WX20-059
-  原文: 【出】《赤》：あなたのトラッシュから赤のスペル１枚を対象とし、あなたの場にカード名に《イリスアゲート》を含むシグニがある場合、それを手札に加える。【出】：あなたの手札からコストの合計が１以下の赤のスペル１枚をコストを支払わずに使用してもよい。,-
-  ~ [1].action.id : "PLAY_SPELL_FROM_HAND_FREE" → "USE_SPELL_FROM_TRASH_PAYING_COST"
-  + [1].action.value2 = "hand"
-  + [1].action.selectTarget.type = "CARD"
-  + [1].action.selectTarget.owner = "self"
-  + [1].action.selectTarget.count = 1
-  + [1].action.selectTarget.filter.cardType = "スペル"
-  + [1].action.selectTarget.filter.costMax = 1
-  + [1].action.selectTarget.filter.color = "赤"
-  + [1].action.useSpellIgnoreCost = true
-
-## +CARD -SEQUENCE -STUB ［1枚］
-WX11-043
---- WX11-043
-  原文: 《クロスアイコン》《コードアート　Ｃ・Ｍ・Ｃ》の右【出】：あなたのデッキからコストの合計が４以上のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。【クロス自】《ターン１回》：このシグニが《ヘブン》したとき、あなたの手札から青のスペル１枚を使用してもよい。それの使用コストは《青×2》減る。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ
-  - [1].action.steps[0].type = "STUB"
-  - [1].action.steps[0].id = "PLAY_SPELL_FROM_HAND"
-  - [1].action.steps[1].type = "STUB"
-  - [1].action.steps[1].id = "ARTS_COST_REDUCTION_BY_EFFECT"
-  ~ [1].action.type : "SEQUENCE" → "STUB"
-  + [1].action.id = "USE_SPELL_FROM_TRASH_PAYING_COST"
-  + [1].action.value2 = "hand"
-  + [1].action.selectTarget.type = "CARD"
-  + [1].action.selectTarget.owner = "self"
-  + [1].action.selectTarget.count = 1
-  + [1].action.selectTarget.filter.cardType = "スペル"
-  + [1].action.selectTarget.filter.color = "青"
-  …（他 2 行）
-
-## +CARD -STUB ［1枚］
-WX14-002
+## -SEQUENCE -STUB ［6枚］
+WX14-002 WX14-014 WX25-P3-064 WXDi-P06-066 WXEX1-46 WXK06-005
 --- WX14-002
   原文: 【自】《ターン１回》：あなたがスペルを使用したとき、対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《メインフェイズアイコン》《アタックフェイズアイコン》エクシード２：あなたのトラッシュから青か黒のスペル１枚を対象とし、それを手札にあるかのように使用する。それの使用コストは《青×1》《黒×1》減る。このターン、それがチェックゾーンから別の領域に移
-  - [1].action.steps[2].type = "STUB"
-  - [1].action.steps[2].id = "EXILE_FROM_CHECK_ZONE"
-  ~ [1].action.steps[0].id : "PLAY_FREE" → "USE_SPELL_FROM_TRASH_PAYING_COST"
-  + [1].action.steps[0].value2 = "trash"
-  + [1].action.steps[0].selectTarget.type = "CARD"
-  + [1].action.steps[0].selectTarget.owner = "self"
-  + [1].action.steps[0].selectTarget.count = 1
-  + [1].action.steps[0].selectTarget.filter.cardType = "スペル"
-  + [1].action.steps[0].selectTarget.filter.color[0] = "青"
-  + [1].action.steps[0].selectTarget.filter.color[1] = "黒"
-  + [1].action.steps[0].useSpellCostReduction[0].color = "青"
-  + [1].action.steps[0].useSpellCostReduction[0].count = 1
-  …（他 3 行）
+  - [1].action.steps[0].type = "STUB"
+  - [1].action.steps[0].id = "USE_SPELL_FROM_TRASH_PAYING_COST"
+  - [1].action.steps[0].value2 = "trash"
+  - [1].action.steps[0].selectTarget.type = "CARD"
+  - [1].action.steps[0].selectTarget.owner = "self"
+  - [1].action.steps[0].selectTarget.count = 1
+  - [1].action.steps[0].selectTarget.filter.cardType = "スペル"
+  - [1].action.steps[0].selectTarget.filter.color[0] = "青"
+  - [1].action.steps[0].selectTarget.filter.color[1] = "黒"
+  - [1].action.steps[0].useSpellCostReduction[0].color = "青"
+  - [1].action.steps[0].useSpellCostReduction[0].count = 1
+  - [1].action.steps[0].useSpellCostReduction[1].color = "黒"
+  …（他 17 行）
+--- WX14-014
+  原文: アンコール－《青》《無》対戦相手のトラッシュからスペル１枚を対象とし、それをあなたの手札にあるかのようにコストを支払わずに限定条件を無視して使用する。このターン、そのスペルがチェックゾーンから別の領域に移動される場合、代わりにゲームから除外される。,-
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "PLAY_SPELL_FREE_IGNORE_RESTRICTION"
+  - [0].action.steps[0].playSpellFree.source = "opp_trash"
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "EXILE_FROM_CHECK_ZONE"
+  ~ [0].action.type : "SEQUENCE" → "STUB"
+  + [0].action.id = "PLAY_SPELL_FREE_IGNORE_RESTRICTION"
+  + [0].action.playSpellFree.source = "opp_trash"
+  + [0].action.exileAfterUse = true
+--- WX25-P3-064
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのトラッシュからスペルを１枚まで対象とし、それを使用する。このターン、それがチェックゾーンから別の領域に移動される場合、代わりにゲームから除外される。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する。②カードを１枚引く。
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "PLAY_FREE"
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "EXILE_FROM_CHECK_ZONE"
+  ~ [0].action.type : "SEQUENCE" → "STUB"
+  + [0].action.id = "PLAY_FREE"
+  + [0].action.exileAfterUse = true
 
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
@@ -82,4 +58,12 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+
+## -STUB ［1枚］
+WXK11-016
+--- WXK11-016
+  原文: 【常】：各プレイヤーのライフクロスは１ターンに２枚までしかクラッシュされない。【出】：あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。【起】《メインフェイズアイコン》《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：対戦相手のルリグトラッシュからアーツ１枚を対象とし
+  - [2].action.steps[2].type = "STUB"
+  - [2].action.steps[2].id = "EXILE_FROM_CHECK_ZONE"
+  + [2].action.steps[0].exileAfterUse = true
 

@@ -68342,9 +68342,11 @@ test('§5.3 O-259 第3: 効果で使わせるスペルが「選ぶ→軽減→�
   const e = findUse('WX20-059-E2');
   eq(e.useSpellIgnoreCost, true, 'WX20-059-E2: コストを支払わずに使用');
   eq(e.selectTarget?.filter?.costMax, 1, 'WX20-059-E2: コストの合計1以下');
-  // 🔴後続の文を巻き添えにしていないこと（`WX14-002-E2` の第3文）
+  // 🔴後続の文を巻き添えにしていないこと（`WX14-002-E2` の第3文＝チェックゾーン置換）。
+  //   ⚠§5.3 `O-260` で**別ステップから使用 STUB の `exileAfterUse` へ載せ替えた**ので、
+  //     探すのは `EXILE_FROM_CHECK_ZONE` ではなくフラグのほう。
   ok(JSON.stringify((effectsMap.get('WX14-002') ?? []).find(x => x.effectId === 'WX14-002-E2')!.action)
-       .includes('EXILE_FROM_CHECK_ZONE'),
+       .includes('"exileAfterUse":true'),
      '🔴WX14-002-E2 の第3文（チェックゾーン置換）を落としていない');
   // ② engine＝手札から候補を選び、**軽減した分だけ安く**払う
   const blueSpell = 'WXK01-057';                        // ＣＩＲＣＬＥ・《青》×３
@@ -68400,6 +68402,81 @@ test('§5.3 O-259 第3: 効果で使わせるスペルが「選ぶ→軽減→�
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8').replace(/\r\n/g, '\n');
   ok(!dec.includes('コストの合計が２～４の青か黒のスペル１枚を、そのコストを支払って使用する'),
      '🔴PLAY_SPELL_FROM_HAND のベタ書きラベル（WX12-003 の原文）を撤去した');
+  cursor = savedCursor;
+});
+
+// §5.3 `O-260`（2026-09-05）＝**「（このターン、）それがチェックゾーンから別の領域に移動される場合、
+//   代わりにゲームから除外される」**（7効果）。旧 `EXILE_FROM_CHECK_ZONE` は**原文と3軸で別物**だった
+//   ＝①対象が「**対戦相手の**チェックゾーンに在るカード」固定（原文の「それ」＝**いま使わせたカード**）
+//   ②行き先が**トラッシュ**（原文は除外）③置換ではなく即時移動。逆翻訳の固定文言も同じ嘘だった。
+test('§5.3 O-260: 「それがチェックゾーンから…代わりに除外」が“いま使わせたカード”を除外する（7効果）', () => {
+  const savedCursor = cursor;
+  // ① live＝7効果とも**使用 STUB 自身**に `exileAfterUse` が載る（別ステップのままでは走らない）
+  const ids = ['WX14-002-E2', 'WX14-014-E1', 'WXEX1-46-E3', 'WX25-P3-064-E1',
+               'WXDi-P06-066-E2', 'WXK06-005-E1', 'WXK11-016-E3'];
+  for (const id of ids) {
+    const cardNum = id.replace(/-E[0-9]+$/, '');
+    const eff = findEffectDeep(effectsMap.get(cardNum) ?? [], id)!;
+    const json = JSON.stringify(eff.action);
+    ok(json.includes('"exileAfterUse":true'), `${id}: 使用 STUB に exileAfterUse が載る`);
+    ok(!json.includes('EXILE_FROM_CHECK_ZONE'),
+       `🔴${id}: 別ステップの置換は残さない（3重ネストの対話で継続に載り切らず一度も走らない）`);
+  }
+  // ②-0 engine e2e＝`exileAfterUse` を付けた使用は、使ったカードを**トラッシュへ置かず** `excluded` へ入れる
+  const usedE2E = 'WXK01-057';                          // ＣＩＲＣＬＥ（青・《青》×3）
+  const baseE2E = mkCtx({}, {});
+  const ctxE2E = {
+    ...baseE2E,
+    ownerState: { ...baseE2E.ownerState, trash: [usedE2E], hand: [] },
+  } as ExecCtx;
+  const rE2E = run({ type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: usedE2E,
+    exileAfterUse: true } as EffectAction, ctxE2E);
+  eq(rE2E.ownerState.excluded?.includes(usedE2E), true, '🔴使ったスペルがゲームから除外される');
+  eq(rE2E.ownerState.trash.includes(usedE2E), false, '🔴トラッシュには残らない（除外と二重計上しない）');
+  const rNoFlag = run({ type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: usedE2E } as EffectAction, ctxE2E);
+  eq(rNoFlag.ownerState.excluded?.length ?? 0, 0, '🔴フラグが無ければ除外しない（反転）');
+  eq(rNoFlag.ownerState.trash.includes(usedE2E), true, 'フラグが無ければ従来どおりトラッシュに残る');
+  // ② engine＝「いま使わせたカード」だけがトラッシュから `excluded` へ移る
+  const usedSpell = 'WXK01-057';
+  const base = mkCtx({}, {});
+  const other = base.otherState;
+  const ctxEx = {
+    ...base,
+    ownerState: { ...base.ownerState, trash: [usedSpell], last_effect_used_card: usedSpell },
+    otherState: { ...other, field: { ...other.field, check: 'WD01-013' } },
+  } as ExecCtx;
+  const rEx = run({ type: 'STUB', id: 'EXILE_FROM_CHECK_ZONE' } as EffectAction, ctxEx);
+  eq(rEx.ownerState.excluded?.join(','), usedSpell, '🔴使わせたカードが excluded へ');
+  eq(rEx.ownerState.trash.length, 0, 'トラッシュからは抜ける');
+  eq(rEx.otherState.field.check, 'WD01-013', '🔴対戦相手のチェックゾーンには触らない（旧実装はここを動かしていた）');
+  eq(rEx.otherState.trash.length, other.trash.length, '🔴対戦相手のトラッシュを増やさない');
+  // ③ 相手のトラッシュから使わせた札は**相手側で**除外される（持ち主が入れ替わらない）
+  const ctxOpp = {
+    ...base,
+    ownerState: { ...base.ownerState, trash: [], last_effect_used_card: usedSpell },
+    otherState: { ...other, trash: [usedSpell] },
+  } as ExecCtx;
+  const rOpp = run({ type: 'STUB', id: 'EXILE_FROM_CHECK_ZONE' } as EffectAction, ctxOpp);
+  eq(rOpp.otherState.excluded?.join(','), usedSpell, '🔴持ち主（相手）側の excluded へ入る');
+  eq(rOpp.ownerState.excluded?.length ?? 0, 0, '自分側へは移さない');
+  // ④ 控えが無ければ**何もしない**（fail-closed）＝無関係なチェックゾーンのカードを動かさない
+  const ctxNone = {
+    ...base,
+    ownerState: { ...base.ownerState, trash: [usedSpell] },
+    otherState: { ...other, field: { ...other.field, check: 'WD01-013' } },
+  } as ExecCtx;
+  const rNone = run({ type: 'STUB', id: 'EXILE_FROM_CHECK_ZONE' } as EffectAction, ctxNone);
+  eq(rNone.ownerState.excluded?.length ?? 0, 0, '🔴控えが無ければ除外しない');
+  eq(rNone.otherState.field.check, 'WD01-013', '🔴控えが無ければ相手のチェックゾーンも動かさない');
+  ok(rNone.logs.join('').includes('控えが無いため何もしない'), 'fail-closed のログが出る');
+  // ⑤ 除外印があれば使用後の既定配置（トラッシュ）を抑止する＝置換の実効
+  eq(finalizeUsedCardPlacement(
+       { ...base.ownerState, excluded: [usedSpell] }, usedSpell, 'trash').trash.includes(usedSpell),
+     false, '🔴excluded に在るカードはトラッシュへ置き直されない');
+  // ⑥ 逆翻訳＝「対戦相手のチェックゾーンのカードをトラッシュへ」という嘘の説明を消した
+  const stubs = fs.readFileSync(join(root, 'docs/STUBS.md'), 'utf8');
+  ok(!stubs.includes('チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ'),
+     '🔴STUBS.md（＝逆翻訳のラベル源）から旧説明が消えている');
   cursor = savedCursor;
 });
 

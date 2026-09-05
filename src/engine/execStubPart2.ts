@@ -3428,16 +3428,31 @@ export function execStubPart2(
       e.effectType === 'ACTIVATED' || (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))
     );
     if (!mainEffPSFIR) return done(addLog(ctx, `[PLAY_SPELL_FREE_IGNORE_RESTRICTION: ${cardPSFIR.CardName}効果なし]`));
+    // 🆕**§5.3 `O-260`＝「いま使わせたカード」を控える**（上の funnel と同じ理由）。
+    //   `exileAfterUse` のときは**トラッシュへ置かずに `excluded` へ**（＝置換の実効）。
+    const exilePSFIR = !!stub.exileAfterUse;
     const ctxPSFIR = specPSFIR.source === 'self_hand'
       ? {
           ...ctx,
           ownerState: {
             ...ctx.ownerState,
-            trash: [...ctx.ownerState.trash, cnPSFIR],
+            trash: exilePSFIR ? ctx.ownerState.trash : [...ctx.ownerState.trash, cnPSFIR],
             hand: ctx.ownerState.hand.filter(c => c !== cnPSFIR),
+            last_effect_used_card: cnPSFIR,
+            ...(exilePSFIR ? { excluded: [...(ctx.ownerState.excluded ?? []), cnPSFIR] } : {}),
           },
         }
-      : ctx;
+      : exilePSFIR
+        ? {
+            ...ctx,
+            ownerState: { ...ctx.ownerState, last_effect_used_card: cnPSFIR },
+            otherState: {
+              ...ctx.otherState,
+              trash: ctx.otherState.trash.filter(c => c !== cnPSFIR),
+              excluded: [...(ctx.otherState.excluded ?? []), cnPSFIR],
+            },
+          }
+        : { ...ctx, ownerState: { ...ctx.ownerState, last_effect_used_card: cnPSFIR } };
     return exec(mainEffPSFIR.action,
       addLog({ ...ctxPSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
         `${cardPSFIR.CardName}をコストなし・限定条件無視で使用`));
@@ -3516,13 +3531,15 @@ export function execStubPart2(
       }
     }
     const fromOppUS = stub.value2 === 'opp_trash';
+    // ⚠**`exileAfterUse` は本体へ引き継ぐ**（除外は「配置する瞬間」に効くので本体側で処理する）。
+    const exileUS = stub.exileAfterUse ? { exileAfterUse: true } : {};
     const bodyUS: StubAction = fromOppUS
-      ? { type: 'STUB', id: 'CAST_FROM_OPP_TRASH', carriedCardNum: cnUS }
+      ? { type: 'STUB', id: 'CAST_FROM_OPP_TRASH', carriedCardNum: cnUS, ...exileUS }
       : stub.value2 === 'hand'
         // ⚠手札発は `PLAY_SPELL_FROM_HAND`（手札→トラッシュへ動かして主効果を実行する分岐）へ委譲する。
         //   支払いはこの手前で済ませているので「コストなしで使用」と記録されても二重請求にはならない。
-        ? { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND', carriedCardNum: cnUS }
-        : { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS };
+        ? { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND', carriedCardNum: cnUS, ...exileUS }
+        : { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS, ...exileUS };
     // 🆕`useSpellIgnoreCost`＝「コストを支払わずに使用してもよい」＝選択だけ同じ経路を通し支払いを飛ばす。
     if (stub.useSpellIgnoreCost || colorsUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
     // 🔴🔑**支払いは `resumeOptionalCost` の1箇所だけ**（2026-09-05・`V-159` の実機で発覚）＝
@@ -3594,6 +3611,30 @@ export function execStubPart2(
             ...stateAfterPF,
             trash: stateAfterPF.trash.includes(cnPF) ? stateAfterPF.trash : [...stateAfterPF.trash, cnPF],
             hand: stateAfterPF.hand.filter(c => c !== cnPF),
+          };
+        }
+      }
+      // 🆕**§5.3 `O-260`＝「いま使わせたカード」を控える**＝`STUB{EXILE_FROM_CHECK_ZONE}` が読む。
+      //   ⚠`lastProcessedCards` では駄目＝**スペル本体の効果が上書きする**（対象に取ったシグニ等）。
+      stateAfterPF = { ...stateAfterPF, last_effect_used_card: cnPF };
+      // 🆕🔴**`exileAfterUse`＝「それがチェックゾーンから別の領域に移動される場合、代わりに除外」**
+      //   （§5.3 `O-260`）。**置き場所を決めるこの地点で `excluded` へ入れ替える**＝別ステップに
+      //   分けると、この形（候補選択→支払い CHOOSE→本体の対象選択の3重ネスト）で
+      //   **外側 SEQUENCE の残りステップが落ちて一度も走らない**（2026-09-05・実機で実測）。
+      if (stub.exileAfterUse) {
+        if (stateOtherAfterPF.trash.includes(cnPF) || stateOtherAfterPF.lrig_trash.includes(cnPF)) {
+          stateOtherAfterPF = {
+            ...stateOtherAfterPF,
+            trash: stateOtherAfterPF.trash.filter(c => c !== cnPF),
+            lrig_trash: stateOtherAfterPF.lrig_trash.filter(c => c !== cnPF),
+            excluded: [...(stateOtherAfterPF.excluded ?? []), cnPF],
+          };
+        } else {
+          stateAfterPF = {
+            ...stateAfterPF,
+            trash: stateAfterPF.trash.filter(c => c !== cnPF),
+            lrig_trash: stateAfterPF.lrig_trash.filter(c => c !== cnPF),
+            excluded: [...(stateAfterPF.excluded ?? []), cnPF],
           };
         }
       }

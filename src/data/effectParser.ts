@@ -1505,6 +1505,47 @@ function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction 
   return out;
 }
 
+/**
+ * 🆕§5.3 `O-260`（2026-09-05・7効果）＝**「（このターン、）それがチェックゾーンから別の領域に
+ * 移動される場合、代わりにゲームから除外される」**を、**使用そのものへ**載せ替える。
+ *
+ * 🔴**別ステップのままでは一度も走らない**＝この形は「候補選択 → 支払い CHOOSE → スペル本体の
+ *   対象選択」と**対話が3重にネスト**し、外側 `SEQUENCE` の残りステップが継続に載り切らずに落ちる
+ *   （2026-09-05・実機 `V-160` で実測＝除外ログが1行も出なかった）。
+ * ⇒ 直前の使用 STUB に `exileAfterUse` を立て、置換ステップは木から外す
+ *   （engine は**カードを配置する瞬間**に `excluded` へ入れる）。
+ * ⚠**使用 STUB が見つからないときは何も変えない**（fail-closed）＝置換だけ消して何も起きない木にしない。
+ */
+const O260_USE_STUBS = new Set([
+  'USE_SPELL_FROM_TRASH_PAYING_COST', 'PLAY_SPELL_FREE_IGNORE_RESTRICTION', 'PLAY_FREE',
+  'USE_SPELL_FROM_TRASH', 'CAST_FROM_OPP_TRASH', 'PLAY_SPELL_FROM_HAND', 'PLAY_SPELL_FROM_HAND_FREE',
+]);
+function wireExileAfterUse(action: EffectAction): EffectAction {
+  const walk = (node: EffectAction): EffectAction => {
+    if (!node || typeof node !== 'object') return node;
+    const n = node as unknown as { type?: string; id?: string; steps?: EffectAction[] };
+    if (n.type !== 'SEQUENCE' || !n.steps) return node;
+    const hasExile = n.steps.some(st => {
+      const o = st as unknown as { type?: string; id?: string };
+      return o.type === 'STUB' && o.id === 'EXILE_FROM_CHECK_ZONE';
+    });
+    if (!hasExile) return { ...node, steps: n.steps.map(walk) } as EffectAction;
+    const useIdx = n.steps.findIndex(st => {
+      const o = st as unknown as { type?: string; id?: string };
+      return o.type === 'STUB' && !!o.id && O260_USE_STUBS.has(o.id);
+    });
+    if (useIdx < 0) return node;                       // 使用 STUB が無い＝触らない
+    const steps = n.steps
+      .filter(st => {
+        const o = st as unknown as { type?: string; id?: string };
+        return !(o.type === 'STUB' && o.id === 'EXILE_FROM_CHECK_ZONE');
+      })
+      .map((st, i) => (i === useIdx ? ({ ...(st as object), exileAfterUse: true } as EffectAction) : st));
+    return steps.length === 1 ? steps[0] : ({ ...node, steps } as EffectAction);
+  };
+  return walk(action);
+}
+
 const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
 function stripCostScalingMarker(action: EffectAction, terms: CostScalingTerm[] | undefined): EffectAction {
   if (!terms) return action;
@@ -26664,6 +26705,17 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (let i = 0; i < effects.length; i++) {
     const wiredUse = wireEffectSpellUse(effects[i].action, card);
     if (wiredUse !== effects[i].action) effects[i] = { ...effects[i], action: wiredUse };
+  }
+  // 🆕§5.3 `O-260` 第1バッチ＝「それがチェックゾーンから…代わりに除外」を使用 STUB へ載せ替える。
+  //   ⚠**`wireEffectSpellUse` の後**＝あちらが使用 STUB を差し替えるので、先にやると取りこぼす。
+  //   ⚠ルリグ能力付与（`GRANT_LRIG_ABILITY.abilities[]`）の中にも同じ形があるので入れ子も辿る。
+  for (let i = 0; i < effects.length; i++) {
+    const wiredExile = wireExileAfterUse(effects[i].action);
+    if (wiredExile !== effects[i].action) effects[i] = { ...effects[i], action: wiredExile };
+    const grant = effects[i].action as unknown as { type?: string; abilities?: { action: EffectAction }[] };
+    if (grant?.abilities?.length) {
+      for (const ab of grant.abilities) ab.action = wireExileAfterUse(ab.action);
+    }
   }
   // 🆕§5.3 `O-96` 第6バッチ＝**最後に**選択範囲と帰結の対象を合わせる（後段のパスが帰結側だけを
   //   差し替える形が実在するので、`applyO96OptionalCostTargetFirst` の直後では間に合わない）。

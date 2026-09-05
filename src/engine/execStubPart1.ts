@@ -2669,28 +2669,57 @@ export function execStubPart1(
       lastProcessedCards: movedOLD,
     }, `対戦相手は${movedOLD.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキからルリグトラッシュに置いた`));
   }
-  // チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ
+  // EXILE_FROM_CHECK_ZONE: この効果が使わせたカードは、チェックゾーンから移動する代わりにゲームから除外される
+  //   原文＝「（このターン、）**それが**チェックゾーンから別の領域に移動される場合、代わりに
+  //   **ゲームから除外**される」（§5.3 `O-260`・2026-09-05・7効果）。
+  // 🔴**旧実装は原文と3軸で別物だった**＝①対象が「**対戦相手の**チェックゾーンに在るカード」固定
+  //   （原文の「それ」＝**この効果がいま使わせたカード**ではない）②行き先が**トラッシュ**（原文は除外）
+  //   ③置換ではなく**即時移動**。⇒ 逆翻訳の固定文言も同じ嘘だったので計器は緑のままだった。
+  // 🔑**実装の要点**＝「使ったカードは解決後トラッシュ／ルリグトラッシュへ行く」ので、
+  //   **そのカードを `excluded` へ移す**ことが置換の実効と一致する（`finalizeUsedCardPlacement` は
+  //   `excluded` に在るカードを既定ゾーンへ置き直さない＝使用中でまだ未配置の場合もこれで足りる）。
+  // ⚠**控え（`last_effect_used_card`）が無ければ何もしない**（fail-closed）＝
+  //   無関係なチェックゾーンのカードを動かさない。
   if (stub.id === 'EXILE_FROM_CHECK_ZONE') {
-    const target = ctx.otherState.field.check ?? ctx.ownerState.field.check;
-    if (target) {
-      const cardName = ctx.cardMap.get(target)?.CardName ?? target;
-      if (ctx.otherState.field.check) {
-        const newOther = {
-          ...ctx.otherState,
-          trash: [...ctx.otherState.trash, target],
-          field: { ...ctx.otherState.field, check: null },
+    const usedEFCZ = ctx.ownerState.last_effect_used_card;
+    if (!usedEFCZ) return done(addLog(ctx, '[チェックゾーン置換: 使用したカードの控えが無いため何もしない]'));
+    const nameEFCZ = ctx.cardMap.get(getCardNum(usedEFCZ))?.CardName ?? usedEFCZ;
+    // 持ち主はカードが実際に在るゾーンで決める（相手のトラッシュから使った札は相手側に在る）。
+    const zonesEFCZ = ['trash', 'lrig_trash'] as const;
+    for (const side of ['self', 'opponent'] as const) {
+      const st = side === 'self' ? ctx.ownerState : ctx.otherState;
+      for (const zone of zonesEFCZ) {
+        const idx = st[zone].indexOf(usedEFCZ);
+        if (idx < 0) continue;
+        const nextEFCZ: PlayerState = {
+          ...st,
+          [zone]: [...st[zone].slice(0, idx), ...st[zone].slice(idx + 1)],
+          excluded: [...(st.excluded ?? []), usedEFCZ],
         };
-        return done(addLog({ ...ctx, otherState: newOther }, `チェックゾーンから除外（${cardName}）`));
-      } else {
-        const newOwner = {
-          ...ctx.ownerState,
-          trash: [...ctx.ownerState.trash, target],
-          field: { ...ctx.ownerState.field, check: null },
+        const c2 = side === 'self'
+          ? { ...ctx, ownerState: nextEFCZ }
+          : { ...ctx, otherState: nextEFCZ };
+        return done(addLog(c2, `${nameEFCZ}をゲームから除外（チェックゾーンからの移動を置換）`));
+      }
+      if (st.field.check === usedEFCZ) {
+        const nextEFCZ: PlayerState = {
+          ...st,
+          field: { ...st.field, check: null },
+          excluded: [...(st.excluded ?? []), usedEFCZ],
         };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `チェックゾーンから除外（${cardName}）`));
+        const c2 = side === 'self'
+          ? { ...ctx, ownerState: nextEFCZ }
+          : { ...ctx, otherState: nextEFCZ };
+        return done(addLog(c2, `${nameEFCZ}をゲームから除外（チェックゾーンからの移動を置換）`));
       }
     }
-    return done(addLog(ctx, 'チェックゾーンにカードなし'));
+    // まだどのゾーンにも置かれていない（解決中）＝`excluded` に印を置けば既定配置が抑止される。
+    const pendingEFCZ: PlayerState = {
+      ...ctx.ownerState,
+      excluded: [...(ctx.ownerState.excluded ?? []), usedEFCZ],
+    };
+    return done(addLog({ ...ctx, ownerState: pendingEFCZ },
+      `${nameEFCZ}をゲームから除外（使用後の配置を置換）`));
   }
   // その他ゾーン/レベル/フェイズ制限
   if (stub.id === 'LRIG_ZONE_RESTRICT' || stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {

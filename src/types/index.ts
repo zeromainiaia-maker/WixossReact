@@ -263,6 +263,15 @@ export interface PlayerState {
   lrig_trash: string[];
   /** ゲームから除外されたカード。通常のゾーン探索・リフレッシュ対象には含めない。 */
   excluded?: string[];
+  /**
+   * 🆕**§5.3 `O-260`（2026-09-05）＝「効果が**いま使わせた**カード」の控え。**
+   * 「（このターン、）**それが**チェックゾーンから別の領域に移動される場合、代わりにゲームから除外される」
+   * （7効果）は**使ったそのカード**を指すが、`lastProcessedCards` はスペル本体の効果が上書きするので
+   * 使えない。⇒ フリープレイ系の funnel が使用の直前にここへ焼き込み、
+   * `STUB{EXILE_FROM_CHECK_ZONE}` がこれだけを読む。
+   * ⚠**無ければ何もしない**（fail-closed）＝無関係なチェックゾーンのカードを動かさない。
+   */
+  last_effect_used_card?: string | null;
   energy: string[];
   coins: number;
   field: {
