@@ -1164,6 +1164,18 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerRSS },
       `${ctx.cardMap.get(getCardNum(selfRSS))?.CardName ?? selfRSS}を手札に戻した`));
   }
+  // TURN_CARD_COST_REDUCE: このターン、指定カード名の使用コストが《無×N》減る
+  // （§5.3 `O-259` 第2バッチ・`WXDi-P16-009/010/011-E3`「そのピースの使用コストは《無×1》減る」）
+  // 🔴読み口は `collectSpecificCardCostReductions` に合流させてある＝支払いは常設軽減と同じ1本を通る。
+  if (stub.id === 'TURN_CARD_COST_REDUCE' && stub.turnCardCostReduce) {
+    const tcr = stub.turnCardCostReduce;
+    const newOwnerTCR: PlayerState = {
+      ...ctx.ownerState,
+      turn_specific_cost_reductions: [...(ctx.ownerState.turn_specific_cost_reductions ?? []), tcr],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerTCR },
+      `このターン、《${tcr.targetCardName}》の使用コストが《無×${tcr.colorlessReduction}》減る`));
+  }
   // INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）
   if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
     return done(addLog(ctx, '起動能力コスト増加'));

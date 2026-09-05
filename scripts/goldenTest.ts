@@ -58,7 +58,7 @@ import { battleOppLifeCrashSourceMatches } from '../src/screens/battle/lifeCrash
 import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, findAcceZone, hasAcceAt } from '../src/utils/acce';
 import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
-import { applyRefresh, advancePreventDamageWindows, hasActivePreventDamageWindow, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, hasActivePreventDamageWindow, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition, isPieceCardType } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
@@ -103,6 +103,7 @@ import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnder
 import { isTrashImmuneByOpponent, movableTrashCandidates, trapIconEffectOf } from '../src/engine/execUtils';
 import { getRiseRequirement, riseFieldTotal } from '../src/engine/execUtils';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
+import { collectSpecificCardCostReductions } from '../src/engine/effectEngine';
 import {
   EMPTY_RISE_SELECTION, canPayRiseField, findRiseFieldAssignment, riseConsumedZones, validateRiseField,
 } from '../src/screens/battle/riseSummon';
@@ -19886,7 +19887,9 @@ test('parse 条件節＋「そのピースの使用コストは…減る」→ C
   const seq = e.action as unknown as { type: string; steps: Array<{ type: string; condition?: { type: string; value: number }; then?: { type: string; id: string } }> };
   eq(seq.steps[1].type, 'CONDITIONAL', '条件が CONDITIONAL に持ち上がる（従来は条件ごと脱落）');
   eq(seq.steps[1].condition?.type + ':' + seq.steps[1].condition?.value, 'LIFE_COUNT:2', 'ライフ2枚以下');
-  eq(seq.steps[1].then?.id, 'ARTS_COST_REDUCTION_BY_EFFECT', '実行時マーカーSTUBは包んでよい');
+  // 🆕**2026-09-05（§5.3 `O-259` 第2バッチ）＝痕跡 STUB から実アクションへ昇格した。**
+  //   「そのピース」の名前は直前の `ADD_CRAFT_TO_LRIG_DECK` の payload から取る。
+  eq(seq.steps[1].then?.id, 'TURN_CARD_COST_REDUCE', '軽減は実アクション（痕跡 STUB のままではない）');
 });
 test('parse 先頭「ターン終了時まで、」の action 内 duration 復元（PERMANENT 化の防止）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-DUR', Type: 'シグニ', EffectText: '【自】：あなたのアタックフェイズ開始時、このターンにあなたがアーツを使用していた場合、ターン終了時まで、このシグニは【アサシン】を得る。' } as unknown as CardData)[0];
@@ -22738,7 +22741,10 @@ test('§5.3 O-243: 相手の 場／エナ／トラッシュ から1枚ずつ取�
     tops(withZones.ownerState as PlayerState).filter(Boolean).length, '🔴自分の場が動いた');
 }));
 test('§5.3 O-230: ガード代替コストは payload だけで決まる（原文 regex へ戻らない）', () => withSavedCursor(() => {
-  const src = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8');
+  // ⚠**改行コードに依存させない**（2026-09-05 §5.3 `O-259` 第2バッチで発覚）＝下の関数末尾の探索が
+  //   改行そのものを直書きしており、`core.autocrlf=true` の作業ツリー（CRLF）では**一度も一致せず**
+  //   body が空になり「payload を読んでいない」で恒久 FAIL していた（CI は LF なので緑）。
+  const src = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8').replace(/\r\n/g, '\n');
   const fn = src.slice(src.indexOf('export function collectGuardAlternativeCost'));
   const body = fn.slice(0, Math.max(0, fn.indexOf(String.fromCharCode(10) + '}' + String.fromCharCode(10))));
   ok(!body.includes('EffectText'), '🔴collectGuardAlternativeCost が原文（EffectText）を読み直している');
@@ -68121,7 +68127,8 @@ test('§5.3 O-259: コストのマーカーだけ有って payload が無い効�
   ok(withMarker >= 90, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
   // 🔴**この数はコスト句が本当に未実装な効果の数**＝減ったら実数へ下げる／増えたら新しい穴。
   // 🔻16→15＝2026-09-05（`O-259` 第1バッチ）で `WXK01-060-E1`（次に緑のアーツ）を構造化した分。
-  eq(naked.length, 15, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
+  // 🔻15→12＝同日（第2バッチ）で `WXDi-P16-009/010/011-E3`（そのピースのコスト軽減）を構造化した分。
+  eq(naked.length, 12, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
   // 逆翻訳が「未構造化」であることを明示する（この印が無いと計器が実装済みと嘘をつく）
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   ok(dec.includes("const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';"),
@@ -68203,6 +68210,80 @@ test('§5.3 O-259 第1: 「次に緑のアーツ」の色限定が payload ま�
   // 対照＝色限定の無い既存11効果は従来どおり全色に効く
   const plain = [{ color: '青', count: 1 }];
   eq(applyNextArtsCostReduction('《青》×2', plain, '赤'), '《青》×1', '色指定が無い予約は従来どおり色を問わない');
+});
+
+// ═══ §5.3 `O-259` 第2バッチ＝「そのピースの使用コストは《無×1》減る」（2026-09-05・3効果）═══
+// 🔴旧＝痕跡 STUB のまま**軽減が一度も起きなかった**（過小実行）。さらに `WXDi-P16-010-E3` は
+//   **条件（対戦相手のライフクロスが2枚以下）ごと落ちて無条件**だった＝実装した瞬間に過剰実行へ化ける形。
+// 🔑「そのピース」の名前は**直前の `STUB{ADD_CRAFT_TO_LRIG_DECK}` の payload**から取る（原文の再解析をしない）。
+// 🔑寿命は**このターンだけ**＝常設の `SPECIFIC_CARD_COST_REDUCE`（CONTINUOUS 収集）とは別スロット。
+test('§5.3 O-259 第2: 3枚とも「このターンだけ《インビンシブル・ストーリー》が《無×1》安くなる」', () => {
+  const shape = (cardNum: string) => {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === `${cardNum}-E3`)!;
+    const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+    const cond = steps[1] as unknown as { type?: string; condition?: Record<string, unknown>; then?: Record<string, unknown> };
+    return { cond: JSON.stringify(cond.condition), then: JSON.stringify(cond.then) };
+  };
+  const REDUCE = '{"type":"STUB","id":"TURN_CARD_COST_REDUCE",'
+    + '"turnCardCostReduce":{"targetCardName":"インビンシブル・ストーリー","colorlessReduction":1}}';
+  for (const [cardNum, cond] of [
+    ['WXDi-P16-009', '{"type":"LIFE_COUNT","owner":"self","operator":"lte","value":2}'],
+    // 🔴この1枚は**条件ごと落ちていた**＝無条件で安くなる過剰実行になるところだった。
+    ['WXDi-P16-010', '{"type":"LIFE_COUNT","owner":"opponent","operator":"lte","value":2}'],
+    ['WXDi-P16-011', '{"type":"HAND_COUNT","owner":"opponent","operator":"lte","value":2}'],
+  ] as const) {
+    const s = shape(cardNum);
+    eq(s.cond, cond, `${cardNum}: 条件が原文どおり（落ちていない）`);
+    eq(s.then, REDUCE, `${cardNum}: 軽減が実アクション（痕跡 STUB のままではない）`);
+  }
+  // engine：予約がターン限定スロットへ載り、常設の収集と**同じ配列**で読める
+  const st = mkState({});
+  const r = run({ type: 'STUB', id: 'TURN_CARD_COST_REDUCE',
+    turnCardCostReduce: { targetCardName: 'インビンシブル・ストーリー', colorlessReduction: 1 } } as EffectAction,
+    { ...mkCtx({}, {}), ownerState: st } as ExecCtx);
+  eq(JSON.stringify(r.ownerState.turn_specific_cost_reductions),
+     '[{"targetCardName":"インビンシブル・ストーリー","colorlessReduction":1}]',
+     '🔴ターン限定スロットへ載る（常設スロットへ入れると永続化する）');
+  const merged = collectSpecificCardCostReductions(r.ownerState, cardMap, effectsMap);
+  ok(merged.some(x => x.targetCardName === 'インビンシブル・ストーリー' && x.colorlessReduction === 1),
+     '🔴読み口が1本＝常設の収集結果に合流する（アーツ/ピース/キーで片肺にならない）');
+  // 適用：名前が一致するときだけ《無》が1つ減る
+  eq(applySpecificCardCostReduction('《白》×2《無》×2', 'インビンシブル・ストーリー', merged), '《白》×2《無》×1',
+     '対象カードは《無》が1つ減る');
+  eq(applySpecificCardCostReduction('《白》×2《無》×2', '別のピース', merged), '《白》×2《無》×2',
+     '🔴名前が違えば効かない');
+  // 支払い経路が2口とも通っていること（片方だけだと「一覧では使えるのに払えない」）
+  const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  ok(bs.includes('applySpecificCardCostReduction(pieceEffCostGate, cardData.CardName, specificCardCostReductions)'),
+     '🔴ピースの提示ゲートが軽減を通す');
+  ok(bs.includes('turn_specific_cost_reductions: undefined,'),
+     '🔴ターン境界でリセットする（消さないと永続化する）');
+  const key = fs.readFileSync(join(root, 'src/screens/battle/modals/KeyUseModal.tsx'), 'utf8');
+  ok(key.includes('applySpecificCardCostReduction(effKeyCost, card.CardName, specificCardCostReductions)'),
+     '🔴ピース／キーの支払いモーダルも同じ式を通す');
+});
+
+test('§5.1 V-158: ピース判定が CSV の派生型（ピース/クラフト・リレーピース）を取りこぼさない', () => {
+  // 🔴**実機で出た穴**＝提示ゲートも実行経路も `Type === 'ピース'` の**完全一致**だったため、
+  //   `'ピース/クラフト'`（1枚）と `'リレーピース'`（2枚）が**一度も「ピースを使用」を提示されなかった**。
+  //   アーツ側は `'アーツ/クラフト'` を並記済みだった＝**同じ穴の片側だけが塞がっていた**。
+  // 🔑**ラチェットは CSV 由来のデータ駆動**にする＝将来 `'ピース/○○'` が増えたらここで落ちる
+  //   （定数リストを golden にも書き写すと、写し忘れが検出できない）。
+  const pieceTypes = [...new Set([...cardMap.values()]
+    .map(c => (c as CardData).Type ?? '').filter(t => t.includes('ピース')))].sort();
+  ok(pieceTypes.length >= 3, `CSV のピース派生型が3種以上ある（実測 ${pieceTypes.join(' / ')}）`);
+  for (const t of pieceTypes) ok(isPieceCardType(t), `🔴CSV に実在する「${t}」がピースと判定される`);
+  ok(!isPieceCardType('キー') && !isPieceCardType('アーツ') && !isPieceCardType(undefined),
+     '🔴キー・アーツ・未定義はピースではない（キー経路を巻き込まない）');
+  // 使用の4経路すべてがこの1本を通ること（片方だけ直すと「一覧には出るのに払えない」片肺になる）
+  const srcOf = (rel: string) => fs.readFileSync(join(root, rel), 'utf8').replace(/\r\n/g, '\n');
+  for (const rel of ['src/screens/BattleScreen.tsx', 'src/screens/battle/modals/KeyUseModal.tsx',
+                     'src/screens/battle/pieceCutin.ts']) {
+    const src = srcOf(rel);
+    ok(!src.includes(`Type === ${JSON.stringify('ピース')}`) && !src.includes(`Type !== ${JSON.stringify('ピース')}`),
+       `🔴${rel} にピースの完全一致比較が残っていない`);
+    ok(src.includes('isPieceCardType('), `${rel} が共通判定を通す`);
+  }
 });
 
 if (listMode) {

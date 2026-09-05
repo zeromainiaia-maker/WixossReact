@@ -5,6 +5,19 @@ import { getCardNum } from '../../engine/effectExecutor';
 import { evalUseCondition } from '../../engine/execUtils';
 import { applyRefreshState } from '../../engine/refresh';
 
+/**
+ * カードの `Type` が「ピース」かどうか（**完全一致で判定しない**）。
+ * 🔴**2026-09-05・`V-158` の実機で発覚**＝CSV の `Type` にはピースの派生が3値ある
+ *   （`'ピース'` 116枚 ／ **`'ピース/クラフト'` 1枚**＝`WXDi-P16-TK01` ／ **`'リレーピース'` 2枚**）のに、
+ *   使用の提示ゲートも実行経路も `=== 'ピース'` の**完全一致**だった＝**その3枚は一度も
+ *   「ピースを使用」を提示されない恒久 no-op**（`WXDi-P16-009/010/011` の【起】が生成する
+ *   クラフトのピースがまさにこれで、**生成はできるが永久に使えない**）。
+ * 🔑**アーツ側は最初から `'アーツ/クラフト'` を並記していた**（`BattleScreen.tsx` の提示ゲート・
+ *   `artsUseGate.ts`）＝**同じ穴の片側だけが塞がっていた**。派生型を増やすときはここ1箇所を直す。
+ */
+export const isPieceCardType = (type?: string | null): boolean =>
+  type === 'ピース' || type === 'ピース/クラフト' || type === 'リレーピース';
+
 // CPU専用プレイヤーID（MatchmakingScreenと共有）
 export const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
 /** Evaluate an ARTS ACTIVATED use condition identically at discovery and execution time. */

@@ -4776,6 +4776,11 @@ export function collectSpecificCardCostReductions(
       }
     }
   }
+  // 🆕**このターンだけの予約分を合流させる**（2026-09-05・§5.3 `O-259` 第2バッチ）＝
+  //   `TURN_CARD_COST_REDUCE`（`WXDi-P16-009/010/011-E3` の「そのピース」）が積む。
+  // 🔑**読み口を1本にする**＝アーツ／ピース／キーの支払いが同じ配列を見るので、
+  //   「アーツでは効くのにピースでは効かない」という片肺が構造的に起きない。
+  reductions.push(...(state.turn_specific_cost_reductions ?? []));
   return reductions;
 }
 

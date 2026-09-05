@@ -1333,6 +1333,15 @@ export interface PlayerState {
   next_spell_uncounterable?: boolean;
   // COST_REDUCTION(スペル/UNTIL_END_OF_TURN): 次に使用するスペルの使用コストを軽減（WX04-008《白×2》減）。スペル使用時に消費
   next_spell_cost_reduction?: { color: string; count: number }[];
+  /**
+   * 🆕**このターンだけ効く「カード名指定の《無》軽減」**（2026-09-05・§5.3 `O-259` 第2バッチ・
+   * `WXDi-P16-009/010/011-E3`「〈条件〉の場合、このターン、**そのピース**の使用コストは《無×1》減る」）。
+   * 🔴**常設の `SPECIFIC_CARD_COST_REDUCE` とは寿命が違う**＝あちらは場のカードを走査する CONTINUOUS で、
+   *   こちらは**【起】が予約してターン終了で消える**。読み口は `collectSpecificCardCostReductions` に合流させる
+   *   （＝アーツ・ピース・キーの支払いが**同じ1本**を通る）。
+   * ⚠ターン境界でリセットする（`next_spell_cost_reduction` と同じ地点）。
+   */
+  turn_specific_cost_reductions?: { targetCardName: string; colorlessReduction: number }[];
   // COST_REDUCTION(アーツ/UNTIL_END_OF_TURN): 【チェイン】《色》《色》＝「このターン、あなたが**次に**アーツを
   // 使用する場合、それの使用コストは《色×1》《色×1》減る」（WX10-004/005/022・WX11-018/021・WX14-005・WX19-004）。
   // スペル版（next_spell_cost_reduction）と同型＝アーツ使用時に消費し、ターン終了時にリセットする。

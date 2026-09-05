@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, coinPayableFor } from '../costs';
+import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost, costReplacementOf, costScalingOf, coinPayableFor, applySpecificCardCostReduction } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
+import { isPieceCardType } from '../battleUtils';
 import type { BattleModalCtx } from './types';
 
 interface KeyUseModalProps {
@@ -19,7 +20,7 @@ interface KeyUseModalProps {
 }
 
 export function KeyUseModal(p: KeyUseModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost, executeKeyPiece } = p;
   return (
     <>
@@ -44,16 +45,19 @@ export function KeyUseModal(p: KeyUseModalProps) {
                 { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(card.CardNum, effectsMap),
                 costReplacementOf(card.CardNum, effectsMap),
               );
-              const energyTotal = parseGrowCost(effKeyCost).reduce((s, c) => s + c.count, 0);
+              // 🆕§5.3 `O-259` 第2バッチ＝カード名指定の《無》軽減（常設＋**このターンだけ**の予約）。
+              //   🔴`BattleScreen` の提示ゲートと**同じ式**にする（片方だけだと払えない／請求が食い違う）。
+              const effKeyCostReduced = applySpecificCardCostReduction(effKeyCost, card.CardName, specificCardCostReductions);
+              const energyTotal = parseGrowCost(effKeyCostReduced).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);
-              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, effKeyCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
+              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, effKeyCostReduced, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
               // 🆕§5.3 `O-245`（2026-09-04）＝キー／ピースは `coin_use_restriction` の対象。
               const canAfford = energyOk && my.coins >= coinNeeded && (coinNeeded === 0 || coinPayableFor(my, 'key'));
               return (
                 <>
                   {/* ピースは「セット」ではなく**使用**（1回払って即解決→ルリグトラッシュ。§3 (cxxiii)・続き475g）。 */}
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                    {card.Type === 'ピース' ? 'ピースを使用' : 'キーにセット'}
+                    {isPieceCardType(card.Type) ? 'ピースを使用' : 'キーにセット'}
                   </p>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <img src={card.ImgURL} alt={card.CardName}
@@ -102,7 +106,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : '#cc8800',
                         color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
-                      {card.Type === 'ピース' ? '使用' : 'セット'}
+                      {isPieceCardType(card.Type) ? '使用' : 'セット'}
                     </button>
                   </div>
                 </>

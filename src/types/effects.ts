@@ -5786,6 +5786,12 @@ export interface StubAction {
   };
   /** OPTIONAL_COST: 自分のトラップゾーンから【トラップ】をトラッシュへ置く任意コスト。 */
   fieldTrapTrash?: { count: number; excludeSource?: boolean };
+  /**
+   * 🆕`TURN_CARD_COST_REDUCE`＝**このターンだけ、名前を指定したカードの《無》コストが N 減る**
+   * （§5.3 `O-259` 第2バッチ・`WXDi-P16-009/010/011-E3` の「そのピース」）。
+   * ⚠常設の `SPECIFIC_CARD_COST_REDUCE`（CONTINUOUS 収集）とは**寿命が違う**＝こちらはターン終了で消える。
+   */
+  turnCardCostReduce?: { targetCardName: string; colorlessReduction: number };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /**

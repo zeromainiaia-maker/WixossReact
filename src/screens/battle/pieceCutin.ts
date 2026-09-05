@@ -1,6 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { evalUseCondition } from '../../engine/execUtils';
+import { isPieceCardType } from './battleUtils';
 
 const baseCardNum = (id: string): string => id.split('#')[0];
 
@@ -16,7 +17,7 @@ const baseCardNum = (id: string): string => id.split('#')[0];
 
 /** 「【使用条件】【チーム】を持つピース」か（＝この窓の対象になる使用）。 */
 export function isTeamConditionPiece(card: CardData | undefined): boolean {
-  if (!card || card.Type !== 'ピース') return false;
+  if (!card || !isPieceCardType(card.Type)) return false;
   return (card.EffectText ?? '').includes('【使用条件】【チーム】');
 }
 
@@ -49,7 +50,7 @@ export function collectPieceCutinCandidates(args: {
   const out: PieceCutinCandidate[] = [];
   for (const id of responder.lrig_deck) {
     const card = cardMap.get(baseCardNum(id));
-    if (!card || card.Type !== 'ピース') continue;
+    if (!card || !isPieceCardType(card.Type)) continue;
     for (const eff of (effectsMap.get(id) ?? effectsMap.get(baseCardNum(id)) ?? [])) {
       if (eff.effectType !== 'ACTIVATED' || !eff.condition) continue;
       // この窓でしか使えない宣言を持つものだけ（＝通常タイミングの札を混ぜない）。

@@ -1369,6 +1369,64 @@ function wireDeclaredChooseCount(action: EffectAction, terms: CostScalingTerm[] 
   return walk(action);
 }
 
+/**
+ * 🆕§5.3 `O-259` 第2バッチ（2026-09-05・3効果）＝**「〈条件〉の場合、このターン、そのピースの使用コストは
+ * 《無×N》減る」**（`WXDi-P16-009/010/011-E3`）を痕跡 STUB から実アクションへ差し替える。
+ *
+ * 🔴**旧＝軽減が一度も起きなかった**（過小実行）。さらに `WXDi-P16-010-E3` は
+ * **条件（対戦相手のライフクロスが2枚以下）ごと落ちて無条件**になっていた＝実装した瞬間に過剰実行へ化ける形。
+ * 🔑**「そのピース」の指す名前は直前の `STUB{ADD_CRAFT_TO_LRIG_DECK}` の payload にある**＝
+ *   原文を読み直さずに木から取れる（＝カード番号で分岐しない）。
+ * ⚠**条件が解けないときは何もしない**（fail-closed）＝無条件の軽減を作らない。
+ */
+function wirePieceCostReduction(action: EffectAction, card: CardData): EffectAction {
+  const text = card.EffectText ?? '';
+  const m = text.match(/(?:^|。)([^。]*?)の場合、このターン、その(?:ピース|カード)の使用コストは《無×([０-９\d]+)》減る/);
+  if (!m) return action;
+  const amount = parseNum(m[2]);
+  if (!Number.isFinite(amount) || amount <= 0) return action;
+  // 条件＝実データにある2形だけを受ける（`resolveStateConditionClause` の表は「〜かぎり」形が主で当たらない）。
+  const clause = m[1].trim();
+  const condM = clause.match(/^(あなた|対戦相手)の(ライフクロス|手札)が([０-９\d]+)枚以下$/);
+  if (!condM) return action;
+  const owner: Owner = condM[1] === '対戦相手' ? 'opponent' : 'self';
+  const condition: Condition = condM[2] === 'ライフクロス'
+    ? { type: 'LIFE_COUNT', owner, operator: 'lte', value: parseNum(condM[3]) }
+    : { type: 'HAND_COUNT', owner, operator: 'lte', value: parseNum(condM[3]) };
+  // 「そのピース」＝直前にルリグデッキへ加えたクラフトの名前。
+  let targetCardName: string | null = null;
+  const findCraft = (node: EffectAction): void => {
+    if (targetCardName || !node || typeof node !== 'object') return;
+    const n = node as unknown as { type?: string; id?: string; craftToLrigDeck?: { cardName?: string }; steps?: EffectAction[] };
+    if (n.type === 'STUB' && n.id === 'ADD_CRAFT_TO_LRIG_DECK' && n.craftToLrigDeck?.cardName) {
+      targetCardName = n.craftToLrigDeck.cardName; return;
+    }
+    for (const st of n.steps ?? []) findCraft(st);
+  };
+  findCraft(action);
+  if (!targetCardName) return action;
+  const reduce: EffectAction = {
+    type: 'STUB', id: 'TURN_CARD_COST_REDUCE',
+    turnCardCostReduce: { targetCardName, colorlessReduction: amount },
+  } as EffectAction;
+  const gated: EffectAction = { type: 'CONDITIONAL', condition, then: reduce } as EffectAction;
+  // 痕跡マーカーを（`CONDITIONAL` の中にあってもトップレベルでも）差し替える。
+  let replaced = false;
+  const walk = (node: EffectAction): EffectAction => {
+    if (replaced || !node || typeof node !== 'object') return node;
+    const n = node as unknown as { type?: string; id?: string; steps?: EffectAction[]; then?: EffectAction };
+    if (n.type === 'STUB' && n.id === 'ARTS_COST_REDUCTION_BY_EFFECT') { replaced = true; return gated; }
+    if (n.type === 'CONDITIONAL' && n.then) {
+      const t = n.then as unknown as { type?: string; id?: string };
+      // 既に条件が付いている形（`WXDi-P16-009/011`）＝**内側だけ**を差し替える（条件を二重に包まない）。
+      if (t.type === 'STUB' && t.id === 'ARTS_COST_REDUCTION_BY_EFFECT') { replaced = true; return { ...node, then: reduce } as EffectAction; }
+    }
+    if (n.type === 'SEQUENCE') return { ...node, steps: (n.steps ?? []).map(walk) } as EffectAction;
+    return node;
+  };
+  return walk(action);
+}
+
 const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
 function stripCostScalingMarker(action: EffectAction, terms: CostScalingTerm[] | undefined): EffectAction {
   if (!terms) return action;
@@ -26514,6 +26572,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
     const cost = { ...restCost, ...printed };
     if (Object.keys(cost).length > 0) effects[0] = { ...first, cost };
+  }
+  // 🆕§5.3 `O-259` 第2バッチ＝「そのピースの使用コストは《無×N》減る」を痕跡 STUB から実アクションへ。
+  //   🔴**ここでやる**＝対象は**ルリグの【起】ブロック**なので、アーツ/スペルの経路（`stripCostScalingMarker`
+  //   と同じ地点）に置くと**一度も通らない**（実測で 0件だった）。カード全文が読める後段はここだけ。
+  for (let i = 0; i < effects.length; i++) {
+    const wired = wirePieceCostReduction(effects[i].action, card);
+    if (wired !== effects[i].action) effects[i] = { ...effects[i], action: wired };
   }
   // 🆕§5.3 `O-96` 第6バッチ＝**最後に**選択範囲と帰結の対象を合わせる（後段のパスが帰結側だけを
   //   差し替える形が実在するので、`applyO96OptionalCostTargetFirst` の直後では間に合わない）。

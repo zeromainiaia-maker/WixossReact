@@ -3038,6 +3038,11 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
       }
+      // 🆕§5.3 `O-259` 第2バッチ＝「このターン、そのピースの使用コストは《無×N》減る」。
+      if (a.id === 'TURN_CARD_COST_REDUCE' && a.turnCardCostReduce) {
+        const tcr = a.turnCardCostReduce;
+        return `このターン、《${tcr.targetCardName}》の使用コストは《無×${tcr.colorlessReduction}》減る`;
+      }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
       if (a.id === 'GUARD_ALT_HAND_REPLACE') return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに手札を${a.count ?? 1}枚捨ててもよい`;
       if (a.id === 'HOLOGRAPH_REVEAL_REPLACE') return 'ホログラフの効果によってあなたのデッキの一番上を公開する場合、代わりにあなたはデッキの上からカードを3枚見て、それらを好きな順番でデッキの上に戻してからデッキの一番上を公開する';

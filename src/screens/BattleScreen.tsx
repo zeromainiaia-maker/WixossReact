@@ -46,11 +46,11 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow, isPieceCardType } from './battle/battleUtils';
 import { applyAbilityCostReduction, mainPhaseGateOkFor } from '../engine/triggerCollect';
 import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { crashCauseMatches, spellUseTriggerMatches } from '../engine/triggerCollect';
-import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { exceedColorsSatisfied, exceedPoolOf, isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, paidEnergyColorsOf, canAffordGrowCost, parseCoinCost, encoreCostOf, computeArtsEffectiveCost, costReplacementOf, costScalingOf, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed, applySpecificCardCostReduction } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow, declaredSigniOverride } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit } from './battle/fieldLimit';
@@ -4281,6 +4281,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
           next_arts_cost_reduction: undefined,        // タスク12(xciii): 【チェイン】の次アーツコスト軽減をリセット
+          // 🆕§5.3 `O-259` 第2バッチ＝「このターン、そのピースの使用コストは《無×1》減る」の予約。
+          //   🔴常設の `SPECIFIC_CARD_COST_REDUCE`（場のカードを走査）とは別枠なので、ここで消さないと永続化する。
+          turn_specific_cost_reductions: undefined,
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
           turn_plant_down_count: undefined,           // 植物ダウン回数をリセット
           // WX25-CP1-003「次の対戦相手のターン終了時まで」: フラグ保持者(=相手の効果を受けた側)が
@@ -7605,8 +7608,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ③`AUTO`/`ON_PLAY` しか積まない** だったため、**118枚（Type='ピース' 119枚中）が
       //   `ACTIVATED`＋印刷 Cost 同額の `cost.energy` を持つのに効果が一切走らず**、
       //   KEY スロットの【起】から起動して**同額をもう一度**払う羽目になっていた（＝二重請求）。
-      //   ⚠**分岐は `card.Type === 'ピース'` だけ**＝キー側は1行も変えない（共通経路の事故を構造的に避ける）。
-      const isPiece = card.Type === 'ピース';
+      //   ⚠**分岐はピース判定だけ**＝キー側は1行も変えない（共通経路の事故を構造的に避ける）。
+      //   ⚠**`isPieceCardType`（派生3値）で判定する**＝完全一致だと `'ピース/クラフト'` が
+      //     キー扱いになり、キーゾーンを占有したうえ `ACTIVATED` が積まれない（`V-158`）。
+      const isPiece = isPieceCardType(card.Type);
       // 🆕枠に余りがあれば `key_piece_extra` へ積む＝`hasUnlimitedKeys`（無制限）に加えて
       //   `key_place_limit`（「N枚まで」＝§5.3 `O-200`）も同じ地点で読む。
       const keyCapEKP = hasUnlimitedKeysEKP ? Infinity : Math.max(1, my.key_place_limit ?? 1);
@@ -8969,7 +8974,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     );
     // 🔴**ピースはキーゾーンを占有しない**（§3 (cxxiii)・続き475g）＝`!my.field.key_piece` ゲートを掛けない。
     //   従来はここで一緒に絞っていたため、**キーを1枚出しているだけで全ピースが使えなくなって**いた。
-    const isPieceCard = cardData.Type === 'ピース';
+    const isPieceCard = isPieceCardType(cardData.Type);
     // 🆕`key_place_limit`＝「このゲームの間、あなたはキーをN枚まで場に出すことができる」（§5.3 `O-200`・
     //   `WXK02-004-E3`）。`hasUnlimitedKeys`（枚数無制限の【常】）とは別軸の**回数指定**。
     const keyCapacity = hasUnlimitedKeys ? Infinity : Math.max(1, my.key_place_limit ?? 1);
@@ -8999,7 +9004,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         { oppState: op, cardCostReplacements: my.card_cost_replacements }, costScalingOf(cardNum, effectsMap),
         costReplacementOf(cardNum, effectsMap),
       );
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCostGate, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+      // 🆕§5.3 `O-259` 第2バッチ＝カード名指定の《無》軽減（常設＋**このターンだけ**の予約）を通す。
+      //   🔴ここと `KeyUseModal` の**両方**に入れないと「一覧では使えるのに払えない」食い違いになる。
+      const pieceEffCost = applySpecificCardCostReduction(pieceEffCostGate, cardData.CardName, specificCardCostReductions);
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );

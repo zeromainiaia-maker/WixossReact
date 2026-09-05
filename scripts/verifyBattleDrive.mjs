@@ -50731,6 +50731,157 @@ scenarios.v157NextGreenArtsOnlyGreen = {
 order.push('v157NextGreenArtsOnlyGreen');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-158`（§5.3 `O-259` 第2バッチ）＝**「このターン、そのピースの使用コストは《無×1》減る」**
+//
+// `WXDi-P16-011`（希望の後先　ミカエラ・青・Lv3）
+// 「【起】《ゲーム１回》《青×0》：クラフトの《インビンシブル・ストーリー》１枚をルリグデッキに加える。
+//  **対戦相手の手札が２枚以下の場合、このターン、そのピースの使用コストは《無×1》減る。**」
+//
+// 🔴**旧挙動＝痕跡 STUB のままで軽減が一度も起きなかった**（過小実行）。
+// 🔑**実機でしか出ない理由**＝軽減は**ターン限定の予約**で、ピースの支払いは
+//   `BattleScreen` の提示ゲートと `KeyUseModal` の**2箇所**が別々にコストを計算する
+//   （片方だけ配線すると「一覧では使えるのに払えない」片肺になる）。
+// ⚠**ライフ条件の2枚（`WXDi-P16-009/010`）は使えない**＝`life_cloth` は注入すると
+//   注入自体が通らなくなる（§4.4 罠＝`O-248` の実測）。**相手の手札枚数**で条件を作る。
+// ══════════════════════════════════════════════════════════════════════════════
+const V158_LRIG = 'WXDi-P16-011#1';     // 希望の後先 ミカエラ（【起】《青×0》で craft 追加＋条件つき軽減）
+const V158_PIECE = 'WXDi-P16-TK01';     // インビンシブル・ストーリー（ピース/クラフト・《無》×3・メイン）
+const V158_VANILLA = 'WD01-013';
+
+const v158Spec = (oppHand) => ({
+  hostSet: {
+    'field.lrig': [V158_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [],
+    // 🔑**印刷コスト（《無》×3）は払える枚数**にしておく＝払えないと提示ゲートで出ない。
+    energy: [V158_VANILLA + '#1', V158_VANILLA + '#2', V158_VANILLA + '#3', V158_VANILLA + '#4'],
+    hand: [],
+    turn_specific_cost_reductions: undefined,
+    game_actions_done: [],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    hand: oppHand,
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** ルリグの【起】を1つ発動する（`data-action-label` の最初の1件）。 */
+const v158FireLrigAct = async (page, H, tag) => {
+  await H.ensureMain();
+  let opened = false, fired = false;
+  for (let s = 0; s < 16 && !fired; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!opened) {
+      // ルリグは `my-lrig-zone` 相当の testid が無い実装もあるので、カード画像で開く。
+      const img = page.getByAltText('希望の後先', { exact: false }).first();
+      if (await img.count() && await img.isVisible().catch(() => false)) {
+        await img.click({ force: true }).catch(() => {}); opened = true; did = 'lrig';
+      }
+    }
+    if (!did && opened) {
+      const lbl = page.locator('[data-action-label]').first();
+      if (await lbl.count() && await lbl.isVisible().catch(() => false)) { await lbl.click().catch(() => {}); did = 'act-label'; }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    const deck = st?.host?.lrigDeckCards ?? [];
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし') + ' | lrigDeck=' + JSON.stringify(deck)
+      + ' 予約=' + JSON.stringify(st?.host?.turnSpecificCostReductions) + ' pEff=' + (st?.pendingEffect ?? '-'));
+    if (deck.some(c => String(c).startsWith(V158_PIECE))) fired = true;
+  }
+  await H.closeModals();
+  return fired;
+};
+
+/** ルリグデッキのピースを開き、必要エナ枚数を読む（押さずに閉じる）。 */
+const v158PeekPieceCost = async (page, H, tag) => {
+  await H.closeModals();
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('ピース(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  await page.waitForTimeout(700);
+  let used = await H.clickBtn('ピースを使用', { exact: false });
+  if (!used) used = await H.clickBtn('使用', { exact: true });
+  if (!used) used = await H.clickBtn('キーにセット', { exact: false });
+  await page.waitForTimeout(900);
+  // 🔑**開けなかったら「いま見えているボタン」を残す**（§5.1 の教訓＝出なかった側の証拠）。
+  if (!used) {
+    const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(b => (b.textContent || '').trim().slice(0, 18)).filter(Boolean).slice(0, 24)).catch(() => []);
+    H.log('  ピース使用ボタンが出ない＝見えているボタン: ' + JSON.stringify(btns));
+  }
+  const req = await page.evaluate(() => {
+    const m = document.body.innerText.match(/エナゾーンから選択:\s*\d+\s*\/\s*(\d+)\s*枚/);
+    return m ? Number(m[1]) : null;
+  }).catch(() => null);
+  await page.screenshot({ path: SHOT + '/' + tag + '.png', fullPage: true });
+  await H.closeModals();
+  return { opened: !!used, req };
+};
+
+const v158Drive = async (page, H, tag, expectReduced) => {
+  const st0 = await H.queryState();
+  const oppHand = (st0?.guest?.handCards ?? []).length;
+  if (st0?.host?.lrigTop !== V158_LRIG) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop + '）' };
+  }
+  const fired = await v158FireLrigAct(page, H, tag);
+  const stMid = await H.queryState();
+  const reserved = stMid?.host?.turnSpecificCostReductions;
+  if (!fired) {
+    return { pass: false, detail: '前提崩れ＝【起】が解決せずピースがルリグデッキに入っていない（lrigDeck='
+      + JSON.stringify(stMid?.host?.lrigDeckCards) + ' 相手手札=' + oppHand + '）' };
+  }
+  const peek = await v158PeekPieceCost(page, H, tag + '-peek');
+  const dump = '相手手札=' + oppHand + ' 予約=' + JSON.stringify(reserved)
+    + ' 必要エナ=' + peek.req + '（印刷は3枚）';
+  H.log('  判定: ' + dump);
+  if (!peek.opened) return { pass: false, detail: '前提崩れ＝ピースの支払いモーダルを開けなかった。' + dump };
+  if (peek.req === null) return { pass: false, detail: '前提崩れ＝必要エナ枚数を読めなかった。' + dump };
+  if (expectReduced) {
+    if (!Array.isArray(reserved) || reserved.length === 0) {
+      return { pass: false, detail: '🔴条件を満たすのに軽減が予約されていない＝痕跡 STUB のまま（過小実行）。' + dump };
+    }
+    if (peek.req !== 2) {
+      return { pass: false, detail: '🔴予約はあるのにピースの必要エナが 3→2 にならない＝支払い経路に配線が届いていない。' + dump };
+    }
+    return { pass: true, detail: '相手の手札2枚で軽減が予約され、ピースの必要エナが 3→2 になった。' + dump };
+  }
+  if (Array.isArray(reserved) && reserved.length > 0) {
+    return { pass: false, detail: '🔴条件を満たしていないのに軽減が予約された＝条件が落ちている（過剰実行）。' + dump };
+  }
+  if (peek.req !== 3) {
+    return { pass: false, detail: '🔴条件不成立なのにピースが安くなっている。' + dump };
+  }
+  return { pass: true, detail: '相手の手札5枚では軽減されず、ピースの必要エナは印刷どおり3枚のまま。' + dump };
+};
+
+scenarios.v158PieceCostReduced = {
+  title: 'V-158①：WXDi-P16-011 の【起】＝相手の手札2枚以下なら、そのピースの必要エナが 3→2 になる【旧実装は軽減0】',
+  spec: v158Spec(['WD01-013#7', 'WD01-013#8']),
+  async drive(page, H) { return v158Drive(page, H, 'v158Red', true); },
+};
+
+scenarios.v158PieceCostNotReduced = {
+  // 🔴**対照**＝盤面も操作も同じで、**相手の手札枚数だけ**を 2 → 5 に変える1ビット反転。
+  title: 'V-158②：相手の手札が3枚以上なら軽減されない（条件が落ちていない）',
+  spec: v158Spec(['WD01-013#7', 'WD01-013#8', 'WD01-013#9', 'WD02-013#7', 'WD02-013#8']),
+  async drive(page, H) { return v158Drive(page, H, 'v158Plain', false); },
+};
+
+order.push('v158PieceCostReduced');
+order.push('v158PieceCostNotReduced');
+
+
 order.push('v152DeclareRaisesCost');
 order.push('v152DeclareLimitedByEnergy');
 
@@ -51032,6 +51183,10 @@ try {
         //   census の較正（`conditionClauseExtraOk`）はこの挙動を前提にしているので、実機で set→clear を観測する。
         nextSpellCostReduction: s.next_spell_cost_reduction ?? null,
         nextArtsCostReduction: s.next_arts_cost_reduction ?? null,
+        // 🆕§5.3 `O-259` 第2バッチ（2026-09-05）＝「このターン、そのピースの使用コストは《無×N》減る」の
+        //   **ターン限定**予約。🔴常設の `SPECIFIC_CARD_COST_REDUCE` は場のカードを走査する別経路なので、
+        //   ここを見ないと「予約されたのか」「支払い経路に届いていないのか」を切り分けられない。
+        turnSpecificCostReductions: s.turn_specific_cost_reductions ?? null,
         fieldSigni: s.field?.signi ?? null,
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,

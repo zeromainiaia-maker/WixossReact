@@ -1,5 +1,48 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第171バッチ）：ピースのターン限定コスト軽減と、**クラフトのピースが永久に使えなかった**恒久 no-op
+
+**ベースライン**＝第170の直後。**gates 全緑**（typecheck・golden **3510/3510**＝+2本・smoke 全異常0・
+fuzz 全0・census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・
+`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+🖥**実機まで実施**＝§2.2 の判定＝`src/screens/`（`BattleScreen`／`KeyUseModal`／`pieceCutin`／`battleUtils`）と
+`src/engine/` を触ったので**実機必須**。**2シナリオとも PASS**（`v158PieceCostReduced` / `v158PieceCostNotReduced`）。
+
+### ① 「このターン、そのピースの使用コストは《無×1》減る」が一度も効かなかった（過小実行・3枚）
+
+- **真因**＝`WXDi-P16-009/010/011-E3` の軽減節が**痕跡 STUB のまま**で payload を持っていなかった
+  （`O-259`＝「逆翻訳が原文をそのまま貼るので実装済みに見える」型）。受け皿の
+  `specificCardCostReductions` は **CONTINUOUS 収集専用**で、**ターン限定の予約スロットが無かった**。
+- **影響枚数**＝3枚（3効果）。うち 🔴**`WXDi-P16-010-E3` は条件（相手のライフ2枚以下）ごと落ちていた**
+  ＝実装すると**無条件で安くなる過剰実行**になるところだった。
+- **直し方**＝parser が `CONDITIONAL{cond, then: STUB{TURN_CARD_COST_REDUCE}}` を生成 → engine が
+  `turn_specific_cost_reductions` へ積む → `collectSpecificCardCostReductions` がそれを**合流**させて
+  **読み口を1本**にする（アーツ／ピース／キーが片肺にならない）→ 支払い経路は
+  `BattleScreen` の `pieceEffCostGate` と `KeyUseModal` の**2口とも** `applySpecificCardCostReduction` を通す
+  → ターン境界で `undefined` へリセット（消さないと永続化する）。
+- **検証**＝`npm run gates`（golden `§5.3 O-259 第2` を新設）／実機 `v158PieceCostReduced`（必要エナ 3→2）。
+- **反転確認**＝あり＝`v158PieceCostNotReduced`（**相手の手札枚数だけ**を 2→5 に変える1ビット反転で、
+  予約が立たず必要エナが印刷どおり3枚のまま）。
+
+### ② 🔴**`Type === 'ピース'` の完全一致で、クラフト／リレーのピース3枚が永久に使えなかった**（恒久 no-op）
+
+- **真因**＝ピースの **提示ゲート**（`BattleScreen.tsx`）・**実行経路**（`executeKeyPiece` 内の `isPiece`）・
+  **支払いモーダルの文言**（`KeyUseModal.tsx` 2箇所）・**カットイン走査**（`pieceCutin.ts` 2箇所）の
+  **すべて**が `card.Type === 'ピース'` の完全一致だった。CSV の `Type` には派生表記があり、
+  **`'ピース/クラフト'` 1枚**（`WXDi-P16-TK01`＝まさに ① の3枚が生成するピース）と
+  **`'リレーピース'` 2枚**（`WXDi-CP01-001`／`WXDi-CP01-003`）が**一度も「ピースを使用」を提示されなかった**。
+- **影響枚数**＝3枚。🔴**① の成果物がこれ**＝「軽減は正しく予約されるのに、そのピースは永久に使えない」。
+- 🔑**アーツ側は最初から `'アーツ/クラフト'` を並記していた**（`BattleScreen.tsx` の提示ゲート・
+  `artsUseGate.ts:346`）＝**同じ穴の片側だけが塞がっていた**。
+- **直し方**＝`battleUtils.ts` に `isPieceCardType()` を1本置き、上記6箇所すべてをそこへ通した。
+- **検証**＝実機 `v158PieceCostReduced`（修正前は「ピースを使用」ボタンが最後まで出ず、
+  見えているボタンが `["アタックフェイズへ","リムーブ","↺","終了","閉じる"]` だった）。
+  golden `§5.1 V-158` は **CSV から `Type` にピースを含む種別を数え直して**全件が判定を通ることを assert する
+  （🔑**定数リストを golden へ写さない**＝写し忘れが検出できなくなるため。将来 `'ピース/○○'` が増えたら落ちる）。
+- **反転確認**＝あり＝キー・アーツ・`undefined` はピースと判定されない（キー経路を巻き込まない）。
+- ⚠**この形は静的な計器に一切映らない**＝golden・smoke・fuzz・census すべて緑のまま「使えない」。
+  ⇒ 教訓を PLAN §4.4 の **8s** に登録。
+
 ## 2026-09-05（第157〜170バッチ）：逆翻訳のコスト payload 穴7本＋真no-opコスト2本＋【ハーモニー】＋実機11シナリオ
 
 **ベースライン**＝`eedde29b7`（第156の直後）。
