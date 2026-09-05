@@ -3692,11 +3692,17 @@ function actionJa(a?: Action, effectType?: string): string {
       // サーバントZERO化（*_SERVANT_ZERO 系4id・engine実装済み）＝
       // 「（ターン終了時まで、）対戦相手の（すべての）シグニ（N体）を《サーバント ＺＥＲＯ》にする」。
       // 対象数/範囲/語順がカードごとに異なるため currentCardText から抽出（ベットコスト前置は除外）。
+      // 🔴**2026-09-05（§5.3 `O-249` 第156バッチ）＝id から描くように直した。**
+      //   旧実装は `currentCardText`（カード全文）に regex を当てて**最初に当たった句をそのまま返して**いたので、
+      //   **JSON がどの id を持っているかが逆翻訳に一切現れなかった**（`O-55`／`O-60` と同じ「計器が嘘をつく」形）。
+      //   実際 `WX17-005-E1` は「1体」と「すべて」の2枝を持つのに**両方とも同じ1文**が出ており、
+      //   第149 で `DECLARE_CARD_NAME`（まったく別の機構）へ落ちていた退化も逆翻訳からは見えなかった。
       if (a.id === 'SIGNI_SERVANT_ZERO' || a.id === 'MAKE_SERVANT_ZERO' ||
           a.id === 'MAKE_MULTI_SERVANT_ZERO' || a.id === 'ALL_OPP_SIGNI_SERVANT_ZERO') {
-        const m = currentCardText.match(/(?:ターン終了時まで、)?対戦相手の(?:すべての)?シグニ[^。]*?《サーバント[　\s]*ＺＥＲＯ》にする/);
-        if (m) return m[0];
-        return 'ターン終了時まで、対戦相手のシグニを《サーバント　ＺＥＲＯ》にする';
+        const scope = a.id === 'ALL_OPP_SIGNI_SERVANT_ZERO' ? '対戦相手のすべてのシグニ'
+          : a.id === 'MAKE_MULTI_SERVANT_ZERO' ? '対象の対戦相手のシグニ（複数）'
+            : '対象の対戦相手のシグニ1体';
+        return `${scope}を《サーバント　ＺＥＲＯ》にする`;
       }
       // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）。
       // 🆕**payload から描く**（§5.3 `O-60` 第9バッチ・2026-08-29）＝旧実装は `currentCardText` から
@@ -4281,6 +4287,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 🆕§5.3 `O-249` 第156（2026-09-05）＝**自分側**のシグニを《サーバント　ＺＥＲＯ》にする形。
+        //   🔴engine の 4つの `*_SERVANT_ZERO` は**すべて `otherState.card_identity_overrides` へ書く**＝
+        //     対戦相手のシグニ専用。自分側に流用すると「自分は変換されず相手が変換される」別効果になる。
+        DEFERRED_SELF_SIGNI_SERVANT_ZERO: '【未実装】あなたのシグニを《サーバント　ＺＥＲＯ》にする（受け皿は相手側専用）',
         // 🆕§5.3 `O-60` 第76（2026-09-05・**A群 最後の1本**）＝条件節を構造化できなかった文。
         //   🔴旧 id は `CONDITIONAL_POWER_BONUS` だったが、実体は「条件節の捨て場」で
         //     パワーと無関係な文（追加トラッシュ／デッキに加える 等）まで入っており、

@@ -4947,8 +4947,18 @@ test('§6.4 reveal-until 9効果: 停止条件・ヒット先・残り先が liv
   eq(c1Pick.opponentResponds, true, 'C1 live: 選ぶのは相手自身');
   // ⚠**「1枚**まで**」＝上限（0枚でもよい）**＝`pickUpTo` を落とすと engine は SEARCH を必須にし、
   //   出したくない札しか公開されなくても**相手に必ず場出しさせる**別物になる（段2 第43バッチ）。
-  eq(JSON.stringify(c1Pick.stages), JSON.stringify([{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field', pickUpTo: true }]), 'C1 live: シグニ1枚まで場出し（まで＝上限）');
-  eq(JSON.stringify(c1Pick.remainder), JSON.stringify({ location: 'deck', position: 'bottom' }), 'C1 live: 残りはデッキの一番下');
+  // ⚠**キー順に依存しない比較にする**（2026-09-05 §5.3 `O-249` 第154）＝
+  //   `JSON.stringify` の丸ごと一致は**中身が同じでもキーの並びが変わっただけで落ちる**
+  //   （held からの採用で `pickUpTo` と `then` の順が入れ替わっただけで FAIL した）。
+  eq(c1Pick.stages.length, 1, 'C1 live: pick は1段');
+  eq(JSON.stringify(c1Pick.stages[0].filter), JSON.stringify({ cardType: 'シグニ' }), 'C1 live: シグニ限定');
+  eq(c1Pick.stages[0].pickCount, 1, 'C1 live: 1枚');
+  eq(c1Pick.stages[0].then, 'field', 'C1 live: 場に出す');
+  eq(c1Pick.stages[0].pickUpTo, true, 'C1 live: 「まで」＝上限（0枚でもよい）');
+  // ⚠ここもキー単位で見る＝`reorder`（「残りを**好きな順番で**」）が後から届いても落とさない。
+  eq(c1Pick.remainder?.location, 'deck', 'C1 live: 残りはデッキへ');
+  eq(c1Pick.remainder?.position, 'bottom', 'C1 live: デッキの一番下');
+  eq(c1Pick.remainder?.reorder, true, 'C1 live: 「好きな順番で」＝並べ替えの権利つき（O-249 第154 で届いた）');
   // 🆕**2026-08-28（§5.3 `O-133` B群 第8バッチ・ユーザー決定）で `PARTIAL` の孤児スタンプを外した**＝
   //   live の実体は parser 出力と**完全一致**しており、印は `manualEffects.ts` に出所を持たない
   //   （＝parser の改善を永久に受け取れない第4の死角）。**未忠実の記録はここに残す**：
@@ -59289,10 +59299,11 @@ test('O-147: 多ゾーン消費ライズの枠割り当て（候補数では判�
 // ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
 //   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
 test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
-  const BASELINE_REORDER_MISSING = 11;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  const BASELINE_REORDER_MISSING = 10;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
   //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
   //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）
-  //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）。
+  //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）
+  //   →🆕**10**（2026-09-05 §5.3 `O-249` 第154バッチ＝`SP38-006` の held を採用して**引用能力の中**にも届いた）。
   //   ⚠**払い戻したら実測値へ下げる**（CLAUDE.md）。
   const srcPath = join(root, 'docs/_effect_srctext.json');
   const srcMap = JSON.parse(fs.readFileSync(srcPath, 'utf8')) as Record<string, unknown>;
@@ -67468,12 +67479,17 @@ test('§5.3 O-249 第149: サーバントZERO 化が「カード名の宣言」�
     eq((c.else as { id?: string }).id, 'MAKE_SERVANT_ZERO', `WX17-005-E1 ${label}: 非ベット時は1体`);
   }
   // 同じ catch-all に落ちていた「**そのシグニ**を《サーバント　ＺＥＲＯ》にする」（`WXK11-014-E2`）。
+  // 🔴**ただしこれは「自分の場に出したシグニ」**で、engine の4つの `*_SERVANT_ZERO` は
+  //   すべて `otherState.card_identity_overrides` へ書く＝**相手側専用**。流用すると
+  //   「自分は変換されず相手が勝手に変換される」別効果になるので、**明示 defer** にして穴を計器へ残す。
   for (const [label, e] of pair('WXK11-014', 'WXK11-014-E2')) {
     const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
-    ok(steps.some(st => (st as { id?: string }).id === 'MAKE_SERVANT_ZERO'),
-      `WXK11-014-E2 ${label}: 場に出したシグニをサーバントZEROにする`);
+    ok(steps.some(st => (st as { id?: string }).id === 'DEFERRED_SELF_SIGNI_SERVANT_ZERO'),
+      `WXK11-014-E2 ${label}: 自分側の変換は受け皿が無いので明示 defer`);
     ok(!JSON.stringify(e.action).includes('DECLARE_CARD_NAME'),
       `WXK11-014-E2 ${label}: カード名の宣言に化けない`);
+    ok(!JSON.stringify(e.action).includes('"MAKE_SERVANT_ZERO"'),
+      `WXK11-014-E2 ${label}: 相手側専用の受け皿へ流用しない`);
   }
 
   // ② 探索元（「あなたのデッキから」）が省略された「**追加で**〈記述子〉シグニN枚を探して…」＝
@@ -67691,6 +67707,48 @@ test('§5.3 O-249 第153: 【常】の置換が STUB のままで一度も発動
   //    「どちらがマシか」は**カード単位の採用では選べない**（`--adopt` は全部か無か）。
   //    ⇒ 既存の契約（続き389）を優先し、**parser で「引用ブロックを本物の CardEffect へ展開する」まで据置**。
   //    その契約自体は同ファイルの「続き389 採用5効果と据置4効果」テストが引き続き守る。
+});
+
+test('§5.3 O-249 第154: 「それを…てもよい。そうした場合、それの…」の照応が別の札を指していた（held 残りの採用）', () => {
+  const live = (cardNum: string, effectId: string) => findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+
+  // ① 🔴`WXDi-P00-068-E1`＝**「それ」は3つとも同じ札**（宣言した対象＝移動させた札＝強化される札）なのに、
+  //    旧 live は `targetsTriggerSource`（＝**このシグニ**）を狙っていた＝移動させた札とは別の札を強化しうる。
+  //    parser の既定（支払い後に自由選択）も同じく別の札を選べる。⇒ `targetsLastProcessed` で束ねる。
+  //    ⚠`O-96` の対象固定は中間動作が `STUB{OPTIONAL_COST}` の形だけが対象で、ここは当たらない。
+  for (const [label, e] of [
+    ['live', live('WXDi-P00-068', 'WXDi-P00-068-E1')],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get('WXDi-P00-068')!), 'WXDi-P00-068-E1')!],
+  ] as const) {
+    const a = e.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    eq((a.steps[0] as { id?: string }).id, 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE', `WXDi-P00-068-E1 ${label}: 配置替え`);
+    const then = (a.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).then as unknown as Record<string, unknown>;
+    eq(then.type, 'POWER_MODIFY', `WXDi-P00-068-E1 ${label}: 帰結はパワー修整`);
+    eq(then.targetsLastProcessed, true, `WXDi-P00-068-E1 ${label}: 強化するのは配置替えした札そのもの`);
+    eq(then.targetsTriggerSource, undefined, `WXDi-P00-068-E1 ${label}: トリガー元（このシグニ）を狙わない`);
+  }
+
+  // ② `WX22-044` / `WX26-CP1-055`＝中間動作が**盤面を動かさない**（手札公開／トラッシュ→デッキ下）ので、
+  //    宣言と選択の間で候補集合が変わらない＝自由選択でも原文と同値。旧 live の `targetsTriggerSource`
+  //    （＝アタックしたこのシグニ）だけが誤りだったので外す。
+  for (const [cardNum, effectId, story] of [
+    ['WX22-044', 'WX22-044-E1', undefined],
+    ['WX26-CP1-055', 'WX26-CP1-055-E1', 'プリオケ'],
+  ] as const) {
+    const a = live(cardNum, effectId).action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+    const then = (a.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).then as unknown as Record<string, unknown>;
+    eq(then.targetsTriggerSource, undefined, `${effectId}: トリガー元を狙わない`);
+    eq((then.target as Record<string, unknown>).owner, 'self', `${effectId}: 強化するのは自分のシグニ`);
+    if (story) eq(((then.target as Record<string, Record<string, unknown>>).filter).story, story,
+      `${effectId}: ＜${story}＞限定を保つ`);
+  }
+
+  // ③ `SP38-006`＝引用能力の中の「残りを**好きな順番で**デッキの一番下に置く」が届いた（`PARTIAL` → `AUTO`）。
+  {
+    const ab = ((live('SP38-006', 'SP38-006-E1').action as unknown as Record<string, unknown>).abilities as CardEffect[])[1];
+    ok(JSON.stringify(ab.action).includes('"reorder":true'), 'SP38-006: 並べ替えの権利が引用能力にも届く');
+    eq(ab.parseStatus, 'AUTO', 'SP38-006: 無言フォールバックが解消して AUTO になる');
+  }
 });
 
 if (listMode) {

@@ -1,5 +1,34 @@
 # PLAN 進捗サマリ・アーカイブ
 
+- **セッション（2026-09-05・第146バッチ＝1巡・Opus 5 単独）＝**🔴**`held` に残っていたのは live のバグではなく「現行 parser の退化」だった**
+  📊**進捗3計器＝Sheet1 要対応 1 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 1 / BASELINE 1（据置）**
+  `census:enginetext` A🔴 0行（据置）／`census:costtext` A🔴 0規則（据置）／`census:deadstate` 0件（据置）。
+  📦**在庫**＝**機構 worklist 6 → 7項目**（`O-249` 継続＋🆕`O-250`＝`GRANT_KEYWORD` が選択結果を `lastProcessedCards` に残さない）｜**⑤実機 残 0件**｜
+  🆕**held 44 → 28枚**｜`census:cards` 要対応 **131 → 131**（据置）。
+  gates 全緑（golden **3485 / 3485**＝3483 +2本・smoke 全異常0・fuzz 全0・lint 0 errors）。
+  **実機は不要**（§2.2＝`src/data/`・`public/data/`・`scripts/` だけ。`src/screens/` も `src/engine/` も0行、新しい型も足していない）。**反転確認3本**。
+
+  🔴**主産物＝「held の残りは fresh 側の退化が多数派」（第145 の見立て）は当たっていた。**
+  44枚を全数目視して **9件が現行 parser の退化**と確定し、全部 parser を直した。
+  ⇒ **`build:effects` を回しても live に届かないだけ、ではない。parser そのものが壊れていた。**
+  内訳＝**限定の脱落4**（`levelParity`／`levelEqLastProcessed`／クラス種類数条件／look-pick の ＜クラス＞）
+  **意味の反転2**（「このシグニ」がトリガー主語に化ける／「対戦相手は【エナチャージ】」が自分に化ける＝**1規則で3効果**）
+  **不等号の消失1**（`parseUseCondition` が一律 `eq`）**無条件成立2**（規則が無く `COND_STUB`＝`return true` に落ちていた使用条件）。
+
+  🔑**この巡で確定した読み方**＝**`held` の diff は「live が悪い」「fresh が悪い」の両向きが混ざるだけでなく、
+  同じ1枚の中でも混ざる**（`WXDi-P11-064` は fresh の `triggerCondition.turnOwner` が正しく、`thisCardOnly` の脱落が退化）。
+  ⇒ **署名一括採用（`--adopt-sig`）は使えない**の再確認に加えて、**カード単位の `--adopt` でも「parser を直してから採る」順序が要る**。
+  🔴**もう1つ＝`held` は「live が恒久 no-op」の検出器でもあった**＝`WX24-P2-002` は
+  対象宣言の**シグニ側**に `levelEqLastProcessed` が誤って載り、参照先が空なので候補0＝**アーツを撃っても何も起きなかった**。
+  どの計器にも出ない（`census` は語彙の欠落を見る／`census:stubs` は STUB を見る／golden・smoke・fuzz は全部緑）。
+  🔑**`npm run typecheck` は `scripts/` を見ない**（CLAUDE.md 既知）＝goldenTest の括弧崩れを**tsc が通した**。
+  **`scripts/` を触ったら `npm run golden` を実際に走らせるまで「直った」と言わない**の実例をこの巡でも1回踏んだ。
+
+**▶ 次の一手**＝**`O-249` の続き（held 残28枚）**。目立つ退化2枚＝**`WX25-P3-003`**（`exceed:3` が `costText` へ後退＝
+エクシードのコスト payload が消える）と **`WXK11-026`**（`PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH` →
+`PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE`＝原文に無い「アタックフェイズ」限定が付く）。
+`targetsTriggerSource` 除去の3枚（`WX22-044`／`WX26-CP1-055`／`WXDi-P00-068`）は従来どおり `O-188` と一緒に取る。
+
 - **セッション（2026-09-05・第140〜145バッチ＝6巡・Opus 5 単独）＝**🔴**計器が指す在庫を、計器自身が塞いでいた**
   📊**進捗3計器＝Sheet1 要対応 17 → 1 / 863（🔴大半は較正）｜台帳 残 OPEN 44（据置）｜census 高シグナル 1 / BASELINE 1（据置）**
   `census:enginetext` A🔴 0行（据置）／`census:costtext` A🔴 0規則（据置）／`census:deadstate` 0件（据置）。

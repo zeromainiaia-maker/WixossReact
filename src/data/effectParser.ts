@@ -11533,10 +11533,45 @@ function fillBareOptionalCostPayload(action: EffectAction): EffectAction {
   return action;
 }
 
+/**
+ * 🆕**「〈対象〉を対象とし、**それを**〈中間動作〉してもよい。そうした場合、…**それの**パワーを±Nする。」**
+ * （2026-09-05 §5.3 `O-249` 第154バッチ・原文実測1効果＝`WXDi-P00-068-E1`）。
+ *
+ * 🔴**「それ」は3つとも同じ札**（宣言した対象＝中間動作で動かした札＝強化される札）なのに、
+ *   live は `targetsTriggerSource`（＝**このシグニ**）を狙い、parser の既定は
+ *   **支払いの後で選び直す自由選択**（`SIGNI{owner,count:1}`）に落ちていた。どちらも別の札を強化しうる。
+ * 🔑`O-96` の対象固定（`SELECT_TARGET_ONLY`＋`STORE`）は**中間動作が `STUB{OPTIONAL_COST}` の形だけ**が対象で、
+ *   ここは中間動作そのものが対象を動かす（`MOVE_TARGET_SIGNI_TO_OTHER_ZONE`）ので当たらない。
+ *   ⇒ **中間動作が `lastProcessedCards` に残した札**をそのまま指す `targetsLastProcessed` で束ねる。
+ *
+ * ⚠**適用条件を狭くする**＝①原文が「それを…てもよい。そうした場合、…それの…パワーを」の順で書かれている
+ *   ②木が `SEQUENCE[中間, CONDITIONAL{gate} → POWER_MODIFY]` ③帰結にまだ照応の束縛が無い。
+ *   1つでも欠けたら触らない（fail-closed）。
+ */
+function bindOptionalMoveAnaphoraPower(text: string, action: EffectAction): EffectAction {
+  if (!/を対象とし[、,]それを[^。]*?てもよい。そうした場合[、,][^。]*?それの[^。]*?パワーを/.test(text)) return action;
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = (action as SequenceAction).steps;
+  if (steps.length !== 2) return action;
+  const gate = steps[1];
+  if (gate?.type !== 'CONDITIONAL') return action;
+  const then = (gate as import('../types/effects').ConditionalAction).then as
+    (EffectAction & { targetsLastProcessed?: boolean; targetsTriggerSource?: boolean; targetsStored?: boolean; target?: EffectTarget });
+  if (then?.type !== 'POWER_MODIFY' || then.target?.type !== 'SIGNI') return action;
+  if (then.targetsLastProcessed || then.targetsTriggerSource || then.targetsStored) return action;
+  return {
+    ...action,
+    steps: [steps[0], { ...(gate as import('../types/effects').ConditionalAction),
+      then: { ...then, targetsLastProcessed: true } as EffectAction }],
+  } as EffectAction;
+}
+
 function applyO96Nested(text: string, action: EffectAction, depth = 0): EffectAction {
   if (depth > 3) return action;
   const fixed = applyO96OptionalCostTargetFirst(text, action);
   if (fixed !== action) return fixed;
+  const bound = bindOptionalMoveAnaphoraPower(text, action);
+  if (bound !== action) return bound;
   if (action.type === 'CHOOSE') {
     const choices = action.choices.map(c => ({ ...c, action: applyO96Nested(text, c.action, depth + 1) }));
     return choices.some((c, i) => c.action !== action.choices[i].action) ? { ...action, choices } : action;

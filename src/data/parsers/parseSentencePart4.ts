@@ -721,7 +721,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
       return { type: 'STUB', id: 'ALL_OPP_SIGNI_SERVANT_ZERO' } as StubAction;
     if (/それらを《サーバント/.test(t))
       return { type: 'STUB', id: 'MAKE_MULTI_SERVANT_ZERO' } as StubAction;
-    return { type: 'STUB', id: 'MAKE_SERVANT_ZERO' } as StubAction;
+    if (/それを《サーバント/.test(t))
+      return { type: 'STUB', id: 'MAKE_SERVANT_ZERO' } as StubAction;
+    // 🔴**自分側のシグニを変換する形は受け皿が無い**（2026-09-05 第156バッチ・`WXK11-014-E2`
+    //   ＝「あなたの手札からシグニ１枚を場に出す。…**そのシグニ**を《サーバント　ＺＥＲＯ》にする」）。
+    //   engine の4つの id は**すべて `ctx.otherState.card_identity_overrides` へ書く**（`execStubPart2.ts:1637`）＝
+    //   **対戦相手のシグニ専用**なので、ここへ `MAKE_SERVANT_ZERO` を出すと**自分のシグニは変換されず
+    //   相手のシグニが勝手に変換される**別効果になる。⇒ 明示 defer にして穴を計器へ残す。
+    return { type: 'STUB', id: 'DEFERRED_SELF_SIGNI_SERVANT_ZERO' } as StubAction;
   }
 
   // ---- コストの色を無視して支払える/支払う ----

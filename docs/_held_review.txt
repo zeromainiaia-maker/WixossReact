@@ -3,24 +3,6 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［4枚］
-SP38-006 WX22-044 WX26-CP1-055 WXDi-P00-068
---- SP38-006
-  原文: 【常】：あなたのセンタールリグは以下の能力を得る。『【起】エクシード１：このターン、対戦相手の場にあるキーとシグニは能力を失い、新たに得られない。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニゾーンにあるシグニ１体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキの上からカードを３枚見て、その中からシグニを１枚まで場に出し、残りを好
-  + [0].action.abilities[1].action.steps[1].remainder.reorder = true
-  ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
---- WX22-044
-  原文: 【自】：このシグニがアタックしたとき、あなたのシグニ１体を対象とし、あなたの手札から＜龍獣＞のシグニを１枚公開してもよい。そうした場合、ターン終了時まで、それのパワーを＋5000する。,-
-  - [0].action.steps[1].then.targetsTriggerSource = true
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.target.upToCount = false
---- WX26-CP1-055
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの＜プリオケ＞のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜プリオケ＞のシグニ３枚を好きな順番でデッキの一番下に置いてもよい。そうした場合、ターン終了時まで、それのパワーを＋5000する。【起】エナゾーンから＜プリオケ＞のカード２枚をトラッシュに置く：ターン終了時まで、このシグニは【Ｓラン
-  - [0].action.steps[1].then.targetsTriggerSource = true
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.target.filter.story = "プリオケ"
-  + [0].action.steps[1].then.target.upToCount = false
-
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002
