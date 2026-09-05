@@ -1379,7 +1379,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
     // 「シグニ/ルリグによって」のダメージ源限定を damageSource に保持（逆翻訳の原文一致用。
     // engine は現状ダメージ源を区別しない文書化済み近似＝型コメント参照。§5c 続き25・27枚）
     const srcM = t.match(/次にあなたが(シグニ|ルリグ)によってダメージを受ける場合/);
-    return { type: 'PREVENT_NEXT_DAMAGE', count: 1, ...(srcM ? { damageSource: srcM[1] === 'ルリグ' ? 'lrig' : 'signi' } : {}) } as PreventNextDamageAction;
+    // 🆕**「次と**その次**に」＝2回分**（§5.3 `O-134`・2026-09-06）。
+    // 🔴旧実装は `count: 1` を**ハードコード**しており、上の regex が `.*次に` で
+    //   「次とその次に」にも当たるため、**2回分の札が1回分しか効かない過小実行**になっていた
+    //   （`WX24-P2-008-E1`）。同型の他3枚は `manualEffects.ts` が手で `count:2` を書いて
+    //   回避していたので、**AUTO の1枚だけが取り残されていた**。
+    // ⚠この形は census に映らない＝置換語彙（「代わりに」）は正しく出ているので、
+    //   欠けているのは**回数**だけ（語彙センサスは数を見ない）。
+    const twice = /次とその次に/.test(t);
+    return { type: 'PREVENT_NEXT_DAMAGE', count: twice ? 2 : 1, ...(srcM ? { damageSource: srcM[1] === 'ルリグ' ? 'lrig' : 'signi' } : {}) } as PreventNextDamageAction;
   }
 
   // ---- 代わりに＋Nする（前の効果に続く）----

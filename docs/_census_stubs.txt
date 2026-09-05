@@ -40,7 +40,7 @@ live JSON の STUB id 種類 : 585（総ノード 3182 件）
         生成: src\data\effectParser.ts:15374
      1件   1枚  DEFERRED_GRANT_QUOTED_PLAYER_ABILITY_UNTIL
         カード: WX25-P2-004
-        生成: src\data\parsers\parseSentencePart2.ts:2863
+        生成: src\data\parsers\parseSentencePart2.ts:2871
      1件   1枚  DEFERRED_LOOK_OWN_LIFE_TOP_OPTIONAL_CRASH
         カード: WD23-022-E
         生成: src\data\effectParser.ts:15377

@@ -68661,6 +68661,58 @@ test('§5.3 O-226 裏面ロード: live の全 flipTo が BattleScreen の常時
   }
 });
 
+// ── §5.3 `O-134`（2026-09-06）＝「次と**その次**に」＝2回分 ──
+// 🔴parser は `count: 1` を**ハードコード**しており、上流の regex が `.*次に` で
+//    「次とその次に」にも当たるため、**2回分の札が1回分しか効かない過小実行**だった。
+//    同型の他3枚は `manualEffects.ts` が手で `count:2` を書いて回避していたので、
+//    **AUTO の1枚（`WX24-P2-008-E1`）だけが取り残されていた**。
+// ⚠**この形は census に映らない**＝置換語彙（「代わりに」）は正しく出ており、
+//    欠けているのは**回数**だけ（語彙センサスは数を見ない）。
+test('§5.3 O-134: 「次とその次に」は2回分（「次に」だけなら1回分）', () => {
+  const countOf = (cardNum: string, effectId: string): number | undefined => {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    let found: number | undefined;
+    const visit = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(visit); return; }
+      const rec = n as Record<string, unknown>;
+      if (rec.type === 'PREVENT_NEXT_DAMAGE' && typeof rec.count === 'number') found = rec.count;
+      Object.values(rec).forEach(visit);
+    };
+    visit(eff?.action);
+    return found;
+  };
+  // 母集団＝原文に「次とその次に」を持つ4効果（2026-09-06 実測）。うち `PREVENT_NEXT_DAMAGE` は3件。
+  eq(countOf('WX24-P2-008', 'WX24-P2-008-E1'), 2, '🔴parser 出力（AUTO）＝ここが1だと2回分の札が1回しか効かない');
+  eq(countOf('WXDi-D07-007', 'WXDi-D07-007-E1'), 2, '手書き側も2回分（同じ原文・同じ値）');
+  // 🔑**対照＝「次に」だけの札は1のまま**（新しい規則が全部を2に化けさせていないこと）。
+  //   ⚠`?? 1` のようなフォールバックで書かない＝カードが消えても緑になる vacuous な対照になる。
+  eq(countOf('WXDi-D08-010', 'WXDi-D08-010-E1'), 1,
+     '対照：原文が「次にあなたがダメージを受ける場合」だけなら1回分');
+  // 🔑**規則が広く効きすぎていないことを全数で押さえる**＝`count:2` は原文に「次とその次に」を
+  //   持つ3効果**だけ**（live 全体では `PREVENT_NEXT_DAMAGE` が72件ある）。
+  const twos: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      const visit = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) { n.forEach(visit); return; }
+        const rec = n as Record<string, unknown>;
+        if (rec.type === 'PREVENT_NEXT_DAMAGE' && rec.count === 2) twos.push(e.effectId);
+        Object.values(rec).forEach(visit);
+      };
+      visit(e.action);
+    }
+  }
+  eq(twos.sort().join(','), 'WX24-P2-008-E1,WXDi-D07-007-E1,WXK04-019-E1',
+     '🔴2回分になるのは「次とその次に」を持つ3効果だけ（増えていたら regex が広すぎる）');
+  // 🔑ベット分岐は原文どおり「ベットしていた場合だけ2回」＝両枝が別の値を持つ。
+  const bet = (effectsMap.get('WXK04-019') ?? []).find(e => e.effectId === 'WXK04-019-E1');
+  const j = JSON.stringify(bet?.action ?? {});
+  ok(j.includes('"count":2') && j.includes('"count":1'),
+     '🔑ベット分岐は2回分と1回分の両方を持つ（片方に潰れていない）');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);
