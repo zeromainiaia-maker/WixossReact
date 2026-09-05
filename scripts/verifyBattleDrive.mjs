@@ -50574,6 +50574,163 @@ order.push('v156HarmonySkipSelfDown');
 order.push('v156HarmonyWrongColorCannotPay');
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-157`（§5.3 `O-259` 第1バッチ）＝**「次に〈色〉のアーツを使用する場合」の色限定**
+//
+// `WXK01-060`（幻怪　アルラウネ・緑・Lv3）
+// 「【出】：以下の２つから１つを選ぶ。①**このターン、あなたが次に緑のアーツを使用する場合、
+//  それの使用コストは《無×1》減る。**②…」
+//
+// 🔴**旧挙動＝この文が痕跡 STUB に落ちて軽減が一度も起きなかった**（過小実行）。
+// 🔑**実機でしか出ない理由**＝軽減は `next_arts_cost_reduction` に**予約**され、
+//   **アーツ使用モーダルの必要エナ枚数**としてしか現れない（`queryState` にも出るが、
+//   「緑には効いて青には効かない」という**色の出し分け**は2枚のアーツを実際に開かないと見えない）。
+// ══════════════════════════════════════════════════════════════════════════════
+const V157_SIGNI = 'WXK01-060#1';       // 幻怪 アルラウネ（【出】で①緑アーツのコスト軽減）
+// 🔑**対照は「変わりうる側」を選ぶ**＝白のアーツにも《無》が無いと、色限定が壊れていても
+//   「変わらなかった」になり**負方向テストが空振り**する（§4.4 罠3）。両方 3枚必要にしてある。
+const V157_GREEN_ARTS = 'WX06-005#1';   // 雲散霧消（緑・メイン可・《緑×2》《無×1》＝3枚→2枚）
+const V157_WHITE_ARTS = 'WX02-016#1';   // ゴシック・バウンダリー（白・メイン可・《白×1》《無×2》＝3枚のまま）
+const V157_LRIG = 'WD01-001#1';
+const V157_VANILLA = 'WD01-013';
+
+const v157Spec = () => ({
+  hostSet: {
+    'field.lrig': [V157_LRIG],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    // 🔑**両方のアーツをルリグデッキに置く**＝同じ盤面で色だけを変えて比べる（1ビット反転）。
+    lrig_deck: [V157_GREEN_ARTS, V157_WHITE_ARTS],
+    // 🔑**両方のアーツを「払える」エナ**にする＝払えないと提示ゲートで「使用」が出ず観測できない。
+    energy: ['WX01-088#1', 'WX01-088#2', V157_VANILLA + '#1', V157_VANILLA + '#2', V157_VANILLA + '#3'],
+    hand: [V157_SIGNI],
+    next_arts_cost_reduction: undefined,
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** ArtsModal の「エナから選択: n / **N**枚」から必要枚数を読む（`V-152` と同じ観測点）。 */
+const v157ReadEnergyRequired = async (page) => {
+  const txt = await page.evaluate(() => {
+    const m = document.body.innerText.match(/エナから選択:\s*\d+\s*\/\s*(\d+)\s*枚/);
+    return m ? m[1] : null;
+  }).catch(() => null);
+  return txt === null ? null : Number(txt);
+};
+
+/** ルリグデッキの `zone-card-<idx>` を開いて「使用」まで進め、必要エナ枚数を読んで閉じる。 */
+const v157PeekArtsCost = async (page, H, idx, tag) => {
+  await H.closeModals();
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('アーツ(zone-card-' + idx + '):', await H.clickTestId('zone-card-' + idx) ?? '見つからず');
+  await page.waitForTimeout(700);
+  const used = await H.clickBtn('使用', { exact: true });
+  await page.waitForTimeout(900);
+  const req = await v157ReadEnergyRequired(page);
+  await page.screenshot({ path: SHOT + '/' + tag + '.png', fullPage: true });
+  // ⚠**閉じてから次を開く**（開きっぱなしだと次のモーダルが背面に隠れる）。
+  //   🔴ArtsModal の戻るボタンのラベルは **「← 戻る」**（「キャンセル」ではない）＝
+  //   ラベルを間違えると閉じられず、2枚目の「使用」が押せずに「前提崩れ」で落ちる（実測）。
+  await H.clickBtn('← 戻る', { exact: true });
+  await page.waitForTimeout(400);
+  await H.closeModals();
+  return { opened: !!used, req };
+};
+
+scenarios.v157NextGreenArtsOnlyGreen = {
+  title: 'V-157：WXK01-060①で「次に緑のアーツ」だけが1枚安くなる（白のアーツには効かない）【旧実装は軽減0】',
+  spec: v157Spec(),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (!(st0?.host?.handCards ?? []).includes(V157_SIGNI)
+        || !(st0?.host?.lrigDeckCards ?? []).includes(V157_GREEN_ARTS)
+        || !(st0?.host?.lrigDeckCards ?? []).includes(V157_WHITE_ARTS)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（hand=' + JSON.stringify(st0?.host?.handCards)
+        + ' lrigDeck=' + JSON.stringify(st0?.host?.lrigDeckCards) + '）' };
+    }
+    await H.ensureMain();
+    // 🔴🔑**召喚を先にやる**（2026-09-05 に実測して順序を入れ替えた）＝
+    //   先にアーツを覗くと**ルリグデッキのモーダルが残って手札のクリックを吸う**（`召喚` が18ティック出なかった）。
+    //   印刷コストは固定データなので「軽減前」を実測しなくても判定できる
+    //   （緑 `WX06-005`＝《緑×2》《無×1》＝3枚 / 白 `WX02-016`＝《白×1》《無×2》＝3枚）。
+    let summoned = false, zonePicked = false, chose = false;
+    for (let s = 0; s < 18 && !chose; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!summoned) {
+        did = await H.clickTestId('my-hand-card-0');
+        if (did) await page.waitForTimeout(500);
+        const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+          await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+        }
+      }
+      if (!did && summoned && !zonePicked) {
+        const z = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (z) { zonePicked = true; did = z; }
+      }
+      // CHOOSE の①＝「次に緑のアーツ…」の選択肢。⚠ラベルは parser の `label`（「選択肢1」）。
+      if (!did && zonePicked) {
+        const opt = page.getByRole('button', { name: /選択肢1|次に緑のアーツ|使用コストは/ }).first();
+        if (await opt.count() && await opt.isVisible().catch(() => false) && await opt.isEnabled().catch(() => false)) {
+          await opt.click().catch(() => {}); did = 'choice1';
+        }
+      }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const red = st?.host?.nextArtsCostReduction;
+      // 🔑**進まないときは「いま見えているボタン」を残す**（§5.1 の教訓）。
+      if (!did && s % 5 === 4) {
+        const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .map(b => (b.textContent || '').trim().slice(0, 14)).filter(Boolean).slice(0, 20)).catch(() => []);
+        H.log('    見えているボタン=' + JSON.stringify(btns));
+      }
+      H.log('  v157[' + s + '] -> ' + (did ?? 'なし') + ' | 予約=' + JSON.stringify(red)
+        + ' summoned=' + summoned + ' zone=' + zonePicked
+        + ' pEff=' + (st?.pendingEffect ?? '-') + ' stack=' + (st?.stackLen ?? '-'));
+      if (Array.isArray(red) && red.length > 0 && !st?.pendingEffect && !(st?.stackLen > 0)) chose = true;
+    }
+    const stMid = await H.queryState();
+    const reserved = stMid?.host?.nextArtsCostReduction;
+    if (!chose || !Array.isArray(reserved) || reserved.length === 0) {
+      return { pass: false, detail: '🔴軽減が予約されていない＝①が痕跡 STUB のまま（過小実行）。予約='
+        + JSON.stringify(reserved) + ' summoned=' + summoned + ' zone=' + zonePicked };
+    }
+    // 軽減**後**の必要枚数を両方読む（印刷はどちらも3枚）。
+    const after = { green: null, white: null };
+    for (const [i, k] of [[0, 'green'], [1, 'white']]) {
+      const r = await v157PeekArtsCost(page, H, i, 'v157-after-' + k);
+      after[k] = r.req;
+      if (!r.opened) return { pass: false, detail: '前提崩れ＝' + k + ' のアーツを開けなかった（印刷コストが払えない盤面かもしれない）' };
+    }
+    const dump = '必要枚数（印刷はどちらも3枚）緑=' + after.green + ' 白=' + after.white
+      + ' 予約=' + JSON.stringify(reserved);
+    H.log('  判定: ' + dump);
+    if (after.green === null || after.white === null) {
+      return { pass: false, detail: '前提崩れ＝必要枚数を読めなかった。' + dump };
+    }
+    if (after.green !== 2) {
+      return { pass: false, detail: '🔴緑のアーツが1枚安くなっていない（3枚のまま＝軽減が効いていない）。' + dump };
+    }
+    if (after.white !== 3) {
+      return { pass: false, detail: '🔴白のアーツまで安くなった＝色限定が無視されている（過剰実行）。' + dump };
+    }
+    return { pass: true, detail: '緑のアーツだけ必要エナが 3→2 枚になり、白のアーツは3枚のままだった。' + dump };
+  },
+};
+
+order.push('v157NextGreenArtsOnlyGreen');
+
+
 order.push('v152DeclareRaisesCost');
 order.push('v152DeclareLimitedByEnergy');
 

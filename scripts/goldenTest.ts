@@ -67,6 +67,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
+import { applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { addNColorToCost, removeNColorFromCost, costScalingOf, declaredChooseScalingOf, declaredChooseMaxOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
@@ -68119,7 +68120,8 @@ test('§5.3 O-259: コストのマーカーだけ有って payload が無い効�
   }
   ok(withMarker >= 90, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
   // 🔴**この数はコスト句が本当に未実装な効果の数**＝減ったら実数へ下げる／増えたら新しい穴。
-  eq(naked.length, 16, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
+  // 🔻16→15＝2026-09-05（`O-259` 第1バッチ）で `WXK01-060-E1`（次に緑のアーツ）を構造化した分。
+  eq(naked.length, 15, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
   // 逆翻訳が「未構造化」であることを明示する（この印が無いと計器が実装済みと嘘をつく）
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   ok(dec.includes("const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';"),
@@ -68171,6 +68173,37 @@ test('§5.3 O-257: 【ハーモニー】12枚が ON_PLAY の任意コストと�
      '🔴白のルリグでは払えない（色限定が効いている＝無条件で払えるへ倒れていない）');
   ok(!!payLrigDownCost(mkLrig(white), { count: 1 }, cardMap), '色指定が無ければ色は問わない（既存の挙動を変えていない）');
 }));
+
+// ═══ §5.3 `O-259` 第1バッチ＝「次に〈色〉のアーツを使用する場合」の色限定（2026-09-05・1効果）═══
+// 🔴`WXK01-060-E1`①「このターン、あなたが次に**緑の**アーツを使用する場合、それの使用コストは《無×1》減る」が
+//   **痕跡 STUB に落ちて軽減が一度も起きなかった**（過小実行）。
+// 🔑受け皿は既存の `COST_REDUCTION` → `next_arts_cost_reduction`。足りなかったのは**色限定**だけ。
+// ⚠**catch-all が先に食っていた**（`parseSentencePart3` の `/使用コストは.*(減る|増える)$/`）＝
+//   専用規則はその**手前**に置く（`O-249` 第147 と同じ罠）。
+test('§5.3 O-259 第1: 「次に緑のアーツ」の色限定が payload まで通り、他の色には効かない', () => {
+  const e = (effectsMap.get('WXK01-060') ?? []).find(x => x.effectId === 'WXK01-060-E1')!;
+  const c0 = (e.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[0].action as unknown as
+    { type?: string; targetCardType?: string; color?: string; reduction?: { color: string; count: number }[] };
+  eq(c0.type, 'COST_REDUCTION', '🔴痕跡 STUB ではなく COST_REDUCTION（catch-all に横取りされていない）');
+  eq(c0.targetCardType, 'アーツ', '対象はアーツ');
+  eq(c0.color, '緑', '🔴色限定が payload に残っている（落とすとどの色のアーツでも安くなる＝過剰実行）');
+  eq(JSON.stringify(c0.reduction), '[{"color":"無","count":1}]', '《無×1》減る');
+  // engine：予約に targetColor が持ち越される
+  const r = run(c0 as unknown as EffectAction, mkCtx({}, {}));
+  eq(JSON.stringify(r.ownerState.next_arts_cost_reduction),
+     '[{"color":"無","count":1,"targetColor":"緑"}]',
+     '🔴予約に色限定が載る（載らないと全色のアーツが安くなる）');
+  // 適用側：緑のアーツだけ安くなる
+  const red = r.ownerState.next_arts_cost_reduction;
+  eq(applyNextArtsCostReduction('《緑》×1《無》×2', red, '緑'), '《緑》×1《無》×1', '緑のアーツは《無》1つ分安くなる');
+  eq(applyNextArtsCostReduction('《青》×1《無》×2', red, '青'), '《青》×1《無》×2',
+     '🔴青のアーツには効かない（色限定が無視されていない）');
+  eq(applyNextArtsCostReduction('《緑》×1《無》×2', red, undefined), '《緑》×1《無》×2',
+     '🔴色を渡さない呼び出しでは効かせない（fail-closed＝色を見ない口が残っても全色に効かない）');
+  // 対照＝色限定の無い既存11効果は従来どおり全色に効く
+  const plain = [{ color: '青', count: 1 }];
+  eq(applyNextArtsCostReduction('《青》×2', plain, '赤'), '《青》×1', '色指定が無い予約は従来どおり色を問わない');
+});
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

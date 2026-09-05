@@ -1376,6 +1376,28 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ARTS_USE_DISCARD_LRIG_DECK' } as StubAction;
   }
 
+  // 🆕**「このターン、あなたが次に〈色〉の(アーツ|スペル)を使用する場合、それの使用コストは《…》減る」**
+  //   （2026-09-05・§5.3 `O-259`・`WXK01-060-E1`）。
+  //   🔴旧＝この文が下の痕跡 STUB に落ちて**軽減が一度も起きなかった**（過小実行）。
+  //   🔑受け皿は既存の `COST_REDUCTION`（→ `next_arts_cost_reduction` / `next_spell_cost_reduction`）で、
+  //     足りなかったのは**色限定**（`CostReductionAction.color`）だけ＝engine が予約へ持ち越すようにした。
+  //   ⚠**色が無い形は既存11効果が別規則で通っている**ので、ここは**色つきだけ**を受ける（母集団を横取りしない）。
+  {
+    const nextColored = t.match(
+      /^このターン、(?:あなたが次に|次にあなたが)([白赤青緑黒])の(アーツ|スペル)を使用する場合[、,]?(?:それ|その(?:アーツ|スペル))の使用コストは(.+?)減る$/);
+    if (nextColored) {
+      const red = parseEnergyCosts(nextColored[3]);
+      if (red.length > 0) {
+        return {
+          type: 'COST_REDUCTION',
+          targetCardType: nextColored[2] as 'スペル' | 'アーツ',
+          color: nextColored[1],
+          reduction: red,
+          duration: 'UNTIL_END_OF_TURN',
+        } as import('../../types/effects').CostReductionAction;
+      }
+    }
+  }
   // ---- このアーツ/スペル/カードの使用コストは減る/増える ----
   if (t.match(/(?:このアーツ|このスペル|このカード)の使用コストは.*(?:減る|増える)/) ||
       t.match(/使用コストは.*(?:減る|増える)$/)) {

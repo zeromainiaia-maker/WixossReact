@@ -21,3 +21,15 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +COST_REDUCTION -STUB ［1枚］
+WXK01-060
+--- WXK01-060
+  原文: 【出】：以下の２つから１つを選ぶ。①このターン、あなたが次に緑のアーツを使用する場合、それの使用コストは《無×1》減る。②このシグニと隣接するあなたのシグニを２体まで対象とし、ターン終了時まで、それらのパワーをそれぞれ＋3000する。,-
+  - [0].action.choices[0].action.id = "ARTS_COST_REDUCTION_BY_EFFECT"
+  ~ [0].action.choices[0].action.type : "STUB" → "COST_REDUCTION"
+  + [0].action.choices[0].action.targetCardType = "アーツ"
+  + [0].action.choices[0].action.color = "緑"
+  + [0].action.choices[0].action.reduction[0].color = "無"
+  + [0].action.choices[0].action.reduction[0].count = 1
+  + [0].action.choices[0].action.duration = "UNTIL_END_OF_TURN"
+

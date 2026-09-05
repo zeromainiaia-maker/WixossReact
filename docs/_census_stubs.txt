@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 586（総ノード 3189 件）
+live JSON の STUB id 種類 : 586（総ノード 3188 件）
 逆翻訳シートの [STUB:…] 総数: 375  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
@@ -173,10 +173,10 @@ live JSON の STUB id 種類 : 586（総ノード 3189 件）
         消費: src\engine\effectEngine.ts:7866
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:9554
+        消費: src\engine\effectExecutor.ts:9559
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:9556
+        消費: src\engine\effectExecutor.ts:9561
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66
@@ -200,7 +200,7 @@ live JSON の STUB id 種類 : 586（総ノード 3189 件）
         消費: src\engine\refresh.ts:30
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WXK11-020
-        消費: src\screens\battle\costs.ts:1127
+        消費: src\screens\battle\costs.ts:1137
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
         消費: src\engine\execUtils.ts:2000

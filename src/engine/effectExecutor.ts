@@ -9495,9 +9495,14 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // （タスク12(xciii)）。スペル版と同型の状態に積み、ArtsModal のコスト計算で消費する。
       if (cr.targetCardType === 'アーツ' && !cr.isGrowCost && cr.reduction?.length) {
         const existingArts = ctx.ownerState.next_arts_cost_reduction ?? [];
+        // 🆕**色限定を予約へ持ち越す**（§5.3 `O-259`・`WXK01-060-E1`「次に**緑の**アーツ」）。
+        //   🔴落とすと**どの色のアーツでも安くなる**（過剰実行）。⚠未指定は従来どおり全色。
+        const addArts = cr.color
+          ? cr.reduction.map(r => ({ ...r, targetColor: cr.color as string }))
+          : cr.reduction;
         return done(addLog(
-          { ...ctx, ownerState: { ...ctx.ownerState, next_arts_cost_reduction: [...existingArts, ...cr.reduction] } },
-          `次に使用するアーツのコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
+          { ...ctx, ownerState: { ...ctx.ownerState, next_arts_cost_reduction: [...existingArts, ...addArts] } },
+          `次に使用する${cr.color ? `${cr.color}の` : ''}アーツのコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
       }
       return done(addLog(ctx, 'コスト軽減'));
     }

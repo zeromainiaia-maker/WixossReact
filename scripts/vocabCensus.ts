@@ -933,9 +933,14 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
   //     ⚠**もし将来 `CONTINUOUS` の `COST_REDUCTION{スペル}` が現れたら話が変わる**＝そちらは本当に常設なので
   //     この較正が偽陰性になる。golden `Sheet1 B4` が executor 側の意味を固定している。
   //   ⚠較正キーは narrow に＝**当該節を除いて他に `場合、` が残らないときだけ**合格させる（残渣チェック）。
+  //   🆕**色限定も同じ形**（2026-09-05・§5.3 `O-259` 第1バッチ・`WXK01-060-E1`
+  //     「次に**緑の**アーツを使用する場合」）＝色は `CostReductionAction.color` に載り、
+  //     engine が `next_arts_cost_reduction[].targetColor` へ持ち越して使用時に絞る。
+  //     ⚠**色を許すのは `COST_REDUCTION` に `color` が載っているときだけ**にはしていない＝
+  //       色を落とした payload なら他の計器（golden `O-259 第1`）が落ちるので二重に見張る必要はない。
   if (js.includes('"type":"COST_REDUCTION"') && /"targetCardType":"(?:スペル|アーツ)"/.test(js)) {
     const tn = stripResultClauses(
-      t.replace(/(?:このターン[、,])?(?:あなたが)?次に(?:あなたが)?(?:スペル|アーツ)を使用する場合[、,]/g, ''));
+      t.replace(/(?:このターン[、,])?(?:あなたが)?次に(?:あなたが)?(?:[白赤青緑黒]の)?(?:スペル|アーツ)を使用する場合[、,]/g, ''));
     if (tn !== t && !/場合[、,]/.test(tn)) return true;
   }
   // 🆕2026-08-30 較正＝「（このターン、）〈ライフクロス〉が〜クラッシュされる場合、代わりに〜してもよい」は

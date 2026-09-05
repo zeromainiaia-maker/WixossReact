@@ -1336,7 +1336,10 @@ export interface PlayerState {
   // COST_REDUCTION(アーツ/UNTIL_END_OF_TURN): 【チェイン】《色》《色》＝「このターン、あなたが**次に**アーツを
   // 使用する場合、それの使用コストは《色×1》《色×1》減る」（WX10-004/005/022・WX11-018/021・WX14-005・WX19-004）。
   // スペル版（next_spell_cost_reduction）と同型＝アーツ使用時に消費し、ターン終了時にリセットする。
-  next_arts_cost_reduction?: { color: string; count: number }[];
+  //   🆕`targetColor`＝**軽減が効くアーツの色**（2026-09-05・§5.3 `O-259`・`WXK01-060-E1`
+  //   「次に**緑の**アーツを使用する場合」）。⚠**未指定＝どの色にも効く**（既存11効果の挙動は変えない）。
+  //   ⚠色は `card.Color` の `includes` で見る（多色アーツは `白青` のように連結される）。
+  next_arts_cost_reduction?: { color: string; count: number; targetColor?: string }[];
   // SET_CARD_COST_REPLACEMENT: カード名を指定した使用コストの**置換**（「このゲームの間、あなたの《落華流粋》の
   // 使用コストは《黒×2》《無×1》になる」WXK03-002-E3）。ゲーム間持続＝ターン境界でリセットしない。
   // ⚠軽減（`SPECIFIC_CARD_COST_REDUCE`＝場のCONT収集）とは別軸で、印刷コストを丸ごと差し替える。

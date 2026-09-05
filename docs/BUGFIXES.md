@@ -1,9 +1,9 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-09-05（第157〜169バッチ）：逆翻訳のコスト payload 穴6本＋真no-opコスト2本＋【ハーモニー】＋実機10シナリオ
+## 2026-09-05（第157〜170バッチ）：逆翻訳のコスト payload 穴7本＋真no-opコスト2本＋【ハーモニー】＋実機11シナリオ
 
 **ベースライン**＝`eedde29b7`（第156の直後）。
-**gates 全緑**（typecheck・golden **3505/3505**＝3493 +12本・smoke 全異常0（10725効果）・fuzz 全0・
+**gates 全緑**（typecheck・golden **3508/3508**＝3493 +15本・smoke 全異常0（10725効果）・fuzz 全0・
 census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・
 `census:costtext` A🔴0規則・lint 0 errors）。
 🏁**実機まで完了（第167バッチ）**＝`src/screens/`（`ArtsModal`／`BattleScreen`／`signiActivateGate`／新規
@@ -137,6 +137,25 @@ census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census
   変わり、無関係な後続テストまで赤くなる**（`WXDi-CP02-036-E1` の E2E が巻き添えで落ち、engine の回帰を疑った）
   ②**`scripts/` の重複 import は typecheck も golden も通る**（typecheck は `scripts/` を見ず、esbuild が黙って畳む）。
 
+### 第170（§5.3 `O-259` 第1バッチ・1効果）＝「次に**緑の**アーツを使用する場合」の色限定
+- `WXK01-060-E1`①「このターン、あなたが次に**緑の**アーツを使用する場合、それの使用コストは《無×1》減る」が
+  **痕跡 STUB に落ちて軽減が一度も起きなかった**（過小実行）。
+- 🔑**受け皿は既存の `COST_REDUCTION` →（executor）→ `next_arts_cost_reduction`**。
+  足りなかったのは**色限定**だけ＝`CostReductionAction.color` を予約へ持ち越し（`targetColor`）、
+  `applyNextArtsCostReduction` に**アーツ自身の色**を渡して絞る（呼び出し2口＝`artsUseGate`／`ArtsModal`）。
+  ⚠**色を渡さない呼び出しでは色つき予約を効かせない**（fail-closed＝色を見ない口が残っても全色に効かない）。
+- 🔴**catch-all が先に食っていた**＝`parseSentencePart3` の `/使用コストは.*(減る|増える)$/`。
+  専用規則は**その手前**に置いた（`O-249` 第147 と同じ罠）。
+- 🔧**計器の較正1件**＝`vocabCensus` の `conditionClauseExtraOk` が
+  「次に〈**色**の〉アーツを使用する場合」を剥がせず高シグナルが 1→2 に増えていた（regex に `(?:[白赤青緑黒]の)?` を追加）。
+- 🖥**実機 `V-157` PASS**＝緑のアーツだけ必要エナが **3→2**、白のアーツは **3のまま**。
+  🔑**対照は「変わりうる側」を選ぶ**＝白のアーツにも《無》を含めておかないと、
+  色限定が壊れていても「変わらなかった」になり**負方向が空振り**する。
+  🔴**踏んだ罠2つ**＝①**ArtsModal の戻るボタンは「← 戻る」**（「キャンセル」ではない）
+  ②**先にアーツを覗くとルリグデッキのモーダルが残って手札のクリックを吸う**＝**盤面を作る操作を先にやる**。
+- 📉**`O-259` のラチェット 16 → 15**。🔴**残15は用法が9通りに割れる**ので1バッチの塊ではない
+  （§5.3 に用法別の内訳表を追加＝取るときはそこから1つ選ぶ）。
+
 **検証コマンド**＝`npm run gates`／`npm run golden -- --only "O-251" --only "O-252" --only "O-253" --only "O-254"
 --only "O-255" --only "O-256" --only "O-258" --only "O-147" --only "O-250"`／`node scripts/heldReview.mjs`（残1＝意図的な据置）／
 `SKIP_BUILD=1 node scripts/verifyBattleDrive.mjs v152DeclareRaisesCost v152DeclareLimitedByEnergy v153SelfPowerDownPaid v154FieldToDeckTopPaid v154FieldToDeckTopNoOther v155SameLevelLrigAlsoBanned v155DifferentLevelLrigSafe`。
@@ -147,7 +166,8 @@ census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census
 ⑥【ハーモニー】の overlay を外すと `O-257` golden の12枚一覧が FAIL）。
 **実機**＝`SKIP_BUILD=0 node scripts/verifyBattleDrive.mjs v152DeclareRaisesCost v152DeclareLimitedByEnergy
 v153SelfPowerDownPaid v154FieldToDeckTopPaid v154FieldToDeckTopNoOther v155SameLevelLrigAlsoBanned
-v155DifferentLevelLrigSafe v156HarmonyPayLrigDown v156HarmonySkipSelfDown v156HarmonyWrongColorCannotPay`（10本 ALL PASS）。
+v155DifferentLevelLrigSafe v156HarmonyPayLrigDown v156HarmonySkipSelfDown v156HarmonyWrongColorCannotPay
+v157NextGreenArtsOnlyGreen`（11本 ALL PASS）。
 
 
 ## 2026-09-05（第154〜156バッチ）：🏁**`O-249`（`held`）クローズ**＋意味照合台帳の消化漏れ回収

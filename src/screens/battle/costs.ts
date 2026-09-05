@@ -1086,10 +1086,20 @@ export function computeArtsEffectiveCost(
  */
 export function applyNextArtsCostReduction(
   cost: string,
-  reductions: { color: string; count: number }[] | undefined,
+  reductions: { color: string; count: number; targetColor?: string }[] | undefined,
+  /**
+   * 🆕**軽減されるアーツ自身の色**（2026-09-05・§5.3 `O-259`）。
+   * `targetColor` を持つ予約は**その色を含むアーツにしか効かない**（`WXK01-060-E1`「次に緑のアーツ」）。
+   * 🔴**省略した呼び出しでは色つき予約を効かせない**＝
+   *   「色を見ない呼び出し口が1つでも残ると、そこだけ全色に効く」片肺を作らないための fail-closed。
+   */
+  cardColor?: string,
 ): string {
   let result = cost;
-  for (const r of reductions ?? []) result = removeNColorFromCost(result, r.color, r.count);
+  for (const r of reductions ?? []) {
+    if (r.targetColor && !(cardColor ?? '').includes(r.targetColor)) continue;
+    result = removeNColorFromCost(result, r.color, r.count);
+  }
   return result;
 }
 

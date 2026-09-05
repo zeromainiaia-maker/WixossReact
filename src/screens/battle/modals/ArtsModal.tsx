@@ -79,7 +79,8 @@ export function ArtsModal(p: ArtsModalProps) {
                 ? rawEffectiveCost
                 : applyNextArtsCostReduction(
                     applySpecificCardCostReduction(rawEffectiveCost, pendingArtsCard.CardName, specificCardCostReductions),
-                    my.next_arts_cost_reduction);
+                    // 🆕§5.3 `O-259`＝色限定の予約（「次に**緑の**アーツ」）は**このアーツの色**で絞る。
+                    my.next_arts_cost_reduction, pendingArtsCard.Color);
               // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
               const hasColorlessRestriction = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
                 .some(e => e.effectType === 'ACTIVATED' && JSON.stringify(e.action).includes('ARTS_COLORLESS_MUST_PAY_CENTER_COLOR'));
