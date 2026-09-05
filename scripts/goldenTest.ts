@@ -67135,6 +67135,53 @@ test('§5.3 held 第142: デッキの「下から」と相手デッキのミル�
     'WXK03-050: 任意の「一番下に置いてもよい」は split_top_bottom（bottom 固定ではない）');
 });
 
+// 🆕**第143バッチ＝引用能力に付いていた偽の `costUnparsed` を落とした**（2026-09-05・held 由来）。
+// 🔴**`costUnparsed` は「原文にコスト句があるのに表現できなかった」印**で、立っていると
+//   `wrapOptionalOnPlay`（`triggerCollect.ts:494`）・`signiActivateGate`・`lrigActivateGate`・
+//   `attackResponse` が**その能力を収集しない**＝提示されない（踏み倒し防止のための安全側）。
+// ⚠**引用能力（`abilities[]` / `effect` / `then.effect`）の `《ターン１回》` `《ターン２回》` や、
+//   本文中の「対戦相手が《無》を支払うか」までコスト句と誤認して立っていた**＝偽陽性。
+test('§5.3 held 第143: 引用能力の《ターン1回》をコスト句と誤認しない（偽の costUnparsed）', () => {
+  const nested = (o: unknown): boolean => {
+    if (!o || typeof o !== 'object') return false;
+    if (Array.isArray(o)) return o.some(nested);
+    const r = o as Record<string, unknown>;
+    if (r.costUnparsed === true) return true;
+    return Object.values(r).some(nested);
+  };
+  // ① 偽の `costUnparsed` が残っていない11枚（引用能力側／トップレベルは別軸なので触っていない）
+  for (const [card, id] of [
+    ['WX25-P2-049', 'WX25-P2-049-E1'], ['WXDi-CP01-006', 'WXDi-CP01-006-E3'],
+    ['WXDi-CP02-050', 'WXDi-CP02-050-E1'], ['WXDi-D06-010', 'WXDi-D06-010-E1'],
+    ['WXDi-P02-018', 'WXDi-P02-018-E1'], ['WXDi-P09-005', 'WXDi-P09-005-E1'],
+    ['WXDi-P14-057', 'WXDi-P14-057-E1'], ['WXDi-P15-084', 'WXDi-P15-084-E1'],
+    ['WXK08-056', 'WXK08-056-E2'], ['WXK09-040', 'WXK09-040-E1'],
+    ['WX25-P3-085', 'WX25-P3-085-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === id);
+    ok(!!e, `${id} が live にある`); if (!e) continue;
+    ok(!nested(e.action), `🔴 ${id}: 引用能力に偽の costUnparsed が残っていない`);
+  }
+
+  // ② 🔑**同時に入った実挙動の改善2件**＝引用能力のトリガー範囲が無指定だった。
+  const cp50 = (effectsMap.get('WXDi-CP02-050') ?? []).find(e => e.effectId === 'WXDi-CP02-050-E1');
+  ok(!!cp50, 'WXDi-CP02-050-E1 が live にある'); if (!cp50) return;
+  const cp50Json = JSON.stringify(cp50.action);
+  ok(cp50Json.includes('"triggerScope":"any_ally"'),
+    'WXDi-CP02-050: 「あなたのシグニ1体が…クラッシュしたとき」は any_ally');
+
+  const p85 = (effectsMap.get('WX25-P3-085') ?? []).find(e => e.effectId === 'WX25-P3-085-E1');
+  ok(!!p85, 'WX25-P3-085-E1 が live にある'); if (!p85) return;
+  ok(JSON.stringify(p85.action).includes('"thisCardOnly":true'),
+    'WX25-P3-085: 引用能力の「このシグニが…クラッシュしたとき」は thisCardOnly');
+
+  // ③ **反転側＝本物の `costUnparsed` は残っている**（落とすと踏み倒しになる）。
+  //    トップレベルの《クロスアイコン》族はこの巡では触っていない。
+  const cross = (effectsMap.get('WX25-P1-072') ?? []).find(e => e.effectId === 'WX25-P1-072-E1');
+  ok(!!cross, 'WX25-P1-072-E1 が live にある'); if (!cross) return;
+  eq(cross.costUnparsed, true, '🔴 トップレベルの costUnparsed はこの巡で落としていない（別軸）');
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

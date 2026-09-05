@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第143バッチ）：**引用能力の `《ターン１回》` をコスト句と誤認していた**（偽の `costUnparsed` を11枚から外した）
+
+**ベースライン**＝`9a3de248b`（第142の直後）。
+**gates 全緑**（typecheck・golden **3481/3481**＝3480 +1本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機要否**＝§2.2 の機械判定どおり **`public/data/` と `scripts/` しか触っていない**＝**④まででよい**。
+**在庫**＝held **64枚 → 53枚**／`census:cards` 要対応 **161 → 140**。
+
+### 真因＝`costUnparsed` の判定が**引用能力の中まで見て**偽陽性を出していた
+
+`costUnparsed`（`effectParser.ts:21649`）＝**`cost === undefined && hasUnparsedCostSyntax`**＝
+「原文にコスト句らしい `《…》` があるのに parser がコストを組めなかった」印。
+立っていると **`wrapOptionalOnPlay`（`triggerCollect.ts:494`）／`signiActivateGate`／`lrigActivateGate`／
+`attackResponse` がその能力を収集しない**＝**提示されない**（踏み倒しを作らないための安全側）。
+
+🔴**引用能力（`abilities[]` / `effect` / `then.effect`）では、コスト句ではないものが `《…》` で書かれる。**
+
+| 誤認した綴り | 例 |
+|---|---|
+| **`《ターン１回》` / `《ターン２回》`**（使用回数の印） | `WXDi-P02-018`「…それは「【自】**《ターン１回》**：このシグニがバトルによって…」を得る」 |
+| **本文中の相手の支払い** | `WXDi-CP01-006`「…「【自】：このルリグがアタックしたとき、**対戦相手が《無》《無》《無》《無》を支払うか**…しないかぎり…」を得る」 |
+
+⇒ **どちらもその能力の発動コストではない**。11枚とも「引用能力に発動コストが無い」ことを原文で確認して採用した。
+
+### 影響枚数
+
+**11枚**（`WX25-P2-049` / `WX25-P3-085` / `WXDi-CP01-006` / `WXDi-CP02-050` / `WXDi-D06-010` /
+`WXDi-P02-018` / `WXDi-P09-005` / `WXDi-P14-057` / `WXDi-P15-084` / `WXK08-056` / `WXK09-040`）。
+**うち2枚は同時に実挙動も直った**＝
+`WXDi-CP02-050`（引用能力のトリガー範囲が無指定 → `triggerScope:"any_ally"` ＋ `triggerFilter{cardType:"シグニ"}`）／
+`WX25-P3-085`（同 → `triggerScope:"self"` ＋ `triggerFilter{thisCardOnly:true}`）。
+
+⚠**トップレベルの `costUnparsed` は触っていない**＝`WX25-P1-072`/`073`/`076`・`WX13-031`・`WX25-CP1-080` は
+《クロスアイコン》の別軸（クロス条件行をコストとして読んでいる）で、**別バッチ**。golden の③で「残っている」ことを固定した。
+
+### 検証コマンド
+
+```
+npm run golden -- --only "第143"
+npm run gates                      # 全緑（golden 3481/3481）
+node scripts/heldReview.mjs        # held 64 → 53枚
+npm run census:cards               # 要対応 161 → 140
+```
+
 ## 2026-09-05（第142バッチ）：**held を全数目視して「live が誤りで fresh が正しい」4効果だけを採用した**（デッキの向き2件・ミルの所有者1件）
 
 **ベースライン**＝`363eed171`（第141の直後）。
