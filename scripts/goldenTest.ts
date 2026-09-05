@@ -59287,9 +59287,10 @@ test('O-147: 多ゾーン消費ライズの枠割り当て（候補数では判�
 // ⚠**`remainder.reorder` だけを数えない**＝35効果は `LOOK_AND_REORDER{reorder:true}` という**別ノード**で
 //   同じ挙動を届けている（`remainder` だけ見ると「未達35」と誤報する）。**挙動が届いているかで数える。**
 test('O-144: 「残りを好きな順番で」の並べ替えが live に届いていない効果数（ラチェット）', () => {
-  const BASELINE_REORDER_MISSING = 12;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
+  const BASELINE_REORDER_MISSING = 11;   // 旧16→14（O-149）→13（続き742-2＝「そのカードをデッキの一番下に置いてもよい」を
   //   `split_top_bottom` にした副産物で `WXDi-P08-062-E1` に並べ替えが届いた）→🆕**12**（2026-09-05 第141バッチ＝
-  //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）。
+  //   `parseStoryFilter` の条件節ガードを直した副産物で `WX12-Re10-E1` の held が解け、並べ替えが live に届いた）
+  //   →🆕**11**（2026-09-05 第145バッチ＝`SP27-009-E1` の held を採用して並べ替えが届いた）。
   //   ⚠**払い戻したら実測値へ下げる**（CLAUDE.md）。
   const srcPath = join(root, 'docs/_effect_srctext.json');
   const srcMap = JSON.parse(fs.readFileSync(srcPath, 'utf8')) as Record<string, unknown>;
@@ -67213,6 +67214,38 @@ test('§5.3 held 第144: クロス条件のカード名をコスト句と誤認�
   eq(pt.zoneSource, 'designated', '🔴 WD19-009-BURST: 対象は「そのシグニゾーン」に限る');
   eq(pt.owner, 'opponent', 'WD19-009-BURST: 対戦相手側のゾーン');
   eq(pt.count, 'ALL', 'WD19-009-BURST: そのゾーンにあるシグニ（count は ALL＋zoneSource で1体に絞られる）');
+});
+
+// 🆕**第145バッチ＝held の残りから「live のほうが誤り」の3枚を採用**（2026-09-05）。
+test('§5.3 held 第145: 離場置換の宣言形／「3枚まで探して置く」の枚数／クラス2種の探索', () => {
+  // ① 🔴**engine が探している宣言形になっていなかった**＝`effectExecutor.ts:570` は
+  //    `STUB{EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY}` **だけ**を走査する。live は汎用の
+  //    `STUB{OPTIONAL_COST}` だったので、**離場置換が一度も成立しない恒久 no-op** だった。
+  const c39 = (effectsMap.get('WX25-CP1-039') ?? []).find(e => e.effectId === 'WX25-CP1-039-E1');
+  ok(!!c39, 'WX25-CP1-039-E1 が live にある'); if (!c39) return;
+  const step0 = (c39.action as SequenceAction).steps[0] as unknown as StubAction;
+  eq(step0.id, 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY',
+    '🔴 離場置換は engine が走査する宣言 id で書く（OPTIONAL_COST では拾われない）');
+  const spec = (step0 as unknown as Record<string, unknown>).leavePayLoseSelfAbility as Record<string, unknown>;
+  ok(!!spec, '宣言の中身が載っている');
+  eq((spec.victimFilter as Record<string, unknown>).story, 'ブルアカ', '置換対象は＜ブルアカ＞のシグニに限る');
+  // ⚠**原文「あなたの**アップ状態の**＜ブルアカ＞のシグニ」の `isUp` はまだ載っていない**（別軸・据置）。
+
+  // ② 🔴**「シグニを3枚まで探してトラッシュに置き」の置く枚数が1枚だった**（探すのは3枚なのに）。
+  const w06 = (effectsMap.get('WD07-006') ?? []).find(e => e.effectId === 'WD07-006-E1');
+  ok(!!w06, 'WD07-006-E1 が live にある'); if (!w06) return;
+  const sa = w06.action as unknown as Record<string, unknown>;
+  eq(sa.maxCount, 3, 'WD07-006: 探すのは3枚まで');
+  eq(((sa.then as Record<string, unknown>).target as Record<string, unknown>).count, 3,
+    '🔴 WD07-006: 見つけた3枚をトラッシュに置く（live は1枚だった）');
+
+  // ③ **クラス2種の探索**＝`cardClass` と `story` は `matchesFilter` で等価（どちらも CardClass 照合）。
+  //    正準形は `story` に寄せる。併せて「残りを好きな順番で」も入った。
+  const s09 = (effectsMap.get('SP27-009') ?? []).find(e => e.effectId === 'SP27-009-E1');
+  ok(!!s09, 'SP27-009-E1 が live にある'); if (!s09) return;
+  const s09Json = JSON.stringify(s09.action);
+  ok(s09Json.includes('"story":["天使","悪魔"]'), 'SP27-009: ＜天使＞か＜悪魔＞（正準形は story）');
+  ok(s09Json.includes('"reorder":true'), 'SP27-009: 「残りを好きな順番で」が届いている');
 });
 
 if (listMode) {

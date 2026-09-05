@@ -3,22 +3,21 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［22枚］
-SP27-009 SP38-006 WD07-006 WX17-009 WX22-044 WX24-P2-002 WX25-CP1-039 WX25-P1-071 WX25-P2-003 WX25-P2-TK06 WX25-P3-003 WX26-CP1-055 WXDi-P00-068 WXDi-P05-004 WXDi-P06-006 WXDi-P06-011 WXDi-P08-072 WXDi-P11-064 WXK01-020 WXK01-044 WXK03-006 WXK11-026
---- SP27-009
-  原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から＜天使＞か＜悪魔＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。,-
-  - [0].action.filter.cardClass[0] = "天使"
-  - [0].action.filter.cardClass[1] = "悪魔"
-  + [0].action.filter.story[0] = "天使"
-  + [0].action.filter.story[1] = "悪魔"
-  + [0].action.remainder.reorder = true
+## （type増減なし＝値/構造変更） ［19枚］
+SP38-006 WX17-009 WX22-044 WX24-P2-002 WX25-P1-071 WX25-P2-003 WX25-P2-TK06 WX25-P3-003 WX26-CP1-055 WXDi-P00-068 WXDi-P05-004 WXDi-P06-006 WXDi-P06-011 WXDi-P08-072 WXDi-P11-064 WXK01-020 WXK01-044 WXK03-006 WXK11-026
 --- SP38-006
   原文: 【常】：あなたのセンタールリグは以下の能力を得る。『【起】エクシード１：このターン、対戦相手の場にあるキーとシグニは能力を失い、新たに得られない。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニゾーンにあるシグニ１体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキの上からカードを３枚見て、その中からシグニを１枚まで場に出し、残りを好
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
---- WD07-006
-  原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
-  ~ [0].action.then.target.count : 1 → 3
+--- WX17-009
+  原文: 【出】《コインアイコン》：あなたのデッキの上からカードを２枚見て、その中から＜怪異＞のシグニ１枚を公開し手札に加える。残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.steps[0].filter.story = "怪異"
+  + [0].action.steps[0].remainder.reorder = true
+--- WX22-044
+  原文: 【自】：このシグニがアタックしたとき、あなたのシグニ１体を対象とし、あなたの手札から＜龍獣＞のシグニを１枚公開してもよい。そうした場合、ターン終了時まで、それのパワーを＋5000する。,-
+  - [0].action.steps[1].then.targetsTriggerSource = true
+  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  + [0].action.steps[1].then.target.upToCount = false
 
 ## +SEQUENCE +STUB ［3枚］
 PR-K056 WX20-Re20 WXDi-P05-005

@@ -8,7 +8,7 @@ live JSON の STUB id 種類 : 586（総ノード 3179 件）
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 24 種 / 25 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 24 種 / 25 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 34 種 / 104 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 34 種 / 105 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
   D 健全（実装あり＋日本語表示）                          : 562 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 330 種
@@ -117,12 +117,12 @@ live JSON の STUB id 種類 : 586（総ノード 3179 件）
      4件   4枚  DAMAGE_REPLACE_BY_COST
         カード: SPDi44-12, WX24-P3-005, WX24-P4-021, WX25-P1-014
         消費: src\screens\battle\lifeCrashReplace.ts:54
+     4件   4枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
+        カード: WX25-P2-059, WX25-CP1-039, WX26-CP1-047, WXDi-CP02-056
+        消費: src\engine\effectExecutor.ts:570
      3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
         消費: src\engine\effectEngine.ts:5358
-     3件   3枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
-        カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
-        消費: src\engine\effectExecutor.ts:570
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
         カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
         消費: src\engine\effectExecutor.ts:517

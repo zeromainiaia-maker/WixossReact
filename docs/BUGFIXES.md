@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第145バッチ）：**離場置換が「engine が探していない宣言 id」で書かれていて一度も成立しなかった**（ほか2枚）
+
+**ベースライン**＝`8279b31f0`（第144の直後）。
+**gates 全緑**（typecheck・golden **3483/3483**＝3482 +1本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機要否**＝§2.2 の機械判定どおり **`public/data/` と `scripts/` しか触っていない**＝**④まででよい**。
+**在庫**＝held **47枚 → 44枚**／`census:cards` 要対応 **140 → 131**／即着手可能 **103 → 94**。
+
+### (1) 🔴 `WX25-CP1-039`＝離場置換の**恒久 no-op**
+
+原文＝「【常】：あなたのアップ状態の＜ブルアカ＞のシグニ１体が対戦相手の効果によって場を離れる場合、
+**代わりに《白》を支払ってもよい**。そうした場合、そのシグニをダウンする。」
+
+`effectExecutor.ts:570` の離場置換スキャナは **`STUB{EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY}` だけ**を見る。
+live は汎用の **`STUB{OPTIONAL_COST}`** で書かれていたので、**スキャナに一度も拾われない**＝置換が成立しない。
+⇒ fresh の宣言形（`leavePayLoseSelfAbility{victimFilter{cardType,story:"ブルアカ"}, costColors:["白"]}`）へ差し替えた。
+
+🔑**`census:stubs` の A群にも出ない形**＝`OPTIONAL_COST` は他所に消費地点があるので「実装の穴」に見えない。
+**「宣言 id が受け皿と一致しているか」は別の軸**（この巡は held が唯一の検出器だった）。
+⚠**原文の「アップ状態の」（`isUp`）はまだ載っていない**＝据置（golden にコメントで明記）。
+
+### (2) 🔴 `WD07-006`＝「３枚まで探して**トラッシュに置く**」が1枚しか置いていなかった
+
+原文＝「あなたのデッキからそれぞれレベルの異なるシグニを**３枚まで**探してトラッシュに置き、デッキをシャッフルする。」
+live＝`SEARCH{maxCount:3, then:TRASH{count:1}}`＝**探すのは3枚・置くのは1枚**（過小）。fresh は `count:3`。
+
+### (3) `SP27-009`＝クラス2種の探索が旧綴り＋「好きな順番で」が未達
+
+`filter.cardClass:["天使","悪魔"]` → `filter.story:["天使","悪魔"]`（**`matchesFilter` では等価**＝
+どちらも `CardClass.includes()`。正準形は `story`）。併せて `remainder.reorder:true` が届いた。
+副産物＝`BASELINE_REORDER_MISSING` を **12 → 11** へ払い戻し。
+
+### 影響枚数
+
+**3枚**。挙動が実際に変わるのは **(1) と (2)**（(3) はクラス照合が等価なので並べ替えのぶんだけ）。
+
+### 検証コマンド
+
+```
+npm run golden -- --only "第145"
+npm run gates                      # 全緑（golden 3483/3483）
+node scripts/heldReview.mjs        # held 47 → 44枚
+```
+
 ## 2026-09-05（第144バッチ）：**《クロスアイコン》のカード名をコスト句と誤認していた**＋**「そのシグニゾーンにあるシグニ」が無関係の1体になっていた**
 
 **ベースライン**＝`cf478f3eb`（第143の直後）。
