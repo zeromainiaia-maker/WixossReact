@@ -1,14 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-09-05（第157〜166バッチ）：逆翻訳がコスト payload を描いていなかった穴5本＋真no-opコスト2本
+## 2026-09-05（第157〜167バッチ）：逆翻訳のコスト payload 穴5本＋真no-opコスト2本＋実機7シナリオ
 
 **ベースライン**＝`eedde29b7`（第156の直後）。
 **gates 全緑**（typecheck・golden **3505/3505**＝3493 +12本・smoke 全異常0（10725効果）・fuzz 全0・
 census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・
 `census:costtext` A🔴0規則・lint 0 errors）。
-🔴**実機要否＝必須なのに未実施**＝`src/screens/`（`ArtsModal`／`BattleScreen`／`signiActivateGate`／新規
-`fieldToDeckTopCost.ts`）と `src/engine/` を触った＝§2.2 では実機まで。**10バッチを回すユーザー指示のもとで
-④ゲートまでとし、観測点を `V-152`〜`V-155` として PLAN §5.1 に登録した**（次セッションの一手目）。
+🏁**実機まで完了（第167バッチ）**＝`src/screens/`（`ArtsModal`／`BattleScreen`／`signiActivateGate`／新規
+`fieldToDeckTopCost.ts`）と `src/engine/` を触ったので §2.2 では実機必須。**7シナリオを書いて全て PASS**
+（`v152DeclareRaisesCost` / `v152DeclareLimitedByEnergy` / `v153SelfPowerDownPaid` / `v154FieldToDeckTopPaid` /
+`v154FieldToDeckTopNoOther` / `v155SameLevelLrigAlsoBanned` / `v155DifferentLevelLrigSafe`）。
+**負方向の対照3本**＝エナ1枚で2つ宣言／他のシグニ0体／相手ルリグのレベル違い。
 
 ### 第157（§5.3 `O-251`・4効果）＝「使用コストは**選んだ数だけ**《色×M》増える」が一度も増額していなかった
 - **真因**＝`CostScalingCount` の全種別が盤面（またはターン履歴）で、「**この CHOOSE で選んだ数**」を数える種別が無い。
@@ -87,11 +89,29 @@ census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・`census
   `finalizeUsedCardPlacement` に「手札へ戻した使用カードは既定ゾーンへ置かない」ガードを足した
   （無いと**同じカードが手札とトラッシュに二重で現れる**）。
 
+### 第167（実機＝§5.1 `V-152`〜`V-155`）＝実機が engine の本物のバグを1件出した
+- 🔴**`payFieldToDeckTopCost` が `getCardNum()` で instance id を落としてデッキへ戻していた**
+  （`WD01-013#2` → `WD01-013`）。engine の正準経路 `TRANSFER_TO_DECK`（`effectExecutor.ts:12658` 付近）は
+  **instance id のまま**挿すので、**引き直した瞬間に別インスタンスへ化ける**（付与・台帳が当たらなくなる）。
+  🔴**golden も smoke も緑のまま通っていた**＝どちらもカード番号までしか見ない。
+  🔁**反転確認＝この FAIL → 修正 → PASS そのもの**（旧実装で実際に赤くなった）。golden にラチェットを追加。
+- 🔴**UI 文言の嘘**＝`SigniOnPlayCostModal` の見出しが「場から**トラッシュ**するシグニを選択」で固定されており、
+  `fieldToLrigTrash`（ルリグトラッシュ）と `fieldToDeckTop`（デッキの一番上）でも**行き先を偽って**表示していた。
+  支払い先はプレイヤーの判断を変える情報なので `ftDestJa` で書き分けた。
+- 🔑**実機の罠を2つ §4.4 へ追記**＝
+  8q **アタックフェイズのアーツの到達点は `ATTACK` ではなく `ATTACK_ARTS`**（入った瞬間にアーツ使用ウィンドウへ
+  進み、画面には「アーツ終了→相手へ」しか出ない＝`ATTACK` だけを待つと永久に空振り。実測で13秒×2を溶かした）。
+  8r **ゾーン間移動は `#` 付きで assert する**（上のバグはこれが無いと見つからない）。
+- 🔧**ついでに直した計器のバグ**＝`verifyBattleDrive.mjs` の `order.push` が**同じ4行を二重に持って**おり、
+  フルバッチで `o248*` の4本が**2回ずつ**走っていた（結果は変わらないので実行時間だけが倍になり気づけない）。
+
 **検証コマンド**＝`npm run gates`／`npm run golden -- --only "O-251" --only "O-252" --only "O-253" --only "O-254"
---only "O-255" --only "O-256" --only "O-258" --only "O-147" --only "O-250"`／`node scripts/heldReview.mjs`（残1＝意図的な据置）。
-**反転確認**＝3本（①`declaredCountChoose` を外すと選択数固定の golden が FAIL ②痕跡 STUB を parser で剥がすと
+--only "O-255" --only "O-256" --only "O-258" --only "O-147" --only "O-250"`／`node scripts/heldReview.mjs`（残1＝意図的な据置）／
+`SKIP_BUILD=1 node scripts/verifyBattleDrive.mjs v152DeclareRaisesCost v152DeclareLimitedByEnergy v153SelfPowerDownPaid v154FieldToDeckTopPaid v154FieldToDeckTopNoOther v155SameLevelLrigAlsoBanned v155DifferentLevelLrigSafe`。
+**反転確認**＝4本（①`declaredCountChoose` を外すと選択数固定の golden が FAIL ②痕跡 STUB を parser で剥がすと
 `WX11-015` の `CONDITIONAL` が消えて golden が FAIL ③`fieldToDeckTop` を SUPPORTED から外すと
-`(xxix)(1)` の「未対応の外側 cost は0件」が FAIL）。
+`(xxix)(1)` の「未対応の外側 cost は0件」が FAIL ④**実機 `v154FieldToDeckTopPaid` が instance id を落とす旧実装で
+実際に赤くなった**）。
 
 
 ## 2026-09-05（第154〜156バッチ）：🏁**`O-249`（`held`）クローズ**＋意味照合台帳の消化漏れ回収

@@ -68022,8 +68022,13 @@ test('§5.3 O-256: 場→デッキの一番上のコストが live に載り、�
   const pay = fs.readFileSync(join(root, 'src/screens/battle/fieldToDeckTopCost.ts'), 'utf8').replace(/\r\n/g, '\n');
   ok(pay.includes('deck: [...toDeckTop, ...p.my.deck]'),
      '🔴行き先はデッキの**先頭**（＝次に引かれる位置）。末尾に足すと「一番下」になる');
-  ok(pay.includes('toTrash.push(...stack.slice(0, -1)'),
+  ok(pay.includes('toTrash.push(...stack.slice(0, -1))'),
      'スタックの下に敷かれたカードはルールどおりトラッシュへ（デッキへ戻すのは最上段だけ）');
+  // 🔴**instance id を落とさない**（2026-09-05 実機 `V-154` で発見して修正）＝
+  //   `getCardNum` で素のカード番号にするとデッキの中で同一性が消える
+  //   （engine の正準経路 `TRANSFER_TO_DECK` は instance id のまま挿す）。
+  ok(pay.includes('toDeckTop.push(stack.at(-1)!);') && !/getCardNum\(/.test(pay),
+     '🔴デッキへ戻すのは instance id そのまま（getCardNum() で素の番号に潰さない）');
   const bs = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8').replace(/\r\n/g, '\n');
   eq((bs.match(/payFieldToDeckTopCost\(\{/g) ?? []).length, 2,
      '🔴【出】と【起】の両方で払う（片方だけだと踏み倒せる経路が残る）');

@@ -9,7 +9,6 @@
 //   ＝デッキへ戻るのは最上段の1枚だけ。
 import type { CardData, PlayerState } from '../../types';
 import type { EffectCost } from '../../types/effects';
-import { getCardNum } from '../../engine/execUtils';
 
 export type FieldToDeckTopCost = NonNullable<EffectCost['fieldToDeckTop']>;
 
@@ -39,9 +38,14 @@ export function payFieldToDeckTopCost(p: {
     const stack = signi[zi];
     if (!stack || stack.length === 0) return null;
     removedIids.push(...stack);
-    toDeckTop.push(getCardNum(stack.at(-1)!));
+    // 🔴**instance id を落とさない**（2026-09-05・実機 `V-154` で発見）＝
+    //   `getCardNum` で素のカード番号にすると**デッキの中で同一性が消える**
+    //   （engine の正準経路 `TRANSFER_TO_DECK`（`effectExecutor.ts:12658` 付近）は
+    //    instance id のまま `deck` へ挿す）。引き直したときに別インスタンスへ化け、
+    //   `#` 付き id を参照する効果（付与・台帳）が当たらなくなる。
+    toDeckTop.push(stack.at(-1)!);
     // 最上段以外（下に敷かれたカード）はデッキへ戻らずトラッシュへ。
-    toTrash.push(...stack.slice(0, -1).map(getCardNum));
+    toTrash.push(...stack.slice(0, -1));
     if (charms[zi]) { toTrash.push(charms[zi]!); charms[zi] = null; }
     if (acce[zi]) { toTrash.push(...acce[zi]!); acce[zi] = null; }
     signi[zi] = null;

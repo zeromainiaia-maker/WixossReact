@@ -49680,10 +49680,8 @@ scenarios.o248GrowRevealAuto = {
 // 🔴**登録順＝実行順**＝**グロウが成立するシナリオを最後に置く**。
 //   成立側は手札もエナも使い切るので、そのあとゲームが終わって**新しいゲームが張られ**、
 //   後続のシナリオが「別の盤面」を掴む（2026-09-05 に一括実行で3本を空振り FAIL させた）。
-order.push('o248GrowDiscardNoAngel');
-order.push('o248GrowRevealNone');
-order.push('o248GrowRevealAuto');
-order.push('o248GrowDiscardPay');
+// ⚠**重複していた `order.push` 4行をここから削除した**（2026-09-05・`V-152` 実装時）＝同じブロックが下にもあり、
+//   **フルバッチで o248 の4本が2回ずつ走っていた**（実行時間だけが倍になり、結果は変わらないので気づけない）。
 
 scenarios.o248GrowRevealNone = {
   title: 'WD13-002（手札に＜迷宮＞も＜毒牙＞も無い）＝エナ1枚では払えない【無条件軽減の検出】',
@@ -49714,6 +49712,667 @@ scenarios.o248GrowRevealNone = {
     return { pass: true, detail: `対象を持っていなければ軽減されず、エナ1枚では候補が灰色のまま。${dump}` };
   },
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-152`（§5.3 `O-251`）＝**アーツ使用モーダルで「選ぶ数」を宣言するとコストが増える**
+//
+// `WX20-Re20`（バニラ・スクランブル・アーツ・《白》×１・メイン／アタック・限定なし）
+// 「以下の２つから２つまで選ぶ。**選んだ数が２つの場合、このアーツの使用コストは《無×2》増える。**
+//  ①デッキから能力を持たないシグニを３枚まで探して手札に加える ②手札から能力を持たないシグニを好きな枚数場に出す」
+//
+// 🔴**旧挙動＝増額が一度も起きなかった**（parser がコスト増の文を no-op マーカーとして残すだけだった）＝
+//   **エナ1枚で2つとも選べた**。実機でしか出ない理由＝**宣言 → 実効コスト表示 → 必要エナ枚数 →
+//   CHOOSE の選択数**の4段が UI の中で連鎖しており、golden は各段を別々にしか固定できない。
+// ══════════════════════════════════════════════════════════════════════════════
+const V152_ARTS = 'WX20-Re20#1';        // バニラ・スクランブル（《白》×1）
+const V152_VANILLA = 'WD01-013';        // 小剣 ククリ（Lv1・白・能力なし＝①②の候補）
+const V152_LRIG = 'WD01-018#1';         // 限定に引っかからないルリグ（既存シナリオと同じ札）
+
+/** ArtsModal の「エナから選択: n / **N**枚」から**必要枚数 N** を読む＝実効コストの直接の観測点。 */
+const v152ReadEnergyRequired = async (page) => {
+  const txt = await page.evaluate(() => {
+    const m = document.body.innerText.match(/エナから選択:\s*\d+\s*\/\s*(\d+)\s*枚/);
+    return m ? m[1] : null;
+  }).catch(() => null);
+  return txt === null ? null : Number(txt);
+};
+
+/** ルリグデッキ → アーツ詳細 → 「使用」まで開く（`driveB25` と同じ道順）。 */
+const v152OpenArts = async (page, H) => {
+  await H.ensureMain();
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  await page.waitForTimeout(700);
+  // 「使用」＝ArtsModal Phase2 を開く。⚠**押せなければ前提崩れ**（限定・フェイズ・エナ0 など）。
+  const used = await H.clickBtn('使用', { exact: true });
+  await page.waitForTimeout(900);
+  return used;
+};
+
+/** 宣言ボタン（`arts-declare-choose-N`）を押す。押せなければ null。 */
+const v152Declare = async (page, H, n) => {
+  const b = page.getByTestId('arts-declare-choose-' + n).first();
+  if (!(await b.count()) || !(await b.isVisible().catch(() => false))) { H.log('  宣言ボタン ' + n + ' が無い'); return null; }
+  await b.click().catch(() => {});
+  await page.waitForTimeout(500);
+  return 'declare:' + n;
+};
+
+const v152Spec = (energy) => ({
+  hostSet: {
+    'field.lrig': [V152_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'field.free_zone': [],
+    'field.beat_zone': [],
+    'lrig_deck': [V152_ARTS],
+    energy,
+    hand: [V152_VANILLA + '#5'],
+    deck: [V152_VANILLA + '#6', V152_VANILLA + '#7', V152_VANILLA + '#8'],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+scenarios.v152DeclareRaisesCost = {
+  // 🔑**エナ3枚**＝2つ宣言しても払える盤面。**必要枚数が 1 → 3 に動くこと**が本題。
+  title: 'V-152①：WX20-Re20 で「2つ選ぶ」と宣言すると必要エナが 1→3 枚に増える【旧実装は常に1枚】',
+  spec: v152Spec([V152_VANILLA + '#1', V152_VANILLA + '#2', V152_VANILLA + '#3']),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    H.log('開始 phase=' + st0?.turnPhase + ' energy=' + st0?.host?.energy + ' lrigDeck=' + JSON.stringify(st0?.host?.lrigDeckCards));
+    // 🔴**注入確認は lrig だけでなくエナ枚数まで見る**（§5.1 の教訓＝別ゲームを掴んだまま判定しない）。
+    if (st0?.host?.energy !== 3 || !(st0?.host?.lrigDeckCards ?? []).includes(V152_ARTS)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（energy=' + st0?.host?.energy + ' lrigDeck=' + JSON.stringify(st0?.host?.lrigDeckCards) + '）' };
+    }
+    const opened = await v152OpenArts(page, H);
+    if (!opened) return { pass: false, detail: '前提崩れ＝アーツの「使用」が押せなかった（ArtsModal Phase2 が開いていない）' };
+    // ① 宣言0（既定）＝印刷どおり《白》×1 ＝ 必要1枚
+    const req0 = await v152ReadEnergyRequired(page);
+    // ② 宣言2 ＝ +《無×2》 ＝ 必要3枚
+    const dec = await v152Declare(page, H, 2);
+    const req2 = await v152ReadEnergyRequired(page);
+    await page.screenshot({ path: SHOT + '/v152Raise-declared.png', fullPage: true });
+    const dump = '必要枚数 宣言0=' + req0 + ' 宣言2=' + req2 + ' declare=' + dec;
+    H.log('  ' + dump);
+    if (!dec) return { pass: false, detail: '🔴宣言UIが出ていない＝costScaling{declaredChooseCount} が live に無いか declaredCountChoose が付いていない。' + dump };
+    if (req0 !== 1) return { pass: false, detail: '前提崩れ＝宣言0のときの必要枚数が印刷コスト（1枚）ではない。' + dump };
+    if (req2 !== 3) return { pass: false, detail: '🔴2つ宣言してもコストが増えない（必要枚数が ' + req2 + '）＝アーツが原文より安く撃てる。' + dump };
+    // ③ 実際に3枚払って使えることまで見る（表示だけ動いて払えない、を排除する）
+    const picked = new Set();
+    let fired = false;
+    for (let s = 0; s < 16 && !fired; s++) {
+      const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+      if (await submit.count() && await submit.isVisible().catch(() => false)) {
+        if (await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); fired = true; break; }
+        // ⚠**押した index を覚える**＝同じセルを毎ティック押すとトグルで外れる（§4.4 罠2c/8p）。
+        for (let i = 0; i < 6; i++) {
+          if (picked.has(i)) continue;
+          const e = page.getByTestId('artscost-energy-' + i).first();
+          if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); break; }
+        }
+      }
+      await page.waitForTimeout(600);
+    }
+    // ④ CHOOSE の見出しが「2個**選択**（0/2）」＝**「まで」が落ちている**ことが本題。
+    //   🔑`EffectInteractionModal` は `upTo` のときだけ「N個**まで**選択」と描く（`:668`）＝
+    //     宣言数ちょうどに固定できていれば「まで」が消える。⚠確定ボタンは素の「決定」で件数を持たない。
+    let chooseLabel = null;
+    for (let s = 0; s < 14 && !chooseLabel; s++) {
+      await page.waitForTimeout(700);
+      chooseLabel = await page.evaluate(() => {
+        const m = document.body.innerText.match(/(\d+)個(まで)?選択（(\d+)\/(\d+)）/);
+        return m ? m[0] : null;
+      }).catch(() => null);
+    }
+    const confirmLabel = chooseLabel;
+    await page.screenshot({ path: SHOT + '/v152Raise-final.png', fullPage: true });
+    const st = await H.queryState();
+    const paid = st?.host?.energy;
+    const dump2 = dump + ' 支払い後エナ=' + paid + ' fired=' + fired + ' 決定ラベル=' + JSON.stringify(confirmLabel) + ' 選んだエナ=' + picked.size;
+    H.log('  ' + dump2);
+    if (!fired) return { pass: false, detail: '🔴3枚選んでも「アーツ使用」が有効にならなかった（表示だけ動いて払えない）。' + dump2 };
+    if (paid !== 0) return { pass: false, detail: '🔴エナが3枚とも支払われていない（残 ' + paid + '）。' + dump2 };
+    // 🔑**後始末**＝この巡は「宣言が効くか」だけを見るので、解決を残さず盤面を戻す
+    //   （残すと次のシナリオが前の pending_effect を掴む＝§4.4 罠1 と同根）。
+    await H.repatchTop({ effect_stack: null, pending_effect: null });
+    if (!confirmLabel) return { pass: false, detail: '🔴CHOOSE の見出しが読めなかった（選択モーダルが出ていない）。' + dump2 };
+    if (!/^2個選択（\d+\/2）$/.test(confirmLabel)) {
+      return { pass: false, detail: '🔴CHOOSE が「2つちょうど」に固定されていない（見出し=' + JSON.stringify(confirmLabel) + '＝「まで」が残っている＝払った数より多く選べる）。' + dump2 };
+    }
+    return { pass: true, detail: '宣言2で必要エナが 1→3 枚に増え、3枚払って CHOOSE も「' + confirmLabel + '」（＝「まで」が落ちて2つちょうど）に固定された。' + dump2 };
+  },
+};
+
+scenarios.v152DeclareLimitedByEnergy = {
+  // 🔴**判別力の本体**＝エナ**1枚だけ**。旧実装（増額なし）なら 2つ宣言しても撃ててしまう。
+  title: 'V-152②：エナ1枚では「2つ選ぶ」を宣言すると撃てない／「1つ」なら撃てる【旧実装は1枚で2つ選べた】',
+  spec: v152Spec([V152_VANILLA + '#1']),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.host?.energy !== 1 || !(st0?.host?.lrigDeckCards ?? []).includes(V152_ARTS)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（energy=' + st0?.host?.energy + ' lrigDeck=' + JSON.stringify(st0?.host?.lrigDeckCards) + '）' };
+    }
+    const opened = await v152OpenArts(page, H);
+    if (!opened) return { pass: false, detail: '前提崩れ＝アーツの「使用」が押せなかった' };
+    // ① 宣言2 → 手持ちの1枚を選んでも「アーツ使用」は灰色のまま（必要3枚）
+    const dec2 = await v152Declare(page, H, 2);
+    const req2 = await v152ReadEnergyRequired(page);
+    const e0 = page.getByTestId('artscost-energy-0').first();
+    if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); }
+    await page.waitForTimeout(700);
+    // 🔑**押さずに `isEnabled()` を読むだけ**＝無効なボタンを押すと Playwright が30秒待つ（§5.1 の `O-248` 教訓）。
+    const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+    const enabledAt2 = (await submit.count()) ? await submit.isEnabled().catch(() => false) : null;
+    await page.screenshot({ path: SHOT + '/v152Limited-declare2.png', fullPage: true });
+    // ② 宣言1 へ落とすと必要1枚＝押せるようになる（＝宣言が効いていることの対照）
+    const dec1 = await v152Declare(page, H, 1);
+    const req1 = await v152ReadEnergyRequired(page);
+    const e0b = page.getByTestId('artscost-energy-0').first();
+    if (await e0b.count() && await e0b.isVisible().catch(() => false)) { await e0b.click().catch(() => {}); }
+    await page.waitForTimeout(700);
+    const enabledAt1 = (await submit.count()) ? await submit.isEnabled().catch(() => false) : null;
+    await page.screenshot({ path: SHOT + '/v152Limited-declare1.png', fullPage: true });
+    const dump = '宣言2: 必要=' + req2 + ' 有効=' + enabledAt2 + '（' + dec2 + '） / 宣言1: 必要=' + req1 + ' 有効=' + enabledAt1 + '（' + dec1 + '）';
+    H.log('  ' + dump);
+    if (!dec2 || !dec1) return { pass: false, detail: '🔴宣言UIが出ていない。' + dump };
+    if (req2 !== 3) return { pass: false, detail: '🔴2つ宣言してもコストが増えない（必要=' + req2 + '）。' + dump };
+    if (enabledAt2 !== false) return { pass: false, detail: '🔴エナ1枚しか無いのに「2つ選ぶ」で撃てる＝増額が請求されていない（過剰実行）。' + dump };
+    if (req1 !== 1) return { pass: false, detail: '🔴1つ宣言のときの必要枚数が印刷コストに戻らない（必要=' + req1 + '）。' + dump };
+    if (enabledAt1 !== true) return { pass: false, detail: '🔴1つ宣言なら払えるはずなのに撃てない＝増額が過大（塞ぎすぎ）。' + dump };
+    return { pass: true, detail: 'エナ1枚では「2つ選ぶ」は灰色（必要3枚）・「1つ選ぶ」なら撃てる（必要1枚）。' + dump };
+  },
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-153`（§5.3 `O-255`）＝**自傷パワーのコスト（`EffectCost.selfPowerDown`）が実際に払われる**
+//
+// `WX07-042`（幻獣　ラクダ・緑・Lv4・P10000・限定なし）
+// 「【起】《ターン１回》**ターン終了時まで、このシグニのパワーを5000減らす**：ターン終了時まで、
+//  このシグニは【ランサー】を得る。」
+//
+// 🔴**旧挙動＝型も parser も逆翻訳も対応済みなのに engine/UI のどこにも消費が無く、自傷が
+//   一度も起きていなかった**＝**【ランサー】だけ只でもらえた**（過剰実行）。
+// 🔑**実機でしか出ない理由**＝実効パワーは `queryState` に出ず `calcFieldPowers` の結果が
+//   **画面にしかない**（§5.1 `V-150` と同じ面）。⚠ただし `temp_power_mods` は DB に出るので、
+//   **DOM とストアの両方**を見て「表示だけ下がった／ストアだけ動いた」を排除する。
+// ══════════════════════════════════════════════════════════════════════════════
+const V153_SIGNI = 'WX07-042#1';        // 幻獣 ラクダ（P10000・【起】で自分を−5000して【ランサー】）
+const V153_LRIG = 'WD01-018#1';
+
+scenarios.v153SelfPowerDownPaid = {
+  title: 'V-153：WX07-042 の【起】を使うと自分のパワーが 10000→5000 に下がる【旧実装は下がらず【ランサー】だけ只でもらえた】',
+  spec: {
+    hostSet: {
+      'field.lrig': [V153_LRIG],
+      'field.signi': [[V153_SIGNI], null, null],
+      'field.check': null,
+      'field.key_piece': null,
+      'field.key_piece_extra': [],
+      'field.free_zone': [],
+      'field.beat_zone': [],
+      'field.signi_down': [false, false, false],
+      'field.signi_frozen': [false, false, false],
+      'temp_power_mods': [],
+      'keyword_grants': {},
+      lrig_deck: [],
+      energy: [],
+      hand: [],
+      actions_done: [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+      actions_done: [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    // 🔴**注入確認**＝自分の盤面であることを、ルリグだけでなくシグニまで見て確かめる。
+    const front0 = st0?.host?.fieldSigni?.[0];
+    if (!(Array.isArray(front0) && front0.some(n => String(n).startsWith('WX07-042')))) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（host zone0=' + JSON.stringify(front0) + '）' };
+    }
+    await H.ensureMain();
+    const pow0 = await readSigniEffectivePower(page, 0);
+    H.log('開始 power(DOM)=' + pow0 + ' powerMods=' + JSON.stringify(st0?.host?.powerMods));
+    if (pow0 !== 10000) return { pass: false, detail: '前提崩れ＝開始時の表示パワーが印字（10000）ではない（' + pow0 + '）' };
+    let opened = false;
+    let actClicked = false;
+    let granted = false;
+    for (let s = 0; s < 18; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: SHOT + '/v153SelfPowerDown-' + s + '.png', fullPage: true });
+      let did = null;
+      if (!opened) {
+        const o = await H.clickTestId('my-signi-zone-0');
+        if (o) { did = o; opened = true; }
+      }
+      // ⚠**モーダルを開いただけでは支払いUIが出ない**＝まず【起】そのものを選ぶ（既存 driver と同じ道順）。
+      if (!did && opened && !actClicked) {
+        const lbl = page.locator('[data-action-label]').first();
+        if (await lbl.count() && await lbl.isVisible().catch(() => false)) {
+          await lbl.click().catch(() => {}); actClicked = true; did = 'act-label';
+        }
+      }
+      if (!did && actClicked) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      granted = granted || (st?.host?.keywordGrants ?? []).some(g => /ランサー/.test(g));
+      H.log('  v153[' + s + '] -> ' + (did ?? 'なし') + ' | powerMods=' + JSON.stringify(st?.host?.powerMods)
+        + ' grants=' + JSON.stringify(st?.host?.keywordGrants) + ' stack=' + (st?.stackLen ?? '-'));
+      if (!granted) continue;
+      // 🔑**本体が走ったことを観測してから**判定する（§4.4 罠5）。DOM の再描画を待ってから読む。
+      await page.waitForTimeout(1200);
+      const pow1 = await readSigniEffectivePower(page, 0);
+      const stF = await H.queryState();
+      const mods = stF?.host?.powerMods ?? [];
+      const selfMod = mods.find(m => /^WX07-042#1:/.test(m));
+      const dump = 'power(DOM) ' + pow0 + '→' + pow1 + ' powerMods=' + JSON.stringify(mods)
+        + ' grants=' + JSON.stringify(stF?.host?.keywordGrants);
+      H.log('  判定: ' + dump);
+      if (!selfMod) return { pass: false, detail: '🔴【ランサー】は得たのに自傷パワーが積まれていない＝コストが只（過剰実行）。' + dump };
+      if (selfMod !== 'WX07-042#1:-5000') return { pass: false, detail: '🔴自傷の量・向きが原文と違う（' + selfMod + '）。' + dump };
+      if (pow1 !== 5000) return { pass: false, detail: '🔴ストアには積まれたが画面のパワーが下がっていない（' + pow1 + '）＝実効パワーに反映されていない。' + dump };
+      return { pass: true, detail: '【起】の自傷コストが払われた＝パワー 10000→5000／temp_power_mods に -5000／【ランサー】取得。' + dump };
+    }
+    const fin = await H.queryState();
+    if (!opened) return { pass: false, detail: '前提崩れ＝シグニのモーダルが開かなかった' };
+    if (!actClicked) return { pass: false, detail: '前提崩れ＝【起】が提示されなかった（可否ゲートで弾かれている）' };
+    return { pass: false, detail: '【起】が解決しなかった（grants=' + JSON.stringify(fin?.host?.keywordGrants) + ' powerMods=' + JSON.stringify(fin?.host?.powerMods) + '）' };
+  },
+};
+
+order.push('v153SelfPowerDownPaid');
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-154`（§5.3 `O-256`）＝**「他のシグニ１体を場からデッキの一番上に置く」コストが実際に払われる**
+//
+// `WDK05-T12`（師の遊　ケロパッチン・白・Lv4・P10000・**タマ限定**）
+// 「【出】《白》**他のシグニ１体を場からデッキの一番上に置く**：対戦相手のシグニ１体を対象とし、それを手札に戻す。」
+//
+// 🔴**旧挙動＝このコスト句を1つも読んでおらず、《白》×1 だけで撃てた**（過剰実行）。
+// 🔑**実機でしか出ない理由**＝支払いUI（ゾーン選択）・提示ゲート・実行の3箇所に分かれており、
+//   さらに**行き先がトラッシュではなくデッキの一番上**（＝引き直せる＝資源を失わない）。
+//   `fieldTrash` を流用していれば盤面は「場から消える」まで同じに見えるので、
+//   **デッキの一番上に載ったこと**まで見ないと取り違えを検出できない。
+// ══════════════════════════════════════════════════════════════════════════════
+const V154_CARD = 'WDK05-T12#1';        // 師の遊 ケロパッチン（【出】《白》＋他のシグニ1体を場→デッキの一番上）
+const V154_TAMA = 'WD01-001#1';         // 満月の巫女 タマヨリヒメ（Lv4・タマ＝「タマ限定」を満たす）
+const V154_COST_SIGNI = 'WD01-013#2';   // 小剣 ククリ（Lv1・白・能力なし）＝**支払いで場を離れる側**
+const V154_OPP_SIGNI = 'WD03-013#5';    // コードアート Ｓ・Ｃ（Lv1・青）＝手札に戻される側
+
+const v154Spec = (ownField) => ({
+  hostSet: {
+    'field.lrig': [V154_TAMA],
+    'field.signi': ownField,
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'field.free_zone': [],
+    'field.beat_zone': [],
+    'field.signi_down': [false, false, false],
+    'field.signi_frozen': [false, false, false],
+    lrig_deck: [],
+    // 《白》×1 を払える1枚だけ（余分を置くと「どれを払ったか」がぼやける）
+    energy: ['WD01-013#1'],
+    hand: [V154_CARD],
+    // 🔑**デッキの中身を固定する**＝支払ったシグニが**先頭**に載ったことを見るため。
+    deck: ['WD02-013#7', 'WD02-013#8', 'WD02-013#9'],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    'field.signi': [[V154_OPP_SIGNI], null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    hand: [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+scenarios.v154FieldToDeckTopPaid = {
+  title: 'V-154①：WDK05-T12 の【出】で「他のシグニ1体」がデッキの一番上へ行き、相手シグニが手札に戻る【旧実装はコストを払わなかった】',
+  spec: v154Spec([null, [V154_COST_SIGNI], null]),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    const deck0 = st0?.host?.deck;
+    H.log('開始 hostField=' + JSON.stringify(st0?.host?.fieldSigni) + ' deck=' + deck0
+      + ' energy=' + st0?.host?.energy + ' oppField=' + JSON.stringify(st0?.guest?.fieldSigni));
+    // 🔴**注入確認は複数軸で**＝ルリグ・自分の場・相手の場・手札まで見る（別ゲームを掴んだまま判定しない）。
+    const mid0 = st0?.host?.fieldSigni?.[1];
+    if (st0?.host?.lrigTop !== V154_TAMA || !(Array.isArray(mid0) && mid0.includes(V154_COST_SIGNI))
+        || !(st0?.host?.handCards ?? []).includes(V154_CARD)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+        + ' zone1=' + JSON.stringify(mid0) + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+    }
+    await H.ensureMain();
+    let summoned = false;
+    let zonePicked = false;
+    let energyPicked = false;
+    let costZonePicked = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: SHOT + '/v154DeckTop-' + s + '.png', fullPage: true });
+      let did = null;
+      if (!summoned) {
+        did = await H.clickTestId('my-hand-card-0');
+        if (did) { await page.waitForTimeout(500); }
+        const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+          await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+        }
+      }
+      // 空きゾーンは 0 と 2＝どちらでもよい（支払い候補は zone1 の「他のシグニ」）。
+      if (!did && summoned && !zonePicked) {
+        const z = await H.clickTestId('summon-zone-0', 'summon-zone-2');
+        if (z) { zonePicked = true; did = z; }
+      }
+      // 【出】コストモーダル＝①エナ1枚 ②場のシグニ1体（＝デッキの一番上へ行く側）を選んでから「発動」。
+      if (!did && !energyPicked) {
+        const e = page.getByTestId('onplaycost-energy-0').first();
+        if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); energyPicked = true; did = 'onplaycost-energy-0'; }
+      }
+      if (!did && !costZonePicked) {
+        // ⚠ゾーンのセルに testid が無いのでモーダル内の img を狙う（`clickModalImage` は **.last()**＝
+        //   画面下部の常設ストリップではなくモーダル側を掴む）。
+        const im = await H.clickModalImage('小剣　ククリ');
+        if (im) { costZonePicked = true; did = im; }
+      }
+      if (!did && energyPicked && costZonePicked) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const oppHand = (st?.guest?.handCards ?? []).length;
+      H.log('  v154[' + s + '] -> ' + (did ?? 'なし') + ' | hostField=' + JSON.stringify(st?.host?.fieldSigni)
+        + ' deck=' + st?.host?.deck + ' energy=' + st?.host?.energy + ' oppField=' + JSON.stringify(st?.guest?.fieldSigni)
+        + ' oppHand=' + oppHand + ' stack=' + (st?.stackLen ?? '-'));
+      const oppGone = !(Array.isArray(st?.guest?.fieldSigni?.[0]) && st.guest.fieldSigni[0].includes(V154_OPP_SIGNI));
+      if (!oppGone) continue;
+      await page.waitForTimeout(1000);
+      const stF = await H.queryState();
+      // 🔑**デッキの一番上**を直接読む（`queryState` の deck は枚数なので、別ルートで先頭を見る）。
+      const deckTop = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+        const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+        const h = { apikey: ANON, Authorization: 'Bearer ' + token };
+        const r1 = await fetch(SUPA_URL + '/rest/v1/rooms?host_id=eq.' + uid + '&status=eq.PLAYING&select=id', { headers: h });
+        const roomId = (await r1.json())?.[0]?.id; if (!roomId) return null;
+        const r2 = await fetch(SUPA_URL + '/rest/v1/battle_states?room_id=eq.' + roomId + '&select=host_state', { headers: h });
+        return ((await r2.json())?.[0]?.host_state?.deck ?? []).slice(0, 3);
+      }, { SUPA_URL, ANON }).catch(() => null);
+      const hostField = stF?.host?.fieldSigni ?? [];
+      const stillOnField = hostField.some(z => Array.isArray(z) && z.includes(V154_COST_SIGNI));
+      const inTrash = (stF?.host?.trashCards ?? []).some(c => String(c).startsWith('WD01-013#2'));
+      const dump = 'deckTop=' + JSON.stringify(deckTop) + ' hostField=' + JSON.stringify(hostField)
+        + ' trash=' + JSON.stringify(stF?.host?.trashCards) + ' energy=' + stF?.host?.energy
+        + ' oppHand=' + JSON.stringify(stF?.guest?.handCards);
+      H.log('  判定: ' + dump);
+      if (stillOnField) return { pass: false, detail: '🔴支払いのシグニが場に残っている＝コストが払われていない（過剰実行）。' + dump };
+      if (inTrash) return { pass: false, detail: '🔴支払いのシグニがトラッシュに行った＝`fieldTrash` を流用している（行き先の取り違え＝原文より高いコスト）。' + dump };
+      if (!Array.isArray(deckTop) || deckTop[0] !== V154_COST_SIGNI) {
+        return { pass: false, detail: '🔴支払いのシグニがデッキの**一番上**に無い（先頭3枚=' + JSON.stringify(deckTop) + '）。' + dump };
+      }
+      if (stF?.host?.energy !== 0) return { pass: false, detail: '🔴《白》×1 が支払われていない（残エナ ' + stF?.host?.energy + '）。' + dump };
+      if (!(stF?.guest?.handCards ?? []).some(c => String(c).startsWith('WD03-013#5'))) {
+        return { pass: false, detail: '🔴帰結（相手シグニを手札に戻す）が起きていない。' + dump };
+      }
+      return { pass: true, detail: '【出】のコストで他のシグニがデッキの一番上に載り（トラッシュではない）、《白》も払われて相手シグニが手札に戻った。' + dump };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: '召喚〜【出】解決に到達しなかった（summoned=' + summoned + ' zone=' + zonePicked
+      + ' energy=' + energyPicked + ' costZone=' + costZonePicked + ' oppField=' + JSON.stringify(fin?.guest?.fieldSigni) + '）' };
+  },
+};
+
+scenarios.v154FieldToDeckTopNoOther = {
+  // 🔴**判別力の本体**＝場に**他のシグニが1体もいない**盤面。旧実装（コストを読まない）なら
+  //   《白》×1 だけで【出】が通り、相手シグニが手札に戻ってしまう。
+  title: 'V-154②：他のシグニが場に居なければ【出】は払えない（相手シグニは戻らない）【旧実装は只で撃てた】',
+  spec: v154Spec([null, null, null]),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.host?.lrigTop !== V154_TAMA || !(st0?.host?.handCards ?? []).includes(V154_CARD)
+        || (st0?.host?.fieldSigni ?? []).some(Boolean)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+        + ' field=' + JSON.stringify(st0?.host?.fieldSigni) + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+    }
+    await H.ensureMain();
+    let summoned = false;
+    let zonePicked = false;
+    let energyPicked = false;
+    let fireEnabled = null;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!summoned) {
+        did = await H.clickTestId('my-hand-card-0');
+        if (did) await page.waitForTimeout(500);
+        const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+          await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+        }
+      }
+      if (!did && summoned && !zonePicked) {
+        const z = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (z) { zonePicked = true; did = z; }
+      }
+      if (!did && !energyPicked) {
+        const e = page.getByTestId('onplaycost-energy-0').first();
+        if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); energyPicked = true; did = 'onplaycost-energy-0'; }
+      }
+      // 🔑**押さずに `isEnabled()` を読むだけ**（§5.1 `O-248` の教訓＝無効なボタンを押すと30秒待たされる）。
+      if (energyPicked) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fire.count() && await fire.isVisible().catch(() => false)) {
+          fireEnabled = await fire.isEnabled().catch(() => false);
+          break;
+        }
+      }
+      H.log('  v154none[' + s + '] -> ' + (did ?? 'なし') + ' summoned=' + summoned + ' zone=' + zonePicked + ' energy=' + energyPicked);
+    }
+    await page.screenshot({ path: SHOT + '/v154NoOther-final.png', fullPage: true });
+    const st = await H.queryState();
+    const dump = '発動ボタン有効=' + fireEnabled + ' summoned=' + summoned + ' zone=' + zonePicked
+      + ' energy=' + energyPicked + ' oppField=' + JSON.stringify(st?.guest?.fieldSigni)
+      + ' hostEnergy=' + st?.host?.energy;
+    H.log('  判定: ' + dump);
+    const oppStill = Array.isArray(st?.guest?.fieldSigni?.[0]) && st.guest.fieldSigni[0].includes(V154_OPP_SIGNI);
+    if (!summoned) return { pass: false, detail: '前提崩れ＝召喚できなかった（タマ限定・リミット・レベルを確認）。' + dump };
+    if (!oppStill) return { pass: false, detail: '🔴他のシグニが1体も居ないのに【出】が通って相手シグニが戻った＝コストが只（過剰実行）。' + dump };
+    if (fireEnabled === true) return { pass: false, detail: '🔴支払えないのに「発動」が押せる＝ゾーン選択の必要数が請求されていない。' + dump };
+    return { pass: true, detail: '他のシグニが居なければ「発動」は灰色のまま／相手シグニも場に残る（コストが只になっていない）。' + dump };
+  },
+};
+
+order.push('v154FieldToDeckTopPaid');
+order.push('v154FieldToDeckTopNoOther');
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-155`（§5.3 `O-250`）＝**「Aと、Aと同じレベルのB」の2つ目の対象**
+//
+// `WX24-P2-002`（ホワイト・ウィッシュ・アーツ・《白》×３・アタックフェイズ・限定なし）
+// 「対戦相手のシグニ１体**と、そのシグニと同じレベルの対戦相手のルリグ１体**を対象とし、
+//  ターン終了時まで、それらは「【常】：アタックできない。」を得る。」
+//
+// 🔴**旧挙動＝ルリグ側の対象が丸ごと無く、シグニ1体にしか付かなかった**（過小実行）。
+// 🔑**実機でしか出ない理由**＝**選択UIを跨いで `lastProcessedCards` が継がれるか**が本題で、
+//   対話を経る経路（`resumeSelectTarget` → continuation）でしか通らない。
+// 🔑**1ビットだけ反転する対**＝盤面も操作も同じで、**相手ルリグのレベルだけ**を変える。
+// ══════════════════════════════════════════════════════════════════════════════
+const V155_ARTS = 'WX24-P2-002#1';      // ホワイト・ウィッシュ（《白》×3）
+const V155_OPP_SIGNI = 'WD01-013#5';    // 小剣 ククリ（**Lv1**）＝1つ目の対象
+const V155_LRIG_L1 = 'WD01-004#1';      // 三日月の巫女 タマヨリヒメ（**Lv1**）＝同じレベル＝付く側
+const V155_LRIG_L4 = 'WX03-006#1';      // 天空の巫女 タマヨリヒメ（**Lv4**）＝レベル違い＝付かない側
+const V155_MY_LRIG = 'WD01-001#1';      // 自分のルリグ（限定なしのアーツなので何でもよい）
+
+const v155Spec = (oppLrig) => ({
+  hostSet: {
+    'field.lrig': [V155_MY_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.signi_down': [false, false, false],
+    lrig_deck: [V155_ARTS],
+    // 《白》×3。⚠**使用時の任意支払い（ルリグデッキの白アーツ1枚）は使わない**＝
+    //   `lrig_deck` にこのアーツしか入れないので提示されず、経路が1本に定まる。
+    energy: ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'],
+    hand: [],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': [oppLrig],
+    'field.signi': [[V155_OPP_SIGNI], null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.signi_down': [false, false, false],
+    keyword_grants: {},
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/**
+ * MAIN → アタックフェイズへ歩く（§4.4 罠8g＝`turn_phase` を直接注入しない）。
+ * 🔴**到達点は `ATTACK` **と** `ATTACK_ARTS` の両方**（2026-09-05 の実測でここに13秒溶かした）＝
+ *   アタックフェイズに入ると即座に**アーツ使用ウィンドウ（`ATTACK_ARTS`）**へ進み、
+ *   画面には「アーツ終了→相手へ」しか出ない。`ATTACK` だけを見ると永久に空振りする。
+ */
+const V155_ATTACK_PHASES = new Set(['ATTACK', 'ATTACK_ARTS']);
+const v155ToAttack = async (page, H) => {
+  await H.ensureMain();
+  for (let k = 0; k < 12; k++) {
+    const st = await H.queryState();
+    if (V155_ATTACK_PHASES.has(st?.turnPhase)) return true;
+    // ⚠**確認ダイアログを先に処理する**（§4.4 罠8c）＝裏のヘッダーボタンは押せてしまう。
+    let did = await H.clickTextOrBtn(['このまま進む']);
+    if (!did) did = await H.clickBtn('アタックフェイズへ', { exact: true });
+    if (!did) did = await H.clickTextOrBtn(['メインフェイズへ', 'アタックフェイズへ']);
+    // 🔑**進めないときは「いま何が出ているか」を必ず残す**（§5.1 の教訓＝出なかった側の証拠）。
+    if (!did) {
+      const btns = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button')).slice(0, 24)
+          .map(b => (b.textContent || '').trim().slice(0, 18)).filter(Boolean)).catch(() => []);
+      H.log('  toAttack[' + k + '] phase=' + st?.turnPhase + ' pEff=' + (st?.pendingEffect ?? '-')
+        + ' stack=' + (st?.stackLen ?? '-') + ' 見えているボタン=' + JSON.stringify(btns));
+    }
+    await page.waitForTimeout(900);
+  }
+  return V155_ATTACK_PHASES.has((await H.queryState())?.turnPhase);
+};
+
+/** アーツを開いて《白》×3 を払い、対象のシグニを選ぶところまで進める。 */
+const v155UseArts = async (page, H, tag) => {
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  let used = false;
+  const picked = new Set();
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: SHOT + '/' + tag + '-' + s + '.png', fullPage: true });
+    let did = null;
+    if (!used) {
+      const submit = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+      if (await submit.count() && await submit.isVisible().catch(() => false)) {
+        if (await submit.isEnabled().catch(() => false)) { await submit.click().catch(() => {}); used = true; did = 'btn:アーツ使用'; }
+        else {
+          // ⚠**押した index を覚える**＝毎ティック同じセルを押すとトグルで外れる（§4.4 罠2c/8p）。
+          for (let i = 0; i < 6; i++) {
+            if (picked.has(i)) continue;
+            const e = page.getByTestId('artscost-energy-' + i).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.add(i); did = 'artscost-energy-' + i; break; }
+          }
+        }
+      }
+      if (!did) did = await H.clickBtn('使用', { exact: true });
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    const grants = st?.guest?.keywordGrants ?? [];
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし') + ' | used=' + used + ' 相手grants=' + JSON.stringify(grants)
+      + ' stack=' + (st?.stackLen ?? '-') + ' pEff=' + (st?.pendingEffect ?? '-'));
+    // 🔑**シグニ側に付いたことを観測してから**判定へ進む（§4.4 罠5＝開始前と完了後が同じ絵にならないように）。
+    if (used && grants.some(g => g.startsWith('WD01-013#5:')) && !st?.pendingEffect && !(st?.stackLen > 0)) {
+      await page.waitForTimeout(1000);
+      return { ok: true, state: await H.queryState() };
+    }
+  }
+  return { ok: false, state: await H.queryState() };
+};
+
+scenarios.v155SameLevelLrigAlsoBanned = {
+  title: 'V-155①：WX24-P2-002 で「選んだシグニと同じレベル」の相手ルリグにも【アタックできない】が付く【旧実装はシグニだけ】',
+  spec: v155Spec(V155_LRIG_L1),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.guest?.lrigTop !== V155_LRIG_L1
+        || !(Array.isArray(st0?.guest?.fieldSigni?.[0]) && st0.guest.fieldSigni[0].includes(V155_OPP_SIGNI))
+        || !(st0?.host?.lrigDeckCards ?? []).includes(V155_ARTS)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（oppLrig=' + st0?.guest?.lrigTop
+        + ' oppField=' + JSON.stringify(st0?.guest?.fieldSigni) + ' lrigDeck=' + JSON.stringify(st0?.host?.lrigDeckCards) + '）' };
+    }
+    const inAttack = await v155ToAttack(page, H);
+    if (!inAttack) return { pass: false, detail: '前提崩れ＝アタックフェイズへ進めなかった（このアーツはアタックフェイズ限定）' };
+    const r = await v155UseArts(page, H, 'v155Same');
+    const grants = r.state?.guest?.keywordGrants ?? [];
+    const dump = '相手grants=' + JSON.stringify(grants) + ' oppLrig=' + r.state?.guest?.lrigTop
+      + ' hostEnergy=' + r.state?.host?.energy + ' lrigTrash=' + JSON.stringify(r.state?.host?.lrigTrashCards);
+    H.log('  判定: ' + dump);
+    if (!r.ok) return { pass: false, detail: 'アーツの解決に到達しなかった。' + dump };
+    const onSigni = grants.some(g => /^WD01-013#5:.*アタックできない/.test(g));
+    const onLrig = grants.some(g => /^WD01-004#1:.*アタックできない/.test(g));
+    if (!onSigni) return { pass: false, detail: '前提崩れ＝シグニ側にすら付いていない。' + dump };
+    if (!onLrig) return { pass: false, detail: '🔴同じレベル（Lv1）の相手ルリグに付いていない＝2つ目の対象が表せていない（過小実行）。' + dump };
+    return { pass: true, detail: '選んだシグニ（Lv1）と同じレベルの相手ルリグ（Lv1）の**両方**に【アタックできない】が付いた。' + dump };
+  },
+};
+
+scenarios.v155DifferentLevelLrigSafe = {
+  // 🔴**対照**＝盤面も操作も同じで、**相手ルリグのレベルだけ**を Lv1→Lv4 に変える。
+  //   ここで付いてしまうなら「同じレベルの」を無視した無条件付与（過剰実行）。
+  title: 'V-155②：相手ルリグのレベルが違えば付かない（「同じレベルの」を無視していない）',
+  spec: v155Spec(V155_LRIG_L4),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.guest?.lrigTop !== V155_LRIG_L4
+        || !(Array.isArray(st0?.guest?.fieldSigni?.[0]) && st0.guest.fieldSigni[0].includes(V155_OPP_SIGNI))) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（oppLrig=' + st0?.guest?.lrigTop
+        + ' oppField=' + JSON.stringify(st0?.guest?.fieldSigni) + '）' };
+    }
+    const inAttack = await v155ToAttack(page, H);
+    if (!inAttack) return { pass: false, detail: '前提崩れ＝アタックフェイズへ進めなかった' };
+    const r = await v155UseArts(page, H, 'v155Diff');
+    const grants = r.state?.guest?.keywordGrants ?? [];
+    const dump = '相手grants=' + JSON.stringify(grants) + ' oppLrig=' + r.state?.guest?.lrigTop;
+    H.log('  判定: ' + dump);
+    if (!r.ok) return { pass: false, detail: 'アーツの解決に到達しなかった。' + dump };
+    const onSigni = grants.some(g => /^WD01-013#5:.*アタックできない/.test(g));
+    const onLrig = grants.some(g => /^WX03-006#1:.*アタックできない/.test(g));
+    if (!onSigni) return { pass: false, detail: '前提崩れ＝シグニ側にすら付いていない（対照として成立しない）。' + dump };
+    if (onLrig) return { pass: false, detail: '🔴レベルが違う（Lv4）相手ルリグにも付いた＝「同じレベルの」を無視した無条件付与（過剰実行）。' + dump };
+    return { pass: true, detail: 'シグニ（Lv1）にだけ付き、レベルの違う相手ルリグ（Lv4）には付かない。' + dump };
+  },
+};
+
+order.push('v155SameLevelLrigAlsoBanned');
+order.push('v155DifferentLevelLrigSafe');
+
+
+order.push('v152DeclareRaisesCost');
+order.push('v152DeclareLimitedByEnergy');
+
 
 order.push('o248GrowDiscardNoAngel');
 order.push('o248GrowRevealNone');

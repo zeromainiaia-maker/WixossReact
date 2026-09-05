@@ -114,6 +114,14 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const ftCost = eff.cost?.fieldTrash
                 ?? (eff.cost?.fieldToLrigTrash ? { ...eff.cost.fieldToLrigTrash, excludeSelf: false } : undefined)
                 ?? eff.cost?.fieldToDeckTop;
+              // 🆕**行き先を文言に出す**（2026-09-05・§5.3 `O-256` の実機 `V-154` で発見）＝
+              //   🔴見出しが「場から**トラッシュ**するシグニを選択」に固定されており、
+              //   `fieldToLrigTrash`（ルリグトラッシュ）と `fieldToDeckTop`（デッキの一番上）でも
+              //   **嘘の行き先**を表示していた。⚠支払い先はプレイヤーの判断を変える情報なので表示を合わせる。
+              const ftDestJa = eff.cost?.fieldTrash ? 'トラッシュに置く'
+                : eff.cost?.fieldToLrigTrash ? 'ルリグトラッシュに置く'
+                : eff.cost?.fieldToDeckTop ? 'デッキの一番上に置く'
+                : 'トラッシュに置く';
               const ftGroups = eff.cost?.fieldTrashGroups;
               const ftNeeded = ftCost?.count ?? ftGroups?.reduce((n, g) => n + g.count, 0) ?? 0;
               const selfZoneFT = pendingSigniOnPlayCost.placedZone
@@ -246,7 +254,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                             enaTrashNeeded > 0 ? `エナの${filterLabel(enaTrashFilter) || 'カード'}${enaTrashNeeded}枚トラッシュ` : null,
                             ftNeeded > 0 ? ftGroups?.length
                               ? `場の${ftGroups.map(g => `${filterLabel(g.filter) || 'シグニ'}${g.count}体`).join('と')}をトラッシュ`
-                              : `場の${filterLabel(ftCost?.filter) || 'シグニ'}${ftNeeded}体をトラッシュ` : null,
+                              : `場の${filterLabel(ftCost?.filter) || 'シグニ'}${ftNeeded}体を${ftDestJa}` : null,
                             lrigDownCost ? `アップ状態の${lrigDownCost.level !== undefined ? `レベル${lrigDownCost.level}の` : ''}${lrigDownCost.centerOnly ? 'センター' : ''}ルリグ${lrigDownCost.count}体をダウン` : null,
                             (eff.cost?.lifeTrash ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeTrash}枚トラッシュ` : null,
                             (eff.cost?.life_crash ?? 0) > 0 ? `ライフクロス${eff.cost!.life_crash}枚クラッシュ` : null,
@@ -465,7 +473,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                   {ftNeeded > 0 && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
-                        場からトラッシュするシグニを選択: {selectedSigniOnPlayFieldTrash.size} / {ftNeeded}体
+                        場から{ftDestJa}シグニを選択: {selectedSigniOnPlayFieldTrash.size} / {ftNeeded}体
                         {ftGroups?.length ? `（${ftGroups.map(g => `${filterLabel(g.filter) || 'シグニ'}${g.count}体`).join('＋')}）` : ftCost?.filter ? `（${filterLabel(ftCost.filter)}のみ）` : ''}{ftCost?.excludeSelf ? '（このシグニ以外）' : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
