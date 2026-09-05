@@ -11,6 +11,7 @@ import type {
   EffectDuration,
   ActiveCondition,
   TargetFilter,
+  EnergyCost,
   SelectionConstraint,
   CardTypeFilter,
   EffectTarget,
@@ -1425,6 +1426,83 @@ function wirePieceCostReduction(action: EffectAction, card: CardData): EffectAct
     return node;
   };
   return walk(action);
+}
+
+/**
+ * 🆕§5.3 `O-259` 第3バッチ（2026-09-05・4効果）＝**「あなたの〈手札／トラッシュ〉から〈修飾〉スペル1枚を
+ * 使用する」＋「それの使用コストは《青×2》減る」**を、選択→軽減→支払い→実行が通る1本の受け皿へ載せる。
+ *
+ * 🔴**旧＝4効果とも壊れていた**（`WX11-043-E2` / `WX12-003-E3` / `WX14-002-E2` / `WX20-059-E2`）＝
+ *   ①`STUB{PLAY_SPELL_FROM_HAND}` / `STUB{PLAY_FREE}` は**候補を1枚も選ばせない**
+ *     （`lastProcessedCards[0] ?? sourceCardNum` にフォールバックするので、直前に何も処理していない
+ *      これらの効果では**効果元のルリグ／シグニ自身**を「使おうとして」失敗する＝実質 no-op）
+ *   ②軽減句は `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`（痕跡）＝**一度も安くならない**
+ *   ③原文の修飾（色・コストの合計の範囲）が**どこにも載っていない**。
+ * 🔑**受け皿は既に在った**＝`USE_SPELL_FROM_TRASH_PAYING_COST` が「選ぶ→印刷コストを色配列へ展開→
+ *   支払う/やめる→本体へ委譲」を持っている。足したのは**領域 `'hand'`／軽減／`ignoreCost`** の3つだけ。
+ * ⚠**逆翻訳の固定文言も同時に撤去する**＝`PLAY_SPELL_FROM_HAND` のラベルは `WX12-003` の原文が
+ *   ベタ書きされており、`WX11-043`（青のスペル・軽減あり）に**別カードの説明が出ていた**。
+ * ⚠**条件が読めないときは何もしない**（fail-closed）＝原文に無い割引や候補を作らない。
+ */
+function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction {
+  const text = card.EffectText ?? '';
+  const m = text.match(
+    /あなたの(手札|トラッシュ)から([^。：【】]*?)スペル１枚を(?:対象とし、それを手札にあるかのように)?、?(?:その)?(コストを支払わずに|コストを支払って)?使用/);
+  if (!m) return action;
+  const zone = m[1] === '手札' ? 'hand' : 'trash';
+  // 🔴**修飾は「。：【】」を跨がせない**＝`.*?` のままだと**別の能力の文を丸ごと飲み込む**
+  //   （`WX20-059` は E1 の「あなたのトラッシュから赤のスペル1枚を…」から E2 の「使用」まで
+  //    1つの修飾として吸い上げていた）。⚠このときは `rest` が残るので fail-closed で見送られたが、
+  //   **見送られた＝直っていない**なので、綴りを足す前に必ず実データで当てて確かめる。
+  const modifier = m[2] ?? '';
+  const ignoreCost = m[3] === 'コストを支払わずに';
+  // ── 修飾から候補フィルタを組む（読めた分だけ載せる＝読めない修飾があれば見送る） ──
+  const filter: TargetFilter = { cardType: 'スペル' };
+  let rest = modifier;
+  const rangeM = rest.match(/コストの合計が([０-９\d]+)[～〜]([０-９\d]+)の/);
+  const lteM = rest.match(/コストの合計が([０-９\d]+)以下の/);
+  const gteM = rest.match(/コストの合計が([０-９\d]+)以上の/);
+  if (rangeM) { filter.costMin = parseNum(rangeM[1]); filter.costMax = parseNum(rangeM[2]); rest = rest.replace(rangeM[0], ''); }
+  else if (lteM) { filter.costMax = parseNum(lteM[1]); rest = rest.replace(lteM[0], ''); }
+  else if (gteM) { filter.costMin = parseNum(gteM[1]); rest = rest.replace(gteM[0], ''); }
+  const colorM = rest.match(/^([白赤青緑黒])(?:か([白赤青緑黒]))?の$/);
+  if (colorM) { filter.color = colorM[2] ? [colorM[1], colorM[2]] : colorM[1]; rest = ''; }
+  // 🔴**読めない修飾が残ったら見送る**＝候補を広げるほうへ倒すと原文にないカードまで使えてしまう。
+  if (rest.trim() !== '') return action;
+  // ── 「それの使用コストは《青×1》《黒×1》減る」 ──
+  const redM = text.match(/それの使用コストは((?:《[白赤青緑黒無]×[０-９\d]+》)+)減る/);
+  const reduction: EnergyCost[] = [];
+  if (redM) {
+    for (const rm of redM[1].matchAll(/《([白赤青緑黒無])×([０-９\d]+)》/g)) {
+      reduction.push({ color: rm[1] as EnergyCost['color'], count: parseNum(rm[2]) });
+    }
+  }
+  const use: EffectAction = {
+    type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
+    value2: zone,
+    selectTarget: { type: 'CARD', owner: 'self', count: 1, filter } as unknown as EffectTarget,
+    ...(reduction.length ? { useSpellCostReduction: reduction } : {}),
+    ...(ignoreCost ? { useSpellIgnoreCost: true } : {}),
+  } as EffectAction;
+  // 使用側の痕跡 STUB を差し替え、軽減側の痕跡 STUB は（もう `use` が持つので）取り除く。
+  const USE_MARKERS = new Set(['PLAY_SPELL_FROM_HAND', 'PLAY_SPELL_FROM_HAND_FREE', 'PLAY_FREE']);
+  let placed = false;
+  const walk = (node: EffectAction): EffectAction | null => {
+    if (!node || typeof node !== 'object') return node;
+    const n = node as unknown as { type?: string; id?: string; steps?: EffectAction[] };
+    if (n.type === 'STUB' && n.id && USE_MARKERS.has(n.id) && !placed) { placed = true; return use; }
+    if (n.type === 'STUB' && n.id === 'ARTS_COST_REDUCTION_BY_EFFECT') return null;   // 取り除く
+    if (n.type === 'SEQUENCE') {
+      const steps = (n.steps ?? []).map(walk).filter((x): x is EffectAction => x != null);
+      if (steps.length === 1) return steps[0];
+      return { ...node, steps } as EffectAction;
+    }
+    return node;
+  };
+  const out = walk(action);
+  // 🔴**使用側の受け皿を置けなかったら丸ごと見送る**＝軽減句だけ消して「何も起きない」木にしない。
+  if (!placed || !out) return action;
+  return out;
 }
 
 const COST_SCALING_MARKERS = new Set(['ARTS_COST_REDUCTION_BY_EFFECT', 'SPELL_COST_REDUCTION_BY_TRASH_COUNT']);
@@ -26579,6 +26657,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (let i = 0; i < effects.length; i++) {
     const wired = wirePieceCostReduction(effects[i].action, card);
     if (wired !== effects[i].action) effects[i] = { ...effects[i], action: wired };
+  }
+  // 🆕§5.3 `O-259` 第3バッチ＝「あなたの〈手札／トラッシュ〉からスペル1枚を使用する（＋軽減）」。
+  //   🔴**ここでやる理由も同じ**＝修飾（色・コストの合計）と軽減句が**別の文**にあるので、
+  //   文単位の parser では両方を同時に読めない（カード全文が読める後段はここだけ）。
+  for (let i = 0; i < effects.length; i++) {
+    const wiredUse = wireEffectSpellUse(effects[i].action, card);
+    if (wiredUse !== effects[i].action) effects[i] = { ...effects[i], action: wiredUse };
   }
   // 🆕§5.3 `O-96` 第6バッチ＝**最後に**選択範囲と帰結の対象を合わせる（後段のパスが帰結側だけを
   //   差し替える形が実在するので、`applyO96OptionalCostTargetFirst` の直後では間に合わない）。

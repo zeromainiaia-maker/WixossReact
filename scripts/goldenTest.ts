@@ -26824,11 +26824,27 @@ test('USE_SPELL_FROM_TRASH_PAYING_COST: 候補はfilter一致のみ・支払っ�
     ...base,
     ownerState: { ...base.ownerState, trash: [plainSpell, disonaSpell], energy: [whiteEna, whiteEna] },
   } as ExecCtx;
-  const r0 = run({ type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', selectTarget: st1.selectTarget } as EffectAction, ctxUS);
-  const logsUS = r0.logs.join(' | ');
-  ok(logsUS.includes('トラッシュから使用するスペルを選ぶ'), '選択を要求');
-  ok(logsUS.includes('のコストを支払いますか？'), '支払い確認を挟む（＝タダで使わない）');
-  eq(r0.ownerState.energy.length, 1, '《白》×1 を支払ってエナが1枚減る');
+  // 🔴🔑**支払い額は `resumeOptionalCost` を明示的に呼んで測る**（2026-09-05・`V-159` の実機で発覚）＝
+  //   `run()` の autopilot は `resumeChoose`（＝エナを引かない側）を通るので、**実機と同じ請求経路を
+  //   一度も通らない**。旧版はそれに気づかず `INTERNAL_CMCLG_DEDUCT`（action 側の2つ目の請求）だけを
+  //   測っており、**実機では `resumeOptionalCost` と合わせて二重に取られていた**（2026-08 の実装以来）。
+  // ⚠エナは**別々のカード番号**で置く＝同名を並べると `energy.filter(...)` が全部消して枚数を測れない。
+  const whiteEna2 = [...cardMap.values()]
+    .filter(cd => cd.Type === 'シグニ' && (cd.Color ?? '').includes('白') && cd.CardNum !== whiteEna)[0].CardNum;
+  const ctxUS2 = { ...ctxUS, ownerState: { ...ctxUS.ownerState, energy: [whiteEna, whiteEna2] } } as ExecCtx;
+  const rSelUS = executeAction({ type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', selectTarget: st1.selectTarget } as EffectAction, ctxUS2);
+  ok(!rSelUS.done && rSelUS.pending.type === 'SELECT_TARGET', '選択を要求');
+  const selUS = rSelUS.pending as Extract<typeof rSelUS.pending, { type: 'SELECT_TARGET' }>;
+  eq(selUS.candidates.join(','), disonaSpell, '候補は filter 一致のみ');
+  const rPayUS = resumeSelectTarget([disonaSpell], selUS,
+    { ...ctxUS2, ownerState: rSelUS.ownerState, otherState: rSelUS.otherState, logs: rSelUS.logs } as ExecCtx);
+  ok(!rPayUS.done && rPayUS.pending.type === 'CHOOSE', '支払い確認を挟む（＝タダで使わない）');
+  const pendUS = rPayUS.pending as Extract<typeof rPayUS.pending, { type: 'CHOOSE' }>;
+  const payUS2 = pendUS.options.find(o => (o.costColors?.length ?? 0) > 0)!;
+  eq((payUS2.costColors ?? []).join(''), '白', '請求は印刷どおり《白》1つ');
+  const r0 = resumeOptionalCost(payUS2.id, [whiteEna], pendUS,
+    { ...ctxUS2, ownerState: rPayUS.ownerState, otherState: rPayUS.otherState, logs: rPayUS.logs } as ExecCtx);
+  eq(r0.ownerState.energy.length, 1, '🔴《白》×1 を支払ってエナが**1枚だけ**減る（二重請求しない）');
   eq(r0.ownerState.trash.filter(n => n === whiteEna).length, 1, '支払ったエナはトラッシュへ（消滅しない）');
   eq(r0.ownerState.trash.filter(n => n === disonaSpell).length, 1, '使用したスペルはトラッシュに1枚だけ（二重積みなし）');
   cursor = savedCursor;
@@ -68128,7 +68144,8 @@ test('§5.3 O-259: コストのマーカーだけ有って payload が無い効�
   // 🔴**この数はコスト句が本当に未実装な効果の数**＝減ったら実数へ下げる／増えたら新しい穴。
   // 🔻16→15＝2026-09-05（`O-259` 第1バッチ）で `WXK01-060-E1`（次に緑のアーツ）を構造化した分。
   // 🔻15→12＝同日（第2バッチ）で `WXDi-P16-009/010/011-E3`（そのピースのコスト軽減）を構造化した分。
-  eq(naked.length, 12, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
+  // 🔻12→10＝同日（第3バッチ）で `WX11-043-E2`／`WX14-002-E2`（効果で使わせるスペルの軽減）を構造化した分。
+  eq(naked.length, 10, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
   // 逆翻訳が「未構造化」であることを明示する（この印が無いと計器が実装済みと嘘をつく）
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   ok(dec.includes("const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';"),
@@ -68284,6 +68301,106 @@ test('§5.1 V-158: ピース判定が CSV の派生型（ピース/クラフト�
        `🔴${rel} にピースの完全一致比較が残っていない`);
     ok(src.includes('isPieceCardType('), `${rel} が共通判定を通す`);
   }
+});
+
+// §5.3 `O-259` 第3（2026-09-05）＝**「あなたの〈手札／トラッシュ〉から〈修飾〉スペル1枚を使用する」＋
+//   「それの使用コストは《青×2》減る」**。旧は4効果とも壊れていた＝①候補を1枚も選ばせない
+//   （`lastProcessedCards[0] ?? sourceCardNum` にフォールバック＝効果元自身を使おうとして失敗）
+//   ②軽減は痕跡 STUB で一度も効かない ③原文の修飾（色・コストの合計）がどこにも載っていない。
+test('§5.3 O-259 第3: 効果で使わせるスペルが「選ぶ→軽減→支払う」を通る（4効果）', () => {
+  const savedCursor = cursor;
+  const findUse = (effectId: string) => {
+    const cardNum = effectId.replace(/-E$/, '').replace(/-E[0-9]+$/, '');
+    const eff = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId)!;
+    let found: Record<string, unknown> | null = null;
+    const walk = (n: unknown): void => {
+      if (found || !n || typeof n !== 'object') return;
+      const o = n as { type?: string; id?: string; steps?: unknown[] };
+      if (o.type === 'STUB' && o.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') { found = o as Record<string, unknown>; return; }
+      for (const st of o.steps ?? []) walk(st);
+    };
+    walk(eff.action);
+    ok(!!found, `${effectId}: 受け皿 USE_SPELL_FROM_TRASH_PAYING_COST へ載っている（痕跡 STUB のままではない）`);
+    return found! as { value2?: string; selectTarget?: { filter?: Record<string, unknown> };
+                       useSpellCostReduction?: { color: string; count: number }[]; useSpellIgnoreCost?: boolean };
+  };
+  // ① 領域・修飾・軽減が原文どおり刻まれる
+  const a = findUse('WX11-043-E2');
+  eq(a.value2, 'hand', 'WX11-043-E2: 手札から');
+  eq(a.selectTarget?.filter?.color, '青', 'WX11-043-E2: 青のスペルだけ');
+  eq(JSON.stringify(a.useSpellCostReduction), '[{"color":"青","count":2}]', 'WX11-043-E2: 《青×2》減る');
+  const b = findUse('WX12-003-E3');
+  eq(b.value2, 'hand', 'WX12-003-E3: 手札から');
+  eq(JSON.stringify(b.selectTarget?.filter),
+     '{"cardType":"スペル","costMin":2,"costMax":4,"color":["青","黒"]}',
+     'WX12-003-E3: コストの合計2～4かつ青か黒（上下限の両方が載る）');
+  eq(b.useSpellCostReduction, undefined, '🔴WX12-003-E3 は軽減の文が無い＝勝手に安くしない');
+  const d = findUse('WX14-002-E2');
+  eq(d.value2, 'trash', 'WX14-002-E2: トラッシュから');
+  eq(JSON.stringify(d.useSpellCostReduction), '[{"color":"青","count":1},{"color":"黒","count":1}]',
+     'WX14-002-E2: 《青×1》《黒×1》減る');
+  const e = findUse('WX20-059-E2');
+  eq(e.useSpellIgnoreCost, true, 'WX20-059-E2: コストを支払わずに使用');
+  eq(e.selectTarget?.filter?.costMax, 1, 'WX20-059-E2: コストの合計1以下');
+  // 🔴後続の文を巻き添えにしていないこと（`WX14-002-E2` の第3文）
+  ok(JSON.stringify((effectsMap.get('WX14-002') ?? []).find(x => x.effectId === 'WX14-002-E2')!.action)
+       .includes('EXILE_FROM_CHECK_ZONE'),
+     '🔴WX14-002-E2 の第3文（チェックゾーン置換）を落としていない');
+  // ② engine＝手札から候補を選び、**軽減した分だけ安く**払う
+  const blueSpell = 'WXK01-057';                        // ＣＩＲＣＬＥ・《青》×３
+  eq(cardMap.get(blueSpell)?.Cost, '《青》×３', 'テスト前提＝印刷コストは《青》×3');
+  const redSpell = findCard(c => c.Type === 'スペル' && (c.Color ?? '') === '赤');
+  // 🔴**エナは「別々のカード番号」で置く**＝同じ番号を3枚並べると `resumeOptionalCost` の
+  //   `energy.filter(n => !energyNums.includes(n))` が**同名を全部消す**ので、支払い枚数を測れない
+  //   （実盤面は instance id なので起きない＝**テスト固有の落とし穴**）。
+  const blueEnas = [...cardMap.values()]
+    .filter(c => c.Type === 'シグニ' && (c.Color ?? '').includes('青')).slice(0, 3).map(c => c.CardNum);
+  eq(new Set(blueEnas).size, 3, 'テスト前提＝青エナ3枚は別々のカード');
+  const base = mkCtx({}, {});
+  const ctxUS = {
+    ...base,
+    ownerState: { ...base.ownerState, hand: [redSpell, blueSpell], energy: blueEnas },
+  } as ExecCtx;
+  const stub = { type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', value2: 'hand',
+    selectTarget: { type: 'CARD', owner: 'self', count: 1, filter: { cardType: 'スペル', color: '青' } },
+    useSpellCostReduction: [{ color: '青', count: 2 }] } as unknown as EffectAction;
+  // 🔴🔑**支払い額は `resumeOptionalCost` を明示的に呼んで測る**（2026-09-05・`V-159`）＝
+  //   `run()` の autopilot は `resumeChoose`（＝エナを引かない側）を通るので、**実機と同じ請求は見えない**。
+  //   この読み方をしていなかったせいで `WXDi-P13-008-E1` の**二重請求が2026-08 からずっと緑**だった。
+  const askedColors = (act: EffectAction, c: ExecCtx) => {
+    // ①候補選択（SELECT_TARGET）→②支払い確認（CHOOSE）の2段。①で候補が正しいことも見る。
+    const rSel = executeAction(act, c);
+    ok(!rSel.done && rSel.pending.type === 'SELECT_TARGET', '🔴まず候補を選ばせる（旧実装は候補を1枚も出さなかった）');
+    const sel = rSel.pending as Extract<typeof rSel.pending, { type: 'SELECT_TARGET' }>;
+    eq(sel.candidates.join(','), blueSpell, '🔴候補は色フィルタに合うスペルだけ');
+    const r0 = resumeSelectTarget([blueSpell], sel, { ...c, ownerState: rSel.ownerState, otherState: rSel.otherState, logs: rSel.logs } as ExecCtx);
+    ok(!r0.done && r0.pending.type === 'CHOOSE', '支払い確認の CHOOSE で止まる（＝タダで使わない）');
+    const pending = r0.pending as Extract<typeof r0.pending, { type: 'CHOOSE' }>;
+    const pay = pending.options.find(o => (o.costColors?.length ?? 0) > 0)!;
+    return { r0, pending, pay, colors: pay?.costColors ?? [] };
+  };
+  const askRed = askedColors(stub, ctxUS);
+  ok(askRed.r0.logs.join(' | ').includes('手札から使用するスペルを選ぶ'),
+     '🔴手札を候補ゾーンにする（id が FROM_TRASH でも領域は value2 が正）');
+  eq(askRed.colors.join(''), '青', '🔴《青》×3 − 軽減《青×2》＝請求は《青》1つだけ');
+  const paidRed = resumeOptionalCost(askRed.pay.id, [askRed.r0.ownerState.energy[0]], askRed.pending,
+    { ...ctxUS, ownerState: askRed.r0.ownerState, otherState: askRed.r0.otherState, logs: askRed.r0.logs } as ExecCtx);
+  eq(paidRed.ownerState.energy.length, 2, '🔴実際に減るエナも1枚だけ（＝二重請求していない）');
+  eq(paidRed.ownerState.hand.filter(n => n === blueSpell).length, 0, '使用したスペルは手札を離れる');
+  eq(paidRed.ownerState.hand.filter(n => n === redSpell).length, 1, '🔴色が違うスペルは候補外＝手札に残る');
+  // ③ 反転＝軽減が無ければ満額（《青》3つ）請求される
+  const askNo = askedColors({ ...(stub as unknown as Record<string, unknown>),
+    useSpellCostReduction: undefined } as unknown as EffectAction, ctxUS);
+  eq(askNo.colors.join(''), '青青青', '🔴軽減が無ければ満額（＝上の1つは軽減の効果）');
+  // ④ 軽減は**一致する色しか消さない**
+  const askWrong = askedColors({ ...(stub as unknown as Record<string, unknown>),
+    useSpellCostReduction: [{ color: '黒', count: 2 }] } as unknown as EffectAction, ctxUS);
+  eq(askWrong.colors.join(''), '青青青', '🔴色違いの軽減は効かない');
+  // ⑤ 逆翻訳＝ベタ書きの他人の説明を消した（`WX11-043` に `WX12-003` の原文が出ていた）
+  const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8').replace(/\r\n/g, '\n');
+  ok(!dec.includes('コストの合計が２～４の青か黒のスペル１枚を、そのコストを支払って使用する'),
+     '🔴PLAY_SPELL_FROM_HAND のベタ書きラベル（WX12-003 の原文）を撤去した');
+  cursor = savedCursor;
 });
 
 if (listMode) {

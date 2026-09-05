@@ -3473,12 +3473,21 @@ export function execStubPart2(
     if (stub.value !== 'picked') {
       const filtUS = stub.selectTarget?.filter;
       // 🆕`value2:'opp_trash'`＝**相手のトラッシュ**を候補にする（§5.3 `O-185`）。
-      const zoneUS = stub.value2 === 'opp_trash' ? ctx.otherState.trash : ctx.ownerState.trash;
+      // 🆕`value2:'hand'`＝**あなたの手札**（§5.3 `O-259` 第3）。⚠**id は領域を表していない**
+      //   （`'opp_trash'` を足した時点からそう）＝領域の正は常に `value2`。
+      const fromHandUS = stub.value2 === 'hand';
+      const zoneUS = stub.value2 === 'opp_trash' ? ctx.otherState.trash
+        : fromHandUS ? ctx.ownerState.hand
+          : ctx.ownerState.trash;
       const candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
-      if (candsUS.length === 0) return done(addLog(ctx, '[トラッシュから使用: 対象のスペルなし]'));
-      return needsInteraction(addLog(ctx, 'トラッシュから使用するスペルを選ぶ'), {
+      // ⚠**「コストの合計が２～４の」は `filter.costMin/costMax` が既に受け皿**（`matchesFilter`）＝
+      //   ここで数え直さない。印刷コストだけを見る点も原文の注記（「カードの左上に書かれているコストのみを
+      //   参照する」）と一致する＝軽減は**支払い時**に効くのであって候補の適格性は変えない。
+      const zoneJaUS = fromHandUS ? '手札' : stub.value2 === 'opp_trash' ? '相手のトラッシュ' : 'トラッシュ';
+      if (candsUS.length === 0) return done(addLog(ctx, `[${zoneJaUS}から使用: 対象のスペルなし]`));
+      return needsInteraction(addLog(ctx, `${zoneJaUS}から使用するスペルを選ぶ`), {
         type: 'SELECT_TARGET', candidates: candsUS, count: 1, optional: true,
-        targetScope: stub.value2 === 'opp_trash' ? 'opp_trash' : 'self_trash',
+        targetScope: stub.value2 === 'opp_trash' ? 'opp_trash' : fromHandUS ? 'self_hand' : 'self_trash',
         thenAction: ({ ...stub, value: 'picked' } as StubAction) as EffectAction,
       });
     }
@@ -3496,15 +3505,34 @@ export function execStubPart2(
     // 🆕**§5.3 `O-185`＝相手のトラッシュから使う場合は本体を `CAST_FROM_OPP_TRASH` にする。**
     //   ⚠あちらは「コストなし」型だが、**支払いはこの手前で済ませている**ので二重請求にはならない。
     //   ⚠**相手のトラッシュから取り除くのは `CAST_FROM_OPP_TRASH` の役目**（自分のトラッシュへ積み直さない）。
+    // 🆕**「それの使用コストは《青×2》減る」**（§5.3 `O-259` 第3）＝展開した色配列から**同じ色を**引く。
+    //   🔴**一致する色しか消えない**＝《青×2》の軽減で《無》は減らない（原文どおり／`WX14-002-E2` は
+    //     《青×1》《黒×1》なので青1つと黒1つだけが消える）。⚠足りなければ在る分だけ消す（負にしない）。
+    for (const redUS of (stub.useSpellCostReduction ?? [])) {
+      for (let i = 0; i < redUS.count; i++) {
+        const idxUS = colorsUS.indexOf(redUS.color);
+        if (idxUS < 0) break;
+        colorsUS.splice(idxUS, 1);
+      }
+    }
     const fromOppUS = stub.value2 === 'opp_trash';
     const bodyUS: StubAction = fromOppUS
       ? { type: 'STUB', id: 'CAST_FROM_OPP_TRASH', carriedCardNum: cnUS }
-      : { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS };
-    if (colorsUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
-    const payUS: EffectAction = { type: 'SEQUENCE', steps: [
-      { type: 'STUB', id: 'INTERNAL_CMCLG_DEDUCT', value: JSON.stringify(colorsUS) } as StubAction,
-      bodyUS,
-    ] } as SequenceAction;
+      : stub.value2 === 'hand'
+        // ⚠手札発は `PLAY_SPELL_FROM_HAND`（手札→トラッシュへ動かして主効果を実行する分岐）へ委譲する。
+        //   支払いはこの手前で済ませているので「コストなしで使用」と記録されても二重請求にはならない。
+        ? { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND', carriedCardNum: cnUS }
+        : { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS };
+    // 🆕`useSpellIgnoreCost`＝「コストを支払わずに使用してもよい」＝選択だけ同じ経路を通し支払いを飛ばす。
+    if (stub.useSpellIgnoreCost || colorsUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
+    // 🔴🔑**支払いは `resumeOptionalCost` の1箇所だけ**（2026-09-05・`V-159` の実機で発覚）＝
+    //   ここに `INTERNAL_CMCLG_DEDUCT` を積むと**二重請求**になる。`costColors` を持つ CHOOSE 選択肢は
+    //   汎用の任意コスト経路（`resumeOptionalCost`）が**プレイヤーが選んだエナを先に引いてから**
+    //   `option.action` を実行するので、action 側でもう一度引くと**必要1枚の表示で2枚**取られる。
+    //   ⚠**golden の autopilot は `resumeChoose`（＝引かない側）を通る**ので、この形は golden では
+    //     一生見えない＝`WXDi-P13-008-E1` は2026-08 の実装以来ずっと二重請求だった。
+    //   ⇒ 金額の検証は golden でも **`resumeOptionalCost` を明示的に呼ぶ**こと。
+    const payUS: EffectAction = bodyUS as EffectAction;
     // ⚠**枚数ではなく色で**可否を見る（`canPayOptionalCost`）＝枚数だけ見ると、色が足りないまま
     //   「支払う」を選べてしまい、`INTERNAL_CMCLG_DEDUCT` は該当色が無いとき黙って何も引かない
     //   ＝**タダで使用**になる。

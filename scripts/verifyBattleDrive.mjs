@@ -50745,6 +50745,157 @@ order.push('v157NextGreenArtsOnlyGreen');
 // ⚠**ライフ条件の2枚（`WXDi-P16-009/010`）は使えない**＝`life_cloth` は注入すると
 //   注入自体が通らなくなる（§4.4 罠＝`O-248` の実測）。**相手の手札枚数**で条件を作る。
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-159`（§5.3 `O-259` 第3バッチ）＝**効果で使わせるスペルの「選ぶ→軽減→支払う」**
+//
+// `WX14-002`（コード・ピルルク ＡＰＥＸ・Lv5）
+// 「【起】《メイン》《アタック》エクシード２：あなたのトラッシュから青か黒のスペル１枚を対象とし、
+//  それを手札にあるかのように使用する。**それの使用コストは《青×1》《黒×1》減る。**」
+//
+// 🔴**旧挙動＝`STUB{PLAY_FREE}` が候補を1枚も選ばせず**（`lastProcessedCards` が空なので
+//   効果元のルリグ自身を使おうとして失敗）、軽減も痕跡 STUB のままだった＝**実質 no-op**。
+// 🔑**実機でしか出ない理由**＝軽減の結果は**支払いボタンのラベル**（「使用する（《無》）」）と
+//   **エナの減り方**にしか現れない。JSON も golden も「1枚安い」までしか言えない。
+// ══════════════════════════════════════════════════════════════════════════════
+const V159_LRIG = 'WX14-002#1';        // コード・ピルルク ＡＰＥＸ（【起】エクシード2）
+const V159_UNDER = ['WD01-001#1', 'WD01-002#1'];   // エクシード2の支払い元＝ルリグの下2枚
+const V159_SPELL = 'WX14-079#1';       // アイス・フィンガー（黒・《黒》×1《青》×1《無》×1＝印刷3枚）
+const V159_VANILLA = 'WD01-013';
+
+const v159Spec = () => ({
+  hostSet: {
+    // ⚠**下→センターの順**（`exceedCost` シナリオと同じ規約）＝配列の末尾がセンタールリグ。
+    'field.lrig': [...V159_UNDER, V159_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [],
+    // 🔑**印刷コスト（3枚）を払える枚数**を置く＝軽減が効かなかった場合にも支払いへ進めるようにして
+    //   「払えないから安く見える」偽陽性を潰す。
+    energy: [V159_VANILLA + '#1', V159_VANILLA + '#2', V159_VANILLA + '#3', V159_VANILLA + '#4'],
+    trash: [V159_SPELL],
+    hand: [],
+    actions_done: [], game_actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'],
+    // 🔑スペルの効果（相手シグニ1体をバニッシュ）が解決できる盤面にしておく。
+    // ⚠**シグニゾーンは「スタックの配列」**＝文字列を直に置くと `stack?.forEach` が落ちて盤面ごと真っ白になる。
+    'field.signi': [['WD01-013#9'], null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [], actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+scenarios.v159TrashSpellCostReduced = {
+  title: 'V-159：WX14-002 の【起】＝トラッシュのスペルを「青1・黒1 減らして」使う（印刷3枚→支払い《無》1つ）【旧実装は候補すら出ない】',
+  spec: v159Spec(),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (st0?.host?.lrigTop !== V159_LRIG || (st0?.host?.trashCards ?? []).indexOf(V159_SPELL) < 0) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+        + ' trash=' + JSON.stringify(st0?.host?.trashCards) + '）' };
+    }
+    const ena0 = st0?.host?.energy ?? -1;
+    await H.ensureMain();
+    let opened = false, fired = false, picked = false, payLabel = null, paid = false;
+    const enaPicked = new Set();
+    let reqCount = null;
+    for (let s = 0; s < 20 && !paid; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) {
+        // 🔴**部分一致は相手のルリグを掴む**＝`コード・ピルルク` だと guest の `WD03-002`
+        //   「コード・ピルルク・G」に当たり、カード拡大が開くだけで行動一覧が出ない（実測）。
+        const img = page.getByAltText('ＡＰＥＸ', { exact: false }).first();
+        if (await img.count() && await img.isVisible().catch(() => false)) {
+          await img.click({ force: true }).catch(() => {}); opened = true; did = 'lrig';
+        }
+      }
+      // ⚠**ルリグの行動は `data-action-label`**（`V-158` と同じ）＝`getByRole('button')` では拾えない。
+      if (!did && opened && !fired) {
+        const lbl = page.locator('[data-action-label]').first();
+        if (await lbl.count() && await lbl.isVisible().catch(() => false)) {
+          await lbl.click().catch(() => {}); fired = true; did = 'act-label';
+        }
+      }
+      // 🔴**候補選択（`pick-0`）は「決定」より先に試す**＝順序を逆にすると、選ぶ前に「決定」を押して
+      //   **0枚選択で確定**してしまい、「候補が出ない」と誤診する（実測で1回踏んだ）。
+      if (!did && !picked) {
+        const p0 = await H.clickTestId('pick-0');
+        if (p0) { picked = true; did = p0; }
+      }
+      // ⚠**「発動」は `H.stdStep()` の語彙に無い**＝エクシード支払いの確認はここで押す。
+      //   ⚠選ぶ前は**「決定」を押さない**（上と同じ理由）。
+      if (!did && opened && !picked) did = await H.clickTextOrBtn(['発動']);
+      // 支払いボタンのラベルを読んでから押す（＝軽減の結果はここにしか出ない）
+      if (!did && picked && !paid) {
+        // 🔑**観測点は「エナから選択: n / N枚」**＝軽減後の**必要枚数**がそのまま出る（`V-152` と同じ読み方）。
+        const req = await page.evaluate(() => {
+          const m = document.body.innerText.match(/エナから選択:\s*\d+\s*\/\s*(\d+)\s*枚/);
+          const c = document.body.innerText.match(/コスト:\s*(.+?)\s*を支払いますか？/);
+          return m ? { req: Number(m[1]), cost: c ? c[1] : null } : null;
+        }).catch(() => null);
+        if (req) {
+          if (payLabel === null) payLabel = req.cost + '／必要' + req.req + '枚';
+          reqCount = req.req;
+          // 🔴**支払いボタンは「エナを実際に選ぶ」まで無効**（`optcost-energy-*`）＝押さないと永久に disabled で
+          //   「ラベルは正しいのにエナが減らない」に見える。⚠**同じセルを押し直すとトグルで外れる**（§4.4 罠 8p）。
+          if (enaPicked.size < req.req) {
+            const key = 'optcost-energy-' + enaPicked.size;
+            const cell = page.locator('[data-testid=\"' + key + '\"]').first();
+            if (await cell.count() && await cell.isVisible().catch(() => false)) {
+              await cell.click().catch(() => {}); enaPicked.add(key); did = key;
+            }
+          }
+          if (!did) {
+            const payBtn = page.locator('[data-testid=\"optcost-pay\"]').first();
+            if (await payBtn.count() && await payBtn.isEnabled().catch(() => false)) {
+              await payBtn.click().catch(() => {}); paid = true; did = 'btn:optcost-pay';
+            } else did = 'pay-disabled';
+          }
+        }
+      }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      H.log('  v159[' + s + '] -> ' + (did ?? 'なし') + ' | energy=' + st?.host?.energy
+        + ' lrigUnder=' + st?.host?.lrigUnder + ' payLabel=' + JSON.stringify(payLabel)
+        + ' pEff=' + (st?.pendingEffect ?? '-'));
+    }
+    await page.screenshot({ path: SHOT + '/v159-trash-spell.png', fullPage: true });
+    const st1 = await H.queryState();
+    const dump = 'エナ ' + ena0 + '→' + st1?.host?.energy + ' 必要枚数=' + reqCount + ' 支払い表示=' + JSON.stringify(payLabel)
+      + ' ルリグ下=' + st1?.host?.lrigUnder;
+    H.log('  判定: ' + dump);
+    if (payLabel === null) {
+      const seen = await page.evaluate(() => [...document.querySelectorAll('button,[data-action-label]')]
+        .filter(b => b.offsetParent).map(b => (b.textContent || b.getAttribute('data-action-label') || '').trim()).slice(0, 20));
+      H.log('  支払いに到達せず＝見えているボタン: ' + JSON.stringify(seen));
+      return { pass: false, detail: '前提崩れ＝支払いボタンに到達できなかった（候補選択が出ない＝旧挙動そのもの）。' + dump
+        + ' 見えているボタン=' + JSON.stringify(seen) };
+    }
+    // 🔴印刷は《黒》×1《青》×1《無》×1＝3枚。軽減《青×1》《黒×1》が効けば残るのは《無》1つだけ。
+    if (reqCount !== 1) {
+      return { pass: false, detail: '🔴必要枚数が1枚ではない（印刷3枚 − 軽減2枚 ＝ 1枚のはず）。' + dump };
+    }
+    if (payLabel.includes('《青》') || payLabel.includes('《黒》')) {
+      return { pass: false, detail: '🔴軽減が効いていない＝支払いコストに青か黒が残っている（過大請求）。' + dump };
+    }
+    if (!payLabel.includes('無')) {
+      return { pass: false, detail: '🔴《無》まで消えている＝一致しない色まで軽減した（過小請求）。' + dump };
+    }
+    if (st1?.host?.energy !== ena0 - 1) {
+      return { pass: false, detail: '🔴実際に減ったエナが1枚ではない（ラベルと支払いが食い違う）。' + dump };
+    }
+    return { pass: true, detail: '印刷3枚のうち青と黒が軽減で消え、《無》1つだけを払った。' + dump };
+  },
+};
+
+order.push('v159TrashSpellCostReduced');
+
+
 const V158_LRIG = 'WXDi-P16-011#1';     // 希望の後先 ミカエラ（【起】《青×0》で craft 追加＋条件つき軽減）
 const V158_PIECE = 'WXDi-P16-TK01';     // インビンシブル・ストーリー（ピース/クラフト・《無》×3・メイン）
 const V158_VANILLA = 'WD01-013';

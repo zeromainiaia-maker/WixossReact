@@ -281,6 +281,9 @@ function filterJa(f?: any): string {
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
   if (f.costMin != null && f.costMax != null && f.costMin === f.costMax) parts.push(`コストの合計が${f.costMax}の`);
+  // 🆕上下限が**両方**ある形は原文どおり「N～Mの」で描く（§5.3 `O-259` 第3・`WX12-003-E3`）。
+  //   ⚠旧は2本を並べて「コストの合計が4以下のコストの合計が2以上の」と**二重に**出していた。
+  else if (f.costMin != null && f.costMax != null) parts.push(`コストの合計が${f.costMin}～${f.costMax}の`);
   else {
     if (f.costMax != null) parts.push(`コストの合計が${f.costMax}以下の`);
     if (f.costMin != null) parts.push(`コストの合計が${f.costMin}以上の`);
@@ -3024,8 +3027,14 @@ function actionJa(a?: Action, effectType?: string): string {
         : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
       if (a.id === 'TRASH_SELF_ACCE_ALL') return 'このシグニに付いている【アクセ】をすべてトラッシュに置く';
       // §6.4 O-35（続き530）＝**コストを払って**トラッシュのスペルを使う（`USE_SPELL_FROM_TRASH` は払わない別物）。
+      // 🆕§5.3 `O-259` 第3（2026-09-05）＝領域（`value2`）・軽減・コスト不要も描く。
+      //   🔴**id は領域を表していない**（`'opp_trash'` を足した時点からそう）＝**領域の正は `value2`**。
       if (a.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') {
-        return `あなたのトラッシュから${filterJa(a.selectTarget?.filter)}スペル1枚を対象とし、それを使用してもよい`;
+        const zoneJa = a.value2 === 'hand' ? '手札' : a.value2 === 'opp_trash' ? '対戦相手のトラッシュ' : 'トラッシュ';
+        const red = (a.useSpellCostReduction ?? []).map(r => `《${r.color}×${r.count}》`).join('');
+        return `あなたの${zoneJa}から${filterJa(a.selectTarget?.filter)}スペル1枚を対象とし、それを`
+          + (a.useSpellIgnoreCost ? 'コストを支払わずに使用してもよい' : '使用してもよい')
+          + (red ? `。それの使用コストは${red}減る` : '');
       }
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       // §6.4 A群・続き427 で実装済み（`screens/battle/assistLrigAttack.ts` ＋ `performLrigAttack(slot)`）。
@@ -4730,8 +4739,11 @@ function actionJa(a?: Action, effectType?: string): string {
         ADJACENT_ZONE_ATTACK: 'このシグニが正面にアタックする場合、このシグニは正面に加えてその隣のシグニゾーン１つにアタックしてもよい',
         ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI: 'あなたが《白》を支払う際、代わりにあなたのエナゾーンから＜美巧＞のシグニ１枚をトラッシュに置いてもよい',
         ENERGY_SUBSTITUTE_TRASH_KEY: 'あなたがエナコストを支払う際、このキーを場からルリグトラッシュに置くことで好きな色のエナ２つを支払える',
-        PLAY_SPELL_FROM_HAND: 'あなたの手札からコストの合計が２～４の青か黒のスペル１枚を、そのコストを支払って使用する',
-        PLAY_SPELL_FROM_HAND_FREE: 'あなたの手札からコストの合計が１以下の赤のスペル１枚をコストを支払わずに使用してもよい',
+        // 🔴**§5.3 `O-259` 第3（2026-09-05）で撤去した2本の跡地**＝ここには `WX12-003` と `WX20-059` の
+        //   原文が**ベタ書き**されており、同じ id を持つ**別カード**（`WX11-043`＝青のスペル・軽減あり）に
+        //   **他人の説明**が出ていた。いまは `USE_SPELL_FROM_TRASH_PAYING_COST` が payload から描く。
+        //   ⚠`PLAY_SPELL_FROM_HAND` は**その受け皿の本体側**としてまだ engine に在る（支払い後の実行）。
+        PLAY_SPELL_FROM_HAND: 'あなたの手札から選んだスペル1枚を使用する（コストは支払い済み）',
         USE_SPELL_FROM_TRASH: '対戦相手のトラッシュからスペル１枚を対象とし、それを使用する',
         ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 'このアーツの使用コストに含まれる《無》コストは、あなたのセンタールリグが持つ色でしか支払えない',
         BLACK_RISE_PLAY_STACK_FROM_TRASH: 'あなたのトラッシュからシグニ１枚を対象とし、それをそのシグニの下に置く',
