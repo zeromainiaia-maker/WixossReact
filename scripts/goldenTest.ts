@@ -67379,6 +67379,124 @@ test('§5.3 O-249 第146b: 採用した held のうち live 側が恒久 no-op �
   }
 });
 
+test('§5.3 O-249 第147: リコレクト分割の後でエクシード任意コストが payload を失う／移動禁止 catch-all の横取り', () => {
+  // ① `WX25-P3-003-E1`＝《リコレクトアイコン》分割の見出し regex が「追加で」ごと食べるので、
+  //    下流の「追加でエクシードN を支払ってもよい」規則が当たらず **payload 無しの素の OPTIONAL_COST**
+  //    ＝**エクシードがタダで強い方の効果が撃てる**過剰実行だった。
+  for (const [label, e] of [
+    ['live', findEffectDeep(effectsMap.get('WX25-P3-003') ?? [], 'WX25-P3-003-E1')!],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get('WX25-P3-003')!), 'WX25-P3-003-E1')!],
+  ] as const) {
+    const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+    const exceedStep = steps.find(st => st.type === 'STUB' && (st as { id?: string }).id === 'OPTIONAL_COST'
+      && (st as { exceed?: number }).exceed !== undefined) as { exceed?: number } | undefined;
+    eq(exceedStep?.exceed, 3, `WX25-P3-003-E1 ${label}: エクシード3が任意コストの payload に載る`);
+  }
+
+  // ② `WXK11-026-E2`＝「対戦相手の効果はバニッシュ以外で**このシグニ**を場から移動させない」。
+  //    アタックフェイズ版の catch-all（前置きが任意・主語が `.*シグニ`）が先に横取りし、
+  //    **原文に無い「アタックフェイズの間」限定**が付いていた。しかもその id は engine に消費地点が無い＝無言 no-op。
+  for (const [label, e] of [
+    ['live', findEffectDeep(effectsMap.get('WXK11-026') ?? [], 'WXK11-026-E2')!],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get('WXK11-026')!), 'WXK11-026-E2')!],
+  ] as const) {
+    eq((e.action as { id?: string }).id, 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH',
+      `WXK11-026-E2 ${label}: 期間限定の付かない自己移動禁止`);
+  }
+  // 🔑アタックフェイズ版は**原文0枚**（tightening 後）＝どのカードにも生成されないことを固定する。
+  let attackPhaseNodes = 0;
+  for (const [, effects] of effectsMap) for (const e of effects) {
+    if (JSON.stringify(e.action).includes('PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE')) attackPhaseNodes++;
+  }
+  eq(attackPhaseNodes, 0, 'アタックフェイズ限定の移動禁止は live に1件も出ない（engine に消費地点が無い）');
+});
+
+test('§5.3 O-249 第148: DEFERRED_ へ改名した catch-all が prune 対象から漏れて二重表現になっていた', () => {
+  // `WXDi-P05-005-E1`＝同じ効果が `GAIN_ABILITY_THIS_GAME`＋`gameGrants{oppGuardExtraHandOrColorless}` で
+  // 既に宣言を立てているのに、`O-60` 第64バッチで `DEFERRED_GRANT_QUOTED_ABILITY_BLOCK` へ改名した catch-all が
+  // `QUOTED_GRANT_CATCH_ALL_IDS` に足されておらず prune されていなかった（逆翻訳が「【未実装】」と嘘をつく）。
+  for (const [label, e] of [
+    ['live', findEffectDeep(effectsMap.get('WXDi-P05-005') ?? [], 'WXDi-P05-005-E1')!],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get('WXDi-P05-005')!), 'WXDi-P05-005-E1')!],
+  ] as const) {
+    const json = JSON.stringify(e.action);
+    eq((e.action as { id?: string }).id, 'GAIN_ABILITY_THIS_GAME', `WXDi-P05-005-E1 ${label}: 宣言が本体`);
+    ok(!json.includes('DEFERRED_GRANT_QUOTED_ABILITY_BLOCK'),
+      `WXDi-P05-005-E1 ${label}: 宣言済みなので catch-all は残らない`);
+    ok(json.includes('oppGuardExtraHandOrColorless'), `WXDi-P05-005-E1 ${label}: 宣言の中身は保つ`);
+  }
+  // ⚠**付与先が書かれていない側（`WXDi-D04-011-E1`）は宣言が0本なので catch-all を残す**＝
+  //   ここで消すと `O-236` 待ちの穴が計器から消える。
+  const d04 = findEffectDeep(parseCardEffects(cardMap.get('WXDi-D04-011')!), 'WXDi-D04-011-E1');
+  ok(!!d04, 'WXDi-D04-011-E1 が fresh にある');
+
+  // `PR-K056` / `WX20-Re20`＝「以下のNつからNつ**まで**選ぶ。…使用コストは選んだ数だけ《色×M》**増える**。」
+  // 🔑CHOOSE は `upTo` を保ったまま、構造化できていないコスト増の痕跡（`ARTS_COST_REDUCTION_BY_EFFECT`）を
+  //   後段に残す形が正（`O-60` 第61バッチの規約）。⚠**コスト増そのものは未実装**＝`O-251`。
+  for (const cardNum of ['PR-K056', 'WX20-Re20'] as const) {
+    for (const [label, e] of [
+      ['live', findEffectDeep(effectsMap.get(cardNum) ?? [], `${cardNum}-E1`)!],
+      ['fresh', findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), `${cardNum}-E1`)!],
+    ] as const) {
+      const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+      const choose = steps[0] as Extract<EffectAction, { type: 'CHOOSE' }>;
+      eq(choose.type, 'CHOOSE', `${cardNum} ${label}: 先頭が CHOOSE`);
+      eq(choose.upTo, true, `${cardNum} ${label}: 「Nつまで」＝上限（必ずN個選ばされない）`);
+      eq((steps[1] as { id?: string }).id, 'ARTS_COST_REDUCTION_BY_EFFECT',
+        `${cardNum} ${label}: 構造化できていないコスト増の痕跡を残す（O-251 の worklist）`);
+      eq(e.cost?.costScaling, undefined, `${cardNum} ${label}: 「選んだ数だけ」は costScaling へまだ落ちない（O-251）`);
+    }
+  }
+});
+
+test('§5.3 O-249 第149: サーバントZERO 化が「カード名の宣言」に化けていた／探索元が省略された追加探索が丸ごと落ちていた', () => {
+  const pair = (cardNum: string, effectId: string) => ([
+    ['live', findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!],
+    ['fresh', findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId)!],
+  ] as const);
+
+  // ① `WX17-005-E1` のベット枝「代わりに…対戦相手の**すべての**シグニを《サーバントＺＥＲＯ》にする」＝
+  //    part3 は「**それ**を《サーバント…》にする」しか受けず、part4 の catch-all が
+  //    `DECLARE_CARD_NAME`（自分の手札からカード名を宣言する別機構）へ落としていた＝**変換が起きない**。
+  for (const [label, e] of pair('WX17-005', 'WX17-005-E1')) {
+    const c = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(c.type, 'CONDITIONAL', `WX17-005-E1 ${label}: ベット分岐`);
+    eq(c.condition.type, 'IS_BETTING', `WX17-005-E1 ${label}: ベット判定`);
+    eq((c.then as { id?: string }).id, 'ALL_OPP_SIGNI_SERVANT_ZERO', `WX17-005-E1 ${label}: ベット時は相手全体`);
+    eq((c.else as { id?: string }).id, 'MAKE_SERVANT_ZERO', `WX17-005-E1 ${label}: 非ベット時は1体`);
+  }
+  // 同じ catch-all に落ちていた「**そのシグニ**を《サーバント　ＺＥＲＯ》にする」（`WXK11-014-E2`）。
+  for (const [label, e] of pair('WXK11-014', 'WXK11-014-E2')) {
+    const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+    ok(steps.some(st => (st as { id?: string }).id === 'MAKE_SERVANT_ZERO'),
+      `WXK11-014-E2 ${label}: 場に出したシグニをサーバントZEROにする`);
+    ok(!JSON.stringify(e.action).includes('DECLARE_CARD_NAME'),
+      `WXK11-014-E2 ${label}: カード名の宣言に化けない`);
+  }
+
+  // ② 探索元（「あなたのデッキから」）が省略された「**追加で**〈記述子〉シグニN枚を探して…」＝
+  //    SEARCH 規則に当たらず `UNKNOWN` に落ち、**追加探索が丸ごと消えていた**。
+  //    ⚠受け皿の STUB（`CONDITIONAL_SEARCH_IF_RESONA` / `CONDITIONAL_SEARCH_IF_FIELD`）は
+  //    デッキ上5枚から任意のシグニを取る粗い近似で、レベル・色のフィルタを見ていなかった。
+  for (const [label, e] of pair('WD09-018', 'WD09-018-E1')) {
+    const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+    const cond = steps.find(st => st.type === 'CONDITIONAL') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    ok(!!cond, `WD09-018-E1 ${label}: レゾナ条件が構造化されている`);
+    eq(cond.condition.type, 'HAS_CARD_IN_FIELD', `WD09-018-E1 ${label}: 場のレゾナ判定`);
+    const inner = cond.then as Extract<EffectAction, { type: 'SEARCH' }>;
+    eq(inner.type, 'SEARCH', `WD09-018-E1 ${label}: 追加探索が SEARCH として残る`);
+    eq(inner.filter?.color, '白', `WD09-018-E1 ${label}: 白限定を保つ`);
+    eq(JSON.stringify(inner.filter?.level), '{"max":3}', `WD09-018-E1 ${label}: レベル3以下を保つ`);
+  }
+  for (const [label, e] of pair('WX09-041', 'WX09-041-E1')) {
+    const steps = (e.action as Extract<EffectAction, { type: 'SEQUENCE' }>).steps;
+    const cond = steps.find(st => st.type === 'CONDITIONAL') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    ok(!!cond, `WX09-041-E1 ${label}: 共通クラス条件が構造化されている`);
+    eq(cond.condition.type, 'FIELD_SIGNI_SHARE_CLASS', `WX09-041-E1 ${label}: 場の共通クラス判定`);
+    eq((cond.then as { type?: string }).type, 'SEARCH', `WX09-041-E1 ${label}: 追加探索が残る`);
+  }
+});
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

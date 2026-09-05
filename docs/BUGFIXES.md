@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第147〜149バッチ）：**catch-all が専用規則を横取りして「別の効果」に化けていた3型**（`O-249` 続き）
+
+**ベースライン**＝`cb93dbf34`（第146の直後）。
+**gates 全緑**（typecheck・golden **3488/3488**＝3485 +3本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機要否**＝**`src/data/`・`public/data/`・`scripts/` のみ**（`src/screens/` も `src/engine/` も0行・新しい型なし）＝**④まででよい**。
+**在庫**＝held **28枚 → 21枚**。
+
+### 第147＝リコレクト分割の後でエクシード任意コストが payload を失う／移動禁止 catch-all の横取り
+
+- 🔴**`WX25-P3-003-E1`**＝《リコレクトアイコン》分割の見出し regex が **`(代わりに|追加で)?` ごと食べてから** bonus を
+  パースするのに、下流の「**追加で**エクシードN を支払ってもよい」規則が **「追加で」を必須**にしていた＝当たらず
+  **payload 無しの素の `OPTIONAL_COST`＝エクシードがタダ**で強い方の効果が撃てた。⇒「追加で」を任意にした。
+- 🔴**`WXK11-026-E2`**＝「対戦相手の効果はバニッシュ以外で**このシグニ**を場から移動させない」が、
+  直前のアタックフェイズ版 regex（**前置きが `(?:…)?` で任意**・主語が `.*シグニ` の catch-all）に横取りされ、
+  **原文に無い「アタックフェイズの間」限定**が付いていた。しかもその id は **engine に消費地点が1つも無い**（無言 no-op）。
+  ⇒ アタックフェイズ句を**必須**にした（原文実測で該当0枚＝この規則は catch-all としてしか働いていなかった）。
+
+### 第148＝`DEFERRED_` へ改名した catch-all を prune 対象に足し忘れていた
+
+- 🔴**`WXDi-P05-005-E1`**＝同じ効果が `GAIN_ABILITY_THIS_GAME`＋`gameGrants{oppGuardExtraHandOrColorless}` で
+  **既に宣言を立てている**のに catch-all が残り、逆翻訳が「【未実装】」と嘘をついていた。
+  真因＝`O-60` 第64バッチが `GRANT_QUOTED_ABILITY` の1形を `DEFERRED_GRANT_QUOTED_ABILITY_BLOCK` へ改名した際、
+  **`QUOTED_GRANT_CATCH_ALL_IDS` に足し忘れた**（この配列は prune／`restoreQuotedTargetGrant`／
+  `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` への改名の**3箇所**が読む唯一の定義）。
+- **`PR-K056` / `WX20-Re20`**＝`SEQUENCE[CHOOSE{upTo}, ARTS_COST_REDUCTION_BY_EFFECT]` を採用（`O-60` 第61バッチの規約）。
+  ⚠**コスト増そのものは未実装**＝「選んだ数だけ《色×M》増える」は `CostScalingCount` に受け皿が無い（**`O-251` として登録**）。
+
+### 第149＝サーバントZERO 化が「カード名の宣言」に化けていた／探索元が省略された追加探索が丸ごと落ちていた
+
+- 🔴**`WX17-005-E1`（ベット枝）・`WXK11-014-E2`**＝part3 は「**それ**を《サーバント…》にする」しか受けず、
+  「**そのシグニ**を」「対戦相手の**すべての**シグニを」「**それら**を」の3語形が part4 の catch-all
+  **`DECLARE_CARD_NAME`（自分の手札からカード名を宣言するまったく別の機構）**へ落ちていた＝
+  **変換が起きず、原文に無い宣言UIが出る**。⇒ engine には3つとも受け皿がある（`execStubPart2.ts:1637`）ので
+  `ALL_OPP_SIGNI_SERVANT_ZERO` / `MAKE_MULTI_SERVANT_ZERO` / `MAKE_SERVANT_ZERO` を**語形で選び分ける**形にした。
+- 🔴**`WD09-018-E1`・`WX09-041-E1`**＝「**追加で**〈記述子〉シグニN枚を探して公開し手札に加える」は
+  探索元（「あなたのデッキから」）を省くので SEARCH 規則に当たらず **`UNKNOWN` で追加探索が丸ごと消えて**いた。
+  ⇒ **`UNKNOWN` のときだけ**探索元を補って解き直す（`retryImplicitDeckSearch`＝既に解けている文には触らない）。
+  🔑受け皿だった STUB（`CONDITIONAL_SEARCH_IF_RESONA` / `_IF_FIELD`）は**デッキ上5枚から任意のシグニを取る粗い近似**で、
+  原文のレベル・色フィルタを見ていなかった＝typed 化で初めて原文どおりになった。
+
+### 影響枚数
+
+**8カード**（第147 2／第148 3／第149 4＝`WXK11-014`・`WX09-041` は held に出ていなかった同型の巻き込み修正）。
+
 ## 2026-09-05（第146バッチ）：**held が指していたのは live のバグではなく「現行 parser の退化」9件だった**
 
 **ベースライン**＝`6fa60747a`（第145の直後）。

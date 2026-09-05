@@ -5435,8 +5435,27 @@ function attachOptionalCostText(action: EffectAction, text: string): EffectActio
   return action;
 }
 
+/**
+ * 🆕**「追加で〈記述子〉シグニN枚を探して…」＝探索元（「あなたのデッキから」）が省略された追加探索**
+ * （2026-09-05 第149バッチ・`WD09-018-E1`）。
+ *
+ * 🔴前文が「あなたのデッキから…を探して」で、2文目は主語も探索元も省く。SEARCH 規則は
+ *   「あなたのデッキから」を要求するので**当たらず `UNKNOWN` に落ち、追加探索が丸ごと消える**。
+ * 🔑**`UNKNOWN` のときだけ**探索元を補って解き直す（fail-open ではなく fail-safe＝
+ *   既に解けている文には一切触らない）。⚠ゾーン語を含む文（「トラッシュから」等）は補わない。
+ */
+function retryImplicitDeckSearch(text: string): EffectAction | null {
+  const t = text.trim();
+  const m = t.match(/^追加で(.+探して.+)$/s);
+  if (!m) return null;
+  if (/デッキ|トラッシュ|エナゾーン|手札から|ルリグトラッシュ|チェックゾーン/.test(m[1])) return null;
+  const retried = parseSingleSentenceInner(`あなたのデッキから${m[1]}`);
+  return retried.type === 'UNKNOWN' ? null : retried;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
+  if (action.type === 'UNKNOWN') action = retryImplicitDeckSearch(text) ?? action;
   action = attachOptionalCostText(action, text);
   action = rewritePerLastProcessedCount(action, text);
   action = rewriteSameLevelAsLastProcessed(action, text);
@@ -14071,7 +14090,14 @@ function parseActionTextBody(text: string): EffectAction {
 //   🔴旧は綴りが3つあり、**engine では同じ1本のハンドラ**なのに parser 側の復元規則・後処理が
 //     どれか1つしか見ていない、という取りこぼしを繰り返し生んでいた（第65の実例）。
 //   ⚠**旧3綴りは残す**＝`live` には無いが、外部（過去の JSON／手書き）から来た木を判定するときに要る。
-const QUOTED_GRANT_CATCH_ALL_IDS = ['DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED', 'GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY'];
+// 🔴**catch-all を `DEFERRED_` へ改名したら、この配列にも足す**（2026-09-05 第148バッチ）＝
+//   `O-60` 第64バッチが `GRANT_QUOTED_ABILITY` の1形を `DEFERRED_GRANT_QUOTED_ABILITY_BLOCK` へ改名した際に
+//   ここへ足し忘れており、**同じ効果が宣言（`GAIN_ABILITY_THIS_GAME`＋`gameGrants`）を既に立てているのに
+//   catch-all が pruneCatchAll に落ちず二重表現のまま残っていた**（`WXDi-P05-005-E1`＝
+//   逆翻訳に「【未実装】」が出て、実装済みの宣言が穴に見えていた）。
+//   ⚠この配列は「catch-all である」ことの唯一の定義で、prune／`restoreQuotedTargetGrant`／
+//   `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` への改名の**3箇所**が読む。
+const QUOTED_GRANT_CATCH_ALL_IDS = ['DEFERRED_QUOTED_ABILITY_GRANT_UNPARSED', 'GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY', 'DEFERRED_GRANT_QUOTED_ABILITY_BLOCK'];
 const isQuotedGrantCatchAll = (n: unknown): boolean => {
   const o = n as { type?: string; id?: string };
   return o?.type === 'STUB' && QUOTED_GRANT_CATCH_ALL_IDS.includes(o.id ?? '');

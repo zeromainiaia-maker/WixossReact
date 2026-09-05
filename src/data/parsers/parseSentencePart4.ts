@@ -709,8 +709,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
 
   // ---- 《サーバントZERO》にする ----
-  if (t.match(/を《サーバント.*》にする/))
-    return { type: 'STUB', id: 'DECLARE_CARD_NAME' } as StubAction;
+  // 🔴**2026-09-05 第149バッチ＝この catch-all は `DECLARE_CARD_NAME`（＝自分の手札からカード名を宣言する
+  //   まったく別の機構）へ落としていた。** 上流の part3 は「**それ**を《サーバント…》にする」しか受けないので、
+  //   「**そのシグニ**を」「対戦相手の**すべての**シグニを」「**それら**を」の3語形がここへ流れ込み、
+  //   **サーバントZERO 化が丸ごと起きない**（かつ原文に無い宣言 UI が出る）別効果になっていた
+  //   （`WX17-005-E1` のベット枝＝「代わりに対戦相手のすべてのシグニを《サーバントＺＥＲＯ》にする」）。
+  // 🔑受け皿は engine に3つとも実装済み（`execStubPart2.ts:1637`）＝**id を語形で選び分けるだけ**。
+  // ⚠「宣言されたカード名のカードは《サーバント…》に**なる**」は別機構で、上の :470 が先に拾う。
+  if (t.match(/を《サーバント[^》]*》にする/)) {
+    if (/対戦相手の(?:すべての)?シグニを《サーバント/.test(t))
+      return { type: 'STUB', id: 'ALL_OPP_SIGNI_SERVANT_ZERO' } as StubAction;
+    if (/それらを《サーバント/.test(t))
+      return { type: 'STUB', id: 'MAKE_MULTI_SERVANT_ZERO' } as StubAction;
+    return { type: 'STUB', id: 'MAKE_SERVANT_ZERO' } as StubAction;
+  }
 
   // ---- コストの色を無視して支払える/支払う ----
   if (t.match(/コストの色を無視して支払(?:える|ってもよい)/))

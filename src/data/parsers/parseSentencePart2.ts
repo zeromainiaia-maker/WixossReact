@@ -1466,7 +1466,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- アタックフェイズ間、対戦相手の効果で場から移動させない ----
-  if (t.match(/(?:あなたのアタックフェイズの間.*)?対戦相手の効果はバニッシュ以外でお?.*シグニを場から移動させない/)) {
+  // 🔴**2026-09-05 第147バッチ＝アタックフェイズ句を必須にした。**
+  //   旧 regex は前置きが `(?:…)?` で**任意**かつ主語が `.*シグニ` の catch-all だったので、
+  //   直下の専用規則「対戦相手の効果はバニッシュ以外で**このシグニ**を場から移動させない」（`WXK11-026-E2`）を
+  //   **先に横取りし、原文に無い「アタックフェイズの間」限定を付けて**いた。
+  // 🔴さらに `PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE` は **engine に消費地点が1つも無い**（`grep -rn` で parser の
+  //   この1行だけ）＝横取りされた側は**無言 no-op**になっていた。原文実測でも該当カードは0枚
+  //   （「あなたのアタックフェイズの間、…あなたの＜宇宙＞のシグニを…」は上の `PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH` が拾う）。
+  if (t.match(/あなたのアタックフェイズの間[^。]*対戦相手の効果はバニッシュ以外でお?.*シグニを場から移動させない/)) {
     return { type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE' } as StubAction;
   }
 
