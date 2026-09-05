@@ -9199,6 +9199,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   parser が `LRIG_UNDER_CARD_OP` の catch-all から `TRANSFER_TO_DECK{position:bottom, optional}` を
   //   出せるようになり、**実体が1バイト違わず一致した**（`censusManualDrift` の削除候補・§CODEX_GUIDE `5-10′`）。
   //   ⚠残すと影武者コピーになり、この効果だけ以後の parser 改善が永久に届かない。
+  // §5.3 `O-226`（2026-09-05）＝`WXK03-003B`「夢限 -Ｅ-」を CSV へ追加した回の手当て。
+  //   ⚠**parser の出力を写したのではなく、原文を読み直して書いた**（E3 のエクシード４は
+  //   parser の出力が原文どおりなので**あえて手書きしない**＝影武者コピーを作らない）。
+  //   - E1 は【常】「あなたはキーを好きな枚数場に出すことができる」＝既存の受け皿 `UNLIMITED_KEYS`。
+  //     🔴この STUB は**読み手（`BattleScreen` の `hasUnlimitedKeys` 2箇所）だけ在って live 0件**だった
+  //     ＝生成元がいないので**恒久 no-op**。原文を持つのは 夢限 -Ｐ-／-Ｅ- の2枚だけ＝速いレーンで手書きする。
+  //   - E2 は「ルリグトラッシュからすべての**アーツ**をこのルリグの下に置く」＝
+  //     `SOUL_OP{lrig_trash_to_under_center}` の候補種別を `cardTypes` で アーツ に振り替え、
+  //     「すべての」を `all`（選ばせず全件）で表す。⚠既定のままだと**ルリグしか動かない**。
+  "WXK03-003B": [
+    {"effectId":"WXK03-003B-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"UNLIMITED_KEYS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK03-003B-E2","effectType":"AUTO","timing":["ON_LRIG_FLIP"],"action":{"type":"STUB","id":"SOUL_OP","soulOp":{"kind":"lrig_trash_to_under_center","cardTypes":["アーツ"],"all":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // 同上＝表面（`WXK03-003A`「夢限 -Ｐ-」）にも同じ【常】がある。
+  //   🔴parser はこのカードの【常】を**そもそも効果として出していなかった**（live は E2 の1件だけ）。
+  "WXK03-003A": [
+    {"effectId":"WXK03-003A-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"UNLIMITED_KEYS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   "WXDi-P11-010B": [
     {"effectId":"WXDi-P11-010B-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
   ],

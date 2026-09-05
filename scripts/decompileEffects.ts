@@ -3701,7 +3701,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // engine が no-op スキップする説明テキスト系STUB（execStubPart1.ts と同一）は逆翻訳でも描画しない（空文字）。
       // SEQUENCE/CHOOSE 結合側で空文字ステップを除外する。
-      if (a.id === 'RULE_REMINDER_TEXT' || a.id === 'USE_CONDITION_TEXT' || a.id === 'UNLIMITED_KEYS') return '';
+      // 🆕`UNLIMITED_KEYS` はここから外した（§5.3 `O-226`・2026-09-06）＝**盤面が変わる実効果**である
+      //   （`BattleScreen` のキーセット可否ゲートと配置先の2箇所が読む）。空文字のままだと
+      //   逆翻訳が「【常】」だけになり、実装済みかどうかが目視で確かめられない。
+      if (a.id === 'UNLIMITED_KEYS') return 'あなたはキーを好きな枚数場に出すことができる';
+      if (a.id === 'RULE_REMINDER_TEXT' || a.id === 'USE_CONDITION_TEXT') return '';
       // 内部簿記ステップ（原文に対応する語が無い）は逆翻訳では無音にする
       if (a.id === 'STORE_LAST_PROCESSED_TARGETS' || a.id === 'INTERNAL_NOOP') return '';
       // 敗北/ルリグダメージ防止系STUB（engine実装済み＝prevent_defeat/prevent_lrig_damage フラグ）を原文の意味文で描画。
@@ -4924,9 +4928,17 @@ function actionJa(a?: Action, effectType?: string): string {
               return `あなたのターン終了時、あなたのトラッシュから＜${g.cardClass}＞のシグニ${g.count}枚を手札に加える`;
             case 'growPhaseLimitPlus': return `あなたのグロウフェイズ開始時、リミットを＋${g.value}する`;
             case 'lrigCopyOppLevelLimit':
-              return 'あなたの場にあるルリグの基本レベルと基本リミットは、対象の対戦相手のセンタールリグと同じ値になる';
+              // 🆕**名指しされたカード名まで描く**（§5.3 `O-226`）＝この限定が刻まれているかは
+              //   逆翻訳でしか目視できない（落とすと裏返った後もコピーが効き続ける）。
+              return `あなたの場にある${g.cardName ? `《${g.cardName}》` : 'ルリグ'}の基本レベルと基本リミットは、対象の対戦相手のセンタールリグと同じ値になる`;
             case 'nthActivationFlip':
-              return `この【起】を使用したのが${g.count}回目である場合、このルリグを裏返す`;
+              // 🆕**裏面のカード番号まで描く**（§5.3 `O-226`・2026-09-06）＝原文は「裏返す」としか
+              //   書いていないので、`flipTo` が刻まれているかは**逆翻訳でしか目視できない**。
+              //   ⚠engine は `flipTo` が無いと裏返さない（fail-closed）＝ここを原文どおりに丸めると、
+              //   engine と decompiler が同じ嘘で一致する（第59バッチ教訓③）。
+              return g.flipTo
+                ? `この【起】を使用したのが${g.count}回目である場合、このルリグを裏返す（→${g.flipTo}）`
+                : `この【起】を使用したのが${g.count}回目である場合、このルリグを裏返す（※裏面のカード番号が無く engine は裏返さない）`;
             case 'abilityBlockHeader': return 'あなたは以下の能力を得る';
           }
         };
@@ -4982,7 +4994,11 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'SOUL_OP') {
         const so = a.soulOp;
         if (!so) return '【※ペイロード欠落】ルリグ下／ルリグトラッシュ操作（engine は何もしない）';
-        const nJa = so.anyCount ? '好きな枚数' : `${so.count ?? 1}枚${so.upTo ? 'まで' : ''}`;
+        const nJa = so.all ? 'すべて' : so.anyCount ? '好きな枚数' : `${so.count ?? 1}枚${so.upTo ? 'まで' : ''}`;
+        // 🆕**候補の種別も payload から描く**（§5.3 `O-226`・2026-09-06）＝既定を「ルリグ」と決め打つと
+        //   `cardTypes:['アーツ']`（`WXK03-003B-E2`）が**逆翻訳では「ルリグ」のまま**になり、
+        //   engine と decompiler が**同じ嘘で一致**して計器が緑のまま意味が壊れる（第59バッチ教訓③）。
+        const kindJa = (so.cardTypes ?? ['ルリグ']).join('か');
         const lvJa = so.levelMax !== undefined ? `レベル${so.levelMax}以下の`
           : so.level !== undefined ? `レベル${so.level}の` : '';
         const typeJa = so.sameLrigType ? 'あなたのセンタールリグと完全に同一のルリグタイプを持つ' : '';
@@ -4997,7 +5013,9 @@ function actionJa(a?: Action, effectType?: string): string {
           case 'lrig_trash_to_soul':
             return `あなたのルリグトラッシュからルリグ${nJa}を対象のシグニの【ソウル】にする`;
           case 'lrig_trash_to_under_center':
-            return `あなたのルリグトラッシュから${typeJa}${lvJa}ルリグ${nJa}を対象とし、それらをあなたのセンタールリグの下に${okuJa}`;
+            return so.all
+              ? `あなたのルリグトラッシュからすべての${kindJa}をあなたのセンタールリグの下に${okuJa}`
+              : `あなたのルリグトラッシュから${typeJa}${lvJa}${kindJa}${nJa}を対象とし、それらをあなたのセンタールリグの下に${okuJa}`;
           case 'self_to_lrig_deck':
             return 'それをルリグデッキに加える';
           case 'self_to_under_center':

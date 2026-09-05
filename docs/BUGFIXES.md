@@ -1,5 +1,103 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第174バッチ）：`WXK03-003B`「夢限　-Ｅ-」の**カードデータ欠落**と、そこで見つかった恒久 no-op 2つ
+
+**ベースライン**＝第173の直後。**gates 全緑**（typecheck・golden **3515/3515**＝+3本・smoke 全異常0・
+fuzz 全0・census **1/BASELINE 1**・`census:stubs` A群🔴0/C群0・manual-fields 0・
+`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+🖥**実機は未実施**＝触ったのは `public/data/` `src/data/` `src/engine/` `scripts/` だけ（`src/screens/` は無変更）。
+⚠ただし **`UNLIMITED_KEYS` の読み手（`BattleScreen` のキーセット可否ゲート）を初めて起こした**ので
+観測点を **`V-161`** として PLAN §5.1 へ登録した（キーを2枚以上場に出せること）。
+
+### ① 🔴カードが CSV に存在しなかった（`O-226` が着手不可だった唯一の原因）
+
+- `WXK03-003A`「夢限　-Ｐ-」の【起】に「この【起】を使用したのが**５回目**である場合、
+  **このルリグを裏返す**」と書いてあるのに、**裏返す先の `WXK03-003B` が `CardData_TK.csv` に無かった**。
+- ⇒ `public/data/CardData_TK.csv` に1行追加（末尾＝他の B 面ルリグ4枚と同じ並び）。
+  **`ImgURL` 列は実行時に使われない**（`App.tsx` が `${VITE_CARD_IMAGE_BASE}/${CardNum}.webp` を組み立てる）。
+  🔴**ImageKit 側に `WXK03-003B.webp` が無い**＝実機では `/ErrerCard.webp` に落ちる（要アップロード）。
+
+### ② 🔴`UNLIMITED_KEYS` は**読み手だけ在って生成元が0**の恒久 no-op だった（2枚）
+
+- 原文「あなたはキーを好きな枚数場に出すことができる」を持つのは 夢限 -Ｐ-／-Ｅ- の**2枚だけ**。
+- 読み手は `BattleScreen` に**2箇所**（`hasUnlimitedKeys`＝キーセット可否ゲートと配置先）在ったのに、
+  **parser も manualEffects も この STUB を一度も生成していなかった**（live 0件）。
+  しかも `-Ｐ-` 側は**【常】が効果として1件も出ていなかった**（live は E2 だけ）。
+- 🔑**この形はどの計器にも映らない**＝`census:stubs` は「ハンドラが在る」ことで実装済みと判定し、
+  `census:deadstate` は state キーを見るので `PlayerState` に書かないこの形は出ない。
+- ⇒ `manualEffects.ts` に `WXK03-003A-E1` / `WXK03-003B-E1` を手書き（速いレーン＝同型2枚）。
+  逆翻訳でも**空文字をやめて文を出す**ようにした（`decompileEffects.ts`）＝
+  従来は「【常】」の1語だけになり、実装済みかどうかが目視で確かめられなかった。
+
+### ③ 🔴`SOUL_OP{lrig_trash_to_under_center}` は候補が**ルリグ固定**だった
+
+- 原文は「ルリグトラッシュから**すべてのアーツ**をこのルリグの下に置く」（`WXK03-003B-E2`）。
+  既存ハンドラは候補を `Type === 'ルリグ' || 'アシストルリグ'` でハードコードしており、
+  そのまま使うと**1枚も動かない**（＝無言 no-op）。
+- ⇒ `SoulOpSpec` に **`cardTypes`**（候補の種別・省略時は従来どおりルリグ2種）と
+  **`all`**（「すべての」＝選ばせず全件）を足した。配置部は既存の
+  `INTERNAL_PLACE_LRIG_UNDER_CENTER` を `lastProcessedCards` 経由で共有する。
+- 🔑**逆翻訳の固定文言も同時に撤去した**（第59バッチ教訓③）＝`kindJa` を payload から描かないと
+  engine と decompiler が**同じ嘘で一致**し、計器が緑のまま意味だけ壊れる。
+
+### 検証コマンド
+
+```
+npm run build:effects && node scripts/heldReview.mjs --adopt WXK03-003B
+npm run regen
+npm run golden -- --only "O-226"      # 3本 PASS
+npm run gates                          # 全緑（golden 3514/3514）
+npx tsx scripts/decompileEffects.ts WXK03-003B   # 逆翻訳を原文と目視照合
+```
+
+**反転確認あり**＝golden に3本（①`cardTypes` を省くとアーツが1枚も動かない
+②ルリグトラッシュが空でも落ちない ③ルリグは下へ入らずトラッシュに残る）。
+
+### ④ 🏁裏返し本体を実装した（`O-226` クローズ・golden **3515/3515**）
+
+- 旧 `nthActivationFlip` は `lrig_activation_count` を数えて**ログを1行出すだけ**の真 no-op。
+- 🔑**裏返し＝センタールリグの instance を裏面のカード番号へ差し替える**（`card_identity_overrides`）。
+  差し替えれば `collectLrigFlipTriggers` が変化を検出して裏面の `ON_LRIG_FLIP` を積むので、
+  **発火まで書く必要はない**（既存の汎用経路に乗る）。
+  ⚠前例 `MUGEN_Q_RESET_AND_FLIP`（`WXDi-P11-010A`→`B`）は**盤面全リセット付き**の専用ハンドラ＝
+  こちらは原文にリセットが無いので**盤面を一切動かさない**。
+- 🔑**裏面のカード番号は原文に書いていない**（「このルリグを裏返す」だけ）＝
+  parser が**命名規約**（末尾 `A`→`B`）から導出して `flipTo` に刻む。
+  🔴**engine は `cardMap` に実在するときだけ差し替える**（fail-closed）＝
+  規約が当たらないカードでも「裏返らない」で済み、存在しない番号へ化けて盤面のルリグが引けなくなることはない。
+- **UI 側は汎用経路がそのまま使える**＝`BattleScreen` が `card_identity_overrides` で
+  `battleCardMap`（`:859`）と `effectsMap`（`:920`）を両方組み直すので、
+  **印字値も使える【起】も B のものに入れ替わる**（golden で両方 assert した）。
+
+### ⑤ 🔴裏返しを実装して初めて見えた＝`lrigCopyOppLevelLimit` に**カード名限定が無かった**
+
+- 原文は「このゲームの間、あなたの場にある**《夢限　-Ｐ-》**の基本レベルと基本リミットは、
+  対象の対戦相手のセンタールリグと同じ値になる」＝**そのカード限定**。
+- 旧実装は `lrig_copy_opp_level_limit` という**裸の boolean** で、`lrigLimit.ts` はフラグだけを見ていた。
+  ⇒ 裏返って《夢限　-Ｅ-》になった後も**コピーが効き続け、印字リミット12にならなかった**
+  （実測＝相手が居ない盤面で **0**）。
+- ⇒ `GameGrantSpec` に `cardName`、`PlayerState` に `lrig_copy_opp_level_limit_card_name` を足し、
+  読み手で**センターの `CardName` と一致するときだけ**コピーする。
+  ⚠**名指しが取れなかったときは従来どおり無条件**（退化させない）。
+- 🔑**この形は裏返しが実装されるまで観測できなかった**＝表面のままなら名前は常に一致するので、
+  限定の有無で結果が変わらない。**機構を1つ足すと、その下流の「たまたま合っていた」が露出する。**
+
+### ⑥ 🏁画像もアップロードした＋**消えていたアップロード道具を git 履歴から復元した**
+
+- `ik.imagekit.io/9rbn01opz/WXK03-003B.webp` ＝ **404 → 200**（webp 197KB／JPEG 257KB を Accept で出し分け）。
+- 🔑**道具は 2026-06-09 の `82a1b65c1`「chore: 未使用ファイルを削除してリポジトリを整理」で消えていた**
+  （`scripts/upload-*.mjs` 5本と `migrate-to-imagekit.mjs`）。git 履歴から
+  **`scripts/archive/uploadCardImages.mjs` として1本に統合して復元**した。旧版からの変更3点＝
+  ①**private key をハードコードしない**（`.env.local` の `IMAGEKIT_PRIVATE_KEY` を読む）
+  ②読む CSV を `public/data/backup/`（現存しない）→ **現行の `public/data/CardData_*.csv` 全部**
+  ③**既定を「全件」にしない**＝`--only <CardNum,…>` / `--missing` / `--all` の明示が要る（`--dry` あり）。
+- 🔴**旧スクリプトは private key を平文で持っており、その値は git 履歴に残っている。**
+  ユーザー判断＝**リポジトリ公開の予定は無い**のでローテーションはしない（2026-09-06 確認）。
+
+### 🏁`O-226` はこれでクローズ（索引 G が空になった）
+
+`census:deadstate` **0件**（`lrig_activation_count` に読み手ができた）。
+
 ## 2026-09-05（第173バッチ）：`EXILE_FROM_CHECK_ZONE` が原文と別物だった件と、**後ろのステップが一度も走らない**構造
 
 **ベースライン**＝第172の直後。**gates 全緑**（typecheck・golden **3512/3512**＝+1本・smoke 全異常0・

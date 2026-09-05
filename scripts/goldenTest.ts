@@ -68480,6 +68480,160 @@ test('§5.3 O-260: 「それがチェックゾーンから…代わりに除外�
   cursor = savedCursor;
 });
 
+// ── §5.3 `O-226`（2026-09-06）＝`WXK03-003B`「夢限　-Ｅ-」を CSV へ追加した回の手当て ──
+// 🔴このカードは **CardData_TK.csv に存在しなかった**＝`WXK03-003A`「夢限　-Ｐ-」の【起】に
+//    「このゲームの間にあなたがこの【起】を使用したのが５回目である場合、このルリグを裏返す」と
+//    書いてあるのに**裏返す先のカードデータが無い**ため、`O-226` の残1は「データ側の欠落」で
+//    着手不可のまま索引 G に残っていた（PLAN §5.3）。
+test('§5.3 O-226: 夢限 -Ｅ- の3効果が原文どおり live にある', () => {
+  const effs = effectsMap.get('WXK03-003B') ?? [];
+  eq(effs.length, 3, '3効果（【常】【自】【起】）');
+  const e1 = effs.find(e => e.effectId === 'WXK03-003B-E1');
+  eq(e1?.effectType, 'CONTINUOUS', '【常】は CONTINUOUS');
+  eq((e1?.action as { id?: string } | undefined)?.id, 'UNLIMITED_KEYS',
+     '🔴「キーを好きな枚数場に出すことができる」＝受け皿は既存の UNLIMITED_KEYS（読み手だけ在って live 0 だった）');
+  const e2 = effs.find(e => e.effectId === 'WXK03-003B-E2');
+  eq((e2?.timing ?? []).join(','), 'ON_LRIG_FLIP', '【自】は「-Ｐ- から -Ｅ- になったとき」');
+  eq(JSON.stringify((e2?.action as { soulOp?: unknown } | undefined)?.soulOp),
+     JSON.stringify({ kind: 'lrig_trash_to_under_center', cardTypes: ['アーツ'], all: true }),
+     '🔴「すべての**アーツ**を」＝`cardTypes` を省くと候補がルリグ限定になり1枚も動かない');
+  const e3 = effs.find(e => e.effectId === 'WXK03-003B-E3');
+  eq(e3?.cost?.exceed, 4, '【起】エクシード４');
+  eq((e3?.action as { target?: { count?: unknown } } | undefined)?.target?.count, 'ALL',
+     '対戦相手の**すべての**シグニをトラッシュ');
+  // 表面（-Ｐ-）にも同じ【常】がある＝旧 live は E2 だけで【常】が丸ごと落ちていた。
+  ok((effectsMap.get('WXK03-003A') ?? []).some(e =>
+       e.effectType === 'CONTINUOUS' && (e.action as { id?: string } | undefined)?.id === 'UNLIMITED_KEYS'),
+     '夢限 -Ｐ- 側にも UNLIMITED_KEYS がある');
+});
+
+test('§5.3 O-226: SOUL_OP は cardTypes でアーツだけを拾い、all で全件をルリグの下へ入れる', () => withSavedCursor(() => {
+  const arts: string[] = [], lrigs: string[] = [];
+  for (const [num, c] of cardMap as Map<string, CardData>) {
+    if (c.Type === 'アーツ' && arts.length < 2) arts.push(num);
+    else if (c.Type === 'ルリグ' && lrigs.length < 1) lrigs.push(num);
+    if (arts.length >= 2 && lrigs.length >= 1) break;
+  }
+  eq(arts.length, 2, 'CSV にアーツが2枚以上ある');
+  eq(lrigs.length, 1, 'CSV にルリグがある');
+  const top = fresh();
+  const base = mkCtx({ lrig: [top] }, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, lrig_trash: [...arts, ...lrigs] } } as ExecCtx;
+
+  const r = run({ type: 'STUB', id: 'SOUL_OP',
+    soulOp: { kind: 'lrig_trash_to_under_center', cardTypes: ['アーツ'], all: true } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig.length, 3, 'アーツ2枚がルリグの下に入る');
+  eq(r.ownerState.field.lrig.at(-1), top, 'トップ（現ルリグ）は動かない');
+  eq(r.ownerState.lrig_trash.join(','), lrigs.join(','),
+     '🔴ルリグはルリグトラッシュに残る（種別で絞らないと一緒に下へ入る）');
+
+  // 反転①＝`cardTypes` を省くと既定（ルリグ／アシストルリグ）に戻り、アーツは1枚も動かない。
+  const noTypes = run({ type: 'STUB', id: 'SOUL_OP',
+    soulOp: { kind: 'lrig_trash_to_under_center', all: true } } as unknown as EffectAction, ctx);
+  eq(noTypes.ownerState.field.lrig.length, 2, '既定の候補はルリグ1枚だけ');
+  // 反転②＝候補が0なら盤面は動かない（`all` でも空振りで落ちない）。
+  const empty = run({ type: 'STUB', id: 'SOUL_OP',
+    soulOp: { kind: 'lrig_trash_to_under_center', cardTypes: ['アーツ'], all: true } } as unknown as EffectAction,
+    { ...base, ownerState: { ...base.ownerState, lrig_trash: [] } } as ExecCtx);
+  eq(empty.ownerState.field.lrig.length, 1, 'ルリグトラッシュが空なら何も入らない');
+}));
+
+// ── §5.3 `O-226`（2026-09-06）＝「５回目の【起】でこのルリグを裏返す」の裏返し本体 ──
+// 🔴旧実装は `lrig_activation_count` を数えて**ログを1行出すだけ**＝カウンタにも読み手が無い**真 no-op**
+//    （`census:deadstate` の初回実測に載っていた形）。裏返す先の `WXK03-003B` が CSV に無かったので
+//    2026-09-06 の第174バッチまで着手できなかった。
+test('§5.3 O-226: 5回目の【起】でセンタールリグが裏面へ差し替わる（4回目までは変わらない）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXK03-003A') ?? []).find(e => e.effectId === 'WXK03-003A-E2');
+  ok(!!eff, 'WXK03-003A-E2 が live にある'); if (!eff) return;
+  // 🔑**裏面のカード番号は payload に刻まれている**（原文は「裏返す」としか書いていない）。
+  eq(JSON.stringify(eff.action).includes('"flipTo":"WXK03-003B"'), true,
+     '🔴`flipTo` が無いと engine は裏返さない（fail-closed）');
+
+  const center = fresh();
+  let ctx = mkCtx({ lrig: [center] }, {}, 'WXK03-003A');
+  for (let i = 1; i <= 4; i++) {
+    const r = run(eff.action, ctx);
+    ctx = { ...ctx, ownerState: r.ownerState } as ExecCtx;
+    eq(r.ownerState.card_identity_overrides?.[center], undefined, `${i}回目では裏返らない`);
+    eq(r.ownerState.lrig_activation_count?.['WXK03-003A'], i, `カウンタが1回の起動で1だけ進む（${i}）`);
+  }
+  const fifth = run(eff.action, ctx);
+  eq(fifth.ownerState.card_identity_overrides?.[center], 'WXK03-003B',
+     '🔴5回目でセンタールリグの instance が裏面へ差し替わる');
+  eq(fifth.ownerState.field.lrig.join(','), center,
+     '盤面は動かない（前例の `MUGEN_Q_RESET_AND_FLIP` と違い原文にリセットは無い）');
+
+  // 裏返ったので `collectLrigFlipTriggers` が裏面の【自】を積む＝ここで E2 まで繋がる。
+  const trigCtx = { hostId: 'p1', guestId: 'p2', activeUserId: 'p1', turnPhase: 'MAIN',
+    effectsMap, cardMap, genId: () => 'o226-flip' } as TrigCtx;
+  const triggers = collectLrigFlipTriggers(trigCtx, ctx.ownerState, fifth.ownerState, 'p1');
+  eq(triggers.map(t => t.effectId).join(','), 'WXK03-003B-E2',
+     '裏面の ON_LRIG_FLIP（ルリグトラッシュのアーツを下へ）が1回だけ積まれる');
+
+  // 🔑**「裏返る」＝A が B に完全に置き換わる**（ユーザー要件）＝UI 側の解決は
+  //   `BattleScreen` が `card_identity_overrides` で `battleCardMap` と `effectsMap` を
+  //   両方組み直す汎用経路（`BattleScreen.tsx:859` / `:920`）。ここではその解決結果を再現して
+  //   **印字値と使える【起】の両方**が B のものになることを固定する。
+  const resolvedCards = new Map(cardMap as Map<string, CardData>);
+  resolvedCards.set(center, (cardMap as Map<string, CardData>).get('WXK03-003B')!);
+  const resolvedEffects = new Map(effectsMap);
+  resolvedEffects.set(center, effectsMap.get('WXK03-003B') ?? []);
+  eq(computeEffectiveLrigLimit(fifth.ownerState, fifth.otherState, resolvedCards, resolvedEffects, true), 12,
+     '裏面の印字リミット12になる（-Ｐ- は2）');
+  // 🔴**対照＝裏返る前は相手のリミットをコピーしている**（上の 12 が「限定がたまたま効かない」ではない）。
+  //   原文「あなたの場にある《夢限　-Ｐ-》の基本レベルと基本リミットは〜」＝**カード名で限定**するので、
+  //   裏返って -Ｅ- になった瞬間にコピーが切れて印字値へ戻る（この限定が無いと 12 にならない）。
+  const oppCenter = 'WXDi-P11-010B';   // 印字リミット9のルリグを相手センターに立てる
+  const beforeCards = new Map(cardMap as Map<string, CardData>);
+  beforeCards.set(center, (cardMap as Map<string, CardData>).get('WXK03-003A')!);
+  const beforeEffs = new Map(effectsMap);
+  beforeEffs.set(center, effectsMap.get('WXK03-003A') ?? []);
+  const oppState = { ...fifth.otherState,
+    field: { ...fifth.otherState.field, lrig: [oppCenter] } } as PlayerState;
+  eq(computeEffectiveLrigLimit(ctx.ownerState, oppState, beforeCards, beforeEffs, true), 9,
+     '対照：裏返る前は相手センタールリグのリミット9をコピーしている');
+  eq(collectCenterLrigActivatedEffects(fifth.ownerState, resolvedEffects, 'MAIN').map(e => e.effectId).join(','),
+     'WXK03-003B-E3',
+     '🔴使える【起】は裏面のエクシード４だけ（表面の《無》1コインの【起】は消える）');
+  // 対照＝差し替え前は表面の【起】が見えている（＝上の assert が「たまたま空」ではない）。
+  const beforeEffects = new Map(effectsMap);
+  beforeEffects.set(center, effectsMap.get('WXK03-003A') ?? []);
+  eq(collectCenterLrigActivatedEffects(ctx.ownerState, beforeEffects, 'MAIN').map(e => e.effectId).join(','),
+     'WXK03-003A-E2', '対照：裏返る前は表面の【起】');
+
+  // 反転①＝`flipTo` が無ければ裏返らない（存在しない番号へ化けさせない）。
+  const noFlipTo = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+  const stripFlipTo = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(stripFlipTo); return; }
+    const rec = n as Record<string, unknown>;
+    if (rec.kind === 'nthActivationFlip') delete rec.flipTo;
+    Object.values(rec).forEach(stripFlipTo);
+  };
+  stripFlipTo(noFlipTo);
+  const center2 = fresh();
+  let ctx2 = mkCtx({ lrig: [center2] }, {}, 'WXK03-003A');
+  for (let i = 1; i <= 5; i++) { const r = run(noFlipTo, ctx2); ctx2 = { ...ctx2, ownerState: r.ownerState } as ExecCtx; }
+  eq(ctx2.ownerState.card_identity_overrides?.[center2], undefined,
+     '🔴payload に裏面が無ければ5回目でも裏返らない');
+
+  // 反転②＝CSV に実在しない番号なら裏返らない（盤面のルリグが引けなくなるのを防ぐ）。
+  const bogus = JSON.parse(JSON.stringify(eff.action)) as EffectAction;
+  const setFlipTo = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(setFlipTo); return; }
+    const rec = n as Record<string, unknown>;
+    if (rec.kind === 'nthActivationFlip') rec.flipTo = 'WXK03-003Z';
+    Object.values(rec).forEach(setFlipTo);
+  };
+  setFlipTo(bogus);
+  const center3 = fresh();
+  let ctx3 = mkCtx({ lrig: [center3] }, {}, 'WXK03-003A');
+  for (let i = 1; i <= 5; i++) { const r = run(bogus, ctx3); ctx3 = { ...ctx3, ownerState: r.ownerState } as ExecCtx; }
+  eq(ctx3.ownerState.card_identity_overrides?.[center3], undefined,
+     '🔴CSV に無いカード番号へは差し替えない');
+}));
+
 if (listMode) {
   listedNames.forEach(n => console.log(n));
   console.log(`\n(計 ${listedNames.length} テスト)`);

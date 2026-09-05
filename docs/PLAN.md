@@ -768,7 +768,16 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > ⚠**着手前に §4.4 の29項を読む。** ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
 
-**■ 未実施の観測点＝0件**（2026-09-05 第173バッチまでで `V-152`〜`V-160` を同じセッションで返済した）
+**■ 未実施の観測点＝1件**（`V-161`。2026-09-05 第173バッチまでで `V-152`〜`V-160` は返済済み）
+
+> 🆕**`V-161`（§5.3 `O-226`＝キーを好きな枚数場に出せる）＝2026-09-06 第174バッチで登録・**未実施**。**
+> **見るもの**＝センタールリグが `WXK03-003A`「夢限　-Ｐ-」または `WXK03-003B`「夢限　-Ｅ-」のとき、
+> **キーを2枚以上場に出せる**（2枚目以降は `field.key_piece_extra` に積まれる）。
+> 🔴**なぜ実機が要るか**＝`UNLIMITED_KEYS` の読み手は engine ではなく `BattleScreen` の
+> `hasUnlimitedKeys`（キーセット可否ゲートと配置先の2箇所）＝**golden から触れない**。
+> しかも第174バッチまで **live 0件＝一度も起動されたことがない読み手**だった。
+> **負方向の対照**＝別のルリグでは2枚目のキーが**押せない**こと（既定の枚数上限1が効いている）。
+> 🏁**画像はアップロード済み**（2026-09-06）＝`/ErrerCard.webp` にはならない。
 
 > 🏁**`V-152`〜`V-155`（§5.3 `O-251`／`O-255`／`O-256`／`O-250`）＝2026-09-05 に7シナリオ全て PASS。**
 > 内訳＝`v152DeclareRaisesCost` / `v152DeclareLimitedByEnergy` / `v153SelfPowerDownPaid` /
@@ -1060,7 +1069,7 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-226` | 🏁**残 1効果**<br>🔻2026-09-04 に (a)(b) を払い戻し | `GAIN_ABILITY_THIS_GAME` が書く state キーに読み手がいない（真 no-op）。<br>🏁**(a)(b) `game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`（`WXK09-001-E3`）＝2026-09-04 に消化。**🔑**宣言した名前は `declared_card_name` に保存済みだった**（`STUB{DECLARE_CARD_NAME}`）＝足りなかったのは**その名前と突き合わせて読む側**だけ。⇒ `growLogic.declaredSigniOverride` を新設し、手札からの召喚ゲート（レベル制限・リミット・限定条件）と**場のレベル合計**の計3箇所で読む。⚠**名前が一致したときだけ**効く（フラグだけ見ると全シグニが対象＝過剰実行）。<br>🔴**残 (c)`lrig_activation_count`**（`WXK03-003A-E2`「この【起】を使用したのが5回目である場合、**このルリグを裏返す**」）＝**カウンタは読まれている**（同じハンドラ内で `>= g.count` を判定）。**本当の欠落は「裏返す」先＝`WXK03-003B` が CSV に存在しない**（`WXK03-003A` のみ）。`card_identity_overrides` の前例（`WXDi-P11-010A`→`B`）は使えるが、**差し替え先のカードデータが無い**ので実装できない＝**データ側の欠落**（要 CSV 追加）。 |
+| `O-226` | 🏁**残 1効果**<br>🔻2026-09-04 に (a)(b) を払い戻し | `GAIN_ABILITY_THIS_GAME` が書く state キーに読み手がいない（真 no-op）。<br>🏁**(a)(b) `game_declared_signi_level_zero` / `game_declared_signi_ignore_restriction`（`WXK09-001-E3`）＝2026-09-04 に消化。**🔑**宣言した名前は `declared_card_name` に保存済みだった**（`STUB{DECLARE_CARD_NAME}`）＝足りなかったのは**その名前と突き合わせて読む側**だけ。⇒ `growLogic.declaredSigniOverride` を新設し、手札からの召喚ゲート（レベル制限・リミット・限定条件）と**場のレベル合計**の計3箇所で読む。⚠**名前が一致したときだけ**効く（フラグだけ見ると全シグニが対象＝過剰実行）。<br>🔴**残 (c)`lrig_activation_count`**（`WXK03-003A-E2`「この【起】を使用したのが5回目である場合、**このルリグを裏返す**」）＝**カウンタは読まれている**（同じハンドラ内で `>= g.count` を判定）。**本当の欠落は「裏返す」先＝`WXK03-003B` が CSV に存在しない**（`WXK03-003A` のみ）。`card_identity_overrides` の前例（`WXDi-P11-010A`→`B`）は使えるが、**差し替え先のカードデータが無い**ので実装できない＝**データ側の欠落**（要 CSV 追加）。<br>🆕🔓**2026-09-06（第174バッチ）＝データ欠落を解消した＝着手不可ではなくなった（索引 G → A）。**`public/data/CardData_TK.csv` に `WXK03-003B`「夢限　-Ｅ-」を追加し、3効果を live まで通した（E1＝`UNLIMITED_KEYS`／E2＝`SOUL_OP{lrig_trash_to_under_center, cardTypes:['アーツ'], all:true}`／E3＝エクシード４）。**残っているのは裏返しそのもの**＝`nthActivationFlip` は `lrig_activation_count` を数えて**ログを1行出すだけ**。⚠前例の `MUGEN_Q_RESET_AND_FLIP` は**盤面全リセット付き**の専用ハンドラ＝**そのままは使えない**（-Ｐ-→-Ｅ- はリセットを伴わない素の裏返し）。🏁🆕**2026-09-06（第174バッチ・同日）＝裏返し本体まで実装して `O-226` を**クローズ**。**`nthActivationFlip` が `card_identity_overrides` でセンタールリグの instance を裏面へ差し替える（`flipTo` は parser が命名規約 `A`→`B` から導出。engine は `cardMap` に実在するときだけ差し替える＝fail-closed）。🔑**発火は既存の汎用経路**＝差し替えれば `collectLrigFlipTriggers` が裏面の `ON_LRIG_FLIP` を積む。🔑**UI も汎用**＝`BattleScreen` が `battleCardMap`（`:859`）と `effectsMap`（`:920`）を組み直すので印字値も【起】も B になる。🔴**裏返しを実装して初めて見えたバグを1件同時に直した**＝`lrigCopyOppLevelLimit` に**カード名限定が無く**、裏返った後もコピーが効き続けて印字リミット12にならなかった（`cardName` / `lrig_copy_opp_level_limit_card_name` を新設）。🔑**機構を1つ足すと、その下流の「たまたま合っていた」が露出する。**🏁**画像もアップロード済み**（2026-09-06＝404 → 200）。🔑**アップロード道具は `82a1b65c1` で消えていた**ので git 履歴から `scripts/archive/uploadCardImages.mjs` として復元した（`--only <CardNum,…>` / `--missing` / `--dry`。private key は `.env.local` の `IMAGEKIT_PRIVATE_KEY`）。 |
 
 #### 索引 E. 計器の較正・掃除（**機構ではない**＝カードの挙動は変わらない）
 

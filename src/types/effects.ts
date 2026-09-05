@@ -4480,10 +4480,22 @@ export type GameGrantSpec =
   | { kind: 'oppGuardExtraColorless' }
   /** 「【起】手札から《ガードアイコン》を持つシグニ1枚を捨てる：【ルリグバリア】1つを得る」 */
   | { kind: 'guardBarrierAct' }
-  /** 「あなたの場にある《X》の基本レベルと基本リミットは、対象の対戦相手のセンタールリグと同じ値になる」 */
-  | { kind: 'lrigCopyOppLevelLimit' }
-  /** 「このゲームの間にあなたがこの【起】を使用したのがN回目である場合、このルリグを裏返す」 */
-  | { kind: 'nthActivationFlip'; count: number }
+  /**
+   * 「あなたの場にある《X》の基本レベルと基本リミットは、対象の対戦相手のセンタールリグと同じ値になる」。
+   * 🆕`cardName`＝**《》で名指しされたカード名**（§5.3 `O-226`・2026-09-06）。
+   * 🔴これが無いと**そのルリグが裏返って別のカードになってもコピーが効き続ける**＝
+   *   `WXK03-003A`「夢限　-Ｐ-」が5回目の【起】で `WXK03-003B`「夢限　-Ｅ-」へ裏返った後も
+   *   印字リミット12ではなく相手のリミットを使い続けた（裏返しを実装して初めて見えた）。
+   */
+  | { kind: 'lrigCopyOppLevelLimit'; cardName?: string }
+  /**
+   * 「このゲームの間にあなたがこの【起】を使用したのがN回目である場合、このルリグを裏返す」。
+   * 🆕`flipTo`＝**裏面のカード番号**（§5.3 `O-226`・2026-09-06）。原文には「裏返す」としか
+   *   書いていないので、parser が**カード番号の規約**（末尾 `A` → `B`）から導出して刻む。
+   * 🔴**engine 側は `cardMap` に実在するときだけ差し替える**（fail-closed）＝
+   *   裏面が CSV に無いカードで存在しない番号へ化けると、盤面のルリグが引けなくなる。
+   */
+  | { kind: 'nthActivationFlip'; count: number; flipTo?: string }
   /**
    * 「このゲームの間、あなたは以下の能力を得る。『…』」の**見出し文だけ**。
    * ⚠これ自体は盤面を変えない＝中身は他の grant／後続ステップが担う。
@@ -4512,6 +4524,7 @@ export interface SoulOpSpec {
    * - `under_to_soul`＝ルリグの下のカード1枚 → 対象シグニの【ソウル】
    * - `lrig_trash_to_soul`＝ルリグトラッシュのルリグ1枚 → 対象シグニの【ソウル】
    * - `lrig_trash_to_under_center`＝ルリグトラッシュのルリグ → センタールリグの下
+   *   （候補の種別は `cardTypes` で変えられる＝アーツを下に置く文型もここ）
    * - `self_to_lrig_deck`＝効果元カード → ルリグデッキ
    * - `self_to_under_center`＝効果元カード → センタールリグの下
    * - `processed_to_lrig_trash`＝直前に処理したカード → ルリグトラッシュ
@@ -4538,6 +4551,17 @@ export interface SoulOpSpec {
   upTo?: boolean;
   /** 「**あなたの**ルリグの下から〜**合計**N枚」＝センターとアシスト両方を合わせる。 */
   fromAllLrigs?: boolean;
+  /**
+   * 候補のカード種別（`Type` 列と完全一致）。`lrig_trash_to_under_center` 用。
+   * 省略時は従来どおり `ルリグ`／`アシストルリグ`（＝「すべてのルリグ」文型）。
+   * 🆕`['アーツ']`＝「あなたのルリグトラッシュからすべての**アーツ**を〜」（`WXK03-003B-E2`）。
+   */
+  cardTypes?: string[];
+  /**
+   * 「**すべての**〜を置く」＝候補を選ばせず全部動かす（`count` は無視）。
+   * ⚠`anyCount`（好きな枚数＝プレイヤーが選ぶ）とは別軸＝こちらは強制で全件。
+   */
+  all?: boolean;
   /** 候補のレベル（完全一致）。`lrig_trash_to_under_center` 用。 */
   level?: number;
   /** 候補のレベル上限（「レベルN**以下**」）。`lrig_trash_to_under_center` 用。 */

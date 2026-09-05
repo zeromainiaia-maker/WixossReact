@@ -7,11 +7,11 @@
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
 
-## B GATE  5規則 / 当たり 4441カード
+## B GATE  5規則 / 当たり 4442カード
 
 | 当たり | payload無 | 場所 | 関数 | 規則 |
 |---:|---:|---|---|---|
-| 4433 | 4402 | battle/growLogic.ts:340 | listGrowCandidates | `/かつ\|と/` |
+| 4434 | 4403 | battle/growLogic.ts:340 | listGrowCandidates | `/かつ\|と/` |
 | 29 | 29 | battle/costs.ts:1178 | isMultiEna | `'：【マルチエナ】'` |
 | 26 | 26 | battle/lrigActivateGate.ts:110 | canActivateLrigEffect | `'【歌のカケラ】'` |
 | 11 | 11 | battle/pieceCutin.ts:21 | isTeamConditionPiece | `'【使用条件】【チーム】'` |

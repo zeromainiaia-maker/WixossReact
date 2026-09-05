@@ -24566,7 +24566,7 @@ function applyDynamicActionCountBatch35(card: CardData, effects: CardEffect[]): 
  *   旧 engine は**ノードごとにカード全文を読み直していた**ので、
  *   1回の起動で `lrig_activation_count` が**2進んでいた**（＝5回目の裏返しが3回目に来ていた）。
  */
-function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, string>): void {
+function applyGameGrantsBatch49(card: CardData, effects: CardEffect[], sourceTexts: Map<string, string>): void {
   for (const effect of effects) {
     const nodes: StubAction[] = [];
     const visit = (node: unknown): void => {
@@ -24579,7 +24579,7 @@ function applyGameGrantsBatch49(effects: CardEffect[], sourceTexts: Map<string, 
     };
     visit(effect.action);
     if (nodes.length === 0) continue;
-    const grants = buildGameGrants(sourceTexts.get(effect.effectId) ?? '');
+    const grants = buildGameGrants(sourceTexts.get(effect.effectId) ?? '', card.CardNum);
     nodes.forEach((n, i) => { n.gameGrants = i === 0 ? grants : []; });
 
     // 🆕**§5.3 `O-60` 第64バッチ（2026-09-04）＝宣言が取れたら、同じ効果の中の catch-all を落とす。**
@@ -26554,7 +26554,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyQuotedBanishImmunityGrantBatch2026Aug30(card, effects);
   applyVirusRemovedCountTail(card, effects);
   applySourceColorMismatchOptionalTarget(card, effects);
-  applyGameGrantsBatch49(effects, currentSourceTexts);
+  applyGameGrantsBatch49(card, effects, currentSourceTexts);
   for (const effect of effects) {
     const sourceText = currentSourceTexts.get(effect.effectId) ?? '';
     // O-96 は効果単位の最終 root でだけ適用する。parseActionText 内では CHOOSE の各枝も一時的に

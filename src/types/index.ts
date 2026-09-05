@@ -1279,6 +1279,12 @@ export interface PlayerState {
   lrig_attack_phase_power_down_per_signi?: number; // WX24-P2-030: アタックフェイズ中の相手パワーダウン
   opp_signi_energy_to_deck_bottom?: boolean;       // WX25-CP1-003: 相手シグニのエナ→デッキ下
   lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
+  /**
+   * 🆕上のコピーが効く**カード名**（原文の《》で名指しされた分。§5.3 `O-226`・2026-09-06）。
+   * 🔴**省略時は無条件**（旧挙動）＝名指しがあるのに保存しないと、そのルリグが裏返って
+   *   別のカードになってもコピーが効き続ける。⚠読み手は `lrigLimit.ts` の `copiedLimit` 1箇所。
+   */
+  lrig_copy_opp_level_limit_card_name?: string;
   lrig_activation_count?: { [cardNum: string]: number }; // WXK03-003A: 特定ルリグ起動能力の使用回数
   // 「この方法で裏向きにしたシグニ」のターン終了時復帰予約。
   // field.facedown_signi と同じゾーン番号を保持し、別効果で裏向きになったカードを巻き込まない。

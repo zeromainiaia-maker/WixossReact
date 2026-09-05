@@ -28,7 +28,15 @@ export function computeEffectiveLrigLimit(
   // ⚠**加算（`lrig_limit_mod`）ではなく置換**なので `basicOverride` と同じ層に置く。相手からの
   //   `OPP_CENTER_LRIG_LIMIT_SET_5` より自分の宣言を優先する（原文は「このルリグの基本リミットは12になる」）。
   const selfBaseOverride = state.lrig_base_limit_override;
-  const copiedLimit = state.lrig_copy_opp_level_limit ? parseLimit(otherCenter?.Limit) : undefined;
+  // 🆕**名指しがあるならセンターがそのカードのときだけコピーする**（§5.3 `O-226`・2026-09-06）。
+  // 🔴原文は「あなたの場にある《夢限　-Ｐ-》の基本レベルと基本リミットは〜」＝そのカード限定。
+  //   旧実装はフラグだけを見ていたので、5回目の【起】で《夢限　-Ｅ-》へ裏返った後も
+  //   コピーが効き続け、**印字リミット12ではなく相手のリミット**を使っていた。
+  //   ⚠名指しが無い（`cardName` を刻めなかった）ときは従来どおり無条件（退化させない）。
+  const copyName = state.lrig_copy_opp_level_limit_card_name;
+  const copyApplies = state.lrig_copy_opp_level_limit
+    && (!copyName || center?.CardName === copyName);
+  const copiedLimit = copyApplies ? parseLimit(otherCenter?.Limit) : undefined;
   const centerLevel = parseInt(center?.Level ?? '0', 10) || 0;
   const limitUpperBonus = state.limit_upper_token
     && (state.field.assist_lrig_l ?? []).length === 0

@@ -28,7 +28,7 @@ const num = (raw: string | undefined, fallback: number): number => {
  * 効果単位の原文から「このゲームの間」宣言を全部取り出す。
  * 🔑**順序は原文の出現順ではなく規則の並び順**＝engine は集合として適用するので順序に意味は無い。
  */
-export function buildGameGrants(text: string): GameGrantSpec[] {
+export function buildGameGrants(text: string, cardNum?: string): GameGrantSpec[] {
   const t = text ?? '';
   const out: GameGrantSpec[] = [];
 
@@ -97,11 +97,24 @@ export function buildGameGrants(text: string): GameGrantSpec[] {
   if (limitPlus) out.push({ kind: 'growPhaseLimitPlus', value: num(limitPlus[1], 1) });
 
   // ---- `WXK03-003A` ----
-  if (/基本レベルと基本リミットは[^。]*対象の対戦相手のセンタールリグ[^。]*と同じ値になる/.test(t)) {
-    out.push({ kind: 'lrigCopyOppLevelLimit' });
+  const copyLL = t.match(/あなたの場にある(?:《([^》]+)》)?[^。]*基本レベルと基本リミットは[^。]*対象の対戦相手のセンタールリグ[^。]*と同じ値になる/);
+  if (copyLL) {
+    // 🆕**《》で名指しされたカード名を持ち回る**（§5.3 `O-226`・2026-09-06）＝
+    //   原文は「あなたの場にある《夢限　-Ｐ-》の基本レベルと基本リミットは〜」＝**そのカードだけ**。
+    // 🔴名前を落とすと、5回目の【起】で `WXK03-003B`「夢限　-Ｅ-」へ裏返った後も
+    //   コピーが効き続け、印字リミット12にならない（裏返しを実装して初めて見えた）。
+    out.push({ kind: 'lrigCopyOppLevelLimit', ...(copyLL[1] ? { cardName: copyLL[1] } : {}) });
   }
   const nthUse = t.match(/この【起】を使用したのが([０-９\d]+)回目である場合/);
-  if (nthUse) out.push({ kind: 'nthActivationFlip', count: num(nthUse[1], 5) });
+  if (nthUse) {
+    // 🆕**裏面のカード番号は原文に書いていない**（「このルリグを裏返す」だけ）＝
+    //   両面カードの命名規約（末尾 `A` が表・`B` が裏。`WXK03-003A`→`WXK03-003B`、
+    //   前例 `WXDi-P11-010A`→`WXDi-P11-010B`）から導出して payload に刻む（§5.3 `O-226`）。
+    // 🔴**engine は `cardMap` に実在するときだけ差し替える**ので、規約が当たらないカードでも
+    //   「裏返らない」で済む（存在しない番号へ化けて盤面のルリグが引けなくなることはない）。
+    const flipTo = /A$/.test(cardNum ?? '') ? `${cardNum!.slice(0, -1)}B` : undefined;
+    out.push({ kind: 'nthActivationFlip', count: num(nthUse[1], 5), ...(flipTo ? { flipTo } : {}) });
+  }
 
   // ---- 見出し文（盤面は動かさない）----
   // ⚠**先頭に置く**＝逆翻訳が「このゲームの間、あなたは以下の能力を得る。〈中身〉」の語順で読めるようにする

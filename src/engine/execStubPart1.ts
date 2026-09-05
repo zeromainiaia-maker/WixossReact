@@ -582,7 +582,10 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'アタックを無効にする'));
   }
-  // ゲームプレイに影響しない説明テキストは無音でスキップ
+  // ゲームプレイに影響しない説明テキストは無音でスキップ。
+  // ⚠`UNLIMITED_KEYS` は説明テキストではなく**【常】の実効果**だが、読み手は `BattleScreen` の
+  //   キーセット可否ゲートと配置先（`hasUnlimitedKeys` の2箇所）＝**盤面へ書くのは engine ではない**。
+  //   だから実行時は何もしないのが正しい（§5.3 `O-226`・2026-09-06）。逆翻訳では文を出す。
   if (stub.id === 'RULE_REMINDER_TEXT' || stub.id === 'USE_CONDITION_TEXT' || stub.id === 'UNLIMITED_KEYS') {
     return done(ctx);
   }
@@ -3290,18 +3293,43 @@ export function execStubPart1(
           logsGA.push(`グロウフェイズ開始時リミット+${g.value}（このゲーム・累積）`);
           break;
         case 'lrigCopyOppLevelLimit':
-          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_copy_opp_level_limit: true } };
-          logsGA.push('ルリグのレベル・リミットを相手センタールリグからコピー（このゲーム）');
+          // 🆕**名指しされたカード名も保存する**（§5.3 `O-226`）＝読み手（`lrigLimit.ts`）が
+          //   「いまセンターに居るのがそのカードか」を見て初めて、裏返った後にコピーが切れる。
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            lrig_copy_opp_level_limit: true,
+            ...(g.cardName ? { lrig_copy_opp_level_limit_card_name: g.cardName } : {}) } };
+          logsGA.push(g.cardName
+            ? `《${g.cardName}》のレベル・リミットを相手センタールリグからコピー（このゲーム）`
+            : 'ルリグのレベル・リミットを相手センタールリグからコピー（このゲーム）');
           break;
         case 'nthActivationFlip': {
-          // ⚠🔴**裏返しそのものは未実装**（ログだけ）＝`lrig_activation_count` にも読み手が無い（§5.3 `O-226`）。
+          // 🆕**裏返しを実装した**（§5.3 `O-226`・2026-09-06）＝旧実装は回数を数えて**ログを1行出すだけ**で、
+          //   `lrig_activation_count` にも読み手が無い**真 no-op** だった（`census:deadstate` の初回実測に載っていた）。
+          // 🔑**裏返し＝センタールリグの instance を裏面のカード番号へ差し替える**
+          //   （`card_identity_overrides`）＝前例 `MUGEN_Q_RESET_AND_FLIP`（`WXDi-P11-010A`→`B`）と同じ受け皿。
+          //   ⚠あちらは**盤面全リセット付き**の専用ハンドラ（原文にリセットが書いてある）＝こちらは
+          //   「このルリグを裏返す」だけなので**盤面は一切動かさない**。
+          // 🔑差し替えると `collectLrigFlipTriggers` が `card_identity_overrides` の変化を検出して
+          //   裏面の `ON_LRIG_FLIP` の【自】を積む（`WXK03-003B-E2`）＝ここで発火まで書く必要はない。
           const srcNumGA = ctx.sourceCardNum ?? '';
           const countMapGA = { ...(ctxGA.ownerState.lrig_activation_count ?? {}) };
           countMapGA[srcNumGA] = (countMapGA[srcNumGA] ?? 0) + 1;
           ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_activation_count: countMapGA } };
-          logsGA.push(countMapGA[srcNumGA] >= g.count
-            ? `このルリグを裏返す（${countMapGA[srcNumGA]}/${g.count}回目：裏返し実行ログのみ）`
-            : `このゲームN回目起動（${countMapGA[srcNumGA]}/${g.count}回）`);
+          if (countMapGA[srcNumGA] < g.count) {
+            logsGA.push(`このゲームN回目起動（${countMapGA[srcNumGA]}/${g.count}回）`);
+            break;
+          }
+          // 🔴**fail-closed**＝裏面が payload に無い／CSV に実在しない／効果元がセンタールリグでない
+          //   ときは**裏返さない**。存在しない番号へ化けると盤面のルリグが引けなくなる。
+          const centerGA = ctxGA.ownerState.field.lrig.at(-1);
+          const flipToGA = g.flipTo;
+          if (!centerGA || !flipToGA || !ctx.cardMap.has(flipToGA)) {
+            logsGA.push(`このルリグを裏返す（${countMapGA[srcNumGA]}/${g.count}回目：裏面のカードデータが無いため据置）`);
+            break;
+          }
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState,
+            card_identity_overrides: { ...(ctxGA.ownerState.card_identity_overrides ?? {}), [centerGA]: flipToGA } } };
+          logsGA.push(`このルリグを裏返す（${countMapGA[srcNumGA]}/${g.count}回目：${ctx.cardMap.get(flipToGA)?.CardName ?? flipToGA}）`);
           break;
         }
         case 'abilityBlockHeader':
@@ -3825,10 +3853,13 @@ export function execStubPart1(
       case 'lrig_trash_to_under_center': {
         const centerTop = ctx.ownerState.field.lrig.at(-1);
         const centerCard = centerTop ? ctx.cardMap.get(centerTop) : undefined;
+        // 🆕候補の種別は payload で決める（§5.3 `O-226`・2026-09-05）＝省略時は従来どおりルリグ2種。
+        //   `['アーツ']`＝「ルリグトラッシュからすべてのアーツをこのルリグの下に置く」（`WXK03-003B-E2`）。
+        const allowedTypes = spec.cardTypes ?? ['ルリグ', 'アシストルリグ'];
         const candidates = ctx.ownerState.lrig_trash.filter(cn => {
           const c = ctx.cardMap.get(cn);
           if (!c) return false;
-          if (c.Type !== 'ルリグ' && c.Type !== 'アシストルリグ') return false;
+          if (!allowedTypes.includes(c.Type)) return false;
           const lv = parseInt(c.Level ?? '', 10);
           if (spec.level !== undefined && lv !== spec.level) return false;
           if (spec.levelMax !== undefined && !(Number.isFinite(lv) && lv <= spec.levelMax)) return false;
@@ -3837,7 +3868,14 @@ export function execStubPart1(
           }
           return true;
         });
-        if (candidates.length === 0) return done(addLog(ctx, 'ルリグトラッシュに条件を満たすルリグなし'));
+        if (candidates.length === 0) return done(addLog(ctx, 'ルリグトラッシュに条件を満たすカードなし'));
+        // 🆕「**すべての**〜を置く」は選ばせずに全件を動かす（`INTERNAL_PLACE_LRIG_UNDER_CENTER` は
+        //   `lastProcessedCards` を受けるので、候補をそのまま渡せば配置部を共有できる）。
+        if (spec.all) {
+          return execStubPart1({ type: 'STUB', id: 'INTERNAL_PLACE_LRIG_UNDER_CENTER' },
+            { ...ctx, lastProcessedCards: candidates },
+            exec, transferToHandTrashCandidates, zoneTargetCandidates) ?? done(ctx);
+        }
         const pickCount = Math.min(spec.count ?? 1, candidates.length);
         const placeStub: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_LRIG_UNDER_CENTER' };
         return selectOrInteract(candidates, pickCount, (spec.upTo ?? false) || (spec.optional ?? false),
