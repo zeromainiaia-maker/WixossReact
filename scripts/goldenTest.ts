@@ -1740,11 +1740,20 @@ test('batch7 virus extra cost scales', () => {
   cursor = savedCursor;
 });
 
-test('PLAN §6.3 WXK04-015-E1b: キー自壊コストを保持（WXK01-028-E4も既実装）', () => {
-  const k04015 = effectsMap.get('WXK04-015')!.find(e => e.effectId === 'WXK04-015-E1b');
+test('PLAN §6.3 WXK04-015-E2: キー自壊コストを保持（WXK01-028-E4も既実装）', () => {
+  // 🆕**2026-09-06（§5.3 `O-93`）＝`-E1b` → `-E2` へ id が動いた。**
+  //   旧 live は 2文目の【起】を `-E1b` という枝番 id で持っており、**effectId の集合が parser とズレて
+  //   カードごと `_idset_fresh` に凍っていた**（＝このカードへの parser 改善が何ひとつ届かない状態）。
+  // 🔴**その凍結が過小実行を1件隠していた**＝原文「以下の４つから**２つ**を選ぶ」なのに
+  //   live は `choose_count:1` で、**1つしか選べなかった**。id を揃えた瞬間に parser の 2 が届いた。
+  // 🔑**id の枝番は「表示の細部」ではなく、parser 改善の配送経路そのものを塞ぐ。**
+  const k04015 = effectsMap.get('WXK04-015')!.find(e => e.effectId === 'WXK04-015-E2');
   const k01028 = effectsMap.get('WXK01-028')!.find(e => e.effectId === 'WXK01-028-E4');
-  ok(k04015?.cost?.trash_key === true, 'WXK04-015-E1b cost.trash_key');
+  ok(k04015?.cost?.trash_key === true, 'WXK04-015-E2 cost.trash_key');
   ok(k01028?.cost?.trash_key === true, 'WXK01-028-E4 cost.trash_key');
+  // 🔴凍結が隠していた本体＝「４つから２つ」。1 に戻ったら過小実行の再発。
+  const e1 = effectsMap.get('WXK04-015')!.find(e => e.effectId === 'WXK04-015-E1')!;
+  eq((e1.action as Extract<EffectAction, { type: 'CHOOSE' }>).choose_count, 2, '原文「４つから２つを選ぶ」');
 });
 
 test('PLAN §6.3 WX14-028: 緑除外サーチ／BURSTの異色2枚制約', () => {
@@ -14286,8 +14295,20 @@ test('§6.4 トリップワイヤ: 「〜てもよい。そうした場合」の
 // scripts/censusManualDrift.ts` で明細・`--date` で方向判定・`--adopt <id,…>` で効果単位に同期）。
 // **リストに無い effectId が乖離したら即 FAIL**＝新しい陳腐化はここで止まる。
 const MANUAL_DRIFT_KNOWN = new Set([
-  // ── live のほうが新しい（後から live へ直接入れた手修正）＝**同期してはいけない**側 ──
-  'WX24-P4-045-E1', 'WXEX2-71-E2', 'WXEX2-71-E3',   // git 履歴で live が後（--date 判定）
+  // 🏁**2026-09-06（§5.3 `O-93`）＝残っていた4件（`WX24-P4-045-E1` / `WXEX2-71-E2` / `WXEX2-71-E3` /
+  //   `WXEX1-66-E2`）を全部解消してリストを空にした。** `censusManualDrift` の乖離も **57効果 → 0**。
+  // 🔴🔑**うち3件は「live のほうが新しい＝同期してはいけない」と書かれていたが、原文照合すると全部逆だった。**
+  //   この節の `--date`（git 履歴）判定は**着手順を決めるためのもので、判定ではない**（本ファイル冒頭の警告どおり）。
+  //   ・`WX24-P4-045-E1`＝live は `ADD_TO_LIFE{owner:'opponent'}`＝**相手のライフを増やしていた**。
+  //     `effectExecutor.ts:4042` の注記が**このカードを名指しで**「原文が加える先を修飾しない場合は
+  //     効果の使用者のライフクロス」と書いており、engine を直した回に live へ届いていなかった。
+  //   ・`WXEX2-71-E3`＝live は `owner:'opponent'`（原文は「**あなたの**他の＜英知＞のシグニ」）で、
+  //     しかも keyword が原文まるごとの文字列＝`BattleScreen` が見る `'正面以外追加アタック'` と一致せず**恒久 no-op**。
+  //   ・`WXEX2-71-E2`＝差は `mandatory` だけで、原文に「〜してもよい」が無いので **live(true) が正しかった**。
+  //     ⇒ manual 側を true に直したら parser 出力と実体同一になったので**手書きごと削除**（§6.4 `O-40`）。
+  //   ・`WXEX1-66-E2`＝live は `REVEAL_DECK_TOP(4)` の後にもう一度 `REVEAL_AND_PICK(4)` を積んでおり
+  //     **4枚公開が2回**走っていた。manual の `LOOK_AND_REORDER{shuffle,bottom}` 1本が原文どおり。
+  // 🔑**教訓＝日付で決めず、原文と「engine のどこがその値を読むか」で決める。**
   // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
   // ✅2026-09-02（§5.3 `O-221` 第1バッチ）＝`PR-Di017B-E1` は**手書きを削除して**解消＝リストから外した。
   //   🔴**parser のほうが正しくなっていたのに手書きが常に勝って古い形を凍らせていた**
@@ -14303,8 +14324,9 @@ const MANUAL_DRIFT_KNOWN = new Set([
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   // ✅2026-09-02（`O-96` 第11バッチ）＝`WXDi-P02-039-E1` は `syncManualLive` で解消（同カードの E2 を
   //   固定形へ直したついでにカード単位で同期された）＝リストから外した。
-  'WXEX1-66-E2',                                                     // SAME_TIME＝同一 commit で分岐（要原文照合）
   // ✅2026-08-29（§5.3 `O-149`）＝WX24-P2-049 / WXDi-P13-050 の shadow id は正規化して解消。
+  // ⚠**空が正常値**＝ここに1件でも積まれたら「manualEffects.ts を直したのに live へ届いていない」乖離が
+  //   復活したということ。追記して緑にする前に `npx tsx scripts/censusManualDrift.ts` で明細を読むこと。
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
   // ⚠比較は**リーフパス集合**で行う（`JSON.stringify` の素朴比較はキー順に依存し、実体が同一でも
@@ -14349,6 +14371,37 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
   // 消化して減ったらリストも縮める＝残骸が「まだ乖離している」と嘘をつかないようにする。
   const stale = [...MANUAL_DRIFT_KNOWN].filter(id => !drifted.includes(id));
   eq(stale.join(','), '', `既に解消済みなのに MANUAL_DRIFT_KNOWN に残っている: ${stale.join(', ')}`);
+});
+
+// ── §5.3 `O-93` 到達率ラチェット（2026-09-06 新設）──────────────────────────────
+// 🔴**上のトリップワイヤは `manualEffects.ts` に定義がある効果しか見ていない。**
+//   `O-93` の本体はもう半分＝**手書き shadow を持つカードの「parser 由来の効果」に改善が届かない**側で、
+//   これは `build:effects` が2つのバケツへ落とす（`_partial_fresh`＝混在カードの要レビュー差分／
+//   `_idset_fresh`＝effectId の集合がズレたカード）。**どちらも人が読むまで永久に凍る。**
+// 🔑2026-09-06 の実測＝`censusManualDrift` の乖離 **57効果 → 0**、この2バケツは **partial 10 / idset 6 → 1 / 1**。
+//   最後の1枚（`WXK04-015`）も同バッチで id を揃えて **partial 0 / idset 0** まで払い戻した
+//   （その凍結が「４つから２つ選ぶ」を `choose_count:1` に潰したまま隠していた）。
+// ⚠**このテストはバケツの JSON を読むだけ**＝`npm run build:effects` を回していないと古い値のまま緑になる。
+//   それでも「増えたら止まる」という一方向の保険としては効く（全数 parse はここでやると golden が倍近く伸びる）。
+// ⚠**払い戻したら実測値へ下げる**（CLAUDE.md の ratchet 規約）。
+test('§5.3 O-93: parser 改善が live へ届かないカード数（_partial_fresh / _idset_fresh のラチェット）', () => {
+  const BASELINE_PARTIAL_FRESH = 0;  // 旧10（2026-09-06 の O-93 バッチ前）→ 同バッチ内で 1 → **0**
+  const BASELINE_IDSET_FRESH = 0;    // 旧6（同上）→ 同バッチ内で 1 → **0**
+  const count = (name: string): number => {
+    const p = join(root, `docs/${name}.json`);
+    if (!fs.existsSync(p)) return 0;
+    return Object.keys(JSON.parse(fs.readFileSync(p, 'utf8')) as Record<string, unknown>).length;
+  };
+  const partial = count('_partial_fresh');
+  const idset = count('_idset_fresh');
+  ok(partial <= BASELINE_PARTIAL_FRESH,
+    `_partial_fresh が増えた: ${partial} > ${BASELINE_PARTIAL_FRESH}（混在カードの AUTO 効果に parser 改善が届いていない。`
+    + '`npx tsx scripts/censusManualDrift.ts` で明細を読み、原文照合して --adopt するか手書き側を直す）');
+  ok(idset <= BASELINE_IDSET_FRESH,
+    `_idset_fresh が増えた: ${idset} > ${BASELINE_IDSET_FRESH}（effectId の集合がズレてカードごと凍っている。`
+    + '手書き id が `-E1b` のような枝番になっていないか見る＝原文の文の並びと live の効果番号を揃える）');
+  eq(partial, BASELINE_PARTIAL_FRESH, '減ったら BASELINE_PARTIAL_FRESH を実測値へ下げる');
+  eq(idset, BASELINE_IDSET_FRESH, '減ったら BASELINE_IDSET_FRESH を実測値へ下げる');
 });
 
 // §6.3 J-4「フェイズ／アタック終了 timing」＝ON_ATTACK_PHASE_END / ON_ATTACK_END（従来 timing:[] で安全停止）。
@@ -42423,8 +42476,16 @@ test('task12(lxxxiii) wave 7 existing other-SIGNI protections', () => {
     const got = collectAbilityProtectedSigni(mkState({ signi: [source, same, diff] }), mkState(), cardMap, effectsMap, true);
     ok(got.includes(same) && !got.includes(source) && !got.includes(diff), `${source}: color/excludeSelf`);
   }
+  // 🆕2026-09-06（§5.3 `O-93`）＝live が `PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP`（絞り込みを持てない全体版）で
+  //   凍っていたので parser の構造化版へ採用し直した。原文＝「あなたの**他の**シグニのパワーは
+  //   対戦相手の効果によって－されない」＝`excludeSelf` と `directions:['minus']` が本体。
+  //   ⚠**id だけでなく payload まで assert する**（旧 assert は id 1本だったので、絞り込みが落ちても緑だった）。
   const power = effectsMap.get('WXK06-024')!.find(e => e.effectId === 'WXK06-024-E1')!;
-  ok(power.action.type === 'STUB' && power.action.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP', 'power minus opponent-only collector');
+  ok(power.action.type === 'STUB' && power.action.id === 'PREVENT_POWER_MODIFY_BY_OPP', 'power minus opponent-only collector');
+  const prot = power.action.type === 'STUB' ? power.action.powerModifyProtection : undefined;
+  eq(JSON.stringify(prot?.directions), JSON.stringify(['minus']), '－だけを防ぐ（＋まで防いでいる）');
+  eq(prot?.subjectOwner, 'self', '守る対象は自分のシグニ');
+  eq(prot?.subjectFilter?.excludeSelf, true, '🔴原文「他の」＝効果元自身は守られない');
 });
 
 test('task12(lxxxiii) wave 7 WXK06-024-E1: opponent power minus protects only other SIGNI', () => withSavedCursor(() => {
@@ -48981,10 +49042,14 @@ test('§6.4 O-25(a): 「下に《ディソナアイコン》が置かれてい�
   eq(g.effect?.timing?.[0], 'ON_ATTACK_SIGNI', '引用の【自】が展開されている');
 });
 
-test('§6.4 O-25: 引用付与が「引用内のコスト節」に化けていない（WXDi-P03-016-E2）', () => {
+test('§6.4 O-25: 引用付与が「引用内のコスト節」に化けていない（WXDi-P03-016-E3）', () => {
   // 🔴live は `DOWN{SIGNI self level:2}` ＝撃つと**付与が起きず自分のレベル2シグニが1体ダウンするだけ**
   //   だった（引用のコスト節が本体に化け、さらにルリグ→シグニの取り違え）。
-  const e = (effectsMap.get('WXDi-P03-016') ?? []).find(x => x.effectId === 'WXDi-P03-016-E2')!;
+  // 🆕**2026-09-06（§5.3 `O-93`）＝`-E2` → `-E3` へ id が動いた。**
+  //   旧 live は 2文目の【出】を `-E1b` という手書き id で持っていたため、3文目の【起】が `-E2` に入り
+  //   **live の効果番号が原文の並びから1つズレていた**（effectId を鍵にした計器が全部ズレる）。
+  //   ⇒ 手書きを `-E2` へ改名して原文順に揃えたので、この【起】は `-E3` になった。
+  const e = (effectsMap.get('WXDi-P03-016') ?? []).find(x => x.effectId === 'WXDi-P03-016-E3')!;
   const g = e.action as import('../src/types/effects').GrantLrigAbilityAction;
   eq(g.type, 'GRANT_LRIG_ABILITY', '🔴付与が即時アクションに潰れている');
   eq(g.abilities.length, 1, '引用は1能力');
@@ -48993,10 +49058,12 @@ test('§6.4 O-25: 引用付与が「引用内のコスト節」に化けてい�
   eq(JSON.stringify(sub.cost?.lrigDown), JSON.stringify({ count: 1, level: 2 }),
     '🔴コスト「アップ状態のレベル２のルリグ１体をダウン」がルリグ側に載っていない');
   eq((sub.action as Extract<EffectAction, { type: 'UP' }>).target.type, 'LRIG', '本体はこのルリグをアップ');
-  // ⚠同居の E1b（MANUAL）は **期間つきの即時 POWER_MODIFY** で近似したまま＝`calcFieldPowers` が
+  // ⚠同居の E2（MANUAL・旧 `-E1b`）は **期間つきの即時 POWER_MODIFY** で近似したまま＝`calcFieldPowers` が
   //   付与ストアを読まないため（§6.4 O-25(d) の境界整理待ち）。構造化に倒すと +5000 が死ぬ。
-  const e1b = (effectsMap.get('WXDi-P03-016') ?? []).find(x => x.effectId === 'WXDi-P03-016-E1b')!;
-  eq(e1b.action.type, 'POWER_MODIFY', 'E1b は近似のまま（構造化すると効かなくなる）');
+  //   🔴**2026-09-06 に実際に踏んだ**＝`O-93` で手書きを消して parser の `GRANT_LRIG_ABILITY` に任せたら
+  //     この golden が落ちて気づいた（**smoke も fuzz も census も緑のまま**）。⇒ id だけ揃えて中身は近似を維持。
+  const e2 = (effectsMap.get('WXDi-P03-016') ?? []).find(x => x.effectId === 'WXDi-P03-016-E2')!;
+  eq(e2.action.type, 'POWER_MODIFY', 'E2 は近似のまま（構造化すると効かなくなる）');
 });
 
 test('§6.4 O-25(b): 全文再パースの受け皿から構造化済みの付与へ（WXDi-P15-055-E3）', () => {
@@ -59115,7 +59182,10 @@ test('2026-08-28 O-133: live 限定 MANUAL スタンプのラチェット（増�
   //     （この test は parser を回さないので外せない＝ずれは意図的）。
   // 🆕2026-09-04（`O-60` 第64バッチ）＝9→8。live 限定 PARTIAL だった `WXDi-D04-011-E1` を
   //   `manualEffects.ts` へ書き起こした（＝出所ができたので orphan から外れた）。
-  const BASELINE_ORPHAN_MANUAL = 8; // 旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
+  // 🆕**2026-09-06（§5.3 `O-93`）＝8 → 7。** `WXEX2-71-E2` を解凍（parser 出力と実体同一になったので
+  //   手書きごと削除＝§6.4 `O-40`）し、`WXK04-015-E1b` は **id を `-E2` へ揃えた結果スタンプごと消えた**
+  //   （枝番 id の live 限定 MANUAL は「孤児スタンプ」と「id 集合ズレ」を同時に作る＝1つ直すと2つ減る）。
+  const BASELINE_ORPHAN_MANUAL = 7; // 旧8。旧9。さらに旧8。さらに旧9。2026-09-02（`O-96` 第13バッチ）＝live 限定だった
   //   `WXDi-P15-034-E1`（②枝が did-it ゲート無しで**支払わずに手札へ戻せた**）を `manualEffects.ts` へ移した。
   //   旧11。2026-08-31＝live 限定だった `WX25-CP1-040-E1b` を `manualEffects.ts` へ移し、
   //   id を parser 側（`-E2`）へ揃えた（`census:orphanmanual` の C/D 分類の指示どおり）。旧12→11 は O-149 の `WX24-P2-049-E1b` 撤去。

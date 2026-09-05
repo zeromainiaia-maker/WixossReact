@@ -21,6 +21,7 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
+import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 import type { CardData } from '../src/types';
 import type { CardEffect } from '../src/types/effects';
 
@@ -82,6 +83,29 @@ type Row = {
   liveJson: string; freshJson: string;
 };
 
+/**
+ * 印字キーワードコストを fresh 側へ重ね直す（§5.3 `O-93`・2026-09-06）。
+ *
+ * 🔴**これが無いと乖離が丸ごと偽陽性になる**＝`buildEffectsJson` は
+ * `encoreCost` / `betOptions` / `boostCost` / `useTimeCost` / `costReplacement` / `optionalDiscardCost` を
+ * **マージの後から**先頭効果へ重ねる（`buildEffectsJson.ts:315`）が、ここの `fresh` は
+ * `parseCardEffects` + `mergeManualEffects` までしか通っていない。
+ * ⇒ live にだけ印字コストが在る状態になり、**実体は一致しているのに `LIVE_RICHER` として出る**
+ *   （2026-09-06 実測＝乖離 57効果のうち **36効果**＝63% がこれだった）。
+ * 🔑**同じ穴を `decompileEffects.ts` が 2026-09-05（`O-252`）に直している＝ここが3箇所目。**
+ * ⚠**重ね方は `buildEffectsJson.ts:315` と同じ**＝先頭効果1つだけに刻み、先頭以外からは剥がす
+ *   （別々に書くと「逆翻訳とだけ食い違う」形の偽陽性が復活する）。
+ */
+function overlayPrintedCosts<T extends { cost?: unknown }>(effects: T[], effectText: string | undefined): T[] {
+  const printed = printedKeywordCosts(effectText) as Record<string, unknown>;
+  return effects.map((effect, index) => {
+    const restCost = { ...((effect.cost ?? {}) as Record<string, unknown>) };
+    for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
+    const cost = index === 0 ? { ...restCost, ...printed } : restCost;
+    return (Object.keys(cost).length > 0 ? { ...effect, cost } : effect) as T;
+  });
+}
+
 const rows: Row[] = [];
 /** parser 出力と実体同一になった manual エントリ（§6.4 O-40＝削除候補）。 */
 const redundantManual: string[] = [];
@@ -92,7 +116,7 @@ for (const cardNum of Object.keys(MANUAL_EFFECTS)) {
   const card = cards.get(cardNum);
   if (!card) { noCard.push(cardNum); continue; }
   const rawParsed = parseCardEffects({ ...(card as unknown as CardData), effects: [] } as CardData);
-  const fresh = mergeManualEffects(cardNum, rawParsed);
+  const fresh = overlayPrintedCosts(mergeManualEffects(cardNum, rawParsed), card.EffectText);
   // ── §6.4 O-40：**parser 出力と実体同一になった manual エントリ＝死荷重**（2026-08-22 新設）──
   // `mergeManualEffects` は id 一致で常に manual を勝たせるので、parser が追いついた後も
   // **その効果だけ parser の以後の改善を受け取れなくなる**（内容が同じうちは誰も気付けない）。
@@ -266,7 +290,15 @@ if (adoptIdx >= 0) {
           next.push(freshById.get(id)!); applied++; touched = true;
         }
       }
-      if (touched) { j[cardNum] = next; console.log(`${f}: ${cardNum} → ${effs.filter(e => targets.has(e.effectId)).map(e => e.effectId).join(', ') || '(追加)'}`); }
+      // 🔴**印字キーワードコストを重ね直してから書く**（§5.3 `O-93`・2026-09-06）＝
+      //   `freshById` は `mergeManualEffects` までしか通っていないので、そのまま採用すると
+      //   **live から `encoreCost`/`betOptions`/… が黙って剥がれる**（次の `build:effects` までは
+      //   「アンコールもベットも無い札」になる）。⚠**重ねる対象は live 順の `next`**＝
+      //   `buildEffectsJson.ts:315` と同じく**先頭効果1つだけ**に刻む。
+      if (touched) {
+        j[cardNum] = overlayPrintedCosts(next, card.EffectText);
+        console.log(`${f}: ${cardNum} → ${effs.filter(e => targets.has(e.effectId)).map(e => e.effectId).join(', ') || '(追加)'}`);
+      }
     }
     if (touched) writeFileSync(p, JSON.stringify(j), 'utf-8');
   }

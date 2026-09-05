@@ -1,5 +1,93 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第179バッチ）：🏁**`O-93` クローズ**＝手書き shadow の「枝番 id」が parser 改善の配送経路を塞いでいた
+
+**ベースライン**＝第178の直後。**gates 全緑**（golden **3526/3526**）。
+🖥**実機は §2.2 の機械判定では不要**（触ったのは `src/data/` `public/data/` `scripts/` `docs/` だけ＝
+`src/screens/` も `src/engine/` も新しい型・機構も無し）。**ただし1効果だけ判定の外**＝下の `V-166`。
+
+### ② 母集団の実測（登録票の 32効果 → 実測 57効果 → うち真は 21）
+
+`npx tsx scripts/censusManualDrift.ts` ＝ **乖離 50カード・57効果**。
+
+### 真因①＝**乖離の 36効果（63%）は計器の偽陽性だった**
+
+`buildEffectsJson` は **マージの後から**印字キーワードコストを先頭効果へ重ねる（`buildEffectsJson.ts:315`）＝
+`encoreCost` / `betOptions` / `boostCost` / `useTimeCost` / `costReplacement` / `optionalDiscardCost`。
+`censusManualDrift` の `fresh` は `parseCardEffects` + `mergeManualEffects` までしか通っていないので、
+**live にだけ在るのが正しい値**を全部 `LIVE_RICHER`＝乖離として報告していた（36効果／リーフの内訳は
+`betOptions` 37・`costReplacement` 34・`encoreCost` 12・`optionalDiscardCost` 12・`boostCost` 8・`useTimeCost` 7）。
+
+🔑**同じ穴を `decompileEffects.ts` が 2026-09-05（`O-252`）に直している＝ここが3箇所目。**
+🔴**さらに live へ直接書く道具2本も重ねを持っていなかった**＝`syncManualLive.ts` と
+`censusManualDrift --adopt`。**回すと live から印字コストが黙って剥がれる**（次の `build:effects` までは
+「アンコールもベットも無い札」になる。⚠**どのゲートにも映らない**＝golden も census も印字コストの有無を見ていない）。
+⇒ **4箇所とも塞いだ。**
+
+### 真因②＝残21効果の真因は1つ＝**手書き id の枝番（`-E1b` / `-E2b`）**
+
+枝番を使うと **live の効果番号が原文の文の並びから1つズレる**。ズレると `build:effects` は
+**カードごと `_idset_fresh` に温存**し（`buildEffectsJson.ts:274`）、そのカードへの parser 改善が
+**何ひとつ届かなくなる**。実例＝`WX20-038` は `census:population` が `-E2` の原文として
+「バニッシュされずダウンしない」を出すのに逆翻訳はダメージ効果を出していた（**原文照合が成立しない状態**）。
+
+⇒ 8カードの id を原文順へ揃え、parser に追いつかれた手書きは削除した。
+
+| カード | したこと |
+|---|---|
+| `WXK01-074` / `WDK06-R09` / `WXDi-P03-016` | 手書き `-E1b`/`-E2b` を削除して parser に返す（`WXDi-P03-016` は後述の理由で `-E2` として書き直し） |
+| `WX20-038` | `-E1b`（【ダブルクラッシュ】）は parser が `-E1` に出すので削除。耐性だけを `-E2` に残し、**原文「**この**シグニは」の `thisCardOnly` を追加**（旧は場の自分のシグニ1体に読めた） |
+| `WX25-CP1-061` / `WXK04-015` | live の `-E3`/`-E1b` を parser の `-E2` へ改名（実体は同じ） |
+| `WXEX2-71` / `WX24-P4-045` / `WXEX1-66` | `manualEffects.ts` の修正が live へ届いていなかった＝`syncManualLive` で配送 |
+| `WXK06-024` / `WXK03-018` / `SPDi43-30` / `WXK03-014` / `WD07-012` | parser の改善を `--adopt` で採用 |
+| `WXK10-075` | **逆向き**＝parser が【アクセ】条件を落とすので、正しい形（live）を `MANUAL` で固定（同型2枚・もう1枚も同じ形で MANUAL 済み＝§2.0 速いレーン） |
+
+### 🔴 その凍結が隠していた実バグ（凍っている間はどの計器にも出ない）
+
+| 効果 | 症状 |
+|---|---|
+| `WXK04-015-E1` | 原文「以下の**４つから２つ**を選ぶ」が **`choose_count:1`**＝**1つしか選べない過小実行** |
+| `WX24-P4-045-E1` | `ADD_TO_LIFE{owner:'opponent'}`＝**相手のライフを増やしていた**。`effectExecutor.ts:4042` が**このカードを名指しで**「原文が加える先を修飾しない場合は効果の使用者のライフ」と書いていたのに live へ届いていなかった |
+| `WXEX2-71-E3` | `keyword` が原文の文まるごとで `BattleScreen.tsx:10557` の `'正面以外追加アタック'` と一致せず**恒久 no-op**。さらに付与先が `owner:'opponent'`（原文は「**あなたの**他の＜英知＞のシグニ」）＝**相手を強化していた** |
+| `WXEX1-66-E2` | `REVEAL_DECK_TOP(4)` の後にもう一度 `REVEAL_AND_PICK(4)` が積まれ、**4枚公開が2回**走っていた |
+| `WXK03-014-E1` | 「カードを１枚引いて**もよい**」が強制だった（`ON_LIFE_CRASHED` の収集は `mandatory:false` を一切見ない＝任意化は `SEQUENCE[STUB{OPTIONAL_ACTIVATE}, …]` でしか届かない） |
+| `WXK06-024-E1` | `PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP`（絞り込みを持てない全体版）で凍っており、原文「あなたの**他の**シグニ」の `excludeSelf` が無かった |
+
+### 🔑 教訓
+
+- 🔴**「live のほうが新しい＝同期してはいけない」と golden に書いてあった3件は、原文照合すると全部逆だった。**
+  `--date`（git 履歴）判定は**着手順を決めるためのもので判定ではない**（計器自身がそう警告していた）。
+  ⇒ **日付ではなく「原文」と「engine のどこがその値を読むか」で決める。**
+- 🔑**id の枝番は「表示の細部」ではなく、parser 改善の配送経路そのものを塞ぐ。** 1つ直すと
+  「孤児 MANUAL スタンプ」と「id 集合ズレ」が**同時に**減る（実測＝orphan 8→7・idset 6→0）。
+- 🔑**「重ねる場所」は増える**＝印字コストの重ねは build / 逆翻訳 / 計器 / 同期ツール の**4箇所**にあった。
+  **1つ直したら残りを grep する**（`O-252` で1つ直したのに3つ残っていた）。
+- 🔴**構造化が常に正しいとは限らない**＝`WXDi-P03-016-E2` を parser の `GRANT_LRIG_ABILITY` に任せたら
+  **＋5000 が黙って効かなくなった**（`calcFieldPowers` が付与ストアを読まない＝`O-25(d)` 待ち）。
+  golden `§6.4 O-25` がそう警告していたのに踏んだ。⇒ **id だけ揃えて中身は動く近似を維持。**
+
+### 🛡 張ったゲート
+
+- 🆕**golden `§5.3 O-93`**＝`docs/_partial_fresh.json` / `docs/_idset_fresh.json` のカード数ラチェット。
+  **0 が正常値**（増えたら「また凍らせた」、減ったら基準を下げる）。🔁**反転確認済み**（基準を下げると FAIL する）。
+- **`MANUAL_DRIFT_KNOWN` を空にした**＝1件でも積まれたら「manual を直したのに live へ届いていない」の再発。
+- `BASELINE_ORPHAN_MANUAL` **8 → 7** に払い戻し。
+
+### 検証
+
+`npm run build:effects` → `npm run regen` → `npm run gates` **全緑**
+（golden **3527/3527**＝3526 +1本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+🔑**`build:effects` を通しても乖離0のまま**＝次のビルドで巻き戻らないことまで確かめた（ここが本当の証明）。
+`censusManualDrift` **57効果 → 0**／`_partial_fresh` **10 → 0**／`_idset_fresh` **6 → 0**／
+`census:cards` 全シート 要対応 **73 → 61**・即着手可能 **35 → 23**。
+
+### 🖥 残した観測点（`V-166`）
+
+`WXEX2-71-E3`＝keyword を読むのは `BattleScreen` なので **golden では見えない**。
+英知＝5で【起】を撃ち、**自分の**他の＜英知＞シグニが正面以外のシグニゾーンへアタックできることを実機で見る
+（負方向の対照＝撃たなければ正面にしかアタックできない）。先例＝`WX15-093-E1` が同じ keyword を既に使用。
+
 ## 2026-09-06（第178バッチ）：`O-226` は**既にクローズ済みだった**＝残っていたのは簿記だけ
 
 **きっかけ**＝「PLAN を読み `O-226` を行う」。**PLAN §1 の「▶次の一手」が

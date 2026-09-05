@@ -3911,7 +3911,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK10-074": [
     {"effectId":"WXK10-074-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_ACCE_HOST_ABILITY","abilities":[{"effectId":"WXK10-074-E2-G","effectType":"AUTO","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLtSelf":true},"actingPlayerSelects":true,"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
+  // WXK10-075「コードイート ラムネ」E1 ／§5.3 `O-93`（2026-09-06）＝**parser が【アクセ】条件を落とす**ので手書きで固定する。
+  //   原文＝【常】：このシグニは**【アクセ】が付いているかぎり**、「【自】：このシグニがアタックしたとき、
+  //   対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを**このシグニのパワーと同じだけ**－する。」を得る。
+  //   🔴parser 出力は `GRANT_FIELD_SIGNI_ABILITY{thisCardOnly}` ＋ `STUB{SET_OPP_SIGNI_POWER_BY_SELF_POWER}` で
+  //     **「かぎり」の条件が丸ごと消える**＝アクセが付いていなくても毎アタック発動する過剰実行になる。
+  //   🔑同型は2効果だけで、もう1枚（`WXK04-048-E1`）も**同じ平坦化（AUTO ＋ `THIS_CARD_IS_ACCED`）で
+  //     既に MANUAL 化されている**＝この形が本プロジェクトの正準形（§2.0 速いレーン）。
+  //   ⚠`POWER_MODIFY_BY_SOURCE` に action 側 `duration` を書かないのが「ターン終了時まで」＝
+  //     `execPowerModify` の既定が `temp_power_mods`（ターン終了で消える）。
   "WXK10-075": [
+    {"effectId":"WXK10-075-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"THIS_CARD_IS_ACCED"},"action":{"type":"POWER_MODIFY_BY_SOURCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"basis":"power","multiplier":-1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK10-075-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_ACCE_HOST_ABILITY","abilities":[{"effectId":"WXK10-075-E2-G","effectType":"AUTO","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"abortIfNoCandidate":true},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY_BY_SOURCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"basis":"power","multiplier":-1,"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WXK11-033": [
@@ -4774,7 +4784,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX15-096-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"英知"},"minCount":3},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"正面隣追加アタック","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXEX2-71": [
-    {"effectId":"WXEX2-71-E2","effectType":"AUTO","timing":["ON_PLAY"],"activeCondition":{"type":"EICHI_LEVEL_SUM","operator":"eq","value":2},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"英知"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WXEX2-71-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"activeCondition":{"type":"EICHI_LEVEL_SUM","operator":"eq","value":5},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"英知","excludeSelf":true},"upToCount":false},"keyword":"正面以外追加アタック","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
     // WXEX2-71 ／ 原文【自】《ターン１回》：あなたのシグニ１体が**正面以外のシグニゾーンにアタックしたとき**、
     //   ターン終了時まで、そのシグニは【ランサー】を得る。
@@ -9348,7 +9357,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX17-028": [{"effectId":"WX17-028-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_DECK_TOP","owner":"self","count":4},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerLteRevealedSigniLevelSum":1000}}},{"type":"TRASH_REVEALED","owner":"self"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX17-028-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","story":"宇宙"},"selectionConstraint":{"distinct":"level"}},"shuffle":true,"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
   ],
-  "WX20-038": [{"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX20-038-E1b","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"PERMANENT"}}, {"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX20-038-E1c","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH","DOWN"],"sourceOwner":"opponent","duration":"PERMANENT"}}],
+  // WX20-038「撃弩砲 グスクル」／§5.3 `O-93`（2026-09-06）＝**id を原文の並びへ戻した**。
+  //   旧＝`-E1b`（【ダブルクラッシュ】）と `-E1c`（耐性）という手書き id で、live の効果番号が
+  //   **原文の文の並びから1つズレていた**（原文2文目＝耐性 なのに live の `-E2` は4文目のダメージ）。
+  //   ⚠ズレると **effectId を鍵にした計器が全部ズレる**＝`census:population` は `-E2` の原文として
+  //   耐性の文を出しながら逆翻訳はダメージを出していた（原文照合が成立しない状態）。
+  //   ⇒ ①`-E1b` は parser が `-E1` に【アサシン】と一緒に出すので**削除**
+  //     ②耐性だけを `-E2` として残す（parser は `UNKNOWN` にしか落とせない）。
+  //   🔑`filter.thisCardOnly` は原文「**この**シグニは」＝旧 `-E1c` には無く、**場の自分のシグニ1体**に
+  //     読める形だった。
+  "WX20-038": [{"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL","effectId":"WX20-038-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"from":["BANISH","DOWN"],"sourceOwner":"opponent","duration":"PERMANENT"}}],
   // WXEX2-69 ／ 原文【常】：**あなたのターンの間**、これにアクセされている＜調理＞のシグニのパワーを＋3000し、それは
   //   「【自】：このシグニがアタックしたとき、次の対戦相手のターン終了時まで、対戦相手はアーツとスペルを使用できない。」を得る。
   // 🔴旧 live の E3＝パワーも付与も消え、**常時いきなり相手のアーツ／スペルを封じて**いた（census 高シグナル 第4弾）。
@@ -9360,7 +9378,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXEX2-69-E3b","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"self"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"acceHost":true,"cardClass":"調理"}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXEX2-69-E3","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"self"},"action":{"type":"GRANT_ACCE_HOST_ABILITY","filter":{"cardType":"シグニ","cardClass":"調理"},"abilities":[{"effectId":"WXEX2-69-E3-GRANT","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"USE_ARTS","until":"NEXT_TURN"},{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"USE_SPELL","until":"NEXT_TURN"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
-  "WXDi-P03-016": [{"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","effectId":"WXDi-P03-016-E1b","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000}}],
+  // WXDi-P03-016「VJ.WOLF-3rdVerse」E2 ／§5.3 `O-93`（2026-09-06）＝**近似のまま `-E2` へ id を揃えた**。
+  //   原文＝【出】：ターン終了時まで、このルリグは「【常】：あなたのシグニのパワーを＋5000する。」を得る。
+  //   旧＝`-E1b` という手書き id だったため live の効果番号が原文の並びから1つズレ、
+  //   **`-E2` に3文目の【起】が入っていた**（effectId を鍵にした計器が全部ズレる）。
+  //   ⚠**parser は同じ文を `GRANT_LRIG_ABILITY{CONTINUOUS POWER_MODIFY}` に構造化できるが、採らない**＝
+  //     `calcFieldPowers` が付与ストアを読まないので、構造化に倒すと **＋5000 が黙って効かなくなる**
+  //     （§6.4 `O-25(d)` の境界整理待ち。golden `§6.4 O-25` がこの近似を assert している）。
+  //   ⇒ **id だけ原文順へ直し、中身は動く近似を維持する。**
+  "WXDi-P03-016": [
+    {"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","effectId":"WXDi-P03-016-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000}}
+  ],
   "WXDi-CP02-103": [{"effectId":"WXDi-CP02-103-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TREAT_AS_CLASS_ALL_ZONES"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // 🔑E1（【常】：【シュート】）は **`-E1b`→`-E2` の改名で原文ブロックの割り当てが直り、parser が正しい
   //   `GRANT_KEYWORD{thisCardOnly,'シュート'}` を出すようになった**ので manual には置かない（`O-42` tripwire）。
@@ -9375,7 +9403,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P2-009": [{"effectId":"WX25-P2-009-ACT","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"INSTALL_GAME_GRANTED_AUTO"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}, {"effectId":"WX25-P2-009-E2","effectType":"AUTO","timing":["ON_CARD_MILLED_FROM_DECK"],"triggerCondition":{"turnOwner":"self"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"},
     {"effectId":"WX25-P2-009-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"STUB","id":"REPLACE_NEXT_OPP_REFRESH_MILL_LRIG"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_game"},
   ],
-  "WXK01-074": [{"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","effectId":"WXK01-074-E1b","effectType":"AUTO","timing":["ON_SIGNI_BECOMES_DRIVE"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":5000}}],
   "WXK01-008": [{"effectId":"WXK01-008-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"STUB","id":"CENTER_LRIG_RIDES_ON_SIGNI"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
   "WXK01-009": [{"effectId":"WXK01-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"STUB","id":"CENTER_LRIG_RIDES_ON_SIGNI"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
   // §5.2 Sheet2 バッチ1（2026-08-29）＝【常】の条件と帰結が入れ替わり、後半の1文が丸ごと落ちていた。
@@ -9414,7 +9441,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX13-049": [
     {"effectId":"WX13-049-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"＜原子＞のシグニ1枚を探す","label":"＜原子＞のシグニ1枚を探す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"原子"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"スペル1枚を探す","label":"スペル1枚を探す","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"スペル"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
-  "WDK06-R09": [{"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","effectId":"WDK06-R09-E2b","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"usageLimit":"once_per_turn","cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":2000}}],
 
   // ── §5.2 Sheet2 バッチ2（2026-08-29・§2.0 速いレーン）───────────────────────
   // 台帳（`node scripts/archive/semanticAuditLedger.mjs`）の残 OPEN のうち **Sheet2 の「1カード1 finding の HIGH」**

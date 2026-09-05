@@ -1,17 +1,17 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 586（総ノード 3177 件）
+live JSON の STUB id 種類 : 585（総ノード 3180 件）
 逆翻訳シートの [STUB:…] 総数: 363  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 28 種 / 31 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 28 種 / 31 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 34 種 / 106 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 34 種 / 108 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
-  D 健全（実装あり＋日本語表示）                          : 558 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 338 種
+  D 健全（実装あり＋日本語表示）                          : 557 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 339 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -67,7 +67,7 @@ live JSON の STUB id 種類 : 586（総ノード 3177 件）
         生成: src\data\parsers\parseSentencePart4.ts:2020
      1件   1枚  DEFERRED_OPP_LRIG_LEVEL_MODIFY
         カード: SP38-005
-        生成: src\data\effectParser.ts:15784 / src\data\manualEffects.ts:10025
+        生成: src\data\effectParser.ts:15784 / src\data\manualEffects.ts:10051
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:2191
@@ -108,18 +108,18 @@ live JSON の STUB id 種類 : 586（総ノード 3177 件）
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
 ==============================================================================
-    25件  25枚  OPTIONAL_ACTIVATE
-        カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他19枚
+    26件  26枚  OPTIONAL_ACTIVATE
+        カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他20枚
         消費: src\engine\effectExecutor.ts:6011 / src\engine\effectExecutor.ts:6026 / src\engine\triggerCollect.ts:524
     17件  17枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX19-031 …他11枚
         消費: src\engine\effectExecutor.ts:5615 / src\engine\effectExecutor.ts:5620
+     7件   7枚  PREVENT_POWER_MODIFY_BY_OPP
+        カード: WX05-024, WX12-033, WX20-023, WX22-013, WX22-Re04, WXK03-018 …他1枚
+        消費(ペイロードキー): src\engine\effectEngine.ts:2212
      6件   6枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P04-009, WXDi-P05-009, WXDi-P06-009, WXDi-CP02-002, WXDi-CP02-003, WXDi-CP02-004
         消費: src\engine\effectExecutor.ts:5405
-     6件   6枚  PREVENT_POWER_MODIFY_BY_OPP
-        カード: WX05-024, WX12-033, WX20-023, WX22-013, WX22-Re04, WXK03-018
-        消費(ペイロードキー): src\engine\effectEngine.ts:2212
      5件   5枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036, WXEX1-11, WXDi-P08-008
         消費: src\screens\battle\allZoneBurst.ts:24 / src\screens\battle\allZoneBurst.ts:42

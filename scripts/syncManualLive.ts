@@ -39,6 +39,7 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
+import { printedKeywordCosts, PRINTED_KEYWORD_COST_KEYS } from '../src/data/keywordCosts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EFFECT_FILES = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
@@ -122,6 +123,22 @@ for (const id of ids) {
         skipped++;
         break;
       }
+    }
+    // 🔴**印字キーワードコストを重ね直す**（§5.3 `O-93`・2026-09-06）＝`appearanceCondition` と同じ
+    //   「カード単位の印字メタ」で、`buildEffectsJson.ts:315` が**マージの後から**重ねている。
+    //   `fresh` は `mergeManualEffects` までしか通っていないので、そのまま書くと
+    //   **live から `encoreCost`/`betOptions`/`boostCost`/`useTimeCost`/`costReplacement`/
+    //   `optionalDiscardCost` が黙って剥がれる**（次の `build:effects` までは「アンコールもベットも無い札」）。
+    //   ⚠**この形はどのゲートにも映らない**＝golden も census も印字コストの有無を見ていない。
+    //   🔑同じ穴を `decompileEffects.ts`（`O-252`）と `censusManualDrift.ts` が踏んでいる＝**重ねる場所は4つある**。
+    {
+      const printed = printedKeywordCosts(row.EffectText) as Record<string, unknown>;
+      next = next.map((effect, index) => {
+        const restCost = { ...((effect.cost ?? {}) as Record<string, unknown>) };
+        for (const key of PRINTED_KEYWORD_COST_KEYS) delete restCost[key];
+        const cost = index === 0 ? { ...restCost, ...printed } : restCost;
+        return Object.keys(cost).length > 0 ? { ...effect, cost } : effect;
+      });
     }
     if (JSON.stringify(j[id]) === JSON.stringify(next)) { console.log(`  = ${id}: 差分なし（${f}）`); break; }
     console.log(`  ~ ${id}（${f}）`);

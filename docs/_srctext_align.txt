@@ -1,13 +1,7 @@
 # effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）
 
-解決 6 / 棄却カード 0 / 未解決 51
+解決 0 / 棄却カード 0 / 未解決 49
 
-ALIGN WDK06-R09: WDK06-R09-E2b ← WDK06-R09-E3「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：シグニ１体を対象とし」
-ALIGN WX25-CP1-061: WX25-CP1-061-E3 ← WX25-CP1-061-E2「【絆常】：このシグニのパワーは＋4000される。」
-ALIGN WXDi-P03-016: WXDi-P03-016-E1b ← WXDi-P03-016-E2「【出】：ターン終了時まで、このルリグは「【常】：あなたのシグニのパワーを＋500」
-ALIGN WXK01-074: WXK01-074-E1b ← WXK01-074-E2「【自】：このシグニがドライブ状態になったとき、あなたのシグニ１体を対象とし、ター」
-ALIGN WXK04-015: WXK04-015-E1b ← WXK04-015-E2「【起】このキーを場からルリグトラッシュに置く：あなたの赤のシグニ１体を対象とし、」
-REMAP WXDi-P03-016: WXDi-P03-016-E2 ← WXDi-P03-016-E3「【起】《ゲーム１回》《緑×0》：ターン終了時まで、このルリグは「【起】アップ状態」
 SKIP(件数不一致) PR-426: curated 3 vs parser 2
 SKIP(件数不一致) SP38-005: curated 2 vs parser 1
 SKIP(件数不一致) WD04-009: curated 2 vs parser 1
@@ -28,7 +22,6 @@ SKIP(件数不一致) WX17-002: curated 5 vs parser 4
 SKIP(件数不一致) WX17-028: curated 2 vs parser 1
 SKIP(件数不一致) WX19-021: curated 4 vs parser 3
 SKIP(件数不一致) WX19-023: curated 4 vs parser 3
-SKIP(件数不一致) WX20-038: curated 4 vs parser 3
 SKIP(件数不一致) WX20-062: curated 2 vs parser 1
 SKIP(件数不一致) WX20-072: curated 4 vs parser 3
 SKIP(件数不一致) WX21-015: curated 4 vs parser 3
