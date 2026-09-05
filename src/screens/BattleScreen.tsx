@@ -139,7 +139,7 @@ import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } fr
 import { effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard } from './battle/cpuBoardEval';
 import { listActivatableSigniEffects, listActivatableSeedEffects } from './battle/signiActivateGate';
 import { pickCpuSigniActivated, selectEnergyIndicesForCost } from './battle/cpuActivate';
-import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects } from './battle/lrigActivateGate';
+import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, effectiveCoinCost } from './battle/lrigActivateGate';
 import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
@@ -4287,7 +4287,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
+          // 🆕§5.3 `O-259` 第8バッチ＝「次のスペルのエナコスト1つを《無》として払える」の予約。
+          next_spell_wild_cost_slot: undefined,
           next_arts_cost_reduction: undefined,        // タスク12(xciii): 【チェイン】の次アーツコスト軽減をリセット
+          // 🆕§5.3 `O-259` 第7バッチ＝「次に使用するルリグの【起】能力の使用コストは《無》減る」の予約。
+          next_lrig_act_cost_reduction: undefined,
           // 🆕§5.3 `O-259` 第2バッチ＝「このターン、そのピースの使用コストは《無×1》減る」の予約。
           //   🔴常設の `SPECIFIC_CARD_COST_REDUCE`（場のカードを走査）とは別枠なので、ここで消さないと永続化する。
           turn_specific_cost_reductions: undefined,
@@ -8013,6 +8017,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...handDiscardHistoryRecord(my, discardNums),
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
+          // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として払える」も1回で消費する。
+          next_spell_wild_cost_slot: undefined,
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
           coins: Math.max(0, my.coins - betCost),
           coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
@@ -8030,6 +8036,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...handDiscardHistoryRecord(my, discardNums),
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
+          // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として払える」も1回で消費する。
+          next_spell_wild_cost_slot: undefined,
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
           coins: Math.max(0, my.coins - betCost),
           coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
@@ -14842,7 +14850,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   （§8 `O-1` (c)・続き552c に発見）。シグニ【起】（`performSigniActivated`）は同じキーを
       //   deduct しているのに、ルリグ【起】だけコインが減らず、提示側も所持枚数を見ていなかった＝
       //   **宣言だけして踏み倒す**状態だった。⚠可否判定は `lrigActivateGate` 側と対にすること。
-      const coinCostLg = effect.cost?.coin ?? 0;
+      // 🆕§5.3 `O-259` 第10バッチ＝「次に使用するコイン技の使用コストは《コイン×1》減る」（`SPK06-01-E1`）。
+      //   ⚠**提示ゲートと同じ関数**（`effectiveCoinCost`）＝写経すると請求だけ満額になる。
+      const coinCostLg = effectiveCoinCost(effect, my);
       if (coinCostLg > 0 && (my.coins ?? 0) < coinCostLg) { setLoading(false); return; }
       let paid: import('../types').PlayerState = lgPay.applyTo({
         ...my,
@@ -14855,6 +14865,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId, ...(coinCostLg > 0 ? ['COIN_SPENT'] : [])],
+        // 🆕§5.3 `O-259` 第7バッチ＝「**次に**使用するルリグの【起】能力の使用コストは《無》減る」を消費する。
+        //   ⚠消さないと**このターン中は何度でも安くなる**（原文は「次に」＝1回だけ）。
+        //   ⚠この【起】自身が新しい予約を積む場合は効果解決（`COST_REDUCTION`）が後で走るので消えない。
+        next_lrig_act_cost_reduction: undefined,
+        // 🆕§5.3 `O-259` 第10バッチ＝「次に使用するコイン技」の軽減は**コイン技を使ったときだけ**消費する
+        //   （コインを払わない【起】で消すと、原文にない「1回で失効」になる）。
+        ...((effect.cost?.coin ?? 0) > 0 ? { next_coin_ability_cost_reduction: undefined } : {}),
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         ...activatedDiscardCostRecord(
           discardedHandNums.length, lgDiscardAllCards.length, lgEnergyTrashAllCards.length, 0,

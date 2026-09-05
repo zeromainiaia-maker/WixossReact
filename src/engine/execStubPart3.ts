@@ -1173,8 +1173,41 @@ export function execStubPart3(
       ...ctx.ownerState,
       turn_specific_cost_reductions: [...(ctx.ownerState.turn_specific_cost_reductions ?? []), tcr],
     };
+    // 🆕**レベル比例／色つき**も同じ予約に載る（§5.3 `O-259` 第6バッチ）＝解決は読み口（`collectSpecificCardCostReductions`）。
+    const amountJaTCR = tcr.perCenterLrigLevel !== undefined
+      ? `あなたのセンタールリグのレベル1につき《${tcr.color ?? '無'}×${tcr.perCenterLrigLevel}》`
+      : `《${tcr.color ?? '無'}×${tcr.colorlessReduction ?? 0}》`;
     return done(addLog({ ...ctx, ownerState: newOwnerTCR },
-      `このターン、《${tcr.targetCardName}》の使用コストが《無×${tcr.colorlessReduction}》減る`));
+      `このターン、《${tcr.targetCardName}》の使用コストが${amountJaTCR}減る`));
+  }
+  // 🆕COIN_ABILITY_BOOST: 「このゲームの間、あなたの＜レイラ＞が持つコイン技の《ゲーム１回》を
+  //   《ゲーム２回》にし、あなたが次に使用するコイン技の使用コストは《コイン×1》減る」
+  //   （§5.3 `O-259` 第10バッチ・2026-09-06・`SPK06-01-E1`）。
+  // ⚠**回数はゲーム間・軽減は次の1回だけ**＝寿命が違うので別キーに積む。
+  if (stub.id === 'COIN_ABILITY_BOOST' && stub.coinAbilityBoost) {
+    const cab = stub.coinAbilityBoost;
+    let nextOwnerCAB: PlayerState = ctx.ownerState;
+    const logsCAB: string[] = [];
+    if (cab.extraGameUse) {
+      const cur = nextOwnerCAB.coin_ability_extra_game_uses ?? [];
+      if (!cur.includes(cab.story)) {
+        nextOwnerCAB = { ...nextOwnerCAB, coin_ability_extra_game_uses: [...cur, cab.story] };
+      }
+      logsCAB.push(`＜${cab.story}＞のコイン技の《ゲーム１回》が《ゲーム２回》になる`);
+    }
+    if (cab.nextCostReduction) {
+      nextOwnerCAB = { ...nextOwnerCAB, next_coin_ability_cost_reduction: cab.nextCostReduction };
+      logsCAB.push(`次に使用するコイン技の使用コストが《コイン×${cab.nextCostReduction}》減る`);
+    }
+    return done(addLog({ ...ctx, ownerState: nextOwnerCAB }, logsCAB.join('／') || 'コイン技の強化'));
+  }
+  // 🆕NEXT_SPELL_WILD_COST_SLOT: 「このターン、あなたが次にスペルを使用する場合、その使用コストに
+  //   含まれるエナコスト1つを選んで代わりに《無》として支払ってもよい」
+  //   （§5.3 `O-259` 第8バッチ・2026-09-06・`WXDi-P06-066-E1`）。
+  // 🔑**枚数は減らない**（色指定が1つ任意色になるだけ）＝`next_spell_cost_reduction` とは別軸。
+  if (stub.id === 'NEXT_SPELL_WILD_COST_SLOT') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, next_spell_wild_cost_slot: true } },
+      'このターン、次に使用するスペルのエナコスト1つを《無》として支払える'));
   }
   // INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）
   if (stub.id === 'INCREASE_ACT_ABILITY_COST') {

@@ -9491,6 +9491,14 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           { ...ctx, ownerState: { ...ctx.ownerState, next_spell_cost_reduction: [...existing, ...cr.reduction] } },
           `次に使用するスペルのコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
       }
+      // 🆕**「このターン、次にあなたが使用するルリグの【起】能力の使用コストは《無》減る」**
+      //   （§5.3 `O-259` 第7バッチ・`WX25-CD1-17-E1`）＝アーツ／スペルと同型の予約に積む。
+      if (cr.forNextLrigActivated && cr.reduction?.length) {
+        const existingLA = ctx.ownerState.next_lrig_act_cost_reduction ?? [];
+        return done(addLog(
+          { ...ctx, ownerState: { ...ctx.ownerState, next_lrig_act_cost_reduction: [...existingLA, ...cr.reduction] } },
+          `次に使用するルリグの【起】能力のコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
+      }
       // 【チェイン】＝「このターン、あなたが次にアーツを使用する場合、それの使用コストは《色×1》…減る」
       // （タスク12(xciii)）。スペル版と同型の状態に積み、ArtsModal のコスト計算で消費する。
       if (cr.targetCardType === 'アーツ' && !cr.isGrowCost && cr.reduction?.length) {

@@ -63,7 +63,7 @@ export interface BattleModalCtx {
   myLrigNameAliases: string[];
   myArtsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
   isActionBlocked: (actionId: string) => boolean;
-  specificCardCostReductions: { targetCardName: string; colorlessReduction: number }[];
+  specificCardCostReductions: { targetCardName: string; colorlessReduction: number; color?: string }[];
   /**
    * アーツ／スペルの使用可否・実効コストを判定する funnel（`artsUseGate.buildArtsPayerCtx`）。
    * ⚠**支払いUI もコスト計算はこの ctx を通した gate 関数を呼ぶ**＝入口を増やさない（PLAN §4 教訓 (d)）。

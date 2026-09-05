@@ -441,6 +441,25 @@ export function parseCostReplacementTerms(effectText: string): CostReplacementTe
   if (trashCount) {
     terms.push({ when: { kind: 'selfTrashCountGte', value: utNum(trashCount[1]) }, mode: 'replace', cost: parseCostIcons(trashCount[2]) });
   }
+  // 🆕⑤ センタールリグのレベル比較（自分 AND 相手）で置換（§5.3 `O-259` 第4バッチ・`WX20-020` の1枚）
+  //    原文「あなたのセンタールリグのレベルが４以下で、対戦相手のセンタールリグのレベルが５以上の場合、
+  //    このアーツの使用コストは《無×1》になる」。
+  //    🔴**2条件は1項の AND**＝別項に割ると「どちらか」になって相手が低レベルでも安くなる。
+  const lrigLevelCmp = effectText.match(new RegExp(
+    `あなたのセンタールリグのレベルが([０-９0-9]+)(以上|以下)で[、,]`
+    + `対戦相手のセンタールリグのレベルが([０-９0-9]+)(以上|以下)の場合[、,]`
+    + `(?:このアーツの|このカードの)?使用コストは${COST}になる`));
+  if (lrigLevelCmp) {
+    terms.push({
+      when: {
+        kind: 'centerLrigLevel',
+        self: { op: lrigLevelCmp[2] as '以上' | '以下', value: utNum(lrigLevelCmp[1]) },
+        opp: { op: lrigLevelCmp[4] as '以上' | '以下', value: utNum(lrigLevelCmp[3]) },
+      },
+      mode: 'replace',
+      cost: parseCostIcons(lrigLevelCmp[5]),
+    });
+  }
   // 🔑**置換系（旧 `computeCostReplacement`）が先・条件つき軽減が後**＝旧 `computeArtsEffectiveCost` の
   //   評価順（①置換 → ②比例 payload → ③ルリグ条件 → ④場／ゾーン条件の軽減）をそのまま項の並びで表している。
   // 🔴**②比例 payload（`costScaling`）だけは順序が入れ替わった**＝いまは `costReplacement` の全項が先に見られる。

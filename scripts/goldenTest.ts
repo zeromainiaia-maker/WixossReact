@@ -70,7 +70,11 @@ import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement'
 import { applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { addNColorToCost, removeNColorFromCost, costScalingOf, declaredChooseScalingOf, declaredChooseMaxOf, handDiscardSigniAffordable, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, applyCostScalingTerms, applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, optionalDiscardCostOf, costReplacementOf, parseGrowCost, parseCoinCost, betOptionsOf, energyTrashCostSatisfied, canAddEnergyTrashIndex, energyTrashGroupsSatisfied, canAddEnergyTrashGroupIndex, energyTrashGroupsAffordable } from '../src/screens/battle/costs';
 import { resolveUseTimeCost, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
-import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
+import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction,
+  applyNextLrigActCostReduction, canAffordWithOneWildCostSlot } from '../src/screens/battle/costs';
+// §5.3 `O-259` 第10・第12（2026-09-06）＝コイン技の実効コスト／《ゲーム１回》の許容回数／追加使用タイミング。
+import { collectExtraUseTimings } from '../src/screens/battle/artsUseGate';
+import { effectiveCoinCost, gameUseAllowance } from '../src/screens/battle/lrigActivateGate';
 import { applyGrowCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
@@ -25752,7 +25756,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 69, 'ActiveCondition の型数（69＝2026-09-02 §5.3 `O-194` で `SAME_ZONE_HAS_TRAP`（このシグニと同じシグニゾーンに【トラップ】があるかぎり）と `LRIG_TYPE_COUNT`（センタールリグのルリグタイプ数）を**両 union へ同時に**追加。67＝同日 `O-84` の LIFE_COUNT）');
+  eq(Object.keys(AC_TYPES).length, 70, 'ActiveCondition の型数（🆕70＝2026-09-06 §5.3 `O-259` 第12 で `LRIG_LEVEL_CMP_OPP`（センタールリグのレベル比較）を追加＝`Condition` 側には既にあったが、常在の宣言（`EXTRA_USE_TIMING`）からは使えなかった。69＝2026-09-02 §5.3 `O-194` の `SAME_ZONE_HAS_TRAP` / `LRIG_TYPE_COUNT`）');
   // 139＝2026-08-31 census 高シグナル 第3/5弾で `FIELD_ATTACHED_COUNT`（場全体の付随カード枚数）と
   //   `CENTER_LRIG_ATTACKED_THIS_TURN`（このターンにセンタールリグがアタックしたか）を追加。
   // 140＝同日 第6弾で `ZONE_SUM_COUNT`（2ゾーンの合算枚数。`AND` では同値にならない軸）を追加。
@@ -28086,37 +28090,29 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   });
   // §6.4 O-11（続き533）：`WX22-016`＝アーツの**本体**が選択肢②の中に埋まっていた。
   //   ベットは任意（0枚可）なので、旧構造では**ベットしないとカードが何もしない**状態だった。
-  test('(O-11) WX22-016-E1: アーツ本体が CHOOSE の外に出て、ベット0枚でも走る', () => {
+  test('(O-11) WX22-016-E1: アーツ本体が繰り返しの外に出て、ベット0枚でも走る', () => {
     const eff = effectsMap.get('WX22-016')!.find(e => e.effectId === 'WX22-016-E1')!;
     const steps = (eff.action as unknown as { type: string; steps: Record<string, unknown>[] });
-    eq(steps.type, 'SEQUENCE', '🔴CHOOSE 単体に戻ると本体が選択肢の中に埋まる');
-    eq(steps.steps[0].type, 'CHOOSE', '先頭は①②の選択');
-    eq((steps.steps[0].countChoose as { count?: { $ref?: string } }).count?.$ref, 'bet_coins_paid',
-      '選択数は「ベットした《コイン》1枚につき1つ」');
+    eq(steps.type, 'SEQUENCE', '🔴単体の木に戻ると本体が繰り返しの中に埋まる');
+    // 🆕**2026-09-06（§5.3 `O-259` 第11バッチ）で先頭が `CHOOSE` → `REPEAT` になった。**
+    //   ①「使用コストは《黒×3》減る」は**支払いより前に宣言する**（`declaredChooseCount`）ので、
+    //   解決時に残る択は無い＝②の回数（＝ベット枚数−宣言数）を回すだけ。
+    eq(steps.steps[0].type, 'REPEAT', '先頭は②「効果を一度繰り返す」の回数ぶんの繰り返し');
+    eq((steps.steps[0].countRef as { $ref?: string }).$ref, 'bet_coins_minus_declared_choose',
+      '🔴回数は「ベット枚数 − ①に回した数」（`bet_coins_paid` のままだと①を選んでも繰り返してしまう）');
     eq(steps.steps[1].type, 'BANISH', '🔴本体のバニッシュが落ちている');
     eq(steps.steps[2].type, 'TRANSFER_TO_HAND', '本体のトラッシュ回収');
     eq((steps.steps[2].source as { filter?: { story?: string } }).filter?.story, '遊具',
       '🔴＜遊具＞限定が落ちるとトラッシュのどのシグニでも拾える');
-    // 🆕**②「このアーツの効果を一度繰り返す」は本体と同じ木を持つ**（§6.4 O-29・2026-08-17）＝
-    //   旧 `STUB{REPEAT_EFFECT}`（engine ではログだけの無言 no-op）を置き換えた。
-    // ⚠**旧テストは「選択肢の中に BANISH が無いこと」を要求していた**が、それは
-    //   「本体が①②のどちらかを選ばないと走らない」旧構造を弾くための条件だった。
-    //   いまは**兄弟に本体がある（＝ベット0枚でも走る）ことを上で固定済み**なので、
-    //   ②の中の本体コピーは正しい姿。⇒ 条件を「①は本体を持たない／②は本体と同じ木」へ精密化する。
-    const chs = (steps.steps[0] as { choices: { choiceId: string; action: unknown }[] }).choices;
-    const opt0 = JSON.stringify(chs[0].action);
-    ok(!opt0.includes('BANISH') && !opt0.includes('TRANSFER_TO_HAND'),
-      '🔴①（コスト減）に本体が紛れている');
-    eq(JSON.stringify(chs[1].action),
+    // 🔴**繰り返す木は本体と同一**（ズレると「繰り返し」が本体と違う挙動になる）。
+    eq(JSON.stringify((steps.steps[0] as { action: unknown }).action),
       JSON.stringify({ type: 'SEQUENCE', steps: [steps.steps[1], steps.steps[2]] }),
-      '🔴②「一度繰り返す」が本体と別の木（無言 no-op や別挙動）になっている');
-    eq((steps.steps[0] as { allowRepeat?: boolean }).allowRepeat, true,
-      '🔴「同じ選択肢を２回以上選んでもよい」が落ちている（②を1回しか選べない）');
+      '🔴②「一度繰り返す」が本体と別の木になっている');
   });
-  // 🆕§6.4 O-29：②を**2回**選ぶと本体が追加で2回走る（＝基底1回とあわせて計3回）。
-  // 🔴旧実装は `STUB{REPEAT_EFFECT}`＝engine でログを出すだけの**無言 no-op** で、②を何回選んでも
-  //    盤面は1回ぶんしか動かなかった。
-  test('(O-29) WX22-016-E1: ②を2回選ぶと本体が追加で2回走る（無言 no-op ではない）', () => withSavedCursor(() => {
+  // 🆕§5.3 `O-259` 第11バッチ（2026-09-06）＝②の回数は「ベット枚数 − ①の宣言数」で決まる。
+  // 🔴旧実装は①が `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`（痕跡）＝**選んでも1エナも安くならず**、
+  //    しかも②の回数は解決時の対話で決めていた（＝支払い後なので①がコストに届かない）。
+  test('(O-29) WX22-016-E1: ①に回さなかったコインの数だけ本体が追加で走る', () => withSavedCursor(() => {
     const eff = effectsMap.get('WX22-016')!.find(e => e.effectId === 'WX22-016-E1')!;
     const victims = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
     const toys = [...cardMap.values()]
@@ -28124,31 +28120,24 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       .slice(0, 3).map(c => c.CardNum);
     eq(victims.length, 3, '相手シグニ3体を確保');
     eq(toys.length, 3, '＜遊具＞シグニ3枚を確保');
-
-    // ベット3枚＝3つ選べる。②を2回＋①を1回 選ぶ。
-    const ctx = mkCtx({ hand: 0, trash: 0 }, { signi: victims });
-    ctx.ownerState.trash = [...toys];
-    ctx.ownerState.bet_coins_paid = 3;
-    const r0 = executeEffect(eff, ctx);
-    ok(!r0.done && r0.pending.type === 'CHOOSE', 'CHOOSE が立つ');
-    eq((r0.pending as { count: number }).count, 3, '🔴ベット枚数ぶん選べていない');
-    const c = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
-    const r = finish(resumeChoose(['c1', 'c1', 'c0'], r0.pending as never, c), c);
-    ok(r.done, '完走');
-    // 本体×3（追加2＋基底1）＝相手シグニ3体すべてバニッシュ／＜遊具＞3枚回収。
-    eq(r.otherState.field.signi.filter(Boolean).length, 0,
-      '🔴②を2回選んでも本体が1回しか走っていない（REPEAT_EFFECT の無言 no-op）');
-    eq(r.ownerState.hand.filter(n => toys.includes(n)).length, 3, '＜遊具＞を3枚回収');
-
-    // 対照＝②を1回も選ばなければ本体は基底の1回だけ。
-    const ctl = mkCtx({ hand: 0, trash: 0 }, { signi: victims });
-    ctl.ownerState.trash = [...toys];
-    ctl.ownerState.bet_coins_paid = 3;
-    const p0 = executeEffect(eff, ctl);
-    const cc = { ...ctl, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs } as ExecCtx;
-    const rc = finish(resumeChoose(['c0'], (p0 as { pending: never }).pending, cc), cc);
-    eq(rc.otherState.field.signi.filter(Boolean).length, 2, '①だけなら本体は1回（3体→2体）');
-    eq(rc.ownerState.hand.filter(n => toys.includes(n)).length, 1, '回収も1枚');
+    const run22 = (bet: number, declared: number) => {
+      const ctx = mkCtx({ hand: 0, trash: 0 }, { signi: victims });
+      ctx.ownerState.trash = [...toys];
+      ctx.ownerState.bet_coins_paid = bet;
+      (ctx.ownerState as unknown as { declared_choose_count?: number }).declared_choose_count = declared;
+      const r = finish(executeEffect(eff, ctx), ctx);
+      ok(r.done, '完走');
+      return { left: r.otherState.field.signi.filter(Boolean).length,
+               got: r.ownerState.hand.filter(n => toys.includes(n)).length };
+    };
+    // ベット3枚・①に1枚＝②は2回＝本体×3（追加2＋基底1）
+    eq(JSON.stringify(run22(3, 1)), '{"left":0,"got":3}',
+      '🔴①に回さなかった2枚ぶん、本体が追加で走る');
+    // 対照＝3枚とも①に回せば繰り返し0回＝本体は基底の1回だけ
+    eq(JSON.stringify(run22(3, 3)), '{"left":2,"got":1}',
+      '🔴①に全部回したのに本体が繰り返されている（回数が宣言を見ていない）');
+    // 対照＝ベット0枚でも本体は必ず1回走る（ベットは任意）
+    eq(JSON.stringify(run22(0, 0)), '{"left":2,"got":1}', 'ベット0枚でも本体は走る');
   }));
   // §6.4 O-11（続き533・**残0クローズ**）：`PR-469`＝3択が丸ごと消え、しかも
   //   除外コストが表現されていないので《白×3》だけで撃てる形だった。
@@ -68140,12 +68129,15 @@ test('§5.3 O-259: コストのマーカーだけ有って payload が無い効�
       if (!payload) naked.push(e.effectId);
     }
   }
-  ok(withMarker >= 90, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
+  ok(withMarker >= 80, `コストのマーカーを持つ効果は多数ある（実測 ${withMarker}）`);
   // 🔴**この数はコスト句が本当に未実装な効果の数**＝減ったら実数へ下げる／増えたら新しい穴。
   // 🔻16→15＝2026-09-05（`O-259` 第1バッチ）で `WXK01-060-E1`（次に緑のアーツ）を構造化した分。
   // 🔻15→12＝同日（第2バッチ）で `WXDi-P16-009/010/011-E3`（そのピースのコスト軽減）を構造化した分。
   // 🔻12→10＝同日（第3バッチ）で `WX11-043-E2`／`WX14-002-E2`（効果で使わせるスペルの軽減）を構造化した分。
-  eq(naked.length, 10, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
+  // 🏁**10→0＝2026-09-06（第4〜12バッチ）で残り10効果を全部 payload へ載せて `O-259` をクローズした。**
+  //   ⚠**0 が正常値**＝新しく「マーカーだけで payload が無い」効果が入ったらここで止まる（再発防止ゲート）。
+  //   ⚠`withMarker` の下限も 90 → 80 へ下げた（第5・12バッチで痕跡マーカーを6効果ぶん撤去したため）。
+  eq(naked.length, 0, `マーカーだけで payload が無い効果（実測: ${naked.sort().join(',')}）`);
   // 逆翻訳が「未構造化」であることを明示する（この印が無いと計器が実装済みと嘘をつく）
   const dec = fs.readFileSync(join(root, 'scripts/decompileEffects.ts'), 'utf8');
   ok(dec.includes("const costUnstructured = currentEffectHasCostPayload ? '' : '【※コスト未構造化】';"),
@@ -68712,6 +68704,220 @@ test('§5.3 O-134: 「次とその次に」は2回分（「次に」だけなら
   ok(j.includes('"count":2') && j.includes('"count":1'),
      '🔑ベット分岐は2回分と1回分の両方を持つ（片方に潰れていない）');
 });
+
+// ═══ §5.3 `O-259` 第4〜12バッチ（2026-09-06）＝残り10効果のコスト句を全部 payload へ載せた ═══
+// 🔴この項目の本質は「**コスト句が本当に未実装なのに、逆翻訳が原文をそのまま貼るので実装済みに見える**」。
+//   ⇒ 各バッチとも **payload（＝engine/UI が実際に読む形）まで通っていること**を assert する。
+
+test('§5.3 O-259 第4: 「自Lv4以下 かつ 相手Lv5以上」でだけ使用コストが《無×1》になる', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX20-020') ?? []).find(e => e.effectId === 'WX20-020-E1')!;
+  const terms = eff.cost?.costReplacement;
+  eq(JSON.stringify(terms),
+     '[{"when":{"kind":"centerLrigLevel","self":{"op":"以下","value":4},"opp":{"op":"以上","value":5}},'
+     + '"mode":"replace","cost":[{"color":"無","count":1}]}]',
+     '🔴2条件は**1項の AND**（別項に割ると「どちらか」になって相手が低レベルでも安くなる）');
+  const lrigOfLevel = (lv: string) => findCard(c => c.Type === 'ルリグ' && c.Level === lv);
+  const card = { CardName: 'サティスファクション', Cost: '《無》×６' };
+  const withLrigs = (mine: string, theirs: string) => computeCostReplacement(
+    card, mkState({ lrig: [lrigOfLevel(mine)] }), cardMap,
+    { oppState: mkState({ lrig: [lrigOfLevel(theirs)] }) }, terms);
+  eq(withLrigs('4', '5'), '《無》×1', '自Lv4・相手Lv5＝成立（《無》×6 → 《無》×1）');
+  eq(withLrigs('3', '5'), '《無》×1', '自Lv3＝「4以下」も成立');
+  eq(withLrigs('5', '5'), null, '🔴自Lv5＝自分側が外れたら置換なし');
+  eq(withLrigs('4', '4'), null, '🔴相手Lv4＝相手側が外れたら置換なし（AND が効いている）');
+  eq(computeCostReplacement(card, mkState({}), cardMap, { oppState: mkState({}) }, terms), null,
+     '🔴ルリグが読めなければ成立させない（安いほうへ倒さない）');
+}));
+
+test('§5.3 O-259 第5: 相手の（ルリグ）トラッシュから使うアーツ／スペルはコストを払う', () => withSavedCursor(() => {
+  const findUse5 = (effectId: string) => {
+    const cardNum = effectId.replace(/-E[0-9]+$/, '');
+    const eff = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId)!;
+    let found: Record<string, unknown> | null = null;
+    const walk = (n: unknown): void => {
+      if (found || !n || typeof n !== 'object') return;
+      const o = n as { type?: string; id?: string; steps?: unknown[] };
+      if (o.type === 'STUB' && o.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') { found = o as Record<string, unknown>; return; }
+      for (const st of o.steps ?? []) walk(st);
+    };
+    walk(eff.action);
+    return found as null | { value2?: string; useIgnoreCostColors?: boolean;
+                             selectTarget?: { filter?: { cardType?: string } }; exileAfterUse?: boolean };
+  };
+  const pr = findUse5('PR-433-E1')!;
+  ok(!!pr, '🔴PR-433-E1＝旧 `CAST_FROM_OPP_TRASH`（コストなし）から支払い経路へ移した');
+  eq(pr.value2, 'opp_lrig_trash', '🔴アーツは相手の**ルリグ**トラッシュに在る（trash だと候補0＝無言 no-op）');
+  eq(pr.selectTarget?.filter?.cardType, 'アーツ', '候補はアーツ');
+  eq(pr.useIgnoreCostColors, true, '「コストの色を無視して支払ってもよい」が payload に載る');
+  const k = findUse5('WXK11-016-E3')!;
+  eq(k.value2, 'opp_lrig_trash', 'WXK11-016-E3 も同型');
+  eq(k.useIgnoreCostColors, true, 'WXK11-016-E3: 色無視');
+  eq(k.exileAfterUse, true, '🔴`O-260` の除外フラグを落としていない');
+  const w = findUse5('WX14-027-E3')!;
+  eq(w.value2, 'opp_trash', '🔴WX14-027-E3 は相手の**トラッシュ**のスペル（原文「コストは支払い」）');
+  eq(w.useIgnoreCostColors, undefined, '🔴色無視の文が無い札に色無視を生やさない');
+  // 🔴「コストを支払わずに使用する」型は free のまま（原文どおり）
+  const free = JSON.stringify((effectsMap.get('WXEX1-46') ?? []).find(e => e.effectId === 'WXEX1-46-E3')!.action);
+  ok(free.includes('CAST_FROM_OPP_TRASH'), '🔴WXEX1-46-E3（コストを支払わずに）は触っていない');
+  // engine＝色無視は「色スロットを全部《無》に読み替える」＝枚数は減らない
+  const src = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
+  ok(src.includes("stub.useIgnoreCostColors ? colorsUS.map(() => '無') : colorsUS"),
+     '🔴色無視は色だけを落とす（枚数は減らさない）');
+  ok(src.includes('lrig_trash: stateOtherAfterPF.lrig_trash.filter(c => c !== cnPF)'),
+     '🔴使ったカードは相手のルリグトラッシュからも取り除く');
+}));
+
+test('§5.3 O-259 第6: カード名指定＋センタールリグのレベル比例の軽減（WD16-010）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WD16-010') ?? []).find(e => e.effectId === 'WD16-010-E1')!;
+  const j = JSON.stringify(eff.action);
+  ok(j.includes('"id":"TURN_CARD_COST_REDUCE"'), '🔴痕跡 STUB から実アクションへ昇格した');
+  ok(j.includes('"targetCardName":"ピーピング・アナライズ"') && j.includes('"color":"青"')
+     && j.includes('"perCenterLrigLevel":1'), 'カード名・色・レベル比例が payload に載る');
+  // 読み口＝`collectSpecificCardCostReductions` が**支払う瞬間のレベル**で具体値へ解決する
+  const lv4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const st = { ...mkState({ lrig: [lv4] }),
+    turn_specific_cost_reductions: [{ targetCardName: 'ピーピング・アナライズ', color: '青', perCenterLrigLevel: 1 }],
+  } as unknown as PlayerState;
+  const red = collectSpecificCardCostReductions(st, cardMap, effectsMap);
+  eq(JSON.stringify(red.filter(r => r.targetCardName === 'ピーピング・アナライズ')),
+     '[{"targetCardName":"ピーピング・アナライズ","colorlessReduction":4,"color":"青"}]',
+     '🔴レベル4なら《青×4》（予約時ではなく読み口で数える）');
+  eq(applySpecificCardCostReduction('《青》×3', 'ピーピング・アナライズ', red), 'なし',
+     '《青》×3 が 0 になる');
+  eq(applySpecificCardCostReduction('《青》×3', '別のカード', red), '《青》×3',
+     '🔴カード名が違えば効かない');
+  const noLrig = collectSpecificCardCostReductions(
+    { ...mkState({}), turn_specific_cost_reductions: [{ targetCardName: 'X', color: '青', perCenterLrigLevel: 1 }] } as unknown as PlayerState,
+    cardMap, effectsMap);
+  eq(noLrig.filter(r => r.targetCardName === 'X').length, 0, '🔴ルリグ不在（レベル0）なら軽減なし');
+}));
+
+test('§5.3 O-259 第7: 次に使うルリグの【起】能力のコストが《無》減る（WX25-CD1-17）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX25-CD1-17') ?? []).find(e => e.effectId === 'WX25-CD1-17-E1')!;
+  const then = (eff.action as unknown as { then?: { type?: string; forNextLrigActivated?: boolean; reduction?: unknown } }).then;
+  eq(then?.type, 'COST_REDUCTION', '痕跡 STUB ではなく実アクション');
+  eq(then?.forNextLrigActivated, true, '🔴グロウコスト（`targetCardType:"ルリグ"`）と混ざらない別軸');
+  eq(JSON.stringify(then?.reduction), '[{"color":"無","count":1}]', '《無》×1');
+  eq(applyNextLrigActCostReduction('《黒》×2', [{ color: '無', count: 1 }]), '《黒》×2',
+     '🔴色が一致しなければ減らない');
+  eq(applyNextLrigActCostReduction('《無》×2', [{ color: '無', count: 1 }]), '《無》×1', '《無》が1つ減る');
+  eq(applyNextLrigActCostReduction('《無》×2', undefined), '《無》×2', '予約が無ければ据置');
+  // 提示ゲートと支払いが**同じ関数**を通ること（写経すると片肺になる）
+  for (const rel of ['src/screens/battle/modals/LrigGrantedModal.tsx', 'src/screens/battle/cpuLrigActivate.ts']) {
+    ok(fs.readFileSync(join(root, rel), 'utf8').includes('applyNextLrigActCostReduction('),
+       `${rel} が共通関数を通す`);
+  }
+  ok(fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8')
+       .includes('next_lrig_act_cost_reduction: undefined,'),
+     '🔴使ったら消える（「次に」＝1回だけ）');
+}));
+
+test('§5.3 O-259 第8: 次のスペルのエナコスト1つを《無》として払える（WXDi-P06-066）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P06-066') ?? []).find(e => e.effectId === 'WXDi-P06-066-E1')!;
+  eq((eff.action as unknown as { id?: string }).id, 'NEXT_SPELL_WILD_COST_SLOT', '痕跡 STUB から専用宣言へ');
+  // 「《青》《青》《赤》」＝青2枚しか持っていない盤面では、赤スロットを《無》に読み替えれば払える
+  const canPay = (cost: string) => cost === '《青》×2《無》×1' || cost === '《青》×3';
+  ok(!canAffordWithOneWildCostSlot('《青》×2《赤》×1', false, canPay), '🔴宣言が無ければ払えない');
+  ok(canAffordWithOneWildCostSlot('《青》×2《赤》×1', true, canPay), '赤1つを《無》へ読み替えれば払える');
+  // 🔴**枚数は減らない**＝変換後も合計3枚
+  ok(!canAffordWithOneWildCostSlot('《青》×2《赤》×1', true, c => parseGrowCost(c).reduce((a, x) => a + x.count, 0) < 3),
+     '🔴色だけを無視する（枚数は1枚も減らない）');
+  ok(canAffordWithOneWildCostSlot('《青》×3', true, c => c === '《青》×3'),
+     '🔴変換しなくても払えるならそのまま（余計な緩和をしない）');
+  for (const rel of ['src/screens/battle/spellUseGate.ts', 'src/screens/battle/modals/SpellCastModal.tsx']) {
+    ok(fs.readFileSync(join(root, rel), 'utf8').includes('canAffordWithOneWildCostSlot('),
+       `${rel} が提示と支払い検算で同じ関数を通す`);
+  }
+}));
+
+test('§5.3 O-259 第9: グロウのエナコストが《赤×0》になる（キー・全プレイヤー・無色除く）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXK11-014') ?? []).find(e => e.effectId === 'WXK11-014-E1')!;
+  eq(JSON.stringify(eff.action),
+     '{"type":"GROW_COST_REDUCTION","reduction":[],"zeroColors":["赤"],'
+     + '"targetNonColorlessLrig":true,"allPlayers":true}',
+     '🔴「エナコスト」の綴り・無色除外・全プレイヤーの3つとも payload に載る');
+  const redLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤') && c.Level === '4');
+  const colorless = [...cardMap.values()].find(c => c.Type === 'ルリグ' && (c.Color ?? '') === '無');
+  // 相手がキー枠に置いていても効く（`allPlayers`）＝旧実装はキー枠も相手側も走査していなかった
+  const oppBase = mkState({});
+  const oppWithKey = { ...oppBase, field: { ...oppBase.field, key_piece: 'WXK11-014' } } as PlayerState;
+  eq(JSON.stringify(collectGrowCostReductions(mkState({}), oppWithKey, true, effectsMap, cardMap, redLrig)),
+     '[{"color":"赤","count":99}]', '🔴相手のキー枠からも拾う（すべてのプレイヤーに影響する）');
+  if (colorless) {
+    eq(JSON.stringify(collectGrowCostReductions(mkState({}), oppWithKey, true, effectsMap, cardMap, colorless.CardNum)),
+       '[]', '🔴無色のルリグへのグロウには効かない');
+  }
+  eq(JSON.stringify(collectGrowCostReductions(mkState({}), mkState({}), true, effectsMap, cardMap, redLrig)),
+     '[]', '🔴宣言が盤面に無ければ0（無条件で安くならない）');
+}));
+
+test('§5.3 O-259 第10: ＜レイラ＞のコイン技の《ゲーム１回》緩和＋次の1回の軽減（SPK06-01）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('SPK06-01') ?? []).find(e => e.effectId === 'SPK06-01-E1')!;
+  const j = JSON.stringify(eff.action);
+  ok(j.includes('"id":"COIN_ABILITY_BOOST"'), '痕跡 STUB から実アクションへ');
+  ok(j.includes('"story":"レイラ"') && j.includes('"extraGameUse":true') && j.includes('"nextCostReduction":1'),
+     '3軸（クラス・回数緩和・次の軽減）が payload に載る');
+  const coinEff = { effectId: 'X', effectType: 'ACTIVATED', cost: { coin: 2 }, action: { type: 'SEQUENCE', steps: [] },
+    duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL', usageLimit: 'once_per_game' } as unknown as CardEffect;
+  const plain = mkState({});
+  eq(effectiveCoinCost(coinEff, plain), 2, '予約が無ければ満額');
+  eq(effectiveCoinCost(coinEff, { ...plain, next_coin_ability_cost_reduction: 1 } as PlayerState), 1, '《コイン×1》減る');
+  eq(effectiveCoinCost(coinEff, { ...plain, next_coin_ability_cost_reduction: 5 } as PlayerState), 0, '🔴0未満にはしない');
+  const leyla = [...cardMap.values()].find(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes('レイラ'));
+  if (leyla) {
+    const boosted = { ...plain, coin_ability_extra_game_uses: ['レイラ'] } as PlayerState;
+    eq(gameUseAllowance(coinEff, plain, leyla.CardNum, cardMap), 1, '宣言が無ければ《ゲーム１回》のまま');
+    eq(gameUseAllowance(coinEff, boosted, leyla.CardNum, cardMap), 2, '＜レイラ＞のコイン技だけ2回');
+    const noCoin = { ...coinEff, cost: {} } as unknown as CardEffect;
+    eq(gameUseAllowance(noCoin, boosted, leyla.CardNum, cardMap), 1, '🔴コインを払わない【起】は増えない（原文は「コイン技」）');
+    const other = [...cardMap.values()].find(c => c.Type === 'ルリグ' && !(c.CardClass ?? '').includes('レイラ'))!;
+    eq(gameUseAllowance(coinEff, boosted, other.CardNum, cardMap), 1, '🔴＜レイラ＞以外のルリグには効かない');
+  }
+}));
+
+test('§5.3 O-259 第11: ベットしたコインを「コスト軽減」と「効果の繰り返し」に振り分ける（WX22-016）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX22-016') ?? []).find(e => e.effectId === 'WX22-016-E1')!;
+  eq(JSON.stringify(eff.cost?.costScaling),
+     '[{"direction":"reduce","counts":[{"kind":"declaredChooseCount","owner":"self"}],'
+     + '"per":1,"amount":[{"color":"黒","count":3}],"declaredMaxFromBet":true}]',
+     '①は「宣言した数だけ《黒×3》減る」＝支払いより前に宣言する');
+  ok(!!eff.cost?.betOptions?.variable, '🔴ベット（好きな枚数）を落としていない');
+  // 宣言 UI の上限は **そのとき宣言したベット枚数**（`CHOOSE.from_count` ではない）
+  eq(declaredChooseMaxOf('WX22-016', effectsMap, 0), 0, 'ベット0枚なら宣言できるのは0');
+  eq(declaredChooseMaxOf('WX22-016', effectsMap, 2), 2, 'ベット2枚なら0〜2');
+  // 実コスト＝宣言数に追従する
+  const scale = (n: number) => applyCostScalingTerms('《黒》×6', eff.cost!.costScaling!,
+    { ...mkState({}), declared_choose_count: n } as unknown as PlayerState, mkState({}), cardMap);
+  eq(scale(0), '《黒》×6', '0つ＝満額');
+  eq(scale(1), '《黒》×3', '1つ＝《黒×3》減る');
+  eq(scale(2), 'なし', '2つ＝0');
+  // ②の回数＝ベット枚数 − 宣言数
+  const base11 = mkCtx({}, {});
+  const ctx11 = { ...base11, ownerState: { ...base11.ownerState, bet_coins_paid: 3, declared_choose_count: 1 } } as ExecCtx;
+  eq(resolveCountRef({ $ref: 'bet_coins_minus_declared_choose' }, ctx11), 2, '3枚ベットして1つ宣言＝繰り返し2回');
+  const ctx11b = { ...base11, ownerState: { ...base11.ownerState, bet_coins_paid: 1, declared_choose_count: 3 } } as ExecCtx;
+  eq(resolveCountRef({ $ref: 'bet_coins_minus_declared_choose' }, ctx11b), 0, '🔴0未満にはしない');
+}));
+
+test('§5.3 O-259 第12: 相手ターンの追加タイミングと代替コスト（SP38-005）', () => withSavedCursor(() => {
+  const e1 = (effectsMap.get('SP38-005') ?? []).find(e => e.effectId === 'SP38-005-E1')!;
+  eq(JSON.stringify(e1.altCostOppTurn), '[{"color":"黒","count":2},{"color":"無","count":2}]',
+     '🔴印刷《黒》×0 に「《黒×2》《無×2》増える」＝相手ターン中の請求額そのもの');
+  ok(!JSON.stringify(e1.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'),
+     '🔴痕跡マーカーを撤去した（`O-259` のラチェット最後の1件）');
+  ok(JSON.stringify(e1.action).includes('DEFERRED_OPP_LRIG_LEVEL_MODIFY'),
+     '🛑帰結は根拠つき defer のまま＝名前のある穴として残す');
+  const e2 = (effectsMap.get('SP38-005') ?? []).find(e => e.effectId === 'SP38-005-E2')!;
+  eq((e2.action as unknown as { id?: string }).id, 'EXTRA_USE_TIMING', '追加使用タイミングの受け皿');
+  const lv = (n: string) => findCard(c => c.Type === 'ルリグ' && c.Level === n);
+  const timings = (mine: string, theirs: string, isMyTurn: boolean) => collectExtraUseTimings(
+    effectsMap.get('SP38-005') ?? [], mkState({ lrig: [lv(mine)] }), mkState({ lrig: [lv(theirs)] }),
+    cardMap, 'SP38-005', isMyTurn);
+  ok(timings('3', '5', false).has('ATTACK_ARTS'), '相手ターン＋自分が低レベル＝アタックフェイズに撃てる');
+  ok(!timings('3', '5', true).has('ATTACK_ARTS'), '🔴自分のターンには足さない');
+  ok(!timings('5', '5', false).has('ATTACK_ARTS'), '🔴レベルが低くなければ足さない');
+  ok(!timings('5', '3', false).has('ATTACK_ARTS'), '🔴自分のほうが高ければ足さない');
+}));
 
 if (listMode) {
   listedNames.forEach(n => console.log(n));

@@ -1221,7 +1221,11 @@ const PATTERNS: Pattern[] = [
   {
     name: '否定フィルタ(〜ではない○○)',
     re: /では?ない(シグニ|カード|スペル|ルリグ)/,
-    keys: ['Exclude', 'exclude', 'nonColorless', 'noGuard', 'notResona', 'isResona'],
+    // 🆕2026-09-06 較正（§5.3 `O-259` 第9バッチ）＝`targetNonColorlessLrig`
+    //   （「**無色ではない**ルリグにグロウするためのエナコストは《赤×0》になる」＝`WXK11-014-E1`）。
+    //   🔑これは**退化ではなく可視化**＝痕跡 STUB から実アクションへ昇格した瞬間に
+    //   STUB 免除が外れて高シグナルへ立った（実体は原文どおり実装済み）。
+    keys: ['Exclude', 'exclude', 'nonColorless', 'noGuard', 'notResona', 'isResona', 'targetNonColorlessLrig'],
   },
   {
     name: '数量比例(1枚/1体につき)',

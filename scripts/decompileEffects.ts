@@ -197,6 +197,8 @@ function refCountJa(ref: string): string {
     last_processed_count: 'この方法で処理したカード1枚',
     last_processed_level_sum: 'この方法で処理したカードのレベル合計1',
     bet_coins_paid: 'ベットした《コイン》1枚',
+    // 🆕§5.3 `O-259` 第11バッチ＝ベットしたコインのうち「①（コスト軽減）に回さなかった」枚数。
+    bet_coins_minus_declared_choose: 'ベットした《コイン》のうち使用コストの軽減に使わなかった1枚',
   };
   return m[ref] ?? `［${ref}］`;
 }
@@ -653,6 +655,11 @@ function costReplacementWhenJa(when: any): string {
   if (k === 'selfCenterLrigName') return `あなたのセンタールリグが＜${when.keyword}＞の場合`;
   if (k === 'oppCenterLrigColor') return `対戦相手のセンタールリグが${(when.colors ?? []).join('か')}の場合`;
   if (k === 'selfCenterLrigLevelGte') return `あなたのセンタールリグがレベル${when.value}以上の場合`;
+  // 🆕§5.3 `O-259` 第4バッチ＝センタールリグのレベル比較（`opp` があれば **AND**）。
+  if (k === 'centerLrigLevel') {
+    const oppPart = when.opp ? `で、対戦相手のセンタールリグのレベルが${when.opp.value}${when.opp.op}` : '';
+    return `あなたのセンタールリグのレベルが${when.self.value}${when.self.op}${oppPart}の場合`;
+  }
   if (k === 'selfZoneCountGtOpp') {
     const zone = { life_cloth: 'ライフクロス', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ',
       lrig_trash_arts: 'ルリグトラッシュにあるアーツ' }[when.zone as string] ?? when.zone;
@@ -2524,6 +2531,10 @@ function actionJa(a?: Action, effectType?: string): string {
         ? a.reduction.map((e: any) => `《${e.color}×${e.count}》`).join('')
         : 'コスト';
       const costKind = a.isGrowCost ? 'グロウコスト' : 'コスト';
+      // 🆕§5.3 `O-259` 第7バッチ＝「次に使用するルリグの【起】能力の使用コストは《無》減る」。
+      if (a.forNextLrigActivated) {
+        return `このターン、あなたが次に使用するルリグの【起】能力の使用コストは${red}減る`;
+      }
       const tgt = `${a.color ? a.color + 'の' : ''}${a.targetCardType ?? 'カード'}`;
       // 「次に使用する1枚だけ」の一時軽減（スペル＝WX10-073／アーツ＝【チェイン】）は、場の常在軽減と
       // 意味が違う（engine も next_*_cost_reduction に積む1回きりの状態）。逆翻訳でも区別する。
@@ -2950,7 +2961,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const selfJa = a.forSelfGrowOnly ? 'このカードにグロウするための' : 'あなたの次の';
       // 「《赤×0》に**なる**」＝その色を全額落とす。
       if (a.zeroColors?.length) {
-        return `${a.forSelfGrowOnly ? 'このカードに' : ''}グロウするためのコストは${a.zeroColors.map(c => `《${c}×0》`).join('')}になる`;
+        // 🆕§5.3 `O-259` 第9バッチ＝「無色ではないルリグに」＋「（すべてのプレイヤーに影響する）」。
+        const targetJa = a.targetNonColorlessLrig ? '無色ではないルリグに' : (a.forSelfGrowOnly ? 'このカードに' : '');
+        const allJa = a.allPlayers ? '（すべてのプレイヤーに影響する）' : '';
+        return `${targetJa}グロウするためのコストは${a.zeroColors.map(c => `《${c}×0》`).join('')}になる${allJa}`;
       }
       const redJa = `グロウコストを${costJa({ energy: a.reduction })}減らす`;
       if (a.perCount) {
@@ -3030,11 +3044,16 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-259` 第3（2026-09-05）＝領域（`value2`）・軽減・コスト不要も描く。
       //   🔴**id は領域を表していない**（`'opp_trash'` を足した時点からそう）＝**領域の正は `value2`**。
       if (a.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') {
-        const zoneJa = a.value2 === 'hand' ? '手札' : a.value2 === 'opp_trash' ? '対戦相手のトラッシュ' : 'トラッシュ';
+        // 🆕§5.3 `O-259` 第5バッチ＝相手のルリグトラッシュ／アーツ／色無視も描く。
+        const zoneJa = a.value2 === 'hand' ? 'あなたの手札'
+          : a.value2 === 'opp_trash' ? '対戦相手のトラッシュ'
+            : a.value2 === 'opp_lrig_trash' ? '対戦相手のルリグトラッシュ' : 'あなたのトラッシュ';
+        const kindJa = a.selectTarget?.filter?.cardType ?? 'スペル';
         const red = (a.useSpellCostReduction ?? []).map(r => `《${r.color}×${r.count}》`).join('');
-        return `あなたの${zoneJa}から${filterJa(a.selectTarget?.filter)}スペル1枚を対象とし、それを`
+        return `${zoneJa}から${filterJa(a.selectTarget?.filter)}${kindJa}1枚を対象とし、それを`
           + (a.useSpellIgnoreCost ? 'コストを支払わずに使用してもよい' : '使用してもよい')
-          + (red ? `。それの使用コストは${red}減る` : '');
+          + (red ? `。それの使用コストは${red}減る` : '')
+          + (a.useIgnoreCostColors ? '。この方法で使用する際、コストの色を無視して支払える' : '');
       }
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       // §6.4 A群・続き427 で実装済み（`screens/battle/assistLrigAttack.ts` ＋ `performLrigAttack(slot)`）。
@@ -3050,7 +3069,23 @@ function actionJa(a?: Action, effectType?: string): string {
       // 🆕§5.3 `O-259` 第2バッチ＝「このターン、そのピースの使用コストは《無×N》減る」。
       if (a.id === 'TURN_CARD_COST_REDUCE' && a.turnCardCostReduce) {
         const tcr = a.turnCardCostReduce;
-        return `このターン、《${tcr.targetCardName}》の使用コストは《無×${tcr.colorlessReduction}》減る`;
+        // 🆕§5.3 `O-259` 第6バッチ＝色つき／センタールリグのレベル比例も描く（`WD16-010-E1`）。
+        const amountJa = tcr.perCenterLrigLevel !== undefined
+          ? `あなたのセンタールリグのレベル1につき《${tcr.color ?? '無'}×${tcr.perCenterLrigLevel}》`
+          : `《${tcr.color ?? '無'}×${tcr.colorlessReduction ?? 0}》`;
+        return `このターン、《${tcr.targetCardName}》の使用コストは${amountJa}減る`;
+      }
+      // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として支払ってもよい」（`WXDi-P06-066-E1`）。
+      if (a.id === 'NEXT_SPELL_WILD_COST_SLOT') {
+        return 'このターン、あなたが次にスペルを使用する場合、その使用コストに含まれるエナコスト1つを選んで代わりに《無》として支払ってもよい';
+      }
+      // 🆕§5.3 `O-259` 第10バッチ＝コイン技の《ゲーム１回》緩和＋次の1回の軽減（`SPK06-01-E1`）。
+      if (a.id === 'COIN_ABILITY_BOOST' && a.coinAbilityBoost) {
+        const cab = a.coinAbilityBoost;
+        return [
+          cab.extraGameUse ? `このゲームの間、あなたの＜${cab.story}＞が持つコイン技の《ゲーム１回》を《ゲーム２回》にする` : '',
+          cab.nextCostReduction ? `あなたが次に使用するコイン技の使用コストは《コイン×${cab.nextCostReduction}》減る` : '',
+        ].filter(Boolean).join('。');
       }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
       if (a.id === 'GUARD_ALT_HAND_REPLACE') return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに手札を${a.count ?? 1}枚捨ててもよい`;
@@ -3064,6 +3099,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // ため JSON には数値が無い。逆翻訳は原文の「…使用コストは…減る/増える/になる」文を復元する。
       // 🆕§5.3 `O-60` 第8バッチ（2026-08-26）＝`CONDITIONAL_ARTS_COST` は **payload から描く**
       //   （原文 regex の再パースに頼らない）。payload が無い宣言だけが下の全文フォールバックへ落ちる。
+      // 🆕§5.3 `O-259` 第4バッチ＝**payload（`costReplacement`）が同じ意味を描けているなら黙る**
+      //   （`O-252` が `ARTS_COST_REDUCTION_BY_CENTER_LRIG` に入れたのと同じ規律）。
+      //   🔴二重に出るだけでなく、この分岐は **payload が空でも同じ文を出す**＝逆翻訳が実装の有無を映さない。
+      if (a.id === 'CONDITIONAL_ARTS_COST' && currentEffectHasCostReplacement) return '';
       if (a.id === 'CONDITIONAL_ARTS_COST' && a.artsCostCond) {
         const acc = a.artsCostCond;
         if (acc.kind === 'opp_center_lrig_color') {
@@ -5840,9 +5879,15 @@ function effJa(e: Eff): string {
   // ⚠**文言は「JSON の事実」だけにする**＝トップレベル効果は提示・収集の両方で弾かれる
   //   （`signiActivateGate` / `lrigActivateGate` / `triggerCollect` が `costUnparsed` を見る）が、
   //   **`GRANT_*.abilities[]` の入れ子**にも同じ印が載るため「発動しない」と断定すると過剰主張になる。
+  // 🆕**`altCostOppTurn`（対戦相手のターン中の請求額）も描く**（2026-09-06・§5.3 `O-259` 第12バッチ）＝
+  //   `costJa` は `cost` しか見ないので、`SP38-005-E1` の「対戦相手のターンの間、使用コストは
+  //   《黒×2》《無×2》増える」が**逆翻訳から丸ごと消えて**いた（＝コスト句が実装済みか判定できない）。
+  const altOppJa = e.altCostOppTurn?.length
+    ? `／対戦相手のターンの間は${e.altCostOppTurn.map(x => `《${x.color}×${x.count}》`).join('')}`
+    : '';
   const cost = e.costUnparsed
     ? '〈※コスト未表現（原文のコスト句を parser が解釈できていない）〉'
-    : e.cost ? `〈${costJa(e.cost)}〉` : '';
+    : e.cost ? `〈${costJa(e.cost)}${altOppJa}〉` : (altOppJa ? `〈${altOppJa.slice(1)}〉` : '');
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
   // 🆕**§5.3 `O-64`：フェイズ主限定（`duringMainPhase`／`outsideMainPhase`／`duringAttackPhase`）の共通マーカー。**
   // 従来この軸は **timing ごとの分岐が個別に `trig` へ埋め込む**形しか無く、規則を書いていない timing

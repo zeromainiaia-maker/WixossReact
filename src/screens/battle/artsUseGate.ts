@@ -78,7 +78,7 @@ export interface ArtsPayerCtx {
   costModsForMy: ActiveCostMod[];
   lrigNameAliases: string[];
   artsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
-  specificCardCostReductions: { targetCardName: string; colorlessReduction: number }[];
+  specificCardCostReductions: { targetCardName: string; colorlessReduction: number; color?: string }[];
   /** `calcContinuousBlockedActions(...).forSelf`。 */
   blockedSelf: Set<string>;
   /** 「〇〇限定」の使用制限を見る実効ルリグクラス。 */

@@ -7,7 +7,7 @@ import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, handDiscardSigniCostSatisfied, canAddHandDiscardSigniIndex, canAffordGrowCost, energyTrashCostSatisfied, canAddEnergyTrashIndex, trashExileCostSatisfied, canAddTrashExileIndex, exceedColorsSatisfied, exceedPoolOf, applyNextLrigActCostReduction, parseGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import { fieldTrashSelectableZones } from '../fieldLimit';
 import { getCardNum } from '../../../engine/effectExecutor';
@@ -56,18 +56,21 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(() => {
               const eff = pendingLrigGranted.effect;
-              const baseEnergyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const actCostExtra = collectIncreaseActCost(op, isMyTurn, effectsMap);
-              const energyTotal = baseEnergyTotal + actCostExtra;
               const exceedCost = eff.cost?.exceed ?? 0;
               const hdSigniCost = eff.cost?.handDiscardSigni;
               const lgGroups = eff.cost?.discardGroups;
               const lgDiscardTotal = lgGroups ? lgGroups.reduce((s, g) => s + g.count, 0) : (hdSigniCost?.count ?? 0);
               const lgGroupsLabel = lgGroups ? lgGroups.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と') : '';
-              const costStr = [
+              // 🆕§5.3 `O-259` 第7バッチ＝「次に使用するルリグの【起】能力の使用コストは《無》減る」の消費側。
+              //   ⚠**枚数（`energyTotal`）も軽減後の文字列から数え直す**＝文字列だけ直すと
+              //     「表示は安いのに選択枚数は元のまま」で永久に払えなくなる。
+              const costStrRaw = [
                 ...(eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`),
                 ...(actCostExtra > 0 ? [`《無》×${actCostExtra}`] : []),
               ].join('');
+              const costStr = applyNextLrigActCostReduction(costStrRaw, my.next_lrig_act_cost_reduction);
+              const energyTotal = parseGrowCost(costStr).reduce((s2, c) => s2 + c.count, 0);
               const selectedNums = [...selectedLrigGrantedCost].map(i => myEnergyPayPool[i].cardNum);
               const canAffordEnergy = energyTotal === 0
                 ? true

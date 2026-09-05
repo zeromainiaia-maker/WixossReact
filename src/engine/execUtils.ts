@@ -163,6 +163,13 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   // ⚠**ベットしなかった場合は 0**＝`countChoose` 側が 0 のとき選ばせずに次のステップへ進む
   //   （ベットは任意なので、選ばなくても本体は走るのが原文どおり）。
   if (n.$ref === 'bet_coins_paid') return Math.max(0, ctx.ownerState.bet_coins_paid ?? 0);
+  // 🆕**ベットしたコインのうち「宣言しなかった側」の枚数**（§5.3 `O-259` 第11バッチ・`WX22-016-E1`）。
+  //   原文「あなたがベットする《コイン》1枚につき①（使用コストが《黒×3》減る）か②（効果をもう一度繰り返す）を選ぶ」＝
+  //   ①の枚数は**支払いの前に**宣言する（`declared_choose_count`）ので、②の回数はその残り。
+  // ⚠**0未満にはしない**（宣言 UI は `betAmount` を上限に出すが、状態は独立に書きうる）。
+  if (n.$ref === 'bet_coins_minus_declared_choose') {
+    return Math.max(0, (ctx.ownerState.bet_coins_paid ?? 0) - (ctx.ownerState.declared_choose_count ?? 0));
+  }
   // 「対戦相手のセンタールリグの**ルリグタイプ１つにつき**」（`PR-471`・§6.4 O-11）。
   // ルリグタイプは `CardClass` の `/` 区切り（例＝`タマ/イオナ` は2種）。ルリグ不在は0。
   // 🆕**2026-08-31 続き752**＝対戦相手のセンタールリグの**レベル**（`WXDi-P00-012-E1`

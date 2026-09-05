@@ -941,6 +941,19 @@ export function checkActiveCondition(
       return artsState.turn_arts_used === true;
     }
 
+    // 🆕§5.3 `O-259` 第12バッチ＝センタールリグのレベル比較（`Condition` 側の同名型と同じ判定式）。
+    // ⚠**どちらかが読めなければ false**（fail-closed）＝レベル不明で「低い」に倒すと常時成立する。
+    case 'LRIG_LEVEL_CMP_OPP': {
+      const baseNumLC = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+      const myLrigLC = ownerState.field.lrig.at(-1);
+      const opLrigLC = otherState.field.lrig.at(-1);
+      if (!myLrigLC || !opLrigLC) return false;
+      const myLvLC = parseInt(cardMap.get(baseNumLC(myLrigLC))?.Level ?? '', 10);
+      const opLvLC = parseInt(cardMap.get(baseNumLC(opLrigLC))?.Level ?? '', 10);
+      if (isNaN(myLvLC) || isNaN(opLvLC)) return false;
+      return compare(myLvLC, cond.operator, opLvLC);
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase, effectiveLevels));
   }
@@ -3411,10 +3424,21 @@ export function collectGrowCostReductions(
   const baseNumG = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   // selfGrow=true のときは `forSelfGrowOnly` の宣言だけを拾い、false のときは逆にそれを捨てる。
   let selfGrowScan = false;
+  // 🆕**相手の場を走査しているあいだだけ true**（§5.3 `O-259` 第9バッチ）＝
+  //   そのときは `allPlayers` を立てた宣言だけを拾う（既定は自分の場だけが効く）。
+  let oppSideScan = false;
+  // 🆕**グロウ先が無色か**（`targetNonColorlessLrig` の判定源）。⚠読めないときは**適用しない**（安いほうへ倒さない）。
+  const growTargetColor = growTargetCardNum
+    ? (cardMap.get(baseNumG(growTargetCardNum))?.Color ?? '') : '';
+  const growTargetIsColorless = growTargetColor === '' || growTargetColor === '無';
   const scan = (action: EffectAction) => {
     if (action.type === 'GROW_COST_REDUCTION') {
       const gcr = action as import('../types/effects').GrowCostReductionAction;
       if (!!gcr.forSelfGrowOnly !== selfGrowScan) return;
+      // 🆕相手の場から拾えるのは「すべてのプレイヤーに影響する」宣言だけ。
+      if (oppSideScan && !gcr.allPlayers) return;
+      // 🆕「無色ではないルリグにグロウするための」＝グロウ先が無色／不明なら効かない。
+      if (gcr.targetNonColorlessLrig && growTargetIsColorless) return;
       // per-count scaling:「トラッシュの<filter>N枚につき」＝一致枚数を数えて floor(match/N) 倍する
       // （一致 N 未満なら 0＝減額なし）。perCount 無しは従来どおり固定減額。
       let mult = 1;
@@ -3469,6 +3493,10 @@ export function collectGrowCostReductions(
   const candidates: string[] = [];
   for (const stack of state.field.signi) if (stack?.length) candidates.push(stack[stack.length - 1]);
   if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
+  // 🆕**キー枠も走査する**（§5.3 `O-259` 第9バッチ・`WXK11-014-E1`）＝旧実装は場のシグニとセンタールリグ
+  //   しか見ておらず、**キーが宣言するグロウコスト軽減は恒久 no-op** だった。
+  //   ⚠現データでキーの `GROW_COST_REDUCTION` は `WXK11-014` の1枚だけ（全数実測）＝既存の挙動は変わらない。
+  candidates.push(...keySlotCardNums(state));
   for (const num of candidates) {
     for (const eff of (effectsMap.get(num) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -3476,6 +3504,22 @@ export function collectGrowCostReductions(
       scan(eff.action);
     }
   }
+  // 🆕**「（すべてのプレイヤーに影響する）」＝対戦相手の場からも拾う**（§5.3 `O-259` 第9バッチ）。
+  //   ⚠`checkActiveCondition` は**その宣言を持つ側の視点**で評価する（自他とターン所有を入れ替える）。
+  //   ⚠`allPlayers` を立てていない宣言はここで捨てる（`oppSideScan`）＝既存の全宣言は素通り。
+  oppSideScan = true;
+  const oppCandidates: string[] = [];
+  for (const stack of otherState.field.signi) if (stack?.length) oppCandidates.push(stack[stack.length - 1]);
+  if (otherState.field.lrig.length) oppCandidates.push(otherState.field.lrig[otherState.field.lrig.length - 1]);
+  oppCandidates.push(...keySlotCardNums(otherState));
+  for (const num of oppCandidates) {
+    for (const eff of (effectsMap.get(baseNumG(num)) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, num)) continue;
+      scan(eff.action);
+    }
+  }
+  oppSideScan = false;
   // 🆕**§5.3 `O-219`**＝グロウ先カード自身の「このカードにグロウするためのコストは〜」を拾う。
   //   ⚠**場の候補とは別ループ**＝同じカードが**場にもグロウ先にも**現れることは無い（ルリグデッキの中）ので
   //     二重加算にはならないが、`selfGrowScan` の向きを取り違えると片方が丸ごと消えるので分けてある。
@@ -4750,9 +4794,10 @@ export function collectSpecificCardCostReductions(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-): { targetCardName: string; colorlessReduction: number }[] {
-  const reductions: { targetCardName: string; colorlessReduction: number }[] = [];
+): { targetCardName: string; colorlessReduction: number; color?: string }[] {
+  const reductions: { targetCardName: string; colorlessReduction: number; color?: string }[] = [];
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const baseNumSCCR = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   const candidates: string[] = [];
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
@@ -4780,7 +4825,19 @@ export function collectSpecificCardCostReductions(
   //   `TURN_CARD_COST_REDUCE`（`WXDi-P16-009/010/011-E3` の「そのピース」）が積む。
   // 🔑**読み口を1本にする**＝アーツ／ピース／キーの支払いが同じ配列を見るので、
   //   「アーツでは効くのにピースでは効かない」という片肺が構造的に起きない。
-  reductions.push(...(state.turn_specific_cost_reductions ?? []));
+  // 🆕**ターン限定の予約はここで具体値へ解決する**（2026-09-06・§5.3 `O-259` 第6バッチ）＝
+  //   「センタールリグのレベル1につき《青×1》」は**支払う瞬間の**レベルで決まるので、
+  //   予約時ではなくこの読み口で数える（UI 5経路は確定値だけを見る＝片肺が起きない）。
+  const centerLrigLevelSCCR = state.field.lrig.length
+    ? parseInt(cardMap.get(baseNumSCCR(state.field.lrig.at(-1)!))?.Level ?? '0') || 0
+    : 0;
+  for (const r of state.turn_specific_cost_reductions ?? []) {
+    const amount = r.perCenterLrigLevel !== undefined
+      ? r.perCenterLrigLevel * centerLrigLevelSCCR
+      : (r.colorlessReduction ?? 0);
+    if (amount <= 0) continue;                       // レベル0（ルリグ不在）＝軽減なし
+    reductions.push({ targetCardName: r.targetCardName, colorlessReduction: amount, ...(r.color ? { color: r.color } : {}) });
+  }
   return reductions;
 }
 

@@ -7295,51 +7295,55 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX22-016-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN', 'ATTACK'],
-      cost: { energy: [{ color: '黒', count: 6 }] },
+      // 🆕**2026-09-06（§5.3 `O-259` 第11バッチ）＝①の「使用コストは《黒×3》減る」を実コストへ届けた。**
+      // 🔴旧＝①は `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`（痕跡）で、**選んでも1エナも安くならなかった**
+      //   （＝①を選ぶと「何も起きない選択肢」を1枚ぶん捨てるだけの過小実行）。
+      // 🔑**コストは「選ばせてから」では請求できない**＝支払いは解決より前なので、`O-251` と同じく
+      //   **①を何枚ぶん取るかを使用宣言時に宣言**する（`declaredChooseCount` → `ArtsModal` の宣言 UI）。
+      //   上限は `declaredMaxFromBet`＝**そのとき宣言したベット枚数**（原文「ベットする《コイン》1枚につき」）。
+      // 🔑**②の回数は「ベット枚数 − ①の宣言数」で決まる**＝宣言した時点で択は残らないので、
+      //   旧 `CHOOSE{allowRepeat}` を `REPEAT{countRef}` に置き換えた（対話が1つ減る）。
+      // ⚠**本体（下の兄弟2ステップ）と同じ木**を繰り返す＝ズレると「繰り返し」が本体と違う挙動になる。
+      cost: {
+        energy: [{ color: '黒', count: 6 }],
+        // ⚠**`betOptions` を落とさない**＝印字キーワードコストは `buildEffectsJson` が後から重ねるが、
+        //   ここに書かないと fresh と live が食い違って**毎回 `_held_fresh` に出続ける**（計器のノイズ）。
+        betOptions: { options: [], variable: true },
+        costScaling: [{
+          direction: 'reduce',
+          counts: [{ kind: 'declaredChooseCount', owner: 'self' }],
+          per: 1,
+          amount: [{ color: '黒', count: 3 }],
+          declaredMaxFromBet: true,
+        }],
+      },
       action: {
         type: 'SEQUENCE',
         steps: [
           {
-            type: 'CHOOSE',
-            choose_count: 1,
-            from_count: 2,
-            upTo: true,
-            // ベットした《コインアイコン》1枚につき1つ（0枚＝選択なし）
-            countChoose: { count: { $ref: 'bet_coins_paid' }, upTo: true },
-            // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）
-            allowRepeat: true,
-            choices: [
-              {
-                choiceId: 'c0',
-                label: 'このアーツの使用コストは《黒×3》減る',
-                action: { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
-              },
-              {
-                choiceId: 'c1',
-                label: 'このアーツの効果を一度繰り返す',
-                // ⚠**本体と同じ木**（下の兄弟ステップと一致させること）＝ここがズレると
-                //   「繰り返し」が本体と違う挙動になる。
-                action: {
-                  type: 'SEQUENCE',
-                  steps: [
-                    {
-                      type: 'BANISH',
-                      target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
-                    },
-                    {
-                      type: 'TRANSFER_TO_HAND',
-                      source: {
-                        type: 'TRASH_CARD',
-                        owner: 'self',
-                        count: 1,
-                        upToCount: false,
-                        filter: { cardType: 'シグニ', story: '遊具' },
-                      },
-                    },
-                  ],
+            type: 'REPEAT',
+            count: 0,
+            // ①に回さなかったコインの枚数＝②「このアーツの効果を一度繰り返す」の回数。
+            countRef: { $ref: 'bet_coins_minus_declared_choose' },
+            action: {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'BANISH',
+                  target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
                 },
-              },
-            ],
+                {
+                  type: 'TRANSFER_TO_HAND',
+                  source: {
+                    type: 'TRASH_CARD',
+                    owner: 'self',
+                    count: 1,
+                    upToCount: false,
+                    filter: { cardType: 'シグニ', story: '遊具' },
+                  },
+                },
+              ],
+            },
           },
           // ここから下が**アーツの本体**（①②の選択とは独立に必ず走る）
           {
@@ -9138,7 +9142,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         {"id":"pay_red4","label":"追加で《赤×4》を支払う","costColors":["赤","赤","赤","赤"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":false}}},
         {"id":"pay_red2","label":"追加で《赤×2》を支払う","costColors":["赤","赤"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":2,"filter":{"cardType":"シグニ"},"upToCount":false}}}
       ],"unpaidAction":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},
-      {"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}
+      {"type":"STUB","id":"COIN_ABILITY_BOOST","coinAbilityBoost":{"story":"レイラ","extraGameUse":true,"nextCostReduction":1}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // §6.3 G/B: select the targets once, then replace -4000 with -12000 when either player refreshed this turn.
@@ -9991,6 +9995,51 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   効果元自身へ直接印を付けるのが最短かつ収集契約に縛られない。
   "WX25-P2-052": [
     {"effectId":"WX25-P2-052-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energyTrash":{"count":2,"filter":{"cardType":"シグニ","story":"宇宙"}}},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":10000,"duration":"UNTIL_OPP_TURN_END"},{"type":"STUB","id":"TREAT_SELF_AS_RESONA"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+
+  // SP38-005 ダーク・テンペスト ／ §5.3 `O-259` 第12バッチ（2026-09-06）＝**コスト句だけを実装する。**
+  //   原文「対戦相手のターンの間、あなたのセンタールリグのレベルが対戦相手より低い場合、このアーツは
+  //   《アタックフェイズアイコン》を得、このアーツの使用コストは《黒×2》《無×2》増える。
+  //   対戦相手のルリグ１体を対象とし、ターン終了時まで、それのレベルを－１する。」
+  // 🔴**旧＝コスト句が痕跡 `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`**（`O-259` のラチェット最後の1件）＝
+  //   逆翻訳は原文をそのまま貼るので実装済みに見えるのに、**タイミングもコストも1バイトも効いていなかった**。
+  // 🔑**受け皿は3つとも既存**＝①`EXTRA_USE_TIMING`（§5.3 `O-84`・下の `WX16-Re20` と同型）
+  //   ②`altCostOppTurn`（対戦相手ターン中の請求額そのもの＝印刷コストが《黒》×０ なので
+  //   「《黒×2》《無×2》**増える**」＝そのまま《黒》×2《無》×2）③`LRIG_LEVEL_CMP_OPP{lt}`
+  //   （`Condition` 側には既にあった。`ActiveCondition` 側へ同じ判定式を足しただけ）。
+  // ⚠**`altCostOppTurn` はレベル条件を見ない**＝相手ターン中なら常に代替コストになる。実データでは
+  //   このアーツが相手ターンに撃てるのは E2 の追加タイミング（＝同じレベル条件つき）を通ったときだけなので
+  //   一致する。⚠印字タイミングに《アタックフェイズアイコン》が付く同型が来たら分離が要る。
+  // 🛑**帰結（「対戦相手のルリグ1体のレベルを－1」）は根拠つき defer のまま**＝
+  //   ルリグの**実効**レベルを読む funnel が要る（`field.lrig.at(-1)` の読み口が engine＋screens で 197箇所、
+  //   `LRIG_LEVEL_CMP_OPP` も `LRIG_LEVEL_EQ_OPP` も印字レベルしか読まない＝積んでも誰も読まない
+  //   真 no-op になる）。`STUB{DEFERRED_OPP_LRIG_LEVEL_MODIFY}` として**名前のある穴**で残す。
+  'SP38-005': [
+    {
+      effectId: 'SP38-005-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '黒', count: 0 }] },
+      // 「対戦相手のターンの間、…使用コストは《黒×2》《無×2》増える」＝印刷が《黒》×０ なのでこの額が請求額。
+      altCostOppTurn: [{ color: '黒', count: 2 }, { color: '無', count: 2 }],
+      action: { type: 'STUB', id: 'DEFERRED_OPP_LRIG_LEVEL_MODIFY' },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'SP38-005-E2',
+      effectType: 'CONTINUOUS',
+      // 「対戦相手のターンの間」＋「あなたのセンタールリグのレベルが対戦相手より低い場合」
+      activeCondition: { type: 'AND', conditions: [
+        { type: 'TURN_OWNER', owner: 'opponent' },
+        { type: 'LRIG_LEVEL_CMP_OPP', operator: 'lt' },
+      ] },
+      action: { type: 'STUB', id: 'EXTRA_USE_TIMING', extraUseTiming: { timing: 'ATTACK_ARTS' } },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
   ],
 
   // WX16-Re20（グレイブ・ラッシュ）／ §5.3 `O-84`＝「条件つき追加使用タイミング」。

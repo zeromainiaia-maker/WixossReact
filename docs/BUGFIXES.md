@@ -1,5 +1,101 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第177バッチ）：🏁**`O-259` クローズ**＝コスト句が「実装済みに見える」穴を残10効果ぶん全部塞いだ
+
+**ベースライン**＝第176の直後。**gates 全緑**（typecheck・golden **3526/3526**＝3517 +9本・smoke 全異常0・
+fuzz 全0・census 1/BASELINE 1・`census:stubs` A群🔴0/C群0・manual-fields 0・
+`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・`census:deadstate` 0件・lint 0 errors）。
+🖥**実機は必須**（`src/screens/` を5ファイル触った）＝**7シナリオ ALL PASS**（`V-162`〜`V-165`・**負方向の対照4本**）。
+📉**`O-259` のラチェット 10 → 0**（golden `§5.3 O-259` が **0 が正常値**の再発防止ゲートになった）。
+
+> **`O-259` とは**＝`STUB{ARTS_COST_REDUCTION_BY_*}` / `CONDITIONAL_ARTS_COST` の逆翻訳は
+> **原文のコスト文をそのまま貼る**ので、**何も構造化できていない効果でも実装済みに読める**。
+> 第168 で「payload が1つも無いときだけ `【※コスト未構造化】` を付ける」印を入れて可視化し、
+> 第170〜172 で 16→10 まで返済してあった。**今回はその残り10効果**。
+
+### 用法ごとの内訳（残10効果を9バッチで消化）
+
+| # | 効果 | 何が無かったか | 足したもの |
+|---|---|---|---|
+| 第4 | `WX20-020-E1` | 条件（自Lv4以下 **かつ** 相手Lv5以上）は JSON に在ったのに **`costReplacement` payload が無く支払い時に一度も適用されなかった** | `CostReplacementWhen` に `centerLrigLevel`（`self` ＋任意の `opp`＝**1項の AND**）を1種 |
+| 第5 | `PR-433-E1` / `WXK11-016-E3`（＋家族の `WX14-027-E3` / `WXDi-P06-066-E2`） | 🔴**コストを一切払わせない**（`STUB{CAST_FROM_OPP_TRASH}`＝「コストなしで使用」）＋ **候補がルリグトラッシュに在るのに `trash` からスペルだけ探していた＝候補0の無言 no-op** | 既存 `USE_SPELL_FROM_TRASH_PAYING_COST` に **領域 `opp_lrig_trash`** と **`useIgnoreCostColors`**（色スロットを全部《無》に読み替える）の2つ |
+| 第6 | `WD16-010-E1` | 「センタールリグのレベル1につき《青×1》減る」＝**色も比例も表せなかった** | `turnCardCostReduce` に `color` と `perCenterLrigLevel`（解決は読み口 `collectSpecificCardCostReductions` の1箇所） |
+| 第7 | `WX25-CD1-17-E1` | 「次に使用する**ルリグの【起】**の使用コスト」の受け皿が無い | `CostReductionAction.forNextLrigActivated` → `next_lrig_act_cost_reduction` → `applyNextLrigActCostReduction`（人間 `LrigGrantedModal` と CPU `cpuLrigActivate` が**同じ関数**） |
+| 第8 | `WXDi-P06-066-E1` | 「エナコスト1つを選んで代わりに《無》として支払える」＝**軽減とは別軸**（枚数は減らない） | `canAffordWithOneWildCostSlot`（提示 `spellUseGate` と支払い検算 `SpellCastModal` が同じ関数） |
+| 第9 | `WXK11-014-E1` | ①綴りが「グロウするための**エナ**コスト」で regex に当たらない ②**キー枠を1度も走査していない** ③**相手の場を見ない**（「すべてのプレイヤーに影響する」） ④「無色ではないルリグに」が無い | `GROW_COST_REDUCTION` に `allPlayers` / `targetNonColorlessLrig` ＋ `collectGrowCostReductions` にキー枠と相手側の走査 |
+| 第10 | `SPK06-01-E1` | 「＜レイラ＞のコイン技の《ゲーム１回》を《ゲーム２回》に」＋「次のコイン技が《コイン×1》減る」 | `STUB{COIN_ABILITY_BOOST}` ＋ `effectiveCoinCost` / `gameUseAllowance`（提示ゲートと支払いが同じ関数） |
+| 第11 | `WX22-016-E1` | ①「使用コストは《黒×3》減る」が痕跡＝**選んでも1エナも安くならない** | `costScaling{declaredChooseCount, declaredMaxFromBet}`＋`$ref:'bet_coins_minus_declared_choose'`（②の回数＝ベット枚数−宣言数） |
+| 第12 | `SP38-005-E1` | 「相手ターンの間、自分が低レベルなら《アタックフェイズアイコン》を得てコストが増える」 | `EXTRA_USE_TIMING`＋`altCostOppTurn`＋`ActiveCondition` に `LRIG_LEVEL_CMP_OPP`（🛑**帰結の「ルリグのレベルを－1」は根拠つき defer のまま**） |
+
+### 🔑 主産物①＝「受け皿が無い」と書いてある登録票は、実コードで確かめるまで信じない（**9バッチ中7回**）
+
+前セッションで5回外れた同じ教訓が、今回さらに **7回**繰り返された。実装量は毎回、見立てより小さかった：
+第4（`costReplacement` は在って**条件が1種**足りないだけ）／第5（支払い経路は `O-259` 第3 で作ってあった＝
+**領域とフラグ2つ**）／第6（`O-259` 第2 で作った `TURN_CARD_COST_REDUCE` に**2フィールド**）／
+第8（`costSlotIsAny('無')` が既に「どのエナでも払える」を持っていた＝**新しい支払いモードは要らない**）／
+第10（提示ゲートは `lrigActivateGate` の1本＝**読み口2箇所**）／第11（`O-251` の宣言 UI が**そのまま使えた**）／
+第12（`EXTRA_USE_TIMING`＋`altCostOppTurn` は**既存**＝足したのは `ActiveCondition` の1型）。
+
+### 🔴 主産物②＝**「コストを払わない」型の過剰実行を4効果で見つけた**（`O-259` の計器が指していなかった側）
+
+`STUB{CAST_FROM_OPP_TRASH}` は id が示す「相手トラッシュ」だけでなく **「コストなしで使用」**でもあり、
+原文が「（コストは支払い、限定条件は無視しない）」「コストの色を無視して支払ってもよい」と
+**払うことを明記している3効果が丸ごとタダで撃てていた**（`PR-433-E1` / `WXK11-016-E3` / `WX14-027-E3`）。
+さらに `WXDi-P06-066-E2` は `STUB{USE_SPELL_FROM_TRASH}`（＝**自分の**トラッシュ）に落ちており、
+**原文の「対戦相手のトラッシュから」を1度も見ていなかった**（ゾーンごと間違い）。
+🔑**「コストを支払わずに使用する」型（`WXEX1-46-E3`）は触っていない**＝あちらは free が原文どおり。
+
+### 🔑 主産物③＝**逆翻訳が payload を描けていなかった箇所を5つ塞いだ**（`O-252` と同じ規律）
+
+①`altCostOppTurn`（対戦相手ターン中の請求額）は**1文字も描かれていなかった**
+②`CONDITIONAL_ARTS_COST` は payload があっても原文を貼り続けていた（`O-252` が
+`ARTS_COST_REDUCTION_BY_CENTER_LRIG` に入れた「payload が描けているなら黙る」を同じ分岐へ）
+③`$ref:'bet_coins_minus_declared_choose'` が生の英語で出ていた
+④`turnCardCostReduce` の色・レベル比例 ⑤`GROW_COST_REDUCTION` の `allPlayers` / `targetNonColorlessLrig`。
+
+### 🖥 実機（`V-162`〜`V-165`・7シナリオ ALL PASS・負方向の対照4本）
+
+- `v162NextLrigActCostReduced` / `…NotReduced`＝**必要エナ 2→1** / **2のまま**
+  （**場のシグニのクラスだけ**を ＜ブルアカ＞→＜アーム＞ に変える1ビット反転）
+- `v163SpellWildCostSlot` / `…Absent`＝**《黒》0枚で《青×1》《黒×1》のスペルが撃てる** /
+  宣言が無ければ「発動する」が**無効のまま**（**召喚するシグニだけ**を能力なしの同色同レベルに変える）
+- `v164BetDeclaredCostReduce`＝**必要エナ 6→3**（**同じベット1枚のまま宣言だけ0**にした対照が6枚）
+- `v165ArtsCostByLrigLevels` / `…OppLevelTooLow`＝**6→1** / **6のまま**
+  （**相手のセンタールリグのレベルだけ** 5→4＝2条件が AND であることの証拠）
+- 🔑**観測点はすべて「支払いモーダルの必要エナ枚数」**＝予約（state）が立つだけでは意味が無い。
+  実際 `LrigGrantedModal` は **`energyTotal` を軽減後の文字列から数え直さないと**
+  「表示は安いのに選択枚数は元のまま」で**永久に払えなくなる**（そう書いた上で実機で確かめた）。
+- 🔴**踏んだ罠（再発）**＝**`field.signi` は「スタックの配列」**。素の文字列を置くと
+  `battleCardNums` の useMemo が `stack?.forEach is not a function` で落ち、**盤面が1枚も描画されない**
+  （`V-159` で踏んで §4.4 に書いてあったのに、spec を書くときにまた踏んだ）。
+
+### 🔧 ついでに直した／較正したもの
+
+- 🔴**テンプレートリテラル内の `\d` が1段剥がれる罠を実際に踏んだ**（CLAUDE.md が警告している形）＝
+  `new RegExp(\`…[０-９\d]…\`)` は `[０-９d]` になり**黙って何にも当たらない**。
+  ⇒ **`\d` をやめて `[０-９0-9]` と書く**（`keywordCosts.ts:53` と同じ書き方＝エスケープに頼らない）。
+- **`applySpecificCardCostReduction` は `find` で最初の1件しか見ていなかった**＝常設（`SPECIFIC_CARD_COST_REDUCE`）と
+  ターン限定の予約が同じカード名に重なると**片方が黙って消えていた**。⇒ 一致する宣言をすべて累積する。
+- **`CAST_FROM_OPP_TRASH` は使ったカードを相手の `trash` からしか外していなかった**＝
+  アーツは**ルリグトラッシュ**に在るので、使ったのに相手の手元に残り続けた。
+- **`CAST_FROM_OPP_TRASH` の候補選択分岐が `carriedCardNum` を見ていなかった**＝支払い CHOOSE を跨ぐと
+  `lastProcessedCards` が消えるので、**確定済みのカードを捨てて選択をやり直す**形になりうる。
+- 🔧**計器の較正1件**＝`vocabCensus` の「否定フィルタ」語彙に `targetNonColorlessLrig` を追加。
+  🔑**退化ではなく可視化**＝痕跡 STUB から実アクションへ昇格した瞬間に STUB 免除が外れて高シグナルへ立った
+  （実体は原文どおり実装済み）。
+- 🔧**`golden` の `withMarker` 下限を 90 → 80**（第5・第12で痕跡マーカーを6効果ぶん撤去したため）。
+- 🔧**`manualEffects.ts` の `WX22-016` に `betOptions` を明記**＝印字コストは build が後から重ねるが、
+  書かないと fresh と live が食い違って**毎回 `_held_fresh` に出続ける**（計器のノイズ）。
+
+**検証コマンド**＝`npm run gates`／`npm run golden -- --only "O-259"`（13本）／`node scripts/heldReview.mjs`（残1＝既存の据置）／
+`SKIP_BUILD=1 node scripts/verifyBattleDrive.mjs v162NextLrigActCostReduced v162NextLrigActCostNotReduced
+v163SpellWildCostSlot v163SpellWildCostSlotAbsent v164BetDeclaredCostReduce v165ArtsCostByLrigLevels v165ArtsCostOppLevelTooLow`。
+**反転確認**＝3本（①`targetNonColorlessLrig` の判定を外すと第9の「無色のルリグには効かない」が FAIL
+②`useIgnoreCostColors` の《無》読み替えを外すと第5の「色だけを落とす」が FAIL
+③`canAffordWithOneWildCostSlot` の `enabled` ガードを外すと第8の「宣言が無ければ払えない」が FAIL）。
+**実機の反転確認**＝負方向の対照4本（上記）がそれぞれ「安くならない／撃てない」側を実際に踏んでいる。
+
+
 ## 2026-09-06（第176バッチ）：`O-134` クローズ＝**較正は要らなかった／計器に映らない過小実行が1件**
 
 **ベースライン**＝第175の直後。**gates 全緑**（typecheck・golden **3517/3517**＝+1本・smoke 全異常0・

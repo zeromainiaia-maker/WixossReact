@@ -1398,6 +1398,34 @@ export function parseSentencePart3(t: string): EffectAction | null {
       }
     }
   }
+  // 🆕**「（このターン、）次にあなたが使用するルリグの【起】能力の使用コストは《無》減る」**
+  //   （2026-09-06・§5.3 `O-259` 第7バッチ・`WX25-CD1-17-E1`）。
+  //   🔴旧＝下の痕跡 STUB に落ちて**軽減が一度も起きなかった**（過小実行）。
+  //   ⚠**「対戦相手の〜は《無×1》増える」（`PR-046` / `WXEX2-02`）を横取りしない**＝
+  //     こちらは「あなたが次に使用する」＋「減る」だけを受ける（増加側は `collectIncreaseActCost` が担当）。
+  {
+    const nextLrigAct = t.match(
+      /^(?:このターン、)?(?:あなたが次に|次にあなたが)使用するルリグの【起】能力の使用コストは(.+?)減る$/);
+    if (nextLrigAct) {
+      const redLA = parseEnergyCosts(nextLrigAct[1]);
+      if (redLA.length > 0) {
+        return {
+          type: 'COST_REDUCTION',
+          targetCardType: 'ルリグ',
+          forNextLrigActivated: true,
+          reduction: redLA,
+          duration: 'UNTIL_END_OF_TURN',
+        } as import('../../types/effects').CostReductionAction;
+      }
+    }
+  }
+  // 🆕**「このターン、あなたが次にスペルを使用する場合、その使用コストに含まれるエナコスト1つを選んで
+  //   代わりに《無》として支払ってもよい」**（2026-09-06・§5.3 `O-259` 第8バッチ・`WXDi-P06-066-E1`）。
+  //   🔴旧＝下の痕跡 STUB に落ちて**一度も効かなかった**（過小実行）。
+  //   ⚠**軽減（枚数が減る）ではない**＝色指定が1つ任意色になるだけ。
+  if (t.match(/次にスペルを使用する場合[、,][^。]*エナコスト[１1]つを選んで代わりに《無》として支払ってもよい/)) {
+    return { type: 'STUB', id: 'NEXT_SPELL_WILD_COST_SLOT' } as StubAction;
+  }
   // ---- このアーツ/スペル/カードの使用コストは減る/増える ----
   if (t.match(/(?:このアーツ|このスペル|このカード)の使用コストは.*(?:減る|増える)/) ||
       t.match(/使用コストは.*(?:減る|増える)$/)) {

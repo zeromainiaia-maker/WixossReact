@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { parseGrowCost, canAffordWithExtraCost, isMultiEna, betOptionsOf, optionalDiscardCostOf, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
+import { parseGrowCost, canAffordWithExtraCost, canAffordWithOneWildCostSlot, isMultiEna, betOptionsOf, optionalDiscardCostOf, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
 import { resolveUseTimeCost, useTimeCostCandidates as getTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid as isTimeCostSelectionValid } from '../useTimeCost';
 import { computeSpellEffectiveCost, spellExtraCosts } from '../spellUseGate';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
@@ -87,9 +87,12 @@ export function SpellCastModal(p: SpellCastModalProps) {
               const firstSpellExtra = !my.actions_done?.includes('USE_SPELL')
                 ? collectFirstSpellCostUp(op, effectsMap) : 0;
               const totalReq = baseSpellReq + allExtraSpellCosts.reduce((s, c) => s + c.count, 0);
+              // 🆕§5.3 `O-259` 第8バッチ＝「エナコスト1つを《無》として支払ってもよい」（`WXDi-P06-066-E1`）。
+              //   ⚠**枚数（`totalReq`）は変わらない**＝色指定が1つ任意色になるだけ。提示ゲートと同じ関数。
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordWithOneWildCostSlot(effSpellCost, !!my.next_spell_wild_cost_slot, cost =>
+                    canAffordWithExtraCost(selectedNums, battleCards, cost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

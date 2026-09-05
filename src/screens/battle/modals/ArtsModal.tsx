@@ -96,10 +96,15 @@ export function ArtsModal(p: ArtsModalProps) {
               // 🔴**選ばせてから請求すると必ず安く撃てる**ので、宣言をここ（支払いの前）で取る。
               //   ⚠この項は `costScalingOf`（＝提示ゲートが使う funnel）からは除いてある＝二重適用しない。
               const declaredChooseTerms = declaredChooseScalingOf(pendingArtsCard.CardNum, effectsMap);
-              const declaredChooseMax = declaredChooseTerms ? declaredChooseMaxOf(pendingArtsCard.CardNum, effectsMap) : null;
+              // 🆕§5.3 `O-259` 第11バッチ＝上限が**そのとき宣言したベット枚数**の形（`WX22-016-E1`）。
+              const declaredChooseMax = declaredChooseTerms
+                ? declaredChooseMaxOf(pendingArtsCard.CardNum, effectsMap, betAmount) : null;
+              // ⚠**ベットを減らしたら宣言もその上限まで落とす**（宣言だけ残ると原文より安く撃てる）。
+              const declaredArtsChooseCountClamped = declaredChooseMax !== null
+                ? Math.min(declaredArtsChooseCount, declaredChooseMax) : declaredArtsChooseCount;
               const costAfterDeclared = declaredChooseTerms && declaredChooseMax !== null
                 ? (applyCostScalingTerms(effectiveCost, declaredChooseTerms,
-                    { ...my, declared_choose_count: declaredArtsChooseCount }, op, battleCardMap) ?? effectiveCost)
+                    { ...my, declared_choose_count: declaredArtsChooseCountClamped }, op, battleCardMap) ?? effectiveCost)
                 : effectiveCost;
               const useCostSpec = resolveUseTimeCost(pendingArtsCard.CardNum, effectsMap);
               const useCostCands = useCostSpec ? useTimeCostCandidates(useCostSpec, my, battleCardMap) : [];
@@ -278,14 +283,16 @@ export function ArtsModal(p: ArtsModalProps) {
                   {/* 🆕§5.3 `O-251`＝選ぶ数の宣言。コスト表示・支払い枚数はこの数に追従する。 */}
                   {declaredChooseTerms && declaredChooseMax !== null && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ color: C.textDim, fontSize: 11 }}>選ぶ数を宣言（コストが増えます）</span>
+                      <span style={{ color: C.textDim, fontSize: 11 }}>
+                        選ぶ数を宣言（コストが{declaredChooseTerms.some(t => t.direction === 'reduce') ? '減ります' : '増えます'}）
+                      </span>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {Array.from({ length: declaredChooseMax + 1 }, (_, n) => (
                           <button key={n} data-testid={`arts-declare-choose-${n}`}
                             onClick={() => { setDeclaredArtsChooseCount(n); setSelectedArtsCost(new Set()); }}
                             style={{ padding: '4px 10px', borderRadius: 6,
-                              border: declaredArtsChooseCount === n ? '2px solid #ff9800' : C.borderUI,
-                              backgroundColor: declaredArtsChooseCount === n ? 'rgba(255,152,0,0.2)' : 'transparent',
+                              border: declaredArtsChooseCountClamped === n ? '2px solid #ff9800' : C.borderUI,
+                              backgroundColor: declaredArtsChooseCountClamped === n ? 'rgba(255,152,0,0.2)' : 'transparent',
                               color: C.text, fontSize: 12, cursor: 'pointer' }}>
                             {n}つ
                           </button>
@@ -403,7 +410,7 @@ export function ArtsModal(p: ArtsModalProps) {
                       </div>
                     </>
                   )}
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting, useCostIncomplete ? new Set() : selectedArtsUseCostPay, declaredChooseTerms ? declaredArtsChooseCount : undefined)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting, useCostIncomplete ? new Set() : selectedArtsUseCostPay, declaredChooseTerms ? declaredArtsChooseCountClamped : undefined)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,

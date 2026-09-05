@@ -1506,6 +1506,122 @@ function wireEffectSpellUse(action: EffectAction, card: CardData): EffectAction 
 }
 
 /**
+ * 🆕§5.3 `O-259` 第9バッチ（2026-09-06・1効果）＝**「（すべてのプレイヤーに影響する）」**を
+ * `GROW_COST_REDUCTION` へ載せる（`WXK11-014-E1`）。
+ *
+ * 🔴**注記は別の文**（括弧書き）なので、文単位の `parseSentencePart2` からは読めない＝
+ *   カード全文が読める後段（ここ）で立てる。落とすと**キーを置いた側にしか効かない**片肺になる。
+ * ⚠**`GROW_COST_REDUCTION` にだけ立てる**（同じ注記が別の意味で付く札が将来出ても誤爆しない）。
+ */
+function wireGrowCostAllPlayers(action: EffectAction, card: CardData): EffectAction {
+  if (!/（すべてのプレイヤーに影響する）/.test(card.EffectText ?? '')) return action;
+  let touched = false;
+  const walk = (node: EffectAction): EffectAction => {
+    if (!node || typeof node !== 'object') return node;
+    const n = node as unknown as { type?: string; steps?: EffectAction[]; then?: EffectAction; allPlayers?: boolean };
+    if (n.type === 'GROW_COST_REDUCTION') { touched = true; return { ...node, allPlayers: true } as EffectAction; }
+    if (n.type === 'SEQUENCE') return { ...node, steps: (n.steps ?? []).map(walk) } as EffectAction;
+    if (n.type === 'CONDITIONAL' && n.then) return { ...node, then: walk(n.then) } as EffectAction;
+    return node;
+  };
+  const out = walk(action);
+  return touched ? out : action;
+}
+
+/**
+ * 🆕§5.3 `O-259` 第6バッチ（2026-09-06・1効果）＝**「このターン、あなたが次に《カード名》を使用する場合、
+ * それの使用コストはあなたのセンタールリグのレベル1につき《青×1》減る」**（`WD16-010-E1`）。
+ *
+ * 🔴**旧＝痕跡 `STUB{ARTS_COST_REDUCTION_BY_EFFECT}` で一度も安くならなかった**（過小実行）。
+ * 🔑**受け皿は `O-259` 第2バッチで作った `TURN_CARD_COST_REDUCE` → `turn_specific_cost_reductions`**。
+ *   足したのは **`color`（青）と `perCenterLrigLevel`（レベル比例）** の2フィールドだけ。
+ * ⚠**「次に」はターン限定の予約で表す**＝対象の《ピーピング・アナライズ》は**アーツ**なので
+ *   1ターンに2回使えない（＝「次の1回だけ」と「このターン中」が実データでは一致する）。
+ * ⚠読めない形は何もしない（fail-closed）。
+ */
+function wireNamedCardCostReduction(action: EffectAction, card: CardData): EffectAction {
+  const text = card.EffectText ?? '';
+  const m = text.match(
+    /このターン、あなたが次に《([^》]+)》を使用する場合、それの使用コストはあなたのセンタールリグのレベル１につき《([白赤青緑黒無])×([０-９0-9]+)》減る/);
+  if (!m) return action;
+  const per = parseNum(m[3]);
+  if (!Number.isFinite(per) || per <= 0) return action;
+  const reduce: EffectAction = {
+    type: 'STUB', id: 'TURN_CARD_COST_REDUCE',
+    turnCardCostReduce: { targetCardName: m[1], color: m[2], perCenterLrigLevel: per },
+  } as EffectAction;
+  let replaced = false;
+  const walk = (node: EffectAction): EffectAction => {
+    if (replaced || !node || typeof node !== 'object') return node;
+    const n = node as unknown as { type?: string; id?: string; steps?: EffectAction[] };
+    if (n.type === 'STUB' && n.id === 'ARTS_COST_REDUCTION_BY_EFFECT') { replaced = true; return reduce; }
+    if (n.type === 'SEQUENCE') return { ...node, steps: (n.steps ?? []).map(walk) } as EffectAction;
+    return node;
+  };
+  const out = walk(action);
+  return replaced ? out : action;
+}
+
+/**
+ * 🆕§5.3 `O-259` 第5バッチ（2026-09-06・3効果）＝**「対戦相手の〈ルリグ〉トラッシュから
+ * 〈アーツ／スペル〉1枚を対象とし、それを使用（してもよい）」＋「コストの色を無視して支払える」**を、
+ * 選択→支払い→委譲が通る受け皿（`USE_SPELL_FROM_TRASH_PAYING_COST`）へ載せる。
+ *
+ * 🔴**旧＝`STUB{CAST_FROM_OPP_TRASH}` はコストを一切払わせない**（ログも「コストなしで使用」）＝
+ *   原文が「（コストは支払い、限定条件は無視しない）」「コストの色を無視して支払ってもよい」と
+ *   **払うことを明記している3効果が、丸ごとタダで撃てていた**（過剰実行）。
+ *   さらに **`PR-433` / `WXK11-016` は候補がルリグトラッシュに在る**のに、あの STUB は
+ *   `otherState.trash` から**スペルだけ**を探していた＝**候補 0 件で無言 no-op**でもあった。
+ * 🔑**受け皿は既に在った**（`O-259` 第3 で作った経路）＝足したのは
+ *   **領域 `'opp_lrig_trash'`／色無視 `useIgnoreCostColors`** の2つだけ。
+ * ⚠**「コストを支払わずに使用する」（`WXEX1-46-E3`）は触らない**＝あちらは free が原文どおり。
+ * ⚠**読めない形は何もしない**（fail-closed）。
+ */
+function wireEffectOppTrashUse(action: EffectAction, card: CardData): EffectAction {
+  const text = card.EffectText ?? '';
+  const m = text.match(
+    /対戦相手の(ルリグ)?トラッシュから(アーツ|スペル)１枚を対象とし、(?:この?ターン、)?それを[^。]*?使用(する|してもよい)/);
+  if (!m) return action;
+  // 🔴**「コストを支払わずに」型は除外**＝free が原文どおり（`WXEX1-46-E3`）。
+  if (/コストを支払わずに使用/.test(text)) return action;
+  const zone = m[1] ? 'opp_lrig_trash' : 'opp_trash';
+  const cardType = m[2];
+  const ignoreColors = /コストの色を無視して支払(?:える|ってもよい)/.test(text);
+  const use: EffectAction = {
+    type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
+    value2: zone,
+    selectTarget: { type: 'CARD', owner: 'opponent', count: 1, filter: { cardType } } as unknown as EffectTarget,
+    ...(ignoreColors ? { useIgnoreCostColors: true } : {}),
+  } as EffectAction;
+  let placed = false;
+  const walk = (node: EffectAction): EffectAction | null => {
+    if (!node || typeof node !== 'object') return node;
+    const n = node as unknown as { type?: string; id?: string; steps?: EffectAction[]; exileAfterUse?: boolean };
+    // ⚠**`exileAfterUse` は引き継ぐ**＝`wireExileAfterUse` はこの後に走るが、既に立っている木
+    //   （manual 由来など）を素通りさせると除外が黙って消える。
+    // ⚠**痕跡は2種類ある**＝`CAST_FROM_OPP_TRASH`（相手トラッシュ・コストなし）と
+    //   `USE_SPELL_FROM_TRASH`（**自分の**トラッシュ・コストなし）。後者に落ちている効果は
+    //   **ゾーンまで間違っている**（`WXDi-P06-066-E2` は相手のトラッシュを1度も見ていなかった）。
+    if (n.type === 'STUB' && (n.id === 'CAST_FROM_OPP_TRASH' || n.id === 'USE_SPELL_FROM_TRASH') && !placed) {
+      placed = true;
+      return (n.exileAfterUse ? { ...use, exileAfterUse: true } : use) as EffectAction;
+    }
+    // 色無視の痕跡 STUB は（もう `use` が持つので）取り除く。
+    if (ignoreColors && n.type === 'STUB' && n.id === 'ARTS_COST_REDUCTION_BY_EFFECT') return null;
+    if (n.type === 'SEQUENCE') {
+      const steps = (n.steps ?? []).map(walk).filter((x): x is EffectAction => x != null);
+      if (steps.length === 1) return steps[0];
+      return { ...node, steps } as EffectAction;
+    }
+    return node;
+  };
+  const out = walk(action);
+  // 🔴**使用側の受け皿を置けなかったら丸ごと見送る**＝色無視句だけ消して「何も起きない」木にしない。
+  if (!placed || !out) return action;
+  return out;
+}
+
+/**
  * 🆕§5.3 `O-260`（2026-09-05・7効果）＝**「（このターン、）それがチェックゾーンから別の領域に
  * 移動される場合、代わりにゲームから除外される」**を、**使用そのものへ**載せ替える。
  *
@@ -26705,6 +26821,22 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   for (let i = 0; i < effects.length; i++) {
     const wiredUse = wireEffectSpellUse(effects[i].action, card);
     if (wiredUse !== effects[i].action) effects[i] = { ...effects[i], action: wiredUse };
+  }
+  // 🆕§5.3 `O-259` 第9バッチ＝「（すべてのプレイヤーに影響する）」をグロウコスト軽減へ載せる。
+  for (let i = 0; i < effects.length; i++) {
+    const wiredAll = wireGrowCostAllPlayers(effects[i].action, card);
+    if (wiredAll !== effects[i].action) effects[i] = { ...effects[i], action: wiredAll };
+  }
+  // 🆕§5.3 `O-259` 第6バッチ＝「次に《カード名》を使用する場合、レベル1につき《青×1》減る」。
+  for (let i = 0; i < effects.length; i++) {
+    const wiredNamed = wireNamedCardCostReduction(effects[i].action, card);
+    if (wiredNamed !== effects[i].action) effects[i] = { ...effects[i], action: wiredNamed };
+  }
+  // 🆕§5.3 `O-259` 第5バッチ＝「対戦相手の（ルリグ）トラッシュから〜を使用」＋「色を無視して支払う」。
+  //   ⚠**`wireExileAfterUse` より前**＝あちらが使用 STUB を探すので、差し替えは先に済ませる。
+  for (let i = 0; i < effects.length; i++) {
+    const wiredOpp = wireEffectOppTrashUse(effects[i].action, card);
+    if (wiredOpp !== effects[i].action) effects[i] = { ...effects[i], action: wiredOpp };
   }
   // 🆕§5.3 `O-260` 第1バッチ＝「それがチェックゾーンから…代わりに除外」を使用 STUB へ載せ替える。
   //   ⚠**`wireEffectSpellUse` の後**＝あちらが使用 STUB を差し替えるので、先にやると取りこぼす。

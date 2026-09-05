@@ -1356,7 +1356,22 @@ export interface PlayerState {
    *   （＝アーツ・ピース・キーの支払いが**同じ1本**を通る）。
    * ⚠ターン境界でリセットする（`next_spell_cost_reduction` と同じ地点）。
    */
-  turn_specific_cost_reductions?: { targetCardName: string; colorlessReduction: number }[];
+  /**
+   * 🆕**色つき／レベル比例も表せるようにした**（2026-09-06・§5.3 `O-259` 第6バッチ・`WD16-010-E1`）＝
+   * 「それの使用コストはあなたのセンタールリグの**レベル1につき《青×1》**減る」。
+   * ⚠**解決は `collectSpecificCardCostReductions` 1箇所**（`state` と `cardMap` を持つ唯一の読み口）＝
+   *   UI 側5経路（`artsUseGate` / `ArtsModal` / `CutinModal` / `KeyUseModal` / `spellUseGate`）は
+   *   確定済みの `{targetCardName, color, colorlessReduction}` だけを見る（片肺が構造的に起きない）。
+   * ⚠`color` 未指定＝《無》（既存3効果の挙動は変えない）。
+   */
+  turn_specific_cost_reductions?: {
+    targetCardName: string;
+    colorlessReduction?: number;
+    /** 減らす色（未指定＝`無`）。 */
+    color?: string;
+    /** **あなたのセンタールリグのレベル1につき**この数だけ減らす（`colorlessReduction` と排他）。 */
+    perCenterLrigLevel?: number;
+  }[];
   // COST_REDUCTION(アーツ/UNTIL_END_OF_TURN): 【チェイン】《色》《色》＝「このターン、あなたが**次に**アーツを
   // 使用する場合、それの使用コストは《色×1》《色×1》減る」（WX10-004/005/022・WX11-018/021・WX14-005・WX19-004）。
   // スペル版（next_spell_cost_reduction）と同型＝アーツ使用時に消費し、ターン終了時にリセットする。
@@ -1364,6 +1379,36 @@ export interface PlayerState {
   //   「次に**緑の**アーツを使用する場合」）。⚠**未指定＝どの色にも効く**（既存11効果の挙動は変えない）。
   //   ⚠色は `card.Color` の `includes` で見る（多色アーツは `白青` のように連結される）。
   next_arts_cost_reduction?: { color: string; count: number; targetColor?: string }[];
+  /**
+   * 🆕**「このターン、次にあなたが使用するルリグの【起】能力の使用コストは《無》減る」**
+   * （2026-09-06・§5.3 `O-259` 第7バッチ・`WX25-CD1-17-E1`）。
+   * ⚠**1回使ったら消える**（`performLrigActivated` が消費）＋ターン境界でもリセットする。
+   * ⚠読み口は `LrigGrantedModal`（人間）と `cpuLrigActivate`（CPU）の2つ＝**同じ関数**
+   *   （`applyNextLrigActCostReduction`）を通す（写経すると片肺になる）。
+   */
+  next_lrig_act_cost_reduction?: { color: string; count: number }[];
+  /**
+   * 🆕**「このターン、あなたが次にスペルを使用する場合、その使用コストに含まれるエナコスト1つを選んで
+   * 代わりに《無》として支払ってもよい」**（2026-09-06・§5.3 `O-259` 第8バッチ・`WXDi-P06-066-E1`）。
+   * 🔑**枚数は減らない**（色指定が1つ任意色になるだけ）＝`next_spell_cost_reduction` とは別軸。
+   * ⚠読み口は `spellUseGate`（提示）と `SpellCastModal`（支払い検算）の2つ＝
+   *   どちらも `canAffordWithOneWildCostSlot` 1本を通す。
+   * ⚠**1回使ったら消える**（スペル使用時に `next_spell_cost_reduction` と同じ地点で消費）。
+   */
+  next_spell_wild_cost_slot?: boolean;
+  /**
+   * 🆕**「あなたが次に使用するコイン技の使用コストは《コイン×1》減る」**
+   * （2026-09-06・§5.3 `O-259` 第10バッチ・`SPK06-01-E1`）。
+   * 🔑**コイン技＝`cost.coin` を持つルリグの【起】**（この実装での定義）。
+   * ⚠読み口は `effectiveCoinCost` 1本（提示ゲート＋支払い）＝1回使ったら消える。
+   */
+  next_coin_ability_cost_reduction?: number;
+  /**
+   * 🆕**「このゲームの間、あなたの＜X＞が持つコイン技の《ゲーム１回》を《ゲーム２回》にする」**
+   * （2026-09-06・§5.3 `O-259` 第10バッチ・`SPK06-01-E1`＝＜レイラ＞）。
+   * 値は**ルリグのクラス名**（`CardClass` の部分一致）。⚠**ゲーム間持続**＝ターン境界で消さない。
+   */
+  coin_ability_extra_game_uses?: string[];
   // SET_CARD_COST_REPLACEMENT: カード名を指定した使用コストの**置換**（「このゲームの間、あなたの《落華流粋》の
   // 使用コストは《黒×2》《無×1》になる」WXK03-002-E3）。ゲーム間持続＝ターン境界でリセットしない。
   // ⚠軽減（`SPECIFIC_CARD_COST_REDUCE`＝場のCONT収集）とは別軸で、印刷コストを丸ごと差し替える。

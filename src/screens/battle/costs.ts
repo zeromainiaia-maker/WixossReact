@@ -521,7 +521,17 @@ export function declaredChooseScalingOf(
 export function declaredChooseMaxOf(
   cardNum: string,
   effectsMap: Map<string, CardEffect[]>,
+  /**
+   * 🆕**いま宣言しているベット枚数**（§5.3 `O-259` 第11バッチ・`WX22-016-E1`）＝
+   * `declaredMaxFromBet` を持つ項では**これが上限**になる（`CHOOSE.from_count` ではない）。
+   */
+  betAmount?: number,
 ): number | null {
+  // 🆕ベット枚数が上限の形は `CHOOSE` を見ない（宣言で②の回数が決まるので択が残っていない）。
+  const fromBet = (effectsMap.get(getCardNum(cardNum)) ?? [])
+    .flatMap(effect => effect.cost?.costScaling ?? [])
+    .some(term => term.declaredMaxFromBet);
+  if (fromBet) return Math.max(0, betAmount ?? 0);
   const walk = (action: unknown): number | null => {
     if (!action || typeof action !== 'object') return null;
     const a = action as { type?: string; declaredCountChoose?: boolean; from_count?: number; steps?: unknown[] };
@@ -905,6 +915,22 @@ export function computeCostReplacement(
         const lv = ctx?.lrig?.selfLevel;
         return lv !== undefined && lv >= when.value;
       }
+      // 🆕**センタールリグのレベル比較（自分 AND 相手）**（§5.3 `O-259` 第4バッチ・`WX20-020`）。
+      // ⚠**自分側も `ctx.lrig.selfLevel` ではなく盤面から読む**＝`computeCostReplacement` を
+      //   **直接**呼ぶベット判定3経路は `lrig` を渡さない（渡さない口が残っても効くようにする）。
+      // ⚠**どちらかが読めなければ成立させない**（安いほうへ倒さない）＝他の kind と同じ契約。
+      case 'centerLrigLevel': {
+        const lrigLevelOf = (st?: { field?: PlayerState['field'] }): number | null => {
+          const top = st?.field?.lrig?.at(-1);
+          if (!top || !cardMap) return null;
+          const lv = parseInt(cardMap.get(getCardNum(top))?.Level ?? '');
+          return Number.isFinite(lv) ? lv : null;
+        };
+        const cmpLevel = (lv: number | null, spec: { op: '以上' | '以下'; value: number }): boolean =>
+          lv !== null && (spec.op === '以上' ? lv >= spec.value : lv <= spec.value);
+        if (!cmpLevel(lrigLevelOf(myState), when.self)) return false;
+        return when.opp === undefined || cmpLevel(lrigLevelOf(ctx?.oppState), when.opp);
+      }
       case 'oppUsedThisTurn': {
         const flags = [when.arts && oppArts, when.spell && oppSpell];
         const wanted = [when.arts, when.spell];
@@ -1103,14 +1129,68 @@ export function applyNextArtsCostReduction(
   return result;
 }
 
+/**
+ * 🆕**「このターン、次にあなたが使用するルリグの【起】能力の使用コストは《無》減る」**の適用
+ * （2026-09-06・§5.3 `O-259` 第7バッチ・`WX25-CD1-17-E1`）。
+ *
+ * ⚠**人間（`LrigGrantedModal`）と CPU（`cpuLrigActivate`）が同じこの関数を呼ぶ**＝
+ *   写経すると「人間だけ安い」片肺になる（`applyNextArtsCostReduction` と同じ規律）。
+ */
+export function applyNextLrigActCostReduction(
+  cost: string,
+  reductions: { color: string; count: number }[] | undefined,
+): string {
+  let result = cost;
+  for (const r of reductions ?? []) result = removeNColorFromCost(result, r.color, r.count);
+  return result;
+}
+
+/**
+ * 🆕**「その使用コストに含まれるエナコスト1つを選んで代わりに《無》として支払ってもよい」**
+ * （2026-09-06・§5.3 `O-259` 第8バッチ・`WXDi-P06-066-E1`）。
+ *
+ * 原文の例＝「《青》《青》《赤》の場合、《青》《青》《無》か《青》《赤》《無》として支払える」。
+ * 🔑**枚数は変わらない**（色指定が1つ**任意色**になるだけ）＝`totalReq` はそのままでよい。
+ * 🔑**「どの色を無色化するか」の選択 UI は作らない**＝この能力は**任意かつ常に得**なので、
+ *   「払える変換が1つでもあれば払える」と判定するのが原文の選択肢集合と**厳密に一致**する
+ *   （どれか1色を機械的に選ぶと、原文なら払えるのに払えない／その逆が出る）。
+ * ⚠**変換しなくても払えるならそのまま**（余計な緩和をしない）。
+ * ⚠`enabled` が false なら素通り（この能力を持たない全スペルの挙動は1バイトも変わらない）。
+ */
+export function canAffordWithOneWildCostSlot(
+  cost: string,
+  enabled: boolean,
+  canPay: (cost: string) => boolean,
+): boolean {
+  if (canPay(cost)) return true;
+  if (!enabled) return false;
+  const parts = parseGrowCost(cost);
+  for (const p of parts) {
+    if (p.color === '無') continue;                       // 既に任意色
+    // ⚠**既にある《無》とはまとめる**（`《無》×1《無》×1` は `parseGrowCost` が
+    //   別項として数えるので偶然動くが、表示にも使う文字列なので正準形で作る）。
+    const variantParts = parts.map(q => (q.color === p.color ? { color: q.color, count: q.count - 1 } : { ...q }));
+    const wild = variantParts.find(q => q.color === '無');
+    if (wild) wild.count += 1; else variantParts.push({ color: '無', count: 1 });
+    const variant = variantParts.filter(q => q.count > 0).map(q => `《${q.color}》×${q.count}`).join('');
+    if (canPay(variant)) return true;
+  }
+  return false;
+}
+
 export function applySpecificCardCostReduction(
   cost: string,
   cardName: string | undefined,
-  reductions: { targetCardName: string; colorlessReduction: number }[],
+  reductions: { targetCardName: string; colorlessReduction: number; color?: string }[],
 ): string {
   if (!cardName) return cost;
-  const r = reductions.find(rr => rr.targetCardName === cardName);
-  return r ? removeNColorFromCost(cost, '無', r.colorlessReduction) : cost;
+  // 🆕**一致する宣言はすべて累積する**（2026-09-06・§5.3 `O-259` 第6バッチ）＝旧実装は `find` で
+  //   **最初の1件だけ**を見ており、常設（`SPECIFIC_CARD_COST_REDUCE`）とターン限定の予約が
+  //   同じカード名に重なると片方が黙って消えていた。
+  // 🆕`color` 未指定は《無》（既存の全宣言はこちら）。
+  return reductions
+    .filter(rr => rr.targetCardName === cardName)
+    .reduce((out, rr) => removeNColorFromCost(out, rr.color ?? '無', rr.colorlessReduction), cost);
 }
 
 // マルチエナ判定:

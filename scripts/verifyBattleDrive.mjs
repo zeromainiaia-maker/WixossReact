@@ -51223,6 +51223,500 @@ scenarios.v158PieceCostNotReduced = {
 order.push('v158PieceCostReduced');
 order.push('v158PieceCostNotReduced');
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-162`（§5.3 `O-259` 第7バッチ）＝**「このターン、次にあなたが使用するルリグの【起】能力の
+// 使用コストは《無》減る」**（`WX25-CD1-17-E1`）。
+//
+// 🔴**旧＝痕跡 `STUB{ARTS_COST_REDUCTION_BY_EFFECT}` で、1エナも安くならなかった**（過小実行）。
+// 🔑観測点は **`LrigGrantedModal` の「エナゾーンから選択: 0 / N枚」**＝
+//   受け皿（`next_lrig_act_cost_reduction`）に予約が積まれても、**支払い UI の必要枚数**まで
+//   届かなければ意味が無い（「表示だけ安い／枚数は元のまま」で永久に払えなくなる罠を実測で潰す）。
+// ⚠**対照は「場に他の＜ブルアカ＞がいない」1ビット反転**＝条件が落ちていれば必要枚数が 1 のままになる。
+// ══════════════════════════════════════════════════════════════════════════════
+const V161_LRIG = 'WX25-CD1-04#1';     // 小鳥遊ホシノ(水着)（ルリグ・Lv3）【起】《緑×1》《無×1》
+const V161_SIGNI = 'WX25-CD1-17#1';    // 砂狼シロコ(水着)（シグニ・緑・Lv3・＜ブルアカ＞）【出】で軽減を予約
+const V161_BURUAKA = 'WXDi-CP02-063#1'; // 下江コハル（シグニ・白・Lv1・＜ブルアカ＞）＝「他の＜ブルアカ＞」役
+const V161_OTHER = 'WD01-013#1';        // 小剣ククリ（シグニ・白・Lv1・＜アーム＞）＝対照（ブルアカではない）
+const V161_ENA_G = 'WD04-014';          // 幻獣パンダン（緑）＝《緑》スロット用
+const V161_ENA_W = 'WD01-013';          // 小剣ククリ（白）＝《無》スロット用
+
+const v162Spec = (fieldSigni) => ({
+  hostSet: {
+    'field.lrig': [V161_LRIG],
+    'field.signi': fieldSigni,
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [],
+    // 🔑**軽減前（2枚）は払える**ようにしておく＝払えないと提示ゲートで【起】自体が出ない。
+    energy: [V161_ENA_G + '#1', V161_ENA_W + '#5', V161_ENA_W + '#6'],
+    hand: [V161_SIGNI],
+    next_lrig_act_cost_reduction: undefined,
+    game_actions_done: [],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    hand: [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/** ルリグの【起】を開いて「エナゾーンから選択: x / N枚」の N を読む（押さずに閉じる）。 */
+const v162PeekLrigActCost = async (page, H, tag) => {
+  await H.closeModals();
+  await page.waitForTimeout(500);
+  // ルリグはカード画像で開く（`my-lrig-zone` 相当の testid が無い実装もある）。
+  const img = page.getByAltText('小鳥遊ホシノ', { exact: false }).first();
+  let opened = false;
+  if (await img.count() && await img.isVisible().catch(() => false)) {
+    await img.click({ force: true }).catch(() => {}); opened = true;
+  }
+  await page.waitForTimeout(700);
+  const lbl = page.locator('[data-action-label]').first();
+  let fired = false;
+  if (await lbl.count() && await lbl.isVisible().catch(() => false)) {
+    await lbl.click().catch(() => {}); fired = true;
+  }
+  await page.waitForTimeout(900);
+  if (!fired) {
+    const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(b => (b.textContent || '').trim().slice(0, 18)).filter(Boolean).slice(0, 24)).catch(() => []);
+    H.log('  【起】が開かない＝見えているボタン: ' + JSON.stringify(btns));
+  }
+  const req = await page.evaluate(() => {
+    const m = document.body.innerText.match(/エナゾーンから選択:\s*\d+\s*\/\s*(\d+)\s*枚/);
+    return m ? Number(m[1]) : null;
+  }).catch(() => null);
+  await page.screenshot({ path: SHOT + '/' + tag + '.png', fullPage: true });
+  await H.closeModals();
+  return { opened: opened && fired, req };
+};
+
+const v162Drive = async (page, H, tag, expectReduced) => {
+  const st0 = await H.queryState();
+  if (st0?.host?.lrigTop !== V161_LRIG || !(st0?.host?.handCards ?? []).includes(V161_SIGNI)) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+      + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+  }
+  await H.ensureMain();
+  // ① 手札の＜ブルアカ＞シグニを召喚する（【出】で軽減が予約される）。
+  //   ⚠**召喚を先にやる**＝先にルリグを覗くとモーダルが残って手札のクリックを吸う（`V-157` の教訓 8k）。
+  let summoned = false, zonePicked = false;
+  for (let s = 0; s < 16 && !(summoned && zonePicked); s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!summoned) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) await page.waitForTimeout(500);
+      const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+        await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+      }
+    }
+    if (!did && summoned && !zonePicked) {
+      const z = await H.clickTestId('summon-zone-2', 'summon-zone-1', 'summon-zone-0');
+      if (z) { zonePicked = true; did = z; }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log('  ' + tag + '[' + s + '] -> ' + (did ?? 'なし')
+      + ' | 予約=' + JSON.stringify(st?.host?.nextLrigActCostReduction)
+      + ' field=' + JSON.stringify(st?.host?.fieldSigni)
+      + ' pEff=' + (st?.pendingEffect ?? '-') + ' stack=' + (st?.stackLen ?? '-'));
+  }
+  await H.closeModals();
+  const stMid = await H.queryState();
+  const reserved = stMid?.host?.nextLrigActCostReduction;
+  if (!summoned || !zonePicked) {
+    return { pass: false, detail: '前提崩れ＝シグニを召喚できなかった（summoned=' + summoned
+      + ' zone=' + zonePicked + ' field=' + JSON.stringify(stMid?.host?.fieldSigni) + '）' };
+  }
+  // ② ルリグの【起】を開いて必要エナ枚数を読む（印刷は《緑×1》《無×1》＝2枚）。
+  const peek = await v162PeekLrigActCost(page, H, tag + '-peek');
+  const dump = '予約=' + JSON.stringify(reserved) + ' 必要エナ=' + peek.req + '（印刷は2枚）'
+    + ' field=' + JSON.stringify(stMid?.host?.fieldSigni);
+  H.log('  判定: ' + dump);
+  if (!peek.opened) return { pass: false, detail: '前提崩れ＝ルリグの【起】の支払いモーダルを開けなかった。' + dump };
+  if (peek.req === null) return { pass: false, detail: '前提崩れ＝必要エナ枚数を読めなかった。' + dump };
+  if (expectReduced) {
+    if (!Array.isArray(reserved) || reserved.length === 0) {
+      return { pass: false, detail: '🔴他の＜ブルアカ＞がいるのに軽減が予約されていない＝痕跡 STUB のまま（過小実行）。' + dump };
+    }
+    if (peek.req !== 1) {
+      return { pass: false, detail: '🔴予約はあるのに【起】の必要エナが 2→1 にならない＝支払い UI に配線が届いていない。' + dump };
+    }
+    return { pass: true, detail: '他の＜ブルアカ＞がいる状態で軽減が予約され、ルリグの【起】の必要エナが 2→1 になった。' + dump };
+  }
+  if (Array.isArray(reserved) && reserved.length > 0) {
+    return { pass: false, detail: '🔴他の＜ブルアカ＞がいないのに軽減が予約された＝条件が落ちている（過剰実行）。' + dump };
+  }
+  if (peek.req !== 2) {
+    return { pass: false, detail: '🔴条件不成立なのに【起】が安くなっている。' + dump };
+  }
+  return { pass: true, detail: '他の＜ブルアカ＞がいなければ軽減されず、必要エナは印刷どおり2枚のまま。' + dump };
+};
+
+scenarios.v162NextLrigActCostReduced = {
+  title: 'V-162①：WX25-CD1-17 の【出】＝他の＜ブルアカ＞がいれば、次のルリグ【起】の必要エナが 2→1 になる【旧実装は軽減0】',
+  // ⚠**`field.signi` は「スタックの配列」**＝素の文字列を置くと `stack?.forEach` で
+  //   `battleCardNums` の useMemo が落ち、盤面が1つも描画されない（2026-09-06 に実測）。
+  spec: v162Spec([[V161_BURUAKA], null, null]),
+  async drive(page, H) { return v162Drive(page, H, 'v162Red', true); },
+};
+
+scenarios.v162NextLrigActCostNotReduced = {
+  // 🔴**対照**＝盤面も操作も同じで、**場のシグニのクラスだけ**を＜ブルアカ＞→＜アーム＞に変える1ビット反転。
+  title: 'V-162②：他の＜ブルアカ＞がいなければ軽減されない（条件が落ちていない）',
+  spec: v162Spec([[V161_OTHER], null, null]),
+  async drive(page, H) { return v162Drive(page, H, 'v162Plain', false); },
+};
+
+order.push('v162NextLrigActCostReduced');
+order.push('v162NextLrigActCostNotReduced');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-163`（§5.3 `O-259` 第8バッチ）＝**「このターン、あなたが次にスペルを使用する場合、
+// その使用コストに含まれるエナコスト1つを選んで代わりに《無》として支払ってもよい」**（`WXDi-P06-066-E1`）。
+//
+// 🔴**旧＝痕跡 `STUB{ARTS_COST_REDUCTION_BY_EFFECT}` で一度も効かなかった**（過小実行）。
+// 🔑観測点は **「持っていない色のスペルが撃てるか」**＝盤面は《青》エナ2枚だけ、
+//   スペル `WXDi-P04-070`（EXCHANGE）の印刷コストは **《青×1》《黒×1》**。
+//   宣言があれば《黒》スロットが任意色になって撃てる／無ければ**撃てない**。
+// ⚠**枚数は減らない**（2枚のまま）＝「1枚安くなる」型と取り違えないための盤面設計。
+// ══════════════════════════════════════════════════════════════════════════════
+const V162_LRIG = 'WD03-002#1';        // コード・ピルルク・Ｇ（ルリグ・青・Lv3）
+const V162_SIGNI = 'WXDi-P06-066#1';   // 羅原ミルルン//メモリア（シグニ・青・Lv2）【出】で宣言
+const V162_PLAIN = 'WD03-012#1';       // コードアートＪ・Ｖ（シグニ・青・Lv2・能力なし）＝対照
+const V162_SPELL = 'WXDi-P04-070#1';   // EXCHANGE（スペル・《青×1》《黒×1》）
+const V162_ENA = 'WD03-012';           // 青のエナ（黒は1枚も置かない）
+
+const v163Spec = (handSigni) => ({
+  hostSet: {
+    'field.lrig': [V162_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [],
+    // 🔴**《黒》を1枚も置かない**＝印刷どおりでは払えない盤面（宣言の有無がそのまま可否になる）。
+    energy: [V162_ENA + '#5', V162_ENA + '#6'],
+    hand: [handSigni, V162_SPELL],
+    next_spell_wild_cost_slot: undefined,
+    next_spell_cost_reduction: undefined,
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    hand: ['WD01-013#7'],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const v163Drive = async (page, H, tag, expectCastable) => {
+  const st0 = await H.queryState();
+  if (st0?.host?.lrigTop !== V162_LRIG || !(st0?.host?.handCards ?? []).includes(V162_SPELL)) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrig=' + st0?.host?.lrigTop
+      + ' hand=' + JSON.stringify(st0?.host?.handCards) + '）' };
+  }
+  await H.ensureMain();
+  // ① 手札の先頭（シグニ）を召喚する＝これで宣言が積まれる（対照側は能力なしシグニ）。
+  let summoned = false, zonePicked = false;
+  for (let s = 0; s < 14 && !(summoned && zonePicked); s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!summoned) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) await page.waitForTimeout(500);
+      const sb = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await sb.count() && await sb.isVisible().catch(() => false) && await sb.isEnabled().catch(() => false)) {
+        await sb.click().catch(() => {}); summoned = true; did = 'btn:召喚';
+      }
+    }
+    if (!did && summoned && !zonePicked) {
+      const z = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (z) { zonePicked = true; did = z; }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log('  ' + tag + '[s' + s + '] -> ' + (did ?? 'なし')
+      + ' | 宣言=' + JSON.stringify(st?.host?.nextSpellWildCostSlot)
+      + ' hand=' + JSON.stringify(st?.host?.handCards) + ' pEff=' + (st?.pendingEffect ?? '-'));
+  }
+  await H.closeModals();
+  const stMid = await H.queryState();
+  const declared = stMid?.host?.nextSpellWildCostSlot;
+  if (!summoned || !zonePicked) {
+    return { pass: false, detail: '前提崩れ＝シグニを召喚できなかった（summoned=' + summoned + ' zone=' + zonePicked + '）' };
+  }
+  // ② スペルを使う（「発動」→ エナ2枚選択 →「発動する」）。
+  let opened = false, useClicked = false, picked = 0, cast = false;
+  for (let s = 0; s < 20 && !cast; s++) {
+    await page.waitForTimeout(700);
+    let did = null;
+    if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+    else if (!useClicked) {
+      did = await H.clickBtn('発動', { exact: true });
+      if (did) useClicked = true;
+      else if (s % 4 === 3) { opened = false; await H.closeModals(); }
+    } else if (picked < 2) {
+      const e = await H.clickTestId('spellcost-energy-' + picked);
+      if (e) { picked += 1; did = e; }
+    } else {
+      const btn = page.getByRole('button', { name: '発動する', exact: false }).first();
+      if (await btn.count() && await btn.isVisible().catch(() => false)) {
+        const enabled = await btn.isEnabled().catch(() => false);
+        H.log('  「発動する」enabled=' + enabled);
+        if (enabled) { await btn.click().catch(() => {}); cast = true; did = 'btn:発動する'; }
+        else did = 'btn:発動する(無効)';
+      }
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log('  ' + tag + '[c' + s + '] -> ' + (did ?? 'なし') + ' | opened=' + opened + ' use=' + useClicked
+      + ' picked=' + picked + ' hand=' + JSON.stringify(st?.host?.handCards)
+      + ' 宣言=' + JSON.stringify(st?.host?.nextSpellWildCostSlot) + ' pEff=' + (st?.pendingEffect ?? '-'));
+    if (!(st?.host?.handCards ?? []).includes(V162_SPELL)) { cast = true; }
+  }
+  await page.screenshot({ path: SHOT + '/' + tag + '-end.png', fullPage: true });
+  const fin = await H.queryState();
+  const stillInHand = (fin?.host?.handCards ?? []).includes(V162_SPELL);
+  const dump = '宣言=' + JSON.stringify(declared) + ' 使用ボタン=' + useClicked
+    + ' 選んだエナ=' + picked + ' 手札=' + JSON.stringify(fin?.host?.handCards)
+    + ' エナ=' + JSON.stringify(fin?.host?.energy);
+  H.log('  判定: ' + dump);
+  if (expectCastable) {
+    if (declared !== true) {
+      return { pass: false, detail: '🔴【出】で宣言が積まれていない＝痕跡 STUB のまま（過小実行）。' + dump };
+    }
+    if (stillInHand) {
+      return { pass: false, detail: '🔴宣言はあるのに《黒》を持っていないスペルを撃てない＝支払い経路に届いていない。' + dump };
+    }
+    return { pass: true, detail: '《黒》エナ0枚でも《青×1》《黒×1》のスペルを撃てた（黒スロットが任意色になった）。' + dump };
+  }
+  if (declared === true) {
+    return { pass: false, detail: '🔴能力なしシグニを出しただけで宣言が積まれた（過剰実行）。' + dump };
+  }
+  if (!stillInHand) {
+    return { pass: false, detail: '🔴宣言が無いのに《黒》を持っていないスペルが撃ててしまった（コスト踏み倒し）。' + dump };
+  }
+  return { pass: true, detail: '宣言が無ければ《黒》を持っていないスペルは撃てず、手札に残ったまま。' + dump };
+};
+
+scenarios.v163SpellWildCostSlot = {
+  title: 'V-163①：WXDi-P06-066 の【出】＝次のスペルのエナコスト1つを《無》扱いにできる（黒0枚で《青×1》《黒×1》が撃てる）【旧実装は効果なし】',
+  spec: v163Spec(V162_SIGNI),
+  async drive(page, H) { return v163Drive(page, H, 'v163Wild', true); },
+};
+
+scenarios.v163SpellWildCostSlotAbsent = {
+  // 🔴**対照**＝盤面も操作も同じで、**召喚するシグニだけ**を能力なしの同レベル同色に変える1ビット反転。
+  title: 'V-163②：宣言が無ければ同じスペルは撃てない（コストを踏み倒していない）',
+  spec: v163Spec(V162_PLAIN),
+  async drive(page, H) { return v163Drive(page, H, 'v163Plain', false); },
+};
+
+order.push('v163SpellWildCostSlot');
+order.push('v163SpellWildCostSlotAbsent');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-164`（§5.3 `O-259` 第11バッチ）＝**「ベットする《コイン》1枚につき①（このアーツの使用コストは
+// 《黒×3》減る）か②（このアーツの効果を一度繰り返す）を選ぶ」**（`WX22-016-E1`）。
+//
+// 🔴**旧＝①は痕跡 `STUB{ARTS_COST_REDUCTION_BY_EFFECT}`＝選んでも1エナも安くならなかった**
+//   （＝「何も起きない選択肢」を1枚ぶん捨てるだけの過小実行）。
+// 🔑**コストは「選ばせてから」では請求できない**（支払いは解決より前）＝`O-251` と同じく
+//   **使用宣言時に①へ何枚回すかを宣言**する。宣言 UI の上限は**そのとき宣言したベット枚数**。
+// 🔑観測点は **ArtsModal の「エナから選択: 0 / N枚」**＝印刷《黒》×6 が、
+//   ベット1枚＋①1つの宣言で **6 → 3** になること。
+// ⚠**対照はベットしたまま①に0つ宣言**＝1ビット反転（ベット枚数は同じ／宣言だけ0）。
+// ══════════════════════════════════════════════════════════════════════════════
+const V163_LRIG = 'WX18-002#1';        // 哀罪の駄姫グズ子（ルリグ・黒・Lv4）＝「グズ子限定」を満たす
+const V163_ARTS = 'WX22-016#1';        // グレイブ・ディガー（アーツ・《黒》×6・ベット―好きな枚数）
+const V163_ENA = 'WD05-013';           // 小悪の象徴コオニ（黒）＝《黒》スロット用のエナ
+
+const v164Spec = () => ({
+  hostSet: {
+    'field.lrig': [V163_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [V163_ARTS],
+    // 🔑**印刷（6枚）も払える**ようにしておく＝払えないと提示ゲートでアーツ自体が出ない。
+    energy: [1, 2, 3, 4, 5, 6].map(i => V163_ENA + '#' + i),
+    hand: [],
+    coins: 3,
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    hand: [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+/**
+ * アーツを開き、①ベット枚数 ②①へ回す数（宣言）を選んでから「エナから選択: 0 / N枚」を読む。
+ * ⚠**押さずに閉じる**（`← 戻る`）＝ArtsModal の戻るラベルは「← 戻る」（`V-157` の教訓 8j）。
+ */
+const v164PeekArtsCost = async (page, H, bet, declare, tag) => {
+  await H.closeModals();
+  H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+  await page.waitForTimeout(700);
+  H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+  await page.waitForTimeout(700);
+  const used = await H.clickBtn('使用', { exact: true });
+  await page.waitForTimeout(900);
+  let betOk = true;
+  if (bet > 0) {
+    const b = page.getByRole('button', { name: bet + '枚', exact: true }).first();
+    betOk = await b.count() > 0 && await b.isVisible().catch(() => false);
+    if (betOk) { await b.click().catch(() => {}); await page.waitForTimeout(600); }
+  }
+  // 宣言 UI（`arts-declare-choose-<n>`）＝上限は「そのとき宣言したベット枚数」。
+  const decOk = await H.clickTestId('arts-declare-choose-' + declare);
+  await page.waitForTimeout(700);
+  const req = await page.evaluate(() => {
+    const m = document.body.innerText.match(/エナから選択:\s*\d+\s*\/\s*(\d+)\s*枚/);
+    return m ? Number(m[1]) : null;
+  }).catch(() => null);
+  await page.screenshot({ path: SHOT + '/' + tag + '.png', fullPage: true });
+  if (!used || !betOk || !decOk) {
+    const btns = await page.evaluate(() => Array.from(document.querySelectorAll('button'))
+      .map(b => (b.textContent || '').trim().slice(0, 18)).filter(Boolean).slice(0, 26)).catch(() => []);
+    H.log('  見えているボタン: ' + JSON.stringify(btns));
+  }
+  await H.clickBtn('← 戻る', { exact: true });
+  await page.waitForTimeout(400);
+  await H.closeModals();
+  return { opened: !!used, betOk, declared: !!decOk, req };
+};
+
+scenarios.v164BetDeclaredCostReduce = {
+  title: 'V-164：WX22-016＝ベット1枚を①に回すと必要エナが 6→3 になる（0つ宣言なら6のまま）【旧実装は軽減0】',
+  spec: v164Spec(),
+  async drive(page, H) {
+    const st0 = await H.queryState();
+    if (!(st0?.host?.lrigDeckCards ?? []).includes(V163_ARTS)) {
+      return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrigDeck='
+        + JSON.stringify(st0?.host?.lrigDeckCards) + ' coins=' + st0?.host?.coins + '）' };
+    }
+    await H.ensureMain();
+    // 🔴**対照を先に取る**＝同じベット枚数のまま「①に0つ」を宣言した額（＝印刷のまま6枚）。
+    const zero = await v164PeekArtsCost(page, H, 1, 0, 'v164-declare0');
+    const one = await v164PeekArtsCost(page, H, 1, 1, 'v164-declare1');
+    const dump = 'ベット1枚・宣言0つ=' + zero.req + '枚 / ベット1枚・宣言1つ=' + one.req + '枚（印刷は6枚）'
+      + ' opened=' + zero.opened + '/' + one.opened
+      + ' bet=' + zero.betOk + '/' + one.betOk + ' declare=' + zero.declared + '/' + one.declared;
+    H.log('  判定: ' + dump);
+    if (!zero.opened || !one.opened) {
+      return { pass: false, detail: '前提崩れ＝アーツの支払いモーダルを開けなかった。' + dump };
+    }
+    if (!zero.betOk || !one.betOk) {
+      return { pass: false, detail: '前提崩れ＝ベット（好きな枚数）の「1枚」ボタンが出なかった。' + dump };
+    }
+    if (!zero.declared || !one.declared) {
+      return { pass: false, detail: '🔴宣言 UI が出ていない＝`declaredMaxFromBet` がベット枚数を上限にできていない。' + dump };
+    }
+    if (zero.req === null || one.req === null) {
+      return { pass: false, detail: '前提崩れ＝必要エナ枚数を読めなかった。' + dump };
+    }
+    if (zero.req !== 6) {
+      return { pass: false, detail: '🔴①に0つ宣言しているのに安くなっている（宣言を見ていない）。' + dump };
+    }
+    if (one.req !== 3) {
+      return { pass: false, detail: '🔴①に1つ宣言しても必要エナが 6→3 にならない＝①が痕跡 STUB のまま（過小実行）。' + dump };
+    }
+    return { pass: true, detail: '同じベット1枚でも、①へ1つ宣言したときだけ必要エナが 6→3 になった。' + dump };
+  },
+};
+
+order.push('v164BetDeclaredCostReduce');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5.1 `V-165`（§5.3 `O-259` 第4バッチ）＝**「あなたのセンタールリグのレベルが4以下で、対戦相手の
+// センタールリグのレベルが5以上の場合、このアーツの使用コストは《無×1》になる」**（`WX20-020-E1`）。
+//
+// 🔴**旧＝条件は JSON に在ったのに `costReplacement` payload が無く、支払い時に一度も適用されなかった**
+//   （逆翻訳は原文どおりに読めるので実装済みに見えていた＝`O-259` の型そのもの）。
+// 🔑観測点は **ArtsModal の「エナから選択: 0 / N枚」**＝印刷《無》×6 が **6 → 1** になること。
+// ⚠**対照は「相手のセンタールリグを Lv4 にする」1ビット反転**＝AND の相手側だけを外す
+//   （2項に割っていると、ここで 1 枚のままになって嘘の割引が露見する）。
+// ══════════════════════════════════════════════════════════════════════════════
+const V164_ARTS = 'WX20-020#1';        // サティスファクション（アーツ・《無》×6・限定なし）
+const V164_SELF_LRIG = 'WD01-001#1';   // 満月の巫女タマヨリヒメ（ルリグ・Lv4）＝「4以下」を満たす
+const V164_ENA = 'WD01-013';           // 小剣ククリ＝《無》スロット用のエナ（色は問わない）
+
+const v165Spec = (oppLrig) => ({
+  hostSet: {
+    'field.lrig': [V164_SELF_LRIG],
+    'field.signi': [null, null, null],
+    'field.check': null, 'field.key_piece': null, 'field.key_piece_extra': [],
+    'field.free_zone': [], 'field.beat_zone': [],
+    'field.lrig_down': false,
+    lrig_deck: [V164_ARTS],
+    // 🔑**印刷（6枚）も払える**ようにしておく＝払えないと提示ゲートでアーツ自体が出ない。
+    energy: [1, 2, 3, 4, 5, 6].map(i => V164_ENA + '#' + i),
+    hand: [],
+    actions_done: [],
+  },
+  guestSet: {
+    'field.lrig': [oppLrig], 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': null, 'field.key_piece_extra': [], 'field.free_zone': [], 'field.beat_zone': [],
+    hand: [],
+    actions_done: [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const v165Drive = async (page, H, tag, expectReplaced) => {
+  const st0 = await H.queryState();
+  if (!(st0?.host?.lrigDeckCards ?? []).includes(V164_ARTS)) {
+    return { pass: false, detail: '前提崩れ＝盤面が注入できていない（lrigDeck='
+      + JSON.stringify(st0?.host?.lrigDeckCards) + '）' };
+  }
+  await H.ensureMain();
+  const peek = await v157PeekArtsCost(page, H, 0, tag);
+  const dump = '自ルリグ=' + st0?.host?.lrigTop + ' 相手ルリグ=' + st0?.guest?.lrigTop
+    + ' 必要エナ=' + peek.req + '（印刷は6枚）';
+  H.log('  判定: ' + dump);
+  if (!peek.opened) return { pass: false, detail: '前提崩れ＝アーツの支払いモーダルを開けなかった。' + dump };
+  if (peek.req === null) return { pass: false, detail: '前提崩れ＝必要エナ枚数を読めなかった。' + dump };
+  if (expectReplaced) {
+    if (peek.req !== 1) {
+      return { pass: false, detail: '🔴自Lv4・相手Lv5 なのに使用コストが《無×1》にならない＝payload が支払いに届いていない。' + dump };
+    }
+    return { pass: true, detail: '自Lv4・相手Lv5 で必要エナが 6→1 になった。' + dump };
+  }
+  if (peek.req !== 6) {
+    return { pass: false, detail: '🔴相手が Lv4 なのに安くなった＝2条件が AND になっていない（過剰な割引）。' + dump };
+  }
+  return { pass: true, detail: '相手が Lv4 なら置換されず、必要エナは印刷どおり6枚のまま。' + dump };
+};
+
+scenarios.v165ArtsCostByLrigLevels = {
+  title: 'V-165①：WX20-020＝自Lv4かつ相手Lv5なら使用コストが《無×6》→《無×1》になる【旧実装は置換0】',
+  spec: v165Spec('WX05-001#1'),          // 創世の巫女マユ（Lv5）
+  async drive(page, H) { return v165Drive(page, H, 'v165Cheap', true); },
+};
+
+scenarios.v165ArtsCostOppLevelTooLow = {
+  // 🔴**対照**＝**相手のセンタールリグのレベルだけ**を 5 → 4 に変える1ビット反転。
+  title: 'V-165②：相手が Lv4 なら置換されない（2条件が AND になっている）',
+  spec: v165Spec('WD01-001#2'),          // 満月の巫女タマヨリヒメ（Lv4）
+  async drive(page, H) { return v165Drive(page, H, 'v165Full', false); },
+};
+
+order.push('v165ArtsCostByLrigLevels');
+order.push('v165ArtsCostOppLevelTooLow');
+
 
 order.push('v152DeclareRaisesCost');
 order.push('v152DeclareLimitedByEnergy');
@@ -51529,6 +52023,13 @@ try {
         //   **ターン限定**予約。🔴常設の `SPECIFIC_CARD_COST_REDUCE` は場のカードを走査する別経路なので、
         //   ここを見ないと「予約されたのか」「支払い経路に届いていないのか」を切り分けられない。
         turnSpecificCostReductions: s.turn_specific_cost_reductions ?? null,
+        // 🆕§5.3 `O-259` 第7〜10バッチ（2026-09-06）＝「次の1回だけ」型の予約3本。
+        //   🔴どれも**予約されたのか／支払い経路に届いていないのか**を切り分けるための観測点
+        //   （盤面差分だけだと「そもそも予約が立っていない」と区別が付かない）。
+        nextLrigActCostReduction: s.next_lrig_act_cost_reduction ?? null,
+        nextSpellWildCostSlot: s.next_spell_wild_cost_slot ?? null,
+        nextCoinAbilityCostReduction: s.next_coin_ability_cost_reduction ?? null,
+        coinAbilityExtraGameUses: s.coin_ability_extra_game_uses ?? null,
         fieldSigni: s.field?.signi ?? null,
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
@@ -51619,7 +52120,7 @@ try {
         keyPieceExtra: s.field?.key_piece_extra ?? [],
         keyPlaceLimit: s.key_place_limit ?? null,
         identityOverrides: s.card_identity_overrides ?? {},
-        // 🆕§5.3 `O-226`（2026-09-06・`V-161`）＝「この【起】を使用したのがN回目か」の台帳。
+        // 🆕§5.3 `O-226`（2026-09-06・`V-162`）＝「この【起】を使用したのがN回目か」の台帳。
         //   🔴**キーが CardNum か instance id かは engine の `ctx.sourceCardNum` 次第**で、
         //   注入して「4→5回目」を作るときにどちらで積むかが変わる＝観測できないと当て推量になる。
         lrigActivationCount: s.lrig_activation_count ?? {},

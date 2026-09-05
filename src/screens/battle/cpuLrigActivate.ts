@@ -1,6 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { activatedEnergyCostStr, selectEnergyIndicesForCost } from './cpuActivate';
+import { applyNextLrigActCostReduction } from './costs';
 import {
   collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
   listActivatableInheritedLrigEffects, listActivatableLrigEffects,
@@ -104,7 +105,10 @@ export function pickCpuLrigActivated(p: {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
     if (!cpuCanAutoPayLrigCost(effect)) continue;
     const costIndices = selectEnergyIndicesForCost({
-      poolNums: p.energyPoolNums, cards: p.cards, costStr: activatedEnergyCostStr(effect),
+      poolNums: p.energyPoolNums, cards: p.cards,
+      // 🆕§5.3 `O-259` 第7バッチ＝人間（`LrigGrantedModal`）と**同じ関数**で軽減を掛ける
+      //   （写経すると「人間だけ安い」片肺になる）。
+      costStr: applyNextLrigActCostReduction(activatedEnergyCostStr(effect), p.actor.next_lrig_act_cost_reduction),
       isAffordable: p.isAffordable,
     });
     if (!costIndices) continue;

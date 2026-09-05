@@ -106,12 +106,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
     //   立てないと ①ルリグデッキの中は走査されないので恒久 no-op ②グロウし終えてセンターに居るあいだは
     //   走査されるので**次のグロウが原文と無関係に安くなる**、の2方向に壊れる。
     const selfGrow = /この(?:カード|ルリグ)にグロウするための/.test(t);
-    const growZeroM = t.match(/グロウするためのコストは((?:《[^》]+》)+)になる/);
+    // 🆕**「グロウするための**エナ**コストは」**（§5.3 `O-259` 第9バッチ・`WXK11-014-E1`）＝
+    //   `エナ` が挟まる綴りを受けていなかったので、あのキーは**丸ごと素通り**していた。
+    const growZeroM = t.match(/グロウするための(?:エナ)?コストは((?:《[^》]+》)+)になる/);
     if (growZeroM) {
       // 「《赤×0》《緑×0》に**なる**」＝その色は全額0（「減る」の固定減算では表せない）。
       const zeroColors = [...growZeroM[1].matchAll(/《([白青赤緑黒無])×0》/g)].map(m => m[1]);
       if (zeroColors.length > 0) {
+        // 🆕**「無色ではないルリグに」**＝グロウ先の色で絞る／**「（すべてのプレイヤーに影響する）」**＝
+        //   相手の場からも拾う（`O-259` 第9バッチ）。⚠落とすと前者は過剰実行・後者は片肺になる。
+        const nonColorlessTarget = /無色ではないルリグにグロウするための/.test(t);
+        const allPlayers = /すべてのプレイヤーに影響する/.test(t);
         const zeroAct = { type: 'GROW_COST_REDUCTION', reduction: [], zeroColors,
+          ...(nonColorlessTarget ? { targetNonColorlessLrig: true } : {}),
+          ...(allPlayers ? { allPlayers: true } : {}),
           ...(selfGrow ? { forSelfGrowOnly: true } : {}) } as GrowCostReductionAction;
         // 🆕ライフ条件つき（`WX13-001`）＝`CONDITIONAL` で包む。⚠**`GROW_FREE` を流用しない**
         //   （あれは spell の `findGrowFreeAction` 専用で CONTINUOUS からは一度も読まれず、

@@ -238,6 +238,14 @@ export type ActiveCondition =
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'OR'; conditions: ActiveCondition[] }
   | { type: 'TURN_OWNER'; owner: Owner }
+  /**
+   * 🆕**あなたのセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上**
+   * （2026-09-06・§5.3 `O-259` 第12バッチ・`SP38-005-E2`）。
+   * 🔑同名の `Condition` 型が既に `execUtils` にある（`WXK08-005`）＝**判定式はそちらと同じ**。
+   *   `ActiveCondition` 側に無かったので、常在の宣言（`EXTRA_USE_TIMING` 等）からは使えなかった。
+   * ⚠**どちらかのセンタールリグが読めなければ false**（fail-closed）。
+   */
+  | { type: 'LRIG_LEVEL_CMP_OPP'; operator: 'lt' | 'lte' | 'gt' | 'gte' }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count?: number; filter?: TargetFilter } // count 省略＝場にいる全シグニ間で共通色なし。指定時は従来のN体条件（§6.4 O-11）
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
   // 🆕**2026-08-31 続き752**＝`Condition` 側にだけ在って `ActiveCondition` に無く、CONTINUOUS から使えなかった
@@ -733,7 +741,7 @@ export type Condition =
 // ここへの追記が強制される（余計なキーもエラー）。**評価器側の実装漏れ**は各評価器末尾の
 // `never` 代入が別途 typecheck で捕まえる。
 export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
-  LRIG_DECK_COUNT: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
+  LRIG_DECK_COUNT: true, OR: true, TURN_OWNER: true, LRIG_LEVEL_CMP_OPP: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
   FIELD_SIGNI_ALL_DISTINCT_CLASS: true,
   FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true, HAS_TRAP_IN_FIELD: true,
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
@@ -860,6 +868,12 @@ export interface CostScalingTerm {
    * （原文が「選んだ数が3つ以上の場合、選んだ数から2を引いた数だけ」と2つを別に書くため）。
    */
   offset?: number;
+  /**
+   * 🆕**宣言できる上限が「そのとき宣言したベット枚数」**（§5.3 `O-259` 第11バッチ・`WX22-016-E1`）。
+   * 原文「あなたがベットする《コイン》1枚につき以下の2つから1つを選ぶ」＝
+   * 宣言 UI（`ArtsModal`）の選択肢は **0〜ベット枚数**になる（`CHOOSE.from_count` ではない）。
+   */
+  declaredMaxFromBet?: boolean;
 }
 
 /**
@@ -948,6 +962,15 @@ export type CostReplacementWhen =
   | { kind: 'oppCenterLrigColor'; colors: string[] }
   /** 🆕**あなたのセンタールリグがレベルN以上**（1枚）。 */
   | { kind: 'selfCenterLrigLevelGte'; value: number }
+  /**
+   * 🆕**センタールリグのレベル比較（自分＋任意で対戦相手）**（§5.3 `O-259` 第4バッチ・`WX20-020`）。
+   * 原文「あなたのセンタールリグのレベルが４以下**で**、対戦相手のセンタールリグのレベルが５以上の場合」。
+   * 🔴**`opp` を書いたら AND**＝2項に割ると「どちらか片方でも成立」になり、
+   *   相手が低レベルのうちから《無×1》で撃ててしまう（安いほうへ倒れる）。
+   * ⚠**どちらかのセンタールリグが読めなければ成立させない**（他の kind と同じ fail-closed）。
+   * ⚠既存の `selfCenterLrigLevelGte` は残す（`WX09-037` の「減る」形が使っている・意味が違う）。
+   */
+  | { kind: 'centerLrigLevel'; self: { op: '以上' | '以下'; value: number }; opp?: { op: '以上' | '以下'; value: number } }
   /**
    * 🆕**あなたの〔ゾーン〕の枚数が対戦相手より `by` 枚以上多い**（§5.3 `O-86` 第9バッチ・6枚）。
    * 原文「〜の枚数が対戦相手より（N枚以上）多いかぎり」「あなたのライフクロスが対戦相手より多い場合」。
@@ -3051,6 +3074,13 @@ export interface CostReductionAction {
   color?: string;
   reduction: EnergyCost[];
   isGrowCost?: boolean;          // true = グロウコスト対象
+  /**
+   * 🆕**「このターン、次にあなたが使用するルリグの【起】能力の使用コストは《無》減る」**
+   * （§5.3 `O-259` 第7バッチ・2026-09-06・`WX25-CD1-17-E1`）。
+   * 🔴**`targetCardType:'ルリグ'` はグロウコスト側が使っている**ので流用できない（`isGrowCost` と対）。
+   * ⚠受け皿は `PlayerState.next_lrig_act_cost_reduction`＝**【起】を1回使ったら消える**。
+   */
+  forNextLrigActivated?: boolean;
   duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT' | 'NEXT_TURN';
 }
 
@@ -3747,6 +3777,18 @@ export interface GrowCostReductionAction {
    * 🔴**`GROW_FREE` を流用しない**＝あれは「コストを支払わずにグロウする」＝**指定外の色まで踏み倒す**。
    */
   zeroColors?: string[];
+  /**
+   * 🆕**「（すべてのプレイヤーに影響する）」**（2026-09-06・§5.3 `O-259` 第9バッチ・`WXK11-014-E1`）。
+   * 🔴既定の `collectGrowCostReductions` は**グロウする側の場だけ**を走査するので、
+   *   これを立てないと**キーを置いた側にしか効かない**（原文は両プレイヤー）。
+   */
+  allPlayers?: boolean;
+  /**
+   * 🆕**「無色ではないルリグにグロウするための」**（§5.3 `O-259` 第9バッチ・`WXK11-014-E1`）。
+   * ⚠**グロウ先の色で絞る**＝`growTargetCardNum` の `Color` が `無` / 空なら適用しない。
+   *   落とすと無色ルリグへのグロウまで《赤×0》になる（過剰実行）。
+   */
+  targetNonColorlessLrig?: boolean;
 }
 
 /**
@@ -5551,6 +5593,10 @@ export interface StubAction {
    * 🆕**`'hand'`＝あなたの手札**（§5.3 `O-259` 第3・2026-09-05）＝「あなたの手札から〈修飾〉スペル1枚を
    *   使用する」型。⚠**id は `..._FROM_TRASH_...` のままだが領域は `value2` が正**（`'opp_trash'` を
    *   足したときから id は領域を表していない）。
+   * 🆕**`'opp_lrig_trash'`＝対戦相手のルリグトラッシュ**（§5.3 `O-259` 第5・2026-09-06）＝
+   *   「対戦相手のルリグトラッシュからアーツ1枚を対象とし、それをあなたのルリグデッキにあるかのように
+   *   使用してもよい」型（`PR-433` / `WXK11-016`）。⚠**アーツはトラッシュではなくルリグトラッシュに落ちる**
+   *   ので、`'opp_trash'` のままだと候補が常に 0 件＝無言 no-op になる。
    * ⚠`value` は段階（`'picked'`）に使っているので、領域は別キーで運ぶ。
    */
   value2?: string;
@@ -5569,6 +5615,14 @@ export interface StubAction {
    *   支払いの有無は最後の1分岐でしかない。
    */
   useSpellIgnoreCost?: boolean;
+  /**
+   * 🆕**「この方法でそのアーツを使用する際、（その）コストの色を無視して支払（える｜ってもよい）」**
+   * （§5.3 `O-259` 第5バッチ・2026-09-06・`PR-433-E1` / `WXK11-016-E3`）。
+   * 🔑**実装は「印刷コストの色をすべて《無》に読み替える」1行**＝`selectOptionalCostEnergy` の
+   *   `costSlotIsAny('無')` が既に「どのエナでも払える」を持っている（新しい支払いモードは要らない）。
+   * 🔴**枚数は減らない**＝色だけを無視する（原文どおり）。
+   */
+  useIgnoreCostColors?: boolean;
   /**
    * 🆕**§5.3 `O-260`（2026-09-05）＝「（このターン、）それがチェックゾーンから別の領域に移動される場合、
    * 代わりにゲームから除外される」**（7効果）を**使用そのものに載せる**フラグ。
@@ -5843,7 +5897,21 @@ export interface StubAction {
    * （§5.3 `O-259` 第2バッチ・`WXDi-P16-009/010/011-E3` の「そのピース」）。
    * ⚠常設の `SPECIFIC_CARD_COST_REDUCE`（CONTINUOUS 収集）とは**寿命が違う**＝こちらはターン終了で消える。
    */
-  turnCardCostReduce?: { targetCardName: string; colorlessReduction: number };
+  /**
+   * 🆕**`COIN_ABILITY_BOOST`＝「このゲームの間、あなたの＜X＞が持つコイン技の《ゲーム１回》を
+   * 《ゲーム２回》にし、あなたが次に使用するコイン技の使用コストは《コイン×N》減る」**
+   * （§5.3 `O-259` 第10バッチ・2026-09-06・`SPK06-01-E1`）。
+   * ⚠**2つの軸は寿命が違う**＝回数はゲーム間、軽減は**次の1回だけ**。
+   */
+  coinAbilityBoost?: { story: string; extraGameUse?: boolean; nextCostReduction?: number };
+  turnCardCostReduce?: {
+    targetCardName: string;
+    colorlessReduction?: number;
+    /** 🆕減らす色（未指定＝`無`）。§5.3 `O-259` 第6バッチ・`WD16-010-E1` の《青×1》。 */
+    color?: string;
+    /** 🆕**あなたのセンタールリグのレベル1につき**この数だけ減らす（`colorlessReduction` と排他）。 */
+    perCenterLrigLevel?: number;
+  };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /**

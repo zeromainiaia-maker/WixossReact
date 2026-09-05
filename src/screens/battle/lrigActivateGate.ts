@@ -43,6 +43,38 @@ export interface LrigActivateGateInput {
   effectivePowers?: Map<string, number>;
 }
 
+/**
+ * 🆕**コイン技の実効コイン数**（2026-09-06・§5.3 `O-259` 第10バッチ・`SPK06-01-E1`）＝
+ * 「あなたが次に使用するコイン技の使用コストは《コイン×1》減る」を差し引いた枚数。
+ *
+ * ⚠**提示ゲート（`canActivateLrigEffect`）と支払い（`performLrigActivated`）が同じこの関数を通す**＝
+ *   写経すると「提示は安いのに請求は満額」の片肺になる（§4.2 の3地点セット）。
+ * ⚠**0未満にはしない**。
+ */
+export function effectiveCoinCost(eff: CardEffect, my: PlayerState): number {
+  const base = eff.cost?.coin ?? 0;
+  if (base === 0) return 0;
+  return Math.max(0, base - (my.next_coin_ability_cost_reduction ?? 0));
+}
+
+/**
+ * 🆕**《ゲーム１回》の許容回数**（2026-09-06・§5.3 `O-259` 第10バッチ）＝既定 1。
+ * 「このゲームの間、あなたの＜レイラ＞が持つ**コイン技**の《ゲーム１回》を《ゲーム２回》にする」
+ * （`SPK06-01-E1`）が立っているあいだ、**コイン技に限り** 2 になる。
+ *
+ * ⚠**コイン技＝`cost.coin` を持つ能力**（原文の「コイン技」の定義）＝コインを払わない【起】は増えない。
+ * ⚠**発生源のルリグのクラス**（`CardClass`）で絞る＝全ルリグに広げると過剰実行。
+ */
+export function gameUseAllowance(
+  eff: CardEffect, my: PlayerState, sourceCardNum: string, cardMap: Map<string, CardData>,
+): number {
+  const stories = my.coin_ability_extra_game_uses ?? [];
+  if (stories.length === 0) return 1;
+  if ((eff.cost?.coin ?? 0) === 0) return 1;
+  const cls = cardMap.get(getCardNum(sourceCardNum))?.CardClass ?? '';
+  return stories.some(st => cls.includes(st)) ? 2 : 1;
+}
+
 /** ルリグデッキ除外コスト（`exileLrigFromLrigDeck`）を払えるか（§6.4 O-11・`PR-469`）。 */
 function canPayExileLrigFromLrigDeck(eff: CardEffect, my: PlayerState, cardMap: Map<string, CardData>): boolean {
   const c = eff.cost?.exileLrigFromLrigDeck;
@@ -87,10 +119,15 @@ export function canActivateLrigEffect(
   if (!canPayExileLrigFromLrigDeck(eff, my, cardMap)) return false;
   if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) return false;
   if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) return false;
-  if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) return false;
+  // 🆕§5.3 `O-259` 第10バッチ＝《ゲーム１回》の許容回数は 1 とは限らない（＜レイラ＞のコイン技は2回）。
+  //   ⚠**`includes` ではなく回数で数える**＝記録側（`performLrigActivated`）は毎回 push するので
+  //     2回目の使用も台帳に残り、3回目からきちんと止まる。
+  if (eff.usageLimit === 'once_per_game'
+    && (my.game_actions_done ?? []).filter(id => id === eff.effectId).length
+      >= gameUseAllowance(eff, my, sourceCardNum, cardMap)) return false;
   if (my.blocked_actions?.includes(eff.effectId)) return false;
   // 《コインアイコン》＝所持枚数が足りないと払えない（実行側もここと対で deduct する）。
-  if ((eff.cost?.coin ?? 0) > (my.coins ?? 0)) return false;
+  if (effectiveCoinCost(eff, my) > (my.coins ?? 0)) return false;
   // エクシード＝ルリグトラッシュへ送れる下札が足りないと払えない。
   if ((eff.cost?.exceed ?? 0) > exceedPayableCount(my)) return false;
   // 🆕**色指定**（`WX10-001`「エクシード１（白のカード）」）＝その色の下札が無ければ提示しない。

@@ -3491,18 +3491,25 @@ export function execStubPart2(
       // 🆕`value2:'hand'`＝**あなたの手札**（§5.3 `O-259` 第3）。⚠**id は領域を表していない**
       //   （`'opp_trash'` を足した時点からそう）＝領域の正は常に `value2`。
       const fromHandUS = stub.value2 === 'hand';
+      // 🆕`'opp_lrig_trash'`＝**相手のルリグトラッシュ**（§5.3 `O-259` 第5）＝アーツはここに落ちる。
       const zoneUS = stub.value2 === 'opp_trash' ? ctx.otherState.trash
-        : fromHandUS ? ctx.ownerState.hand
-          : ctx.ownerState.trash;
+        : stub.value2 === 'opp_lrig_trash' ? ctx.otherState.lrig_trash
+          : fromHandUS ? ctx.ownerState.hand
+            : ctx.ownerState.trash;
       const candsUS = zoneUS.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
       // ⚠**「コストの合計が２～４の」は `filter.costMin/costMax` が既に受け皿**（`matchesFilter`）＝
       //   ここで数え直さない。印刷コストだけを見る点も原文の注記（「カードの左上に書かれているコストのみを
       //   参照する」）と一致する＝軽減は**支払い時**に効くのであって候補の適格性は変えない。
-      const zoneJaUS = fromHandUS ? '手札' : stub.value2 === 'opp_trash' ? '相手のトラッシュ' : 'トラッシュ';
-      if (candsUS.length === 0) return done(addLog(ctx, `[${zoneJaUS}から使用: 対象のスペルなし]`));
-      return needsInteraction(addLog(ctx, `${zoneJaUS}から使用するスペルを選ぶ`), {
+      const zoneJaUS = fromHandUS ? '手札'
+        : stub.value2 === 'opp_trash' ? '相手のトラッシュ'
+          : stub.value2 === 'opp_lrig_trash' ? '相手のルリグトラッシュ' : 'トラッシュ';
+      // ⚠**候補の呼び名は filter から取る**＝アーツも通る経路になったので「スペル」固定は嘘になる。
+      const kindJaUS = Array.isArray(filtUS?.cardType) ? filtUS.cardType.join('か') : (filtUS?.cardType ?? 'カード');
+      if (candsUS.length === 0) return done(addLog(ctx, `[${zoneJaUS}から使用: 対象の${kindJaUS}なし]`));
+      return needsInteraction(addLog(ctx, `${zoneJaUS}から使用する${kindJaUS}を選ぶ`), {
         type: 'SELECT_TARGET', candidates: candsUS, count: 1, optional: true,
-        targetScope: stub.value2 === 'opp_trash' ? 'opp_trash' : fromHandUS ? 'self_hand' : 'self_trash',
+        targetScope: stub.value2 === 'opp_trash' || stub.value2 === 'opp_lrig_trash' ? 'opp_trash'
+          : fromHandUS ? 'self_hand' : 'self_trash',
         thenAction: ({ ...stub, value: 'picked' } as StubAction) as EffectAction,
       });
     }
@@ -3530,7 +3537,12 @@ export function execStubPart2(
         colorsUS.splice(idxUS, 1);
       }
     }
-    const fromOppUS = stub.value2 === 'opp_trash';
+    // 🆕**「コストの色を無視して支払える」**（§5.3 `O-259` 第5）＝色スロットをすべて《無》へ読み替える。
+    //   🔑`selectOptionalCostEnergy` の `costSlotIsAny('無')` が「どのエナでも1枚」を既に持っている。
+    //   🔴**枚数は減らさない**（色だけを無視する＝原文どおり）。⚠軽減（`useSpellCostReduction`）の**後**に
+    //     置く＝先に無色化すると「同じ色を引く」軽減が一致しなくなる。
+    const colorsPayUS = stub.useIgnoreCostColors ? colorsUS.map(() => '無') : colorsUS;
+    const fromOppUS = stub.value2 === 'opp_trash' || stub.value2 === 'opp_lrig_trash';
     // ⚠**`exileAfterUse` は本体へ引き継ぐ**（除外は「配置する瞬間」に効くので本体側で処理する）。
     const exileUS = stub.exileAfterUse ? { exileAfterUse: true } : {};
     const bodyUS: StubAction = fromOppUS
@@ -3541,7 +3553,7 @@ export function execStubPart2(
         ? { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND', carriedCardNum: cnUS, ...exileUS }
         : { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS, ...exileUS };
     // 🆕`useSpellIgnoreCost`＝「コストを支払わずに使用してもよい」＝選択だけ同じ経路を通し支払いを飛ばす。
-    if (stub.useSpellIgnoreCost || colorsUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
+    if (stub.useSpellIgnoreCost || colorsPayUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
     // 🔴🔑**支払いは `resumeOptionalCost` の1箇所だけ**（2026-09-05・`V-159` の実機で発覚）＝
     //   ここに `INTERNAL_CMCLG_DEDUCT` を積むと**二重請求**になる。`costColors` を持つ CHOOSE 選択肢は
     //   汎用の任意コスト経路（`resumeOptionalCost`）が**プレイヤーが選んだエナを先に引いてから**
@@ -3553,16 +3565,18 @@ export function execStubPart2(
     // ⚠**枚数ではなく色で**可否を見る（`canPayOptionalCost`）＝枚数だけ見ると、色が足りないまま
     //   「支払う」を選べてしまい、`INTERNAL_CMCLG_DEDUCT` は該当色が無いとき黙って何も引かない
     //   ＝**タダで使用**になる。
-    const canAffordUS = canPayOptionalCost(colorsUS, ctx.ownerState, ctx.cardMap);
+    const canAffordUS = canPayOptionalCost(colorsPayUS, ctx.ownerState, ctx.cardMap);
     return needsInteraction(addLog(ctx, `${cardUS.CardName}のコストを支払いますか？`), {
       type: 'CHOOSE', count: 1, options: [
-        { id: 'pay', label: `使用する（${colorsUS.map(c => `《${c}》`).join('')}）`, action: payUS, available: canAffordUS, costColors: colorsUS },
+        { id: 'pay', label: `使用する（${colorsPayUS.map(c => `《${c}》`).join('')}）`, action: payUS, available: canAffordUS, costColors: colorsPayUS },
         { id: 'skip', label: '使用しない', action: ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction) as EffectAction, available: true },
       ],
     });
   }
   // CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
-  if (stub.id === 'CAST_FROM_OPP_TRASH' && !(ctx.lastProcessedCards?.length)) {
+  // ⚠**`carriedCardNum` があるときは選び直させない**（§5.3 `O-259` 第5）＝支払い CHOOSE を跨ぐと
+  //   `lastProcessedCards` は消えるので、この条件だけだと**確定済みのカードを捨てて選択をやり直す**。
+  if (stub.id === 'CAST_FROM_OPP_TRASH' && !stub.carriedCardNum && !(ctx.lastProcessedCards?.length)) {
     const spellsInOppTrash = ctx.otherState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
     if (spellsInOppTrash.length === 0) return done(addLog(ctx, '[CAST_FROM_OPP_TRASH: 相手トラッシュにスペルなし]'));
     const contCFOT: StubAction = { type: 'STUB', id: 'CAST_FROM_OPP_TRASH' };
@@ -3600,7 +3614,13 @@ export function execStubPart2(
       let stateOtherAfterPF = ctx.otherState;
       if (stub.id === 'CAST_FROM_OPP_TRASH') {
         // 相手トラッシュから削除（手札にあるかのように使用するため自トラッシュには加えない）
-        stateOtherAfterPF = { ...stateOtherAfterPF, trash: stateOtherAfterPF.trash.filter(c => c !== cnPF) };
+        // 🆕**ルリグトラッシュからも外す**（§5.3 `O-259` 第5）＝アーツは相手の**ルリグトラッシュ**に
+        //   在るので、`trash` だけを削っていた旧実装では**使ったのに相手の手元に残り続けた**。
+        stateOtherAfterPF = {
+          ...stateOtherAfterPF,
+          trash: stateOtherAfterPF.trash.filter(c => c !== cnPF),
+          lrig_trash: stateOtherAfterPF.lrig_trash.filter(c => c !== cnPF),
+        };
       } else if (cardPF.Type === 'スペル') {
         // カードの現在位置で移動先を判定（自手札→自トラッシュ / 相手手札から借用→持ち主＝相手のトラッシュ）
         if (stateOtherAfterPF.hand.includes(cnPF)) {
