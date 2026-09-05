@@ -32,6 +32,7 @@ import type {
 import {
   parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseIconFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa, parsePlaceUnderSourceSigni,
   parseLrigLimitChangeSpec, parseCollabCallSpec, parsePowerPerUnitSpec, parseTrashAllScopeSpec,
+  fusedLookPickSentence,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -2527,7 +2528,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- デッキの上からN枚見て特定クラスを手札/エナゾーンに加える ----
-  {
+  // 🔴**ここは `parseCardTypeFilter` しか読まない**＝記述子の ＜クラス＞／色／レベル／カード名が**全部落ちる**。
+  //   そのうえ part4 の忠実な畳み込み規則（`fusedLookPickSentence`）**より前**に走るので、
+  //   1文に畳まれた look-pick はここで先取りされ、**「その中から〈条件〉の1枚」が「その中から何でも1枚」**に化けていた
+  //   （`WX17-009-E1`＝「その中から＜怪異＞のシグニ１枚を公開し手札に加える」が**どのシグニでも拾える**過剰実行。
+  //    2026-09-05 第146バッチ）。⇒ **記述子が忠実に解ける文はここで受けず part4 へ譲る。**
+  //   ⚠解けない文（未知の修飾が残る等）は従来どおりここで受ける＝取りこぼしを増やさない。
+  if (!fusedLookPickSentence(t)) {
     const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚見て、その中から(.+?)([０-９\d]+)枚?(?:を公開し)?(?:手札に加える|エナゾーンに置く)/);
     if (m) {
       const revealCount = parseNum(m[1]);

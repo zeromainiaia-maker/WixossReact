@@ -3,21 +3,22 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［19枚］
-SP38-006 WX17-009 WX22-044 WX24-P2-002 WX25-P1-071 WX25-P2-003 WX25-P2-TK06 WX25-P3-003 WX26-CP1-055 WXDi-P00-068 WXDi-P05-004 WXDi-P06-006 WXDi-P06-011 WXDi-P08-072 WXDi-P11-064 WXK01-020 WXK01-044 WXK03-006 WXK11-026
+## （type増減なし＝値/構造変更） ［6枚］
+SP38-006 WX22-044 WX25-P3-003 WX26-CP1-055 WXDi-P00-068 WXK11-026
 --- SP38-006
   原文: 【常】：あなたのセンタールリグは以下の能力を得る。『【起】エクシード１：このターン、対戦相手の場にあるキーとシグニは能力を失い、新たに得られない。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニゾーンにあるシグニ１体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキの上からカードを３枚見て、その中からシグニを１枚まで場に出し、残りを好
   + [0].action.abilities[1].action.steps[1].remainder.reorder = true
   ~ [0].action.abilities[1].parseStatus : "PARTIAL" → "AUTO"
---- WX17-009
-  原文: 【出】《コインアイコン》：あなたのデッキの上からカードを２枚見て、その中から＜怪異＞のシグニ１枚を公開し手札に加える。残りを好きな順番でデッキの一番下に置く。,-
-  - [0].action.steps[0].filter.story = "怪異"
-  + [0].action.steps[0].remainder.reorder = true
 --- WX22-044
   原文: 【自】：このシグニがアタックしたとき、あなたのシグニ１体を対象とし、あなたの手札から＜龍獣＞のシグニを１枚公開してもよい。そうした場合、ターン終了時まで、それのパワーを＋5000する。,-
   - [0].action.steps[1].then.targetsTriggerSource = true
   + [0].action.steps[1].then.target.filter.cardType = "シグニ"
   + [0].action.steps[1].then.target.upToCount = false
+--- WX25-P3-003
+  原文: 手札を１枚捨ててもよい。そうした場合、対戦相手のライフクロス１枚をクラッシュする。そうしなかった場合、カードを２枚引き【エナチャージ２】をする。《リコレクトアイコン》［４枚以上］追加でエクシード３を支払ってもよい。そうした場合、このターン、対戦相手のセンタールリグと共通する色を持たない対戦相手のカードのライフバーストは発動しない。次のあなたのアタックフェイズ
+  - [0].action.steps[4].exceed = 3
+  + [0].action.steps[4].costText = "エクシード３を支払ってもよい"
+  + [0].action.steps[6].effect.target.explicitTarget = true
 
 ## +SEQUENCE +STUB ［3枚］
 PR-K056 WX20-Re20 WXDi-P05-005
@@ -198,16 +199,6 @@ WXEX2-30
   - [1].action.target.filter.thisCardOnly = true
   + [0].activeCondition.type = "DURING_ATTACK_PHASE"
 
-## -TRASH_HAS_CARD ［1枚］
-WXDi-P00-040
---- WXDi-P00-040
-  原文: 【チーム】＜アンシエント・サプライズ＞【チーム自】：あなたのアタックフェイズ開始時、このシグニのパワーが１５０００以上の場合、対戦相手のパワー１００００以上のシグニ１体を対象とし、《緑》《緑》を支払ってもよい。そうした場合、それをバニッシュする。【自】：このシグニがアタックしたとき、あなたのトラッシュにあるシグニが持つクラスが合計７種類以上の場合、【エナチャ
-  - [1].condition.type = "TRASH_HAS_CARD"
-  - [1].condition.owner = "self"
-  - [1].condition.filter.cardType = "シグニ"
-  - [1].condition.minCount = 7
-  - [1].condition.distinctClasses = true
-
 ## +CONDITIONAL +ENERGY_COUNT_FILTER ［1枚］
 WXDi-P03-031
 --- WXDi-P03-031
@@ -304,25 +295,6 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
-
-## +COND_STUB -LRIG_COLOR ［1枚］
-WDK01-009
---- WDK01-009
-  原文: このアーツはあなたのセンタールリグが赤の場合にしか使用できない。対戦相手のシグニ１体を対象とし、それをバニッシュする。手札を２枚捨てる。,-
-  - [0].condition.owner = "self"
-  - [0].condition.color = "赤"
-  ~ [0].condition.type : "LRIG_COLOR" → "COND_STUB"
-  + [0].condition.raw = "あなたのセンタールリグが赤の"
-
-## +COND_STUB -TRASH_COUNT ［1枚］
-WDK06-C06
---- WDK06-C06
-  原文: このアーツはあなたのトラッシュにカードが２０枚以上ある場合にしか使用できない。対戦相手のシグニを２体まで対象とし、それらをバニッシュする。,-
-  - [0].condition.owner = "self"
-  - [0].condition.operator = "gte"
-  - [0].condition.value = 20
-  ~ [0].condition.type : "TRASH_COUNT" → "COND_STUB"
-  + [0].condition.raw = "あなたのトラッシュにカードが２０枚以上ある"
 
 ## +PAID_ADDITIONAL_COST +SIGNI +STUB×2 -IS_MY_TURN ［1枚］
 WDK08-Y13

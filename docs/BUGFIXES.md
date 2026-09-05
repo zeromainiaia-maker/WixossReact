@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-05（第146バッチ）：**held が指していたのは live のバグではなく「現行 parser の退化」9件だった**
+
+**ベースライン**＝`6fa60747a`（第145の直後）。
+**gates 全緑**（typecheck・golden **3485/3485**＝3483 +2本・smoke 全異常0・fuzz 全0・census 1/BASELINE 1・
+`census:stubs` A群🔴0/C群0・manual-fields 0・`census:enginetext` A🔴0行・`census:costtext` A🔴0規則・lint 0 errors）。
+**実機要否**＝§2.2 の機械判定どおり **`src/data/`・`public/data/`・`scripts/` しか触っていない**（`src/screens/` も `src/engine/` も0行・
+新しいアクション型／条件型も足していない＝既存の `LRIG_COLOR`／`TRASH_COUNT`／`HAND_COUNT`／`levelParity` 等の受け皿に載せただけ）＝**④まででよい**。
+**在庫**＝held **44枚 → 28枚**／`census:cards` 要対応 **131 → 131**／Sheet1 要対応 **1 / 863**／台帳 残 OPEN **44**（据置）。
+**反転確認 3本**（(1)⑥ 手札枚数の不等号／(1)⑦ エナチャージの owner／(1)④ look-pick の先取り）＝いずれも戻すと新 golden が赤くなることを実測。
+
+### 真因（1行）
+
+`held`（収穫マージの温存キュー）の残り44枚を全数目視した。**残っていたのは「fresh が退化している」側が多数派**という
+第145 の見立てどおりで、**9件は現行 parser が原文の限定を落としていた**（＝いま `build:effects` を回しても live に届かないだけで、
+**parser そのものが壊れている**）。9件とも parser を直し、**fresh が正しい9枚は採用**した。
+
+### (1) parser の退化 9件（すべて修正）
+
+| # | カード | 落ちていたもの | 実害の向き |
+|---|---|---|---|
+| ① | `WXK01-044-E2` | `levelParity:'even'` | 過剰＝「レベルが偶数の対戦相手のシグニ**１体の**パワーを－5000」が**どのシグニでも**撃てた。regex が「N体**を対象とし**」「**の**パワーを」の2形しか見ておらず、**「N体のパワーを」だけ落ちていた** |
+| ② | `WXK03-006-E1-G` | `levelEqLastProcessed` | 過剰＝「そのシグニと同じレベルの**対象の**対戦相手のシグニ」がレベル無制限に。`rewriteSameLevelAsLastProcessed` の `この方法で` ガードから外れる語形。**同型4件のうち3件は effectId allowlist で個別に手当てされていた**ので一般規則へ寄せた |
+| ③ | `WXDi-P00-040-E2` | `TRASH_HAS_CARD{distinctClasses, minCount:7}` | 過剰＝条件が**丸ごと**落ちて【エナチャージ１】が無条件。regex が「合計N種類以上**ある**場合」を必須にしており、原文の「**の**場合」を弾いていた |
+| ④ | `WX17-009-E1` | `filter.story:'怪異'` | 過剰＝「その中から＜怪異＞のシグニ１枚」が**どのシグニでも**拾えた。`parseSentencePart3` の look-pick 規則が **`parseCardTypeFilter` しか読まない**のに、`parseSentencePart4` の忠実な畳み込み（`fusedLookPickSentence`）**より前**に食べていた |
+| ⑤ | `WXDi-P11-064-E1` | `thisCardOnly`（＋漏れてきた `excludeSelf`） | **意味の反転**＝「**この**シグニのパワーを＋4000」が、トリガー主語「あなたの**他の**＜天使＞のシグニ」を対象に拾い、**自分を除外して別のシグニ**を強化していた |
+| ⑥ | `WXK01-020-E1` | `HAND_COUNT.operator:'lte'` | 過小＝`parseUseCondition` が不等号を読まず一律 `eq`。「手札が**１枚以下**の場合にしか使用できない」が**ちょうど1枚のときだけ**になり、0枚では撃てなかった |
+| ⑦ | `WXDi-P06-011-E1`／`WXDi-D07-013-E1`／`WXDi-P08-059-E2` | `ENERGY_CHARGE_FROM_DECK.owner:'opponent'` | **意味の反転**＝【エナチャージN】ショートハンドが `owner:'self'` 固定で、「そうした場合、**対戦相手は**【エナチャージ１】をしてもよい」という**デメリットが自分の利益**に化けていた（**1規則で3効果**） |
+| ⑧ | `WDK01-009-E1` | `LRIG_COLOR{color:'赤'}` | 過剰＝`parseUseCondition` に規則が無く **`COND_STUB`＝無条件成立**（`execUtils.ts:2413` が `return true`）。「センタールリグが赤の場合にしか使用できない」が**どのルリグでも**撃てた |
+| ⑨ | `WDK06-C06-E1` | `TRASH_COUNT{gte,20}` | 同上＝「トラッシュに20枚以上ある場合にしか」が素通り |
+
+### (2) held から採用した 9枚（fresh が正しい／較正された側）
+
+- **`WX24-P2-002`**＝🔴**live のほうが恒久 no-op だった**。「対戦相手のシグニ１体**と**、そのシグニと同じレベルの対戦相手の**ルリグ**１体」の
+  **シグニ側**に `levelEqLastProcessed` が誤って載っており、参照先 `lastProcessedCards` が空なので `resolveDynamicFilter` が
+  到達不能 level（`{min:99,max:-1}`）を返して**候補0**＝アーツを撃っても何も起きなかった。fresh を採ってシグニ側は動くようにした。
+  ⚠**ルリグ側の対象はまだ表現できない**（`GRANT_KEYWORD` が選んだ札を `lastProcessedCards` に残さない）＝**`O-250` として登録**。
+- **`WXDi-D07-013`／`WXDi-P08-059`**＝(1)⑦ の owner 修正がそのまま届いた2枚（**この2枚は held に出るまで気づかれていなかった**）。
+- **`WX25-P2-003`／`WXDi-P05-004`**＝`GAIN_ABILITY_THIS_GAME` → `DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED`。
+  **退化ではなく `O-60` 第68バッチの較正**（見出し `abilityBlockHeader` しか取れていない＝宣言は1つも立っていないので、
+  旧 id のままだと逆翻訳が「実装済み」に見える）。⇒ golden の ratchet を **19 → 18** へ払い戻した（**engine は1行も変えていない**）。
+- **`WX25-P1-071`／`WXDi-P06-006`**＝`GUARD_ALTERNATIVE_COST` → `DEFERRED_GUARD_ALT_COST_UNKNOWN`。同じく `O-230` の fail-closed 較正
+  （払う中身が payload に落ちない文は受け皿へ載せない＝載せると逆翻訳が「代替コストがある」と嘘をつく）。
+- **`WX25-P2-TK06`**（`excludeSelf` の除去＝対象 owner が相手なので元から no-op フィルタ）と
+  **`WXDi-P08-072`**（効果レベルの `duration`＝engine はアクション側の `duration` しか読まない）は**挙動不変**。held のノイズを落とすために採用した。
+
+### 影響枚数
+
+**parser 修正で 12効果 / 11カード**（うち3効果は⑦の1規則で同時に直った）＋**held からの採用 9枚**。
+
+### 据置（次バッチ以降）
+
+held 残 **28枚**。目立つ退化は **`WX25-P3-003`（`exceed:3` が `costText` へ後退）／`WXK11-026`
+（`PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH` → `PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE`＝原文に無い「アタックフェイズ」限定）**の2枚。
+`targetsTriggerSource` 除去の3枚（`WX22-044`／`WX26-CP1-055`／`WXDi-P00-068`）は従来どおり `O-188` の領分。
+
+### 検証コマンド
+
+```
+npm run golden -- --only "O-249 第146"
+npm run gates                      # 全緑（golden 3485/3485）
+node scripts/heldReview.mjs        # held 44 → 28枚
+```
+
 ## 2026-09-05（第145バッチ）：**離場置換が「engine が探していない宣言 id」で書かれていて一度も成立しなかった**（ほか2枚）
 
 **ベースライン**＝`8279b31f0`（第144の直後）。

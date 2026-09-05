@@ -1704,7 +1704,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'opponent', count: parseNum(ecM[1]) },
       ] };
     }
-    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
+    // 🆕**主語が「対戦相手は」なら owner は opponent**（2026-09-05 第146バッチ・原文実測7出現）＝
+    //   ショートハンドが `owner:'self'` 固定だったため `WXDi-P06-011-E1`「そうした場合、**対戦相手は**
+    //   【エナチャージ１】をしてもよい」が**自分がエナを得る**真逆の効果になっていた（デメリットが利益に化ける
+    //   ＝`parseSentencePart1.ts:1711` の「対戦相手はカードをN枚引き…」と同じ穴）。
+    // ⚠「各プレイヤーは」は上の分岐が先に受ける。⚠「対戦相手**の**」（所有格）では立てない。
+    const beforeEc = t.slice(0, t.indexOf(ecM[0]));
+    const ecOwner: Owner = /対戦相手は[^。]*$/.test(beforeEc) ? 'opponent' : 'self';
+    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: ecOwner, count: parseNum(ecM[1]) };
   }
 
   // ---- 「対戦相手はカードをN枚引き、（対戦相手は）デッキの一番上のカードをエナゾーンに置く」（WX14-011②）----

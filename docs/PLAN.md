@@ -11,40 +11,34 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-05・第140〜145バッチ＝6巡・Opus 5 単独）＝**🔴**計器が指す在庫を、計器自身が塞いでいた**
-  📊**進捗3計器＝Sheet1 要対応 17 → 1 / 863（🔴大半は較正）｜台帳 残 OPEN 44（据置）｜census 高シグナル 1 / BASELINE 1（据置）**
+- **セッション（2026-09-05・第146バッチ＝1巡・Opus 5 単独）＝**🔴**`held` に残っていたのは live のバグではなく「現行 parser の退化」だった**
+  📊**進捗3計器＝Sheet1 要対応 1 / 863（据置）｜台帳 残 OPEN 44（据置）｜census 高シグナル 1 / BASELINE 1（据置）**
   `census:enginetext` A🔴 0行（据置）／`census:costtext` A🔴 0規則（据置）／`census:deadstate` 0件（据置）。
-  📦**在庫**＝**機構 worklist 6 → 6項目**（🏁`O-187` −1／🆕`O-249`＝held の残り44枚を索引 A へ +1）｜**⑤実機 残 0件**｜
-  🆕**held 74 → 44枚**（**新しい在庫としてここを開けた**）｜`census:cards` 要対応 **424 → 131 / 5975**。
-  gates 全緑（golden **3483 / 3483**＝3478 +5本・smoke 全異常0・fuzz 全0・lint 0 errors）。
-  **実機は6巡とも不要**（§2.2＝`src/screens/` を1行も触っていない）。**反転確認3本**（第140 に2本・第141 に1本）。
+  📦**在庫**＝**機構 worklist 6 → 7項目**（`O-249` 継続＋🆕`O-250`＝`GRANT_KEYWORD` が選択結果を `lastProcessedCards` に残さない）｜**⑤実機 残 0件**｜
+  🆕**held 44 → 28枚**｜`census:cards` 要対応 **131 → 131**（据置）。
+  gates 全緑（golden **3485 / 3485**＝3483 +2本・smoke 全異常0・fuzz 全0・lint 0 errors）。
+  **実機は不要**（§2.2＝`src/data/`・`public/data/`・`scripts/` だけ。`src/screens/` も `src/engine/` も0行、新しい型も足していない）。**反転確認3本**。
 
-  🏁**第140＝`O-187` クローズ**（`census:cards` の `mech` フラグの較正）。
-  真因は「引用されたカード番号」ではなく**クローズ済みの登録票を開いていると誤判定していた**こと＝
-  旧実装は**登録票の見出し直後の 🏁**でクローズを見ていたが、**PLAN の運用はそこに 🏁 を書かない**（索引の行ごと消す）。
-  ⇒ **開いている項目の正を §5.3 索引テーブルだけ**にした。`mech` **318 → 37**／**即着手可能 106 → 124**。
+  🔴**主産物＝「held の残りは fresh 側の退化が多数派」（第145 の見立て）は当たっていた。**
+  44枚を全数目視して **9件が現行 parser の退化**と確定し、全部 parser を直した。
+  ⇒ **`build:effects` を回しても live に届かないだけ、ではない。parser そのものが壊れていた。**
+  内訳＝**限定の脱落4**（`levelParity`／`levelEqLastProcessed`／クラス種類数条件／look-pick の ＜クラス＞）
+  **意味の反転2**（「このシグニ」がトリガー主語に化ける／「対戦相手は【エナチャージ】」が自分に化ける＝**1規則で3効果**）
+  **不等号の消失1**（`parseUseCondition` が一律 `eq`）**無条件成立2**（規則が無く `COND_STUB`＝`return true` に落ちていた使用条件）。
 
-  🔑**そこで見えた新しい母集団が `held`（収穫マージの温存キュー）74枚**。第141〜145 はここを開けた。
-  🔴**主産物①＝`held` は「parser 改善の未採用」ではなく「live と fresh が食い違っている箱」**＝**両向きが混ざる**。
-  全数を目視すると **fresh が正しい（live が誤り）** と **fresh が退化（温存が仕事をしている）** が同居する。
-  ⇒ **`--adopt-sig` の署名一括採用は使えない。1枚ずつ原文と突き合わせる。**
-  🔴**主産物②＝`held` は「どの計器にも映らないバグ」の唯一の検出器だった。**
-  この巡で見つけた `WX25-CP1-039`（離場置換が **engine の探す宣言 id と違う**ので恒久 no-op）は
-  `census:stubs` A群にも `census:enginetext` にも出ない（`OPTIONAL_COST` は他所に消費地点があるので穴に見えない）。
-  🔴**主産物③＝live だけを assert する golden は parser の退化を捕まえられない**＝
-  収穫マージが live を温存するので **live 契約は旧 parser でも緑**。第141 の反転で落ちたのは
-  **`parseStoryFilter` を直接呼ぶ単体アサーション**だけだった。⇒ **parser を直したら parser を呼んで固定する。**
+  🔑**この巡で確定した読み方**＝**`held` の diff は「live が悪い」「fresh が悪い」の両向きが混ざるだけでなく、
+  同じ1枚の中でも混ざる**（`WXDi-P11-064` は fresh の `triggerCondition.turnOwner` が正しく、`thisCardOnly` の脱落が退化）。
+  ⇒ **署名一括採用（`--adopt-sig`）は使えない**の再確認に加えて、**カード単位の `--adopt` でも「parser を直してから採る」順序が要る**。
+  🔴**もう1つ＝`held` は「live が恒久 no-op」の検出器でもあった**＝`WX24-P2-002` は
+  対象宣言の**シグニ側**に `levelEqLastProcessed` が誤って載り、参照先が空なので候補0＝**アーツを撃っても何も起きなかった**。
+  どの計器にも出ない（`census` は語彙の欠落を見る／`census:stubs` は STUB を見る／golden・smoke・fuzz は全部緑）。
+  🔑**`npm run typecheck` は `scripts/` を見ない**（CLAUDE.md 既知）＝goldenTest の括弧崩れを**tsc が通した**。
+  **`scripts/` を触ったら `npm run golden` を実際に走らせるまで「直った」と言わない**の実例をこの巡でも1回踏んだ。
 
-  **直した中身**＝第141 `parseStoryFilter` の条件節ガードの過剰発火（位置で割る）／第142 デッキの「下から」が
-  上からになっていた2件・相手デッキのミルが自分のデッキだった1件・「一番下に置いてもよい」が必ず下だった1件／
-  第143〜144 引用能力とクロス条件の `《ターン1回》`・カード名を**コスト句と誤認**していた偽 `costUnparsed` 16枚／
-  第145 離場置換の宣言 id・「3枚まで探して置く」が1枚だった件。
-
-**▶ 次の一手**＝**held 残44枚の続き**。残りは**fresh 側の退化が多数派**なので、次は**採用ではなく parser を直す**回になる。
-実測した退化の型＝`levelParity`／`levelEqLastProcessed`／`thisCardOnly`／`excludeSelf`／`distinctClasses` の**フィルタ脱落**（5型）、
-`GAIN_ABILITY_THIS_GAME`・`GUARD_ALTERNATIVE_COST` の **`DEFERRED_*` への降格**（4枚）、`UNTIL_OPP_TURN_END` → `UNTIL_END_OF_TURN`（1枚）。
-⚠**`targetsTriggerSource` 除去の3枚（`WX22-044`／`WX26-CP1-055`／`WXDi-P00-068`）は `O-188`（対象を先に固定する機構）の領分**＝
-fresh は「対象宣言を捨てて後段で選び直す」形なので、**採用しても半分しか直らない**。§5.3 の `O-188` と一緒に取る。
+**▶ 次の一手**＝**`O-249` の続き（held 残28枚）**。目立つ退化2枚＝**`WX25-P3-003`**（`exceed:3` が `costText` へ後退＝
+エクシードのコスト payload が消える）と **`WXK11-026`**（`PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH` →
+`PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE`＝原文に無い「アタックフェイズ」限定が付く）。
+`targetsTriggerSource` 除去の3枚（`WX22-044`／`WX26-CP1-055`／`WXDi-P00-068`）は従来どおり `O-188` と一緒に取る。
 
 ---
 
@@ -923,7 +917,9 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 | ID | 母集団 | 何が無いか |
 |---|---|---|
-| `O-249` | **44カード**（2026-09-05 実測＝`node scripts/heldReview.mjs`） | **収穫マージの温存キュー（`held`）の残り**＝**live と fresh が食い違っている**が、第141〜145 で「fresh が正しい側」を採り切ったので**残りは fresh 側の退化が多数派**。⇒ **採用ではなく parser を直す回**になる。 |
+| `O-249` | **28カード**（2026-09-05 第146バッチ直後に実測＝`node scripts/heldReview.mjs`。旧44） | **収穫マージの温存キュー（`held`）の残り**＝**live と fresh が食い違っている**。第146 で「fresh 側の退化」9件を parser で直し、fresh が正しい9枚を採用した（44→28）。**残りも fresh 側の退化が多数派**＝**採用ではなく parser を直す回**が続く。 |
+
+| `O-250` | **1効果**（`WX24-P2-002-E1`。2026-09-05 第146バッチ実測） | **`GRANT_KEYWORD` が「選んだ札」を `lastProcessedCards` に残さない**＝「対戦相手のシグニ１体**と**、そのシグニと同じレベルの対戦相手の**ルリグ**１体を対象とし」の**2つ目の対象**が表せない。⚠母集団1効果＝**索引 A の中では最後に取る**（並びは母集団順） |
 
 #### 索引 B. 母集団 3〜8効果
 

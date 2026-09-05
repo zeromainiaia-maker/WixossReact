@@ -321,6 +321,18 @@ function parseUseCondition(text: string): Condition {
   m = text.match(/あなたのセンタールリグが＜([^＞]+)＞/);
   if (m) return { type: 'LRIG_STORY', owner: 'self', story: m[1] };
 
+  // 🆕(あなた|対戦相手)のセンタールリグが〈色〉（2026-09-05 第146バッチ・`WDK01-009-E1`）。
+  //   🔴従来はどの規則にも当たらず `COND_STUB`＝**無条件成立**（`execUtils.ts` の `COND_STUB` は `return true`）に落ち、
+  //     「このアーツはあなたのセンタールリグが赤の場合にしか使用できない」が**どのルリグでも撃てた**過剰実行だった。
+  //   ⚠色語の直後に「の場合」が要る＝「＜X＞の」（クラス）とは上の規則で既に分岐済み。
+  m = text.match(/(あなた|対戦相手)のセンタールリグが([白赤青緑黒])の(?:場合)?/);
+  if (m) return { type: 'LRIG_COLOR', owner: m[1] === 'あなた' ? 'self' : 'opponent', color: m[2] };
+
+  // 🆕(あなた|対戦相手)のトラッシュにカードがN枚以上/以下ある（2026-09-05 第146バッチ・`WDK06-C06-E1`）。
+  //   🔴同上＝`COND_STUB` の無条件成立で「トラッシュに20枚以上ある場合にしか使用できない」が素通りしていた。
+  m = text.match(/(あなた|対戦相手)のトラッシュに(?:ある)?カードが([０-９\d]+)枚(以上|以下)ある/);
+  if (m) return { type: 'TRASH_COUNT', owner: m[1] === 'あなた' ? 'self' : 'opponent', operator: op(m[3]), value: n(m[2]) };
+
   // (あなた|対戦相手)の場に【チャーム】がN枚ある（WX11-049-E2「３枚ある場合にしか使用できない」）
   m = text.match(/(あなた|対戦相手)の場に【チャーム】が([０-９\d]+)枚(以上|以下)?ある/);
   if (m) return {
@@ -330,13 +342,17 @@ function parseUseCondition(text: string): Condition {
     value: n(m[2]),
   };
 
-  // 対戦相手の手札がX枚
-  m = text.match(/対戦相手の手札が([０-９\d]+)枚/);
-  if (m) return { type: 'HAND_COUNT', owner: 'opponent', operator: 'eq', value: n(m[1]) };
-
-  // あなたの手札がX枚
-  m = text.match(/あなたの手札が([０-９\d]+)枚/);
-  if (m) return { type: 'HAND_COUNT', owner: 'self', operator: 'eq', value: n(m[1]) };
+  // (あなた|対戦相手)の手札がX枚(以上|以下)
+  // 🔴**旧実装は `以上`／`以下` を読まず一律 `eq`**＝`WXK01-020-E1`「このアーツはあなたの手札が
+  //   **１枚以下**の場合にしか使用できない」が**ちょうど1枚のときしか撃てない**（手札0枚では撃てない）
+  //   過小実行になっていた（2026-09-05 第146バッチ）。原文の不等号は必ず写す。
+  m = text.match(/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?/);
+  if (m) return {
+    type: 'HAND_COUNT',
+    owner: m[1] === 'あなた' ? 'self' : 'opponent',
+    operator: m[3] ? op(m[3]) : 'eq',
+    value: n(m[2]),
+  };
 
   // 対戦相手のエナゾーンにカードがX枚以上/以下
   m = text.match(/対戦相手のエナゾーンに(?:ある)?カードが([０-９\d]+)枚(以上|以下)/);
@@ -4658,13 +4674,20 @@ function bindUnlessGateAnaphora(thenText: string, action: EffectAction): EffectA
  *   **あなたのシグニなら誰でも選べる**過剰対象化になっていた（`WX22-Re01-E1` で実測）。
  */
 function bindThisCardAnaphora(thenText: string, action: EffectAction): EffectAction {
-  if (!/^(?:ターン終了時まで[、,])?このシグニ/.test(thenText)) return action;
+  // ⚠期間の前置きは「ターン終了時まで」だけではない＝「**次の**（対戦相手|あなた）**の**ターン終了時まで」も同義の前置き。
+  //   これを許さないと `WXDi-P11-064-E1` のように帰結が素で解かれ、**トリガー主語のほうが対象**に化ける。
+  if (!/^(?:(?:次の(?:対戦相手|あなた)の)?ターン終了時まで[、,])?このシグニ/.test(thenText)) return action;
   if (!TRIGGER_SOURCE_BINDABLE.includes(action.type)) return action;
-  const withTgt = action as EffectAction & { target?: EffectTarget };
+  const withTgt = action as EffectAction & { target?: EffectTarget; excludeSelf?: boolean };
   if (withTgt.target?.type !== 'SIGNI' || withTgt.target.filter?.thisCardOnly) return action;
+  // 🔴**`excludeSelf` は `thisCardOnly` と論理的に両立しない**（「自分以外」と「自分だけ」）＝
+  //   残すと候補が空になり**恒久 no-op** になる。トリガー主語（「あなたの**他の**＜X＞のシグニ」）から
+  //   漏れてきた値なので、束縛と同時に落とす。
+  const { excludeSelf: _dropFilterExcludeSelf, ...restFilter } = withTgt.target.filter ?? {};
+  const { excludeSelf: _dropActionExcludeSelf, ...restAction } = withTgt;
   return {
-    ...action,
-    target: { ...withTgt.target, filter: { ...(withTgt.target.filter ?? {}), thisCardOnly: true } },
+    ...restAction,
+    target: { ...withTgt.target, filter: { ...restFilter, thisCardOnly: true } },
   } as EffectAction;
 }
 
@@ -5223,17 +5246,30 @@ function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): Ef
   //    すべてのシグニをダウンする」）。この形は「この方法で」と書かないので上のガードから外れ、
   //   **レベル限定が落ちて相手シグニが全員ダウン**する過剰実行になっていた。
   //   🔑判定は**文言ではなく木**で行う＝条件が `LAST_PROCESSED_MATCHES` なら「それ」の先行詞は直前の結果で確定。
-  if (!/この方法で/.test(t)) return action;
-  const a = action as unknown as { target?: { type?: string; filter?: Record<string, unknown> } };
+  //   🆕**「そうした場合、〈そのシグニ|それら〉と同じレベルの対象の…」**（2026-09-05 第146バッチ・`WXK03-006-E1`）＝
+  //   「この方法で」と書かない同型。**「対象の」が続く形だけ**に限る＝新しい対象宣言であることが原文側で確定し、
+  //   トリガー元を指す `levelEqTrigger` の文型（「そのシグニ」が主語のまま）とは混ざらない。
+  //   ⚠これを入れないと、原文4件のうち3件が effectId allowlist（`WXEX2-58`/`WXK11-042`/`WXEX2-30`）で
+  //   個別に手当てされているのに `WXK03-006` だけ**レベル限定が落ちてどの相手シグニでもバニッシュできる**過剰実行になる。
+  //   ⚠「そうした場合、」は**複数文ハンドラが先に剥がして CONDITIONAL を被せる**ので、
+  //     ここへ来る文は前置き無しのこともある＝前置きは任意にする。
+  const sameLevelDeclared = /^(?:その後[、,])?(?:そうした場合[、,])?(?:そのシグニ|それら?)と同じレベルの対象の/.test(t);
+  if (!/この方法で/.test(t) && !sameLevelDeclared) return action;
+  // ⚠**「そうした場合」形は帰結が `CONDITIONAL` に包まれてから来る**（`WXK03-006-E1` は
+  //   `CONDITIONAL{IS_MY_TURN}.then = BANISH`）＝トップの `target` を見るだけでは届かない。
+  //   包みを1段だけ剥がす（**この文型に限る**＝一般の CONDITIONAL を掘ると別基準の文まで巻き込む）。
+  const inner = (sameLevelDeclared && action.type === 'CONDITIONAL') ? action.then : action;
+  const a = inner as unknown as { target?: { type?: string; filter?: Record<string, unknown> } };
   if (!a.target || a.target.type !== 'SIGNI') return action;
   const f = a.target.filter ?? {};
   // 既にレベル指定／別基準のレベル同一性キーが載っているなら触らない。
   if (f.level !== undefined || f.levelEqLastProcessed || f.levelEqTrigger
       || f.levelLtTrigger || f.levelLteLastProcessed) return action;
-  return {
-    ...action,
+  const rewritten = {
+    ...inner,
     target: { ...a.target, filter: { ...f, levelEqLastProcessed: true } },
   } as EffectAction;
+  return inner === action ? rewritten : { ...(action as ConditionalAction), then: rewritten } as EffectAction;
 }
 
 /**
@@ -19269,7 +19305,11 @@ function applyDynamicCountTargetLimit(action: EffectAction, sourceText: string):
  * 数値やカード名には依存せず、owner と「すべて」も同じ名詞句から取る。
  */
 function applyLevelParityToSigniTarget(action: EffectAction, sourceText: string): EffectAction {
-  const m = sourceText.match(/レベルが(奇数|偶数)の(あなた|対戦相手)の(すべての)?シグニ(?:[０-９\d]+体を対象とし|のパワーを)/);
+  // ⚠「シグニ**１体の**パワーを」＝対象宣言（「を対象とし」）を書かない直接指定形も同じ名詞句
+  //   （`WXK01-044-E2`「ターン終了時まで、レベルが偶数の対戦相手のシグニ１体のパワーを－5000する」）。
+  //   旧 regex は「N体を対象とし」か「のパワーを」の2形しか見ておらず、この形だけ**偶奇限定が黙って落ちて
+  //   どのシグニでも－5000できる過剰実行**になっていた（2026-09-05 第146バッチ）。
+  const m = sourceText.match(/レベルが(奇数|偶数)の(あなた|対戦相手)の(すべての)?シグニ(?:[０-９\d]+体を対象とし|(?:[０-９\d]+体)?のパワーを)/);
   if (!m) return action;
   const owner: Owner = m[2] === '対戦相手' ? 'opponent' : 'self';
   const leaves: Array<{ target: EffectTarget }> = [];
@@ -21574,7 +21614,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // 「シグニが持つクラスが合計N種類以上」は後続アクション全体の発動条件。
   // action の CONDITIONAL ではなく effect-level condition に持ち上げ、収集時に不成立なら発火させない。
   if (actionText) {
-    const classCountM = actionText.match(/あなたの(場|エナゾーン|トラッシュ)にあるシグニが持つクラスが(?:＜([^＞]+)＞を除いて)?合計([０-９\d]+)種類以上ある(?:場合|かぎり)[、,]/);
+    // ⚠**「ある」は原文で省かれることがある**（`WXDi-P00-040-E2`「…クラスが合計７種類以上**の**場合、」）＝
+    //   必須にしていたせいで条件が丸ごと落ち、【エナチャージ１】が**無条件で走る過剰実行**だった（2026-09-05 第146バッチ）。
+    const classCountM = actionText.match(/あなたの(場|エナゾーン|トラッシュ)にあるシグニが持つクラスが(?:＜([^＞]+)＞を除いて)?合計([０-９\d]+)種類以上(?:ある|の)(?:場合|かぎり)[、,]/);
     if (classCountM) {
       const zone = classCountM[1];
       const threshold = parseNum(classCountM[3]);
@@ -21795,6 +21837,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         resolvedAction = bindUnlessGateAnaphora(tailM[1].trim(), resolvedAction);
         resolvedAction = bindThisCardAnaphora(tailM[1].trim(), resolvedAction);
       }
+    }
+    // 🆕**OR複合トリガーも「トリガー句を actionText に残す」仕様**（2026-09-05 第146バッチ・`WXDi-P11-064-E1`）＝
+    //   帰結「次の対戦相手のターン終了時まで、**このシグニ**のパワーを＋4000する」が独立に解かれ、
+    //   トリガー主語「あなたの**他の**＜天使＞のシグニ」を対象として拾っていた＝
+    //   **自分ではなく他のシグニが（しかも自分を除外して）強化される**過剰実行かつ意味の反転。
+    if (timing?.[0] === 'ON_ALLY_PLAY_OR_OPP_HAND_DISCARD') {
+      const tailM = actionText.match(/捨てたとき[、,](.+)$/s);
+      if (tailM) resolvedAction = bindThisCardAnaphora(tailM[1].trim(), resolvedAction);
     }
     // 🆕**ON_RISE の「そのシグニ」＝このシグニの上に置かれた【ライズ】シグニ**（§5.3 `O-60` 第39バッチ・
     //   実測4効果＝`WX16-037-E1`／`WX16-039-E1`／`WX20-056-E1`／`WD17-011-E1`）。

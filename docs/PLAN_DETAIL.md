@@ -3964,7 +3964,24 @@ golden「task12(lxxxiii) 第15波」が落ちて発覚）。`leaveSubstituteAskQ
 
 ### `O-249` — 収穫マージの温存キュー（`held`）の残り44枚＝**現行 parser の退化**が live に届くのを止めている
 
-**規模／母集団**＝**44カード**（2026-09-05 第145バッチ直後に実測＝`node scripts/heldReview.mjs`。旧74枚）
+**規模／母集団**＝**28カード**（2026-09-05 **第146バッチ**直後に実測＝`node scripts/heldReview.mjs`。74 → 44 → **28**）
+
+🆕**2026-09-05 第146バッチ（44 → 28）＝残り44枚を全数目視した結果、見立てどおり「fresh 側の退化」が多数派だった。**
+**9件は現行 parser の退化と確定して parser を直し**（`levelParity` の語順／`levelEqLastProcessed` の「そうした場合」形／
+クラス種類数条件の「〜の場合」／look-pick の先取りで ＜クラス＞ が落ちる／OR複合トリガーの「このシグニ」束縛／
+`parseUseCondition` の不等号・`LRIG_COLOR`・`TRASH_COUNT`／【エナチャージ】ショートハンドの owner）、
+**fresh が正しい／較正された9枚を採用**した。全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-05（第146バッチ）。
+🔑**新しく分かったこと3つ**＝
+①**同じ1枚の中でも両向きが混ざる**（`WXDi-P11-064` は fresh の `triggerCondition` が正しく `thisCardOnly` の脱落が退化）
+⇒ **カード単位の `--adopt` でも「parser を直してから採る」順序が要る**。
+②**`held` は「live が恒久 no-op」の唯一の検出器でもある**（`WX24-P2-002`＝対象宣言に誤った動的フィルタが載り候補0）。
+③**1規則が held の外まで届く**＝【エナチャージ】の owner 修正は held に出ていた1枚のほかに**2枚**を同時に直した
+（`WXDi-D07-013`／`WXDi-P08-059`＝どちらも live は「相手に与えるはずのエナを自分が得る」形だった）。
+
+**残28枚で目立つ退化2枚**＝`WX25-P3-003`（`exceed:3` → `costText` へ後退）／
+`WXK11-026`（`PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH` → `PREVENT_SIGNI_MOVE_BY_OPP_ATTACK_PHASE`＝原文に無い期間限定）。
+
+**旧記述（第145バッチ時点）**＝**44カード**（2026-09-05 第145バッチ直後に実測。旧74枚）
 
 **2026-09-05（第141〜145バッチ）で 74 → 44 まで開けた残り。** ■🔴**まず読むこと＝`held` は「parser 改善の未採用」ではない。**
 **live と fresh が食い違っている箱**で、**両向きが混ざる**（①fresh が正しい＝live のバグ ②fresh が退化＝温存が仕事をしている）。
@@ -3987,6 +4004,27 @@ fresh は「**対象宣言を捨てて後段で選び直す**」形なので、�
 live 契約は旧 parser のままでも緑になる＝第141 で実測）。**直した関数を golden から直接呼んで単体で固定する。**
 ■**取り方**＝(a) から。1型ずつ「原文 → 現行 parser 出力 → live」を並べ、**落ちている位置**を特定する
 （第141 の `parseStoryFilter` は「先頭条件節ガードが位置を見ていない」が真因だった＝**同じ形の位置バグが他にもある見込み**）。
+
+### `O-250` — `GRANT_KEYWORD` が「選んだ札」を `lastProcessedCards` に残さない＝「Aと、Aと同じレベルのB」の2つ目の対象が表せない
+
+**規模／母集団**＝**1効果**（`WX24-P2-002-E1`。2026-09-05 第146バッチで実測）
+
+**2026-09-05 第146バッチ（`O-249`）で分離。** ■**原文**＝「対戦相手のシグニ１体**と**、そのシグニと同じレベルの
+対戦相手の**ルリグ**１体を対象とし、ターン終了時まで、それらは「【常】：アタックできない。」を得る。」
+■🔴**旧 live は恒久 no-op だった**＝**シグニ側**の target に `levelEqLastProcessed` が誤って載っており、
+参照先 `lastProcessedCards` がその時点で空なので `resolveDynamicFilter`（`effectExecutor.ts:3252`）が
+到達不能 level（`{min:99,max:-1}`）を返し、`fieldCandidates` が**候補0**＝アーツを撃っても何も起きなかった。
+第146 で fresh を採用し、**シグニ側だけは動く**ようにした（golden で固定済み）。
+■**残っている穴**＝**ルリグ側の対象が丸ごと無い**。表すには「①シグニを選ぶ →②その選択を `lastProcessedCards`
+（または `storedTargetCards`）に残す →③`{type:'LRIG', filter:{levelEqLastProcessed}}` へ付与」が要るが、
+**`execGrantKeyword` は選んだ札を `lastProcessedCards` に書かない**（実測＝候補0のときに `[]` を入れるだけ・
+`effectExecutor.ts:4751`〜。`targetsLastProcessed` は**読む**側の機構であって書く側ではない）。
+■**受け皿の候補**＝`STUB{STORE_LAST_PROCESSED_TARGETS}`（既に `O-96` 系で使われている）を
+`SELECT_TARGET_ONLY` → 付与 の間に挟む形。⚠`SELECT_TARGET_ONLY` は `SIGNI`/`LRIG`/`CENTER_LRIG_OR_SIGNI` を受ける
+（`execStubPart1.ts:168`）ので**この形はゾーン拡張が要らない**＝`O-188` より安い見込み。
+■⚠**`src/engine/` を触る**＝§2.2 の実機要否判定を必ず書くこと。
+■**取り方**＝母集団1効果なので**索引 A の中では最後**（並びは母集団順）。同型を先に数え直す
+（「〜１体と、そのシグニと同じレベルの〜１体を対象とし」の全数 grep）。
 
 ### `O-188` — `TRANSFER_TO_HAND` が `targetsStored` を持たない＝「対象を先に固定してから任意コストを払う」形に載せられない
 

@@ -63682,7 +63682,12 @@ test('§5.3 O-60 第49: GAIN_ABILITY_THIS_GAME は live 全ノードが gameGran
   };
   for (const [, effects] of effectsMap) for (const e of effects) visit(e.action, e.effectId);
   eq(missing.length, 0, `gameGrants を持たないノード: ${missing.join(', ')}`);
-  ok(nodes >= 19, `走査対象が消えていない（実測 ${nodes} ノード）`);
+  // 🔑**下限は 19 → 18（2026-09-05 §5.3 `O-249` 第146＝較正であって退化ではない）。**
+  //   `held` に温存されていた `WX25-P2-003` / `WXDi-P05-004` を採用した結果、この2ノードは
+  //   第68バッチの規約どおり **`DEFERRED_GAIN_ABILITY_THIS_GAME_QUOTED` へ改名**された
+  //   （＝見出し `abilityBlockHeader` しか取れていない＝宣言は1つも立っていないので、
+  //    `GAIN_ABILITY_THIS_GAME` のまま残すと「実装済みに見える」）。engine は1行も変えていない。
+  ok(nodes >= 18, `走査対象が消えていない（実測 ${nodes} ノード）`);
 });
 
 test('§5.3 O-60 第49: WXDi-P11-004-E1 メインフェイズ開始時ドローが payload に載る（旧 regex は全角「５枚以下」に当たらず no-op）', () => {
@@ -67246,6 +67251,132 @@ test('§5.3 held 第145: 離場置換の宣言形／「3枚まで探して置く
   const s09Json = JSON.stringify(s09.action);
   ok(s09Json.includes('"story":["天使","悪魔"]'), 'SP27-009: ＜天使＞か＜悪魔＞（正準形は story）');
   ok(s09Json.includes('"reorder":true'), 'SP27-009: 「残りを好きな順番で」が届いている');
+});
+
+test('§5.3 O-249 第146: held が指した parser の退化9件（live と fresh の両方を固定する）', () => {
+  // 🔴**live だけを assert する golden では parser の退化を捕まえられない**（収穫マージが live を温存するので
+  //   live 契約は旧 parser のままでも緑になる＝第141 で実測）。⇒ **必ず fresh（parseCardEffects）側も見る。**
+  const both = (cardNum: string, effectId: string): [CardEffect, CardEffect] => {
+    const live = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+    const fresh = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId)!;
+    ok(!!live && !!fresh, `${effectId}: live/fresh の両方に存在する`);
+    return [live, fresh];
+  };
+  const filterOf = (e: CardEffect, path: string): Record<string, unknown> => {
+    let node: unknown = e.action;
+    for (const seg of path.split('.')) {
+      node = (node as Record<string, unknown>)[/^\d+$/.test(seg) ? seg : seg];
+    }
+    return node as Record<string, unknown>;
+  };
+
+  // ① `WXK01-044-E2`「レベルが偶数の対戦相手のシグニ**１体の**パワーを－5000する」＝
+  //    対象宣言（「を対象とし」）を書かない語順で偶奇限定が落ちていた（どのシグニでも－5000できた）。
+  for (const [label, e] of Object.entries({ live: both('WXK01-044', 'WXK01-044-E2')[0], fresh: both('WXK01-044', 'WXK01-044-E2')[1] })) {
+    eq(filterOf(e, 'target.filter').levelParity, 'even', `WXK01-044-E2 ${label}: レベル偶数限定が載る`);
+  }
+
+  // ② `WXK03-006-E1`（引用能力内）「そうした場合、そのシグニと同じレベルの**対象の**対戦相手のシグニ１体をバニッシュする」。
+  //    「この方法で」を書かない同型で、レベル同一性が落ちてどの相手シグニでもバニッシュできた。
+  for (const [label, e] of Object.entries({ live: both('WXK03-006', 'WXK03-006-E1-G')[0], fresh: both('WXK03-006', 'WXK03-006-E1-G')[1] })) {
+    eq(filterOf(e, 'steps.1.then.target.filter').levelEqLastProcessed, true,
+      `WXK03-006-E1-G ${label}: 直前にトラッシュした札とレベル同一の相手シグニに限る`);
+  }
+
+  // ③ `WXDi-P00-040-E2`「クラスが合計７種類以上**の**場合」＝「ある」を必須にしていたので条件が丸ごと落ち、
+  //    【エナチャージ１】が**無条件**で走っていた。
+  for (const [label, e] of Object.entries({ live: both('WXDi-P00-040', 'WXDi-P00-040-E2')[0], fresh: both('WXDi-P00-040', 'WXDi-P00-040-E2')[1] })) {
+    const c = e.condition as unknown as Record<string, unknown>;
+    eq(c?.type, 'TRASH_HAS_CARD', `WXDi-P00-040-E2 ${label}: トラッシュのクラス数条件が載る`);
+    eq(c?.distinctClasses, true, `WXDi-P00-040-E2 ${label}: 種類数で数える`);
+    eq(c?.minCount, 7, `WXDi-P00-040-E2 ${label}: 7種類以上`);
+  }
+
+  // ④ `WX17-009-E1`「その中から＜怪異＞のシグニ１枚を公開し手札に加える」＝
+  //    part3 の lossy な look-pick 規則（`parseCardTypeFilter` しか読まない）が part4 の忠実な畳み込みより
+  //    先に食べており、**クラス限定が落ちてどのシグニでも拾えた**。
+  for (const [label, e] of Object.entries({ live: both('WX17-009', 'WX17-009-E1')[0], fresh: both('WX17-009', 'WX17-009-E1')[1] })) {
+    eq(filterOf(e, 'steps.0.filter').story, '怪異', `WX17-009-E1 ${label}: ＜怪異＞限定が載る`);
+  }
+
+  // ⑤ `WXDi-P11-064-E1`「次の対戦相手のターン終了時まで、**この**シグニのパワーを＋4000する」＝
+  //    OR複合トリガーもトリガー句を actionText に残す仕様なので、帰結がトリガー主語
+  //    （「あなたの**他の**＜天使＞のシグニ」）を対象に拾っていた＝自分ではなく別のシグニが強化されていた。
+  for (const [label, e] of Object.entries({ live: both('WXDi-P11-064', 'WXDi-P11-064-E1')[0], fresh: both('WXDi-P11-064', 'WXDi-P11-064-E1')[1] })) {
+    const f = filterOf(e, 'target.filter');
+    eq(f.thisCardOnly, true, `WXDi-P11-064-E1 ${label}: 強化されるのはこのシグニ自身`);
+    eq(f.excludeSelf, undefined, `WXDi-P11-064-E1 ${label}: thisCardOnly と両立しない excludeSelf を残さない`);
+  }
+
+  // ⑥ `WXK01-020-E1`「あなたの手札が**１枚以下**の場合にしか使用できない」＝`parseUseCondition` が
+  //    不等号を読まず一律 `eq` だった（手札0枚で撃てない過小実行）。
+  for (const [label, e] of Object.entries({ live: both('WXK01-020', 'WXK01-020-E1')[0], fresh: both('WXK01-020', 'WXK01-020-E1')[1] })) {
+    const c = e.condition as unknown as Record<string, unknown>;
+    eq(c?.type, 'HAND_COUNT', `WXK01-020-E1 ${label}: 手札枚数条件`);
+    eq(c?.operator, 'lte', `WXK01-020-E1 ${label}: 「以下」を写す`);
+  }
+
+  // ⑦ 「（そうした場合、）**対戦相手は**【エナチャージN】をしてもよい」＝ショートハンドが `owner:'self'` 固定で、
+  //    **相手に与えるデメリットが自分の利益に化けて**いた（実測3効果）。
+  for (const [cardNum, effectId, path] of [
+    ['WXDi-P06-011', 'WXDi-P06-011-E1', 'steps.1.then'],
+    ['WXDi-D07-013', 'WXDi-D07-013-E1', 'steps.1.then'],
+    ['WXDi-P08-059', 'WXDi-P08-059-E2', 'steps.1.then'],
+  ] as const) {
+    for (const [label, e] of Object.entries({ live: both(cardNum, effectId)[0], fresh: both(cardNum, effectId)[1] })) {
+      const n = filterOf(e, path);
+      eq(n.type, 'ENERGY_CHARGE_FROM_DECK', `${effectId} ${label}: エナチャージが帰結`);
+      eq(n.owner, 'opponent', `${effectId} ${label}: エナチャージするのは対戦相手`);
+    }
+  }
+
+  // ⑧⑨ 使用条件の未対応2件は `COND_STUB`＝**無条件成立**（`execUtils` の COND_STUB は `return true`）に
+  //    落ちており、どちらのアーツも条件を満たさなくても撃てた。
+  for (const [label, e] of Object.entries({ live: both('WDK01-009', 'WDK01-009-E1')[0], fresh: both('WDK01-009', 'WDK01-009-E1')[1] })) {
+    const c = e.condition as unknown as Record<string, unknown>;
+    eq(c?.type, 'LRIG_COLOR', `WDK01-009-E1 ${label}: センタールリグの色条件`);
+    eq(c?.color, '赤', `WDK01-009-E1 ${label}: 赤限定`);
+  }
+  for (const [label, e] of Object.entries({ live: both('WDK06-C06', 'WDK06-C06-E1')[0], fresh: both('WDK06-C06', 'WDK06-C06-E1')[1] })) {
+    const c = e.condition as unknown as Record<string, unknown>;
+    eq(c?.type, 'TRASH_COUNT', `WDK06-C06-E1 ${label}: トラッシュ枚数条件`);
+    eq(c?.operator, 'gte', `WDK06-C06-E1 ${label}: 「以上」`);
+    eq(c?.value, 20, `WDK06-C06-E1 ${label}: 20枚`);
+  }
+
+  // ⑨' 🔑**「型を書いた」だけでは意味が入らない**（§4.2）＝この2つの条件が実際にゲートすることを engine で確かめる。
+  //    `COND_STUB` は `evalCondition` が無条件 true を返すので、ここが通らないと直った気になるだけで挙動は同じ。
+  {
+    const trashCond = findEffectDeep(effectsMap.get('WDK06-C06') ?? [], 'WDK06-C06-E1')!.condition!;
+    const base = mkCtx({}, {});
+    ok(!evalUseCondition(trashCond, { ...mkState(), trash: [] }, base.otherState, base.cardMap, 'WDK06-C06', 'MAIN'),
+      'WDK06-C06: トラッシュ0枚では使えない');
+    ok(evalUseCondition(trashCond, { ...mkState(), trash: Array.from({ length: 20 }, (_v, i) => `X-${i}`) },
+      base.otherState, base.cardMap, 'WDK06-C06', 'MAIN'),
+      'WDK06-C06: トラッシュ20枚なら使える');
+  }
+});
+
+test('§5.3 O-249 第146b: 採用した held のうち live 側が恒久 no-op だった1件', () => {
+  const both = (cardNum: string, effectId: string): [CardEffect, CardEffect] => {
+    const live = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId)!;
+    const fresh = findEffectDeep(parseCardEffects(cardMap.get(cardNum)!), effectId)!;
+    ok(!!live && !!fresh, `${effectId}: live/fresh の両方に存在する`);
+    return [live, fresh];
+  };
+  const filterOf = (e: CardEffect, path: string): Record<string, unknown> => {
+    let node: unknown = e.action;
+    for (const seg of path.split('.')) node = (node as Record<string, unknown>)[seg];
+    return node as Record<string, unknown>;
+  };
+  // ⑩ `WX24-P2-002-E1`＝**live が恒久 no-op だった側**。「対戦相手のシグニ１体と、そのシグニと同じレベルの
+  //    対戦相手のルリグ１体」の**シグニ側**に `levelEqLastProcessed` が誤って載っており、
+  //    参照先（lastProcessedCards）が空なので `resolveDynamicFilter` が到達不能 level を返し候補0だった。
+  //    ⚠**ルリグ側の対象はまだ表現できていない**（`O-250` として登録）＝ここではシグニ側の no-op 解消だけを固定する。
+  for (const [label, e] of Object.entries({ live: both('WX24-P2-002', 'WX24-P2-002-E1')[0], fresh: both('WX24-P2-002', 'WX24-P2-002-E1')[1] })) {
+    eq(filterOf(e, 'steps.1.target').filter, undefined,
+      `WX24-P2-002-E1 ${label}: シグニ側にレベル同一性を載せない（載せると候補0の恒久 no-op）`);
+  }
 });
 
 if (listMode) {
