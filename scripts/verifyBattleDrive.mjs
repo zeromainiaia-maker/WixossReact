@@ -52939,11 +52939,12 @@ scenarios.v172BattleBanishDoesNotFire = {
   async drive(page, H) { return v172Drive(page, H, 'v172Battle', false); },
 };
 
-// 🔴**`v172ResonaConditionFires` は `order` に入れない**（§5.3 `O-265` 待ち）＝
-//   レゾナの出現条件で場から離れたカードの `ON_TRASH` が**実経路で `collectTrashTriggers` に届いていない**
-//   （ゲートを完全に無効化しても発火しないことを実測で確認＝ゲートではなく配線の問題）。
-//   ⚠**シナリオは消さない**＝`O-265` を直したときの受け入れテストがこれ。
-//   実行は `node scripts/verifyBattleDrive.mjs v172ResonaConditionFires` で明示的に。
+// 🏁**§5.3 `O-265` は 2026-09-06 第192バッチでクローズ**＝`payResonaAppearanceAndPlace` が
+//   場から払ったカードを `getCardNum()` で instanceId から潰していたため、
+//   `detectTrashedSigni` の `after.trash.includes(beforeTop)` が必ず外れ、
+//   **`collectTrashTriggers` が1度も呼ばれない恒久 no-op** だった（ゲートではなく配線）。
+//   ⇒ `order` へ戻した。⚠**この2本は必ず対で回す**（①発火する ②原因が違えば発火しない）。
+order.push('v172ResonaConditionFires');
 order.push('v172BattleBanishDoesNotFire');
 
 order.push('v171TrashedSigniLowersPower');

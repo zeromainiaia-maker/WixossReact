@@ -11,45 +11,40 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- **セッション（2026-09-06・第191バッチ・Opus 5 単独）＝**🏁**§5.4 を閉じた**（残っていた (c) 2件は**実装済みで、壊れていたのは逆翻訳だけ**）
-  📊**進捗3計器＝Sheet1 要対応 3 / 863｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
-  ⚠**Sheet1 の「3」は退化ではなく前ブロックの数字が stale だった**＝第190 の記載「0」を実測し直した値
-  （`git stash` して HEAD でも 3＝**今回の編集の前後で同値**。内訳は `mech` 3枚＝`O-134`／`O-245` 由来）。
+- **セッション（2026-09-06・第192バッチ・Opus 5 単独）＝**🏁**`O-265` をクローズ**（真因は collector の**2つ手前**＝instanceId を潰していた恒久 no-op）
+  📊**進捗3計器＝Sheet1 要対応 3 → 2 / 863｜台帳 残 OPEN 24（据置）｜census 高シグナル 0 / BASELINE 0（据置）**
+  ⚠**Sheet1 が1枚減ったのは `O-265` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文＝規約どおり）。
   `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／`census:deadstate` 0件（いずれも据置）。
-  📦**在庫**＝**機構 worklist 4 → 6項目**（🆕`O-266`／🆕`O-267` を索引 G に追加＝**§5.4 から移設した機構待ち2件**）
-  ｜**⑤実機 残 1件**（`V-172(1)`＝`O-265` 待ち・据置）。
-  ⚠**在庫が増えたのは §5.4 の機構項目を §5.3 へ正しく採番し直したから**＝**新しい穴ではなく移設**。
-  gates 全緑（golden **3544 / 3544**・smoke 全異常0・fuzz 全0・lint 0 errors）。`npm run regen` 完走。
-  **live PARTIAL 16**（第190 の記載「18」も stale だった＝live JSON は1バイトも変えていない）。
+  📦**在庫**＝**機構 worklist 6 → 5項目**（索引 **A' 1（`O-264`）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**）
+  ｜**⑤実機 残 0件**（`V-172(1)` を返済＝`order` へ戻した）。
+  gates 全緑（golden **3545 / 3545**＝3544 +1本・smoke 全異常0・fuzz 全0・lint 0 errors）。
+  🖥**実機 `v172ResonaConditionFires` / `v172BattleBanishDoesNotFire` の2本とも PASS。**
 
-  🏁**主産物①＝§5.4 (c) の2件は 2026-09-04 に実装済みだった。**
-  `WX21-028-E2`（`O-243`）／`WXDi-P10-007-E3`（`O-244`）は engine ハンドラも payload も原文どおりで、
-  `totalCostMax` は `execUtils.ts` の選択制約まで実際に効いていた。**登録（2026-08-31）から3回読み直されていた。**
+  🔴🔑**主産物＝真因は「ゲート」でも「collector」でもなく、その2つ手前の配線だった。**
+  `payResonaAppearanceAndPlace`（レゾナ出現条件の支払いの**唯一の funnel**）が、場から払ったカードを
+  **`getCardNum()` で instanceId から潰して**トラッシュへ入れていた（`WD21-017#1` → `WD21-017`）。
+  その結果 `detectTrashedSigni` の `after.trash.includes(beforeTop)` が**必ず外れ**、
+  **`collectTrashTriggers` が1度も呼ばれない恒久 no-op**になっていた。
+  🔑**契約は既に文書化されていた**＝`execUtils.ts:51` が `fieldTrashCostCards` を **instanceId の配列**と明記し、
+  engine 側（`banishDestination` ほか）も一貫して instanceId を trash へ入れている＝**この関数だけが例外**だった
+  （同関数内の `discardedCostCards` / `energyTrashed` は id を保っていた）。
+  📦**1行の修正で live 5効果が回復**＝`WD21-017-E1` ＋ `forResonaCondition` 一族4件
+  （`WX10-055-E1` / `WX14-049-E1` / `WXEX1-58-E1` / `WXEX1-72-E1`＝**同じ1行を通る**）。
+  副次的に、下に敷いたカード・チャーム・アクセ（`extras`）の id も保つようになり
+  `detectUnderSigniTrashed` の突き合わせも通るようになった。
 
-  🔴🔑**主産物②＝読み直しが続いた真因は「逆翻訳が payload を読んでいなかった」こと。**
-  両者とも `decompileEffects.ts` の **`miscStubMap` の固定文**を出しており、
-  「指定色の指定クラス」「コストの合計が**上限以下**」「枚数なし」と表示されていた＝
-  **実装済みなのに未実装に読める**。⇒ payload から文を組む分岐へ差し替え、逆翻訳が原文と一致した
-  （「赤と青と緑の＜天使＞のシグニを1枚ずつ」／「カードを10枚見て…合計が4以下…スペルを2枚まで」）。
-  **固定文は「ペイロード欠落」と明示するフォールバックへ降格**した。
-  🔑**教訓＝payload を足したら逆翻訳もその payload から組む**（`O-60` 第59バッチの落とし穴③の再発）。
+  🔴🔑**なぜ golden が6セッション緑だったか（2つの盲点）**
+  ①**collector を直叩きしていた**＝既存テストは `payResonaAppearanceAndPlace` を呼んだあと、
+  その結果を **`detectTrashedSigni` に通さず** collector へ直接渡していた＝**funnel を飛ばしていた**。
+  ②**fixture が素のカード番号だった**＝`mkState({ signi: [whiteA, whiteB] })` は `#n` を持たないので
+  **`getCardNum()` が no-op になり、潰していること自体が観測できなかった**。
+  ⇒ 両方を塞いだ（差分検出を通す assert ＋ `#n` 付き fixture で `WD21-017-E1` を一気通貫で固定）。
+  🔑**教訓＝ゲートは「collector が正しいか」ではなく「collector まで到達するか」に張る。**（§4.2 に追記）
 
-  🔴🔑**主産物③＝逆翻訳のトリップワイヤは「生成物」を見ないと素通りする。**
-  最初に書いた golden は `decompileEffects.ts` の**ソース文字列**を `includes` するだけで、
-  反転確認（`if (false && …)` を挟む）で**素通りした**。⇒ `decompiledLineOf(effectId)` を新設し、
-  **`docs/decompile_sheet*.txt` の実出力**を assert する形へ差し替えた（反転確認で2本とも FAIL を確認）。
-  ⚠`decompileEffects.ts` は**何も export しない**ので、これが逆翻訳を機械検証する唯一の入口。
-
-  📦**主産物④＝§5.4 の機構待ち2件を §5.3 索引 G へ採番した**＝
-  **`O-266`**（【ガード】のコスト置換が engine に無い＝`WX25-P2-007`。**付与される2つ目の能力も JSON に無い**）／
-  **`O-267`**（「この【出】能力はそのスペルの効果より先に発動する」＝発動順の固定＝`WX13-005B`。
-  **帰結は正しく構造化済みで、欠けているのは順序だけ**）。登録票の全文は PLAN_DETAIL。
-
-**▶ 次の一手**＝**§5.4 は閉じた**（新しい構造混線を見つけたときだけ足す節になった）。
-⇒ **`O-265`**（レゾナ出現条件の `ON_TRASH` が実経路に届かない＝**live 5効果**・受け入れテスト `V-172(1)` は用意済み）
-が最優先。次いで **`O-264`**（`ignoreRestrictions` の消費地点＝live 2効果）。
-そのあと索引 G の **`O-266` / `O-267`**（どちらも live 1効果だが**遅いレーン**＝新しい engine 機構が要る。
-特に `O-267` は「1効果のために解決順の一般機構を入れるか」を先に判断する＝**入れないと決めてもよい**）。
+**▶ 次の一手**＝**§5.1 実機は残0・§5.4 も閉じた**ので、本線は §5.3 の索引だけ。
+⇒ **`O-264`**（`ignoreRestrictions` の消費地点＝live 2効果・索引 A'）が最優先。
+次いで索引 G の **`O-266` / `O-267`**（どちらも live 1効果だが**遅いレーン**＝新しい engine 機構が要る。
+`O-267` は「1効果のために解決順の一般機構を入れるか」を先に判断する＝**入れないと決めてもよい**）。
 
 ---
 
@@ -409,6 +404,22 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
   それは **`if (false && …)` を1つ挟むだけで PASS のまま通る**（反転確認で実測）。
   ⇒ **`goldenTest.ts` の `decompiledLineOf(effectId)`**（`docs/decompile_sheet*.txt` から該当行を引く）を使う。
   ⚠シート帰属は先勝ちなので全10枚を走査する。⚠**decompiler を直したら `npm run regen` まで回す**のが前提。
+
+- 🔴🆕**collector のゲートを直しても「collector まで到達するか」は別問題**（2026-09-06 第192バッチ＝`O-265`）＝
+  第190バッチは `WD21-017-E1` の JSON・parser・engine（`orResonaCondition`）を直して golden も緑にしたのに、
+  **実機は1度も発火しなかった**。真因は**2つ手前**＝`payResonaAppearanceAndPlace` が場から払ったカードを
+  `getCardNum()` で **instanceId から潰して** trash へ入れていたため、`detectTrashedSigni` の
+  `after.trash.includes(beforeTop)` が**必ず外れ**、`collectTrashTriggers` が**1度も呼ばれなかった**。
+  ⇒ 🔑**ゲートは「collector が正しいか」ではなく「collector まで到達するか」に張る**
+  （差分検出関数を通した assert を1本足す）。
+  🔑**切り分けの合図**＝**ゲートを完全に無効化しても挙動が変わらないなら、ゲートではなく配線。**
+- 🔴🆕**golden の fixture が「素のカード番号」だと instanceId 起因のバグは原理的に見えない**（同上）＝
+  実機の盤面は `WD21-017#1` のような **instanceId** だが、golden の `mkState({ signi: [whiteA, whiteB] })` は
+  素の番号を置いていた＝**`getCardNum()` が no-op になり、潰していること自体が観測できなかった**
+  （この fixture を使うテストは**バグが入った状態で6セッション緑**だった）。
+  ⇒ **id の同一性が絡む経路のテストは必ず `#n` 付きで組む。**
+  🔑**`fieldTrashCostCards` は instanceId の配列**（契約は `execUtils.ts:51` に明記）＝
+  名前空間がズレると `byEffectCause` の弁別が静かに反転する（コストが効果扱いになる）。
 
 ### 4.3 計器の読み方
 
@@ -907,13 +918,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 > ⚠**着手前に §4.4 を読む**（番号つきの罠 89項＝2026-09-06 に §4.4b を統合して1つのリストにした）。 ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
 
-**■ 未実施の観測点＝1件**
+**■ 未実施の観測点＝0件**
 
-- [ ] 🆕**`V-172(1)`＝`v172ResonaConditionFires`**（2026-09-06 第190バッチ登録）＝
-  `WD21-017` がレゾナの出現条件で場からトラッシュに置かれたときに発火するか。
-  🔴**いまは FAIL**＝§5.3 **`O-265`**（実経路で `collectTrashTriggers` に届いていない）待ち。
-  **シナリオは書いてある**（`order` から外してあるだけ）＝`node scripts/verifyBattleDrive.mjs v172ResonaConditionFires`。
-  `O-265` を直したら **`order.push` を戻す**。⚠**対照 `v172BattleBanishDoesNotFire` は既に PASS**（`order` に入っている）。
+🏁**`V-172(1)` は 2026-09-06 第192バッチで返済**（`O-265` の修正で PASS。`order` へ戻した＝
+`v172ResonaConditionFires` と対照 `v172BattleBanishDoesNotFire` の2本が常時回る）。
+⚠**新しい観測点はここへ `V-<次番号>` で足す**（機構項目は §5.3 へ）。
 
 > 🏁**返済済み `V-04`〜`V-170` の全文（何を踏んだか・何が壊れていたか）は [PLAN_DETAIL.md](./PLAN_DETAIL.md) の「§5.1 実機返済の完了報告」と [BUGFIXES.md](./BUGFIXES.md) にある。**
 > 🔑**この節はクローズしたら行ごと消す**（PLAN 冒頭の規約）＝**生きている観測点だけを置く**。2026-09-06 の整理で、返済済み `V-152`〜`V-170` の全文（156行）を PLAN_DETAIL へ退避した。
@@ -1061,20 +1070,11 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 #### 索引 A'. 実機が出した配線ギャップ（**2026-09-06 第190バッチ新設**）
 
-> 🔴**この2件は「実機だけが出した」**＝golden は緑のまま。**着手前に BUGFIXES の 2026-09-06（第190バッチ）を読む。**
+> 🔴**この枠は「実機だけが出した」項目**＝golden は緑のまま。**着手前に BUGFIXES を読む。**
+> 🏁**`O-265` は 2026-09-06 第192バッチでクローズ**（真因は `payResonaAppearanceAndPlace` が
+> instanceId を潰していたこと＝**collector の手前で差分検出が必ず外れる恒久 no-op**。
+> 全文は [BUGFIXES.md](./BUGFIXES.md) の 2026-09-06（第192バッチ）。実機 `V-172` 2本 PASS で返済済み）。
 
-- 🆕🔴**`O-265`＝レゾナの出現条件で場から離れたカードの `ON_TRASH` が、実経路で `collectTrashTriggers` に届いていない**
-  （母集団＝**live 5効果**＝`WD21-017-E1` ＋ **`forResonaCondition` 一族4件**
-  `WX10-055-E1` / `WX14-049-E1` / `WXEX1-58-E1` / `WXEX1-72-E1`）。
-  🔑**切り分け済み**＝`collectTrashTriggers` の `byEffect` ゲートを**完全に無効化しても発火しない**
-  （実機で実測）＝**ゲートではなく配線の問題**。`BattleScreen.tsx:6481` の `paymentDiff` は
-  `resonaConditionCardNum` を渡しているので、**`detectTrashedSigni` に載る前に消えている**か、
-  `paymentEntries` がスタックへ積まれる前に落ちている、のどちらか。
-  ⚠**ブラウザの `console` はドライバへ届かない**（`page.on('console')` を張っても出なかった）＝
-  **切り分けは「ゲートを外して再ビルド」で行う**（この手が1回で効いた）。
-  🖥**受け入れテストは書いてある**＝`node scripts/verifyBattleDrive.mjs v172ResonaConditionFires`
-  （`order` からは外してある＝直したら `order.push` を戻す）。
-  🔴**`forResonaCondition` 一族4件も同じ経路**＝この4件は**実機で1度も発火していない可能性が高い**（未確認）。
 - 🆕**`O-264`＝`PlayFreeAction.ignoreRestrictions` に engine の消費地点が1つも無い**（真 no-op）。
   原文「限定条件を無視して」を持つのは **live 2効果**（`WX04-003-E1` / `WX05-011-E3`）で、
   どちらも**相手のスペルを限定条件を無視して使える**はずが、いまは**限定条件が効いたまま**（過少）。
@@ -1247,28 +1247,23 @@ keyword が UI と一致せず恒久 no-op ほか）。**カード番号を含�
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上のブロックを [PLAN_DETAIL.md](./PLAN_DETAIL.md) の恒久指標アーカイブへ移す ②今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 > 🆕🔴**2026-09-01 改定＝3計器だけでは進捗が表示できなくなったので「在庫2本」を併記する**（理由は §3 の同日改定）。**3計器は底を打った＝これ以上は下がらないので、動かないことを「停滞」と読まない。**
 
-- **2026-09-06（第191バッチ）＝🏁§5.4 を閉じた（残 (c) 2件は実装済みで、壊れていたのは逆翻訳だけ）（Opus 5 単独／本ブロックが直近の正）**
-  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**｜**台帳 残 OPEN 24**（据置）｜
+- **2026-09-06（第192バッチ）＝🏁`O-265` クローズ／`V-172(1)` 返済（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 → 2 / 863**｜**台帳 残 OPEN 24**（据置）｜
   **census 高シグナル 0 / BASELINE 0**（据置）
-  🔴⚠**Sheet1 の「3」は退化ではなく前ブロックの「0」が stale だった**＝`git stash` して HEAD で測っても **3**
-  （今回の編集の前後で同値）。内訳は `mech` 3枚＝索引の未クローズ項目 `O-134` / `O-245` 由来。
+  ⚠**Sheet1 が1枚減ったのは `O-265` をクローズして §5.3 からカード番号が消えたから**（`mech` の母集団は §5.3 の本文）。
+  ⚠**census 据置の理由**＝語彙は増えていない（修正は `src/screens/battle/resonaSummon.ts` の**識別子の扱い1箇所**）。
   **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（据置）。
-  📦**在庫**＝**機構 worklist 4 → 6項目**＝索引 **A' 2（`O-264`／`O-265`）／A 0／B 0／G 2（🆕`O-266`／🆕`O-267`）／E 2**。
-  ⚠**増えたのは §5.4 の「機構待ち」2件を §5.3 へ正しく採番し直したから**＝**移設であって新しい穴ではない**。
-  **⑤実機 残 1件**＝`V-172(1)`（`O-265` 待ち・据置）。
-  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0／
-  `census:orphanmanual` A/B/C **0**・D 5（生成元あり＝凍っていない）。
-  **`live UNKNOWN` = 0**（据置）／**live PARTIAL 16**
-  ⚠（前ブロックの「18」も stale ＝**`public/data/` は1バイトも変えていない**。実測し直した値）。
-  🔧**ゲート（全緑 ✅）**＝golden **3544 / 3544**（本数は据置＝既存2テストへ assert を4本追加）／
-  smoke 全異常0／fuzz 全0／census **0 / BASELINE 0**／`census:stubs` A群🔴0・C群0／manual-fields 0／
-  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
-  🔁**反転確認**＝逆翻訳の payload 分岐2本を `if (false && …)` で殺し、`npm run regen` → golden
-  **O-243 / O-244 が2本とも FAIL** を確認して復旧。
-  🔴🔑**その反転確認で最初のトリップワイヤが弱かったことが分かった**＝
-  `decompileEffects.ts` の**ソース文字列**を `includes` する形は `if (false && …)` を**素通りする**。
-  ⇒ **生成物（`docs/decompile_sheet*.txt`）を読む `decompiledLineOf()` へ差し替えた。**
-  🖥**実機**＝**不要**（触ったのは `scripts/` と `docs/` のみ＝`src/` は1バイトも変えていない。§2.2 の機械判定）。
+  📦**在庫**＝**機構 worklist 6 → 5項目**＝索引 **A' 1（`O-264`）／A 0／B 0／G 2（`O-266`／`O-267`）／E 2**。
+  **⑤実機 残 0件**（`V-172(1)` 返済＝`order` へ戻した）。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0。
+  **`live UNKNOWN` = 0**／**live PARTIAL 16**（どちらも据置＝`public/data/` は無変更）。
+  🔧**ゲート（全緑 ✅）**＝golden **3545 / 3545**（3544 +1本＝`§5.3 O-265` の一気通貫。
+  既存「レゾナ出現条件ON_TRASH」へ funnel の assert も追加）／smoke 全異常0／fuzz 全0／
+  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。
+  🔁**反転確認**＝`getCardNum()` を戻すと新テストと funnel assert が **2本 FAIL**（実測）。
+  🖥**実機**＝`v172ResonaConditionFires` **PASS**（相手の P1000 が消えた）／
+  対照 `v172BattleBanishDoesNotFire` **PASS**（原因が違えば発火しない）。**2本とも `order` に入れた。**
 
 ## 付録B. 偽陽性パターン（脱落疑いに出るが**直さない**）— 毎回まず除外
 

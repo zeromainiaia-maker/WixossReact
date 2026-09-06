@@ -1,5 +1,77 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-09-06（第192バッチ）＝🏁**`O-265` クローズ**＝レゾナ出現条件の支払いが **instanceId を潰して** ON_TRASH を殺していた
+
+**真因は collector の2つ手前だった。** 第190バッチは `WD21-017-E1`（「効果**か**レゾナの出現条件によって〜
+場からトラッシュに置かれたとき」）の JSON・parser・engine（緩和フラグ `orResonaCondition`）まで直して
+golden も緑にしたのに、**実機は1度も発火しなかった**。切り分けで「ゲートを完全に無効化しても発火しない」
+＝**ゲートではなく配線**と分かっていたが、その配線がどこかは未特定だった。
+
+### ① 真因＝`payResonaAppearanceAndPlace` だけが instanceId を潰していた
+
+`src/screens/battle/resonaSummon.ts`（レゾナ出現条件の支払いの**唯一の funnel**）：
+
+```ts
+const topNum = getCardNum(stack.at(-1)!);   // 🔴 'WD21-017#1' → 'WD21-017'
+fieldTrashed.push(topNum);
+trash: [...state.trash, ..., ...fieldTrashed, ...extras],
+```
+
+一方 `detectTrashedSigni`（`boardDiff.ts:306`）は**場に居た instanceId がトラッシュに在るか**で判定する：
+
+```ts
+if (!after.energy.includes(beforeTop) && after.trash.includes(beforeTop)) result.push(beforeTop);
+```
+
+⇒ `beforeTop = 'WD21-017#1'` に対し trash には `'WD21-017'` しか無いので**必ず外れ**、
+**`collectTrashTriggers` が1度も呼ばれない恒久 no-op**だった。
+
+🔑**契約は既に文書化されていた**＝`execUtils.ts:51` が `fieldTrashCostCards` を
+「場→トラッシュへ置いた **instanceId**」と明記しており、engine 側（`banishDestination` ほか）も
+一貫して `num`（instanceId）を trash へ入れている。**この関数だけが例外**で、
+しかも**同じ関数の中の `discardedCostCards`（手札）と `energyTrashed`（エナ）は id を保っていた**。
+
+**修正**＝`stack.at(-1)!` をそのまま運ぶ（`lrigTrashed` と `extras` も同様）。
+`puppet_signi` の除外だけは比較対象が変わるので `getCardNum` を外して id 同士で比べる。
+
+### ② 効果は live 5効果＋下敷きの回収
+
+- `WD21-017-E1`（`orResonaCondition`）と **`forResonaCondition` 一族4件**
+  （`WX10-055-E1` / `WX14-049-E1` / `WXEX1-58-E1` / `WXEX1-72-E1`）は**同じ1行を通る**＝
+  **5効果とも実機で1度も発火していなかった**ものが回復した。
+- 副次的に、下に敷いたカード・チャーム・アクセ（`extras`）も id を保つようになり、
+  `detectUnderSigniTrashed` の突き合わせ（`before.trash` / `after.trash` を instanceId で数える）も通るようになった。
+
+### ③ 🔴なぜ golden が緑のままだったか（盲点2つ）
+
+1. **collector を直叩きしていた**＝既存テスト「レゾナ出現条件ON_TRASH」は
+   `payResonaAppearanceAndPlace` を呼んだあと、その結果を **`detectTrashedSigni` に通さず**
+   collector へ直接渡していた＝**funnel を飛ばしていた**。
+2. **fixture が素のカード番号だった**＝もう1本のテストは `signi: [[whiteA], [whiteB], null]` と
+   `#n` を持たない番号を置いていたので、**`getCardNum()` が no-op になり潰していること自体が観測できなかった**。
+
+⇒ 両方を塞いだ：
+- 既存テストへ **funnel の assert** を追加（差分に載ること＋`fieldTrashCostCards` と**同じ名前空間**であること。
+  名前空間がズレると `byEffectCause` の弁別が静かに反転して**コストが効果扱い**になる）。
+- 新テスト **`§5.3 O-265: レゾナ出現条件の場支払いが差分→collector まで到達する（WD21-017-E1）`**＝
+  `#n` 付き fixture で **支払い → `detectTrashedSigni` → `collectTrashTriggers`** を一気通貫。
+  **負方向**（レゾナ出現条件でない普通のコスト支払いでは発火しない）も同じテストに入れた。
+
+🔑**横断の教訓**＝**ゲートは「collector が正しいか」ではなく「collector まで到達するか」に張る。**
+🔑**id の同一性が絡む経路のテストは必ず `#n` 付き fixture で組む**（素の番号だと原理的に見えない）。
+
+### 検証
+
+- `npm run gates` **全緑**＝golden **3545 / 3545**（+1本）／smoke 全異常0／fuzz 全0／
+  census 0 / BASELINE 0／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 0行／`census:costtext` A🔴 0規則／lint 0 errors。
+- **反転確認**＝`const topId = getCardNum(stack.at(-1)!)` へ戻すと、新テストと funnel assert が
+  **2本とも FAIL**（`got=` が空配列＝差分に1件も載らない）。
+- 🖥**実機**＝`node scripts/verifyBattleDrive.mjs v172ResonaConditionFires` **PASS**
+  （レゾナ出現条件で場からトラッシュ → センヤの【自】が発火して相手の P1000 が消えた）。
+  対照 `v172BattleBanishDoesNotFire` も **PASS**（バトルバニッシュでは発火しない）。
+  **2本とも `order` へ戻した**（`V-172(1)` 返済＝§5.1 の未実施は残0）。
+
 ## 2026-09-06（第191バッチ）＝🏁**PLAN §5.4 を閉じた**（残 (c) 2件は**実装済みで、壊れていたのは逆翻訳だけ**）
 
 **真因は1行**＝**engine に payload を足したのに、逆翻訳がその payload を読んでいなかった**。

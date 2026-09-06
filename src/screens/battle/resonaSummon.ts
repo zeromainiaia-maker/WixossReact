@@ -281,10 +281,17 @@ export function payResonaAppearanceAndPlace(
   for (const zi of fieldSet) {
     const stack = nextSigni[zi];
     if (!stack?.length) return null;
-    const topNum = getCardNum(stack.at(-1)!);
-    if (fieldLrigTrashSet.has(zi)) lrigTrashed.push(topNum);
-    else fieldTrashed.push(topNum);
-    extras.push(...stack.slice(0, -1).map(getCardNum));
+    // 🔴🆕**instanceId のまま運ぶ**（§5.3 `O-265`・2026-09-06）＝ここで `getCardNum()` に潰すと
+    //   トラッシュへ入るのが `WD21-017`、場に居たのが `WD21-017#1` になり、
+    //   **`detectTrashedSigni` の `after.trash.includes(beforeTop)` が必ず外れる**（`boardDiff.ts:306`）＝
+    //   **レゾナ出現条件で場から払ったカードの ON_TRASH が1件も積まれない恒久 no-op**だった。
+    //   🔑契約は `execUtils.ts:51` が明記している＝`fieldTrashCostCards` は **instanceId** の配列。
+    //   🔑engine 側（`banishDestination` ほか）は一貫して `num`（instanceId）を trash へ入れており、
+    //   **この関数だけが例外**だった（同関数内の `discardedCostCards` / `energyTrashed` は id を保っている）。
+    const topId = stack.at(-1)!;
+    if (fieldLrigTrashSet.has(zi)) lrigTrashed.push(topId);
+    else fieldTrashed.push(topId);
+    extras.push(...stack.slice(0, -1));
     if (nextCharms[zi]) extras.push(nextCharms[zi]!);
     if (nextAcce[zi]) extras.push(...nextAcce[zi]!);
     if (nextSoul[zi]) lrigTrashed.push(nextSoul[zi]!);
@@ -306,7 +313,8 @@ export function payResonaAppearanceAndPlace(
     field: {
       ...state.field, signi: nextSigni, signi_down: nextDown, signi_frozen: nextFrozen,
       signi_charms: nextCharms, signi_acce: nextAcce, signi_soul: nextSoul,
-      puppet_signi: (state.field.puppet_signi ?? []).filter(id => !fieldTrashed.includes(getCardNum(id))),
+      // ⚠`fieldTrashed` は instanceId になったので **id 同士で比べる**（`getCardNum` を噛ませると必ず外れる）。
+      puppet_signi: (state.field.puppet_signi ?? []).filter(id => !fieldTrashed.includes(id)),
     },
   };
   return { state: next, fieldTrashCostCards: fieldTrashed, discardedCostCards };

@@ -2211,6 +2211,20 @@ test('レゾナ出現条件ON_TRASH: 実召喚支払いだけ発火し、通常�
     );
     ok(!!paid, '実際のレゾナ召喚支払い経路を完走');
     const after = paid!.state;
+    // 🔴🆕§5.3 `O-265`（2026-09-06）＝**funnel まで通す**。ここから下の collector 直叩きは
+    //   `detectTrashedSigni` を飛ばしているので、**支払いが id を潰していても緑のまま**だった
+    //   （実機だけが「発火しない」と言い続けた真因＝`payResonaAppearanceAndPlace` が `getCardNum()` で
+    //   `WD21-017#1` → `WD21-017` に潰し、`after.trash.includes(beforeTop)` が必ず外れていた）。
+    // 🔑**この2本が本体**＝①差分検出が支払ったカードを見つける ②その id が
+    //   `fieldTrashCostCards` と**同じ名前空間**にある（違うと `byEffectCause` の弁別が反転する）。
+    eq(detectTrashedSigni(before, after).join(','), `${paidInst},${otherWhite}`,
+       '🔴支払ったカードが場→トラッシュの差分に載る（instanceId のまま）');
+    eq(paid!.fieldTrashCostCards.join(','), `${paidInst},${otherWhite}`,
+       '🔴場コスト識別も instanceId＝差分の id と突き合わせられる（`execUtils.ts:51` の契約）');
+    for (const cn of detectTrashedSigni(before, after)) {
+      ok(paid!.fieldTrashCostCards.includes(cn),
+         `🔴${cn}: 差分の id が場コスト識別に含まれる（含まれないと byEffectCause=true に化けてコストが効果扱いになる）`);
+    }
     const ctx: TrigCtx = {
       hostId, guestId, activeUserId: hostId, turnPhase: 'MAIN',
       effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'resona-trigger',
@@ -2223,6 +2237,52 @@ test('レゾナ出現条件ON_TRASH: 実召喚支払いだけ発火し、通常�
     eq(fires(collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, true, true).entries, 'WX10-055-E1'), false, '通常の効果トラッシュは不発');
     eq(fires(collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, false, false).entries, 'WX10-055-E1'), false, 'バトル/ルール処理は不発');
     eq(fires(collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, true, false).entries, 'WX10-055-E1'), false, '他の能力コストは不発');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+// 🔴🆕§5.3 `O-265`（2026-09-06）＝`WD21-017-E1`「効果**か**レゾナの出現条件によって〜
+//   場からトラッシュに置かれたとき」を **支払い → 盤面差分 → collector** の一気通貫で固定する。
+// 🔑第190バッチで JSON・parser・engine（`orResonaCondition`）まで直したのに**実機だけが発火しなかった**のは、
+//   その手前の `payResonaAppearanceAndPlace` が instanceId を潰していて **collector が1度も呼ばれなかった**から。
+//   ⇒ **ゲートは「collector が正しいか」ではなく「collector まで到達するか」に張る。**
+test('§5.3 O-265: レゾナ出現条件の場支払いが差分→collector まで到達する（WD21-017-E1）', () => {
+  const savedCursor = cursor;
+  try {
+    const hostId = 'H', guestId = 'G';
+    const watcher = 'WD21-017#1';       // 羅星　≡センヤ≡（観測対象の【自】）
+    const material = 'WX15-046#1';      // 羅星　≡アンタレス≡（もう1体の支払い材料）
+    const resonaInst = 'WX08-008#1';    // 白羅星　マーズ（出現条件＝＜宇宙＞2体を場からトラッシュ）
+    const before = mkState({ signi: [watcher, material, null] });
+    before.lrig_deck = [resonaInst];
+    const candidate = getMainSingleZoneResonaCandidate(resonaInst, before, cardMap, effectsMap);
+    ok(!!candidate, '＜宇宙＞2体でマーズの出現条件を満たす');
+    const paid = payResonaAppearanceAndPlace(
+      before, resonaInst, candidate!.payment, { zone: 'field', indices: [0, 1] }, 2, cardMap,
+    );
+    ok(!!paid, '支払いと配置が完走');
+    // ① 差分＝**ここが 0 件だと collector は永久に呼ばれない**（旧実装はここで落ちていた）。
+    const trashedIds = detectTrashedSigni(before, paid!.state);
+    eq(trashedIds.join(','), `${watcher},${material}`,
+       '🔴支払った2体が場→トラッシュの差分に載る（旧実装は空配列だった＝恒久 no-op）');
+    // ② BattleScreen が組む引数と同じ形で collector を叩く
+    //    （`byEffectCause = !fieldTrashCostCards.has(cardNum)` ＝コスト支払いなので false）。
+    const merged = new Map(effectsMap);
+    merged.set('WD21-017', mergeManualEffects('WD21-017', effectsMap.get('WD21-017') ?? []));
+    const ctx: TrigCtx = {
+      hostId, guestId, activeUserId: hostId, turnPhase: 'MAIN',
+      effectsMap: merged, cardMap: cardMap as Map<string, CardData>, genId: () => 'o265',
+    };
+    const costSet = new Set(paid!.fieldTrashCostCards);
+    const entries = collectTrashTriggers(
+      ctx, watcher, hostId, paid!.state, mkState({}), false, true, !costSet.has(watcher), resonaInst,
+    ).entries;
+    ok(entries.some(e => e.effectId === 'WD21-017-E1'),
+       '🔴レゾナ出現条件で場から落ちたセンヤの【自】が積まれる');
+    // ③ **負方向**＝レゾナ出現条件でない（通常のコスト支払い）なら発火しない＝原因の限定が残っている。
+    eq(collectTrashTriggers(ctx, watcher, hostId, paid!.state, mkState({}), false, true, false)
+       .entries.some(e => e.effectId === 'WD21-017-E1'), false,
+       '🔴レゾナ出現条件でないコスト支払いでは発火しない（`orResonaCondition` の緩和が効きすぎていない）');
   } finally {
     cursor = savedCursor;
   }

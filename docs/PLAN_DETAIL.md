@@ -5625,6 +5625,31 @@ o194trapSame o194trapOther o194lrigType2 o194lrigType1` で **4/4 PASS**。
   🔴**実機だけが見つけた真バグ2件**＝①`ON_ATTACK_SIGNI` の遅延トリガーの二重収集＋`attackerFilter` 素通り
   ②`TRANSFER_TO_DECK.position` の `second`/`third` が SELECT_TARGET 経路に未実装。**どちらも「同じ式の重複」が真因。**
 
+### 恒久指標アーカイブ（2026-09-06・第191バッチ後・PLAN §6 から退避）
+
+- **2026-09-06（第191バッチ）＝🏁§5.4 を閉じた（残 (c) 2件は実装済みで、壊れていたのは逆翻訳だけ）（Opus 5 単独／本ブロックが直近の正）**
+  📊**進捗3計器**＝**Sheet1 要対応 3 / 863**｜**台帳 残 OPEN 24**（据置）｜
+  **census 高シグナル 0 / BASELINE 0**（据置）
+  🔴⚠**Sheet1 の「3」は退化ではなく前ブロックの「0」が stale だった**＝`git stash` して HEAD で測っても **3**
+  （今回の編集の前後で同値）。内訳は `mech` 3枚＝索引の未クローズ項目 `O-134` / `O-245` 由来。
+  **`census:enginetext` A🔴 0行**／**`census:costtext` A🔴 0規則**／**`census:deadstate` 0件**（据置）。
+  📦**在庫**＝**機構 worklist 4 → 6項目**＝索引 **A' 2（`O-264`／`O-265`）／A 0／B 0／G 2（🆕`O-266`／🆕`O-267`）／E 2**。
+  ⚠**増えたのは §5.4 の「機構待ち」2件を §5.3 へ正しく採番し直したから**＝**移設であって新しい穴ではない**。
+  **⑤実機 残 1件**＝`V-172(1)`（`O-265` 待ち・据置）。
+  `_held_fresh` 1（残1＝`O-249` の意図的な据置）／`_partial_fresh` 0／`_idset_fresh` 0／
+  `census:orphanmanual` A/B/C **0**・D 5（生成元あり＝凍っていない）。
+  **`live UNKNOWN` = 0**（据置）／**live PARTIAL 16**
+  ⚠（前ブロックの「18」も stale ＝**`public/data/` は1バイトも変えていない**。実測し直した値）。
+  🔧**ゲート（全緑 ✅）**＝golden **3544 / 3544**（本数は据置＝既存2テストへ assert を4本追加）／
+  smoke 全異常0／fuzz 全0／census **0 / BASELINE 0**／`census:stubs` A群🔴0・C群0／manual-fields 0／
+  `census:enginetext` A🔴 **0行**／`census:costtext` A🔴 **0規則**／lint 0 errors。`npm run regen` 完走。
+  🔁**反転確認**＝逆翻訳の payload 分岐2本を `if (false && …)` で殺し、`npm run regen` → golden
+  **O-243 / O-244 が2本とも FAIL** を確認して復旧。
+  🔴🔑**その反転確認で最初のトリップワイヤが弱かったことが分かった**＝
+  `decompileEffects.ts` の**ソース文字列**を `includes` する形は `if (false && …)` を**素通りする**。
+  ⇒ **生成物（`docs/decompile_sheet*.txt`）を読む `decompiledLineOf()` へ差し替えた。**
+  🖥**実機**＝**不要**（触ったのは `scripts/` と `docs/` のみ＝`src/` は1バイトも変えていない。§2.2 の機械判定）。
+
 ### 恒久指標アーカイブ（2026-09-06・第190バッチ後・PLAN §6 から退避）
 
 - **2026-09-06（第190バッチ）＝§5.4 (b) の残り2件＋実機が engine の過剰発火を1件（Opus 5 単独／本ブロックが直近の正）**
