@@ -177,6 +177,14 @@ export function listActivatableSigniEffects(p: SigniActivateGateInput): CardEffe
       ? (e.timing === undefined || e.timing.includes('MAIN'))
       : !!e.timing?.includes('ATTACK_ARTS')) &&
     !(e.cost?.acceTrash && acceCount < e.cost.acceTrash) &&
+    // 🆕🔴**§5.3 `O-262`（2026-09-06 第184バッチ）＝入口が場ではない【起】をここで出さない。**
+    //   `trashActivated`／`energyActivated`／`handActivated`（`cost.discardSelfFromHand`）は
+    //   **その札がトラッシュ／エナゾーン／手札に在ること**を前提にした能力で、専用の入口
+    //   （`getMyTrashCardActions` / `getMyEnergyCardActions` / 手札アクション）から出す。
+    // 🔴旧はここに何の判定も無かったので、**同じ効果が場のシグニの【起】としても提示され**、
+    //   しかも `trashExile.self` の支払いは `trash.filter(cn => cn !== cardNum)`＝
+    //   **場に在る札はトラッシュに無いので1枚も減らず、コストを踏み倒して撃てた**。
+    !e.trashActivated && !e.energyActivated && !e.handActivated && !e.cost?.discardSelfFromHand &&
     // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
     //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
     !e.costUnparsed &&

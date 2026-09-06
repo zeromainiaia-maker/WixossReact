@@ -45852,6 +45852,45 @@ test('§6.4 canOfferTrashActivate：在庫不足の【起】はトラッシュUI
      '支払い不能なら盤面を変えず null');
 });
 
+test('§5.3 O-262: トラッシュ自己除外【起】は「トラッシュから提示・場からは非提示」（母集団10効果）', () => withSavedCursor(() => {
+  // 🔴**両方向のバグだった**＝原文コスト「トラッシュにあるこのカードをゲームから除外する」の10効果は
+  //   ①`trashActivated` が立たず**トラッシュUIから一度も提示されない**（恒久 no-op）
+  //   ②9枚はシグニなので**場の【起】としては提示され**、しかも `trashExile.self` の支払いは
+  //     `trash.filter(cn => cn !== cardNum)`＝**場の札はトラッシュに無いので1枚も減らず踏み倒せた**。
+  const eff = effectsMap.get('WX19-070')!.find(e => e.effectId === 'WX19-070-E1')!;
+  eq(eff.cost?.trashExile?.self, true, '前提：コストは「このカードをトラッシュから除外」');
+  ok(eff.trashActivated, '🔵入口はトラッシュ＝`trashActivated` が立つ（旧は undefined）');
+  // ① 場の【起】一覧には出さない（人間のボタン生成と CPU の候補フィルタは同じ関数）
+  const onField = mkState({ signi: ['WX19-070', null, null] });
+  eq(listActivatableSigniEffects({
+    my: onField, op: mkState({}), zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([['WX19-070', [eff]]]), cardMap,
+  }).length, 0, '🔴場のシグニの【起】としては提示しない（旧は提示され、コストが踏み倒せた）');
+  // ② トラッシュからは提示され、支払うと trash → lrig_trash（除外置き場）へ移る
+  // ⚠`StateOpts.trash` は**枚数**（`fill(n)`）＝カード番号の配列を渡すと0枚になる（§1 の実装罠と同型）。
+  const inTrash = { ...mkState({}), trash: ['WX19-070'] } as PlayerState;
+  ok(canOfferTrashActivate(eff, inTrash, mkState({}), cardMap), 'トラッシュに在れば提示する');
+  const paid = payTrashActivateCost(eff, inTrash, mkState({}),
+    { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap, undefined, 'WX19-070')!;
+  ok(!paid.my.trash.includes('WX19-070'), 'トラッシュから抜ける');
+  ok(paid.my.lrig_trash.includes('WX19-070'), '除外置き場（lrig_trash）へ入る＝シグニ【起】経路と同じゾーン');
+  // 🔴効果元を渡さない／トラッシュに無いときは**支払い不能へ倒す**（踏み倒しを構造で塞ぐ）
+  eq(payTrashActivateCost(eff, inTrash, mkState({}),
+    { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap), null,
+    '🔴効果元 cardNum が無ければ支払い不能');
+  eq(payTrashActivateCost(eff, mkState({}), mkState({}),
+    { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap, undefined, 'WX19-070'), null,
+    '🔴トラッシュに無い（＝場に居る）なら支払い不能');
+  // ③ ラベルは「自分は戻ってこない」ことを言う（本体の TRANSFER_TO_HAND を拾うと嘘になる）
+  eq(trashActivateVerbLabel(eff), 'このカードを除外して発動', 'ラベルは自己除外を優先して読む');
+  ok(trashActivateCostLabels(eff, inTrash, mkState({})).includes('このカードをゲームから除外'),
+    'コスト行にも除外が出る');
+  // ④ 選択を伴う `trashExile`（count 形）は**このモーダルに選ぶ列が無い**＝未対応側へ倒す
+  const countForm = { ...eff, cost: { trashExile: { count: 2 } } } as typeof eff;
+  eq(unsupportedTrashActivateCostKeys(countForm.cost).join(','), 'trashExile',
+    '🔴count 形は未対応＝提示しない（載せると踏み倒せる）');
+}));
+
 test('§6.4 canOfferTrashActivate：手札に該当シグニが足りなければ出さない（WXDi-CP01-050）', () => {
   const eff = effectsMap.get('WXDi-CP01-050')!.find(e => e.effectId === 'WXDi-CP01-050-E2')!;
   eq(eff.cost?.handDiscardSigni?.count, 2, '前提：手札から＜バーチャル＞のシグニ2枚');

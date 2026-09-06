@@ -20,6 +20,10 @@ import { payLrigDownCost, fmtLrigDownCostLabel } from './lrigDownCost';
 const SUPPORTED_COST_KEYS: ReadonlySet<string> = new Set([
   'energy', 'discard', 'discardFilter', 'handDiscardSigni',
   'coin', 'removeOppVirus', 'charmTrash', 'lrigDown', 'exceed',
+  // 🆕**§5.3 `O-262`（2026-09-06 第184バッチ）＝「トラッシュにあるこのカードをゲームから除外する」。**
+  //   ⚠**`self` 形だけ**（選択を伴う `count` 形は下の `unsupportedTrashActivateCostKeys` で弾く）＝
+  //   このモーダルにはトラッシュの札を選ぶ列が無いので、載せると**踏み倒して撃てる**側へ倒れる。
+  'trashExile',
 ]);
 
 /** 値が「指定あり」か（`discard: 0` や空配列は未指定と同じ扱い。旧 `&& v` 判定と互換）。 */
@@ -30,7 +34,10 @@ export function unsupportedTrashActivateCostKeys(cost: EffectCost | undefined): 
   if (!cost) return [];
   return Object.entries(cost)
     .filter(([k, v]) => isSpecified(v) && !SUPPORTED_COST_KEYS.has(k))
-    .map(([k]) => k);
+    .map(([k]) => k)
+    // 🔴`trashExile` は **`self` 形（効果元自身の除外＝自動）だけ**が払える。
+    //   「トラッシュのカードN枚を除外する」は**選ぶ列がこのモーダルに無い**＝未対応側へ倒す。
+    .concat(cost.trashExile && !cost.trashExile.self ? ['trashExile'] : []);
 }
 
 export interface TrashActivateHandDiscard {
@@ -131,6 +138,11 @@ export function canOfferTrashActivate(
  * ⚠**アクション出しとスタックのラベルで同じ関数を使う**（写経すると片方だけ古い文言に残る）。
  */
 export function trashActivateVerbLabel(effect: CardEffect): string {
+  // 🆕🔴**§5.3 `O-262`＝自己除外【起】は本体アクションより先に見る。**
+  //   この10効果は**自分は戻ってこない**（除外されて終わり）ので、本体の
+  //   `TRANSFER_TO_HAND`（＝トラッシュの**別の**札を手札に加える／`WXDi-P06-032-E3`）を
+  //   拾うと「このカードを手札に加える」という嘘のラベルになる。
+  if (effect.cost?.trashExile?.self) return 'このカードを除外して発動';
   const walk = (a: unknown): string | null => {
     if (!a || typeof a !== 'object') return null;
     const r = a as Record<string, unknown>;
@@ -159,6 +171,7 @@ export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op:
       ? `【チャーム】${cost.charmTrash}枚トラッシュ（現在${charmTotal(my)}枚）` : null,
     cost.lrigDown ? fmtLrigDownCostLabel(cost.lrigDown) : null,
     (cost.exceed ?? 0) > 0 ? `エクシード${cost.exceed}${cost.exceedColors?.length ? `（${cost.exceedColors.join('と')}のカード）` : ''}` : null,
+    cost.trashExile?.self ? 'このカードをゲームから除外' : null,
   ].filter((s): s is string => s !== null);
 }
 
@@ -222,9 +235,17 @@ export function payTrashActivateCost(
    * `selections.energy` はこの pool への index（先頭 `my.energy.length` 件がエナゾーンそのもの）。
    */
   energyPool?: readonly EnergyPayEntry[],
+  /**
+   * 🆕**効果元カード自身の instance id**（§5.3 `O-262`）。`cost.trashExile.self`
+   * （「トラッシュにあるこのカードをゲームから除外する」）を払うときだけ必須。
+   * 🔴**渡されない／トラッシュに無いときは支払い不能（null）へ倒す**＝
+   *   場のシグニとして撃たれた場合に「1枚も減らないのに成立する」踏み倒しを構造で塞ぐ。
+   */
+  sourceCardNum?: string,
 ): TrashActivatePayment | null {
   const cost = effect.cost;
   if (unsupportedTrashActivateCostKeys(cost).length > 0) return null;
+  if (cost?.trashExile?.self && !(sourceCardNum && my.trash.includes(sourceCardNum))) return null;
   if (!trashActivateSelectionsSatisfied(effect, my, selections, cardMap)) return null;
 
   const pool = energyPool ?? my.energy.map((cardNum, energyIndex) => ({ origin: 'energy' as const, cardNum, energyIndex }));
@@ -303,6 +324,18 @@ export function payTrashActivateCost(
     const exceeded = paySelectedExceed(paid, exceedNeeded, selections.exceed, cost?.exceedColors, cardMap);
     if (!exceeded) return null;
     paid = exceeded;
+  }
+
+  // 🆕**§5.3 `O-262`＝トラッシュにあるこのカード自身をゲームから除外する。**
+  //   ⚠行き先は `lrig_trash`（＝除外置き場）＝シグニ【起】経路（`BattleScreen` の
+  //   `effect.cost?.trashExile?.self` 分岐）と**同じゾーン**に揃える。
+  //   ⚠`trash` に残すと解決中に自分自身をもう一度参照できてしまう（「トラッシュから」系の filter）。
+  if (cost?.trashExile?.self && sourceCardNum) {
+    paid = {
+      ...paid,
+      trash: paid.trash.filter(cn => cn !== sourceCardNum),
+      lrig_trash: [...paid.lrig_trash, sourceCardNum],
+    };
   }
 
   return { my: paid, op: nextOp, discardedCards, coinPaid };
